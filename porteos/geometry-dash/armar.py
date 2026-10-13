@@ -40,7 +40,13 @@ for n, h in meta["hojas"].items():
     if not DIFERIDAS.match(n):
         inicio.append(f"tex/{n}.webp")
 inicio += [f"son/{a}" for a in sorted(os.listdir(os.path.join(datos, "son")))]
-paq = {"inicio": paquete("inicio", inicio),
+# arranque: lo mínimo para la pantalla de carga del juego (logo, barra, fuentes), con sus marcos
+ARR_HOJAS = ["GJ_LaunchSheet", "GJ_gradientBG", "slidergroove", "sliderBar"]
+ARR_FUENTES = ["bigFont", "goldFont", "chatFont"]
+arr = {"hojas": {n: meta["hojas"].get(n) for n in ARR_HOJAS}, "fuentes": {n: meta["fuentes"][n] for n in ARR_FUENTES}, "sd": meta.get("sd", [])}
+json.dump(arr, open(os.path.join(datos, "arranque.json"), "w"), separators=(",", ":"))
+arranque = ["arranque.json"] + [f"tex/{n}.webp" for n in ARR_HOJAS] + [f"tex/{meta['fuentes'][n]['page'].replace('-hd.png', '').replace('.png', '')}.webp" for n in ARR_FUENTES]
+paq = {"arranque": paquete("arranque", arranque), "inicio": paquete("inicio", inicio),
        "iconos": paquete("iconos", [f"ico/{a}" for a in sorted(os.listdir(os.path.join(datos, "ico")))])}
 locales = sorted(int(a[:-4]) for a in os.listdir(os.path.join(datos, "mus")) if a[:-4].isdigit())
 
