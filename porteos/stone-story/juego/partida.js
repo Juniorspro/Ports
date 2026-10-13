@@ -49,7 +49,9 @@ const Partida = (() => {
       golpe: ref2(c.attackPerfSprite), muere: ref2(c.deathSprite),
     };
     // arma: componente Weapon en un hijo
-    Obj.recorrer(o, (h) => { const w = Obj.comp(h, 'Weapon'); if (w && !q.arma) q.arma = w; });
+    q.armas = [];
+    Obj.recorrer(o, (h) => { for (const w of h.comps) if (w._c === 'Weapon') q.armas.push(w); });
+    q.arma = q.armas[0];
     if (q.clase === 'Enemy') { q.dormido = !!c.sleepIfNoWeapon || !!q.sp.dormido; q.hostil = !!c.hostile; }
     const hr = o.comps.find((x) => x._c === 'HarvestableResource');
     if (hr) q.recurso = hr.resourceType || 1;
@@ -238,7 +240,8 @@ const Partida = (() => {
       const dx = ob.x - h.x, dz = ob.z - h.z;
       const alcance = ob.clase === 'Pickup' || ob.clase === 'WayPoint' ? 0 : Math.max(1, a.rango - 1) + Math.floor(ob.ancho / 2);
       if (ob.clase === 'Pickup' || ob.clase === 'WayPoint') {
-        if (Math.abs(dx) <= 0 && Math.abs(dz) <= 0) {
+        const zLim = (dz > 0 && h.z >= L.limInf) || (dz < 0 && h.z <= L.limSup);
+        if (Math.abs(dx) <= 0 && (Math.abs(dz) <= 0 || zLim)) {
           if (ob.clase === 'Pickup') {
             ob.vivo = false; ob.muerte = 0;
             if (ob.c._c === 'TreasurePickup') { L.tesoros = (L.tesoros || 0) + 1; Sonido.efecto('pickup_success'); } else P.ganar(L, ob.c.id || 'stone', ob.c.grantAmount || 1);
@@ -265,7 +268,7 @@ const Partida = (() => {
     if (h.acX >= 30) { h.acX -= 30; dx = quiereX; }
     if (h.acZ >= 30) { h.acZ -= 30; dz = quiereZ; }
     const secs = L.quest.sections || [];
-    const lim = Math.min(L.camX + Math.floor(Pantalla.cols / 2) - 4, secs.length ? (secs.length - 1) * X_SECCION + 30 : 1e9);
+    const lim = L.camX + Math.floor(Pantalla.cols / 2) - 4;
     if (dx > 0 && h.x >= lim) dx = 0;
     if (dx || dz) { mover(h, dx, dz, L); h.estado = 'camina'; } else if (!quiereX && !quiereZ) h.estado = 'quieto';
   }
@@ -315,8 +318,12 @@ const Partida = (() => {
       else return;
     }
     if (!h.vivo || q.hostil === false) return;
-    const a = armaDe(q);
     const dx = h.x - q.x, dz = h.z - q.z;
+    if (!q.atk && q.armas.length > 1) {
+      const sirven = q.armas.filter((w) => Math.abs(dx) <= (w.baseRange || 1) + 1);
+      q.arma = sirven.length ? sirven[Math.floor(L.azar() * sirven.length)] : q.armas[0];
+    }
+    const a = armaDe(q);
     q.mira = dx >= 0 ? 1 : -1;
     if (Math.abs(dx) <= a.rango + 1 && Math.abs(dz) <= 1) { atacar(L, q, h, a); return; }
     q.atk = null;
@@ -335,7 +342,7 @@ const Partida = (() => {
     Fondo.paso(L.fondo); Fondo.paso(L.frente);
     for (const q of L.personajes) {
       if (q.vivo) {
-        if (q.esHeroe) pasoHeroe(L);
+        if (q.esHeroe) { if (!L.completo) pasoHeroe(L); }
         else if (q.clase === 'Enemy') pasoEnemigo(L, q);
         else if (q.clase === 'LevelEndPoint' && L.heroe.x >= q.x) { q.vivo = false; if (q.c.completeLevel) L.completo = true; }
       } else if (q.muerte > 0) q.muerte--;
@@ -355,7 +362,10 @@ const Partida = (() => {
       P.disparar(L);
     }
     // camara: va hacia seccion*69 con lerp 0.11
-    const destino = L.seccion * X_SECCION;
+    let destino = L.seccion * X_SECCION;
+    // en la ultima seccion, si queda algo mas adelante, la camara sigue al heroe
+    if (secs.length && L.seccion + 1 >= secs.length && L.personajes.some((q) => q.vivo && !q.esHeroe && q.x > h.x + 10 && q.clase !== 'Decoration'))
+      destino = Math.max(destino, h.x - Math.floor(Pantalla.cols / 2) + 24);
     L.camXf += (destino - L.camXf) * 0.11;
     if (Math.abs(destino - L.camXf) < 0.5) L.camXf = destino;
     L.camX = Math.round(L.camXf);
@@ -375,6 +385,18 @@ const Partida = (() => {
       return { o: q.o, s: q.sprite };
     }
     if (!q.vivo && q.spMuerte) return q.spMuerte;
+    // sprites propios del arma en uso (castSprite / perfSprite)
+    if (q.arma && (q.estado === 'carga' || q.estado === 'golpe')) {
+      const r = Obj.ref(q.estado === 'carga' ? q.arma.castSprite : q.arma.perfSprite);
+      if (r && r[1]) {
+        const d = Obj.datos(r[1]), n = d.cuadros.length, a = armaDe(q);
+        if (n && q.atk) {
+          const t = q.estado === 'carga' ? (q.atk.t - 1) / a.carga : (q.atk.t - a.carga - 1) / Math.max(1, a.golpe);
+          r[1]._cuadro = d.cuadros[Math.max(0, Math.min(n - 1, Math.floor(t * n)))];
+        }
+        return { o: r[0], s: r[1] };
+      }
+    }
     const e = q.dormido ? q.sp.dormido : q.estado === 'camina' ? q.sp.camina : q.estado === 'carga' ? q.sp.carga : q.estado === 'golpe' ? q.sp.golpe : null;
     if (e && e.s) return e;
     return { o: q.o, s: q.sprite };

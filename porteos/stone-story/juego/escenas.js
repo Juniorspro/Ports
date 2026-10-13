@@ -56,6 +56,66 @@ const UI = {
 };
 
 const Escenas = {
+  // primera vez: elegir idioma (los .txt de idiomas del juego, con su display_name)
+  idioma(despues) {
+    const lista = Idioma.idiomas().map((c) => {
+      const t = Datos.texto(Datos.porNombre[c + '_General']) || '';
+      const m = t.match(/display_name:([^,\n]*)/);
+      return { c, n: m ? m[1].trim() : c };
+    }).filter((l) => [...l.n].every((ch) => ch === '?' || Ascii.codigo(ch.charCodeAt(0)) !== 63)); // solo los que entran en la tabla de letras
+    let bot = [];
+    return {
+      dibujar() {
+        const P = Pantalla; bot = [];
+        const cols = 3, w = 24, x0 = (P.cols - cols * (w + 1)) >> 1;
+        lista.forEach((l, i) => {
+          const x = x0 + (i % cols) * (w + 1), y = 2 + Math.floor(i / cols) * 3;
+          UI.caja(x, y, w, 3, l.c === Idioma.cod ? [255, 255, 0] : [200, 200, 200]);
+          P.texto(x + 2, y + 1, l.n.slice(0, w - 4));
+          bot.push({ x, y, w, h: 3, l });
+        });
+      },
+      toque(x, y) {
+        const b = bot.find((b) => UI.boton(b, 0, 0, [x, y]));
+        if (b) { Idioma.poner(b.l.c); Juego.cambiar(despues()); }
+      },
+    };
+  },
+
+  // ajustes: idioma, sonido, musica, reiniciar
+  ajustes(volver) {
+    let bot = [], seguro = false;
+    return {
+      dibujar() {
+        const P = Pantalla; bot = [];
+        const w = 36, x = (P.cols - w) >> 1;
+        const filas = [
+          ['idioma', T('tid_button_language')],
+          ['sonido', T('tid_button_sound') + ': ' + (Sonido.vol ? 'ON' : 'OFF')],
+          ['musica', T('tid_button_music') + ': ' + (Sonido.volMus ? 'ON' : 'OFF')],
+          ['reiniciar', seguro ? '? ' + T('tid_ftue_00') + ' ?' : T('tid_ftue_00')],
+          ['volver', T('tid_button_continue')],
+        ];
+        filas.forEach(([k, n], i) => {
+          const y = 2 + i * 3;
+          UI.caja(x, y, w, 3, k === 'reiniciar' && seguro ? [255, 80, 80] : [220, 220, 220]);
+          P.texto(x + 2, y + 1, n);
+          bot.push({ x, y, w, h: 3, k });
+        });
+      },
+      toque(x, y) {
+        const b = bot.find((b) => UI.boton(b, 0, 0, [x, y]));
+        if (!b) return;
+        Sonido.efecto('click');
+        if (b.k === 'idioma') Juego.cambiar(Escenas.idioma(() => Escenas.ajustes(volver)));
+        else if (b.k === 'sonido') { Sonido.vol = Sonido.vol ? 0 : 1; Sonido.guardar(); }
+        else if (b.k === 'musica') { Sonido.volMus = Sonido.volMus ? 0 : 0.6; Sonido.guardar(); Sonido.reaplicar(); }
+        else if (b.k === 'reiniciar') { if (!seguro) seguro = true; else { try { localStorage.removeItem('stonestory.prog'); } catch (e) {} location.reload(); } }
+        else Juego.cambiar(volver());
+      },
+    };
+  },
+
   // logo que se dibuja solo (LogoLogic: logo_draw 5,6 s) y "toca para empezar"
   titulo() {
     const logo = Obj.crear(Object.keys(Datos.prefabs).find((k) => Datos.prefabs[k].n === 'logo_new'));
@@ -69,7 +129,12 @@ const Escenas = {
       paso() {
         t++;
         Obj.paso(fase === 'quema' ? quema : dibuja, 1 / TICS);
-        if (fase === 'quema' && t > 5 * TICS) Juego.cambiar(Object.keys(Prog.completos).length || Prog.recursos.stone ? Escenas.menu() : Escenas.intro());
+        if (fase === 'quema' && t > 5 * TICS) {
+          const sig = () => (Object.keys(Prog.completos).length || Prog.recursos.stone ? Escenas.menu() : Escenas.intro());
+          let elegido = false;
+          try { elegido = !!localStorage.getItem('stonestory.idioma'); } catch (e) {}
+          Juego.cambiar(elegido ? sig() : Escenas.idioma(sig));
+        }
       },
       dibujar() {
         const o = fase === 'quema' ? quema : dibuja;
@@ -127,6 +192,8 @@ const Escenas = {
       dibujar() {
         const P = Pantalla;
         botones = [];
+        P.texto(1, 0, '\u263c', [200, 200, 200]);
+        botones.push({ x: 0, y: 0, w: 4, h: 2, ajustes: 1 });
         const hab = Quests.habilitados().filter((q) => !(q.oneShot && Prog.completos[q.id]));
         const taller = hab.filter((q) => q.workstation);
         const tabs = [['lugares', T('tid_button_locations')]];
@@ -179,6 +246,7 @@ const Escenas = {
         const b = botones.find((b) => UI.boton(b, 0, 0, [x, y]));
         if (!b) return;
         Sonido.efecto('click');
+        if (b.ajustes) { const pe = pestana; Juego.cambiar(Escenas.ajustes(() => Escenas.menu(pe))); return; }
         if (b.tab) { pestana = b.tab; return; }
         if (b.item) {
           const s = Items.stats(Prog.items[b.item]);
@@ -235,9 +303,10 @@ const Escenas = {
     const q = Quests.vuelta(id);
     const L = Partida.nuevo(q);
     window.prueba.partida = L;
-    let fin = 0;
+    let fin = 0, pausa = false;
     return {
       paso() {
+        if (pausa) return;
         Partida.paso(L);
         if (L.completo || L.perdido) {
           if (!fin) {
@@ -254,6 +323,8 @@ const Escenas = {
       dibujar() {
         Partida.dibujar(L);
         Hud.dibujar(L);
+        Pantalla.texto(Pantalla.cols - 3, 0, '||', [200, 200, 200]);
+        if (pausa) this.dibujarPausa();
         if (fin > 20) {
           const P = Pantalla, w = Math.min(60, P.cols - 6), x = (P.cols - w) >> 1;
           const txt = L.completo ? T((q.outro && q.outro.line1) || 'Completado') : 'Te derrotaron';
@@ -267,7 +338,22 @@ const Escenas = {
           P.texto(x + 2, 10 + ls.length + Math.min(4, (L.botin || []).length), '> ' + T('tid_button_continue'), [255, 255, 0]);
         }
       },
-      toque() { if (fin > 30) Juego.cambiar(Escenas.menu()); },
+      toque(x, y) {
+        const P = Pantalla;
+        if (fin > 30) { Juego.cambiar(Escenas.menu()); return; }
+        if (fin) return;
+        if (!pausa && x >= P.cols - 5 && y <= 2) { pausa = true; Sonido.efecto('click'); return; }
+        if (pausa) {
+          if (y === (P.filas >> 1) - 1 || y === (P.filas >> 1) - 2) pausa = false;
+          else if (y === (P.filas >> 1) + 2 || y === (P.filas >> 1) + 1) { Sonido.musica(null); Sonido.ambiente(null); Juego.cambiar(Escenas.menu()); }
+        }
+      },
+      dibujarPausa() {
+        const P = Pantalla, w = 30, x = (P.cols - w) >> 1, y = (P.filas >> 1) - 3;
+        UI.caja(x, y, w, 7);
+        P.texto(x + 3, y + 2, '> ' + T('tid_button_continue'), [255, 255, 0]);
+        P.texto(x + 3, y + 4, '< ' + T('tid_button_leave'), [255, 160, 160]);
+      },
     };
   },
 };

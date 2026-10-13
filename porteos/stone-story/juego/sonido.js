@@ -3,9 +3,12 @@
 'use strict';
 const Sonido = (() => {
   const S = { vol: 1, volMus: 0.6 };
+  try { const g = JSON.parse(localStorage.getItem('stonestory.sonido')); if (g) Object.assign(S, g); } catch (e) {}
+  S.guardar = () => { try { localStorage.setItem('stonestory.sonido', JSON.stringify({ vol: S.vol, volMus: S.volMus })); } catch (e) {} };
+  S.reaplicar = () => { if (musica) musica.g.gain.value = S.volMus; if (amb) amb.g.gain.value = S.volMus * 0.8; };
   let ctx, bin, idx = {}, base = 0;
   const buf = new Map(), sfx = {}, mus = {};
-  let musica = null, musId = null;
+  let musica = null, musId = null, amb = null, ambId = null;
 
   S.cargar = (ab) => {
     bin = ab;
@@ -63,7 +66,6 @@ const Sonido = (() => {
     });
   };
   // ambiente: otra pista en bucle, por debajo de la musica
-  let amb = null, ambId = null;
   S.ambiente = (id) => {
     if (id === ambId) return;
     ambId = id;

@@ -6,6 +6,7 @@ const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftsha
 const p = await b.newPage({ viewport: { width: 873, height: 393 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const errores = [];
 p.on('pageerror', (e) => errores.push(e.message));
+await p.addInitScript(() => { try { localStorage.clear(); localStorage.setItem('stonestory.idioma', 'ES-LA'); } catch (e) {} });
 await p.goto(url);
 await p.waitForFunction(() => window.prueba && window.prueba.listo, null, { timeout: 60000 });
 const toque = (x, y) => p.evaluate(([x, y]) => Juego.escena.toque && Juego.escena.toque(x, y), [x, y]);
