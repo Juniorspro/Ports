@@ -146,6 +146,8 @@ class Obj {
     this.op = 1; this.vis = !(raw[135] == 1); this.dx = 0; this.dy = 0; this.drot = 0; this.activo = true;
     this.noGlow = raw[96] == 1; this.noTocar = raw[121] == 1; this.altoDetalle = raw[103] == 1;
     this.partes = O.partes(this);
+    // objeto de partículas de la 2.2: la definición va en la clave 145
+    if (this.id === 2065 && raw[145]) this.pdef = GD.ParticulasGD.leer(raw[145]);
     // sierras y engranajes giran solos (98 = sin giro, 97 = velocidad propia)
     this.giro = raw[98] == 1 ? 0 : raw[97] !== undefined ? +raw[97] : (O.GIRAN.test(d.t || '') ? 360 : 0);
     this.late = O.LATEN.test(d.t || '');
@@ -303,7 +305,7 @@ O.dibujarObjetos = function (vis, w, cols, op) {
   for (let capa = 0; capa < 9; capa++) {
     if (capa === op.capaJugador && op.jugadores) op.jugadores();
     for (let modo = 0; modo < 3; modo++) {
-      const lista = capas[capa * 3 + modo]; if (!lista || !lista.length) continue;
+      const lista = capas[capa * 3 + modo]; if (!lista || !lista.length) { if (modo === 2 && op.emisores) O.emisoresCapa(op, capa); continue; }
       vistos.length = 0;
       for (let i = 0; i < lista.length; i += 4) if (!vistos.includes(lista[i])) vistos.push(lista[i]);
       const add = modo !== 1;
@@ -313,7 +315,10 @@ O.dibujarObjetos = function (vis, w, cols, op) {
         _mo[0] = _mats[k]; _mo[1] = _mats[k + 1]; _mo[2] = _mats[k + 2]; _mo[3] = _mats[k + 3]; _mo[4] = _mats[k + 4]; _mo[5] = _mats[k + 5];
         O.pintarParte(_mo, lista[i + 2], lista[i + 3], add);
       }
+      if (modo === 2 && op.emisores) O.emisoresCapa(op, capa);
     }
   }
   if (op.capaJugador >= 9 && op.jugadores) op.jugadores();
 };
+// partículas de la 2.2: van con su capa, después de los objetos de esa capa
+O.emisoresCapa = function (op, capa) { for (const o of op.emisores) if ((O.ORDEN_CAPA[o.capa] ?? 5) === capa) op.dibujarEmisor(o); };

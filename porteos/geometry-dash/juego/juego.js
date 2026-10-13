@@ -87,7 +87,8 @@ class Partida extends GD.Nodo {
     if (this.practica) this.armarPractica();
     if (this.plataformas) {
       const W = D.ancho, mk = (f, x, y, fx) => { const sp = new GD.Sprite(f); sp.pos(x, y); sp.op = 120; sp.fx = !!fx; h.agregar(sp); return sp; };
-      if (GD.T.m('PBtn_Arrow_001.png')) { mk('PBtn_Arrow_001.png', W * 0.1, 45, true); mk('PBtn_Arrow_001.png', W * 0.3, 45); }
+      // izquierda y derecha: el mismo botón de flecha, el de la derecha espejado
+      if (GD.T.m('PBtn_Move_001.png')) { mk('PBtn_Move_001.png', W * 0.1, 45); mk('PBtn_Move_001.png', W * 0.3, 45, true); }
       if (GD.T.m('PBtn_Jump_001.png')) mk('PBtn_Jump_001.png', W * 0.85, 45);
       this.barra.vis = false; this.pct.vis = false;
     }
@@ -102,7 +103,8 @@ class Partida extends GD.Nodo {
   reiniciar(primera) {
     const cp = this.practica && this.checkpoints.length ? this.checkpoints[this.checkpoints.length - 1] : null;
     this.cols = new GD.O.Colores(this.nv, GD.perfil.c1rgb(), GD.perfil.c2rgb());
-    for (const o of this.objs) { o.dx = 0; o.dy = 0; o.drot = 0; o.op = 1; o.activo = true; o.usado = false; o.pulsos = null; o.esx = 1; o.esy = 1; o.oculto = false; o.tomado = false; o.muerto = false; o.usadoPor = null; o.anim = 0; if (o.sec === undefined) this.ponerEnSeccion(o); }
+    for (const o of this.objs) { o.dx = 0; o.dy = 0; o.drot = 0; o.op = 1; o.activo = true; o.usado = false; o.pulsos = null; o.esx = 1; o.esy = 1; o.oculto = false; o.tomado = false; o.muerto = false; o.usadoPor = null; o.anim = 0; o.emisor = null; o.animado = false; if (o.sec === undefined) this.ponerEnSeccion(o); }
+    this.particulas = [];
     this.reseccionar();
     if (GD.TR) GD.TR.reiniciar(this);
     const j = this.j = new GD.Jugador(this);
@@ -583,6 +585,8 @@ class Partida extends GD.Nodo {
   dibujar(pm) {
     if (!this.listo) return;
     const D = GD.D, R = GD.R, zoom = this.zoom || 1;
+    // efectos de pantalla (shaders de la 2.2): el mundo va a una textura y después a la pantalla
+    const conShader = !this.enEditor && GD.Shaders && !GD.Shaders.roto && this.tr && GD.Shaders.empezar(this);
     this.dibujarFondo();
     // vista del mundo: unidades del nivel → pantalla (con espejo y zoom de cámara)
     const k = this.espejoAnim();
@@ -598,13 +602,31 @@ class Partida extends GD.Nodo {
     const editor = !!this.enEditor;
     const vis2 = editor ? vis : vis.filter(o => o.vis && !o.oculto && !GD.O.esTrigger(o.id) && o.op > 0.001);
     if (!editor) this.efectosBorde(vis2, x0 + 100, x1 - 100);
-    GD.O.dibujarObjetos(vis2, w, this.cols, { capaJugador: 5, jugadores: () => this.dibujarJugadores(w), opacidad: this.fundidoBorde ? o => this.fundidoBorde(o) : null });
+    const emisores = vis.filter(o => o.pdef && (editor || (o.vis && !o.oculto)));
+    GD.O.dibujarObjetos(vis2, w, this.cols, { capaJugador: 5, jugadores: () => this.dibujarJugadores(w), opacidad: this.fundidoBorde ? o => this.fundidoBorde(o) : null,
+      emisores: emisores.length ? emisores : null, dibujarEmisor: o => this.dibujarEmisor(o, w) });
 
     this.dibujarEfectos(w);
     if (this.practica && GD.perfil.opcion('show-hitboxes')) this.dibujarCajas(w);
     this.dibujarPiso();
+    if (conShader) GD.Shaders.terminar(this);
     // HUD y lo que no es del mundo
     super.dibujar(pm, 255, 255, 255, 255);
+  }
+  // objeto de partículas (2065): emite mientras se ve; con "animar al activar" (123) espera a un
+  // trigger Animate; con "inicio rápido" (211) ya aparece lleno
+  dibujarEmisor(o, w) {
+    let e = o.emisor;
+    const pon = () => { e.x = o.cx + (o.vx || 0); e.y = o.cy + (o.vy || 0); e.rot = o.rot + o.drot; e.esc = Math.abs(o.sx) * (o.esx || 1); };
+    if (!e) {
+      e = o.emisor = new GD.EmisorGD(o.pdef); pon();
+      if (o.raw[123] == 1 && !o.animado) e.emitiendo = false;
+      else if (o.raw[211] == 1) for (let t = 0; t < Math.min(3, o.pdef.vida + o.pdef.vidaV); t += 0.05) e.paso(0.05);
+    }
+    pon();
+    if (!this.pausada) e.paso(Math.min(0.05, GD.D.dt || 0));
+    const tinte = o.raw[146] == 1 ? GD.O.colorParte(o, { ct: 'b' }, this.cols).slice(0, 3) : null;
+    e.dibujar(w, tinte, o.op * (o.fb === undefined ? 1 : o.fb));
   }
   dibujarCajas(w) {
     const R = GD.R, uv = new Float32Array(8).fill(0.5), xs = new Float32Array(8);
@@ -714,6 +736,10 @@ class Partida extends GD.Nodo {
     s.dibujar(new Float32Array([1, 0, 0, 1, 0, 0]), 255, 255, 255, 255);
   }
   dibujarEfectos(w) {
+    if (this.particulas && this.particulas.length) {
+      for (const q of this.particulas) { if (!this.pausada) q.e.paso(Math.min(0.05, GD.D.dt || 0)); q.e.dibujar(w, q.tinte, 1); }
+      this.particulas = this.particulas.filter(q => !q.e.fin);
+    }
     this.efectos = this.efectos || [];
     for (const e of this.efectos.slice()) { e.actualizar(GD.D.dt || 0); if (!e.padre && e._quitado) continue; e.dibujar(w, 255, 255, 255, 255); }
     this.efectos = this.efectos.filter(e => !e._fin);

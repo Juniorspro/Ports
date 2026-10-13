@@ -138,3 +138,103 @@ class Estela {
   }
 }
 GD.Estela = Estela;
+
+// ---------------- partículas propias de la 2.2 (objeto 2065 y el trigger 3608) ----------------
+// El nivel guarda la definición en la clave 145: 72 números separados por "a" (máximo, duración,
+// vida, emisión, ángulo, velocidad, gravedad, aceleraciones, tamaños, giros, colores inicio/fin con
+// sus variaciones, fundidos, radios, modo gravedad/radio, libre/relativo/agrupado, aditivo, textura,
+// fricciones...). Todo en unidades del nivel (un bloque = 30).
+const PGD = GD.ParticulasGD = {};
+PGD.leer = function (s) {
+  const v = String(s || '').split('a').map(Number); while (v.length < 72) v.push(0);
+  const n = i => (isFinite(v[i]) ? v[i] : 0);
+  return {
+    max: Math.max(0, n(0) | 0), dur: n(1), vida: n(2), vidaV: n(3), emision: n(4), ang: n(5), angV: n(6), vel: n(7), velV: n(8),
+    pvx: n(9), pvy: n(10), gx: n(11), gy: n(12), ar: n(13), arV: n(14), at: n(15), atV: n(16),
+    t0: n(17), t0V: n(18), g0: n(19), g0V: n(20), c0: [n(21), n(23), n(25), n(27)], c0V: [n(22), n(24), n(26), n(28)],
+    t1: n(29), t1V: n(30), g1: n(31), g1V: n(32), c1: [n(33), n(35), n(37), n(39)], c1V: [n(34), n(36), n(38), n(40)],
+    fi: n(41), fiV: n(42), fo: n(43), foV: n(44), r0: n(45), r0V: n(46), r1: n(47), r1V: n(48), rs: n(49), rsV: n(50),
+    radial: n(51) === 1, pos: n(52) | 0, add: n(53) === 1, giroIgual: n(54) === 1, giroDir: n(55) === 1, giroDin: n(56) === 1, tex: n(57) | 0,
+    colObjUnif: n(58) === 1, frP: n(59), frPV: n(60), resp: n(61), respV: n(62), ordenado: n(63) === 1, tamIgual: n(64) === 1, radIgual: n(65) === 1,
+    syncIni: n(66) === 1, syncFin: n(67) === 1, frS: n(68), frSV: n(69), frR: n(70), frRV: n(71),
+  };
+};
+const V = v => (Math.random() * 2 - 1) * (v || 0);
+class EmisorGD {
+  // d: definición leída; rot y esc del objeto (giran la dirección y agrandan todo)
+  constructor(d) { this.d = d; this.p = []; this.acum = 0; this.t = 0; this.emitiendo = true; this.x = 0; this.y = 0; this.rot = 0; this.esc = 1; this.f = GD.T.m(`particle_${String(d.tex).padStart(2, '0')}_001.png`) || GD.T.m('particle_00_001.png'); }
+  reiniciar() { this.p.length = 0; this.t = 0; this.acum = 0; this.emitiendo = true; this.rafaga = false; }
+  emitir() {
+    const d = this.d, es = this.esc, vida = Math.max(0.01, d.vida + V(d.vidaV)), ang = (d.ang + V(d.angV) - this.rot) * Math.PI / 180;
+    const sync = (c, cv, s) => { if (s) { const k = V(1); return c.map((x, i) => x + cv[i] * k); } return c.map((x, i) => x + V(cv[i])); };
+    const p = {
+      t: 0, vida, lx: V(d.pvx) * es, ly: V(d.pvy) * es,
+      s0: Math.max(0, d.t0 + V(d.t0V)) * es, c0: sync(d.c0, d.c0V, d.syncIni), c1: sync(d.c1, d.c1V, d.syncFin),
+      fi: Math.max(0, d.fi + V(d.fiV)), fo: Math.max(0, d.fo + V(d.foV)), fr: Math.max(0, d.frP + V(d.frPV)),
+    };
+    p.s1 = d.tamIgual ? p.s0 : Math.max(0, d.t1 + V(d.t1V)) * es;
+    p.g0 = d.g0 + V(d.g0V); p.g1 = d.giroIgual ? p.g0 : d.g1 + V(d.g1V);
+    if (d.radial) {
+      p.rad = (d.r0 + V(d.r0V)) * es; p.rad1 = d.radIgual ? p.rad : (d.r1 + V(d.r1V)) * es; p.rad0 = p.rad; p.a = ang; p.da = (d.rs + V(d.rsV)) * Math.PI / 180;
+    } else {
+      const v = (d.vel + V(d.velV)) * es; p.vx = Math.cos(ang) * v; p.vy = Math.sin(ang) * v;
+      p.ra = (d.ar + V(d.arV)) * es; p.ta = (d.at + V(d.atV)) * es;
+      if (d.giroDir) p.g0 += -ang * 180 / Math.PI, p.g1 += -ang * 180 / Math.PI;
+    }
+    // libre: la partícula queda donde nació; relativa/agrupada: se mueve con el emisor
+    if (d.pos === 0) { p.ox = this.x; p.oy = this.y; } else { p.ox = 0; p.oy = 0; }
+    p.x = p.lx; p.y = p.ly;
+    if (d.ordenado) this.p.push(p); else this.p.unshift(p);
+  }
+  paso(dt) {
+    const d = this.d;
+    if (this.emitiendo) {
+      if (d.dur === 0 || (d.dur > 0 && d.emision < 0 && d.dur < 0.05)) { // ráfaga: todas juntas una vez
+        if (!this.rafaga) { this.rafaga = true; for (let i = 0; i < d.max; i++) this.emitir(); }
+        this.emitiendo = false;
+      } else {
+        const tasa = d.emision > 0 ? d.emision : d.max / Math.max(0.01, d.vida);
+        this.acum += dt * tasa;
+        while (this.acum >= 1) { this.acum--; if (this.p.length < d.max) this.emitir(); }
+        this.t += dt; if (d.dur > 0 && this.t >= d.dur) this.emitiendo = false;
+      }
+    }
+    const gx = d.gx * this.esc, gy = d.gy * this.esc, cr = Math.cos(-this.rot * Math.PI / 180), sr = Math.sin(-this.rot * Math.PI / 180);
+    const Gx = gx * cr - gy * sr, Gy = gx * sr + gy * cr;
+    for (let i = this.p.length - 1; i >= 0; i--) {
+      const p = this.p[i]; p.t += dt;
+      if (p.t >= p.vida) { this.p.splice(i, 1); continue; }
+      if (p.rad !== undefined) { const k = p.t / p.vida; p.a += p.da * dt; const r = p.rad0 + (p.rad1 - p.rad0) * k; p.x = p.lx - Math.cos(p.a) * r; p.y = p.ly - Math.sin(p.a) * r; continue; }
+      let rx = p.x - p.lx, ry = p.y - p.ly; const l = Math.hypot(rx, ry); if (l > 0) { rx /= l; ry /= l; }
+      p.vx += (rx * p.ra - ry * p.ta + Gx) * dt; p.vy += (ry * p.ra + rx * p.ta + Gy) * dt;
+      if (p.fr) { const k = Math.max(0, 1 - p.fr * dt); p.vx *= k; p.vy *= k; }
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (this.d.giroDin) p.dir = Math.atan2(p.vy, p.vx);
+    }
+    if (!this.emitiendo && !this.p.length) this.fin = true;
+  }
+  // w: vista del mundo; tinte: color del objeto (si usa el color del objeto); op: opacidad del objeto
+  dibujar(w, tinte, op) {
+    const f = this.f; if (!f || !this.p.length) return;
+    const tw = f.tx.w, th = f.tx.h, u0 = f.x / tw, v0 = f.y / th, u1 = (f.x + (f.rot ? f.h : f.w)) / tw, v1 = (f.y + (f.rot ? f.w : f.h)) / th;
+    const uv = f.rot ? [u1, v0, u1, v1, u0, v0, u0, v1] : [u0, v0, u1, v0, u0, v1, u1, v1];
+    const xs = EmisorGD._xs, U = EmisorGD._uv; U.set(uv);
+    const ex = this.d.pos === 0 ? 0 : this.x, ey = this.d.pos === 0 ? 0 : this.y;
+    for (const p of this.p) {
+      const k = p.t / p.vida, s = (p.s0 + (p.s1 - p.s0) * k) / 2;
+      let a = p.c0[3] + (p.c1[3] - p.c0[3]) * k;
+      if (p.fi > 0 && p.t < p.fi) a *= p.t / p.fi;
+      if (p.fo > 0 && p.vida - p.t < p.fo) a *= (p.vida - p.t) / p.fo;
+      a = GD.clamp(a, 0, 1) * op; if (a <= 0.003 || s <= 0) continue;
+      let r, g, b;
+      if (tinte) [r, g, b] = tinte; else { r = 255 * GD.clamp(p.c0[0] + (p.c1[0] - p.c0[0]) * k, 0, 1); g = 255 * GD.clamp(p.c0[1] + (p.c1[1] - p.c0[1]) * k, 0, 1); b = 255 * GD.clamp(p.c0[2] + (p.c1[2] - p.c0[2]) * k, 0, 1); }
+      const giro = p.dir !== undefined ? p.dir : -(p.g0 + (p.g1 - p.g0) * k) * Math.PI / 180, c = Math.cos(giro) * s, sn = Math.sin(giro) * s;
+      const X = p.ox + ex + p.x, Y = p.oy + ey + p.y;
+      const P = (i, lx, ly) => { const x = X + lx, y = Y + ly; xs[i] = w[0] * x + w[2] * y + w[4]; xs[i + 1] = w[1] * x + w[3] * y + w[5]; };
+      P(0, -c - sn, -sn + c); P(2, c - sn, sn + c); P(4, -c + sn, -sn - c); P(6, c + sn, sn - c);
+      GD.R.quad(f.tx, this.d.add, 0, xs, U, GD.col(r, g, b, 255 * a));
+    }
+  }
+}
+EmisorGD._xs = new Float32Array(8); EmisorGD._uv = new Float32Array(8);
+GD.EmisorGD = EmisorGD;

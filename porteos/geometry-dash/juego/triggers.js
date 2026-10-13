@@ -17,10 +17,10 @@ Object.assign(TR.def, {
   1912: 'azar', 2068: 'azarAvanzado', 3607: 'secuencia', 3614: 'tiempo', 3615: 'eventoTiempo', 3617: 'controlTiempo', 3619: 'itemEdit',
   3620: 'itemCompare', 3641: 'persistente', 3618: 'reset', 2067: 'escalar', 3006: 'nada', 3007: 'nada', 3008: 'nada', 3009: 'nada', 3010: 'nada',
   3011: 'nada', 3012: 'nada', 3013: 'nada', 3014: 'nada', 3015: 'nada', 3024: 'nada', 3016: 'nada', 3660: 'nada', 3661: 'nada',
-  3032: 'nada', 3033: 'nada', 2903: 'nada', 2904: 'nada', 2905: 'nada', 2907: 'nada', 2909: 'nada', 2910: 'nada',
+  3032: 'nada', 3033: 'keyframes', 2903: 'nada', 2904: 'nada', 2905: 'nada', 2907: 'nada', 2909: 'nada', 2910: 'nada',
   2911: 'nada', 2912: 'nada', 2913: 'nada', 2914: 'nada', 2915: 'nada', 2916: 'nada', 2917: 'nada', 2919: 'nada',
   2920: 'nada', 2921: 'nada', 2922: 'nada', 2923: 'nada', 3021: 'nada', 3029: 'nada', 3030: 'nada', 3031: 'nada',
-  2999: 'nada', 3606: 'nada', 3612: 'nada', 1931: 'fin', 3604: 'nada', 3605: 'nada', 3608: 'nada', 3609: 'nada', 3640: 'nada',
+  2999: 'nada', 3606: 'nada', 3612: 'nada', 1931: 'fin', 3604: 'nada', 3605: 'nada', 3608: 'spawnParticula', 3609: 'nada', 3640: 'nada',
   3613: 'nada', 3662: 'nada', 1915: 'nada', 2899: 'nada', 3655: 'nada', 2901: 'nada',
 });
 TR.esTrigger = o => !!TR.def[o.id];
@@ -52,7 +52,8 @@ TR.paso = function (p, h) {
     const a = t.acciones[i]; a.t += h; TR.pasoAccion(p, a, h);
     if (a.t >= a.dur && !a.siempre) { TR.finAccion(p, a); t.acciones.splice(i--, 1); }
   }
-  for (let i = 0; i < t.spawns.length; i++) { const s = t.spawns[i]; s.t -= h; if (s.t <= 0) { t.spawns.splice(i--, 1); TR.spawnear(p, s); } }
+  // los spawns que aparecen mientras se procesan esperan al paso siguiente (si no, un bucle no termina)
+  if (t.spawns.length) { const ahora = t.spawns; t.spawns = []; const listos = []; for (const s of ahora) { s.t -= h; if (s.t <= 0) listos.push(s); else t.spawns.push(s); } for (const s of listos) TR.spawnear(p, s); }
   for (const s of t.seguirY) TR.pasoSeguirY(p, s, h);
   if (t.colisiones.length) TR.pasoColisiones(p);
   for (const k in t.timers) { const tm = t.timers[k]; if (!tm.pausa) { tm.v += h * tm.mod * (tm.atras ? -1 : 1); TR.revisarTiempo(p, +k); } }
@@ -63,6 +64,7 @@ TR.cuadro = function (p, dt) {
   if (t.temblor) { t.temblor.t += dt; if (t.temblor.t >= t.temblor.dur) t.temblor = null; else { tx = (Math.random() * 2 - 1) * t.temblor.f; ty = (Math.random() * 2 - 1) * t.temblor.f; } }
   p.camOff = { x: t.camOff.x + tx, y: t.camOff.y + ty };
   p.zoom = t.camZoom; p.camRot = t.camRot;
+  if (GD.Shaders) GD.Shaders.cuadro(p, dt);
 };
 const curvas = {};
 TR.curva = (tipo, tasa) => { const k = tipo + ',' + tasa; return curvas[k] || (curvas[k] = GD.E.gd(tipo, tasa)); };
@@ -108,6 +110,8 @@ TR.pasoAccion = function (p, a) {
     case 'camOff': { p.tr.camOff.x = a.ix + (a.fx - a.ix) * k; p.tr.camOff.y = a.iy + (a.fy - a.iy) * k; break; }
     case 'camRot': { p.tr.camRot = a.ini + (a.fin - a.ini) * k; break; }
     case 'tiempoEsc': { p.tr.escalaT = a.ini + (a.fin - a.ini) * k; break; }
+    case 'kf': TR.pasoKeyframes(p, a); break;
+    case 'sh': GD.Shaders.paso(p, a, k); break;
     case 'escalar': {
       const l = TR.grupo(p, a.g), c = a.cen ? TR.centro(p, a.cen) : null;
       const f = 1 + (a.sx - 1) * k, g = 1 + (a.sy - 1) * k, fp = 1 + (a.sx - 1) * a.prevK, gp = 1 + (a.sy - 1) * a.prevK; a.prevK = k;
@@ -136,11 +140,20 @@ TR.spawnearGrupo = function (p, g, demora = 0, ordenado = false) {
   if (demora > 0) { p.tr.spawns.push({ t: demora, g, ordenado }); return; }
   TR.spawnear(p, { g, ordenado });
 };
+// un grupo que se vuelve a spawnear dentro de su propia cadena (bucles de spawn con demora 0) pasa al
+// paso siguiente, como hace el juego, en vez de colgarse
+const _enCurso = new Set();
 TR.spawnear = function (p, s) {
-  const l = TR.grupo(p, s.g).filter(o => TR.def[o.id]).sort((a, b) => a.x - b.x);
+  if (_enCurso.has(s.g)) { p.tr.spawns.push({ t: 0, g: s.g, ordenado: s.ordenado }); return; }
+  _enCurso.add(s.g);
+  try { TR._spawnear(p, s); } finally { _enCurso.delete(s.g); }
+};
+TR._spawnear = function (p, s) {
+  // un spawn sólo activa los triggers marcados "spawn triggered" (62); sin "multi" (87), una vez
+  const l = TR.grupo(p, s.g).filter(o => TR.def[o.id] && o.raw[62] == 1).sort((a, b) => a.x - b.x);
   const x0 = l.length ? l[0].x : 0;
   for (const o of l) {
-    if (o.raw[62] == 1 && p.tr.hechos[o.i] && o.raw[87] != 1) continue;
+    if (p.tr.hechos[o.i] && o.raw[87] != 1) continue;
     p.tr.hechos[o.i] = 1;
     // 2.2 "spawn ordered": la distancia en x entre triggers se vuelve demora
     if (s.ordenado && o.x > x0) { p.tr.spawns.push({ t: (o.x - x0) / GD.O.UPS[p.j.vel], uno: o.i }); continue; }
@@ -223,7 +236,79 @@ TR.pasoSeguirY = function (p, s, h) {
   TR.moverGrupo(p, s.g, 0, dy);
 };
 H.temblor = function (p, o, r) { p.tr.temblor = { f: n(r[75], 1), t: 0, dur: n(r[10], 0.5) }; };
-H.animar = function (p, o, r) { for (const ob of TR.grupo(p, r[51] | 0)) ob.anim = r[76] | 0; };
+H.animar = function (p, o, r) { for (const ob of TR.grupo(p, r[51] | 0)) { ob.anim = r[76] | 0; if (ob.pdef) { ob.animado = true; if (ob.emisor) ob.emisor.reiniciar(); } } };
+// ---------- keyframes (3032 los puntos, 3033 el trigger que los recorre) ----------
+// los puntos de una animación son los objetos 3032 del grupo 76 (por su orden, 374); cada uno guarda
+// posición, giro y escala, cuánto tarda hasta el siguiente (10), con qué curva (30/85) y qué grupo
+// spawnear al llegar (71, con demora 557). El grupo 51 se mueve, gira y escala como el recorrido,
+// alrededor del grupo padre 71 del trigger.
+H.keyframes = function (p, o, r) {
+  const g = r[51] | 0, ag = r[76] | 0; if (!g || !ag) return;
+  const kfs = TR.grupo(p, ag).filter(x => x.id === 3032).sort((a, b) => (+a.raw[374] || 0) - (+b.raw[374] || 0));
+  if (kfs.length < 2) return;
+  const lazo = kfs.some(k => k.raw[376] == 1), tm = n(r[520], 1) || 1;
+  const durs = kfs.map(k => Math.max(0, n(k.raw[10], 0)) * tm);
+  const total = (lazo ? durs : durs.slice(0, -1)).reduce((a, b) => a + b, 0);
+  if (!(total > 0) && !lazo) return;
+  TR.accion(p, { k: 'kf', g, cen: r[71] | 0, kfs: kfs.map(k => k.i), durs, lazo, total, dur: lazo ? Infinity : total, siempre: lazo,
+    mx: n(r[521], 1), my: n(r[545], 1), mr: n(r[522], 1), msx: n(r[523], 1), msy: n(r[546], 1), seg: -1, px: 0, py: 0, pr: 0, psx: 1, psy: 1, de: g });
+};
+// estado del recorrido en el tiempo t: posición, giro y escala relativos al primer punto
+TR.estadoKf = function (p, a, t) {
+  const K = a.kfs.map(i => p.objs[i]), n0 = K.length, segs = a.lazo ? n0 : n0 - 1;
+  if (a.lazo && a.total > 0) t = t % a.total; else t = Math.min(t, a.total);
+  let i = 0; while (i < segs - 1 && t >= a.durs[i]) { t -= a.durs[i]; i++; }
+  const A = K[i], B = K[(i + 1) % n0], d = a.durs[i];
+  let k = d > 0 ? Math.min(1, t / d) : 1; k = TR.curva(A.raw[30] | 0, n(A.raw[85], 2))(k);
+  // giro: el más corto salvo que el punto pida horario/antihorario (536) y vueltas extra (537)
+  let r0 = A.rot, r1 = B.rot, dr = r1 - r0;
+  const sentido = B.raw[536] | 0, vueltas = (B.raw[537] | 0) * 360;
+  if (sentido === 1) { while (dr < 0) dr += 360; dr += vueltas; } else if (sentido === 2) { while (dr > 0) dr -= 360; dr -= vueltas; }
+  const s0 = K[0], esc = x => (x.raw[32] !== undefined ? +x.raw[32] : 1);
+  const sxA = esc(A) * (A.raw[128] !== undefined ? +A.raw[128] : 1), syA = esc(A) * (A.raw[129] !== undefined ? +A.raw[129] : 1);
+  const sxB = esc(B) * (B.raw[128] !== undefined ? +B.raw[128] : 1), syB = esc(B) * (B.raw[129] !== undefined ? +B.raw[129] : 1);
+  const sx0 = esc(s0) * (s0.raw[128] !== undefined ? +s0.raw[128] : 1) || 1, sy0 = esc(s0) * (s0.raw[129] !== undefined ? +s0.raw[129] : 1) || 1;
+  return { seg: i, x: (A.x + (B.x - A.x) * k - s0.x) * a.mx, y: (A.y + (B.y - A.y) * k - s0.y) * a.my, r: (r0 + dr * k - s0.rot) * a.mr,
+    sx: 1 + ((sxA + (sxB - sxA) * k) / sx0 - 1) * a.msx, sy: 1 + ((syA + (syB - syA) * k) / sy0 - 1) * a.msy };
+};
+TR.pasoKeyframes = function (p, a) {
+  if (!isFinite(a.t)) return; // al saltar hasta un punto, un lazo sigue desde donde esté
+  const e = TR.estadoKf(p, a, a.t);
+  // al pasar por un punto se spawnea su grupo
+  if (e.seg !== a.seg) {
+    const K = a.kfs.map(i => p.objs[i]);
+    if (a.seg >= 0) { const llego = K[(a.seg + 1) % K.length]; if (llego.raw[71]) TR.spawnearGrupo(p, llego.raw[71] | 0, n(llego.raw[557])); }
+    else if (K[0].raw[71]) TR.spawnearGrupo(p, K[0].raw[71] | 0, n(K[0].raw[557]));
+    a.seg = e.seg;
+  }
+  const dx = e.x - a.px, dy = e.y - a.py, dr = e.r - a.pr, fx = e.sx / a.psx, fy = e.sy / a.psy;
+  a.px = e.x; a.py = e.y; a.pr = e.r; a.psx = e.sx; a.psy = e.sy;
+  TR.moverGrupo(p, a.g, dx, dy);
+  if (dr || fx !== 1 || fy !== 1) {
+    const c = TR.centro(p, a.cen || a.g); if (!c) return;
+    const ang = -dr * Math.PI / 180, cs = Math.cos(ang), sn = Math.sin(ang);
+    for (const o of TR.grupo(p, a.g)) {
+      if (a.cen && o.grupos && o.grupos.includes(a.cen)) { o.drot += dr; o.esx = (o.esx || 1) * fx; o.esy = (o.esy || 1) * fy; continue; }
+      const x = (o.cx - c[0]) * fx, y = (o.cy - c[1]) * fy;
+      o.dx += c[0] + x * cs - y * sn - o.cx; o.dy += c[1] + x * sn + y * cs - o.cy; o.drot += dr; o.esx = (o.esx || 1) * fx; o.esy = (o.esy || 1) * fy; p.moverSeccion(o);
+    }
+  }
+  if (!a.lazo && a.t >= a.total) { const K = a.kfs.map(i => p.objs[i]), u = K[K.length - 1]; if (u.raw[71] && a.seg !== -2) { TR.spawnearGrupo(p, u.raw[71] | 0, n(u.raw[557])); a.seg = -2; } }
+};
+// spawn particle (3608): una tanda de las partículas del grupo 51 en el centro del grupo 71
+H.spawnParticula = function (p, o, r) {
+  const fuente = TR.grupo(p, r[51] | 0).filter(x => x.pdef); if (!fuente.length) return;
+  const c = r[71] ? TR.centro(p, r[71] | 0) : [o.cx, o.cy]; if (!c) return;
+  const az = v => (Math.random() * 2 - 1) * (+v || 0);
+  for (const f of fuente) {
+    const e = new GD.EmisorGD(f.pdef);
+    e.x = c[0] + n(r[547]) + az(r[549]); e.y = c[1] + n(r[548]) + az(r[550]);
+    e.rot = n(r[552]) + az(r[553]) + (r[551] == 1 ? f.rot + f.drot : 0); e.esc = Math.max(0.01, n(r[554], 1) + az(r[555]));
+    // una copia que no termina nunca sólo larga una tanda
+    if (!(f.pdef.dur > 0)) { e.rafaga = false; e.d = Object.assign({}, f.pdef, { dur: 0 }); }
+    p.particulas.push({ e, tinte: f.raw[146] == 1 ? GD.O.colorParte(f, { ct: 'b' }, p.cols).slice(0, 3) : null });
+  }
+};
 H.tocar = function (p, o, r) { const g = r[51] | 0; if (g) p.tr.tocar.push({ g, mantener: r[81] == 1, modo: r[82] | 0, dual: r[89] == 1 }); };
 TR.alToque = function (p, abajo, segundo) { // lo llama la partida con cada toque
   for (const t of p.tr.tocar) {

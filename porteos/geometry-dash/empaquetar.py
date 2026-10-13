@@ -134,7 +134,8 @@ TRIGGERS22 = {1913: "eZoomBtn", 1914: "eStaticBtn", 1916: "eOffsetBtn", 2015: "e
               2905: "eSh_ShockWaveBtn", 2907: "eSh_ShockLineBtn", 2909: "eSh_GlitchBtn", 2910: "eSh_ChromaticBtn", 2911: "eSh_ChromaticGlitchBtn",
               2912: "eSh_PixelateBtn", 2913: "eSh_LensCircleBtn", 2914: "eSh_RadialBlurBtn", 2915: "eSh_MotionBlurBtn", 2916: "eSh_BulgeBtn",
               2917: "eSh_PinchBtn", 2919: "eSh_GrayscaleBtn", 2920: "eSh_SepiaBtn", 2921: "eSh_InvertColorBtn", 2922: "eSh_HueBtn", 2923: "eSh_EditColorBtn",
-              2924: "eSh_SplitScreenBtn", 3021: "eSpawnParticleBtn", 3029: "eChangeBG", 3030: "eChangeG", 3031: "eChangeMG", 2999: "eSetupMGBtn",
+              2924: "eSh_SplitScreenBtn", 3608: "eSpawnParticleBtn", 3017: "eEnterMoveBtn", 3018: "eEnterRotateBtn", 3019: "eEnterScaleBtn",
+              3020: "eEnterFadeBtn", 3021: "eEnterTintBtn", 3023: "eEnterStopBtn", 2065: "eCParticleBtn", 3642: "eBPMBtn", 1915: "eeNone2Btn", 3029: "eChangeBG", 3030: "eChangeG", 3031: "eChangeMG", 2999: "eSetupMGBtn",
               3606: "eBGSpeedBtn", 3612: "eMGSpeedBtn", 3604: "eEventLinkBtn", 3609: "eInstantCollisionBtn", 3640: "eCollisionStateBtn",
               3613: "eUISettingsBtn", 3662: "eLinkVisibleBtn", 2899: "eOptionsBtn", 1932: "ePlayerControlBtn", 2901: "eGPOffsetBtn"}
 
