@@ -2,8 +2,8 @@
 import sys, os, json, UnityPy, warnings
 warnings.filterwarnings("ignore")
 UnityPy.config.FALLBACK_UNITY_VERSION = "2022.3.62f3"
-from UnityPy.helpers.TypeTreeGenerator import TypeTreeGenerator
-g = TypeTreeGenerator("2022.3.62f3"); g.load_local_dll_folder(sys.argv[2])
+import sys; sys.path.insert(0, "/tmp/claude-0/ss/scripts"); from ttfix import generador
+g = generador(sys.argv[2])
 sal = sys.argv[3]; os.makedirs(sal, exist_ok=True)
 def volcar(ruta):
     env = UnityPy.load(ruta); env.typetree_generator = g
