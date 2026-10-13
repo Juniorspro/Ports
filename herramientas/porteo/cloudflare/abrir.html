@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TITULO</title>
+<!-- porteo: el lanzador de la versión web (empaquetar.py --sitio). Se abre como archivo, sin
+     servidor: la primera vez pide la dirección donde se subió el juego, la recuerda y después va
+     directo. Lo rápido está allá: los bloques se bajan a medida que hacen falta y quedan en caché
+     (la segunda vez el juego arranca enseguida y sin red). También se puede instalar como app
+     desde el navegador, en esa dirección. -->
+<style>
+  :root { --fondo: #f6f7f9; --texto: #1d2129; --suave: #5b6472; --acento: #d6336c; --borde: #d7dbe2; --campo: #ffffff; }
+  @media (prefers-color-scheme: dark) { :root { --fondo: #15181d; --texto: #e8eaed; --suave: #a0a8b4; --acento: #f06595; --borde: #2c323b; --campo: #1f242b; } }
+  body { margin: 0; padding: 24px 16px; background: var(--fondo); color: var(--texto); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 8px; }
+  p { color: var(--suave); margin: 8px 0; }
+  label { display: block; margin: 18px 0 6px; font-weight: 600; }
+  input { box-sizing: border-box; width: 100%; padding: 12px; border: 1px solid var(--borde); border-radius: 10px; background: var(--campo); color: var(--texto); font: inherit; }
+  button { margin-top: 14px; padding: 12px 20px; border: 0; border-radius: 10px; background: var(--acento); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  a { color: var(--acento); }
+  [hidden] { display: none !important; }
+  /* adentro de otra página: el juego ocupa todo */
+  iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TITULO</h1>
+  <p id="abriendo">Abriendo…</p>
+  <form id="form" hidden>
+    <p>Pegá la dirección donde subiste la carpeta del juego (la que tiene <code>index.html</code>). Se guarda en este navegador: la próxima vez abre directo.</p>
+    <label for="dir">Dirección</label>
+    <input id="dir" type="url" inputmode="url" placeholder="https://mi-sitio.pages.dev/" required>
+    <button type="submit">Guardar y abrir</button>
+  </form>
+  <p id="cambiar" hidden><a href="#cambiar">Cambiar la dirección</a></p>
+  <p id="afuera" hidden>Esta página no deja abrir el juego adentro. <a id="jugar" href="#" target="_blank" rel="noopener">Abrirlo aparte</a></p>
+</main>
+<script>
+  // si la dirección se pone acá, abre directo en cualquier navegador (para el dueño, con la clave:
+  // "https://…pages.dev/#clave=…"; ese archivo no va al repo)
+  const FIJA = '';
+  const CLAVE = 'porteo-lanzador-' + document.title;
+  const guardada = () => { try { return localStorage.getItem(CLAVE) || ''; } catch (e) { return ''; } };
+  const form = document.getElementById('form');
+  const campo = document.getElementById('dir');
+  function abrir(dir) {
+    // con o sin la barra del final, y sin el index.html (el service worker guarda la carpeta). Lo de
+    // después del # se respeta: con la puerta de Cloudflare, "#clave=…" entra solo (no viaja al servidor)
+    const [base, ...resto] = dir.trim().split('#');
+    let u = base.replace(/index\.html?$/i, '');
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    if (!u.endsWith('/')) u += '/';
+    const destino = u + (resto.length ? '#' + resto.join('#') : '');
+    if (window.top === window) { location.replace(destino); return; }
+    // adentro de otra página (Rezona, los visores de HTML del teléfono muestran el archivo en un
+    // cuadro): el juego en un cuadro propio que ocupa todo, como hace el de Half-Life. Ir con
+    // location.replace llevaba el cuadro de la plataforma al juego, y ahí algunas no dejan; la puerta
+    // de Cloudflare entra igual en un cuadro (la sesión va en la dirección). Si la plataforma no deja
+    // abrir otros sitios adentro, el enlace para abrirlo aparte
+    const jugar = document.getElementById('jugar');
+    jugar.href = destino;
+    jugar.addEventListener('click', (ev) => {
+      try { window.top.location.href = destino; ev.preventDefault(); } catch (e) { /* queda el enlace: pestaña nueva */ }
+    });
+    document.addEventListener('securitypolicyviolation', (ev) => {
+      if (/^(frame|child)-src/.test(ev.effectiveDirective || ev.violatedDirective || '')) {
+        document.querySelectorAll('iframe').forEach((f) => f.remove());
+        document.getElementById('afuera').hidden = false;
+      }
+    });
+    // Rezona tapa su cuadro con una pantalla de carga propia hasta que el juego avisa "game:ready" (o
+    // 2,5 s después del load): el juego ya muestra su carga, así que se avisa ya
+    try { window.parent.postMessage({ type: 'game:ready' }, '*'); } catch (e) { /* nada */ }
+    const f = document.createElement('iframe');
+    f.allow = 'fullscreen; autoplay; screen-wake-lock; gamepad; accelerometer; gyroscope';
+    f.setAttribute('allowfullscreen', '');
+    f.addEventListener('load', () => { try { f.focus(); } catch (e) { /* sin foco */ } });
+    f.src = destino;
+    document.body.appendChild(f);
+  }
+  function pedir() {
+    document.getElementById('abriendo').hidden = true;
+    form.hidden = false;
+    campo.value = guardada();
+    campo.focus();
+  }
+  form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    try { localStorage.setItem(CLAVE, campo.value.trim()); } catch (e) { /* sin guardar: igual abre */ }
+    abrir(campo.value);
+  });
+  document.querySelector('#cambiar a').addEventListener('click', (ev) => { ev.preventDefault(); pedir(); });
+  const dir = FIJA || (location.hash === '#cambiar' ? '' : guardada());
+  if (dir) {
+    // por si la dirección dejó de andar: a los dos segundos aparece la opción de cambiarla
+    setTimeout(() => { document.getElementById('cambiar').hidden = false; }, 2000);
+    abrir(dir);
+  } else pedir();
+</script>
+</body>
+</html>
