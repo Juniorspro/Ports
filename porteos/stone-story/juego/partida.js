@@ -19,7 +19,13 @@ const Partida = (() => {
   const P = {};
   const CLASES = ['Hero', 'Enemy', 'Pickup', 'Decoration', 'LevelEndPoint', 'WayPoint', 'Neutral', 'Character', 'Bullet'];
 
-  function compPersonaje(o) { return o.comps.find((c) => CLASES.includes(c._c) || (c.hitpoints !== undefined && c.collisionWidth !== undefined)); }
+  // clase base del juego (Enemy, Pickup, Decoration...) siguiendo la herencia de las clases propias
+  function claseBase(cl) {
+    const her = (Datos.tablas.herencia || {})[cl] || [];
+    for (const k of [cl, ...her]) if (['Hero', 'Enemy', 'Pickup', 'Decoration', 'LevelEndPoint', 'WayPoint', 'Neutral', 'Bullet'].includes(k)) return k;
+    return 'Character';
+  }
+  function compPersonaje(o) { return o.comps.find((c) => CLASES.includes(c._c) || ((Datos.tablas.herencia || {})[c._c] || []).includes('Character')); }
 
   // crea un personaje desde un prefab (id o ruta)
   P.personaje = (ref, x, z, nivel) => {
@@ -31,7 +37,7 @@ const Partida = (() => {
     let hp = (c.hitpoints || 1) + (c.hitpointsPerLevel || 0) * L;
     if (hp < 1) hp = Math.max(1, (c.hitpointsPerLevel || 1) * Math.max(1, L));
     const q = {
-      o, c, clase: c._c || 'Character', id: c.id, x, z, y: 0, hp, hpMax: hp, armadura: 0,
+      o, c, clase: claseBase(c._c), id: c.id, x, z, y: 0, hp, hpMax: hp, armadura: 0,
       vivo: true, muerte: 0, mira: 1, estado: 'quieto', tEstado: 0, nivel: L,
       ancho: c.collisionWidth || 1, prof: c.collisionDepth || 1, tagsS: new Set(c.tags || []),
       sprite: Obj.sprite(o), cola: 0,
@@ -45,6 +51,8 @@ const Partida = (() => {
     // arma: componente Weapon en un hijo
     Obj.recorrer(o, (h) => { const w = Obj.comp(h, 'Weapon'); if (w && !q.arma) q.arma = w; });
     if (q.clase === 'Enemy') { q.dormido = !!c.sleepIfNoWeapon || !!q.sp.dormido; q.hostil = !!c.hostile; }
+    const hr = o.comps.find((x) => x._c === 'HarvestableResource');
+    if (hr) q.recurso = hr.resourceType || 1;
     return q;
   };
 
@@ -65,7 +73,7 @@ const Partida = (() => {
     L.heroe = heroe;
     L.personajes.push(heroe);
     L.limSup = quest.walkLimitTop || 10; L.limInf = quest.walkLimitBot || 21;
-    heroe.z = Math.round((L.limSup + L.limInf) / 2) + 1;
+    heroe.z = quest.initialHeroZ || Math.round((L.limSup + L.limInf) / 2) + 1;
     if (quest.onPlay && quest.onPlay.setFlags) for (const f of quest.onPlay.setFlags) Prog.banderas[f] = 1;
     const secs = quest.sections || [];
     for (let i = 0; i < Math.min(2, secs.length); i++) P.poblar(L, secs[i], i * X_SECCION - 24);
@@ -101,7 +109,7 @@ const Partida = (() => {
       if (!e || !cumple(e)) continue;
       const q = P.personaje(e.prefab, base + (f.x || 0), f.y || 16, nivel);
       if (!q) continue;
-      for (const a of f.args || []) Object.assign(q.args = q.args || {}, a);
+      for (const a of [].concat(f.args || [])) Object.assign(q.args = q.args || {}, a);
       L.personajes.push(q);
     }
     const ids = sec.rndIds || [];
@@ -126,7 +134,7 @@ const Partida = (() => {
       if (!q.vivo || q.esHeroe || q.x > lim) continue;
       let pri;
       if (q.clase === 'Enemy' && q.hostil !== false) pri = 0;
-      else if (q.clase === 'Decoration' && q.tagsS.has('harvest')) pri = 1;
+      else if (q.clase === 'Decoration' && q.tagsS.has('harvest') && Items.herramienta(q.recurso || 1)) pri = 1;
       else if (q.clase === 'Pickup') pri = 1;
       else if (q.clase === 'WayPoint') pri = 2;
       else continue;
@@ -136,9 +144,18 @@ const Partida = (() => {
     return mejor;
   }
 
-  function armaDe(q) {
+  function armaDe(q, ob) {
+    if (q.esHeroe) {
+      let it = null;
+      if (ob && ob.recurso) it = Items.herramienta(ob.recurso);
+      else if (Prog.mano && Prog.items[Prog.mano]) it = Prog.items[Prog.mano];
+      const s = it && Items.stats(it);
+      q.armaAct = s ? it.id : null;
+      if (s) return s;
+      return { dano: 1, rango: 1, carga: 8, golpe: 12 };
+    }
     const w = q.arma;
-    if (w) return { dano: w.baseDamage || 1, rango: w.baseRange || 1, carga: w.cast || 10, golpe: w.perf || 15, bala: w.bulletPrefab };
+    if (w) return { dano: w.baseDamage || 1, rango: w.baseRange || 1, carga: w.cast || 10, golpe: w.perf || 15, enfriar: w.cooldown || 0, bala: w.bulletPrefab };
     return { dano: 1, rango: 1, carga: 8, golpe: 12 };
   }
 
@@ -160,7 +177,12 @@ const Partida = (() => {
     if (q.c.deathSfx) Sonido.efecto(q.c.deathSfx);
     if (q.sp && q.sp.muere) { q.spMuerte = q.sp.muere; Obj.playAnim(q.sp.muere.o); }
     if (!q.esHeroe) L.muertos++;
-    if (q.clase === 'Decoration' && q.tagsS.has('stone')) P.ganar(L, 'stone', 1 + L.azar.entre(0, 3));
+    if (q.clase === 'Decoration' && q.recurso) {
+      const tipo = q.recurso === 2 ? 'wood' : q.recurso === 3 ? 'tar' : q.recurso === 4 ? 'bronze' : 'stone';
+      P.ganar(L, tipo, 1 + L.azar.entre(0, 3));
+      Sonido.efecto('pickup_' + tipo);
+    }
+    if (q.args && q.args.drop) { const id = q.args.drop.split('/').pop(); Items.dar(id); L.botin = (L.botin || []).concat([id]); }
   };
 
   P.ganar = (L, tipo, n) => {
@@ -178,16 +200,16 @@ const Partida = (() => {
     if (!h.vivo) return;
     if (h.levantando > 0) { h.levantando--; return; }
     const ob = objetivo(L, h);
-    const a = armaDe(h);
+    const a = armaDe(h, ob);
     let quiereX = 1, quiereZ = 0, quieto = false;
     if (ob) {
       const dx = ob.x - h.x, dz = ob.z - h.z;
-      const alcance = ob.clase === 'Pickup' || ob.clase === 'WayPoint' ? 0 : a.rango + Math.floor((ob.ancho - 1) / 2) + 1;
+      const alcance = ob.clase === 'Pickup' || ob.clase === 'WayPoint' ? 0 : Math.max(1, a.rango - 1) + Math.floor(ob.ancho / 2);
       if (ob.clase === 'Pickup' || ob.clase === 'WayPoint') {
         if (Math.abs(dx) <= 0 && Math.abs(dz) <= 0) {
           if (ob.clase === 'Pickup') {
             ob.vivo = false; ob.muerte = 0;
-            P.ganar(L, ob.c.id || 'stone', ob.c.grantAmount || 1);
+            if (ob.c._c === 'TreasurePickup') { L.tesoros = (L.tesoros || 0) + 1; } else P.ganar(L, ob.c.id || 'stone', ob.c.grantAmount || 1);
             Sonido.efecto(ob.c.sfxOnPickup || 'pickup_stone');
             h.levantando = h.c.pickupTicDuration || 23;
             if (h.spLevanta) Obj.playAnim(h.spLevanta);
@@ -204,12 +226,15 @@ const Partida = (() => {
       }
     }
     if (!quieto) { h.atk = null; }
-    if (quieto) { h.estado = 'quieto'; return; }
+    if (quieto) { if (!h.atk) h.estado = 'quieto'; return; }
     // limite derecho: no pasar a la seccion siguiente con enemigos atras (twoWay) no aplica aca
     h.acX += 10; h.acZ += 10;
     let dx = 0, dz = 0;
     if (h.acX >= 30) { h.acX -= 30; dx = quiereX; }
     if (h.acZ >= 30) { h.acZ -= 30; dz = quiereZ; }
+    const secs = L.quest.sections || [];
+    const lim = Math.min(L.camX + Math.floor(Pantalla.cols / 2) - 4, secs.length ? (secs.length - 1) * X_SECCION + 30 : 1e9);
+    if (dx > 0 && h.x >= lim) dx = 0;
     if (dx || dz) { mover(h, dx, dz, L); h.estado = 'camina'; } else if (!quiereX && !quiereZ) h.estado = 'quieto';
   }
 
@@ -219,11 +244,12 @@ const Partida = (() => {
     const k = q.atk;
     k.t++;
     q.estado = k.t <= a.carga ? 'carga' : 'golpe';
+    if (k.t === 1 && q.esHeroe && a.c) { const sf = a.c && Obj.comp(Obj.crearCache(a.c.pref), 'WeaponStateSfx'); if (sf && sf.castSfx) Sonido.efecto(sf.castSfx); }
     if (k.t === a.carga + 1) {
-      if (q.esHeroe) Sonido.efecto('player_punch'); else if (q.arma && q.arma._sfx) Sonido.efecto(q.arma._sfx);
+      if (q.esHeroe && !a.c) Sonido.efecto('player_punch');
       P.danar(L, ob, a.dano, q);
     }
-    if (k.t >= a.carga + a.golpe) q.atk = null;
+    if (k.t >= a.carga + a.golpe + (a.enfriar || 0)) q.atk = null;
   }
 
   function pasoEnemigo(L, q) {
@@ -278,10 +304,10 @@ const Partida = (() => {
     L.camX = Math.round(L.camXf);
     // fin
     if (!secs.length || L.seccion + 1 >= secs.length) {
-      const queda = L.personajes.some((q) => q.vivo && !q.esHeroe && (q.clase === 'Enemy' || q.clase === 'Pickup' || q.clase === 'WayPoint' || (q.clase === 'Decoration' && q.tagsS.has('harvest'))));
-      if (!queda) { if (++L.finDemora > 29) L.completo = true; }
+      const queda = L.personajes.some((q) => q.vivo && !q.esHeroe && (q.clase === 'Enemy' || q.clase === 'Pickup' || q.clase === 'WayPoint' || (q.clase === 'Decoration' && q.tagsS.has('harvest') && q.x >= h.x - 4 && Items.herramienta(q.recurso || 1))));
+      if (!queda && h.vivo) { if (++L.finDemora > 29) L.completo = true; }
     }
-    if (!h.vivo && h.muerte <= 0) L.perdido = true;
+    if (!h.vivo && h.muerte <= 0) { L.perdido = true; L.completo = false; }
   };
 
   // ---- dibujo ----
@@ -295,6 +321,24 @@ const Partida = (() => {
     const e = q.dormido ? q.sp.dormido : q.estado === 'camina' ? q.sp.camina : q.estado === 'carga' ? q.sp.carga : q.estado === 'golpe' ? q.sp.golpe : null;
     if (e && e.s) return e;
     return { o: q.o, s: q.sprite };
+  }
+
+  // el arma en la mano derecha: R_idle / R_cast / R_perf del prefab del arma, cuadro segun la fase
+  function dibujarArma(L, h, fx, col) {
+    const it = Items.catalogo()[h.armaAct];
+    if (!it) return;
+    const w = Obj.crearCache(it.pref);
+    const fase = h.estado === 'carga' ? 'R_cast' : h.estado === 'golpe' ? 'R_perf' : 'R_idle';
+    const o = Obj.buscar(w, fase) || Obj.buscar(w, 'R_idle');
+    if (!o) return;
+    const s = Obj.sprite(o);
+    const d = Obj.datos(s);
+    const a = h.atk, st = Items.stats(Prog.items[h.armaAct] || { id: h.armaAct });
+    if (a && st && d.cuadros.length) {
+      const t = h.estado === 'carga' ? (a.t - 1) / st.carga : (a.t - st.carga - 1) / Math.max(1, st.golpe);
+      s._cuadro = d.cuadros[Math.max(0, Math.min(d.cuadros.length - 1, Math.floor(t * d.cuadros.length)))];
+    } else s._cuadro = 0;
+    Obj.dibujarSprite(s, P.colX(L, h.x), h.z - h.y, { fx, color: col });
   }
 
   P.colX = (L, x) => x - L.camX + Math.floor(Pantalla.cols / 2);
@@ -311,6 +355,7 @@ const Partida = (() => {
       const fx = q.esHeroe ? q.mira < 0 : q.mira > 0; // los enemigos estan dibujados mirando a la izquierda
       const col = q.golpeado ? [255, 60, 60] : null;
       Obj.dibujarSprite(e.s, P.colX(L, q.x), q.z - q.y, { fx, color: col });
+      if (q.esHeroe && q.vivo && q.armaAct && !(q.levantando > 0)) dibujarArma(L, q, fx, col);
     }
     Fondo.dibujar(L.frente, L.camX, (z) => z < 0 || true);
     for (const t of L.textos) Pantalla.texto(P.colX(L, t.x) - (t.s.length >> 1), t.z - (t.t >> 3), t.s, t.col);

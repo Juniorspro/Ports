@@ -16,6 +16,8 @@ const Obj = (() => {
     for (const h of e.h || []) { const x = O.crear(h, o); if (x) o.hijos.push(x); }
     return o;
   };
+  const cacheObj = new Map();
+  O.crearCache = (id) => { if (!cacheObj.has(id)) cacheObj.set(id, O.crear(id)); return cacheObj.get(id); };
   O.desdeRuta = (ruta, padre) => { const id = Datos.prefab(ruta); return id ? O.crear(id, padre) : null; };
   O.comp = (o, clase) => o.comps.find((c) => c._c === clase);
   O.compDe = (o, ...clases) => o.comps.find((c) => clases.includes(c._c));

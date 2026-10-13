@@ -3,7 +3,7 @@
 import sys, os, base64, shutil
 aqui = os.path.dirname(os.path.abspath(__file__))
 datos, atlas, sal = sys.argv[1:4]
-MODULOS = ['base.js', 'pantalla.js', 'ascii.js', 'objetos.js', 'fondo.js', 'sonido.js', 'partida.js', 'entrada.js', 'escenas.js', 'principal.js']
+MODULOS = ['base.js', 'pantalla.js', 'ascii.js', 'objetos.js', 'fondo.js', 'sonido.js', 'items.js', 'partida.js', 'entrada.js', 'escenas.js', 'principal.js']
 js = '\n'.join(open(os.path.join(aqui, 'juego', m), encoding='utf-8').read() for m in MODULOS)
 html = open(os.path.join(aqui, 'juego', 'index.html'), encoding='utf-8').read()
 sitio = os.path.join(sal, 'sitio'); os.makedirs(sitio, exist_ok=True)
