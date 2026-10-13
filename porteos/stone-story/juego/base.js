@@ -87,3 +87,29 @@ const azar = Azar(Date.now());
 
 function color01(c, def) { return c ? [Math.round(c[0] * 255), Math.round(c[1] * 255), Math.round(c[2] * 255)] : def; }
 function hex(h) { h = h.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+
+// Textos traducidos (tid_*): archivos <IDIOMA>_<Hoja> con texts:[clave, "valor", ...]
+const Idioma = (() => {
+  const I = { cod: 'ES-LA', t: {} };
+  try { I.cod = localStorage.getItem('stonestory.idioma') || I.cod; } catch (e) {}
+  I.cargar = () => {
+    I.t = {};
+    for (const cod of ['EN', I.cod]) {
+      for (const [n, t] of Object.values(Datos.textos)) {
+        if (!n.startsWith(cod + '_')) continue;
+        const re = /(tid_[A-Za-z0-9_]+)\s*,\s*"((?:[^"\\]|\\.)*)"/g;
+        let m;
+        while ((m = re.exec(t))) I.t[m[1]] = m[2].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+      }
+    }
+  };
+  I.idiomas = () => [...new Set(Object.values(Datos.textos).map(([n]) => (n.match(/^([A-Z-]+)_General$/) || [])[1]).filter(Boolean))];
+  I.poner = (c) => { I.cod = c; try { localStorage.setItem('stonestory.idioma', c); } catch (e) {} I.cargar(); };
+  return I;
+})();
+function T(s, ...a) {
+  if (typeof s !== 'string') return s;
+  let r = s.startsWith('tid_') ? (Idioma.t[s] !== undefined ? Idioma.t[s] : s) : s;
+  a.forEach((v, i) => { r = r.split('{' + i + '}').join(v); });
+  return r;
+}

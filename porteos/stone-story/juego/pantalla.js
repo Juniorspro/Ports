@@ -6,10 +6,10 @@ const Pantalla = (() => {
   let gl, prog, texFg, texBg, texAtlas, lienzo, bufFg, bufBg;
 
   const VS = 'attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}';
-  const FS = `precision mediump float;varying vec2 uv;uniform sampler2D fg,bg,atlas;uniform vec2 grilla;
+  const FS = `precision mediump float;varying vec2 uv;uniform sampler2D fg,bg,atlas;uniform vec2 grilla;uniform vec2 celdaPx;
   void main(){vec2 g=uv*grilla;vec2 c=(floor(g)+.5)/grilla;vec2 l=fract(g);
   vec4 f=texture2D(fg,c);vec4 b=texture2D(bg,c);float i=floor(f.a*255.+.5);
-  float tinta=0.;if(i<255.){vec2 a=(vec2(mod(i,16.),floor(i/16.))+l)/16.;tinta=1.-texture2D(atlas,a).r;}
+  float tinta=0.;if(i<255.){vec2 m=.5/celdaPx;l=clamp(l,m,1.-m);vec2 a=(vec2(mod(i,16.),floor(i/16.))+l)/16.;tinta=1.-texture2D(atlas,a).r;}
   gl_FragColor=vec4(mix(b.rgb,f.rgb,tinta),1.);}`;
 
   function tex(filtro) {
@@ -36,6 +36,7 @@ const Pantalla = (() => {
     gl.bindTexture(gl.TEXTURE_2D, texAtlas);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlasImg);
     P.celdaW = atlasImg.width / 16; P.celdaH = atlasImg.height / 16;
+    gl.uniform2f(gl.getUniformLocation(prog, 'celdaPx'), P.celdaW, P.celdaH);
     gl.uniform1i(gl.getUniformLocation(prog, 'fg'), 0);
     gl.uniform1i(gl.getUniformLocation(prog, 'bg'), 1);
     gl.uniform1i(gl.getUniformLocation(prog, 'atlas'), 2);

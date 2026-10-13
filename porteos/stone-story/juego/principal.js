@@ -4,12 +4,16 @@ const Juego = {
   escena: null,
   t: 0,
   async iniciar() {
+    window.prueba = {};
     const lienzo = document.getElementById('pantalla');
     await Datos.cargar(await (await fetch(window.DATOS_URL || 'datos.json.gz')).arrayBuffer());
+    try { Sonido.cargar(await (await fetch(window.SONIDOS_URL || 'sonidos.bin')).arrayBuffer()); } catch (e) { console.warn('sin sonidos', e); }
     const img = new Image();
     img.src = window.ATLAS_URL || 'atlas.png';
     await img.decode();
     Pantalla.iniciar(lienzo, img);
+    Idioma.cargar();
+    Entrada.iniciar(lienzo);
     addEventListener('resize', () => Pantalla.medir());
     Juego.cambiar(window.ESCENA_INICIAL ? window.ESCENA_INICIAL() : Escenas.titulo());
     let previo = performance.now(), acum = 0;
@@ -22,7 +26,7 @@ const Juego = {
       requestAnimationFrame(bucle);
     };
     requestAnimationFrame(bucle);
-    window.prueba = { listo: true, juego: Juego };
+    window.prueba = window.prueba || {}; Object.assign(window.prueba, { listo: true, juego: Juego });
     try { parent.postMessage({ type: 'game:ready' }, '*'); } catch (e) {}
   },
   cambiar(e) { Juego.escena = e; e.entrar && e.entrar(); },
