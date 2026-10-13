@@ -217,6 +217,8 @@ OL.ficha = function (lv, volver) {
     c.play = U.boton(c, 'GJ_playBtn2_001.png', W / 2, H / 2 + 20, () => c.jugar());
     U.boton(c, 'GJ_infoBtn_001.png', W / 2 + 70, H - 45, () => U.alerta(lv.nombre, (lv.desc || '(No description provided)') + `\n\nID: ${lv.id}   Objects: ${lv.objetos || '?'}`), 2, 0.7);
     U.boton(c, 'GJ_duplicateBtn_001.png', W - 35, H / 2, () => c.copiar(), 2, 0.6);
+    U.boton(c, 'GJ_chatBtn_001.png', 35, H / 2, () => OL.comentarios(lv), 2, 0.7);
+    U.boton(c, 'GJ_levelLeaderboardBtn_001.png', 35, H / 2 - 50, () => OL.perfil(lv.pid, lv.creador), 2, 0.7);
     U.boton(c, 'GJ_deleteBtn_001.png', W - 35, H / 2 - 45, async () => { await GD.G.idbBorrar('bajados', lv.id); U.aviso('Deleted'); }, 2, 0.6);
     const cn = lv.cancion ? await OL.prepararCancion(lv.cancion) : null;
     U.texto(c, cn ? `${cn.nombre} by ${cn.artista}` : (lv.cancion ? 'Song ' + lv.cancion : GD.Editor.NOMBRES_CANCION[lv.cancionOf]), W / 2, 18, 'bigFont', 0.4).color([255, 125, 255]);
@@ -247,6 +249,45 @@ OL.ficha = function (lv, volver) {
   };
   c.atras = () => D.cambiar(volver ? volver() : OL.buscar());
   return c;
+};
+
+// ---------------- comentarios de un nivel (InfoLayer) ----------------
+OL.comentarios = function (lv) {
+  const pop = new U.Popup(Math.min(D.ancho - 30, 440), 280), k = pop.caja; pop.titulo('Comments');
+  const lista = new U.Lista(pop.pw - 40, 200, 56); lista.pos(-pop.pw / 2 + 20, -110); k.agregar(lista); U.manejarLista(pop, lista);
+  const est = U.texto(k, 'Loading...', 0, 0, 'goldFont', 0.6);
+  let pagina = 0;
+  const cargar = () => OL.pedir('getGJComments21', { levelID: lv.id, page: pagina, mode: 0, count: 10 }).then(t => {
+    est.vis = false;
+    const filas = t.split('#')[0].split('|').filter(x => x).map(s => {
+      const [com, usu] = s.split(':'); const c = OL.claves(com, '~'), u = OL.claves(usu || '', '~');
+      const f = new Nodo(); f.w = lista.w; f.h = 56;
+      const fondo = U.cajaOscura(f.w - 4, 52, 60, 'square02_small.png', 6); fondo.pos(2, 2); f.agregar(fondo);
+      U.texto(f, u[1] || '-', 10, 42, 'goldFont', 0.45).anc(0, 0.5);
+      U.texto(f, OL.desc(c[2]), 10, 20, 'chatFont', 0.6, 0, f.w - 80, 0).anc(0, 0.5);
+      U.sprite(f, 'GJ_likesIcon_001.png', f.w - 40, 42, 0.4); U.texto(f, String(c[4] || 0), f.w - 30, 42, 'bigFont', 0.35).anc(0, 0.5);
+      return f;
+    });
+    lista.poner(filas); if (!filas.length) { est.vis = true; est.texto('No comments'); }
+  }).catch(() => { est.vis = true; est.texto('No comments'); });
+  cargar();
+  const der = U.boton(k, 'GJ_arrow_03_001.png', pop.pw / 2 - 18, 0, () => { pagina++; cargar(); }, 3, 0.5); der.cont.fx = true;
+  U.boton(k, 'GJ_arrow_03_001.png', -pop.pw / 2 + 18, 0, () => { if (pagina) { pagina--; cargar(); } }, 3, 0.5);
+  pop.cerrarBtn(); pop.mostrar();
+};
+// ---------------- perfil de un jugador (ProfilePage, sólo lectura) ----------------
+OL.perfil = async function (pid, nombre) {
+  const pop = new U.Popup(380, 240), k = pop.caja; pop.titulo(nombre || 'Player');
+  const est = U.texto(k, 'Loading...', 0, 0, 'goldFont', 0.6);
+  try {
+    const t = await OL.pedir('getGJUsers20', { str: nombre, page: 0 }); const u = OL.claves(t.split('#')[0].split('|')[0]);
+    est.vis = false;
+    const ic = new GD.Icono('cubo', Math.max(1, +u[9] || 1), GD.COLORES[+u[10]] || GD.COLORES[0], GD.COLORES[+u[11]] || GD.COLORES[3]); ic.ax = ic.ay = 0.5; ic.pos(0, 55); ic.escala = 1.4; k.agregar(ic);
+    [['GJ_starsIcon_001.png', u[3]], ['GJ_moonsIcon_001.png', u[52]], ['GJ_diamondsIcon_001.png', u[46]], ['GJ_coinsIcon_001.png', u[13]], ['GJ_coinsIcon2_001.png', u[17]], ['GJ_demonIcon_001.png', u[4]], ['GJ_hammerIcon_001.png', u[8]]]
+      .filter(([f]) => GD.T.m(f)).forEach(([f, v], i) => { U.sprite(k, f, -150 + i * 50, -10, 0.6); U.texto(k, U.num(+v || 0), -150 + i * 50, -35, 'bigFont', 0.4); });
+    U.boton(k, U.botonTexto('Levels', 90, 'goldFont', 'GJ_button_01.png', 28, 0.6), 0, -80, () => { pop.cerrar(); OL.lista({ tipo: 5, str: u[2], titulo: nombre }); });
+  } catch (e) { est.texto('User not found'); }
+  pop.cerrarBtn(); pop.mostrar();
 };
 
 // ---------------- diario, semanal, evento ----------------

@@ -115,7 +115,7 @@ class Partida extends GD.Nodo {
     this.sigTrigger = 0; this.tiempo = 0; this.muerteT = 0; this.terminada = false; this.muerto = false; this.fin = null;
     this.monedas = {}; this.coleccion = [];
     this.camX = x0 - GD.D.ancho * 0.25; this.camY = -90; this.camYObj = -90;
-    this.limites = null; this.espejo = espejo; this.espejoK = 0;
+    this.limites = null; this.espejo = espejo; this.espejoK = 0; this.efEntrada = 0;
     this.objsTocados = new Set();
     if (this.opc.desdeX && !cp) { j.x = this.opc.desdeX; j.y = this.opc.desdeY || 15; }
     if (cp) this.cargarCheckpoint(cp);
@@ -166,7 +166,9 @@ class Partida extends GD.Nodo {
     if (m === 'cubo') { v.cuerpo = v.agregar(ic('cubo', P.cubo)); }
     else if (m === 'nave' || m === 'ovni' || m === 'jetpack') {
       v.cubo = v.agregar(ic('cubo', P.cubo), 1); v.cubo.escala = 0.55;
-      v.cuerpo = v.agregar(ic(m === 'nave' ? 'nave' : m === 'ovni' ? 'ovni' : 'jetpack', m === 'nave' ? P.nave : m === 'ovni' ? P.ovni : P.jetpack), m === 'ovni' ? 0 : 2);
+      // en plataformas la nave es la mochila a chorro (jetpack), como la 2.2
+      const veh = m === 'ovni' ? 'ovni' : (m === 'jetpack' || this.plataformas) ? 'jetpack' : 'nave';
+      v.cuerpo = v.agregar(ic(veh, veh === 'nave' ? P.nave : veh === 'ovni' ? P.ovni : P.jetpack), m === 'ovni' ? 0 : 2);
       v.cubo.pos(0, m === 'ovni' ? 5 : 5); v.cuerpo.pos(0, m === 'ovni' ? -5 : -5);
       if (m === 'ovni') { v.cubo.z = 0; v.cuerpo.z = 1; v._sucio = true; }
     } else v.cuerpo = v.agregar(ic(m === 'bola' ? 'bola' : m === 'onda' ? 'onda' : m === 'robot' ? 'robot' : m === 'arana' ? 'arana' : 'columpio', P[m === 'bola' ? 'bola' : m === 'onda' ? 'onda' : m === 'robot' ? 'robot' : m === 'arana' ? 'arana' : 'columpio']));
@@ -595,6 +597,7 @@ class Partida extends GD.Nodo {
     vis.sort((a, b) => a.rango - b.rango);
     const editor = !!this.enEditor;
     const vis2 = editor ? vis : vis.filter(o => o.vis && !o.oculto && !GD.O.esTrigger(o.id) && o.op > 0.001);
+    if (!editor) this.efectosBorde(vis2, x0 + 100, x1 - 100);
     GD.O.dibujarObjetos(vis2, w, this.cols, { capaJugador: 5, jugadores: () => this.dibujarJugadores(w), opacidad: this.fundidoBorde ? o => this.fundidoBorde(o) : null });
 
     this.dibujarEfectos(w);
@@ -614,6 +617,27 @@ class Partida extends GD.Nodo {
     for (const o of this.cerca(this.j, 400)) { if (!o.activo || o.oculto) continue; const t = o.ty; const col = t === TYP.PELIGRO || t === TYP.PELIGRO_ANIMADO ? GD.col(255, 0, 0, 255) : t === TYP.SOLIDO || t === TYP.PENDIENTE ? GD.col(0, 0, 255, 255) : o.d.hb ? GD.col(0, 255, 0, 255) : 0; if (col) caja(this.caja(o), col); }
     for (const j of [this.j, this.j2]) if (j) { caja({ x: j.x, y: j.y, w: j.alto / 2, h: j.alto / 2 }, GD.col(255, 0, 0, 255)); caja({ x: j.x, y: j.y, w: 4.5 * (j.mini ? 0.6 : 1), h: 4.5 * (j.mini ? 0.6 : 1) }, GD.col(0, 0, 255, 255)); }
   }
+  // los objetos se desvanecen al entrar y salir por los costados (salvo "Don't Fade" 64), y con un
+  // efecto de entrada (triggers 22-28, 55-59) además se mueven o se agrandan
+  efectosBorde(vis, xi, xd) {
+    const M = 75, ef = this.efEntrada || 0;
+    for (const o of vis) {
+      o.vx = o.vy = 0; o.ve = 1; o.fb = 1;
+      if (o.raw[64] == 1 || o.raw[67] == 1) continue;
+      const x = o.cx, kd = (xd - x) / M, ki = (x - xi) / M;
+      let k = Math.min(kd, ki); if (k >= 1) continue; k = GD.clamp(k, 0, 1);
+      o.fb = k;
+      if (!ef || ef === 22) continue;
+      const q = 1 - k, lado = kd < ki ? 1 : -1, d = q * 90;
+      switch (ef) {
+        case 23: o.vy = -d; break; case 24: o.vy = d; break;
+        case 25: o.vx = -d * lado; break; case 26: o.vx = d * lado; break;
+        case 27: o.ve = k; break; case 28: o.ve = 1 + q; break;
+        case 55: o.vx = -d; break; case 56: o.vx = d; break; case 57: o.vy = d; break; case 58: o.vy = -d; break; case 59: o.ve = k; o.vy = d * 0.5; break;
+      }
+    }
+  }
+  fundidoBorde(o) { return o.fb === undefined ? 1 : o.fb; }
   espejoAnim() { const obj = this.espejo ? 1 : 0; this.espejoK += (obj - this.espejoK) * Math.min(1, (GD.D.dt || 0.016) * 4); return this.espejoK < 0.001 ? 0 : this.espejoK; }
   // estela, partículas del piso y fuego de la nave
   efectosJugador(j, v, w) {

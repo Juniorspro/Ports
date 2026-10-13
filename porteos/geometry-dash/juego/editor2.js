@@ -12,8 +12,9 @@ ED.botonIcono = function (padre, icono, x, y, f, tam = 38, fondo = 'GJ_button_04
   const c = new U.Cuadro(fondo, tam, tam, 8);
   if (icono) {
     const s = typeof icono === 'string' ? new Sprite(icono) : icono;
-    const k = escIcono || Math.min(1, (tam - 8) / Math.max(1, s.w), (tam - 8) / Math.max(1, s.h));
-    s.escala = k * (s.sx || 1); s.ax = s.ay = 0.5; s.pos(tam / 2, tam / 2); c.agregar(s); c.icono = s;
+    if (s instanceof Texto) s.limitar(tam - 6, s.sx);
+    else { const k = escIcono || Math.min(1, (tam - 8) / Math.max(1, s.w), (tam - 8) / Math.max(1, s.h)); s.escala = k * (s.sx || 1); }
+    s.ax = s.ay = 0.5; s.pos(tam / 2, tam / 2); c.agregar(s); c.icono = s;
   }
   const b = U.boton(padre, c, x, y, f); b.fondoCuadro = c; return b;
 };
@@ -138,7 +139,11 @@ Ed.armarEdicion = function () {
     ['edit_upBtn5_001.png', () => this.mover(0, 150)], ['edit_downBtn5_001.png', () => this.mover(0, -150)], ['edit_leftBtn5_001.png', () => this.mover(-150, 0)], ['edit_rightBtn5_001.png', () => this.mover(150, 0)]];
   const fila2 = [['edit_flipXBtn_001.png', () => this.voltear('x')], ['edit_flipYBtn_001.png', () => this.voltear('y')], ['edit_cwBtn_001.png', () => this.girar(90)], ['edit_ccwBtn_001.png', () => this.girar(-90)],
     ['edit_rotate45rBtn_001.png', () => this.girar(45)], ['edit_rotate45lBtn_001.png', () => this.girar(-45)], ['edit_upBtn3_001.png', () => this.mover(0, 15)], ['edit_downBtn3_001.png', () => this.mover(0, -15)],
-    ['edit_leftBtn3_001.png', () => this.mover(-15, 0)], ['edit_rightBtn3_001.png', () => this.mover(15, 0)], ['edit_scaleBtn_001.png', () => ED.escalaPopup(this)], ['edit_rotateSnapBtn_001.png', () => ED.giroPopup(this)]];
+    ['edit_leftBtn3_001.png', () => this.mover(-15, 0)], ['edit_rightBtn3_001.png', () => this.mover(15, 0)], ['edit_scaleBtn_001.png', () => ED.escalaPopup(this)], ['edit_rotateSnapBtn_001.png', () => ED.giroPopup(this)],
+    ['edit_scaleXYBtn_001.png', () => ED.escalaXY(this)], ['edit_warpBtn_001.png', () => ED.deformar(this)], [ED.textoBoton('Align\nX'), () => this.alinear('x')], [ED.textoBoton('Align\nY'), () => this.alinear('y')],
+    [ED.textoBoton('Copy\nState'), () => this.copiarEstado()], [ED.textoBoton('Paste\nState'), () => this.pegarEstado()], [ED.textoBoton('Copy\nColor'), () => this.copiarColor()], [ED.textoBoton('Paste\nColor'), () => this.pegarColor()],
+    [ED.textoBoton('Select\nAll'), () => this.seleccionar(this.objs.filter(o => this.capaEd < 0 || (o.raw[20] | 0) === this.capaEd))], [ED.textoBoton('Select\nRight'), () => { const x0 = Math.max(...[...this.sel].map(o => o.x), this.camX); this.seleccionar(this.objs.filter(o => o.x >= x0)); }],
+    [ED.textoBoton('Select\nLeft'), () => { const x0 = Math.min(...[...this.sel].map(o => o.x), this.camX + GD.D.ancho / this.zoom); this.seleccionar(this.objs.filter(o => o.x <= x0)); }], [ED.textoBoton('Unlock\nLayers'), () => { this.capaEd = -1; this.lblCapa.texto('All'); }]];
   const cols = Math.max(6, Math.floor((W - 200) / paso)), tot = fila1.concat(fila2);
   this.pagEd = this.pagEd || 0; const porPag = cols * 2, pags = Math.ceil(tot.length / porPag); this.pagEd %= pags;
   tot.slice(this.pagEd * porPag, this.pagEd * porPag + porPag).forEach(([f, cb], k) => b(f, x0 + (k % cols) * paso, 64 - Math.floor(k / cols) * 40, cb));
@@ -154,6 +159,9 @@ Ed.armarBorrar = function () {
   });
 };
 Ed.actualizarBotones = function () { if (this.btnTacho) this.btnTacho.cont.op = this.sel.size ? 255 : 120; };
+ED.textoBoton = t => { const l = new Texto(t, 'bigFont', 0, 1); l.escala = 0.3; l.ax = l.ay = 0.5; return l; };
+ED.escalaXY = ed => { if (!ed.sel.size) return; ED.formulario(ed, 'Scale X/Y', [[128, 'Scale X', 'n', { def: 1, paso: 0.05 }], [129, 'Scale Y', 'n', { def: 1, paso: 0.05 }]], [...ed.sel]); };
+ED.deformar = ed => { if (!ed.sel.size) return; ED.formulario(ed, 'Warp', [[131, 'Warp X Angle', 'n', { paso: 5 }], [132, 'Warp Y Angle', 'n', { paso: 5 }]], [...ed.sel]); };
 ED.escalaPopup = function (ed) {
   if (!ed.sel.size) return;
   const pop = new U.Popup(320, 170), k = pop.caja; pop.titulo('Scale');
@@ -470,7 +478,11 @@ ED.pausa = function (ed) {
 };
 ED.jugarLocal = async function (n) {
   const info = { nombre: n.nombre, musica: ED.rutaCancion(n.cancion), id: n.id };
-  return GD.Menus.jugar(n.texto, info, { idProg: 'l' + n.id, editor: n, volver: () => ED.ficha(n) });
+  const p = await GD.Menus.jugar(n.texto, info, { idProg: 'l' + n.id, editor: n, volver: () => ED.ficha(n) });
+  // pasarlo en modo normal desde el principio lo deja "verificado" (hace falta para compartirlo)
+  const ganar = p.opc.alGanar;
+  p.opc.alGanar = (practica, ...r) => { ganar(practica, ...r); if (!practica && !p.opc.inicio && !n.verificado) { n.verificado = true; ED.guardar(n); GD.U.aviso('Level Verified!', [0, 255, 0]); } };
+  return p;
 };
 
 // ---------- mis niveles y la ficha del nivel ----------

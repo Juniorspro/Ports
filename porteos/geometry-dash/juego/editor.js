@@ -174,6 +174,12 @@ class Editor extends GD.Partida {
     });
   }
   escalar(k) { this.modificar(r => { const s = (r[32] !== undefined ? +r[32] : 1) * k; r[32] = +GD.clamp(s, 0.05, 16).toFixed(3); }); }
+  alinear(eje) { const l = [...this.sel]; if (l.length < 2) return; const k = eje === 'x' ? 2 : 3; const m = l.reduce((a, o) => a + (+o.raw[k] || 0), 0) / l.length; this.modificar(r => { r[k] = +m.toFixed(3); }); }
+  // estado: lo que no es posición (rotación, escala, capas, grupos, colores…), como "copy state" del juego
+  copiarEstado() { const o = [...this.sel][0]; if (!o) return; ED.estado = {}; for (const k of o.raw._k) if (![1, 2, 3].includes(k)) ED.estado[k] = o.raw[k]; U.aviso('State copied'); }
+  pegarEstado() { if (!ED.estado || !this.sel.size) return; this.modificar(r => { for (const k in ED.estado) r[k] = ED.estado[k]; }); }
+  copiarColor() { const o = [...this.sel][0]; if (!o) return; ED.colorCopiado = {}; for (const k of [21, 22, 41, 42, 43, 44]) if (o.raw[k] !== undefined) ED.colorCopiado[k] = o.raw[k]; U.aviso('Color copied'); }
+  pegarColor() { if (!ED.colorCopiado || !this.sel.size) return; this.modificar(r => { for (const k of [21, 22, 41, 42, 43, 44]) delete r[k]; Object.assign(r, ED.colorCopiado); }); }
   copiar() { if (!this.sel.size) return; ED.portapapeles = [...this.sel].map(o => this.copiaRaw(o)); U.aviso('Copied'); }
   pegar() {
     const pp = ED.portapapeles; if (!pp || !pp.length) return;

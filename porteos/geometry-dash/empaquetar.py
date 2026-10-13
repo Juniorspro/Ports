@@ -124,6 +124,21 @@ def main():
     audio()
 
 
+TRIGGERS22 = {1913: "eZoomBtn", 1914: "eStaticBtn", 1916: "eOffsetBtn", 2015: "eCamRotBtn", 2062: "eEdgeBtn", 2925: "eCamModeBtn", 2016: "eCamGuideBtn",
+              1917: "eReverseBtn", 2900: "eGameRotBtn", 1934: "eSongBtn", 3602: "eSFXBtn", 3603: "eEditSFXBtn", 3605: "eEditSongBtn", 1935: "eTimeWarpBtn",
+              2066: "eGravity", 3600: "eEndBtn", 3022: "eTeleportBtn", 1912: "eRandomBtn", 2068: "eAdvRandomBtn", 3607: "eSequenceBtn", 3614: "eTimeBtn",
+              3615: "eTimeEventBtn", 3617: "eTimeControlBtn", 3619: "eItemEditBtn", 3620: "eItemCompBtn", 3641: "eItemPersBtn", 3618: "eResetBtn",
+              2067: "eScaleComBtn", 3006: "eAreaMoveBtn", 3007: "eAreaRotateBtn", 3008: "eAreaScaleBtn", 3009: "eAreaFadeBtn", 3010: "eAreaTintBtn",
+              3011: "eEAreaMoveBtn", 3012: "eEAreaRotateBtn", 3013: "eEAreaScaleBtn", 3014: "eEAreaFadeBtn", 3015: "eEAreaTintBtn", 3024: "eAreaStopBtn",
+              3016: "eAdvFollowBtn", 3660: "eEditAdvFollowBtn", 3661: "eReAdvFollowBtn", 3032: "eKeyframeBtn", 2903: "eGradientBtn", 2904: "eShaderBtn",
+              2905: "eSh_ShockWaveBtn", 2907: "eSh_ShockLineBtn", 2909: "eSh_GlitchBtn", 2910: "eSh_ChromaticBtn", 2911: "eSh_ChromaticGlitchBtn",
+              2912: "eSh_PixelateBtn", 2913: "eSh_LensCircleBtn", 2914: "eSh_RadialBlurBtn", 2915: "eSh_MotionBlurBtn", 2916: "eSh_BulgeBtn",
+              2917: "eSh_PinchBtn", 2919: "eSh_GrayscaleBtn", 2920: "eSh_SepiaBtn", 2921: "eSh_InvertColorBtn", 2922: "eSh_HueBtn", 2923: "eSh_EditColorBtn",
+              2924: "eSh_SplitScreenBtn", 3021: "eSpawnParticleBtn", 3029: "eChangeBG", 3030: "eChangeG", 3031: "eChangeMG", 2999: "eSetupMGBtn",
+              3606: "eBGSpeedBtn", 3612: "eMGSpeedBtn", 3604: "eEventLinkBtn", 3609: "eInstantCollisionBtn", 3640: "eCollisionStateBtn",
+              3613: "eUISettingsBtn", 3662: "eLinkVisibleBtn", 2899: "eOptionsBtn", 1932: "ePlayerControlBtn", 2901: "eGPOffsetBtn"}
+
+
 def objetos():
     """Tabla de objetos (id → textura, capa, colores, hijos, caja de choque). El juego la tiene en el
     binario; mientras no esté, se arma con los datos públicos de dos reimplementaciones (se bajan al
@@ -163,6 +178,10 @@ def objetos():
         if b.get("children"):
             o["h"] = hijos(b["children"])
         out[int(i)] = o
+    # los triggers de la 2.2 no están en esas tablas: su dibujo del editor por nombre
+    for i, t in TRIGGERS22.items():
+        if i not in out or not out[i].get("t"):
+            out[i] = {"t": f"edit_{t}_001.png", "z": 3, "o": 0, "c1": 0, "c2": -1, "ct": "", "ty": 7}
     json.dump(out, open(os.path.join(DATOS, "objetos.json"), "w"), separators=(",", ":"))
 
 

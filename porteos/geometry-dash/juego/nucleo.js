@@ -384,7 +384,15 @@ GD.Accion = Accion;
 const D = GD.D = { escena: null, tiempo: 0, toques: [], ancho: 480, alto: 320, dtFijo: 0 };
 D.medir = function () {
   const c = D.canvas, dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const cw = c.clientWidth || 1, ch = c.clientHeight || 1;
+  // con el teléfono parado el juego se gira 90° (es un juego acostado)
+  const vw = window.innerWidth || 1, vh = window.innerHeight || 1, girar = vh > vw * 1.05;
+  if (girar !== D.girado || vw !== D._vw || vh !== D._vh) {
+    D.girado = girar; D._vw = vw; D._vh = vh;
+    const st = c.style;
+    if (girar) { st.width = vh + 'px'; st.height = vw + 'px'; st.transformOrigin = '0 0'; st.transform = `translateX(${vw}px) rotate(90deg)`; }
+    else { st.width = '100%'; st.height = '100%'; st.transform = ''; }
+  }
+  const cw = girar ? vh : (c.clientWidth || 1), ch = girar ? vw : (c.clientHeight || 1);
   const pw = Math.round(cw * dpr), ph = Math.round(ch * dpr);
   if (c.width !== pw || c.height !== ph) { c.width = pw; c.height = ph; }
   D.alto = 320; D.ancho = 320 * cw / ch; D.k = ph / 320;
@@ -427,7 +435,12 @@ D.ciclo = function (ms) {
 D.pila = [];
 D.empujar = n => D.pila.push(n);
 D.soltarPila = n => { const i = D.pila.indexOf(n); if (i >= 0) D.pila.splice(i, 1); };
-D.aPuntos = e => { const r = D.canvas.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * D.ancho, (1 - (e.clientY - r.top) / r.height) * D.alto]; };
+D.aPuntos = e => {
+  if (D.girado) { // pantalla girada 90°: x de la pantalla = alto del juego (de abajo hacia arriba en el juego es de derecha a izquierda)
+    return [e.clientY / D._vh * D.ancho, (e.clientX / D._vw) * D.alto];
+  }
+  const r = D.canvas.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * D.ancho, (1 - (e.clientY - r.top) / r.height) * D.alto];
+};
 D.instalarToques = function (c) {
   const due = {};
   const dar = (tipo, e) => {

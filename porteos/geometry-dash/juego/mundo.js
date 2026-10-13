@@ -228,7 +228,8 @@ O.matriz = function (o, m) {
   }
   const lat = o.late ? 0.8 + 0.4 * O.latido : 1;
   const sx = o.sx * (o.fx ? -1 : 1) * (o.esx || 1) * lat, sy = o.sy * (o.fy ? -1 : 1) * (o.esy || 1) * lat;
-  m[0] = a * sx; m[1] = b * sx; m[2] = c * sy; m[3] = d * sy; m[4] = o.x + o.dx; m[5] = o.y + o.dy;
+  const ve = o.ve || 1; // escala visual de los efectos de entrada
+  m[0] = a * sx * ve; m[1] = b * sx * ve; m[2] = c * sy * ve; m[3] = d * sy * ve; m[4] = o.x + o.dx + (o.vx || 0); m[5] = o.y + o.dy + (o.vy || 0);
   return m;
 };
 // dibuja un trozo: w = vista·objeto, p.m = matriz del trozo dentro del objeto

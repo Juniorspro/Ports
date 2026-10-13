@@ -8,6 +8,7 @@ const COLOR_FIJO = { 29: 1000, 30: 1001, 104: 1002, 105: 1004, 221: 1, 717: 2, 7
 TR.def = {};
 for (const id in COLOR_FIJO) TR.def[id] = 'color';
 Object.assign(TR.def, {
+  22: 'entrada', 23: 'entrada', 24: 'entrada', 25: 'entrada', 26: 'entrada', 27: 'entrada', 28: 'entrada', 55: 'entrada', 56: 'entrada', 57: 'entrada', 58: 'entrada', 59: 'entrada',
   899: 'color', 901: 'mover', 1616: 'parar', 1006: 'pulso', 1007: 'alpha', 1049: 'toggle', 1268: 'spawn', 1346: 'rotar', 1347: 'seguir',
   1520: 'temblor', 1585: 'animar', 1595: 'tocar', 1611: 'contar', 1811: 'contarYa', 1817: 'recoger', 1814: 'seguirY', 1815: 'colision',
   1812: 'alMorir', 1818: 'fondoOn', 1819: 'fondoOff', 1612: 'ocultarJ', 1613: 'mostrarJ', 32: 'estelaOn', 33: 'estelaOff', 1932: 'controlJ',
@@ -158,6 +159,8 @@ TR.activarGrupos = function (p, o, deAro) {
 const H = TR.H = {};
 const n = (v, d = 0) => v === undefined || v === '' ? d : +v;
 H.nada = () => { };
+// efectos de entrada de la 1.9: cómo aparecen los objetos por los bordes de la pantalla
+H.entrada = function (p, o) { p.efEntrada = o.id; };
 H.color = function (p, o, r) {
   const canal = COLOR_FIJO[o.id] || (r[23] | 0) || 1;
   const dest = { r: n(r[7], 255), g: n(r[8], 255), b: n(r[9], 255), op: n(r[35], 1), pc: r[15] == 1 ? 1 : r[16] == 1 ? 2 : -1 };
