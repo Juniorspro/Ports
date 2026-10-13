@@ -155,7 +155,7 @@ const Escenas = {
             const eq = Prog.mano === it.id ? 'R' : Prog.manoI === it.id ? 'L' : '';
             UI.caja(x, y, w, 3, eq ? [120, 255, 120] : [255, 255, 255]);
             let det = '';
-            if (st && !st.herramienta) det = st.ataca ? '  \u2666' + st.dano : '  \u25ca' + st.armMax;
+            if (st && !st.herramienta) det = st.ataca ? '  \u2666' + st.dano : '  \u2666' + st.armMax;
             P.texto(x + 2, y + 1, Items.nombre(it.id) + ' +' + (it.nivel || 1) + det);
             if (eq) P.texto(x + w - 4, y + 1, eq, [120, 255, 120]);
             botones.push({ x, y, w, h: 3, item: it.id });
