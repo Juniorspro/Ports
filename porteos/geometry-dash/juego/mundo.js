@@ -21,7 +21,7 @@ const TIPOS_ID = {
   36: TY.ARO_AMARILLO, 141: TY.ARO_ROSA, 84: TY.ARO_GRAVEDAD, 1022: TY.ARO_VERDE, 1330: TY.ARO_CAIDA, 1333: TY.ARO_ROJO, 1594: TY.ARO_CUSTOM,
   1704: TY.ARO_DASH, 1751: TY.ARO_DASH_GRAV, 3004: TY.ARO_ARANA, 3027: TY.ARO_TELEPORT,
   142: TY.MONEDA_SECRETA, 1329: TY.MONEDA_USUARIO, 1614: TY.COLECCIONABLE, 1275: TY.COLECCIONABLE, 1587: TY.COLECCIONABLE, 1589: TY.COLECCIONABLE, 1598: TY.COLECCIONABLE,
-  143: TY.ROMPIBLE, 1816: TY.COLISION, 3643: TY.COLISION,
+  143: TY.ROMPIBLE, 1816: TY.COLISION,
   200: TY.MODIFICADOR, 201: TY.MODIFICADOR, 202: TY.MODIFICADOR, 203: TY.MODIFICADOR, 1334: TY.MODIFICADOR,
 };
 O.VELOCIDAD = { 200: 0, 201: 1, 202: 2, 203: 3, 1334: 4 };
@@ -172,6 +172,8 @@ O.partes = function (o) {
     if (base !== d.t && GD.T.m(base + '_002.png')) { const l = [prin.f]; for (let k = 2; GD.T.m(`${base}_${String(k).padStart(3, '0')}.png`); k++) l.push(GD.T.m(`${base}_${String(k).padStart(3, '0')}.png`)); prin.anim = l; prin.fps = /secretCoin/.test(base) ? 10 : 15; }
     out.push(prin);
   }
+  // contador (1615): sólo el número (sale de la partida en cada cuadro)
+  if (o.id === 1615) return [{ contador: true, texto: '0', obj: o, m: [1, 0, 0, 1, 0, 0], ct: 'b', z: 0, op: 1, f: GD.T.m('emptyFrame.png') || { tx: GD.R.blanco } }];
   // objeto de texto (914): las letras de la fuente del nivel
   if (o.id === 914) { out.push({ texto: GD.N.texto64(o.raw[31] || ''), m: [1, 0, 0, 1, 0, 0], ct: 'b', z: 0, op: 1, f: GD.T.m('emptyFrame.png') || { tx: GD.R.blanco } }); }
   const rec = (hs, pm) => {
@@ -236,6 +238,7 @@ O.matriz = function (o, m) {
 };
 // dibuja un trozo: w = vista·objeto, p.m = matriz del trozo dentro del objeto
 O.pintarParte = function (w, p, col, add) {
+  if (p.contador && O.partida && O.partida.tr) p.texto = O.textoContador(O.partida, p.obj);
   if (p.texto !== undefined) { O.pintarTexto(w, p, col, add); return; }
   const f = p.anim ? p.anim[Math.floor(O.reloj * p.fps) % p.anim.length] : p.f, pm = p.m;
   const a = w[0] * pm[0] + w[2] * pm[1], b = w[1] * pm[0] + w[3] * pm[1], c = w[0] * pm[2] + w[2] * pm[3], d = w[1] * pm[2] + w[3] * pm[3];

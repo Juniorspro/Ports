@@ -100,13 +100,14 @@ class Jugador {
 
   // un paso de física; d = dt en 60avos de segundo
   paso(dt) {
-    const d = dt * 60, ds = d * 0.9, g = this.grav, tam = this.mini ? 0.8 : 1;
+    // la gravedad puede venir cambiada por el trigger de gravedad (2066)
+    const d = dt * 60, ds = d * 0.9, g = this.grav, tam = this.mini ? 0.8 : 1, GR = GRAV * (this.gravMod || 1);
     this.prevY = this.y; this.prevX = this.x; this.enPendienteAntes = this.enPendiente; this.enPendiente = false;
     const m = this.modo;
     if (this.dash) { // aro de dash: va en línea recta mientras se mantiene el toque
       const vel = this.ups * dt, a = GD.clamp(this.dash.ang, -70, 70) * Math.PI / 180;
       this.x += vel * this.dir; this.y += Math.tan(a) * vel; this.yv = 0; this.suelo = false;
-      if (!this.sost) { this.dash = null; this.yv = Math.tan(a) * 5.77 * (this.grav > 0 ? 1 : -1) * 0; }
+      if (!this.sost) { this.dash = null; this.yv = Math.tan(a) * 5.77 * (this.grav > 0 ? 1 : -1) * 0; GD.TR.evento && GD.TR.evento(this.capa, 24); }
       this.rot += (this.modo === 'cubo' ? 600 : 0) * dt;
       return;
     }
@@ -118,7 +119,7 @@ class Jugador {
       if (m === 'nave' || m === 'jetpack') {
         let acel = this.sost ? -1 : (this.cayendo() ? 0.8 : 1.2);
         const extra = this.sost && this.cayendo() ? 0.5 : 0.4;
-        this.yv -= GRAV * ds * g * acel * extra / ps;
+        this.yv -= GR * ds * g * acel * extra / ps;
       } else if (m === 'ovni') {
         if (this.pulsoAire) {
           this.pulsoAire = false; this.buffer = false;
@@ -127,11 +128,11 @@ class Jugador {
           this.suelo = false; this.capa.alSaltar && this.capa.alSaltar(this);
         }
         const gm = this.cayendo() ? 0.8 : 1.2;
-        this.yv -= GRAV * ds * g * gm * 0.5 / ps;
+        this.yv -= GR * ds * g * gm * 0.5 / ps;
       } else { // columpio (2.2): cada toque cambia la gravedad; cae como la nave suelta
         if (this.pulsoAire) { this.pulsoAire = false; this.buffer = false; this.cambiarGravedad(-this.grav, false); this.capa.alSaltar && this.capa.alSaltar(this); }
         const gm = this.cayendo() ? 0.8 : 1.2;
-        this.yv -= GRAV * ds * this.grav * gm * 0.4 / ps;
+        this.yv -= GR * ds * this.grav * gm * 0.4 / ps;
       }
       let sup = 8 / ps, inf = -6.4 / ps;
       if (m === 'ovni') { sup = 8 / ps; inf = -6.4 / ps; }
@@ -148,7 +149,7 @@ class Jugador {
         this.yv = g * SALTO * 0.5 * tam * 1.0;
       } else {
         if (m === 'robot' && !this.sost) this.robotT = 1e9;
-        this.yv -= GRAV * ds * g * gm;
+        this.yv -= GR * ds * g * gm;
         if (g > 0) this.yv = Math.max(this.yv, -15); else this.yv = Math.min(this.yv, 15);
         if (this.subiendo && this.cayendo()) this.subiendo = false;
         if ((g > 0 && this.yv < -GRAV * 2) || (g < 0 && this.yv > GRAV * 2)) this.suelo = false;
@@ -179,6 +180,7 @@ class Jugador {
   cambiarGravedad(ng, mitad = true) {
     if (ng === this.grav) return;
     this.grav = ng; if (mitad) this.yv /= 2;
+    if (GD.TR.evento && this.capa.tr) GD.TR.evento(this.capa, ng < 0 ? 10 : 11);
     this.suelo = false;
   }
   // empujón de pad: fuerza 1 amarillo, 0.65 rosa, 1.25 rojo, 0.8 azul
@@ -211,10 +213,11 @@ class Jugador {
   tocarSuelo(yTope, techo) {
     // queda apoyado en una superficie: abajo (o arriba con la gravedad invertida)
     this.y = techo ? yTope - this.alto / 2 : yTope + this.alto / 2;
+    const vLlega = this.yv;
     if (this.grav > 0 ? this.yv < 0 : this.yv > 0) this.yv = 0;
     const antes = this.suelo;
     this.suelo = true; this.subiendo = false; this.robotT = undefined;
-    if (!antes && this.capa.alAterrizar) this.capa.alAterrizar(this);
+    if (!antes && this.capa.alAterrizar) this.capa.alAterrizar(this, vLlega, techo);
   }
   girar(dt) {
     const m = this.modo, g = this.grav;

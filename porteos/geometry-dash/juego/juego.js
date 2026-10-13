@@ -101,7 +101,7 @@ class Partida extends GD.Nodo {
 
   // ---------- reinicio ----------
   reiniciar(primera) {
-    const cp = this.practica && this.checkpoints.length ? this.checkpoints[this.checkpoints.length - 1] : null;
+    const cp = this.practica && this.checkpoints.length ? this.checkpoints[this.checkpoints.length - 1] : (!primera && this.cpPlat) || null;
     this.cols = new GD.O.Colores(this.nv, GD.perfil.c1rgb(), GD.perfil.c2rgb());
     for (const o of this.objs) { o.dx = 0; o.dy = 0; o.drot = 0; o.op = 1; o.activo = true; o.usado = false; o.pulsos = null; o.esx = 1; o.esy = 1; o.oculto = false; o.tomado = false; o.muerto = false; o.usadoPor = null; o.anim = 0; o.emisor = null; o.animado = false; if (o.sec === undefined) this.ponerEnSeccion(o); }
     this.particulas = [];
@@ -206,7 +206,9 @@ class Partida extends GD.Nodo {
   aplicarRoles(rol, abajo) {
     if (rol === 'salto') { if (abajo) this.presionar(); else if (!this.cuenta('salto')) this.soltar(); }
     else if (rol === 'salto2') { if (abajo) this.j2 && this.j2.presionar(); else if (!this.cuenta('salto2')) this.j2 && this.j2.soltar(); }
-    this.izq = this.cuenta('izq') > 0; this.der = this.cuenta('der') > 0;
+    const izq = this.cuenta('izq') > 0, der = this.cuenta('der') > 0;
+    if (GD.TR && this.tr) { if (izq !== !!this.izq) GD.TR.evento(this, izq ? 71 : 72); if (der !== !!this.der) GD.TR.evento(this, der ? 73 : 74); }
+    this.izq = izq; this.der = der;
   }
   alTecla(c, abajo, e) {
     const t = this.teclas = this.teclas || {};
@@ -216,14 +218,23 @@ class Partida extends GD.Nodo {
     else if (c === 'KeyZ' && abajo && this.practica) this.ponerCheckpoint();
     else if (c === 'KeyX' && abajo && this.practica) this.quitarCheckpoint();
   }
-  presionar() { if (!this.j || this.muerto || this.terminada) return; if (GD.TR && this.tr) GD.TR.alToque(this, true); this.j.presionar(); if (this.j2 && !GD.perfil.dualDividido) this.j2.presionar(); this.pulsoNuevo = true; }
-  soltar() { if (!this.j) return; if (GD.TR && this.tr) GD.TR.alToque(this, false); this.j.soltar(); if (this.j2 && !GD.perfil.dualDividido) this.j2.soltar(); }
+  presionar() {
+    if (!this.j || this.muerto || this.terminada) return;
+    const op = (this.tr && this.tr.opc) || {};
+    if (GD.TR && this.tr) { GD.TR.alToque(this, true); GD.TR.evento(this, 69); if (this.j.modo === 'nave') GD.TR.evento(this, 16); if (this.j.modo === 'onda') GD.TR.evento(this, 21); }
+    if (!op.sinControlJ1) this.j.presionar(); if (this.j2 && !GD.perfil.dualDividido && !op.sinControlJ2) this.j2.presionar(); this.pulsoNuevo = true;
+  }
+  soltar() {
+    if (!this.j) return;
+    if (GD.TR && this.tr) { GD.TR.alToque(this, false); GD.TR.evento(this, 70); if (this.j.modo === 'nave') GD.TR.evento(this, 17); if (this.j.modo === 'onda') GD.TR.evento(this, 22); }
+    this.j.soltar(); if (this.j2 && !GD.perfil.dualDividido) this.j2.soltar();
+  }
   dirPlat() { return (this.der ? 1 : 0) - (this.izq ? 1 : 0); }
 
   // ---------- bucle ----------
   alActualizar(dt) {
     if (!this.listo || this.pausada) return;
-    if (this.muerto) { this.muerteT += dt; if (this.muerteT > (this.practica && GD.perfil.opcion('fast-reset') ? 0.5 : 1)) this.reiniciar(); this.actualizarCamara(dt); return; }
+    if (this.muerto) { this.muerteT += dt; const rt = this.tr && this.tr.opc && this.tr.opc.respawn !== undefined ? this.tr.opc.respawn : (this.practica && GD.perfil.opcion('fast-reset') ? 0.5 : 1); if (this.muerteT > rt) this.reiniciar(); this.actualizarCamara(dt); return; }
     if (this.terminada) { this.alFinal(dt); return; }
     // pasos de física de 1/240 s
     const pasos = Math.max(1, Math.ceil(dt * 240 - 0.01)), h = dt / pasos;
@@ -389,7 +400,8 @@ class Partida extends GD.Nodo {
   }
   tocarEspecial(j, o, c) {
     const ty = o.ty;
-    const portal = () => { o.usado = true; this.efectoPortal(o); };
+    if (o.id === 2063) { this.checkpointPlataforma(o); return; }
+    const portal = () => { o.usado = true; this.efectoPortal(o); if (GD.TR) GD.TR.eventoObjeto(this, o); };
     switch (ty) {
       case TYP.PORTAL_NAVE: case TYP.PORTAL_CUBO: case TYP.PORTAL_BOLA: case TYP.PORTAL_OVNI: case TYP.PORTAL_ONDA: case TYP.PORTAL_ROBOT: case TYP.PORTAL_ARANA: case TYP.PORTAL_COLUMPIO:
         if (j.tocados.has(o)) return; j.tocados.add(o); portal();
@@ -416,7 +428,7 @@ class Partida extends GD.Nodo {
         if (ty === TYP.PAD_ARANA) { this.teleportArana(j, true); return; }
         if (ty === TYP.PAD_GRAVEDAD) { j.impulso(0.8); j.cambiarGravedad(-j.grav); }
         else j.impulso(ty === TYP.PAD_AMARILLO ? 1 : ty === TYP.PAD_ROSA ? 0.65 : 1.25);
-        this.efectoPad(o); return;
+        this.efectoPad(o); if (GD.TR) GD.TR.eventoObjeto(this, o); return;
       case TYP.ARO_AMARILLO: case TYP.ARO_ROSA: case TYP.ARO_ROJO: case TYP.ARO_GRAVEDAD: case TYP.ARO_VERDE: case TYP.ARO_CAIDA: case TYP.ARO_DASH: case TYP.ARO_DASH_GRAV: case TYP.ARO_ARANA: case TYP.ARO_TELEPORT: case TYP.ARO_CUSTOM:
         if (!j.buffer || (o.usadoPor && o.usadoPor.has(j) && !(o.raw[99] == 1))) return;
         if (GD.perfil.opcion('no-orb-buffer') && !j.recienSost) return;
@@ -429,6 +441,7 @@ class Partida extends GD.Nodo {
         else j.aro(o);
         this.efectoAro(o, j);
         if (GD.TR && o.raw[51]) GD.TR.activarGrupos(this, o, false);
+        if (GD.TR) GD.TR.eventoObjeto(this, o);
         return;
       case TYP.MONEDA_SECRETA: case TYP.MONEDA_USUARIO: case TYP.COLECCIONABLE:
         if (o.tomado) return; o.tomado = true; this.tomarMoneda(o); return;
@@ -439,7 +452,7 @@ class Partida extends GD.Nodo {
     o.muerto = true; o.activo = false; o.op = 0;
     const pe = this.efecto(new GD.Particulas('explodeEffect', { maxParticles: 12, duration: 0.1 })); pe.x = o.cx; pe.y = o.cy; pe.tinte = [200, 200, 200];
   }
-  dash(j, o) { j.dash = { ang: -(o.rot || 0) * (o.fx ? -1 : 1), t: 0 }; j.yv = 0; }
+  dash(j, o) { j.dash = { ang: -(o.rot || 0) * (o.fx ? -1 : 1), t: 0 }; j.yv = 0; if (GD.TR) GD.TR.evento(this, 23); }
   cambiarModo(j, modo, o) {
     const antes = j.modo;
     j.modo = modo;
@@ -487,7 +500,8 @@ class Partida extends GD.Nodo {
   morir(j) {
     if (this.muerto || this.opc.noclip) return;
     this.muerto = true; j.muerto = true; this.muerteT = 0;
-    GD.S.pararMusica(); GD.S.efecto('explode_11.ogg', 0.7);
+    const opT = (this.tr && this.tr.opc) || {};
+    if (!opT.audioAlMorir) GD.S.pararMusica(); if (!opT.sinSonidoMuerte) GD.S.efecto('explode_11.ogg', 0.7);
     this.efectoMuerte(j); if (GD.TR) GD.TR.alMorirJugador(this);
     const pct = Math.min(100, Math.floor(j.x / this.largo * 100));
     if (this.opc.alMorir) this.opc.alMorir(pct, this.practica);
@@ -575,6 +589,7 @@ class Partida extends GD.Nodo {
     }
     this.camY += (this.camYObj - this.camY) * Math.min(1, dt * 6);
     if (GD.TR && this.camOff) { this.camX += this.camOff.x; this.camY += this.camOff.y; }
+    if (GD.TR && GD.TR.aplicarBordes) GD.TR.aplicarBordes(this);
   }
   actualizarHUD() {
     const k = GD.clamp(this.j.x / this.largo, 0, 1);
@@ -588,6 +603,7 @@ class Partida extends GD.Nodo {
     // efectos de pantalla (shaders de la 2.2): el mundo va a una textura y después a la pantalla
     const conShader = !this.enEditor && GD.Shaders && !GD.Shaders.roto && this.tr && GD.Shaders.empezar(this);
     this.dibujarFondo();
+    this.dibujarMedio();
     // vista del mundo: unidades del nivel → pantalla (con espejo y zoom de cámara)
     const k = this.espejoAnim();
     const vx = this.camX, vy = this.camY;
@@ -600,7 +616,8 @@ class Partida extends GD.Nodo {
     for (let s = Math.max(0, Math.floor(x0 / SEC)), s1 = Math.floor(x1 / SEC); s <= s1; s++) { const a = this.secs[s]; if (a) for (const o of a) vis.push(o); }
     vis.sort((a, b) => a.rango - b.rango);
     const editor = !!this.enEditor;
-    const vis2 = editor ? vis : vis.filter(o => o.vis && !o.oculto && !GD.O.esTrigger(o.id) && o.op > 0.001);
+    const vis2 = editor ? vis : vis.filter(o => o.vis && !o.oculto && (!GD.O.esTrigger(o.id) || o.id === 1615) && o.op > 0.001);
+    GD.O.partida = this;
     if (!editor) this.efectosBorde(vis2, x0 + 100, x1 - 100);
     const emisores = vis.filter(o => o.pdef && (editor || (o.vis && !o.oculto)));
     GD.O.dibujarObjetos(vis2, w, this.cols, { capaJugador: 5, jugadores: () => this.dibujarJugadores(w), opacidad: this.fundidoBorde ? o => this.fundidoBorde(o) : null,
@@ -710,8 +727,33 @@ class Partida extends GD.Nodo {
     xs[1] = xs[3] = oy + tam; xs[5] = xs[7] = oy;
     GD.R.quad(tx, false, 0, xs, uv, col);
   }
+  // fondo del medio (2.2, fg_NN): entre el fondo y los objetos, con los canales 1013/1014
+  dibujarMedio() {
+    const D = GD.D, tx = this.txMedio; if (!tx || (this.tr && this.tr.opc && this.tr.opc.sinMedio)) return;
+    const zoom = this.zoom || 1, vm = (this.tr && this.tr.velMedio) || [1, 1];
+    const ancho = tx.w / 2, alto = tx.h / 2, ox = -(((this.camX * 0.5 * vm[0] * zoom) % ancho) + ancho) % ancho;
+    const y0 = (-this.camY * zoom) * vm[1] + ((this.tr && this.tr.medioY) || 0) * zoom - 0, y1 = y0 + alto;
+    const n = (D.ancho + ancho * 2) / ancho, xs = new Float32Array([ox, y1, ox + ancho * n, y1, ox, y0, ox + ancho * n, y0]), uv = new Float32Array([0, 0, n, 0, 0, 1, n, 1]);
+    for (const [t, canal] of [[tx, 1013], [this.txMedio2, 1014]]) { if (!t) continue; const c = this.cols.valor(canal); GD.R.quad(t, false, 0, xs, uv, GD.col(c.r, c.g, c.b, 255 * (c.op === undefined ? 1 : c.op))); }
+  }
+  // triggers que cambian el fondo, el piso o el medio (3029/3030/3031)
+  async cambiarFondo(tipo, n) {
+    const nn = v => String(v).padStart(2, '0');
+    const carga = async nombre => { if (!GD.datos.hojas.hasOwnProperty(nombre)) return null; const t = await GD.T.textura(nombre); GD.R.repetir(t); return t; };
+    if (tipo === 'fondo') { const t = await carga(`game_bg_${nn(n)}_001`); if (t) { this.txFondo = t; this.fondo = n; } }
+    else if (tipo === 'piso') { const [a, b] = await Promise.all([carga(`groundSquare_${nn(n)}_001`), carga(`groundSquare_${nn(n)}_2_001`)]); if (a) { this.txPiso = a; this.txPiso2 = b; this.piso = n; } }
+    else if (!n) { this.txMedio = this.txMedio2 = null; }
+    else { const [a, b] = await Promise.all([carga(`fg_${nn(n)}_001`), carga(`fg_${nn(n)}_2_001`)]); if (a) { this.txMedio = a; this.txMedio2 = b; this.medio = n; } }
+  }
+  // checkpoint de los niveles de plataformas (2063): al morir se vuelve a él
+  checkpointPlataforma(o) {
+    if (o.usado || this.muerto) return; o.usado = true;
+    this.cpPlat = this.foto(); this.cpPlat.tiempoMusica = this.tiempoParaX(this.j.x);
+    GD.S.efecto('crystal01.ogg', 0.6); const w = this.efecto(new GD.Onda(0.4, 10, 50, [0, 255, 0])); w.x = o.cx; w.y = o.cy;
+    if (GD.TR) GD.TR.evento(this, 60);
+  }
   dibujarPiso() {
-    const D = GD.D, tx = this.txPiso; if (!tx) return;
+    const D = GD.D, tx = this.txPiso; if (!tx || (this.tr && this.tr.opc && this.tr.opc.sinPiso)) return;
     const zoom = this.zoom || 1;
     const lado = tx.h / 2; // 128 puntos
     const dib = (yPant, arriba, txx, canal) => {
@@ -768,8 +810,11 @@ class Partida extends GD.Nodo {
   efectoAro(o) { const w = this.efecto(new GD.Onda(0.3, 30, 5, [255, 255, 255])); w.x = o.cx; w.y = o.cy; }
   efectoAranaRayo(x, y0, y1) { const r = this.efecto(new GD.Rect(6, Math.abs(y1 - y0), 255, 255, 255, 200)); r.x = x - 3; r.y = Math.min(y0, y1); r.add = true; r.correr(GD.A.sec(GD.A.op(0.25, 0), GD.A.fn(n => n._fin = true))); }
   efectoFinal() { GD.S.efecto('achievement_01.ogg', 0.5); for (let i = 0; i < 3; i++) { const w = this.efecto(new GD.Onda(0.6 + i * 0.2, 10, 200, [255, 255, 255], i === 0)); w.x = this.j.x; w.y = this.j.y; } }
-  alSaltar() { this.saltos = (this.saltos || 0) + 1; }
-  alAterrizar() { }
+  alSaltar(j) {
+    this.saltos = (this.saltos || 0) + 1; if (!GD.TR || !this.tr) return;
+    const m = j && j.modo; GD.TR.evento(this, m === 'ovni' ? 15 : m === 'bola' ? 19 : m === 'columpio' ? 20 : 12);
+  }
+  alAterrizar(j, v, techo) { if (GD.TR && this.tr) { GD.TR.aterrizaje(this, v); if (techo && j && j.grav > 0) GD.TR.evento(this, 6); } }
 }
 const kStartPosActive = -1;
 GD.Partida = Partida;

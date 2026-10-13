@@ -140,6 +140,14 @@ TRIGGERS22 = {1913: "eZoomBtn", 1914: "eStaticBtn", 1916: "eOffsetBtn", 2015: "e
               3613: "eUISettingsBtn", 3662: "eLinkVisibleBtn", 2899: "eOptionsBtn", 1932: "ePlayerControlBtn", 2901: "eGPOffsetBtn"}
 
 
+EXTRA22 = {2063: {"t": "checkpoint_d_01_001.png", "z": 3, "c2": 1011, "ty": 40, "hb": ["B", 30.0, 60.0, 0.0, 0.0]},
+           3610: {"t": "edit_eDamageSquare_001.png", "ty": 2, "hb": ["B", 30.0, 30.0, 0.0, 0.0]},
+           3611: {"t": "edit_eDamageCircle_001.png", "ty": 2, "hb": ["C", 15.0, 0.0, 0.0, 0.0]},
+           2069: {"t": "edit_eForceBlock01_001.png", "ty": 40, "hb": ["B", 30.0, 30.0, 0.0, 0.0]},
+           3645: {"t": "edit_eForceBlock02_001.png", "ty": 40, "hb": ["C", 15.0, 0.0, 0.0, 0.0]},
+           3643: {"t": "edit_ePlayerTouchBtn_001.png", "ty": 40, "hb": ["B", 30.0, 30.0, 0.0, 0.0]}}
+
+
 def objetos():
     """Tabla de objetos (id → textura, capa, colores, hijos, caja de choque). El juego la tiene en el
     binario; mientras no esté, se arma con los datos públicos de dos reimplementaciones (se bajan al
@@ -183,6 +191,10 @@ def objetos():
     for i, t in TRIGGERS22.items():
         if i not in out or not out[i].get("t"):
             out[i] = {"t": f"edit_{t}_001.png", "z": 3, "o": 0, "c1": 0, "c2": -1, "ct": "", "ty": 7}
+    # objetos de la 2.2 con función propia (tipo 2 = peligro, 40 = especial): caja de choque y sprite del editor
+    for i, d in EXTRA22.items():
+        if i not in out or not out[i].get("t"):
+            out[i] = dict({"z": 3, "o": 0, "c1": 0, "c2": -1, "ct": ""}, **d)
     json.dump(out, open(os.path.join(DATOS, "objetos.json"), "w"), separators=(",", ":"))
 
 

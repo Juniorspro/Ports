@@ -235,7 +235,7 @@ M.pausa = function (p, info, prog) {
   if (p.opc.editor) fila.push(['GJ_editBtn_001.png', () => { pop.cerrar(); GD.S.seguir(); GD.S.pararMusica(); D.cambiar(GD.Editor.abrir(p.opc.editor)); }]);
   fila.push([p.practica ? 'GJ_normalBtn_001.png' : 'GJ_practiceBtn_001.png', () => { pop.cerrar(); GD.S.seguir(); M.cambiarPractica(p); }]);
   fila.push(['GJ_playBtn2_001.png', () => { pop.cerrar(); p.seguir(); }]);
-  fila.push(['GJ_replayBtn_001.png', () => { pop.cerrar(); p.seguir(); p.checkpoints.length = 0; p.reiniciar(); }]);
+  fila.push(['GJ_replayBtn_001.png', () => { pop.cerrar(); p.seguir(); p.checkpoints.length = 0; p.cpPlat = null; p.reiniciar(); }]);
   fila.push(['GJ_menuBtn_001.png', salir]);
   fila.forEach(([f, cb], i) => U.boton(k, f, (i - (fila.length - 1) / 2) * 75, -40, cb, 0, f === 'GJ_playBtn2_001.png' ? 1 : 0.85));
   // volumen
@@ -277,7 +277,7 @@ M.finNivel = function (p, info, prog) {
   const ms = p.objs.filter(o => o.ty === GD.O.TIPO.MONEDA_SECRETA || o.ty === GD.O.TIPO.MONEDA_USUARIO).sort((a, b) => a.x - b.x);
   ms.forEach((o, k) => U.sprite(cuadro, p.monedas[o.i] ? 'secretCoinUI_001.png' : 'secretCoinUI2_001.png', (k - (ms.length - 1) / 2) * 32, -50, 0.8));
   const salir = () => { GD.S.pararMusica(); D.cambiar(p.volver ? p.volver() : M.menu()); };
-  U.boton(cuadro, 'GJ_replayBtn_001.png', -60, -85, () => { capa.sacar(); D.soltarPila(capa); p.pantallaFin = false; p.finSonido = false; p.checkpoints.length = 0; p.reiniciar(); }, 0, 0.9);
+  U.boton(cuadro, 'GJ_replayBtn_001.png', -60, -85, () => { capa.sacar(); D.soltarPila(capa); p.pantallaFin = false; p.finSonido = false; p.checkpoints.length = 0; p.cpPlat = null; p.reiniciar(); }, 0, 0.9);
   U.boton(cuadro, 'GJ_menuBtn_001.png', 60, -85, salir, 0, 0.9);
   if (p.opc.editor) U.boton(cuadro, 'GJ_editBtn_001.png', 160, -85, () => { D.soltarPila(capa); D.cambiar(GD.Editor.abrir(p.opc.editor)); }, 0, 0.8);
   cuadro.correr(A.mover(1, W / 2, H / 2 + 10).e(E.bounceOut));

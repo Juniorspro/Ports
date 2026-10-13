@@ -8,7 +8,7 @@ El nombre lleva el hash del contenido: el navegador lo guarda para siempre y una
 baja sola."""
 import hashlib, json, os, re, struct, sys
 AQUI = os.path.dirname(os.path.abspath(__file__))
-MODULOS = ["nucleo.js", "nivel.js", "mundo.js", "particulas.js", "perfil.js", "jugador.js", "triggers.js", "shaders.js", "juego.js",
+MODULOS = ["nucleo.js", "nivel.js", "mundo.js", "particulas.js", "perfil.js", "jugador.js", "triggers.js", "triggers22.js", "shaders.js", "juego.js",
            "oficiales.js", "ui.js", "menus.js", "editor.js", "editor2.js", "online.js", "extras.js", "principal.js"]
 DIFERIDAS = re.compile(r"^(game_bg|groundSquare|fg_|tutorial|promo|mapPromo|dialogIcon|PlayerExplosion|GJ_ShopSheet|GauntletSheet|SecretSheet|TreasureRoomSheet|TowerSheet|DungeonSheet|WorldSheet|GJ_PathSheet|gjFont\d|fps_images|gk-icon)")
 sitio = sys.argv[1]

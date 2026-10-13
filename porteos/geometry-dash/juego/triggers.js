@@ -31,9 +31,13 @@ TR.reiniciar = function (p) {
   p.tr = {
     sig: 0, acciones: [], alpha: {}, apagados: {}, items: {}, spawns: [], contadores: [], colisiones: [], alMorir: [], tocar: [],
     seguirY: [], temblor: null, timers: {}, eventos: [], secuencias: {}, camZoom: 1, camOff: { x: 0, y: 0 }, camRot: 0, escalaT: 1, hechos: {},
+    escuchas: [], opc: {}, puntos: 0, medioY: 0,
   };
+  if (TR.pararSonidos) TR.pararSonidos();
   p.camOff = null; p.zoom = 1; p.camRot = 0;
-  p.bloquesCol = {}; for (const o of p.objs) if (o.id === 1816 || o.id === 3643) (p.bloquesCol[o.raw[80] | 0] = p.bloquesCol[o.raw[80] | 0] || []).push(o);
+  p.bloquesCol = {}; for (const o of p.objs) if (o.id === 1816) (p.bloquesCol[o.raw[80] | 0] = p.bloquesCol[o.raw[80] | 0] || []).push(o);
+  // bloques que miran al jugador: estado (3640) y toque (3643)
+  p.bloquesJ = p.objs.filter(o => o.id === 3640 || o.id === 3643); for (const o of p.bloquesJ) o.dentro = false;
 };
 // lo que quedó atrás al empezar desde un punto: se aplica al instante
 TR.saltarHasta = function (p, x) {
@@ -56,6 +60,7 @@ TR.paso = function (p, h) {
   if (t.spawns.length) { const ahora = t.spawns; t.spawns = []; const listos = []; for (const s of ahora) { s.t -= h; if (s.t <= 0) listos.push(s); else t.spawns.push(s); } for (const s of listos) TR.spawnear(p, s); }
   for (const s of t.seguirY) TR.pasoSeguirY(p, s, h);
   if (t.colisiones.length) TR.pasoColisiones(p);
+  if (TR.pasoBloquesJugador) TR.pasoBloquesJugador(p);
   for (const k in t.timers) { const tm = t.timers[k]; if (!tm.pausa) { tm.v += h * tm.mod * (tm.atras ? -1 : 1); TR.revisarTiempo(p, +k); } }
 };
 TR.cuadro = function (p, dt) {
@@ -65,6 +70,7 @@ TR.cuadro = function (p, dt) {
   p.camOff = { x: t.camOff.x + tx, y: t.camOff.y + ty };
   p.zoom = t.camZoom; p.camRot = t.camRot;
   if (GD.Shaders) GD.Shaders.cuadro(p, dt);
+  if (TR.pasoSonidos) TR.pasoSonidos(p);
 };
 const curvas = {};
 TR.curva = (tipo, tasa) => { const k = tipo + ',' + tasa; return curvas[k] || (curvas[k] = GD.E.gd(tipo, tasa)); };
@@ -111,6 +117,7 @@ TR.pasoAccion = function (p, a) {
     case 'camRot': { p.tr.camRot = a.ini + (a.fin - a.ini) * k; break; }
     case 'tiempoEsc': { p.tr.escalaT = a.ini + (a.fin - a.ini) * k; break; }
     case 'kf': TR.pasoKeyframes(p, a); break;
+    case 'medio': p.tr.medioY = a.ini + (a.fin - a.ini) * k; break;
     case 'sh': GD.Shaders.paso(p, a, k); break;
     case 'escalar': {
       const l = TR.grupo(p, a.g), c = a.cen ? TR.centro(p, a.cen) : null;
