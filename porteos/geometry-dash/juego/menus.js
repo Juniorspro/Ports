@@ -72,14 +72,14 @@ M.menu = function () {
     const play = U.boton(c, 'GJ_playBtn_001.png', W / 2, mid, () => { GD.S.efecto('playSound_01.ogg'); D.cambiar(M.seleccion()); });
     play.cont.correr(A.siempre(A.sec(A.escala(0.6, 1.05).e(E.inOut(2)), A.escala(0.6, 1).e(E.inOut(2)))));
     U.boton(c, 'GJ_creatorBtn_001.png', W / 2 + 110, mid, () => D.cambiar(M.creador()));
-    const abajo = [['GJ_achBtn_001.png', () => M.logros()], ['GJ_optionsBtn_001.png', () => M.opciones()], ['GJ_statsBtn_001.png', () => M.estadisticas()], ['GJ_ngBtn_001.png', () => M.musicaNG()]];
+    const abajo = [['GJ_achBtn_001.png', () => M.logros()], ['GJ_optionsBtn_001.png', () => M.opciones()], ['GJ_statsBtn_001.png', () => GD.Extras.estadisticas()], ['GJ_ngBtn_001.png', () => M.musicaNG()]];
     abajo.forEach(([f, cb], i) => U.boton(c, f, W / 2 + (i - 1.5) * 57, 45, cb));
-    U.boton(c, 'GJ_moreGamesBtn_001.png', W - 45, 45, () => U.alerta('More Games', 'Geometry Dash (porteo a HTML5).', 'OK'));
+    U.boton(c, 'GJ_moreGamesBtn_001.png', W - 45, 45, () => GD.Extras.abrir('robtop'));
     U.boton(c, 'GJ_dailyRewardBtn_001.png', W - 40, H / 2 - 20, () => M.cofres());
     const perfil = U.boton(c, 'GJ_profileButton_001.png', 45, 105, () => M.perfilJugador()); perfil.escalaBase = 0.9;
     U.texto(c, P.nombre, 45, 135, 'goldFont', 0.6);
-    U.sprite(c, 'robtoplogo_small.png', 50, 22, 0.8);
-    ['gj_fbIcon_001.png', 'gj_twIcon_001.png', 'gj_ytIcon_001.png', 'gj_twitchIcon_001.png', 'gj_discordIcon_001.png'].forEach((f, i) => U.sprite(c, f, 105 + i * 22, 22, 0.75));
+    U.boton(c, 'robtoplogo_small.png', 50, 22, () => GD.Extras.abrir('robtop'), 0, 0.8);
+    [['gj_fbIcon_001.png', 'fb'], ['gj_twIcon_001.png', 'tw'], ['gj_ytIcon_001.png', 'yt'], ['gj_twitchIcon_001.png', 'twitch'], ['gj_discordIcon_001.png', 'discord']].forEach(([f, k], i) => U.boton(c, f, 105 + i * 22, 22, () => GD.Extras.abrir(k), 0, 0.75));
     GD.S.musica('datos/mus/menuLoop.ogg', 0, true);
   };
   c.alEntrar = () => GD.S.musica('datos/mus/menuLoop.ogg', 0, true);
@@ -129,10 +129,13 @@ M.seleccion = function (pagina = 0) {
       M.barraProgreso(n, W / 2, H / 2 - 40, prog.normal, [0, 255, 0], 270, 'Normal Mode');
       M.barraProgreso(n, W / 2, H / 2 - 82, prog.practica, [0, 255, 255], 270, 'Practice Mode');
     } else if (i === ids.length) {
-      const caja = U.cajaOscura(340, 95);
-      U.boton(n, caja, W / 2, H / 2 + 20, () => D.cambiar(M.torre()));
-      U.texto(caja, 'The Tower', 170, 55, 'bigFont', 1);
-      U.texto(caja, 'Enter if you dare', 170, 25, 'goldFont', 0.6);
+      // la Torre: el dibujo de la torre flotando, se toca para entrar
+      GD.cargarHoja('TowerSheet').then(() => {
+        const t = new Sprite('theTower_01_001.png'); t.escala = 0.62;
+        const b = U.boton(n, t, W / 2, H / 2 + 10, () => D.cambiar(GD.Extras.torre())); b.escalaToque = 1.08;
+        b.correr(A.siempre(A.sec(A.moverPor(2.2, 0, 6).e(E.sineInOut), A.moverPor(2.2, 0, -6).e(E.sineInOut))));
+      });
+      U.texto(n, 'The Tower', W / 2, 50, 'bigFont', 0.8);
     } else {
       U.texto(n, 'Coming Soon!', W / 2, H / 2 + 20, 'bigFont', 1);
     }
@@ -161,32 +164,8 @@ M.seleccion = function (pagina = 0) {
   c.alEntrar = () => GD.S.musica('datos/mus/menuLoop.ogg', 0, true);
   return c;
 };
-// la Torre (2.2): cuatro puertas con sus niveles
-M.torre = function () {
-  const c = new U.Capa(), W = D.ancho, H = D.alto;
-  const NIV = [[5001, 'The Tower'], [5002, 'The Sewers'], [5003, 'The Cellar'], [5004, 'The Secret Hollow']];
-  c.alCrear = async () => {
-    c.fondoDegradado([20, 10, 30]);
-    await GD.cargarHoja('TowerSheet');
-    const bg = new Sprite('towerBG_01_001.png'); bg.escala = Math.max(W / bg.w, H / bg.h); bg.pos(W / 2, H / 2); c.agregar(bg, -5);
-    const torre = new Sprite('theTower_01_001.png'); torre.escala = (H - 10) / torre.h; torre.pos(W / 2, H / 2 - 5); c.agregar(torre, -2);
-    for (const [x, y] of [[-70, 60], [70, 60], [-70, -40], [70, -40]]) { const t = U.sprite(c, 'towerTorch_001.png', W / 2 + x, H / 2 + y, 1, 1); const f = U.sprite(c, 'towerTorchInner_001.png', W / 2 + x, H / 2 + y + 14, 0.6, 2); f.add = true; f.correr(A.siempre(A.sec(A.op(0.4, 150), A.op(0.4, 255)))); void t; }
-    // puertas de abajo hacia arriba: cada una se abre al completar la anterior
-    NIV.forEach(([id, nom], i) => {
-      const prev = i ? P.nivel(NIV[i - 1][0]).hecho : true, hecho = P.nivel(id).hecho;
-      const f = hecho ? 'towerDoor_open_001.png' : prev ? 'towerDoor_unlocked_001.png' : 'towerDoor_locked_001.png';
-      const y = 40 + i * 68, b = U.boton(c, f, W / 2, y, () => prev ? M.jugarOficial(id) : U.alerta(nom, 'Complete the previous level to unlock this door.'), 3, 0.55);
-      U.texto(c, nom, W / 2 + 70, y, 'goldFont', 0.5, 3).anc(0, 0.5);
-      U.texto(c, hecho ? 'Complete' : Math.floor(P.nivel(id).normal) + '%', W / 2 - 70, y, 'bigFont', 0.4, 3).anc(1, 0.5);
-      void b;
-    });
-    U.texto(c, 'The Tower', W / 2, H - 18, 'goldFont', 0.8, 3);
-    c.botonAtras(() => D.cambiar(M.seleccion(22)));
-    GD.S.musica('datos/mus/tower01.ogg', 0, true);
-  };
-  c.atras = () => D.cambiar(M.seleccion(22));
-  return c;
-};
+// la Torre (2.2): por fuera y por dentro, en extras.js
+M.torre = () => GD.Extras.torre();
 // ---------------- jugar ----------------
 // op: texto, info, alSalir (a dónde volver), editor (nivel del editor), id para el progreso
 M.jugar = async function (texto, info, extra = {}) {
@@ -196,17 +175,22 @@ M.jugar = async function (texto, info, extra = {}) {
     alMorir: (pct, practica) => {
       prog.intentos++; P.sumar('intentos', 1);
       if (practica) { if (pct > prog.practica) prog.practica = pct; }
-      else if (pct > prog.normal) { const antes = prog.normal; prog.normal = pct; if (!extra.editor && pct > antes && antes > 0) M.nuevoRecord(p, pct); }
+      else if (pct > prog.normal) { const antes = prog.normal; prog.normal = pct; M.darOrbes(info, antes, pct); if (!extra.editor && pct > antes && antes > 0) M.nuevoRecord(p, pct); }
       P.guardar();
     },
     alGanar: (practica, monedas) => {
       if (practica) { prog.practica = 100; P.guardar(); return; }
       const primera = !prog.hecho;
+      if (!extra.editor) M.darOrbes(info, prog.normal, 100);
       prog.normal = 100; prog.hecho = true; prog.intentos++;
       const ms = p.objs.filter(o => o.ty === GD.O.TIPO.MONEDA_SECRETA || o.ty === GD.O.TIPO.MONEDA_USUARIO).sort((a, b) => a.x - b.x);
-      ms.forEach((o, k) => { if (monedas[o.i] && !prog.monedas.includes(k)) prog.monedas.push(k); });
+      ms.forEach((o, k) => {
+        if (!monedas[o.i] || prog.monedas.includes(k)) return;
+        prog.monedas.push(k); if (extra.editor) return;
+        P.sumar('monedasGanadas', 1); if (o.ty === GD.O.TIPO.MONEDA_USUARIO) P.sumar('monedasUsuario', 1);
+      });
       if (primera && info.estrellas) { if (info.plataforma) P.lunas += info.estrellas; else P.estrellas += info.estrellas; }
-      if (primera) P.sumar(info.oficial ? 'oficialesHechos' : 'onlineHechos', 1);
+      if (primera && !extra.editor) { P.sumar(info.oficial ? 'oficialesHechos' : 'onlineHechos', 1); if (info.dif === 'demon') P.sumar('demonios', 1); }
       p.primera = primera; P.guardar();
     },
     alFinPantalla: pp => M.finNivel(pp, info, prog),
@@ -215,10 +199,18 @@ M.jugar = async function (texto, info, extra = {}) {
   p.volver = extra.volver || (() => M.seleccion(Math.max(0, (info.id | 0) - 1)));
   return p;
 };
+// orbes de los niveles con estrellas: se ganan a medida que se mejora el récord, hasta el total
+// que da la dificultad al llegar al 100%
+M.ORBES = { 2: 50, 3: 75, 4: 125, 5: 175, 6: 225, 7: 275, 8: 350, 9: 425, 10: 500 };
+M.darOrbes = function (info, antes, ahora) {
+  const tot = M.ORBES[info.estrellas | 0] || 0; if (!tot || info.plataforma) return;
+  const n = Math.floor(tot * ahora / 100) - Math.floor(tot * antes / 100);
+  if (n > 0) { P.orbes += n; P.sumar('orbesGanados', n); }
+};
 M.jugarOficial = async function (id) {
   GD.S.efecto('playSound_01.ogg'); GD.S.pararMusica();
   const info = GD.oficial(id), txt = await GD.N.descomprimir(GD.datos.niveles[id]);
-  const volver = id >= 5001 ? () => M.torre() : () => M.seleccion(Math.max(0, id - 1));
+  const volver = id >= 5001 ? () => GD.Extras.torreAdentro() : () => M.seleccion(Math.max(0, id - 1));
   D.cambiar(await M.jugar(txt, info, { volver }));
 };
 M.partidaOficial = async function (id, op = {}) {
@@ -378,8 +370,8 @@ M.opciones = function () {
   pop.alTocarFondo = (x, y) => { for (const d of [d1, d2]) if (d.toca(x, y)) { pop._des = d; d.tocar(x, y); } return true; };
   pop.alMoverFondo = (x, y) => { if (pop._des) pop._des.tocar(x, y); };
   pop.alSoltarFondo = () => { pop._des = null; };
-  const bs = [['Options', () => M.masOpciones()], ['How To Play', () => U.alerta('How To Play', 'Tap the screen to jump. Hold to keep jumping. Avoid the obstacles and reach the end!')],
-    ['Rate', () => U.aviso('Thanks!')], ['Help', () => U.alerta('Help', 'Geometry Dash 2.2 ported to HTML5. Your progress is saved in this browser.')]];
+  const bs = [['Options', () => M.masOpciones()], ['How To Play', () => GD.Extras.comoJugar()],
+    ['Rate', () => { try { window.open('https://play.google.com/store/apps/details?id=com.robtopx.geometryjump', '_blank', 'noopener'); } catch (e) { } }], ['Help', () => U.alerta('Help', 'Geometry Dash 2.2 ported to HTML5. Your progress is saved in this browser.')]];
   bs.forEach(([t, f], i) => U.boton(k, U.botonTexto(t, 150, 'goldFont', 'GJ_button_01.png', 30, 0.7), (i % 2 ? 85 : -85), -5 - Math.floor(i / 2) * 40, f));
   U.boton(k, U.botonTexto('Account', 150, 'goldFont', 'GJ_button_02.png', 30, 0.7), 0, -95, () => GD.Online && GD.Online.cuenta());
   pop.cerrarBtn();
@@ -397,13 +389,6 @@ M.masOpciones = function () {
   });
   pop.cerrarBtn(); pop.mostrar();
 };
-M.estadisticas = function () {
-  const pop = new U.Popup(380, 280, 'GJ_square01.png'), k = pop.caja; pop.titulo('Stats');
-  const s = P.stats, filas = [['Total Attempts', s.intentos || 0], ['Total Jumps', s.saltos || 0], ['Completed Levels', (s.oficialesHechos || 0) + (s.onlineHechos || 0)],
-    ['Total Deaths', s.muertes || 0], ['Stars', P.estrellas], ['Moons', P.lunas], ['Diamonds', P.diamantes], ['Coins', Object.values(P.progreso).reduce((a, p) => a + (p.monedas ? p.monedas.length : 0), 0)]];
-  filas.forEach(([t, v], i) => { U.texto(k, t + ':', -10, 80 - i * 24, 'goldFont', 0.55).anc(1, 0.5); U.texto(k, U.num(v), 10, 80 - i * 24, 'bigFont', 0.5).anc(0, 0.5); });
-  pop.cerrarBtn(); pop.mostrar();
-};
 M.logros = function () {
   const pop = new U.Popup(380, 260, 'GJ_square01.png'), k = pop.caja; pop.titulo('Achievements');
   const hechos = Object.entries(P.progreso).filter(([id, p]) => p.hecho && +id < 30).map(([id]) => GD.oficial(id) && GD.oficial(id).nombre).filter(Boolean);
@@ -411,7 +396,7 @@ M.logros = function () {
   pop.cerrarBtn(); pop.mostrar();
 };
 M.musicaNG = () => U.alerta('Newgrounds', 'Music for online levels comes from Newgrounds and the Geometry Dash music library. It downloads automatically when you play a level.');
-M.cofres = () => U.alerta('Daily Rewards', 'Come back later for more rewards!');
+M.cofres = () => GD.Extras.cofres();
 M.perfilJugador = function () {
   const pop = new U.Popup(380, 220, 'GJ_square01.png'), k = pop.caja; pop.titulo(P.nombre);
   const ic = new GD.Icono('cubo', P.cubo, P.c1rgb(), P.c2rgb(), P.brillo); ic.ax = ic.ay = 0.5; ic.pos(0, 40); ic.escala = 1.3; k.agregar(ic);
@@ -426,7 +411,7 @@ M.creador = function () {
     c.fondoDegradado([0, 102, 255]); c.esquinas();
     const O = () => GD.Online;
     const bs = [['GJ_createBtn_001.png', () => D.cambiar(GD.Editor.misNiveles())], ['GJ_savedBtn_001.png', () => O().lista({ tipo: 'guardados' })], ['GJ_highscoreBtn_001.png', () => O().puntajes()],
-      ['GJ_challengeBtn_001.png', () => U.alerta('Quests', 'Quests need a Geometry Dash account.')], ['GJ_versusBtn_001.png', () => U.alerta('Versus', 'Coming soon!')], ['GJ_mapBtn_001.png', () => U.alerta('The Map', 'Coming soon!')],
+      ['GJ_challengeBtn_001.png', () => GD.Extras.misiones()], ['GJ_versusBtn_001.png', () => U.alerta('Versus', 'Coming soon!')], ['GJ_mapBtn_001.png', () => U.alerta('The Map', 'Coming soon!')],
       ['GJ_dailyBtn_001.png', () => O().diario(false)], ['GJ_weeklyBtn_001.png', () => O().diario(true)], ['GJ_eventBtn_001.png', () => O().diario('evento')],
       ['GJ_gauntletsBtn_001.png', () => O().gauntlets()], ['GJ_featuredBtn_001.png', () => O().lista({ tipo: 6 })], ['GJ_listsBtn_001.png', () => O().listas()],
       ['GJ_pathsBtn_001.png', () => U.alerta('Paths', 'Coming soon!')], ['GJ_mapPacksBtn_001.png', () => O().mapPacks()], ['GJ_searchBtn_001.png', () => D.cambiar(O().buscar())]];

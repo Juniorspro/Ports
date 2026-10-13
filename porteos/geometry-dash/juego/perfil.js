@@ -13,6 +13,7 @@ const DEF = {
   cubo: 1, nave: 1, bola: 1, ovni: 1, onda: 1, robot: 1, arana: 1, columpio: 1, jetpack: 1, c1: 0, c2: 3, cGlow: 3, brillo: false, estela: 1, muerte: 1, modoIcono: 'cubo',
   nombre: 'Player', vMus: 1, vSfx: 1, progreso: {}, estrellas: 0, lunas: 0, diamantes: 0, orbes: 0, monedas: {}, stats: {}, opciones: {},
   dualDividido: false, cuentaNiveles: 0, completados: {}, desbloqueos: {},
+  udid: '', llaves: 0, fragmentos: {}, misiones: {}, recompensas: {},
 };
 const P = GD.perfil = Object.assign({}, DEF, GD.G.leer('perfil', {}));
 for (const k in DEF) if (P[k] === undefined) P[k] = JSON.parse(JSON.stringify(DEF[k]));
