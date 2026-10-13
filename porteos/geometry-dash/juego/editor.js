@@ -322,6 +322,7 @@ class Editor extends GD.Partida {
     if (!this.listo) return;
     if (this.probando) { super.alActualizar(dt); if (this.j && this.recorrido) { const r = this.recorrido; if (!r.length || Math.abs(r[r.length - 1][0] - this.j.x) > 4) r.push([this.j.x, this.j.y]); } return; }
     for (const h of this.hijos.slice()) h.actualizar(dt);
+    GD.O.reloj += dt;
     if (this.musicaEd) this.lineaMusica = this.xMusica0 + this.velMusica(GD.S.tiempo());
   }
   actualizarHUD() { } // probando en el editor no hay barra de progreso (como el juego)

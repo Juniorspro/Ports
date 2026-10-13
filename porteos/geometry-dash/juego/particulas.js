@@ -106,3 +106,35 @@ class Onda extends GD.Nodo {
   }
 }
 GD.Onda = Onda;
+
+// estela del jugador (CCMotionStreak del juego): una cinta que sigue al jugador y se desvanece;
+// la de la onda es una línea sólida que no se borra mientras dura el modo
+class Estela {
+  constructor(vida = 0.3, ancho = 10, solida = false) { this.p = []; this.vida = vida; this.ancho = ancho; this.solida = solida; this.activa = false; this.f = GD.T.m('streak_01_001.png'); }
+  agregar(x, y, t) {
+    const u = this.p[this.p.length - 1];
+    if (u && Math.hypot(u[0] - x, u[1] - y) < 2) { if (this.solida) { u[0] = x; u[1] = y; } return; }
+    this.p.push([x, y, t]);
+  }
+  cortar() { this.p.length = 0; }
+  dibujar(w, t, rgb, alfa = 1) {
+    if (!this.solida) while (this.p.length && t - this.p[0][2] > this.vida) this.p.shift();
+    if (this.p.length > 2000) this.p.splice(0, this.p.length - 2000);
+    const n = this.p.length; if (n < 2) return;
+    const xs = new Float32Array(8), uv = new Float32Array(8), f = this.f, R = GD.R;
+    const tex = this.solida || !f ? R.blanco : f.tx;
+    const u0 = f ? f.x / f.tx.w : 0.5, u1 = f ? (f.x + (f.rot ? f.h : f.w)) / f.tx.w : 0.5, v0 = f ? f.y / f.tx.h : 0.5, v1 = f ? (f.y + (f.rot ? f.w : f.h)) / f.tx.h : 0.5;
+    for (let i = 1; i < n; i++) {
+      const a = this.p[i - 1], b = this.p[i];
+      let dx = b[0] - a[0], dy = b[1] - a[1]; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+      const ka = this.solida ? 1 : Math.max(0, 1 - (t - a[2]) / this.vida), kb = this.solida ? 1 : Math.max(0, 1 - (t - b[2]) / this.vida);
+      const wa = this.ancho / 2 * (this.solida ? 1 : ka), wb = this.ancho / 2 * (this.solida ? 1 : kb);
+      const P = (k, x, y) => { xs[k] = w[0] * x + w[2] * y + w[4]; xs[k + 1] = w[1] * x + w[3] * y + w[5]; };
+      P(0, a[0] - dy * wa, a[1] + dx * wa); P(2, b[0] - dy * wb, b[1] + dx * wb); P(4, a[0] + dy * wa, a[1] - dx * wa); P(6, b[0] + dy * wb, b[1] - dx * wb);
+      if (tex === R.blanco) uv.fill(0.5); else uv.set([u0, v0, u0, v0, u1, v1, u1, v1]);
+      const al = 255 * alfa * (this.solida ? 1 : (ka + kb) / 2);
+      R.quad(tex, true, 0, xs, uv, GD.col(rgb[0], rgb[1], rgb[2], al));
+    }
+  }
+}
+GD.Estela = Estela;

@@ -43,7 +43,7 @@ GD.arrancar = async function () {
 GD.inicio = async function (q) {
   if (q.get('nivel')) {
     const id = q.get('nivel');
-    return GD.Menus ? GD.Menus.partidaOficial(id, { practica: q.get('practica') === '1', silencio: q.get('silencio') === '1', noclip: q.get('noclip') === '1', desdeX: +q.get('x') || 0 }) : null;
+    return GD.Menus ? GD.Menus.partidaOficial(id, { practica: q.get('practica') === '1', silencio: q.get('silencio') === '1', noclip: q.get('noclip') === '1', desdeX: +q.get('x') || 0, desdeY: +q.get('y') || 0 }) : null;
   }
   if (q.get('editor')) { const n = await GD.Editor.nuevo(); if (q.get('editor') !== 'nuevo') { n.texto = await GD.N.descomprimir(GD.datos.niveles[q.get('editor')]); } return GD.Editor.abrir(n); }
   if (q.get('pantalla')) { const f = GD.Menus[q.get('pantalla')]; if (f) return f(); }

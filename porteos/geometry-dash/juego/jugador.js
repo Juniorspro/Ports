@@ -87,7 +87,7 @@ class Jugador {
     this.x = 0; this.y = 105; this.yv = 0; this.modo = 'cubo'; this.mini = false; this.grav = 1; this.espejo = false;
     this.suelo = false; this.sost = false; this.buffer = false; this.vel = 1; this.rot = 0; this.muerto = false;
     this.subiendo = false; this.tocados = new Set(); this.ultimoSuelo = 0; this.portalY = 0; this.dir = 1;
-    this.vis = true; this.estela = true; this.tamano = 1;
+    this.vis = true; this.estela = true; this.tamano = 1; this.vx = 0; this.mira = 1; this.plataforma = false;
   }
   get alto() { return this.mini ? 18 : 30; }
   get ups() { return GD.O.UPS[this.vel]; }
@@ -101,8 +101,15 @@ class Jugador {
   // un paso de física; d = dt en 60avos de segundo
   paso(dt) {
     const d = dt * 60, ds = d * 0.9, g = this.grav, tam = this.mini ? 0.8 : 1;
-    this.prevY = this.y; this.prevX = this.x;
+    this.prevY = this.y; this.prevX = this.x; this.enPendienteAntes = this.enPendiente; this.enPendiente = false;
     const m = this.modo;
+    if (this.dash) { // aro de dash: va en línea recta mientras se mantiene el toque
+      const vel = this.ups * dt, a = GD.clamp(this.dash.ang, -70, 70) * Math.PI / 180;
+      this.x += vel * this.dir; this.y += Math.tan(a) * vel; this.yv = 0; this.suelo = false;
+      if (!this.sost) { this.dash = null; this.yv = Math.tan(a) * 5.77 * (this.grav > 0 ? 1 : -1) * 0; }
+      this.rot += (this.modo === 'cubo' ? 600 : 0) * dt;
+      return;
+    }
     if (m === 'onda') {
       const k = (this.mini ? 2 : 1) * this.ups * dt * (this.pendienteOnda || 1);
       this.yv = (this.sost ? 1 : -1) * g; this.y += this.yv * k; this.suelo = false;
@@ -148,7 +155,13 @@ class Jugador {
       }
       this.y += this.yv * ds;
     }
-    this.x += this.ups * dt * this.dir;
+    if (this.plataforma) { // modo plataformas: acelera y frena en vez de avanzar solo
+      const obj = this.dir * this.ups * (this.velPlat || 1);
+      this.vx += (obj - this.vx) * Math.min(1, dt * (this.dir ? 12 : 18));
+      if (Math.abs(this.vx) < 0.5 && !this.dir) this.vx = 0;
+      this.x += this.vx * dt;
+      if (this.dir) this.mira = this.dir;
+    } else this.x += this.ups * dt * this.dir;
     // giro del dibujo
     this.girar(dt);
   }
@@ -174,7 +187,7 @@ class Jugador {
     if (this.modo === 'bola' || this.modo === 'arana') this.yv *= 0.6;
     if (this.modo === 'nave' || this.modo === 'ovni' || this.modo === 'columpio' || this.modo === 'jetpack') this.yv *= 0.4;
     if (this.modo === 'robot') this.robotT = 1e9;
-    this.giroSalto = true;
+    this.giroSalto = true; this.estelaHasta = this.capa.tiempo + 0.4;
   }
   // aro (orb): tipo según el objeto
   aro(o) {
@@ -192,7 +205,7 @@ class Jugador {
     if (m === 'bola' || m === 'arana') this.yv *= 0.7;
     if (o.ty === TY.ARO_GRAVEDAD) this.cambiarGravedad(-this.grav, false);
     if (m === 'robot') this.robotT = 1e9;
-    this.giroSalto = true;
+    this.giroSalto = true; this.estelaHasta = this.capa.tiempo + 0.4;
   }
   tocarSuelo(yTope, techo) {
     // queda apoyado en una superficie: abajo (o arriba con la gravedad invertida)
@@ -205,7 +218,7 @@ class Jugador {
   girar(dt) {
     const m = this.modo, g = this.grav;
     if (m === 'cubo' || m === 'robot' && false) {
-      if (!this.suelo) this.rot += 420 * dt * g * (this.mini ? 1.2 : 1) * this.dir;
+      if (!this.suelo) this.rot += 420 * dt * g * (this.mini ? 1.2 : 1) * (this.plataforma ? this.mira : this.dir);
       else { const obj = Math.round(this.rot / 90) * 90; this.rot += (obj - this.rot) * Math.min(1, dt * 25); }
     } else if (m === 'bola') this.rot += 600 * dt * g * this.dir * (this.mini ? 1.25 : 1);
     else if (m === 'nave' || m === 'ovni' || m === 'jetpack') {

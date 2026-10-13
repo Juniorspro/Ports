@@ -146,10 +146,14 @@ class Obj {
     this.op = 1; this.vis = !(raw[135] == 1); this.dx = 0; this.dy = 0; this.drot = 0; this.activo = true;
     this.noGlow = raw[96] == 1; this.noTocar = raw[121] == 1; this.altoDetalle = raw[103] == 1;
     this.partes = O.partes(this);
+    // sierras y engranajes giran solos (98 = sin giro, 97 = velocidad propia)
+    this.giro = raw[98] == 1 ? 0 : raw[97] !== undefined ? +raw[97] : (O.GIRAN.test(d.t || '') ? 360 : 0);
   }
   get cx() { return this.x + this.dx; } get cy() { return this.y + this.dy; }
 }
 O.Obj = Obj;
+O.GIRAN = /sawblade|cogwheel|blade|spikewheel|d_wheel|cartwheel|bladeTrap|darkblade/;
+O.reloj = 0; // tiempo de juego para animaciones y giros (lo avanza la partida)
 // los "trozos" que dibuja un objeto: el sprite principal y sus hijos (aplanados con su matriz)
 O.partes = function (o) {
   const d = o.d, out = [];
@@ -157,7 +161,11 @@ O.partes = function (o) {
     // brillo detrás de bloques y pinches (hoja de brillos)
     const g = d.t.replace(/_001\.png$/, '_glow_001.png');
     if (!o.noGlow && (o.ty === TY.SOLIDO || o.ty === TY.PELIGRO || o.ty === TY.PENDIENTE) && g !== d.t && GD.T.m(g)) out.push({ f: GD.T.m(g), m: [1, 0, 0, 1, 0, 0], ct: 'glow', z: -1000, op: 1 });
-    out.push({ f: GD.T.m(d.t), m: [1, 0, 0, 1, 0, 0], ct: d.ct, z: 0, op: d.op === undefined ? 1 : d.op });
+    const prin = { f: GD.T.m(d.t), m: [1, 0, 0, 1, 0, 0], ct: d.ct, z: 0, op: d.op === undefined ? 1 : d.op };
+    // animación cuadro a cuadro: monedas, fuego, gotas, lava… (los cuadros _002, _003…)
+    const base = d.t.replace(/_001\.png$/, '');
+    if (base !== d.t && GD.T.m(base + '_002.png')) { const l = [prin.f]; for (let k = 2; GD.T.m(`${base}_${String(k).padStart(3, '0')}.png`); k++) l.push(GD.T.m(`${base}_${String(k).padStart(3, '0')}.png`)); prin.anim = l; prin.fps = /secretCoin/.test(base) ? 10 : 15; }
+    out.push(prin);
   }
   const rec = (hs, pm) => {
     for (const h of hs) {
@@ -185,7 +193,7 @@ O.ORDEN_CAPA = { '-5': 0, '-3': 1, '-1': 2, 1: 3, 3: 4, 0: 5, 5: 5, 7: 6, 9: 7, 
 const _xs = new Float32Array(8), _uv = new Float32Array(8);
 // matriz del objeto en el mundo (unidades del nivel)
 O.matriz = function (o, m) {
-  const r = -(o.rot + o.drot) * Math.PI / 180;
+  const r = -(o.rot + o.drot + (o.giro ? O.reloj * o.giro * (o.fx ? -1 : 1) : 0)) * Math.PI / 180;
   let a = Math.cos(r), b = Math.sin(r), c = -b, d = a;
   if (o.warpX || o.warpY) { // 2.2: "warp" = sesgo en grados
     const rx = -(o.rot + o.drot + o.warpX) * Math.PI / 180, ry = -(o.rot + o.drot + o.warpY) * Math.PI / 180;
@@ -197,7 +205,7 @@ O.matriz = function (o, m) {
 };
 // dibuja un trozo: w = vista·objeto, p.m = matriz del trozo dentro del objeto
 O.pintarParte = function (w, p, col, add) {
-  const f = p.f, pm = p.m;
+  const f = p.anim ? p.anim[Math.floor(O.reloj * p.fps) % p.anim.length] : p.f, pm = p.m;
   const a = w[0] * pm[0] + w[2] * pm[1], b = w[1] * pm[0] + w[3] * pm[1], c = w[0] * pm[2] + w[2] * pm[3], d = w[1] * pm[2] + w[3] * pm[3];
   const e = w[0] * pm[4] + w[2] * pm[5] + w[4], g = w[1] * pm[4] + w[3] * pm[5] + w[5];
   const x0 = -f.sw / 2 + (f.sw - f.cw) / 2 + f.ox, y0 = -f.sh / 2 + (f.sh - f.ch) / 2 + f.oy, x1 = x0 + f.cw, y1 = y0 + f.ch;
