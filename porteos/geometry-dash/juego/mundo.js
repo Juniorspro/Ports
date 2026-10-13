@@ -148,11 +148,14 @@ class Obj {
     this.partes = O.partes(this);
     // sierras y engranajes giran solos (98 = sin giro, 97 = velocidad propia)
     this.giro = raw[98] == 1 ? 0 : raw[97] !== undefined ? +raw[97] : (O.GIRAN.test(d.t || '') ? 360 : 0);
+    this.late = O.LATEN.test(d.t || '');
   }
   get cx() { return this.x + this.dx; } get cy() { return this.y + this.dy; }
 }
 O.Obj = Obj;
 O.GIRAN = /sawblade|cogwheel|blade|spikewheel|d_wheel|cartwheel|bladeTrap|darkblade/;
+O.LATEN = /^(ring_|gravring_|d_ball|d_heart|d_circle|d_ring|d_star_|pulse)/;
+O.latido = 0;
 O.reloj = 0; // tiempo de juego para animaciones y giros (lo avanza la partida)
 // los "trozos" que dibuja un objeto: el sprite principal y sus hijos (aplanados con su matriz)
 O.partes = function (o) {
@@ -167,6 +170,8 @@ O.partes = function (o) {
     if (base !== d.t && GD.T.m(base + '_002.png')) { const l = [prin.f]; for (let k = 2; GD.T.m(`${base}_${String(k).padStart(3, '0')}.png`); k++) l.push(GD.T.m(`${base}_${String(k).padStart(3, '0')}.png`)); prin.anim = l; prin.fps = /secretCoin/.test(base) ? 10 : 15; }
     out.push(prin);
   }
+  // objeto de texto (914): las letras de la fuente del nivel
+  if (o.id === 914) { out.push({ texto: GD.N.texto64(o.raw[31] || ''), m: [1, 0, 0, 1, 0, 0], ct: 'b', z: 0, op: 1, f: GD.T.m('emptyFrame.png') || { tx: GD.R.blanco } }); }
   const rec = (hs, pm) => {
     for (const h of hs) {
       const [tex, x, y, z, rot, sx, sy, fx, fy, ax, ay, ct, op, sub] = h;
@@ -187,6 +192,28 @@ O.partes = function (o) {
   return out;
 };
 // capas Z del juego: B5..T4 → orden de dibujo
+// texto con la fuente del nivel (O.fuente: bigFont o gjFontNN), centrado en el objeto
+O.pintarTexto = function (w, p, col, add) {
+  const F = GD.fuentes[O.fuente] || GD.fuentes.bigFont; if (!F || !F.tx) return;
+  const lineas = p.texto.split('\n'), lh = F.lh / 2, tw = F.tx.w, th = F.tx.h, xs = new Float32Array(8), uv = new Float32Array(8);
+  const ancho = l => { let a = 0; for (const ch of l) { const c = F.chars[ch.codePointAt(0)] || F.chars[63]; if (c) a += c[6] / 2; } return a; };
+  const alto = lh * lineas.length;
+  lineas.forEach((l, i) => {
+    let x = -ancho(l) / 2; const yb = alto / 2 - lh * i;
+    for (const ch of l) {
+      const c = F.chars[ch.codePointAt(0)] || F.chars[63]; if (!c) continue;
+      if (c[2] > 0) {
+        const x0 = x + c[4] / 2, y1 = yb - c[5] / 2, x1 = x0 + c[2] / 2, y0 = y1 - c[3] / 2;
+        const P = (k, X, Y) => { xs[k] = w[0] * X + w[2] * Y + w[4]; xs[k + 1] = w[1] * X + w[3] * Y + w[5]; };
+        P(0, x0, y1); P(2, x1, y1); P(4, x0, y0); P(6, x1, y0);
+        uv.set([c[0] / tw, c[1] / th, (c[0] + c[2]) / tw, c[1] / th, c[0] / tw, (c[1] + c[3]) / th, (c[0] + c[2]) / tw, (c[1] + c[3]) / th]);
+        GD.R.quad(F.tx, add, 0, xs, uv, col);
+      }
+      x += c[6] / 2;
+    }
+  });
+};
+O.fuente = 'bigFont';
 O.ORDEN_CAPA = { '-5': 0, '-3': 1, '-1': 2, 1: 3, 3: 4, 0: 5, 5: 5, 7: 6, 9: 7, 11: 8 };
 
 // ---------------- dibujo de objetos ----------------
@@ -199,12 +226,14 @@ O.matriz = function (o, m) {
     const rx = -(o.rot + o.drot + o.warpX) * Math.PI / 180, ry = -(o.rot + o.drot + o.warpY) * Math.PI / 180;
     a = Math.cos(rx); b = Math.sin(rx); c = -Math.sin(ry); d = Math.cos(ry);
   }
-  const sx = o.sx * (o.fx ? -1 : 1) * (o.esx || 1), sy = o.sy * (o.fy ? -1 : 1) * (o.esy || 1);
+  const lat = o.late ? 0.8 + 0.4 * O.latido : 1;
+  const sx = o.sx * (o.fx ? -1 : 1) * (o.esx || 1) * lat, sy = o.sy * (o.fy ? -1 : 1) * (o.esy || 1) * lat;
   m[0] = a * sx; m[1] = b * sx; m[2] = c * sy; m[3] = d * sy; m[4] = o.x + o.dx; m[5] = o.y + o.dy;
   return m;
 };
 // dibuja un trozo: w = vista·objeto, p.m = matriz del trozo dentro del objeto
 O.pintarParte = function (w, p, col, add) {
+  if (p.texto !== undefined) { O.pintarTexto(w, p, col, add); return; }
   const f = p.anim ? p.anim[Math.floor(O.reloj * p.fps) % p.anim.length] : p.f, pm = p.m;
   const a = w[0] * pm[0] + w[2] * pm[1], b = w[1] * pm[0] + w[3] * pm[1], c = w[0] * pm[2] + w[2] * pm[3], d = w[1] * pm[2] + w[3] * pm[3];
   const e = w[0] * pm[4] + w[2] * pm[5] + w[4], g = w[1] * pm[4] + w[3] * pm[5] + w[5];
@@ -231,4 +260,59 @@ O.colorParte = function (o, p, cols) {
   if (hsv) rgb = O.aplicarHSV(rgb, hsv);
   if (o.pulsos) for (const pu of o.pulsos) if (!pu.soloDetalle || p.ct === 'd') if (!pu.soloBase || p.ct !== 'd') rgb = O.mezclarPulso(rgb, pu);
   return [rgb[0], rgb[1], rgb[2], v.op, v.add || p.ct === 'glow'];
+};
+
+// ---------------- dibujo por tandas (como las capas de lotes del juego) ----------------
+// cada capa Z se dibuja en este orden: brillos, objetos comunes (agrupados por hoja) y los que
+// mezclan aditivo (agrupados por hoja). Así hay pocas tandas por cuadro y el orden es el del juego.
+const _mo = new Float32Array(6);
+let _mats = new Float32Array(6 * 4096);
+O.dibujarObjetos = function (vis, w, cols, op) {
+  // op: {editor, capaEd, jugadores (fn), capaJugador, opacidad(o)}
+  const n = vis.length;
+  if (_mats.length < n * 6) _mats = new Float32Array(n * 12);
+  const capas = O._capas || (O._capas = []);
+  for (const c of capas) if (c) c.length = 0;
+  for (let i = 0; i < n; i++) {
+    const o = vis[i];
+    const capa = O.ORDEN_CAPA[o.capa] ?? 5;
+    const fade = op.opacidad ? op.opacidad(o) : 1;
+    if (fade <= 0.003 && !op.editor) continue;
+    O.matriz(o, _mo);
+    const k = i * 6;
+    _mats[k] = w[0] * _mo[0] + w[2] * _mo[1]; _mats[k + 1] = w[1] * _mo[0] + w[3] * _mo[1];
+    _mats[k + 2] = w[0] * _mo[2] + w[2] * _mo[3]; _mats[k + 3] = w[1] * _mo[2] + w[3] * _mo[3];
+    _mats[k + 4] = w[0] * _mo[4] + w[2] * _mo[5] + w[4]; _mats[k + 5] = w[1] * _mo[4] + w[3] * _mo[5] + w[5];
+    const pp = o.partes;
+    for (let q = 0; q < pp.length; q++) {
+      const p = pp[q];
+      const c = O.colorParte(o, p, cols);
+      let al = c[3] * o.op * p.op * fade;
+      if (op.editor) al = op.alfaEditor(o, al);
+      if (al <= 0.003) continue;
+      const col = o.selec ? GD.col(0, 255, 0, 255 * Math.max(al, 0.6)) : GD.col(c[0], c[1], c[2], 255 * al);
+      const tx = p.texto !== undefined ? ((GD.fuentes[O.fuente] || GD.fuentes.bigFont || {}).tx || GD.R.blanco) : (p.anim ? p.anim[0] : p.f).tx;
+      const modo = p.ct === 'glow' ? 0 : (c[4] && !o.selec) ? 2 : 1;
+      let lista = capas[capa * 3 + modo]; if (!lista) lista = capas[capa * 3 + modo] = [];
+      lista.push(tx, k, p, col);
+    }
+  }
+  // dentro de cada tanda, hoja por hoja (el orden entre objetos de la misma hoja se mantiene)
+  const vistos = O._vistos || (O._vistos = []);
+  for (let capa = 0; capa < 9; capa++) {
+    if (capa === op.capaJugador && op.jugadores) op.jugadores();
+    for (let modo = 0; modo < 3; modo++) {
+      const lista = capas[capa * 3 + modo]; if (!lista || !lista.length) continue;
+      vistos.length = 0;
+      for (let i = 0; i < lista.length; i += 4) if (!vistos.includes(lista[i])) vistos.push(lista[i]);
+      const add = modo !== 1;
+      for (const tx of vistos) for (let i = 0; i < lista.length; i += 4) {
+        if (lista[i] !== tx) continue;
+        const k = lista[i + 1];
+        _mo[0] = _mats[k]; _mo[1] = _mats[k + 1]; _mo[2] = _mats[k + 2]; _mo[3] = _mats[k + 3]; _mo[4] = _mats[k + 4]; _mo[5] = _mats[k + 5];
+        O.pintarParte(_mo, lista[i + 2], lista[i + 3], add);
+      }
+    }
+  }
+  if (op.capaJugador >= 9 && op.jugadores) op.jugadores();
 };

@@ -77,6 +77,13 @@ def main():
                 hojas[base] = marcos(leer_plist(pl))
             else:
                 hojas[base] = None  # textura suelta (fondos, pisos, fuentes)
+        # las que el juego trae sólo en baja resolución (estelas, fuego de la nave, partículas)
+        sd = []
+        for a in sorted(archivos):
+            if a.endswith(".png") and not a.endswith("-hd.png") and not a.endswith("-ipadhd.png") and a[:-4] + "-hd.png" not in archivos:
+                base = a[:-4]
+                trabajos.append(ex.submit(webp, os.path.join(ORIGEN, a), os.path.join(DATOS, "tex", base + ".webp")))
+                hojas[base] = None; sd.append(base)
         for a in archivos:
             if a.endswith("-hd.fnt"):
                 fuentes[a[:-7]] = fnt(os.path.join(ORIGEN, a))
@@ -111,7 +118,7 @@ def main():
         if isinstance(o, bytes):
             return None
         return o
-    json.dump({"hojas": hojas, "fuentes": fuentes, "otros": limpio(otros), "iconos": ico, "niveles": niveles},
+    json.dump({"hojas": hojas, "fuentes": fuentes, "otros": limpio(otros), "iconos": ico, "niveles": niveles, "sd": sd},
               open(os.path.join(DATOS, "datos.json"), "w"), separators=(",", ":"))
     objetos()
     audio()

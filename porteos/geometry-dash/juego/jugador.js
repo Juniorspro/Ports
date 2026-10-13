@@ -164,6 +164,7 @@ class Jugador {
     } else this.x += this.ups * dt * this.dir;
     // giro del dibujo
     this.girar(dt);
+    this.recienSost = false;
   }
   cayendo() { return this.grav > 0 ? this.yv < GRAV : this.yv > -GRAV; }
   saltar() {

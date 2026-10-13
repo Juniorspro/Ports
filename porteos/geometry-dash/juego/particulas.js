@@ -110,7 +110,7 @@ GD.Onda = Onda;
 // estela del jugador (CCMotionStreak del juego): una cinta que sigue al jugador y se desvanece;
 // la de la onda es una línea sólida que no se borra mientras dura el modo
 class Estela {
-  constructor(vida = 0.3, ancho = 10, solida = false) { this.p = []; this.vida = vida; this.ancho = ancho; this.solida = solida; this.activa = false; this.f = GD.T.m('streak_01_001.png'); }
+  constructor(vida = 0.3, ancho = 10, solida = false) { this.p = []; this.vida = vida; this.ancho = ancho; this.solida = solida; this.activa = false; this.f = GD.T.m(`streak_${String(GD.perfil.estela || 1).padStart(2, '0')}_001.png`) || GD.T.m('streak_01_001.png'); }
   agregar(x, y, t) {
     const u = this.p[this.p.length - 1];
     if (u && Math.hypot(u[0] - x, u[1] - y) < 2) { if (this.solida) { u[0] = x; u[1] = y; } return; }

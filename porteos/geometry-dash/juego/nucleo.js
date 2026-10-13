@@ -126,8 +126,9 @@ T.registrar = function (hoja, tx, marcos) {
     T.marcos[n] = { tx, x, y, w, h, rot, ox: ox / 2, oy: oy / 2, sw: sw / 2, sh: sh / 2, cw: w / 2, ch: h / 2, hoja };
   }
 };
-T.marcoTextura = function (nombre, tx) { // una textura suelta como si fuese un marco
-  return T.marcos[nombre + '.png'] = { tx, x: 0, y: 0, w: tx.w, h: tx.h, rot: 0, ox: 0, oy: 0, sw: tx.w / 2, sh: tx.h / 2, cw: tx.w / 2, ch: tx.h / 2 };
+T.marcoTextura = function (nombre, tx) { // una textura suelta como si fuese un marco (las de baja resolución van a 1 punto por píxel)
+  const k = GD.datos && GD.datos.sd && GD.datos.sd.includes(nombre) ? 1 : 0.5;
+  return T.marcos[nombre + '.png'] = { tx, x: 0, y: 0, w: tx.w, h: tx.h, rot: 0, ox: 0, oy: 0, sw: tx.w * k, sh: tx.h * k, cw: tx.w * k, ch: tx.h * k };
 };
 T.m = n => T.marcos[n] || T.marcos[n + '.png'];
 
@@ -453,7 +454,18 @@ D.instalarToques = function (c) {
 
 // ---------- sonido ----------
 const S = GD.S = { buf: {}, pend: {}, vMus: 1, vSfx: 1 };
-S.init = function () { S.ctx = new (window.AudioContext || window.webkitAudioContext)(); S.gm = S.ctx.createGain(); S.gm.connect(S.ctx.destination); S.gs = S.ctx.createGain(); S.gs.connect(S.ctx.destination); };
+S.init = function () {
+  S.ctx = new (window.AudioContext || window.webkitAudioContext)(); S.gm = S.ctx.createGain(); S.gm.connect(S.ctx.destination); S.gs = S.ctx.createGain(); S.gs.connect(S.ctx.destination);
+  // volumen de la música en el momento: hace latir los aros y los objetos de pulso, como el juego
+  S.an = S.ctx.createAnalyser(); S.an.fftSize = 512; S.gm.connect(S.an); S.datosAn = new Uint8Array(S.an.fftSize); S.pulso = 0;
+};
+S.medir = function () {
+  if (!S.an || !S.mNodo) { S.pulso *= 0.9; return S.pulso; }
+  S.an.getByteTimeDomainData(S.datosAn); let m = 0;
+  for (let i = 0; i < S.datosAn.length; i++) { const v = Math.abs(S.datosAn[i] - 128); if (v > m) m = v; }
+  const obj = Math.min(1, m / 100); S.pulso += (obj - S.pulso) * (obj > S.pulso ? 0.6 : 0.15);
+  return S.pulso;
+};
 S.despertar = () => { if (S.ctx && S.ctx.state !== 'running') S.ctx.resume(); };
 S.cargar = function (ruta) {
   if (S.buf[ruta]) return Promise.resolve(S.buf[ruta]);

@@ -340,19 +340,12 @@ class Editor extends GD.Partida {
     const vis = [], x0 = this.camX - 100, x1 = this.camX + D.ancho / this.zoom + 100, y0 = this.camY - 100, y1 = this.camY + D.alto / this.zoom + 100;
     for (let s = Math.max(0, Math.floor(x0 / 100)); s <= Math.floor(x1 / 100); s++) for (const o of this.secs[s] || []) if (o.cy > y0 && o.cy < y1) vis.push(o);
     vis.sort((a, b) => a.rango - b.rango);
-    const mo = new Float32Array(6), wo = new Float32Array(6);
-    for (const o of vis) {
-      const otraCapa = this.capaEd >= 0 && (o.raw[20] | 0) !== this.capaEd && (o.raw[61] | 0) !== this.capaEd;
-      GD.O.matriz(o, mo);
-      wo[0] = w[0] * mo[0] + w[2] * mo[1]; wo[1] = w[1] * mo[0] + w[3] * mo[1]; wo[2] = w[0] * mo[2] + w[2] * mo[3]; wo[3] = w[1] * mo[2] + w[3] * mo[3]; wo[4] = w[0] * mo[4] + w[2] * mo[5] + w[4]; wo[5] = w[1] * mo[4] + w[3] * mo[5] + w[5];
-      const invisible = !o.vis || GD.TR.def[o.id];
-      for (const p of o.partes) {
-        const [r, g, b, a, add] = GD.O.colorParte(o, p, this.cols);
-        let al = Math.max(a, 0.3) * p.op * (otraCapa ? 0.3 : 1) * (invisible && !GD.TR.def[o.id] ? 0.5 : 1);
-        const col = o.selec ? GD.col(0, 255, 0, 255 * Math.max(al, 0.6)) : GD.col(r, g, b, 255 * al);
-        GD.O.pintarParte(wo, p, col, add && !o.selec);
-      }
-    }
+    const capaEd = this.capaEd;
+    GD.O.dibujarObjetos(vis, w, this.cols, { editor: true, capaJugador: 99, alfaEditor: (o, al) => {
+      const otraCapa = capaEd >= 0 && (o.raw[20] | 0) !== capaEd && (o.raw[61] | 0) !== capaEd;
+      const invisible = !o.vis && !GD.TR.def[o.id];
+      return Math.max(al, 0.3) * (otraCapa ? 0.3 : 1) * (invisible ? 0.5 : 1);
+    } });
     this.dibujarPiso();
     if (this.recorrido && this.recorrido.length) this.dibujarRecorrido(w);
     if (this.cajaSel) this.dibujarCaja(w);

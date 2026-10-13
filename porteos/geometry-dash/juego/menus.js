@@ -164,24 +164,29 @@ M.seleccion = function (pagina = 0) {
 // la Torre (2.2): cuatro puertas con sus niveles
 M.torre = function () {
   const c = new U.Capa(), W = D.ancho, H = D.alto;
-  c.alCrear = () => {
-    c.fondoDegradado([40, 20, 60]);
-    GD.cargarHoja('TowerSheet').then(() => {
-      const t = GD.T.m('towerBG_001.png') ? 'towerBG_001.png' : null; if (t) U.sprite(c, t, W / 2, H / 2, H / GD.T.m(t).sh, -3);
+  const NIV = [[5001, 'The Tower'], [5002, 'The Sewers'], [5003, 'The Cellar'], [5004, 'The Secret Hollow']];
+  c.alCrear = async () => {
+    c.fondoDegradado([20, 10, 30]);
+    await GD.cargarHoja('TowerSheet');
+    const bg = new Sprite('towerBG_01_001.png'); bg.escala = Math.max(W / bg.w, H / bg.h); bg.pos(W / 2, H / 2); c.agregar(bg, -5);
+    const torre = new Sprite('theTower_01_001.png'); torre.escala = (H - 10) / torre.h; torre.pos(W / 2, H / 2 - 5); c.agregar(torre, -2);
+    for (const [x, y] of [[-70, 60], [70, 60], [-70, -40], [70, -40]]) { const t = U.sprite(c, 'towerTorch_001.png', W / 2 + x, H / 2 + y, 1, 1); const f = U.sprite(c, 'towerTorchInner_001.png', W / 2 + x, H / 2 + y + 14, 0.6, 2); f.add = true; f.correr(A.siempre(A.sec(A.op(0.4, 150), A.op(0.4, 255)))); void t; }
+    // puertas de abajo hacia arriba: cada una se abre al completar la anterior
+    NIV.forEach(([id, nom], i) => {
+      const prev = i ? P.nivel(NIV[i - 1][0]).hecho : true, hecho = P.nivel(id).hecho;
+      const f = hecho ? 'towerDoor_open_001.png' : prev ? 'towerDoor_unlocked_001.png' : 'towerDoor_locked_001.png';
+      const y = 40 + i * 68, b = U.boton(c, f, W / 2, y, () => prev ? M.jugarOficial(id) : U.alerta(nom, 'Complete the previous level to unlock this door.'), 3, 0.55);
+      U.texto(c, nom, W / 2 + 70, y, 'goldFont', 0.5, 3).anc(0, 0.5);
+      U.texto(c, hecho ? 'Complete' : Math.floor(P.nivel(id).normal) + '%', W / 2 - 70, y, 'bigFont', 0.4, 3).anc(1, 0.5);
+      void b;
     });
-    U.texto(c, 'The Tower', W / 2, H - 30, 'goldFont', 1);
-    [[5001, 'The Tower'], [5002, 'The Sewers'], [5003, 'The Cellar'], [5004, 'The Secret Hollow']].forEach(([id, nom], i) => {
-      const caja = U.cajaOscura(120, 70, 140, 'square02_001.png', 12);
-      U.texto(caja, nom, 60, 45, 'bigFont', 0.45).limitar(110, 0.45);
-      const pr = P.nivel(id); U.texto(caja, pr.hecho ? 'Complete' : Math.floor(pr.normal) + '%', 60, 20, 'goldFont', 0.5);
-      U.boton(c, caja, W / 2 + (i - 1.5) * 130, H / 2, () => M.jugarOficial(id));
-    });
+    U.texto(c, 'The Tower', W / 2, H - 18, 'goldFont', 0.8, 3);
     c.botonAtras(() => D.cambiar(M.seleccion(22)));
+    GD.S.musica('datos/mus/tower01.ogg', 0, true);
   };
   c.atras = () => D.cambiar(M.seleccion(22));
   return c;
 };
-
 // ---------------- jugar ----------------
 // op: texto, info, alSalir (a dónde volver), editor (nivel del editor), id para el progreso
 M.jugar = async function (texto, info, extra = {}) {
@@ -242,10 +247,10 @@ M.pausa = function (p, info, prog) {
   fila.push(['GJ_menuBtn_001.png', salir]);
   fila.forEach(([f, cb], i) => U.boton(k, f, (i - (fila.length - 1) / 2) * 75, -40, cb, 0, f === 'GJ_playBtn2_001.png' ? 1 : 0.85));
   // volumen
-  U.sprite(k, 'GJ_musicOnBtn_001.png', -170, -100, 0.6); new U.Deslizador(P.vMus, v => { P.vMus = v; GD.S.volMusica(v); P.guardar(); });
-  const d1 = new U.Deslizador(P.vMus, v => { P.vMus = v; GD.S.volMusica(v); P.guardar(); }); d1.pos(-75, -100); d1.escala = 0.8; k.agregar(d1);
-  const d2 = new U.Deslizador(P.vSfx, v => { P.vSfx = v; GD.S.vSfx = v; P.guardar(); }); d2.pos(110, -100); d2.escala = 0.8; k.agregar(d2);
-  U.sprite(k, 'GJ_fxOnBtn_001.png', 15, -100, 0.6);
+  U.sprite(k, 'GJ_musicOnBtn_001.png', -185, -100, 0.5);
+  const d1 = new U.Deslizador(P.vMus, v => { P.vMus = v; GD.S.volMusica(v); P.guardar(); }); d1.pos(-90, -100); d1.escala = 0.75; k.agregar(d1);
+  U.sprite(k, 'GJ_fxOnBtn_001.png', 25, -100, 0.5);
+  const d2 = new U.Deslizador(P.vSfx, v => { P.vSfx = v; GD.S.vSfx = v; P.guardar(); }); d2.pos(120, -100); d2.escala = 0.75; k.agregar(d2);
   pop.alTocarFondo = (x, y) => { for (const d of [d1, d2]) if (d.toca(x, y)) { pop._des = d; d.tocar(x, y); } return true; };
   pop.alMoverFondo = (x, y) => { if (pop._des) pop._des.tocar(x, y); };
   pop.alSoltarFondo = () => { pop._des = null; };
@@ -255,7 +260,7 @@ M.pausa = function (p, info, prog) {
 M.cambiarPractica = function (p) {
   p.practica = !p.practica; p.checkpoints.length = 0;
   if (p.btnCheck) { p.btnCheck.sacar(); p.btnBorrar.sacar(); p.btnCheck = p.btnBorrar = null; }
-  if (p.practica) { p.armarPractica(); GD.S.musica('datos/mus/StayInsideMe.ogg', 0, true); }
+  if (p.practica) p.armarPractica(); else GD.S.pararMusica();
   p.seguir(); p.reiniciar();
 };
 
@@ -289,7 +294,9 @@ M.finNivel = function (p, info, prog) {
 };
 
 // ---------------- garaje (GJGarageLayer) ----------------
-const TABS = [['cubo', 'gj_iconBtn'], ['nave', 'gj_shipBtn'], ['bola', 'gj_ballBtn'], ['ovni', 'gj_birdBtn'], ['onda', 'gj_dartBtn'], ['robot', 'gj_robotBtn'], ['arana', 'gj_spiderBtn'], ['columpio', 'gj_swingBtn'], ['jetpack', 'gj_jetpackBtn']];
+const TABS = [['cubo', 'gj_iconBtn'], ['nave', 'gj_shipBtn'], ['bola', 'gj_ballBtn'], ['ovni', 'gj_birdBtn'], ['onda', 'gj_dartBtn'], ['robot', 'gj_robotBtn'], ['arana', 'gj_spiderBtn'], ['columpio', 'gj_swingBtn'], ['jetpack', 'gj_jetpackBtn'], ['estela', 'gj_streakBtn'], ['muerte', 'gj_explosionBtn']];
+// estelas y efectos de muerte no son íconos de jugador: tienen su propia lista de dibujos
+const ESPECIALES = { estela: { total: 7, f: n => `player_special_${nn(n)}_001.png` }, muerte: { total: 20, f: n => `explosionIcon_${nn(n)}_001.png` } };
 M.garaje = function () {
   const c = new U.Capa(), W = D.ancho, H = D.alto;
   let tab = 'cubo', pag = 0;
@@ -320,16 +327,16 @@ M.garaje = function () {
   };
   c.armarGrilla = () => {
     c.grilla.vaciar();
-    const total = GD.ICONOS.cuantos(tab), porPag = 36, pags = Math.ceil(total / porPag);
+    const esp = ESPECIALES[tab], total = esp ? esp.total : GD.ICONOS.cuantos(tab), porPag = 36, pags = Math.ceil(total / porPag);
     pag = (pag + pags) % pags;
     for (const b of c.tabs) b.cont.marco(b.f0 + (b.tipo === tab ? '_on_001.png' : '_off_001.png'));
     for (let k = 0; k < porPag; k++) {
       const n = pag * porPag + k + 1; if (n > total) break;
       const fila = Math.floor(k / 12), col = k % 12;
-      const ic = new GD.Icono(tab, n, [175, 175, 175], [255, 255, 255]); ic.ax = ic.ay = 0.5;
+      const ic = esp ? new Sprite(esp.f(n)) : new GD.Icono(tab, n, [175, 175, 175], [255, 255, 255]); ic.ax = ic.ay = 0.5; if (esp) ic.listo = Promise.resolve();
       const cont = new Nodo(); cont.w = cont.h = 30; ic.pos(15, 15); cont.agregar(ic); ic.escala = tab === 'onda' ? 0.6 : 0.75;
       ic.listo.then(() => { const k2 = 26 / Math.max(ic.w || 26, ic.h || 26); ic.escala = Math.min(ic.escala, k2 * (tab === 'onda' ? 1 : 1)); });
-      const b = U.boton(c.grilla, cont, W / 2 - 192 + col * 35, 132 - fila * 40, () => { P[tab] = n; P.modoIcono = tab; P.guardar(); c.verIcono(); c.armarGrilla(); GD.S.efecto('playSound_01.ogg', 0.3); });
+      const b = U.boton(c.grilla, cont, W / 2 - 192 + col * 35, 132 - fila * 40, () => { P[tab] = n; if (!esp) P.modoIcono = tab; P.guardar(); c.verIcono(); c.armarGrilla(); GD.S.efecto('playSound_01.ogg', 0.3); });
       if (P[tab] === n) { const sel = new Sprite('GJ_select_001.png'); sel.pos(15, 15); sel.escala = 0.85; cont.agregar(sel, 2); }
       void b;
     }
@@ -343,18 +350,18 @@ M.colores = function (garaje) {
   const pop = new U.Popup(470, 290, 'GJ_square01.png'), k = pop.caja; let cual = 'c1';
   pop.titulo('Colors');
   const sel = U.texto(k, 'Col 1', -170, 105, 'goldFont', 0.6);
-  const bts = [['c1', 'Col 1'], ['c2', 'Col 2'], ['cGlow', 'Glow']].map(([kk, t], i) => U.boton(k, U.botonTexto(t, 70, 'goldFont', 'GJ_button_01.png', 26, 0.6), -150 + i * 85, 105, () => { cual = kk; sel.texto(t); armar(); }));
+  const bts = [['c1', 'Col 1'], ['c2', 'Col 2'], ['cGlow', 'Glow']].map(([kk, t], i) => U.boton(k, U.botonTexto(t, 70, 'goldFont', 'GJ_button_01.png', 26, 0.6), -150 + i * 85, 92, () => { cual = kk; sel.texto(t); armar(); }));
   void bts; sel.vis = false;
-  const brillo = U.casilla(k, 180, 105, P.brillo, v => { P.brillo = v; P.guardar(); garaje.verIcono(); }, 0.6); void brillo;
-  U.texto(k, 'Glow', 180, 85, 'goldFont', 0.4);
+  const brillo = U.casilla(k, 180, 95, P.brillo, v => { P.brillo = v; P.guardar(); garaje.verIcono(); }, 0.6); void brillo;
+  U.texto(k, 'Glow', 180, 77, 'goldFont', 0.4);
   const grilla = new Nodo(); k.agregar(grilla);
   const armar = () => {
     grilla.vaciar();
     GD.COLORES.forEach((rgb, i) => {
       const col = i % 14, fila = Math.floor(i / 14);
       const s = new Sprite('GJ_colorBtn_001.png'); s.color(rgb); s.escala = 0.7;
-      U.boton(grilla, s, -205 + col * 31.5, 60 - fila * 31, () => { P[cual] = i; P.guardar(); garaje.verIcono(); armar(); });
-      if (P[cual] === i) U.sprite(grilla, 'GJ_select_001.png', -205 + col * 31.5, 60 - fila * 31, 0.7, 2);
+      U.boton(grilla, s, -205 + col * 31.5, 55 - fila * 31, () => { P[cual] = i; P.guardar(); garaje.verIcono(); armar(); });
+      if (P[cual] === i) U.sprite(grilla, 'GJ_select_001.png', -205 + col * 31.5, 55 - fila * 31, 0.7, 2);
     });
   };
   armar();

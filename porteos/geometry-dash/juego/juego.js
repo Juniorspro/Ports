@@ -62,6 +62,10 @@ class Partida extends GD.Nodo {
     o.sec = s; (this.secs[s] = this.secs[s] || []).push(o);
   }
   async cargarFondo() {
+    // fuente de los textos del nivel (kA18: 0 = bigFont, n = gjFontNN)
+    const fu = GD.N.ajuste(this.nv, 'kA18', 0);
+    GD.O.fuente = fu > 0 ? 'gjFont' + String(fu).padStart(2, '0') : 'bigFont';
+    if (fu > 0 && !GD.fuentes[GD.O.fuente]) await GD.cargarFuente(GD.O.fuente).catch(() => { });
     const T = GD.T, nn = n => String(n).padStart(2, '0');
     const bg = `game_bg_${nn(this.fondo)}_001`, gs = `groundSquare_${nn(this.piso)}_001`, gs2 = `groundSquare_${nn(this.piso)}_2_001`;
     const carga = async n => { if (!GD.datos.hojas.hasOwnProperty(n)) return null; const t = await T.textura(n); GD.R.repetir(t); return t; };
@@ -76,6 +80,8 @@ class Partida extends GD.Nodo {
     if (!GD.T.m('slidergroove2.png')) this.barra.vis = false;
     h.agregar(this.barra);
     this.pct = new GD.Texto('0%', 'bigFont'); this.pct.escala = 0.5; this.pct.anc(0, 0.5).pos(D.ancho / 2 + 110, D.alto - 8); h.agregar(this.pct);
+    const PF = GD.perfil; this.barra.vis = this.barra.vis && PF.opcion('progress-bar', true); this.pct.vis = PF.opcion('show-percent', true);
+    if (!this.barra.vis) this.pct.pos(D.ancho / 2, D.alto - 8), this.pct.anc(0.5, 0.5);
     // botón de pausa
     this.btnPausa = new GD.Sprite('GJ_pauseBtn_001.png'); this.btnPausa.escala = 0.6; this.btnPausa.op = 75; this.btnPausa.pos(D.ancho - 15, D.alto - 15); h.agregar(this.btnPausa);
     if (this.practica) this.armarPractica();
@@ -131,11 +137,14 @@ class Partida extends GD.Nodo {
   empezarMusica(t) {
     const info = this.opc.info || {};
     if (this.opc.silencio) return;
+    // en práctica suena la canción de práctica, sin cortarse entre intentos (como el juego)
+    if (this.practica && !this.enEditor) { GD.S.musica('datos/mus/StayInsideMe.ogg', 0, true); return; }
     const ruta = info.musica; if (!ruta) return;
     GD.S.musica(ruta, t + this.offsetCancion, false, this.fundidoIn && t < 0.1 ? 2 : 0);
   }
   mostrarIntento() {
     if (this.lblIntento) this.lblIntento.sacar();
+    if (GD.perfil.opcion('hide-attempts')) { this.lblIntento = null; return; }
     const l = this.lblIntento = new GD.Texto('Attempt ' + this.intentos, 'bigFont');
     l.escala = 0.8; l.pos(this.j.x + 100, this.j.y + 120); l.mundo = true;
   }
@@ -210,7 +219,7 @@ class Partida extends GD.Nodo {
   // ---------- bucle ----------
   alActualizar(dt) {
     if (!this.listo || this.pausada) return;
-    if (this.muerto) { this.muerteT += dt; if (this.muerteT > 1) this.reiniciar(); this.actualizarCamara(dt); return; }
+    if (this.muerto) { this.muerteT += dt; if (this.muerteT > (this.practica && GD.perfil.opcion('fast-reset') ? 0.5 : 1)) this.reiniciar(); this.actualizarCamara(dt); return; }
     if (this.terminada) { this.alFinal(dt); return; }
     // pasos de física de 1/240 s
     const pasos = Math.max(1, Math.ceil(dt * 240 - 0.01)), h = dt / pasos;
@@ -220,7 +229,9 @@ class Partida extends GD.Nodo {
       if (this.j2) this.pasoJugador(this.j2, h);
       if (GD.TR) GD.TR.paso(this, h);
     }
-    this.cols.paso(dt); GD.O.reloj = this.tiempo;
+    this.cols.paso(dt); GD.O.reloj = this.tiempo; GD.O.latido = GD.S.medir();
+    // práctica: checkpoints solos cada tanto, cuando el jugador está quieto en algo (como la 2.2)
+    if (this.practica && GD.perfil.opcion('auto-checkpoints', true) && !this.muerto && (this.j.suelo || this.j.esVuelo()) && this.tiempo - (this.ultAuto || 0) > 2.5) { this.ultAuto = this.tiempo; const u = this.checkpoints[this.checkpoints.length - 1]; if (!u || this.j.x - u.j.x > 150) this.ponerCheckpoint(); }
     if (GD.TR) GD.TR.cuadro(this, dt);
     this.actualizarCamara(dt);
     this.actualizarHUD();
@@ -404,6 +415,7 @@ class Partida extends GD.Nodo {
         this.efectoPad(o); return;
       case TYP.ARO_AMARILLO: case TYP.ARO_ROSA: case TYP.ARO_ROJO: case TYP.ARO_GRAVEDAD: case TYP.ARO_VERDE: case TYP.ARO_CAIDA: case TYP.ARO_DASH: case TYP.ARO_DASH_GRAV: case TYP.ARO_ARANA: case TYP.ARO_TELEPORT: case TYP.ARO_CUSTOM:
         if (!j.buffer || (o.usadoPor && o.usadoPor.has(j) && !(o.raw[99] == 1))) return;
+        if (GD.perfil.opcion('no-orb-buffer') && !j.recienSost) return;
         (o.usadoPor = o.usadoPor || new Set()).add(j);
         j.buffer = false; o.usado = true;
         if (ty === TYP.ARO_ARANA) { this.teleportArana(j, true); }
@@ -581,31 +593,26 @@ class Partida extends GD.Nodo {
     const vis = [];
     for (let s = Math.max(0, Math.floor(x0 / SEC)), s1 = Math.floor(x1 / SEC); s <= s1; s++) { const a = this.secs[s]; if (a) for (const o of a) vis.push(o); }
     vis.sort((a, b) => a.rango - b.rango);
-    const mo = new Float32Array(6), wo = new Float32Array(6);
-    let jugadorDibujado = false;
     const editor = !!this.enEditor;
-    for (const o of vis) {
-      if (!jugadorDibujado && (GD.O.ORDEN_CAPA[o.capa] ?? 5) >= 5) { this.dibujarJugadores(w); jugadorDibujado = true; }
-      if (!o.vis && !editor || o.oculto) continue;
-      if (GD.O.esTrigger(o.id) && !editor) continue;
-      if (o.op <= 0.001 && !editor) continue;
-      GD.O.matriz(o, mo);
-      wo[0] = w[0] * mo[0] + w[2] * mo[1]; wo[1] = w[1] * mo[0] + w[3] * mo[1]; wo[2] = w[0] * mo[2] + w[2] * mo[3]; wo[3] = w[1] * mo[2] + w[3] * mo[3];
-      wo[4] = w[0] * mo[4] + w[2] * mo[5] + w[4]; wo[5] = w[1] * mo[4] + w[3] * mo[5] + w[5];
-      const fade = this.fundidoBorde ? this.fundidoBorde(o) : 1;
-      for (const p of o.partes) {
-        const [r, g, b, a, add] = GD.O.colorParte(o, p, this.cols);
-        const al = a * o.op * p.op * fade * (p.ct === 'glow' ? 1 : 1) * (editor && o.selec ? 1 : 1);
-        if (al <= 0.003) continue;
-        const col = o.selec ? GD.col(0, 255, 0, 255 * al) : GD.col(r, g, b, 255 * al);
-        GD.O.pintarParte(wo, p, col, add);
-      }
-    }
-    if (!jugadorDibujado) this.dibujarJugadores(w);
+    const vis2 = editor ? vis : vis.filter(o => o.vis && !o.oculto && !GD.O.esTrigger(o.id) && o.op > 0.001);
+    GD.O.dibujarObjetos(vis2, w, this.cols, { capaJugador: 5, jugadores: () => this.dibujarJugadores(w), opacidad: this.fundidoBorde ? o => this.fundidoBorde(o) : null });
+
     this.dibujarEfectos(w);
+    if (this.practica && GD.perfil.opcion('show-hitboxes')) this.dibujarCajas(w);
     this.dibujarPiso();
     // HUD y lo que no es del mundo
     super.dibujar(pm, 255, 255, 255, 255);
+  }
+  dibujarCajas(w) {
+    const R = GD.R, uv = new Float32Array(8).fill(0.5), xs = new Float32Array(8);
+    const linea = (ax, ay, bx, by, col) => { const X0 = w[0] * ax + w[2] * ay + w[4], Y0 = w[1] * ax + w[3] * ay + w[5], X1 = w[0] * bx + w[2] * by + w[4], Y1 = w[1] * bx + w[3] * by + w[5]; let dx = X1 - X0, dy = Y1 - Y0; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l; xs.set([X0 - dy * 0.6, Y0 + dx * 0.6, X1 - dy * 0.6, Y1 + dx * 0.6, X0 + dy * 0.6, Y0 - dx * 0.6, X1 + dy * 0.6, Y1 - dx * 0.6]); R.quad(R.blanco, false, 0, xs, uv, col); };
+    const caja = (c, col) => {
+      if (c.circ) { const n = 16; for (let i = 0; i < n; i++) { const a0 = i / n * 6.283, a1 = (i + 1) / n * 6.283; linea(c.x + Math.cos(a0) * c.r, c.y + Math.sin(a0) * c.r, c.x + Math.cos(a1) * c.r, c.y + Math.sin(a1) * c.r, col); } return; }
+      const a = c.ang || 0, cs = Math.cos(a), sn = Math.sin(a), P = (x, y) => [c.x + x * cs - y * sn, c.y + x * sn + y * cs];
+      const q = [P(-c.w, -c.h), P(c.w, -c.h), P(c.w, c.h), P(-c.w, c.h)]; for (let i = 0; i < 4; i++) linea(...q[i], ...q[(i + 1) % 4], col);
+    };
+    for (const o of this.cerca(this.j, 400)) { if (!o.activo || o.oculto) continue; const t = o.ty; const col = t === TYP.PELIGRO || t === TYP.PELIGRO_ANIMADO ? GD.col(255, 0, 0, 255) : t === TYP.SOLIDO || t === TYP.PENDIENTE ? GD.col(0, 0, 255, 255) : o.d.hb ? GD.col(0, 255, 0, 255) : 0; if (col) caja(this.caja(o), col); }
+    for (const j of [this.j, this.j2]) if (j) { caja({ x: j.x, y: j.y, w: j.alto / 2, h: j.alto / 2 }, GD.col(255, 0, 0, 255)); caja({ x: j.x, y: j.y, w: 4.5 * (j.mini ? 0.6 : 1), h: 4.5 * (j.mini ? 0.6 : 1) }, GD.col(0, 0, 255, 255)); }
   }
   espejoAnim() { const obj = this.espejo ? 1 : 0; this.espejoK += (obj - this.espejoK) * Math.min(1, (GD.D.dt || 0.016) * 4); return this.espejoK < 0.001 ? 0 : this.espejoK; }
   // estela, partículas del piso y fuego de la nave
@@ -691,8 +698,20 @@ class Partida extends GD.Nodo {
   efecto(n) { n.mundo = true; n.sacar = () => { n._fin = true; }; (this.efectos = this.efectos || []).push(n); return n; }
   efectoMuerte(j) {
     const P = GD.perfil;
+    if (P.opcion('no-death-effect')) return;
     const pe = this.efecto(new GD.Particulas('explodeEffect')); pe.x = j.x; pe.y = j.y; pe.tinte = P.c1rgb();
     const o = this.efecto(new GD.Onda(0.5, 10, 90, P.c1rgb(), true)); o.x = j.x; o.y = j.y;
+    // efectos de muerte del garaje: la animación de su hoja (PlayerExplosion_XX)
+    const n = P.muerte | 0;
+    if (n > 1) {
+      const hoja = 'PlayerExplosion_' + String(n - 1).padStart(2, '0'), base = 'playerExplosion_' + String(n - 1).padStart(2, '0');
+      GD.cargarHoja(hoja).then(() => {
+        const fr = []; for (let k = 1; GD.T.m(`${base}_${String(k).padStart(3, '0')}.png`); k++) fr.push(`${base}_${String(k).padStart(3, '0')}.png`);
+        if (!fr.length) return;
+        const s = this.efecto(new GD.Sprite(fr[0])); s.x = j.x; s.y = j.y; s.color(P.c1rgb()); s.escala = 1.2;
+        s.correr(GD.A.sec(GD.A.marcos(fr, 0.05, false), GD.A.fn(q => q._fin = true)));
+      });
+    }
   }
   efectoPortal(o) { const w = this.efecto(new GD.Onda(0.4, 10, 50, [255, 255, 255])); w.x = o.cx; w.y = o.cy; }
   efectoPad(o) { const w = this.efecto(new GD.Onda(0.3, 5, 30, [255, 255, 0])); w.x = o.cx; w.y = o.cy; }
