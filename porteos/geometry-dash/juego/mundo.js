@@ -265,6 +265,8 @@ O.colorParte = function (o, p, cols) {
   let rgb = [v.r, v.g, v.b];
   if (hsv) rgb = O.aplicarHSV(rgb, hsv);
   if (o.pulsos) for (const pu of o.pulsos) if (!pu.soloDetalle || p.ct === 'd') if (!pu.soloBase || p.ct !== 'd') rgb = O.mezclarPulso(rgb, pu);
+  // tinte de los triggers de área (3010)
+  const ta = o.tinteArea; if (ta && (!ta.det || p.ct === 'd') && (!ta.base || p.ct !== 'd')) { const d = ta.hsv ? O.aplicarHSV(rgb, GD.N.hsv(ta.hsv), ta.rgb) : ta.rgb; rgb = [rgb[0] + (d[0] - rgb[0]) * ta.k, rgb[1] + (d[1] - rgb[1]) * ta.k, rgb[2] + (d[2] - rgb[2]) * ta.k]; }
   return [rgb[0], rgb[1], rgb[2], v.op, v.add || p.ct === 'glow'];
 };
 

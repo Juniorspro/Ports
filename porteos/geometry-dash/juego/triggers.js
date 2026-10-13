@@ -71,6 +71,7 @@ TR.cuadro = function (p, dt) {
   p.zoom = t.camZoom; p.camRot = t.camRot;
   if (GD.Shaders) GD.Shaders.cuadro(p, dt);
   if (TR.pasoSonidos) TR.pasoSonidos(p);
+  if (TR.pasoAreas && ((t.areas && t.areas.length) || (t.entradas && t.entradas.length) || p._areaTocados && p._areaTocados.size)) TR.pasoAreas(p);
 };
 const curvas = {};
 TR.curva = (tipo, tasa) => { const k = tipo + ',' + tasa; return curvas[k] || (curvas[k] = GD.E.gd(tipo, tasa)); };
@@ -118,6 +119,7 @@ TR.pasoAccion = function (p, a) {
     case 'tiempoEsc': { p.tr.escalaT = a.ini + (a.fin - a.ini) * k; break; }
     case 'kf': TR.pasoKeyframes(p, a); break;
     case 'medio': p.tr.medioY = a.ini + (a.fin - a.ini) * k; break;
+    case 'areaEd': TR.pasoAreaEd(p, a, k); break;
     case 'sh': GD.Shaders.paso(p, a, k); break;
     case 'escalar': {
       const l = TR.grupo(p, a.g), c = a.cen ? TR.centro(p, a.cen) : null;

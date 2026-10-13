@@ -103,8 +103,8 @@ class Partida extends GD.Nodo {
   reiniciar(primera) {
     const cp = this.practica && this.checkpoints.length ? this.checkpoints[this.checkpoints.length - 1] : (!primera && this.cpPlat) || null;
     this.cols = new GD.O.Colores(this.nv, GD.perfil.c1rgb(), GD.perfil.c2rgb());
-    for (const o of this.objs) { o.dx = 0; o.dy = 0; o.drot = 0; o.op = 1; o.activo = true; o.usado = false; o.pulsos = null; o.esx = 1; o.esy = 1; o.oculto = false; o.tomado = false; o.muerto = false; o.usadoPor = null; o.anim = 0; o.emisor = null; o.animado = false; if (o.sec === undefined) this.ponerEnSeccion(o); }
-    this.particulas = [];
+    for (const o of this.objs) { o.dx = 0; o.dy = 0; o.drot = 0; o.op = 1; o.activo = true; o.usado = false; o.pulsos = null; o.esx = 1; o.esy = 1; o.oculto = false; o.tomado = false; o.muerto = false; o.usadoPor = null; o.anim = 0; o.emisor = null; o.animado = false; o.aPrev = null; o.opArea = 1; o.tinteArea = null; if (o.sec === undefined) this.ponerEnSeccion(o); }
+    this.particulas = []; this._areaTocados = null;
     this.reseccionar();
     if (GD.TR) GD.TR.reiniciar(this);
     const j = this.j = new GD.Jugador(this);
@@ -516,7 +516,7 @@ class Partida extends GD.Nodo {
     return {
       j: fj(this.j), j2: fj(this.j2), din, tiempo: this.tiempo, limites: this.limites && Object.assign({}, this.limites), espejo: this.espejo, espejoK: this.espejoK,
       camX: this.camX, camY: this.camY, camYObj: this.camYObj, saltos: this.saltos, monedas: Object.assign({}, this.monedas),
-      objs: this.dinamicos().map(o => [o.dx, o.dy, o.drot, o.op, o.activo, o.oculto, o.usado, o.tomado, o.muerto, o.esx, o.esy, o.anim, o.usadoPor ? [...o.usadoPor].map(x => x === this.j ? 1 : 2) : null]),
+      objs: this.dinamicos().map(o => [o.dx, o.dy, o.drot, o.op, o.activo, o.oculto, o.usado, o.tomado, o.muerto, o.esx, o.esy, o.anim, o.usadoPor ? [...o.usadoPor].map(x => x === this.j ? 1 : 2) : null, o.aPrev ? Object.assign({}, o.aPrev) : null]),
     };
   }
   // sólo cambian los objetos con grupos (los mueven los triggers) y los que se usan al tocarlos
@@ -533,9 +533,10 @@ class Partida extends GD.Nodo {
     Object.assign(this, { tiempo: f.tiempo, limites: f.limites && Object.assign({}, f.limites), espejo: f.espejo, espejoK: f.espejoK, camX: f.camX, camY: f.camY, camYObj: f.camYObj, saltos: f.saltos, monedas: Object.assign({}, f.monedas) });
     this.dinamicos().forEach((o, i) => {
       const v = f.objs[i]; [o.dx, o.dy, o.drot, o.op, o.activo, o.oculto, o.usado, o.tomado, o.muerto, o.esx, o.esy, o.anim] = v;
-      o.usadoPor = v[12] ? new Set(v[12].map(k => k === 1 ? this.j : this.j2)) : null; o.pulsos = din.pulsos[i];
+      o.usadoPor = v[12] ? new Set(v[12].map(k => k === 1 ? this.j : this.j2)) : null; o.pulsos = din.pulsos[i]; o.aPrev = v[13] ? Object.assign({}, v[13]) : null;
       this.moverSeccion(o);
     });
+    this._areaTocados = new Set(this.dinamicos().filter(o => o.aPrev));
     this.muerto = false; this.terminada = false;
   }
   ponerCheckpoint() {
@@ -617,7 +618,7 @@ class Partida extends GD.Nodo {
     vis.sort((a, b) => a.rango - b.rango);
     const editor = !!this.enEditor;
     const vis2 = editor ? vis : vis.filter(o => o.vis && !o.oculto && (!GD.O.esTrigger(o.id) || o.id === 1615) && o.op > 0.001);
-    GD.O.partida = this;
+    GD.O.partida = this; this._visibles = vis2;
     if (!editor) this.efectosBorde(vis2, x0 + 100, x1 - 100);
     const emisores = vis.filter(o => o.pdef && (editor || (o.vis && !o.oculto)));
     GD.O.dibujarObjetos(vis2, w, this.cols, { capaJugador: 5, jugadores: () => this.dibujarJugadores(w), opacidad: this.fundidoBorde ? o => this.fundidoBorde(o) : null,
@@ -676,7 +677,7 @@ class Partida extends GD.Nodo {
       }
     }
   }
-  fundidoBorde(o) { return o.fb === undefined ? 1 : o.fb; }
+  fundidoBorde(o) { return (o.fb === undefined ? 1 : o.fb) * (o.opArea === undefined ? 1 : o.opArea); }
   espejoAnim() { const obj = this.espejo ? 1 : 0; this.espejoK += (obj - this.espejoK) * Math.min(1, (GD.D.dt || 0.016) * 4); return this.espejoK < 0.001 ? 0 : this.espejoK; }
   // estela, partículas del piso y fuego de la nave
   efectosJugador(j, v, w) {
@@ -685,13 +686,17 @@ class Partida extends GD.Nodo {
     if (m === 'onda') { v.onda.ancho = j.mini ? 5 : 8; if (!this.muerto) v.onda.agregar(j.x, j.y, t); v.onda.dibujar(w, t, P.c2rgb()); }
     else if (v.onda.p.length) v.onda.cortar();
     const conEstela = (m === 'nave' || m === 'ovni' || m === 'columpio' || m === 'jetpack' || (j.estelaHasta && t < j.estelaHasta)) && j.estela !== false;
-    if (conEstela && !this.muerto) v.estela.agregar(j.x - (m === 'nave' ? 10 : 0), j.y + (m === 'nave' ? -2 * (j.grav > 0 ? 1 : -1) : 0), t);
+    // la parte de atrás de la nave, girada con ella (de ahí salen la estela y el fuego)
+    const k = j.mini ? 0.6 : 1, atras = (lx, ly) => { const a = -j.rot * Math.PI / 180, y = ly * (j.grav > 0 ? 1 : -1); return [j.x + (lx * Math.cos(a) - y * Math.sin(a)) * k, j.y + (lx * Math.sin(a) + y * Math.cos(a)) * k]; };
+    const [ex, ey] = m === 'nave' || m === 'jetpack' ? atras(-12, -3) : [j.x, j.y];
+    if (conEstela && !this.muerto) v.estela.agregar(ex, ey, t);
     v.estela.dibujar(w, t, P.c2rgb());
     // partículas: arrastre en el piso (cubo, robot, bola) y fuego de la nave
     if (!v.polvo) { v.polvo = new GD.Particulas('dragEffect'); v.fuego = new GD.Particulas('shipDragEffect'); }
     const enPiso = j.suelo && (m === 'cubo' || m === 'robot' || m === 'bola' || m === 'arana') && !this.muerto;
     v.polvo.emitiendo = enPiso; v.polvo.x = j.x - 10; v.polvo.y = j.y - (j.alto / 2) * (j.grav > 0 ? 1 : -1); v.polvo.tinte = P.c1rgb();
-    v.fuego.emitiendo = (m === 'nave' || m === 'jetpack') && !this.muerto; v.fuego.x = j.x - 18; v.fuego.y = j.y - 4 * (j.grav > 0 ? 1 : -1); v.fuego.giroEmisor = j.grav > 0 ? 0 : 180;
+    const [fx, fy] = atras(-20, -5);
+    v.fuego.emitiendo = (m === 'nave' || m === 'jetpack') && !this.muerto; v.fuego.x = fx; v.fuego.y = fy; v.fuego.giroEmisor = (j.grav > 0 ? 0 : 180) - j.rot;
     for (const q of [v.polvo, v.fuego]) { q.alActualizar(GD.D.dt || 0); q.dibujar(w, 255, 255, 255, 255); }
   }
   dibujarJugadores(w) {
