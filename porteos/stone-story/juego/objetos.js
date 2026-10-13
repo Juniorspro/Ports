@@ -21,6 +21,13 @@ const Obj = (() => {
   O.desdeRuta = (ruta, padre) => { const id = Datos.prefab(ruta); return id ? O.crear(id, padre) : null; };
   O.comp = (o, clase) => o.comps.find((c) => c._c === clase);
   O.compDe = (o, ...clases) => o.comps.find((c) => clases.includes(c._c));
+  // de un id de componente al prefab que lo tiene (sin crear objetos)
+  let idxComp = null;
+  O.prefabDeComp = (r) => {
+    if (!r) return null;
+    if (!idxComp) { idxComp = new Map(); for (const [k, e] of Object.entries(Datos.prefabs)) for (const c of e.c) idxComp.set(c._i, k); }
+    return idxComp.get(r[0] === '@' ? r.slice(1) : r) || null;
+  };
   O.ref = (r) => (r ? porComp.get(r.slice(1)) : null); // '@r123' de componente -> [obj, comp]
   O.buscar = (o, nombre) => {
     if (o.n === nombre) return o;

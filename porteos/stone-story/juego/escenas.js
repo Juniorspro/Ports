@@ -152,10 +152,12 @@ const Escenas = {
           Object.values(Prog.items).forEach((it, i) => {
             const y = 3 + i * 3; if (y + 3 > P.filas - 3) return;
             const st = Items.stats(it);
-            const eq = Prog.mano === it.id;
+            const eq = Prog.mano === it.id ? 'R' : Prog.manoI === it.id ? 'L' : '';
             UI.caja(x, y, w, 3, eq ? [120, 255, 120] : [255, 255, 255]);
-            P.texto(x + 2, y + 1, Items.nombre(it.id) + (st && st.herramienta ? '' : '  D' + (st ? st.dano : '?')));
-            if (eq) P.texto(x + w - 4, y + 1, 'R', [120, 255, 120]);
+            let det = '';
+            if (st && !st.herramienta) det = st.ataca ? '  \u2666' + st.dano : '  \u25ca' + st.armMax;
+            P.texto(x + 2, y + 1, Items.nombre(it.id) + ' +' + (it.nivel || 1) + det);
+            if (eq) P.texto(x + w - 4, y + 1, eq, [120, 255, 120]);
             botones.push({ x, y, w, h: 3, item: it.id });
           });
           return;
@@ -178,7 +180,16 @@ const Escenas = {
         if (!b) return;
         Sonido.efecto('click');
         if (b.tab) { pestana = b.tab; return; }
-        if (b.item) { const s = Items.stats(Prog.items[b.item]); if (s && !s.herramienta) { Prog.mano = b.item; Prog.guardar(); } return; }
+        if (b.item) {
+          const s = Items.stats(Prog.items[b.item]);
+          if (s && !s.herramienta) {
+            if (Prog.mano === b.item) { Prog.mano = null; Prog.manoI = b.item; }
+            else if (Prog.manoI === b.item) Prog.manoI = null;
+            else Prog.mano = b.item;
+            Prog.guardar();
+          }
+          return;
+        }
         if (!b.ok) return;
         for (const c of b.q.costs || []) Prog.recursos[RECURSO(c.resource)] -= c.amount;
         Prog.guardar();
@@ -232,6 +243,7 @@ const Escenas = {
           if (!fin) {
             fin = 1;
             if (L.completo) {
+              L.botin = (L.botin || []).concat(...Array.from({ length: L.tesoros || 0 }, () => Items.abrirCofre(id, q.level || 0)));
               Prog.completos[id] = (Prog.completos[id] || 0) + 1;
               for (const f of (q.onComplete && q.onComplete.setFlags) || []) Prog.banderas[f] = 1;
             }
@@ -246,9 +258,13 @@ const Escenas = {
           const P = Pantalla, w = Math.min(60, P.cols - 6), x = (P.cols - w) >> 1;
           const txt = L.completo ? T((q.outro && q.outro.line1) || 'Completado') : 'Te derrotaron';
           const ls = partir(txt, w - 4);
-          UI.caja(x, 5, w, ls.length + 6);
+          UI.caja(x, 5, w, ls.length + 8 + Math.min(4, (L.botin || []).length));
           ls.forEach((s, i) => P.texto(x + 2, 7 + i, s));
-          P.texto(x + 2, 8 + ls.length, '> ' + T('tid_button_continue'), [255, 255, 0]);
+          const extra = [];
+          for (const [tipo, sim] of [['stone', 'o'], ['wood', '/'], ['tar', '~'], ['bronze', '=']]) if (L.recursos[tipo]) extra.push(sim + ' +' + L.recursos[tipo]);
+          if (extra.length) P.texto(x + 2, 8 + ls.length, extra.join('   '), [220, 220, 220]);
+          (L.botin || []).slice(0, 4).forEach((it, i) => P.texto(x + 2, 9 + ls.length + i, '+ ' + Items.nombre(it) + ' ' + (Prog.items[it] ? '+' + Prog.items[it].nivel : ''), [120, 255, 120]));
+          P.texto(x + 2, 10 + ls.length + Math.min(4, (L.botin || []).length), '> ' + T('tid_button_continue'), [255, 255, 0]);
         }
       },
       toque() { if (fin > 30) Juego.cambiar(Escenas.menu()); },

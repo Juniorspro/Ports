@@ -59,18 +59,22 @@ const Partida = (() => {
   P.nuevo = (quest) => {
     const L = {
       quest, personajes: [], seccion: 0, camX: 0, camXf: 0, t: 0, completo: false, finDemora: 0,
-      textos: [], recursos: {}, muertos: 0,
+      textos: [], recursos: {}, muertos: 0, balas: [],
       azar: Azar((Date.now() ^ 0x5eed) >>> 0),
     };
     L.fondo = quest.background ? Fondo.crear('Quests/' + quest.background) : null;
     L.frente = quest.foreground ? Fondo.crear('Quests/' + quest.foreground) : null;
     const heroe = P.personaje(Object.keys(Datos.prefabs).find((k) => Datos.prefabs[k].n === 'Hero' && k[0] === 's'), quest.initialHeroX || 0, 16, 0);
-    heroe.hp = heroe.hpMax = 20;
+    heroe.hp = heroe.hpMax = 20 + (Prog.nivel || 0); // Hero: hitpoints 20 + hitpointsPerLevel 1
     heroe.esHeroe = true;
     heroe.acX = 0; heroe.acZ = 0;
     heroe.spCamina = Obj.buscar(heroe.o, 'Walking Animation');
     heroe.spLevanta = Obj.buscar(heroe.o, 'Pickup Animation');
     L.heroe = heroe;
+    // escudos: armadura maxima y por segundo
+    heroe.armMax = 0; heroe.armSeg = 0;
+    for (const id of [Prog.mano, Prog.manoI]) { const st = id && Prog.items[id] && Items.stats(Prog.items[id]); if (st) { heroe.armMax += st.armMax; heroe.armSeg += st.armSeg; } }
+    heroe.armadura = heroe.armMax;
     L.personajes.push(heroe);
     L.limSup = quest.walkLimitTop || 10; L.limInf = quest.walkLimitBot || 21;
     heroe.z = quest.initialHeroZ || Math.round((L.limSup + L.limInf) / 2) + 1;
@@ -148,14 +152,29 @@ const Partida = (() => {
     if (q.esHeroe) {
       let it = null;
       if (ob && ob.recurso) it = Items.herramienta(ob.recurso);
-      else if (Prog.mano && Prog.items[Prog.mano]) it = Prog.items[Prog.mano];
+      else {
+        // la que ataca: derecha o izquierda (el escudo no ataca)
+        for (const id of [Prog.mano, Prog.manoI]) {
+          const x = id && Prog.items[id], st = x && Items.stats(x);
+          if (st && st.ataca && !st.herramienta) { it = x; break; }
+        }
+      }
       const s = it && Items.stats(it);
       q.armaAct = s ? it.id : null;
       if (s) return s;
       return { dano: 1, rango: 1, carga: 8, golpe: 12 };
     }
     const w = q.arma;
-    if (w) return { dano: w.baseDamage || 1, rango: w.baseRange || 1, carga: w.cast || 10, golpe: w.perf || 15, enfriar: w.cooldown || 0, bala: w.bulletPrefab };
+    if (w) {
+      if (w._bala === undefined) {
+        const bp = Obj.prefabDeComp(w.bulletPrefab), bc = bp && Datos.prefabs[bp].c.find((x) => x.velocity !== undefined);
+        w._bala = bc && (bc.velocity || 0) > 0 && (bc.tags || []).includes('ranged') ? { pref: bp, c: bc } : null;
+      }
+      const nv = q.nivel || 0;
+      let dano = w.baseDamage || 1;
+      for (const st of w.baseStats || []) if (st.type === 1) dano = Math.max(dano, Math.floor((st.baseValue || 0) + (st.levelMult || 0) * nv));
+      return { dano, rango: w.baseRange || 1, carga: w.cast || 10, golpe: w.perf || 15, enfriar: w.cooldown || 0, bala: w._bala };
+    }
     return { dano: 1, rango: 1, carga: 8, golpe: 12 };
   }
 
@@ -177,6 +196,7 @@ const Partida = (() => {
     if (q.c.deathSfx) Sonido.efecto(q.c.deathSfx);
     if (q.sp && q.sp.muere) { q.spMuerte = q.sp.muere; Obj.playAnim(q.sp.muere.o); }
     if (!q.esHeroe) L.muertos++;
+    if (q.clase === 'Enemy') P.xp(L, Math.max(1, q.c.money || 1) * (1 + (q.nivel || 0)));
     if (q.clase === 'Decoration' && q.recurso) {
       const tipo = q.recurso === 2 ? 'wood' : q.recurso === 3 ? 'tar' : q.recurso === 4 ? 'bronze' : 'stone';
       P.ganar(L, tipo, 1 + L.azar.entre(0, 3));
@@ -185,6 +205,17 @@ const Partida = (() => {
     if (q.args && q.args.drop) { const id = q.args.drop.split('/').pop(); Items.dar(id); L.botin = (L.botin || []).concat([id]); }
   };
 
+  // experiencia: XPController (10, 20, 30, 50, 75, 120, 190 y despues +90 por nivel), tope 60
+  P.xpParaNivel = (n) => { const t = [10, 20, 30, 50, 75, 120, 190]; return n < t.length ? t[n] : t[t.length - 1] + 90 * (n - t.length + 1); };
+  P.xp = (L, n) => {
+    Prog.xp = (Prog.xp || 0) + n; Prog.nivel = Prog.nivel || 0;
+    while (Prog.nivel < 60 && Prog.xp >= P.xpParaNivel(Prog.nivel)) {
+      Prog.xp -= P.xpParaNivel(Prog.nivel); Prog.nivel++;
+      L.heroe.hpMax++; L.heroe.hp++;
+      L.textos.push({ x: L.heroe.x, z: L.heroe.z - 6, t: -30, s: 'LV ' + Prog.nivel, col: [255, 255, 0] });
+      Sonido.efecto('ui_starnew');
+    }
+  };
   P.ganar = (L, tipo, n) => {
     L.recursos[tipo] = (L.recursos[tipo] || 0) + n;
     Prog.recursos[tipo] = (Prog.recursos[tipo] || 0) + n;
@@ -198,6 +229,7 @@ const Partida = (() => {
   function pasoHeroe(L) {
     const h = L.heroe;
     if (!h.vivo) return;
+    if (h.armMax > 0 && h.armadura < h.armMax) h.armadura = Math.min(h.armMax, h.armadura + h.armSeg / TICS);
     if (h.levantando > 0) { h.levantando--; return; }
     const ob = objetivo(L, h);
     const a = armaDe(h, ob);
@@ -209,7 +241,7 @@ const Partida = (() => {
         if (Math.abs(dx) <= 0 && Math.abs(dz) <= 0) {
           if (ob.clase === 'Pickup') {
             ob.vivo = false; ob.muerte = 0;
-            if (ob.c._c === 'TreasurePickup') { L.tesoros = (L.tesoros || 0) + 1; } else P.ganar(L, ob.c.id || 'stone', ob.c.grantAmount || 1);
+            if (ob.c._c === 'TreasurePickup') { L.tesoros = (L.tesoros || 0) + 1; Sonido.efecto('pickup_success'); } else P.ganar(L, ob.c.id || 'stone', ob.c.grantAmount || 1);
             Sonido.efecto(ob.c.sfxOnPickup || 'pickup_stone');
             h.levantando = h.c.pickupTicDuration || 23;
             if (h.spLevanta) Obj.playAnim(h.spLevanta);
@@ -247,9 +279,33 @@ const Partida = (() => {
     if (k.t === 1 && q.esHeroe && a.c) { const sf = a.c && Obj.comp(Obj.crearCache(a.c.pref), 'WeaponStateSfx'); if (sf && sf.castSfx) Sonido.efecto(sf.castSfx); }
     if (k.t === a.carga + 1) {
       if (q.esHeroe && !a.c) Sonido.efecto('player_punch');
-      P.danar(L, ob, a.dano, q);
+      if (a.bala) disparar(L, q, ob, a);
+      else P.danar(L, ob, a.dano, q);
     }
     if (k.t >= a.carga + a.golpe + (a.enfriar || 0)) q.atk = null;
+  }
+
+  // proyectil (Bullet): sale del que ataca hacia el objetivo a "velocity" celdas por paso
+  function disparar(L, q, ob, a) {
+    const o = Obj.crear(a.bala.pref);
+    if (!o) { P.danar(L, ob, a.dano, q); return; }
+    Obj.iniciarAnim(o);
+    const dir = Math.sign(ob.x - q.x) || q.mira;
+    L.balas.push({ o, s: Obj.sprite(o), x: q.x + dir * 2, z: q.z, y: 1, dir, vel: Math.max(1, a.bala.c.velocity || 2), dano: a.dano, ob, de: q, vida: 60 });
+  }
+  function pasoBalas(L) {
+    for (const b of L.balas) {
+      b.vida--;
+      Obj.paso(b.o, 1 / TICS);
+      const paso = b.vel;
+      for (let i = 0; i < paso && b.vida > 0; i++) {
+        b.x += b.dir;
+        const blanco = L.personajes.find((q) => q.vivo && q !== b.de && (q.esHeroe !== b.de.esHeroe) && (q.clase === 'Enemy' || q.esHeroe) &&
+          Math.abs(q.x - b.x) <= Math.max(1, q.ancho >> 1) && Math.abs(q.z - b.z) <= 1);
+        if (blanco) { P.danar(L, blanco, b.dano, b.de); b.vida = 0; }
+      }
+    }
+    L.balas = L.balas.filter((b) => b.vida > 0);
   }
 
   function pasoEnemigo(L, q) {
@@ -286,6 +342,7 @@ const Partida = (() => {
       if (q.golpeado) q.golpeado--;
       Obj.paso(q.o, 1 / TICS);
     }
+    pasoBalas(L);
     L.personajes = L.personajes.filter((q) => q.vivo || q.muerte > 0 || q.esHeroe);
     for (const t of L.textos) t.t++;
     L.textos = L.textos.filter((t) => t.t < 24);
@@ -357,6 +414,7 @@ const Partida = (() => {
       Obj.dibujarSprite(e.s, P.colX(L, q.x), q.z - q.y, { fx, color: col });
       if (q.esHeroe && q.vivo && q.armaAct && !(q.levantando > 0)) dibujarArma(L, q, fx, col);
     }
+    for (const b of L.balas) if (b.s) Obj.dibujarSprite(b.s, P.colX(L, b.x), b.z - b.y, { fx: b.dir < 0 });
     Fondo.dibujar(L.frente, L.camX, (z) => z < 0 || true);
     for (const t of L.textos) Pantalla.texto(P.colX(L, t.x) - (t.s.length >> 1), t.z - (t.t >> 3), t.s, t.col);
   };
