@@ -130,19 +130,18 @@ class Jugador {
         const gm = this.cayendo() ? 0.8 : 1.2;
         this.yv -= GR * ds * g * gm * 0.5 / ps;
       } else { // columpio (2.2): cada toque cambia la gravedad; cae como la nave suelta
-        if (this.pulsoAire) { this.pulsoAire = false; this.buffer = false; this.cambiarGravedad(-this.grav, false); this.capa.alSaltar && this.capa.alSaltar(this); }
-        const gm = this.cayendo() ? 0.8 : 1.2;
-        this.yv -= GR * ds * this.grav * gm * 0.4 / ps;
+        if (this.pulsoAire) { this.pulsoAire = false; this.buffer = false; const v = this.yv; this.cambiarGravedad(-this.grav, false); this.yv = v * 0.8; this.capa.alSaltar && this.capa.alSaltar(this); }
+        this.yv -= GR * ds * this.grav * (this.mini ? 0.6 : 0.4);
       }
       let sup = 8 / ps, inf = -6.4 / ps;
       if (m === 'ovni') { sup = 8 / ps; inf = -6.4 / ps; }
-      if (m === 'columpio') { sup = 6.4 / ps; inf = -6.4 / ps; }
+      if (m === 'columpio') { sup = 8; inf = -8; }
       if (g > 0) { if (this.yv < inf) this.yv = inf; if (this.yv > sup) this.yv = sup; }
       else { if (this.yv > -inf) this.yv = -inf; if (this.yv < -sup) this.yv = -sup; }
       this.y += this.yv * ds;
     } else { // cubo, bola, robot, araña
-      const gm = m === 'bola' ? 0.6 : 1;
-      if (this.sost && this.suelo && (m !== 'bola' && m !== 'arana' ? true : this.buffer)) this.saltar();
+      const gm = m === 'bola' || m === 'arana' ? 0.6 : m === 'robot' ? 0.9 : 1;
+      if (this.sost && this.suelo && (m !== 'bola' && m !== 'arana' ? true : this.buffer)) { this.saltar(); if (m !== 'arana') this.yv -= GR * ds * this.grav * gm; }
       else if (m === 'robot' && this.sost && this.robotT !== undefined && this.robotT < 0.25 * 60 && this.subiendo) {
         // el robot sigue subiendo mientras se mantiene el toque
         this.robotT += d; this.yv = g * Math.max(Math.abs(this.yv), 0) ;
@@ -156,6 +155,7 @@ class Jugador {
       }
       this.y += this.yv * ds;
     }
+    this.fijarV();
     if (this.plataforma) { // modo plataformas: acelera y frena en vez de avanzar solo
       const obj = this.dir * this.ups * (this.velPlat || 1);
       this.vx += (obj - this.vx) * Math.min(1, dt * (this.dir ? 12 : 18));
@@ -167,13 +167,17 @@ class Jugador {
     this.girar(dt);
     this.recienSost = false;
   }
-  cayendo() { return this.grav > 0 ? this.yv < GRAV : this.yv > -GRAV; }
+  // como playerIsFallingBugged del juego: "cae" si la velocidad no llega a 2·g; invertido compara contra
+  // +2·g (un error del juego que hay que respetar), salvo en plataformas y en el columpio
+  cayendo() { const G2 = 2 * GRAV; if (this.plataforma || this.modo === 'columpio') return this.grav > 0 ? this.yv < G2 : this.yv > -G2; return this.grav > 0 ? this.yv < G2 : this.yv > G2; }
+  // el juego guarda la velocidad con 3 decimales (setYVelocity)
+  fijarV() { const v = this.yv, t = Math.trunc(v), f = (v - t) * 1000; this.yv = t + Math.sign(f) * Math.round(Math.abs(f)) / 1000; }
   saltar() {
     const m = this.modo, g = this.grav, tam = this.mini ? 0.8 : 1;
     this.suelo = false; this.subiendo = true; this.buffer = false;
     if (m === 'cubo') { this.yv = g * SALTO * tam; this.giroSalto = true; }
     else if (m === 'robot') { this.yv = g * SALTO * 0.5 * tam; this.robotT = 0; }
-    else if (m === 'bola') { this.yv = g * SALTO * tam; this.cambiarGravedad(-g, false); this.yv *= 0.6; this.sost = this.sost; this.buffer = false; }
+    else if (m === 'bola') { this.yv = g * SALTO * tam; this.cambiarGravedad(-g, true); this.yv *= 0.6; this.buffer = false; }
     else if (m === 'arana') { this.capa.teleportArana(this); return; }
     this.capa.alSaltar && this.capa.alSaltar(this);
   }

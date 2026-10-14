@@ -132,6 +132,8 @@ class Obj {
     this.x = +raw[2] || 0; this.y = +raw[3] || 0; this.rot = +raw[6] || 0;
     const sc = raw[32] !== undefined ? +raw[32] : 1;
     this.sx = (raw[128] !== undefined ? +raw[128] : 1) * sc; this.sy = (raw[129] !== undefined ? +raw[129] : 1) * sc;
+    // el pixel art de la 2.2 viene agrandado de fábrica (ps); si el nivel guarda una escala, ésa ya lo incluye
+    if (d.ps && raw[32] === undefined) { if (raw[128] === undefined) this.sx *= d.ps[0]; if (raw[129] === undefined) this.sy *= d.ps[1]; }
     this.fx = raw[4] == 1; this.fy = raw[5] == 1;
     this.warpX = +raw[131] || 0; this.warpY = +raw[132] || 0;
     this.capa = raw[24] !== undefined && raw[24] != 0 ? +raw[24] : d.z;
@@ -164,8 +166,9 @@ O.partes = function (o) {
   const d = o.d, out = [];
   if (d.t && GD.T.m(d.t)) {
     // brillo detrás de bloques y pinches (hoja de brillos)
-    const g = d.t.replace(/_001\.png$/, '_glow_001.png');
-    if (!o.noGlow && (o.ty === TY.SOLIDO || o.ty === TY.PELIGRO || o.ty === TY.PENDIENTE) && g !== d.t && GD.T.m(g)) out.push({ f: GD.T.m(g), m: [1, 0, 0, 1, 0, 0], ct: 'glow', z: -1000, op: 1 });
+    // brillo: el sprite que el juego le pone a cada objeto (sale del binario; si no, por el nombre)
+    const g = d.g !== undefined ? d.g : ((o.ty === TY.SOLIDO || o.ty === TY.PELIGRO || o.ty === TY.PENDIENTE) ? d.t.replace(/_001\.png$/, '_glow_001.png') : null);
+    if (!o.noGlow && g && g !== d.t && GD.T.m(g)) out.push({ f: GD.T.m(g), m: [1, 0, 0, 1, 0, 0], ct: 'glow', z: -1000, op: 1 });
     const prin = { f: GD.T.m(d.t), m: [1, 0, 0, 1, 0, 0], ct: d.ct, z: 0, op: d.op === undefined ? 1 : d.op };
     // animación cuadro a cuadro: monedas, fuego, gotas, lava… (los cuadros _002, _003…)
     const base = d.t.replace(/_001\.png$/, '');
@@ -218,7 +221,9 @@ O.pintarTexto = function (w, p, col, add) {
   });
 };
 O.fuente = 'bigFont';
-O.ORDEN_CAPA = { '-5': 0, '-3': 1, '-1': 2, 1: 3, 3: 4, 0: 5, 5: 5, 7: 6, 9: 7, 11: 8 };
+// capas del juego (ZLayer): B5 -5, B4 -3, B3 -1, B2 1, B1 3, atrás de los portales 4, T1 5 (y 0 = la de siempre), T2 7, T3 9, T4 11
+O.ORDEN_CAPA = { '-5': 0, '-3': 1, '-1': 2, 1: 3, 3: 4, 4: 5, 0: 6, 5: 6, 7: 7, 9: 8, 11: 9 };
+O.CAPA_JUGADOR = 6; O.NCAPAS = 10;
 
 // ---------------- dibujo de objetos ----------------
 const _xs = new Float32Array(8), _uv = new Float32Array(8);
@@ -283,7 +288,7 @@ O.dibujarObjetos = function (vis, w, cols, op) {
   for (const c of capas) if (c) c.length = 0;
   for (let i = 0; i < n; i++) {
     const o = vis[i];
-    const capa = O.ORDEN_CAPA[o.capa] ?? 5;
+    const capa = O.ORDEN_CAPA[o.capa] ?? 6;
     const fade = op.opacidad ? op.opacidad(o) : 1;
     if (fade <= 0.003 && !op.editor) continue;
     O.matriz(o, _mo);
@@ -307,7 +312,7 @@ O.dibujarObjetos = function (vis, w, cols, op) {
   }
   // dentro de cada tanda, hoja por hoja (el orden entre objetos de la misma hoja se mantiene)
   const vistos = O._vistos || (O._vistos = []);
-  for (let capa = 0; capa < 9; capa++) {
+  for (let capa = 0; capa < O.NCAPAS; capa++) {
     if (capa === op.capaJugador && op.jugadores) op.jugadores();
     for (let modo = 0; modo < 3; modo++) {
       const lista = capas[capa * 3 + modo]; if (!lista || !lista.length) { if (modo === 2 && op.emisores) O.emisoresCapa(op, capa); continue; }
@@ -323,7 +328,7 @@ O.dibujarObjetos = function (vis, w, cols, op) {
       if (modo === 2 && op.emisores) O.emisoresCapa(op, capa);
     }
   }
-  if (op.capaJugador >= 9 && op.jugadores) op.jugadores();
+  if (op.capaJugador >= O.NCAPAS && op.jugadores) op.jugadores();
 };
 // partículas de la 2.2: van con su capa, después de los objetos de esa capa
-O.emisoresCapa = function (op, capa) { for (const o of op.emisores) if ((O.ORDEN_CAPA[o.capa] ?? 5) === capa) op.dibujarEmisor(o); };
+O.emisoresCapa = function (op, capa) { for (const o of op.emisores) if ((O.ORDEN_CAPA[o.capa] ?? 6) === capa) op.dibujarEmisor(o); };

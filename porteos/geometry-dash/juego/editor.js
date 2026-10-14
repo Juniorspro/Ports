@@ -81,7 +81,7 @@ class Editor extends GD.Partida {
   }
   // ---------- objetos ----------
   orden() { // vuelve a ordenar para dibujar cuando cambió algo
-    const capa = o => GD.O.ORDEN_CAPA[o.capa] ?? 5;
+    const capa = o => GD.O.ORDEN_CAPA[o.capa] ?? 6;
     this.objs.forEach((o, i) => o.i = i);
     this.ordenados = this.objs.slice().sort((a, b) => capa(a) - capa(b) || a.orden - b.orden || a.i - b.i);
     this.ordenados.forEach((o, k) => o.rango = k);

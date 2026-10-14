@@ -27,7 +27,7 @@ class Partida extends GD.Nodo {
     this.lineaPiso = N.ajuste(nv, 'kA17', 1); this.medio = N.ajuste(nv, 'kA25', 0);
     this.modoIni = N.ajuste(nv, 'kA2', 0); this.miniIni = N.ajuste(nv, 'kA3', 0) == 1; this.dualIni = N.ajuste(nv, 'kA8', 0) == 1;
     this.velIni = [1, 0, 2, 3, 4][N.ajuste(nv, 'kA4', 0)] ?? 1; this.gravIni = N.ajuste(nv, 'kA11', 0) == 1 ? -1 : 1;
-    this.plataformas = N.ajuste(nv, 'kA22', 0) == 1;
+    this.plataformas = N.ajuste(nv, 'kA22', 0) == 1; this.alturaDinamica = N.ajuste(nv, 'kA37', 0) == 1;
     this.offsetCancion = N.ajuste(nv, 'kA13', 0);
     this.fundidoIn = N.ajuste(nv, 'kA15', 0) == 1; this.fundidoOut = N.ajuste(nv, 'kA16', 0) == 1;
   }
@@ -36,8 +36,14 @@ class Partida extends GD.Nodo {
     for (const raw of this.nv.objs) {
       const o = new GD.O.Obj(raw); o.i = objs.length; objs.push(o);
     }
+    // techo de muerte (GJBaseGameLayer::updateMaxGameplayY): 2790 en el juego, que en nuestras
+    // coordenadas (piso en 0, no en 90) es 2700; en plataformas o con "altura dinámica" (kA37) sube
+    // con el objeto más alto, con 1200 de mínimo y 390 de margen
+    let maxY = 1200 - 90;
+    if (this.plataformas || this.alturaDinamica) for (const o of objs) if (o.y > maxY) maxY = o.y;
+    this.techoMuerte = this.plataformas || this.alturaDinamica ? maxY + 390 : 2700;
     // orden de dibujo fijo: capa, orden Z y orden en el nivel
-    const capa = o => GD.O.ORDEN_CAPA[o.capa] ?? 5;
+    const capa = o => GD.O.ORDEN_CAPA[o.capa] ?? 6;
     this.ordenados = objs.slice().sort((a, b) => capa(a) - capa(b) || a.orden - b.orden || a.i - b.i);
     this.ordenados.forEach((o, k) => o.rango = k);
     this.grupos = {};
@@ -257,7 +263,10 @@ class Partida extends GD.Nodo {
     if (this.plataformas) { j.plataforma = true; j.dir = this.dirPlat(j); }
     j.paso(h);
     this.choques(j);
-    if (j.y > 3000 * 30) this.morir(j);
+    // pasar el techo mata, pero recién si sigue arriba en el paso siguiente (como checkCollisions)
+    const arriba = !j.muerto && j.y > this.techoMuerte + (j.mini ? 6 : 0);
+    if (arriba && j.sobreTecho) { this.causa = ['techo', 0, j.x, j.y]; this.morir(j); }
+    j.sobreTecho = arriba;
   }
   // objetos cerca del jugador
   cerca(j, margen = 60) {
@@ -312,6 +321,8 @@ class Partida extends GD.Nodo {
       if (!o.activo || o.oculto || o.muerto) continue;
       const ty = o.ty;
       if (o.raw[11] == 1 && GD.TR && GD.TR.def[o.id]) { if (Math.abs(o.cx - j.x) < 15 + hs && Math.abs(o.cy - j.y) < 15 + hs) GD.TR.tocado(this, o, j); continue; }
+      // los triggers y los bloques que miran al jugador por su cuenta (3640/3643) no chocan
+      if ((GD.TR && GD.TR.def[o.id]) || o.id === 3643 || o.id === 3640) continue;
       if (ty === TYP.DECO && !o.d.hb) continue;
       if (ty === TYP.SOLIDO || ty === TYP.PENDIENTE || ty === TYP.ROMPIBLE) {
         if (o.noTocar) continue;
@@ -621,7 +632,7 @@ class Partida extends GD.Nodo {
     GD.O.partida = this; this._visibles = vis2;
     if (!editor) this.efectosBorde(vis2, x0 + 100, x1 - 100);
     const emisores = vis.filter(o => o.pdef && (editor || (o.vis && !o.oculto)));
-    GD.O.dibujarObjetos(vis2, w, this.cols, { capaJugador: 5, jugadores: () => this.dibujarJugadores(w), opacidad: this.fundidoBorde ? o => this.fundidoBorde(o) : null,
+    GD.O.dibujarObjetos(vis2, w, this.cols, { capaJugador: GD.O.CAPA_JUGADOR, jugadores: () => this.dibujarJugadores(w), opacidad: this.fundidoBorde ? o => this.fundidoBorde(o) : null,
       emisores: emisores.length ? emisores : null, dibujarEmisor: o => this.dibujarEmisor(o, w) });
 
     this.dibujarEfectos(w);
