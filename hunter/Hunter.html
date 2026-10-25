@@ -555,23 +555,6 @@ body>#autoaj{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index
 #qte .qp.bien .qci{border-color:#7dff8a;background:rgba(80,255,120,.35);transform:scale(1.18);transition:transform .15s}#qte .qp.bien .qan{opacity:0!important}
 #qte .qp.mal .qci{border-color:#ff4a3a;background:rgba(255,60,40,.4)}#qte .qp.mal .qan{border-color:#ff4a3a}
 /* ================= ronda 27: el hub de modos y el sandbox (REZOBOX) ================= */
-#modos{background:radial-gradient(ellipse at 50% 120%,rgba(30,10,10,.6),rgba(0,0,0,.82) 60%);gap:22px}
-.mdTop{position:absolute;top:18px;left:22px;right:22px;display:flex;justify-content:space-between;align-items:center}.mdMarca{display:flex;align-items:center;gap:10px}.mdHola{font:600 13px var(--ui);color:var(--tx2)}
-.mdTit{font:800 13px var(--ui);letter-spacing:.42em;color:#ddd}
-.mdFila{display:flex;gap:22px;flex-wrap:wrap;justify-content:center}
-.mdCard{position:relative;width:min(340px,42vw);height:min(330px,58vh);border-radius:22px;border:1px solid rgba(255,255,255,.12);background:#0b0b0d;color:#fff;cursor:pointer;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;padding:22px;text-align:left;gap:6px;transition:transform .18s,box-shadow .18s,border-color .18s;font-family:var(--ui)}body.girado .mdCard,body.girado2 .mdCard{position:relative;width:min(340px,42vh);height:min(330px,58vw);border-radius:22px;border:1px solid rgba(255,255,255,.12);background:#0b0b0d;color:#fff;cursor:pointer;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;padding:22px;text-align:left;gap:6px;transition:transform .18s,box-shadow .18s,border-color .18s;font-family:var(--ui)}
-.mdCard:hover,.mdCard:focus{transform:translateY(-4px) scale(1.02);border-color:rgba(255,255,255,.35);box-shadow:0 20px 60px rgba(0,0,0,.6);outline:none}
-.mdCard b{font:400 30px/1 var(--marca);letter-spacing:.12em}.mdCard>span:not(.mdArte){font-size:13px;color:#cfcfcf;max-width:92%}.mdCard>b,.mdCard>span:not(.mdArte),.mdCard>em{position:relative;z-index:1;text-shadow:0 2px 8px rgba(0,0,0,.6)}.mdCard em{font:800 11px var(--ui);font-style:normal;letter-spacing:.3em;margin-top:8px;padding:9px 14px;border-radius:999px;background:#fff;color:#000}
-.mdArte{position:absolute;inset:0;z-index:-0;pointer-events:none}
-.mdHunter .mdArte{background:radial-gradient(circle at 50% 38%,rgba(238,122,48,.35),rgba(0,0,0,0) 45%),linear-gradient(180deg,#1b120a 0%,#070606 70%)}
-.mdHunter .mdOjos{position:absolute;left:50%;top:34%;width:120px;height:20px;margin-left:-60px;background:radial-gradient(circle at 22% 50%,#ffb36b 0 7px,transparent 9px),radial-gradient(circle at 78% 50%,#ffb36b 0 7px,transparent 9px);filter:drop-shadow(0 0 12px #ff7a30);animation:parpa 3.2s steps(1) infinite}
-.mdSbx .mdArte{background:linear-gradient(180deg,#5a0b0b 0%,#2a0606 55%,#0b0303 100%)}
-.mdSbx b span{color:#ff3b30}
-.mdCubo{position:absolute;width:70px;height:70px;left:28%;top:20%;background:#e8c48f;box-shadow:inset -12px -12px 0 rgba(0,0,0,.25);transform:rotate(-12deg)}
-.mdCubo::after{content:"";position:absolute;left:14px;top:22px;width:10px;height:10px;background:#2a1c14;box-shadow:32px 0 0 #2a1c14,6px 24px 0 -1px #7a3b2e,14px 24px 0 -1px #7a3b2e,22px 24px 0 -1px #7a3b2e}
-.mdCubo.c2{left:58%;top:30%;width:52px;height:52px;background:#3f6fb5;transform:rotate(18deg)}.mdCubo.c2::after{display:none}
-.mdCubo.c3{left:44%;top:46%;width:30px;height:30px;background:#c41010;transform:rotate(40deg)}.mdCubo.c3::after{display:none}
-.mdPie{font-size:12px;color:var(--tx2)}
 /* ---- el menú rojo ---- */
 .sbxp{--sb:"Roboto Condensed","Arial Narrow","sans-serif-condensed","Oswald",Impact,sans-serif;font-family:var(--sb);padding:0;justify-content:flex-start;align-items:stretch;gap:0;text-align:left;background:linear-gradient(180deg,rgba(120,8,8,.32),rgba(80,0,0,.25))}
 .sbxp button{font-family:var(--sb)}
@@ -633,7 +616,7 @@ body.tactil #shTouch{display:block}
 #stTiro{right:150px;bottom:118px}#stSalto{right:72px;bottom:96px}#stAgacha{right:200px;bottom:44px}#stUsar{right:22px;bottom:274px;font:800 18px "Roboto Condensed",sans-serif}#stRecarga{right:22px;bottom:20px}#stApunta{right:126px;bottom:32px}
 body.tactil #shArma{bottom:4px}body.tactil #shCruz{width:5px;height:5px}
 body.enSbx #touch .tb{display:none!important}
-body.enSbx #bc,body.enSbx #red,body.enSbx #chat,body.enModos #red,body.enModos #chat{display:none!important}
+body.enSbx #bc,body.enSbx #red,body.enSbx #chat{display:none!important}
 body.sbxLento::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:7;box-shadow:inset 0 0 160px rgba(120,180,255,.35)}
 /* ---- el menú de creación ---- */
 #sbxSpawn{position:absolute;inset:8px;display:flex;gap:6px;pointer-events:auto;z-index:20}
@@ -670,9 +653,9 @@ body.sbxLento::after{content:"";position:fixed;inset:0;pointer-events:none;z-ind
 .siEquipo{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px}.siSlot{display:flex;flex-direction:column;align-items:center;gap:3px;background:#1a1a1a;padding:6px;border:1px solid rgba(255,255,255,.08);cursor:pointer;font:600 13px "Roboto Condensed",sans-serif;color:#fff}.siSlot.on{border-color:#ff6a5a}.siSlot img{width:70px;height:70px;object-fit:contain}.siSlot span{color:#ccc;font-size:12px}
 #sbxTexto{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);pointer-events:auto;z-index:30}.stDlg{display:flex;flex-direction:column;gap:10px;background:#111;padding:16px;border:1px solid #444;font:700 16px "Roboto Condensed",sans-serif;color:#fff}.stDlg input{font:700 20px "Roboto Condensed",sans-serif;background:#000;color:#fff;border:1px solid #666;padding:8px;user-select:text;-webkit-user-select:text}.stDlg div{display:flex;gap:6px}
 #sbxMuerto{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:12px;font:900 34px "Roboto Condensed",Impact,sans-serif;color:#ff3b30;text-shadow:2px 2px 0 #000;pointer-events:auto}
-@media (max-height:520px){.sbLogo b{font-size:32px}.sbBig{font-size:16px;padding:8px 4px}.sbJugar{grid-template-columns:110px 1fr 200px}.mdCard{height:min(250px,60vh)}.mdCard b{font-size:22px}.spSide{width:118px}.spSide button{font-size:12px;padding:5px 6px}.spGrid{grid-template-columns:repeat(auto-fill,minmax(78px,1fr))}.spTabs button{font-size:12px;padding:5px 2px}.siMuneco{width:110px;height:230px}}
-body.girado .sbLogo b,body.girado2 .sbLogo b{font-size:32px}body.girado .sbBig,body.girado2 .sbBig{font-size:16px;padding:8px 4px}body.girado .sbJugar,body.girado2 .sbJugar{grid-template-columns:110px 1fr 200px}body.girado .mdCard,body.girado2 .mdCard{height:min(250px,60vw)}body.girado .mdCard b,body.girado2 .mdCard b{font-size:22px}body.girado .spSide,body.girado2 .spSide{width:118px}body.girado .spSide button,body.girado2 .spSide button{font-size:12px;padding:5px 6px}body.girado .spGrid,body.girado2 .spGrid{grid-template-columns:repeat(auto-fill,minmax(78px,1fr))}body.girado .spTabs button,body.girado2 .spTabs button{font-size:12px;padding:5px 2px}body.girado .siMuneco,body.girado2 .siMuneco{width:110px;height:230px}
-.tmodos{font:800 11px var(--ui);letter-spacing:.2em;color:#fff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:7px 12px;margin-right:10px;cursor:pointer}.tmodos:hover{background:rgba(255,255,255,.18)}
+@media (max-height:520px){.sbLogo b{font-size:32px}.sbBig{font-size:16px;padding:8px 4px}.sbJugar{grid-template-columns:110px 1fr 200px}.spSide{width:118px}.spSide button{font-size:12px;padding:5px 6px}.spGrid{grid-template-columns:repeat(auto-fill,minmax(78px,1fr))}.spTabs button{font-size:12px;padding:5px 2px}.siMuneco{width:110px;height:230px}}
+body.girado .sbLogo b,body.girado2 .sbLogo b{font-size:32px}body.girado .sbBig,body.girado2 .sbBig{font-size:16px;padding:8px 4px}body.girado .sbJugar,body.girado2 .sbJugar{grid-template-columns:110px 1fr 200px}body.girado .spSide,body.girado2 .spSide{width:118px}body.girado .spSide button,body.girado2 .spSide button{font-size:12px;padding:5px 6px}body.girado .spGrid,body.girado2 .spGrid{grid-template-columns:repeat(auto-fill,minmax(78px,1fr))}body.girado .spTabs button,body.girado2 .spTabs button{font-size:12px;padding:5px 2px}body.girado .siMuneco,body.girado2 .siMuneco{width:110px;height:230px}
+.sbxart{background:linear-gradient(160deg,#6a0c0c 0%,#2a0606 60%,#0b0303 100%)!important}.sbxart i{position:absolute;display:block;width:34%;aspect-ratio:1;left:22%;top:20%;background:#e8c48f;box-shadow:inset -6px -6px 0 rgba(0,0,0,.25);transform:rotate(-12deg)}.sbxart i:first-child::before,.sbxart i:first-child::after{content:"";position:absolute;top:32%;width:16%;height:16%;background:#2a1c14}.sbxart i:first-child::before{left:20%}.sbxart i:first-child::after{left:62%}.sbxart i:nth-child(2){left:58%;top:34%;width:24%;background:#3f6fb5;transform:rotate(18deg)}.sbxart i:nth-child(3){left:44%;top:56%;width:14%;background:#c41010;transform:rotate(40deg)}#pstit .rojo{color:#ff3b30}
 </style></head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="rzR" viewBox="0 0 100 100">
@@ -700,7 +683,7 @@ body.girado .sbLogo b,body.girado2 .sbLogo b{font-size:32px}body.girado .sbBig,b
 
 <div id="titulo" class="pant ps" hidden>
  <header class="psbar">
-  <div class="psmarca"><button class="tmodos" id="tmodos" onclick="sfx('uiAtras');mostrarModos()">‹ <span data-t="md.modos">MODOS</span></button><svg class="rzlogo" width="22" height="22"><use href="#rzR"/></svg><span class="rzword">REZONA</span></div>
+  <div class="psmarca"><svg class="rzlogo" width="22" height="22"><use href="#rzR"/></svg><span class="rzword">REZONA</span></div>
   <div class="psder"><button class="tgraf" id="tgraf"></button><button class="tyo" id="tyo"><span class="psav" id="tav"></span><span class="tyot"><span id="tyon"></span><small id="tyol"></small></span></button><span class="psreloj" id="treloj"></span></div>
  </header>
  <div class="psfila" id="psfila">
@@ -708,6 +691,7 @@ body.girado .sbLogo b,body.girado2 .sbLogo b{font-size:32px}body.girado .sbBig,b
   <button class="pst" id="bsalas" data-k="salas"><span class="psart ico2 i2-salas"></span><span class="pslbl" data-t="ps.salas">Salas</span></button>
   <button class="pst" id="bhunter" data-k="hunter"><span class="psart"></span><span class="pslbl" data-t="ps.hunter">Soy el Hunter</span></button>
   <button class="pst" id="bpractica" data-k="practica"><span class="psart ico2 i2-bots"></span><span class="pslbl" data-t="ps.practica">Práctica</span></button>
+  <button class="pst" id="bsbx" data-k="sbx"><span class="psart sbxart"><i></i><i></i><i></i></span><span class="pslbl" data-t="ps.sbx">REZOBOX</span></button>
   <button class="pst" id="tpj" data-k="pj"><span class="psart"></span><span class="pslbl" data-t="ps.pj">Personaje</span></button>
   <button class="pst" id="tajustes" data-k="ajustes"><span class="psart ico2 i2-ajustes"></span><span class="pslbl" data-t="ps.ajustes">Ajustes</span></button>
  </div>
@@ -17684,24 +17668,15 @@ const TIPS = ['sb.tip1', 'sb.tip2', 'sb.tip3', 'sb.tip4', 'sb.tip5', 'sb.tip6', 
 // armar las pantallas (una vez)
 // ---------------------------------------------------------------------------------------------------------
 function sbxArmarUI() {
-  const app = $('app'); if ($('modos')) return;
+  const app = $('app'); if ($('sbxMenu')) return;
   const div = (html) => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; };
-  app.appendChild(div(`<div id="modos" class="pant" hidden>
-    <div class="mdTop"><div class="mdMarca"><svg class="rzlogo" width="26" height="26"><use href="#rzR"/></svg><span class="rzword">REZONA</span></div><span class="mdHola" id="mdHola"></span></div>
-    <div class="mdTit" data-t="md.tit">ELEGÍ UN MODO</div>
-    <div class="mdFila">
-      <button class="mdCard mdHunter" id="mdHunter"><span class="mdArte"><i class="mdOjos"></i></span><b>HUNTER</b><span data-t="md.hunter"></span><em data-t="md.entrar">ENTRAR</em></button>
-      <button class="mdCard mdSbx" id="mdSbx"><span class="mdArte"><i class="mdCubo"></i><i class="mdCubo c2"></i><i class="mdCubo c3"></i></span><b>REZO<span>BOX</span></b><span data-t="md.sbx"></span><em data-t="md.entrar">ENTRAR</em></button>
-    </div>
-    <div class="mdPie" data-t="md.pie"></div>
-  </div>`));
   app.appendChild(div(`<div id="sbxMenu" class="pant sbxp" hidden>
     <header class="sbHead"><div class="sbLogo"><b>REZO<span>BOX</span></b><small data-t="sb.lema">SANDBOX DE ACCIÓN Y GORE</small></div>
       <div class="sbHdr"><button class="sbBtn" id="sbNov" data-t="sb.novedades">Novedades</button><button class="sbBtn" id="sbStats" data-t="sb.stats">Estadísticas</button><div class="sbVer" id="sbVer"></div></div></header>
     <div id="sbPanel"></div>
     <nav class="sbBar" id="sbBar">
       <button class="sbBig" data-p="jugar"><i>▶</i><span data-t="sb.jugar">Jugar</span></button><button class="sbBig" data-p="ajustes"><i>⚙</i><span data-t="sb.ajustes">Ajustes</span></button>
-      <button class="sbBig" data-p="addons"><i>⬢</i><span data-t="sb.addons">Addons</span></button><button class="sbBig" data-p="creditos"><i>☰</i><span data-t="sb.creditos">Créditos</span></button><button class="sbBig" data-p="salir"><i>⏏</i><span data-t="sb.modos">Modos</span></button>
+      <button class="sbBig" data-p="addons"><i>⬢</i><span data-t="sb.addons">Addons</span></button><button class="sbBig" data-p="creditos"><i>☰</i><span data-t="sb.creditos">Créditos</span></button><button class="sbBig" data-p="salir"><i>‹</i><span data-t="sb.modos">Hunter</span></button>
     </nav>
   </div>`));
   app.appendChild(div(`<div id="sbxCarga" class="pant" hidden><div class="scArte"><canvas id="scPrev" width="480" height="300"></canvas></div><div class="scTip"><b data-t="sb.tip">CONSEJO:</b><span id="scTip"></span></div><div class="scBar"><div id="scBarra"></div></div><div class="scCargando" data-t="sb.cargando">CARGANDO MAPA</div></div>`));
@@ -17729,7 +17704,8 @@ function sbxArmarUI() {
 // ---------------------------------------------------------------------------------------------------------
 // el hub y el menú
 // ---------------------------------------------------------------------------------------------------------
-function mostrarModos() { if (GAME.sbx) sbxSalir(); mostrar('modos'); $('mdHola').textContent = GAME.nombre ? tr('md.hola', GAME.nombre) : ''; musicaSbxMenu(false); }
+// volver al Hunter (su menú): sale del sandbox si estaba adentro
+function volverHunter() { if (GAME.sbx) sbxSalir(); musicaSbxMenu(false); mostrar('titulo'); }
 function sbxAbrirMenu(panel) {
   if (SBX.fase !== 'menu') sbxEntrarMenu();
   mostrar('sbxMenu'); sbxPanel(panel || 'inicio'); $('sbVer').textContent = (GAME.nombre || 'jugador') + ' | v1.0';
@@ -17748,7 +17724,7 @@ function sbxPanel(p) {
   if (p === 'ajustes') return panelAjustes(P);
   if (p === 'addons') return panelAddons(P);
   if (p === 'creditos') { P.innerHTML = `<div class="sbCred"><h2>REZO<span>BOX</span></h2><p>${esc(tr('sb.cred1'))}</p><p>${esc(tr('sb.cred2'))}</p><p>${esc(tr('sb.cred3'))}</p><p class="sbChico">${esc(tr('sb.cred4'))}</p></div>`; return; }
-  if (p === 'salir') { mostrarModos(); return; }
+  if (p === 'salir') { volverHunter(); return; }
 }
 // ---- Jugar: mapas, guardados y addons ----
 function panelJugar(P, sub) {
@@ -18004,7 +17980,7 @@ function inspRefrescar() {
 // ---------------------------------------------------------------------------------------------------------
 function sbxTecla(e) {
   const c = e.code;
-  if (UI.pant === 'sbxMenu' || UI.pant === 'modos' || UI.pant === 'sbxCarga') { if (c === 'Escape' && UI.pant === 'sbxMenu') { if (SUI.panel !== 'inicio') sbxPanel('inicio'); else mostrarModos(); } return c === 'Escape'; }
+  if (UI.pant === 'sbxMenu' || UI.pant === 'sbxCarga') { if (c === 'Escape' && UI.pant === 'sbxMenu') { if (SUI.panel !== 'inicio') sbxPanel('inicio'); else volverHunter(); } return c === 'Escape'; }
   if (UI.pant !== 'sbx') return false;
   if (!$('sbxTexto').classList.contains('off')) return false;
   if (c === 'Escape') { if (SBX.replay.jugando) { replayParar(); return true; } if (SBX.libre) { SBX.libre = null; SBX.libreP = null; return true; } if (SUI.ventana) sbxCerrarInsp(); else if (SUI.spawnAbierto) sbxCerrarSpawn(); else sbxAbrirSpawn('nivel'); return true; }
@@ -18037,8 +18013,6 @@ function cicloHerramienta() { const tools = SBX.inv.filter((w) => ARMAS_S[w] && 
 // los botones (táctil y de la pantalla)
 // ---------------------------------------------------------------------------------------------------------
 function bindSbxUI() {
-  $('mdHunter').onclick = () => { sfx('uiOk'); musicaSbxMenu(false); mostrar('titulo'); };
-  $('mdSbx').onclick = () => { sfx('uiOk'); sbxAbrirMenu('inicio'); };
   for (const b of document.querySelectorAll('#sbBar .sbBig')) b.onclick = () => sbxPanel(b.dataset.p);
   $('sbNov').onclick = () => { $('sbPanel').innerHTML = `<div class="sbCred"><h2>${esc(tr('sb.novedades'))}</h2><p>${esc(tr('sb.nov1'))}</p><p>${esc(tr('sb.nov2'))}</p><p>${esc(tr('sb.nov3'))}</p></div>`; };
   $('sbStats').onclick = () => { const s = sbxStats(); $('sbPanel').innerHTML = `<div class="sbCred"><h2>${esc(tr('sb.stats'))}</h2>${s.map(([k, v]) => `<p>${esc(tr(k))}: <b>${v}</b></p>`).join('')}</div>`; };
@@ -18113,8 +18087,8 @@ function sbxHud(dt) {
 // ---------------------------------------------------------------------------------------------------------
 (function () {
   const es = {
-    'md.tit': 'ELEGÍ UN MODO', 'md.hunter': 'Terror cooperativo: arreglá máquinas y escapá del Hunter.', 'md.sbx': 'Sandbox de acción y gore: muñecos, armas, vehículos, NPCs y física.', 'md.entrar': 'ENTRAR', 'md.pie': 'Cada modo tiene su propio menú. Podés volver acá cuando quieras.', 'md.hola': 'Hola, {0}', 'md.modos': 'MODOS', 'sb.enganchado': 'Acoplado enganchado (Desunir lo suelta)',
-    'sb.lema': 'SANDBOX DE ACCIÓN Y GORE', 'sb.novedades': 'Novedades', 'sb.stats': 'Estadísticas', 'sb.jugar': 'Jugar', 'sb.ajustes': 'Ajustes', 'sb.addons': 'Addons', 'sb.creditos': 'Créditos', 'sb.modos': 'Modos',
+    'sb.enganchado': 'Acoplado enganchado (Desunir lo suelta)',
+    'ps.sbx': 'REZOBOX', 'ps.mSbx': 'SANDBOX · ACCIÓN Y GORE · SIN CONEXIÓN', 'ps.dSbx': 'Muñecos de bloques, armas, vehículos, NPCs y física: creá cosas, desarmá todo y rompé lo que quieras en 8 mapas.', 'ps.bSbx': 'Entrar a REZOBOX', 'sb.lema': 'SANDBOX DE ACCIÓN Y GORE', 'sb.novedades': 'Novedades', 'sb.stats': 'Estadísticas', 'sb.jugar': 'Jugar', 'sb.ajustes': 'Ajustes', 'sb.addons': 'Addons', 'sb.creditos': 'Créditos', 'sb.modos': 'Hunter',
     'sb.bienvenida': 'Tu patio de juegos', 'sb.bienvenidaS': 'Elegí un mapa en JUGAR. Creá objetos, muñecos, vehículos y NPCs, y rompé todo.',
     'sb.mapas': 'Mapas', 'sb.guardados': 'Guardados', 'sb.mods': 'Mods', 'sb.jugarMapa': 'JUGAR', 'sb.cargar': 'Cargar', 'sb.compartir': 'Compartir', 'sb.sinGuardados': 'Todavía no guardaste ningún nivel.', 'sb.copiado': 'Código copiado: pasáselo a quien quieras',
     'sb.fisica': 'Física', 'sb.gore': 'Gore', 'sb.juego': 'Juego', 'sb.controles': 'Controles y gráficos',
@@ -18162,8 +18136,8 @@ function sbxHud(dt) {
     'em.saludoMilitar': 'Saludo militar', 'em.saltoTijera': 'Saltos', 'em.abdominales': 'Abdominales', 'em.flexiones': 'Flexiones', 'em.guitarra': 'Guitarra', 'em.bolsa': 'Bolsa de boxeo', 'em.celular': 'Celular', 'em.susurrar': 'Susurrar', 'em.hablar': 'Hablar', 'em.bailar': 'Bailar', 'em.salsa': 'Salsa', 'em.pollito': 'Pollito', 'em.hiphop': 'Hip hop', 'em.besar': 'Beso', 'em.reir': 'Reír', 'em.dormir': 'Dormir', 'em.zombiCamina': 'Zombi',
   };
   const en = {
-    'md.tit': 'CHOOSE A MODE', 'md.hunter': 'Co-op horror: fix machines and escape the Hunter.', 'md.sbx': 'Action & gore sandbox: dolls, weapons, vehicles, NPCs and physics.', 'md.entrar': 'ENTER', 'md.pie': 'Each mode has its own menu. You can come back here anytime.', 'md.hola': 'Hi, {0}', 'md.modos': 'MODES', 'sb.enganchado': 'Trailer hitched (Unlink releases it)',
-    'sb.lema': 'ACTION & GORE SANDBOX', 'sb.novedades': 'Notice', 'sb.stats': 'Stats', 'sb.jugar': 'Play', 'sb.ajustes': 'Settings', 'sb.addons': 'Addons', 'sb.creditos': 'Credits', 'sb.modos': 'Modes',
+    'sb.enganchado': 'Trailer hitched (Unlink releases it)',
+    'ps.sbx': 'REZOBOX', 'ps.mSbx': 'SANDBOX · ACTION & GORE · OFFLINE', 'ps.dSbx': 'Block dolls, weapons, vehicles, NPCs and physics: spawn things, tear everything apart and break whatever you want across 8 maps.', 'ps.bSbx': 'Enter REZOBOX', 'sb.lema': 'ACTION & GORE SANDBOX', 'sb.novedades': 'Notice', 'sb.stats': 'Stats', 'sb.jugar': 'Play', 'sb.ajustes': 'Settings', 'sb.addons': 'Addons', 'sb.creditos': 'Credits', 'sb.modos': 'Hunter',
     'sb.bienvenida': 'Your playground', 'sb.bienvenidaS': 'Pick a map in PLAY. Spawn props, dolls, vehicles and NPCs, and break everything.',
     'sb.mapas': 'Maps', 'sb.guardados': 'Saves', 'sb.mods': 'Mods', 'sb.jugarMapa': 'PLAY', 'sb.cargar': 'Load', 'sb.compartir': 'Share', 'sb.sinGuardados': 'No saved levels yet.', 'sb.copiado': 'Code copied: send it to anyone',
     'sb.fisica': 'Physics', 'sb.gore': 'Gore', 'sb.juego': 'Game', 'sb.controles': 'Controls & graphics',
@@ -18451,7 +18425,6 @@ function mostrar(id) {
   document.body.classList.toggle('enjuego', id === 'hud'); document.body.classList.toggle('tactil', UI.touch);
   $('touch').classList.toggle('off', !((id === 'hud' || id === 'sbx') && UI.touch));
   document.body.classList.toggle('enSbx', id === 'sbx' || id === 'sbxMenu' || id === 'sbxCarga');
-  document.body.classList.toggle('enModos', id === 'modos');
   if (id !== 'hud') cerrarChat();
   if (id === 'titulo' && PS.tiles.length) { psFoco(PS.foco, false, true); if (!UI.touch) setTimeout(() => { if (UI.pant === 'titulo' && !UI.pausa && (!document.activeElement || document.activeElement === document.body)) PS.tiles[PS.foco].focus({ preventScroll: true }); }, 30); }
   if (typeof musicaMenu === 'function') musicaMenu(id !== 'hud' && id !== 'carga' && id !== 'sbx' && id !== 'sbxMenu' && id !== 'sbxCarga');
@@ -18510,7 +18483,7 @@ function armarPantallas() {
   $('iseguir').onclick = () => {
     audioInit(); sfx('ui');
     GAME.nombre = limpioNombre(($('inombre').value || '').trim() || NOMBRES_AZAR[(Math.random() * NOMBRES_AZAR.length) | 0]);
-    UI.idiomaElegido = true; guardarAjustes(); textosPantallas(); mostrarModos();
+    UI.idiomaElegido = true; guardarAjustes(); textosPantallas(); mostrar('titulo');
   };
   $('tyo').onclick = () => { sfx('ui'); $('inombre').value = GAME.nombre || ''; mostrar('inicio'); };
   // personajes
@@ -18681,7 +18654,7 @@ function empezarDesdePractica() {
 // las tarjetas: mirarlas (mouse encima, flechas, joystick) cambia el título, la descripción y la toma de la escena de
 // fondo; tocarlas (clic, Enter, ✕) entra. El botón blanco hace lo de la tarjeta mirada
 const PS = { foco: 0, tiles: [], ultNav: 0, mando: { ejeT: 0, b: [] } };
-const PS_K = { jugar: ['ps.jugar', 'ps.mJugar', 'ps.dJugar', 'ps.bJugar'], salas: ['ps.salas', 'ps.mSalas', 'ps.dSalas', 'ps.bSalas'], hunter: ['ps.hunter', 'ps.mHunter', 'ps.dHunter', 'ps.bHunter'], practica: ['ps.practica', 'ps.mPractica', 'ps.dPractica', 'ps.bPractica'], pj: ['ps.pj', 'ps.mPj', 'ps.dPj', 'ps.bPj'], ajustes: ['ps.ajustes', 'ps.mAjustes', 'ps.dAjustes', 'ps.bAjustes'] };
+const PS_K = { jugar: ['ps.jugar', 'ps.mJugar', 'ps.dJugar', 'ps.bJugar'], salas: ['ps.salas', 'ps.mSalas', 'ps.dSalas', 'ps.bSalas'], hunter: ['ps.hunter', 'ps.mHunter', 'ps.dHunter', 'ps.bHunter'], practica: ['ps.practica', 'ps.mPractica', 'ps.dPractica', 'ps.bPractica'], sbx: ['ps.sbx', 'ps.mSbx', 'ps.dSbx', 'ps.bSbx'], pj: ['ps.pj', 'ps.mPj', 'ps.dPj', 'ps.bPj'], ajustes: ['ps.ajustes', 'ps.mAjustes', 'ps.dAjustes', 'ps.bAjustes'] };
 function armarMenuPS() {
   PS.tiles = [...document.querySelectorAll('#psfila .pst')];
   PS.tiles.forEach((el, i) => {
@@ -18691,6 +18664,7 @@ function armarMenuPS() {
   $('tpj').onclick = () => { audioInit(); sfx('uiOk'); abrirElegirSolo(); };
   $('cardPj').onclick = () => { audioInit(); sfx('uiOk'); abrirElegirSolo(); };
   $('tajustes').onclick = () => { audioInit(); sfx('uiOk'); abrirAjustesMenu(); };
+  $('bsbx').onclick = () => { audioInit(); sfx('uiOk'); sbxAbrirMenu('inicio'); };
   $('psir').onclick = () => { const el = PS.tiles[PS.foco]; if (el) el.click(); };
   $('psir').onmouseenter = () => {};
   psFoco(0, false, true);
@@ -18706,7 +18680,8 @@ function psFoco(i, sonido, sinAnim) {
 function psRefrescar(anim) {
   const el = PS.tiles[PS.foco]; if (!el) return;
   const K = PS_K[el.dataset.k] || PS_K.jugar, t = $('pstit');
-  t.textContent = el.dataset.k === 'jugar' ? 'HUNTER' : tr(K[0]); t.classList.toggle('logo', el.dataset.k === 'jugar');
+  if (el.dataset.k === 'sbx') t.innerHTML = 'REZO<span class="rojo">BOX</span>'; else t.textContent = el.dataset.k === 'jugar' ? 'HUNTER' : tr(K[0]);
+  t.classList.toggle('logo', el.dataset.k === 'jugar' || el.dataset.k === 'sbx');
   $('psmeta').textContent = tr(K[1]); $('psdesc').textContent = tr(K[2]); $('psirt').textContent = tr(K[3]);
   if (anim) { const h = $('pshero'); h.classList.remove('cambia'); void h.offsetWidth; h.classList.add('cambia'); }
 }
@@ -18854,7 +18829,7 @@ function bindInput() {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) { if (e.code === 'Escape' && UI.pant !== 'hud') { e.target.blur(); menuAtras(); } return; }
     if (e.repeat && !/^Arrow/.test(e.code)) return;
     UI.keys.add(e.code);
-    if (UI.pant === 'sbx' || UI.pant === 'sbxMenu' || UI.pant === 'sbxCarga' || UI.pant === 'modos') { if (typeof sbxTecla === 'function' && sbxTecla(e)) e.preventDefault(); else if (['Space', 'Tab', 'AltLeft'].includes(e.code)) e.preventDefault(); return; }      // (ronda 27: el sandbox tiene sus teclas)
+    if (UI.pant === 'sbx' || UI.pant === 'sbxMenu' || UI.pant === 'sbxCarga') { if (typeof sbxTecla === 'function' && sbxTecla(e)) e.preventDefault(); else if (['Space', 'Tab', 'AltLeft'].includes(e.code)) e.preventDefault(); return; }      // (ronda 27: el sandbox tiene sus teclas)
     if (UI.pant !== 'hud' || (UI.pausa && UI.ajMenu)) { if (UI.pant !== 'carga') menuTecla(e); return; }
     if (juegoMaq.activo && (e.code === 'Escape')) { cerrarTarea(true); return; }
     if (juegoMaq.activo && teclaTarea(e.code)) { e.preventDefault(); return; }
@@ -19286,7 +19261,7 @@ async function boot() {
     armarPantallas(); bindInput();
     if (!TEST) await new Promise((r) => setTimeout(r, Math.max(0, 1700 - (now() - t0) * 1000)));   // que se vea la marca
     if (autoHace()) await autoCorrer(true);          // ronda 24: la primera vez, probar el aparato (unos segundos, con la marca)
-    $('carga').hidden = true; if (UI.idiomaElegido && GAME.nombre) mostrarModos(); else mostrar('inicio');
+    $('carga').hidden = true; mostrar(UI.idiomaElegido && GAME.nombre ? 'titulo' : 'inicio');
     window.__ready = true;
     if (KHR_PAR && !TEST) setTimeout(() => { for (const v of ['FULL', 'MOVIL', 'DEBIL']) precompilar(v).catch(() => {}); }, 2500);   // (con KHR_parallel_shader_compile, las otras versiones de fondo: cambiar de gráficos es al instante)
     if (TEST && !Q.has('loop')) { for (let i = 0; i < 3; i++) frame(); } else requestAnimationFrame(frame);
@@ -19298,7 +19273,7 @@ window.__api = { DBG, FLORA, floraArmar, escalaDe, psFoco, PS, perfil: () => per
   sfx, vocesListas: () => Object.keys(VOZ).map((k) => k + ':' + VOZ[k].duration.toFixed(1)).join(' '), audioEstado: () => AU.ctx ? AU.ctx.state : 'sin',
   visorFoto: (W, H, eye, at, fov, lista, grilla) => visorFoto(W, H, v3(...eye), v3(...at), fov, lista, grilla), Animator, v3, Quat, BI, BONES, NB, ponerMano, MANO, mano0, manoMezcla,
   proxMundo, palmaCentro, MV, PH, physStep,
-  SBX, SUI, ITEMS, ARMAS_S, VEHS, NPCS, EMOTES, Muneco, sbxMapa, MAPAS_SBX, sbxCargar, sbxJugar, sbxSalir, sbxAbrirMenu, sbxPanel, sbxEntrarMenu, mostrarModos, sbxCrear, sbxCrearNpc, sbxCrearVehiculo, crearObjeto, sbxCrearYo, darArma, elegirSlot, armaActual, usarArma, sbxTiro, sbxExplota, sbxProyectil, sbxPegar, sbxRayo, sbxSubir, sbxBajar, unir, consola, limpiezaSbx, sbxGuardar, sbxListaGuardados, sbxAplicarFoto, sbxFoto, replayEmpezar, replayParar, empezarMision, sbxAbrirSpawn, sbxCerrarSpawn, sbxAbrirInsp, sbxCerrarInsp, sbxTecla, iconoDe, quitarMuneco, quitarObjeto, usarHerramienta, empezarAgarre, soltarAgarre, aguaNivel,
+  SBX, SUI, ITEMS, ARMAS_S, VEHS, NPCS, EMOTES, Muneco, sbxMapa, MAPAS_SBX, sbxCargar, sbxJugar, sbxSalir, sbxAbrirMenu, sbxPanel, sbxEntrarMenu, volverHunter, sbxCrear, sbxCrearNpc, sbxCrearVehiculo, crearObjeto, sbxCrearYo, darArma, elegirSlot, armaActual, usarArma, sbxTiro, sbxExplota, sbxProyectil, sbxPegar, sbxRayo, sbxSubir, sbxBajar, unir, consola, limpiezaSbx, sbxGuardar, sbxListaGuardados, sbxAplicarFoto, sbxFoto, replayEmpezar, replayParar, empezarMision, sbxAbrirSpawn, sbxCerrarSpawn, sbxAbrirInsp, sbxCerrarInsp, sbxTecla, iconoDe, quitarMuneco, quitarObjeto, usarHerramienta, empezarAgarre, soltarAgarre, aguaNivel,
   juegoMaq, abrirTarea, cerrarTarea, nuevaTarea, PANT, pantMundo, puntoPantalla, JUEGOS, SOLOS, COOPS, esCoop, empezarJuego, quienEsta, MJ, ENC, ARC, empezarEvento, terminarEvento, soltarMinis, soltarMinisDe, MINIS, abrirSalidasJuego, metaMaq, listas, maqLista, caerTirado, meAgarroMini, CALCOS, ponerCalco, paredIntentar, BOTS, escaparYo, revisarFin, MAPA_: () => WORLD.m, ATAQUES, botComidoPorMini, meAgarroMini, ataqueFin, peleaDe, QTE, qteToque, peleaUpdate, dbgEsc: () => ({ sa: GAME.salidasT, rol: GAME.rol, vivo: GAME.vivo, esc: GAME.escapo, tir: GAME.tirado, cp: GAME.cargadoPor, rem: !!GAME.remate, pos: [PLAYER.pos.x, PLAYER.pos.z], sal: WORLD.m.salidas.map((sl) => [sl.eje, sl.s, sl.x, sl.z]) }), VOZ_P, salidaCerca, dbgPen: (x, y, z) => { const o = []; spherePen(v3(x, y, z), MV.r, o); return o.map((k) => ({ n: [k.n.x, k.n.y, k.n.z].map((v) => +v.toFixed(2)), d: +k.d.toFixed(3), tipo: k.stat ? k.stat.b[5] : k.body ? 'cuerpo' : 'piso', caja: k.stat ? k.stat.b.map((v) => +(+v).toFixed(2)) : null })); },
   // foto del remate en un instante (Hunter y víctima posados; la víctima sin cabeza después del mordiscón)
   remateFoto: (tau, pj, W, H, eye, at, fov, ocH) => { const A = new Animator(PJ[0].rig, 'monstruo'), V = new Animator(PJ[1 + (pj | 0)].rig, 'surv'), Rm = { x: 0, z: 0, yaw: 0, t0: 0 }; const G = remateHunter(A, Rm, tau); V.skel.sinCabeza = tau > 3.84; remateVictima(V, Rm, tau, A.skel, G); remateHunterIzq(A, tau, V.skel); A.skel.toSkin(); V.skel.toSkin(); const vista = typeof eye === 'string' ? eye : '';
