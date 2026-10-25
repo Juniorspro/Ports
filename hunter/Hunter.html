@@ -8717,10 +8717,13 @@ function listaProgs(v) {
     ['cielo', H + CIELO_VS, H + CIELO_FS, ''], ['somb', H + WORLD_VS, H + PROF_FS, ''], ['sombI', H + WORLD_VS, H + PROF_FS, '#define INST 1\n'], ['sombC', H + CHARX_VS, H + PROF_FS, ''],
     ...(typeof progsExtra === 'function' ? progsExtra(v, H, L, D) : [])];
 }
-const VARIANTES = {}, COMPILA = { ms: {}, fondo: {} };
+const VARIANTES = {}, COMPILA = { ms: {}, fondo: {}, fallas: [] };
+// (los efectos que se pueden dejar de lado: si la placa de un celular no los compila, el juego sigue sin ellos)
+const PROG_OPCIONAL = new Set(['flora', 'pasto3d']);
+function progOpcional(k, f) { try { return f(); } catch (e) { if (!PROG_OPCIONAL.has(k)) throw e; COMPILA.fallas.push(k + ': ' + String(e.message || e).slice(0, 160)); console.warn('sin ' + k, e); return null; } }
 function compilarProgramas() {
   const v = varianteGraf();
-  if (!VARIANTES[v]) { const t0 = performance.now(), P = {}; for (const [k, vs, fs, d] of listaProgs(v)) P[k] = prog(k, vs, fs, d); configurarProgs(P); VARIANTES[v] = P; COMPILA.ms[v] = performance.now() - t0; }
+  if (!VARIANTES[v]) { const t0 = performance.now(), P = {}; for (const [k, vs, fs, d] of listaProgs(v)) { const q = progOpcional(k, () => prog(k, vs, fs, d)); if (q) P[k] = q; } configurarProgs(P); VARIANTES[v] = P; COMPILA.ms[v] = performance.now() - t0; }
   R.progs = VARIANTES[v];
 }
 // compilar de fondo otra versión: se largan todos a la vez y se terminan cuando la placa avisa que están (sin
@@ -8733,8 +8736,8 @@ function precompilar(v) {
     let i = 0; const pend = KHR_PAR ? L.map(([k, vs, fs, d]) => [k, progIni(k, vs, fs, d)]) : [];
     const paso = () => {
       try {
-        if (KHR_PAR) { if (!pend.every(([, o]) => progListo(o))) { setTimeout(paso, 16); return; } for (const [k, o] of pend) P[k] = progFin(o); }
-        else { if (i < L.length) { const [k, vs, fs, d] = L[i++]; P[k] = prog(k, vs, fs, d); setTimeout(paso, 0); return; } }
+        if (KHR_PAR) { if (!pend.every(([, o]) => progListo(o))) { setTimeout(paso, 16); return; } for (const [k, o] of pend) { const q = progOpcional(k, () => progFin(o)); if (q) P[k] = q; } }
+        else { if (i < L.length) { const [k, vs, fs, d] = L[i++]; const q = progOpcional(k, () => prog(k, vs, fs, d)); if (q) P[k] = q; setTimeout(paso, 0); return; } }
         configurarProgs(P); VARIANTES[v] = P; COMPILA.ms[v] = performance.now() - t0; delete COMPILA.fondo[v]; res(P);
       } catch (e) { delete COMPILA.fondo[v]; rej(e); }
     };
@@ -8982,9 +8985,12 @@ void main(){
 }`;
 // el pasto: cada instancia es una mata (3 tarjetas cruzadas) en una grilla que sigue a la cámara; la altura y cuánto
 // pasto hay salen de la textura del suelo. Luz por vértice (sol con su sombra horneada y cielo): barato
+const CASAS_U = Array.from({ length: 12 }, (_, i) => 'uCasa' + i);
 const PASTO_VS = `
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNor; layout(location=2) in vec2 aUV;
-uniform sampler2D uTerr; uniform highp sampler2DArray uVis; uniform vec4 uTerrR, uMalla, uPisa, uViento; uniform vec4 uCasas[12]; uniform float uNCasas;
+uniform sampler2D uTerr; uniform highp sampler2DArray uVis; uniform vec4 uTerrR, uMalla, uPisa, uViento;
+// (los rectángulos de las casas, sueltos y sin bucle: una lista indexada en un bucle no compila en algunas placas Mali)
+uniform vec4 ${CASAS_U.map((n) => n).join(', ')};
 out vec2 vUV; out vec3 vC; out float vF; out vec3 vW;
 float hs(vec2 p){ p = mod(p, 97.0); return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }      // (con mod: sin() de números grandes pierde precisión)
 void main(){
@@ -8995,7 +9001,7 @@ void main(){
   vec2 g = (pos - uTerrR.xy) / uTerrR.z; vec4 T = texture(uTerr, (g + 0.5) / uTerrR.w);
   float d = length(pos - cam.xz), dens = T.g * (1.0 - smoothstep(uMalla.z * 0.7, uMalla.z, d));
   float k = hs(cel + 5.1);
-  for (int i = 0; i < 12; i++) { if (float(i) >= uNCasas) break; vec4 r = uCasas[i]; if (pos.x > r.x && pos.x < r.z && pos.y > r.y && pos.y < r.w) dens = 0.0; }
+  ${CASAS_U.map((n) => `if (pos.x > ${n}.x && pos.x < ${n}.z && pos.y > ${n}.y && pos.y < ${n}.w) dens = 0.0;`).join('\n  ')}
   if (dens < 0.02 || k > dens || g.x < 0.0 || g.y < 0.0 || g.x > uTerrR.w - 1.0 || g.y > uTerrR.w - 1.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vUV = vec2(0.0); vC = vec3(0.0); vF = 0.0; vW = vec3(0.0); return; }
   float esc = 0.7 + 0.6 * hs(cel + 9.7), ang = hs(cel + 3.3) * 6.2832, ca = cos(ang), sa = sin(ang);
   vec3 lp = aPos * vec3(esc, esc * (0.8 + 0.5 * hs(cel + 1.9)), esc);
@@ -9195,9 +9201,9 @@ function drawFlora(cam, t) {
     U.v4(p, 'uViento', t, v[2], v[0], v[1]); U.v4(p, 'uMalla', pc[0], pc[1], pc[2], 0); U.v4(p, 'uTerrR', T.x0, T.z0, T.paso, T.n);
     if (!FLORA.casas || FLORA.casasDe !== m) {           // (los rectángulos de las casas, con el zócalo: ahí no crece pasto)
       FLORA.casasDe = m; FLORA.casas = new Float32Array(48); const cs = (m.casas || []).slice(0, 12), C = m.C, e = 0.32;
-      cs.forEach((c, i) => FLORA.casas.set([c.x0 * C - e, c.z0 * C - e, (c.x0 + c.w) * C + e, (c.z0 + c.d) * C + e], i * 4)); FLORA.nCasas = cs.length;
+      cs.forEach((c, i) => FLORA.casas.set([c.x0 * C - e, c.z0 * C - e, (c.x0 + c.w) * C + e, (c.z0 + c.d) * C + e], i * 4)); FLORA.nCasas = cs.length;      // (las que sobran: rectángulo vacío)
     }
-    { const lc = p.u['uCasas[0]'] || p.u.uCasas; if (lc) gl.uniform4fv(lc, FLORA.casas); } U.f(p, 'uNCasas', FLORA.nCasas);
+    CASAS_U.forEach((n, i) => U.v4(p, n, FLORA.casas[i * 4], FLORA.casas[i * 4 + 1], FLORA.casas[i * 4 + 2], FLORA.casas[i * 4 + 3]));
     const pi = typeof PLAYER !== 'undefined' ? PLAYER.pos : cam.pos; U.v4(p, 'uPisa', pi.x, pi.y, pi.z, 0);
     gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, LUZ.terr); U.i(p, 'uTerr', 9);
     gl.activeTexture(gl.TEXTURE10); gl.bindTexture(gl.TEXTURE_2D_ARRAY, floraTex()); U.i(p, 'uFlora', 10);
