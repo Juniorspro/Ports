@@ -242,6 +242,8 @@ body.tactil #accion{bottom:auto;top:58%}
 body.tactil #chat{left:auto;right:calc(16px + env(safe-area-inset-right));bottom:auto;top:100px;width:min(300px,36vw);align-items:flex-end}body.girado.tactil #chat,body.girado2.tactil #chat{left:auto;right:calc(16px + env(safe-area-inset-right));bottom:auto;top:100px;width:min(300px,36vh);align-items:flex-end}body.tactil .cm{align-self:flex-end}body.tactil .cm{font-size:12px}body.tactil #chat.abierto{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(520px,80vw)}body.girado.tactil #chat.abierto,body.girado2.tactil #chat.abierto{position:fixed;top:12px;left:50%;transform:translateX(-50%);width:min(520px,80vh)}
 #minimapa{position:absolute;right:max(22px,env(safe-area-inset-right));top:66px;width:168px;height:168px;border-radius:50%;border:2px solid rgba(255,122,26,.6);box-shadow:0 0 0 1px rgba(0,0,0,.65),0 6px 24px rgba(0,0,0,.6);background:rgba(10,8,6,.55);pointer-events:none}
 body.tactil #minimapa{width:min(118px,24vh);height:min(118px,24vh);top:96px;right:calc(14px + env(safe-area-inset-right))}body.girado.tactil #minimapa,body.girado2.tactil #minimapa{width:min(118px,24vw);height:min(118px,24vw);top:96px;right:calc(14px + env(safe-area-inset-right))}
+#minimapa.chico{width:140px;height:140px;border-color:rgba(90,200,255,.55)}
+body.tactil #minimapa.chico{width:min(92px,21vh);height:min(92px,21vh)}body.girado.tactil #minimapa.chico,body.girado2.tactil #minimapa.chico{width:min(92px,21vw);height:min(92px,21vw)}
 #tarea{position:fixed;left:50%;bottom:max(16px,4vh);transform:translateX(-50%);z-index:9;width:min(440px,92vw);pointer-events:auto;background:rgba(10,10,12,.8);border:1.5px solid rgba(238,122,48,.55);border-radius:16px;padding:12px 14px;color:#fff;font:600 12px/1.3 var(--ui);box-shadow:0 8px 30px rgba(0,0,0,.6);touch-action:none;user-select:none;-webkit-user-select:none}body.girado #tarea,body.girado2 #tarea{position:fixed;left:50%;bottom:max(16px,4vw);transform:translateX(-50%);z-index:9;width:min(440px,92vh);pointer-events:auto;background:rgba(10,10,12,.8);border:1.5px solid rgba(238,122,48,.55);border-radius:16px;padding:12px 14px;color:#fff;font:600 12px/1.3 var(--ui);box-shadow:0 8px 30px rgba(0,0,0,.6);touch-action:none;user-select:none;-webkit-user-select:none}
 #tarea.off{display:none}#tarea.bien{border-color:#5dff93}#tarea.mal{border-color:#ff3a2a;animation:tmal .3s}
 @keyframes tmal{25%{margin-left:-8px}75%{margin-left:8px}}
@@ -3460,7 +3462,10 @@ function actualizarLamparas(t) {
     const a = tn - ap.t0, b = tn - ap.t1;
     if (a < 0.5) corte = _hs1(Math.floor(tn * 30)) > 0.5 ? 0.6 : 0; else if (b < 0) corte = 0; else corte = _hs1(Math.floor(tn * 24)) > 0.35 + b * 0.3 ? 0 : 1;
   }
-  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+  // (ronda 25: en bajo sólo las de alrededor: lo demás está en la niebla y la luz se lee de la ventana de 64 m)
+  let zA = 0, zB = N, xA = 0, xB = N;
+  if (CAL.bajo && CAM.pos) { const r = 11; xA = Math.max(0, Math.floor(CAM.pos.x / C) - r); xB = Math.min(N, Math.floor(CAM.pos.x / C) + r + 1); zA = Math.max(0, Math.floor(CAM.pos.z / C) - r); zB = Math.min(N, Math.floor(CAM.pos.z / C) + r + 1); }
+  for (let z = zA; z < zB; z++) for (let x = xA; x < xB; x++) {
     const i = z * N + x, st = m.light[i]; let f = 0;
     if (st) {
       const ph = m.phase[i] & 63, segura = m.seg[i] >= 0; f = 1;
@@ -6465,7 +6470,7 @@ function playerTick(dt) {
   const vh = hypot(P.vel.x, P.vel.z);
   if (apreto && !P.desliz && !P.bajo && INPUT.sprint && !P.cansado && P.stamina > 8 && !tirado && P.onGround && GAME.rol === 's' && !GAME.cargando && !P.quieto && vh > 3 && now() > (P.deslizListo || 0)) {
     P.desliz = { t: 0, v: Math.max(vh, MV.run) * 1.22, dx: P.vel.x / vh, dz: P.vel.z / vh };
-    P.ducked = false; P.stamina = Math.max(0, P.stamina - 7);
+    P.ducked = false; P.stamina = Math.max(0, P.stamina - 5);
     sfx('desliz', P.pos, 1); if (Math.random() < 0.5) sfx('esfuerzo', null, 0.6, GAME.pj, hablaReal('yo'));
   }
   if ((P.desliz || P.bajo) && (tirado || GAME.rol !== 's')) { P.desliz = null; P.bajo = false; }
@@ -6495,8 +6500,8 @@ function playerTick(dt) {
   if (GAME.rol !== 'h') {
     const mov = hypot(INPUT.mx, INPUT.my) > 0.1;
     // (ronda 11: dura más) corriendo, unos 13 s; se recupera en 6 a 7 s; cansado, hasta que vuelve a un cuarto
-    if (corre && mov && P.onGround) { P.stamina = Math.max(0, P.stamina - 7.5 * dt); if (P.stamina <= 0) P.cansado = true; }
-    else { P.stamina = Math.min(100, P.stamina + 15 * dt); if (P.stamina > 25) P.cansado = false; }
+    if (corre && mov && P.onGround) { P.stamina = Math.max(0, P.stamina - 4.5 * dt); if (P.stamina <= 0) P.cansado = true; }      // (ronda 25: dura más: ~22 s corriendo)
+    else { P.stamina = Math.min(100, P.stamina + 18 * dt); if (P.stamina > 20) P.cansado = false; }
   }
   if (P.quieto) { mx = 0; my = 0; }
   if (P.ducked) wspeed *= MV.duck;
@@ -7733,6 +7738,10 @@ layout(std140) uniform Frame { mat4 VP; vec4 cam; vec4 fog; vec4 misc; vec4 hunt
 const LIGHT_GLSL = `
 uniform sampler2D uLT, uRuido; uniform vec4 uSpot[6]; uniform vec4 uSpotD[6]; uniform vec3 uSpotU[6]; uniform int uNSpot; uniform vec4 uRebP; uniform vec3 uRebC;
 uniform highp sampler2DArray uVis; uniform highp sampler2DShadow uSombra;
+#ifdef BAJO
+uniform sampler2D uVen; uniform vec4 uVenR;        // (ronda 25: la luz de los tubos ya sumada, en una ventana alrededor de la cámara)
+vec4 gVen = vec4(0.0, 0.0, 0.0, 1.0);
+#endif
 float hs1(float p){ p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
 int maskAt(ivec2 c){ c = clamp(c, ivec2(0), ivec2(int(NCELL) - 1)); return int(texelFetch(uLT, c, 0).a * 15.0 + 0.5); }
 float faseDe(vec4 t){ return mod(floor(t.b*255.0 + 0.5), 64.0); }
@@ -7741,7 +7750,7 @@ float zonaDe(vec4 t){ return floor((t.b*255.0 + 0.5) / 32.0); }
 float lampOn(vec4 t, vec2 cell){ return t.g; }
 // la linterna (ronda 17, como una de verdad): fuerte de cerca y cae con la distancia al cuadrado (pasando los 20 m
 // ya no llega), sin quemar todo pegada a una pared
-float linterna(float d){ return 1.4 / (0.7 + d*d*0.045) * (0.5 + 0.5 * smoothstep(0.25, 2.2, d)) * (1.0 - smoothstep(13.0, 21.0, d)); }
+float linterna(float d){ return 1.4 / (0.7 + d*d*0.045) * (0.22 + 0.78 * smoothstep(0.25, 2.4, d)) * (1.0 - smoothstep(13.0, 21.0, d)); }      // (ronda 25: de cerca, mucho menos: lo blanco a un metro no se quema)
 // y su forma: un centro chico y fuerte, el anillo del reflector (un poco amarillo, como los LED) y un derrame ancho
 // y débil (un 10 % del centro). Afuera de los ~36° no alumbra nada
 float conoLint(float cs){
@@ -7790,11 +7799,21 @@ vec3 roomLight(vec3 p, vec3 n, float spec){
   vec3 q = p + n*0.3;
   vec2 c = q.xz / CELL;
   vec3 Ls = vec3(0.0);
+#ifdef BAJO
+  vec2 vu = (q.xz - uVenR.xy) / uVenR.z; bool enVen = vu.x > 0.0 && vu.y > 0.0 && vu.x < 1.0 && vu.y < 1.0;
+  gVen = enVen ? texture(uVen, vu) : vec4(0.0, 0.0, texture(uLT, c / NCELL).r, 1.0);
+  float amb = gVen.b;
+#else
   float amb = texture(uLT, c / NCELL).r;
+#endif
   // qué tubos ve este punto (horneado: piso y media altura)
   vec2 uv = q.xz / (CELL * NCELL);
+#ifdef BAJO
+  spec = 0.0; vec4 VS = vec4(0.0);                // (ronda 25, perfil bajo: sin brillos; lo que ve cada tubo ya viene en la ventana)
+#else
   vec4 VS = texture(uVis, vec3(uv, 1.0));
   if (p.y < 1.25) VS = mix(texture(uVis, vec3(uv, 0.0)), VS, clamp((p.y - 0.05) / 1.2, 0.0, 1.0));
+#endif
   ivec2 b = ivec2(floor(c - 0.5));
   vec3 V = normalize(cam.xyz - p);
   // ronda 24: afuera (el jardín del domo) no hay tubos: el sol, con la sombra horneada de las casas y los árboles, y la luz del cielo
@@ -7805,7 +7824,20 @@ vec3 roomLight(vec3 p, vec3 n, float spec){
     float sv = hy < 1.3 ? mix(SS.r, SS.g, hy / 1.3) : mix(SS.g, SS.b, (hy - 1.3) / 1.3);
     float ndl = max(dot(n, sol.xyz), 0.0), spS = spec > 0.08 ? spec * pow(max(dot(n, normalize(sol.xyz + V)), 0.0), 40.0) * 3.0 : 0.0;
     Ls += vec3(1.0, 0.95, 0.84) * sol.w * (ndl + spS) * sv + cieloC.rgb * (0.62 + 0.38 * n.y) * mix(0.75, 1.0, sv) + vec3(0.32, 0.42, 0.16) * cieloC.w * max(-n.y, 0.0);
-  } else
+  }
+#ifdef BAJO
+  // (perfil bajo: una sola lectura: la suma de los tubos que ven este punto, abajo y arriba; la forma, hacia el tubo de la celda)
+  else {
+    if (enVen) {
+      float tub = mix(gVen.r, gVen.g, clamp((p.y - 0.3) / 2.0, 0.0, 1.0)) * uVenR.w;
+      vec3 l = normalize(vec3((floor(c.x) + 0.5) * CELL, 2.97, (floor(c.y) + 0.5) * CELL) - p);
+      Ls += colTubo * tub * 2.8 * (max(dot(n, l), 0.0) * 0.85 + 0.15 + 0.3 * max(-n.y, 0.0));
+    }
+  }
+  if (false)
+#else
+  else
+#endif
   for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++) {
     ivec2 k = b + ivec2(i, j);
     if (k.x < 0 || k.y < 0 || k.x >= int(NCELL) || k.y >= int(NCELL)) continue;
@@ -7822,7 +7854,11 @@ vec3 roomLight(vec3 p, vec3 n, float spec){
   // el rebote: la luz que devuelven el piso y las paredes amarillas. Llega más al techo y a las paredes que al piso
   // (es lo que hace que un cuarto no se vea plano) y es tibia, del color de lo que rebota
   if (!afuera) Ls += amb * mix(vec3(0.95, 0.8, 0.48) * 0.3, vec3(0.8, 0.74, 0.56) * 0.12, n.y * 0.5 + 0.5);
+#ifdef BAJO
+  for (int i = 0; i < 1; i++) {
+#else
   for (int i = 0; i < 6; i++) {
+#endif
     if (i >= uNSpot) break;
     vec3 dv = uSpot[i].xyz - p; float d2 = dot(dv, dv), w = uSpot[i].w, k;
     if (w > 0.0 && d2 > 441.0) continue;                      // (pasando los 21 m la linterna ya no llega: ni se calcula)
@@ -7831,7 +7867,11 @@ vec3 roomLight(vec3 p, vec3 n, float spec){
     // linterna (w > 0): centro fuerte, anillo y halo; la propia (la primera) con sombra. Luz de estudio (w < 0): la de los retratos
     // (afuera del cono no suma nada: se corta antes de la cuenta cara)
     vec3 kc;
+#ifdef BAJO
+    if (w > 0.0) { if (cs < 0.8) continue; kc = vec3(1.0, 0.95, 0.86) * (w * linterna(dist) * conoLint(cs)); }
+#else
     if (w > 0.0) { if (cs < 0.8) continue; k = w * linterna(dist); if (i == 0 && som.x > 0.5) k *= sombraLin(p, n); kc = k * conoLintC(cs, l, uSpotD[i].xyz, uSpotU[i], float(i) * 0.21); }
+#endif
     else { if (cs < uSpotD[i].w) continue; kc = vec3(1.0, 0.95, 0.86) * (-w * smoothstep(uSpotD[i].w, uSpotD[i].w + 0.1, cs) / (1.0 + d2*0.06)); }
     Ls += kc * (max(dot(n, l), 0.0) + (spec > 0.08 ? spec * pow(max(dot(n, normalize(l + V)), 0.0), 28.0) * 1.6 : 0.0));
   }
@@ -7849,13 +7889,20 @@ float ign(){ return fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.0671105
 // y la linterna propia se ve en el aire
 vec3 applyFog(vec3 c, vec3 p){
   vec3 v = p - cam.xyz; float d = length(v), T = exp(-max(d - 1.6, 0.0) * fog.x) * (1.0 - smoothstep(vis.x * 0.7, vis.x, d)), S = CELL * NCELL;   // y lo que está por dejar de dibujarse se pierde en la niebla
-#ifdef DEBIL
+#if defined(BAJO)
+  float amb = gVen.b;
+#elif defined(DEBIL)
   float amb = texture(uLT, (cam.xz + v.xz*0.6) / S).r;
 #else
   float amb = texture(uLT, (cam.xz + v.xz*0.25) / S).r * 0.3 + texture(uLT, (cam.xz + v.xz*0.6) / S).r * 0.4 + texture(uLT, (cam.xz + v.xz*0.92) / S).r * 0.3;
 #endif
   vec3 r = c * T + fog.yzw * amb * (1.0 - T);
+#ifdef BAJO
+  if (lin.w > 0.0) { float a = max(dot(v / max(d, 1e-4), linD.xyz), 0.0); r += vec3(1.0, 0.95, 0.88) * lin.w * a * a * a * a * min(d, 9.0) * fog.x * 0.035; }
+  if (false) {
+#else
   if (lin.w > 0.0) {
+#endif
 #if defined(DEBIL)
     const int NB = 3;
 #elif defined(MOVIL)
@@ -7914,6 +7961,7 @@ vec4 calcoPared(vec3 p, vec3 n, float prob, float cw, float sem){
   float plano = floor((ex ? p.x : p.z) * 2.0 + 0.5);
   float ci = floor(u / cw);
   float h = hs1(ci * 12.9898 + plano * 78.233 + (ex ? 31.7 : 0.0) + sg * 17.3 + sem * 5.1);
+  if (h >= prob) return vec4(0.0);                   // (ronda 25: la mayoría de los tramos no tiene: ni se lee la textura)
   float tam = mix(0.9, 1.6, hs1(h * 91.7 + 3.1));
   float x0 = ci * cw + (cw - tam) * hs1(h * 47.3 + 7.7), y0 = mix(0.05, 2.9 - tam, hs1(h * 13.1 + 1.3));
   vec2 q = vec2((u - x0) / tam, (p.y - y0) / tam);
@@ -7929,16 +7977,62 @@ vec4 charco(vec3 p, float prob){
   vec4 s = texture(uSangre, vec3(q, 2.0));
   return s * (step(h, prob) * step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0));
 }
+#ifdef BAJO
+// ronda 25: el mundo en el perfil bajo (celulares flojos, como una Adreno 610): la textura, la luz de la ventana (tubos,
+// rebote y la sombrita junto a las paredes en una sola lectura), la linterna propia, la sangre de las paredes blancas y
+// la niebla. Sin los materiales especiales del otro (cada rama que no se usa igual ocupa registros en la placa)
+void main(){
+  int m = int(vMat + 0.5);
+  vec3 alb = texture(uAlb, vec3(vUV, vMat), 0.7).rgb, N = normalize(vN), c;          // (un nivel más chico de la textura: menos memoria que leer)
+  if (m == 3) {
+    vec2 cc = vW.xz / CELL; vec4 t = texelFetch(uLT, ivec2(floor(cc)), 0); float on = lampOn(t, floor(cc));
+    c = alb * (0.04 + 6.0 * on) * uEmis + alb * 0.02;
+#ifdef INST
+    if (vTint.y > 0.5) c = vec3(0.2, 1.0, 0.35) * 5.0; else if (vTint.z > 0.5) c = vec3(1.0, 0.55, 0.1) * (2.0 + 2.0*step(0.5, fract(TIME*3.0))); else if (vTint.w < 0.0) c = alb * 0.04; else c = vec3(1.0, 0.08, 0.04) * (0.15 + 1.6*step(0.82, fract(TIME*0.6 + vTint.w*7.0)));
+#endif
+  } else if (m == 6) {
+    c = vTint.y > 0.5 ? vec3(0.1, 0.9, 0.3) * 1.2 : vec3(0.03, 0.035, 0.03) + vec3(1.0, 0.6, 0.1) * 0.5 * step(0.001, vTint.x);
+  } else if (m == 16 || m == 28 || m == 43 || m == 29 || m == 42 || m == 37) {
+    c = alb * (m == 43 ? 2.4 : m == 28 ? 1.9 : m == 16 ? 2.2 : m == 37 ? 1.4 : 2.6);
+  } else if (m == 44) {
+    c = vec3(3.2, 3.1, 2.8);
+  } else {
+    bool pared = m == 0 || m == 10 || m == 17 || m == 18 || m == 20 || m == 22 || m == 32 || m == 34 || m == 40 || m == 57;
+    bool piso = m == 1 || m == 21 || m == 26 || m == 30 || m == 33 || m == 36 || (m == 45 && N.y > 0.5);
+    if (m == 50) {                                    // agua: los azulejos de abajo, corridos por una onda (una lectura de ruido) y con brillitos
+      float n = texture(uRuido, vW.xz * 0.36 + TIME * vec2(0.05, 0.03)).r;
+      alb = texture(uAlb, vec3(vW.xz / 0.9 + (n - 0.5) * 0.14, 45.0), 0.7).rgb * vec3(0.5, 0.82, 0.9) * (0.8 + 0.5 * n) + vec3(0.25, 0.3, 0.3) * smoothstep(0.8, 0.95, n);
+    }
+    else if (m == 46) alb = mix(alb, vec3(0.36, 0.34, 0.31), smoothstep(0.32, 0.55, 1.0 - N.y));
+    else if (m == 17 && zonaDe(texelFetch(uLT, ivec2(floor(vW.xz / CELL)), 0)) < 2.5) { vec4 s1 = calcoPared(vW, N, 0.6, 2.4, 0.0); alb = mix(alb, s1.rgb, s1.a); }
+    vec3 L = roomLight(vW, N, 0.0);
+    if (pared) L *= (0.58 + 0.42 * smoothstep(0.0, 0.6, vW.y)) * (0.74 + 0.26 * smoothstep(0.0, 0.45, 3.0 - vW.y));
+    else if (piso) L *= 0.45 + 0.55 * gVen.a; else if (m == 2) L *= 0.6 + 0.4 * gVen.a;
+    c = alb * L;
+    float fuera = max(max(-vW.x, -vW.z), max(vW.x, vW.z) - CELL * NCELL);
+    if (fuera > 0.0) c = alb * (0.35 + 1.5 * smoothstep(0.0, 3.4, fuera));
+  }
+  c = applyFog(c, vW);
+  o = vec4(c * misc.y, 1.0);
+}
+#else
 void main(){
   int m = int(vMat + 0.5);
   vec4 A = texture(uAlb, vec3(vUV, vMat));
   vec3 alb = A.rgb;
+#ifdef VACIO
+  o = vec4(alb * misc.y, 1.0); return;              // (prueba de costo: sólo la textura)
+#endif
 #ifndef DEBIL
   // alfombra: una segunda toma girada, mezclada a manchones (que no se vean las manchas repetidas)
   if (m == 1) alb = mix(alb, texture(uAlb, vec3(mat2(0.8, 0.6, -0.6, 0.8) * vUV * 0.77 + 0.31, vMat)).rgb, smoothstep(0.3, 0.7, vn2(vW.xz * 0.45)));
 #endif
+#ifdef BAJO
+  vec3 N0 = normalize(vN), N = N0;                // (perfil bajo: sin relieve de la textura)
+#else
   vec4 Nt = texture(uNrm, vec3(vUV, vMat)); vec3 tn = vec3(Nt.xy*2.0 - 1.0, 0.0); tn.z = sqrt(max(0.0, 1.0 - dot(tn.xy, tn.xy)));
   vec3 N0 = normalize(vN); vec3 N = perturb(N0, vW, vUV, tn);
+#endif
   vec3 c;
   if (m == 3) {                                   // tubo de luz: brilla si está prendido
     vec2 cc = (vW.xz) / CELL; vec4 t = texelFetch(uLT, ivec2(floor(cc)), 0);
@@ -7981,7 +8075,7 @@ void main(){
   } else if (m == 50) {                           // ronda 24: el agua de los Poolrooms: ondas que se mueven, los azulejos de abajo corridos
     // (con un tinte celeste y cáusticas), el reflejo claro del techo cuando se mira de costado y los tubos brillando en el agua
     vec3 V = normalize(cam.xyz - vW); vec2 xz = vW.xz;
-#ifdef DEBIL
+#if defined(DEBIL)
     vec2 gr = (vec2(texture(uRuido, xz * 0.5 + vec2(TIME * 0.05, TIME * 0.03)).r, texture(uRuido, xz * 0.5 + vec2(0.37, 0.61) - vec2(TIME * 0.04, -TIME * 0.035)).r) - 0.5) * 1.6;
 #else
     vec2 sA = vec2(TIME * 0.05, TIME * 0.03), sB = -vec2(TIME * 0.07, -TIME * 0.04); const vec2 e = vec2(0.09, 0.0);
@@ -8025,6 +8119,7 @@ void main(){
     }
     // tramos más gastados que otros (que no se note que la foto se repite)
     bool piso = m == 1 || m == 21 || m == 26 || m == 30 || m == 33 || m == 36 || (m == 45 && N0.y > 0.5);
+#ifndef BAJO
     if (pared || piso || m == 2) {
       vec2 g = pared ? vec2(abs(N0.x) > 0.5 ? vW.z : vW.x, vW.y) : vW.xz;
 #ifdef DEBIL
@@ -8033,22 +8128,39 @@ void main(){
       alb *= mix(0.8, 1.1, vn2(g * 0.45)) * mix(0.93, 1.05, vn2(g * 1.7 + 11.0));
 #endif
     }
+#endif
     // sangre: mucha en las paredes blancas, poca en las otras; charcos en el piso de las zonas blancas
     if (pared) {
       float pr = m == 17 ? 0.6 : m == 10 ? 0.1 : m == 18 ? 0.08 : (m == 20 || m == 32) ? 0.07 : (m == 22 || m == 57) ? 0.0 : m == 40 ? 0.05 : 0.025;
       { float zq = zonaDe(texelFetch(uLT, ivec2(floor(vW.xz / CELL)), 0)); if (zq == 3.0 || zq == 6.0) pr = 0.0; }     // (ronda 24b: en el jardín y las casas, nada de sangre en lo blanco)
-      vec4 s1 = calcoPared(vW, N0, pr, 2.4, 0.0);
+#ifdef T_SINCALCO
+      vec4 s1 = vec4(0.0);
+#else
+      vec4 s1 = pr > 0.0 ? calcoPared(vW, N0, pr, 2.4, 0.0) : vec4(0.0);
+#endif
 #ifndef DEBIL
       vec4 s2 = calcoPared(vW, N0, pr * 0.65, 3.3, 1.0); alb = mix(alb, s2.rgb, s2.a); spec += s2.a * 0.4;
 #endif
       alb = mix(alb, s1.rgb, s1.a); spec += s1.a * 0.4;
-    } else if (m == 1) {
+    }
+#ifndef BAJO
+    else if (m == 1) {
       float z = zonaDe(texelFetch(uLT, ivec2(floor(vW.xz / CELL)), 0));
       vec4 s = charco(vW, z > 0.5 && z < 1.5 ? 0.32 : 0.02);
       alb = mix(alb, s.rgb, s.a); spec += s.a * 0.5;
     }
+#endif
     float ao = 1.0;
-    if (pared || piso || m == 2 || m == 4) {
+#ifdef T_SINAO
+    if (false) {
+#else
+    if (pared) ao = (0.58 + 0.42 * smoothstep(0.0, 0.6, vW.y)) * (0.74 + 0.26 * smoothstep(0.0, 0.45, 3.0 - vW.y));
+#ifdef BAJO
+    else if (false) {
+#else
+    else if (piso || m == 2 || m == 4) {
+#endif
+#endif
       vec2 cc = vW.xz / CELL; ivec2 fc = ivec2(floor(cc)); vec2 f = cc - vec2(fc); int om = maskAt(fc);
       float d = 1e3;                                 // distancia al muro cerrado más cercano de la celda
       if ((om & 1) == 0) d = min(d, f.y * CELL);
@@ -8060,16 +8172,27 @@ void main(){
       else if (m == 2) ao = 0.6 + 0.4 * smoothstep(0.0, 0.75, d);
       else ao = (0.58 + 0.42 * smoothstep(0.0, 0.6, vW.y)) * (0.74 + 0.26 * smoothstep(0.0, 0.45, 3.0 - vW.y));
     }
+#ifdef T_SINLUZ
+    vec3 L = vec3(0.8) * ao;
+#else
     vec3 L = roomLight(vW, N, spec) * ao;
+#endif
+#ifdef BAJO
+    if (piso) L *= 0.45 + 0.55 * gVen.a; else if (m == 2) L *= 0.6 + 0.4 * gVen.a;      // (la sombrita junto a las paredes, ya calculada en la ventana)
+#endif
     c = alb * L;
     if (m == 8) c += vec3(0.15, 0.35, 0.05) * 0.25 * (0.5 + 0.5*sin(TIME*4.0));     // cajones: se ven un poco en lo oscuro
     // afuera del mapa (el pasillito de las salidas): la luz de afuera, más fuerte cuanto más lejos del portón
     float fuera = max(max(-vW.x, -vW.z), max(vW.x, vW.z) - CELL * NCELL);
     if (fuera > 0.0) c = alb * (0.35 + 1.5 * smoothstep(0.0, 3.4, fuera));
   }
+#ifndef T_SINNIEBLA
   c = applyFog(c, vW);
+#endif
   o = vec4(c * misc.y, 1.0);
-}`;
+}
+#endif
+`;
 // ---------------- la rezomáquina (y el cajón): modelo con su textura; la pantalla y la baliza según el estado ----------------
 const MAQ_FS = `
 uniform sampler2D uTex, uJuego; uniform highp sampler2DArray uAlb; uniform vec4 uPantM, uJuegoR; uniform float uResalte;
@@ -8090,6 +8213,12 @@ vec3 crt(vec2 s){
     return (vec3(0.008, 0.016, 0.01) + j * j * 1.0 + hq(floor(s * vec2(110.0, 90.0)) + floor(TIME * 24.0)) * 0.025) * clamp(1.0 - dot(c, c) * 0.9, 0.0, 1.0) * (0.86 + 0.14 * sin(s.y * 260.0 + TIME * 3.0));
   }
   vec3 fos = hecha ? vec3(0.35, 0.85, 1.0) : rep ? vec3(1.0, 0.55, 0.12) : coop ? vec3(0.3, 1.0, 0.45) : vec3(1.0, 0.25, 0.12);
+#ifdef BAJO
+  // (perfil bajo: sin los textos; el color del estado y la barra de lo que falta)
+  if (vTint.w < 0.0) return vec3(0.006, 0.012, 0.008) * vig;
+  vec2 bb = (s - vec2(0.1, 0.2)) / vec2(0.8, 0.16); float bar = step(0.0, bb.x) * step(bb.x, hecha ? 1.0 : vTint.x) * step(0.3, bb.y) * step(bb.y, 0.7);
+  return (vec3(0.01, 0.02, 0.012) + fos * (0.22 + bar) * 1.7) * vig * lin;
+#endif
   if (vTint.w < 0.0) {                                   // sin el Hunter: sin energía, apenas el cartel
     float t = texto(1.0, (s - vec2(0.12, 0.42)) / vec2(0.76, 0.16));
     return (vec3(0.006, 0.012, 0.008) + vec3(0.3, 1.0, 0.45) * t * 0.1 * step(0.5, fract(TIME * 0.6))) * vig;
@@ -8273,8 +8402,14 @@ void main(){
   float lv = length(vel); if (lv > 0.034) vel *= 0.034 / lv;
   vec3 col;
   float ca = 0.0012 * r2 * r2;
+#ifdef BAJO
+  if (false) {
+#else
   if (lv * uRes.x > 1.3) {
-#if defined(DEBIL)
+#endif
+#if defined(BAJO)
+    const int NM = 1;
+#elif defined(DEBIL)
     const int NM = 3;
 #elif defined(MOVIL)
     const int NM = 5;
@@ -8295,7 +8430,9 @@ void main(){
 #endif
   }
   // nitidez: la escena se agranda (y el centro de la lente más): se le devuelve el detalle con un realce suave
-#if defined(DEBIL) || defined(MOVIL)
+#if defined(BAJO)
+  vec3 nb = col;
+#elif defined(DEBIL) || defined(MOVIL)
   vec3 nb = (sc(uv + px * vec2(0.8, 0.8)) + sc(uv - px * vec2(0.8, -0.8))) * 0.5;
 #else
   vec3 nb = (sc(uv + px * vec2(0.85, 0.85)) + sc(uv - px * vec2(0.85, 0.85)) + sc(uv + px * vec2(0.85, -0.85)) + sc(uv - px * vec2(0.85, -0.85))) * 0.25;
@@ -8306,7 +8443,11 @@ void main(){
   if (uBorroso > 0.0) { float rb = 0.012 * uBorroso; vec3 b = sc(uv + vec2(rb, 0.0)) + sc(uv - vec2(rb, 0.0)) + sc(uv + vec2(0.0, rb * 1.4)) + sc(uv - vec2(0.0, rb * 1.4)); col = mix(col, b * 0.25, uBorroso * 0.85); col = mix(col, sc(uv + vec2(0.02, 0.006) * uBorroso * sin(uT * 1.3)), 0.25 * uBorroso); }
   // el brillo de las luces (y su halo en el lente); el lente tiene marcas de dedos y polvo que sólo se ven cuando le
   // pega una luz fuerte (la linterna de otro, un tubo de frente)
+#ifdef BAJO
+  vec3 blm = vec3(0.0);
+#else
   vec3 blm = texture(uBloom, uv).rgb;
+#endif
 #ifdef DEBIL
   col += blm * uBrK;
 #else
@@ -8471,6 +8612,32 @@ void main(){
   }
   o = r;
 }`;
+// ---------------- ronda 25: la luz de los tubos en una ventana de 64 m alrededor de la cámara (perfil bajo) ----------------
+// cada cuadro (128x128: casi nada) se suma lo que ve cada punto de los 4 tubos de alrededor (con el titileo y los cortes);
+// el mundo lo lee de una vez en lugar de hacer la cuenta en cada píxel
+const LUZVEN_FS = `
+uniform sampler2D uLT; uniform highp sampler2DArray uVis; uniform vec4 uVenR; uniform float uC, uN;
+in vec2 vUV; out vec4 o;
+float tubos(vec2 p, float y, float capa){
+  vec2 c = p / uC; ivec2 b = ivec2(floor(c - 0.5)); vec4 VS = texture(uVis, vec3(p / (uC * uN), capa)); float s = 0.0;
+  for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++) {
+    ivec2 k = b + ivec2(i, j); if (k.x < 0 || k.y < 0 || k.x >= int(uN) || k.y >= int(uN)) continue;
+    float on = texelFetch(uLT, k, 0).g; if (on <= 0.0) continue;
+    vec2 dc = abs(c - (vec2(k) + 0.5)); float vv = VS[(k.x & 1) + 2 * (k.y & 1)] * (1.0 - smoothstep(0.62, 1.0, dc.x)) * (1.0 - smoothstep(0.62, 1.0, dc.y));
+    vec3 dv = vec3((float(k.x) + 0.5) * uC - p.x, 2.97 - y, (float(k.y) + 0.5) * uC - p.y);
+    s += on * vv / (1.0 + dot(dv, dv) * 0.42);
+  }
+  return s;
+}
+int mascara(ivec2 c){ c = clamp(c, ivec2(0), ivec2(int(uN) - 1)); return int(texelFetch(uLT, c, 0).a * 15.0 + 0.5); }
+void main(){
+  vec2 p = uVenR.xy + vUV * uVenR.z, cc = p / uC; ivec2 fc = ivec2(floor(cc)); vec2 f = cc - vec2(fc); int om = mascara(fc);
+  float d = 1e3;
+  if ((om & 1) == 0) d = min(d, f.y * uC); if ((om & 4) == 0) d = min(d, (1.0 - f.y) * uC);
+  if ((om & 8) == 0) d = min(d, f.x * uC); if ((om & 2) == 0) d = min(d, (1.0 - f.x) * uC);
+  float ao = smoothstep(0.0, 0.95, max(0.0, d - 0.11)), amb = texture(uLT, cc / uN).r;
+  o = vec4(tubos(p, 0.3, 0.0) / uVenR.w, tubos(p, 2.3, 1.0) / uVenR.w, amb, ao);
+}`;
 // ---------------- ronda 24: el domo del jardín, con el cielo 360 (una foto equirectangular) ----------------
 // se mira la foto en la dirección de la mirada (el cielo queda "lejos" aunque el domo esté a 50 m); donde un pasillo
 // atraviesa el domo, el domo no se dibuja (se ve el pasillo)
@@ -8605,7 +8772,7 @@ function luzPuerta(p) {
 // cambian la resolución de la escena, el antialias, la sombra de la linterna, la versión de la luz (liviana o completa),
 // las pasadas del brillo, la densidad de píxeles de la pantalla y hasta dónde se dibuja
 const CALIDADES = {
-  bajo: { alto: 360, deb: true, msaa: 0, som: false, somRes: 512, blur: 1, dpr: 1, lejos: 0.72 },
+  bajo: { alto: 360, deb: true, bajo: true, msaa: 0, som: false, somRes: 512, blur: 0, dpr: 1, lejos: 0.62 },
   medio: { alto: 560, deb: true, msaa: 0, som: true, somRes: 512, blur: 1, dpr: 1, lejos: 1 },
   alto: { alto: 900, deb: false, msaa: 4, som: true, somRes: 1024, blur: 2, dpr: 1.5, lejos: 1 },
   // ronda 15: "Alto" en un celular (TCL 20 SE, Adreno 610): la misma luz completa y la lente, pero antialias x2, la
@@ -8660,19 +8827,22 @@ const R = { progs: {}, ubo: null, frame: new Float32Array(76), fb: null, tex: nu
   esc: 1, adI: 0, cuadro: 0, tLuz: 0, trozos: 0 };
 // resolución dinámica: si un aparato no llega a 60 cuadros, la escena se dibuja más chica (la nitidez de la lente lo disimula)
 // (ronda 24: entre el 100 y el 80 %: más chico se ve borroso; si con el 80 % no alcanza, baja la calidad de la luz)
-const ESCALAS = [1, 0.95, 0.9, 0.85, 0.8];
-const DINRES = { i: 0, lentos: 0, n: 0, t0: 0, bien: 0, cambio: 0, off: false, abajo: 0 };
+const ESCALAS = [1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7];
+const escMax = () => (CAL.bajo ? ESCALAS.length - 1 : 4);            // (ronda 25: en bajo puede achicar hasta el 70 %)
+const DINRES = { i: 0, lentos: 0, n: 0, t0: 0, bien: 0, cambio: 0, off: false, abajo: 0, sdt: 0 };
 function medirCuadro(dt) {
   if (DINRES.off || Q.has('fijo') || GAME.fase === 'menu' || dt > 0.25 || AUTO.corriendo) return;
-  DINRES.n++; if (dt > 0.0195) DINRES.lentos++;
+  DINRES.n++; DINRES.sdt += dt; if (dt > 0.0195) DINRES.lentos++;
   const t = now(); if (t - DINRES.t0 < 1) return;
-  const frac = DINRES.lentos / Math.max(1, DINRES.n); DINRES.n = DINRES.lentos = 0; DINRES.t0 = t;
+  const frac = DINRES.lentos / Math.max(1, DINRES.n), prom = DINRES.sdt / Math.max(1, DINRES.n); DINRES.n = DINRES.lentos = 0; DINRES.sdt = 0; DINRES.t0 = t;
+  const tope = escMax(); if (DINRES.i > tope) DINRES.i = tope;
   // en lo mínimo y todavía lento 4 s seguidos: en Auto, un escalón menos de gráficos (ronda 24); si ya no hay escalón y
   // sigue igual de lento, la pantalla está trabada a 30 (ahorro de batería): no achicar al pedo
-  if (DINRES.i === ESCALAS.length - 1 && frac > 0.25) {
-    if (++DINRES.abajo >= 4) { DINRES.abajo = 0; if (bajarPerfil()) return; if (frac > 0.8) { DINRES.off = true; DINRES.i = 0; R.esc = 1; R.reset = true; return; } }
+  // (ronda 25: "trabada a 30" sólo si los cuadros duran justo ~33 ms; si va más lento que eso es que el aparato no da: se queda chica)
+  if (DINRES.i === tope && frac > 0.25) {
+    if (++DINRES.abajo >= 4) { DINRES.abajo = 0; if (bajarPerfil()) return; if (frac > 0.8 && prom > 0.029 && prom < 0.037) { DINRES.off = true; DINRES.i = 0; R.esc = 1; R.reset = true; return; } }
   } else DINRES.abajo = 0;
-  if (frac > 0.12 && DINRES.i < ESCALAS.length - 1 && t - DINRES.cambio > 1.5) { DINRES.i++; DINRES.cambio = t; DINRES.bien = 0; if (DINRES.i === ESCALAS.length - 1) autoPrever(); }
+  if (frac > 0.12 && DINRES.i < tope && t - DINRES.cambio > 1.5) { DINRES.i++; DINRES.cambio = t; DINRES.bien = 0; if (DINRES.i === tope) autoPrever(); }
   else if (frac < 0.02) { if (++DINRES.bien >= 6 && DINRES.i > 0) { DINRES.i--; DINRES.cambio = t; DINRES.bien = 0; } }
   else DINRES.bien = 0;
   if (R.esc !== ESCALAS[DINRES.i]) { R.esc = ESCALAS[DINRES.i]; R.reset = true; }
@@ -8705,14 +8875,14 @@ function compileAll() {
 // ronda 24: los programas de cada versión de la luz (completa, celular, liviana) se compilan una sola vez y quedan
 // guardados: cambiar de gráficos (o probarlos en el autoajuste) es al instante. La versión que no se usa se puede
 // compilar de fondo (precompilar), en paralelo, sin trabar la pantalla
-const varianteGraf = () => (CAL.deb || Q.has('debil') ? 'DEBIL' : CAL.movil ? 'MOVIL' : 'FULL');
+const varianteGraf = () => (CAL.bajo ? 'BAJO' : CAL.deb || Q.has('debil') ? 'DEBIL' : CAL.movil ? 'MOVIL' : 'FULL');
 function listaProgs(v) {
-  const H = FRAME_GLSL, L = LIGHT_GLSL, D = v === 'DEBIL' ? '#define DEBIL 1\n' : v === 'MOVIL' ? '#define MOVIL 1\n' : '';
+  const H = FRAME_GLSL, L = LIGHT_GLSL, D = (Q.has('vacio') ? '#define VACIO 1\n' : '') + (Q.get('prueba') || '').split(',').filter(Boolean).map((k) => '#define T_' + k.toUpperCase() + ' 1\n').join('') + (v === 'BAJO' ? '#define DEBIL 1\n#define BAJO 1\n' : v === 'DEBIL' ? '#define DEBIL 1\n' : v === 'MOVIL' ? '#define MOVIL 1\n' : '');
   return [['world', H + WORLD_VS, H + L + WORLD_FS, D], ['worldI', H + WORLD_VS, H + L + WORLD_FS, D + '#define INST 1\n'], ['charx', H + CHARX_VS, H + L + CHARX_FS, D],
     ['fx', H + FX_VS, H + FX_FS, ''], ['calco', H + CALCO_VS, H + L + CALCO_FS, D], ['lente', VS_FULL, LENTE_FS, D],
     ['brillo', VS_FULL, BRILLO_FS, ''], ['blur', VS_FULL, BLUR_FS, ''], ['sombra', H + FX_VS, SOMBRA_FS, ''],
     ['estela', VS_FULL, ESTELA_FS, ''], ['luz', VS_FULL, LUZ_FS, ''], ['adapta', VS_FULL, ADAPTA_FS, ''],
-    ['maq', H + WORLD_VS, H + L + MAQ_FS, D + '#define INST 1\n#define CAPA_TXT ' + MAT.PANTALLA + '.0\n'], ['horno', VS_FULL, HORNO_FS, ''],
+    ['maq', H + WORLD_VS, H + L + MAQ_FS, D + '#define INST 1\n#define CAPA_TXT ' + MAT.PANTALLA + '.0\n'], ['horno', VS_FULL, HORNO_FS, ''], ['luzven', VS_FULL, LUZVEN_FS, ''],
     ['tele', H + WORLD_VS, H + L + TELE_FS, D], ['rayosx', H + CHARX_VS, H + RAYOSX_FS, ''], ['hal', VS_FULL, HAL_FS, ''],
     ['cielo', H + CIELO_VS, H + CIELO_FS, ''], ['somb', H + WORLD_VS, H + PROF_FS, ''], ['sombI', H + WORLD_VS, H + PROF_FS, '#define INST 1\n'], ['sombC', H + CHARX_VS, H + PROF_FS, ''],
     ...(typeof progsExtra === 'function' ? progsExtra(v, H, L, D) : [])];
@@ -8833,8 +9003,20 @@ function frameUniforms(VP, cam, t) {
 const SPOTS = { pos: new Float32Array(24), dir: new Float32Array(24), lado: new Float32Array(18), n: 0, propia: null };
 // el rebote de la linterna propia (lo calcula armarLuces: adónde pega, de qué color es y cuánto devuelve)
 const REB = { p: v3(0, -99, 0), c: [0, 0, 0], k: 0 };
+function luzVentana(cam) {
+  const m = WORLD.m; if (!m || !R.progs.luzven || !LUZ.vis || !WORLD.lt) return;
+  const VN = 128, TAM = 64, paso = TAM / VN;
+  if (!LUZ.ven) { const half = !!EXT_CBF; LUZ.ven = crearTex(VN, VN, half); LUZ.venFb = fbCon(LUZ.ven); LUZ.venK = half ? 1 : 4; }
+  LUZ.venR = [Math.floor((cam.pos.x - TAM / 2) / paso) * paso, Math.floor((cam.pos.z - TAM / 2) / paso) * paso, TAM, LUZ.venK];
+  gl.bindFramebuffer(gl.FRAMEBUFFER, LUZ.venFb); gl.viewport(0, 0, VN, VN); gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+  const P = use(R.progs.luzven);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, WORLD.lt); gl.uniform1i(P.u.uLT, 2);
+  gl.activeTexture(gl.TEXTURE14); gl.bindTexture(gl.TEXTURE_2D_ARRAY, LUZ.vis); gl.uniform1i(P.u.uVis, 14); gl.activeTexture(gl.TEXTURE0);
+  U.v4(P, 'uVenR', ...LUZ.venR); U.f(P, 'uC', m.C); U.f(P, 'uN', m.N); fullscreen();
+}
 function spotUniforms(p) {
   if (!p.u.uSpot) return;
+  if (p.u.uVen) { gl.activeTexture(gl.TEXTURE12); gl.bindTexture(gl.TEXTURE_2D, LUZ.ven || null); gl.uniform1i(p.u.uVen, 12); const r = LUZ.venR || [0, 0, 0, 1]; gl.uniform4f(p.u.uVenR, r[0], r[1], r[2], r[3]); }
   gl.uniform4fv(p.u.uSpot, SPOTS.pos); gl.uniform4fv(p.u.uSpotD, SPOTS.dir); gl.uniform1i(p.u.uNSpot, SPOTS.n); if (p.u.uSpotU) gl.uniform3fv(p.u.uSpotU, SPOTS.lado);
   if (p.u.uRebP) { const k = SPOTS.propia ? REB.k : 0; gl.uniform4f(p.u.uRebP, REB.p.x, REB.p.y, REB.p.z, k); gl.uniform3f(p.u.uRebC, REB.c[0], REB.c[1], REB.c[2]); }
   gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, WORLD.lt);
@@ -8854,7 +9036,7 @@ function renderFrame(cam, t) {
   const hM = Math.max(120, Math.round(Math.min(H, CAL.alto * SET.res * (GAME.fase === 'menu' && !AUTO.corriendo ? 0.8 : 1)))), wM = Math.max(160, Math.round(hM * W / H));
   sceneTarget(wM, hM);
   const h = Math.max(96, Math.round(hM * R.esc)), w = Math.max(128, Math.round(wM * R.esc)), esX = w / wM, esY = h / hM, DEB = CAL.deb || Q.has('debil');
-  if (WORLD.mesh) { actualizarLamparas(t); pasadaSombra(t); _pm('sombra'); teleUpdate(clamp(t - (R.tPrev || t), 0, 0.25), t); }
+  if (WORLD.mesh) { actualizarLamparas(t); if (CAL.bajo) luzVentana(cam); pasadaSombra(t); _pm('sombra'); teleUpdate(clamp(t - (R.tPrev || t), 0, 0.25), t); }
   gl.bindFramebuffer(gl.FRAMEBUFFER, R.msFb || R.fb); gl.viewport(0, 0, w, h);
   gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.disable(gl.BLEND);
@@ -8879,17 +9061,21 @@ function renderFrame(cam, t) {
   if (R.msFb) { gl.bindFramebuffer(gl.READ_FRAMEBUFFER, R.msFb); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, R.fb); gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST); gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null); }
   const dt = clamp(t - (R.tPrev || t), 0, 0.25), cur = R.hi, prev = 1 - cur, hdr = R.hdrScale || 1; R.tPrev = t; R.hi = prev;
   _pm('msaa'); // estela: mezcla con el cuadro anterior
+  let p;
+  if (!CAL.bajo) {                                     // (ronda 25: en bajo no hay estela: lo que sigue lee la escena directo)
   gl.bindFramebuffer(gl.FRAMEBUFFER, R.histFb[cur]); gl.viewport(0, 0, w, h);
-  let p = use(R.progs.estela);
+  p = use(R.progs.estela);
   gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, R.hist[prev]);
   gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, R.tex);
   U.f(p, 'uK', R.reset ? 0 : GAME.estela === undefined ? 0.06 : GAME.estela); U.f(p, 'uHdr', hdr); U.v2(p, 'uEsc', esX, esY); fullscreen();
+  }
+  const escena = CAL.bajo ? R.tex : R.hist[cur];
   // medir la luz y adaptar la exposición (todo en la placa, sin leer nada de vuelta; en celulares, un cuadro sí y otro no)
   R.cuadro++; R.tLuz += dt;
   if (!(DEB || WEAK) || R.cuadro % 2 === 0 || R.reset) {
     const aP = R.adI, aN = 1 - R.adI; R.adI = aN;
     gl.bindFramebuffer(gl.FRAMEBUFFER, R.lumFb); gl.viewport(0, 0, 64, 64);
-    p = use(R.progs.luz); gl.bindTexture(gl.TEXTURE_2D, R.hist[cur]); U.f(p, 'uHdr', hdr); U.v2(p, 'uEsc', esX, esY); fullscreen();
+    p = use(R.progs.luz); gl.bindTexture(gl.TEXTURE_2D, escena); U.f(p, 'uHdr', hdr); U.v2(p, 'uEsc', esX, esY); fullscreen();
     gl.bindFramebuffer(gl.FRAMEBUFFER, R.adFb[aN]); gl.viewport(0, 0, 1, 1);
     gl.activeTexture(gl.TEXTURE10); gl.bindTexture(gl.TEXTURE_2D, R.lum); gl.generateMipmap(gl.TEXTURE_2D);
     gl.activeTexture(gl.TEXTURE11); gl.bindTexture(gl.TEXTURE_2D, R.ad[aP]);
@@ -8898,6 +9084,7 @@ function renderFrame(cam, t) {
   }
   R.reset = false;
   _pm('estela+luz'); // brillo de las luces
+  if (!CAL.bajo) {                                      // (ronda 25: en bajo no hay brillo de las luces: la lente ni lo lee)
   gl.bindFramebuffer(gl.FRAMEBUFFER, R.blFb[0]); gl.viewport(0, 0, R.bw, R.bh);
   p = use(R.progs.brillo); gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, R.hist[cur]);
   U.v2(p, 'uPx', 1 / w, 1 / h); U.f(p, 'uUmbral', 2.6 * hdr); U.v2(p, 'uEsc', esX, esY); fullscreen();
@@ -8906,10 +9093,11 @@ function renderFrame(cam, t) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, R.blFb[1]); gl.bindTexture(gl.TEXTURE_2D, R.blTex[0]); U.v2(p, 'uDir', (1.6 + k) / R.bw, 0); fullscreen();
     gl.bindFramebuffer(gl.FRAMEBUFFER, R.blFb[0]); gl.bindTexture(gl.TEXTURE_2D, R.blTex[1]); U.v2(p, 'uDir', 0, (1.6 + k) / R.bh); fullscreen();
   }
+  }
   _pm('brillo'); // la lente a la pantalla
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H);
   p = use(R.progs.lente);
-  gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, R.hist[cur]);
+  gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, escena);
   gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, R.blTex[0]);
   gl.activeTexture(gl.TEXTURE11); gl.bindTexture(gl.TEXTURE_2D, R.ad[R.adI]);
   const giro = homografiaGiro(cam), menu = GAME.fase === 'menu';
@@ -13764,7 +13952,7 @@ function vozUpdate(dt) {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// el minimapa del Hunter (ronda 10): redondo, arriba a la derecha, girando con la mirada (adelante es arriba). Muestra
+// el minimapa (del Hunter desde la ronda 10; de todos desde la 25): redondo, arriba a la derecha, girando con la mirada (adelante es arriba). Muestra
 // las paredes, los huecos (en naranja: por ahí ellos pasan y él no), las máquinas (verdes las arregladas), las zonas
 // seguras y a cada sobreviviente: un punto rojo que late; tirado, más oscuro; en una zona segura, con un aro. Los que
 // quedan fuera del radio se ven en el borde, como flechitas. Las paredes se dibujan una vez por mundo en un lienzo
@@ -13793,10 +13981,12 @@ function minimapaFondo(m) {
 function minimapaUpdate(dt) {
   if (!MINIMAPA.el) MINIMAPA.el = $('minimapa');
   const el = MINIMAPA.el, m = WORLD.m; if (!el) return;
-  const ver = GAME.rol === 'h' && GAME.fase === 'juego' && GAME.vivo && !!m && UI.pant === 'hud';
+  // (ronda 25: también para los sobrevivientes: el lugar, las máquinas, las salidas y los compañeros; al Hunter no lo ven)
+  const esH = GAME.rol === 'h', ver = (esH || GAME.rol === 's') && GAME.fase === 'juego' && GAME.vivo && !!m && UI.pant === 'hud';
   if (el.hidden === ver) el.hidden = !ver;
   if (!ver) return;
-  if ((MINIMAPA.t -= dt) > 0) return; MINIMAPA.t = 1 / 15;
+  if (el.classList.contains('chico') === esH) el.classList.toggle('chico', !esH);
+  if ((MINIMAPA.t -= dt) > 0) return; MINIMAPA.t = CAL.bajo ? 1 / 10 : 1 / 15;
   if (MINIMAPA.seed !== m.seed || !MINIMAPA.fondo) { MINIMAPA.fondo = minimapaFondo(m); MINIMAPA.seed = m.seed; }
   const dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(40, Math.round((el.clientWidth || 160) * dpr));
   if (el.width !== W) { el.width = W; el.height = W; }
@@ -13831,6 +14021,7 @@ function minimapaUpdate(dt) {
   const late = 3.2 + 0.9 * Math.sin(t * 7);
   for (const r of REMOTOS.values()) {
     if (!r.enJuego || r.escapo) continue;
+    if (!esH) { if (r.rol === 's' && r.vivo) punto(r.pos.x, r.pos.z, r.tirado ? '#2a5f8a' : '#5ac8ff', r.tirado ? 2.8 : 3.2, r.segura); continue; }
     if (r.rol === 'h') { punto(r.pos.x, r.pos.z, '#ff9a2a', 3.6, false); continue; }
     if (!r.vivo) continue;
     punto(r.pos.x, r.pos.z, r.tirado || r.mini ? '#8e1d16' : '#ff3b30', r.tirado ? 2.8 : late, r.segura);
