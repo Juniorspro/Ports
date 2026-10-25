@@ -8882,7 +8882,7 @@ function listaProgs(v) {
     ['fx', H + FX_VS, H + FX_FS, ''], ['calco', H + CALCO_VS, H + L + CALCO_FS, D], ['lente', VS_FULL, LENTE_FS, D],
     ['brillo', VS_FULL, BRILLO_FS, ''], ['blur', VS_FULL, BLUR_FS, ''], ['sombra', H + FX_VS, SOMBRA_FS, ''],
     ['estela', VS_FULL, ESTELA_FS, ''], ['luz', VS_FULL, LUZ_FS, ''], ['adapta', VS_FULL, ADAPTA_FS, ''],
-    ['maq', H + WORLD_VS, H + L + MAQ_FS, D + '#define INST 1\n#define CAPA_TXT ' + MAT.PANTALLA + '.0\n'], ['horno', VS_FULL, HORNO_FS, ''], ['luzven', VS_FULL, LUZVEN_FS, ''],
+    ['maq', H + WORLD_VS, H + L + MAQ_FS, D + '#define INST 1\n#define CAPA_TXT ' + MAT.PANTALLA + '.0\n'], ['horno', VS_FULL, HORNO_FS, ''], ['luzven', VS_FULL, LUZVEN_FS, ''], ['copia', VS_FULL, 'uniform sampler2D uSrc; uniform vec2 uEsc; uniform float uHdr; in vec2 vUV; out vec4 o; void main(){ vec3 c = texture(uSrc, vUV * uEsc).rgb / uHdr; o = vec4(pow(c / (1.0 + c), vec3(0.4545)), 1.0); }', ''],
     ['tele', H + WORLD_VS, H + L + TELE_FS, D], ['rayosx', H + CHARX_VS, H + RAYOSX_FS, ''], ['hal', VS_FULL, HAL_FS, ''],
     ['cielo', H + CIELO_VS, H + CIELO_FS, ''], ['somb', H + WORLD_VS, H + PROF_FS, ''], ['sombI', H + WORLD_VS, H + PROF_FS, '#define INST 1\n'], ['sombC', H + CHARX_VS, H + PROF_FS, ''],
     ...(typeof progsExtra === 'function' ? progsExtra(v, H, L, D) : [])];
@@ -8950,14 +8950,14 @@ function crearTex(w, h, half, niveles) {
 function fbCon(tex) { const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0); return f; }
 function sceneTarget(w, h) {
   const muestras = Q.has('nomsaa') || !CAL.msaa ? 0 : Math.min(CAL.msaa, gl.getParameter(gl.MAX_SAMPLES) || 0);
-  if (R.fb && R.w === w && R.h === h && R.ms === muestras) return;
-  R.ms = muestras;
+  const half = !!EXT_CBF && !CAL.bajo;                 // (ronda 25: en bajo la escena en 8 bits: la mitad de memoria que mover por cuadro)
+  if (R.fb && R.w === w && R.h === h && R.ms === muestras && R.half === half) return;
+  R.ms = muestras; R.half = half;
   for (const f of [R.fb, R.msFb, ...(R.blFb || []), ...(R.histFb || [])]) if (f) gl.deleteFramebuffer(f);
   for (const t of [R.tex, ...(R.blTex || []), ...(R.hist || [])]) if (t) gl.deleteTexture(t);
   for (const b of [R.depth, R.msColor, R.msDepth]) if (b) gl.deleteRenderbuffer(b);
   R.msFb = R.msColor = R.msDepth = R.depth = null;
   R.w = w; R.h = h;
-  const half = !!EXT_CBF;
   R.tex = crearTex(w, h, half); R.fb = fbCon(R.tex);
   if (muestras > 1) {
     R.msFb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, R.msFb);
@@ -9062,14 +9062,19 @@ function renderFrame(cam, t) {
   const dt = clamp(t - (R.tPrev || t), 0, 0.25), cur = R.hi, prev = 1 - cur, hdr = R.hdrScale || 1; R.tPrev = t; R.hi = prev;
   _pm('msaa'); // estela: mezcla con el cuadro anterior
   let p;
-  if (!CAL.bajo) {                                     // (ronda 25: en bajo no hay estela: lo que sigue lee la escena directo)
+  const sinPost = typeof DIAG !== 'undefined' && DIAG.sinPost;
+  if (!CAL.bajo && !sinPost) {                                     // (ronda 25: en bajo no hay estela: lo que sigue lee la escena directo)
   gl.bindFramebuffer(gl.FRAMEBUFFER, R.histFb[cur]); gl.viewport(0, 0, w, h);
   p = use(R.progs.estela);
   gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, R.hist[prev]);
   gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, R.tex);
   U.f(p, 'uK', R.reset ? 0 : GAME.estela === undefined ? 0.06 : GAME.estela); U.f(p, 'uHdr', hdr); U.v2(p, 'uEsc', esX, esY); fullscreen();
   }
-  const escena = CAL.bajo ? R.tex : R.hist[cur];
+  const escena = CAL.bajo || sinPost ? R.tex : R.hist[cur];
+  if (sinPost) {                                       // (prueba del medidor: la escena directo a la pantalla, sin la lente)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); p = use(R.progs.copia);
+    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, R.tex); gl.uniform1i(p.u.uSrc, 6); U.v2(p, 'uEsc', esX, esY); U.f(p, 'uHdr', hdr); fullscreen(); return;
+  }
   // medir la luz y adaptar la exposición (todo en la placa, sin leer nada de vuelta; en celulares, un cuadro sí y otro no)
   R.cuadro++; R.tLuz += dt;
   if (!(DEB || WEAK) || R.cuadro % 2 === 0 || R.reset) {
@@ -10567,7 +10572,7 @@ function gameUpdate(dt, t) {
   GAME.revT -= dt;
   if (GAME.fase === 'menu') { menuUpdate(dt, t); audioUpdate(dt); hudUpdate(dt); if (GAME.revT <= 0) { GAME.revT = 0.5; redEstado(RED.estado); } return; }
   if (!WORLD.m) return;
-  if (GAME.practica) botsUpdate(dt); else salasUpdate(dt);
+  if (GAME.practica) { if (!(typeof DIAG !== 'undefined' && DIAG.botsQuietos)) botsUpdate(dt); } else salasUpdate(dt);
   const esH = GAME.rol === 'h';
   // la cámara: el Hunter ve un poco en lo oscuro y más lejos; los sobrevivientes, niebla y linterna
   GAME.expo = (esH ? 1.25 : 1.15) * SET.brillo; GAME.fogD = esH ? 0.03 : 0.04;
@@ -14877,6 +14882,45 @@ function updateCam() {
   CAM.VP = M4.mul(CAM.P, CAM.V);
   CAM.frustum = frustum(CAM.VP);
 }
+// ---------------------------------------------------------------------------------------------------------
+// ronda 25: el medidor (link con ?diag). Cada medio segundo: cuadros por segundo, cuánto tarda la CPU (la lógica y el
+// armado del dibujo), cuánto la placa (si el aparato deja medirla) y con qué se está dibujando. Tocándolo cambia de
+// prueba: normal, la mitad de resolución, sin personajes ni máquinas, sin bots y sin el post; con una foto de cada una
+// se sabe qué traba a un celular
+// ---------------------------------------------------------------------------------------------------------
+const DIAG = { on: Q.has('diag'), el: null, n: 0, sDt: 0, mDt: 0, sLog: 0, sDib: 0, sGpu: 0, nGpu: 0, t0: 0, modo: 0, q: [], ext: null, abierta: null };
+const DIAG_MODOS = ['normal', 'resolución 50 %', 'sin personajes ni máquinas', 'bots quietos', 'sin el post (lente)'];
+function diagGpu(ini) {
+  if (DIAG.ext === null) DIAG.ext = gl.getExtension('EXT_disjoint_timer_query_webgl2') || false;
+  const X = DIAG.ext; if (!X) return;
+  if (ini) { if (DIAG.abierta) return; const q = gl.createQuery(); gl.beginQuery(X.TIME_ELAPSED_EXT, q); DIAG.abierta = q; return; }
+  if (!DIAG.abierta) return; gl.endQuery(X.TIME_ELAPSED_EXT); DIAG.q.push(DIAG.abierta); DIAG.abierta = null;
+  while (DIAG.q.length && gl.getQueryParameter(DIAG.q[0], gl.QUERY_RESULT_AVAILABLE)) {
+    const q = DIAG.q.shift(); if (!gl.getParameter(X.GPU_DISJOINT_EXT)) { DIAG.sGpu += gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6; DIAG.nGpu++; } gl.deleteQuery(q);
+  }
+  if (DIAG.q.length > 8) { for (const q of DIAG.q) gl.deleteQuery(q); DIAG.q = []; }
+}
+function diagModo() {
+  const m = DIAG.modo; DBG.sinPJ = DBG.sinMaq = m === 2; DIAG.botsQuietos = m === 3; DIAG.sinPost = m === 4;
+  if (m === 1) { DINRES.off = true; R.esc = 0.5; } else if (R.esc === 0.5) { DINRES.off = false; R.esc = 1; DINRES.i = 0; }
+  R.reset = true;
+}
+function diagCuadro(dReal, msLog, msDib) {
+  if (!DIAG.el) {
+    const e = DIAG.el = document.createElement('div');
+    e.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:99;font:11px/1.3 monospace;color:#9f9;background:rgba(0,0,0,.72);padding:5px 7px;border-radius:6px;white-space:pre;pointer-events:auto';
+    e.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); DIAG.modo = (DIAG.modo + 1) % DIAG_MODOS.length; diagModo(); });
+    document.body.appendChild(e); DIAG.t0 = now();
+  }
+  DIAG.n++; DIAG.sDt += dReal; DIAG.mDt = Math.max(DIAG.mDt, dReal); DIAG.sLog += msLog; DIAG.sDib += msDib;
+  const t = now(); if (t - DIAG.t0 < 0.5) return;
+  const n = DIAG.n, gpu = DIAG.nGpu ? (DIAG.sGpu / DIAG.nGpu).toFixed(1) + ' ms' : DIAG.ext ? 'midiendo' : 'no se puede medir';
+  DIAG.el.textContent = 'fps ' + (n / (t - DIAG.t0)).toFixed(1) + '  cuadro ' + (DIAG.sDt / n * 1000).toFixed(1) + ' ms (peor ' + (DIAG.mDt * 1000).toFixed(0) + ')\n' +
+    'CPU lógica ' + (DIAG.sLog / n).toFixed(1) + ' ms  dibujo ' + (DIAG.sDib / n).toFixed(1) + ' ms\nplaca ' + gpu + '\n' +
+    perfilGraf() + ' · ' + varianteGraf() + ' · ' + Math.round(R.w * R.esc) + 'x' + Math.round(R.h * R.esc) + ' (' + Math.round(R.esc * 100) + '%) · ' + canvas.width + 'x' + canvas.height + ' dpr ' + (window.devicePixelRatio || 1).toFixed(2) + '\n' +
+    (GPU || '?').slice(0, 42) + '\nprueba: ' + DIAG_MODOS[DIAG.modo] + ' (tocá para cambiar)';
+  DIAG.n = 0; DIAG.sDt = DIAG.mDt = DIAG.sLog = DIAG.sDib = DIAG.sGpu = 0; DIAG.nGpu = 0; DIAG.t0 = t;
+}
 let PHYS_ACC = 0;
 let T0 = now(), LAST = now(), FRAMES = 0, FPS = 0, FPS_T = now();
 function frame() {
@@ -14884,11 +14928,15 @@ function frame() {
   // en el menú, los aparatos flojos dibujan a 30 (la cámara va despacio; ahorra batería y calor)
   if (!TEST && GAME.fase === 'menu' && (WEAK || nivelGraf() === 'bajo') && t - LAST < 0.028) { requestAnimationFrame(frame); return; }
   if (AUTO.corriendo) { LAST = t; if (!TEST || Q.has('loop')) requestAnimationFrame(frame); return; }          // (la prueba de gráficos dibuja y mueve el juego)
-  medirCuadro(t - LAST); const dt = Math.min(0.05, t - LAST); LAST = t;
+  medirCuadro(t - LAST); const dt = Math.min(0.05, t - LAST), dReal = t - LAST; LAST = t;
   try {
+    const a = DIAG.on ? performance.now() : 0;
     gameUpdate(dt, t - T0);
+    const b = DIAG.on ? performance.now() : 0;
     updateCam(); armarLuces();
+    if (DIAG.on) diagGpu(true);
     renderFrame(CAM, t - T0);
+    if (DIAG.on) { diagGpu(false); diagCuadro(dReal, b - a, performance.now() - b); }
   } catch (e) { if (!window.__err) { window.__err = String(e && e.stack || e); console.error(e); } }
   FRAMES++; if (t - FPS_T > 0.5) { FPS = FRAMES / (t - FPS_T); FRAMES = 0; FPS_T = t; }
   if (!TEST || Q.has('loop')) requestAnimationFrame(frame);
