@@ -79,7 +79,7 @@ function herramientasPaso(dt) {
   else { const r = raycast(CAM.pos, CAM.fwd, 4.5, null); if (r && r.body && r.body.obj) { const o = r.body.obj; if (o.veh) txt = 'E: subir'; else if (o.tipo === 'arma') txt = 'E: agarrar ' + o.nombre; else if (o.logica && (o.logica.tipo === 'Button' || o.logica.tipo === 'PasswordPanel')) txt = 'E: usar'; } }
   if (herramientasPaso.txt !== txt) { herramientasPaso.txt = txt; $('usarTxt').textContent = txt; }
   for (let k = HER.ents.length - 1; k >= 0; k--) {
-    const o = HER.ents[k]; if (!OBJS.includes(o)) { HER.ents.splice(k, 1); continue; }
+    const o = HER.ents[k]; if (!OBJS.includes(o)) { if (o.logica.tag) o.logica.tag.remove(); HER.ents.splice(k, 1); continue; }
     const L = o.logica, P = L.params, on = entradaActiva(L);
     L.t += dt;
     switch (L.tipo) {
@@ -139,6 +139,12 @@ function dibujarHerramientas() {
   for (const o of HER.ents) {
     for (const e of o.logica.entradas) if (OBJS.includes(e)) linea(e.b.pos, o.b.pos, e.logica && e.logica.salida ? [0.3, 1, 0.4, 0.9] : [0.2, 0.7, 1, 0.7]);
     if (o.nb) dibujarNextbot(o);
+    if (o.logica.tipo === 'Monitor') {
+      const L = o.logica; if (!L.tag) { L.tag = document.createElement('div'); L.tag.className = 'etiqueta monitor'; $('hud').appendChild(L.tag); }
+      const cl = L.texto ? clipDe(vadd(o.b.pos, o.b.q.rot(v3(0, 0.5, 0)))) : null;
+      if (cl && o.b.pos.distTo(CAM.pos) < 30) { const col = { Black: '#000', Red: '#b00', Blue: '#03a', Violet: '#606', Orange: '#c60', Pink: '#c4a', Green: '#080' }[L.color] || '#000';
+        L.tag.style.display = ''; L.tag.style.background = col; L.tag.textContent = L.texto; L.tag.style.transform = `translate(${cl.x}px,${cl.y}px) translate(-50%,-50%)`; } else L.tag.style.display = 'none';
+    }
   }
   if (HER.cable && OBJS.includes(HER.cable)) { const r = raycast(CAM.pos, CAM.fwd, 60, null); linea(HER.cable.b.pos, r ? r.p : vadd(CAM.pos, vscale(CAM.fwd, 10)), [1, 1, 0.3, 0.9]); }
 }

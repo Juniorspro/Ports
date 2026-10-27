@@ -6,6 +6,7 @@ function audioIniciar() {
   if (AUD.ctx) { if (AUD.ctx.state === 'suspended') AUD.ctx.resume(); return; }
   try { AUD.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
   AUD.master = AUD.ctx.createGain(); AUD.master.gain.value = PREFS.vol / 100; AUD.master.connect(AUD.ctx.destination);
+  for (const n of DATA.son) audioBuf(n);
 }
 function audioBuf(n) {
   if (AUD.buf[n]) return AUD.buf[n];

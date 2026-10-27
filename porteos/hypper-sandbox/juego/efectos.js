@@ -51,8 +51,11 @@ function dibujarEfectos() {
     for (const q of L) {
       if ((q.tipo !== 'humo') !== aditivo) continue;
       const k = q.t / q.vida, a = q.col[3] * (1 - k) * (aditivo ? 1 : Math.min(1, k * 6)), s = q.tam * (1 + q.crece * k);
-      const corners = [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]];
-      for (const c of corners) { D.set([q.p.x, q.p.y, q.p.z, q.col[0], q.col[1], q.col[2], a, c[0], c[1], s], n * 10); n++; }
+      for (let v = 0; v < 6; v++) {
+        if (n >= PART.max * 6) break;
+        const o = n * 10; D[o] = q.p.x; D[o + 1] = q.p.y; D[o + 2] = q.p.z; D[o + 3] = q.col[0]; D[o + 4] = q.col[1]; D[o + 5] = q.col[2]; D[o + 6] = a;
+        D[o + 7] = ESQ[v * 2]; D[o + 8] = ESQ[v * 2 + 1]; D[o + 9] = s; n++;
+      }
     }
     if (!n) return;
     gl.bindBuffer(gl.ARRAY_BUFFER, PART.buf); gl.bufferData(gl.ARRAY_BUFFER, D.subarray(0, n * 10), gl.STREAM_DRAW);
@@ -77,6 +80,7 @@ function dibujarCarteles() {
   }
   gl.enable(gl.CULL_FACE); gl.disable(gl.BLEND); gl.bindVertexArray(null); R.vaoAct = null; R.texAct = null; PART.extra.length = 0;
 }
+const ESQ = [-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1];
 const EF = { fog: 0 }, TRAZAS = [];
 function efectoTraza(a, b) { TRAZAS.push({ a: a.clone(), b: b.clone(), t: 0.06 }); }
 function dibujarTrazas() { for (const t of TRAZAS) linea(t.a, t.b, [1, 0.92, 0.6, 0.8 * t.t / 0.06]); }
