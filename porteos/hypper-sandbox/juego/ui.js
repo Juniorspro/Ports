@@ -19,26 +19,11 @@ function uiIniciar() {
   // pausa
   $('bSeguir').onclick = () => cerrarPaneles();
   $('bAjustes').onclick = () => abrirAjustes('pausa');
-  $('bAjustes2').onclick = () => abrirAjustes('principal');
   $('bLimpiar').onclick = () => { for (const o of OBJS.filter((x) => !x.remoto)) borrarObjeto(o); cerrarPaneles(); aviso('Listo: mapa limpio'); };
   $('bGuardar').onclick = () => { guardarConstruccion(); cerrarPaneles(); };
   $('bCargar').onclick = () => { cargarConstruccion(); cerrarPaneles(); };
   $('bSalirMenu').onclick = () => { cerrarPaneles(); irMenuPrincipal(); };
   $('bEmoCerrar').onclick = () => cerrarPaneles();
-  $('bSkins').onclick = () => abrirSkins();
-  $('bSkinOk').onclick = () => { $('skinsP').classList.add('oc'); guardarPrefs(); };
-  $('bJugar').onclick = () => { if (PREFS.modo === 'privada' && !(PREFS.codigo || '').trim()) { PREFS.codigo = Math.random().toString(36).slice(2, 7).toUpperCase(); $('codigo').value = PREFS.codigo; guardarPrefs(); } empezarPartida(PREFS.mapa); };
-  const modos = () => { for (const b of $('modos').children) b.classList.toggle('sel', b.dataset.m === PREFS.modo); $('codigo').classList.toggle('oc', PREFS.modo !== 'privada'); };
-  for (const b of $('modos').children) b.onclick = () => { PREFS.modo = b.dataset.m; guardarPrefs(); modos(); };
-  $('codigo').value = PREFS.codigo || ''; $('codigo').oninput = () => { PREFS.codigo = $('codigo').value.trim(); guardarPrefs(); };
-  modos();
-  $('nombre').value = PREFS.nombre; $('nombre').oninput = () => { PREFS.nombre = $('nombre').value.trim() || 'Player'; guardarPrefs(); };
-  const mp = $('mapas');
-  for (const m of MAPAS) {
-    const d = document.createElement('div'); d.className = 'mapa' + (m === PREFS.mapa ? ' sel' : ''); d.innerHTML = `<img src="${icono(MAPA_ICONO[m])}">${m}`;
-    d.onclick = () => { PREFS.mapa = m; guardarPrefs(); for (const x of mp.children) x.classList.remove('sel'); d.classList.add('sel'); };
-    mp.appendChild(d);
-  }
   // emotes
   const el = $('emoLista');
   for (const e of DATA.emotes) { const d = document.createElement('div'); d.className = 'skin'; d.innerHTML = `<img src="${icono(e === 'Kick' ? 'Roundhouse_Kick' : e)}" onerror="this.style.visibility='hidden'"><br>${e}`; d.onclick = () => { cerrarPaneles(); if (typeof emote === 'function') emote(e); }; el.appendChild(d); }
@@ -83,7 +68,18 @@ function spawnElegir(tab, nombre) {
   if (!UI.dup) cerrarPaneles();
 }
 // crea la cosa donde apunta el jugador (o 4 m adelante), mirándolo
+// reglas de la sala (Create Server del juego): Nextbot sí/no, tope de props y de vehículos
+let _vehs = null;
+function reglaSala(nombre) {
+  if (typeof SALA === 'undefined' || !SALA) return true;
+  if (!SALA.nb && /nextbot/i.test(nombre)) { aviso('Nextbot: OFF', 1.5); return false; }
+  if (!_vehs) { _vehs = new Set(); const v = DATA.menu.find((c) => c.n === 'Vehicles'); if (v) for (const sc of v.sub) for (const it of sc.it) _vehs.add(typeof it === 'string' ? it : it.n); }
+  const mios = OBJS.filter((o) => !o.remoto), nv = mios.filter((o) => _vehs.has(o.nombre)).length;
+  if (_vehs.has(nombre) ? nv >= SALA.mv : mios.length - nv >= SALA.mp) { aviso(Lc(_vehs.has(nombre) ? 'MaxVehiclesMessage' : 'MaxPropsMessage', 'Limit'), 2); return false; }
+  return true;
+}
 function spawnDelante(nombre, opt) {
+  if (!reglaSala(nombre)) return null;
   const cam = CAM, d = cam.fwd, h = raycast(cam.pos, d, 40, JUG.vehiculo ? JUG.vehiculo.b : null);
   const p = h ? vadd(cam.pos, vscale(d, Math.max(0.5, h.t - 0.05))) : vadd(cam.pos, vscale(d, 6));
   if (!h) { const g = mundoRayo(p, v3(0, -1, 0), 50); if (g) p.y -= g.t; }
@@ -95,7 +91,7 @@ function spawnDelante(nombre, opt) {
 function abrirSpawn() { UI.abierto = 'spawn'; $('spawn').classList.remove('oc'); spawnDibujar(); soltarPuntero(); }
 function cerrarPaneles() {
   UI.abierto = null;
-  for (const id of ['spawn', 'pausa', 'ajustes', 'emotes', 'skinsP']) $(id).classList.add('oc');
+  for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
   $('chatIn').classList.add('oc');
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }
@@ -127,19 +123,6 @@ function abrirAjustes(desde) {
     guardarPrefs(); aplicarGfx(); $('ajustes').classList.add('oc'); if (desde === 'pausa') $('pausa').classList.remove('oc');
   };
   $('ajustes').classList.remove('oc'); if (desde === 'pausa') $('pausa').classList.add('oc');
-}
-function abrirSkins() {
-  const sl = $('skinLista'), gl = $('gorroLista'); sl.innerHTML = ''; gl.innerHTML = '';
-  const retr = { Hero: 'hero', Soldier: 'soldier', Jean: 'jean', Derik: 'derik', Business: 'business', SpecialForcesW: 'specialforce', SpecialForcesM: 'specialforce_2', Prisoner01: 'Prisoner01', PilotFemale: 'PilotFemale', Butcher: 'Butcher', Swat: 'swat', Military: 'Military', Engineer: 'Engineer', Corpse: 'corpse' };
-  for (const s of DATA.chars) {
-    const d = document.createElement('div'); d.className = 'skin' + (PREFS.skin === s ? ' sel' : ''); d.innerHTML = `<img src="${icono(retr[s] || s)}">${s}`;
-    d.onclick = () => { PREFS.skin = s; abrirSkins(); }; sl.appendChild(d);
-  }
-  for (const h of DATA.hats) {
-    const d = document.createElement('div'); d.className = 'skin' + (PREFS.gorro === h ? ' sel' : ''); d.innerHTML = `<img src="${icono(h)}">${h.replace('Hat', '') || 'Nada'}`;
-    d.onclick = () => { PREFS.gorro = h; abrirSkins(); }; gl.appendChild(d);
-  }
-  $('skinsP').classList.remove('oc');
 }
 // ---------------- HUD por cuadro ----------------
 function hudActualizar(dt) {

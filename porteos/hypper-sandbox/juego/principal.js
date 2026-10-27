@@ -41,13 +41,14 @@ function aplicarGfx() {
   redimensionar();
 }
 function redimensionar() {
-  const dpr = Math.min(devicePixelRatio || 1, 2), w = innerWidth, h = innerHeight, k = dpr * GFX.escala;
+  const dpr = Math.min(devicePixelRatio || 1, 2), w = VW(), h = VH(), k = dpr * GFX.escala;
   R.cv.width = Math.max(160, Math.round(w * k)); R.cv.height = Math.max(120, Math.round(h * k));
 }
 addEventListener('resize', () => R.cv && redimensionar());
 // ---------------- cámara ----------------
 const CAM = { pos: v3(), q: new Quat(), qVista: new Quat(), fwd: v3(0, 0, 1), der: v3(1, 0, 0), arr: v3(0, 1, 0), fov: 70, temblor: 0 };
 function camaraActualizar(dt) {
+  if (JUEGO.estado === 'principal' && typeof lobbyCamara === 'function') { lobbyCamara(CAM); CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); return; }
   jugadorCamara(CAM);
   if (CAM.temblor > 0) { CAM.temblor = Math.max(0, CAM.temblor - dt * 1.5); const k = CAM.temblor * 0.03; CAM.q.mul(Quat.euler((Math.random() - 0.5) * k, (Math.random() - 0.5) * k)); }
   CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA);
@@ -64,17 +65,21 @@ function empezarPartida(mapa) {
   if (typeof personasLimpiar === 'function') personasLimpiar();
   cargarMapa(mapa); aplicarGfx();
   jugadorAparecer();
-  ARM.lista = ['RPG', 'Pistol', 'Camera', 'Hands', 'ToolBaton', 'PhysicsGun']; ARM.balas = {}; elegirArma(5);
-  $('principal').classList.add('oc'); $('hud').classList.remove('oc');
+  ARM.lista = ['RPG', 'Pistol', 'Camera', 'Hands', 'ToolBaton', 'PhysicsGun'];
+  if (typeof SALA !== 'undefined' && SALA && !SALA.rpg) ARM.lista = ARM.lista.filter((a) => a !== 'RPG');
+  ARM.balas = {}; elegirArma(ARM.lista.length - 1);
+  if (typeof menuMostrar === 'function') menuMostrar(false); $('hud').classList.remove('oc');
   JUEGO.estado = 'juego'; cerrarPaneles();
   if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo();
   if (typeof redEntrar === 'function') redEntrar(mapa);
   aviso(mapa, 2.5);
+  if (typeof MENU !== 'undefined' && MENU.cargarGuardado) { MENU.cargarGuardado = false; cargarConstruccion(); }
 }
 function irMenuPrincipal() {
   if (typeof redSalir === 'function') redSalir();
-  JUEGO.estado = 'principal'; $('hud').classList.add('oc'); $('principal').classList.remove('oc'); soltarPuntero();
-  if (!MUNDO.nombre) { cargarMapa(PREFS.mapa); aplicarGfx(); jugadorAparecer(); }
+  JUEGO.estado = 'principal'; $('hud').classList.add('oc'); soltarPuntero(); cerrarPaneles();
+  if (typeof SALA !== 'undefined') SALA = null;
+  menuMostrar(true);
 }
 function morirJugador() {
   JUG.vivo = false; JUG.muertoT = 3; soltarAgarre(); soltarGrav();
@@ -132,7 +137,6 @@ function cuadro(ahora) {
     if (ARM.rotando) { ENT.rdx = mx; ENT.rdy = my; }
     else { JUG.yaw -= mx * ENT.sens * (ARM.zoom ? 0.25 : 1); JUG.pitch = clamp(JUG.pitch + my * ENT.sens * (ARM.zoom ? 0.25 : 1), -1.55, 1.55); }
   }
-  if (JUEGO.estado === 'principal') { JUG.yaw += dt * 0.08; JUG.pitch = 0.08; }
   // simulación con paso fijo
   TIEMPO.acc += dt; const paso = 1 / 60; let n = 0;
   while (TIEMPO.acc >= paso && n < 3) {
@@ -170,8 +174,22 @@ function cuadro(ahora) {
     TIEMPO.cuadros = 0; TIEMPO.medT = 0; TIEMPO.ms = 0;
   }
 }
+// el lobby del menú: fondo crema de la cámara del juego y, en la tienda, el personaje con la luz de la escena
+const LOBBY_LUZ = { sol: v3(-0.322, 0.765, -0.557), solCol: [1, 0.957, 0.839], amb: [0.44, 0.43, 0.42], fondo: [0.945, 0.925, 0.875] };
+function dibujarMenu() {
+  const gl = R.gl, W = R.cv.width, H = R.cv.height, F = LOBBY_LUZ.fondo;
+  gl.viewport(0, 0, W, H); gl.clearColor(F[0], F[1], F[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  if (!MENU.lobby) return;
+  const g = { sol: R.sol.clone(), solCol: R.solCol, ambS: R.ambS, ambG: R.ambG, niebla: R.niebla };
+  R.sol.copy(LOBBY_LUZ.sol); R.solCol = LOBBY_LUZ.solCol; R.ambS = LOBBY_LUZ.amb; R.ambG = LOBBY_LUZ.amb; R.niebla = { c: F, a: 900, b: 1000 };
+  const P = M4.persp(60 * Math.PI / 180, W / H, 0.08, 50), V = M4.view(CAM.pos, CAM.qVista);
+  m4mul(P, V, R.vp); R.fr = frustum(R.vp); R.camPos.copy(CAM.pos);
+  dibujarLobby(); dibujarCola();
+  R.sol.copy(g.sol); R.solCol = g.solCol; R.ambS = g.ambS; R.ambG = g.ambG; R.niebla = g.niebla;
+}
 function dibujar() {
   const gl = R.gl, W = R.cv.width, H = R.cv.height;
+  if (JUEGO.estado === 'principal' && typeof dibujarMenu === 'function' && MENU.el) return dibujarMenu();
   gl.viewport(0, 0, W, H);
   const N = R.niebla.c; gl.clearColor(N[0], N[1], N[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   const asp = W / H;
@@ -207,11 +225,10 @@ async function iniciar() {
   $('cargaLogo').src = icono('c'); $('cargaLogo').style.display = 'block';
   GFX.base = perfilInicial(); aplicarGfx();
   efectosIniciar(); uiIniciar(); entradaIniciar();
-  // mapa de fondo para el menú
-  cargarMapa(MAPAS.includes(PREFS.mapa) ? PREFS.mapa : 'Desert'); aplicarGfx(); jugadorAparecer();
+  menuIniciar(); pantallaIniciar();
   $('carga').classList.add('oc');
   if (Q.get('mapa')) empezarPartida(Q.get('mapa'));
-  else { JUEGO.estado = 'principal'; $('principal').classList.remove('oc'); }
+  else { JUEGO.estado = 'principal'; menuMostrar(true); }
   addEventListener('pointerdown', audioIniciar, { once: false });
   requestAnimationFrame(cuadro);
   window.__listo = true;

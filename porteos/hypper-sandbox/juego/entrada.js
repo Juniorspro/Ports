@@ -28,6 +28,36 @@ function entradaIniciar() {
   addEventListener('wheel', (e) => { if (JUEGO.estado === 'juego' && !UI.abierto) ENT.rueda += Math.sign(e.deltaY); }, { passive: true });
   tactilIniciar();
 }
+// ---------------- pantalla horizontal ----------------
+// El juego es horizontal como el original. En un celular parado: al tocar se pide pantalla completa y trabar
+// la orientación; si el navegador no deja (iPhone, o sin pantalla completa) se gira todo 90° con CSS y los
+// toques se pasan a las coordenadas giradas.
+const PANT = { rot: false, pedido: false };
+const VW = () => (PANT.rot ? innerHeight : innerWidth), VH = () => (PANT.rot ? innerWidth : innerHeight);
+const tX = (t) => (PANT.rot ? t.clientY : t.clientX), tY = (t) => (PANT.rot ? innerWidth - t.clientX : t.clientY);
+function pantallaRevisar() {
+  const rot = COARSE && innerHeight > innerWidth * 1.05 && !Q.get('sinGiro');
+  PANT.rot = rot; document.documentElement.classList.toggle('rot', rot);
+  const b = document.body.style;
+  if (rot) { b.width = innerHeight + 'px'; b.height = innerWidth + 'px'; } else { b.width = ''; b.height = ''; }
+  const r = document.documentElement.style; r.setProperty('--vw', VW() / 100 + 'px'); r.setProperty('--vh', VH() / 100 + 'px');
+  if (R.cv) redimensionar();
+  if (typeof menuEscala === 'function') menuEscala();
+}
+function pantallaIniciar() {
+  pantallaRevisar();
+  addEventListener('resize', pantallaRevisar);
+  if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', () => setTimeout(pantallaRevisar, 60));
+  const pedir = () => {
+    if (!COARSE || PANT.pedido || document.fullscreenElement) return;
+    PANT.pedido = true;
+    const trabar = () => { try { screen.orientation.lock('landscape').then(() => setTimeout(pantallaRevisar, 120)).catch(() => {}); } catch (e) {} };
+    const d = document.documentElement;
+    if (d.requestFullscreen) d.requestFullscreen({ navigationUI: 'hide' }).then(trabar).catch(trabar); else trabar();
+  };
+  addEventListener('touchend', pedir); addEventListener('click', pedir);
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) PANT.pedido = false; setTimeout(pantallaRevisar, 120); });
+}
 // ---------------- táctil ----------------
 const TOQ = { palanca: null, mira: null };
 function tactilIniciar() {
@@ -39,21 +69,21 @@ function tactilIniciar() {
   zona.addEventListener('touchstart', (e) => {
     ENT.tactil = true; document.body.classList.add('tactil');
     for (const t of e.changedTouches) {
-      if (t.clientX < innerWidth * 0.4 && !TOQ.palanca) {
-        TOQ.palanca = { id: t.identifier, x: t.clientX, y: t.clientY };
-        pal.style.left = t.clientX - 60 + 'px'; pal.style.top = t.clientY - 60 + 'px'; pal.classList.add('activa');
-      } else if (!TOQ.mira) TOQ.mira = { id: t.identifier, x: t.clientX, y: t.clientY };
+      if (tX(t) < VW() * 0.4 && !TOQ.palanca) {
+        TOQ.palanca = { id: t.identifier, x: tX(t), y: tY(t) };
+        pal.style.left = tX(t) - 60 + 'px'; pal.style.top = tY(t) - 60 + 'px'; pal.classList.add('activa');
+      } else if (!TOQ.mira) TOQ.mira = { id: t.identifier, x: tX(t), y: tY(t) };
     }
     e.preventDefault();
   }, { passive: false });
   zona.addEventListener('touchmove', (e) => {
     for (const t of e.changedTouches) {
       if (TOQ.palanca && t.identifier === TOQ.palanca.id) {
-        let dx = (t.clientX - TOQ.palanca.x) / 50, dy = (t.clientY - TOQ.palanca.y) / 50; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; }
+        let dx = (tX(t) - TOQ.palanca.x) / 50, dy = (tY(t) - TOQ.palanca.y) / 50; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; }
         ENT.x = dx; ENT.y = -dy; ENT.correr = l > 1.6; bola.style.transform = `translate(${dx * 45}px,${dy * 45}px)`;
       } else if (TOQ.mira && t.identifier === TOQ.mira.id) {
-        ENT.dx += (t.clientX - TOQ.mira.x) * (ENT.sensT / ENT.sens); ENT.dy += (t.clientY - TOQ.mira.y) * (ENT.sensT / ENT.sens);
-        TOQ.mira.x = t.clientX; TOQ.mira.y = t.clientY;
+        ENT.dx += (tX(t) - TOQ.mira.x) * (ENT.sensT / ENT.sens); ENT.dy += (tY(t) - TOQ.mira.y) * (ENT.sensT / ENT.sens);
+        TOQ.mira.x = tX(t); TOQ.mira.y = tY(t);
       }
     }
     e.preventDefault();
@@ -70,7 +100,7 @@ function tactilIniciar() {
   }
   // el disparo táctil también deja mirar mientras se mantiene
   const bd = $('bdisparo');
-  if (bd) bd.addEventListener('touchmove', (e) => { for (const t of e.changedTouches) { if (bd._u) { ENT.dx += (t.clientX - bd._u.x) * (ENT.sensT / ENT.sens); ENT.dy += (t.clientY - bd._u.y) * (ENT.sensT / ENT.sens); } bd._u = { x: t.clientX, y: t.clientY }; } e.preventDefault(); }, { passive: false });
+  if (bd) bd.addEventListener('touchmove', (e) => { for (const t of e.changedTouches) { if (bd._u) { ENT.dx += (tX(t) - bd._u.x) * (ENT.sensT / ENT.sens); ENT.dy += (tY(t) - bd._u.y) * (ENT.sensT / ENT.sens); } bd._u = { x: tX(t), y: tY(t) }; } e.preventDefault(); }, { passive: false });
   if (bd) bd.addEventListener('touchend', () => (bd._u = null));
 }
 function entradaLeer() {

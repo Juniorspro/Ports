@@ -27,6 +27,7 @@ function crearPersona(skin, gorro, opt) {
     const gi = arb.findIndex((n) => n.pa === hats && n.n === gorro);
     if (gi >= 0) { P.gorroMd = new Modelo(subArbol(arb, gi)); P.gorroL = new Float32Array(16); m4trs(arb[gi].p, arb[gi].r, arb[gi].s, P.gorroL); P.gorroMd.p[0] = [0, 0, 0]; P.gorroMd.r[0] = [0, 0, 0, 1]; P.gorroMd.s[0] = [1, 1, 1]; }
   }
+  P.hum = humanoPreparar(P);
   PERS.push(P); return P;
 }
 function borrarPersona(P) { const i = PERS.indexOf(P); if (i >= 0) PERS.splice(i, 1); if (P.rag) ragdollFin(P); }
@@ -46,7 +47,7 @@ function aplicarGiros(P) {
   }
 }
 // el cuerpo según lo que hace
-function animarPersona(P, dt) { P.acc = {}; animarPersona0(P, dt); aplicarGiros(P); }
+function animarPersona(P, dt) { if (P.hum) { if (P.emote) P.emoteT += dt; animarHumano(P, dt); return; } P.acc = {}; animarPersona0(P, dt); aplicarGiros(P); }
 function animarPersona0(P, dt) {
   const md = P.md; for (let i = 0; i < md.r.length; i++) { const b = P.base[i], r = md.r[i]; r[0] = b[0]; r[1] = b[1]; r[2] = b[2]; r[3] = b[3]; }
   P.t += dt;

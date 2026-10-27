@@ -14,8 +14,8 @@ const abrir = async (n) => { const p = await b.newPage({ viewport: { width: 640,
 const ev = (p, c) => p.evaluate((c) => window.__ev(c), c);
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const R = []; const ok = (n, c, d) => { R.push(!!c); console.log((c ? 'OK   ' : 'FALLA') + ' ' + n + ' · ' + JSON.stringify(d)); };
-const A = await abrir('A'); await ev(A, "PREFS.nombre='Ana'; PREFS.modo='libre'; PREFS.skin='Soldier'; empezarPartida('FlatGrass'); 1");
-const B = await abrir('B'); await ev(B, "PREFS.nombre='Beto'; PREFS.modo='libre'; PREFS.skin='Jean'; PREFS.gorro='HatParty'; empezarPartida('FlatGrass'); 1");
+const A = await abrir('A'); await ev(A, "PREFS.nombre='Ana'; PREFS.skin='Soldier'; entrarSala(SALAS_OF.find((s) => s.m === 'FlatGrass')); 1");
+const B = await abrir('B'); await ev(B, "PREFS.nombre='Beto'; PREFS.skin='Jean'; PREFS.gorro='HatParty'; entrarSala(SALAS_OF.find((s) => s.m === 'FlatGrass')); 1");
 await espera(4000);
 let a = await ev(A, "JSON.stringify({on:RED.on, rem:[...RED.remotos.values()].map(r=>r.nombre+':'+r.skin)})"), bb = await ev(B, "JSON.stringify({on:RED.on, rem:[...RED.remotos.values()].map(r=>r.nombre+':'+r.skin)})");
 ok('los dos conectados y se ven', JSON.parse(a).rem.includes('Beto:Jean') && JSON.parse(bb).rem.includes('Ana:Soldier'), { a, bb });
@@ -42,9 +42,35 @@ await ev(B, "const r=[...RED.remotos.values()][0]; danarPersona(r.P, 30, r.P.pos
 const vidaA = JSON.parse(await ev(A, "JSON.stringify(JUG.vida)"));
 ok('el daño llega a Ana', vidaA === 70, vidaA);
 await A.screenshot({ path: pref + '_A.png' }); await B.screenshot({ path: pref + '_B.png' });
+// lista de servidores: un tercero en el menú ve la sala oficial con 2 jugadores
+const C = await abrir('C'); await ev(C, "overlay('NicknamePanel', false); menuAccion('Main/MainMenu/Multiplayer'); 1"); await espera(2500);
+await ev(C, "menuAccion('Main/Multiplayer/Main/Server List'); 1"); await espera(1500);
+let lc = JSON.parse(await ev(C, "JSON.stringify(listaSalas().filter((e) => e.j.length).map((e) => [e.S.n, e.j.length, e.j.sort().join('+')]))"));
+let filas = JSON.parse(await ev(C, "JSON.stringify(document.querySelectorAll('.sala').length)"));
+ok('la lista muestra la sala oficial con Ana y Beto', lc.length === 1 && lc[0][1] === 2 && lc[0][2] === 'Ana+Beto' && filas === 8, { lc, filas });
+await C.screenshot({ path: pref + '_lista.png' });
+// Ana crea un servidor con clave y sin PvP: aparece en la lista con candado; con la clave mala no entra
+await ev(A, "irMenuPrincipal(); seccion('Multiplayer'); subMp('ServerCreate'); MENU.ent.ServerNameFieldNew.value='Casa de Ana'; MENU.ent.Password.value='4321'; MENU.tg.PvPToogle=false; PREFS.mapa='Desert'; menuAccion('Main/Multiplayer/ServerCreate/ServerCreate/CreateServerButton'); 1");
+await espera(2500);
+lc = JSON.parse(await ev(C, "JSON.stringify(listaSalas().filter((e) => e.j.length).map((e) => [e.S.n, e.j.length, e.S.pw, e.S.pvp, e.S.m]))"));
+ok('la sala nueva aparece con candado, sin PvP y en Desert', lc.some((x) => x[0] === 'Casa de Ana' && x[1] === 1 && x[2] === 1 && x[3] === 0 && x[4] === 'Desert'), lc);
+await ev(C, "const e = listaSalas().find((x) => x.S.n === 'Casa de Ana'); entrarSala(e.S); 1"); await espera(300);
+const pwVis = JSON.parse(await ev(C, "JSON.stringify(!nodo('Main/PasswordPanel').off)"));
+await ev(C, "nodo('Main/PasswordPanel/Password/Password').inp.value='1111'; comprobarClave(); 1"); await espera(300);
+const sigue = JSON.parse(await ev(C, "JSON.stringify(JUEGO.estado)"));
+ok('pide clave y con la mala no entra', pwVis === true && sigue === 'principal', { pwVis, sigue });
+await ev(C, "nodo('Main/PasswordPanel/Password/Password').inp.value='4321'; comprobarClave(); 1"); await espera(4000);
+const cc = JSON.parse(await ev(C, "JSON.stringify({e: JUEGO.estado, m: MUNDO.nombre, rem: [...RED.remotos.values()].map((r) => r.nombre)})"));
+ok('con la clave buena entra y ve a Ana', cc.e === 'juego' && cc.m === 'Desert' && cc.rem.includes('Ana'), cc);
+await ev(C, "PREFS.nombre='Caro'; const r=[...RED.remotos.values()][0]; danarPersona(r.P, 30, r.P.pos, v3(0,0,1)); 1"); await espera(700);
+const vidaA2 = JSON.parse(await ev(A, "JSON.stringify(JUG.vida)"));
+ok('sin PvP el daño no llega', vidaA2 === 100, vidaA2);
+await ev(A, "irMenuPrincipal(); 1"); await espera(1500);
+lc = JSON.parse(await ev(C, "JSON.stringify(listaSalas().filter((e) => e.S.n === 'Casa de Ana').map((e) => e.j.length))"));
+ok('al irse Ana queda 1 jugador (Caro) en su sala', lc[0] === 1, lc);
 // Beto se va: Ana deja de verlo
 await ev(B, "irMenuPrincipal(); 1"); await espera(1500);
-a = JSON.parse(await ev(A, "JSON.stringify({rem:RED.remotos.size})"));
-ok('al irse Beto, Ana deja de verlo', a.rem === 0, a);
+lc = JSON.parse(await ev(C, "JSON.stringify(listaSalas().filter((e) => e.S.m === 'FlatGrass' && e.S.of).map((e) => e.j.length))"));
+ok('al irse Beto, la sala oficial queda vacía en la lista', lc[0] === 0, lc);
 console.log(errs.join('\n')); console.log(R.filter(Boolean).length + '/' + R.length);
 await b.close(); srv.close(); process.exit(0);

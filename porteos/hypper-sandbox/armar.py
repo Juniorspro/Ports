@@ -4,7 +4,7 @@ import os, sys, json, base64, gzip
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PK, OUT = sys.argv[1], sys.argv[2]
 ORDEN = ['nucleo', 'gl', 'datos', 'modelo', 'fisica', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'armas',
-         'vehiculos', 'herramientas', 'personas', 'red', 'entrada', 'ui', 'principal']
+         'vehiculos', 'herramientas', 'personas', 'humano', 'red', 'entrada', 'ui', 'menu', 'principal']
 js = '(() => {\n"use strict";\n' + '\n'.join(open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read() for n in ORDEN) + '\n})();'
 # paquete: un solo bloque con índice
 partes = [('d', open(os.path.join(PK, 'd.json.gz'), 'rb').read()), ('m', open(os.path.join(PK, 'm.bin.gz'), 'rb').read())]

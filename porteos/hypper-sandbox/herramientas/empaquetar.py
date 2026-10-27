@@ -86,7 +86,17 @@ for k, fn, sz in idx:
 esc = {NOMBRES[k]: v for k, v in d['escenas'].items() if k in NOMBRES}
 aj = {NOMBRES[k]: v for k, v in d.get('ajustes', {}).items() if k in NOMBRES}
 an = json.load(open(EXP + '/anims.json'))
-salida = dict(esc=esc, aj=aj, pf=d['prefabs'], mt=d['mats'], tx=tex, ms=d['mallas'], menu=menu, herr=herr,
+hu = json.load(open(EXP + '/humano.json')) if os.path.exists(EXP + '/humano.json') else None
+# menú real (LobbyCanvas) sin paneles de compras/anuncios/pruebas, y la tabla de idiomas del juego
+QUITAR = {'MapListTest', 'QuickConnectTest', 'ClearPlayerPrefsTest', 'GetAvatarTest', 'BonusPanel', 'Purchases', 'StarterPack', 'Ad', 'Bonus', 'GooglePlayGames',
+          'NewVersionAvailable', 'Later', 'UpdateYN', 'UpdateRoot', 'StarterPackOld', 'BonusItemsPanel', 'Dicrord', 'SantaHat', 'PoliciButton', 'Create Map', 'NeedUpdate', 'StarterPackButton'}
+def podar(n):
+    n['ch'] = [podar(c) for c in n.get('ch', []) if c['n'] not in QUITAR]
+    if not n['ch']: del n['ch']
+    return n
+mui = json.load(open(EXP + '/menu_ui.json')); mui['ui'] = podar(mui['ui'])
+loc = json.load(open(EXP + '/loc.json'))
+salida = dict(ui=mui, loc=loc, hu=hu, esc=esc, aj=aj, pf=d['prefabs'], mt=d['mats'], tx=tex, ms=d['mallas'], menu=menu, herr=herr,
               chars=chars, hats=hats, emotes=emotes, an=an, son=sons, ico=ico)
 js = json.dumps(salida, separators=(',', ':')).encode()
 open(OUT + '/d.json.gz', 'wb').write(gzip.compress(js, 9))
