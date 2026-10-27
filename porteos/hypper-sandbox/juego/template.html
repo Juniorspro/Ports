@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1b1d22">
+<title>Hypper Sandbox</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:Roboto,Arial,Helvetica,sans-serif;color:#fff;touch-action:none}
+#cv{position:fixed;inset:0;width:100%;height:100%;display:block}
+#toque{position:fixed;inset:0;z-index:1}
+.oc{display:none!important}
+/* HUD */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:2}
+#hud .bt{pointer-events:auto}
+.redondo{width:44px;height:44px;border-radius:50%;background:rgba(40,52,70,.55);display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer}
+.redondo img{width:26px;height:26px;object-fit:contain}
+.redondo small{position:absolute;bottom:-11px;left:0;right:0;text-align:center;font-size:8px;opacity:.85}
+#arribaIz{position:absolute;left:10px;top:8px;display:flex;gap:14px}
+#arribaDe{position:absolute;right:10px;top:8px;display:flex;gap:14px;align-items:flex-start}
+#armaAct{width:56px;text-align:center;font-size:9px}
+#armaAct img{width:52px;height:30px;object-fit:contain;background:rgba(40,52,70,.55);border-radius:4px;display:block}
+#muni{position:absolute;right:14px;top:62px;font-size:12px;font-weight:bold;text-shadow:0 1px 2px #000}
+#barra{position:absolute;right:10px;top:6px;display:flex;gap:4px}
+#barra .ra{width:44px;height:40px;background:rgba(40,52,70,.6);border:2px solid transparent;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:7px;pointer-events:auto}
+#barra .ra img{width:38px;height:24px;object-fit:contain}
+#barra .ra.sel{border-color:#6be06b}
+#vida{position:absolute;left:0;bottom:0;width:150px;height:18px;background:#9b1b1b;display:flex;align-items:center;font-size:11px;font-weight:bold}
+#vida i{position:absolute;left:0;top:0;bottom:0;background:#e53030}
+#vida img{width:14px;height:14px;margin:0 6px;position:relative}
+#vida span{position:relative;margin-left:auto;margin-right:8px}
+#fps{position:absolute;left:50%;bottom:2px;transform:translateX(-50%);font-size:11px;opacity:.75;text-shadow:0 1px 2px #000}
+#mira{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;opacity:.9}
+#mira:before,#mira:after{content:'';position:absolute;background:#fff;box-shadow:0 0 2px #000}
+#mira:before{left:8px;top:2px;width:2px;height:14px}
+#mira:after{top:8px;left:2px;height:2px;width:14px}
+#aviso{position:absolute;left:50%;top:22%;transform:translateX(-50%);background:rgba(0,0,0,.55);padding:6px 14px;border-radius:4px;font-size:13px;opacity:0;transition:opacity .3s}
+#aviso.ve{opacity:1}
+#usarTxt{position:absolute;left:50%;top:58%;transform:translateX(-50%);font-size:13px;text-shadow:0 1px 3px #000}
+/* táctil */
+#tactil{display:none}
+body.tactil #tactil{display:block}
+#palanca{position:absolute;width:120px;height:120px;left:40px;bottom:40px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.25);pointer-events:none;opacity:.6}
+#palanca.activa{opacity:1}
+#palbola{position:absolute;left:35px;top:35px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.45)}
+.bt-t{position:absolute;width:62px;height:62px;border-radius:50%;background:rgba(40,52,70,.55);border:2px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;pointer-events:auto;font-size:10px;font-weight:bold}
+.bt-t img{width:32px;height:32px;object-fit:contain}
+.bt-t.ap{background:rgba(120,140,170,.7)}
+#bdisparo{right:22px;bottom:110px;width:76px;height:76px}
+#bsaltar{right:110px;bottom:30px}
+#bagachar{right:190px;bottom:22px;width:50px;height:50px}
+#brecargar{right:110px;bottom:110px;width:50px;height:50px}
+#busar{right:30px;bottom:24px;width:56px;height:56px}
+#bdisp2{right:110px;bottom:180px;width:50px;height:50px}
+#brotar{right:22px;bottom:200px;width:50px;height:50px}
+#blejos{right:180px;bottom:180px;width:44px;height:44px}
+#bcerca{right:180px;bottom:120px;width:44px;height:44px}
+/* menú de spawn (como el del juego) */
+#spawn{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(900px,94vw);height:min(500px,86vh);z-index:5;display:flex;flex-direction:column}
+#spawn .tabs{display:flex;gap:2px;height:28px}
+#spawn .tab{background:#3b3d42;color:#ddd;font-size:12px;padding:0 10px;display:flex;align-items:center;gap:5px;cursor:pointer;border-radius:3px 3px 0 0}
+#spawn .tab img{height:16px;width:auto}
+#spawn .tab.sel{background:#4a4c52;color:#fff}
+#spawn .cuerpo{flex:1;display:flex;background:#3a3a3a;border:4px solid #4a4c52;min-height:0}
+#spawn .cats{width:150px;background:#f2f2f2;color:#222;overflow:auto;padding:4px 0}
+#spawn .cat{font-size:12px;padding:6px 8px;display:flex;align-items:center;gap:6px;cursor:pointer}
+#spawn .cat:before{content:'';width:14px;height:11px;background:#e8b84a;border-radius:2px;display:inline-block}
+#spawn .cat.sel{background:#d5dbe6}
+#spawn .grilla{flex:1;overflow:auto;padding:6px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:4px}
+#spawn .it{width:62px;cursor:pointer;text-align:center;font-size:8.5px;color:#ddd;padding:2px;border-radius:3px}
+#spawn .it:hover,#spawn .it:active{background:#555}
+#spawn .it img{width:58px;height:44px;object-fit:contain;display:block;margin:0 auto 2px}
+#spawn .pie{height:26px;background:#3a3a3a;font-size:11px;display:flex;align-items:center;gap:16px;padding:0 8px;border-top:1px solid #4a4c52}
+#spawn .pie label{display:flex;align-items:center;gap:4px}
+#spawn .pie input{margin:0}
+#spawn .cerrar{position:absolute;left:50%;top:-38px;transform:translateX(-50%);width:34px;height:34px}
+#spawn .herr{flex:1;display:flex;min-width:0}
+#spawn .ins{width:220px;background:#2f3034;padding:8px;font-size:12px;overflow:auto}
+#spawn .ins h4{margin:0 0 6px;font-size:13px}
+#spawn .ins label{display:block;margin:6px 0 2px;color:#bbb}
+#spawn .ins input,#spawn .ins select{width:100%;background:#1f2024;color:#fff;border:1px solid #555;padding:4px;font-size:12px}
+/* paneles */
+.panel{position:fixed;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}
+.caja{background:#2a2c31;border-radius:6px;padding:16px;min-width:260px;max-width:94vw;max-height:90vh;overflow:auto}
+.caja h3{margin:0 0 12px;font-size:16px}
+.boton{display:block;width:100%;margin:6px 0;padding:10px;background:#3e6fd8;border:0;color:#fff;font-size:14px;border-radius:4px;cursor:pointer;font-weight:bold}
+.boton.gris{background:#4b4e56}
+.fila{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:13px}
+.fila select,.fila input[type=range]{flex:1}
+/* menú principal */
+#principal{position:fixed;inset:0;z-index:7;background:linear-gradient(#5aa2e6,#c8dcef 60%,#e6d3a8);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+#principal .logo{width:min(420px,70vw);max-height:16vh;object-fit:contain}
+#principal .mapas{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:820px}
+#principal .mapa{width:110px;background:rgba(0,0,0,.35);border-radius:6px;padding:4px;cursor:pointer;text-align:center;font-size:11px;border:2px solid transparent}
+#principal .mapa.sel{border-color:#fff}
+#principal .mapa img{width:100%;height:70px;object-fit:cover;border-radius:4px;display:block}
+@media (max-height:500px){#principal{gap:6px;justify-content:flex-start;padding-top:6px}#principal .mapas{flex-wrap:nowrap;overflow-x:auto;max-width:96vw;padding-bottom:4px}#principal .mapa{flex:0 0 92px;width:92px}#principal .mapa img{height:50px}#principal .boton{padding:8px 14px}#principal .nombre{padding:5px}}
+#principal .botones{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+#principal .botones .boton{width:auto;padding:10px 22px}
+#principal .nombre{background:rgba(0,0,0,.35);border:0;color:#fff;padding:8px;border-radius:4px;font-size:14px;width:200px;text-align:center}
+#carga{position:fixed;inset:0;z-index:9;background:#1b1d22;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-size:13px}
+#carga .b{width:220px;height:6px;background:#333;border-radius:3px;overflow:hidden}
+#carga .b i{display:block;height:100%;width:0;background:#3e6fd8}
+#principal .modos{display:flex;gap:6px}
+#principal .modos button{background:rgba(0,0,0,.35);border:2px solid transparent;color:#fff;padding:7px 16px;border-radius:4px;font-weight:bold;cursor:pointer}
+#principal .modos button.sel{border-color:#fff;background:rgba(62,111,216,.8)}
+.etiqueta{position:absolute;left:0;top:0;font-size:12px;font-weight:bold;text-shadow:0 1px 3px #000;white-space:nowrap;pointer-events:none}
+#redEst{position:absolute;left:10px;top:66px;font-size:10px;opacity:.8;text-shadow:0 1px 2px #000}
+#chat{position:absolute;left:10px;bottom:26px;width:min(360px,70vw);font-size:12px;text-shadow:0 1px 2px #000}
+#chat div{margin:1px 0}
+#chatIn{position:fixed;left:10px;bottom:30px;width:min(420px,80vw);z-index:6;background:rgba(0,0,0,.6);border:1px solid #888;color:#fff;padding:8px;font-size:14px}
+.skins{display:flex;flex-wrap:wrap;gap:6px;max-width:520px}
+.skin{width:76px;text-align:center;font-size:10px;cursor:pointer;border:2px solid transparent;border-radius:4px;padding:2px}
+.skin.sel{border-color:#6be06b}
+.skin img{width:68px;height:68px;object-fit:cover;border-radius:4px;background:#444}
+</style></head>
+<body>
+<canvas id="cv"></canvas>
+<div id="toque"></div>
+<div id="hud" class="oc">
+  <div id="arribaIz">
+    <div class="redondo bt" data-btn="pausa"><img id="iPausa"><small>(P)</small></div>
+    <div class="redondo bt" data-btn="menu"><img id="iMenu"><small>(TAB)</small></div>
+    <div class="redondo bt" data-btn="chat"><img id="iChat"><small>(T)</small></div>
+  </div>
+  <div id="arribaDe">
+    <div class="redondo bt" data-btn="emotes"><img id="iEmote"><small>(B)</small></div>
+    <div class="redondo bt" data-btn="camara"><img id="iCam"><small>(V)</small></div>
+    <div id="armaAct" class="bt" data-btn="siguienteArma"><img id="iArma"><span id="nArma"></span></div>
+  </div>
+  <div id="barra" class="oc"></div>
+  <div id="muni"></div>
+  <div id="redEst"></div>
+  <div id="mira"></div>
+  <div id="usarTxt"></div>
+  <div id="aviso"></div>
+  <div id="chat"></div>
+  <div id="vida"><i id="vidaB"></i><img id="iVida"><span id="vidaN">100</span></div>
+  <div id="fps"></div>
+  <div id="tactil">
+    <div id="palanca"><div id="palbola"></div></div>
+    <div class="bt-t" id="bdisparo" data-btn="disparo" data-mantener><img id="iDisp"></div>
+    <div class="bt-t" id="bdisp2" data-btn="disparo2" data-mantener>2</div>
+    <div class="bt-t" id="bsaltar" data-btn="saltar" data-mantener><img id="iSalto"></div>
+    <div class="bt-t" id="bagachar" data-btn="agachar" data-mantener>▼</div>
+    <div class="bt-t" id="brecargar" data-btn="recargar">R</div>
+    <div class="bt-t" id="busar" data-btn="usar"><img id="iUsar"></div>
+    <div id="fisBotones" class="oc">
+      <div class="bt-t" id="brotar" data-btn="rotar" data-mantener><img id="iRotar"></div>
+      <div class="bt-t" id="blejos" data-btn="lejos">+</div>
+      <div class="bt-t" id="bcerca" data-btn="cerca">−</div>
+    </div>
+  </div>
+</div>
+<div id="spawn" class="oc">
+  <img class="cerrar redondo" id="iCerrarSpawn">
+  <div class="tabs" id="tabs"></div>
+  <div class="cuerpo"><div class="cats" id="cats"></div><div class="grilla" id="grilla"></div><div class="ins oc" id="ins"></div></div>
+  <div class="pie" id="pie"></div>
+</div>
+<div id="pausa" class="panel oc"><div class="caja">
+  <h3 id="tPausa">Pausa</h3>
+  <button class="boton" id="bSeguir">Seguir</button>
+  <button class="boton gris" id="bAjustes">Ajustes</button>
+  <button class="boton gris" id="bLimpiar">Borrar todo</button>
+  <button class="boton gris" id="bGuardar">Guardar construcción</button>
+  <button class="boton gris" id="bCargar">Cargar construcción</button>
+  <button class="boton gris" id="bSalirMenu">Menú principal</button>
+</div></div>
+<div id="ajustes" class="panel oc"><div class="caja" id="ajustesCaja"></div></div>
+<div id="emotes" class="panel oc"><div class="caja"><h3>Emotes</h3><div class="skins" id="emoLista"></div><button class="boton gris" id="bEmoCerrar">Cerrar</button></div></div>
+<div id="principal" class="oc">
+  <img class="logo" id="iLogo">
+  <input class="nombre" id="nombre" maxlength="16" placeholder="Nombre">
+  <div class="mapas" id="mapas"></div>
+  <div class="modos" id="modos"><button data-m="libre">Free</button><button data-m="privada">Private</button><button data-m="offline">Offline</button></div>
+  <input class="nombre oc" id="codigo" maxlength="12" placeholder="Código de la sala">
+  <div class="botones">
+    <button class="boton" id="bJugar">JUGAR</button>
+    <button class="boton gris" id="bSkins">PERSONAJE</button>
+    <button class="boton gris" id="bAjustes2">AJUSTES</button>
+  </div>
+</div>
+<div id="skinsP" class="panel oc"><div class="caja"><h3>Personaje</h3><div class="skins" id="skinLista"></div><h3 style="margin-top:12px">Gorro</h3><div class="skins" id="gorroLista"></div><button class="boton" id="bSkinOk">Listo</button></div></div>
+<input id="chatIn" class="oc" maxlength="120">
+<div id="carga"><img id="cargaLogo" style="width:240px;display:none"><div>Cargando…</div><div class="b"><i id="cargaB"></i></div></div>
+<script>/*MQTT*/</script>
+<script id="pkidx" type="application/json">/*PKIDX*/</script>
+<script id="pk" type="text/plain">/*PK*/</script>
+<script>
+/*JS*/
+</script>
+</body></html>
