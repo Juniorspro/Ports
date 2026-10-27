@@ -80,9 +80,9 @@ const FS_RAYOS = `
 precision mediump float; in vec2 vUV; uniform sampler2D uTex; uniform vec2 uSolUV; uniform float uDec; out vec4 o;
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 void main(){
-  vec2 d = (uSolUV - vUV) / 28.0; vec2 uv = vUV + d * ign(gl_FragCoord.xy); vec3 s = vec3(0.0); float w = 1.0;
-  for (int i = 0; i < 28; i++) { s += texture(uTex, uv).rgb * w; w *= uDec; uv += d; }
-  o = vec4(s / 28.0, 1.0);
+  vec2 d = (uSolUV - vUV) / 40.0; vec2 uv = vUV; vec3 s = vec3(0.0); float w = 1.0;
+  for (int i = 0; i < 40; i++) { s += texture(uTex, uv).rgb * w; w *= uDec; uv += d; }
+  o = vec4(s / 40.0, 1.0);
 }`;
 const FS_FINAL = `
 precision highp float; in vec2 vUV; uniform sampler2D uTex, uTex2, uTex3; uniform float uExpo, uBloom, uRayo, uVin, uHdr; uniform vec2 uInv; out vec4 o;
@@ -240,7 +240,7 @@ function postTerminar() {
       if (rayo > 0.01) {
         let P = PO.p.raymask; gl.useProgram(P.p); texEn(0, PO.col); texEn(3, PO.prof); gl.uniform2f(P.u.uSolUV, su, sv); gl.uniform2f(P.u.uAsp, PO.w / PO.h, 1);
         pasadaPant(P, PO.ray[0].f, PO.ray[0].w, PO.ray[0].h);
-        P = PO.p.rayos; gl.useProgram(P.p); texEn(0, PO.ray[0].t); gl.uniform2f(P.u.uSolUV, su, sv); gl.uniform1f(P.u.uDec, 0.965);
+        P = PO.p.rayos; gl.useProgram(P.p); texEn(0, PO.ray[0].t); gl.uniform2f(P.u.uSolUV, su, sv); gl.uniform1f(P.u.uDec, 0.975);
         pasadaPant(P, PO.ray[1].f, PO.ray[1].w, PO.ray[1].h);
       }
     }
