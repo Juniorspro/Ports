@@ -47,13 +47,26 @@ function prismShape(r0, r1, hy, n) {
   return s;
 }
 function sphereShape(r) { return { type: 'sphere', r }; }
+// varias formas pegadas (una por cada collider del objeto, como en Unity): partes = [{ shape, p (local), q (local) }]
+function compoundShape(partes) {
+  let r = 0;
+  for (const h of partes) r = Math.max(r, h.p.len() + (h.shape.type === 'capsule' ? h.shape.r + h.shape.hh : h.shape.r));
+  return { type: 'compound', partes, r };
+}
+// puntos extremos de una forma en su marco (para la caja que la envuelve, la inercia y dónde apoya)
+function puntosForma(sh) {
+  if (sh.type === 'hull') return sh.v;
+  if (sh.type === 'sphere') { const r = sh.r; return [v3(r, 0, 0), v3(-r, 0, 0), v3(0, r, 0), v3(0, -r, 0), v3(0, 0, r), v3(0, 0, -r)]; }
+  if (sh.type === 'capsule') { const r = sh.r, h = sh.hh; return [v3(r, h, 0), v3(-r, h, 0), v3(0, h + r, 0), v3(0, h, r), v3(0, h, -r), v3(r, -h, 0), v3(-r, -h, 0), v3(0, -h - r, 0), v3(0, -h, r), v3(0, -h, -r)]; }
+  const out = []; for (const h of sh.partes) for (const p of puntosForma(h.shape)) out.push(h.q.rot(p).add(h.p)); return out;
+}
 function capsuleShape(r, hh) { return { type: 'capsule', r, hh }; }   // eje Y local, hh = medio largo del tramo recto
 // inercia (diagonal, local) de cada forma
 function inertia(sh, m) {
   if (sh.type === 'sphere') { const k = 0.4 * m * sh.r * sh.r; return v3(k, k, k); }
   if (sh.type === 'capsule') { const r = sh.r, h = sh.hh * 2 + r; const ix = m * (3 * r * r + h * h) / 12, iy = Math.max(0.5 * m * r * r, ix * 0.5); return v3(ix, iy, ix); }
   let lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9);
-  for (const p of sh.v) { lo.set(Math.min(lo.x, p.x), Math.min(lo.y, p.y), Math.min(lo.z, p.z)); hi.set(Math.max(hi.x, p.x), Math.max(hi.y, p.y), Math.max(hi.z, p.z)); }
+  for (const p of puntosForma(sh)) { lo.set(Math.min(lo.x, p.x), Math.min(lo.y, p.y), Math.min(lo.z, p.z)); hi.set(Math.max(hi.x, p.x), Math.max(hi.y, p.y), Math.max(hi.z, p.z)); }
   const d = vsub(hi, lo);
   return v3(m * (d.y * d.y + d.z * d.z) / 12, m * (d.x * d.x + d.z * d.z) / 12, m * (d.x * d.x + d.y * d.y) / 12);
 }
@@ -72,6 +85,7 @@ class Body {
     this.wv = []; this.wn = []; this.aabb = { x0: 0, y0: 0, z0: 0, x1: 0, y1: 0, z1: 0 };
     this.r = shape.type === 'sphere' ? shape.r : shape.type === 'capsule' ? shape.r + shape.hh : shape.r;
     this.lastHit = 0; this.spec = 0.005; this.damp = opt.damp || 0; this.angDamp = opt.angDamp || 0;
+    if (shape.type === 'compound') this.hijos = shape.partes.map((pt) => hijoDe(this, pt));
   }
   get dynamic() { return this.invMass > 0 && !this.frozen; }
   // lo que el solver puede mover (uno dormido hace de piso hasta que algo con fuerza lo despierte)
@@ -108,6 +122,13 @@ class Body {
       }
       for (let i = 0; i < sh.f.length; i++) this.q.rotTo(sh.f[i].n, this.wn[i]);
       a.x0 = x0; a.y0 = y0; a.z0 = z0; a.x1 = x1; a.y1 = y1; a.z1 = z1;
+    } else if (sh.type === 'compound') {
+      let x0 = 1e9, y0 = 1e9, z0 = 1e9, x1 = -1e9, y1 = -1e9, z1 = -1e9;
+      for (const h of this.hijos) {
+        this.q.rotTo(h.pl, h.pos).add(this.pos); h.q.mulTo(this.q, h.ql); h.updateWorld();
+        const b = h.aabb; if (b.x0 < x0) x0 = b.x0; if (b.y0 < y0) y0 = b.y0; if (b.z0 < z0) z0 = b.z0; if (b.x1 > x1) x1 = b.x1; if (b.y1 > y1) y1 = b.y1; if (b.z1 > z1) z1 = b.z1;
+      }
+      a.x0 = x0; a.y0 = y0; a.z0 = z0; a.x1 = x1; a.y1 = y1; a.z1 = z1;
     } else if (sh.type === 'sphere') {
       const r = sh.r; a.x0 = this.pos.x - r; a.y0 = this.pos.y - r; a.z0 = this.pos.z - r; a.x1 = this.pos.x + r; a.y1 = this.pos.y + r; a.z1 = this.pos.z + r;
     } else {
@@ -117,6 +138,17 @@ class Body {
       a.x1 = Math.max(this.capA.x, this.capB.x) + r; a.y1 = Math.max(this.capA.y, this.capB.y) + r; a.z1 = Math.max(this.capA.z, this.capB.z) + r;
     }
   }
+}
+// cada parte de un cuerpo compuesto: un "cuerpo" liviano con su forma en el mundo; lo demás (masa, velocidad,
+// si se mueve o duerme) es el del padre. Los contactos que arma se pasan al padre (contactosAlPadre).
+function hijoDe(padre, pt) {
+  const h = Object.create(Body.prototype);
+  h.padre = padre; h.shape = pt.shape; h.pl = pt.p; h.ql = pt.q; h.pos = v3(); h.q = new Quat(); h.wv = []; h.wn = [];
+  h.aabb = { x0: 0, y0: 0, z0: 0, x1: 0, y1: 0, z1: 0 }; h.id = padre.id;
+  h.r = pt.shape.type === 'sphere' ? pt.shape.r : pt.shape.type === 'capsule' ? pt.shape.r + pt.shape.hh : pt.shape.r;
+  for (const k of ['dynamic', 'awake', 'spec', 'fric', 'rest', 'sleep', 'vel', 'ang', 'mass', 'invMass', 'held', 'frozen', 'obj', 'persona', 'group', 'noPhys', 'noJug', 'noGrab', 'estatico', 'snd'])
+    Object.defineProperty(h, k, { get() { return padre[k]; }, configurable: true });
+  return h;
 }
 function addBody(b) { PH.bodies.push(b); b.updateWorld(); return b; }
 function removeBody(b) {
@@ -271,7 +303,27 @@ function sphereSphere(A, ca, ra, B, cb, rb) {
 }
 // las cápsulas se tratan como esferas a lo largo del eje (alcanza para el muñeco)
 function capSpheres(b) { const A = b.capA, B = b.capB; return [A, vscale(vadd(A, B), 0.5), B]; }
+const _wp = v3();
+function contactosAlPadre(n0, PA, PB, a, b) {
+  for (let i = n0; i < PH.contacts.length; i++) {
+    const c = PH.contacts[i];
+    if (a !== PA) { a.q.rotTo(c.rA, _wp).add(a.pos); PA.q.invRotTo(_wp.sub(PA.pos), c.rA); c.A = PA; }
+    if (b !== PB) { if (!c.wB) { b.q.rotTo(c.rB, _wp).add(b.pos); PB.q.invRotTo(_wp.sub(PB.pos), c.rB); } c.B = PB; }
+  }
+}
 function collidePair(A, B) {
+  if (A.hijos || B.hijos) {
+    const LA = A.hijos || [A], LB = B.hijos || [B], m = A.spec + (B.spec || 0) + 0.02;
+    for (const a of LA) {
+      const p = a.aabb;
+      for (const b of LB) {
+        const q = b.aabb;
+        if (p.x0 > q.x1 + m || p.x1 < q.x0 - m || p.y0 > q.y1 + m || p.y1 < q.y0 - m || p.z0 > q.z1 + m || p.z1 < q.z0 - m) continue;
+        const n0 = PH.contacts.length; collidePair(a, b); contactosAlPadre(n0, A, B, a, b);
+      }
+    }
+    return;
+  }
   const ta = A.shape.type, tb = B.shape.type;
   if (ta === 'hull' && tb === 'hull') return hullHull(A, B);
   if (ta === 'sphere' && tb === 'hull') return sphereHull(A, A.pos, A.shape.r, B, false);
@@ -490,6 +542,11 @@ function raySphere(c, r, o, d, tmax) {
   const disc = b * b - cc; if (disc < 0) return null; const t = -b - Math.sqrt(disc); if (t < 0 || t > tmax) return null;
   return { t, n: vsub(vadd(o, vscale(d, t)), c).norm() };
 }
+function rayForma(b, o, d, L) {
+  if (b.shape.type === 'hull') return rayHull(b, o, d, L);
+  if (b.shape.type === 'sphere') return raySphere(b.pos, b.shape.r, o, d, L);
+  let h = null; for (const p of capSpheres(b)) { const k = raySphere(p, b.shape.r, o, d, h ? h.t : L); if (k && (!h || k.t < h.t)) h = k; } return h;
+}
 // el rayo contra todo: devuelve { t, n, p, body (o null), stat (caja estática o null) }
 function raycast(o, d, tmax, ignore) {
   let best = null;
@@ -499,10 +556,10 @@ function raycast(o, d, tmax, ignore) {
     if (b.noRay || (ignore && (ignore === b || (ignore.has && ignore.has(b))))) continue;
     const L = lim(), c = b.pos, m = vsub(c, o), tc = vdot(m, d); if (tc < -b.r || tc > L + b.r) continue;
     if (m.lenSq() - tc * tc > b.r * b.r) continue;
+    if (b.sleep || !b.capA && b.shape.type === 'capsule') b.updateWorld();
     let h = null;
-    if (b.shape.type === 'hull') { if (b.sleep) b.updateWorld(); h = rayHull(b, o, d, L); }
-    else if (b.shape.type === 'sphere') h = raySphere(b.pos, b.shape.r, o, d, L);
-    else { if (!b.capA) b.updateWorld(); for (const p of capSpheres(b)) { const k = raySphere(p, b.shape.r, o, d, lim()); if (k && (!h || k.t < h.t)) h = k; } }
+    if (b.hijos) { for (const c of b.hijos) { const k = rayForma(c, o, d, h ? h.t : L); if (k && (!h || k.t < h.t)) h = k; } }
+    else h = rayForma(b, o, d, L);
     if (h && h.t < lim()) best = { t: h.t, n: h.n, body: b, stat: null };
   }
   if (best) best.p = vadd(o, vscale(d, best.t));

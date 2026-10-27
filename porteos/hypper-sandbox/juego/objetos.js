@@ -50,52 +50,75 @@ function cascoConvexo(P) {
   }
   return { v: V, f: caras };
 }
-// puntos de los colliders de un árbol en el marco de la raíz
-function formaDeArbol(arb) {
-  const md = new Modelo(arb); md.p[0] = [0, 0, 0]; md.sucio = true; md.actualizar();
-  const pts = [], solos = []; let tr = 0;
-  const pt = v3();
-  for (let i = 0; i < arb.length; i++) {
-    const x = arb[i]; if (!md.act[i] || !x.col) continue;
-    const W = md.W[i];
-    for (const c of x.col) {
-      if (c.tr) { tr++; continue; }
-      if (c.k === 'b') { for (const sx of [-0.5, 0.5]) for (const sy of [-0.5, 0.5]) for (const sz of [-0.5, 0.5]) pts.push(m4pt(W, c.c[0] + c.s[0] * sx, c.c[1] + c.s[1] * sy, c.c[2] + c.s[2] * sz, v3())); }
-      else if (c.k === 's' || c.k === 'c') {
-        const s = m4esc(W), r = c.r * s, cen = m4pt(W, c.c[0], c.c[1], c.c[2], v3()), hh = c.k === 'c' ? Math.max(0, c.h * s / 2 - r) : 0;
-        const ax = c.k === 'c' ? m4pt(W, c.d === 0 ? 1 : 0, c.d === 1 ? 1 : 0, c.d === 2 ? 1 : 0, v3()).sub(m4pt(W, 0, 0, 0, v3())).norm() : v3(0, 1, 0);
-        solos.push({ k: c.k, c: cen, r, hh, ax });
-        for (let a = 0; a < 8; a++) for (const e of [-1, 1]) { const ang = a / 8 * TAU; const d = v3(Math.cos(ang) * r, 0, Math.sin(ang) * r); pts.push(vadd(cen, d).addS(ax, e * hh)); }
-        pts.push(vadd(cen, vscale(ax, hh + r)), vsub(cen, vscale(ax, hh + r)));
-      } else if (c.k === 'm' && c.m >= 0) {
-        const mc = mallaCPU(c.m), P = mc.P, step = Math.max(1, Math.floor(P.length / 3 / 400));
-        for (let k = 0; k < P.length; k += 3 * step) pts.push(m4pt(W, P[k], P[k + 1], P[k + 2], v3()));
-      }
-    }
-  }
-  // sin colliders: la caja de las mallas que se ven
-  if (!pts.length) {
-    for (let i = 0; i < arb.length; i++) {
-      const x = arb[i]; if (!md.ver[i]) continue; const d = DATA.ms[x.m];
-      for (const sx of [0, 1]) for (const sy of [0, 1]) for (const sz of [0, 1]) pts.push(m4pt(md.W[i], d.mn[0] + d.sc[0] * sx, d.mn[1] + d.sc[1] * sy, d.mn[2] + d.sc[2] * sz, v3()));
-    }
-  }
-  if (!pts.length) pts.push(v3(-0.2, -0.2, -0.2), v3(0.2, 0.2, 0.2), v3(-0.2, 0.2, 0.2), v3(0.2, -0.2, -0.2));
-  if (solos.length === 1 && pts.length === (solos[0].k === 's' ? 18 : 18)) {
-    const s = solos[0];
-    if (s.k === 's') return { shape: sphereShape(Math.max(0.02, s.r)), c: s.c, sinCol: !tr && false };
-    return { shape: capsuleShape(s.r, s.hh), c: s.c, ejeCap: s.ax };
-  }
+// casco convexo de una nube de puntos, centrado en su centro (forma + centro)
+function hullDePuntos(pts) {
   const cs = cascoConvexo(pts);
-  if (!cs) { let lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9); for (const p of pts) { lo.set(Math.min(lo.x, p.x), Math.min(lo.y, p.y), Math.min(lo.z, p.z)); hi.set(Math.max(hi.x, p.x), Math.max(hi.y, p.y), Math.max(hi.z, p.z)); }
-    const c = vscale(vadd(lo, hi), 0.5), h = vscale(vsub(hi, lo), 0.5); return { shape: boxShape(Math.max(h.x, 0.02), Math.max(h.y, 0.02), Math.max(h.z, 0.02)), c }; }
+  if (!cs) {
+    let lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9);
+    for (const p of pts) { lo.set(Math.min(lo.x, p.x), Math.min(lo.y, p.y), Math.min(lo.z, p.z)); hi.set(Math.max(hi.x, p.x), Math.max(hi.y, p.y), Math.max(hi.z, p.z)); }
+    const c = vscale(vadd(lo, hi), 0.5), h = vscale(vsub(hi, lo), 0.5);
+    return { shape: boxShape(Math.max(h.x, 0.02), Math.max(h.y, 0.02), Math.max(h.z, 0.02)), c, vol: 8 * Math.max(h.x, 0.02) * Math.max(h.y, 0.02) * Math.max(h.z, 0.02) };
+  }
   const c = cs.v.reduce((a, p) => a.add(p), v3()).scale(1 / cs.v.length);
   const vs = cs.v.map((p) => vsub(p, c));
   const sh = hullFrom(vs, cs.f);
   for (const f of sh.f) if (vdot(f.n, vs[f.ix[0]]) < 0) { f.ix.reverse(); f.n.scale(-1); f.d = -f.d; }
   // como mucho 8 direcciones de aristas (las casi paralelas se juntan): la prueba arista-arista cuesta n²
   if (sh.dirs.length > 8) { const D = []; for (const d of sh.dirs) if (!D.some((u) => Math.abs(vdot(u, d)) > 0.93)) D.push(d); sh.dirs = D.slice(0, 8); }
-  return { shape: sh, c, soloGatillo: !pts.length && tr > 0 };
+  let lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9);
+  for (const p of vs) { lo.set(Math.min(lo.x, p.x), Math.min(lo.y, p.y), Math.min(lo.z, p.z)); hi.set(Math.max(hi.x, p.x), Math.max(hi.y, p.y), Math.max(hi.z, p.z)); }
+  const d = vsub(hi, lo);
+  return { shape: sh, c, vol: Math.max(1e-4, d.x * d.y * d.z * 0.6) };
+}
+// la forma de choque de un prefab: una parte por cada collider del juego (caja, esfera, cápsula o malla convexa),
+// en el marco de la raíz. Si hay una sola, esa forma sola; si hay varias, un cuerpo compuesto (paredes con hueco
+// de puerta, contenedores abiertos, mesas con patas...). El centro es el promedio de las partes por su volumen.
+function formaDeArbol(arb) {
+  const md = new Modelo(arb); md.p[0] = [0, 0, 0]; md.sucio = true; md.actualizar();
+  const partes = []; let tr = 0;
+  for (let i = 0; i < arb.length; i++) {
+    const x = arb[i]; if (!md.act[i] || !x.col) continue;
+    const W = md.W[i], qW = m4quat(W), sx = Math.hypot(W[0], W[1], W[2]), sy = Math.hypot(W[4], W[5], W[6]), sz = Math.hypot(W[8], W[9], W[10]);
+    for (const c of x.col) {
+      if (c.tr) { tr++; continue; }
+      const cen = c.c ? m4pt(W, c.c[0], c.c[1], c.c[2], v3()) : null;
+      if (c.k === 'b') {
+        const hx = Math.max(0.02, Math.abs(c.s[0] * sx) / 2), hy = Math.max(0.02, Math.abs(c.s[1] * sy) / 2), hz = Math.max(0.02, Math.abs(c.s[2] * sz) / 2);
+        partes.push({ shape: boxShape(hx, hy, hz), c: cen, q: qW.clone(), vol: 8 * hx * hy * hz });
+      } else if (c.k === 's') {
+        const r = Math.max(0.02, c.r * m4esc(W)); partes.push({ shape: sphereShape(r), c: cen, q: new Quat(), vol: 4.19 * r * r * r });
+      } else if (c.k === 'c') {
+        const k = m4esc(W), r = Math.max(0.02, c.r * k), hh = Math.max(0, c.h * k / 2 - r);
+        const q = qW.clone(); if (c.d === 0) q.mul(Quat.axis(0, 0, 1, Math.PI / 2)); else if (c.d === 2) q.mul(Quat.axis(1, 0, 0, Math.PI / 2));
+        partes.push({ shape: capsuleShape(r, hh), c: cen, q, vol: 3.14 * r * r * (2 * hh + 1.33 * r), cap: true });
+      } else if (c.k === 'm' && c.m >= 0) {
+        const mc = mallaCPU(c.m), P = mc.P, step = Math.max(1, Math.floor(P.length / 3 / 400)), pts = [];
+        for (let k = 0; k < P.length; k += 3 * step) pts.push(m4pt(W, P[k], P[k + 1], P[k + 2], v3()));
+        if (pts.length >= 4) { const h = hullDePuntos(pts); partes.push({ shape: h.shape, c: h.c, q: new Quat(), vol: h.vol }); }
+      }
+    }
+  }
+  // sin colliders: la caja de las mallas que se ven
+  if (!partes.length) {
+    const pts = [];
+    for (let i = 0; i < arb.length; i++) {
+      const x = arb[i]; if (!md.ver[i]) continue; const d = DATA.ms[x.m];
+      for (const sx of [0, 1]) for (const sy of [0, 1]) for (const sz of [0, 1]) pts.push(m4pt(md.W[i], d.mn[0] + d.sc[0] * sx, d.mn[1] + d.sc[1] * sy, d.mn[2] + d.sc[2] * sz, v3()));
+    }
+    if (!pts.length) pts.push(v3(-0.2, -0.2, -0.2), v3(0.2, 0.2, 0.2), v3(-0.2, 0.2, 0.2), v3(0.2, -0.2, -0.2));
+    const h = hullDePuntos(pts); return { shape: h.shape, c: h.c };
+  }
+  if (partes.length === 1) {
+    const P = partes[0];
+    if (P.shape.type === 'sphere') return { shape: P.shape, c: P.c };
+    if (P.shape.type === 'capsule') return { shape: P.shape, c: P.c, ejeCap: P.q.rot(v3(0, 1, 0)) };
+    // caja girada o malla: sus vértices girados a la raíz, como poliedro
+    if (P.shape.type === 'hull') { const vs = P.shape.v.map((v) => P.q.rot(v)); const h = hullDePuntos(vs.map((v) => vadd(v, P.c))); return { shape: h.shape, c: h.c }; }
+  }
+  let vt = 0; const c = v3();
+  for (const P of partes) { c.addS(P.c, P.vol); vt += P.vol; }
+  c.scale(1 / vt);
+  return { shape: compoundShape(partes.map((P) => ({ shape: P.shape, p: vsub(P.c, c), q: P.q }))), c, partes: partes.length };
 }
 const _formas = {};
 function formaDe(nombre) { if (!_formas[nombre]) _formas[nombre] = formaDeArbol(DATA.pf[DATA.pfPorNombre[nombre]]); return _formas[nombre]; }
@@ -120,7 +143,7 @@ function crearObjeto(nombre, pos, q, opt) {
   if (F.ejeCap) { const r = new Quat(); const a = F.ejeCap; const d = vdot(a, v3(0, 1, 0)); if (d < 0.999) { const ax = vcross(v3(0, 1, 0), a).norm(); r.copy(Quat.axis(ax.x, ax.y, ax.z, Math.acos(clamp(d, -1, 1)))); } b.capQ = r; b.q.mul(r); }
   // la posición pedida es la del piso: subir para que la base quede apoyada
   let minY = 0;
-  if (F.shape.type === 'hull') { minY = 1e9; for (const v of F.shape.v) minY = Math.min(minY, b.q.rot(v).y); }
+  if (F.shape.type === 'hull' || F.shape.type === 'compound') { minY = 1e9; for (const v of puntosForma(F.shape)) minY = Math.min(minY, b.q.rot(v).y); }
   else minY = -(F.shape.r + (F.shape.hh || 0));
   b.pos.set(pos.x, pos.y - minY + 0.01, pos.z);
   if (opt.exacto) { const c = b.q.rot(F.c); b.pos.copy(pos).add(c); }

@@ -7,8 +7,8 @@ layout(location=0) in vec3 aP; layout(location=1) in vec4 aC; layout(location=2)
 uniform mat4 uVP; uniform vec3 uDer, uArr; out vec4 vC; out vec2 vU;
 void main(){ vC = aC; vU = aE.xy * 0.5 + 0.5; vec3 p = aP + (uDer * aE.x + uArr * aE.y) * aE.z; gl_Position = uVP * vec4(p, 1.0); }`;
 const FS_PART = `#version 300 es
-precision mediump float; in vec4 vC; in vec2 vU; uniform sampler2D uT; out vec4 o;
-void main(){ vec4 t = texture(uT, vU); o = vec4(vC.rgb * t.rgb, vC.a * t.a); }`;
+precision mediump float; in vec4 vC; in vec2 vU; uniform sampler2D uT; uniform float uLin, uBri; out vec4 o;
+void main(){ vec4 t = texture(uT, vU); o = vec4(vC.rgb * t.rgb, vC.a * t.a); if (uLin > 0.5) o.rgb = pow(o.rgb, vec3(2.2)) * uBri; }`;
 const PART = { l: [], max: 600, buf: null, vao: null, data: new Float32Array(600 * 6 * 10), tex: {} };
 function efectosIniciar() {
   const gl = R.gl; PART.prog = shader(VS_PART, FS_PART);
@@ -37,6 +37,7 @@ function efectosPaso(dt) {
     q.v.y -= GRAV * q.grav * dt; q.p.addS(q.v, dt); if (q.tipo === 'humo') q.v.scale(Math.exp(-dt * 1.5));
   }
   if (EF.fog > 0) EF.fog -= dt;
+  for (let i = LUCES_T.length - 1; i >= 0; i--) { LUCES_T[i].t -= dt; if (LUCES_T[i].t <= 0) LUCES_T.splice(i, 1); }
   for (let i = TRAZAS.length - 1; i >= 0; i--) { TRAZAS[i].t -= dt; if (TRAZAS[i].t <= 0) TRAZAS.splice(i, 1); }
 }
 function dibujarEfectos() {
@@ -59,10 +60,10 @@ function dibujarEfectos() {
     }
     if (!n) return;
     gl.bindBuffer(gl.ARRAY_BUFFER, PART.buf); gl.bufferData(gl.ARRAY_BUFFER, D.subarray(0, n * 10), gl.STREAM_DRAW);
-    gl.blendFunc(gl.SRC_ALPHA, aditivo ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
+    gl.blendFunc(gl.SRC_ALPHA, aditivo ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA); gl.uniform1f(P.u.uBri, aditivo ? 5 : 1);
     gl.drawArrays(gl.TRIANGLES, 0, n);
   };
-  gl.useProgram(P.p); R.progAct = P; gl.uniformMatrix4fv(P.u.uVP, false, R.vp);
+  gl.useProgram(P.p); R.progAct = P; gl.uniformMatrix4fv(P.u.uVP, false, R.vp); gl.uniform1f(P.u.uLin, R.salida === 'hdr' ? 1 : 0);
   gl.uniform3f(P.u.uDer, CAM.der.x, CAM.der.y, CAM.der.z); gl.uniform3f(P.u.uArr, CAM.arr.x, CAM.arr.y, CAM.arr.z);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, PART.tex.punto); R.texAct = null;
   gl.bindVertexArray(PART.vao); gl.enable(gl.BLEND); gl.depthMask(false);
@@ -71,7 +72,7 @@ function dibujarEfectos() {
 }
 function dibujarCarteles() {
   const gl = R.gl, P = PART.prog, D = PART.data;
-  gl.useProgram(P.p); R.progAct = P; gl.uniformMatrix4fv(P.u.uVP, false, R.vp);
+  gl.useProgram(P.p); R.progAct = P; gl.uniformMatrix4fv(P.u.uVP, false, R.vp); gl.uniform1f(P.u.uLin, R.salida === 'hdr' ? 1 : 0); gl.uniform1f(P.u.uBri, 1);
   gl.uniform3f(P.u.uDer, CAM.der.x, CAM.der.y, CAM.der.z); gl.uniform3f(P.u.uArr, 0, 1, 0);
   gl.bindVertexArray(PART.vao); gl.bindBuffer(gl.ARRAY_BUFFER, PART.buf); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.CULL_FACE);
   for (const c of PART.extra) {
@@ -81,7 +82,19 @@ function dibujarCarteles() {
   gl.enable(gl.CULL_FACE); gl.disable(gl.BLEND); gl.bindVertexArray(null); R.vaoAct = null; R.texAct = null; PART.extra.length = 0;
 }
 const ESQ = [-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1];
-const EF = { fog: 0 }, TRAZAS = [];
+const EF = { fog: 0 }, TRAZAS = [], LUCES_T = [];
+// luces que duran un rato (explosiones, chispazos) y las de cada cuadro (fogonazo, lámparas, faros)
+function luzTemporal(p, r, c, dur) { LUCES_T.push({ p: p.clone(), r, c, t: dur, dur }); }
+function lucesJuntar() {
+  R.luces.length = 0;
+  if (!(GFX.nluz > 0) || GFX.luz < 2) return;
+  for (const l of LUCES_T) { const k = l.t / l.dur; luzPuntual(l.p, l.r, [l.c[0] * k, l.c[1] * k, l.c[2] * k]); }
+  if (EF.fog > 0) { const p = vistaPuntaMundo() || vadd(CAM.pos, vscale(CAM.fwd, 0.8)); luzPuntual(p, 7, [6, 4.2, 2]); }
+  for (const o of OBJS) {
+    if (o.logica && o.logica.tipo === 'Lamp' && o.logica.luz) luzPuntual(vadd(o.b.pos, v3(0, 0.3, 0)), Math.max(4, (o.logica.params.Range || 10)), [3.2, 2.8, 2.0]);
+    if (o.veh && typeof vehiculoLuces === 'function') vehiculoLuces(o);
+  }
+}
 function efectoTraza(a, b) { TRAZAS.push({ a: a.clone(), b: b.clone(), t: 0.06 }); }
 function dibujarTrazas() { for (const t of TRAZAS) linea(t.a, t.b, [1, 0.92, 0.6, 0.8 * t.t / 0.06]); }
 function efectoFogonazo() {
@@ -105,5 +118,6 @@ function efectoExplosion(p) {
   }
   for (let i = 0; i < k; i++) particula(p, vscale(v3(Math.random() - 0.5, Math.random(), Math.random() - 0.5).norm(), 8 + Math.random() * 8), 0.5 + Math.random() * 0.5, 0.04, [1, 0.8, 0.4, 1], 'chispa', 0);
   particula(p, v3(), 0.18, 3.5, [1, 0.8, 0.5, 0.9], 'fuego', 0.4);
+  luzTemporal(vadd(p, v3(0, 1, 0)), 22, [40, 22, 8], 0.7);
 }
 function efectoCongelar(b) { for (let i = 0; i < 8; i++) particula(vadd(b.pos, v3((Math.random() - 0.5) * b.r, (Math.random() - 0.5) * b.r, (Math.random() - 0.5) * b.r)), v3(0, 0.4, 0), 0.6, 0.08, [0.5, 0.85, 1, 1], 'fog', 0.5); }

@@ -27,7 +27,8 @@ function topicoSala(S) { return NS + (S.of ? S.id : 'r_' + S.id + (S.clave ? '_'
 function salaLimpia(x) {
   if (!x || typeof x.id !== 'string' || !/^[a-zA-Z0-9_]{3,40}$/.test(x.id)) return null;
   const S = { id: x.id, n: limpio(x.n, 24) || 'Server', m: MAPAS.includes(x.m) ? x.m : 'Desert', mo: x.mo === 'PvP' ? 'PvP' : 'Free', mx: num(x.mx, 2, 32, 16) | 0, of: x.of ? 1 : 0,
-    pvp: x.pvp ? 1 : 0, rpg: x.rpg ? 1 : 0, nb: x.nb ? 1 : 0, mp: num(x.mp, 0, 5000, 1000) | 0, mv: num(x.mv, 0, 200, 40) | 0, pw: x.pw ? 1 : 0, ph: typeof x.ph === 'string' ? x.ph.slice(0, 12) : '' };
+    pvp: x.pvp ? 1 : 0, rpg: x.rpg ? 1 : 0, nb: x.nb ? 1 : 0, mp: num(x.mp, 0, 5000, 1000) | 0, mv: num(x.mv, 0, 200, 40) | 0, pw: x.pw ? 1 : 0, ph: typeof x.ph === 'string' ? x.ph.slice(0, 12) : '',
+    du: typeof x.du === 'string' && /^[a-z0-9]{3,20}$/.test(x.du) ? x.du : '' };
   if (S.of) { const o = SALAS_OF.find((y) => y.id === S.id); if (!o) return null; return o; }
   return S;
 }
@@ -125,7 +126,7 @@ function crearServidor() {
   const S = { id, n: nom, m: PREFS.mapa, mo: MENU.sel.GameModeDropdown || 'Free', mx: +(MENU.sel.PlayersDropdown || 6), of: 0,
     pvp: MENU.tg.PvPToogle ? 1 : 0, rpg: MENU.tg.RPGToogle ? 1 : 0, nb: MENU.tg.NextbotToogle ? 1 : 0,
     mp: num(+(E.MaxPropInputField && E.MaxPropInputField.value), 0, 5000, 1000) | 0, mv: num(+(E.MaxVechiclesInputField && E.MaxVechiclesInputField.value), 0, 200, 40) | 0,
-    pw: clave ? 1 : 0, ph: clave ? hashTxt('c' + id + clave) : '' };
+    pw: clave ? 1 : 0, ph: clave ? hashTxt('c' + id + clave) : '', du: (RED.ID = RED.ID || idRed()) };
   if (S.mo === 'PvP') S.pvp = 1;
   SALA = Object.assign(S, { clave });
   empezarPartida(S.m);
@@ -152,9 +153,11 @@ function redEntrar(mapa) {
       will: { topic: RED.ROOM + '/w/' + RED.ID, payload: '', retain: true, qos: 0 } });
   } catch (e) { return; }
   RED.cli = cli;
-  cli.on('connect', () => { RED.on = true; cli.subscribe(RED.ROOM + '/#'); RED.wSucio = true; redEstadoUI(); presencia(); chatMostrar('★', Lc('Connected', 'Connected') + ': ' + SALA.n); });
-  cli.on('close', () => { RED.on = false; redEstadoUI(); });
-  cli.on('message', (t, m) => { try { redMensaje(t, m); } catch (e) {} });
+  // cada conexión sólo toca el estado si sigue siendo la actual (al cambiar de sala, el cierre de la vieja
+  // llega después de abrir la nueva y no tiene que apagarla)
+  cli.on('connect', () => { if (RED.cli !== cli) return; RED.on = true; cli.subscribe(RED.ROOM + '/#'); RED.wSucio = true; redEstadoUI(); presencia(); chatMostrar('★', Lc('Connected', 'Connected') + ': ' + SALA.n); if (soyAnfitrion()) hostPublicar(); });
+  cli.on('close', () => { if (RED.cli !== cli) return; RED.on = false; redEstadoUI(); });
+  cli.on('message', (t, m) => { if (RED.cli !== cli) return; try { redMensaje(t, m); } catch (e) {} });
   redEstadoUI();
 }
 function redSalir() {
@@ -206,6 +209,7 @@ function redPaso(dt) {
 }
 const claveObj = (o) => (o.remoto ? o.key : RED.ID + ':' + o.id);
 function redObjeto() { RED.wSucio = true; }
+function redRecarga() { publicar('a', { k: 'rec' }); }
 function redDisparo(arma) { publicar('a', { k: 'tiro', a: arma, p: [r3(CAM.pos.x), r3(CAM.pos.y), r3(CAM.pos.z)], d: [r3(CAM.fwd.x), r3(CAM.fwd.y), r3(CAM.fwd.z)] }); }
 function redExplosion(p) { publicar('a', { k: 'exp', p: [r3(p.x), r3(p.y), r3(p.z)] }); }
 function redDano(P, dan, d) { publicar('a', { k: 'dano', to: P.remoto, d: Math.round(dan), v: [r3(d.x), r3(d.y), r3(d.z)] }); }
@@ -226,7 +230,8 @@ function redMensaje(topic, m) {
   const d = JSON.parse(s); if (!d || typeof d.i !== 'string' || d.i === RED.ID || d.i.length > 20) return;
   if (sub === 'e') recibirEstado(d);
   else if (sub === 'm') recibirMov(d);
-  else if (sub === 'a') recibirHecho(d);
+  else if (sub === 'a') { if (!hostHecho(d)) recibirHecho(d); }
+  else if (sub === 'cfg') recibirCfg(d);
   else if (sub === 'c' && typeof d.t === 'string') { chatMostrar(limpio(d.n), limpio(d.t, 120)); }
 }
 function recibirEstado(d) {
@@ -257,7 +262,7 @@ function remotoPaso(R2, dt) {
   let dy = R2.yawM - R2.yaw; dy = ((dy + Math.PI) % TAU + TAU) % TAU - Math.PI; R2.yaw += dy * k;
   P.pos.copy(R2.pos); P.yaw = R2.yaw; P.vel.copy(R2.vel); P.suelo = !!(R2.f & 1); P.agachado = !!(R2.f & 2); P.sentado = !!(R2.f & 8);
   // si va en un vehículo, el cuerpo sigue al asiento
-  if (R2.veh) { const o = buscarObjeto(R2.veh.k); if (o && o.veh) { const a = o.veh.asientos[R2.veh.a] || v3(); P.pos.copy(vadd(o.b.pos, o.b.q.rot(vadd(a, v3(0, 0.25, 0))))); const f = o.b.q.rot(v3(0, 0, 1)); P.yaw = Math.atan2(f.x, f.z); P.manejando = R2.veh.a === 0; } }
+  if (R2.veh) { const o = buscarObjeto(R2.veh.k); if (o && o.veh) { const a = o.veh.asientos[R2.veh.a] || v3(); P.pos.copy(vadd(o.b.pos, o.b.q.rot(vadd(a, v3(0, 0.25, 0))))); const f = o.b.q.rot(v3(0, 0, 1)); P.yaw = Math.atan2(f.x, f.z); P.manejando = R2.veh.a === 0; P.qVeh = o.b.q; } } else P.qVeh = null;
   const vivo = !!(R2.f & 4);
   if (!vivo && !P.rag) { P.vel.copy(R2.vel); ragdoll(P, null); } else if (vivo && P.rag) ragdollFin(P);
   R2.b.pos.copy(P.pos); R2.b.updateWorld(); R2.b.noRay = !vivo;
@@ -316,8 +321,10 @@ function recibirHecho(d) {
   if (d.k === 'tiro' && Array.isArray(d.p) && Array.isArray(d.d)) {
     const o = v3(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0)), dir = v3(num(d.d[0], -1, 1, 0), num(d.d[1], -1, 1, 0), num(d.d[2], -1, 1, 1)).norm();
     const D = DEF_ARMAS[d.a]; if (D && D.sF) sonar(D.sF, o, 0.8);
+    if (R2) humAccion(R2.P, 'tiro');
     const h = raycast(o, dir, 300, R2 ? R2.b : null); efectoTraza(vadd(o, vscale(dir, 0.6)), h ? h.p : vadd(o, vscale(dir, 300)));
     if (h) efectoImpacto(h.p, h.n, 'mundo');
+  } else if (d.k === 'rec' && R2) { humAccion(R2.P, 'recarga');
   } else if (d.k === 'exp' && Array.isArray(d.p)) {
     const p = v3(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0));
     explosion.remota = true; explosion(p, 6, 100); explosion.remota = false;

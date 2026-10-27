@@ -15,7 +15,9 @@ function datosSkin(skin) {
   const h = {}; for (let i = 0; i < sub.length; i++) { const m = /^mixamorig\d*:(.*)$/.exec(sub[i].n); if (m && HUESOS.includes(m[1]) && h[m[1]] === undefined) h[m[1]] = i; }
   const rw = sub.map((x, i) => m4quat(md.W[i]));
   const rp = sub.map((x, i) => v3(md.W[i][12], md.W[i][13], md.W[i][14]));
-  return (_skinCache[skin] = { sub, h, rw, rp, cr });
+  // altura del tobillo con el personaje parado (para apoyar los pies en el piso)
+  const tobillo = h.LeftFoot !== undefined && h.RightFoot !== undefined ? Math.max(0.02, Math.min(rp[h.LeftFoot].y, rp[h.RightFoot].y)) : 0.08;
+  return (_skinCache[skin] = { sub, h, rw, rp, cr, tobillo });
 }
 function crearPersona(skin, gorro, opt) {
   const D = datosSkin(skin), md = new Modelo(D.sub);
@@ -109,16 +111,54 @@ function animarEmote(P, dt) {
 function ubicarPersona(P) {
   if (P.rag) return;
   const y = P.pos.y - 1 - (P.bajar || 0) + (P.subir || 0) - (P.sentado ? 0.02 : 0);
-  m4trs([P.pos.x, y, P.pos.z], [0, Math.sin(P.yaw / 2), 0, Math.cos(P.yaw / 2)], [1, 1, 1], P.md.raiz); P.md.sucio = true;
+  if (P.qVeh && P.sentado) {
+    // sentado: el giro completo del vehículo, con el pivote en la cadera (1 m arriba de los pies)
+    const q = P.qVeh, d = q.rot(v3(0, -1, 0));
+    m4trs([P.pos.x + d.x, P.pos.y + d.y - (P.bajar || 0), P.pos.z + d.z], [q.x, q.y, q.z, q.w], [1, 1, 1], P.md.raiz);
+  } else m4trs([P.pos.x, y, P.pos.z], [0, Math.sin(P.yaw / 2), 0, Math.cos(P.yaw / 2)], [1, 1, 1], P.md.raiz);
+  P.md.sucio = true;
   P.bajar = 0; P.subir = 0;
 }
 function dibujarPersona(P) {
   if (!P.visible) return;
-  ubicarPersona(P); P.md.encolar();
+  ubicarPersona(P);
+  if (!P.rag && P.hum && !P.sentado && !P.emote) aterrizarPies(P);
+  P.md.encolar();
   if (P.gorroMd) {
-    const hi = P.D.h.Head; if (hi === undefined) return;
-    P.md.actualizar(); m4mul(P.md.W[hi], P.gorroL, _mb); P.gorroMd.ponerRaiz(_mb); P.gorroMd.encolar();
+    const hi = P.D.h.Head;
+    if (hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], P.gorroL, _mb); P.gorroMd.ponerRaiz(_mb); P.gorroMd.encolar(); }
   }
+  // el arma en la mano derecha (los modelos de tercera persona del juego, con su lugar en la mano)
+  if (P.arma && !P.rag && !P.sentado && !P.emote) {
+    const A = arma3p(P, P.arma), hi = P.D.h.RightHand;
+    if (A && hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], A.W, _mb); A.md.ponerRaiz(_mb); A.md.encolar(); }
+  }
+}
+// pies en el piso: después de animar, se sube o baja el cuerpo para que el pie más bajo quede apoyado
+// (agachado o al caer, del todo; caminando, sólo que no se hunda ni flote más de unos centímetros)
+function aterrizarPies(P) {
+  const md = P.md, h = P.D.h; if (h.LeftFoot === undefined || h.RightFoot === undefined) return;
+  md.actualizar();
+  const yl = md.W[h.LeftFoot][13], yr = md.W[h.RightFoot][13], piso = P.pos.y - 1;
+  const dy = piso + P.D.tobillo - Math.min(yl, yr), lleno = P.hum && P.hum.agach > 0.05;
+  const meta = clamp(dy, lleno ? -0.75 : -0.06, 0.5);
+  P.pieCorr = (P.pieCorr || 0) + (meta - (P.pieCorr || 0)) * Math.min(1, (TIEMPO.dt || 0.016) * 18);
+  if (Math.abs(P.pieCorr) > 1e-4) { md.raiz[13] += P.pieCorr; md.sucio = true; }
+}
+const ARMA_3P = { Pistol: 'pistol', Revolver: 'revolver', Smg: 'smg', Akm: 'Akm', Sniper: 'sniper', Shotgun: 'Shotgun', RPG: 'RocketLauncher', Crossbow: 'crossbow', Bat: 'bat', GravityGun: 'GravityGun', PhysicsGun: 'PhysicGun', ToolBaton: 'ToolBaton' };
+const _arma3pDatos = {};
+function arma3p(P, nombre) {
+  P.armas3p = P.armas3p || {};
+  if (P.armas3p[nombre] !== undefined) return P.armas3p[nombre];
+  let D = _arma3pDatos[nombre];
+  if (D === undefined) {
+    const arb = arbolJugador(), cr = arb.findIndex((n) => n.n === 'CharactersRoot'), wi = arb.findIndex((n) => n.pa === cr && n.n === 'Weapons');
+    const ni = ARMA_3P[nombre] ? arb.findIndex((n) => n.pa === wi && n.n === ARMA_3P[nombre]) : -1;
+    if (wi < 0 || ni < 0) D = null;
+    else { const W = new Float32Array(16); m4trs(arb[wi].p, arb[wi].r, arb[wi].s, W); D = { sub: subArbol(arb, ni), W }; }
+    _arma3pDatos[nombre] = D;
+  }
+  return (P.armas3p[nombre] = D ? { md: new Modelo(D.sub), W: D.W } : null);
 }
 // ---------------- muñeco de trapo ----------------
 function ragdoll(P, impulso, donde) {
@@ -164,6 +204,7 @@ function ragdollFin(P) { if (!P.rag) return; for (const [, e] of P.rag.cuerpos) 
 // ---------------- daño ----------------
 function danarPersona(P, dan, pos, d) {
   if (P === JUG.cuerpo) { danarJugador(dan, pos); return; }
+  if (P.vivo !== false) humAccion(P, 'golpe');
   if (P.npc && P.vivo) { P.vida -= dan; if (P.vida <= 0) { P.vivo = false; ragdoll(P, vscale(d.clone().norm(), Math.min(12, dan * 0.3)), pos); P.muertoT = 8; } }
   if (P.remoto && typeof redDano === 'function') redDano(P, dan, d);
 }
@@ -183,6 +224,7 @@ function personasPaso(dt) {
       P.pos.copy(JUG.pos); P.vel.copy(JUG.vel); P.suelo = JUG.suelo || !!JUG.vehiculo; P.agachado = ENT.agachar && !JUG.vehiculo;
       P.yaw = JUG.vehiculo ? Math.atan2(...(() => { const f = JUG.vehiculo.b.q.rot(v3(0, 0, 1)); return [f.x, f.z]; })()) : JUG.yaw;
       P.sentado = !!JUG.vehiculo; P.manejando = !!JUG.vehiculo && JUG.asiento === 0 && JUG.vehiculo.veh.tipo !== 'asiento';
+      P.qVeh = JUG.vehiculo ? JUG.vehiculo.b.q : null;
       P.arma = JUG.vehiculo ? null : ARM.lista[ARM.i]; P.mira = JUG.pitch;
       if (P.emote && (Math.hypot(JUG.vel.x, JUG.vel.z) > 0.5 || !JUG.suelo)) { P.emote = null; if (JUG.terceraEmote) { JUG.tercera = false; JUG.terceraEmote = false; } }
       if (!P.emote && JUG.terceraEmote) { JUG.tercera = false; JUG.terceraEmote = false; }

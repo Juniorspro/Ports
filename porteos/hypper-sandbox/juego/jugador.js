@@ -29,6 +29,14 @@ function esferaFuera(c, r, corr, esPie) {
   for (const b of _cercaJ) if (b.tri === undefined) empujarDeCuerpo(b, c, r, corr, esPie, false);
 }
 function empujarDeCuerpo(b, c, r, corr, esPie, dinamico) {
+  if (b.hijos) {
+    for (const h of b.hijos) {
+      const a = h.aabb; if (c.x + r < a.x0 || c.x - r > a.x1 || c.y + r < a.y0 || c.y - r > a.y1 || c.z + r < a.z0 || c.z - r > a.z1) continue;
+      empujarDeCuerpo(h, c, r, corr, esPie, dinamico);
+    }
+    return;
+  }
+  const B = b.padre || b;
   let q, n, d;
   if (b.shape.type === 'hull') {
     const h = hullClosest(b, c);
@@ -42,11 +50,11 @@ function empujarDeCuerpo(b, c, r, corr, esPie, dinamico) {
   }
   if (dinamico) {
     // el objeto también se corre según su masa (un auto casi no, una caja sí)
-    const k = 80 / (80 + b.mass);
+    const k = 80 / (80 + B.mass);
     c.addS(n, d * (1 - k)); corr.addS(n, d * (1 - k));
-    if (n.y < 0.6) { b.wake(); b.vel.addS(n, -Math.min(2, d * 30) * k); }
+    if (n.y < 0.6) { B.wake(); B.vel.addS(n, -Math.min(2, d * 30) * k); }
   } else { c.addS(n, d); corr.addS(n, d); }
-  if (esPie && n.y > 0.6) { JUG.suelo = true; JUG.sueloN.copy(n); if (dinamico) JUG.sobre = b; }
+  if (esPie && n.y > 0.6) { JUG.suelo = true; JUG.sueloN.copy(n); if (dinamico) JUG.sobre = B; }
 }
 function jugadorPaso(dt, ent) {
   const J = JUG;
@@ -72,6 +80,7 @@ function jugadorPaso(dt, ent) {
   if (dl > 0) { const k = Math.min(1, mx / dl); J.vel.x += dvx * k; J.vel.z += dvz * k; }
   if (J.suelo && ent.saltar && J.tiempoSuelo > 0.05) { J.vel.y = Math.sqrt(2 * GRAV * MUNDO.gravedad * J.salto); J.suelo = false; J.tiempoSuelo = 0; }
   if (!J.suelo) J.vel.y -= GRAV * MUNDO.gravedad * dt; else if (J.vel.y < 0) J.vel.y = -0.5;
+  const vyAntes = J.vel.y;
   // moverse en pasos chicos y sacar la cápsula de lo que pise
   const pasos = Math.max(1, Math.ceil(J.vel.len() * dt / 0.25));
   const eraSuelo = J.suelo; J.suelo = false; J.sobre = null;
@@ -101,14 +110,26 @@ function jugadorPaso(dt, ent) {
     if (h && h.n.y > 0.6) { J.pos.y -= h.t - J.radio; J.suelo = true; J.vel.y = -0.5; }
   }
   if (J.suelo) { J.tiempoSuelo += dt; if (wl < 0.01 && !base) { const k = Math.exp(-dt * 12); J.vel.x *= k; J.vel.z *= k; } } else J.tiempoSuelo = 0;
+  // cámara: golpe al caer (según la velocidad de caída) y balanceo de la cabeza al caminar
+  if (!eraSuelo && J.suelo && vyAntes < -3) { J.caidaV = Math.max(J.caidaV || 0, Math.min(3, -vyAntes * 0.36)); if (vyAntes < -7) CAM.temblor = Math.max(CAM.temblor, 0.25); }
+  const vh = Math.hypot(J.vel.x, J.vel.z);
+  if (J.suelo) J.bob = (J.bob || 0) + vh * dt * 1.75;
+  J.bobK = (J.bobK || 0) + ((J.suelo ? Math.min(1, vh / 6) : 0) - (J.bobK || 0)) * Math.min(1, dt * 8);
+  J.agK = (J.agK || 0) + ((ent.agachar ? 1 : 0) - (J.agK || 0)) * Math.min(1, dt * 12);
   if (J.pos.y < MUNDO.lo.y - 60) jugadorAparecer();
 }
 // ubica la cámara (primera o tercera persona) y devuelve su posición y rotación
 function jugadorCamara(out) {
   const J = JUG;
   if (J.vehiculo) return vehiculoCamara(J.vehiculo, out);
-  J.ojoPos.set(J.pos.x, J.pos.y + J.ojo * (ENT.agachar && !J.noclip ? 0.55 : 1), J.pos.z);
-  J.q.copy(Quat.euler(J.yaw, J.pitch));
+  // agacharse suave, hundida al caer (resorte amortiguado) y balanceo al caminar
+  const dt = TIEMPO.dt || 0.016;
+  J.caidaV = J.caidaV || 0; J.caidaP = J.caidaP || 0;
+  J.caidaV += (-J.caidaP * 90 - J.caidaV * 13) * dt; J.caidaP += J.caidaV * dt;
+  const ag = J.noclip ? 0 : (J.agK || 0), bob = J.bobK || 0, ph = J.bob || 0;
+  const dy = -J.caidaP * 0.45 + Math.abs(Math.sin(ph)) * 0.035 * bob - 0.015 * bob;
+  J.ojoPos.set(J.pos.x, J.pos.y + J.ojo * (1 - 0.45 * ag) + dy, J.pos.z);
+  J.q.copy(Quat.euler(J.yaw, J.pitch, Math.sin(ph) * 0.006 * bob));
   J.adelante.copy(J.q.rot(v3(0, 0, 1)));
   out.q.copy(J.q);
   if (J.tercera || !J.vivo) {

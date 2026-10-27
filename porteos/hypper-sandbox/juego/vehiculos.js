@@ -19,6 +19,7 @@ function vehiculoNuevo(o) {
       V.ruedas.push({ p, r: x.wc.r, sd: Math.max(0.08, x.wc.sd), sp: x.wc.sp || 35000, da: x.wc.da || 2000, del: p.z > 0, comp: 0, giro: 0, vis: -1, n: x.n, toca: false });
     }
     if ((x.mb || []).includes('HeliRotorController')) V.rotores.push({ i, eje: /small|tail/i.test(x.n) ? v3(1, 0, 0) : v3(0, 1, 0) });
+    if ((x.mb || []).includes('JetParticleEffect') && md.act[i]) { V.jets = V.jets || []; V.jets.push(enCuerpo(md.W[i])); }
     if (/Propeller/.test(x.n) && x.m !== undefined) V.rotores.push({ i, eje: v3(0, 0, 1) });
   }
   // la moto: dos rayos (adelante y atrás)
@@ -88,6 +89,16 @@ function vehiculosPaso(dt, ent) {
     else if (V.tipo === 'heli') heliPaso(V, dt, mando);
     else if (V.tipo === 'avion') avionPaso(V, dt, mando);
     for (const r of V.rotores) r.ang += dt * V.motor * (V.tipo === 'avion' ? 60 : r.eje.x ? 70 : 38);
+    // llamas de los motores del avión (más largas con más potencia)
+    if (V.jets && V.motor > 0.08 && Math.random() < 0.85 * GFX.part + 0.15) {
+      const f = b.q.rot(v3(0, 0, 1));
+      for (const j of V.jets) {
+        const p = vadd(b.pos, b.q.rot(j));
+        particula(p, vadd(vscale(f, -10 - 14 * V.motor), b.vel), 0.07 + 0.08 * V.motor, 0.18 + 0.22 * V.motor, [1, 0.55, 0.2, 1], 'fuego', 0.2);
+        if (Math.random() < 0.3) particula(p, vadd(vscale(f, -4), vscale(b.vel, 0.9)), 1.2, 0.35, [0.55, 0.55, 0.55, 0.25], 'humo', 2);
+      }
+      if (V.jets.length) luzTemporal(vadd(b.pos, b.q.rot(V.jets[0])), 8, [3 * V.motor, 1.8 * V.motor, 0.7 * V.motor], 0.05);
+    }
     // sonido del motor
     if (V.motor > 0.02) {
       const s = V.tipo === 'heli' ? 'Helicopter' : V.tipo === 'avion' ? 'PropellerEngine' : 'Big4Stroke';
@@ -97,7 +108,8 @@ function vehiculosPaso(dt, ent) {
 }
 function autoPaso(V, dt, ent) {
   const b = V.o.b, up = b.q.rot(v3(0, 1, 0)), fwd = b.q.rot(v3(0, 0, 1)), rgt = b.q.rot(v3(1, 0, 0));
-  const objetivo = ent ? -ent.x : 0;
+  // la dirección se endurece con la velocidad (a 30 m/s dobla un tercio): así no vuelca en las curvas
+  const vAbs = Math.abs(V.vel || 0), objetivo = ent ? -ent.x / (1 + vAbs / 14) : 0;
   V.giro += (objetivo - V.giro) * Math.min(1, dt * 6);
   const gas = ent ? ent.y : 0, freno = ent && ent.saltar;
   V.motor += ((ent ? 1 : 0) - V.motor) * Math.min(1, dt * 2);
@@ -108,11 +120,11 @@ function autoPaso(V, dt, ent) {
     const pw = vadd(b.pos, b.q.rot(w.p)), dir = vscale(up, -1), L = w.sd + w.r;
     const h = raycast(pw, dir, L + 0.05, b);
     w.toca = !!h && h.t <= L;
-    if (!w.toca) { w.comp = 0; w.compVis = -w.sd * 0.5; continue; }
+    if (!w.toca) { w.comp = 0; w.compVis = -w.sd * 0.5; w.marcaP = null; continue; }
     tocan++;
     const x = L - h.t, r = vsub(vadd(pw, vscale(dir, h.t)), b.pos);
     const vp = vadd(b.vel, vcross(b.ang, r)), vn = vdot(vp, up);
-    let F = w.sp * x - w.da * vn; if (F < 0) F = 0;
+    let F = w.sp * x - w.da * 1.8 * vn; if (F < 0) F = 0;
     F = Math.min(F, m * 40);
     b.wake(); b.applyVel(vscale(up, F * dt), r, 1);
     w.compVis = x - w.sd * 0.5;
@@ -120,9 +132,15 @@ function autoPaso(V, dt, ent) {
     const dirW = w.del ? b.q.rot(Quat.axis(0, 1, 0, V.giro * 0.6).rot(v3(0, 0, 1))) : fwd;
     const latW = vcross(up, dirW).norm();
     const vlat = vdot(vp, latW), vlon = vdot(vp, dirW);
+    // marca en el piso si la rueda patina de costado o frena fuerte
+    const pc = vadd(pw, vscale(dir, h.t)), pat = Math.abs(vlat) > 3.5 || (freno && Math.abs(vlon) > 4);
+    if (pat && w.marcaP) marcaTramo(w.marcaP, pc, h.n, V.tipo === 'moto' ? 0.14 : 0.24, (Math.abs(vlat) - 2) / 8 + (freno ? 0.5 : 0));
+    w.marcaP = pat ? pc : null;
     const agarre = (freno && !w.del ? 0.35 : 1) * Math.min(F * dt, m * 25 * dt / nr * 3);
-    const jl = clamp(-vlat * m / nr * 0.9, -agarre * 1.6, agarre * 1.6);
-    b.applyVel(vscale(latW, jl), r, 1);
+    const jl = clamp(-vlat * m / nr * 0.9, -agarre * 1.05, agarre * 1.05);
+    // el agarre de costado se aplica a la altura del centro de masa (las cubiertas no lo hacen rolar)
+    const rL = vsub(r, vscale(up, vdot(r, up) * 0.85));
+    b.applyVel(vscale(latW, jl), rL, 1);
     // motor (tracción en todas) y freno
     let fz = 0;
     const vmax = V.tipo === 'moto' ? 34 : 32;
@@ -130,18 +148,31 @@ function autoPaso(V, dt, ent) {
     if (gas < -0.05) fz = vlon > 1 ? gas * m * 14 / nr : gas * (vlon > -10 ? 1 : 0) * m * 6 / nr;
     if (freno) fz = -Math.sign(vlon) * Math.min(Math.abs(vlon) * m / nr / dt, m * 12 / nr);
     if (!gas && !freno) fz = -vlon * m * 0.15 / nr;
-    b.applyVel(vscale(dirW, fz * dt), r, 1);
+    b.applyVel(vscale(dirW, fz * dt), vsub(r, vscale(up, vdot(r, up) * 0.7)), 1);
     w.giroAng = (w.giroAng || 0) + vlon / w.r * dt;
   }
+  // barra estabilizadora: frena el giro de costado (rolido) y lo endereza un poco mientras toca el piso
+  if (tocan >= 2 && V.tipo !== 'moto') {
+    const rol = vdot(b.ang, fwd), cab = vdot(b.ang, rgt);
+    b.ang.addS(fwd, -rol * Math.min(1, dt * 6)); b.ang.addS(rgt, -cab * Math.min(1, dt * 2));
+    const inclin = vdot(rgt, v3(0, 1, 0)); b.ang.addS(fwd, inclin * dt * 4);
+  }
+  // quieto sin acelerar: freno de mano suave (que no quede temblando)
+  if (tocan && !gas && Math.hypot(b.vel.x, b.vel.z) < 0.6 && !V.roto) { b.vel.x *= Math.exp(-dt * 6); b.vel.z *= Math.exp(-dt * 6); b.ang.scale(Math.exp(-dt * 4)); }
   if (!tocan) for (const w of V.ruedas) w.giroAng = (w.giroAng || 0) + V.vel / w.r * dt * 0.98;
   // la moto se mantiene derecha (y se inclina al doblar)
   if (V.tipo === 'moto' && !V.roto) {
-    const inc = -V.giro * clamp(Math.abs(V.vel) / 15, 0, 1) * 0.5;
+    const inc = clamp(-V.giro * clamp(Math.abs(V.vel) / 12, 0, 1) * 1.6, -0.6, 0.6);   // se inclina hacia la curva
     const deseado = Quat.axis(fwd.x, fwd.y, fwd.z, inc).rot(v3(0, 1, 0));
     const c = vcross(up, deseado);
     b.ang.addS(c, dt * 30); b.ang.addS(vscale(fwd, vdot(b.ang, fwd)), -dt * 4);
     if (tocan) b.ang.addS(up, (-V.giro * clamp(V.vel / 6, -1, 1) * 1.8 - vdot(b.ang, up)) * dt * 6);
   }
+  // choque de frente con la moto: el piloto sale volando (como el CrashController del juego)
+  if (V.tipo === 'moto' && JUG.vehiculo === V.o && (V.velAnt || 0) - Math.abs(V.vel) > 9) {
+    const vAnt = V.velAnt; salirVehiculo(); JUG.vel.copy(vadd(vscale(fwd, vAnt * 0.7), v3(0, 4, 0))); aviso('¡Te caíste!', 1.5); CAM.temblor = 0.8;
+  }
+  V.velAnt = Math.abs(V.vel);
   // si quedó dado vuelta y quieto, se endereza solo
   if (up.y < 0.2 && b.vel.len() < 1 && JUG.vehiculo === V.o) { V.vuelcoT = (V.vuelcoT || 0) + dt; if (V.vuelcoT > 2) { b.q.copy(Quat.axis(0, 1, 0, Math.atan2(fwd.x, fwd.z))); b.pos.y += 1.2; V.vuelcoT = 0; } }
 }

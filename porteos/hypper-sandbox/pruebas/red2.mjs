@@ -1,7 +1,7 @@
 // dos jugadores en la misma sala con un broker local: se ven, ven lo que crea el otro, lo agarran y lo mueven
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
 import http from 'http';
-const S = process.env.SCRATCH || '.';
+const S = process.env.BROKER_DIR || '/tmp/claude-0/-home-user-Ports/eeadafdf-53e8-5696-a49a-cc5a848c1abe/scratchpad';   // carpeta con mc/broker (aedes + ws)
 const req = createRequire(S + '/mc/broker/package.json');
 const [,, html, pref] = process.argv;
 const aedes = req('aedes')(); const { WebSocketServer, createWebSocketStream } = req('ws');
@@ -10,7 +10,7 @@ wss.on('connection', (ws) => aedes.handle(createWebSocketStream(ws)));
 await new Promise((r) => srv.listen(8897, '127.0.0.1', r));
 const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const errs = [];
-const abrir = async (n) => { const p = await b.newPage({ viewport: { width: 640, height: 360 } }); p.on('pageerror', (e) => errs.push(n + ': ' + e.message)); await p.goto('file://' + html + '?test&broker=' + encodeURIComponent('ws://127.0.0.1:8897/mqtt')); await p.waitForFunction(() => window.__listo, null, { timeout: 120000 }); return p; };
+const abrir = async (n) => { const p = await b.newPage({ viewport: { width: 640, height: 360 } }); p.on('pageerror', (e) => errs.push(n + ': ' + e.message)); await p.goto('file://' + html + '?test&gfx=' + (process.env.GFX || 'patata') + '&broker=' + encodeURIComponent('ws://127.0.0.1:8897/mqtt')); await p.waitForFunction(() => window.__listo, null, { timeout: 120000 }); return p; };
 const ev = (p, c) => p.evaluate((c) => window.__ev(c), c);
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const R = []; const ok = (n, c, d) => { R.push(!!c); console.log((c ? 'OK   ' : 'FALLA') + ' ' + n + ' · ' + JSON.stringify(d)); };

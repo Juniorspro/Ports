@@ -66,7 +66,9 @@ class Modelo {
   encolar() {
     if (this.oculto) return;
     this.actualizar();
-    const A = this.A, extra = this.color ? { c: this.color } : this.extra || null;
+    let extra = this.color ? { c: this.color } : this.extra || null;
+    if (this.resaltar && TIEMPO.t - this.resaltar < 0.12) { const k = 0.18 + 0.1 * Math.sin(TIEMPO.t * 8); extra = Object.assign({}, extra || {}, { em: [0.25 * k * 2, 0.55 * k * 2, 0.9 * k * 2] }); }
+    const A = this.A;
     for (let i = 0; i < A.length; i++) {
       if (!this.ver[i]) continue;
       const x = A[i];

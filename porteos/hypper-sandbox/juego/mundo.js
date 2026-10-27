@@ -75,13 +75,18 @@ function cargarMapa(nombre) {
   // luz ambiente como la del cielo en Unity (modo Skybox): bastante clara
   R.ambS = [0, 1, 2].map((k) => (C.top[k] * 0.4 + C.mid[k] * 0.6) * ai * 0.72);
   R.ambG = [0, 1, 2].map((k) => (C.mid[k] * 0.45 + C.bot[k] * 0.3) * ai * 0.62);
-  if (nombre === 'Space') { R.ambS = [0.25, 0.25, 0.3]; R.ambG = [0.12, 0.12, 0.14]; }
+  // la estación espacial: el casco taparía el sol adentro (en el juego no había sombras): luz pareja y sin sombras del sol
+  if (nombre === 'Space') { R.ambS = [0.5, 0.5, 0.56]; R.ambG = [0.34, 0.34, 0.38]; }
+  MUNDO.sinSombra = nombre === 'Space';
   const lejos = GFX.lejos;
   if (aj.fog && aj.fd > 0) R.niebla = { c: aj.fc.slice(0, 3), a: 0.15 / aj.fd, b: Math.min(lejos, 1.9 / aj.fd) };
   else if (aj.fog && aj.fm === 1 && aj.fe > aj.fs) R.niebla = { c: aj.fc.slice(0, 3), a: aj.fs, b: aj.fe };
   else R.niebla = { c: C.mid.slice(), a: lejos * 0.7, b: lejos };
   if (nombre === 'Space') R.niebla = { c: [0, 0, 0], a: lejos * 0.8, b: lejos * 1.5 };
   MUNDO.gravedad = nombre === 'Space' ? 0.16 : nombre === 'Mars' ? 0.38 : 1;
+  R.expoK = 1; R.noche = 0; R.lucesMapa = false;
+  if (typeof diaGuardarBase === 'function') diaGuardarBase();
+  if (typeof marcasLimpiar === 'function') marcasLimpiar();
   PH.gscale = MUNDO.gravedad;
   if (!MUNDO.spawns.length) {
     const h = mundoRayo(v3(0, hi.y + 5, 0), v3(0, -1, 0), 1e4);

@@ -78,6 +78,11 @@ function herramientasPaso(dt) {
   if (enTool) { const r = raycast(CAM.pos, CAM.fwd, 30, null); if (r && r.body && r.body.obj) txt = `${r.body.obj.nombre} · ID ${r.body.obj.id}`; }
   else { const r = raycast(CAM.pos, CAM.fwd, 4.5, null); if (r && r.body && r.body.obj) { const o = r.body.obj; if (o.veh) txt = 'E: subir'; else if (o.tipo === 'arma') txt = 'E: agarrar ' + o.nombre; else if (o.logica && (o.logica.tipo === 'Button' || o.logica.tipo === 'PasswordPanel')) txt = 'E: usar'; } }
   if (herramientasPaso.txt !== txt) { herramientasPaso.txt = txt; $('usarTxt').textContent = txt; }
+  const arma = ARM.lista[ARM.i];
+  if (PREFS.contorno !== false && !UI.abierto && (arma === 'PhysicsGun' || arma === 'ToolBaton' || arma === 'GravityGun')) {
+    const A = ARM.agarre && ARM.agarre.b.obj, r = A ? null : raycast(CAM.pos, CAM.fwd, arma === 'GravityGun' ? 25 : 50, null), o = A || (r && r.body && r.body.obj);
+    if (o && !o.remoto) o.md.resaltar = TIEMPO.t;
+  }
   for (let k = HER.ents.length - 1; k >= 0; k--) {
     const o = HER.ents[k]; if (!OBJS.includes(o)) { if (o.logica.tag) o.logica.tag.remove(); HER.ents.splice(k, 1); continue; }
     const L = o.logica, P = L.params, on = entradaActiva(L);

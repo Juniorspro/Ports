@@ -11,7 +11,7 @@ function uiIniciar() {
   ic('iDisp', 'target'); ic('iRotar', 'rotate1'); ic('iSalto', 'Jump'); ic('iUsar', 'Use'); ic('iCerrarSpawn', 'wrench-513'); ic('iLogo', 'c'); ic('cargaLogo', 'c');
   // menú de spawn
   const tabs = $('tabs');
-  DATA.menu.filter((c) => c.n !== 'Host').forEach((c, i) => {
+  DATA.menu.forEach((c, i) => {
     const t = document.createElement('div'); t.className = 'tab'; t.innerHTML = `<img src="${icono(c.ic)}">${c.n}`;
     t.onclick = () => { UI.tab = i; UI.sub = 0; spawnDibujar(); }; tabs.appendChild(t);
   });
@@ -24,6 +24,7 @@ function uiIniciar() {
   $('bCargar').onclick = () => { cargarConstruccion(); cerrarPaneles(); };
   $('bSalirMenu').onclick = () => { cerrarPaneles(); irMenuPrincipal(); };
   $('bEmoCerrar').onclick = () => cerrarPaneles();
+  document.body.classList.toggle('sinUI', !!PREFS.ocultarUI);
   // emotes
   const el = $('emoLista');
   for (const e of DATA.emotes) { const d = document.createElement('div'); d.className = 'skin'; d.innerHTML = `<img src="${icono(e === 'Kick' ? 'Roundhouse_Kick' : e)}" onerror="this.style.visibility='hidden'"><br>${e}`; d.onclick = () => { cerrarPaneles(); if (typeof emote === 'function') emote(e); }; el.appendChild(d); }
@@ -31,10 +32,11 @@ function uiIniciar() {
   $('chatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const t = $('chatIn').value.trim(); $('chatIn').value = ''; $('chatIn').classList.add('oc'); if (t) chatEnviar(t); } if (e.key === 'Escape') $('chatIn').classList.add('oc'); });
 }
 function spawnDibujar() {
-  const cats = DATA.menu.filter((c) => c.n !== 'Host'), C = cats[UI.tab];
+  const cats = DATA.menu, C = cats[UI.tab] || cats[0];
   [...$('tabs').children].forEach((t, i) => t.classList.toggle('sel', i === UI.tab));
   const cl = $('cats'), gr = $('grilla'), pie = $('pie'), ins = $('ins');
   cl.innerHTML = ''; gr.innerHTML = ''; ins.classList.add('oc');
+  if (C.n === 'Host') { pie.innerHTML = ''; const d = document.createElement('div'); d.className = 'cat sel'; d.textContent = typeof SALA !== 'undefined' && SALA ? SALA.n : Lc('Singleplayer', 'Un jugador'); cl.appendChild(d); hostDibujar(gr); return; }
   if (C.n === 'Tools') {
     // herramientas: lista + inspector de parámetros (como el juego)
     DATA.herr.forEach((h, i) => {
@@ -73,6 +75,7 @@ let _vehs = null;
 function reglaSala(nombre) {
   if (typeof SALA === 'undefined' || !SALA) return true;
   if (!SALA.nb && /nextbot/i.test(nombre)) { aviso('Nextbot: OFF', 1.5); return false; }
+  if (HOST.ds && !soyAnfitrion()) { aviso(Lc('HostDisabledSpawnObjects', 'Host disabled spawn objects'), 2); return false; }
   if (!_vehs) { _vehs = new Set(); const v = DATA.menu.find((c) => c.n === 'Vehicles'); if (v) for (const sc of v.sub) for (const it of sc.it) _vehs.add(typeof it === 'string' ? it : it.n); }
   const mios = OBJS.filter((o) => !o.remoto), nv = mios.filter((o) => _vehs.has(o.nombre)).length;
   if (_vehs.has(nombre) ? nv >= SALA.mv : mios.length - nv >= SALA.mp) { aviso(Lc(_vehs.has(nombre) ? 'MaxVehiclesMessage' : 'MaxPropsMessage', 'Limit'), 2); return false; }
@@ -105,22 +108,33 @@ function chatMostrar(quien, t) {
 function chatEnviar(t) { UI.abierto = null; chatMostrar(PREFS.nombre, t); if (typeof redChat === 'function') redChat(t); }
 function abrirAjustes(desde) {
   const c = $('ajustesCaja');
-  c.innerHTML = `<h3>Ajustes</h3>
-  <div class="fila">Gráficos <select id="aG"><option value="auto">Automático</option><option value="patata">Patata (muy bajo)</option><option value="bajo">Bajo</option><option value="medio">Medio</option><option value="alto">Alto</option></select></div>
+  const sel = (id, ops) => `<select id="${id}">${ops.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>`;
+  c.innerHTML = `<h3>${Lc('Settings', 'Ajustes')}</h3>
+  <div class="fila">Gráficos ${sel('aG', [['auto', 'Automático'], ['patata', 'Patata (muy bajo)'], ['bajo', 'Bajo'], ['medio', 'Medio'], ['alto', 'Alto'], ['ultra', 'Ultra (realista)']])}</div>
+  <div class="fila">${Lc('Shadow', 'Sombra')} ${sel('aSo', [['auto', 'Según gráficos'], ['0', 'No'], ['1', 'Bajas'], ['2', 'Medias'], ['3', 'Altas (suaves)']])}</div>
+  <div class="fila">${Lc('PostProcessing', 'Postprocesado')} ${sel('aPo', [['auto', 'Según gráficos'], ['si', 'Sí'], ['no', 'No']])}</div>
+  <div class="fila">${Lc('TextureQuality', 'Calidad de textura')} ${sel('aTq', [['auto', 'Según gráficos'], ['baja', 'Baja'], ['media', 'Media'], ['alta', 'Alta']])}</div>
   <div class="fila">Resolución <input type="range" id="aR" min="35" max="100" step="5"><span id="aRv"></span></div>
-  <div class="fila">Distancia <input type="range" id="aD" min="100" max="900" step="50"><span id="aDv"></span></div>
-  <div class="fila">Sensibilidad <input type="range" id="aS" min="2" max="40" step="1"></div>
+  <div class="fila">Distancia <input type="range" id="aD" min="100" max="1200" step="50"><span id="aDv"></span></div>
+  <div class="fila">${Lc('Sensitivity', 'Sensibilidad')} <input type="range" id="aS" min="2" max="40" step="1"></div>
   <div class="fila">Volumen <input type="range" id="aV" min="0" max="100" step="5"></div>
+  <div class="fila"><label><input type="checkbox" id="aC"> Contorno (resaltar lo que apuntás)</label></div>
+  <div class="fila"><label><input type="checkbox" id="aU"> ${Lc('HideUI', 'Ocultar UI')}</label></div>
   <div class="fila"><label><input type="checkbox" id="aF"> Mostrar FPS</label></div>
   <button class="boton" id="aOk">Listo</button>`;
-  $('aG').value = PREFS.gfx; $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps;
+  $('aG').value = PREFS.gfx; $('aSo').value = String(PREFS.sombras); $('aPo').value = PREFS.post; $('aTq').value = PREFS.texQ;
+  $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI;
   const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; };
   act();
   $('aG').onchange = () => { PREFS.gfx = $('aG').value; const p = PERFILES[PREFS.gfx]; if (p) { PREFS.res = p.res; PREFS.lejos = p.lejos; $('aR').value = p.res; $('aD').value = p.lejos; } act(); };
   $('aR').oninput = $('aD').oninput = act;
   $('aOk').onclick = () => {
+    const texAntes = GFX.texMax;
     PREFS.res = +$('aR').value; PREFS.lejos = +$('aD').value; PREFS.sens = +$('aS').value; PREFS.vol = +$('aV').value; PREFS.fps = $('aF').checked;
-    guardarPrefs(); aplicarGfx(); $('ajustes').classList.add('oc'); if (desde === 'pausa') $('pausa').classList.remove('oc');
+    PREFS.sombras = $('aSo').value; PREFS.post = $('aPo').value; PREFS.texQ = $('aTq').value; PREFS.contorno = $('aC').checked; PREFS.ocultarUI = $('aU').checked;
+    guardarPrefs(); aplicarGfx(); if (GFX.texMax !== texAntes) texturasRecargar();
+    document.body.classList.toggle('sinUI', !!PREFS.ocultarUI);
+    $('ajustes').classList.add('oc'); if (desde === 'pausa') $('pausa').classList.remove('oc');
   };
   $('ajustes').classList.remove('oc'); if (desde === 'pausa') $('pausa').classList.add('oc');
 }

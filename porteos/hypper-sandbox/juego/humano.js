@@ -65,8 +65,34 @@ function humAplicar(P) {
   const p = md.p[H.ci]; p[0] = -(av.rt[0] + off.x); p[1] = by + off.y; p[2] = av.rt[2] + off.z;
   const r = md.r[H.ci]; r[0] = hq.x; r[1] = -hq.y; r[2] = -hq.z; r[3] = hq.w;
 }
+// agachado: piernas como sentado (cadera y rodillas dobladas) y el torso un poco adelante; la altura la corrige el piso
+const PIERNAS = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36];
+function humAgachar(T, k) {
+  const S = humClipNombre('Sit 0', 'Sitting Idle') || (DATA.hu.est['Sit 0'] && DATA.hu.est['Sit 0'][0]); if (!S) return;
+  const U = humAgachar.U || (humAgachar.U = new Float32Array(NV)); U.fill(0); humClip(S, 0, 1, U);
+  for (const m of PIERNAS) T[7 + m] += (U[7 + m] * 0.8 - T[7 + m]) * k;
+  T[7 + 0] += 0.25 * k; T[7 + 3] += 0.15 * k;      // espalda y pecho hacia adelante
+}
 const POSE_ARMA = { Pistol: 'idle_armed2_m', Revolver: 'idle_armed2_m', PhysicsGun: 'idle_armed2_m', GravityGun: 'idle_armed2_m', ToolBaton: 'idle_armed2_m', Camera: 'idle_armed2_m',
-  Smg: 'SniperRifleAim', Akm: 'SniperRifleAim', Sniper: 'SniperRifleAim', Shotgun: 'SniperRifleAim', Crossbow: 'SniperRifleAim', RPG: 'idle_armed1_2hand_m', Bat: '1HandSwordReady' };
+  Smg: 'SniperRifleAim', Akm: 'SniperRifleAim', Sniper: 'SniperRifleAim', Shotgun: 'SniperRifleAim', Crossbow: 'SniperRifleAim', RPG: 'SniperRifleAim', Bat: '1HandSwordReady' };
+// acciones del torso (la parte de arriba toma el clip; las piernas siguen caminando)
+const ACC_ARMA = {
+  Pistol: ['blend_shoot_1', 'blend_reload_1'], Revolver: ['blend_shoot_1', 'blend_reload_1'], Camera: ['blend_shoot_1', null], ToolBaton: ['1HandSwordBackswing', null],
+  PhysicsGun: [null, null], GravityGun: ['blend_shoot_1', null], Smg: ['blend_shoot_2', 'blend_reload_2'], Akm: ['blend_shoot_2', 'blend_reload_2'],
+  Shotgun: ['blend_shoot_2', 'blend_reload_2'], Sniper: ['blend_shoot_2', 'SniperRifleReload'], Crossbow: ['blend_shoot_2', 'blend_reload_2'],
+  RPG: ['RPGAttack', 'blend_reload_2'], Bat: ['1HandSwordBackswing', null], Hands: ['Attack04', null],
+};
+function humAccion(P, tipo) {
+  if (!P || !P.hum || !DATA.hu) return;
+  const A = ACC_ARMA[P.arma] || [null, null];
+  let c = null;
+  if (tipo === 'tiro' && A[0]) c = humClipNombre('Shooting', A[0]) || humClipNombre('Blend Tree', A[0]);
+  else if (tipo === 'recarga' && A[1]) c = humClipNombre('Reload', A[1]);
+  else if (tipo === 'golpe') c = humClipNombre('Hit', 'standing_react_large_gut');
+  if (!c) return;
+  const dur = tipo === 'tiro' ? Math.min(c.d, A[0] === '1HandSwordBackswing' || A[0] === 'Attack04' ? 0.7 : 0.35) : c.d;
+  P.accion = { c, t: 0, dur, peso: tipo === 'golpe' ? 0.75 : 1, tipo };
+}
 function humEstado(n) { return DATA.hu.est[n]; }
 function humClipNombre(est, nombre) { const L = humEstado(est); return L && L.find((c) => c.n === nombre); }
 function animarHumano(P, dt) {
@@ -80,7 +106,11 @@ function animarHumano(P, dt) {
   } else if (P.sentado) {
     humClip(E[P.manejando ? 'Sit' : 'Sit 0'][0], H.t, 1, T);
   } else if (!P.suelo) {
-    humClip(E.Fall[0], H.t, 1, T);
+    // al despegar: el salto del juego; después, cayendo
+    H.aire = (H.aire || 0) + dt;
+    const sal = E.FallOld && E.FallOld[0];
+    if (sal && H.aire < 0.45 && P.vel.y > -1) humClip(sal, 0.18 + H.aire * 0.9, 1, T);
+    else { const k = sal ? clamp((H.aire - 0.45) / 0.25, 0, 1) : 1; if (k < 1) humClip(sal, 0.58, 1 - k, T); humClip(E.Fall[0], H.t, k, T); }
   } else {
     const L = E.Locomotion, idle = humClipNombre('Pose', 'IdleLookAround_loop') || humClipNombre('Pose', 'Idle01') || L[0];
     if (sp < 0.3) humClip(idle, H.t, 1, T);
@@ -101,8 +131,26 @@ function animarHumano(P, dt) {
       humClip(cB, H.fase, k * w, T, esp && cB.n !== 'RunningUnarmed' && cB.n !== 'Run_Back');
     }
     // con arma: el torso y los brazos toman la pose del arma
-    const pa = P.arma && POSE_ARMA[P.arma] ? humClipNombre('Pose', POSE_ARMA[P.arma]) : null;
+    const pa = P.arma && POSE_ARMA[P.arma] ? humClipNombre('Pose', P.poseForzada || POSE_ARMA[P.arma]) : null;
     if (pa) { const U = H.tmp2; U.fill(0); humClip(pa, H.t, 1, U, false, true); for (let k = 0; k < NV; k++) if (HUM_ARRIBA[k]) T[k] = U[k]; }
+    // aterrizaje: un golpe de rodillas que se recupera solo
+    if (H.aire > 0.25) H.caida = Math.min(1, H.aire / 0.9);
+    H.aire = 0;
+    H.caida = Math.max(0, (H.caida || 0) - dt * 3.2);
+    const agach = Math.max(P.agachado ? 1 : 0, H.caida * 0.55);
+    H.agach = (H.agach || 0) + (agach - (H.agach || 0)) * Math.min(1, dt * 10);
+    if (H.agach > 0.01) humAgachar(T, H.agach);
+  }
+  // acción del torso encima de todo (con entrada y salida suaves)
+  const A = P.accion;
+  if (A && !P.emote && !P.sentado) {
+    A.t += dt;
+    if (A.t >= A.dur) P.accion = null;
+    else {
+      const w = A.peso * Math.min(1, A.t / 0.06) * Math.min(1, (A.dur - A.t) / 0.12), U = H.tmp2; U.fill(0);
+      humClip(A.c, Math.min(A.t, A.c.d - 0.001), 1, U, false, true);
+      for (let k = 0; k < NV; k++) if (HUM_ARRIBA[k]) T[k] += (U[k] - T[k]) * w;
+    }
   }
   // transición suave entre estados
   if (!H.listo) { H.v.set(T); H.listo = true; }

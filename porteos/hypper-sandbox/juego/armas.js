@@ -100,6 +100,7 @@ function disparar() {
     case 'foto': sacarFoto(); break;
   }
   if (D.car) hudArma();
+  if (D.tipo !== 'fisica') humAccion(JUG.cuerpo, 'tiro');
 }
 function golpeAplicar(D) {
   const h = raycast(CAM.pos, CAM.fwd, D.alcance, JUG.vehiculo ? JUG.vehiculo.b : null);
@@ -118,6 +119,7 @@ function recargar() {
   const dur = ARM.v && D.recarga ? vistaTocar(ARM.v, D.recarga) : 1.2;
   ARM.recargando = Math.max(0.6, Math.min(3, dur)); ARM.ocup = ARM.recargando;
   if (D.sR) sonar(D.sR, null, 0.7);
+  humAccion(JUG.cuerpo, 'recarga'); if (typeof redRecarga === 'function') redRecarga();
 }
 // ---------------- proyectiles ----------------
 const PROY = [];
@@ -206,7 +208,7 @@ function danarObjeto(o, dan, p, d) {
 }
 function danarJugador(dan, de) {
   if (!JUG.vivo || JUEGO.dios) return;
-  JUG.vida -= dan; JUG.golpeT = 0.4;
+  JUG.vida -= dan; JUG.golpeT = 0.4; humAccion(JUG.cuerpo, 'golpe');
   if (JUG.vida <= 0) { JUG.vida = 0; morirJugador(); }
 }
 // ---------------- pistola física ----------------
