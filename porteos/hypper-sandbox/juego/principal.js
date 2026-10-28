@@ -15,7 +15,7 @@ const PERFILES = {
 };
 const PERF_ORDEN = ['patata', 'bajo', 'medio', 'alto', 'ultra'];
 const PREFS_DEF = { modo: 'libre', codigo: '', salaLibre: 1, nombre: 'Player' + ((Math.random() * 900 + 100) | 0), mapa: 'Desert', skin: 'Hero', gorro: 'HatEmpty', gfx: 'auto', res: 70, lejos: 350, sens: 12, vol: 80, fps: true,
-  sombras: 'auto', post: 'auto', texQ: 'auto', ocultarUI: false, contorno: true };
+  sombras: 'auto', post: 'auto', texQ: 'auto', ocultarUI: false, contorno: true, motor: 'webgl1' };
 let PREFS = Object.assign({}, PREFS_DEF);
 try { Object.assign(PREFS, JSON.parse(localStorage.getItem('hypper_prefs') || '{}')); } catch (e) {}
 if (Q.get('gfx')) PREFS.gfx = Q.get('gfx');
@@ -49,6 +49,12 @@ function aplicarGfx() {
   if (PREFS.post === 'no') { GFX.hdr = GFX.ao = GFX.bloom = GFX.rayos = GFX.fxaa = 0; }
   else if (PREFS.post === 'si' && GFX.luz >= 2 && !GFX.hdr) { GFX.hdr = 1; GFX.ao = 1; GFX.bloom = 1; GFX.fxaa = 1; }
   if (PREFS.texQ !== 'auto') GFX.texMax = { baja: 128, media: 256, alta: 0 }[PREFS.texQ] === undefined ? GFX.texMax : { baja: 128, media: 256, alta: 0 }[PREFS.texQ];
+  // lo que el aparato no puede hacer (WebGL 1 sin alguna extensión) se apaga en cualquier calidad
+  if (R.gl) {
+    if (!R.fsAlta) GFX.luz = Math.min(GFX.luz, 1);
+    if (!R.depthTex) { GFX.sombra = 0; GFX.ao = 0; GFX.rayos = 0; }
+    if (!R.deriv) GFX.det = 0;
+  }
   if (R.gl) {
     progsLimpiar();
     if (GFX.luz >= 2 && GFX.sombra > 0) { if (!sombrasIniciar(GFX.sombra, Math.min(GFX.smTam, R.gl.getParameter(R.gl.MAX_TEXTURE_SIZE)))) GFX.sombra = 0; }
@@ -210,6 +216,7 @@ function cuadro(ahora) {
 const LOBBY_LUZ = { sol: v3(-0.322, 0.765, -0.557), solCol: [1, 0.957, 0.839], amb: [0.44, 0.43, 0.42], fondo: [0.945, 0.925, 0.875] };
 function dibujarMenu() {
   const gl = R.gl, W = R.cv.width, H = R.cv.height, F = LOBBY_LUZ.fondo;
+  R.cuadro = (R.cuadro || 0) + 1;
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0, 0, W, H); gl.clearColor(F[0], F[1], F[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   if (!MENU.lobby) return;
@@ -232,11 +239,11 @@ function dibujar() {
   const P = M4.persp(fovy, asp, cerca, lejos), V = M4.view(CAM.pos, CAM.qVista);
   m4mul(P, V, R.vp); R.fr = frustum(R.vp); R.camPos.copy(CAM.pos); R.camF.copy(CAM.fwd); R.lejos = GFX.lejos;
   (R.vpMundo || (R.vpMundo = new Float32Array(16))).set(R.vp);
-  R.dibujadas = 0; R.tris = 0; R.marca++;
+  R.dibujadas = 0; R.tris = 0; R.marca++; R.cuadro = (R.cuadro || 0) + 1;
   // cómo sale la imagen según la calidad
   const usaPost = GFX.luz >= 2 && (GFX.hdr || GFX.ao || GFX.fxaa) && postPreparar();
   R.salida = GFX.luz < 2 ? 'gam' : usaPost && PO.hdr ? 'hdr' : 'ldr';
-  R.sombraOn = GFX.luz >= 2 && GFX.sombra > 0 && SM.n > 0 && !MUNDO.sinSombra;
+  R.sombraOn = GFX.luz >= 2 && GFX.sombra > 0 && SM.n > 0 && !MUNDO.sinSombra && !R.sinSombraDbg;
   R.conAO = !!(usaPost && GFX.ao > 0 && PO.ao.length);
   R.aoActivo = false;
   if (R.salida !== 'gam') luzLineal();
@@ -288,7 +295,7 @@ function fotoGuardar() {
 async function iniciar() {
   try {
     glIniciar();
-  } catch (e) { $('carga').innerHTML = '<div style="padding:20px;text-align:center">Este aparato no tiene WebGL 2.<br>Probá con Chrome actualizado.</div>'; return; }
+  } catch (e) { $('carga').innerHTML = '<div style="padding:20px;text-align:center">Este aparato no tiene WebGL.<br>Probá con Chrome actualizado.</div>'; return; }
   R.aniso = R.gl.getExtension('EXT_texture_filter_anisotropic');
   if (R.aniso) R.anisoMax = R.gl.getParameter(R.aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
   await cargarPaquete((k) => ($('cargaB').style.width = k * 100 + '%'));

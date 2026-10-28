@@ -161,7 +161,10 @@ function nextbotNuevo(o) {
   img.src = P['Image URL'] ? P['Image URL'] : icono(fuentes[P.Type] || 'nextbot');
   o.nb = { img, tex: null, tam: P['Image size'] === 'Big' ? 4 : P['Image size'] === 'Small' ? 1.4 : 2.4, vel: 7.5, golpeT: 0 };
   o.b.frozen = false; o.b.noGrab = false;
-  img.onload = () => { const gl = R.gl, t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); } catch (e) {} gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.generateMipmap(gl.TEXTURE_2D); o.nb.tex = t; };
+  img.onload = () => {
+    const gl = R.gl, t = gl.createTexture(); let src = img; try { src = texAjustar(img, 1024); } catch (e) {}
+    gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, src === img); try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src); } catch (e) {} gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.generateMipmap(gl.TEXTURE_2D); o.nb.tex = t;
+  };
 }
 function nextbotPaso(o, dt) {
   const N = o.nb; if (!N) return; const b = o.b;

@@ -33,10 +33,12 @@ function humClip(c, t, w, out, espejo, soloArriba) {
   const fps = DATA.hu.fps, n = c.nf, f = Math.min(n - 1, Math.max(0, (c.loop || true) ? (t % c.d) * fps : Math.min(c.d, t) * fps));
   const i0 = Math.floor(f), i1 = Math.min(n - 1, i0 + 1), a = f - i0;
   const val = (attr) => { const k = c.c[attr]; if (!k) return attr === 13 ? 1 : attr === 8 ? 1 : 0; if (k.length === 1) return k[0]; return k[i0] * (1 - a) + k[i1] * a; };
+  // el giro del cuerpo (cuaternión) se suma del mismo lado que lo que ya hay: q y -q son el mismo giro, pero mezclados se anulan
+  const sq = (out[3] * val(10) + out[4] * val(11) * (espejo ? -1 : 1) + out[5] * val(12) * (espejo ? -1 : 1) + out[6] * val(13)) < 0 ? -1 : 1;
   for (let k = 0; k < NV; k++) {
     if (soloArriba && !HUM_ARRIBA[k]) continue;
     let attr, s = 1;
-    if (k < 7) { attr = 7 + k; if (espejo && (k === 0 || k === 4 || k === 5)) s = -1; }
+    if (k < 7) { attr = 7 + k; if (espejo && (k === 0 || k === 4 || k === 5)) s = -1; if (k >= 3) s *= sq; }
     else { const m = k - 7, mm = espejo ? HUM_ESPEJO[m] : m; attr = 42 + mm; if (espejo && HUM_NEG.has(m)) s = -1; }
     out[k] += val(attr) * s * w;
   }
@@ -65,13 +67,66 @@ function humAplicar(P) {
   const p = md.p[H.ci]; p[0] = -(av.rt[0] + off.x); p[1] = by + off.y; p[2] = av.rt[2] + off.z;
   const r = md.r[H.ci]; r[0] = hq.x; r[1] = -hq.y; r[2] = -hq.z; r[3] = hq.w;
 }
-// agachado: piernas como sentado (cadera y rodillas dobladas) y el torso un poco adelante; la altura la corrige el piso
+// agachado: piernas como sentado (cadera y rodillas dobladas) y el torso un poco adelante; la altura la corrige el piso.
+// Caminando agachado (mov > 0) se suma la diferencia entre sentado y parado a las piernas que corren: siguen dando
+// pasos, dobladas (antes quedaban quietas y el cuerpo se deslizaba)
 const PIERNAS = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36];
-function humAgachar(T, k) {
+function humAgachar(T, k, mov) {
   const S = humClipNombre('Sit 0', 'Sitting Idle') || (DATA.hu.est['Sit 0'] && DATA.hu.est['Sit 0'][0]); if (!S) return;
   const U = humAgachar.U || (humAgachar.U = new Float32Array(NV)); U.fill(0); humClip(S, 0, 1, U);
-  for (const m of PIERNAS) T[7 + m] += (U[7 + m] * 0.8 - T[7 + m]) * k;
+  let I = humAgachar.I;
+  if (!I) { I = humAgachar.I = new Float32Array(NV); const c = humClipNombre('Pose', 'IdleLookAround_loop') || DATA.hu.est.Locomotion[0]; humClip(c, 0, 1, I); }
+  const m0 = mov || 0;
+  for (const m of PIERNAS) T[7 + m] += (U[7 + m] * 0.8 - (T[7 + m] * (1 - m0) + I[7 + m] * m0)) * k;
   T[7 + 0] += 0.25 * k; T[7 + 3] += 0.15 * k;      // espalda y pecho hacia adelante
+}
+// locomoción medida en cada personaje: para cada clip de correr (y su espejo) hacia dónde va y a qué velocidad a ritmo
+// normal, sacado de la punta del pie apoyado (la del pie más bajo cuando toca el piso), y en qué momento del ciclo
+// apoya el pie izquierdo. Con eso se eligen los dos clips más cercanos a la dirección real (antes la diagonal de atrás
+// a la derecha usaba el clip de atrás a la izquierda) y el ritmo sigue a la velocidad (el pie que pisa no patina)
+const LOCO_AMP = [0.35, 0.5, 0.65, 0.8, 1];
+function humLoco(P) {
+  const H = P.hum, D = P.D; if (H.loco) return H.loco; if (D.loco) return (H.loco = D.loco);
+  const md = P.md, sub = D.sub, h = D.h;
+  let lt = sub.findIndex((n) => /LeftToeBase$/.test(n.n)), rt = sub.findIndex((n) => /RightToeBase$/.test(n.n));
+  if (lt < 0 || rt < 0) { lt = h.LeftFoot; rt = h.RightFoot; }
+  const raiz = md.raiz.slice(), vG = H.v.slice(); md.raiz.set(IDM);
+  const idle = humClipNombre('Pose', 'IdleLookAround_loop') || humClipNombre('Pose', 'Idle01');
+  // con pasos más cortos (mezclado con estar parado, como a poca velocidad) el pie no avanza en proporción: se mide igual
+  const medir = (c, esp, amp) => {
+    const n = Math.max(24, Math.round(c.d * (amp < 1 ? 72 : 120))), F = [];
+    for (let i = 0; i <= n; i++) {
+      H.v.fill(0); if (amp < 1 && idle) humClip(idle, 0, 1 - amp, H.v); humClip(c, c.d * (i % n) / n, amp, H.v, esp); humAplicar(P); md.sucio = true; md.actualizar();
+      const A = md.W[lt], B = md.W[rt]; F.push([A[12], A[13], A[14], B[12], B[13], B[14]]);
+    }
+    let ymin = 1e9, f0 = 0, yl = 1e9; for (let i = 0; i < n; i++) { ymin = Math.min(ymin, F[i][1], F[i][4]); if (F[i][1] < yl) { yl = F[i][1]; f0 = i / n; } }
+    let sx = 0, sz = 0, k = 0;
+    for (let i = 1; i <= n; i++) {
+      const A = F[i], B = F[i - 1], o = A[1] <= A[4] ? 0 : 3; if (o !== (B[1] <= B[4] ? 0 : 3) || A[o + 1] > ymin + 0.04) continue;
+      sx += A[o] - B[o]; sz += A[o + 2] - B[o + 2]; k++;
+    }
+    if (!k) return null;
+    const t = k / n * c.d; return { vx: -sx / t, vz: -sz / t, f0 };
+  };
+  const L = [], vistos = new Set();
+  for (const c of DATA.hu.est.Locomotion) {
+    if (vistos.has(c.n) || /idle/i.test(c.n)) continue; vistos.add(c.n);
+    for (const esp of [false, true]) {
+      const m = medir(c, esp, 1); if (!m) continue;
+      const v = clamp(Math.hypot(m.vx, m.vz), 1, 9), vs = LOCO_AMP.map((a) => { if (a === 1) return v; const q = medir(c, esp, a); return q ? clamp(Math.hypot(q.vx, q.vz), 0.2, 9) : v * a; });
+      // ángulo como lo usa el juego: 0 adelante, + a la derecha (la derecha del modelo es -x)
+      L.push({ c, esp, ang: Math.atan2(-m.vx, m.vz), v, vs, f0: m.f0 });
+    }
+  }
+  L.sort((a, b) => a.ang - b.ang);
+  md.raiz.set(raiz); H.v.set(vG); md.sucio = true;
+  return (H.loco = D.loco = L);
+}
+// velocidad del pie apoyado de un clip con pasos de tamaño amp (interpolada entre las medidas)
+function locoV(l, amp) {
+  const A = LOCO_AMP; if (amp <= A[0]) return l.vs[0] * amp / A[0];
+  for (let i = 1; i < A.length; i++) if (amp <= A[i]) { const t = (amp - A[i - 1]) / (A[i] - A[i - 1]); return l.vs[i - 1] + (l.vs[i] - l.vs[i - 1]) * t; }
+  return l.v;
 }
 const POSE_ARMA = { Pistol: 'idle_armed2_m', Revolver: 'idle_armed2_m', PhysicsGun: 'idle_armed2_m', GravityGun: 'idle_armed2_m', ToolBaton: 'idle_armed2_m', Camera: 'idle_armed2_m',
   Smg: 'SniperRifleAim', Akm: 'SniperRifleAim', Sniper: 'SniperRifleAim', Shotgun: 'SniperRifleAim', Crossbow: 'SniperRifleAim', RPG: 'SniperRifleAim', Bat: '1HandSwordReady' };
@@ -91,6 +146,8 @@ function humAccion(P, tipo) {
   else if (tipo === 'golpe') c = humClipNombre('Hit', 'standing_react_large_gut');
   if (!c) return;
   const dur = tipo === 'tiro' ? Math.min(c.d, A[0] === '1HandSwordBackswing' || A[0] === 'Attack04' ? 0.7 : 0.35) : c.d;
+  // si corta otra acción a la mitad, se parte de la pose que se ve (sin saltar a la pose base)
+  if (P.accion && P.hum) P.hum.clave = '';
   P.accion = { c, t: 0, dur, peso: tipo === 'golpe' ? 0.75 : 1, tipo };
 }
 function humEstado(n) { return DATA.hu.est[n]; }
@@ -113,22 +170,32 @@ function animarHumano(P, dt) {
     else { const k = sal ? clamp((H.aire - 0.45) / 0.25, 0, 1) : 1; if (k < 1) humClip(sal, 0.58, 1 - k, T); humClip(E.Fall[0], H.t, k, T); }
   } else {
     const L = E.Locomotion, idle = humClipNombre('Pose', 'IdleLookAround_loop') || humClipNombre('Pose', 'Idle01') || L[0];
-    if (sp < 0.3) humClip(idle, H.t, 1, T);
+    if (sp < 0.3) { humClip(idle, H.t, 1, T); H.mov = 0; H.cadera = (H.cadera || 0) * Math.max(0, 1 - dt * 6); }
     else {
       const f = v3(Math.sin(P.yaw), 0, Math.cos(P.yaw)), dx = P.vel.x / sp, dz = P.vel.z / sp;
       const fw = f.x * dx + f.z * dz, rt = -(f.z * dx - f.x * dz);  // + = derecha (cámara mira +Z con media vuelta)
       const ang = Math.atan2(rt, fw); // 0 adelante, +π/2 derecha
-      const k = Math.min(1, sp / 4), esp = ang < 0, aa = Math.abs(ang);
-      // 0 adelante, 45° diagonal, 90° costado, 135° diagonal atrás, 180° atrás
-      const tabla = [[0, 'RunningUnarmed'], [Math.PI / 4, 'Run_FrontCorner'], [Math.PI / 2, 'RunRight'], [3 * Math.PI / 4, 'Run_BackCorner'], [Math.PI, 'Run_Back']];
-      let j = 0; while (j < tabla.length - 2 && aa > tabla[j + 1][0]) j++;
-      const w = clamp((aa - tabla[j][0]) / (tabla[j + 1][0] - tabla[j][0]), 0, 1);
-      const cA = L.find((c) => c.n === tabla[j][1]), cB = L.find((c) => c.n === tabla[j + 1][1]);
-      const vel = clamp(sp / 5.5, 0.6, 1.6);
-      H.fase = (H.fase || 0) + dt * vel;
-      if (k < 1) humClip(idle, H.t, 1 - k, T);
-      humClip(cA, H.fase, k * (1 - w), T, esp && cA.n !== 'RunningUnarmed' && cA.n !== 'Run_Back');
-      humClip(cB, H.fase, k * w, T, esp && cB.n !== 'RunningUnarmed' && cB.n !== 'Run_Back');
+      // la cadera y las piernas giran hacia donde va (hasta 50°; el torso sigue mirando adonde apunta): así se usan
+      // sobre todo los clips de adelante y de atrás, que pisan bien (los de costado del juego no van derecho al costado)
+      if (H.atras === undefined) H.atras = false;
+      if (Math.abs(ang) > 1.92) H.atras = true; else if (Math.abs(ang) < 1.75) H.atras = false;
+      const metaC = clamp((H.atras ? ang - Math.sign(ang) * Math.PI : ang) * 0.6, -0.87, 0.87);
+      H.cadera = (H.cadera || 0) + (metaC - (H.cadera || 0)) * Math.min(1, dt * 8);
+      let angL = ang - H.cadera; if (angL > Math.PI) angL -= TAU; if (angL < -Math.PI) angL += TAU;
+      // a poca velocidad, pasos más cortos (mezclado con estar parado) en vez de correr en cámara lenta
+      const amp = clamp(sp / 3.2, 0.35, 1), LO = humLoco(P);
+      // los dos clips medidos que rodean la dirección (dando la vuelta por atrás)
+      let j = LO.length - 1; for (let i = 0; i < LO.length; i++) if (LO[i].ang <= angL) j = i;
+      const A = LO[j], B = LO[(j + 1) % LO.length]; H.par = j;
+      let da = B.ang - A.ang; if (da <= 0) da += TAU;
+      let w = angL - A.ang; if (w < 0) w += TAU; w = clamp(w / da, 0, 1);
+      // fase del ciclo (0..1): avanza para que el pie apoyado vaya a la misma velocidad que el cuerpo
+      // (el pie de la mezcla avanza como la mezcla de los dos pies, cada clip a su ritmo)
+      H.fase = ((H.fase || 0) + dt * sp / ((1 - w) * locoV(A, amp) * A.c.d + w * locoV(B, amp) * B.c.d)) % 1;
+      if (amp < 1) humClip(idle, H.t, 1 - amp, T);
+      humClip(A.c, ((H.fase + A.f0) % 1) * A.c.d, amp * (1 - w), T, A.esp);
+      humClip(B.c, ((H.fase + B.f0) % 1) * B.c.d, amp * w, T, B.esp);
+      H.mov = amp;
     }
     // con arma: el torso y los brazos toman la pose del arma
     const pa = P.arma && POSE_ARMA[P.arma] ? humClipNombre('Pose', P.poseForzada || POSE_ARMA[P.arma]) : null;
@@ -139,7 +206,7 @@ function animarHumano(P, dt) {
     H.caida = Math.max(0, (H.caida || 0) - dt * 3.2);
     const agach = Math.max(P.agachado ? 1 : 0, H.caida * 0.55);
     H.agach = (H.agach || 0) + (agach - (H.agach || 0)) * Math.min(1, dt * 10);
-    if (H.agach > 0.01) humAgachar(T, H.agach);
+    if (H.agach > 0.01) humAgachar(T, H.agach, H.mov || 0);
   }
   // acción del torso encima de todo (con entrada y salida suaves)
   const A = P.accion;
@@ -147,16 +214,34 @@ function animarHumano(P, dt) {
     A.t += dt;
     if (A.t >= A.dur) P.accion = null;
     else {
-      const w = A.peso * Math.min(1, A.t / 0.06) * Math.min(1, (A.dur - A.t) / 0.12), U = H.tmp2; U.fill(0);
+      // entrada suave (sin tirón al empezar): rápida para el disparo, más lenta para recargar o recibir un golpe
+      const e = Math.min(1, A.t / (A.tipo === 'tiro' ? 0.06 : 0.14)), w = A.peso * (A.tipo === 'tiro' ? e : e * e * (3 - 2 * e)) * Math.min(1, (A.dur - A.t) / 0.12), U = H.tmp2; U.fill(0);
       humClip(A.c, Math.min(A.t, A.c.d - 0.001), 1, U, false, true);
       for (let k = 0; k < NV; k++) if (HUM_ARRIBA[k]) T[k] += (U[k] - T[k]) * w;
     }
   }
-  // transición suave entre estados
-  if (!H.listo) { H.v.set(T); H.listo = true; }
-  const a = 1 - Math.exp(-dt * 12);
-  for (let k = 0; k < NV; k++) H.v[k] += (T[k] - H.v[k]) * a;
+  // transición suave sólo cuando cambia el estado (quieto/corriendo/en el aire/sentado/emote/arma): la diferencia con
+  // la pose anterior se guarda y se apaga en ~0,2 s. Antes se filtraba todo el tiempo y eso achicaba el paso de las
+  // piernas a menos de la mitad (los pies patinaban)
+  const sp0 = Math.hypot(P.vel.x, P.vel.z);
+  const clave = (P.emote || '') + '|' + (P.sentado ? (P.manejando ? 'm' : 's') : '') + '|' + (!P.suelo ? 'a' : sp0 < 0.3 ? 'q' : 'c' + H.par) + '|' + (P.arma || '');
+  if (!H.listo) { H.v.set(T); H.o = new Float32Array(NV); H.clave = clave; H.listo = true; }
+  if (clave !== H.clave) {
+    if (H.v[3] * T[3] + H.v[4] * T[4] + H.v[5] * T[5] + H.v[6] * T[6] < 0) for (let k = 3; k < 7; k++) H.v[k] = -H.v[k];
+    for (let k = 0; k < NV; k++) H.o[k] = H.v[k] - T[k]; H.clave = clave; H.oT = 0;
+  } else H.oT = (H.oT || 0) + dt;
+  // se apaga como un resorte amortiguado (arranca sin velocidad: antes el primer cuadro daba el tirón más grande)
+  const ko = 16 * H.oT, fo = ko > 12 ? 0 : (1 + ko) * Math.exp(-ko);
+  for (let k = 0; k < NV; k++) H.v[k] = T[k] + H.o[k] * fo;
   humAplicar(P);
-  // mirar arriba/abajo con la cabeza y el pecho
-  if (P.mira) { P.acc = {}; girar(P, 'Spine2', 1, 0, 0, P.mira * 0.3); girar(P, 'Head', 1, 0, 0, P.mira * 0.4); aplicarGiros(P); }
+  // cadera girada hacia donde camina (el torso vuelve) y mirar arriba/abajo con la cabeza y el pecho
+  // (la cadera vuelve de a poco al salir de un emote, del asiento o del aire; antes saltaba de golpe)
+  H.cadW = (H.cadW ?? 1) + ((P.emote || P.sentado || !P.suelo ? 0 : 1) - (H.cadW ?? 1)) * Math.min(1, dt * 10);
+  const cad = (H.cadera || 0) * H.cadW;
+  if (P.mira || Math.abs(cad) > 0.01) {
+    P.acc = {};
+    if (Math.abs(cad) > 0.01) { girar(P, 'Hips', 0, 1, 0, -cad); girar(P, 'Spine', 0, 1, 0, cad * 0.45); girar(P, 'Spine1', 0, 1, 0, cad * 0.3); girar(P, 'Spine2', 0, 1, 0, cad * 0.25); }
+    if (P.mira) { girar(P, 'Spine2', 1, 0, 0, P.mira * 0.3); girar(P, 'Head', 1, 0, 0, P.mira * 0.4); }
+    aplicarGiros(P);
+  }
 }

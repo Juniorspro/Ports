@@ -1,6 +1,7 @@
 # Hypper Sandbox → HTML
 
-Motor propio en JS/WebGL 2 (nada del código del juego). Los modelos, texturas, sonidos, íconos y la
+Motor propio en JS/WebGL (nada del código del juego). Arranca en **WebGL 1** (Ajustes → Gráficos → Motor gráfico, o
+`?gl=2` en la dirección, para WebGL 2). Los modelos, texturas, sonidos, íconos y la
 lista del menú salen del APK al empaquetar y van **sólo** al HTML privado, nunca al repo.
 
 ```sh
@@ -32,6 +33,17 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   puertas con hueco, contenedores abiertos, mesas con patas. Autos que no vuelcan al doblar.
 - Animación: armas del juego en la mano en tercera persona, disparo/recarga/golpe en el torso, salto, aterrizaje,
   agacharse, pies apoyados en el piso; cámara con balanceo, golpe al caer y agacharse suave.
+- WebGL 1: los shaders se pasan a GLSL 1.00 al compilar; usa las extensiones que haya (VAO, textura de profundidad,
+  derivadas, `frag_depth`, half float) y si falta alguna baja sólo esa parte (sombras, oclusión, relieve). Si el
+  aparato tiene pocos uniforms la piel se calcula en la CPU. Texturas no potencia de 2 se reescalan.
+- Sombras sin rayas (acné): sesgo según la inclinación de la superficie respecto del sol (derivadas de la posición
+  proyectadas en el mapa de la cascada), así no depende del `polygonOffset` de cada placa.
+- Locomoción: para cada skin se mide hacia dónde y a qué velocidad pisa cada clip (y su espejo) y con pasos cortos
+  (mezclado con estar parado); el ritmo sigue a la velocidad real. Los pies se clavan donde pisan (punto entre el
+  tobillo y la punta, IK de dos huesos) y se sueltan al levantar el pie. Cambios de estado (correr/quieto/aire/
+  sentado/emote/arma, cambio brusco de dirección, una acción que corta a otra) con transición inercial
+  amortiguada; el giro del cuerpo se mezcla del mismo lado del cuaternión (antes daba media vuelta en un cuadro).
+- Skin de Goku en la tienda (modelo 3D generado aparte y pesado con el esqueleto del Hero; va sólo en el HTML).
 - `juego/`: `nucleo` (matemática), `gl` (dibujo), `datos` (paquete), `modelo`, `fisica` (XPBD), `mundo`
   (mapa y choques), `jugador`, `objetos`, `vista` (arma en la mano), `audio`, `efectos`, `armas`,
   `vehiculos`, `herramientas` (Tool Gun), `personas` (skins, emotes, muñeco), `humano` (clips humanoides:
@@ -41,4 +53,5 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   `vehiculos.js`, `pies.js`, `camara.js`, `marcas.js` devuelven números), `red2.mjs` (tres jugadores, broker local
   aedes: sala oficial, lista, servidor con clave y sin PvP), `red3.mjs` (anfitrión: hora y reglas por la red,
   spawn bloqueado, echar), `barrido.mjs` (8 mapas × 5 calidades, errores de consola), `celu.mjs` (teléfono táctil,
-  `acostado` o `parado` para el giro de 90°).
+  `acostado` o `parado` para el giro de 90°), `pasos.mjs` (cuánto patina el pie apoyado, m/s, por velocidad y
+  dirección), `saltos.mjs` (cuánto salta cada hueso de un cuadro al otro en todos los cambios de estado).

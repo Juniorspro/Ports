@@ -1,12 +1,13 @@
 // ---------------------------------------------------------------------------------------------------------
-// dibujo: WebGL2. Todo lo que hay que dibujar en el cuadro se junta primero en una lista (malla, material,
+// dibujo: WebGL 1 (anda en cualquier aparato; con ?gl=2 usa WebGL 2). Todo lo que hay que dibujar en el cuadro se junta primero en una lista (malla, material,
 // matriz, huesos y su esfera en el mundo) y después se usa varias veces: sombras del sol, profundidad
 // (para la oclusión ambiental) y la imagen. Shaders armados por calidad:
 //   luz 0: el de antes (difuso en gamma, para teléfonos muy flojos)
 //   luz 1: difuso + brillo suave (gamma)
 //   luz 2: luz física (GGX), reflejos del cielo, luz lineal con ACES, sombras, luces puntuales
 //   luz 3: + relieve sacado de la textura, niebla con el sol, hojas que dejan pasar la luz
-// Mallas y texturas se suben recién cuando se usan.
+// Mallas y texturas se suben recién cuando se usan. Los shaders se escriben en GLSL 3.00 y, en WebGL 1, se pasan
+// a 1.00 al compilar (ver shader()).
 // ---------------------------------------------------------------------------------------------------------
 const R = { gl: null, cv: null, progs: new Map(), prog: {}, mallas: [], tex: [], mats: [], items: [], nItems: 0, cola: [], colaT: [], vp: new Float32Array(16), view: null, proj: null,
   camPos: v3(), camF: v3(0, 0, -1), sol: v3(0.4, 0.8, 0.3).norm(), solCol: [1, 0.96, 0.84], ambS: [0.55, 0.62, 0.72], ambG: [0.3, 0.27, 0.22],
@@ -40,7 +41,7 @@ const VS = `
 layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec2 aU;
 #ifdef SKIN
 layout(location=3) in vec4 aJ; layout(location=4) in vec4 aW;
-uniform vec4 uB[168];
+uniform vec4 uB[NHUESOS];
 #endif
 uniform mat4 uVP, uM; uniform vec3 uQ0, uQ1; uniform vec4 uST;
 out vec2 vU;
@@ -48,6 +49,13 @@ out vec2 vU;
 out vec3 vN; out vec3 vW;
 #endif
 invariant gl_Position;
+#ifdef GL1
+// las UV vienen en medio float (16 bits) y WebGL 1 no las lee así: llegan como enteros y se decodifican acá
+float h1(float h) { float s = 1.0; if (h >= 32768.0) { s = -1.0; h -= 32768.0; } float e = floor(h / 1024.0), m = h - e * 1024.0; return s * (e == 0.0 ? m * 5.9604645e-8 : (1.0 + m / 1024.0) * exp2(e - 15.0)); }
+#define UV vec2(h1(aU.x), h1(aU.y))
+#else
+#define UV aU
+#endif
 void main(){
   vec3 p = uQ0 + aP * uQ1;
 #ifndef DEPTH
@@ -62,9 +70,9 @@ void main(){
 #endif
 #endif
   vec4 w = uM * vec4(p, 1.0);
-  vU = aU * uST.xy + uST.zw;
+  vU = UV * uST.xy + uST.zw;
 #ifndef DEPTH
-  vW = w.xyz; vN = mat3(uM) * n;
+  vW = w.xyz; vN = mat3(uM[0].xyz, uM[1].xyz, uM[2].xyz) * n;
 #endif
   gl_Position = uVP * w;
 }`;
@@ -97,11 +105,13 @@ uniform vec3 uMat;
 uniform vec3 uTop, uMid, uBot; uniform vec2 uExp; uniform float uExpo, uCieloK;
 #endif
 #if SOMBRA > 0
+#ifndef GL1
 uniform highp sampler2DShadow uSM;
-#ifdef PCSS
+#endif
+#if defined(GL1) || defined(PCSS)
 uniform highp sampler2D uSMd;
 #endif
-uniform mat4 uSMm[SOMBRA]; uniform vec4 uSMr[SOMBRA]; uniform vec4 uSMk[SOMBRA]; uniform float uSMc[SOMBRA]; uniform vec3 uCamF; uniform float uSMon;
+uniform mat4 uSMm[SOMBRA]; uniform vec4 uSMr[SOMBRA]; uniform vec4 uSMk[SOMBRA]; uniform float uSMc[SOMBRA]; uniform vec3 uCamF; uniform float uSMon, uSMtam;
 #endif
 #if NLUZ > 0
 uniform vec4 uLP[NLUZ], uLC[NLUZ], uLD[NLUZ]; uniform int uLN;
@@ -126,48 +136,125 @@ vec3 brdf(vec3 n, vec3 v, vec3 l, vec3 dif, vec3 f0, float a) {
 }
 #endif
 #if SOMBRA > 0
-const vec3 PCF9[9] = vec3[9](vec3(0.0, 0.0, 2.0), vec3(-1.0, -1.0, 0.5), vec3(0.0, -1.0, 1.0), vec3(1.0, -1.0, 0.5), vec3(-1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(-1.0, 1.0, 0.5), vec3(0.0, 1.0, 1.0), vec3(1.0, 1.0, 0.5));
-float smTap(vec3 c, vec4 r) { return textureLod(uSM, vec3(clamp(c.xy, r.xy, r.zw), c.z), 0.0); }
-#ifdef PCSS
-const vec2 POI[16] = vec2[16](vec2(-0.94201624, -0.39906216), vec2(0.94558609, -0.76890725), vec2(-0.094184101, -0.92938870), vec2(0.34495938, 0.29387760),
-  vec2(-0.91588581, 0.45771432), vec2(-0.81544232, -0.87912464), vec2(-0.38277543, 0.27676845), vec2(0.97484398, 0.75648379), vec2(0.44323325, -0.97511554),
-  vec2(0.53742981, -0.47373420), vec2(-0.26496911, -0.41893023), vec2(0.79197514, 0.19090188), vec2(-0.24188840, 0.99706507), vec2(-0.81409955, 0.91437590),
-  vec2(0.19984126, 0.78641367), vec2(0.14383161, -0.14100790));
-#endif
-float sombraCasc(int i, vec3 n, float nl) {
-  vec4 k = uSMk[i], r = uSMr[i];
-  vec3 c = (uSMm[i] * vec4(vW + n * k.w * (1.6 - nl), 1.0)).xyz;
-  if (c.z >= 1.0) return 1.0;
-#if defined(PCSS)
-  float a = ign(gl_FragCoord.xy) * 6.2831853; mat2 rot = mat2(cos(a), sin(a), -sin(a), cos(a));
-  float busca = k.x * 0.9, sz = 0.0, nb = 0.0;
-  for (int j = 0; j < 8; j++) {
-    float z = textureLod(uSMd, clamp(c.xy + rot * POI[j * 2] * busca, r.xy, r.zw), 0.0).r;
-    if (z < c.z - 0.0004) { sz += z; nb += 1.0; }
-  }
-  if (nb < 0.5) return 1.0;
-  float pen = (c.z - sz / nb) * k.y * 0.03;                 // metros de penumbra (sol algo más grande que el real: más suave)
-  float rad = clamp(pen * k.x, k.z * 1.2, k.z * 14.0);
-  float s = 0.0; for (int j = 0; j < 16; j++) s += smTap(vec3(c.xy + rot * POI[j] * rad, c.z), r);
-  return s / 16.0;
-#elif PCF == 9
-  float s = 0.0;
-  for (int j = 0; j < 9; j++) s += smTap(vec3(c.xy + PCF9[j].xy * k.z * 1.25, c.z), r) * PCF9[j].z;
-  return s / 8.0;
+#if defined(GL1) || defined(PCSS)
+float smRaw(vec2 uv) {
+#ifdef GL1
+  return texture(uSMd, uv).r;
 #else
-  return smTap(c, r);
+  return textureLod(uSMd, uv, 0.0).r;
 #endif
 }
-float sombra(vec3 n, float nl) {
+#endif
+// una muestra comparada contra la profundidad z, con filtro bilineal (en WebGL 1 a mano: 4 vecinos)
+float smTap(vec2 uv, float z, vec4 r) {
+  uv = clamp(uv, r.xy, r.zw);
+#ifdef GL1
+  vec2 t = uv * uSMtam - 0.5, fr = fract(t), b = (floor(t) + 0.5) / uSMtam; float e = 1.0 / uSMtam;
+  vec4 s = step(vec4(z), vec4(smRaw(b), smRaw(b + vec2(e, 0.0)), smRaw(b + vec2(0.0, e)), smRaw(b + vec2(e, e))));
+  return mix(mix(s.x, s.y, fr.x), mix(s.z, s.w, fr.x), fr.y);
+#else
+  return textureLod(uSM, vec3(uv, z), 0.0);
+#endif
+}
+// una cascada: M lleva del mundo al atlas, k = (uv por metro, largo de la caja en metros, 1 texel en uv, texel en metros)
+float sombraCasc(mat4 M, vec4 k, vec4 r, vec3 n, float nl, vec3 dx, vec3 dy) {
+  vec3 c = (M * vec4(vW + n * k.w * (1.6 - nl), 1.0)).xyz;
+  if (c.z >= 1.0) return 1.0;
+  // plano del receptor: cuánto cambia la profundidad por unidad de uv sobre esta superficie. Las muestras del
+  // filtro se comparan contra ese plano y no contra un solo punto: sin esto, en las superficies inclinadas
+  // respecto del sol cada muestra se tapaba a sí misma y salían rayas (más con filtros anchos y en placas con
+  // poco desplazamiento de polígonos)
+  vec2 dz = vec2(0.0);
+#ifdef DERIV
+  vec3 cx = (M * vec4(dx, 0.0)).xyz, cy = (M * vec4(dy, 0.0)).xyz;
+  float det = cx.x * cy.y - cx.y * cy.x;
+  if (abs(det) > 1e-20) dz = vec2(cy.y * cx.z - cx.y * cy.z, cx.x * cy.z - cy.x * cx.z) / det;
+  float lim = 6.0 / (k.x * k.y);
+  dz = clamp(dz, vec2(-lim), vec2(lim));
+#endif
+  // margen: un texel a lo largo de la pendiente y 2 cm
+  float z0 = c.z - (abs(dz.x) + abs(dz.y)) * k.z - 0.02 / k.y;
+  vec2 ov;
+#if defined(PCSS)
+  float a = ign(gl_FragCoord.xy) * 6.2831853; mat2 rot = mat2(cos(a), sin(a), -sin(a), cos(a));
+  float busca = k.x * 0.9, sz = 0.0, nb = 0.0, zr, zb, eps = 0.06 / k.y;
+  ov = rot * vec2(-0.94201624, -0.39906216) * busca; zr = z0 + dot(dz, ov); zb = smRaw(clamp(c.xy + ov, r.xy, r.zw)); if (zb < zr - eps) { sz += zr - zb; nb += 1.0; }
+  ov = rot * vec2(-0.094184101, -0.9293887) * busca; zr = z0 + dot(dz, ov); zb = smRaw(clamp(c.xy + ov, r.xy, r.zw)); if (zb < zr - eps) { sz += zr - zb; nb += 1.0; }
+  ov = rot * vec2(-0.91588581, 0.45771432) * busca; zr = z0 + dot(dz, ov); zb = smRaw(clamp(c.xy + ov, r.xy, r.zw)); if (zb < zr - eps) { sz += zr - zb; nb += 1.0; }
+  ov = rot * vec2(-0.38277543, 0.27676845) * busca; zr = z0 + dot(dz, ov); zb = smRaw(clamp(c.xy + ov, r.xy, r.zw)); if (zb < zr - eps) { sz += zr - zb; nb += 1.0; }
+  ov = rot * vec2(0.44323325, -0.97511554) * busca; zr = z0 + dot(dz, ov); zb = smRaw(clamp(c.xy + ov, r.xy, r.zw)); if (zb < zr - eps) { sz += zr - zb; nb += 1.0; }
+  ov = rot * vec2(-0.26496911, -0.41893023) * busca; zr = z0 + dot(dz, ov); zb = smRaw(clamp(c.xy + ov, r.xy, r.zw)); if (zb < zr - eps) { sz += zr - zb; nb += 1.0; }
+  ov = rot * vec2(-0.2418884, 0.99706507) * busca; zr = z0 + dot(dz, ov); zb = smRaw(clamp(c.xy + ov, r.xy, r.zw)); if (zb < zr - eps) { sz += zr - zb; nb += 1.0; }
+  ov = rot * vec2(0.19984126, 0.78641367) * busca; zr = z0 + dot(dz, ov); zb = smRaw(clamp(c.xy + ov, r.xy, r.zw)); if (zb < zr - eps) { sz += zr - zb; nb += 1.0; }
+  if (nb < 0.5) return 1.0;
+  float pen = sz / nb * k.y * 0.03;                       // metros de penumbra (sol algo más grande que el real: más suave)
+  float rad = clamp(pen * k.x, k.z * 1.2, k.z * 14.0), s = 0.0;
+  ov = rot * vec2(-0.94201624, -0.39906216) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(0.94558609, -0.76890725) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(-0.094184101, -0.9293887) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(0.34495938, 0.2938776) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(-0.91588581, 0.45771432) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(-0.81544232, -0.87912464) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(-0.38277543, 0.27676845) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(0.97484398, 0.75648379) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(0.44323325, -0.97511554) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(0.53742981, -0.4737342) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(-0.26496911, -0.41893023) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(0.79197514, 0.19090188) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(-0.2418884, 0.99706507) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(-0.81409955, 0.9143759) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(0.19984126, 0.78641367) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = rot * vec2(0.14383161, -0.1410079) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  return s / 16.0;
+#elif PCF == 9 && defined(GL1)
+  // 3x3 texeles con filtro bilineal (lo mismo que 9 muestras de la placa) leyendo 4x4 texeles una sola vez
+  vec2 t = clamp(c.xy, r.xy, r.zw) * uSMtam - 0.5, fr = fract(t), b0 = (floor(t) - 0.5) / uSMtam; float e = 1.0 / uSMtam, s = 0.0;
+  for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) {
+    vec2 q = b0 + vec2(float(i), float(j)) * e;
+    float w = (i == 0 ? 1.0 - fr.x : i == 3 ? fr.x : 1.0) * (j == 0 ? 1.0 - fr.y : j == 3 ? fr.y : 1.0);
+    s += w * step(z0 + dot(dz, q - c.xy), smRaw(clamp(q, r.xy, r.zw)));
+  }
+  return s / 9.0;
+#elif PCF == 9
+  float e = k.z * 1.25, s = 0.0;
+  ov = vec2(0.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 2.0;
+  ov = vec2(-1.0, -1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
+  ov = vec2(0.0, -1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
+  ov = vec2(1.0, -1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
+  ov = vec2(-1.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
+  ov = vec2(1.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
+  ov = vec2(-1.0, 1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
+  ov = vec2(0.0, 1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
+  ov = vec2(1.0, 1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
+  return s / 8.0;
+#else
+  return smTap(c.xy, z0, r);
+#endif
+}
+#define CASC(i) sombraCasc(uSMm[i], uSMk[i], uSMr[i], n, nl, dx, dy)
+float sombra(vec3 n, float nl, vec3 dx, vec3 dy) {
   if (uSMon < 0.5) return 1.0;
   float d = dot(vW - uCam, uCamF), fin = uSMc[SOMBRA - 1];
   if (d > fin) return 1.0;
-  int i = 0;
-  for (int k = 0; k < SOMBRA - 1; k++) if (d > uSMc[k]) i = k + 1;
-  float s = sombraCasc(i, n, nl);
+  float s = 1.0, c0, b, t;
+  // la cascada que toca (con índices fijos: WebGL 1 no deja elegir uniformes con una variable) y mezcla suave
+  // con la siguiente cerca del corte
+  if (SOMBRA == 1 || d <= uSMc[0]) {
+    s = CASC(0);
 #if SOMBRA > 1
-  // mezcla suave con la cascada siguiente cerca del corte
-  if (i < SOMBRA - 1) { float c0 = uSMc[i], b = c0 * 0.12, t = smoothstep(c0 - b, c0, d); if (t > 0.0) s = mix(s, sombraCasc(i + 1, n, nl), t); }
+    c0 = uSMc[0]; b = c0 * 0.12; t = smoothstep(c0 - b, c0, d); if (t > 0.0) s = mix(s, CASC(1), t);
+#endif
+  }
+#if SOMBRA > 1
+  else if (SOMBRA == 2 || d <= uSMc[1]) {
+    s = CASC(1);
+#if SOMBRA > 2
+    c0 = uSMc[1]; b = c0 * 0.12; t = smoothstep(c0 - b, c0, d); if (t > 0.0) s = mix(s, CASC(2), t);
+#endif
+  }
+#endif
+#if SOMBRA > 2
+  else s = CASC(2);
 #endif
   return mix(s, 1.0, smoothstep(fin * 0.82, fin, d));
 }
@@ -182,6 +269,11 @@ vec3 relieve(vec3 n, float h, float k) {
 }
 #endif
 void main(){
+#if SOMBRA > 0 && defined(DERIV)
+  vec3 dWx = dFdx(vW), dWy = dFdy(vW);
+#else
+  vec3 dWx = vec3(0.0), dWy = vec3(0.0);
+#endif
 #ifdef TERR
   vec4 kc = texture(uT, vU);
   vec4 t = vec4(texture(uT1, vU * uS1.xy).rgb * kc.r + texture(uT2, vU * uS1.zw).rgb * kc.g + texture(uT3, vU * uS3).rgb * kc.b, 1.0);
@@ -213,7 +305,7 @@ void main(){
   vec3 dif = alb * (1.0 - metal), f0 = mix(vec3(uMat.z), alb, metal);
   float nl = dot(n, uSol);
 #if SOMBRA > 0
-  float sh = nl > 0.0 ? sombra(ng, max(nl, 0.0)) : 0.0;
+  float sh = nl > 0.0 ? sombra(ng, max(nl, 0.0), dWx, dWy) : 0.0;
 #else
   float sh = 1.0;
 #endif
@@ -331,21 +423,44 @@ layout(location=0) in vec3 aP; layout(location=1) in vec4 aC; uniform mat4 uVP; 
 const FS_LIN = `
 precision mediump float; in vec4 vC; uniform float uLin; out vec4 o; void main(){ o = vC; if (uLin > 0.5) o.rgb = pow(o.rgb, vec3(2.2)) * 2.0; }`;
 
+// pasa un shader escrito para GLSL 3.00 a 1.00 (WebGL 1): atributos, varyings, texture2D y gl_FragColor
+function a100(src, vs) {
+  let x = src.replace(/^#version 300 es\n/, ''); const at = [];
+  if (vs) {
+    x = x.replace(/layout\(location=(\d+)\)\s*in\s+(\w+)\s+(\w+);/g, (m, l, t, n) => { at.push([+l, n]); return 'attribute ' + t + ' ' + n + ';'; });
+    x = x.replace(/(^|[;\s])out\s+(?=(?:highp |mediump |lowp )?(?:vec|float|mat))/gm, '$1varying ');
+  } else {
+    x = x.replace(/(^|[;\s])in\s+(?=(?:highp |mediump |lowp )?(?:vec|float|mat))/gm, '$1varying ');
+    x = x.replace(/\bout\s+vec4\s+o\s*;/, '');
+    x = '#define o gl_FragColor\n' + x.replace(/precision highp float;/g, '\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n');
+  }
+  x = x.replace(/\btexture\(/g, 'texture2D(');
+  return { x, at };
+}
 function shader(vs, fs, defs) {
-  const gl = R.gl, pre = '#version 300 es\n' + (defs || []).map((d) => '#define ' + d.replace('=', ' ') + '\n').join('');
+  const gl = R.gl, todas = (R.defsBase || []).concat(defs || []);
+  const pre = (fsh) => todas.filter((d) => !(d[0] === '#' && !fsh)).map((d) => (d[0] === '#' ? d : '#define ' + d.replace('=', ' ')) + '\n').join('');
   const mk = (t, src) => {
-    const s = gl.createShader(t); gl.shaderSource(s, src.startsWith('#version') ? src.replace('\n', '\n' + pre.slice(16)) : pre + src); gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + (defs || []).join(' '));
+    const fsh = t === gl.FRAGMENT_SHADER; let code;
+    if (R.gl1) code = (fsh && R.deriv ? '#extension GL_OES_standard_derivatives : enable\n' : '') + pre(fsh) + a100(src, !fsh).x;
+    else code = '#version 300 es\n' + pre(fsh) + src.replace(/^#version 300 es\n/, '');
+    const s = gl.createShader(t); gl.shaderSource(s, code); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + todas.join(' '));
     return s;
   };
-  const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
+  const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs));
+  if (R.gl1) for (const [l, n] of a100(vs, true).at) gl.bindAttribLocation(p, l, n);
+  gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
   for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i), nm = a.name.replace('[0]', ''); u[nm] = gl.getUniformLocation(p, a.name); }
   gl.useProgram(p);
   for (const [k, v] of [['uT', 0], ['uT1', 1], ['uT2', 2], ['uT3', 3], ['uSM', 5], ['uSMd', 6], ['uAO', 7], ['uTex', 0], ['uTex2', 1], ['uTex3', 2], ['uProf', 3]]) if (u[k]) gl.uniform1i(u[k], v);
+  if (R.gl1 && u.uSMd && !u.uSM) gl.uniform1i(u.uSMd, 6);
   return { p, u, marca: 0 };
 }
+// una vista del principio de un arreglo (para subir sólo n valores; se guarda en el mismo arreglo)
+function sub(a, n) { const k = '_v' + n; return a[k] || (a[k] = a.subarray(0, n)); }
 // programa según el material y la calidad (se compila la primera vez que se usa)
 function progDe(clave, modo) {
   const k = modo + '|' + clave + '|' + R.salida + '|' + (R.sombraOn ? SM.n : 0) + (R.conAO ? 'a' : '');
@@ -359,7 +474,7 @@ function progDe(clave, modo) {
     if (luz >= 2 && R.sombraOn && Q.sombra > 0) { d.push('SOMBRA=' + SM.n, 'PCF=' + (Q.pcf || 1)); if (Q.pcss) d.push('PCSS'); } else d.push('SOMBRA=0');
     if (luz >= 2 && Q.nluz > 0) d.push('NLUZ=' + Q.nluz); else d.push('NLUZ=0');
     if (luz >= 2 && R.conAO) d.push('AO');
-    if (luz >= 3 && Q.det && !f.includes('SKIN') && !f.includes('TERR')) d.push('DET');
+    if (luz >= 3 && Q.det && R.deriv && !f.includes('SKIN') && !f.includes('TERR')) d.push('DET');
     if (DBG.verSombra) d.push('VERSOMBRA');
     P = shader(VS, FS, d);
   }
@@ -368,11 +483,22 @@ function progDe(clave, modo) {
 function progsLimpiar() { const gl = R.gl; for (const P of R.progs.values()) gl.deleteProgram(P.p); R.progs.clear(); }
 function glIniciar() {
   const cv = $('cv'); R.cv = cv;
-  const gl = cv.getContext('webgl2', { antialias: false, alpha: false, depth: true, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: TEST });
-  if (!gl) throw new Error('webgl2');
+  const op = { antialias: false, alpha: false, depth: true, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: TEST };
+  // WebGL 1 siempre (anda en todos lados); WebGL 2 sólo si se elige en Ajustes → Motor gráfico (o ?gl=2)
+  let gl = (Q.get('gl') === '2' || (PREFS.motor === 'webgl2' && Q.get('gl') !== '1')) ? cv.getContext('webgl2', op) : null;
+  if (!gl) { gl = cv.getContext('webgl', op) || cv.getContext('experimental-webgl', op); R.gl1 = true; }
+  if (!gl) throw new Error('webgl');
   R.gl = gl;
-  R.extFloat = gl.getExtension('EXT_color_buffer_float');
-  gl.getExtension('OES_texture_float_linear');
+  if (R.gl1) gl1Preparar(gl);
+  else {
+    R.extFloat = gl.getExtension('EXT_color_buffer_float'); gl.getExtension('OES_texture_float_linear');
+    R.depthTex = R.deriv = R.fsAlta = true;
+    R.F = { hdr: [gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT], ldr: [gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE], r8: [gl.R8, gl.RED, gl.UNSIGNED_BYTE], prof: [gl.DEPTH_COMPONENT24, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT] };
+  }
+  // huesos por personaje en el shader (3 vec4 cada uno): si el aparato tiene pocos uniformes, la piel se calcula en la CPU
+  const vu = gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS) || 0;
+  R.nHuesos = vu >= 184 ? 168 : vu >= 172 ? 156 : 0; R.cpuSkin = R.nHuesos === 0 || Q.get('pielcpu') === '1';
+  R.defsBase = ['NHUESOS=' + (R.nHuesos || 3)].concat(R.gl1 ? ['GL1'] : []).concat(R.deriv ? ['DERIV'] : []);
   R.prog.cieloG = shader(VS_CIELO, FS_CIELO, ['SALIDA=0']);
   R.prog.lin = shader(VS_LIN, FS_LIN);
   R.quad = gl.createVertexArray(); gl.bindVertexArray(R.quad);
@@ -385,6 +511,43 @@ function glIniciar() {
   R.texGris = texSolida([200, 200, 200, 255]); R.texBlanca = texSolida([255, 255, 255, 255]);
   gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE);
 }
+// WebGL 1: extensiones (cada una opcional: sin ellas se apaga lo que las necesita) y lo que falta de WebGL 2
+function gl1Preparar(gl) {
+  const ext = (n) => gl.getExtension(n) || gl.getExtension('WEBKIT_' + n) || gl.getExtension('MOZ_' + n);
+  const no = (Q.get('sinext') || '').split(',');            // (pruebas: simular un aparato sin alguna)
+  const E = (n) => (no.includes(n) ? null : ext(n));
+  const vao = E('OES_vertex_array_object');
+  if (vao) { gl.createVertexArray = () => vao.createVertexArrayOES(); gl.bindVertexArray = (v) => vao.bindVertexArrayOES(v); gl.deleteVertexArray = (v) => vao.deleteVertexArrayOES(v); }
+  else vaoEmular(gl);
+  R.depthTex = !!E('WEBGL_depth_texture'); R.deriv = !!E('OES_standard_derivatives'); R.fragDepth = !!E('EXT_frag_depth');
+  const hp = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT); R.fsAlta = !!(hp && hp.precision > 0) && !no.includes('highp');
+  // luz alta (HDR): textura de medio float que se pueda dibujar y filtrar
+  const hf = E('OES_texture_half_float'), hfl = E('OES_texture_half_float_linear'); E('EXT_color_buffer_half_float');
+  if (hf && hfl) {
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4, 4, 0, gl.RGBA, hf.HALF_FLOAT_OES, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+    R.extFloat = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(f); gl.deleteTexture(t);
+  }
+  R.F = { hdr: [gl.RGBA, gl.RGBA, hf ? hf.HALF_FLOAT_OES : gl.UNSIGNED_BYTE], ldr: [gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE], r8: [gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE], prof: [gl.DEPTH_COMPONENT, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT] };
+}
+// sin la extensión de VAO: se guarda el estado de los atributos de cada uno y se vuelve a poner al enlazarlo
+function vaoEmular(gl) {
+  const n = gl.getParameter(gl.MAX_VERTEX_ATTRIBS), mk = () => ({ a: [], el: null });
+  const o = { en: gl.enableVertexAttribArray.bind(gl), dis: gl.disableVertexAttribArray.bind(gl), ptr: gl.vertexAttribPointer.bind(gl), bb: gl.bindBuffer.bind(gl) };
+  let act = mk(), nulo = act, arr = null;
+  gl.bindBuffer = (t, b) => { if (t === gl.ARRAY_BUFFER) arr = b; else if (t === gl.ELEMENT_ARRAY_BUFFER) act.el = b; o.bb(t, b); };
+  gl.enableVertexAttribArray = (i) => { (act.a[i] || (act.a[i] = {})).on = true; o.en(i); };
+  gl.disableVertexAttribArray = (i) => { (act.a[i] || (act.a[i] = {})).on = false; o.dis(i); };
+  gl.vertexAttribPointer = (i, sz, ty, nm, st, of) => { Object.assign(act.a[i] || (act.a[i] = {}), { b: arr, sz, ty, nm, st, of }); o.ptr(i, sz, ty, nm, st, of); };
+  gl.createVertexArray = mk; gl.deleteVertexArray = () => {};
+  gl.bindVertexArray = (v) => {
+    act = v || nulo; const ab = arr;
+    for (let i = 0; i < n; i++) { const x = act.a[i]; if (x && x.on && x.b) { o.bb(gl.ARRAY_BUFFER, x.b); o.ptr(i, x.sz, x.ty, x.nm, x.st, x.of); o.en(i); } else o.dis(i); }
+    o.bb(gl.ARRAY_BUFFER, ab); o.bb(gl.ELEMENT_ARRAY_BUFFER, act.el);
+  };
+}
 function texSolida(c) {
   const gl = R.gl, t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(c)); return t;
@@ -396,16 +559,12 @@ function texGL(i) {
   if (t) return t.gl || R.texGris;
   t = R.tex[i] = { gl: null };
   const blob = new Blob([PK.parte('t' + i)], { type: 'image/webp' });
-  createImageBitmap(blob, { imageOrientation: 'flipY', premultiplyAlpha: 'none', colorSpaceConversion: 'none' }).then((img) => {
+  decodificar(blob).then(([img, volteada]) => {
     const gl = R.gl, tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
-    let src = img;
-    if (GFX.texMax && Math.max(img.width, img.height) > GFX.texMax) {
-      const k = GFX.texMax / Math.max(img.width, img.height), c = document.createElement('canvas');
-      c.width = Math.max(4, Math.round(img.width * k)); c.height = Math.max(4, Math.round(img.height * k));
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); src = c;
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    }
+    const src = texAjustar(img, GFX.texMax);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, !volteada && src === img);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
@@ -414,18 +573,42 @@ function texGL(i) {
   }).catch(() => { t.gl = R.texGris; });
   return R.texGris;
 }
+// imagen decodificada y ya dada vuelta (las UV del juego tienen el origen abajo). Sin createImageBitmap (Safari
+// viejo) se usa un <img> y la vuelta la hace WebGL al subirla
+function decodificar(blob) {
+  if (typeof createImageBitmap === 'function' && !Q.get('sinbitmap')) {
+    return createImageBitmap(blob, { imageOrientation: 'flipY', premultiplyAlpha: 'none', colorSpaceConversion: 'none' }).then((b) => [b, true]).catch(() => decodificarImg(blob));
+  }
+  return decodificarImg(blob);
+}
+function decodificarImg(blob) {
+  return new Promise((ok, mal) => { const im = new Image(), u = URL.createObjectURL(blob); im.onload = () => { URL.revokeObjectURL(u); ok([im, false]); }; im.onerror = mal; im.src = u; });
+}
+const esPot = (n) => (n & (n - 1)) === 0;
+const potCerca = (n) => Math.max(4, Math.pow(2, Math.round(Math.log2(n))));
+// achica la imagen si pasa el tope de la calidad; en WebGL 1 además la lleva a potencias de 2 (si no, no hay
+// mipmaps ni repetición). Si hay que redibujarla en un canvas, la vuelta ya queda hecha
+function texAjustar(img, tope) {
+  let w = img.width, h = img.height;
+  if (tope && Math.max(w, h) > tope) { const k = tope / Math.max(w, h); w = Math.max(4, Math.round(w * k)); h = Math.max(4, Math.round(h * k)); }
+  if (R.gl1) { w = potCerca(w); h = potCerca(h); }
+  if (w === img.width && h === img.height) return img;
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
+  if (img instanceof HTMLImageElement) { x.translate(0, h); x.scale(1, -1); }
+  x.drawImage(img, 0, 0, w, h); return c;
+}
 // cambiar la calidad de textura: se borran y se vuelven a subir con el tamaño nuevo cuando se usan
 function texturasRecargar() { const gl = R.gl; for (const t of R.tex) if (t && t.gl && t.gl !== R.texGris) gl.deleteTexture(t.gl); R.tex = []; }
 // ---------------- mallas (de los datos del juego al GPU) ----------------
 function mallaGL(i) {
   let m = R.mallas[i]; if (m) return m;
   const d = DATA.ms[i], gl = R.gl, vao = gl.createVertexArray(); gl.bindVertexArray(vao);
-  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, BIN, gl.STATIC_DRAW, d.o, d.v * 14);
+  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, BIN.subarray(d.o, d.o + d.v * 14), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.UNSIGNED_SHORT, true, 14, 0);
   gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.BYTE, true, 14, 6);
-  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.HALF_FLOAT, false, 14, 10);
+  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, R.gl1 ? gl.UNSIGNED_SHORT : gl.HALF_FLOAT, false, 14, 10);
   if (d.sk !== undefined) {
-    const sb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, sb); gl.bufferData(gl.ARRAY_BUFFER, BIN, gl.STATIC_DRAW, d.sk, d.v * 8);
+    const sb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, sb); gl.bufferData(gl.ARRAY_BUFFER, BIN.subarray(d.sk, d.sk + d.v * 8), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 4, gl.UNSIGNED_BYTE, false, 8, 0);
     gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 4, gl.UNSIGNED_BYTE, true, 8, 4);
   }
@@ -436,7 +619,7 @@ function mallaGL(i) {
   gl.bindVertexArray(null);
   // esfera que la envuelve (para no dibujar lo que no se ve)
   const c = [d.mn[0] + d.sc[0] / 2, d.mn[1] + d.sc[1] / 2, d.mn[2] + d.sc[2] / 2], r = Math.hypot(d.sc[0], d.sc[1], d.sc[2]) / 2;
-  m = R.mallas[i] = { vao, d, it: d.i32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, isz: d.i32 ? 4 : 2, c, r, skin: d.sk !== undefined, idx: i };
+  m = R.mallas[i] = { vao, vb, ib, d, it: d.i32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, isz: d.i32 ? 4 : 2, c, r, skin: d.sk !== undefined, idx: i };
   return m;
 }
 // ---------------- materiales ----------------
@@ -585,15 +768,67 @@ function dibujarPedido(p, P) {
   if (u.uCorte) gl.uniform1f(u.uCorte, 0.5);
   if (u.uMat) gl.uniform3fv(u.uMat, mt.pbr);
   gl.uniform4fv(u.uST, mt.st);
-  const d = p.m.d;
-  gl.uniform3f(u.uQ0, d.mn[0], d.mn[1], d.mn[2]); gl.uniform3f(u.uQ1, d.sc[0], d.sc[1], d.sc[2]);
-  gl.uniformMatrix4fv(u.uM, false, p.M);
-  if (p.h) gl.uniform4fv(u.uB, p.h);
-  if (R.vaoAct !== p.m.vao) { gl.bindVertexArray(p.m.vao); R.vaoAct = p.m.vao; }
-  gl.drawElements(gl.TRIANGLES, p.sn, p.m.it, p.s0 * p.m.isz);
+  geomDibujar(p, u);
   R.dibujadas++; R.tris += p.sn / 3;
 }
-function claveDe(p) { return (R.salida === 'gam' ? p.mt.claveGam : p.mt.claveBase) + (p.h ? ',SKIN' : ''); }
+// la malla de un pedido: cuantización, matriz, huesos (o la piel ya calculada en la CPU) y el dibujo
+function geomDibujar(p, u) {
+  const gl = R.gl, d = p.m.d;
+  if (p.h && R.cpuSkin) {
+    const c = pielCPU(p);
+    gl.uniform3f(u.uQ0, 0, 0, 0); gl.uniform3f(u.uQ1, 1, 1, 1);
+    if (R.vaoAct !== c.vao) { gl.bindVertexArray(c.vao); R.vaoAct = c.vao; }
+  } else {
+    gl.uniform3f(u.uQ0, d.mn[0], d.mn[1], d.mn[2]); gl.uniform3f(u.uQ1, d.sc[0], d.sc[1], d.sc[2]);
+    if (p.h) gl.uniform4fv(u.uB, R.nHuesos < 168 ? sub(p.h, R.nHuesos * 4) : p.h);
+    if (R.vaoAct !== p.m.vao) { gl.bindVertexArray(p.m.vao); R.vaoAct = p.m.vao; }
+  }
+  gl.uniformMatrix4fv(u.uM, false, p.M);
+  gl.drawElements(gl.TRIANGLES, p.sn, p.m.it, p.s0 * p.m.isz);
+}
+const conPiel = (p) => !!p.h && !R.cpuSkin;
+// piel en la CPU (aparatos con pocos uniformes): posiciones y normales ya movidas por los huesos, una vez por cuadro
+function pielCPU(p) {
+  const gl = R.gl, H = p.h, m = p.m;
+  let c = H.cpu;
+  if (!c || c.m !== m) {
+    if (c) { gl.deleteBuffer(c.buf); gl.deleteVertexArray(c.vao); }
+    const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, m.d.v * 24, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+    gl.bindBuffer(gl.ARRAY_BUFFER, m.vb); gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, R.gl1 ? gl.UNSIGNED_SHORT : gl.HALF_FLOAT, false, 14, 10);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ib);
+    gl.bindVertexArray(null); R.vaoAct = null;
+    c = H.cpu = { m, vao, buf, out: new Float32Array(m.d.v * 6), cuadro: -1 };
+  }
+  if (c.cuadro !== R.cuadro) { pielCalcular(m, H, c.out); gl.bindBuffer(gl.ARRAY_BUFFER, c.buf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, c.out); c.cuadro = R.cuadro; }
+  return c;
+}
+function pielCalcular(m, H, out) {
+  let S = m.cpuS;
+  if (!S) {
+    const d = m.d, mc = mallaCPU(m.idx), dv = new DataView(BIN.buffer, BIN.byteOffset), N = new Float32Array(d.v * 3), J = new Uint8Array(d.v * 4), W = new Float32Array(d.v * 4);
+    for (let k = 0; k < d.v; k++) {
+      const o = d.o + k * 14 + 6; for (let j = 0; j < 3; j++) N[k * 3 + j] = Math.max(-1, dv.getInt8(o + j) / 127);
+      const q = d.sk + k * 8; for (let j = 0; j < 4; j++) { J[k * 4 + j] = BIN[q + j]; W[k * 4 + j] = BIN[q + 4 + j] / 255; }
+    }
+    S = m.cpuS = { P: mc.P, N, J, W };
+  }
+  const P = S.P, N = S.N, J = S.J, W = S.W, n = P.length / 3;
+  for (let k = 0; k < n; k++) {
+    let a0 = 0, a1 = 0, a2 = 0, a3 = 0, a4 = 0, a5 = 0, a6 = 0, a7 = 0, a8 = 0, a9 = 0, a10 = 0, a11 = 0;
+    for (let j = 0; j < 4; j++) {
+      const w = W[k * 4 + j]; if (!w) continue; const o = J[k * 4 + j] * 12;
+      a0 += H[o] * w; a1 += H[o + 1] * w; a2 += H[o + 2] * w; a3 += H[o + 3] * w; a4 += H[o + 4] * w; a5 += H[o + 5] * w;
+      a6 += H[o + 6] * w; a7 += H[o + 7] * w; a8 += H[o + 8] * w; a9 += H[o + 9] * w; a10 += H[o + 10] * w; a11 += H[o + 11] * w;
+    }
+    const x = P[k * 3], y = P[k * 3 + 1], z = P[k * 3 + 2], nx = N[k * 3], ny = N[k * 3 + 1], nz = N[k * 3 + 2], o = k * 6;
+    out[o] = a0 * x + a1 * y + a2 * z + a3; out[o + 1] = a4 * x + a5 * y + a6 * z + a7; out[o + 2] = a8 * x + a9 * y + a10 * z + a11;
+    out[o + 3] = a0 * nx + a1 * ny + a2 * nz; out[o + 4] = a4 * nx + a5 * ny + a6 * nz; out[o + 5] = a8 * nx + a9 * ny + a10 * nz;
+  }
+}
+function claveDe(p) { return (R.salida === 'gam' ? p.mt.claveGam : p.mt.claveBase) + (conPiel(p) ? ',SKIN' : ''); }
 function dibujarOpacos() {
   const gl = R.gl;
   R.progAct = null; R.texAct = null; R.vaoAct = null;
@@ -622,14 +857,11 @@ function dibujarProfundidad() {
   R.progAct = null; R.texAct = null; R.vaoAct = null;
   gl.colorMask(false, false, false, false);
   for (const p of R.cola) {
-    const P = prepararProg(progDe((p.mt.cut ? 'CUT' : '') + (p.h ? ',SKIN' : ''), 'depth'));
+    const P = prepararProg(progDe((p.mt.cut ? 'CUT' : '') + (conPiel(p) ? ',SKIN' : ''), 'depth'));
     if (p.mt.cut) { if (R.texAct !== p.mt) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texGL(p.mt.tex)); R.texAct = p.mt; } gl.uniform4fv(P.u.uC, p.mt.c); }
     gl.uniform4fv(P.u.uST, p.mt.st);
-    const d = p.m.d; gl.uniform3f(P.u.uQ0, d.mn[0], d.mn[1], d.mn[2]); gl.uniform3f(P.u.uQ1, d.sc[0], d.sc[1], d.sc[2]);
-    gl.uniformMatrix4fv(P.u.uM, false, p.M); if (p.h) gl.uniform4fv(P.u.uB, p.h);
-    if (R.vaoAct !== p.m.vao) { gl.bindVertexArray(p.m.vao); R.vaoAct = p.m.vao; }
     if (p.x && p.x.dobleCara) gl.disable(gl.CULL_FACE);
-    gl.drawElements(gl.TRIANGLES, p.sn, p.m.it, p.s0 * p.m.isz);
+    geomDibujar(p, P.u);
     if (p.x && p.x.dobleCara) gl.enable(gl.CULL_FACE);
   }
   gl.colorMask(true, true, true, true);
@@ -685,7 +917,7 @@ function lucesPreparar() {
 }
 function lucesUniformes(P) {
   const gl = R.gl, n = GFX.nluz || 0; if (!n) return;
-  gl.uniform4fv(P.u.uLP, LUZ_P, 0, n * 4); gl.uniform4fv(P.u.uLC, LUZ_C, 0, n * 4); gl.uniform4fv(P.u.uLD, LUZ_D, 0, n * 4); gl.uniform1i(P.u.uLN, R.nLuces || 0);
+  gl.uniform4fv(P.u.uLP, sub(LUZ_P, n * 4)); gl.uniform4fv(P.u.uLC, sub(LUZ_C, n * 4)); gl.uniform4fv(P.u.uLD, sub(LUZ_D, n * 4)); gl.uniform1i(P.u.uLN, R.nLuces || 0);
 }
 // colores del cielo y la luz pasados a lineal (para las calidades con luz física)
 function luzLineal() {

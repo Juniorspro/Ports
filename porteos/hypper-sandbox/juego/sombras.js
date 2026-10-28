@@ -3,14 +3,16 @@
 // ortográfica alrededor de un tramo de lo que ve la cámara, con el centro pegado a una grilla (no tiembla al
 // moverse). El mapa fijo se dibuja en una copia aparte que sólo se rehace cuando la caja cambia de casillero
 // o se mueve el sol; cada cuadro se copia y encima van las cosas que se mueven (props, personas, autos).
+// En WebGL 1 la copia es un dibujo que escribe la profundidad (si el aparato no puede, se dibuja todo cada cuadro).
 // ---------------------------------------------------------------------------------------------------------
-const SM = { n: 0, tam: 0, celda: 0, tex: null, texC: null, fb: null, fbC: null, sCmp: null, sRaw: null, casc: [], solAnt: v3(), mapa: '', fr: [],
+const SM = { n: 0, tam: 0, celda: 0, tex: null, texC: null, fb: null, fbC: null, rb: [], sinCache: false, sCmp: null, sRaw: null, casc: [], solAnt: v3(), mapa: '', fr: [],
   mm: new Float32Array(48), mr: new Float32Array(12), mk: new Float32Array(12), mc: new Float32Array(3), rehechas: 0 };
 const SM_EXT = 260;   // metros hacia el sol que se agregan a la caja (techos y montañas que tapan desde lejos)
 function sombrasLiberar() {
   const gl = R.gl; if (!SM.tex) return;
-  gl.deleteTexture(SM.tex); gl.deleteTexture(SM.texC); gl.deleteFramebuffer(SM.fb); gl.deleteFramebuffer(SM.fbC);
-  SM.tex = SM.texC = SM.fb = SM.fbC = null; SM.n = 0; SM.casc = [];
+  gl.deleteTexture(SM.tex); if (SM.texC) gl.deleteTexture(SM.texC); gl.deleteFramebuffer(SM.fb); if (SM.fbC) gl.deleteFramebuffer(SM.fbC);
+  for (const r of SM.rb) gl.deleteRenderbuffer(r);
+  SM.tex = SM.texC = SM.fb = SM.fbC = null; SM.rb = []; SM.n = 0; SM.casc = [];
 }
 function sombrasIniciar(n, tam) {
   const gl = R.gl;
@@ -18,19 +20,27 @@ function sombrasIniciar(n, tam) {
   sombrasLiberar();
   const mk = () => {
     const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, tam, tam);
+    if (R.gl1) gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, tam, tam, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+    else gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, tam, tam);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t, 0);
-    gl.drawBuffers([gl.NONE]); gl.readBuffer(gl.NONE);
-    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    if (!R.gl1) { gl.drawBuffers([gl.NONE]); gl.readBuffer(gl.NONE); }
+    let ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    // algunos WebGL 1 no aceptan un búfer sólo de profundidad: se le agrega un color chiquito por píxel
+    if (!ok && R.gl1) {
+      const rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA4, tam, tam);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, rb); SM.rb.push(rb);
+      ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    }
     return { t, f, ok };
   };
-  const a = mk(), b = mk();
+  SM.sinCache = R.gl1 && !R.fragDepth;
+  const a = mk(), b = SM.sinCache ? { t: null, f: null, ok: true } : mk();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   if (!a.ok || !b.ok) { SM.tex = a.t; SM.texC = b.t; SM.fb = a.f; SM.fbC = b.f; sombrasLiberar(); return false; }
   SM.tex = a.t; SM.fb = a.f; SM.texC = b.t; SM.fbC = b.f; SM.n = n; SM.tam = tam; SM.celda = n === 1 ? tam : tam / 2;
-  if (!SM.sCmp) {
+  if (!R.gl1 && !SM.sCmp) {
     SM.sCmp = gl.createSampler();
     gl.samplerParameteri(SM.sCmp, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.samplerParameteri(SM.sCmp, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.samplerParameteri(SM.sCmp, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE); gl.samplerParameteri(SM.sCmp, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
@@ -94,24 +104,46 @@ function sombrasActualizar() {
   }
   // dibujar: primero las cascadas viejas del mapa fijo, después copiar y agregar lo que se mueve
   const vpGuard = R.vp, frGuard = R.fr, faseG = R.fase;
-  gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.6, 3.0);
+  gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(DBG.offF === undefined ? 1.6 : DBG.offF, DBG.offU === undefined ? 3.0 : DBG.offU);
   gl.enable(gl.SCISSOR_TEST);
   let rehizo = false;
-  for (let i = 0; i < n; i++) {
-    const C = SM.casc[i]; if (!C.sucia) continue;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, SM.fbC); vpCelda(i); gl.clear(gl.DEPTH_BUFFER_BIT);
-    sombrasDibujar(C, true, i); C.sucia = false; rehizo = true; SM.rehechas++;
+  if (SM.sinCache) {
+    // sin copia: todo cada cuadro
+    gl.bindFramebuffer(gl.FRAMEBUFFER, SM.fb);
+    for (let i = 0; i < n; i++) { const C = SM.casc[i]; vpCelda(i); gl.clear(gl.DEPTH_BUFFER_BIT); sombrasDibujar(C, true, i); sombrasDibujar(C, false, i); C.sucia = false; }
+  } else {
+    for (let i = 0; i < n; i++) {
+      const C = SM.casc[i]; if (!C.sucia) continue;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, SM.fbC); vpCelda(i); gl.clear(gl.DEPTH_BUFFER_BIT);
+      sombrasDibujar(C, true, i); C.sucia = false; rehizo = true; SM.rehechas++;
+    }
+    gl.disable(gl.SCISSOR_TEST);
+    if (R.gl1) sombrasCopiar();
+    else {
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, SM.fbC); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, SM.fb);
+      gl.blitFramebuffer(0, 0, SM.tam, SM.tam, 0, 0, SM.tam, SM.tam, gl.DEPTH_BUFFER_BIT, gl.NEAREST);
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, SM.fb); gl.enable(gl.SCISSOR_TEST);
+    for (let i = 0; i < n; i++) { vpCelda(i); sombrasDibujar(SM.casc[i], false, i); }
   }
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, SM.fbC); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, SM.fb);
-  gl.disable(gl.SCISSOR_TEST);
-  gl.blitFramebuffer(0, 0, SM.tam, SM.tam, 0, 0, SM.tam, SM.tam, gl.DEPTH_BUFFER_BIT, gl.NEAREST);
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, SM.fb); gl.enable(gl.SCISSOR_TEST);
-  for (let i = 0; i < n; i++) { vpCelda(i); sombrasDibujar(SM.casc[i], false, i); }
   gl.disable(gl.SCISSOR_TEST); gl.disable(gl.POLYGON_OFFSET_FILL);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   R.vp = vpGuard; R.fr = frGuard; R.fase = faseG; R.marca++;
   SM.rehizo = rehizo;
+}
+// WebGL 1: copia la profundidad del mapa fijo al atlas dibujando un triángulo que la escribe tal cual
+const FS_COPIA_PROF = `
+precision highp float; in vec2 vUV; uniform sampler2D uT; out vec4 o;
+void main(){ gl_FragDepthEXT = texture(uT, vUV).r; o = vec4(0.0); }`;
+function sombrasCopiar() {
+  const gl = R.gl;
+  if (!SM.copia) SM.copia = shader(VS_PANT, FS_COPIA_PROF, ['#extension GL_EXT_frag_depth : enable']);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, SM.fb); gl.viewport(0, 0, SM.tam, SM.tam);
+  gl.disable(gl.POLYGON_OFFSET_FILL); gl.disable(gl.CULL_FACE); gl.depthFunc(gl.ALWAYS); gl.colorMask(false, false, false, false);
+  gl.useProgram(SM.copia.p); R.progAct = SM.copia; gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, SM.texC); R.texAct = null;
+  gl.bindVertexArray(R.quad); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindVertexArray(null); R.vaoAct = null;
+  gl.depthFunc(gl.LESS); gl.colorMask(true, true, true, true); gl.enable(gl.CULL_FACE); gl.enable(gl.POLYGON_OFFSET_FILL);
 }
 function vpCelda(i) {
   const gl = R.gl, c = SM.celda, x = SM.n === 1 ? 0 : (i % 2) * c, y = SM.n === 1 ? 0 : Math.floor(i / 2) * c;
@@ -126,15 +158,12 @@ function sombrasDibujar(C, estaticos, ci) {
     const p = R.items[i];
     if (p.est !== estaticos || p.vista || !p.mt.sombra || p.r < minR) continue;
     if (!sphereIn(F, p.cx, p.cy, p.cz, p.r)) continue;
-    const cut = p.mt.cut, P = prepararProg(progDe((cut ? 'CUT' : '') + (p.h ? ',SKIN' : ''), 'depth'));
+    const cut = p.mt.cut, P = prepararProg(progDe((cut ? 'CUT' : '') + (conPiel(p) ? ',SKIN' : ''), 'depth'));
     if (cut) { if (R.texAct !== p.mt) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texGL(p.mt.tex)); R.texAct = p.mt; } gl.uniform4fv(P.u.uC, p.mt.c); }
     gl.uniform4fv(P.u.uST, p.mt.st);
-    const d = p.m.d; gl.uniform3f(P.u.uQ0, d.mn[0], d.mn[1], d.mn[2]); gl.uniform3f(P.u.uQ1, d.sc[0], d.sc[1], d.sc[2]);
-    gl.uniformMatrix4fv(P.u.uM, false, p.M); if (p.h) gl.uniform4fv(P.u.uB, p.h);
-    if (R.vaoAct !== p.m.vao) { gl.bindVertexArray(p.m.vao); R.vaoAct = p.m.vao; }
     const doble = cut || (p.x && p.x.dobleCara);
     if (doble) gl.disable(gl.CULL_FACE);
-    gl.drawElements(gl.TRIANGLES, p.sn, p.m.it, p.s0 * p.m.isz);
+    geomDibujar(p, P.u);
     if (doble) gl.enable(gl.CULL_FACE);
     SM.dib = (SM.dib || 0) + 1;
   }
@@ -143,9 +172,12 @@ function sombrasDibujar(C, estaticos, ci) {
 // las texturas y los números de las cascadas para el shader de la imagen
 function sombrasUniformes(P) {
   const gl = R.gl, u = P.u, n = SM.n;
-  gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, SM.tex); gl.bindSampler(5, SM.sCmp);
-  if (u.uSMd) { gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, SM.tex); gl.bindSampler(6, SM.sRaw); }
+  if (R.gl1) { gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, SM.tex); if (u.uSMtam) gl.uniform1f(u.uSMtam, SM.tam); }
+  else {
+    gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, SM.tex); gl.bindSampler(5, SM.sCmp);
+    if (u.uSMd) { gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, SM.tex); gl.bindSampler(6, SM.sRaw); }
+  }
   gl.activeTexture(gl.TEXTURE0);
-  gl.uniformMatrix4fv(u.uSMm, false, SM.mm, 0, n * 16); gl.uniform4fv(u.uSMr, SM.mr, 0, n * 4); gl.uniform4fv(u.uSMk, SM.mk, 0, n * 4);
-  gl.uniform1fv(u.uSMc, SM.mc, 0, n); gl.uniform3f(u.uCamF, R.camF.x, R.camF.y, R.camF.z); gl.uniform1f(u.uSMon, 1);
+  gl.uniformMatrix4fv(u.uSMm, false, sub(SM.mm, n * 16)); gl.uniform4fv(u.uSMr, sub(SM.mr, n * 4)); gl.uniform4fv(u.uSMk, sub(SM.mk, n * 4));
+  gl.uniform1fv(u.uSMc, sub(SM.mc, n)); gl.uniform3f(u.uCamF, R.camF.x, R.camF.y, R.camF.z); gl.uniform1f(u.uSMon, 1);
 }

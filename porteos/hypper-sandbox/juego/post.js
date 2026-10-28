@@ -2,7 +2,8 @@
 // imagen final en las calidades altas: la escena se dibuja en un búfer de luz alta (HDR, flotante) con su
 // profundidad en una textura. Después: oclusión ambiental (SSAO a media resolución, con desenfoque que respeta
 // los bordes), resplandor (bloom en cadena de reducciones), rayos de sol entre los objetos, tono ACES con
-// exposición, un poco de viñeta y antialias FXAA.
+// exposición, un poco de viñeta y antialias FXAA. En WebGL 1 los formatos salen de R.F (y si no hay medio float
+// que se pueda dibujar, sin HDR; si no hay texturas de profundidad, sin oclusión ni rayos).
 // ---------------------------------------------------------------------------------------------------------
 const PO = { w: 0, h: 0, fb: null, col: null, prof: null, ao: [], bl: [], ray: [], ldr: null, ok: false, p: {} };
 const VS_PANT = `
@@ -144,10 +145,11 @@ function rtTex(w, h, ifmt, fmt, tipo, filtro) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   return t;
 }
-function rtFb(col, prof) {
+function rtFb(col, prof, rb) {
   const gl = R.gl, f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
   if (col) gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, col, 0);
   if (prof) gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, prof, 0);
+  if (rb) gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
   const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   return ok ? f : null;
@@ -156,7 +158,7 @@ function rt(w, h, ifmt, fmt, tipo, filtro) { const t = rtTex(w, h, ifmt, fmt, ti
 function postLiberar() {
   const gl = R.gl;
   const del = (x) => { if (!x) return; if (x.t) gl.deleteTexture(x.t); if (x.f) gl.deleteFramebuffer(x.f); };
-  if (PO.fb) gl.deleteFramebuffer(PO.fb); if (PO.col) gl.deleteTexture(PO.col); if (PO.prof) gl.deleteTexture(PO.prof);
+  if (PO.fb) gl.deleteFramebuffer(PO.fb); if (PO.col) gl.deleteTexture(PO.col); if (PO.prof) gl.deleteTexture(PO.prof); if (PO.rb) gl.deleteRenderbuffer(PO.rb); PO.rb = null;
   for (const x of PO.ao.concat(PO.bl, PO.ray, [PO.ldr])) del(x);
   PO.fb = PO.col = PO.prof = PO.ldr = null; PO.ao = []; PO.bl = []; PO.ray = []; PO.w = PO.h = 0; PO.ok = false;
 }
@@ -168,18 +170,20 @@ function postPreparar() {
   PO.w = w; PO.h = h; PO.cfg = postCfg();
   const hdr = R.extFloat && GFX.hdr;
   PO.hdr = !!hdr;
-  PO.col = hdr ? rtTex(w, h, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR) : rtTex(w, h, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
-  PO.prof = rtTex(w, h, gl.DEPTH_COMPONENT24, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, gl.NEAREST);
-  PO.fb = rtFb(PO.col, PO.prof);
+  const F = R.F;
+  PO.col = rtTex(w, h, ...(hdr ? F.hdr : F.ldr), gl.LINEAR);
+  if (R.depthTex) PO.prof = rtTex(w, h, ...F.prof, gl.NEAREST);
+  else { PO.rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, PO.rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h); }
+  PO.fb = rtFb(PO.col, PO.prof, PO.rb);
   if (!PO.fb) { postLiberar(); return false; }
   const w2 = Math.max(1, w >> 1), h2 = Math.max(1, h >> 1);
-  if (GFX.ao) PO.ao = [rt(w2, h2, gl.R8, gl.RED, gl.UNSIGNED_BYTE, gl.LINEAR), rt(w2, h2, gl.R8, gl.RED, gl.UNSIGNED_BYTE, gl.LINEAR)];
+  if (GFX.ao && R.depthTex) PO.ao = [rt(w2, h2, ...F.r8, gl.LINEAR), rt(w2, h2, ...F.r8, gl.LINEAR)];
   if (GFX.bloom && hdr) {
     let bw = w2, bh = h2; const n = GFX.bloom >= 2 ? 6 : 5;
-    for (let i = 0; i < n && bw >= 4 && bh >= 4; i++) { PO.bl.push(rt(bw, bh, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR)); bw >>= 1; bh >>= 1; }
+    for (let i = 0; i < n && bw >= 4 && bh >= 4; i++) { PO.bl.push(rt(bw, bh, ...F.hdr, gl.LINEAR)); bw >>= 1; bh >>= 1; }
   }
-  if (GFX.rayos && hdr) { const w4 = Math.max(1, w >> 2), h4 = Math.max(1, h >> 2); PO.ray = [rt(w4, h4, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR), rt(w4, h4, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR)]; }
-  if (GFX.fxaa) PO.ldr = rt(w, h, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
+  if (GFX.rayos && hdr && R.depthTex) { const w4 = Math.max(1, w >> 2), h4 = Math.max(1, h >> 2); PO.ray = [rt(w4, h4, ...F.hdr, gl.LINEAR), rt(w4, h4, ...F.hdr, gl.LINEAR)]; }
+  if (GFX.fxaa) PO.ldr = rt(w, h, ...F.ldr, gl.LINEAR);
   if (!PO.p.final) {
     const mk = (fs, d) => shader(VS_PANT, fs, d);
     PO.p.ssao8 = mk(FS_SSAO, ['NMUES=8']); PO.p.ssao16 = mk(FS_SSAO, ['NMUES=14']); PO.p.aoblur = mk(FS_AOBLUR);

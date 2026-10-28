@@ -114,6 +114,7 @@ function abrirAjustes(desde) {
   <div class="fila">${Lc('Shadow', 'Sombra')} ${sel('aSo', [['auto', 'Según gráficos'], ['0', 'No'], ['1', 'Bajas'], ['2', 'Medias'], ['3', 'Altas (suaves)']])}</div>
   <div class="fila">${Lc('PostProcessing', 'Postprocesado')} ${sel('aPo', [['auto', 'Según gráficos'], ['si', 'Sí'], ['no', 'No']])}</div>
   <div class="fila">${Lc('TextureQuality', 'Calidad de textura')} ${sel('aTq', [['auto', 'Según gráficos'], ['baja', 'Baja'], ['media', 'Media'], ['alta', 'Alta']])}</div>
+  <div class="fila">Motor gráfico ${sel('aM', [['webgl1', 'WebGL 1 (compatible)'], ['webgl2', 'WebGL 2']])}</div>
   <div class="fila">Resolución <input type="range" id="aR" min="35" max="100" step="5"><span id="aRv"></span></div>
   <div class="fila">Distancia <input type="range" id="aD" min="100" max="1200" step="50"><span id="aDv"></span></div>
   <div class="fila">${Lc('Sensitivity', 'Sensibilidad')} <input type="range" id="aS" min="2" max="40" step="1"></div>
@@ -122,6 +123,7 @@ function abrirAjustes(desde) {
   <div class="fila"><label><input type="checkbox" id="aU"> ${Lc('HideUI', 'Ocultar UI')}</label></div>
   <div class="fila"><label><input type="checkbox" id="aF"> Mostrar FPS</label></div>
   <button class="boton" id="aOk">Listo</button>`;
+  $('aM').value = PREFS.motor === 'webgl2' ? 'webgl2' : 'webgl1';
   $('aG').value = PREFS.gfx; $('aSo').value = String(PREFS.sombras); $('aPo').value = PREFS.post; $('aTq').value = PREFS.texQ;
   $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI;
   const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; };
@@ -132,7 +134,11 @@ function abrirAjustes(desde) {
     const texAntes = GFX.texMax;
     PREFS.res = +$('aR').value; PREFS.lejos = +$('aD').value; PREFS.sens = +$('aS').value; PREFS.vol = +$('aV').value; PREFS.fps = $('aF').checked;
     PREFS.sombras = $('aSo').value; PREFS.post = $('aPo').value; PREFS.texQ = $('aTq').value; PREFS.contorno = $('aC').checked; PREFS.ocultarUI = $('aU').checked;
-    guardarPrefs(); aplicarGfx(); if (GFX.texMax !== texAntes) texturasRecargar();
+    const motorAntes = PREFS.motor === 'webgl2' ? 'webgl2' : 'webgl1'; PREFS.motor = $('aM').value;
+    guardarPrefs();
+    // cambiar de motor necesita empezar de nuevo (el contexto de WebGL no se puede cambiar)
+    if (PREFS.motor !== motorAntes) { aviso('Reiniciando con ' + (PREFS.motor === 'webgl2' ? 'WebGL 2' : 'WebGL 1') + '…', 2); setTimeout(() => location.reload(), 600); return; }
+    aplicarGfx(); if (GFX.texMax !== texAntes) texturasRecargar();
     document.body.classList.toggle('sinUI', !!PREFS.ocultarUI);
     $('ajustes').classList.add('oc'); if (desde === 'pausa') $('pausa').classList.remove('oc');
   };

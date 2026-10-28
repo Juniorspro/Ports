@@ -122,7 +122,8 @@ function ubicarPersona(P) {
 function dibujarPersona(P) {
   if (!P.visible) return;
   ubicarPersona(P);
-  if (!P.rag && P.hum && !P.sentado && !P.emote) aterrizarPies(P);
+  // (sentado, en un emote o en el piso como muñeco no se clavan los pies; se olvida el apoyo viejo para no tirar del pie al volver)
+  if (!P.rag && P.hum && !P.sentado && !P.emote) { aterrizarPies(P); piesIK(P, TIEMPO.dt || 0.016); } else P.ik = null;
   P.md.encolar();
   if (P.gorroMd) {
     const hi = P.D.h.Head;
@@ -144,6 +145,63 @@ function aterrizarPies(P) {
   const meta = clamp(dy, lleno ? -0.75 : -0.06, 0.5);
   P.pieCorr = (P.pieCorr || 0) + (meta - (P.pieCorr || 0)) * Math.min(1, (TIEMPO.dt || 0.016) * 18);
   if (Math.abs(P.pieCorr) > 1e-4) { md.raiz[13] += P.pieCorr; md.sucio = true; }
+}
+// pies clavados: cuando un pie pisa, su lugar en el piso queda fijo mientras dure el apoyo y la pierna se acomoda
+// (dos huesos: muslo y pantorrilla, la rodilla en el mismo plano que traía). Así el pie que pisa no patina aunque el
+// clip no coincida del todo con la velocidad o la dirección. Se suelta al levantar el pie, si la pierna no llega o
+// después de 0,7 s, con entrada y salida suaves
+const IK_PIERNA = { L: ['LeftUpLeg', 'LeftLeg', 'LeftFoot'], R: ['RightUpLeg', 'RightLeg', 'RightFoot'] };
+function rotEntre(a, b) {
+  const la = a.len(), lb = b.len(); if (la < 1e-6 || lb < 1e-6) return new Quat();
+  const c = vcross(a, b), s = c.len() / (la * lb), d = vdot(a, b) / (la * lb);
+  if (s < 1e-7) return new Quat();
+  return Quat.axis(c.x, c.y, c.z, Math.atan2(s, d));
+}
+function piesIK(P, dt) {
+  if (!P.suelo || P.sentado || P.emote || P.rag || DBG.sinIK) { P.ik = null; return; }
+  const md = P.md, h = P.D.h, A = P.D.sub; md.actualizar();
+  const W = md.W, piso = P.pos.y - 1, sp = Math.hypot(P.vel.x, P.vel.z), tob = P.D.tobillo;
+  const ik = P.ik || (P.ik = { L: { w: 0 }, R: { w: 0 } });
+  const D = P.D; if (!D.ikDedo) D.ikDedo = { L: D.sub.findIndex((n) => /LeftToeBase$/.test(n.n)), R: D.sub.findIndex((n) => /RightToeBase$/.test(n.n)) };
+  let cambio = false;
+  for (const lado of ['L', 'R']) {
+    const [nU, nK, nA] = IK_PIERNA[lado], iU = h[nU], iK = h[nK], iA = h[nA];
+    if (iU === undefined || iK === undefined || iA === undefined) continue;
+    const S = ik[lado], Hp = v3(W[iU][12], W[iU][13], W[iU][14]), Kp = v3(W[iK][12], W[iK][13], W[iK][14]), Ap = v3(W[iA][12], W[iA][13], W[iA][14]);
+    // el punto que pisa: entre el tobillo y la punta (al levantar el talón, el pie gira sobre la punta)
+    const iT = D.ikDedo[lado], kc = 0.5, Cp = iT >= 0 ? v3(Ap.x + (W[iT][12] - Ap.x) * kc, 0, Ap.z + (W[iT][14] - Ap.z) * kc) : v3(Ap.x, 0, Ap.z);
+    const vel = S.prev ? Math.hypot(Cp.x - S.prev.x, Cp.z - S.prev.z) / Math.max(dt, 1e-3) : 0;
+    S.prev = Cp;
+    const alto = Ap.y - piso - tob, a = Kp.distTo(Hp), b = Ap.distTo(Kp);
+    // pisa: el pie (sin corregir) toca el piso y no va hacia adelante mucho más rápido que el cuerpo
+    const apoya = alto < 0.03 && vel < sp + 1.5;
+    if (apoya && !S.lock && S.w < 0.05) { S.lock = Cp; S.t = 0; }
+    if (S.lock) {
+      S.t += dt;
+      // se suelta cuando el clip levanta el pie o cuando la pierna ya no llega (no se arrastra)
+      // se suelta cuando el clip levanta el pie o cuando la pierna ya no llega (no se arrastra)
+      const lejos = Math.hypot(Ap.x + S.lock.x - Cp.x - Hp.x, Ap.y - Hp.y, Ap.z + S.lock.z - Cp.z - Hp.z) > (a + b) * 0.985;
+      if (alto > 0.07 || lejos || S.t > 1.0) S.lock = null; else S.ult = S.lock;
+    }
+    S.w = S.lock ? Math.min(1, S.w + dt / 0.05) : Math.max(0, S.w - dt / 0.12);
+    if (S.w <= 0.001 || !S.ult) continue;
+    const T = v3(Ap.x + (S.ult.x - Cp.x) * S.w, Ap.y, Ap.z + (S.ult.z - Cp.z) * S.w);
+    // la rodilla nueva: misma distancia a la cadera y al tobillo, en el plano que trae la pierna
+    const d = clamp(T.distTo(Hp), Math.abs(a - b) + 1e-3, a + b - 1e-3), dir = vsub(T, Hp).norm();
+    const x = (a * a - b * b + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, a * a - x * x));
+    let pol = vsub(Kp, Hp); pol = vsub(pol, vscale(dir, vdot(pol, dir)));
+    if (pol.len() < 1e-5) pol = v3(Math.sin(P.yaw), 0, Math.cos(P.yaw)); pol.norm();
+    const Kn = vadd(Hp, vadd(vscale(dir, x), vscale(pol, hh)));
+    // giros en el mundo y de vuelta a cada hueso (el pie conserva su giro en el mundo)
+    const qU = m4quat(W[iU]), qK = m4quat(W[iK]), qA = m4quat(W[iA]), qPU = m4quat(W[A[iU].pa]);
+    const R1 = rotEntre(vsub(Kp, Hp), vsub(Kn, Hp)), qUn = R1.clone().mul(qU);
+    const A2 = vadd(Hp, R1.rot(vsub(Ap, Hp)));
+    const R2 = rotEntre(vsub(A2, Kn), vsub(T, Kn)), qKn = R2.clone().mul(R1).mul(qK);
+    const pon = (i, q) => { q.norm(); const r = md.r[i]; r[0] = q.x; r[1] = q.y; r[2] = q.z; r[3] = q.w; };
+    pon(iU, qPU.conj().mul(qUn)); pon(iK, qUn.conj().mul(qKn)); pon(iA, qKn.conj().mul(qA));
+    cambio = true;
+  }
+  if (cambio) md.sucio = true;
 }
 const ARMA_3P = { Pistol: 'pistol', Revolver: 'revolver', Smg: 'smg', Akm: 'Akm', Sniper: 'sniper', Shotgun: 'Shotgun', RPG: 'RocketLauncher', Crossbow: 'crossbow', Bat: 'bat', GravityGun: 'GravityGun', PhysicsGun: 'PhysicGun', ToolBaton: 'ToolBaton' };
 const _arma3pDatos = {};
