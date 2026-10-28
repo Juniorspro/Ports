@@ -32,11 +32,12 @@ function entradaIniciar() {
 // El juego es horizontal como el original. En un celular parado: al tocar se pide pantalla completa y trabar
 // la orientación; si el navegador no deja (iPhone, o sin pantalla completa) se gira todo 90° con CSS y los
 // toques se pasan a las coordenadas giradas.
-const PANT = { rot: false, pedido: false };
+const PANT = { rot: false, pedido: false, enIntro: !TEST };
 const VW = () => (PANT.rot ? innerHeight : innerWidth), VH = () => (PANT.rot ? innerWidth : innerHeight);
 const tX = (t) => (PANT.rot ? t.clientY : t.clientX), tY = (t) => (PANT.rot ? innerWidth - t.clientX : t.clientY);
 function pantallaRevisar() {
-  const rot = COARSE && innerHeight > innerWidth * 1.05 && !Q.get('sinGiro');
+  // (durante la intro no se gira: el logo se ve derecho; se gira detrás del negro cuando termina)
+  const rot = COARSE && innerHeight > innerWidth * 1.05 && !Q.get('sinGiro') && !PANT.enIntro;
   PANT.rot = rot; document.documentElement.classList.toggle('rot', rot);
   const b = document.body.style;
   if (rot) { b.width = innerHeight + 'px'; b.height = innerWidth + 'px'; } else { b.width = ''; b.height = ''; }

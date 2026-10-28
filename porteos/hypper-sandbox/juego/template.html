@@ -129,9 +129,24 @@ html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(
 .menuAviso{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#fff;padding:12px 26px;border-radius:6px;font:700 24px 'Open Sans',Roboto,sans-serif;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
 .menuAviso.ve{opacity:1}
 #girar{position:fixed;inset:0;z-index:10;background:#1b1d22;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px Roboto,sans-serif;text-align:center;padding:20px}
-#carga{position:fixed;inset:0;z-index:9;background:#1b1d22;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-size:13px}
-#carga .b{width:220px;height:6px;background:#333;border-radius:3px;overflow:hidden}
-#carga .b i{display:block;height:100%;width:0;background:#3e6fd8}
+#carga{position:fixed;inset:0;z-index:11;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-size:13px;transition:opacity .45s}
+#carga.salir{opacity:0;pointer-events:none}
+#introCaja,#carga .b,#cargaErr{transition:opacity .3s}
+#carga.apagar #introCaja,#carga.apagar .b{opacity:0}
+#introCaja{position:relative;height:min(78vh,calc(92vw * 1.193));aspect-ratio:600/716}
+#introCaja video,#introCaja img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;-webkit-mask-image:linear-gradient(transparent,#000 9%,#000 91%,transparent);mask-image:linear-gradient(transparent,#000 9%,#000 91%,transparent)}
+#introCaja img{opacity:0}
+#carga.sinVideo #introCaja video{display:none}
+#carga.sinVideo #introCaja img{animation:introImg 2.4s ease-out forwards}
+@keyframes introImg{0%{opacity:0;transform:scale(.9)}60%{opacity:1}100%{opacity:1;transform:scale(1)}}
+#carga .b{width:180px;height:3px;background:#222;border-radius:2px;overflow:hidden;opacity:0;transition:opacity .4s}
+#carga.introFin .b{opacity:.9}
+#carga .b i{display:block;height:100%;width:0;background:#9fb4d8;transition:width .3s}
+#cargaErr{max-width:min(560px,90vw);color:#ddd;font:14px/1.4 Roboto,sans-serif;text-align:center;display:none}
+#cargaErr.ve{display:block}
+#cargaErr b{color:#ff8a7a}
+#cargaErr small{display:block;color:#888;margin-top:6px;word-break:break-word}
+#cargaErr button{margin:12px 6px 0;padding:10px 18px;border:0;border-radius:6px;background:#3e6fd8;color:#fff;font:700 14px Roboto,sans-serif}
 .etiqueta.monitor{padding:4px 8px;border-radius:2px;font-size:13px;max-width:180px;white-space:normal;text-align:center}
 .etiqueta{position:absolute;left:0;top:0;font-size:12px;font-weight:bold;text-shadow:0 1px 3px #000;white-space:nowrap;pointer-events:none}
 #redEst{position:absolute;left:10px;top:66px;font-size:10px;opacity:.8;text-shadow:0 1px 2px #000}
@@ -199,7 +214,21 @@ html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(
 <div id="ajustes" class="panel oc"><div class="caja" id="ajustesCaja"></div></div>
 <div id="emotes" class="panel oc"><div class="caja"><h3>Emotes</h3><div class="skins" id="emoLista"></div><button class="boton gris" id="bEmoCerrar">Cerrar</button></div></div>
 <input id="chatIn" class="oc" maxlength="120">
-<div id="carga"><img id="cargaLogo" style="width:240px;display:none"><div>Cargando…</div><div class="b"><i id="cargaB"></i></div></div>
+<div id="carga"><div id="introCaja"><img id="introImg" alt="" src="data:image/jpeg;base64,/*INTROIMG*/"><video id="introV" muted playsinline webkit-playsinline preload="auto"><source type="video/webm" src="data:video/webm;base64,/*INTROWEBM*/"><source type="video/mp4" src="data:video/mp4;base64,/*INTRO*/"></video></div><div class="b"><i id="cargaB"></i></div><div id="cargaErr"></div></div>
+<script>
+// la intro de JXStudios arranca apenas se ve la página (antes de leer el paquete del juego)
+(function () {
+  var c = document.getElementById('carga'), v = document.getElementById('introV'), I = window.__intro = { fin: false };
+  function fin() { if (!I.fin) { I.fin = true; c.classList.add('introFin'); if (I.cb) I.cb(); } }
+  function sinVideo() { if (c.classList.contains('sinVideo')) return; c.classList.add('sinVideo'); setTimeout(fin, 2600); }
+  v.addEventListener('ended', fin); v.addEventListener('error', sinVideo);
+  var ss = v.getElementsByTagName('source'); if (ss.length) ss[ss.length - 1].addEventListener('error', sinVideo);
+  try { var p = v.play(); if (p && p.catch) p.catch(sinVideo); } catch (e) { sinVideo(); }
+  // si el video no avanza (algunos visores no reproducen solos), la imagen del logo
+  setTimeout(function () { if (!I.fin && !(v.currentTime > 0)) sinVideo(); }, 1500);
+  setTimeout(fin, 7000);
+})();
+</script>
 <script>/*MQTT*/</script>
 <script id="pkidx" type="application/json">/*PKIDX*/</script>
 <script id="pk" type="text/plain">/*PK*/</script>

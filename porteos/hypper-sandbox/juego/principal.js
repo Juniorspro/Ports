@@ -292,24 +292,67 @@ function fotoGuardar() {
   try { R.cv.toBlob((b) => { if (!b) return; const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'hypper_' + Date.now() + '.png'; a.click(); aviso('Foto guardada'); }); } catch (e) {}
 }
 // ---------------- inicio ----------------
+// Arranque a prueba de fallas: cada paso queda anotado; si algo se rompe (un celular con un driver raro) se prueba solo
+// con el otro motor (WebGL 1 ↔ 2) y después con la calidad más baja; si igual no anda, se ve el error en pantalla
+// en vez de quedar en la intro para siempre.
+const INI = { paso: 'inicio', ok: false };
+function iniFallos(n) { try { if (n === undefined) return +localStorage.getItem('hypper_fallos') || 0; localStorage.setItem('hypper_fallos', String(n)); } catch (e) {} return 0; }
+function iniError(titulo, detalle, botones) {
+  INI.err = true; const c = $('carga'), e = $('cargaErr'); c.classList.remove('salir', 'oc'); c.classList.add('introFin'); e.innerHTML = '';
+  e.innerHTML = '<b>' + titulo + '</b><small>' + detalle + '</small>'; e.classList.add('ve');
+  for (const [t, f] of botones || []) { const b = document.createElement('button'); b.textContent = t; b.onclick = f; e.appendChild(b); }
+}
+function falloInicio(err) {
+  if (INI.ok) return;
+  const msg = String((err && (err.message || err)) || 'error').slice(0, 300), motor = R.gl ? (R.gl1 ? 'WebGL 1' : 'WebGL 2') : '-';
+  try { localStorage.setItem('hypper_ultimoError', motor + ' · ' + INI.paso + ' · ' + msg); } catch (e) {}
+  const n = iniFallos();
+  if (n < 2 && !TEST) {
+    iniFallos(n + 1);
+    if (n === 0) PREFS.motor = R.gl && !R.gl1 ? 'webgl1' : 'webgl2'; else { PREFS.gfx = 'patata'; PREFS.res = Math.min(PREFS.res || 70, 60); }
+    guardarPrefs(); location.reload(); return;
+  }
+  iniError('No pudo arrancar en este aparato', motor + ' · ' + INI.paso + ' · ' + msg, [
+    ['Reintentar', () => { iniFallos(0); location.reload(); }],
+    ['Probar ' + (R.gl && !R.gl1 ? 'WebGL 1' : 'WebGL 2'), () => { iniFallos(2); PREFS.motor = R.gl && !R.gl1 ? 'webgl1' : 'webgl2'; guardarPrefs(); location.reload(); }],
+  ]);
+}
 async function iniciar() {
+  const paso = (s) => { INI.paso = s; };
+  // si tarda muchísimo, se avisa en qué paso está (sin cortar nada)
+  setTimeout(() => { if (!INI.ok && !INI.err) iniError('Está tardando más de lo normal…', 'paso: ' + INI.paso, [['Reintentar', () => location.reload()]]); }, 60000);
   try {
-    glIniciar();
-  } catch (e) { $('carga').innerHTML = '<div style="padding:20px;text-align:center">Este aparato no tiene WebGL.<br>Probá con Chrome actualizado.</div>'; return; }
-  R.aniso = R.gl.getExtension('EXT_texture_filter_anisotropic');
-  if (R.aniso) R.anisoMax = R.gl.getParameter(R.aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
-  await cargarPaquete((k) => ($('cargaB').style.width = k * 100 + '%'));
-  $('cargaLogo').src = icono('c'); $('cargaLogo').style.display = 'block';
-  GFX.base = perfilInicial(); aplicarGfx();
-  efectosIniciar(); marcasIniciar(); uiIniciar(); entradaIniciar();
-  menuIniciar(); pantallaIniciar();
-  $('carga').classList.add('oc');
-  if (Q.get('mapa')) empezarPartida(Q.get('mapa'));
-  else { JUEGO.estado = 'principal'; menuMostrar(true); }
+    paso('motor gráfico');
+    try { glIniciar(); } catch (e) {
+      if (e && e.message === 'webgl') { iniError('Este aparato no tiene WebGL', 'Probá con Chrome actualizado.'); return; }
+      throw e;
+    }
+    R.aniso = R.gl.getExtension('EXT_texture_filter_anisotropic');
+    if (R.aniso) R.anisoMax = R.gl.getParameter(R.aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+    paso('datos del juego');
+    await cargarPaquete((k) => ($('cargaB').style.width = k * 100 + '%'));
+    paso('gráficos'); GFX.base = perfilInicial(); aplicarGfx();
+    paso('efectos'); efectosIniciar(); marcasIniciar();
+    paso('interfaz'); uiIniciar(); entradaIniciar();
+    paso('menú'); menuIniciar(); pantallaIniciar();
+    paso('primer cuadro');
+    if (Q.get('mapa')) empezarPartida(Q.get('mapa'));
+    else { JUEGO.estado = 'principal'; menuMostrar(true); }
+    cuadro(performance.now());
+  } catch (e) { console.error(e); falloInicio(e); return; }
+  INI.ok = true; INI.paso = 'listo';
+  const fallos = iniFallos(); iniFallos(0);
+  if (fallos > 0) setTimeout(() => aviso(R.gl1 ? 'Arrancó con WebGL 1' : 'WebGL 1 falló en este aparato: uso WebGL 2'), 1500);
   addEventListener('pointerdown', audioIniciar, { once: false });
-  requestAnimationFrame(cuadro);
   window.__listo = true;
   window.__ev = (s) => eval(s);
+  // la intro se ve entera (se puede saltear tocando); después, el menú
+  const I = window.__intro || { fin: true }, c = $('carga');
+  const salir = () => {
+    c.classList.add('apagar');
+    setTimeout(() => { PANT.enIntro = false; pantallaRevisar(); c.classList.add('salir'); setTimeout(() => c.classList.add('oc'), 480); }, TEST ? 0 : 320);
+  };
+  if (I.fin || TEST) salir(); else { I.cb = salir; c.addEventListener('pointerdown', () => { const v = $('introV'); if (v) v.pause(); I.fin = true; salir(); }, { once: true }); }
 }
 document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && JUEGO.estado === 'juego' && !UI.abierto && !ENT.tactil && !TEST) abrirPausa(); });
 iniciar();

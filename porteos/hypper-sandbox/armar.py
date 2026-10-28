@@ -20,6 +20,8 @@ for k, b in partes:
 html = open(os.path.join(AQUI, 'juego', 'template.html'), encoding='utf-8').read()
 MQTT = os.environ.get('MQTT_JS', '')  # mqtt.min.js 5.x bajado aparte (no va al repo)
 html = html.replace('/*MQTT*/', open(MQTT, encoding='utf-8').read().replace('</script', '<\\/script') if MQTT else '')
+J = lambda n: base64.b64encode(open(os.path.join(AQUI, 'juego', n), 'rb').read()).decode()
+html = html.replace('/*INTRO*/', J('intro.mp4')).replace('/*INTROIMG*/', J('intro.jpg')).replace('/*INTROWEBM*/', J('intro.webm'))
 html = html.replace('/*PKIDX*/', json.dumps(idx, separators=(',', ':'))).replace('/*PK*/', base64.b64encode(bytes(blob)).decode()).replace('/*JS*/', js)
 open(OUT, 'w', encoding='utf-8').write(html)
 print('ok', OUT, round(os.path.getsize(OUT) / 1e6, 2), 'MB', 'js', len(js) // 1024, 'KB', 'partes', len(partes))

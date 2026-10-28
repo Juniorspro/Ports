@@ -476,7 +476,14 @@ function progDe(clave, modo) {
     if (luz >= 2 && R.conAO) d.push('AO');
     if (luz >= 3 && Q.det && R.deriv && !f.includes('SKIN') && !f.includes('TERR')) d.push('DET');
     if (DBG.verSombra) d.push('VERSOMBRA');
-    P = shader(VS, FS, d);
+    try { P = shader(VS, FS, d); }
+    catch (e) {
+      // si la placa no acepta la versión completa (sombras, luces, relieve), una más simple: se ve, aunque más plano
+      R.errShader = String(e.message || e).slice(0, 400); console.warn('shader simplificado', R.errShader);
+      const base = d.filter((x) => !/^(LUZ|SALIDA|SOMBRA|PCF|NLUZ)=|^(PCSS|AO|DET|VERSOMBRA)$/.test(x));
+      P = shader(VS, FS, base.concat(['LUZ=1', 'SALIDA=' + (R.salida === 'hdr' ? 2 : R.salida === 'ldr' ? 1 : 0), 'SOMBRA=0', 'NLUZ=0']));
+      if (!R.avisoShader && typeof aviso === 'function') { R.avisoShader = true; aviso('Gráficos simplificados: la placa no aceptó un efecto'); }
+    }
   }
   R.progs.set(k, P); return P;
 }

@@ -8,7 +8,7 @@ function aviso(t, s) { const a = $('aviso'); a.textContent = t; a.classList.add(
 function uiIniciar() {
   const ic = (id, n) => { const e = $(id); if (e) e.src = icono(n); };
   ic('iPausa', 'Pause'); ic('iMenu', 'wrench'); ic('iChat', 'Chat'); ic('iEmote', 'body'); ic('iCam', 'Camera_2'); ic('iVida', 'heart');
-  ic('iDisp', 'target'); ic('iRotar', 'rotate1'); ic('iSalto', 'Jump'); ic('iUsar', 'Use'); ic('iCerrarSpawn', 'wrench-513'); ic('iLogo', 'c'); ic('cargaLogo', 'c');
+  ic('iDisp', 'target'); ic('iRotar', 'rotate1'); ic('iSalto', 'Jump'); ic('iUsar', 'Use'); ic('iCerrarSpawn', 'wrench-513'); ic('iLogo', 'c');
   // menú de spawn
   const tabs = $('tabs');
   DATA.menu.forEach((c, i) => {
