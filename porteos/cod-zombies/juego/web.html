@@ -93,7 +93,7 @@ w.onmessage = (e) => {
   else if (m.t === 'log') console.log(m.texto);
   else if (m.t === 'listo') { listo = true; }
   else if (m.t === 'fps') {
-    t.textContent = op.fps || q.get('fps') ? m.fps.toFixed(0) + ' fps' + (q.get('fps') ? ' | bloques ' + m.bloques + ' | red ' + (m.red / 1048576).toFixed(1) + ' MB (' + m.peticiones + ')' : '') : '';
+    t.textContent = op.fps || q.get('fps') ? m.fps.toFixed(0) + ' fps' + (q.get('fps') ? ' | cpu ' + m.ms.toFixed(1) + ' ms | bloques ' + m.bloques + ' | red ' + (m.red / 1048576).toFixed(1) + ' MB (' + m.peticiones + ')' : '') : '';
     if (!window.__listoEnviado) { window.__listoEnviado = true; try { parent.postMessage({ type: 'game:ready' }, '*'); } catch (_) {} }
     window.__fps = m;
   } else if (m.t === 'pcm') sonar(m.d);

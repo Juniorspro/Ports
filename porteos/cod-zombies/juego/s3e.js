@@ -149,7 +149,8 @@ const S3e = (() => {
           case 0x13: self.ret(0x80001); break;
           case 6: self.ret(128 << 20); break;            // RAM libre
           case 7: self.ret(512 << 20); break;            // RAM total
-          default: self.log('DeviceGetInt ' + p + ' -> 0'); self.ret(0);
+          case 10: self.ret(100); break;                 // bateria (%): con 0 el juego avisa bateria baja
+          default: if (!self.noImpl.has('dev' + p)) { self.noImpl.add('dev' + p); self.log('DeviceGetInt ' + p + ' -> 0'); } self.ret(0);
         }
       });
       def('s3eDeviceGetString', () => {

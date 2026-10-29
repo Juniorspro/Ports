@@ -152,7 +152,9 @@ function paso() {
     // entrada pendiente: se entrega al guest antes de seguir
     s3e.tic();
     while (Mundo.cola.length) s3e.entrada(Mundo.cola.shift());
+    const tc = performance.now();
     pc = cpu.run(pc);
+    Mundo.msCpu = (Mundo.msCpu || 0) + performance.now() - tc;
     if (s3e.quit) { postMessage({ t: 'salida', codigo: s3e.salida }); Mundo.corriendo = false; return; }
     Mundo.pc = s3e.yieldPedido ? cpu.R[14] : pc;
     if (!s3e.yieldPedido) { postMessage({ t: 'error', texto: 'el guest termino sin pedir yield' }); Mundo.corriendo = false; return; }
@@ -162,8 +164,8 @@ function paso() {
   }
   if (++cuadros % 60 === 0) {
     const ahora = performance.now();
-    postMessage({ t: 'fps', fps: 60000 / (ahora - t0), bloques: Mundo.cpu.nblocks, red: Mundo.remoto ? Mundo.remoto.bytes : 0, peticiones: Mundo.remoto ? Mundo.remoto.peticiones : 0 });
-    t0 = ahora;
+    postMessage({ t: 'fps', fps: 60000 / (ahora - t0), ms: (Mundo.msCpu || 0) / 60, bloques: Mundo.cpu.nblocks, red: Mundo.remoto ? Mundo.remoto.bytes : 0, peticiones: Mundo.remoto ? Mundo.remoto.peticiones : 0 });
+    t0 = ahora; Mundo.msCpu = 0;
   }
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(paso); else setTimeout(paso, 0);
 }
