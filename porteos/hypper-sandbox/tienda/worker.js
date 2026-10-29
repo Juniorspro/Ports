@@ -1,4 +1,4 @@
-// Tienda de HypperX RezoBox: mods (.rbmod) y mapas (.rbmapa) que publica la gente. Cloudflare Worker + D1.
+// Tienda de HypperX RezoBox: mods (.rbmod), mapas (.rbmapa) y animaciones (.rbanim) que publica la gente. Cloudflare Worker + D1.
 // Se valida todo antes de guardar (formato.js) y el juego vuelve a validar al instalar; el código de un mod corre en el
 // juego dentro de un cuadro aislado. Denuncias: con 3 se oculta solo. El autor borra con la clave que recibe al publicar.
 // También busca música en YouTube para la radio del juego (/api/yt): con la API oficial si hay clave (YT_KEY), si no
@@ -82,12 +82,14 @@ export default {
     const ip = await huella((req.headers.get('CF-Connecting-IP') || '') + (env.SAL || 'rezobox'));
     try {
       if (req.method === 'GET' && r === '/api/lista') {
-        const tipo = url.searchParams.get('tipo') === 'mapa' ? 'mapa' : 'mod', q = texto(url.searchParams.get('q'), 40), etq = url.searchParams.get('etq') || '';
+        const tipo = ['mapa', 'anim'].includes(url.searchParams.get('tipo')) ? url.searchParams.get('tipo') : 'mod', q = texto(url.searchParams.get('q'), 40), etq = url.searchParams.get('etq') || '';
         const orden = { nuevo: 'fecha DESC', desc: 'descargas DESC, fecha DESC', pop: '(likes * 3 + descargas) DESC, fecha DESC' }[url.searchParams.get('orden')] || '(likes * 3 + descargas) DESC, fecha DESC';
         const p = Math.max(0, Math.min(200, parseInt(url.searchParams.get('p'), 10) || 0));
         let where = 'tipo = ?1 AND oculto = 0'; const args = [tipo];
         if (q) { where += ' AND (nombre LIKE ?2 OR descripcion LIKE ?2 OR autor LIKE ?2)'; args.push('%' + q.replace(/[%_]/g, '') + '%'); }
         if (ETIQUETAS.includes(etq)) { where += ` AND etiquetas LIKE ?${args.length + 1}`; args.push('%"' + etq + '"%'); }
+        const cat = url.searchParams.get('cat') || ''; // (animaciones: baile, gesto o acción; va en la columna "base")
+        if (tipo === 'anim' && /^(baile|gesto|accion)$/.test(cat)) { where += ` AND base = ?${args.length + 1}`; args.push(cat); }
         const filas = await env.DB.prepare(`SELECT id, tipo, nombre, autor, descripcion, etiquetas, icono, base, fecha, descargas, likes, codigo FROM items WHERE ${where} ORDER BY ${orden} LIMIT 20 OFFSET ${p * 20}`).bind(...args).all();
         const total = await env.DB.prepare(`SELECT COUNT(*) AS n FROM items WHERE ${where}`).bind(...args).first();
         return json({ items: filas.results.map((f) => ({ ...f, etiquetas: JSON.parse(f.etiquetas || '[]') })), total: total ? total.n : 0 });
@@ -118,9 +120,9 @@ export default {
         const hora = await env.DB.prepare('SELECT COUNT(*) AS n FROM items WHERE ip = ?1 AND fecha > ?2').bind(ip, Date.now() - 3600e3).first();
         if (hora && hora.n >= 5) return json({ error: 'publicaste mucho: esperá una hora' }, 429);
         const id = azar(8), clave = azar(20); v.id = id;
-        const icono = v.formato === 'rezobox-mod' ? v.icono : v.foto || '';
+        const icono = v.formato === 'rezobox-mod' ? v.icono : v.foto || '', tipo = { 'rezobox-mod': 'mod', 'rezobox-mapa': 'mapa', 'rezobox-anim': 'anim' }[v.formato];
         await env.DB.prepare('INSERT INTO items (id, tipo, nombre, autor, descripcion, etiquetas, icono, base, datos, fecha, clave, ip, codigo) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)')
-          .bind(id, v.formato === 'rezobox-mod' ? 'mod' : 'mapa', v.nombre, v.autor, v.descripcion, JSON.stringify(v.etiquetas), icono, v.base || null, JSON.stringify(v), Date.now(), await huella(clave), ip, v.codigo ? 1 : 0).run();
+          .bind(id, tipo, v.nombre, v.autor, v.descripcion, JSON.stringify(v.etiquetas), icono, (v.formato === 'rezobox-anim' ? v.cat : v.base) || null, JSON.stringify(v), Date.now(), await huella(clave), ip, v.codigo ? 1 : 0).run();
         return json({ id, clave });
       }
       if (req.method === 'POST' && (m = /^\/api\/(like|denunciar)\/([a-z0-9]{8})$/.exec(r))) {
@@ -205,7 +207,7 @@ export default {
       }
       m = /^\/api\/radio\/clic\/([0-9a-f-]{36})$/.exec(r);
       if (req.method === 'GET' && m) { rbApi('/json/url/' + m[1]).catch(() => {}); return json({ ok: true }); }
-      if (r === '' || r === '/api') return json({ tienda: 'HypperX RezoBox', formatos: ['rezobox-mod', 'rezobox-mapa'], etiquetas: ETIQUETAS });
+      if (r === '' || r === '/api') return json({ tienda: 'HypperX RezoBox', formatos: ['rezobox-mod', 'rezobox-mapa', 'rezobox-anim'], etiquetas: ETIQUETAS });
       return json({ error: 'no encontrado' }, 404);
     } catch (e) {
       return json({ error: 'error del servidor' }, 500);

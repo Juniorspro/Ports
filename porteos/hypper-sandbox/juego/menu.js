@@ -79,10 +79,10 @@ function uiCampo(n) {
 }
 // listas desplegables: un <select> invisible encima (en el celular abre el selector del sistema)
 // (los servers no tienen límite de jugadores)
-const OPCIONES = { GameModeDropdown: ['Free', 'PvP'], PlayersDropdown: ['∞'], MaxPlayersDropdown: ['1'], MapDropdown: MAPAS };
+const OPCIONES = { GameModeDropdown: ['Free', 'PvP'], PlayersDropdown: ['∞'], MaxPlayersDropdown: ['1'], MapDropdown: [...MAPAS, ...MAPAS_RB] };
 function uiLista(n) {
   const op = OPCIONES[n.n] || [], s = document.createElement('select'), lab = hijo(n, 'Label');
-  s.className = 'lista'; for (const o of op) { const x = document.createElement('option'); x.value = x.textContent = o; s.appendChild(x); }
+  s.className = 'lista'; for (const o of op) { const x = document.createElement('option'); x.value = o; x.textContent = /^RB_/.test(o) ? 'RezoBox: ' + T('m.' + o) : o; s.appendChild(x); }
   if (lab && lab.txt && op.includes(lab.txt.t)) s.value = lab.txt.t;
   s.onchange = () => { MENU.sel[n.n] = s.value; uiTextoPoner(lab, s.value); };
   MENU.sel[n.n] = s.value; n.el.appendChild(s); n.sel = s;
@@ -222,7 +222,7 @@ function menuAccion(r) {
   for (const [re, fn] of ACCIONES) { const m = re.exec(r); if (m) { fn(r, m); return; } }
 }
 // ---------------- tienda: personajes y gorros, con el personaje en 3D ----------------
-const RETRATO = { Hero: 'hero', Soldier: 'soldier', Jean: 'jean', Derik: 'derik', Business: 'business', SpecialForcesW: 'specialforce', SpecialForcesM: 'specialforce_2', Prisoner01: 'Prisoner01', PilotFemale: 'PilotFemale', Butcher: 'Butcher', Swat: 'swat', Military: 'Military', Engineer: 'Engineer', Corpse: 'corpse', Goku: 'goku', Ciclope: 'ciclope' };
+const RETRATO = { Hero: 'hero', Soldier: 'soldier', Jean: 'jean', Derik: 'derik', Business: 'business', SpecialForcesW: 'specialforce', SpecialForcesM: 'specialforce_2', Prisoner01: 'Prisoner01', PilotFemale: 'PilotFemale', Butcher: 'Butcher', Swat: 'swat', Military: 'Military', Engineer: 'Engineer', Corpse: 'corpse', Goku: 'goku', Ciclope: 'ciclope', Astronauta: 'astronauta', Ninja: 'ninja', Robot: 'robot', Zombi: 'zombi', Bombera: 'bombera', Pirata: 'pirata' };
 function tienda(tab) {
   MENU.tab = tab;
   const cat = buscar(nodo('Main/Shop/Character'), 'Root');
@@ -252,7 +252,7 @@ function lobbyCamara(out) { out.pos.copy(LOBBY_CAM); out.q.copy(Quat.euler(0, 0)
 function dibujarLobby() {
   const P = MENU.lobby; if (!P) return;
   P.pos.set(LOBBY_CAM.x + LOBBY_PIES.x, LOBBY_CAM.y + LOBBY_PIES.y + 1, LOBBY_CAM.z + LOBBY_PIES.z); P.yaw = MENU.yaw; P.vel.set(0, 0, 0); P.suelo = true;
-  if (P.emote && P.emoteT > 3) P.emote = null;
+  if (P.emote && P.emoteT > (P.emoteMax || 3)) P.emote = null;
   animarPersona(P, TIEMPO.dt); dibujarPersona(P);
 }
 // ---------------- guardados (construcciones por mapa) ----------------

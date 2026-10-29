@@ -19,8 +19,15 @@ for (const v of [200, 0, 100]) { await ev(`(() => { const r = document.querySele
 await clic('[data-mm="mod:veloz"]'); console.log('veloz: vel_max', await ev(`JUG.vel_max.toFixed(2)`));
 await clic('[data-mm="mod:goku"]'); await espera(600);
 console.log('goku: skinMod', await ev(`JUG.skinMod`), '· skin guardado sigue', await ev(`PREFS.skin`), '· cuerpo', await ev(`JUG.cuerpo.skin`), '· salto', await ev(`JUG.salto.toFixed(2)`));
-await clic('[data-mm="mod:volar"]'); await clic('[data-mm="mod:radio"]');
-console.log('nativos: usar', await ev(`[...document.querySelectorAll('#modMenu [data-mm^="nat:"],#modMenu [data-mm^="radio:"]')].map(e=>e.dataset.mm).join(',')`), '· NAT', await ev(`[...NAT.mods].join(',')`));
+await clic('[data-mm="mod:volar"]');
+console.log('nativos: usar', await ev(`[...document.querySelectorAll('#modMenu [data-mm^="nat:"]')].map(e=>e.dataset.mm).join(',')`), '· NAT', await ev(`[...NAT.mods].join(',')`));
+// los assets (radio, piano, pantalla) no se prenden: están en su pestaña y abren el menú de props en la sección Mods
+console.log('radio entre los de jugabilidad:', await ev(`!!document.querySelector('#modMenu [data-mm="mod:radio"]')`));
+await clic('[data-mm="tab:asset"]');
+console.log('assets:', await ev(`[...document.querySelectorAll('#modMenu [data-mm^="props:"]')].map(e=>e.dataset.mm.slice(6)).join(',')`));
+await clic('[data-mm="props:radio"]');
+console.log('props abierto en Mods:', await ev(`JSON.stringify({ ui: UI.abierto, cat: document.querySelector('#cats .cat.sel') && document.querySelector('#cats .cat.sel').textContent, items: [...document.querySelectorAll('#grilla [data-mod]')].map(e=>e.dataset.mod), marca: !!document.querySelector('#grilla .marca') })`));
+await ev(`cerrarPaneles(); modMenuAbrir(); MODM.tab = 'juego'; modMenuLista(); 1`); await espera(300);
 await p.screenshot({ path: D + 'v2_menu_activos.png' });
 // buscador
 if (!celu) { await p.fill('#mmQ', 'grav'); await espera(300); console.log('buscar "grav":', await ev(`[...document.querySelectorAll('#modMenu .mmCat b')].map(e=>e.textContent).join(', ')`), '· foco sigue', await ev(`document.activeElement && document.activeElement.id`)); await p.fill('#mmQ', ''); await espera(300); }
@@ -42,7 +49,7 @@ await ev('modMenuAbrir()'); await espera(200); await clic('[data-mm="mod:dios"]'
 console.log('dios: vida', await ev(`JUG.vida`), '· chispas del escudo', await ev(`PART.l.filter(q => q.col[2] > 0.9).length`));
 // apagar todos
 await ev('modMenuAbrir()'); await espera(200);
-for (const id of ['luna', 'veloz', 'goku', 'volar', 'radio', 'salto', 'dios']) await clic(`[data-mm="mod:${id}"]`);
+for (const id of ['luna', 'veloz', 'goku', 'volar', 'salto', 'dios']) await clic(`[data-mm="mod:${id}"]`);
 console.log('todo apagado: gravedad', await ev(`MUNDO.gravedad`), 'vel', await ev(`JUG.vel_max.toFixed(2)`), 'skinMod', await ev(`String(JUG.skinMod)`), 'NAT', await ev(`NAT.mods.size`), 'botón', JSON.stringify(await ev(`MODM.boton.querySelector('.mmN').textContent`)));
 console.log('errores:', err.filter((e) => !/WebSocket|mqtt|Failed to load resource/i.test(e)).slice(0, 8).join(' | ') || 'ninguno');
 await b.close();

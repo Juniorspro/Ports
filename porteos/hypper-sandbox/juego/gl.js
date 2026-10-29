@@ -378,7 +378,7 @@ const VS_CIELO = `
 layout(location=0) in vec2 aP; uniform mat4 uIVP; out vec3 vD;
 void main(){ vec4 a = uIVP * vec4(aP, 1.0, 1.0); vD = a.xyz / a.w; gl_Position = vec4(aP, 0.99999, 1.0); }`;
 const FS_CIELO = `
-precision highp float; in vec3 vD; uniform vec3 uTop, uMid, uBot, uSol, uSolC, uCam, uLuna; uniform vec2 uExp; uniform float uExpo, uTiempo, uNoche, uNubes, uSolTam, uCieloK; out vec4 o;
+precision highp float; in vec3 vD; uniform vec3 uTop, uMid, uBot, uSol, uSolC, uCam, uLuna; uniform vec2 uExp; uniform float uExpo, uTiempo, uNoche, uNubes, uSolTam, uCieloK, uAire; out vec4 o;
 vec3 aces(vec3 x) { return clamp(x * (2.51 * x + 0.03) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
@@ -392,9 +392,9 @@ void main(){
   o = vec4(c, 1.0);
 #else
   c = pow(c, vec3(2.2)) * uCieloK;                                          // el degradé del juego (en gamma) pasado a lineal
-  c += uSolC * pow(s, 8.0) * 0.18 * (1.0 - abs(y));                       // brillo del horizonte hacia el sol
+  c += uSolC * pow(s, 8.0) * 0.18 * (1.0 - abs(y)) * uAire;               // brillo del horizonte hacia el sol (sin aire, nada)
   float disco = smoothstep(1.0 - uSolTam, 1.0 - uSolTam * 0.6, s);
-  c += uSolC * (disco * 40.0 + pow(s, 1200.0) * 3.0 + pow(s, 40.0) * 0.25) * step(-0.02, y) * (1.0 - uNoche);
+  c += uSolC * (disco * 40.0 + pow(s, 1200.0) * 3.0 + pow(s, 40.0) * 0.25 * uAire) * step(-0.02, y) * (1.0 - uNoche);
 #ifdef NUBES
   if (y > 0.0) {
     vec2 p = d.xz / (y + 0.12) * 0.55 + uTiempo * vec2(0.004, 0.0015);
@@ -490,7 +490,7 @@ function progDe(clave, modo) {
 function progsLimpiar() { const gl = R.gl; for (const P of R.progs.values()) gl.deleteProgram(P.p); R.progs.clear(); }
 function glIniciar() {
   const cv = $('cv'); R.cv = cv;
-  const op = { antialias: false, alpha: false, depth: true, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: TEST };
+  const op = { antialias: false, alpha: true, depth: true, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: TEST };
   // WebGL 1 siempre (anda en todos lados); WebGL 2 sólo si se elige en Ajustes → Motor gráfico (o ?gl=2)
   let gl = (Q.get('gl') === '2' || (PREFS.motor === 'webgl2' && Q.get('gl') !== '1')) ? cv.getContext('webgl2', op) : null;
   if (!gl) { gl = cv.getContext('webgl', op) || cv.getContext('experimental-webgl', op); R.gl1 = true; }
@@ -880,14 +880,14 @@ function dibujarCielo(IVP) {
   const gl = R.gl, C = R.cielo; if (!C) return;
   let P;
   if (R.salida === 'gam') P = R.prog.cieloG;
-  else { const k = 'cielo|' + R.salida + '|' + (GFX.nubes ? 1 : 0); P = R.progs.get(k); if (!P) { P = shader(VS_CIELO, FS_CIELO, ['SALIDA=' + (R.salida === 'hdr' ? 2 : 1)].concat(GFX.nubes ? ['NUBES'] : [])); R.progs.set(k, P); } }
+  else { const nub = GFX.nubes && !MUNDO.espacio, k = 'cielo|' + R.salida + '|' + (nub ? 1 : 0); P = R.progs.get(k); if (!P) { P = shader(VS_CIELO, FS_CIELO, ['SALIDA=' + (R.salida === 'hdr' ? 2 : 1)].concat(nub ? ['NUBES'] : [])); R.progs.set(k, P); } } // (sin aire, sin nubes)
   gl.useProgram(P.p); R.progAct = P;
   const L = R.salida !== 'gam' && R.lin ? R.lin : null;
   gl.uniformMatrix4fv(P.u.uIVP, false, IVP);
   gl.uniform3fv(P.u.uTop, C.top); gl.uniform3fv(P.u.uMid, C.mid); gl.uniform3fv(P.u.uBot, C.bot); gl.uniform2fv(P.u.uExp, C.exp);
   gl.uniform3f(P.u.uSol, R.sol.x, R.sol.y, R.sol.z); gl.uniform3fv(P.u.uSolC, L ? L.cieloSol : C.sol); gl.uniform3f(P.u.uCam, R.camPos.x, R.camPos.y, R.camPos.z);
   if (R.salida !== 'gam') {
-    gl.uniform1f(P.u.uExpo, R.expo); gl.uniform1f(P.u.uTiempo, TIEMPO.t); gl.uniform1f(P.u.uCieloK, R.cieloK || 1); gl.uniform1f(P.u.uNoche, R.noche || 0); gl.uniform1f(P.u.uNubes, R.nubes === undefined ? 0.5 : R.nubes);
+    gl.uniform1f(P.u.uExpo, R.expo); gl.uniform1f(P.u.uTiempo, TIEMPO.t); gl.uniform1f(P.u.uCieloK, R.cieloK || 1); gl.uniform1f(P.u.uNoche, R.noche || 0); gl.uniform1f(P.u.uNubes, R.nubes === undefined ? 0.5 : R.nubes); if (P.u.uAire) gl.uniform1f(P.u.uAire, MUNDO.espacio ? 0 : 1);
     gl.uniform1f(P.u.uSolTam, 0.00012 + (C.solTam || 0.3) * 0.0004);
     const l = R.luna || v3(-R.sol.x, Math.abs(R.sol.y), -R.sol.z); gl.uniform3f(P.u.uLuna, l.x, l.y, l.z);
   }

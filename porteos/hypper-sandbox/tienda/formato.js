@@ -5,13 +5,21 @@
 // Mod (.rbmod):  { formato: 'rezobox-mod', version: 1, nombre, autor, descripcion, etiquetas, icono ('ico:nombre' o imagen),
 //                  efectos: { gravedad, velocidad, salto, tiempo, explosion (multiplicadores), municionInfinita, invencible,
 //                             skin, hora, armas: [nombres], aparecer: [{ n, d, lado }] }, codigo: 'JavaScript' }
+//                  tipo: 'juego' (cambia tu personaje o cómo se juega: se prende en el menú MOD) o 'asset' (pone cosas: va
+//                  en el menú de props, sección Mods, siempre a mano)
+// Animación (.rbanim): { formato: 'rezobox-anim', version: 1, nombre, autor, descripcion, cat ('baile' | 'gesto' | 'accion'), foto,
+//                  clip: { fps, nf (cuadros), b: [huesos], r: rotaciones int16 en base64 (cuadro × hueso × xyzw), h: cadera
+//                  int16 en base64 (cuadro × xyz, en mm) o null, loop } } — las hace el editor de animaciones del juego
 // Mapa (.rbmapa): { formato: 'rezobox-mapa', version: 1, nombre, autor, descripcion, etiquetas, base (mapa del juego), foto,
 //                  hora, gravedad, objetos: [{ n, p, q, f }], aparicion: [x, y, z],
 //                  roles: [{ id, nombre, color, skin, armas, vida, velocidad, salto }], spawns: [{ p, yaw, rol }],
 //                  entidades: [{ t: tipo, p: [x, y, z], yaw, prm: { ... } }], codigo: 'JavaScript' }
 export const ETIQUETAS_RB = ['jugabilidad', 'fisica', 'armas', 'personajes', 'diversion', 'construccion', 'vehiculos', 'aventura', 'pvp', 'otros'];
-export const MAPAS_BASE_RB = ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space'];
-export const ENTIDADES_RB = ['boton_autos', 'teleport', 'zona_muerte', 'cartel', 'piano', 'radio', 'rampa', 'luz', 'impulso', 'meta', 'musica'];
+export const MAPAS_BASE_RB = ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space', 'RB_Llanura', 'RB_Colinas', 'RB_Isla', 'RB_Ciudad', 'RB_Desierto', 'RB_Luna'];
+export const HUESOS_ANIM_RB = ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand', 'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand',
+  'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase', 'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase'];
+export const CATS_ANIM_RB = ['baile', 'gesto', 'accion'];
+export const ENTIDADES_RB = ['boton_autos', 'teleport', 'zona_muerte', 'cartel', 'piano', 'radio', 'rampa', 'luz', 'impulso', 'meta', 'musica', 'pantalla'];
 const NOMBRE_RB = /^[A-Za-z0-9_ ()\-.]{1,40}$/;
 const rbTexto = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const rbNum = (v, a, b, def) => { const n = Number(v); return Number.isFinite(n) ? Math.min(b, Math.max(a, n)) : def; };
@@ -49,7 +57,18 @@ export function validarRB(d) {
       armas: rbNombres(e.armas, 50),
       aparecer: (Array.isArray(e.aparecer) ? e.aparecer : []).slice(0, 500).map((o) => ({ n: String((o && o.n) || ''), d: rbNum(o && o.d, 0, 500, 6), lado: rbNum(o && o.lado, -500, 500, 0) })).filter((o) => NOMBRE_RB.test(o.n)),
     };
-    return { formato: 'rezobox-mod', ...base, icono: rbImagen(d.icono, 60000) || 'ico:' + icoNombreRB(d.icono), efectos: ef };
+    const m = { formato: 'rezobox-mod', ...base, icono: rbImagen(d.icono, 60000) || 'ico:' + icoNombreRB(d.icono), efectos: ef };
+    if (d.tipo === 'asset' || d.tipo === 'juego') m.tipo = d.tipo;
+    return m;
+  }
+  if (d.formato === 'rezobox-anim') {
+    const c = d.clip || {}, fps = Math.round(rbNum(c.fps, 5, 60, 20)), nf = Math.round(rbNum(c.nf, 2, 3000, 2)), b64 = /^[A-Za-z0-9+/]*={0,2}$/;
+    const b = Array.isArray(c.b) ? c.b.filter((x) => HUESOS_ANIM_RB.includes(x)) : [];
+    if (!b.length || b.length !== c.b.length || new Set(b).size !== b.length) return 'la animación no tiene huesos válidos';
+    const largo = (n) => Math.ceil(n / 3) * 4;
+    if (typeof c.r !== 'string' || !b64.test(c.r) || c.r.length !== largo(nf * b.length * 8)) return 'la animación está dañada';
+    const h = typeof c.h === 'string' && b64.test(c.h) && c.h.length === largo(nf * 6) ? c.h : null;
+    return { formato: 'rezobox-anim', ...base, foto: rbImagen(d.foto, 60000), cat: CATS_ANIM_RB.includes(d.cat) ? d.cat : 'baile', clip: { fps, nf, b, r: c.r, h, loop: !!c.loop } };
   }
   if (d.formato === 'rezobox-mapa') {
     if (!MAPAS_BASE_RB.includes(d.base)) return 'el mapa base no existe';

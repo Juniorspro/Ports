@@ -138,7 +138,7 @@ function crearObjeto(nombre, pos, q, opt) {
   const md = new Modelo(arb); md.p[0] = [0, 0, 0];
   const rb = arb[0].rb, masa = opt.masa || (rb ? Math.max(0.5, rb.m) : 20);
   const tipo = tipoDe(arb);
-  const b = new Body(F.shape, masa, { fric: 0.6, rest: nombre === 'bouncy_ball' ? 0.92 : 0.12 });
+  const b = new Body(F.shape, masa, { fric: 0.6, rest: rb && rb.rs !== undefined ? rb.rs : nombre === 'bouncy_ball' ? 0.92 : 0.12 });
   b.q.copy(q || new Quat());
   if (F.ejeCap) { const r = new Quat(); const a = F.ejeCap; const d = vdot(a, v3(0, 1, 0)); if (d < 0.999) { const ax = vcross(v3(0, 1, 0), a).norm(); r.copy(Quat.axis(ax.x, ax.y, ax.z, Math.acos(clamp(d, -1, 1)))); } b.capQ = r; b.q.mul(r); }
   // la posición pedida es la del piso: subir para que la base quede apoyada
@@ -148,7 +148,7 @@ function crearObjeto(nombre, pos, q, opt) {
   b.pos.set(pos.x, pos.y - minY + 0.01, pos.z);
   if (opt.exacto) { const c = b.q.rot(F.c); b.pos.copy(pos).add(c); }
   b.updateWorld();
-  const o = { id: opt.id || _objId++, nombre, tipo, md, b, c: F.c, F, creado: TIEMPO.t, dueno: opt.dueno || 'yo' };
+  const o = { id: opt.id || _objId++, nombre, tipo, md, b, c: F.c, F, creado: TIEMPO.t, dueno: opt.dueno || 'yo', salta: !!(rb && rb.sal) };
   b.obj = o; b.snd = masa > 300 ? 'metal' : 'wood';
   if (opt.congelado) b.frozen = true;
   if (F.soloGatillo || /^decal_/.test(nombre)) { b.noPhys = true; b.frozen = true; }

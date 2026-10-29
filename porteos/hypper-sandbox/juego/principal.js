@@ -64,7 +64,7 @@ function aplicarGfx() {
   PH.sub = GFX.sub; R.lejos = GFX.lejos;
   if (MUNDO.nombre) {
     const aj = DATA.aj[MUNDO.nombre] || {};
-    if (!(aj.fog && aj.fd > 0) && MUNDO.nombre !== 'Space') { R.niebla.a = GFX.lejos * 0.7; R.niebla.b = GFX.lejos; }
+    if (!(aj.fog && aj.fd > 0) && !MUNDO.espacio && !(aj.fog && aj.fe > aj.fs)) { R.niebla.a = GFX.lejos * 0.7; R.niebla.b = GFX.lejos; }
   }
   if (AUD.master) AUD.master.gain.value = PREFS.vol / 100;
   ENT.sens = 0.00018 * PREFS.sens; ENT.sensT = ENT.sens * 2.6;
@@ -81,6 +81,7 @@ function camaraActualizar(dt) {
   if (JUEGO.estado === 'principal' && typeof lobbyCamara === 'function') { lobbyCamara(CAM); CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); return; }
   jugadorCamara(CAM);
   if (JUEGO.estado === 'juego') cicCamara(CAM); // (Cíclope: la cinemática y la cámara de la definitiva)
+  if (EDA.on) edaCamara(CAM); // (editor de animaciones: alrededor del muñeco o la cámara grabada)
   if (DBG.cam) { CAM.pos.copy(DBG.cam.p); CAM.q.copy(DBG.cam.q); } // (pruebas: mirar desde otro lado)
   if (CAM.temblor > 0) { CAM.temblor = Math.max(0, CAM.temblor - dt * 1.5); const k = CAM.temblor * 0.03; CAM.q.mul(Quat.euler((Math.random() - 0.5) * k, (Math.random() - 0.5) * k)); }
   CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA);
@@ -92,7 +93,7 @@ function camaraActualizar(dt) {
 // ---------------- partidas ----------------
 const DESHACER = [];
 function empezarPartida(mapa) {
-  audioIniciar();
+  audioIniciar(); if (EDA.on) edaCerrar();
   natFin(); entidadesLimpiar(); JUG.skinRol = null; JUG.vidaMax = 0; JUG.colorRol = null; JUG.noclip = false;
   for (const o of OBJS.slice()) borrarObjeto(o);
   PH.bodies.length = 0; PH.joints.length = 0; PROY.length = 0; PART.l.length = 0;
@@ -140,6 +141,7 @@ function cargarConstruccion() {
 function atenderPulsos() {
   for (const k of ENT.pulsos) {
     if (JUEGO.estado !== 'juego') continue;
+    if (UI.abierto === 'eda') { if (k === 'pausa') edaAccion('salir'); continue; } // (en el editor de animaciones, sólo salir)
     if (k === 'pausa') { if (UI.abierto) cerrarPaneles(); else abrirPausa(); continue; }
     if (k === 'cerrar') { cerrarPaneles(); continue; }
     if (k === 'modmenu') { if (UI.abierto === 'modm') modMenuCerrar(); else if (!UI.abierto) modMenuAbrir(); continue; }
@@ -152,6 +154,7 @@ function atenderPulsos() {
     else if (k === 'recargar') recargar();
     else if (k === 'usar') { if (typeof usar === 'function') usar(); }
     else if (k === 'salir') { if (JUG.vehiculo) salirVehiculo(); }
+    else if (k === 'borrarApuntado') borrarApuntado();
     else if (k === 'deshacer') { const o = DESHACER.pop(); if (o && OBJS.includes(o)) { borrarObjeto(o); aviso('Deshecho: ' + o.nombre, 1); } }
     else if (k === 'lejos') ENT.pulsoDist = (ENT.pulsoDist || 0) + 1.5;
     else if (k === 'cerca') ENT.pulsoDist = (ENT.pulsoDist || 0) - 1.5;
@@ -196,14 +199,14 @@ function cuadro(ahora) {
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
     modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt); smPaso(dt); modsVisualPaso(dt);
     if (typeof redPaso === 'function') redPaso(dt);
-    cicPaso(dt);
+    cicPaso(dt); edaPaso(dt);
     diaPaso(dt); hostPaso();
   }
   efectosPaso(dt);
   camaraActualizar(dt);
   dibujar();
   buclesFin(); audioPaso(dt);
-  hudActualizar(dt);
+  hudActualizar(dt); hudPaso();
   // fps y resolución automática
   TIEMPO.cuadros++; TIEMPO.medT += dt; TIEMPO.ms += performance.now() - t0;
   if (TIEMPO.medT >= 1) {
@@ -244,7 +247,7 @@ function dibujarMenu() {
 const DIB = { ms: {} };   // tiempos de cada parte (para medir)
 function dibujar() {
   const gl = R.gl, W = R.cv.width, H = R.cv.height;
-  if (JUEGO.estado === 'principal' && typeof dibujarMenu === 'function' && MENU.el) return dibujarMenu();
+  if (JUEGO.estado === 'principal' && typeof dibujarMenu === 'function' && MENU.el) { dibujarMenu(); pantFinCuadro(false); return; }
   const asp = W / H, cerca = 0.08, lejos = GFX.lejos * 1.05, fovy = CAM.fov * Math.PI / 180;
   const P = M4.persp(fovy, asp, cerca, lejos), V = M4.view(CAM.pos, CAM.qVista);
   m4mul(P, V, R.vp); R.fr = frustum(R.vp); R.camPos.copy(CAM.pos); R.camF.copy(CAM.fwd); R.lejos = GFX.lejos;
@@ -297,6 +300,7 @@ function dibujar() {
   }
   const t3 = performance.now();
   if (usaPost) postTerminar();
+  pantFinCuadro(usaPost); // (alfa 1 en toda la imagen y el hueco de la pantalla de video)
   DIB.ms.juntar = t1 - t0; DIB.ms.sombras = t2 - t1; DIB.ms.escena = t3 - t2; DIB.ms.post = performance.now() - t3;
   if (JUEGO.foto > 0) { JUEGO.foto--; if (JUEGO.foto === 0) { if (JUEGO.fotoCb) { JUEGO.fotoCb(); JUEGO.fotoCb = null; } else fotoGuardar(); } }
 }

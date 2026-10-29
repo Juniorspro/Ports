@@ -55,6 +55,15 @@ function sonar(n, pos, vol, tono) {
   s.start();
   return s;
 }
+// resorte (cama elástica): un "boing" hecho acá, más fuerte cuanto más fuerte el golpe
+function sonarResorte(pos, k) {
+  if (!AUD.ctx || !PREFS.vol) return;
+  const c = AUD.ctx, t = c.currentTime, F = fuente3D(pos, 0.25 + 0.5 * k), o = c.createOscillator(), g = c.createGain(), v = c.createOscillator(), vg = c.createGain();
+  o.type = 'triangle'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(330, t + 0.09); o.frequency.exponentialRampToValueAtTime(190, t + 0.4);
+  v.frequency.value = 22; vg.gain.setValueAtTime(30, t); vg.gain.exponentialRampToValueAtTime(1, t + 0.4); v.connect(vg); vg.connect(o.frequency);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.6, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+  o.connect(g); g.connect(F.g); o.start(t); v.start(t); o.stop(t + 0.5); v.stop(t + 0.5);
+}
 // sonido en bucle atado a una cosa (motor de auto, hélice): se actualiza cada cuadro
 function bucle(clave, n, pos, vol, tono) {
   if (!AUD.ctx) return;

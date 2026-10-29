@@ -13,6 +13,8 @@ const autosMax = () => (ENT.tactil ? 10 : 16), AUTO_OCIOSO = 25;
 const ahoraS = () => Date.now() / 1000;
 const entW = (e, x, y, z) => vadd(e.p, e.q.rot(v3(x, y, z)));
 const entPos = (e) => (e.b ? e.b.pos : e.p);
+const conCuerpo = (e) => e.t === 'radio' || e.t === 'pantalla';
+const entAlto = (e) => (e.t === 'pantalla' && e.M ? e.M.T / 2 : 0.24); // (del piso al centro de su cuerpo)
 const ytId = (s) => { const m = /(?:v=|youtu\.be\/|embed\/|shorts\/|^)([\w-]{11})(?:[?&#]|$)/.exec(String(s || '').trim()); return m ? m[1] : ''; };
 const colorRGB = (h) => (/^#[0-9a-f]{6}$/i.test(h || '') ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255) : [1, 1, 1]);
 
@@ -40,7 +42,7 @@ function entidadesLimpiar() { for (const e of ENTS.lista.slice()) entidadQuitar(
 function entidadDatos(e) {
   const prm = JSON.parse(JSON.stringify(e.prm)); let p = entPos(e);
   // la radio: el lugar de su base (la caja va 24 cm arriba), su giro y si quedó congelada (pegada a una pared)
-  if (e.t === 'radio' && e.b) { p = vsub(e.b.pos, v3(0, 0.24, 0)); prm.q = [e.b.q.x, e.b.q.y, e.b.q.z, e.b.q.w].map((x) => +x.toFixed(4)); prm.fz = e.b.frozen ? 1 : 0; prm.ll = e.prm.ll ? 1 : 0; }
+  if (conCuerpo(e) && e.b) { p = vsub(e.b.pos, v3(0, entAlto(e), 0)); prm.q = [e.b.q.x, e.b.q.y, e.b.q.z, e.b.q.w].map((x) => +x.toFixed(4)); prm.fz = e.b.frozen ? 1 : 0; if (e.t === 'radio') prm.ll = e.prm.ll ? 1 : 0; }
   return { t: e.t, p: [p.x, p.y, p.z].map((x) => +x.toFixed(3)), yaw: +e.yaw.toFixed(4), prm };
 }
 function entidadesCargar(lista) { for (const d of lista || []) entidadCrear(d); ENTS.t0 = TIEMPO.t; }
@@ -347,16 +349,16 @@ function entidadCerca() { let best = null, bd = 2.2; for (const e of ENTS.lista)
 function entidadUsar(e) { const C = ENT_TIPO[e.t]; return !!(C && C.usar && C.usar(e)); }
 // el piano y la radio que pone un mod: delante del jugador, uno de cada uno (si ya está, se trae)
 function entidadPonerMod(t, callado) {
-  const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), d = t === 'piano' ? 3 : 1.6, p = vadd(JUG.pos, vscale(f, d));
+  const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), d = t === 'piano' ? 3 : t === 'pantalla' ? 3.2 : 1.6, p = vadd(JUG.pos, vscale(f, d));
   const y = pisoBajo(v3(p.x, JUG.pos.y + 1, p.z), 0); p.y = y === null ? JUG.pos.y - 1 : y;
   let e = ENTS.lista.find((x) => x.t === t && x.dueno === 'yo' && x.red && !x.mod);
-  if (t === 'radio' && e && (e.prm.ll || entPos(e).distTo(JUG.pos) < 6)) { if (!callado) radioAbrir(e); return; }
-  const vid = e && e.vid, t0 = e && e.t0, tit = e && e.tit, lista = e && e.lista;
+  if ((t === 'radio' || t === 'pantalla') && e && (e.prm.ll || entPos(e).distTo(JUG.pos) < (t === 'pantalla' ? 10 : 6))) { if (!callado) radioAbrir(e); return; }
+  const vid = e && e.vid, t0 = e && e.t0, tit = e && e.tit, lista = e && e.lista, w = e && e.prm.w;
   if (e) { entidadQuitar(e); entidadRed('entb', e); }
-  e = entidadCrear({ t, p: [p.x, p.y, p.z], yaw: JUG.yaw }, { red: true });
+  e = entidadCrear({ t, p: [p.x, p.y, p.z], yaw: JUG.yaw, prm: w ? { w } : undefined }, { red: true });
   if (vid) Object.assign(e, { vid, t0, tit, lista });
   entidadRed('ent', e);
-  if (t === 'radio' && !callado) radioAbrir(e);
+  if ((t === 'radio' || t === 'pantalla') && !callado) radioAbrir(e);
 }
 // ---------------- en la sala: las que pone un mod se ven y suenan para todos ----------------
 function entidadRed(k, e) {
@@ -372,7 +374,7 @@ function entidadRemota(id, x) {
   const key = id + ':' + (x.n | 0); let e = ENTS.lista.find((y) => y.key === key);
   const v = validarRB({ formato: 'rezobox-mapa', nombre: 'red', base: 'FlatGrass', entidades: [x.d] }), d = typeof v === 'object' && v.entidades[0]; if (!d) return null;
   if (!e) e = entidadCrear(d, { dueno: id, key });
-  else if (e.t === 'radio') radioRemotaDatos(e, d);
+  else if (conCuerpo(e)) radioRemotaDatos(e, d);
   else if (e.b && v3(d.p[0], d.p[1], d.p[2]).distTo(e.b.pos) > 1.5) { e.b.pos.set(d.p[0], d.p[1] + 0.24, d.p[2]); e.b.vel.set(0, 0, 0); e.b.updateWorld(); }
   if (x.v !== undefined) radioPoner(e, fuenteRadio(x.v), num(x.s, 0, 1e6, 0), limpio(String(x.tt || x.t || ''), 100), false);
   return e;
@@ -386,7 +388,7 @@ function entidadHecho(d) {
   if (d.k === 'ent') entidadRemota(d.i, { n: d.n, d: d.d });
   else if (d.k === 'entb') { const e = ENTS.lista.find((y) => y.key === d.i + ':' + (d.n | 0)); if (e) entidadQuitar(e); }
   else if (d.k === 'radio') { const e = ENTS.lista.find((y) => y.key === d.i + ':' + (d.n | 0)); if (e) radioPoner(e, fuenteRadio(d.v), num(d.s, 0, 1e6, 0), limpio(String(d.t || ''), 100), false); }
-  else if (d.k === 'entp') { const e = ENTS.lista.find((y) => y.key === d.i + ':' + (d.n | 0)); if (e && e.t === 'radio') radioRemotaPose(e, d); }
+  else if (d.k === 'entp') { const e = ENTS.lista.find((y) => y.key === d.i + ':' + (d.n | 0)); if (e && conCuerpo(e)) radioRemotaPose(e, d); }
 }
 function entidadesDe(id) { for (const e of ENTS.lista.slice()) if (e.dueno === id) entidadQuitar(e); }
 
@@ -490,7 +492,10 @@ function ytCaja() {
   document.body.appendChild(c); return (YT.caja = c);
 }
 function ytCmd(func, args) { try { YT.ifr.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: args || [] }), '*'); } catch (e) {} }
-function ytQuitar() { if (YT.ifr) YT.ifr.remove(); YT.ifr = null; YT.fuente = null; YT.vid = null; YT.vol = -1; if (YT.caja) YT.caja.classList.add('oc'); }
+function ytQuitar() {
+  if (YT.ifr) YT.ifr.remove(); YT.ifr = null; YT.fuente = null; YT.vid = null; YT.vol = -1;
+  if (YT.caja) { YT.caja.classList.add('oc'); YT.caja.classList.remove('pant', 'pantVe'); } document.body.classList.remove('conPant'); TELE.vis = false; TELE.css = '';
+}
 function ytCargar(e) {
   ytQuitar(); const c = ytCaja();
   YT.fuente = e; YT.vid = e.vid;
@@ -499,6 +504,8 @@ function ytCargar(e) {
   f.src = `https://www.youtube-nocookie.com/embed/${e.vid}?autoplay=1&enablejsapi=1&playsinline=1&controls=0&rel=0&modestbranding=1&start=${s}` + (/^https?:/.test(location.origin) ? '&origin=' + encodeURIComponent(location.origin) : '');
   f.onload = () => { try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'rb' }), '*'); } catch (x) {} YT.vol = -1; ytVolumen(true); };
   f.tabIndex = -1; c.querySelector('.ytV').appendChild(f); YT.ifr = f; c.classList.remove('oc');
+  // en una pantalla el video se ve: va detrás del juego, donde el juego deja el hueco
+  const pant = e.t === 'pantalla'; c.classList.toggle('pant', pant); document.body.classList.toggle('conPant', pant); if (pant) { c.style.transform = ''; TELE.css = ''; }
 }
 function ytVolumen(forzar) {
   const e = YT.fuente; if (!e || !YT.ifr) return;
@@ -621,7 +628,9 @@ function radioRemotaPose(e, d) {
 // datos completos de la radio de otro (al ponerla, llevarla o soltarla, y lo que queda guardado en la sala)
 function radioRemotaDatos(e, d) {
   const prm = d.prm || {}, ll = prm.ll ? 1 : 0;
-  if (Array.isArray(prm.q)) radioRemotaPose(e, { p: [d.p[0], d.p[1] + 0.24, d.p[2]], q: prm.q, fz: prm.fz });
+  if (e.t === 'pantalla' && Math.abs((+prm.w || 2) - (+e.prm.w || 2)) > 0.01) pantTamano(e, prm.w);
+  if (Array.isArray(prm.q)) radioRemotaPose(e, { p: [d.p[0], d.p[1] + entAlto(e), d.p[2]], q: prm.q, fz: prm.fz });
+  if (e.t === 'pantalla') return;
   if (ll !== (e.prm.ll ? 1 : 0)) {
     e.prm.ll = ll;
     if (ll) removeBody(e.b);
@@ -646,7 +655,7 @@ function radioCrearPanel() {
   p.innerHTML = `<div class="caja radioCaja"><h3>${icoHTML('ico:radio')} <span class="raTit"></span></h3>
     <div class="raTabs"><button data-ra="modo:est">${glifo('mundo')} <span class="raTEst"></span></button><button data-ra="modo:yt">${glifo('video')} YouTube</button></div>
     <div class="radioBus"><input id="radioQ" maxlength="80" spellcheck="false"><button class="boton chico" data-ra="buscar">${glifo('buscar')}</button></div>
-    <div class="raGen"></div><div class="raNota"></div><div id="radioAhora"></div><div id="radioRes"></div>
+    <div class="raGen"></div><div class="raNota"></div><div class="raTam"></div><div id="radioAhora"></div><div id="radioRes"></div>
     <div class="fila raVol">${glifo('volumen')} <input type="range" id="radioVol" min="0" max="100"></div>
     <div class="radioPie"><button class="boton chico" data-ra="espalda"></button><button class="boton chico gris" data-ra="parar"></button><button class="boton chico gris" data-ra="cerrar"></button></div></div>`;
   document.body.appendChild(p);
@@ -659,6 +668,7 @@ function radioCrearPanel() {
     else if (a === 'cerrar') radioCerrar();
     else if (a === 'parar') radioPoner(e, '', 0, '', true);
     else if (a === 'espalda') radioEspalda(e, !e.prm.ll);
+    else if (a === 'tam' && e.t === 'pantalla' && e.dueno === 'yo') { pantTamano(e, +v); entidadRed('ent', e); radioDibujar(); }
     else if (a === 'poner') {
       const it = RADIO.res[+v]; if (!it) return; const yt = RADIO.modo === 'yt', id = yt ? it.id : 'rb:' + it.id;
       e.lista = RADIO.res.map((x) => ({ id: yt ? x.id : 'rb:' + x.id, t: x.t })); audioIniciar(); radioPoner(e, id, 0, it.t, true);
@@ -680,7 +690,11 @@ function radioAbrir(e) {
   if (!e) return;
   radioCrearPanel(); cerrarPaneles(); RADIO.e = e; UI.abierto = 'radio'; soltarPuntero();
   const p = $('radioPan'); p.classList.remove('oc');
-  p.querySelector('.raTit').textContent = T('radio'); p.querySelector('.raTEst').textContent = T('ra.emisoras');
+  const pant = e.t === 'pantalla';
+  p.querySelector('h3').innerHTML = `${icoHTML(pant ? 'ico:pantalla' : 'ico:radio')} <span class="raTit"></span>`;
+  p.querySelector('.raTit').textContent = T(pant ? 'pant.n' : 'radio'); p.querySelector('.raTEst').textContent = T('ra.emisoras');
+  p.querySelector('.raTabs').style.display = pant ? 'none' : '';
+  if (pant && RADIO.modo !== 'yt') radioModo('yt');
   p.querySelector('[data-ra=parar]').innerHTML = glifo('parar') + ' ' + esc(T('apagar')); p.querySelector('[data-ra=cerrar]').innerHTML = glifo('no') + ' ' + esc(T('cerrar'));
   $('radioVol').value = Math.round(100 * clamp(+e.prm.vol || 1, 0, 1));
   const m = e.vid && !esEst(e.vid) ? 'yt' : RADIO.modo; if (m !== RADIO.modo) radioModo(m); else { $('radioQ').placeholder = T(m === 'yt' ? 'ytBuscar' : 'ra.buscar'); $('radioQ').value = RADIO.q; }
@@ -705,7 +719,8 @@ function radioDibujar() {
   p.querySelector('.raGen').innerHTML = yt ? '' : RADIO_GENEROS.map((g) => `<button class="${RADIO.tag === g ? 'sel' : ''}" data-ra="gen:${g}">${esc(g)}</button>`).join('');
   p.querySelector('.raNota').textContent = yt ? T('ra.notaYt') : '';
   p.querySelector('[data-ra=espalda]').innerHTML = glifo('espalda') + ' ' + esc(T(e.prm.ll ? 'ra.soltar' : 'ra.espalda'));
-  p.querySelector('[data-ra=espalda]').style.display = e.dueno === 'yo' ? '' : 'none';
+  p.querySelector('[data-ra=espalda]').style.display = e.dueno === 'yo' && e.t === 'radio' ? '' : 'none';
+  p.querySelector('.raTam').innerHTML = e.t === 'pantalla' && e.dueno === 'yo' ? `<span>${esc(T('pant.tam'))}</span>` + PANT_TAM.map((w) => `<button class="${Math.abs(w - (+e.prm.w || 2)) < 0.01 ? 'sel' : ''}" data-ra="tam:${w}">${w.toLocaleString(document.documentElement.lang || undefined)} m</button>`).join('') : '';
   $('radioAhora').innerHTML = e.vid ? `<div class="radioYa">${glifo(esEst(e.vid) ? 'musica' : 'video')} <b dir="auto">${esc(sinEmoji(e.tit) || e.vid)}</b></div>` : '';
   const sel = (x) => (yt ? x.id : 'rb:' + x.id) === e.vid;
   R0.innerHTML = RADIO.cargando ? `<div class="radioVacio">${esc(T('cargando'))}</div>` : !RADIO.res.length ? `<div class="radioVacio">${esc(T('sinRes'))}</div>`

@@ -39,7 +39,13 @@ function smPaso(dt) {
 // en el medio de la partida desde el menú MOD (o SM) y cada uno tiene su fuerza (0 = nada, 100 % = como viene, 200 %).
 const modsFuente = () => { const k = typeof SALA !== 'undefined' && SALA ? 'modsSrv' : 'mods'; if (!PREFS[k]) PREFS[k] = {}; return PREFS[k]; };
 const modsCatalogo = () => (typeof SALA !== 'undefined' && SALA ? smTodos() : modsTodos());
-const modsActivosAhora = () => { const f = modsFuente(); return modsCatalogo().filter((m) => f[m.id]); };
+// dos clases de mods: los que cambian tu personaje o cómo se juega (se prenden y apagan en el menú MOD) y los assets,
+// que ponen cosas (radio, piano, pantalla, props): ésos están siempre a mano en el menú de props, sección Mods
+const NAT_ASSET = ['piano', 'radio', 'pantalla'];
+const modCambiaJuego = (m) => { const e = m.efectos || {}; return ['gravedad', 'velocidad', 'salto', 'tiempo', 'explosion'].some((k) => e[k] !== undefined && e[k] !== 1) || e.municionInfinita || e.invencible || !!e.skin || e.hora != null || (e.armas || []).length > 0; };
+const modTipo = (m) => m.tipo || (m.nativo ? (NAT_ASSET.includes(m.nativo) ? 'asset' : 'juego') : !m.codigo && (m.efectos.aparecer || []).length && !modCambiaJuego(m) ? 'asset' : 'juego');
+const modsAssets = () => modsCatalogo().filter((m) => modTipo(m) === 'asset');
+const modsActivosAhora = () => { const f = modsFuente(); return modsCatalogo().filter((m) => f[m.id] && modTipo(m) !== 'asset'); };
 const modFuerza = (id) => { const v = PREFS.modFuerza && PREFS.modFuerza[id]; return v === undefined ? 1 : clamp(+v || 0, 0, 2); };
 const conFuerza = (v, f) => (v > 0 ? Math.pow(v, f) : 1 + (v - 1) * f);
 const modAjustable = (m) => { const e = m.efectos || {}; return ['gravedad', 'velocidad', 'salto', 'tiempo', 'explosion'].some((k) => e[k] !== undefined && e[k] !== 1); };

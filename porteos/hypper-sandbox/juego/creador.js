@@ -8,6 +8,7 @@ const CREA = { on: false, mapa: null, tipo: null, sel: null, rol: '', bar: null,
 const ENT_PRM = {
   piano: [['n', 'num', 5, 61, 1], ['o', 'num', 0, 7, 1], ['a', 'num', 0.4, 4, 0.1], ['l', 'num', 1, 20, 0.5]],
   radio: [['v', 'yt'], ['vol', 'num', 0, 1, 0.05], ['r', 'num', 5, 300, 1]],
+  pantalla: [['v', 'yt'], ['w', 'num', 0.6, 12, 0.1], ['vol', 'num', 0, 1, 0.05], ['r', 'num', 5, 300, 1]],
   musica: [['v', 'yt'], ['r', 'num', 5, 400, 5]],
   rampa: [['alto', 'num', 10, 600, 5], ['ancho', 'num', 6, 80, 1], ['ang', 'num', 15, 80, 1], ['salto', 'bool']],
   boton_autos: [['auto', 'auto'], ['a', 'aqui'], ['ini', 'bool']],
@@ -119,7 +120,7 @@ function creadorDibujar() {
     dibujarCaja(vadd(p, v3(0, 0.9, 0)), [0.5, 1.8, 0.5], null, mk, { c: [c[0], c[1], c[2], 1], em: c.map((x) => x * (sel ? 1.6 : 0.5)) });
     linea(vadd(p, v3(0, 1, 0)), vadd(p, v3(Math.sin(s.yaw || 0) * 1.6, 1, Math.cos(s.yaw || 0) * 1.6)), [c[0], c[1], c[2], 1]);
   });
-  for (const e of ENTS.lista) if (e.dueno === 'yo' && !e.red && !['piano', 'rampa', 'radio', 'boton_autos', 'cartel', 'meta', 'impulso', 'teleport'].includes(e.t)) dibujarCaja(vadd(e.p, v3(0, 0.4, 0)), [0.5, 0.5, 0.5], e.q, mk, { c: [0.9, 0.6, 1, 1], em: [0.6, 0.3, 0.8] });
+  for (const e of ENTS.lista) if (e.dueno === 'yo' && !e.red && !['piano', 'rampa', 'radio', 'pantalla', 'boton_autos', 'cartel', 'meta', 'impulso', 'teleport'].includes(e.t)) dibujarCaja(vadd(e.p, v3(0, 0.4, 0)), [0.5, 0.5, 0.5], e.q, mk, { c: [0.9, 0.6, 1, 1], em: [0.6, 0.3, 0.8] });
   if (CREA.sel && CREA.sel.e) { const p = entPos(CREA.sel.e); for (const [a, b] of [[v3(-1, 0, 0), v3(1, 0, 0)], [v3(0, 0, 0), v3(0, 3, 0)], [v3(0, 0, -1), v3(0, 0, 1)]]) linea(vadd(p, a), vadd(p, b), [1, 0.85, 0.2, 1]); }
   if (CREA.tipo) { const p = creadorPunto(); dibujarCaja(vadd(p, v3(0, 0.3, 0)), [0.6, 0.6, 0.6], Quat.axis(0, 1, 0, JUG.yaw), mk, { c: [0.3, 1, 0.5, 1], em: [0.2, 1, 0.4] }); linea(p, vadd(p, v3(Math.sin(JUG.yaw) * 2, 0.3, Math.cos(JUG.yaw) * 2)), [0.3, 1, 0.5, 1]); }
 }

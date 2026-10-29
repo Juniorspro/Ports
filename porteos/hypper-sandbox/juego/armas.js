@@ -314,7 +314,7 @@ function armasPaso(dt) {
   if (ARM.v) vistaAplicar(ARM.v, dt);
 }
 function dibujarVista() {
-  if (!ARM.v || JUG.tercera || !JUG.vivo || JUG.vehiculo || ARM.zoom || CIC.vic || CIC.camOn) return false;
+  if (!ARM.v || JUG.tercera || !JUG.vivo || JUG.vehiculo || ARM.zoom || CIC.vic || CIC.camOn || EDA.on) return false;
   vistaUbicar(ARM.v, CAM.pos, CAM.q, ARM.sway); ARM.v.md.encolar();
   return true;
 }

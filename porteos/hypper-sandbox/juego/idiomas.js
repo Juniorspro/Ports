@@ -136,7 +136,7 @@ function T(k) {
   const l = IDI_T[PREFS.lang] ? PREFS.lang : 'en';
   const i = IDI_K.indexOf(k);
   if (i >= 0) { const a = _idiCache[l] || (_idiCache[l] = IDI_T[l].split('|')); return a[i] || IDI_T.en.split('|')[i] || k; }
-  const j = IDI_K2.indexOf(k); if (j < 0) return k;
+  const j = IDI_K2.indexOf(k); if (j < 0) { const t3 = T3(k, l); return t3 === undefined ? k : t3; } // (las de la versión 8: idiomas3.js)
   const a2 = _idiCache[l + '2'] || (_idiCache[l + '2'] = IDI_T2[l].split('|'));
   return a2[j] || IDI_T2.en.split('|')[j] || k;
 }

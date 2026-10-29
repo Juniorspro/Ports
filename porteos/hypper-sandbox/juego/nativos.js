@@ -29,11 +29,12 @@ function natAccion(k) {
   if (k === 'volar') natVolar(!NAT.volando);
   else if (k === 'ragdoll') natRag(!NAT.rag);
   else if (k === 'scp') natScp(!NAT.scp);
-  else if (k === 'piano' || k === 'radio') entidadPonerMod(k);
+  else if (NAT_ASSET.includes(k)) entidadPonerMod(k);
 }
 addEventListener('keydown', (e) => {
   if (e.repeat || JUEGO.estado !== 'juego' || (UI.abierto && UI.abierto !== 'modm') || (e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) return;
-  for (const k of NAT.mods) if (NAT_BOTON[k] === e.code) natAccion(k);
+  for (const k of NAT.mods) if (NAT_BOTON[k] === e.code && !NAT_ASSET.includes(k)) natAccion(k);
+  for (const k of NAT_ASSET) if (NAT_BOTON[k] === e.code) natAccion(k); // (los assets: siempre)
 });
 // tercera persona mientras dura (y vuelve como estaba)
 function natTercera(si) {

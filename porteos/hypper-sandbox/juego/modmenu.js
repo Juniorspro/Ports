@@ -1,10 +1,11 @@
 // ---------------- menú MOD (arriba): usar los mods y prenderlos o apagarlos en cualquier momento ----------------
-// Un botón "MOD" (tecla U) despliega dos partes. Arriba, lo que se usa: volar, muñeco y SCP se prenden y apagan, el piano
-// se pone, la radio se pone, se lleva en la espalda o se le elige la emisora, y los botones de los mods de código. Abajo,
-// todos los mods (los tuyos jugando solo; los del server en una sala) con su interruptor, que se aplica al momento, y la
-// fuerza de los que cambian números (gravedad, velocidad, salto, tiempo, explosiones). El micrófono de la sala es otro
-// botón chico arriba.
-const MODM = { boton: null, el: null, abierto: false, q: '', tFz: 0 };
+// Un botón "MOD" (tecla U) con dos pestañas. "Personaje y jugabilidad": arriba lo que se usa (volar, muñeco y SCP se
+// prenden y apagan, el Cíclope, los botones de los mods de código) y abajo todos esos mods (los tuyos jugando solo; los
+// del server en una sala) con su interruptor, que se aplica al momento, y la fuerza de los que cambian números
+// (gravedad, velocidad, salto, tiempo, explosiones). "Assets y props": los mods que ponen cosas (radio, piano, pantalla
+// de video y los de la gente que ponen props). Ésos no se prenden: están siempre en el menú de props, sección Mods (tocar
+// uno lo abre ahí). El micrófono de la sala es otro botón chico arriba.
+const MODM = { boton: null, el: null, abierto: false, q: '', tFz: 0, tab: 'juego' };
 const NAT_TECLA = { volar: 'G', ragdoll: 'X', scp: 'J', piano: 'K', radio: 'L', ciclope: 'H' };
 addEventListener('pointerdown', (e) => { if (MODM.abierto && !(e.target.closest && e.target.closest('#modMenu, .modmBt'))) modMenuCerrar(); }, true);
 function modMenuHay() { return JUEGO.estado === 'juego' && !CREA.on; }
@@ -45,6 +46,7 @@ function modMenuDibujar() {
   if (!MODM.el || !MODM.abierto) return;
   const muchos = modsCatalogo().length > 6;
   MODM.el.innerHTML = `<div class="mmCab"><b>MOD</b><small class="mmCuenta"></small><button class="mmX" data-mm="cerrar">${glifo('no')}</button></div>`
+    + `<div class="mmTabs"><button data-mm="tab:juego">${icoHTML('ico:volar')}<span>${esc(T('mm.juego'))}</span></button><button data-mm="tab:asset">${icoHTML('ico:radio')}<span>${esc(T('mm.assets'))}</span></button></div>`
     + (muchos ? `<div class="mmBus">${glifo('buscar')}<input id="mmQ" maxlength="40" spellcheck="false" placeholder="${esc(T('buscar'))}"></div>` : '') + '<div class="mmLista"></div>';
   if (muchos) MODM.el.querySelector('#mmQ').value = MODM.q;
   modMenuLista();
@@ -54,23 +56,26 @@ function modMenuLista() {
   const L = MODM.el && MODM.el.querySelector('.mmLista'); if (!L || !MODM.abierto) return;
   const fila = (ico, nom, tecla, der, k, on, cl) => `<div class="mmIt${on ? ' on' : ''}${cl ? ' ' + cl : ''}"${k ? ` data-mm="${k}"` : ''}><span class="mmIco">${ico}</span><span class="mmTx"><b dir="auto">${esc(nom)}</b>${tecla ? `<small>(${tecla})</small>` : ''}</span>${der}</div>`;
   const sw = '<i class="smSw"></i>', bt = (k, g, t) => `<button class="mmBt" data-mm="${k}">${glifo(g)}<span>${esc(t)}</span></button>`;
+  MODM.el.querySelectorAll('.mmTabs button').forEach((b) => b.classList.toggle('sel', b.dataset.mm === 'tab:' + MODM.tab));
+  const q = MODM.q.trim().toLowerCase(), busca = (x) => !q || (nombreDe(x) + ' ' + (descDe(x) || '') + ' ' + (x.etiquetas || []).map((e) => T('e.' + e)).join(' ')).toLowerCase().includes(q);
+  if (MODM.tab === 'asset') {
+    // los que ponen cosas: siempre a mano en el menú de props (tocar uno lo abre en la sección Mods)
+    let a = `<div class="mmNota">${glifo('info')}<span dir="auto">${esc(T('mm.assetsNota'))}</span></div>`;
+    for (const x of modsAssets().filter(busca)) a += fila(icoHTML(x.icono), nombreDe(x), x.nativo && NAT_TECLA[x.nativo] ? NAT_TECLA[x.nativo] : '', `<span class="mmMod" dir="auto">${esc(T('mm.enProps'))}</span>`, 'props:' + x.id, false, 'mmCat');
+    L.innerHTML = a; const c = MODM.el.querySelector('.mmCuenta'); if (c) c.textContent = `${modsAssets().length} ${T('mm.assets').toLowerCase()} · ${T('mm.siempre')}`;
+    return;
+  }
   let u = '';
   for (const k of ['volar', 'ragdoll', 'scp']) if (NAT.mods.has(k)) u += fila(icoHTML('ico:' + k), T(k + '.n'), NAT_TECLA[k], sw, 'nat:' + k, k === 'volar' ? NAT.volando : k === 'ragdoll' ? NAT.rag : NAT.scp);
   if (NAT.mods.has('ciclope')) u += fila(icoHTML('ico:ciclope'), T('ciclope.n'), NAT_TECLA.ciclope, `<span class="mmMod" dir="auto">${esc(T('cic.ayuda'))}</span>`, '');
-  if (NAT.mods.has('piano')) u += fila(icoHTML('ico:piano'), T('piano.n'), NAT_TECLA.piano, bt('nat:piano', 'punto', T('mm.poner')));
-  if (NAT.mods.has('radio')) {
-    const e = radioMia();
-    u += fila(icoHTML('ico:radio'), T('radio.n'), NAT_TECLA.radio, `<span class="mmBts">${bt('radio:poner', 'punto', T('mm.poner'))}${bt('radio:espalda', 'espalda', T(e && e.prm.ll ? 'ra.soltar' : 'ra.espalda'))}${bt('radio:emisora', 'musica', T('mm.emisora'))}</span>`);
-  }
   // los botones de los mods de código ("ico:nombre" muestra la imagen)
   for (const [k, b] of MODAPI.botones) {
     const t = String(b.t || ''), ico = /^ico:[a-z_]{2,20}$/.test(t) ? icoHTML(t) : icoHTML(b.M.icono || 'ico:mod'), nom = /^ico:/.test(t) ? b.M.nombre : sinEmoji(t) || b.M.nombre;
     u += fila(ico, nom, '', nom === b.M.nombre ? '' : `<span class="mmMod" dir="auto">${esc(b.M.nombre)}</span>`, 'api:' + k);
   }
-  // todos los mods: los activos primero; el buscador mira nombre, descripción y etiquetas
-  const act = modsFuente(), q = MODM.q.trim().toLowerCase();
-  const todos = modsCatalogo().filter((m) => !q || (nombreDe(m) + ' ' + (descDe(m) || '') + ' ' + (m.etiquetas || []).map((e) => T('e.' + e)).join(' ')).toLowerCase().includes(q))
-    .sort((a, b) => (act[b.id] ? 1 : 0) - (act[a.id] ? 1 : 0));
+  // los mods de personaje y jugabilidad: los activos primero; el buscador mira nombre, descripción y etiquetas
+  const act = modsFuente();
+  const todos = modsCatalogo().filter((m) => modTipo(m) !== 'asset' && busca(m)).sort((a, b) => (act[b.id] ? 1 : 0) - (act[a.id] ? 1 : 0));
   let m = '';
   for (const x of todos.slice(0, 200)) {
     const on = !!act[x.id], f = modFuerza(x.id);
@@ -80,13 +85,15 @@ function modMenuLista() {
   if (!m) m = `<div class="mmVacio">${esc(T('sinRes'))}</div>`;
   const sm = typeof SALA !== 'undefined' && SALA ? `<button class="mmBt mmSm" data-mm="sm">${icoHTML('ico:mod')}<span>${esc(T('sm.tit'))} (M)</span></button>` : '';
   L.innerHTML = (u ? `<div class="mmSec">${esc(T('mm.usar'))}</div>${u}` : '') + `<div class="mmSec">${esc(T('t.mods'))}</div>${m}${sm}`;
-  const c = MODM.el.querySelector('.mmCuenta'); if (c) c.textContent = `${Object.keys(act).filter((id) => modsCatalogo().some((x) => x.id === id)).length} ${T('sm.activos')} · ${T('mm.ayuda')}`;
+  const c = MODM.el.querySelector('.mmCuenta'); if (c) c.textContent = `${modsActivosAhora().length} ${T('sm.activos')} · ${T('mm.ayuda')}`;
 }
 function modMenuAccion(k) {
   const [a, v] = k.split(/:(.*)/s);
   if (a === 'cerrar') { modMenuCerrar(); return; }
+  if (a === 'tab') { MODM.tab = v === 'asset' ? 'asset' : 'juego'; modMenuLista(); return; }
   if (JUEGO.estado !== 'juego') return;
   if (a === 'mod') { modAlternar(v); modMenuBoton(); return; }
+  if (a === 'props') { modMenuCerrar(); spawnAbrirMods(v); return; }
   if (a === 'sm') { modMenuCerrar(); smAbrir(); return; }
   if (a === 'nat') {
     if (v === 'piano') { modMenuCerrar(); natAccion('piano'); return; }

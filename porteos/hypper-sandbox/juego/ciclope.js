@@ -9,8 +9,9 @@ const CIC_CARGA = 1, CIC_CINE = 6, CIC_FURIA = 15, CIC_PEGA = 3.2, CIC_ESPERA = 
 const CIC = { boton: null, aro: null, apretado: false, carga: 0, tecla: false, espera: 0, tLaser: 0, ults: new Map(), rayos: [], vic: null,
   rojo: 0, rojoAnt: -1, ciego: 0, capaR: null, capaC: null, inmune: false, quieto: false, son: null };
 // los ojos en el espacio del hueso de la cabeza (como lo usa la piel: el punto de la malla menos la articulación, que
-// mira a +Z), medidos en la textura de la cara: [medio ancho entre ojos, alto, adelante (párpado), plano de los lentes]
-const CIC_OJO = { Ciclope: [0.0275, 0.028, 0.134, 0.162], def: [0.032, 0.03, 0.13, 0.16] };
+// mira a +Z), medidos en la textura de la cara: [medio ancho entre ojos, alto, adelante (párpado), plano de los lentes,
+// tamaño de la cabeza (los lentes se hacen a esa medida)]
+const CIC_OJO = { Ciclope: [0.025, 0.0447, 0.141, 0.173, 1.11], def: [0.032, 0.03, 0.13, 0.16, 1] };
 const cicOjoDe = (P) => CIC_OJO[P && P.skin] || CIC_OJO.def;
 const cicHay = () => NAT.mods.has('ciclope') && JUEGO.estado === 'juego';
 const ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -418,7 +419,7 @@ function cicDibujar() {
     // ojos que brillan: sin lentes (desde que se los saca) y al cargar
     const brillo = Math.max(u >= 3.6 ? ss(3.6, 4.6, u) : 0, carga * 0.6);
     if (brillo > 0.01) {
-      for (const s of [1, -1]) dibujarCaja(H.en(s * H.o[0], H.o[1] - 0.004, H.o[2] + 0.003), [0.02 * H.s, 0.008 * H.s, 0.005 * H.s], H.q, M.nucleo, { c: [1, 0.4, 0.35, 1], em: [3.6 * brillo, 0.35 * brillo, 0.22 * brillo] });
+      for (const s of [1, -1]) dibujarCaja(H.en(s * H.o[0], H.o[1] - 0.001, H.o[2] + 0.003), [0.021 * H.s, 0.008 * H.s, 0.005 * H.s], H.q, M.nucleo, { c: [1, 0.4, 0.35, 1], em: [3.6 * brillo, 0.35 * brillo, 0.22 * brillo] });
     }
   }
   // la definitiva: el rayo grueso
@@ -433,11 +434,11 @@ function cicDibujar() {
 // unos lentes rubí: la barra de los vidrios, el marco arriba, el puente y las patillas hasta las orejas, por fuera de la
 // cabeza (a la altura de los ojos mide hasta ±8 cm en las orejas). F: el marco donde van (en la cara, la mano o el piso)
 function cicLentes(F, M, brillo) {
-  const o = F.o || CIC_OJO.Ciclope, y = o[1] + 0.001, z = o[3], k = F.s, w = F.en, q = F.q;
+  const o = F.o || CIC_OJO.Ciclope, t = o[4] || 1, y = o[1] + 0.001 * t, z = o[3], k = F.s * t, w = F.en, q = F.q;
   dibujarCaja(w(0, y, z), [0.15 * k, 0.03 * k, 0.009 * k], q, M.lente, { em: [1.4 * brillo, 0.08 * brillo, 0.06 * brillo] });
-  dibujarCaja(w(0, y + 0.018, z - 0.001), [0.156 * k, 0.007 * k, 0.013 * k], q, M.marco);
-  dibujarCaja(w(0, y - 0.006, z + 0.006), [0.014 * k, 0.016 * k, 0.005 * k], q, M.marco);
-  if (F.o) for (const s of [1, -1]) dibujarCaja(w(s * 0.083, y + 0.012, z - 0.066), [0.006 * k, 0.008 * k, 0.128 * k], q, M.marco); // (en la mano o en el piso, plegadas)
+  dibujarCaja(w(0, y + 0.018 * t, z - 0.001 * t), [0.156 * k, 0.007 * k, 0.013 * k], q, M.marco);
+  dibujarCaja(w(0, y - 0.006 * t, z + 0.006 * t), [0.014 * k, 0.016 * k, 0.005 * k], q, M.marco);
+  if (F.o) for (const s of [1, -1]) dibujarCaja(w(s * 0.083 * t, y + 0.012 * t, z - 0.066 * t), [0.006 * k, 0.008 * k, 0.128 * k], q, M.marco); // (en la mano o en el piso, plegadas)
 }
 // un haz: el centro blanco y capas rojas que suman luz, giradas alrededor del eje (parece redondo)
 function cicHazDibujar(a, b, grosor, k, M) {

@@ -55,7 +55,7 @@ function empujarDeCuerpo(b, c, r, corr, esPie, dinamico) {
     c.addS(n, d * (1 - k)); corr.addS(n, d * (1 - k));
     if (n.y < 0.6) { B.wake(); B.vel.addS(n, -Math.min(2, d * 30) * k); }
   } else { c.addS(n, d); corr.addS(n, d); }
-  if (esPie && n.y > 0.6) { JUG.suelo = true; JUG.sueloN.copy(n); if (dinamico) JUG.sobre = B; }
+  if (esPie && n.y > 0.6) { JUG.suelo = true; JUG.sueloN.copy(n); JUG.pisa = B; if (dinamico) JUG.sobre = B; }
 }
 function jugadorPaso(dt, ent) {
   const J = JUG;
@@ -86,6 +86,13 @@ function jugadorPaso(dt, ent) {
   if (!J.suelo) J.vel.y -= gJ * dt; else if (J.vel.y < 0) J.vel.y = -0.5;
   const vyAntes = J.vel.y, eraSuelo = J.suelo;
   jugadorMoverChocar(dt);
+  // cama elástica: al pisarla rebota (más alto si venía cayendo o si salta justo; agachado frena)
+  const ce = J.suelo && J.pisa && J.pisa.obj;
+  if (ce && ce.salta && !ent.agachar && J.sueloN.y > 0.8) {
+    J.vel.y = clamp(-vyAntes * 0.9, 7.5, 24) + (ent.saltar ? 3.5 : 0); J.suelo = false; J.tiempoSuelo = 0;
+    if (vyAntes < -2) { sonarResorte(J.pos, Math.min(1, -vyAntes / 14)); J.pisa.wake && J.pisa.wake(); }
+    return;
+  }
   // pegarse al piso al bajar rampas (si estaba en el piso y no saltó)
   if (!J.suelo && eraSuelo && J.vel.y <= 0) {
     const h = mundoRayo(v3(J.pos.x, J.pos.y - J.medio, J.pos.z), v3(0, -1, 0), J.radio + 0.35);
@@ -103,7 +110,7 @@ function jugadorPaso(dt, ent) {
 // moverse en pasos chicos y sacar la cápsula de lo que toque (también lo usa volar)
 function jugadorMoverChocar(dt) {
   const J = JUG, pasos = Math.max(1, Math.ceil(J.vel.len() * dt / 0.25));
-  J.suelo = false; J.sobre = null;
+  J.suelo = false; J.sobre = null; J.pisa = null;
   for (let s = 0; s < pasos; s++) {
     J.pos.addS(J.vel, dt / pasos);
     for (let it = 0; it < 2; it++) {

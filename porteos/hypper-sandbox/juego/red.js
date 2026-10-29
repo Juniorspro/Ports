@@ -23,7 +23,7 @@ function idRed() {
 // dueño (con la clave que guardó este navegador) los puede borrar.
 let SALA = null;
 const LISTA = { cli: null, on: false, pres: new Map(), ultP: 0 };
-const SALAS_OF = MAPAS.map((m) => ({ id: 'f_' + m + '_1', n: 'RezoBox ' + m, m, mo: 'Free', of: 1, pvp: 1, rpg: 1, nb: 1, mp: 1000, mv: 40 }));
+const SALAS_OF = [...MAPAS, ...MAPAS_RB].map((m) => ({ id: 'f_' + m + '_1', n: 'RezoBox ' + m.replace(/^RB_/, ''), m, mo: 'Free', of: 1, pvp: 1, rpg: 1, nb: 1, mp: 1000, mv: 40 }));
 const SALAS_REG = { l: [], t: -1e9, dif: 0, vacia: 600e3, cargando: false, ok: false };
 const salasMias = () => { try { return JSON.parse(localStorage.getItem('rb_salas_mias') || '{}') || {}; } catch (e) { return {}; } };
 const salasMiasGuardar = (o) => { try { localStorage.setItem('rb_salas_mias', JSON.stringify(o)); } catch (e) {} };
@@ -31,7 +31,7 @@ function hashTxt(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h
 function topicoSala(S) { return NS + (S.of ? S.id : 'r_' + S.id + (S.clave ? '_' + hashTxt('k' + S.id + S.clave) : '')); }
 function salaLimpia(x) {
   if (!x || typeof x.id !== 'string' || !/^[a-zA-Z0-9_]{3,40}$/.test(x.id)) return null;
-  const S = { id: x.id, n: limpio(x.n, 24) || 'Server', m: MAPAS.includes(x.m) ? x.m : 'Desert', mo: x.mo === 'PvP' ? 'PvP' : 'Free', of: x.of ? 1 : 0, rg: x.rg ? 1 : 0,
+  const S = { id: x.id, n: limpio(x.n, 24) || 'Server', m: mapaValido(x.m) ? x.m : 'Desert', mo: x.mo === 'PvP' ? 'PvP' : 'Free', of: x.of ? 1 : 0, rg: x.rg ? 1 : 0,
     pvp: x.pvp ? 1 : 0, rpg: x.rpg ? 1 : 0, nb: x.nb ? 1 : 0, mp: num(x.mp, 0, 5000, 1000) | 0, mv: num(x.mv, 0, 200, 40) | 0, pw: x.pw ? 1 : 0, ph: typeof x.ph === 'string' ? x.ph.slice(0, 12) : '',
     du: typeof x.du === 'string' && /^[a-z0-9]{3,20}$/.test(x.du) ? x.du : '', dn: limpio(x.dn, 16) };
   if (S.of) { const o = SALAS_OF.find((y) => y.id === S.id); if (!o) return null; return o; }
@@ -324,7 +324,7 @@ function recibirEstado(d) {
   R2.yawM = num(d.y, -1e3, 1e3, 0); R2.P.mira = num(d.t, -2, 2, 0); R2.f = d.f | 0; R2.t = TIEMPO.t;
   R2.nombre = limpio(d.n); etiquetaRemota(R2);
   R2.P.arma = DEF_ARMAS[d.a] ? d.a : null;
-  const em = typeof d.e === 'string' && DATA.emotes.includes(d.e) ? d.e : null;
+  const em = emoValido(d.e) ? d.e : typeof d.e === 'string' && EMO_ID.test(d.e) ? (emoPedir(d.e, d.i), d.e) : null; // (uno hecho por la gente: se pide)
   if (em && R2.P.emote !== em) { R2.P.emote = em; R2.P.emoteT = 0; } else if (!em) R2.P.emote = null;
   R2.veh = Array.isArray(d.w) ? { k: String(d.w[0]), a: d.w[1] | 0 } : null;
   R2.up = Array.isArray(d.u) ? v3(num(d.u[0], -1, 1, 0), num(d.u[1], -1, 1, 1), num(d.u[2], -1, 1, 0)).norm() : null;
@@ -417,6 +417,7 @@ function recibirHecho(d) {
   } else if (d.k === 'ent' || d.k === 'entb' || d.k === 'radio' || d.k === 'entp') { entidadHecho(d);
   } else if (d.k === 'jalar') { natRed(d);
   } else if (d.k === 'cic') { cicRed(d);
+  } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
   } else if (d.k === 'dano' && d.to === RED.ID) {
     if (SALA && !SALA.pvp) return;
     danarJugador(num(d.d, 0, 500, 0), null);

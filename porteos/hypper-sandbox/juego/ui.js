@@ -13,7 +13,7 @@ function uiIniciar() {
   const tabs = $('tabs');
   DATA.menu.forEach((c, i) => {
     const t = document.createElement('div'); t.className = 'tab'; t.innerHTML = `<img src="${icono(c.ic)}">${c.n}`;
-    t.onclick = () => { UI.tab = i; UI.sub = 0; spawnDibujar(); }; tabs.appendChild(t);
+    t.onclick = () => { UI.tab = i; UI.sub = 0; UI.q = ''; spawnDibujar(); }; tabs.appendChild(t);
   });
   $('iCerrarSpawn').onclick = () => cerrarPaneles();
   // pausa
@@ -27,7 +27,8 @@ function uiIniciar() {
   document.body.classList.toggle('sinUI', !!PREFS.ocultarUI);
   // emotes
   const el = $('emoLista');
-  for (const e of DATA.emotes) { const d = document.createElement('div'); d.className = 'skin'; d.innerHTML = `<img src="${icono(e === 'Kick' ? 'Roundhouse_Kick' : e)}" onerror="this.style.visibility='hidden'"><br>${e}`; d.onclick = () => { cerrarPaneles(); if (typeof emote === 'function') emote(e); }; el.appendChild(d); }
+  emoDibujar();
+  hudIniciar(); // (íconos propios y lugares de los botones como el original)
   // chat
   $('chatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const t = $('chatIn').value.trim(); $('chatIn').value = ''; $('chatIn').classList.add('oc'); if (t) chatEnviar(t); } if (e.key === 'Escape') $('chatIn').classList.add('oc'); });
 }
@@ -48,21 +49,59 @@ function spawnDibujar() {
     pie.innerHTML = '';
     return;
   }
-  C.sub.forEach((s, i) => { const d = document.createElement('div'); d.className = 'cat' + (i === UI.sub ? ' sel' : ''); d.textContent = s.n; d.onclick = () => { UI.sub = i; spawnDibujar(); }; cl.appendChild(d); });
-  const S = C.sub[UI.sub] || C.sub[0];
-  if (S) for (const it of S.it) {
-    const d = document.createElement('div'); d.className = 'it';
-    const ico = C.n === 'Weapons' ? 'W_' + it : it === 'Box2' ? 'Box2_2' : it;
-    d.innerHTML = `<img src="${icono(ico) || icono(it)}" loading="lazy">${it}`;
-    d.onclick = () => spawnElegir(C.n, it);
-    gr.appendChild(d);
-  }
+  // buscador (en todas las categorías de la pestaña) y las categorías; en Props, primero la de los mods que ponen cosas
+  const subs = spawnSubs(C), q = (UI.q || '').trim().toLowerCase();
+  const bus = document.createElement('div'); bus.className = 'spBus'; bus.innerHTML = `${glifo('buscar')}<input id="spQ" maxlength="30" spellcheck="false" placeholder="${esc(T('buscar'))}">`;
+  cl.appendChild(bus); const qi = bus.querySelector('input'); qi.value = UI.q || '';
+  qi.oninput = () => { UI.q = qi.value; spawnGrilla(C, subs); }; qi.onkeydown = (e) => e.stopPropagation();
+  subs.forEach((s, i) => {
+    const d = document.createElement('div'); d.className = 'cat' + (i === UI.sub && !q ? ' sel' : '') + (s.mods ? ' catMods' : s.rb ? ' catNueva' : '');
+    d.textContent = spawnCatNom(s); d.onclick = () => { UI.sub = i; UI.q = ''; spawnDibujar(); }; cl.appendChild(d);
+  });
+  spawnGrilla(C, subs);
   if (C.n === 'Weapons') pie.innerHTML = `<label><input type="checkbox" id="chProp" ${UI.comoProp ? 'checked' : ''}>Spawn As Prop</label>`;
   else pie.innerHTML = `<label><input type="checkbox" id="chDup" ${UI.dup ? 'checked' : ''}>Dup. Spawn</label><label><input type="checkbox" id="chFr" ${UI.freeze ? 'checked' : ''}>Freeze</label>`;
   const a = $('chProp'), b = $('chDup'), c = $('chFr');
   if (a) a.onchange = () => (UI.comoProp = a.checked);
   if (b) b.onchange = () => (UI.dup = b.checked);
   if (c) c.onchange = () => (UI.freeze = c.checked);
+}
+// las categorías de una pestaña (en Props, la sección Mods primero) y sus nombres
+function spawnSubs(C) { return C.n === 'Props' ? [{ n: 'Mods', mods: true, it: modsAssets().map((m) => m.id) }, ...C.sub] : C.sub; }
+function spawnCatNom(s) { if (s.mods) return T('mm.mods'); if (s.rb) { const t = T('pc.' + s.n); return t === 'pc.' + s.n ? s.n : t; } return s.n; }
+function propNom(it) { const k = 'pr.' + it, t = T(k); return t === k ? it : t; }
+// la grilla: la categoría elegida o lo que coincide con la búsqueda en toda la pestaña
+function spawnGrilla(C, subs) {
+  const gr = $('grilla'); gr.innerHTML = ''; const q = (UI.q || '').trim().toLowerCase();
+  $('cats').querySelectorAll('.cat').forEach((d, i) => d.classList.toggle('sel', !q && i === UI.sub));
+  const lista = [];
+  if (q) { for (const s of subs) for (const it of s.it) { const nom = s.mods ? spawnModNom(it) : propNom(it); if ((nom + ' ' + it).toLowerCase().includes(q) && !lista.some((x) => x.it === it)) lista.push({ it, mods: s.mods }); } }
+  else { const S = subs[UI.sub] || subs[0]; if (S) for (const it of S.it) lista.push({ it, mods: S.mods }); }
+  for (const { it, mods } of lista.slice(0, 400)) {
+    const d = document.createElement('div'); d.className = 'it' + (mods ? ' itMod' : '');
+    if (mods) { const m = modsAssets().find((x) => x.id === it); if (!m) continue; d.innerHTML = `${icoHTML(m.icono)}<span dir="auto">${esc(nombreDe(m))}</span>`; d.onclick = () => spawnMod(m); d.dataset.mod = m.id; }
+    else {
+      const ico = C.n === 'Weapons' ? 'W_' + it : it === 'Box2' ? 'Box2_2' : it;
+      d.innerHTML = `<img src="${icono(ico) || icono(it)}" loading="lazy"><span>${esc(propNom(it))}</span>`;
+      d.onclick = () => spawnElegir(C.n, it);
+    }
+    gr.appendChild(d);
+  }
+  if (!lista.length) gr.innerHTML = `<div class="spVacio">${esc(T('sinRes'))}</div>`;
+}
+const spawnModNom = (id) => { const m = modsAssets().find((x) => x.id === id); return m ? nombreDe(m) : id; };
+// un mod de assets: los oficiales ponen su entidad (radio, piano, pantalla); los de la gente, sus props
+function spawnMod(m) {
+  if (JUEGO.estado !== 'juego') return;
+  cerrarPaneles();
+  if (m.nativo) { entidadPonerMod(m.nativo); return; }
+  const ap = (m.efectos && m.efectos.aparecer) || []; if (ap.length) aparecerDelante(ap.slice(0, 60));
+}
+// abrir el menú de props en la sección Mods (desde el menú MOD), con el elegido marcado
+function spawnAbrirMods(id) {
+  const i = DATA.menu.findIndex((c) => c.n === 'Props'); if (i < 0) return;
+  cerrarPaneles(); UI.tab = i; UI.sub = 0; UI.q = ''; abrirSpawn();
+  const d = id && $('grilla').querySelector(`[data-mod="${CSS.escape(id)}"]`); if (d) { d.classList.add('marca'); d.scrollIntoView({ block: 'nearest' }); }
 }
 function spawnElegir(tab, nombre) {
   if (tab === 'Weapons' && !UI.comoProp) { darArma(nombre); if (!UI.dup) cerrarPaneles(); return; }

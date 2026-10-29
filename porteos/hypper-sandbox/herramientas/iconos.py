@@ -98,6 +98,14 @@ ic('shuriken', 'pizarra', '''<path fill="{W}" d="M32 6l6 20 20 6-20 6-6 20-6-20-
 ic('planeta', 'indigo', '''<circle cx="32" cy="32" r="14" fill="{W}"/>
 <ellipse cx="32" cy="32" rx="25" ry="8" transform="rotate(-20 32 32)" fill="none" stroke="{W}" stroke-width="3.5"/>
 <path fill="{W}" d="M18.5 28a14 14 0 0 1 27 0" /><path fill="none" stroke="{D}" stroke-width="2" d="M21 37c5 2 15 2 22-2" opacity=".6"/>''')
+ic('pantalla', 'indigo', '''<rect x="8" y="13" width="48" height="30" rx="4" fill="{W}"/><path fill="{D}" d="M28 21v14l12-7z"/>
+<path fill="none" stroke="{W}" stroke-width="4" stroke-linecap="round" d="M32 43v7M22 52h20"/>''')
+ic('emote', 'rosa', '''<path fill="{W}" d="M24 52c-6-4-10-11-10-18V22a3.5 3.5 0 0 1 7 0v9h1.5V14a3.5 3.5 0 0 1 7 0v16H31V10.5a3.5 3.5 0 0 1 7 0V30h1.5V15a3.5 3.5 0 0 1 7 0v21c0 9-6 16-14 17z"/>
+<path fill="none" stroke="{W}" stroke-width="3" stroke-linecap="round" d="M52 12c3 3 4 7 3 11M48 8c2 1 3 2 4 3" opacity=".8"/>''')
+ic('animacion', 'violeta', '''<rect x="8" y="14" width="48" height="36" rx="5" fill="{W}"/><path fill="{D}" d="M8 21h48v-2H8zM8 45h48v-2H8z"/>
+<g fill="{D}"><rect x="12" y="15.5" width="4" height="3" rx="1"/><rect x="21" y="15.5" width="4" height="3" rx="1"/><rect x="30" y="15.5" width="4" height="3" rx="1"/><rect x="39" y="15.5" width="4" height="3" rx="1"/><rect x="48" y="15.5" width="4" height="3" rx="1"/>
+<rect x="12" y="45.5" width="4" height="3" rx="1"/><rect x="21" y="45.5" width="4" height="3" rx="1"/><rect x="30" y="45.5" width="4" height="3" rx="1"/><rect x="39" y="45.5" width="4" height="3" rx="1"/><rect x="48" y="45.5" width="4" height="3" rx="1"/></g>
+<circle cx="25" cy="27" r="3" fill="{D}"/><path fill="none" stroke="{D}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="M25 30v7l-4 5M25 37l4 5M19 33l6-2 7-4"/><path fill="#ffd34d" d="M40 26l6 6-6 6-6-6z"/>''')
 os.makedirs(OUT, exist_ok=True)
 for n, (c, cuerpo) in I.items():
     svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="14" fill="%s"/>' % c

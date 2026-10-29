@@ -69,6 +69,20 @@ body.tactil #tactil{display:block}
 #brotar{right:22px;bottom:200px;width:50px;height:50px}
 #blejos{right:180px;bottom:180px;width:44px;height:44px}
 #bcerca{right:180px;bottom:120px;width:44px;height:44px}
+/* táctil como el Hypper original: cada botón en su lugar (lo ubica hud.js); íconos propios */
+.bt-t img{width:52%;height:52%;filter:drop-shadow(0 1px 1px rgba(0,0,0,.5))}
+.bt-t{background:rgba(24,30,42,.5);border:2px solid rgba(255,255,255,.3)}
+#bdisparo{background:rgba(24,30,42,.42);border-width:3px}#bdisparo img{width:58%;height:58%}
+#bgas,#bfreno{border-radius:22%}#bgas{background:rgba(40,110,60,.55)}#bfreno{background:rgba(140,40,40,.55)}
+body.tactil #arribaIz,body.tactil #arribaDe{display:contents}
+body.tactil #hud .redondo{position:absolute;width:56px;height:56px;background:rgba(24,30,42,.5);border:2px solid rgba(255,255,255,.3)}
+body.tactil #hud .redondo small{display:none}body.tactil #hud .redondo img{width:54%;height:54%}
+body.tactil .modmBt b{font-size:calc(var(--vh)*2.6)}
+body.tactil #armaAct{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(24,30,42,.5);border:2px solid rgba(255,255,255,.3);border-radius:14px}
+body.tactil #armaAct img{width:86%;height:56%;background:none}body.tactil #armaAct span{font-size:9px}
+body.tactil #muni{top:calc(var(--vh)*17);right:12px}
+body.tactil.enVeh #palanca{opacity:.25}
+.redondo img[src^="data:image/svg"]{filter:drop-shadow(0 1px 1px rgba(0,0,0,.5))}
 /* menú de spawn (como el del juego) */
 #spawn{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(900px,calc(var(--vw)*94));height:min(500px,calc(var(--vh)*86));z-index:5;display:flex;flex-direction:column}
 #spawn .tabs{display:flex;gap:2px;height:28px}
@@ -90,6 +104,15 @@ body.tactil #tactil{display:block}
 #spawn .cerrar{position:absolute;left:50%;top:-38px;transform:translateX(-50%);width:34px;height:34px}
 #spawn .herr{flex:1;display:flex;min-width:0}
 #spawn .ins{width:220px;background:#2f3034;padding:8px;font-size:12px;overflow:auto}
+#spawn .spBus{display:flex;align-items:center;gap:4px;margin:0 6px 4px;padding:0 6px;background:#fff;border:1px solid #c9ccd3;border-radius:4px;color:#888}#spawn .spBus .gli{width:13px;height:13px;flex:none}
+#spawn .spBus input{flex:1;min-width:0;border:0;outline:0;background:transparent;font:12px Roboto,Arial,sans-serif;padding:5px 0;color:#222}
+#spawn .cat.catMods{font-weight:700;color:#3a2a8c}#spawn .cat.catMods:before{background:#7c5ce0}#spawn .cat.catNueva:before{background:#2fae55}
+#spawn .it span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#spawn .it.itMod .ico{width:44px;height:44px;display:block;margin:0 auto 2px;border-radius:9px}
+#spawn .it.itMod{font-size:10px;color:#fff;font-weight:600}#spawn .it.marca{background:#5b4bb0;animation:marcaIt 1.2s ease 2}
+@keyframes marcaIt{50%{background:#8a76ff}}#spawn .spVacio{color:#bbb;font-size:12px;padding:12px}
+#modMenu .mmTabs{display:flex;gap:4px;margin:6px 6px 0}#modMenu .mmTabs button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:#20242e;border:1px solid rgba(255,255,255,.12);color:#aab;border-radius:7px;padding:6px 4px;font:700 12px Roboto,Arial,sans-serif;cursor:pointer;min-width:0}
+#modMenu .mmTabs button .ico{width:20px;height:20px;border-radius:5px;flex:none}#modMenu .mmTabs button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#modMenu .mmTabs button.sel{background:#3e6fd8;border-color:#3e6fd8;color:#fff}
+.mmNota{display:flex;gap:7px;align-items:flex-start;font-size:12px;color:#c6cbe0;background:rgba(124,92,224,.18);border:1px solid rgba(124,92,224,.4);border-radius:8px;padding:7px 9px;line-height:1.35}.mmNota .gli{width:16px;height:16px;flex:none;margin-top:1px}
 #spawn .ins h4{margin:0 0 6px;font-size:13px}
 #spawn .ins label{display:block;margin:6px 0 2px;color:#bbb}
 #spawn .ins input,#spawn .ins select{width:100%;background:#1f2024;color:#fff;border:1px solid #555;padding:4px;font-size:12px}
@@ -240,6 +263,12 @@ body.tactil .mmTx small{display:none}
 /* el reproductor de YouTube de la radio suena pero no se ve (detrás de todo y transparente) */
 #ytMini{position:fixed;right:0;bottom:0;width:200px;height:113px;opacity:0;pointer-events:none;z-index:-1;overflow:hidden}
 #ytMini.oc{display:none}#ytMini .ytV,#ytMini iframe{width:200px;height:113px;border:0;display:block}
+/* la pantalla: el video detrás del juego, con la perspectiva de la pantalla (el juego deja el hueco) */
+#ytMini.pant{left:0;top:0;right:auto;bottom:auto;width:960px;height:540px;opacity:0;transform-origin:0 0;background:#000;will-change:transform}
+#ytMini.pant.pantVe{opacity:1}#ytMini.pant .ytV,#ytMini.pant iframe{width:960px;height:540px}
+body.conPant{background:transparent}
+.raTam{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:#bbb}.raTam:empty{display:none}.raTam span{margin-right:4px}
+.raTam button{background:#2b2d33;border:1px solid #444;color:#ddd;border-radius:12px;padding:3px 10px;font-size:12px;cursor:pointer}.raTam button.sel{background:#3e6fd8;border-color:#3e6fd8;color:#fff}
 .radioCaja{width:min(560px,calc(var(--vw)*94))}.radioBus{display:flex;gap:6px}.radioBus input{flex:1;background:#1f2024;color:#fff;border:1px solid #555;border-radius:4px;padding:8px;font-size:14px}
 #radioRes{max-height:calc(var(--vh)*48);overflow:auto;margin:8px 0;display:flex;flex-direction:column;gap:4px}
 .radioCaja{display:flex;flex-direction:column;max-height:calc(var(--vh)*94);overflow:hidden}.radioCaja>*{flex:none}.radioCaja #radioRes{flex:1 1 auto;min-height:72px;max-height:none}
@@ -348,6 +377,48 @@ body.tactil .mmTx small{display:none}
 #chat div{margin:1px 0}
 #chatIn{position:fixed;left:10px;bottom:30px;width:min(420px,calc(var(--vw)*80));z-index:6;background:rgba(0,0,0,.6);border:1px solid #888;color:#fff;padding:8px;font-size:14px}
 .skins{display:flex;flex-wrap:wrap;gap:6px;max-width:520px}
+.emoMis{position:absolute;right:4px;top:4px;display:flex;gap:3px}.emoMis button{background:rgba(20,22,28,.8);border:0;color:#fff;border-radius:6px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}.emoMis .gli{width:14px;height:14px}
+/* editor de animaciones */
+body.edaOn #hud,body.edaOn #tactil,body.edaOn #mira,body.edaOn #usarTxt,body.edaOn #arribaIz,body.edaOn #arribaDe{visibility:hidden!important}
+#edaPan{position:fixed;inset:0;z-index:6;pointer-events:none;font:12px Roboto,Arial,sans-serif;color:#eef}
+#edaPan .edaVista{position:absolute;inset:0;pointer-events:auto;touch-action:none;cursor:grab}
+#edaPan .edaPuntos{position:absolute;left:0;top:0;pointer-events:none}
+#edaPan .edaPuntos i{position:absolute;left:-9px;top:-9px;width:14px;height:14px;border-radius:50%;background:rgba(62,111,216,.7);border:2px solid #fff;pointer-events:auto;cursor:grab;touch-action:none;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+#edaPan .edaPuntos i.sel{background:#ffd34d;width:18px;height:18px;left:-11px;top:-11px}
+#edaPan .edaArriba,#edaPan .edaLado,#edaPan .edaAbajo{position:absolute;pointer-events:auto;background:rgba(18,20,26,.88);border:1px solid rgba(255,255,255,.1);border-radius:10px}
+#edaPan .edaArriba{top:8px;left:8px;right:8px;display:flex;gap:6px;align-items:center;padding:5px 8px;flex-wrap:wrap}
+#edaPan .edaArriba b{display:flex;align-items:center;gap:6px;font-size:14px}#edaPan .edaArriba b .ico{width:24px;height:24px;border-radius:6px}
+#edaPan input,#edaPan select{background:#20242e;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:6px;padding:5px 7px;font:12px Roboto,Arial,sans-serif;min-width:0}
+#edaPan .edaNom{width:150px}#edaPan .edaEsp{flex:1}
+#edaPan button{background:#2c313d;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 9px;font:700 12px Roboto,Arial,sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+#edaPan button .gli{width:15px;height:15px}#edaPan button.on{background:#3e6fd8;border-color:#3e6fd8}#edaPan button.edaG{background:#2fae55;border-color:#2fae55}
+#edaPan .edaLado{right:8px;top:62px;width:230px;padding:8px;display:flex;flex-direction:column;gap:6px;max-height:calc(var(--vh)*100 - 190px);overflow:auto}
+#edaPan .edaHueso{display:flex;align-items:center;gap:6px}#edaPan .edaHueso select{flex:1}
+#edaPan .edaSl label{display:grid;grid-template-columns:52px 1fr 38px;align-items:center;gap:5px;margin:3px 0;font-size:11px;color:#bbc}#edaPan .edaSl input{padding:0}#edaPan .edaSl output{text-align:right;font-variant-numeric:tabular-nums}
+#edaPan .edaBts{display:flex;flex-wrap:wrap;gap:4px}#edaPan .edaBts button{flex:1 1 auto;justify-content:center;padding:5px 6px;font-size:11px}
+#edaPan .edaAyuda{font-size:11px;color:#99a;line-height:1.35}
+#edaPan .edaAbajo{left:8px;right:8px;bottom:8px;padding:6px 8px}
+#edaPan .edaCtl{display:flex;gap:4px;align-items:center;flex-wrap:wrap}#edaPan .edaCtl button{padding:5px 7px}#edaPan .edaDur{display:flex;align-items:center;gap:4px;color:#bbc}#edaPan .edaDur input{width:62px}
+#edaPan .edaClaveB{background:#7c5ce0;border-color:#7c5ce0}
+#edaPan .edaLinea{position:relative;margin-top:6px}#edaPan .edaAhora{position:absolute;right:4px;top:-18px;font-size:11px;color:#bbc}
+#edaPan .edaPista{position:relative;height:30px;background:#2b2d33;border-radius:6px;touch-action:none;cursor:pointer;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.06) 0 1px,transparent 1px 5%)}
+#edaPan .edaClaves i{position:absolute;top:8px;width:12px;height:12px;margin-left:-6px;transform:rotate(45deg);background:#ffd34d;border:1px solid #000;cursor:ew-resize}#edaPan .edaClaves i.cam{background:#7fe3ff}#edaPan .edaClaves i.sel{outline:2px solid #fff}
+#edaPan .edaFin{position:absolute;right:4px;bottom:1px;font-size:10px;color:#889}#edaPan .edaCursor{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#ff5a5a;pointer-events:none}
+@media (max-height:500px){#edaPan .edaArriba{top:4px;left:4px;right:4px;padding:3px 6px;gap:4px}#edaPan .edaNom{width:100px}#edaPan button{padding:4px 6px;font-size:11px}#edaPan button span{display:none}#edaPan .edaClaveB span,#edaPan .edaG span{display:inline}
+  #edaPan .edaLado{top:44px;right:4px;width:190px;padding:5px;max-height:calc(var(--vh)*100 - 128px)}#edaPan .edaAbajo{left:4px;right:4px;bottom:4px;padding:4px 6px}#edaPan .edaAyuda{display:none}#edaPan .edaPista{height:24px}#edaPan .edaClaves i{top:6px}}
+.emoCaja{width:min(760px,calc(var(--vw)*94));max-height:calc(var(--vh)*88);display:flex;flex-direction:column;padding:10px 12px!important}
+.emoCab{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.emoCab h3{margin:0}.emoTabs{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+.emoTabs button{background:#2b2d33;border:1px solid #444;color:#ddd;border-radius:14px;padding:4px 11px;font:600 12px Roboto,Arial,sans-serif;cursor:pointer}.emoTabs button.sel{background:#3e6fd8;border-color:#3e6fd8;color:#fff}
+.emoGrid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;margin:8px 0;align-content:start}
+.emoIt{position:relative;background:#26282e;border:2px solid transparent;border-radius:8px;padding:4px;text-align:center;cursor:pointer;font-size:11px;color:#eee}.emoIt:hover{border-color:#3e6fd8}
+.emoIt img,.emoIt .ico{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;display:block;background:#f1ece0}.emoIt b{display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.emoIt small{display:block;color:#99a;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.emoIt.mio{border-color:rgba(124,92,224,.6)}
+.emoInst{margin-top:3px;width:100%;background:#2fae55;border:0;color:#fff;border-radius:6px;padding:4px;font:700 11px Roboto,Arial,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:3px}.emoInst .gli{width:12px;height:12px}
+.emoYa{position:absolute;right:6px;top:6px;background:#2fae55;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center}.emoYa .gli{width:13px;height:13px}
+.emoBus{grid-column:1/-1;display:flex;align-items:center;gap:6px;background:#20242e;border:1px solid #444;border-radius:7px;padding:0 8px;color:#99a}.emoBus input{flex:1;background:transparent;border:0;outline:0;color:#fff;font:13px Roboto,Arial,sans-serif;padding:7px 0}
+.emoTi{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}.emoVacio{grid-column:1/-1;color:#aaa;font-size:13px;padding:14px;text-align:center}
+.emoPie{display:flex;gap:8px;justify-content:flex-end}
+@media (max-height:500px){.emoCaja{padding:6px 8px!important}.emoTabs button{padding:3px 8px;font-size:11px}.emoGrid{grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:4px;margin:5px 0}}
 .skin{width:76px;text-align:center;font-size:10px;cursor:pointer;border:2px solid transparent;border-radius:4px;padding:2px}
 .skin.sel{border-color:#6be06b}
 .skin img{width:68px;height:68px;object-fit:cover;border-radius:4px;background:#444}
@@ -406,7 +477,7 @@ body.tactil .mmTx small{display:none}
   <button class="boton gris" id="bSalirMenu">Menú principal</button>
 </div></div>
 <div id="ajustes" class="panel oc"><div class="caja" id="ajustesCaja"></div></div>
-<div id="emotes" class="panel oc"><div class="caja"><h3>Emotes</h3><div class="skins" id="emoLista"></div><button class="boton gris" id="bEmoCerrar">Cerrar</button></div></div>
+<div id="emotes" class="panel oc"><div class="caja emoCaja"><div class="emoCab"><h3>Emotes</h3><div class="emoTabs"></div></div><div class="emoGrid" id="emoLista"></div><div class="emoPie"><button class="boton" id="bEmoCrear"></button><button class="boton gris" id="bEmoCerrar">Cerrar</button></div></div></div>
 <input id="chatIn" class="oc" maxlength="120">
 <div id="carga"><canvas id="introCv"></canvas><img id="rbLogoIntro" alt="" hidden src="data:image/webp;base64,/*LOGORB*/"><div class="b"><i id="cargaB"></i></div><div id="cargaErr"></div></div>
 <script>

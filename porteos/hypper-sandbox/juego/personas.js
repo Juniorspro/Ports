@@ -51,7 +51,7 @@ function aplicarGiros(P) {
 // el cuerpo según lo que hace
 function animarPersona(P, dt) {
   if (P.cuad) { natCuadPose(P, dt); return; } // SCP en cuatro patas (mod)
-  if (P.hum) { if (P.emote) P.emoteT += dt; animarHumano(P, dt); if (P.poseExtra) P.poseExtra(P, dt); cicPose(P, dt); return; }
+  if (P.hum) { if (P.emote) P.emoteT += dt; animarHumano(P, dt); if (P.poseExtra) P.poseExtra(P, dt); emoPose(P, dt); cicPose(P, dt); return; }
   P.acc = {}; animarPersona0(P, dt); aplicarGiros(P);
 }
 function animarPersona0(P, dt) {

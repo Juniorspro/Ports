@@ -92,17 +92,20 @@ function tactilIniciar() {
   zona.addEventListener('touchend', (e) => { for (const t of e.changedTouches) fin(t.identifier); });
   zona.addEventListener('touchcancel', (e) => { for (const t of e.changedTouches) fin(t.identifier); });
   // botones: los que se mantienen (disparo, salto) y los de un toque
-  for (const b of document.querySelectorAll('[data-btn]')) {
-    const k = b.dataset.btn, mantener = b.dataset.mantener !== undefined;
-    b.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); ENT.tactil = true; b.classList.add('ap'); if (mantener) ENT[k] = true; else pulso(k); }, { passive: false });
-    const sol = (e) => { e.preventDefault(); b.classList.remove('ap'); if (mantener) ENT[k] = false; };
-    b.addEventListener('touchend', sol, { passive: false }); b.addEventListener('touchcancel', sol, { passive: false });
-    b.addEventListener('click', (e) => { if (!ENT.tactil && !mantener) pulso(k); });
-  }
+  for (const b of document.querySelectorAll('[data-btn]')) botonTactil(b);
   // el disparo táctil también deja mirar mientras se mantiene
   const bd = $('bdisparo');
   if (bd) bd.addEventListener('touchmove', (e) => { for (const t of e.changedTouches) { if (bd._u) { ENT.dx += (tX(t) - bd._u.x) * (ENT.sensT / ENT.sens); ENT.dy += (tY(t) - bd._u.y) * (ENT.sensT / ENT.sens); } bd._u = { x: tX(t), y: tY(t) }; } e.preventDefault(); }, { passive: false });
   if (bd) bd.addEventListener('touchend', () => (bd._u = null));
+}
+// un botón: los que se mantienen (disparo, salto, pedales) y los de un toque
+function botonTactil(b) {
+  if (b._bt) return; b._bt = 1;
+  const k = b.dataset.btn, mantener = b.dataset.mantener !== undefined;
+  b.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); ENT.tactil = true; b.classList.add('ap'); if (mantener) ENT[k] = true; else pulso(k); }, { passive: false });
+  const sol = (e) => { e.preventDefault(); b.classList.remove('ap'); if (mantener) ENT[k] = false; };
+  b.addEventListener('touchend', sol, { passive: false }); b.addEventListener('touchcancel', sol, { passive: false });
+  b.addEventListener('click', (e) => { if (!ENT.tactil && !mantener) pulso(k); });
 }
 function entradaLeer() {
   const T = ENT.teclas;
@@ -112,4 +115,6 @@ function entradaLeer() {
     ENT.saltar = T.has('Space'); ENT.agachar = T.has('ControlLeft') || T.has('KeyC') && false; ENT.correr = T.has('ShiftLeft') || T.has('ShiftRight');
     if (T.has('ControlLeft')) ENT.agachar = true;
   }
+  // en un vehículo con los pedales y las flechas de la pantalla (si no se usa la palanca)
+  if (ENT.tactil && JUG.vehiculo && !TOQ.palanca && !T.size) { ENT.y = (ENT.pGas ? 1 : 0) - (ENT.pFreno ? 1 : 0); ENT.x = (ENT.pDer ? 1 : 0) - (ENT.pIzq ? 1 : 0); }
 }

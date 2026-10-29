@@ -15,7 +15,7 @@ const OFICIALES = [['goku', 'ico:energia', ['personajes', 'diversion'], { skin: 
   ['dios', 'ico:dios', ['jugabilidad'], { invencible: true }], ['lenta', 'ico:lenta', ['diversion'], { tiempo: 0.5 }], ['boom', 'ico:boom', ['armas', 'diversion'], { explosion: 2.5 }],
   // nativos: suman un botón al HUD (nativos.js y entidades.js)
   ['volar', 'ico:volar', ['jugabilidad', 'diversion'], {}, 'volar'], ['ragdoll', 'ico:ragdoll', ['fisica', 'diversion', 'pvp'], {}, 'ragdoll'], ['scp', 'ico:scp', ['personajes', 'diversion'], {}, 'scp'],
-  ['piano', 'ico:piano', ['diversion', 'construccion'], {}, 'piano'], ['radio', 'ico:radio', ['diversion'], {}, 'radio'],
+  ['piano', 'ico:piano', ['diversion', 'construccion'], {}, 'piano'], ['radio', 'ico:radio', ['diversion'], {}, 'radio'], ['pantalla', 'ico:pantalla', ['diversion', 'construccion'], {}, 'pantalla'],
   ['ciclope', 'ico:ciclope', ['personajes', 'diversion', 'pvp'], { skin: 'Ciclope' }, 'ciclope']]
   .map(([id, icono, etiquetas, efectos, nativo]) => Object.assign(validarRB({ formato: 'rezobox-mod', nombre: id + ' (RezoBox)', autor: 'RezoBox', icono, etiquetas, efectos }), { id, oficial: true, nativo }));
 // el mapa oficial: Mega rampa en Pasto plano (rampa gigante desde el cielo, autos para elegir arriba con su botón)
@@ -43,12 +43,14 @@ const OFICIALES_MAPAS = [mapaMegaRampa()];
 const mapaDe = (id) => INST.mapas[id] || OFICIALES_MAPAS.find((m) => m.id === id) || null;
 const mapasCom = () => [...OFICIALES_MAPAS, ...Object.values(INST.mapas)];
 const leerLS = (k, def) => { try { return JSON.parse(localStorage.getItem(k) || '') || def; } catch (e) { return def; } };
-const INST = leerLS('rb_instalados', {}); INST.mods = INST.mods || {}; INST.mapas = INST.mapas || {};
+const INST = leerLS('rb_instalados', {}); INST.mods = INST.mods || {}; INST.mapas = INST.mapas || {}; INST.anims = INST.anims || {};
 const PUBLICADOS = leerLS('rb_publicados', {}), LIKES = leerLS('rb_likes', {});
 const guardarLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { menuAviso('No hay lugar para guardar'); return false; } };
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const modsTodos = () => [...OFICIALES, ...Object.values(INST.mods)];
-const nombreDe = (m) => (m.oficial ? T(m.id + '.n') : m.nombre), descDe = (m) => (m.oficial ? T(m.id + '.d') : m.descripcion);
+// los emotes que vienen con el juego, como tarjetas de la tienda (incluidos)
+const animsOficiales = () => Object.entries(DATA.emo || {}).map(([k, c]) => ({ id: 'rb:' + k, oficial: true, emo: true, nombre: emoNom('rb:' + k, c.n), autor: 'RezoBox', cat: c.cat, icono: DATA.ico['emo_' + k] ? icono('emo_' + k) : '' }));
+const nombreDe = (m) => (m.emo ? m.nombre : m.oficial ? T(m.id + '.n') : m.nombre), descDe = (m) => (m.emo ? '' : m.oficial ? T(m.id + '.d') : m.descripcion);
 const mapaNom = (m) => T('m.' + m);
 
 function inicioCrear() {
@@ -71,7 +73,7 @@ function inicioCrear() {
   });
   if (!PREFS.mods) PREFS.mods = {};
   if (!PREFS.lang) PREFS.lang = { SP: 'es', EN: 'en', PO: 'pt', ID: 'id', RU: 'ru', UA: 'uk' }[PREFS.bienvenida ? PREFS.idioma : ''] || idiomaDelAparato();
-  RB.mapa = MAPAS.includes(PREFS.mapa) ? PREFS.mapa : 'FlatGrass';
+  RB.mapa = mapaValido(PREFS.mapa) ? PREFS.mapa : 'FlatGrass';
   overlay('NicknamePanel', false); PREFS.nombreOk = true; guardarPrefs();
   // en el menú clásico: el logo y el nombre del juego pasan a ser los nuestros, y un botón para volver
   for (const n of Object.values(MENU.por || {})) {
@@ -119,11 +121,11 @@ function inicioPanel(p) {
 }
 // ---------- crear un mapa: elegir el mapa base (o seguir uno guardado) y entrar al modo creador ----------
 function panelCrear(P) {
-  if (!MAPAS.includes(RB.creaBase)) RB.creaBase = RB.mapa || 'FlatGrass';
+  if (!mapaValido(RB.creaBase)) RB.creaBase = RB.mapa || 'FlatGrass';
   const mios = Object.values(INST.mapas).filter((m) => m.creado);
   P.innerHTML = `<div class="rbPanCab">${glifo('martillo')} ${esc(T('m.crear'))}<small>${esc(mapaNom(RB.creaBase))}</small></div>
     <div class="rbPanCuerpo rbCrear"><div class="rbSub">${esc(T('mapaBase'))}</div>
-    <div class="rbGrid rbGridChica">${MAPAS.map((m) => `<div class="rbMapaG${m === RB.creaBase ? ' sel' : ''}" data-rb="creaBase:${m}"><div class="rbFoto" style="background-image:url(${icono(MAPA_ICONO[m])})"></div><b>${esc(mapaNom(m))}</b></div>`).join('')}</div>
+    <div class="rbGrid rbGridChica">${[...MAPAS, ...MAPAS_RB].map((m) => `<div class="rbMapaG${m === RB.creaBase ? ' sel' : ''}" data-rb="creaBase:${m}"><div class="rbFoto" style="background-image:url(${icono(MAPA_ICONO[m])})"></div><b>${esc(mapaNom(m))}</b></div>`).join('')}</div>
     ${mios.length ? `<div class="rbSub">${esc(T('cr.misMapas'))}</div><div class="rbGrid rbGridChica">${mios.map((m) => `<div class="rbMapaG" data-rb="creaEditar:${esc(m.id)}"><div class="rbFoto" style="background-image:url(${m.foto ? esc(m.foto) : icono(MAPA_ICONO[m.base])})"></div><b>${esc(m.nombre)}</b><small>${glifo('lapiz')} ${esc(mapaNom(m.base))}</small></div>`).join('')}</div>` : ''}
     <p class="rbAyudaC">${esc(T('cr.intro'))}</p></div>
     <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><button class="rbBtnG" data-rb="creaNuevo">${glifo('martillo')} ${esc(T('cr.empezar'))}</button></div>`;
@@ -138,7 +140,7 @@ function panelBienvenida(P) {
 }
 // ---------- Empezar partida nueva ----------
 function panelNueva(P) {
-  const coms = mapasCom(), cats = [['todos', MAPAS], ['tierra', ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2']], ['espacio', ['Mars', 'Space']], ['comunidad', coms]];
+  const coms = mapasCom(), cats = [['todos', [...MAPAS, ...MAPAS_RB]], ['tierra', ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2']], ['espacio', ['Mars', 'Space', 'RB_Luna']], ['rezobox', MAPAS_RB], ['comunidad', coms]];
   const cat = cats.find((c) => c[0] === RB.cat) || cats[0], nm = modsTodos().filter((m) => PREFS.mods[m.id]).length;
   const tarjeta = (m) => typeof m === 'string'
     ? `<div class="rbMapaG${m === RB.mapa && !RB.mapaCom ? ' sel' : ''}" data-rb="mapa:${m}"><div class="rbFoto" style="background-image:url(${icono(MAPA_ICONO[m])})"></div><b>${esc(mapaNom(m))}</b></div>`
@@ -154,15 +156,16 @@ function panelNueva(P) {
 }
 // ---------- tienda: Mods y Mapas (explorar en el servidor o ver los instalados) ----------
 function panelTienda(P) {
-  const S = RB.t, mods = S.tab === 'mod';
+  const S = RB.t, mods = S.tab === 'mod', anims = S.tab === 'anim', tab = (k, ic, t) => `<button class="rbTab${S.tab === k ? ' sel' : ''}" data-rb="tab:${k}">${ic} ${esc(T(t))}</button>`;
+  const etqs = anims ? CATS_ANIM_RB : ETIQUETAS_RB, etqNom = (e) => T(anims ? 'emo.' + e : 'e.' + e);
   P.innerHTML = `<div class="rbPanCab">${esc(T('m.tienda'))}
-      <span class="rbTabs"><button class="rbTab${mods ? ' sel' : ''}" data-rb="tab:mod">${icoHTML('ico:mod')} ${esc(T('t.mods'))}</button><button class="rbTab${!mods ? ' sel' : ''}" data-rb="tab:mapa">${glifo('mapa')} ${esc(T('t.mapas'))}</button></span>
-      <span class="rbEsp"></span><button class="rbBtnG rbChico" data-rb="${mods ? 'pubmod' : 'pubmapa'}">${glifo('mas')} ${esc(T(mods ? 'p.mod' : 'p.mapa'))}</button>
-      <label class="rbBtnGris rbChico">${glifo('subir')} ${esc(T('p.archivo'))}<input type="file" id="rbArchivo" accept=".rbmod,.rbmapa,.json" hidden></label></div>
+      <span class="rbTabs">${tab('mod', icoHTML('ico:mod'), 't.mods')}${tab('mapa', glifo('mapa'), 't.mapas')}${tab('anim', icoHTML('ico:animacion'), 't.anims')}</span>
+      <span class="rbEsp"></span><button class="rbBtnG rbChico" data-rb="${mods ? 'pubmod' : anims ? 'crearanim' : 'pubmapa'}">${glifo('mas')} ${esc(T(mods ? 'p.mod' : anims ? 'emo.crear' : 'p.mapa'))}</button>
+      <label class="rbBtnGris rbChico">${glifo('subir')} ${esc(T('p.archivo'))}<input type="file" id="rbArchivo" accept=".rbmod,.rbmapa,.rbanim,.json" hidden></label></div>
     <div class="rbBarra"><input id="rbBuscar" type="search" placeholder="${esc(T('buscar'))}" value="${esc(S.q)}">
       <select id="rbOrden">${['pop', 'nuevo', 'desc'].map((k) => `<option value="${k}"${S.orden === k ? ' selected' : ''}>${esc(T('o.' + k))}</option>`).join('')}</select>
       <span class="rbSeg"><button class="${S.vista === 'explorar' ? 'sel' : ''}" data-rb="vista:explorar">${esc(T('v.tienda'))}</button><button class="${S.vista === 'instalados' ? 'sel' : ''}" data-rb="vista:instalados">${esc(T('v.instalados'))}</button></span></div>
-    <div class="rbEtqs"><button class="rbEtq${!S.etq ? ' sel' : ''}" data-rb="etq:">${esc(T('e.todas'))}</button>${ETIQUETAS_RB.map((e) => `<button class="rbEtq${S.etq === e ? ' sel' : ''}" data-rb="etq:${e}">${esc(T('e.' + e))}</button>`).join('')}</div>
+    <div class="rbEtqs"><button class="rbEtq${!S.etq ? ' sel' : ''}" data-rb="etq:">${esc(T('e.todas'))}</button>${etqs.map((e) => `<button class="rbEtq${S.etq === e ? ' sel' : ''}" data-rb="etq:${e}">${esc(etqNom(e))}</button>`).join('')}</div>
     <div class="rbGrid rbTiendaG"></div>
     <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris" data-rb="mas">${glifo('mas3')}</button>
       <button class="rbBtnG" data-rb="nueva">${esc(T('m.nueva'))} ${glifo('jugar')}</button></div>`;
@@ -171,25 +174,29 @@ function panelTienda(P) {
 function tiendaCargar(desdeCero) {
   const S = RB.t, n = ++S.n; if (desdeCero) { S.p = 0; S.items = []; }
   if (S.vista === 'instalados') {
-    const q = S.q.toLowerCase(), lista = S.tab === 'mod' ? modsTodos() : mapasCom();
-    S.items = lista.filter((m) => (!q || (nombreDe(m) + ' ' + m.autor + ' ' + descDe(m)).toLowerCase().includes(q)) && (!S.etq || (m.etiquetas || []).includes(S.etq)));
+    const q = S.q.toLowerCase(), lista = S.tab === 'mod' ? modsTodos() : S.tab === 'anim' ? [...animsOficiales(), ...Object.values(INST.anims)] : mapasCom();
+    S.items = lista.filter((m) => (!q || (nombreDe(m) + ' ' + m.autor + ' ' + descDe(m)).toLowerCase().includes(q)) && (!S.etq || (S.tab === 'anim' ? m.cat === S.etq : (m.etiquetas || []).includes(S.etq))));
     S.total = S.items.length; S.error = false; return tiendaDibujar();
   }
   S.cargando = true; S.error = false; tiendaDibujar();
-  fetch(`${TIENDA_URL}lista?tipo=${S.tab}&q=${encodeURIComponent(S.q)}&etq=${S.etq}&orden=${S.orden}&p=${S.p}`).then((r) => r.json()).then((d) => {
-    if (n !== S.n) return; S.items = S.items.concat(d.items || []); S.total = d.total || 0; S.cargando = false; tiendaDibujar();
+  // (en Emotes, primero los del juego: ya están incluidos)
+  if (S.tab === 'anim' && !S.p) { const q = S.q.toLowerCase(); S.items = animsOficiales().filter((m) => (!q || nombreDe(m).toLowerCase().includes(q)) && (!S.etq || m.cat === S.etq)); }
+  fetch(`${TIENDA_URL}lista?tipo=${S.tab}&q=${encodeURIComponent(S.q)}&${S.tab === 'anim' ? 'cat' : 'etq'}=${S.etq}&orden=${S.orden}&p=${S.p}`).then((r) => r.json()).then((d) => {
+    if (n !== S.n) return; S.items = S.items.concat((d.items || []).map((x) => (S.tab === 'anim' ? Object.assign(x, { cat: x.base }) : x))); S.total = (d.total || 0) + (S.tab === 'anim' ? S.items.filter((x) => x.oficial).length : 0); S.cargando = false; tiendaDibujar();
   }).catch(() => { if (n !== S.n) return; S.cargando = false; S.error = true; tiendaDibujar(); });
 }
 function tiendaDibujar() {
   const S = RB.t, G = RB.el.querySelector('.rbTiendaG'); if (!G) return;
-  const inst = (it) => (S.tab === 'mod' ? (it.oficial || INST.mods[it.id]) : it.oficial || INST.mapas[it.id]);
+  const inst = (it) => it.oficial || (S.tab === 'mod' ? INST.mods[it.id] : S.tab === 'anim' ? INST.anims[it.id] : INST.mapas[it.id]);
   const tarjeta = (it) => {
-    const ins = inst(it), act = S.tab === 'mod' && PREFS.mods[it.id], img = S.tab === 'mod' ? icoHTML(it.icono) : `<img src="${esc(it.icono || it.foto || icono(MAPA_ICONO[it.base] || 'flatgrass'))}" alt="">`;
-    const datos = it.oficial ? `<b class="rbOf">${esc(T('oficial'))}</b>` : `${esc(T('por'))} ${esc(it.autor)}${it.descargas != null ? ` · ${glifo('bajar')} ${it.descargas} · ${glifo('corazon')} ${it.likes}` : ''}${S.tab === 'mapa' && it.base ? ` · ${esc(mapaNom(it.base))}` : ''}`;
-    return `<div class="rbCard${S.tab === 'mapa' ? ' rbCardMapa' : ''}${act ? ' on' : ''}"><div class="rbIco">${img}</div>
+    const an = S.tab === 'anim', ins = inst(it), act = S.tab === 'mod' && PREFS.mods[it.id] && modTipo(it) !== 'asset';
+    const img = S.tab === 'mod' ? icoHTML(it.icono) : an ? (it.icono || it.foto ? `<img src="${esc(it.icono || it.foto)}" alt="">` : icoHTML('ico:animacion')) : `<img src="${esc(it.icono || it.foto || icono(MAPA_ICONO[it.base] || 'flatgrass'))}" alt="">`;
+    const datos = (it.oficial ? `<b class="rbOf">${esc(T(an ? 'emo.incluido' : 'oficial'))}</b>` : `${esc(T('por'))} ${esc(it.autor)}${it.descargas != null ? ` · ${glifo('bajar')} ${it.descargas} · ${glifo('corazon')} ${it.likes}` : ''}${S.tab === 'mapa' && it.base ? ` · ${esc(mapaNom(it.base))}` : ''}`)
+      + (an && it.cat ? ` · ${esc(T('emo.' + it.cat))}` : '') + (S.tab === 'mod' ? ` · ${esc(T(modTipo(it) === 'asset' ? 'mm.assets' : 'mm.juego'))}` : '');
+    return `<div class="rbCard${S.tab === 'mapa' ? ' rbCardMapa' : an ? ' rbCardAnim' : ''}${act ? ' on' : ''}"><div class="rbIco">${img}</div>
       <div class="rbInfo"><b dir="auto">${esc(nombreDe(it))}</b><small dir="auto">${it.codigo ? '<b class="rbCod">&lt;/&gt;</b> ' : ''}${datos}</small><p dir="auto">${esc(descDe(it))}</p>
       <span class="rbEtqsC">${(it.etiquetas || []).map((e) => `<i>${esc(T('e.' + e))}</i>`).join('')}</span></div>
-      <div class="rbAcc">${S.tab === 'mod' && ins ? `<button class="rbChk${act ? ' on' : ''}" data-rb="act:${esc(it.id)}"><em></em>${esc(T('activado'))}</button>` : ''}
+      <div class="rbAcc">${S.tab === 'mod' && ins && modTipo(it) !== 'asset' ? `<button class="rbChk${act ? ' on' : ''}" data-rb="act:${esc(it.id)}"><em></em>${esc(T('activado'))}</button>` : ''}
         ${it.oficial ? '' : ins ? `<button class="rbBtnGris rbChico" data-rb="quitar:${esc(it.id)}">${esc(T('quitar'))}</button>` : `<button class="rbBtnG rbChico" data-rb="instalar:${esc(it.id)}">${esc(T('instalar'))}</button>`}
         ${S.tab === 'mapa' && ins ? `<button class="rbBtnG rbChico" data-rb="jugarcom:${esc(it.id)}">${glifo('jugar')} ${esc(T('jugar'))}</button>` : ''}
         ${it.oficial ? '' : `<span class="rbMini">${it.descargas != null ? `<button title="${esc(T('meGusta'))}" class="${LIKES[it.id] ? 'sel' : ''}" data-rb="like:${esc(it.id)}">${glifo('corazon')}</button><button title="${esc(T('denunciar'))}" data-rb="denunciar:${esc(it.id)}">${glifo('bandera')}</button>` : ''}
@@ -206,14 +213,14 @@ async function instalar(id) {
     if (typeof v === 'string') { menuAviso(T('errFormato') + ': ' + v); return; }
     if (v.codigo && !confirm(T('codigoAviso'))) return;
     v.id = id; v.remoto = true; const it = S.items.find((x) => x.id === id); if (it) { v.descargas = it.descargas; v.likes = it.likes; }
-    if (v.formato === 'rezobox-mod') { INST.mods[id] = v; PREFS.mods[id] = true; guardarPrefs(); } else INST.mapas[id] = v;
+    if (v.formato === 'rezobox-mod') { INST.mods[id] = v; PREFS.mods[id] = true; guardarPrefs(); } else if (v.formato === 'rezobox-anim') { INST.anims[id] = v; emoOlvidar('u:' + id); } else INST.mapas[id] = v;
     guardarLS('rb_instalados', INST); menuAviso(T('instalado') + ': ' + v.nombre); tiendaDibujar();
   } catch (e) { menuAviso(T('errRed')); }
 }
 function descargarArchivo(d) {
   const a = document.createElement('a'), limpio = Object.assign({}, d); delete limpio.remoto; delete limpio.oficial; delete limpio.descargas; delete limpio.likes;
   a.href = URL.createObjectURL(new Blob([JSON.stringify(limpio, null, 1)], { type: 'application/json' }));
-  a.download = (d.nombre || 'rezobox').replace(/[^\w\-]+/g, '_') + (d.formato === 'rezobox-mapa' ? '.rbmapa' : '.rbmod'); a.click();
+  a.download = (d.nombre || 'rezobox').replace(/[^\w\-]+/g, '_') + (d.formato === 'rezobox-mapa' ? '.rbmapa' : d.formato === 'rezobox-anim' ? '.rbanim' : '.rbmod'); a.click();
 }
 function subirArchivo(f) {
   if (!f) return;
@@ -223,7 +230,7 @@ function subirArchivo(f) {
     const v = validarRB(d); if (typeof v === 'string') { menuAviso(T('errFormato') + ': ' + v); return; }
     if (v.codigo && !confirm(T('codigoAviso'))) return;
     v.id = 'local-' + Math.random().toString(36).slice(2, 10);
-    if (v.formato === 'rezobox-mod') { INST.mods[v.id] = v; PREFS.mods[v.id] = true; guardarPrefs(); RB.t.tab = 'mod'; } else { INST.mapas[v.id] = v; RB.t.tab = 'mapa'; }
+    if (v.formato === 'rezobox-mod') { INST.mods[v.id] = v; PREFS.mods[v.id] = true; guardarPrefs(); RB.t.tab = 'mod'; } else if (v.formato === 'rezobox-anim') { INST.anims[v.id] = v; RB.t.tab = 'anim'; } else { INST.mapas[v.id] = v; RB.t.tab = 'mapa'; }
     guardarLS('rb_instalados', INST); RB.t.vista = 'instalados'; menuAviso(T('instalado') + ': ' + v.nombre); inicioPanel('tienda');
   });
 }
@@ -234,8 +241,9 @@ async function tiendaPublicar(d) {
     if (!r.id) { menuAviso(r.error || T('errRed')); return; }
     PUBLICADOS[r.id] = r.clave; guardarLS('rb_publicados', PUBLICADOS);
     v.id = r.id; v.remoto = true; v.descargas = 0; v.likes = 0;
-    if (v.formato === 'rezobox-mod') { INST.mods[r.id] = v; PREFS.mods[r.id] = true; guardarPrefs(); } else INST.mapas[r.id] = v;
+    if (v.formato === 'rezobox-mod') { INST.mods[r.id] = v; PREFS.mods[r.id] = true; guardarPrefs(); } else if (v.formato === 'rezobox-anim') INST.anims[r.id] = v; else INST.mapas[r.id] = v;
     guardarLS('rb_instalados', INST);
+    if (v.formato === 'rezobox-anim') return r; // (el editor de animaciones avisa solo)
     menuAviso(`${T('publicado')} ${T('clave')} ${r.clave}`);
     RB.t.tab = v.formato === 'rezobox-mod' ? 'mod' : 'mapa'; RB.t.vista = 'instalados'; inicioPanel('tienda');
   } catch (e) { menuAviso(T('errRed')); }
@@ -248,7 +256,9 @@ function panelPubMod(P) {
     <div class="rbCol"><label class="rbCampo">${esc(T('nombre'))}<input id="pmNom" maxlength="40"></label>
       <label class="rbCampo">${esc(T('desc'))}<textarea id="pmDesc" maxlength="400" rows="3"></textarea></label>
       <div class="rbCampo">${esc(T('icono'))}<span class="rbIconos">${ICONOS_MOD.map((e, i) => `<button class="${i ? '' : 'sel'}" data-rb="pmico:${e}">${icoHTML(e)}</button>`).join('')}</span></div>
-      <div class="rbCampo">${esc(T('etiquetas'))}<span class="rbEtqs">${ETIQUETAS_RB.map((e) => `<button class="rbEtq" data-rb="pmetq:${e}">${esc(T('e.' + e))}</button>`).join('')}</span></div></div>
+      <div class="rbCampo">${esc(T('etiquetas'))}<span class="rbEtqs">${ETIQUETAS_RB.map((e) => `<button class="rbEtq" data-rb="pmetq:${e}">${esc(T('e.' + e))}</button>`).join('')}</span></div>
+      <div class="rbCampo">${esc(T('f.tipo'))}<span class="rbEtqs"><button class="rbEtq sel" data-rb="pmtipo:juego">${esc(T('mm.juego'))}</button><button class="rbEtq" data-rb="pmtipo:asset">${esc(T('mm.assets'))}</button></span><small class="rbAyuda pmTipoAy">${esc(T('f.tipoJuego'))}</small></div>
+      <div class="rbCampo pmAsset oc">${esc(T('f.aparecer'))}<input id="pmPropQ" maxlength="30" spellcheck="false" placeholder="${esc(T('buscar'))}"><span class="rbEtqs pmProps"></span></div></div>
     <div class="rbCol">${R.map(([k, a, b, s]) => `<label class="rbRango">${esc(T('f.' + k))}<input type="range" data-rv="${k}" min="${a}" max="${b}" step="${s}" value="1"><output>1.00×</output></label>`).join('')}
       <span class="rbFila"><button class="rbChk" data-rb="pmtog:municionInfinita"><em></em>${esc(T('f.municion'))}</button><button class="rbChk" data-rb="pmtog:invencible"><em></em>${esc(T('f.invencible'))}</button></span>
       <span class="rbFila"><label class="rbCampo">${esc(T('f.skin'))}<select id="pmSkin"><option value="">${esc(T('ninguna'))}</option>${Object.keys(RETRATO).map((s) => `<option>${s}</option>`).join('')}</select></label>
@@ -257,17 +267,26 @@ function panelPubMod(P) {
       <label class="rbCampo">${esc(T('codigo'))}<textarea id="pmCod" rows="6" spellcheck="false" class="rbCodigo" placeholder="rb.on('inicio', () => rb.aviso('¡Hola!'));&#10;rb.boton('salto', 'ico:salto');&#10;rb.on('boton', (b) => rb.jugador({ vel: [0, 30, 0] }));"></textarea><small class="rbAyuda">rb.on(inicio|tick|boton|tecla|muerte) · rb.jugador({...}) · rb.mundo({...}) · rb.crear(n, [x,y,z]) · rb.mover · rb.borrar · rb.objetos() · rb.explosion · rb.arma · rb.sonido · rb.nota(hz) · rb.rayo · rb.boton(id, texto) · rb.guardar/leer · rb.entidad(piano|radio|rampa|…, [x,y,z], {…}) · rb.nativo(volar|ragdoll|scp)</small></label></div></div>
     <div class="rbPanPie"><button class="rbBtnGris" data-rb="tienda">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span>
       <button class="rbBtnGris" data-rb="pmexp">${glifo('bajar')} ${esc(T('exportar'))}</button><button class="rbBtnGris" data-rb="pmprobar">${glifo('si')} ${esc(T('instalar'))}</button><button class="rbBtnG" data-rb="pmpub">${glifo('subir')} ${esc(T('publicar'))}</button></div>`;
-  RB.pm = { icono: ICONOS_MOD[0], etq: new Set(), tog: {}, armas: new Set() };
+  RB.pm = { icono: ICONOS_MOD[0], etq: new Set(), tog: {}, armas: new Set(), tipo: 'juego', ap: new Set() };
+  const pq = P.querySelector('#pmPropQ'); pq.oninput = () => pmProps(P); pmProps(P);
+}
+// los props que puede poner un mod de assets (busca en todos; los elegidos primero)
+function pmProps(P) {
+  const q = (P.querySelector('#pmPropQ').value || '').trim().toLowerCase(), C = DATA.menu.find((c) => c.n === 'Props'), todos = [];
+  if (C) for (const sc of C.sub) for (const it of sc.it) if (!todos.includes(it)) todos.push(it);
+  const L = [...RB.pm.ap, ...todos.filter((x) => !RB.pm.ap.has(x) && (!q || (x + ' ' + propNom(x)).toLowerCase().includes(q)))].slice(0, 80);
+  P.querySelector('.pmProps').innerHTML = L.map((x) => `<button class="rbEtq${RB.pm.ap.has(x) ? ' sel' : ''}" data-rb="pmprop:${esc(x)}">${esc(propNom(x))}</button>`).join('');
 }
 function modDelForm() {
   const P = RB.el.querySelector('.rbPan'), v = (s) => P.querySelector(s).value, ef = {};
   P.querySelectorAll('[data-rv]').forEach((r) => { ef[r.dataset.rv] = +r.value; });
   Object.assign(ef, RB.pm.tog, { skin: v('#pmSkin') || null, hora: v('#pmHora') === '' ? null : +v('#pmHora'), armas: [...RB.pm.armas] });
-  return { formato: 'rezobox-mod', nombre: v('#pmNom'), autor: PREFS.nombre, descripcion: v('#pmDesc'), icono: RB.pm.icono, etiquetas: [...RB.pm.etq], efectos: ef, codigo: v('#pmCod') };
+  if (RB.pm.tipo === 'asset') ef.aparecer = [...RB.pm.ap].map((n, i) => ({ n, d: 3 + Math.floor(i / 3) * 2, lado: ((i % 3) - 1) * 2 }));
+  return { formato: 'rezobox-mod', nombre: v('#pmNom'), autor: PREFS.nombre, descripcion: v('#pmDesc'), icono: RB.pm.icono, etiquetas: [...RB.pm.etq], efectos: ef, codigo: v('#pmCod'), tipo: RB.pm.tipo };
 }
 // ---------- publicar una construcción guardada como mapa ----------
 function construcciones() {
-  return MAPAS.map((m) => ({ m, L: leerLS('hypper_save_' + m, []), foto: (() => { try { return localStorage.getItem('rb_foto_' + m) || null; } catch (e) { return null; } })() })).filter((c) => c.L.length);
+  return [...MAPAS_RB, ...MAPAS].map((m) => ({ m, L: leerLS('hypper_save_' + m, []), foto: (() => { try { return localStorage.getItem('rb_foto_' + m) || null; } catch (e) { return null; } })() })).filter((c) => c.L.length);
 }
 function panelPubMapa(P) {
   const cs = construcciones(); RB.pmap = RB.pmap && cs.some((c) => c.m === RB.pmap.m) ? RB.pmap : { m: cs.length ? cs[0].m : null, etq: new Set() };
@@ -297,11 +316,12 @@ function inicioAccion(k, b) {
     case 'etq': RB.t.etq = v; return inicioPanel('tienda');
     case 'mas': RB.t.p++; return tiendaCargar(false);
     case 'instalar': return instalar(v);
-    case 'quitar': if (RB.t.tab === 'mod') { delete INST.mods[v]; delete PREFS.mods[v]; guardarPrefs(); } else delete INST.mapas[v]; guardarLS('rb_instalados', INST); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar();
+    case 'quitar': if (RB.t.tab === 'mod') { delete INST.mods[v]; delete PREFS.mods[v]; guardarPrefs(); } else if (RB.t.tab === 'anim') { delete INST.anims[v]; emoOlvidar('u:' + v); } else delete INST.mapas[v]; guardarLS('rb_instalados', INST); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar();
     case 'act': PREFS.mods[v] = !PREFS.mods[v]; if (!PREFS.mods[v]) delete PREFS.mods[v]; guardarPrefs(); return tiendaDibujar();
     case 'like': if (LIKES[v]) return; LIKES[v] = 1; guardarLS('rb_likes', LIKES); fetch(TIENDA_URL + 'like/' + v, { method: 'POST' }).catch(() => {}); { const it = RB.t.items.find((x) => x.id === v); if (it) it.likes++; } return tiendaDibujar();
     case 'denunciar': if (!confirm(T('denunciar') + '?')) return; fetch(TIENDA_URL + 'denunciar/' + v, { method: 'POST' }).catch(() => {}); RB.t.items = RB.t.items.filter((x) => x.id !== v); return tiendaDibujar();
-    case 'exportar': return descargarArchivo(RB.t.tab === 'mod' ? INST.mods[v] : INST.mapas[v]);
+    case 'exportar': return descargarArchivo(RB.t.tab === 'mod' ? INST.mods[v] : RB.t.tab === 'anim' ? INST.anims[v] : INST.mapas[v]);
+    case 'crearanim': RB.horaPartida = 'normal'; RB.mapaPartida = null; RB.mapaCom = null; SALA = null; inicioMostrar(false); empezarPartida('FlatGrass'); setTimeout(() => edaAbrir(), 900); return;
     case 'borrarpub': if (!confirm(T('quitar') + ' ' + v + '?')) return; fetch(TIENDA_URL + 'borrar/' + v, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave: PUBLICADOS[v] }) }).then((r) => r.json()).then((r) => { if (r.ok) { delete PUBLICADOS[v]; guardarLS('rb_publicados', PUBLICADOS); tiendaCargar(true); } }).catch(() => menuAviso(T('errRed'))); return;
     case 'jugarcom': if (!mapaDe(v)) return; RB.mapaCom = v; RB.mapa = mapaDe(v).base; RB.hora = 'normal'; return inicioAccion('empezar', b);
     case 'pubmod': return inicioPanel('pubmod');
@@ -310,6 +330,9 @@ function inicioAccion(k, b) {
     case 'pmetq': marcar(); return RB.pm.etq.has(v) ? RB.pm.etq.delete(v) : RB.pm.etq.size < 4 ? RB.pm.etq.add(v) : marcar();
     case 'pmarma': marcar(); return RB.pm.armas.has(v) ? RB.pm.armas.delete(v) : RB.pm.armas.add(v);
     case 'pmtog': RB.pm.tog[v] = !RB.pm.tog[v]; b.classList.toggle('on', RB.pm.tog[v]); return;
+    case 'pmtipo': { RB.pm.tipo = v === 'asset' ? 'asset' : 'juego'; const P = RB.el.querySelector('.rbPan'); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('sel', x === b));
+      P.querySelector('.pmAsset').classList.toggle('oc', RB.pm.tipo !== 'asset'); P.querySelector('.pmTipoAy').textContent = T(RB.pm.tipo === 'asset' ? 'f.tipoAsset' : 'f.tipoJuego'); return; }
+    case 'pmprop': { if (RB.pm.ap.has(v)) RB.pm.ap.delete(v); else if (RB.pm.ap.size < 30) RB.pm.ap.add(v); return pmProps(RB.el.querySelector('.rbPan')); }
     case 'pmexp': { const m = validarRB(modDelForm()); return typeof m === 'string' ? menuAviso(m) : descargarArchivo(m); }
     case 'pmprobar': { const m = validarRB(modDelForm()); if (typeof m === 'string') return menuAviso(m); m.id = 'local-' + Math.random().toString(36).slice(2, 10); INST.mods[m.id] = m; PREFS.mods[m.id] = true; guardarPrefs(); guardarLS('rb_instalados', INST); RB.t.tab = 'mod'; RB.t.vista = 'instalados'; menuAviso(T('instalado') + ': ' + m.nombre); return inicioPanel('tienda'); }
     case 'pmpub': return tiendaPublicar(modDelForm());

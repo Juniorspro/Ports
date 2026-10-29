@@ -1,8 +1,9 @@
 # Menú real del juego: el LobbyCanvas de la escena del menú (RectTransform, Image, Text, botones, campos) a JSON.
-# Uso: python -I menuexp.py DATOS level1 SALIDA.json   (los MonoBehaviour no traen tipos: se leen los bytes crudos)
+# Uso: python -I menuexp.py DATOS level1 SALIDA.json [RAIZ]   (los MonoBehaviour no traen tipos: se leen los bytes crudos)
+# RAIZ: otro canvas raíz (por ejemplo el de los controles de juego); con "?" lista las raíces del archivo
 import UnityPy, sys, struct, json
 from UnityPy.classes import PPtr
-env=UnityPy.load(sys.argv[1]); archivo=sys.argv[2]; salida=sys.argv[3]
+env=UnityPy.load(sys.argv[1]); archivo=sys.argv[2]; salida=sys.argv[3]; RAIZ=sys.argv[4] if len(sys.argv)>4 else 'LobbyCanvas'
 objs=[x for x in env.objects if x.assets_file.name==archivo]
 def deref(o,off,raw):
     fid,pid=struct.unpack_from('<iq',raw,off)
@@ -121,7 +122,10 @@ raiz=None
 for o in objs:
     if o.type.name in('Transform','RectTransform'):
         t=o.read()
-        if t.m_Father.path_id==0 and t.m_GameObject.read().m_Name=='LobbyCanvas': raiz=nodo(t)
+        if t.m_Father.path_id!=0: continue
+        nm=t.m_GameObject.read().m_Name
+        if RAIZ=='?': print('raíz:', nm, [c.read().m_GameObject.read().m_Name for c in t.m_Children][:20]); continue
+        if nm==RAIZ: raiz=nodo(t)
 info['ui']=raiz
 json.dump(info,open(salida,'w'),separators=(',',':'),ensure_ascii=False)
 print('ok',info.get('scaler'))

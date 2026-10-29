@@ -17,7 +17,7 @@ function diaPaso(dt) {
 function diaAplicar() {
   const B = DIA.base; if (!B || !B.cielo) return;
   DIA.aplicada = DIA.hora;
-  if (MUNDO.nombre === 'Space') { R.noche = 0; cicCielo(); return; }
+  if (MUNDO.espacio) { R.noche = 0; cicCielo(); return; } // (en el espacio y en la Luna el cielo es siempre negro)
   const h = DIA.hora, el0 = Math.asin(clamp(B.sol.y, 0.2, 0.98)), az0 = Math.atan2(B.sol.x, B.sol.z);
   // elevación: el mapa a las 12; 0 a las 6 y 18; negativa de noche. Recorrido de este a oeste
   const el = el0 * Math.sin((h - 6) / 12 * Math.PI), az = az0 + (h - 12) / 12 * Math.PI * 0.85;

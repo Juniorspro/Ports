@@ -4,6 +4,10 @@
 // ---------------------------------------------------------------------------------------------------------
 const MAPAS = ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space'];
 const MAPA_ICONO = { Desert: 'Desert', DesertV2: 'desert 1', FlatGrass: 'flatgrass', City: 'city', Base: 'base', BaseV2: 'basev2', Mars: 'Mars', Space: 'Space' };
+// los mapas propios de RezoBox (herramientas/mapas_rb.py): se suman a los del juego, que siguen todos
+const MAPAS_RB = ['RB_Llanura', 'RB_Colinas', 'RB_Isla', 'RB_Ciudad', 'RB_Desierto', 'RB_Luna'];
+for (const m of MAPAS_RB) MAPA_ICONO[m] = 'mapa_' + m;
+const mapaValido = (m) => MAPAS_RB.includes(m) || MAPAS.includes(m);
 const MUNDO = { nombre: '', modelos: [], T: null, TN: null, nt: 0, cajas: [], celda: 6, grilla: new Map(), triCuerpo: [], marca: 1,
   spawns: [], lo: v3(), hi: v3(), gravedad: 1 };
 const _clave = (cx, cz) => (cx + 32768) * 65536 + (cz + 32768);
@@ -77,13 +81,14 @@ function cargarMapa(nombre) {
   R.ambG = [0, 1, 2].map((k) => (C.mid[k] * 0.45 + C.bot[k] * 0.3) * ai * 0.62);
   // la estación espacial: el casco taparía el sol adentro (en el juego no había sombras): luz pareja y sin sombras del sol
   if (nombre === 'Space') { R.ambS = [0.5, 0.5, 0.56]; R.ambG = [0.34, 0.34, 0.38]; }
-  MUNDO.sinSombra = nombre === 'Space';
+  if (aj.ambRB) { R.ambS = aj.ambRB[0].slice(); R.ambG = aj.ambRB[1].slice(); } // (luz de relleno propia: en la Luna el cielo negro no ilumina)
+  MUNDO.sinSombra = nombre === 'Space'; MUNDO.espacio = nombre === 'Space' || !!aj.espacio;
   const lejos = GFX.lejos;
   if (aj.fog && aj.fd > 0) R.niebla = { c: aj.fc.slice(0, 3), a: 0.15 / aj.fd, b: Math.min(lejos, 1.9 / aj.fd) };
   else if (aj.fog && aj.fm === 1 && aj.fe > aj.fs) R.niebla = { c: aj.fc.slice(0, 3), a: aj.fs, b: aj.fe };
   else R.niebla = { c: C.mid.slice(), a: lejos * 0.7, b: lejos };
-  if (nombre === 'Space') R.niebla = { c: [0, 0, 0], a: lejos * 0.8, b: lejos * 1.5 };
-  MUNDO.gravedad = nombre === 'Space' ? 0.16 : nombre === 'Mars' ? 0.38 : 1;
+  if (nombre === 'Space' || aj.espacio) R.niebla = { c: [0, 0, 0], a: lejos * 0.8, b: lejos * 1.5 };
+  MUNDO.gravedad = aj.grav || (nombre === 'Space' ? 0.16 : nombre === 'Mars' ? 0.38 : 1);
   R.expoK = 1; R.noche = 0; R.lucesMapa = false;
   if (typeof diaGuardarBase === 'function') diaGuardarBase();
   if (typeof marcasLimpiar === 'function') marcasLimpiar();

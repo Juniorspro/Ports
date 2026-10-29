@@ -119,6 +119,45 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   rayo, grita "no, no, no" (voz generada), ve todo rojo y se come el golpe final (con PvP). 20 s de espera entre
   definitivas; el que la tira no se lastima con sus explosiones. Por la red: `cic` con `u` (empieza), `d` (dirección y
   punta del rayo, 10 por segundo), `v` (agarró a alguien), `l` (láser suave) y `fin`; las explosiones van como siempre.
+- **Skins riggeados de verdad** (`herramientas/skin_meshy.py`): el modelo 3D se riggea aparte (esqueleto tipo mixamo con
+  sus pesos) y se lleva a la pose de enlace del Hero girando cada hueso con sus propios pesos, sin estirar la malla (lo
+  que dejaba los brazos "espaguetizados"); las articulaciones del juego van donde quedan en esa malla y la cadera a la
+  altura de la del Hero. Así entraron Goku y Cíclope rehechos y seis nuevos: Astronauta, Ninja, Robot, Zombi, Bombera y
+  Pirata. Los datos van sólo en el HTML.
+- **Emotes nuevos** (`herramientas/emote_meshy.py`, `emotes.js`): 28 animaciones (bailes, gestos y acciones) pasadas
+  al esqueleto del juego como rotaciones locales a 20 cuadros por segundo más la cadera, sin la deriva horizontal; andan
+  en todos los personajes. Panel por categorías (Todos, Bailes, Gestos, Acciones, Clásicos, Míos, Tienda) con
+  miniaturas sacadas del personaje del lobby (el cuadro que mejor muestra la pose). En la tienda, la pestaña Emotes
+  muestra los incluidos y los de la gente (formato `.rbanim`); se instalan y quedan en "Míos".
+- **Editor de animaciones** (`animedit.js`): tu personaje delante, puntos en las articulaciones (tocás uno y lo girás
+  arrastrando, o con tres deslizadores; la cadera además sube y se corre), línea de tiempo con claves que se mueven
+  arrastrando (lo que cambiás en un momento sin clave crea una), mezcla suave entre claves, repetir o no, espejo (copia
+  un lado al otro reflejado en el marco del esqueleto), empezar desde cualquier emote, y cámara grabada en las claves
+  para verla como cinemática. Guarda en "Míos" (con foto), exporta `.rbanim` y publica en la tienda. En una sala los
+  demás lo ven aunque no lo tengan: si es de la tienda lo bajan, si no se lo piden al que lo hizo (`animq`/`anim`).
+- **Props nuevos** (`herramientas/prop_glb.py`): 15 modelos generados (sofá, mesa, silla, cama, heladera, inodoro,
+  farol, banco, semáforo, cama elástica, pelota, aro de básquet, arcade, palmera, roca) a su altura real, con su
+  textura, su masa y colliders a medida (`col=mesa`: tabla y patas; `col=tronco`: se pasa entre las hojas; `col=aro`:
+  la pelota pasa por el aro; `col=pila`: postes con base plana; `col=esfera`). La pelota rebota (`rs`) y la cama
+  elástica te hace rebotar (`sal`, con su "boing"). Menú de props con buscador, sección **Mods** primero y las
+  categorías nuevas (Casa, Calle, Diversión, Naturaleza).
+- **Menú MOD por categorías**: "Personaje y jugabilidad" (se prenden y apagan) y "Assets y props" (radio, piano,
+  pantalla y los mods de la gente que ponen props: no se prenden, están siempre en Props → Mods). El creador de mods
+  tiene el tipo y, para los assets, los props que ponen (`tipo` en `.rbmod`).
+- **Pantalla de YouTube 3D** (`pantalla.js`): una tele (de 1,2 a 8 m) que pasa el video de verdad. El reproductor de
+  YouTube va detrás del juego con una matriz CSS proyectiva que lleva sus esquinas a donde cae la pantalla en la
+  imagen; el lienzo (con alfa) deja un hueco transparente sólo donde se ve, recortado con la profundidad de la escena,
+  así lo que pasa por delante la tapa. Se agarra y se pega con la pistola de física; en la sala todos ven el mismo
+  video al mismo tiempo; las demás pantallas muestran la tapa del video.
+- **Controles como el Hypper original** (`hud.js`): cada botón en el lugar del PlayerCanvas del juego (referencia
+  1280×720, escalado como su CanvasScaler) con íconos propios en vector: pausa y chat arriba a la izquierda, props a la
+  izquierda al medio, disparo grande, saltar y borrar abajo, arma, cámara y emotes arriba a la derecha; con la pistola de
+  física girar, congelar, acercar y alejar; en un auto pedales, doblar, freno de mano y bajarse.
+- **Mapas propios** (`herramientas/mapas_rb.py`), además de los del juego, que siguen todos: Llanura (con una placita),
+  Colinas (lago y playa), Isla, Ciudad RB (manzanas, calles con líneas, veredas, edificios, plaza y parque), Médanos
+  (con oasis) y Luna (cráteres, gravedad baja, cielo negro sin nubes ni brillo de aire). Las texturas base son imágenes
+  generadas, vueltas sin costura y llevadas al color de cada mapa; las líneas de la calle, las juntas y las ventanas se
+  dibujan encima. Cada triángulo del terreno toma pasto, arena, tierra o roca según altura y pendiente.
 - **Mega rampa**: la caída de arriba es una parábola (la trayectoria de un auto que sale a ~30 m/s: el que llega más
   lento baja apoyado), recta a 52°, curva de abajo amplia (~3 g a 50 m/s), recta y salto final. Los autos chocan con
   los triángulos de las formas propias sólo vértice contra cara con la normal de la cara (`hullTri` en `fisica.js`):
@@ -166,8 +205,9 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   `vehiculos`, `herramientas` (Tool Gun), `personas` (skins, emotes, muñeco), `humano` (clips humanoides:
   músculos → huesos), `red` (MQTT: salas, lista de servidores por presencia retenida), `entrada` (incluye el
   giro a horizontal), `ui`, `menu` (dibuja el LobbyCanvas exportado con HTML), `idiomas`, `modapi` (mods con código),
-  `voz`, `geo` (formas propias), `entidades`, `nativos` (mods oficiales), `ciclope` (mod Cíclope), `creador`, `smods` (mods del server), `inicio`
-  (RezoBox), `principal`.
+  `voz`, `geo` (formas propias), `entidades`, `pantalla` (pantalla de YouTube), `nativos` (mods oficiales), `ciclope` (mod
+  Cíclope), `animedit` (editor de animaciones), `emotes`, `hud` (controles), `idiomas3` (textos de la versión 8),
+  `creador`, `smods` (mods del server), `inicio` (RezoBox), `principal`.
 - Pruebas: `pruebas/escena.mjs` (guion de pasos), `dbg.mjs` (corre un .js en la página: `fisica_choques.js`,
   `vehiculos.js`, `pies.js`, `camara.js`, `marcas.js` devuelven números), `red2.mjs` (tres jugadores, broker local
   aedes: sala oficial, lista, servidor con clave y sin PvP), `red3.mjs` (anfitrión: hora y reglas por la red,
@@ -188,5 +228,6 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   la distancia, de atrás, el parlante chico y la estática), `ciclope.mjs` (el personaje, el láser, la definitiva con sus
   planos, el rayo que agarra a un muñeco, el cielo rojo y que todo vuelva; `celu` con el dedo de verdad),
   `red_ciclope.mjs` (otro ve la cinemática, el rayo lo agarra: primera persona, manos, rojo, vuela, golpe final), `creador.mjs`, `celu_mods.mjs`, `red_sm.mjs` (publica mods de prueba en la tienda real, dos jugadores
-  eligen con SM, uno sube otro mod en el medio; borra todo al final) y `red_mods.mjs` (cada
+  eligen con SM, uno sube otro mod en el medio; borra todo al final), `red_pantalla.mjs` (la pantalla con el mismo
+  video, tamaño y lugar para el otro, que no la puede agarrar; un emote hecho en el editor que el otro pide y ve) y `red_mods.mjs` (cada
   jugador en su propio navegador: si comparten uno, la pestaña de fondo deja de simular).
