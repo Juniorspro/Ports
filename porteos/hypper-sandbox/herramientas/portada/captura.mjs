@@ -6,8 +6,10 @@
 // centésimas: 0,03 s = 33 fps a velocidad real) y la imagen se lee del lienzo apenas se dibuja (1920×1080, se achica a 960×540).
 import { preparar } from './escena.mjs'; import fs from 'fs';
 const [html, D, N, F] = [process.argv[2], process.argv[3], +(process.argv[4] || 150), +(process.argv[5] || 12)];
+// vertical (9:16) con VERTICAL=1: 1080×1920 y la cámara más atrás y mirando más arriba (entra la rampa entera)
+const VERT = !!process.env.VERTICAL, [W, H] = VERT ? [1080, 1920] : [1920, 1080];
 fs.mkdirSync(D, { recursive: true });
-const { b, p, ev, err, manual, paso, pasoFoto } = await preparar(html, 1920, 1080);
+const { b, p, ev, err, manual, paso, pasoFoto } = await preparar(html, W, H);
 await ev(fs.readFileSync(new URL('./armar_escena.js', import.meta.url), 'utf8'));
 await manual(); await paso(45);
 // ya apoyado: sin arma y en pose de pelea (si se pone antes, al caer se corta)
@@ -17,8 +19,8 @@ console.log(await ev(`JSON.stringify({buf: R.gl.drawingBufferWidth + 'x' + R.gl.
 const t0 = Date.now();
 for (let f = 0; f < N + F; f++) {
   const u = 2 * Math.PI * f / N;
-  await ev(`(() => { const C = window.__C, a = -0.12 + 0.3 * Math.sin(${u}), r = 4.7 + 0.25 * Math.cos(${u}), h = 1.25 + 0.08 * Math.sin(${u} * 2);
-    const c = v3(C.x + Math.sin(a) * r, C.y + h, C.z + Math.cos(a) * r), m = v3(C.x + Math.sin(a) * 1.5, C.y + 2.3, C.z - 6), d = vsub(m, c).norm();
+  await ev(`(() => { const C = window.__C, a = -0.12 + 0.3 * Math.sin(${u}), r = (${VERT} ? 6.6 : 4.7) + 0.25 * Math.cos(${u}), h = (${VERT} ? 1.0 : 1.25) + 0.08 * Math.sin(${u} * 2);
+    const c = v3(C.x + Math.sin(a) * r, C.y + h, C.z + Math.cos(a) * r), m = v3(C.x + Math.sin(a) * 1.5, C.y + (${VERT} ? 3.6 : 2.3), C.z - 6), d = vsub(m, c).norm();
     DBG.cam = { p: c, q: Quat.euler(Math.atan2(d.x, d.z), -Math.asin(d.y)) }; })()`);
   fs.writeFileSync(`${D}/f${String(f).padStart(4, '0')}.jpg`, await pasoFoto());
   if (f % 30 === 0) console.log('cuadro', f, ((Date.now() - t0) / 1000 / (f + 1)).toFixed(2), 's/cuadro');
