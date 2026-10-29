@@ -9,34 +9,41 @@ const R = GD.R = {};
 R.init = function (canvas) {
   const gl = R.gl = canvas.getContext('webgl2', { alpha: false, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: false });
   const vs = `#version 300 es
-  in vec2 p; in vec2 t; in vec4 c; uniform mat3 M; out vec2 vt; out vec4 vc;
-  void main(){ vec3 q = M*vec3(p,1.); gl_Position = vec4(q.xy,0.,1.); vt=t; vc=c; }`;
+  in vec2 p; in vec2 t; in vec4 c; in uvec4 e; uniform mat3 M; out vec2 vt; out vec4 vc; flat out uvec4 ve;
+  void main(){ vec3 q = M*vec3(p,1.); gl_Position = vec4(q.xy,0.,1.); vt=t; vc=c; ve=e; }`;
+  // un lote mezcla hasta 8 texturas, lo aditivo y lo blanco: e = (textura, aditivo, blanco)
+  // la salida va premultiplicada: lo aditivo sale con alfa 0 y la mezcla (1, 1-alfa) lo suma
   const fs = `#version 300 es
-  precision mediump float; in vec2 vt; in vec4 vc; uniform sampler2D T; uniform int modo; out vec4 o;
-  void main(){ vec4 x = texture(T, vt);
-    if (modo==1) x = vec4(1.,1.,1.,x.a);
-    o = x*vc; }`;
+  precision mediump float; in vec2 vt; in vec4 vc; flat in uvec4 ve; uniform sampler2D T[8]; out vec4 o;
+  void main(){ vec4 x; uint s = ve.x;
+    if (s < 4u) { if (s < 2u) x = s == 0u ? texture(T[0], vt) : texture(T[1], vt); else x = s == 2u ? texture(T[2], vt) : texture(T[3], vt); }
+    else { if (s < 6u) x = s == 4u ? texture(T[4], vt) : texture(T[5], vt); else x = s == 6u ? texture(T[6], vt) : texture(T[7], vt); }
+    if (ve.z == 1u) x = vec4(1.,1.,1.,x.a);
+    x *= vc; o = vec4(x.rgb*x.a, ve.y == 1u ? 0. : x.a); }`;
   const sh = (t, s) => { const h = gl.createShader(t); gl.shaderSource(h, s); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(h); return h; };
   const pr = R.prog = gl.createProgram();
   gl.attachShader(pr, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, fs));
-  gl.bindAttribLocation(pr, 0, 'p'); gl.bindAttribLocation(pr, 1, 't'); gl.bindAttribLocation(pr, 2, 'c');
+  gl.bindAttribLocation(pr, 0, 'p'); gl.bindAttribLocation(pr, 1, 't'); gl.bindAttribLocation(pr, 2, 'c'); gl.bindAttribLocation(pr, 3, 'e');
   gl.linkProgram(pr); gl.useProgram(pr);
-  R.uM = gl.getUniformLocation(pr, 'M'); R.uModo = gl.getUniformLocation(pr, 'modo');
-  R.MAX = 16384;
-  R.buf = new ArrayBuffer(R.MAX * 4 * 20); R.f32 = new Float32Array(R.buf); R.u32 = new Uint32Array(R.buf);
+  R.uM = gl.getUniformLocation(pr, 'M');
+  gl.uniform1iv(gl.getUniformLocation(pr, 'T'), [0, 1, 2, 3, 4, 5, 6, 7]);
+  R.MAX = 16384; R.ST = 6; // 6 palabras por vértice: x y u v color extra
+  R.buf = new ArrayBuffer(R.MAX * 4 * R.ST * 4); R.f32 = new Float32Array(R.buf); R.u32 = new Uint32Array(R.buf);
   R.vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, R.vbo); gl.bufferData(gl.ARRAY_BUFFER, R.buf.byteLength, gl.DYNAMIC_DRAW);
-  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 20, 0);
-  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 20, 8);
-  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.UNSIGNED_BYTE, true, 20, 16);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 24, 8);
+  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.UNSIGNED_BYTE, true, 24, 16);
+  gl.enableVertexAttribArray(3); gl.vertexAttribIPointer(3, 4, gl.UNSIGNED_BYTE, 24, 20);
   const idx = new Uint16Array(R.MAX * 6);
   for (let i = 0; i < R.MAX; i++) { idx.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 2, i * 4 + 1, i * 4 + 3], i * 6); }
   R.ibo = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, R.ibo); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
-  gl.enable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
-  R.n = 0; R.tex = null; R.add = false; R.modo = 0;
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.DEPTH_TEST);
+  R.n = 0; R.tex = null; R.slots = [null, null, null, null, null, null, null, null]; R.ns = 0;
   const w = new Uint8Array([255, 255, 255, 255]);
   R.blanco = R.texDe(w, 1, 1);
 };
 R.texDe = function (src, w, h) {
+  R.flush(); R.tex = null; // la textura nueva se ata en la unidad activa: el lote siguiente vuelve a atar las suyas
   const gl = R.gl, t = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, t);
   if (src instanceof Uint8Array) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, src);
@@ -46,37 +53,39 @@ R.texDe = function (src, w, h) {
   return { t, w: w || src.width, h: h || src.height };
 };
 R.repetir = function (tx) { // los fondos y pisos se repiten a lo ancho
-  const gl = R.gl; gl.bindTexture(gl.TEXTURE_2D, tx.t);
+  R.flush(); const gl = R.gl; gl.bindTexture(gl.TEXTURE_2D, tx.t);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); R.tex = null;
 };
 R.flush = function () {
   if (!R.n) return;
   const gl = R.gl;
-  gl.bufferSubData(gl.ARRAY_BUFFER, 0, R.f32, 0, R.n * 20);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, R.f32, 0, R.n * 4 * R.ST);
   gl.drawElements(gl.TRIANGLES, R.n * 6, gl.UNSIGNED_SHORT, 0);
   R.n = 0; R.draws++;
 };
 R.estado = function (tex, add, modo) {
-  if (tex !== R.tex || add !== R.add || modo !== R.modo || R.n >= R.MAX) {
-    R.flush();
-    const gl = R.gl;
-    if (tex !== R.tex) { gl.bindTexture(gl.TEXTURE_2D, tex.t); R.tex = tex; }
-    if (add !== R.add) { add ? gl.blendFunc(gl.SRC_ALPHA, gl.ONE) : gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); R.add = add; }
-    if (modo !== R.modo) { gl.uniform1i(R.uModo, modo); R.modo = modo; }
+  if (R.tex === null) { R.flush(); R.slots.fill(null); R.ns = 0; R.tex = true; } // alguien tocó las texturas atadas
+  if (R.n >= R.MAX) R.flush();
+  let k = R.slots.indexOf(tex);
+  if (k < 0) {
+    if (R.ns === 8) { R.flush(); R.slots.fill(null); R.ns = 0; }
+    k = R.ns++; R.slots[k] = tex;
+    const gl = R.gl; gl.activeTexture(gl.TEXTURE0 + k); gl.bindTexture(gl.TEXTURE_2D, tex.t);
   }
+  return k | (add ? 256 : 0) | (modo === 1 ? 65536 : 0);
 };
 // cuadrilátero: 4 esquinas ya transformadas (x0..y3) + uv + color empaquetado (abgr)
 R.quad = function (tex, add, modo, xs, uv, col) {
-  R.estado(tex, add, modo);
-  const f = R.f32, u = R.u32; let o = R.n * 20;
-  for (let i = 0; i < 4; i++) { f[o] = xs[i * 2]; f[o + 1] = xs[i * 2 + 1]; f[o + 2] = uv[i * 2]; f[o + 3] = uv[i * 2 + 1]; u[o + 4] = col; o += 5; }
+  const e = R.estado(tex, add, modo);
+  const f = R.f32, u = R.u32; let o = R.n * 24;
+  for (let i = 0; i < 4; i++) { f[o] = xs[i * 2]; f[o + 1] = xs[i * 2 + 1]; f[o + 2] = uv[i * 2]; f[o + 3] = uv[i * 2 + 1]; u[o + 4] = col; u[o + 5] = e; o += 6; }
   R.n++;
 };
 // igual pero con un color por esquina (degradados del selector de colores)
 R.quad4 = function (tex, add, xs, uv, cols) {
-  R.estado(tex, add, 0);
-  const f = R.f32, u = R.u32; let o = R.n * 20;
-  for (let i = 0; i < 4; i++) { f[o] = xs[i * 2]; f[o + 1] = xs[i * 2 + 1]; f[o + 2] = uv[i * 2]; f[o + 3] = uv[i * 2 + 1]; u[o + 4] = cols[i]; o += 5; }
+  const e = R.estado(tex, add, 0);
+  const f = R.f32, u = R.u32; let o = R.n * 24;
+  for (let i = 0; i < 4; i++) { f[o] = xs[i * 2]; f[o + 1] = xs[i * 2 + 1]; f[o + 2] = uv[i * 2]; f[o + 3] = uv[i * 2 + 1]; u[o + 4] = cols[i]; u[o + 5] = e; o += 6; }
   R.n++;
 };
 R.empezar = function (w, h, pw, ph) {
@@ -84,7 +93,7 @@ R.empezar = function (w, h, pw, ph) {
   gl.viewport(0, 0, pw, ph);
   gl.uniformMatrix3fv(R.uM, false, [2 / w, 0, 0, 0, 2 / h, 0, -1, -1, 1]);
   gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
-  R.tex = null; R.add = null; R.modo = -1;
+  R.tex = null;
 };
 GD.col = (r, g, b, a) => ((a & 255) << 24 | (b & 255) << 16 | (g & 255) << 8 | (r & 255)) >>> 0;
 
@@ -134,6 +143,13 @@ T.m = n => T.marcos[n] || T.marcos[n + '.png'];
 
 // ---------- nodos ----------
 const _xs = new Float32Array(8), _uv = new Float32Array(8);
+// sin cierres ni arreglos por cuadro: las 4 esquinas transformadas y las uv de un rectángulo
+R.esquinas = function (X, w, x0, y0, x1, y1) { // arriba-izq, arriba-der, abajo-izq, abajo-der
+  const a = w[0], b = w[1], c = w[2], d = w[3], e = w[4], f = w[5];
+  X[0] = a * x0 + c * y1 + e; X[1] = b * x0 + d * y1 + f; X[2] = a * x1 + c * y1 + e; X[3] = b * x1 + d * y1 + f;
+  X[4] = a * x0 + c * y0 + e; X[5] = b * x0 + d * y0 + f; X[6] = a * x1 + c * y0 + e; X[7] = b * x1 + d * y0 + f;
+};
+R.uvRect = function (U, u0, v0, u1, v1) { U[0] = u0; U[1] = v0; U[2] = u1; U[3] = v0; U[4] = u0; U[5] = v1; U[6] = u1; U[7] = v1; };
 class Nodo {
   constructor() {
     this.x = 0; this.y = 0; this.sx = 1; this.sy = 1; this.rot = 0; this.skx = 0; this.sky = 0;
@@ -179,9 +195,20 @@ class Nodo {
   caja() { return [0, 0, this.w, this.h]; }
   toca(x, y) { const [lx, ly] = this.aLocal(x, y); const [a, b, c, d] = this.caja(); return lx >= a && ly >= b && lx <= c && ly <= d; }
   actualizar(dt) {
-    if (this.acciones.length) for (const a of this.acciones.slice()) { a.paso(dt); if (a.fin) this.parar(a); }
+    // copia de la lista (alguno puede sacarse o agregar) en un arreglo reusado por profundidad: sin basura
+    const ac = this.acciones, na = ac.length;
+    if (na) {
+      const c = Nodo._copia(ac, na);
+      for (let i = 0; i < na; i++) { const a = c[i]; c[i] = null; a.paso(dt); if (a.fin) this.parar(a); }
+      Nodo._prof--;
+    }
     if (this.alActualizar) this.alActualizar(dt);
-    for (const h of this.hijos.slice()) h.actualizar(dt);
+    const hs = this.hijos, nh = hs.length;
+    if (nh) {
+      const c = Nodo._copia(hs, nh);
+      for (let i = 0; i < nh; i++) { const h = c[i]; c[i] = null; h.actualizar(dt); }
+      Nodo._prof--;
+    }
   }
   dibujar(pm, op, cr, cg, cb) {
     if (!this.vis) return;
@@ -202,6 +229,8 @@ class Nodo {
   pintar() { }
 }
 Nodo._c = 0;
+Nodo._pila = []; Nodo._prof = 0;
+Nodo._copia = function (l, n) { const c = Nodo._pila[Nodo._prof] || (Nodo._pila[Nodo._prof] = []); Nodo._prof++; for (let i = 0; i < n; i++) c[i] = l[i]; return c; };
 GD.Nodo = Nodo;
 
 class Sprite extends Nodo {
@@ -216,9 +245,8 @@ class Sprite extends Nodo {
     if (this.repX) { // textura suelta repetida a lo ancho (barras de progreso)
       if (!f.tx.rep) { GD.R.repetir(f.tx); f.tx.rep = true; }
       const ancho = this.repX * (this.recorte === undefined || this.recorte === null ? 1 : this.recorte), xs = _xs, uv = _uv;
-      const P = (i, x, y) => { xs[i] = w[0] * x + w[2] * y + w[4]; xs[i + 1] = w[1] * x + w[3] * y + w[5]; };
-      P(0, 0, f.sh); P(2, ancho, f.sh); P(4, 0, 0); P(6, ancho, 0);
-      const u1 = ancho / f.sw; uv.set([0, 0, u1, 0, 0, 1, u1, 1]);
+      R.esquinas(xs, w, 0, 0, ancho, f.sh);
+      R.uvRect(uv, 0, 0, ancho / f.sw, 1);
       R.quad(f.tx, this.add, this.modo, xs, uv, GD.col(r, g, b, o)); return;
     }
     // el recorte de la hoja va centrado en el tamaño original más el desplazamiento
@@ -227,23 +255,18 @@ class Sprite extends Nodo {
     if (this.fy) { const t = f.sh - y0; y0 = f.sh - y1; y1 = t; }
     if (this.recorte) { const k = this.recorte; x1 = x0 + (x1 - x0) * k; } // barras de progreso
     const xs = _xs, uv = _uv;
-    const P = (i, x, y) => { xs[i] = w[0] * x + w[2] * y + w[4]; xs[i + 1] = w[1] * x + w[3] * y + w[5]; };
-    P(0, x0, y1); P(2, x1, y1); P(4, x0, y0); P(6, x1, y0); // arriba-izq, arriba-der, abajo-izq, abajo-der
+    R.esquinas(xs, w, x0, y0, x1, y1);
     const tw = f.tx.w, th = f.tx.h;
-    let u0 = f.x / tw, v0 = f.y / th;
+    const u0 = f.x / tw, v0 = f.y / th;
     const kx = this.recorte || 1;
+    // esquinas en orden arriba-izq, arriba-der, abajo-izq, abajo-der; espejar = cambiar columnas o filas
+    const i0 = (this.fx ? 2 : 0) + (this.fy ? 4 : 0), i1 = i0 ^ 2, i2 = i0 ^ 4, i3 = i0 ^ 6;
     if (!f.rot) {
       const u1 = (f.x + f.w * kx) / tw, v1 = (f.y + f.h) / th;
-      let a = [u0, v0, u1, v0, u0, v1, u1, v1];
-      if (this.fx) a = [a[2], a[3], a[0], a[1], a[6], a[7], a[4], a[5]];
-      if (this.fy) a = [a[4], a[5], a[6], a[7], a[0], a[1], a[2], a[3]];
-      uv.set(a);
+      uv[i0] = u0; uv[i0 + 1] = v0; uv[i1] = u1; uv[i1 + 1] = v0; uv[i2] = u0; uv[i2 + 1] = v1; uv[i3] = u1; uv[i3 + 1] = v1;
     } else { // en la hoja está girado 90° en sentido horario: ancho y alto cambiados
       const u1 = (f.x + f.h) / tw, v1 = (f.y + f.w * kx) / th;
-      let a = [u1, v0, u1, v1, u0, v0, u0, v1];
-      if (this.fx) a = [a[2], a[3], a[0], a[1], a[6], a[7], a[4], a[5]];
-      if (this.fy) a = [a[4], a[5], a[6], a[7], a[0], a[1], a[2], a[3]];
-      uv.set(a);
+      uv[i0] = u1; uv[i0 + 1] = v0; uv[i1] = u1; uv[i1 + 1] = v1; uv[i2] = u0; uv[i2 + 1] = v0; uv[i3] = u0; uv[i3 + 1] = v1;
     }
     R.quad(f.tx, this.add, this.modo, xs, uv, GD.col(r, g, b, o));
   }
@@ -290,21 +313,21 @@ class Texto extends Nodo {
       for (const ch of l) {
         const id = ch.codePointAt(0), c = F.chars[id] || F.chars[63]; if (!c) continue;
         if (prev && F.kern[prev + ',' + id]) x += F.kern[prev + ',' + id] / 2;
-        if (c[2] > 0) this.letras.push({ x: x + c[4] / 2, y: yb - c[5] / 2 - c[3] / 2, c });
+        if (c[2] > 0) this.letras.push({ x: x + c[4] / 2, y: yb - c[5] / 2 - c[3] / 2, c, u0: 0, v0: 0, u1: 0, v1: 0, tw: 0 });
         x += c[6] / 2; prev = id;
       }
     });
   }
-  _ancho(l, F) { let a = 0; for (const ch of l) { const c = F.chars[ch.codePointAt(0)] || F.chars[63]; if (c) a += c[6] / 2; } return a; }
+  _ancho(l, F) { let a = 0; for (let i = 0; i < l.length; i++) { const k = l.codePointAt(i); if (k > 0xffff) i++; const c = F.chars[k] || F.chars[63]; if (c) a += c[6] / 2; } return a; }
   pintar(w, o, r, g, b) {
     const F = GD.fuentes[this.fuente]; if (!F || !F.tx || o <= 0) return;
     const tw = F.tx.w, th = F.tx.h, col = GD.col(r, g, b, o);
-    for (const L of this.letras) {
-      const c = L.c, x0 = L.x, y0 = L.y, x1 = x0 + c[2] / 2, y1 = y0 + c[3] / 2;
-      const P = (i, x, y) => { _xs[i] = w[0] * x + w[2] * y + w[4]; _xs[i + 1] = w[1] * x + w[3] * y + w[5]; };
-      P(0, x0, y1); P(2, x1, y1); P(4, x0, y0); P(6, x1, y0);
-      const u0 = c[0] / tw, v0 = c[1] / th, u1 = (c[0] + c[2]) / tw, v1 = (c[1] + c[3]) / th;
-      _uv.set([u0, v0, u1, v0, u0, v1, u1, v1]);
+    const ls = this.letras;
+    for (let i = 0; i < ls.length; i++) {
+      const L = ls[i], c = L.c;
+      if (L.tw !== tw) { L.tw = tw; L.u0 = c[0] / tw; L.v0 = c[1] / th; L.u1 = (c[0] + c[2]) / tw; L.v1 = (c[1] + c[3]) / th; }
+      R.esquinas(_xs, w, L.x, L.y, L.x + c[2] / 2, L.y + c[3] / 2);
+      R.uvRect(_uv, L.u0, L.v0, L.u1, L.v1);
       R.quad(F.tx, false, 0, _xs, _uv, col);
     }
   }
@@ -460,8 +483,10 @@ D.instalarToques = function (c) {
   c.addEventListener('pointerup', e => dar('fin', e));
   c.addEventListener('pointercancel', e => dar('fin', e));
   c.addEventListener('contextmenu', e => e.preventDefault());
-  window.addEventListener('keydown', e => { if (e.repeat) return; D.escena && D.escena.alTecla && D.escena.alTecla(e.code, true, e); });
-  window.addEventListener('keyup', e => { D.escena && D.escena.alTecla && D.escena.alTecla(e.code, false, e); });
+  // las teclas van a la ventana de arriba (como los toques); si no las atiende, a la escena
+  D.destinoTecla = () => { const t = D.pila[D.pila.length - 1]; return t && t.alTecla ? t : D.escena; };
+  window.addEventListener('keydown', e => { if (e.repeat) return; const d = D.destinoTecla(); d && d.alTecla && d.alTecla(e.code, true, e); });
+  window.addEventListener('keyup', e => { const d = D.destinoTecla(); d && d.alTecla && d.alTecla(e.code, false, e); });
   c.addEventListener('wheel', e => { D.escena && D.escena.alRueda && D.escena.alRueda(e.deltaY, ...D.aPuntos(e)); }, { passive: true });
 };
 

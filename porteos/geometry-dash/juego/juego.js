@@ -4,6 +4,7 @@
 const TYP = GD.O.TIPO;
 const SEC = 100; // ancho de sección (como el juego) para buscar objetos cerca
 
+const porRango = (a, b) => a.rango - b.rango;
 class Partida extends GD.Nodo {
   // op: {texto (nivel ya descomprimido), info:{nombre, id, oficial, cancion, ...}, practica, editor (prueba desde el editor), desde (x inicial)}
   constructor(op) {
@@ -269,25 +270,27 @@ class Partida extends GD.Nodo {
     j.sobreTecho = arriba;
   }
   // objetos cerca del jugador
-  cerca(j, margen = 60) {
-    const s0 = Math.max(0, Math.floor((j.x - margen) / SEC)), s1 = Math.floor((j.x + margen) / SEC), r = [];
+  cerca(j, margen = 60, r = []) { // r: arreglo propio de quien llama (se reusa: sin basura)
+    r.length = 0;
+    const s0 = Math.max(0, Math.floor((j.x - margen) / SEC)), s1 = Math.floor((j.x + margen) / SEC);
     for (let s = s0; s <= s1; s++) { const a = this.secs[s]; if (a) for (const o of a) r.push(o); }
     return r;
   }
   // caja (centro y medias medidas) de un objeto, rotada con él si hace falta
   caja(o) {
     const hb = o.d.hb; let w, h, ox = 0, oy = 0;
-    if (hb) { w = hb[1]; h = hb[2]; ox = hb[3]; oy = hb[4]; if (hb[0] === 'C') { return { circ: true, x: o.cx, y: o.cy, r: hb[1] * Math.abs(o.sx) }; } }
+    const C = o._cj || (o._cj = { circ: false, x: 0, y: 0, w: 0, h: 0, r: 0, ang: 0 }); // reusada: sin basura por paso
+    if (hb) { w = hb[1]; h = hb[2]; ox = hb[3]; oy = hb[4]; if (hb[0] === 'C') { C.circ = true; C.x = o.cx; C.y = o.cy; C.r = hb[1] * Math.abs(o.sx); C.w = C.h = C.ang = 0; return C; } }
     else { const f = o.partes.length ? o.partes[o.partes.length - 1].f : null; w = f ? f.sw : 30; h = f ? f.sh : 30; }
     w *= Math.abs(o.sx); h *= Math.abs(o.sy); ox *= o.sx * (o.fx ? -1 : 1); oy *= o.sy * (o.fy ? -1 : 1);
     const r = ((o.rot + o.drot) % 360 + 360) % 360;
     if (r % 90 === 0) {
       if (r === 90 || r === 270) { [w, h] = [h, w]; [ox, oy] = r === 90 ? [oy, -ox] : [-oy, ox]; }
       else if (r === 180) { ox = -ox; oy = -oy; }
-      return { x: o.cx + ox, y: o.cy + oy, w: w / 2, h: h / 2 };
+      C.circ = false; C.x = o.cx + ox; C.y = o.cy + oy; C.w = w / 2; C.h = h / 2; C.ang = 0; return C;
     }
     const a = -r * Math.PI / 180;
-    return { x: o.cx + ox * Math.cos(a) - oy * Math.sin(a), y: o.cy + ox * Math.sin(a) + oy * Math.cos(a), w: w / 2, h: h / 2, ang: a };
+    C.circ = false; C.x = o.cx + ox * Math.cos(a) - oy * Math.sin(a); C.y = o.cy + ox * Math.sin(a) + oy * Math.cos(a); C.w = w / 2; C.h = h / 2; C.ang = a; return C;
   }
   // ¿el rectángulo del jugador (centro px,py; media s) toca la caja?
   toca(c, px, py, sx, sy) {
@@ -315,7 +318,7 @@ class Partida extends GD.Nodo {
     }
     if (techo !== null && j.y + hs >= techo) { j.tocarSuelo(techo, true); apoyado = true; }
     if (j.grav < 0 && !lim && j.y - hs <= piso) { j.y = piso + hs; if (j.yv < 0) j.yv = 0; }
-    const cerca = this.cerca(j);
+    const cerca = this.cerca(j, 60, j._cerca || (j._cerca = []));
     const dy = j.y - j.prevY;
     for (const o of cerca) {
       if (!o.activo || o.oculto || o.muerto) continue;
@@ -428,7 +431,6 @@ class Partida extends GD.Nodo {
       case TYP.PORTAL_SOLO: if (j.tocados.has(o)) return; j.tocados.add(o); portal(); this.activarDual(false, o); return;
       case TYP.TELEPORT: {
         if (j.tocados.has(o)) return; j.tocados.add(o);
-        const sal = this.objs.find(p => p.id === 749 && p.raw[GD.TR ? 0 : 0] === undefined && p.x > o.x - 1 && Math.abs(p.x - o.x) < 1e9 && p.n === o.n + 1) ;
         const dyT = o.raw[54] !== undefined ? +o.raw[54] : 100; j.y = o.cy + dyT; return;
       }
       case TYP.MODIFICADOR:
@@ -495,7 +497,7 @@ class Partida extends GD.Nodo {
   teleportArana(j, pad) {
     // la araña "cae" de golpe hasta la superficie de enfrente y se da vuelta
     const dir = -j.grav, hs = j.alto / 2; let mejor = dir > 0 ? (this.limites ? this.limites.arriba : 1e6) : (this.limites ? this.limites.abajo : 0);
-    const cerca = this.cerca(j, 30);
+    const cerca = this.cerca(j, 30, j._cerca30 || (j._cerca30 = []));
     for (const o of cerca) {
       if (o.ty !== TYP.SOLIDO || !o.activo || o.noTocar) continue;
       const c = this.caja(o); if (c.circ || Math.abs(c.x - j.x) > c.w + hs * 0.8) continue;
@@ -624,14 +626,16 @@ class Partida extends GD.Nodo {
     if (this.camRot) { const a = -this.camRot * Math.PI / 180, c = Math.cos(a), s = Math.sin(a), cx = D.ancho / 2, cy = D.alto / 2; const m = [c, s, -s, c, cx - c * cx + s * cy, cy - s * cx - c * cy]; w = new Float32Array([m[0] * w[0] + m[2] * w[1], m[1] * w[0] + m[3] * w[1], m[0] * w[2] + m[2] * w[3], m[1] * w[2] + m[3] * w[3], m[0] * w[4] + m[2] * w[5] + m[4], m[1] * w[4] + m[3] * w[5] + m[5]]); }
     this.vista = w;
     const x0 = vx - 100, x1 = vx + D.ancho / zoom + 100;
-    const vis = [];
-    for (let s = Math.max(0, Math.floor(x0 / SEC)), s1 = Math.floor(x1 / SEC); s <= s1; s++) { const a = this.secs[s]; if (a) for (const o of a) vis.push(o); }
-    vis.sort((a, b) => a.rango - b.rango);
+    const vis = this._visA || (this._visA = []); vis.length = 0; // arreglos reusados cuadro a cuadro
+    for (let s = Math.max(0, Math.floor(x0 / SEC)), s1 = Math.floor(x1 / SEC); s <= s1; s++) { const a = this.secs[s]; if (a) for (let i = 0; i < a.length; i++) vis.push(a[i]); }
+    vis.sort(porRango);
     const editor = !!this.enEditor;
-    const vis2 = editor ? vis : vis.filter(o => o.vis && !o.oculto && (!GD.O.esTrigger(o.id) || o.id === 1615) && o.op > 0.001);
+    let vis2 = vis;
+    if (!editor) { vis2 = this._visB || (this._visB = []); vis2.length = 0; for (let i = 0; i < vis.length; i++) { const o = vis[i]; if (o.vis && !o.oculto && (!GD.O.esTrigger(o.id) || o.id === 1615) && o.op > 0.001) vis2.push(o); } }
     GD.O.partida = this; this._visibles = vis2;
     if (!editor) this.efectosBorde(vis2, x0 + 100, x1 - 100);
-    const emisores = vis.filter(o => o.pdef && (editor || (o.vis && !o.oculto)));
+    const emisores = this._emis || (this._emis = []); emisores.length = 0;
+    for (let i = 0; i < vis.length; i++) { const o = vis[i]; if (o.pdef && (editor || (o.vis && !o.oculto))) emisores.push(o); }
     GD.O.dibujarObjetos(vis2, w, this.cols, { capaJugador: GD.O.CAPA_JUGADOR, jugadores: () => this.dibujarJugadores(w), opacidad: this.fundidoBorde ? o => this.fundidoBorde(o) : null,
       emisores: emisores.length ? emisores : null, dibujarEmisor: o => this.dibujarEmisor(o, w) });
 

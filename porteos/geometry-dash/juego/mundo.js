@@ -146,6 +146,9 @@ class Obj {
     this.grupos = GD.N.grupos(raw);
     this.ty = d.ty !== undefined ? d.ty : TY.DECO;
     this.op = 1; this.vis = !(raw[135] == 1); this.dx = 0; this.dy = 0; this.drot = 0; this.activo = true;
+    // lo que cambia cada cuadro, declarado de entrada como número con decimales (forma fija: sin basura ni cambios de clase)
+    this.vx = 0.5; this.vy = 0.5; this.ve = 0.5; this.fb = 0.5; this.rango = 0.5;
+    this.vx = 0; this.vy = 0; this.ve = 1; this.fb = 1; this.rango = 0;
     this.noGlow = raw[96] == 1; this.noTocar = raw[121] == 1; this.altoDetalle = raw[103] == 1;
     this.partes = O.partes(this);
     // objeto de partículas de la 2.2: la definición va en la clave 145
@@ -262,30 +265,33 @@ O.pintarParte = function (w, p, col, add) {
 O.colorParte = function (o, p, cols) {
   let id, hsv;
   if (p.ct === 'd') { id = o.c2; hsv = o.h2; } else if (p.ct === 'b' || p.ct === 'glow') { id = o.c1; hsv = o.h1; } else if (p.ct === 'k') { id = o.c1 > 0 ? o.c1 : o.c2; }
-  else return [255, 255, 255, 1, false];
+  else { const c = _cp; c[0] = c[1] = c[2] = 255; c[3] = 1; c[4] = false; return c; }
   if (id === undefined || id < 0) id = p.ct === 'd' ? 0 : 1004;
   if (id === 0) id = p.ct === 'd' ? 1011 : 1004;
   const v = cols.valor(id);
-  if (p.ct === 'k') return [0, 0, 0, v.op, false];
-  let rgb = [v.r, v.g, v.b];
+  if (p.ct === 'k') { const c = _cp; c[0] = c[1] = c[2] = 0; c[3] = v.op; c[4] = false; return c; }
+  let rgb = _rgb; rgb[0] = v.r; rgb[1] = v.g; rgb[2] = v.b;
   if (hsv) rgb = O.aplicarHSV(rgb, hsv);
   if (o.pulsos) for (const pu of o.pulsos) if (!pu.soloDetalle || p.ct === 'd') if (!pu.soloBase || p.ct !== 'd') rgb = O.mezclarPulso(rgb, pu);
   // tinte de los triggers de área (3010)
   const ta = o.tinteArea; if (ta && (!ta.det || p.ct === 'd') && (!ta.base || p.ct !== 'd')) { const d = ta.hsv ? O.aplicarHSV(rgb, GD.N.hsv(ta.hsv), ta.rgb) : ta.rgb; rgb = [rgb[0] + (d[0] - rgb[0]) * ta.k, rgb[1] + (d[1] - rgb[1]) * ta.k, rgb[2] + (d[2] - rgb[2]) * ta.k]; }
-  return [rgb[0], rgb[1], rgb[2], v.op, v.add || p.ct === 'glow'];
+  const c = _cp; c[0] = rgb[0]; c[1] = rgb[1]; c[2] = rgb[2]; c[3] = v.op; c[4] = v.add || p.ct === 'glow'; return c;
 };
+// lo que devuelve colorParte se usa enseguida (quien lo guarda, lo copia): un solo arreglo reusado
+const _cp = [0, 0, 0, 1, false], _rgb = [0, 0, 0];
 
 // ---------------- dibujo por tandas (como las capas de lotes del juego) ----------------
 // cada capa Z se dibuja en este orden: brillos, objetos comunes (agrupados por hoja) y los que
 // mezclan aditivo (agrupados por hoja). Así hay pocas tandas por cuadro y el orden es el del juego.
 const _mo = new Float32Array(6);
-let _mats = new Float32Array(6 * 4096);
+let _mats = new Float32Array(6 * 4096), _colores = new Uint32Array(8192);
 O.dibujarObjetos = function (vis, w, cols, op) {
   // op: {editor, capaEd, jugadores (fn), capaJugador, opacidad(o)}
   const n = vis.length;
   if (_mats.length < n * 6) _mats = new Float32Array(n * 12);
   const capas = O._capas || (O._capas = []);
   for (const c of capas) if (c) c.length = 0;
+  let nc = 0; // los colores (32 bits) van en un arreglo tipado: en una lista común serían basura por cuadro
   for (let i = 0; i < n; i++) {
     const o = vis[i];
     const capa = O.ORDEN_CAPA[o.capa] ?? 6;
@@ -307,7 +313,8 @@ O.dibujarObjetos = function (vis, w, cols, op) {
       const tx = p.texto !== undefined ? ((GD.fuentes[O.fuente] || GD.fuentes.bigFont || {}).tx || GD.R.blanco) : (p.anim ? p.anim[0] : p.f).tx;
       const modo = p.ct === 'glow' ? 0 : (c[4] && !o.selec) ? 2 : 1;
       let lista = capas[capa * 3 + modo]; if (!lista) lista = capas[capa * 3 + modo] = [];
-      lista.push(tx, k, p, col);
+      if (nc >= _colores.length) { const v = _colores; _colores = new Uint32Array(v.length * 2); _colores.set(v); }
+      _colores[nc] = col; lista.push(tx, k, p, nc++);
     }
   }
   // dentro de cada tanda, hoja por hoja (el orden entre objetos de la misma hoja se mantiene)
@@ -323,7 +330,7 @@ O.dibujarObjetos = function (vis, w, cols, op) {
         if (lista[i] !== tx) continue;
         const k = lista[i + 1];
         _mo[0] = _mats[k]; _mo[1] = _mats[k + 1]; _mo[2] = _mats[k + 2]; _mo[3] = _mats[k + 3]; _mo[4] = _mats[k + 4]; _mo[5] = _mats[k + 5];
-        O.pintarParte(_mo, lista[i + 2], lista[i + 3], add);
+        O.pintarParte(_mo, lista[i + 2], _colores[lista[i + 3]], add);
       }
       if (modo === 2 && op.emisores) O.emisoresCapa(op, capa);
     }

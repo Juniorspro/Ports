@@ -133,8 +133,9 @@ const preparar = function () {
 // empieza a dibujar el mundo en la textura (si hay efectos); devuelve si quedó activo
 SH.empezar = function (p) {
   if (!SH.activo(p.tr && p.tr.sh)) return false;
+  R.flush();
   try { preparar(); } catch (e) { GD.D.error(e); SH.roto = true; return false; }
-  const gl = R.gl; R.flush(); gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.viewport(0, 0, fw, fh); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  const gl = R.gl; R.tex = null; gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.viewport(0, 0, fw, fh); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
   return true;
 };
 SH.terminar = function (p) {
@@ -164,8 +165,8 @@ SH.terminar = function (p) {
   // un cuadro de pantalla completa con la textura (y invertida: la textura del framebuffer viene de abajo)
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, ftex); gl.disable(gl.BLEND);
   const f = R.f32, u = R.u32, W = D.ancho, Hh = D.alto, q = [[0, Hh, 0, 1], [W, Hh, 1, 1], [0, 0, 0, 0], [W, 0, 1, 0]];
-  for (let i = 0; i < 4; i++) { const o = i * 5; f[o] = q[i][0]; f[o + 1] = q[i][1]; f[o + 2] = q[i][2]; f[o + 3] = q[i][3]; u[o + 4] = 0xffffffff; }
-  gl.bufferSubData(gl.ARRAY_BUFFER, 0, R.f32, 0, 20); gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-  gl.enable(gl.BLEND); gl.useProgram(R.prog); R.tex = null; R.add = null; R.modo = -1;
+  for (let i = 0; i < 4; i++) { const o = i * R.ST; f[o] = q[i][0]; f[o + 1] = q[i][1]; f[o + 2] = q[i][2]; f[o + 3] = q[i][3]; u[o + 4] = 0xffffffff; u[o + 5] = 0; }
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, R.f32, 0, 4 * R.ST); gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+  gl.enable(gl.BLEND); gl.useProgram(R.prog); R.tex = null;
 };
 })();

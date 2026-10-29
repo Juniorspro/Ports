@@ -13,20 +13,21 @@ class Cuadro extends Nodo {
   pintar(w, o, r, g, b) {
     const f = this.f; if (!f || o <= 0) return;
     const col = GD.col(r, g, b, o), tw = f.tx.w, th = f.tx.h, B = this.b, bp = B * 2; // borde en puntos y en píxeles
-    const xs = [0, B, this.w - B, this.w], ys = [0, B, this.h - B, this.h];
-    const us = [f.x, f.x + bp, f.x + f.w - bp, f.x + f.w], vs = [f.y + f.h, f.y + f.h - bp, f.y + bp, f.y];
-    const X = new Float32Array(8), UV = new Float32Array(8);
+    const xs = Cuadro._xs, ys = Cuadro._ys, us = Cuadro._us, vs = Cuadro._vs;
+    xs[0] = 0; xs[1] = B; xs[2] = this.w - B; xs[3] = this.w; ys[0] = 0; ys[1] = B; ys[2] = this.h - B; ys[3] = this.h;
+    us[0] = f.x; us[1] = f.x + bp; us[2] = f.x + f.w - bp; us[3] = f.x + f.w; vs[0] = f.y + f.h; vs[1] = f.y + f.h - bp; vs[2] = f.y + bp; vs[3] = f.y;
+    const X = Cuadro._X, UV = Cuadro._UV, R = GD.R;
     for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
       const x0 = xs[i], x1 = xs[i + 1], y0 = ys[j], y1 = ys[j + 1];
       if (x1 <= x0 || y1 <= y0) continue;
-      const P = (k, x, y) => { X[k] = w[0] * x + w[2] * y + w[4]; X[k + 1] = w[1] * x + w[3] * y + w[5]; };
-      P(0, x0, y1); P(2, x1, y1); P(4, x0, y0); P(6, x1, y0);
-      const u0 = us[i] / tw, u1 = us[i + 1] / tw, v0 = vs[j + 1] / th, v1 = vs[j] / th;
-      UV.set([u0, v0, u1, v0, u0, v1, u1, v1]);
-      GD.R.quad(f.tx, false, 0, X, UV, col);
+      R.esquinas(X, w, x0, y0, x1, y1);
+      R.uvRect(UV, us[i] / tw, vs[j + 1] / th, us[i + 1] / tw, vs[j] / th);
+      R.quad(f.tx, false, 0, X, UV, col);
     }
   }
 }
+Cuadro._X = new Float32Array(8); Cuadro._UV = new Float32Array(8);
+Cuadro._xs = new Float64Array(4); Cuadro._ys = new Float64Array(4); Cuadro._us = new Float64Array(4); Cuadro._vs = new Float64Array(4);
 U.Cuadro = Cuadro;
 // cuadro negro translúcido cuyo contenido no se oscurece (las cajas de niveles y listas)
 U.cajaOscura = function (w, h, op = 125, tex = 'square02_001.png', borde = 15) { const c = new Cuadro(tex, w, h, borde); c.color(0, 0, 0); c.op = op; c.cascada = false; c.cascadaOp = false; return c; };
