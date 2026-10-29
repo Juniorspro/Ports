@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Sube el sitio armado (armar.sh) a R2 y publica el Worker con la puerta de clave; deja el lanzador abrir.html.
 
-    publicar.py SITIO ABRIR_HTML
+    publicar.py SITIO ABRIR_HTML [APK]
+
+Con APK, se sube como BO-Zombies.apk: el link https://.../<clave>/BO-Zombies.apk lo descarga al abrirlo.
 
 Lee CLOUDFLARE_API_TOKEN y CLOUDFLARE_ACCOUNT_ID del entorno. La clave se genera una vez y se guarda FUERA del
 repo (/tmp/claude-0/cf/clave-cod-zombies); el lanzador la lleva adentro: es sólo para el dueño, nunca al repo.
@@ -43,6 +45,7 @@ def subir(clave_r2, datos, tipo, hechos):
 
 def main():
     sitio, abrir = sys.argv[1], sys.argv[2]
+    apk = sys.argv[3] if len(sys.argv) > 3 else None
     os.makedirs('/tmp/claude-0/cf', exist_ok=True)
     arch_clave = '/tmp/claude-0/cf/clave-cod-zombies'
     if not os.path.exists(arch_clave):
@@ -73,6 +76,9 @@ def main():
                     i += 1
             subir(k + '.partes', json.dumps({'tam': tam, 'parte': PARTE}).encode(), 'application/json', hechos)
 
+    if apk:
+        subir('BO-Zombies.apk', open(apk, 'rb').read(), 'application/vnd.android.package-archive', hechos)
+
     # Worker (módulo) con el balde y la clave
     limite = '----' + uuid.uuid4().hex
     meta = {'main_module': 'worker.js', 'compatibility_date': '2024-09-23',
@@ -102,6 +108,9 @@ def main():
 </body></html>
 ''')
     print('publicado; lanzador en', abrir)
+    if apk:
+        open(abrir + '.descarga.txt', 'w').write(url + 'BO-Zombies.apk\n')
+        print('link de descarga del APK en', abrir + '.descarga.txt')
 
 
 if __name__ == '__main__':

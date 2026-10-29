@@ -45,6 +45,8 @@ export default {
     const ruta = decodeURIComponent(resto.join('/')) || 'web.html';
     const ext = ruta.split('.').pop();
     const cab = { ...cors, 'Content-Type': TIPOS[ext] || 'application/octet-stream', 'Accept-Ranges': 'bytes', 'Cache-Control': ext === 'html' || ext === 'js' ? 'no-cache' : 'private, max-age=604800' };
+    // el APK se descarga solo al abrir el link
+    if (ext === 'apk') { cab['Content-Type'] = 'application/vnd.android.package-archive'; cab['Content-Disposition'] = 'attachment; filename="' + ruta.split('/').pop() + '"'; }
     const m = await manifiesto(env, ruta);
     if (m) {
       const r = rango(req.headers.get('Range'), m.tam) || [0, m.tam - 1];
