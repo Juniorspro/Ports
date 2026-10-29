@@ -4,7 +4,7 @@ import os, sys, json, base64, gzip
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PK, OUT = sys.argv[1], sys.argv[2]
 ORDEN = ['nucleo', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'armas',
-         'vehiculos', 'herramientas', 'personas', 'humano', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'menu', 'principal']
+         'vehiculos', 'herramientas', 'personas', 'humano', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'menu', 'inicio', 'principal']
 js = '(() => {\n"use strict";\n' + '\n'.join(open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read() for n in ORDEN) + '\n})();'
 # paquete: un solo bloque con índice
 partes = [('d', open(os.path.join(PK, 'd.json.gz'), 'rb').read()), ('m', open(os.path.join(PK, 'm.bin.gz'), 'rb').read())]
@@ -22,6 +22,7 @@ MQTT = os.environ.get('MQTT_JS', '')  # mqtt.min.js 5.x bajado aparte (no va al 
 html = html.replace('/*MQTT*/', open(MQTT, encoding='utf-8').read().replace('</script', '<\\/script') if MQTT else '')
 J = lambda n: base64.b64encode(open(os.path.join(AQUI, 'juego', n), 'rb').read()).decode()
 html = html.replace('/*INTRO*/', J('intro.mp4')).replace('/*INTROIMG*/', J('intro.jpg')).replace('/*INTROWEBM*/', J('intro.webm'))
+js = js.replace('/*LOGORB*/', J('logo_rezobox.webp'))
 html = html.replace('/*PKIDX*/', json.dumps(idx, separators=(',', ':'))).replace('/*PK*/', base64.b64encode(bytes(blob)).decode()).replace('/*JS*/', js)
 open(OUT, 'w', encoding='utf-8').write(html)
 print('ok', OUT, round(os.path.getsize(OUT) / 1e6, 2), 'MB', 'js', len(js) // 1024, 'KB', 'partes', len(partes))

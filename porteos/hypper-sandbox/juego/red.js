@@ -21,7 +21,7 @@ function idRed() {
 // corta), por una conexión aparte y liviana que también se usa en el menú para ver quién juega dónde.
 let SALA = null;
 const LISTA = { cli: null, on: false, pres: new Map(), ultP: 0 };
-const SALAS_OF = MAPAS.map((m) => ({ id: 'f_' + m + '_1', n: 'Hypper ' + m, m, mo: 'Free', mx: 20, of: 1, pvp: 1, rpg: 1, nb: 1, mp: 1000, mv: 40 }));
+const SALAS_OF = MAPAS.map((m) => ({ id: 'f_' + m + '_1', n: 'RezoBox ' + m, m, mo: 'Free', mx: 20, of: 1, pvp: 1, rpg: 1, nb: 1, mp: 1000, mv: 40 }));
 function hashTxt(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
 function topicoSala(S) { return NS + (S.of ? S.id : 'r_' + S.id + (S.clave ? '_' + hashTxt('k' + S.id + S.clave) : '')); }
 function salaLimpia(x) {

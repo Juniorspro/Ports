@@ -94,7 +94,7 @@ function empezarPartida(mapa) {
   PH.bodies.length = 0; PH.joints.length = 0; PROY.length = 0; PART.l.length = 0;
   if (typeof personasLimpiar === 'function') personasLimpiar();
   cargarMapa(mapa); aplicarGfx();
-  jugadorAparecer();
+  jugadorAparecer(); aplicarMods();
   ARM.lista = ['RPG', 'Pistol', 'Camera', 'Hands', 'ToolBaton', 'PhysicsGun'];
   if (typeof SALA !== 'undefined' && SALA && !SALA.rpg) ARM.lista = ARM.lista.filter((a) => a !== 'RPG');
   ARM.balas = {}; elegirArma(ARM.lista.length - 1);
@@ -110,7 +110,7 @@ function irMenuPrincipal() {
   JUEGO.estado = 'principal'; $('hud').classList.add('oc'); soltarPuntero(); cerrarPaneles();
   if (typeof SALA !== 'undefined') SALA = null;
   HOST.ds = false;
-  menuMostrar(true);
+  inicioMostrar(true);
 }
 function morirJugador() {
   JUG.vivo = false; JUG.muertoT = 3; soltarAgarre(); soltarGrav();
@@ -157,7 +157,7 @@ function atenderPulsos() {
 const _proj = new Float32Array(16), _vp2 = new Float32Array(16);
 function cuadro(ahora) {
   requestAnimationFrame(cuadro);
-  const t = ahora / 1000, dt = Math.min(0.1, Math.max(0, t - (TIEMPO.ult || t))); TIEMPO.ult = t; TIEMPO.dt = dt; TIEMPO.t += dt;
+  const t = ahora / 1000, dt = Math.min(0.1, Math.max(0, t - (TIEMPO.ult || t))) * (MODS.lenta && JUEGO.estado === 'juego' ? 0.5 : 1); TIEMPO.ult = t; TIEMPO.dt = dt; TIEMPO.t += dt;
   const t0 = performance.now();
   if (JUEGO.estado === 'carga') return;
   entradaLeer(); atenderPulsos();
@@ -337,7 +337,7 @@ async function iniciar() {
     paso('menú'); menuIniciar(); pantallaIniciar();
     paso('primer cuadro');
     if (Q.get('mapa')) empezarPartida(Q.get('mapa'));
-    else { JUEGO.estado = 'principal'; menuMostrar(true); }
+    else { JUEGO.estado = 'principal'; inicioMostrar(true); }
     cuadro(performance.now());
   } catch (e) { console.error(e); falloInicio(e); return; }
   INI.ok = true; INI.paso = 'listo';

@@ -71,7 +71,7 @@ function disparar() {
   const o = CAM.pos.clone();
   switch (D.tipo) {
     case 'bala': case 'perdigones': {
-      ARM.balas[n]--;
+      if (!MODS.balas) ARM.balas[n]--;
       const k = D.tipo === 'perdigones' ? 8 : 1;
       for (let i = 0; i < k; i++) impactoBala(o, rayoDesdeCamara(D.tipo === 'perdigones' ? 0.06 : (D.disp || 0.004) * (ARM.zoom ? 0.2 : 1)), D, D.dan);
       if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego);
@@ -81,12 +81,12 @@ function disparar() {
       break;
     }
     case 'cohete': {
-      ARM.balas[n]--; if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego); sonar(D.sF, null, 0.8);
+      if (!MODS.balas) ARM.balas[n]--; if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego); sonar(D.sF, null, 0.8);
       lanzarProyectil('RPG Rocket', o, CAM.fwd, 38, 0, D.dan, true);
       break;
     }
     case 'flecha': {
-      ARM.balas[n]--; if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego); sonar(D.sF, null, 0.8);
+      if (!MODS.balas) ARM.balas[n]--; if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego); sonar(D.sF, null, 0.8);
       lanzarProyectil('Arrow', o, CAM.fwd, 70, 1, D.dan, false);
       break;
     }
@@ -166,6 +166,7 @@ function dibujarProyectiles() {
 }
 // ---------------- explosiones y daño ----------------
 function explosion(p, radio, dan) {
+  if (MODS.boom) { radio *= 2.5; dan *= 2; }
   sonar('GrenadeExplode', p, 1.4);
   if (!explosion.remota) redExplosion(p);
   efectoExplosion(p);
@@ -208,7 +209,7 @@ function danarObjeto(o, dan, p, d) {
 }
 function danarJugador(dan, de) {
   if (!JUG.vivo || JUEGO.dios) return;
-  JUG.vida -= dan; JUG.golpeT = 0.4; humAccion(JUG.cuerpo, 'golpe');
+  if (!MODS.dios) JUG.vida -= dan; JUG.golpeT = 0.4; humAccion(JUG.cuerpo, 'golpe');
   if (JUG.vida <= 0) { JUG.vida = 0; morirJugador(); }
 }
 // ---------------- pistola física ----------------
