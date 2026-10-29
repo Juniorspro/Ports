@@ -314,6 +314,15 @@ function cicPoseDef(P, u, U) {
   // el torso: agachado (manos al piso), derecho, y en el grito un poco hacia atrás
   const dobla = 0.75 * wB - 0.24 * wGrito;
   if (Math.abs(dobla) > 0.001) { girarMundo(P, 'Spine', lado, dobla * 0.4); girarMundo(P, 'Spine1', lado, dobla * 0.35); girarMundo(P, 'Spine2', lado, dobla * 0.25); }
+  // la cara al frente (sin el "mirar alrededor" de la animación de parado): sobre eso se baja o se tira atrás
+  const wCara = ss(0.3, 0.9, u) * (1 - ss(5.5, 6.2, u));
+  if (wCara > 0.01) {
+    const Hd = cicCabeza(P);
+    if (Hd) {
+      const ax = vcross(Hd.fw, fw), sn = ax.len(), ang = Math.atan2(sn, vdot(Hd.fw, fw)) * wCara;
+      if (sn > 1e-5) { ax.scale(1 / sn); girarMundo(P, 'Neck', ax, ang * 0.4); girarMundo(P, 'Head', ax, ang * 0.6); }
+    }
+  }
   const cab = 0.55 * wCab + 0.3 * wB - 1.05 * wGrito;
   if (Math.abs(cab) > 0.001) { girarMundo(P, 'Neck', lado, cab * 0.4); girarMundo(P, 'Head', lado, cab * 0.6); }
   // la cabeza mira para donde va el rayo
@@ -346,7 +355,7 @@ function cicPoseDef(P, u, U) {
   if (wM > 0.01 && h.RightArm !== undefined && h.RightForeArm !== undefined && h.RightHand !== undefined) {
     const Hd = cicCabeza(P);
     if (Hd) {
-      const cara = vadd(vadd(Hd.ojo, vscale(Hd.fw, 0.07)), vscale(izq, -0.05)), afuera = vadd(vadd(wp(md.W[h.RightArm]), vscale(izq, -0.42)), vadd(vscale(fw, 0.28), v3(0, -0.12, 0)));
+      const cara = vadd(vadd(Hd.ojo, vscale(Hd.fw, 0.07)), vscale(izq, -0.05)), afuera = vadd(vadd(wp(md.W[h.RightArm]), vscale(izq, -0.45)), vadd(vscale(fw, 0.06), v3(0, -0.18, 0)));
       const T = vadd(vscale(cara, 1 - wF), vscale(afuera, wF)), H0 = wp(md.W[h.RightHand]);
       ik2(P, h.RightArm, h.RightForeArm, h.RightHand, vadd(vscale(H0, 1 - wM), vscale(T, wM)), vadd(vscale(up, -0.7), vadd(vscale(izq, -0.6), vscale(fw, 0.1))), null);
     }
@@ -389,14 +398,14 @@ function cicDibujar() {
     const H = cicCabeza(P); if (!H) continue;
     const U = P.cic, u = U ? TIEMPO.t - U.t0 : -1, st = P.cicLentes || 'cara';
     const carga = P === JUG.cuerpo && CIC.apretado && !CIC.usada ? clamp(CIC.carga / CIC_CARGA, 0, 1) : 0, laser = P === JUG.cuerpo ? clamp(CIC.tLaser / 0.28, 0, 1) : 0;
-    if (st === 'cara') { cicLentes(H, M, 0.35 + 2.5 * carga + 3 * laser); P.cicManoL = null; }
+    if (st === 'cara') cicLentes(H, M, 0.35 + 2.5 * carga + 3 * laser);
     else if (st === 'mano') {
-      // en la mano derecha, tal como estaban en la cara al agarrarlos (se guarda el lugar respecto de la mano)
-      const iH = P.D.h.RightHand;
-      if (iH !== undefined) {
-        const Wm = P.md.W[iH], qm = m4quat(Wm), cm = wp(Wm);
-        if (!P.cicManoL) { const o = H.o; P.cicManoL = { p: qm.clone().conj().rot(vsub(H.en(0, o[1], o[3]), cm)), q: qm.clone().conj().mul(H.q) }; }
-        const L = P.cicManoL, qq = qm.clone().mul(L.q), pp = vadd(cm, qm.rot(L.p));
+      // agarrados del puente, pasando la muñeca hacia los dedos, mirando al frente; al principio salen de la cara
+      const iH = P.D.h.RightHand, iF = P.D.h.RightForeArm;
+      if (iH !== undefined && iF !== undefined) {
+        const cm = wp(P.md.W[iH]), dm = vsub(cm, wp(P.md.W[iF])).norm(), k = ss(3.35, 3.7, u);
+        const pm = vadd(cm, vscale(dm, 0.05 * H.s)), qm = Quat.axis(0, 1, 0, P.yaw).mul(Quat.axis(1, 0, 0, 0.35));
+        const pc = H.en(0, H.o[1], H.o[3]), pp = vadd(vscale(pc, 1 - k), vscale(pm, k)), qq = H.q.clone().slerpTo(qm, k);
         cicLentes({ q: qq, s: H.s, en: (x, y, z) => vadd(pp, qq.rot(v3(x * H.s, y * H.s, z * H.s))), o: null }, M, 0.3);
       }
     } else if (st === 'piso') {
@@ -409,8 +418,7 @@ function cicDibujar() {
     // ojos que brillan: sin lentes (desde que se los saca) y al cargar
     const brillo = Math.max(u >= 3.6 ? ss(3.6, 4.6, u) : 0, carga * 0.6);
     if (brillo > 0.01) {
-      for (const s of [1, -1]) dibujarCaja(H.en(s * H.o[0], H.o[1], H.o[2] + 0.004), [0.024 * H.s, 0.011 * H.s, 0.006 * H.s], H.q, M.nucleo, { em: [7 * brillo, 0.7 * brillo, 0.4 * brillo] });
-      if (Math.random() < brillo * 0.5) particula(H.ojo, vadd(vscale(H.fw, 0.6), v3((Math.random() - 0.5) * 0.3, 0.2, (Math.random() - 0.5) * 0.3)), 0.25, 0.06, [1, 0.15, 0.08, 0.9], 'fuego', 0.5);
+      for (const s of [1, -1]) dibujarCaja(H.en(s * H.o[0], H.o[1] - 0.004, H.o[2] + 0.003), [0.02 * H.s, 0.008 * H.s, 0.005 * H.s], H.q, M.nucleo, { c: [1, 0.4, 0.35, 1], em: [3.6 * brillo, 0.35 * brillo, 0.22 * brillo] });
     }
   }
   // la definitiva: el rayo grueso
@@ -448,7 +456,10 @@ function cicHazDibujar(a, b, grosor, k, M) {
 function cicLuces() {
   for (const U of CIC.ults.values()) {
     const u = TIEMPO.t - U.t0; if (!U.P) continue;
-    if (u >= 3.6) luzPuntual(cicOrigen(U.P, false), u >= 5.4 ? 16 : 3, u >= 5.4 ? [30, 3, 1.6] : [4, 0.3, 0.2]);
+    // la luz de los ojos va adelante de la cara (pegada a los ojos encendía el pelo de rojo: parecían ojos arriba de la
+    // cabeza); con el rayo, sobre el rayo, a 1,5 m
+    if (u >= 3.6 && u < 5.4) { const H = cicCabeza(U.P); if (H) luzPuntual(vadd(H.ojo, vscale(H.fw, 0.5)), 1.4, [1.2, 0.08, 0.05]); }
+    if (u >= 5.4 && U.dir) luzPuntual(vadd(cicOrigen(U.P, false), vscale(U.dir, 1.5)), 14, [26, 2.6, 1.4]);
     if (u >= 5.4 && U.hit) { const k = clamp(U.hit.distTo(CAM.pos) / 9, 0.06, 1); luzPuntual(vadd(U.hit, v3(0, 1, 0)), 18, [40 * k, 5 * k, 2 * k]); } // (más suave si pega al lado de la cámara: al que agarró)
   }
   for (const r of CIC.rayos) luzPuntual(r.p, 5, [6 * (1 - r.t / r.dur), 0.5, 0.3]);
