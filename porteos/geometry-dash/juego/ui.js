@@ -206,6 +206,18 @@ class Lista extends Nodo {
   terminar() { const m = this.arr ? this.arr.mov : 0; this.arr = null; return m < 6; }
 }
 U.Lista = Lista;
+// tabla marrón con marco verde (GJListLayer): fondo, costados, barra de arriba con el título y la de abajo
+// fondo de una fila de tabla: marrón alternado y una línea oscura abajo (como las celdas del juego)
+U.filaTabla = function (f, i) { f.agregar(new GD.Rect(f.w, f.h, ...(i % 2 ? [161, 88, 44] : [194, 114, 62])), -2); f.agregar(new GD.Rect(f.w, 1, 0, 0, 0, 80), -1); };
+U.tabla = function (padre, titulo, w = 356, h = 220, x = D.ancho / 2 - w / 2, y = D.alto / 2 - h / 2 - 6) {
+  const t = new Nodo(); t.w = w; t.h = h; t.ax = t.ay = 0; t.pos(x, y);
+  t.agregar(new GD.Rect(w, h, 191, 114, 62), -3);
+  for (const der of [false, true]) { const s = new Sprite('GJ_table_side_001.png'); s.sy = (h + 8) / s.h; s.fx = der; s.pos(der ? w + 5 : -5, h / 2); t.agregar(s, 2); }
+  const arr = new Sprite('GJ_table_top_001.png'); arr.pos(w / 2, h + 15); t.agregar(arr, 3);
+  const aba = new Sprite('GJ_table_bottom_001.png'); aba.pos(w / 2, -12); t.agregar(aba, 3);
+  t.lblTitulo = U.texto(t, titulo, w / 2, h + 19, 'bigFont', 0.8, 4); t.lblTitulo.limitar(w - 90, 0.8);
+  padre.agregar(t, 1); return t;
+};
 // capa con botones dentro de una lista: el toque se decide entre arrastrar o apretar
 U.manejarLista = function (capa, lista) {
   const orig = { t: capa.alTocar.bind(capa), m: capa.alMover.bind(capa), s: capa.alSoltar.bind(capa) };

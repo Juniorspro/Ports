@@ -46,20 +46,23 @@ class FondoMenu extends Nodo {
     const c = this.color(), R = GD.R;
     if (this.txF) { // fondo
       const tx = this.txF, tam = tx.h / 2, ox = -((this.camX * 0.1) % tam + tam) % tam;
-      const xs = new Float32Array([ox, D.alto, ox + D.ancho + tam, D.alto, ox, D.alto - tam, ox + D.ancho + tam, D.alto - tam]);
-      const n = (D.ancho + tam) / (tx.w / 2);
-      R.quad(tx, false, 0, xs, new Float32Array([0, 0, n, 0, 0, 1, n, 1]), GD.col(c[0], c[1], c[2], 255));
+      const xs = _xs, uv = _uv; xs.set([ox, D.alto, ox + D.ancho + tam, D.alto, ox, D.alto - tam, ox + D.ancho + tam, D.alto - tam]);
+      const n = (D.ancho + tam) / (tx.w / 2); R.uvRect(uv, 0, 0, n, 1);
+      R.quad(tx, false, 0, xs, uv, GD.col(c[0], c[1], c[2], 255));
     }
     super.dibujar(pm, op, 255, 255, 255);
-    if (this.txP) { // piso
-      const tx = this.txP, lado = tx.h / 2, ox = -((this.camX % lado) + lado) % lado, y1 = 90, y0 = y1 - lado;
-      const xs = new Float32Array([ox, y1, ox + D.ancho + lado * 2, y1, ox, y0, ox + D.ancho + lado * 2, y0]); const n = (D.ancho + lado * 2) / lado;
-      R.quad(tx, false, 0, xs, new Float32Array([0, 0, n, 0, 0, 1, n, 1]), GD.col(c[0] * 0.8, c[1] * 0.8, c[2] * 0.8, 255));
-      const f = GD.T.m('floorLine_01_001.png'); if (f) { const s = this._l || (this._l = new Sprite(f)); s.add = true; s.pos(D.ancho / 2, 90); s.sx = D.ancho / f.sw; s.dibujar(pm, op, 255, 255, 255); }
-    }
+    if (this.txP) M.piso(this, this.txP, this.camX, 90, c, pm, op);
   }
 }
 M.FondoMenu = FondoMenu;
+const _xs = new Float32Array(8), _uv = new Float32Array(8);
+// piso del juego (cuadros repetidos + la línea de arriba), con su color un poco más oscuro que el fondo
+M.piso = function (nodo, tx, camX, y1, c, pm, op) {
+  const R = GD.R, lado = tx.h / 2, ox = -((camX % lado) + lado) % lado, y0 = y1 - lado, n = (D.ancho + lado * 2) / lado;
+  _xs.set([ox, y1, ox + D.ancho + lado * 2, y1, ox, y0, ox + D.ancho + lado * 2, y0]); R.uvRect(_uv, 0, 0, n, 1);
+  R.quad(tx, false, 0, _xs, _uv, GD.col(c[0] * 0.8, c[1] * 0.8, c[2] * 0.8, 255));
+  const f = GD.T.m('floorLine_01_001.png'); if (f) { const s = nodo._l || (nodo._l = new Sprite(f)); s.add = true; s.pos(D.ancho / 2, y1); s.sx = D.ancho / f.sw; s.dibujar(pm, op, 255, 255, 255); }
+};
 
 // ---------------- menú principal (MenuLayer) ----------------
 M.menu = function () {
@@ -112,6 +115,7 @@ M.seleccion = function (pagina = 0) {
     c.botonAtras(() => D.cambiar(M.menu()));
     // piso de abajo
     c.piso = new Nodo(); c.agregar(c.piso, 1);
+    c.piso.pintar = (w, o) => { if (c.txP) { const k = c.fondo; M.piso(c.piso, c.txP, -c.cont.x * 0.5, 56, [k.r, k.g, k.b], w, o); } };
     GD.cargarHoja('groundSquare_01_001').then(t => { GD.R.repetir(t); c.txP = t; });
     c.actual = pagina; c.cont.x = -pagina * W; c.marcar();
   };
@@ -158,7 +162,6 @@ M.seleccion = function (pagina = 0) {
   c.alSoltar = (x, y, id) => { if (c._pres) { c._arr = null; return origSol(x, y, id); } c.alSoltarFondo(x); };
   c.dibujar = function (pm, op) {
     U.Capa.prototype.dibujar.call(this, pm, op, 255, 255, 255);
-    if (this.txP) { const tx = this.txP, lado = tx.h / 2, y1 = 40 * 0 + 0; void y1; }
   };
   c.alTecla = (k, ab) => { if (!ab) return; if (k === 'ArrowLeft') c.ir(c.actual - 1); if (k === 'ArrowRight') c.ir(c.actual + 1); if (k === 'Escape') D.cambiar(M.menu()); if (k === 'Enter' || k === 'Space') { if (c.actual < ids.length) M.jugarOficial(ids[c.actual]); } };
   c.alEntrar = () => GD.S.musica('datos/mus/menuLoop.ogg', 0, true);

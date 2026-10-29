@@ -73,41 +73,74 @@ OL.prepararCancion = async function (id) {
 // ---------------- búsqueda (LevelSearchLayer) ----------------
 OL.filtros = GD.G.leer('filtros', { dif: [], largo: [], noCompletados: false, completados: false, destacado: false, original: false, dosJ: false, monedas: false, epico: false, estrella: false, sinEstrella: false, cancion: 0 });
 OL.buscar = function () {
-  const c = new U.Capa(), W = D.ancho, H = D.alto;
+  // LevelSearchLayer: bloque de 365 de ancho centrado (barra de búsqueda, Quick Search, Filters, largos)
+  const c = new U.Capa(), W = D.ancho, H = D.alto, cx = W / 2, F = OL.filtros;
   c.alCrear = () => {
     c.fondoDegradado([0, 102, 255]); c.esquinas();
-    const marco = U.cajaOscura(Math.min(W - 100, 420), 50, 100); marco.pos(W / 2 - marco.w / 2, H - 70); c.agregar(marco);
-    const campo = c.campo = new U.Campo('Enter a level, user or id', Math.min(W - 230, 300), 34, 'bigFont', 30); campo.pos(W / 2 - 50, H - 45); c.agregar(campo, 2);
+    const caja = (w, h, x, y) => { const b = U.cajaOscura(w, h, 90); b.pos(x - w / 2, y - h / 2); c.agregar(b); return b; };
+    // búsqueda: campo oscuro, botón Search y botón de usuarios
+    caja(222, 34, cx - 72, H - 23);
+    const campo = c.campo = new U.Campo('Enter a level, user, or ID', 206, 30, 'bigFont', 20); campo.pos(cx - 72, H - 23); c.agregar(campo, 2);
     campo.texto = GD.G.leer('ultimaBusqueda', '');
-    U.boton(c, new Nodo(), W / 2 - 50, H - 45, () => campo.enfocar()).w = 300;
+    U.boton(c, new Nodo(), cx - 72, H - 23, () => campo.enfocar()).w = 222;
     campo.alListo = v => GD.G.escribir('ultimaBusqueda', v);
-    U.boton(c, U.botonTexto('Search', 70, 'bigFont', 'GJ_button_02.png', 30, 0.5), W / 2 + 140, H - 45, () => { U.soltarFoco(); OL.lista({ tipo: 0, str: campo.texto }); }, 3);
-    U.boton(c, U.botonTexto('User', 50, 'bigFont', 'GJ_button_01.png', 30, 0.4), W / 2 + 200, H - 45, () => { U.soltarFoco(); OL.porUsuario(campo.texto); }, 3);
-    // categorías como el juego
-    const cats = [['Most Downloaded', 1, 'GJ_sDownloadIcon_001.png'], ['Most Liked', 2, 'GJ_sLikeIcon_001.png'], ['Trending', 3, 'GJ_sTrendingIcon_001.png'], ['Recent', 4, 'GJ_sRecentIcon_001.png'],
-      ['Magic', 7, 'GJ_sMagicIcon_001.png'], ['Awarded', 11, 'GJ_sStarsIcon_001.png'], ['Featured', 6, 'GJ_featuredIcon_001.png'], ['Hall Of Fame', 16, 'GJ_sModIcon_001.png'], ['Sent', 27, 'GJ_sFollowedIcon_001.png'], ['Friends', 13, 'GJ_sFriendsIcon_001.png']];
-    const ancho = Math.min(150, (W - 120) / 3);
+    const bSearch = new Nodo(), sb = new Sprite('GJ_longBtn04_001.png'); sb.anc(0, 0); sb.sx = 0.62; sb.sy = 0.8; bSearch.w = sb.w * 0.62; bSearch.h = sb.h * 0.8; bSearch.agregar(sb);
+    U.texto(bSearch, 'Search', bSearch.w / 2, bSearch.h / 2 + 1, 'bigFont', 0.55);
+    U.boton(c, bSearch, cx + 85, H - 23, () => { U.soltarFoco(); OL.lista({ tipo: 0, str: campo.texto }); }, 3);
+    U.boton(c, 'GJ_longBtn05_001.png', cx + 152, H - 23, () => { U.soltarFoco(); OL.porUsuario(campo.texto); }, 3, 0.8);
+    // Quick Search: 3 × 3 botones largos con su ícono
+    U.texto(c, 'Quick Search', cx, H - 54, 'bigFont', 0.55);
+    caja(365, 115, cx, H - 125.5);
+    // todos los textos a la misma escala: la que hace entrar al más largo
+    const KX = 1.12, KY = 0.86, anchoBtn = new Sprite('GJ_longBtn01_001.png').w * KX;
+    const largo = (t, ic, azul, esc) => {
+      const n = new Nodo(), sp = new Sprite(azul ? 'GJ_longBtn02_001.png' : 'GJ_longBtn01_001.png'); sp.anc(0, 0); sp.sx = KX; sp.sy = KY; n.w = sp.w * KX; n.h = sp.h * KY; n.agregar(sp);
+      U.texto(n, t, (n.w - 24) / 2 + 4, n.h / 2 + 1, 'bigFont', esc);
+      if (ic && GD.T.m(ic)) U.sprite(n, ic, n.w - 16, n.h / 2, 0.75);
+      return n;
+    };
+    const cats = [['Downloads', 1, 'GJ_sDownloadIcon_001.png'], ['Likes', 2, 'GJ_sLikeIcon_001.png'], ['Trending', 3, 'GJ_sTrendingIcon_001.png'],
+      ['Recent', 4, 'GJ_sRecentIcon_001.png'], ['Magic', 7, 'GJ_sMagicIcon_001.png'], ['Awarded', 11, 'GJ_sStarsIcon_001.png'],
+      ['Followed', 12, 'GJ_sFollowedIcon_001.png'], ['Friends', 13, 'GJ_sFriendsIcon_001.png'], ['More', 'mas', null]];
+    const escCat = Math.min(0.5, ...cats.map(([t]) => (anchoBtn - 40) / new Texto(t, 'bigFont').w));
     cats.forEach(([t, tipo, ic], i) => {
-      const b = U.botonTexto(t, ancho, 'bigFont', 'GJ_button_01.png', 28, 0.45);
-      if (GD.T.m(ic)) { const s = new Sprite(ic); s.escala = 0.55; s.pos(12, 14); b.agregar(s); b.lbl.x += 6; }
-      U.boton(c, b, W / 2 + ((i % 3) - 1) * (ancho + 8), H - 105 - Math.floor(i / 3) * 34, () => OL.lista({ tipo, str: '' }));
+      const f = tipo === 'mas' ? () => OL.masListas() : () => OL.lista({ tipo, str: tipo === 12 ? (GD.G.leer('seguidos', []).join(',') || '-') : '' });
+      U.boton(c, largo(t, ic, tipo === 'mas', escCat), cx + ((i % 3) - 1) * 118, H - 90 - Math.floor(i / 3) * 34.5, f, 2);
     });
-    // filtros de dificultad y largo
-    const difs = [['na', -1, 'diffIcon_00_btn_001.png'], ['easy', 1, 'diffIcon_01_btn_001.png'], ['normal', 2, 'diffIcon_02_btn_001.png'], ['hard', 3, 'diffIcon_03_btn_001.png'], ['harder', 4, 'diffIcon_04_btn_001.png'], ['insane', 5, 'diffIcon_05_btn_001.png'], ['demon', -2, 'diffIcon_06_btn_001.png'], ['auto', -3, 'diffIcon_auto_btn_001.png']];
-    const F = OL.filtros, filaD = 70;
-    difs.forEach(([n, v, f], i) => {
-      const s = new Sprite(f); s.escala = 0.6; const on = F.dif.includes(v); s.color(on ? [255, 255, 255] : [100, 100, 100]);
-      U.boton(c, s, W / 2 + (i - 3.5) * 40 - 40, filaD, () => { const k = F.dif.indexOf(v); if (k >= 0) F.dif.splice(k, 1); else F.dif.push(v); s.color(F.dif.includes(v) ? [255, 255, 255] : [100, 100, 100]); GD.G.escribir('filtros', F); });
+    // Filters: caras con su nombre (apagadas en gris) y los largos
+    U.texto(c, 'Filters', cx, 123, 'bigFont', 0.55);
+    caja(365, 52, cx, 84);
+    const difs = [-1, 1, 2, 3, 4, 5, -2, -3], caraF = ['difficulty_00_btn_001.png', 'difficulty_01_btn_001.png', 'difficulty_02_btn_001.png', 'difficulty_03_btn_001.png', 'difficulty_04_btn_001.png', 'difficulty_05_btn_001.png', 'difficulty_06_btn_001.png', 'difficulty_auto_btn_001.png'];
+    const gris = [125, 125, 125], pinta = (s, on) => s.color(on ? [255, 255, 255] : gris);
+    difs.forEach((v, i) => {
+      const s = new Sprite(GD.T.m(caraF[i]) ? caraF[i] : 'difficulty_00_btn_001.png'); pinta(s, F.dif.includes(v));
+      U.boton(c, s, cx + (i - 3.5) * 44, 84, () => { const k = F.dif.indexOf(v); if (k >= 0) F.dif.splice(k, 1); else F.dif.push(v); pinta(s, F.dif.includes(v)); GD.G.escribir('filtros', F); }, 2, 0.9);
     });
+    caja(365, 26, cx, 36);
+    // largos uno al lado del otro con el mismo espacio entre palabras, centrados a la izquierda de la estrella
+    const EL = 0.5, ls = OL.LARGOS.map(t => new Texto(t, 'bigFont')), sep = 16, total = ls.reduce((a, l) => a + l.w * EL, 0) + sep * (ls.length - 1);
+    let xl = cx - 12 - total / 2;
     OL.LARGOS.forEach((t, i) => {
-      const l = U.texto(c, t, W / 2 + (i - 2.5) * 52 - 40, 32, 'bigFont', 0.45); const on = () => F.largo.includes(i); l.color(on() ? [255, 255, 255] : [110, 110, 110]);
-      U.boton(c, new Nodo(), l.x, l.y, () => { const k = F.largo.indexOf(i); if (k >= 0) F.largo.splice(k, 1); else F.largo.push(i); l.color(on() ? [255, 255, 255] : [110, 110, 110]); GD.G.escribir('filtros', F); }).w = 48;
+      const l = ls[i]; pinta(l, F.largo.includes(i)); const xc = xl + l.w * EL / 2; xl += l.w * EL + sep;
+      U.boton(c, l, xc, 36, () => { const k = F.largo.indexOf(i); if (k >= 0) F.largo.splice(k, 1); else F.largo.push(i); pinta(l, F.largo.includes(i)); GD.G.escribir('filtros', F); }, 2, 0.5);
     });
-    U.boton(c, 'GJ_plusBtn_001.png', W - 50, 50, () => OL.masFiltros(), 3, 0.8);
+    const est = new Sprite('GJ_starsIcon_001.png'); pinta(est, F.estrella);
+    U.boton(c, est, cx + 164, 36, () => { F.estrella = !F.estrella; pinta(est, F.estrella); GD.G.escribir('filtros', F); }, 2, 0.75);
+    // columna derecha: borrar filtros, más filtros, listas
+    U.boton(c, 'GJ_deleteBtn_001.png', W - 32, H - 27, () => { Object.assign(F, { dif: [], largo: [], estrella: false }); GD.G.escribir('filtros', F); D.cambiar(OL.buscar(), 0); }, 3, 0.75);
+    U.boton(c, 'GJ_plusBtn_001.png', W - 32, H - 78, () => OL.masFiltros(), 3, 0.75);
     c.botonAtras(() => { U.soltarFoco(); D.cambiar(GD.Menus.creador()); });
   };
   c.atras = () => D.cambiar(GD.Menus.creador());
   return c;
+};
+// "More" de Quick Search: las búsquedas que no entran en la grilla
+OL.masListas = function () {
+  const p = new U.Popup(300, 180); p.titulo('More');
+  [['Featured', 6], ['Hall Of Fame', 16], ['Sent', 27], ['Most Liked (Week)', 'likesSemana']].slice(0, 3).forEach(([t, tipo], i) => {
+    U.boton(p.caja, U.botonTexto(t, 150, 'bigFont', 'GJ_button_01.png', 30, 0.55), 0, 38 - i * 38, () => { p.cerrar(); OL.lista({ tipo, str: '' }); });
+  });
+  p.cerrarBtn(); return p.mostrar();
 };
 OL.masFiltros = function () {
   const pop = new U.Popup(400, 260), k = pop.caja, F = OL.filtros; pop.titulo('Advanced Search');
@@ -144,13 +177,12 @@ OL.listaEscena = function (q) {
   const c = new U.Capa(), W = D.ancho, H = D.alto; let pagina = q.pagina || 0;
   c.alCrear = () => {
     c.fondoDegradado([0, 102, 255]); c.esquinas();
-    c.titulo = U.texto(c, q.titulo || OL.tituloTipo(q), W / 2, H - 22, 'goldFont', 0.75, 2);
-    const marco = U.cajaOscura(Math.min(W - 120, 440), 230, 100); marco.pos(W / 2 - marco.w / 2, 35); c.agregar(marco);
-    c.lista = new U.Lista(marco.w - 10, 220, 74); c.lista.pos(marco.x + 5, 40); c.agregar(c.lista, 1); U.manejarLista(c, c.lista);
+    const tabla = c.tabla = U.tabla(c, q.titulo || OL.tituloTipo(q)); c.titulo = tabla.lblTitulo;
+    c.lista = new U.Lista(tabla.w, tabla.h, 90); c.lista.pos(tabla.x, tabla.y); c.agregar(c.lista, 2); U.manejarLista(c, c.lista);
     c.estado = U.texto(c, 'Loading...', W / 2, H / 2, 'goldFont', 0.6, 3);
     c.izq = U.boton(c, 'GJ_arrow_03_001.png', 30, H / 2, () => { if (pagina > 0) { pagina--; c.cargar(); } }, 3, 0.8);
     c.der = U.boton(c, 'GJ_arrow_03_001.png', W - 30, H / 2, () => { pagina++; c.cargar(); }, 3, 0.8); c.der.cont.fx = true;
-    c.lblPag = U.texto(c, '', W - 60, H - 20, 'goldFont', 0.45, 2);
+    c.lblPag = U.texto(c, '', W - 7, H - 9, 'goldFont', 0.45, 2).anc(1, 1);
     U.boton(c, 'GJ_updateBtn_001.png', W - 30, 30, () => c.cargar(), 3, 0.7);
     c.botonAtras(() => D.cambiar(q.volver ? q.volver() : q.tipo === 'guardados' ? GD.Menus.creador() : OL.buscar()));
     c.cargar();
@@ -170,7 +202,7 @@ OL.listaEscena = function (q) {
   };
   c.mostrar = r => {
     c.estado.vis = !r.niveles.length; if (!r.niveles.length) c.estado.texto('No levels found');
-    c.lista.poner(r.niveles.map(lv => OL.celda(lv, c.lista.w, () => D.cambiar(OL.ficha(lv, () => OL.listaEscena(Object.assign(q, { pagina })))))));
+    c.lista.poner(r.niveles.map((lv, i) => OL.celda(lv, c.lista.w, () => D.cambiar(OL.ficha(lv, () => OL.listaEscena(Object.assign(q, { pagina })))), i)));
     const hasta = Math.min(r.total || 0, (r.desde || 0) + r.niveles.length);
     c.lblPag.texto(r.total ? `${(r.desde || 0) + 1} to ${hasta} of ${r.total}` : '');
     c.izq.vis = pagina > 0; c.der.vis = r.total ? hasta < r.total : r.niveles.length >= 10;
@@ -180,24 +212,30 @@ OL.listaEscena = function (q) {
 };
 OL.tituloTipo = q => ({ 0: 'Search', 1: 'Most Downloaded', 2: 'Most Liked', 3: 'Trending', 4: 'Recent', 5: 'User Levels', 6: 'Featured', 7: 'Magic', 11: 'Awarded', 13: 'Friends', 16: 'Hall Of Fame', 27: 'Sent', guardados: 'Saved Levels' })[q.tipo] || 'Levels';
 // celda de un nivel en la lista (GJLevelCell)
-OL.celda = function (lv, ancho, alVer) {
-  const f = new Nodo(); f.w = ancho; f.h = 74;
-  const fondo = U.cajaOscura(ancho - 6, 70, 50, 'square02_small.png', 6); fondo.pos(3, 2); f.agregar(fondo);
-  U.sprite(f, OL.caraNivel(lv), 30, 45, 0.8);
-  if (lv.estrellas) { U.texto(f, String(lv.estrellas), 26, 16, 'bigFont', 0.4).anc(1, 0.5); U.sprite(f, lv.plataforma ? 'GJ_moonsIcon_001.png' : 'GJ_starsIcon_001.png', 36, 16, 0.4); }
-  if (lv.destacado || lv.epico) U.sprite(f, lv.epico ? 'GJ_epicCoin_001.png' : 'GJ_featuredCoin_001.png', 30, 45, 0.8).z = -1;
-  U.texto(f, lv.nombre, 60, 58, 'bigFont', 0.6).anc(0, 0.5).limitar(ancho - 200, 0.6);
-  U.texto(f, 'By ' + lv.creador, 60, 38, 'goldFont', 0.55).anc(0, 0.5).limitar(ancho - 200, 0.55);
+// orbes que da un nivel con estrellas (como el juego)
+OL.orbes = e => [0, 0, 50, 75, 125, 175, 225, 275, 350, 425, 500][e] || 0;
+OL.celda = function (lv, ancho, alVer, i = 0) {
+  // GJLevelCell: 90 de alto, marrón alternado, cara a la izquierda, nombre, autor, canción, datos abajo y View
+  const f = new Nodo(); f.w = ancho; f.h = 90;
+  f.agregar(new GD.Rect(ancho, 90, ...(i % 2 ? [161, 88, 44] : [194, 114, 62])), -2);
+  f.agregar(new GD.Rect(ancho, 1, 0, 0, 0, 80), -1);
+  U.sprite(f, OL.caraNivel(lv), 26, 56, 0.9);
+  if (lv.destacado || lv.epico) U.sprite(f, lv.epico ? 'GJ_epicCoin_001.png' : 'GJ_featuredCoin_001.png', 26, 56, 0.9).z = -1;
+  if (lv.estrellas) { U.texto(f, String(lv.estrellas), 24, 25, 'bigFont', 0.4).anc(1, 0.5); U.sprite(f, lv.plataforma ? 'GJ_moonsIcon_001.png' : 'GJ_starsIcon_001.png', 32, 25, 0.45); }
+  for (let k = 0; k < lv.monedas; k++) U.sprite(f, lv.monedasV ? 'usercoin_small01_001.png' : 'GJ_coinsIcon_gray_001.png', 26 + (k - (lv.monedas - 1) / 2) * 11, 12, 0.5);
+  U.texto(f, lv.nombre, 52, 72, 'bigFont', 0.8).anc(0, 0.5).limitar(ancho - 140, 0.8);
+  U.texto(f, 'By ' + lv.creador, 52, 50, 'goldFont', 0.65).anc(0, 0.5).limitar(ancho - 150, 0.65);
   const can = lv.cancion ? (OL.canciones[lv.cancion] || {}).nombre || ('NG ' + lv.cancion) : GD.Editor.NOMBRES_CANCION[lv.cancionOf] || '';
-  U.texto(f, can, 60, 22, 'bigFont', 0.35).anc(0, 0.5).color([255, 125, 255]).limitar(ancho - 200, 0.35);
-  U.sprite(f, 'GJ_timeIcon_001.png', 66, 7, 0.4); U.texto(f, OL.LARGOS[lv.largo] || '', 74, 7, 'goldFont', 0.35).anc(0, 0.5);
-  U.sprite(f, 'GJ_downloadsIcon_001.png', 126, 7, 0.4); U.texto(f, U.num(lv.descargas), 134, 7, 'goldFont', 0.35).anc(0, 0.5);
-  U.sprite(f, 'GJ_likesIcon_001.png', 206, 7, 0.4); U.texto(f, U.num(lv.likes), 214, 7, 'goldFont', 0.35).anc(0, 0.5);
-  for (let i = 0; i < lv.monedas; i++) U.sprite(f, lv.monedasV ? 'GJ_coinsIcon_001.png' : 'GJ_coinsIcon_gray_001.png', ancho - 110 + i * 14, 18, 0.45);
-  U.boton(f, U.botonTexto('View', 66, 'bigFont', 'GJ_button_01.png', 30, 0.55), ancho - 45, 45, alVer);
+  U.texto(f, can, 52, 32, 'bigFont', 0.45).anc(0, 0.5).color(lv.cancion ? [250, 110, 245] : [80, 200, 255]).limitar(ancho - 150, 0.45);
+  let x = 54;
+  const dato = (ic, t) => { U.sprite(f, ic, x, 12, 0.5); const l = U.texto(f, t, x + 9, 12, 'bigFont', 0.37).anc(0, 0.5); x += 18 + l.w * 0.37; };
+  dato('GJ_timeIcon_001.png', OL.LARGOS[lv.largo] || '');
+  dato('GJ_downloadsIcon_001.png', U.num(lv.descargas));
+  dato(lv.likes < 0 ? 'GJ_dislikesIcon_001.png' : 'GJ_likesIcon_001.png', U.num(Math.abs(lv.likes)));
+  if (OL.orbes(lv.estrellas)) dato('currencyOrbIcon_001.png', String(OL.orbes(lv.estrellas)));
+  U.boton(f, U.botonTexto('View', 0, 'bigFont', 'GJ_button_01.png', 30, 0.6), ancho - 42, 46, alVer);
   return f;
 };
-
 // ---------------- ficha del nivel (LevelInfoLayer) ----------------
 OL.ficha = function (lv, volver) {
   const c = new U.Capa(), W = D.ancho, H = D.alto;
@@ -307,9 +345,9 @@ OL.diario = async function (tipo) {
 OL.mapPacksEscena = function () {
   const c = new U.Capa(), W = D.ancho, H = D.alto; let pagina = 0;
   c.alCrear = () => {
-    c.fondoDegradado([0, 102, 255]); c.esquinas(); U.texto(c, 'Map Packs', W / 2, H - 22, 'goldFont', 0.8);
-    const marco = U.cajaOscura(Math.min(W - 120, 420), 230, 100); marco.pos(W / 2 - marco.w / 2, 35); c.agregar(marco);
-    c.lista = new U.Lista(marco.w - 10, 220, 60); c.lista.pos(marco.x + 5, 40); c.agregar(c.lista, 1); U.manejarLista(c, c.lista);
+    c.fondoDegradado([0, 102, 255]); c.esquinas();
+    const tabla = U.tabla(c, 'Map Packs');
+    c.lista = new U.Lista(tabla.w, tabla.h, 80); c.lista.pos(tabla.x, tabla.y); c.agregar(c.lista, 2); U.manejarLista(c, c.lista);
     c.estado = U.texto(c, 'Loading...', W / 2, H / 2, 'goldFont', 0.6, 3);
     const der = U.boton(c, 'GJ_arrow_03_001.png', W - 30, H / 2, () => { pagina++; c.cargar(); }, 3, 0.8); der.cont.fx = true;
     U.boton(c, 'GJ_arrow_03_001.png', 30, H / 2, () => { if (pagina) { pagina--; c.cargar(); } }, 3, 0.8);
@@ -321,14 +359,14 @@ OL.mapPacksEscena = function () {
     try {
       const t = await OL.pedir('getGJMapPacks21', { page: pagina });
       const packs = t.split('#')[0].split('|').map(s => OL.claves(s));
-      c.lista.poner(packs.map(p => {
-        const f = new Nodo(); f.w = c.lista.w; f.h = 60;
-        const fondo = U.cajaOscura(f.w - 6, 56, 50, 'square02_small.png', 6); fondo.pos(3, 2); f.agregar(fondo);
-        U.sprite(f, `diffIcon_${String(Math.min(10, +p[6] || 0)).padStart(2, '0')}_btn_001.png`, 30, 30, 0.7);
+      c.lista.poner(packs.map((p, i) => {
+        const f = new Nodo(); f.w = c.lista.w; f.h = 80; U.filaTabla(f, i);
+        U.sprite(f, `diffIcon_${String(Math.min(10, +p[6] || 0)).padStart(2, '0')}_btn_001.png`, 30, 42, 1);
         const col = (p[7] || '255,255,255').split(',').map(Number);
-        U.texto(f, p[2], 60, 38, 'bigFont', 0.55).anc(0, 0.5).color(col).limitar(f.w - 170, 0.55);
-        U.texto(f, `${p[4]} stars  ${p[5]} coins`, 60, 18, 'goldFont', 0.45).anc(0, 0.5);
-        U.boton(f, U.botonTexto('View', 66, 'bigFont', 'GJ_button_01.png', 30, 0.55), f.w - 45, 30, () => D.cambiar(OL.listaEscena({ tipo: 10, ids: p[3].split(','), titulo: p[2], volver: () => OL.mapPacksEscena() })));
+        U.texto(f, p[2], 60, 54, 'bigFont', 0.75).anc(0, 0.5).color(col).limitar(f.w - 150, 0.75);
+        U.texto(f, String(p[4]), 62, 28, 'bigFont', 0.45).anc(0, 0.5); U.sprite(f, 'GJ_starsIcon_001.png', 76 + String(p[4]).length * 6, 28, 0.5);
+        U.texto(f, String(p[5]), 102, 28, 'bigFont', 0.45).anc(0, 0.5); U.sprite(f, 'GJ_coinsIcon_001.png', 116 + String(p[5]).length * 6, 28, 0.5);
+        U.boton(f, U.botonTexto('View', 0, 'bigFont', 'GJ_button_01.png', 30, 0.6), f.w - 42, 40, () => D.cambiar(OL.listaEscena({ tipo: 10, ids: p[3].split(','), titulo: p[2], volver: () => OL.mapPacksEscena() })));
         return f;
       }));
       c.estado.vis = false;
@@ -346,13 +384,15 @@ OL.gauntletsEscena = function () {
     c.botonAtras(() => D.cambiar(GD.Menus.creador()));
     const est = U.texto(c, 'Loading...', W / 2, H / 2, 'goldFont', 0.6);
     try {
-      const t = await OL.pedir('getGJGauntlets21', { special: 1 });
+      const [t] = await Promise.all([OL.pedir('getGJGauntlets21', { special: 1 }), GD.cargarHoja('GauntletSheet').catch(() => null)]);
       const gs = t.split('#')[0].split('|').map(s => OL.claves(s));
       est.vis = false; let pag = 0; const cont = new Nodo(); c.agregar(cont);
       const armar = () => {
         cont.vaciar();
         gs.slice(pag * 3, pag * 3 + 3).forEach((g, i) => {
           const caja = U.cajaOscura(150, 190, 120); U.texto(caja, (NOMBRES[g[1]] || 'Gauntlet ' + g[1]), 75, 165, 'bigFont', 0.55).limitar(140, 0.55); U.texto(caja, 'Gauntlet', 75, 145, 'goldFont', 0.5);
+          const nom = (NOMBRES[g[1]] || '').toLowerCase(), isla = [`island_${nom}_001.png`, `island_new${String(+g[1] - 15).padStart(2, '0')}_001.png`, 'island_random_001.png'].find(n => GD.T.m(n));
+          if (isla) { const s = U.sprite(caja, isla, 75, 88); s.escala = Math.min(1, 120 / s.w, 95 / s.h); }
           U.texto(caja, `${g[3].split(',').length} levels`, 75, 25, 'goldFont', 0.45);
           U.boton(cont, caja, W / 2 + (i - 1) * 165, H / 2 - 15, () => D.cambiar(OL.listaEscena({ tipo: 10, ids: g[3].split(','), titulo: (NOMBRES[g[1]] || '') + ' Gauntlet', volver: () => OL.gauntletsEscena() })));
         });
@@ -370,9 +410,9 @@ OL.gauntlets = () => D.cambiar(OL.gauntletsEscena());
 OL.listasEscena = function () {
   const c = new U.Capa(), W = D.ancho, H = D.alto; let pagina = 0, tipo = 6;
   c.alCrear = () => {
-    c.fondoDegradado([0, 102, 255]); c.esquinas(); c.tit = U.texto(c, 'Lists', W / 2, H - 22, 'goldFont', 0.8);
-    const marco = U.cajaOscura(Math.min(W - 120, 420), 220, 100); marco.pos(W / 2 - marco.w / 2, 35); c.agregar(marco);
-    c.lista = new U.Lista(marco.w - 10, 210, 60); c.lista.pos(marco.x + 5, 40); c.agregar(c.lista, 1); U.manejarLista(c, c.lista);
+    c.fondoDegradado([0, 102, 255]); c.esquinas();
+    const tabla = U.tabla(c, 'Lists', 356, 200, W / 2 - 178, 22); c.tit = tabla.lblTitulo;
+    c.lista = new U.Lista(tabla.w, tabla.h, 80); c.lista.pos(tabla.x, tabla.y); c.agregar(c.lista, 2); U.manejarLista(c, c.lista);
     c.estado = U.texto(c, 'Loading...', W / 2, H / 2, 'goldFont', 0.6, 3);
     [['Featured', 6], ['Trending', 3], ['Recent', 4], ['Top', 2]].forEach(([t, v], i) => U.boton(c, U.botonTexto(t, 80, 'bigFont', 'GJ_button_01.png', 24, 0.4), W / 2 + (i - 1.5) * 88, H - 48, () => { tipo = v; pagina = 0; c.cargar(); }, 3));
     const der = U.boton(c, 'GJ_arrow_03_001.png', W - 30, H / 2, () => { pagina++; c.cargar(); }, 3, 0.8); der.cont.fx = true;
@@ -385,12 +425,12 @@ OL.listasEscena = function () {
     try {
       const t = await OL.pedir('getGJLevelLists', { type: tipo, str: '', page: pagina });
       const [ls, cr] = t.split('#'); const creadores = {}; for (const x of (cr || '').split('|')) { const [pid, nom] = x.split(':'); creadores[pid] = nom; }
-      c.lista.poner(ls.split('|').map(s => OL.claves(s)).map(l => {
-        const f = new Nodo(); f.w = c.lista.w; f.h = 60;
-        const fondo = U.cajaOscura(f.w - 6, 56, 50, 'square02_small.png', 6); fondo.pos(3, 2); f.agregar(fondo);
-        U.texto(f, l[2] || 'List', 20, 38, 'bigFont', 0.55).anc(0, 0.5).limitar(f.w - 140, 0.55);
-        U.texto(f, `By ${creadores[l[49]] || l[50] || '-'}  ·  ${(l[51] || '').split(',').length} levels`, 20, 18, 'goldFont', 0.45).anc(0, 0.5);
-        U.boton(f, U.botonTexto('View', 66, 'bigFont', 'GJ_button_01.png', 30, 0.55), f.w - 45, 30, () => D.cambiar(OL.listaEscena({ tipo: 10, ids: (l[51] || '').split(','), titulo: l[2], volver: () => OL.listasEscena() })));
+      c.lista.poner(ls.split('|').map(s => OL.claves(s)).map((l, i) => {
+        const f = new Nodo(); f.w = c.lista.w; f.h = 80; U.filaTabla(f, i);
+        U.texto(f, l[2] || 'List', 14, 56, 'bigFont', 0.75).anc(0, 0.5).limitar(f.w - 120, 0.75);
+        U.texto(f, `By ${creadores[l[49]] || l[50] || '-'}`, 14, 34, 'goldFont', 0.6).anc(0, 0.5).limitar(f.w - 130, 0.6);
+        U.texto(f, `${(l[51] || '').split(',').length} levels`, 14, 14, 'bigFont', 0.4).anc(0, 0.5);
+        U.boton(f, U.botonTexto('View', 0, 'bigFont', 'GJ_button_01.png', 30, 0.6), f.w - 42, 40, () => D.cambiar(OL.listaEscena({ tipo: 10, ids: (l[51] || '').split(','), titulo: l[2], volver: () => OL.listasEscena() })));
         return f;
       }));
       c.estado.vis = false;
