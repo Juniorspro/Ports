@@ -159,7 +159,9 @@ const ENT_TIPO = {
       if (KA) { const nK = Math.ceil(RK * KA / 1.5); for (let i = 1; i <= nK; i++) { const a = KA * i / nK; pon(y + RK - RK * Math.cos(a), z + RK * Math.sin(a), -a); } }
       e.perfil = pts; e.W = W; e.H = H;
       const S = geoNuevo(), E = geoNuevo(), tris = [], hw = 1.8, gr = 1.2, X = W / 2;
-      const O = vadd(e.p, v3(0, H, 0)), ew = (x, y, z) => vadd(O, e.q.rot(v3(x, y, z))), pW = (x, p, dy) => ew(x, p.y + (dy || 0), p.z);
+      // (toda la rampa 8 cm más arriba: la recta de abajo quedaba a la altura del piso y el asfalto y el pasto se pisaban,
+      // titilando según dónde estuviera la cámara)
+      const O = vadd(e.p, v3(0, H + 0.08, 0)), ew = (x, y, z) => vadd(O, e.q.rot(v3(x, y, z))), pW = (x, p, dy) => ew(x, p.y + (dy || 0), p.z);
       e.arriba = O;
       // piso de la rampa (normales suaves) y los triángulos que chocan
       let largo = 0;

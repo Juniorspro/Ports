@@ -97,6 +97,10 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   (clic derecho la congela; antes, con el izquierdo apretado, se volvía a agarrar y descongelar en el cuadro siguiente).
   En la sala la radio de otro es quieta para los demás (la mueve su dueño): pose y congelado viajan con `entp` mientras
   se mueve y quedan en el mundo guardado (giro `q`, congelada `fz`, en la espalda `ll`), así el que entra después la ve igual.
+- **Portada animada** (`herramientas/portada/`): arma una escena en el juego (Goku con el aura y la radio en la espalda,
+  gente bailando, autos y la mega rampa de fondo), maneja el reloj a mano (un paso exacto de 0,03 s por cuadro, así sale
+  fluida aunque el navegador vaya lento), lee cada cuadro del lienzo a 1920×1080, lo achica a 960×540, funde el final con
+  el principio para que el bucle no salte, pone el logo y arma el GIF con ffmpeg (instrucciones en `captura.mjs`).
 - **Mega rampa**: la caída de arriba es una parábola (la trayectoria de un auto que sale a ~30 m/s: el que llega más
   lento baja apoyado), recta a 52°, curva de abajo amplia (~3 g a 50 m/s), recta y salto final. Los autos chocan con
   los triángulos de las formas propias sólo vértice contra cara con la normal de la cara (`hullTri` en `fisica.js`):
