@@ -90,6 +90,10 @@ async function bajar(url, tipo) {
   return tipo === 'json' ? r.json() : tipo === 'text' ? r.text() : r.arrayBuffer();
 }
 
+// margen para los baldes de memoria de fisica y navegacion (en el original 400 KB: si se agotan, el juego recibe
+// punteros nulos y se rompe)
+const MARGEN_MEMORIA = '[BULLET]\nBulletBucketSize=1000000\n[RECAST]\nRecastBucketSize=1000000\n';
+
 async function iniciar(m) {
   Mundo.est('Bajando el motor...');
   const base = m.base;
@@ -99,7 +103,7 @@ async function iniciar(m) {
   const MEM = 0x0C000000;
   const buf = new ArrayBuffer(MEM); new Uint8Array(buf).set(img, BASE);
   const cpu = new Cpu({ buf, codeLo: BASE, codeHi: BASE + img.length, stubLo: STUB, stubHi: STUB + 8 * meta.nombres.length, roLo: BASE, roHi: BASE + 0x3dc000 });
-  const cfg = new Icf(cfgTxt + '\n[derbh]\nautoload=' + m.paquete + '\n', { OS: 'ANDROID', CLASS: 'ANDROID', MODEL: 'Nexus S' });
+  const cfg = new Icf(cfgTxt + '\n[derbh]\nautoload=' + m.paquete + '\n' + MARGEN_MEMORIA + (m.extraCfg || ''), { OS: 'ANDROID', CLASS: 'ANDROID', MODEL: 'Nexus S' });
   const fs = new FsVirtual();
   fs.montar('blackops_loader.dz', FsVirtual.deBuffer(new Uint8Array(loaderB)));
   const remoto = new Remoto(m.paqueteUrl, m.paqueteTam);
@@ -143,6 +147,13 @@ async function iniciar(m) {
   const s3e = new S3e(cpu, meta.nombres, { cfg, fs, gl: glh, audio, ancho: m.ancho, alto: m.alto, log: (t) => postMessage({ t: 'log', texto: t }), trazar: m.trazar ? Object.fromEntries(m.trazar.split(',').map((k) => [k, true])) : {}, filtro: m.filtro, heapLo: 0x01000000, heapHi: 0x0A000000 });
   cpu.hle = s3e.tabla;
   cpu.R[13] = 0x0B000000; cpu.R[14] = Cpu.MAGIC;
+  if (m.depurar) { // depuracion: ultimos bloques ejecutados (se muestran si el guest se rompe)
+    const anillo = new Int32Array(64); let k = 0;
+    const perfil = new Map();
+    cpu.traza = (pc) => { anillo[k++ & 63] = pc; perfil.set(pc, (perfil.get(pc) || 0) + 1); };
+    Mundo.perfil = () => { const a = [...perfil].sort((x, y) => y[1] - x[1]).slice(0, 60).map(([p, n]) => (p >>> 0).toString(16) + ':' + n); perfil.clear(); return a.join(' '); };
+    Mundo.ultimos = () => Array.from({ length: 64 }, (_, i) => (anillo[(k + i) & 63] >>> 0).toString(16)).join(' ');
+  }
   Mundo.cpu = cpu; Mundo.s3e = s3e; Mundo.gl = gl; Mundo.pc = BASE;
   Mundo.est('Arrancando...');
   postMessage({ t: 'listo' });
@@ -167,7 +178,8 @@ function paso() {
     Mundo.pc = s3e.yieldPedido ? cpu.R[14] : pc;
     if (!s3e.yieldPedido) { postMessage({ t: 'error', texto: 'el guest termino sin pedir yield' }); Mundo.corriendo = false; return; }
   } catch (e) {
-    postMessage({ t: 'error', texto: String(e && e.stack || e) + ' pc=' + (Mundo.cpu.pc >>> 0).toString(16) + ' lr=' + (Mundo.cpu.R[14] >>> 0).toString(16) });
+    const c = Mundo.cpu;
+    postMessage({ t: 'error', texto: String(e && e.stack || e) + ' pc=' + (c.pc >>> 0).toString(16) + ' lr=' + (c.R[14] >>> 0).toString(16) + ' sp=' + (c.R[13] >>> 0).toString(16) + (Mundo.ultimos ? ' ULTIMOS ' + Mundo.ultimos() + ' R ' + Array.from(c.R, (x) => (x >>> 0).toString(16)).join(',') : '') });
     Mundo.corriendo = false; return;
   }
   if (++cuadros % 60 === 0) {
@@ -184,6 +196,13 @@ if (_w) {
     if (m.t === 'init') iniciar(m).catch((err) => postMessage({ t: 'error', texto: String(err && err.stack || err) }));
     else if (m.t === 'ptr' || m.t === 'tecla') { Mundo.cola.push(m); if (m.t === 'ptr' && Mundo.gfx) Mundo.gfx.entrada(m); }
     else if (m.t === 'graficos') { if (Mundo.gfx) { Mundo.gfx.configurar(m.cfg); if (m.ajuste) Mundo.gfx.ajuste = m.ajuste; } }
+    else if (m.t === 'perfil' && Mundo.perfil) postMessage({ t: 'log', texto: 'PERFIL ' + Mundo.perfil() });
+    else if (m.t === 'volcar' && Mundo.cpu) { // depuracion: bloques compilados (para pruebas diferenciales)
+      const c = Mundo.cpu, lo = c.codeLo, a = [];
+      for (let i = 0; i < c.idxT.length; i++) if (c.idxT[i]) a.push(lo + 2 * i + 1);
+      for (let i = 0; i < c.idxA.length; i++) if (c.idxA[i]) a.push(lo + 4 * i);
+      postMessage({ t: 'bloques', a });
+    }
     else if (m.t === 'musFin') { if (Mundo.s3e) Mundo.s3e.musicaTermino(); }
     else if (m.t === 'tam') { if (Mundo.gfx) { Mundo.gfx.gl.canvas.width = m.w; Mundo.gfx.gl.canvas.height = m.h; Mundo.gfx.salida(m.w, m.h); } }
     else if (m.t === 'visible') { Mundo.visible = m.v; if (m.v && !Mundo.corriendo && Mundo.cpu) { Mundo.corriendo = true; paso(); } else if (!m.v) Mundo.corriendo = false; }

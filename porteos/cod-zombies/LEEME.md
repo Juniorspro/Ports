@@ -22,8 +22,10 @@ el "sistema" de Marmalade reescrito (`s3e.js`), GLES2 → WebGL (`gl.js`) y un W
 `ver=ao|bloom`. Los menús tardan; en SwiftShader GOTY va a ~20 fps (en GPU real, 60).
 
 ## Estado (29/10/2026)
-Anda: arranque, menús, partida (tutorial) a 60 fps, multitáctil, sonido (ADPCM con el callback del juego), música,
-partidas guardadas (IndexedDB), pantalla ancha nativa (hasta 22:9) y giro en vertical, texturas DXT por software,
-apartado gráfico (oclusión ambiental, sombras de contacto, HDR, bloom, estilos de color, viñeta, cámara dinámica,
-desenfoque de movimiento, FXAA, nitidez, grano, resolución interna).
-Falta: publicar en Cloudflare (faltaban credenciales), jugar una partida larga en un teléfono, idiomas.
+Anda: arranque, menús, tutorial y Kino con zombies (atacan, matan, se dispara) a 60 fps con ~5 ms de CPU por cuadro,
+multitáctil (stick + mirar), sonido (ADPCM con el callback del juego), música, partidas guardadas, pantalla ancha
+nativa y giro en vertical, DXT por software, apartado gráfico, APK con parches del motor.
+Trampas pagadas: `s3eTimerGetUST` es en milisegundos (en µs la partida corría ×1000 y la física agotaba su balde);
+`s3ePointerGetInt(4)` = multitáctil; eventos de toque {id, apretado, x, y}; botón 0 = SELECT.
+Selector de mapas: se desliza (no se toca). Pruebas: `/tmp/web_test.mjs` con ACCIONES (click, drag, stick, preset).
+Falta: jugar rondas largas en un teléfono, idiomas, publicar en Cloudflare.

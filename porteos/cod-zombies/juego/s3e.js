@@ -180,7 +180,8 @@ const S3e = (() => {
 
       // ===== temporizadores =====
       def('s3eTimerGetMs', () => self.ret(self.ms()));
-      def('s3eTimerGetUST', () => { const us = self.ms() * 1000; self.ret64(us % 4294967296, Math.floor(us / 4294967296)); });
+      // UST: milisegundos (uint64). En microsegundos la partida corria 1000 veces mas rapido (fisica, particulas, zombies)
+      def('s3eTimerGetUST', () => { const t = self.ms(); self.ret64(t % 4294967296, Math.floor(t / 4294967296)); });
       def('s3eTimerGetUTC', () => { const t = Date.now(); self.ret64(t % 4294967296, Math.floor(t / 4294967296)); });
       def('s3eTimerGetLocaltimeOffset', () => self.ret(0));
       def('s3eTimerGetInt', () => self.ret(0));
@@ -287,7 +288,8 @@ const S3e = (() => {
       // puntero: el juego lo consulta una vez por cuadro (Update + GetState/GetX/GetY) y ademas recibe callbacks
       this.pt = { abajo: false, presionado: false, soltado: false, estado: 0, x: 0, y: 0 };
       def('s3ePointerUpdate', () => { const p = self.pt; p.estado = (p.abajo ? 1 : 0) | (p.presionado ? 2 : 0) | (p.soltado ? 4 : 0); p.presionado = false; p.soltado = false; self.ret(OK); });
-      def('s3ePointerGetInt', () => { const p = A(0); self.ret(p === 0 ? 1 : p === 1 ? 1 : p === 2 ? 1 : p === 3 ? 1 : 0); });
+      // 0 disponible, 1 tipo (2 = táctil), 2 tipo de lápiz (2 = dedo), 4 multitáctil: con 0 el juego usa un solo dedo
+      def('s3ePointerGetInt', () => { const p = A(0); self.ret(p === 0 ? 1 : p === 1 ? 2 : p === 2 ? 2 : p === 4 ? 1 : 0); });
       def('s3ePointerSetInt', () => self.ret(OK));
       def('s3ePointerGetX', () => self.ret(self.pt.x));
       def('s3ePointerGetY', () => self.ret(self.pt.y));
@@ -457,9 +459,11 @@ const S3e = (() => {
       this.puntero = { x, y };
       if (id === 0) { const p = this.pt; p.x = x; p.y = y; if (m.e === 'down') { p.abajo = true; p.presionado = true; } else if (m.e === 'up') { p.abajo = false; p.soltado = true; } }
       if (m.e === 'down' || m.e === 'up') {
-        dv.setInt32(buf, 1, true);  dv.setInt32(buf + 4, m.e === 'down' ? 1 : 0, true); dv.setInt32(buf + 8, x, true); dv.setInt32(buf + 12, y, true);
+        // s3ePointerEvent {m_Button (0 = SELECT), m_Pressed, m_x, m_y}
+        dv.setInt32(buf, 0, true); dv.setInt32(buf + 4, m.e === 'down' ? 1 : 0, true); dv.setInt32(buf + 8, x, true); dv.setInt32(buf + 12, y, true);
         if (id === 0) this.disparar('ptr', 0, buf);
-        dv.setInt32(buf, m.e === 'down' ? 1 : 0, true); dv.setInt32(buf + 4, id, true); dv.setInt32(buf + 8, x, true); dv.setInt32(buf + 12, y, true);
+        // s3ePointerTouchEvent {m_TouchID, m_Pressed, m_x, m_y}
+        dv.setInt32(buf, id, true); dv.setInt32(buf + 4, m.e === 'down' ? 1 : 0, true); dv.setInt32(buf + 8, x, true); dv.setInt32(buf + 12, y, true);
         this.disparar('ptr', 2, buf);
       } else if (m.e === 'move') {
         dv.setInt32(buf, x, true); dv.setInt32(buf + 4, y, true);

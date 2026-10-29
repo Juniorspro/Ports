@@ -40,7 +40,7 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none
 </div>
 <script>
 'use strict';
-const VERSION_MOTOR = 4; // sube con cada parche: se ve en el panel
+const VERSION_MOTOR = 5; // sube con cada parche: se ve en el panel
 const q = new URLSearchParams(location.search);
 const base = q.get('base') || './';
 const paquete = q.get('paquete') || 'blackops_dxt.dz';
@@ -99,7 +99,8 @@ w.onmessage = (e) => {
     t.textContent = op.fps || q.get('fps') ? m.fps.toFixed(0) + ' fps' + (q.get('fps') ? ' | cpu ' + m.ms.toFixed(1) + ' ms | bloques ' + m.bloques + ' | red ' + (m.red / 1048576).toFixed(1) + ' MB (' + m.peticiones + ')' : '') : '';
     if (!window.__listoEnviado) { window.__listoEnviado = true; try { parent.postMessage({ type: 'game:ready' }, '*'); } catch (_) {} }
     window.__fps = m;
-  } else if (m.t === 'pcm') sonar(m.d);
+  } else if (m.t === 'bloques') window.__bloques = m.a;
+  else if (m.t === 'pcm') sonar(m.d);
   else if (m.t === 'snd') { volJuego = m.v; volumenes(); }
   else if (m.t === 'mus') musica(m);
   else if (m.t === 'musStop') { mus.pause(); mus.removeAttribute('src'); musPend = false; }
@@ -144,7 +145,7 @@ addEventListener('pointerdown', desbloquearAudio, true);
 document.addEventListener('visibilitychange', () => { if (document.hidden) { if (!mus.paused) { mus.pause(); musPend = true; } if (actx) actx.suspend().catch(() => {}); } else if (actx) actx.resume().catch(() => {}); });
 
 const off = c.transferControlToOffscreen();
-w.postMessage({ t: 'init', base, paquete, paqueteUrl, paqueteTam, canvas: off, ancho: AN, alto: AL, salidaW: SW, salidaH: SH, graficos: Object.assign({}, op.cfg, q.get('ver') ? { ver: q.get('ver') } : {}), ajuste: op.ajuste, sinS3tc: !!q.get('sins3tc'), trazar: q.get('trazar'), filtro: q.get('filtro') }, [off]);
+w.postMessage({ t: 'init', base, paquete, paqueteUrl, paqueteTam, canvas: off, ancho: AN, alto: AL, salidaW: SW, salidaH: SH, graficos: Object.assign({}, op.cfg, q.get('ver') ? { ver: q.get('ver') } : {}), ajuste: op.ajuste, sinS3tc: !!q.get('sins3tc'), trazar: q.get('trazar'), filtro: q.get('filtro'), depurar: !!q.get('depurar'), extraCfg: q.get('cfg') ? q.get('cfg').replace(/;/g, '\n') : '' }, [off]);
 addEventListener('resize', () => { const [a, b] = ajustar(); if (a !== SW || b !== SH) { SW = a; SH = b; w.postMessage({ t: 'tam', w: a, h: b }); } });
 
 // ---- entrada: puntero -> coordenadas del juego ----
