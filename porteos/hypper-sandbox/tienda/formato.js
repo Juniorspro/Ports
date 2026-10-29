@@ -2,7 +2,7 @@
 // mete en la página sin los "export"). Los valores casi no tienen límite: sólo se descartan números inválidos y se cortan
 // tamaños absurdos. El "codigo" (JavaScript) corre en el juego dentro de un cuadro aislado que habla con la API de mods.
 //
-// Mod (.rbmod):  { formato: 'rezobox-mod', version: 1, nombre, autor, descripcion, etiquetas, icono (emoji o imagen),
+// Mod (.rbmod):  { formato: 'rezobox-mod', version: 1, nombre, autor, descripcion, etiquetas, icono ('ico:nombre' o imagen),
 //                  efectos: { gravedad, velocidad, salto, tiempo, explosion (multiplicadores), municionInfinita, invencible,
 //                             skin, hora, armas: [nombres], aparecer: [{ n, d, lado }] }, codigo: 'JavaScript' }
 // Mapa (.rbmapa): { formato: 'rezobox-mapa', version: 1, nombre, autor, descripcion, etiquetas, base (mapa del juego), foto,
@@ -16,7 +16,16 @@ const NOMBRE_RB = /^[A-Za-z0-9_ ()\-.]{1,40}$/;
 const rbTexto = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const rbNum = (v, a, b, def) => { const n = Number(v); return Number.isFinite(n) ? Math.min(b, Math.max(a, n)) : def; };
 const rbImagen = (v, max) => (typeof v === 'string' && /^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= max ? v : null);
-const rbEmoji = (v) => (typeof v === 'string' && v.length > 0 && v.length <= 8 && !/[A-Za-z0-9<>"'&]/.test(v) ? v : null);
+// íconos: "ico:nombre" (imágenes del juego). Los emojis de mods viejos se cambian por la imagen que más se parece.
+export const ICO_EMOJI_RB = { '🧩': 'mod', '🐉': 'energia', '🌙': 'luna', '🦘': 'salto', '⚡': 'veloz', '♾': 'balas', '🛡': 'dios', '🐢': 'lenta', '💥': 'boom',
+  '🔥': 'fuego', '🚀': 'cohete', '👾': 'alien', '🤖': 'robot', '🦖': 'dino', '🏎': 'auto', '🚗': 'auto', '🔫': 'arma', '💣': 'bomba', '🧲': 'iman', '🌪': 'tornado',
+  '❄': 'hielo', '👑': 'corona', '🎉': 'fiesta', '🕊': 'volar', '🪆': 'ragdoll', '🐾': 'scp', '🎹': 'piano', '📻': 'radio', '🎵': 'musica', '🎶': 'musica',
+  '🌍': 'planeta', '🪐': 'planeta', '🥷': 'shuriken', '💡': 'luz', '🏁': 'meta', '🌀': 'teleport', '☠': 'zona_muerte', '💀': 'zona_muerte', '🛝': 'rampa', '⏫': 'impulso', '🪧': 'cartel' };
+export function icoNombreRB(v) {
+  if (typeof v !== 'string') return 'mod';
+  if (/^ico:[a-z_]{2,20}$/.test(v)) return v.slice(4);
+  return ICO_EMOJI_RB[v.replace(/\uFE0F/g, '')] || 'mod';
+}
 const rbVec = (v, n, lim) => (Array.isArray(v) && v.length === n ? v.map((x) => rbNum(x, -lim, lim, 0)) : null);
 const rbColor = (v) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : '#ffffff');
 const rbCodigo = (v) => (typeof v === 'string' && v.trim() ? v.slice(0, 1000000) : null);
@@ -40,7 +49,7 @@ export function validarRB(d) {
       armas: rbNombres(e.armas, 50),
       aparecer: (Array.isArray(e.aparecer) ? e.aparecer : []).slice(0, 500).map((o) => ({ n: String((o && o.n) || ''), d: rbNum(o && o.d, 0, 500, 6), lado: rbNum(o && o.lado, -500, 500, 0) })).filter((o) => NOMBRE_RB.test(o.n)),
     };
-    return { formato: 'rezobox-mod', ...base, icono: rbEmoji(d.icono) || rbImagen(d.icono, 60000) || '🧩', efectos: ef };
+    return { formato: 'rezobox-mod', ...base, icono: rbImagen(d.icono, 60000) || 'ico:' + icoNombreRB(d.icono), efectos: ef };
   }
   if (d.formato === 'rezobox-mapa') {
     if (!MAPAS_BASE_RB.includes(d.base)) return 'el mapa base no existe';

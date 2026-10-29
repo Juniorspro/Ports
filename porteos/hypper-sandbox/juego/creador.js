@@ -35,7 +35,7 @@ function creadorIniciar() {
   if (m.gravedad && m.gravedad !== 1) { MUNDO.gravedad *= m.gravedad; PH.gscale = MUNDO.gravedad; }
   if (m.hora != null) { DIA.ciclo = false; DIA.hora = m.hora; DIA.aplicada = -1; }
   JUG.noclip = true; MODS.invencible = true;
-  creadorBarra(); setTimeout(() => aviso('🛠 ' + T('cr.hola'), 4), 400);
+  creadorBarra(); setTimeout(() => aviso(T('cr.hola'), 4), 400);
 }
 function creadorSalir() { CREA.on = false; CREA.tipo = null; CREA.sel = null; if (CREA.bar) { CREA.bar.remove(); CREA.bar = null; } creadorPanelCerrar(); }
 // ---------------- barra de herramientas ----------------
@@ -48,9 +48,9 @@ function creadorBarra() {
 function creadorBarraDibujar() {
   const b = CREA.bar; if (!b) return;
   const rol = CREA.mapa.roles.find((r) => r.id === CREA.rol), bt = (k, t, extra) => `<button class="crBt${extra || ''}" data-cr="${k}">${t}</button>`;
-  let h = bt('paleta', '➕ ' + esc(T('cr.entidad'))) + bt('punto', `📍 ${esc(T('cr.punto'))}${rol ? ` <i style="background:${rol.color}"></i>` : ''}`) + bt('roles', '👥') + bt('mapa', '⚙') + bt('guardar', '💾') + bt('probar', '▶') + bt('publicar', '⬆');
-  if (CREA.tipo) h += `<span class="crSep"></span><span class="crTxt">${ENT_INFO[CREA.tipo][0]} ${esc(T('ent.' + CREA.tipo))}</span>` + bt('poner', '✔ ' + esc(T('cr.poner')), ' crSi') + bt('cancelar', '✖');
-  else if (CREA.sel) h += `<span class="crSep"></span><span class="crTxt">${CREA.sel.e ? ENT_INFO[CREA.sel.e.t][0] + ' ' + esc(T('ent.' + CREA.sel.e.t)) : '📍 ' + esc(T('cr.punto'))}</span>` + (CREA.sel.e && ENT_PRM[CREA.sel.e.t] ? bt('editar', '✏') : '') + bt('girar', '↻') + bt('traer', '⤓') + bt('borrar', '🗑', ' crNo');
+  let h = bt('paleta', glifo('mas') + ' ' + esc(T('cr.entidad'))) + bt('punto', `${glifo('punto')} ${esc(T('cr.punto'))}${rol ? ` <i style="background:${rol.color}"></i>` : ''}`) + bt('roles', glifo('gente')) + bt('mapa', glifo('ajustes')) + bt('guardar', glifo('guardar')) + bt('probar', glifo('jugar')) + bt('publicar', glifo('subir'));
+  if (CREA.tipo) h += `<span class="crSep"></span><span class="crTxt">${icoHTML('ico:' + ENT_INFO[CREA.tipo][0])} ${esc(T('ent.' + CREA.tipo))}</span>` + bt('poner', glifo('si') + ' ' + esc(T('cr.poner')), ' crSi') + bt('cancelar', glifo('no'));
+  else if (CREA.sel) h += `<span class="crSep"></span><span class="crTxt">${CREA.sel.e ? icoHTML('ico:' + ENT_INFO[CREA.sel.e.t][0]) + ' ' + esc(T('ent.' + CREA.sel.e.t)) : glifo('punto') + ' ' + esc(T('cr.punto'))}</span>` + (CREA.sel.e && ENT_PRM[CREA.sel.e.t] ? bt('editar', glifo('lapiz')) : '') + bt('girar', glifo('girar')) + bt('traer', glifo('traer')) + bt('borrar', glifo('basura'), ' crNo');
   b.innerHTML = h;
 }
 function creadorAccion(k) {
@@ -59,7 +59,7 @@ function creadorAccion(k) {
   if (k === 'punto') return creadorPonerPunto();
   if (k === 'roles') return creadorRoles();
   if (k === 'mapa') return creadorDatosPanel();
-  if (k === 'guardar') { const v = creadorGuardar(); if (v) aviso('💾 ' + T('cr.guardado'), 2); return; }
+  if (k === 'guardar') { const v = creadorGuardar(); if (v) aviso(T('cr.guardado'), 2); return; }
   if (k === 'probar') { const v = creadorGuardar(); if (!v) return; creadorSalir(); RB.mapaCom = v.id; RB.mapaPartida = v; RB.horaPartida = 'normal'; empezarPartida(v.base); return; }
   if (k === 'publicar') return creadorPublicar();
   if (k === 'poner') return creadorPoner();
@@ -77,7 +77,7 @@ function creadorPoner() {
   if (!CREA.tipo) return; const p = creadorPunto(), t = CREA.tipo, prm = {};
   if (t === 'teleport') prm.a = [+JUG.pos.x.toFixed(2), +(JUG.pos.y - 1).toFixed(2), +JUG.pos.z.toFixed(2)];
   const e = entidadCrear({ t, p: [p.x, p.y, p.z], yaw: JUG.yaw, prm });
-  if (e) { CREA.sel = { e }; sonar('Click', null, 0.6); if (t === 'teleport' || t === 'boton_autos') aviso('✏ ' + T('cr.fijar'), 3); }
+  if (e) { CREA.sel = { e }; sonar('Click', null, 0.6); if (t === 'teleport' || t === 'boton_autos') aviso(T('cr.fijar'), 3); }
   CREA.tipo = null; creadorBarraDibujar();
 }
 function creadorPonerPunto() {
@@ -131,7 +131,7 @@ function creadorPanel(html) {
 }
 function creadorPanelCerrar() { const p = $('creaPan'); if (p) p.classList.add('oc'); if (UI.abierto === 'crea') UI.abierto = null; }
 function creadorPaleta() {
-  creadorPanel(`<h3>➕ ${esc(T('cr.entidad'))}</h3><div class="crPaleta">${Object.keys(ENT_INFO).map((t) => `<button data-cp="tipo:${t}"><b>${ENT_INFO[t][0]}</b>${esc(T('ent.' + t))}</button>`).join('')}</div>
+  creadorPanel(`<h3>${glifo('mas')} ${esc(T('cr.entidad'))}</h3><div class="crPaleta">${Object.keys(ENT_INFO).map((t) => `<button data-cp="tipo:${t}"><b>${icoHTML('ico:' + ENT_INFO[t][0])}</b>${esc(T('ent.' + t))}</button>`).join('')}</div>
     <p class="crAyuda">${esc(T('cr.ayudaPoner'))}</p><button class="boton gris" data-cp="cerrar">${esc(T('cerrar'))}</button>`);
 }
 function creadorEditar(e) {
@@ -143,23 +143,23 @@ function creadorEditar(e) {
     if (tipo === 'color') return `<label class="crCampo">${L}<input type="color" data-k="${k}" value="${/^#[0-9a-f]{6}$/i.test(v || '') ? v : '#ffffff'}"></label>`;
     if (tipo === 'yt') return `<label class="crCampo">${L}<input data-k="${k}" maxlength="120" placeholder="https://youtu.be/…" value="${esc(v || '')}"></label>`;
     if (tipo === 'vec') return `<label class="crCampo">${L}<span class="crVec">${[0, 1, 2].map((i) => `<input type="number" data-k="${k}" data-i="${i}" min="${a}" max="${b}" step="${s}" value="${(v || [1, 1, 1])[i]}">`).join('')}</span></label>`;
-    if (tipo === 'auto') return `<label class="crCampo">${L}<select data-k="${k}"><option value="">🎲</option>${listaAutos().map((n) => `<option${n === v ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`;
-    if (tipo === 'aqui') return `<div class="crCampo">${L}<span>${Array.isArray(v) ? v.map((x) => (+x).toFixed(1)).join(', ') : '—'}</span><button class="boton chico" data-cp="aqui:${k}">📍 ${esc(T('cr.aqui'))}</button></div>`;
+    if (tipo === 'auto') return `<label class="crCampo">${L}<select data-k="${k}"><option value="">?</option>${listaAutos().map((n) => `<option${n === v ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`;
+    if (tipo === 'aqui') return `<div class="crCampo">${L}<span>${Array.isArray(v) ? v.map((x) => (+x).toFixed(1)).join(', ') : '—'}</span><button class="boton chico" data-cp="aqui:${k}">${glifo('punto')} ${esc(T('cr.aqui'))}</button></div>`;
     return '';
   };
   CREA.edit = e;
-  creadorPanel(`<h3>${ENT_INFO[e.t][0]} ${esc(T('ent.' + e.t))}</h3><div class="crForm">${(ENT_PRM[e.t] || []).map(campo).join('')}</div>
-    <div class="crPie"><button class="boton gris chico" data-cp="cerrar">${esc(T('cerrar'))}</button><button class="boton chico" data-cp="aplicar">✔ ${esc(T('cr.aplicar'))}</button></div>`);
+  creadorPanel(`<h3>${icoHTML('ico:' + ENT_INFO[e.t][0])} ${esc(T('ent.' + e.t))}</h3><div class="crForm">${(ENT_PRM[e.t] || []).map(campo).join('')}</div>
+    <div class="crPie"><button class="boton gris chico" data-cp="cerrar">${esc(T('cerrar'))}</button><button class="boton chico" data-cp="aplicar">${glifo('si')} ${esc(T('cr.aplicar'))}</button></div>`);
 }
 function creadorRoles() {
   const m = CREA.mapa, armas = Object.keys(DEF_ARMAS || {}).filter((a) => !/^(Camera)$/.test(a));
   const fila = (r, i) => `<div class="crRol" data-i="${i}"><input type="color" data-rk="color" value="${r.color}"><input data-rk="nombre" maxlength="30" value="${esc(r.nombre)}">
-      <select data-rk="skin"><option value="">👤</option>${Object.keys(RETRATO).map((s) => `<option${s === r.skin ? ' selected' : ''}>${s}</option>`).join('')}</select>
-      <label>❤<input type="number" data-rk="vida" min="1" max="100000" value="${r.vida}"></label><label>🏃<input type="number" data-rk="velocidad" min="0" max="100" step="0.1" value="${r.velocidad}"></label><label>🦘<input type="number" data-rk="salto" min="0" max="100" step="0.1" value="${r.salto}"></label>
+      <select data-rk="skin"><option value="">-</option>${Object.keys(RETRATO).map((s) => `<option${s === r.skin ? ' selected' : ''}>${s}</option>`).join('')}</select>
+      <label>${glifo('corazon')}<input type="number" data-rk="vida" min="1" max="100000" value="${r.vida}"></label><label>${glifo('rayo')}<input type="number" data-rk="velocidad" min="0" max="100" step="0.1" value="${r.velocidad}"></label><label>${glifo('salto')}<input type="number" data-rk="salto" min="0" max="100" step="0.1" value="${r.salto}"></label>
       <span class="crArmas">${armas.map((a) => `<button class="${r.armas.includes(a) ? 'sel' : ''}" data-cp="arma:${i}:${a}">${a}</button>`).join('')}</span>
-      <button class="boton chico ${CREA.rol === r.id ? '' : 'gris'}" data-cp="usarRol:${i}">📍</button><button class="boton chico gris" data-cp="quitarRol:${i}">🗑</button></div>`;
-  creadorPanel(`<h3>👥 ${esc(T('cr.roles'))}</h3><p class="crAyuda">${esc(T('cr.ayudaRoles'))}</p><div class="crRoles">${m.roles.map(fila).join('') || `<div class="crAyuda">—</div>`}</div>
-    <div class="crPie"><button class="boton chico" data-cp="nuevoRol">＋ ${esc(T('cr.nuevoRol'))}</button><button class="boton chico ${CREA.rol ? 'gris' : ''}" data-cp="sinRol">📍 ${esc(T('cr.sinRol'))}</button><button class="boton gris chico" data-cp="cerrarRoles">${esc(T('cerrar'))}</button></div>`);
+      <button class="boton chico ${CREA.rol === r.id ? '' : 'gris'}" data-cp="usarRol:${i}">${glifo('punto')}</button><button class="boton chico gris" data-cp="quitarRol:${i}">${glifo('basura')}</button></div>`;
+  creadorPanel(`<h3>${glifo('gente')} ${esc(T('cr.roles'))}</h3><p class="crAyuda">${esc(T('cr.ayudaRoles'))}</p><div class="crRoles">${m.roles.map(fila).join('') || `<div class="crAyuda">—</div>`}</div>
+    <div class="crPie"><button class="boton chico" data-cp="nuevoRol">${glifo('mas')} ${esc(T('cr.nuevoRol'))}</button><button class="boton chico ${CREA.rol ? 'gris' : ''}" data-cp="sinRol">${glifo('punto')} ${esc(T('cr.sinRol'))}</button><button class="boton gris chico" data-cp="cerrarRoles">${esc(T('cerrar'))}</button></div>`);
 }
 function creadorRolesLeer() {
   const p = $('creaPan'), m = CREA.mapa; if (!p) return;
@@ -167,15 +167,15 @@ function creadorRolesLeer() {
 }
 function creadorDatosPanel() {
   const m = CREA.mapa;
-  creadorPanel(`<h3>⚙ ${esc(T('cr.datos'))}</h3><div class="crForm">
+  creadorPanel(`<h3>${glifo('ajustes')} ${esc(T('cr.datos'))}</h3><div class="crForm">
     <label class="crCampo">${esc(T('nombre'))}<input id="crNom" maxlength="40" value="${esc(m.nombre)}"></label>
     <label class="crCampo">${esc(T('desc'))}<textarea id="crDesc" maxlength="2000" rows="3">${esc(m.descripcion)}</textarea></label>
     <label class="crCampo">${esc(T('f.hora'))}<select id="crHora"><option value="">${esc(T('ninguna'))}</option>${[...Array(24)].map((_, h) => `<option value="${h}"${m.hora === h ? ' selected' : ''}>${h}:00</option>`).join('')}</select></label>
     <label class="crCampo">${esc(T('f.gravedad'))}<input id="crGrav" type="number" min="-50" max="100" step="0.05" value="${m.gravedad}"></label>
     <div class="crCampo">${esc(T('etiquetas'))}<span class="crEtqs">${ETIQUETAS_RB.map((e) => `<button class="${m.etiquetas.includes(e) ? 'sel' : ''}" data-cp="etq:${e}">${esc(T('e.' + e))}</button>`).join('')}</span></div>
-    <div class="crCampo">${esc(T('cr.aparicion'))}<span>${m.aparicion ? m.aparicion.map((x) => (+x).toFixed(1)).join(', ') : '—'}</span><button class="boton chico" data-cp="aparicion">📍 ${esc(T('cr.aqui'))}</button></div>
-    <p class="crAyuda">${m.spawns.length} 📍 · ${m.roles.length} 👥 · ${ENTS.lista.filter((e) => e.dueno === 'yo' && !e.red).length} ✦ · ${OBJS.filter((o) => o.dueno === 'yo').length} 📦</p></div>
-    <div class="crPie"><button class="boton chico gris" data-cp="exportar">⬇ ${esc(T('exportar'))}</button><button class="boton chico gris" data-cp="salirCrea">🚪 ${esc(T('cr.salir'))}</button><button class="boton chico" data-cp="datosOk">✔ ${esc(T('cr.aplicar'))}</button></div>`);
+    <div class="crCampo">${esc(T('cr.aparicion'))}<span>${m.aparicion ? m.aparicion.map((x) => (+x).toFixed(1)).join(', ') : '—'}</span><button class="boton chico" data-cp="aparicion">${glifo('punto')} ${esc(T('cr.aqui'))}</button></div>
+    <p class="crAyuda">${glifo('punto')} ${m.spawns.length} · ${glifo('gente')} ${m.roles.length} · ${glifo('cosa')} ${ENTS.lista.filter((e) => e.dueno === 'yo' && !e.red).length} · ${glifo('caja')} ${OBJS.filter((o) => o.dueno === 'yo').length}</p></div>
+    <div class="crPie"><button class="boton chico gris" data-cp="exportar">${glifo('bajar')} ${esc(T('exportar'))}</button><button class="boton chico gris" data-cp="salirCrea">${glifo('salir')} ${esc(T('cr.salir'))}</button><button class="boton chico" data-cp="datosOk">${glifo('si')} ${esc(T('cr.aplicar'))}</button></div>`);
 }
 function creadorDatosLeer() {
   const p = $('creaPan'), m = CREA.mapa; if (!p || !p.querySelector('#crNom')) return;
@@ -185,7 +185,7 @@ function creadorDatosLeer() {
 function creadorPanelAccion(k, b) {
   const [a, v, w] = k.split(':'), m = CREA.mapa;
   if (a === 'cerrar') return creadorPanelCerrar();
-  if (a === 'tipo') { CREA.tipo = v; CREA.sel = null; creadorPanelCerrar(); creadorBarraDibujar(); aviso(ENT_INFO[v][0] + ' ' + T('cr.ayudaPoner'), 3); return; }
+  if (a === 'tipo') { CREA.tipo = v; CREA.sel = null; creadorPanelCerrar(); creadorBarraDibujar(); aviso(T('cr.ayudaPoner'), 3); return; }
   if (a === 'aplicar') {
     const e = CREA.edit; if (!e || !ENTS.lista.includes(e)) return creadorPanelCerrar();
     const d = entidadDatos(e);
@@ -224,7 +224,7 @@ function creadorDatos() {
 }
 function creadorGuardar() {
   const d = creadorDatos(); if (!d.nombre || d.nombre.trim().length < 3) d.nombre = (T('cr.miMapa') + ' ' + new Date().toLocaleDateString()).slice(0, 40);
-  const v = validarRB(d); if (typeof v === 'string') { aviso('⚠ ' + v, 3); return null; }
+  const v = validarRB(d); if (typeof v === 'string') { aviso(v, 3); return null; }
   const id = CREA.mapa.id || 'crea-' + Math.random().toString(36).slice(2, 10);
   v.id = id; v.creado = true; v.foto = CREA.mapa.foto || null; CREA.mapa.id = id; CREA.mapa.nombre = v.nombre;
   INST.mapas[id] = v; guardarLS('rb_instalados', INST);
@@ -239,9 +239,9 @@ async function creadorPublicar() {
   try {
     const env = Object.assign({}, v); delete env.id; delete env.creado;
     const r = await (await fetch(TIENDA_URL + 'publicar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(env) })).json();
-    if (!r.id) { aviso('⚠ ' + (r.error || T('errRed')), 3); return; }
+    if (!r.id) { aviso(r.error || T('errRed'), 3); return; }
     PUBLICADOS[r.id] = r.clave; guardarLS('rb_publicados', PUBLICADOS);
-    aviso(`⬆ ${T('publicado')} ${T('clave')} ${r.clave}`, 8);
+    aviso(`${T('publicado')} ${T('clave')} ${r.clave}`, 8);
   } catch (e) { aviso(T('errRed'), 3); }
 }
 // ---------------- roles al jugar un mapa ----------------
@@ -256,7 +256,7 @@ function rolesPreparar(mc) {
 function rolElegirPanel() {
   const mc = ROL.mapa; if (!mc || JUEGO.estado !== 'juego') return;
   let p = $('rolPan'); if (!p) { p = document.createElement('div'); p.id = 'rolPan'; p.className = 'panel oc'; document.body.appendChild(p); p.addEventListener('click', (e) => { const b = e.target.closest('[data-rol]'); if (b) rolElegir(+b.dataset.rol); }); }
-  cerrarPaneles(); p.innerHTML = `<div class="caja rolCaja"><h3>👥 ${esc(T('cr.elegirRol'))}</h3>${mc.roles.map((r, i) => `<button class="rolIt" data-rol="${i}"><i style="background:${r.color}"></i><b dir="auto">${esc(r.nombre)}</b><small>❤ ${r.vida} · 🏃 ${r.velocidad}× · 🦘 ${r.salto}×${r.armas.length ? ' · 🔫 ' + r.armas.length : ''}</small></button>`).join('')}</div>`;
+  cerrarPaneles(); p.innerHTML = `<div class="caja rolCaja"><h3>${glifo('gente')} ${esc(T('cr.elegirRol'))}</h3>${mc.roles.map((r, i) => `<button class="rolIt" data-rol="${i}"><i style="background:${r.color}"></i><b dir="auto">${esc(r.nombre)}</b><small>${glifo('corazon')} ${r.vida} · ${glifo('rayo')} ${r.velocidad}× · ${glifo('salto')} ${r.salto}×${r.armas.length ? ' · ' + glifo('mira') + ' ' + r.armas.length : ''}</small></button>`).join('')}</div>`;
   p.classList.remove('oc'); UI.abierto = 'rol'; soltarPuntero();
 }
 function rolElegir(i) {
@@ -269,6 +269,6 @@ function rolElegir(i) {
   if (r.armas.length) { ARM.lista = r.armas.filter((a) => DEF_ARMAS[a]); if (!ARM.lista.length) ARM.lista = ['Hands']; ARM.balas = {}; elegirArma(0); }
   JUG.skinRol = r.skin && RETRATO[r.skin] ? r.skin : null;
   jugadorAparecer(); jugadorCuerpoNuevo();
-  aviso('👥 ' + r.nombre, 2);
+  aviso(r.nombre, 2);
 }
 function rolCerrar() { ROL.mapa = null; ROL.rol = null; const p = $('rolPan'); if (p) p.classList.add('oc'); if (UI.abierto === 'rol') UI.abierto = null; }

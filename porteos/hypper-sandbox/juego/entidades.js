@@ -1,13 +1,13 @@
 // ---------------- entidades: cosas con comportamiento que ponen los mapas y los mods ----------------
-// Piano gigante (cada tecla suena al pisarla: jugadores, autos, objetos), radio con música de YouTube (suena desde donde
-// está, más baja de lejos y detrás de paredes), mega rampa (sus triángulos se suman al piso: los autos bajan por ella),
+// Piano gigante (cada tecla suena al pisarla: jugadores, autos, objetos), radio (emisoras por internet en 3D o un video de
+// YouTube; se lleva en la espalda y se pega donde sea con la pistola de física), mega rampa (sus triángulos se suman al piso: los autos bajan por ella),
 // botón que hace aparecer un auto, teletransporte, zona de muerte, cartel, luz, impulso, meta y música de ambiente.
 // Las del mapa salen de su archivo; las que pone un mod se comparten con la sala.
 const ENTS = { lista: [], sig: 1, autos: [], tAutos: 0, t0: 0 };
 const ENT_INFO = {
-  piano: ['🎹', { n: 25, o: 3, a: 1.2, l: 5 }], radio: ['📻', { v: '', vol: 1, r: 40 }], rampa: ['🛝', { alto: 120, ancho: 16, ang: 50, salto: true }],
-  boton_autos: ['🔴', { auto: '', a: null, ya: null, ini: false }], teleport: ['🌀', { a: null }], zona_muerte: ['☠️', { s: [6, 3, 6] }], cartel: ['🪧', { texto: 'RezoBox', color: '#ffffff' }],
-  luz: ['💡', { color: '#ffd9a0', r: 14, i: 1 }], impulso: ['⏫', { f: 16, d: 8 }], meta: ['🏁', { texto: '' }], musica: ['🎵', { v: '', r: 60 }],
+  piano: ['piano', { n: 25, o: 3, a: 1.2, l: 5 }], radio: ['radio', { v: '', vol: 1, r: 40 }], rampa: ['rampa', { alto: 120, ancho: 16, ang: 50, salto: true }],
+  boton_autos: ['boton_autos', { auto: '', a: null, ya: null, ini: false }], teleport: ['teleport', { a: null }], zona_muerte: ['zona_muerte', { s: [6, 3, 6] }], cartel: ['cartel', { texto: 'RezoBox', color: '#ffffff' }],
+  luz: ['luz', { color: '#ffd9a0', r: 14, i: 1 }], impulso: ['impulso', { f: 16, d: 8 }], meta: ['meta', { texto: '' }], musica: ['musica', { v: '', r: 60 }],
 };
 const autosMax = () => (ENT.tactil ? 10 : 16), AUTO_OCIOSO = 25;
 const ahoraS = () => Date.now() / 1000;
@@ -34,9 +34,15 @@ function entidadQuitar(e) {
   if (e.b) removeBody(e.b);
   if (e.tag) e.tag.remove();
   if (YT.fuente === e) ytQuitar();
+  estParar(e);
 }
-function entidadesLimpiar() { for (const e of ENTS.lista.slice()) entidadQuitar(e); ENTS.autos.length = 0; ytQuitar(); radioCerrar(); ENTS.t0 = TIEMPO.t; }
-function entidadDatos(e) { const p = entPos(e); return { t: e.t, p: [p.x, p.y, p.z].map((x) => +x.toFixed(3)), yaw: +e.yaw.toFixed(4), prm: JSON.parse(JSON.stringify(e.prm)) }; }
+function entidadesLimpiar() { for (const e of ENTS.lista.slice()) entidadQuitar(e); ENTS.autos.length = 0; ytQuitar(); for (const e of [...EST.son.keys()]) estParar(e); radioCerrar(); ENTS.t0 = TIEMPO.t; }
+function entidadDatos(e) {
+  const prm = JSON.parse(JSON.stringify(e.prm)); let p = entPos(e);
+  // la radio: el lugar de su base (la caja va 24 cm arriba), su giro y si quedó congelada (pegada a una pared)
+  if (e.t === 'radio' && e.b) { p = vsub(e.b.pos, v3(0, 0.24, 0)); prm.q = [e.b.q.x, e.b.q.y, e.b.q.z, e.b.q.w].map((x) => +x.toFixed(4)); prm.fz = e.b.frozen ? 1 : 0; prm.ll = e.prm.ll ? 1 : 0; }
+  return { t: e.t, p: [p.x, p.y, p.z].map((x) => +x.toFixed(3)), yaw: +e.yaw.toFixed(4), prm };
+}
 function entidadesCargar(lista) { for (const d of lista || []) entidadCrear(d); ENTS.t0 = TIEMPO.t; }
 // lo que pisa algo cerca de una entidad: pies de los jugadores, ruedas de los autos y objetos sueltos
 function pisadores(c, rad) {
@@ -94,27 +100,37 @@ const ENT_TIPO = {
       dibujarCaja(entW(e, 0, 0.02, e.L / 2), [e.W + 0.8, 0.04, e.L + 0.3], e.q, mM);
     },
   },
-  // radio: una caja que se puede agarrar y tirar; suena la canción elegida desde donde esté
+  // radio: una caja que se puede agarrar, tirar y pegar donde sea con la pistola de física (queda congelada); también
+  // se lleva en la espalda. Suena la emisora (en 3D) o el video elegido desde donde esté
   radio: {
     crear(e) {
-      const b = new Body(boxShape(0.36, 0.22, 0.14), 6, { fric: 0.7, rest: 0.1 });
-      b.pos.copy(vadd(e.p, v3(0, 0.24, 0))); b.q.copy(e.q); b.ent = e; b.snd = 'metal'; addBody(b); e.b = b;
-      const v = ytId(e.prm.v); if (v) { e.vid = v; e.t0 = ahoraS(); }
+      const b = new Body(boxShape(0.36, 0.22, 0.14), 6, { fric: 0.7, rest: 0.1 }), q = e.prm.q;
+      b.pos.copy(vadd(e.p, v3(0, 0.24, 0)));
+      const qq = Array.isArray(q) && q.length === 4 ? new Quat(+q[0] || 0, +q[1] || 0, +q[2] || 0, +q[3] || 0) : null;
+      b.q.copy(qq && Math.hypot(qq.x, qq.y, qq.z, qq.w) > 0.5 ? qq.norm() : e.q); b.ent = e; b.snd = 'metal'; e.b = b;
+      if (e.prm.fz) b.frozen = true;
+      if (e.dueno !== 'yo') { b.frozen = true; b.noGrab = true; } // la de otro jugador la mueve su dueño (llega por la red)
+      if (!e.prm.ll) addBody(b);
+      const v = fuenteRadio(e.prm.v); if (v) { e.vid = v; e.t0 = ahoraS(); }
+    },
+    paso(e, dt) {
+      const P = radioPortador(e);
+      if (e.prm.ll) {
+        if (PH.bodies.includes(e.b)) removeBody(e.b);
+        // (cuando no se dibuja, por ejemplo la propia en primera persona, va más o menos en la espalda para el sonido)
+        if (P && P.cDib !== PERS_N) { const f = v3(Math.sin(P.yaw), 0, Math.cos(P.yaw)); e.b.pos.copy(vadd(vadd(P.pos, v3(0, 0.42, 0)), vscale(f, -0.3))); e.b.q.copy(Quat.axis(0, 1, 0, P.yaw)); }
+        return;
+      }
+      if (e.dueno !== 'yo') { radioRemotaPaso(e, dt); return; }
+      radioRedPaso(e, dt);
     },
     dibujar(e) {
-      const b = e.b, q = b.q, w = (x, y, z) => vadd(b.pos, q.rot(v3(x, y, z)));
-      const mC = matPropio('radioCaja', [0.62, 0.1, 0.08], { pbr: [0.35, 0.2, 0.05] }), mG = matPropio('radioRejilla', [0.08, 0.08, 0.09], { pbr: [0.6, 0.4, 0.04] }), mP = matPropio('radioMetal', [0.75, 0.75, 0.78], { pbr: [0.25, 0.9, 0.05] });
-      const suena = YT.fuente === e && YT.vol > 0, pulso = suena ? 0.6 + 0.4 * Math.abs(Math.sin(TIEMPO.t * 7.3)) : 0;
-      dibujarCaja(b.pos, [0.72, 0.44, 0.28], q, mC);
-      for (const sx of [-0.19, 0.19]) dibujarCaja(w(sx, -0.03, -0.142), [0.24 + pulso * 0.012, 0.24 + pulso * 0.012, 0.012], q, mG);
-      dibujarCaja(w(0, 0.15, -0.142), [0.2, 0.07, 0.012], q, mP, { em: suena ? [1.6, 0.8, 0.2] : [0.15, 0.08, 0.02] });
-      dibujarCaja(w(0, 0.285, 0), [0.5, 0.04, 0.05], q, mP);
-      for (const sx of [-0.23, 0.23]) dibujarCaja(w(sx, 0.245, 0), [0.04, 0.07, 0.05], q, mP);
-      dibujarCaja(w(0.31, 0.47, 0.06), [0.014, 0.52, 0.014], q.clone().mul(Quat.axis(0, 0, 1, -0.35)), mP);
+      if (e.prm.ll) { const P = radioPortador(e); if (P && P.cDib === PERS_N) radioEnEspalda(e, P); return; }
+      radioDibujarEn(e, e.b.pos, e.b.q, 1);
     },
-    usar(e) { radioAbrir(e); return true; },
+    usar(e) { if (e.dueno !== 'yo') { aviso(T('ra.deOtro'), 2); return true; } radioAbrir(e); return true; },
   },
-  musica: { crear(e) { const v = ytId(e.prm.v); if (v) { e.vid = v; e.t0 = ahoraS(); } } },
+  musica: { crear(e) { const v = fuenteRadio(e.prm.v); if (v) { e.vid = v; e.t0 = ahoraS(); } } },
   // mega rampa (se pone en el piso; sube "alto" metros): plataforma arriba para los autos, caída que se curva, recta
   // empinada, curva hasta el piso, recta y salto final
   rampa: {
@@ -243,7 +259,7 @@ const ENT_TIPO = {
       dibujarCaja(entW(e, 0, 1.1, 0), [0.14, 2.2, 0.14], e.q, m); dibujarCaja(entW(e, 0, 2.5, 0), [2.6, 1.3, 0.12], e.q, mt);
       if (!e.tag) { e.tag = document.createElement('div'); e.tag.className = 'etiqueta cartelT'; $('hud').appendChild(e.tag); }
       const p = entW(e, 0, 2.5, 0), cl = p.distTo(CAM.pos) < 40 ? clipDe(p) : null;
-      if (cl) { e.tag.style.display = ''; e.tag.textContent = e.prm.texto || ''; e.tag.style.color = e.prm.color || '#fff'; e.tag.style.transform = `translate(${cl.x}px,${cl.y}px) translate(-50%,-50%)`; } else e.tag.style.display = 'none';
+      if (cl) { e.tag.style.display = ''; const k = (e.prm.ico || '') + '|' + (e.prm.texto || ''); if (e.tagK !== k) { e.tagK = k; e.tag.innerHTML = (e.prm.ico ? icoHTML('ico:' + e.prm.ico, 'cartelIco') : '') + `<span dir="auto">${esc(e.prm.texto || '')}</span>`; } e.tag.style.color = e.prm.color || '#fff'; e.tag.style.transform = `translate(${cl.x}px,${cl.y}px) translate(-50%,-50%)`; } else e.tag.style.display = 'none';
     },
   },
   luz: {
@@ -272,7 +288,7 @@ const ENT_TIPO = {
       if (TIEMPO.t - e.tP < 5 || !JUG.vivo) return;
       const L = entLocal(e, JUG.vehiculo ? JUG.vehiculo.b.pos : JUG.pos); if (Math.abs(L.x) > 4.6 || Math.abs(L.z) > 1.6 || L.y < -1 || L.y > 6) return;
       e.tP = TIEMPO.t; const t = TIEMPO.t - ENTS.t0, mm = Math.floor(t / 60), ss = (t % 60).toFixed(1).padStart(4, '0');
-      aviso('🏁 ' + (e.prm.texto || T('meta')) + ' · ' + mm + ':' + ss, 4); sonar('Click', null, 1, 0.8); ENTS.t0 = TIEMPO.t;
+      aviso((e.prm.texto || T('meta')) + ' · ' + mm + ':' + ss, 4); sonar('Click', null, 1, 0.8); ENTS.t0 = TIEMPO.t;
       for (let i = 0; i < 40; i++) particula(entW(e, (Math.random() - 0.5) * 8, 5, 0), v3((Math.random() - 0.5) * 4, Math.random() * 3, (Math.random() - 0.5) * 4), 1.5, 0.12, [Math.random(), Math.random(), Math.random(), 1], 'chispa', 0.5);
     },
     dibujar(e) {
@@ -293,11 +309,11 @@ function botonAutoLugar(e) {
 }
 function botonAutoPulsar(e, callado) {
   const L = botonAutoLugar(e), o = e.auto;
-  if (o && OBJS.includes(o) && o.veh && !o.veh.roto && o.b.pos.distTo(L.p) < 10) { aviso('🚗 ' + T('autoYa'), 1.5); sonar('Click', e.p, 0.5, 0.7); return; }
+  if (o && OBJS.includes(o) && o.veh && !o.veh.roto && o.b.pos.distTo(L.p) < 10) { aviso(T('autoYa'), 1.5); sonar('Click', e.p, 0.5, 0.7); return; }
   const lista = listaAutos(), nom = lista.includes(e.prm.auto) ? e.prm.auto : e.prm.i != null ? lista[Math.abs(e.prm.i | 0) % Math.max(1, lista.length)] : lista[(Math.random() * lista.length) | 0]; if (!nom) return;
   // si algo ocupa el lugar (otro auto), un poco más arriba
   const n = crearObjeto(nom, vadd(L.p, v3(0, 0.3, 0)), Quat.axis(0, 1, 0, L.yaw)); if (!n) return;
-  n.usoT = TIEMPO.t; ENTS.autos.push(n); e.auto = n; if (!callado) { sonar('Click', e.p, 0.9, 1.2); aviso('🚗 ' + T('autoNuevo'), 1.5); }
+  n.usoT = TIEMPO.t; ENTS.autos.push(n); e.auto = n; if (!callado) { sonar('Click', e.p, 0.9, 1.2); aviso(T('autoNuevo'), 1.5); }
   if (typeof redObjeto === 'function') redObjeto();
   autosLimpiar(true);
 }
@@ -317,7 +333,7 @@ const ENT_SIN_CREADOR = new Set(['teleport', 'impulso', 'zona_muerte', 'meta']);
 function entidadesPaso(dt) {
   for (const e of ENTS.lista) { const C = ENT_TIPO[e.t]; if (C && C.paso && !(CREA.on && ENT_SIN_CREADOR.has(e.t))) C.paso(e, dt); }
   if (ENTS.autos.length) autosLimpiar(false);
-  ytPaso(dt);
+  ytPaso(dt); estPaso(dt);
 }
 function dibujarEntidades() {
   GEO.pi = 0;
@@ -325,20 +341,20 @@ function dibujarEntidades() {
   if (typeof creadorDibujar === 'function') creadorDibujar();
 }
 function entidadesLuces() { for (const e of ENTS.lista) { const C = ENT_TIPO[e.t]; if (C && C.luz && entPos(e).distTo(CAM.pos) < 120) C.luz(e); } }
-function entidadCerca() { let best = null, bd = 2.2; for (const e of ENTS.lista) { const C = ENT_TIPO[e.t]; if (!C || !C.usar) continue; const d = entPos(e).distTo(pieJug()); if (d < bd) { bd = d; best = e; } } return best; }
+function entidadCerca() { let best = null, bd = 2.2; for (const e of ENTS.lista) { const C = ENT_TIPO[e.t]; if (!C || !C.usar || (e.prm && e.prm.ll)) continue; const d = entPos(e).distTo(pieJug()); if (d < bd) { bd = d; best = e; } } return best; }
 function entidadUsar(e) { const C = ENT_TIPO[e.t]; return !!(C && C.usar && C.usar(e)); }
 // el piano y la radio que pone un mod: delante del jugador, uno de cada uno (si ya está, se trae)
-function entidadPonerMod(t) {
+function entidadPonerMod(t, callado) {
   const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), d = t === 'piano' ? 3 : 1.6, p = vadd(JUG.pos, vscale(f, d));
   const y = pisoBajo(v3(p.x, JUG.pos.y + 1, p.z), 0); p.y = y === null ? JUG.pos.y - 1 : y;
   let e = ENTS.lista.find((x) => x.t === t && x.dueno === 'yo' && x.red && !x.mod);
-  if (t === 'radio' && e && entPos(e).distTo(JUG.pos) < 6) { radioAbrir(e); return; }
+  if (t === 'radio' && e && (e.prm.ll || entPos(e).distTo(JUG.pos) < 6)) { if (!callado) radioAbrir(e); return; }
   const vid = e && e.vid, t0 = e && e.t0, tit = e && e.tit, lista = e && e.lista;
   if (e) { entidadQuitar(e); entidadRed('entb', e); }
   e = entidadCrear({ t, p: [p.x, p.y, p.z], yaw: JUG.yaw }, { red: true });
   if (vid) Object.assign(e, { vid, t0, tit, lista });
   entidadRed('ent', e);
-  if (t === 'radio') radioAbrir(e);
+  if (t === 'radio' && !callado) radioAbrir(e);
 }
 // ---------------- en la sala: las que pone un mod se ven y suenan para todos ----------------
 function entidadRed(k, e) {
@@ -354,8 +370,9 @@ function entidadRemota(id, x) {
   const key = id + ':' + (x.n | 0); let e = ENTS.lista.find((y) => y.key === key);
   const v = validarRB({ formato: 'rezobox-mapa', nombre: 'red', base: 'FlatGrass', entidades: [x.d] }), d = typeof v === 'object' && v.entidades[0]; if (!d) return null;
   if (!e) e = entidadCrear(d, { dueno: id, key });
+  else if (e.t === 'radio') radioRemotaDatos(e, d);
   else if (e.b && v3(d.p[0], d.p[1], d.p[2]).distTo(e.b.pos) > 1.5) { e.b.pos.set(d.p[0], d.p[1] + 0.24, d.p[2]); e.b.vel.set(0, 0, 0); e.b.updateWorld(); }
-  if (x.v !== undefined) radioPoner(e, ytId(x.v), num(x.s, 0, 1e6, 0), limpio(String(x.tt || x.t || ''), 100), false);
+  if (x.v !== undefined) radioPoner(e, fuenteRadio(x.v), num(x.s, 0, 1e6, 0), limpio(String(x.tt || x.t || ''), 100), false);
   return e;
 }
 function entidadesRecibir(id, lista) {
@@ -366,18 +383,75 @@ function entidadesRecibir(id, lista) {
 function entidadHecho(d) {
   if (d.k === 'ent') entidadRemota(d.i, { n: d.n, d: d.d });
   else if (d.k === 'entb') { const e = ENTS.lista.find((y) => y.key === d.i + ':' + (d.n | 0)); if (e) entidadQuitar(e); }
-  else if (d.k === 'radio') { const e = ENTS.lista.find((y) => y.key === d.i + ':' + (d.n | 0)); if (e) radioPoner(e, ytId(d.v), num(d.s, 0, 1e6, 0), limpio(String(d.t || ''), 100), false); }
+  else if (d.k === 'radio') { const e = ENTS.lista.find((y) => y.key === d.i + ':' + (d.n | 0)); if (e) radioPoner(e, fuenteRadio(d.v), num(d.s, 0, 1e6, 0), limpio(String(d.t || ''), 100), false); }
+  else if (d.k === 'entp') { const e = ENTS.lista.find((y) => y.key === d.i + ':' + (d.n | 0)); if (e && e.t === 'radio') radioRemotaPose(e, d); }
 }
 function entidadesDe(id) { for (const e of ENTS.lista.slice()) if (e.dueno === id) entidadQuitar(e); }
 
-// ---------------- música de YouTube: un solo reproductor para la fuente más cercana que se oye ----------------
-// El sonido del video no se puede pasar por el audio del juego (otro sitio), así que el volumen sigue a la distancia
-// y a las paredes. El reproductor se ve chiquito en una esquina (con título y botones).
+// ---------------- la fuente de una radio: emisora por internet (en 3D) o video de YouTube ----------------
+// e.vid es "rb:" + el id de la emisora en Radio Browser, o el id de 11 letras de un video. Las emisoras pasan por el
+// sonido del juego: panner HRTF en la radio, más bajo de lejos, apagado detrás de paredes y con el eco del lugar; suenan
+// las tres radios más cercanas a la vez. YouTube no deja pasar su sonido por el juego ni esconder su reproductor, así
+// que un video suena desde una ventanita (el volumen sí sigue a la distancia).
+const esEst = (v) => typeof v === 'string' && /^rb:[0-9a-f-]{36}$/.test(v);
+const fuenteRadio = (v) => (esEst(v) ? v : ytId(v));
+const EST = { son: new Map(), url: new Map(), t: 0, max: 3 };
+// la dirección del audio de la emisora; si no es https (o no deja pasarlo por el sonido del juego) va por la tienda
+function estUrl(id) {
+  if (EST.url.has(id)) return Promise.resolve(EST.url.get(id));
+  return fetch(TIENDA_URL + 'radio/u/' + id).then((r) => r.json()).then((d) => { const u = /^https:\/\//.test(d.u || '') ? d.u : null; EST.url.set(id, u); return u; }).catch(() => null);
+}
+function estSonar(e) {
+  const c = AUD.ctx; if (!c) return null;
+  const a = new Audio(); a.crossOrigin = 'anonymous'; a.preload = 'auto';
+  const S = { e, vid: e.vid, a, src: null, F: null, an: null, nivel: new Uint8Array(64), prox: false, listo: false, tOcl: 0, tap: false, reint: 2, fin: 0, espera: 0 }; // (espera: hora límite para que arranque)
+  try { S.src = c.createMediaElementSource(a); } catch (x) { return null; }
+  S.F = fuente3D(entPos(e), 0); S.F.p.panningModel = 'HRTF'; S.F.p.rolloffFactor = 0; S.src.connect(S.F.g);
+  S.an = c.createAnalyser(); S.an.fftSize = 64; S.src.connect(S.an);
+  a.onerror = () => estFallo(S); a.onplaying = () => { S.listo = true; S.espera = 0; };
+  a.onended = () => { if (S.fin++ < 3) { a.load(); a.play().catch(() => {}); } else estFallo(S); }; // (una emisora que se corta, se vuelve a conectar)
+  const id = e.vid.slice(3);
+  estUrl(id).then((u) => { if (EST.son.get(e) !== S) return; S.prox = !u; S.espera = performance.now() + 9000; a.src = u || TIENDA_URL + 'radio/play/' + id; a.play().catch(() => {}); });
+  return S;
+}
+function estFallo(S) {
+  if (EST.son.get(S.e) !== S) return;
+  if (!S.prox) { S.prox = true; S.listo = false; S.espera = performance.now() + 9000; S.a.src = TIENDA_URL + 'radio/play/' + S.vid.slice(3); S.a.play().catch(() => {}); return; }
+  const e = S.e; estParar(e); e.estMala = S.vid; // (esa emisora no se vuelve a probar en esta radio)
+  if (e.dueno === 'yo') radioSiguiente(e, true);
+}
+function estParar(e) {
+  const S = EST.son.get(e); if (!S) return; EST.son.delete(e); e.nivel = 0;
+  try { S.a.onerror = S.a.onended = null; S.a.pause(); S.a.removeAttribute('src'); S.a.load(); } catch (x) {}
+  try { S.src.disconnect(); S.an.disconnect(); S.F.g.disconnect(); S.F.f.disconnect(); S.F.p.disconnect(); } catch (x) {}
+}
+function estPaso(dt) {
+  // cada cuadro: dónde está cada radio que suena, su volumen y su nivel (para que los parlantes latan con la música)
+  for (const [e, S] of EST.son) {
+    if (!ENTS.lista.includes(e) || e.vid !== S.vid) { estParar(e); continue; }
+    const p = entPos(e); ponerPos(S.F.p, p);
+    S.an.getByteTimeDomainData(S.nivel); let m = 0; for (const v of S.nivel) m = Math.max(m, Math.abs(v - 128)); e.nivel = S.listo && !S.a.paused ? m / 128 : 0;
+    const r = clamp(+e.prm.r || 40, 4, 400), d = p.distTo(CAM.pos), k = clamp(1 - (d - 3) / (r - 3), 0, 1), t = AUD.ctx.currentTime;
+    S.tOcl -= dt; if (S.tOcl <= 0) { S.tOcl = 0.3; S.tap = d > 2 && audioTapado(p); S.F.f.frequency.setTargetAtTime(S.tap ? 900 : 20000, t, 0.08); }
+    S.F.g.gain.setTargetAtTime(0.9 * Math.pow(k, 1.6) * clamp(+e.prm.vol || 1, 0, 1) * (S.tap ? 0.5 : 1), t, 0.06);
+    if (S.a.paused && S.a.getAttribute('src') && (S.reint -= dt) <= 0) { S.reint = 2; S.a.play().catch(() => {}); } // (si el navegador no la dejó arrancar sin un toque)
+    // una emisora que se queda cargando sin dar error: a los 9 s se prueba por la tienda (y si tampoco, la siguiente)
+    if (!S.listo && S.espera && !S.a.paused && performance.now() > S.espera) { S.espera = 0; estFallo(S); continue; }
+  }
+  EST.t -= dt; if (EST.t > 0) return; EST.t = 0.5;
+  if (!AUD.ctx || JUEGO.estado !== 'juego') { for (const e of [...EST.son.keys()]) estParar(e); return; }
+  const cerca = ENTS.lista.filter((e) => esEst(e.vid) && e.estMala !== e.vid).map((e) => [e, entPos(e).distTo(CAM.pos), clamp(+e.prm.r || 40, 4, 400)])
+    .filter(([e, d, r]) => d < r || (EST.son.has(e) && d < r + 6)).sort((a, b) => a[1] - b[1]).slice(0, EST.max).map((x) => x[0]);
+  for (const e of [...EST.son.keys()]) if (!cerca.includes(e)) estParar(e);
+  for (const e of cerca) if (!EST.son.has(e)) { const S = estSonar(e); if (S) EST.son.set(e, S); }
+}
+
+// ---------------- videos de YouTube: un solo reproductor para el más cercano que se oye ----------------
 const YT = { caja: null, ifr: null, fuente: null, vid: null, vol: -1, t: 0, pan: null };
 function ytCaja() {
   if (YT.caja) return YT.caja;
   const c = document.createElement('div'); c.id = 'ytMini'; c.className = 'oc';
-  c.innerHTML = '<div class="ytV"></div><div class="ytB"><span class="ytT" dir="auto"></span><button data-yt="buscar">🔍</button><button data-yt="parar">⏹</button></div>';
+  c.innerHTML = `<div class="ytV"></div><div class="ytB"><span class="ytT" dir="auto"></span><button data-yt="buscar">${glifo('buscar')}</button><button data-yt="parar">${glifo('parar')}</button></div>`;
   c.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); const b = ev.target.closest('[data-yt]'); if (!b) return; ev.preventDefault();
     if (b.dataset.yt === 'parar' && YT.fuente) radioPoner(YT.fuente, '', 0, '', true); else if (b.dataset.yt === 'buscar' && YT.fuente) radioAbrir(YT.fuente); });
   document.body.appendChild(c); return (YT.caja = c);
@@ -391,7 +465,7 @@ function ytCargar(e) {
   f.allow = 'autoplay; encrypted-media'; f.title = 'YouTube'; f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
   f.src = `https://www.youtube-nocookie.com/embed/${e.vid}?autoplay=1&enablejsapi=1&playsinline=1&controls=0&rel=0&modestbranding=1&start=${s}` + (/^https?:/.test(location.origin) ? '&origin=' + encodeURIComponent(location.origin) : '');
   f.onload = () => { try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'rb' }), '*'); } catch (x) {} YT.vol = -1; ytVolumen(true); };
-  c.querySelector('.ytV').appendChild(f); YT.ifr = f; c.querySelector('.ytT').textContent = e.tit || '♪'; c.classList.remove('oc');
+  c.querySelector('.ytV').appendChild(f); YT.ifr = f; c.querySelector('.ytT').textContent = sinEmoji(e.tit) || 'YouTube'; c.classList.remove('oc');
 }
 function ytVolumen(forzar) {
   const e = YT.fuente; if (!e || !YT.ifr) return;
@@ -402,7 +476,7 @@ function ytVolumen(forzar) {
 function ytPaso(dt) {
   YT.t -= dt; if (YT.t > 0) return; YT.t = 0.25;
   let best = null, bd = 1e9;
-  if (JUEGO.estado === 'juego') for (const e of ENTS.lista) { if (!e.vid) continue; const d = entPos(e).distTo(CAM.pos); if (d < clamp(+e.prm.r || 40, 4, 400) && d < bd) { bd = d; best = e; } }
+  if (JUEGO.estado === 'juego') for (const e of ENTS.lista) { if (!e.vid || esEst(e.vid)) continue; const d = entPos(e).distTo(CAM.pos); if (d < clamp(+e.prm.r || 40, 4, 400) && d < bd) { bd = d; best = e; } }
   if (!best) { if (YT.ifr) ytQuitar(); return; }
   if (best !== YT.fuente || best.vid !== YT.vid) ytCargar(best);
   ytVolumen(false);
@@ -414,61 +488,195 @@ addEventListener('message', (ev) => {
   const e = YT.fuente; if (!e) return;
   if (d.event === 'onError') radioSiguiente(e, true);
   else if ((d.event === 'onStateChange' && d.info === 0) || (d.event === 'infoDelivery' && d.info && d.info.playerState === 0)) radioSiguiente(e, false);
-  if (d.event === 'infoDelivery' && d.info && d.info.videoData && d.info.videoData.title && !e.tit) { e.tit = limpio(d.info.videoData.title, 100); YT.caja.querySelector('.ytT').textContent = e.tit; }
+  if (d.event === 'infoDelivery' && d.info && d.info.videoData && d.info.videoData.title && !e.tit) { e.tit = limpio(d.info.videoData.title, 100); YT.caja.querySelector('.ytT').textContent = sinEmoji(e.tit); }
 });
-// la radio pasa a la canción siguiente de la búsqueda (o vuelve a empezar); si un video no se puede poner, salta
+// la radio pasa a lo siguiente de la búsqueda (o vuelve a empezar el video); si algo no se puede poner, salta
 function radioSiguiente(e, error) {
-  if (e.dueno !== 'yo') { if (error) { e.vid = null; ytQuitar(); } return; }
-  const L = e.lista || [], i = L.findIndex((x) => x.id === e.vid);
-  if (L.length > 1 && (i >= 0 || error)) { const s = L[(i + 1) % L.length]; radioPoner(e, s.id, 0, s.t, true); if (error) aviso('📻 ' + T('ytSalta'), 1.5); }
-  else if (error) { radioPoner(e, '', 0, '', true); aviso('📻 ' + T('ytNo'), 2.5); }
+  if (e.dueno !== 'yo') { if (error) { if (!esEst(e.vid)) e.vid = null; ytQuitar(); } return; }
+  const L = e.lista || [], i = L.findIndex((x) => x.id === e.vid), est = esEst(e.vid);
+  if (L.length > 1 && (i >= 0 || error)) { const s = L[(i + 1) % L.length]; radioPoner(e, s.id, 0, s.t, true); if (error) aviso(T(est ? 'ra.salta' : 'ytSalta'), 1.5); }
+  else if (error) { radioPoner(e, '', 0, '', true); aviso(T(est ? 'ra.no' : 'ytNo'), 2.5); }
   else radioPoner(e, e.vid, 0, e.tit, true);
 }
 function radioPoner(e, vid, s, tit, mio) {
   if (!e) return;
   if (vid === (e.vid || '') && Math.abs((ahoraS() - (e.t0 || 0)) - s) < 4 && !mio) return;
-  e.vid = vid || null; e.t0 = ahoraS() - (s || 0); e.tit = tit || '';
-  if (YT.fuente === e) { if (!vid) ytQuitar(); else ytCargar(e); }
-  if (mio) entidadRed('radio', e);
+  const antes = e.vid; e.vid = vid || null; e.t0 = ahoraS() - (s || 0); e.tit = tit || ''; e.prm.v = e.vid || '';
+  if (e.vid !== antes) { e.estMala = null; estParar(e); }
+  if (YT.fuente === e) { if (!vid || esEst(vid)) ytQuitar(); else ytCargar(e); }
+  if (mio) { entidadRed('radio', e); if (esEst(vid)) fetch(TIENDA_URL + 'radio/clic/' + vid.slice(3)).catch(() => {}); }
   if (RADIO.e === e) radioDibujar();
 }
-// ---------------- el panel de la radio: buscar en YouTube y elegir ----------------
-const RADIO = { e: null, res: [], q: '', cargando: false, n: 0 };
+
+// ---------------- la radio en la espalda (sólo la propia): sale de la física y va pegada al pecho del que la lleva ----------------
+let PERS_N = 0; // cuadro de dibujo de los personajes (la radio se dibuja con los huesos de ese mismo cuadro)
+const RADIO_ESP = 0.78; // en la espalda va un poco más chica
+const radioMia = () => ENTS.lista.find((x) => x.t === 'radio' && x.dueno === 'yo' && x.red && !x.mod) || null;
+function radioPortador(e) {
+  if (!e.prm.ll) return null;
+  if (e.dueno === 'yo') return JUG.cuerpo;
+  const R2 = RED.remotos.get(e.dueno); return R2 ? R2.P : null;
+}
+function radioEspalda(e, si) {
+  if (!e || e.t !== 'radio' || e.dueno !== 'yo' || !!e.prm.ll === !!si) return;
+  if (si && (!JUG.vivo || !JUG.cuerpo)) return;
+  if (ARM.agarre && ARM.agarre.b === e.b) soltarAgarre(false);
+  if (ARM.grav && ARM.grav.b === e.b) soltarGrav();
+  e.prm.ll = si ? 1 : 0;
+  if (si) { removeBody(e.b); e.b.frozen = false; e.b.held = false; }
+  else {
+    // al soltarla queda parada en el piso, detrás
+    const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), p = vsub(JUG.pos, vscale(f, 0.9)), y = pisoBajo(v3(p.x, JUG.pos.y + 0.5, p.z), 0);
+    e.b.pos.set(p.x, (y === null ? JUG.pos.y - 1 : y) + 0.24, p.z); e.b.q.copy(Quat.axis(0, 1, 0, JUG.yaw)); e.b.vel.copy(JUG.vel); e.b.ang.set(0, 0, 0);
+    e.b.frozen = false; if (!PH.bodies.includes(e.b)) addBody(e.b); e.b.updateWorld(); e.b.wake();
+  }
+  sonar('Click', null, 0.7, si ? 1.1 : 0.8); entidadRed('ent', e);
+  if (RADIO.e === e) radioDibujar(); if (typeof modMenuDibujar === 'function') modMenuDibujar();
+}
+// qué tan atrás del hueso del pecho está la espalda: los colisionadores del torso (cajas y cápsulas del juego) en esa dirección
+function espaldaDe(P, c, n) {
+  const md = P.md, A = md.A; let best = -1;
+  for (const nom of ['Spine', 'Spine1', 'Spine2']) {
+    const j = P.D.h[nom]; if (j === undefined || !A[j] || !A[j].col) continue;
+    const k = A[j].col[0], W = md.W[j], s = m4esc(W), cen = m4pt(W, k.c[0], k.c[1], k.c[2], v3()), ej = [0, 1, 2].map((a) => v3(W[a * 4], W[a * 4 + 1], W[a * 4 + 2]).norm());
+    let sop = vdot(vsub(cen, c), n);
+    if (k.k === 'b') for (let a = 0; a < 3; a++) sop += Math.abs(vdot(ej[a], n)) * Math.abs(k.s[a] * s) / 2;
+    else if (k.k === 'c') { const d = ej[k.d === 0 ? 0 : k.d === 2 ? 2 : 1]; sop += k.r * s + Math.abs(vdot(d, n)) * Math.max(0, k.h * s / 2 - k.r * s); }
+    else sop += (k.r || 0.1) * s;
+    if (sop > best) best = sop;
+  }
+  return best > 0.02 && best < 0.6 ? best : 0.14;
+}
+function radioEnEspalda(e, P) {
+  const md = P.md, h = P.D.h, i = h.Spine2 !== undefined ? h.Spine2 : h.Spine1; if (i === undefined) return;
+  md.actualizar();
+  const W = md.W[i], qd = m4quat(W).mul(P.D.rw[i].conj()).norm(); // del personaje en reposo (mirando a +Z) al mundo, con la pose de ahora
+  const n = qd.rot(v3(0, 0, -1)), up = qd.rot(v3(0, 1, 0)), c = wp(W);
+  const pos = vadd(vadd(c, vscale(n, espaldaDe(P, c, n) + 0.14 * RADIO_ESP + 0.012)), vscale(up, -0.12));
+  e.b.pos.copy(pos); e.b.q.copy(qd);
+  radioDibujarEn(e, pos, qd, RADIO_ESP);
+}
+// la caja roja con dos parlantes (laten con la música), el dial, la manija y la antena; los parlantes miran a -Z
+function radioDibujarEn(e, c, q, s) {
+  const w = (x, y, z) => vadd(c, q.rot(v3(x * s, y * s, z * s)));
+  const mC = matPropio('radioCaja', [0.62, 0.1, 0.08], { pbr: [0.35, 0.2, 0.05] }), mG = matPropio('radioRejilla', [0.08, 0.08, 0.09], { pbr: [0.6, 0.4, 0.04] }), mP = matPropio('radioMetal', [0.75, 0.75, 0.78], { pbr: [0.25, 0.9, 0.05] });
+  const pulso = YT.fuente === e && YT.vol > 0 ? 0.6 + 0.4 * Math.abs(Math.sin(TIEMPO.t * 7.3)) : clamp((e.nivel || 0) * 2.4, 0, 1), suena = pulso > 0.02 || (YT.fuente === e && YT.vol > 0);
+  dibujarCaja(c, [0.72 * s, 0.44 * s, 0.28 * s], q, mC);
+  for (const sx of [-0.19, 0.19]) dibujarCaja(w(sx, -0.03, -0.142 - pulso * 0.006), [(0.24 + pulso * 0.016) * s, (0.24 + pulso * 0.016) * s, 0.012 * s], q, mG);
+  dibujarCaja(w(0, 0.15, -0.142), [0.2 * s, 0.07 * s, 0.012 * s], q, mP, { em: suena ? [1.6, 0.8, 0.2] : [0.15, 0.08, 0.02] });
+  dibujarCaja(w(0, 0.285, 0), [0.5 * s, 0.04 * s, 0.05 * s], q, mP);
+  for (const sx of [-0.23, 0.23]) dibujarCaja(w(sx, 0.245, 0), [0.04 * s, 0.07 * s, 0.05 * s], q, mP);
+  dibujarCaja(w(0.31, 0.47, 0.06), [0.014 * s, 0.52 * s, 0.014 * s], q.clone().mul(Quat.axis(0, 0, 1, -0.35)), mP);
+}
+// ---------------- en la sala: dónde está la radio (agarrada, tirada o pegada a una pared) ----------------
+function radioRedPaso(e, dt) {
+  if (!e.red || !RED.on) return;
+  const b = e.b, mueve = !!b.held || !b.sleep, fz = !!b.frozen;
+  e.tRed = (e.tRed || 0) - dt;
+  if ((mueve && e.tRed <= 0) || fz !== !!e.fzAnt || (e.movia && !mueve)) {
+    e.tRed = 0.1; e.fzAnt = fz; e.movia = mueve;
+    publicar('a', { k: 'entp', n: e.id, p: [r3(b.pos.x), r3(b.pos.y), r3(b.pos.z)], q: [r4(b.q.x), r4(b.q.y), r4(b.q.z), r4(b.q.w)], fz: fz ? 1 : 0 });
+    if (!mueve) RED.wSucio = true;
+  }
+}
+function radioRemotaPose(e, d) {
+  if (!Array.isArray(d.p) || !Array.isArray(d.q)) return;
+  const q = new Quat(num(d.q[0], -1, 1, 0), num(d.q[1], -1, 1, 0), num(d.q[2], -1, 1, 0), num(d.q[3], -1, 1, 1));
+  if (Math.hypot(q.x, q.y, q.z, q.w) < 0.5) return;
+  e.meta = { p: v3(num(d.p[0], -1e5, 1e5, 0), num(d.p[1], -1e5, 1e5, 0), num(d.p[2], -1e5, 1e5, 0)), q: q.norm() }; e.prm.fz = d.fz ? 1 : 0;
+}
+// datos completos de la radio de otro (al ponerla, llevarla o soltarla, y lo que queda guardado en la sala)
+function radioRemotaDatos(e, d) {
+  const prm = d.prm || {}, ll = prm.ll ? 1 : 0;
+  if (Array.isArray(prm.q)) radioRemotaPose(e, { p: [d.p[0], d.p[1] + 0.24, d.p[2]], q: prm.q, fz: prm.fz });
+  if (ll !== (e.prm.ll ? 1 : 0)) {
+    e.prm.ll = ll;
+    if (ll) removeBody(e.b);
+    else { if (e.meta) { e.b.pos.copy(e.meta.p); e.b.q.copy(e.meta.q); } if (!PH.bodies.includes(e.b)) addBody(e.b); e.b.updateWorld(); }
+  }
+}
+// la de otro: quieta (la mueve su dueño); se acerca suave a donde dice la red
+function radioRemotaPaso(e, dt) {
+  const b = e.b; b.frozen = true; b.noGrab = true; b.vel.set(0, 0, 0); b.ang.set(0, 0, 0);
+  const M = e.meta; if (!M) return;
+  if (b.pos.distTo(M.p) > 0.0005 || Math.abs(vdot4(b.q, M.q)) < 0.99999) {
+    const k = b.pos.distTo(M.p) > 8 ? 1 : 1 - Math.exp(-dt * 14); b.pos.lerpTo(M.p, k); b.q.slerpTo(M.q, k); b.updateWorld();
+  }
+}
+
+// ---------------- el panel de la radio: emisoras (3D) o YouTube ----------------
+const RADIO = { e: null, res: [], q: '', tag: '', cargando: false, n: 0, modo: 'est', guard: {} };
+const RADIO_GENEROS = ['lofi', 'pop', 'rock', 'electronic', 'reggaeton', 'hip hop', 'latin', 'jazz', 'classical', 'anime', 'news'];
 function radioCrearPanel() {
   if ($('radioPan')) return;
   const p = document.createElement('div'); p.id = 'radioPan'; p.className = 'panel oc';
-  p.innerHTML = `<div class="caja radioCaja"><h3>📻 ${esc(T('radio'))}</h3><div class="radioBus"><input id="radioQ" maxlength="80" spellcheck="false"><button class="boton chico" data-ra="buscar">🔍</button></div>
-    <div id="radioAhora"></div><div id="radioRes"></div>
-    <div class="fila">🔊 <input type="range" id="radioVol" min="0" max="100"></div>
-    <div class="radioPie"><button class="boton chico gris" data-ra="parar">⏹ ${esc(T('apagar'))}</button><button class="boton chico gris" data-ra="cerrar">✖ ${esc(T('cerrar'))}</button></div></div>`;
+  p.innerHTML = `<div class="caja radioCaja"><h3>${icoHTML('ico:radio')} <span class="raTit"></span></h3>
+    <div class="raTabs"><button data-ra="modo:est">${glifo('mundo')} <span class="raTEst"></span></button><button data-ra="modo:yt">${glifo('video')} YouTube</button></div>
+    <div class="radioBus"><input id="radioQ" maxlength="80" spellcheck="false"><button class="boton chico" data-ra="buscar">${glifo('buscar')}</button></div>
+    <div class="raGen"></div><div class="raNota"></div><div id="radioAhora"></div><div id="radioRes"></div>
+    <div class="fila raVol">${glifo('volumen')} <input type="range" id="radioVol" min="0" max="100"></div>
+    <div class="radioPie"><button class="boton chico" data-ra="espalda"></button><button class="boton chico gris" data-ra="parar"></button><button class="boton chico gris" data-ra="cerrar"></button></div></div>`;
   document.body.appendChild(p);
   p.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-ra]'); if (!b) { if (ev.target === p) radioCerrar(); return; }
-    const [a, v] = b.dataset.ra.split(':');
-    if (a === 'buscar') radioBuscar($('radioQ').value);
+    const [a, v] = b.dataset.ra.split(/:(.*)/s), e = RADIO.e; if (!e) return;
+    if (a === 'buscar') radioBuscar($('radioQ').value, '');
+    else if (a === 'gen') { $('radioQ').value = ''; radioBuscar('', v); }
+    else if (a === 'modo') radioModo(v);
     else if (a === 'cerrar') radioCerrar();
-    else if (a === 'parar') radioPoner(RADIO.e, '', 0, '', true);
-    else if (a === 'poner') { const it = RADIO.res[+v]; if (!it) return; RADIO.e.lista = RADIO.res.slice(); radioPoner(RADIO.e, it.id, 0, it.t, true); audioIniciar(); }
+    else if (a === 'parar') radioPoner(e, '', 0, '', true);
+    else if (a === 'espalda') radioEspalda(e, !e.prm.ll);
+    else if (a === 'poner') {
+      const it = RADIO.res[+v]; if (!it) return; const yt = RADIO.modo === 'yt', id = yt ? it.id : 'rb:' + it.id;
+      e.lista = RADIO.res.map((x) => ({ id: yt ? x.id : 'rb:' + x.id, t: x.t })); audioIniciar(); radioPoner(e, id, 0, it.t, true);
+    }
   });
-  $('radioQ').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); radioBuscar($('radioQ').value); } });
+  // (la foto de una emisora que no carga se cambia por el ícono de la radio)
+  p.addEventListener('error', (ev) => { const im = ev.target; if (im && im.tagName === 'IMG' && im.dataset.f) { delete im.dataset.f; im.src = icoSrc('ico:radio'); } }, true);
+  $('radioQ').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); radioBuscar($('radioQ').value, ''); } });
   $('radioVol').addEventListener('input', (ev) => { if (RADIO.e) { RADIO.e.prm.vol = +ev.target.value / 100; YT.vol = -1; } });
 }
+function radioModo(m) {
+  if (m !== 'est' && m !== 'yt') return;
+  RADIO.guard[RADIO.modo] = { res: RADIO.res, q: RADIO.q, tag: RADIO.tag }; RADIO.modo = m; RADIO.n++; RADIO.cargando = false;
+  const g = RADIO.guard[m] || { res: [], q: '', tag: '' }; RADIO.res = g.res; RADIO.q = g.q; RADIO.tag = g.tag;
+  $('radioQ').value = RADIO.q; $('radioQ').placeholder = T(m === 'yt' ? 'ytBuscar' : 'ra.buscar');
+  radioDibujar(); if (!RADIO.res.length) radioBuscar(m === 'yt' ? 'música para jugar' : '', '');
+}
 function radioAbrir(e) {
+  if (!e) return;
   radioCrearPanel(); cerrarPaneles(); RADIO.e = e; UI.abierto = 'radio'; soltarPuntero();
-  const p = $('radioPan'); p.classList.remove('oc'); $('radioQ').placeholder = T('ytBuscar'); $('radioQ').value = RADIO.q; $('radioVol').value = Math.round(100 * clamp(+e.prm.vol || 1, 0, 1));
-  radioDibujar(); if (!RADIO.res.length && !RADIO.q) radioBuscar('música para jugar');
+  const p = $('radioPan'); p.classList.remove('oc');
+  p.querySelector('.raTit').textContent = T('radio'); p.querySelector('.raTEst').textContent = T('ra.emisoras');
+  p.querySelector('[data-ra=parar]').innerHTML = glifo('parar') + ' ' + esc(T('apagar')); p.querySelector('[data-ra=cerrar]').innerHTML = glifo('no') + ' ' + esc(T('cerrar'));
+  $('radioVol').value = Math.round(100 * clamp(+e.prm.vol || 1, 0, 1));
+  const m = e.vid && !esEst(e.vid) ? 'yt' : RADIO.modo; if (m !== RADIO.modo) radioModo(m); else { $('radioQ').placeholder = T(m === 'yt' ? 'ytBuscar' : 'ra.buscar'); $('radioQ').value = RADIO.q; }
+  radioDibujar(); if (!RADIO.res.length && !RADIO.cargando) radioBuscar(RADIO.modo === 'yt' ? 'música para jugar' : '', '');
   if (!ENT.tactil) setTimeout(() => $('radioQ').focus(), 50);
 }
 function radioCerrar() { const p = $('radioPan'); if (p) p.classList.add('oc'); if (UI.abierto === 'radio') UI.abierto = null; RADIO.e = null; }
-async function radioBuscar(q) {
-  q = String(q || '').trim().slice(0, 80); if (!q) return; RADIO.q = q; const n = ++RADIO.n; RADIO.cargando = true; radioDibujar();
-  try { const d = await (await fetch(TIENDA_URL + 'yt?q=' + encodeURIComponent(q))).json(); if (n !== RADIO.n) return; RADIO.res = (d.items || []).filter((x) => ytId(x.id) === x.id); }
-  catch (x) { if (n !== RADIO.n) return; RADIO.res = []; aviso(T('errRed'), 2); }
+async function radioBuscar(q, tag) {
+  const yt = RADIO.modo === 'yt'; q = String(q || '').trim().slice(0, 80); tag = yt ? '' : String(tag || '');
+  if (yt && !q) return;
+  RADIO.q = q; RADIO.tag = tag; const n = ++RADIO.n; RADIO.cargando = true; radioDibujar();
+  try {
+    const u = yt ? 'yt?q=' + encodeURIComponent(q) : 'radio?q=' + encodeURIComponent(q) + (tag ? '&tag=' + encodeURIComponent(tag) : '');
+    const d = await (await fetch(TIENDA_URL + u)).json(); if (n !== RADIO.n) return;
+    RADIO.res = (d.items || []).filter((x) => (yt ? ytId(x.id) === x.id : /^[0-9a-f-]{36}$/.test(x.id || '')));
+  } catch (x) { if (n !== RADIO.n) return; RADIO.res = []; aviso(T('errRed'), 2); }
   RADIO.cargando = false; radioDibujar();
 }
 function radioDibujar() {
-  const R0 = $('radioRes'); if (!R0 || !RADIO.e) return; const e = RADIO.e;
-  $('radioAhora').innerHTML = e.vid ? `<div class="radioYa">▶ <b dir="auto">${esc(e.tit || e.vid)}</b></div>` : '';
+  const R0 = $('radioRes'); if (!R0 || !RADIO.e) return; const e = RADIO.e, yt = RADIO.modo === 'yt', p = $('radioPan');
+  p.querySelectorAll('.raTabs button').forEach((b) => b.classList.toggle('sel', b.dataset.ra === 'modo:' + RADIO.modo));
+  p.querySelector('.raGen').innerHTML = yt ? '' : RADIO_GENEROS.map((g) => `<button class="${RADIO.tag === g ? 'sel' : ''}" data-ra="gen:${g}">${esc(g)}</button>`).join('');
+  p.querySelector('.raNota').textContent = yt ? T('ra.notaYt') : '';
+  p.querySelector('[data-ra=espalda]').innerHTML = glifo('espalda') + ' ' + esc(T(e.prm.ll ? 'ra.soltar' : 'ra.espalda'));
+  p.querySelector('[data-ra=espalda]').style.display = e.dueno === 'yo' ? '' : 'none';
+  $('radioAhora').innerHTML = e.vid ? `<div class="radioYa">${glifo(esEst(e.vid) ? 'musica' : 'video')} <b dir="auto">${esc(sinEmoji(e.tit) || e.vid)}</b></div>` : '';
+  const sel = (x) => (yt ? x.id : 'rb:' + x.id) === e.vid;
   R0.innerHTML = RADIO.cargando ? `<div class="radioVacio">${esc(T('cargando'))}</div>` : !RADIO.res.length ? `<div class="radioVacio">${esc(T('sinRes'))}</div>`
-    : RADIO.res.map((x, i) => `<button class="radioIt${x.id === e.vid ? ' sel' : ''}" data-ra="poner:${i}"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/${x.id}/mqdefault.jpg"><span><b dir="auto">${esc(x.t)}</b><small dir="auto">${esc(x.c)}${x.d ? ' · ' + esc(x.d) : ''}</small></span></button>`).join('');
+    : RADIO.res.map((x, i) => yt
+      ? `<button class="radioIt${sel(x) ? ' sel' : ''}" data-ra="poner:${i}"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/${x.id}/mqdefault.jpg"><span><b dir="auto">${esc(sinEmoji(x.t))}</b><small dir="auto">${esc(sinEmoji(x.c))}${x.d ? ' · ' + esc(x.d) : ''}</small></span></button>`
+      : `<button class="radioIt est${sel(x) ? ' sel' : ''}" data-ra="poner:${i}">${x.i ? `<img loading="lazy" alt="" referrerpolicy="no-referrer" data-f="1" src="${esc(x.i)}">` : icoHTML('ico:radio')}<span><b dir="auto">${esc(sinEmoji(x.t))}</b><small dir="auto">${esc(sinEmoji([x.c, x.g, x.b ? x.b + ' kbps' : ''].filter(Boolean).join(' · ')))}</small></span></button>`).join('');
 }

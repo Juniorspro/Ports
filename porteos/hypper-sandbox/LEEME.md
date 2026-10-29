@@ -30,18 +30,31 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   `POST /api/like|denunciar/ID` (3 denuncias = oculto), `POST /api/borrar/ID` con la clave del autor. 5 publicaciones por hora.
   `GET /api/yt?q=` busca música en YouTube para la radio (con la API oficial si se carga el secreto `YT_KEY`; si no, lee
   la página de resultados) y la guarda una hora en caché. `GET /api/mods?desde=` es lo que bajan los servers.
+  Emisoras de radio por internet (lista pública de Radio Browser): `GET /api/radio?q=&tag=` busca (sólo emisoras que
+  andan, MP3/AAC/OGG, sin HLS), `GET /api/radio/u/ID` da la dirección del audio y `GET /api/radio/play/ID` lo pasa con
+  permiso de otro sitio para el sonido 3D (sólo emisoras de esa lista, nunca una dirección cualquiera);
+  `GET /api/radio/clic/ID` le avisa a Radio Browser que se escuchó.
 - **Mods con código** (`modapi.js`): el `codigo` de un mod o mapa corre en un cuadro aislado (`sandbox="allow-scripts"`,
   sin ver la página ni lo guardado) y habla con el juego por mensajes con el objeto `rb`: eventos (`inicio`, `tick` a
   15 por segundo, `boton`, `tecla`, `muerte`, `fin`), `rb.jugador`, `rb.mundo`, `rb.crear/mover/borrar/objetos`,
-  `rb.explosion`, `rb.arma`, `rb.sonido`, `rb.nota` (sintetizador), `rb.rayo`, `rb.boton` (al HUD), `rb.guardar/leer`,
+  `rb.explosion`, `rb.arma`, `rb.sonido`, `rb.nota` (sintetizador), `rb.rayo`, `rb.boton(id, texto o 'ico:nombre')` (al menú
+  MOD), `rb.guardar/leer`,
   `rb.entidad(tipo, [x,y,z], {…})`, `rb.nativo('volar'|'ragdoll'|'scp')`. Valores casi sin límite; archivos de hasta 8 MB.
-- **Mods oficiales nativos** (`nativos.js`, botón en el HUD y tecla): **Volar** (G; empuje hacia donde mirás con
+- **Íconos sin emojis** (`iconos.js`, imágenes en `juego/iconos/*.webp`, 128 px, hechas para el juego): los mods traen
+  `icono: 'ico:nombre'` (o su propia imagen); los emojis de mods viejos se cambian por la imagen que más se parece
+  (`ICO_EMOJI_RB` en `formato.js`, también en el servidor al publicar). Los botones usan dibujos SVG del color del texto
+  (`glifo(nombre)`), los idiomas muestran su código (ES, EN…), los carteles pueden llevar `prm.ico` y la etiqueta de cada
+  jugador muestra las imágenes de sus mods. Los títulos de videos y emisoras se muestran sin emojis.
+- **Menú MOD** (`modmenu.js`): un botón **MOD** arriba (tecla U) despliega los mods activos: volar, muñeco y SCP se
+  prenden y apagan; el piano se pone; la radio se pone, se lleva en la espalda o se le elige la emisora; los mods de
+  código suman sus botones. Ya no hay columna de botones al costado. En una sala, el micrófono es un botón chico arriba.
+- **Mods oficiales nativos** (`nativos.js`, en el menú MOD y con tecla): **Volar** (G; empuje hacia donde mirás con
   inercia, el cuerpo inclinado con resortes: adelante con la velocidad, de costado hacia la curva, piernas que se
   balancean; pose de Superman a toda velocidad), **Muñeco de trapo** (X; los demás te agarran con la pistola de física
   o la de gravedad: mandan `jalar` por la red y tu cuerpo va hacia ahí en tu juego), **SCP en cuatro patas** (J; una
   esfera pegada a la superficie que pisa, trepa paredes y techos, pasa bordes; pose en cuatro patas con IK de dos
   huesos en brazos y piernas y paso procedural en diagonal: cada pie queda clavado hasta que se aleja de su lugar),
-  **Piano gigante** (K) y **Radio YouTube** (L). En la sala los demás ven todo (bits en el estado y entidades en el mundo
+  **Piano gigante** (K) y **Radio 3D** (L). En la sala los demás ven todo (bits en el estado y entidades en el mundo
   guardado, también los que llegan tarde).
 - **Mods del server** (`smods.js`): en una sala el juego baja solo todos los mods publicados (`GET /api/mods?desde=`:
   datos completos sin contar descargas, más la lista de los que siguen publicados) y cada minuto busca los nuevos: apenas
@@ -52,10 +65,20 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   un mod es sólo del jugador (su salto y su caída) y la cámara lenta no se aplica (el tiempo es de todos).
 - **Entidades** (`entidades.js`, formas propias en `geo.js`: mallas con el mismo vértice del juego y triángulos que se
   suman a los choques del mapa): piano (cada tecla suena al pisarla: jugadores, ruedas de autos, objetos), radio
-  (`/api/yt` del worker busca en YouTube; un solo reproductor chico para la fuente más cercana, volumen por distancia y
-  paredes, salta los videos que no se pueden poner), mega rampa, botón de autos (si el auto de ese botón ya no está,
+  (abajo), mega rampa, botón de autos (si el auto de ese botón ya no está,
   aparece otro; con muchos autos se borra el que lleva más tiempo sin usarse), teletransporte, zona de muerte, cartel,
   luz, impulso, meta y música.
+- **Radio 3D**: la fuente es una emisora por internet (`rb:` + su id) o un video de YouTube. Las emisoras pasan por el
+  sonido del juego (`<audio crossOrigin>` → panner HRTF en la radio, volumen por distancia, filtro detrás de paredes y eco
+  del lugar); suenan las 3 radios más cercanas a la vez y los parlantes laten con el nivel real de la música. Primero se
+  prueba la dirección directa (https); si no deja pasar el audio o no arranca en 9 s, va por `/api/radio/play/ID`, y si
+  tampoco, la siguiente de la búsqueda. YouTube no deja pasar su sonido por el juego ni esconder su reproductor, así que
+  un video suena desde una ventanita (pestaña aparte en el panel, con el aviso). La radio propia se **lleva en la
+  espalda** (sale de la física y va pegada al pecho con los huesos de ese cuadro: se mide la espalda con los
+  colisionadores del torso del personaje; queda a 1,2 cm en todos) y se **pega donde sea con la pistola de física**
+  (clic derecho la congela; antes, con el izquierdo apretado, se volvía a agarrar y descongelar en el cuadro siguiente).
+  En la sala la radio de otro es quieta para los demás (la mueve su dueño): pose y congelado viajan con `entp` mientras
+  se mueve y quedan en el mundo guardado (giro `q`, congelada `fz`, en la espalda `ll`), así el que entra después la ve igual.
 - **Mega rampa**: la caída de arriba es una parábola (la trayectoria de un auto que sale a ~30 m/s: el que llega más
   lento baja apoyado), recta a 52°, curva de abajo amplia (~3 g a 50 m/s), recta y salto final. Los autos chocan con
   los triángulos de las formas propias sólo vértice contra cara con la normal de la cara (`hullTri` en `fisica.js`):
@@ -112,6 +135,9 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   De RezoBox (`node prueba.mjs HTML carpeta`, con `NODE_PATH` hacia playwright): `tienda.mjs` (bienvenida, idiomas,
   publicar y borrar en la tienda real), `mods_api.mjs`, `voz.mjs`, `rampa.mjs` (un auto baja la mega rampa: cabeceo
   contra la pendiente, ruedas y contactos cuadro a cuadro), `nativos.mjs` y `nativos_lado.mjs` (volar, muñeco, SCP:
-  trepar una columna; vistas de costado), `piano_radio.mjs`, `creador.mjs`, `celu_mods.mjs`, `red_sm.mjs` (publica mods de prueba en la tienda real, dos jugadores
+  trepar una columna; vistas de costado), `piano_radio.mjs`, `radio3d.mjs` (menú MOD, emisora en 3D con nivel y volumen por distancia, espalda medida en
+  varios personajes, pegarla en una pared con la pistola de física, YouTube aparte y ningún emoji en la pantalla; `celu`
+  para el teléfono), `red_radio.mjs` (otro la oye, la ve en tu espalda y congelada en el mismo lugar, el que entra
+  después también), `creador.mjs`, `celu_mods.mjs`, `red_sm.mjs` (publica mods de prueba en la tienda real, dos jugadores
   eligen con SM, uno sube otro mod en el medio; borra todo al final) y `red_mods.mjs` (cada
   jugador en su propio navegador: si comparten uno, la pestaña de fondo deja de simular).

@@ -93,7 +93,7 @@ function spawnDelante(nombre, opt) {
 }
 function abrirSpawn() { UI.abierto = 'spawn'; $('spawn').classList.remove('oc'); spawnDibujar(); soltarPuntero(); }
 function cerrarPaneles() {
-  UI.abierto = null;
+  UI.abierto = null; if (typeof MODM !== 'undefined' && MODM.abierto) modMenuCerrar();
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
   for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
   $('chatIn').classList.add('oc');

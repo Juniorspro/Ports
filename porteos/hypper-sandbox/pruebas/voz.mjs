@@ -15,7 +15,7 @@ await ev(A, "PREFS.nombre='Ana'; PREFS.bienvenida=true; audioIniciar(); entrarSa
 await ev(B, "PREFS.nombre='Beto'; PREFS.bienvenida=true; audioIniciar(); entrarSala(SALAS_OF.find((s) => s.m === 'FlatGrass')); 1");
 await espera(5000);
 console.log('se ven:', await ev(A, "[...RED.remotos.values()].map(r=>r.nombre).join(',')"), '/', await ev(B, "[...RED.remotos.values()].map(r=>r.nombre).join(',')"));
-console.log('botón 🎤 visible:', await ev(A, "$('vozBt') && $('vozBt').style.display !== 'none'"));
+console.log('botón del micrófono visible:', await ev(A, "$('vozBt') && $('vozBt').style.display !== 'none'"));
 await ev(A, 'vozActivar()'); await espera(6000);
 console.log('Ana manda a:', await ev(A, '[...VOZ.sal.keys()].length'), 'Beto recibe de:', await ev(B, '[...VOZ.ent.keys()].length'));
 let nivel = 0; for (let i = 0; i < 20; i++) { nivel = Math.max(nivel, await ev(B, "(() => { const C = [...VOZ.ent.values()][0]; if (!C || !C.an) return 0; C.an.getByteTimeDomainData(C.nivel); let m = 0; for (const v of C.nivel) m = Math.max(m, Math.abs(v - 128)); return m; })()")); await espera(100); }

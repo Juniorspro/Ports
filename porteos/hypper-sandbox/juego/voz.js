@@ -4,19 +4,12 @@
 const VOZ = { on: false, stream: null, sal: new Map(), ent: new Map(), tRev: 0, quien: new Map() };
 const VOZ_ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
 const VOZ_CERCA = 70, VOZ_LEJOS = 90, VOZ_MAX = 10;
-function vozBotonPoner(si) {
-  let b = $('vozBt');
-  if (!b) {
-    let c = $('modBtns'); if (!c) { c = document.createElement('div'); c.id = 'modBtns'; $('hud').appendChild(c); }
-    b = document.createElement('div'); b.id = 'vozBt'; b.className = 'bt modBt natBt'; b.textContent = '🎤'; b.onpointerdown = (e) => { e.stopPropagation(); e.preventDefault(); audioIniciar(); VOZ.on ? vozApagar() : vozActivar(); }; c.prepend(b);
-  }
-  b.style.display = si ? '' : 'none'; b.classList.toggle('on', VOZ.on);
-}
+// (el botón del micrófono está en modmenu.js, arriba con los demás)
 async function vozActivar() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { aviso('Este navegador no deja usar el micrófono', 3); return; }
   try { VOZ.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
   catch (e) { aviso('Sin permiso para el micrófono', 3); return; }
-  VOZ.on = true; vozBotonPoner(true); aviso('🎤 Micrófono prendido', 2);
+  VOZ.on = true; vozBotonPoner(true); aviso('Micrófono prendido', 2);
 }
 function vozApagar() {
   VOZ.on = false; if (VOZ.stream) VOZ.stream.getTracks().forEach((t) => t.stop()); VOZ.stream = null;

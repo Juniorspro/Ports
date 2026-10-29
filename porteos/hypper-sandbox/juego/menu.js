@@ -107,7 +107,9 @@ function menuIniciar() {
   const nick = nodo('Main/MainMenu/UpPanel/NickNameInputField');
   if (nick && nick.inp) { verNodo(hijo(nick, 'TextForIcon'), false); nick.inp.value = PREFS.nombre; nick.inp.oninput = () => { PREFS.nombre = limpioNombre(nick.inp.value); guardarPrefs(); }; }
   const nn = MENU.ent.NameInputField; if (nn) { nn.value = PREFS.nombre; nn.oninput = () => { PREFS.nombre = limpioNombre(nn.value); if (nick && nick.inp) nick.inp.value = PREFS.nombre; guardarPrefs(); }; }
-  const fs = MENU.ent.FindServerInputField; if (fs) { fs.placeholder = '🔍'; fs.oninput = () => listaDibujar(); }
+  const fs = MENU.ent.FindServerInputField; if (fs) { fs.placeholder = T('buscar'); fs.oninput = () => listaDibujar(); }
+  // (los textos del juego que eran un ícono de su letra, como la lupa del buscador, no se muestran: el campo ya dice qué es)
+  for (const n of Object.values(MENU.por)) if (n.tx && /^[\s\u2600-\u27BF\u{1F000}-\u{1FAFF}]+$/u.test(n.tx.textContent)) { uiTextoPoner(n, ''); verNodo(n, false); }
   for (const [k, v] of [['ServerNameFieldNew', ''], ['MaxPropInputField', '1000'], ['MaxVechiclesInputField', '40']]) if (MENU.ent[k] && !MENU.ent[k].value) MENU.ent[k].value = v;
   if (MENU.ent.ServerNameFieldNew) MENU.ent.ServerNameFieldNew.placeholder = Lc('Name', 'Name');
   for (const k of ['MaxPropInputField', 'MaxVechiclesInputField']) if (MENU.ent[k]) MENU.ent[k].inputMode = 'numeric';

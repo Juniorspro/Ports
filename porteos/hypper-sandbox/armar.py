@@ -4,7 +4,7 @@ import os, sys, json, base64, gzip
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PK, OUT = sys.argv[1], sys.argv[2]
 ORDEN = ['nucleo', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'armas',
-         'vehiculos', 'herramientas', 'personas', 'humano', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'menu', 'idiomas', 'formato', 'modapi', 'voz', 'geo', 'entidades', 'nativos', 'creador', 'smods', 'inicio', 'principal']
+         'vehiculos', 'herramientas', 'personas', 'humano', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'menu', 'idiomas', 'formato', 'iconos', 'modapi', 'voz', 'geo', 'entidades', 'nativos', 'creador', 'smods', 'modmenu', 'inicio', 'principal']
 # el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")
 FORMATO = open(os.path.join(AQUI, 'tienda', 'formato.js'), encoding='utf-8').read().replace('export const ', 'const ').replace('export function ', 'function ')
 leer = lambda n: FORMATO if n == 'formato' else open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read()
@@ -28,6 +28,9 @@ html = html.replace('/*LOGORB*/', J('logo_rezobox.webp'))
 # fondos del inicio (escenas del juego, fuera del repo): PAQUETE/fondos/*.jpg
 FD = os.path.join(PK, 'fondos')
 fondos = sorted(os.listdir(FD)) if os.path.isdir(FD) else []
+# íconos hechos para el juego (juego/iconos/*.webp, 128 px)
+ICD = os.path.join(AQUI, 'juego', 'iconos')
+js = js.replace('/*ICONOSRB*/', ','.join(f"{f[:-5]}:'data:image/webp;base64," + base64.b64encode(open(os.path.join(ICD, f), 'rb').read()).decode() + "'" for f in sorted(os.listdir(ICD)) if f.endswith('.webp')))
 js = js.replace('/*FONDOSRB*/', ','.join("'data:image/jpeg;base64," + base64.b64encode(open(os.path.join(FD, f), 'rb').read()).decode() + "'" for f in fondos))
 html = html.replace('/*PKIDX*/', json.dumps(idx, separators=(',', ':'))).replace('/*PK*/', base64.b64encode(bytes(blob)).decode()).replace('/*JS*/', js)
 open(OUT, 'w', encoding='utf-8').write(html)

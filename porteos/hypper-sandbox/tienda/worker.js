@@ -3,6 +3,8 @@
 // juego dentro de un cuadro aislado. Denuncias: con 3 se oculta solo. El autor borra con la clave que recibe al publicar.
 // También busca música en YouTube para la radio del juego (/api/yt): con la API oficial si hay clave (YT_KEY), si no
 // leyendo la página de resultados; las búsquedas quedan en caché una hora.
+// Y emisoras de radio por internet (Radio Browser) para que la radio suene en 3D: /api/radio busca, /api/radio/u/ID da la
+// dirección del audio y /api/radio/play/ID lo pasa con permiso de otro sitio (sólo emisoras de esa lista, nunca cualquier URL).
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
 const json = (o, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
 import { validarRB as validar, ETIQUETAS_RB as ETIQUETAS } from './formato.js';
@@ -35,6 +37,29 @@ async function ytPagina(q) {
   };
   recorrer(datos, 0);
   return out;
+}
+
+// ---------------- emisoras de radio (Radio Browser: lista pública y libre) ----------------
+const RB_HOSTS = ['de1', 'de2', 'fi1', 'nl1', 'at1'];
+const RB_UA = { 'User-Agent': 'HypperXRezoBox/1.0 (+https://github.com/juniorspro/ports)' };
+async function rbApi(ruta) {
+  let err;
+  for (const h of RB_HOSTS) {
+    try { const r = await fetch(`https://${h}.api.radio-browser.info${ruta}`, { headers: RB_UA, signal: AbortSignal.timeout(6000) }); if (r.ok) return await r.json(); err = r.status; } catch (e) { err = e; }
+  }
+  throw new Error('radio-browser ' + err);
+}
+const CODECS = /^(MP3|AAC|AAC\+|OGG|OPUS|VORBIS)$/i;
+const estLimpia = (x) => ({ id: x.stationuuid, t: texto(x.name, 80), c: texto(x.countrycode, 4), g: texto(String(x.tags || '').split(',').slice(0, 2).join(', '), 40),
+  b: Math.max(0, Math.min(999, x.bitrate | 0)), k: texto(x.codec, 8), i: /^https:\/\/[^\s"'<>]{4,300}$/.test(x.favicon || '') ? x.favicon : '' });
+const estOk = (x) => x && /^[0-9a-f-]{36}$/.test(x.stationuuid || '') && /^https?:\/\//.test(x.url_resolved || '') && !x.hls && CODECS.test(x.codec || '') && x.lastcheckok === 1;
+async function estacion(id) {
+  const ck = new Request('https://cache.rezobox/radio/u/' + id), c = caches.default, hit = await c.match(ck);
+  if (hit) return hit.json();
+  const L = await rbApi('/json/stations/byuuid/' + id), x = Array.isArray(L) && L[0];
+  const d = estOk(x) ? { u: x.url_resolved, n: texto(x.name, 80) } : { u: '', n: '' };
+  await c.put(ck, new Response(JSON.stringify(d), { headers: { 'Cache-Control': 'public, max-age=3600' } }));
+  return d;
 }
 
 export default {
@@ -112,6 +137,33 @@ export default {
         if (items.length) await c.put(ck, res.clone());
         return res;
       }
+      if (req.method === 'GET' && r === '/api/radio') {
+        const q = texto(url.searchParams.get('q'), 60), tag = texto(url.searchParams.get('tag'), 30).toLowerCase();
+        const ck = new Request('https://cache.rezobox/radio?q=' + encodeURIComponent(q.toLowerCase()) + '&tag=' + encodeURIComponent(tag)), c = caches.default;
+        const hit = await c.match(ck); if (hit) return hit;
+        const base = '/json/stations/search?limit=80&hidebroken=true&order=clickcount&reverse=true';
+        let L = await rbApi(base + (tag ? '&tag=' + encodeURIComponent(tag) : '') + (q ? '&name=' + encodeURIComponent(q) : ''));
+        // si el nombre no encuentra nada, se busca como género
+        if (q && !tag && Array.isArray(L) && !L.filter(estOk).length) L = await rbApi(base + '&tag=' + encodeURIComponent(q.toLowerCase()));
+        const vistos = new Set(), items = [];
+        for (const x of Array.isArray(L) ? L : []) { if (!estOk(x)) continue; const k = String(x.name || '').toLowerCase().trim(); if (vistos.has(k)) continue; vistos.add(k); items.push(estLimpia(x)); if (items.length >= 30) break; }
+        const res = new Response(JSON.stringify({ items }), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': items.length ? 'public, max-age=1800' : 'no-store', ...CORS } });
+        if (items.length) await c.put(ck, res.clone());
+        return res;
+      }
+      m = /^\/api\/radio\/u\/([0-9a-f-]{36})$/.exec(r);
+      if (req.method === 'GET' && m) return json(await estacion(m[1]));
+      m = /^\/api\/radio\/play\/([0-9a-f-]{36})$/.exec(r);
+      if (req.method === 'GET' && m) {
+        // el audio de una emisora de la lista, con permiso para que el juego lo pase por su sonido 3D
+        const d = await estacion(m[1]); if (!d.u) return json({ error: 'emisora no disponible' }, 404);
+        const up = await fetch(d.u, { headers: RB_UA, redirect: 'follow' });
+        const tipo = up.headers.get('Content-Type') || '';
+        if (!up.ok || !/^(audio\/|application\/ogg)/i.test(tipo)) { try { up.body && up.body.cancel(); } catch (e) {} return json({ error: 'la emisora no responde' }, 502); }
+        return new Response(up.body, { headers: { 'Content-Type': tipo, 'Cache-Control': 'no-store', ...CORS } });
+      }
+      m = /^\/api\/radio\/clic\/([0-9a-f-]{36})$/.exec(r);
+      if (req.method === 'GET' && m) { rbApi('/json/url/' + m[1]).catch(() => {}); return json({ ok: true }); }
       if (r === '' || r === '/api') return json({ tienda: 'HypperX RezoBox', formatos: ['rezobox-mod', 'rezobox-mapa'], etiquetas: ETIQUETAS });
       return json({ error: 'no encontrado' }, 404);
     } catch (e) {

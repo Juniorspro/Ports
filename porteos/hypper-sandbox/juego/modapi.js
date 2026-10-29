@@ -39,7 +39,7 @@ function modapiCargar(lista) {
 function modapiDescargar() {
   for (const M of MODAPI.mods) { modapiA(M, 'fin', {}); setTimeout(() => M.ifr.remove(), 50); }
   MODAPI.mods.length = 0;
-  for (const [, b] of MODAPI.botones) b.el.remove(); MODAPI.botones.clear();
+  MODAPI.botones.clear(); if (typeof modMenuBoton === 'function') modMenuBoton();
 }
 function modapiA(M, k, d, id) { try { M.ifr.contentWindow.postMessage({ rbhost: 1, k, d, id }, '*'); } catch (e) {} }
 function modapiEvento(k, d) { for (const M of MODAPI.mods) if (M.listo) modapiA(M, k, d); }
@@ -53,11 +53,11 @@ function modapiPaso(dt) {
   const e = modapiEstado(), d = MODAPI.tTick; MODAPI.tTick = 0;
   for (const M of MODAPI.mods) if (M.listo) { modapiA(M, 'estado', e); modapiA(M, 'tick', { dt: d, t: e.t }); }
 }
+// los botones de un mod van al menú MOD de arriba (texto o "ico:nombre")
 function modapiBoton(M, id, texto) {
-  let c = $('modBtns'); if (!c) { c = document.createElement('div'); c.id = 'modBtns'; $('hud').appendChild(c); }
   const k = M.id + ':' + id; let b = MODAPI.botones.get(k);
-  if (!b) { const el = document.createElement('div'); el.className = 'bt modBt'; el.onpointerdown = (e) => { e.stopPropagation(); e.preventDefault(); audioIniciar(); modapiA(M, 'boton', { id }); }; c.appendChild(el); b = { el }; MODAPI.botones.set(k, b); }
-  b.el.textContent = String(texto).slice(0, 14);
+  if (!b) { b = { M, id }; MODAPI.botones.set(k, b); }
+  b.t = String(texto).slice(0, 24); modMenuBoton();
 }
 addEventListener('message', (e) => {
   const m = e.data; if (!m || !m.rbmod) return;
@@ -67,7 +67,7 @@ addEventListener('message', (e) => {
     switch (m.k) {
       case 'aviso': aviso(String(d.t).slice(0, 200), Math.min(10, modNum(d.s, 2.5))); break;
       case 'boton': modapiBoton(M, String(d.id).slice(0, 24), d.t); break;
-      case 'quitarBoton': { const k = M.id + ':' + String(d.id); const b = MODAPI.botones.get(k); if (b) { b.el.remove(); MODAPI.botones.delete(k); } break; }
+      case 'quitarBoton': { const k = M.id + ':' + String(d.id); if (MODAPI.botones.delete(k)) modMenuBoton(); break; }
       case 'jugador': {
         if (d.vel_max !== undefined) JUG.vel_max = modNum(d.vel_max, JUG.vel_max); if (d.salto !== undefined) JUG.salto = modNum(d.salto, JUG.salto);
         if (d.vida !== undefined) JUG.vida = modNum(d.vida, JUG.vida); if (d.yaw !== undefined) JUG.yaw = modNum(d.yaw, JUG.yaw);
@@ -100,7 +100,7 @@ addEventListener('message', (e) => {
       case 'nativo': { const n = String(d.n); if (n === 'volar') natVolar(!!d.s); else if (n === 'ragdoll') natRag(!!d.s); else if (n === 'scp') natScp(!!d.s); break; }
       case 'guardar': { const v = JSON.stringify(d.v); if (v && v.length < 200000) try { localStorage.setItem('rbmod_' + M.id + '_' + d.k.slice(0, 40), v); resp(true); } catch (x) { resp(false); } else resp(false); break; }
       case 'leer': { let v = null; try { v = JSON.parse(localStorage.getItem('rbmod_' + M.id + '_' + d.k.slice(0, 40)) || 'null'); } catch (x) {} resp(v); break; }
-      case 'error': if (MODAPI.errores++ < 5) { console.warn('mod', M.nombre, d); aviso('⚠ ' + M.nombre + ': ' + String(d).slice(0, 80), 3); } break;
+      case 'error': if (MODAPI.errores++ < 5) { console.warn('mod', M.nombre, d); aviso(M.nombre + ': ' + String(d).slice(0, 80), 3); } break;
     }
   } catch (x) { if (MODAPI.errores++ < 5) console.warn('mod', M.nombre, x); }
 });

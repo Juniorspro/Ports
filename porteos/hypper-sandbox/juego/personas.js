@@ -129,6 +129,7 @@ function ubicarPersona(P) {
 }
 function dibujarPersona(P) {
   if (!P.visible) return;
+  P.cDib = PERS_N; // (lo que se lleva puesto, como la radio en la espalda, usa los huesos de este cuadro)
   ubicarPersona(P);
   // (sentado, en un emote o en el piso como muñeco no se clavan los pies; se olvida el apoyo viejo para no tirar del pie al volver)
   if (!P.rag && P.hum && !P.sentado && !P.emote && !P.inclin && !P.cuad) { aterrizarPies(P); piesIK(P, TIEMPO.dt || 0.016); } else P.ik = null;
@@ -303,6 +304,7 @@ function personasPaso(dt) {
   }
 }
 function dibujarPersonas() {
+  PERS_N++;
   for (const P of PERS) {
     if (P === JUG.cuerpo) { const ver = JUG.tercera || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh); if (!ver) continue; }
     if (!P.rag) animarPersona(P, TIEMPO.dt);

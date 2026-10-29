@@ -22,7 +22,7 @@ async function srvModsCargar() {
       if (Array.isArray(d.vivos)) { const vv = new Set(d.vivos); for (const id of [...SRV.mods.keys()]) if (!vv.has(id)) SRV.mods.delete(id); }
       if (!d.mas || !(d.items || []).length) break;
     }
-    if (!SRV.primera && nuevos.length && JUEGO.estado === 'juego' && SALA) aviso('🧩 ' + T('sm.nuevo') + ': ' + nuevos.slice(0, 3).map((m) => m.nombre).join(', ') + (nuevos.length > 3 ? ' +' + (nuevos.length - 3) : ''), 4);
+    if (!SRV.primera && nuevos.length && JUEGO.estado === 'juego' && SALA) aviso(T('sm.nuevo') + ': ' + nuevos.slice(0, 3).map((m) => m.nombre).join(', ') + (nuevos.length > 3 ? ' +' + (nuevos.length - 3) : ''), 4);
     SRV.primera = false;
   } catch (e) { SRV.falta = true; }
   SRV.cargando = false;
@@ -85,7 +85,7 @@ function smAbrir() {
   let p = $('smPan');
   if (!p) {
     p = document.createElement('div'); p.id = 'smPan'; p.className = 'panel oc'; document.body.appendChild(p);
-    p.innerHTML = `<div class="caja smCaja"><h3>🧩 <span class="smTit"></span> <small class="smCuenta"></small></h3>
+    p.innerHTML = `<div class="caja smCaja"><h3>${icoHTML('ico:mod')} <span class="smTit"></span> <small class="smCuenta"></small></h3>
       <div class="smBarra"><input id="smQ" type="search" maxlength="40" spellcheck="false"><button class="boton chico" data-sm="todos"></button><button class="boton chico gris" data-sm="ninguno"></button></div>
       <div class="smFiltros"></div><div id="smLista"></div><div class="smPie"><span class="smInfo"></span><button class="boton chico gris" data-sm="cerrar"></button></div></div>`;
     p.addEventListener('click', (e) => { if (e.target === p) return smCerrar(); const b = e.target.closest('[data-sm]'); if (b) smAccion(b.dataset.sm); });
@@ -111,18 +111,18 @@ function smDibujar() {
     && (!f || (f === 'act' ? act[m.id] : f === 'of' ? m.oficial : f === 'cod' ? m.codigo : f === 'usan' ? usan.get(m.id) : (m.etiquetas || []).includes(f))));
   lista.sort((a, b) => (!!act[b.id] - !!act[a.id]) || ((usan.get(b.id) || 0) - (usan.get(a.id) || 0)) || (!!b.oficial - !!a.oficial));
   p.querySelector('.smTit').textContent = T('sm.tit');
-  p.querySelector('.smCuenta').textContent = `${todos.length}${SRV.cargando ? ' · ' + T('cargando') : SRV.falta ? ' · ⚠' : ''}`;
-  p.querySelector('[data-sm=todos]').textContent = '✔ ' + T('sm.todos'); p.querySelector('[data-sm=ninguno]').textContent = '✖ ' + T('sm.ninguno'); p.querySelector('[data-sm=cerrar]').textContent = T('cerrar');
-  const chips = [['', T('e.todas')], ['act', '✔ ' + T('sm.activos')], ['usan', '👥 ' + T('sm.usan')], ['of', '★ ' + T('oficial')], ['cod', '</> ' + T('sm.codigo')], ...ETIQUETAS_RB.map((e) => [e, T('e.' + e)])];
-  p.querySelector('.smFiltros').innerHTML = chips.map(([k, t]) => `<button class="${k === f ? 'sel' : ''}" data-sm="f:${k}">${esc(t)}</button>`).join('');
+  p.querySelector('.smCuenta').textContent = `${todos.length}${SRV.cargando ? ' · ' + T('cargando') : SRV.falta ? ' · ' + T('errRed') : ''}`;
+  p.querySelector('[data-sm=todos]').innerHTML = glifo('si') + ' ' + esc(T('sm.todos')); p.querySelector('[data-sm=ninguno]').innerHTML = glifo('no') + ' ' + esc(T('sm.ninguno')); p.querySelector('[data-sm=cerrar]').textContent = T('cerrar');
+  const chips = [['', T('e.todas')], ['act', T('sm.activos'), 'si'], ['usan', T('sm.usan'), 'gente'], ['of', T('oficial'), 'estrella'], ['cod', T('sm.codigo'), 'codigo'], ...ETIQUETAS_RB.map((e) => [e, T('e.' + e)])];
+  p.querySelector('.smFiltros').innerHTML = chips.map(([k, t, g]) => `<button class="${k === f ? 'sel' : ''}" data-sm="f:${k}">${g ? glifo(g) + ' ' : ''}${esc(t)}</button>`).join('');
   const LZ = p.querySelector('#smLista'), sc = LZ.scrollTop;
   LZ.innerHTML = lista.map((m) => {
     const on = !!act[m.id], u = usan.get(m.id) || 0;
     return `<button class="smIt${on ? ' on' : ''}" data-sm="t:${esc(m.id)}"><span class="smIco">${icoHTML(m.icono)}</span><span class="smTx"><b dir="auto">${esc(nombreDe(m))}</b>
-      <small dir="auto">${m.oficial ? '★ ' + esc(T('oficial')) : esc(T('por')) + ' ' + esc(m.autor || '')}${m.codigo ? ' · &lt;/&gt;' : ''}${u ? ` · 👥 ${u}` : ''}</small><em dir="auto">${esc(descDe(m) || '')}</em></span><i class="smSw"></i></button>`;
+      <small dir="auto">${m.oficial ? glifo('estrella') + ' ' + esc(T('oficial')) : esc(T('por')) + ' ' + esc(m.autor || '')}${m.codigo ? ' · ' + glifo('codigo') : ''}${u ? ` · ${glifo('gente')} ${u}` : ''}</small><em dir="auto">${esc(descDe(m) || '')}</em></span><i class="smSw"></i></button>`;
   }).join('') || `<div class="radioVacio">${esc(SRV.cargando ? T('cargando') : T('sinRes'))}</div>`;
   LZ.scrollTop = sc;
-  p.querySelector('.smInfo').textContent = `✔ ${SMOD.ids.size} ${T('sm.activos')} · 👥 ${RED.remotos.size + 1}`;
+  p.querySelector('.smInfo').innerHTML = `${glifo('si')} ${SMOD.ids.size} ${esc(T('sm.activos'))} · ${glifo('gente')} ${RED.remotos.size + 1}`;
 }
 // confirmar una vez los que traen código (corren aislados, pero los hizo otra persona)
 function smCodigoOk(lista) {
@@ -142,7 +142,7 @@ function smAccion(k) {
     // sólo cambia esa tarjeta (si se reordenara la lista, lo que tocaste se movería de lugar)
     guardarPrefs(); smAplicar(false);
     const p = $('smPan'), b = p && [...p.querySelectorAll('.smIt')].find((x) => x.dataset.sm === 't:' + v); if (b) b.classList.toggle('on', !!PREFS.modsSrv[v]);
-    if (p) p.querySelector('.smInfo').textContent = `✔ ${SMOD.ids.size} ${T('sm.activos')} · 👥 ${RED.remotos.size + 1}`;
+    if (p) p.querySelector('.smInfo').innerHTML = `${glifo('si')} ${SMOD.ids.size} ${esc(T('sm.activos'))} · ${glifo('gente')} ${RED.remotos.size + 1}`;
     return;
   } else if (a === 'todos') {
     const L = smTodos(); if (!smCodigoOk(L)) return; for (const m of L) PREFS.modsSrv[m.id] = true;
@@ -154,6 +154,6 @@ function smDeOtro(R2, ids) {
   R2.mods = (Array.isArray(ids) ? ids : []).filter((x) => typeof x === 'string' && /^[\w-]{1,24}$/.test(x)).slice(0, 200);
   const todos = new Map(smTodos().map((m) => [m.id, m]));
   if (R2.mods.some((id) => !todos.has(id)) && !SRV.cargando) { SRV.t = 0; }
-  R2.icos = R2.mods.map((id) => todos.get(id)).filter((m) => m && !/^data:/.test(m.icono || '')).map((m) => m.icono).slice(0, 4).join('');
+  R2.icos = R2.mods.map((id) => todos.get(id)).filter(Boolean).map((m) => m.icono).slice(0, 4); etiquetaRemota(R2);
   if (SMOD.abierto) smDibujar();
 }

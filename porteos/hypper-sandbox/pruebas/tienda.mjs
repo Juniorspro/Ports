@@ -23,7 +23,7 @@ await toca('[data-rb="vista:instalados"]'); console.log('instalados:', await p.e
 await toca('[data-rb="act:salto"]'); await foto('4_instalados');
 // crear y publicar un mod
 await toca('[data-rb=pubmod]'); await p.fill('#pmNom', 'Prueba gravedad cero'); await p.fill('#pmDesc', 'Mod de prueba del recorrido');
-await toca('[data-rb="pmico:🚀"]'); await toca('[data-rb="pmetq:fisica"]');
+await toca('[data-rb="pmico:ico:cohete"]'); await toca('[data-rb="pmetq:fisica"]');
 await p.$eval('[data-rv=gravedad]', (e) => { e.value = 0.2; e.dispatchEvent(new Event('input', { bubbles: true })); });
 await toca('[data-rb="pmtog:municionInfinita"]'); await p.selectOption('#pmSkin', 'Soldier'); await toca('[data-rb="pmarma:Shotgun"]');
 await foto('5_crear_mod');

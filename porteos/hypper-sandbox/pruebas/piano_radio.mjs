@@ -5,7 +5,7 @@ const D = SALIDA;
 const { b, p, err, ev } = await abrir(HTML);
 await ev(`PREFS.bienvenida = true; GFX.auto=false; PREFS.mods = {piano:true, radio:true}; inicioMostrar(true); RB.mapaPartida=null; RB.mapaCom=null; RB.horaPartida='normal'; inicioMostrar(false); empezarPartida('FlatGrass')`);
 await p.waitForTimeout(4000);
-console.log('botones:', await ev(`[...NAT.botones.keys()].join(',') + ' / ' + [...document.querySelectorAll('#modBtns .natBt')].map(e=>e.textContent).join(' ')`));
+console.log('mods en el menú MOD:', await ev(`[...NAT.mods].join(',')`));
 await ev(`window.__notas = []; const _nt = notaTocar; notaTocar = function(hz){ window.__notas.push(Math.round(hz)); };`).catch((e) => console.log('no se pudo envolver notaTocar', e.message));
 await ev(`JUG.pos.set(0, 1.6, 0); JUG.yaw = 0; JUG.pitch = 0.3; natAccion('piano')`);
 await p.waitForTimeout(800);
@@ -33,11 +33,12 @@ console.log('resultados:', await ev(`JSON.stringify({n: RADIO.res.length, primer
 await p.screenshot({ path: D + 'p3_radio_panel.png' });
 const n = Number(await ev(`RADIO.res.length`));
 if (n) { await p.click('[data-ra="poner:0"]'); await p.waitForTimeout(4000); }
-console.log('radio suena:', await ev(`JSON.stringify({vid: RADIO.e && RADIO.e.vid, fuente: !!YT.fuente, ifr: !!YT.ifr, vol: YT.vol, mini: YT.caja && !YT.caja.classList.contains('oc')})`));
+await p.waitForTimeout(6000);
+console.log('radio suena (emisora en 3D):', await ev(`(() => { const e = radioMia(), S = EST.son.get(e); return JSON.stringify({vid: e.vid, suena: !!S, listo: S && S.listo, ventanitaYT: !!YT.ifr}); })()`));
 await ev(`radioCerrar()`); await p.waitForTimeout(1500);
 await p.screenshot({ path: D + 'p4_radio.png' });
 // alejarse: baja el volumen y se corta
-await ev(`JUG.pos.set(30, 1.6, 55)`); await p.waitForTimeout(1200); console.log('vol a 25 m:', await ev(`YT.vol`));
-await ev(`JUG.pos.set(30, 1.6, 120)`); await p.waitForTimeout(1200); console.log('a 90 m (sin iframe):', await ev(`String(!!YT.ifr)`));
+await ev(`JUG.pos.set(30, 1.6, 55)`); await p.waitForTimeout(1200); console.log('ganancia a 25 m:', await ev(`(() => { const S = EST.son.get(radioMia()); return S ? S.F.g.gain.value.toFixed(3) : 'sin sonido'; })()`));
+await ev(`JUG.pos.set(30, 1.6, 120)`); await p.waitForTimeout(1500); console.log('a 90 m se corta:', await ev(`String(!EST.son.has(radioMia()))`));
 console.log('errores:', err.filter((e) => !/WebSocket|mqtt/i.test(e)).slice(0, 8).join(' | ') || 'ninguno');
 await b.close();

@@ -8,14 +8,14 @@ const TIENDA_URL = 'https://rezobox-tienda.holasoyjuniors365.workers.dev/api/';
 const MODS = {}; // efectos sumados de los mods activos en la partida (armas y reloj los leen)
 const FONDOS_RB = [/*FONDOSRB*/]; // escenas armadas con cosas del juego (van con el paquete, no en el repo)
 const LOGO_RB = (document.getElementById('rbLogoIntro') || {}).src || '';
-const ICONOS_MOD = ['🧩', '🐉', '🌙', '🦘', '⚡', '♾️', '🛡️', '🐢', '💥', '🔥', '🚀', '👾', '🤖', '🦖', '🏎️', '🔫', '💣', '🧲', '🌪️', '❄️', '👑', '🎉'];
+const ICONOS_MOD = ['mod', ...ICO_LISTA.filter((n) => n !== 'mod' && !['cartel', 'meta', 'zona_muerte', 'boton_autos', 'teleport', 'impulso'].includes(n))].map((n) => 'ico:' + n);
 // los mods oficiales, en el mismo formato que los de la gente
-const OFICIALES = [['goku', '🐉', ['personajes', 'diversion'], { skin: 'Goku', velocidad: 1.4, salto: 2.5 }], ['luna', '🌙', ['fisica'], { gravedad: 0.35 }],
-  ['salto', '🦘', ['jugabilidad'], { salto: 4 }], ['veloz', '⚡', ['jugabilidad'], { velocidad: 1.8 }], ['balas', '♾️', ['armas'], { municionInfinita: true }],
-  ['dios', '🛡️', ['jugabilidad'], { invencible: true }], ['lenta', '🐢', ['diversion'], { tiempo: 0.5 }], ['boom', '💥', ['armas', 'diversion'], { explosion: 2.5 }],
+const OFICIALES = [['goku', 'ico:energia', ['personajes', 'diversion'], { skin: 'Goku', velocidad: 1.4, salto: 2.5 }], ['luna', 'ico:luna', ['fisica'], { gravedad: 0.35 }],
+  ['salto', 'ico:salto', ['jugabilidad'], { salto: 4 }], ['veloz', 'ico:veloz', ['jugabilidad'], { velocidad: 1.8 }], ['balas', 'ico:balas', ['armas'], { municionInfinita: true }],
+  ['dios', 'ico:dios', ['jugabilidad'], { invencible: true }], ['lenta', 'ico:lenta', ['diversion'], { tiempo: 0.5 }], ['boom', 'ico:boom', ['armas', 'diversion'], { explosion: 2.5 }],
   // nativos: suman un botón al HUD (nativos.js y entidades.js)
-  ['volar', '🕊️', ['jugabilidad', 'diversion'], {}, 'volar'], ['ragdoll', '🪆', ['fisica', 'diversion', 'pvp'], {}, 'ragdoll'], ['scp', '🐾', ['personajes', 'diversion'], {}, 'scp'],
-  ['piano', '🎹', ['diversion', 'construccion'], {}, 'piano'], ['radio', '📻', ['diversion'], {}, 'radio']]
+  ['volar', 'ico:volar', ['jugabilidad', 'diversion'], {}, 'volar'], ['ragdoll', 'ico:ragdoll', ['fisica', 'diversion', 'pvp'], {}, 'ragdoll'], ['scp', 'ico:scp', ['personajes', 'diversion'], {}, 'scp'],
+  ['piano', 'ico:piano', ['diversion', 'construccion'], {}, 'piano'], ['radio', 'ico:radio', ['diversion'], {}, 'radio']]
   .map(([id, icono, etiquetas, efectos, nativo]) => Object.assign(validarRB({ formato: 'rezobox-mod', nombre: id + ' (RezoBox)', autor: 'RezoBox', icono, etiquetas, efectos }), { id, oficial: true, nativo }));
 // el mapa oficial: Mega rampa en Pasto plano (rampa gigante desde el cielo, autos para elegir arriba con su botón)
 function mapaMegaRampa() {
@@ -26,8 +26,8 @@ function mapaMegaRampa() {
     const a = (-55 + i * 22) * Math.PI / 180, en = (r) => top(+(r * Math.sin(a)).toFixed(2), +(-r * Math.cos(a) - 1).toFixed(2));
     ent.push({ t: 'boton_autos', p: en(21), yaw: -a, prm: { auto, i, a: en(12.5), ya: -a, ini: true } });
   });
-  ent.push({ t: 'cartel', p: top(0, -35.3), yaw: Math.PI, prm: { texto: '🛝 MEGA RAMPA', color: '#ffd23f' } });
-  for (const [x, z] of [[-40, 6], [40, 6], [-30, 320], [30, 320]]) { ent.push({ t: 'teleport', p: [x, Y0, Z0 + z], yaw: 0, prm: { a: top(0, -30) } }); ent.push({ t: 'cartel', p: [x, Y0, Z0 + z - 4], yaw: Math.PI, prm: { texto: '🌀 ⬆', color: '#7fe3ff' } }); }
+  ent.push({ t: 'cartel', p: top(0, -35.3), yaw: Math.PI, prm: { texto: 'MEGA RAMPA', color: '#ffd23f', ico: 'rampa' } });
+  for (const [x, z] of [[-40, 6], [40, 6], [-30, 320], [30, 320]]) { ent.push({ t: 'teleport', p: [x, Y0, Z0 + z], yaw: 0, prm: { a: top(0, -30) } }); ent.push({ t: 'cartel', p: [x, Y0, Z0 + z - 4], yaw: Math.PI, prm: { texto: 'MEGA RAMPA', color: '#7fe3ff', ico: 'teleport' } }); }
   ent.push({ t: 'luz', p: top(0, -12).map((v, i) => (i === 1 ? v + 6 : v)), yaw: 0, prm: { color: '#ffe2b0', r: 30, i: 1.2 } });
   const spawns = [-6, -2, 2, 6].map((x) => ({ p: top(x, -31), yaw: 0, rol: null }));
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs><linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d8be0"/><stop offset="1" stop-color="#cfe6f7"/></linearGradient></defs>
@@ -48,7 +48,6 @@ const guardarLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const modsTodos = () => [...OFICIALES, ...Object.values(INST.mods)];
 const nombreDe = (m) => (m.oficial ? T(m.id + '.n') : m.nombre), descDe = (m) => (m.oficial ? T(m.id + '.d') : m.descripcion);
-const icoHTML = (v) => (/^data:image\//.test(v || '') ? `<img src="${esc(v)}" alt="">` : esc(v || '🧩'));
 const mapaNom = (m) => T('m.' + m);
 
 function inicioCrear() {
@@ -81,7 +80,7 @@ function inicioCrear() {
     i.style.background = `url(${LOGO_RB}) center/contain no-repeat`; i.style.removeProperty('-webkit-mask'); i.style.removeProperty('mask'); i.style.opacity = 1;
   }
   if (MENU.el && !document.getElementById('rbVolver')) {
-    const v = document.createElement('div'); v.id = 'rbVolver'; v.textContent = '◀ RezoBox';
+    const v = document.createElement('div'); v.id = 'rbVolver'; v.innerHTML = glifo('atras') + ' RezoBox';
     v.onclick = (e) => { e.stopPropagation(); audioIniciar(); inicioMostrar(true); };
     MENU.el.appendChild(v);
   }
@@ -92,9 +91,9 @@ function inicioLista() {
   const G = [['nueva', 'multi'], ['tienda', 'crear', 'personajes', 'opciones'], ['clasico', 'salir']];
   RB.el.querySelector('.rbLista').innerHTML = G.map((g) => g.map((k) => `<button class="rbIt" data-rb="${k}">${esc(T('m.' + k))}</button>`).join('')).join('<div class="rbSep"></div>');
   const nm = modsTodos().filter((m) => PREFS.mods[m.id]).length, I = IDIOMAS_RB[PREFS.lang] || IDIOMAS_RB.en;
-  RB.el.querySelector('.rbAbajo').innerHTML = `<button class="rbChipG" data-rb="tienda">🧩 ${nm ? `${nm} ${esc(T('modsAct'))}` : 'Sandbox'}</button>
-    <button class="rbChipG" data-rb="idioma">${I[1]} ${esc(I[0])}</button>
-    <label class="rbChipG">👤 <input id="rbNombre" maxlength="16" spellcheck="false"></label>`;
+  RB.el.querySelector('.rbAbajo').innerHTML = `<button class="rbChipG" data-rb="tienda">${icoHTML('ico:mod')} ${nm ? `${nm} ${esc(T('modsAct'))}` : 'Sandbox'}</button>
+    <button class="rbChipG" data-rb="idioma"><i class="lcod">${I[1]}</i> ${esc(I[0])}</button>
+    <label class="rbChipG">${glifo('persona')} <input id="rbNombre" maxlength="16" spellcheck="false"></label>`;
   const inp = RB.el.querySelector('#rbNombre'); inp.value = PREFS.nombre || '';
   inp.oninput = () => nombrePoner(inp.value);
   RB.el.querySelector('.rbVer').textContent = `HypperX RezoBox ${VERSION_JUEGO}`;
@@ -121,19 +120,19 @@ function inicioPanel(p) {
 function panelCrear(P) {
   if (!MAPAS.includes(RB.creaBase)) RB.creaBase = RB.mapa || 'FlatGrass';
   const mios = Object.values(INST.mapas).filter((m) => m.creado);
-  P.innerHTML = `<div class="rbPanCab">🛠 ${esc(T('m.crear'))}<small>${esc(mapaNom(RB.creaBase))}</small></div>
+  P.innerHTML = `<div class="rbPanCab">${glifo('martillo')} ${esc(T('m.crear'))}<small>${esc(mapaNom(RB.creaBase))}</small></div>
     <div class="rbPanCuerpo rbCrear"><div class="rbSub">${esc(T('mapaBase'))}</div>
     <div class="rbGrid rbGridChica">${MAPAS.map((m) => `<div class="rbMapaG${m === RB.creaBase ? ' sel' : ''}" data-rb="creaBase:${m}"><div class="rbFoto" style="background-image:url(${icono(MAPA_ICONO[m])})"></div><b>${esc(mapaNom(m))}</b></div>`).join('')}</div>
-    ${mios.length ? `<div class="rbSub">${esc(T('cr.misMapas'))}</div><div class="rbGrid rbGridChica">${mios.map((m) => `<div class="rbMapaG" data-rb="creaEditar:${esc(m.id)}"><div class="rbFoto" style="background-image:url(${m.foto ? esc(m.foto) : icono(MAPA_ICONO[m.base])})"></div><b>${esc(m.nombre)}</b><small>✏ ${esc(mapaNom(m.base))}</small></div>`).join('')}</div>` : ''}
+    ${mios.length ? `<div class="rbSub">${esc(T('cr.misMapas'))}</div><div class="rbGrid rbGridChica">${mios.map((m) => `<div class="rbMapaG" data-rb="creaEditar:${esc(m.id)}"><div class="rbFoto" style="background-image:url(${m.foto ? esc(m.foto) : icono(MAPA_ICONO[m.base])})"></div><b>${esc(m.nombre)}</b><small>${glifo('lapiz')} ${esc(mapaNom(m.base))}</small></div>`).join('')}</div>` : ''}
     <p class="rbAyudaC">${esc(T('cr.intro'))}</p></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">◀ ${esc(T('volver'))}</button><span class="rbEsp"></span><button class="rbBtnG" data-rb="creaNuevo">🛠 ${esc(T('cr.empezar'))}</button></div>`;
+    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><button class="rbBtnG" data-rb="creaNuevo">${glifo('martillo')} ${esc(T('cr.empezar'))}</button></div>`;
 }
 // ---------- bienvenida: idioma y nombre (la primera vez, y desde la banderita) ----------
 function panelBienvenida(P) {
   P.innerHTML = `<div class="rbBienv"><img class="rbBienvLogo" alt="" src="${LOGO_RB}"><h2>${esc(T('b.tit'))}</h2><div class="rbSub">${esc(T('b.idioma'))}</div>
-    <div class="rbIdiomas">${Object.entries(IDIOMAS_RB).map(([k, [n, b]]) => `<button class="rbIdi${k === PREFS.lang ? ' sel' : ''}" data-rb="lang:${k}"><i>${b}</i><span dir="auto">${esc(n)}</span></button>`).join('')}</div>
+    <div class="rbIdiomas">${Object.entries(IDIOMAS_RB).map(([k, [n, b]]) => `<button class="rbIdi${k === PREFS.lang ? ' sel' : ''}" data-rb="lang:${k}"><i class="lcod">${b}</i><span dir="auto">${esc(n)}</span></button>`).join('')}</div>
     <label class="rbCampo rbNomB">${esc(T('b.nombre'))} <input id="rbNombreB" maxlength="16" spellcheck="false"></label>
-    <button class="rbBtnG" data-rb="bienvOK">${esc(T('b.seguir'))} ▶</button></div>`;
+    <button class="rbBtnG" data-rb="bienvOK">${esc(T('b.seguir'))} ${glifo('adelante')}</button></div>`;
   const i = P.querySelector('#rbNombreB'); i.value = PREFS.nombre || ''; i.oninput = () => nombrePoner(i.value);
 }
 // ---------- Empezar partida nueva ----------
@@ -147,25 +146,25 @@ function panelNueva(P) {
   P.innerHTML = `<div class="rbPanCab">${esc(T('m.nueva'))}<small>${esc(sel)}</small></div>
     <div class="rbPanCuerpo"><div class="rbCats">${cats.map(([k, l]) => `<button class="rbCat${k === cat[0] ? ' sel' : ''}" data-rb="cat:${k}">${esc(T('c.' + k))}<em>${l.length}</em></button>`).join('')}</div>
     <div class="rbGrid">${cat[1].map(tarjeta).join('') || `<div class="rbVacio">${esc(T('sinRes'))} · <a data-rb="tienda:mapa">${esc(T('m.tienda'))}</a></div>`}</div></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">◀ ${esc(T('volver'))}</button>
+    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button>
       <label class="rbCampo">${esc(T('hora'))} <select id="rbHora">${['normal', 'dia', 'tarde', 'noche', 'ciclo'].map((k) => `<option value="${k}"${RB.hora === k ? ' selected' : ''}>${esc(T('h.' + k))}</option>`).join('')}</select></label>
-      <button class="rbBtnGris" data-rb="tienda">🧩 ${nm ? `${nm} ${esc(T('modsAct'))}` : esc(T('sinMods'))}</button>
+      <button class="rbBtnGris" data-rb="tienda">${icoHTML('ico:mod')} ${nm ? `${nm} ${esc(T('modsAct'))}` : esc(T('sinMods'))}</button>
       <span class="rbEsp"></span><span class="rbModo">${esc(T('unJugador'))}</span><button class="rbBtnG" data-rb="empezar">${esc(T('empezar'))}</button></div>`;
 }
 // ---------- tienda: Mods y Mapas (explorar en el servidor o ver los instalados) ----------
 function panelTienda(P) {
   const S = RB.t, mods = S.tab === 'mod';
   P.innerHTML = `<div class="rbPanCab">${esc(T('m.tienda'))}
-      <span class="rbTabs"><button class="rbTab${mods ? ' sel' : ''}" data-rb="tab:mod">🧩 ${esc(T('t.mods'))}</button><button class="rbTab${!mods ? ' sel' : ''}" data-rb="tab:mapa">🗺️ ${esc(T('t.mapas'))}</button></span>
-      <span class="rbEsp"></span><button class="rbBtnG rbChico" data-rb="${mods ? 'pubmod' : 'pubmapa'}">＋ ${esc(T(mods ? 'p.mod' : 'p.mapa'))}</button>
-      <label class="rbBtnGris rbChico">⬆ ${esc(T('p.archivo'))}<input type="file" id="rbArchivo" accept=".rbmod,.rbmapa,.json" hidden></label></div>
+      <span class="rbTabs"><button class="rbTab${mods ? ' sel' : ''}" data-rb="tab:mod">${icoHTML('ico:mod')} ${esc(T('t.mods'))}</button><button class="rbTab${!mods ? ' sel' : ''}" data-rb="tab:mapa">${glifo('mapa')} ${esc(T('t.mapas'))}</button></span>
+      <span class="rbEsp"></span><button class="rbBtnG rbChico" data-rb="${mods ? 'pubmod' : 'pubmapa'}">${glifo('mas')} ${esc(T(mods ? 'p.mod' : 'p.mapa'))}</button>
+      <label class="rbBtnGris rbChico">${glifo('subir')} ${esc(T('p.archivo'))}<input type="file" id="rbArchivo" accept=".rbmod,.rbmapa,.json" hidden></label></div>
     <div class="rbBarra"><input id="rbBuscar" type="search" placeholder="${esc(T('buscar'))}" value="${esc(S.q)}">
       <select id="rbOrden">${['pop', 'nuevo', 'desc'].map((k) => `<option value="${k}"${S.orden === k ? ' selected' : ''}>${esc(T('o.' + k))}</option>`).join('')}</select>
       <span class="rbSeg"><button class="${S.vista === 'explorar' ? 'sel' : ''}" data-rb="vista:explorar">${esc(T('v.tienda'))}</button><button class="${S.vista === 'instalados' ? 'sel' : ''}" data-rb="vista:instalados">${esc(T('v.instalados'))}</button></span></div>
     <div class="rbEtqs"><button class="rbEtq${!S.etq ? ' sel' : ''}" data-rb="etq:">${esc(T('e.todas'))}</button>${ETIQUETAS_RB.map((e) => `<button class="rbEtq${S.etq === e ? ' sel' : ''}" data-rb="etq:${e}">${esc(T('e.' + e))}</button>`).join('')}</div>
     <div class="rbGrid rbTiendaG"></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">◀ ${esc(T('volver'))}</button><span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris" data-rb="mas">⋯</button>
-      <button class="rbBtnG" data-rb="nueva">${esc(T('m.nueva'))} ▶</button></div>`;
+    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris" data-rb="mas">${glifo('mas3')}</button>
+      <button class="rbBtnG" data-rb="nueva">${esc(T('m.nueva'))} ${glifo('jugar')}</button></div>`;
   tiendaCargar(true);
 }
 function tiendaCargar(desdeCero) {
@@ -185,15 +184,15 @@ function tiendaDibujar() {
   const inst = (it) => (S.tab === 'mod' ? (it.oficial || INST.mods[it.id]) : it.oficial || INST.mapas[it.id]);
   const tarjeta = (it) => {
     const ins = inst(it), act = S.tab === 'mod' && PREFS.mods[it.id], img = S.tab === 'mod' ? icoHTML(it.icono) : `<img src="${esc(it.icono || it.foto || icono(MAPA_ICONO[it.base] || 'flatgrass'))}" alt="">`;
-    const datos = it.oficial ? `<b class="rbOf">${esc(T('oficial'))}</b>` : `${esc(T('por'))} ${esc(it.autor)}${it.descargas != null ? ` · ⬇ ${it.descargas} · ♥ ${it.likes}` : ''}${S.tab === 'mapa' && it.base ? ` · ${esc(mapaNom(it.base))}` : ''}`;
+    const datos = it.oficial ? `<b class="rbOf">${esc(T('oficial'))}</b>` : `${esc(T('por'))} ${esc(it.autor)}${it.descargas != null ? ` · ${glifo('bajar')} ${it.descargas} · ${glifo('corazon')} ${it.likes}` : ''}${S.tab === 'mapa' && it.base ? ` · ${esc(mapaNom(it.base))}` : ''}`;
     return `<div class="rbCard${S.tab === 'mapa' ? ' rbCardMapa' : ''}${act ? ' on' : ''}"><div class="rbIco">${img}</div>
       <div class="rbInfo"><b dir="auto">${esc(nombreDe(it))}</b><small dir="auto">${it.codigo ? '<b class="rbCod">&lt;/&gt;</b> ' : ''}${datos}</small><p dir="auto">${esc(descDe(it))}</p>
       <span class="rbEtqsC">${(it.etiquetas || []).map((e) => `<i>${esc(T('e.' + e))}</i>`).join('')}</span></div>
       <div class="rbAcc">${S.tab === 'mod' && ins ? `<button class="rbChk${act ? ' on' : ''}" data-rb="act:${esc(it.id)}"><em></em>${esc(T('activado'))}</button>` : ''}
         ${it.oficial ? '' : ins ? `<button class="rbBtnGris rbChico" data-rb="quitar:${esc(it.id)}">${esc(T('quitar'))}</button>` : `<button class="rbBtnG rbChico" data-rb="instalar:${esc(it.id)}">${esc(T('instalar'))}</button>`}
-        ${S.tab === 'mapa' && ins ? `<button class="rbBtnG rbChico" data-rb="jugarcom:${esc(it.id)}">▶ ${esc(T('jugar'))}</button>` : ''}
-        ${it.oficial ? '' : `<span class="rbMini">${it.descargas != null ? `<button title="${esc(T('meGusta'))}" class="${LIKES[it.id] ? 'sel' : ''}" data-rb="like:${esc(it.id)}">♥</button><button title="${esc(T('denunciar'))}" data-rb="denunciar:${esc(it.id)}">⚑</button>` : ''}
-        ${ins ? `<button title="${esc(T('exportar'))}" data-rb="exportar:${esc(it.id)}">⬇</button>` : ''}${PUBLICADOS[it.id] ? `<button title="✖" data-rb="borrarpub:${esc(it.id)}">✖</button>` : ''}</span>`}</div></div>`;
+        ${S.tab === 'mapa' && ins ? `<button class="rbBtnG rbChico" data-rb="jugarcom:${esc(it.id)}">${glifo('jugar')} ${esc(T('jugar'))}</button>` : ''}
+        ${it.oficial ? '' : `<span class="rbMini">${it.descargas != null ? `<button title="${esc(T('meGusta'))}" class="${LIKES[it.id] ? 'sel' : ''}" data-rb="like:${esc(it.id)}">${glifo('corazon')}</button><button title="${esc(T('denunciar'))}" data-rb="denunciar:${esc(it.id)}">${glifo('bandera')}</button>` : ''}
+        ${ins ? `<button title="${esc(T('exportar'))}" data-rb="exportar:${esc(it.id)}">${glifo('bajar')}</button>` : ''}${PUBLICADOS[it.id] ? `<button title="${esc(T('quitar'))}" data-rb="borrarpub:${esc(it.id)}">${glifo('basura')}</button>` : ''}</span>`}</div></div>`;
   };
   G.innerHTML = S.items.map(tarjeta).join('') + (S.cargando ? `<div class="rbVacio">${esc(T('cargando'))}</div>` : S.error ? `<div class="rbVacio">${esc(T('errRed'))}</div>` : !S.items.length ? `<div class="rbVacio">${esc(T('sinRes'))}</div>` : '');
   const tot = RB.el.querySelector('.rbTotal'); if (tot) tot.textContent = S.total ? `${S.items.length} / ${S.total}` : '';
@@ -247,16 +246,16 @@ function panelPubMod(P) {
   P.innerHTML = `<div class="rbPanCab">${esc(T('p.mod'))}</div><div class="rbForm">
     <div class="rbCol"><label class="rbCampo">${esc(T('nombre'))}<input id="pmNom" maxlength="40"></label>
       <label class="rbCampo">${esc(T('desc'))}<textarea id="pmDesc" maxlength="400" rows="3"></textarea></label>
-      <div class="rbCampo">${esc(T('icono'))}<span class="rbIconos">${ICONOS_MOD.map((e, i) => `<button class="${i ? '' : 'sel'}" data-rb="pmico:${e}">${e}</button>`).join('')}</span></div>
+      <div class="rbCampo">${esc(T('icono'))}<span class="rbIconos">${ICONOS_MOD.map((e, i) => `<button class="${i ? '' : 'sel'}" data-rb="pmico:${e}">${icoHTML(e)}</button>`).join('')}</span></div>
       <div class="rbCampo">${esc(T('etiquetas'))}<span class="rbEtqs">${ETIQUETAS_RB.map((e) => `<button class="rbEtq" data-rb="pmetq:${e}">${esc(T('e.' + e))}</button>`).join('')}</span></div></div>
     <div class="rbCol">${R.map(([k, a, b, s]) => `<label class="rbRango">${esc(T('f.' + k))}<input type="range" data-rv="${k}" min="${a}" max="${b}" step="${s}" value="1"><output>1.00×</output></label>`).join('')}
       <span class="rbFila"><button class="rbChk" data-rb="pmtog:municionInfinita"><em></em>${esc(T('f.municion'))}</button><button class="rbChk" data-rb="pmtog:invencible"><em></em>${esc(T('f.invencible'))}</button></span>
       <span class="rbFila"><label class="rbCampo">${esc(T('f.skin'))}<select id="pmSkin"><option value="">${esc(T('ninguna'))}</option>${Object.keys(RETRATO).map((s) => `<option>${s}</option>`).join('')}</select></label>
       <label class="rbCampo">${esc(T('f.hora'))}<select id="pmHora"><option value="">${esc(T('ninguna'))}</option>${[...Array(24)].map((_, h) => `<option value="${h}">${h}:00</option>`).join('')}</select></label></span>
       <div class="rbCampo">${esc(T('e.armas'))}<span class="rbEtqs">${armas.map((a) => `<button class="rbEtq" data-rb="pmarma:${a}">${a}</button>`).join('')}</span></div>
-      <label class="rbCampo">${esc(T('codigo'))}<textarea id="pmCod" rows="6" spellcheck="false" class="rbCodigo" placeholder="rb.on('inicio', () => rb.aviso('¡Hola!'));&#10;rb.boton('salto', '🦘');&#10;rb.on('boton', (b) => rb.jugador({ vel: [0, 30, 0] }));"></textarea><small class="rbAyuda">rb.on(inicio|tick|boton|tecla|muerte) · rb.jugador({...}) · rb.mundo({...}) · rb.crear(n, [x,y,z]) · rb.mover · rb.borrar · rb.objetos() · rb.explosion · rb.arma · rb.sonido · rb.nota(hz) · rb.rayo · rb.boton(id, texto) · rb.guardar/leer · rb.entidad(piano|radio|rampa|…, [x,y,z], {…}) · rb.nativo(volar|ragdoll|scp)</small></label></div></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="tienda">◀ ${esc(T('volver'))}</button><span class="rbEsp"></span>
-      <button class="rbBtnGris" data-rb="pmexp">⬇ ${esc(T('exportar'))}</button><button class="rbBtnGris" data-rb="pmprobar">✔ ${esc(T('instalar'))}</button><button class="rbBtnG" data-rb="pmpub">⬆ ${esc(T('publicar'))}</button></div>`;
+      <label class="rbCampo">${esc(T('codigo'))}<textarea id="pmCod" rows="6" spellcheck="false" class="rbCodigo" placeholder="rb.on('inicio', () => rb.aviso('¡Hola!'));&#10;rb.boton('salto', 'ico:salto');&#10;rb.on('boton', (b) => rb.jugador({ vel: [0, 30, 0] }));"></textarea><small class="rbAyuda">rb.on(inicio|tick|boton|tecla|muerte) · rb.jugador({...}) · rb.mundo({...}) · rb.crear(n, [x,y,z]) · rb.mover · rb.borrar · rb.objetos() · rb.explosion · rb.arma · rb.sonido · rb.nota(hz) · rb.rayo · rb.boton(id, texto) · rb.guardar/leer · rb.entidad(piano|radio|rampa|…, [x,y,z], {…}) · rb.nativo(volar|ragdoll|scp)</small></label></div></div>
+    <div class="rbPanPie"><button class="rbBtnGris" data-rb="tienda">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span>
+      <button class="rbBtnGris" data-rb="pmexp">${glifo('bajar')} ${esc(T('exportar'))}</button><button class="rbBtnGris" data-rb="pmprobar">${glifo('si')} ${esc(T('instalar'))}</button><button class="rbBtnG" data-rb="pmpub">${glifo('subir')} ${esc(T('publicar'))}</button></div>`;
   RB.pm = { icono: ICONOS_MOD[0], etq: new Set(), tog: {}, armas: new Set() };
 }
 function modDelForm() {
@@ -276,8 +275,8 @@ function panelPubMapa(P) {
     <div class="rbCol"><label class="rbCampo">${esc(T('nombre'))}<input id="paNom" maxlength="40"></label><label class="rbCampo">${esc(T('desc'))}<textarea id="paDesc" maxlength="400" rows="3"></textarea></label>
       <label class="rbCampo">${esc(T('f.hora'))}<select id="paHora"><option value="">${esc(T('ninguna'))}</option>${[...Array(24)].map((_, h) => `<option value="${h}">${h}:00</option>`).join('')}</select></label>
       <div class="rbCampo">${esc(T('etiquetas'))}<span class="rbEtqs">${ETIQUETAS_RB.map((e) => `<button class="rbEtq" data-rb="paetq:${e}">${esc(T('e.' + e))}</button>`).join('')}</span></div></div></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="tienda">◀ ${esc(T('volver'))}</button><span class="rbEsp"></span>
-      <button class="rbBtnGris" data-rb="paexp">⬇ ${esc(T('exportar'))}</button><button class="rbBtnG" data-rb="papub">⬆ ${esc(T('publicar'))}</button></div>`;
+    <div class="rbPanPie"><button class="rbBtnGris" data-rb="tienda">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span>
+      <button class="rbBtnGris" data-rb="paexp">${glifo('bajar')} ${esc(T('exportar'))}</button><button class="rbBtnG" data-rb="papub">${glifo('subir')} ${esc(T('publicar'))}</button></div>`;
 }
 function mapaDelForm() {
   const P = RB.el.querySelector('.rbPan'), c = construcciones().find((x) => x.m === RB.pmap.m); if (!c) return null;
@@ -302,7 +301,7 @@ function inicioAccion(k, b) {
     case 'like': if (LIKES[v]) return; LIKES[v] = 1; guardarLS('rb_likes', LIKES); fetch(TIENDA_URL + 'like/' + v, { method: 'POST' }).catch(() => {}); { const it = RB.t.items.find((x) => x.id === v); if (it) it.likes++; } return tiendaDibujar();
     case 'denunciar': if (!confirm(T('denunciar') + '?')) return; fetch(TIENDA_URL + 'denunciar/' + v, { method: 'POST' }).catch(() => {}); RB.t.items = RB.t.items.filter((x) => x.id !== v); return tiendaDibujar();
     case 'exportar': return descargarArchivo(RB.t.tab === 'mod' ? INST.mods[v] : INST.mapas[v]);
-    case 'borrarpub': if (!confirm('✖ ' + v + '?')) return; fetch(TIENDA_URL + 'borrar/' + v, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave: PUBLICADOS[v] }) }).then((r) => r.json()).then((r) => { if (r.ok) { delete PUBLICADOS[v]; guardarLS('rb_publicados', PUBLICADOS); tiendaCargar(true); } }).catch(() => menuAviso(T('errRed'))); return;
+    case 'borrarpub': if (!confirm(T('quitar') + ' ' + v + '?')) return; fetch(TIENDA_URL + 'borrar/' + v, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave: PUBLICADOS[v] }) }).then((r) => r.json()).then((r) => { if (r.ok) { delete PUBLICADOS[v]; guardarLS('rb_publicados', PUBLICADOS); tiendaCargar(true); } }).catch(() => menuAviso(T('errRed'))); return;
     case 'jugarcom': if (!mapaDe(v)) return; RB.mapaCom = v; RB.mapa = mapaDe(v).base; RB.hora = 'normal'; return inicioAccion('empezar', b);
     case 'pubmod': return inicioPanel('pubmod');
     case 'pubmapa': return inicioPanel('pubmapa');
@@ -363,7 +362,7 @@ function aplicarMods() {
   // en una sala: los mods del server que elegiste con SM (se aplican también en el medio de la partida)
   if (typeof SALA !== 'undefined' && SALA && !CREA.on) {
     RB.mapaPartida = null; RB.horaPartida = null; smAplicar(true); SRV.t = SRV.mods.size ? 60 : 0;
-    setTimeout(() => { if (SALA && JUEGO.estado === 'juego') aviso('🧩 ' + T('sm.hint'), 4); }, 3200); return;
+    setTimeout(() => { if (SALA && JUEGO.estado === 'juego') aviso(T('sm.hint'), 4); }, 3200); return;
   }
   if (CREA.on) { Object.assign(MODS, E, { municionInfinita: true, invencible: true }); JUG.vel_max = RB.base.v; JUG.salto = RB.base.s; RB.mapaPartida = null; RB.horaPartida = null; modapiCargar([]); creadorIniciar(); return; }
   const act = modsTodos().filter((m) => PREFS.mods && PREFS.mods[m.id]);

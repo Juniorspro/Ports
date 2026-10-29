@@ -1,12 +1,12 @@
 // ---------------- mods oficiales nativos: volar, muñeco de trapo que otros agarran y SCP en cuatro patas ----------------
-// Cada uno suma un botón al HUD (y una tecla). Volar: empuje hacia donde mirás con inercia; el cuerpo se inclina con
+// Cada uno suma una fila al menú MOD de arriba (y una tecla). Volar: empuje hacia donde mirás con inercia; el cuerpo se inclina con
 // resortes (adelante al acelerar, de costado al doblar) y las piernas se balancean. Muñeco: te dejás caer y cualquiera
 // de la sala te puede agarrar con la pistola de física o la de gravedad (tira de tu cuerpo en tu juego). SCP: caminás
 // en cuatro patas pegado a cualquier superficie (piso, paredes, techo), corrés rápido y cada pata pisa sola
 // (paso procedural: el pie queda clavado hasta que se aleja de su lugar y da el paso en diagonal con su par).
-const NAT = { mods: new Set(), volando: false, rag: false, scp: false, terc: null, botones: new Map(), pies: null,
+const NAT = { mods: new Set(), volando: false, rag: false, scp: false, terc: null, pies: null,
   up: v3(0, 1, 0), fw: v3(0, 0, 1), pegado: false, suelta: 0, jalo: null, jalado: null, tJalo: 0 };
-const NAT_BOTON = { volar: ['🕊️', 'KeyG'], ragdoll: ['🪆', 'KeyX'], scp: ['🐾', 'KeyJ'], piano: ['🎹', 'KeyK'], radio: ['📻', 'KeyL'] };
+const NAT_BOTON = { volar: 'KeyG', ragdoll: 'KeyX', scp: 'KeyJ', piano: 'KeyK', radio: 'KeyL' };
 const wp = (W) => v3(W[12], W[13], W[14]);
 function qBase(x, y, z) { const m = new Float32Array(16); m[0] = x.x; m[1] = x.y; m[2] = x.z; m[4] = y.x; m[5] = y.y; m[6] = y.z; m[8] = z.x; m[9] = z.y; m[10] = z.z; m[15] = 1; return m4quat(m); }
 
@@ -15,23 +15,15 @@ function qBase(x, y, z) { const m = new Float32Array(16); m[0] = x.x; m[1] = x.y
 function natIniciar(lista) {
   const nuevo = new Set(lista), antes = NAT.mods;
   if (NAT.volando && !nuevo.has('volar')) natVolar(false); if (NAT.rag && !nuevo.has('ragdoll')) natRag(false); if (NAT.scp && !nuevo.has('scp')) natScp(false);
-  for (const [k, b] of [...NAT.botones]) if (!nuevo.has(k)) { b.remove(); NAT.botones.delete(k); }
-  for (const k of nuevo) if (NAT_BOTON[k] && !NAT.botones.has(k)) natBoton(k);
   const scp = nuevo.has('scp') && !antes.has('scp');
-  NAT.mods = nuevo; natMarcar();
+  NAT.mods = nuevo; modMenuBoton();
   if (scp) setTimeout(() => natScp(true), 50);
 }
 function natFin() {
   if (NAT.rag) natRag(false); if (NAT.volando) natVolar(false); if (NAT.scp) natScp(false);
-  for (const [, b] of NAT.botones) b.remove(); NAT.botones.clear(); NAT.mods.clear(); NAT.jalo = NAT.jalado = null;
+  NAT.mods.clear(); NAT.jalo = NAT.jalado = null; modMenuBoton();
 }
-function natBoton(k) {
-  let c = $('modBtns'); if (!c) { c = document.createElement('div'); c.id = 'modBtns'; $('hud').appendChild(c); }
-  const [ico, tecla] = NAT_BOTON[k], el = document.createElement('div'); el.className = 'bt modBt natBt'; el.innerHTML = `${ico}<small>(${tecla.slice(3)})</small>`;
-  el.onpointerdown = (e) => { e.stopPropagation(); e.preventDefault(); audioIniciar(); natAccion(k); };
-  c.appendChild(el); NAT.botones.set(k, el);
-}
-function natMarcar() { for (const [k, el] of NAT.botones) el.classList.toggle('on', k === 'volar' ? NAT.volando : k === 'ragdoll' ? NAT.rag : k === 'scp' ? NAT.scp : false); }
+function natMarcar() { if (typeof modMenuDibujar === 'function') modMenuDibujar(); }
 function natAccion(k) {
   if (JUEGO.estado !== 'juego') return;
   if (k === 'volar') natVolar(!NAT.volando);
@@ -40,8 +32,8 @@ function natAccion(k) {
   else if (k === 'piano' || k === 'radio') entidadPonerMod(k);
 }
 addEventListener('keydown', (e) => {
-  if (e.repeat || JUEGO.estado !== 'juego' || UI.abierto || (e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) return;
-  for (const k of NAT.mods) if (NAT_BOTON[k] && NAT_BOTON[k][1] === e.code) natAccion(k);
+  if (e.repeat || JUEGO.estado !== 'juego' || (UI.abierto && UI.abierto !== 'modm') || (e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) return;
+  for (const k of NAT.mods) if (NAT_BOTON[k] === e.code) natAccion(k);
 });
 // tercera persona mientras dura (y vuelve como estaba)
 function natTercera(si) {
@@ -51,7 +43,7 @@ function natTercera(si) {
 function natVolar(si) {
   if (si && (!JUG.vivo || JUG.vehiculo)) return;
   if (si && NAT.rag) natRag(false); if (si && NAT.scp) natScp(false);
-  NAT.volando = si; if (si) { JUG.noclip = false; JUG.vel.y = Math.max(JUG.vel.y, 3); aviso('🕊️ ' + T('volarSi'), 1.5); }
+  NAT.volando = si; if (si) { JUG.noclip = false; JUG.vel.y = Math.max(JUG.vel.y, 3); aviso(T('volarSi'), 1.5); }
   natTercera(si); natMarcar(); redSubir();
 }
 function natScp(si) {

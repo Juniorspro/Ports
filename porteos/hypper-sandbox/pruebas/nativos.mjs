@@ -6,7 +6,7 @@ const que = process.argv[4] || 'todo';
 const { b, p, err, ev } = await abrir(HTML);
 await ev(`PREFS.bienvenida = true; GFX.auto=false; PREFS.mods = {volar:true, ragdoll:true, scp:true}; inicioMostrar(true); RB.mapaPartida=OFICIALES_MAPAS[0]; RB.mapaCom='megarampa'; RB.horaPartida='normal'; inicioMostrar(false); empezarPartida('FlatGrass')`);
 await p.waitForTimeout(4000);
-console.log('botones:', await ev(`[...NAT.botones.keys()].join(',')`), 'scp al empezar:', await ev(`String(NAT.scp)`));
+console.log('mods en el menú MOD:', await ev(`[...NAT.mods].join(',')`), 'scp al empezar:', await ev(`String(NAT.scp)`));
 if (que === 'todo' || que === 'volar') {
   await ev(`natScp(false); JUG.pos.set(60, 2, 60); JUG.vel.set(0,0,0); JUG.yaw = 0; JUG.pitch = 0; natAccion('volar')`);
   await p.waitForTimeout(500);

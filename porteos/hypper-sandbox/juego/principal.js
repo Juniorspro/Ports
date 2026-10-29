@@ -102,7 +102,7 @@ function empezarPartida(mapa) {
   ARM.balas = {}; elegirArma(ARM.lista.length - 1);
   aplicarMods(); // mods y mapa de la comunidad (después de las armas: un mod puede sumar)
   if (typeof menuMostrar === 'function') menuMostrar(false); $('hud').classList.remove('oc');
-  JUEGO.estado = 'juego'; cerrarPaneles();
+  JUEGO.estado = 'juego'; cerrarPaneles(); modMenuBoton();
   if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo();
   if (typeof redEntrar === 'function') redEntrar(mapa);
   aviso(mapa, 2.5);
@@ -140,6 +140,7 @@ function atenderPulsos() {
     if (JUEGO.estado !== 'juego') continue;
     if (k === 'pausa') { if (UI.abierto) cerrarPaneles(); else abrirPausa(); continue; }
     if (k === 'cerrar') { cerrarPaneles(); continue; }
+    if (k === 'modmenu') { if (UI.abierto === 'modm') modMenuCerrar(); else if (!UI.abierto) modMenuAbrir(); continue; }
     if (k === 'servmods') { if (UI.abierto === 'sm') smCerrar(); else if (!UI.abierto) smAbrir(); continue; }
     if (k === 'menu') { if (UI.abierto === 'spawn') cerrarPaneles(); else { cerrarPaneles(); abrirSpawn(); } continue; }
     if (UI.abierto) continue;

@@ -281,8 +281,9 @@ function armasPaso(dt) {
       // en el celular un toque agarra y otro suelta (no hay que mantener); con el mouse, mantener como siempre
       const flanco = ENT.disparo && !ARM.fisAnt; ARM.fisAnt = ENT.disparo;
       if (ENT.tactil) { if (flanco) { if (ARM.agarre) soltarAgarre(false); else agarrarFisica(); } }
-      else { if (ENT.disparo && !ARM.agarre) agarrarFisica(); if (!ENT.disparo && ARM.agarre) soltarAgarre(false); }
-      if (ARM.agarre && ENT.disparo2) { soltarAgarre(true); ENT.disparo2 = false; }
+      // (después de congelar algo hay que soltar el clic para agarrar otra vez: si no, lo volvía a agarrar y descongelar)
+      else { if (!ENT.disparo) ARM.trasCongelar = false; if (ENT.disparo && !ARM.agarre && !ARM.trasCongelar) agarrarFisica(); if (!ENT.disparo && ARM.agarre) soltarAgarre(false); }
+      if (ARM.agarre && ENT.disparo2) { soltarAgarre(true); ENT.disparo2 = false; ARM.trasCongelar = true; }
       else if (!ARM.agarre && ENT.disparo2) { ENT.disparo2 = false; const h = raycast(CAM.pos, CAM.fwd, 50, null); if (h && h.body && h.body.frozen && !h.body.estatico) { h.body.frozen = false; h.body.wake(); aviso('Descongelado', 1); } }
       if (ARM.agarre && ENT.rueda) { ARM.agarre.dist = clamp(ARM.agarre.dist - ENT.rueda * 0.6, 1.5, 50); }
       ARM.rotando = !!ARM.agarre && (ENT.teclas.has('KeyE') || ENT.rotar);
