@@ -20,11 +20,14 @@ python -I herramientas/empaquetar.py SALIDA CRUDOS PAQUETE
 MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
 ```
 
-- **HypperX RezoBox** (nuestra versión): `inicio.js` es la pantalla de inicio con el aspecto del menú de Garry's Mod (logo
-  `logo_rezobox.webp` con la R de Rezona, menú de texto, Empezar partida nueva con mapas por categoría y hora, Mods,
-  Personajes, Opciones y el menú clásico del juego). Los fondos son escenas armadas con cosas del juego y van en
-  `PAQUETE/fondos/*.jpg` (fuera del repo). Mods al empezar la partida: Goku, gravedad lunar, súper salto, velocidad,
-  munición infinita, modo Dios, cámara lenta y explosiones gigantes (`MODS` en armas y reloj).
+- **HypperX RezoBox** (nuestra versión): `inicio.js` es el inicio con el aspecto del menú de Garry's Mod (logo con la R de
+  Rezona, menú de texto, escenas de fondo en `PAQUETE/fondos/*.jpg`, fuera del repo). La primera vez pide **idioma** (14, en
+  `idiomas.js`) y **nombre**. La intro de JXStudios es **procedural** (lienzo, sin video) y se gira con el teléfono parado.
+- **Mods y mapas**: tienda con Mods y Mapas, buscador, orden, etiquetas, Explorar/Instalados, instalar, activar, me gusta,
+  denunciar, crear un mod con un editor, publicar lo construido (pausa → Guardar guarda también una foto) y subir/bajar archivos.
+  Formatos `.rbmod` y `.rbmapa` en `tienda/formato.js` (sólo datos, con límites; lo usan el juego y el servidor).
+  Servidor: `tienda/worker.js` + D1 (`schema.sql`, `wrangler.toml`): `GET /api/lista`, `GET /api/item/ID`, `POST /api/publicar`,
+  `POST /api/like|denunciar/ID` (3 denuncias = oculto), `POST /api/borrar/ID` con la clave del autor. 5 publicaciones por hora.
 - Lector de Unity: UnityPy 1.25 compilado desde fuente (`pip --no-binary :all:`), fsb5 para el audio.
 - Gráficos por calidad (Ajustes → Gráficos, o `?gfx=` en la dirección): **patata** y **bajo** (luz difusa como el
   juego), **medio** (luz física GGX, sombras del sol en 1 cascada), **alto** (2 cascadas con PCF, HDR, oclusión

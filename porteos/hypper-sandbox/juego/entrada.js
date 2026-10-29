@@ -36,8 +36,8 @@ const PANT = { rot: false, pedido: false, enIntro: !TEST };
 const VW = () => (PANT.rot ? innerHeight : innerWidth), VH = () => (PANT.rot ? innerWidth : innerHeight);
 const tX = (t) => (PANT.rot ? t.clientY : t.clientX), tY = (t) => (PANT.rot ? innerWidth - t.clientX : t.clientY);
 function pantallaRevisar() {
-  // (durante la intro no se gira: el logo se ve derecho; se gira detrás del negro cuando termina)
-  const rot = COARSE && innerHeight > innerWidth * 1.05 && !Q.get('sinGiro') && !PANT.enIntro;
+  // también durante la intro (el lienzo de la intro se dibuja derecho dentro de la página girada)
+  const rot = COARSE && innerHeight > innerWidth * 1.05 && !Q.get('sinGiro');
   PANT.rot = rot; document.documentElement.classList.toggle('rot', rot);
   const b = document.body.style;
   if (rot) { b.width = innerHeight + 'px'; b.height = innerWidth + 'px'; } else { b.width = ''; b.height = ''; }

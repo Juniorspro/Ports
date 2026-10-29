@@ -1,0 +1,10 @@
+# tienda de HypperX RezoBox: wrangler deploy (con CLOUDFLARE_API_TOKEN y CLOUDFLARE_ACCOUNT_ID en el entorno)
+name = "rezobox-tienda"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rezobox-tienda"
+database_id = "b4464be7-c6c5-4bcd-aec1-ecea2765d0fa"

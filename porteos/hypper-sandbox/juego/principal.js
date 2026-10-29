@@ -94,10 +94,11 @@ function empezarPartida(mapa) {
   PH.bodies.length = 0; PH.joints.length = 0; PROY.length = 0; PART.l.length = 0;
   if (typeof personasLimpiar === 'function') personasLimpiar();
   cargarMapa(mapa); aplicarGfx();
-  jugadorAparecer(); aplicarMods();
+  jugadorAparecer();
   ARM.lista = ['RPG', 'Pistol', 'Camera', 'Hands', 'ToolBaton', 'PhysicsGun'];
   if (typeof SALA !== 'undefined' && SALA && !SALA.rpg) ARM.lista = ARM.lista.filter((a) => a !== 'RPG');
   ARM.balas = {}; elegirArma(ARM.lista.length - 1);
+  aplicarMods(); // mods y mapa de la comunidad (después de las armas: un mod puede sumar)
   if (typeof menuMostrar === 'function') menuMostrar(false); $('hud').classList.remove('oc');
   JUEGO.estado = 'juego'; cerrarPaneles();
   if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo();
@@ -120,7 +121,7 @@ function morirJugador() {
 }
 function guardarConstruccion() {
   const L = OBJS.filter((o) => o.dueno === 'yo').map((o) => ({ n: o.nombre, p: [o.b.pos.x, o.b.pos.y, o.b.pos.z].map((x) => +x.toFixed(3)), q: [o.b.q.x, o.b.q.y, o.b.q.z, o.b.q.w].map((x) => +x.toFixed(4)), f: o.b.frozen ? 1 : 0 }));
-  try { localStorage.setItem('hypper_save_' + MUNDO.nombre, JSON.stringify(L)); aviso(`Guardado (${L.length} cosas)`); } catch (e) { aviso('No se pudo guardar'); }
+  try { localStorage.setItem('hypper_save_' + MUNDO.nombre, JSON.stringify(L)); aviso(`Guardado (${L.length} cosas)`); fotoConstruccion(); } catch (e) { aviso('No se pudo guardar'); }
 }
 function cargarConstruccion() {
   let L = []; try { L = JSON.parse(localStorage.getItem('hypper_save_' + MUNDO.nombre) || '[]'); } catch (e) {}
@@ -157,7 +158,7 @@ function atenderPulsos() {
 const _proj = new Float32Array(16), _vp2 = new Float32Array(16);
 function cuadro(ahora) {
   requestAnimationFrame(cuadro);
-  const t = ahora / 1000, dt = Math.min(0.1, Math.max(0, t - (TIEMPO.ult || t))) * (MODS.lenta && JUEGO.estado === 'juego' ? 0.5 : 1); TIEMPO.ult = t; TIEMPO.dt = dt; TIEMPO.t += dt;
+  const t = ahora / 1000, dt = Math.min(0.1, Math.max(0, t - (TIEMPO.ult || t))) * (JUEGO.estado === 'juego' ? MODS.tiempo || 1 : 1); TIEMPO.ult = t; TIEMPO.dt = dt; TIEMPO.t += dt;
   const t0 = performance.now();
   if (JUEGO.estado === 'carga') return;
   entradaLeer(); atenderPulsos();
@@ -286,7 +287,7 @@ function dibujar() {
   const t3 = performance.now();
   if (usaPost) postTerminar();
   DIB.ms.juntar = t1 - t0; DIB.ms.sombras = t2 - t1; DIB.ms.escena = t3 - t2; DIB.ms.post = performance.now() - t3;
-  if (JUEGO.foto > 0) { JUEGO.foto--; if (JUEGO.foto === 0) fotoGuardar(); }
+  if (JUEGO.foto > 0) { JUEGO.foto--; if (JUEGO.foto === 0) { if (JUEGO.fotoCb) { JUEGO.fotoCb(); JUEGO.fotoCb = null; } else fotoGuardar(); } }
 }
 function fotoGuardar() {
   try { R.cv.toBlob((b) => { if (!b) return; const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'hypper_' + Date.now() + '.png'; a.click(); aviso('Foto guardada'); }); } catch (e) {}
@@ -352,7 +353,7 @@ async function iniciar() {
     c.classList.add('apagar');
     setTimeout(() => { PANT.enIntro = false; pantallaRevisar(); c.classList.add('salir'); setTimeout(() => c.classList.add('oc'), 480); }, TEST ? 0 : 320);
   };
-  if (I.fin || TEST) salir(); else { I.cb = salir; c.addEventListener('pointerdown', () => { const v = $('introV'); if (v) v.pause(); I.fin = true; salir(); }, { once: true }); }
+  if (I.fin || TEST) salir(); else { I.cb = salir; c.addEventListener('pointerdown', () => { I.fin = true; salir(); }, { once: true }); }
 }
 document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && JUEGO.estado === 'juego' && !UI.abierto && !ENT.tactil && !TEST) abrirPausa(); });
 iniciar();

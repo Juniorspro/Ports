@@ -4,8 +4,11 @@ import os, sys, json, base64, gzip
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PK, OUT = sys.argv[1], sys.argv[2]
 ORDEN = ['nucleo', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'armas',
-         'vehiculos', 'herramientas', 'personas', 'humano', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'menu', 'inicio', 'principal']
-js = '(() => {\n"use strict";\n' + '\n'.join(open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read() for n in ORDEN) + '\n})();'
+         'vehiculos', 'herramientas', 'personas', 'humano', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'menu', 'idiomas', 'formato', 'inicio', 'principal']
+# el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")
+FORMATO = open(os.path.join(AQUI, 'tienda', 'formato.js'), encoding='utf-8').read().replace('export const ', 'const ').replace('export function ', 'function ')
+leer = lambda n: FORMATO if n == 'formato' else open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read()
+js = '(() => {\n"use strict";\n' + '\n'.join(leer(n) for n in ORDEN) + '\n})();'
 # paquete: un solo bloque con índice
 partes = [('d', open(os.path.join(PK, 'd.json.gz'), 'rb').read()), ('m', open(os.path.join(PK, 'm.bin.gz'), 'rb').read())]
 for f in sorted(os.listdir(os.path.join(PK, 't')), key=lambda x: int(x.split('.')[0])):
@@ -21,8 +24,7 @@ html = open(os.path.join(AQUI, 'juego', 'template.html'), encoding='utf-8').read
 MQTT = os.environ.get('MQTT_JS', '')  # mqtt.min.js 5.x bajado aparte (no va al repo)
 html = html.replace('/*MQTT*/', open(MQTT, encoding='utf-8').read().replace('</script', '<\\/script') if MQTT else '')
 J = lambda n: base64.b64encode(open(os.path.join(AQUI, 'juego', n), 'rb').read()).decode()
-html = html.replace('/*INTRO*/', J('intro.mp4')).replace('/*INTROIMG*/', J('intro.jpg')).replace('/*INTROWEBM*/', J('intro.webm'))
-js = js.replace('/*LOGORB*/', J('logo_rezobox.webp'))
+html = html.replace('/*LOGORB*/', J('logo_rezobox.webp'))
 # fondos del inicio (escenas del juego, fuera del repo): PAQUETE/fondos/*.jpg
 FD = os.path.join(PK, 'fondos')
 fondos = sorted(os.listdir(FD)) if os.path.isdir(FD) else []
