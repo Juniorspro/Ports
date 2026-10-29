@@ -1,7 +1,10 @@
 package ar.porteos.boz;
 
 import android.content.Context;
+import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
+
+import org.tukaani.xz.LZMA2InputStream;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -17,13 +20,17 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-// HTTP mínimo en 127.0.0.1 con rangos: el sitio sale de assets/sitio y el paquete de texturas (342 MB) del CDN
-// oficial, por trozos de 256 KB que quedan guardados en el teléfono (la segunda vez no se baja de nuevo).
+// HTTP mínimo en 127.0.0.1 con rangos: el sitio sale de assets/sitio. El paquete de texturas (342 MB) viene adentro
+// del APK comprimido por bloques (bloques.py, LZMA2): cada bloque se descomprime la primera vez que hace falta y queda
+// en el teléfono en trozos de 256 KB; un hilo de fondo extrae el resto. Sin ese asset (APK liviano) se baja del CDN.
 final class Servidor {
     private static final String CDN = "http://cdn-boz-android.callofduty.com/PROD/CODBOZ/1_0_8/blackops_dxt.dz";
     private static final String PAQUETE = "/blackops_dxt.dz";
@@ -37,15 +44,25 @@ final class Servidor {
     private static File dirTrozos;
     private static final Map<Integer, Object> cerrojos = new HashMap<>();
     private static final ExecutorService hilos = Executors.newCachedThreadPool();
+    // paquete por bloques dentro del APK
+    private static FileChannel canal;
+    private static long baseDatos, tamBloque;
+    private static long[] desp;
+    private static final Object extrayendo = new Object();   // de a un bloque por vez: acota la memoria
 
     static synchronized int iniciar(Context ctx) {
         if (puerto > 0) return puerto;
         assets = ctx.getAssets();
         dirTrozos = new File(ctx.getFilesDir(), "paquete");
         dirTrozos.mkdirs();
+        abrirBloques();
         ServerSocket ss = null;
         for (int p = PUERTO; p < PUERTO + 20 && ss == null; p++) {
-            try { ss = new ServerSocket(p, 50, InetAddress.getByName("127.0.0.1")); } catch (IOException e) { ss = null; }
+            try {
+                ss = new ServerSocket();
+                ss.setReuseAddress(true); // al reabrir enseguida el puerto puede seguir "ocupado" un rato
+                ss.bind(new java.net.InetSocketAddress(InetAddress.getByName("127.0.0.1"), p), 50);
+            } catch (IOException e) { ss = null; }
         }
         if (ss == null) throw new RuntimeException("sin puerto local");
         puerto = ss.getLocalPort();
@@ -58,6 +75,86 @@ final class Servidor {
         t.setDaemon(true);
         t.start();
         return puerto;
+    }
+
+    private static void abrirBloques() {
+        try {
+            AssetFileDescriptor afd = assets.openFd("sitio/blackops_dxt.dz.bloques");
+            FileChannel c = new FileInputStream(afd.getFileDescriptor()).getChannel();
+            long ini = afd.getStartOffset();
+            ByteBuffer h = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN);
+            c.read(h, ini);
+            h.flip();
+            if (h.getInt() != 0x425a4f42) return; // "BOZB"
+            h.getInt();
+            long tam = h.getLong();
+            tamBloque = h.getInt() & 0xffffffffL;
+            int n = h.getInt();
+            ByteBuffer t = ByteBuffer.allocate(8 * (n + 1)).order(ByteOrder.LITTLE_ENDIAN);
+            c.read(t, ini + 24);
+            t.flip();
+            long[] d = new long[n + 1];
+            for (int i = 0; i <= n; i++) d[i] = t.getLong();
+            if (tam != TAM_PAQUETE) return;
+            desp = d;
+            baseDatos = ini + 24 + 8L * (n + 1);
+            canal = c;
+            Thread fondo = new Thread(() -> {
+                try { Thread.sleep(15000); } catch (InterruptedException e) { return; }
+                for (int b = 0; b < desp.length - 1; b++) {
+                    try { extraer(b, -1); } catch (IOException e) { /* se reintenta cuando haga falta */ }
+                }
+            }, "extraer");
+            fondo.setPriority(Thread.MIN_PRIORITY);
+            fondo.setDaemon(true);
+            fondo.start();
+        } catch (IOException e) {
+            canal = null; // APK liviano: sin paquete adentro
+        }
+    }
+
+    private static boolean hayTrozo(int i) {
+        long largo = Math.min(TROZO, TAM_PAQUETE - (long) i * TROZO);
+        return new File(dirTrozos, i + ".t").length() == largo;
+    }
+
+    // descomprime el bloque b y guarda sus trozos; devuelve el trozo pedido (o null si pedido < 0)
+    private static byte[] extraer(int b, int pedido) throws IOException {
+        synchronized (extrayendo) {
+            int porBloque = (int) (tamBloque / TROZO), primero = b * porBloque;
+            int ultimo = (int) Math.min((long) primero + porBloque, (TAM_PAQUETE + TROZO - 1) / TROZO) - 1;
+            if (hayTrozo(ultimo) && hayTrozo(primero) && (pedido < 0 || hayTrozo(pedido))) return pedido < 0 ? null : leerTrozo(pedido);
+            int lc = (int) (desp[b + 1] - desp[b]);
+            ByteBuffer cb = ByteBuffer.allocate(lc);
+            long pos = baseDatos + desp[b];
+            while (cb.hasRemaining()) { int k = canal.read(cb, pos + cb.position()); if (k < 0) throw new IOException("bloque corto"); }
+            int largo = (int) Math.min(tamBloque, TAM_PAQUETE - (long) b * tamBloque);
+            byte[] res = null, t = new byte[TROZO];
+            // se descomprime de a un trozo (no hace falta tener los 32 MB en memoria)
+            try (InputStream in = new LZMA2InputStream(new java.io.ByteArrayInputStream(cb.array()), (int) Math.max(tamBloque, 65536))) {
+                for (int i = primero; i <= ultimo; i++) {
+                    int n = Math.min(TROZO, largo - (int) ((long) (i - primero) * TROZO)), k = 0;
+                    while (k < n) { int r = in.read(t, k, n - k); if (r < 0) throw new IOException("bloque " + b + " incompleto"); k += r; }
+                    if (i == pedido) { res = new byte[n]; System.arraycopy(t, 0, res, 0, n); }
+                    if (hayTrozo(i)) continue;
+                    File tmp = new File(dirTrozos, i + ".tmp");
+                    try (FileOutputStream o = new FileOutputStream(tmp)) { o.write(t, 0, n); }
+                    tmp.renameTo(new File(dirTrozos, i + ".t"));
+                }
+            }
+            return res;
+        }
+    }
+
+    private static byte[] leerTrozo(int i) throws IOException {
+        int largo = (int) Math.min(TROZO, TAM_PAQUETE - (long) i * TROZO);
+        byte[] d = new byte[largo];
+        try (FileInputStream in = new FileInputStream(new File(dirTrozos, i + ".t"))) {
+            int k = 0;
+            while (k < largo) { int n = in.read(d, k, largo - k); if (n < 0) break; k += n; }
+            if (k != largo) throw new IOException("trozo corto " + i);
+        }
+        return d;
     }
 
     private static String linea(InputStream in) throws IOException {
@@ -110,6 +207,7 @@ final class Servidor {
         if (n.endsWith(".json")) return "application/json";
         if (n.endsWith(".txt")) return "text/plain; charset=utf-8";
         if (n.endsWith(".mp3")) return "audio/mpeg";
+        if (n.endsWith(".ogg")) return "audio/ogg";
         return "application/octet-stream";
     }
 
@@ -130,6 +228,9 @@ final class Servidor {
 
     private static void servirAsset(OutputStream out, String nombre, String rango) throws IOException {
         byte[] d;
+        if (nombre.endsWith(".mp3")) {
+            try { assets.open("sitio/" + nombre).close(); } catch (IOException e) { nombre = nombre.substring(0, nombre.length() - 4) + ".ogg"; }
+        }
         try (InputStream in = assets.open("sitio/" + nombre)) {
             ByteArrayOutputStream b = new ByteArrayOutputStream();
             byte[] buf = new byte[65536];
@@ -170,6 +271,7 @@ final class Servidor {
         long ini = (long) i * TROZO;
         int largo = (int) Math.min(TROZO, TAM_PAQUETE - ini);
         File f = new File(dirTrozos, i + ".t");
+        if (canal != null) return hayTrozo(i) ? leerTrozo(i) : extraer((int) (ini / tamBloque), i);
         synchronized (cerrojo(i)) {
             if (f.length() == largo) {
                 byte[] d = new byte[largo];

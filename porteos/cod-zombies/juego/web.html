@@ -106,7 +106,7 @@ w.onmessage = (e) => {
 };
 // ---- sonido: PCM del mezclador (22050 Hz) en cola continua; musica mp3 en un <audio> ----
 let actx = null, gan = null, sigT = 0, volJuego = 1, volMus = 1, musPend = false;
-const mus = new Audio(); mus.preload = 'auto';
+const mus = new Audio(); mus.preload = 'auto'; if (q.get('fps')) window.__mus = mus;
 mus.addEventListener('ended', () => w.postMessage({ t: 'musFin' }));
 function audioIni() {
   if (actx) { if (actx.state === 'suspended') actx.resume().catch(() => {}); return; }
