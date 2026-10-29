@@ -18,10 +18,14 @@ const Cpu = (() => {
       this.stubLo = o.stubLo; this.stubHi = o.stubHi; this.stubStep = o.stubStep || 8;
       this.hle = o.hle || [];
       this.roLo = o.roLo === undefined ? o.codeLo : o.roLo; this.roHi = o.roHi === undefined ? o.codeHi : o.roHi; // zona de solo lectura: se pliegan literales
-      this.blkA = new Array(((this.codeHi - this.codeLo) >>> 2) + 2);
-      this.blkT = new Array(((this.codeHi - this.codeLo) >>> 1) + 2);
+      // bloques compilados: tablas de indices (Int32Array) hacia la lista de funciones
+      this.idxA = new Int32Array(((this.codeHi - this.codeLo) >>> 2) + 2);
+      this.idxT = new Int32Array(((this.codeHi - this.codeLo) >>> 1) + 2);
+      this.bloques = [null];
       this.stop = false;
       this.trace = o.trace || null;
+      this.pilaSombra = false; this.cs = [];   // depuracion: pila de llamadas (direcciones de retorno)
+      this.traza = null;   // depuracion: funcion(pc) llamada en cada bloque ejecutado
       this.pc = 0;
       this.nblocks = 0;
       this.tls = o.tls || 0;
@@ -113,6 +117,7 @@ const Cpu = (() => {
       const lo = this.codeLo, stubLo = this.stubLo, stubHi = this.stubHi, hle = this.hle, step = this.stubStep;
       this.stop = false;
       for (;;) {
+        if (this.traza !== null) this.traza(pc);
         if (pc >= stubLo && pc < stubHi) {
           this.pc = pc;
           hle[((pc - stubLo) / step) | 0](this);
@@ -124,18 +129,19 @@ const Cpu = (() => {
         let b;
         if (pc & 1) {
           const ix = (pc - 1 - lo) >>> 1;
-          b = this.blkT[ix];
-          if (b === undefined) b = this.blkT[ix] = this.compile(pc - 1, true);
+          const k = this.idxT[ix];
+          if (k !== 0) b = this.bloques[k]; else { b = this.compile(pc - 1, true); this.idxT[ix] = this.bloques.push(b) - 1; }
         } else {
           const ix = (pc - lo) >>> 2;
-          b = this.blkA[ix];
-          if (b === undefined) b = this.blkA[ix] = this.compile(pc, false);
+          const k = this.idxA[ix];
+          if (k !== 0) b = this.bloques[k]; else { b = this.compile(pc, false); this.idxA[ix] = this.bloques.push(b) - 1; }
         }
         this.pc = pc;
         pc = b();
       }
     }
 
+    csRet(dest) { const cs = this.cs; for (let i = cs.length - 1; i >= 0 && i >= cs.length - 4; i--) if (cs[i] === dest) { cs.length = i; return; } }
     // llama a una funcion guest y vuelve cuando retorna. args: enteros (r0..r3 y el resto a la pila)
     call(fn, args) {
       const R = this.R, saved = R.slice(), sf = this.F.slice();
@@ -349,7 +355,7 @@ const Cpu = (() => {
               }
               const tv = T(); B(`const ${tv}=${valExp};`);
               if ((wb || !pre) && rn !== rt && rn !== 15) B(setr(rn, tn));
-              if (rt === 15) { B(exitTo(flAfter, tv)); terminator = true; } else B(setr(rt, tv));
+              if (rt === 15) { if (self.pilaSombra) B(`cpu.csRet(${tv});`); B(exitTo(flAfter, tv)); terminator = true; } else B(setr(rt, tv));
             } else {
               const v = rt === 15 ? String(pcv | 0) : reg(rt, pcv);
               B(ST(sz, ta, v));
@@ -388,7 +394,7 @@ const Cpu = (() => {
               } else B(`dv.setInt32(${ts}+${4 * i},${r === 15 ? String(pcv | 0) : reg(r, pcv)},true);`);
             });
             if (wb && !(ir.k === 'ldm' && ((list >> rn) & 1))) B(setr(rn, newb));
-            if (jump) { B(exitTo(flAfter, jump)); terminator = true; }
+            if (jump) { if (self.pilaSombra) B(`cpu.csRet(${jump});`); B(exitTo(flAfter, jump)); terminator = true; }
             break;
           }
           case 'mul': {
@@ -501,10 +507,10 @@ const Cpu = (() => {
             } else { B(exitTo(flAfter, tgt)); terminator = true; }
             break;
           }
-          case 'bl': B(setr(14, String(thumb ? (next | 1) : next))); B(exitTo(flAfter, ir.target | (thumb ? 1 : 0))); terminator = true; break;
-          case 'blx_i': B(setr(14, String(thumb ? (next | 1) : next))); B(exitTo(flAfter, thumb ? ir.target : (ir.target | 1))); terminator = true; break;
-          case 'bx': B(exitTo(flAfter, reg(ir.rm, pcv))); terminator = true; break;
-          case 'blx': { const tv = T(); B(`const ${tv}=${reg(ir.rm, pcv)};`); B(setr(14, String(thumb ? (next | 1) : next))); B(exitTo(flAfter, tv)); terminator = true; break; }
+          case 'bl': if (self.pilaSombra) B(`cpu.cs.push(${thumb ? (next | 1) : next});`); B(setr(14, String(thumb ? (next | 1) : next))); B(exitTo(flAfter, ir.target | (thumb ? 1 : 0))); terminator = true; break;
+          case 'blx_i': if (self.pilaSombra) B(`cpu.cs.push(${thumb ? (next | 1) : next});`); B(setr(14, String(thumb ? (next | 1) : next))); B(exitTo(flAfter, thumb ? ir.target : (ir.target | 1))); terminator = true; break;
+          case 'bx': if (self.pilaSombra && ir.rm === 14) B(`cpu.csRet(r14);`); B(exitTo(flAfter, reg(ir.rm, pcv))); terminator = true; break;
+          case 'blx': { const tv = T(); B(`const ${tv}=${reg(ir.rm, pcv)};`); if (self.pilaSombra) B(`cpu.cs.push(${thumb ? (next | 1) : next});`); B(setr(14, String(thumb ? (next | 1) : next))); B(exitTo(flAfter, tv)); terminator = true; break; }
           case 'cbz': B(`if(${reg(ir.rn, pcv)}${ir.nz ? '!==' : '==='}0){${exitTo(flAfter, ir.target | 1)}}`); break;
           case 'tbb': {
             const tb = T(); B(`const ${tb}=(${reg(ir.rn, pcv)}+${ir.h ? `(${reg(ir.rm, pcv)}<<1)` : reg(ir.rm, pcv)})|0;`);
