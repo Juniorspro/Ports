@@ -22,12 +22,20 @@ class Remoto {
     let t = this.cache.get(i);
     if (t) { this.cache.delete(i); this.cache.set(i, t); return t; }
     const ini = i * this.trozo, fin = Math.min(this.tam, ini + this.trozo) - 1;
-    const x = new XMLHttpRequest();
-    x.open('GET', this.url, false);
-    x.setRequestHeader('Range', 'bytes=' + ini + '-' + fin);
-    x.overrideMimeType('text/plain; charset=x-user-defined'); // lectura sincrona: se pide como texto binario
-    x.send(null);
-    if (x.status !== 206 && x.status !== 200) throw new Error('Range ' + x.status + ' ' + this.url);
+    // se reintenta: en el telefono el primer pedido a un bloque nuevo puede tardar o cortarse
+    let x = null, error = null;
+    for (let intento = 0; intento < 4; intento++) {
+      try {
+        x = new XMLHttpRequest();
+        x.open('GET', this.url, false);
+        x.setRequestHeader('Range', 'bytes=' + ini + '-' + fin);
+        x.overrideMimeType('text/plain; charset=x-user-defined'); // lectura sincrona: se pide como texto binario
+        x.send(null);
+        if (x.status === 206 || x.status === 200) { error = null; break; }
+        error = new Error('Range ' + x.status + ' ' + this.url + ' ' + String(x.responseText || '').slice(0, 300));
+      } catch (e) { error = e; }
+    }
+    if (error) throw error;
     const s = x.responseText; const n = fin - ini + 1; const u = new Uint8Array(n);
     if (x.status === 200 && s.length > n) { for (let k = 0; k < n; k++) u[k] = s.charCodeAt(ini + k) & 255; } // el servidor ignoro Range
     else for (let k = 0; k < n; k++) u[k] = s.charCodeAt(k) & 255;

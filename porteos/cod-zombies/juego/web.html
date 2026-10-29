@@ -7,6 +7,7 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none
 #vista{position:absolute;left:50%;top:50%;transform-origin:50% 50%}
 #c{position:absolute;inset:0;width:100%;height:100%;display:block;background:#000}
 #t{position:absolute;left:6px;top:4px;color:#9f9;font:12px monospace;pointer-events:none;white-space:pre-wrap;text-shadow:0 0 3px #000}
+#prep{position:absolute;left:6px;bottom:4px;color:#fc6;font:12px system-ui,sans-serif;pointer-events:none;text-shadow:0 0 3px #000}
 #eng{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:34px;height:34px;border:0;border-radius:50%;background:rgba(0,0,0,.35);opacity:.55;padding:6px;cursor:pointer}
 #eng svg{width:22px;height:22px;fill:#ddd}
 #panel{position:absolute;top:0;right:0;bottom:0;width:min(340px,62%);background:rgba(12,12,14,.88);color:#e8e8e8;overflow-y:auto;font-size:13px;padding:10px 12px 18px;box-sizing:border-box;touch-action:pan-y;border-left:1px solid #333}
@@ -24,20 +25,22 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none
 .presets button{background:#222;color:#ddd;border:1px solid #444;border-radius:5px;padding:7px 0;font-weight:600;cursor:pointer}
 .presets button.on{background:#a11;border-color:#f44;color:#fff}
 #aviso{margin-top:6px;color:#fc6;font-size:12px}
-#aviso button{margin-left:6px;background:#a11;color:#fff;border:0;border-radius:4px;padding:4px 8px}
+#app button,#aviso button{margin-left:6px;background:#a11;color:#fff;border:0;border-radius:4px;padding:4px 8px}
 </style></head><body>
 <div id="vista">
-  <canvas id="c"></canvas><div id="t">Iniciando...</div>
+  <canvas id="c"></canvas><div id="t">Iniciando...</div><div id="prep" hidden></div>
   <button id="eng" title="Gráficos" aria-label="Gráficos"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 0 0-1.7-1L15 3.2h-4l-.4 2.7a7.6 7.6 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.6 7.6 0 0 0 1.7 1l.4 2.7h4l.4-2.7a7.6 7.6 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg></button>
   <div id="panel" hidden>
     <div class="cab">GRÁFICOS<button id="cerrar" aria-label="Cerrar">✕</button></div>
     <div class="presets"><button data-p="bajo">Bajo</button><button data-p="medio">Medio</button><button data-p="alto">Alto</button><button data-p="goty">GOTY</button></div>
     <div id="ctrl"></div>
     <div id="aviso" hidden>El ajuste de pantalla se aplica al reiniciar.<button id="reini">Reiniciar</button></div>
+    <div id="app" hidden><h3>Actualizar</h3><div class="fila"><span>Motor <b id="ver"></b></span><button id="parche">Aplicar parche</button></div></div>
   </div>
 </div>
 <script>
 'use strict';
+const VERSION_MOTOR = 4; // sube con cada parche: se ve en el panel
 const q = new URLSearchParams(location.search);
 const base = q.get('base') || './';
 const paquete = q.get('paquete') || 'blackops_dxt.dz';
@@ -229,4 +232,17 @@ document.getElementById('cerrar').addEventListener('click', () => { panel.hidden
 document.getElementById('reini').addEventListener('click', () => location.reload());
 for (const el of [panel, document.getElementById('eng')]) el.addEventListener('pointerdown', (e) => e.stopPropagation());
 pintar();
+
+// ---- APK: parches del motor y aviso mientras se preparan los datos ----
+document.getElementById('ver').textContent = VERSION_MOTOR;
+if (window.App && App.parche) { document.getElementById('app').hidden = false; document.getElementById('parche').addEventListener('click', () => App.parche()); }
+if (q.get('apk')) {
+  const prep = document.getElementById('prep');
+  const mirar = () => fetch('estado').then((r) => r.json()).then((e) => {
+    if (e.trozos >= e.total) { prep.hidden = true; return; }
+    prep.hidden = false; prep.textContent = 'Preparando datos del juego ' + Math.floor(100 * e.trozos / e.total) + '% (se puede jugar igual)';
+    setTimeout(mirar, 4000);
+  }).catch(() => setTimeout(mirar, 8000));
+  setTimeout(mirar, 3000);
+}
 </script></body></html>
