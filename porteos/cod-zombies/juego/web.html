@@ -153,7 +153,7 @@ function pos(e) {
   if (op.ajuste === 'bordes') { const k = Math.min(VW / AN, VH / AL); return [(u - (VW - AN * k) / 2) / k, (v - (VH - AL * k) / 2) / k]; }
   return [u * AN / VW, v * AL / VH];
 }
-let pantallaPedida = false;
+let pantallaPedida = !!q.get('apk'); // en el APK la actividad ya es pantalla completa (y el WebView no maneja requestFullscreen)
 function pantallaCompleta() {
   if (pantallaPedida) return; pantallaPedida = true;
   try { const d = document.documentElement, f = d.requestFullscreen || d.webkitRequestFullscreen; if (f) Promise.resolve(f.call(d, { navigationUI: 'hide' })).then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {}); } catch (_) {}

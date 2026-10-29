@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="ar.porteos.boz">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- usesCleartextTraffic: el servidor local (127.0.0.1) y el CDN del paquete de texturas son http -->
+    <application android:label="BO Zombies" android:icon="@mipmap/icono" android:usesCleartextTraffic="true"
+        android:hardwareAccelerated="true" android:largeHeap="true" android:allowBackup="false"
+        android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+        <activity android:name=".Principal" android:exported="true" android:launchMode="singleTask"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

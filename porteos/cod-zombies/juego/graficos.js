@@ -183,7 +183,7 @@ void main(){
     }
     // tamano interno: logico x factor (salida fisica / logico) x calidad; con tope
     redimensionar() {
-      const g = this.gl, prev = g.getParameter(g.TEXTURE_BINDING_2D);
+      const g = this.gl;
       const nat = Math.min(this.salidaW / this.logW, this.salidaH / this.logH);
       let f = Math.max(0.5, nat * this.cfg.calidad);
       const max = Math.min(g.getParameter(g.MAX_TEXTURE_SIZE), 3200);
@@ -215,7 +215,7 @@ void main(){
       this.aoT = this.tex(hw, hh); this.b1 = this.tex(Math.max(1, W >> 2), Math.max(1, H >> 2)); this.b2 = this.tex(Math.max(1, W >> 2), Math.max(1, H >> 2));
       const pegar = (fb, t) => { g.bindFramebuffer(g.FRAMEBUFFER, fb); g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, t, 0); };
       pegar(this.fboAux, this.alt); pegar(this.fboAO, this.aoT); pegar(this.fboB1, this.b1); pegar(this.fboB2, this.b2);
-      g.bindTexture(g.TEXTURE_2D, prev);
+      g.bindTexture(g.TEXTURE_2D, this.hle.obj('tex', this.hle.est.tex2d[this.hle.est.unidad] || 0));
       g.bindFramebuffer(g.FRAMEBUFFER, this.hle.fbAct ? this.hle.obj('fb', this.hle.fbAct) : this.fbo);
       this.hle.aplicarVp(); // el viewport real del juego cambia de escala
     }
@@ -223,25 +223,22 @@ void main(){
     salida(w, h) { this.salidaW = w; this.salidaH = h; this.pendienteTam = true; }
 
     // ---------- estado de GL: se guarda lo que tocan los pasos y se devuelve tal cual ----------
+    // sin consultas a la GPU (getParameter frena todo el cuadro): el estado del juego lo lleva GlHle en hle.est
     guardar() {
-      const g = this.gl, h = this.hle;
-      const s = { en: {}, tex: [] };
-      for (const c of [g.DEPTH_TEST, g.BLEND, g.CULL_FACE, g.SCISSOR_TEST, g.STENCIL_TEST]) s.en[c] = g.isEnabled(c);
-      s.activa = g.getParameter(g.ACTIVE_TEXTURE);
-      for (let i = 0; i < 3; i++) { g.activeTexture(g.TEXTURE0 + i); s.tex.push(g.getParameter(g.TEXTURE_BINDING_2D)); }
-      s.mask = g.getParameter(g.COLOR_WRITEMASK);
+      const g = this.gl;
       for (const c of [g.DEPTH_TEST, g.BLEND, g.CULL_FACE, g.SCISSOR_TEST, g.STENCIL_TEST]) g.disable(c);
       g.colorMask(true, true, true, true);
       if (this.vao) this.vao.bindVertexArrayOES(this.vaoObj);
       else { g.bindBuffer(g.ARRAY_BUFFER, this.quad); g.enableVertexAttribArray(0); g.vertexAttribPointer(0, 2, g.FLOAT, false, 0, 0); }
-      return s;
+      return null;
     }
-    devolver(s) {
-      const g = this.gl, h = this.hle;
-      for (let i = 0; i < 3; i++) { g.activeTexture(g.TEXTURE0 + i); g.bindTexture(g.TEXTURE_2D, s.tex[i]); }
-      g.activeTexture(s.activa);
-      for (const c in s.en) if (s.en[c]) g.enable(Number(c)); else g.disable(Number(c));
-      g.colorMask(s.mask[0], s.mask[1], s.mask[2], s.mask[3]);
+    devolver() {
+      const g = this.gl, h = this.hle, e = h.est;
+      for (let i = 0; i < 3; i++) { g.activeTexture(g.TEXTURE0 + i); g.bindTexture(g.TEXTURE_2D, h.obj('tex', e.tex2d[i] || 0)); }
+      g.activeTexture(g.TEXTURE0 + e.unidad);
+      for (const c in e.en) if (e.en[c]) g.enable(Number(c)); else g.disable(Number(c));
+      g.colorMask(e.mask[0], e.mask[1], e.mask[2], e.mask[3]);
+      g.blendFuncSeparate(e.blend[0], e.blend[1], e.blend[2], e.blend[3]); g.blendEquationSeparate(e.ecu[0], e.ecu[1]);
       if (this.vao) this.vao.bindVertexArrayOES(null);
       else { const a = h.atr[0]; if (a.on) g.enableVertexAttribArray(0); else g.disableVertexAttribArray(0); if (a.vbo) { g.bindBuffer(g.ARRAY_BUFFER, h.obj('buf', a.vbo)); g.vertexAttribPointer(0, a.tam, a.tipo, a.norm, a.paso, a.ptr); } }
       g.bindBuffer(g.ARRAY_BUFFER, h.obj('buf', h.vboAct));
@@ -296,11 +293,9 @@ void main(){
       this.pasada('ao' + N + '_' + M, fAO(N, M), this.fboAO, this.aoW, this.aoH,
         { prof: 0, par: [c.ao >= 2 ? 1.0 : 0.75, c.sombras >= 2 ? 0.5 : 0.35, 0.55, W / H], luz: [-0.38 * H / W, 0.92] }, [this.prof]);
       // se multiplica sobre la escena opaca (las transparencias y el HUD quedan encima)
-      const bs = [g.BLEND_SRC_RGB, g.BLEND_DST_RGB, g.BLEND_SRC_ALPHA, g.BLEND_DST_ALPHA, g.BLEND_EQUATION_RGB, g.BLEND_EQUATION_ALPHA].map((x) => g.getParameter(x));
       g.enable(g.BLEND); g.blendEquation(g.FUNC_ADD); g.blendFunc(g.DST_COLOR, g.ZERO);
       g.colorMask(true, true, true, false);
       this.pasada('aoaplicar', F_AOAPLICAR, this.fbo, W, H, { aoT: 0, aoPx: [1 / this.aoW, 1 / this.aoH] }, [this.aoT]);
-      g.blendFuncSeparate(bs[0], bs[1], bs[2], bs[3]); g.blendEquationSeparate(bs[4], bs[5]);
       this.devolver(s);
     }
     pasoMundo() {

@@ -21,6 +21,8 @@ const GlHle = (() => {
       this.vboAct = 0; this.iboAct = 0; this.progAct = 0;
       this.fbAct = 0; this.prof = false; this.mascaraProf = true;           // framebuffer del juego enlazado (0 = pantalla) y prueba de profundidad
       this.vpJuego = [0, 0, this.ancho, this.alto]; this.scJuego = [0, 0, this.ancho, this.alto];
+      // estado de GL que el apartado grafico toca y devuelve (se lleva aca para no consultar a la GPU en cada cuadro)
+      this.est = { en: { 0x0b71: false, 0x0be2: false, 0x0b44: false, 0x0c11: false, 0x0b90: false }, unidad: 0, tex2d: [0, 0, 0, 0], mask: [true, true, true, true], blend: [1, 0, 1, 0], ecu: [0x8006, 0x8006] };
       this.gfx = null;           // Graficos: la "pantalla" pasa a ser un framebuffer propio con efectos
       this.s3tcNativo = true;    // false: las texturas DXT se descomprimen por software (dxt.js)
       this.errores = new Set();
@@ -72,8 +74,8 @@ const GlHle = (() => {
       d('glDeleteRenderbuffers', borrar('rb', (o) => gl().deleteRenderbuffer(o)));
 
       // ---------- enlaces ----------
-      d('glBindTexture', () => { if (gl()) gl().bindTexture(A(0), self.obj('tex', A(1))); });
-      d('glActiveTexture', () => { if (gl()) gl().activeTexture(A(0)); });
+      d('glBindTexture', () => { if (A(0) === 0x0de1 && self.est.unidad < 4) self.est.tex2d[self.est.unidad] = A(1); if (gl()) gl().bindTexture(A(0), self.obj('tex', A(1))); });
+      d('glActiveTexture', () => { self.est.unidad = A(0) - 0x84c0; if (gl()) gl().activeTexture(A(0)); });
       d('glBindBuffer', () => { const t = A(0), id = A(1); if (t === 0x8892) self.vboAct = id; else if (t === 0x8893) self.iboAct = id; if (gl()) gl().bindBuffer(t, self.obj('buf', id)); });
       d('glBindFramebuffer', () => {
         const id = A(1); self.fbAct = id;
@@ -92,11 +94,11 @@ const GlHle = (() => {
       d('glGenerateMipmap', () => { if (gl()) gl().generateMipmap(A(0)); });
 
       // ---------- estado ----------
-      d('glEnable', () => { if (A(0) === 0x0b71) self.prof = true; if (gl()) gl().enable(A(0)); });
-      d('glDisable', () => { if (A(0) === 0x0b71) self.prof = false; if (gl()) gl().disable(A(0)); });
-      d('glBlendFunc', () => { if (gl()) gl().blendFunc(A(0), A(1)); });
-      d('glBlendFuncSeparate', () => { if (gl()) gl().blendFuncSeparate(A(0), A(1), A(2), A(3)); });
-      d('glBlendEquationSeparate', () => { if (gl()) gl().blendEquationSeparate(A(0), A(1)); });
+      d('glEnable', () => { if (A(0) === 0x0b71) self.prof = true; if (A(0) in self.est.en) self.est.en[A(0)] = true; if (gl()) gl().enable(A(0)); });
+      d('glDisable', () => { if (A(0) === 0x0b71) self.prof = false; if (A(0) in self.est.en) self.est.en[A(0)] = false; if (gl()) gl().disable(A(0)); });
+      d('glBlendFunc', () => { self.est.blend = [A(0), A(1), A(0), A(1)]; if (gl()) gl().blendFunc(A(0), A(1)); });
+      d('glBlendFuncSeparate', () => { self.est.blend = [A(0), A(1), A(2), A(3)]; if (gl()) gl().blendFuncSeparate(A(0), A(1), A(2), A(3)); });
+      d('glBlendEquationSeparate', () => { self.est.ecu = [A(0), A(1)]; if (gl()) gl().blendEquationSeparate(A(0), A(1)); });
       d('glBlendColor', () => { if (gl()) gl().blendColor(F(0), F(1), F(2), F(3)); });
       d('glDepthFunc', () => { if (gl()) gl().depthFunc(A(0)); });
       d('glDepthMask', () => { self.mascaraProf = !!(A(0) & 255); if (gl()) gl().depthMask(self.mascaraProf); });
@@ -105,7 +107,7 @@ const GlHle = (() => {
       d('glClearColor', () => { if (gl()) gl().clearColor(F(0), F(1), F(2), F(3)); });
       d('glClearStencil', () => { if (gl()) gl().clearStencil(A(0)); });
       d('glClear', () => { if (self.gfx && !self.fbAct) self.gfx.antesDeLimpiar(A(0)); if (gl()) gl().clear(A(0)); });
-      d('glColorMask', () => { if (gl()) gl().colorMask(!!(A(0) & 255), !!(A(1) & 255), !!(A(2) & 255), !!(A(3) & 255)); });
+      d('glColorMask', () => { self.est.mask = [!!(A(0) & 255), !!(A(1) & 255), !!(A(2) & 255), !!(A(3) & 255)]; if (gl()) gl().colorMask(...self.est.mask); });
       d('glCullFace', () => { if (gl()) gl().cullFace(A(0)); });
       d('glFrontFace', () => { if (gl()) gl().frontFace(A(0)); });
       d('glScissor', () => { self.scJuego = [A(0), A(1), A(2), A(3)]; if (gl()) self.aplicarVp(); });
