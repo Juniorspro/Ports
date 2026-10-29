@@ -359,6 +359,12 @@ function aplicarMods() {
   const E = { gravedad: 1, velocidad: 1, salto: 1, tiempo: 1, explosion: 1, municionInfinita: false, invencible: false, skin: null, hora: null, armas: [], aparecer: [] };
   if (!RB.base) RB.base = { v: JUG.vel_max, s: JUG.salto };
   // modo creador: sin mods (volás libre, sin morir y con munición) y con lo que había en el mapa que se edita
+  smReiniciar();
+  // en una sala: los mods del server que elegiste con SM (se aplican también en el medio de la partida)
+  if (typeof SALA !== 'undefined' && SALA && !CREA.on) {
+    RB.mapaPartida = null; RB.horaPartida = null; smAplicar(true); SRV.t = SRV.mods.size ? 60 : 0;
+    setTimeout(() => { if (SALA && JUEGO.estado === 'juego') aviso('🧩 ' + T('sm.hint'), 4); }, 3200); return;
+  }
   if (CREA.on) { Object.assign(MODS, E, { municionInfinita: true, invencible: true }); JUG.vel_max = RB.base.v; JUG.salto = RB.base.s; RB.mapaPartida = null; RB.horaPartida = null; modapiCargar([]); creadorIniciar(); return; }
   const act = modsTodos().filter((m) => PREFS.mods && PREFS.mods[m.id]);
   for (const m of act) {

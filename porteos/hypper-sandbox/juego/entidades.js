@@ -331,7 +331,7 @@ function entidadUsar(e) { const C = ENT_TIPO[e.t]; return !!(C && C.usar && C.us
 function entidadPonerMod(t) {
   const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), d = t === 'piano' ? 3 : 1.6, p = vadd(JUG.pos, vscale(f, d));
   const y = pisoBajo(v3(p.x, JUG.pos.y + 1, p.z), 0); p.y = y === null ? JUG.pos.y - 1 : y;
-  let e = ENTS.lista.find((x) => x.t === t && x.dueno === 'yo' && x.red);
+  let e = ENTS.lista.find((x) => x.t === t && x.dueno === 'yo' && x.red && !x.mod);
   if (t === 'radio' && e && entPos(e).distTo(JUG.pos) < 6) { radioAbrir(e); return; }
   const vid = e && e.vid, t0 = e && e.t0, tit = e && e.tit, lista = e && e.lista;
   if (e) { entidadQuitar(e); entidadRed('entb', e); }
@@ -350,7 +350,7 @@ function entidadRed(k, e) {
 }
 const entidadesMias = () => ENTS.lista.filter((e) => e.red && e.dueno === 'yo').map((e) => ({ n: e.id, d: entidadDatos(e), v: e.vid || '', s: e.t0 ? Math.round(ahoraS() - e.t0) : 0, tt: (e.tit || '').slice(0, 100) }));
 function entidadRemota(id, x) {
-  if (!x || typeof x !== 'object' || !x.d || !ENT_INFO[x.d.t] || !['piano', 'radio'].includes(x.d.t)) return null;
+  if (!x || typeof x !== 'object' || !x.d || !ENT_INFO[x.d.t]) return null;
   const key = id + ':' + (x.n | 0); let e = ENTS.lista.find((y) => y.key === key);
   const v = validarRB({ formato: 'rezobox-mapa', nombre: 'red', base: 'FlatGrass', entidades: [x.d] }), d = typeof v === 'object' && v.entidades[0]; if (!d) return null;
   if (!e) e = entidadCrear(d, { dueno: id, key });
@@ -360,7 +360,7 @@ function entidadRemota(id, x) {
 }
 function entidadesRecibir(id, lista) {
   const vivas = new Set();
-  for (const x of (Array.isArray(lista) ? lista : []).slice(0, 8)) { const e = entidadRemota(id, x); if (e) vivas.add(e); }
+  for (const x of (Array.isArray(lista) ? lista : []).slice(0, 300)) { const e = entidadRemota(id, x); if (e) vivas.add(e); }
   for (const e of ENTS.lista.slice()) if (e.dueno === id && !vivas.has(e)) entidadQuitar(e);
 }
 function entidadHecho(d) {

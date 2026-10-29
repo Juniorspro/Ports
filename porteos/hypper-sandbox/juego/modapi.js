@@ -94,9 +94,9 @@ addEventListener('message', (e) => {
       case 'entidad': {
         const v = validarRB({ formato: 'rezobox-mapa', nombre: 'mod', base: 'FlatGrass', entidades: [{ t: d.t, p: d.p, yaw: d.yaw, prm: d.prm }] }), x = typeof v === 'object' && v.entidades[0];
         if (!x || (M.ents = M.ents || new Set()).size >= 300) { resp(null); break; }
-        const e = entidadCrear(x); if (e) { e.mod = M.id; M.ents.add(e.id); } resp(e ? e.id : null); break;
+        const e = entidadCrear(x, { red: !!RED.on }); if (e) { e.mod = M.id; M.ents.add(e.id); entidadRed('ent', e); } resp(e ? e.id : null); break;
       }
-      case 'quitarEntidad': { const e = ENTS.lista.find((x) => x.id === d.id && x.mod === M.id); if (e) { entidadQuitar(e); M.ents.delete(e.id); } break; }
+      case 'quitarEntidad': { const e = ENTS.lista.find((x) => x.id === d.id && x.mod === M.id); if (e) { entidadQuitar(e); entidadRed('entb', e); M.ents.delete(e.id); } break; }
       case 'nativo': { const n = String(d.n); if (n === 'volar') natVolar(!!d.s); else if (n === 'ragdoll') natRag(!!d.s); else if (n === 'scp') natScp(!!d.s); break; }
       case 'guardar': { const v = JSON.stringify(d.v); if (v && v.length < 200000) try { localStorage.setItem('rbmod_' + M.id + '_' + d.k.slice(0, 40), v); resp(true); } catch (x) { resp(false); } else resp(false); break; }
       case 'leer': { let v = null; try { v = JSON.parse(localStorage.getItem('rbmod_' + M.id + '_' + d.k.slice(0, 40)) || 'null'); } catch (x) {} resp(v); break; }

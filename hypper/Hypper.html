@@ -232,9 +232,20 @@ body.tactil .natBt small{display:none}
 .crArmas button.sel,.crEtqs button.sel{background:#3e6fd8;color:#fff;border-color:#3e6fd8}
 .rolCaja{width:min(460px,calc(var(--vw)*94))}.rolIt{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;margin:5px 0;padding:10px;background:#33363d;border:0;border-radius:5px;color:#fff;cursor:pointer;text-align:start}
 .rolIt i{width:16px;height:16px;border-radius:50%}.rolIt b{font-size:15px}.rolIt small{width:100%;color:#aab;font-size:12px}
+.smBt b{font:900 15px Roboto,Arial,sans-serif;color:#fff;line-height:1}
+.smCaja{width:min(760px,calc(var(--vw)*94));display:flex;flex-direction:column;max-height:calc(var(--vh)*94);overflow:hidden}.smCaja h3 small{color:#9aa;font-weight:400;font-size:12px}
+.smBarra{display:flex;gap:6px;align-items:center}.smBarra input{flex:1;min-width:0;background:#1f2024;color:#fff;border:1px solid #555;border-radius:4px;padding:7px;font-size:14px}.smBarra .boton{margin:0}
+.smFiltros{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}.smFiltros button{background:#24262b;border:1px solid #555;color:#ccc;border-radius:12px;padding:3px 9px;font-size:11px;cursor:pointer}.smFiltros button.sel{background:#3e6fd8;border-color:#3e6fd8;color:#fff}
+#smLista{flex:1;min-height:calc(var(--vh)*18);overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px}
+.smIt{display:flex;align-items:center;gap:8px;text-align:start;background:#33363d;border:2px solid transparent;border-radius:6px;padding:6px;color:#fff;cursor:pointer;min-width:0}
+.smIt.on{border-color:#3e6fd8;background:#2e3a52}.smIco{width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center;font-size:26px;border-radius:6px;background:#24262b;overflow:hidden}.smIco img{width:100%;height:100%;object-fit:cover}
+.smTx{flex:1;min-width:0;display:flex;flex-direction:column}.smTx b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.smTx small{color:#9ab;font-size:11px}.smTx em{font-style:normal;color:#aaa;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.smSw{flex:none;width:34px;height:18px;border-radius:9px;background:#555;position:relative}.smSw::after{content:'';position:absolute;top:2px;inset-inline-start:2px;width:14px;height:14px;border-radius:50%;background:#ddd;transition:inset-inline-start .15s}
+.smIt.on .smSw{background:#3e6fd8}.smIt.on .smSw::after{inset-inline-start:18px;background:#fff}
+.smPie{display:flex;align-items:center;justify-content:space-between;margin-top:8px;color:#aab;font-size:12px}.smPie .boton{margin:0}
 .rbAyudaC{color:#666;font-size:calc(var(--vh)*2.2);margin:calc(var(--vh)*1.5) 0 0}
 .rbCrear{flex-direction:column;overflow:auto;padding:calc(var(--vh)*1.6) calc(var(--vh)*2.2);gap:calc(var(--vh)*1.2)}.rbCrear .rbGrid{flex:none;overflow:visible}
-#vozBt{position:absolute;inset-inline-start:12px;top:15%}
+#vozBt{order:-1}
 .habla::before{content:'🔊 '}
 .rbCodigo{font:500 calc(var(--vh)*2.7) ui-monospace,Menlo,Consolas,monospace !important;background:#1e2127;color:#d8dee9;border-color:#333 !important}
 .rbAyuda{font:500 calc(var(--vh)*2.3) ui-monospace,Menlo,Consolas,monospace;color:#666;line-height:1.35}
@@ -3136,8 +3147,10 @@ function jugadorPaso(dt, ent) {
   const rvx = J.vel.x - (base ? base.x : 0), rvz = J.vel.z - (base ? base.z : 0);
   const dvx = tx - rvx, dvz = tz - rvz, dl = Math.hypot(dvx, dvz), mx = acel * dt * (J.suelo || wl > 0 ? 1 : 0.2);
   if (dl > 0) { const k = Math.min(1, mx / dl); J.vel.x += dvx * k; J.vel.z += dvz * k; }
-  if (J.suelo && ent.saltar && J.tiempoSuelo > 0.05) { J.vel.y = Math.sqrt(2 * GRAV * MUNDO.gravedad * J.salto); J.suelo = false; J.tiempoSuelo = 0; }
-  if (!J.suelo) J.vel.y -= GRAV * MUNDO.gravedad * dt; else if (J.vel.y < 0) J.vel.y = -0.5;
+  // (la gravedad de un mod en una sala es sólo del jugador: J.grav; negativa también: sube)
+  const gJ = GRAV * MUNDO.gravedad * (J.grav || 1);
+  if (J.suelo && ent.saltar && J.tiempoSuelo > 0.05) { J.vel.y = Math.sqrt(2 * Math.abs(gJ) * J.salto) * (gJ < 0 ? -1 : 1); J.suelo = false; J.tiempoSuelo = 0; }
+  if (!J.suelo) J.vel.y -= gJ * dt; else if (J.vel.y < 0) J.vel.y = -0.5;
   const vyAntes = J.vel.y, eraSuelo = J.suelo;
   jugadorMoverChocar(dt);
   // pegarse al piso al bajar rampas (si estaba en el piso y no saltó)
@@ -3835,9 +3848,9 @@ function dibujarProyectiles() {
 }
 // ---------------- explosiones y daño ----------------
 function explosion(p, radio, dan) {
-  if (MODS.explosion && MODS.explosion !== 1) { radio *= MODS.explosion; dan *= MODS.explosion; }
+  if (MODS.explosion && MODS.explosion !== 1 && !explosion.remota) { radio *= MODS.explosion; dan *= MODS.explosion; }
   sonar('GrenadeExplode', p, 1.4);
-  if (!explosion.remota) redExplosion(p);
+  if (!explosion.remota) redExplosion(p, radio, dan);
   efectoExplosion(p);
   for (const b of PH.bodies) {
     if (!b.dynamic && !b.frozen) continue;
@@ -4744,7 +4757,7 @@ function danarPersona(P, dan, pos, d) {
 // ---------------- el cuerpo del jugador (tercera persona, vehículos, muerte) ----------------
 function jugadorCuerpoNuevo() {
   if (JUG.cuerpo) borrarPersona(JUG.cuerpo);
-  JUG.cuerpo = crearPersona(JUG.skinRol || PREFS.skin, PREFS.gorro, { nombre: PREFS.nombre });
+  JUG.cuerpo = crearPersona(JUG.skinRol || JUG.skinMod || PREFS.skin, PREFS.gorro, { nombre: PREFS.nombre });
 }
 function jugadorRagdoll() { const P = JUG.cuerpo; if (!P) return; P.vel.copy(JUG.vel); ragdoll(P, vscale(JUG.vel, 0.2)); }
 function emote(e) { if (!JUG.cuerpo || JUG.vehiculo) return; JUG.cuerpo.emote = e; JUG.cuerpo.emoteT = 0; if (!JUG.tercera) { JUG.tercera = true; JUG.terceraEmote = true; } if (typeof redEmote === 'function') redEmote(e); }
@@ -5161,7 +5174,7 @@ function crearServidor() {
 }
 // botón Multiplayer: conecta la lista y abre el panel (como "Connect" del juego)
 function conectarMultijugador() {
-  listaConectar();
+  listaConectar(); if (!SRV.mods.size) srvModsCargar(); // los servers ya tienen todos los mods de la tienda
   if (LISTA.on || typeof mqtt === 'undefined') { seccion('Multiplayer'); subMp('Main'); return; }
   verNodo(nodo('Connecting'), true);
   const t0 = performance.now(), mirar = () => {
@@ -5187,10 +5200,10 @@ function redEntrar(mapa) {
   cli.on('close', () => { if (RED.cli !== cli) return; RED.on = false; redEstadoUI(); });
   cli.on('message', (t, m) => { if (RED.cli !== cli) return; try { redMensaje(t, m); } catch (e) {} });
   redEstadoUI();
-  vozBotonPoner(true);
+  vozBotonPoner(true); smBotonPoner(true);
 }
 function redSalir() {
-  vozApagar(); vozBotonPoner(false);
+  vozApagar(); vozBotonPoner(false); smBotonPoner(false); smCerrar();
   if (!RED.cli) return;
   try { RED.cli.publish(RED.ROOM + '/w/' + RED.ID, '', { retain: true }); publicar('a', { k: 'chau' }); const c = RED.cli; setTimeout(() => { try { c.end(false); } catch (e) {} }, 50); } catch (e) {}
   RED.cli = null; RED.on = false; presencia();
@@ -5218,7 +5231,7 @@ function redPaso(dt) {
   if (t - LISTA.ultP > 120) presencia();
   if (t - RED.ultE > 0.1) {
     const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits();
-    const e = { n: PREFS.nombre, k: J.skinRol || PREFS.skin, h: PREFS.gorro, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
+    const e = { n: PREFS.nombre, k: J.skinRol || J.skinMod || PREFS.skin, h: PREFS.gorro, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
       e: JUG.cuerpo && JUG.cuerpo.emote || 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0 };
     const s = JSON.stringify(e);
     if (s !== RED.eAnt || t - RED.ultE > 1) { publicar('e', e); RED.eAnt = s; RED.ultE = t; }
@@ -5233,7 +5246,7 @@ function redPaso(dt) {
   if (RED.wSucio || t - RED.ultW > 8) {
     RED.wSucio = false; RED.ultW = t;
     const o = OBJS.filter((x) => !x.remoto).slice(-300).map((x) => [x.id, x.nombre, r3(x.b.pos.x), r3(x.b.pos.y), r3(x.b.pos.z), r4(x.b.q.x), r4(x.b.q.y), r4(x.b.q.z), r4(x.b.q.w), x.b.frozen ? 1 : 0]);
-    publicar('w/' + RED.ID, { o, e: entidadesMias() }, true);
+    publicar('w/' + RED.ID, { o, e: entidadesMias(), md: [...SMOD.ids] }, true);
   }
   redEstadoUI();
 }
@@ -5241,7 +5254,7 @@ const claveObj = (o) => (o.remoto ? o.key : RED.ID + ':' + o.id);
 function redObjeto() { RED.wSucio = true; }
 function redRecarga() { publicar('a', { k: 'rec' }); }
 function redDisparo(arma) { publicar('a', { k: 'tiro', a: arma, p: [r3(CAM.pos.x), r3(CAM.pos.y), r3(CAM.pos.z)], d: [r3(CAM.fwd.x), r3(CAM.fwd.y), r3(CAM.fwd.z)] }); }
-function redExplosion(p) { publicar('a', { k: 'exp', p: [r3(p.x), r3(p.y), r3(p.z)] }); }
+function redExplosion(p, r, d) { publicar('a', { k: 'exp', p: [r3(p.x), r3(p.y), r3(p.z)], r: r3(r || 6), d: Math.round(d || 100) }); }
 function redDano(P, dan, d) { publicar('a', { k: 'dano', to: P.remoto, d: Math.round(dan), v: [r3(d.x), r3(d.y), r3(d.z)] }); }
 function redChat(t) { publicar('c', { n: PREFS.nombre, t: t.slice(0, 120) }); }
 function redEmote() {}
@@ -5267,18 +5280,22 @@ function redMensaje(topic, m) {
 function recibirEstado(d) {
   let R2 = RED.remotos.get(d.i);
   const skin = DATA.chars.includes(d.k) ? d.k : 'Hero', gorro = DATA.hats.includes(d.h) ? d.h : 'HatEmpty';
-  if (!R2 || R2.skin !== skin || R2.gorro !== gorro) {
-    if (R2) quitarRemoto(R2);
+  if (R2 && (R2.skin !== skin || R2.gorro !== gorro)) {
+    // cambió de personaje (o de gorro): sólo se rehace el cuerpo; sus objetos y entidades siguen
+    borrarPersona(R2.P); const P = crearPersona(skin, gorro, { nombre: limpio(d.n) }); P.remoto = d.i; R2.P = P; R2.b.persona = P; R2.skin = skin; R2.gorro = gorro;
+  }
+  if (!R2) {
     const P = crearPersona(skin, gorro, { nombre: limpio(d.n) }); P.remoto = d.i;
     const b = new Body(capsuleShape(0.4, 0.5), 80); b.frozen = true; b.persona = P; b.noJug = false; b.noGrab = true; addBody(b);
     const tag = document.createElement('div'); tag.className = 'etiqueta'; $('hud').appendChild(tag);
     R2 = { id: d.i, skin, gorro, P, b, tag, pos: v3(), meta: v3(), yaw: 0, yawM: 0, vel: v3(), t: TIEMPO.t, f: 0, nombre: '' };
     RED.remotos.set(d.i, R2); chatMostrar('★', limpio(d.n) + ' entró');
+    if (RED.mdDe && RED.mdDe.has(d.i)) smDeOtro(R2, RED.mdDe.get(d.i));
   }
   if (Array.isArray(d.p)) { R2.meta.set(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0)); if (TIEMPO.t - R2.t > 2) R2.pos.copy(R2.meta); }
   if (Array.isArray(d.v)) R2.vel.set(num(d.v[0], -80, 80, 0), num(d.v[1], -80, 80, 0), num(d.v[2], -80, 80, 0));
   R2.yawM = num(d.y, -1e3, 1e3, 0); R2.P.mira = num(d.t, -2, 2, 0); R2.f = d.f | 0; R2.t = TIEMPO.t;
-  R2.nombre = limpio(d.n); R2.tag.textContent = R2.nombre;
+  R2.nombre = limpio(d.n); R2.tag.textContent = R2.nombre + (R2.icos ? ' ' + R2.icos : '');
   R2.P.arma = DEF_ARMAS[d.a] ? d.a : null;
   const em = typeof d.e === 'string' && DATA.emotes.includes(d.e) ? d.e : null;
   if (em && R2.P.emote !== em) { R2.P.emote = em; R2.P.emoteT = 0; } else if (!em) R2.P.emote = null;
@@ -5316,6 +5333,7 @@ function buscarObjeto(k) {
 function recibirMundo(id, d) {
   const vivos = new Set();
   if (d && 'e' in d) entidadesRecibir(id, d.e);
+  if (d && Array.isArray(d.md)) { RED.mdDe = RED.mdDe || new Map(); RED.mdDe.set(id, d.md); const R2 = RED.remotos.get(id); if (R2) smDeOtro(R2, d.md); }
   if (d && Array.isArray(d.o)) for (const x of d.o.slice(0, 300)) {
     if (!Array.isArray(x) || typeof x[1] !== 'string' || !DATA.pfPorNombre[x[1]]) continue;
     const key = id + ':' + (x[0] | 0); vivos.add(key);
@@ -5361,7 +5379,7 @@ function recibirHecho(d) {
   } else if (d.k === 'rec' && R2) { humAccion(R2.P, 'recarga');
   } else if (d.k === 'exp' && Array.isArray(d.p)) {
     const p = v3(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0));
-    explosion.remota = true; explosion(p, 6, 100); explosion.remota = false;
+    explosion.remota = true; explosion(p, num(d.r, 0.5, 600, 6), num(d.d, 0, 1e5, 100)); explosion.remota = false; // del tamaño que tuvo en su juego (con sus mods)
   } else if (d.k === 'rtc' && d.to === RED.ID) { vozSenal(d);
   } else if (d.k === 'ent' || d.k === 'entb' || d.k === 'radio') { entidadHecho(d);
   } else if (d.k === 'jalar') { natRed(d);
@@ -5562,7 +5580,7 @@ function entradaIniciar() {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) { if (e.code === 'Escape' || e.code === 'Enter') { pulso(e.code === 'Enter' ? 'enviar' : 'cerrar'); } return; }
     if (e.repeat) return;
     ENT.teclas.add(e.code);
-    const m = { Tab: 'menu', KeyQ: 'menu', KeyE: 'usar', KeyF: 'salir', KeyR: 'recargar', KeyT: 'chat', KeyP: 'pausa', Escape: 'pausa', KeyV: 'camara', KeyB: 'emotes', KeyZ: 'deshacer', KeyN: 'noclip', KeyC: 'camara' };
+    const m = { Tab: 'menu', KeyQ: 'menu', KeyE: 'usar', KeyF: 'salir', KeyR: 'recargar', KeyT: 'chat', KeyP: 'pausa', Escape: 'pausa', KeyV: 'camara', KeyB: 'emotes', KeyZ: 'deshacer', KeyN: 'noclip', KeyC: 'camara', KeyM: 'servmods' };
     if (m[e.code]) { pulso(m[e.code]); e.preventDefault(); }
     if (/^Digit[1-9]$/.test(e.code)) pulso('arma' + e.code.slice(5));
   });
@@ -5763,7 +5781,7 @@ function abrirSpawn() { UI.abierto = 'spawn'; $('spawn').classList.remove('oc');
 function cerrarPaneles() {
   UI.abierto = null;
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
-  for (const id of ['radioPan', 'creaPan', 'rolPan']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null;
+  for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
   $('chatIn').classList.add('oc');
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }
@@ -6217,22 +6235,22 @@ const IDI_T = {
     'Wüste|Wüste II|Flachland|Stadt|Basis|Basis II|Mars|Weltraum',
 };
 // claves nuevas (mods nativos, entidades, radio y creador de mapas): mismo esquema, otra lista
-const IDI_K2 = ("apagar autoNuevo autoYa cerrar codigo codigoAviso cr.aparicion cr.aplicar cr.aqui cr.ayudaPoner cr.ayudaRoles cr.datos cr.elegirRol cr.empezar cr.entidad cr.fijar cr.guardado cr.hola cr.intro cr.miMapa cr.misMapas cr.nuevoRol cr.poner cr.punto cr.rol cr.roles cr.salir cr.sinRol ent.boton_autos ent.cartel ent.impulso ent.luz ent.meta ent.musica ent.piano ent.radio ent.rampa ent.teleport ent.zona_muerte ep.a ep.alto ep.ancho ep.ang ep.auto ep.color ep.d ep.f ep.i ep.ini ep.l ep.n ep.o ep.r ep.s ep.salto ep.texto ep.v ep.vol m.crear megarampa.d megarampa.n meta piano.d piano.n radio radio.d radio.n ragdoll.d ragdoll.n scp.d scp.n volar.d volar.n volarSi ytBuscar ytNo ytSalta").split(' ');
+const IDI_K2 = ("apagar autoNuevo autoYa cerrar codigo codigoAviso cr.aparicion cr.aplicar cr.aqui cr.ayudaPoner cr.ayudaRoles cr.datos cr.elegirRol cr.empezar cr.entidad cr.fijar cr.guardado cr.hola cr.intro cr.miMapa cr.misMapas cr.nuevoRol cr.poner cr.punto cr.rol cr.roles cr.salir cr.sinRol ent.boton_autos ent.cartel ent.impulso ent.luz ent.meta ent.musica ent.piano ent.radio ent.rampa ent.teleport ent.zona_muerte ep.a ep.alto ep.ancho ep.ang ep.auto ep.color ep.d ep.f ep.i ep.ini ep.l ep.n ep.o ep.r ep.s ep.salto ep.texto ep.v ep.vol m.crear megarampa.d megarampa.n meta piano.d piano.n radio radio.d radio.n ragdoll.d ragdoll.n scp.d scp.n volar.d volar.n volarSi ytBuscar ytNo ytSalta sm.tit sm.nuevo sm.hint sm.todos sm.ninguno sm.activos sm.usan sm.codigo").split(' ');
 const IDI_T2 = {
-  es: "Apagar|¡Auto nuevo!|Tu auto ya está ahí|Cerrar|Código (JavaScript, opcional)|Este mod/mapa trae código. Corre aislado del juego, pero instalalo sólo si confiás en quien lo hizo. ¿Instalar?|Aparición|Aplicar|Acá|Apuntá y tocá ✔ Poner (o hacé clic)|Cada rol tiene su color, personaje, vida, velocidad, salto y armas. Con 📍 elegís el rol de los puntos que pongas.|Datos del mapa|Elegí tu rol|Empezar a crear|Entidad|Elegila y tocá ✏ para fijar el destino|Mapa guardado (en Comunidad)|Modo creador: volá con WASD, poné props (TAB), entidades y puntos|Volá libre sobre el mapa y armá el tuyo: props, puntos de aparición con roles, piano, radio, mega rampas, botones de autos, teletransportes y más. Después probalo y publicalo.|Mi mapa|Mis mapas|Nuevo rol|Poner|Punto|Rol|Roles|Guardar y salir|Sin rol|Botón de autos|Cartel|Impulso|Luz|Meta|Música|Piano gigante|Radio|Mega rampa|Teletransporte|Zona de muerte|Lugar|Altura (m)|Ancho (m)|Inclinación (°)|Auto|Color|Empuje adelante|Empuje arriba|Intensidad|Aparece al empezar|Largo de tecla (m)|Teclas|Octava|Alcance (m)|Tamaño (x, y, z)|Salto al final|Texto|Video de YouTube|Volumen|Crear un mapa|Una rampa gigante que baja desde el cielo. Arriba hay autos para elegir; si el tuyo ya no está, pisá su botón y aparece otro.|Mega rampa|¡Llegaste!|Un piano gigante en el piso: cada tecla suena cuando la pisan (vos, otros jugadores, autos u objetos). Botón 🎹 en el HUD.|Piano gigante|Radio|Una radio que podés poner y agarrar: buscás música en YouTube y suena desde donde está, más bajo de lejos. Botón 📻 en el HUD.|Radio YouTube|Botón 🪆 para tirarte como muñeco de trapo; los demás te pueden agarrar con la pistola de física o de gravedad.|Muñeco de trapo|Sos un SCP que camina en cuatro patas: corrés rápido, trepás paredes y techos, y cada pata pisa sola.|SCP en cuatro patas|Botón 🕊️ para volar hacia donde mirás, con el cuerpo que se inclina y se balancea con la velocidad.|Volar|¡A volar! (Shift: más rápido)|Buscar en YouTube…|Ese video no se puede poner acá|No se puede poner, paso al siguiente",
-  en: "Turn off|New car!|Your car is already there|Close|Code (JavaScript, optional)|This mod/map includes code. It runs isolated from the game, but only install it if you trust its author. Install?|Spawn position|Apply|Here|Aim and tap ✔ Place (or click)|Each role has its color, character, health, speed, jump and weapons. Use 📍 to pick the role for the points you place.|Map info|Choose your role|Start creating|Entity|Select it and tap ✏ to set the destination|Map saved (in Community)|Creator mode: fly with WASD, place props (TAB), entities and points|Fly freely over the map and build your own: props, spawn points with roles, piano, radio, mega ramps, car buttons, teleporters and more. Then test it and publish it.|My map|My maps|New role|Place|Point|Role|Roles|Save and exit|No role|Car button|Sign|Jump pad|Light|Finish|Music|Giant piano|Radio|Mega ramp|Teleporter|Kill zone|Place|Height (m)|Width (m)|Slope (°)|Car|Color|Forward push|Upward push|Intensity|Spawns at start|Key length (m)|Keys|Octave|Range (m)|Size (x, y, z)|Jump at the end|Text|YouTube video|Volume|Create a map|A giant ramp coming down from the sky. Cars to choose from at the top; if yours is gone, step on its button and a new one appears.|Mega ramp|You made it!|A giant floor piano: every key plays when stepped on (you, other players, cars or objects). 🎹 button on the HUD.|Giant piano|Radio|A radio you can place and grab: search music on YouTube and it plays from where it is, quieter from afar. 📻 button on the HUD.|YouTube radio|🪆 button to go limp like a ragdoll; others can grab you with the physics or gravity gun.|Ragdoll|You are an SCP walking on all fours: run fast, climb walls and ceilings, and each leg steps on its own.|Four-legged SCP|🕊️ button to fly where you look, with a body that leans and sways with speed.|Fly|Fly! (Shift: faster)|Search YouTube…|That video can't be played here|Can't play it, skipping to the next",
-  pt: "Desligar|Carro novo!|Seu carro já está lá|Fechar|Código (JavaScript, opcional)|Este mod/mapa traz código. Ele roda isolado do jogo, mas só instale se confiar em quem fez. Instalar?|Ponto de surgimento|Aplicar|Aqui|Mire e toque ✔ Colocar (ou clique)|Cada papel tem sua cor, personagem, vida, velocidade, pulo e armas. Com 📍 você escolhe o papel dos pontos que colocar.|Dados do mapa|Escolha seu papel|Começar a criar|Entidade|Selecione e toque ✏ para definir o destino|Mapa salvo (em Comunidade)|Modo criador: voe com WASD, coloque objetos (TAB), entidades e pontos|Voe livre sobre o mapa e monte o seu: objetos, pontos de surgimento com papéis, piano, rádio, mega rampas, botões de carros, teletransportes e mais. Depois teste e publique.|Meu mapa|Meus mapas|Novo papel|Colocar|Ponto|Papel|Papéis|Salvar e sair|Sem papel|Botão de carros|Placa|Impulso|Luz|Chegada|Música|Piano gigante|Rádio|Mega rampa|Teletransporte|Zona da morte|Lugar|Altura (m)|Largura (m)|Inclinação (°)|Carro|Cor|Impulso para frente|Impulso para cima|Intensidade|Aparece no início|Comprimento da tecla (m)|Teclas|Oitava|Alcance (m)|Tamanho (x, y, z)|Salto no final|Texto|Vídeo do YouTube|Volume|Criar um mapa|Uma rampa gigante que desce do céu. Lá em cima tem carros para escolher; se o seu sumiu, pise no botão dele e aparece outro.|Mega rampa|Você chegou!|Um piano gigante no chão: cada tecla toca quando pisam nela (você, outros jogadores, carros ou objetos). Botão 🎹 no HUD.|Piano gigante|Rádio|Um rádio que você pode colocar e pegar: procure música no YouTube e ela toca de onde ele está, mais baixa de longe. Botão 📻 no HUD.|Rádio YouTube|Botão 🪆 para virar boneco de pano; os outros podem te pegar com a arma de física ou de gravidade.|Boneco de pano|Você é um SCP que anda de quatro: corre rápido, escala paredes e tetos, e cada pata pisa sozinha.|SCP de quatro patas|Botão 🕊️ para voar para onde você olha, com o corpo que inclina e balança com a velocidade.|Voar|Voando! (Shift: mais rápido)|Buscar no YouTube…|Esse vídeo não pode tocar aqui|Não dá para tocar, pulando para o próximo",
-  id: "Matikan|Mobil baru!|Mobilmu sudah ada di sana|Tutup|Kode (JavaScript, opsional)|Mod/peta ini berisi kode. Kode berjalan terpisah dari game, tapi pasang hanya jika kamu percaya pembuatnya. Pasang?|Titik muncul|Terapkan|Di sini|Bidik lalu ketuk ✔ Taruh (atau klik)|Setiap peran punya warna, karakter, nyawa, kecepatan, lompatan, dan senjata. Pakai 📍 untuk memilih peran titik yang kamu taruh.|Data peta|Pilih peranmu|Mulai membuat|Entitas|Pilih lalu ketuk ✏ untuk menentukan tujuan|Peta disimpan (di Komunitas)|Mode kreator: terbang dengan WASD, taruh objek (TAB), entitas, dan titik|Terbang bebas di atas peta dan buat petamu: objek, titik muncul dengan peran, piano, radio, mega ramp, tombol mobil, teleportasi, dan lainnya. Lalu coba dan terbitkan.|Petaku|Peta-petaku|Peran baru|Taruh|Titik|Peran|Peran|Simpan dan keluar|Tanpa peran|Tombol mobil|Papan|Pelontar|Lampu|Garis finis|Musik|Piano raksasa|Radio|Mega ramp|Teleportasi|Zona maut|Tempat|Tinggi (m)|Lebar (m)|Kemiringan (°)|Mobil|Warna|Dorongan ke depan|Dorongan ke atas|Intensitas|Muncul di awal|Panjang tuts (m)|Tuts|Oktaf|Jangkauan (m)|Ukuran (x, y, z)|Lompatan di akhir|Teks|Video YouTube|Volume|Buat peta|Ramp raksasa yang turun dari langit. Di atas ada mobil untuk dipilih; kalau mobilmu hilang, injak tombolnya dan muncul yang baru.|Mega ramp|Kamu sampai!|Piano raksasa di lantai: setiap tuts berbunyi saat diinjak (kamu, pemain lain, mobil, atau objek). Tombol 🎹 di HUD.|Piano raksasa|Radio|Radio yang bisa kamu taruh dan angkat: cari musik di YouTube dan bunyinya dari tempat radio, makin pelan dari jauh. Tombol 📻 di HUD.|Radio YouTube|Tombol 🪆 untuk lemas seperti boneka kain; pemain lain bisa menangkapmu dengan senjata fisika atau gravitasi.|Boneka kain|Kamu SCP yang berjalan dengan empat kaki: lari cepat, memanjat dinding dan langit-langit, dan tiap kaki melangkah sendiri.|SCP berkaki empat|Tombol 🕊️ untuk terbang ke arah pandanganmu, dengan tubuh yang miring dan berayun mengikuti kecepatan.|Terbang|Terbang! (Shift: lebih cepat)|Cari di YouTube…|Video itu tidak bisa diputar di sini|Tidak bisa diputar, lanjut ke berikutnya",
-  ms: "Matikan|Kereta baharu!|Kereta anda sudah ada di sana|Tutup|Kod (JavaScript, pilihan)|Mod/peta ini mengandungi kod. Ia berjalan terasing daripada permainan, tetapi pasang hanya jika anda mempercayai pembuatnya. Pasang?|Titik muncul|Guna|Di sini|Halakan dan ketik ✔ Letak (atau klik)|Setiap peranan ada warna, watak, nyawa, kelajuan, lompatan dan senjata. Guna 📍 untuk memilih peranan titik yang anda letak.|Maklumat peta|Pilih peranan anda|Mula mencipta|Entiti|Pilihnya dan ketik ✏ untuk menetapkan destinasi|Peta disimpan (dalam Komuniti)|Mod pencipta: terbang dengan WASD, letak objek (TAB), entiti dan titik|Terbang bebas di atas peta dan bina peta anda: objek, titik muncul dengan peranan, piano, radio, mega ramp, butang kereta, teleport dan banyak lagi. Kemudian uji dan terbitkan.|Peta saya|Peta-peta saya|Peranan baharu|Letak|Titik|Peranan|Peranan|Simpan dan keluar|Tiada peranan|Butang kereta|Papan tanda|Pelantun|Lampu|Garisan penamat|Muzik|Piano gergasi|Radio|Mega ramp|Teleport|Zon maut|Tempat|Tinggi (m)|Lebar (m)|Kecerunan (°)|Kereta|Warna|Tolakan ke depan|Tolakan ke atas|Keamatan|Muncul pada mula|Panjang kekunci (m)|Kekunci|Oktaf|Jarak (m)|Saiz (x, y, z)|Lompatan di hujung|Teks|Video YouTube|Kelantangan|Cipta peta|Ramp gergasi yang turun dari langit. Di atas ada kereta untuk dipilih; jika kereta anda hilang, pijak butangnya dan yang baharu muncul.|Mega ramp|Anda berjaya!|Piano gergasi di lantai: setiap kekunci berbunyi apabila dipijak (anda, pemain lain, kereta atau objek). Butang 🎹 di HUD.|Piano gergasi|Radio|Radio yang boleh diletak dan diangkat: cari muzik di YouTube dan ia berbunyi dari tempatnya, lebih perlahan dari jauh. Butang 📻 di HUD.|Radio YouTube|Butang 🪆 untuk terkulai seperti anak patung kain; orang lain boleh menangkap anda dengan senjata fizik atau graviti.|Anak patung kain|Anda SCP yang berjalan dengan empat kaki: lari laju, panjat dinding dan siling, dan setiap kaki melangkah sendiri.|SCP berkaki empat|Butang 🕊️ untuk terbang ke arah pandangan, dengan badan yang condong dan berayun mengikut kelajuan.|Terbang|Terbang! (Shift: lebih laju)|Cari di YouTube…|Video itu tidak boleh dimainkan di sini|Tidak boleh dimainkan, terus ke seterusnya",
-  fil: "Patayin|Bagong kotse!|Nandiyan na ang kotse mo|Isara|Code (JavaScript, opsyonal)|May code ang mod/mapang ito. Tumatakbo ito nang hiwalay sa laro, pero i-install lang kung pinagkakatiwalaan mo ang gumawa. I-install?|Lugar ng paglitaw|Ilapat|Dito|Itutok at pindutin ang ✔ Ilagay (o i-click)|Bawat role ay may kulay, karakter, buhay, bilis, talon at armas. Gamitin ang 📍 para piliin ang role ng mga puntong ilalagay mo.|Detalye ng mapa|Piliin ang role mo|Magsimulang gumawa|Entity|Piliin ito at pindutin ang ✏ para itakda ang pupuntahan|Na-save ang mapa (sa Komunidad)|Creator mode: lumipad gamit ang WASD, maglagay ng props (TAB), entities at mga punto|Lumipad nang malaya sa mapa at buuin ang sa iyo: props, mga lugar ng paglitaw na may role, piano, radyo, mega ramp, button ng kotse, teleporter at iba pa. Tapos subukan at i-publish.|Mapa ko|Mga mapa ko|Bagong role|Ilagay|Punto|Role|Mga role|I-save at lumabas|Walang role|Button ng kotse|Karatula|Pantalon|Ilaw|Finish|Musika|Higanteng piano|Radyo|Mega ramp|Teleporter|Death zone|Lugar|Taas (m)|Lapad (m)|Hilig (°)|Kotse|Kulay|Tulak pasulong|Tulak pataas|Lakas|Lilitaw sa simula|Haba ng key (m)|Mga key|Octave|Abot (m)|Laki (x, y, z)|Talon sa dulo|Teksto|Video sa YouTube|Lakas ng tunog|Gumawa ng mapa|Isang higanteng ramp na bumababa mula sa langit. May mga kotse sa itaas na mapagpipilian; kung wala na ang sa iyo, tapakan ang button nito at may lilitaw na bago.|Mega ramp|Nakarating ka!|Higanteng piano sa sahig: tumutunog ang bawat key kapag tinapakan (ikaw, ibang manlalaro, kotse o bagay). Button 🎹 sa HUD.|Higanteng piano|Radyo|Radyong mailalagay at mahahawakan: maghanap ng musika sa YouTube at tutugtog ito mula sa kinalalagyan, mas mahina mula sa malayo. Button 📻 sa HUD.|YouTube radio|Button 🪆 para lumupaypay na parang ragdoll; mahahawakan ka ng iba gamit ang physics o gravity gun.|Ragdoll|Isa kang SCP na naglalakad sa apat na paa: mabilis tumakbo, umaakyat sa pader at kisame, at bawat paa ay kusang humahakbang.|SCP na apat ang paa|Button 🕊️ para lumipad kung saan ka nakatingin, kasama ang katawang humihilig at umuugoy ayon sa bilis.|Lumipad|Lipad! (Shift: mas mabilis)|Maghanap sa YouTube…|Hindi ma-play dito ang video na iyan|Hindi ma-play, lilipat sa susunod",
-  ja: "オフ|新しい車！|車はもうそこにあるよ|閉じる|コード（JavaScript、任意）|このMOD/マップにはコードが含まれています。ゲームとは切り離して動きますが、作者を信頼できる場合だけインストールしてください。インストールしますか？|スポーン位置|適用|ここ|狙って ✔ 置く をタップ（またはクリック）|各ロールには色、キャラクター、体力、速度、ジャンプ、武器があります。📍 で置く地点のロールを選びます。|マップ情報|ロールを選んでね|作り始める|エンティティ|選んで ✏ をタップして行き先を決めてね|マップを保存しました（コミュニティ）|クリエイターモード：WASDで飛んで、小物（TAB）、エンティティ、地点を置こう|マップの上を自由に飛んで自分のマップを作ろう：小物、ロール付きスポーン地点、ピアノ、ラジオ、メガランプ、車ボタン、テレポーターなど。できたらテストして公開しよう。|マイマップ|マイマップ一覧|新しいロール|置く|地点|ロール|ロール|保存して終了|ロールなし|車ボタン|看板|ジャンプ台|ライト|ゴール|音楽|巨大ピアノ|ラジオ|メガランプ|テレポーター|即死ゾーン|場所|高さ（m）|幅（m）|傾き（°）|車|色|前への勢い|上への勢い|強さ|開始時に出現|鍵盤の長さ（m）|鍵盤の数|オクターブ|範囲（m）|サイズ（x, y, z）|最後にジャンプ|テキスト|YouTube動画|音量|マップを作る|空から下りてくる巨大なランプ。上には選べる車があり、自分の車がなくなったらボタンを踏むと新しい車が出てくるよ。|メガランプ|ゴール！|床に置く巨大ピアノ：踏むと鍵盤が鳴るよ（自分、ほかのプレイヤー、車、物でも）。HUDの🎹ボタン。|巨大ピアノ|ラジオ|置いたり持ったりできるラジオ：YouTubeで音楽を探すと、その場所から聞こえて遠いほど小さくなるよ。HUDの📻ボタン。|YouTubeラジオ|🪆ボタンでラグドールになってぐったり。ほかの人がフィジックスガンやグラビティガンでつかめるよ。|ラグドール|四つ足で歩くSCPになる：速く走って、壁や天井をよじ登り、足が一本ずつ自分で踏み出すよ。|四つ足のSCP|🕊️ボタンで見ている方向に飛べる。体はスピードに合わせて傾いて揺れるよ。|飛行|飛べ！（Shift：もっと速く）|YouTubeで検索…|その動画はここでは再生できません|再生できないので次へ",
-  th: "ปิด|รถคันใหม่!|รถของคุณอยู่ตรงนั้นแล้ว|ปิด|โค้ด (JavaScript, ไม่บังคับ)|ม็อด/แผนที่นี้มีโค้ด ซึ่งทำงานแยกจากเกม แต่ควรติดตั้งเมื่อไว้ใจผู้สร้างเท่านั้น ติดตั้งไหม?|จุดเกิด|ใช้|ตรงนี้|เล็งแล้วแตะ ✔ วาง (หรือคลิก)|แต่ละบทบาทมีสี ตัวละคร พลังชีวิต ความเร็ว การกระโดด และอาวุธ ใช้ 📍 เพื่อเลือกบทบาทของจุดที่วาง|ข้อมูลแผนที่|เลือกบทบาทของคุณ|เริ่มสร้าง|เอนทิตี|เลือกแล้วแตะ ✏ เพื่อกำหนดปลายทาง|บันทึกแผนที่แล้ว (ในชุมชน)|โหมดสร้าง: บินด้วย WASD วางวัตถุ (TAB) เอนทิตี และจุด|บินอิสระเหนือแผนที่แล้วสร้างของคุณเอง: วัตถุ จุดเกิดพร้อมบทบาท เปียโน วิทยุ เมกะแรมป์ ปุ่มรถ เทเลพอร์ต และอีกมาก แล้วทดสอบและเผยแพร่|แผนที่ของฉัน|แผนที่ทั้งหมดของฉัน|บทบาทใหม่|วาง|จุด|บทบาท|บทบาท|บันทึกและออก|ไม่มีบทบาท|ปุ่มรถ|ป้าย|แท่นกระโดด|ไฟ|เส้นชัย|เพลง|เปียโนยักษ์|วิทยุ|เมกะแรมป์|เทเลพอร์ต|โซนมรณะ|ตำแหน่ง|ความสูง (ม.)|ความกว้าง (ม.)|ความชัน (°)|รถ|สี|แรงดันไปข้างหน้า|แรงดันขึ้น|ความแรง|ปรากฏตอนเริ่ม|ความยาวคีย์ (ม.)|จำนวนคีย์|อ็อกเทฟ|ระยะ (ม.)|ขนาด (x, y, z)|กระโดดตอนท้าย|ข้อความ|วิดีโอ YouTube|ระดับเสียง|สร้างแผนที่|ทางลาดยักษ์ที่ลงมาจากท้องฟ้า ด้านบนมีรถให้เลือก ถ้ารถของคุณหายไป ให้เหยียบปุ่มแล้วจะมีคันใหม่ปรากฏ|เมกะแรมป์|ถึงแล้ว!|เปียโนยักษ์บนพื้น: ทุกคีย์ดังเมื่อถูกเหยียบ (คุณ ผู้เล่นอื่น รถ หรือวัตถุ) ปุ่ม 🎹 บน HUD|เปียโนยักษ์|วิทยุ|วิทยุที่วางและหยิบได้: ค้นหาเพลงใน YouTube แล้วเสียงจะดังจากตำแหน่งของมัน ยิ่งไกลยิ่งเบา ปุ่ม 📻 บน HUD|วิทยุ YouTube|ปุ่ม 🪆 เพื่อปล่อยตัวเป็นแร็กดอลล์ คนอื่นจับคุณได้ด้วยปืนฟิสิกส์หรือปืนแรงโน้มถ่วง|แร็กดอลล์|คุณเป็น SCP ที่เดินสี่ขา: วิ่งเร็ว ปีนกำแพงและเพดาน และแต่ละขาก้าวเอง|SCP สี่ขา|ปุ่ม 🕊️ เพื่อบินไปทางที่มอง ตัวจะเอียงและแกว่งตามความเร็ว|บิน|บินเลย! (Shift: เร็วขึ้น)|ค้นหาใน YouTube…|วิดีโอนั้นเล่นที่นี่ไม่ได้|เล่นไม่ได้ ข้ามไปเพลงถัดไป",
-  tr: "Kapat|Yeni araba!|Araban zaten orada|Kapat|Kod (JavaScript, isteğe bağlı)|Bu mod/harita kod içeriyor. Oyundan yalıtılmış çalışır ama yalnızca yapan kişiye güveniyorsan kur. Kurulsun mu?|Doğma noktası|Uygula|Burası|Nişan al ve ✔ Yerleştir'e dokun (ya da tıkla)|Her rolün rengi, karakteri, canı, hızı, zıplaması ve silahları var. Koyduğun noktaların rolünü 📍 ile seç.|Harita bilgisi|Rolünü seç|Oluşturmaya başla|Varlık|Seç ve hedefi belirlemek için ✏'ye dokun|Harita kaydedildi (Topluluk'ta)|Yapıcı modu: WASD ile uç, eşya (TAB), varlık ve nokta koy|Haritanın üzerinde serbestçe uç ve kendininkini yap: eşyalar, rollü doğma noktaları, piyano, radyo, mega rampalar, araba düğmeleri, ışınlayıcılar ve dahası. Sonra dene ve yayınla.|Haritam|Haritalarım|Yeni rol|Yerleştir|Nokta|Rol|Roller|Kaydet ve çık|Rolsüz|Araba düğmesi|Tabela|Zıplatıcı|Işık|Bitiş|Müzik|Dev piyano|Radyo|Mega rampa|Işınlayıcı|Ölüm bölgesi|Yer|Yükseklik (m)|Genişlik (m)|Eğim (°)|Araba|Renk|İleri itiş|Yukarı itiş|Yoğunluk|Başta çıkar|Tuş uzunluğu (m)|Tuşlar|Oktav|Menzil (m)|Boyut (x, y, z)|Sonda atlama|Metin|YouTube videosu|Ses|Harita oluştur|Gökyüzünden inen dev bir rampa. Tepede seçebileceğin arabalar var; seninki yoksa düğmesine bas, yenisi çıksın.|Mega rampa|Başardın!|Yerde dev bir piyano: her tuşa basınca çalar (sen, diğer oyuncular, arabalar ya da eşyalar). HUD'da 🎹 düğmesi.|Dev piyano|Radyo|Koyup taşıyabileceğin bir radyo: YouTube'da müzik ara, olduğu yerden çalsın, uzaklaştıkça kısılsın. HUD'da 📻 düğmesi.|YouTube radyo|Bez bebek gibi gevşemek için 🪆 düğmesi; diğerleri seni fizik ya da yerçekimi silahıyla tutabilir.|Bez bebek|Dört ayak üstünde yürüyen bir SCP'sin: hızlı koşarsın, duvarlara ve tavanlara tırmanırsın, her ayak kendi adımını atar.|Dört ayaklı SCP|Baktığın yöne uçmak için 🕊️ düğmesi; gövde hızla birlikte eğilip sallanır.|Uç|Uç! (Shift: daha hızlı)|YouTube'da ara…|O video burada oynatılamıyor|Oynatılamıyor, sıradakine geçiliyor",
-  ar: "إيقاف|سيارة جديدة!|سيارتك موجودة هناك بالفعل|إغلاق|كود (JavaScript، اختياري)|هذا المود/الخريطة يحتوي على كود. يعمل معزولًا عن اللعبة، لكن ثبّته فقط إذا كنت تثق بصانعه. تثبيت؟|نقطة الظهور|تطبيق|هنا|صوّب واضغط ✔ ضع (أو انقر)|لكل دور لون وشخصية وصحة وسرعة وقفز وأسلحة. استخدم 📍 لاختيار دور النقاط التي تضعها.|بيانات الخريطة|اختر دورك|ابدأ الإنشاء|كيان|اختره واضغط ✏ لتحديد الوجهة|تم حفظ الخريطة (في المجتمع)|وضع المنشئ: طِر بـ WASD وضع أغراضًا (TAB) وكيانات ونقاطًا|طِر بحرية فوق الخريطة وابنِ خريطتك: أغراض، نقاط ظهور بأدوار، بيانو، راديو، منحدرات ضخمة، أزرار سيارات، ناقلات آنية والمزيد. ثم جرّبها وانشرها.|خريطتي|خرائطي|دور جديد|ضع|نقطة|دور|الأدوار|احفظ واخرج|بلا دور|زر السيارات|لافتة|منصة قفز|ضوء|خط النهاية|موسيقى|بيانو عملاق|راديو|منحدر ضخم|ناقل آني|منطقة الموت|المكان|الارتفاع (م)|العرض (م)|الميل (°)|سيارة|اللون|دفع للأمام|دفع للأعلى|الشدة|يظهر عند البداية|طول المفتاح (م)|المفاتيح|الأوكتاف|المدى (م)|الحجم (x, y, z)|قفزة في النهاية|النص|فيديو يوتيوب|مستوى الصوت|أنشئ خريطة|منحدر عملاق ينزل من السماء. في الأعلى سيارات للاختيار؛ إذا اختفت سيارتك فاضغط زرها لتظهر واحدة جديدة.|منحدر ضخم|وصلت!|بيانو عملاق على الأرض: كل مفتاح يعزف عند الدوس عليه (أنت أو لاعبون آخرون أو سيارات أو أغراض). زر 🎹 في الواجهة.|بيانو عملاق|راديو|راديو يمكنك وضعه وحمله: ابحث عن موسيقى في يوتيوب فتعزف من مكانه، وتخفت كلما ابتعدت. زر 📻 في الواجهة.|راديو يوتيوب|زر 🪆 لترتخي كدمية قماش؛ يمكن للآخرين الإمساك بك بمسدس الفيزياء أو الجاذبية.|دمية قماش|أنت SCP يمشي على أربع: تركض بسرعة وتتسلق الجدران والأسقف، وكل ساق تخطو وحدها.|SCP بأربع أرجل|زر 🕊️ للطيران نحو ما تنظر إليه، مع جسم يميل ويتأرجح مع السرعة.|طيران|طِر! (Shift: أسرع)|ابحث في يوتيوب…|لا يمكن تشغيل هذا الفيديو هنا|لا يمكن تشغيله، الانتقال إلى التالي",
-  ru: "Выключить|Новая машина!|Твоя машина уже там|Закрыть|Код (JavaScript, необязательно)|Этот мод/карта содержит код. Он работает изолированно от игры, но устанавливай, только если доверяешь автору. Установить?|Точка появления|Применить|Здесь|Наведи и нажми ✔ Поставить (или кликни)|У каждой роли свой цвет, персонаж, здоровье, скорость, прыжок и оружие. Через 📍 выбираешь роль для точек, которые ставишь.|Данные карты|Выбери роль|Начать создавать|Объект|Выбери его и нажми ✏, чтобы задать точку назначения|Карта сохранена (в Сообществе)|Режим создателя: летай на WASD, ставь пропы (TAB), объекты и точки|Свободно летай над картой и собирай свою: пропы, точки появления с ролями, пианино, радио, мега-рампы, кнопки машин, телепорты и многое другое. Потом проверь и опубликуй.|Моя карта|Мои карты|Новая роль|Поставить|Точка|Роль|Роли|Сохранить и выйти|Без роли|Кнопка машин|Табличка|Батут|Свет|Финиш|Музыка|Гигантское пианино|Радио|Мега-рампа|Телепорт|Зона смерти|Место|Высота (м)|Ширина (м)|Наклон (°)|Машина|Цвет|Толчок вперёд|Толчок вверх|Яркость|Появляется в начале|Длина клавиши (м)|Клавиши|Октава|Радиус (м)|Размер (x, y, z)|Трамплин в конце|Текст|Видео YouTube|Громкость|Создать карту|Гигантская рампа, спускающаяся с неба. Наверху машины на выбор; если твоей нет, наступи на её кнопку — появится новая.|Мега-рампа|Ты добрался!|Гигантское пианино на полу: каждая клавиша звучит, когда на неё наступают (ты, другие игроки, машины или предметы). Кнопка 🎹 на экране.|Гигантское пианино|Радио|Радио, которое можно поставить и носить: ищи музыку на YouTube, и она звучит оттуда, где стоит радио, тише издалека. Кнопка 📻 на экране.|YouTube-радио|Кнопка 🪆, чтобы обмякнуть как тряпичная кукла; другие могут схватить тебя физганом или гравиганом.|Тряпичная кукла|Ты SCP, который ходит на четвереньках: быстро бегаешь, лазаешь по стенам и потолкам, и каждая лапа шагает сама.|SCP на четвереньках|Кнопка 🕊️, чтобы лететь туда, куда смотришь; тело наклоняется и раскачивается от скорости.|Полёт|Лети! (Shift: быстрее)|Поиск на YouTube…|Это видео нельзя воспроизвести здесь|Не воспроизводится, переход к следующему",
-  uk: "Вимкнути|Нова машина!|Твоя машина вже там|Закрити|Код (JavaScript, необов'язково)|Цей мод/мапа містить код. Він працює ізольовано від гри, але встановлюй, лише якщо довіряєш автору. Встановити?|Точка появи|Застосувати|Тут|Наведи й натисни ✔ Поставити (або клацни)|Кожна роль має свій колір, персонажа, здоров'я, швидкість, стрибок і зброю. Через 📍 обираєш роль для точок, які ставиш.|Дані мапи|Обери роль|Почати створювати|Об'єкт|Обери його й натисни ✏, щоб задати місце призначення|Мапу збережено (у Спільноті)|Режим творця: літай на WASD, став пропи (TAB), об'єкти й точки|Вільно літай над мапою та будуй свою: пропи, точки появи з ролями, піаніно, радіо, мега-рампи, кнопки машин, телепорти й багато іншого. Потім перевір і опублікуй.|Моя мапа|Мої мапи|Нова роль|Поставити|Точка|Роль|Ролі|Зберегти й вийти|Без ролі|Кнопка машин|Табличка|Батут|Світло|Фініш|Музика|Гігантське піаніно|Радіо|Мега-рампа|Телепорт|Зона смерті|Місце|Висота (м)|Ширина (м)|Нахил (°)|Машина|Колір|Поштовх уперед|Поштовх угору|Яскравість|З'являється на початку|Довжина клавіші (м)|Клавіші|Октава|Радіус (м)|Розмір (x, y, z)|Трамплін наприкінці|Текст|Відео YouTube|Гучність|Створити мапу|Гігантська рампа, що спускається з неба. Нагорі машини на вибір; якщо твоєї немає, наступи на її кнопку — з'явиться нова.|Мега-рампа|Ти дістався!|Гігантське піаніно на підлозі: кожна клавіша звучить, коли на неї наступають (ти, інші гравці, машини чи предмети). Кнопка 🎹 на екрані.|Гігантське піаніно|Радіо|Радіо, яке можна поставити й носити: шукай музику на YouTube, і вона звучить звідти, де стоїть радіо, тихіше здалеку. Кнопка 📻 на екрані.|YouTube-радіо|Кнопка 🪆, щоб обм'якнути як ганчір'яна лялька; інші можуть схопити тебе фізганом або гравіганом.|Ганчір'яна лялька|Ти SCP, що ходить на чотирьох: швидко бігаєш, лазиш по стінах і стелях, і кожна лапа ступає сама.|SCP на чотирьох|Кнопка 🕊️, щоб летіти туди, куди дивишся; тіло нахиляється й розгойдується від швидкості.|Політ|Лети! (Shift: швидше)|Пошук на YouTube…|Це відео не можна відтворити тут|Не відтворюється, перехід до наступного",
-  fr: "Éteindre|Nouvelle voiture !|Ta voiture est déjà là|Fermer|Code (JavaScript, facultatif)|Ce mod/cette carte contient du code. Il tourne isolé du jeu, mais installe-le seulement si tu fais confiance à son auteur. Installer ?|Point d'apparition|Appliquer|Ici|Vise et touche ✔ Placer (ou clique)|Chaque rôle a sa couleur, son personnage, sa vie, sa vitesse, son saut et ses armes. Avec 📍 tu choisis le rôle des points que tu poses.|Infos de la carte|Choisis ton rôle|Commencer à créer|Entité|Sélectionne-la et touche ✏ pour fixer la destination|Carte enregistrée (dans Communauté)|Mode créateur : vole avec WASD, pose des objets (TAB), des entités et des points|Vole librement au-dessus de la carte et construis la tienne : objets, points d'apparition avec rôles, piano, radio, méga rampes, boutons de voitures, téléporteurs et plus. Puis teste-la et publie-la.|Ma carte|Mes cartes|Nouveau rôle|Placer|Point|Rôle|Rôles|Enregistrer et quitter|Sans rôle|Bouton de voitures|Panneau|Tremplin|Lumière|Arrivée|Musique|Piano géant|Radio|Méga rampe|Téléporteur|Zone mortelle|Endroit|Hauteur (m)|Largeur (m)|Pente (°)|Voiture|Couleur|Poussée avant|Poussée vers le haut|Intensité|Apparaît au début|Longueur de touche (m)|Touches|Octave|Portée (m)|Taille (x, y, z)|Saut à la fin|Texte|Vidéo YouTube|Volume|Créer une carte|Une rampe géante qui descend du ciel. En haut, des voitures au choix ; si la tienne a disparu, marche sur son bouton et une nouvelle apparaît.|Méga rampe|Tu es arrivé !|Un piano géant au sol : chaque touche joue quand on marche dessus (toi, d'autres joueurs, des voitures ou des objets). Bouton 🎹 dans l'interface.|Piano géant|Radio|Une radio à poser et à attraper : cherche de la musique sur YouTube, elle joue depuis là où elle est, plus bas de loin. Bouton 📻 dans l'interface.|Radio YouTube|Bouton 🪆 pour devenir une poupée de chiffon ; les autres peuvent t'attraper avec le pistolet physique ou à gravité.|Poupée de chiffon|Tu es un SCP qui marche à quatre pattes : tu cours vite, tu grimpes aux murs et aux plafonds, et chaque patte avance toute seule.|SCP à quatre pattes|Bouton 🕊️ pour voler là où tu regardes, avec un corps qui se penche et se balance selon la vitesse.|Voler|Envole-toi ! (Shift : plus vite)|Rechercher sur YouTube…|Cette vidéo ne peut pas être lue ici|Lecture impossible, passage à la suivante",
-  de: "Ausschalten|Neues Auto!|Dein Auto ist schon da|Schließen|Code (JavaScript, optional)|Dieser Mod/diese Karte enthält Code. Er läuft vom Spiel isoliert, aber installiere ihn nur, wenn du dem Ersteller vertraust. Installieren?|Spawnpunkt|Übernehmen|Hier|Ziele und tippe ✔ Platzieren (oder klicke)|Jede Rolle hat Farbe, Charakter, Leben, Tempo, Sprung und Waffen. Mit 📍 wählst du die Rolle der Punkte, die du setzt.|Kartendaten|Wähle deine Rolle|Mit dem Bauen beginnen|Objekt|Wähle es aus und tippe ✏, um das Ziel festzulegen|Karte gespeichert (in Community)|Erstellermodus: fliege mit WASD, setze Props (TAB), Objekte und Punkte|Fliege frei über die Karte und baue deine eigene: Props, Spawnpunkte mit Rollen, Klavier, Radio, Mega-Rampen, Autoknöpfe, Teleporter und mehr. Dann teste und veröffentliche sie.|Meine Karte|Meine Karten|Neue Rolle|Platzieren|Punkt|Rolle|Rollen|Speichern und beenden|Ohne Rolle|Autoknopf|Schild|Sprungfeld|Licht|Ziel|Musik|Riesenklavier|Radio|Mega-Rampe|Teleporter|Todeszone|Ort|Höhe (m)|Breite (m)|Neigung (°)|Auto|Farbe|Schub nach vorn|Schub nach oben|Stärke|Erscheint zu Beginn|Tastenlänge (m)|Tasten|Oktave|Reichweite (m)|Größe (x, y, z)|Sprung am Ende|Text|YouTube-Video|Lautstärke|Karte erstellen|Eine riesige Rampe, die vom Himmel herunterführt. Oben stehen Autos zur Auswahl; ist deins weg, tritt auf seinen Knopf und ein neues erscheint.|Mega-Rampe|Geschafft!|Ein Riesenklavier am Boden: jede Taste klingt, wenn man drauftritt (du, andere Spieler, Autos oder Objekte). 🎹-Knopf im HUD.|Riesenklavier|Radio|Ein Radio zum Hinstellen und Tragen: suche Musik auf YouTube, sie spielt von dort, wo es steht, leiser aus der Ferne. 📻-Knopf im HUD.|YouTube-Radio|🪆-Knopf, um wie eine Stoffpuppe zu erschlaffen; andere können dich mit der Physik- oder Gravitationswaffe packen.|Stoffpuppe|Du bist ein SCP auf allen vieren: renne schnell, klettere an Wänden und Decken, und jedes Bein setzt seine Schritte selbst.|Vierbeiniger SCP|🕊️-Knopf, um dorthin zu fliegen, wo du hinschaust; der Körper neigt und schwingt mit der Geschwindigkeit.|Fliegen|Flieg! (Shift: schneller)|Auf YouTube suchen…|Dieses Video kann hier nicht abgespielt werden|Nicht abspielbar, weiter zum nächsten",
+  es: "Apagar|¡Auto nuevo!|Tu auto ya está ahí|Cerrar|Código (JavaScript, opcional)|Este mod/mapa trae código. Corre aislado del juego, pero instalalo sólo si confiás en quien lo hizo. ¿Instalar?|Aparición|Aplicar|Acá|Apuntá y tocá ✔ Poner (o hacé clic)|Cada rol tiene su color, personaje, vida, velocidad, salto y armas. Con 📍 elegís el rol de los puntos que pongas.|Datos del mapa|Elegí tu rol|Empezar a crear|Entidad|Elegila y tocá ✏ para fijar el destino|Mapa guardado (en Comunidad)|Modo creador: volá con WASD, poné props (TAB), entidades y puntos|Volá libre sobre el mapa y armá el tuyo: props, puntos de aparición con roles, piano, radio, mega rampas, botones de autos, teletransportes y más. Después probalo y publicalo.|Mi mapa|Mis mapas|Nuevo rol|Poner|Punto|Rol|Roles|Guardar y salir|Sin rol|Botón de autos|Cartel|Impulso|Luz|Meta|Música|Piano gigante|Radio|Mega rampa|Teletransporte|Zona de muerte|Lugar|Altura (m)|Ancho (m)|Inclinación (°)|Auto|Color|Empuje adelante|Empuje arriba|Intensidad|Aparece al empezar|Largo de tecla (m)|Teclas|Octava|Alcance (m)|Tamaño (x, y, z)|Salto al final|Texto|Video de YouTube|Volumen|Crear un mapa|Una rampa gigante que baja desde el cielo. Arriba hay autos para elegir; si el tuyo ya no está, pisá su botón y aparece otro.|Mega rampa|¡Llegaste!|Un piano gigante en el piso: cada tecla suena cuando la pisan (vos, otros jugadores, autos u objetos). Botón 🎹 en el HUD.|Piano gigante|Radio|Una radio que podés poner y agarrar: buscás música en YouTube y suena desde donde está, más bajo de lejos. Botón 📻 en el HUD.|Radio YouTube|Botón 🪆 para tirarte como muñeco de trapo; los demás te pueden agarrar con la pistola de física o de gravedad.|Muñeco de trapo|Sos un SCP que camina en cuatro patas: corrés rápido, trepás paredes y techos, y cada pata pisa sola.|SCP en cuatro patas|Botón 🕊️ para volar hacia donde mirás, con el cuerpo que se inclina y se balancea con la velocidad.|Volar|¡A volar! (Shift: más rápido)|Buscar en YouTube…|Ese video no se puede poner acá|No se puede poner, paso al siguiente|Mods del server|Nuevo mod en el server|SM (tecla M): elegí qué mods del server usás vos|Activar todos|Ninguno|activos|Los usan|Con código",
+  en: "Turn off|New car!|Your car is already there|Close|Code (JavaScript, optional)|This mod/map includes code. It runs isolated from the game, but only install it if you trust its author. Install?|Spawn position|Apply|Here|Aim and tap ✔ Place (or click)|Each role has its color, character, health, speed, jump and weapons. Use 📍 to pick the role for the points you place.|Map info|Choose your role|Start creating|Entity|Select it and tap ✏ to set the destination|Map saved (in Community)|Creator mode: fly with WASD, place props (TAB), entities and points|Fly freely over the map and build your own: props, spawn points with roles, piano, radio, mega ramps, car buttons, teleporters and more. Then test it and publish it.|My map|My maps|New role|Place|Point|Role|Roles|Save and exit|No role|Car button|Sign|Jump pad|Light|Finish|Music|Giant piano|Radio|Mega ramp|Teleporter|Kill zone|Place|Height (m)|Width (m)|Slope (°)|Car|Color|Forward push|Upward push|Intensity|Spawns at start|Key length (m)|Keys|Octave|Range (m)|Size (x, y, z)|Jump at the end|Text|YouTube video|Volume|Create a map|A giant ramp coming down from the sky. Cars to choose from at the top; if yours is gone, step on its button and a new one appears.|Mega ramp|You made it!|A giant floor piano: every key plays when stepped on (you, other players, cars or objects). 🎹 button on the HUD.|Giant piano|Radio|A radio you can place and grab: search music on YouTube and it plays from where it is, quieter from afar. 📻 button on the HUD.|YouTube radio|🪆 button to go limp like a ragdoll; others can grab you with the physics or gravity gun.|Ragdoll|You are an SCP walking on all fours: run fast, climb walls and ceilings, and each leg steps on its own.|Four-legged SCP|🕊️ button to fly where you look, with a body that leans and sways with speed.|Fly|Fly! (Shift: faster)|Search YouTube…|That video can't be played here|Can't play it, skipping to the next|Server mods|New mod on the server|SM (M key): choose which server mods you use|Enable all|None|active|In use|With code",
+  pt: "Desligar|Carro novo!|Seu carro já está lá|Fechar|Código (JavaScript, opcional)|Este mod/mapa traz código. Ele roda isolado do jogo, mas só instale se confiar em quem fez. Instalar?|Ponto de surgimento|Aplicar|Aqui|Mire e toque ✔ Colocar (ou clique)|Cada papel tem sua cor, personagem, vida, velocidade, pulo e armas. Com 📍 você escolhe o papel dos pontos que colocar.|Dados do mapa|Escolha seu papel|Começar a criar|Entidade|Selecione e toque ✏ para definir o destino|Mapa salvo (em Comunidade)|Modo criador: voe com WASD, coloque objetos (TAB), entidades e pontos|Voe livre sobre o mapa e monte o seu: objetos, pontos de surgimento com papéis, piano, rádio, mega rampas, botões de carros, teletransportes e mais. Depois teste e publique.|Meu mapa|Meus mapas|Novo papel|Colocar|Ponto|Papel|Papéis|Salvar e sair|Sem papel|Botão de carros|Placa|Impulso|Luz|Chegada|Música|Piano gigante|Rádio|Mega rampa|Teletransporte|Zona da morte|Lugar|Altura (m)|Largura (m)|Inclinação (°)|Carro|Cor|Impulso para frente|Impulso para cima|Intensidade|Aparece no início|Comprimento da tecla (m)|Teclas|Oitava|Alcance (m)|Tamanho (x, y, z)|Salto no final|Texto|Vídeo do YouTube|Volume|Criar um mapa|Uma rampa gigante que desce do céu. Lá em cima tem carros para escolher; se o seu sumiu, pise no botão dele e aparece outro.|Mega rampa|Você chegou!|Um piano gigante no chão: cada tecla toca quando pisam nela (você, outros jogadores, carros ou objetos). Botão 🎹 no HUD.|Piano gigante|Rádio|Um rádio que você pode colocar e pegar: procure música no YouTube e ela toca de onde ele está, mais baixa de longe. Botão 📻 no HUD.|Rádio YouTube|Botão 🪆 para virar boneco de pano; os outros podem te pegar com a arma de física ou de gravidade.|Boneco de pano|Você é um SCP que anda de quatro: corre rápido, escala paredes e tetos, e cada pata pisa sozinha.|SCP de quatro patas|Botão 🕊️ para voar para onde você olha, com o corpo que inclina e balança com a velocidade.|Voar|Voando! (Shift: mais rápido)|Buscar no YouTube…|Esse vídeo não pode tocar aqui|Não dá para tocar, pulando para o próximo|Mods do servidor|Novo mod no servidor|SM (tecla M): escolha quais mods do servidor você usa|Ativar todos|Nenhum|ativos|Em uso|Com código",
+  id: "Matikan|Mobil baru!|Mobilmu sudah ada di sana|Tutup|Kode (JavaScript, opsional)|Mod/peta ini berisi kode. Kode berjalan terpisah dari game, tapi pasang hanya jika kamu percaya pembuatnya. Pasang?|Titik muncul|Terapkan|Di sini|Bidik lalu ketuk ✔ Taruh (atau klik)|Setiap peran punya warna, karakter, nyawa, kecepatan, lompatan, dan senjata. Pakai 📍 untuk memilih peran titik yang kamu taruh.|Data peta|Pilih peranmu|Mulai membuat|Entitas|Pilih lalu ketuk ✏ untuk menentukan tujuan|Peta disimpan (di Komunitas)|Mode kreator: terbang dengan WASD, taruh objek (TAB), entitas, dan titik|Terbang bebas di atas peta dan buat petamu: objek, titik muncul dengan peran, piano, radio, mega ramp, tombol mobil, teleportasi, dan lainnya. Lalu coba dan terbitkan.|Petaku|Peta-petaku|Peran baru|Taruh|Titik|Peran|Peran|Simpan dan keluar|Tanpa peran|Tombol mobil|Papan|Pelontar|Lampu|Garis finis|Musik|Piano raksasa|Radio|Mega ramp|Teleportasi|Zona maut|Tempat|Tinggi (m)|Lebar (m)|Kemiringan (°)|Mobil|Warna|Dorongan ke depan|Dorongan ke atas|Intensitas|Muncul di awal|Panjang tuts (m)|Tuts|Oktaf|Jangkauan (m)|Ukuran (x, y, z)|Lompatan di akhir|Teks|Video YouTube|Volume|Buat peta|Ramp raksasa yang turun dari langit. Di atas ada mobil untuk dipilih; kalau mobilmu hilang, injak tombolnya dan muncul yang baru.|Mega ramp|Kamu sampai!|Piano raksasa di lantai: setiap tuts berbunyi saat diinjak (kamu, pemain lain, mobil, atau objek). Tombol 🎹 di HUD.|Piano raksasa|Radio|Radio yang bisa kamu taruh dan angkat: cari musik di YouTube dan bunyinya dari tempat radio, makin pelan dari jauh. Tombol 📻 di HUD.|Radio YouTube|Tombol 🪆 untuk lemas seperti boneka kain; pemain lain bisa menangkapmu dengan senjata fisika atau gravitasi.|Boneka kain|Kamu SCP yang berjalan dengan empat kaki: lari cepat, memanjat dinding dan langit-langit, dan tiap kaki melangkah sendiri.|SCP berkaki empat|Tombol 🕊️ untuk terbang ke arah pandanganmu, dengan tubuh yang miring dan berayun mengikuti kecepatan.|Terbang|Terbang! (Shift: lebih cepat)|Cari di YouTube…|Video itu tidak bisa diputar di sini|Tidak bisa diputar, lanjut ke berikutnya|Mod server|Mod baru di server|SM (tombol M): pilih mod server yang kamu pakai|Aktifkan semua|Tidak ada|aktif|Dipakai|Dengan kode",
+  ms: "Matikan|Kereta baharu!|Kereta anda sudah ada di sana|Tutup|Kod (JavaScript, pilihan)|Mod/peta ini mengandungi kod. Ia berjalan terasing daripada permainan, tetapi pasang hanya jika anda mempercayai pembuatnya. Pasang?|Titik muncul|Guna|Di sini|Halakan dan ketik ✔ Letak (atau klik)|Setiap peranan ada warna, watak, nyawa, kelajuan, lompatan dan senjata. Guna 📍 untuk memilih peranan titik yang anda letak.|Maklumat peta|Pilih peranan anda|Mula mencipta|Entiti|Pilihnya dan ketik ✏ untuk menetapkan destinasi|Peta disimpan (dalam Komuniti)|Mod pencipta: terbang dengan WASD, letak objek (TAB), entiti dan titik|Terbang bebas di atas peta dan bina peta anda: objek, titik muncul dengan peranan, piano, radio, mega ramp, butang kereta, teleport dan banyak lagi. Kemudian uji dan terbitkan.|Peta saya|Peta-peta saya|Peranan baharu|Letak|Titik|Peranan|Peranan|Simpan dan keluar|Tiada peranan|Butang kereta|Papan tanda|Pelantun|Lampu|Garisan penamat|Muzik|Piano gergasi|Radio|Mega ramp|Teleport|Zon maut|Tempat|Tinggi (m)|Lebar (m)|Kecerunan (°)|Kereta|Warna|Tolakan ke depan|Tolakan ke atas|Keamatan|Muncul pada mula|Panjang kekunci (m)|Kekunci|Oktaf|Jarak (m)|Saiz (x, y, z)|Lompatan di hujung|Teks|Video YouTube|Kelantangan|Cipta peta|Ramp gergasi yang turun dari langit. Di atas ada kereta untuk dipilih; jika kereta anda hilang, pijak butangnya dan yang baharu muncul.|Mega ramp|Anda berjaya!|Piano gergasi di lantai: setiap kekunci berbunyi apabila dipijak (anda, pemain lain, kereta atau objek). Butang 🎹 di HUD.|Piano gergasi|Radio|Radio yang boleh diletak dan diangkat: cari muzik di YouTube dan ia berbunyi dari tempatnya, lebih perlahan dari jauh. Butang 📻 di HUD.|Radio YouTube|Butang 🪆 untuk terkulai seperti anak patung kain; orang lain boleh menangkap anda dengan senjata fizik atau graviti.|Anak patung kain|Anda SCP yang berjalan dengan empat kaki: lari laju, panjat dinding dan siling, dan setiap kaki melangkah sendiri.|SCP berkaki empat|Butang 🕊️ untuk terbang ke arah pandangan, dengan badan yang condong dan berayun mengikut kelajuan.|Terbang|Terbang! (Shift: lebih laju)|Cari di YouTube…|Video itu tidak boleh dimainkan di sini|Tidak boleh dimainkan, terus ke seterusnya|Mod pelayan|Mod baharu di pelayan|SM (kekunci M): pilih mod pelayan yang anda guna|Aktifkan semua|Tiada|aktif|Digunakan|Dengan kod",
+  fil: "Patayin|Bagong kotse!|Nandiyan na ang kotse mo|Isara|Code (JavaScript, opsyonal)|May code ang mod/mapang ito. Tumatakbo ito nang hiwalay sa laro, pero i-install lang kung pinagkakatiwalaan mo ang gumawa. I-install?|Lugar ng paglitaw|Ilapat|Dito|Itutok at pindutin ang ✔ Ilagay (o i-click)|Bawat role ay may kulay, karakter, buhay, bilis, talon at armas. Gamitin ang 📍 para piliin ang role ng mga puntong ilalagay mo.|Detalye ng mapa|Piliin ang role mo|Magsimulang gumawa|Entity|Piliin ito at pindutin ang ✏ para itakda ang pupuntahan|Na-save ang mapa (sa Komunidad)|Creator mode: lumipad gamit ang WASD, maglagay ng props (TAB), entities at mga punto|Lumipad nang malaya sa mapa at buuin ang sa iyo: props, mga lugar ng paglitaw na may role, piano, radyo, mega ramp, button ng kotse, teleporter at iba pa. Tapos subukan at i-publish.|Mapa ko|Mga mapa ko|Bagong role|Ilagay|Punto|Role|Mga role|I-save at lumabas|Walang role|Button ng kotse|Karatula|Pantalon|Ilaw|Finish|Musika|Higanteng piano|Radyo|Mega ramp|Teleporter|Death zone|Lugar|Taas (m)|Lapad (m)|Hilig (°)|Kotse|Kulay|Tulak pasulong|Tulak pataas|Lakas|Lilitaw sa simula|Haba ng key (m)|Mga key|Octave|Abot (m)|Laki (x, y, z)|Talon sa dulo|Teksto|Video sa YouTube|Lakas ng tunog|Gumawa ng mapa|Isang higanteng ramp na bumababa mula sa langit. May mga kotse sa itaas na mapagpipilian; kung wala na ang sa iyo, tapakan ang button nito at may lilitaw na bago.|Mega ramp|Nakarating ka!|Higanteng piano sa sahig: tumutunog ang bawat key kapag tinapakan (ikaw, ibang manlalaro, kotse o bagay). Button 🎹 sa HUD.|Higanteng piano|Radyo|Radyong mailalagay at mahahawakan: maghanap ng musika sa YouTube at tutugtog ito mula sa kinalalagyan, mas mahina mula sa malayo. Button 📻 sa HUD.|YouTube radio|Button 🪆 para lumupaypay na parang ragdoll; mahahawakan ka ng iba gamit ang physics o gravity gun.|Ragdoll|Isa kang SCP na naglalakad sa apat na paa: mabilis tumakbo, umaakyat sa pader at kisame, at bawat paa ay kusang humahakbang.|SCP na apat ang paa|Button 🕊️ para lumipad kung saan ka nakatingin, kasama ang katawang humihilig at umuugoy ayon sa bilis.|Lumipad|Lipad! (Shift: mas mabilis)|Maghanap sa YouTube…|Hindi ma-play dito ang video na iyan|Hindi ma-play, lilipat sa susunod|Mga mod ng server|Bagong mod sa server|SM (M key): piliin kung aling mod ng server ang gagamitin mo|I-on lahat|Wala|aktibo|Ginagamit|May code",
+  ja: "オフ|新しい車！|車はもうそこにあるよ|閉じる|コード（JavaScript、任意）|このMOD/マップにはコードが含まれています。ゲームとは切り離して動きますが、作者を信頼できる場合だけインストールしてください。インストールしますか？|スポーン位置|適用|ここ|狙って ✔ 置く をタップ（またはクリック）|各ロールには色、キャラクター、体力、速度、ジャンプ、武器があります。📍 で置く地点のロールを選びます。|マップ情報|ロールを選んでね|作り始める|エンティティ|選んで ✏ をタップして行き先を決めてね|マップを保存しました（コミュニティ）|クリエイターモード：WASDで飛んで、小物（TAB）、エンティティ、地点を置こう|マップの上を自由に飛んで自分のマップを作ろう：小物、ロール付きスポーン地点、ピアノ、ラジオ、メガランプ、車ボタン、テレポーターなど。できたらテストして公開しよう。|マイマップ|マイマップ一覧|新しいロール|置く|地点|ロール|ロール|保存して終了|ロールなし|車ボタン|看板|ジャンプ台|ライト|ゴール|音楽|巨大ピアノ|ラジオ|メガランプ|テレポーター|即死ゾーン|場所|高さ（m）|幅（m）|傾き（°）|車|色|前への勢い|上への勢い|強さ|開始時に出現|鍵盤の長さ（m）|鍵盤の数|オクターブ|範囲（m）|サイズ（x, y, z）|最後にジャンプ|テキスト|YouTube動画|音量|マップを作る|空から下りてくる巨大なランプ。上には選べる車があり、自分の車がなくなったらボタンを踏むと新しい車が出てくるよ。|メガランプ|ゴール！|床に置く巨大ピアノ：踏むと鍵盤が鳴るよ（自分、ほかのプレイヤー、車、物でも）。HUDの🎹ボタン。|巨大ピアノ|ラジオ|置いたり持ったりできるラジオ：YouTubeで音楽を探すと、その場所から聞こえて遠いほど小さくなるよ。HUDの📻ボタン。|YouTubeラジオ|🪆ボタンでラグドールになってぐったり。ほかの人がフィジックスガンやグラビティガンでつかめるよ。|ラグドール|四つ足で歩くSCPになる：速く走って、壁や天井をよじ登り、足が一本ずつ自分で踏み出すよ。|四つ足のSCP|🕊️ボタンで見ている方向に飛べる。体はスピードに合わせて傾いて揺れるよ。|飛行|飛べ！（Shift：もっと速く）|YouTubeで検索…|その動画はここでは再生できません|再生できないので次へ|サーバーのMOD|サーバーに新しいMOD|SM（Mキー）：自分が使うサーバーのMODを選ぼう|すべてオン|なし|有効|使用中|コードあり",
+  th: "ปิด|รถคันใหม่!|รถของคุณอยู่ตรงนั้นแล้ว|ปิด|โค้ด (JavaScript, ไม่บังคับ)|ม็อด/แผนที่นี้มีโค้ด ซึ่งทำงานแยกจากเกม แต่ควรติดตั้งเมื่อไว้ใจผู้สร้างเท่านั้น ติดตั้งไหม?|จุดเกิด|ใช้|ตรงนี้|เล็งแล้วแตะ ✔ วาง (หรือคลิก)|แต่ละบทบาทมีสี ตัวละคร พลังชีวิต ความเร็ว การกระโดด และอาวุธ ใช้ 📍 เพื่อเลือกบทบาทของจุดที่วาง|ข้อมูลแผนที่|เลือกบทบาทของคุณ|เริ่มสร้าง|เอนทิตี|เลือกแล้วแตะ ✏ เพื่อกำหนดปลายทาง|บันทึกแผนที่แล้ว (ในชุมชน)|โหมดสร้าง: บินด้วย WASD วางวัตถุ (TAB) เอนทิตี และจุด|บินอิสระเหนือแผนที่แล้วสร้างของคุณเอง: วัตถุ จุดเกิดพร้อมบทบาท เปียโน วิทยุ เมกะแรมป์ ปุ่มรถ เทเลพอร์ต และอีกมาก แล้วทดสอบและเผยแพร่|แผนที่ของฉัน|แผนที่ทั้งหมดของฉัน|บทบาทใหม่|วาง|จุด|บทบาท|บทบาท|บันทึกและออก|ไม่มีบทบาท|ปุ่มรถ|ป้าย|แท่นกระโดด|ไฟ|เส้นชัย|เพลง|เปียโนยักษ์|วิทยุ|เมกะแรมป์|เทเลพอร์ต|โซนมรณะ|ตำแหน่ง|ความสูง (ม.)|ความกว้าง (ม.)|ความชัน (°)|รถ|สี|แรงดันไปข้างหน้า|แรงดันขึ้น|ความแรง|ปรากฏตอนเริ่ม|ความยาวคีย์ (ม.)|จำนวนคีย์|อ็อกเทฟ|ระยะ (ม.)|ขนาด (x, y, z)|กระโดดตอนท้าย|ข้อความ|วิดีโอ YouTube|ระดับเสียง|สร้างแผนที่|ทางลาดยักษ์ที่ลงมาจากท้องฟ้า ด้านบนมีรถให้เลือก ถ้ารถของคุณหายไป ให้เหยียบปุ่มแล้วจะมีคันใหม่ปรากฏ|เมกะแรมป์|ถึงแล้ว!|เปียโนยักษ์บนพื้น: ทุกคีย์ดังเมื่อถูกเหยียบ (คุณ ผู้เล่นอื่น รถ หรือวัตถุ) ปุ่ม 🎹 บน HUD|เปียโนยักษ์|วิทยุ|วิทยุที่วางและหยิบได้: ค้นหาเพลงใน YouTube แล้วเสียงจะดังจากตำแหน่งของมัน ยิ่งไกลยิ่งเบา ปุ่ม 📻 บน HUD|วิทยุ YouTube|ปุ่ม 🪆 เพื่อปล่อยตัวเป็นแร็กดอลล์ คนอื่นจับคุณได้ด้วยปืนฟิสิกส์หรือปืนแรงโน้มถ่วง|แร็กดอลล์|คุณเป็น SCP ที่เดินสี่ขา: วิ่งเร็ว ปีนกำแพงและเพดาน และแต่ละขาก้าวเอง|SCP สี่ขา|ปุ่ม 🕊️ เพื่อบินไปทางที่มอง ตัวจะเอียงและแกว่งตามความเร็ว|บิน|บินเลย! (Shift: เร็วขึ้น)|ค้นหาใน YouTube…|วิดีโอนั้นเล่นที่นี่ไม่ได้|เล่นไม่ได้ ข้ามไปเพลงถัดไป|ม็อดของเซิร์ฟเวอร์|ม็อดใหม่ในเซิร์ฟเวอร์|SM (ปุ่ม M): เลือกม็อดของเซิร์ฟเวอร์ที่คุณจะใช้|เปิดทั้งหมด|ไม่มี|ที่เปิดอยู่|มีคนใช้|มีโค้ด",
+  tr: "Kapat|Yeni araba!|Araban zaten orada|Kapat|Kod (JavaScript, isteğe bağlı)|Bu mod/harita kod içeriyor. Oyundan yalıtılmış çalışır ama yalnızca yapan kişiye güveniyorsan kur. Kurulsun mu?|Doğma noktası|Uygula|Burası|Nişan al ve ✔ Yerleştir'e dokun (ya da tıkla)|Her rolün rengi, karakteri, canı, hızı, zıplaması ve silahları var. Koyduğun noktaların rolünü 📍 ile seç.|Harita bilgisi|Rolünü seç|Oluşturmaya başla|Varlık|Seç ve hedefi belirlemek için ✏'ye dokun|Harita kaydedildi (Topluluk'ta)|Yapıcı modu: WASD ile uç, eşya (TAB), varlık ve nokta koy|Haritanın üzerinde serbestçe uç ve kendininkini yap: eşyalar, rollü doğma noktaları, piyano, radyo, mega rampalar, araba düğmeleri, ışınlayıcılar ve dahası. Sonra dene ve yayınla.|Haritam|Haritalarım|Yeni rol|Yerleştir|Nokta|Rol|Roller|Kaydet ve çık|Rolsüz|Araba düğmesi|Tabela|Zıplatıcı|Işık|Bitiş|Müzik|Dev piyano|Radyo|Mega rampa|Işınlayıcı|Ölüm bölgesi|Yer|Yükseklik (m)|Genişlik (m)|Eğim (°)|Araba|Renk|İleri itiş|Yukarı itiş|Yoğunluk|Başta çıkar|Tuş uzunluğu (m)|Tuşlar|Oktav|Menzil (m)|Boyut (x, y, z)|Sonda atlama|Metin|YouTube videosu|Ses|Harita oluştur|Gökyüzünden inen dev bir rampa. Tepede seçebileceğin arabalar var; seninki yoksa düğmesine bas, yenisi çıksın.|Mega rampa|Başardın!|Yerde dev bir piyano: her tuşa basınca çalar (sen, diğer oyuncular, arabalar ya da eşyalar). HUD'da 🎹 düğmesi.|Dev piyano|Radyo|Koyup taşıyabileceğin bir radyo: YouTube'da müzik ara, olduğu yerden çalsın, uzaklaştıkça kısılsın. HUD'da 📻 düğmesi.|YouTube radyo|Bez bebek gibi gevşemek için 🪆 düğmesi; diğerleri seni fizik ya da yerçekimi silahıyla tutabilir.|Bez bebek|Dört ayak üstünde yürüyen bir SCP'sin: hızlı koşarsın, duvarlara ve tavanlara tırmanırsın, her ayak kendi adımını atar.|Dört ayaklı SCP|Baktığın yöne uçmak için 🕊️ düğmesi; gövde hızla birlikte eğilip sallanır.|Uç|Uç! (Shift: daha hızlı)|YouTube'da ara…|O video burada oynatılamıyor|Oynatılamıyor, sıradakine geçiliyor|Sunucu modları|Sunucuda yeni mod|SM (M tuşu): sunucudaki hangi modları kullanacağını seç|Hepsini aç|Hiçbiri|etkin|Kullanılıyor|Kodlu",
+  ar: "إيقاف|سيارة جديدة!|سيارتك موجودة هناك بالفعل|إغلاق|كود (JavaScript، اختياري)|هذا المود/الخريطة يحتوي على كود. يعمل معزولًا عن اللعبة، لكن ثبّته فقط إذا كنت تثق بصانعه. تثبيت؟|نقطة الظهور|تطبيق|هنا|صوّب واضغط ✔ ضع (أو انقر)|لكل دور لون وشخصية وصحة وسرعة وقفز وأسلحة. استخدم 📍 لاختيار دور النقاط التي تضعها.|بيانات الخريطة|اختر دورك|ابدأ الإنشاء|كيان|اختره واضغط ✏ لتحديد الوجهة|تم حفظ الخريطة (في المجتمع)|وضع المنشئ: طِر بـ WASD وضع أغراضًا (TAB) وكيانات ونقاطًا|طِر بحرية فوق الخريطة وابنِ خريطتك: أغراض، نقاط ظهور بأدوار، بيانو، راديو، منحدرات ضخمة، أزرار سيارات، ناقلات آنية والمزيد. ثم جرّبها وانشرها.|خريطتي|خرائطي|دور جديد|ضع|نقطة|دور|الأدوار|احفظ واخرج|بلا دور|زر السيارات|لافتة|منصة قفز|ضوء|خط النهاية|موسيقى|بيانو عملاق|راديو|منحدر ضخم|ناقل آني|منطقة الموت|المكان|الارتفاع (م)|العرض (م)|الميل (°)|سيارة|اللون|دفع للأمام|دفع للأعلى|الشدة|يظهر عند البداية|طول المفتاح (م)|المفاتيح|الأوكتاف|المدى (م)|الحجم (x, y, z)|قفزة في النهاية|النص|فيديو يوتيوب|مستوى الصوت|أنشئ خريطة|منحدر عملاق ينزل من السماء. في الأعلى سيارات للاختيار؛ إذا اختفت سيارتك فاضغط زرها لتظهر واحدة جديدة.|منحدر ضخم|وصلت!|بيانو عملاق على الأرض: كل مفتاح يعزف عند الدوس عليه (أنت أو لاعبون آخرون أو سيارات أو أغراض). زر 🎹 في الواجهة.|بيانو عملاق|راديو|راديو يمكنك وضعه وحمله: ابحث عن موسيقى في يوتيوب فتعزف من مكانه، وتخفت كلما ابتعدت. زر 📻 في الواجهة.|راديو يوتيوب|زر 🪆 لترتخي كدمية قماش؛ يمكن للآخرين الإمساك بك بمسدس الفيزياء أو الجاذبية.|دمية قماش|أنت SCP يمشي على أربع: تركض بسرعة وتتسلق الجدران والأسقف، وكل ساق تخطو وحدها.|SCP بأربع أرجل|زر 🕊️ للطيران نحو ما تنظر إليه، مع جسم يميل ويتأرجح مع السرعة.|طيران|طِر! (Shift: أسرع)|ابحث في يوتيوب…|لا يمكن تشغيل هذا الفيديو هنا|لا يمكن تشغيله، الانتقال إلى التالي|مودات الخادم|مود جديد في الخادم|SM (زر M): اختر مودات الخادم التي تستخدمها|تفعيل الكل|لا شيء|مفعّلة|مستخدمة|بكود",
+  ru: "Выключить|Новая машина!|Твоя машина уже там|Закрыть|Код (JavaScript, необязательно)|Этот мод/карта содержит код. Он работает изолированно от игры, но устанавливай, только если доверяешь автору. Установить?|Точка появления|Применить|Здесь|Наведи и нажми ✔ Поставить (или кликни)|У каждой роли свой цвет, персонаж, здоровье, скорость, прыжок и оружие. Через 📍 выбираешь роль для точек, которые ставишь.|Данные карты|Выбери роль|Начать создавать|Объект|Выбери его и нажми ✏, чтобы задать точку назначения|Карта сохранена (в Сообществе)|Режим создателя: летай на WASD, ставь пропы (TAB), объекты и точки|Свободно летай над картой и собирай свою: пропы, точки появления с ролями, пианино, радио, мега-рампы, кнопки машин, телепорты и многое другое. Потом проверь и опубликуй.|Моя карта|Мои карты|Новая роль|Поставить|Точка|Роль|Роли|Сохранить и выйти|Без роли|Кнопка машин|Табличка|Батут|Свет|Финиш|Музыка|Гигантское пианино|Радио|Мега-рампа|Телепорт|Зона смерти|Место|Высота (м)|Ширина (м)|Наклон (°)|Машина|Цвет|Толчок вперёд|Толчок вверх|Яркость|Появляется в начале|Длина клавиши (м)|Клавиши|Октава|Радиус (м)|Размер (x, y, z)|Трамплин в конце|Текст|Видео YouTube|Громкость|Создать карту|Гигантская рампа, спускающаяся с неба. Наверху машины на выбор; если твоей нет, наступи на её кнопку — появится новая.|Мега-рампа|Ты добрался!|Гигантское пианино на полу: каждая клавиша звучит, когда на неё наступают (ты, другие игроки, машины или предметы). Кнопка 🎹 на экране.|Гигантское пианино|Радио|Радио, которое можно поставить и носить: ищи музыку на YouTube, и она звучит оттуда, где стоит радио, тише издалека. Кнопка 📻 на экране.|YouTube-радио|Кнопка 🪆, чтобы обмякнуть как тряпичная кукла; другие могут схватить тебя физганом или гравиганом.|Тряпичная кукла|Ты SCP, который ходит на четвереньках: быстро бегаешь, лазаешь по стенам и потолкам, и каждая лапа шагает сама.|SCP на четвереньках|Кнопка 🕊️, чтобы лететь туда, куда смотришь; тело наклоняется и раскачивается от скорости.|Полёт|Лети! (Shift: быстрее)|Поиск на YouTube…|Это видео нельзя воспроизвести здесь|Не воспроизводится, переход к следующему|Моды сервера|Новый мод на сервере|SM (клавиша M): выбери, какие моды сервера использовать тебе|Включить все|Ни одного|включено|Используют|С кодом",
+  uk: "Вимкнути|Нова машина!|Твоя машина вже там|Закрити|Код (JavaScript, необов'язково)|Цей мод/мапа містить код. Він працює ізольовано від гри, але встановлюй, лише якщо довіряєш автору. Встановити?|Точка появи|Застосувати|Тут|Наведи й натисни ✔ Поставити (або клацни)|Кожна роль має свій колір, персонажа, здоров'я, швидкість, стрибок і зброю. Через 📍 обираєш роль для точок, які ставиш.|Дані мапи|Обери роль|Почати створювати|Об'єкт|Обери його й натисни ✏, щоб задати місце призначення|Мапу збережено (у Спільноті)|Режим творця: літай на WASD, став пропи (TAB), об'єкти й точки|Вільно літай над мапою та будуй свою: пропи, точки появи з ролями, піаніно, радіо, мега-рампи, кнопки машин, телепорти й багато іншого. Потім перевір і опублікуй.|Моя мапа|Мої мапи|Нова роль|Поставити|Точка|Роль|Ролі|Зберегти й вийти|Без ролі|Кнопка машин|Табличка|Батут|Світло|Фініш|Музика|Гігантське піаніно|Радіо|Мега-рампа|Телепорт|Зона смерті|Місце|Висота (м)|Ширина (м)|Нахил (°)|Машина|Колір|Поштовх уперед|Поштовх угору|Яскравість|З'являється на початку|Довжина клавіші (м)|Клавіші|Октава|Радіус (м)|Розмір (x, y, z)|Трамплін наприкінці|Текст|Відео YouTube|Гучність|Створити мапу|Гігантська рампа, що спускається з неба. Нагорі машини на вибір; якщо твоєї немає, наступи на її кнопку — з'явиться нова.|Мега-рампа|Ти дістався!|Гігантське піаніно на підлозі: кожна клавіша звучить, коли на неї наступають (ти, інші гравці, машини чи предмети). Кнопка 🎹 на екрані.|Гігантське піаніно|Радіо|Радіо, яке можна поставити й носити: шукай музику на YouTube, і вона звучить звідти, де стоїть радіо, тихіше здалеку. Кнопка 📻 на екрані.|YouTube-радіо|Кнопка 🪆, щоб обм'якнути як ганчір'яна лялька; інші можуть схопити тебе фізганом або гравіганом.|Ганчір'яна лялька|Ти SCP, що ходить на чотирьох: швидко бігаєш, лазиш по стінах і стелях, і кожна лапа ступає сама.|SCP на чотирьох|Кнопка 🕊️, щоб летіти туди, куди дивишся; тіло нахиляється й розгойдується від швидкості.|Політ|Лети! (Shift: швидше)|Пошук на YouTube…|Це відео не можна відтворити тут|Не відтворюється, перехід до наступного|Моди сервера|Новий мод на сервері|SM (клавіша M): обери, які моди сервера використовуєш ти|Увімкнути всі|Жодного|увімкнено|Використовують|З кодом",
+  fr: "Éteindre|Nouvelle voiture !|Ta voiture est déjà là|Fermer|Code (JavaScript, facultatif)|Ce mod/cette carte contient du code. Il tourne isolé du jeu, mais installe-le seulement si tu fais confiance à son auteur. Installer ?|Point d'apparition|Appliquer|Ici|Vise et touche ✔ Placer (ou clique)|Chaque rôle a sa couleur, son personnage, sa vie, sa vitesse, son saut et ses armes. Avec 📍 tu choisis le rôle des points que tu poses.|Infos de la carte|Choisis ton rôle|Commencer à créer|Entité|Sélectionne-la et touche ✏ pour fixer la destination|Carte enregistrée (dans Communauté)|Mode créateur : vole avec WASD, pose des objets (TAB), des entités et des points|Vole librement au-dessus de la carte et construis la tienne : objets, points d'apparition avec rôles, piano, radio, méga rampes, boutons de voitures, téléporteurs et plus. Puis teste-la et publie-la.|Ma carte|Mes cartes|Nouveau rôle|Placer|Point|Rôle|Rôles|Enregistrer et quitter|Sans rôle|Bouton de voitures|Panneau|Tremplin|Lumière|Arrivée|Musique|Piano géant|Radio|Méga rampe|Téléporteur|Zone mortelle|Endroit|Hauteur (m)|Largeur (m)|Pente (°)|Voiture|Couleur|Poussée avant|Poussée vers le haut|Intensité|Apparaît au début|Longueur de touche (m)|Touches|Octave|Portée (m)|Taille (x, y, z)|Saut à la fin|Texte|Vidéo YouTube|Volume|Créer une carte|Une rampe géante qui descend du ciel. En haut, des voitures au choix ; si la tienne a disparu, marche sur son bouton et une nouvelle apparaît.|Méga rampe|Tu es arrivé !|Un piano géant au sol : chaque touche joue quand on marche dessus (toi, d'autres joueurs, des voitures ou des objets). Bouton 🎹 dans l'interface.|Piano géant|Radio|Une radio à poser et à attraper : cherche de la musique sur YouTube, elle joue depuis là où elle est, plus bas de loin. Bouton 📻 dans l'interface.|Radio YouTube|Bouton 🪆 pour devenir une poupée de chiffon ; les autres peuvent t'attraper avec le pistolet physique ou à gravité.|Poupée de chiffon|Tu es un SCP qui marche à quatre pattes : tu cours vite, tu grimpes aux murs et aux plafonds, et chaque patte avance toute seule.|SCP à quatre pattes|Bouton 🕊️ pour voler là où tu regardes, avec un corps qui se penche et se balance selon la vitesse.|Voler|Envole-toi ! (Shift : plus vite)|Rechercher sur YouTube…|Cette vidéo ne peut pas être lue ici|Lecture impossible, passage à la suivante|Mods du serveur|Nouveau mod sur le serveur|SM (touche M) : choisis les mods du serveur que tu utilises|Tout activer|Aucun|actifs|Utilisés|Avec code",
+  de: "Ausschalten|Neues Auto!|Dein Auto ist schon da|Schließen|Code (JavaScript, optional)|Dieser Mod/diese Karte enthält Code. Er läuft vom Spiel isoliert, aber installiere ihn nur, wenn du dem Ersteller vertraust. Installieren?|Spawnpunkt|Übernehmen|Hier|Ziele und tippe ✔ Platzieren (oder klicke)|Jede Rolle hat Farbe, Charakter, Leben, Tempo, Sprung und Waffen. Mit 📍 wählst du die Rolle der Punkte, die du setzt.|Kartendaten|Wähle deine Rolle|Mit dem Bauen beginnen|Objekt|Wähle es aus und tippe ✏, um das Ziel festzulegen|Karte gespeichert (in Community)|Erstellermodus: fliege mit WASD, setze Props (TAB), Objekte und Punkte|Fliege frei über die Karte und baue deine eigene: Props, Spawnpunkte mit Rollen, Klavier, Radio, Mega-Rampen, Autoknöpfe, Teleporter und mehr. Dann teste und veröffentliche sie.|Meine Karte|Meine Karten|Neue Rolle|Platzieren|Punkt|Rolle|Rollen|Speichern und beenden|Ohne Rolle|Autoknopf|Schild|Sprungfeld|Licht|Ziel|Musik|Riesenklavier|Radio|Mega-Rampe|Teleporter|Todeszone|Ort|Höhe (m)|Breite (m)|Neigung (°)|Auto|Farbe|Schub nach vorn|Schub nach oben|Stärke|Erscheint zu Beginn|Tastenlänge (m)|Tasten|Oktave|Reichweite (m)|Größe (x, y, z)|Sprung am Ende|Text|YouTube-Video|Lautstärke|Karte erstellen|Eine riesige Rampe, die vom Himmel herunterführt. Oben stehen Autos zur Auswahl; ist deins weg, tritt auf seinen Knopf und ein neues erscheint.|Mega-Rampe|Geschafft!|Ein Riesenklavier am Boden: jede Taste klingt, wenn man drauftritt (du, andere Spieler, Autos oder Objekte). 🎹-Knopf im HUD.|Riesenklavier|Radio|Ein Radio zum Hinstellen und Tragen: suche Musik auf YouTube, sie spielt von dort, wo es steht, leiser aus der Ferne. 📻-Knopf im HUD.|YouTube-Radio|🪆-Knopf, um wie eine Stoffpuppe zu erschlaffen; andere können dich mit der Physik- oder Gravitationswaffe packen.|Stoffpuppe|Du bist ein SCP auf allen vieren: renne schnell, klettere an Wänden und Decken, und jedes Bein setzt seine Schritte selbst.|Vierbeiniger SCP|🕊️-Knopf, um dorthin zu fliegen, wo du hinschaust; der Körper neigt und schwingt mit der Geschwindigkeit.|Fliegen|Flieg! (Shift: schneller)|Auf YouTube suchen…|Dieses Video kann hier nicht abgespielt werden|Nicht abspielbar, weiter zum nächsten|Server-Mods|Neuer Mod auf dem Server|SM (Taste M): wähle, welche Server-Mods du benutzt|Alle aktivieren|Keine|aktiv|In Benutzung|Mit Code",
 };
 const _idiCache = {};
 function T(k) {
@@ -6426,9 +6444,9 @@ addEventListener('message', (e) => {
       case 'entidad': {
         const v = validarRB({ formato: 'rezobox-mapa', nombre: 'mod', base: 'FlatGrass', entidades: [{ t: d.t, p: d.p, yaw: d.yaw, prm: d.prm }] }), x = typeof v === 'object' && v.entidades[0];
         if (!x || (M.ents = M.ents || new Set()).size >= 300) { resp(null); break; }
-        const e = entidadCrear(x); if (e) { e.mod = M.id; M.ents.add(e.id); } resp(e ? e.id : null); break;
+        const e = entidadCrear(x, { red: !!RED.on }); if (e) { e.mod = M.id; M.ents.add(e.id); entidadRed('ent', e); } resp(e ? e.id : null); break;
       }
-      case 'quitarEntidad': { const e = ENTS.lista.find((x) => x.id === d.id && x.mod === M.id); if (e) { entidadQuitar(e); M.ents.delete(e.id); } break; }
+      case 'quitarEntidad': { const e = ENTS.lista.find((x) => x.id === d.id && x.mod === M.id); if (e) { entidadQuitar(e); entidadRed('entb', e); M.ents.delete(e.id); } break; }
       case 'nativo': { const n = String(d.n); if (n === 'volar') natVolar(!!d.s); else if (n === 'ragdoll') natRag(!!d.s); else if (n === 'scp') natScp(!!d.s); break; }
       case 'guardar': { const v = JSON.stringify(d.v); if (v && v.length < 200000) try { localStorage.setItem('rbmod_' + M.id + '_' + d.k.slice(0, 40), v); resp(true); } catch (x) { resp(false); } else resp(false); break; }
       case 'leer': { let v = null; try { v = JSON.parse(localStorage.getItem('rbmod_' + M.id + '_' + d.k.slice(0, 40)) || 'null'); } catch (x) {} resp(v); break; }
@@ -6456,7 +6474,10 @@ const VOZ_ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l
 const VOZ_CERCA = 70, VOZ_LEJOS = 90, VOZ_MAX = 10;
 function vozBotonPoner(si) {
   let b = $('vozBt');
-  if (!b) { b = document.createElement('div'); b.id = 'vozBt'; b.className = 'bt modBt'; b.textContent = '🎤'; b.onpointerdown = (e) => { e.stopPropagation(); e.preventDefault(); audioIniciar(); VOZ.on ? vozApagar() : vozActivar(); }; $('hud').appendChild(b); }
+  if (!b) {
+    let c = $('modBtns'); if (!c) { c = document.createElement('div'); c.id = 'modBtns'; $('hud').appendChild(c); }
+    b = document.createElement('div'); b.id = 'vozBt'; b.className = 'bt modBt natBt'; b.textContent = '🎤'; b.onpointerdown = (e) => { e.stopPropagation(); e.preventDefault(); audioIniciar(); VOZ.on ? vozApagar() : vozActivar(); }; c.prepend(b);
+  }
   b.style.display = si ? '' : 'none'; b.classList.toggle('on', VOZ.on);
 }
 async function vozActivar() {
@@ -6965,7 +6986,7 @@ function entidadUsar(e) { const C = ENT_TIPO[e.t]; return !!(C && C.usar && C.us
 function entidadPonerMod(t) {
   const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), d = t === 'piano' ? 3 : 1.6, p = vadd(JUG.pos, vscale(f, d));
   const y = pisoBajo(v3(p.x, JUG.pos.y + 1, p.z), 0); p.y = y === null ? JUG.pos.y - 1 : y;
-  let e = ENTS.lista.find((x) => x.t === t && x.dueno === 'yo' && x.red);
+  let e = ENTS.lista.find((x) => x.t === t && x.dueno === 'yo' && x.red && !x.mod);
   if (t === 'radio' && e && entPos(e).distTo(JUG.pos) < 6) { radioAbrir(e); return; }
   const vid = e && e.vid, t0 = e && e.t0, tit = e && e.tit, lista = e && e.lista;
   if (e) { entidadQuitar(e); entidadRed('entb', e); }
@@ -6984,7 +7005,7 @@ function entidadRed(k, e) {
 }
 const entidadesMias = () => ENTS.lista.filter((e) => e.red && e.dueno === 'yo').map((e) => ({ n: e.id, d: entidadDatos(e), v: e.vid || '', s: e.t0 ? Math.round(ahoraS() - e.t0) : 0, tt: (e.tit || '').slice(0, 100) }));
 function entidadRemota(id, x) {
-  if (!x || typeof x !== 'object' || !x.d || !ENT_INFO[x.d.t] || !['piano', 'radio'].includes(x.d.t)) return null;
+  if (!x || typeof x !== 'object' || !x.d || !ENT_INFO[x.d.t]) return null;
   const key = id + ':' + (x.n | 0); let e = ENTS.lista.find((y) => y.key === key);
   const v = validarRB({ formato: 'rezobox-mapa', nombre: 'red', base: 'FlatGrass', entidades: [x.d] }), d = typeof v === 'object' && v.entidades[0]; if (!d) return null;
   if (!e) e = entidadCrear(d, { dueno: id, key });
@@ -6994,7 +7015,7 @@ function entidadRemota(id, x) {
 }
 function entidadesRecibir(id, lista) {
   const vivas = new Set();
-  for (const x of (Array.isArray(lista) ? lista : []).slice(0, 8)) { const e = entidadRemota(id, x); if (e) vivas.add(e); }
+  for (const x of (Array.isArray(lista) ? lista : []).slice(0, 300)) { const e = entidadRemota(id, x); if (e) vivas.add(e); }
   for (const e of ENTS.lista.slice()) if (e.dueno === id && !vivas.has(e)) entidadQuitar(e);
 }
 function entidadHecho(d) {
@@ -7120,10 +7141,15 @@ const wp = (W) => v3(W[12], W[13], W[14]);
 function qBase(x, y, z) { const m = new Float32Array(16); m[0] = x.x; m[1] = x.y; m[2] = x.z; m[4] = y.x; m[5] = y.y; m[6] = y.z; m[8] = z.x; m[9] = z.y; m[10] = z.z; m[15] = 1; return m4quat(m); }
 
 // se llama al empezar la partida con los mods nativos activos
+// (en una sala se vuelve a llamar al prender o apagar mods con SM: lo que sigue activo no se corta)
 function natIniciar(lista) {
-  natFin(); NAT.mods = new Set(lista);
-  for (const k of NAT.mods) if (NAT_BOTON[k]) natBoton(k);
-  if (NAT.mods.has('scp')) setTimeout(() => natScp(true), 50);
+  const nuevo = new Set(lista), antes = NAT.mods;
+  if (NAT.volando && !nuevo.has('volar')) natVolar(false); if (NAT.rag && !nuevo.has('ragdoll')) natRag(false); if (NAT.scp && !nuevo.has('scp')) natScp(false);
+  for (const [k, b] of [...NAT.botones]) if (!nuevo.has(k)) { b.remove(); NAT.botones.delete(k); }
+  for (const k of nuevo) if (NAT_BOTON[k] && !NAT.botones.has(k)) natBoton(k);
+  const scp = nuevo.has('scp') && !antes.has('scp');
+  NAT.mods = nuevo; natMarcar();
+  if (scp) setTimeout(() => natScp(true), 50);
 }
 function natFin() {
   if (NAT.rag) natRag(false); if (NAT.volando) natVolar(false); if (NAT.scp) natScp(false);
@@ -7230,7 +7256,7 @@ function natScpPaso(dt, ent) {
     J.vel.copy(vt).addS(up, Math.min(0, vn) - 6 * dt);
     if (ent.saltar && NAT.suelta < -0.15) { J.vel.addS(up, 7); J.vel.y += 2.5; NAT.pegado = false; NAT.suelta = 0.35; }
   } else {
-    J.vel.y -= GRAV * MUNDO.gravedad * dt;
+    J.vel.y -= GRAV * MUNDO.gravedad * (J.grav || 1) * dt;
     const dv = vsub(vscale(wish, vmax * wl), v3(J.vel.x, 0, J.vel.z)); J.vel.x += dv.x * Math.min(1, dt * 1.5); J.vel.z += dv.z * Math.min(1, dt * 1.5);
     up.lerpTo(v3(0, 1, 0), Math.min(1, dt * 3)).norm();
   }
@@ -7716,6 +7742,166 @@ function rolElegir(i) {
 }
 function rolCerrar() { ROL.mapa = null; ROL.rol = null; const p = $('rolPan'); if (p) p.classList.add('oc'); if (UI.abierto === 'rol') UI.abierto = null; }
 
+// ---------------- mods del server (SM) ----------------
+// En una sala el juego baja solo todos los mods publicados en la tienda (y cada minuto los nuevos: apenas alguien sube
+// uno, el server lo tiene). Cada jugador elige con el botón SMOD (tecla M) cuáles usa él; se aplican al momento, sin
+// límite. Todos ven todo: lo que hace cada uno llega por la red (posición, personaje, vuelo, SCP, muñeco, objetos,
+// explosiones, piano y radio), lo tenga activado o no el que mira. La elección se guarda aparte de la de un jugador.
+const SRV = { mods: new Map(), desde: 0, cargando: false, primera: true, t: 0, falta: false };
+const SMOD = { ids: new Set(), nat: '', cod: '', armas: new Set(), q: '', filtro: '', abierto: false, boton: null };
+// todos los del server: los oficiales, los de la tienda y los tuyos sin publicar
+const smTodos = () => { const L = [...OFICIALES], vistos = new Set(L.map((m) => m.id)); for (const m of SRV.mods.values()) if (!vistos.has(m.id)) { L.push(m); vistos.add(m.id); } for (const m of Object.values(INST.mods)) if (!vistos.has(m.id)) { L.push(m); vistos.add(m.id); } return L; };
+const smActivos = () => smTodos().filter((m) => PREFS.modsSrv && PREFS.modsSrv[m.id]);
+async function srvModsCargar() {
+  if (SRV.cargando) return; SRV.cargando = true; SRV.falta = false;
+  const nuevos = [];
+  try {
+    for (let pag = 0; pag < 400; pag++) {
+      const d = await (await fetch(TIENDA_URL + 'mods?desde=' + SRV.desde)).json();
+      for (const x of d.items || []) {
+        const v = validarRB(x.d); SRV.desde = Math.max(SRV.desde, +x.fecha || 0);
+        if (typeof v === 'string' || v.formato !== 'rezobox-mod') continue;
+        v.id = x.id; v.remoto = true; if (!SRV.mods.has(x.id)) nuevos.push(v); SRV.mods.set(x.id, v);
+      }
+      if (Array.isArray(d.vivos)) { const vv = new Set(d.vivos); for (const id of [...SRV.mods.keys()]) if (!vv.has(id)) SRV.mods.delete(id); }
+      if (!d.mas || !(d.items || []).length) break;
+    }
+    if (!SRV.primera && nuevos.length && JUEGO.estado === 'juego' && SALA) aviso('🧩 ' + T('sm.nuevo') + ': ' + nuevos.slice(0, 3).map((m) => m.nombre).join(', ') + (nuevos.length > 3 ? ' +' + (nuevos.length - 3) : ''), 4);
+    SRV.primera = false;
+  } catch (e) { SRV.falta = true; }
+  SRV.cargando = false;
+  if (SALA && JUEGO.estado === 'juego') smAplicar(false);
+  if (SMOD.abierto) smDibujar();
+}
+// cada cuadro en una sala: busca mods nuevos cada minuto
+function smPaso(dt) {
+  if (!SALA || JUEGO.estado !== 'juego') return;
+  SRV.t -= dt; if (SRV.t > 0) return; SRV.t = SRV.falta ? 15 : 60; srvModsCargar();
+}
+// ---------------- aplicar al momento lo que elegiste ----------------
+function smEfectos(act) {
+  const E = { gravedad: 1, velocidad: 1, salto: 1, tiempo: 1, explosion: 1, municionInfinita: false, invencible: false, skin: null, hora: null, armas: [], aparecer: [] };
+  for (const m of act) {
+    const e = m.efectos; E.gravedad *= e.gravedad; E.velocidad *= e.velocidad; E.salto *= e.salto; E.explosion *= e.explosion;
+    E.municionInfinita = E.municionInfinita || e.municionInfinita; E.invencible = E.invencible || e.invencible;
+    if (e.skin) E.skin = e.skin; if (e.hora != null) E.hora = e.hora; E.armas.push(...e.armas);
+  }
+  return E;
+}
+function smAplicar(primera) {
+  if (!RB.base) RB.base = { v: JUG.vel_max, s: JUG.salto };
+  const act = smActivos(), E = smEfectos(act);
+  // en la sala el mundo y el tiempo son de todos: la gravedad del mod es sólo la tuya (tu salto y tu caída)
+  Object.assign(MODS, E); MODS.tiempo = 1; JUG.grav = E.gravedad;
+  JUG.vel_max = RB.base.v * E.velocidad; JUG.salto = RB.base.s * E.salto;
+  // armas que suman los mods (las que suman se sacan al desactivarlos)
+  const antes = ARM.lista[ARM.i];
+  for (const a of [...SMOD.armas]) if (!E.armas.includes(a)) { const i = ARM.lista.indexOf(a); if (i >= 0) ARM.lista.splice(i, 1); SMOD.armas.delete(a); }
+  for (const a of E.armas) if (DEF_ARMAS[a] && !ARM.lista.includes(a)) { ARM.lista.push(a); SMOD.armas.add(a); }
+  if (ARM.lista[ARM.i] !== antes || ARM.i >= ARM.lista.length) { const i = ARM.lista.indexOf(antes); elegirArma(i >= 0 ? i : ARM.lista.length - 1); }
+  // personaje del mod (no cambia el tuyo guardado); los demás lo ven porque viaja en tu estado
+  const sk = E.skin && RETRATO[E.skin] ? E.skin : null;
+  if (sk !== (JUG.skinMod || null)) { JUG.skinMod = sk; if (!primera && JUG.vivo && !NAT.rag && JUG.cuerpo) jugadorCuerpoNuevo(); }
+  if (E.hora != null && E.hora !== SMOD.hora) { DIA.ciclo = false; DIA.hora = E.hora; DIA.aplicada = -1; } SMOD.hora = E.hora;
+  // lo que hace aparecer un mod: sólo al activarlo
+  const ids = new Set(act.map((m) => m.id));
+  if (!primera) for (const m of act) if (!SMOD.ids.has(m.id) && m.efectos.aparecer.length) aparecerDelante(m.efectos.aparecer.slice(0, 60));
+  SMOD.ids = ids;
+  const nat = act.filter((m) => m.nativo).map((m) => m.nativo).sort().join(',');
+  if (nat !== SMOD.nat) { SMOD.nat = nat; natIniciar(nat ? nat.split(',') : []); }
+  const cods = act.filter((m) => m.codigo), cod = cods.map((m) => m.id).sort().join(',');
+  if (cod !== SMOD.cod) { SMOD.cod = cod; modapiCargar(cods); }
+  RED.wSucio = true; // los demás ven qué mods usás (en tu etiqueta)
+}
+function smReiniciar() { SMOD.ids = new Set(); SMOD.nat = null; SMOD.cod = null; SMOD.armas.clear(); SMOD.hora = null; JUG.skinMod = null; JUG.grav = 1; }
+// ---------------- botón SMOD y panel ----------------
+function smBotonPoner(si) {
+  let b = SMOD.boton;
+  if (!b) {
+    b = SMOD.boton = document.createElement('div'); b.className = 'redondo bt smBt'; b.innerHTML = '<b>SM</b><small>(M)</small>';
+    b.onpointerdown = (e) => { e.stopPropagation(); e.preventDefault(); audioIniciar(); smAbrir(); };
+    $('arribaIz').appendChild(b);
+  }
+  b.style.display = si ? '' : 'none';
+}
+function smAbrir() {
+  if (!SALA || JUEGO.estado !== 'juego') return;
+  let p = $('smPan');
+  if (!p) {
+    p = document.createElement('div'); p.id = 'smPan'; p.className = 'panel oc'; document.body.appendChild(p);
+    p.innerHTML = `<div class="caja smCaja"><h3>🧩 <span class="smTit"></span> <small class="smCuenta"></small></h3>
+      <div class="smBarra"><input id="smQ" type="search" maxlength="40" spellcheck="false"><button class="boton chico" data-sm="todos"></button><button class="boton chico gris" data-sm="ninguno"></button></div>
+      <div class="smFiltros"></div><div id="smLista"></div><div class="smPie"><span class="smInfo"></span><button class="boton chico gris" data-sm="cerrar"></button></div></div>`;
+    p.addEventListener('click', (e) => { if (e.target === p) return smCerrar(); const b = e.target.closest('[data-sm]'); if (b) smAccion(b.dataset.sm); });
+    p.querySelector('#smQ').addEventListener('input', (e) => { SMOD.q = e.target.value; smDibujar(); });
+  }
+  cerrarPaneles(); p.classList.remove('oc'); UI.abierto = 'sm'; SMOD.abierto = true; soltarPuntero();
+  p.querySelector('#smQ').placeholder = T('buscar'); p.querySelector('#smQ').value = SMOD.q;
+  smDibujar();
+  if (!SRV.mods.size && !SRV.cargando) srvModsCargar();
+}
+function smCerrar() { const p = $('smPan'); if (p) p.classList.add('oc'); SMOD.abierto = false; if (UI.abierto === 'sm') UI.abierto = null; }
+// cuántos de la sala usan cada mod (lo publica cada uno en su mundo)
+function smUsan() {
+  const n = new Map(), suma = (id) => n.set(id, (n.get(id) || 0) + 1);
+  for (const id of SMOD.ids) suma(id);
+  for (const R2 of RED.remotos.values()) for (const id of R2.mods || []) suma(id);
+  return n;
+}
+function smDibujar() {
+  const p = $('smPan'); if (!p) return;
+  const q = SMOD.q.trim().toLowerCase(), f = SMOD.filtro, usan = smUsan(), act = PREFS.modsSrv || {};
+  const todos = smTodos(), lista = todos.filter((m) => (!q || (nombreDe(m) + ' ' + (m.autor || '') + ' ' + descDe(m)).toLowerCase().includes(q))
+    && (!f || (f === 'act' ? act[m.id] : f === 'of' ? m.oficial : f === 'cod' ? m.codigo : f === 'usan' ? usan.get(m.id) : (m.etiquetas || []).includes(f))));
+  lista.sort((a, b) => (!!act[b.id] - !!act[a.id]) || ((usan.get(b.id) || 0) - (usan.get(a.id) || 0)) || (!!b.oficial - !!a.oficial));
+  p.querySelector('.smTit').textContent = T('sm.tit');
+  p.querySelector('.smCuenta').textContent = `${todos.length}${SRV.cargando ? ' · ' + T('cargando') : SRV.falta ? ' · ⚠' : ''}`;
+  p.querySelector('[data-sm=todos]').textContent = '✔ ' + T('sm.todos'); p.querySelector('[data-sm=ninguno]').textContent = '✖ ' + T('sm.ninguno'); p.querySelector('[data-sm=cerrar]').textContent = T('cerrar');
+  const chips = [['', T('e.todas')], ['act', '✔ ' + T('sm.activos')], ['usan', '👥 ' + T('sm.usan')], ['of', '★ ' + T('oficial')], ['cod', '</> ' + T('sm.codigo')], ...ETIQUETAS_RB.map((e) => [e, T('e.' + e)])];
+  p.querySelector('.smFiltros').innerHTML = chips.map(([k, t]) => `<button class="${k === f ? 'sel' : ''}" data-sm="f:${k}">${esc(t)}</button>`).join('');
+  const LZ = p.querySelector('#smLista'), sc = LZ.scrollTop;
+  LZ.innerHTML = lista.map((m) => {
+    const on = !!act[m.id], u = usan.get(m.id) || 0;
+    return `<button class="smIt${on ? ' on' : ''}" data-sm="t:${esc(m.id)}"><span class="smIco">${icoHTML(m.icono)}</span><span class="smTx"><b dir="auto">${esc(nombreDe(m))}</b>
+      <small dir="auto">${m.oficial ? '★ ' + esc(T('oficial')) : esc(T('por')) + ' ' + esc(m.autor || '')}${m.codigo ? ' · &lt;/&gt;' : ''}${u ? ` · 👥 ${u}` : ''}</small><em dir="auto">${esc(descDe(m) || '')}</em></span><i class="smSw"></i></button>`;
+  }).join('') || `<div class="radioVacio">${esc(SRV.cargando ? T('cargando') : T('sinRes'))}</div>`;
+  LZ.scrollTop = sc;
+  p.querySelector('.smInfo').textContent = `✔ ${SMOD.ids.size} ${T('sm.activos')} · 👥 ${RED.remotos.size + 1}`;
+}
+// confirmar una vez los que traen código (corren aislados, pero los hizo otra persona)
+function smCodigoOk(lista) {
+  const PS = PREFS.codigoOk || (PREFS.codigoOk = {}), nuevos = lista.filter((m) => m.codigo && !m.oficial && !PS[m.id]);
+  if (!nuevos.length) return true;
+  if (!confirm(T('codigoAviso') + (nuevos.length > 1 ? ` (${nuevos.length})` : ''))) return false;
+  for (const m of nuevos) PS[m.id] = 1; return true;
+}
+function smAccion(k) {
+  const [a, v] = k.split(/:(.*)/s);
+  if (!PREFS.modsSrv) PREFS.modsSrv = {};
+  if (a === 'cerrar') return smCerrar();
+  if (a === 'f') { SMOD.filtro = v || ''; return smDibujar(); }
+  if (a === 't') {
+    const m = smTodos().find((x) => x.id === v); if (!m) return;
+    if (PREFS.modsSrv[v]) delete PREFS.modsSrv[v]; else { if (!smCodigoOk([m])) return; PREFS.modsSrv[v] = true; }
+    // sólo cambia esa tarjeta (si se reordenara la lista, lo que tocaste se movería de lugar)
+    guardarPrefs(); smAplicar(false);
+    const p = $('smPan'), b = p && [...p.querySelectorAll('.smIt')].find((x) => x.dataset.sm === 't:' + v); if (b) b.classList.toggle('on', !!PREFS.modsSrv[v]);
+    if (p) p.querySelector('.smInfo').textContent = `✔ ${SMOD.ids.size} ${T('sm.activos')} · 👥 ${RED.remotos.size + 1}`;
+    return;
+  } else if (a === 'todos') {
+    const L = smTodos(); if (!smCodigoOk(L)) return; for (const m of L) PREFS.modsSrv[m.id] = true;
+  } else if (a === 'ninguno') PREFS.modsSrv = {};
+  guardarPrefs(); smAplicar(false); smDibujar();
+}
+// los íconos de los mods que usa otro jugador, al lado de su nombre (si no tengo alguno, lo busco en la tienda)
+function smDeOtro(R2, ids) {
+  R2.mods = (Array.isArray(ids) ? ids : []).filter((x) => typeof x === 'string' && /^[\w-]{1,24}$/.test(x)).slice(0, 200);
+  const todos = new Map(smTodos().map((m) => [m.id, m]));
+  if (R2.mods.some((id) => !todos.has(id)) && !SRV.cargando) { SRV.t = 0; }
+  R2.icos = R2.mods.map((id) => todos.get(id)).filter((m) => m && !/^data:/.test(m.icono || '')).map((m) => m.icono).slice(0, 4).join('');
+  if (SMOD.abierto) smDibujar();
+}
+
 // ---------------- HypperX RezoBox: inicio con el aspecto del menú de Garry's Mod ----------------
 // Fondo con escenas del juego que pasan solas, menú de texto, botoncitos abajo y paneles claros: bienvenida (idioma y
 // nombre), Empezar partida nueva (mapas del juego y de la comunidad) y la tienda de Mods y mapas (buscar, filtrar,
@@ -8077,6 +8263,12 @@ function aplicarMods() {
   const E = { gravedad: 1, velocidad: 1, salto: 1, tiempo: 1, explosion: 1, municionInfinita: false, invencible: false, skin: null, hora: null, armas: [], aparecer: [] };
   if (!RB.base) RB.base = { v: JUG.vel_max, s: JUG.salto };
   // modo creador: sin mods (volás libre, sin morir y con munición) y con lo que había en el mapa que se edita
+  smReiniciar();
+  // en una sala: los mods del server que elegiste con SM (se aplican también en el medio de la partida)
+  if (typeof SALA !== 'undefined' && SALA && !CREA.on) {
+    RB.mapaPartida = null; RB.horaPartida = null; smAplicar(true); SRV.t = SRV.mods.size ? 60 : 0;
+    setTimeout(() => { if (SALA && JUEGO.estado === 'juego') aviso('🧩 ' + T('sm.hint'), 4); }, 3200); return;
+  }
   if (CREA.on) { Object.assign(MODS, E, { municionInfinita: true, invencible: true }); JUG.vel_max = RB.base.v; JUG.salto = RB.base.s; RB.mapaPartida = null; RB.horaPartida = null; modapiCargar([]); creadorIniciar(); return; }
   const act = modsTodos().filter((m) => PREFS.mods && PREFS.mods[m.id]);
   for (const m of act) {
@@ -8251,6 +8443,7 @@ function atenderPulsos() {
     if (JUEGO.estado !== 'juego') continue;
     if (k === 'pausa') { if (UI.abierto) cerrarPaneles(); else abrirPausa(); continue; }
     if (k === 'cerrar') { cerrarPaneles(); continue; }
+    if (k === 'servmods') { if (UI.abierto === 'sm') smCerrar(); else if (!UI.abierto) smAbrir(); continue; }
     if (k === 'menu') { if (UI.abierto === 'spawn') cerrarPaneles(); else { cerrarPaneles(); abrirSpawn(); } continue; }
     if (UI.abierto) continue;
     if (k === 'chat') abrirChat();
@@ -8301,7 +8494,7 @@ function cuadro(ahora) {
     armasPaso(dt);
     if (!JUG.vivo && JUG.muertoT <= 0) { jugadorAparecer(); if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo(); }
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
-    modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt);
+    modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt); smPaso(dt);
     if (typeof redPaso === 'function') redPaso(dt);
     diaPaso(dt); hostPaso();
   }

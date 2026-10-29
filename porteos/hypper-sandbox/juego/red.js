@@ -133,7 +133,7 @@ function crearServidor() {
 }
 // botón Multiplayer: conecta la lista y abre el panel (como "Connect" del juego)
 function conectarMultijugador() {
-  listaConectar();
+  listaConectar(); if (!SRV.mods.size) srvModsCargar(); // los servers ya tienen todos los mods de la tienda
   if (LISTA.on || typeof mqtt === 'undefined') { seccion('Multiplayer'); subMp('Main'); return; }
   verNodo(nodo('Connecting'), true);
   const t0 = performance.now(), mirar = () => {
@@ -159,10 +159,10 @@ function redEntrar(mapa) {
   cli.on('close', () => { if (RED.cli !== cli) return; RED.on = false; redEstadoUI(); });
   cli.on('message', (t, m) => { if (RED.cli !== cli) return; try { redMensaje(t, m); } catch (e) {} });
   redEstadoUI();
-  vozBotonPoner(true);
+  vozBotonPoner(true); smBotonPoner(true);
 }
 function redSalir() {
-  vozApagar(); vozBotonPoner(false);
+  vozApagar(); vozBotonPoner(false); smBotonPoner(false); smCerrar();
   if (!RED.cli) return;
   try { RED.cli.publish(RED.ROOM + '/w/' + RED.ID, '', { retain: true }); publicar('a', { k: 'chau' }); const c = RED.cli; setTimeout(() => { try { c.end(false); } catch (e) {} }, 50); } catch (e) {}
   RED.cli = null; RED.on = false; presencia();
@@ -190,7 +190,7 @@ function redPaso(dt) {
   if (t - LISTA.ultP > 120) presencia();
   if (t - RED.ultE > 0.1) {
     const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits();
-    const e = { n: PREFS.nombre, k: J.skinRol || PREFS.skin, h: PREFS.gorro, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
+    const e = { n: PREFS.nombre, k: J.skinRol || J.skinMod || PREFS.skin, h: PREFS.gorro, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
       e: JUG.cuerpo && JUG.cuerpo.emote || 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0 };
     const s = JSON.stringify(e);
     if (s !== RED.eAnt || t - RED.ultE > 1) { publicar('e', e); RED.eAnt = s; RED.ultE = t; }
@@ -205,7 +205,7 @@ function redPaso(dt) {
   if (RED.wSucio || t - RED.ultW > 8) {
     RED.wSucio = false; RED.ultW = t;
     const o = OBJS.filter((x) => !x.remoto).slice(-300).map((x) => [x.id, x.nombre, r3(x.b.pos.x), r3(x.b.pos.y), r3(x.b.pos.z), r4(x.b.q.x), r4(x.b.q.y), r4(x.b.q.z), r4(x.b.q.w), x.b.frozen ? 1 : 0]);
-    publicar('w/' + RED.ID, { o, e: entidadesMias() }, true);
+    publicar('w/' + RED.ID, { o, e: entidadesMias(), md: [...SMOD.ids] }, true);
   }
   redEstadoUI();
 }
@@ -213,7 +213,7 @@ const claveObj = (o) => (o.remoto ? o.key : RED.ID + ':' + o.id);
 function redObjeto() { RED.wSucio = true; }
 function redRecarga() { publicar('a', { k: 'rec' }); }
 function redDisparo(arma) { publicar('a', { k: 'tiro', a: arma, p: [r3(CAM.pos.x), r3(CAM.pos.y), r3(CAM.pos.z)], d: [r3(CAM.fwd.x), r3(CAM.fwd.y), r3(CAM.fwd.z)] }); }
-function redExplosion(p) { publicar('a', { k: 'exp', p: [r3(p.x), r3(p.y), r3(p.z)] }); }
+function redExplosion(p, r, d) { publicar('a', { k: 'exp', p: [r3(p.x), r3(p.y), r3(p.z)], r: r3(r || 6), d: Math.round(d || 100) }); }
 function redDano(P, dan, d) { publicar('a', { k: 'dano', to: P.remoto, d: Math.round(dan), v: [r3(d.x), r3(d.y), r3(d.z)] }); }
 function redChat(t) { publicar('c', { n: PREFS.nombre, t: t.slice(0, 120) }); }
 function redEmote() {}
@@ -239,18 +239,22 @@ function redMensaje(topic, m) {
 function recibirEstado(d) {
   let R2 = RED.remotos.get(d.i);
   const skin = DATA.chars.includes(d.k) ? d.k : 'Hero', gorro = DATA.hats.includes(d.h) ? d.h : 'HatEmpty';
-  if (!R2 || R2.skin !== skin || R2.gorro !== gorro) {
-    if (R2) quitarRemoto(R2);
+  if (R2 && (R2.skin !== skin || R2.gorro !== gorro)) {
+    // cambió de personaje (o de gorro): sólo se rehace el cuerpo; sus objetos y entidades siguen
+    borrarPersona(R2.P); const P = crearPersona(skin, gorro, { nombre: limpio(d.n) }); P.remoto = d.i; R2.P = P; R2.b.persona = P; R2.skin = skin; R2.gorro = gorro;
+  }
+  if (!R2) {
     const P = crearPersona(skin, gorro, { nombre: limpio(d.n) }); P.remoto = d.i;
     const b = new Body(capsuleShape(0.4, 0.5), 80); b.frozen = true; b.persona = P; b.noJug = false; b.noGrab = true; addBody(b);
     const tag = document.createElement('div'); tag.className = 'etiqueta'; $('hud').appendChild(tag);
     R2 = { id: d.i, skin, gorro, P, b, tag, pos: v3(), meta: v3(), yaw: 0, yawM: 0, vel: v3(), t: TIEMPO.t, f: 0, nombre: '' };
     RED.remotos.set(d.i, R2); chatMostrar('★', limpio(d.n) + ' entró');
+    if (RED.mdDe && RED.mdDe.has(d.i)) smDeOtro(R2, RED.mdDe.get(d.i));
   }
   if (Array.isArray(d.p)) { R2.meta.set(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0)); if (TIEMPO.t - R2.t > 2) R2.pos.copy(R2.meta); }
   if (Array.isArray(d.v)) R2.vel.set(num(d.v[0], -80, 80, 0), num(d.v[1], -80, 80, 0), num(d.v[2], -80, 80, 0));
   R2.yawM = num(d.y, -1e3, 1e3, 0); R2.P.mira = num(d.t, -2, 2, 0); R2.f = d.f | 0; R2.t = TIEMPO.t;
-  R2.nombre = limpio(d.n); R2.tag.textContent = R2.nombre;
+  R2.nombre = limpio(d.n); R2.tag.textContent = R2.nombre + (R2.icos ? ' ' + R2.icos : '');
   R2.P.arma = DEF_ARMAS[d.a] ? d.a : null;
   const em = typeof d.e === 'string' && DATA.emotes.includes(d.e) ? d.e : null;
   if (em && R2.P.emote !== em) { R2.P.emote = em; R2.P.emoteT = 0; } else if (!em) R2.P.emote = null;
@@ -288,6 +292,7 @@ function buscarObjeto(k) {
 function recibirMundo(id, d) {
   const vivos = new Set();
   if (d && 'e' in d) entidadesRecibir(id, d.e);
+  if (d && Array.isArray(d.md)) { RED.mdDe = RED.mdDe || new Map(); RED.mdDe.set(id, d.md); const R2 = RED.remotos.get(id); if (R2) smDeOtro(R2, d.md); }
   if (d && Array.isArray(d.o)) for (const x of d.o.slice(0, 300)) {
     if (!Array.isArray(x) || typeof x[1] !== 'string' || !DATA.pfPorNombre[x[1]]) continue;
     const key = id + ':' + (x[0] | 0); vivos.add(key);
@@ -333,7 +338,7 @@ function recibirHecho(d) {
   } else if (d.k === 'rec' && R2) { humAccion(R2.P, 'recarga');
   } else if (d.k === 'exp' && Array.isArray(d.p)) {
     const p = v3(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0));
-    explosion.remota = true; explosion(p, 6, 100); explosion.remota = false;
+    explosion.remota = true; explosion(p, num(d.r, 0.5, 600, 6), num(d.d, 0, 1e5, 100)); explosion.remota = false; // del tamaño que tuvo en su juego (con sus mods)
   } else if (d.k === 'rtc' && d.to === RED.ID) { vozSenal(d);
   } else if (d.k === 'ent' || d.k === 'entb' || d.k === 'radio') { entidadHecho(d);
   } else if (d.k === 'jalar') { natRed(d);

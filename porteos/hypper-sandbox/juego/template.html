@@ -232,9 +232,20 @@ body.tactil .natBt small{display:none}
 .crArmas button.sel,.crEtqs button.sel{background:#3e6fd8;color:#fff;border-color:#3e6fd8}
 .rolCaja{width:min(460px,calc(var(--vw)*94))}.rolIt{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;margin:5px 0;padding:10px;background:#33363d;border:0;border-radius:5px;color:#fff;cursor:pointer;text-align:start}
 .rolIt i{width:16px;height:16px;border-radius:50%}.rolIt b{font-size:15px}.rolIt small{width:100%;color:#aab;font-size:12px}
+.smBt b{font:900 15px Roboto,Arial,sans-serif;color:#fff;line-height:1}
+.smCaja{width:min(760px,calc(var(--vw)*94));display:flex;flex-direction:column;max-height:calc(var(--vh)*94);overflow:hidden}.smCaja h3 small{color:#9aa;font-weight:400;font-size:12px}
+.smBarra{display:flex;gap:6px;align-items:center}.smBarra input{flex:1;min-width:0;background:#1f2024;color:#fff;border:1px solid #555;border-radius:4px;padding:7px;font-size:14px}.smBarra .boton{margin:0}
+.smFiltros{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}.smFiltros button{background:#24262b;border:1px solid #555;color:#ccc;border-radius:12px;padding:3px 9px;font-size:11px;cursor:pointer}.smFiltros button.sel{background:#3e6fd8;border-color:#3e6fd8;color:#fff}
+#smLista{flex:1;min-height:calc(var(--vh)*18);overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px}
+.smIt{display:flex;align-items:center;gap:8px;text-align:start;background:#33363d;border:2px solid transparent;border-radius:6px;padding:6px;color:#fff;cursor:pointer;min-width:0}
+.smIt.on{border-color:#3e6fd8;background:#2e3a52}.smIco{width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center;font-size:26px;border-radius:6px;background:#24262b;overflow:hidden}.smIco img{width:100%;height:100%;object-fit:cover}
+.smTx{flex:1;min-width:0;display:flex;flex-direction:column}.smTx b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.smTx small{color:#9ab;font-size:11px}.smTx em{font-style:normal;color:#aaa;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.smSw{flex:none;width:34px;height:18px;border-radius:9px;background:#555;position:relative}.smSw::after{content:'';position:absolute;top:2px;inset-inline-start:2px;width:14px;height:14px;border-radius:50%;background:#ddd;transition:inset-inline-start .15s}
+.smIt.on .smSw{background:#3e6fd8}.smIt.on .smSw::after{inset-inline-start:18px;background:#fff}
+.smPie{display:flex;align-items:center;justify-content:space-between;margin-top:8px;color:#aab;font-size:12px}.smPie .boton{margin:0}
 .rbAyudaC{color:#666;font-size:calc(var(--vh)*2.2);margin:calc(var(--vh)*1.5) 0 0}
 .rbCrear{flex-direction:column;overflow:auto;padding:calc(var(--vh)*1.6) calc(var(--vh)*2.2);gap:calc(var(--vh)*1.2)}.rbCrear .rbGrid{flex:none;overflow:visible}
-#vozBt{position:absolute;inset-inline-start:12px;top:15%}
+#vozBt{order:-1}
 .habla::before{content:'🔊 '}
 .rbCodigo{font:500 calc(var(--vh)*2.7) ui-monospace,Menlo,Consolas,monospace !important;background:#1e2127;color:#d8dee9;border-color:#333 !important}
 .rbAyuda{font:500 calc(var(--vh)*2.3) ui-monospace,Menlo,Consolas,monospace;color:#666;line-height:1.35}

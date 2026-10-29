@@ -140,6 +140,7 @@ function atenderPulsos() {
     if (JUEGO.estado !== 'juego') continue;
     if (k === 'pausa') { if (UI.abierto) cerrarPaneles(); else abrirPausa(); continue; }
     if (k === 'cerrar') { cerrarPaneles(); continue; }
+    if (k === 'servmods') { if (UI.abierto === 'sm') smCerrar(); else if (!UI.abierto) smAbrir(); continue; }
     if (k === 'menu') { if (UI.abierto === 'spawn') cerrarPaneles(); else { cerrarPaneles(); abrirSpawn(); } continue; }
     if (UI.abierto) continue;
     if (k === 'chat') abrirChat();
@@ -190,7 +191,7 @@ function cuadro(ahora) {
     armasPaso(dt);
     if (!JUG.vivo && JUG.muertoT <= 0) { jugadorAparecer(); if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo(); }
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
-    modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt);
+    modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt); smPaso(dt);
     if (typeof redPaso === 'function') redPaso(dt);
     diaPaso(dt); hostPaso();
   }

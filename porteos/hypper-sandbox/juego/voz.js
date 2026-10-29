@@ -6,7 +6,10 @@ const VOZ_ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l
 const VOZ_CERCA = 70, VOZ_LEJOS = 90, VOZ_MAX = 10;
 function vozBotonPoner(si) {
   let b = $('vozBt');
-  if (!b) { b = document.createElement('div'); b.id = 'vozBt'; b.className = 'bt modBt'; b.textContent = '🎤'; b.onpointerdown = (e) => { e.stopPropagation(); e.preventDefault(); audioIniciar(); VOZ.on ? vozApagar() : vozActivar(); }; $('hud').appendChild(b); }
+  if (!b) {
+    let c = $('modBtns'); if (!c) { c = document.createElement('div'); c.id = 'modBtns'; $('hud').appendChild(c); }
+    b = document.createElement('div'); b.id = 'vozBt'; b.className = 'bt modBt natBt'; b.textContent = '🎤'; b.onpointerdown = (e) => { e.stopPropagation(); e.preventDefault(); audioIniciar(); VOZ.on ? vozApagar() : vozActivar(); }; c.prepend(b);
+  }
   b.style.display = si ? '' : 'none'; b.classList.toggle('on', VOZ.on);
 }
 async function vozActivar() {

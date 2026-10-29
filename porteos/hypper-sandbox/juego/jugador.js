@@ -80,8 +80,10 @@ function jugadorPaso(dt, ent) {
   const rvx = J.vel.x - (base ? base.x : 0), rvz = J.vel.z - (base ? base.z : 0);
   const dvx = tx - rvx, dvz = tz - rvz, dl = Math.hypot(dvx, dvz), mx = acel * dt * (J.suelo || wl > 0 ? 1 : 0.2);
   if (dl > 0) { const k = Math.min(1, mx / dl); J.vel.x += dvx * k; J.vel.z += dvz * k; }
-  if (J.suelo && ent.saltar && J.tiempoSuelo > 0.05) { J.vel.y = Math.sqrt(2 * GRAV * MUNDO.gravedad * J.salto); J.suelo = false; J.tiempoSuelo = 0; }
-  if (!J.suelo) J.vel.y -= GRAV * MUNDO.gravedad * dt; else if (J.vel.y < 0) J.vel.y = -0.5;
+  // (la gravedad de un mod en una sala es sólo del jugador: J.grav; negativa también: sube)
+  const gJ = GRAV * MUNDO.gravedad * (J.grav || 1);
+  if (J.suelo && ent.saltar && J.tiempoSuelo > 0.05) { J.vel.y = Math.sqrt(2 * Math.abs(gJ) * J.salto) * (gJ < 0 ? -1 : 1); J.suelo = false; J.tiempoSuelo = 0; }
+  if (!J.suelo) J.vel.y -= gJ * dt; else if (J.vel.y < 0) J.vel.y = -0.5;
   const vyAntes = J.vel.y, eraSuelo = J.suelo;
   jugadorMoverChocar(dt);
   // pegarse al piso al bajar rampas (si estaba en el piso y no saltó)

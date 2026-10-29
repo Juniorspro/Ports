@@ -277,7 +277,7 @@ function danarPersona(P, dan, pos, d) {
 // ---------------- el cuerpo del jugador (tercera persona, vehículos, muerte) ----------------
 function jugadorCuerpoNuevo() {
   if (JUG.cuerpo) borrarPersona(JUG.cuerpo);
-  JUG.cuerpo = crearPersona(JUG.skinRol || PREFS.skin, PREFS.gorro, { nombre: PREFS.nombre });
+  JUG.cuerpo = crearPersona(JUG.skinRol || JUG.skinMod || PREFS.skin, PREFS.gorro, { nombre: PREFS.nombre });
 }
 function jugadorRagdoll() { const P = JUG.cuerpo; if (!P) return; P.vel.copy(JUG.vel); ragdoll(P, vscale(JUG.vel, 0.2)); }
 function emote(e) { if (!JUG.cuerpo || JUG.vehiculo) return; JUG.cuerpo.emote = e; JUG.cuerpo.emoteT = 0; if (!JUG.tercera) { JUG.tercera = true; JUG.terceraEmote = true; } if (typeof redEmote === 'function') redEmote(e); }

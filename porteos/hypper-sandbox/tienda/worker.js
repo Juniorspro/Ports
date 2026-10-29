@@ -54,6 +54,18 @@ export default {
         const total = await env.DB.prepare(`SELECT COUNT(*) AS n FROM items WHERE ${where}`).bind(...args).first();
         return json({ items: filas.results.map((f) => ({ ...f, etiquetas: JSON.parse(f.etiquetas || '[]') })), total: total ? total.n : 0 });
       }
+      // los servers del juego bajan todos los mods (y después sólo los nuevos): datos completos, sin contar descargas.
+      // "vivos" = los que siguen publicados (para soltar los borrados u ocultos)
+      if (req.method === 'GET' && r === '/api/mods') {
+        // (sin caché: una respuesta guardada de antes de que se suba un mod lo dejaría afuera de "vivos")
+        const desde = Math.max(0, parseInt(url.searchParams.get('desde'), 10) || 0);
+        const filas = await env.DB.prepare('SELECT id, fecha, datos FROM items WHERE tipo = ?1 AND oculto = 0 AND fecha > ?2 ORDER BY fecha ASC LIMIT 25').bind('mod', desde).all();
+        const vivos = await env.DB.prepare('SELECT id FROM items WHERE tipo = ?1 AND oculto = 0').bind('mod').all();
+        const partes = []; let tam = 0, corto = false;
+        for (const f of filas.results) { if (partes.length && tam + f.datos.length > 6e6) { corto = true; break; } tam += f.datos.length; partes.push(`{"id":${JSON.stringify(f.id)},"fecha":${+f.fecha},"d":${f.datos}}`); }
+        const cuerpo = `{"items":[${partes.join(',')}],"mas":${corto || filas.results.length === 25},"vivos":${JSON.stringify(vivos.results.map((x) => x.id))}}`;
+        return new Response(cuerpo, { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
+      }
       let m;
       if (req.method === 'GET' && (m = /^\/api\/item\/([a-z0-9]{8})$/.exec(r))) {
         const f = await env.DB.prepare('SELECT datos, oculto FROM items WHERE id = ?1').bind(m[1]).first();

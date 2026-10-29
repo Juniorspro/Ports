@@ -12,7 +12,7 @@ const abrir = async (n) => { const b = await chromium.launch({ executablePath: p
   await p.goto('file://' + html + '?test&broker=ws://127.0.0.1:8897/mqtt'); await p.waitForFunction(() => window.__listo, null, { timeout: 150000 }); return p; };
 const ev = (p, c) => p.evaluate((c) => window.__ev(c), c), espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const A = await abrir('A'), B = await abrir('B');
-for (const [P, n] of [[A, 'Ana'], [B, 'Beto']]) await ev(P, `PREFS.nombre='${n}'; PREFS.bienvenida=true; PREFS.mods = {volar:true, ragdoll:true, scp:true, piano:true, radio:true}; audioIniciar(); inicioMostrar(false); entrarSala(SALAS_OF.find((s) => s.m === 'FlatGrass')); 1`);
+for (const [P, n] of [[A, 'Ana'], [B, 'Beto']]) await ev(P, `PREFS.nombre='${n}'; PREFS.bienvenida=true; PREFS.modsSrv = {volar:true, ragdoll:true, scp:true, piano:true, radio:true}; audioIniciar(); inicioMostrar(false); entrarSala(SALAS_OF.find((s) => s.m === 'FlatGrass')); 1`);
 await espera(6000);
 await ev(B, `natScp(false); JUG.pos.set(10, 1.6, 10); JUG.yaw = Math.PI; 1`);
 await ev(A, `JUG.pos.set(10, 1.6, 4); JUG.yaw = 0; JUG.vel.set(0,0,0); 1`);

@@ -11,10 +11,15 @@ const wp = (W) => v3(W[12], W[13], W[14]);
 function qBase(x, y, z) { const m = new Float32Array(16); m[0] = x.x; m[1] = x.y; m[2] = x.z; m[4] = y.x; m[5] = y.y; m[6] = y.z; m[8] = z.x; m[9] = z.y; m[10] = z.z; m[15] = 1; return m4quat(m); }
 
 // se llama al empezar la partida con los mods nativos activos
+// (en una sala se vuelve a llamar al prender o apagar mods con SM: lo que sigue activo no se corta)
 function natIniciar(lista) {
-  natFin(); NAT.mods = new Set(lista);
-  for (const k of NAT.mods) if (NAT_BOTON[k]) natBoton(k);
-  if (NAT.mods.has('scp')) setTimeout(() => natScp(true), 50);
+  const nuevo = new Set(lista), antes = NAT.mods;
+  if (NAT.volando && !nuevo.has('volar')) natVolar(false); if (NAT.rag && !nuevo.has('ragdoll')) natRag(false); if (NAT.scp && !nuevo.has('scp')) natScp(false);
+  for (const [k, b] of [...NAT.botones]) if (!nuevo.has(k)) { b.remove(); NAT.botones.delete(k); }
+  for (const k of nuevo) if (NAT_BOTON[k] && !NAT.botones.has(k)) natBoton(k);
+  const scp = nuevo.has('scp') && !antes.has('scp');
+  NAT.mods = nuevo; natMarcar();
+  if (scp) setTimeout(() => natScp(true), 50);
 }
 function natFin() {
   if (NAT.rag) natRag(false); if (NAT.volando) natVolar(false); if (NAT.scp) natScp(false);
@@ -121,7 +126,7 @@ function natScpPaso(dt, ent) {
     J.vel.copy(vt).addS(up, Math.min(0, vn) - 6 * dt);
     if (ent.saltar && NAT.suelta < -0.15) { J.vel.addS(up, 7); J.vel.y += 2.5; NAT.pegado = false; NAT.suelta = 0.35; }
   } else {
-    J.vel.y -= GRAV * MUNDO.gravedad * dt;
+    J.vel.y -= GRAV * MUNDO.gravedad * (J.grav || 1) * dt;
     const dv = vsub(vscale(wish, vmax * wl), v3(J.vel.x, 0, J.vel.z)); J.vel.x += dv.x * Math.min(1, dt * 1.5); J.vel.z += dv.z * Math.min(1, dt * 1.5);
     up.lerpTo(v3(0, 1, 0), Math.min(1, dt * 3)).norm();
   }
