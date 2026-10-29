@@ -49,6 +49,33 @@ class Remoto {
   }
 }
 
+// partidas guardadas: IndexedDB (archivos escritos por el juego), por nombre de archivo
+const Guardado = {
+  db: null,
+  abrir() {
+    return new Promise((ok) => {
+      try {
+        const r = indexedDB.open('boz-partidas', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('archivos');
+        r.onsuccess = () => { Guardado.db = r.result; ok(); };
+        r.onerror = () => ok();
+      } catch (_) { ok(); }
+    });
+  },
+  todos() {
+    return new Promise((ok) => {
+      if (!Guardado.db) { ok([]); return; }
+      try {
+        const out = [], c = Guardado.db.transaction('archivos').objectStore('archivos').openCursor();
+        c.onsuccess = () => { const k = c.result; if (k) { out.push([k.key, new Uint8Array(k.value)]); k.continue(); } else ok(out); };
+        c.onerror = () => ok(out);
+      } catch (_) { ok([]); }
+    });
+  },
+  poner(n, datos) { try { if (Guardado.db) Guardado.db.transaction('archivos', 'readwrite').objectStore('archivos').put(datos, n); } catch (_) {} },
+  quitar(n) { try { if (Guardado.db) Guardado.db.transaction('archivos', 'readwrite').objectStore('archivos').delete(n); } catch (_) {} },
+};
+
 async function bajar(url, tipo) {
   const r = await fetch(url);
   if (!r.ok) throw new Error('No se pudo bajar ' + url + ' (' + r.status + ')');
@@ -69,6 +96,10 @@ async function iniciar(m) {
   fs.montar('blackops_loader.dz', FsVirtual.deBuffer(new Uint8Array(loaderB)));
   const remoto = new Remoto(m.paqueteUrl, m.paqueteTam);
   fs.montar(m.paquete, remoto);
+  await Guardado.abrir();
+  for (const [n, d] of await Guardado.todos()) fs.montar(n, FsVirtual.enMemoria(d));
+  fs.alGuardar = (n, d) => Guardado.poner(n, d);
+  fs.alBorrar = (n) => Guardado.quitar(n);
   const dat = new Uint8Array(4); new DataView(dat.buffer).setUint32(0, meta.buildnum || 456612, true);
   fs.montar(m.paquete + '.dat', FsVirtual.deBuffer(dat));
   Mundo.remoto = remoto;
@@ -92,7 +123,16 @@ async function iniciar(m) {
   gfx.ajuste = m.ajuste || 'completa';
   glh.gfx = gfx; glh.aplicarVp();
   Mundo.gfx = gfx;
-  const s3e = new S3e(cpu, meta.nombres, { cfg, fs, gl: glh, ancho: m.ancho, alto: m.alto, log: (t) => postMessage({ t: 'log', texto: t }), trazar: {}, filtro: m.filtro, heapLo: 0x01000000, heapHi: 0x0A000000 });
+  // sonido: el mezclador corre aca (llama al codigo del juego) y la pagina lo reproduce con WebAudio
+  const audio = {
+    pcm: (a) => postMessage({ t: 'pcm', d: a }, [a.buffer]),
+    general: (v) => postMessage({ t: 'snd', v }),
+    musica: (x, rep) => typeof x === 'string' ? postMessage({ t: 'mus', nombre: x, rep }) : postMessage({ t: 'mus', datos: x, rep }, [x.buffer]),
+    musicaParar: () => postMessage({ t: 'musStop' }),
+    musicaPausa: (si) => postMessage({ t: 'musPausa', si }),
+    musicaVol: (v) => postMessage({ t: 'musVol', v }),
+  };
+  const s3e = new S3e(cpu, meta.nombres, { cfg, fs, gl: glh, audio, ancho: m.ancho, alto: m.alto, log: (t) => postMessage({ t: 'log', texto: t }), trazar: m.trazar ? Object.fromEntries(m.trazar.split(',').map((k) => [k, true])) : {}, filtro: m.filtro, heapLo: 0x01000000, heapHi: 0x0A000000 });
   cpu.hle = s3e.tabla;
   cpu.R[13] = 0x0B000000; cpu.R[14] = Cpu.MAGIC;
   Mundo.cpu = cpu; Mundo.s3e = s3e; Mundo.gl = gl; Mundo.pc = BASE;
@@ -110,6 +150,7 @@ function paso() {
     let pc = Mundo.pc;
     s3e.yieldPedido = false;
     // entrada pendiente: se entrega al guest antes de seguir
+    s3e.tic();
     while (Mundo.cola.length) s3e.entrada(Mundo.cola.shift());
     pc = cpu.run(pc);
     if (s3e.quit) { postMessage({ t: 'salida', codigo: s3e.salida }); Mundo.corriendo = false; return; }
@@ -133,6 +174,7 @@ if (_w) {
     if (m.t === 'init') iniciar(m).catch((err) => postMessage({ t: 'error', texto: String(err && err.stack || err) }));
     else if (m.t === 'ptr' || m.t === 'tecla') { Mundo.cola.push(m); if (m.t === 'ptr' && Mundo.gfx) Mundo.gfx.entrada(m); }
     else if (m.t === 'graficos') { if (Mundo.gfx) { Mundo.gfx.configurar(m.cfg); if (m.ajuste) Mundo.gfx.ajuste = m.ajuste; } }
+    else if (m.t === 'musFin') { if (Mundo.s3e) Mundo.s3e.musicaTermino(); }
     else if (m.t === 'tam') { if (Mundo.gfx) { Mundo.gfx.gl.canvas.width = m.w; Mundo.gfx.gl.canvas.height = m.h; Mundo.gfx.salida(m.w, m.h); } }
     else if (m.t === 'visible') { Mundo.visible = m.v; if (m.v && !Mundo.corriendo && Mundo.cpu) { Mundo.corriendo = true; paso(); } else if (!m.v) Mundo.corriendo = false; }
   };

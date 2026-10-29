@@ -96,10 +96,52 @@ w.onmessage = (e) => {
     t.textContent = op.fps || q.get('fps') ? m.fps.toFixed(0) + ' fps' + (q.get('fps') ? ' | bloques ' + m.bloques + ' | red ' + (m.red / 1048576).toFixed(1) + ' MB (' + m.peticiones + ')' : '') : '';
     if (!window.__listoEnviado) { window.__listoEnviado = true; try { parent.postMessage({ type: 'game:ready' }, '*'); } catch (_) {} }
     window.__fps = m;
-  } else if (m.t === 'error') { t.textContent = 'ERROR: ' + m.texto; console.error(m.texto); window.__error = m.texto; }
+  } else if (m.t === 'pcm') sonar(m.d);
+  else if (m.t === 'snd') { volJuego = m.v; volumenes(); }
+  else if (m.t === 'mus') musica(m);
+  else if (m.t === 'musStop') { mus.pause(); mus.removeAttribute('src'); musPend = false; }
+  else if (m.t === 'musPausa') { if (m.si) mus.pause(); else if (mus.src) mus.play().catch(() => { musPend = true; }); }
+  else if (m.t === 'musVol') { volMus = m.v; volumenes(); }
+  else if (m.t === 'error') { t.textContent = 'ERROR: ' + m.texto; console.error(m.texto); window.__error = m.texto; }
 };
+// ---- sonido: PCM del mezclador (22050 Hz) en cola continua; musica mp3 en un <audio> ----
+let actx = null, gan = null, sigT = 0, volJuego = 1, volMus = 1, musPend = false;
+const mus = new Audio(); mus.preload = 'auto';
+mus.addEventListener('ended', () => w.postMessage({ t: 'musFin' }));
+function audioIni() {
+  if (actx) { if (actx.state === 'suspended') actx.resume().catch(() => {}); return; }
+  try { actx = new (window.AudioContext || window.webkitAudioContext)(); gan = actx.createGain(); gan.connect(actx.destination); volumenes(); } catch (_) { actx = null; }
+}
+function volumenes() {
+  const ef = op.efectos === undefined ? 1 : op.efectos, mu = op.musica === undefined ? 1 : op.musica;
+  if (gan) gan.gain.value = volJuego * ef;
+  mus.volume = Math.max(0, Math.min(1, volMus * mu));
+}
+function sonar(d) {
+  if (!actx || actx.state !== 'running') return;
+  const b = actx.createBuffer(1, d.length, 22050), f = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) f[i] = d[i] / 32768;
+  const s = actx.createBufferSource(); s.buffer = b; s.connect(gan);
+  const t = actx.currentTime;
+  if (sigT < t + 0.01 || sigT > t + 0.4) sigT = t + 0.06;
+  s.start(sigT); sigT += d.length / 22050;
+  if (q.get('fps')) { const e = window.__snd || (window.__snd = { n: 0, max: 0 }); e.n++; for (let i = 0; i < d.length; i += 7) e.max = Math.max(e.max, Math.abs(d[i])); if (q.get('grabar')) (window.__pcm = window.__pcm || []).push(Array.from(d)); }
+}
+let musUrl = null;
+function musica(m) {
+  if (musUrl) { URL.revokeObjectURL(musUrl); musUrl = null; }
+  if (m.datos) { musUrl = URL.createObjectURL(new Blob([m.datos], { type: 'audio/mpeg' })); mus.src = musUrl; }
+  else mus.src = base + m.nombre;
+  mus.loop = m.rep === 0;
+  volumenes();
+  mus.play().catch(() => { musPend = true; });
+}
+function desbloquearAudio() { audioIni(); if (musPend && mus.src) { musPend = false; mus.play().catch(() => { musPend = true; }); } }
+addEventListener('pointerdown', desbloquearAudio, true);
+document.addEventListener('visibilitychange', () => { if (document.hidden) { if (!mus.paused) { mus.pause(); musPend = true; } if (actx) actx.suspend().catch(() => {}); } else if (actx) actx.resume().catch(() => {}); });
+
 const off = c.transferControlToOffscreen();
-w.postMessage({ t: 'init', base, paquete, paqueteUrl, paqueteTam, canvas: off, ancho: AN, alto: AL, salidaW: SW, salidaH: SH, graficos: Object.assign({}, op.cfg, q.get('ver') ? { ver: q.get('ver') } : {}), ajuste: op.ajuste, sinS3tc: !!q.get('sins3tc') }, [off]);
+w.postMessage({ t: 'init', base, paquete, paqueteUrl, paqueteTam, canvas: off, ancho: AN, alto: AL, salidaW: SW, salidaH: SH, graficos: Object.assign({}, op.cfg, q.get('ver') ? { ver: q.get('ver') } : {}), ajuste: op.ajuste, sinS3tc: !!q.get('sins3tc'), trazar: q.get('trazar'), filtro: q.get('filtro') }, [off]);
 addEventListener('resize', () => { const [a, b] = ajustar(); if (a !== SW || b !== SH) { SW = a; SH = b; w.postMessage({ t: 'tam', w: a, h: b }); } });
 
 // ---- entrada: puntero -> coordenadas del juego ----
@@ -130,6 +172,9 @@ const CONTROLES = [
   ['ajuste', 'Ajuste de pantalla', 'sel', [['completa', 'Completa (nativa ancha)'], ['estirar', 'Estirar'], ['bordes', 'Original con bordes']]],
   ['calidad', 'Resolución', 'rango', 0.5, 1.5, 0.05, (v) => Math.round(v * 100) + '%'],
   ['fps', 'Mostrar FPS', 'si'],
+  ['Sonido'],
+  ['efectos', 'Efectos', 'rango', 0, 1, 0.05],
+  ['musica', 'Música', 'rango', 0, 1, 0.05],
   ['Iluminación'],
   ['bloom', 'Resplandor (bloom)', 'rango', 0, 1, 0.05],
   ['aces', 'Tonos de cine (HDR)', 'rango', 0, 1, 0.05],
@@ -165,7 +210,7 @@ for (const d of CONTROLES) {
   el.addEventListener('input', () => { if (outp) outp.textContent = fmt(leer()); cambio(k, leer()); });
 }
 function pintar() {
-  for (const k in vals) vals[k].poner(k === 'ajuste' ? op.ajuste : k === 'fps' ? (op.fps ? 1 : 0) : op.cfg[k]);
+  for (const k in vals) vals[k].poner(k === 'ajuste' ? op.ajuste : k === 'fps' ? (op.fps ? 1 : 0) : k === 'efectos' || k === 'musica' ? (op[k] === undefined ? 1 : op[k]) : op.cfg[k]);
   for (const b of document.querySelectorAll('.presets button')) b.classList.toggle('on', b.dataset.p === op.preset);
   const mismo = (a, b) => (a === 'completa') === (b === 'completa');
   document.getElementById('aviso').hidden = mismo(op.ajuste, ajusteIni);
@@ -174,6 +219,7 @@ function enviar() { w.postMessage({ t: 'graficos', cfg: Object.assign({}, op.cfg
 function cambio(k, v) {
   if (k === 'ajuste') op.ajuste = v;
   else if (k === 'fps') op.fps = !!v;
+  else if (k === 'efectos' || k === 'musica') { op[k] = v; volumenes(); guardar(); return; }
   else { op.cfg[k] = v; op.preset = 'personal'; }
   guardar(); pintar(); enviar();
 }

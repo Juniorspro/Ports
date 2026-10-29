@@ -307,6 +307,118 @@ const S3e = (() => {
       def('s3eAccelerometerGetY', () => self.ret(0));
       def('s3eAccelerometerGetZ', () => self.ret(0));
 
+      // ===== sonido (s3eSound) =====
+      // Mezcla propia por cuadro (tic): los canales con callback GEN_AUDIO (el juego decodifica su ADPCM) se llaman con
+      // s3eSoundGenAudioInfo {canal, destino, n, mezclar, datos, nDatos, repetir, +0x1c fin}; los demas son PCM 16 bits.
+      // Fin de muestra: callback END_SAMPLE {canal, repsRestantes, datosNuevos, nNuevos} -> distinto de 0 sigue.
+      // opt.audio (si hay): pcm(Int16Array) / general(v) / musica(nombre|bytes, rep) / musicaParar() / musicaPausa(si) / musicaVol(v)
+      const au = this.opt.audio || null;
+      const NCAN = 16;
+      this.canales = [];
+      for (let i = 0; i < NCAN; i++) this.canales.push({ activo: false, pausa: false, tasa: 0, vol: 256, usuario: 0, cb: {} });
+      this.sonido = { vol: 256, frec: S3e.FRECUENCIA };
+      const tsn = (t) => { if (self.trazar.sonido) self.log('SND ' + t); };
+      def('s3eSoundGetInt', () => {
+        const p = A(0); let v = 0;
+        switch (p) {
+          case 0: v = self.sonido.vol; break;             // S3E_SOUND_VOLUME
+          case 1: v = S3e.FRECUENCIA; break;              // S3E_SOUND_OUTPUT_FREQ
+          case 2: v = self.sonido.frec; break;            // S3E_SOUND_DEFAULT_FREQ
+          case 3: v = NCAN; break;                        // S3E_SOUND_NUM_CHANNELS
+          case 4: v = self.canales.filter((c) => c.activo).length; break;
+          case 5: v = 1; break;                           // S3E_SOUND_AVAILABLE
+          case 6: v = 256; break;                         // S3E_SOUND_VOLUME_DEFAULT
+        }
+        tsn('GetInt ' + p + ' -> ' + v); self.ret(v);
+      });
+      def('s3eSoundSetInt', () => {
+        const p = A(0), v = A(1); tsn('SetInt ' + p + ' ' + v);
+        if (p === 0) { self.sonido.vol = v; if (au) au.general(v / 256); } else if (p === 2) self.sonido.frec = v;
+        self.ret(OK);
+      });
+      def('s3eSoundGetFreeChannel', () => { const i = self.canales.findIndex((c) => !c.activo); tsn('GetFreeChannel -> ' + i); self.ret(i); });
+      def('s3eSoundChannelRegister', () => { const c = self.canales[A(0)]; tsn('ChannelRegister ' + A(0) + ' tipo=' + A(1) + ' fn=' + (A(2) >>> 0).toString(16)); if (c) c.cb[A(1)] = { fn: A(2), user: A(3) }; self.ret(c ? OK : ERR); });
+      def('s3eSoundChannelUnRegister', () => { const c = self.canales[A(0)]; if (c) delete c.cb[A(1)]; self.ret(OK); });
+      def('s3eSoundChannelGetInt', () => {
+        const c = self.canales[A(0)], p = A(1); let v = 0;
+        if (c) switch (p) {
+          case 0: v = c.activo && !c.pausa ? 1 : 0; break; // S3E_CHANNEL_STATUS
+          case 1: v = c.tasa || self.sonido.frec; break;    // S3E_CHANNEL_RATE
+          case 2: v = c.usuario; break;                     // S3E_CHANNEL_USERVAR
+          case 3: v = c.vol; break;                         // S3E_CHANNEL_VOLUME
+          case 4: v = c.pausa ? 1 : 0; break;               // S3E_CHANNEL_PAUSED
+        }
+        self.ret(v);
+      });
+      def('s3eSoundChannelSetInt', () => {
+        const ch = A(0), c = self.canales[ch], p = A(1), v = A(2); tsn('ChannelSetInt ' + ch + ' ' + p + ' ' + v);
+        if (!c) { self.ret(ERR); return; }
+        if (p === 1) c.tasa = v; else if (p === 2) c.usuario = v; else if (p === 3) c.vol = v;
+        self.ret(OK);
+      });
+      def('s3eSoundChannelPlay', () => {
+        const ch = A(0), c = self.canales[ch], ptr = A(1), n = A(2) >>> 0, rep = A(3), desde = A(4) >>> 0;
+        tsn('ChannelPlay ' + ch + ' ptr=' + (ptr >>> 0).toString(16) + ' n=' + n + ' rep=' + rep + ' desde=' + desde + ' tasa=' + (c && c.tasa) + ' vol=' + (c && c.vol) + ' cbs=' + Object.keys((c && c.cb) || {}));
+        if (!c || !n) { self.ret(ERR); return; }
+        c.activo = true; c.pausa = false; c.ptr = ptr; c.n = n; c.rep = rep; c.desde = desde; c.pos = 0;
+        self.ret(OK);
+      });
+      def('s3eSoundChannelStop', () => { tsn('ChannelStop ' + A(0)); self.pararCanal(A(0)); self.ret(OK); });
+      def('s3eSoundChannelPause', () => { const c = self.canales[A(0)]; if (c && c.activo) c.pausa = true; self.ret(OK); });
+      def('s3eSoundChannelResume', () => { const c = self.canales[A(0)]; if (c) c.pausa = false; self.ret(OK); });
+
+      // ===== musica (s3eAudio: mp3 desde archivo o memoria) =====
+      this.musica = { estado: 0, vol: 256, cb: {} };
+      def('s3eAudioGetInt', () => {
+        const p = A(0), m = self.musica; let v = 0;
+        switch (p) {
+          case 0: v = m.vol; break;            // S3E_AUDIO_VOLUME
+          case 1: v = m.estado; break;         // S3E_AUDIO_STATUS: 0 parado, 1 sonando, 2 en pausa
+          case 2: v = m.estado ? self.ms() - (m.t0 || 0) : 0; break;
+          case 6: v = 256; break;
+          default: v = 0;
+        }
+        tsn('AudioGetInt ' + p + ' -> ' + v); self.ret(v);
+      });
+      def('s3eAudioSetInt', () => { const p = A(0), v = A(1); tsn('AudioSetInt ' + p + ' ' + v); if (p === 0) { self.musica.vol = v; if (au) au.musicaVol(v / 256); } self.ret(OK); });
+      def('s3eAudioRegister', () => { self.musica.cb[A(0)] = { fn: A(1), user: A(2) }; self.ret(OK); });
+      def('s3eAudioPlay', () => {
+        const n = self.cstr(A(0)), rep = A(1); tsn('AudioPlay ' + n + ' rep=' + rep);
+        self.musica.estado = 1; self.musica.t0 = self.ms();
+        if (au) au.musica(n, rep); self.ret(OK);
+      });
+      def('s3eAudioPlayFromBuffer', () => {
+        const p = A(0), n = A(1) >>> 0, rep = A(2); tsn('AudioPlayFromBuffer ' + (p >>> 0).toString(16) + ' ' + n + ' rep=' + rep);
+        self.musica.estado = 1; self.musica.t0 = self.ms();
+        if (au) au.musica(u8.slice(p, p + n), rep); self.ret(OK);
+      });
+      def('s3eAudioStop', () => { tsn('AudioStop'); self.musica.estado = 0; if (au) au.musicaParar(); self.ret(OK); });
+      def('s3eAudioPause', () => { tsn('AudioPause'); if (self.musica.estado === 1) self.musica.estado = 2; if (au) au.musicaPausa(true); self.ret(OK); });
+      def('s3eAudioResume', () => { tsn('AudioResume'); if (self.musica.estado === 2) self.musica.estado = 1; if (au) au.musicaPausa(false); self.ret(OK); });
+      def('s3eAudioIsPlaying', () => self.ret(self.musica.estado === 1 ? 1 : 0));
+      def('s3eAudioUnRegister', () => { delete self.musica.cb[A(0)]; self.ret(OK); });
+
+      // ===== red: no hay (todo falla enseguida) =====
+      const sw16 = (v) => ((v & 255) << 8) | ((v >> 8) & 255), sw32 = (v) => ((v & 255) << 24) | ((v & 0xff00) << 8) | ((v >>> 8) & 0xff00) | (v >>> 24);
+      def('s3eInetHtons', () => self.ret(sw16(A(0)))); def('s3eInetNtohs', () => self.ret(sw16(A(0))));
+      def('s3eInetHtonl', () => self.ret(sw32(A(0)))); def('s3eInetNtohl', () => self.ret(sw32(A(0))));
+      def('s3eInetAton', () => {
+        const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(self.cstr(A(1)));
+        if (!m) { self.ret(0); return; }
+        for (let i = 0; i < 4; i++) u8[A(0) + i] = Number(m[i + 1]) & 255; self.ret(1);
+      });
+      def('s3eInetNtoa', () => { const v = A(0) >>> 0; self.escribirCadena(A(1), [v & 255, (v >> 8) & 255, (v >> 16) & 255, v >>> 24].join('.'), A(2)); self.ret(A(1)); });
+      def('s3eInetToString', () => { self.escribirCadena(A(1), '0.0.0.0', A(2)); self.ret(A(1)); });
+      def('s3eInetLookup', () => self.ret(ERR));
+      def('s3eInetLookupCancel', () => self.ret(OK));
+      def('s3eSocketCreate', () => self.ret(0));
+      def('s3eSocketGetError', () => self.ret(6));      // S3E_SOCKET_ERR_NETDOWN (sin red)
+      def('s3eSocketGetString', () => self.ret(self.cadenaPersistente('sin red')));
+      def('s3eSocketGetInt', () => self.ret(0));
+      for (const n of ['s3eSocketClose', 's3eSocketBind', 's3eSocketConnect', 's3eSocketListen', 's3eSocketAccept', 's3eSocketSend', 's3eSocketSendTo', 's3eSocketRecv', 's3eSocketRecvFrom', 's3eSocketReadable', 's3eSocketWritable', 's3eSocketGetLocalName', 's3eSocketGetPeerName']) def(n, () => self.ret(-1));
+      def('s3eVideoGetInt', () => self.ret(0));
+      def('s3eVideoIsPlaying', () => self.ret(0));
+
       // ===== compresion (inflate) =====
       // s3eCompressionDecompInit / DecompRead / DecompFinal / Decomp: se completan cuando el juego los use
       for (const n of Object.keys(this.opt.extra || {})) def(n, this.opt.extra[n]);
@@ -355,9 +467,83 @@ const S3e = (() => {
         this.disparar('ptr', 3, buf);
       }
     }
+    // una vez por cuadro, antes de correr el guest: temporizadores vencidos y el sonido que falta hasta ~100 ms adelante
+    tic() {
+      const ahora = this.ms();
+      if (this.timers && this.timers.length) {
+        const ya = this.timers.filter((t) => t.cuando <= ahora);
+        if (ya.length) { this.timers = this.timers.filter((t) => t.cuando > ahora); for (const t of ya) this.cpu.call(t.fn, [0, t.user]); }
+      }
+      const FR = S3e.FRECUENCIA;
+      if (this.audioT0 === undefined || ahora - this.audioT0 > 1e7) { this.audioT0 = ahora; this.audioHechas = 0; }
+      let n = Math.floor((ahora - this.audioT0) / 1000 * FR + 0.1 * FR - this.audioHechas);
+      if (n > 0.35 * FR) { this.audioT0 = ahora; this.audioHechas = 0; n = Math.floor(0.1 * FR); } // se atraso (pestana oculta): se salta
+      if (n < 128) return;
+      n = Math.min(n, 4096);
+      this.audioHechas += n;
+      const pcm = this.mezclar(n);
+      if (pcm && this.opt.audio) this.opt.audio.pcm(pcm);
+    }
+    mezclar(n) {
+      const dv = this.dv, u8 = this.u8, cpu = this.cpu;
+      const I = this.reservarMez(), B = this.bufMez;
+      u8.fill(0, B, B + 2 * n);
+      let alguno = false;
+      for (let ch = 0; ch < this.canales.length; ch++) {
+        const c = this.canales[ch];
+        if (!c.activo || c.pausa) continue;
+        alguno = true;
+        const gen = c.cb[1];
+        if (gen) {
+          u8.fill(0, I, I + 64);
+          dv.setInt32(I, ch, true); dv.setInt32(I + 4, B, true); dv.setInt32(I + 8, n, true); dv.setInt32(I + 12, 1, true);
+          dv.setInt32(I + 16, c.ptr, true); dv.setInt32(I + 20, c.n, true); dv.setInt32(I + 24, c.rep, true);
+          cpu.call(gen.fn, [I, gen.user]);
+          if (u8[I + 0x1c]) this.finCanal(ch);
+        } else { // PCM 16 bits: remuestreo lineal simple al vuelo
+          const paso = (c.tasa || this.sonido.frec) / S3e.FRECUENCIA, vol = c.vol / 256;
+          for (let i = 0; i < n && c.activo; i++) {
+            const k = c.pos | 0;
+            if (k >= c.n) { this.finCanal(ch); if (!c.activo) break; c.pos = c.desde || 0; continue; }
+            const v = dv.getInt16(c.ptr + 2 * k, true) * vol, o = B + 2 * i;
+            dv.setInt16(o, Math.max(-32768, Math.min(32767, dv.getInt16(o, true) + v)), true);
+            c.pos += paso;
+          }
+        }
+      }
+      return alguno ? new Int16Array(u8.buffer.slice(B, B + 2 * n)) : null;
+    }
+    reservarMez() { if (!this.bufMez) { this.bufMez = this.mont.reservar(8192 + 128); this.infoMez = this.bufMez + 8192; } return this.infoMez; }
+    finCanal(ch) {
+      const c = this.canales[ch], dv = this.dv, e = c.cb[0];
+      if (e) {
+        const I = this.infoMez + 64;
+        dv.setInt32(I, ch, true); dv.setInt32(I + 4, c.rep > 0 ? c.rep - 1 : 0, true); dv.setInt32(I + 8, 0, true); dv.setInt32(I + 12, 0, true);
+        if (this.cpu.call(e.fn, [I, e.user])) {
+          const nd = dv.getInt32(I + 8, true), nn = dv.getInt32(I + 12, true);
+          if (nd && nn > 0) { c.ptr = nd; c.n = nn; }
+          c.pos = 0; return;
+        }
+      } else if (c.rep === 0 || --c.rep > 0) { c.pos = 0; return; }
+      this.pararCanal(ch);
+    }
+    pararCanal(ch) {
+      const c = this.canales[ch]; if (!c || !c.activo) return;
+      c.activo = false; c.pausa = false;
+      const k = c.cb[3]; if (!k) return;
+      const I = this.reservarMez() + 96; this.dv.setInt32(I, ch, true);
+      this.cpu.call(k.fn, [I, k.user]);
+    }
+    // la pagina avisa que termino la musica
+    musicaTermino() {
+      if (!this.musica || !this.musica.estado) return;
+      this.musica.estado = 0;
+      const k = this.musica.cb[0]; if (k) { const I = this.reservarMez() + 112; this.dv.setInt32(I, 0, true); this.cpu.call(k.fn, [I, k.user]); }
+    }
     pedirYield(ms) { this.yieldPedido = true; this.cpu.stop = true; }
   }
 
+  S3e.FRECUENCIA = 22050; // salida del mezclador
   function Buffer_latin1(u8, a, b) { let s = ''; for (let i = a; i < b; i++) s += String.fromCharCode(u8[i]); return s; }
   return S3e;
 })();
