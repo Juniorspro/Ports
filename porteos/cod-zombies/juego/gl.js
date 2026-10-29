@@ -269,10 +269,14 @@ const GlHle = (() => {
       um(2, 'glUniformMatrix2fv'); um(3, 'glUniformMatrix3fv'); um(4, 'glUniformMatrix4fv');
 
       // ---------- atributos de vertice y dibujo ----------
-      d('glEnableVertexAttribArray', () => { const i = A(0); self.atr[i].on = true; if (gl()) gl().enableVertexAttribArray(i); });
-      d('glDisableVertexAttribArray', () => { const i = A(0); self.atr[i].on = false; if (gl()) gl().disableVertexAttribArray(i); });
+      // los drivers de celular descartan atributos que el shader no usa: el juego recibe -1 de glGetAttribLocation y
+      // lo pasa tal cual; GLES lo ignora (GL_INVALID_VALUE), asi que aca tambien
+      const atrValido = (i) => i >= 0 && i < self.atr.length;
+      d('glEnableVertexAttribArray', () => { const i = A(0); if (!atrValido(i)) return; self.atr[i].on = true; if (gl()) gl().enableVertexAttribArray(i); });
+      d('glDisableVertexAttribArray', () => { const i = A(0); if (!atrValido(i)) return; self.atr[i].on = false; if (gl()) gl().disableVertexAttribArray(i); });
       d('glVertexAttribPointer', () => {
-        const i = A(0), a = self.atr[i];
+        const i = A(0); if (!atrValido(i)) return;
+        const a = self.atr[i];
         a.tam = A(1); a.tipo = A(2); a.norm = !!(A(3) & 255); a.paso = A(4); a.ptr = A(5); a.vbo = self.vboAct;
         if (gl() && a.vbo) gl().vertexAttribPointer(i, a.tam, a.tipo, a.norm, a.paso, a.ptr);
       });
