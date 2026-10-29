@@ -20,9 +20,11 @@ python -I herramientas/empaquetar.py SALIDA CRUDOS PAQUETE
 MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
 ```
 
-- **RezoBox** (nuestra versión): `inicio.js` es la pantalla de inicio propia (logo, Jugar, Mapas con hora del día, Mods,
-  Multijugador, Personajes, Ajustes y el menú clásico del juego). Mods que se aplican al empezar la partida: Goku, gravedad
-  lunar, súper salto, velocidad, munición infinita, modo Dios, cámara lenta y explosiones gigantes (`MODS` en armas y reloj).
+- **HypperX RezoBox** (nuestra versión): `inicio.js` es la pantalla de inicio con el aspecto del menú de Garry's Mod (logo
+  `logo_rezobox.webp` con la R de Rezona, menú de texto, Empezar partida nueva con mapas por categoría y hora, Mods,
+  Personajes, Opciones y el menú clásico del juego). Los fondos son escenas armadas con cosas del juego y van en
+  `PAQUETE/fondos/*.jpg` (fuera del repo). Mods al empezar la partida: Goku, gravedad lunar, súper salto, velocidad,
+  munición infinita, modo Dios, cámara lenta y explosiones gigantes (`MODS` en armas y reloj).
 - Lector de Unity: UnityPy 1.25 compilado desde fuente (`pip --no-binary :all:`), fsb5 para el audio.
 - Gráficos por calidad (Ajustes → Gráficos, o `?gfx=` en la dirección): **patata** y **bajo** (luz difusa como el
   juego), **medio** (luz física GGX, sombras del sol en 1 cascada), **alto** (2 cascadas con PCF, HDR, oclusión

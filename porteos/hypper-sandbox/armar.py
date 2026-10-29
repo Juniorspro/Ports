@@ -23,6 +23,10 @@ html = html.replace('/*MQTT*/', open(MQTT, encoding='utf-8').read().replace('</s
 J = lambda n: base64.b64encode(open(os.path.join(AQUI, 'juego', n), 'rb').read()).decode()
 html = html.replace('/*INTRO*/', J('intro.mp4')).replace('/*INTROIMG*/', J('intro.jpg')).replace('/*INTROWEBM*/', J('intro.webm'))
 js = js.replace('/*LOGORB*/', J('logo_rezobox.webp'))
+# fondos del inicio (escenas del juego, fuera del repo): PAQUETE/fondos/*.jpg
+FD = os.path.join(PK, 'fondos')
+fondos = sorted(os.listdir(FD)) if os.path.isdir(FD) else []
+js = js.replace('/*FONDOSRB*/', ','.join("'data:image/jpeg;base64," + base64.b64encode(open(os.path.join(FD, f), 'rb').read()).decode() + "'" for f in fondos))
 html = html.replace('/*PKIDX*/', json.dumps(idx, separators=(',', ':'))).replace('/*PK*/', base64.b64encode(bytes(blob)).decode()).replace('/*JS*/', js)
 open(OUT, 'w', encoding='utf-8').write(html)
 print('ok', OUT, round(os.path.getsize(OUT) / 1e6, 2), 'MB', 'js', len(js) // 1024, 'KB', 'partes', len(partes))
