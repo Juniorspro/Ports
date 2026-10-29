@@ -54,7 +54,7 @@ function cargarMapa(nombre) {
     }
   }
   // triángulos a la grilla
-  const T = (MUNDO.T = new Float32Array(tris)); MUNDO.nt = T.length / 9; MUNDO.TN = new Float32Array(MUNDO.nt * 3);
+  const T = (MUNDO.T = new Float32Array(tris)); MUNDO.nt = T.length / 9; MUNDO.ntMapa = MUNDO.nt; MUNDO.TN = new Float32Array(MUNDO.nt * 3);
   for (let t = 0; t < MUNDO.nt; t++) {
     const o = t * 9;
     const ux = T[o + 3] - T[o], uy = T[o + 4] - T[o + 1], uz = T[o + 5] - T[o + 2], vx = T[o + 6] - T[o], vy = T[o + 7] - T[o + 1], vz = T[o + 8] - T[o + 2];
@@ -100,7 +100,7 @@ function triCuerpo(t) {
   const T = MUNDO.T, o = t * 9, c = v3((T[o] + T[o + 3] + T[o + 6]) / 3, (T[o + 1] + T[o + 4] + T[o + 7]) / 3, (T[o + 2] + T[o + 5] + T[o + 8]) / 3);
   const vs = [v3(T[o] - c.x, T[o + 1] - c.y, T[o + 2] - c.z), v3(T[o + 3] - c.x, T[o + 4] - c.y, T[o + 5] - c.z), v3(T[o + 6] - c.x, T[o + 7] - c.y, T[o + 8] - c.z)];
   const sh = hullFrom(vs, [[0, 1, 2], [2, 1, 0]]);
-  b = new Body(sh, 0); b.pos.copy(c); b.updateWorld(); b.estatico = true; b.tri = t; b.snd = 'concrete';
+  b = new Body(sh, 0); b.pos.copy(c); b.updateWorld(); b.estatico = true; b.tri = t; b.snd = 'concrete'; b.propio = t >= MUNDO.ntMapa; // (rampas: geo.js)
   b.tn = v3(MUNDO.TN[t * 3], MUNDO.TN[t * 3 + 1], MUNDO.TN[t * 3 + 2]);
   return (MUNDO.triCuerpo[t] = b);
 }

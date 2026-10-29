@@ -49,7 +49,11 @@ function aplicarGiros(P) {
   }
 }
 // el cuerpo según lo que hace
-function animarPersona(P, dt) { if (P.hum) { if (P.emote) P.emoteT += dt; animarHumano(P, dt); return; } P.acc = {}; animarPersona0(P, dt); aplicarGiros(P); }
+function animarPersona(P, dt) {
+  if (P.cuad) { natCuadPose(P, dt); return; } // SCP en cuatro patas (mod)
+  if (P.hum) { if (P.emote) P.emoteT += dt; animarHumano(P, dt); if (P.poseExtra) P.poseExtra(P, dt); return; }
+  P.acc = {}; animarPersona0(P, dt); aplicarGiros(P);
+}
 function animarPersona0(P, dt) {
   const md = P.md; for (let i = 0; i < md.r.length; i++) { const b = P.base[i], r = md.r[i]; r[0] = b[0]; r[1] = b[1]; r[2] = b[2]; r[3] = b[3]; }
   P.t += dt;
@@ -109,12 +113,16 @@ function animarEmote(P, dt) {
   if (t > 12 && e !== 'Sitting') P.emote = null;
 }
 function ubicarPersona(P) {
-  if (P.rag) return;
+  if (P.rag || P.cuad) return;
   const y = P.pos.y - 1 - (P.bajar || 0) + (P.subir || 0) - (P.sentado ? 0.02 : 0);
   if (P.qVeh && P.sentado) {
     // sentado: el giro completo del vehículo, con el pivote en la cadera (1 m arriba de los pies)
     const q = P.qVeh, d = q.rot(v3(0, -1, 0));
     m4trs([P.pos.x + d.x, P.pos.y + d.y - (P.bajar || 0), P.pos.z + d.z], [q.x, q.y, q.z, q.w], [1, 1, 1], P.md.raiz);
+  } else if (P.inclin) {
+    // volando (mod): el cuerpo inclinado con el pivote en la cadera
+    const q = Quat.axis(0, 1, 0, P.yaw).mul(P.inclin), d = q.rot(v3(0, -1, 0));
+    m4trs([P.pos.x + d.x, P.pos.y + d.y, P.pos.z + d.z], [q.x, q.y, q.z, q.w], [1, 1, 1], P.md.raiz);
   } else m4trs([P.pos.x, y, P.pos.z], [0, Math.sin(P.yaw / 2), 0, Math.cos(P.yaw / 2)], [1, 1, 1], P.md.raiz);
   P.md.sucio = true;
   P.bajar = 0; P.subir = 0;
@@ -123,14 +131,14 @@ function dibujarPersona(P) {
   if (!P.visible) return;
   ubicarPersona(P);
   // (sentado, en un emote o en el piso como muñeco no se clavan los pies; se olvida el apoyo viejo para no tirar del pie al volver)
-  if (!P.rag && P.hum && !P.sentado && !P.emote) { aterrizarPies(P); piesIK(P, TIEMPO.dt || 0.016); } else P.ik = null;
+  if (!P.rag && P.hum && !P.sentado && !P.emote && !P.inclin && !P.cuad) { aterrizarPies(P); piesIK(P, TIEMPO.dt || 0.016); } else P.ik = null;
   P.md.encolar();
   if (P.gorroMd) {
     const hi = P.D.h.Head;
     if (hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], P.gorroL, _mb); P.gorroMd.ponerRaiz(_mb); P.gorroMd.encolar(); }
   }
   // el arma en la mano derecha (los modelos de tercera persona del juego, con su lugar en la mano)
-  if (P.arma && !P.rag && !P.sentado && !P.emote) {
+  if (P.arma && !P.rag && !P.sentado && !P.emote && !P.cuad) {
     const A = arma3p(P, P.arma), hi = P.D.h.RightHand;
     if (A && hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], A.W, _mb); A.md.ponerRaiz(_mb); A.md.encolar(); }
   }
@@ -269,14 +277,14 @@ function danarPersona(P, dan, pos, d) {
 // ---------------- el cuerpo del jugador (tercera persona, vehículos, muerte) ----------------
 function jugadorCuerpoNuevo() {
   if (JUG.cuerpo) borrarPersona(JUG.cuerpo);
-  JUG.cuerpo = crearPersona(PREFS.skin, PREFS.gorro, { nombre: PREFS.nombre });
+  JUG.cuerpo = crearPersona(JUG.skinRol || PREFS.skin, PREFS.gorro, { nombre: PREFS.nombre });
 }
 function jugadorRagdoll() { const P = JUG.cuerpo; if (!P) return; P.vel.copy(JUG.vel); ragdoll(P, vscale(JUG.vel, 0.2)); }
 function emote(e) { if (!JUG.cuerpo || JUG.vehiculo) return; JUG.cuerpo.emote = e; JUG.cuerpo.emoteT = 0; if (!JUG.tercera) { JUG.tercera = true; JUG.terceraEmote = true; } if (typeof redEmote === 'function') redEmote(e); }
 function personasPaso(dt) {
   const P = JUG.cuerpo;
   if (P) {
-    if (!JUG.vivo) ragdollPaso(P);
+    if (!JUG.vivo || NAT.rag) ragdollPaso(P);
     else {
       if (P.rag) ragdollFin(P);
       P.pos.copy(JUG.pos); P.vel.copy(JUG.vel); P.suelo = JUG.suelo || !!JUG.vehiculo; P.agachado = ENT.agachar && !JUG.vehiculo;
@@ -286,6 +294,7 @@ function personasPaso(dt) {
       P.arma = JUG.vehiculo ? null : ARM.lista[ARM.i]; P.mira = JUG.pitch;
       if (P.emote && (Math.hypot(JUG.vel.x, JUG.vel.z) > 0.5 || !JUG.suelo)) { P.emote = null; if (JUG.terceraEmote) { JUG.tercera = false; JUG.terceraEmote = false; } }
       if (!P.emote && JUG.terceraEmote) { JUG.tercera = false; JUG.terceraEmote = false; }
+      natPersona(P, dt);
     }
   }
   for (const Q2 of PERS) {

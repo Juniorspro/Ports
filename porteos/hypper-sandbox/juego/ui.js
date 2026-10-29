@@ -95,6 +95,7 @@ function abrirSpawn() { UI.abierto = 'spawn'; $('spawn').classList.remove('oc');
 function cerrarPaneles() {
   UI.abierto = null;
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
+  for (const id of ['radioPan', 'creaPan', 'rolPan']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null;
   $('chatIn').classList.add('oc');
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }

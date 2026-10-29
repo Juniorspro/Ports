@@ -10,7 +10,8 @@ const _p1 = v3(), _p2 = v3(), _pn = v3(), _trisJ = [], _cercaJ = [];
 const MEDIA_VUELTA = Quat.axis(0, 1, 0, Math.PI);
 function jugadorAparecer() {
   const s = MUNDO.spawns[(Math.random() * MUNDO.spawns.length) | 0] || v3(0, 5, 0);
-  JUG.pos.set(s.x, s.y + 1.2, s.z); JUG.vel.set(0, 0, 0); JUG.vida = 100; JUG.vivo = true; JUG.vehiculo = null;
+  JUG.pos.set(s.x, s.y + 1.2, s.z); JUG.vel.set(0, 0, 0); JUG.vida = JUG.vidaMax || 100; JUG.vivo = true; JUG.vehiculo = null;
+  if (s.yaw !== undefined) JUG.yaw = s.yaw; // puntos de aparición de un mapa de la comunidad (con su dirección)
 }
 // empuja una esfera (centro c, radio r) fuera del mundo; devuelve la corrección y anota el piso
 function esferaFuera(c, r, corr, esPie) {
@@ -62,6 +63,7 @@ function jugadorPaso(dt, ent) {
   const qy = Quat.axis(0, 1, 0, J.yaw);
   if (!J.vivo) { J.muertoT -= dt; return; }
   if (J.vehiculo) return;
+  if (natMover(dt, ent)) return; // volar, muñeco o SCP (mods)
   // deseo de movimiento en el plano
   const f = qy.rot(v3(0, 0, 1)), rgt = qy.rot(v3(-1, 0, 0));
   const wish = v3(f.x * ent.y + rgt.x * ent.x, 0, f.z * ent.y + rgt.z * ent.x);
@@ -80,10 +82,26 @@ function jugadorPaso(dt, ent) {
   if (dl > 0) { const k = Math.min(1, mx / dl); J.vel.x += dvx * k; J.vel.z += dvz * k; }
   if (J.suelo && ent.saltar && J.tiempoSuelo > 0.05) { J.vel.y = Math.sqrt(2 * GRAV * MUNDO.gravedad * J.salto); J.suelo = false; J.tiempoSuelo = 0; }
   if (!J.suelo) J.vel.y -= GRAV * MUNDO.gravedad * dt; else if (J.vel.y < 0) J.vel.y = -0.5;
-  const vyAntes = J.vel.y;
-  // moverse en pasos chicos y sacar la cápsula de lo que pise
-  const pasos = Math.max(1, Math.ceil(J.vel.len() * dt / 0.25));
-  const eraSuelo = J.suelo; J.suelo = false; J.sobre = null;
+  const vyAntes = J.vel.y, eraSuelo = J.suelo;
+  jugadorMoverChocar(dt);
+  // pegarse al piso al bajar rampas (si estaba en el piso y no saltó)
+  if (!J.suelo && eraSuelo && J.vel.y <= 0) {
+    const h = mundoRayo(v3(J.pos.x, J.pos.y - J.medio, J.pos.z), v3(0, -1, 0), J.radio + 0.35);
+    if (h && h.n.y > 0.6) { J.pos.y -= h.t - J.radio; J.suelo = true; J.vel.y = -0.5; }
+  }
+  if (J.suelo) { J.tiempoSuelo += dt; if (wl < 0.01 && !base) { const k = Math.exp(-dt * 12); J.vel.x *= k; J.vel.z *= k; } } else J.tiempoSuelo = 0;
+  // cámara: golpe al caer (según la velocidad de caída) y balanceo de la cabeza al caminar
+  if (!eraSuelo && J.suelo && vyAntes < -3) { J.caidaV = Math.max(J.caidaV || 0, Math.min(3, -vyAntes * 0.36)); if (vyAntes < -7) CAM.temblor = Math.max(CAM.temblor, 0.25); }
+  const vh = Math.hypot(J.vel.x, J.vel.z);
+  if (J.suelo) J.bob = (J.bob || 0) + vh * dt * 1.75;
+  J.bobK = (J.bobK || 0) + ((J.suelo ? Math.min(1, vh / 6) : 0) - (J.bobK || 0)) * Math.min(1, dt * 8);
+  J.agK = (J.agK || 0) + ((ent.agachar ? 1 : 0) - (J.agK || 0)) * Math.min(1, dt * 12);
+  if (J.pos.y < MUNDO.lo.y - 60) jugadorAparecer();
+}
+// moverse en pasos chicos y sacar la cápsula de lo que toque (también lo usa volar)
+function jugadorMoverChocar(dt) {
+  const J = JUG, pasos = Math.max(1, Math.ceil(J.vel.len() * dt / 0.25));
+  J.suelo = false; J.sobre = null;
   for (let s = 0; s < pasos; s++) {
     J.pos.addS(J.vel, dt / pasos);
     for (let it = 0; it < 2; it++) {
@@ -104,19 +122,6 @@ function jugadorPaso(dt, ent) {
       if (cl > 1e-5) { const n = corr.scale(1 / cl), vn = vdot(J.vel, n); if (vn < 0) J.vel.addS(n, -vn); } else break;
     }
   }
-  // pegarse al piso al bajar rampas (si estaba en el piso y no saltó)
-  if (!J.suelo && eraSuelo && J.vel.y <= 0) {
-    const h = mundoRayo(v3(J.pos.x, J.pos.y - J.medio, J.pos.z), v3(0, -1, 0), J.radio + 0.35);
-    if (h && h.n.y > 0.6) { J.pos.y -= h.t - J.radio; J.suelo = true; J.vel.y = -0.5; }
-  }
-  if (J.suelo) { J.tiempoSuelo += dt; if (wl < 0.01 && !base) { const k = Math.exp(-dt * 12); J.vel.x *= k; J.vel.z *= k; } } else J.tiempoSuelo = 0;
-  // cámara: golpe al caer (según la velocidad de caída) y balanceo de la cabeza al caminar
-  if (!eraSuelo && J.suelo && vyAntes < -3) { J.caidaV = Math.max(J.caidaV || 0, Math.min(3, -vyAntes * 0.36)); if (vyAntes < -7) CAM.temblor = Math.max(CAM.temblor, 0.25); }
-  const vh = Math.hypot(J.vel.x, J.vel.z);
-  if (J.suelo) J.bob = (J.bob || 0) + vh * dt * 1.75;
-  J.bobK = (J.bobK || 0) + ((J.suelo ? Math.min(1, vh / 6) : 0) - (J.bobK || 0)) * Math.min(1, dt * 8);
-  J.agK = (J.agK || 0) + ((ent.agachar ? 1 : 0) - (J.agK || 0)) * Math.min(1, dt * 12);
-  if (J.pos.y < MUNDO.lo.y - 60) jugadorAparecer();
 }
 // ubica la cámara (primera o tercera persona) y devuelve su posición y rotación
 function jugadorCamara(out) {
@@ -128,7 +133,8 @@ function jugadorCamara(out) {
   J.caidaV += (-J.caidaP * 90 - J.caidaV * 13) * dt; J.caidaP += J.caidaV * dt;
   const ag = J.noclip ? 0 : (J.agK || 0), bob = J.bobK || 0, ph = J.bob || 0;
   const dy = -J.caidaP * 0.45 + Math.abs(Math.sin(ph)) * 0.035 * bob - 0.015 * bob;
-  J.ojoPos.set(J.pos.x, J.pos.y + J.ojo * (1 - 0.45 * ag) + dy, J.pos.z);
+  if (NAT.scp && J.vivo) J.ojoPos.copy(J.pos).addS(NAT.up, 0.5); // SCP: los ojos cerca del piso que pisa
+  else J.ojoPos.set(J.pos.x, J.pos.y + J.ojo * (1 - 0.45 * ag) + dy, J.pos.z);
   J.q.copy(Quat.euler(J.yaw, J.pitch, Math.sin(ph) * 0.006 * bob));
   J.adelante.copy(J.q.rot(v3(0, 0, 1)));
   out.q.copy(J.q);

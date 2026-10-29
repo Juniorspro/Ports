@@ -1,51 +1,74 @@
-// Formatos de HypperX RezoBox para que la gente publique: SÓLO DATOS, nada de código.
-// Lo usan el servidor de la tienda (worker.js) y el juego (armar.py lo mete en la página sin los "export").
+// Formatos de HypperX RezoBox para que la gente publique. Lo usan el servidor de la tienda (worker.js) y el juego (armar.py lo
+// mete en la página sin los "export"). Los valores casi no tienen límite: sólo se descartan números inválidos y se cortan
+// tamaños absurdos. El "codigo" (JavaScript) corre en el juego dentro de un cuadro aislado que habla con la API de mods.
 //
-// Mod (.rbmod):  { formato: 'rezobox-mod', version: 1, nombre, autor, descripcion, etiquetas: [..], icono: emoji o imagen,
+// Mod (.rbmod):  { formato: 'rezobox-mod', version: 1, nombre, autor, descripcion, etiquetas, icono (emoji o imagen),
 //                  efectos: { gravedad, velocidad, salto, tiempo, explosion (multiplicadores), municionInfinita, invencible,
-//                             skin (personaje), hora (0-24 o null), armas: [nombres], aparecer: [{ n: objeto, d: metros, lado }] } }
-// Mapa (.rbmapa): { formato: 'rezobox-mapa', version: 1, nombre, autor, descripcion, etiquetas, base (mapa del juego), foto (jpeg),
-//                  hora, gravedad, objetos: [{ n, p: [x, y, z], q: [x, y, z, w], f: congelado }], aparicion: [x, y, z] o null }
+//                             skin, hora, armas: [nombres], aparecer: [{ n, d, lado }] }, codigo: 'JavaScript' }
+// Mapa (.rbmapa): { formato: 'rezobox-mapa', version: 1, nombre, autor, descripcion, etiquetas, base (mapa del juego), foto,
+//                  hora, gravedad, objetos: [{ n, p, q, f }], aparicion: [x, y, z],
+//                  roles: [{ id, nombre, color, skin, armas, vida, velocidad, salto }], spawns: [{ p, yaw, rol }],
+//                  entidades: [{ t: tipo, p: [x, y, z], yaw, prm: { ... } }], codigo: 'JavaScript' }
 export const ETIQUETAS_RB = ['jugabilidad', 'fisica', 'armas', 'personajes', 'diversion', 'construccion', 'vehiculos', 'aventura', 'pvp', 'otros'];
 export const MAPAS_BASE_RB = ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space'];
-const NOMBRE_OBJ_RB = /^[A-Za-z0-9_ ()\-.]{1,40}$/;
+export const ENTIDADES_RB = ['boton_autos', 'teleport', 'zona_muerte', 'cartel', 'piano', 'radio', 'rampa', 'luz', 'impulso', 'meta', 'musica'];
+const NOMBRE_RB = /^[A-Za-z0-9_ ()\-.]{1,40}$/;
 const rbTexto = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const rbNum = (v, a, b, def) => { const n = Number(v); return Number.isFinite(n) ? Math.min(b, Math.max(a, n)) : def; };
 const rbImagen = (v, max) => (typeof v === 'string' && /^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= max ? v : null);
 const rbEmoji = (v) => (typeof v === 'string' && v.length > 0 && v.length <= 8 && !/[A-Za-z0-9<>"'&]/.test(v) ? v : null);
+const rbVec = (v, n, lim) => (Array.isArray(v) && v.length === n ? v.map((x) => rbNum(x, -lim, lim, 0)) : null);
+const rbColor = (v) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : '#ffffff');
+const rbCodigo = (v) => (typeof v === 'string' && v.trim() ? v.slice(0, 1000000) : null);
+const rbNombres = (v, max) => (Array.isArray(v) ? v : []).filter((a) => typeof a === 'string' && NOMBRE_RB.test(a)).slice(0, max);
 
-// devuelve el objeto limpio (con todo dentro de los límites) o un texto con el error
+// devuelve el objeto limpio o un texto con el error
 export function validarRB(d) {
   if (!d || typeof d !== 'object') return 'no es un objeto';
-  const base = { version: 1, nombre: rbTexto(d.nombre, 40), autor: rbTexto(d.autor, 16) || 'Anónimo', descripcion: rbTexto(d.descripcion, 400),
-    etiquetas: [...new Set((Array.isArray(d.etiquetas) ? d.etiquetas : []).filter((e) => ETIQUETAS_RB.includes(e)))].slice(0, 4) };
+  const base = { version: 1, nombre: rbTexto(d.nombre, 60), autor: rbTexto(d.autor, 24) || 'Anónimo', descripcion: rbTexto(d.descripcion, 2000),
+    etiquetas: [...new Set((Array.isArray(d.etiquetas) ? d.etiquetas : []).filter((e) => ETIQUETAS_RB.includes(e)))].slice(0, 6) };
   if (typeof d.id === 'string' && /^[a-z0-9-]{3,24}$/.test(d.id)) base.id = d.id;
   if (base.nombre.length < 3) return 'el nombre es muy corto';
+  const codigo = rbCodigo(d.codigo); if (codigo) base.codigo = codigo;
   if (d.formato === 'rezobox-mod') {
     const e = d.efectos || {};
     const ef = {
-      gravedad: rbNum(e.gravedad, 0.05, 3, 1), velocidad: rbNum(e.velocidad, 0.3, 4, 1), salto: rbNum(e.salto, 0.3, 8, 1), tiempo: rbNum(e.tiempo, 0.25, 1, 1),
-      explosion: rbNum(e.explosion, 0.5, 5, 1), municionInfinita: !!e.municionInfinita, invencible: !!e.invencible,
+      gravedad: rbNum(e.gravedad, -50, 100, 1), velocidad: rbNum(e.velocidad, 0, 100, 1), salto: rbNum(e.salto, 0, 100, 1), tiempo: rbNum(e.tiempo, 0.05, 4, 1),
+      explosion: rbNum(e.explosion, 0, 100, 1), municionInfinita: !!e.municionInfinita, invencible: !!e.invencible,
       skin: typeof e.skin === 'string' && /^[A-Za-z0-9_]{1,24}$/.test(e.skin) ? e.skin : null,
       hora: e.hora == null || e.hora === '' ? null : rbNum(e.hora, 0, 24, 12),
-      armas: (Array.isArray(e.armas) ? e.armas : []).filter((a) => typeof a === 'string' && NOMBRE_OBJ_RB.test(a)).slice(0, 10),
-      aparecer: (Array.isArray(e.aparecer) ? e.aparecer : []).slice(0, 30).map((o) => ({ n: String((o && o.n) || ''), d: rbNum(o && o.d, 1, 60, 6), lado: rbNum(o && o.lado, -30, 30, 0) })).filter((o) => NOMBRE_OBJ_RB.test(o.n)),
+      armas: rbNombres(e.armas, 50),
+      aparecer: (Array.isArray(e.aparecer) ? e.aparecer : []).slice(0, 500).map((o) => ({ n: String((o && o.n) || ''), d: rbNum(o && o.d, 0, 500, 6), lado: rbNum(o && o.lado, -500, 500, 0) })).filter((o) => NOMBRE_RB.test(o.n)),
     };
-    return { formato: 'rezobox-mod', ...base, icono: rbEmoji(d.icono) || rbImagen(d.icono, 16000) || '🧩', efectos: ef };
+    return { formato: 'rezobox-mod', ...base, icono: rbEmoji(d.icono) || rbImagen(d.icono, 60000) || '🧩', efectos: ef };
   }
   if (d.formato === 'rezobox-mapa') {
     if (!MAPAS_BASE_RB.includes(d.base)) return 'el mapa base no existe';
     const objs = Array.isArray(d.objetos) ? d.objetos : [];
-    if (objs.length > 800) return 'demasiados objetos (máximo 800)';
+    if (objs.length > 20000) return 'demasiados objetos (máximo 20000)';
     const objetos = [];
     for (const o of objs) {
-      if (!o || !NOMBRE_OBJ_RB.test(String(o.n || ''))) return 'objeto inválido';
-      const p = (Array.isArray(o.p) ? o.p : []).map((v) => rbNum(v, -5000, 5000, 0)), q = (Array.isArray(o.q) ? o.q : []).map((v) => rbNum(v, -1, 1, 0));
-      if (p.length !== 3 || q.length !== 4) return 'objeto sin posición o giro';
+      if (!o || !NOMBRE_RB.test(String(o.n || ''))) return 'objeto inválido';
+      const p = rbVec(o.p, 3, 1e5), q = rbVec(o.q, 4, 1);
+      if (!p || !q) return 'objeto sin posición o giro';
       objetos.push({ n: String(o.n), p, q, f: o.f ? 1 : 0 });
     }
-    const ap = Array.isArray(d.aparicion) && d.aparicion.length === 3 ? d.aparicion.map((v) => rbNum(v, -5000, 5000, 0)) : null;
-    return { formato: 'rezobox-mapa', ...base, base: d.base, foto: rbImagen(d.foto, 40000), hora: d.hora == null || d.hora === '' ? null : rbNum(d.hora, 0, 24, 12), gravedad: rbNum(d.gravedad, 0.05, 3, 1), objetos, aparicion: ap };
+    const roles = (Array.isArray(d.roles) ? d.roles : []).slice(0, 32).map((r, i) => ({ id: /^[a-z0-9_-]{1,24}$/.test(String(r && r.id)) ? r.id : 'rol' + i, nombre: rbTexto(r && r.nombre, 30) || 'Rol ' + (i + 1),
+      color: rbColor(r && r.color), skin: typeof (r && r.skin) === 'string' && /^[A-Za-z0-9_]{1,24}$/.test(r.skin) ? r.skin : null, armas: rbNombres(r && r.armas, 50),
+      vida: rbNum(r && r.vida, 1, 100000, 100), velocidad: rbNum(r && r.velocidad, 0, 100, 1), salto: rbNum(r && r.salto, 0, 100, 1) }));
+    const spawns = (Array.isArray(d.spawns) ? d.spawns : []).slice(0, 256).map((s) => ({ p: rbVec(s && s.p, 3, 1e5), yaw: rbNum(s && s.yaw, -10, 10, 0), rol: s && typeof s.rol === 'string' ? s.rol.slice(0, 24) : null })).filter((s) => s.p);
+    const entidades = (Array.isArray(d.entidades) ? d.entidades : []).slice(0, 2000).map((x) => {
+      if (!x || !ENTIDADES_RB.includes(x.t)) return null; const p = rbVec(x.p, 3, 1e5); if (!p) return null;
+      const prm = {}; for (const [k, v] of Object.entries(x.prm || {}).slice(0, 24)) {
+        if (!/^[a-zA-Z0-9_]{1,24}$/.test(k)) continue;
+        if (typeof v === 'number' && Number.isFinite(v)) prm[k] = v; else if (typeof v === 'boolean') prm[k] = v;
+        else if (typeof v === 'string') prm[k] = rbTexto(v, 300); else if (Array.isArray(v)) prm[k] = v.slice(0, 64).map((y) => (typeof y === 'number' && Number.isFinite(y) ? y : rbTexto(y, 60)));
+      }
+      return { t: x.t, p, yaw: rbNum(x.yaw, -10, 10, 0), prm };
+    }).filter(Boolean);
+    const ap = rbVec(d.aparicion, 3, 1e5);
+    return { formato: 'rezobox-mapa', ...base, base: d.base, foto: rbImagen(d.foto, 120000), hora: d.hora == null || d.hora === '' ? null : rbNum(d.hora, 0, 24, 12),
+      gravedad: rbNum(d.gravedad, -50, 100, 1), objetos, aparicion: ap, roles, spawns, entidades };
   }
   return 'formato desconocido';
 }

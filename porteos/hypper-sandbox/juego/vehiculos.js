@@ -220,6 +220,8 @@ function avionPaso(V, dt, ent) {
 function usar() {
   if (JUG.vehiculo) { salirVehiculo(); return; }
   const h = raycast(CAM.pos, CAM.fwd, 4.5, null);
+  if (h && h.body && h.body.ent && entidadUsar(h.body.ent)) return; // radio
+  { const e = !h || !h.body || !h.body.obj ? entidadCerca() : null; if (e && entidadUsar(e)) return; } // botón de autos al lado
   if (!h || !h.body || !h.body.obj) return;
   const o = h.body.obj;
   if (o.logica && usarLogica(o)) return;

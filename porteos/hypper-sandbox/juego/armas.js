@@ -250,7 +250,7 @@ function soltarAgarre(congelar) {
 function gravPrimario() {
   if (ARM.grav) { const b = ARM.grav.b; soltarGrav(); b.vel.addS(CAM.fwd, Math.min(50, 2500 / Math.max(10, b.mass))); sonar('Melee1', b.pos, 0.6, 0.7); return; }
   const h = raycast(CAM.pos, CAM.fwd, 10, null);
-  if (h && h.body && h.body.dynamic) { h.body.wake(); h.body.vel.addS(CAM.fwd, Math.min(50, 1500 / Math.max(10, h.body.mass))); sonar('Melee1', h.p, 0.6, 0.7); }
+  if (h && h.body && h.body.dynamic) { h.body.wake(); h.body.vel.addS(CAM.fwd, Math.min(50, 1500 / Math.max(10, h.body.mass))); sonar('Melee1', h.p, 0.6, 0.7); natEmpujon(h.body); }
 }
 function gravSecundario() {
   if (ARM.grav) { soltarGrav(); return; }
@@ -275,10 +275,13 @@ function armasPaso(dt) {
   if (ARM.barraT > 0) { ARM.barraT -= dt; if (ARM.barraT <= 0) { $('barra').classList.add('oc'); $('arribaDe').style.visibility = ''; } }
   if (ARM.golpeT > 0) { ARM.golpeT -= dt; if (ARM.golpeT <= 0) golpeAplicar(ARM.golpeD); }
   const n = ARM.lista[ARM.i], D = DEF_ARMAS[n];
-  if (!UI.abierto && JUG.vivo && !JUG.vehiculo) {
+  // (tirado como muñeco o en cuatro patas no se usan armas; en el creador el clic elige y pone)
+  if (!UI.abierto && JUG.vivo && !JUG.vehiculo && !NAT.rag && !NAT.scp && !(CREA.on && creadorPaso())) {
     if (D.tipo === 'fisica') {
-      if (ENT.disparo && !ARM.agarre) agarrarFisica();
-      if (!ENT.disparo && ARM.agarre) soltarAgarre(false);
+      // en el celular un toque agarra y otro suelta (no hay que mantener); con el mouse, mantener como siempre
+      const flanco = ENT.disparo && !ARM.fisAnt; ARM.fisAnt = ENT.disparo;
+      if (ENT.tactil) { if (flanco) { if (ARM.agarre) soltarAgarre(false); else agarrarFisica(); } }
+      else { if (ENT.disparo && !ARM.agarre) agarrarFisica(); if (!ENT.disparo && ARM.agarre) soltarAgarre(false); }
       if (ARM.agarre && ENT.disparo2) { soltarAgarre(true); ENT.disparo2 = false; }
       else if (!ARM.agarre && ENT.disparo2) { ENT.disparo2 = false; const h = raycast(CAM.pos, CAM.fwd, 50, null); if (h && h.body && h.body.frozen && !h.body.estatico) { h.body.frozen = false; h.body.wake(); aviso('Descongelado', 1); } }
       if (ARM.agarre && ENT.rueda) { ARM.agarre.dist = clamp(ARM.agarre.dist - ENT.rueda * 0.6, 1.5, 50); }

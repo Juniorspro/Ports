@@ -67,7 +67,14 @@ class Modelo {
     if (this.oculto) return;
     this.actualizar();
     let extra = this.color ? { c: this.color } : this.extra || null;
-    if (this.resaltar && TIEMPO.t - this.resaltar < 0.12) { const k = 0.18 + 0.1 * Math.sin(TIEMPO.t * 8); extra = Object.assign({}, extra || {}, { em: [0.25 * k * 2, 0.55 * k * 2, 0.9 * k * 2] }); }
+    // resaltado de lo que se apunta: fijo, entra y sale suave y aguanta un momento (sin titilar si el rayo falla un cuadro)
+    if (this.resaltar !== undefined) {
+      if (this.resT !== TIEMPO.t) { // una vez por cuadro (el modelo se dibuja también para las sombras)
+        this.resT = TIEMPO.t; const meta = TIEMPO.t - this.resaltar < 0.3 ? 1 : 0, k = (this.resK || 0) + (meta - (this.resK || 0)) * Math.min(1, (TIEMPO.dt || 0.016) * 12);
+        this.resK = k < 0.01 && !meta ? 0 : k;
+      }
+      if (this.resK > 0) { const e = 0.26 * this.resK; extra = Object.assign({}, extra || {}, { em: [0.5 * e, 1.1 * e, 1.8 * e] }); }
+    }
     const A = this.A;
     for (let i = 0; i < A.length; i++) {
       if (!this.ver[i]) continue;

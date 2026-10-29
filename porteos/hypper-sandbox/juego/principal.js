@@ -80,6 +80,7 @@ const CAM = { pos: v3(), q: new Quat(), qVista: new Quat(), fwd: v3(0, 0, 1), de
 function camaraActualizar(dt) {
   if (JUEGO.estado === 'principal' && typeof lobbyCamara === 'function') { lobbyCamara(CAM); CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); return; }
   jugadorCamara(CAM);
+  if (DBG.cam) { CAM.pos.copy(DBG.cam.p); CAM.q.copy(DBG.cam.q); } // (pruebas: mirar desde otro lado)
   if (CAM.temblor > 0) { CAM.temblor = Math.max(0, CAM.temblor - dt * 1.5); const k = CAM.temblor * 0.03; CAM.q.mul(Quat.euler((Math.random() - 0.5) * k, (Math.random() - 0.5) * k)); }
   CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA);
   CAM.fwd.copy(CAM.q.rot(v3(0, 0, 1)));
@@ -90,6 +91,7 @@ function camaraActualizar(dt) {
 const DESHACER = [];
 function empezarPartida(mapa) {
   audioIniciar();
+  natFin(); entidadesLimpiar(); JUG.skinRol = null; JUG.vidaMax = 0; JUG.colorRol = null; JUG.noclip = false;
   for (const o of OBJS.slice()) borrarObjeto(o);
   PH.bodies.length = 0; PH.joints.length = 0; PROY.length = 0; PART.l.length = 0;
   if (typeof personasLimpiar === 'function') personasLimpiar();
@@ -107,6 +109,7 @@ function empezarPartida(mapa) {
   if (typeof MENU !== 'undefined' && MENU.cargarGuardado) { MENU.cargarGuardado = false; cargarConstruccion(); }
 }
 function irMenuPrincipal() {
+  modapiDescargar(); natFin(); entidadesLimpiar(); creadorSalir(); rolCerrar();
   if (typeof redSalir === 'function') redSalir();
   JUEGO.estado = 'principal'; $('hud').classList.add('oc'); soltarPuntero(); cerrarPaneles();
   if (typeof SALA !== 'undefined') SALA = null;
@@ -114,7 +117,7 @@ function irMenuPrincipal() {
   inicioMostrar(true);
 }
 function morirJugador() {
-  JUG.vivo = false; JUG.muertoT = 3; soltarAgarre(); soltarGrav();
+  JUG.vivo = false; JUG.muertoT = 3; soltarAgarre(); soltarGrav(); modapiEvento('muerte', {});
   if (JUG.vehiculo) salirVehiculo();
   if (typeof jugadorRagdoll === 'function') jugadorRagdoll();
   aviso('Te moriste', 3);
@@ -187,13 +190,14 @@ function cuadro(ahora) {
     armasPaso(dt);
     if (!JUG.vivo && JUG.muertoT <= 0) { jugadorAparecer(); if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo(); }
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
+    modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt);
     if (typeof redPaso === 'function') redPaso(dt);
     diaPaso(dt); hostPaso();
   }
   efectosPaso(dt);
   camaraActualizar(dt);
   dibujar();
-  buclesFin();
+  buclesFin(); audioPaso(dt);
   hudActualizar(dt);
   // fps y resolución automática
   TIEMPO.cuadros++; TIEMPO.medT += dt; TIEMPO.ms += performance.now() - t0;
@@ -254,6 +258,7 @@ function dibujar() {
   dibujarObjetos();
   if (typeof dibujarPersonas === 'function') dibujarPersonas();
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
+  dibujarEntidades();
   dibujarProyectiles();
   lucesJuntar(); lucesPreparar();
   if (JUEGO.estado === 'juego' && R.sombraOn) {

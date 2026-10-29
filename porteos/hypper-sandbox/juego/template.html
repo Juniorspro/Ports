@@ -194,6 +194,51 @@ html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(
 .rbRango output{font:700 calc(var(--vh)*2.8) Roboto,Arial,sans-serif;color:#2f86de;text-align:end}
 .rbFila{display:flex;gap:8px;flex-wrap:wrap}
 .rbGridChica{padding:0;grid-template-columns:repeat(auto-fill,minmax(calc(var(--vh)*22),1fr))}
+#modBtns{position:absolute;inset-inline-start:12px;top:26%;max-height:calc(var(--vh)*50);display:flex;flex-direction:column;flex-wrap:wrap;align-content:flex-start;gap:6px;pointer-events:none}
+.modBt{pointer-events:auto;min-width:54px;height:54px;padding:0 10px;border-radius:27px;background:rgba(40,52,70,.62);border:2px solid rgba(255,255,255,.3);color:#fff;display:flex;align-items:center;justify-content:center;font:800 20px Roboto,Arial,sans-serif;user-select:none;-webkit-user-select:none;touch-action:none}
+.modBt:active,.modBt.on{background:rgba(47,134,222,.75)}
+.natBt{flex-direction:column;line-height:1;min-width:46px;width:46px;height:46px;padding:0;border-radius:23px;font-size:19px}.natBt small{font:700 9px Roboto,Arial,sans-serif;opacity:.75;margin-top:2px}
+body.tactil .natBt small{display:none}
+.etiqueta.cartelT{font-size:15px;max-width:240px;white-space:normal;text-align:center;color:#fff}
+/* radio de YouTube: reproductor chico en la esquina y panel de búsqueda */
+#ytMini{position:fixed;inset-inline-end:12px;top:calc(var(--vh)*22);width:200px;z-index:4;background:#111;border-radius:6px;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+#ytMini.oc{display:none}#ytMini .ytV{width:200px;height:112px}#ytMini iframe{width:200px;height:112px;border:0;display:block;pointer-events:none}
+#ytMini .ytB{display:flex;align-items:center;gap:4px;padding:3px 4px;font:12px Roboto,Arial,sans-serif;color:#ddd}
+#ytMini .ytT{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#ytMini button{background:#2b2d33;border:0;color:#fff;border-radius:4px;padding:3px 6px;font-size:13px;cursor:pointer}
+.radioCaja{width:min(560px,calc(var(--vw)*94))}.radioBus{display:flex;gap:6px}.radioBus input{flex:1;background:#1f2024;color:#fff;border:1px solid #555;border-radius:4px;padding:8px;font-size:14px}
+#radioRes{max-height:calc(var(--vh)*48);overflow:auto;margin:8px 0;display:flex;flex-direction:column;gap:4px}
+.radioIt{display:flex;gap:8px;align-items:center;text-align:start;background:#33363d;border:0;border-radius:4px;padding:4px;color:#fff;cursor:pointer}
+.radioIt.sel{outline:2px solid #3e6fd8}.radioIt img{width:96px;height:54px;object-fit:cover;border-radius:3px;flex:none;background:#000}
+.radioIt span{display:flex;flex-direction:column;min-width:0}.radioIt b{font-size:13px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.radioIt small{color:#aaa;font-size:11px;margin-top:2px}.radioVacio{padding:16px;text-align:center;color:#aaa}.radioYa{margin-top:8px;font-size:13px;color:#9cf}
+.radioPie{display:flex;justify-content:flex-end;gap:6px}
+/* creador de mapas */
+#creaBar{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:4px;max-width:calc(var(--vw)*70);z-index:2;pointer-events:none}
+.crBt{pointer-events:auto;background:rgba(30,36,48,.82);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:5px;padding:7px 10px;font:700 13px Roboto,Arial,sans-serif;cursor:pointer;display:flex;align-items:center;gap:4px}
+.crBt i{display:inline-block;width:10px;height:10px;border-radius:50%}.crBt.crSi{background:rgba(40,140,70,.9)}.crBt.crNo{background:rgba(170,40,40,.9)}
+.crSep{width:1px;background:rgba(255,255,255,.3)}.crTxt{pointer-events:none;color:#fff;font:700 13px Roboto,Arial,sans-serif;align-self:center;text-shadow:0 1px 3px #000;padding:0 4px}
+.creaCaja{width:min(720px,calc(var(--vw)*94))}.crPaleta{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}
+.crPaleta button{background:#33363d;border:0;color:#fff;border-radius:6px;padding:10px 6px;font-size:13px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}.crPaleta button b{font-size:26px}
+.crAyuda{color:#aab;font-size:12px;margin:8px 0}.crForm{display:flex;flex-direction:column;gap:6px}
+.crCampo{display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}.crCampo input,.crCampo select,.crCampo textarea{flex:1;min-width:120px;background:#1f2024;color:#fff;border:1px solid #555;border-radius:4px;padding:5px;font-size:13px}
+.crCampo input[type=checkbox]{flex:none;min-width:0}.crCampo input[type=color]{flex:none;min-width:0;width:44px;height:28px;padding:0}.crVec{display:flex;gap:4px;flex:1}.crVec input{min-width:50px}
+.crPie{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:6px;margin-top:10px}
+.crRoles{display:flex;flex-direction:column;gap:6px;max-height:calc(var(--vh)*55);overflow:auto}
+.crRol{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:#33363d;border-radius:5px;padding:6px;font-size:12px}
+.crRol input,.crRol select{background:#1f2024;color:#fff;border:1px solid #555;border-radius:3px;padding:3px;font-size:12px}.crRol input[data-rk=nombre]{width:110px}
+.crRol input[type=number]{width:58px}.crRol input[type=color]{width:34px;height:24px;padding:0}.crRol label{display:flex;align-items:center;gap:2px}
+.crArmas,.crEtqs{display:flex;flex-wrap:wrap;gap:3px;width:100%}.crArmas button,.crEtqs button{background:#24262b;border:1px solid #555;color:#ccc;border-radius:3px;padding:2px 6px;font-size:11px;cursor:pointer}
+.crArmas button.sel,.crEtqs button.sel{background:#3e6fd8;color:#fff;border-color:#3e6fd8}
+.rolCaja{width:min(460px,calc(var(--vw)*94))}.rolIt{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%;margin:5px 0;padding:10px;background:#33363d;border:0;border-radius:5px;color:#fff;cursor:pointer;text-align:start}
+.rolIt i{width:16px;height:16px;border-radius:50%}.rolIt b{font-size:15px}.rolIt small{width:100%;color:#aab;font-size:12px}
+.rbAyudaC{color:#666;font-size:calc(var(--vh)*2.2);margin:calc(var(--vh)*1.5) 0 0}
+.rbCrear{flex-direction:column;overflow:auto;padding:calc(var(--vh)*1.6) calc(var(--vh)*2.2);gap:calc(var(--vh)*1.2)}.rbCrear .rbGrid{flex:none;overflow:visible}
+#vozBt{position:absolute;inset-inline-start:12px;top:15%}
+.habla::before{content:'🔊 '}
+.rbCodigo{font:500 calc(var(--vh)*2.7) ui-monospace,Menlo,Consolas,monospace !important;background:#1e2127;color:#d8dee9;border-color:#333 !important}
+.rbAyuda{font:500 calc(var(--vh)*2.3) ui-monospace,Menlo,Consolas,monospace;color:#666;line-height:1.35}
+.rbCod{color:#b4570e;font-family:ui-monospace,Menlo,monospace}
 #rbVolver{position:absolute;left:10px;bottom:10px;z-index:3;font:800 14px Roboto,sans-serif;color:#fff;background:rgba(20,26,50,.85);border-radius:9px;padding:7px 12px;cursor:pointer}
 
 #menuReal .lienzo{position:absolute;left:0;top:0;transform-origin:0 0}

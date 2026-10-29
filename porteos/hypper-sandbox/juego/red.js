@@ -159,8 +159,10 @@ function redEntrar(mapa) {
   cli.on('close', () => { if (RED.cli !== cli) return; RED.on = false; redEstadoUI(); });
   cli.on('message', (t, m) => { if (RED.cli !== cli) return; try { redMensaje(t, m); } catch (e) {} });
   redEstadoUI();
+  vozBotonPoner(true);
 }
 function redSalir() {
+  vozApagar(); vozBotonPoner(false);
   if (!RED.cli) return;
   try { RED.cli.publish(RED.ROOM + '/w/' + RED.ID, '', { retain: true }); publicar('a', { k: 'chau' }); const c = RED.cli; setTimeout(() => { try { c.end(false); } catch (e) {} }, 50); } catch (e) {}
   RED.cli = null; RED.on = false; presencia();
@@ -187,8 +189,8 @@ function redPaso(dt) {
   redCedidosPaso(dt);
   if (t - LISTA.ultP > 120) presencia();
   if (t - RED.ultE > 0.1) {
-    const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0);
-    const e = { n: PREFS.nombre, k: PREFS.skin, h: PREFS.gorro, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
+    const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits();
+    const e = { n: PREFS.nombre, k: J.skinRol || PREFS.skin, h: PREFS.gorro, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
       e: JUG.cuerpo && JUG.cuerpo.emote || 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0 };
     const s = JSON.stringify(e);
     if (s !== RED.eAnt || t - RED.ultE > 1) { publicar('e', e); RED.eAnt = s; RED.ultE = t; }
@@ -203,7 +205,7 @@ function redPaso(dt) {
   if (RED.wSucio || t - RED.ultW > 8) {
     RED.wSucio = false; RED.ultW = t;
     const o = OBJS.filter((x) => !x.remoto).slice(-300).map((x) => [x.id, x.nombre, r3(x.b.pos.x), r3(x.b.pos.y), r3(x.b.pos.z), r4(x.b.q.x), r4(x.b.q.y), r4(x.b.q.z), r4(x.b.q.w), x.b.frozen ? 1 : 0]);
-    publicar('w/' + RED.ID, { o }, true);
+    publicar('w/' + RED.ID, { o, e: entidadesMias() }, true);
   }
   redEstadoUI();
 }
@@ -253,6 +255,8 @@ function recibirEstado(d) {
   const em = typeof d.e === 'string' && DATA.emotes.includes(d.e) ? d.e : null;
   if (em && R2.P.emote !== em) { R2.P.emote = em; R2.P.emoteT = 0; } else if (!em) R2.P.emote = null;
   R2.veh = Array.isArray(d.w) ? { k: String(d.w[0]), a: d.w[1] | 0 } : null;
+  R2.up = Array.isArray(d.u) ? v3(num(d.u[0], -1, 1, 0), num(d.u[1], -1, 1, 1), num(d.u[2], -1, 1, 0)).norm() : null;
+  R2.tag.style.color = typeof d.c === 'string' && /^#[0-9a-fA-F]{6}$/.test(d.c) ? d.c : '';
 }
 function remotoPaso(R2, dt) {
   if (TIEMPO.t - R2.t > 10) { quitarRemoto(R2); RED.remotos.delete(R2.id); return; }
@@ -263,9 +267,10 @@ function remotoPaso(R2, dt) {
   P.pos.copy(R2.pos); P.yaw = R2.yaw; P.vel.copy(R2.vel); P.suelo = !!(R2.f & 1); P.agachado = !!(R2.f & 2); P.sentado = !!(R2.f & 8);
   // si va en un vehículo, el cuerpo sigue al asiento
   if (R2.veh) { const o = buscarObjeto(R2.veh.k); if (o && o.veh) { const a = o.veh.asientos[R2.veh.a] || v3(); P.pos.copy(vadd(o.b.pos, o.b.q.rot(vadd(a, v3(0, 0.25, 0))))); const f = o.b.q.rot(v3(0, 0, 1)); P.yaw = Math.atan2(f.x, f.z); P.manejando = R2.veh.a === 0; P.qVeh = o.b.q; } } else P.qVeh = null;
-  const vivo = !!(R2.f & 4);
-  if (!vivo && !P.rag) { P.vel.copy(R2.vel); ragdoll(P, null); } else if (vivo && P.rag) ragdollFin(P);
-  R2.b.pos.copy(P.pos); R2.b.updateWorld(); R2.b.noRay = !vivo;
+  const vivo = !!(R2.f & 4), rag = !vivo || !!(R2.f & 32);
+  if (rag && !P.rag) { P.vel.copy(R2.vel); P.cuad = null; P.inclin = null; ragdoll(P, null); } else if (!rag && P.rag) ragdollFin(P);
+  natRemoto(R2, dt);
+  R2.b.pos.copy(P.pos); R2.b.updateWorld(); R2.b.noRay = rag; R2.b.noPhys = rag; R2.b.noJug = rag; // tirado: sólo el muñeco choca (y se puede agarrar)
   // etiqueta con el nombre sobre la cabeza
   const cp = vadd(P.pos, v3(0, 1.25, 0)), cl = clipDe(cp);
   if (cl && cp.distTo(CAM.pos) < 60) { R2.tag.style.display = ''; R2.tag.style.transform = `translate(${cl.x}px,${cl.y}px) translate(-50%,-100%)`; } else R2.tag.style.display = 'none';
@@ -274,7 +279,7 @@ function clipDe(p) {
   const m = R.vpMundo || R.vp, x = m[0] * p.x + m[4] * p.y + m[8] * p.z + m[12], y = m[1] * p.x + m[5] * p.y + m[9] * p.z + m[13], w = m[3] * p.x + m[7] * p.y + m[11] * p.z + m[15];
   if (w <= 0.1) return null; return { x: (x / w * 0.5 + 0.5) * VW(), y: (0.5 - y / w * 0.5) * VH() };
 }
-function quitarRemoto(R2) { borrarPersona(R2.P); removeBody(R2.b); R2.tag.remove(); for (const o of [...RED.objs.values()]) if (o.dueno === R2.id) { borrarObjeto(o, true); RED.objs.delete(o.key); } chatMostrar('★', (R2.nombre || 'Alguien') + ' salió'); }
+function quitarRemoto(R2) { vozCerrar(R2.id); entidadesDe(R2.id); borrarPersona(R2.P); removeBody(R2.b); R2.tag.remove(); for (const o of [...RED.objs.values()]) if (o.dueno === R2.id) { borrarObjeto(o, true); RED.objs.delete(o.key); } chatMostrar('★', (R2.nombre || 'Alguien') + ' salió'); }
 function buscarObjeto(k) {
   if (RED.objs.has(k)) return RED.objs.get(k);
   if (k.startsWith(RED.ID + ':')) { const id = +k.slice(RED.ID.length + 1); return OBJS.find((o) => o.id === id && !o.remoto); }
@@ -282,6 +287,7 @@ function buscarObjeto(k) {
 }
 function recibirMundo(id, d) {
   const vivos = new Set();
+  if (d && 'e' in d) entidadesRecibir(id, d.e);
   if (d && Array.isArray(d.o)) for (const x of d.o.slice(0, 300)) {
     if (!Array.isArray(x) || typeof x[1] !== 'string' || !DATA.pfPorNombre[x[1]]) continue;
     const key = id + ':' + (x[0] | 0); vivos.add(key);
@@ -328,6 +334,9 @@ function recibirHecho(d) {
   } else if (d.k === 'exp' && Array.isArray(d.p)) {
     const p = v3(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0));
     explosion.remota = true; explosion(p, 6, 100); explosion.remota = false;
+  } else if (d.k === 'rtc' && d.to === RED.ID) { vozSenal(d);
+  } else if (d.k === 'ent' || d.k === 'entb' || d.k === 'radio') { entidadHecho(d);
+  } else if (d.k === 'jalar') { natRed(d);
   } else if (d.k === 'dano' && d.to === RED.ID) {
     if (SALA && !SALA.pvp) return;
     danarJugador(num(d.d, 0, 500, 0), null);

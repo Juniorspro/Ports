@@ -243,6 +243,25 @@ function hullHull(A, B) {
     else mkContact(A, B, c.p, onRef, rn, c.depth);                    // cara de B: el vértice de A metido y su proyección en la cara de B
   }
 }
+// poliedro contra un triángulo de las formas propias (rampas): sólo vértices contra la cara, con la normal de la cara.
+// Así lo que se desliza no se traba en las aristas internas entre triángulos (los choques de arista daban normales
+// falsas y frenaban de golpe un auto a 35 m/s)
+function hullTri(A, B) {
+  const T = MUNDO.T, o = B.tri * 9, m = A.spec + (B.spec || 0);
+  const a = v3(T[o], T[o + 1], T[o + 2]), e0 = v3(T[o + 3] - a.x, T[o + 4] - a.y, T[o + 5] - a.z), e1 = v3(T[o + 6] - a.x, T[o + 7] - a.y, T[o + 8] - a.z);
+  const d00 = vdot(e0, e0), d01 = vdot(e0, e1), d11 = vdot(e1, e1), den = d00 * d11 - d01 * d01; if (Math.abs(den) < 1e-12) return;
+  const n = B.tn.clone(); if (vdot(vsub(A.pos, a), n) < 0) n.scale(-1);
+  let pts = [];
+  for (const v of A.wv) {
+    const s = vdot(vsub(v, a), n); if (s > m || s < -1.2) continue;
+    const q = vsub(v, vscale(n, s)), w = vsub(q, a), d20 = vdot(w, e0), d21 = vdot(w, e1);
+    const bv = (d11 * d20 - d01 * d21) / den, bw = (d00 * d21 - d01 * d20) / den;
+    if (bv < -0.02 || bw < -0.02 || bv + bw > 1.02) continue;
+    pts.push({ p: v, q, depth: -s });
+  }
+  if (pts.length > 4) pts = reduce4(pts, n);
+  for (const c of pts) mkContact(A, B, c.p, c.q, n, c.depth);
+}
 function reduce4(pts, n) {
   // el más hondo, el más lejano a él, y los dos que más área agregan
   pts.sort((a, b) => b.depth - a.depth);
@@ -325,6 +344,7 @@ function collidePair(A, B) {
     return;
   }
   const ta = A.shape.type, tb = B.shape.type;
+  if (ta === 'hull' && B.propio) return hullTri(A, B);
   if (ta === 'hull' && tb === 'hull') return hullHull(A, B);
   if (ta === 'sphere' && tb === 'hull') return sphereHull(A, A.pos, A.shape.r, B, false);
   if (ta === 'hull' && tb === 'sphere') return sphereHull(B, B.pos, B.shape.r, A, true);
