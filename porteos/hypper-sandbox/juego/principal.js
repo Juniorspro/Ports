@@ -85,7 +85,8 @@ function camaraActualizar(dt) {
   CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA);
   CAM.fwd.copy(CAM.q.rot(v3(0, 0, 1)));
   CAM.der.copy(CAM.qVista.rot(v3(1, 0, 0))); CAM.arr.copy(CAM.qVista.rot(v3(0, 1, 0)));
-  const z = ARM.zoom ? 18 : 70; CAM.fov += (z - CAM.fov) * Math.min(1, dt * 12);
+  // (con un mod de velocidad, la vista se abre al correr rápido)
+  const vh = Math.hypot(JUG.vel.x, JUG.vel.z), z = ARM.zoom ? 18 : 70 + ((MODS.velocidad || 1) > 1.15 && !JUG.vehiculo ? clamp((vh - 7) * 0.8, 0, 14) : 0); CAM.fov += (z - CAM.fov) * Math.min(1, dt * (Math.abs(z - CAM.fov) > 10 ? 12 : 4));
 }
 // ---------------- partidas ----------------
 const DESHACER = [];
@@ -192,7 +193,7 @@ function cuadro(ahora) {
     armasPaso(dt);
     if (!JUG.vivo && JUG.muertoT <= 0) { jugadorAparecer(); if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo(); }
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
-    modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt); smPaso(dt);
+    modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt); smPaso(dt); modsVisualPaso(dt);
     if (typeof redPaso === 'function') redPaso(dt);
     diaPaso(dt); hostPaso();
   }

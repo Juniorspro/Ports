@@ -1,4 +1,4 @@
-// ---------------- íconos: imágenes hechas para el juego (juego/iconos/*.webp) y dibujos simples para los botones ----------------
+// ---------------- íconos: dibujados para el juego (juego/iconos/*.svg, herramientas/iconos.py) y trazos para los botones ----------------
 // Nada de emojis: los mods traen "ico:nombre" (o su propia imagen); los emojis de mods viejos se cambian por la imagen
 // que más se parece (ICO_EMOJI_RB en formato.js). Los botones usan trazos SVG del color del texto.
 const ICO_IMG = {/*ICONOSRB*/};

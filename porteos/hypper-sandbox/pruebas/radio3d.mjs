@@ -86,6 +86,11 @@ await p.screenshot({ path: D + 'f1_pegada_pared.png' });
 await ev(`radioAbrir(radioMia()); radioModo('yt')`); await espera(5000);
 console.log('youtube:', await ev(`JSON.stringify({modo: RADIO.modo, n: RADIO.res.length, nota: document.querySelector('.raNota').textContent.slice(0, 60)})`));
 await p.screenshot({ path: D + 'y1_youtube.png' });
+// elegir un video: suena (el video avanza) pero no se ve nada en pantalla
+await ev(`window.__ytT = 0; addEventListener('message', (m) => { try { const d = typeof m.data === 'string' ? JSON.parse(m.data) : m.data; if (d && d.info && d.info.currentTime) window.__ytT = d.info.currentTime; } catch (x) {} }); 1`);
+await p.click('[data-ra="poner:0"]'); await ev(`radioCerrar(); const e = radioMia(); JUG.pos.set(e.b.pos.x + 3, 1.6, e.b.pos.z); 1`); await espera(12000);
+console.log('youtube escondido:', await ev(`(() => { const c = document.getElementById('ytMini'), cs = c && getComputedStyle(c), r = c && c.getBoundingClientRect(); return JSON.stringify({ suena: !!YT.ifr, opacidad: cs && cs.opacity, z: cs && cs.zIndex, toca: cs && cs.pointerEvents, tam: r && [Math.round(r.width), Math.round(r.height)], videoAvanza: +(window.__ytT || 0).toFixed(1), vol: YT.vol }); })()`));
+await p.screenshot({ path: D + 'y2_youtube_sonando.png' });
 await ev(`radioModo('est'); radioCerrar()`);
 // ---- sin emojis en la pantalla ----
 const emo = await ev(`(() => { const re = /[\\u{1F000}-\\u{1FAFF}\\u{2600}-\\u{27BF}\\u{2B00}-\\u{2BFF}\\u{1F1E6}-\\u{1F1FF}\\u{FE0F}]/u, malos = [];

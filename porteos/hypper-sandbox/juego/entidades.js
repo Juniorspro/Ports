@@ -391,8 +391,8 @@ function entidadesDe(id) { for (const e of ENTS.lista.slice()) if (e.dueno === i
 // ---------------- la fuente de una radio: emisora por internet (en 3D) o video de YouTube ----------------
 // e.vid es "rb:" + el id de la emisora en Radio Browser, o el id de 11 letras de un video. Las emisoras pasan por el
 // sonido del juego: panner HRTF en la radio, más bajo de lejos, apagado detrás de paredes y con el eco del lugar; suenan
-// las tres radios más cercanas a la vez. YouTube no deja pasar su sonido por el juego ni esconder su reproductor, así
-// que un video suena desde una ventanita (el volumen sí sigue a la distancia).
+// las tres radios más cercanas a la vez. El sonido de YouTube no se puede pasar por el juego: el video suena desde su
+// reproductor, que queda escondido (no se ve nada en pantalla); su volumen sigue a la distancia y a las paredes.
 const esEst = (v) => typeof v === 'string' && /^rb:[0-9a-f-]{36}$/.test(v);
 const fuenteRadio = (v) => (esEst(v) ? v : ytId(v));
 const EST = { son: new Map(), url: new Map(), t: 0, max: 3 };
@@ -446,14 +446,12 @@ function estPaso(dt) {
   for (const e of cerca) if (!EST.son.has(e)) { const S = estSonar(e); if (S) EST.son.set(e, S); }
 }
 
-// ---------------- videos de YouTube: un solo reproductor para el más cercano que se oye ----------------
+// ---------------- videos de YouTube: un solo reproductor (escondido) para el más cercano que se oye ----------------
 const YT = { caja: null, ifr: null, fuente: null, vid: null, vol: -1, t: 0, pan: null };
 function ytCaja() {
   if (YT.caja) return YT.caja;
   const c = document.createElement('div'); c.id = 'ytMini'; c.className = 'oc';
-  c.innerHTML = `<div class="ytV"></div><div class="ytB"><span class="ytT" dir="auto"></span><button data-yt="buscar">${glifo('buscar')}</button><button data-yt="parar">${glifo('parar')}</button></div>`;
-  c.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); const b = ev.target.closest('[data-yt]'); if (!b) return; ev.preventDefault();
-    if (b.dataset.yt === 'parar' && YT.fuente) radioPoner(YT.fuente, '', 0, '', true); else if (b.dataset.yt === 'buscar' && YT.fuente) radioAbrir(YT.fuente); });
+  c.innerHTML = '<div class="ytV"></div>'; c.setAttribute('aria-hidden', 'true');
   document.body.appendChild(c); return (YT.caja = c);
 }
 function ytCmd(func, args) { try { YT.ifr.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: args || [] }), '*'); } catch (e) {} }
@@ -465,7 +463,7 @@ function ytCargar(e) {
   f.allow = 'autoplay; encrypted-media'; f.title = 'YouTube'; f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
   f.src = `https://www.youtube-nocookie.com/embed/${e.vid}?autoplay=1&enablejsapi=1&playsinline=1&controls=0&rel=0&modestbranding=1&start=${s}` + (/^https?:/.test(location.origin) ? '&origin=' + encodeURIComponent(location.origin) : '');
   f.onload = () => { try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'rb' }), '*'); } catch (x) {} YT.vol = -1; ytVolumen(true); };
-  c.querySelector('.ytV').appendChild(f); YT.ifr = f; c.querySelector('.ytT').textContent = sinEmoji(e.tit) || 'YouTube'; c.classList.remove('oc');
+  f.tabIndex = -1; c.querySelector('.ytV').appendChild(f); YT.ifr = f; c.classList.remove('oc');
 }
 function ytVolumen(forzar) {
   const e = YT.fuente; if (!e || !YT.ifr) return;
@@ -488,7 +486,7 @@ addEventListener('message', (ev) => {
   const e = YT.fuente; if (!e) return;
   if (d.event === 'onError') radioSiguiente(e, true);
   else if ((d.event === 'onStateChange' && d.info === 0) || (d.event === 'infoDelivery' && d.info && d.info.playerState === 0)) radioSiguiente(e, false);
-  if (d.event === 'infoDelivery' && d.info && d.info.videoData && d.info.videoData.title && !e.tit) { e.tit = limpio(d.info.videoData.title, 100); YT.caja.querySelector('.ytT').textContent = sinEmoji(e.tit); }
+  if (d.event === 'infoDelivery' && d.info && d.info.videoData && d.info.videoData.title && !e.tit) { e.tit = limpio(d.info.videoData.title, 100); if (RADIO.e === e) radioDibujar(); }
 });
 // la radio pasa a lo siguiente de la búsqueda (o vuelve a empezar el video); si algo no se puede poner, salta
 function radioSiguiente(e, error) {
@@ -531,7 +529,7 @@ function radioEspalda(e, si) {
     e.b.frozen = false; if (!PH.bodies.includes(e.b)) addBody(e.b); e.b.updateWorld(); e.b.wake();
   }
   sonar('Click', null, 0.7, si ? 1.1 : 0.8); entidadRed('ent', e);
-  if (RADIO.e === e) radioDibujar(); if (typeof modMenuDibujar === 'function') modMenuDibujar();
+  if (RADIO.e === e) radioDibujar(); if (typeof modMenuLista === 'function') modMenuLista();
 }
 // qué tan atrás del hueso del pecho está la espalda: los colisionadores del torso (cajas y cápsulas del juego) en esa dirección
 function espaldaDe(P, c, n) {

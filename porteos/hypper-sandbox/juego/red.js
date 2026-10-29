@@ -15,20 +15,25 @@ function idRed() {
   catch (e) { return Math.random().toString(36).slice(2, 11); }
 }
 // ---------------- salas y lista de servidores ----------------
-// Salas oficiales (una por mapa, siempre listadas) y las que crean los jugadores (nombre, mapa, modo, clave,
-// máximo y reglas: PvP, RPG, Nextbot, tope de props y de vehículos). La lista sale de la "presencia": cada
-// jugador deja un mensaje retenido en NS/l/ID con la sala donde está (y un testamento que lo borra si se
-// corta), por una conexión aparte y liviana que también se usa en el menú para ver quién juega dónde.
+// Salas oficiales (una por mapa, siempre listadas) y las que crean los jugadores (nombre, mapa, modo, clave y reglas:
+// PvP, RPG, Nextbot, tope de props y de vehículos), todas sin límite de jugadores (0/∞). Quién juega dónde sale de la
+// "presencia": cada jugador deja un mensaje retenido en NS/l/ID con la sala donde está (y un testamento que lo borra
+// si se corta), por una conexión aparte y liviana que también se usa en el menú. Los servers creados se guardan en la
+// tienda (/api/salas): siguen en la lista aunque estén vacíos, se borran solos a los 10 minutos sin nadie y sólo su
+// dueño (con la clave que guardó este navegador) los puede borrar.
 let SALA = null;
 const LISTA = { cli: null, on: false, pres: new Map(), ultP: 0 };
-const SALAS_OF = MAPAS.map((m) => ({ id: 'f_' + m + '_1', n: 'RezoBox ' + m, m, mo: 'Free', mx: 20, of: 1, pvp: 1, rpg: 1, nb: 1, mp: 1000, mv: 40 }));
+const SALAS_OF = MAPAS.map((m) => ({ id: 'f_' + m + '_1', n: 'RezoBox ' + m, m, mo: 'Free', of: 1, pvp: 1, rpg: 1, nb: 1, mp: 1000, mv: 40 }));
+const SALAS_REG = { l: [], t: -1e9, dif: 0, vacia: 600e3, cargando: false, ok: false };
+const salasMias = () => { try { return JSON.parse(localStorage.getItem('rb_salas_mias') || '{}') || {}; } catch (e) { return {}; } };
+const salasMiasGuardar = (o) => { try { localStorage.setItem('rb_salas_mias', JSON.stringify(o)); } catch (e) {} };
 function hashTxt(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
 function topicoSala(S) { return NS + (S.of ? S.id : 'r_' + S.id + (S.clave ? '_' + hashTxt('k' + S.id + S.clave) : '')); }
 function salaLimpia(x) {
   if (!x || typeof x.id !== 'string' || !/^[a-zA-Z0-9_]{3,40}$/.test(x.id)) return null;
-  const S = { id: x.id, n: limpio(x.n, 24) || 'Server', m: MAPAS.includes(x.m) ? x.m : 'Desert', mo: x.mo === 'PvP' ? 'PvP' : 'Free', mx: num(x.mx, 2, 32, 16) | 0, of: x.of ? 1 : 0,
+  const S = { id: x.id, n: limpio(x.n, 24) || 'Server', m: MAPAS.includes(x.m) ? x.m : 'Desert', mo: x.mo === 'PvP' ? 'PvP' : 'Free', of: x.of ? 1 : 0, rg: x.rg ? 1 : 0,
     pvp: x.pvp ? 1 : 0, rpg: x.rpg ? 1 : 0, nb: x.nb ? 1 : 0, mp: num(x.mp, 0, 5000, 1000) | 0, mv: num(x.mv, 0, 200, 40) | 0, pw: x.pw ? 1 : 0, ph: typeof x.ph === 'string' ? x.ph.slice(0, 12) : '',
-    du: typeof x.du === 'string' && /^[a-z0-9]{3,20}$/.test(x.du) ? x.du : '' };
+    du: typeof x.du === 'string' && /^[a-z0-9]{3,20}$/.test(x.du) ? x.du : '', dn: limpio(x.dn, 16) };
   if (S.of) { const o = SALAS_OF.find((y) => y.id === S.id); if (!o) return null; return o; }
   return S;
 }
@@ -68,9 +73,24 @@ function listaPedir() {
   else listaConectar();
   listaDibujar();
 }
+// los servers creados (de la tienda); se vuelven a pedir cada 30 s mientras se mira la lista
+async function salasCargar() {
+  if (SALAS_REG.cargando || typeof TIENDA_URL === 'undefined') return; SALAS_REG.cargando = true; SALAS_REG.t = Date.now();
+  try {
+    const d = await (await fetch(TIENDA_URL + 'salas')).json();
+    SALAS_REG.dif = (+d.ahora || Date.now()) - Date.now(); SALAS_REG.vacia = +d.vacia || 600e3; SALAS_REG.ok = true;
+    SALAS_REG.l = (d.salas || []).map((x) => { const S = salaLimpia(x); if (S) { S.rg = 1; S.vivo = +x.vivo || 0; } return S; }).filter(Boolean);
+    // (los míos que ya no están se olvidan)
+    const M = salasMias(); let cambio = false; for (const id of Object.keys(M)) if (!SALAS_REG.l.some((S) => S.id === id) && Date.now() - (M[id].t || 0) > 60e3) { delete M[id]; cambio = true; } if (cambio) salasMiasGuardar(M);
+  } catch (e) { SALAS_REG.ok = false; }
+  SALAS_REG.cargando = false; listaPronto();
+}
+// minutos que le quedan a un server vacío antes de borrarse solo
+const salaQueda = (S) => Math.max(0, Math.ceil(((S.vivo || 0) + SALAS_REG.vacia - (Date.now() + SALAS_REG.dif)) / 60e3));
 function listaSalas() {
   const ahora = Date.now() / 1000, M = new Map();
   for (const S of SALAS_OF) M.set(S.id, { S, j: [] });
+  for (const S of SALAS_REG.l) if (S.vivo + SALAS_REG.vacia > Date.now() + SALAS_REG.dif) M.set(S.id, { S, j: [] });
   for (const [id, p] of LISTA.pres) {
     if (p.t && ahora - p.t > 900) continue;
     let e = M.get(p.s.id); if (!e) { e = { S: p.s, j: [] }; M.set(p.s.id, e); }
@@ -90,6 +110,8 @@ function listaDibujar() {
   listaContadores();
   const cont = typeof nodo === 'function' && nodo('Main/Multiplayer/ServerList/ServerList/RoomList/ScrollRect');
   if (!cont || MENU.mp !== 'ServerList') return;
+  if (Date.now() - SALAS_REG.t > 30e3) salasCargar();
+  const mias = salasMias();
   const f = (MENU.ent.FindServerInputField && MENU.ent.FindServerInputField.value || '').trim().toLowerCase();
   const L = listaSalas().filter((e) => !f || e.S.n.toLowerCase().includes(f) || e.S.m.toLowerCase().includes(f));
   cont.el.innerHTML = '';
@@ -98,17 +120,20 @@ function listaDibujar() {
   for (const e of L) {
     const S = e.S, d = document.createElement('div'); d.className = 'sala';
     d.innerHTML = `<i class="salaMapa" style="background-image:url(${icono(MAPA_ICONO[S.m])})"></i><b class="salaN"></b><span class="salaD"></span>` +
-      `<span class="salaJ"><i style="-webkit-mask-image:url(${icono('TechnologyIcon_5')});mask-image:url(${icono('TechnologyIcon_5')})"></i>${e.j.length}/${S.mx}</span>` +
-      (S.pw ? `<i class="salaPw" style="background-image:url(${icono('IconHide')})"></i>` : '') + `<button class="salaB">${Lc('Join', 'Join')}</button>`;
-    d.querySelector('.salaN').textContent = S.n;
-    d.querySelector('.salaD').textContent = `${S.m} · ${S.mo}${S.pvp ? '' : ' · ' + Lc('NoPvP', 'No PvP')}${e.j.length ? ' · ' + e.j.slice(0, 4).join(', ') : ''}`;
+      `<span class="salaJ"><i style="-webkit-mask-image:url(${icono('TechnologyIcon_5')});mask-image:url(${icono('TechnologyIcon_5')})"></i>${e.j.length}/∞</span>` +
+      (S.pw ? `<i class="salaPw" style="background-image:url(${icono('IconHide')})"></i>` : '') + `<button class="salaB">${Lc('Join', 'Join')}</button>` +
+      (mias[S.id] ? `<button class="salaX" title="${esc(T('srv.borrar'))}">${glifo('basura')}</button>` : '');
+    d.querySelector('.salaN').textContent = S.n + (mias[S.id] ? ' · ' + T('srv.tuyo') : '');
+    const vacio = S.rg && !e.j.length ? T('srv.vacio').replace('%', salaQueda(S)) : '';
+    d.querySelector('.salaD').textContent = `${S.m} · ${S.mo}${S.pvp ? '' : ' · ' + Lc('NoPvP', 'No PvP')}${e.j.length ? ' · ' + e.j.slice(0, 4).join(', ') : ''}${vacio ? ' · ' + vacio : ''}${S.dn && !mias[S.id] && !e.j.includes(S.dn) ? ' · ' + T('por') + ' ' + S.dn : ''}`;
     d.querySelector('.salaB').onclick = () => entrarSala(S, undefined, e.j.length);
+    if (mias[S.id]) { d.classList.add('mia'); d.querySelector('.salaX').onclick = (ev) => { ev.stopPropagation(); borrarServidor(S); }; }
     cont.el.appendChild(d);
   }
 }
 function entrarSala(S, clave, n) {
-  if (n === undefined) { const e = listaSalas().find((x) => x.S.id === S.id); n = e ? e.j.length : 0; }
-  if (n >= S.mx) { menuAviso(Lc('ServerFull', 'Server is full')); return; }
+  // (sin límite de jugadores; el dueño entra a su server con clave sin escribirla)
+  const mia = salasMias()[S.id]; if (S.pw && clave === undefined && mia && mia.pw) clave = mia.pw;
   if (S.pw && clave === undefined) { MENU.salaPw = S; if (MENU.ent.Password && nodo('Main/PasswordPanel/Password/Password')) nodo('Main/PasswordPanel/Password/Password').inp.value = ''; overlay('PasswordPanel', true); return; }
   SALA = Object.assign({}, S, { clave: clave || '' });
   PREFS.mapa = S.m; guardarPrefs();
@@ -120,16 +145,57 @@ function comprobarClave() {
   if (hashTxt('c' + S.id + v) !== S.ph) { menuAviso('Contraseña incorrecta'); return; }
   overlay('PasswordPanel', false); entrarSala(S, v);
 }
-function crearServidor() {
+async function crearServidor() {
+  if (MENU.creando) return;
   const E = MENU.ent, nom = limpio(E.ServerNameFieldNew && E.ServerNameFieldNew.value, 24) || (PREFS.nombre + "'s server"), clave = limpio(E.Password && E.Password.value, 16);
-  const id = Math.random().toString(36).slice(2, 10);
-  const S = { id, n: nom, m: PREFS.mapa, mo: MENU.sel.GameModeDropdown || 'Free', mx: +(MENU.sel.PlayersDropdown || 6), of: 0,
+  RED.ID = RED.ID || idRed();
+  const S = { n: nom, m: PREFS.mapa, mo: MENU.sel.GameModeDropdown || 'Free', of: 0,
     pvp: MENU.tg.PvPToogle ? 1 : 0, rpg: MENU.tg.RPGToogle ? 1 : 0, nb: MENU.tg.NextbotToogle ? 1 : 0,
     mp: num(+(E.MaxPropInputField && E.MaxPropInputField.value), 0, 5000, 1000) | 0, mv: num(+(E.MaxVechiclesInputField && E.MaxVechiclesInputField.value), 0, 200, 40) | 0,
-    pw: clave ? 1 : 0, ph: clave ? hashTxt('c' + id + clave) : '', du: (RED.ID = RED.ID || idRed()) };
+    pw: clave ? 1 : 0, du: RED.ID, dn: limpio(PREFS.nombre, 16) };
   if (S.mo === 'PvP') S.pvp = 1;
-  SALA = Object.assign(S, { clave });
+  const nuevoId = () => (Math.random().toString(36).slice(2) + '00000000').slice(0, 8);
+  // se guarda en la tienda (así sigue en la lista vacío y lo podés borrar); sin conexión queda como antes, mientras haya alguien
+  let rg = 0; S.id = nuevoId(); MENU.creando = true; menuAviso(T('srv.creando'));
+  for (let intento = 0; intento < 2 && !rg; intento++) {
+    S.ph = clave ? hashTxt('c' + S.id + clave) : '';
+    try {
+      const r = await (await fetch(TIENDA_URL + 'salas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S) })).json();
+      if (r && r.id === S.id && r.clave) { rg = 1; const M = salasMias(); M[S.id] = { clave: r.clave, pw: clave, t: Date.now() }; salasMiasGuardar(M); }
+      else if (r && r.error === 'id usado') S.id = nuevoId();
+      else { menuAviso(r && r.error ? r.error : T('srv.temporal')); break; }
+    } catch (e) { menuAviso(T('srv.temporal')); break; }
+  }
+  MENU.creando = false;
+  SALA = Object.assign(S, { rg, clave, vivo: Date.now() });
+  if (rg) { SALAS_REG.l = SALAS_REG.l.filter((x) => x.id !== S.id); const c = Object.assign({}, S); delete c.clave; SALAS_REG.l.push(c); }
   empezarPartida(S.m);
+}
+// borrar un server mío: se saca de la tienda y los que están adentro vuelven al menú
+async function borrarServidor(S) {
+  const M = salasMias(), mia = M[S.id]; if (!mia) return false;
+  if (!confirm(T('srv.borrarQ').replace('%', S.n))) return false;
+  let ok = false; try { ok = !!(await (await fetch(TIENDA_URL + 'salas/' + S.id + '/borrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave: mia.clave }) })).json()).ok; } catch (e) {}
+  if (!ok) { menuAviso(T('errRed')); salasCargar(); return false; }
+  delete M[S.id]; salasMiasGuardar(M); SALAS_REG.l = SALAS_REG.l.filter((x) => x.id !== S.id);
+  // aviso a los que juegan ahí (ellos revisan en la tienda que de verdad se borró antes de salir)
+  try { if (LISTA.on) LISTA.cli.publish(topicoSala(Object.assign({}, S, { clave: mia.pw || '' })) + '/a', JSON.stringify({ k: 'cerrada', i: RED.ID || 'dueno' }), { qos: 0 }); } catch (e) {}
+  menuAviso(T('srv.borrado')); listaDibujar(); return true;
+}
+// alguien avisó que el server se cerró: si en la tienda ya no está, se vuelve al menú
+async function salaCerradaRevisar() {
+  if (!SALA || !SALA.rg) return;
+  try {
+    const d = await (await fetch(TIENDA_URL + 'salas')).json();
+    if (SALA && !(d.salas || []).some((x) => x.id === SALA.id)) { const n = SALA.n; irMenuPrincipal(); setTimeout(() => menuAviso(T('srv.cerrado').replace('%', n)), 300); }
+  } catch (e) {}
+}
+// el server creado sigue vivo mientras alguien juega: avisa el de id más chico de la sala, una vez por minuto (y al salir)
+function salaVivo(id) { if (typeof TIENDA_URL !== 'undefined') fetch(TIENDA_URL + 'salas/' + id + '/vivo', { method: 'POST' }).catch(() => {}); }
+function salaVivoPaso(dt) {
+  if (!SALA || !SALA.rg || !RED.on) return;
+  RED.tVivo = (RED.tVivo === undefined ? 0 : RED.tVivo) - dt; if (RED.tVivo > 0) return; RED.tVivo = 60;
+  const ids = [RED.ID, ...RED.remotos.keys()].sort(); if (ids[0] === RED.ID) salaVivo(SALA.id);
 }
 // botón Multiplayer: conecta la lista y abre el panel (como "Connect" del juego)
 function conectarMultijugador() {
@@ -147,6 +213,7 @@ function redEntrar(mapa) {
   if (!SALA || typeof mqtt === 'undefined') { redEstadoUI(); return; }
   listaConectar();
   RED.ID = RED.ID || idRed(); RED.ROOM = topicoSala(SALA);
+  RED.tVivo = 0; if (SALA.rg) salaVivo(SALA.id);
   let cli;
   try {
     cli = mqtt.connect(BROKER, { clientId: NS + RED.ID + '_' + Math.random().toString(36).slice(2, 6), clean: true, reconnectPeriod: 3000, connectTimeout: 9000, keepalive: 30,
@@ -164,6 +231,7 @@ function redEntrar(mapa) {
 function redSalir() {
   vozApagar(); vozBotonPoner(false); smBotonPoner(false); smCerrar();
   if (!RED.cli) return;
+  if (SALA && SALA.rg) salaVivo(SALA.id); // (desde ahora cuentan los 10 minutos si no queda nadie)
   try { RED.cli.publish(RED.ROOM + '/w/' + RED.ID, '', { retain: true }); publicar('a', { k: 'chau' }); const c = RED.cli; setTimeout(() => { try { c.end(false); } catch (e) {} }, 50); } catch (e) {}
   RED.cli = null; RED.on = false; presencia();
   for (const R2 of RED.remotos.values()) quitarRemoto(R2);
@@ -177,7 +245,7 @@ function publicar(c, obj, ret) {
 }
 function redEstadoUI() {
   const e = $('redEst'); if (!e) return;
-  e.textContent = !SALA ? Lc('Singleplayer', 'Singleplayer') : RED.on ? `${SALA.n} · ${RED.remotos.size + 1}/${SALA.mx}` : Lc('Connecting', 'Connecting') + '…';
+  e.textContent = !SALA ? Lc('Singleplayer', 'Singleplayer') : RED.on ? `${SALA.n} · ${RED.remotos.size + 1}/∞` : Lc('Connecting', 'Connecting') + '…';
 }
 const r3 = (v) => Math.round(v * 1000) / 1000, r4 = (v) => Math.round(v * 10000) / 10000;
 // ---------------- lo que mando ----------------
@@ -186,7 +254,7 @@ function redPaso(dt) {
   const t = TIEMPO.t;
   for (const R2 of RED.remotos.values()) remotoPaso(R2, dt);
   for (const o of RED.objs.values()) objRemotoPaso(o, dt);
-  redCedidosPaso(dt);
+  redCedidosPaso(dt); salaVivoPaso(dt);
   if (t - LISTA.ultP > 120) presencia();
   if (t - RED.ultE > 0.1) {
     const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits();
@@ -344,6 +412,7 @@ function recibirHecho(d) {
   } else if (d.k === 'exp' && Array.isArray(d.p)) {
     const p = v3(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0));
     explosion.remota = true; explosion(p, num(d.r, 0.5, 600, 6), num(d.d, 0, 1e5, 100)); explosion.remota = false; // del tamaño que tuvo en su juego (con sus mods)
+  } else if (d.k === 'cerrada') { salaCerradaRevisar();
   } else if (d.k === 'rtc' && d.to === RED.ID) { vozSenal(d);
   } else if (d.k === 'ent' || d.k === 'entb' || d.k === 'radio' || d.k === 'entp') { entidadHecho(d);
   } else if (d.k === 'jalar') { natRed(d);

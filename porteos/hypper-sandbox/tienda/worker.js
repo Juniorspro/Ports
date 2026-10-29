@@ -7,7 +7,7 @@
 // dirección del audio y /api/radio/play/ID lo pasa con permiso de otro sitio (sólo emisoras de esa lista, nunca cualquier URL).
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
 const json = (o, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
-import { validarRB as validar, ETIQUETAS_RB as ETIQUETAS } from './formato.js';
+import { validarRB as validar, ETIQUETAS_RB as ETIQUETAS, MAPAS_BASE_RB } from './formato.js';
 const texto = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 
 async function huella(s) { const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))); return [...h].map((b) => b.toString(16).padStart(2, '0')).join(''); }
@@ -37,6 +37,19 @@ async function ytPagina(q) {
   };
   recorrer(datos, 0);
   return out;
+}
+
+// ---------------- servers que crean los jugadores ----------------
+// Sin límite de jugadores. Siguen en la lista aunque estén vacíos; a los 10 minutos sin nadie se borran solos (los que
+// juegan avisan que siguen ahí con /vivo). Sólo el dueño (con la clave que recibe al crearlo) lo puede borrar.
+const SALA_VACIA = 10 * 60e3;
+function salaValida(x) {
+  if (!x || typeof x !== 'object') return null;
+  const b = (v) => (v ? 1 : 0), n = (v, a, z, d) => { const k = Number(v); return Number.isFinite(k) ? Math.min(z, Math.max(a, Math.round(k))) : d; };
+  const nom = texto(x.n, 24); if (nom.length < 1) return null;
+  return { n: nom, m: MAPAS_BASE_RB.includes(x.m) ? x.m : 'FlatGrass', mo: x.mo === 'PvP' ? 'PvP' : 'Free', pvp: b(x.pvp || x.mo === 'PvP'), rpg: b(x.rpg), nb: b(x.nb),
+    mp: n(x.mp, 0, 5000, 1000), mv: n(x.mv, 0, 200, 40), pw: b(x.pw), ph: typeof x.ph === 'string' && /^[a-z0-9]{1,12}$/.test(x.ph) ? x.ph : '',
+    du: typeof x.du === 'string' && /^[a-z0-9]{3,20}$/.test(x.du) ? x.du : '', dn: texto(x.dn, 16), rg: 1 };
 }
 
 // ---------------- emisoras de radio (Radio Browser: lista pública y libre) ----------------
@@ -136,6 +149,34 @@ export default {
         const res = new Response(JSON.stringify({ items }), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': items.length ? 'public, max-age=3600' : 'no-store', ...CORS } });
         if (items.length) await c.put(ck, res.clone());
         return res;
+      }
+      if (req.method === 'GET' && r === '/api/salas') {
+        const ahora = Date.now();
+        await env.DB.prepare('DELETE FROM salas WHERE vivo < ?1').bind(ahora - SALA_VACIA).run();
+        const filas = await env.DB.prepare('SELECT id, datos, creada, vivo FROM salas ORDER BY creada DESC LIMIT 500').all();
+        return json({ ahora, vacia: SALA_VACIA, salas: filas.results.map((f) => ({ ...JSON.parse(f.datos), id: f.id, creada: f.creada, vivo: f.vivo })) });
+      }
+      if (req.method === 'POST' && r === '/api/salas') {
+        const d = salaValida(await req.clone().json().catch(() => null)); if (!d) return json({ error: 'server inválido' }, 400);
+        const ahora = Date.now(), hora = await env.DB.prepare('SELECT COUNT(*) AS n FROM salas WHERE ip = ?1 AND creada > ?2').bind(ip, ahora - 3600e3).first();
+        if (hora && hora.n >= 10) return json({ error: 'creaste muchos servers: esperá un rato' }, 429);
+        // (el id lo propone el juego: la clave para entrar a un server con contraseña se calcula con él)
+        const pide = await req.clone().json().catch(() => ({})), id = typeof pide.id === 'string' && /^[a-z0-9]{8}$/.test(pide.id) ? pide.id : azar(8), clave = azar(20);
+        if (await env.DB.prepare('SELECT 1 AS s FROM salas WHERE id = ?1').bind(id).first()) return json({ error: 'id usado' }, 409);
+        await env.DB.prepare('INSERT INTO salas (id, datos, clave, ip, creada, vivo) VALUES (?1, ?2, ?3, ?4, ?5, ?5)').bind(id, JSON.stringify(d), await huella(clave), ip, ahora).run();
+        return json({ id, clave, sala: { ...d, id, creada: ahora, vivo: ahora } });
+      }
+      if (req.method === 'POST' && (m = /^\/api\/salas\/([a-z0-9]{8})\/vivo$/.exec(r))) {
+        // alguien juega ahí: sigue vivo (se escribe como mucho cada 30 s)
+        const ahora = Date.now(), res = await env.DB.prepare('UPDATE salas SET vivo = ?1 WHERE id = ?2 AND vivo < ?3').bind(ahora, m[1], ahora - 30e3).run();
+        const existe = res.meta && res.meta.changes ? true : !!(await env.DB.prepare('SELECT 1 AS s FROM salas WHERE id = ?1 AND vivo >= ?2').bind(m[1], ahora - SALA_VACIA).first());
+        return json({ ok: true, existe });
+      }
+      if (req.method === 'POST' && (m = /^\/api\/salas\/([a-z0-9]{8})\/borrar$/.exec(r))) {
+        const b = await req.json().catch(() => ({})), h = await huella(String(b.clave || ''));
+        const admin = env.ADMIN_CLAVE && b.admin && (await huella(String(b.admin))) === (await huella(env.ADMIN_CLAVE));
+        const res = admin ? await env.DB.prepare('DELETE FROM salas WHERE id = ?1').bind(m[1]).run() : await env.DB.prepare('DELETE FROM salas WHERE id = ?1 AND clave = ?2').bind(m[1], h).run();
+        return json({ ok: !!(res.meta && res.meta.changes) });
       }
       if (req.method === 'GET' && r === '/api/radio') {
         const q = texto(url.searchParams.get('q'), 60), tag = texto(url.searchParams.get('tag'), 30).toLowerCase();

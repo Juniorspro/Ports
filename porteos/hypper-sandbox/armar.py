@@ -28,9 +28,9 @@ html = html.replace('/*LOGORB*/', J('logo_rezobox.webp'))
 # fondos del inicio (escenas del juego, fuera del repo): PAQUETE/fondos/*.jpg
 FD = os.path.join(PK, 'fondos')
 fondos = sorted(os.listdir(FD)) if os.path.isdir(FD) else []
-# íconos hechos para el juego (juego/iconos/*.webp, 128 px)
+# íconos dibujados para el juego (juego/iconos/*.svg, de herramientas/iconos.py)
 ICD = os.path.join(AQUI, 'juego', 'iconos')
-js = js.replace('/*ICONOSRB*/', ','.join(f"{f[:-5]}:'data:image/webp;base64," + base64.b64encode(open(os.path.join(ICD, f), 'rb').read()).decode() + "'" for f in sorted(os.listdir(ICD)) if f.endswith('.webp')))
+js = js.replace('/*ICONOSRB*/', ','.join(f"{f[:-4]}:'data:image/svg+xml;base64," + base64.b64encode(open(os.path.join(ICD, f), 'rb').read()).decode() + "'" for f in sorted(os.listdir(ICD)) if f.endswith('.svg')))
 js = js.replace('/*FONDOSRB*/', ','.join("'data:image/jpeg;base64," + base64.b64encode(open(os.path.join(FD, f), 'rb').read()).decode() + "'" for f in fondos))
 html = html.replace('/*PKIDX*/', json.dumps(idx, separators=(',', ':'))).replace('/*PK*/', base64.b64encode(bytes(blob)).decode()).replace('/*JS*/', js)
 open(OUT, 'w', encoding='utf-8').write(html)

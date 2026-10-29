@@ -365,22 +365,16 @@ function aplicarMods() {
     setTimeout(() => { if (SALA && JUEGO.estado === 'juego') aviso(T('sm.hint'), 4); }, 3200); return;
   }
   if (CREA.on) { Object.assign(MODS, E, { municionInfinita: true, invencible: true }); JUG.vel_max = RB.base.v; JUG.salto = RB.base.s; RB.mapaPartida = null; RB.horaPartida = null; modapiCargar([]); creadorIniciar(); return; }
-  const act = modsTodos().filter((m) => PREFS.mods && PREFS.mods[m.id]);
-  for (const m of act) {
-    const e = m.efectos; E.gravedad *= e.gravedad; E.velocidad *= e.velocidad; E.salto *= e.salto; E.tiempo *= e.tiempo; E.explosion *= e.explosion;
-    E.municionInfinita = E.municionInfinita || e.municionInfinita; E.invencible = E.invencible || e.invencible;
-    if (e.skin) E.skin = e.skin; if (e.hora != null) E.hora = e.hora; E.armas.push(...e.armas); E.aparecer.push(...e.aparecer);
-  }
-  E.tiempo = Math.min(4, Math.max(0.05, E.tiempo));
-  Object.assign(MODS, E);
-  JUG.vel_max = RB.base.v * E.velocidad; JUG.salto = RB.base.s * E.salto;
+  // un jugador: los mods se aplican igual que en una sala (y se prenden y apagan en el medio desde el menú MOD).
+  // La gravedad de los mods se suma a la del mapa; el personaje del mod no cambia el tuyo guardado.
   const mc = RB.mapaPartida; RB.mapaPartida = null;
-  const g = E.gravedad * (mc ? mc.gravedad : 1); if (g !== 1) { MUNDO.gravedad *= g; PH.gscale = MUNDO.gravedad; }
-  if (E.skin && RETRATO[E.skin] && PREFS.skin !== E.skin) { PREFS.skin = E.skin; guardarPrefs(); }
-  for (const a of E.armas) if (DEF_ARMAS[a] && !ARM.lista.includes(a)) ARM.lista.push(a);
+  RB.gravMapa = MUNDO.gravedad * (mc ? mc.gravedad : 1);
+  RB.codMapa = mc && mc.codigo ? [{ id: 'mapa-' + (mc.id || 'local'), nombre: mc.nombre, codigo: mc.codigo }] : [];
+  smAplicar(true);
+  const act = modsActivosAhora();
   // hora: la elegida al empezar, si no la del mapa, si no la del mod
   const h = RB.horaPartida; RB.horaPartida = null; let hora = null, ciclo = false;
-  if (h && h !== 'normal') { if (h === 'ciclo') ciclo = true; else hora = { dia: 12, tarde: 18.6, noche: 0 }[h]; } else if (mc && mc.hora != null) hora = mc.hora; else if (E.hora != null) hora = E.hora;
+  if (h && h !== 'normal') { if (h === 'ciclo') ciclo = true; else hora = { dia: 12, tarde: 18.6, noche: 0 }[h]; } else if (mc && mc.hora != null) hora = mc.hora; else if (MODS.hora != null) hora = MODS.hora;
   if (ciclo || hora != null) { DIA.ciclo = ciclo; if (hora != null) DIA.hora = hora; DIA.aplicada = -1; }
   if (mc) {
     for (const x of mc.objetos) { const o = crearObjeto(x.n, v3(0, 0, 0), new Quat(x.q[0], x.q[1], x.q[2], x.q[3]), { congelado: !!x.f }); if (o) { o.b.pos.set(x.p[0], x.p[1], x.p[2]); o.b.q.set(x.q[0], x.q[1], x.q[2], x.q[3]); o.b.updateWorld(); } }
@@ -389,9 +383,6 @@ function aplicarMods() {
     if ((mc.spawns && mc.spawns.length) || (mc.roles && mc.roles.length)) rolesPreparar(mc);
     setTimeout(() => aviso(nombreDe(mc) + ' · ' + T('por') + ' ' + mc.autor, 3), 300);
   }
-  natIniciar(act.filter((m) => m.nativo).map((m) => m.nativo));
-  if (E.aparecer.length) setTimeout(() => aparecerDelante(E.aparecer.slice(0, 60)), 400);
+  const ap = act.flatMap((m) => m.efectos.aparecer); if (ap.length) setTimeout(() => aparecerDelante(ap.slice(0, 60)), 400);
   const nom = act.map(nombreDe); if (nom.length) setTimeout(() => aviso('Mods: ' + nom.join(', '), 3), 2600);
-  // los que traen código corren aislados (mods activos y el mapa de la comunidad)
-  modapiCargar([...act.filter((m) => m.codigo), ...(mc && mc.codigo ? [{ id: 'mapa-' + (mc.id || 'local'), nombre: mc.nombre, codigo: mc.codigo }] : [])]);
 }

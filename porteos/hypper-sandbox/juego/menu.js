@@ -78,7 +78,8 @@ function uiCampo(n) {
   inp.addEventListener('keydown', (e) => e.stopPropagation());
 }
 // listas desplegables: un <select> invisible encima (en el celular abre el selector del sistema)
-const OPCIONES = { GameModeDropdown: ['Free', 'PvP'], PlayersDropdown: ['2', '4', '6', '8', '10', '12', '16', '20'], MaxPlayersDropdown: ['1'], MapDropdown: MAPAS };
+// (los servers no tienen límite de jugadores)
+const OPCIONES = { GameModeDropdown: ['Free', 'PvP'], PlayersDropdown: ['∞'], MaxPlayersDropdown: ['1'], MapDropdown: MAPAS };
 function uiLista(n) {
   const op = OPCIONES[n.n] || [], s = document.createElement('select'), lab = hijo(n, 'Label');
   s.className = 'lista'; for (const o of op) { const x = document.createElement('option'); x.value = x.textContent = o; s.appendChild(x); }

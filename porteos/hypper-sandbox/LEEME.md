@@ -34,20 +34,30 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   andan, MP3/AAC/OGG, sin HLS), `GET /api/radio/u/ID` da la dirección del audio y `GET /api/radio/play/ID` lo pasa con
   permiso de otro sitio para el sonido 3D (sólo emisoras de esa lista, nunca una dirección cualquiera);
   `GET /api/radio/clic/ID` le avisa a Radio Browser que se escuchó.
+  Servers de los jugadores (tabla `salas`): `GET /api/salas` (borra los que llevan 10 minutos sin nadie y lista el resto),
+  `POST /api/salas` (crea; el id lo propone el juego porque la clave para entrar se calcula con él; devuelve la clave del
+  dueño), `POST /api/salas/ID/vivo` (alguien juega ahí) y `POST /api/salas/ID/borrar` (sólo con la clave del dueño).
 - **Mods con código** (`modapi.js`): el `codigo` de un mod o mapa corre en un cuadro aislado (`sandbox="allow-scripts"`,
   sin ver la página ni lo guardado) y habla con el juego por mensajes con el objeto `rb`: eventos (`inicio`, `tick` a
   15 por segundo, `boton`, `tecla`, `muerte`, `fin`), `rb.jugador`, `rb.mundo`, `rb.crear/mover/borrar/objetos`,
   `rb.explosion`, `rb.arma`, `rb.sonido`, `rb.nota` (sintetizador), `rb.rayo`, `rb.boton(id, texto o 'ico:nombre')` (al menú
   MOD), `rb.guardar/leer`,
   `rb.entidad(tipo, [x,y,z], {…})`, `rb.nativo('volar'|'ragdoll'|'scp')`. Valores casi sin límite; archivos de hasta 8 MB.
-- **Íconos sin emojis** (`iconos.js`, imágenes en `juego/iconos/*.webp`, 128 px, hechas para el juego): los mods traen
+- **Íconos sin emojis** (`iconos.js`; dibujados a mano en SVG plano: `herramientas/iconos.py` escribe `juego/iconos/*.svg`,
+  azulejo de un color con el dibujo en blanco y a lo sumo un acento): los mods traen
   `icono: 'ico:nombre'` (o su propia imagen); los emojis de mods viejos se cambian por la imagen que más se parece
   (`ICO_EMOJI_RB` en `formato.js`, también en el servidor al publicar). Los botones usan dibujos SVG del color del texto
   (`glifo(nombre)`), los idiomas muestran su código (ES, EN…), los carteles pueden llevar `prm.ico` y la etiqueta de cada
   jugador muestra las imágenes de sus mods. Los títulos de videos y emisoras se muestran sin emojis.
-- **Menú MOD** (`modmenu.js`): un botón **MOD** arriba (tecla U) despliega los mods activos: volar, muñeco y SCP se
-  prenden y apagan; el piano se pone; la radio se pone, se lleva en la espalda o se le elige la emisora; los mods de
-  código suman sus botones. Ya no hay columna de botones al costado. En una sala, el micrófono es un botón chico arriba.
+- **Menú MOD** (`modmenu.js`): un botón **MOD** arriba (tecla U, con el número de activos) despliega dos partes. *Usar*:
+  volar, muñeco y SCP se prenden y apagan; el piano se pone; la radio se pone, se lleva en la espalda o se le elige la
+  emisora; los botones de los mods de código. *Mods*: todos (los tuyos jugando solo; los del server en una sala), con
+  buscador, interruptor que se aplica al momento y **fuerza** (0–200 %) en los que cambian números (gravedad, velocidad,
+  salto, tiempo, explosiones: el multiplicador se eleva a la fuerza). Jugando solo pasa por el mismo camino en vivo que en
+  una sala (`smAplicar`): la gravedad del mod se suma a la del mapa y el personaje del mod no cambia el tuyo guardado.
+  Lo que se ve: un anillo al prender o apagar uno, chispas doradas de Goku (también en los demás que lo usan), polvo al
+  despegar con el súper salto, un escudo azul cuando el modo dios frena un golpe y la vista que se abre al correr rápido
+  con velocidad. En una sala, el micrófono es un botón chico arriba.
 - **Mods oficiales nativos** (`nativos.js`, en el menú MOD y con tecla): **Volar** (G; empuje hacia donde mirás con
   inercia, el cuerpo inclinado con resortes: adelante con la velocidad, de costado hacia la curva, piernas que se
   balancean; pose de Superman a toda velocidad), **Muñeco de trapo** (X; los demás te agarran con la pistola de física
@@ -56,6 +66,13 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   huesos en brazos y piernas y paso procedural en diagonal: cada pie queda clavado hasta que se aleja de su lugar),
   **Piano gigante** (K) y **Radio 3D** (L). En la sala los demás ven todo (bits en el estado y entidades en el mundo
   guardado, también los que llegan tarde).
+- **Servers** (`red.js`): sin límite de jugadores (0/∞, también los oficiales). Los que crea un jugador se guardan en la
+  tienda: siguen en la lista aunque estén vacíos ("vacío · se borra en N min"), se borran solos a los 10 minutos sin
+  nadie (el de id más chico de la sala avisa cada minuto que siguen ahí, y cada uno al salir) y sólo su dueño los borra
+  (botón rojo en la lista o "Borrar server" en el panel del anfitrión; la clave queda en este navegador, `rb_salas_mias`).
+  Al borrarlo se avisa a la sala (`cerrada`); cada uno confirma en la tienda que de verdad se borró y vuelve al menú. El
+  dueño entra a su server con clave sin escribirla y es el anfitrión. Sin conexión con la tienda, el server queda como
+  antes (mientras haya alguien adentro).
 - **Mods del server** (`smods.js`): en una sala el juego baja solo todos los mods publicados (`GET /api/mods?desde=`:
   datos completos sin contar descargas, más la lista de los que siguen publicados) y cada minuto busca los nuevos: apenas
   alguien sube uno, aparece con un aviso. Cada jugador elige con el botón **SM** (tecla M) cuáles usa él, sin límite, y se
@@ -72,8 +89,9 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   sonido del juego (`<audio crossOrigin>` → panner HRTF en la radio, volumen por distancia, filtro detrás de paredes y eco
   del lugar); suenan las 3 radios más cercanas a la vez y los parlantes laten con el nivel real de la música. Primero se
   prueba la dirección directa (https); si no deja pasar el audio o no arranca en 9 s, va por `/api/radio/play/ID`, y si
-  tampoco, la siguiente de la búsqueda. YouTube no deja pasar su sonido por el juego ni esconder su reproductor, así que
-  un video suena desde una ventanita (pestaña aparte en el panel, con el aviso). La radio propia se **lleva en la
+  tampoco, la siguiente de la búsqueda. YouTube no deja pasar su sonido por el juego: un video suena desde su reproductor,
+  que queda escondido (transparente y detrás de todo; las reglas de YouTube piden que se vea, así que esto corre por
+  cuenta del juego), con el volumen por distancia y paredes pero sin 3D (pestaña aparte en el panel, con el aviso). La radio propia se **lleva en la
   espalda** (sale de la física y va pegada al pecho con los huesos de ese cuadro: se mide la espalda con los
   colisionadores del torso del personaje; queda a 1,2 cm en todos) y se **pega donde sea con la pistola de física**
   (clic derecho la congela; antes, con el izquierdo apretado, se volvía a agarrar y descongelar en el cuadro siguiente).
@@ -138,6 +156,8 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   trepar una columna; vistas de costado), `piano_radio.mjs`, `radio3d.mjs` (menú MOD, emisora en 3D con nivel y volumen por distancia, espalda medida en
   varios personajes, pegarla en una pared con la pistola de física, YouTube aparte y ningún emoji en la pantalla; `celu`
   para el teléfono), `red_radio.mjs` (otro la oye, la ve en tu espalda y congelada en el mismo lugar, el que entra
-  después también), `creador.mjs`, `celu_mods.mjs`, `red_sm.mjs` (publica mods de prueba en la tienda real, dos jugadores
+  después también), `mods_vivo.mjs` (menú MOD: prender y apagar en vivo, fuerza, buscador, aura, polvo, escudo y vista;
+  `celu`), `red_servers.mjs` (crear un server, 0/∞, vacío con la cuenta de 10 minutos, borrado solo, clave, sólo el
+  dueño lo borra y los de adentro vuelven al menú; con credenciales de Cloudflare adelanta el reloj en la base), `creador.mjs`, `celu_mods.mjs`, `red_sm.mjs` (publica mods de prueba en la tienda real, dos jugadores
   eligen con SM, uno sube otro mod en el medio; borra todo al final) y `red_mods.mjs` (cada
   jugador en su propio navegador: si comparten uno, la pestaña de fondo deja de simular).

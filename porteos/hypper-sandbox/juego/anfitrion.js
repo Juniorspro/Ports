@@ -4,7 +4,8 @@
 // controla quien la creó y llega a todos (mensaje retenido "cfg"); solo, se aplica en el momento.
 // ---------------------------------------------------------------------------------------------------------
 const HOST = { ds: false, ultCfg: 0 };
-function soyAnfitrion() { return typeof SALA === 'undefined' || !SALA || (!SALA.of && !!SALA.du && SALA.du === RED.ID); }
+// (el que creó el server en esta sesión, o su dueño cuando vuelve a entrar desde este navegador)
+function soyAnfitrion() { return typeof SALA === 'undefined' || !SALA || (!SALA.of && ((!!SALA.du && SALA.du === RED.ID) || !!salasMias()[SALA.id])); }
 function hostCfg() { return { h: +DIA.hora.toFixed(3), c: DIA.ciclo ? 1 : 0, pvp: SALA ? SALA.pvp : 1, nb: SALA ? SALA.nb : 1, mp: SALA ? SALA.mp : 1000, mv: SALA ? SALA.mv : 40, ds: HOST.ds ? 1 : 0 }; }
 function hostPublicar() {
   if (typeof SALA === 'undefined' || !SALA || SALA.of || !soyAnfitrion() || typeof publicar !== 'function') return;
@@ -39,8 +40,10 @@ function hostDibujar(gr) {
     <div class="hFila">${Lc('MaxProps', 'Max props:')} <input type="number" id="hMp" min="0" max="5000" value="${SALA.mp}" ${puede ? '' : 'disabled'}>
       ${Lc('MaxVehicles', 'Max vehicles:')} <input type="number" id="hMv" min="0" max="200" value="${SALA.mv}" ${puede ? '' : 'disabled'}></div>
     <h4>${Lc('Players', 'Players')}</h4><div id="hJug"></div>` : ''}
-    <div class="hFila"><button class="boton gris" id="hLimpiar">${multi && puede ? 'Limpiar el mapa de todos' : 'Limpiar mis cosas'}</button></div>
+    <div class="hFila"><button class="boton gris" id="hLimpiar">${multi && puede ? 'Limpiar el mapa de todos' : 'Limpiar mis cosas'}</button>
+      ${multi && SALA.rg && salasMias()[SALA.id] ? `<button class="boton rojo" id="hBorrar">${glifo('basura')} ${esc(T('srv.borrar'))}</button>` : ''}</div>
   </div>`;
+  if ($('hBorrar')) $('hBorrar').onclick = async () => { const S = SALA; if (await borrarServidor(S) && SALA === S) irMenuPrincipal(); };
   const cambiar = () => { DIA.aplicada = -1; diaAplicar(); $('hHoraV').textContent = hh(DIA.hora); hostPublicar(); };
   gr.querySelectorAll('[data-h]').forEach((b) => (b.onclick = () => { if (multi && !yo) return aviso('Solo el anfitrión', 1.2); DIA.hora = +b.dataset.h; $('hHora').value = DIA.hora; cambiar(); }));
   $('hHora').oninput = () => { if (multi && !yo) { $('hHora').value = DIA.hora; return; } DIA.hora = +$('hHora').value; cambiar(); };

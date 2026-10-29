@@ -23,7 +23,7 @@ function natFin() {
   if (NAT.rag) natRag(false); if (NAT.volando) natVolar(false); if (NAT.scp) natScp(false);
   NAT.mods.clear(); NAT.jalo = NAT.jalado = null; modMenuBoton();
 }
-function natMarcar() { if (typeof modMenuDibujar === 'function') modMenuDibujar(); }
+function natMarcar() { if (typeof modMenuLista === 'function') modMenuLista(); }
 function natAccion(k) {
   if (JUEGO.estado !== 'juego') return;
   if (k === 'volar') natVolar(!NAT.volando);

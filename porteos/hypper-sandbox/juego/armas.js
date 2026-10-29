@@ -209,7 +209,7 @@ function danarObjeto(o, dan, p, d) {
 }
 function danarJugador(dan, de) {
   if (!JUG.vivo || JUEGO.dios) return;
-  if (!MODS.invencible) JUG.vida -= dan; JUG.golpeT = 0.4; humAccion(JUG.cuerpo, 'golpe');
+  if (!MODS.invencible) JUG.vida -= dan; else if (dan > 0 && dan < 1e5) modEscudo(); JUG.golpeT = 0.4; humAccion(JUG.cuerpo, 'golpe');
   if (JUG.vida <= 0) { JUG.vida = 0; morirJugador(); }
 }
 // ---------------- pistola física ----------------

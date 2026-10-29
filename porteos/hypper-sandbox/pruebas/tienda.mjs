@@ -46,7 +46,7 @@ const idMapa = await ev("Object.keys(INST.mapas).find(k => !k.startsWith('local-
 await toca(`[data-rb="quitar:${idMapa}"]`); await toca('[data-rb="vista:explorar"]', 2500);
 await foto('9_mapas_tienda');
 await toca(`[data-rb="instalar:${idMapa}"]`, 2500); await toca(`[data-rb="jugarcom:${idMapa}"]`, 5000);
-console.log('partida:', await ev(`JSON.stringify({ estado: JUEGO.estado, mapa: MUNDO.nombre, objetos: OBJS.length, grav: +MUNDO.gravedad.toFixed(3), salto: +JUG.salto.toFixed(2), escopeta: ARM.lista.includes('Shotgun'), municion: MODS.municionInfinita, skin: PREFS.skin })`));
+console.log('partida:', await ev(`JSON.stringify({ estado: JUEGO.estado, mapa: MUNDO.nombre, objetos: OBJS.length, grav: +MUNDO.gravedad.toFixed(3), salto: +JUG.salto.toFixed(2), escopeta: ARM.lista.includes('Shotgun'), municion: MODS.municionInfinita, skin: JUG.skinMod || PREFS.skin, cuerpo: JUG.cuerpo && JUG.cuerpo.skin })`));
 await foto('10_jugando');
 // limpiar lo publicado en el servidor
 await ev('irMenuPrincipal()'); await p.waitForTimeout(500);

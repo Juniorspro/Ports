@@ -34,11 +34,20 @@ function smPaso(dt) {
   if (!SALA || JUEGO.estado !== 'juego') return;
   SRV.t -= dt; if (SRV.t > 0) return; SRV.t = SRV.falta ? 15 : 60; srvModsCargar();
 }
-// ---------------- aplicar al momento lo que elegiste ----------------
+// ---------------- aplicar al momento lo que elegiste (en una sala o jugando solo) ----------------
+// Solo: los mods de la tienda que tenés (PREFS.mods); en una sala: los del server (PREFS.modsSrv). Se prenden y apagan
+// en el medio de la partida desde el menú MOD (o SM) y cada uno tiene su fuerza (0 = nada, 100 % = como viene, 200 %).
+const modsFuente = () => { const k = typeof SALA !== 'undefined' && SALA ? 'modsSrv' : 'mods'; if (!PREFS[k]) PREFS[k] = {}; return PREFS[k]; };
+const modsCatalogo = () => (typeof SALA !== 'undefined' && SALA ? smTodos() : modsTodos());
+const modsActivosAhora = () => { const f = modsFuente(); return modsCatalogo().filter((m) => f[m.id]); };
+const modFuerza = (id) => { const v = PREFS.modFuerza && PREFS.modFuerza[id]; return v === undefined ? 1 : clamp(+v || 0, 0, 2); };
+const conFuerza = (v, f) => (v > 0 ? Math.pow(v, f) : 1 + (v - 1) * f);
+const modAjustable = (m) => { const e = m.efectos || {}; return ['gravedad', 'velocidad', 'salto', 'tiempo', 'explosion'].some((k) => e[k] !== undefined && e[k] !== 1); };
 function smEfectos(act) {
   const E = { gravedad: 1, velocidad: 1, salto: 1, tiempo: 1, explosion: 1, municionInfinita: false, invencible: false, skin: null, hora: null, armas: [], aparecer: [] };
   for (const m of act) {
-    const e = m.efectos; E.gravedad *= e.gravedad; E.velocidad *= e.velocidad; E.salto *= e.salto; E.explosion *= e.explosion;
+    const e = m.efectos, f = modFuerza(m.id);
+    E.gravedad *= conFuerza(e.gravedad, f); E.velocidad *= conFuerza(e.velocidad, f); E.salto *= conFuerza(e.salto, f); E.explosion *= conFuerza(e.explosion, f); E.tiempo *= conFuerza(e.tiempo, f);
     E.municionInfinita = E.municionInfinita || e.municionInfinita; E.invencible = E.invencible || e.invencible;
     if (e.skin) E.skin = e.skin; if (e.hora != null) E.hora = e.hora; E.armas.push(...e.armas);
   }
@@ -46,9 +55,11 @@ function smEfectos(act) {
 }
 function smAplicar(primera) {
   if (!RB.base) RB.base = { v: JUG.vel_max, s: JUG.salto };
-  const act = smActivos(), E = smEfectos(act);
-  // en la sala el mundo y el tiempo son de todos: la gravedad del mod es sólo la tuya (tu salto y tu caída)
-  Object.assign(MODS, E); MODS.tiempo = 1; JUG.grav = E.gravedad;
+  const act = modsActivosAhora(), E = smEfectos(act);
+  Object.assign(MODS, E);
+  // en la sala el mundo y el tiempo son de todos: la gravedad del mod es sólo la tuya (tu salto y tu caída); solo, es del mundo
+  if (typeof SALA !== 'undefined' && SALA) { MODS.tiempo = 1; JUG.grav = E.gravedad; }
+  else { MODS.tiempo = clamp(E.tiempo, 0.05, 4); JUG.grav = 1; MUNDO.gravedad = (RB.gravMapa !== undefined ? RB.gravMapa : MUNDO.gravedad) * E.gravedad; PH.gscale = MUNDO.gravedad; }
   JUG.vel_max = RB.base.v * E.velocidad; JUG.salto = RB.base.s * E.salto;
   // armas que suman los mods (las que suman se sacan al desactivarlos)
   const antes = ARM.lista[ARM.i];
@@ -65,11 +76,63 @@ function smAplicar(primera) {
   SMOD.ids = ids;
   const nat = act.filter((m) => m.nativo).map((m) => m.nativo).sort().join(',');
   if (nat !== SMOD.nat) { SMOD.nat = nat; natIniciar(nat ? nat.split(',') : []); }
-  const cods = act.filter((m) => m.codigo), cod = cods.map((m) => m.id).sort().join(',');
+  // (y el código del mapa de la comunidad, si jugás uno solo)
+  const cods = [...act.filter((m) => m.codigo), ...(RB.codMapa || [])], cod = cods.map((m) => m.id).sort().join(',');
   if (cod !== SMOD.cod) { SMOD.cod = cod; modapiCargar(cods); }
   RED.wSucio = true; // los demás ven qué mods usás (en tu etiqueta)
+  if (typeof MODM !== 'undefined' && MODM.boton) modMenuBoton(); // (el número de activos y la lista del menú MOD)
 }
-function smReiniciar() { SMOD.ids = new Set(); SMOD.nat = null; SMOD.cod = null; SMOD.armas.clear(); SMOD.hora = null; JUG.skinMod = null; JUG.grav = 1; }
+function smReiniciar() { SMOD.ids = new Set(); SMOD.nat = null; SMOD.cod = null; SMOD.armas.clear(); SMOD.hora = null; JUG.skinMod = null; JUG.grav = 1; RB.codMapa = []; RB.gravMapa = undefined; }
+// prender o apagar un mod en el medio de la partida (menú MOD)
+function modAlternar(id) {
+  const m = modsCatalogo().find((x) => x.id === id); if (!m || JUEGO.estado !== 'juego' || CREA.on) return;
+  const f = modsFuente(), si = !f[id];
+  if (si) { if (!smCodigoOk([m])) return; f[id] = true; } else delete f[id];
+  guardarPrefs(); smAplicar(false); modEfectoCambio(si);
+  if (SMOD.abierto) smDibujar();
+}
+function modFuerzaPoner(id, v) {
+  if (!PREFS.modFuerza) PREFS.modFuerza = {};
+  PREFS.modFuerza[id] = clamp(v, 0, 2); guardarPrefs(); smAplicar(false);
+}
+// al prender un mod: un destello alrededor del jugador (al apagarlo, uno más chico y apagado)
+function modEfectoCambio(si) {
+  sonar('Click', null, 0.7, si ? 1.35 : 0.75);
+  // un anillo que sale de los pies (en primera persona queda abajo, sin tapar la vista)
+  const c = v3(JUG.pos.x, JUG.pos.y - 0.9, JUG.pos.z), n = si ? 28 : 12;
+  for (let i = 0; i < n; i++) {
+    const a = i / n * Math.PI * 2, r = 0.9;
+    particula(vadd(c, v3(Math.cos(a) * r, 0.05, Math.sin(a) * r)), v3(Math.cos(a) * 2.2, 0.9 + Math.random() * 0.6, Math.sin(a) * 2.2), si ? 0.6 : 0.35, si ? 0.09 : 0.06, si ? [1, 0.85, 0.35, 0.9] : [0.6, 0.65, 0.75, 0.6], 'fuego', 0.2);
+  }
+}
+// ---------------- lo que se ve de los mods: aura de Goku, salto con polvo, escudo y velocidad ----------------
+const MODV = { suelo: true, tAura: 0, tEsc: 0 }; // (tAura: cuántas partículas del aura van quedando por tirar)
+function modsVisualPaso(dt) {
+  if (JUEGO.estado !== 'juego') return;
+  // aura dorada del mod Goku (la tuya en tercera persona y la de los demás que lo usan)
+  // (unas 45 por segundo aunque el juego vaya lento)
+  MODV.tAura += dt * 70; const na = Math.min(8, Math.floor(MODV.tAura)); MODV.tAura -= na;
+  if (na > 0) {
+    // chispas chicas que suben pegadas al cuerpo (más con la velocidad)
+    const aura = (P, vel) => { const k = Math.min(1, 0.4 + vel / 10); for (let i = 0; i < na; i++) { const a = Math.random() * Math.PI * 2, r = 0.22 + Math.random() * 0.16;
+      particula(vadd(P.pos, v3(Math.cos(a) * r, -0.95 + Math.random() * 1.95, Math.sin(a) * r)), v3(Math.cos(a) * 0.15, 2 + Math.random() * 1.6, Math.sin(a) * 0.15), 0.4, 0.035 + 0.02 * k, [1, 0.86, 0.38, 0.75 * k + 0.2], 'fuego', -0.5); } };
+    if (JUG.cuerpo && JUG.vivo && (JUG.tercera || NAT.volando) && SMOD.ids.has('goku')) aura(JUG.cuerpo, Math.hypot(JUG.vel.x, JUG.vel.z));
+    if (RED.on) for (const R2 of RED.remotos.values()) if (R2.mods && R2.mods.includes('goku') && R2.P.pos.distTo(CAM.pos) < 60) aura(R2.P, R2.vel ? Math.hypot(R2.vel.x, R2.vel.z) : 0);
+  }
+  // súper salto: un anillo de polvo al despegar
+  if (MODV.suelo && !JUG.suelo && JUG.vel.y > 4 && MODS.salto >= 1.8 && !JUG.vehiculo && !NAT.volando) {
+    const c = v3(JUG.pos.x, JUG.pos.y - 0.95, JUG.pos.z);
+    for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2; particula(c, v3(Math.cos(a) * 4, 0.4, Math.sin(a) * 4), 0.6, 0.35, [0.82, 0.78, 0.7, 0.55], 'humo', 2); }
+  }
+  MODV.suelo = JUG.suelo; MODV.tEsc -= dt;
+}
+// modo dios: el golpe rebota en un escudo azul
+function modEscudo() {
+  if (MODV.tEsc > 0 || !JUG.cuerpo) return; MODV.tEsc = 0.25;
+  const c = vadd(JUG.pos, v3(0, 0.2, 0));
+  for (let i = 0; i < 16; i++) { const d = v3(Math.random() - 0.5, Math.random() - 0.3, Math.random() - 0.5).norm(); particula(vadd(c, vscale(d, 0.75)), vscale(d, 2.2), 0.35, 0.12, [0.35, 0.65, 1, 0.9], 'fuego', 0.5); }
+  sonar('Click', null, 0.5, 1.8);
+}
 // ---------------- botón SMOD y panel ----------------
 function smBotonPoner(si) {
   let b = SMOD.boton;
