@@ -36,6 +36,9 @@ ic('ragdoll', 'ambar', '''<circle cx="41" cy="15" r="6.5" fill="{W}"/>
 ic('piano', 'violeta', '''<rect x="10" y="17" width="44" height="30" rx="3" fill="{W}"/>
 <g fill="{D}"><rect x="17.5" y="17" width="4.5" height="17" rx="1"/><rect x="26.5" y="17" width="4.5" height="17" rx="1"/><rect x="39" y="17" width="4.5" height="17" rx="1"/></g>
 <g stroke="{D}" stroke-width="1.4"><path d="M20 34v13M28.8 34v13M36.8 34v13M45 34v13"/></g>''')
+ic('ciclope', 'noche', '''<path fill="{W}" d="M23 50v-5c-5-3-8-9-8-16 0-10 7-17 16-17s16 7 16 17c0 7-3 13-8 16v5z"/>
+<path fill="#ff5a4f" opacity=".9" d="M44 24.5l18-7v19l-18-6.5z"/>
+<rect x="13" y="23" width="35" height="8.5" rx="4.2" fill="#d8232a"/><rect x="16" y="25" width="16" height="2.4" rx="1.2" fill="#ff9a8f"/>''')
 ic('radio', 'rojo', '''<path fill="none" stroke="{W}" stroke-width="3" stroke-linecap="round" d="M44 19l6-10M22 19v-4h20v4"/>
 <rect x="9" y="19" width="46" height="28" rx="5" fill="{W}"/>
 <circle cx="21" cy="34" r="7.5" fill="{D}"/><circle cx="43" cy="34" r="7.5" fill="{D}"/><circle cx="21" cy="34" r="2.6" fill="{W}"/><circle cx="43" cy="34" r="2.6" fill="{W}"/>

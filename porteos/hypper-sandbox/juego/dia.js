@@ -17,7 +17,7 @@ function diaPaso(dt) {
 function diaAplicar() {
   const B = DIA.base; if (!B || !B.cielo) return;
   DIA.aplicada = DIA.hora;
-  if (MUNDO.nombre === 'Space') { R.noche = 0; return; }
+  if (MUNDO.nombre === 'Space') { R.noche = 0; cicCielo(); return; }
   const h = DIA.hora, el0 = Math.asin(clamp(B.sol.y, 0.2, 0.98)), az0 = Math.atan2(B.sol.x, B.sol.z);
   // elevación: el mapa a las 12; 0 a las 6 y 18; negativa de noche. Recorrido de este a oeste
   const el = el0 * Math.sin((h - 6) / 12 * Math.PI), az = az0 + (h - 12) / 12 * Math.PI * 0.85;
@@ -44,6 +44,7 @@ function diaAplicar() {
   R.expoK = 1 + noche * 1.3 + tarde * 0.15;
   // las lámparas del mapa y de los props se prenden solas de noche
   R.lucesMapa = noche > 0.5;
+  cicCielo(); // (la definitiva de Cíclope pone todo rojo)
 }
 // faros de los vehículos cuando está oscuro (y con el motor andando)
 function vehiculoLuces(o) {

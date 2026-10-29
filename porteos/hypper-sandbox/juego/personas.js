@@ -51,7 +51,7 @@ function aplicarGiros(P) {
 // el cuerpo según lo que hace
 function animarPersona(P, dt) {
   if (P.cuad) { natCuadPose(P, dt); return; } // SCP en cuatro patas (mod)
-  if (P.hum) { if (P.emote) P.emoteT += dt; animarHumano(P, dt); if (P.poseExtra) P.poseExtra(P, dt); return; }
+  if (P.hum) { if (P.emote) P.emoteT += dt; animarHumano(P, dt); if (P.poseExtra) P.poseExtra(P, dt); cicPose(P, dt); return; }
   P.acc = {}; animarPersona0(P, dt); aplicarGiros(P);
 }
 function animarPersona0(P, dt) {
@@ -132,14 +132,14 @@ function dibujarPersona(P) {
   P.cDib = PERS_N; // (lo que se lleva puesto, como la radio en la espalda, usa los huesos de este cuadro)
   ubicarPersona(P);
   // (sentado, en un emote o en el piso como muñeco no se clavan los pies; se olvida el apoyo viejo para no tirar del pie al volver)
-  if (!P.rag && P.hum && !P.sentado && !P.emote && !P.inclin && !P.cuad) { aterrizarPies(P); piesIK(P, TIEMPO.dt || 0.016); } else P.ik = null;
+  if (!P.rag && P.hum && !P.sentado && !P.emote && !P.inclin && !P.cuad && !P.cic) { aterrizarPies(P); piesIK(P, TIEMPO.dt || 0.016); } else P.ik = null;
   P.md.encolar();
-  if (P.gorroMd) {
+  if (P.gorroMd && !P.cicManos) {
     const hi = P.D.h.Head;
     if (hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], P.gorroL, _mb); P.gorroMd.ponerRaiz(_mb); P.gorroMd.encolar(); }
   }
   // el arma en la mano derecha (los modelos de tercera persona del juego, con su lugar en la mano)
-  if (P.arma && !P.rag && !P.sentado && !P.emote && !P.cuad) {
+  if (P.arma && !P.rag && !P.sentado && !P.emote && !P.cuad && !P.cicManos) {
     const A = arma3p(P, P.arma), hi = P.D.h.RightHand;
     if (A && hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], A.W, _mb); A.md.ponerRaiz(_mb); A.md.encolar(); }
   }
@@ -306,7 +306,7 @@ function personasPaso(dt) {
 function dibujarPersonas() {
   PERS_N++;
   for (const P of PERS) {
-    if (P === JUG.cuerpo) { const ver = JUG.tercera || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh); if (!ver) continue; }
+    if (P === JUG.cuerpo) { const ver = JUG.tercera || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh) || P.cicManos; if (!ver) continue; }
     if (!P.rag) animarPersona(P, TIEMPO.dt);
     dibujarPersona(P);
   }

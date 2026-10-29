@@ -21,7 +21,7 @@ function natIniciar(lista) {
 }
 function natFin() {
   if (NAT.rag) natRag(false); if (NAT.volando) natVolar(false); if (NAT.scp) natScp(false);
-  NAT.mods.clear(); NAT.jalo = NAT.jalado = null; modMenuBoton();
+  NAT.mods.clear(); NAT.jalo = NAT.jalado = null; modMenuBoton(); cicFin();
 }
 function natMarcar() { if (typeof modMenuLista === 'function') modMenuLista(); }
 function natAccion(k) {

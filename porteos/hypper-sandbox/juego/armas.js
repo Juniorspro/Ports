@@ -180,7 +180,7 @@ function explosion(p, radio, dan) {
     if (b.persona && !explosion.remota) danarPersona(b.persona, dan * k, b.pos, d, b);
   }
   const dj = JUG.pos.distTo(p);
-  if (dj < radio * 1.4 && !JUG.vehiculo) { danarJugador(dan * (1 - dj / (radio * 1.4)), p); JUG.vel.addS(vsub(JUG.pos, p).norm(), 12 * (1 - dj / (radio * 1.4))); JUG.vel.y += 4; }
+  if (dj < radio * 1.4 && !JUG.vehiculo && !CIC.inmune) { danarJugador(dan * (1 - dj / (radio * 1.4)), p); JUG.vel.addS(vsub(JUG.pos, p).norm(), 12 * (1 - dj / (radio * 1.4))); JUG.vel.y += 4; }
   CAM.temblor = Math.max(CAM.temblor, clamp(1.5 - dj / 30, 0, 1));
 }
 function explosivosPaso(dt) {
@@ -208,7 +208,7 @@ function danarObjeto(o, dan, p, d) {
   if (o.tipo === 'vehiculo' && o.veh) { o.veh.vida -= dan; if (o.veh.vida <= 0 && !o.veh.roto) vehiculoRoto(o); }
 }
 function danarJugador(dan, de) {
-  if (!JUG.vivo || JUEGO.dios) return;
+  if (!JUG.vivo || JUEGO.dios || CIC.inmune) return;
   if (!MODS.invencible) JUG.vida -= dan; else if (dan > 0 && dan < 1e5) modEscudo(); JUG.golpeT = 0.4; humAccion(JUG.cuerpo, 'golpe');
   if (JUG.vida <= 0) { JUG.vida = 0; morirJugador(); }
 }
@@ -314,7 +314,7 @@ function armasPaso(dt) {
   if (ARM.v) vistaAplicar(ARM.v, dt);
 }
 function dibujarVista() {
-  if (!ARM.v || JUG.tercera || !JUG.vivo || JUG.vehiculo || ARM.zoom) return false;
+  if (!ARM.v || JUG.tercera || !JUG.vivo || JUG.vehiculo || ARM.zoom || CIC.vic || CIC.camOn) return false;
   vistaUbicar(ARM.v, CAM.pos, CAM.q, ARM.sway); ARM.v.md.encolar();
   return true;
 }

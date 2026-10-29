@@ -47,7 +47,7 @@ const C = await abrir('C'); await ev(C, "overlay('NicknamePanel', false); menuAc
 await ev(C, "menuAccion('Main/Multiplayer/Main/Server List'); 1"); await espera(1500);
 let lc = JSON.parse(await ev(C, "JSON.stringify(listaSalas().filter((e) => e.j.length).map((e) => [e.S.n, e.j.length, e.j.sort().join('+')]))"));
 let filas = JSON.parse(await ev(C, "JSON.stringify(document.querySelectorAll('.sala').length)"));
-ok('la lista muestra la sala oficial con Ana y Beto', lc.length === 1 && lc[0][1] === 2 && lc[0][2] === 'Ana+Beto' && filas === 8, { lc, filas });
+ok('la lista muestra la sala oficial con Ana y Beto', lc.length === 1 && lc[0][1] === 2 && lc[0][2] === 'Ana+Beto' && filas >= 8, { lc, filas }); // (8 oficiales y los servers que haya creado la gente)
 await C.screenshot({ path: pref + '_lista.png' });
 // Ana crea un servidor con clave y sin PvP: aparece en la lista con candado; con la clave mala no entra
 await ev(A, "irMenuPrincipal(); seccion('Multiplayer'); subMp('ServerCreate'); MENU.ent.ServerNameFieldNew.value='Casa de Ana'; MENU.ent.Password.value='4321'; MENU.tg.PvPToogle=false; PREFS.mapa='Desert'; menuAccion('Main/Multiplayer/ServerCreate/ServerCreate/CreateServerButton'); 1");
@@ -72,5 +72,7 @@ ok('al irse Ana queda 1 jugador (Caro) en su sala', lc[0] === 1, lc);
 await ev(B, "irMenuPrincipal(); 1"); await espera(1500);
 lc = JSON.parse(await ev(C, "JSON.stringify(listaSalas().filter((e) => e.S.m === 'FlatGrass' && e.S.of).map((e) => e.j.length))"));
 ok('al irse Beto, la sala oficial queda vacía en la lista', lc[0] === 0, lc);
+// (se borran de la tienda los servers que creó la prueba)
+for (const P of [A, B, C]) await ev(P, `(async () => { const m = salasMias(); for (const id in m) await fetch(TIENDA_URL + 'salas/' + id + '/borrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave: m[id].clave }) }).catch(() => {}); return 1; })()`).catch(() => {});
 console.log(errs.join('\n')); console.log(R.filter(Boolean).length + '/' + R.length);
 await b.close(); srv.close(); process.exit(0);

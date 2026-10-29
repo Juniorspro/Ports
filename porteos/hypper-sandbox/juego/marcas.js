@@ -33,5 +33,5 @@ function dibujarMarcas() {
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
   gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-2, -4); gl.disable(gl.CULL_FACE);
   gl.drawArrays(gl.TRIANGLES, 0, MARCAS.max * 6);
-  gl.enable(gl.CULL_FACE); gl.disable(gl.POLYGON_OFFSET_FILL); gl.depthMask(true); gl.disable(gl.BLEND); gl.bindVertexArray(null);
+  gl.enable(gl.CULL_FACE); gl.disable(gl.POLYGON_OFFSET_FILL); gl.depthMask(true); gl.disable(gl.BLEND); gl.bindVertexArray(null); R.vaoAct = null;
 }

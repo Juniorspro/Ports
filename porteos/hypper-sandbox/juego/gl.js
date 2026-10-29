@@ -851,7 +851,7 @@ function dibujarOpacos() {
 function dibujarTransparentes() {
   const gl = R.gl;
   if (!R.colaT.length) return;
-  R.texAct = null;
+  R.texAct = null; R.vaoAct = null; // (el cielo y las marcas cambian la malla atada sin avisar)
   gl.enable(gl.BLEND); gl.depthMask(false);
   for (const p of R.colaT) { gl.blendFunc(gl.SRC_ALPHA, p.mt.add ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA); dibujarPedido(p, prepararProg(progDe(claveDe(p), 'main'))); }
   gl.depthMask(true); gl.disable(gl.BLEND);
@@ -891,7 +891,7 @@ function dibujarCielo(IVP) {
     gl.uniform1f(P.u.uSolTam, 0.00012 + (C.solTam || 0.3) * 0.0004);
     const l = R.luna || v3(-R.sol.x, Math.abs(R.sol.y), -R.sol.z); gl.uniform3f(P.u.uLuna, l.x, l.y, l.z);
   }
-  gl.depthMask(false); gl.depthFunc(gl.LEQUAL); gl.bindVertexArray(R.quad); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindVertexArray(null); gl.depthMask(true); gl.depthFunc(gl.LESS);
+  gl.depthMask(false); gl.depthFunc(gl.LEQUAL); gl.bindVertexArray(R.quad); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindVertexArray(null); R.vaoAct = null; gl.depthMask(true); gl.depthFunc(gl.LESS);
 }
 // líneas sueltas (rayos de la pistola física, el cable, la mira de herramientas)
 const LIN = { v: new Float32Array(7 * 4096), n: 0, pts: new Float32Array(7 * 1024), np: 0 };
@@ -905,7 +905,7 @@ function dibujarLineas() {
   const gl = R.gl, P = R.prog.lin; gl.useProgram(P.p); R.progAct = P; gl.uniformMatrix4fv(P.u.uVP, false, R.vp); gl.uniform1f(P.u.uLin, R.salida === 'hdr' ? 1 : 0);
   gl.bindVertexArray(R.linVao); gl.bindBuffer(gl.ARRAY_BUFFER, R.linBuf); gl.bufferData(gl.ARRAY_BUFFER, LIN.v.subarray(0, LIN.n * 7), gl.STREAM_DRAW);
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  gl.drawArrays(gl.LINES, 0, LIN.n); gl.disable(gl.BLEND); gl.bindVertexArray(null); LIN.n = 0;
+  gl.drawArrays(gl.LINES, 0, LIN.n); gl.disable(gl.BLEND); gl.bindVertexArray(null); R.vaoAct = null; LIN.n = 0;
 }
 // ---------------- luces puntuales y focos (lámparas, faros, fogonazos, explosiones) ----------------
 // cada cuadro se juntan y se mandan las más cercanas a la cámara

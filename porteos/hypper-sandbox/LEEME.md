@@ -86,8 +86,12 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   aparece otro; con muchos autos se borra el que lleva más tiempo sin usarse), teletransporte, zona de muerte, cartel,
   luz, impulso, meta y música.
 - **Radio 3D**: la fuente es una emisora por internet (`rb:` + su id) o un video de YouTube. Las emisoras pasan por el
-  sonido del juego (`<audio crossOrigin>` → panner HRTF en la radio, volumen por distancia, filtro detrás de paredes y eco
-  del lugar); suenan las 3 radios más cercanas a la vez y los parlantes laten con el nivel real de la música. Primero se
+  sonido del juego (`<audio crossOrigin>` → en mono (la música estéreo, con el HRTF, se oía igual de cualquier lado: el
+  canal izquierdo iba al oído izquierdo esté donde esté la radio) → parlante chico (pasaaltos 280/210 Hz, cuerpo en
+  600 Hz, medios en 1,8 kHz, pasabajos 4,6/6,2 kHz, algo saturado) con un siseo que sube a estática mientras sintoniza →
+  panner HRTF que mira para donde miran los parlantes (de atrás, ~8 dB menos) → distancia de verdad (−6 dB cada vez que
+  se duplica, desde 3 m; se apaga en el alcance), el aire (menos agudos de lejos), más eco de lejos, filtro detrás de
+  paredes y eco del lugar; medido en `radio_espacial.mjs`); suenan las 3 radios más cercanas a la vez y los parlantes laten con el nivel real de la música. Primero se
   prueba la dirección directa (https); si no deja pasar el audio o no arranca en 9 s, va por `/api/radio/play/ID`, y si
   tampoco, la siguiente de la búsqueda. YouTube no deja pasar su sonido por el juego: un video suena desde su reproductor,
   que queda escondido (transparente y detrás de todo; las reglas de YouTube piden que se vea, así que esto corre por
@@ -100,7 +104,21 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
 - **Portada animada** (`herramientas/portada/`): arma una escena en el juego (Goku con el aura y la radio en la espalda,
   gente bailando, autos y la mega rampa de fondo), maneja el reloj a mano (un paso exacto de 0,03 s por cuadro, así sale
   fluida aunque el navegador vaya lento), lee cada cuadro del lienzo a 1920×1080, lo achica a 960×540, funde el final con
-  el principio para que el bucle no salte, pone el logo y arma el GIF con ffmpeg (instrucciones en `captura.mjs`).
+  el principio para que el bucle no salte, pone el logo y arma el GIF con ffmpeg (instrucciones en `captura.mjs`). Con
+  `VERTICAL=1` sale parada (9:16, 540×960).
+- **Mod Cíclope** (`ciclope.js`, oficial): sos Cíclope (modelo 3D generado aparte y pesado con el esqueleto del Hero,
+  como Goku; su cabeza es más baja que la del Hero, así que la articulación Head va a la base del cráneo en el nodo y en
+  la pose de enlace, y todo lo que está arriba del mentón va con la cabeza). Los lentes rubí se dibujan aparte, con el
+  marco del hueso de la cabeza y su escala (igual que la piel), a la altura de los ojos medida en la textura de la cara.
+  Botón rojo (tecla H): tocar = láser suave desde los ojos (empuja y lastima poco); mantener 1 s (tiempo real, con el aro
+  que se llena) = la definitiva, que ve toda la sala: 6 s de cinemática (cae de rodillas con una mano en el piso, se
+  levanta, se saca los lentes y los tira, grita con la cabeza para atrás y el rayo sale al cielo; cuatro planos de
+  cámara, los mismos en todos los juegos) y 15 s de rayo adonde apunta (sobre el hombro): explota y hace volar lo que
+  toca, con el cielo, el sol y el ambiente rojos para todos. Si pasa a menos de 1,3 m de alguien lo agarra: lo lleva
+  volando 3,2 s y el agarrado pasa a primera persona (cámara delante de su cara) con las manos arriba, palmas hacia el
+  rayo, grita "no, no, no" (voz generada), ve todo rojo y se come el golpe final (con PvP). 20 s de espera entre
+  definitivas; el que la tira no se lastima con sus explosiones. Por la red: `cic` con `u` (empieza), `d` (dirección y
+  punta del rayo, 10 por segundo), `v` (agarró a alguien), `l` (láser suave) y `fin`; las explosiones van como siempre.
 - **Mega rampa**: la caída de arriba es una parábola (la trayectoria de un auto que sale a ~30 m/s: el que llega más
   lento baja apoyado), recta a 52°, curva de abajo amplia (~3 g a 50 m/s), recta y salto final. Los autos chocan con
   los triángulos de las formas propias sólo vértice contra cara con la normal de la cara (`hullTri` en `fisica.js`):
@@ -134,7 +152,10 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   tobillo y la punta, IK de dos huesos) y se sueltan al levantar el pie. Cambios de estado (correr/quieto/aire/
   sentado/emote/arma, cambio brusco de dirección, una acción que corta a otra) con transición inercial
   amortiguada; el giro del cuerpo se mezcla del mismo lado del cuaternión (antes daba media vuelta en un cuadro).
-- Skin de Goku en la tienda (modelo 3D generado aparte y pesado con el esqueleto del Hero; va sólo en el HTML).
+- Skin de Goku en la tienda (modelo 3D generado aparte y pesado con el esqueleto del Hero; va sólo en el HTML). Igual
+  Cíclope (y su grito, generado).
+- Dibujo: el cielo, las marcas y las líneas desatan la malla de WebGL sin avisarle a la caché (`R.vaoAct`); si lo
+  primero transparente usaba la misma malla que lo último opaco, se dibujaba sin malla (`GL_INVALID_OPERATION`).
 - Arranque: la intro de JXStudios (video WebM/MP4 adentro del HTML, con la imagen del logo si el aparato no lo
   reproduce) en lugar de "Cargando"; mientras tanto se lee el paquete. A prueba de fallas: cada paso queda anotado; si
   algo se rompe se prueba solo con el otro motor (WebGL 1 ↔ 2) y después con la calidad más baja, y si igual no anda
@@ -145,7 +166,7 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   `vehiculos`, `herramientas` (Tool Gun), `personas` (skins, emotes, muñeco), `humano` (clips humanoides:
   músculos → huesos), `red` (MQTT: salas, lista de servidores por presencia retenida), `entrada` (incluye el
   giro a horizontal), `ui`, `menu` (dibuja el LobbyCanvas exportado con HTML), `idiomas`, `modapi` (mods con código),
-  `voz`, `geo` (formas propias), `entidades`, `nativos` (mods oficiales), `creador`, `smods` (mods del server), `inicio`
+  `voz`, `geo` (formas propias), `entidades`, `nativos` (mods oficiales), `ciclope` (mod Cíclope), `creador`, `smods` (mods del server), `inicio`
   (RezoBox), `principal`.
 - Pruebas: `pruebas/escena.mjs` (guion de pasos), `dbg.mjs` (corre un .js en la página: `fisica_choques.js`,
   `vehiculos.js`, `pies.js`, `camara.js`, `marcas.js` devuelven números), `red2.mjs` (tres jugadores, broker local
@@ -162,6 +183,10 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   para el teléfono), `red_radio.mjs` (otro la oye, la ve en tu espalda y congelada en el mismo lugar, el que entra
   después también), `mods_vivo.mjs` (menú MOD: prender y apagar en vivo, fuerza, buscador, aura, polvo, escudo y vista;
   `celu`), `red_servers.mjs` (crear un server, 0/∞, vacío con la cuenta de 10 minutos, borrado solo, clave, sólo el
-  dueño lo borra y los de adentro vuelven al menú; con credenciales de Cloudflare adelanta el reloj en la base), `creador.mjs`, `celu_mods.mjs`, `red_sm.mjs` (publica mods de prueba en la tienda real, dos jugadores
+  dueño lo borra y los de adentro vuelven al menú; con credenciales de Cloudflare adelanta el reloj en la base),
+  `radio_espacial.mjs` (lo que sale por cada oído con una música de prueba estéreo: de qué lado, el retraso entre oídos,
+  la distancia, de atrás, el parlante chico y la estática), `ciclope.mjs` (el personaje, el láser, la definitiva con sus
+  planos, el rayo que agarra a un muñeco, el cielo rojo y que todo vuelva; `celu` con el dedo de verdad),
+  `red_ciclope.mjs` (otro ve la cinemática, el rayo lo agarra: primera persona, manos, rojo, vuela, golpe final), `creador.mjs`, `celu_mods.mjs`, `red_sm.mjs` (publica mods de prueba en la tienda real, dos jugadores
   eligen con SM, uno sube otro mod en el medio; borra todo al final) y `red_mods.mjs` (cada
   jugador en su propio navegador: si comparten uno, la pestaña de fondo deja de simular).

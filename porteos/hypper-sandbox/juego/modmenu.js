@@ -5,7 +5,7 @@
 // fuerza de los que cambian números (gravedad, velocidad, salto, tiempo, explosiones). El micrófono de la sala es otro
 // botón chico arriba.
 const MODM = { boton: null, el: null, abierto: false, q: '', tFz: 0 };
-const NAT_TECLA = { volar: 'G', ragdoll: 'X', scp: 'J', piano: 'K', radio: 'L' };
+const NAT_TECLA = { volar: 'G', ragdoll: 'X', scp: 'J', piano: 'K', radio: 'L', ciclope: 'H' };
 addEventListener('pointerdown', (e) => { if (MODM.abierto && !(e.target.closest && e.target.closest('#modMenu, .modmBt'))) modMenuCerrar(); }, true);
 function modMenuHay() { return JUEGO.estado === 'juego' && !CREA.on; }
 function modMenuBoton() {
@@ -56,6 +56,7 @@ function modMenuLista() {
   const sw = '<i class="smSw"></i>', bt = (k, g, t) => `<button class="mmBt" data-mm="${k}">${glifo(g)}<span>${esc(t)}</span></button>`;
   let u = '';
   for (const k of ['volar', 'ragdoll', 'scp']) if (NAT.mods.has(k)) u += fila(icoHTML('ico:' + k), T(k + '.n'), NAT_TECLA[k], sw, 'nat:' + k, k === 'volar' ? NAT.volando : k === 'ragdoll' ? NAT.rag : NAT.scp);
+  if (NAT.mods.has('ciclope')) u += fila(icoHTML('ico:ciclope'), T('ciclope.n'), NAT_TECLA.ciclope, `<span class="mmMod" dir="auto">${esc(T('cic.ayuda'))}</span>`, '');
   if (NAT.mods.has('piano')) u += fila(icoHTML('ico:piano'), T('piano.n'), NAT_TECLA.piano, bt('nat:piano', 'punto', T('mm.poner')));
   if (NAT.mods.has('radio')) {
     const e = radioMia();

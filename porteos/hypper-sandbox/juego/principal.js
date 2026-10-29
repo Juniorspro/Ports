@@ -80,6 +80,7 @@ const CAM = { pos: v3(), q: new Quat(), qVista: new Quat(), fwd: v3(0, 0, 1), de
 function camaraActualizar(dt) {
   if (JUEGO.estado === 'principal' && typeof lobbyCamara === 'function') { lobbyCamara(CAM); CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); return; }
   jugadorCamara(CAM);
+  if (JUEGO.estado === 'juego') cicCamara(CAM); // (Cíclope: la cinemática y la cámara de la definitiva)
   if (DBG.cam) { CAM.pos.copy(DBG.cam.p); CAM.q.copy(DBG.cam.q); } // (pruebas: mirar desde otro lado)
   if (CAM.temblor > 0) { CAM.temblor = Math.max(0, CAM.temblor - dt * 1.5); const k = CAM.temblor * 0.03; CAM.q.mul(Quat.euler((Math.random() - 0.5) * k, (Math.random() - 0.5) * k)); }
   CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA);
@@ -180,7 +181,7 @@ function cuadro(ahora) {
   while (TIEMPO.acc >= paso && n < 3) {
     TIEMPO.acc -= paso; n++;
     if (JUEGO.estado === 'juego') {
-      const ent = UI.abierto ? { x: 0, y: 0, saltar: false, agachar: false, correr: false } : ENT;
+      const ent = UI.abierto || CIC.quieto ? { x: 0, y: 0, saltar: false, agachar: false, correr: false } : ENT;
       jugadorPaso(paso, ent);
       if (typeof vehiculosPaso === 'function') vehiculosPaso(paso, ent);
     }
@@ -195,6 +196,7 @@ function cuadro(ahora) {
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
     modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt); smPaso(dt); modsVisualPaso(dt);
     if (typeof redPaso === 'function') redPaso(dt);
+    cicPaso(dt);
     diaPaso(dt); hostPaso();
   }
   efectosPaso(dt);
@@ -262,6 +264,7 @@ function dibujar() {
   if (typeof dibujarPersonas === 'function') dibujarPersonas();
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();
+  if (JUEGO.estado === 'juego') cicDibujar();
   dibujarProyectiles();
   lucesJuntar(); lucesPreparar();
   if (JUEGO.estado === 'juego' && R.sombraOn) {

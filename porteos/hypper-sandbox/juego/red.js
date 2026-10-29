@@ -416,6 +416,7 @@ function recibirHecho(d) {
   } else if (d.k === 'rtc' && d.to === RED.ID) { vozSenal(d);
   } else if (d.k === 'ent' || d.k === 'entb' || d.k === 'radio' || d.k === 'entp') { entidadHecho(d);
   } else if (d.k === 'jalar') { natRed(d);
+  } else if (d.k === 'cic') { cicRed(d);
   } else if (d.k === 'dano' && d.to === RED.ID) {
     if (SALA && !SALA.pvp) return;
     danarJugador(num(d.d, 0, 500, 0), null);

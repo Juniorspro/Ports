@@ -392,9 +392,12 @@ function entidadesDe(id) { for (const e of ENTS.lista.slice()) if (e.dueno === i
 
 // ---------------- la fuente de una radio: emisora por internet (en 3D) o video de YouTube ----------------
 // e.vid es "rb:" + el id de la emisora en Radio Browser, o el id de 11 letras de un video. Las emisoras pasan por el
-// sonido del juego: panner HRTF en la radio, más bajo de lejos, apagado detrás de paredes y con el eco del lugar; suenan
-// las tres radios más cercanas a la vez. El sonido de YouTube no se puede pasar por el juego: el video suena desde su
-// reproductor, que queda escondido (no se ve nada en pantalla); su volumen sigue a la distancia y a las paredes.
+// sonido del juego: sale de la radio. En mono (una radio chica no tiene estéreo, y la música estéreo se oye igual desde
+// cualquier lado), con sonido de parlante chico (sin graves ni agudos, medios adelante, un poco saturado) y un siseo que
+// sube a estática mientras sintoniza; después el panner HRTF que mira para donde miran los parlantes (de atrás suena
+// más bajo), la distancia de verdad (la mitad cada vez que se duplica), el aire (de lejos, menos agudos), más eco de lejos
+// y apagado detrás de paredes. Suenan las tres radios más cercanas a la vez. El sonido de YouTube no se puede pasar por
+// el juego: el video suena desde su reproductor, que queda escondido; su volumen sigue a la distancia y a las paredes.
 const esEst = (v) => typeof v === 'string' && /^rb:[0-9a-f-]{36}$/.test(v);
 const fuenteRadio = (v) => (esEst(v) ? v : ytId(v));
 const EST = { son: new Map(), url: new Map(), t: 0, max: 3 };
@@ -408,7 +411,9 @@ function estSonar(e) {
   const a = new Audio(); a.crossOrigin = 'anonymous'; a.preload = 'auto';
   const S = { e, vid: e.vid, a, src: null, F: null, an: null, nivel: new Uint8Array(64), prox: false, listo: false, tOcl: 0, tap: false, reint: 2, fin: 0, espera: 0 }; // (espera: hora límite para que arranque)
   try { S.src = c.createMediaElementSource(a); } catch (x) { return null; }
-  S.F = fuente3D(entPos(e), 0); S.F.p.panningModel = 'HRTF'; S.F.p.rolloffFactor = 0; S.src.connect(S.F.g);
+  S.F = fuente3D(entPos(e), 0); S.F.p.panningModel = 'HRTF'; S.F.p.rolloffFactor = 0;
+  S.F.p.coneInnerAngle = 130; S.F.p.coneOuterAngle = 320; S.F.p.coneOuterGain = 0.4;
+  S.C = radioCadena(c); S.src.connect(S.C.ent); S.C.sal.connect(S.F.g);
   S.an = c.createAnalyser(); S.an.fftSize = 64; S.src.connect(S.an);
   a.onerror = () => estFallo(S); a.onplaying = () => { S.listo = true; S.espera = 0; };
   a.onended = () => { if (S.fin++ < 3) { a.load(); a.play().catch(() => {}); } else estFallo(S); }; // (una emisora que se corta, se vuelve a conectar)
@@ -425,17 +430,45 @@ function estFallo(S) {
 function estParar(e) {
   const S = EST.son.get(e); if (!S) return; EST.son.delete(e); e.nivel = 0;
   try { S.a.onerror = S.a.onended = null; S.a.pause(); S.a.removeAttribute('src'); S.a.load(); } catch (x) {}
-  try { S.src.disconnect(); S.an.disconnect(); S.F.g.disconnect(); S.F.f.disconnect(); S.F.p.disconnect(); } catch (x) {}
+  try { S.src.disconnect(); S.an.disconnect(); S.C.fin(); S.F.g.disconnect(); S.F.f.disconnect(); S.F.p.disconnect(); if (S.F.r) S.F.r.disconnect(); } catch (x) {}
 }
+// el ruido de la radio (siseo con chasquidos sueltos), uno solo para todas
+function radioRuido(c) {
+  if (AUD.ruidoRadio) return AUD.ruidoRadio;
+  const n = c.sampleRate * 3, b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0); let ant = 0;
+  for (let i = 0; i < n; i++) { ant = ant * 0.55 + (Math.random() * 2 - 1) * 0.45; d[i] = ant; }
+  for (let k = 0; k < 40; k++) { const i = Math.floor(Math.random() * (n - 200)), a = (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.8); for (let j = 0; j < 160; j++) d[i + j] += a * Math.exp(-j / 18) * (j % 2 ? -1 : 1); }
+  return (AUD.ruidoRadio = b);
+}
+// mono → parlante chico (dos pasaaltos, cuerpo de caja, medios, dos pasabajos) → algo saturado; más el siseo
+function radioCadena(c) {
+  const mono = c.createGain(); mono.channelCount = 1; mono.channelCountMode = 'explicit'; mono.channelInterpretation = 'speakers';
+  const bq = (type, f, q, g) => { const x = c.createBiquadFilter(); x.type = type; x.frequency.value = f; x.Q.value = q; if (g) x.gain.value = g; return x; };
+  const fl = [bq('highpass', 280, 0.75), bq('highpass', 210, 0.6), bq('peaking', 600, 1.3, 2), bq('peaking', 1800, 0.9, 6), bq('lowpass', 4600, 0.8), bq('lowpass', 6200, 0.6)];
+  const sat = c.createWaveShaper(), cur = new Float32Array(1024), K = 1.6; for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; cur[i] = Math.tanh(K * x) / Math.tanh(K); }
+  sat.curve = cur; sat.oversample = '2x';
+  const pre = c.createGain(), sal = c.createGain(); pre.gain.value = 0.9; sal.gain.value = 0.8;
+  let n = mono; for (const x of fl) { n.connect(x); n = x; } n.connect(pre); pre.connect(sat); sat.connect(sal);
+  const ru = c.createBufferSource(), ruF = bq('bandpass', 3000, 0.6), ruG = c.createGain(); ru.buffer = radioRuido(c); ru.loop = true; ru.loopStart = Math.random() * 2;
+  ruG.gain.value = 0; ru.connect(ruF); ruF.connect(ruG); ruG.connect(sal); ru.start(0, Math.random() * 2);
+  return { ent: mono, sal, ruido: ruG, fin: () => { try { ru.stop(); } catch (x) {} for (const x of [mono, ...fl, pre, sat, sal, ru, ruF, ruG]) x.disconnect(); } };
+}
+// cuánto se oye a d metros: la mitad cada vez que se duplica la distancia (desde 3 m) y se apaga del todo en el alcance
+function radioDist(e, d) { const r = clamp(+e.prm.r || 40, 4, 400); return Math.min(1, 3 / (3 + 0.9 * Math.max(0, d - 3))) * clamp((r - d) / (0.3 * r), 0, 1); }
 function estPaso(dt) {
   // cada cuadro: dónde está cada radio que suena, su volumen y su nivel (para que los parlantes latan con la música)
   for (const [e, S] of EST.son) {
     if (!ENTS.lista.includes(e) || e.vid !== S.vid) { estParar(e); continue; }
     const p = entPos(e); ponerPos(S.F.p, p);
+    const fr = (e.b ? e.b.q : Quat.axis(0, 1, 0, 0)).rot(v3(0, 0, -1)); // (para donde miran los parlantes)
+    if (S.F.p.orientationX) { S.F.p.orientationX.value = fr.x; S.F.p.orientationY.value = fr.y; S.F.p.orientationZ.value = fr.z; } else S.F.p.setOrientation(fr.x, fr.y, fr.z);
     S.an.getByteTimeDomainData(S.nivel); let m = 0; for (const v of S.nivel) m = Math.max(m, Math.abs(v - 128)); e.nivel = S.listo && !S.a.paused ? m / 128 : 0;
-    const r = clamp(+e.prm.r || 40, 4, 400), d = p.distTo(CAM.pos), k = clamp(1 - (d - 3) / (r - 3), 0, 1), t = AUD.ctx.currentTime;
-    S.tOcl -= dt; if (S.tOcl <= 0) { S.tOcl = 0.3; S.tap = d > 2 && audioTapado(p); S.F.f.frequency.setTargetAtTime(S.tap ? 900 : 20000, t, 0.08); }
-    S.F.g.gain.setTargetAtTime(0.9 * Math.pow(k, 1.6) * clamp(+e.prm.vol || 1, 0, 1) * (S.tap ? 0.5 : 1), t, 0.06);
+    const d = p.distTo(CAM.pos), t = AUD.ctx.currentTime, gd = radioDist(e, d);
+    S.tOcl -= dt; if (S.tOcl <= 0) { S.tOcl = 0.3; S.tap = d > 2 && audioTapado(p); }
+    S.F.f.frequency.setTargetAtTime(S.tap ? 900 : 16000 / (1 + Math.max(0, d - 4) / 9), t, 0.08);
+    S.F.g.gain.setTargetAtTime(1.15 * gd * clamp(+e.prm.vol || 1, 0, 1) * (S.tap ? 0.5 : 1), t, 0.06);
+    if (S.F.r) S.F.r.gain.setTargetAtTime(Math.min(1.3, 0.3 / Math.sqrt(Math.max(gd, 0.05))), t, 0.1); // (de lejos se oye más el eco que la radio)
+    S.C.ruido.gain.setTargetAtTime(S.listo && !S.a.paused ? 0.011 : S.a.getAttribute('src') ? 0.09 : 0, t, S.listo ? 0.25 : 0.05); // (sintonizando: estática)
     if (S.a.paused && S.a.getAttribute('src') && (S.reint -= dt) <= 0) { S.reint = 2; S.a.play().catch(() => {}); } // (si el navegador no la dejó arrancar sin un toque)
     // una emisora que se queda cargando sin dar error: a los 9 s se prueba por la tienda (y si tampoco, la siguiente)
     if (!S.listo && S.espera && !S.a.paused && performance.now() > S.espera) { S.espera = 0; estFallo(S); continue; }
@@ -469,8 +502,8 @@ function ytCargar(e) {
 }
 function ytVolumen(forzar) {
   const e = YT.fuente; if (!e || !YT.ifr) return;
-  const r = clamp(+e.prm.r || 40, 4, 400), d = entPos(e).distTo(CAM.pos), k = clamp(1 - (d - 3) / (r - 3), 0, 1), tap = d > 2 && audioTapado(entPos(e));
-  const vol = Math.round(100 * clamp(PREFS.vol / 100, 0, 1) * Math.pow(k, 1.6) * clamp(+e.prm.vol || 1, 0, 1) * (tap ? 0.45 : 1));
+  const d = entPos(e).distTo(CAM.pos), tap = d > 2 && audioTapado(entPos(e));
+  const vol = Math.round(100 * clamp(PREFS.vol / 100, 0, 1) * radioDist(e, d) * clamp(+e.prm.vol || 1, 0, 1) * (tap ? 0.45 : 1));
   if (forzar || Math.abs(vol - YT.vol) >= 2 || (vol === 0) !== (YT.vol === 0)) { ytCmd('setVolume', [vol]); YT.vol = vol; }
 }
 function ytPaso(dt) {
