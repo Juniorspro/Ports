@@ -57,6 +57,7 @@ const S3e = (() => {
       this.errorArchivo = 0;
       this.trazar = this.opt.trazar || {};
       this.noImpl = new Set();
+      this.filtro = this.opt.filtro ? new RegExp(this.opt.filtro) : null;   // anota las llamadas cuyo nombre case con esta expresion
       this.build();
     }
 
@@ -282,12 +283,14 @@ const S3e = (() => {
       // ===== punteros, teclado, acelerometro =====
       def('s3ePointerRegister', () => { self.registrar('ptr', A(0), A(1), A(2)); self.ret(OK); });
       def('s3ePointerUnRegister', () => { self.quitar('ptr', A(0), A(1)); self.ret(OK); });
-      def('s3ePointerUpdate', () => self.ret(OK));
+      // puntero: el juego lo consulta una vez por cuadro (Update + GetState/GetX/GetY) y ademas recibe callbacks
+      this.pt = { abajo: false, presionado: false, soltado: false, estado: 0, x: 0, y: 0 };
+      def('s3ePointerUpdate', () => { const p = self.pt; p.estado = (p.abajo ? 1 : 0) | (p.presionado ? 2 : 0) | (p.soltado ? 4 : 0); p.presionado = false; p.soltado = false; self.ret(OK); });
       def('s3ePointerGetInt', () => { const p = A(0); self.ret(p === 0 ? 1 : p === 1 ? 1 : p === 2 ? 1 : p === 3 ? 1 : 0); });
       def('s3ePointerSetInt', () => self.ret(OK));
-      def('s3ePointerGetX', () => self.ret(self.puntero ? self.puntero.x : 0));
-      def('s3ePointerGetY', () => self.ret(self.puntero ? self.puntero.y : 0));
-      def('s3ePointerGetState', () => self.ret(0));
+      def('s3ePointerGetX', () => self.ret(self.pt.x));
+      def('s3ePointerGetY', () => self.ret(self.pt.y));
+      def('s3ePointerGetState', () => self.ret(A(0) === 0 ? self.pt.estado : 0));
       def('s3eKeyboardRegister', () => { self.registrar('kbd', A(0), A(1), A(2)); self.ret(OK); });
       def('s3eKeyboardUnRegister', () => { self.quitar('kbd', A(0), A(1)); self.ret(OK); });
       def('s3eKeyboardUpdate', () => self.ret(OK));
@@ -314,7 +317,7 @@ const S3e = (() => {
         const gl = !f && this.opt.gl && this.opt.gl.fn(n);
         const h = f || gl;
         const cont = this.llamadas;
-        if (h) return (c) => { cont[n] = (cont[n] || 0) + 1; if (self.trazar.todo) self.log('> ' + n + ' ' + [A(0), A(1), A(2), A(3)].map((x) => (x >>> 0).toString(16)).join(',')); h(c, self); };
+        if (h) return (c) => { cont[n] = (cont[n] || 0) + 1; if (self.filtro && self.filtro.test(n)) self.log('> ' + n + ' ' + [A(0), A(1), A(2), A(3), A(4)].map((x) => (x >>> 0).toString(16)).join(',') + ' lr=' + (R[14] >>> 0).toString(16)); if (self.trazar.todo) self.log('> ' + n + ' ' + [A(0), A(1), A(2), A(3)].map((x) => (x >>> 0).toString(16)).join(',')); h(c, self); };
         return (c) => { cont[n] = (cont[n] || 0) + 1; if (!self.noImpl.has(n)) { self.noImpl.add(n); self.log('SIN IMPLEMENTAR ' + n + ' ' + [A(0), A(1), A(2), A(3)].map((x) => (x >>> 0).toString(16)).join(',') + ' lr=' + (R[14] >>> 0).toString(16)); } R[0] = 0; };
       });
     }
@@ -332,6 +335,25 @@ const S3e = (() => {
       const cpu = this.cpu, sp = this.R[13], out = [];
       for (let i = 0; i < 64 && out.length < (n || 8); i++) { const v = this.dv.getUint32(sp + 4 * i, true); if (v >= cpu.codeLo && v < cpu.codeHi && (v & 1)) out.push((v >>> 0).toString(16)); }
       return ' pila=' + out.join(',');
+    }
+    // entrega un evento de entrada al guest llamando a los callbacks registrados (tipos de s3ePointerRegister: 0 boton, 1 movimiento, 2 toque, 3 movimiento de toque)
+    entrada(m) {
+      if (m.t !== 'ptr') return;
+      const dv = this.dv, buf = this.bufEntrada || (this.bufEntrada = this.mont.reservar(64));
+      const x = m.x | 0, y = m.y | 0, id = m.id | 0;
+      this.puntero = { x, y };
+      if (id === 0) { const p = this.pt; p.x = x; p.y = y; if (m.e === 'down') { p.abajo = true; p.presionado = true; } else if (m.e === 'up') { p.abajo = false; p.soltado = true; } }
+      if (m.e === 'down' || m.e === 'up') {
+        dv.setInt32(buf, 1, true);  dv.setInt32(buf + 4, m.e === 'down' ? 1 : 0, true); dv.setInt32(buf + 8, x, true); dv.setInt32(buf + 12, y, true);
+        if (id === 0) this.disparar('ptr', 0, buf);
+        dv.setInt32(buf, m.e === 'down' ? 1 : 0, true); dv.setInt32(buf + 4, id, true); dv.setInt32(buf + 8, x, true); dv.setInt32(buf + 12, y, true);
+        this.disparar('ptr', 2, buf);
+      } else if (m.e === 'move') {
+        dv.setInt32(buf, x, true); dv.setInt32(buf + 4, y, true);
+        if (id === 0) this.disparar('ptr', 1, buf);
+        dv.setInt32(buf, id, true); dv.setInt32(buf + 4, x, true); dv.setInt32(buf + 8, y, true);
+        this.disparar('ptr', 3, buf);
+      }
     }
     pedirYield(ms) { this.yieldPedido = true; this.cpu.stop = true; }
   }

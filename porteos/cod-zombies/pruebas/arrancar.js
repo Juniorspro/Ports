@@ -49,6 +49,10 @@ const t0 = Date.now();
 try {
   for (let i = 0; i < max; i++) {
     s3e.yieldPedido = false;
+    if (opts.click) for (const it of String(opts.click).split(';')) { const [fr, xy] = it.split(':'); const [cx, cy] = xy.split(',').map(Number); const f = Number(fr);
+      if (i === f) { s3e.entrada({ t: 'ptr', e: 'move', id: 0, x: cx, y: cy }); s3e.entrada({ t: 'ptr', e: 'down', id: 0, x: cx, y: cy }); console.log('--- click en cuadro', i); }
+      if (i === f + 3) s3e.entrada({ t: 'ptr', e: 'up', id: 0, x: cx, y: cy }); }
+    if (opts.desde && i === Number(opts.desde)) s3e.trazar.todo = true;
     pc = cpu.run(pc);
     if (pc === Cpu.MAGIC || pc === Cpu.MAGIC + 1) { console.log('el juego retorno de main'); break; }
     if (s3e.quit) { console.log('salida pedida', s3e.salida); break; }

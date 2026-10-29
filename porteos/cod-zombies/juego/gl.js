@@ -19,6 +19,10 @@ const GlHle = (() => {
       this.atr = [];                       // estado de atributos de vertice (punteros del cliente)
       for (let i = 0; i < 16; i++) this.atr.push({ on: false, vbo: 0, tam: 4, tipo: 0x1406, norm: false, paso: 0, ptr: 0 });
       this.vboAct = 0; this.iboAct = 0; this.progAct = 0;
+      this.fbAct = 0; this.prof = false; this.mascaraProf = true;           // framebuffer del juego enlazado (0 = pantalla) y prueba de profundidad
+      this.vpJuego = [0, 0, this.ancho, this.alto]; this.scJuego = [0, 0, this.ancho, this.alto];
+      this.gfx = null;           // Graficos: la "pantalla" pasa a ser un framebuffer propio con efectos
+      this.s3tcNativo = true;    // false: las texturas DXT se descomprimen por software (dxt.js)
       this.errores = new Set();
       this.noImpl = new Set();
       this.dibujos = 0;
@@ -71,7 +75,12 @@ const GlHle = (() => {
       d('glBindTexture', () => { if (gl()) gl().bindTexture(A(0), self.obj('tex', A(1))); });
       d('glActiveTexture', () => { if (gl()) gl().activeTexture(A(0)); });
       d('glBindBuffer', () => { const t = A(0), id = A(1); if (t === 0x8892) self.vboAct = id; else if (t === 0x8893) self.iboAct = id; if (gl()) gl().bindBuffer(t, self.obj('buf', id)); });
-      d('glBindFramebuffer', () => { if (gl()) gl().bindFramebuffer(A(0), self.obj('fb', A(1))); });
+      d('glBindFramebuffer', () => {
+        const id = A(1); self.fbAct = id;
+        if (!gl()) return;
+        gl().bindFramebuffer(A(0), id === 0 && self.gfx ? self.gfx.fbo : self.obj('fb', id));
+        if (self.gfx) self.aplicarVp();
+      });
       d('glBindRenderbuffer', () => { if (gl()) gl().bindRenderbuffer(A(0), self.obj('rb', A(1))); });
       d('glBufferData', () => { const t = A(0), n = A(1) >>> 0, p = A(2); if (gl()) { if (p) gl().bufferData(t, new Uint8Array(s3e.u8.buffer, p, n), A(3)); else gl().bufferData(t, n, A(3)); } });
       d('glFramebufferTexture2D', () => { if (gl()) gl().framebufferTexture2D(A(0), A(1), A(2), self.obj('tex', A(3)), A(4)); });
@@ -83,24 +92,24 @@ const GlHle = (() => {
       d('glGenerateMipmap', () => { if (gl()) gl().generateMipmap(A(0)); });
 
       // ---------- estado ----------
-      d('glEnable', () => { if (gl()) gl().enable(A(0)); });
-      d('glDisable', () => { if (gl()) gl().disable(A(0)); });
+      d('glEnable', () => { if (A(0) === 0x0b71) self.prof = true; if (gl()) gl().enable(A(0)); });
+      d('glDisable', () => { if (A(0) === 0x0b71) self.prof = false; if (gl()) gl().disable(A(0)); });
       d('glBlendFunc', () => { if (gl()) gl().blendFunc(A(0), A(1)); });
       d('glBlendFuncSeparate', () => { if (gl()) gl().blendFuncSeparate(A(0), A(1), A(2), A(3)); });
       d('glBlendEquationSeparate', () => { if (gl()) gl().blendEquationSeparate(A(0), A(1)); });
       d('glBlendColor', () => { if (gl()) gl().blendColor(F(0), F(1), F(2), F(3)); });
       d('glDepthFunc', () => { if (gl()) gl().depthFunc(A(0)); });
-      d('glDepthMask', () => { if (gl()) gl().depthMask(!!(A(0) & 255)); });
+      d('glDepthMask', () => { self.mascaraProf = !!(A(0) & 255); if (gl()) gl().depthMask(self.mascaraProf); });
       d('glDepthRangef', () => { if (gl()) gl().depthRange(F(0), F(1)); });
       d('glClearDepthf', () => { if (gl()) gl().clearDepth(F(0)); });
       d('glClearColor', () => { if (gl()) gl().clearColor(F(0), F(1), F(2), F(3)); });
       d('glClearStencil', () => { if (gl()) gl().clearStencil(A(0)); });
-      d('glClear', () => { if (gl()) gl().clear(A(0)); });
+      d('glClear', () => { if (self.gfx && !self.fbAct) self.gfx.antesDeLimpiar(A(0)); if (gl()) gl().clear(A(0)); });
       d('glColorMask', () => { if (gl()) gl().colorMask(!!(A(0) & 255), !!(A(1) & 255), !!(A(2) & 255), !!(A(3) & 255)); });
       d('glCullFace', () => { if (gl()) gl().cullFace(A(0)); });
       d('glFrontFace', () => { if (gl()) gl().frontFace(A(0)); });
-      d('glScissor', () => { if (gl()) gl().scissor(A(0), A(1), A(2), A(3)); });
-      d('glViewport', () => { if (gl()) gl().viewport(A(0), A(1), A(2), A(3)); });
+      d('glScissor', () => { self.scJuego = [A(0), A(1), A(2), A(3)]; if (gl()) self.aplicarVp(); });
+      d('glViewport', () => { self.vpJuego = [A(0), A(1), A(2), A(3)]; if (gl()) self.aplicarVp(); });
       d('glStencilFunc', () => { if (gl()) gl().stencilFunc(A(0), A(1), A(2)); });
       d('glStencilFuncSeparate', () => { if (gl()) gl().stencilFuncSeparate(A(0), A(1), A(2), A(3)); });
       d('glStencilMask', () => { if (gl()) gl().stencilMask(A(0)); });
@@ -140,14 +149,27 @@ const GlHle = (() => {
         const [t, lv, x, y, w, h, fmt, tipo] = [A(0), A(1), A(2), A(3), A(4), A(5), A(6), A(7)];
         if (gl()) gl().texSubImage2D(t, lv, x, y, w, h, fmt, tipo, vistaPixeles(A(8), w, h, fmt, tipo));
       });
+      // S3TC sin soporte de la GPU: se descomprime aca (Dxt) y se sube como textura comun
+      const subirDxt = (sub, t, lv, x, y, w, h, ifmt, datos) => {
+        const r = Dxt.decodificar(ifmt, w, h, datos); if (!r) return false;
+        const g = gl(); g.pixelStorei(0x0cf5, 1);
+        if (sub) g.texSubImage2D(t, lv, x, y, w, h, r.fmt, r.tipo, r.datos); else g.texImage2D(t, lv, r.fmt, w, h, 0, r.fmt, r.tipo, r.datos);
+        g.pixelStorei(0x0cf5, self.alinDesempaque || 4);
+        return true;
+      };
       d('glCompressedTexImage2D', () => {
         const [t, lv, ifmt, w, h, , n, p] = [A(0), A(1), A(2), A(3), A(4), A(5), A(6), A(7)];
-        if (self.comprimida) self.comprimida(gl(), t, lv, ifmt, w, h, new Uint8Array(s3e.u8.buffer, p, n >>> 0));
-        else if (gl()) gl().compressedTexImage2D(t, lv, ifmt, w, h, 0, new Uint8Array(s3e.u8.buffer, p, n >>> 0));
+        if (!gl()) return;
+        const datos = new Uint8Array(s3e.u8.buffer, p, n >>> 0);
+        if (self.s3tcNativo || !subirDxt(false, t, lv, 0, 0, w, h, ifmt, datos)) gl().compressedTexImage2D(t, lv, ifmt, w, h, 0, datos);
       });
-      d('glCompressedTexSubImage2D', () => { /* poco usado; se completa si hace falta */ if (gl()) gl().compressedTexSubImage2D(A(0), A(1), A(2), A(3), A(4), A(5), A(6), new Uint8Array(s3e.u8.buffer, A(8), A(7) >>> 0)); });
-      d('glCopyTexImage2D', () => { if (gl()) gl().copyTexImage2D(A(0), A(1), A(2), A(3), A(4), A(5), A(6), A(7)); });
-      d('glCopyTexSubImage2D', () => { if (gl()) gl().copyTexSubImage2D(A(0), A(1), A(2), A(3), A(4), A(5), A(6), A(7)); });
+      d('glCompressedTexSubImage2D', () => {
+        if (!gl()) return;
+        const datos = new Uint8Array(s3e.u8.buffer, A(8), A(7) >>> 0);
+        if (self.s3tcNativo || !subirDxt(true, A(0), A(1), A(2), A(3), A(4), A(5), A(6), datos)) gl().compressedTexSubImage2D(A(0), A(1), A(2), A(3), A(4), A(5), A(6), datos);
+      });
+      d('glCopyTexImage2D', () => { if (self.gfx && !self.fbAct) self.avisar('copyTexImage2D desde la pantalla'); if (gl()) gl().copyTexImage2D(A(0), A(1), A(2), A(3), A(4), A(5), A(6), A(7)); });
+      d('glCopyTexSubImage2D', () => { if (self.gfx && !self.fbAct) self.avisar('copyTexSubImage2D desde la pantalla'); if (gl()) gl().copyTexSubImage2D(A(0), A(1), A(2), A(3), A(4), A(5), A(6), A(7)); });
       d('glTexParameteri', () => { if (gl()) gl().texParameteri(A(0), A(1), A(2)); });
       d('glTexParameteriv', () => { if (gl()) gl().texParameteri(A(0), A(1), s3e.dv.getInt32(A(2), true)); });
       d('glTexParameterfv', () => { if (gl()) gl().texParameterf(A(0), A(1), s3e.dv.getFloat32(A(2), true)); });
@@ -162,9 +184,20 @@ const GlHle = (() => {
           src += s3e.cstr(p, len >= 0 ? len : 0);
         }
         if (self.o.verShaders) self.log('SHADER ' + src.length + ' bytes');
-        if (sh) { sh.fuente = src; if (gl() && !sh.falso) gl().shaderSource(sh, self.adaptarShader ? self.adaptarShader(src, sh) : src); }
+        if (sh) {
+          sh.fuente = src;
+          if (gl() && !sh.falso) {
+            let s2 = self.adaptarShader ? self.adaptarShader(src, sh) : src;
+            if (self.gfx) s2 = self.gfx.constructor.adaptar(s2, gl().getShaderParameter(sh, 0x8b4f));
+            gl().shaderSource(sh, s2);
+          }
+        }
       });
-      d('glCompileShader', () => { const sh = self.obj('sh', A(0)); if (gl() && sh && !sh.falso) gl().compileShader(sh); });
+      d('glCompileShader', () => {
+        const sh = self.obj('sh', A(0)); if (!(gl() && sh && !sh.falso)) return;
+        gl().compileShader(sh);
+        if (!gl().getShaderParameter(sh, 0x8b81)) self.log('SHADER NO COMPILA: ' + gl().getShaderInfoLog(sh) + '\n--- fuente ---\n' + (sh.fuente || '').slice(0, 3000));
+      });
       d('glGetShaderiv', () => {
         const sh = self.obj('sh', A(0)), pn = A(1), p = A(2); let v = 1;
         if (gl() && sh && !sh.falso) { v = gl().getShaderParameter(sh, pn); if (typeof v === 'boolean') v = v ? 1 : 0; if (pn === 0x8b84) v = (gl().getShaderInfoLog(sh) || '').length + 1; if (pn === 0x8b88) v = ((sh.fuente || '').length + 1); }
@@ -178,10 +211,19 @@ const GlHle = (() => {
       d('glAttachShader', () => { const p = self.obj('pr', A(0)), sh = self.obj('sh', A(1)); if (gl() && p && sh && !p.falso) gl().attachShader(p, sh); });
       d('glDetachShader', () => { const p = self.obj('pr', A(0)), sh = self.obj('sh', A(1)); if (gl() && p && sh && !p.falso) gl().detachShader(p, sh); });
       d('glBindAttribLocation', () => { const p = self.obj('pr', A(0)); if (gl() && p && !p.falso) gl().bindAttribLocation(p, A(1), s3e.cstr(A(2))); });
-      d('glLinkProgram', () => { const p = self.obj('pr', A(0)); if (gl() && p && !p.falso) { gl().linkProgram(p); if (!gl().getProgramParameter(p, 0x8b82)) self.log('ENLACE FALLO: ' + gl().getProgramInfoLog(p)); } });
+      d('glLinkProgram', () => {
+        const p = self.obj('pr', A(0)); if (!(gl() && p && !p.falso)) return;
+        const g = gl(); g.linkProgram(p);
+        if (!g.getProgramParameter(p, 0x8b82)) { const at = g.getAttachedShaders(p) || []; self.log('ENLACE FALLO: ' + g.getProgramInfoLog(p) + ' | adjuntos=' + at.map((x) => g.getShaderParameter(x, 0x8b4f) + ':' + g.getShaderParameter(x, 0x8b81) + ':' + (g.getShaderSource(x) || '').length).join(',')); return; }
+        // uniformes agregados por el apartado grafico: se ubican y se esconden de las consultas del juego
+        p._gotyLoc = g.getUniformLocation(p, '_gotyCam'); p._gotyEsc = g.getUniformLocation(p, '_gotyEsc'); p._gotyMarca = undefined; p._gotyEscV = undefined;
+        p._uIdx = null;
+        if (p._gotyLoc || p._gotyEsc) { p._uIdx = []; const n = g.getProgramParameter(p, 0x8b86); for (let i = 0; i < n; i++) { const u = g.getActiveUniform(p, i); if (u && !u.name.startsWith('_goty')) p._uIdx.push(i); } }
+        self.locPorProg.delete(A(0));
+      });
       d('glGetProgramiv', () => {
         const p = self.obj('pr', A(0)), pn = A(1), q = A(2); let v = 1;
-        if (gl() && p && !p.falso) { v = gl().getProgramParameter(p, pn); if (typeof v === 'boolean') v = v ? 1 : 0; if (pn === 0x8b84) v = (gl().getProgramInfoLog(p) || '').length + 1; }
+        if (gl() && p && !p.falso) { v = gl().getProgramParameter(p, pn); if (typeof v === 'boolean') v = v ? 1 : 0; if (pn === 0x8b84) v = (gl().getProgramInfoLog(p) || '').length + 1; if (pn === 0x8b86 && p._uIdx) v = p._uIdx.length; }
         else if (pn === 0x8b84) v = 0;
         s3e.dv.setInt32(q, v | 0, true);
       });
@@ -201,7 +243,7 @@ const GlHle = (() => {
       d('glGetActiveUniform', () => {
         const p = self.obj('pr', A(0)), ix = A(1), bufsz = A(2), plen = A(3), psize = A(4), ptipo = A(5), pnom = A(6);
         if (!(gl() && p && !p.falso)) return;
-        const u = gl().getActiveUniform(p, ix); if (!u) return;
+        const u = gl().getActiveUniform(p, p._uIdx ? (p._uIdx[ix] !== undefined ? p._uIdx[ix] : -1 >>> 0) : ix); if (!u) return;
         infoLog(u.name, bufsz, plen, pnom); s3e.dv.setInt32(psize, u.size, true); s3e.dv.setInt32(ptipo, u.type, true);
       });
       const loc = (i) => self.locs[i] || null;
@@ -257,9 +299,11 @@ const GlHle = (() => {
       const restaurarAtributos = () => { // vuelve a enlazar el VBO de la app
         if (gl()) gl().bindBuffer(0x8892, self.obj('buf', self.vboAct));
       };
+      const antes = () => { if (self.gfx) { if (self.fbAct) self.gfx.antesDeDibujarOtroFb(); else self.gfx.antesDeDibujar(self.prof, self.mascaraProf); } };
       d('glDrawArrays', () => {
         self.dibujos++;
         if (!gl()) return;
+        antes();
         subirAtributos(A(1), A(2), false);
         gl().drawArrays(A(0), 0, A(2));
         restaurarAtributos();
@@ -267,6 +311,7 @@ const GlHle = (() => {
       d('glDrawElements', () => {
         self.dibujos++;
         const g = gl(); if (!g) return;
+        antes();
         const modo = A(0), n = A(1), tipo = A(2), ind = A(3);
         if (self.iboAct) { // indices en un buffer: ind es un desplazamiento
           // los atributos del cliente necesitan el rango de indices: se lee del buffer guardado
@@ -294,8 +339,9 @@ const GlHle = (() => {
         if (pn === 0x86a2) { // NUM_COMPRESSED_TEXTURE_FORMATS
           const f = self.formatosComprimidos(); s3e.dv.setInt32(p, f.length, true); return; }
         if (pn === 0x86a3) { const f = self.formatosComprimidos(); f.forEach((x, i) => s3e.dv.setInt32(p + 4 * i, x, true)); return; }
-        if (pn === 0x0ba2 || pn === 0x0c10) { // VIEWPORT / SCISSOR_BOX
-          const v = gl() ? gl().getParameter(pn) : [0, 0, self.ancho, self.alto]; for (let i = 0; i < 4; i++) s3e.dv.setInt32(p + 4 * i, v[i], true); return; }
+        if (pn === 0x0ba2 || pn === 0x0c10) { // VIEWPORT / SCISSOR_BOX: los del juego (sin escalar)
+          const v = pn === 0x0ba2 ? self.vpJuego : self.scJuego; for (let i = 0; i < 4; i++) s3e.dv.setInt32(p + 4 * i, v[i], true); return; }
+        if (pn === 0x8ca6) { s3e.dv.setInt32(p, self.fbAct, true); return; } // FRAMEBUFFER_BINDING
         if (pn === 0x0d3a) { s3e.dv.setInt32(p, self.ancho, true); s3e.dv.setInt32(p + 4, self.alto, true); return; }
         let v;
         if (gl()) { const r = gl().getParameter(pn); v = typeof r === 'number' ? r : typeof r === 'boolean' ? (r ? 1 : 0) : r && r.length !== undefined ? null : 0; if (v === null) { for (let i = 0; i < r.length; i++) s3e.dv.setInt32(p + 4 * i, r[i], true); return; } if (r && typeof r === 'object' && !r.length) v = 0; }
@@ -303,7 +349,12 @@ const GlHle = (() => {
         if (pn === 0x8b4d && gl()) v = Math.min(v, 32);
         s3e.dv.setInt32(p, v | 0, true);
       });
-      d('glGetBooleanv', () => { s3e.u8[A(1)] = 0; });
+      d('glGetBooleanv', () => {
+        const pn = A(0), p = A(1);
+        if (pn === 0x8dfa) { s3e.u8[p] = 1; return; } // GL_SHADER_COMPILER: el juego compila los shaders en el momento si lo hay
+        if (gl()) { const r = gl().getParameter(pn); if (typeof r === 'boolean') { s3e.u8[p] = r ? 1 : 0; return; } if (r && r.length) { for (let i = 0; i < r.length; i++) s3e.u8[p + i] = r[i] ? 1 : 0; return; } }
+        s3e.u8[p] = 0;
+      });
       d('glGetFloatv', () => { const pn = A(0), p = A(1); if (gl()) { const r = gl().getParameter(pn); if (typeof r === 'number') s3e.dv.setFloat32(p, r, true); else if (r && r.length) for (let i = 0; i < r.length; i++) s3e.dv.setFloat32(p + 4 * i, r[i], true); } else s3e.dv.setFloat32(p, pn === 0x846e ? 1 : 0, true); });
       d('glGetString', () => {
         const n = A(0); let s = '';
@@ -320,6 +371,7 @@ const GlHle = (() => {
       d('glGetRenderbufferParameteriv', () => { if (gl()) { const v = gl().getRenderbufferParameter(A(0), A(1)); s3e.dv.setInt32(A(2), v | 0, true); } else s3e.dv.setInt32(A(2), 0, true); });
       d('glReadPixels', () => {
         const [x, y, w, h, fmt, tipo, p] = [A(0), A(1), A(2), A(3), A(4), A(5), A(6)];
+        if (self.gfx && !self.fbAct) self.avisar('readPixels desde la pantalla');
         if (gl()) gl().readPixels(x, y, w, h, fmt, tipo, new Uint8Array(s3e.u8.buffer, p, w * h * 4));
       });
 
@@ -346,12 +398,23 @@ const GlHle = (() => {
       d('eglGetCurrentDisplay', () => ret(1));
       d('eglQueryContext', () => { s3e.dv.setInt32(A(3), 2, true); ret(1); });
       d('eglQuerySurface', () => { const at = A(2); s3e.dv.setInt32(A(3), at === 0x3057 ? self.ancho : at === 0x3056 ? self.alto : 0, true); ret(1); });
-      d('eglSwapBuffers', () => { ret(1); if (self.o.alMostrar) self.o.alMostrar(); s3e.pedirYield(0); });
+      d('eglSwapBuffers', () => { ret(1); if (self.gfx) self.gfx.presentar(); if (self.o.alMostrar) self.o.alMostrar(); s3e.pedirYield(0); });
       d('eglGetProcAddress', () => ret(0));
       d('eglBindTexImage', () => ret(1));
       d('eglReleaseTexImage', () => ret(1));
       return G;
     }
+
+    // viewport y tijera del juego: en la pantalla (framebuffer de efectos) van escalados a la resolucion interna
+    aplicarVp() {
+      const g = this.gl, v = this.vpJuego, c = this.scJuego;
+      if (this.gfx && !this.fbAct) {
+        const sx = this.gfx.sx, sy = this.gfx.sy, R = Math.round;
+        g.viewport(R(v[0] * sx), R(v[1] * sy), R(v[2] * sx), R(v[3] * sy));
+        g.scissor(R(c[0] * sx), R(c[1] * sy), R(c[2] * sx), R(c[3] * sy));
+      } else { g.viewport(v[0], v[1], v[2], v[3]); g.scissor(c[0], c[1], c[2], c[3]); }
+    }
+    avisar(t) { if (!this.errores.has(t)) { this.errores.add(t); this.log('AVISO: ' + t); } }
 
     formatosComprimidos() {
       // formatos que se anuncian: S3TC (DXT1/DXT3/DXT5)

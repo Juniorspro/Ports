@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Black Ops Zombies</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;font-family:system-ui,sans-serif}
+#vista{position:absolute;left:50%;top:50%;transform-origin:50% 50%}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;background:#000}
+#t{position:absolute;left:6px;top:4px;color:#9f9;font:12px monospace;pointer-events:none;white-space:pre-wrap;text-shadow:0 0 3px #000}
+#eng{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:34px;height:34px;border:0;border-radius:50%;background:rgba(0,0,0,.35);opacity:.55;padding:6px;cursor:pointer}
+#eng svg{width:22px;height:22px;fill:#ddd}
+#panel{position:absolute;top:0;right:0;bottom:0;width:min(340px,62%);background:rgba(12,12,14,.88);color:#e8e8e8;overflow-y:auto;font-size:13px;padding:10px 12px 18px;box-sizing:border-box;touch-action:pan-y;border-left:1px solid #333}
+#panel[hidden]{display:none}
+#panel .cab{display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:16px;letter-spacing:.5px;color:#f33;margin-bottom:8px}
+#panel .cab button{background:none;border:0;color:#ccc;font-size:20px;cursor:pointer}
+#panel h3{margin:12px 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#aaa;border-bottom:1px solid #333;padding-bottom:2px}
+#panel .fila{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:30px}
+#panel .fila span{flex:1}
+#panel input[type=range]{width:44%;accent-color:#d22}
+#panel select{width:50%;background:#222;color:#eee;border:1px solid #444;border-radius:4px;padding:3px}
+#panel input[type=checkbox]{width:20px;height:20px;accent-color:#d22}
+#panel output{width:34px;text-align:right;color:#bbb;font-variant-numeric:tabular-nums}
+.presets{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.presets button{background:#222;color:#ddd;border:1px solid #444;border-radius:5px;padding:7px 0;font-weight:600;cursor:pointer}
+.presets button.on{background:#a11;border-color:#f44;color:#fff}
+#aviso{margin-top:6px;color:#fc6;font-size:12px}
+#aviso button{margin-left:6px;background:#a11;color:#fff;border:0;border-radius:4px;padding:4px 8px}
+</style></head><body>
+<div id="vista">
+  <canvas id="c"></canvas><div id="t">Iniciando...</div>
+  <button id="eng" title="Gráficos" aria-label="Gráficos"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 0 0-1.7-1L15 3.2h-4l-.4 2.7a7.6 7.6 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.6 7.6 0 0 0 1.7 1l.4 2.7h4l.4-2.7a7.6 7.6 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg></button>
+  <div id="panel" hidden>
+    <div class="cab">GRÁFICOS<button id="cerrar" aria-label="Cerrar">✕</button></div>
+    <div class="presets"><button data-p="bajo">Bajo</button><button data-p="medio">Medio</button><button data-p="alto">Alto</button><button data-p="goty">GOTY</button></div>
+    <div id="ctrl"></div>
+    <div id="aviso" hidden>El ajuste de pantalla se aplica al reiniciar.<button id="reini">Reiniciar</button></div>
+  </div>
+</div>
+<script>
+'use strict';
+const q = new URLSearchParams(location.search);
+const base = q.get('base') || './';
+const paquete = q.get('paquete') || 'blackops_dxt.dz';
+const paqueteUrl = q.get('paq') || (base + paquete);
+const paqueteTam = Number(q.get('tam') || 341884481);
+
+// ---- opciones guardadas ----
+const PRESETS = {
+  bajo: { calidad: 0.75, ao: 0, sombras: 0, bloom: 0, aces: 0, estilo: 'original', vineta: 0, fxaa: 0, nitidez: 0, grano: 0, camara: 0, desenfoque: 0 },
+  medio: { calidad: 1, ao: 0, sombras: 0, bloom: 0.25, aces: 0, estilo: 'realista', vineta: 0.3, fxaa: 1, nitidez: 0.2, grano: 0, camara: 1, desenfoque: 0 },
+  alto: { calidad: 1, ao: 1, sombras: 1, bloom: 0.35, aces: 0.6, estilo: 'realista', vineta: 0.45, fxaa: 1, nitidez: 0.3, grano: 0, camara: 1, desenfoque: 0 },
+  goty: { calidad: 1.25, ao: 2, sombras: 2, bloom: 0.5, aces: 1, estilo: 'cine', vineta: 0.45, fxaa: 1, nitidez: 0.45, grano: 0.025, camara: 2, desenfoque: 1 },
+};
+const CLAVE = 'boz.graficos';
+let op = null;
+try { op = JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (_) { op = null; }
+if (!op || !op.cfg) op = { preset: q.get('preset') || 'alto', ajuste: 'completa', fps: false };
+if (q.get('preset')) op.preset = q.get('preset');
+op.cfg = Object.assign({}, PRESETS.alto, op.preset && PRESETS[op.preset] ? PRESETS[op.preset] : op.cfg);
+if (q.get('ajuste')) op.ajuste = q.get('ajuste');
+const guardar = () => { try { localStorage.setItem(CLAVE, JSON.stringify(op)); } catch (_) {} };
+
+// ---- tamano logico: el juego corre a la proporcion de la pantalla (ancho), alto 480 ----
+const logico = (aj) => {
+  if (q.get('w') && q.get('h')) return [Number(q.get('w')), Number(q.get('h'))];
+  if (aj !== 'completa') return [800, 480];
+  const L = Math.max(innerWidth, innerHeight), S = Math.max(1, Math.min(innerWidth, innerHeight));
+  const asp = Math.min(22 / 9, Math.max(4 / 3, L / S));
+  return [Math.round(480 * asp / 2) * 2, 480];
+};
+const [AN, AL] = logico(op.ajuste);
+const ajusteIni = op.ajuste;
+
+// ---- vista: siempre apaisada (si el telefono esta vertical se gira 90 grados) ----
+const vista = document.getElementById('vista'), c = document.getElementById('c'), t = document.getElementById('t');
+let rot = false, VW = 1, VH = 1;
+const dprMax = () => Math.min(window.devicePixelRatio || 1, 2);
+function ajustar() {
+  rot = innerHeight > innerWidth;
+  VW = rot ? innerHeight : innerWidth; VH = rot ? innerWidth : innerHeight;
+  vista.style.width = VW + 'px'; vista.style.height = VH + 'px';
+  vista.style.transform = 'translate(-50%,-50%)' + (rot ? ' rotate(90deg)' : '');
+  const w = Math.round(VW * dprMax()), h = Math.round(VH * dprMax());
+  return [w, h];
+}
+let [SW, SH] = ajustar();
+
+const w = new Worker(base + 'mundo.js');
+let listo = false;
+w.onmessage = (e) => {
+  const m = e.data;
+  if (m.t === 'estado') t.textContent = m.texto;
+  else if (m.t === 'log') console.log(m.texto);
+  else if (m.t === 'listo') { listo = true; }
+  else if (m.t === 'fps') {
+    t.textContent = op.fps || q.get('fps') ? m.fps.toFixed(0) + ' fps' + (q.get('fps') ? ' | bloques ' + m.bloques + ' | red ' + (m.red / 1048576).toFixed(1) + ' MB (' + m.peticiones + ')' : '') : '';
+    if (!window.__listoEnviado) { window.__listoEnviado = true; try { parent.postMessage({ type: 'game:ready' }, '*'); } catch (_) {} }
+    window.__fps = m;
+  } else if (m.t === 'error') { t.textContent = 'ERROR: ' + m.texto; console.error(m.texto); window.__error = m.texto; }
+};
+const off = c.transferControlToOffscreen();
+w.postMessage({ t: 'init', base, paquete, paqueteUrl, paqueteTam, canvas: off, ancho: AN, alto: AL, salidaW: SW, salidaH: SH, graficos: Object.assign({}, op.cfg, q.get('ver') ? { ver: q.get('ver') } : {}), ajuste: op.ajuste, sinS3tc: !!q.get('sins3tc') }, [off]);
+addEventListener('resize', () => { const [a, b] = ajustar(); if (a !== SW || b !== SH) { SW = a; SH = b; w.postMessage({ t: 'tam', w: a, h: b }); } });
+
+// ---- entrada: puntero -> coordenadas del juego ----
+const activos = new Map(); let sig = 0;
+function pos(e) {
+  const cx = innerWidth / 2, cy = innerHeight / 2;
+  const u = rot ? VW / 2 + (e.clientY - cy) : VW / 2 + (e.clientX - cx);
+  const v = rot ? VH / 2 - (e.clientX - cx) : VH / 2 + (e.clientY - cy);
+  if (op.ajuste === 'bordes') { const k = Math.min(VW / AN, VH / AL); return [(u - (VW - AN * k) / 2) / k, (v - (VH - AL * k) / 2) / k]; }
+  return [u * AN / VW, v * AL / VH];
+}
+let pantallaPedida = false;
+function pantallaCompleta() {
+  if (pantallaPedida) return; pantallaPedida = true;
+  try { const d = document.documentElement, f = d.requestFullscreen || d.webkitRequestFullscreen; if (f) Promise.resolve(f.call(d, { navigationUI: 'hide' })).then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {}); } catch (_) {}
+}
+c.addEventListener('pointerdown', (e) => { e.preventDefault(); pantallaCompleta(); c.setPointerCapture(e.pointerId); const id = activos.size === 0 ? 0 : ++sig; activos.set(e.pointerId, id); const [x, y] = pos(e); w.postMessage({ t: 'ptr', e: 'down', id, x, y }); });
+c.addEventListener('pointermove', (e) => { const id = activos.get(e.pointerId); if (id === undefined) return; const [x, y] = pos(e); w.postMessage({ t: 'ptr', e: 'move', id, x, y }); });
+const fin = (e) => { const id = activos.get(e.pointerId); if (id === undefined) return; activos.delete(e.pointerId); if (!activos.size) sig = 0; const [x, y] = pos(e); w.postMessage({ t: 'ptr', e: 'up', id, x, y }); };
+c.addEventListener('pointerup', fin); c.addEventListener('pointercancel', fin);
+document.addEventListener('visibilitychange', () => w.postMessage({ t: 'visible', v: !document.hidden }));
+c.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// ---- apartado grafico ----
+const panel = document.getElementById('panel'), ctrl = document.getElementById('ctrl');
+const CONTROLES = [
+  ['Pantalla'],
+  ['ajuste', 'Ajuste de pantalla', 'sel', [['completa', 'Completa (nativa ancha)'], ['estirar', 'Estirar'], ['bordes', 'Original con bordes']]],
+  ['calidad', 'Resolución', 'rango', 0.5, 1.5, 0.05, (v) => Math.round(v * 100) + '%'],
+  ['fps', 'Mostrar FPS', 'si'],
+  ['Iluminación'],
+  ['bloom', 'Resplandor (bloom)', 'rango', 0, 1, 0.05],
+  ['aces', 'Tonos de cine (HDR)', 'rango', 0, 1, 0.05],
+  ['estilo', 'Estilo de color', 'sel', [['original', 'Original'], ['realista', 'Realista'], ['cine', 'Cine'], ['frio', 'Frío'], ['calido', 'Cálido'], ['terror', 'Terror']]],
+  ['vineta', 'Viñeta', 'rango', 0, 1, 0.05],
+  ['Sombras'],
+  ['ao', 'Oclusión ambiental', 'sel', [[0, 'Apagada'], [1, 'Normal'], [2, 'Ultra']]],
+  ['sombras', 'Sombras de contacto', 'sel', [[0, 'Apagadas'], [1, 'Normales'], [2, 'Ultra']]],
+  ['Cámara'],
+  ['camara', 'Movimiento dinámico', 'sel', [[0, 'Apagado'], [1, 'Suave'], [2, 'Intenso']]],
+  ['desenfoque', 'Desenfoque de movimiento', 'si'],
+  ['Imagen'],
+  ['fxaa', 'Suavizado FXAA', 'si'],
+  ['nitidez', 'Nitidez', 'rango', 0, 1, 0.05],
+  ['grano', 'Grano de película', 'rango', 0, 0.08, 0.005, (v) => Math.round(v * 1250) + '%'],
+];
+const vals = {}; // clave -> {get, set}
+for (const d of CONTROLES) {
+  if (d.length === 1) { const h = document.createElement('h3'); h.textContent = d[0]; ctrl.appendChild(h); continue; }
+  const [k, nombre, tipo] = d;
+  const fila = document.createElement('label'); fila.className = 'fila';
+  const sp = document.createElement('span'); sp.textContent = nombre; fila.appendChild(sp);
+  let el, outp = null;
+  if (tipo === 'sel') { el = document.createElement('select'); for (const [v, n] of d[3]) { const o = document.createElement('option'); o.value = v; o.textContent = n; el.appendChild(o); } }
+  else if (tipo === 'si') { el = document.createElement('input'); el.type = 'checkbox'; }
+  else { el = document.createElement('input'); el.type = 'range'; el.min = d[3]; el.max = d[4]; el.step = d[5]; outp = document.createElement('output'); }
+  fila.appendChild(el); if (outp) fila.appendChild(outp);
+  ctrl.appendChild(fila);
+  const fmt = d[6] || ((v) => Math.round(v * 100) + '%');
+  const leer = () => tipo === 'si' ? (el.checked ? 1 : 0) : tipo === 'rango' ? Number(el.value) : (typeof d[3][0][0] === 'number' ? Number(el.value) : el.value);
+  const poner = (v) => { if (tipo === 'si') el.checked = !!v; else el.value = v; if (outp) outp.textContent = fmt(Number(v)); };
+  vals[k] = { leer, poner };
+  el.addEventListener('input', () => { if (outp) outp.textContent = fmt(leer()); cambio(k, leer()); });
+}
+function pintar() {
+  for (const k in vals) vals[k].poner(k === 'ajuste' ? op.ajuste : k === 'fps' ? (op.fps ? 1 : 0) : op.cfg[k]);
+  for (const b of document.querySelectorAll('.presets button')) b.classList.toggle('on', b.dataset.p === op.preset);
+  const mismo = (a, b) => (a === 'completa') === (b === 'completa');
+  document.getElementById('aviso').hidden = mismo(op.ajuste, ajusteIni);
+}
+function enviar() { w.postMessage({ t: 'graficos', cfg: Object.assign({}, op.cfg, q.get('ver') ? { ver: q.get('ver') } : {}), ajuste: (op.ajuste === 'completa') === (ajusteIni === 'completa') ? op.ajuste : ajusteIni }); }
+function cambio(k, v) {
+  if (k === 'ajuste') op.ajuste = v;
+  else if (k === 'fps') op.fps = !!v;
+  else { op.cfg[k] = v; op.preset = 'personal'; }
+  guardar(); pintar(); enviar();
+}
+for (const b of document.querySelectorAll('.presets button')) b.addEventListener('click', () => { op.preset = b.dataset.p; op.cfg = Object.assign({}, PRESETS[op.preset]); guardar(); pintar(); enviar(); });
+document.getElementById('eng').addEventListener('click', () => { panel.hidden = !panel.hidden; if (!panel.hidden) pintar(); });
+document.getElementById('cerrar').addEventListener('click', () => { panel.hidden = true; });
+document.getElementById('reini').addEventListener('click', () => location.reload());
+for (const el of [panel, document.getElementById('eng')]) el.addEventListener('pointerdown', (e) => e.stopPropagation());
+pintar();
+</script></body></html>
