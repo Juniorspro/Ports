@@ -42,7 +42,7 @@ async function verCrearPedir(tipo, q, prev, n) {
   // tus claves: directo desde acá (Google con el modelo mejor primero y pensando a fondo; después las otras)
   if (propias && verGemPropia()) {
     VER.gemMala = false;
-    for (const m of VERITY_GEMINI_CREA) { if (!vivo()) return null; try { const o = await verGemPedir(m, verityAGemini(msgs, 65536, 'high'), VCR_MS); const v = o && revisar(o.texto); if (v) return v; if (VER.gemMala) break; } catch (e) {} }
+    for (const m of VERITY_GEMINI_CREA) { if (!vivo()) return null; try { const o = await verGemPedir(m, verityAGemini(msgs, 65536, 'high'), VCR_MS, '', true); const v = o && revisar(o.texto); if (v) return v; if (VER.gemMala) break; } catch (e) {} }
   }
   if (propias && vivo()) { const v = await verAbiertos(verPropiasLista(), msgs, true, revisar, VCR_MS); if (v) return v; }
   // la tienda: las IAs del dueño (sin el modelo chico de Workers AI: antes se prueban los gratis grandes)

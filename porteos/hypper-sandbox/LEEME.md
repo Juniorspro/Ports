@@ -179,7 +179,13 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   piensan sin apuro: Gemini con `thinkingLevel: high` (charla con `gemini-3.5-flash-lite`, crear con `gemini-3.5-flash`
   y 65 536 tokens), los gpt-oss con `reasoning_effort: high` al crear, y crear no tiene corte práctico (15 minutos);
   las construcciones llegan a 600 props y 40 entidades, las animaciones a 60 s. Una respuesta cortada a la mitad se
-  rescata hasta el último elemento entero (`rbCerrar`).
+  rescata hasta el último elemento entero (`rbCerrar`). Para crear, Gemini contesta en partes
+  (`streamGenerateContent`, `verityLeerSSE`): llegan los resúmenes de lo que piensa, así se sabe que sigue vivo; si un
+  modelo se queda callado 2 minutos se corta y se prueba el siguiente; y la tienda le manda al juego un espacio cada
+  10 s mientras tanto, para que ninguna conexión se corte por quieta. En la capa gratis de Google cada modelo tiene su
+  tope por día (los Flash, 20 pedidos por día cada uno; los Flash-Lite, bastante más): se turnan (`VERITY_GEMINI_CREA`,
+  `VERITY_GEMINI_VOCES`), uno sin cupo del día queda afuera hasta el otro día, uno saturado o sin cupo por minuto unos
+  minutos, y cuando no queda ninguno siguen los gratis sin clave.
   **La X**: mientras Verity habla, piensa, te escucha o crea (con el tiempo que lleva), arriba a la derecha aparece su
   cartelito con una X que la corta (voz, respuesta pendiente, creación). El panel se desplaza por dentro con la X
   siempre visible en la esquina; los cuadros de crear, tutorial y terminal también tienen su X arriba.

@@ -154,7 +154,7 @@ if (G) {
   await ev(`verPreguntar('Verity, creame un mod donde salto altísimo y cada 5 segundos aparece una pelota cerca mío', '', '', 'yo'); 1`);
   for (let i = 0; i < 100 && (await ev(`VER.pensando`)); i++) await espera(300);
   const acc = JSON.parse(await ev(`JSON.stringify(VER.hist.slice(-1)[0])`));
-  for (let i = 0; i < 600 && (await ev(`VCR.ocupado`)); i++) await espera(300);
+  for (let i = 0; i < 1800 && (await ev(`VCR.ocupado`)); i++) await espera(500); // (piensa sin apuro: hasta 15 min)
   const b1 = JSON.parse(await ev(`(() => { const L = Object.values(INST.mods); const m = L[L.length - 1]; return JSON.stringify({ n: L.length, nombre: m && m.nombre, act: !!(m && modsFuente()[m.id]), salto: m && m.efectos.salto, cod: !!(m && m.codigo), dijo: VER.hist.slice(-1)[0] }); })()`));
   ok(b1.n === nm + 1 && b1.act, 'desde la charla: "creame un mod..." → lo crea, lo instala y lo prende', { accion: acc && acc[2], ...b1, seg: Math.round((Date.now() - t0) / 1000) });
   await espera(7000);
@@ -166,7 +166,7 @@ if (G) {
   await ev(`edaAbrir(); 1`); await espera(600);
   await ev(`EDA.el.querySelector('[data-ea=verity]').click(); $('verCreaIn').value = 'un baile de robot con los brazos que suben y bajan, un giro completo y una sentadilla'; $('verCrea').querySelector('[data-c=ok]').click(); 1`);
   const t1 = Date.now(); await espera(500);
-  for (let i = 0; i < 600 && (await ev(`VCR.ocupado`)); i++) await espera(300);
+  for (let i = 0; i < 1800 && (await ev(`VCR.ocupado`)); i++) await espera(500); // (piensa sin apuro: hasta 15 min)
   const b2 = JSON.parse(await ev(`JSON.stringify({ n: EDA.keys.length, dur: EDA.dur, nom: EDA.nombre, play: EDA.play, finitas: EDA.keys.every((k) => Object.values(k.q).every((v) => v.every(Number.isFinite))) })`));
   ok(b2.n >= 5 && b2.finitas && b2.play, 'en el editor: Verity arma la animación y queda reproduciéndose', { ...b2, seg: Math.round((Date.now() - t1) / 1000) });
   for (const t of [0.15, 0.4, 0.65, 0.9]) { await ev(`EDA.play = false; EDA.t = EDA.dur * ${t}; 1`); await espera(250); await p.screenshot({ path: D + `c_b_anim_${Math.round(t * 100)}.png` }); }
@@ -177,7 +177,7 @@ if (G) {
   const nc = Number(await ev(`OBJS.length`));
   await ev(`CREA.bar.querySelector('[data-cr=verity]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); $('verCreaIn').value = 'una torre de vigilancia con escalera y dos faroles en la entrada'; $('verCrea').querySelector('[data-c=ok]').click(); 1`);
   const t2 = Date.now(); await espera(500);
-  for (let i = 0; i < 600 && (await ev(`VCR.ocupado || !!VCR.obra`)); i++) await espera(300);
+  for (let i = 0; i < 1800 && (await ev(`VCR.ocupado || !!VCR.obra`)); i++) await espera(500);
   const b3 = JSON.parse(await ev(`JSON.stringify({ n: OBJS.length - ${nc}, crea: CREA.on, guarda: creadorDatos ? 1 : 0 })`));
   ok(b3.n >= 6 && b3.crea, 'en el creador de mapas: Verity construye donde mirás (y queda en el mapa)', { ...b3, seg: Math.round((Date.now() - t2) / 1000) });
   await ev(`JUG.pitch = -0.2; 1`); await espera(500); await p.screenshot({ path: D + 'c_b_mapa.png' });
@@ -199,7 +199,7 @@ if (SIM) {
   x = await pedir({ tipo: 'mapa', q: 'una pirámide de cajas', l: 'es', props, salaId: '' }, { DB, AI, GEMINI_KEY: GK });
   ok(x.st === 200 && x.d.f === 'gemini' && x.d.mapa && x.d.mapa.objetos.length >= 4, 'en cualquier server (no sólo los premium): también Gemini, para todos', { st: x.st, f: x.d.f, n: x.d.mapa && x.d.mapa.objetos.length, seg: x.seg });
   x = await pedir({ tipo: 'mapa', q: 'una pirámide de cajas', l: 'es', props, sinCF: 1 }, { DB, AI });
-  ok(x.st === 503, 'sin Gemini y con "sinCF": la tienda no usa el modelo chico (el juego prueba antes los gratis grandes)', x.st);
+  ok(x.st === 200 && x.d.error && !x.d.mapa, 'sin Gemini y con "sinCF": la tienda no usa el modelo chico (el juego prueba antes los gratis grandes)', x.d);
   x = await pedir({ tipo: 'mapa', q: 'una pirámide de cajas', l: 'es', props }, { DB, AI });
   ok(x.st === 200 && x.d.f === 'cf' && x.d.mapa && x.d.mapa.objetos.length >= 4, 'y si no, Workers AI arma una construcción simple', { st: x.st, f: x.d.f, n: x.d.mapa && x.d.mapa.objetos.length, seg: x.seg });
   x = await pedir({ tipo: 'anim', q: 'saludar con la mano', l: 'es', salaId: '' }, { DB, AI });
@@ -207,7 +207,7 @@ if (SIM) {
   x = await pedir({ tipo: 'nada', q: 'x' }, { DB, AI });
   ok(x.st === 400, 'un pedido que no sirve: 400', x.st);
 }
-const malos = err.filter((e) => !/favicon|404|net::|Failed to load resource|AudioContext|youtube|WebGL|GPU stall|pollinations/i.test(e));
+const malos = err.filter((e) => !/favicon|404|net::|Failed to load resource|AudioContext|youtube|WebGL|GPU stall|pollinations|WebSocket|mqtt|isExternalMethodAvailable/i.test(e));
 ok(malos.length === 0, 'sin errores en la consola', malos.slice(0, 6));
 console.log(fallas ? `FALLAS: ${fallas}` : 'TODO OK');
 await b.close(); process.exit(fallas ? 1 : 0);

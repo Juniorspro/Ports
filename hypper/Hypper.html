@@ -6987,7 +6987,9 @@ const VERITY_VOCES = ['es', 'en', 'fr', 'ja', 'zh', 'ko']; // (las que tiene Mel
 // los servers donde Verity piensa y habla con Gemini para todos (los tres primeros oficiales); fuera de ahí, el que
 // tenga el permiso del dueño (código secreto) o su propia clave de Google AI Studio
 const VERITY_PREMIUM = ['f_Desert_1', 'f_DesertV2_1', 'f_FlatGrass_1'];
-const VERITY_GEMINI = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest'], VERITY_GEMINI_VOZ = 'gemini-3.8-flash-lite-tts';
+// (cada modelo tiene su propio tope por día en la capa gratis de Google: se turnan y uno sin cupo o saturado se saltea)
+const VERITY_GEMINI = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest'];
+const VERITY_GEMINI_VOCES = ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts', 'gemini-3.1-flash-tts-preview', 'gemini-2.5-flash-preview-tts'], VERITY_GEMINI_VOZ = VERITY_GEMINI_VOCES[0];
 // los mensajes (formato chat) → el pedido de Gemini, en JSON
 // las IAs que el dueño ofrece a todos con sus claves (en la tienda, como secretos) para elegir en el menú de Verity, y
 // las que cada uno puede usar con su propia clave; "gratis" son los modelos públicos sin clave (desde tu conexión)
@@ -7119,7 +7121,24 @@ function verityRespuesta(txt) {
 // además revisa que cada prop exista) y la animación son direcciones de brazos y piernas, codos, rodillas y giros del
 // cuerpo, que el juego pasa a huesos en el editor de animaciones.
 const VERITY_CREA = ['mod', 'mapa', 'anim'];
-const VERITY_GEMINI_CREA = ['gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-flash-latest', 'gemini-3.5-flash-lite'];
+const VERITY_GEMINI_CREA = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest'];
+// Gemini en partes (streamGenerateContent con SSE): mientras piensa van llegando resúmenes de lo que piensa, así se sabe
+// que sigue vivo; si se queda callado "quieto" ms, se corta (y se prueba el modelo siguiente). Devuelve el texto (sin lo
+// que pensó) o null; { agotado } si Google dijo que no hay cupo
+const verityStream = (cuerpo) => Object.assign({}, cuerpo, { generationConfig: Object.assign({}, cuerpo.generationConfig, { thinkingConfig: Object.assign({}, (cuerpo.generationConfig || {}).thinkingConfig, { includeThoughts: true }) }) });
+async function verityLeerSSE(r, quieto, cortar) {
+  const rd = r.body.getReader(), dec = new TextDecoder(); let txt = '', vigia = 0, callado = false;
+  const esperar = () => { clearTimeout(vigia); vigia = setTimeout(() => { callado = true; try { rd.cancel(); } catch (e) {} if (cortar) try { cortar(); } catch (e) {} }, quieto); };
+  esperar();
+  try { for (;;) { const { done, value } = await rd.read(); if (done) break; txt += dec.decode(value, { stream: true }); esperar(); } } catch (e) {}
+  clearTimeout(vigia);
+  let out = '', fin = '';
+  for (const l of txt.split('\n')) {
+    if (!l.startsWith('data:')) continue;
+    try { const d = JSON.parse(l.slice(5)), c = d.candidates && d.candidates[0]; for (const x of (c && c.content && c.content.parts) || []) if (!x.thought && typeof x.text === 'string') out += x.text; if (c && c.finishReason) fin = c.finishReason; } catch (e) {}
+  }
+  return callado && !fin ? null : out || null;
+}
 const VERITY_ICOS = ['mod', 'energia', 'luna', 'salto', 'veloz', 'balas', 'dios', 'lenta', 'boom', 'fuego', 'cohete', 'alien', 'robot', 'dino', 'auto', 'arma', 'bomba', 'iman', 'tornado',
   'hielo', 'corona', 'fiesta', 'volar', 'ragdoll', 'planeta', 'shuriken', 'luz', 'meta', 'teleport', 'musica', 'piano', 'radio', 'rampa', 'impulso', 'cartel', 'zona_muerte', 'ciclope', 'emote'];
 const VERITY_ENT = 'luz {"color":"#rrggbb","r":1-80 radius,"i":0.05-6 intensity}; cartel {"texto":"...","color":"#rrggbb"} a sign; rampa {"alto":10-600,"ancho":6-80,"ang":15-80} a huge stunt ramp; ' +
@@ -10096,10 +10115,17 @@ async function verAbiertos(lista, msgs, crear, revisar, ms) {
 }
 const verLibres = () => VERITY_LIBRES.map((P) => Object.assign({ n: P.id }, P));
 const verPropiasLista = () => Object.entries(VERITY_CLAVES).filter(([k]) => verClaves()[k]).map(([id, P]) => Object.assign({ id: 'tu-' + id, clave: verClaves()[id] }, P));
-async function verGemPedir(modelo, cuerpo, ms, clave) {
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': clave || verGemPropia() }, body: JSON.stringify(cuerpo), signal: verTiempo(ms || 20000) });
-  if (r.status === 401 || r.status === 403 || (r.status === 400 && /api.?key/i.test(await r.text()))) { VER.gemMala = true; return null; }
-  if (!r.ok) return null;
+// (cada modelo tiene su tope por día: uno sin cupo o saturado se saltea un rato; enPartes: lo largo, viendo que sigue vivo)
+async function verGemPedir(modelo, cuerpo, ms, clave, enPartes) {
+  const k = 'g|' + modelo; if ((VER_DESCANSO.get(k) || 0) > Date.now()) return null;
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms || 20000);
+  let r; try { r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:${enPartes ? 'streamGenerateContent?alt=sse' : 'generateContent'}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': clave || verGemPropia() }, body: JSON.stringify(enPartes ? verityStream(cuerpo) : cuerpo), signal: ctl.signal }); } catch (e) { clearTimeout(t); return null; }
+  if (r.status === 401 || r.status === 403 || (r.status === 400 && /api.?key/i.test(await r.text()))) { clearTimeout(t); VER.gemMala = true; return null; }
+  if (r.status === 429) { clearTimeout(t); VER_DESCANSO.set(k, Date.now() + (/PerDay/i.test(await r.text()) ? 3600e3 : 60e3)); return null; }
+  if (r.status >= 500) { clearTimeout(t); VER_DESCANSO.set(k, Date.now() + 120e3); return null; }
+  if (!r.ok) { clearTimeout(t); return null; }
+  if (enPartes) { const x = await verityLeerSSE(r, 120000, () => ctl.abort()); clearTimeout(t); if (!x) VER_DESCANSO.set(k, Date.now() + 120e3); return x ? { texto: x } : null; }
+  clearTimeout(t);
   const d = await r.json(), p = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts || [];
   return { texto: p.filter((x) => !x.thought).map((x) => x.text || '').join(''), audio: p.find((x) => x.inlineData) };
 }
@@ -10109,7 +10135,8 @@ async function verGeminiDirecto(c) {
   return null;
 }
 async function verVozGeminiDirecta(t, noche) {
-  try { const o = await verGemPedir(VERITY_GEMINI_VOZ, verityVozGemini(t, noche), 20000); if (!o || !o.audio) return null; return await AUD.ctx.decodeAudioData(verityWav(o.audio.inlineData.data, o.audio.inlineData.mimeType).buffer); } catch (e) { return null; }
+  for (const m of VERITY_GEMINI_VOCES) { try { const o = await verGemPedir(m, verityVozGemini(t, noche), 20000); if (o && o.audio) return await AUD.ctx.decodeAudioData(verityWav(o.audio.inlineData.data, o.audio.inlineData.mimeType).buffer); if (VER.gemMala) return null; } catch (e) {} }
+  return null;
 }
 // probar una clave nueva (una pregunta cortita)
 // (se guarda recién cuando contestó: mientras tanto Verity sigue con el cerebro que tenía)
@@ -10860,7 +10887,7 @@ async function verCrearPedir(tipo, q, prev, n) {
   // tus claves: directo desde acá (Google con el modelo mejor primero y pensando a fondo; después las otras)
   if (propias && verGemPropia()) {
     VER.gemMala = false;
-    for (const m of VERITY_GEMINI_CREA) { if (!vivo()) return null; try { const o = await verGemPedir(m, verityAGemini(msgs, 65536, 'high'), VCR_MS); const v = o && revisar(o.texto); if (v) return v; if (VER.gemMala) break; } catch (e) {} }
+    for (const m of VERITY_GEMINI_CREA) { if (!vivo()) return null; try { const o = await verGemPedir(m, verityAGemini(msgs, 65536, 'high'), VCR_MS, '', true); const v = o && revisar(o.texto); if (v) return v; if (VER.gemMala) break; } catch (e) {} }
   }
   if (propias && vivo()) { const v = await verAbiertos(verPropiasLista(), msgs, true, revisar, VCR_MS); if (v) return v; }
   // la tienda: las IAs del dueño (sin el modelo chico de Workers AI: antes se prueban los gratis grandes)

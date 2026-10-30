@@ -523,10 +523,17 @@ async function verAbiertos(lista, msgs, crear, revisar, ms) {
 }
 const verLibres = () => VERITY_LIBRES.map((P) => Object.assign({ n: P.id }, P));
 const verPropiasLista = () => Object.entries(VERITY_CLAVES).filter(([k]) => verClaves()[k]).map(([id, P]) => Object.assign({ id: 'tu-' + id, clave: verClaves()[id] }, P));
-async function verGemPedir(modelo, cuerpo, ms, clave) {
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': clave || verGemPropia() }, body: JSON.stringify(cuerpo), signal: verTiempo(ms || 20000) });
-  if (r.status === 401 || r.status === 403 || (r.status === 400 && /api.?key/i.test(await r.text()))) { VER.gemMala = true; return null; }
-  if (!r.ok) return null;
+// (cada modelo tiene su tope por día: uno sin cupo o saturado se saltea un rato; enPartes: lo largo, viendo que sigue vivo)
+async function verGemPedir(modelo, cuerpo, ms, clave, enPartes) {
+  const k = 'g|' + modelo; if ((VER_DESCANSO.get(k) || 0) > Date.now()) return null;
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms || 20000);
+  let r; try { r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:${enPartes ? 'streamGenerateContent?alt=sse' : 'generateContent'}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': clave || verGemPropia() }, body: JSON.stringify(enPartes ? verityStream(cuerpo) : cuerpo), signal: ctl.signal }); } catch (e) { clearTimeout(t); return null; }
+  if (r.status === 401 || r.status === 403 || (r.status === 400 && /api.?key/i.test(await r.text()))) { clearTimeout(t); VER.gemMala = true; return null; }
+  if (r.status === 429) { clearTimeout(t); VER_DESCANSO.set(k, Date.now() + (/PerDay/i.test(await r.text()) ? 3600e3 : 60e3)); return null; }
+  if (r.status >= 500) { clearTimeout(t); VER_DESCANSO.set(k, Date.now() + 120e3); return null; }
+  if (!r.ok) { clearTimeout(t); return null; }
+  if (enPartes) { const x = await verityLeerSSE(r, 120000, () => ctl.abort()); clearTimeout(t); if (!x) VER_DESCANSO.set(k, Date.now() + 120e3); return x ? { texto: x } : null; }
+  clearTimeout(t);
   const d = await r.json(), p = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts || [];
   return { texto: p.filter((x) => !x.thought).map((x) => x.text || '').join(''), audio: p.find((x) => x.inlineData) };
 }
@@ -536,7 +543,8 @@ async function verGeminiDirecto(c) {
   return null;
 }
 async function verVozGeminiDirecta(t, noche) {
-  try { const o = await verGemPedir(VERITY_GEMINI_VOZ, verityVozGemini(t, noche), 20000); if (!o || !o.audio) return null; return await AUD.ctx.decodeAudioData(verityWav(o.audio.inlineData.data, o.audio.inlineData.mimeType).buffer); } catch (e) { return null; }
+  for (const m of VERITY_GEMINI_VOCES) { try { const o = await verGemPedir(m, verityVozGemini(t, noche), 20000); if (o && o.audio) return await AUD.ctx.decodeAudioData(verityWav(o.audio.inlineData.data, o.audio.inlineData.mimeType).buffer); if (VER.gemMala) return null; } catch (e) {} }
+  return null;
 }
 // probar una clave nueva (una pregunta cortita)
 // (se guarda recién cuando contestó: mientras tanto Verity sigue con el cerebro que tenía)

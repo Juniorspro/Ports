@@ -13,7 +13,7 @@
 // /api/verity/crear arma mods, construcciones y animaciones.
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
 const json = (o, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
-import { validarRB as validar, ETIQUETAS_RB as ETIQUETAS, MAPAS_BASE_RB, verityMensajes, verityRespuesta, VERITY_VOCES, VERITY_GEMINI, VERITY_GEMINI_VOZ, verityAGemini, verityVozGemini, verityWav, verityCrearMensajes, verityCreacion, VERITY_GEMINI_CREA, VERITY_CLAVES, verityAbierto, verityTextoAbierto } from './formato.js';
+import { validarRB as validar, ETIQUETAS_RB as ETIQUETAS, MAPAS_BASE_RB, verityMensajes, verityRespuesta, VERITY_VOCES, VERITY_GEMINI, VERITY_GEMINI_VOCES, verityAGemini, verityStream, verityLeerSSE, verityVozGemini, verityWav, verityCrearMensajes, verityCreacion, VERITY_GEMINI_CREA, VERITY_CLAVES, verityAbierto, verityTextoAbierto } from './formato.js';
 const texto = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 
 async function huella(s) { const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))); return [...h].map((b) => b.toString(16).padStart(2, '0')).join(''); }
@@ -109,7 +109,8 @@ const iaGasto = (env, n) => env.DB.prepare("INSERT INTO ia_uso (dia, ip, n) VALU
 // que haya). Piensan sin apuro (pensamiento alto). Si una dice que no (sin cupo, sin saldo, error), descansa y se sigue
 // con la próxima; al final, Workers AI. Topes por día: los de Google y los de cada persona.
 const GEM_CHARLAS = 20000, GEM_FRASES = 3000;
-const GEM_AGOTADO = new Map(); // modelo → día en que Google dijo que no hay más cupo
+const GEM_AGOTADO = new Map(); // modelo → día en que Google dijo que no hay más cupo (su tope por día)
+const GEM_SATURADO = new Map(); // modelo → hasta cuándo se lo saltea (saturado, sin cupo por minuto o callado)
 async function hmacHex(clave, msg) {
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(clave), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return [...new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg)))].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -124,18 +125,25 @@ async function gemCupo(env, k) {
   const f = await env.DB.prepare("INSERT INTO ia_uso (dia, ip, c) VALUES (?1, ?2, 1) ON CONFLICT(dia, ip) DO UPDATE SET c = c + 1 RETURNING c").bind(hoy(), '*' + k).first();
   return !f || f.c <= (k === 'gt' ? GEM_CHARLAS : GEM_FRASES);
 }
-async function gemini(env, modelo, cuerpo, ms) {
+// enPartes: para lo largo (crear), en partes con lo que va pensando: si se queda callado 2 minutos, se corta
+async function gemini(env, modelo, cuerpo, ms, enPartes) {
   if (GEM_AGOTADO.get(modelo) === hoy()) return { agotado: true };
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_KEY }, body: JSON.stringify(cuerpo), signal: AbortSignal.timeout(ms || 60000) });
-  if (r.status === 429) { GEM_AGOTADO.set(modelo, hoy()); return { agotado: true }; }
-  if (!r.ok) return null;
-  const d = await r.json(), p = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts || [];
-  return { texto: p.filter((x) => !x.thought).map((x) => x.text || '').join(''), audio: p.find((x) => x.inlineData) };
+  if ((GEM_SATURADO.get(modelo) || 0) > Date.now()) return null;
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms || 60000);
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:${enPartes ? 'streamGenerateContent?alt=sse' : 'generateContent'}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_KEY }, body: JSON.stringify(enPartes ? verityStream(cuerpo) : cuerpo), signal: ctl.signal });
+    if (r.status === 429) { if (/PerDay/i.test(await r.text())) { GEM_AGOTADO.set(modelo, hoy()); return { agotado: true }; } GEM_SATURADO.set(modelo, Date.now() + 60e3); return null; }
+    if (r.status >= 500) { GEM_SATURADO.set(modelo, Date.now() + 120e3); return null; }
+    if (!r.ok) return null;
+    if (enPartes) { const x = await verityLeerSSE(r, 120000, () => ctl.abort()); if (!x) GEM_SATURADO.set(modelo, Date.now() + 120e3); return x ? { texto: x } : null; }
+    const d = await r.json(), p = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts || [];
+    return { texto: p.filter((x) => !x.thought).map((x) => x.text || '').join(''), audio: p.find((x) => x.inlineData) };
+  } catch (e) { return null; } finally { clearTimeout(t); }
 }
 // probar los modelos de Gemini en orden con lo que hay que revisar (null si ninguno sirvió)
-async function geminiPensar(env, modelos, cuerpo, ms, revisar) {
+async function geminiPensar(env, modelos, cuerpo, ms, revisar, enPartes) {
   if (!env.GEMINI_KEY || !(await gemCupo(env, 'gt'))) return null;
-  for (const m of modelos) { try { const o = await gemini(env, m, cuerpo, ms); const v = o && !o.agotado && revisar(o.texto); if (v) return v; } catch (e) {} }
+  for (const m of modelos) { try { const o = await gemini(env, m, cuerpo, ms, enPartes); const v = o && !o.agotado && revisar(o.texto); if (v) return v; } catch (e) {} }
   return null;
 }
 // las otras IAs del dueño (estilo OpenAI)
@@ -159,7 +167,7 @@ async function abierto(env, P, msgs, max, ms, crear, revisar) {
 // el orden: la que eligió primero (si no es "auto"), después Gemini, después las otras; Workers AI al final (si se puede)
 async function verityElegir(env, msgs, ia, crear, tipo, conCF) {
   const revisar = crear ? (t) => verityCreacion(tipo, t) : (t) => verityRespuesta(t), max = crear ? 65536 : 8192, ms = crear ? 900000 : 90000;
-  const gem = async () => { const v = await geminiPensar(env, crear ? VERITY_GEMINI_CREA : VERITY_GEMINI, verityAGemini(msgs, max, 'high'), ms, revisar); return v ? { ...v, f: 'gemini' } : null; };
+  const gem = async () => { const v = await geminiPensar(env, crear ? VERITY_GEMINI_CREA : VERITY_GEMINI, verityAGemini(msgs, max, 'high'), ms, revisar, crear); return v ? { ...v, f: 'gemini' } : null; };
   const otras = DUENO.filter((P) => claveDe(env, P)), elegida = otras.find((P) => P.id === ia);
   if (elegida) { const v = await abierto(env, elegida, msgs, max, ms, crear, revisar); if (v) return v; }
   { const v = await gem(); if (v) return v; }
@@ -180,7 +188,7 @@ const verityPensar = (env, msgs, ia) => verityElegir(env, msgs, ia, false, '', t
 const VER_CREACIONES = 60;
 const verityCrearPensar = (env, msgs, tipo, ia, conCF) => verityElegir(env, msgs, ia, true, tipo, conCF);
 // qué IAs del dueño hay ahora (para el menú): las que tienen su clave y no están descansando
-const verityIas = (env) => Object.fromEntries([['gemini', !!env.GEMINI_KEY && !VERITY_GEMINI.every((m) => GEM_AGOTADO.get(m) === hoy())], ...DUENO.map((P) => [P.id, !!claveDe(env, P) && (PROV_DESCANSO.get(P.id) || 0) <= Date.now()])]);
+const verityIas = (env) => Object.fromEntries([['gemini', !!env.GEMINI_KEY && !VERITY_GEMINI.every((m) => GEM_AGOTADO.get(m) === hoy() || (GEM_SATURADO.get(m) || 0) > Date.now())], ...DUENO.map((P) => [P.id, !!claveDe(env, P) && (PROV_DESCANSO.get(P.id) || 0) <= Date.now()])]);
 // el WAV de MeloTTS (44,1 kHz) pasado a 22 050 Hz mono de 16 bits: la mitad de peso y la voz igual de clara
 function wavLiviano(b) {
   const dv = new DataView(b.buffer, b.byteOffset, b.byteLength); let p = 12, sr = 44100, ch = 1, bits = 16, ini = -1, largo = 0;
@@ -211,7 +219,7 @@ async function bytesDe(o) {
 }
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
     const url = new URL(req.url), r = url.pathname.replace(/\/+$/, '');
     const ip = await huella((req.headers.get('CF-Connecting-IP') || '') + (env.SAL || 'rezobox'));
@@ -357,9 +365,17 @@ export default {
         await iaTabla(env);
         const f = await env.DB.prepare("INSERT INTO ia_uso (dia, ip, c) VALUES (?1, ?2, 1) ON CONFLICT(dia, ip) DO UPDATE SET c = c + 1 RETURNING c").bind(hoy(), 'crea|' + ip).first();
         if (f && f.c > VER_CREACIONES) return json({ error: 'Verity ya creó mucho hoy' }, 429);
-        // (sinCF: el juego prefiere probar antes los modelos gratis grandes que el chico de Workers AI)
-        const v = await verityCrearPensar(env, msgs, d.tipo, iaDe(d), !d.sinCF);
-        return v ? json(v) : json({ error: 'no pudo crearlo: usar el modelo público' }, 503);
+        // (sinCF: el juego prefiere probar antes los modelos gratis grandes que el chico de Workers AI). Piensa sin apuro:
+        // mientras tanto se manda un espacio cada 10 s (el JSON los ignora) para que ninguna conexión se corte por quieta
+        const { readable, writable } = new TransformStream(), w = writable.getWriter(), enc = new TextEncoder();
+        const tic = setInterval(() => { w.write(enc.encode(' ')).catch(() => {}); }, 10000);
+        const listo = (async () => {
+          let v = null; try { v = await verityCrearPensar(env, msgs, d.tipo, iaDe(d), !d.sinCF); } catch (e) {}
+          clearInterval(tic);
+          try { await w.write(enc.encode(JSON.stringify(v || { error: 'no pudo crearlo: usar el modelo público' }))); await w.close(); } catch (e) {}
+        })();
+        if (ctx && ctx.waitUntil) ctx.waitUntil(listo);
+        return new Response(readable, { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
       }
       if (req.method === 'GET' && r === '/api/verity/ias') return json({ ias: verityIas(env) });
       // el código secreto del dueño → su permiso para usar Gemini en cualquier server (10 intentos por día)
@@ -376,13 +392,13 @@ export default {
         const l = url.searchParams.get('l') || '', t = texto(url.searchParams.get('t'), 240), noche = url.searchParams.get('n') === '1';
         // con Gemini: la voz natural (habla cualquier idioma)
         const prem = await verityPremium(env);
-        if (prem && t && GEM_AGOTADO.get(VERITY_GEMINI_VOZ) !== hoy()) {
+        if (prem && t && VERITY_GEMINI_VOCES.some((m) => GEM_AGOTADO.get(m) !== hoy())) {
           const ck = new Request('https://cache.rezobox/verity/vozg/' + (noche ? 'n/' : '') + (await huella(t)).slice(0, 40)), c = caches.default, hit = await c.match(ck);
           const cab = { 'Content-Type': 'audio/wav', 'Cache-Control': 'public, max-age=604800', ...CORS };
           if (hit) return new Response(hit.body, { headers: cab });
           if (await gemCupo(env, 'gv')) {
             try {
-              const o = await gemini(env, VERITY_GEMINI_VOZ, verityVozGemini(t, noche), 25000);
+              let o = null; for (const m of VERITY_GEMINI_VOCES) { o = await gemini(env, m, verityVozGemini(t, noche), 25000); if (o && o.audio) break; }
               if (o && o.audio) { const wav = wavLiviano(verityWav(o.audio.inlineData.data, o.audio.inlineData.mimeType)); await c.put(ck, new Response(wav, { headers: { 'Content-Type': 'audio/wav', 'Cache-Control': 'public, max-age=604800' } })); return new Response(wav, { headers: cab }); }
             } catch (e) {}
           }
