@@ -52,6 +52,14 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   arrancar, muestra qué pasó con Reintentar, Modo liviano y Seguir esperando. Al entrar a una partida o a un server
   vuelve a aparecer (`entrarConCarga`): nombre del server, la captura de su mapa, "Recuperando la info del server",
   "Cargando el mapa" y "Enviando la info del cliente" hasta que conecta (4 s como mucho).
+- **La intro de JXStudios** (volvió): antes de la pantalla de carga, mientras baja el juego, la intro procedural de
+  siempre (chispas, el aro cromado que se dibuja, el monograma JXS, «JXStudios», «J X S T U D I O S» con las líneas) y al
+  final el logo de Definitive RezoBox; dura 5,8 s y se saltea tocándola. Si el juego termina de cargar antes, la pantalla
+  de carga espera a que termine. En las pruebas (`?test`) no sale.
+- **Celular parado: todo girado 90° desde el primer cuadro.** Antes el giro lo ponía el juego al terminar de cargar, así
+  que mientras bajaba (en un celular, buena parte del rato) la pantalla de carga se veía derecha. Ahora lo pone la pantalla
+  de carga apenas abre, con la misma regla que el juego; sus medidas usan las del ancho y alto girados (`--vw`, `--vh` y las
+  clases `bajo`/`angosto` en vez de media queries, que miran el aparato parado).
 - **Mods y mapas**: tienda con Mods y Mapas, buscador, orden, etiquetas, Explorar/Instalados, instalar, activar, me gusta,
   denunciar, crear un mod con un editor, publicar lo construido (pausa → Guardar guarda también una foto) y subir/bajar archivos.
   Formatos `.rbmod` y `.rbmapa` en `tienda/formato.js` (sólo datos, con límites; lo usan el juego y el servidor).

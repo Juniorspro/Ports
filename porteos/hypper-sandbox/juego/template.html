@@ -479,24 +479,24 @@ body.conPant{background:transparent}
 #carga .cgFondo.ve{opacity:1}#carga .cgFondo.kb{animation:cgKen 9s linear both}
 @keyframes cgKen{from{transform:scale(1.02) translate(0,0)}to{transform:scale(1.1) translate(-1.5%,-1%)}}
 #carga .cgSombra{position:absolute;inset:0;background:linear-gradient(180deg,rgba(4,6,12,.72) 0%,rgba(4,6,12,.12) 26%,rgba(4,6,12,0) 45%,rgba(4,6,12,.55) 68%,rgba(4,6,12,.94) 100%),radial-gradient(130% 100% at 50% 45%,transparent 55%,rgba(0,0,0,.55) 100%)}
-#carga .cgArriba{position:absolute;left:clamp(16px,3vw,40px);top:clamp(14px,3vh,34px);right:clamp(16px,3vw,40px);display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+#carga .cgArriba{position:absolute;left:clamp(16px,calc(var(--vw,1vw)*3),40px);top:clamp(14px,calc(var(--vh,1vh)*3),34px);right:clamp(16px,calc(var(--vw,1vw)*3),40px);display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
 #carga .dLogo{font-size:clamp(28px,5.6vmin,52px);animation:cgEntra .8s cubic-bezier(.2,.9,.25,1.1) both}
 #carga .cgModo{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;font:700 11px Roboto,Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase}
 #carga .cgModo span{padding:5px 9px;border-radius:4px;background:rgba(10,14,24,.62);border:1px solid rgba(255,255,255,.14);color:#d6dcea}
 #carga .cgModo span b{color:#7cc4ff;font-weight:800}
-#carga .cgTit{margin-top:12px;max-width:60vw;font:800 clamp(18px,3.4vmin,30px) Roboto,Arial,sans-serif;text-shadow:0 2px 6px rgba(0,0,0,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#carga .cgTit:empty{display:none}
+#carga .cgTit{margin-top:12px;max-width:calc(var(--vw,1vw)*60);font:800 clamp(18px,3.4vmin,30px) Roboto,Arial,sans-serif;text-shadow:0 2px 6px rgba(0,0,0,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#carga .cgTit:empty{display:none}
 @keyframes cgEntra{from{opacity:0;transform:translateY(-8px)}}
-#carga .cgTipC{width:min(340px,34vw);box-sizing:border-box;padding:12px 14px;border-radius:8px;background:rgba(10,14,24,.66);border:1px solid rgba(255,255,255,.12);border-left:3px solid #ff8a2a;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+#carga .cgTipC{width:min(340px,calc(var(--vw,1vw)*34));box-sizing:border-box;padding:12px 14px;border-radius:8px;background:rgba(10,14,24,.66);border:1px solid rgba(255,255,255,.12);border-left:3px solid #ff8a2a;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 #carga .cgTipC small{display:block;font:800 11px Roboto,Arial,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#ffb347;margin-bottom:5px}
 #carga .cgTip{margin:0;font:500 14px/1.4 Roboto,Arial,sans-serif;color:#e3e7f1;transition:opacity .35s;min-height:2.8em}
 /* consola: lo que ya se cargó, con su tiempo (como la consola mientras entra a un server) */
-#carga .cgCons{position:absolute;left:clamp(16px,3vw,40px);bottom:calc(clamp(74px,13vh,104px));width:min(620px,60vw);font:12px/1.55 Consolas,'DejaVu Sans Mono',Menlo,monospace;color:#9fb0c8;text-shadow:0 1px 2px #000;direction:ltr;text-align:left}
+#carga .cgCons{position:absolute;left:clamp(16px,calc(var(--vw,1vw)*3),40px);bottom:calc(clamp(74px,calc(var(--vh,1vh)*13),104px));width:min(620px,calc(var(--vw,1vw)*60));font:12px/1.55 Consolas,'DejaVu Sans Mono',Menlo,monospace;color:#9fb0c8;text-shadow:0 1px 2px #000;direction:ltr;text-align:left}
 #carga .cgCons div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #carga .cgCons div:last-child{color:#e9f1ff}
 #carga .cgCons i{font-style:normal;color:#6f86a6}
 #carga .cgCons em{font-style:normal;color:#8fd18b}
 /* abajo: el estado, la barra y el porcentaje */
-#carga .cgAbajo{position:absolute;left:clamp(16px,3vw,40px);right:clamp(16px,3vw,40px);bottom:clamp(14px,3vh,30px)}
+#carga .cgAbajo{position:absolute;left:clamp(16px,calc(var(--vw,1vw)*3),40px);right:clamp(16px,calc(var(--vw,1vw)*3),40px);bottom:clamp(14px,calc(var(--vh,1vh)*3),30px)}
 #carga .cgFila{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
 #carga .cgEst{display:flex;align-items:center;gap:10px;min-width:0;font:700 clamp(15px,2.4vmin,20px) Roboto,Arial,sans-serif;text-shadow:0 1px 3px #000}
 #carga .cgEst span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#carga .cgEst bdi{flex:none;direction:ltr;unicode-bidi:isolate;font-weight:600;color:#c9d6ea;white-space:nowrap}
@@ -509,14 +509,17 @@ body.conPant{background:transparent}
 @keyframes cgRayo{to{transform:translateX(100%)}}
 #carga .cgPie{display:flex;justify-content:space-between;gap:12px;margin-top:6px;font:11px Consolas,'DejaVu Sans Mono',Menlo,monospace;color:rgba(255,255,255,.5);direction:ltr}
 #carga .cgPie span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#cargaAyuda,#cargaErr{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,90vw);box-sizing:border-box;background:rgba(10,12,22,.9);border:1px solid rgba(255,140,40,.5);border-radius:10px;padding:16px 18px;color:#e6e9f4;font:14px/1.4 Roboto,Arial,sans-serif;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+#cargaAyuda,#cargaErr{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(var(--vw,1vw)*90));box-sizing:border-box;background:rgba(10,12,22,.9);border:1px solid rgba(255,140,40,.5);border-radius:10px;padding:16px 18px;color:#e6e9f4;font:14px/1.4 Roboto,Arial,sans-serif;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.6)}
 #cargaAyuda.ve,#cargaErr.ve{display:block}#carga.fallo .cgGira,#carga.fin .cgGira{display:none}
 #cargaAyuda b,#cargaErr b{display:block;color:#ffb347;font-size:16px}
 #cargaAyuda small,#cargaErr small{display:block;color:#9aa4c2;margin-top:6px;word-break:break-word}
 #cargaAyuda button,#cargaErr button{margin:12px 5px 0;padding:10px 16px;border:0;border-radius:8px;background:linear-gradient(#ff8f2e,#e9640f);color:#fff;font:800 14px Roboto,Arial,sans-serif;cursor:pointer}
 #cargaAyuda button.gris,#cargaErr button.gris{background:#2c3247}
-@media (max-height:460px){#carga .cgTipC{display:none}#carga .cgCons{font-size:11px;line-height:1.45;bottom:64px}#carga .cgModo{margin-top:6px}}
-@media (max-width:640px){#carga .cgTipC{display:none}#carga .cgCons{width:auto;right:16px}}
+/* (bajo y angosto los pone el giro, con la medida girada: las media queries miran la del aparato parado) */
+#carga.bajo .cgTipC{display:none}#carga.bajo .cgCons{font-size:11px;line-height:1.45;bottom:64px}#carga.bajo .cgModo{margin-top:6px}
+#carga.angosto .cgTipC{display:none}#carga.angosto .cgCons{width:auto;right:16px}
+/* la intro de JXStudios, encima de la pantalla de carga hasta que termina (o se toca) */
+#introCv{position:absolute;inset:0;width:100%;height:100%;z-index:6;background:#000;transition:opacity .45s}#carga.introFin #introCv{opacity:0;pointer-events:none}
 .etiqueta.monitor{padding:4px 8px;border-radius:2px;font-size:13px;max-width:180px;white-space:normal;text-align:center}
 .etiqueta{position:absolute;left:0;top:0;font-size:12px;font-weight:bold;text-shadow:0 1px 3px #000;white-space:nowrap;pointer-events:none}
 #redEst{position:absolute;left:10px;top:66px;font-size:10px;opacity:.8;text-shadow:0 1px 2px #000}
@@ -633,7 +636,7 @@ body.edaOn #hud,body.edaOn #tactil,body.edaOn #mira,body.edaOn #usarTxt,body.eda
   <div class="cgCons" id="cargaCons"></div>
   <div class="cgAbajo"><div class="cgFila"><div class="cgEst"><i class="cgGira"></i><span id="cargaPaso"></span><bdi id="cargaMB"></bdi></div><b class="cgPct" id="cargaPct">0%</b></div>
     <div class="cgBarra"><i id="cargaB"></i></div><div class="cgPie"><span id="cargaMapa"></span><span>JXSTUDIOS</span></div></div>
-  <div id="cargaAyuda"></div><div id="cargaErr"></div></div>
+  <div id="cargaAyuda"></div><div id="cargaErr"></div><canvas id="introCv"></canvas></div>
 <script>
 // La pantalla de carga de Definitive RezoBox (estilo "entrando a un server": capturas del juego de fondo, la consola con
 // lo que va cargando y la barra abajo) y su vigilante. Va antes del juego y no depende de él: el juego avisa cada
@@ -663,6 +666,18 @@ body.edaOn #hud,body.edaOn #tactil,body.edaOn #mira,body.edaOn #usarTxt,body.eda
   if (l === 'tl') l = 'fil'; if (!TX[l]) l = 'en';
   var X = TX[l], W = window.__carga = { p: 0, paso: 'abrir', t0: Date.now(), t: Date.now(), err: '', listo: false, ayuda: false, lang: l, X: X };
   var $ = function (i) { return document.getElementById(i); };
+  // con el celular parado se gira todo 90° desde el primer cuadro, igual que hace el juego cuando arranca (la pantalla
+  // de carga y la intro también); las medidas, por la pantalla girada (--vw, --vh, y bajo/angosto para la carga)
+  var COARSE0 = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  function girar0() {
+    var rot = COARSE0 && innerHeight > innerWidth * 1.05 && !/[?&]sinGiro\b/.test(location.search), b = document.body.style, r = document.documentElement.style;
+    document.documentElement.classList.toggle('rot', rot);
+    if (rot) { b.width = innerHeight + 'px'; b.height = innerWidth + 'px'; } else { b.width = ''; b.height = ''; }
+    var vw = rot ? innerHeight : innerWidth, vh = rot ? innerWidth : innerHeight, c = $('carga');
+    r.setProperty('--vw', vw / 100 + 'px'); r.setProperty('--vh', vh / 100 + 'px');
+    if (c) { c.classList.toggle('bajo', vh <= 460); c.classList.toggle('angosto', vw <= 640); }
+  }
+  girar0(); addEventListener('resize', girar0); addEventListener('orientationchange', function () { setTimeout(girar0, 60); });
   var nom = function (k) { var i = PASOS.indexOf(k); return k === 'descarga' ? X[13][5] : i >= 0 ? X[i] : k; };
   var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   if (l === 'ar') $('carga').dir = 'rtl';
@@ -733,11 +748,89 @@ body.edaOn #hud,body.edaOn #tactil,body.edaOn #mira,body.edaOn #usarTxt,body.eda
     clearInterval(tTip); tip(); tTip = setInterval(tip, 6500); pintar();
   };
   W.fin = function (cb) {
+    var I = window.__intro; if (I && !I.fin) { I.cb = function () { W.fin(cb); }; return; }      // (la intro se ve entera; se saltea tocando)
     W.listo = true; clearInterval(tTip); W.set(1, 'listo'); W.log('listo'); ocultar();
     var c = $('carga'); c.classList.add('fin'); var espera = /[?&]test\b/.test(location.search) ? 0 : Math.max(0, 1200 - (Date.now() - W.t0));
     setTimeout(function () { clearInterval(tF); if (cb) try { cb(); } catch (e) {} c.classList.add('salir'); setTimeout(function () { c.classList.add('oc'); }, 520); }, espera);
   };
   pintar();
+})();
+</script>
+<script>
+// la intro de JXStudios (procedural, sin video): chispas, el aro cromado que se dibuja con un brillo que lo recorre, el
+// monograma, los nombres y al final el logo de Definitive RezoBox. Va encima de la pantalla de carga mientras el juego
+// baja; al terminar (o al tocarla) se funde y queda la carga, o el menú si ya cargó. Con el teléfono parado se dibuja
+// derecha dentro de la página girada (si la página no estuviera girada, se gira ella).
+(function () {
+  var c = document.getElementById('carga'), cv = document.getElementById('introCv'), x = cv && cv.getContext('2d'), I = window.__intro = { fin: false };
+  var logo = document.querySelector('#carga .dLogo img'), t0 = 0, DUR = 5.8, chispas = [];
+  if (!x || /[?&]test\b/.test(location.search)) { I.fin = true; if (c) c.classList.add('introFin'); return; }      // (en las pruebas, sin intro)
+  for (var i = 0; i < 140; i++) chispas.push({ a: Math.random() * 6.283, d: 1.6 + Math.random() * 1.8, v: 0.55 + Math.random() * 0.5, s: 0.6 + Math.random() * 1.6, r: 0.75 + Math.random() * 0.5 });
+  function fin() { if (!I.fin) { I.fin = true; c.classList.add('introFin'); if (I.cb) { var f = I.cb; I.cb = null; f(); } } }
+  cv.addEventListener('pointerdown', fin);
+  var cl = function (v) { return v < 0 ? 0 : v > 1 ? 1 : v; }, eo = function (v) { v = cl(v); return 1 - Math.pow(1 - v, 3); };
+  function cromo(cx, cy, r, giro) {
+    var g;
+    if (x.createConicGradient) { g = x.createConicGradient(giro, cx, cy); [['#fff', 0], ['#7d8590', .12], ['#e9edf2', .25], ['#4a5059', .38], ['#ffffff', .5], ['#8a929c', .63], ['#dfe4ea', .76], ['#454b53', .88], ['#fff', 1]].forEach(function (p) { g.addColorStop(p[1], p[0]); }); }
+    else { g = x.createLinearGradient(cx - r, cy - r, cx + r, cy + r); g.addColorStop(0, '#fff'); g.addColorStop(.5, '#6c737c'); g.addColorStop(1, '#eef1f4'); }
+    return g;
+  }
+  function cuadro(ms) {
+    if (!t0) t0 = ms; var t = (ms - t0) / 1000;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2), W = cv.clientWidth * dpr | 0, H = cv.clientHeight * dpr | 0;
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+    var girar = H > W * 1.05 && !document.documentElement.classList.contains('rot');
+    if (girar) { x.translate(W, 0); x.rotate(Math.PI / 2); var tmp = W; W = H; H = tmp; }
+    var cx = W / 2, cy = H * 0.44, R = Math.min(W, H) * 0.3, f1 = cl((3.9 - t) / 0.4) * cl(t / 0.2);
+    if (f1 > 0) {
+      x.globalAlpha = f1;
+      // chispas que caen hacia el aro
+      x.globalCompositeOperation = 'lighter';
+      chispas.forEach(function (p) { var k = eo(t * p.v), d = R * (p.d + (p.r - p.d) * k), a = p.a + k * 1.2, al = cl(1 - k) * 0.9 + 0.1 * cl(1.2 - t);
+        x.fillStyle = 'rgba(190,215,255,' + al.toFixed(3) + ')'; x.beginPath(); x.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, p.s * dpr, 0, 6.283); x.fill(); });
+      x.globalCompositeOperation = 'source-over';
+      // disco negro y aro cromado que se dibuja
+      var ka = eo((t - 0.25) / 0.9), giro = t * 1.4;
+      x.fillStyle = '#050607'; x.beginPath(); x.arc(cx, cy, R * 0.9 * eo((t - 0.6) / 0.6), 0, 6.283); x.fill();
+      x.lineWidth = R * 0.13; x.strokeStyle = cromo(cx, cy, R, giro); x.shadowColor = 'rgba(160,200,255,.65)'; x.shadowBlur = R * 0.12 * (0.6 + 0.4 * Math.sin(t * 3));
+      x.beginPath(); x.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + 6.283 * ka); x.stroke(); x.shadowBlur = 0;
+      x.lineWidth = R * 0.018; x.strokeStyle = 'rgba(255,255,255,.55)'; x.beginPath(); x.arc(cx, cy, R * 0.93, -Math.PI / 2, -Math.PI / 2 + 6.283 * ka); x.stroke();
+      // monograma JXS con contorno cromado y el nombre
+      var km = eo((t - 1.0) / 0.6);
+      if (km > 0) {
+        x.save(); x.globalAlpha = f1 * km; x.translate(cx, cy - R * 0.12); x.scale(0.85 + 0.15 * km, 0.85 + 0.15 * km);
+        x.font = '900 ' + (R * 0.62 | 0) + 'px "Arial Black",Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+        x.lineWidth = R * 0.07; x.strokeStyle = cromo(0, 0, R * 0.5, giro + 1); x.strokeText('JXS', 0, 0); x.fillStyle = '#050607'; x.fillText('JXS', 0, 0);
+        x.lineWidth = R * 0.012; x.strokeStyle = 'rgba(255,255,255,.8)'; x.strokeText('JXS', 0, 0); x.restore();
+      }
+      var kn = eo((t - 1.6) / 0.5);
+      if (kn > 0) { x.globalAlpha = f1 * kn; x.fillStyle = '#eef2f6'; x.font = '700 ' + (R * 0.2 | 0) + 'px Roboto,Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('JXStudios', cx, cy + R * 0.42); }
+      // brillo que cruza el aro
+      var kb = cl((t - 1.9) / 0.8);
+      if (kb > 0 && kb < 1) { x.save(); x.globalAlpha = f1 * Math.sin(kb * Math.PI) * 0.7; x.beginPath(); x.arc(cx, cy, R * 1.07, 0, 6.283); x.clip();
+        var bx = cx - R * 1.3 + kb * R * 2.6, gb = x.createLinearGradient(bx - R * 0.3, 0, bx + R * 0.3, 0); gb.addColorStop(0, 'rgba(255,255,255,0)'); gb.addColorStop(.5, 'rgba(255,255,255,.9)'); gb.addColorStop(1, 'rgba(255,255,255,0)');
+        x.fillStyle = gb; x.globalCompositeOperation = 'lighter'; x.fillRect(cx - R * 1.2, cy - R * 1.2, R * 2.4, R * 2.4); x.restore(); }
+      // — JXSTUDIOS — abajo, con las líneas que se abren
+      var kl = eo((t - 2.2) / 0.6);
+      if (kl > 0) { x.globalAlpha = f1 * kl; var yb = cy + R * 1.45, tam = R * 0.17; x.font = '800 ' + (tam | 0) + 'px Roboto,Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+        var txt = 'J X S T U D I O S', an = x.measureText(txt).width; x.fillStyle = '#e8edf3'; x.fillText(txt, cx, yb);
+        x.strokeStyle = 'rgba(200,225,255,.9)'; x.lineWidth = Math.max(1, R * 0.012); x.shadowColor = 'rgba(160,200,255,.8)'; x.shadowBlur = R * 0.05;
+        var lar = R * 0.55 * kl; x.beginPath(); x.moveTo(cx - an / 2 - R * 0.1, yb); x.lineTo(cx - an / 2 - R * 0.1 - lar, yb); x.moveTo(cx + an / 2 + R * 0.1, yb); x.lineTo(cx + an / 2 + R * 0.1 + lar, yb); x.stroke(); x.shadowBlur = 0; }
+      x.globalAlpha = 1;
+    }
+    // el logo de HypperX RezoBox, con rebote y un brillo
+    var kr = cl((t - 3.9) / 0.35) * cl((DUR - t) / 0.4);
+    if (kr > 0 && logo.complete && logo.naturalWidth) {
+      var e = eo((t - 3.9) / 0.5), lw = Math.min(W * 0.78, H * 1.9 * 0.26 * logo.naturalWidth / logo.naturalHeight), lh = lw * logo.naturalHeight / logo.naturalWidth, s = 0.9 + 0.1 * e + 0.04 * Math.sin(Math.min(1, (t - 3.9) / 0.5) * Math.PI);
+      x.globalAlpha = kr; x.save(); x.translate(cx, H * 0.5); x.scale(s, s); x.drawImage(logo, -lw / 2, -lh / 2, lw, lh); x.restore(); x.globalAlpha = 1;
+    }
+    if (t >= DUR) { fin(); return; }
+    if (I.fin) return; // salteada
+    requestAnimationFrame(cuadro);
+  }
+  requestAnimationFrame(cuadro);
+  setTimeout(fin, (DUR + 2.5) * 1000); // por si la pestaña no dibuja
 })();
 </script>
 <script>/*MQTT*/</script>
