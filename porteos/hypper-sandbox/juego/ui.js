@@ -156,6 +156,7 @@ function abrirAjustes(desde) {
   <div class="fila">${Lc('TextureQuality', 'Calidad de textura')} ${sel('aTq', [['auto', 'Según gráficos'], ['baja', 'Baja'], ['media', 'Media'], ['alta', 'Alta']])}</div>
   <div class="fila">Motor gráfico ${sel('aM', [['webgl1', 'WebGL 1 (compatible)'], ['webgl2', 'WebGL 2']])}</div>
   <div class="fila">Resolución <input type="range" id="aR" min="35" max="100" step="5"><span id="aRv"></span></div>
+  <div class="fila"><label><input type="checkbox" id="aDin"> Resolución dinámica (baja la resolución antes que los efectos para mantener los cuadros)</label></div>
   <div class="fila">Distancia <input type="range" id="aD" min="100" max="1200" step="50"><span id="aDv"></span></div>
   <div class="fila">${Lc('Sensitivity', 'Sensibilidad')} <input type="range" id="aS" min="2" max="40" step="1"></div>
   <div class="fila">Volumen <input type="range" id="aV" min="0" max="100" step="5"></div>
@@ -165,7 +166,7 @@ function abrirAjustes(desde) {
   <button class="boton" id="aOk">Listo</button>`;
   $('aM').value = PREFS.motor === 'webgl2' ? 'webgl2' : 'webgl1';
   $('aG').value = PREFS.gfx; $('aSo').value = String(PREFS.sombras); $('aPo').value = PREFS.post; $('aTq').value = PREFS.texQ;
-  $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI;
+  $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI; $('aDin').checked = PREFS.resDin !== false;
   const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; };
   act();
   $('aG').onchange = () => { PREFS.gfx = $('aG').value; const p = PERFILES[PREFS.gfx]; if (p) { PREFS.res = p.res; PREFS.lejos = p.lejos; $('aR').value = p.res; $('aD').value = p.lejos; } act(); };
@@ -173,7 +174,7 @@ function abrirAjustes(desde) {
   $('aOk').onclick = () => {
     const texAntes = GFX.texMax;
     PREFS.res = +$('aR').value; PREFS.lejos = +$('aD').value; PREFS.sens = +$('aS').value; PREFS.vol = +$('aV').value; PREFS.fps = $('aF').checked;
-    PREFS.sombras = $('aSo').value; PREFS.post = $('aPo').value; PREFS.texQ = $('aTq').value; PREFS.contorno = $('aC').checked; PREFS.ocultarUI = $('aU').checked;
+    PREFS.sombras = $('aSo').value; PREFS.post = $('aPo').value; PREFS.texQ = $('aTq').value; PREFS.contorno = $('aC').checked; PREFS.ocultarUI = $('aU').checked; PREFS.resDin = $('aDin').checked;
     const motorAntes = PREFS.motor === 'webgl2' ? 'webgl2' : 'webgl1'; PREFS.motor = $('aM').value;
     guardarPrefs();
     // cambiar de motor necesita empezar de nuevo (el contexto de WebGL no se puede cambiar)

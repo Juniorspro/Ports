@@ -373,6 +373,7 @@ body.conPant{background:transparent}
 .etiqueta.monitor{padding:4px 8px;border-radius:2px;font-size:13px;max-width:180px;white-space:normal;text-align:center}
 .etiqueta{position:absolute;left:0;top:0;font-size:12px;font-weight:bold;text-shadow:0 1px 3px #000;white-space:nowrap;pointer-events:none}
 #redEst{position:absolute;left:10px;top:66px;font-size:10px;opacity:.8;text-shadow:0 1px 2px #000}
+body.tactil #redEst{left:50%;top:4px;transform:translateX(-50%);white-space:nowrap}
 #chat{position:absolute;left:10px;bottom:26px;width:min(360px,calc(var(--vw)*70));font-size:12px;text-shadow:0 1px 2px #000}
 #chat div{margin:1px 0}
 #chatIn{position:fixed;left:10px;bottom:30px;width:min(420px,calc(var(--vw)*80));z-index:6;background:rgba(0,0,0,.6);border:1px solid #888;color:#fff;padding:8px;font-size:14px}
@@ -958,25 +959,32 @@ float sombraCasc(mat4 M, vec4 k, vec4 r, vec3 n, float nl, vec3 dx, vec3 dy) {
   ov = rot * vec2(0.14383161, -0.1410079) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
   return s / 16.0;
 #elif PCF == 9 && defined(GL1)
-  // 3x3 texeles con filtro bilineal (lo mismo que 9 muestras de la placa) leyendo 4x4 texeles una sola vez
-  vec2 t = clamp(c.xy, r.xy, r.zw) * uSMtam - 0.5, fr = fract(t), b0 = (floor(t) - 0.5) / uSMtam; float e = 1.0 / uSMtam, s = 0.0;
-  for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) {
-    vec2 q = b0 + vec2(float(i), float(j)) * e;
-    float w = (i == 0 ? 1.0 - fr.x : i == 3 ? fr.x : 1.0) * (j == 0 ? 1.0 - fr.y : j == 3 ? fr.y : 1.0);
-    s += w * step(z0 + dot(dz, q - c.xy), smRaw(clamp(q, r.xy, r.zw)));
-  }
-  return s / 9.0;
+  // 3x3 texeles con filtro bilineal (lo mismo que 9 muestras de la placa) leyendo 4x4 texeles una sola vez. Primero
+  // 8 de los 16 (las esquinas y los 4 del medio): si todos dicen luz o todos sombra (casi todos los píxeles) ése es el
+  // resultado; si no (un borde), se leen los otros 8 y se hace el filtro entero
+  vec2 t = clamp(c.xy, r.xy, r.zw) * uSMtam - 0.5, fr = fract(t), b0 = (floor(t) - 0.5) / uSMtam; float e = 1.0 / uSMtam;
+#define SMQ(i, j) step(z0 + dot(dz, b0 + vec2(i, j) * e - c.xy), smRaw(clamp(b0 + vec2(i, j) * e, r.xy, r.zw)))
+  float q00 = SMQ(0.0, 0.0), q30 = SMQ(3.0, 0.0), q03 = SMQ(0.0, 3.0), q33 = SMQ(3.0, 3.0), q11 = SMQ(1.0, 1.0), q21 = SMQ(2.0, 1.0), q12 = SMQ(1.0, 2.0), q22 = SMQ(2.0, 2.0);
+  float s8 = q00 + q30 + q03 + q33 + q11 + q21 + q12 + q22;
+  if (s8 < 0.5 || s8 > 7.5) return s8 * 0.125;
+  float q10 = SMQ(1.0, 0.0), q20 = SMQ(2.0, 0.0), q01 = SMQ(0.0, 1.0), q31 = SMQ(3.0, 1.0), q02 = SMQ(0.0, 2.0), q32 = SMQ(3.0, 2.0), q13 = SMQ(1.0, 3.0), q23 = SMQ(2.0, 3.0);
+  vec4 wx = vec4(1.0 - fr.x, 1.0, 1.0, fr.x), wy = vec4(1.0 - fr.y, 1.0, 1.0, fr.y);
+  return (wy.x * dot(wx, vec4(q00, q10, q20, q30)) + wy.y * dot(wx, vec4(q01, q11, q21, q31)) + wy.z * dot(wx, vec4(q02, q12, q22, q32)) + wy.w * dot(wx, vec4(q03, q13, q23, q33))) / 9.0;
 #elif PCF == 9
-  float e = k.z * 1.25, s = 0.0;
-  ov = vec2(0.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 2.0;
-  ov = vec2(-1.0, -1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
-  ov = vec2(0.0, -1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
-  ov = vec2(1.0, -1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
-  ov = vec2(-1.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
-  ov = vec2(1.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
-  ov = vec2(-1.0, 1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
-  ov = vec2(0.0, 1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
-  ov = vec2(1.0, 1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
+  // con la comparación de la placa: primero el centro y las 4 diagonales; si coinciden, listo; si no, las otras 4
+  float e = k.z * 1.25, s = 0.0, s5;
+  ov = vec2(0.0, 0.0) * e; float m0 = smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(-1.0, -1.0) * e; float m1 = smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(1.0, -1.0) * e; float m2 = smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(-1.0, 1.0) * e; float m3 = smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(1.0, 1.0) * e; float m4 = smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  s5 = m0 + m1 + m2 + m3 + m4;
+  if (s5 < 0.001 || s5 > 4.999) return s5 * 0.2;
+  s = m0 * 2.0 + (m1 + m2 + m3 + m4) * 0.5;
+  ov = vec2(0.0, -1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(-1.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(1.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(0.0, 1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
   return s / 8.0;
 #else
   return smTap(c.xy, z0, r);
@@ -2052,14 +2060,14 @@ function postPreparar() {
   else { PO.rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, PO.rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h); }
   PO.fb = rtFb(PO.col, PO.prof, PO.rb);
   if (!PO.fb) { postLiberar(); return false; }
-  const w2 = Math.max(1, w >> 1), h2 = Math.max(1, h >> 1);
-  if (GFX.ao && R.depthTex) PO.ao = [rt(w2, h2, ...F.r8, gl.LINEAR), rt(w2, h2, ...F.r8, gl.LINEAR)];
+  const w2 = Math.max(1, w >> 1), h2 = Math.max(1, h >> 1), densa = postDensa(), wa = densa ? Math.max(1, w >> 2) : w2, ha = densa ? Math.max(1, h >> 2) : h2;
+  if (GFX.ao && R.depthTex) PO.ao = [rt(wa, ha, ...F.r8, gl.LINEAR), rt(wa, ha, ...F.r8, gl.LINEAR)];
   if (GFX.bloom && hdr) {
     let bw = w2, bh = h2; const n = GFX.bloom >= 2 ? 6 : 5;
     for (let i = 0; i < n && bw >= 4 && bh >= 4; i++) { PO.bl.push(rt(bw, bh, ...F.hdr, gl.LINEAR)); bw >>= 1; bh >>= 1; }
   }
   if (GFX.rayos && hdr && R.depthTex) { const w4 = Math.max(1, w >> 2), h4 = Math.max(1, h >> 2); PO.ray = [rt(w4, h4, ...F.hdr, gl.LINEAR), rt(w4, h4, ...F.hdr, gl.LINEAR)]; }
-  if (GFX.fxaa) PO.ldr = rt(w, h, ...F.ldr, gl.LINEAR);
+  if (GFX.fxaa && !densa) PO.ldr = rt(w, h, ...F.ldr, gl.LINEAR);
   if (!PO.p.final) {
     const mk = (fs, d) => shader(VS_PANT, fs, d);
     PO.p.ssao8 = mk(FS_SSAO, ['NMUES=8']); PO.p.ssao16 = mk(FS_SSAO, ['NMUES=14']); PO.p.aoblur = mk(FS_AOBLUR);
@@ -2068,7 +2076,10 @@ function postPreparar() {
   }
   PO.ok = true; return true;
 }
-function postCfg() { return [GFX.hdr, GFX.ao, GFX.bloom, GFX.rayos, GFX.fxaa].join(','); }
+// densidad: puntos del lienzo por punto de la pantalla. Con 1,5 o más (celulares, pantallas retina) los efectos van a
+// la resolución que se nota: la oclusión a un cuarto y sin FXAA (los bordes ya no se ven serruchados)
+const postDensa = () => R.cv.width / Math.max(1, VW()) >= 1.5;
+function postCfg() { return [GFX.hdr, GFX.ao, GFX.bloom, GFX.rayos, GFX.fxaa, postDensa() ? 1 : 0].join(','); }
 function pasadaPant(P, fb, w, h) {
   const gl = R.gl; gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.viewport(0, 0, w, h);
   gl.useProgram(P.p); R.progAct = P; gl.bindVertexArray(R.quad); gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -6202,6 +6213,7 @@ function abrirAjustes(desde) {
   <div class="fila">${Lc('TextureQuality', 'Calidad de textura')} ${sel('aTq', [['auto', 'Según gráficos'], ['baja', 'Baja'], ['media', 'Media'], ['alta', 'Alta']])}</div>
   <div class="fila">Motor gráfico ${sel('aM', [['webgl1', 'WebGL 1 (compatible)'], ['webgl2', 'WebGL 2']])}</div>
   <div class="fila">Resolución <input type="range" id="aR" min="35" max="100" step="5"><span id="aRv"></span></div>
+  <div class="fila"><label><input type="checkbox" id="aDin"> Resolución dinámica (baja la resolución antes que los efectos para mantener los cuadros)</label></div>
   <div class="fila">Distancia <input type="range" id="aD" min="100" max="1200" step="50"><span id="aDv"></span></div>
   <div class="fila">${Lc('Sensitivity', 'Sensibilidad')} <input type="range" id="aS" min="2" max="40" step="1"></div>
   <div class="fila">Volumen <input type="range" id="aV" min="0" max="100" step="5"></div>
@@ -6211,7 +6223,7 @@ function abrirAjustes(desde) {
   <button class="boton" id="aOk">Listo</button>`;
   $('aM').value = PREFS.motor === 'webgl2' ? 'webgl2' : 'webgl1';
   $('aG').value = PREFS.gfx; $('aSo').value = String(PREFS.sombras); $('aPo').value = PREFS.post; $('aTq').value = PREFS.texQ;
-  $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI;
+  $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI; $('aDin').checked = PREFS.resDin !== false;
   const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; };
   act();
   $('aG').onchange = () => { PREFS.gfx = $('aG').value; const p = PERFILES[PREFS.gfx]; if (p) { PREFS.res = p.res; PREFS.lejos = p.lejos; $('aR').value = p.res; $('aD').value = p.lejos; } act(); };
@@ -6219,7 +6231,7 @@ function abrirAjustes(desde) {
   $('aOk').onclick = () => {
     const texAntes = GFX.texMax;
     PREFS.res = +$('aR').value; PREFS.lejos = +$('aD').value; PREFS.sens = +$('aS').value; PREFS.vol = +$('aV').value; PREFS.fps = $('aF').checked;
-    PREFS.sombras = $('aSo').value; PREFS.post = $('aPo').value; PREFS.texQ = $('aTq').value; PREFS.contorno = $('aC').checked; PREFS.ocultarUI = $('aU').checked;
+    PREFS.sombras = $('aSo').value; PREFS.post = $('aPo').value; PREFS.texQ = $('aTq').value; PREFS.contorno = $('aC').checked; PREFS.ocultarUI = $('aU').checked; PREFS.resDin = $('aDin').checked;
     const motorAntes = PREFS.motor === 'webgl2' ? 'webgl2' : 'webgl1'; PREFS.motor = $('aM').value;
     guardarPrefs();
     // cambiar de motor necesita empezar de nuevo (el contexto de WebGL no se puede cambiar)
@@ -6282,7 +6294,7 @@ const HUD_TACTIL = [
   // en un vehículo
   ['#bgas', 1, 0, -122, 153, 110], ['#bfreno', 1, 0, -287.6, 153, 110], ['#bizq', 0, 0, 179, 142, 103], ['#bder', 0, 0, 361, 142, 103], ['#bmanual', 1, 0.5, -107, 0.4, 96.4], ['#bbajar', 0, 0.5, 42, 0, 71],
 ];
-const HUD = { k: 0, w: 0, h: 0, arma: '', veh: null, usar: null };
+const HUD = { k: 0, w: 0, h: 0, arma: '', veh: null, usar: null, tac: null, n: -1, c: 0 };
 function hudIniciar() {
   const t = $('tactil'); if (!t) return;
   // botones que agrega esta versión: borrar lo que apuntás y los del auto
@@ -6303,7 +6315,8 @@ function hudIniciar() {
 // la ubicación de cada botón (en el celular), escalada como el CanvasScaler del juego
 function hudDisponer() {
   const W = VW(), H = VH(), k = Math.sqrt((W / 1280) * (H / 720)); HUD.k = k; HUD.w = W; HUD.h = H;
-  const tactil = document.body.classList.contains('tactil');
+  const tactil = document.body.classList.contains('tactil'); HUD.tac = tactil;
+  HUD.n = HUD_TACTIL.reduce((a, r) => a + (document.querySelector(r[0]) ? 1 : 0), 0);
   for (const [sel, ax, ay, x, y, s] of HUD_TACTIL) {
     const e = document.querySelector(sel); if (!e) continue;
     if (!tactil && !e.classList.contains('bt-t')) { e.style.left = e.style.top = e.style.width = e.style.height = ''; continue; }
@@ -6312,9 +6325,12 @@ function hudDisponer() {
   }
 }
 // cada cuadro (sólo si cambia algo): qué botones se ven según el arma, si hay algo para usar y si vas en un vehículo
+// (el modo táctil se prende con el primer toque, y los botones MOD y micrófono aparecen después: cuando cambia algo de eso
+// o el tamaño de la pantalla, se vuelven a ubicar; si no, quedaban todos amontonados en la esquina)
 function hudPaso() {
-  if (!document.body.classList.contains('tactil')) return;
-  if (HUD.w !== VW() || HUD.h !== VH()) hudDisponer();
+  const tactil = document.body.classList.contains('tactil');
+  if (tactil !== HUD.tac || HUD.w !== VW() || HUD.h !== VH() || (++HUD.c % 15 === 0 && HUD_TACTIL.reduce((a, r) => a + (document.querySelector(r[0]) ? 1 : 0), 0) !== HUD.n)) hudDisponer();
+  if (!tactil) return;
   const arma = ARM.lista[ARM.i] || '', veh = !!JUG.vehiculo, usar = !!($('usarTxt').textContent || (!veh && entidadCerca()));
   if (arma !== HUD.arma || veh !== HUD.veh || usar !== HUD.usar) {
     HUD.arma = arma; HUD.veh = veh; HUD.usar = usar;
@@ -10585,6 +10601,8 @@ function perfilInicial() {
   gpu = (Q.get('gpu') || gpu || '').toLowerCase();
   if (/mali-[gt]?[4-7]\d|adreno \(tm\) [3-5]\d\d|powervr|sgx|mali-4|adreno 30/.test(gpu) || mem <= 2 || nuc <= 2) return 'patata';
   if (COARSE && (mem <= 4 || /adreno \(tm\) 6[0-2]\d|mali-g5/.test(gpu))) return 'bajo';
+  // celulares de gama alta (placas recientes): alto, con la resolución dinámica cuidando los cuadros
+  if (COARSE && mem >= 6 && nuc >= 8 && /adreno \(tm\) (7[3-9]\d|8\d\d)|mali-g(7[1-9]|[89]\d\d)|immortalis|xclipse|apple gpu/.test(gpu)) return 'alto';
   if (COARSE) return 'medio';
   if (/rtx|radeon rx [5-9]\d{3}|rx [67]\d{3}|apple m\d|gtx 1[06-9]\d|gtx 16|arc\(tm\) a|arc a\d/.test(gpu) && nuc >= 6) return 'ultra';
   return 'alto';
@@ -10627,7 +10645,9 @@ function aplicarGfx() {
   redimensionar();
 }
 function redimensionar() {
-  const dpr = Math.min(devicePixelRatio || 1, 2), w = VW(), h = VH(), k = dpr * GFX.escala;
+  // (con tope de píxeles por calidad: en pantallas enormes o muy densas no se dibujan más puntos de los que se notan)
+  const dpr = Math.min(devicePixelRatio || 1, 2), w = VW(), h = VH(), tope = { patata: 0.5e6, bajo: 0.9e6, medio: 1.4e6, alto: 2.2e6, ultra: 3.7e6 }[GFX.nombre] || 2.2e6;
+  const k = Math.min(dpr * GFX.escala, Math.sqrt(tope / Math.max(1, w * h)));
   R.cv.width = Math.max(160, Math.round(w * k)); R.cv.height = Math.max(120, Math.round(h * k));
 }
 addEventListener('resize', () => R.cv && redimensionar());
@@ -10764,13 +10784,21 @@ function cuadro(ahora) {
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso();
   // fps y resolución automática
-  TIEMPO.cuadros++; TIEMPO.medT += dt; TIEMPO.ms += performance.now() - t0;
+  // (en tiempo real: con muy pocos cuadros o con el mod de cámara lenta el tiempo del juego no sirve para medir)
+  const ahoraR = performance.now(); if (!TIEMPO.medR) TIEMPO.medR = ahoraR;
+  TIEMPO.cuadros++; TIEMPO.medT = (ahoraR - TIEMPO.medR) / 1000; TIEMPO.ms += ahoraR - t0;
   if (TIEMPO.medT >= 1) {
-    TIEMPO.fps = TIEMPO.cuadros / TIEMPO.medT; const ms = TIEMPO.ms / TIEMPO.cuadros; TIEMPO.msProm = ms;
+    TIEMPO.fps = TIEMPO.cuadros / TIEMPO.medT; const ms = TIEMPO.ms / TIEMPO.cuadros; TIEMPO.msProm = ms; TIEMPO.medR = ahoraR;
     $('fps').textContent = PREFS.fps ? `${Math.round(TIEMPO.fps)} fps` : '';
+    // resolución dinámica en todas las calidades (también las elegidas a mano): si no llega a ~50 cuadros baja la
+    // resolución interna antes que los efectos, y la vuelve a subir cuando sobra; en automático, además, si con la
+    // resolución mínima igual no alcanza baja una calidad entera
+    const din = GFX.auto || PREFS.resDin !== false, piso = GFX.auto ? 0.5 : Math.max(0.5, GFX.escalaMax * 0.6);
+    if (din && JUEGO.estado === 'juego' && !UI.abierto && !TEST) {
+      if (TIEMPO.fps < 48 && GFX.escala > piso) { GFX.escala = Math.max(piso, GFX.escala - 0.08); redimensionar(); TIEMPO.bajos = 0; }
+      else if (TIEMPO.fps > 57 && ms < 9 && GFX.escala < GFX.escalaMax) { GFX.escala = Math.min(GFX.escalaMax, GFX.escala + 0.04); redimensionar(); }
+    }
     if (GFX.auto && JUEGO.estado === 'juego' && !UI.abierto && !TEST) {
-      if (TIEMPO.fps < 48 && GFX.escala > 0.5) { GFX.escala = Math.max(0.5, GFX.escala - 0.08); redimensionar(); TIEMPO.bajos = 0; }
-      else if (TIEMPO.fps > 58 && ms < 9 && GFX.escala < GFX.escalaMax) { GFX.escala = Math.min(GFX.escalaMax, GFX.escala + 0.04); redimensionar(); }
       // ya en la resolución mínima y sigue lento: bajar una calidad entera (y no volver a subir en esta partida)
       if (TIEMPO.fps < 40 && GFX.escala <= 0.5) {
         TIEMPO.bajos = (TIEMPO.bajos || 0) + 1;

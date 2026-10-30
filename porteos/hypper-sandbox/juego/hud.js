@@ -41,7 +41,7 @@ const HUD_TACTIL = [
   // en un vehículo
   ['#bgas', 1, 0, -122, 153, 110], ['#bfreno', 1, 0, -287.6, 153, 110], ['#bizq', 0, 0, 179, 142, 103], ['#bder', 0, 0, 361, 142, 103], ['#bmanual', 1, 0.5, -107, 0.4, 96.4], ['#bbajar', 0, 0.5, 42, 0, 71],
 ];
-const HUD = { k: 0, w: 0, h: 0, arma: '', veh: null, usar: null };
+const HUD = { k: 0, w: 0, h: 0, arma: '', veh: null, usar: null, tac: null, n: -1, c: 0 };
 function hudIniciar() {
   const t = $('tactil'); if (!t) return;
   // botones que agrega esta versión: borrar lo que apuntás y los del auto
@@ -62,7 +62,8 @@ function hudIniciar() {
 // la ubicación de cada botón (en el celular), escalada como el CanvasScaler del juego
 function hudDisponer() {
   const W = VW(), H = VH(), k = Math.sqrt((W / 1280) * (H / 720)); HUD.k = k; HUD.w = W; HUD.h = H;
-  const tactil = document.body.classList.contains('tactil');
+  const tactil = document.body.classList.contains('tactil'); HUD.tac = tactil;
+  HUD.n = HUD_TACTIL.reduce((a, r) => a + (document.querySelector(r[0]) ? 1 : 0), 0);
   for (const [sel, ax, ay, x, y, s] of HUD_TACTIL) {
     const e = document.querySelector(sel); if (!e) continue;
     if (!tactil && !e.classList.contains('bt-t')) { e.style.left = e.style.top = e.style.width = e.style.height = ''; continue; }
@@ -71,9 +72,12 @@ function hudDisponer() {
   }
 }
 // cada cuadro (sólo si cambia algo): qué botones se ven según el arma, si hay algo para usar y si vas en un vehículo
+// (el modo táctil se prende con el primer toque, y los botones MOD y micrófono aparecen después: cuando cambia algo de eso
+// o el tamaño de la pantalla, se vuelven a ubicar; si no, quedaban todos amontonados en la esquina)
 function hudPaso() {
-  if (!document.body.classList.contains('tactil')) return;
-  if (HUD.w !== VW() || HUD.h !== VH()) hudDisponer();
+  const tactil = document.body.classList.contains('tactil');
+  if (tactil !== HUD.tac || HUD.w !== VW() || HUD.h !== VH() || (++HUD.c % 15 === 0 && HUD_TACTIL.reduce((a, r) => a + (document.querySelector(r[0]) ? 1 : 0), 0) !== HUD.n)) hudDisponer();
+  if (!tactil) return;
   const arma = ARM.lista[ARM.i] || '', veh = !!JUG.vehiculo, usar = !!($('usarTxt').textContent || (!veh && entidadCerca()));
   if (arma !== HUD.arma || veh !== HUD.veh || usar !== HUD.usar) {
     HUD.arma = arma; HUD.veh = veh; HUD.usar = usar;

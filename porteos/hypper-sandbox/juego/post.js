@@ -176,14 +176,14 @@ function postPreparar() {
   else { PO.rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, PO.rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h); }
   PO.fb = rtFb(PO.col, PO.prof, PO.rb);
   if (!PO.fb) { postLiberar(); return false; }
-  const w2 = Math.max(1, w >> 1), h2 = Math.max(1, h >> 1);
-  if (GFX.ao && R.depthTex) PO.ao = [rt(w2, h2, ...F.r8, gl.LINEAR), rt(w2, h2, ...F.r8, gl.LINEAR)];
+  const w2 = Math.max(1, w >> 1), h2 = Math.max(1, h >> 1), densa = postDensa(), wa = densa ? Math.max(1, w >> 2) : w2, ha = densa ? Math.max(1, h >> 2) : h2;
+  if (GFX.ao && R.depthTex) PO.ao = [rt(wa, ha, ...F.r8, gl.LINEAR), rt(wa, ha, ...F.r8, gl.LINEAR)];
   if (GFX.bloom && hdr) {
     let bw = w2, bh = h2; const n = GFX.bloom >= 2 ? 6 : 5;
     for (let i = 0; i < n && bw >= 4 && bh >= 4; i++) { PO.bl.push(rt(bw, bh, ...F.hdr, gl.LINEAR)); bw >>= 1; bh >>= 1; }
   }
   if (GFX.rayos && hdr && R.depthTex) { const w4 = Math.max(1, w >> 2), h4 = Math.max(1, h >> 2); PO.ray = [rt(w4, h4, ...F.hdr, gl.LINEAR), rt(w4, h4, ...F.hdr, gl.LINEAR)]; }
-  if (GFX.fxaa) PO.ldr = rt(w, h, ...F.ldr, gl.LINEAR);
+  if (GFX.fxaa && !densa) PO.ldr = rt(w, h, ...F.ldr, gl.LINEAR);
   if (!PO.p.final) {
     const mk = (fs, d) => shader(VS_PANT, fs, d);
     PO.p.ssao8 = mk(FS_SSAO, ['NMUES=8']); PO.p.ssao16 = mk(FS_SSAO, ['NMUES=14']); PO.p.aoblur = mk(FS_AOBLUR);
@@ -192,7 +192,10 @@ function postPreparar() {
   }
   PO.ok = true; return true;
 }
-function postCfg() { return [GFX.hdr, GFX.ao, GFX.bloom, GFX.rayos, GFX.fxaa].join(','); }
+// densidad: puntos del lienzo por punto de la pantalla. Con 1,5 o más (celulares, pantallas retina) los efectos van a
+// la resolución que se nota: la oclusión a un cuarto y sin FXAA (los bordes ya no se ven serruchados)
+const postDensa = () => R.cv.width / Math.max(1, VW()) >= 1.5;
+function postCfg() { return [GFX.hdr, GFX.ao, GFX.bloom, GFX.rayos, GFX.fxaa, postDensa() ? 1 : 0].join(','); }
 function pasadaPant(P, fb, w, h) {
   const gl = R.gl; gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.viewport(0, 0, w, h);
   gl.useProgram(P.p); R.progAct = P; gl.bindVertexArray(R.quad); gl.drawArrays(gl.TRIANGLES, 0, 3);

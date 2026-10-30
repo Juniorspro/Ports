@@ -207,25 +207,32 @@ float sombraCasc(mat4 M, vec4 k, vec4 r, vec3 n, float nl, vec3 dx, vec3 dy) {
   ov = rot * vec2(0.14383161, -0.1410079) * rad; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
   return s / 16.0;
 #elif PCF == 9 && defined(GL1)
-  // 3x3 texeles con filtro bilineal (lo mismo que 9 muestras de la placa) leyendo 4x4 texeles una sola vez
-  vec2 t = clamp(c.xy, r.xy, r.zw) * uSMtam - 0.5, fr = fract(t), b0 = (floor(t) - 0.5) / uSMtam; float e = 1.0 / uSMtam, s = 0.0;
-  for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) {
-    vec2 q = b0 + vec2(float(i), float(j)) * e;
-    float w = (i == 0 ? 1.0 - fr.x : i == 3 ? fr.x : 1.0) * (j == 0 ? 1.0 - fr.y : j == 3 ? fr.y : 1.0);
-    s += w * step(z0 + dot(dz, q - c.xy), smRaw(clamp(q, r.xy, r.zw)));
-  }
-  return s / 9.0;
+  // 3x3 texeles con filtro bilineal (lo mismo que 9 muestras de la placa) leyendo 4x4 texeles una sola vez. Primero
+  // 8 de los 16 (las esquinas y los 4 del medio): si todos dicen luz o todos sombra (casi todos los píxeles) ése es el
+  // resultado; si no (un borde), se leen los otros 8 y se hace el filtro entero
+  vec2 t = clamp(c.xy, r.xy, r.zw) * uSMtam - 0.5, fr = fract(t), b0 = (floor(t) - 0.5) / uSMtam; float e = 1.0 / uSMtam;
+#define SMQ(i, j) step(z0 + dot(dz, b0 + vec2(i, j) * e - c.xy), smRaw(clamp(b0 + vec2(i, j) * e, r.xy, r.zw)))
+  float q00 = SMQ(0.0, 0.0), q30 = SMQ(3.0, 0.0), q03 = SMQ(0.0, 3.0), q33 = SMQ(3.0, 3.0), q11 = SMQ(1.0, 1.0), q21 = SMQ(2.0, 1.0), q12 = SMQ(1.0, 2.0), q22 = SMQ(2.0, 2.0);
+  float s8 = q00 + q30 + q03 + q33 + q11 + q21 + q12 + q22;
+  if (s8 < 0.5 || s8 > 7.5) return s8 * 0.125;
+  float q10 = SMQ(1.0, 0.0), q20 = SMQ(2.0, 0.0), q01 = SMQ(0.0, 1.0), q31 = SMQ(3.0, 1.0), q02 = SMQ(0.0, 2.0), q32 = SMQ(3.0, 2.0), q13 = SMQ(1.0, 3.0), q23 = SMQ(2.0, 3.0);
+  vec4 wx = vec4(1.0 - fr.x, 1.0, 1.0, fr.x), wy = vec4(1.0 - fr.y, 1.0, 1.0, fr.y);
+  return (wy.x * dot(wx, vec4(q00, q10, q20, q30)) + wy.y * dot(wx, vec4(q01, q11, q21, q31)) + wy.z * dot(wx, vec4(q02, q12, q22, q32)) + wy.w * dot(wx, vec4(q03, q13, q23, q33))) / 9.0;
 #elif PCF == 9
-  float e = k.z * 1.25, s = 0.0;
-  ov = vec2(0.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 2.0;
-  ov = vec2(-1.0, -1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
-  ov = vec2(0.0, -1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
-  ov = vec2(1.0, -1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
-  ov = vec2(-1.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
-  ov = vec2(1.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
-  ov = vec2(-1.0, 1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
-  ov = vec2(0.0, 1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 1.0;
-  ov = vec2(1.0, 1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r) * 0.5;
+  // con la comparación de la placa: primero el centro y las 4 diagonales; si coinciden, listo; si no, las otras 4
+  float e = k.z * 1.25, s = 0.0, s5;
+  ov = vec2(0.0, 0.0) * e; float m0 = smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(-1.0, -1.0) * e; float m1 = smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(1.0, -1.0) * e; float m2 = smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(-1.0, 1.0) * e; float m3 = smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(1.0, 1.0) * e; float m4 = smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  s5 = m0 + m1 + m2 + m3 + m4;
+  if (s5 < 0.001 || s5 > 4.999) return s5 * 0.2;
+  s = m0 * 2.0 + (m1 + m2 + m3 + m4) * 0.5;
+  ov = vec2(0.0, -1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(-1.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(1.0, 0.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
+  ov = vec2(0.0, 1.0) * e; s += smTap(c.xy + ov, z0 + dot(dz, ov), r);
   return s / 8.0;
 #else
   return smTap(c.xy, z0, r);

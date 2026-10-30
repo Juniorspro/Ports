@@ -158,6 +158,12 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   (con oasis) y Luna (cráteres, gravedad baja, cielo negro sin nubes ni brillo de aire). Las texturas base son imágenes
   generadas, vueltas sin costura y llevadas al color de cada mapa; las líneas de la calle, las juntas y las ventanas se
   dibujan encima. Cada triángulo del terreno toma pasto, arena, tierra o roca según altura y pendiente.
+- **Rendimiento para jugar en alto**: resolución dinámica en todas las calidades (también las elegidas a mano; se
+  apaga en Ajustes): con menos de ~48 cuadros baja la resolución interna antes que los efectos (hasta el 60 % de la
+  elegida) y la vuelve a subir cuando sobra, midiendo en tiempo real. Tope de píxeles por calidad (pantallas enormes o
+  muy densas). En pantallas densas (1,5 puntos del lienzo por punto o más) la oclusión ambiental va a un cuarto de
+  resolución y sin FXAA (ya no se ven serruchos). Sombras suaves con atajo: primero la mitad de las muestras y, si
+  todas dan luz o todas sombra, listo (el filtro entero sólo en los bordes). Los celulares de gama alta arrancan en alto.
 - **Mega rampa**: la caída de arriba es una parábola (la trayectoria de un auto que sale a ~30 m/s: el que llega más
   lento baja apoyado), recta a 52°, curva de abajo amplia (~3 g a 50 m/s), recta y salto final. Los autos chocan con
   los triángulos de las formas propias sólo vértice contra cara con la normal de la cara (`hullTri` en `fisica.js`):

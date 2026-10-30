@@ -29,6 +29,8 @@ function perfilInicial() {
   gpu = (Q.get('gpu') || gpu || '').toLowerCase();
   if (/mali-[gt]?[4-7]\d|adreno \(tm\) [3-5]\d\d|powervr|sgx|mali-4|adreno 30/.test(gpu) || mem <= 2 || nuc <= 2) return 'patata';
   if (COARSE && (mem <= 4 || /adreno \(tm\) 6[0-2]\d|mali-g5/.test(gpu))) return 'bajo';
+  // celulares de gama alta (placas recientes): alto, con la resolución dinámica cuidando los cuadros
+  if (COARSE && mem >= 6 && nuc >= 8 && /adreno \(tm\) (7[3-9]\d|8\d\d)|mali-g(7[1-9]|[89]\d\d)|immortalis|xclipse|apple gpu/.test(gpu)) return 'alto';
   if (COARSE) return 'medio';
   if (/rtx|radeon rx [5-9]\d{3}|rx [67]\d{3}|apple m\d|gtx 1[06-9]\d|gtx 16|arc\(tm\) a|arc a\d/.test(gpu) && nuc >= 6) return 'ultra';
   return 'alto';
@@ -71,7 +73,9 @@ function aplicarGfx() {
   redimensionar();
 }
 function redimensionar() {
-  const dpr = Math.min(devicePixelRatio || 1, 2), w = VW(), h = VH(), k = dpr * GFX.escala;
+  // (con tope de píxeles por calidad: en pantallas enormes o muy densas no se dibujan más puntos de los que se notan)
+  const dpr = Math.min(devicePixelRatio || 1, 2), w = VW(), h = VH(), tope = { patata: 0.5e6, bajo: 0.9e6, medio: 1.4e6, alto: 2.2e6, ultra: 3.7e6 }[GFX.nombre] || 2.2e6;
+  const k = Math.min(dpr * GFX.escala, Math.sqrt(tope / Math.max(1, w * h)));
   R.cv.width = Math.max(160, Math.round(w * k)); R.cv.height = Math.max(120, Math.round(h * k));
 }
 addEventListener('resize', () => R.cv && redimensionar());
@@ -208,13 +212,21 @@ function cuadro(ahora) {
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso();
   // fps y resolución automática
-  TIEMPO.cuadros++; TIEMPO.medT += dt; TIEMPO.ms += performance.now() - t0;
+  // (en tiempo real: con muy pocos cuadros o con el mod de cámara lenta el tiempo del juego no sirve para medir)
+  const ahoraR = performance.now(); if (!TIEMPO.medR) TIEMPO.medR = ahoraR;
+  TIEMPO.cuadros++; TIEMPO.medT = (ahoraR - TIEMPO.medR) / 1000; TIEMPO.ms += ahoraR - t0;
   if (TIEMPO.medT >= 1) {
-    TIEMPO.fps = TIEMPO.cuadros / TIEMPO.medT; const ms = TIEMPO.ms / TIEMPO.cuadros; TIEMPO.msProm = ms;
+    TIEMPO.fps = TIEMPO.cuadros / TIEMPO.medT; const ms = TIEMPO.ms / TIEMPO.cuadros; TIEMPO.msProm = ms; TIEMPO.medR = ahoraR;
     $('fps').textContent = PREFS.fps ? `${Math.round(TIEMPO.fps)} fps` : '';
+    // resolución dinámica en todas las calidades (también las elegidas a mano): si no llega a ~50 cuadros baja la
+    // resolución interna antes que los efectos, y la vuelve a subir cuando sobra; en automático, además, si con la
+    // resolución mínima igual no alcanza baja una calidad entera
+    const din = GFX.auto || PREFS.resDin !== false, piso = GFX.auto ? 0.5 : Math.max(0.5, GFX.escalaMax * 0.6);
+    if (din && JUEGO.estado === 'juego' && !UI.abierto && !TEST) {
+      if (TIEMPO.fps < 48 && GFX.escala > piso) { GFX.escala = Math.max(piso, GFX.escala - 0.08); redimensionar(); TIEMPO.bajos = 0; }
+      else if (TIEMPO.fps > 57 && ms < 9 && GFX.escala < GFX.escalaMax) { GFX.escala = Math.min(GFX.escalaMax, GFX.escala + 0.04); redimensionar(); }
+    }
     if (GFX.auto && JUEGO.estado === 'juego' && !UI.abierto && !TEST) {
-      if (TIEMPO.fps < 48 && GFX.escala > 0.5) { GFX.escala = Math.max(0.5, GFX.escala - 0.08); redimensionar(); TIEMPO.bajos = 0; }
-      else if (TIEMPO.fps > 58 && ms < 9 && GFX.escala < GFX.escalaMax) { GFX.escala = Math.min(GFX.escalaMax, GFX.escala + 0.04); redimensionar(); }
       // ya en la resolución mínima y sigue lento: bajar una calidad entera (y no volver a subir en esta partida)
       if (TIEMPO.fps < 40 && GFX.escala <= 0.5) {
         TIEMPO.bajos = (TIEMPO.bajos || 0) + 1;
