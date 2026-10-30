@@ -85,6 +85,7 @@ function camaraActualizar(dt) {
   if (JUEGO.estado === 'principal' && typeof lobbyCamara === 'function') { lobbyCamara(CAM); CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); return; }
   jugadorCamara(CAM);
   if (JUEGO.estado === 'juego') cicCamara(CAM); // (Cíclope: la cinemática y la cámara de la definitiva)
+  if (JUEGO.estado === 'juego') nocheCamara(CAM, dt); // (la pizzería: mirando una cámara de seguridad)
   if (EDA.on) edaCamara(CAM); // (editor de animaciones: alrededor del muñeco o la cámara grabada)
   if (DBG.cam) { CAM.pos.copy(DBG.cam.p); CAM.q.copy(DBG.cam.q); } // (pruebas: mirar desde otro lado)
   if (CAM.temblor > 0) { CAM.temblor = Math.max(0, CAM.temblor - dt * 1.5); const k = CAM.temblor * 0.03; CAM.q.mul(Quat.euler((Math.random() - 0.5) * k, (Math.random() - 0.5) * k)); }
@@ -112,7 +113,7 @@ function empezarPartida(mapa) {
   JUEGO.estado = 'juego'; cerrarPaneles(); modMenuBoton();
   if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo();
   if (typeof redEntrar === 'function') redEntrar(mapa);
-  aviso(mapa, 2.5);
+  aviso(typeof mapaNom === 'function' ? mapaNom(mapa) : mapa, 2.5);
   if (typeof MENU !== 'undefined' && MENU.cargarGuardado) { MENU.cargarGuardado = false; cargarConstruccion(); }
 }
 function irMenuPrincipal() {
@@ -148,6 +149,8 @@ function atenderPulsos() {
     if (UI.abierto === 'eda') { if (k === 'pausa') edaAccion('salir'); continue; } // (en el editor de animaciones, sólo salir)
     if (k === 'pausa') { if (UI.abierto) cerrarPaneles(); else abrirPausa(); continue; }
     if (k === 'cerrar') { cerrarPaneles(); continue; }
+    if (k === 'fncam') { nocheTablet(); continue; } // (la pizzería: cámaras y linterna)
+    if (k === 'linterna') { nocheLinterna(); continue; }
     if (k === 'modmenu') { if (UI.abierto === 'modm') modMenuCerrar(); else if (!UI.abierto) modMenuAbrir(); continue; }
     if (k === 'servmods') { if (UI.abierto === 'sm') smCerrar(); else if (!UI.abierto) smAbrir(); continue; }
     if (k === 'menu') { if (UI.abierto === 'spawn') cerrarPaneles(); else { cerrarPaneles(); abrirSpawn(); } continue; }
@@ -203,7 +206,7 @@ function cuadro(ahora) {
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
     modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt); smPaso(dt); modsVisualPaso(dt);
     if (typeof redPaso === 'function') redPaso(dt);
-    cicPaso(dt); verPaso(dt); edaPaso(dt);
+    cicPaso(dt); verPaso(dt); edaPaso(dt); nochePaso(dt);
     diaPaso(dt); hostPaso();
   }
   efectosPaso(dt);
@@ -279,7 +282,7 @@ function dibujar() {
   if (typeof dibujarPersonas === 'function') dibujarPersonas();
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();
-  if (JUEGO.estado === 'juego') { cicDibujar(); verDibujar(); }
+  if (JUEGO.estado === 'juego') { cicDibujar(); verDibujar(); nocheDibujar(); }
   dibujarProyectiles();
   lucesJuntar(); lucesPreparar();
   if (JUEGO.estado === 'juego' && R.sombraOn) {

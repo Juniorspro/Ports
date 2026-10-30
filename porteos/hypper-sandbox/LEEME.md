@@ -259,6 +259,31 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   (con oasis) y Luna (cráteres, gravedad baja, cielo negro sin nubes ni brillo de aire). Las texturas base son imágenes
   generadas, vueltas sin costura y llevadas al color de cada mapa; las líneas de la calle, las juntas y las ventanas se
   dibujan encima. Cada triángulo del terreno toma pasto, arena, tierra o roca según altura y pendiente.
+- **Pizzería de Freddy (la noche de FNAF 1)**, `RB_Pizzeria`, con server oficial y elegible al crear uno. Sobrevivir de
+  las 12 a las 6 (70 s por hora) en la oficina: puertas y luces con sus botones (E), que gastan energía (la barra de uso
+  como en FNAF); si se acaba, se apaga todo, las puertas se abren y viene Freddy con la cajita de música. Freddy, Bonnie,
+  Chica y Foxy salen del escenario y de Pirate Cove y vienen por los pasillos hasta las esquinas de las puertas (cada uno
+  prueba moverse cada 3 a 5 s según su nivel, que sube por noche y a las 2, 3 y 4); con la puerta cerrada se vuelven
+  (Foxy golpea y te saca energía), con la abierta entran y te agarran. Fuera de la oficina persiguen al que ven; Freddy
+  no se mueve si alguien lo mira. Cámaras de seguridad (G o el botón: la vista salta a cada una, con estática y el
+  plano), linterna en primera persona (L o el botón; la de los demás también se ve), sustos en video (si el navegador
+  no puede con el video, el animatrónico en 3D te salta encima), llamada de la primera noche, 6 AM con campanas y la
+  noche siguiente más difícil. En una sala la noche la maneja uno solo (el de id más chico; si se va, sigue el próximo
+  desde donde estaba) y la manda cuatro veces por segundo; los botones se le piden por la red. El agarrado mira las
+  cámaras hasta las 6 y se pierde cuando agarran a todos. `juego/noche.js`. Armado (lo extraído queda fuera del repo,
+  `CREDITOS.md` dice de dónde sale cada cosa):
+  ```sh
+  # el mapa y los animatrónicos (con srctools, pyfqmr y scipy): PAQUETE_NUEVO = PAQUETE + la pizzería
+  python -I herramientas/pizzeria.py PAQUETE PAQUETE_NUEVO fnaf1customfedy.bsp CARPETA_PACK_HW
+  # sonidos y sustos (de los .ogg/.webm sacados de FNAF In Real Time con UnityPy, y los .wav del pack)
+  python3 -I herramientas/pizzeria_medios.py PAQUETE_NUEVO OGG_IRT VIDEO_IRT SONIDOS_HW
+  ```
+  `herramientas/source_mdl.py` lee los modelos de Source (.mdl/.vvd/.vtx: huesos, mallas, secuencias y las
+  animaciones comprimidas). El mapa pasa de Source al juego con (x, y, z) → (y, z, x) en metros (los dos de mano
+  derecha: si no, los carteles quedan al revés); los props muy detallados se simplifican, las texturas repetidas van una
+  vez y las que el mapa no trae son un color parecido. Los animatrónicos son mallas con piel (sus huesos, a lo sumo 56 con
+  peso) y sus clips en float16; el camino que recorren está validado contra paredes y muebles. `pruebas/noche.mjs`
+  (puertas que chocan, botones, cámaras, linterna, IA, susto, apagón, 6 AM) y `pruebas/red_noche.mjs` (dos jugadores).
 - **Rendimiento para jugar en alto**: resolución dinámica en todas las calidades (también las elegidas a mano; se
   apaga en Ajustes): con menos de ~48 cuadros baja la resolución interna antes que los efectos (hasta el 60 % de la
   elegida) y la vuelve a subir cuando sobra, midiendo en tiempo real. Tope de píxeles por calidad (pantallas enormes o

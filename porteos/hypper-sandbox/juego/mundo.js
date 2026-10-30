@@ -5,7 +5,7 @@
 const MAPAS = ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space'];
 const MAPA_ICONO = { Desert: 'Desert', DesertV2: 'desert 1', FlatGrass: 'flatgrass', City: 'city', Base: 'base', BaseV2: 'basev2', Mars: 'Mars', Space: 'Space' };
 // los mapas propios de RezoBox (herramientas/mapas_rb.py): se suman a los del juego, que siguen todos
-const MAPAS_RB = ['RB_Llanura', 'RB_Colinas', 'RB_Isla', 'RB_Ciudad', 'RB_Desierto', 'RB_Luna'];
+const MAPAS_RB = ['RB_Llanura', 'RB_Colinas', 'RB_Isla', 'RB_Ciudad', 'RB_Desierto', 'RB_Luna', 'RB_Pizzeria'];
 for (const m of MAPAS_RB) MAPA_ICONO[m] = 'mapa_' + m;
 const mapaValido = (m) => MAPAS_RB.includes(m) || MAPAS.includes(m);
 const MUNDO = { nombre: '', modelos: [], T: null, TN: null, nt: 0, cajas: [], celda: 6, grilla: new Map(), triCuerpo: [], marca: 1,
@@ -82,7 +82,7 @@ function cargarMapa(nombre) {
   // la estación espacial: el casco taparía el sol adentro (en el juego no había sombras): luz pareja y sin sombras del sol
   if (nombre === 'Space') { R.ambS = [0.5, 0.5, 0.56]; R.ambG = [0.34, 0.34, 0.38]; }
   if (aj.ambRB) { R.ambS = aj.ambRB[0].slice(); R.ambG = aj.ambRB[1].slice(); } // (luz de relleno propia: en la Luna el cielo negro no ilumina)
-  MUNDO.sinSombra = nombre === 'Space'; MUNDO.espacio = nombre === 'Space' || !!aj.espacio;
+  MUNDO.sinSombra = nombre === 'Space' || !!aj.sinSombra; MUNDO.espacio = nombre === 'Space' || !!aj.espacio;
   const lejos = GFX.lejos;
   if (aj.fog && aj.fd > 0) R.niebla = { c: aj.fc.slice(0, 3), a: 0.15 / aj.fd, b: Math.min(lejos, 1.9 / aj.fd) };
   else if (aj.fog && aj.fm === 1 && aj.fe > aj.fs) R.niebla = { c: aj.fc.slice(0, 3), a: aj.fs, b: aj.fe };

@@ -117,7 +117,7 @@ function rbArrastre() {
 // ---------------- entrar a una partida con la pantalla de carga (como al entrar a un server) ----------------
 // el nombre del server y la captura de su mapa; "Recuperando la info del server", "Cargando el mapa" (lo pesado, con
 // la pantalla ya dibujada) y, en un server, "Enviando la info del cliente" hasta que conecta (o 4 s como mucho)
-const FONDO_MAPA = { FlatGrass: 'rb_flatgrass', City: 'rb_city', Desert: 'rb_desert', DesertV2: 'rb_desert', Mars: 'rb_mars' };
+const FONDO_MAPA = { FlatGrass: 'rb_flatgrass', City: 'rb_city', Desert: 'rb_desert', DesertV2: 'rb_desert', Mars: 'rb_mars', RB_Pizzeria: 'rb_pizzeria' };
 const cuadroLibre = () => new Promise((ok) => requestAnimationFrame(() => setTimeout(ok, 0)));
 async function entrarConCarga(titulo, mapa, jugar, red) {
   const C = window.__carga;

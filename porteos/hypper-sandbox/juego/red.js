@@ -224,7 +224,7 @@ function redPaso(dt) {
   redCedidosPaso(dt); salaVivoPaso(dt);
   if (t - LISTA.ultP > 120) presencia();
   if (t - RED.ultE > 0.1) {
-    const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits();
+    const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits() | nocheBits();
     const e = { n: PREFS.nombre, k: J.skinRol || J.skinMod || PREFS.skin, h: PREFS.gorro, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
       e: JUG.cuerpo && JUG.cuerpo.emote || 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0, vr: verRedEstado() };
     const s = JSON.stringify(e);
@@ -387,6 +387,7 @@ function recibirHecho(d) {
   } else if (d.k === 'cic') { cicRed(d);
   } else if (typeof d.k === 'string' && /^ver[dqgawc]$/.test(d.k)) { verRed(d); // (Verity: lo que dice, preguntas, agarre, animación, llamada, crear)
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
+  } else if (d.k === 'fnn' || d.k === 'fnb' || d.k === 'fnx' || d.k === 'fne') { nocheRed(d); // (la noche en la pizzería)
   } else if (d.k === 'dano' && d.to === RED.ID) {
     if (SALA && !SALA.pvp) return;
     danarJugador(num(d.d, 0, 500, 0), null);

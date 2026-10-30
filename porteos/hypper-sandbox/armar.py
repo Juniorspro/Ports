@@ -4,7 +4,7 @@ import re, os, sys, json, base64, gzip
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PK, OUT = sys.argv[1], sys.argv[2]
 ORDEN = ['nucleo', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'armas',
-         'vehiculos', 'herramientas', 'personas', 'humano', 'emotes', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'hud', 'menu', 'idiomas', 'formato', 'idiomas3', 'iconos', 'modapi', 'voz', 'geo', 'entidades', 'pantalla', 'nativos', 'ciclope', 'verity', 'veritycrea', 'animedit', 'creador', 'smods', 'modmenu', 'inicio', 'rbmenus', 'principal']
+         'vehiculos', 'herramientas', 'personas', 'humano', 'emotes', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'hud', 'menu', 'idiomas', 'formato', 'idiomas3', 'iconos', 'modapi', 'voz', 'geo', 'entidades', 'pantalla', 'nativos', 'ciclope', 'verity', 'veritycrea', 'animedit', 'creador', 'smods', 'modmenu', 'noche', 'inicio', 'rbmenus', 'principal']
 # el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")
 FORMATO = re.sub(r'(?m)^export ', '', open(os.path.join(AQUI, 'tienda', 'formato.js'), encoding='utf-8').read())
 leer = lambda n: FORMATO if n == 'formato' else open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read()
@@ -17,6 +17,10 @@ for f in sorted(os.listdir(os.path.join(PK, 'a'))):
     partes.append(('a:' + f[:-4], open(os.path.join(PK, 'a', f), 'rb').read()))
 for f in sorted(os.listdir(os.path.join(PK, 'i'))):
     partes.append(('i:' + f[:-5], open(os.path.join(PK, 'i', f), 'rb').read()))
+# videos cortos (los sustos de la pizzería): mp4
+VD = os.path.join(PK, 'v')
+for f in sorted(os.listdir(VD)) if os.path.isdir(VD) else []:
+    partes.append(('v:' + f[:-4], open(os.path.join(VD, f), 'rb').read()))
 idx, blob, o = {}, bytearray(), 0
 for k, b in partes:
     idx[k] = [o, len(b)]; blob += b; o += len(b)

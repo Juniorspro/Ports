@@ -94,7 +94,7 @@ function lucesJuntar() {
     if (o.logica && o.logica.tipo === 'Lamp' && o.logica.luz) luzPuntual(vadd(o.b.pos, v3(0, 0.3, 0)), Math.max(4, (o.logica.params.Range || 10)), [3.2, 2.8, 2.0]);
     if (o.veh && typeof vehiculoLuces === 'function') vehiculoLuces(o);
   }
-  entidadesLuces(); cicLuces(); verLuces();
+  entidadesLuces(); cicLuces(); verLuces(); nocheLuces();
 }
 function efectoTraza(a, b) { TRAZAS.push({ a: a.clone(), b: b.clone(), t: 0.06 }); }
 function dibujarTrazas() { for (const t of TRAZAS) linea(t.a, t.b, [1, 0.92, 0.6, 0.8 * t.t / 0.06]); }

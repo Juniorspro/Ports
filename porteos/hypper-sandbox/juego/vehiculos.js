@@ -219,6 +219,7 @@ function avionPaso(V, dt, ent) {
 // ---------------- subir y bajar ----------------
 function usar() {
   if (JUG.vehiculo) { salirVehiculo(); return; }
+  if (nocheUsar()) return; // (botón de puerta o de luz de la oficina de la pizzería)
   const h = raycast(CAM.pos, CAM.fwd, 4.5, null);
   if (h && h.body && h.body.ent && entidadUsar(h.body.ent)) return; // radio
   { const e = !h || !h.body || !h.body.obj ? entidadCerca() : null; if (e && entidadUsar(e)) return; } // botón de autos al lado
