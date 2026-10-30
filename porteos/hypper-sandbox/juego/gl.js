@@ -790,12 +790,15 @@ function prepararProg(P) {
   P.marca = R.marca;
   const u = P.u;
   gl.uniformMatrix4fv(u.uVP, false, R.vp);
+  const L = R.lin && R.salida !== 'gam' ? R.lin : R;
+  // niebla y cámara también en los que no usan el sol (los "sin luz": sin esto la niebla quedaba en 0 a 0 y salían del
+  // color de la niebla, negros de noche)
+  if (u.uNie) { gl.uniform3fv(u.uNieC, L.nieC || R.niebla.c); gl.uniform2f(u.uNie, R.niebla.a, R.niebla.b); }
+  if (u.uCam) gl.uniform3f(u.uCam, R.camPos.x, R.camPos.y, R.camPos.z);
   if (u.uSol) {
-    const L = R.lin && R.salida !== 'gam' ? R.lin : R;
     // el arma en la mano no usa el mapa de sombras (se vería granulado tan cerca): la luz del sol según si la cámara está a la sombra
     const kv = R.fase === 'vista' ? (R.solVista === undefined ? 1 : R.solVista) : 1;
     gl.uniform3f(u.uSol, R.sol.x, R.sol.y, R.sol.z); gl.uniform3f(u.uSolC, L.solCol[0] * kv, L.solCol[1] * kv, L.solCol[2] * kv); gl.uniform3fv(u.uAmbS, L.ambS); gl.uniform3fv(u.uAmbG, L.ambG);
-    gl.uniform3fv(u.uNieC, L.nieC || R.niebla.c); gl.uniform2f(u.uNie, R.niebla.a, R.niebla.b); gl.uniform3f(u.uCam, R.camPos.x, R.camPos.y, R.camPos.z);
     if (u.uTop && R.lin) { gl.uniform3fv(u.uTop, R.lin.topG); gl.uniform3fv(u.uMid, R.lin.midG); gl.uniform3fv(u.uBot, R.lin.botG); gl.uniform2fv(u.uExp, R.cielo ? R.cielo.exp : [0.8, 1]); gl.uniform1f(u.uCieloK, R.cieloK || 1); }
     if (u.uExpo) gl.uniform1f(u.uExpo, R.expo);
     if (u.uSMm) { sombrasUniformes(P); if (R.fase === 'vista') gl.uniform1f(u.uSMon, 0); }

@@ -18,6 +18,7 @@ scripts de `herramientas/` lo leen de afuera y va sólo dentro del HTML armado.
 
 Hecho acá (nuestro): el conversor de Source (`source_mdl.py`, `pizzeria.py`), la lógica de la noche, la interfaz, las
 texturas de reemplazo (acero, revoque y colores lisos para lo que el mapa no traía), los muebles de Half-Life 2 que faltaban
-(mesadas, cocinas, heladera, estante, inodoros, escritorio y silla, hechos con cajas), la cortina de Pirate Cove (dos paños
+(mesadas, cocinas, heladera, estante, inodoros, escritorio y silla, reflectores del escenario y apliques, hechos con
+cajas), los carteles y las pantallas de los arcades, la cortina de Pirate Cove (dos paños
 con la tela del mapa), el plano de las cámaras (dibujado del mapa), el armado de los animatrónicos como personajes
 (`skin_fnaf.py`) y sus retratos, el ícono y el fondo de carga (capturas del juego).

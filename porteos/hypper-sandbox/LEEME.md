@@ -294,8 +294,13 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   que se miraba eran caras de espaldas, techos y paredes que no se dibujaban; ahora 0,1 %); vidrios y cortinas, de los dos
   lados y transparentes. Los muebles de Half-Life 2 que el mapa usa y no trae (mesadas, cocinas, heladera, estante,
   inodoros, el escritorio y la silla del cuarto de atrás) están hechos con cajas a la medida de lo que va encima (antes la
-  compu y el microondas flotaban); las manijas giran con sus puertas, los arcades apoyan en el piso y Pirate Cove tiene su
-  cortina de dos paños. Los props muy detallados se simplifican y las texturas que no vinieron son un color parecido. Los
+  compu y el microondas flotaban), igual que los reflectores del escenario y los apliques; las manijas giran con sus
+  puertas, los arcades apoyan en el piso (con carteles y pantallas dibujados acá) y Pirate Cove tiene su cortina de dos
+  paños. Si un material no está en la carpeta que pide el modelo, se busca cerca en el mapa (la textura suelta, con
+  `color` al final, en una carpeta hermana o en la de arriba: así salen las cabezas del cuarto de atrás). Los props muy
+  detallados se simplifican y las texturas que no vinieron de ningún lado son un color parecido. (Arreglado de paso en el
+  motor: los materiales "sin luz" salían del color de la niebla en todos los mapas salvo en ultra, porque la niebla y la
+  cámara se cargaban sólo en los programas que usan el sol.) Los
   animatrónicos son mallas con piel (a lo sumo 56 huesos con peso) y sus clips en float16. Pruebas: `pruebas/noche.mjs`
   (solo: menú, llamada y silenciar, noches 1, 4 y 6, energía, apagón, Game Over y reintentar, progreso, pausa encima, sin
   props), `pruebas/red_noche.mjs` (dos jugadores: quién maneja, sincronía, puertas, linterna, espectador, Game Over y

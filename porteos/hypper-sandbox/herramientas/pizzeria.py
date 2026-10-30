@@ -127,8 +127,38 @@ COLORES = [('hat_blue', (40, 90, 200)), ('hat_red', (200, 40, 40)), ('hat_green'
            ('pizza', (215, 150, 70)), ('monitor', (40, 42, 46)), ('arcade', (34, 30, 52)), ('red', (190, 30, 30)), ('button', (120, 120, 120)),
            ('fan', (70, 74, 80)), ('camera', (60, 62, 66)), ('uv', (60, 62, 66)), ('lamp', (90, 90, 80)), ('shelf', (110, 80, 50)), ('sign', (200, 200, 200))]
 _colores = {}
+# los arcades (sin texturas en el mapa ni en ningún addon): carteles con el nombre, laterales con estrellas y pantallas
+ARCADE = {'freddy': ((70, 42, 26), (240, 190, 60), 'FREDDY'), 'bonnie': ((60, 40, 120), (235, 235, 255), 'BONNIE'), 'foxy': ((150, 40, 30), (250, 210, 70), 'FOXY'), 'chica': ((200, 170, 30), (255, 250, 230), 'CHICA')}
+def tex_arcade(tn):
+    from PIL import ImageDraw, ImageFont
+    quien = next((k for k in ARCADE if k in tn), None)
+    if 'screen' in tn:   # pantalla de tubo: azul oscuro con líneas y un muñequito de píxeles
+        im = Image.new('RGB', (128, 128), (22, 44, 96)); dr = ImageDraw.Draw(im)
+        for y in range(0, 128, 4): dr.line([(0, y), (128, y)], fill=(12, 26, 62))
+        for (x, y, c) in ((56, 40, (230, 190, 60)), (52, 48, (230, 190, 60)), (60, 48, (230, 190, 60)), (56, 56, (120, 80, 40)), (48, 64, (90, 200, 255)), (64, 64, (90, 200, 255))): dr.rectangle([x, y, x + 15, y + 7], fill=c)
+        dr.rectangle([8, 100, 120, 104], fill=(60, 160, 90)); return im, 'unlit'
+    if not quien or not any(x in tn for x in ('banner', 'sides', 'borders')): return None, None
+    fondo, letra, nom = ARCADE[quien]; im = Image.new('RGB', (256, 256), fondo); dr = ImageDraw.Draw(im)
+    rng = np.random.default_rng(sum(tn.encode()))
+    for _ in range(18):   # estrellas
+        x, y, r = rng.integers(0, 256), rng.integers(0, 256), rng.integers(4, 12)
+        dr.polygon([(x + r * math.cos(a) * (1 if i % 2 == 0 else 0.45), y + r * math.sin(a) * (1 if i % 2 == 0 else 0.45)) for i, a in enumerate(np.linspace(-math.pi / 2, 1.5 * math.pi, 11)[:-1])], fill=tuple(min(255, c + 60) for c in fondo))
+    if 'banner' in tn and 'bottom' not in tn:
+        f = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 64 if len(nom) > 4 else 80)
+        w = dr.textlength(nom, font=f); dr.text(((256 - w) / 2 + 3, 92), nom, font=f, fill=(20, 12, 8)); dr.text(((256 - w) / 2, 88), nom, font=f, fill=letra)
+    return im, 'op'
+COLORES_EXACTOS = {'black': (26, 26, 28), 'oldblack': (34, 31, 29), 'white': (222, 222, 216), 'blue': (40, 72, 175), 'green': (50, 150, 60), 'red': (185, 32, 32), 'orange': (215, 115, 40),
+                   'greenborders': (40, 140, 60), 'orangeborders': (225, 120, 30), 'lampblack': (58, 62, 56), 'on': (255, 240, 200)}
 def mat_color(nombre):
-    c = next((col for k, col in COLORES if k in nombre.lower()), (128, 128, 128))
+    tn = nombre.split(' ')[0].lower()
+    im, modo = tex_arcade(tn) if 'arcade' in nombre.lower() else (None, None)
+    if im is not None:
+        if tn not in _colores: _colores[tn] = mat_nuevo('arcade_' + tn, tex_imagen(im, 'arcade_' + tn), modo)
+        return _colores[tn]
+    if tn == 'on':   # (la lamparita de la lámpara de la oficina, prendida)
+        if 'on' not in _colores: _colores['on'] = mat_nuevo('lamparita', tex_imagen(Image.new('RGB', (4, 4), (255, 238, 196)), 'lamparita'), 'unlit')
+        return _colores['on']
+    c = COLORES_EXACTOS.get(tn) or next((col for k, col in COLORES if k in tn), None) or next((col for k, col in COLORES if k in nombre.lower()), (128, 128, 128))
     if c not in _colores:
         _colores[c] = mat_nuevo('color%d_%d_%d' % c, tex_imagen(Image.new('RGB', (4, 4), c), 'color%d_%d_%d' % c), 'op')
     return _colores[c]
@@ -326,6 +356,8 @@ def modelo_estatico(ruta, piel=0):
                 us = np.unique(T); inv = {int(x): i for i, x in enumerate(us)}; v1, n1, u1, t1 = V[us], N[us], U[us], np.vectorize(inv.get)(T)
             b0 = len(VV); VV.extend(v1); NN.extend(n1); UU.extend(u1); Va = np.array(VV)
             por[r] = [x for t in t1 for x in orientar((b0 + int(t[0]), b0 + int(t[1]), b0 + int(t[2])), Va, NN[b0 + int(t[0])] + NN[b0 + int(t[1])] + NN[b0 + int(t[2])])]
+            # (lo que brilla, como la lamparita de la oficina y las pantallas: de los dos lados; algunas venían con las normales para adentro)
+            if M.texturas[M.pieles[0][r] if r < len(M.pieles[0]) else r].lower() in ('on', 'screen'): por[r] = por[r] + [x for i in range(0, len(por[r]), 3) for x in (por[r][i], por[r][i + 2], por[r][i + 1])]
         Va = np.array(VV); mi, _ = malla_bin('FN_' + os.path.basename(base), Va, NN, UU, por)
         _geo[clave] = (mi, ranuras, (Va.min(0), Va.max(0)))
     mi, ranuras, caja = _geo[clave]
@@ -335,10 +367,29 @@ def modelo_estatico(ruta, piel=0):
         for cd in M.carpetas:
             m_ = material_de('materials/' + cd.lower().replace('\\', '/').strip('/') + '/' + tn + '.vmt', 512)
             if m_ is not None: break
+        if m_ is None: m_ = material_vecino(M.carpetas, tn)
         if m_ is None: SIN_TEX.setdefault(os.path.basename(base), set()).add(tn + ' en ' + ','.join(M.carpetas))
         mats.append(m_ if m_ is not None else mat_color(tn + ' ' + base))   # (texturas que no vinieron con el mapa: un color parecido, sin peso)
     _mod[k] = (mi, mats, caja); return _mod[k]
 props = [nodo('FN_Props')]; faltan = {}; camaras = []; SIN_TEX = {}
+def material_vecino(carpetas, tn):
+    """un material que el modelo pide y no está en su carpeta, buscado cerca en el pak (como lo dejó el mapa): la textura
+    suelta en esa carpeta (tal cual o con 'color' al final), el mismo .vmt en una carpeta hermana o la textura en la de
+    arriba (las cabezas del cuarto de atrás venían blancas por esto)"""
+    for cd in carpetas:
+        c = cd.lower().replace('\\', '/').strip('/')
+        if not c: continue
+        for v in (c + '/' + tn, c + '/' + tn + 'color'):
+            tx = textura('materials/' + v + '.vtf', v, 512)
+            if tx: return mat_nuevo(tn, tx[0], 'op')
+        padre = c.rsplit('/', 1)[0]
+        for n in sorted(PAKN):
+            if n.startswith('materials/' + padre + '/') and n.endswith('/' + tn + '.vmt'):
+                m_ = material_de(n, 512)
+                if m_ is not None: return m_
+        tx = textura('materials/' + padre + '/' + tn + '.vtf', padre + '/' + tn, 512)
+        if tx: return mat_nuevo(tn, tx[0], 'op')
+    return None
 # ---------------- muebles de Half-Life 2 que el mapa usa y GMod trae (acá no están): hechos con cajas ----------------
 # Sin ellos lo que tenían arriba flotaba (la compu y el teléfono del cuarto de atrás, el microondas de la cocina). Cada uno
 # se para en el piso que tiene abajo y mide lo que pide lo que va encima (la mesada, 1 m; el escritorio, 0,77 m).
@@ -358,8 +409,8 @@ _mueble_mat = {}
 def mat_mueble(k):
     if k not in _mueble_mat:
         rgb, var, ray = {'acero': ((168, 172, 176), 34, True), 'negro': ((30, 31, 34), 10, False), 'madera': ((92, 62, 40), 22, True), 'porcelana': ((196, 198, 196), 10, False),
-                         'oscuro': ((52, 54, 58), 12, False)}[k]
-        _mueble_mat[k] = mat_nuevo('mueble_' + k, tex_ruido('mueble_' + k, rgb, var, ray), 'op')
+                         'oscuro': ((52, 54, 58), 12, False), 'luz': ((255, 236, 190), 6, False)}[k]
+        _mueble_mat[k] = mat_nuevo('mueble_' + k, tex_ruido('mueble_' + k, rgb, var, ray), 'unlit' if k == 'luz' else 'op')
     return _mueble_mat[k]
 def malla_cajas(nombre, cajas):
     """cajas: (material, (x0, y0, z0), (x1, y1, z1)) → malla con caras por material (UV en metros)"""
@@ -387,13 +438,20 @@ MUEBLES = {
     'props_wasteland/prison_toilet01': lambda: [('acero', (-0.19, 0, -0.22), (0.19, 0.4, 0.22)), ('acero', (-0.22, 0.3, -0.32), (0.22, 0.75, -0.2)), ('negro', (-0.15, 0.4, -0.15), (0.15, 0.405, 0.18))],
     'props_combine/breendesk': lambda: [('madera', (-1.15, 0.73, -0.6), (1.15, 0.77, 0.6)), ('madera', (-1.15, 0, -0.58), (-1.1, 0.73, 0.58)), ('madera', (1.1, 0, -0.58), (1.15, 0.73, 0.58)), ('madera', (-1.1, 0.2, 0.52), (1.1, 0.73, 0.56))],
     'nova/chair_office01': lambda: [('negro', (-0.25, 0.45, -0.25), (0.25, 0.52, 0.25)), ('negro', (-0.23, 0.55, -0.29), (0.23, 1.05, -0.23)), ('oscuro', (-0.03, 0.08, -0.03), (0.03, 0.45, 0.03)), ('oscuro', (-0.3, 0.02, -0.3), (0.3, 0.08, 0.3))],
+    # luces (colgadas o en la pared: van donde las puso el mapa, con su giro; el origen es el del modelo)
+    'props_wasteland/light_spotlight01_lamp': lambda: [('oscuro', (-0.13, -0.13, -0.2), (0.13, 0.13, 0.16)), ('luz', (-0.1, -0.1, 0.16), (0.1, 0.1, 0.17))],
+    'props_wasteland/light_spotlight01_base': lambda: [('oscuro', (-0.04, -0.2, -0.04), (0.04, 0.05, 0.04)), ('oscuro', (-0.16, -0.24, -0.04), (0.16, -0.2, 0.04))],
+    'props_lab/walllight001a': lambda: [('oscuro', (-0.16, -0.06, -0.02), (0.16, 0.06, 0.08)), ('luz', (-0.13, -0.04, 0.08), (0.13, 0.04, 0.09))],
+    'props_c17/light_domelight02_off': lambda: [('porcelana', (-0.2, -0.12, -0.2), (0.2, 0.0, 0.2)), ('oscuro', (-0.23, 0.0, -0.23), (0.23, 0.02, 0.23))],
 }
+COLGADOS = ('light_spotlight01', 'walllight', 'domelight')
 _muebles = {}
 def poner_mueble(clave, origen, ang, nombre):
     if clave not in _muebles: _muebles[clave] = malla_cajas(clave.split('/')[-1], MUEBLES[clave]())
-    mi, mats, (lo, hi) = _muebles[clave]; pe = P(origen); pe[1] = piso_bajo(pe)
-    x = nodo(nombre or clave.split('/')[-1], pe, SM.m2q(R(ang_mat(0, ang[1], 0))), pa=0, m=mi, mt=mats)
-    if 'chair' not in clave: x['col'] = [{'k': 'b', 'c': ((lo + hi) / 2).tolist(), 's': (hi - lo).tolist(), 'tr': 0}]
+    mi, mats, (lo, hi) = _muebles[clave]; pe = P(origen); colgado = any(c in clave for c in COLGADOS)
+    if not colgado: pe[1] = piso_bajo(pe)
+    x = nodo(nombre or clave.split('/')[-1], pe, SM.m2q(R(ang_mat(*ang) if colgado else ang_mat(0, ang[1], 0))), pa=0, m=mi, mt=mats)
+    if 'chair' not in clave and not colgado: x['col'] = [{'k': 'b', 'c': ((lo + hi) / 2).tolist(), 's': (hi - lo).tolist(), 'tr': 0}]
     props.append(x)
 def poner_prop(ruta, origen, ang, esc_=1.0, piel=0, solido=True, nombre=None):
     clave = ruta.lower().removeprefix('models/').removesuffix('.mdl')
