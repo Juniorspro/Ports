@@ -45,25 +45,27 @@ function verInst(dueno) {
     noche: 0, luz: true, voz: null, nav: false, pulso: 0, falsa: 0, burb: null, burbTx: '', burbT0: 0, burbDur: 0, burbHasta: 0, pensando: false, t: TIEMPO.t,
     apl: 0, aplV: 0, anim: '', animT: 0, animT0: 0, suelo: false, piso: null, rueda: false, mira: null, gx: 0, gy: 0, nombre: '' };
 }
-// el modelo: una esfera lisa de muchas caras (brillo de laca y luz propia) y, adelante, un casquete apenas más grande
-// con la cara (textura de un canvas que se redibuja cuando cambia el gesto, la boca, la mirada o el parpadeo). La cara
-// va sin luz y con transparencia; alrededor, un aura suave
+// el modelo: el cuerpo generado con IA a partir de una foto de la original (imagen → malla 3D; herramientas/verity_glb.py
+// lo mete en el paquete como "Verity", con la cara borrada de su textura) o, si el paquete no lo tiene, una esfera lisa
+// hecha acá; adelante, un casquete apenas más grande con la cara (textura de un canvas que se redibuja cuando cambia el
+// gesto, la boca, la mirada o el parpadeo). La cara va sin luz y con transparencia; alrededor, un aura suave
 let VER_G = null;
 function verGeo() {
-  if (VER_G && R.mallas[VER_G.cuerpo] && R.mallas[VER_G.cara]) return VER_G;
+  if (VER_G && (VER_G.pk ? R.mallas[VER_G.lejos] : R.mallas[VER_G.cuerpo]) && R.mallas[VER_G.cara]) return VER_G;
+  const mi = DATA.ms.findIndex((m) => m && m.n === 'Verity'), ma = DATA.mt.findIndex((m) => m && m.n === 'RB_Verity'), pk = mi >= 0 && ma >= 0;
   const B = geoNuevo(), C = geoNuevo(), tri = (M, a, b, c) => {
     const P = M.P, ux = P[b * 3] - P[a * 3], uy = P[b * 3 + 1] - P[a * 3 + 1], uz = P[b * 3 + 2] - P[a * 3 + 2], vx = P[c * 3] - P[a * 3], vy = P[c * 3 + 1] - P[a * 3 + 1], vz = P[c * 3 + 2] - P[a * 3 + 2];
     const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
     if (nx * (P[a * 3] + P[b * 3] + P[c * 3]) + ny * (P[a * 3 + 1] + P[b * 3 + 1] + P[c * 3 + 1]) + nz * (P[a * 3 + 2] + P[b * 3 + 2] + P[c * 3 + 2]) >= 0) M.I.push(a, b, c); else M.I.push(a, c, b);
   };
-  const NA = 44, NB = 28;
+  const NA = pk ? 24 : 44, NB = pk ? 16 : 28; // (con el modelo generado, esta esfera es la de lejos: más liviana)
   for (let i = 0; i <= NB; i++) for (let j = 0; j <= NA; j++) {
     const th = (i / NB) * Math.PI, ph = (j / NA) * 2 * Math.PI, x = Math.sin(th) * Math.cos(ph), y = Math.cos(th), z = Math.sin(th) * Math.sin(ph);
     B.P.push(x, y, z); B.N.push(x, y, z); B.U.push(j / NA, i / NB);
   }
   for (let i = 0; i < NB; i++) for (let j = 0; j < NA; j++) { const a = i * (NA + 1) + j, b = a + NA + 1; if (i > 0) tri(B, a, b, a + 1); if (i < NB - 1) tri(B, a + 1, b, b + 1); }
   // el casquete: hasta 78° del frente (+Z), con la imagen proyectada de frente (lo que se ve mirándola a la cara)
-  const NT = 16, NP = 44, TM = 1.36, k = 1.012, sm = Math.sin(TM);
+  const NT = 16, NP = 44, TM = 1.36, k = (pk ? DATA.ms[mi].rf || 1 : 1) + 0.012, sm = Math.sin(TM);
   C.P.push(0, 0, k); C.N.push(0, 0, 1); C.U.push(0.5, 0.5);
   for (let t = 1; t <= NT; t++) for (let p = 0; p < NP; p++) {
     const th = (t / NT) * TM, ph = (p / NP) * 2 * Math.PI, x = Math.sin(th) * Math.cos(ph), y = Math.sin(th) * Math.sin(ph), z = Math.cos(th);
@@ -71,7 +73,9 @@ function verGeo() {
   }
   for (let p = 0; p < NP; p++) tri(C, 0, 1 + p, 1 + ((p + 1) % NP));
   for (let t = 1; t < NT; t++) for (let p = 0; p < NP; p++) { const a = 1 + (t - 1) * NP + p, b = 1 + (t - 1) * NP + ((p + 1) % NP), c = a + NP, d = b + NP; tri(C, a, c, b); tri(C, b, c, d); }
-  const cuerpo = mallaPropia(B), cara = mallaPropia(C);
+  const cara = mallaPropia(C), cuerpo = mallaPropia(B);
+  // de lejos (más de 12 m) el modelo generado se cambia por la esfera liviana con su mismo amarillo
+  if (pk) { const m = matGL(ma); m.pbr = [0.2, 0, 0.06]; return (VER_G = { pk: true, cuerpo: mi, lejos: cuerpo, mL: matPropio('verLejos', [0.863, 0.639, 0.192], { pbr: [0.2, 0, 0.06] }), cara, mC: ma, mH: verMatHaz() }); }
   return (VER_G = { cuerpo, cara, mC: matPropio('verCuerpo', [1, 0.8, 0.12], { pbr: [0.18, 0, 0.06], em: [0.6, 0.42, 0.04] }), mH: verMatHaz() });
 }
 function verMatHaz() { const id = matPropio('verHaz', [1, 0.85, 0.3], { pbr: [0.5, 0, 0.04] }), m = R.mats[id]; m.blend = true; m.add = true; m.unlit = true; m.sombra = false; m.claveBase = ',,UNLIT,'; m.claveGam = ',,UNLIT'; return id; }
@@ -101,42 +105,51 @@ function verCaraTex(I) {
   }
   return S.mat;
 }
-// la cara (se dibuja en 256×256 y se escala a 512; el borde del círculo es el borde del casquete): ojitos de punto que
-// miran hacia donde mira ella, la boca según el gesto y lo que suena, y los gestos especiales (corazones, espirales,
-// estrellas, dormida)
+// la cara (se dibuja en 256×256 y se escala a 512; el borde del círculo es el borde del casquete), con las medidas de
+// la original (sacadas de la foto de referencia): dos ojos ovalados negros arriba del centro y la sonrisa fina de lado a
+// lado con remates en las puntas; al hablar la sonrisa se abre. Los ojos miran hacia donde mira ella. Más los gestos
+// propios (corazones, estrellas, espirales, dormida, siniestra)
 function verCara(x, I) {
   const W = 256, c = 128, osc = I.emo === 'siniestra' || (I.glitch > 0 && Math.random() < 0.6);
-  const tinta = osc ? '#060203' : '#2b1c04', b = clamp(I.boca, 0, 1), cerr = I.parp > 0.5, gx = I.gx * 9, gy = I.gy * 6, t = TIEMPO.t;
+  const tinta = osc ? '#060203' : '#1a1205', b = clamp(I.boca, 0, 1), cerr = I.parp > 0.5, gx = I.gx * 9, gy = I.gy * 6, t = TIEMPO.t;
   x.clearRect(0, 0, W, W); x.save(); x.lineCap = 'round'; x.lineJoin = 'round';
   if (I.glitch > 0) x.translate((Math.random() - 0.5) * 14, 0);
   x.fillStyle = tinta; x.strokeStyle = tinta;
-  const e = osc ? 'siniestra' : I.emo, ex = (s) => c + s * 30 + gx, ey = c - 16 + gy;
+  const e = osc ? 'siniestra' : I.emo, ex = (s) => c + s * 27 + gx, ey = c - 30 + gy, mx = c + gx * 0.4;
   const ojo = (s, rx, ry, dy) => { x.beginPath(); x.ellipse(ex(s), ey + (dy || 0), rx, cerr ? 1.8 : ry, 0, 0, 7); x.fill(); };
-  const brillito = (s, dy) => { if (cerr || osc) return; x.fillStyle = '#fff'; x.beginPath(); x.arc(ex(s) + 3, ey - 6 + (dy || 0), 3.4, 0, 7); x.fill(); x.fillStyle = tinta; };
-  const arco = (s, abajo) => { x.lineWidth = 7; x.beginPath(); if (abajo) x.arc(ex(s), ey + 4, 10, Math.PI * 1.1, Math.PI * 1.9); else x.arc(ex(s), ey - 6, 10, Math.PI * 0.1, Math.PI * 0.9); x.stroke(); };
+  const arco = (s) => { x.lineWidth = 6.5; x.beginPath(); x.arc(ex(s), ey + 6, 10, Math.PI * 1.1, Math.PI * 1.9); x.stroke(); };
   const corazon = (cx2, cy2, s) => { x.beginPath(); x.moveTo(cx2, cy2 + 6 * s); x.bezierCurveTo(cx2 - 13 * s, cy2 - 3 * s, cx2 - 7 * s, cy2 - 14 * s, cx2, cy2 - 6 * s); x.bezierCurveTo(cx2 + 7 * s, cy2 - 14 * s, cx2 + 13 * s, cy2 - 3 * s, cx2, cy2 + 6 * s); x.fill(); };
   const estrella = (cx2, cy2, r, rot) => { x.beginPath(); for (let i = 0; i < 10; i++) { const a = rot + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r; x.lineTo(cx2 + Math.sin(a) * rr, cy2 - Math.cos(a) * rr); } x.closePath(); x.fill(); };
+  // la sonrisa de la original: un arco fino de lado a lado (k = qué tan abierta: 0 cerrada, 1 riendo) con remates
+  const sonrisa = (ancho, hondo, k) => {
+    const y0 = c + 6, L = mx - ancho, Rr = mx + ancho, cy = y0 + hondo * 2;
+    if (k > 0.04) {
+      x.beginPath(); x.moveTo(L, y0); x.quadraticCurveTo(mx, cy, Rr, y0); x.quadraticCurveTo(mx, cy + k * 62, L, y0); x.fill();
+      if (k > 0.25) { x.save(); x.clip(); x.fillStyle = '#b8352c'; x.beginPath(); x.ellipse(mx, y0 + hondo + k * 30, ancho * 0.42, 6 + k * 12, 0, 0, 7); x.fill(); x.restore(); }
+    }
+    x.lineWidth = 6; x.beginPath(); x.moveTo(L, y0); x.quadraticCurveTo(mx, cy, Rr, y0); x.stroke();
+    x.lineWidth = 5; for (const s of [-1, 1]) { const px = mx + s * ancho; x.beginPath(); x.moveTo(px + s * 5, y0 - 7); x.quadraticCurveTo(px + s * 1, y0 + 1, px - s * 5, y0 + 5); x.stroke(); }
+  };
   // ojos
-  if (e === 'risa') { arco(-1, true); arco(1, true); }
-  else if (e === 'dormida') { x.lineWidth = 6; for (const s of [-1, 1]) { x.beginPath(); x.arc(ex(s), ey - 4, 10, Math.PI * 0.15, Math.PI * 0.85); x.stroke(); } }
-  else if (e === 'picara') { ojo(-1, 9, 15); brillito(-1); x.lineWidth = 6.5; x.beginPath(); x.moveTo(ex(1) - 10, ey); x.lineTo(ex(1) + 10, ey - 2); x.stroke(); }
-  else if (e === 'enamorada') { x.fillStyle = '#e8304f'; const s = 1.15 + 0.12 * Math.sin(t * 9); corazon(ex(-1), ey + 2, s); corazon(ex(1), ey + 2, s); x.fillStyle = tinta; }
+  if (e === 'risa') { arco(-1); arco(1); }
+  else if (e === 'dormida') { x.lineWidth = 6; for (const s of [-1, 1]) { x.beginPath(); x.arc(ex(s), ey - 2, 10, Math.PI * 0.15, Math.PI * 0.85); x.stroke(); } }
+  else if (e === 'picara') { ojo(-1, 9, 14); x.lineWidth = 6.5; x.beginPath(); x.moveTo(ex(1) - 10, ey); x.lineTo(ex(1) + 10, ey - 2); x.stroke(); }
+  else if (e === 'enamorada') { x.fillStyle = '#d8203f'; const s = 1.15 + 0.12 * Math.sin(t * 9); corazon(ex(-1), ey + 2, s); corazon(ex(1), ey + 2, s); x.fillStyle = tinta; }
   else if (e === 'emocionada') { const r = 13 + Math.sin(t * 10) * 1.5; estrella(ex(-1), ey, r, t * 2); estrella(ex(1), ey, r, -t * 2); }
   else if (e === 'mareada') { x.lineWidth = 3.6; for (const s of [-1, 1]) { x.beginPath(); for (let i = 0; i < 40; i++) { const a = i * 0.42 + t * 7 * s, r = i * 0.36; x.lineTo(ex(s) + Math.cos(a) * r, ey + Math.sin(a) * r); } x.stroke(); } }
-  else if (e === 'sorpresa' || e === 'miedo') { ojo(-1, 11, 17, -2); ojo(1, 11, 17, -2); brillito(-1, -2); brillito(1, -2); }
+  else if (e === 'sorpresa' || e === 'miedo') { ojo(-1, 10.5, 17, -2); ojo(1, 10.5, 17, -2); }
   else if (e === 'siniestra') {
     // ojos huecos negros con un puntito, cada tanto se estiran
     const k = 1 + (I.glitch > 0 ? Math.random() * 0.5 : 0);
-    x.beginPath(); x.ellipse(c - 30, c - 16, 13 * k, 19, -0.15, 0, 7); x.ellipse(c + 30, c - 16, 13 * k, 19, 0.15, 0, 7); x.fill();
-    x.fillStyle = 'rgba(255,240,230,.95)'; x.beginPath(); x.arc(c - 28, c - 14, 2.4, 0, 7); x.arc(c + 28, c - 14, 2.4, 0, 7); x.fill(); x.fillStyle = tinta;
-  } else { ojo(-1, 9, 15); ojo(1, 9, 15); brillito(-1); brillito(1); }
+    x.beginPath(); x.ellipse(c - 28, c - 26, 13 * k, 19, -0.15, 0, 7); x.ellipse(c + 28, c - 26, 13 * k, 19, 0.15, 0, 7); x.fill();
+    x.fillStyle = 'rgba(255,240,230,.95)'; x.beginPath(); x.arc(c - 26, c - 24, 2.4, 0, 7); x.arc(c + 26, c - 24, 2.4, 0, 7); x.fill(); x.fillStyle = tinta;
+  } else { ojo(-1, 9, 14); ojo(1, 9, 14); }
   // cejas
-  x.lineWidth = 5;
-  if (e === 'enojada') { x.beginPath(); x.moveTo(c - 44, c - 42); x.lineTo(c - 18, c - 33); x.moveTo(c + 44, c - 42); x.lineTo(c + 18, c - 33); x.stroke(); }
-  if (e === 'triste' || e === 'miedo') { x.beginPath(); x.moveTo(c - 42, c - 34); x.lineTo(c - 20, c - 42); x.moveTo(c + 42, c - 34); x.lineTo(c + 20, c - 42); x.stroke(); }
-  if (e === 'pensando') { x.beginPath(); x.moveTo(c + 18, c - 44); x.lineTo(c + 42, c - 40); x.stroke(); }
+  x.lineWidth = 5; const yc = ey - 24;
+  if (e === 'enojada') { x.beginPath(); x.moveTo(ex(-1) - 14, yc - 6); x.lineTo(ex(-1) + 10, yc + 4); x.moveTo(ex(1) + 14, yc - 6); x.lineTo(ex(1) - 10, yc + 4); x.stroke(); }
+  if (e === 'triste' || e === 'miedo') { x.beginPath(); x.moveTo(ex(-1) - 12, yc + 4); x.lineTo(ex(-1) + 10, yc - 4); x.moveTo(ex(1) + 12, yc + 4); x.lineTo(ex(1) - 10, yc - 4); x.stroke(); }
+  if (e === 'pensando') { x.beginPath(); x.moveTo(ex(1) - 10, yc - 2); x.lineTo(ex(1) + 14, yc + 2); x.stroke(); }
   // boca
-  const ab = 3 + b * 22, mx = c + gx * 0.4;
   x.lineWidth = 6;
   if (e === 'siniestra') {
     // sonrisa enorme de lado a lado, con dientes finos arriba y abajo
@@ -146,24 +159,18 @@ function verCara(x, I) {
     for (let i = 0; i < 8; i++) { const t0 = 0.12 + i * 0.095, t1 = t0 + 0.095, [x0, y0] = lab(t0, ca), [x1, y1] = lab(t1, ca), [xm] = lab((t0 + t1) / 2, ca), hb = lab((t0 + t1) / 2, cb)[1], ym = (y0 + y1) / 2; x.moveTo(x0, y0 - 1.5); x.lineTo(x1, y1 - 1.5); x.lineTo(xm, ym + (hb - ym) * 0.62); }
     for (let i = 0; i < 6; i++) { const t0 = 0.22 + i * 0.095, t1 = t0 + 0.095, [x0, y0] = lab(t0, cb), [x1, y1] = lab(t1, cb), [xm] = lab((t0 + t1) / 2, cb), ym = (y0 + y1) / 2; x.moveTo(x0, y0 * 0.5 + (c + 12) * 0.5 + 1); x.lineTo(x1, y1 * 0.5 + (c + 12) * 0.5 + 1); x.lineTo(xm, ym * 0.5 + (c + 12) * 0.5 - 12); }
     x.fill(); x.fillStyle = tinta;
-  } else if (e === 'sorpresa' || e === 'miedo') { x.beginPath(); x.ellipse(mx, c + 34, 9 + b * 5, 11 + b * 9, 0, 0, 7); x.fill(); }
-  else if (e === 'dormida') { x.beginPath(); x.ellipse(mx, c + 32, 6, 4 + 2 * Math.sin(t * 2), 0, 0, 7); x.fill(); }
-  else if (e === 'mareada') { x.lineWidth = 5; x.beginPath(); for (let i = 0; i <= 24; i++) x.lineTo(mx - 24 + i * 2, c + 32 + Math.sin(i * 0.8 + t * 6) * 4); x.stroke(); }
-  else if (b > 0.12 || e === 'risa' || e === 'feliz' || e === 'enamorada' || e === 'emocionada') {
-    // la sonrisa grande (abierta en D, más cuanto más fuerte habla)
-    const grande = e === 'feliz' || e === 'enamorada' || e === 'emocionada' || e === 'risa', ancho = grande ? 30 + b * 4 : 22 + b * 4;
-    const alto = e === 'risa' || e === 'emocionada' ? Math.max(ab, 15) : e === 'feliz' || e === 'enamorada' ? Math.max(ab, 9) : ab;
-    x.beginPath();
-    if (e === 'triste' || e === 'enojada') x.ellipse(mx, c + 32, ancho * 0.8, alto * 0.7, 0, 0, 7);
-    else { x.moveTo(mx - ancho, c + 22); x.quadraticCurveTo(mx, c + 22 + alto * 2.1, mx + ancho, c + 22); x.quadraticCurveTo(mx, c + 22 + alto * 0.3, mx - ancho, c + 22); }
-    x.fill();
-    if (alto > 9 && e !== 'triste' && e !== 'enojada') { x.fillStyle = '#c4433a'; x.beginPath(); x.ellipse(mx, c + 22 + alto * 0.95, ancho * 0.42, alto * 0.3, 0, 0, 7); x.fill(); x.fillStyle = tinta; }
-  } else if (e === 'triste') { x.beginPath(); x.arc(mx, c + 44, 18, Math.PI * 1.15, Math.PI * 1.85); x.stroke(); }
-  else if (e === 'enojada' || e === 'pensando') { x.beginPath(); x.moveTo(mx - 14, c + 30); x.lineTo(mx + (e === 'pensando' ? 10 : 14), c + (e === 'pensando' ? 26 : 30)); x.stroke(); }
-  else if (e === 'picara') { x.beginPath(); x.moveTo(mx - 18, c + 26); x.quadraticCurveTo(mx + 4, c + 40, mx + 24, c + 22); x.stroke(); }
-  else { x.beginPath(); x.arc(mx, c + 14, 18, Math.PI * 0.3, Math.PI * 0.7); x.stroke(); }
-  // mejillas
-  if (!osc && (e === 'feliz' || e === 'risa' || e === 'picara' || e === 'enamorada' || e === 'emocionada')) { x.fillStyle = e === 'enamorada' ? 'rgba(255,80,110,.45)' : 'rgba(255,120,90,.35)'; x.beginPath(); x.ellipse(c - 50, c + 10, 11, 7, 0, 0, 7); x.ellipse(c + 50, c + 10, 11, 7, 0, 0, 7); x.fill(); }
+  } else if (e === 'sorpresa' || e === 'miedo') { x.beginPath(); x.ellipse(mx, c + 30, 10 + b * 5, 13 + b * 9, 0, 0, 7); x.fill(); }
+  else if (e === 'dormida') { x.beginPath(); x.ellipse(mx, c + 28, 7, 4 + 2 * Math.sin(t * 2), 0, 0, 7); x.fill(); }
+  else if (e === 'mareada') { x.lineWidth = 5; x.beginPath(); for (let i = 0; i <= 28; i++) x.lineTo(mx - 28 + i * 2, c + 26 + Math.sin(i * 0.8 + t * 6) * 4); x.stroke(); }
+  else if (e === 'triste' || e === 'enojada') {
+    if (b > 0.12) { x.beginPath(); x.ellipse(mx, c + 32, 20 + b * 4, 4 + b * 14, 0, 0, 7); x.fill(); }
+    else if (e === 'triste') { x.beginPath(); x.moveTo(mx - 34, c + 42); x.quadraticCurveTo(mx, c + 14, mx + 34, c + 42); x.stroke(); }
+    else { x.beginPath(); x.moveTo(mx - 22, c + 32); x.lineTo(mx + 22, c + 32); x.stroke(); }
+  }
+  else if (e === 'pensando' && b < 0.12) { x.beginPath(); x.moveTo(mx - 18, c + 30); x.lineTo(mx + 14, c + 24); x.stroke(); }
+  else if (e === 'picara' && b < 0.12) { x.beginPath(); x.moveTo(mx - 30, c + 18); x.quadraticCurveTo(mx + 6, c + 44, mx + 40, c + 12); x.stroke(); }
+  else if (e === 'neutral' && b < 0.12) sonrisa(54, 9, 0);
+  else sonrisa(e === 'neutral' || e === 'pensando' || e === 'picara' ? 60 : 84, e === 'neutral' ? 12 : 22, e === 'risa' || e === 'emocionada' ? Math.max(b, 0.55) : b);
   x.restore();
   // la falla: franjas corridas
   if (I.glitch > 0) { const N = x.canvas.width, k = N / 256; x.setTransform(1, 0, 0, 1, 0, 0); for (let i = 0; i < 4; i++) { const y = Math.random() * N, h = (4 + Math.random() * 16) * k, d = (Math.random() - 0.5) * 30 * k; const im = x.getImageData(0, y, N, h); x.clearRect(0, y, N, h); x.putImageData(im, d, y); } }
@@ -873,8 +880,11 @@ function verDibujarInst(I, G) {
   m4trs([0, 0, 0], [q.x, q.y, q.z, q.w], [1, 1, 1], _verR); m4trs([p.x, p.y, p.z], [0, 0, 0, 1], [sxz, sy, sxz], _verS); m4mul(_verS, _verR, M);
   // de noche: más apagada y rojiza, titila
   const n = I.dueno === 'yo' ? VER.oscura : I.noche, tit = n > 0.3 && Math.random() < 0.06 ? 0.35 : 1, k = (1 - 0.55 * n) * tit;
-  const em = [0.6 * k, (0.42 - 0.24 * n) * k, (0.04 - 0.03 * n) * k], col = [1, 0.8 - 0.3 * n, 0.12 - 0.08 * n, 1];
-  encolar(G.cuerpo, 0, G.mC, M, null, { c: col, em });
+  // (el cuerpo generado ya trae su amarillo en la textura: sólo se tiñe de noche y brilla un poco menos)
+  const em = G.pk ? [0.32 * k, (0.22 - 0.13 * n) * k, (0.02 - 0.015 * n) * k] : [0.6 * k, (0.42 - 0.24 * n) * k, (0.04 - 0.03 * n) * k];
+  const col = G.pk ? [1, 1 - 0.38 * n, 1 - 0.65 * n, 1] : [1, 0.8 - 0.3 * n, 0.12 - 0.08 * n, 1];
+  const lejos = G.pk && I.pos.distTo(CAM.pos) > 12;
+  encolar(lejos ? G.lejos : G.cuerpo, 0, lejos ? G.mL : G.mC, M, null, { c: col, em });
   encolar(G.cara, 0, verCaraTex(I), M, null, null);
   // el aura: un brillo suave alrededor (más de noche)
   if (GFX.part > 0.3 && I.pos.distTo(CAM.pos) > 0.9) particula(p, v3(), 1e-4, VER_R * 3.4, [1, 0.78 - 0.3 * n, 0.2, (0.05 + 0.05 * R.noche) * tit], 'fuego', 0);

@@ -119,8 +119,12 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   rayo, grita "no, no, no" (voz generada), ve todo rojo y se come el golpe final (con PvP). 20 s de espera entre
   definitivas; el que la tira no se lastima con sus explosiones. Por la red: `cic` con `u` (empieza), `d` (dirección y
   punta del rayo, 10 por segundo), `v` (agarró a alguien), `l` (láser suave) y `fin`; las explosiones van como siempre.
-- **Mod Verity** (`verity.js`, oficial): una compañera con IA. Esfera amarilla con cara (ojitos de punto y sonrisa
-  grande; la cara es un casquete apenas más grande que la esfera con una textura de canvas que se redibuja con el gesto,
+- **Mod Verity** (`verity.js`, oficial): una compañera con IA. El cuerpo se generó con IA a partir de una foto de la
+  original (render con FLUX 3 usando la foto de referencia → modelo 3D con Meshy; `herramientas/verity_glb.py` lo centra,
+  lo lleva a una esfera perfecta porque el modelo traía la cara tallada en la malla, gira la cara hacia adelante, le borra
+  la cara a la textura y lo mete en el paquete como "Verity"; si el paquete no lo tiene, se usa una esfera hecha en el
+  código). La cara tiene las medidas de la original (dos ojos ovalados y la sonrisa fina de lado a lado con remates) y
+  es un casquete apenas más grande que la esfera con una textura de canvas que se redibuja con el gesto,
   la boca y la mirada: 14 caras). Tiene su propia cabeza: sola pasea rodando por el piso (gira como una pelota, se aplasta
   al caer), va a mirar autos, props, entidades y jugadores, persigue pelotas y las patea, saluda a los que llegan, se
   duerme si se cansa, piensa en voz alta cada tanto y vuelve con vos si te movés o la llamás. Ocho animaciones en su

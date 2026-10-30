@@ -42,6 +42,8 @@ await espera(1500);
 const vis = async () => JSON.parse(await ev(`(() => { const I = VER.yo, cl = clipDe(I.pos), a = vsub(CAM.pos, I.pos); const df = Math.atan2(a.x, a.z) - I.yaw;
   return JSON.stringify({ on: VER.on, bt: !!(VER.bt && VER.bt.style.display !== 'none' && VER.bt.getBoundingClientRect().width > 20), d: +I.pos.distTo(CAM.pos).toFixed(2), x: cl ? Math.round(cl.x) : null, y: cl ? Math.round(cl.y) : null,
     W: VW(), H: VH(), mira: +Math.abs(Math.atan2(Math.sin(df), Math.cos(df)) * 180 / Math.PI).toFixed(1), alto: +(I.pos.y - JUG.pos.y).toFixed(2) }); })()`));
+// (aparece arriba y baja flotando: se espera a que llegue a su lugar)
+for (let i = 0; i < 60 && Number(await ev(`VER.yo ? Math.abs(VER.yo.pos.y - verMeta().y) + VER.yo.vel.len() : 9`)) > 0.08; i++) await espera(250);
 let v = await vis();
 ok(v.on && v.bt, 'con el mod aparece Verity y su botón', v);
 ok(v.x !== null && v.x > v.W * 0.55 && v.x < v.W * 0.97 && v.y > v.H * 0.25 && v.y < v.H * 0.85 && v.d > 1 && v.d < 2.5, 'en primera persona se ve adelante a la derecha', v);
