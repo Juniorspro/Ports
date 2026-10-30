@@ -215,6 +215,7 @@ function verRecordar(f) {
   m.d.push(s); if (m.d.length > 24) m.d.shift(); verGuardar();
 }
 function verAparecer() {
+  verIasCargar();
   verMemoria(); VER.on = true; VER.yo = verInst('yo'); VER.modo = 'libre'; VER.plan = null; VER.luz = true;
   const I = VER.yo, U = VER.ultimo && TIEMPO.t - VER.ultimo.t < 30 ? VER.ultimo : null;
   // (si la manejaba otro que se fue, sigue desde donde estaba; si no, aparece flotando delante tuyo)
@@ -267,8 +268,9 @@ function verPanel(si) {
       <div class="verOpc"><label><input type="checkbox" data-v="voz"><span></span></label><label><input type="checkbox" data-v="oido"><span></span></label><label><input type="checkbox" data-v="noche"><span></span></label><button data-v="olvidar">${glifo('basura')}<span></span></button></div>
       <div class="verCreaFila">${VERITY_CREA.map((k) => `<button data-v="crea:${k}" data-vcr="1">${glifo({ mod: 'codigo', mapa: 'props', anim: 'persona' }[k])}<span></span></button>`).join('')}</div>
       <div class="verIA"><span class="verCerebro"></span><button data-v="ia">${glifo('ajustes')}<span>IA</span></button></div>
-      <div class="verIAp oc"><p class="verIAtx" dir="auto"></p>
-        <div class="verFila"><input id="verGemIn" type="password" autocomplete="off" spellcheck="false" placeholder="AIza… / AQ.…"><button class="verEnv" data-v="gemGuardar">${glifo('si')}</button></div>
+      <div class="verIAp oc"><b class="verIAel" dir="auto"></b><div class="verIAs"></div><p class="verIAtx" dir="auto"></p>
+        <div class="verFila"><select id="verProv"></select><input id="verGemIn" type="password" autocomplete="off" spellcheck="false"><button class="verEnv" data-v="gemGuardar">${glifo('si')}</button></div>
+        <div class="verMias"></div>
         <div class="verIAb"><button data-v="tuto">${glifo('info')}<span></span></button><button data-v="gemQuitar">${glifo('basura')}<span></span></button></div></div>`;
     document.body.appendChild(p);
     p.addEventListener('click', (ev) => {
@@ -279,15 +281,19 @@ function verPanel(si) {
       else if (a.startsWith('anim:')) verPedirAnim(a.slice(5));
       else if (a.startsWith('crea:')) verCreaPanel(a.slice(5));
       else if (a === 'olvidar') { VER.mem = { d: [], n: 0, t0: Date.now() }; VER.hist = []; verGuardar(); verLog(); aviso(T('ver.olvidado'), 2); }
-      else if (a === 'ia') p.querySelector('.verIAp').classList.toggle('oc');
-      else if (a === 'tuto') verTutorial(true);
-      else if (a === 'gemQuitar') { PREFS.verGem = ''; PREFS.verTk = ''; guardarPrefs(); verIAMostrar(); }
+      else if (a === 'ia') { p.querySelector('.verIAp').classList.toggle('oc'); VER.iasT = 0; verIasCargar(); }
+      else if (a.startsWith('cer:')) { PREFS.verIA = a.slice(4); guardarPrefs(); verIAMostrar(); }
+      else if (a.startsWith('sacar:')) { const k = a.slice(6); if (k === 'google') PREFS.verGem = ''; else delete verClaves()[k]; guardarPrefs(); verIAMostrar(); }
+      else if (a === 'tuto') { const pr = $('verProv').value; if (pr === 'google') verTutorial(true); else window.open(VERITY_CLAVES[pr].web, '_blank', 'noopener'); }
+      else if (a === 'gemQuitar') { PREFS.verGem = ''; PREFS.verTk = ''; PREFS.verClaves = {}; guardarPrefs(); verIAMostrar(); }
       else if (a === 'gemGuardar') {
-        const i = $('verGemIn'), k = i.value.trim(); if (!k) return;
-        b.disabled = true; verGemProbar(k).then((bien) => { b.disabled = false; if (bien) { i.value = ''; guardarPrefs(); aviso(T('ver.ia.ok'), 2.5); if (VER.yo) { VER.yo.emo = 'emocionada'; VER.yo.emoT = 3; } } else aviso(T('ver.ia.mal'), 2.5); verIAMostrar(); });
+        const i = $('verGemIn'), k = i.value.trim(), pr = $('verProv').value; if (!k) return;
+        b.disabled = true; verClaveProbar(pr, k).then((bien) => { b.disabled = false; if (bien) { i.value = ''; guardarPrefs(); aviso(T('ver.ia.ok'), 2.5); if (VER.yo) { VER.yo.emo = 'emocionada'; VER.yo.emoT = 3; } } else aviso(T('ver.ia.mal'), 2.5); verIAMostrar(); });
       }
     });
     $('verGemIn').addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') p.querySelector('[data-v=gemGuardar]').click(); });
+    $('verProv').innerHTML = `<option value="google">Google AI Studio</option>` + Object.entries(VERITY_CLAVES).map(([k, P]) => `<option value="${k}">${P.n}</option>`).join('');
+    $('verProv').onchange = () => verIAMostrar();
     p.addEventListener('change', (ev) => {
       const a = ev.target.dataset.v, v = ev.target.checked;
       if (a === 'voz') PREFS.verVoz = v; if (a === 'noche') PREFS.verNoche = v; if (a === 'oido') { PREFS.verOido = v; OIDO.negado = false; if (!v) oidoParar(); }
@@ -300,18 +306,43 @@ function verPanel(si) {
   const sp = p.querySelectorAll('.verOpc span'); sp[0].textContent = T('ver.voz'); sp[1].textContent = T('ver.oido'); sp[2].textContent = T('ver.noche'); sp[3].textContent = T('ver.olvidar');
   p.querySelectorAll('.verAnims button').forEach((b) => { b.querySelector('span').textContent = T('ver.a.' + b.dataset.v.slice(5)); });
   p.querySelectorAll('.verCreaFila button').forEach((b) => { b.querySelector('span').textContent = T('ver.cr.' + b.dataset.v.slice(5)); b.classList.toggle('ocupado', VCR.ocupado); });
-  verIAMostrar();
+  verIAMostrar(); verIasCargar();
   p.classList.remove('oc'); UI.abierto = 'verity'; soltarPuntero(); verLog();
   if (!document.body.classList.contains('tactil')) setTimeout(() => $('verIn').focus(), 30);
 }
 function verEnviarPanel() { const i = $('verIn'), t = i.value.trim(); i.value = ''; if (t) verHablarle(t); }
 // la sección IA: qué cerebro usa y tu propia clave de Google AI Studio
+// el nombre de cada IA (las tuyas, con "tu clave")
+const VER_IA_N = { gemini: 'Gemini', deepseek: 'DeepSeek', cf: 'Workers AI', ovh: 'OVHcloud', llm7: 'LLM7', pollinations: 'Pollinations', groq: 'Groq', openrouter: 'OpenRouter', mistral: 'Mistral', cerebras: 'Cerebras', github_models: 'GitHub Models', tienda: 'RezoBox' };
+const verNomIA = (id) => { const m = /^tu-(.+)$/.exec(id || ''); return m ? (m[1] === 'google' ? 'Gemini' : VER_IA_N[m[1]] || m[1]) + ' (' + T('ver.ia.tuya') + ')' : VER_IA_N[id] || id || ''; };
+const verChipIA = (k) => ({ auto: 'Auto', gemini: 'Gemini', deepseek: 'DeepSeek', gratis: T('ver.ia.g'), mias: T('ver.ia.m') }[k]);
+// la sección IA: qué IA usa (las del dueño son para todos), tus claves y cuál pensó la última vez
 function verIAMostrar() {
-  const p = VER.pan; if (!p) return; const m = verCerebro();
-  p.querySelector('.verCerebro').textContent = T('ver.ia.' + m); p.querySelector('.verCerebro').classList.toggle('gem', m !== 'normal');
-  p.querySelector('.verIAtx').textContent = T('ver.ia.tx');
-  const bs = p.querySelectorAll('.verIAb span'); bs[0].textContent = T('ver.ia.tuto'); bs[1].textContent = T('ver.ia.quitar');
-  p.querySelector('[data-v=gemQuitar]').style.display = verGemPropia() || PREFS.verTk ? '' : 'none';
+  const p = VER.pan; if (!p) return; const ia = verIA(), m = verCerebro(), I = VER.ias || {};
+  const cer = p.querySelector('.verCerebro'); cer.textContent = T('ver.ia.cer') + ': ' + verChipIA(ia) + (VER.ultIA ? ' · ' + verNomIA(VER.ultIA) : '');
+  cer.classList.toggle('gem', m !== 'normal' && m !== 'gratis');
+  p.querySelector('.verIAel').textContent = T('ver.ia.elegir');
+  p.querySelector('.verIAs').innerHTML = VERITY_IAS.map((k) => { const no = (k === 'gemini' || k === 'deepseek') && VER.ias && I[k] === false, sin = k === 'mias' && !verHayPropias();
+    return `<button data-v="cer:${k}" class="${k === ia ? 'sel' : ''}${no || sin ? ' no' : ''}" title="${no ? esc(T('ver.ia.nodisp')) : ''}">${esc(verChipIA(k))}</button>`; }).join('');
+  p.querySelector('.verIAtx').textContent = T('ver.ia.tx2');
+  const pr = $('verProv').value || 'google'; $('verGemIn').placeholder = pr === 'google' ? 'AIza… / AQ.…' : VERITY_CLAVES[pr].n + ' API key';
+  const mias = [...(verGemPropia() ? [['google', 'Google AI Studio']] : []), ...Object.entries(VERITY_CLAVES).filter(([k]) => verClaves()[k]).map(([k, P]) => [k, P.n])];
+  p.querySelector('.verMias').innerHTML = mias.map(([k, n]) => `<span>${glifo('si')} ${esc(n)}<button data-v="sacar:${k}">${glifo('no')}</button></span>`).join('');
+  const bs = p.querySelectorAll('.verIAb span'); bs[0].textContent = pr === 'google' ? T('ver.ia.tuto') : T('ver.ia.sacar'); bs[1].textContent = T('ver.ia.quitar');
+  p.querySelector('[data-v=gemQuitar]').style.display = mias.length || PREFS.verTk ? '' : 'none';
+}
+// probar una clave nueva (una pregunta cortita) y guardarla si contesta
+async function verClaveProbar(pr, k) {
+  if (pr === 'google') return verGemProbar(k);
+  const P = VERITY_CLAVES[pr]; if (!P || !/^[A-Za-z0-9_.:\-]{16,200}$/.test(k)) return false;
+  for (const m of P.m) {
+    try {
+      const r = await fetch(P.u, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + k }, body: JSON.stringify({ model: m, messages: [{ role: 'user', content: 'Reply with the word ok' }], max_tokens: 400 }), signal: verTiempo(30000) });
+      if (r.ok) { verClaves()[pr] = k; VER_DESCANSO.delete('tu-' + pr); return true; }
+      if (r.status === 401 || r.status === 402 || r.status === 403) return false;
+    } catch (e) {}
+  }
+  return false;
 }
 // el tutorial: cómo sacar tu clave gratis de Google AI Studio (en tu idioma)
 function verTutorial(si) {
@@ -319,7 +350,7 @@ function verTutorial(si) {
   if (!si) { if (t) t.classList.add('oc'); return; }
   if (!t) {
     t = document.createElement('div'); t.id = 'verTuto'; t.className = 'verTuto oc';
-    t.innerHTML = `<div class="verTutoC"><b></b><ol dir="auto"><li></li><li></li><li></li><li></li></ol><div class="verIAb"><a class="boton" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"></a><button class="boton gris" data-t="cerrar">${glifo('no')}</button></div></div>`;
+    t.innerHTML = `<div class="verTutoC"><button class="verTutoX" data-t="cerrar">${glifo('no')}</button><b></b><ol dir="auto"><li></li><li></li><li></li><li></li></ol><div class="verIAb"><a class="boton" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"></a></div></div>`;
     t.addEventListener('click', (ev) => { if (ev.target === t || ev.target.closest('[data-t=cerrar]')) verTutorial(false); });
     document.body.appendChild(t);
   }
@@ -459,18 +490,49 @@ function verContexto() {
 function verTiempo(ms) { const a = new AbortController(); setTimeout(() => a.abort(), ms); return a.signal; }
 // ---------------- Gemini: tu propia clave (directo a Google desde el navegador), el permiso del dueño o los servers premium ----------------
 const verGemPropia = () => (typeof PREFS.verGem === 'string' && /^[A-Za-z0-9_.\-]{20,120}$/.test(PREFS.verGem) ? PREFS.verGem : '');
-const verPremium = () => !!verGemPropia() || !!PREFS.verTk || (verSala() && VERITY_PREMIUM.includes(SALA.id));
-function verCerebro() { return verGemPropia() ? 'propia' : PREFS.verTk ? 'dueno' : verSala() && VERITY_PREMIUM.includes(SALA.id) ? 'sala' : 'normal'; }
+// ---------------- qué IA piensa: la que elegís en su menú ----------------
+// "auto": tus claves (si pusiste), las IAs del dueño en la tienda (Gemini para todos; DeepSeek si tiene saldo) y, si no,
+// los modelos gratis sin clave ya puestos (OVHcloud y LLM7 desde tu conexión, cada uno con su tope por minuto, y
+// Pollinations); "gemini" / "deepseek": ésa primero; "gratis": sólo los sin clave; "mias": sólo tus claves (y los gratis).
+const verIA = () => (VERITY_IAS.includes(PREFS.verIA) ? PREFS.verIA : 'auto');
+const verClaves = () => { const c = PREFS.verClaves; return c && typeof c === 'object' ? c : (PREFS.verClaves = {}); };
+const verHayPropias = () => !!verGemPropia() || Object.keys(VERITY_CLAVES).some((k) => verClaves()[k]);
+// (lo que dice la tienda que hay: { gemini: true, deepseek: false, ... }; null si todavía no se sabe)
+async function verIasCargar() {
+  if (VER.iasT && Date.now() - VER.iasT < 5 * 60e3) return VER.ias; VER.iasT = Date.now();
+  try { const r = await fetch(TIENDA_URL + 'verity/ias', { signal: verTiempo(8000) }); VER.ias = r.ok ? (await r.json()).ias || {} : {}; } catch (e) { VER.ias = VER.ias || {}; }
+  verIAMostrar(); return VER.ias;
+}
+const verPremium = () => verHayPropias() || !!PREFS.verTk || !!(VER.ias && VER.ias.gemini) || (verSala() && VERITY_PREMIUM.includes(SALA.id));
+function verCerebro() { const ia = verIA(); return ia !== 'auto' ? ia : verHayPropias() ? 'propia' : VER.ias && VER.ias.gemini ? 'gemini' : 'normal'; }
+// los modelos estilo OpenAI (los gratis y los de tu clave): el primero que conteste algo que sirva. Cada modelo que dice
+// que no descansa (lo que pida, o un minuto); una clave mala se avisa una vez y descansa una hora
+const VER_DESCANSO = new Map();
+async function verAbiertos(lista, msgs, crear, revisar, ms) {
+  for (const P of lista) for (const m of (crear && P.mc) || P.m) {
+    const k = P.id + '|' + m; if ((VER_DESCANSO.get(k) || 0) > Date.now() || (VER_DESCANSO.get(P.id) || 0) > Date.now()) continue;
+    try {
+      const r = await fetch(P.u, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, P.clave ? { Authorization: 'Bearer ' + P.clave } : {}),
+        body: JSON.stringify(verityAbierto(m, msgs, crear ? 32000 : 4000, crear, false)), signal: verTiempo(ms) });
+      if (r.status === 401 || r.status === 402 || r.status === 403) { VER_DESCANSO.set(P.id, Date.now() + 3600e3); if (P.clave) aviso(T('ver.ia.mal') + ' (' + P.n + ')', 3); break; }
+      if (!r.ok) { VER_DESCANSO.set(k, Date.now() + Math.min(3600, +r.headers.get('Retry-After') || (r.status === 429 ? 65 : r.status >= 500 ? 30 : 600)) * 1000); continue; }
+      const v = revisar(verityTextoAbierto(await r.json())); if (v) { VER.ultIA = P.id; return v; }
+    } catch (e) { if (!(e && e.name === 'AbortError' && crear)) VER_DESCANSO.set(k, Date.now() + 20e3); }
+  }
+  return null;
+}
+const verLibres = () => VERITY_LIBRES.map((P) => Object.assign({ n: P.id }, P));
+const verPropiasLista = () => Object.entries(VERITY_CLAVES).filter(([k]) => verClaves()[k]).map(([id, P]) => Object.assign({ id: 'tu-' + id, clave: verClaves()[id] }, P));
 async function verGemPedir(modelo, cuerpo, ms, clave) {
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': clave || verGemPropia() }, body: JSON.stringify(cuerpo), signal: verTiempo(ms || 20000) });
-  if (r.status === 400 || r.status === 401 || r.status === 403) { VER.gemMala = true; return null; }
+  if (r.status === 401 || r.status === 403 || (r.status === 400 && /api.?key/i.test(await r.text()))) { VER.gemMala = true; return null; }
   if (!r.ok) return null;
   const d = await r.json(), p = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts || [];
-  return { texto: p.map((x) => x.text || '').join(''), audio: p.find((x) => x.inlineData) };
+  return { texto: p.filter((x) => !x.thought).map((x) => x.text || '').join(''), audio: p.find((x) => x.inlineData) };
 }
 async function verGeminiDirecto(c) {
   const msgs = verityMensajes(c); if (!msgs) return null;
-  for (const m of VERITY_GEMINI) { try { const o = await verGemPedir(m, verityAGemini(msgs, 500)); const v = o && verityRespuesta(o.texto); if (v) return v; if (VER.gemMala) return null; } catch (e) {} }
+  for (const m of VERITY_GEMINI) { try { const o = await verGemPedir(m, verityAGemini(msgs, 8192, 'high'), 90000); const v = o && verityRespuesta(o.texto); if (v) { VER.ultIA = 'tu-google'; return v; } if (VER.gemMala) return null; } catch (e) {} }
   return null;
 }
 async function verVozGeminiDirecta(t, noche) {
@@ -515,21 +577,31 @@ async function verPreguntar(q, ev, de, quien) {
   q = rbTexto(q, 300); if (!q && !ev) return; quien = quien || 'yo';
   if (VER.pensando) { if (q) VER.espera = [q, ev, de, quien]; return; } // (lo último que le dijeron, apenas termine)
   if (q) VER.hablaCon = quien;
-  const I = VER.yo, c = { l: verLengua(), q, ev: ev || '', de: de || '', n: I.noche > 0.5 ? 1 : 0, h: VER.hist.slice(-8), ctx: verContexto(), tk: PREFS.verTk || '' };
+  const I = VER.yo, ia = verIA(), c = { l: verLengua(), q, ev: ev || '', de: de || '', n: I.noche > 0.5 ? 1 : 0, h: VER.hist.slice(-8), ctx: verContexto(), tk: PREFS.verTk || '', ia }, turno = VER.turno = (VER.turno || 0) + 1;
   if (q) { VER.hist.push(['u', de ? de + ': ' + q : q]); VER.ultCharla = TIEMPO.t; verAtender(quien, 25); }
   VER.pensando = true; I.pensando = true; verLog(); if (!q || !VER.escucha) verGlobo(I, '', 0, true);
-  let v = verGemPropia() ? await verGeminiDirecto(c) : null; // (con tu propia clave: directo a Google)
-  if (!v && !VER.sinCF && Date.now() > (VER.cfLleno || 0)) {
+  const msgs = verityMensajes(c), resp = (t) => verityRespuesta(t);
+  let v = null;
+  if (ia !== 'gratis') {
+    // tus claves: directo desde tu aparato (Google y las demás)
+    if (verGemPropia() && (ia === 'auto' || ia === 'mias')) v = await verGeminiDirecto(c);
+    if (!v && (ia === 'auto' || ia === 'mias')) v = await verAbiertos(verPropiasLista(), msgs, false, resp, 90000);
+  }
+  if (!v && ia !== 'gratis' && ia !== 'mias' && !VER.sinCF && Date.now() > (VER.cfLleno || 0)) {
     try {
-      const r = await fetch(TIENDA_URL + 'verity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c), signal: verTiempo(32000) });
-      if (r.ok) v = verityRespuesta(JSON.stringify(await r.json()));
+      const r = await fetch(TIENDA_URL + 'verity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c), signal: verTiempo(120000) });
+      if (r.ok) { const d = await r.json(); v = verityRespuesta(JSON.stringify(d)); if (v) VER.ultIA = d.f || 'tienda'; }
       else if (r.status === 404 || r.status === 405) VER.sinCF = true; // (la tienda todavía no tiene a Verity)
       else if (r.status === 503) VER.cfLleno = Date.now() + 10 * 60e3; // (sin cupo del día: un rato con el modelo público)
       else if (r.status === 429) { VER.pensando = false; I.pensando = false; if (q) verDecir(I, T('ver.cupo'), 'triste'); verLog(); return; }
     } catch (e) {}
   }
+  // los gratis sin clave (desde tu conexión)
+  if (!v && msgs) v = await verAbiertos(verLibres(), msgs, false, resp, 90000);
+  if (turno !== VER.turno) return; // (la cortaste con la X)
   if (!v && !q) { VER.pensando = false; I.pensando = false; verGlobo(I, '', 0); verGesto(ev); verLog(); if (VER.espera) { const w = VER.espera; VER.espera = null; setTimeout(() => verPreguntar(...w), 200); } return; }
-  if (!v) v = await verPublico(c);
+  if (!v) { v = await verPublico(c); if (v) VER.ultIA = 'pollinations'; }
+  if (turno !== VER.turno) return;
   VER.pensando = false; I.pensando = false;
   if (!VER.on || VER.yo !== I) return;
   if (!v) { if (q) verDecir(I, T('ver.sinRed'), 'triste'); else verGlobo(I, '', 0); verLog(); return; }
@@ -840,7 +912,7 @@ function verMentePaso(dt) {
 // (para las pruebas y para aparecer: adonde se pondría para hablarte a vos)
 function verMeta() { return verCerca({ pos: JUG.pos, yaw: JUG.yaw }); }
 function verPaso(dt) {
-  verCreaPaso(dt);
+  verCreaPaso(dt); verEstadoPaso();
   if (typeof RED !== 'undefined') { if (RED.on && !VER.redAnt) VER.tRed = TIEMPO.t; VER.redAnt = RED.on; }
   const maneja = verManejo();
   if (maneja && !VER.on) verAparecer(); else if (!maneja && VER.on) verIrse();
@@ -1153,7 +1225,7 @@ function verTerminalAbrir() {
   let t = $('verTerm');
   if (!t) {
     t = document.createElement('div'); t.id = 'verTerm'; t.className = 'verTuto oc';
-    t.innerHTML = `<div class="verTutoC">${icoHTML('ico:verity')}<b></b><div class="verFila"><input id="verTermIn" type="password" autocomplete="off" spellcheck="false" maxlength="40"><button class="verEnv" data-t="ok">${glifo('si')}</button></div><div class="verIAb"><button class="boton gris" data-t="cerrar">${glifo('no')}</button></div></div>`;
+    t.innerHTML = `<div class="verTutoC"><button class="verTutoX" data-t="cerrar">${glifo('no')}</button>${icoHTML('ico:verity')}<b></b><div class="verFila"><input id="verTermIn" type="password" autocomplete="off" spellcheck="false" maxlength="40"><button class="verEnv" data-t="ok">${glifo('si')}</button></div></div>`;
     const cerrar = () => { t.classList.add('oc'); if (UI.abierto === 'terminal') UI.abierto = null; };
     const probar = async () => {
       const i = $('verTermIn'), cod = i.value.trim(); if (!cod) return; i.value = '';

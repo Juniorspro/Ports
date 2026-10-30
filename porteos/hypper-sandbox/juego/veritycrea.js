@@ -32,24 +32,36 @@ function verCrearRevisar(tipo, o) {
   if (tipo === 'mod') { const m = validarRB(o.mod); return typeof m === 'string' ? null : { tipo, decir: rbTexto(o.decir, 280), mod: m }; }
   return verityCreacion(tipo, JSON.stringify(Object.assign({}, o[tipo] || {}, { decir: o.decir })));
 }
-async function verCrearPedir(tipo, q, prev) {
-  const d = { tipo, q, l: verLengua(), props: verCatalogo(), armas: Object.keys(DEF_ARMAS), prev: prev || '', tk: PREFS.verTk || '', salaId: verSala() ? SALA.id : '' };
+// en el orden de la IA que elegiste; sin apuro (hasta 15 minutos: piensa todo lo que necesite). n: el pedido (si lo
+// cortaste con la X, deja de probar)
+const VCR_MS = 900000;
+async function verCrearPedir(tipo, q, prev, n) {
+  const ia = verIA(), d = { tipo, q, l: verLengua(), props: verCatalogo(), armas: Object.keys(DEF_ARMAS), prev: prev || '', tk: PREFS.verTk || '', salaId: verSala() ? SALA.id : '', ia };
   const msgs = verityCrearMensajes(d); if (!msgs) return null;
-  // con tu clave: directo a Google, el modelo mejor primero
-  if (verGemPropia()) {
+  const revisar = (t) => verityCreacion(tipo, t), vivo = () => VCR.n === n, propias = ia === 'auto' || ia === 'mias', tienda = ia !== 'gratis' && ia !== 'mias';
+  // tus claves: directo desde acá (Google con el modelo mejor primero y pensando a fondo; después las otras)
+  if (propias && verGemPropia()) {
     VER.gemMala = false;
-    for (const m of VERITY_GEMINI_CREA) { try { const o = await verGemPedir(m, verityAGemini(msgs, 8192), 110000); const v = o && verityCreacion(tipo, o.texto); if (v) return v; if (VER.gemMala) break; } catch (e) {} }
+    for (const m of VERITY_GEMINI_CREA) { if (!vivo()) return null; try { const o = await verGemPedir(m, verityAGemini(msgs, 65536, 'high'), VCR_MS); const v = o && revisar(o.texto); if (v) return v; if (VER.gemMala) break; } catch (e) {} }
   }
-  if (!VCR.sinTienda) {
+  if (propias && vivo()) { const v = await verAbiertos(verPropiasLista(), msgs, true, revisar, VCR_MS); if (v) return v; }
+  // la tienda: las IAs del dueño (sin el modelo chico de Workers AI: antes se prueban los gratis grandes)
+  const deTienda = async (sinCF) => {
+    if (!tienda || VCR.sinTienda || !vivo()) return null;
     try {
-      const r = await fetch(TIENDA_URL + 'verity/crear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d), signal: verTiempo(170000) });
-      if (r.ok) { const v = verCrearRevisar(tipo, await r.json()); if (v) return v; }
-      else if (r.status === 404 || r.status === 405) VCR.sinTienda = true; // (la tienda todavía no sabe crear)
+      const r = await fetch(TIENDA_URL + 'verity/crear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ sinCF: sinCF ? 1 : 0 }, d)), signal: verTiempo(VCR_MS) });
+      if (r.ok) return verCrearRevisar(tipo, await r.json());
+      if (r.status === 404 || r.status === 405) VCR.sinTienda = true; // (la tienda todavía no sabe crear)
       else if (r.status === 429) return { error: 'cupo' };
     } catch (e) {}
-  }
-  const t = await verPublicoTexto(msgs, 150000); // (el modelo público: un turno cada 30 s)
-  return t ? verityCreacion(tipo, t) : null;
+    return null;
+  };
+  let v = await deTienda(true); if (v && !v.error) return v;
+  if (vivo()) { const w = await verAbiertos(verLibres(), msgs, true, revisar, VCR_MS); if (w) return w; }
+  if (!v) { v = await deTienda(false); if (v && !v.error) return v; }
+  if (!vivo()) return null;
+  const t = await verPublicoTexto(msgs, VCR_MS); // (el modelo público: un turno cada 30 s)
+  return t ? revisar(t) : v;
 }
 // lo que dice Verity (con su voz si está acá; si no, un aviso)
 function verCrearDecir(t, emo) {
@@ -61,15 +73,16 @@ async function verInventar(tipo, q, opt) {
   opt = opt || {}; q = rbTexto(q, 600); if (!q || !VERITY_CREA.includes(tipo) || JUEGO.estado !== 'juego') return false;
   if (VCR.ocupado) { aviso(T('ver.cr.ocupada'), 2.5); return false; }
   const prev = opt.cambiar && VCR.ult && VCR.ult.tipo === tipo ? VCR.ult.prev : '';
-  VCR.ocupado = true; verCreaEstado();
-  let v = null; try { v = await verCrearPedir(tipo, q, prev); } catch (e) { console.warn('verity crear', e); }
+  const n = VCR.n = (VCR.n || 0) + 1; VCR.ocupado = true; VCR.t0 = Date.now(); verCreaEstado();
+  let v = null; try { v = await verCrearPedir(tipo, q, prev, n); } catch (e) { console.warn('verity crear', e); }
   // el código del mod se compila (sin correrlo) antes de instalarlo: si tiene un error, se le pide una vez que lo arregle;
   // si sigue mal, queda sin código (con sus efectos, si tiene)
   const mal = (c) => { try { new Function(c); return ''; } catch (e) { return String((e && e.message) || e).slice(0, 160); } };
   if (v && v.mod && v.mod.codigo && mal(v.mod.codigo)) {
-    let w = null; try { w = await verCrearPedir('mod', `Fix this JavaScript error in "codigo": ${mal(v.mod.codigo)}. Keep everything else and return the whole JSON.`, JSON.stringify({ nombre: v.mod.nombre, descripcion: v.mod.descripcion, efectos: v.mod.efectos, codigo: v.mod.codigo })); } catch (e) {}
+    let w = null; try { w = await verCrearPedir('mod', `Fix this JavaScript error in "codigo": ${mal(v.mod.codigo)}. Keep everything else and return the whole JSON.`, JSON.stringify({ nombre: v.mod.nombre, descripcion: v.mod.descripcion, efectos: v.mod.efectos, codigo: v.mod.codigo }), n); } catch (e) {}
     if (w && w.mod && (!w.mod.codigo || !mal(w.mod.codigo))) v = Object.assign(w, { decir: v.decir || w.decir }); else delete v.mod.codigo;
   }
+  if (n !== VCR.n) return false; // (la cortaste con la X)
   VCR.ocupado = false; verCreaEstado();
   if (!v || v.error) { verCrearDecir(T(v && v.error === 'cupo' ? 'ver.cupo' : 'ver.cr.mal'), 'triste'); return false; }
   let ok = false;
@@ -83,7 +96,6 @@ async function verInventar(tipo, q, opt) {
 function verCreaEstado() {
   const si = VCR.ocupado;
   if (VER.yo) { VER.yo.pensando = si; if (si) verGlobo(VER.yo, '', 0, true); else verGlobo(VER.yo, '', 0); }
-  if (si) aviso(T('ver.cr.haciendo'), 4);
   document.querySelectorAll('[data-vcr]').forEach((b) => b.classList.toggle('ocupado', si));
 }
 
@@ -115,14 +127,14 @@ function verCrearMapa(M) {
   if (!O) { const p = vadd(JUG.pos, vscale(f, enCrea ? 10 : 4)), y = pisoBajo(v3(p.x, JUG.pos.y + 2, p.z), 8); p.y = y === null ? JUG.pos.y - 0.95 : y; O = p; }
   const yaw0 = Math.atan2(f.x, f.z), aMundo = (p) => { const w = vadd(vadd(O, vscale(der, p[0])), vscale(f, p[2])); w.y = O.y + p[1]; return w; };
   const L = [];
-  for (const x of M.objetos.slice(0, 180)) {
+  for (const x of M.objetos.slice(0, 700)) {
     const n = verNombreExacto(x.n), c = n && verCaja(n); if (!c || (!enCrea && !reglaSala(n))) continue;
     // (p es el centro de abajo del prop: crearObjeto ya lo apoya por su base; acá sólo se corre lo que su forma no está centrada)
     const q = Quat.axis(0, 1, 0, yaw0 + x.yaw * Math.PI / 180), off = q.rot(v3((c.a[0] + c.b[0]) / 2, 0, (c.a[2] + c.b[2]) / 2));
     L.push({ n, p: vsub(aMundo(x.p), off), q, f: !!x.f });
   }
   // las entidades pasan por la misma revisión que las de un mapa
-  const E = M.entidades.slice(0, 16).map((x) => {
+  const E = M.entidades.slice(0, 50).map((x) => {
     const prm = Object.assign({}, x.prm); if (x.t === 'teleport' && Array.isArray(prm.a) && prm.a.length === 3) { const a = aMundo(prm.a.map((v) => +v || 0)); prm.a = [a.x, a.y, a.z].map((v) => +v.toFixed(2)); }
     const w = aMundo(x.p), yy = yaw0 + x.yaw * Math.PI / 180; return { t: x.t, p: [w.x, w.y, w.z], yaw: ((yy + Math.PI) % TAU + TAU) % TAU - Math.PI, prm };
   });
@@ -139,10 +151,10 @@ function verCreaPaso(dt) {
   const W = VCR.obra; if (!W) return;
   if (JUEGO.estado !== 'juego' || (W.enCrea && !(typeof CREA !== 'undefined' && CREA.on))) { VCR.obra = null; return; }
   W.t -= dt; if (W.t > 0) return; W.t = 0.03;
-  for (let k = 0; k < 3 && W.i < W.L.length; k++) {
+  for (let k = 0; k < 6 && W.i < W.L.length; k++) {
     const x = W.L[W.i++], o = crearObjeto(x.n, x.p, x.q, { congelado: x.f }); if (!o) continue; W.n++;
     if (!W.enCrea) { o.verity = true; VER.mios.push(o); DESHACER.push(o); redObjeto(o); }
-    if (VER.on && VER.yo && W.i % 3 === 0) verHaz(x.p);
+    if (VER.on && VER.yo && W.i % 6 === 0) verHaz(x.p);
   }
   if (W.i < W.L.length) return;
   for (const x of W.E) { const red = !W.enCrea && !!RED.on, e = entidadCrear(x, { red }); if (e && red) entidadRed('ent', e); }
@@ -253,9 +265,9 @@ function verCreaPanel(tipo) {
   let t = $('verCrea');
   if (!t) {
     t = document.createElement('div'); t.id = 'verCrea'; t.className = 'verTuto oc';
-    t.innerHTML = `<div class="verTutoC verCreaC">${icoHTML('ico:verity')}<b></b><div class="verCreaTipos"></div><textarea id="verCreaIn" rows="3" maxlength="600" dir="auto" spellcheck="false"></textarea>
+    t.innerHTML = `<div class="verTutoC verCreaC"><button class="verTutoX" data-c="cerrar">${glifo('no')}</button>${icoHTML('ico:verity')}<b></b><div class="verCreaTipos"></div><textarea id="verCreaIn" rows="3" maxlength="600" dir="auto" spellcheck="false"></textarea>
       <label class="verCreaCam"><input type="checkbox"><span></span></label><small class="verCreaMejor" dir="auto"></small>
-      <div class="verIAb"><button class="boton" data-c="ok" data-vcr="1">${glifo('si')}<span></span></button><button class="boton gris" data-c="cerrar">${glifo('no')}</button></div></div>`;
+      <div class="verIAb"><button class="boton" data-c="ok" data-vcr="1">${glifo('si')}<span></span></button></div></div>`;
     // (desde el editor de animaciones se vuelve a él)
     const cerrar = () => { t.classList.add('oc'); if (UI.abierto === 'verCrea') UI.abierto = EDA.on ? 'eda' : null; };
     const ir = () => {
@@ -277,8 +289,35 @@ function verCreaPanel(tipo) {
   t.querySelector('.verCreaTipos').innerHTML = VERITY_CREA.map((k) => `<button class="${k === VCR.tipo ? 'sel' : ''}" data-tipo="${k}">${glifo({ mod: 'codigo', mapa: 'props', anim: 'persona' }[k])}<span>${esc(T('ver.cr.' + k))}</span></button>`).join('');
   $('verCreaIn').placeholder = T('ver.cr.ph.' + VCR.tipo);
   const cam = t.querySelector('.verCreaCam'); cam.hidden = !(VCR.ult && VCR.ult.tipo === VCR.tipo); cam.querySelector('span').textContent = T('ver.cr.cambiar');
-  t.querySelector('.verCreaMejor').textContent = verCerebro() === 'normal' ? T('ver.cr.mejor') : T('ver.ia.' + verCerebro());
+  t.querySelector('.verCreaMejor').textContent = verCerebro() === 'normal' ? T('ver.cr.mejor') : T('ver.ia.cer') + ': ' + verChipIA(verIA()) + (VER.ultIA ? ' · ' + verNomIA(VER.ultIA) : '');
   t.querySelector('[data-c=ok] span').textContent = T('ver.cr.ok'); t.querySelector('[data-c=ok]').classList.toggle('ocupado', VCR.ocupado);
   if (!EDA.on) cerrarPaneles(); t.classList.remove('oc'); UI.abierto = 'verCrea'; soltarPuntero();
   if (!document.body.classList.contains('tactil')) setTimeout(() => $('verCreaIn').focus(), 30);
+}
+
+// ---------------- la X de la esquina: mientras hablás con ella (habla, piensa, te escucha o crea) se puede cortar ----------------
+function verCortar() {
+  if (VCR.ocupado) { VCR.n++; VCR.ocupado = false; verCreaEstado(); }
+  VCR.obra = null;
+  if (VER.pensando) { VER.turno = (VER.turno || 0) + 1; VER.pensando = false; VER.espera = null; if (VER.yo) { VER.yo.pensando = false; verGlobo(VER.yo, '', 0); } }
+  for (const I of [VER.yo, ...VER.rem.values()]) if (I) { verCallar(I); I.burbHasta = 0; }
+  if (VER.escucha) verEscuchar(false);
+  if (VER.on && VER.plan && VER.plan.n === 'atender') verPlan('pasear', 8);
+  VER.hablaCon = 'yo'; OIDO.despierta = 0; verLog();
+}
+function verEstadoPaso() {
+  const I = VER.yo, rem = [...VER.rem.values()];
+  const que = VCR.ocupado ? 'crea' : VER.pensando || rem.some((x) => x.pensando) ? 'piensa' : [I, ...rem].some((x) => x && (x.voz || x.nav)) ? 'habla'
+    : VER.escucha || (VER.on && VER.plan && VER.plan.n === 'atender' && TIEMPO.t - VER.ultCharla < 25) ? 'escucha' : '';
+  let e = $('verEstado');
+  if (!que) { if (e && !e.classList.contains('oc')) e.classList.add('oc'); return; }
+  if (!e) {
+    e = document.createElement('div'); e.id = 'verEstado'; e.className = 'oc';
+    e.innerHTML = `${icoHTML('ico:verity')}<span></span><button>${glifo('no')}</button>`;
+    e.querySelector('button').addEventListener('pointerdown', (ev) => { ev.stopPropagation(); ev.preventDefault(); verCortar(); });
+    $('hud').appendChild(e);
+  }
+  const seg = que === 'crea' ? Math.floor((Date.now() - (VCR.t0 || Date.now())) / 1000) : -1, txt = T('ver.x.' + que) + (seg >= 0 ? ` ${Math.floor(seg / 60)}:${String(seg % 60).padStart(2, '0')}` : '');
+  const sp = e.querySelector('span'); if (sp.textContent !== txt) sp.textContent = txt;
+  e.querySelector('button').title = T('ver.x.parar'); e.classList.remove('oc'); e.dataset.q = que;
 }

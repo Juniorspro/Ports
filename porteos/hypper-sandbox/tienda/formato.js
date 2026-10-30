@@ -119,10 +119,30 @@ export const VERITY_VOCES = ['es', 'en', 'fr', 'ja', 'zh', 'ko']; // (las que ti
 export const VERITY_PREMIUM = ['f_Desert_1', 'f_DesertV2_1', 'f_FlatGrass_1'];
 export const VERITY_GEMINI = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest'], VERITY_GEMINI_VOZ = 'gemini-3.8-flash-lite-tts';
 // los mensajes (formato chat) → el pedido de Gemini, en JSON
-export function verityAGemini(msgs, max) {
+// las IAs que el dueño ofrece a todos con sus claves (en la tienda, como secretos) para elegir en el menú de Verity, y
+// las que cada uno puede usar con su propia clave; "gratis" son los modelos públicos sin clave (desde tu conexión)
+export const VERITY_IAS = ['auto', 'gemini', 'deepseek', 'gratis', 'mias'];
+export const VERITY_LIBRES = [
+  { id: 'ovh', u: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', m: ['gpt-oss-120b', 'Meta-Llama-3_3-70B-Instruct', 'Qwen3.5-397B-A17B', 'Mistral-Small-3.2-24B-Instruct-2506', 'gpt-oss-20b'] },
+  { id: 'llm7', u: 'https://api.llm7.io/v1/chat/completions', m: ['minimax-m2.7', 'gpt-oss:20b', 'mistral-Nemo-Instruct-2407', 'codestral-latest'] },
+];
+export const VERITY_CLAVES = {
+  deepseek: { n: 'DeepSeek', u: 'https://api.deepseek.com/chat/completions', m: ['deepseek-flash', 'deepseek-v4-pro'], mc: ['deepseek-v4-pro', 'deepseek-flash'], web: 'https://platform.deepseek.com/api_keys' },
+  groq: { n: 'Groq', u: 'https://api.groq.com/openai/v1/chat/completions', m: ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'], web: 'https://console.groq.com/keys' },
+  openrouter: { n: 'OpenRouter', u: 'https://openrouter.ai/api/v1/chat/completions', m: ['openai/gpt-oss-120b:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-chat-v3-0324:free'], web: 'https://openrouter.ai/keys', sinJSON: true },
+  mistral: { n: 'Mistral', u: 'https://api.mistral.ai/v1/chat/completions', m: ['mistral-medium-latest', 'mistral-small-latest'], web: 'https://console.mistral.ai/api-keys' },
+  cerebras: { n: 'Cerebras', u: 'https://api.cerebras.ai/v1/chat/completions', m: ['gpt-oss-120b', 'llama-3.3-70b'], web: 'https://cloud.cerebras.ai' },
+};
+// un pedido estilo OpenAI (los gratis y los de clave): el cuerpo, con pensamiento alto si el modelo lo admite
+export const verityAbierto = (modelo, msgs, max, crear, json) => ({ model: modelo, messages: msgs, max_tokens: max, temperature: 0.8,
+  ...(crear && /gpt-oss/.test(modelo) ? { reasoning_effort: 'high' } : {}), ...(json ? { response_format: { type: 'json_object' } } : {}) });
+// el texto que devolvió (los que piensan en voz alta lo traen aparte; si no hay "content", nada)
+export const verityTextoAbierto = (d) => { const m = d && d.choices && d.choices[0] && d.choices[0].message; return m && typeof m.content === 'string' && m.content.trim() ? m.content : null; };
+// nivel: cuánto piensa ('high' = lo que haga falta; el largo máximo de la respuesta incluye lo que piensa)
+export function verityAGemini(msgs, max, nivel) {
   const sys = msgs.filter((m) => m.role === 'system').map((m) => m.content).join('\n');
   return { systemInstruction: { parts: [{ text: sys }] }, contents: msgs.filter((m) => m.role !== 'system').map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
-    generationConfig: { responseMimeType: 'application/json', maxOutputTokens: max || 500, temperature: 0.8 } };
+    generationConfig: { responseMimeType: 'application/json', maxOutputTokens: max || 500, temperature: 0.8, ...(nivel ? { thinkingConfig: { thinkingLevel: nivel } } : {}) } };
 }
 // lo que se le pide a la voz de Gemini (el tono va en la frase: no lo lee)
 export const verityVozGemini = (t, noche) => ({ contents: [{ parts: [{ text: (noche ? 'Whisper slowly, mysterious and a little eerie: ' : 'Say it like a cheerful, playful young girl: ') + t }] }],
@@ -181,11 +201,24 @@ export function verityMensajes(d) {
 // el JSON que devuelve un modelo, aunque venga roto (claves sin comillas, comas de más, cortado por el largo)
 const rbLeer = (s) => { try { const x = JSON.parse(s); return x && typeof x === 'object' ? x : null; } catch (e) { return null; } };
 const rbArreglo = (s) => s.replace(/([{,]\s*)([a-zA-Z_]+)\s*:/g, '$1"$2":').replace(/,\s*([}\]])/g, '$1');
+// (cortado a la mitad de una lista larga: se queda hasta el último elemento entero y se cierra lo que quedó abierto)
+function rbCerrar(s) {
+  const pila = []; let enTxt = false, esc = false, corte = -1, resto = null;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (enTxt) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') enTxt = false; continue; }
+    if (c === '"') enTxt = true;
+    else if (c === '{' || c === '[') pila.push(c === '{' ? '}' : ']');
+    else if (c === '}' || c === ']') { pila.pop(); if (!pila.length) return s.slice(0, i + 1); corte = i + 1; resto = pila.slice().reverse().join(''); }
+  }
+  return corte > 0 ? s.slice(0, corte) + resto : null;
+}
 function rbJSON(txt) {
   if (typeof txt !== 'string' || !txt.trim()) return null;
   const i = txt.indexOf('{'), j = txt.lastIndexOf('}'), crudo = i >= 0 && j > i ? txt.slice(i, j + 1) : '';
   let o = crudo ? rbLeer(crudo) || rbLeer(rbArreglo(crudo)) : null;
   if (!o && i >= 0) for (const fin of ['}', ']}', '"}', '"]}', '}]}', '}]]}', ']]}']) if ((o = rbLeer(rbArreglo(txt.slice(i).trim() + fin)))) break;
+  if (!o && i >= 0) { const c = rbCerrar(txt.slice(i)); if (c) o = rbLeer(c) || rbLeer(rbArreglo(c)); }
   return o;
 }
 export function verityRespuesta(txt) {
@@ -216,7 +249,7 @@ export function verityRespuesta(txt) {
 // además revisa que cada prop exista) y la animación son direcciones de brazos y piernas, codos, rodillas y giros del
 // cuerpo, que el juego pasa a huesos en el editor de animaciones.
 export const VERITY_CREA = ['mod', 'mapa', 'anim'];
-export const VERITY_GEMINI_CREA = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest'];
+export const VERITY_GEMINI_CREA = ['gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-flash-latest', 'gemini-3.5-flash-lite'];
 const VERITY_ICOS = ['mod', 'energia', 'luna', 'salto', 'veloz', 'balas', 'dios', 'lenta', 'boom', 'fuego', 'cohete', 'alien', 'robot', 'dino', 'auto', 'arma', 'bomba', 'iman', 'tornado',
   'hielo', 'corona', 'fiesta', 'volar', 'ragdoll', 'planeta', 'shuriken', 'luz', 'meta', 'teleport', 'musica', 'piano', 'radio', 'rampa', 'impulso', 'cartel', 'zona_muerte', 'ciclope', 'emote'];
 const VERITY_ENT = 'luz {"color":"#rrggbb","r":1-80 radius,"i":0.05-6 intensity}; cartel {"texto":"...","color":"#rrggbb"} a sign; rampa {"alto":10-600,"ancho":6-80,"ang":15-80} a huge stunt ramp; ' +
@@ -247,17 +280,17 @@ function verityCrearPrompt(tipo, l, props, armas) {
     'Create a BUILD placed in the world (a structure, scene, level part, parkour, arena...): {"decir":"one short sentence","nombre":"short title","objetos":[{"n":"PROP","p":[x,y,z],"yaw":degrees,"f":1}],"entidades":[{"t":"TYPE","p":[x,y,z],"yaw":degrees,"prm":{}}]}\n' +
     'Coordinates in meters from the build point on the ground: x = right, y = up, z = forward (away from the player, who stands at about [0,0,-4]). p is where the BOTTOM CENTER of the prop goes. ' +
     'Use the sizes (width x height x depth, meters, at yaw 0) to stack and line props up exactly without gaps or overlaps: a prop on top of another goes at y = the height of the one below; yaw 90 swaps width and depth. ' +
-    '"f":1 freezes the prop in place (use it for anything built), "f":0 leaves it loose with physics. At most 180 objects and 16 entities, everything within 45 m.\n' +
+    '"f":1 freezes the prop in place (use it for anything built), "f":0 leaves it loose with physics. Take your time and make it big and detailed when it fits: up to 600 objects and 40 entities, everything within 90 m.\n' +
     `PROPS (name WxHxD): ${lp}.\nENTITY TYPES (prm): ${VERITY_ENT}; teleport "a" is relative to the build point too.`;
   return ini +
-    'Create a NEW EMOTE ANIMATION for a humanoid character as keyframes: {"decir":"one short sentence","nombre":"short title","cat":"baile|gesto|accion","dur":seconds 1-12,"loop":true,"claves":[KEY,...]}\n' +
+    'Create a NEW EMOTE ANIMATION for a humanoid character as keyframes: {"decir":"one short sentence","nombre":"short title","cat":"baile|gesto|accion","dur":seconds 1-60,"loop":true,"claves":[KEY,...]}\n' +
     'KEY = {"t":seconds,"brazoD":[x,y,z],"brazoI":[x,y,z],"codoD":deg,"codoI":deg,"piernaD":[x,y,z],"piernaI":[x,y,z],"rodillaD":deg,"rodillaI":deg,"torso":[fwd,side,turn],"cabeza":[down,side,turn],"cuerpo":[fwd,side,turn],"cadera":[right,up,forward]}. ' +
     'D = the character\'s right side, I = its left side. A field you leave out keeps its value from the previous key (the first key starts from the standing pose).\n' +
     'brazo / pierna = the direction the upper arm / thigh points, in the character\'s own frame: x = outward (away from the body, toward that limb\'s side), y = up, z = forward. Standing: brazo [0.15,-1,0], pierna [0,-1,0]; arm out to the side [1,0,0]; arm forward [0,0,1]; arm up [0.2,1,0]; arm across the chest [-0.6,0,0.8]; knee up or kick forward: pierna [0,-0.2,1].\n' +
     'codo (elbow) / rodilla (knee) = bend in degrees, 0 straight to 150 fully bent (elbow bends the hand forward/up, knee bends the foot backward).\n' +
     'torso / cabeza = degrees [bend forward + or back -, lean to its right + or left -, turn to its right + or left -] (torso up to 60, cabeza up to 50); cuerpo = the same for the whole body around the hips (for a spin use turn 0, 90, 180, 270, 360 on successive keys). ' +
     'cadera = hip offset in meters [right, up (-0.4 = crouch, +0.3 = hop), forward].\n' +
-    'Use 6-24 keys with t increasing from 0 to dur; for loops the last key (t = dur) repeats the first. Make it expressive and rhythmic, with clear, natural poses and no limb going through the body.';
+    'Use as many keys as the move needs (usually 8-60) with t increasing from 0 to dur; for loops the last key (t = dur) repeats the first. Make it expressive and rhythmic, with clear, natural poses and no limb going through the body.';
 }
 // el pedido del juego → los mensajes (null si no sirve). d: { tipo, q, l, props: [[nombre, ancho, alto, fondo]], armas, prev }
 export function verityCrearMensajes(d) {
@@ -276,26 +309,26 @@ export function verityCreacion(tipo, txt) {
   const decir = rbTexto(o.decir, 280), nombre = rbTexto(o.nombre, 40);
   if (tipo === 'mod') {
     const e = o.efectos && typeof o.efectos === 'object' ? o.efectos : {};
-    let codigo = typeof o.codigo === 'string' ? o.codigo.replace(/^\s*```(?:js|javascript)?\s*/i, '').replace(/```\s*$/, '').trim().slice(0, 60000) : '';
+    let codigo = typeof o.codigo === 'string' ? o.codigo.replace(/^\s*```(?:js|javascript)?\s*/i, '').replace(/```\s*$/, '').trim().slice(0, 200000) : '';
     const m = validarRB({ formato: 'rezobox-mod', nombre: nombre.length >= 3 ? nombre : 'Verity mod', autor: 'Verity', descripcion: o.descripcion, etiquetas: ['diversion'],
       icono: 'ico:' + (VERITY_ICOS.includes(o.icono) ? o.icono : 'mod'), efectos: { ...e, aparecer: [] }, codigo, tipo: 'juego' });
     return typeof m === 'string' ? null : { tipo, decir, mod: m };
   }
   if (tipo === 'mapa') {
-    const objetos = (Array.isArray(o.objetos) ? o.objetos : []).slice(0, 220).map((x) => {
+    const objetos = (Array.isArray(o.objetos) ? o.objetos : []).slice(0, 700).map((x) => {
       if (!x || !NOMBRE_RB.test(String(x.n || ''))) return null; const p = rbVec(x.p, 3, 1e3); if (!p) return null;
-      return { n: String(x.n), p: [rbNum(p[0], -60, 60, 0), rbNum(p[1], -5, 90, 0), rbNum(p[2], -60, 60, 0)], yaw: rbNum(x.yaw, -720, 720, 0), f: x.f === 0 || x.f === false ? 0 : 1 };
+      return { n: String(x.n), p: [rbNum(p[0], -100, 100, 0), rbNum(p[1], -5, 150, 0), rbNum(p[2], -100, 100, 0)], yaw: rbNum(x.yaw, -720, 720, 0), f: x.f === 0 || x.f === false ? 0 : 1 };
     }).filter(Boolean);
-    const entidades = (Array.isArray(o.entidades) ? o.entidades : []).slice(0, 20).map((x) => {
+    const entidades = (Array.isArray(o.entidades) ? o.entidades : []).slice(0, 50).map((x) => {
       if (!x || !ENTIDADES_RB.includes(x.t)) return null; const p = rbVec(x.p, 3, 1e3); if (!p) return null;
-      return { t: x.t, p: [rbNum(p[0], -60, 60, 0), rbNum(p[1], -5, 90, 0), rbNum(p[2], -60, 60, 0)], yaw: rbNum(x.yaw, -720, 720, 0), prm: rbPrm(x.prm) };
+      return { t: x.t, p: [rbNum(p[0], -100, 100, 0), rbNum(p[1], -5, 150, 0), rbNum(p[2], -100, 100, 0)], yaw: rbNum(x.yaw, -720, 720, 0), prm: rbPrm(x.prm) };
     }).filter(Boolean);
     return objetos.length || entidades.length ? { tipo, decir, mapa: { nombre, objetos, entidades } } : null;
   }
-  const dur = rbNum(o.dur, 0.5, 30, 3), dir = (v) => { const a = rbVec(v, 3, 5); if (!a) return null; const L = Math.hypot(a[0], a[1], a[2]); return L > 0.05 ? a.map((x) => Math.round(x / L * 1000) / 1000) : null; };
+  const dur = rbNum(o.dur, 0.5, 60, 3), dir = (v) => { const a = rbVec(v, 3, 5); if (!a) return null; const L = Math.hypot(a[0], a[1], a[2]); return L > 0.05 ? a.map((x) => Math.round(x / L * 1000) / 1000) : null; };
   const ang = (v, lim, giro) => { const a = rbVec(v, 3, 1e4); return a ? [rbNum(a[0], -lim, lim, 0), rbNum(a[1], -lim, lim, 0), rbNum(a[2], -(giro || lim), giro || lim, 0)] : null; };
   const vistos = new Map();
-  for (const k of (Array.isArray(o.claves) ? o.claves : []).slice(0, 80)) {
+  for (const k of (Array.isArray(o.claves) ? o.claves : []).slice(0, 200)) {
     if (!k || typeof k !== 'object') continue; const c = { t: Math.round(rbNum(k.t, 0, dur, 0) * 20) / 20 };
     for (const n of ['brazoD', 'brazoI', 'piernaD', 'piernaI']) { const d = dir(k[n]); if (d) c[n] = d; }
     for (const n of ['codoD', 'codoI', 'rodillaD', 'rodillaI']) if (k[n] != null && Number.isFinite(+k[n])) c[n] = rbNum(k[n], 0, 160, 0);

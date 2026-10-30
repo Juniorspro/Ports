@@ -195,9 +195,13 @@ if (SIM) {
   const pedir = async (cuerpo, env) => { const t0 = Date.now(), r = await Wk.fetch(new Request('https://x.dev/api/verity/crear', { method: 'POST', headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '1.2.3.4' }, body: JSON.stringify(cuerpo) }), env, { waitUntil() {} }); return { st: r.status, d: await r.json(), seg: Math.round((Date.now() - t0) / 1000) }; };
   const props = [['Crate', 1.2, 1.2, 1.2], ['Box2', 0.8, 0.8, 0.8], ['Barrel', 0.7, 1.1, 0.7]];
   let x = await pedir({ tipo: 'mod', q: 'super velocidad y un botón que me lanza al cielo', l: 'es', props, armas: ['Pistol'], salaId: 'f_Desert_1' }, { DB, AI, GEMINI_KEY: GK });
-  ok(x.st === 200 && x.d.f === 'gemini' && x.d.mod && x.d.mod.codigo, 'la tienda, en un server premium: crea el mod con Gemini', { st: x.st, f: x.d.f, nombre: x.d.mod && x.d.mod.nombre, seg: x.seg });
+  ok(x.st === 200 && x.d.f === 'gemini' && x.d.mod && x.d.mod.codigo, 'la tienda: crea el mod con Gemini (pensando a fondo)', { st: x.st, f: x.d.f, nombre: x.d.mod && x.d.mod.nombre, seg: x.seg });
   x = await pedir({ tipo: 'mapa', q: 'una pirámide de cajas', l: 'es', props, salaId: '' }, { DB, AI, GEMINI_KEY: GK });
-  ok(x.st === 200 && x.d.f === 'cf' && x.d.mapa && x.d.mapa.objetos.length >= 4, 'fuera de los premium: Workers AI (el gratis) arma una construcción simple', { st: x.st, f: x.d.f, n: x.d.mapa && x.d.mapa.objetos.length, seg: x.seg });
+  ok(x.st === 200 && x.d.f === 'gemini' && x.d.mapa && x.d.mapa.objetos.length >= 4, 'en cualquier server (no sólo los premium): también Gemini, para todos', { st: x.st, f: x.d.f, n: x.d.mapa && x.d.mapa.objetos.length, seg: x.seg });
+  x = await pedir({ tipo: 'mapa', q: 'una pirámide de cajas', l: 'es', props, sinCF: 1 }, { DB, AI });
+  ok(x.st === 503, 'sin Gemini y con "sinCF": la tienda no usa el modelo chico (el juego prueba antes los gratis grandes)', x.st);
+  x = await pedir({ tipo: 'mapa', q: 'una pirámide de cajas', l: 'es', props }, { DB, AI });
+  ok(x.st === 200 && x.d.f === 'cf' && x.d.mapa && x.d.mapa.objetos.length >= 4, 'y si no, Workers AI arma una construcción simple', { st: x.st, f: x.d.f, n: x.d.mapa && x.d.mapa.objetos.length, seg: x.seg });
   x = await pedir({ tipo: 'anim', q: 'saludar con la mano', l: 'es', salaId: '' }, { DB, AI });
   ok(x.st === 200 && x.d.anim && x.d.anim.claves.length >= 2, 'y una animación simple', { st: x.st, f: x.d.f, n: x.d.anim && x.d.anim.claves.length, seg: x.seg });
   x = await pedir({ tipo: 'nada', q: 'x' }, { DB, AI });

@@ -163,17 +163,26 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   pide charlando (la acción `crear`; en una sala, la Verity del que la maneja se lo manda al que lo pidió con `verc` y
   él lo crea con su cerebro), desde su panel (Crear mod / Construir / Animación), con el botón Verity del creador de mapas
   y el del editor de animaciones; "cambiar" rehace lo último. El pedido (`/api/verity/crear`, 30 por persona por día)
-  usa Gemini `gemini-3.5-flash` en los premium o con tu clave; si no, los modelos gratis con clave opcional y, al final,
-  Workers AI o el modelo público. Lo que vuelve se revisa (`verityCreacion` en `formato.js`): el mod pasa por
+  sigue la IA elegida (tus claves, la tienda, los gratis sin clave y, al final, Workers AI o Pollinations). Lo que vuelve se revisa (`verityCreacion` en `formato.js`): el mod pasa por
   `validarRB`, su código se compila antes (si falla se le pide que lo arregle una vez) y corre aislado como cualquier mod;
   la construcción usa el tamaño real de cada prop (apoyado por su base, sin huecos); la animación son direcciones de
   brazos y muslos en el marco del personaje, codos y rodillas en grados (0 = derecho) y giros de cuerpo, torso y cabeza,
   que se pasan a huesos midiendo el muñeco del editor (sirve para cualquier personaje). Prueba: `verity_crea.mjs`
   (17 poses medidas en 4 personajes, construcción, mod; con `GEMINI` y `TIENDA_SIM`, de punta a punta).
-  **Más modelos gratis**: el worker turna Groq, Cerebras, OpenRouter (modelos `:free`), Mistral y GitHub Models si tienen
-  su clave como secreto (`GROQ_KEY`, `CEREBRAS_KEY`, `OPENROUTER_KEY`, `MISTRAL_KEY`, `GITHUB_MODELS_KEY`; el modelo se
-  cambia con `*_MODEL`): usa el primero que no esté descansando y, si uno dice 429, descansa lo que pida y pasa al
-  siguiente. Sin claves no hace nada.
+  **Qué IA piensa (menú IA de su panel)**: Auto, Gemini, DeepSeek, Gratis sin clave o Mis claves. Las del dueño van en
+  la tienda como secretos y son para todos (Gemini `GEMINI_KEY`; `DEEPSEEK_KEY`; opcionales `GROQ_KEY`, `CEREBRAS_KEY`,
+  `OPENROUTER_KEY`, `MISTRAL_KEY`, `GITHUB_MODELS_KEY`; el modelo se cambia con `*_MODEL`); `/api/verity/ias` dice cuáles
+  andan (una sin cupo o sin saldo descansa y se usa la siguiente; al final, Workers AI). Ya puestos para todos, sin
+  clave y desde la conexión de cada jugador: OVHcloud AI Endpoints (gpt-oss-120b, Llama 3.3 70B, Qwen; 2 por minuto por
+  modelo), LLM7 y Pollinations (`VERITY_LIBRES`). Cada uno puede sumar su clave de Google AI Studio, DeepSeek, Groq,
+  OpenRouter, Mistral o Cerebras (`VERITY_CLAVES`; el juego les habla directo, la clave queda en su aparato). Todos
+  piensan sin apuro: Gemini con `thinkingLevel: high` (charla con `gemini-3.5-flash-lite`, crear con `gemini-3.5-flash`
+  y 65 536 tokens), los gpt-oss con `reasoning_effort: high` al crear, y crear no tiene corte práctico (15 minutos);
+  las construcciones llegan a 600 props y 40 entidades, las animaciones a 60 s. Una respuesta cortada a la mitad se
+  rescata hasta el último elemento entero (`rbCerrar`).
+  **La X**: mientras Verity habla, piensa, te escucha o crea (con el tiempo que lleva), arriba a la derecha aparece su
+  cartelito con una X que la corta (voz, respuesta pendiente, creación). El panel se desplaza por dentro con la X
+  siempre visible en la esquina; los cuadros de crear, tutorial y terminal también tienen su X arriba.
 - **Skins riggeados de verdad** (`herramientas/skin_meshy.py`): el modelo 3D se riggea aparte (esqueleto tipo mixamo con
   sus pesos) y se lleva a la pose de enlace del Hero girando cada hueso con sus propios pesos, sin estirar la malla (lo
   que dejaba los brazos "espaguetizados"); las articulaciones del juego van donde quedan en esa malla y la cadera a la
