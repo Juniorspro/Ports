@@ -222,7 +222,9 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   sus pesos) y se lleva a la pose de enlace del Hero girando cada hueso con sus propios pesos, sin estirar la malla (lo
   que dejaba los brazos "espaguetizados"); las articulaciones del juego van donde quedan en esa malla y la cadera a la
   altura de la del Hero. Así entraron Goku y Cíclope rehechos y seis nuevos: Astronauta, Ninja, Robot, Zombi, Bombera y
-  Pirata. Los datos van sólo en el HTML.
+  Pirata. Después, seis de Dragon Ball junto a Goku en Personajes: Broly (legendario), Vegeta, Gohan (adolescente, SSJ2),
+  Piccolo, Freezer y Trunks del futuro (imagen en pose T → modelo 3D riggeado → `skin_meshy.py`; el retrato sale de la
+  misma imagen). Los datos van sólo en el HTML; `skin_meshy.py` también copia los fondos de la pantalla de carga.
 - **Emotes nuevos** (`herramientas/emote_meshy.py`, `emotes.js`): 28 animaciones (bailes, gestos y acciones) pasadas
   al esqueleto del juego como rotaciones locales a 20 cuadros por segundo más la cadera, sin la deriva horizontal; andan
   en todos los personajes. Panel por categorías (Todos, Bailes, Gestos, Acciones, Clásicos, Míos, Tienda) con

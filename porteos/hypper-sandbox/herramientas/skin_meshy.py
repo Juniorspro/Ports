@@ -209,7 +209,7 @@ d['chars'].append(NOM)
 # ---------------- archivos ----------------
 if os.path.exists(PK1): shutil.rmtree(PK1)
 os.makedirs(PK1 + '/t'); os.makedirs(PK1 + '/i'); os.makedirs(PK1 + '/a')
-for sd in ('t', 'i', 'a', 'fondos'):
+for sd in ('t', 'i', 'a', 'fondos', 'carga'):  # (carga: los fondos de la pantalla de carga)
     if not os.path.isdir(PK0 + '/' + sd): continue
     os.makedirs(PK1 + '/' + sd, exist_ok=True)
     for f in os.listdir(PK0 + '/' + sd):
