@@ -19,6 +19,9 @@ await foto('2_japones');
 await toca('[data-rb="lang:es"]'); await p.fill('#rbNombreB', 'Probador'); await toca('[data-rb=bienvOK]');
 console.log('menú:', await p.evaluate(() => [...document.querySelectorAll('.rbIt')].map((e) => e.textContent).join(' | ')));
 await toca('[data-rb=tienda]', 2500); await foto('3_tienda');
+// los oficiales no vienen puestos: se instalan desde la tienda (Súper salto queda prendido); en Instalados se apaga
+console.log('para instalar:', await p.evaluate(() => document.querySelectorAll('[data-rb^="instalar:"]').length));
+await toca('[data-rb="instalar:salto"]');
 await toca('[data-rb="vista:instalados"]'); console.log('instalados:', await p.evaluate(() => document.querySelectorAll('.rbCard').length));
 await toca('[data-rb="act:salto"]'); await foto('4_instalados');
 // crear y publicar un mod

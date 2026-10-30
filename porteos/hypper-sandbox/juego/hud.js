@@ -41,7 +41,10 @@ const HUD_TACTIL = [
   // en un vehículo
   ['#bgas', 1, 0, -122, 153, 110], ['#bfreno', 1, 0, -287.6, 153, 110], ['#bizq', 0, 0, 179, 142, 103], ['#bder', 0, 0, 361, 142, 103], ['#bmanual', 1, 0.5, -107, 0.4, 96.4], ['#bbajar', 0, 0.5, 42, 0, 71],
 ];
-const HUD = { k: 0, w: 0, h: 0, arma: '', veh: null, usar: null, tac: null, n: -1, c: 0 };
+const HUD = { k: 0, w: 0, h: 0, arma: '', veh: null, usar: null, tac: null, n: '', c: 0 };
+// cuáles botones hay y se ven (no cuántos: si aparece uno y se va otro a la vez, la cuenta no cambia y el nuevo quedaba
+// sin ubicar, en la esquina, encima de pausa)
+const hudFirma = () => HUD_TACTIL.map((r) => { const e = document.querySelector(r[0]); return e && e.style.display !== 'none' ? 1 : 0; }).join('');
 function hudIniciar() {
   const t = $('tactil'); if (!t) return;
   // botones que agrega esta versión: borrar lo que apuntás y los del auto
@@ -69,7 +72,7 @@ function hudDisponer() {
   const pal = $('palanca'), bola = $('palbola');
   if (pal && bola) { const b = Math.round(HUD.pal * 0.42); pal.style.width = pal.style.height = HUD.pal + 'px'; Object.assign(bola.style, { width: b + 'px', height: b + 'px', left: (HUD.pal - b) / 2 - 2 + 'px', top: (HUD.pal - b) / 2 - 2 + 'px' }); }
   const tactil = document.body.classList.contains('tactil'); HUD.tac = tactil;
-  HUD.n = HUD_TACTIL.reduce((a, r) => a + (document.querySelector(r[0]) ? 1 : 0), 0);
+  HUD.n = hudFirma();
   for (const [sel, ax, ay, x, y, s] of HUD_TACTIL) {
     const e = document.querySelector(sel); if (!e) continue;
     if (!tactil && !e.classList.contains('bt-t')) { e.style.left = e.style.top = e.style.width = e.style.height = ''; continue; }
@@ -83,7 +86,7 @@ function hudDisponer() {
 // o el tamaño de la pantalla, se vuelven a ubicar; si no, quedaban todos amontonados en la esquina)
 function hudPaso() {
   const tactil = document.body.classList.contains('tactil');
-  if (tactil !== HUD.tac || HUD.w !== VW() || HUD.h !== VH() || HUD.f !== hudTam() || (++HUD.c % 15 === 0 && HUD_TACTIL.reduce((a, r) => a + (document.querySelector(r[0]) ? 1 : 0), 0) !== HUD.n)) hudDisponer();
+  if (tactil !== HUD.tac || HUD.w !== VW() || HUD.h !== VH() || HUD.f !== hudTam() || (++HUD.c % 10 === 0 && hudFirma() !== HUD.n)) hudDisponer();
   if (!tactil) return;
   const arma = ARM.lista[ARM.i] || '', veh = !!JUG.vehiculo, usar = !!($('usarTxt').textContent || (!veh && entidadCerca()));
   if (arma !== HUD.arma || veh !== HUD.veh || usar !== HUD.usar) {

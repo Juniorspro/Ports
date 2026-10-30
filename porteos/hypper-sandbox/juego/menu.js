@@ -223,7 +223,8 @@ function menuAccion(r) {
   for (const [re, fn] of ACCIONES) { const m = re.exec(r); if (m) { fn(r, m); return; } }
 }
 // ---------------- tienda: personajes y gorros, con el personaje en 3D ----------------
-const RETRATO = { Hero: 'hero', Soldier: 'soldier', Jean: 'jean', Derik: 'derik', Business: 'business', SpecialForcesW: 'specialforce', SpecialForcesM: 'specialforce_2', Prisoner01: 'Prisoner01', PilotFemale: 'PilotFemale', Butcher: 'Butcher', Swat: 'swat', Military: 'Military', Engineer: 'Engineer', Corpse: 'corpse', Goku: 'goku', Ciclope: 'ciclope', Astronauta: 'astronauta', Ninja: 'ninja', Robot: 'robot', Zombi: 'zombi', Bombera: 'bombera', Pirata: 'pirata' };
+const RETRATO = { Hero: 'hero', Soldier: 'soldier', Jean: 'jean', Derik: 'derik', Business: 'business', SpecialForcesW: 'specialforce', SpecialForcesM: 'specialforce_2', Prisoner01: 'Prisoner01', PilotFemale: 'PilotFemale', Butcher: 'Butcher', Swat: 'swat', Military: 'Military', Engineer: 'Engineer', Corpse: 'corpse', Goku: 'goku', Ciclope: 'ciclope', Astronauta: 'astronauta', Ninja: 'ninja', Robot: 'robot', Zombi: 'zombi', Bombera: 'bombera', Pirata: 'pirata',
+  Broly: 'broly', Vegeta: 'vegeta', Gohan: 'gohan', Piccolo: 'piccolo', Freezer: 'freezer', Trunks: 'trunks' };
 function tienda(tab) {
   MENU.tab = tab;
   const cat = buscar(nodo('Main/Shop/Character'), 'Root');

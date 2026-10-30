@@ -1,9 +1,10 @@
-// mods en vivo desde el menú MOD (jugando solo): prender y apagar cualquiera, fuerza, buscador y lo que se ve
+// mods en vivo desde el menú MOD (jugando solo, con todos los oficiales instalados): prender y apagar cualquiera, fuerza,
+// buscador y lo que se ve
 import { abrir } from './base.mjs';
 const HTML = process.argv[2], D = (process.argv[3] || '.') + '/', celu = process.argv[4] === 'celu';
 const { b, p, err, ev } = await abrir(HTML, celu);
 const espera = (ms) => p.waitForTimeout(ms);
-await ev(`PREFS.bienvenida = true; GFX.auto=false; PREFS.lang='es'; PREFS.mods = {}; PREFS.modFuerza = {}; PREFS.skin = 'Hero'; inicioMostrar(true); RB.mapaPartida=null; RB.mapaCom=null; RB.horaPartida='normal'; inicioMostrar(false); empezarPartida('FlatGrass')`);
+await ev(`PREFS.bienvenida = true; GFX.auto=false; PREFS.lang='es'; PREFS.mods = {}; INST.of = Object.fromEntries(OFICIALES.map((m) => [m.id, true])); PREFS.modFuerza = {}; PREFS.skin = 'Hero'; inicioMostrar(true); RB.mapaPartida=null; RB.mapaCom=null; RB.horaPartida='normal'; inicioMostrar(false); empezarPartida('FlatGrass')`);
 await espera(4000);
 await ev(`JUG.pos.set(20, 1.6, 20); JUG.vel.set(0,0,0); 1`);
 console.log('sin mods: botón MOD', await ev(`MODM.boton.style.display !== 'none'`), '· gravedad', await ev(`MUNDO.gravedad`), '· vel', await ev(`JUG.vel_max.toFixed(2)`));

@@ -484,7 +484,7 @@ function estPaso(dt) {
 }
 
 // ---------------- videos de YouTube: un solo reproductor (escondido) para el más cercano que se oye ----------------
-const YT = { caja: null, ifr: null, fuente: null, vid: null, vol: -1, t: 0, pan: null };
+const YT = { caja: null, ifr: null, fuente: null, vid: null, vol: -1, t: 0, pan: null, est: -1, cargaT: 0, cur: 0, curT: 0, dur: 0, reintT: 0, seekT: 0 };
 function ytCaja() {
   if (YT.caja) return YT.caja;
   const c = document.createElement('div'); c.id = 'ytMini'; c.className = 'oc';
@@ -504,6 +504,7 @@ function ytCargar(e) {
   f.src = `https://www.youtube-nocookie.com/embed/${e.vid}?autoplay=1&enablejsapi=1&playsinline=1&controls=0&rel=0&modestbranding=1&start=${s}` + (/^https?:/.test(location.origin) ? '&origin=' + encodeURIComponent(location.origin) : '');
   f.onload = () => { try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'rb' }), '*'); } catch (x) {} YT.vol = -1; ytVolumen(true); };
   f.tabIndex = -1; c.querySelector('.ytV').appendChild(f); YT.ifr = f; c.classList.remove('oc');
+  YT.est = -1; YT.cargaT = Date.now(); YT.cur = s; YT.curT = Date.now(); YT.dur = 0;
   // en una pantalla el video se ve: va detrás del juego, donde el juego deja el hueco
   const pant = e.t === 'pantalla'; c.classList.toggle('pant', pant); document.body.classList.toggle('conPant', pant); if (pant) { c.style.transform = ''; TELE.css = ''; }
 }
@@ -520,12 +521,30 @@ function ytPaso(dt) {
   if (!best) { if (YT.ifr) ytQuitar(); return; }
   if (best !== YT.fuente || best.vid !== YT.vid) ytCargar(best);
   ytVolumen(false);
+  ytSeguir(best);
+}
+// si el video se frenó solo (el navegador lo pausa cuando no se ve, o se cortó la carga) sigue; y si quedó atrás (más de
+// 6 s), salta al tiempo de todos (el de la radio o pantalla, el mismo para toda la sala). No hay botón de pausa: nunca
+// es a propósito.
+function ytSeguir(e) {
+  if (!YT.ifr || YT.fuente !== e) return;
+  const ahora = Date.now(), frenado = YT.est === 2 || YT.est === 5 || (YT.est === -1 && ahora - YT.cargaT > 5000);
+  if (frenado && ahora - YT.reintT > 1500) { ytCmd('playVideo'); YT.reintT = ahora; }
+  const esp = ahoraS() - (e.t0 || ahoraS()), va = YT.cur + (YT.est === 1 ? (ahora - YT.curT) / 1000 : 0);
+  if (YT.est === 1 && YT.dur > 0 && esp > 0 && esp < YT.dur - 3 && Math.abs(va - esp) > 6 && ahora - YT.seekT > 8000) { ytCmd('seekTo', [esp, true]); YT.seekT = ahora; }
 }
 addEventListener('message', (ev) => {
   if (!YT.ifr || ev.source !== YT.ifr.contentWindow || !/youtube/.test(ev.origin)) return;
   let d; try { d = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data; } catch (x) { return; }
   if (!d || typeof d !== 'object') return;
   const e = YT.fuente; if (!e) return;
+  // (en qué está el reproductor: 1 sonando, 2 en pausa, 3 cargando, 5 sin empezar; y por dónde va)
+  if (d.event === 'onStateChange' && typeof d.info === 'number') YT.est = d.info;
+  if (d.event === 'infoDelivery' && d.info) {
+    if (typeof d.info.playerState === 'number') YT.est = d.info.playerState;
+    if (typeof d.info.currentTime === 'number') { YT.cur = d.info.currentTime; YT.curT = Date.now(); }
+    if (typeof d.info.duration === 'number') YT.dur = d.info.duration;
+  }
   if (d.event === 'onError') radioSiguiente(e, true);
   else if ((d.event === 'onStateChange' && d.info === 0) || (d.event === 'infoDelivery' && d.info && d.info.playerState === 0)) radioSiguiente(e, false);
   if (d.event === 'infoDelivery' && d.info && d.info.videoData && d.info.videoData.title && !e.tit) { e.tit = limpio(d.info.videoData.title, 100); if (RADIO.e === e) radioDibujar(); }

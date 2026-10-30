@@ -76,14 +76,14 @@ function modMenuLista() {
   }
   // los mods de personaje y jugabilidad: los activos primero; el buscador mira nombre, descripción y etiquetas
   const act = modsFuente();
-  const todos = modsCatalogo().filter((m) => modTipo(m) !== 'asset' && busca(m)).sort((a, b) => (act[b.id] ? 1 : 0) - (act[a.id] ? 1 : 0));
+  const todos = modsCatalogo().filter((m) => modTipo(m) !== 'asset' && busca(m)).sort((a, b) => (act[b.id] ? 1 : 0) - (act[a.id] ? 1 : 0) || nombreDe(a).localeCompare(nombreDe(b), PREFS.lang || 'es', { sensitivity: 'base' }));
   let m = '';
   for (const x of todos.slice(0, 200)) {
     const on = !!act[x.id], f = modFuerza(x.id);
     const fz = on && modAjustable(x) ? `<label class="mmFz">${esc(T('mm.fuerza'))}<input type="range" min="0" max="200" step="10" value="${Math.round(f * 100)}" data-mf="${esc(x.id)}"><output>${Math.round(f * 100)}%</output></label>` : '';
     m += `<div class="mmIt mmCat${on ? ' on' : ''}" data-mm="mod:${esc(x.id)}"><span class="mmIco">${icoHTML(x.icono)}</span><span class="mmTx"><b dir="auto">${esc(nombreDe(x))}</b><small dir="auto">${esc(sinEmoji(descDe(x) || (x.oficial ? T('oficial') : T('por') + ' ' + (x.autor || ''))))}</small></span>${sw}${fz}</div>`;
   }
-  if (!m) m = `<div class="mmVacio">${esc(T('sinRes'))}</div>`;
+  if (!m) m = `<div class="mmVacio">${esc(T((MODM.q || '').trim() ? 'sinRes' : 'mm.sinMods'))}</div>`; // (sin ninguno instalado: dónde se consiguen)
   const sm = typeof SALA !== 'undefined' && SALA ? `<button class="mmBt mmSm" data-mm="sm">${icoHTML('ico:mod')}<span>${esc(T('sm.tit'))} (M)</span></button>` : '';
   L.innerHTML = (u ? `<div class="mmSec">${esc(T('mm.usar'))}</div>${u}` : '') + `<div class="mmSec">${esc(T('t.mods'))}</div>${m}${sm}`;
   const c = MODM.el.querySelector('.mmCuenta'); if (c) c.textContent = `${modsActivosAhora().length} ${T('sm.activos')} · ${T('mm.ayuda')}`;

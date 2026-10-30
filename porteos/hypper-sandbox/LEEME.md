@@ -31,6 +31,18 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   de la compu con las teclas). Tamaño elegible en Ajustes (60 a 120 %, de entrada 80 %: los del Hypper quedaban
   grandes); se achican en el mismo lugar (el centro de cada botón no se mueve) y la barra de armas, la vida, la palanca
   y el estado de Verity siguen la misma escala.
+- **Mods oficiales desde la tienda**: ya no vienen todos puestos (la tienda quedaba vacía). En Mods y mapas → Explorar
+  aparecen primero los oficiales en orden (Verity, Goku, la radio, la tele, el piano, volar, Cíclope, muñeco, SCP, salto,
+  velocidad, luna, dios, cámara lenta, munición, explosiones) y después los de la gente; se instalan con un toque (los que
+  cambian cómo jugás quedan prendidos) y se quitan. `INST.of` guarda los oficiales instalados; la primera vez con esto
+  quedan los que ya tenías prendidos. Instalados: los prendidos primero y después por nombre (igual en el menú MOD).
+  En los servers siguen estando todos (SM). Sin assets instalados, la sección Mods del menú de props dice dónde se consiguen.
+- **Tele**: el hueco del video se recorta con la prueba de profundidad de la placa (una máscara con la profundidad de la
+  escena pegada) en vez de leer la textura de profundidad, que en muchos celulares tiene poca precisión y daba franjas
+  negras parejas; la tapa de atrás va al fondo del marco. Si el video se frena solo (el navegador lo pausaba al no
+  verse, o se cortó la carga) sigue, y si quedó más de 6 s atrás salta al tiempo de todos.
+- **HUD**: se reacomoda cuando cambia cuáles botones hay (no cuántos): si aparecía SM y se iba otro a la vez, SM quedaba
+  sin ubicar encima de pausa.
 - **Pantalla de carga estilo Garry's Mod** (en `template.html`, antes del juego y sin depender de él): capturas del juego
   de fondo que se van fundiendo (`PAQUETE/carga/N_rb_mapa.jpg`, fuera del repo; `armar.py` las mete), el logo, consejos,
   la consola con cada paso terminado y lo que cargó (tiempos y números reales: archivos, MB, modelos, animaciones,

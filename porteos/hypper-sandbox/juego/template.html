@@ -376,8 +376,8 @@ body.tactil .mmTx small{display:none}
 #ytMini{position:fixed;right:0;bottom:0;width:200px;height:113px;opacity:0;pointer-events:none;z-index:-1;overflow:hidden}
 #ytMini.oc{display:none}#ytMini .ytV,#ytMini iframe{width:200px;height:113px;border:0;display:block}
 /* la pantalla: el video detrás del juego, con la perspectiva de la pantalla (el juego deja el hueco) */
-#ytMini.pant{left:0;top:0;right:auto;bottom:auto;width:960px;height:540px;opacity:0;transform-origin:0 0;background:#000;will-change:transform}
-#ytMini.pant.pantVe{opacity:1}#ytMini.pant .ytV,#ytMini.pant iframe{width:960px;height:540px}
+/* (siempre opaca: el juego la tapa entera menos el hueco; transparente, el navegador la daba por escondida y la pausaba) */
+#ytMini.pant{left:0;top:0;right:auto;bottom:auto;width:960px;height:540px;opacity:1;transform-origin:0 0;background:#000;will-change:transform}#ytMini.pant .ytV,#ytMini.pant iframe{width:960px;height:540px}
 body.conPant{background:transparent}
 .raTam{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:#bbb}.raTam:empty{display:none}.raTam span{margin-right:4px}
 .raTam button{background:#2b2d33;border:1px solid #444;color:#ddd;border-radius:12px;padding:3px 10px;font-size:12px;cursor:pointer}.raTam button.sel{background:#3e6fd8;border-color:#3e6fd8;color:#fff}

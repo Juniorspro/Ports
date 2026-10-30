@@ -376,8 +376,8 @@ body.tactil .mmTx small{display:none}
 #ytMini{position:fixed;right:0;bottom:0;width:200px;height:113px;opacity:0;pointer-events:none;z-index:-1;overflow:hidden}
 #ytMini.oc{display:none}#ytMini .ytV,#ytMini iframe{width:200px;height:113px;border:0;display:block}
 /* la pantalla: el video detrás del juego, con la perspectiva de la pantalla (el juego deja el hueco) */
-#ytMini.pant{left:0;top:0;right:auto;bottom:auto;width:960px;height:540px;opacity:0;transform-origin:0 0;background:#000;will-change:transform}
-#ytMini.pant.pantVe{opacity:1}#ytMini.pant .ytV,#ytMini.pant iframe{width:960px;height:540px}
+/* (siempre opaca: el juego la tapa entera menos el hueco; transparente, el navegador la daba por escondida y la pausaba) */
+#ytMini.pant{left:0;top:0;right:auto;bottom:auto;width:960px;height:540px;opacity:1;transform-origin:0 0;background:#000;will-change:transform}#ytMini.pant .ytV,#ytMini.pant iframe{width:960px;height:540px}
 body.conPant{background:transparent}
 .raTam{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:#bbb}.raTam:empty{display:none}.raTam span{margin-right:4px}
 .raTam button{background:#2b2d33;border:1px solid #444;color:#ddd;border-radius:12px;padding:3px 10px;font-size:12px;cursor:pointer}.raTam button.sel{background:#3e6fd8;border-color:#3e6fd8;color:#fff}
@@ -6339,7 +6339,8 @@ function spawnGrilla(C, subs) {
     }
     gr.appendChild(d);
   }
-  if (!lista.length && !gr.children.length) gr.innerHTML = `<div class="spVacio">${esc(T('sinRes'))}</div>`;
+  // (la sección Mods vacía: la radio, la tele, el piano y los de la gente se instalan en Mods y mapas)
+  if (!lista.length && !gr.children.length) gr.innerHTML = `<div class="spVacio">${esc(T(!q && (subs[UI.sub] || {}).mods ? 'mm.instalaAssets' : 'sinRes'))}</div>`;
 }
 const spawnModNom = (id) => { const m = modsAssets().find((x) => x.id === id); return m ? nombreDe(m) : id; };
 // un mod de assets: los oficiales ponen su entidad (radio, piano, pantalla); los de la gente, sus props
@@ -6494,7 +6495,10 @@ const HUD_TACTIL = [
   // en un vehículo
   ['#bgas', 1, 0, -122, 153, 110], ['#bfreno', 1, 0, -287.6, 153, 110], ['#bizq', 0, 0, 179, 142, 103], ['#bder', 0, 0, 361, 142, 103], ['#bmanual', 1, 0.5, -107, 0.4, 96.4], ['#bbajar', 0, 0.5, 42, 0, 71],
 ];
-const HUD = { k: 0, w: 0, h: 0, arma: '', veh: null, usar: null, tac: null, n: -1, c: 0 };
+const HUD = { k: 0, w: 0, h: 0, arma: '', veh: null, usar: null, tac: null, n: '', c: 0 };
+// cuáles botones hay y se ven (no cuántos: si aparece uno y se va otro a la vez, la cuenta no cambia y el nuevo quedaba
+// sin ubicar, en la esquina, encima de pausa)
+const hudFirma = () => HUD_TACTIL.map((r) => { const e = document.querySelector(r[0]); return e && e.style.display !== 'none' ? 1 : 0; }).join('');
 function hudIniciar() {
   const t = $('tactil'); if (!t) return;
   // botones que agrega esta versión: borrar lo que apuntás y los del auto
@@ -6522,7 +6526,7 @@ function hudDisponer() {
   const pal = $('palanca'), bola = $('palbola');
   if (pal && bola) { const b = Math.round(HUD.pal * 0.42); pal.style.width = pal.style.height = HUD.pal + 'px'; Object.assign(bola.style, { width: b + 'px', height: b + 'px', left: (HUD.pal - b) / 2 - 2 + 'px', top: (HUD.pal - b) / 2 - 2 + 'px' }); }
   const tactil = document.body.classList.contains('tactil'); HUD.tac = tactil;
-  HUD.n = HUD_TACTIL.reduce((a, r) => a + (document.querySelector(r[0]) ? 1 : 0), 0);
+  HUD.n = hudFirma();
   for (const [sel, ax, ay, x, y, s] of HUD_TACTIL) {
     const e = document.querySelector(sel); if (!e) continue;
     if (!tactil && !e.classList.contains('bt-t')) { e.style.left = e.style.top = e.style.width = e.style.height = ''; continue; }
@@ -6536,7 +6540,7 @@ function hudDisponer() {
 // o el tamaño de la pantalla, se vuelven a ubicar; si no, quedaban todos amontonados en la esquina)
 function hudPaso() {
   const tactil = document.body.classList.contains('tactil');
-  if (tactil !== HUD.tac || HUD.w !== VW() || HUD.h !== VH() || HUD.f !== hudTam() || (++HUD.c % 15 === 0 && HUD_TACTIL.reduce((a, r) => a + (document.querySelector(r[0]) ? 1 : 0), 0) !== HUD.n)) hudDisponer();
+  if (tactil !== HUD.tac || HUD.w !== VW() || HUD.h !== VH() || HUD.f !== hudTam() || (++HUD.c % 10 === 0 && hudFirma() !== HUD.n)) hudDisponer();
   if (!tactil) return;
   const arma = ARM.lista[ARM.i] || '', veh = !!JUG.vehiculo, usar = !!($('usarTxt').textContent || (!veh && entidadCerca()));
   if (arma !== HUD.arma || veh !== HUD.veh || usar !== HUD.usar) {
@@ -6782,7 +6786,8 @@ function menuAccion(r) {
   for (const [re, fn] of ACCIONES) { const m = re.exec(r); if (m) { fn(r, m); return; } }
 }
 // ---------------- tienda: personajes y gorros, con el personaje en 3D ----------------
-const RETRATO = { Hero: 'hero', Soldier: 'soldier', Jean: 'jean', Derik: 'derik', Business: 'business', SpecialForcesW: 'specialforce', SpecialForcesM: 'specialforce_2', Prisoner01: 'Prisoner01', PilotFemale: 'PilotFemale', Butcher: 'Butcher', Swat: 'swat', Military: 'Military', Engineer: 'Engineer', Corpse: 'corpse', Goku: 'goku', Ciclope: 'ciclope', Astronauta: 'astronauta', Ninja: 'ninja', Robot: 'robot', Zombi: 'zombi', Bombera: 'bombera', Pirata: 'pirata' };
+const RETRATO = { Hero: 'hero', Soldier: 'soldier', Jean: 'jean', Derik: 'derik', Business: 'business', SpecialForcesW: 'specialforce', SpecialForcesM: 'specialforce_2', Prisoner01: 'Prisoner01', PilotFemale: 'PilotFemale', Butcher: 'Butcher', Swat: 'swat', Military: 'Military', Engineer: 'Engineer', Corpse: 'corpse', Goku: 'goku', Ciclope: 'ciclope', Astronauta: 'astronauta', Ninja: 'ninja', Robot: 'robot', Zombi: 'zombi', Bombera: 'bombera', Pirata: 'pirata',
+  Broly: 'broly', Vegeta: 'vegeta', Gohan: 'gohan', Piccolo: 'piccolo', Freezer: 'freezer', Trunks: 'trunks' };
 function tienda(tab) {
   MENU.tab = tab;
   const cat = buscar(nodo('Main/Shop/Character'), 'Root');
@@ -7539,6 +7544,8 @@ const IDI3 = {
   'ld.cliente': ['Enviando la info del cliente', 'Sending client info', 'Enviando informações do cliente', 'Mengirim info klien', 'Menghantar maklumat klien', 'Ipinapadala ang info ng client', 'クライアント情報を送信中', 'กำลังส่งข้อมูลไคลเอนต์', 'İstemci bilgisi gönderiliyor', 'جارٍ إرسال معلومات العميل', 'Отправка данных клиента', 'Надсилання даних клієнта', 'Envoi des infos du client', 'Client-Infos werden gesendet'],
   'ld.solo': ['Partida de un jugador', 'Single player game', 'Partida de um jogador', 'Permainan pemain tunggal', 'Permainan pemain tunggal', 'Single player na laro', 'シングルプレイ', 'เล่นคนเดียว', 'Tek oyunculu oyun', 'لعبة فردية', 'Одиночная игра', 'Одиночна гра', 'Partie solo', 'Einzelspieler-Partie'],
   'aj.hud': ['Tamaño de los controles', 'Controls size', 'Tamanho dos controles', 'Ukuran kontrol', 'Saiz kawalan', 'Laki ng mga kontrol', '操作ボタンの大きさ', 'ขนาดปุ่มควบคุม', 'Kontrol boyutu', 'حجم أزرار التحكم', 'Размер кнопок', 'Розмір кнопок', 'Taille des commandes', 'Größe der Steuerung'],
+  'mm.instalaAssets': ['No tenés ninguno: la radio, la tele, el piano y más se instalan en Mods y mapas', 'You have none yet: the radio, TV, piano and more are installed from Mods & maps', 'Você não tem nenhum: o rádio, a TV, o piano e mais se instalam em Mods e mapas', 'Belum ada: radio, TV, piano, dan lainnya dipasang dari Mod & peta', 'Belum ada: radio, TV, piano dan lain-lain dipasang dari Mod & peta', 'Wala ka pa: ang radyo, TV, piano at iba pa ay ini-install sa Mods at mapa', 'まだありません：ラジオ、テレビ、ピアノなどは「Mod＆マップ」でインストール', 'ยังไม่มี: วิทยุ ทีวี เปียโน และอื่น ๆ ติดตั้งได้ในม็อดและแผนที่', 'Henüz yok: radyo, TV, piyano ve dahası Modlar ve haritalardan kurulur', 'لا يوجد شيء بعد: الراديو والتلفاز والبيانو وغيرها تُثبَّت من المودات والخرائط', 'Пока пусто: радио, телевизор, пианино и другое ставятся в «Моды и карты»', 'Поки порожньо: радіо, телевізор, піаніно й інше ставляться в «Моди й мапи»', 'Rien pour l’instant : la radio, la télé, le piano et plus s’installent dans Mods et cartes', 'Noch nichts: Radio, Fernseher, Klavier und mehr installierst du unter Mods & Karten'],
+  'mm.sinMods': ['Todavía no instalaste mods: se consiguen en Mods y mapas, en el inicio', 'No mods installed yet: get them in Mods & maps, on the main menu', 'Você ainda não instalou mods: pegue em Mods e mapas, no início', 'Belum ada mod: ambil di Mod & peta, di menu utama', 'Belum ada mod: dapatkan di Mod & peta, di menu utama', 'Wala ka pang mod: kunin sa Mods at mapa, sa main menu', 'まだModがありません：メインメニューの「Mod＆マップ」で入手', 'ยังไม่มีม็อด: รับได้ที่ม็อดและแผนที่ ในเมนูหลัก', 'Henüz mod yok: ana menüdeki Modlar ve haritalardan al', 'لم تثبّت مودات بعد: احصل عليها من المودات والخرائط في القائمة الرئيسية', 'Модов пока нет: их можно взять в «Моды и карты» в главном меню', 'Модів поки немає: їх можна взяти в «Моди й мапи» в головному меню', 'Aucun mod installé : récupère-les dans Mods et cartes, au menu principal', 'Noch keine Mods: hol sie dir unter Mods & Karten im Hauptmenü'],
   'pj.skins': ['Personajes', 'Characters', 'Personagens', 'Karakter', 'Watak', 'Mga karakter', 'キャラクター', 'ตัวละคร', 'Karakterler', 'الشخصيات', 'Персонажи', 'Персонажі', 'Personnages', 'Charaktere'],
   'pj.gorros': ['Gorros', 'Hats', 'Chapéus', 'Topi', 'Topi', 'Mga sumbrero', '帽子', 'หมวก', 'Şapkalar', 'القبعات', 'Шапки', 'Капелюхи', 'Chapeaux', 'Hüte'],
   'pj.sin': ['Sin gorro', 'No hat', 'Sem chapéu', 'Tanpa topi', 'Tanpa topi', 'Walang sumbrero', '帽子なし', 'ไม่สวมหมวก', 'Şapkasız', 'بلا قبعة', 'Без шапки', 'Без капелюха', 'Sans chapeau', 'Kein Hut'],
@@ -8452,7 +8459,7 @@ function estPaso(dt) {
 }
 
 // ---------------- videos de YouTube: un solo reproductor (escondido) para el más cercano que se oye ----------------
-const YT = { caja: null, ifr: null, fuente: null, vid: null, vol: -1, t: 0, pan: null };
+const YT = { caja: null, ifr: null, fuente: null, vid: null, vol: -1, t: 0, pan: null, est: -1, cargaT: 0, cur: 0, curT: 0, dur: 0, reintT: 0, seekT: 0 };
 function ytCaja() {
   if (YT.caja) return YT.caja;
   const c = document.createElement('div'); c.id = 'ytMini'; c.className = 'oc';
@@ -8472,6 +8479,7 @@ function ytCargar(e) {
   f.src = `https://www.youtube-nocookie.com/embed/${e.vid}?autoplay=1&enablejsapi=1&playsinline=1&controls=0&rel=0&modestbranding=1&start=${s}` + (/^https?:/.test(location.origin) ? '&origin=' + encodeURIComponent(location.origin) : '');
   f.onload = () => { try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'rb' }), '*'); } catch (x) {} YT.vol = -1; ytVolumen(true); };
   f.tabIndex = -1; c.querySelector('.ytV').appendChild(f); YT.ifr = f; c.classList.remove('oc');
+  YT.est = -1; YT.cargaT = Date.now(); YT.cur = s; YT.curT = Date.now(); YT.dur = 0;
   // en una pantalla el video se ve: va detrás del juego, donde el juego deja el hueco
   const pant = e.t === 'pantalla'; c.classList.toggle('pant', pant); document.body.classList.toggle('conPant', pant); if (pant) { c.style.transform = ''; TELE.css = ''; }
 }
@@ -8488,12 +8496,30 @@ function ytPaso(dt) {
   if (!best) { if (YT.ifr) ytQuitar(); return; }
   if (best !== YT.fuente || best.vid !== YT.vid) ytCargar(best);
   ytVolumen(false);
+  ytSeguir(best);
+}
+// si el video se frenó solo (el navegador lo pausa cuando no se ve, o se cortó la carga) sigue; y si quedó atrás (más de
+// 6 s), salta al tiempo de todos (el de la radio o pantalla, el mismo para toda la sala). No hay botón de pausa: nunca
+// es a propósito.
+function ytSeguir(e) {
+  if (!YT.ifr || YT.fuente !== e) return;
+  const ahora = Date.now(), frenado = YT.est === 2 || YT.est === 5 || (YT.est === -1 && ahora - YT.cargaT > 5000);
+  if (frenado && ahora - YT.reintT > 1500) { ytCmd('playVideo'); YT.reintT = ahora; }
+  const esp = ahoraS() - (e.t0 || ahoraS()), va = YT.cur + (YT.est === 1 ? (ahora - YT.curT) / 1000 : 0);
+  if (YT.est === 1 && YT.dur > 0 && esp > 0 && esp < YT.dur - 3 && Math.abs(va - esp) > 6 && ahora - YT.seekT > 8000) { ytCmd('seekTo', [esp, true]); YT.seekT = ahora; }
 }
 addEventListener('message', (ev) => {
   if (!YT.ifr || ev.source !== YT.ifr.contentWindow || !/youtube/.test(ev.origin)) return;
   let d; try { d = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data; } catch (x) { return; }
   if (!d || typeof d !== 'object') return;
   const e = YT.fuente; if (!e) return;
+  // (en qué está el reproductor: 1 sonando, 2 en pausa, 3 cargando, 5 sin empezar; y por dónde va)
+  if (d.event === 'onStateChange' && typeof d.info === 'number') YT.est = d.info;
+  if (d.event === 'infoDelivery' && d.info) {
+    if (typeof d.info.playerState === 'number') YT.est = d.info.playerState;
+    if (typeof d.info.currentTime === 'number') { YT.cur = d.info.currentTime; YT.curT = Date.now(); }
+    if (typeof d.info.duration === 'number') YT.dur = d.info.duration;
+  }
   if (d.event === 'onError') radioSiguiente(e, true);
   else if ((d.event === 'onStateChange' && d.info === 0) || (d.event === 'infoDelivery' && d.info && d.info.playerState === 0)) radioSiguiente(e, false);
   if (d.event === 'infoDelivery' && d.info && d.info.videoData && d.info.videoData.title && !e.tit) { e.tit = limpio(d.info.videoData.title, 100); if (RADIO.e === e) radioDibujar(); }
@@ -8744,11 +8770,12 @@ ENT_TIPO.pantalla = {
     const M = e.M, c = e.b.pos, q = e.b.q, w = (x, y, z) => vadd(c, q.rot(v3(x, y, z)));
     const mM = matPropio('pantMarco', [0.025, 0.026, 0.03], { pbr: [0.35, 0.3, 0.05] }), mV = matPropio('pantVidrio', [0.006, 0.007, 0.01], { pbr: [0.06, 0, 0.9] });
     const yI = M.cy, fz = -M.prof / 2, hueco = TELE.vis && YT.fuente === e;
-    // marco (cuatro barras) y la tapa de atrás (3 cm más adentro: el hueco del video queda delante de ella)
+    // marco (cuatro barras) y la tapa de atrás (pegada al fondo: el hueco del video queda bien delante de ella, así la
+    // prueba de profundidad no los confunde ni con 16 bits de profundidad)
     dibujarCaja(w(0, yI + M.h / 2 + M.b / 2, 0), [M.w + 2 * M.b, M.b, M.prof], q, mM);
     dibujarCaja(w(0, yI - M.h / 2 - M.b / 2, 0), [M.w + 2 * M.b, M.b, M.prof], q, mM);
     for (const sx of [-1, 1]) dibujarCaja(w(sx * (M.w / 2 + M.b / 2), yI, 0), [M.b, M.h, M.prof], q, mM);
-    dibujarCaja(w(0, yI, 0.015), [M.w, M.h, M.prof - 0.03], q, mM);
+    dibujarCaja(w(0, yI, M.prof / 2 - 0.006), [M.w, M.h, 0.012], q, mM);
     // el vidrio: apagado, o la tapa del video si tiene uno puesto y no es la que se ve ahora
     if (!hueco) {
       const tp = e.vid ? pantTapa(e.vid) : null;
@@ -8789,12 +8816,18 @@ function pantTapaSubir(t) {
 }
 // ---------------- el hueco: después de la imagen final, alfa 0 donde la pantalla se ve ----------------
 const VS_PANT_H = `layout(location=0) in vec3 aP; uniform mat4 uVP; void main(){ gl_Position = uVP * vec4(aP, 1.0); }`;
+// (MASCARA: dónde la pantalla pasó la prueba de profundidad, ya hecha aparte; sin MASCARA: el hueco, alfa 0;
+// con MARCA: escribe 1 en la máscara)
 const FS_PANT_H = `precision highp float; uniform sampler2D uProf; uniform vec2 uInv; out vec4 o;
 void main(){
-#ifdef PROF
-  if (texture(uProf, gl_FragCoord.xy * uInv).r < gl_FragCoord.z) discard;
+#ifdef MASCARA
+  if (texture(uProf, gl_FragCoord.xy * uInv).r < 0.5) discard;
 #endif
+#ifdef MARCA
+  o = vec4(1.0);
+#else
   o = vec4(0.0);
+#endif
 }`;
 // las esquinas de la imagen (arriba-izq, arriba-der, abajo-der, abajo-izq vistas de frente) en el mundo y en la pantalla
 function pantEsquinas(e) {
@@ -8836,32 +8869,58 @@ function pantFinCuadro(usaPost) {
       if (mx && area > 30) {
         vis = true;
         if (mx !== TELE.css) { YT.caja.style.transform = mx; TELE.css = mx; }
-        pantHueco(P, usaPost && PO.prof, W, H);
+        pantHueco(P, usaPost, W, H);
       }
     }
   }
   if (vis !== TELE.vis) { TELE.vis = vis; if (YT.caja) YT.caja.classList.toggle('pantVe', vis); }
 }
-function pantHueco(P, prof, W, H) {
+// El hueco se recorta con la prueba de profundidad de la placa (exacta). Antes, con la imagen final aparte, se comparaba
+// a mano con la textura de profundidad, y en muchos celulares esa textura se lee con muy poca precisión: salían franjas
+// negras parejas (perpendiculares a cómo cambia la profundidad sobre la pantalla) que se movían al mirarla de costado.
+// Ahora, con la imagen final aparte, primero se marca en una máscara dónde la pantalla pasa la prueba contra la
+// profundidad de la escena (la misma que usó el dibujo) y después el hueco sale de esa máscara.
+function pantHueco(P, conPost, W, H) {
   const gl = R.gl;
   if (!TELE.prog) {
-    TELE.prog = shader(VS_PANT_H, FS_PANT_H); TELE.progP = shader(VS_PANT_H, FS_PANT_H, ['PROF']);
+    TELE.prog = shader(VS_PANT_H, FS_PANT_H); TELE.progM = shader(VS_PANT_H, FS_PANT_H, ['MARCA']); TELE.progH = shader(VS_PANT_H, FS_PANT_H, ['MASCARA']);
     TELE.buf = gl.createBuffer(); TELE.vao = gl.createVertexArray(); gl.bindVertexArray(TELE.vao); gl.bindBuffer(gl.ARRAY_BUFFER, TELE.buf);
     gl.bufferData(gl.ARRAY_BUFFER, TELE.v.byteLength, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
   }
   // (tira: arriba-izq, arriba-der, abajo-izq, abajo-der)
   [P[0], P[1], P[3], P[2]].forEach((p, i) => { TELE.v[i * 3] = p.x; TELE.v[i * 3 + 1] = p.y; TELE.v[i * 3 + 2] = p.z; });
-  const Pg = prof ? TELE.progP : TELE.prog; gl.useProgram(Pg.p); R.progAct = Pg;
-  gl.uniformMatrix4fv(Pg.u.uVP, false, R.vpMundo);
-  if (prof) { gl.uniform2f(Pg.u.uInv, 1 / W, 1 / H); texEn(3, prof); }
   gl.bindVertexArray(TELE.vao); R.vaoAct = null; gl.bindBuffer(gl.ARRAY_BUFFER, TELE.buf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, TELE.v);
-  const cull = gl.isEnabled(gl.CULL_FACE);
+  const cull = gl.isEnabled(gl.CULL_FACE), usar = (Pg) => { gl.useProgram(Pg.p); R.progAct = Pg; gl.uniformMatrix4fv(Pg.u.uVP, false, R.vpMundo); };
   gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE); gl.depthMask(false);
-  // sin la imagen final aparte, la profundidad de la escena está en la pantalla misma: alcanza con la prueba normal
-  if (prof) gl.disable(gl.DEPTH_TEST); else { gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); }
+  // (un poco hacia la cámara en la prueba: lo que pasa por delante igual la tapa, la pantalla no pelea con su marco)
+  gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-2, -8);
+  const M = conPost ? pantMascara(W, H) : null;
+  if (M) {
+    texEn(3, null); gl.bindFramebuffer(gl.FRAMEBUFFER, M); gl.viewport(0, 0, W, H); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    usar(TELE.progM); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H);
+    usar(TELE.progH); gl.uniform2f(TELE.progH.u.uInv, 1 / W, 1 / H); texEn(3, TELE.mtex); gl.disable(gl.DEPTH_TEST);
+  } else if (conPost) {
+    // (si la placa no deja armar la máscara: el hueco entero, sin que lo de adelante lo tape)
+    usar(TELE.prog); gl.disable(gl.DEPTH_TEST);
+  } else {
+    // sin la imagen final aparte, la profundidad de la escena está en la pantalla misma: alcanza con la prueba normal
+    usar(TELE.prog); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+  }
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  gl.disable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(0, 0);
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.depthMask(true); if (cull) gl.enable(gl.CULL_FACE);
-  gl.bindVertexArray(null); R.vaoAct = null; R.progAct = null; if (prof) texEn(3, null);
+  gl.bindVertexArray(null); R.vaoAct = null; R.progAct = null; if (M) texEn(3, null);
+}
+// la máscara: una textura del tamaño de la imagen con la profundidad de la escena (la del dibujo) pegada
+function pantMascara(W, H) {
+  const gl = R.gl, dep = PO.prof || PO.rb;
+  if (!PO.fb || !dep || PO.w !== W || PO.h !== H) return null;
+  if (TELE.mw === W && TELE.mh === H && TELE.mdep === dep) return TELE.mfb; // (null si no se pudo: no se reintenta)
+  if (TELE.mfb) gl.deleteFramebuffer(TELE.mfb); if (TELE.mtex) gl.deleteTexture(TELE.mtex);
+  TELE.mtex = rtTex(W, H, ...R.F.ldr, gl.NEAREST); TELE.mfb = rtFb(TELE.mtex, PO.prof, PO.prof ? null : PO.rb);
+  TELE.mw = W; TELE.mh = H; TELE.mdep = dep;
+  return TELE.mfb;
 }
 
 // ---------------- mods oficiales nativos: volar, muñeco de trapo que otros agarran y SCP en cuatro patas ----------------
@@ -12268,14 +12327,14 @@ function modMenuLista() {
   }
   // los mods de personaje y jugabilidad: los activos primero; el buscador mira nombre, descripción y etiquetas
   const act = modsFuente();
-  const todos = modsCatalogo().filter((m) => modTipo(m) !== 'asset' && busca(m)).sort((a, b) => (act[b.id] ? 1 : 0) - (act[a.id] ? 1 : 0));
+  const todos = modsCatalogo().filter((m) => modTipo(m) !== 'asset' && busca(m)).sort((a, b) => (act[b.id] ? 1 : 0) - (act[a.id] ? 1 : 0) || nombreDe(a).localeCompare(nombreDe(b), PREFS.lang || 'es', { sensitivity: 'base' }));
   let m = '';
   for (const x of todos.slice(0, 200)) {
     const on = !!act[x.id], f = modFuerza(x.id);
     const fz = on && modAjustable(x) ? `<label class="mmFz">${esc(T('mm.fuerza'))}<input type="range" min="0" max="200" step="10" value="${Math.round(f * 100)}" data-mf="${esc(x.id)}"><output>${Math.round(f * 100)}%</output></label>` : '';
     m += `<div class="mmIt mmCat${on ? ' on' : ''}" data-mm="mod:${esc(x.id)}"><span class="mmIco">${icoHTML(x.icono)}</span><span class="mmTx"><b dir="auto">${esc(nombreDe(x))}</b><small dir="auto">${esc(sinEmoji(descDe(x) || (x.oficial ? T('oficial') : T('por') + ' ' + (x.autor || ''))))}</small></span>${sw}${fz}</div>`;
   }
-  if (!m) m = `<div class="mmVacio">${esc(T('sinRes'))}</div>`;
+  if (!m) m = `<div class="mmVacio">${esc(T((MODM.q || '').trim() ? 'sinRes' : 'mm.sinMods'))}</div>`; // (sin ninguno instalado: dónde se consiguen)
   const sm = typeof SALA !== 'undefined' && SALA ? `<button class="mmBt mmSm" data-mm="sm">${icoHTML('ico:mod')}<span>${esc(T('sm.tit'))} (M)</span></button>` : '';
   L.innerHTML = (u ? `<div class="mmSec">${esc(T('mm.usar'))}</div>${u}` : '') + `<div class="mmSec">${esc(T('t.mods'))}</div>${m}${sm}`;
   const c = MODM.el.querySelector('.mmCuenta'); if (c) c.textContent = `${modsActivosAhora().length} ${T('sm.activos')} · ${T('mm.ayuda')}`;
@@ -12365,7 +12424,16 @@ const INST = leerLS('rb_instalados', {}); INST.mods = INST.mods || {}; INST.mapa
 const PUBLICADOS = leerLS('rb_publicados', {}), LIKES = leerLS('rb_likes', {});
 const guardarLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { menuAviso('No hay lugar para guardar'); return false; } };
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const modsTodos = () => [...OFICIALES, ...Object.values(INST.mods)];
+// Los oficiales también se instalan desde la tienda (antes venían todos puestos y la tienda quedaba vacía): INST.of guarda
+// cuáles tenés (la primera vez con esto, los que ya tenías prendidos: inicioCrear); uno prendido cuenta como instalado.
+const ofInstalado = (id) => !!((INST.of && INST.of[id]) || (PREFS.mods && PREFS.mods[id]));
+// orden de los oficiales en la tienda: lo más buscado primero (Verity, personajes, la radio y la tele), después cómo se
+// juega, la física y lo de armas
+const ORDEN_OF = ['verity', 'goku', 'radio', 'pantalla', 'piano', 'volar', 'ciclope', 'ragdoll', 'scp', 'salto', 'veloz', 'luna', 'dios', 'lenta', 'balas', 'boom'];
+const ofOrden = (m) => { const i = ORDEN_OF.indexOf(m.id); return i < 0 ? 99 : i; };
+// los tuyos: los prendidos primero y después por nombre
+const porNombre = (a, b) => nombreDe(a).localeCompare(nombreDe(b), PREFS.lang || 'es', { sensitivity: 'base' });
+const modsTodos = () => [...OFICIALES.filter((m) => ofInstalado(m.id)), ...Object.values(INST.mods)];
 // los emotes que vienen con el juego, como tarjetas de la tienda (incluidos)
 const animsOficiales = () => Object.entries(DATA.emo || {}).map(([k, c]) => ({ id: 'rb:' + k, oficial: true, emo: true, nombre: emoNom('rb:' + k, c.n), autor: 'RezoBox', cat: c.cat, icono: DATA.ico['emo_' + k] ? icono('emo_' + k) : '' }));
 const nombreDe = (m) => (m.emo ? m.nombre : m.oficial ? T(m.id + '.n') : m.nombre), descDe = (m) => (m.emo ? '' : m.oficial ? T(m.id + '.d') : m.descripcion);
@@ -12390,6 +12458,7 @@ function inicioCrear() {
     else if (t.dataset.rv) { const s = t.parentElement.querySelector('output'); if (s) s.textContent = (+t.value).toFixed(2) + '×'; }
   });
   if (!PREFS.mods) PREFS.mods = {};
+  if (!INST.of) { INST.of = {}; for (const m of OFICIALES) if (PREFS.mods[m.id]) INST.of[m.id] = true; guardarLS('rb_instalados', INST); }
   if (!PREFS.lang) PREFS.lang = { SP: 'es', EN: 'en', PO: 'pt', ID: 'id', RU: 'ru', UA: 'uk' }[PREFS.bienvenida ? PREFS.idioma : ''] || idiomaDelAparato();
   RB.mapa = mapaValido(PREFS.mapa) ? PREFS.mapa : 'FlatGrass';
   overlay('NicknamePanel', false); PREFS.nombreOk = true; guardarPrefs();
@@ -12489,18 +12558,21 @@ function tiendaCargar(desdeCero) {
   if (S.vista === 'instalados') {
     const q = S.q.toLowerCase(), lista = S.tab === 'mod' ? modsTodos() : S.tab === 'anim' ? [...animsOficiales(), ...Object.values(INST.anims)] : mapasCom();
     S.items = lista.filter((m) => (!q || (nombreDe(m) + ' ' + m.autor + ' ' + descDe(m)).toLowerCase().includes(q)) && (!S.etq || (S.tab === 'anim' ? m.cat === S.etq : (m.etiquetas || []).includes(S.etq))));
+    if (S.tab === 'mod') S.items.sort((a, b) => (PREFS.mods[b.id] ? 1 : 0) - (PREFS.mods[a.id] ? 1 : 0) || porNombre(a, b)); else if (S.tab !== 'anim') S.items.sort((a, b) => (b.oficial ? 1 : 0) - (a.oficial ? 1 : 0) || porNombre(a, b));
     S.total = S.items.length; S.error = false; return tiendaDibujar();
   }
   S.cargando = true; S.error = false; tiendaDibujar();
-  // (en Emotes, primero los del juego: ya están incluidos)
+  // (en Emotes, primero los del juego: ya están incluidos; en Mods, los oficiales: se instalan como los de la gente)
   if (S.tab === 'anim' && !S.p) { const q = S.q.toLowerCase(); S.items = animsOficiales().filter((m) => (!q || nombreDe(m).toLowerCase().includes(q)) && (!S.etq || m.cat === S.etq)); }
+  if (S.tab === 'mod' && !S.p) { const q = S.q.toLowerCase(); S.items = OFICIALES.filter((m) => (!q || (nombreDe(m) + ' ' + descDe(m)).toLowerCase().includes(q)) && (!S.etq || (m.etiquetas || []).includes(S.etq))).sort((a, b) => ofOrden(a) - ofOrden(b)); }
   fetch(`${TIENDA_URL}lista?tipo=${S.tab}&q=${encodeURIComponent(S.q)}&${S.tab === 'anim' ? 'cat' : 'etq'}=${S.etq}&orden=${S.orden}&p=${S.p}`).then((r) => r.json()).then((d) => {
-    if (n !== S.n) return; S.items = S.items.concat((d.items || []).map((x) => (S.tab === 'anim' ? Object.assign(x, { cat: x.base }) : x))); S.total = (d.total || 0) + (S.tab === 'anim' ? S.items.filter((x) => x.oficial).length : 0); S.cargando = false; tiendaDibujar();
-  }).catch(() => { if (n !== S.n) return; S.cargando = false; S.error = true; tiendaDibujar(); });
+    if (n !== S.n) return; S.items = S.items.concat((d.items || []).map((x) => (S.tab === 'anim' ? Object.assign(x, { cat: x.base }) : x))); S.total = (d.total || 0) + (S.tab !== 'mapa' ? S.items.filter((x) => x.oficial).length : 0); S.cargando = false; tiendaDibujar();
+  }).catch(() => { if (n !== S.n) return; S.cargando = false; S.error = !S.items.length; S.total = S.items.length; tiendaDibujar(); });
 }
 function tiendaDibujar() {
   const S = RB.t, G = RB.el.querySelector('.rbTiendaG'); if (!G) return;
-  const inst = (it) => it.oficial || (S.tab === 'mod' ? INST.mods[it.id] : S.tab === 'anim' ? INST.anims[it.id] : INST.mapas[it.id]);
+  const inst = (it) => (S.tab === 'mod' ? (it.oficial ? ofInstalado(it.id) : INST.mods[it.id]) : it.oficial || (S.tab === 'anim' ? INST.anims[it.id] : INST.mapas[it.id]));
+  const fijo = (it) => it.oficial && S.tab !== 'mod'; // (los emotes del juego y la Mega rampa vienen incluidos)
   const tarjeta = (it) => {
     const an = S.tab === 'anim', ins = inst(it), act = S.tab === 'mod' && PREFS.mods[it.id] && modTipo(it) !== 'asset';
     const img = S.tab === 'mod' ? icoHTML(it.icono) : an ? (it.icono || it.foto ? `<img src="${esc(it.icono || it.foto)}" alt="">` : icoHTML('ico:animacion')) : `<img src="${esc(it.icono || it.foto || icono(MAPA_ICONO[it.base] || 'flatgrass'))}" alt="">`;
@@ -12510,7 +12582,7 @@ function tiendaDibujar() {
       <div class="rbInfo"><b dir="auto">${esc(nombreDe(it))}</b><small dir="auto">${it.codigo ? '<b class="rbCod">&lt;/&gt;</b> ' : ''}${datos}</small><p dir="auto">${esc(descDe(it))}</p>
       <span class="rbEtqsC">${(it.etiquetas || []).map((e) => `<i>${esc(T('e.' + e))}</i>`).join('')}</span></div>
       <div class="rbAcc">${S.tab === 'mod' && ins && modTipo(it) !== 'asset' ? `<button class="rbChk${act ? ' on' : ''}" data-rb="act:${esc(it.id)}"><em></em>${esc(T('activado'))}</button>` : ''}
-        ${it.oficial ? '' : ins ? `<button class="rbBtnGris rbChico" data-rb="quitar:${esc(it.id)}">${esc(T('quitar'))}</button>` : `<button class="rbBtnG rbChico" data-rb="instalar:${esc(it.id)}">${esc(T('instalar'))}</button>`}
+        ${fijo(it) ? '' : ins ? `<button class="rbBtnGris rbChico" data-rb="quitar:${esc(it.id)}">${esc(T('quitar'))}</button>` : `<button class="rbBtnG rbChico" data-rb="instalar:${esc(it.id)}">${glifo('bajar')} ${esc(T('instalar'))}</button>`}
         ${S.tab === 'mapa' && ins ? `<button class="rbBtnG rbChico" data-rb="jugarcom:${esc(it.id)}">${glifo('jugar')} ${esc(T('jugar'))}</button>` : ''}
         ${it.oficial ? '' : `<span class="rbMini">${it.descargas != null ? `<button title="${esc(T('meGusta'))}" class="${LIKES[it.id] ? 'sel' : ''}" data-rb="like:${esc(it.id)}">${glifo('corazon')}</button><button title="${esc(T('denunciar'))}" data-rb="denunciar:${esc(it.id)}">${glifo('bandera')}</button>` : ''}
         ${ins ? `<button title="${esc(T('exportar'))}" data-rb="exportar:${esc(it.id)}">${glifo('bajar')}</button>` : ''}${PUBLICADOS[it.id] ? `<button title="${esc(T('quitar'))}" data-rb="borrarpub:${esc(it.id)}">${glifo('basura')}</button>` : ''}</span>`}</div></div>`;
@@ -12520,7 +12592,9 @@ function tiendaDibujar() {
   const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.visibility = S.vista === 'explorar' && S.items.length < S.total ? '' : 'hidden';
 }
 async function instalar(id) {
-  const S = RB.t;
+  const S = RB.t, of = OFICIALES.find((m) => m.id === id);
+  // un oficial: viene con el juego, se instala al toque (y si cambia cómo jugás, queda prendido)
+  if (of) { INST.of = INST.of || {}; INST.of[id] = true; if (modTipo(of) !== 'asset') PREFS.mods[id] = true; guardarPrefs(); guardarLS('rb_instalados', INST); menuAviso(T('instalado') + ': ' + nombreDe(of)); inicioLista(); return tiendaDibujar(); }
   try {
     const d = await (await fetch(TIENDA_URL + 'item/' + id)).json(), v = validarRB(d);
     if (typeof v === 'string') { menuAviso(T('errFormato') + ': ' + v); return; }
@@ -12630,7 +12704,7 @@ function inicioAccion(k, b) {
     case 'etq': RB.t.etq = v; return inicioPanel('tienda');
     case 'mas': RB.t.p++; return tiendaCargar(false);
     case 'instalar': return instalar(v);
-    case 'quitar': if (RB.t.tab === 'mod') { delete INST.mods[v]; delete PREFS.mods[v]; guardarPrefs(); } else if (RB.t.tab === 'anim') { delete INST.anims[v]; emoOlvidar('u:' + v); } else delete INST.mapas[v]; guardarLS('rb_instalados', INST); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar();
+    case 'quitar': if (RB.t.tab === 'mod') { delete INST.mods[v]; if (INST.of) delete INST.of[v]; delete PREFS.mods[v]; guardarPrefs(); inicioLista(); } else if (RB.t.tab === 'anim') { delete INST.anims[v]; emoOlvidar('u:' + v); } else delete INST.mapas[v]; guardarLS('rb_instalados', INST); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar();
     case 'act': PREFS.mods[v] = !PREFS.mods[v]; if (!PREFS.mods[v]) delete PREFS.mods[v]; guardarPrefs(); return tiendaDibujar();
     case 'like': if (LIKES[v]) return; LIKES[v] = 1; guardarLS('rb_likes', LIKES); fetch(TIENDA_URL + 'like/' + v, { method: 'POST' }).catch(() => {}); { const it = RB.t.items.find((x) => x.id === v); if (it) it.likes++; } return tiendaDibujar();
     case 'denunciar': if (!confirm(T('denunciar') + '?')) return; fetch(TIENDA_URL + 'denunciar/' + v, { method: 'POST' }).catch(() => {}); RB.t.items = RB.t.items.filter((x) => x.id !== v); return tiendaDibujar();

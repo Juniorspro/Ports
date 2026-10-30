@@ -45,11 +45,12 @@ ENT_TIPO.pantalla = {
     const M = e.M, c = e.b.pos, q = e.b.q, w = (x, y, z) => vadd(c, q.rot(v3(x, y, z)));
     const mM = matPropio('pantMarco', [0.025, 0.026, 0.03], { pbr: [0.35, 0.3, 0.05] }), mV = matPropio('pantVidrio', [0.006, 0.007, 0.01], { pbr: [0.06, 0, 0.9] });
     const yI = M.cy, fz = -M.prof / 2, hueco = TELE.vis && YT.fuente === e;
-    // marco (cuatro barras) y la tapa de atrás (3 cm más adentro: el hueco del video queda delante de ella)
+    // marco (cuatro barras) y la tapa de atrás (pegada al fondo: el hueco del video queda bien delante de ella, así la
+    // prueba de profundidad no los confunde ni con 16 bits de profundidad)
     dibujarCaja(w(0, yI + M.h / 2 + M.b / 2, 0), [M.w + 2 * M.b, M.b, M.prof], q, mM);
     dibujarCaja(w(0, yI - M.h / 2 - M.b / 2, 0), [M.w + 2 * M.b, M.b, M.prof], q, mM);
     for (const sx of [-1, 1]) dibujarCaja(w(sx * (M.w / 2 + M.b / 2), yI, 0), [M.b, M.h, M.prof], q, mM);
-    dibujarCaja(w(0, yI, 0.015), [M.w, M.h, M.prof - 0.03], q, mM);
+    dibujarCaja(w(0, yI, M.prof / 2 - 0.006), [M.w, M.h, 0.012], q, mM);
     // el vidrio: apagado, o la tapa del video si tiene uno puesto y no es la que se ve ahora
     if (!hueco) {
       const tp = e.vid ? pantTapa(e.vid) : null;
@@ -90,12 +91,18 @@ function pantTapaSubir(t) {
 }
 // ---------------- el hueco: después de la imagen final, alfa 0 donde la pantalla se ve ----------------
 const VS_PANT_H = `layout(location=0) in vec3 aP; uniform mat4 uVP; void main(){ gl_Position = uVP * vec4(aP, 1.0); }`;
+// (MASCARA: dónde la pantalla pasó la prueba de profundidad, ya hecha aparte; sin MASCARA: el hueco, alfa 0;
+// con MARCA: escribe 1 en la máscara)
 const FS_PANT_H = `precision highp float; uniform sampler2D uProf; uniform vec2 uInv; out vec4 o;
 void main(){
-#ifdef PROF
-  if (texture(uProf, gl_FragCoord.xy * uInv).r < gl_FragCoord.z) discard;
+#ifdef MASCARA
+  if (texture(uProf, gl_FragCoord.xy * uInv).r < 0.5) discard;
 #endif
+#ifdef MARCA
+  o = vec4(1.0);
+#else
   o = vec4(0.0);
+#endif
 }`;
 // las esquinas de la imagen (arriba-izq, arriba-der, abajo-der, abajo-izq vistas de frente) en el mundo y en la pantalla
 function pantEsquinas(e) {
@@ -137,30 +144,56 @@ function pantFinCuadro(usaPost) {
       if (mx && area > 30) {
         vis = true;
         if (mx !== TELE.css) { YT.caja.style.transform = mx; TELE.css = mx; }
-        pantHueco(P, usaPost && PO.prof, W, H);
+        pantHueco(P, usaPost, W, H);
       }
     }
   }
   if (vis !== TELE.vis) { TELE.vis = vis; if (YT.caja) YT.caja.classList.toggle('pantVe', vis); }
 }
-function pantHueco(P, prof, W, H) {
+// El hueco se recorta con la prueba de profundidad de la placa (exacta). Antes, con la imagen final aparte, se comparaba
+// a mano con la textura de profundidad, y en muchos celulares esa textura se lee con muy poca precisión: salían franjas
+// negras parejas (perpendiculares a cómo cambia la profundidad sobre la pantalla) que se movían al mirarla de costado.
+// Ahora, con la imagen final aparte, primero se marca en una máscara dónde la pantalla pasa la prueba contra la
+// profundidad de la escena (la misma que usó el dibujo) y después el hueco sale de esa máscara.
+function pantHueco(P, conPost, W, H) {
   const gl = R.gl;
   if (!TELE.prog) {
-    TELE.prog = shader(VS_PANT_H, FS_PANT_H); TELE.progP = shader(VS_PANT_H, FS_PANT_H, ['PROF']);
+    TELE.prog = shader(VS_PANT_H, FS_PANT_H); TELE.progM = shader(VS_PANT_H, FS_PANT_H, ['MARCA']); TELE.progH = shader(VS_PANT_H, FS_PANT_H, ['MASCARA']);
     TELE.buf = gl.createBuffer(); TELE.vao = gl.createVertexArray(); gl.bindVertexArray(TELE.vao); gl.bindBuffer(gl.ARRAY_BUFFER, TELE.buf);
     gl.bufferData(gl.ARRAY_BUFFER, TELE.v.byteLength, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
   }
   // (tira: arriba-izq, arriba-der, abajo-izq, abajo-der)
   [P[0], P[1], P[3], P[2]].forEach((p, i) => { TELE.v[i * 3] = p.x; TELE.v[i * 3 + 1] = p.y; TELE.v[i * 3 + 2] = p.z; });
-  const Pg = prof ? TELE.progP : TELE.prog; gl.useProgram(Pg.p); R.progAct = Pg;
-  gl.uniformMatrix4fv(Pg.u.uVP, false, R.vpMundo);
-  if (prof) { gl.uniform2f(Pg.u.uInv, 1 / W, 1 / H); texEn(3, prof); }
   gl.bindVertexArray(TELE.vao); R.vaoAct = null; gl.bindBuffer(gl.ARRAY_BUFFER, TELE.buf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, TELE.v);
-  const cull = gl.isEnabled(gl.CULL_FACE);
+  const cull = gl.isEnabled(gl.CULL_FACE), usar = (Pg) => { gl.useProgram(Pg.p); R.progAct = Pg; gl.uniformMatrix4fv(Pg.u.uVP, false, R.vpMundo); };
   gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE); gl.depthMask(false);
-  // sin la imagen final aparte, la profundidad de la escena está en la pantalla misma: alcanza con la prueba normal
-  if (prof) gl.disable(gl.DEPTH_TEST); else { gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); }
+  // (un poco hacia la cámara en la prueba: lo que pasa por delante igual la tapa, la pantalla no pelea con su marco)
+  gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-2, -8);
+  const M = conPost ? pantMascara(W, H) : null;
+  if (M) {
+    texEn(3, null); gl.bindFramebuffer(gl.FRAMEBUFFER, M); gl.viewport(0, 0, W, H); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    usar(TELE.progM); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H);
+    usar(TELE.progH); gl.uniform2f(TELE.progH.u.uInv, 1 / W, 1 / H); texEn(3, TELE.mtex); gl.disable(gl.DEPTH_TEST);
+  } else if (conPost) {
+    // (si la placa no deja armar la máscara: el hueco entero, sin que lo de adelante lo tape)
+    usar(TELE.prog); gl.disable(gl.DEPTH_TEST);
+  } else {
+    // sin la imagen final aparte, la profundidad de la escena está en la pantalla misma: alcanza con la prueba normal
+    usar(TELE.prog); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+  }
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  gl.disable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(0, 0);
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.depthMask(true); if (cull) gl.enable(gl.CULL_FACE);
-  gl.bindVertexArray(null); R.vaoAct = null; R.progAct = null; if (prof) texEn(3, null);
+  gl.bindVertexArray(null); R.vaoAct = null; R.progAct = null; if (M) texEn(3, null);
+}
+// la máscara: una textura del tamaño de la imagen con la profundidad de la escena (la del dibujo) pegada
+function pantMascara(W, H) {
+  const gl = R.gl, dep = PO.prof || PO.rb;
+  if (!PO.fb || !dep || PO.w !== W || PO.h !== H) return null;
+  if (TELE.mw === W && TELE.mh === H && TELE.mdep === dep) return TELE.mfb; // (null si no se pudo: no se reintenta)
+  if (TELE.mfb) gl.deleteFramebuffer(TELE.mfb); if (TELE.mtex) gl.deleteTexture(TELE.mtex);
+  TELE.mtex = rtTex(W, H, ...R.F.ldr, gl.NEAREST); TELE.mfb = rtFb(TELE.mtex, PO.prof, PO.prof ? null : PO.rb);
+  TELE.mw = W; TELE.mh = H; TELE.mdep = dep;
+  return TELE.mfb;
 }

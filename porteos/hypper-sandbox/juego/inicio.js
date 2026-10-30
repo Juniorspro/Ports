@@ -50,7 +50,16 @@ const INST = leerLS('rb_instalados', {}); INST.mods = INST.mods || {}; INST.mapa
 const PUBLICADOS = leerLS('rb_publicados', {}), LIKES = leerLS('rb_likes', {});
 const guardarLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { menuAviso('No hay lugar para guardar'); return false; } };
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const modsTodos = () => [...OFICIALES, ...Object.values(INST.mods)];
+// Los oficiales también se instalan desde la tienda (antes venían todos puestos y la tienda quedaba vacía): INST.of guarda
+// cuáles tenés (la primera vez con esto, los que ya tenías prendidos: inicioCrear); uno prendido cuenta como instalado.
+const ofInstalado = (id) => !!((INST.of && INST.of[id]) || (PREFS.mods && PREFS.mods[id]));
+// orden de los oficiales en la tienda: lo más buscado primero (Verity, personajes, la radio y la tele), después cómo se
+// juega, la física y lo de armas
+const ORDEN_OF = ['verity', 'goku', 'radio', 'pantalla', 'piano', 'volar', 'ciclope', 'ragdoll', 'scp', 'salto', 'veloz', 'luna', 'dios', 'lenta', 'balas', 'boom'];
+const ofOrden = (m) => { const i = ORDEN_OF.indexOf(m.id); return i < 0 ? 99 : i; };
+// los tuyos: los prendidos primero y después por nombre
+const porNombre = (a, b) => nombreDe(a).localeCompare(nombreDe(b), PREFS.lang || 'es', { sensitivity: 'base' });
+const modsTodos = () => [...OFICIALES.filter((m) => ofInstalado(m.id)), ...Object.values(INST.mods)];
 // los emotes que vienen con el juego, como tarjetas de la tienda (incluidos)
 const animsOficiales = () => Object.entries(DATA.emo || {}).map(([k, c]) => ({ id: 'rb:' + k, oficial: true, emo: true, nombre: emoNom('rb:' + k, c.n), autor: 'RezoBox', cat: c.cat, icono: DATA.ico['emo_' + k] ? icono('emo_' + k) : '' }));
 const nombreDe = (m) => (m.emo ? m.nombre : m.oficial ? T(m.id + '.n') : m.nombre), descDe = (m) => (m.emo ? '' : m.oficial ? T(m.id + '.d') : m.descripcion);
@@ -75,6 +84,7 @@ function inicioCrear() {
     else if (t.dataset.rv) { const s = t.parentElement.querySelector('output'); if (s) s.textContent = (+t.value).toFixed(2) + '×'; }
   });
   if (!PREFS.mods) PREFS.mods = {};
+  if (!INST.of) { INST.of = {}; for (const m of OFICIALES) if (PREFS.mods[m.id]) INST.of[m.id] = true; guardarLS('rb_instalados', INST); }
   if (!PREFS.lang) PREFS.lang = { SP: 'es', EN: 'en', PO: 'pt', ID: 'id', RU: 'ru', UA: 'uk' }[PREFS.bienvenida ? PREFS.idioma : ''] || idiomaDelAparato();
   RB.mapa = mapaValido(PREFS.mapa) ? PREFS.mapa : 'FlatGrass';
   overlay('NicknamePanel', false); PREFS.nombreOk = true; guardarPrefs();
@@ -174,18 +184,21 @@ function tiendaCargar(desdeCero) {
   if (S.vista === 'instalados') {
     const q = S.q.toLowerCase(), lista = S.tab === 'mod' ? modsTodos() : S.tab === 'anim' ? [...animsOficiales(), ...Object.values(INST.anims)] : mapasCom();
     S.items = lista.filter((m) => (!q || (nombreDe(m) + ' ' + m.autor + ' ' + descDe(m)).toLowerCase().includes(q)) && (!S.etq || (S.tab === 'anim' ? m.cat === S.etq : (m.etiquetas || []).includes(S.etq))));
+    if (S.tab === 'mod') S.items.sort((a, b) => (PREFS.mods[b.id] ? 1 : 0) - (PREFS.mods[a.id] ? 1 : 0) || porNombre(a, b)); else if (S.tab !== 'anim') S.items.sort((a, b) => (b.oficial ? 1 : 0) - (a.oficial ? 1 : 0) || porNombre(a, b));
     S.total = S.items.length; S.error = false; return tiendaDibujar();
   }
   S.cargando = true; S.error = false; tiendaDibujar();
-  // (en Emotes, primero los del juego: ya están incluidos)
+  // (en Emotes, primero los del juego: ya están incluidos; en Mods, los oficiales: se instalan como los de la gente)
   if (S.tab === 'anim' && !S.p) { const q = S.q.toLowerCase(); S.items = animsOficiales().filter((m) => (!q || nombreDe(m).toLowerCase().includes(q)) && (!S.etq || m.cat === S.etq)); }
+  if (S.tab === 'mod' && !S.p) { const q = S.q.toLowerCase(); S.items = OFICIALES.filter((m) => (!q || (nombreDe(m) + ' ' + descDe(m)).toLowerCase().includes(q)) && (!S.etq || (m.etiquetas || []).includes(S.etq))).sort((a, b) => ofOrden(a) - ofOrden(b)); }
   fetch(`${TIENDA_URL}lista?tipo=${S.tab}&q=${encodeURIComponent(S.q)}&${S.tab === 'anim' ? 'cat' : 'etq'}=${S.etq}&orden=${S.orden}&p=${S.p}`).then((r) => r.json()).then((d) => {
-    if (n !== S.n) return; S.items = S.items.concat((d.items || []).map((x) => (S.tab === 'anim' ? Object.assign(x, { cat: x.base }) : x))); S.total = (d.total || 0) + (S.tab === 'anim' ? S.items.filter((x) => x.oficial).length : 0); S.cargando = false; tiendaDibujar();
-  }).catch(() => { if (n !== S.n) return; S.cargando = false; S.error = true; tiendaDibujar(); });
+    if (n !== S.n) return; S.items = S.items.concat((d.items || []).map((x) => (S.tab === 'anim' ? Object.assign(x, { cat: x.base }) : x))); S.total = (d.total || 0) + (S.tab !== 'mapa' ? S.items.filter((x) => x.oficial).length : 0); S.cargando = false; tiendaDibujar();
+  }).catch(() => { if (n !== S.n) return; S.cargando = false; S.error = !S.items.length; S.total = S.items.length; tiendaDibujar(); });
 }
 function tiendaDibujar() {
   const S = RB.t, G = RB.el.querySelector('.rbTiendaG'); if (!G) return;
-  const inst = (it) => it.oficial || (S.tab === 'mod' ? INST.mods[it.id] : S.tab === 'anim' ? INST.anims[it.id] : INST.mapas[it.id]);
+  const inst = (it) => (S.tab === 'mod' ? (it.oficial ? ofInstalado(it.id) : INST.mods[it.id]) : it.oficial || (S.tab === 'anim' ? INST.anims[it.id] : INST.mapas[it.id]));
+  const fijo = (it) => it.oficial && S.tab !== 'mod'; // (los emotes del juego y la Mega rampa vienen incluidos)
   const tarjeta = (it) => {
     const an = S.tab === 'anim', ins = inst(it), act = S.tab === 'mod' && PREFS.mods[it.id] && modTipo(it) !== 'asset';
     const img = S.tab === 'mod' ? icoHTML(it.icono) : an ? (it.icono || it.foto ? `<img src="${esc(it.icono || it.foto)}" alt="">` : icoHTML('ico:animacion')) : `<img src="${esc(it.icono || it.foto || icono(MAPA_ICONO[it.base] || 'flatgrass'))}" alt="">`;
@@ -195,7 +208,7 @@ function tiendaDibujar() {
       <div class="rbInfo"><b dir="auto">${esc(nombreDe(it))}</b><small dir="auto">${it.codigo ? '<b class="rbCod">&lt;/&gt;</b> ' : ''}${datos}</small><p dir="auto">${esc(descDe(it))}</p>
       <span class="rbEtqsC">${(it.etiquetas || []).map((e) => `<i>${esc(T('e.' + e))}</i>`).join('')}</span></div>
       <div class="rbAcc">${S.tab === 'mod' && ins && modTipo(it) !== 'asset' ? `<button class="rbChk${act ? ' on' : ''}" data-rb="act:${esc(it.id)}"><em></em>${esc(T('activado'))}</button>` : ''}
-        ${it.oficial ? '' : ins ? `<button class="rbBtnGris rbChico" data-rb="quitar:${esc(it.id)}">${esc(T('quitar'))}</button>` : `<button class="rbBtnG rbChico" data-rb="instalar:${esc(it.id)}">${esc(T('instalar'))}</button>`}
+        ${fijo(it) ? '' : ins ? `<button class="rbBtnGris rbChico" data-rb="quitar:${esc(it.id)}">${esc(T('quitar'))}</button>` : `<button class="rbBtnG rbChico" data-rb="instalar:${esc(it.id)}">${glifo('bajar')} ${esc(T('instalar'))}</button>`}
         ${S.tab === 'mapa' && ins ? `<button class="rbBtnG rbChico" data-rb="jugarcom:${esc(it.id)}">${glifo('jugar')} ${esc(T('jugar'))}</button>` : ''}
         ${it.oficial ? '' : `<span class="rbMini">${it.descargas != null ? `<button title="${esc(T('meGusta'))}" class="${LIKES[it.id] ? 'sel' : ''}" data-rb="like:${esc(it.id)}">${glifo('corazon')}</button><button title="${esc(T('denunciar'))}" data-rb="denunciar:${esc(it.id)}">${glifo('bandera')}</button>` : ''}
         ${ins ? `<button title="${esc(T('exportar'))}" data-rb="exportar:${esc(it.id)}">${glifo('bajar')}</button>` : ''}${PUBLICADOS[it.id] ? `<button title="${esc(T('quitar'))}" data-rb="borrarpub:${esc(it.id)}">${glifo('basura')}</button>` : ''}</span>`}</div></div>`;
@@ -205,7 +218,9 @@ function tiendaDibujar() {
   const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.visibility = S.vista === 'explorar' && S.items.length < S.total ? '' : 'hidden';
 }
 async function instalar(id) {
-  const S = RB.t;
+  const S = RB.t, of = OFICIALES.find((m) => m.id === id);
+  // un oficial: viene con el juego, se instala al toque (y si cambia cómo jugás, queda prendido)
+  if (of) { INST.of = INST.of || {}; INST.of[id] = true; if (modTipo(of) !== 'asset') PREFS.mods[id] = true; guardarPrefs(); guardarLS('rb_instalados', INST); menuAviso(T('instalado') + ': ' + nombreDe(of)); inicioLista(); return tiendaDibujar(); }
   try {
     const d = await (await fetch(TIENDA_URL + 'item/' + id)).json(), v = validarRB(d);
     if (typeof v === 'string') { menuAviso(T('errFormato') + ': ' + v); return; }
@@ -315,7 +330,7 @@ function inicioAccion(k, b) {
     case 'etq': RB.t.etq = v; return inicioPanel('tienda');
     case 'mas': RB.t.p++; return tiendaCargar(false);
     case 'instalar': return instalar(v);
-    case 'quitar': if (RB.t.tab === 'mod') { delete INST.mods[v]; delete PREFS.mods[v]; guardarPrefs(); } else if (RB.t.tab === 'anim') { delete INST.anims[v]; emoOlvidar('u:' + v); } else delete INST.mapas[v]; guardarLS('rb_instalados', INST); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar();
+    case 'quitar': if (RB.t.tab === 'mod') { delete INST.mods[v]; if (INST.of) delete INST.of[v]; delete PREFS.mods[v]; guardarPrefs(); inicioLista(); } else if (RB.t.tab === 'anim') { delete INST.anims[v]; emoOlvidar('u:' + v); } else delete INST.mapas[v]; guardarLS('rb_instalados', INST); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar();
     case 'act': PREFS.mods[v] = !PREFS.mods[v]; if (!PREFS.mods[v]) delete PREFS.mods[v]; guardarPrefs(); return tiendaDibujar();
     case 'like': if (LIKES[v]) return; LIKES[v] = 1; guardarLS('rb_likes', LIKES); fetch(TIENDA_URL + 'like/' + v, { method: 'POST' }).catch(() => {}); { const it = RB.t.items.find((x) => x.id === v); if (it) it.likes++; } return tiendaDibujar();
     case 'denunciar': if (!confirm(T('denunciar') + '?')) return; fetch(TIENDA_URL + 'denunciar/' + v, { method: 'POST' }).catch(() => {}); RB.t.items = RB.t.items.filter((x) => x.id !== v); return tiendaDibujar();

@@ -89,7 +89,8 @@ function spawnGrilla(C, subs) {
     }
     gr.appendChild(d);
   }
-  if (!lista.length && !gr.children.length) gr.innerHTML = `<div class="spVacio">${esc(T('sinRes'))}</div>`;
+  // (la sección Mods vacía: la radio, la tele, el piano y los de la gente se instalan en Mods y mapas)
+  if (!lista.length && !gr.children.length) gr.innerHTML = `<div class="spVacio">${esc(T(!q && (subs[UI.sub] || {}).mods ? 'mm.instalaAssets' : 'sinRes'))}</div>`;
 }
 const spawnModNom = (id) => { const m = modsAssets().find((x) => x.id === id); return m ? nombreDe(m) : id; };
 // un mod de assets: los oficiales ponen su entidad (radio, piano, pantalla); los de la gente, sus props
