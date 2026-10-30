@@ -749,8 +749,9 @@ const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t 
 const now = () => performance.now() / 1000;
 const TAU = Math.PI * 2;
 const COARSE = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
-// la versión ESCONDITE (la arma build.py --escondite): solo esconderse y buscar, sin máquinas ni salidas, con tiempo
-const ESCONDITE = /*ESC*/false;
+// el Hunter es el ESCONDITE: solo esconderse y buscar, sin máquinas ni salidas, con tiempo (lo de la cacería con
+// máquinas que quedó en el código ya no se usa)
+const ESCONDITE = true;
 if (ESCONDITE) document.body.classList.add('esc');
 
 // ---------------------------------------------------------------------------------------------------------
