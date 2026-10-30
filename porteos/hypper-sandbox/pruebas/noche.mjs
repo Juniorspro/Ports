@@ -1,56 +1,95 @@
-// la noche en la pizzería: animatrónicos, puertas (que choquen), luces, cámaras, linterna, apagón, susto y las 6
-// uso: node noche.mjs HTML CARPETA [calidad]
+// la noche en la pizzería, solo: menú, intro, la llamada y "Silenciar", noche 1 tranquila, la IA de las noches 4 y 6 (con y
+// sin defenderse), energía, Game Over y "Reintentar" (todo de cero), las 6 AM y el progreso guardado. La lógica corre con el
+// tiempo simulado (el navegador de prueba dibuja muy lento). Las fotos de la linterna se miden aparte (noche_luz.py).
+// uso: node noche.mjs HTML CARPETA
 import { abrir } from './base.mjs';
-const HTML = process.argv[2], S = (process.argv[3] || '.') + '/', CAL = process.argv[4] || 'medio';
+const HTML = process.argv[2], S = (process.argv[3] || '.') + '/';
 const { b, p, err, ev } = await abrir(HTML);
-const foto = async (n) => { await p.waitForTimeout(900); await p.screenshot({ path: S + 'n_' + n + '.png' }); };
 const J = async (s) => JSON.parse(await ev(`JSON.stringify(${s})`));
-await ev(`PREFS.bienvenida = true; GFX.auto=false; PREFS.calidad='${CAL}'; aplicarGfx(); inicioMostrar(false); empezarPartida('RB_Pizzeria')`);
+let ok = 0, mal = 0; const chk = (c, t) => { console.log((c ? 'OK  ' : 'MAL ') + t); c ? ok++ : mal++; };
+await ev(`PREFS.bienvenida = true; PREFS.lang = 'es'; PREFS.vol = 80; GFX.auto = false; PREFS.gfx = 'patata'; aplicarGfx(); audioIniciar(); inicioMostrar(false); empezarPartida('RB_Pizzeria');
+  // tiempo simulado: la noche avanza dt por paso; "defensa" cierra la puerta del lado donde hay alguien en la esquina
+  window.__sim = (seg, dt, defensa) => { const n = Math.round(seg / dt); for (let i = 0; i < n; i++) { TIEMPO.t += dt;
+    if (defensa && NOC.estado === 'juega') {
+      for (const lado of ['izq', 'der']) { const cam = (TIEMPO.t % 8) < 1.2, hay = NOC.anim.some((A) => (A.estado === 'esquina' && (A.k !== 'F' || cam) || (A.k === 'X' && A.estado === 'corre')) && NOC_PUERTA[A.k] === lado); if (hay !== NOC.puerta[lado]) nocheBoton('puerta', lado); }
+      // (como un jugador: cada 8 s mira Pirate Cove un segundo, así Foxy no sale)
+      const c = (TIEMPO.t % 8) < 1; if (c && NOC.cam === null) { UI.abierto = null; nocheTablet(); nocheCamElegir(2); } else if (!c && NOC.cam !== null) nocheTablet();
+    }
+    nochePaso(dt); if (window.__alParar && window.__alParar()) break; } return NOC.estado; };
+  window.__salas = () => NOC.anim.map((A) => A.sala); 1`);
 await p.waitForTimeout(3000);
-console.log('arranque', await J(`{on: NOC.on, ctl: NOC.ctl, estado: NOC.estado, anims: NOC.anim.map(a => [a.nom, a.nodo, a.clip, a.nb]), armas: ARM.lista, puertas: Object.keys(NOC.mdP).filter(k => NOC.mdP[k]), botones: nocheBotones().map(x => x.que + '_' + x.lado)}`));
-// los cuatro en el escenario y en la cueva, vistos desde el comedor
-await ev(`JUG.noclip = true; JUG.pos.set(1.5, 1.6, 0); JUG.yaw = Math.PI/2; JUG.pitch = 0.05; NOC.linterna = true; 0`); await foto('escenario');
-await ev(`NOC.linterna = false; JUG.pos.set(-1.5, 1.6, -4); JUG.yaw = Math.PI; JUG.pitch = 0.05; 0`); await foto('cueva');
-// la oficina: puerta izquierda cerrada, luz derecha prendida y Bonnie en la esquina derecha
-await ev(`JUG.noclip = false; JUG.pos.set(-23.4, 1.4, 0); JUG.vel.set(0,0,0); JUG.yaw = Math.PI/2 - 0.6; JUG.pitch = 0.05; NOC.estado='juega'; NOC.quieta = true; 0`); await p.waitForTimeout(800);
-await ev(`nocheBoton('puerta','izq'); nocheBoton('luz','der'); const B = NOC.anim[1]; nocheAnimA(B, 'nd'); B.yaw = Math.PI; B.estado='quieto'; 0`);
-await p.waitForTimeout(1600);
-console.log('oficina', await J(`{pk: NOC.pk, puerta: NOC.puerta, luz: NOC.luz, uso: nocheUso(), poder: +NOC.poder.toFixed(2), cuerpo: NOC.cuerpoP.izq.pos.y.toFixed(2)}`));
-await ev(`JUG.yaw = 0.05; JUG.pitch = 0.1; 0`); await foto('puerta_der_luz');
-await ev(`JUG.yaw = Math.PI - 0.05; JUG.pitch = 0.1; 0`); await foto('puerta_izq_cerrada');
-// la puerta cerrada choca: caminar hacia ella desde adentro no la atraviesa
-await ev(`JUG.pos.set(-22.4, 1.4, -1.2); JUG.vel.set(0,0,0); JUG.yaw = Math.PI; ENT.teclas.add('KeyW'); 0`); await p.waitForTimeout(1800); await ev(`ENT.teclas.delete('KeyW'); 0`);
-console.log('choque puerta cerrada: z =', await J(`+JUG.pos.z.toFixed(2)`), '(la puerta está en -2.13)');
-await ev(`nocheBoton('puerta','izq'); 0`); await p.waitForTimeout(800);
-await ev(`JUG.pos.set(-22.4, 1.4, -1.2); JUG.vel.set(0,0,0); JUG.yaw = Math.PI; ENT.teclas.add('KeyW'); 0`); await p.waitForTimeout(1800); await ev(`ENT.teclas.delete('KeyW'); 0`);
-console.log('puerta abierta: z =', await J(`+JUG.pos.z.toFixed(2)`));
-// apuntar a un botón y usar con E
-await ev(`JUG.pos.set(-23.3, 1.4, -1.3); JUG.vel.set(0,0,0); const bt = nocheBotones().find(x => x.que==='puerta' && x.lado==='izq'); const d = vsub(bt.p, vadd(JUG.pos, v3(0, JUG.ojo, 0))); JUG.yaw = Math.atan2(d.x, d.z); JUG.pitch = Math.asin(-d.y / d.len()); 0`);
-await p.waitForTimeout(500);
-console.log('apuntando', await J(`{txt: $('usarTxt').textContent, ap: (nocheApuntado()||{}).que}`));
-await ev(`usar(); 0`); await p.waitForTimeout(300); console.log('después de E', await J(`NOC.puerta`)); await ev(`nocheBoton('puerta','izq'); nocheBoton('luz','der'); 0`);
-// cámaras: cada una
-await ev(`nocheTablet(); 0`);
-for (let i = 0; i < 10; i++) { await ev(`nocheCamElegir(${i}); 0`); await foto('cam' + i); }
-console.log('cámara', await J(`{cam: NOC.cam, abierto: UI.abierto, mirando: NOC.mirando}`));
-await ev(`nocheTablet(); 0`); await p.waitForTimeout(400);
-console.log('cámaras cerradas', await J(`{cam: NOC.cam, abierto: UI.abierto}`));
-// linterna en el pasillo oscuro
-await ev(`JUG.noclip = true; JUG.pos.set(-12, 1.6, -3); JUG.yaw = Math.PI/2; JUG.pitch = 0.1; NOC.linterna = false; 0`); await foto('pasillo_sin');
-await ev(`nocheLinterna(); 0`); await foto('pasillo_linterna');
-// la IA: caminan solos (noche alta para que se muevan rápido)
-await ev(`NOC.quieta = false; NOC.linterna = false; JUG.noclip = false; JUG.pos.set(-23.4, 1.4, 0); NOC.noche = 6; for (const A of NOC.anim) A.tMov = 0; 0`);
-for (let i = 0; i < 6; i++) { await p.waitForTimeout(2500); console.log('t', i, await J(`NOC.anim.map(a => a.nom[0] + ':' + a.nodo + '/' + a.estado + '/' + a.clip)`)); }
-// susto
-await ev(`NOC.quieta = true; JUG.yaw = Math.PI/2; JUG.pitch = 0; nocheSusto('Freddy'); 0`); await p.waitForTimeout(500); await p.screenshot({ path: S + 'n_susto.png' });
-await p.waitForTimeout(2600); await p.screenshot({ path: S + 'n_estatica.png' });
-await p.waitForTimeout(3000); console.log('después del susto', await J(`{susto: !!NOC.susto, abierto: UI.abierto}`));
-// apagón
-await ev(`NOC.quieta = false; NOC.fuera.clear(); NOC.estado='juega'; NOC.poder = 0.05; for (const A of NOC.anim) { nocheAnimA(A, A.ruta[0]); A.estado='quieto'; } 0`); await p.waitForTimeout(5000);
-console.log('apagón', await J(`{estado: NOC.estado, freddy: NOC.anim[0].nodo, puertas: NOC.puerta}`));
-await ev(`JUG.pos.set(-23.4, 1.4, 0); JUG.yaw = Math.PI - 0.3; 0`); await foto('apagon');
-// las 6
-await ev(`NOC.susto = null; NOC.ui.susto.classList.add('oc'); UI.abierto = null; NOC.estado='juega'; NOC.poder=50; NOC.fuera.clear(); NOC.hora = 5.995; 0`); await p.waitForTimeout(2000);
-console.log('6 AM', await J(`{estado: NOC.estado, noche: NOC.noche, cartel: NOC.ui.cartel.textContent}`)); await foto('6am');
-console.log('errores:', err.filter((e) => !/WebSocket|mqtt/i.test(e)).slice(0, 10).join(' | ') || 'ninguno');
+// ---- el menú (solo) ----
+let m = await J(`{on: NOC.on, estado: NOC.estado, abierto: UI.abierto, menu: !NOC.ui.menu.classList.contains('oc'), botones: [...NOC.ui.menu.querySelectorAll('button')].map(b => b.dataset.n), oficina: enOficina(JUG.pos)}`);
+console.log('menú', JSON.stringify(m));
+chk(m.on && m.estado === 'menu' && m.menu && m.abierto === 'fnmenu' && m.botones.join() === '1', 'al entrar solo: el menú de noches (sólo "Nueva partida" la primera vez)');
+chk(m.oficina, 'aparece en la oficina');
+await p.screenshot({ path: S + 'n_menu.png' });
+await p.click('#fnMenu button[data-n="1"]'); await p.waitForTimeout(500);
+m = await J(`{estado: NOC.estado, noche: NOC.noche, tapa: !NOC.ui.tapa.classList.contains('oc'), menu: !NOC.ui.menu.classList.contains('oc'), abierto: UI.abierto}`);
+chk(m.estado === 'intro' && m.noche === 1 && m.tapa && !m.menu, 'Nueva partida: noche 1 con la tapa "12:00 AM" ' + JSON.stringify(m));
+await ev(`__sim(4.5, 0.05)`);
+for (let i = 0; i < 20 && !(await J(`!!NOC.llamada`)); i++) await p.waitForTimeout(500);   // (arranca 1,5 s después, cuando termina de decodificarse)
+m = await J(`{estado: NOC.estado, llamada: !!NOC.llamada, boton: !NOC.ui.mudo.classList.contains('oc'), abierto: UI.abierto}`);
+console.log('a jugar', JSON.stringify(m));
+chk(m.estado === 'juega' && !m.abierto, 'después de la tapa se juega (sin nada abierto)');
+chk(m.llamada && m.boton, 'suena la llamada de la noche 1 con el botón "Silenciar llamada"');
+await p.click('#fnMudo'); await p.waitForTimeout(300);
+m = await J(`{llamada: !!NOC.llamada, mudo: NOC.mudo, boton: !NOC.ui.mudo.classList.contains('oc')}`);
+chk(!m.llamada && m.mudo && !m.boton, '"Silenciar llamada" la corta');
+// ---- noche 1: hasta las 2 no se mueve nadie (como en FNAF 1: a las 2 se activa Bonnie; a las 3 y 4, Bonnie, Chica y Foxy) ----
+await ev(`window.__alParar = () => NOC.hora >= 1.98 || NOC.estado !== 'juega'; __sim(89 * 2, 0.1)`);
+m = await J(`{hora: +NOC.hora.toFixed(2), salas: __salas(), niveles: NOC_K.map(nocheNivel)}`);
+chk(m.salas.join() === 'escenario,escenario,escenario,pirata' && m.niveles.join() === '0,0,0,0', 'noche 1: hasta las 2 AM nadie se mueve (niveles ' + m.niveles + ')');
+// y defendiéndose (cerrar la puerta cuando hay alguien en la esquina) se llega a las 6 con energía
+await ev(`window.__alParar = () => NOC.estado !== 'juega'; __sim(89 * 4 + 2, 0.1, true)`);
+m = await J(`{estado: NOC.estado, poder: +NOC.poder.toFixed(1), fuera: NOC.fuera.size, max: nochePref('max'), niveles: NOC_K.map(nocheNivel)}`);
+console.log('noche 1', JSON.stringify(m));
+chk(m.estado === 'gano' && !m.fuera, 'noche 1 defendida: se llega a las 6 AM');
+chk(m.poder > 30, 'energía al terminar la noche 1: ' + m.poder + ' %');
+chk(m.max === 2, 'progreso guardado: la noche 2 desbloqueada');
+await ev(`window.__alParar = null; __sim(10, 0.1)`);
+m = await J(`{estado: NOC.estado, noche: NOC.noche}`);
+chk(m.estado === 'intro' && m.noche === 2, 'después de las 6 sigue la noche 2');
+// ---- noche 4 defendiéndose (cerrar la puerta cuando hay alguien en la esquina): recorren salas y no entran ----
+await ev(`nocheEmpezarNoche(4); __sim(4.5, 0.05); window.__vis = NOC.anim.map(() => new Set()); window.__alParar = () => { NOC.anim.forEach((A, i) => __vis[i].add(A.sala)); return NOC.estado !== 'juega'; }; __sim(89 * 6 + 2, 0.1, true)`);
+m = await J(`{estado: NOC.estado, poder: +NOC.poder.toFixed(1), hora: +NOC.hora.toFixed(2), vis: __vis.map(s => [...s]), fuera: NOC.fuera.size, golpes: NOC.golpes}`);
+console.log('noche 4 defendida', JSON.stringify(m));
+chk(m.estado === 'gano' || m.hora >= 5.5, 'noche 4 jugada como en FNAF (puertas cuando hace falta, mirar Pirate Cove): ' + (m.estado === 'gano' ? 'se llega a las 6 con ' + m.poder + ' %' : 'sin energía a las ' + m.hora + ' h') + ' (golpes de Foxy: ' + m.golpes + ')');
+chk(m.vis[1].length >= 3 && m.vis[2].length >= 3, 'noche 4: Bonnie y Chica recorren salas (' + m.vis[1].join('/') + ' · ' + m.vis[2].join('/') + ')');
+chk(!m.vis.some((s) => s.includes('oficina')) || m.estado === 'apagon' || m.estado === 'perdiendo' || m.estado === 'perdio', 'con las puertas cerradas a tiempo nadie entra (salvo sin energía)');
+// ---- noche 6 sin defenderse: alguien entra y agarra; Game Over; Reintentar: todo de cero ----
+await ev(`window.__alParar = () => NOC.estado === 'perdio'; nocheEmpezarNoche(6); __sim(4.5, 0.05); __sim(89 * 6, 0.1, false)`);
+m = await J(`{estado: NOC.estado, hora: +NOC.hora.toFixed(2), go: !NOC.ui.go.classList.contains('oc'), botones: [...NOC.ui.go.querySelectorAll('button')].map(b => b.dataset.r), abierto: UI.abierto, fuera: NOC.fuera.size}`);
+console.log('noche 6 sin defenderse', JSON.stringify(m));
+chk(m.estado === 'perdio' && m.go && m.botones.join() === '1,0' && m.abierto === 'fngo', 'noche 6 sin cerrar puertas: te agarran a las ' + m.hora + ' h y sale Game Over con Reintentar y Menú');
+await p.waitForTimeout(3000); await p.screenshot({ path: S + 'n_gameover.png' });
+await p.click('#fnGo button[data-r="1"]'); await p.waitForTimeout(400);
+m = await J(`{estado: NOC.estado, noche: NOC.noche, hora: NOC.hora, poder: NOC.poder, fuera: NOC.fuera.size, salas: __salas(), go: !NOC.ui.go.classList.contains('oc'), abierto: UI.abierto, oficina: enOficina(JUG.pos), puertas: [NOC.puerta.izq, NOC.puerta.der], susto: !!NOC.susto}`);
+console.log('reintentar', JSON.stringify(m));
+chk(m.estado === 'intro' && m.noche === 6 && m.hora === 0 && m.poder === 100 && !m.fuera && !m.go && !m.susto, 'Reintentar: la misma noche de cero (hora, energía, nadie agarrado)');
+chk(m.salas.join() === 'escenario,escenario,escenario,pirata' && m.oficina && !m.puertas[0] && !m.puertas[1], 'Reintentar: animatrónicos en su lugar, vos en la oficina, puertas abiertas');
+// ---- botones: no andan con alguien adentro; el apagón ----
+await ev(`__sim(4.5, 0.05); NOC.poder = 0.05; window.__alParar = () => NOC.estado !== 'juega'; __sim(2, 0.1)`);
+m = await J(`{estado: NOC.estado, puertas: [NOC.puerta.izq, NOC.puerta.der]}`);
+chk(m.estado === 'apagon' && !m.puertas[0] && !m.puertas[1], 'sin energía: apagón, puertas abiertas');
+await ev(`window.__alParar = () => NOC.estado === 'perdio'; __sim(60, 0.1)`);
+m = await J(`{estado: NOC.estado, freddy: NOC.anim[0].sala}`);
+chk(m.estado === 'perdio' && m.freddy === 'esqO', 'apagón: viene Freddy por la puerta izquierda con la cajita de música y Game Over');
+// ---- menú: Continuar desde la noche guardada ----
+await p.click('#fnGo button[data-r="0"]'); await p.waitForTimeout(400);
+m = await J(`{estado: NOC.estado, botones: [...NOC.ui.menu.querySelectorAll('button')].map(b => b.dataset.n), abierto: UI.abierto, max: nochePref('max')}`);
+chk(m.estado === 'menu' && m.botones.join() === '1,' + Math.min(5, m.max) && m.abierto === 'fnmenu', 'Menú: "Nueva partida" y "Continuar · Noche ' + Math.min(5, m.max) + '" (la más alta ganada: ' + (m.max - 1) + ')');
+// ---- Esc con el menú abierto: pausa encima y al cerrarla vuelve el menú ----
+const espera = async (cond) => { for (let i = 0; i < 20 && !(await J(cond)); i++) await p.waitForTimeout(250); };   // (a 2 cuadros por segundo)
+await ev(`ENT.pulsos.push('pausa'); 0`); await espera(`UI.abierto === 'pausa'`);
+const pa = await J(`{abierto: UI.abierto, pausa: !$('pausa').classList.contains('oc')}`);
+await ev(`ENT.pulsos.push('pausa'); 0`); await espera(`UI.abierto === 'fnmenu'`);
+const pb = await J(`{abierto: UI.abierto, menu: !NOC.ui.menu.classList.contains('oc')}`);
+chk(pa.abierto === 'pausa' && pa.pausa && pb.abierto === 'fnmenu' && pb.menu, 'Esc abre la pausa encima del menú de noches y al cerrarla vuelve el menú ' + JSON.stringify([pa, pb]));
+// ---- no se pueden poner cosas mientras corre la noche ----
+await p.click('#fnMenu button[data-n="1"]'); await ev(`__sim(4.5, 0.05)`);
+const puso = await J(`!!spawnDelante('Barrel')`);
+chk(!puso, 'durante la noche no se pueden poner props');
+console.log('errores:', err.filter((e) => !/WebSocket|mqtt|ERR_/i.test(e)).slice(0, 8).join(' | ') || 'ninguno');
+console.log(`resultado: ${ok} bien, ${mal} mal`);
 await b.close();

@@ -315,10 +315,12 @@ function remotoPaso(R2, dt) {
   const vivo = !!(R2.f & 4), rag = !vivo || !!(R2.f & 32);
   if (rag && !P.rag) { P.vel.copy(R2.vel); P.cuad = null; P.inclin = null; ragdoll(P, null); } else if (!rag && P.rag) ragdollFin(P);
   natRemoto(R2, dt);
-  R2.b.pos.copy(P.pos); R2.b.updateWorld(); R2.b.noRay = rag; R2.b.noPhys = rag; R2.b.noJug = rag; // tirado: sólo el muñeco choca (y se puede agarrar)
+  // espectador (en la noche de la pizzería): no se ve, no choca y no tiene nombre arriba
+  const esp = !!(R2.f & 256); P.visible = !esp;
+  R2.b.pos.copy(P.pos); R2.b.updateWorld(); R2.b.noRay = rag || esp; R2.b.noPhys = rag || esp; R2.b.noJug = rag || esp; // tirado: sólo el muñeco choca (y se puede agarrar)
   // etiqueta con el nombre sobre la cabeza
   const cp = vadd(P.pos, v3(0, 1.25, 0)), cl = clipDe(cp);
-  if (cl && cp.distTo(CAM.pos) < 60) { R2.tag.style.display = ''; R2.tag.style.transform = `translate(${cl.x}px,${cl.y}px) translate(-50%,-100%)`; } else R2.tag.style.display = 'none';
+  if (cl && !esp && cp.distTo(CAM.pos) < 60) { R2.tag.style.display = ''; R2.tag.style.transform = `translate(${cl.x}px,${cl.y}px) translate(-50%,-100%)`; } else R2.tag.style.display = 'none';
 }
 function clipDe(p) {
   const m = R.vpMundo || R.vp, x = m[0] * p.x + m[4] * p.y + m[8] * p.z + m[12], y = m[1] * p.x + m[5] * p.y + m[9] * p.z + m[13], w = m[3] * p.x + m[7] * p.y + m[11] * p.z + m[15];
@@ -387,7 +389,7 @@ function recibirHecho(d) {
   } else if (d.k === 'cic') { cicRed(d);
   } else if (typeof d.k === 'string' && /^ver[dqgawc]$/.test(d.k)) { verRed(d); // (Verity: lo que dice, preguntas, agarre, animación, llamada, crear)
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
-  } else if (d.k === 'fnn' || d.k === 'fnb' || d.k === 'fnx' || d.k === 'fne') { nocheRed(d); // (la noche en la pizzería)
+  } else if (d.k === 'fnn' || d.k === 'fnb' || d.k === 'fnx' || d.k === 'fne' || d.k === 'fnv') { nocheRed(d); // (la noche en la pizzería)
   } else if (d.k === 'dano' && d.to === RED.ID) {
     if (SALA && !SALA.pvp) return;
     danarJugador(num(d.d, 0, 500, 0), null);

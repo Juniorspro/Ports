@@ -5,7 +5,8 @@
 # - Freddy, Bonnie, Chica y Foxy del "FNAF Help Wanted NEXTBOT Pack" (cl3nr): mallas con piel (los huesos del .mdl,
 #   a lo sumo 56 con peso), texturas y animaciones (quieto, caminar o correr, susto, mirar) muestreadas cuadro a cuadro.
 # Lo extraído no va al repo: este script lo lee de afuera. Créditos en CREDITOS.md.
-# Uso: python-con-srctools -I pizzeria.py PAQUETE_ORIGEN PAQUETE_NUEVO MAPA.bsp CARPETA_PACK_HW
+# Uso: [FN_EXTRA=carpeta1:carpeta2] python-con-srctools -I pizzeria.py PAQUETE_ORIGEN PAQUETE_NUEVO MAPA.bsp CARPETA_PACK_HW
+# (FN_EXTRA: lo bajado de otros addons con las texturas y modelos de props que el mapa no trae: las mesas, el escritorio...)
 import sys, os, io, json, gzip, math, zipfile, hashlib, numpy as np
 from PIL import Image
 import srctools.bsp as BSPm, srctools.vtf as VTF
@@ -44,11 +45,16 @@ def vec(s): return [float(x) for x in str(s).split()] if s else [0.0, 0.0, 0.0]
 
 # ---------------- archivos: el pak del mapa y la carpeta del pack ----------------
 bsp = BSPm.BSP(BSPF); PAK = bsp.pakfile; PAKN = {n.lower().replace('\\', '/'): n for n in PAK.namelist()}
+# texturas y modelos de otros addons de GMod que el mapa usa y no trae (carpetas con lo bajado, en minúsculas)
+EXTRA = [x for x in os.environ.get('FN_EXTRA', '').split(os.pathsep) if x]
 def leer(ruta):
     r = ruta.lower().replace('\\', '/')
     if r in PAKN: return PAK.read(PAKN[r])
-    f = os.path.join(HW, r)
-    return open(f, 'rb').read() if os.path.exists(f) else None
+    for base in [HW] + EXTRA:
+        f = os.path.join(base, r)
+        if os.path.exists(f): return open(f, 'rb').read()
+    if r.startswith('materials/models/keithy/'): return leer('materials/' + r[len('materials/models/'):])   # (los props de Keithy las piden en models/keithy/props)
+    return None
 
 # ---------------- texturas y materiales ----------------
 _mats, _txs = {}, {}
@@ -141,7 +147,13 @@ def material_de(vmt, lado=512):
     trans = c.get('$translucent', '0') not in ('0', ''); corte = c.get('$alphatest', '0') not in ('0', ''); aditivo = c.get('$additive', '0') not in ('0', '')
     brillo = c.get('$selfillum', '0') not in ('0', '') and 'eye' in nombre
     modo = 'unlit' if (aditivo or brillo) and not trans else 'blend' if trans or aditivo else 'cut' if corte or (alfa and 'decal' in nombre) else 'op'
-    _mats[k] = mat_nuevo(nombre.split('/')[-1], ti, modo); return _mats[k]
+    # vidrios con $alpha (las ventanas de la oficina): transparentes de verdad, no grises
+    try: am = float(c.get('$alpha', '1') or 1)
+    except ValueError: am = 1.0
+    color = (1, 1, 1, max(0.18, min(0.42, am))) if am < 0.99 else (1, 1, 1, 1)
+    if am < 0.99: modo = 'blend'
+    _mats[k] = mat_nuevo(nombre.split('/')[-1], ti, modo, color); return _mats[k]
+def mat_es_vidrio(mi): return mi is not None and d['mt'][mi].get('sh') == 'Legacy Shaders/Transparent/Diffuse'
 
 # ---------------- mallas ----------------
 def malla_bin(nombre, V, N, U, porMat, piel=None, bp=None):
@@ -165,7 +177,34 @@ def nodo(n, p=(0, 0, 0), r=(0, 0, 0, 1), s=(1, 1, 1), pa=-1, **x):
 
 # ---------------- el mapa: caras ----------------
 SALTAR = ('tools/', 'skybox')
-def caras_a_malla(caras, origen, nombre, colision=True):
+# de qué lado se ve cada cara: del que no hay brocha sólida. En este BSP el plano y el "side" de la cara no alcanzan (pisos y
+# techos vienen anotados igual: medido, la mitad de techos y paredes quedaban mirando para afuera y el juego no las dibujaba)
+_BR = []
+for b in bsp.brushes:
+    if not (b.contents.value & 1): continue
+    Nb = np.array([[x.plane.normal.x, x.plane.normal.y, x.plane.normal.z] for x in b.sides]); Db = np.array([x.plane.dist for x in b.sides])
+    lo, hi = np.full(3, -1e9), np.full(3, 1e9)
+    for n_, d_ in zip(Nb, Db):
+        for ax in range(3):
+            if abs(n_[ax]) > 0.9999:
+                if n_[ax] > 0: hi[ax] = min(hi[ax], d_ / n_[ax])
+                else: lo[ax] = max(lo[ax], d_ / n_[ax])
+    _BR.append((Nb, Db))
+    _BR[-1] += (lo, hi)
+_BLO, _BHI = np.array([x[2] for x in _BR]), np.array([x[3] for x in _BR])
+def solido(p, eps=0.05):
+    for k in np.nonzero(np.all((_BLO <= p + eps) & (p - eps <= _BHI), 1))[0]:
+        if np.all(_BR[k][0] @ p - _BR[k][1] < -eps): return True
+    return False
+def lado_visible(vs, n):
+    """1: la cara se ve del lado de n; -1: del otro (lo sólido está adelante); 0: no se sabe (se dibuja de los dos lados)"""
+    c = vs.mean(0); votos = 0
+    for q in [c] + [c + (v - c) * 0.6 for v in vs[:6]]:
+        de, dt = solido(q + n * 0.5), solido(q - n * 0.5)
+        votos += 1 if dt and not de else -1 if de and not dt else 0
+    return int(np.sign(votos))
+CARAS_VUELTA = [0, 0, 0]   # (dadas vuelta, de los dos lados, como venían)
+def caras_a_malla(caras, origen, nombre, colision=True, ver_solido=False):
     """caras del BSP (con su origen de entidad) → malla del juego por material; devuelve (malla, mats) o None"""
     V, N, U, porMat = [], [], [], {}
     for f in caras:
@@ -180,31 +219,42 @@ def caras_a_malla(caras, origen, nombre, colision=True):
         vs = [np.array([e.a.x, e.a.y, e.a.z]) + origen for e in f.edges]
         if len(vs) < 3: continue
         nsrc = np.array([f.plane.normal.x, f.plane.normal.y, f.plane.normal.z]) * (-1 if f.same_dir_as_plane else 1)
+        lv = lado_visible(np.array(vs), nsrc) if ver_solido else 1
+        if mat_es_vidrio(mi): lv = 0   # (vidrios y cortinas: de los dos lados)
+        if lv < 0: nsrc = -nsrc
+        CARAS_VUELTA[0 if lv < 0 else 1 if lv == 0 else 2] += 1
         ne = MS @ nsrc; tw, th = ti.tex_size; tw, th = tw or 512, th or 512
         so, to = np.array([ti.s_off.x, ti.s_off.y, ti.s_off.z]), np.array([ti.t_off.x, ti.t_off.y, ti.t_off.z])
         uv = np.array([[(v @ so + ti.s_shift) / tw, -(v @ to + ti.t_shift) / th] for v in vs]); uv -= np.floor(uv.min(0))
         base = len(V)
         for v, t in zip(vs, uv): V.append(P(v)); N.append(ne); U.append(t)
         Vn = np.array(V)
-        for k in range(1, len(vs) - 1): porMat.setdefault(mi, []).extend(orientar((base, base + k, base + k + 1), Vn, ne))
+        for k in range(1, len(vs) - 1):
+            porMat.setdefault(mi, []).extend(orientar((base, base + k, base + k + 1), Vn, ne))
+            if lv == 0: porMat[mi].extend(orientar((base, base + k, base + k + 1), Vn, -ne))
     if not V: return None
+    TRIS[nombre] = np.array(V)[np.array([i for l in porMat.values() for i in l]).reshape(-1, 3)]   # (para la grilla por donde caminan)
     return malla_bin(nombre, V, N, U, porMat)
+TRIS = {}
 
 ents = list(bsp.ents.entities)
 mundo_ent = next(e for e in bsp.bmodels if e['classname'] == 'worldspawn')
-mi_mundo, mats_mundo = caras_a_malla(bsp.bmodels[mundo_ent].faces, np.zeros(3), 'FN_Pizzeria')
+mi_mundo, mats_mundo = caras_a_malla(bsp.bmodels[mundo_ent].faces, np.zeros(3), 'FN_Pizzeria', ver_solido=True)
+print('caras del mundo: dadas vuelta', CARAS_VUELTA[0], '· de los dos lados', CARAS_VUELTA[1], '· como venían', CARAS_VUELTA[2])
 esc = []
 esc.append([nodo('RB_Pizzeria', m=mi_mundo, mt=mats_mundo, rid=9930000, col=[{'k': 'm', 'm': mi_mundo, 'cv': 0, 'tr': 0}])])
 # entidades de brocha: puertas de la oficina, botones, cortinas, puertas comunes (abiertas, sin choque)
-puertas, botones, fijas = {}, [], [nodo('FN_Brochas')]
+puertas, botones, fijas = {}, [], [nodo('FN_Brochas')]; BISAGRAS = []; CORTINA = []
 for e, bm in bsp.bmodels.items():
     c = e['classname']
     if c == 'worldspawn': continue
     o = np.array(vec(e['origin']))
     if c == 'func_door_rotating':   # bisagra en el origen: se dibuja abierta 90° (hacia donde no choca con la pared)
+        BISAGRAS.append(P(o))
         r = caras_a_malla(bm.faces, np.zeros(3), 'FN_PuertaComun')
         if r: fijas.append(nodo('PuertaComun', P(o), SM.m2q(R(ang_mat(0, 90, 0))), pa=0, m=r[0], mt=r[1]))
         continue
+    if c == 'func_brush' and e['targetname'] == 'FoxyCurtain' and P(o)[2] < -5: CORTINA.append((bm, o)); continue   # (la de Pirate Cove se hace aparte)
     r = caras_a_malla(bm.faces, np.zeros(3), 'FN_' + c)
     if not r: continue
     if c == 'func_door' and e['targetname'] in ('DoorLeft', 'DoorRight'):
@@ -216,6 +266,21 @@ for e, bm in bsp.bmodels.items():
         botones.append(P(o).tolist()); fijas.append(nodo('Boton', P(o), pa=0, m=r[0], mt=r[1]))
     else: fijas.append(nodo(e['targetname'] or c, P(o), pa=0, m=r[0], mt=r[1]))
 esc.append(fijas)
+# la cortina de Pirate Cove: la del mapa estiraba el dibujo de la tela y se veía una tira al costado (Foxy, a la vista). Acá,
+# dos paños con la tela entera (con su borde de abajo recortado) que el juego junta a los costados cuando Foxy se asoma
+if CORTINA:
+    bm, o = CORTINA[0]
+    esq = np.array([P(np.array(o) + np.array([x, y, z])) for x in (bm.mins.x, bm.maxes.x) for y in (bm.mins.y, bm.maxes.y) for z in (bm.mins.z, bm.maxes.z)])
+    lo, hi = esq.min(0), esq.max(0); xc = (lo[0] + hi[0]) / 2; zf = hi[2] - 0.03
+    ti_c = textura('materials/fedy/fnaf1map/curtains.vtf', 'fedy/fnaf1map/curtains', 512)[0]; mc = mat_nuevo('cortina_pirata', ti_c, 'cut')
+    for lado, x0, sg in (('Izq', lo[0], 1), ('Der', hi[0], -1)):
+        an = abs(xc - x0) + 0.15; V = [(0, lo[1], 0), (sg * an, lo[1], 0), (sg * an, hi[1], 0), (0, hi[1], 0)]
+        U = [(0.30, 0.08), (0.80, 0.08), (0.80, 1.0), (0.30, 1.0)] if sg > 0 else [(0.80, 0.08), (0.30, 0.08), (0.30, 1.0), (0.80, 1.0)]
+        Va = np.array(V, float); n = np.array([0, 0, 1.0]); tri = orientar((0, 1, 2), Va, n) + orientar((0, 2, 3), Va, n)
+        mi_c, mats_c = malla_bin('FN_Cortina' + lado, list(Va) * 2, [n] * 4 + [-n] * 4, U * 2, {mc: list(tri) + [t + 4 for t in orientar((0, 1, 2), Va, -n) + orientar((0, 2, 3), Va, -n)]})
+        esc.append([nodo('FN_Cortina' + lado, (x0, 0, zf), m=mi_c, mt=mats_c)])
+    FN['cortina'] = {'x': [round(float(lo[0]), 3), round(float(hi[0]), 3)], 'z': round(float(zf), 3)}
+    print('cortina de Pirate Cove: x', np.round([lo[0], hi[0]], 2), 'y', np.round([lo[1], hi[1]], 2), 'z', round(zf, 2))
 
 # ---------------- props ----------------
 _mod, _geo = {}, {}
@@ -270,14 +335,81 @@ def modelo_estatico(ruta, piel=0):
         for cd in M.carpetas:
             m_ = material_de('materials/' + cd.lower().replace('\\', '/').strip('/') + '/' + tn + '.vmt', 512)
             if m_ is not None: break
+        if m_ is None: SIN_TEX.setdefault(os.path.basename(base), set()).add(tn + ' en ' + ','.join(M.carpetas))
         mats.append(m_ if m_ is not None else mat_color(tn + ' ' + base))   # (texturas que no vinieron con el mapa: un color parecido, sin peso)
     _mod[k] = (mi, mats, caja); return _mod[k]
-props = [nodo('FN_Props')]; faltan = {}; camaras = []
+props = [nodo('FN_Props')]; faltan = {}; camaras = []; SIN_TEX = {}
+# ---------------- muebles de Half-Life 2 que el mapa usa y GMod trae (acá no están): hechos con cajas ----------------
+# Sin ellos lo que tenían arriba flotaba (la compu y el teléfono del cuarto de atrás, el microondas de la cocina). Cada uno
+# se para en el piso que tiene abajo y mide lo que pide lo que va encima (la mesada, 1 m; el escritorio, 0,77 m).
+# Ejes de la pieza (como los modelos ya pasados al juego): x de costado, y para arriba, z para adelante; el origen en el piso.
+def piso_bajo(p, arriba=0.7):
+    T = TRIS['FN_Pizzeria']; a, b, c = T[:, 0], T[:, 1], T[:, 2]
+    v0, v1 = (b - a)[:, [0, 2]], (c - a)[:, [0, 2]]; den = v0[:, 0] * v1[:, 1] - v1[:, 0] * v0[:, 1]; ok = np.abs(den) > 1e-12; den = np.where(ok, den, 1)
+    px, pz = p[0] - a[:, 0], p[2] - a[:, 2]; u = (px * v1[:, 1] - v1[:, 0] * pz) / den; v = (v0[:, 0] * pz - px * v0[:, 1]) / den
+    y = a[:, 1] + u * (b - a)[:, 1] + v * (c - a)[:, 1]; dentro = ok & (u >= -1e-4) & (v >= -1e-4) & (u + v <= 1 + 1e-4) & (y < p[1] + arriba)
+    return float(y[dentro].max()) if dentro.any() else float(p[1])
+def tex_ruido(nombre, rgb, var=26, rayas=False):
+    n = 128; a = ruido(n, 1.1, sum(nombre.encode()) % 97)
+    if rayas: a = 0.5 * a + 0.5 * np.repeat(ruido(n, 1.3, 7).mean(1, keepdims=True), n, 1)
+    img = np.stack([rgb[i] + var * (a - 0.5) for i in range(3)], -1)
+    return tex_imagen(Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)), nombre)
+_mueble_mat = {}
+def mat_mueble(k):
+    if k not in _mueble_mat:
+        rgb, var, ray = {'acero': ((168, 172, 176), 34, True), 'negro': ((30, 31, 34), 10, False), 'madera': ((92, 62, 40), 22, True), 'porcelana': ((196, 198, 196), 10, False),
+                         'oscuro': ((52, 54, 58), 12, False)}[k]
+        _mueble_mat[k] = mat_nuevo('mueble_' + k, tex_ruido('mueble_' + k, rgb, var, ray), 'op')
+    return _mueble_mat[k]
+def malla_cajas(nombre, cajas):
+    """cajas: (material, (x0, y0, z0), (x1, y1, z1)) → malla con caras por material (UV en metros)"""
+    V, N, U, por = [], [], [], {}
+    for k, lo, hi in cajas:
+        mi = mat_mueble(k); lo, hi = np.array(lo, float), np.array(hi, float)
+        for ax in range(3):
+            for sg in (-1, 1):
+                n = np.zeros(3); n[ax] = sg; u_, v_ = [i for i in range(3) if i != ax]
+                c = [None] * 4
+                for j, (a_, b_) in enumerate(((0, 0), (1, 0), (1, 1), (0, 1))):
+                    q = np.where(n > 0, hi, lo).copy(); q[u_] = (lo, hi)[a_][u_]; q[v_] = (lo, hi)[b_][v_]; c[j] = q
+                base = len(V)
+                for q in c: V.append(q); N.append(n); U.append((q[u_], q[v_]))
+                Va = np.array(V); por.setdefault(mi, []).extend(orientar((base, base + 1, base + 2), Va, n) + orientar((base, base + 2, base + 3), Va, n))
+    mi, mats = malla_bin('FN_mueble_' + nombre, V, N, U, por)
+    Va = np.array(V); return mi, mats, (Va.min(0), Va.max(0))
+def _cuerpo(an, al, pr, k='acero'): return [(k, (-an / 2, 0, -pr / 2), (an / 2, al, pr / 2))]
+MUEBLES = {
+    'props_wasteland/kitchen_counter001d': lambda: _cuerpo(3.0, 0.93, 0.76) + [('acero', (-1.5, 0.93, -0.4), (1.5, 1.0, 0.4))],
+    'props_wasteland/kitchen_stove001a': lambda: _cuerpo(1.2, 0.9, 0.76) + [('negro', (-0.6, 0.9, -0.38), (0.6, 0.95, 0.38)), ('acero', (-0.45, 0.72, 0.38), (0.45, 0.75, 0.42)), ('negro', (-0.5, 0.15, 0.38), (0.5, 0.62, 0.385))],
+    'props_wasteland/kitchen_stove002a': lambda: _cuerpo(0.9, 0.9, 0.76) + [('negro', (-0.45, 0.9, -0.38), (0.45, 0.95, 0.38)), ('acero', (-0.3, 0.72, 0.38), (0.3, 0.75, 0.42))],
+    'props_wasteland/kitchen_fridge001a': lambda: _cuerpo(1.25, 2.0, 0.76) + [('oscuro', (-0.006, 0.05, 0.38), (0.006, 1.95, 0.385)), ('acero', (-0.12, 0.9, 0.38), (-0.09, 1.5, 0.43)), ('acero', (0.09, 0.9, 0.38), (0.12, 1.5, 0.43))],
+    'props_wasteland/kitchen_shelf001a': lambda: [('acero', (sx * 0.75 - 0.015, 0, sz * 0.25 - 0.015), (sx * 0.75 + 0.015, 1.9, sz * 0.25 + 0.015)) for sx in (-1, 1) for sz in (-1, 1)] + [('acero', (-0.75, y, -0.25), (0.75, y + 0.02, 0.25)) for y in (0.15, 0.7, 1.25, 1.8)],
+    'props_wasteland/prison_toilet01': lambda: [('acero', (-0.19, 0, -0.22), (0.19, 0.4, 0.22)), ('acero', (-0.22, 0.3, -0.32), (0.22, 0.75, -0.2)), ('negro', (-0.15, 0.4, -0.15), (0.15, 0.405, 0.18))],
+    'props_combine/breendesk': lambda: [('madera', (-1.15, 0.73, -0.6), (1.15, 0.77, 0.6)), ('madera', (-1.15, 0, -0.58), (-1.1, 0.73, 0.58)), ('madera', (1.1, 0, -0.58), (1.15, 0.73, 0.58)), ('madera', (-1.1, 0.2, 0.52), (1.1, 0.73, 0.56))],
+    'nova/chair_office01': lambda: [('negro', (-0.25, 0.45, -0.25), (0.25, 0.52, 0.25)), ('negro', (-0.23, 0.55, -0.29), (0.23, 1.05, -0.23)), ('oscuro', (-0.03, 0.08, -0.03), (0.03, 0.45, 0.03)), ('oscuro', (-0.3, 0.02, -0.3), (0.3, 0.08, 0.3))],
+}
+_muebles = {}
+def poner_mueble(clave, origen, ang, nombre):
+    if clave not in _muebles: _muebles[clave] = malla_cajas(clave.split('/')[-1], MUEBLES[clave]())
+    mi, mats, (lo, hi) = _muebles[clave]; pe = P(origen); pe[1] = piso_bajo(pe)
+    x = nodo(nombre or clave.split('/')[-1], pe, SM.m2q(R(ang_mat(0, ang[1], 0))), pa=0, m=mi, mt=mats)
+    if 'chair' not in clave: x['col'] = [{'k': 'b', 'c': ((lo + hi) / 2).tolist(), 's': (hi - lo).tolist(), 'tr': 0}]
+    props.append(x)
 def poner_prop(ruta, origen, ang, esc_=1.0, piel=0, solido=True, nombre=None):
+    clave = ruta.lower().removeprefix('models/').removesuffix('.mdl')
+    if clave in MUEBLES and leer(ruta) is None: poner_mueble(clave, origen, ang, nombre); return
     r = modelo_estatico(ruta, piel)
     if r is None: faltan[ruta] = faltan.get(ruta, 0) + 1; return
     mi, mats, (lo, hi) = r
-    q = SM.m2q(R(ang_mat(*ang))); x = nodo(nombre or os.path.basename(ruta)[:-4], P(origen), q, (esc_, esc_, esc_), pa=0, m=mi, mt=mats)
+    Rm, pe = R(ang_mat(*ang)), P(origen)
+    if 'doorhandle' in ruta and BISAGRAS:   # (la manija va con su puerta, que se dibuja abierta)
+        b = min(BISAGRAS, key=lambda h: np.hypot(*(h - pe)[[0, 2]]))
+        if np.hypot(*(b - pe)[[0, 2]]) < 2.2: G = R(ang_mat(0, 90, 0)); pe = b + G @ (pe - b); Rm = G @ Rm
+    if 'arcade' in ruta:   # (los arcades del comedor venían 20 cm en el aire)
+        esq = np.array([[a, b_, c] for a in (lo[0], hi[0]) for b_ in (lo[1], hi[1]) for c in (lo[2], hi[2])]) * esc_
+        Wq = (Rm @ esq.T).T + pe; fondo = Wq[:, 1].min(); cen = Wq.mean(0); gap = fondo - piso_bajo(np.array([cen[0], fondo, cen[2]]), 0.05)
+        if 0.03 < gap < 0.35: pe = pe - np.array([0, gap, 0])
+    q = SM.m2q(Rm); x = nodo(nombre or os.path.basename(ruta)[:-4], pe, q, (esc_, esc_, esc_), pa=0, m=mi, mt=mats)
     t = hi - lo
     if solido and max(t) > 0.25 and t[1] > 0.12: x['col'] = [{'k': 'b', 'c': ((lo + hi) / 2).tolist(), 's': t.tolist(), 'tr': 0}]
     props.append(x)
@@ -296,7 +428,149 @@ for e in ents:
     if any(x in m for x in NO_VAN): continue
     poner_prop(m, vec(e['origin']), a, float(e['modelscale'] or 1), int(e['skin'] or 0), not any(s in m for s in CHICOS), e['targetname'] or None)
 esc.append(props)
+
+# ---------------- por dónde caminan los animatrónicos ----------------
+# Grilla de 20 cm sobre el piso del mapa: altura del piso en cada celda (de los triángulos que miran para arriba),
+# bloqueada donde hay paredes o muebles a la altura del cuerpo (con 35 cm de margen). Entre las salas de FNAF 1 (cada
+# una con el lugar donde se para cada animatrónico) los caminos salen con A* y se estiran en línea recta donde se puede.
+import heapq
+from scipy import ndimage
+def nav_grilla(tris, cajas):
+    CEL = 0.2
+    x0, z0 = tris[:, :, 0].min() - 1, tris[:, :, 2].min() - 1; x1, z1 = tris[:, :, 0].max() + 1, tris[:, :, 2].max() + 1
+    nx, nz = int((x1 - x0) / CEL) + 1, int((z1 - z0) / CEL) + 1
+    H = np.full((nz, nx), -99.0); B = np.zeros((nz, nx), bool)
+    n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0]); n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-9)
+    for t, ny in zip(tris, n[:, 1]):
+        if ny > 0.7 and t[:, 1].max() < 1.6:   # piso (no techos ni mesadas altas)
+            i0, i1 = int((t[:, 0].min() - x0) / CEL), int((t[:, 0].max() - x0) / CEL) + 1; j0, j1 = int((t[:, 2].min() - z0) / CEL), int((t[:, 2].max() - z0) / CEL) + 1
+            xs, zs = np.meshgrid(x0 + (np.arange(i0, i1 + 1) + 0.5) * CEL, z0 + (np.arange(j0, j1 + 1) + 0.5) * CEL)
+            a, b, c = t[0][[0, 2]], t[1][[0, 2]], t[2][[0, 2]]; v0, v1 = b - a, c - a; den = v0[0] * v1[1] - v1[0] * v0[1]
+            if abs(den) < 1e-12: continue
+            px, pz = xs - a[0], zs - a[1]; u = (px * v1[1] - v1[0] * pz) / den; v = (v0[0] * pz - px * v0[1]) / den
+            dentro = (u >= -1e-4) & (v >= -1e-4) & (u + v <= 1 + 1e-4); y = t[0][1] + u * (t[1][1] - t[0][1]) + v * (t[2][1] - t[0][1])
+            jj, ii = np.nonzero(dentro); jj += j0; ii += i0; ok = (jj < nz) & (ii < nx); jj, ii = jj[ok], ii[ok]
+            H[jj, ii] = np.maximum(H[jj, ii], y[dentro][ok])
+        elif abs(ny) < 0.7 and t[:, 1].max() > 1.2 and t[:, 1].min() < 2.3:   # pared a la altura del cuerpo (lo más bajo, como el borde del escenario, es un escalón)
+            for s in np.linspace(0, 1, 12):
+                for r in np.linspace(0, 1 - s, max(2, int(12 * (1 - s)))):
+                    p = t[0] + (t[1] - t[0]) * s + (t[2] - t[0]) * r
+                    if 0.6 < p[1] < 2.4: B[min(nz - 1, int((p[2] - z0) / CEL)), min(nx - 1, int((p[0] - x0) / CEL))] = True
+            for k in range(3):   # (y los bordes, finos)
+                a, b = t[k], t[(k + 1) % 3]
+                for s in np.linspace(0, 1, max(2, int(np.linalg.norm(b - a) / 0.08))):
+                    p = a + (b - a) * s
+                    if 0.6 < p[1] < 2.4: B[min(nz - 1, int((p[2] - z0) / CEL)), min(nx - 1, int((p[0] - x0) / CEL))] = True
+    for (p, R3, c, e) in cajas:   # muebles: su planta
+        es = [p + R3 @ (c + e * np.array(s)) for s in ((1, 1, 1), (-1, 1, 1), (1, 1, -1), (-1, 1, -1))]
+        lo, hi = np.min(es, 0), np.max(es, 0)
+        for xx in np.arange(lo[0], hi[0] + 0.1, 0.1):
+            for zz in np.arange(lo[2], hi[2] + 0.1, 0.1):
+                l = R3.T @ (np.array([xx, p[1] + (R3 @ c)[1], zz]) - p) - c
+                if abs(l[0]) <= e[0] and abs(l[2]) <= e[2]: B[min(nz - 1, max(0, int((zz - z0) / CEL))), min(nx - 1, max(0, int((xx - x0) / CEL)))] = True
+    yy, xx = np.mgrid[-2:3, -2:3]; B = ndimage.binary_dilation(B, structure=(xx * xx + yy * yy) <= 3)   # (35 cm de margen)
+    libre = (H > -50) & ~B
+    return dict(x0=x0, z0=z0, cel=CEL, nx=nx, nz=nz, H=H, libre=libre)
+def nav_celda(G, x, z):
+    i, j = int((x - G['x0']) / G['cel']), int((z - G['z0']) / G['cel'])
+    if 0 <= i < G['nx'] and 0 <= j < G['nz'] and G['libre'][j, i]: return j, i
+    best = None   # (la libre más cercana)
+    for r in range(1, 25):
+        for dj in range(-r, r + 1):
+            for di in (-r, r) if abs(dj) < r else range(-r, r + 1):
+                jj, ii = j + dj, i + di
+                if 0 <= jj < G['nz'] and 0 <= ii < G['nx'] and G['libre'][jj, ii]:
+                    d2 = dj * dj + di * di
+                    if best is None or d2 < best[0]: best = (d2, (jj, ii))
+        if best: return best[1]
+    return None
+def nav_ver(G, a, b):   # ¿línea recta libre entre dos celdas (y sin escalones)?
+    (j0, i0), (j1, i1) = a, b; n = max(abs(j1 - j0), abs(i1 - i0)) * 2 + 1; hp = G['H'][j0, i0]
+    for s in np.linspace(0, 1, n):
+        j, i = int(round(j0 + (j1 - j0) * s)), int(round(i0 + (i1 - i0) * s))
+        if not G['libre'][j, i] or abs(G['H'][j, i] - hp) > 0.25: return False
+        hp = G['H'][j, i]
+    return True
+def nav_camino(G, a, b):
+    if a == b: return [a]
+    abiertos = [(0, a)]; g = {a: 0}; vino = {}
+    while abiertos:
+        _, c = heapq.heappop(abiertos)
+        if c == b: break
+        for dj, di in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
+            nj, ni = c[0] + dj, c[1] + di
+            if not (0 <= nj < G['nz'] and 0 <= ni < G['nx']) or not G['libre'][nj, ni]: continue
+            if abs(G['H'][nj, ni] - G['H'][c]) > 0.7: continue   # (el escalón del escenario sí; una pared no)
+            if dj and di and not (G['libre'][c[0] + dj, c[1]] and G['libre'][c[0], c[1] + di]): continue
+            ng = g[c] + (1.4142 if dj and di else 1) + (2 if abs(G['H'][nj, ni] - G['H'][c]) > 0.1 else 0)
+            if ng < g.get((nj, ni), 1e18): g[(nj, ni)] = ng; vino[(nj, ni)] = c; heapq.heappush(abiertos, (ng + np.hypot(nj - b[0], ni - b[1]), (nj, ni)))
+    if b not in vino: return None
+    cs = [b]
+    while cs[-1] != a: cs.append(vino[cs[-1]])
+    cs.reverse(); out = [cs[0]]; k = 0   # (estirado: de cada punto, al más lejano que se ve derecho)
+    while k < len(cs) - 1:
+        m = len(cs) - 1
+        while m > k + 1 and not nav_ver(G, cs[k], cs[m]): m -= 1
+        out.append(cs[m]); k = m
+    return out
+cajas = []
+for x in props[1:]:
+    if 'col' in x and x['col'][0]['k'] == 'b':
+        c = x['col'][0]; s = np.array(x['s']); cajas.append((np.array(x['p']), SM.q2m(np.array(x['r'])), np.array(c['c']) * s, np.array(c['s']) * s / 2))
+G = nav_grilla(TRIS['FN_Pizzeria'], cajas)
+# las salas de FNAF 1 (con su cámara) y dónde se para cada uno (F Freddy, B Bonnie, C Chica, X Foxy)
+SALAS = {'escenario': {'F': (9.6, 0.2), 'B': (9.4, -1.8), 'C': (9.4, 2.2)}, 'comedor': {'F': (-3.2, 1.0), 'B': (1.75, -5.0), 'C': (1.75, 6.6)},
+         'pirata': {'X': (-0.3, -11.2)}, 'atras': {'B': (6.2, -13.0)}, 'oeste': {'B': (-12.0, -3.1), 'X': (-12.0, -3.4)}, 'armario': {'B': (-11.4, -7.6)},
+         'esqO': {'B': (-22.4, -3.3), 'X': (-22.0, -3.3)}, 'este': {'F': (-11.0, 3.4), 'C': (-13.0, 3.4)}, 'esqE': {'F': (-21.8, 3.5), 'C': (-22.6, 3.4)},
+         'cocina': {'F': (-11.0, 11.5), 'C': (-9.8, 14.5)}, 'banos': {'F': (0.8, 12.0), 'C': (3.0, 11.8)},
+         'oficina': {'F': (-22.6, 0.9), 'B': (-22.6, -1.0), 'C': (-22.6, 0.9), 'X': (-22.6, -1.0)}}
+GRAFO = {'F': [('escenario', 'comedor'), ('comedor', 'banos'), ('banos', 'cocina'), ('cocina', 'este'), ('este', 'esqE'), ('esqE', 'oficina'), ('esqE', 'este'), ('este', 'comedor')],
+         'B': [('escenario', 'comedor'), ('escenario', 'atras'), ('comedor', 'atras'), ('comedor', 'oeste'), ('atras', 'oeste'), ('oeste', 'armario'), ('oeste', 'esqO'), ('armario', 'esqO'), ('esqO', 'oficina'), ('esqO', 'oeste'), ('esqO', 'comedor')],
+         'C': [('escenario', 'comedor'), ('comedor', 'banos'), ('comedor', 'cocina'), ('banos', 'cocina'), ('banos', 'este'), ('cocina', 'este'), ('este', 'esqE'), ('esqE', 'oficina'), ('esqE', 'este'), ('este', 'comedor')],
+         'X': [('pirata', 'oeste'), ('oeste', 'esqO'), ('esqO', 'oficina')]}
+salas, caminos, malos = {}, {}, []
+for sala, sp in SALAS.items():
+    salas[sala] = {}
+    for k, (x, z) in sp.items():
+        c = nav_celda(G, x, z); assert c, (sala, k)
+        salas[sala][k] = [round(G['x0'] + (c[1] + 0.5) * G['cel'], 3), round(float(G['H'][c]), 3), round(G['z0'] + (c[0] + 0.5) * G['cel'], 3)]
+for k, aristas in GRAFO.items():
+    for a, b in aristas:
+        for u, v in ((a, b), (b, a)):
+            ca, cb = nav_celda(G, salas[u][k][0], salas[u][k][2]), nav_celda(G, salas[v][k][0], salas[v][k][2])
+            cm = nav_camino(G, ca, cb)
+            if not cm: malos.append((k, u, v)); continue
+            caminos[k + ':' + u + '>' + v] = [[round(G['x0'] + (j_i[1] + 0.5) * G['cel'], 2), round(float(G['H'][j_i]), 2), round(G['z0'] + (j_i[0] + 0.5) * G['cel'], 2)] for j_i in cm]
+np.save('/tmp/claude-0/pz/nav_libre.npy', G['libre']); np.save('/tmp/claude-0/pz/nav_H.npy', G['H']); json.dump({k: G[k] for k in ('x0', 'z0', 'cel', 'nx', 'nz')}, open('/tmp/claude-0/pz/nav.json', 'w')); json.dump(caminos, open('/tmp/claude-0/pz/nav_caminos.json', 'w'))
+assert not malos, ('sin camino', malos)
+FN.update(salas=salas, caminos=caminos)
+
+# ---------------- plano de las cámaras: el mapa visto de arriba, como en FNAF (el escenario arriba, la oficina abajo) ----------------
+# en la pantalla x = z del juego (la puerta izquierda a la izquierda) e y = -x; el piso en gris y las paredes cortadas a 1,3 m
+MAPA = {'x0': -28.0, 'x1': 16.7, 'z0': -19.5, 'z1': 21.5}   # (lo de FNAF; las alas que agregó el mapa quedan afuera)
+def plano(tris, G, W=440, Hh=480, k=3):
+    from PIL import ImageDraw
+    X = lambda z: (z - MAPA['z0']) / (MAPA['z1'] - MAPA['z0']) * W * k
+    Y = lambda x: (MAPA['x1'] - x) / (MAPA['x1'] - MAPA['x0']) * Hh * k
+    piso = Image.new('L', (W * k, Hh * k), 0); dp = ImageDraw.Draw(piso)
+    for j, i in zip(*np.nonzero(G['H'] > -50)):
+        x = G['x0'] + i * G['cel']; z = G['z0'] + j * G['cel']
+        dp.rectangle([X(z), Y(x + G['cel']), X(z + G['cel']), Y(x)], fill=255)
+    par = Image.new('L', (W * k, Hh * k), 0); dw = ImageDraw.Draw(par); Y0 = 1.3
+    for t in tris:
+        ys = t[:, 1]
+        if ys.min() >= Y0 or ys.max() <= Y0: continue
+        pts = [(X(p[2]), Y(p[0])) for p in (t[a] + (t[b] - t[a]) * (Y0 - ys[a]) / (ys[b] - ys[a]) for a, b in ((0, 1), (1, 2), (2, 0)) if (ys[a] - Y0) * (ys[b] - Y0) < 0)]
+        if len(pts) == 2: dw.line(pts, fill=255, width=int(1.6 * k))
+    f = np.asarray(piso.resize((W, Hh), Image.LANCZOS), float)[..., None] / 255; w = np.asarray(par.resize((W, Hh), Image.LANCZOS), float)[..., None] / 255
+    rgb = w * np.array([226, 228, 232]) + (1 - w) * np.array([58, 62, 70]); al = np.maximum(f * 0.55, w)
+    return Image.fromarray(np.clip(np.concatenate([rgb, al * 255], 2), 0, 255).astype(np.uint8), 'RGBA')
+plano(TRIS['FN_Pizzeria'], G).save(PK1 + '/i/fn_mapa.webp', 'WEBP', quality=88, method=6)
+d['ico']['fn_mapa'] = 'fn_mapa'; FN['mapa'] = MAPA
+print('grilla', G['nx'], 'x', G['nz'], 'libres', int(G['libre'].sum()), '· caminos', len(caminos), '· largo medio', round(np.mean([sum(np.hypot(c[i + 1][0] - c[i][0], c[i + 1][2] - c[i][2]) for i in range(len(c) - 1)) for c in caminos.values()]), 1), 'm')
+np.save('/tmp/claude-0/pz/nav_libre.npy', G['libre']); np.save('/tmp/claude-0/pz/nav_H.npy', G['H']); json.dump({k: G[k] for k in ('x0', 'z0', 'cel', 'nx', 'nz')}, open('/tmp/claude-0/pz/nav.json', 'w'))
 print('props', len(props) - 1, 'modelos', len([v for v in _mod.values() if v]), 'geometrías', len(_geo), 'faltan', faltan)
+print('texturas de props que no vinieron:', {k: sorted(v) for k, v in SIN_TEX.items()})
 
 # ---------------- luces, cámaras, aparición ----------------
 luces = []

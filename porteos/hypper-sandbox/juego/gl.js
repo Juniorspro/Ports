@@ -12,7 +12,7 @@
 const R = { gl: null, cv: null, progs: new Map(), prog: {}, mallas: [], tex: [], mats: [], items: [], nItems: 0, cola: [], colaT: [], vp: new Float32Array(16), view: null, proj: null,
   camPos: v3(), camF: v3(0, 0, -1), sol: v3(0.4, 0.8, 0.3).norm(), solCol: [1, 0.96, 0.84], ambS: [0.55, 0.62, 0.72], ambG: [0.3, 0.27, 0.22],
   niebla: { c: [0.8, 0.85, 0.9], a: 150, b: 600 }, cielo: null, escala: 1, dibujadas: 0, tris: 0, marca: 1, salida: 'gam', luces: [], fase: '', expo: 1,
-  aoTex: null, conAO: false, lin: null };
+  aoTex: null, conAO: false, lin: null, esp: [], nEsp: 0 };
 const _m4a = new Float32Array(16), _m4b = new Float32Array(16);
 function m4mul(a, b, out) {
   const a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3], a4 = a[4], a5 = a[5], a6 = a[6], a7 = a[7], a8 = a[8], a9 = a[9], a10 = a[10], a11 = a[11], a12 = a[12], a13 = a[13], a14 = a[14], a15 = a[15];
@@ -115,6 +115,11 @@ uniform mat4 uSMm[SOMBRA]; uniform vec4 uSMr[SOMBRA]; uniform vec4 uSMk[SOMBRA];
 #endif
 #if NLUZ > 0
 uniform vec4 uLP[NLUZ], uLC[NLUZ], uLD[NLUZ]; uniform int uLN;
+#endif
+// luces especiales (linternas, la lámpara y las luces de las puertas de la pizzería): andan en todas las calidades,
+// también en las que no tienen luces puntuales
+#ifdef ESP
+uniform vec4 uEP[4], uEC[4], uED[4]; uniform int uEN;
 #endif
 #ifdef AO
 uniform sampler2D uAO; uniform vec2 uAOinv; uniform float uAOon;
@@ -334,6 +339,18 @@ void main(){
     col += brdf(n, v, L, dif, f0, max(a, 0.05)) * uLC[i].rgb * at;
   }
 #endif
+#ifdef ESP
+  for (int i = 0; i < 4; i++) {
+    if (i >= uEN) break;
+    vec3 L = uEP[i].xyz - vW; float d2 = dot(L, L), r = uEP[i].w;
+    if (d2 > r * r) continue;
+    float d = sqrt(d2); L /= d;
+    // (cae suave para que un pasillo se vea a 10-15 m, y un poco envolvente: el piso se ve aunque le llegue de costado)
+    float at = pow(1.0 - d / r, 1.2) / (1.0 + 0.012 * d2);
+    if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + 0.08, dot(-L, uED[i].xyz));
+    col += (brdf(n, v, L, dif, f0, max(a, 0.05)) + dif * 0.08) * uEC[i].rgb * at;
+  }
+#endif
   // luz del cielo: difusa (hemisferio) y reflejo (el cielo en la dirección reflejada, más borroso cuanto más áspero)
   float ao = 1.0;
 #ifdef AO
@@ -353,11 +370,33 @@ void main(){
   float sp = pow(max(dot(n, h), 0.0), mix(8.0, 64.0, 1.0 - uMat.x)) * (1.0 - uMat.x) * 0.35 * d;
   vec3 amb = mix(uAmbG, uAmbS, n.y * 0.5 + 0.5);
   vec3 col = t.rgb * (amb + uSolC * d) + uSolC * sp + uEm;
+#ifdef ESP
+  for (int i = 0; i < 4; i++) {
+    if (i >= uEN) break;
+    vec3 L = uEP[i].xyz - vW; float d2 = dot(L, L), r = uEP[i].w;
+    if (d2 > r * r) continue;
+    float d = sqrt(d2); L /= d;
+    float at = pow(1.0 - d / r, 1.2) / (1.0 + 0.012 * d2);
+    if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + 0.08, dot(-L, uED[i].xyz));
+    col += t.rgb * uEC[i].rgb * ((0.3 + 0.7 * max(dot(n, L), 0.0)) * 0.3 * at);
+  }
+#endif
 #else
   vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;
   float d = max(dot(n, uSol), 0.0);
   vec3 amb = mix(uAmbG, uAmbS, n.y * 0.5 + 0.5);
   vec3 col = t.rgb * (amb + uSolC * d) + uEm;
+#ifdef ESP
+  for (int i = 0; i < 4; i++) {
+    if (i >= uEN) break;
+    vec3 L = uEP[i].xyz - vW; float d2 = dot(L, L), r = uEP[i].w;
+    if (d2 > r * r) continue;
+    float d = sqrt(d2); L /= d;
+    float at = pow(1.0 - d / r, 1.2) / (1.0 + 0.012 * d2);
+    if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + 0.08, dot(-L, uED[i].xyz));
+    col += t.rgb * uEC[i].rgb * ((0.3 + 0.7 * max(dot(n, L), 0.0)) * 0.3 * at);
+  }
+#endif
 #endif
   float dist = distance(vW, uCam);
   float f = clamp((dist - uNie.x) / (uNie.y - uNie.x), 0.0, 1.0);
@@ -481,13 +520,14 @@ function progDe(clave, modo) {
     if (luz >= 2 && R.sombraOn && Q.sombra > 0) { d.push('SOMBRA=' + SM.n, 'PCF=' + (Q.pcf || 1)); if (Q.pcss) d.push('PCSS'); } else d.push('SOMBRA=0');
     if (luz >= 2 && Q.nluz > 0) d.push('NLUZ=' + Q.nluz); else d.push('NLUZ=0');
     if (luz >= 2 && R.conAO) d.push('AO');
+    d.push('ESP');   // (las luces especiales: linternas y las de la pizzería)
     if (luz >= 3 && Q.det && R.deriv && !f.includes('SKIN') && !f.includes('TERR')) d.push('DET');
     if (DBG.verSombra) d.push('VERSOMBRA');
     try { P = shader(VS, FS, d); }
     catch (e) {
       // si la placa no acepta la versión completa (sombras, luces, relieve), una más simple: se ve, aunque más plano
       R.errShader = String(e.message || e).slice(0, 400); console.warn('shader simplificado', R.errShader);
-      const base = d.filter((x) => !/^(LUZ|SALIDA|SOMBRA|PCF|NLUZ)=|^(PCSS|AO|DET|VERSOMBRA)$/.test(x));
+      const base = d.filter((x) => !/^(LUZ|SALIDA|SOMBRA|PCF|NLUZ)=|^(PCSS|AO|DET|VERSOMBRA|ESP)$/.test(x));
       P = shader(VS, FS, base.concat(['LUZ=1', 'SALIDA=' + (R.salida === 'hdr' ? 2 : R.salida === 'ldr' ? 1 : 0), 'SOMBRA=0', 'NLUZ=0']));
       if (!R.avisoShader && typeof aviso === 'function') { R.avisoShader = true; aviso('Gráficos simplificados: la placa no aceptó un efecto'); }
     }
@@ -760,6 +800,7 @@ function prepararProg(P) {
     if (u.uExpo) gl.uniform1f(u.uExpo, R.expo);
     if (u.uSMm) { sombrasUniformes(P); if (R.fase === 'vista') gl.uniform1f(u.uSMon, 0); }
     if (u.uLP) lucesUniformes(P);
+    if (u.uEN) espUniformes(P);
     if (u.uAO) { gl.uniform2f(u.uAOinv, 1 / R.cv.width, 1 / R.cv.height); gl.uniform1f(u.uAOon, R.aoActivo && R.fase !== 'vista' ? 1 : 0); }
   }
   return P;
@@ -929,6 +970,21 @@ function lucesPreparar() {
     if (l.d) { LUZ_D[o] = l.d.x; LUZ_D[o + 1] = l.d.y; LUZ_D[o + 2] = l.d.z; LUZ_D[o + 3] = l.k; } else { LUZ_D[o] = 0; LUZ_D[o + 1] = -1; LUZ_D[o + 2] = 0; LUZ_D[o + 3] = -2; }
   }
 }
+// luces especiales: se juntan en R.esp (las más importantes primero) y van las 4 primeras
+const ESP_P = new Float32Array(16), ESP_C = new Float32Array(16), ESP_D = new Float32Array(16);
+function luzEspecial(p, radio, col, dir, cono, prioridad) { R.esp.push({ p, r: radio, c: col, d: dir || null, k: cono === undefined ? -2 : cono, q: prioridad || 0 }); }
+function espPreparar() {
+  const L = R.esp, cp = R.camPos;
+  if (L.length > 4) L.sort((a, b) => b.q - a.q || a.p.distTo(cp) - b.p.distTo(cp));
+  R.nEsp = Math.min(4, L.length);
+  for (let i = 0; i < R.nEsp; i++) {
+    const l = L[i], o = i * 4;
+    ESP_P[o] = l.p.x; ESP_P[o + 1] = l.p.y; ESP_P[o + 2] = l.p.z; ESP_P[o + 3] = l.r;
+    ESP_C[o] = l.c[0]; ESP_C[o + 1] = l.c[1]; ESP_C[o + 2] = l.c[2]; ESP_C[o + 3] = 0;
+    if (l.d) { ESP_D[o] = l.d.x; ESP_D[o + 1] = l.d.y; ESP_D[o + 2] = l.d.z; ESP_D[o + 3] = l.k; } else { ESP_D[o] = 0; ESP_D[o + 1] = -1; ESP_D[o + 2] = 0; ESP_D[o + 3] = -2; }
+  }
+}
+function espUniformes(P) { const gl = R.gl; gl.uniform4fv(P.u.uEP, ESP_P); gl.uniform4fv(P.u.uEC, ESP_C); gl.uniform4fv(P.u.uED, ESP_D); gl.uniform1i(P.u.uEN, R.nEsp || 0); }
 function lucesUniformes(P) {
   const gl = R.gl, n = GFX.nluz || 0; if (!n) return;
   gl.uniform4fv(P.u.uLP, sub(LUZ_P, n * 4)); gl.uniform4fv(P.u.uLC, sub(LUZ_C, n * 4)); gl.uniform4fv(P.u.uLD, sub(LUZ_D, n * 4)); gl.uniform1i(P.u.uLN, R.nLuces || 0);

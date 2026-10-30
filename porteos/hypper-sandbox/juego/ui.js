@@ -115,6 +115,8 @@ function spawnElegir(tab, nombre) {
 // reglas de la sala (Create Server del juego): Nextbot sí/no, tope de props y de vehículos
 let _vehs = null;
 function reglaSala(nombre) {
+  // la noche en la pizzería: mientras corre no se pone nada (ni para trabar las puertas)
+  if (typeof NOC !== 'undefined' && NOC.on && ['intro', 'juega', 'apagon', 'perdiendo'].includes(NOC.estado)) { aviso(T('fn.sinCosas'), 2); return false; }
   if (typeof SALA === 'undefined' || !SALA) return true;
   if (!SALA.nb && /nextbot/i.test(nombre)) { aviso('Nextbot: OFF', 1.5); return false; }
   if (HOST.ds && !soyAnfitrion()) { aviso(Lc('HostDisabledSpawnObjects', 'Host disabled spawn objects'), 2); return false; }

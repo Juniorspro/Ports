@@ -119,4 +119,12 @@ function vozBotonPoner(si) {
     $('arribaIz').appendChild(b);
   }
   b.style.display = si ? '' : 'none'; b.classList.toggle('on', VOZ.on);
+  // y al lado, las voces de los demás (se pueden silenciar todas)
+  let v = $('vocesBt');
+  if (!v) {
+    v = document.createElement('div'); v.id = 'vocesBt'; v.className = 'redondo bt vozBt vocesBt'; v.innerHTML = glifo('volumen') + '<small>' + esc(T('voz.corto')) + '</small>';
+    v.onpointerdown = (e) => { e.stopPropagation(); e.preventDefault(); vocesMudar(!PREFS.vocesMudas); };
+    b.after(v);
+  }
+  v.style.display = si ? '' : 'none'; v.classList.toggle('mudo', !!PREFS.vocesMudas); v.title = T(PREFS.vocesMudas ? 'voz.mudas' : 'voz.activas');
 }

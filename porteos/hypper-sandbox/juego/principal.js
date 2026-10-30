@@ -147,7 +147,8 @@ function atenderPulsos() {
   for (const k of ENT.pulsos) {
     if (JUEGO.estado !== 'juego') continue;
     if (UI.abierto === 'eda') { if (k === 'pausa') edaAccion('salir'); continue; } // (en el editor de animaciones, sólo salir)
-    if (k === 'pausa') { if (UI.abierto) cerrarPaneles(); else abrirPausa(); continue; }
+    // (lo de la noche en la pizzería que tapa la pantalla no se cierra con Esc: se abre la pausa encima; las cámaras sí se bajan)
+    if (k === 'pausa') { if (UI.abierto === 'fncam') nocheTablet(); else if (UI.abierto && !/^fn/.test(UI.abierto)) cerrarPaneles(); else abrirPausa(); continue; }
     if (k === 'cerrar') { cerrarPaneles(); continue; }
     if (k === 'fncam') { nocheTablet(); continue; } // (la pizzería: cámaras y linterna)
     if (k === 'linterna') { nocheLinterna(); continue; }
@@ -255,7 +256,7 @@ function dibujarMenu() {
   const f = srgb3(F), s = srgb3(LOBBY_LUZ.solCol);
   R.lin = { top: f, mid: f, bot: f.map((x) => x * 0.5), topG: F, midG: F, botG: F.map((x) => x * 0.7), solCol: s.map((x) => x * 2.2), cieloSol: s, ambS: srgb3(LOBBY_LUZ.amb).map((x) => x * 1.6), ambG: srgb3(LOBBY_LUZ.amb).map((x) => x * 1.1), nieC: f };
   const P = M4.persp(60 * Math.PI / 180, W / H, 0.08, 50), V = M4.view(CAM.pos, CAM.qVista);
-  m4mul(P, V, R.vp); R.fr = frustum(R.vp); R.camPos.copy(CAM.pos); R.marca++; R.luces.length = 0; R.nLuces = 0;
+  m4mul(P, V, R.vp); R.fr = frustum(R.vp); R.camPos.copy(CAM.pos); R.marca++; R.luces.length = 0; R.nLuces = 0; R.esp.length = 0; R.nEsp = 0;
   dibujarLobby(); dibujarCola();
   R.sol.copy(g.sol); R.solCol = g.solCol; R.ambS = g.ambS; R.ambG = g.ambG; R.niebla = g.niebla; R.lin = g.lin; R.expo = g.expo;
 }
@@ -284,7 +285,7 @@ function dibujar() {
   dibujarEntidades();
   if (JUEGO.estado === 'juego') { cicDibujar(); verDibujar(); nocheDibujar(); }
   dibujarProyectiles();
-  lucesJuntar(); lucesPreparar();
+  lucesJuntar(); lucesPreparar(); espPreparar();
   if (JUEGO.estado === 'juego' && R.sombraOn) {
     const h = raycast(vadd(CAM.pos, vscale(R.sol, 0.3)), R.sol, 300, JUG.vehiculo ? JUG.vehiculo.b : null), meta = h ? 0.28 : 1;
     R.solVista = R.solVista === undefined ? meta : R.solVista + (meta - R.solVista) * Math.min(1, TIEMPO.dt * 6);

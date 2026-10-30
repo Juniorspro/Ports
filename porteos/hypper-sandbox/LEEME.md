@@ -260,30 +260,47 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   generadas, vueltas sin costura y llevadas al color de cada mapa; las líneas de la calle, las juntas y las ventanas se
   dibujan encima. Cada triángulo del terreno toma pasto, arena, tierra o roca según altura y pendiente.
 - **Pizzería de Freddy (la noche de FNAF 1)**, `RB_Pizzeria`, con server oficial y elegible al crear uno. Sobrevivir de
-  las 12 a las 6 (70 s por hora) en la oficina: puertas y luces con sus botones (E), que gastan energía (la barra de uso
-  como en FNAF); si se acaba, se apaga todo, las puertas se abren y viene Freddy con la cajita de música. Freddy, Bonnie,
-  Chica y Foxy salen del escenario y de Pirate Cove y vienen por los pasillos hasta las esquinas de las puertas (cada uno
-  prueba moverse cada 3 a 5 s según su nivel, que sube por noche y a las 2, 3 y 4); con la puerta cerrada se vuelven
-  (Foxy golpea y te saca energía), con la abierta entran y te agarran. Fuera de la oficina persiguen al que ven; Freddy
-  no se mueve si alguien lo mira. Cámaras de seguridad (G o el botón: la vista salta a cada una, con estática y el
-  plano), linterna en primera persona (L o el botón; la de los demás también se ve), sustos en video (si el navegador
-  no puede con el video, el animatrónico en 3D te salta encima), llamada de la primera noche, 6 AM con campanas y la
-  noche siguiente más difícil. En una sala la noche la maneja uno solo (el de id más chico; si se va, sigue el próximo
-  desde donde estaba) y la manda cuatro veces por segundo; los botones se le piden por la red. El agarrado mira las
-  cámaras hasta las 6 y se pierde cuando agarran a todos. `juego/noche.js`. Armado (lo extraído queda fuera del repo,
-  `CREDITOS.md` dice de dónde sale cada cosa):
+  las 12 a las 6 (89 s por hora) en la oficina. Solo: menú de noches (nueva, continuar, la 6 y la personalizada con los
+  cuatro niveles de 0 a 20; el progreso se guarda); en una sala arranca sola. Como en FNAF 1: los niveles de cada noche
+  (y Bonnie, Chica y Foxy suben a las 2, 3 y 4), una oportunidad de moverse cada 3,02 / 4,97 / 4,98 / 5,01 s, cada uno por
+  sus salas (las de las cámaras) caminando por caminos calculados sobre el mapa. No persiguen a nadie: afuera de la oficina
+  sólo te agarran si te los chocás o te quedás delante de uno. En la esquina, con la puerta cerrada se vuelven (Bonnie al
+  comedor, Chica al pasillo este); abierta, entran. Freddy no se mueve si alguien lo mira (con los ojos o por la cámara) y
+  entra sólo mientras alguien mira las cámaras (no la 4B). Foxy sale de Pirate Cove por etapas mientras nadie tiene la
+  tableta arriba (la cortina se va abriendo) y corre a los 25 s o si alguien mira la 2A; cada golpe en la puerta saca 1,
+  6, 11 % de energía. Energía: 0,1 % por segundo por barra de uso más 0,1 % cada 6, 5, 4 o 3 s desde la noche 2; sin
+  energía se apaga todo y viene Freddy con la cajita (si dan las 6 antes, se gana). Con alguien adentro los botones no
+  andan; mientras corre la noche no se pueden poner props. Cámaras (G) con el plano de FNAF hecho del mapa; linterna (L)
+  que alumbra en todas las calidades (luces especiales en el shader: la linterna, las de los demás, la lámpara de la
+  oficina, las de las puertas y, en las calidades sin luces puntuales, las del techo); llamadas de las noches 1 a 4
+  (castellano o inglés según el idioma) con "Silenciar llamada"; sustos en video; Game Over con Reintentar y Menú (todo de
+  cero). En una sala la noche la maneja uno solo (el de id más chico; si se va, sigue el próximo desde donde estaba) y cada
+  noche lleva un número para que todos se reinicien juntos; al que agarran pasa a espectador (no se ve ni choca): sigue a
+  los demás en primera o tercera persona, vuela libre o mira las cámaras, y vuelve a la oficina en la noche siguiente; si
+  agarran a todos, Game Over y la misma noche otra vez a los 8 s. Al lado del micrófono, **VOCES** silencia las voces de
+  los demás. Freddy, Bonnie, Chica y Foxy también están en **Personajes** para jugar con ellos. `juego/noche.js`. Armado (lo
+  extraído queda fuera del repo, `CREDITOS.md` dice de dónde sale cada cosa):
   ```sh
-  # el mapa y los animatrónicos (con srctools, pyfqmr y scipy): PAQUETE_NUEVO = PAQUETE + la pizzería
-  python -I herramientas/pizzeria.py PAQUETE PAQUETE_NUEVO fnaf1customfedy.bsp CARPETA_PACK_HW
-  # sonidos y sustos (de los .ogg/.webm sacados de FNAF In Real Time con UnityPy, y los .wav del pack)
+  # el mapa y los animatrónicos (con srctools, pyfqmr y scipy); FN_EXTRA: texturas y modelos de props de otros addons
+  FN_EXTRA=keithy:winter python -I herramientas/pizzeria.py PAQUETE PAQUETE_NUEVO fnaf1customfedy.bsp CARPETA_PACK_HW
+  # sonidos, llamadas y sustos (de los .ogg/.webm sacados de FNAF In Real Time con UnityPy, y los .wav del pack)
   python3 -I herramientas/pizzeria_medios.py PAQUETE_NUEVO OGG_IRT VIDEO_IRT SONIDOS_HW
+  # los cuatro como personajes (la misma malla del mapa con los huesos del juego) y sus retratos para la tienda
+  python3 -I herramientas/skin_fnaf.py PAQUETE_NUEVO PAQUETE_FINAL CARPETA_RETRATOS
   ```
-  `herramientas/source_mdl.py` lee los modelos de Source (.mdl/.vvd/.vtx: huesos, mallas, secuencias y las
-  animaciones comprimidas). El mapa pasa de Source al juego con (x, y, z) → (y, z, x) en metros (los dos de mano
-  derecha: si no, los carteles quedan al revés); los props muy detallados se simplifican, las texturas repetidas van una
-  vez y las que el mapa no trae son un color parecido. Los animatrónicos son mallas con piel (sus huesos, a lo sumo 56 con
-  peso) y sus clips en float16; el camino que recorren está validado contra paredes y muebles. `pruebas/noche.mjs`
-  (puertas que chocan, botones, cámaras, linterna, IA, susto, apagón, 6 AM) y `pruebas/red_noche.mjs` (dos jugadores).
+  `herramientas/source_mdl.py` lee los modelos de Source (.mdl/.vvd/.vtx: huesos, mallas, secuencias y las animaciones
+  comprimidas). El mapa pasa de Source al juego con (x, y, z) → (y, z, x) en metros. Cada cara se dibuja del lado donde no
+  hay brocha sólida (en este BSP el plano de la cara no alcanza: medido con rayos desde adentro de las salas, el 48 % de lo
+  que se miraba eran caras de espaldas, techos y paredes que no se dibujaban; ahora 0,1 %); vidrios y cortinas, de los dos
+  lados y transparentes. Los muebles de Half-Life 2 que el mapa usa y no trae (mesadas, cocinas, heladera, estante,
+  inodoros, el escritorio y la silla del cuarto de atrás) están hechos con cajas a la medida de lo que va encima (antes la
+  compu y el microondas flotaban); las manijas giran con sus puertas, los arcades apoyan en el piso y Pirate Cove tiene su
+  cortina de dos paños. Los props muy detallados se simplifican y las texturas que no vinieron son un color parecido. Los
+  animatrónicos son mallas con piel (a lo sumo 56 huesos con peso) y sus clips en float16. Pruebas: `pruebas/noche.mjs`
+  (solo: menú, llamada y silenciar, noches 1, 4 y 6, energía, apagón, Game Over y reintentar, progreso, pausa encima, sin
+  props), `pruebas/red_noche.mjs` (dos jugadores: quién maneja, sincronía, puertas, linterna, espectador, Game Over y
+  reinicio en sala, traspaso), `pruebas/noche_luz.mjs` + `noche_luz.py` (luz medida con y sin linterna en cada calidad),
+  `pruebas/pizzeria.mjs` (recorrido y las 11 cámaras) y `pruebas/skins_fnaf.mjs`.
 - **Rendimiento para jugar en alto**: resolución dinámica en todas las calidades (también las elegidas a mano; se
   apaga en Ajustes): con menos de ~48 cuadros baja la resolución interna antes que los efectos (hasta el 60 % de la
   elegida) y la vuelve a subir cuando sobra, midiendo en tiempo real. Tope de píxeles por calidad (pantallas enormes o

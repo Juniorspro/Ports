@@ -16,6 +16,12 @@ function vozApagar() {
   for (const [id] of VOZ.sal) vozCerrarSal(id);
   if ($('vozBt')) $('vozBt').classList.remove('on');
 }
+// silenciar (o no) las voces de todos los demás: se guarda y vale enseguida
+function vocesMudar(si) {
+  PREFS.vocesMudas = !!si; guardarPrefs(); aviso(T(si ? 'voz.mudas' : 'voz.activas'), 2);
+  for (const C of VOZ.ent.values()) if (C.F) { C.F.g.gain.value = si ? 0 : 1.6; C.tOcl = 0; }
+  vozBotonPoner($('vozBt') && $('vozBt').style.display !== 'none');
+}
 function vozCerrarSal(id) { const C = VOZ.sal.get(id); if (C) { try { C.pc.close(); } catch (e) {} VOZ.sal.delete(id); publicar('a', { k: 'rtc', to: id, fin: 1 }); } }
 function vozCerrarEnt(id) { const C = VOZ.ent.get(id); if (C) { try { C.pc.close(); } catch (e) {} if (C.el) C.el.remove(); try { C.src && C.src.disconnect(); } catch (e) {} VOZ.ent.delete(id); } }
 function vozCerrar(id) { vozCerrarSal(id); vozCerrarEnt(id); }
@@ -52,7 +58,7 @@ function vozRecibir(id, C, st) {
   // Chrome sólo hace correr el audio remoto si está en un elemento (callado: el sonido sale por el panner)
   C.el = document.createElement('audio'); C.el.muted = true; C.el.srcObject = st; C.el.play().catch(() => {}); C.el.style.display = 'none'; document.body.appendChild(C.el);
   const c = AUD.ctx; C.src = c.createMediaStreamSource(st);
-  C.F = fuente3D(CAM.pos, 1.6); C.src.connect(C.F.g); C.F.p.panningModel = 'HRTF'; C.F.p.refDistance = 2; C.F.p.rolloffFactor = 1.3;
+  C.F = fuente3D(CAM.pos, PREFS.vocesMudas ? 0 : 1.6); C.src.connect(C.F.g); C.F.p.panningModel = 'HRTF'; C.F.p.refDistance = 2; C.F.p.rolloffFactor = 1.3;
   C.an = c.createAnalyser(); C.an.fftSize = 256; C.src.connect(C.an); C.nivel = new Uint8Array(C.an.fftSize);
 }
 // cada cuadro: posición de cada voz, paredes, quién habla, y conectar o cortar según la distancia
@@ -62,7 +68,7 @@ function vozPaso(dt) {
     const R2 = RED.remotos.get(id); if (!R2) { vozCerrarEnt(id); continue; }
     if (!C.F) continue;
     const p = vadd(R2.P.pos, v3(0, 1.1, 0)); ponerPos(C.F.p, p);
-    C.tOcl = (C.tOcl || 0) - dt; if (C.tOcl <= 0) { C.tOcl = 0.3; const t = audioTapado(p); C.F.f.frequency.value = t ? 1100 : 20000; C.F.g.gain.value = t ? 0.9 : 1.6; }
+    C.tOcl = (C.tOcl || 0) - dt; if (C.tOcl <= 0) { C.tOcl = 0.3; const t = audioTapado(p); C.F.f.frequency.value = t ? 1100 : 20000; C.F.g.gain.value = PREFS.vocesMudas ? 0 : t ? 0.9 : 1.6; }
     C.an.getByteTimeDomainData(C.nivel); let m = 0; for (const v of C.nivel) m = Math.max(m, Math.abs(v - 128));
     if (R2.tag) R2.tag.classList.toggle('habla', m > 10);
   }
