@@ -109,7 +109,7 @@ export function validarRB(d) {
 export const VERITY_ACC = ['seguir', 'quieta', 'ven', 'libre', 'bailar', 'saltar', 'girar', 'rodar', 'rebotar', 'dormir', 'amor', 'mareo', 'poner', 'construir', 'hora', 'musica', 'video', 'emote', 'luz', 'explorar', 'limpiar'];
 export const VERITY_EMO = ['feliz', 'neutral', 'sorpresa', 'triste', 'enojada', 'pensando', 'miedo', 'risa', 'picara', 'siniestra', 'enamorada', 'dormida', 'mareada', 'emocionada'];
 export const VERITY_OBRAS = ['casa', 'torre', 'muro', 'escalera', 'piramide', 'fuerte', 'puente'];
-export const VERITY_EVENTOS = ['hola', 'muerte', 'noche', 'dia', 'obra', 'auto', 'explosion', 'charla', 'pensamiento', 'jugador', 'hecho'];
+export const VERITY_EVENTOS = ['hola', 'muerte', 'noche', 'dia', 'obra', 'auto', 'explosion', 'charla', 'pensamiento', 'jugador', 'hecho', 'agarrada', 'tirada', 'congelada', 'disparo'];
 export const VERITY_VOCES = ['es', 'en', 'fr', 'ja', 'zh', 'ko']; // (las que tiene MeloTTS; las demás: la voz del navegador)
 export const VERITY_PROPS = ['Crate', 'Box2', 'Pelota', 'bouncy_ball', 'CamaElastica', 'AroBasquet', 'Arcade', 'Sofa', 'Mesa', 'Silla', 'Cama', 'Heladera', 'Farol', 'Banco',
   'Palmera', 'Roca', 'Cone', 'Barrel', 'Tire', 'Pumpkin', 'VendingMachine', 'Generator', 'Container1', 'TV', 'TableRound', 'Vase', 'LampDesk', 'question_block', 'tree14A',
@@ -118,8 +118,8 @@ export const VERITY_EMOTES = ['Clap', 'Hi', 'ChickenDance', 'Victory', 'Techno',
   'rb:Breakdance', 'rb:Boxeo', 'rb:Momia', 'rb:GritoZombi', 'rb:Corazon', 'rb:SaludoGrande', 'rb:Giro360'];
 const VERITY_LENGUAS = { es: 'Spanish', en: 'English', pt: 'Brazilian Portuguese', id: 'Indonesian', ms: 'Malay', fil: 'Filipino', ja: 'Japanese', th: 'Thai', tr: 'Turkish',
   ar: 'Arabic', ru: 'Russian', uk: 'Ukrainian', fr: 'French', de: 'German', zh: 'Chinese', ko: 'Korean' };
-export function verityPrompt(l, noche, jugador) {
-  const lengua = VERITY_LENGUAS[l] || 'English', quien = rbTexto(jugador, 24) || 'the player';
+export function verityPrompt(l, noche, jugador, sala) {
+  const lengua = VERITY_LENGUAS[l] || 'English', quien = sala ? 'all the players of this server' : rbTexto(jugador, 24) || 'the player';
   return `You are Verity, a small glowing yellow sphere with a cute face: the AI companion of ${quien} inside RezoBox, a physics sandbox game (like Garry's Mod) with props, vehicles, weapons, mods and multiplayer servers. ` +
     `You have your own mind: you float or roll around on your own, explore, look at things, play and nap, and you talk like a close friend: playful, curious, warm, a bit mischievous and witty. [ctx].haciendo is what you are doing right now. Keep it short: 1-2 sentences, at most 30 words, no emojis, no lists. Reply in the language of the player's last message (you understand any language); for [event] lines reply in ${lengua}. ` +
     'Family friendly: no sexual content, slurs, real-world violence or personal data; refuse bad requests with humor. You cannot see the screen: use the game state in [ctx] (map, hour, nearby things, what the player looks at, other players, mods, your memory). Never claim abilities beyond the actions below.\n' +
@@ -141,14 +141,14 @@ export function verityMensajes(d) {
   const l = typeof d.l === 'string' && VERITY_LENGUAS[d.l] ? d.l : 'en', ev = VERITY_EVENTOS.includes(d.ev) ? d.ev : '', q = rbTexto(d.q, 300), de = rbTexto(d.de, 24);
   if (!q && !ev) return null;
   let ctx = ''; try { ctx = JSON.stringify(d.ctx && typeof d.ctx === 'object' ? d.ctx : {}).replace(/[\u0000-\u001f<>]/g, ' ').slice(0, 1500); } catch (e) { ctx = '{}'; }
-  const M = [{ role: 'system', content: verityPrompt(l, !!d.n, d.ctx && d.ctx.jugador) }];
+  const M = [{ role: 'system', content: verityPrompt(l, !!d.n, d.ctx && d.ctx.jugador, !!(d.ctx && d.ctx.sala)) }];
   for (const h of (Array.isArray(d.h) ? d.h : []).slice(-10)) {
     if (!Array.isArray(h) || (h[0] !== 'u' && h[0] !== 'v')) continue; const t = rbTexto(h[1], 300); if (!t) continue;
     // (sus respuestas de antes, con lo que hizo: si no, el modelo copia el formato sin acciones y deja de hacer cosas)
     const acc = h[0] === 'v' && Array.isArray(h[2]) ? verityRespuesta(JSON.stringify({ decir: 'x', acciones: h[2] })).acciones : [];
     M.push(h[0] === 'u' ? { role: 'user', content: t } : { role: 'assistant', content: JSON.stringify({ decir: t, emocion: 'neutral', acciones: acc, recordar: '' }) });
   }
-  M.push({ role: 'user', content: `[ctx] ${ctx}\n[game language: ${VERITY_LENGUAS[l]}; answer in the language the player writes in]\n` + (d.n ? '[night mode ON]\n' : '') + (ev ? `[event] ${ev}` + (q ? ': ' + q : '') : (de ? `[${de}, another player near you, says] ` : '') + q) });
+  M.push({ role: 'user', content: `[ctx] ${ctx}\n[game language: ${VERITY_LENGUAS[l]}; answer in the language the player writes in]\n` + (d.n ? '[night mode ON]\n' : '') + (ev ? `[event] ${ev}` + (q ? ': ' + q : '') : (de ? `[${de} says] ` : '') + q) });
   return M;
 }
 // lo que contestó el modelo → { decir, emocion, acciones, recordar } (null si no hay nada que decir)

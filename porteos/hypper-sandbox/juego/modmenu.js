@@ -68,7 +68,7 @@ function modMenuLista() {
   let u = '';
   for (const k of ['volar', 'ragdoll', 'scp']) if (NAT.mods.has(k)) u += fila(icoHTML('ico:' + k), T(k + '.n'), NAT_TECLA[k], sw, 'nat:' + k, k === 'volar' ? NAT.volando : k === 'ragdoll' ? NAT.rag : NAT.scp);
   if (NAT.mods.has('ciclope')) u += fila(icoHTML('ico:ciclope'), T('ciclope.n'), NAT_TECLA.ciclope, `<span class="mmMod" dir="auto">${esc(T('cic.ayuda'))}</span>`, '');
-  if (NAT.mods.has('verity')) u += fila(icoHTML('ico:verity'), T('verity.n'), NAT_TECLA.verity, `<span class="mmMod" dir="auto">${esc(T('ver.ayuda'))}</span>`, 'ver:panel');
+  if (verHayAlguna()) u += fila(icoHTML('ico:verity'), T('verity.n'), NAT_TECLA.verity, `<span class="mmMod" dir="auto">${esc(T('ver.ayuda'))}</span>`, 'ver:panel');
   // los botones de los mods de código ("ico:nombre" muestra la imagen)
   for (const [k, b] of MODAPI.botones) {
     const t = String(b.t || ''), ico = /^ico:[a-z_]{2,20}$/.test(t) ? icoHTML(t) : icoHTML(b.M.icono || 'ico:mod'), nom = /^ico:/.test(t) ? b.M.nombre : sinEmoji(t) || b.M.nombre;

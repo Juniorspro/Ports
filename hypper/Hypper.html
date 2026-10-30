@@ -3928,6 +3928,7 @@ function impactoBala(o, d, D, dan) {
     if (b.dynamic) b.applyVel(vscale(d, Math.min(8, dan * 0.6 / Math.max(1, b.mass * 0.05))), vsub(h.p, b.pos), 1);
     if (b.obj) danarObjeto(b.obj, dan, h.p, d);
     if (b.persona) danarPersona(b.persona, dan, h.p, d, b);
+    if (b.verity) verEmpujon(b.verity, vscale(d, Math.min(9, 2 + dan * 0.25)), true); // (a Verity el tiro la empuja)
   }
 }
 function disparar() {
@@ -4117,6 +4118,7 @@ function soltarAgarre(congelar) {
 function gravPrimario() {
   if (ARM.grav) { const b = ARM.grav.b; soltarGrav(); b.vel.addS(CAM.fwd, Math.min(50, 2500 / Math.max(10, b.mass))); sonar('Melee1', b.pos, 0.6, 0.7); return; }
   const h = raycast(CAM.pos, CAM.fwd, 10, null);
+  if (h && h.body && h.body.verity) { verEmpujon(h.body.verity, vadd(vscale(CAM.fwd, 14), v3(0, 3, 0))); sonar('Melee1', h.p, 0.6, 0.7); return; }
   if (h && h.body && h.body.dynamic) { h.body.wake(); h.body.vel.addS(CAM.fwd, Math.min(50, 1500 / Math.max(10, h.body.mass))); sonar('Melee1', h.p, 0.6, 0.7); natEmpujon(h.body); }
 }
 function gravSecundario() {
@@ -5786,7 +5788,7 @@ function recibirHecho(d) {
   } else if (d.k === 'ent' || d.k === 'entb' || d.k === 'radio' || d.k === 'entp') { entidadHecho(d);
   } else if (d.k === 'jalar') { natRed(d);
   } else if (d.k === 'cic') { cicRed(d);
-  } else if (d.k === 'verd' || d.k === 'verq') { verRed(d);
+  } else if (typeof d.k === 'string' && /^ver[dqgaw]$/.test(d.k)) { verRed(d); // (Verity: lo que dice, preguntas, agarre, animación, llamada)
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
   } else if (d.k === 'dano' && d.to === RED.ID) {
     if (SALA && !SALA.pvp) return;
@@ -6940,7 +6942,7 @@ function validarRB(d) {
 const VERITY_ACC = ['seguir', 'quieta', 'ven', 'libre', 'bailar', 'saltar', 'girar', 'rodar', 'rebotar', 'dormir', 'amor', 'mareo', 'poner', 'construir', 'hora', 'musica', 'video', 'emote', 'luz', 'explorar', 'limpiar'];
 const VERITY_EMO = ['feliz', 'neutral', 'sorpresa', 'triste', 'enojada', 'pensando', 'miedo', 'risa', 'picara', 'siniestra', 'enamorada', 'dormida', 'mareada', 'emocionada'];
 const VERITY_OBRAS = ['casa', 'torre', 'muro', 'escalera', 'piramide', 'fuerte', 'puente'];
-const VERITY_EVENTOS = ['hola', 'muerte', 'noche', 'dia', 'obra', 'auto', 'explosion', 'charla', 'pensamiento', 'jugador', 'hecho'];
+const VERITY_EVENTOS = ['hola', 'muerte', 'noche', 'dia', 'obra', 'auto', 'explosion', 'charla', 'pensamiento', 'jugador', 'hecho', 'agarrada', 'tirada', 'congelada', 'disparo'];
 const VERITY_VOCES = ['es', 'en', 'fr', 'ja', 'zh', 'ko']; // (las que tiene MeloTTS; las demás: la voz del navegador)
 const VERITY_PROPS = ['Crate', 'Box2', 'Pelota', 'bouncy_ball', 'CamaElastica', 'AroBasquet', 'Arcade', 'Sofa', 'Mesa', 'Silla', 'Cama', 'Heladera', 'Farol', 'Banco',
   'Palmera', 'Roca', 'Cone', 'Barrel', 'Tire', 'Pumpkin', 'VendingMachine', 'Generator', 'Container1', 'TV', 'TableRound', 'Vase', 'LampDesk', 'question_block', 'tree14A',
@@ -6949,8 +6951,8 @@ const VERITY_EMOTES = ['Clap', 'Hi', 'ChickenDance', 'Victory', 'Techno', 'Twerk
   'rb:Breakdance', 'rb:Boxeo', 'rb:Momia', 'rb:GritoZombi', 'rb:Corazon', 'rb:SaludoGrande', 'rb:Giro360'];
 const VERITY_LENGUAS = { es: 'Spanish', en: 'English', pt: 'Brazilian Portuguese', id: 'Indonesian', ms: 'Malay', fil: 'Filipino', ja: 'Japanese', th: 'Thai', tr: 'Turkish',
   ar: 'Arabic', ru: 'Russian', uk: 'Ukrainian', fr: 'French', de: 'German', zh: 'Chinese', ko: 'Korean' };
-function verityPrompt(l, noche, jugador) {
-  const lengua = VERITY_LENGUAS[l] || 'English', quien = rbTexto(jugador, 24) || 'the player';
+function verityPrompt(l, noche, jugador, sala) {
+  const lengua = VERITY_LENGUAS[l] || 'English', quien = sala ? 'all the players of this server' : rbTexto(jugador, 24) || 'the player';
   return `You are Verity, a small glowing yellow sphere with a cute face: the AI companion of ${quien} inside RezoBox, a physics sandbox game (like Garry's Mod) with props, vehicles, weapons, mods and multiplayer servers. ` +
     `You have your own mind: you float or roll around on your own, explore, look at things, play and nap, and you talk like a close friend: playful, curious, warm, a bit mischievous and witty. [ctx].haciendo is what you are doing right now. Keep it short: 1-2 sentences, at most 30 words, no emojis, no lists. Reply in the language of the player's last message (you understand any language); for [event] lines reply in ${lengua}. ` +
     'Family friendly: no sexual content, slurs, real-world violence or personal data; refuse bad requests with humor. You cannot see the screen: use the game state in [ctx] (map, hour, nearby things, what the player looks at, other players, mods, your memory). Never claim abilities beyond the actions below.\n' +
@@ -6972,14 +6974,14 @@ function verityMensajes(d) {
   const l = typeof d.l === 'string' && VERITY_LENGUAS[d.l] ? d.l : 'en', ev = VERITY_EVENTOS.includes(d.ev) ? d.ev : '', q = rbTexto(d.q, 300), de = rbTexto(d.de, 24);
   if (!q && !ev) return null;
   let ctx = ''; try { ctx = JSON.stringify(d.ctx && typeof d.ctx === 'object' ? d.ctx : {}).replace(/[\u0000-\u001f<>]/g, ' ').slice(0, 1500); } catch (e) { ctx = '{}'; }
-  const M = [{ role: 'system', content: verityPrompt(l, !!d.n, d.ctx && d.ctx.jugador) }];
+  const M = [{ role: 'system', content: verityPrompt(l, !!d.n, d.ctx && d.ctx.jugador, !!(d.ctx && d.ctx.sala)) }];
   for (const h of (Array.isArray(d.h) ? d.h : []).slice(-10)) {
     if (!Array.isArray(h) || (h[0] !== 'u' && h[0] !== 'v')) continue; const t = rbTexto(h[1], 300); if (!t) continue;
     // (sus respuestas de antes, con lo que hizo: si no, el modelo copia el formato sin acciones y deja de hacer cosas)
     const acc = h[0] === 'v' && Array.isArray(h[2]) ? verityRespuesta(JSON.stringify({ decir: 'x', acciones: h[2] })).acciones : [];
     M.push(h[0] === 'u' ? { role: 'user', content: t } : { role: 'assistant', content: JSON.stringify({ decir: t, emocion: 'neutral', acciones: acc, recordar: '' }) });
   }
-  M.push({ role: 'user', content: `[ctx] ${ctx}\n[game language: ${VERITY_LENGUAS[l]}; answer in the language the player writes in]\n` + (d.n ? '[night mode ON]\n' : '') + (ev ? `[event] ${ev}` + (q ? ': ' + q : '') : (de ? `[${de}, another player near you, says] ` : '') + q) });
+  M.push({ role: 'user', content: `[ctx] ${ctx}\n[game language: ${VERITY_LENGUAS[l]}; answer in the language the player writes in]\n` + (d.n ? '[night mode ON]\n' : '') + (ev ? `[event] ${ev}` + (q ? ': ' + q : '') : (de ? `[${de} says] ` : '') + q) });
   return M;
 }
 // lo que contestó el modelo → { decir, emocion, acciones, recordar } (null si no hay nada que decir)
@@ -9320,26 +9322,49 @@ function cicSonRayo(U, si) {
 function cicSonPaso() { for (const U of CIC.ults.values()) if (U.ruido && U.P) ponerPos(U.ruido.p, cicOrigen(U.P, false)); }
 
 // ---------------- Verity (mod oficial): una compañera con IA y con vida propia ----------------
-// Una esfera amarilla que brilla, con cara (ojitos de punto y sonrisa grande, como la original), que tiene su propia
-// cabeza: anda sola por ahí (pasea rodando, se acerca a mirar cosas, juega empujando pelotas, se duerme si se cansa,
-// saluda a los que llegan), piensa en voz alta cada tanto y vuelve con vos cuando te movés o la llamás. Te escucha por
-// el micrófono todo el tiempo pero sólo reacciona cuando le decís "Hey Verity" o "Che Verity" (en muchos idiomas);
-// también se le escribe (tecla Y, su botón o "Verity, ..." en el chat). Contesta con su propia voz (la boca se mueve con
-// el sonido, que sale de ella en 3D) en el idioma en que le hablaste, y hace cosas: bailar, rodar, rebotar, poner props,
-// construir, cambiar la hora, poner música o un video, que hagas un emote, seguirte o quedarse quieta. Se acuerda de vos
-// entre partidas (en este aparato). De noche se pone misteriosa (se apaga en su panel).
+// Una esfera amarilla que brilla, con cara (ojitos y sonrisa como la original), que anda sola por el mapa como un bot:
+// pasea rodando, va a mirar cosas y jugadores, juega empujando pelotas, saluda a los que llegan, se duerme si se cansa
+// y piensa en voz alta cada tanto. No sigue a nadie (salvo que se lo pidan): cuando le hablan va hasta el que le habla.
+// En cada sala hay una sola Verity para todos: la maneja un jugador (el que ya la tenía o, si nadie, el de id más
+// chico) y los demás la ven, la escuchan y le hablan; jugando solo aparece con el mod. Se le habla escribiendo (tecla Y,
+// su botón o "Verity, ..." en el chat) o con la voz: escucha el micrófono pero sólo reacciona a "Hey/Che Verity" (en
+// muchos idiomas). Contesta en el idioma en que le hablan, con su voz en 3D (la boca sigue el sonido), y hace cosas:
+// bailar, rodar, rebotar, poner props, construir, música, video, venir, seguir o quedarse quieta. Se la agarra con la
+// pistola de física o la de gravedad (y se la puede congelar o tirar: cae, rebota y vuelve a flotar); los tiros la
+// empujan. Se acuerda de lo que le cuentan (en el aparato del que la maneja). De noche se pone misteriosa.
 // El cerebro es un modelo de lenguaje gratis para todos: el de la tienda (Workers AI, con voz MeloTTS y un tope por
-// día) y, si la tienda no responde, uno público sin clave (Pollinations); la voz de respaldo es la del navegador.
-// En una sala todos la ven y la escuchan, y cualquiera le puede hablar (con la voz, si tiene el micrófono prendido, o
-// por el chat), estando cerca.
+// día) y, si la tienda no responde, uno público sin clave (Pollinations); la voz de respaldo es la del aparato.
 const VER_R = 0.27, VER_TEX0 = 4900, VER_MAX = 8, VER_G_SUELO = 14;
 const VER_ANIMS = ['', 'rodar', 'rebotar', 'bailar', 'girar', 'saltar', 'amor', 'mareo', 'dormir'];
-const VER = { on: false, yo: null, rem: new Map(), modo: 'libre', tModo: 0, ancla: null,
+const VER = { on: false, yo: null, rem: new Map(), modo: 'libre', tModo: 0, ancla: null, objetivo: 'yo', hablaCon: 'yo', tRed: 0, redAnt: false, ultimo: null,
   hist: [], mem: null, pensando: false, espera: null, sinCF: false, sinVozCF: false, tEv: 0, evT: {}, vivoAnt: true, autoAnt: false, oscAnt: false,
   obra: null, tareas: [], mios: [], luz: true, bt: null, pan: null, escucha: null, mic: false, oscura: 0, preguntas: new Map(), slots: [], ultCharla: -99,
   // su cabeza: lo que está haciendo, cuánta energía tiene, si se aburre, su humor y qué ya miró
   plan: null, mente: { energia: 1, aburre: 0, humor: 0.4, curios: 0.7, vistos: new Map(), saludados: new Map(), tPensar: 200 } };
-const verHay = () => typeof NAT !== 'undefined' && NAT.mods.has('verity') && JUEGO.estado === 'juego' && !CREA.on;
+const verSala = () => typeof SALA !== 'undefined' && !!SALA;
+const verHayAlguna = () => VER.on || VER.rem.size > 0;
+// ¿la manejo yo? Solo: si el mod está prendido. En una sala hay una sola para todos: la maneja el que ya la tenía; si
+// nadie, el de id más chico (los demás esperan su turno, por si ése tiene una versión vieja del juego)
+function verManejo() {
+  if (JUEGO.estado !== 'juego' || (typeof CREA !== 'undefined' && CREA.on)) return false;
+  if (!verSala()) return typeof NAT !== 'undefined' && NAT.mods.has('verity');
+  if (!RED.on) return VER.on;
+  const t = TIEMPO.t;
+  for (const [id, I] of VER.rem) if (t - I.t < 3 && (!VER.on || id < RED.ID)) return false;
+  if (VER.on) return true;
+  let antes = 0; for (const id of RED.remotos.keys()) if (id < RED.ID) antes++;
+  return t - VER.tRed > 4 + 3 * antes;
+}
+// los jugadores (yo y los de la sala): dónde están y adónde miran
+function verJugadores() {
+  const L = [{ id: 'yo', pos: JUG.pos, yaw: JUG.yaw, nombre: PREFS.nombre }];
+  if (typeof RED !== 'undefined') for (const R2 of RED.remotos.values()) L.push({ id: R2.id, pos: R2.pos, yaw: R2.yawM || 0, nombre: R2.nombre });
+  return L;
+}
+const verJugador = (id) => verJugadores().find((J) => J.id === id) || null;
+function verMasCerca(p) { let m = null, dm = 1e9; for (const J of verJugadores()) { const d = J.pos.distTo(p); if (d < dm) { dm = d; m = J; } } return m; }
+// adonde se pone para hablarle a alguien: adelante, un poco al costado, a la altura de la cara
+function verCerca(J) { const f = v3(Math.sin(J.yaw), 0, Math.cos(J.yaw)); return vadd(vadd(vadd(J.pos, vscale(f, 1.7)), v3(f.z * 0.45, 0, -f.x * 0.45)), v3(0, 0.5, 0)); }
 const verS = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const verLengua = () => (PREFS.lang && IDIOMAS_RB[PREFS.lang] ? PREFS.lang : 'en');
 const VER_LOCALE = { es: 'es-ES', en: 'en-US', pt: 'pt-BR', id: 'id-ID', ms: 'ms-MY', fil: 'fil-PH', ja: 'ja-JP', th: 'th-TH', tr: 'tr-TR', ar: 'ar-SA', ru: 'ru-RU', uk: 'uk-UA', fr: 'fr-FR', de: 'de-DE', zh: 'zh-CN', ko: 'ko-KR' };
@@ -9364,7 +9389,7 @@ function verInst(dueno) {
   let slot = 0; while (usados.has(slot) && slot < VER_MAX - 1) slot++;
   return { dueno, slot, pos: v3(), meta: v3(), vel: v3(), q: new Quat(), qM: new Quat(), yaw: 0, yawM: 0, emo: 'feliz', emoT: 0, boca: 0, parp: 0, tParp: 2 + Math.random() * 3, glitch: 0, tGlitch: 6,
     noche: 0, luz: true, voz: null, nav: false, pulso: 0, falsa: 0, burb: null, burbTx: '', burbT0: 0, burbDur: 0, burbHasta: 0, pensando: false, t: TIEMPO.t,
-    apl: 0, aplV: 0, anim: '', animT: 0, animT0: 0, suelo: false, piso: null, rueda: false, mira: null, gx: 0, gy: 0, nombre: '' };
+    apl: 0, aplV: 0, anim: '', animT: 0, animT0: 0, suelo: false, piso: null, rueda: false, mira: null, gx: 0, gy: 0, nombre: '', b: null, fis: 'libre', tFis: 0, tG: 0 };
 }
 // el modelo: el cuerpo generado con IA a partir de una foto de la original (imagen → malla 3D; herramientas/verity_glb.py
 // lo mete en el paquete como "Verity", con la cara borrada de su textura) o, si el paquete no lo tiene, una esfera lisa
@@ -9514,21 +9539,23 @@ function verRecordar(f) {
 }
 function verAparecer() {
   verMemoria(); VER.on = true; VER.yo = verInst('yo'); VER.modo = 'libre'; VER.plan = null; VER.luz = true;
-  const I = VER.yo, m = verMeta(); I.pos.copy(vadd(m, v3(0, 2.5, 0))); I.vel.set(0, -2, 0); I.emo = 'feliz'; I.yaw = I.yawM = Math.atan2(CAM.pos.x - m.x, CAM.pos.z - m.z); I.q = Quat.axis(0, 1, 0, I.yaw);
+  const I = VER.yo, U = VER.ultimo && TIEMPO.t - VER.ultimo.t < 30 ? VER.ultimo : null;
+  // (si la manejaba otro que se fue, sigue desde donde estaba; si no, aparece flotando delante tuyo)
+  if (U) { I.pos.copy(U.pos); I.q.copy(U.q); I.yaw = I.yawM = U.yaw; I.emo = U.emo; VER.tomada = { pos: U.pos.clone(), t: TIEMPO.t }; }
+  else { const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)); I.pos.copy(vadd(vadd(JUG.pos, vscale(f, 3)), v3(0, 3, 0))); I.vel.set(0, -2, 0); I.emo = 'feliz'; I.yaw = I.yawM = JUG.yaw + Math.PI; I.q = Quat.axis(0, 1, 0, I.yaw); }
   VER.tEv = 0; VER.vivoAnt = JUG.vivo; VER.autoAnt = !!JUG.vehiculo; VER.oscAnt = verNoche(); VER.ultCharla = TIEMPO.t;
-  VER.mente.tPensar = 150 + Math.random() * 120; verPlan('acompañar', 12);
-  verBoton().style.display = '';
-  setTimeout(() => { if (VER.on) verPreguntar('', 'hola'); }, 1400);
+  VER.mente.tPensar = 150 + Math.random() * 120; verPlan('visitar', 10, { quien: 'yo' });
+  if (!U) setTimeout(() => { if (VER.on) verPreguntar('', 'hola'); }, 1400);
   if (PREFS.verOido !== false && !VER.avisoOido) { VER.avisoOido = true; setTimeout(() => { if (VER.on) aviso(T('ver.oidoAviso'), 4); }, 5000); }
 }
 function verIrse() {
   const I = VER.yo; VER.on = false;
-  if (I) { verCallar(I); if (I.burb) I.burb.remove(); }
+  if (I) { verCallar(I); if (I.burb) I.burb.remove(); verSinCuerpo(I); }
   VER.yo = null; VER.obra = null; VER.tareas.length = 0; VER.oscura = 0; VER.plan = null;
-  if (VER.bt) VER.bt.style.display = 'none'; verPanel(false); verEscuchar(false);
-  if (RED.on) RED.ultE = 0;
+  if (!verHayAlguna()) { verPanel(false); verEscuchar(false); }
+  if (typeof RED !== 'undefined' && RED.on) RED.ultE = 0;
 }
-function verFin() { if (VER.on) verIrse(); for (const I of VER.rem.values()) { verCallar(I); if (I.burb) I.burb.remove(); } VER.rem.clear(); oidoParar(); }
+function verFin() { if (VER.on) verIrse(); for (const I of VER.rem.values()) { verCallar(I); if (I.burb) I.burb.remove(); verSinCuerpo(I); } VER.rem.clear(); oidoParar(); if (VER.bt) VER.bt.style.display = 'none'; }
 // el botón: tocar abre el panel; mantener apretado escucha (micrófono) hasta soltar
 function verBoton() {
   let b = VER.bt;
@@ -9544,7 +9571,7 @@ function verBoton() {
   return b;
 }
 addEventListener('keydown', (e) => {
-  if (e.code !== 'KeyY' || e.repeat || !VER.on || (e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) return;
+  if (e.code !== 'KeyY' || e.repeat || !verHayAlguna() || (e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) return;
   if (UI.abierto && UI.abierto !== 'verity') return;
   e.preventDefault(); audioIniciar(); verPanel(UI.abierto !== 'verity');
 });
@@ -9553,7 +9580,7 @@ const VER_BOTONES = [['rodar', 'girar'], ['rebotar', 'salto'], ['bailar', 'music
 function verPanel(si) {
   let p = VER.pan;
   if (!si) { if (p && !p.classList.contains('oc')) { p.classList.add('oc'); if (UI.abierto === 'verity') UI.abierto = null; } return; }
-  if (!VER.on) return;
+  if (!verHayAlguna()) return;
   if (!p) {
     p = VER.pan = document.createElement('div'); p.id = 'verPan'; p.className = 'verPan oc';
     p.innerHTML = `<div class="verCab">${icoHTML('ico:verity')}<b>Verity</b><span class="verEst"></span><button class="verX" data-v="cerrar">${glifo('no')}</button></div>
@@ -9567,7 +9594,7 @@ function verPanel(si) {
       if (a === 'cerrar') verPanel(false);
       else if (a === 'enviar') verEnviarPanel();
       else if (a === 'mic') { audioIniciar(); VER.mic = !VER.escucha; verEscuchar(!VER.escucha); }
-      else if (a.startsWith('anim:')) verAnim(VER.yo, a.slice(5));
+      else if (a.startsWith('anim:')) verPedirAnim(a.slice(5));
       else if (a === 'olvidar') { VER.mem = { d: [], n: 0, t0: Date.now() }; VER.hist = []; verGuardar(); verLog(); aviso(T('ver.olvidado'), 2); }
     });
     p.addEventListener('change', (ev) => {
@@ -9598,11 +9625,15 @@ function verChat(t) {
   verHablarle(m[1].trim() || '…');
   return true;
 }
+// hablarle: a la mía (si la manejo yo) o a la de la sala (en una sala, desde cualquier lado; solo, estando cerca)
 function verHablarle(q) {
-  if (VER.on) { verPreguntar(q); return; }
-  const id = verRemotaCerca(25);
-  if (id && RED.on) publicar('a', { k: 'verq', to: id, t: q.slice(0, 200), n: PREFS.nombre }); else aviso(T('ver.lejos'), 2);
+  if (VER.on) { verPreguntar(q, '', verSala() ? PREFS.nombre : '', 'yo'); return; }
+  const id = verRemotaCerca(verSala() ? 1e9 : 25);
+  if (!id || !RED.on) { aviso(T('ver.lejos'), 2); return; }
+  publicar('a', { k: 'verq', to: id, t: q.slice(0, 200), n: PREFS.nombre });
+  VER.hist.push(['u', q]); VER.hist = VER.hist.slice(-12); const I = VER.rem.get(id); if (I) { I.pensando = true; verGlobo(I, '', 0, true); } verLog();
 }
+function verPedirAnim(a) { if (VER.on) verAnim(VER.yo, a); else { const id = verRemotaCerca(1e9); if (id && RED.on) publicar('a', { k: 'vera', to: id, a }); } }
 function verRemotaCerca(d) { let mejor = null, dm = d; for (const [id, I] of VER.rem) { const x = I.pos.distTo(JUG.pos); if (x < dm) { dm = x; mejor = id; } } return mejor; }
 
 // ---------------- escuchar apretando (reconocimiento de voz del navegador) ----------------
@@ -9659,7 +9690,9 @@ function verLlamada(t) {
 function oidoQuiere() {
   if (PREFS.verOido === false || OIDO.negado || OIDO.pausa || JUEGO.estado !== 'juego' || document.hidden) return false;
   if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) return false;
-  return VER.on || (typeof VOZ !== 'undefined' && VOZ.on && !!verRemotaCerca(25));
+  // (escucha cuando hay una Verity cerca; jugando solo, siempre)
+  if (VER.on) return !verSala() || VER.yo.pos.distTo(JUG.pos) < 30;
+  return !!verRemotaCerca(30);
 }
 function oidoPaso() {
   const q = oidoQuiere();
@@ -9688,23 +9721,26 @@ function oidoEmpezar() {
 function oidoParar(pausa) { if (pausa) OIDO.pausa = true; const r = OIDO.r; OIDO.r = null; if (r) try { r.abort(); } catch (e) {} }
 // la llamaron: se da vuelta, viene y escucha
 function verDespertar() {
-  if (VER.on && VER.yo) { const I = VER.yo; I.emo = 'sorpresa'; I.emoT = 2; if (I.anim === 'dormir') verAnim(I, ''); verGlobo(I, '…', 0, true); I.burbHasta = TIEMPO.t + 9; VER.ultCharla = TIEMPO.t; if (VER.modo === 'libre') verPlan('acompañar', 20); }
-  else { const id = verRemotaCerca(25), I = id && VER.rem.get(id); if (I) { verGlobo(I, '…', 0, true); I.burbHasta = TIEMPO.t + 9; } }
+  if (VER.on && VER.yo) { const I = VER.yo; I.emo = 'sorpresa'; I.emoT = 2; if (I.anim === 'dormir') verAnim(I, ''); verGlobo(I, '…', 0, true); I.burbHasta = TIEMPO.t + 9; VER.ultCharla = TIEMPO.t; verAtender('yo', 20); }
+  else { const id = verRemotaCerca(30), I = id && VER.rem.get(id); if (I) { verGlobo(I, '…', 0, true); I.burbHasta = TIEMPO.t + 9; if (RED.on) publicar('a', { k: 'verw', to: id }); } }
 }
-
+// alguien le habla: va hasta él y lo mira un rato (si no está ocupada con una orden o en el aire)
+function verAtender(quien, s) { VER.hablaCon = quien; if (VER.modo === 'libre' && VER.yo && VER.yo.fis === 'libre') verPlan('atender', s, { quien }); }
 // ---------------- pensar: la tienda (Workers AI) o, si no responde, el modelo público ----------------
 function verContexto() {
-  const J = JUG, h = DIA.hora, hh = Math.floor(h) % 24, mm = Math.floor((h - Math.floor(h)) * 60), base = J.vehiculo ? J.vehiculo.b.pos : J.pos;
+  const J = JUG, I = VER.yo, h = DIA.hora, hh = Math.floor(h) % 24, mm = Math.floor((h - Math.floor(h)) * 60), base = I ? I.pos : J.pos;
   const cerca = []; for (const o of OBJS) { const d = o.b.pos.distTo(base); if (d < 20 && !o.verity) cerca.push([d, o.nombre]); }
   cerca.sort((a, b) => a[0] - b[0]);
   const hit = raycast(CAM.pos, CAM.fwd, 40, J.vehiculo ? J.vehiculo.b : null), ob = hit && hit.body && hit.body.obj;
-  const mira = ob ? ob.nombre : hit && hit.body && hit.body.persona ? 'a player' : hit ? 'ground or wall ' + Math.round(hit.t) + 'm' : 'the sky';
+  const mira = hit && hit.body && hit.body.verity ? 'you (Verity)' : ob ? ob.nombre : hit && hit.body && hit.body.persona ? 'a player' : hit ? 'ground or wall ' + Math.round(hit.t) + 'm' : 'the sky';
   const ahora = TIEMPO.t, mios = OBJS.filter((o) => !o.remoto && !o.verity && ahora - o.creado < 120).length;
-  const nomMapa = T('m.' + MUNDO.nombre), mapa = nomMapa && nomMapa !== 'm.' + MUNDO.nombre ? nomMapa : MUNDO.nombre, M = VER.mente;
-  return { jugador: PREFS.nombre, mapa, hora: hh + ':' + String(mm).padStart(2, '0'), vida: Math.round(J.vida), vivo: J.vivo, vehiculo: J.vehiculo ? J.vehiculo.nombre : '', arma: ARM.lista[ARM.i] || '',
-    corriendo: Math.hypot(J.vel.x, J.vel.z) > 3, volando: !!(NAT.volando), cerca: cerca.slice(0, 8).map((c) => c[1] + ' ' + Math.round(c[0]) + 'm'), mira,
-    jugadores: [...RED.remotos.values()].filter((R2) => R2.pos.distTo(J.pos) < 40).map((R2) => R2.nombre).slice(0, 6), construyo: mios, mods: modsActivosAhora().map((m) => m.id).slice(0, 8),
-    sala: typeof SALA !== 'undefined' && SALA ? SALA.n : '', tuModo: VER.modo, haciendo: verEstado(), energia: Math.round(M.energia * 100) + '%', humor: M.humor > 0.3 ? 'happy' : M.humor < -0.2 ? 'sad' : 'calm', memoria: verMemoria().d.slice(-12) };
+  const nomMapa = T('m.' + MUNDO.nombre), mapa = nomMapa && nomMapa !== 'm.' + MUNDO.nombre ? nomMapa : MUNDO.nombre, M = VER.mente, sala = verSala();
+  const ctx = { jugador: sala ? '' : PREFS.nombre, mapa, hora: hh + ':' + String(mm).padStart(2, '0'), cerca: cerca.slice(0, 8).map((c) => c[1] + ' ' + Math.round(c[0]) + 'm'),
+    jugadores: verJugadores().map((P) => P.nombre + ' ' + Math.round(P.pos.distTo(base)) + 'm').slice(0, 8), mods: modsActivosAhora().map((m) => m.id).slice(0, 8),
+    sala: sala ? SALA.n : '', tuModo: VER.modo, haciendo: verEstado(), energia: Math.round(M.energia * 100) + '%', humor: M.humor > 0.3 ? 'happy' : M.humor < -0.2 ? 'sad' : 'calm', memoria: verMemoria().d.slice(-12) };
+  // (lo de "mi" jugador sólo si me habla él)
+  if (!sala || VER.hablaCon === 'yo') Object.assign(ctx, { vida: Math.round(J.vida), vivo: J.vivo, vehiculo: J.vehiculo ? J.vehiculo.nombre : '', arma: ARM.lista[ARM.i] || '', corriendo: Math.hypot(J.vel.x, J.vel.z) > 3, mira, construyo: mios });
+  return ctx;
 }
 function verTiempo(ms) { const a = new AbortController(); setTimeout(() => a.abort(), ms); return a.signal; }
 // el modelo público deja una respuesta cada 30 s por conexión (si no, contesta 402 o 429 con cuánto esperar): se
@@ -9728,16 +9764,17 @@ async function verPublico(c) {
 // sin la tienda, lo que pasa en el juego no gasta el turno del modelo público: lo contesta con un gesto
 function verGesto(ev) {
   const I = VER.yo; if (!I) return;
-  const G = { hola: ['feliz', 'girar'], jugador: ['feliz', 'girar'], muerte: ['triste', ''], noche: ['pensando', ''], dia: ['feliz', 'saltar'], obra: ['emocionada', 'rebotar'], auto: ['emocionada', ''], explosion: ['sorpresa', 'saltar'] }[ev];
+  const G = { hola: ['feliz', 'girar'], jugador: ['feliz', 'girar'], muerte: ['triste', ''], noche: ['pensando', ''], dia: ['feliz', 'saltar'], obra: ['emocionada', 'rebotar'], auto: ['emocionada', ''], explosion: ['sorpresa', 'saltar'], agarrada: ['risa', ''], tirada: ['mareada', ''], congelada: ['enojada', ''], disparo: ['enojada', ''] }[ev];
   if (!G) return; I.emo = G[0]; I.emoT = 3; if (G[1]) verAnim(I, G[1]);
 }
-// q: lo que le dijeron; ev: un evento del juego; de: el nombre de otro jugador que le habló
-async function verPreguntar(q, ev, de) {
+// q: lo que le dijeron; ev: un evento del juego; de: el nombre del que le habló (en una sala, siempre); quien: su id
+async function verPreguntar(q, ev, de, quien) {
   if (!VER.on) return;
-  q = rbTexto(q, 300); if (!q && !ev) return;
-  if (VER.pensando) { if (q) VER.espera = [q, ev, de]; return; } // (lo último que le dijeron, apenas termine)
+  q = rbTexto(q, 300); if (!q && !ev) return; quien = quien || 'yo';
+  if (VER.pensando) { if (q) VER.espera = [q, ev, de, quien]; return; } // (lo último que le dijeron, apenas termine)
+  if (q) VER.hablaCon = quien;
   const I = VER.yo, c = { l: verLengua(), q, ev: ev || '', de: de || '', n: I.noche > 0.5 ? 1 : 0, h: VER.hist.slice(-8), ctx: verContexto() };
-  if (q) { VER.hist.push(['u', de ? de + ': ' + q : q]); VER.ultCharla = TIEMPO.t; if (VER.modo === 'libre') verPlan('acompañar', 25); }
+  if (q) { VER.hist.push(['u', de ? de + ': ' + q : q]); VER.ultCharla = TIEMPO.t; verAtender(quien, 25); }
   VER.pensando = true; I.pensando = true; verLog(); if (!q || !VER.escucha) verGlobo(I, '', 0, true);
   let v = null;
   if (!VER.sinCF && Date.now() > (VER.cfLleno || 0)) {
@@ -9749,21 +9786,21 @@ async function verPreguntar(q, ev, de) {
       else if (r.status === 429) { VER.pensando = false; I.pensando = false; if (q) verDecir(I, T('ver.cupo'), 'triste'); verLog(); return; }
     } catch (e) {}
   }
-  if (!v && !q) { VER.pensando = false; I.pensando = false; verGlobo(I, '', 0); verGesto(ev); verLog(); if (VER.espera) { const w = VER.espera; VER.espera = null; setTimeout(() => verPreguntar(w[0], w[1], w[2]), 200); } return; }
+  if (!v && !q) { VER.pensando = false; I.pensando = false; verGlobo(I, '', 0); verGesto(ev); verLog(); if (VER.espera) { const w = VER.espera; VER.espera = null; setTimeout(() => verPreguntar(...w), 200); } return; }
   if (!v) v = await verPublico(c);
   VER.pensando = false; I.pensando = false;
   if (!VER.on || VER.yo !== I) return;
   if (!v) { if (q) verDecir(I, T('ver.sinRed'), 'triste'); else verGlobo(I, '', 0); verLog(); return; }
   VER.hist.push(['v', v.decir, v.acciones]); VER.hist = VER.hist.slice(-12);
-  if (v.recordar && q && !de) verRecordar(v.recordar);
+  if (v.recordar && q) verRecordar(v.recordar);
   const M = VER.mente; M.humor = clamp(M.humor + ({ feliz: 0.08, risa: 0.12, enamorada: 0.12, emocionada: 0.1, triste: -0.1, enojada: -0.12, miedo: -0.06 }[v.emocion] || 0), -1, 1);
   verMemoria().n++; verGuardar(); verLog();
   const l = verIdiomaDe(v.decir, verLengua());
   verDecir(I, v.decir, v.emocion, l);
   if (RED.on) publicar('a', { k: 'verd', t: v.decir, e: v.emocion, l });
-  // (lo que hace sola o le pide otro jugador: sólo gestos y animaciones; poner cosas, moverse o cambiar la hora, sólo si se lo pedís vos)
-  verAcciones(q && !de ? v.acciones : v.acciones.filter((a) => ['bailar', 'saltar', 'girar', 'luz', 'rodar', 'rebotar', 'amor', 'mareo'].includes(a.a)));
-  if (VER.espera) { const w = VER.espera; VER.espera = null; setTimeout(() => verPreguntar(w[0], w[1], w[2]), 200); }
+  // (lo que hace sola: sólo gestos; lo que le piden, todo, salvo la hora, que es de cada uno)
+  verAcciones(q ? v.acciones.filter((a) => a.a !== 'hora' || quien === 'yo') : v.acciones.filter((a) => ['bailar', 'saltar', 'girar', 'luz', 'rodar', 'rebotar', 'amor', 'mareo'].includes(a.a)), quien);
+  if (VER.espera) { const w = VER.espera; VER.espera = null; setTimeout(() => verPreguntar(...w), 200); }
 }
 // un evento del juego: no más de uno cada 30 s (y cada clase con su propia espera)
 function verEvento(ev, espera, q) {
@@ -9785,24 +9822,27 @@ function verCallar(I) {
   if (I.voz) { try { I.voz.s.stop(); } catch (e) {} I.voz = null; }
   if (I.nav && 'speechSynthesis' in window) { try { speechSynthesis.cancel(); } catch (e) {} I.nav = false; }
 }
-// la cadena: un toque metálico (un eco cortito) y más brillo; de noche, más grave, lenta y con mucho eco
+// la cadena: la voz limpia (apenas más aguda y con un poco de aire); de noche, más grave, lenta, con un eco metálico
 function verSonar(I, buf) {
-  const c = AUD.ctx, s = c.createBufferSource(), noche = I.noche > 0.5; s.buffer = buf; s.playbackRate.value = noche ? 0.9 : 1.07;
+  const c = AUD.ctx, s = c.createBufferSource(), noche = I.noche > 0.5; s.buffer = buf; s.playbackRate.value = noche ? 0.9 : 1.03;
   const seco = c.createGain(), dl = c.createDelay(0.05), moj = c.createGain(), hs = c.createBiquadFilter(), an = c.createAnalyser();
-  dl.delayTime.value = noche ? 0.023 : 0.011; moj.gain.value = noche ? 0.45 : 0.3; seco.gain.value = 0.9; hs.type = 'highshelf'; hs.frequency.value = 3000; hs.gain.value = noche ? -4 : 4; an.fftSize = 512;
+  dl.delayTime.value = noche ? 0.023 : 0.011; moj.gain.value = noche ? 0.45 : 0; seco.gain.value = 1; hs.type = 'highshelf'; hs.frequency.value = 3500; hs.gain.value = noche ? -4 : 1.5; an.fftSize = 512;
   s.connect(seco); s.connect(dl); dl.connect(moj); seco.connect(hs); moj.connect(hs); hs.connect(an);
   const F = fuente3D(I.pos, 1.2); an.connect(F.g); if (F.r) F.r.gain.value = noche ? 1.1 : 0.3;
   I.voz = { s, an, F, b: new Uint8Array(512) }; s.onended = () => { if (I.voz && I.voz.s === s) I.voz = null; };
   s.start(); return buf.duration / s.playbackRate.value;
 }
 let VER_VOCES = null;
+// las voces neuronales de algunos aparatos (Edge, iPhone "mejorada") suenan más reales que la de la tienda
+const verNatural = (v) => (v && /natural|neural|premium|enhanced|mejorad|siri/i.test(v.name) ? 1 : 0);
+function verVozMejor(l) { if (!('speechSynthesis' in window)) return null; const ll = l.toLowerCase(); return speechSynthesis.getVoices().find((v) => String(v.lang).toLowerCase().replace('_', '-').startsWith(ll) && verNatural(v)) || null; }
 function verVozNav(I, t, l) {
   if (!('speechSynthesis' in window)) return 0;
   const S = speechSynthesis, voces = S.getVoices(), loc = verLocale(l).toLowerCase(), ll = l.toLowerCase();
   if (!VER_VOCES || VER_VOCES.n !== voces.length + loc) {
     const de = voces.filter((v) => String(v.lang).toLowerCase().replace('_', '-').startsWith(ll));
-    const fem = /female|mujer|femen|paulina|m[oó]nica|helena|luc[ií]a|luciana|samantha|victoria|karen|moira|tessa|zira|joana|amelie|anna|kyoko|google/i;
-    de.sort((a, b) => (String(b.lang).toLowerCase() === loc) - (String(a.lang).toLowerCase() === loc) || fem.test(b.name) - fem.test(a.name));
+    const fem = /female|mujer|femen|paulina|m[oó]nica|helena|luc[ií]a|luciana|samantha|victoria|karen|moira|tessa|zira|joana|amelie|anna|kyoko|elvira|dalia|google/i;
+    de.sort((a, b) => verNatural(b) - verNatural(a) || (String(b.lang).toLowerCase() === loc) - (String(a.lang).toLowerCase() === loc) || fem.test(b.name) - fem.test(a.name));
     VER_VOCES = { n: voces.length + loc, v: de[0] || null };
   }
   const u = new SpeechSynthesisUtterance(t); u.lang = verLocale(l); if (VER_VOCES.v) u.voice = VER_VOCES.v;
@@ -9824,7 +9864,8 @@ async function verDecir(I, t, emo, l) {
   let dur = 0;
   if (PREFS.verVoz !== false && PREFS.vol && d < 45) {
     audioIniciar();
-    const buf = await Promise.race([verVozCF(t, l), verEsperar(4000)]);
+    if (d < 25 && verVozMejor(l)) { dur = verVozNav(I, t, l); I.falsa = dur; }
+    const buf = dur ? null : await Promise.race([verVozCF(t, l), verEsperar(4000)]);
     if (buf && AUD.ctx) dur = verSonar(I, buf);
     if (!dur && d < 25) { dur = verVozNav(I, t, l); I.falsa = dur; } // (si el navegador no tiene esa voz, la boca se mueve igual)
   }
@@ -9845,28 +9886,30 @@ function verNombreProp(q) {
   const L = Object.keys(DATA.pfPorNombre), b = q.toLowerCase();
   return L.find((n) => n.toLowerCase() === b) || VERITY_PROPS.find((n) => DATA.pfPorNombre[n] && (n.toLowerCase().includes(b) || b.includes(n.toLowerCase()))) || L.find((n) => n.toLowerCase().includes(b)) || null;
 }
-function verAcciones(L) {
+function verAcciones(L, quien) {
+  quien = quien || 'yo'; const J = verJugador(quien) || verJugador('yo');
   for (const a of L || []) {
-    if (a.a === 'seguir') { VER.modo = 'seguir'; VER.tModo = 300; }
-    else if (a.a === 'quieta') { VER.modo = 'quieta'; VER.ancla = VER.yo.pos.clone(); }
-    else if (a.a === 'ven') { VER.modo = 'ven'; VER.tModo = 8; }
+    if (a.a === 'seguir') { VER.modo = 'seguir'; VER.objetivo = quien; VER.tModo = 60; }
+    else if (a.a === 'quieta') { VER.modo = 'quieta'; VER.ancla = VER.yo.pos.clone(); VER.tModo = 90; }
+    else if (a.a === 'ven') { VER.modo = 'ven'; VER.objetivo = quien; VER.tModo = 12; }
     else if (a.a === 'libre') { VER.modo = 'libre'; verPlan('pasear', 20); }
     else if (a.a === 'explorar') { VER.modo = 'libre'; const foco = verAlgoInteresante(); verPlan(foco ? 'investigar' : 'pasear', 25, foco ? { foco } : null); }
     else if (VER_DUR[a.a]) verAnim(VER.yo, a.a);
-    else if (a.a === 'poner') verPoner(a.que, a.n);
-    else if (a.a === 'construir') verConstruir(a.que);
+    else if (a.a === 'poner') verPoner(a.que, a.n, J);
+    else if (a.a === 'construir') verConstruir(a.que, J);
     else if (a.a === 'hora') { DIA.hora = ((+a.h % 24) + 24) % 24; DIA.aplicada = -1; }
-    else if (a.a === 'musica') verMedia('radio', a.q);
-    else if (a.a === 'video') verMedia('pantalla', a.q);
-    else if (a.a === 'emote') verEmote(a.que);
+    else if (a.a === 'musica' && quien === 'yo') verMedia('radio', a.q);
+    else if (a.a === 'video' && quien === 'yo') verMedia('pantalla', a.q);
+    else if (a.a === 'emote' && quien === 'yo') verEmote(a.que);
     else if (a.a === 'luz') VER.luz = a.si !== false;
     else if (a.a === 'limpiar') { for (const o of VER.mios) if (OBJS.includes(o)) borrarObjeto(o); VER.mios = []; VER.obra = null; RED.wSucio = true; }
   }
 }
-// frente al jugador, en el piso
-function verDelante(d, lado) {
-  const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), der = v3(-f.z, 0, f.x), p = vadd(vadd(JUG.pos, vscale(f, d)), vscale(der, lado || 0));
-  const y = pisoBajo(v3(p.x, JUG.pos.y + 2, p.z), 6); p.y = y === null ? JUG.pos.y - 0.9 : y; return p;
+// frente a un jugador (el que lo pidió), en el piso
+function verDelante(d, lado, J) {
+  J = J || { pos: JUG.pos, yaw: JUG.yaw };
+  const f = v3(Math.sin(J.yaw), 0, Math.cos(J.yaw)), der = v3(-f.z, 0, f.x), p = vadd(vadd(J.pos, vscale(f, d)), vscale(der, lado || 0));
+  const y = pisoBajo(v3(p.x, J.pos.y + 2, p.z), 6); p.y = y === null ? J.pos.y - 0.9 : y; return p;
 }
 function verCrear(nombre, p, q, opt) {
   if (!reglaSala(nombre)) return null;
@@ -9874,12 +9917,12 @@ function verCrear(nombre, p, q, opt) {
   o.verity = true; VER.mios.push(o); DESHACER.push(o); redObjeto(o);
   verHaz(p); return o;
 }
-function verPoner(que, n) {
+function verPoner(que, n, J) {
   const nom = verNombreProp(que); if (!nom) return;
-  n = clamp(n | 0 || 1, 1, 5);
+  n = clamp(n | 0 || 1, 1, 5); J = J || { pos: JUG.pos, yaw: JUG.yaw };
   const F = formaDe(nom), P = puntosForma(F.shape); let w = 1; if (P.length) { let a = 1e9, b = -1e9; for (const v of P) { a = Math.min(a, v.x, v.z); b = Math.max(b, v.x, v.z); } w = b - a; }
-  const paso = Math.max(1.1, w + 0.4), d = 3 + w * 0.6;
-  for (let i = 0; i < n; i++) VER.tareas.push({ t: TIEMPO.t + 0.35 + i * 0.3, fn: () => { const p = verDelante(d, (i - (n - 1) / 2) * paso); verCrear(nom, p, Quat.axis(0, 1, 0, JUG.yaw + Math.PI)); } });
+  const paso = Math.max(1.1, w + 0.4), d = 3 + w * 0.6, yaw = J.yaw, pos = J.pos.clone();
+  for (let i = 0; i < n; i++) VER.tareas.push({ t: TIEMPO.t + 0.35 + i * 0.3, fn: () => { const p = verDelante(d, (i - (n - 1) / 2) * paso, { pos, yaw }); verCrear(nom, p, Quat.axis(0, 1, 0, yaw + Math.PI)); } });
 }
 // construir con cajas: cada obra es una lista de [derecha, adelante, arriba] en cajas
 function verObraPlan(que) {
@@ -9906,10 +9949,10 @@ function verBloque() {
   }
   return null;
 }
-function verConstruir(que) {
-  const B = verBloque(); if (!B) return;
-  const L = verObraPlan(que), yaw = JUG.yaw, f = v3(Math.sin(yaw), 0, Math.cos(yaw)), der = v3(-f.z, 0, f.x), q = Quat.axis(0, 1, 0, yaw);
-  const sx = B.s[0] + 0.004, sy = B.s[1] + 0.002, sz = B.s[2] + 0.004, O = verDelante(3 + sz * 0.5, 0);
+function verConstruir(que, J) {
+  const B = verBloque(); if (!B) return; J = J || { pos: JUG.pos, yaw: JUG.yaw };
+  const L = verObraPlan(que), yaw = J.yaw, f = v3(Math.sin(yaw), 0, Math.cos(yaw)), der = v3(-f.z, 0, f.x), q = Quat.axis(0, 1, 0, yaw);
+  const sx = B.s[0] + 0.004, sy = B.s[1] + 0.002, sz = B.s[2] + 0.004, O = verDelante(3 + sz * 0.5, 0, J);
   VER.obra = { L, i: 0, t: TIEMPO.t + 0.4, O, f, der, q, sx, sy, sz, n: B.n };
 }
 function verObraPaso() {
@@ -9940,75 +9983,83 @@ function verHaz(p) { VER.haz = { a: VER.yo.pos.clone(), b: p.clone(), t: 0.16 };
 const VER_DUR = { rodar: 7, rebotar: 5, bailar: 9, girar: 1.3, saltar: 1.1, amor: 4.5, mareo: 5, dormir: 25 };
 function verAnim(I, a) {
   if (!I) return;
-  I.anim = VER_DUR[a] ? a : ''; I.animT = VER_DUR[a] || 0; I.animT0 = TIEMPO.t; I.ang = Math.atan2(I.pos.z - JUG.pos.z, I.pos.x - JUG.pos.x);
+  I.anim = VER_DUR[a] ? a : ''; I.animT = VER_DUR[a] || 0; I.animT0 = TIEMPO.t; const c = verMasCerca(I.pos); I.ang = c ? Math.atan2(I.pos.z - c.pos.z, I.pos.x - c.pos.x) : 0; I.centro = c ? c.pos.clone() : I.pos.clone();
   if (a === 'amor') { I.emo = 'enamorada'; I.emoT = 4.5; }
   if (a === 'dormir') { I.emo = 'dormida'; I.emoT = 25; }
   if (a === 'mareo') { I.emo = 'sorpresa'; I.emoT = 2; }
   if (a === 'rebotar') I.vel.y = Math.max(I.vel.y, 5);
-  if (I === VER.yo && RED.on) RED.ultE = 0;
+  if (I === VER.yo && typeof RED !== 'undefined' && RED.on) RED.ultE = 0;
 }
-
 // ---------------- su cabeza: qué hace cuando nadie le pide nada ----------------
 function verPlan(n, dur, extra) { VER.plan = Object.assign({ n, t: dur, dest: null, tDest: 0, foco: null, llego: false, t0: TIEMPO.t }, extra || {}); }
 // lo que está haciendo, para el modelo (y para el que pregunte "¿qué hacés?")
 function verEstado() {
   const P = VER.plan, I = VER.yo; if (!I) return '';
+  if (I.fis === 'agarrada' || I.fis === 'remota') return 'being carried by a player with the physics gun';
+  if (I.fis === 'suelta') return 'flying through the air after being thrown';
+  if (I.fis === 'congelada') return 'frozen in place by a physics gun';
   if (I.anim) return { rodar: 'rolling around', rebotar: 'bouncing', bailar: 'dancing', girar: 'spinning', saltar: 'doing a flip', amor: 'feeling love', mareo: 'dizzy from spinning', dormir: 'sleeping' }[I.anim];
-  if (VER.modo === 'quieta') return 'staying still where the player asked';
-  if (VER.modo === 'seguir' || VER.modo === 'ven') return 'following the player closely';
-  if (!P) return 'floating next to the player';
-  return { acompañar: 'floating next to the player', pasear: 'rolling around exploring the map', investigar: 'looking closely at a ' + (P.foco ? P.foco.n : 'thing'), jugar: P.bola ? 'playing with a ' + P.bola.nombre : 'playing, rolling and bouncing around', descansar: 'resting, sleepy', saludar: 'saying hi to ' + (P.R2 ? P.R2.nombre : 'a player') }[P.n] || '';
+  const nom = (id) => { const J = verJugador(id); return J ? J.nombre : 'someone'; };
+  if (VER.modo === 'quieta') return 'staying still where you were asked';
+  if (VER.modo === 'seguir') return 'following ' + nom(VER.objetivo);
+  if (VER.modo === 'ven') return 'going to ' + nom(VER.objetivo);
+  if (!P) return 'floating around';
+  return { visitar: 'visiting ' + nom(P.quien), atender: 'talking with ' + nom(P.quien), pasear: 'rolling around exploring the map', investigar: 'looking closely at a ' + (P.foco ? P.foco.n : 'thing'), jugar: P.bola ? 'playing with a ' + P.bola.nombre : 'playing, rolling and bouncing around', descansar: 'resting, sleepy', saludar: 'saying hi to ' + (P.R2 ? P.R2.nombre : 'a player') }[P.n] || '';
 }
-// algo para ir a mirar: props, autos, entidades (radio, piano, pantalla) y otros jugadores, que no haya mirado hace poco
+// algo para ir a mirar cerca de ella: props, autos, entidades (radio, piano, pantalla) y jugadores, que no haya mirado hace poco
 function verAlgoInteresante() {
-  const M = VER.mente, t = TIEMPO.t, L = [];
-  for (const o of OBJS) { if (o.verity) continue; const d = o.b.pos.distTo(JUG.pos), k = 'o' + o.id; if (d < 26 && t - (M.vistos.get(k) || -1e9) > 180) L.push({ k, n: o.nombre, p: () => o.b.pos, alto: () => (o.b.aabb ? o.b.aabb.y1 - o.b.pos.y : 1), d }); }
-  for (const e of ENTS.lista) { if (!e.b) continue; const d = e.b.pos.distTo(JUG.pos), k = 'e' + e.id; if (d < 26 && t - (M.vistos.get(k) || -1e9) > 180) L.push({ k, n: e.t, p: () => e.b.pos, alto: () => 1.2, d }); }
-  for (const R2 of RED.remotos.values()) { const d = R2.pos.distTo(JUG.pos), k = 'j' + R2.id; if (d < 26 && t - (M.vistos.get(k) || -1e9) > 240) L.push({ k, n: R2.nombre, p: () => R2.P.pos, alto: () => 1.1, d, jugador: true }); }
+  const M = VER.mente, t = TIEMPO.t, L = [], c = VER.yo ? VER.yo.pos : JUG.pos;
+  for (const o of OBJS) { if (o.verity) continue; const d = o.b.pos.distTo(c), k = 'o' + o.id; if (d < 30 && t - (M.vistos.get(k) || -1e9) > 180) L.push({ k, n: o.nombre, p: () => o.b.pos, alto: () => (o.b.aabb ? o.b.aabb.y1 - o.b.pos.y : 1), d }); }
+  for (const e of ENTS.lista) { if (!e.b) continue; const d = e.b.pos.distTo(c), k = 'e' + e.id; if (d < 30 && t - (M.vistos.get(k) || -1e9) > 180) L.push({ k, n: e.t, p: () => e.b.pos, alto: () => 1.2, d }); }
   if (!L.length) return null; L.sort((a, b) => a.d - b.d);
   return L[Math.floor(Math.random() * Math.min(5, L.length))];
 }
-function verJugadorNuevo() { const M = VER.mente, t = TIEMPO.t; for (const R2 of RED.remotos.values()) if (R2.pos.distTo(JUG.pos) < 15 && t - (M.saludados.get(R2.id) || -1e9) > 600) return R2; return null; }
-function verBola() { let m = null, dm = 20; for (const o of OBJS) { if (o.remoto || o.b.frozen || !/pelota|ball|bouncy/i.test(o.nombre)) continue; const d = o.b.pos.distTo(JUG.pos); if (d < dm) { dm = d; m = o; } } return m; }
+function verJugadorNuevo() { const M = VER.mente, t = TIEMPO.t; for (const R2 of RED.remotos.values()) if (R2.pos.distTo(VER.yo.pos) < 20 && t - (M.saludados.get(R2.id) || -1e9) > 600) return R2; return null; }
+function verBola() { let m = null, dm = 20; for (const o of OBJS) { if (o.remoto || o.b.frozen || !/pelota|ball|bouncy/i.test(o.nombre)) continue; const d = o.b.pos.distTo(VER.yo.pos); if (d < dm) { dm = d; m = o; } } return m; }
 function verElegirPlan() {
-  const M = VER.mente, J = JUG, I = VER.yo, t = TIEMPO.t, vel = Math.hypot(J.vel.x, J.vel.z);
-  const activo = vel > 2.2 || J.vehiculo || t - VER.ultCharla < 25 || !J.vivo || NAT.volando;
-  if (I.pos.distTo(J.pos) > 30 || activo) return verPlan('acompañar', 6 + Math.random() * 6);
+  const M = VER.mente, I = VER.yo, cerca = verMasCerca(I.pos);
+  // lejos de todos: va hasta el más cercano
+  if (!cerca || cerca.pos.distTo(I.pos) > 45) return verPlan('visitar', 14, { quien: cerca ? cerca.id : 'yo' });
   if (M.energia < 0.18) return verPlan('descansar', 30 + Math.random() * 25);
   const R2 = verJugadorNuevo(); if (R2) return verPlan('saludar', 12, { R2 });
-  const foco = verAlgoInteresante(), bola = verBola();
-  const op = [['acompañar', 1.6], ['pasear', 2.4], ['jugar', (bola ? 2 : 0.8) + 2.5 * M.aburre], ['investigar', foco ? 2.5 * M.curios + 0.6 : 0]];
+  const foco = verAlgoInteresante(), bola = verBola(), J = verJugadores(), quien = J[Math.floor(Math.random() * J.length)].id;
+  const op = [['visitar', 1.5], ['pasear', 2.6], ['jugar', (bola ? 2 : 0.8) + 2.5 * M.aburre], ['investigar', foco ? 2.5 * M.curios + 0.6 : 0]];
   let s = op.reduce((a, o) => a + o[1], 0) * Math.random();
-  for (const [n, w] of op) { s -= w; if (s <= 0) { verPlan(n, n === 'acompañar' ? 8 + Math.random() * 8 : 14 + Math.random() * 14, n === 'investigar' ? { foco } : n === 'jugar' ? { bola } : null); return; } }
-  verPlan('acompañar', 10);
+  for (const [n, w] of op) { s -= w; if (s <= 0) { verPlan(n, n === 'visitar' ? 8 + Math.random() * 8 : 14 + Math.random() * 14, n === 'investigar' ? { foco } : n === 'jugar' ? { bola, c: I.pos.clone() } : n === 'visitar' ? { quien } : { c: I.pos.clone() }); return; } }
+  verPlan('pasear', 15, { c: I.pos.clone() });
 }
-// el plan de este cuadro → { dest, vmax: rueda por el piso } o { meta: flota hacia ahí }
+// el plan de este cuadro → { dest, vmax: rueda por el piso } o { meta: flota hacia ahí }, y adónde mira (ver)
 function verMentePaso(dt) {
-  const M = VER.mente, I = VER.yo, t = TIEMPO.t, J = JUG;
-  // las órdenes mandan
-  if (VER.modo !== 'libre' && VER.modo !== 'quieta' && (VER.tModo -= dt) <= 0) VER.modo = 'libre';
+  const M = VER.mente, I = VER.yo, t = TIEMPO.t;
+  // las órdenes mandan (un rato)
+  if (VER.modo !== 'libre' && (VER.tModo -= dt) <= 0) VER.modo = 'libre';
   if (VER.modo === 'quieta' && VER.ancla) return { meta: VER.ancla };
-  if (VER.modo === 'seguir' || VER.modo === 'ven') return { meta: verMeta() };
+  if (VER.modo === 'seguir' || VER.modo === 'ven') { const J = verJugador(VER.objetivo); if (J) return { meta: verCerca(J), ver: vadd(J.pos, v3(0, 0.7, 0)) }; VER.modo = 'libre'; }
   // las animaciones que van por el piso
-  if (I.anim === 'rodar') { I.ang += dt * 1.7; return { dest: vadd(J.pos, v3(Math.cos(I.ang) * 3.2, 0, Math.sin(I.ang) * 3.2)), vmax: 5.5 }; }
+  if (I.anim === 'rodar') { I.ang += dt * 1.7; const c = I.centro || I.pos; return { dest: vadd(c, v3(Math.cos(I.ang) * 3.2, 0, Math.sin(I.ang) * 3.2)), vmax: 5.5 }; }
   if (I.anim === 'rebotar' || I.anim === 'dormir') return { dest: I.pos.clone(), vmax: 0 };
   // lo que tiene ganas de hacer
   if (!VER.plan || (VER.plan.t -= dt) <= 0) verElegirPlan();
-  const vel = Math.hypot(J.vel.x, J.vel.z);
-  M.aburre = clamp(M.aburre + (vel < 0.5 && t - VER.ultCharla > 30 ? dt / 90 : -dt / 40), 0, 1);
-  // si te vas lejos o empezás a moverte rápido, vuelve con vos
-  if (VER.plan.n !== 'acompañar' && (I.pos.distTo(J.pos) > 32 || vel > 4.5 || J.vehiculo)) verPlan('acompañar', 8);
+  const quieto = verJugadores().every((J) => J.id !== 'yo' || Math.hypot(JUG.vel.x, JUG.vel.z) < 0.5);
+  M.aburre = clamp(M.aburre + (quieto && t - VER.ultCharla > 30 ? dt / 90 : -dt / 40), 0, 1);
   const Q = VER.plan;
-  if (Q.n === 'acompañar') { M.energia = clamp(M.energia - dt * 0.0015, 0, 1); return { meta: verMeta() }; }
+  if (Q.n === 'visitar' || Q.n === 'atender') {
+    const J = verJugador(Q.quien); if (!J) { verPlan('pasear', 10, { c: I.pos.clone() }); return { dest: I.pos.clone(), vmax: 0 }; }
+    M.energia = clamp(M.energia - dt * 0.0015, 0, 1); return { meta: verCerca(J), ver: vadd(J.pos, v3(0, 0.7, 0)) };
+  }
   if (Q.n === 'descansar') {
     M.energia = clamp(M.energia + dt * 0.03, 0, 1); I.emo = 'dormida'; I.emoT = 1;
     if (Math.random() < dt * 1.5) particula(vadd(I.pos, v3(0.15, 0.3, 0)), v3(0.1, 0.5, 0), 1.6, 0.05, [1, 1, 1, 0.8], 'chispa', 1.2);
-    if ((J.pos.distTo(I.pos) < 2.5 && vel > 1) || M.energia >= 1) { Q.t = 0; I.emo = 'sorpresa'; I.emoT = 1.5; }
+    const c = verMasCerca(I.pos); if ((c && c.pos.distTo(I.pos) < 2.2) || M.energia >= 1) { Q.t = 0; I.emo = 'sorpresa'; I.emoT = 1.5; }
     return { dest: I.pos.clone(), vmax: 0 };
   }
   if (Q.n === 'pasear') {
     M.energia = clamp(M.energia - dt * 0.003, 0, 1);
-    if (!Q.dest || I.pos.distTo(Q.dest) < 0.8 || (Q.tDest -= dt) <= 0) { const a = Math.random() * Math.PI * 2, r = 5 + Math.random() * 11; Q.dest = vadd(J.pos, v3(Math.cos(a) * r, 0, Math.sin(a) * r)); Q.tDest = 6 + Math.random() * 4; }
+    if (!Q.dest || I.pos.distTo(Q.dest) < 0.8 || (Q.tDest -= dt) <= 0) {
+      // por ahí, sin irse lejos de la gente
+      const c = Math.random() < 0.5 ? (verMasCerca(I.pos) || { pos: I.pos }).pos : Q.c || I.pos, a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 12;
+      Q.dest = vadd(c, v3(Math.cos(a) * r, 0, Math.sin(a) * r)); Q.tDest = 6 + Math.random() * 4;
+    }
     return { dest: Q.dest, vmax: 3.2 };
   }
   if (Q.n === 'jugar') {
@@ -10020,53 +10071,51 @@ function verMentePaso(dt) {
       if (L < VER_R + 0.45 && t - (Q.tGolpe || 0) > 0.8) { Q.tGolpe = t; const dir = vscale(d, 1 / Math.max(0.01, L)), a = (Math.random() - 0.5) * 1.2, x = dir.x * Math.cos(a) - dir.z * Math.sin(a), z = dir.x * Math.sin(a) + dir.z * Math.cos(a); b.b.vel.addS(v3(x, 0.5, z), 6); b.b.wake(); I.emo = 'risa'; I.emoT = 1.5; }
       return { dest: b.b.pos.clone(), vmax: 6 };
     }
-    // sin pelota: rueda en ochos alrededor tuyo y salta de vez en cuando
-    Q.a = (Q.a || 0) + dt * 1.2;
+    // sin pelota: rueda en ochos y salta de vez en cuando
+    Q.a = (Q.a || 0) + dt * 1.2; const c = Q.c || I.pos;
     if (Math.random() < dt * 0.4 && I.piso !== null && I.pos.y < I.piso + VER_R + 0.05) I.vel.y = 4.5;
-    return { dest: vadd(J.pos, v3(Math.sin(Q.a) * 4.5, 0, Math.sin(Q.a * 2) * 2.2)), vmax: 5.5 };
+    return { dest: vadd(c, v3(Math.sin(Q.a) * 4.5, 0, Math.sin(Q.a * 2) * 2.2)), vmax: 5.5 };
   }
   if (Q.n === 'investigar' && Q.foco) {
     const F = Q.foco, p = F.p(); M.energia = clamp(M.energia - dt * 0.002, 0, 1); M.vistos.set(F.k, t);
     if (Q.giro === undefined) Q.giro = Math.atan2(I.pos.z - p.z, I.pos.x - p.x);
     Q.giro += dt * 0.45;
     const m = vadd(p, v3(Math.cos(Q.giro) * 1.5, Math.max(0.6, F.alto() + 0.35), Math.sin(Q.giro) * 1.5));
-    Q.ver = vadd(p, v3(0, F.alto() * 0.6, 0));
-    if (!Q.llego && I.pos.distTo(m) < 1) { Q.llego = true; if (Math.random() < 0.3) verEvento('pensamiento', 150, 'you are looking closely at a ' + F.n + (F.jugador ? ' (another player)' : '') + ' nearby'); I.emo = Math.random() < 0.5 ? 'pensando' : 'sorpresa'; I.emoT = 3; }
-    return { meta: m, ver: Q.ver };
+    if (!Q.llego && I.pos.distTo(m) < 1) { Q.llego = true; if (Math.random() < 0.3) verEvento('pensamiento', 150, 'you are looking closely at a ' + F.n + ' nearby'); I.emo = Math.random() < 0.5 ? 'pensando' : 'sorpresa'; I.emoT = 3; }
+    return { meta: m, ver: vadd(p, v3(0, F.alto() * 0.6, 0)) };
   }
   if (Q.n === 'saludar' && Q.R2 && RED.remotos.has(Q.R2.id)) {
-    const R2 = Q.R2, p = R2.P.pos, f = v3(Math.sin(R2.yaw || 0), 0, Math.cos(R2.yaw || 0)), m = vadd(vadd(p, vscale(f, 1.3)), v3(0, 1.2, 0));
-    if (!Q.llego && I.pos.distTo(m) < 1.2) { Q.llego = true; VER.mente.saludados.set(R2.id, t); verAnim(I, 'girar'); verEvento('jugador', 0, R2.nombre + ' just arrived near you: say hi to them by name'); }
-    return { meta: m, ver: vadd(p, v3(0, 1, 0)) };
+    const R2 = Q.R2, J = { pos: R2.pos, yaw: R2.yawM || 0 };
+    if (!Q.llego && I.pos.distTo(verCerca(J)) < 1.2) { Q.llego = true; VER.mente.saludados.set(R2.id, t); verAnim(I, 'girar'); verEvento('jugador', 0, R2.nombre + ' just arrived near you: say hi to them by name'); }
+    return { meta: verCerca(J), ver: vadd(R2.pos, v3(0, 0.7, 0)) };
   }
-  verPlan('acompañar', 6); return { meta: verMeta() };
+  verPlan('pasear', 10, { c: I.pos.clone() }); return { dest: I.pos.clone(), vmax: 0 };
 }
-
 // ---------------- cada cuadro ----------------
-// dónde quiere estar al acompañarte: adelante a la derecha en primera persona (para verla), al hombro en tercera
-function verMeta() {
-  const J = JUG, base = J.vehiculo ? J.vehiculo.b.pos : J.pos, d = v3(CAM.der.x, 0, CAM.der.z), f = v3(CAM.fwd.x, 0, CAM.fwd.z);
-  if (d.len() < 1e-3) d.set(1, 0, 0); else d.norm(); if (f.len() < 1e-3) f.set(0, 0, 1); else f.norm();
-  if (VER.modo === 'ven') return vadd(vadd(base, vscale(f, 1.2)), v3(0, 0.6, 0));
-  const terc = J.tercera || J.vehiculo;
-  return terc ? vadd(vadd(base, vscale(d, 0.95)), v3(0, J.vehiculo ? 1.6 : 0.95, 0)) : vadd(vadd(vadd(base, vscale(f, 1.45)), vscale(d, 0.85)), v3(0, 0.55, 0));
-}
+// (para las pruebas y para aparecer: adonde se pondría para hablarte a vos)
+function verMeta() { return verCerca({ pos: JUG.pos, yaw: JUG.yaw }); }
 function verPaso(dt) {
-  if (verHay() && !VER.on) verAparecer(); else if (!verHay() && VER.on) verIrse();
+  if (typeof RED !== 'undefined') { if (RED.on && !VER.redAnt) VER.tRed = TIEMPO.t; VER.redAnt = RED.on; }
+  const maneja = verManejo();
+  if (maneja && !VER.on) verAparecer(); else if (!maneja && VER.on) verIrse();
   verRemotosPaso(dt);
   oidoPaso();
+  const hay = verHayAlguna(); if (hay) verBoton(); if (VER.bt) VER.bt.style.display = hay ? '' : 'none';
   if (!VER.on) return;
   const I = VER.yo, t = TIEMPO.t;
   const habla = I.voz || I.nav || I.falsa > 0 || I.pensando;
-  let o = verMentePaso(dt);
-  if (VER.obra && VER.obra.ult) o = { meta: vadd(VER.obra.ult, v3(0, 1.6, 0)) };
-  // al hablar se queda quieta y te mira (si estaba rodando, se para)
-  if (habla && o.dest) o = { dest: I.pos.clone(), vmax: 0 };
-  if (o.meta) verFlotar(I, o.meta, dt); else verRodar(I, o.dest, o.vmax, dt);
-  // a quién mira: a vos (si habla, te acompaña o le diste una orden), a lo que investiga, o hacia donde va
-  const vh = Math.hypot(I.vel.x, I.vel.z), P = VER.plan, aVos = habla || !P || P.n === 'acompañar' || VER.modo !== 'libre';
-  const objetivo = aVos ? CAM.pos : o.ver || (vh > 1 ? vadd(I.pos, vscale(I.vel, 2)) : CAM.pos);
-  const am = vsub(objetivo, I.pos); I.yawM = Math.atan2(am.x, am.z); I.mira = objetivo;
+  // agarrada, tirada o congelada: manda la física
+  if (!verFisPaso(I, dt)) {
+    let o = verMentePaso(dt);
+    if (VER.obra && VER.obra.ult) o = { meta: vadd(VER.obra.ult, v3(0, 1.6, 0)) };
+    // al hablar se queda quieta y mira al que le habla (si estaba rodando, se para)
+    if (habla && o.dest) o = { dest: I.pos.clone(), vmax: 0 };
+    if (o.meta) verFlotar(I, o.meta, dt); else verRodar(I, o.dest, o.vmax, dt);
+    const con = verJugador(VER.hablaCon) || verMasCerca(I.pos), vh = Math.hypot(I.vel.x, I.vel.z);
+    const objetivo = habla && con ? vadd(con.pos, v3(0, 0.7, 0)) : o.ver || (vh > 1 ? vadd(I.pos, vscale(I.vel, 2)) : con ? vadd(con.pos, v3(0, 0.7, 0)) : vadd(I.pos, v3(0, 0, 1)));
+    const am = vsub(objetivo, I.pos); I.yawM = Math.atan2(am.x, am.z); I.mira = objetivo;
+    verCuerpoSync(I);
+  }
   VER.tareas = VER.tareas.filter((x) => { if (t >= x.t) { x.fn(); return false; } return true; });
   verObraPaso();
   verCuerpoPaso(I, dt);
@@ -10074,16 +10123,69 @@ function verPaso(dt) {
   VER.oscura = clamp(VER.oscura + (I.noche ? dt / 20 : -dt / 4), 0, 1);
   verEventosPaso(dt);
 }
-// flotar: resorte (casi sin rebote) hacia el lugar; si hay una pared entre vos y el lugar, se queda de este lado
+// ---------------- su cuerpo físico: se la agarra con la pistola de física o la de gravedad ----------------
+// Mientras anda sola el cuerpo está congelado y la acompaña (los rayos la tocan, la pistola la agarra). Agarrada, la mueve
+// la pistola; al soltarla queda suelta (cae, rebota, rueda) hasta quedarse quieta y vuelve a flotar; si la congelan, se
+// queda en el aire un rato. Si la agarra otro jugador, él la mueve en su juego y manda dónde está (verg).
+function verCuerpo(I) {
+  if (I.b && PH.bodies.includes(I.b)) return I.b;
+  const b = new Body(sphereShape(VER_R), 4, { fric: 0.5, rest: 0.55 }); b.verity = I; b.noJug = true; b.frozen = true;
+  b.pos.copy(I.pos); b.q.copy(I.q); b.updateWorld(); addBody(b); I.b = b; return b;
+}
+function verSinCuerpo(I) { if (I.b) { if (ARM.agarre && ARM.agarre.b === I.b) ARM.agarre = null; if (ARM.grav && ARM.grav.b === I.b) ARM.grav = null; removeBody(I.b); I.b = null; } }
+function verCuerpoSync(I) { const b = verCuerpo(I); b.frozen = true; b.held = false; b.pos.copy(I.pos); b.q.copy(I.q); b.vel.set(0, 0, 0); b.ang.set(0, 0, 0); b.updateWorld(); }
+// devuelve true si este cuadro la mueve la física (no ella)
+function verFisPaso(I, dt) {
+  const b = verCuerpo(I), mia = I === VER.yo;
+  if (b.held) {
+    if (I.fis !== 'agarrada') { I.fis = 'agarrada'; I.anim = ''; I.emo = 'sorpresa'; I.emoT = 2.5; if (mia) verEvento('agarrada', 25, (verSala() ? PREFS.nombre : 'the player') + ' grabbed you with the physics gun and is carrying you'); }
+    I.pos.copy(b.pos); I.q.copy(b.q); I.vel.copy(b.vel);
+    if (!mia && RED.on && (I.tG -= dt) <= 0) { I.tG = 1 / 15; publicar('a', { k: 'verg', to: I.dueno, n: PREFS.nombre, p: [r3(b.pos.x), r3(b.pos.y), r3(b.pos.z)], q: [r4(b.q.x), r4(b.q.y), r4(b.q.z), r4(b.q.w)] }); }
+    return true;
+  }
+  if (I.fis === 'agarrada') {
+    // la soltaron: congelada (clic derecho de la pistola) o tirada
+    const v = b.vel.len();
+    if (!mia) { if (RED.on) publicar('a', { k: 'verg', to: I.dueno, n: PREFS.nombre, fin: 1, cong: b.frozen ? 1 : 0, p: [r3(b.pos.x), r3(b.pos.y), r3(b.pos.z)], v: [r3(b.vel.x), r3(b.vel.y), r3(b.vel.z)] }); I.fis = 'libre'; I.meta.copy(b.pos); return false; }
+    verSoltada(I, b.frozen, null, v > 7);
+  }
+  if (I.fis === 'remota') { if ((I.tFis -= dt) <= 0) verSoltada(I, false, v3(0, 0, 0)); else { verCuerpoSync(I); return true; } }
+  if (I.fis === 'congelada') { if ((I.tFis -= dt) <= 0) { I.fis = 'libre'; I.emo = 'feliz'; I.emoT = 2; return false; } b.frozen = true; I.pos.copy(b.pos); return true; }
+  if (I.fis === 'suelta') {
+    I.pos.copy(b.pos); I.q.copy(b.q); I.vel.copy(b.vel); I.tFis -= dt;
+    const piso = pisoBajo(b.pos, 0.3), apoyada = piso !== null && b.pos.y - piso < VER_R + 0.06;
+    if (I.tFis <= 0 || (apoyada && b.vel.len() < 0.6 && I.tFis < 2.4) || b.pos.y < MUNDO.lo.y - 30) {
+      I.fis = 'libre'; I.suelo = false; I.vel.set(0, 2.5, 0); if (b.pos.y < MUNDO.lo.y - 30) { const c = verMasCerca(I.pos); I.pos.copy(c ? verCerca(c) : verMeta()); }
+      if (I.tirada) { I.emo = 'mareada'; I.emoT = 3; I.tirada = false; }
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+// quedó suelta: tirada (con la velocidad que traía), congelada, o empujada (un tiro, la pistola de gravedad)
+function verSoltada(I, cong, v, fuerte) {
+  const b = verCuerpo(I); b.held = false;
+  if (cong) { I.fis = 'congelada'; I.tFis = 20; b.frozen = true; b.vel.set(0, 0, 0); I.emo = 'enojada'; I.emoT = 3; if (I === VER.yo) verEvento('congelada', 30, 'someone froze you in the air with the physics gun'); return; }
+  I.fis = 'suelta'; I.tFis = 3; b.frozen = false; if (v) b.vel.copy(v); b.wake(); I.tirada = !!fuerte;
+  if (fuerte && I === VER.yo) verEvento('tirada', 25, 'someone threw you hard with the physics gun');
+}
+// un tiro o un golpe de la pistola de gravedad (lo llaman las armas)
+function verEmpujon(I, v, tiro) {
+  if (!I) return;
+  if (I !== VER.yo) { if (RED.on) publicar('a', { k: 'verg', to: I.dueno, n: PREFS.nombre, fin: 1, tiro: tiro ? 1 : 0, p: [r3(I.pos.x), r3(I.pos.y), r3(I.pos.z)], v: [r3(v.x), r3(v.y), r3(v.z)] }); return; }
+  verSoltada(I, false, vadd(I.vel, v), v.len() > 7); I.emo = tiro ? 'enojada' : 'sorpresa'; I.emoT = 3;
+  if (tiro) verEvento('disparo', 40, 'someone just shot you (it only pushed you, you are fine)');
+}
+// flotar: resorte (casi sin rebote) hacia el lugar; si hay algo en el medio, pasa por arriba
 function verFlotar(I, m, dt) {
   I.suelo = false; I.rueda = false;
-  if (VER.modo !== 'quieta' && (!VER.plan || VER.plan.n === 'acompañar' || VER.modo !== 'libre')) {
-    const o = vadd(JUG.pos, v3(0, 0.7, 0)), dv = vsub(m, o), L = dv.len();
-    if (L > 0.3 && L < 6) { const h = raycast(o, vscale(dv, 1 / L), L + VER_R, JUG.vehiculo ? JUG.vehiculo.b : null); if (h && h.t < L + VER_R) m = vadd(o, vscale(dv, Math.max(0.3, h.t - VER_R - 0.08) / L)); }
-  }
-  if (I.pos.distTo(m) > 40) { I.pos.copy(m); I.vel.set(0, 0, 0); }
-  const kf = JUG.vehiculo ? 40 : 18, kd = JUG.vehiculo ? 11 : 7.5;
-  I.vel.addS(vsub(m, I.pos), kf * dt); I.vel.scale(Math.exp(-kd * dt)); if (I.vel.len() > 30) I.vel.scale(30 / I.vel.len());
+  const dv = vsub(m, I.pos), L = dv.len();
+  if (L > 0.4 && (I.nMuro = (I.nMuro || 0) + 1) % 3 === 0) { const h = raycast(I.pos, vscale(dv, 1 / L), Math.min(L, 6) + VER_R, I.b); I.muro = !!(h && h.t < L); }
+  if (I.muro) m = vadd(m, v3(0, 2.5, 0));
+  if (I.pos.distTo(m) > 60) { I.pos.copy(m); I.vel.set(0, 0, 0); }
+  const kf = 18, kd = 7.5;
+  I.vel.addS(vsub(m, I.pos), kf * dt); I.vel.scale(Math.exp(-kd * dt)); if (I.vel.len() > 14) I.vel.scale(14 / I.vel.len());
   I.pos.addS(I.vel, dt);
   // nunca bajo el piso
   if ((I.nPiso = (I.nPiso || 0) + 1) % 4 === 0) I.piso = pisoBajo(I.pos, 0.2);
@@ -10097,7 +10199,7 @@ function verRodar(I, dest, vmax, dt) {
   I.vel.y -= VER_G_SUELO * dt;
   // una pared adelante: salta
   const vh = Math.hypot(I.vel.x, I.vel.z);
-  if (vh > 0.5 && (I.nPared = (I.nPared || 0) + 1) % 3 === 0) { const dir = v3(I.vel.x / vh, 0, I.vel.z / vh), h = raycast(I.pos, dir, VER_R + 0.35, null); if (h && I.piso != null && I.pos.y < I.piso + VER_R + 0.1) I.vel.y = 4.8; }
+  if (vh > 0.5 && (I.nPared = (I.nPared || 0) + 1) % 3 === 0) { const dir = v3(I.vel.x / vh, 0, I.vel.z / vh), h = raycast(I.pos, dir, VER_R + 0.35, I.b); if (h && I.piso != null && I.pos.y < I.piso + VER_R + 0.1) I.vel.y = 4.8; }
   const antes = I.pos.clone(); I.pos.addS(I.vel, dt);
   I.piso = pisoBajo(I.pos, 0.6);
   if (I.piso !== null && I.pos.y < I.piso + VER_R) {
@@ -10105,20 +10207,20 @@ function verRodar(I, dest, vmax, dt) {
     if (I.vel.y < -2.2) { I.aplV = Math.min(9, -I.vel.y * 1.6); I.vel.y = I.anim === 'rebotar' ? 5.2 : -I.vel.y * 0.38; }
     else { I.vel.y = I.anim === 'rebotar' ? 5.2 : 0; if (I.anim === 'rebotar') I.aplV = 6; }
   }
-  if (I.piso === null && I.pos.y < MUNDO.lo.y - 20) { I.pos.copy(verMeta()); I.vel.set(0, 0, 0); }
+  if (I.piso === null && I.pos.y < MUNDO.lo.y - 20) { const c = verMasCerca(I.pos); I.pos.copy(c ? verCerca(c) : verMeta()); I.vel.set(0, 0, 0); }
   // el giro de la pelota: lo que avanzó apoyada en el piso, alrededor del eje perpendicular
   const mv = vsub(I.pos, antes); mv.y = 0; const dl = mv.len();
   I.rueda = dl > 0.004 && I.piso !== null && I.pos.y < I.piso + VER_R + 0.12;
   if (I.rueda) { const ax = v3(mv.z / dl, 0, -mv.x / dl); I.q = Quat.axis(ax.x, ax.y, ax.z, dl / VER_R).mul(I.q).norm(); }
-  if (I.pos.distTo(JUG.pos) > 45) { I.pos.copy(verMeta()); I.vel.set(0, 0, 0); }
+
 }
 // lo de cada Verity (la mía y las otras): orientación, aplaste, boca, mirada, parpadeo, fallas, animaciones y globo
 function verCuerpoPaso(I, dt) {
   const t = TIEMPO.t;
   let dy = I.yawM - I.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); I.yaw += dy * Math.min(1, dt * 7);
-  // derecha (mirando) salvo mientras rueda: al parar se endereza
-  if (I.dueno === 'yo') { if (!I.rueda) I.q.slerpTo(Quat.axis(0, 1, 0, I.yaw), 1 - Math.exp(-dt * (I.suelo ? 6 : 9))); }
-  else I.q.slerpTo(I.qM, 1 - Math.exp(-dt * 10));
+  // derecha (mirando) salvo mientras rueda o la mueve la física: al parar se endereza
+  if (I.dueno === 'yo') { if (!I.rueda && I.fis === 'libre') I.q.slerpTo(Quat.axis(0, 1, 0, I.yaw), 1 - Math.exp(-dt * (I.suelo ? 6 : 9))); }
+  else if (I.fis !== 'agarrada') I.q.slerpTo(I.qM, 1 - Math.exp(-dt * 10));
   // el aplaste (resorte)
   I.aplV += (-I.apl * 260 - I.aplV * 13) * dt; I.apl += I.aplV * dt; I.apl = clamp(I.apl, -0.3, 0.4);
   // animaciones
@@ -10227,7 +10329,7 @@ function verRedEstado() {
 }
 function verRemoto(R2, vr) {
   let I = VER.rem.get(R2.id);
-  if (!Array.isArray(vr) || vr.length < 6) { if (I) { verCallar(I); if (I.burb) I.burb.remove(); VER.rem.delete(R2.id); } return; }
+  if (!Array.isArray(vr) || vr.length < 6) { if (I) { verCallar(I); if (I.burb) I.burb.remove(); verSinCuerpo(I); VER.rem.delete(R2.id); } return; }
   if (!I) { if (VER.rem.size >= VER_MAX - 1) return; I = verInst(R2.id); VER.rem.set(R2.id, I); I.pos.set(num(vr[0], -1e4, 1e4, 0), num(vr[1], -1e4, 1e4, 0), num(vr[2], -1e4, 1e4, 0)); }
   I.meta.set(num(vr[0], -1e4, 1e4, 0), num(vr[1], -1e4, 1e4, 0), num(vr[2], -1e4, 1e4, 0)); I.yawM = num(vr[3], -100, 100, 0);
   if (!I.voz && !I.nav && I.emoT <= 0) I.emo = VERITY_EMO[vr[4] | 0] || 'feliz';
@@ -10235,23 +10337,44 @@ function verRemoto(R2, vr) {
   I.noche = f & 1; I.luz = !!(f & 2); I.suelo = !!(f & 4); I.t = TIEMPO.t; I.nombre = R2.nombre;
   if (an !== I.anim) { I.anim = an; I.animT0 = TIEMPO.t; I.animT = an ? VER_DUR[an] : 0; }
   if (vr.length >= 10) { I.qM.x = num(vr[6], -1, 1, 0); I.qM.y = num(vr[7], -1, 1, 0); I.qM.z = num(vr[8], -1, 1, 0); I.qM.w = num(vr[9], -1, 1, 1); I.qM.norm(); }
+  // (por si el que la maneja se va: el próximo sigue desde acá)
+  VER.ultimo = { pos: I.meta.clone(), q: I.qM.clone(), yaw: I.yawM, emo: I.emo, t: TIEMPO.t };
 }
 function verRemotosPaso(dt) {
   for (const [id, I] of VER.rem) {
     const R2 = RED.remotos.get(id);
-    if (!R2 || TIEMPO.t - I.t > 6) { verCallar(I); if (I.burb) I.burb.remove(); VER.rem.delete(id); continue; }
-    I.pos.lerpTo(I.meta, 1 - Math.exp(-dt * 9)); I.mira = CAM.pos; verCuerpoPaso(I, dt);
+    if (!R2 || TIEMPO.t - I.t > 6) { verCallar(I); if (I.burb) I.burb.remove(); verSinCuerpo(I); VER.rem.delete(id); continue; }
+    // agarrada por mí: la mueve mi pistola (y le mando dónde está); si no, va adonde dice el que la maneja
+    if (!verFisPaso(I, dt)) { I.pos.lerpTo(I.meta, 1 - Math.exp(-dt * 9)); verCuerpoSync(I); }
+    I.mira = CAM.pos; verCuerpoPaso(I, dt);
   }
 }
 function verRed(d) {
   if (d.k === 'verd') {
     const I = VER.rem.get(d.i); if (!I) return;
-    const l = typeof d.l === 'string' && VER_LOCALE[d.l] ? d.l : 'en';
-    verDecir(I, rbTexto(d.t, 280), VERITY_EMO.includes(d.e) ? d.e : 'neutral', l);
-  } else if (d.k === 'verq' && d.to === RED.ID && VER.on) {
-    const t = TIEMPO.t, u = VER.preguntas.get(d.i) || -1e9; if (t - u < 6) return; VER.preguntas.set(d.i, t);
-    const R2 = RED.remotos.get(d.i), q = rbTexto(d.t, 200); if (!q) return;
-    verPreguntar(q, '', limpio(d.n) || (R2 && R2.nombre) || '?');
+    const l = typeof d.l === 'string' && VER_LOCALE[d.l] ? d.l : 'en', t = rbTexto(d.t, 280);
+    verDecir(I, t, VERITY_EMO.includes(d.e) ? d.e : 'neutral', l);
+    if (!VER.on) { VER.hist.push(['v', t]); VER.hist = VER.hist.slice(-12); verLog(); }
+  }
+  if (d.to !== RED.ID || !VER.on) return;
+  const t = TIEMPO.t, R2 = RED.remotos.get(d.i), nom = limpio(d.n) || (R2 && R2.nombre) || '?';
+  if (d.k === 'verq') {
+    const ahora = performance.now(), u = VER.preguntas.get(d.i) || -1e9; if (ahora - u < 2500) return; VER.preguntas.set(d.i, ahora); // (en tiempo real)
+    const q = rbTexto(d.t, 200); if (q) verPreguntar(q, '', nom, d.i);
+  } else if (d.k === 'verw') { VER.ultCharla = t; verAtender(d.i, 20); VER.yo.emo = 'sorpresa'; VER.yo.emoT = 2;
+  } else if (d.k === 'vera' && VER_DUR[d.a]) { verAnim(VER.yo, d.a);
+  } else if (d.k === 'verg' && Array.isArray(d.p)) {
+    // la agarró otro jugador: está donde dice él; al soltarla, sigue con la física acá
+    const I = VER.yo, p = v3(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0));
+    if (d.fin) {
+      const v = Array.isArray(d.v) ? v3(num(d.v[0], -80, 80, 0), num(d.v[1], -80, 80, 0), num(d.v[2], -80, 80, 0)) : v3();
+      I.pos.copy(p); verCuerpo(I).pos.copy(p);
+      if (d.tiro) { verEmpujon(I, v, true); return; }
+      verSoltada(I, !!d.cong, v, v.len() > 7); if (!d.cong && v.len() > 7) verEvento('tirada', 25, nom + ' threw you hard with the physics gun');
+      return;
+    }
+    if (I.fis !== 'remota') { I.fis = 'remota'; I.anim = ''; I.emo = 'sorpresa'; I.emoT = 2.5; verEvento('agarrada', 25, nom + ' grabbed you with the physics gun and is carrying you'); }
+    I.tFis = 1; I.pos.copy(p); if (Array.isArray(d.q)) { I.q.set(num(d.q[0], -1, 1, 0), num(d.q[1], -1, 1, 0), num(d.q[2], -1, 1, 0), num(d.q[3], -1, 1, 1)); I.q.norm(); }
   }
 }
 
@@ -11185,7 +11308,7 @@ function modMenuLista() {
   let u = '';
   for (const k of ['volar', 'ragdoll', 'scp']) if (NAT.mods.has(k)) u += fila(icoHTML('ico:' + k), T(k + '.n'), NAT_TECLA[k], sw, 'nat:' + k, k === 'volar' ? NAT.volando : k === 'ragdoll' ? NAT.rag : NAT.scp);
   if (NAT.mods.has('ciclope')) u += fila(icoHTML('ico:ciclope'), T('ciclope.n'), NAT_TECLA.ciclope, `<span class="mmMod" dir="auto">${esc(T('cic.ayuda'))}</span>`, '');
-  if (NAT.mods.has('verity')) u += fila(icoHTML('ico:verity'), T('verity.n'), NAT_TECLA.verity, `<span class="mmMod" dir="auto">${esc(T('ver.ayuda'))}</span>`, 'ver:panel');
+  if (verHayAlguna()) u += fila(icoHTML('ico:verity'), T('verity.n'), NAT_TECLA.verity, `<span class="mmMod" dir="auto">${esc(T('ver.ayuda'))}</span>`, 'ver:panel');
   // los botones de los mods de código ("ico:nombre" muestra la imagen)
   for (const [k, b] of MODAPI.botones) {
     const t = String(b.t || ''), ico = /^ico:[a-z_]{2,20}$/.test(t) ? icoHTML(t) : icoHTML(b.M.icono || 'ico:mod'), nom = /^ico:/.test(t) ? b.M.nombre : sinEmoji(t) || b.M.nombre;

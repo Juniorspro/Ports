@@ -127,7 +127,10 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   es un casquete apenas más grande que la esfera con una textura de canvas que se redibuja con el gesto,
   la boca y la mirada: 14 caras). Tiene su propia cabeza: sola pasea rodando por el piso (gira como una pelota, se aplasta
   al caer), va a mirar autos, props, entidades y jugadores, persigue pelotas y las patea, saluda a los que llegan, se
-  duerme si se cansa, piensa en voz alta cada tanto y vuelve con vos si te movés o la llamás. Ocho animaciones en su
+  duerme si se cansa y piensa en voz alta cada tanto. Es un bot: no sigue a nadie (salvo que se lo pidan, un minuto) y va
+  hasta el que le habla. Se la agarra con la pistola de física o la de gravedad (tiene un cuerpo de esfera: congelado
+  mientras anda sola; agarrada la mueve la pistola, tirada cae y rebota hasta quedarse quieta y vuelve a flotar, y con
+  clic derecho queda congelada en el aire 20 s); los tiros la empujan. Ocho animaciones en su
   panel (rodar, rebotar, voltereta, bailar, girar, amor, mareo, dormir). Se le habla escribiendo (tecla Y o su botón),
   apretando el botón (micrófono) o por el chat ("Verity, ..."); además escucha siempre el micrófono (reconocimiento de voz
   del navegador, continuo) pero sólo le hace caso a "Hey/Che/Oye Verity" (en muchos idiomas: el nombre se compara por
@@ -139,8 +142,12 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   22 kHz con caché); tope de 300 charlas y 500 frases por persona por día y 9000 neuronas por día en total (la cuota
   gratis es 10 000), sin cupo contesta 503. Sin la tienda, el juego piensa con un modelo público sin clave
   (Pollinations, una respuesta cada 30 s por conexión: los eventos se contestan con gestos para no gastar ese turno) y
-  habla con la voz del navegador. En la sala la tuya viaja en tu estado (`vr`: posición, giro, cara, animación); lo que
-  dice va en `verd` y otro jugador le habla con `verq` (por el chat o con la voz, si tiene el micrófono de la sala). Pruebas:
+  habla con la voz del aparato (si el aparato tiene una voz natural, como las de Edge o las "mejoradas" del iPhone,
+  se usa ésa antes que la de la tienda). En cada sala hay una sola Verity para todos, aunque nadie tenga el mod: la
+  maneja un jugador (el que ya la tenía o, si nadie, el de id más chico; los demás esperan su turno) y viaja en su
+  estado (`vr`: posición, giro, cara, animación); si se va, la sigue otro desde donde estaba. Lo que dice va en `verd`;
+  los demás le hablan con `verq` (chat, panel o voz), le piden animaciones con `vera`, la llaman con `verw` y, si la
+  agarran o la empujan, mandan dónde está con `verg`. Cualquiera le puede pedir cosas (la hora no: es de cada uno). Pruebas:
   `verity.mjs`, `red_verity.mjs` y `verity_publica.mjs` (con `TIENDA_SIM` = carpeta con el token y la cuenta de Cloudflare,
   el worker corre de verdad en Node con D1 y caché de mentira).
 - **Skins riggeados de verdad** (`herramientas/skin_meshy.py`): el modelo 3D se riggea aparte (esqueleto tipo mixamo con

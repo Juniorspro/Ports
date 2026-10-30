@@ -61,6 +61,7 @@ function impactoBala(o, d, D, dan) {
     if (b.dynamic) b.applyVel(vscale(d, Math.min(8, dan * 0.6 / Math.max(1, b.mass * 0.05))), vsub(h.p, b.pos), 1);
     if (b.obj) danarObjeto(b.obj, dan, h.p, d);
     if (b.persona) danarPersona(b.persona, dan, h.p, d, b);
+    if (b.verity) verEmpujon(b.verity, vscale(d, Math.min(9, 2 + dan * 0.25)), true); // (a Verity el tiro la empuja)
   }
 }
 function disparar() {
@@ -250,6 +251,7 @@ function soltarAgarre(congelar) {
 function gravPrimario() {
   if (ARM.grav) { const b = ARM.grav.b; soltarGrav(); b.vel.addS(CAM.fwd, Math.min(50, 2500 / Math.max(10, b.mass))); sonar('Melee1', b.pos, 0.6, 0.7); return; }
   const h = raycast(CAM.pos, CAM.fwd, 10, null);
+  if (h && h.body && h.body.verity) { verEmpujon(h.body.verity, vadd(vscale(CAM.fwd, 14), v3(0, 3, 0))); sonar('Melee1', h.p, 0.6, 0.7); return; }
   if (h && h.body && h.body.dynamic) { h.body.wake(); h.body.vel.addS(CAM.fwd, Math.min(50, 1500 / Math.max(10, h.body.mass))); sonar('Melee1', h.p, 0.6, 0.7); natEmpujon(h.body); }
 }
 function gravSecundario() {

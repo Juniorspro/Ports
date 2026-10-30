@@ -1,4 +1,5 @@
-// mod Verity jugando solo: aparece a tu lado (se ve en primera y tercera persona, mira a la cámara), charla con el
+// mod Verity jugando solo: aparece y viene a verte (se ve, mira a la cámara) pero no te sigue; se la agarra, tira,
+// congela y empuja con las pistolas y a tiros; charla con el
 // cerebro de la tienda (se atiende con worker.js de verdad: TIENDA_SIM = carpeta con el token y la cuenta de Cloudflare),
 // habla con voz (la boca se mueve con el sonido), hace lo que le piden (construir, poner props, la hora, limpiar),
 // recuerda, se le habla por el chat; tiene vida propia (sola rueda por ahí, va a mirar cosas, juega con una pelota y se
@@ -46,11 +47,11 @@ const vis = async () => JSON.parse(await ev(`(() => { const I = VER.yo, cl = cli
 for (let i = 0; i < 60 && Number(await ev(`VER.yo ? Math.abs(VER.yo.pos.y - verMeta().y) + VER.yo.vel.len() : 9`)) > 0.08; i++) await espera(250);
 let v = await vis();
 ok(v.on && v.bt, 'con el mod aparece Verity y su botón', v);
-ok(v.x !== null && v.x > v.W * 0.55 && v.x < v.W * 0.97 && v.y > v.H * 0.25 && v.y < v.H * 0.85 && v.d > 1 && v.d < 2.5, 'en primera persona se ve adelante a la derecha', v);
+ok(v.x !== null && v.x > v.W * 0.3 && v.x < v.W * 0.97 && v.y > v.H * 0.15 && v.y < v.H * 0.85 && v.d > 1 && v.d < 2.6, 'aparece y viene a verte (se ve en primera persona)', v);
 ok(v.mira < 12, 'mira a la cámara', v.mira + '°');
 await p.screenshot({ path: D + 'v0_primera.png' });
 await ev(`JUG.tercera = true; 1`); await espera(1500); v = await vis();
-ok(v.x !== null && v.x > 0 && v.x < v.W && v.y > 0 && v.y < v.H, 'en tercera persona se ve al hombro', v);
+ok(v.x !== null && v.x > 0 && v.x < v.W && v.y > 0 && v.y < v.H, 'en tercera persona también se ve', v);
 await p.screenshot({ path: D + 'v1_tercera.png' });
 // de cerca, de frente (la cara: centrada, sin espejar y con bordes transparentes)
 await ev(`(() => { const I = VER.yo; VER.modo = 'quieta'; VER.ancla = I.pos.clone(); const f = v3(Math.sin(I.yaw), 0, Math.cos(I.yaw)); DBG.cam = { p: vadd(I.pos, vadd(vscale(f, 0.95), v3(0, 0.05, 0))), q: Quat.euler(I.yaw + Math.PI, 0.05) }; I.emo = 'feliz'; return 1; })()`);
@@ -63,8 +64,44 @@ await ev(`(() => { const I = VER.yo, f = v3(Math.sin(I.yaw + Math.PI), 0, Math.c
 await espera(400); await p.screenshot({ path: D + 'v4_atras.png' });
 await ev(`DBG.cam = null; VER.modo = 'seguir'; JUG.tercera = false; 1`); await espera(600);
 // ---- sigue al jugador ----
-await ev(`JUG.pos.x += 12; 1`); await espera(1800); v = await vis();
-ok(v.d < 2.6, 'si te vas, te sigue', v);
+await ev(`VER.modo = 'libre'; verPlan('pasear', 40, { c: VER.yo.pos.clone() }); VER.plan.dest = vadd(VER.yo.pos, v3(-14, 0, 6)); VER.plan.tDest = 30; JUG.pos.x += 14; 1`);
+let sig = 0; for (let i = 0; i < 12; i++) { await espera(300); sig = Math.max(sig, Number(await ev(`VER.yo.pos.distTo(JUG.pos)`))); }
+ok(sig > 10, 'no te sigue: si te vas mientras ella pasea, sigue en lo suyo', +sig.toFixed(1));
+await ev(`JUG.pos.x -= 14; verPlan('visitar', 20, { quien: 'yo' }); 1`); await espera(2500);
+// ---- agarrarla con la pistola de física, moverla, tirarla y congelarla ----
+const apuntar = `(() => { const d = vsub(VER.yo.pos, CAM.pos).norm(); JUG.yaw = Math.atan2(d.x, d.z); JUG.pitch = -Math.asin(d.y); return 1; })()`;
+for (let i = 0; i < 4; i++) { await ev(apuntar); await espera(150); }
+await ev(`elegirArma(Math.max(0, ARM.lista.indexOf('PhysicsGun'))); ENT.disparo = true; 1`); await espera(400); // (el gatillo apretado: la agarra y la lleva)
+const ag0 = JSON.parse(await ev(`JSON.stringify({ fis: VER.yo.fis, p: [VER.yo.pos.x, VER.yo.pos.y, VER.yo.pos.z], agarre: !!(ARM.agarre && ARM.agarre.b === VER.yo.b) })`));
+await ev(`JUG.yaw += 0.8; JUG.pitch -= 0.25; 1`); await espera(1200);
+const ag1 = JSON.parse(await ev(`JSON.stringify({ fis: VER.yo.fis, p: [VER.yo.pos.x, VER.yo.pos.y, VER.yo.pos.z], emo: VER.yo.emo })`));
+const mov = Math.hypot(ag1.p[0] - ag0.p[0], ag1.p[1] - ag0.p[1], ag1.p[2] - ag0.p[2]);
+ok(ag0.agarre && ag0.fis === 'agarrada' && ag1.fis === 'agarrada' && mov > 1, 'la pistola de física la agarra y la lleva', { mov: +mov.toFixed(2), emo: ag1.emo });
+await ev(`JUG.tercera = true; 1`); await espera(300); await p.screenshot({ path: D + 'v14_agarrada.png' }); await ev(`JUG.tercera = false; 1`);
+// tirarla: se le da velocidad y se suelta
+await ev(`ENT.disparo = false; soltarAgarre(); VER.yo.b.vel.set(Math.sin(JUG.yaw) * 9, 4, Math.cos(JUG.yaw) * 9); 1`); await espera(300);
+const t1 = JSON.parse(await ev(`JSON.stringify({ fis: VER.yo.fis, v: +VER.yo.b.vel.len().toFixed(1) })`));
+let cae = null; for (let i = 0; i < 40; i++) { await espera(150); cae = JSON.parse(await ev(`JSON.stringify({ fis: VER.yo.fis, alto: VER.yo.piso !== null ? +(VER.yo.pos.y - (pisoBajo(VER.yo.pos, 0.3) ?? 0)).toFixed(2) : null })`)); if (cae.fis === 'libre') break; }
+ok(t1.fis === 'suelta' && cae.fis === 'libre', 'tirada: vuela, cae, rebota y vuelve a flotar', { t1, cae });
+// congelarla en el aire
+for (let i = 0; i < 4; i++) { await ev(apuntar); await espera(150); }
+await ev(`ENT.disparo = true; 1`); await espera(300); await ev(`JUG.pitch -= 0.2; 1`); await espera(500); await ev(`ENT.disparo2 = true; 1`); await espera(200); await ev(`ENT.disparo = false; 1`); await espera(300); // (clic derecho mientras la agarra: queda congelada)
+const c0 = JSON.parse(await ev(`JSON.stringify({ fis: VER.yo.fis, p: [VER.yo.pos.x, VER.yo.pos.y, VER.yo.pos.z] })`)); await espera(2000);
+const c1 = JSON.parse(await ev(`JSON.stringify({ fis: VER.yo.fis, p: [VER.yo.pos.x, VER.yo.pos.y, VER.yo.pos.z] })`));
+ok(c0.fis === 'congelada' && c1.fis === 'congelada' && Math.hypot(c1.p[0] - c0.p[0], c1.p[1] - c0.p[1], c1.p[2] - c0.p[2]) < 0.05, 'congelada (clic derecho): se queda quieta en el aire', c1);
+await ev(`VER.yo.tFis = 0; 1`); await espera(800);
+// la pistola de gravedad la empuja, y los tiros también
+for (let i = 0; i < 4; i++) { await ev(apuntar); await espera(150); }
+const g0 = JSON.parse(await ev(`JSON.stringify([VER.yo.pos.x, VER.yo.pos.z])`)); await ev(`gravPrimario(); 1`); await espera(700);
+const g1 = JSON.parse(await ev(`JSON.stringify({ fis: VER.yo.fis, p: [VER.yo.pos.x, VER.yo.pos.z] })`));
+ok(Math.hypot(g1.p[0] - g0[0], g1.p[1] - g0[1]) > 1.5, 'la pistola de gravedad la empuja', g1);
+for (let i = 0; i < 40 && (await ev(`VER.yo.fis !== 'libre'`)); i++) await espera(150);
+await ev(`verPlan('visitar', 20, { quien: 'yo' }); 1`); await espera(2500); for (let i = 0; i < 4; i++) { await ev(apuntar); await espera(150); }
+const s0 = JSON.parse(await ev(`JSON.stringify([VER.yo.pos.x, VER.yo.pos.z])`)); await ev(`impactoBala(CAM.pos.clone(), CAM.fwd.clone(), DEF_ARMAS[ARM.lista[0]] || {}, 25); 1`); await espera(500);
+const s1 = JSON.parse(await ev(`JSON.stringify({ fis: VER.yo.fis, emo: VER.yo.emo, p: [VER.yo.pos.x, VER.yo.pos.z] })`));
+ok(Math.hypot(s1.p[0] - s0[0], s1.p[1] - s0[1]) > 0.5 && s1.emo === 'enojada', 'un tiro la empuja (y se enoja)', s1);
+for (let i = 0; i < 40 && (await ev(`VER.yo.fis !== 'libre'`)); i++) await espera(150);
+await ev(`verPlan('visitar', 30, { quien: 'yo' }); JUG.yaw = 0; JUG.pitch = 0.05; 1`); await espera(2500); v = await vis();
 // costo por cuadro con y sin ella
 await espera(1500); const msCon = Number(await ev(`TIEMPO.msProm`));
 // ---- charlar: saludo (evento) y pedidos ----
@@ -126,7 +163,7 @@ await ev(`DIA.hora = 13; DIA.aplicada = -1; VER.oscura = 0; 1`); await espera(60
 await ev(`VER.modo = 'libre'; VER.ultCharla = -999; JUG.vel.set(0,0,0); verCallar(VER.yo); VER.yo.falsa = 0; 1`);
 await ev(`verPlan('pasear', 30); VER.plan.dest = vadd(JUG.pos, v3(8, 0, 3)); VER.plan.tDest = 20; 1`);
 const q0 = JSON.parse(await ev(`JSON.stringify([VER.yo.q.x, VER.yo.q.y, VER.yo.q.z, VER.yo.q.w])`)), p0 = JSON.parse(await ev(`JSON.stringify([VER.yo.pos.x, VER.yo.pos.z])`));
-await espera(2500);
+for (let i = 0; i < 20; i++) { await espera(300); const p1 = JSON.parse(await ev(`JSON.stringify([VER.yo.pos.x, VER.yo.pos.z])`)); if (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) > 3) break; }
 const ro = JSON.parse(await ev(`(() => { const I = VER.yo; return JSON.stringify({ suelo: I.suelo, apoyada: I.piso !== null ? +(I.pos.y - I.piso - VER_R).toFixed(3) : null, rueda: I.rueda, q: [I.q.x, I.q.y, I.q.z, I.q.w], p: [I.pos.x, I.pos.z], plan: VER.plan && VER.plan.n }); })()`));
 const giro = 2 * Math.acos(Math.min(1, Math.abs(q0[0] * ro.q[0] + q0[1] * ro.q[1] + q0[2] * ro.q[2] + q0[3] * ro.q[3]))) * 180 / Math.PI, anduvo = Math.hypot(ro.p[0] - p0[0], ro.p[1] - p0[1]);
 ok(ro.suelo && Math.abs(ro.apoyada) < 0.06 && anduvo > 2 && giro > 60, 'sola: pasea rodando por el piso (apoyada, gira como pelota)', { ...ro, q: undefined, anduvo: +anduvo.toFixed(2), giro: Math.round(giro) });
@@ -154,7 +191,7 @@ await ev(`__oir('hola, ¿cómo andan todos?', true); 1`); await espera(1500);
 ok(Number(await ev(`VER.hist.length`)) === nH && !(await ev(`VER.pensando`)), 'si no le dicen su nombre, no hace nada');
 await ev(`__oir('che Verity', false); 1`); await espera(400);
 const des = JSON.parse(await ev(`JSON.stringify({ globo: VER.yo.burbTx, plan: VER.plan && VER.plan.n })`));
-ok(des.globo === '…' && des.plan === 'acompañar', '"che Verity": se despierta, viene y escucha', des);
+ok(des.globo === '…' && des.plan === 'atender', '"che Verity": se despierta, viene y escucha', des);
 await ev(`__oir('che Verity poneme dos pelotas', true); 1`);
 for (let i = 0; i < 150 && (await ev(`VER.pensando || VER.hist.length < ${nH + 2}`)); i++) await espera(200);
 await espera(2000);
