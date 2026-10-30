@@ -1,6 +1,6 @@
 // ---------------- Definitive RezoBox: los menús propios (multijugador, crear server y personajes) ----------------
 // Reemplazan a los del Hypper original (el LobbyCanvas, que queda armado pero nunca se muestra). Van dentro del inicio
-// (#rbInicio) con el mismo tema: la lista de servers (los oficiales, los creados y los que tienen gente, con buscador,
+// (#rbInicio) con los mismos paneles claros: la lista de servers (los oficiales, los creados y los que tienen gente, con buscador,
 // clave y borrar los tuyos), crear un server (nombre, clave, modo, mapa, PvP, RPG, nextbots y topes) y los personajes
 // (skins y gorros) con el tuyo en 3D al costado, que se gira arrastrando.
 const RBM = { q: '', clave: null, pjTab: 'skin', arr: null };
@@ -13,18 +13,6 @@ function rbAviso(t) {
   a.textContent = t; a.classList.add('ve'); clearTimeout(RBM.tAviso); RBM.tAviso = setTimeout(() => a.classList.remove('ve'), 2600);
 }
 const rbVisible = () => !!(RB.el && !RB.el.classList.contains('oc'));
-
-// ---------------- la tarjeta del costado en el inicio: quién juega ahora ----------------
-function rbLadoDibujar() {
-  const L = RB.el && RB.el.querySelector('.rbLado'); if (!L) return;
-  const S = typeof listaSalas === 'function' ? listaSalas() : [], jug = S.reduce((a, e) => a + e.j.length, 0), top = S.find((e) => e.j.length);
-  L.innerHTML = `<div class="rbTarj"><div class="rbTarjT">${glifo('mundo')} ${esc(T('mp.ahora'))}</div>
-      <div class="rbCifras"><span><b>${jug}</b>${esc(T('mp.jug'))}</span><span><b>${S.length}</b>${esc(T('mp.srv'))}</span></div>
-      ${top ? `<button class="rbTop" data-rb="mpEntrar:${esc(top.S.id)}"><i style="background-image:url(${icono(MAPA_ICONO[top.S.m] || MAPA_ICONO.FlatGrass)})"></i><span><b dir="auto"></b><small>${top.j.length} ${esc(T('mp.jug'))}</small></span>${glifo('jugar')}</button>` : ''}
-      <button class="rbBtnG rbAncho" data-rb="multi">${glifo('gente')} ${esc(T(top ? 'mp.mejor' : 'mp.ver'))}</button></div>
-    <div class="rbTarj rbTarjV"><div class="rbTarjT">${icoHTML('ico:verity')} Verity</div><p dir="auto">${esc(T('v.card'))}</p></div>`;
-  if (top) L.querySelector('.rbTop b').textContent = top.S.n;
-}
 
 // ---------------- multijugador: la lista de servers ----------------
 function panelMulti(P) {

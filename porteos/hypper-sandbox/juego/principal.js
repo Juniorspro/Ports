@@ -238,7 +238,7 @@ function cuadro(ahora) {
   }
 }
 // el lobby del menú: fondo crema de la cámara del juego y, en la tienda, el personaje con la luz de la escena
-const LOBBY_LUZ = { sol: v3(-0.322, 0.765, -0.557), solCol: [1, 0.957, 0.839], amb: [0.5, 0.49, 0.5], fondo: [0.055, 0.065, 0.11] };
+const LOBBY_LUZ = { sol: v3(-0.322, 0.765, -0.557), solCol: [1, 0.957, 0.839], amb: [0.44, 0.43, 0.42], fondo: [0.945, 0.925, 0.875] };
 function dibujarMenu() {
   const gl = R.gl, W = R.cv.width, H = R.cv.height, F = LOBBY_LUZ.fondo;
   R.cuadro = (R.cuadro || 0) + 1;

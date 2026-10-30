@@ -162,6 +162,7 @@ function abrirAjustes(desde) {
   <div class="fila">Distancia <input type="range" id="aD" min="100" max="1200" step="50"><span id="aDv"></span></div>
   <div class="fila">${Lc('Sensitivity', 'Sensibilidad')} <input type="range" id="aS" min="2" max="40" step="1"></div>
   <div class="fila">Volumen <input type="range" id="aV" min="0" max="100" step="5"></div>
+  ${ENT.tactil || COARSE ? `<div class="fila">${esc(T('aj.hud'))} <input type="range" id="aH" min="60" max="120" step="5"><span id="aHv"></span></div>` : ''}
   <div class="fila"><label><input type="checkbox" id="aC"> Contorno (resaltar lo que apuntás)</label></div>
   <div class="fila"><label><input type="checkbox" id="aU"> ${Lc('HideUI', 'Ocultar UI')}</label></div>
   <div class="fila"><label><input type="checkbox" id="aF"> Mostrar FPS</label></div>
@@ -169,14 +170,18 @@ function abrirAjustes(desde) {
   $('aM').value = PREFS.motor === 'webgl2' ? 'webgl2' : 'webgl1';
   $('aG').value = PREFS.gfx; $('aSo').value = String(PREFS.sombras); $('aPo').value = PREFS.post; $('aTq').value = PREFS.texQ;
   $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI; $('aDin').checked = PREFS.resDin !== false;
-  const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; };
+  if ($('aH')) $('aH').value = PREFS.hud || 80;
+  const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; if ($('aH')) $('aHv').textContent = $('aH').value + '%'; };
   act();
   $('aG').onchange = () => { PREFS.gfx = $('aG').value; const p = PERFILES[PREFS.gfx]; if (p) { PREFS.res = p.res; PREFS.lejos = p.lejos; $('aR').value = p.res; $('aD').value = p.lejos; } act(); };
   $('aR').oninput = $('aD').oninput = act;
+  // el tamaño de los controles se ve al moverlo
+  if ($('aH')) $('aH').oninput = () => { act(); PREFS.hud = +$('aH').value; hudDisponer(); };
   $('aOk').onclick = () => {
     const texAntes = GFX.texMax;
     PREFS.res = +$('aR').value; PREFS.lejos = +$('aD').value; PREFS.sens = +$('aS').value; PREFS.vol = +$('aV').value; PREFS.fps = $('aF').checked;
     PREFS.sombras = $('aSo').value; PREFS.post = $('aPo').value; PREFS.texQ = $('aTq').value; PREFS.contorno = $('aC').checked; PREFS.ocultarUI = $('aU').checked; PREFS.resDin = $('aDin').checked;
+    if ($('aH')) PREFS.hud = +$('aH').value;
     const motorAntes = PREFS.motor === 'webgl2' ? 'webgl2' : 'webgl1'; PREFS.motor = $('aM').value;
     guardarPrefs();
     // cambiar de motor necesita empezar de nuevo (el contexto de WebGL no se puede cambiar)
@@ -191,7 +196,7 @@ function abrirAjustes(desde) {
 function hudActualizar(dt) {
   if (UI.avisoT > 0) { UI.avisoT -= dt; if (UI.avisoT <= 0) $('aviso').classList.remove('ve'); }
   const v = Math.max(0, Math.round(JUG.vida));
-  if (hudActualizar.v !== v) { hudActualizar.v = v; $('vidaN').textContent = v; $('vidaB').style.width = v * 1.5 + 'px'; }
+  if (hudActualizar.v !== v) { hudActualizar.v = v; $('vidaN').textContent = v; $('vidaB').style.width = Math.max(0, Math.min(100, v / (JUG.vidaMax || 100) * 100)) + '%'; }
   let ch = ''; for (const c of CHAT) { c.v -= dt; if (c.v > 0) ch += `<div>${c.t.replace(/[<>&]/g, '')}</div>`; }
   if (hudActualizar.ch !== ch) { hudActualizar.ch = ch; $('chat').innerHTML = ch; }
 }

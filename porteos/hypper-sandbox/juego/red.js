@@ -99,7 +99,7 @@ function listaSalas() {
   return [...M.values()].sort((a, b) => b.j.length - a.j.length || a.S.of - b.S.of || a.S.n.localeCompare(b.S.n));
 }
 // la lista se dibuja en el inicio: en el panel de multijugador y en la tarjeta de quién juega ahora (rbmenus.js)
-function listaContadores() { if (typeof rbVisible === 'function' && rbVisible() && !RB.panel) rbLadoDibujar(); }
+function listaContadores() {} // (las cuentas van en el título del panel Multijugador: mpDibujar)
 function listaDibujar() {
   listaContadores();
   if (typeof RB === 'undefined' || RB.panel !== 'multi') return;

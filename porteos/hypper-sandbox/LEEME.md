@@ -21,11 +21,16 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
 ```
 
 - **Definitive RezoBox** (nuestra versión, antes HypperX RezoBox): el logo es la R de Rezona + "definitive rezobox"
-  (`juego/logo_dr.webp`, Nunito Black como el logo anterior). Menús propios, oscuros, sin el menú de Hypper (que sigue
-  armado abajo pero nunca se muestra): `inicio.js` (Jugar, Multijugador, Mods y mapas, Crear un mapa, Personajes,
-  Opciones; al costado cuánta gente hay en línea, el server más lleno y Verity) y `rbmenus.js` (Multijugador: lista con
-  buscador, entrar, clave en una ventanita, crear server con nombre/clave/modo/mapa, borrar los tuyos; Personajes: skins y
-  gorros con el personaje en 3D a la derecha, se gira arrastrando). La primera vez pide **idioma** (14) y **nombre**.
+  (`juego/logo_dr.webp`, Nunito Black como el logo anterior). `inicio.js` es el inicio con el aspecto del menú de
+  Garry's Mod (menú de texto, escenas de fondo en `PAQUETE/fondos/*.jpg`, fuera del repo, botoncitos abajo y paneles
+  claros); el menú de Hypper sigue armado abajo pero nunca se muestra. `rbmenus.js`: Multijugador (lista con buscador,
+  entrar, clave en una ventanita, crear server con nombre/clave/modo/mapa, borrar los tuyos) y Personajes (skins y
+  gorros con el personaje en 3D a la derecha, se gira arrastrando), con los mismos paneles. La primera vez pide
+  **idioma** (14) y **nombre**.
+- **Controles en el celular**: en un aparato sólo táctil ya arrancan los de la pantalla (antes primero se veía la fila
+  de la compu con las teclas). Tamaño elegible en Ajustes (60 a 120 %, de entrada 80 %: los del Hypper quedaban
+  grandes); se achican en el mismo lugar (el centro de cada botón no se mueve) y la barra de armas, la vida, la palanca
+  y el estado de Verity siguen la misma escala.
 - **Pantalla de carga estilo Garry's Mod** (en `template.html`, antes del juego y sin depender de él): capturas del juego
   de fondo que se van fundiendo (`PAQUETE/carga/N_rb_mapa.jpg`, fuera del repo; `armar.py` las mete), el logo, consejos,
   la consola con cada paso terminado y lo que cargó (tiempos y números reales: archivos, MB, modelos, animaciones,

@@ -63,6 +63,9 @@ function pantallaIniciar() {
 const TOQ = { palanca: null, mira: null };
 function tactilIniciar() {
   const zona = $('toque'), pal = $('palanca'), bola = $('palbola');
+  // en un teléfono o tablet (sólo táctil) los controles de la pantalla ya desde el principio, sin esperar el primer toque
+  // (si no, primero se veía la fila de la compu con las teclas)
+  if (COARSE && !matchMedia('(pointer: fine)').matches) { ENT.tactil = true; document.body.classList.add('tactil'); }
   const fin = (id) => {
     if (TOQ.palanca && TOQ.palanca.id === id) { TOQ.palanca = null; ENT.x = ENT.y = 0; bola.style.transform = ''; pal.classList.remove('activa'); }
     if (TOQ.mira && TOQ.mira.id === id) TOQ.mira = null;
@@ -72,7 +75,7 @@ function tactilIniciar() {
     for (const t of e.changedTouches) {
       if (tX(t) < VW() * 0.4 && !TOQ.palanca) {
         TOQ.palanca = { id: t.identifier, x: tX(t), y: tY(t) };
-        pal.style.left = tX(t) - 60 + 'px'; pal.style.top = tY(t) - 60 + 'px'; pal.classList.add('activa');
+        const m = (HUD.pal || 120) / 2; pal.style.left = tX(t) - m + 'px'; pal.style.top = tY(t) - m + 'px'; pal.classList.add('activa');
       } else if (!TOQ.mira) TOQ.mira = { id: t.identifier, x: tX(t), y: tY(t) };
     }
     e.preventDefault();
@@ -80,8 +83,9 @@ function tactilIniciar() {
   zona.addEventListener('touchmove', (e) => {
     for (const t of e.changedTouches) {
       if (TOQ.palanca && t.identifier === TOQ.palanca.id) {
-        let dx = (tX(t) - TOQ.palanca.x) / 50, dy = (tY(t) - TOQ.palanca.y) / 50; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; }
-        ENT.x = dx; ENT.y = -dy; ENT.correr = l > 1.6; bola.style.transform = `translate(${dx * 45}px,${dy * 45}px)`;
+        // (el radio y el recorrido de la bolita siguen el tamaño de la palanca: 50 y 45 con la de 120)
+        const P = HUD.pal || 120; let dx = (tX(t) - TOQ.palanca.x) / (P * 0.42), dy = (tY(t) - TOQ.palanca.y) / (P * 0.42); const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; }
+        ENT.x = dx; ENT.y = -dy; ENT.correr = l > 1.6; bola.style.transform = `translate(${dx * P * 0.375}px,${dy * P * 0.375}px)`;
       } else if (TOQ.mira && t.identifier === TOQ.mira.id) {
         ENT.dx += (tX(t) - TOQ.mira.x) * (ENT.sensT / ENT.sens); ENT.dy += (tY(t) - TOQ.mira.y) * (ENT.sensT / ENT.sens);
         TOQ.mira.x = tX(t); TOQ.mira.y = tY(t);

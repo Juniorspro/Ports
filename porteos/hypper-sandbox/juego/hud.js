@@ -59,15 +59,22 @@ function hudIniciar() {
   addEventListener('resize', () => setTimeout(hudDisponer, 50));
   hudDisponer();
 }
-// la ubicación de cada botón (en el celular), escalada como el CanvasScaler del juego
+// el tamaño de los controles en el celular (Ajustes: 60 a 120 %; de entrada 80 %, el del Hypper quedaba grande)
+const hudTam = () => Math.min(1.2, Math.max(0.6, (+PREFS.hud || 80) / 100));
+// la ubicación de cada botón (en el celular), escalada como el CanvasScaler del juego y por el tamaño elegido
+// (--hk: la misma escala para lo que no se ubica acá, como la barra de armas; 1 = un teléfono de 800×360 al 100 %)
 function hudDisponer() {
-  const W = VW(), H = VH(), k = Math.sqrt((W / 1280) * (H / 720)); HUD.k = k; HUD.w = W; HUD.h = H;
+  const W = VW(), H = VH(), f = hudTam(), kb = Math.sqrt((W / 1280) * (H / 720)), k = kb * f; HUD.k = k; HUD.f = f; HUD.w = W; HUD.h = H;
+  document.body.style.setProperty('--hk', (k / 0.559).toFixed(3)); HUD.pal = Math.round(Math.max(84, Math.min(150, 230 * k)));
+  const pal = $('palanca'), bola = $('palbola');
+  if (pal && bola) { const b = Math.round(HUD.pal * 0.42); pal.style.width = pal.style.height = HUD.pal + 'px'; Object.assign(bola.style, { width: b + 'px', height: b + 'px', left: (HUD.pal - b) / 2 - 2 + 'px', top: (HUD.pal - b) / 2 - 2 + 'px' }); }
   const tactil = document.body.classList.contains('tactil'); HUD.tac = tactil;
   HUD.n = HUD_TACTIL.reduce((a, r) => a + (document.querySelector(r[0]) ? 1 : 0), 0);
   for (const [sel, ax, ay, x, y, s] of HUD_TACTIL) {
     const e = document.querySelector(sel); if (!e) continue;
     if (!tactil && !e.classList.contains('bt-t')) { e.style.left = e.style.top = e.style.width = e.style.height = ''; continue; }
-    const t = s * k, cx = ax * W + x * k, cy = H - (ay * H + y * k);
+    // (más chicos en el mismo lugar: el centro de cada botón no se mueve, así no se pegan a los bordes)
+    const t = s * k, cx = ax * W + x * kb, cy = H - (ay * H + y * kb);
     Object.assign(e.style, { left: (cx - t / 2).toFixed(1) + 'px', top: (cy - t / 2).toFixed(1) + 'px', width: t.toFixed(1) + 'px', height: t.toFixed(1) + 'px', right: 'auto', bottom: 'auto' });
   }
 }
@@ -76,7 +83,7 @@ function hudDisponer() {
 // o el tamaño de la pantalla, se vuelven a ubicar; si no, quedaban todos amontonados en la esquina)
 function hudPaso() {
   const tactil = document.body.classList.contains('tactil');
-  if (tactil !== HUD.tac || HUD.w !== VW() || HUD.h !== VH() || (++HUD.c % 15 === 0 && HUD_TACTIL.reduce((a, r) => a + (document.querySelector(r[0]) ? 1 : 0), 0) !== HUD.n)) hudDisponer();
+  if (tactil !== HUD.tac || HUD.w !== VW() || HUD.h !== VH() || HUD.f !== hudTam() || (++HUD.c % 15 === 0 && HUD_TACTIL.reduce((a, r) => a + (document.querySelector(r[0]) ? 1 : 0), 0) !== HUD.n)) hudDisponer();
   if (!tactil) return;
   const arma = ARM.lista[ARM.i] || '', veh = !!JUG.vehiculo, usar = !!($('usarTxt').textContent || (!veh && entidadCerca()));
   if (arma !== HUD.arma || veh !== HUD.veh || usar !== HUD.usar) {
