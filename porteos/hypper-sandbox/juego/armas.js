@@ -167,7 +167,7 @@ function dibujarProyectiles() {
 // ---------------- explosiones y daño ----------------
 function explosion(p, radio, dan) {
   if (MODS.explosion && MODS.explosion !== 1 && !explosion.remota) { radio *= MODS.explosion; dan *= MODS.explosion; }
-  sonar('GrenadeExplode', p, 1.4);
+  sonar('GrenadeExplode', p, 1.4); verExplosion(p, radio);
   if (!explosion.remota) redExplosion(p, radio, dan);
   efectoExplosion(p);
   for (const b of PH.bodies) {

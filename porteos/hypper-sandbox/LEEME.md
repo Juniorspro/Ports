@@ -119,6 +119,26 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   rayo, grita "no, no, no" (voz generada), ve todo rojo y se come el golpe final (con PvP). 20 s de espera entre
   definitivas; el que la tira no se lastima con sus explosiones. Por la red: `cic` con `u` (empieza), `d` (dirección y
   punta del rayo, 10 por segundo), `v` (agarró a alguien), `l` (láser suave) y `fin`; las explosiones van como siempre.
+- **Mod Verity** (`verity.js`, oficial): una compañera con IA. Esfera amarilla con cara (ojitos de punto y sonrisa
+  grande; la cara es un casquete apenas más grande que la esfera con una textura de canvas que se redibuja con el gesto,
+  la boca y la mirada: 14 caras). Tiene su propia cabeza: sola pasea rodando por el piso (gira como una pelota, se aplasta
+  al caer), va a mirar autos, props, entidades y jugadores, persigue pelotas y las patea, saluda a los que llegan, se
+  duerme si se cansa, piensa en voz alta cada tanto y vuelve con vos si te movés o la llamás. Ocho animaciones en su
+  panel (rodar, rebotar, voltereta, bailar, girar, amor, mareo, dormir). Se le habla escribiendo (tecla Y o su botón),
+  apretando el botón (micrófono) o por el chat ("Verity, ..."); además escucha siempre el micrófono (reconocimiento de voz
+  del navegador, continuo) pero sólo le hace caso a "Hey/Che/Oye Verity" (en muchos idiomas: el nombre se compara por
+  distancia de edición, con o sin saludo justo antes). Contesta en el idioma en que le hablan, con voz 3D (la boca sigue
+  el volumen) y hace acciones de una lista cerrada (construir con cajas, poner props, la hora, música y video de YouTube,
+  emotes, seguir, quedarse, limpiar). Se acuerda de vos en este aparato (`rb_verity`). De noche se pone misteriosa (sin
+  sustos; se apaga). El cerebro: la tienda (`/api/verity`, Workers AI con Llama 3.1 8B; el prompt y la revisión de la
+  respuesta están en `formato.js`, iguales en la tienda y en el juego) y su voz (`/api/verity/voz`, MeloTTS en WAV de
+  22 kHz con caché); tope de 300 charlas y 500 frases por persona por día y 9000 neuronas por día en total (la cuota
+  gratis es 10 000), sin cupo contesta 503. Sin la tienda, el juego piensa con un modelo público sin clave
+  (Pollinations, una respuesta cada 30 s por conexión: los eventos se contestan con gestos para no gastar ese turno) y
+  habla con la voz del navegador. En la sala la tuya viaja en tu estado (`vr`: posición, giro, cara, animación); lo que
+  dice va en `verd` y otro jugador le habla con `verq` (por el chat o con la voz, si tiene el micrófono de la sala). Pruebas:
+  `verity.mjs`, `red_verity.mjs` y `verity_publica.mjs` (con `TIENDA_SIM` = carpeta con el token y la cuenta de Cloudflare,
+  el worker corre de verdad en Node con D1 y caché de mentira).
 - **Skins riggeados de verdad** (`herramientas/skin_meshy.py`): el modelo 3D se riggea aparte (esqueleto tipo mixamo con
   sus pesos) y se lleva a la pose de enlace del Hero girando cada hueso con sus propios pesos, sin estirar la malla (lo
   que dejaba los brazos "espaguetizados"); las articulaciones del juego van donde quedan en esa malla y la cadera a la
@@ -212,7 +232,7 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   músculos → huesos), `red` (MQTT: salas, lista de servidores por presencia retenida), `entrada` (incluye el
   giro a horizontal), `ui`, `menu` (dibuja el LobbyCanvas exportado con HTML), `idiomas`, `modapi` (mods con código),
   `voz`, `geo` (formas propias), `entidades`, `pantalla` (pantalla de YouTube), `nativos` (mods oficiales), `ciclope` (mod
-  Cíclope), `animedit` (editor de animaciones), `emotes`, `hud` (controles), `idiomas3` (textos de la versión 8),
+  Cíclope), `verity` (mod Verity), `animedit` (editor de animaciones), `emotes`, `hud` (controles), `idiomas3` (textos de la versión 8),
   `creador`, `smods` (mods del server), `inicio` (RezoBox), `principal`.
 - Pruebas: `pruebas/escena.mjs` (guion de pasos), `dbg.mjs` (corre un .js en la página: `fisica_choques.js`,
   `vehiculos.js`, `pies.js`, `camara.js`, `marcas.js` devuelven números), `red2.mjs` (tres jugadores, broker local

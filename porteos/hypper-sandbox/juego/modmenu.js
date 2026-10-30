@@ -6,7 +6,7 @@
 // de video y los de la gente que ponen props). Ésos no se prenden: están siempre en el menú de props, sección Mods (tocar
 // uno lo abre ahí). El micrófono de la sala es otro botón chico arriba.
 const MODM = { boton: null, el: null, abierto: false, q: '', tFz: 0, tab: 'juego' };
-const NAT_TECLA = { volar: 'G', ragdoll: 'X', scp: 'J', piano: 'K', radio: 'L', ciclope: 'H' };
+const NAT_TECLA = { volar: 'G', ragdoll: 'X', scp: 'J', piano: 'K', radio: 'L', ciclope: 'H', verity: 'Y' };
 addEventListener('pointerdown', (e) => { if (MODM.abierto && !(e.target.closest && e.target.closest('#modMenu, .modmBt'))) modMenuCerrar(); }, true);
 function modMenuHay() { return JUEGO.estado === 'juego' && !CREA.on; }
 function modMenuBoton() {
@@ -68,6 +68,7 @@ function modMenuLista() {
   let u = '';
   for (const k of ['volar', 'ragdoll', 'scp']) if (NAT.mods.has(k)) u += fila(icoHTML('ico:' + k), T(k + '.n'), NAT_TECLA[k], sw, 'nat:' + k, k === 'volar' ? NAT.volando : k === 'ragdoll' ? NAT.rag : NAT.scp);
   if (NAT.mods.has('ciclope')) u += fila(icoHTML('ico:ciclope'), T('ciclope.n'), NAT_TECLA.ciclope, `<span class="mmMod" dir="auto">${esc(T('cic.ayuda'))}</span>`, '');
+  if (NAT.mods.has('verity')) u += fila(icoHTML('ico:verity'), T('verity.n'), NAT_TECLA.verity, `<span class="mmMod" dir="auto">${esc(T('ver.ayuda'))}</span>`, 'ver:panel');
   // los botones de los mods de código ("ico:nombre" muestra la imagen)
   for (const [k, b] of MODAPI.botones) {
     const t = String(b.t || ''), ico = /^ico:[a-z_]{2,20}$/.test(t) ? icoHTML(t) : icoHTML(b.M.icono || 'ico:mod'), nom = /^ico:/.test(t) ? b.M.nombre : sinEmoji(t) || b.M.nombre;
@@ -106,6 +107,7 @@ function modMenuAccion(k) {
     if (v === 'espalda') { radioEspalda(e, !e.prm.ll); modMenuLista(); return; }
     if (v === 'emisora') { modMenuCerrar(); radioAbrir(e); return; }
   }
+  if (a === 'ver') { modMenuCerrar(); verPanel(true); return; }
   if (a === 'api') { const b = MODAPI.botones.get(v); if (b) modapiA(b.M, 'boton', { id: b.id }); }
 }
 // el micrófono de la sala: botón chico arriba (sólo en una sala)

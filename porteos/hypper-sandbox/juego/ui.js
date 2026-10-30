@@ -134,7 +134,7 @@ function abrirSpawn() { UI.abierto = 'spawn'; $('spawn').classList.remove('oc');
 function cerrarPaneles() {
   UI.abierto = null; if (typeof MODM !== 'undefined' && MODM.abierto) modMenuCerrar();
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
-  for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
+  for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan', 'verPan']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
   $('chatIn').classList.add('oc');
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }
@@ -145,7 +145,7 @@ const CHAT = [];
 function chatMostrar(quien, t) {
   CHAT.push({ t: `${quien}: ${t}`, v: 12 }); if (CHAT.length > 8) CHAT.shift();
 }
-function chatEnviar(t) { UI.abierto = null; chatMostrar(PREFS.nombre, t); if (typeof redChat === 'function') redChat(t); }
+function chatEnviar(t) { UI.abierto = null; chatMostrar(PREFS.nombre, t); if (typeof redChat === 'function') redChat(t); verChat(t); }
 function abrirAjustes(desde) {
   const c = $('ajustesCaja');
   const sel = (id, ops) => `<select id="${id}">${ops.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>`;

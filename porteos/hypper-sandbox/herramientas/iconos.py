@@ -106,6 +106,10 @@ ic('animacion', 'violeta', '''<rect x="8" y="14" width="48" height="36" rx="5" f
 <g fill="{D}"><rect x="12" y="15.5" width="4" height="3" rx="1"/><rect x="21" y="15.5" width="4" height="3" rx="1"/><rect x="30" y="15.5" width="4" height="3" rx="1"/><rect x="39" y="15.5" width="4" height="3" rx="1"/><rect x="48" y="15.5" width="4" height="3" rx="1"/>
 <rect x="12" y="45.5" width="4" height="3" rx="1"/><rect x="21" y="45.5" width="4" height="3" rx="1"/><rect x="30" y="45.5" width="4" height="3" rx="1"/><rect x="39" y="45.5" width="4" height="3" rx="1"/><rect x="48" y="45.5" width="4" height="3" rx="1"/></g>
 <circle cx="25" cy="27" r="3" fill="{D}"/><path fill="none" stroke="{D}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="M25 30v7l-4 5M25 37l4 5M19 33l6-2 7-4"/><path fill="#ffd34d" d="M40 26l6 6-6 6-6-6z"/>''')
+ic('verity', 'noche', '''<circle cx="32" cy="33" r="25" fill="#ffd21f" opacity=".18"/><circle cx="32" cy="33" r="20.5" fill="#ffd21f"/>
+<path fill="none" stroke="#fff6c4" stroke-width="3" stroke-linecap="round" opacity=".8" d="M17.5 27.5a15 15 0 0 1 8-9"/>
+<ellipse cx="25" cy="30" rx="3" ry="4.8" fill="#2b1c04"/><ellipse cx="39" cy="30" rx="3" ry="4.8" fill="#2b1c04"/><circle cx="26" cy="28.4" r="1.1" fill="#fff"/><circle cx="40" cy="28.4" r="1.1" fill="#fff"/>
+<path fill="#2b1c04" d="M23.5 37.5q8.5 9 17 0q-8.5 3.6-17 0z"/><g fill="#ffd21f"><path d="M52 9l1.3 3.2 3.2 1.3-3.2 1.3L52 18l-1.3-3.2-3.2-1.3 3.2-1.3zM10 46l.9 2.2 2.2.9-2.2.9L10 52.2l-.9-2.2-2.2-.9 2.2-.9z"/></g>''')
 os.makedirs(OUT, exist_ok=True)
 for n, (c, cuerpo) in I.items():
     svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="14" fill="%s"/>' % c

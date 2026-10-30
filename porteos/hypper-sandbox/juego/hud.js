@@ -32,7 +32,7 @@ const HUD_SVG = {
 const hudIco = (n) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${HUD_SVG[n] || ''}</svg>`);
 // [selector, ancla x, ancla y, x, y, tamaño] en la referencia 1280×720 (y para arriba)
 const HUD_TACTIL = [
-  ['[data-btn=pausa]', 0, 1, 46, -44.9, 75], ['.modmBt', 0, 1, 151.8, -46.1, 75], ['#vozBt', 0, 1, 257.7, -46.2, 75], ['[data-btn=chat]', 0, 1, 46.6, -137.6, 75],
+  ['[data-btn=pausa]', 0, 1, 46, -44.9, 75], ['.modmBt', 0, 1, 151.8, -46.1, 75], ['.smBt', 0, 1, 257.7, -46.2, 75], ['#vozBt', 0, 1, 363.6, -46.2, 75], ['#verBt', 0, 1, 469.5, -46.2, 75], ['[data-btn=chat]', 0, 1, 46.6, -137.6, 75],
   ['[data-btn=menu]', 0, 0.5, 46, 42.8, 75],
   ['#armaAct', 1, 1, -53, -53, 100], ['[data-btn=camara]', 1, 1, -209, -50, 75], ['[data-btn=emotes]', 1, 1, -332.8, -50, 75],
   ['#bdisparo', 1, 0.5, -207, -62, 124], ['#bdisp2', 1, 0.5, -124, 27.9, 70], ['#brecargar', 1, 0.5, -124, 27.9, 70], ['#brotar', 1, 0.5, -86.5, -62, 70],

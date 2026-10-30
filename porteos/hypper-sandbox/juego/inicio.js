@@ -16,7 +16,7 @@ const OFICIALES = [['goku', 'ico:energia', ['personajes', 'diversion'], { skin: 
   // nativos: suman un botón al HUD (nativos.js y entidades.js)
   ['volar', 'ico:volar', ['jugabilidad', 'diversion'], {}, 'volar'], ['ragdoll', 'ico:ragdoll', ['fisica', 'diversion', 'pvp'], {}, 'ragdoll'], ['scp', 'ico:scp', ['personajes', 'diversion'], {}, 'scp'],
   ['piano', 'ico:piano', ['diversion', 'construccion'], {}, 'piano'], ['radio', 'ico:radio', ['diversion'], {}, 'radio'], ['pantalla', 'ico:pantalla', ['diversion', 'construccion'], {}, 'pantalla'],
-  ['ciclope', 'ico:ciclope', ['personajes', 'diversion', 'pvp'], { skin: 'Ciclope' }, 'ciclope']]
+  ['ciclope', 'ico:ciclope', ['personajes', 'diversion', 'pvp'], { skin: 'Ciclope' }, 'ciclope'], ['verity', 'ico:verity', ['personajes', 'diversion', 'aventura'], {}, 'verity']]
   .map(([id, icono, etiquetas, efectos, nativo]) => Object.assign(validarRB({ formato: 'rezobox-mod', nombre: id + ' (RezoBox)', autor: 'RezoBox', icono, etiquetas, efectos }), { id, oficial: true, nativo }));
 // el mapa oficial: Mega rampa en Pasto plano (rampa gigante desde el cielo, autos para elegir arriba con su botón)
 function mapaMegaRampa() {

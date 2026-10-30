@@ -259,7 +259,7 @@ function redPaso(dt) {
   if (t - RED.ultE > 0.1) {
     const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits();
     const e = { n: PREFS.nombre, k: J.skinRol || J.skinMod || PREFS.skin, h: PREFS.gorro, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
-      e: JUG.cuerpo && JUG.cuerpo.emote || 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0 };
+      e: JUG.cuerpo && JUG.cuerpo.emote || 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0, vr: verRedEstado() };
     const s = JSON.stringify(e);
     if (s !== RED.eAnt || t - RED.ultE > 1) { publicar('e', e); RED.eAnt = s; RED.ultE = t; }
   }
@@ -329,6 +329,7 @@ function recibirEstado(d) {
   R2.veh = Array.isArray(d.w) ? { k: String(d.w[0]), a: d.w[1] | 0 } : null;
   R2.up = Array.isArray(d.u) ? v3(num(d.u[0], -1, 1, 0), num(d.u[1], -1, 1, 1), num(d.u[2], -1, 1, 0)).norm() : null;
   R2.tag.style.color = typeof d.c === 'string' && /^#[0-9a-fA-F]{6}$/.test(d.c) ? d.c : '';
+  verRemoto(R2, d.vr); // (su Verity, si la tiene)
 }
 // nombre arriba del jugador con los íconos de los mods que usa (se rehace sólo si cambió)
 function etiquetaRemota(R2) {
@@ -417,6 +418,7 @@ function recibirHecho(d) {
   } else if (d.k === 'ent' || d.k === 'entb' || d.k === 'radio' || d.k === 'entp') { entidadHecho(d);
   } else if (d.k === 'jalar') { natRed(d);
   } else if (d.k === 'cic') { cicRed(d);
+  } else if (d.k === 'verd' || d.k === 'verq') { verRed(d);
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
   } else if (d.k === 'dano' && d.to === RED.ID) {
     if (SALA && !SALA.pvp) return;

@@ -5,9 +5,12 @@
 // leyendo la página de resultados; las búsquedas quedan en caché una hora.
 // Y emisoras de radio por internet (Radio Browser) para que la radio suene en 3D: /api/radio busca, /api/radio/u/ID da la
 // dirección del audio y /api/radio/play/ID lo pasa con permiso de otro sitio (sólo emisoras de esa lista, nunca cualquier URL).
+// Verity (la compañera con IA del juego): /api/verity piensa (Workers AI) y /api/verity/voz habla (MeloTTS), gratis para
+// todos con un tope por persona y otro por día para no pasar la cuota gratis de la cuenta; sin cuota contesta 503 y el
+// juego piensa con un modelo público (Pollinations) desde la conexión de cada jugador; la voz la pone el navegador.
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
 const json = (o, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
-import { validarRB as validar, ETIQUETAS_RB as ETIQUETAS, MAPAS_BASE_RB } from './formato.js';
+import { validarRB as validar, ETIQUETAS_RB as ETIQUETAS, MAPAS_BASE_RB, verityMensajes, verityRespuesta, VERITY_VOCES } from './formato.js';
 const texto = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 
 async function huella(s) { const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))); return [...h].map((b) => b.toString(16).padStart(2, '0')).join(''); }
@@ -73,6 +76,69 @@ async function estacion(id) {
   const d = estOk(x) ? { u: x.url_resolved, n: texto(x.name, 80) } : { u: '', n: '' };
   await c.put(ck, new Response(JSON.stringify(d), { headers: { 'Cache-Control': 'public, max-age=3600' } }));
   return d;
+}
+
+// ---------------- Verity: cerebro y voz ----------------
+// Cuota gratis de Workers AI: 10 000 "neuronas" por día (se reinicia a las 0 UTC). Cada charla gasta ~6 y cada frase
+// hablada ~2: se lleva la cuenta en D1 y se para a las 9000 (después el juego usa el modelo público, que limita por
+// conexión: si lo llamara este servidor, todos compartirían un solo cupo). Por persona (IP con sal): 300 charlas y
+// 500 frases por día.
+const VER_MODELO = '@cf/meta/llama-3.1-8b-instruct-fp8-fast', VER_TOPE = 9000, VER_CHARLAS = 300, VER_FRASES = 500;
+let IA_TABLA = false;
+const hoy = () => new Date().toISOString().slice(0, 10);
+async function iaTabla(env) {
+  if (IA_TABLA) return;
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS ia_uso (dia TEXT, ip TEXT, c INTEGER DEFAULT 0, v INTEGER DEFAULT 0, n REAL DEFAULT 0, PRIMARY KEY (dia, ip))').run();
+  IA_TABLA = true;
+}
+// suma uno al contador de la persona (c: charlas, v: frases); devuelve el error si se pasó
+async function iaCupo(env, ip, k) {
+  await iaTabla(env);
+  const f = await env.DB.prepare(`INSERT INTO ia_uso (dia, ip, c, v) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(dia, ip) DO UPDATE SET c = c + excluded.c, v = v + excluded.v RETURNING c, v`)
+    .bind(hoy(), ip, k === 'c' ? 1 : 0, k === 'v' ? 1 : 0).first();
+  return f && (k === 'c' ? f.c > VER_CHARLAS : f.v > VER_FRASES) ? 'Verity descansa: hablaste mucho hoy' : '';
+}
+async function iaQueda(env) { await iaTabla(env); const f = await env.DB.prepare("SELECT n FROM ia_uso WHERE dia = ?1 AND ip = '*'").bind(hoy()).first(); return !f || f.n < VER_TOPE; }
+const iaGasto = (env, n) => env.DB.prepare("INSERT INTO ia_uso (dia, ip, n) VALUES (?1, '*', ?2) ON CONFLICT(dia, ip) DO UPDATE SET n = n + excluded.n").bind(hoy(), +n || 0).run();
+async function verityPensar(env, msgs) {
+  if (env.AI && (await iaQueda(env))) {
+    try {
+      const o = await env.AI.run(VER_MODELO, { messages: msgs, max_tokens: 220, temperature: 0.7 });
+      const u = (o && o.usage) || {}, n = u.neurons || (u.prompt_tokens || 1000) * 0.0045 + (u.completion_tokens || 80) * 0.037;
+      await iaGasto(env, n);
+      const v = verityRespuesta(o && (typeof o.response === 'string' ? o.response : JSON.stringify(o.response || '')));
+      if (v) return { ...v, f: 'cf' };
+    } catch (e) {}
+  }
+  return null;
+}
+// el WAV de MeloTTS (44,1 kHz) pasado a 22 050 Hz mono de 16 bits: la mitad de peso y la voz igual de clara
+function wavLiviano(b) {
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength); let p = 12, sr = 44100, ch = 1, bits = 16, ini = -1, largo = 0;
+  while (p + 8 <= b.length) {
+    const id = String.fromCharCode(b[p], b[p + 1], b[p + 2], b[p + 3]), n = dv.getUint32(p + 4, true);
+    if (id === 'fmt ') { ch = dv.getUint16(p + 10, true); sr = dv.getUint32(p + 12, true); bits = dv.getUint16(p + 22, true); }
+    if (id === 'data') { ini = p + 8; largo = Math.min(n, b.length - ini); break; }
+    p += 8 + n + (n & 1);
+  }
+  if (ini < 0 || bits !== 16) return b;
+  const k = Math.max(1, Math.round(sr / 22050)), nIn = Math.floor(largo / (2 * ch)), nOut = Math.floor(nIn / k), out = new Uint8Array(44 + nOut * 2), o = new DataView(out.buffer);
+  for (let i = 0; i < nOut; i++) {
+    let s = 0; for (let j = 0; j < k; j++) for (let c = 0; c < ch; c++) s += dv.getInt16(ini + ((i * k + j) * ch + c) * 2, true);
+    o.setInt16(44 + i * 2, Math.round(s / (k * ch)), true);
+  }
+  const txt = (q, t) => { for (let i = 0; i < 4; i++) out[q + i] = t.charCodeAt(i); };
+  txt(0, 'RIFF'); o.setUint32(4, 36 + nOut * 2, true); txt(8, 'WAVE'); txt(12, 'fmt '); o.setUint32(16, 16, true); o.setUint16(20, 1, true); o.setUint16(22, 1, true);
+  o.setUint32(24, Math.round(sr / k), true); o.setUint32(28, Math.round(sr / k) * 2, true); o.setUint16(32, 2, true); o.setUint16(34, 16, true); txt(36, 'data'); o.setUint32(40, nOut * 2, true);
+  return out;
+}
+async function bytesDe(o) {
+  if (!o) return null;
+  if (o instanceof ArrayBuffer) return new Uint8Array(o);
+  if (o instanceof Uint8Array) return o;
+  if (typeof o.getReader === 'function') return new Uint8Array(await new Response(o).arrayBuffer());
+  const a = typeof o.audio === 'string' ? o.audio : o.result && typeof o.result.audio === 'string' ? o.result.audio : null; if (!a) return null;
+  const s = atob(a), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u;
 }
 
 export default {
@@ -207,6 +273,29 @@ export default {
       }
       m = /^\/api\/radio\/clic\/([0-9a-f-]{36})$/.exec(r);
       if (req.method === 'GET' && m) { rbApi('/json/url/' + m[1]).catch(() => {}); return json({ ok: true }); }
+      if (req.method === 'POST' && r === '/api/verity') {
+        const cuerpo = await req.text(); if (cuerpo.length > 12000) return json({ error: 'muy grande' }, 413);
+        let d; try { d = JSON.parse(cuerpo); } catch (e) { return json({ error: 'no es JSON' }, 400); }
+        const msgs = verityMensajes(d); if (!msgs) return json({ error: 'pedido inválido' }, 400);
+        const lim = await iaCupo(env, ip, 'c'); if (lim) return json({ error: lim }, 429);
+        const v = await verityPensar(env, msgs);
+        return v ? json(v) : json({ error: 'sin cupo: usar el modelo público' }, 503);
+      }
+      if (req.method === 'GET' && r === '/api/verity/voz') {
+        const l = url.searchParams.get('l') || '', t = texto(url.searchParams.get('t'), 240);
+        if (!VERITY_VOCES.includes(l) || !t) return json({ error: 'pedido inválido' }, 400);
+        const ck = new Request('https://cache.rezobox/verity/voz/' + l + '/' + (await huella(l + '|' + t)).slice(0, 40)), c = caches.default, hit = await c.match(ck);
+        const cab = { 'Content-Type': 'audio/wav', 'Cache-Control': 'public, max-age=604800', ...CORS };
+        if (hit) return new Response(hit.body, { headers: cab });
+        if (!env.AI) return json({ error: 'sin voz' }, 503);
+        const lim = await iaCupo(env, ip, 'v'); if (lim) return json({ error: lim }, 429);
+        if (!(await iaQueda(env))) return json({ error: 'cupo del día' }, 429);
+        const wav = wavLiviano(await bytesDe(await env.AI.run('@cf/myshell-ai/melotts', { prompt: t, lang: l })) || new Uint8Array(0));
+        if (wav.length < 100) return json({ error: 'sin voz' }, 502);
+        await iaGasto(env, ((wav.length - 44) / 2 / 22050) * 18.7 / 60);
+        await c.put(ck, new Response(wav, { headers: { 'Content-Type': 'audio/wav', 'Cache-Control': 'public, max-age=604800' } }));
+        return new Response(wav, { headers: cab });
+      }
       if (r === '' || r === '/api') return json({ tienda: 'HypperX RezoBox', formatos: ['rezobox-mod', 'rezobox-mapa', 'rezobox-anim'], etiquetas: ETIQUETAS });
       return json({ error: 'no encontrado' }, 404);
     } catch (e) {

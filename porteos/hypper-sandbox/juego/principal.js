@@ -203,7 +203,7 @@ function cuadro(ahora) {
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
     modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt); smPaso(dt); modsVisualPaso(dt);
     if (typeof redPaso === 'function') redPaso(dt);
-    cicPaso(dt); edaPaso(dt);
+    cicPaso(dt); verPaso(dt); edaPaso(dt);
     diaPaso(dt); hostPaso();
   }
   efectosPaso(dt);
@@ -279,7 +279,7 @@ function dibujar() {
   if (typeof dibujarPersonas === 'function') dibujarPersonas();
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();
-  if (JUEGO.estado === 'juego') cicDibujar();
+  if (JUEGO.estado === 'juego') { cicDibujar(); verDibujar(); }
   dibujarProyectiles();
   lucesJuntar(); lucesPreparar();
   if (JUEGO.estado === 'juego' && R.sombraOn) {

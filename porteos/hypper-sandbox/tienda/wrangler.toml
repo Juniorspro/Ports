@@ -8,3 +8,7 @@ workers_dev = true
 binding = "DB"
 database_name = "rezobox-tienda"
 database_id = "b4464be7-c6c5-4bcd-aec1-ecea2765d0fa"
+
+# Verity (la compañera con IA del juego): modelo de lenguaje y voz de Workers AI
+[ai]
+binding = "AI"

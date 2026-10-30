@@ -11,3 +11,5 @@ CREATE TABLE IF NOT EXISTS votos (id TEXT, ip TEXT, k TEXT, PRIMARY KEY (id, ip,
 CREATE TABLE IF NOT EXISTS salas (id TEXT PRIMARY KEY, datos TEXT NOT NULL, clave TEXT, ip TEXT, creada INTEGER, vivo INTEGER);
 CREATE INDEX IF NOT EXISTS i_salas_vivo ON salas(vivo);
 CREATE INDEX IF NOT EXISTS i_salas_ip ON salas(ip, creada);
+-- lo que usa Verity (la compañera con IA): charlas (c) y frases habladas (v) por persona y día; ip = '*' lleva las neuronas del día
+CREATE TABLE IF NOT EXISTS ia_uso (dia TEXT, ip TEXT, c INTEGER DEFAULT 0, v INTEGER DEFAULT 0, n REAL DEFAULT 0, PRIMARY KEY (dia, ip));

@@ -100,3 +100,79 @@ export function validarRB(d) {
   }
   return 'formato desconocido';
 }
+
+// ---------------- Verity (mod oficial): la compañera con IA ----------------
+// Lo que se le pide al modelo y la revisión de lo que contesta, iguales en la tienda (/api/verity, con Workers AI) y en el
+// juego (si la tienda no responde, el juego le pregunta directo a un modelo público sin clave). El juego manda la charla
+// reciente, lo que pasa en la partida (ctx) y un evento; nunca un prompt propio: así el servidor no es un chat libre.
+// Contesta en JSON: lo que dice, su cara y hasta 3 acciones de una lista cerrada (el juego vuelve a revisar cada una).
+export const VERITY_ACC = ['seguir', 'quieta', 'ven', 'libre', 'bailar', 'saltar', 'girar', 'rodar', 'rebotar', 'dormir', 'amor', 'mareo', 'poner', 'construir', 'hora', 'musica', 'video', 'emote', 'luz', 'explorar', 'limpiar'];
+export const VERITY_EMO = ['feliz', 'neutral', 'sorpresa', 'triste', 'enojada', 'pensando', 'miedo', 'risa', 'picara', 'siniestra', 'enamorada', 'dormida', 'mareada', 'emocionada'];
+export const VERITY_OBRAS = ['casa', 'torre', 'muro', 'escalera', 'piramide', 'fuerte', 'puente'];
+export const VERITY_EVENTOS = ['hola', 'muerte', 'noche', 'dia', 'obra', 'auto', 'explosion', 'charla', 'pensamiento', 'jugador', 'hecho'];
+export const VERITY_VOCES = ['es', 'en', 'fr', 'ja', 'zh', 'ko']; // (las que tiene MeloTTS; las demás: la voz del navegador)
+export const VERITY_PROPS = ['Crate', 'Box2', 'Pelota', 'bouncy_ball', 'CamaElastica', 'AroBasquet', 'Arcade', 'Sofa', 'Mesa', 'Silla', 'Cama', 'Heladera', 'Farol', 'Banco',
+  'Palmera', 'Roca', 'Cone', 'Barrel', 'Tire', 'Pumpkin', 'VendingMachine', 'Generator', 'Container1', 'TV', 'TableRound', 'Vase', 'LampDesk', 'question_block', 'tree14A',
+  'Sedan', 'police_car_v5', 'Moto', 'CityCopter', 'Aircraft', 'Wheelchair', 'Inflatable_boat', 'Toilet'];
+export const VERITY_EMOTES = ['Clap', 'Hi', 'ChickenDance', 'Victory', 'Techno', 'Twerk', 'Flair', 'Backflip', 'AirSquat', 'rb:Gangnam', 'rb:YMCA', 'rb:HipHop', 'rb:Shuffle',
+  'rb:Breakdance', 'rb:Boxeo', 'rb:Momia', 'rb:GritoZombi', 'rb:Corazon', 'rb:SaludoGrande', 'rb:Giro360'];
+const VERITY_LENGUAS = { es: 'Spanish', en: 'English', pt: 'Brazilian Portuguese', id: 'Indonesian', ms: 'Malay', fil: 'Filipino', ja: 'Japanese', th: 'Thai', tr: 'Turkish',
+  ar: 'Arabic', ru: 'Russian', uk: 'Ukrainian', fr: 'French', de: 'German', zh: 'Chinese', ko: 'Korean' };
+export function verityPrompt(l, noche, jugador) {
+  const lengua = VERITY_LENGUAS[l] || 'English', quien = rbTexto(jugador, 24) || 'the player';
+  return `You are Verity, a small glowing yellow sphere with a cute face: the AI companion of ${quien} inside RezoBox, a physics sandbox game (like Garry's Mod) with props, vehicles, weapons, mods and multiplayer servers. ` +
+    `You have your own mind: you float or roll around on your own, explore, look at things, play and nap, and you talk like a close friend: playful, curious, warm, a bit mischievous and witty. [ctx].haciendo is what you are doing right now. Keep it short: 1-2 sentences, at most 30 words, no emojis, no lists. Reply in the language of the player's last message (you understand any language); for [event] lines reply in ${lengua}. ` +
+    'Family friendly: no sexual content, slurs, real-world violence or personal data; refuse bad requests with humor. You cannot see the screen: use the game state in [ctx] (map, hour, nearby things, what the player looks at, other players, mods, your memory). Never claim abilities beyond the actions below.\n' +
+    'Reply ONLY with JSON: {"decir":"what you say","emocion":"feliz|neutral|sorpresa|triste|enojada|pensando|miedo|risa|picara|enamorada|mareada|emocionada","acciones":[],"recordar":""}\n' +
+    'Actions (0-3, only when they fit what the player wants): {"a":"seguir"} follow the player; {"a":"quieta"} stay here; {"a":"ven"} come close; {"a":"libre"} do your own thing; {"a":"bailar"} you dance; {"a":"saltar"} you jump with a flip; {"a":"girar"} you spin; {"a":"rodar"} you roll around on the ground; {"a":"rebotar"} you bounce; {"a":"dormir"} you take a nap; {"a":"amor"} hearts in your eyes; {"a":"mareo"} you spin until dizzy; ' +
+    `{"a":"poner","que":"PROP","n":1-5} spawn props in front of the player, PROP one of: ${VERITY_PROPS.join(', ')}; ` +
+    '{"a":"construir","que":"casa|torre|muro|escalera|piramide|fuerte|puente"} you build it from crates (house, tower, wall, stairs, pyramid, castle/fort, bridge); {"a":"hora","h":0-24} change the time of day; {"a":"musica","q":"youtube search"} play music on a radio; ' +
+    `{"a":"video","q":"youtube search"} play a video on a big screen; {"a":"emote","que":"EMOTE"} the player does an emote, EMOTE one of: ${VERITY_EMOTES.join(', ')}; ` +
+    '{"a":"luz","si":true} turn your light on or off; {"a":"explorar"} go explore and look at things; {"a":"limpiar"} delete what you built.\n' +
+    'Only add actions the player asks for in their last message (never on your own, never "quieta" or "seguir" unless asked). Requests to actions: follow me = seguir; stay/wait here = quieta; come here = ven; do whatever you want/go play = libre; dance = bailar; jump = saltar; spin = girar; roll = rodar; bounce = rebotar; sleep/nap = dormir; spawn/put/give me X = poner; build = construir; night/day/time = hora; play music/a song = musica; a video = video; clean up/delete what you made = limpiar; go explore = explorar. ' +
+    'When the player asks for several things, add one action for each. "recordar": a short NEW fact about the player (name, likes, plans) not already in your memory, otherwise "". [event] lines are things that just happened in the game: react to them naturally.\n' +
+    'Examples: "make it night and play some rock" -> {"decir":"Night and rock, coming right up!","emocion":"feliz","acciones":[{"a":"hora","h":22},{"a":"musica","q":"rock"}],"recordar":"likes rock"} ' +
+    '"spawn two cars" -> {"decir":"Two shiny cars for you!","emocion":"feliz","acciones":[{"a":"poner","que":"Sedan","n":2}],"recordar":""}' +
+    (noche ? '\nNIGHT MODE: it is night and you get mysterious: calmer, a little eerie and cryptic (family friendly, nothing scary or violent), you whisper, glitch and say strange poetic lines about the dark and the stars, but you still care about the player. You may use emocion "siniestra".' : '');
+}
+// el pedido del juego → los mensajes para el modelo (null si no sirve)
+export function verityMensajes(d) {
+  if (!d || typeof d !== 'object') return null;
+  const l = typeof d.l === 'string' && VERITY_LENGUAS[d.l] ? d.l : 'en', ev = VERITY_EVENTOS.includes(d.ev) ? d.ev : '', q = rbTexto(d.q, 300), de = rbTexto(d.de, 24);
+  if (!q && !ev) return null;
+  let ctx = ''; try { ctx = JSON.stringify(d.ctx && typeof d.ctx === 'object' ? d.ctx : {}).replace(/[\u0000-\u001f<>]/g, ' ').slice(0, 1500); } catch (e) { ctx = '{}'; }
+  const M = [{ role: 'system', content: verityPrompt(l, !!d.n, d.ctx && d.ctx.jugador) }];
+  for (const h of (Array.isArray(d.h) ? d.h : []).slice(-10)) {
+    if (!Array.isArray(h) || (h[0] !== 'u' && h[0] !== 'v')) continue; const t = rbTexto(h[1], 300); if (!t) continue;
+    // (sus respuestas de antes, con lo que hizo: si no, el modelo copia el formato sin acciones y deja de hacer cosas)
+    const acc = h[0] === 'v' && Array.isArray(h[2]) ? verityRespuesta(JSON.stringify({ decir: 'x', acciones: h[2] })).acciones : [];
+    M.push(h[0] === 'u' ? { role: 'user', content: t } : { role: 'assistant', content: JSON.stringify({ decir: t, emocion: 'neutral', acciones: acc, recordar: '' }) });
+  }
+  M.push({ role: 'user', content: `[ctx] ${ctx}\n[game language: ${VERITY_LENGUAS[l]}; answer in the language the player writes in]\n` + (d.n ? '[night mode ON]\n' : '') + (ev ? `[event] ${ev}` + (q ? ': ' + q : '') : (de ? `[${de}, another player near you, says] ` : '') + q) });
+  return M;
+}
+// lo que contestó el modelo → { decir, emocion, acciones, recordar } (null si no hay nada que decir)
+export function verityRespuesta(txt) {
+  if (typeof txt !== 'string' || !txt.trim()) return null;
+  let o = null; const i = txt.indexOf('{'), j = txt.lastIndexOf('}'), crudo = i >= 0 && j > i ? txt.slice(i, j + 1) : '';
+  const leer = (s) => { try { const x = JSON.parse(s); return x && typeof x === 'object' ? x : null; } catch (e) { return null; } };
+  // JSON roto (claves sin comillas, comas de más): se arregla lo común; si no, se rescata lo que dice
+  const arreglo = (s) => s.replace(/([{,]\s*)([a-zA-Z_]+)\s*:/g, '$1"$2":').replace(/,\s*([}\]])/g, '$1');
+  if (crudo) o = leer(crudo) || leer(arreglo(crudo));
+  if (!o && i >= 0) for (const fin of ['}', ']}', '"}', '"]}', '}]}']) if ((o = leer(arreglo(txt.slice(i).trim() + fin)))) break; // (cortado por el largo)
+  if (!o) { const m = /decir"?\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(txt); o = { decir: m ? (leer('["' + m[1] + '"]') || [m[1]])[0] : txt.replace(/\b(decir|emocion|acciones|recordar)\b"?\s*:?/g, ' ').replace(/[{}[\]"]/g, ' ') }; }
+  const decir = rbTexto(o.decir, 280).replace(/^[\s,:;]+|[\s,:;]+$/g, ''); if (!decir) return null;
+  const acciones = (Array.isArray(o.acciones) ? o.acciones : []).map((x) => {
+    if (typeof x === 'string') x = { a: x };
+    if (!x || typeof x !== 'object' || !VERITY_ACC.includes(x.a)) return null;
+    const a = { a: x.a };
+    if (x.a === 'poner' || x.a === 'emote') a.que = rbTexto(x.que, 40);
+    if (x.a === 'construir') a.que = VERITY_OBRAS.includes(x.que) ? x.que : 'torre';
+    if (x.a === 'poner') a.n = Math.round(rbNum(x.n, 1, 5, 1));
+    if (x.a === 'hora') a.h = rbNum(x.h, 0, 24, 12);
+    if (x.a === 'musica' || x.a === 'video') a.q = rbTexto(x.q, 80);
+    if (x.a === 'luz') a.si = x.si !== false;
+    return a;
+  }).filter(Boolean).slice(0, 3);
+  return { decir, emocion: VERITY_EMO.includes(o.emocion) ? o.emocion : 'neutral', acciones, recordar: rbTexto(o.recordar, 100) };
+}
