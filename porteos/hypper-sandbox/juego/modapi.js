@@ -8,8 +8,10 @@
 //   await rb.rayo([x,y,z], [dx,dy,dz], max)  await rb.catalogo()  await rb.guardar(clave, valor)  await rb.leer(clave)
 //   await rb.entidad(tipo, [x,y,z], { parámetros }, yaw)  rb.quitarEntidad(id)  rb.nativo('volar' | 'ragdoll' | 'scp', sí/no)
 const MODAPI = { mods: [], botones: new Map(), tTick: 0, errores: 0 };
-const MODAPI_RB = `(function(){var L={},sig=0,esp={};function env(k,d){parent.postMessage({rbmod:1,k:k,d:d},'*')}
-function ped(k,d){return new Promise(function(r){var id=++sig;esp[id]=r;parent.postMessage({rbmod:1,k:k,d:d,id:id},'*')})}
+// (si un mod manda algo que no se puede copiar, p. ej. una promesa sin await, se avisa como error del mod)
+const MODAPI_RB = `(function(){var L={},sig=0,esp={};function man(m){try{parent.postMessage(m,'*')}catch(x){parent.postMessage({rbmod:1,k:'error',d:m.k+': '+String(x&&x.message||x)},'*')}}
+function env(k,d){man({rbmod:1,k:k,d:d})}
+function ped(k,d){return new Promise(function(r){var id=++sig;esp[id]=r;man({rbmod:1,k:k,d:d,id:id})})}
 var rb=self.rb={estado:{},on:function(e,f){(L[e]=L[e]||[]).push(f)},aviso:function(t,s){env('aviso',{t:String(t),s:s})},
 boton:function(id,t){env('boton',{id:String(id),t:String(t)})},quitarBoton:function(id){env('quitarBoton',{id:String(id)})},
 jugador:function(c){env('jugador',c)},mundo:function(c){env('mundo',c)},crear:function(n,p,o){return ped('crear',{n:n,p:p,o:o||{}})},

@@ -49,7 +49,7 @@ function creadorBarra() {
 function creadorBarraDibujar() {
   const b = CREA.bar; if (!b) return;
   const rol = CREA.mapa.roles.find((r) => r.id === CREA.rol), bt = (k, t, extra) => `<button class="crBt${extra || ''}" data-cr="${k}">${t}</button>`;
-  let h = bt('paleta', glifo('mas') + ' ' + esc(T('cr.entidad'))) + bt('punto', `${glifo('punto')} ${esc(T('cr.punto'))}${rol ? ` <i style="background:${rol.color}"></i>` : ''}`) + bt('roles', glifo('gente')) + bt('mapa', glifo('ajustes')) + bt('guardar', glifo('guardar')) + bt('probar', glifo('jugar')) + bt('publicar', glifo('subir'));
+  let h = bt('paleta', glifo('mas') + ' ' + esc(T('cr.entidad'))) + bt('punto', `${glifo('punto')} ${esc(T('cr.punto'))}${rol ? ` <i style="background:${rol.color}"></i>` : ''}`) + bt('roles', glifo('gente')) + bt('mapa', glifo('ajustes')) + bt('guardar', glifo('guardar')) + bt('probar', glifo('jugar')) + bt('publicar', glifo('subir')) + `<button class="crBt crVer" data-cr="verity" data-vcr="1" title="${esc(T('ver.cr.t.mapa'))}">${icoHTML('ico:verity')}</button>`;
   if (CREA.tipo) h += `<span class="crSep"></span><span class="crTxt">${icoHTML('ico:' + ENT_INFO[CREA.tipo][0])} ${esc(T('ent.' + CREA.tipo))}</span>` + bt('poner', glifo('si') + ' ' + esc(T('cr.poner')), ' crSi') + bt('cancelar', glifo('no'));
   else if (CREA.sel) h += `<span class="crSep"></span><span class="crTxt">${CREA.sel.e ? icoHTML('ico:' + ENT_INFO[CREA.sel.e.t][0]) + ' ' + esc(T('ent.' + CREA.sel.e.t)) : glifo('punto') + ' ' + esc(T('cr.punto'))}</span>` + (CREA.sel.e && ENT_PRM[CREA.sel.e.t] ? bt('editar', glifo('lapiz')) : '') + bt('girar', glifo('girar')) + bt('traer', glifo('traer')) + bt('borrar', glifo('basura'), ' crNo');
   b.innerHTML = h;
@@ -63,6 +63,7 @@ function creadorAccion(k) {
   if (k === 'guardar') { const v = creadorGuardar(); if (v) aviso(T('cr.guardado'), 2); return; }
   if (k === 'probar') { const v = creadorGuardar(); if (!v) return; creadorSalir(); RB.mapaCom = v.id; RB.mapaPartida = v; RB.horaPartida = 'normal'; empezarPartida(v.base); return; }
   if (k === 'publicar') return creadorPublicar();
+  if (k === 'verity') return verCreaPanel('mapa'); // (Verity construye donde mirás)
   if (k === 'poner') return creadorPoner();
   if (k === 'cancelar') { CREA.tipo = null; return creadorBarraDibujar(); }
   const S = CREA.sel; if (!S) return;

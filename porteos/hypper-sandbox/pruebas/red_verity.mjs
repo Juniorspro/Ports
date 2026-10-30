@@ -21,7 +21,7 @@ const W = (await import('../tienda/worker.js')).default, env = { DB, AI }, pedid
 const navs = [], errs = [];
 const abrir = async (n) => { const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--autoplay-policy=no-user-gesture-required'] }); navs.push(b);
   const c = await b.newContext({ viewport: { width: 960, height: 540 } }); const p = await c.newPage(); p.on('pageerror', (e) => errs.push(n + ': ' + e.message.slice(0, 160))); p.on('console', (m) => { if (m.type() === 'error' && !/WebSocket|mqtt|Failed to load/i.test(m.text())) errs.push(n + ': ' + m.text().slice(0, 160)); });
-  await p.route(/\/api\/verity(\/voz)?(\?.*)?$/, async (route) => {
+  await p.route(/\/api\/verity(\/voz|\/crear)?(\?.*)?$/, async (route) => {
     const q = route.request(), r = await W.fetch(new Request(q.url().replace(/^https:\/\/[^/]+/, 'https://x.dev'), { method: q.method(), headers: { 'Content-Type': 'application/json' }, body: q.method() === 'POST' ? q.postData() : undefined }), env);
     const body = Buffer.from(await r.arrayBuffer()); pedidos.push({ de: n, u: q.url().replace(/^.*\/api\//, '').slice(0, 30), st: r.status });
     await route.fulfill({ status: r.status, headers: Object.fromEntries(r.headers), body });
@@ -72,6 +72,16 @@ try {
   let ob = 0; for (let i = 0; i < 120; i++) { await espera(250); ob = Number(await ev(O, `OBJS.length`)) - ob0; if (ob >= 24) break; }
   ok(ob >= 20, 'le pide una torre y la construye (los dos la ven)', { cajasQueVeElOtro: ob, mias: Number(await ev(C, `VER.mios.length`)) });
   await O.screenshot({ path: D + 'rv2_torre.png' });
+  // el otro le pide que cree un mod: Verity (en el juego del que la maneja) decide crearlo y se lo manda a él, que lo arma
+  // con su propio cerebro y le queda a él; un pedido de crear que no viene de ella (o sin haberle pedido nada) no hace nada
+  const idO = await ev(O, `RED.ID`), idC = await ev(C, `RED.ID`), mO0 = Number(await ev(O, `Object.keys(INST.mods).length`)), mC0 = Number(await ev(C, `Object.keys(INST.mods).length`));
+  await ev(O, `VER.tPedi = -1e9; verRed({ k: 'verc', to: RED.ID, i: ${JSON.stringify(idC)}, tipo: 'mod', q: 'sin haber pedido nada' }); VER.tPedi = performance.now(); verRed({ k: 'verc', to: RED.ID, i: 'zz-trucho', tipo: 'mod', q: 'de otro' }); VER.tPedi = -1e9; 1`);
+  const falso = await ev(O, `VCR.ocupado`);
+  await ev(O, `verHablarle('creame un mod de super salto'); 1`); await espera(1500);
+  await ev(C, `verAcciones([{ a: 'crear', tipo: 'mod', q: 'a super jump mod with a button that launches the player up' }], ${JSON.stringify(idO)}); 1`);
+  let cr = null; for (let i = 0; i < 240; i++) { await espera(500); cr = JSON.parse(await ev(O, `JSON.stringify({ n: Object.keys(INST.mods).length, ocupado: VCR.ocupado, act: Object.values(INST.mods).filter((m) => m.autor === 'Verity' && modsFuente()[m.id]).map((m) => m.nombre) })`)); if (cr.n > mO0 && !cr.ocupado) break; }
+  const mC1 = Number(await ev(C, `Object.keys(INST.mods).length`));
+  ok(!falso && cr.n === mO0 + 1 && cr.act.length === 1 && mC1 === mC0, 'en la sala: el que le pidió crear un mod lo recibe prendido (y un pedido trucho no hace nada)', { falso, ...cr, delQueManeja: mC1 - mC0 });
   await ev(C, `verAcciones([{ a: 'limpiar' }]); VER.modo = 'quieta'; VER.ancla = vadd(JUG.pos, v3(0, 0.6, 3.5)); VER.tModo = 999; 1`); await espera(4000);
   // el otro la agarra con la pistola de física y la lleva: el que la maneja la ve llevada
   const apuntar = `(() => { const I = [...VER.rem.values()][0], d = vsub(I.pos, CAM.pos).norm(); JUG.yaw = Math.atan2(d.x, d.z); JUG.pitch = -Math.asin(d.y); return 1; })()`;

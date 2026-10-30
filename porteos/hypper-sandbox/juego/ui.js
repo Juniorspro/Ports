@@ -77,6 +77,8 @@ function spawnGrilla(C, subs) {
   const lista = [];
   if (q) { for (const s of subs) for (const it of s.it) { const nom = s.mods ? spawnModNom(it) : propNom(it); if ((nom + ' ' + it).toLowerCase().includes(q) && !lista.some((x) => x.it === it)) lista.push({ it, mods: s.mods }); } }
   else { const S = subs[UI.sub] || subs[0]; if (S) for (const it of S.it) lista.push({ it, mods: S.mods }); }
+  // (el terminal secreto de Verity: sólo buscándolo)
+  if (/^(terminal|verity)$/.test(q)) { const d = document.createElement('div'); d.className = 'it itMod'; d.innerHTML = `${icoHTML('ico:verity')}<span dir="auto">${esc(T('ver.term.n'))}</span>`; d.onclick = () => { cerrarPaneles(); verTerminalPoner(); }; gr.appendChild(d); }
   for (const { it, mods } of lista.slice(0, 400)) {
     const d = document.createElement('div'); d.className = 'it' + (mods ? ' itMod' : '');
     if (mods) { const m = modsAssets().find((x) => x.id === it); if (!m) continue; d.innerHTML = `${icoHTML(m.icono)}<span dir="auto">${esc(nombreDe(m))}</span>`; d.onclick = () => spawnMod(m); d.dataset.mod = m.id; }
@@ -87,7 +89,7 @@ function spawnGrilla(C, subs) {
     }
     gr.appendChild(d);
   }
-  if (!lista.length) gr.innerHTML = `<div class="spVacio">${esc(T('sinRes'))}</div>`;
+  if (!lista.length && !gr.children.length) gr.innerHTML = `<div class="spVacio">${esc(T('sinRes'))}</div>`;
 }
 const spawnModNom = (id) => { const m = modsAssets().find((x) => x.id === id); return m ? nombreDe(m) : id; };
 // un mod de assets: los oficiales ponen su entidad (radio, piano, pantalla); los de la gente, sus props
@@ -134,7 +136,7 @@ function abrirSpawn() { UI.abierto = 'spawn'; $('spawn').classList.remove('oc');
 function cerrarPaneles() {
   UI.abierto = null; if (typeof MODM !== 'undefined' && MODM.abierto) modMenuCerrar();
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
-  for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan', 'verPan']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
+  for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan', 'verPan', 'verTuto', 'verTerm', 'verCrea']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
   $('chatIn').classList.add('oc');
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }

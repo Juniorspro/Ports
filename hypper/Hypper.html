@@ -60,6 +60,29 @@ body.tactil #verBt small{display:none}
 .verOpc label{display:flex;align-items:center;gap:5px;cursor:pointer}
 .verOpc button{margin-left:auto;display:flex;align-items:center;gap:4px;background:none;border:1px solid #555;border-radius:8px;color:#ccc;padding:4px 8px;cursor:pointer;font-size:12px}
 .verOpc button svg{width:15px;height:15px}
+.verIA{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:#aab}
+.verCerebro{flex:1}.verCerebro.gem{color:#7fd7ff;font-weight:600}
+.verIA button,.verIAb button{display:flex;align-items:center;gap:4px;background:none;border:1px solid #555;border-radius:8px;color:#ccc;padding:4px 8px;cursor:pointer;font-size:12px}
+.verIA button svg,.verIAb button svg{width:15px;height:15px}
+.verIAp{margin-top:6px;padding:8px;border-radius:10px;background:rgba(255,255,255,.05)}
+.verIAtx{margin:0 0 6px;font-size:12.5px;line-height:1.35;color:#dde}
+.verIAb{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.verTuto{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center}
+.verTutoC{width:min(460px,calc(100vw - 24px));box-sizing:border-box;background:#1b1f2a;border:1px solid rgba(255,214,60,.45);border-radius:14px;padding:14px 16px;color:#fff;font:14px Roboto,Arial,sans-serif}
+.verTutoC b{display:block;color:#ffd23f;font-size:15px;margin:2px 0 8px}.verTutoC img.ico{width:30px;height:30px;border-radius:8px;float:right}
+.verTutoC ol{margin:0 0 10px;padding-left:20px;line-height:1.45}.verTutoC li{margin:4px 0}
+.verTutoC a.boton{text-decoration:none;display:inline-flex;align-items:center}
+.verCreaFila{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:0 0 7px}
+.verCreaFila button,.verCreaTipos button{display:flex;align-items:center;gap:5px;justify-content:center;background:#3a3317;border:1px solid #8a7426;border-radius:9px;color:#ffd23f;padding:6px 4px;font:600 12px Roboto,Arial,sans-serif;cursor:pointer;min-width:0}
+.verCreaFila button svg,.verCreaTipos button svg{width:15px;height:15px;flex:none}.verCreaFila button span,.verCreaTipos button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.verCreaTipos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:0 0 8px}.verCreaTipos button.sel{background:#ffd23f;color:#1b1f2a;border-color:#ffd23f}
+#verCreaIn{width:100%;box-sizing:border-box;background:#11141c;border:1px solid #444b5c;border-radius:9px;color:#fff;padding:8px;font:14px Roboto,Arial,sans-serif;resize:vertical;min-height:64px}
+.verCreaCam{display:flex;align-items:center;gap:6px;margin:6px 0 0;font-size:13px;color:#ddd}.verCreaCam[hidden]{display:none}
+.verCreaMejor{display:block;margin:6px 0 0;color:#aab;font-size:12px}
+[data-vcr].ocupado{opacity:.55;pointer-events:none;animation:verLatido 1s ease-in-out infinite}
+@keyframes verLatido{50%{opacity:.3}}
+.crBt.crVer img.ico{width:20px;height:20px;vertical-align:middle}
+#edaPan .edaVer{background:#3a3317;border-color:#8a7426;color:#ffd23f}#edaPan .edaVer img.ico{width:18px;height:18px;vertical-align:middle}
 .verAnims{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:0 0 7px}
 .verAnims button{display:flex;align-items:center;gap:5px;justify-content:center;background:#2c3140;border:1px solid #444b5c;border-radius:9px;color:#ffe9a3;padding:6px 4px;font:600 12px Roboto,Arial,sans-serif;cursor:pointer;min-width:0}
 .verAnims button svg{width:16px;height:16px;flex:none}.verAnims button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -5788,7 +5811,7 @@ function recibirHecho(d) {
   } else if (d.k === 'ent' || d.k === 'entb' || d.k === 'radio' || d.k === 'entp') { entidadHecho(d);
   } else if (d.k === 'jalar') { natRed(d);
   } else if (d.k === 'cic') { cicRed(d);
-  } else if (typeof d.k === 'string' && /^ver[dqgaw]$/.test(d.k)) { verRed(d); // (Verity: lo que dice, preguntas, agarre, animación, llamada)
+  } else if (typeof d.k === 'string' && /^ver[dqgawc]$/.test(d.k)) { verRed(d); // (Verity: lo que dice, preguntas, agarre, animación, llamada, crear)
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
   } else if (d.k === 'dano' && d.to === RED.ID) {
     if (SALA && !SALA.pvp) return;
@@ -6179,6 +6202,8 @@ function spawnGrilla(C, subs) {
   const lista = [];
   if (q) { for (const s of subs) for (const it of s.it) { const nom = s.mods ? spawnModNom(it) : propNom(it); if ((nom + ' ' + it).toLowerCase().includes(q) && !lista.some((x) => x.it === it)) lista.push({ it, mods: s.mods }); } }
   else { const S = subs[UI.sub] || subs[0]; if (S) for (const it of S.it) lista.push({ it, mods: S.mods }); }
+  // (el terminal secreto de Verity: sólo buscándolo)
+  if (/^(terminal|verity)$/.test(q)) { const d = document.createElement('div'); d.className = 'it itMod'; d.innerHTML = `${icoHTML('ico:verity')}<span dir="auto">${esc(T('ver.term.n'))}</span>`; d.onclick = () => { cerrarPaneles(); verTerminalPoner(); }; gr.appendChild(d); }
   for (const { it, mods } of lista.slice(0, 400)) {
     const d = document.createElement('div'); d.className = 'it' + (mods ? ' itMod' : '');
     if (mods) { const m = modsAssets().find((x) => x.id === it); if (!m) continue; d.innerHTML = `${icoHTML(m.icono)}<span dir="auto">${esc(nombreDe(m))}</span>`; d.onclick = () => spawnMod(m); d.dataset.mod = m.id; }
@@ -6189,7 +6214,7 @@ function spawnGrilla(C, subs) {
     }
     gr.appendChild(d);
   }
-  if (!lista.length) gr.innerHTML = `<div class="spVacio">${esc(T('sinRes'))}</div>`;
+  if (!lista.length && !gr.children.length) gr.innerHTML = `<div class="spVacio">${esc(T('sinRes'))}</div>`;
 }
 const spawnModNom = (id) => { const m = modsAssets().find((x) => x.id === id); return m ? nombreDe(m) : id; };
 // un mod de assets: los oficiales ponen su entidad (radio, piano, pantalla); los de la gente, sus props
@@ -6236,7 +6261,7 @@ function abrirSpawn() { UI.abierto = 'spawn'; $('spawn').classList.remove('oc');
 function cerrarPaneles() {
   UI.abierto = null; if (typeof MODM !== 'undefined' && MODM.abierto) modMenuCerrar();
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
-  for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan', 'verPan']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
+  for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan', 'verPan', 'verTuto', 'verTerm', 'verCrea']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
   $('chatIn').classList.add('oc');
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }
@@ -6870,6 +6895,14 @@ function icoNombreRB(v) {
 const rbVec = (v, n, lim) => (Array.isArray(v) && v.length === n ? v.map((x) => rbNum(x, -lim, lim, 0)) : null);
 const rbColor = (v) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : '#ffffff');
 const rbCodigo = (v) => (typeof v === 'string' && v.trim() ? v.slice(0, 1000000) : null);
+function rbPrm(o) {
+  const prm = {}; for (const [k, v] of Object.entries(o && typeof o === 'object' ? o : {}).slice(0, 24)) {
+    if (!/^[a-zA-Z0-9_]{1,24}$/.test(k)) continue;
+    if (typeof v === 'number' && Number.isFinite(v)) prm[k] = v; else if (typeof v === 'boolean') prm[k] = v;
+    else if (typeof v === 'string') prm[k] = rbTexto(v, 300); else if (Array.isArray(v)) prm[k] = v.slice(0, 64).map((y) => (typeof y === 'number' && Number.isFinite(y) ? y : rbTexto(y, 60)));
+  }
+  return prm;
+}
 const rbNombres = (v, max) => (Array.isArray(v) ? v : []).filter((a) => typeof a === 'string' && NOMBRE_RB.test(a)).slice(0, max);
 
 // devuelve el objeto limpio o un texto con el error
@@ -6920,12 +6953,7 @@ function validarRB(d) {
     const spawns = (Array.isArray(d.spawns) ? d.spawns : []).slice(0, 256).map((s) => ({ p: rbVec(s && s.p, 3, 1e5), yaw: rbNum(s && s.yaw, -10, 10, 0), rol: s && typeof s.rol === 'string' ? s.rol.slice(0, 24) : null })).filter((s) => s.p);
     const entidades = (Array.isArray(d.entidades) ? d.entidades : []).slice(0, 2000).map((x) => {
       if (!x || !ENTIDADES_RB.includes(x.t)) return null; const p = rbVec(x.p, 3, 1e5); if (!p) return null;
-      const prm = {}; for (const [k, v] of Object.entries(x.prm || {}).slice(0, 24)) {
-        if (!/^[a-zA-Z0-9_]{1,24}$/.test(k)) continue;
-        if (typeof v === 'number' && Number.isFinite(v)) prm[k] = v; else if (typeof v === 'boolean') prm[k] = v;
-        else if (typeof v === 'string') prm[k] = rbTexto(v, 300); else if (Array.isArray(v)) prm[k] = v.slice(0, 64).map((y) => (typeof y === 'number' && Number.isFinite(y) ? y : rbTexto(y, 60)));
-      }
-      return { t: x.t, p, yaw: rbNum(x.yaw, -10, 10, 0), prm };
+      return { t: x.t, p, yaw: rbNum(x.yaw, -10, 10, 0), prm: rbPrm(x.prm) };
     }).filter(Boolean);
     const ap = rbVec(d.aparicion, 3, 1e5);
     return { formato: 'rezobox-mapa', ...base, base: d.base, foto: rbImagen(d.foto, 120000), hora: d.hora == null || d.hora === '' ? null : rbNum(d.hora, 0, 24, 12),
@@ -6939,11 +6967,33 @@ function validarRB(d) {
 // juego (si la tienda no responde, el juego le pregunta directo a un modelo público sin clave). El juego manda la charla
 // reciente, lo que pasa en la partida (ctx) y un evento; nunca un prompt propio: así el servidor no es un chat libre.
 // Contesta en JSON: lo que dice, su cara y hasta 3 acciones de una lista cerrada (el juego vuelve a revisar cada una).
-const VERITY_ACC = ['seguir', 'quieta', 'ven', 'libre', 'bailar', 'saltar', 'girar', 'rodar', 'rebotar', 'dormir', 'amor', 'mareo', 'poner', 'construir', 'hora', 'musica', 'video', 'emote', 'luz', 'explorar', 'limpiar'];
+const VERITY_ACC = ['seguir', 'quieta', 'ven', 'libre', 'bailar', 'saltar', 'girar', 'rodar', 'rebotar', 'dormir', 'amor', 'mareo', 'poner', 'construir', 'hora', 'musica', 'video', 'emote', 'luz', 'explorar', 'limpiar', 'crear'];
 const VERITY_EMO = ['feliz', 'neutral', 'sorpresa', 'triste', 'enojada', 'pensando', 'miedo', 'risa', 'picara', 'siniestra', 'enamorada', 'dormida', 'mareada', 'emocionada'];
 const VERITY_OBRAS = ['casa', 'torre', 'muro', 'escalera', 'piramide', 'fuerte', 'puente'];
 const VERITY_EVENTOS = ['hola', 'muerte', 'noche', 'dia', 'obra', 'auto', 'explosion', 'charla', 'pensamiento', 'jugador', 'hecho', 'agarrada', 'tirada', 'congelada', 'disparo'];
 const VERITY_VOCES = ['es', 'en', 'fr', 'ja', 'zh', 'ko']; // (las que tiene MeloTTS; las demás: la voz del navegador)
+// los servers donde Verity piensa y habla con Gemini para todos (los tres primeros oficiales); fuera de ahí, el que
+// tenga el permiso del dueño (código secreto) o su propia clave de Google AI Studio
+const VERITY_PREMIUM = ['f_Desert_1', 'f_DesertV2_1', 'f_FlatGrass_1'];
+const VERITY_GEMINI = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest'], VERITY_GEMINI_VOZ = 'gemini-3.8-flash-lite-tts';
+// los mensajes (formato chat) → el pedido de Gemini, en JSON
+function verityAGemini(msgs, max) {
+  const sys = msgs.filter((m) => m.role === 'system').map((m) => m.content).join('\n');
+  return { systemInstruction: { parts: [{ text: sys }] }, contents: msgs.filter((m) => m.role !== 'system').map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+    generationConfig: { responseMimeType: 'application/json', maxOutputTokens: max || 500, temperature: 0.8 } };
+}
+// lo que se le pide a la voz de Gemini (el tono va en la frase: no lo lee)
+const verityVozGemini = (t, noche) => ({ contents: [{ parts: [{ text: (noche ? 'Whisper slowly, mysterious and a little eerie: ' : 'Say it like a cheerful, playful young girl: ') + t }] }],
+  generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Leda' } } } } });
+// la respuesta de audio de Gemini → WAV (a veces viene WAV, a veces PCM de 16 bits crudo con la frecuencia en el tipo)
+function verityWav(b64, tipo) {
+  const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+  if (/wav/i.test(tipo || '') || (u[0] === 82 && u[1] === 73 && u[2] === 70 && u[3] === 70)) return u;
+  const sr = +((/rate=(\d+)/.exec(tipo || '') || [])[1] || 24000), out = new Uint8Array(44 + u.length), o = new DataView(out.buffer), txt = (q, t) => { for (let i = 0; i < 4; i++) out[q + i] = t.charCodeAt(i); };
+  txt(0, 'RIFF'); o.setUint32(4, 36 + u.length, true); txt(8, 'WAVE'); txt(12, 'fmt '); o.setUint32(16, 16, true); o.setUint16(20, 1, true); o.setUint16(22, 1, true);
+  o.setUint32(24, sr, true); o.setUint32(28, sr * 2, true); o.setUint16(32, 2, true); o.setUint16(34, 16, true); txt(36, 'data'); o.setUint32(40, u.length, true); out.set(u, 44);
+  return out;
+}
 const VERITY_PROPS = ['Crate', 'Box2', 'Pelota', 'bouncy_ball', 'CamaElastica', 'AroBasquet', 'Arcade', 'Sofa', 'Mesa', 'Silla', 'Cama', 'Heladera', 'Farol', 'Banco',
   'Palmera', 'Roca', 'Cone', 'Barrel', 'Tire', 'Pumpkin', 'VendingMachine', 'Generator', 'Container1', 'TV', 'TableRound', 'Vase', 'LampDesk', 'question_block', 'tree14A',
   'Sedan', 'police_car_v5', 'Moto', 'CityCopter', 'Aircraft', 'Wheelchair', 'Inflatable_boat', 'Toilet'];
@@ -6961,8 +7011,9 @@ function verityPrompt(l, noche, jugador, sala) {
     `{"a":"poner","que":"PROP","n":1-5} spawn props in front of the player, PROP one of: ${VERITY_PROPS.join(', ')}; ` +
     '{"a":"construir","que":"casa|torre|muro|escalera|piramide|fuerte|puente"} you build it from crates (house, tower, wall, stairs, pyramid, castle/fort, bridge); {"a":"hora","h":0-24} change the time of day; {"a":"musica","q":"youtube search"} play music on a radio; ' +
     `{"a":"video","q":"youtube search"} play a video on a big screen; {"a":"emote","que":"EMOTE"} the player does an emote, EMOTE one of: ${VERITY_EMOTES.join(', ')}; ` +
-    '{"a":"luz","si":true} turn your light on or off; {"a":"explorar"} go explore and look at things; {"a":"limpiar"} delete what you built.\n' +
-    'Only add actions the player asks for in their last message (never on your own, never "quieta" or "seguir" unless asked). Requests to actions: follow me = seguir; stay/wait here = quieta; come here = ven; do whatever you want/go play = libre; dance = bailar; jump = saltar; spin = girar; roll = rodar; bounce = rebotar; sleep/nap = dormir; spawn/put/give me X = poner; build = construir; night/day/time = hora; play music/a song = musica; a video = video; clean up/delete what you made = limpiar; go explore = explorar. ' +
+    '{"a":"luz","si":true} turn your light on or off; {"a":"explorar"} go explore and look at things; {"a":"limpiar"} delete what you built; ' +
+    '{"a":"crear","tipo":"mod|mapa|anim","q":"detailed description in English of what to make"} you CREATE something new for the game (it takes a moment, you are great at it): "mod" = a new mod or game mechanic (gravity, speed, super jump, weapons, slow motion, or code: minigames, buttons, things that rain or explode, timers, powers), "mapa" = a custom build placed in the world (a big castle, a city block, a parkour or obstacle course, an arena, a racetrack with ramps and lights), "anim" = a new emote animation (a dance, a gesture, a move) made in the animation editor. Add "cambiar":true when the player wants to change the last thing you created (then q says what to change).\n' +
+    'Only add actions the player asks for in their last message (never on your own, never "quieta" or "seguir" unless asked). Requests to actions: follow me = seguir; stay/wait here = quieta; come here = ven; do whatever you want/go play = libre; dance = bailar; jump = saltar; spin = girar; roll = rodar; bounce = rebotar; sleep/nap = dormir; spawn/put/give me X = poner; build = construir (only those 7 simple things; anything else to build = crear mapa); make/create/invent a mod, a mechanic, a minigame or a power = crear mod; make/design a map, a level, a parkour, an obstacle course, an arena = crear mapa; make/create a dance, an animation or an emote = crear anim; night/day/time = hora; play music/a song = musica; a video = video; clean up/delete what you made = limpiar; go explore = explorar. ' +
     'When the player asks for several things, add one action for each. "recordar": a short NEW fact about the player (name, likes, plans) not already in your memory, otherwise "". [event] lines are things that just happened in the game: react to them naturally.\n' +
     'Examples: "make it night and play some rock" -> {"decir":"Night and rock, coming right up!","emocion":"feliz","acciones":[{"a":"hora","h":22},{"a":"musica","q":"rock"}],"recordar":"likes rock"} ' +
     '"spawn two cars" -> {"decir":"Two shiny cars for you!","emocion":"feliz","acciones":[{"a":"poner","que":"Sedan","n":2}],"recordar":""}' +
@@ -6985,14 +7036,20 @@ function verityMensajes(d) {
   return M;
 }
 // lo que contestó el modelo → { decir, emocion, acciones, recordar } (null si no hay nada que decir)
+// el JSON que devuelve un modelo, aunque venga roto (claves sin comillas, comas de más, cortado por el largo)
+const rbLeer = (s) => { try { const x = JSON.parse(s); return x && typeof x === 'object' ? x : null; } catch (e) { return null; } };
+const rbArreglo = (s) => s.replace(/([{,]\s*)([a-zA-Z_]+)\s*:/g, '$1"$2":').replace(/,\s*([}\]])/g, '$1');
+function rbJSON(txt) {
+  if (typeof txt !== 'string' || !txt.trim()) return null;
+  const i = txt.indexOf('{'), j = txt.lastIndexOf('}'), crudo = i >= 0 && j > i ? txt.slice(i, j + 1) : '';
+  let o = crudo ? rbLeer(crudo) || rbLeer(rbArreglo(crudo)) : null;
+  if (!o && i >= 0) for (const fin of ['}', ']}', '"}', '"]}', '}]}', '}]]}', ']]}']) if ((o = rbLeer(rbArreglo(txt.slice(i).trim() + fin)))) break;
+  return o;
+}
 function verityRespuesta(txt) {
   if (typeof txt !== 'string' || !txt.trim()) return null;
-  let o = null; const i = txt.indexOf('{'), j = txt.lastIndexOf('}'), crudo = i >= 0 && j > i ? txt.slice(i, j + 1) : '';
-  const leer = (s) => { try { const x = JSON.parse(s); return x && typeof x === 'object' ? x : null; } catch (e) { return null; } };
-  // JSON roto (claves sin comillas, comas de más): se arregla lo común; si no, se rescata lo que dice
-  const arreglo = (s) => s.replace(/([{,]\s*)([a-zA-Z_]+)\s*:/g, '$1"$2":').replace(/,\s*([}\]])/g, '$1');
-  if (crudo) o = leer(crudo) || leer(arreglo(crudo));
-  if (!o && i >= 0) for (const fin of ['}', ']}', '"}', '"]}', '}]}']) if ((o = leer(arreglo(txt.slice(i).trim() + fin)))) break; // (cortado por el largo)
+  const leer = rbLeer;
+  let o = rbJSON(txt);
   if (!o) { const m = /decir"?\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(txt); o = { decir: m ? (leer('["' + m[1] + '"]') || [m[1]])[0] : txt.replace(/\b(decir|emocion|acciones|recordar)\b"?\s*:?/g, ' ').replace(/[{}[\]"]/g, ' ') }; }
   const decir = rbTexto(o.decir, 280).replace(/^[\s,:;]+|[\s,:;]+$/g, ''); if (!decir) return null;
   const acciones = (Array.isArray(o.acciones) ? o.acciones : []).map((x) => {
@@ -7005,9 +7062,107 @@ function verityRespuesta(txt) {
     if (x.a === 'hora') a.h = rbNum(x.h, 0, 24, 12);
     if (x.a === 'musica' || x.a === 'video') a.q = rbTexto(x.q, 80);
     if (x.a === 'luz') a.si = x.si !== false;
+    if (x.a === 'crear') { a.tipo = VERITY_CREA.includes(x.tipo) ? x.tipo : 'mod'; a.q = rbTexto(x.q, 400); if (!a.q) return null; if (x.cambiar) a.cambiar = true; }
     return a;
   }).filter(Boolean).slice(0, 3);
   return { decir, emocion: VERITY_EMO.includes(o.emocion) ? o.emocion : 'neutral', acciones, recordar: rbTexto(o.recordar, 100) };
+}
+
+// ---------------- Verity crea: mods (con mecánicas en código), cosas en el mundo y animaciones ----------------
+// Un pedido aparte del de charlar (más largo, con un modelo mejor) que contesta un JSON; todo se revisa: el mod pasa por
+// validarRB (su código corre aislado como el de cualquier mod), lo del mundo con nombres y lugares acotados (el juego
+// además revisa que cada prop exista) y la animación son direcciones de brazos y piernas, codos, rodillas y giros del
+// cuerpo, que el juego pasa a huesos en el editor de animaciones.
+const VERITY_CREA = ['mod', 'mapa', 'anim'];
+const VERITY_GEMINI_CREA = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest'];
+const VERITY_ICOS = ['mod', 'energia', 'luna', 'salto', 'veloz', 'balas', 'dios', 'lenta', 'boom', 'fuego', 'cohete', 'alien', 'robot', 'dino', 'auto', 'arma', 'bomba', 'iman', 'tornado',
+  'hielo', 'corona', 'fiesta', 'volar', 'ragdoll', 'planeta', 'shuriken', 'luz', 'meta', 'teleport', 'musica', 'piano', 'radio', 'rampa', 'impulso', 'cartel', 'zona_muerte', 'ciclope', 'emote'];
+const VERITY_ENT = 'luz {"color":"#rrggbb","r":1-80 radius,"i":0.05-6 intensity}; cartel {"texto":"...","color":"#rrggbb"} a sign; rampa {"alto":10-600,"ancho":6-80,"ang":15-80} a huge stunt ramp; ' +
+  'impulso {"f":0-200 up force,"d":0-200 forward force} a jump pad; meta {"texto":"..."} a finish line; teleport {"a":[x,y,z] destination} ; zona_muerte {"s":[sx,sy,sz] size} kills whoever enters; piano {}; radio {}; pantalla {} a big video screen';
+const VERITY_API = 'The code runs alone in a sandboxed iframe: no access to the page, window.parent, storage or network (never use fetch, document, eval, import or require). It talks to the game only through the global object rb:\n' +
+  'rb.estado = {jugador:{pos:[x,y,z],vel:[x,y,z],yaw,pitch,vida,vivo,suelo,vehiculo,nombre},mundo:{nombre,gravedad,hora},t} (refreshed 15 times per second; y is up; the player looks along [Math.sin(yaw),0,Math.cos(yaw)]);\n' +
+  "rb.on('inicio',fn) once when the mod starts; rb.on('tick',fn({dt,t})) 15 times per second; rb.on('boton',fn({id})) when the player taps one of your buttons; rb.on('tecla',fn({code})) key pressed (KeyboardEvent.code like 'KeyG'); rb.on('muerte',fn) the player died; rb.on('fin',fn) the mod was turned off;\n" +
+  "rb.aviso(text,seconds) a message on screen; rb.boton(id,'ico:ICON' or short text) adds a button to the MOD menu (always add buttons for mechanics on phones, keys are optional extras); rb.quitarBoton(id);\n" +
+  'rb.jugador({vel_max,salto,vida,pos:[x,y,z],vel:[x,y,z],yaw,tercera}) changes the player (normal values: vel_max 6, salto 1.1, vida 100; vel launches the player); rb.mundo({gravedad,hora,ciclo}) (gravedad multiplier, 1 = normal; hora 0-24; ciclo true/false day cycle);\n' +
+  'await rb.crear(PROP,[x,y,z],{yaw,congelado}) -> id or null (at most 3000; congelado true = frozen in the air); rb.borrar(id); rb.mover(id,{pos,vel,congelado}) (props only); await rb.objetos() -> [{id,n,p,mio}];\n' +
+  "rb.explosion([x,y,z],radius,damage); rb.arma(WEAPON) gives a weapon; rb.nota(hz,seconds,[x,y,z] or null,volume 0-2,'piano'|'organo'|'campana') plays a note;\n" +
+  'await rb.rayo([x,y,z],[dx,dy,dz],maxDistance) -> {t,p,n,id} or null; await rb.guardar(key,value); await rb.leer(key) (saved between games);\n' +
+  'await rb.entidad(TYPE,[x,y,z],{params},yaw) -> id; rb.quitarEntidad(id); TYPE: ' + VERITY_ENT + "; rb.nativo('volar'|'ragdoll'|'scp',true|false) flying, ragdoll body, play as the SCP creature.\n" +
+  'Write plain modern JavaScript, keep state in variables, check for null results, keep it light (no busy loops, few objects per tick, delete what you spawn when it is no longer needed and on fin).';
+function verityCrearPrompt(tipo, l, props, armas) {
+  const lengua = VERITY_LENGUAS[l] || 'English';
+  const ini = `You are Verity, the AI helper of RezoBox, a physics sandbox game like Garry's Mod (props, vehicles, weapons, ragdolls, mods, multiplayer). The player asked you to create something. Be creative and generous: make it fun, complete and polished, more than the bare minimum. "decir" and "descripcion" are in ${lengua} (or the language of the request), short and fun. Family friendly. Reply ONLY with JSON.\n`;
+  const lp = props.length ? props.join(', ') : 'Crate, Box2, Barrel, Cone';
+  if (tipo === 'mod') return ini +
+    'Create a NEW MOD: {"decir":"one short sentence telling the player what you made and how to use it","nombre":"short title 3-40 chars","descripcion":"1-2 sentences","icono":"ICON","efectos":{"gravedad":1,"velocidad":1,"salto":1,"tiempo":1,"explosion":1,"municionInfinita":false,"invencible":false,"hora":null,"armas":[]},"codigo":"JavaScript"}\n' +
+    `ICON one of: ${VERITY_ICOS.join(', ')}.\n` +
+    'efectos are simple multipliers, 1 = unchanged (gravedad 0.2 = moon, velocidad 2 = twice as fast, salto 3 = super jump, tiempo 0.5 = slow motion, explosion 3 = bigger explosions); hora 0-24 or null; ' +
+    `armas: weapons to give, from: ${(armas.length ? armas : ['Pistol', 'Akm', 'Shotgun', 'Sniper']).join(', ')}.\n` +
+    '"codigo": the new mechanic as JavaScript ("" if the effects alone do it). ' + VERITY_API + `\nPROP names for rb.crear: ${lp}.\n` +
+    'Example of codigo: let t=0,ids=[];rb.on(\'inicio\',()=>{rb.aviso(\'Crate rain!\',3);rb.boton(\'jet\',\'ico:cohete\');});rb.on(\'boton\',b=>{if(b.id===\'jet\'){const j=rb.estado.jugador;rb.jugador({vel:[j.vel[0],18,j.vel[2]]});}});' +
+    'rb.on(\'tick\',async e=>{t+=e.dt;if(t<4)return;t=0;const p=rb.estado.jugador.pos,id=await rb.crear(\'Crate\',[p[0]+Math.random()*8-4,p[1]+15,p[2]+Math.random()*8-4]);if(id){ids.push(id);if(ids.length>25)rb.borrar(ids.shift());}});rb.on(\'fin\',()=>ids.forEach(rb.borrar));';
+  if (tipo === 'mapa') return ini +
+    'Create a BUILD placed in the world (a structure, scene, level part, parkour, arena...): {"decir":"one short sentence","nombre":"short title","objetos":[{"n":"PROP","p":[x,y,z],"yaw":degrees,"f":1}],"entidades":[{"t":"TYPE","p":[x,y,z],"yaw":degrees,"prm":{}}]}\n' +
+    'Coordinates in meters from the build point on the ground: x = right, y = up, z = forward (away from the player, who stands at about [0,0,-4]). p is where the BOTTOM CENTER of the prop goes. ' +
+    'Use the sizes (width x height x depth, meters, at yaw 0) to stack and line props up exactly without gaps or overlaps: a prop on top of another goes at y = the height of the one below; yaw 90 swaps width and depth. ' +
+    '"f":1 freezes the prop in place (use it for anything built), "f":0 leaves it loose with physics. At most 180 objects and 16 entities, everything within 45 m.\n' +
+    `PROPS (name WxHxD): ${lp}.\nENTITY TYPES (prm): ${VERITY_ENT}; teleport "a" is relative to the build point too.`;
+  return ini +
+    'Create a NEW EMOTE ANIMATION for a humanoid character as keyframes: {"decir":"one short sentence","nombre":"short title","cat":"baile|gesto|accion","dur":seconds 1-12,"loop":true,"claves":[KEY,...]}\n' +
+    'KEY = {"t":seconds,"brazoD":[x,y,z],"brazoI":[x,y,z],"codoD":deg,"codoI":deg,"piernaD":[x,y,z],"piernaI":[x,y,z],"rodillaD":deg,"rodillaI":deg,"torso":[fwd,side,turn],"cabeza":[down,side,turn],"cuerpo":[fwd,side,turn],"cadera":[right,up,forward]}. ' +
+    'D = the character\'s right side, I = its left side. A field you leave out keeps its value from the previous key (the first key starts from the standing pose).\n' +
+    'brazo / pierna = the direction the upper arm / thigh points, in the character\'s own frame: x = outward (away from the body, toward that limb\'s side), y = up, z = forward. Standing: brazo [0.15,-1,0], pierna [0,-1,0]; arm out to the side [1,0,0]; arm forward [0,0,1]; arm up [0.2,1,0]; arm across the chest [-0.6,0,0.8]; knee up or kick forward: pierna [0,-0.2,1].\n' +
+    'codo (elbow) / rodilla (knee) = bend in degrees, 0 straight to 150 fully bent (elbow bends the hand forward/up, knee bends the foot backward).\n' +
+    'torso / cabeza = degrees [bend forward + or back -, lean to its right + or left -, turn to its right + or left -] (torso up to 60, cabeza up to 50); cuerpo = the same for the whole body around the hips (for a spin use turn 0, 90, 180, 270, 360 on successive keys). ' +
+    'cadera = hip offset in meters [right, up (-0.4 = crouch, +0.3 = hop), forward].\n' +
+    'Use 6-24 keys with t increasing from 0 to dur; for loops the last key (t = dur) repeats the first. Make it expressive and rhythmic, with clear, natural poses and no limb going through the body.';
+}
+// el pedido del juego → los mensajes (null si no sirve). d: { tipo, q, l, props: [[nombre, ancho, alto, fondo]], armas, prev }
+function verityCrearMensajes(d) {
+  if (!d || typeof d !== 'object' || !VERITY_CREA.includes(d.tipo)) return null;
+  const l = typeof d.l === 'string' && VERITY_LENGUAS[d.l] ? d.l : 'en', q = rbTexto(d.q, 600); if (!q) return null;
+  const props = (Array.isArray(d.props) ? d.props : []).slice(0, 240).filter((p) => Array.isArray(p) && NOMBRE_RB.test(String(p[0])))
+    .map((p) => (d.tipo === 'mapa' ? `${p[0]} ${[1, 2, 3].map((i) => rbNum(p[i], 0, 99, 1).toFixed(1)).join('x')}` : String(p[0])));
+  const prev = typeof d.prev === 'string' ? d.prev.replace(/[\u0000-\u0008\u000b-\u001f<>]/g, ' ').slice(0, 9000) : '';
+  return [{ role: 'system', content: verityCrearPrompt(d.tipo, l, props, rbNombres(d.armas, 60)) },
+    { role: 'user', content: (prev ? `[the current version, change it as asked and return the whole JSON] ${prev}\n` : '') + q }];
+}
+// lo que contestó → { tipo, decir, mod | mapa | anim } (null si no sirve)
+function verityCreacion(tipo, txt) {
+  const o = rbJSON(typeof txt === 'string' ? txt.replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/, '') : '');
+  if (!o || !VERITY_CREA.includes(tipo)) return null;
+  const decir = rbTexto(o.decir, 280), nombre = rbTexto(o.nombre, 40);
+  if (tipo === 'mod') {
+    const e = o.efectos && typeof o.efectos === 'object' ? o.efectos : {};
+    let codigo = typeof o.codigo === 'string' ? o.codigo.replace(/^\s*```(?:js|javascript)?\s*/i, '').replace(/```\s*$/, '').trim().slice(0, 60000) : '';
+    const m = validarRB({ formato: 'rezobox-mod', nombre: nombre.length >= 3 ? nombre : 'Verity mod', autor: 'Verity', descripcion: o.descripcion, etiquetas: ['diversion'],
+      icono: 'ico:' + (VERITY_ICOS.includes(o.icono) ? o.icono : 'mod'), efectos: { ...e, aparecer: [] }, codigo, tipo: 'juego' });
+    return typeof m === 'string' ? null : { tipo, decir, mod: m };
+  }
+  if (tipo === 'mapa') {
+    const objetos = (Array.isArray(o.objetos) ? o.objetos : []).slice(0, 220).map((x) => {
+      if (!x || !NOMBRE_RB.test(String(x.n || ''))) return null; const p = rbVec(x.p, 3, 1e3); if (!p) return null;
+      return { n: String(x.n), p: [rbNum(p[0], -60, 60, 0), rbNum(p[1], -5, 90, 0), rbNum(p[2], -60, 60, 0)], yaw: rbNum(x.yaw, -720, 720, 0), f: x.f === 0 || x.f === false ? 0 : 1 };
+    }).filter(Boolean);
+    const entidades = (Array.isArray(o.entidades) ? o.entidades : []).slice(0, 20).map((x) => {
+      if (!x || !ENTIDADES_RB.includes(x.t)) return null; const p = rbVec(x.p, 3, 1e3); if (!p) return null;
+      return { t: x.t, p: [rbNum(p[0], -60, 60, 0), rbNum(p[1], -5, 90, 0), rbNum(p[2], -60, 60, 0)], yaw: rbNum(x.yaw, -720, 720, 0), prm: rbPrm(x.prm) };
+    }).filter(Boolean);
+    return objetos.length || entidades.length ? { tipo, decir, mapa: { nombre, objetos, entidades } } : null;
+  }
+  const dur = rbNum(o.dur, 0.5, 30, 3), dir = (v) => { const a = rbVec(v, 3, 5); if (!a) return null; const L = Math.hypot(a[0], a[1], a[2]); return L > 0.05 ? a.map((x) => Math.round(x / L * 1000) / 1000) : null; };
+  const ang = (v, lim, giro) => { const a = rbVec(v, 3, 1e4); return a ? [rbNum(a[0], -lim, lim, 0), rbNum(a[1], -lim, lim, 0), rbNum(a[2], -(giro || lim), giro || lim, 0)] : null; };
+  const vistos = new Map();
+  for (const k of (Array.isArray(o.claves) ? o.claves : []).slice(0, 80)) {
+    if (!k || typeof k !== 'object') continue; const c = { t: Math.round(rbNum(k.t, 0, dur, 0) * 20) / 20 };
+    for (const n of ['brazoD', 'brazoI', 'piernaD', 'piernaI']) { const d = dir(k[n]); if (d) c[n] = d; }
+    for (const n of ['codoD', 'codoI', 'rodillaD', 'rodillaI']) if (k[n] != null && Number.isFinite(+k[n])) c[n] = rbNum(k[n], 0, 160, 0);
+    const to = ang(k.torso, 75), ca = ang(k.cabeza, 70), cu = ang(k.cuerpo, 180, 1080), h = rbVec(k.cadera, 3, 1.5);
+    if (to) c.torso = to; if (ca) c.cabeza = ca; if (cu) c.cuerpo = cu; if (h) c.cadera = h;
+    vistos.set(c.t, c);
+  }
+  const claves = [...vistos.values()].sort((a, b) => a.t - b.t);
+  return claves.length >= 2 ? { tipo, decir, anim: { nombre, cat: CATS_ANIM_RB.includes(o.cat) ? o.cat : 'baile', dur, loop: o.loop !== false, claves } } : null;
 }
 
 // ---------------- textos de la versión 8 (editor de animaciones, emotes, props, mapas propios, pantalla, menú MOD) ----------------
@@ -7128,6 +7283,41 @@ const IDI3 = {
   'ver.a.amor': ['Amor', 'Love', 'Amor', 'Cinta', 'Cinta', 'Pag-ibig', 'ラブ', 'รัก', 'Aşk', 'حب', 'Любовь', 'Кохання', 'Amour', 'Liebe'],
   'ver.a.mareo': ['Marearse', 'Dizzy', 'Tonta', 'Pusing', 'Pening', 'Hilo', 'くらくら', 'เวียนหัว', 'Başı dönsün', 'دوخة', 'Головокружение', 'Запаморочення', 'Vertige', 'Schwindelig'],
   'ver.a.dormir': ['Dormir', 'Sleep', 'Dormir', 'Tidur', 'Tidur', 'Matulog', '眠る', 'นอน', 'Uyu', 'نوم', 'Спать', 'Спати', 'Dormir', 'Schlafen'],
+  'ver.ia.propia': ['Cerebro: Gemini (tu clave)', 'Brain: Gemini (your key)', 'Cérebro: Gemini (sua chave)', 'Otak: Gemini (kuncimu)', 'Otak: Gemini (kunci anda)', 'Utak: Gemini (iyong key)', '頭脳：Gemini（あなたのキー）', 'สมอง: Gemini (คีย์ของคุณ)', 'Beyin: Gemini (senin anahtarın)', 'العقل: Gemini (مفتاحك)', 'Мозг: Gemini (твой ключ)', 'Мозок: Gemini (твій ключ)', 'Cerveau : Gemini (ta clé)', 'Gehirn: Gemini (dein Schlüssel)'],
+  'ver.ia.dueno': ['Cerebro: Gemini (permiso del dueño)', 'Brain: Gemini (owner\'s pass)', 'Cérebro: Gemini (permissão do dono)', 'Otak: Gemini (izin pemilik)', 'Otak: Gemini (izin pemilik)', 'Utak: Gemini (pahintulot ng may-ari)', '頭脳：Gemini（オーナー許可）', 'สมอง: Gemini (สิทธิ์เจ้าของ)', 'Beyin: Gemini (sahip izni)', 'العقل: Gemini (إذن المالك)', 'Мозг: Gemini (допуск владельца)', 'Мозок: Gemini (доступ власника)', 'Cerveau : Gemini (accès du créateur)', 'Gehirn: Gemini (Freigabe des Besitzers)'],
+  'ver.ia.sala': ['Cerebro: Gemini (este server)', 'Brain: Gemini (this server)', 'Cérebro: Gemini (este servidor)', 'Otak: Gemini (server ini)', 'Otak: Gemini (pelayan ini)', 'Utak: Gemini (server na ito)', '頭脳：Gemini（このサーバー）', 'สมอง: Gemini (เซิร์ฟเวอร์นี้)', 'Beyin: Gemini (bu sunucu)', 'العقل: Gemini (هذا الخادم)', 'Мозг: Gemini (этот сервер)', 'Мозок: Gemini (цей сервер)', 'Cerveau : Gemini (ce serveur)', 'Gehirn: Gemini (dieser Server)'],
+  'ver.ia.normal': ['Cerebro: IA gratis de RezoBox', 'Brain: free RezoBox AI', 'Cérebro: IA grátis do RezoBox', 'Otak: AI gratis RezoBox', 'Otak: AI percuma RezoBox', 'Utak: libreng AI ng RezoBox', '頭脳：RezoBoxの無料AI', 'สมอง: AI ฟรีของ RezoBox', 'Beyin: RezoBox ücretsiz YZ', 'العقل: ذكاء RezoBox المجاني', 'Мозг: бесплатный ИИ RezoBox', 'Мозок: безкоштовний ШІ RezoBox', 'Cerveau : IA gratuite de RezoBox', 'Gehirn: kostenlose RezoBox-KI'],
+  'ver.ia.tx': ['Con tu propia clave de Google AI Studio, Verity piensa mejor, habla con una voz natural en tu idioma y te ayuda a crear mods, mapas y animaciones. La clave se guarda sólo en este aparato.', 'With your own Google AI Studio key, Verity thinks better, speaks with a natural voice in your language and helps you create mods, maps and animations. The key is stored only on this device.', 'Com sua própria chave do Google AI Studio, a Verity pensa melhor, fala com voz natural no seu idioma e ajuda a criar mods, mapas e animações. A chave fica só neste aparelho.', 'Dengan kunci Google AI Studio milikmu, Verity berpikir lebih baik, bicara dengan suara alami dalam bahasamu, dan membantu membuat mod, peta, dan animasi. Kunci hanya disimpan di perangkat ini.', 'Dengan kunci Google AI Studio anda sendiri, Verity berfikir lebih baik, bercakap dengan suara semula jadi dalam bahasa anda dan membantu mencipta mod, peta dan animasi. Kunci disimpan di peranti ini sahaja.', 'Gamit ang sarili mong Google AI Studio key, mas matalino si Verity, may natural na boses sa wika mo at tutulungan ka sa paggawa ng mods, maps at animations. Sa device lang na ito naka-save ang key.', '自分のGoogle AI Studioキーを使うと、Verityはもっと賢くなり、あなたの言語で自然な声で話し、MOD・マップ・アニメ作りを手伝います。キーはこの端末だけに保存されます。', 'ใช้คีย์ Google AI Studio ของคุณเอง แล้ว Verity จะคิดเก่งขึ้น พูดด้วยเสียงธรรมชาติในภาษาของคุณ และช่วยสร้างม็อด แผนที่ และแอนิเมชัน คีย์จะเก็บไว้ในเครื่องนี้เท่านั้น', 'Kendi Google AI Studio anahtarınla Verity daha iyi düşünür, kendi dilinde doğal bir sesle konuşur ve mod, harita ve animasyon yapmana yardım eder. Anahtar yalnızca bu cihazda saklanır.', 'بمفتاحك الخاص من Google AI Studio تفكر Verity بشكل أفضل وتتكلم بصوت طبيعي بلغتك وتساعدك في صنع المودات والخرائط والحركات. يُحفظ المفتاح على هذا الجهاز فقط.', 'Со своим ключом Google AI Studio Verity думает лучше, говорит естественным голосом на твоём языке и помогает создавать моды, карты и анимации. Ключ хранится только на этом устройстве.', 'З власним ключем Google AI Studio Verity думає краще, говорить природним голосом твоєю мовою й допомагає створювати моди, мапи й анімації. Ключ зберігається лише на цьому пристрої.', 'Avec ta propre clé Google AI Studio, Verity réfléchit mieux, parle avec une voix naturelle dans ta langue et t’aide à créer des mods, des cartes et des animations. La clé reste seulement sur cet appareil.', 'Mit deinem eigenen Google-AI-Studio-Schlüssel denkt Verity besser, spricht mit natürlicher Stimme in deiner Sprache und hilft dir, Mods, Karten und Animationen zu erstellen. Der Schlüssel bleibt nur auf diesem Gerät.'],
+  'ver.ia.ok': ['Listo: Verity usa tu clave', 'Done: Verity uses your key', 'Pronto: a Verity usa sua chave', 'Siap: Verity memakai kuncimu', 'Siap: Verity guna kunci anda', 'Ayos: gamit na ni Verity ang key mo', '完了：Verityがあなたのキーを使います', 'เรียบร้อย: Verity ใช้คีย์ของคุณแล้ว', 'Tamam: Verity anahtarını kullanıyor', 'تم: Verity تستخدم مفتاحك', 'Готово: Verity использует твой ключ', 'Готово: Verity використовує твій ключ', 'C’est fait : Verity utilise ta clé', 'Fertig: Verity nutzt deinen Schlüssel'],
+  'ver.ia.mal': ['Esa clave no funciona', 'That key does not work', 'Essa chave não funciona', 'Kunci itu tidak berfungsi', 'Kunci itu tidak berfungsi', 'Hindi gumagana ang key na iyan', 'そのキーは使えません', 'คีย์นี้ใช้ไม่ได้', 'Bu anahtar çalışmıyor', 'هذا المفتاح لا يعمل', 'Этот ключ не работает', 'Цей ключ не працює', 'Cette clé ne marche pas', 'Dieser Schlüssel funktioniert nicht'],
+  'ver.ia.quitar': ['Quitar', 'Remove', 'Remover', 'Hapus', 'Buang', 'Alisin', '外す', 'ลบออก', 'Kaldır', 'إزالة', 'Убрать', 'Прибрати', 'Retirer', 'Entfernen'],
+  'ver.cr.mod': ['Crear mod', 'Make a mod', 'Criar mod', 'Buat mod', 'Buat mod', 'Gumawa ng mod', 'MODを作る', 'สร้างม็อด', 'Mod yap', 'اصنع مود', 'Сделать мод', 'Зробити мод', 'Créer un mod', 'Mod erstellen'],
+  'ver.cr.mapa': ['Construir', 'Build', 'Construir', 'Bangun', 'Bina', 'Magtayo', '建てる', 'ก่อสร้าง', 'İnşa et', 'ابنِ', 'Построить', 'Збудувати', 'Construire', 'Bauen'],
+  'ver.cr.anim': ['Animación', 'Animation', 'Animação', 'Animasi', 'Animasi', 'Animasyon', 'アニメ', 'แอนิเมชัน', 'Animasyon', 'حركة', 'Анимация', 'Анімація', 'Animation', 'Animation'],
+  'ver.cr.t.mod': ['Verity te crea un mod', 'Verity makes you a mod', 'Verity cria um mod para você', 'Verity membuatkanmu mod', 'Verity buatkan mod untukmu', 'Gagawan ka ni Verity ng mod', 'VerityがMODを作るよ', 'Verity สร้างม็อดให้คุณ', 'Verity sana bir mod yapsın', 'Verity تصنع لك مودًا', 'Verity сделает тебе мод', 'Verity зробить тобі мод', 'Verity te crée un mod', 'Verity baut dir einen Mod'],
+  'ver.cr.t.mapa': ['Verity te construye algo', 'Verity builds something for you', 'Verity constrói algo para você', 'Verity membangun sesuatu untukmu', 'Verity bina sesuatu untukmu', 'Magtatayo si Verity para sa iyo', 'Verityが何か建てるよ', 'Verity สร้างของให้คุณ', 'Verity senin için bir şey inşa etsin', 'Verity تبني لك شيئًا', 'Verity что-нибудь построит', 'Verity щось збудує', 'Verity te construit quelque chose', 'Verity baut dir etwas'],
+  'ver.cr.t.anim': ['Verity te hace una animación', 'Verity makes you an animation', 'Verity faz uma animação para você', 'Verity membuatkanmu animasi', 'Verity buatkan animasi untukmu', 'Gagawan ka ni Verity ng animasyon', 'Verityがアニメを作るよ', 'Verity ทำแอนิเมชันให้คุณ', 'Verity sana bir animasyon yapsın', 'Verity تصنع لك حركة', 'Verity сделает тебе анимацию', 'Verity зробить тобі анімацію', 'Verity te crée une animation', 'Verity macht dir eine Animation'],
+  'ver.cr.ph.mod': ['Ej.: cada 10 segundos cae un meteorito y tengo un botón de escudo', 'E.g. a meteor falls every 10 seconds and I get a shield button', 'Ex.: a cada 10 segundos cai um meteoro e eu tenho um botão de escudo', 'Mis.: tiap 10 detik jatuh meteor dan aku punya tombol perisai', 'Cth.: setiap 10 saat meteor jatuh dan saya ada butang perisai', 'Hal.: bawat 10 segundo may bulalakaw na bumabagsak at may button ako ng shield', '例：10秒ごとに隕石が落ちてきて、シールドのボタンがある', 'เช่น ทุก 10 วินาทีมีอุกกาบาตตก และฉันมีปุ่มโล่', 'Örn.: her 10 saniyede bir göktaşı düşsün ve bir kalkan düğmem olsun', 'مثال: كل 10 ثوانٍ يسقط نيزك ولدي زر درع', 'Напр.: каждые 10 секунд падает метеорит, а у меня есть кнопка щита', 'Напр.: кожні 10 секунд падає метеорит, а в мене є кнопка щита', 'Ex. : une météorite tombe toutes les 10 secondes et j’ai un bouton bouclier', 'Z. B.: alle 10 Sekunden fällt ein Meteor und ich habe einen Schild-Knopf'],
+  'ver.cr.ph.mapa': ['Ej.: un castillo con torres y faroles, o un parkour', 'E.g. a castle with towers and lamps, or a parkour course', 'Ex.: um castelo com torres e postes de luz, ou um parkour', 'Mis.: kastil dengan menara dan lampu, atau parkour', 'Cth.: istana dengan menara dan lampu, atau parkour', 'Hal.: kastilyo na may mga tore at ilaw, o parkour', '例：塔と街灯のあるお城、またはパルクール', 'เช่น ปราสาทมีหอคอยและโคมไฟ หรือสนามพาร์คัวร์', 'Örn.: kuleli ve fenerli bir kale ya da bir parkur', 'مثال: قلعة بأبراج ومصابيح، أو مسار باركور', 'Напр.: замок с башнями и фонарями или паркур', 'Напр.: замок із вежами й ліхтарями або паркур', 'Ex. : un château avec des tours et des lampadaires, ou un parkour', 'Z. B.: eine Burg mit Türmen und Laternen oder ein Parkour'],
+  'ver.cr.ph.anim': ['Ej.: un baile de robot con un giro', 'E.g. a robot dance with a spin', 'Ex.: uma dança de robô com um giro', 'Mis.: tarian robot dengan putaran', 'Cth.: tarian robot dengan pusingan', 'Hal.: sayaw-robot na may ikot', '例：回転つきのロボットダンス', 'เช่น ท่าเต้นหุ่นยนต์พร้อมหมุนตัว', 'Örn.: dönüşlü bir robot dansı', 'مثال: رقصة روبوت مع دوران', 'Напр.: танец робота с поворотом', 'Напр.: танець робота з поворотом', 'Ex. : une danse de robot avec une pirouette', 'Z. B.: ein Roboter-Tanz mit Drehung'],
+  'ver.cr.ok': ['Crear', 'Create', 'Criar', 'Buat', 'Cipta', 'Gawin', '作る', 'สร้าง', 'Oluştur', 'أنشئ', 'Создать', 'Створити', 'Créer', 'Erstellen'],
+  'ver.cr.cambiar': ['Cambiar lo último que hizo', 'Change the last thing she made', 'Mudar a última coisa que ela fez', 'Ubah yang terakhir dia buat', 'Ubah yang terakhir dia buat', 'Baguhin ang huli niyang ginawa', '最後に作ったものを変える', 'แก้ชิ้นล่าสุดที่เธอทำ', 'Son yaptığını değiştir', 'غيّر آخر ما صنعته', 'Изменить последнее, что она сделала', 'Змінити останнє, що вона зробила', 'Modifier sa dernière création', 'Das Letzte ändern, das sie gemacht hat'],
+  'ver.cr.haciendo': ['Verity está creando…', 'Verity is creating…', 'Verity está criando…', 'Verity sedang membuat…', 'Verity sedang mencipta…', 'Gumagawa si Verity…', 'Verityが作っています…', 'Verity กำลังสร้าง…', 'Verity hazırlıyor…', 'Verity تصنع الآن…', 'Verity создаёт…', 'Verity створює…', 'Verity crée…', 'Verity erstellt…'],
+  'ver.cr.listo': ['¡Listo!', 'Done!', 'Pronto!', 'Selesai!', 'Siap!', 'Tapos na!', 'できた！', 'เสร็จแล้ว!', 'Hazır!', 'تم!', 'Готово!', 'Готово!', 'C’est prêt !', 'Fertig!'],
+  'ver.cr.mal': ['No me salió, ¿probamos de nuevo?', 'That didn’t work, shall we try again?', 'Não deu certo, vamos tentar de novo?', 'Gagal, coba lagi?', 'Tak menjadi, cuba lagi?', 'Hindi gumana, subukan ulit?', 'うまくいかなかった、もう一回やってみる？', 'ไม่สำเร็จ ลองใหม่ไหม?', 'Olmadı, tekrar deneyelim mi?', 'لم ينجح، نحاول مجددًا؟', 'Не вышло, попробуем ещё раз?', 'Не вийшло, спробуємо ще раз?', 'Raté, on réessaie ?', 'Hat nicht geklappt, nochmal?'],
+  'ver.cr.ocupada': ['Verity ya está creando algo', 'Verity is already creating something', 'Verity já está criando algo', 'Verity sedang membuat sesuatu', 'Verity sedang mencipta sesuatu', 'May ginagawa na si Verity', 'Verityはもう何か作っています', 'Verity กำลังสร้างอย่างอื่นอยู่', 'Verity zaten bir şey hazırlıyor', 'Verity تصنع شيئًا بالفعل', 'Verity уже что-то создаёт', 'Verity вже щось створює', 'Verity crée déjà quelque chose', 'Verity erstellt schon etwas'],
+  'ver.cr.mejor': ['Con Gemini (tu clave o los servers premium) crea mucho mejor', 'With Gemini (your key or the premium servers) she creates much better', 'Com o Gemini (sua chave ou os servidores premium) ela cria muito melhor', 'Dengan Gemini (kuncimu atau server premium) hasilnya jauh lebih bagus', 'Dengan Gemini (kunci anda atau pelayan premium) hasilnya jauh lebih baik', 'Mas maganda ang gawa niya gamit ang Gemini (iyong key o premium servers)', 'Gemini（自分のキーかプレミアムサーバー）ならずっと上手に作れます', 'ใช้ Gemini (คีย์ของคุณหรือเซิร์ฟเวอร์พรีเมียม) จะสร้างได้ดีกว่ามาก', 'Gemini ile (kendi anahtarın ya da premium sunucular) çok daha iyi yapar', 'مع Gemini (مفتاحك أو الخوادم المميزة) تصنع بشكل أفضل بكثير', 'С Gemini (твой ключ или премиум-серверы) получается намного лучше', 'З Gemini (твій ключ або преміум-сервери) виходить набагато краще', 'Avec Gemini (ta clé ou les serveurs premium), elle crée bien mieux', 'Mit Gemini (dein Schlüssel oder die Premium-Server) wird es viel besser'],
+  'ver.ia.tuto': ['¿Cómo la consigo?', 'How do I get one?', 'Como consigo uma?', 'Bagaimana mendapatkannya?', 'Bagaimana nak dapatkan?', 'Paano makakuha?', '取得方法', 'จะได้มาอย่างไร?', 'Nasıl alırım?', 'كيف أحصل عليه؟', 'Как получить?', 'Як отримати?', 'Comment l’obtenir ?', 'Wie bekomme ich einen?'],
+  'ver.tuto.t': ['Tu clave gratis de Google AI Studio', 'Your free Google AI Studio key', 'Sua chave grátis do Google AI Studio', 'Kunci gratis Google AI Studio milikmu', 'Kunci percuma Google AI Studio anda', 'Ang libre mong Google AI Studio key', '無料のGoogle AI Studioキー', 'คีย์ Google AI Studio ฟรีของคุณ', 'Ücretsiz Google AI Studio anahtarın', 'مفتاحك المجاني من Google AI Studio', 'Твой бесплатный ключ Google AI Studio', 'Твій безкоштовний ключ Google AI Studio', 'Ta clé gratuite Google AI Studio', 'Dein kostenloser Google-AI-Studio-Schlüssel'],
+  'ver.tuto.1': ['Entrá a aistudio.google.com con tu cuenta de Google.', 'Go to aistudio.google.com with your Google account.', 'Entre em aistudio.google.com com sua conta Google.', 'Buka aistudio.google.com dengan akun Google-mu.', 'Pergi ke aistudio.google.com dengan akaun Google anda.', 'Pumunta sa aistudio.google.com gamit ang Google account mo.', 'Googleアカウントで aistudio.google.com を開きます。', 'เข้า aistudio.google.com ด้วยบัญชี Google ของคุณ', 'Google hesabınla aistudio.google.com adresine gir.', 'ادخل إلى aistudio.google.com بحساب Google الخاص بك.', 'Зайди на aistudio.google.com со своим аккаунтом Google.', 'Зайди на aistudio.google.com зі своїм акаунтом Google.', 'Va sur aistudio.google.com avec ton compte Google.', 'Öffne aistudio.google.com mit deinem Google-Konto.'],
+  'ver.tuto.2': ['Tocá «Get API key» y después «Create API key».', 'Tap "Get API key" and then "Create API key".', 'Toque em "Get API key" e depois em "Create API key".', 'Ketuk "Get API key" lalu "Create API key".', 'Tekan "Get API key" kemudian "Create API key".', 'I-tap ang "Get API key" at saka ang "Create API key".', '「Get API key」→「Create API key」をタップします。', 'แตะ "Get API key" แล้วแตะ "Create API key"', '"Get API key"e, sonra "Create API key"e dokun.', 'اضغط "Get API key" ثم "Create API key".', 'Нажми «Get API key», потом «Create API key».', 'Натисни «Get API key», потім «Create API key».', 'Touche « Get API key » puis « Create API key ».', 'Tippe auf „Get API key“ und dann auf „Create API key“.'],
+  'ver.tuto.3': ['Copiá la clave y pegala acá, en la sección IA del panel de Verity.', 'Copy the key and paste it here, in the AI section of Verity\'s panel.', 'Copie a chave e cole aqui, na seção IA do painel da Verity.', 'Salin kuncinya lalu tempel di sini, di bagian AI panel Verity.', 'Salin kunci dan tampal di sini, dalam bahagian AI panel Verity.', 'Kopyahin ang key at i-paste dito, sa AI section ng panel ni Verity.', 'キーをコピーして、Verityのパネルの「IA」に貼り付けます。', 'คัดลอกคีย์แล้ววางที่นี่ ในส่วน IA ของแผง Verity', 'Anahtarı kopyala ve buraya, Verity panelinin IA bölümüne yapıştır.', 'انسخ المفتاح والصقه هنا في قسم IA في لوحة Verity.', 'Скопируй ключ и вставь его сюда, в раздел IA панели Verity.', 'Скопіюй ключ і встав його сюди, у розділ IA панелі Verity.', 'Copie la clé et colle-la ici, dans la section IA du panneau de Verity.', 'Kopiere den Schlüssel und füge ihn hier im Bereich IA von Veritys Panel ein.'],
+  'ver.tuto.4': ['Es gratis con un límite por día; si se termina, Verity vuelve a su cerebro normal. No compartas tu clave.', 'It is free with a daily limit; if it runs out, Verity goes back to her normal brain. Do not share your key.', 'É grátis com limite diário; se acabar, a Verity volta ao cérebro normal. Não compartilhe sua chave.', 'Gratis dengan batas harian; jika habis, Verity kembali ke otak biasanya. Jangan bagikan kuncimu.', 'Percuma dengan had harian; jika habis, Verity kembali ke otak biasa. Jangan kongsi kunci anda.', 'Libre ito na may limit kada araw; kapag naubos, babalik si Verity sa normal niyang utak. Huwag ibahagi ang key mo.', '無料ですが1日の上限があります。使い切るとVerityは通常の頭脳に戻ります。キーは他人に教えないでください。', 'ใช้ฟรีแต่มีขีดจำกัดต่อวัน ถ้าหมด Verity จะกลับไปใช้สมองปกติ อย่าแชร์คีย์ของคุณ', 'Günlük sınırla ücretsizdir; biterse Verity normal beynine döner. Anahtarını paylaşma.', 'مجاني مع حد يومي؛ إذا انتهى تعود Verity إلى عقلها العادي. لا تشارك مفتاحك.', 'Бесплатно с дневным лимитом; если он закончится, Verity вернётся к обычному мозгу. Не делись ключом.', 'Безкоштовно з денним лімітом; якщо він скінчиться, Verity повернеться до звичайного мозку. Не діліться ключем.', 'C’est gratuit avec une limite par jour ; si elle est atteinte, Verity revient à son cerveau normal. Ne partage pas ta clé.', 'Kostenlos mit Tageslimit; ist es aufgebraucht, nutzt Verity wieder ihr normales Gehirn. Teile deinen Schlüssel nicht.'],
+  'ver.tuto.abrir': ['Abrir AI Studio', 'Open AI Studio', 'Abrir o AI Studio', 'Buka AI Studio', 'Buka AI Studio', 'Buksan ang AI Studio', 'AI Studioを開く', 'เปิด AI Studio', 'AI Studio\'yu aç', 'افتح AI Studio', 'Открыть AI Studio', 'Відкрити AI Studio', 'Ouvrir AI Studio', 'AI Studio öffnen'],
+  'ver.term.n': ['Terminal de Verity', 'Verity terminal', 'Terminal da Verity', 'Terminal Verity', 'Terminal Verity', 'Terminal ni Verity', 'Verityの端末', 'เทอร์มินัล Verity', 'Verity terminali', 'محطة Verity', 'Терминал Verity', 'Термінал Verity', 'Terminal de Verity', 'Verity-Terminal'],
+  'ver.term.cod': ['Código secreto', 'Secret code', 'Código secreto', 'Kode rahasia', 'Kod rahsia', 'Lihim na code', '秘密のコード', 'รหัสลับ', 'Gizli kod', 'الرمز السري', 'Секретный код', 'Секретний код', 'Code secret', 'Geheimcode'],
+  'ver.term.ok': ['Desbloqueado: Verity usa Gemini en este aparato', 'Unlocked: Verity uses Gemini on this device', 'Desbloqueado: a Verity usa Gemini neste aparelho', 'Terbuka: Verity memakai Gemini di perangkat ini', 'Dibuka: Verity guna Gemini di peranti ini', 'Na-unlock: gamit ni Verity ang Gemini sa device na ito', '解除：この端末でVerityがGeminiを使います', 'ปลดล็อกแล้ว: Verity ใช้ Gemini บนเครื่องนี้', 'Kilit açıldı: Verity bu cihazda Gemini kullanıyor', 'تم الفتح: تستخدم Verity نموذج Gemini على هذا الجهاز', 'Открыто: Verity использует Gemini на этом устройстве', 'Відкрито: Verity використовує Gemini на цьому пристрої', 'Débloqué : Verity utilise Gemini sur cet appareil', 'Freigeschaltet: Verity nutzt Gemini auf diesem Gerät'],
+  'ver.term.mal': ['Código incorrecto', 'Wrong code', 'Código incorreto', 'Kode salah', 'Kod salah', 'Maling code', 'コードが違います', 'รหัสไม่ถูกต้อง', 'Yanlış kod', 'رمز خاطئ', 'Неверный код', 'Невірний код', 'Code incorrect', 'Falscher Code'],
   'ver.lejos': ['No hay ninguna Verity cerca', 'There is no Verity nearby', 'Não há nenhuma Verity por perto', 'Tidak ada Verity di dekat sini', 'Tiada Verity berdekatan', 'Walang Verity sa malapit', '近くにVerityはいない', 'ไม่มี Verity อยู่ใกล้ๆ', 'Yakında hiç Verity yok', 'لا توجد Verity قريبة', 'Рядом нет ни одной Verity', 'Поруч немає жодної Verity', 'Aucune Verity à proximité', 'Keine Verity in der Nähe'],
 };
 // los nombres de los emotes nuevos (los que no se dicen igual en todos lados) y de los huesos del editor
@@ -7249,8 +7439,10 @@ const sinEmoji = (s) => String(s == null ? '' : s).replace(SIN_EMOJI, '').trim()
 //   await rb.rayo([x,y,z], [dx,dy,dz], max)  await rb.catalogo()  await rb.guardar(clave, valor)  await rb.leer(clave)
 //   await rb.entidad(tipo, [x,y,z], { parámetros }, yaw)  rb.quitarEntidad(id)  rb.nativo('volar' | 'ragdoll' | 'scp', sí/no)
 const MODAPI = { mods: [], botones: new Map(), tTick: 0, errores: 0 };
-const MODAPI_RB = `(function(){var L={},sig=0,esp={};function env(k,d){parent.postMessage({rbmod:1,k:k,d:d},'*')}
-function ped(k,d){return new Promise(function(r){var id=++sig;esp[id]=r;parent.postMessage({rbmod:1,k:k,d:d,id:id},'*')})}
+// (si un mod manda algo que no se puede copiar, p. ej. una promesa sin await, se avisa como error del mod)
+const MODAPI_RB = `(function(){var L={},sig=0,esp={};function man(m){try{parent.postMessage(m,'*')}catch(x){parent.postMessage({rbmod:1,k:'error',d:m.k+': '+String(x&&x.message||x)},'*')}}
+function env(k,d){man({rbmod:1,k:k,d:d})}
+function ped(k,d){return new Promise(function(r){var id=++sig;esp[id]=r;man({rbmod:1,k:k,d:d,id:id})})}
 var rb=self.rb={estado:{},on:function(e,f){(L[e]=L[e]||[]).push(f)},aviso:function(t,s){env('aviso',{t:String(t),s:s})},
 boton:function(id,t){env('boton',{id:String(id),t:String(t)})},quitarBoton:function(id){env('quitarBoton',{id:String(id)})},
 jugador:function(c){env('jugador',c)},mundo:function(c){env('mundo',c)},crear:function(n,p,o){return ped('crear',{n:n,p:p,o:o||{}})},
@@ -9587,7 +9779,12 @@ function verPanel(si) {
       <div class="verLog" dir="auto"></div>
       <div class="verAnims">${VER_BOTONES.map(([a, g]) => `<button data-v="anim:${a}">${glifo(g)}<span></span></button>`).join('')}</div>
       <div class="verFila"><input id="verIn" maxlength="200" autocomplete="off"><button class="verMic" data-v="mic">${glifo('micro')}</button><button class="verEnv" data-v="enviar">${glifo('adelante')}</button></div>
-      <div class="verOpc"><label><input type="checkbox" data-v="voz"><span></span></label><label><input type="checkbox" data-v="oido"><span></span></label><label><input type="checkbox" data-v="noche"><span></span></label><button data-v="olvidar">${glifo('basura')}<span></span></button></div>`;
+      <div class="verOpc"><label><input type="checkbox" data-v="voz"><span></span></label><label><input type="checkbox" data-v="oido"><span></span></label><label><input type="checkbox" data-v="noche"><span></span></label><button data-v="olvidar">${glifo('basura')}<span></span></button></div>
+      <div class="verCreaFila">${VERITY_CREA.map((k) => `<button data-v="crea:${k}" data-vcr="1">${glifo({ mod: 'codigo', mapa: 'props', anim: 'persona' }[k])}<span></span></button>`).join('')}</div>
+      <div class="verIA"><span class="verCerebro"></span><button data-v="ia">${glifo('ajustes')}<span>IA</span></button></div>
+      <div class="verIAp oc"><p class="verIAtx" dir="auto"></p>
+        <div class="verFila"><input id="verGemIn" type="password" autocomplete="off" spellcheck="false" placeholder="AIza… / AQ.…"><button class="verEnv" data-v="gemGuardar">${glifo('si')}</button></div>
+        <div class="verIAb"><button data-v="tuto">${glifo('info')}<span></span></button><button data-v="gemQuitar">${glifo('basura')}<span></span></button></div></div>`;
     document.body.appendChild(p);
     p.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-v]'); if (!b) return; const a = b.dataset.v;
@@ -9595,8 +9792,17 @@ function verPanel(si) {
       else if (a === 'enviar') verEnviarPanel();
       else if (a === 'mic') { audioIniciar(); VER.mic = !VER.escucha; verEscuchar(!VER.escucha); }
       else if (a.startsWith('anim:')) verPedirAnim(a.slice(5));
+      else if (a.startsWith('crea:')) verCreaPanel(a.slice(5));
       else if (a === 'olvidar') { VER.mem = { d: [], n: 0, t0: Date.now() }; VER.hist = []; verGuardar(); verLog(); aviso(T('ver.olvidado'), 2); }
+      else if (a === 'ia') p.querySelector('.verIAp').classList.toggle('oc');
+      else if (a === 'tuto') verTutorial(true);
+      else if (a === 'gemQuitar') { PREFS.verGem = ''; PREFS.verTk = ''; guardarPrefs(); verIAMostrar(); }
+      else if (a === 'gemGuardar') {
+        const i = $('verGemIn'), k = i.value.trim(); if (!k) return;
+        b.disabled = true; verGemProbar(k).then((bien) => { b.disabled = false; if (bien) { i.value = ''; guardarPrefs(); aviso(T('ver.ia.ok'), 2.5); if (VER.yo) { VER.yo.emo = 'emocionada'; VER.yo.emoT = 3; } } else aviso(T('ver.ia.mal'), 2.5); verIAMostrar(); });
+      }
     });
+    $('verGemIn').addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') p.querySelector('[data-v=gemGuardar]').click(); });
     p.addEventListener('change', (ev) => {
       const a = ev.target.dataset.v, v = ev.target.checked;
       if (a === 'voz') PREFS.verVoz = v; if (a === 'noche') PREFS.verNoche = v; if (a === 'oido') { PREFS.verOido = v; OIDO.negado = false; if (!v) oidoParar(); }
@@ -9608,10 +9814,33 @@ function verPanel(si) {
   p.querySelector('[data-v=voz]').checked = PREFS.verVoz !== false; p.querySelector('[data-v=noche]').checked = PREFS.verNoche !== false; p.querySelector('[data-v=oido]').checked = PREFS.verOido !== false;
   const sp = p.querySelectorAll('.verOpc span'); sp[0].textContent = T('ver.voz'); sp[1].textContent = T('ver.oido'); sp[2].textContent = T('ver.noche'); sp[3].textContent = T('ver.olvidar');
   p.querySelectorAll('.verAnims button').forEach((b) => { b.querySelector('span').textContent = T('ver.a.' + b.dataset.v.slice(5)); });
+  p.querySelectorAll('.verCreaFila button').forEach((b) => { b.querySelector('span').textContent = T('ver.cr.' + b.dataset.v.slice(5)); b.classList.toggle('ocupado', VCR.ocupado); });
+  verIAMostrar();
   p.classList.remove('oc'); UI.abierto = 'verity'; soltarPuntero(); verLog();
   if (!document.body.classList.contains('tactil')) setTimeout(() => $('verIn').focus(), 30);
 }
-function verEnviarPanel() { const i = $('verIn'), t = i.value.trim(); i.value = ''; if (t) verPreguntar(t); }
+function verEnviarPanel() { const i = $('verIn'), t = i.value.trim(); i.value = ''; if (t) verHablarle(t); }
+// la sección IA: qué cerebro usa y tu propia clave de Google AI Studio
+function verIAMostrar() {
+  const p = VER.pan; if (!p) return; const m = verCerebro();
+  p.querySelector('.verCerebro').textContent = T('ver.ia.' + m); p.querySelector('.verCerebro').classList.toggle('gem', m !== 'normal');
+  p.querySelector('.verIAtx').textContent = T('ver.ia.tx');
+  const bs = p.querySelectorAll('.verIAb span'); bs[0].textContent = T('ver.ia.tuto'); bs[1].textContent = T('ver.ia.quitar');
+  p.querySelector('[data-v=gemQuitar]').style.display = verGemPropia() || PREFS.verTk ? '' : 'none';
+}
+// el tutorial: cómo sacar tu clave gratis de Google AI Studio (en tu idioma)
+function verTutorial(si) {
+  let t = $('verTuto');
+  if (!si) { if (t) t.classList.add('oc'); return; }
+  if (!t) {
+    t = document.createElement('div'); t.id = 'verTuto'; t.className = 'verTuto oc';
+    t.innerHTML = `<div class="verTutoC"><b></b><ol dir="auto"><li></li><li></li><li></li><li></li></ol><div class="verIAb"><a class="boton" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"></a><button class="boton gris" data-t="cerrar">${glifo('no')}</button></div></div>`;
+    t.addEventListener('click', (ev) => { if (ev.target === t || ev.target.closest('[data-t=cerrar]')) verTutorial(false); });
+    document.body.appendChild(t);
+  }
+  t.querySelector('b').textContent = T('ver.tuto.t'); t.querySelectorAll('li').forEach((li, i) => { li.textContent = T('ver.tuto.' + (i + 1)); }); t.querySelector('a').textContent = T('ver.tuto.abrir');
+  t.classList.remove('oc');
+}
 function verLog() {
   if (!VER.pan) return; const L = VER.pan.querySelector('.verLog');
   L.innerHTML = VER.hist.slice(-8).map((h) => `<p class="${h[0] === 'u' ? 'vU' : 'vV'}" dir="auto">${esc(h[1])}</p>`).join('') + (VER.pensando ? '<p class="vV verPiensa"><i></i><i></i><i></i></p>' : '');
@@ -9630,7 +9859,7 @@ function verHablarle(q) {
   if (VER.on) { verPreguntar(q, '', verSala() ? PREFS.nombre : '', 'yo'); return; }
   const id = verRemotaCerca(verSala() ? 1e9 : 25);
   if (!id || !RED.on) { aviso(T('ver.lejos'), 2); return; }
-  publicar('a', { k: 'verq', to: id, t: q.slice(0, 200), n: PREFS.nombre });
+  publicar('a', { k: 'verq', to: id, t: q.slice(0, 200), n: PREFS.nombre }); VER.tPedi = performance.now();
   VER.hist.push(['u', q]); VER.hist = VER.hist.slice(-12); const I = VER.rem.get(id); if (I) { I.pensando = true; verGlobo(I, '', 0, true); } verLog();
 }
 function verPedirAnim(a) { if (VER.on) verAnim(VER.yo, a); else { const id = verRemotaCerca(1e9); if (id && RED.on) publicar('a', { k: 'vera', to: id, a }); } }
@@ -9737,30 +9966,58 @@ function verContexto() {
   const nomMapa = T('m.' + MUNDO.nombre), mapa = nomMapa && nomMapa !== 'm.' + MUNDO.nombre ? nomMapa : MUNDO.nombre, M = VER.mente, sala = verSala();
   const ctx = { jugador: sala ? '' : PREFS.nombre, mapa, hora: hh + ':' + String(mm).padStart(2, '0'), cerca: cerca.slice(0, 8).map((c) => c[1] + ' ' + Math.round(c[0]) + 'm'),
     jugadores: verJugadores().map((P) => P.nombre + ' ' + Math.round(P.pos.distTo(base)) + 'm').slice(0, 8), mods: modsActivosAhora().map((m) => m.id).slice(0, 8),
-    sala: sala ? SALA.n : '', tuModo: VER.modo, haciendo: verEstado(), energia: Math.round(M.energia * 100) + '%', humor: M.humor > 0.3 ? 'happy' : M.humor < -0.2 ? 'sad' : 'calm', memoria: verMemoria().d.slice(-12) };
+    sala: sala ? SALA.n : '', salaId: sala ? SALA.id : '', tuModo: VER.modo, haciendo: verEstado(), energia: Math.round(M.energia * 100) + '%', humor: M.humor > 0.3 ? 'happy' : M.humor < -0.2 ? 'sad' : 'calm', memoria: verMemoria().d.slice(-12) };
   // (lo de "mi" jugador sólo si me habla él)
   if (!sala || VER.hablaCon === 'yo') Object.assign(ctx, { vida: Math.round(J.vida), vivo: J.vivo, vehiculo: J.vehiculo ? J.vehiculo.nombre : '', arma: ARM.lista[ARM.i] || '', corriendo: Math.hypot(J.vel.x, J.vel.z) > 3, mira, construyo: mios });
   return ctx;
 }
 function verTiempo(ms) { const a = new AbortController(); setTimeout(() => a.abort(), ms); return a.signal; }
+// ---------------- Gemini: tu propia clave (directo a Google desde el navegador), el permiso del dueño o los servers premium ----------------
+const verGemPropia = () => (typeof PREFS.verGem === 'string' && /^[A-Za-z0-9_.\-]{20,120}$/.test(PREFS.verGem) ? PREFS.verGem : '');
+const verPremium = () => !!verGemPropia() || !!PREFS.verTk || (verSala() && VERITY_PREMIUM.includes(SALA.id));
+function verCerebro() { return verGemPropia() ? 'propia' : PREFS.verTk ? 'dueno' : verSala() && VERITY_PREMIUM.includes(SALA.id) ? 'sala' : 'normal'; }
+async function verGemPedir(modelo, cuerpo, ms, clave) {
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': clave || verGemPropia() }, body: JSON.stringify(cuerpo), signal: verTiempo(ms || 20000) });
+  if (r.status === 400 || r.status === 401 || r.status === 403) { VER.gemMala = true; return null; }
+  if (!r.ok) return null;
+  const d = await r.json(), p = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts || [];
+  return { texto: p.map((x) => x.text || '').join(''), audio: p.find((x) => x.inlineData) };
+}
+async function verGeminiDirecto(c) {
+  const msgs = verityMensajes(c); if (!msgs) return null;
+  for (const m of VERITY_GEMINI) { try { const o = await verGemPedir(m, verityAGemini(msgs, 500)); const v = o && verityRespuesta(o.texto); if (v) return v; if (VER.gemMala) return null; } catch (e) {} }
+  return null;
+}
+async function verVozGeminiDirecta(t, noche) {
+  try { const o = await verGemPedir(VERITY_GEMINI_VOZ, verityVozGemini(t, noche), 20000); if (!o || !o.audio) return null; return await AUD.ctx.decodeAudioData(verityWav(o.audio.inlineData.data, o.audio.inlineData.mimeType).buffer); } catch (e) { return null; }
+}
+// probar una clave nueva (una pregunta cortita)
+// (se guarda recién cuando contestó: mientras tanto Verity sigue con el cerebro que tenía)
+async function verGemProbar(k) {
+  if (!/^[A-Za-z0-9_.\-]{20,120}$/.test(k)) return false;
+  let ok = false; try { const o = await verGemPedir(VERITY_GEMINI[0], { contents: [{ parts: [{ text: 'Reply with the word ok' }] }], generationConfig: { maxOutputTokens: 5 } }, 15000, k); ok = !!(o && o.texto); } catch (e) {}
+  if (ok) { PREFS.verGem = k; VER.gemMala = false; } return ok;
+}
 // el modelo público deja una respuesta cada 30 s por conexión (si no, contesta 402 o 429 con cuánto esperar): se
 // espera el turno y, si igual dice que no, se reintenta una vez
 const VER_PUB = 31000;
-async function verPublico(c) {
-  const msgs = verityMensajes(c); if (!msgs) return null;
+async function verPublicoTexto(msgs, ms) {
+  if (!msgs) return null;
   for (let n = 0; n < 2; n++) {
     const falta = (VER.pubUlt || 0) + VER_PUB - Date.now(); if (falta > 0) await verEsperar(falta); VER.pubUlt = Date.now();
     try {
-      const r = await fetch('https://text.pollinations.ai/openai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'openai', messages: msgs, private: true }), signal: verTiempo(45000) });
+      const r = await fetch('https://text.pollinations.ai/openai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'openai', messages: msgs, private: true }), signal: verTiempo(ms || 45000) });
       if (r.status === 402 || r.status === 429) {
         let seg = +r.headers.get('Retry-After') || 0; if (!seg) { try { const m = /retry after (\d+)/i.exec(await r.text()); seg = m ? +m[1] : 30; } catch (e) { seg = 30; } }
         VER.pubUlt = Date.now() + Math.min(35, seg) * 1000 + 500 - VER_PUB; continue;
       }
-      const d = await r.json(); return verityRespuesta(d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content);
+      const d = await r.json(), t = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+      return typeof t === 'string' ? t : null;
     } catch (e) { return null; }
   }
   return null;
 }
+const verPublico = async (c) => verityRespuesta(await verPublicoTexto(verityMensajes(c), 45000));
 // sin la tienda, lo que pasa en el juego no gasta el turno del modelo público: lo contesta con un gesto
 function verGesto(ev) {
   const I = VER.yo; if (!I) return;
@@ -9773,11 +10030,11 @@ async function verPreguntar(q, ev, de, quien) {
   q = rbTexto(q, 300); if (!q && !ev) return; quien = quien || 'yo';
   if (VER.pensando) { if (q) VER.espera = [q, ev, de, quien]; return; } // (lo último que le dijeron, apenas termine)
   if (q) VER.hablaCon = quien;
-  const I = VER.yo, c = { l: verLengua(), q, ev: ev || '', de: de || '', n: I.noche > 0.5 ? 1 : 0, h: VER.hist.slice(-8), ctx: verContexto() };
+  const I = VER.yo, c = { l: verLengua(), q, ev: ev || '', de: de || '', n: I.noche > 0.5 ? 1 : 0, h: VER.hist.slice(-8), ctx: verContexto(), tk: PREFS.verTk || '' };
   if (q) { VER.hist.push(['u', de ? de + ': ' + q : q]); VER.ultCharla = TIEMPO.t; verAtender(quien, 25); }
   VER.pensando = true; I.pensando = true; verLog(); if (!q || !VER.escucha) verGlobo(I, '', 0, true);
-  let v = null;
-  if (!VER.sinCF && Date.now() > (VER.cfLleno || 0)) {
+  let v = verGemPropia() ? await verGeminiDirecto(c) : null; // (con tu propia clave: directo a Google)
+  if (!v && !VER.sinCF && Date.now() > (VER.cfLleno || 0)) {
     try {
       const r = await fetch(TIENDA_URL + 'verity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c), signal: verTiempo(32000) });
       if (r.ok) v = verityRespuesta(JSON.stringify(await r.json()));
@@ -9810,10 +10067,12 @@ function verEvento(ev, espera, q) {
 
 // ---------------- hablar: voz de la tienda (MeloTTS) en 3D, o la del navegador ----------------
 const verEsperar = (ms) => new Promise((ok) => setTimeout(() => ok(null), ms));
-async function verVozCF(t, l) {
-  if (VER.sinVozCF || !VERITY_VOCES.includes(l) || !AUD.ctx) return null;
+async function verVozCF(t, l, noche) {
+  const prem = verPremium();
+  if (!AUD.ctx || (!prem && (VER.sinVozCF || !VERITY_VOCES.includes(l)))) return null;
+  if (verGemPropia()) { const b = await verVozGeminiDirecta(t, noche); if (b) return b; }
   try {
-    const r = await fetch(TIENDA_URL + 'verity/voz?l=' + l + '&t=' + encodeURIComponent(t.slice(0, 240)), { signal: verTiempo(9000) });
+    const s = verSala() ? SALA.id : '', r = await fetch(TIENDA_URL + 'verity/voz?l=' + l + '&t=' + encodeURIComponent(t.slice(0, 240)) + (s ? '&s=' + encodeURIComponent(s) : '') + (PREFS.verTk ? '&tk=' + PREFS.verTk : '') + (noche ? '&n=1' : ''), { signal: verTiempo(prem ? 14000 : 9000) });
     if (!r.ok) { if (r.status === 404 || r.status === 503) VER.sinVozCF = true; return null; }
     return await AUD.ctx.decodeAudioData(await r.arrayBuffer());
   } catch (e) { return null; }
@@ -9864,8 +10123,8 @@ async function verDecir(I, t, emo, l) {
   let dur = 0;
   if (PREFS.verVoz !== false && PREFS.vol && d < 45) {
     audioIniciar();
-    if (d < 25 && verVozMejor(l)) { dur = verVozNav(I, t, l); I.falsa = dur; }
-    const buf = dur ? null : await Promise.race([verVozCF(t, l), verEsperar(4000)]);
+    if (d < 25 && !verPremium() && verVozMejor(l)) { dur = verVozNav(I, t, l); I.falsa = dur; }
+    const buf = dur ? null : await Promise.race([verVozCF(t, l, I.noche > 0.5), verEsperar(verPremium() ? 7000 : 4000)]);
     if (buf && AUD.ctx) dur = verSonar(I, buf);
     if (!dur && d < 25) { dur = verVozNav(I, t, l); I.falsa = dur; } // (si el navegador no tiene esa voz, la boca se mueve igual)
   }
@@ -9902,6 +10161,7 @@ function verAcciones(L, quien) {
     else if (a.a === 'video' && quien === 'yo') verMedia('pantalla', a.q);
     else if (a.a === 'emote' && quien === 'yo') verEmote(a.que);
     else if (a.a === 'luz') VER.luz = a.si !== false;
+    else if (a.a === 'crear') { if (quien === 'yo') verInventar(a.tipo, a.q, { cambiar: a.cambiar }); else if (RED.on) publicar('a', { k: 'verc', to: quien, tipo: a.tipo, q: a.q, c: a.cambiar ? 1 : 0 }); }
     else if (a.a === 'limpiar') { for (const o of VER.mios) if (OBJS.includes(o)) borrarObjeto(o); VER.mios = []; VER.obra = null; RED.wSucio = true; }
   }
 }
@@ -10095,6 +10355,7 @@ function verMentePaso(dt) {
 // (para las pruebas y para aparecer: adonde se pondría para hablarte a vos)
 function verMeta() { return verCerca({ pos: JUG.pos, yaw: JUG.yaw }); }
 function verPaso(dt) {
+  verCreaPaso(dt);
   if (typeof RED !== 'undefined') { if (RED.on && !VER.redAnt) VER.tRed = TIEMPO.t; VER.redAnt = RED.on; }
   const maneja = verManejo();
   if (maneja && !VER.on) verAparecer(); else if (!maneja && VER.on) verIrse();
@@ -10108,6 +10369,8 @@ function verPaso(dt) {
   if (!verFisPaso(I, dt)) {
     let o = verMentePaso(dt);
     if (VER.obra && VER.obra.ult) o = { meta: vadd(VER.obra.ult, v3(0, 1.6, 0)) };
+    // en el editor de animaciones es tu ayudante: flota al costado del muñeco (a la derecha de la cámara), sin taparlo
+    if (typeof EDA !== 'undefined' && EDA.on && EDA.P) { const d = v3(CAM.der.x, 0, CAM.der.z).norm(); o = { meta: vadd(EDA.centro, vadd(vscale(d, 1.25), v3(0, 0.9, 0))), ver: vadd(EDA.P.pos, v3(0, 0.6, 0)) }; }
     // al hablar se queda quieta y mira al que le habla (si estaba rodando, se para)
     if (habla && o.dest) o = { dest: I.pos.clone(), vmax: 0 };
     if (o.meta) verFlotar(I, o.meta, dt); else verRodar(I, o.dest, o.vmax, dt);
@@ -10356,6 +10619,8 @@ function verRed(d) {
     verDecir(I, t, VERITY_EMO.includes(d.e) ? d.e : 'neutral', l);
     if (!VER.on) { VER.hist.push(['v', t]); VER.hist = VER.hist.slice(-12); verLog(); }
   }
+  // (lo que le pedí crear a la Verity de la sala: lo armo yo, con mi cerebro; sólo si se lo pedí hace poco y lo manda ella)
+  if (d.k === 'verc') { if (d.to === RED.ID && VER.rem.has(d.i) && performance.now() - (VER.tPedi || -1e9) < 120000 && VERITY_CREA.includes(d.tipo)) verInventar(d.tipo, rbTexto(d.q, 400), { cambiar: !!d.c }); return; }
   if (d.to !== RED.ID || !VER.on) return;
   const t = TIEMPO.t, R2 = RED.remotos.get(d.i), nom = limpio(d.n) || (R2 && R2.nombre) || '?';
   if (d.k === 'verq') {
@@ -10376,6 +10641,334 @@ function verRed(d) {
     if (I.fis !== 'remota') { I.fis = 'remota'; I.anim = ''; I.emo = 'sorpresa'; I.emoT = 2.5; verEvento('agarrada', 25, nom + ' grabbed you with the physics gun and is carrying you'); }
     I.tFis = 1; I.pos.copy(p); if (Array.isArray(d.q)) { I.q.set(num(d.q[0], -1, 1, 0), num(d.q[1], -1, 1, 0), num(d.q[2], -1, 1, 0), num(d.q[3], -1, 1, 1)); I.q.norm(); }
   }
+}
+
+// ---------------- el terminal secreto: con el código del dueño, Verity usa su Gemini en este aparato ----------------
+// No está en el menú de props: aparece buscando "terminal" o "verity". Es sólo tuyo (no viaja por la red). El código se
+// revisa en la tienda (sale de la clave del dueño, que nunca llega al juego) y lo que vuelve es un permiso firmado.
+ENT_INFO.terminal = ['terminal', {}];
+ENT_TIPO.terminal = {
+  dibujar(e) {
+    const m = matPropio('termCaja', [0.12, 0.13, 0.16], { pbr: [0.35, 0.6, 0.06] }), p = matPropio('termPant', [0.2, 0.16, 0.02], { pbr: [0.2, 0, 0.05] }), t = TIEMPO.t;
+    dibujarCaja(entW(e, 0, 0.45, 0), [0.5, 0.9, 0.4], e.q, m);
+    dibujarCaja(entW(e, 0, 1.18, 0.02), [0.7, 0.5, 0.08], e.q, m);
+    dibujarCaja(entW(e, 0, 1.18, -0.025), [0.6, 0.4, 0.01], e.q, p, { em: [1.4 + 0.3 * Math.sin(t * 3), 1.05, 0.12] });
+    for (const s of [-1, 1]) dibujarCaja(entW(e, s * 0.09, 1.24, -0.032), [0.04, 0.07, 0.005], e.q, matPropio('termOjo', [0.02, 0.02, 0.02]));
+    dibujarCaja(entW(e, 0, 1.12, -0.032), [0.16, 0.02, 0.005], e.q, matPropio('termOjo', [0.02, 0.02, 0.02]));
+  },
+  usar() { verTerminalAbrir(); return true; },
+};
+function verTerminalPoner() {
+  if (JUEGO.estado !== 'juego') return;
+  const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), p = vadd(JUG.pos, vscale(f, 1.6)), y = pisoBajo(v3(p.x, JUG.pos.y + 1, p.z), 0); p.y = y === null ? JUG.pos.y - 0.98 : y;
+  for (const e of ENTS.lista.filter((x) => x.t === 'terminal')) entidadQuitar(e);
+  entidadCrear({ t: 'terminal', p: [p.x, p.y, p.z], yaw: JUG.yaw + Math.PI });
+}
+function verTerminalAbrir() {
+  let t = $('verTerm');
+  if (!t) {
+    t = document.createElement('div'); t.id = 'verTerm'; t.className = 'verTuto oc';
+    t.innerHTML = `<div class="verTutoC">${icoHTML('ico:verity')}<b></b><div class="verFila"><input id="verTermIn" type="password" autocomplete="off" spellcheck="false" maxlength="40"><button class="verEnv" data-t="ok">${glifo('si')}</button></div><div class="verIAb"><button class="boton gris" data-t="cerrar">${glifo('no')}</button></div></div>`;
+    const cerrar = () => { t.classList.add('oc'); if (UI.abierto === 'terminal') UI.abierto = null; };
+    const probar = async () => {
+      const i = $('verTermIn'), cod = i.value.trim(); if (!cod) return; i.value = '';
+      try {
+        const r = await fetch(TIENDA_URL + 'verity/llave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: cod }) }), d = await r.json();
+        if (r.ok && typeof d.tk === 'string') { PREFS.verTk = d.tk; guardarPrefs(); aviso(T('ver.term.ok'), 3); cerrar(); if (VER.yo) verAnim(VER.yo, 'amor'); verIAMostrar(); return; }
+      } catch (e) {}
+      aviso(T('ver.term.mal'), 2.5);
+    };
+    t.addEventListener('click', (ev) => { if (ev.target === t || ev.target.closest('[data-t=cerrar]')) cerrar(); else if (ev.target.closest('[data-t=ok]')) probar(); });
+    document.body.appendChild(t);
+    $('verTermIn').addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') probar(); if (ev.key === 'Escape') cerrar(); });
+  }
+  t.querySelector('b').textContent = T('ver.term.n'); $('verTermIn').placeholder = T('ver.term.cod');
+  t.classList.remove('oc'); UI.abierto = 'terminal'; soltarPuntero(); setTimeout(() => $('verTermIn').focus(), 30);
+}
+
+// ---------------- Verity crea: mods con mecánicas (código), construcciones en el mundo y animaciones ----------------
+// Se le pide con palabras: charlando ("Verity, haceme un mod de..."), desde su panel, desde el creador de mapas o desde el
+// editor de animaciones. Lo arma un modelo más grande que el de la charla: con tu clave de Google AI Studio, directo
+// desde acá; si no, la tienda (Gemini en los servers premium o con el permiso del dueño; si no, los modelos gratis); y si
+// no, el modelo público. Todo lo que vuelve se revisa (formato.js): el mod queda instalado y prendido (su código corre
+// aislado como el de cualquier mod), la construcción aparece de a poco delante tuyo (en el creador, donde mirás) y la
+// animación se abre en el editor, lista para tocarla, guardarla o publicarla.
+const VCR = { ocupado: false, obra: null, ult: null, sinTienda: false, caja: new Map() };
+
+// ---------------- pedir ----------------
+// el tamaño de un prop (su forma): de dónde a dónde va en cada eje, en metros, sin girar
+function verCaja(n) {
+  if (VCR.caja.has(n)) return VCR.caja.get(n);
+  let c = null;
+  try {
+    const P = puntosForma(formaDe(n).shape);
+    if (P.length) { const a = [1e9, 1e9, 1e9], b = [-1e9, -1e9, -1e9]; for (const v of P) { a[0] = Math.min(a[0], v.x); a[1] = Math.min(a[1], v.y); a[2] = Math.min(a[2], v.z); b[0] = Math.max(b[0], v.x); b[1] = Math.max(b[1], v.y); b[2] = Math.max(b[2], v.z); } c = { a, b, s: [b[0] - a[0], b[1] - a[1], b[2] - a[2]] }; }
+  } catch (e) {}
+  VCR.caja.set(n, c); return c;
+}
+// los props que puede usar (los de Verity y los del menú de props), con su tamaño
+function verCatalogo() {
+  const L = [], vistos = new Set();
+  const sumar = (n) => { if (L.length >= 220 || vistos.has(n) || !DATA.pfPorNombre[n]) return; vistos.add(n); const c = verCaja(n); if (c && Math.min(...c.s) > 0.02) L.push([n, ...c.s.map((x) => Math.round(x * 10) / 10)]); };
+  for (const n of VERITY_PROPS) sumar(n);
+  const C = (DATA.menu || []).find((c) => c.n === 'Props'); if (C) for (const s of C.sub) for (const n of s.it) sumar(n);
+  return L;
+}
+// lo que vuelve de la tienda: se revisa otra vez acá
+function verCrearRevisar(tipo, o) {
+  if (!o || o.tipo !== tipo) return null;
+  if (tipo === 'mod') { const m = validarRB(o.mod); return typeof m === 'string' ? null : { tipo, decir: rbTexto(o.decir, 280), mod: m }; }
+  return verityCreacion(tipo, JSON.stringify(Object.assign({}, o[tipo] || {}, { decir: o.decir })));
+}
+async function verCrearPedir(tipo, q, prev) {
+  const d = { tipo, q, l: verLengua(), props: verCatalogo(), armas: Object.keys(DEF_ARMAS), prev: prev || '', tk: PREFS.verTk || '', salaId: verSala() ? SALA.id : '' };
+  const msgs = verityCrearMensajes(d); if (!msgs) return null;
+  // con tu clave: directo a Google, el modelo mejor primero
+  if (verGemPropia()) {
+    VER.gemMala = false;
+    for (const m of VERITY_GEMINI_CREA) { try { const o = await verGemPedir(m, verityAGemini(msgs, 8192), 110000); const v = o && verityCreacion(tipo, o.texto); if (v) return v; if (VER.gemMala) break; } catch (e) {} }
+  }
+  if (!VCR.sinTienda) {
+    try {
+      const r = await fetch(TIENDA_URL + 'verity/crear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d), signal: verTiempo(170000) });
+      if (r.ok) { const v = verCrearRevisar(tipo, await r.json()); if (v) return v; }
+      else if (r.status === 404 || r.status === 405) VCR.sinTienda = true; // (la tienda todavía no sabe crear)
+      else if (r.status === 429) return { error: 'cupo' };
+    } catch (e) {}
+  }
+  const t = await verPublicoTexto(msgs, 150000); // (el modelo público: un turno cada 30 s)
+  return t ? verityCreacion(tipo, t) : null;
+}
+// lo que dice Verity (con su voz si está acá; si no, un aviso)
+function verCrearDecir(t, emo) {
+  if (VER.on && VER.yo) { VER.hist.push(['v', t]); VER.hist = VER.hist.slice(-12); verDecir(VER.yo, t, emo, verIdiomaDe(t, verLengua())); verLog(); }
+  else aviso(t, 4);
+}
+// inventar (crear algo nuevo): tipo 'mod' | 'mapa' | 'anim'; opt.cambiar: cambiar lo último que hizo de ese tipo (verCrear es poner un prop)
+async function verInventar(tipo, q, opt) {
+  opt = opt || {}; q = rbTexto(q, 600); if (!q || !VERITY_CREA.includes(tipo) || JUEGO.estado !== 'juego') return false;
+  if (VCR.ocupado) { aviso(T('ver.cr.ocupada'), 2.5); return false; }
+  const prev = opt.cambiar && VCR.ult && VCR.ult.tipo === tipo ? VCR.ult.prev : '';
+  VCR.ocupado = true; verCreaEstado();
+  let v = null; try { v = await verCrearPedir(tipo, q, prev); } catch (e) { console.warn('verity crear', e); }
+  // el código del mod se compila (sin correrlo) antes de instalarlo: si tiene un error, se le pide una vez que lo arregle;
+  // si sigue mal, queda sin código (con sus efectos, si tiene)
+  const mal = (c) => { try { new Function(c); return ''; } catch (e) { return String((e && e.message) || e).slice(0, 160); } };
+  if (v && v.mod && v.mod.codigo && mal(v.mod.codigo)) {
+    let w = null; try { w = await verCrearPedir('mod', `Fix this JavaScript error in "codigo": ${mal(v.mod.codigo)}. Keep everything else and return the whole JSON.`, JSON.stringify({ nombre: v.mod.nombre, descripcion: v.mod.descripcion, efectos: v.mod.efectos, codigo: v.mod.codigo })); } catch (e) {}
+    if (w && w.mod && (!w.mod.codigo || !mal(w.mod.codigo))) v = Object.assign(w, { decir: v.decir || w.decir }); else delete v.mod.codigo;
+  }
+  VCR.ocupado = false; verCreaEstado();
+  if (!v || v.error) { verCrearDecir(T(v && v.error === 'cupo' ? 'ver.cupo' : 'ver.cr.mal'), 'triste'); return false; }
+  let ok = false;
+  try { ok = tipo === 'mod' ? verCrearMod(v.mod, !!prev) : tipo === 'mapa' ? verCrearMapa(v.mapa) : verCrearAnim(v.anim); } catch (e) { console.warn('verity crear', e); }
+  if (!ok) { verCrearDecir(T('ver.cr.mal'), 'triste'); return false; }
+  if (VER.yo) { VER.yo.emo = 'emocionada'; VER.yo.emoT = 3; }
+  verCrearDecir(v.decir || T('ver.cr.listo'), 'emocionada');
+  return true;
+}
+// mientras crea: piensa (cara y globito) y los botones de crear se ven ocupados
+function verCreaEstado() {
+  const si = VCR.ocupado;
+  if (VER.yo) { VER.yo.pensando = si; if (si) verGlobo(VER.yo, '', 0, true); else verGlobo(VER.yo, '', 0); }
+  if (si) aviso(T('ver.cr.haciendo'), 4);
+  document.querySelectorAll('[data-vcr]').forEach((b) => b.classList.toggle('ocupado', si));
+}
+
+// ---------------- el mod: instalado y prendido ----------------
+function verCrearMod(m, cambiar) {
+  const viejo = cambiar && VCR.ult && VCR.ult.tipo === 'mod' && INST.mods[VCR.ult.id] ? VCR.ult.id : null;
+  const id = viejo || 'local-v' + Math.random().toString(36).slice(2, 9);
+  m.id = id; INST.mods[id] = m; guardarLS('rb_instalados', INST);
+  const e = Object.assign({}, m.efectos); delete e.aparecer;
+  VCR.ult = { tipo: 'mod', id, prev: JSON.stringify({ nombre: m.nombre, descripcion: m.descripcion, icono: String(m.icono).replace(/^ico:/, ''), efectos: e, codigo: m.codigo || '' }) };
+  if (!(typeof CREA !== 'undefined' && CREA.on)) {
+    const f = modsFuente(); f[id] = true; (PREFS.codigoOk || (PREFS.codigoOk = {}))[id] = 1; guardarPrefs();
+    if (viejo) SMOD.cod = null; // (para que vuelva a cargar su código)
+    smAplicar(false); modEfectoCambio(true);
+    if (typeof SMOD !== 'undefined' && SMOD.abierto) smDibujar();
+  }
+  return true;
+}
+
+// ---------------- la construcción: delante tuyo (en el creador de mapas, donde mirás) ----------------
+const verNombreExacto = (n) => { if (DATA.pfPorNombre[n]) return n; const b = String(n).toLowerCase(); return Object.keys(DATA.pfPorNombre).find((x) => x.toLowerCase() === b) || null; };
+function verCrearMapa(M) {
+  const enCrea = typeof CREA !== 'undefined' && CREA.on;
+  // el marco: adelante y a la derecha de la cámara, en el piso
+  const f = v3(CAM.fwd.x, 0, CAM.fwd.z); if (f.len() < 1e-3) f.set(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)); f.norm();
+  const der = v3(CAM.der.x, 0, CAM.der.z); if (der.len() < 1e-3 || Math.abs(vdot(der.norm(), f)) > 0.2) der.copy(vcross(f, v3(0, 1, 0)).norm());
+  let O = null;
+  if (enCrea) { const h = raycast(CAM.pos, CAM.fwd, 80, null); if (h && h.p.distTo(CAM.pos) > 3) O = h.p.clone(); }
+  if (!O) { const p = vadd(JUG.pos, vscale(f, enCrea ? 10 : 4)), y = pisoBajo(v3(p.x, JUG.pos.y + 2, p.z), 8); p.y = y === null ? JUG.pos.y - 0.95 : y; O = p; }
+  const yaw0 = Math.atan2(f.x, f.z), aMundo = (p) => { const w = vadd(vadd(O, vscale(der, p[0])), vscale(f, p[2])); w.y = O.y + p[1]; return w; };
+  const L = [];
+  for (const x of M.objetos.slice(0, 180)) {
+    const n = verNombreExacto(x.n), c = n && verCaja(n); if (!c || (!enCrea && !reglaSala(n))) continue;
+    // (p es el centro de abajo del prop: crearObjeto ya lo apoya por su base; acá sólo se corre lo que su forma no está centrada)
+    const q = Quat.axis(0, 1, 0, yaw0 + x.yaw * Math.PI / 180), off = q.rot(v3((c.a[0] + c.b[0]) / 2, 0, (c.a[2] + c.b[2]) / 2));
+    L.push({ n, p: vsub(aMundo(x.p), off), q, f: !!x.f });
+  }
+  // las entidades pasan por la misma revisión que las de un mapa
+  const E = M.entidades.slice(0, 16).map((x) => {
+    const prm = Object.assign({}, x.prm); if (x.t === 'teleport' && Array.isArray(prm.a) && prm.a.length === 3) { const a = aMundo(prm.a.map((v) => +v || 0)); prm.a = [a.x, a.y, a.z].map((v) => +v.toFixed(2)); }
+    const w = aMundo(x.p), yy = yaw0 + x.yaw * Math.PI / 180; return { t: x.t, p: [w.x, w.y, w.z], yaw: ((yy + Math.PI) % TAU + TAU) % TAU - Math.PI, prm };
+  });
+  const v = E.length ? validarRB({ formato: 'rezobox-mapa', nombre: 'Verity', base: 'FlatGrass', entidades: E }) : null;
+  const ents = v && typeof v === 'object' ? v.entidades : [];
+  if (!L.length && !ents.length) return false;
+  // de abajo para arriba, de a poco (con su rayito, si está acá)
+  L.sort((a, b) => a.p.y - b.p.y);
+  VCR.obra = { L, E: ents, i: 0, t: 0, enCrea, n: 0 };
+  VCR.ult = { tipo: 'mapa', prev: JSON.stringify(M).slice(0, 9000) };
+  return true;
+}
+function verCreaPaso(dt) {
+  const W = VCR.obra; if (!W) return;
+  if (JUEGO.estado !== 'juego' || (W.enCrea && !(typeof CREA !== 'undefined' && CREA.on))) { VCR.obra = null; return; }
+  W.t -= dt; if (W.t > 0) return; W.t = 0.03;
+  for (let k = 0; k < 3 && W.i < W.L.length; k++) {
+    const x = W.L[W.i++], o = crearObjeto(x.n, x.p, x.q, { congelado: x.f }); if (!o) continue; W.n++;
+    if (!W.enCrea) { o.verity = true; VER.mios.push(o); DESHACER.push(o); redObjeto(o); }
+    if (VER.on && VER.yo && W.i % 3 === 0) verHaz(x.p);
+  }
+  if (W.i < W.L.length) return;
+  for (const x of W.E) { const red = !W.enCrea && !!RED.on, e = entidadCrear(x, { red }); if (e && red) entidadRed('ent', e); }
+  if (W.enCrea && typeof creadorBarraDibujar === 'function') creadorBarraDibujar();
+  VCR.obra = null;
+}
+
+// ---------------- la animación: de direcciones de brazos y piernas a huesos (en el editor) ----------------
+// Cada clave dice adónde apunta el brazo o el muslo (en el marco del personaje: afuera, arriba, adelante), cuánto se
+// doblan codos y rodillas y cuánto se giran cuerpo, torso y cabeza. Se arma pose por pose sobre el muñeco del editor:
+// cada hueso gira en el mundo lo justo para apuntar adonde dice (el giro más corto desde donde estaba) y eso se pasa a
+// su giro local (el del padre ya puesto), así sirve para cualquier personaje.
+function verAnimClaves(A) {
+  const P = EDA.P, md = P.md, base = EDA.base, idx = (n) => edaI(n);
+  const hay = ['Hips', 'Spine', 'RightArm', 'RightForeArm', 'RightHand', 'LeftArm', 'LeftForeArm', 'LeftHand', 'RightUpLeg', 'RightLeg', 'RightFoot', 'LeftUpLeg', 'LeftLeg', 'LeftFoot'].every((n) => idx(n) >= 0 && base.q[n]);
+  if (!hay) return null;
+  const poner = (po) => { EDA_HUESOS.forEach((n, k) => { const i = EDA.idx[k], v = po.q[n]; if (i >= 0 && v) { const r = md.r[i]; r[0] = v[0]; r[1] = v[1]; r[2] = v[2]; r[3] = v[3]; } }); const hi = idx('Hips'), p = md.p[hi]; p[0] = po.h[0]; p[1] = po.h[1]; p[2] = po.h[2]; md.sucio = true; md.actualizar(); };
+  const pos = (n) => { const M = md.W[idx(n)]; return v3(M[12], M[13], M[14]); }, rotW = (n) => m4quat(md.W[idx(n)]);
+  const dirDe = (a, b) => vsub(pos(b), pos(a)).norm();
+  P.pos.copy(EDA.centro);
+  poner(base);
+  // el marco del personaje parado: derecha (de hombro a hombro), arriba y adelante (hacia donde apuntan los pies)
+  const U0 = v3(0, 1, 0), R0 = vsub(pos('RightArm'), pos('LeftArm')); R0.y = 0; R0.norm();
+  // (del tobillo a la punta del pie; la rodilla no sirve: parado puede quedar más adelante que la punta)
+  const F0 = vcross(R0, U0).norm(), pies = idx('RightToeBase') >= 0 && idx('LeftToeBase') >= 0 ? vadd(vsub(pos('RightToeBase'), pos('RightFoot')), vsub(pos('LeftToeBase'), pos('LeftFoot'))) : vsub(pos('RightFoot'), pos('RightLeg'));
+  pies.y = 0; if (vdot(F0, pies) < 0) F0.set(-F0.x, -F0.y, -F0.z);
+  // las bisagras de codos y rodillas (con el brazo o la pierna como están parados) y los giros de base
+  const bis = {}, rot0 = {};
+  for (const [n, h, s] of [['RightArm', 'RightForeArm', 1], ['LeftArm', 'LeftForeArm', 1], ['RightUpLeg', 'RightLeg', -1], ['LeftUpLeg', 'LeftLeg', -1]]) { bis[n] = vscale(vcross(dirDe(n, h), F0).norm(), s); rot0[n] = rotW(n); }
+  // la cadera: de metros en el mundo a su lugar local (cuánto se mueve por unidad, medido)
+  const h0 = pos('Hips'), eps = Math.max(0.01, 0.1 * Math.hypot(base.h[0], base.h[1], base.h[2])), J = [];
+  for (let c = 0; c < 3; c++) { const po = edaCopia(base); po.h[c] += eps; poner(po); J.push(vscale(vsub(pos('Hips'), h0), 1 / eps)); }
+  poner(base);
+  const det = vdot(J[0], vcross(J[1], J[2]));
+  const aLocal = (w) => (Math.abs(det) < 1e-9 ? [0, 0, 0] : [vdot(w, vcross(J[1], J[2])) / det, vdot(J[0], vcross(w, J[2])) / det, vdot(J[0], vcross(J[1], w)) / det]);
+  const rad = Math.PI / 180;
+  const qDe = (a, b) => { const d = vdot(a, b); if (d < -0.9999) { let ax = vcross(a, v3(1, 0, 0)); if (ax.len() < 1e-3) ax = vcross(a, v3(0, 0, 1)); ax.norm(); return Quat.axis(ax.x, ax.y, ax.z, Math.PI); } const c = vcross(a, b); return new Quat(c.x, c.y, c.z, 1 + d).norm(); };
+  // [adelante, a su derecha, girar a su derecha] en grados: cada eje se elige por adónde lleva (arriba → adelante, arriba →
+  // derecha, adelante → derecha), así no importa cómo esté armado el mundo
+  // (se devuelve aparte el giro alrededor de su "arriba" y la inclinación)
+  const giro2 = (g, R, U, F) => { const ax = (a, b) => vcross(a, b).norm(); return [Quat.axis(...xyz(ax(F, R)), g[2] * rad), Quat.axis(...xyz(ax(U, F)), g[0] * rad).mul(Quat.axis(...xyz(ax(U, R)), g[1] * rad))]; };
+  const giro3 = (g, R, U, F) => { const [a, b] = giro2(g, R, U, F); return a.mul(b); };
+  const xyz = (v) => [v.x, v.y, v.z], angDe = (a, b) => Math.acos(clamp(vdot(a, b), -1, 1));
+  const esp = ['Spine', 'Spine1', 'Spine2'].filter((n) => idx(n) >= 0 && base.q[n]), cuello = idx('Neck') >= 0 ? 'Neck' : 'Head';
+  const K = []; let S = {};
+  for (const k of A.claves) {
+    S = Object.assign({}, S, k);
+    const po = edaCopia(base); poner(po);
+    // girar el hueso n en el mundo con dq (sobre su giro de ahora)
+    const girar = (n, dq) => { const v = po.q[n], ql = new Quat(v[0], v[1], v[2], v[3]), Wp = rotW(n).mul(ql.conj()).norm(); const nq = Wp.clone().conj().mul(dq).mul(Wp).mul(ql).norm(); po.q[n] = [nq.x, nq.y, nq.z, nq.w]; poner(po); };
+    if (S.cadera) { const c = S.cadera, l = aLocal(vadd(vadd(vscale(R0, c[0]), vscale(U0, c[1])), vscale(F0, c[2]))); po.h = base.h.map((v, i) => v + l[i]); poner(po); }
+    // todo el cuerpo (desde la cadera), el torso (repartido en la espalda) y la cabeza (cuello y cabeza)
+    const Qb = S.cuerpo ? giro3(S.cuerpo, R0, U0, F0) : new Quat(); if (S.cuerpo) girar('Hips', Qb);
+    const R1 = Qb.rot(R0), U1 = Qb.rot(U0), F1 = Qb.rot(F0);
+    let Qt = new Quat();
+    if (S.torso && esp.length) {
+      // la inclinación repartida en la espalda (curva), ajustada para que la línea de la espalda (de su base al cuello)
+      // quede justo en lo pedido; después el giro alrededor de su arriba, repartido igual
+      const [Qg, Qi] = giro2(S.torso, R1, U1, F1), antes = edaCopia(po), ch0 = dirDe(esp[0], cuello), meta = angDe(ch0, Qi.rot(ch0));
+      let k = 1;
+      for (let it = 0; it < 4 && meta > 1e-3; it++) {
+        Object.assign(po, edaCopia(antes)); poner(po);
+        const parte = new Quat().slerpTo(Qi, k / esp.length); for (const n of esp) girar(n, parte);
+        const hay = angDe(ch0, dirDe(esp[0], cuello)); if (hay < 1e-4 || Math.abs(hay - meta) < 0.2 * rad) break; k *= meta / hay;
+      }
+      const parte = new Quat().slerpTo(Qg, 1 / esp.length); for (const n of esp) girar(n, parte);
+      Qt = Qg.clone().mul(Qi);
+    }
+    // (los brazos y la cabeza, en el marco del tronco: como lo pidió, que es como quedó la línea de la espalda)
+    const Qa = Qt.clone().mul(Qb), R2 = Qa.rot(R0), U2 = Qa.rot(U0), F2 = Qa.rot(F0);
+    if (S.cabeza) { const Qh = giro3(S.cabeza, R2, U2, F2); if (idx('Neck') >= 0 && base.q.Neck) { girar('Neck', new Quat().slerpTo(Qh, 0.4)); girar('Head', new Quat().slerpTo(Qh, 0.6)); } else if (idx('Head') >= 0) girar('Head', Qh); }
+    // brazos y piernas: adonde apuntan (afuera es hacia su lado) y cuánto se doblan
+    for (const [clave, flex, a, b, c, lado, marco] of [['brazoD', 'codoD', 'RightArm', 'RightForeArm', 'RightHand', 1, 2], ['brazoI', 'codoI', 'LeftArm', 'LeftForeArm', 'LeftHand', -1, 2],
+      ['piernaD', 'rodillaD', 'RightUpLeg', 'RightLeg', 'RightFoot', 1, 1], ['piernaI', 'rodillaI', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', -1, 1]]) {
+      const [R, U, F] = marco === 2 ? [R2, U2, F2] : [R1, U1, F1];
+      if (S[clave]) {
+        const d = S[clave], t = vadd(vadd(vscale(R, lado * d[0]), vscale(U, d[1])), vscale(F, d[2])).norm(), cur = dirDe(a, b);
+        // (si va al revés de donde está, pasa por el costado: los brazos por afuera, las piernas por adelante)
+        const medio = marco === 2 ? vscale(R, lado) : F.clone();
+        girar(a, vdot(cur, t) < -0.6 ? qDe(medio, t).mul(qDe(cur, medio)) : qDe(cur, t));
+      }
+      // (el doblez es desde el brazo o la pierna derechos: 0 = derecho; la bisagra acompaña al hueso de arriba)
+      if (S[clave] || S[flex] != null) {
+        const h = rotW(a).mul(rot0[a].conj()).norm().rot(bis[a]), arr = dirDe(a, b), quiere = Quat.axis(h.x, h.y, h.z, (S[flex] || 0) * rad).rot(arr);
+        girar(b, qDe(dirDe(b, c), quiere));
+      }
+    }
+    K.push(Object.assign(edaCopia(po), { t: k.t, cam: null }));
+  }
+  poner(base);
+  // (si se repite, la última es la primera)
+  if (A.loop && K.length > 1 && Math.abs(K[K.length - 1].t - A.dur) > 1e-3) K.push(Object.assign(edaCopia(K[0]), { t: A.dur }));
+  return K.every((k) => Object.values(k.q).every((v) => v.every(Number.isFinite)) && k.h.every(Number.isFinite)) ? K : null;
+}
+function verCrearAnim(A) {
+  if (!EDA.on) edaAbrir();
+  if (!EDA.on || !EDA.P) return false;
+  const K = verAnimClaves(A); if (!K) return false;
+  EDA.keys = K; EDA.dur = A.dur; EDA.loop = A.loop; EDA.cat = A.cat; if (A.nombre) EDA.nombre = A.nombre; EDA.id = null;
+  EDA.t = 0; EDA.play = true; EDA.cine = false; EDA.cambio = true;
+  VCR.ult = { tipo: 'anim', prev: JSON.stringify(A).slice(0, 9000) };
+  edaDibujar(); return true;
+}
+
+// ---------------- el pedido en pantalla: qué querés que cree ----------------
+function verCreaPanel(tipo) {
+  if (JUEGO.estado !== 'juego') return;
+  let t = $('verCrea');
+  if (!t) {
+    t = document.createElement('div'); t.id = 'verCrea'; t.className = 'verTuto oc';
+    t.innerHTML = `<div class="verTutoC verCreaC">${icoHTML('ico:verity')}<b></b><div class="verCreaTipos"></div><textarea id="verCreaIn" rows="3" maxlength="600" dir="auto" spellcheck="false"></textarea>
+      <label class="verCreaCam"><input type="checkbox"><span></span></label><small class="verCreaMejor" dir="auto"></small>
+      <div class="verIAb"><button class="boton" data-c="ok" data-vcr="1">${glifo('si')}<span></span></button><button class="boton gris" data-c="cerrar">${glifo('no')}</button></div></div>`;
+    // (desde el editor de animaciones se vuelve a él)
+    const cerrar = () => { t.classList.add('oc'); if (UI.abierto === 'verCrea') UI.abierto = EDA.on ? 'eda' : null; };
+    const ir = () => {
+      const i = $('verCreaIn'), q = i.value.trim(); if (!q || VCR.ocupado) return;
+      const cambiar = t.querySelector('.verCreaCam input').checked && !t.querySelector('.verCreaCam').hidden;
+      i.value = ''; cerrar(); if (VER.on) VER.hist.push(['u', q]);
+      verInventar(VCR.tipo, q, { cambiar });
+    };
+    t.addEventListener('click', (ev) => {
+      if (ev.target === t || ev.target.closest('[data-c=cerrar]')) cerrar();
+      else if (ev.target.closest('[data-c=ok]')) ir();
+      else { const b = ev.target.closest('[data-tipo]'); if (b) verCreaPanel(b.dataset.tipo); }
+    });
+    t.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ir(); } if (ev.key === 'Escape') cerrar(); });
+    document.body.appendChild(t);
+  }
+  VCR.tipo = VERITY_CREA.includes(tipo) ? tipo : 'mod';
+  t.querySelector('b').textContent = T('ver.cr.t.' + VCR.tipo);
+  t.querySelector('.verCreaTipos').innerHTML = VERITY_CREA.map((k) => `<button class="${k === VCR.tipo ? 'sel' : ''}" data-tipo="${k}">${glifo({ mod: 'codigo', mapa: 'props', anim: 'persona' }[k])}<span>${esc(T('ver.cr.' + k))}</span></button>`).join('');
+  $('verCreaIn').placeholder = T('ver.cr.ph.' + VCR.tipo);
+  const cam = t.querySelector('.verCreaCam'); cam.hidden = !(VCR.ult && VCR.ult.tipo === VCR.tipo); cam.querySelector('span').textContent = T('ver.cr.cambiar');
+  t.querySelector('.verCreaMejor').textContent = verCerebro() === 'normal' ? T('ver.cr.mejor') : T('ver.ia.' + verCerebro());
+  t.querySelector('[data-c=ok] span').textContent = T('ver.cr.ok'); t.querySelector('[data-c=ok]').classList.toggle('ocupado', VCR.ocupado);
+  if (!EDA.on) cerrarPaneles(); t.classList.remove('oc'); UI.abierto = 'verCrea'; soltarPuntero();
+  if (!document.body.classList.contains('tactil')) setTimeout(() => $('verCreaIn').focus(), 30);
 }
 
 // ---------------- editor de animaciones (emotes propios) y cinemáticas ----------------
@@ -10614,7 +11207,7 @@ function edaPanel() {
   el.innerHTML = `<div class="edaPuntos"></div><div class="edaVista"></div>
     <div class="edaArriba"><b>${icoHTML('ico:animacion')}<span class="edaTit"></span></b><input class="edaNom" maxlength="40" spellcheck="false">
       <select class="edaCat"></select><select class="edaDesde"></select><span class="edaEsp"></span>
-      <button data-ea="guardar"></button><button data-ea="publicar" class="edaG"></button><button data-ea="exportar" class="edaChico"></button><button data-ea="salir" class="edaChico"></button></div>
+      <button data-ea="verity" class="edaVer" data-vcr="1"></button><button data-ea="guardar"></button><button data-ea="publicar" class="edaG"></button><button data-ea="exportar" class="edaChico"></button><button data-ea="salir" class="edaChico"></button></div>
     <div class="edaLado"><div class="edaHueso"></div><div class="edaSl"></div><div class="edaBts"></div><div class="edaAyuda"></div></div>
     <div class="edaAbajo"><div class="edaCtl"></div><div class="edaLinea"><div class="edaPista"><div class="edaClaves"></div><i class="edaCursor"></i></div></div></div>`;
   document.body.appendChild(el);
@@ -10668,6 +11261,7 @@ function edaAccion(a) {
   const [k, v] = a.split(':');
   if (k === 'salir') { if (EDA.cambio && !confirm(T('eda.salirQ'))) return; edaCerrar(); return; }
   if (k === 'guardar') return edaGuardar();
+  if (k === 'verity') return verCreaPanel('anim'); // (Verity te arma la animación: la deja acá para tocarla)
   if (k === 'publicar') return edaPublicar();
   if (k === 'exportar') return edaExportar();
   if (k === 'play') { EDA.play = !EDA.play; EDA.cine = false; if (EDA.play && EDA.t >= EDA.dur - 1e-3) EDA.t = 0; }
@@ -10693,6 +11287,7 @@ function edaDibujar() {
     + emoLista().filter((e) => e.cat !== 'clasico').map((e) => `<option value="${esc(e.id)}">${esc(e.n)}</option>`).join('');
   const bt = (k, g, t, cl) => `<button data-ea="${k}" class="${cl || ''}">${g ? glifo(g) : ''}${t ? `<span>${esc(t)}</span>` : ''}</button>`;
   el.querySelector('[data-ea=guardar]').innerHTML = glifo('guardar') + `<span>${esc(T('guardar'))}</span>`;
+  el.querySelector('[data-ea=verity]').innerHTML = icoHTML('ico:verity') + '<span>Verity</span>'; el.querySelector('[data-ea=verity]').title = T('ver.cr.t.anim');
   el.querySelector('[data-ea=publicar]').innerHTML = glifo('subir') + `<span>${esc(T('publicar'))}</span>`;
   el.querySelector('[data-ea=exportar]').innerHTML = glifo('bajar'); el.querySelector('[data-ea=exportar]').title = T('exportar');
   el.querySelector('[data-ea=salir]').innerHTML = glifo('no'); el.querySelector('[data-ea=salir]').title = T('cerrar');
@@ -10784,7 +11379,7 @@ function creadorBarra() {
 function creadorBarraDibujar() {
   const b = CREA.bar; if (!b) return;
   const rol = CREA.mapa.roles.find((r) => r.id === CREA.rol), bt = (k, t, extra) => `<button class="crBt${extra || ''}" data-cr="${k}">${t}</button>`;
-  let h = bt('paleta', glifo('mas') + ' ' + esc(T('cr.entidad'))) + bt('punto', `${glifo('punto')} ${esc(T('cr.punto'))}${rol ? ` <i style="background:${rol.color}"></i>` : ''}`) + bt('roles', glifo('gente')) + bt('mapa', glifo('ajustes')) + bt('guardar', glifo('guardar')) + bt('probar', glifo('jugar')) + bt('publicar', glifo('subir'));
+  let h = bt('paleta', glifo('mas') + ' ' + esc(T('cr.entidad'))) + bt('punto', `${glifo('punto')} ${esc(T('cr.punto'))}${rol ? ` <i style="background:${rol.color}"></i>` : ''}`) + bt('roles', glifo('gente')) + bt('mapa', glifo('ajustes')) + bt('guardar', glifo('guardar')) + bt('probar', glifo('jugar')) + bt('publicar', glifo('subir')) + `<button class="crBt crVer" data-cr="verity" data-vcr="1" title="${esc(T('ver.cr.t.mapa'))}">${icoHTML('ico:verity')}</button>`;
   if (CREA.tipo) h += `<span class="crSep"></span><span class="crTxt">${icoHTML('ico:' + ENT_INFO[CREA.tipo][0])} ${esc(T('ent.' + CREA.tipo))}</span>` + bt('poner', glifo('si') + ' ' + esc(T('cr.poner')), ' crSi') + bt('cancelar', glifo('no'));
   else if (CREA.sel) h += `<span class="crSep"></span><span class="crTxt">${CREA.sel.e ? icoHTML('ico:' + ENT_INFO[CREA.sel.e.t][0]) + ' ' + esc(T('ent.' + CREA.sel.e.t)) : glifo('punto') + ' ' + esc(T('cr.punto'))}</span>` + (CREA.sel.e && ENT_PRM[CREA.sel.e.t] ? bt('editar', glifo('lapiz')) : '') + bt('girar', glifo('girar')) + bt('traer', glifo('traer')) + bt('borrar', glifo('basura'), ' crNo');
   b.innerHTML = h;
@@ -10798,6 +11393,7 @@ function creadorAccion(k) {
   if (k === 'guardar') { const v = creadorGuardar(); if (v) aviso(T('cr.guardado'), 2); return; }
   if (k === 'probar') { const v = creadorGuardar(); if (!v) return; creadorSalir(); RB.mapaCom = v.id; RB.mapaPartida = v; RB.horaPartida = 'normal'; empezarPartida(v.base); return; }
   if (k === 'publicar') return creadorPublicar();
+  if (k === 'verity') return verCreaPanel('mapa'); // (Verity construye donde mirás)
   if (k === 'poner') return creadorPoner();
   if (k === 'cancelar') { CREA.tipo = null; return creadorBarraDibujar(); }
   const S = CREA.sel; if (!S) return;

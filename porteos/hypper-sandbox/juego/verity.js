@@ -264,7 +264,12 @@ function verPanel(si) {
       <div class="verLog" dir="auto"></div>
       <div class="verAnims">${VER_BOTONES.map(([a, g]) => `<button data-v="anim:${a}">${glifo(g)}<span></span></button>`).join('')}</div>
       <div class="verFila"><input id="verIn" maxlength="200" autocomplete="off"><button class="verMic" data-v="mic">${glifo('micro')}</button><button class="verEnv" data-v="enviar">${glifo('adelante')}</button></div>
-      <div class="verOpc"><label><input type="checkbox" data-v="voz"><span></span></label><label><input type="checkbox" data-v="oido"><span></span></label><label><input type="checkbox" data-v="noche"><span></span></label><button data-v="olvidar">${glifo('basura')}<span></span></button></div>`;
+      <div class="verOpc"><label><input type="checkbox" data-v="voz"><span></span></label><label><input type="checkbox" data-v="oido"><span></span></label><label><input type="checkbox" data-v="noche"><span></span></label><button data-v="olvidar">${glifo('basura')}<span></span></button></div>
+      <div class="verCreaFila">${VERITY_CREA.map((k) => `<button data-v="crea:${k}" data-vcr="1">${glifo({ mod: 'codigo', mapa: 'props', anim: 'persona' }[k])}<span></span></button>`).join('')}</div>
+      <div class="verIA"><span class="verCerebro"></span><button data-v="ia">${glifo('ajustes')}<span>IA</span></button></div>
+      <div class="verIAp oc"><p class="verIAtx" dir="auto"></p>
+        <div class="verFila"><input id="verGemIn" type="password" autocomplete="off" spellcheck="false" placeholder="AIza… / AQ.…"><button class="verEnv" data-v="gemGuardar">${glifo('si')}</button></div>
+        <div class="verIAb"><button data-v="tuto">${glifo('info')}<span></span></button><button data-v="gemQuitar">${glifo('basura')}<span></span></button></div></div>`;
     document.body.appendChild(p);
     p.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-v]'); if (!b) return; const a = b.dataset.v;
@@ -272,8 +277,17 @@ function verPanel(si) {
       else if (a === 'enviar') verEnviarPanel();
       else if (a === 'mic') { audioIniciar(); VER.mic = !VER.escucha; verEscuchar(!VER.escucha); }
       else if (a.startsWith('anim:')) verPedirAnim(a.slice(5));
+      else if (a.startsWith('crea:')) verCreaPanel(a.slice(5));
       else if (a === 'olvidar') { VER.mem = { d: [], n: 0, t0: Date.now() }; VER.hist = []; verGuardar(); verLog(); aviso(T('ver.olvidado'), 2); }
+      else if (a === 'ia') p.querySelector('.verIAp').classList.toggle('oc');
+      else if (a === 'tuto') verTutorial(true);
+      else if (a === 'gemQuitar') { PREFS.verGem = ''; PREFS.verTk = ''; guardarPrefs(); verIAMostrar(); }
+      else if (a === 'gemGuardar') {
+        const i = $('verGemIn'), k = i.value.trim(); if (!k) return;
+        b.disabled = true; verGemProbar(k).then((bien) => { b.disabled = false; if (bien) { i.value = ''; guardarPrefs(); aviso(T('ver.ia.ok'), 2.5); if (VER.yo) { VER.yo.emo = 'emocionada'; VER.yo.emoT = 3; } } else aviso(T('ver.ia.mal'), 2.5); verIAMostrar(); });
+      }
     });
+    $('verGemIn').addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') p.querySelector('[data-v=gemGuardar]').click(); });
     p.addEventListener('change', (ev) => {
       const a = ev.target.dataset.v, v = ev.target.checked;
       if (a === 'voz') PREFS.verVoz = v; if (a === 'noche') PREFS.verNoche = v; if (a === 'oido') { PREFS.verOido = v; OIDO.negado = false; if (!v) oidoParar(); }
@@ -285,10 +299,33 @@ function verPanel(si) {
   p.querySelector('[data-v=voz]').checked = PREFS.verVoz !== false; p.querySelector('[data-v=noche]').checked = PREFS.verNoche !== false; p.querySelector('[data-v=oido]').checked = PREFS.verOido !== false;
   const sp = p.querySelectorAll('.verOpc span'); sp[0].textContent = T('ver.voz'); sp[1].textContent = T('ver.oido'); sp[2].textContent = T('ver.noche'); sp[3].textContent = T('ver.olvidar');
   p.querySelectorAll('.verAnims button').forEach((b) => { b.querySelector('span').textContent = T('ver.a.' + b.dataset.v.slice(5)); });
+  p.querySelectorAll('.verCreaFila button').forEach((b) => { b.querySelector('span').textContent = T('ver.cr.' + b.dataset.v.slice(5)); b.classList.toggle('ocupado', VCR.ocupado); });
+  verIAMostrar();
   p.classList.remove('oc'); UI.abierto = 'verity'; soltarPuntero(); verLog();
   if (!document.body.classList.contains('tactil')) setTimeout(() => $('verIn').focus(), 30);
 }
-function verEnviarPanel() { const i = $('verIn'), t = i.value.trim(); i.value = ''; if (t) verPreguntar(t); }
+function verEnviarPanel() { const i = $('verIn'), t = i.value.trim(); i.value = ''; if (t) verHablarle(t); }
+// la sección IA: qué cerebro usa y tu propia clave de Google AI Studio
+function verIAMostrar() {
+  const p = VER.pan; if (!p) return; const m = verCerebro();
+  p.querySelector('.verCerebro').textContent = T('ver.ia.' + m); p.querySelector('.verCerebro').classList.toggle('gem', m !== 'normal');
+  p.querySelector('.verIAtx').textContent = T('ver.ia.tx');
+  const bs = p.querySelectorAll('.verIAb span'); bs[0].textContent = T('ver.ia.tuto'); bs[1].textContent = T('ver.ia.quitar');
+  p.querySelector('[data-v=gemQuitar]').style.display = verGemPropia() || PREFS.verTk ? '' : 'none';
+}
+// el tutorial: cómo sacar tu clave gratis de Google AI Studio (en tu idioma)
+function verTutorial(si) {
+  let t = $('verTuto');
+  if (!si) { if (t) t.classList.add('oc'); return; }
+  if (!t) {
+    t = document.createElement('div'); t.id = 'verTuto'; t.className = 'verTuto oc';
+    t.innerHTML = `<div class="verTutoC"><b></b><ol dir="auto"><li></li><li></li><li></li><li></li></ol><div class="verIAb"><a class="boton" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"></a><button class="boton gris" data-t="cerrar">${glifo('no')}</button></div></div>`;
+    t.addEventListener('click', (ev) => { if (ev.target === t || ev.target.closest('[data-t=cerrar]')) verTutorial(false); });
+    document.body.appendChild(t);
+  }
+  t.querySelector('b').textContent = T('ver.tuto.t'); t.querySelectorAll('li').forEach((li, i) => { li.textContent = T('ver.tuto.' + (i + 1)); }); t.querySelector('a').textContent = T('ver.tuto.abrir');
+  t.classList.remove('oc');
+}
 function verLog() {
   if (!VER.pan) return; const L = VER.pan.querySelector('.verLog');
   L.innerHTML = VER.hist.slice(-8).map((h) => `<p class="${h[0] === 'u' ? 'vU' : 'vV'}" dir="auto">${esc(h[1])}</p>`).join('') + (VER.pensando ? '<p class="vV verPiensa"><i></i><i></i><i></i></p>' : '');
@@ -307,7 +344,7 @@ function verHablarle(q) {
   if (VER.on) { verPreguntar(q, '', verSala() ? PREFS.nombre : '', 'yo'); return; }
   const id = verRemotaCerca(verSala() ? 1e9 : 25);
   if (!id || !RED.on) { aviso(T('ver.lejos'), 2); return; }
-  publicar('a', { k: 'verq', to: id, t: q.slice(0, 200), n: PREFS.nombre });
+  publicar('a', { k: 'verq', to: id, t: q.slice(0, 200), n: PREFS.nombre }); VER.tPedi = performance.now();
   VER.hist.push(['u', q]); VER.hist = VER.hist.slice(-12); const I = VER.rem.get(id); if (I) { I.pensando = true; verGlobo(I, '', 0, true); } verLog();
 }
 function verPedirAnim(a) { if (VER.on) verAnim(VER.yo, a); else { const id = verRemotaCerca(1e9); if (id && RED.on) publicar('a', { k: 'vera', to: id, a }); } }
@@ -414,30 +451,58 @@ function verContexto() {
   const nomMapa = T('m.' + MUNDO.nombre), mapa = nomMapa && nomMapa !== 'm.' + MUNDO.nombre ? nomMapa : MUNDO.nombre, M = VER.mente, sala = verSala();
   const ctx = { jugador: sala ? '' : PREFS.nombre, mapa, hora: hh + ':' + String(mm).padStart(2, '0'), cerca: cerca.slice(0, 8).map((c) => c[1] + ' ' + Math.round(c[0]) + 'm'),
     jugadores: verJugadores().map((P) => P.nombre + ' ' + Math.round(P.pos.distTo(base)) + 'm').slice(0, 8), mods: modsActivosAhora().map((m) => m.id).slice(0, 8),
-    sala: sala ? SALA.n : '', tuModo: VER.modo, haciendo: verEstado(), energia: Math.round(M.energia * 100) + '%', humor: M.humor > 0.3 ? 'happy' : M.humor < -0.2 ? 'sad' : 'calm', memoria: verMemoria().d.slice(-12) };
+    sala: sala ? SALA.n : '', salaId: sala ? SALA.id : '', tuModo: VER.modo, haciendo: verEstado(), energia: Math.round(M.energia * 100) + '%', humor: M.humor > 0.3 ? 'happy' : M.humor < -0.2 ? 'sad' : 'calm', memoria: verMemoria().d.slice(-12) };
   // (lo de "mi" jugador sólo si me habla él)
   if (!sala || VER.hablaCon === 'yo') Object.assign(ctx, { vida: Math.round(J.vida), vivo: J.vivo, vehiculo: J.vehiculo ? J.vehiculo.nombre : '', arma: ARM.lista[ARM.i] || '', corriendo: Math.hypot(J.vel.x, J.vel.z) > 3, mira, construyo: mios });
   return ctx;
 }
 function verTiempo(ms) { const a = new AbortController(); setTimeout(() => a.abort(), ms); return a.signal; }
+// ---------------- Gemini: tu propia clave (directo a Google desde el navegador), el permiso del dueño o los servers premium ----------------
+const verGemPropia = () => (typeof PREFS.verGem === 'string' && /^[A-Za-z0-9_.\-]{20,120}$/.test(PREFS.verGem) ? PREFS.verGem : '');
+const verPremium = () => !!verGemPropia() || !!PREFS.verTk || (verSala() && VERITY_PREMIUM.includes(SALA.id));
+function verCerebro() { return verGemPropia() ? 'propia' : PREFS.verTk ? 'dueno' : verSala() && VERITY_PREMIUM.includes(SALA.id) ? 'sala' : 'normal'; }
+async function verGemPedir(modelo, cuerpo, ms, clave) {
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': clave || verGemPropia() }, body: JSON.stringify(cuerpo), signal: verTiempo(ms || 20000) });
+  if (r.status === 400 || r.status === 401 || r.status === 403) { VER.gemMala = true; return null; }
+  if (!r.ok) return null;
+  const d = await r.json(), p = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts || [];
+  return { texto: p.map((x) => x.text || '').join(''), audio: p.find((x) => x.inlineData) };
+}
+async function verGeminiDirecto(c) {
+  const msgs = verityMensajes(c); if (!msgs) return null;
+  for (const m of VERITY_GEMINI) { try { const o = await verGemPedir(m, verityAGemini(msgs, 500)); const v = o && verityRespuesta(o.texto); if (v) return v; if (VER.gemMala) return null; } catch (e) {} }
+  return null;
+}
+async function verVozGeminiDirecta(t, noche) {
+  try { const o = await verGemPedir(VERITY_GEMINI_VOZ, verityVozGemini(t, noche), 20000); if (!o || !o.audio) return null; return await AUD.ctx.decodeAudioData(verityWav(o.audio.inlineData.data, o.audio.inlineData.mimeType).buffer); } catch (e) { return null; }
+}
+// probar una clave nueva (una pregunta cortita)
+// (se guarda recién cuando contestó: mientras tanto Verity sigue con el cerebro que tenía)
+async function verGemProbar(k) {
+  if (!/^[A-Za-z0-9_.\-]{20,120}$/.test(k)) return false;
+  let ok = false; try { const o = await verGemPedir(VERITY_GEMINI[0], { contents: [{ parts: [{ text: 'Reply with the word ok' }] }], generationConfig: { maxOutputTokens: 5 } }, 15000, k); ok = !!(o && o.texto); } catch (e) {}
+  if (ok) { PREFS.verGem = k; VER.gemMala = false; } return ok;
+}
 // el modelo público deja una respuesta cada 30 s por conexión (si no, contesta 402 o 429 con cuánto esperar): se
 // espera el turno y, si igual dice que no, se reintenta una vez
 const VER_PUB = 31000;
-async function verPublico(c) {
-  const msgs = verityMensajes(c); if (!msgs) return null;
+async function verPublicoTexto(msgs, ms) {
+  if (!msgs) return null;
   for (let n = 0; n < 2; n++) {
     const falta = (VER.pubUlt || 0) + VER_PUB - Date.now(); if (falta > 0) await verEsperar(falta); VER.pubUlt = Date.now();
     try {
-      const r = await fetch('https://text.pollinations.ai/openai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'openai', messages: msgs, private: true }), signal: verTiempo(45000) });
+      const r = await fetch('https://text.pollinations.ai/openai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'openai', messages: msgs, private: true }), signal: verTiempo(ms || 45000) });
       if (r.status === 402 || r.status === 429) {
         let seg = +r.headers.get('Retry-After') || 0; if (!seg) { try { const m = /retry after (\d+)/i.exec(await r.text()); seg = m ? +m[1] : 30; } catch (e) { seg = 30; } }
         VER.pubUlt = Date.now() + Math.min(35, seg) * 1000 + 500 - VER_PUB; continue;
       }
-      const d = await r.json(); return verityRespuesta(d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content);
+      const d = await r.json(), t = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+      return typeof t === 'string' ? t : null;
     } catch (e) { return null; }
   }
   return null;
 }
+const verPublico = async (c) => verityRespuesta(await verPublicoTexto(verityMensajes(c), 45000));
 // sin la tienda, lo que pasa en el juego no gasta el turno del modelo público: lo contesta con un gesto
 function verGesto(ev) {
   const I = VER.yo; if (!I) return;
@@ -450,11 +515,11 @@ async function verPreguntar(q, ev, de, quien) {
   q = rbTexto(q, 300); if (!q && !ev) return; quien = quien || 'yo';
   if (VER.pensando) { if (q) VER.espera = [q, ev, de, quien]; return; } // (lo último que le dijeron, apenas termine)
   if (q) VER.hablaCon = quien;
-  const I = VER.yo, c = { l: verLengua(), q, ev: ev || '', de: de || '', n: I.noche > 0.5 ? 1 : 0, h: VER.hist.slice(-8), ctx: verContexto() };
+  const I = VER.yo, c = { l: verLengua(), q, ev: ev || '', de: de || '', n: I.noche > 0.5 ? 1 : 0, h: VER.hist.slice(-8), ctx: verContexto(), tk: PREFS.verTk || '' };
   if (q) { VER.hist.push(['u', de ? de + ': ' + q : q]); VER.ultCharla = TIEMPO.t; verAtender(quien, 25); }
   VER.pensando = true; I.pensando = true; verLog(); if (!q || !VER.escucha) verGlobo(I, '', 0, true);
-  let v = null;
-  if (!VER.sinCF && Date.now() > (VER.cfLleno || 0)) {
+  let v = verGemPropia() ? await verGeminiDirecto(c) : null; // (con tu propia clave: directo a Google)
+  if (!v && !VER.sinCF && Date.now() > (VER.cfLleno || 0)) {
     try {
       const r = await fetch(TIENDA_URL + 'verity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c), signal: verTiempo(32000) });
       if (r.ok) v = verityRespuesta(JSON.stringify(await r.json()));
@@ -487,10 +552,12 @@ function verEvento(ev, espera, q) {
 
 // ---------------- hablar: voz de la tienda (MeloTTS) en 3D, o la del navegador ----------------
 const verEsperar = (ms) => new Promise((ok) => setTimeout(() => ok(null), ms));
-async function verVozCF(t, l) {
-  if (VER.sinVozCF || !VERITY_VOCES.includes(l) || !AUD.ctx) return null;
+async function verVozCF(t, l, noche) {
+  const prem = verPremium();
+  if (!AUD.ctx || (!prem && (VER.sinVozCF || !VERITY_VOCES.includes(l)))) return null;
+  if (verGemPropia()) { const b = await verVozGeminiDirecta(t, noche); if (b) return b; }
   try {
-    const r = await fetch(TIENDA_URL + 'verity/voz?l=' + l + '&t=' + encodeURIComponent(t.slice(0, 240)), { signal: verTiempo(9000) });
+    const s = verSala() ? SALA.id : '', r = await fetch(TIENDA_URL + 'verity/voz?l=' + l + '&t=' + encodeURIComponent(t.slice(0, 240)) + (s ? '&s=' + encodeURIComponent(s) : '') + (PREFS.verTk ? '&tk=' + PREFS.verTk : '') + (noche ? '&n=1' : ''), { signal: verTiempo(prem ? 14000 : 9000) });
     if (!r.ok) { if (r.status === 404 || r.status === 503) VER.sinVozCF = true; return null; }
     return await AUD.ctx.decodeAudioData(await r.arrayBuffer());
   } catch (e) { return null; }
@@ -541,8 +608,8 @@ async function verDecir(I, t, emo, l) {
   let dur = 0;
   if (PREFS.verVoz !== false && PREFS.vol && d < 45) {
     audioIniciar();
-    if (d < 25 && verVozMejor(l)) { dur = verVozNav(I, t, l); I.falsa = dur; }
-    const buf = dur ? null : await Promise.race([verVozCF(t, l), verEsperar(4000)]);
+    if (d < 25 && !verPremium() && verVozMejor(l)) { dur = verVozNav(I, t, l); I.falsa = dur; }
+    const buf = dur ? null : await Promise.race([verVozCF(t, l, I.noche > 0.5), verEsperar(verPremium() ? 7000 : 4000)]);
     if (buf && AUD.ctx) dur = verSonar(I, buf);
     if (!dur && d < 25) { dur = verVozNav(I, t, l); I.falsa = dur; } // (si el navegador no tiene esa voz, la boca se mueve igual)
   }
@@ -579,6 +646,7 @@ function verAcciones(L, quien) {
     else if (a.a === 'video' && quien === 'yo') verMedia('pantalla', a.q);
     else if (a.a === 'emote' && quien === 'yo') verEmote(a.que);
     else if (a.a === 'luz') VER.luz = a.si !== false;
+    else if (a.a === 'crear') { if (quien === 'yo') verInventar(a.tipo, a.q, { cambiar: a.cambiar }); else if (RED.on) publicar('a', { k: 'verc', to: quien, tipo: a.tipo, q: a.q, c: a.cambiar ? 1 : 0 }); }
     else if (a.a === 'limpiar') { for (const o of VER.mios) if (OBJS.includes(o)) borrarObjeto(o); VER.mios = []; VER.obra = null; RED.wSucio = true; }
   }
 }
@@ -772,6 +840,7 @@ function verMentePaso(dt) {
 // (para las pruebas y para aparecer: adonde se pondría para hablarte a vos)
 function verMeta() { return verCerca({ pos: JUG.pos, yaw: JUG.yaw }); }
 function verPaso(dt) {
+  verCreaPaso(dt);
   if (typeof RED !== 'undefined') { if (RED.on && !VER.redAnt) VER.tRed = TIEMPO.t; VER.redAnt = RED.on; }
   const maneja = verManejo();
   if (maneja && !VER.on) verAparecer(); else if (!maneja && VER.on) verIrse();
@@ -785,6 +854,8 @@ function verPaso(dt) {
   if (!verFisPaso(I, dt)) {
     let o = verMentePaso(dt);
     if (VER.obra && VER.obra.ult) o = { meta: vadd(VER.obra.ult, v3(0, 1.6, 0)) };
+    // en el editor de animaciones es tu ayudante: flota al costado del muñeco (a la derecha de la cámara), sin taparlo
+    if (typeof EDA !== 'undefined' && EDA.on && EDA.P) { const d = v3(CAM.der.x, 0, CAM.der.z).norm(); o = { meta: vadd(EDA.centro, vadd(vscale(d, 1.25), v3(0, 0.9, 0))), ver: vadd(EDA.P.pos, v3(0, 0.6, 0)) }; }
     // al hablar se queda quieta y mira al que le habla (si estaba rodando, se para)
     if (habla && o.dest) o = { dest: I.pos.clone(), vmax: 0 };
     if (o.meta) verFlotar(I, o.meta, dt); else verRodar(I, o.dest, o.vmax, dt);
@@ -1033,6 +1104,8 @@ function verRed(d) {
     verDecir(I, t, VERITY_EMO.includes(d.e) ? d.e : 'neutral', l);
     if (!VER.on) { VER.hist.push(['v', t]); VER.hist = VER.hist.slice(-12); verLog(); }
   }
+  // (lo que le pedí crear a la Verity de la sala: lo armo yo, con mi cerebro; sólo si se lo pedí hace poco y lo manda ella)
+  if (d.k === 'verc') { if (d.to === RED.ID && VER.rem.has(d.i) && performance.now() - (VER.tPedi || -1e9) < 120000 && VERITY_CREA.includes(d.tipo)) verInventar(d.tipo, rbTexto(d.q, 400), { cambiar: !!d.c }); return; }
   if (d.to !== RED.ID || !VER.on) return;
   const t = TIEMPO.t, R2 = RED.remotos.get(d.i), nom = limpio(d.n) || (R2 && R2.nombre) || '?';
   if (d.k === 'verq') {
@@ -1053,4 +1126,47 @@ function verRed(d) {
     if (I.fis !== 'remota') { I.fis = 'remota'; I.anim = ''; I.emo = 'sorpresa'; I.emoT = 2.5; verEvento('agarrada', 25, nom + ' grabbed you with the physics gun and is carrying you'); }
     I.tFis = 1; I.pos.copy(p); if (Array.isArray(d.q)) { I.q.set(num(d.q[0], -1, 1, 0), num(d.q[1], -1, 1, 0), num(d.q[2], -1, 1, 0), num(d.q[3], -1, 1, 1)); I.q.norm(); }
   }
+}
+
+// ---------------- el terminal secreto: con el código del dueño, Verity usa su Gemini en este aparato ----------------
+// No está en el menú de props: aparece buscando "terminal" o "verity". Es sólo tuyo (no viaja por la red). El código se
+// revisa en la tienda (sale de la clave del dueño, que nunca llega al juego) y lo que vuelve es un permiso firmado.
+ENT_INFO.terminal = ['terminal', {}];
+ENT_TIPO.terminal = {
+  dibujar(e) {
+    const m = matPropio('termCaja', [0.12, 0.13, 0.16], { pbr: [0.35, 0.6, 0.06] }), p = matPropio('termPant', [0.2, 0.16, 0.02], { pbr: [0.2, 0, 0.05] }), t = TIEMPO.t;
+    dibujarCaja(entW(e, 0, 0.45, 0), [0.5, 0.9, 0.4], e.q, m);
+    dibujarCaja(entW(e, 0, 1.18, 0.02), [0.7, 0.5, 0.08], e.q, m);
+    dibujarCaja(entW(e, 0, 1.18, -0.025), [0.6, 0.4, 0.01], e.q, p, { em: [1.4 + 0.3 * Math.sin(t * 3), 1.05, 0.12] });
+    for (const s of [-1, 1]) dibujarCaja(entW(e, s * 0.09, 1.24, -0.032), [0.04, 0.07, 0.005], e.q, matPropio('termOjo', [0.02, 0.02, 0.02]));
+    dibujarCaja(entW(e, 0, 1.12, -0.032), [0.16, 0.02, 0.005], e.q, matPropio('termOjo', [0.02, 0.02, 0.02]));
+  },
+  usar() { verTerminalAbrir(); return true; },
+};
+function verTerminalPoner() {
+  if (JUEGO.estado !== 'juego') return;
+  const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), p = vadd(JUG.pos, vscale(f, 1.6)), y = pisoBajo(v3(p.x, JUG.pos.y + 1, p.z), 0); p.y = y === null ? JUG.pos.y - 0.98 : y;
+  for (const e of ENTS.lista.filter((x) => x.t === 'terminal')) entidadQuitar(e);
+  entidadCrear({ t: 'terminal', p: [p.x, p.y, p.z], yaw: JUG.yaw + Math.PI });
+}
+function verTerminalAbrir() {
+  let t = $('verTerm');
+  if (!t) {
+    t = document.createElement('div'); t.id = 'verTerm'; t.className = 'verTuto oc';
+    t.innerHTML = `<div class="verTutoC">${icoHTML('ico:verity')}<b></b><div class="verFila"><input id="verTermIn" type="password" autocomplete="off" spellcheck="false" maxlength="40"><button class="verEnv" data-t="ok">${glifo('si')}</button></div><div class="verIAb"><button class="boton gris" data-t="cerrar">${glifo('no')}</button></div></div>`;
+    const cerrar = () => { t.classList.add('oc'); if (UI.abierto === 'terminal') UI.abierto = null; };
+    const probar = async () => {
+      const i = $('verTermIn'), cod = i.value.trim(); if (!cod) return; i.value = '';
+      try {
+        const r = await fetch(TIENDA_URL + 'verity/llave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: cod }) }), d = await r.json();
+        if (r.ok && typeof d.tk === 'string') { PREFS.verTk = d.tk; guardarPrefs(); aviso(T('ver.term.ok'), 3); cerrar(); if (VER.yo) verAnim(VER.yo, 'amor'); verIAMostrar(); return; }
+      } catch (e) {}
+      aviso(T('ver.term.mal'), 2.5);
+    };
+    t.addEventListener('click', (ev) => { if (ev.target === t || ev.target.closest('[data-t=cerrar]')) cerrar(); else if (ev.target.closest('[data-t=ok]')) probar(); });
+    document.body.appendChild(t);
+    $('verTermIn').addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') probar(); if (ev.key === 'Escape') cerrar(); });
+  }
+  t.querySelector('b').textContent = T('ver.term.n'); $('verTermIn').placeholder = T('ver.term.cod');
+  t.classList.remove('oc'); UI.abierto = 'terminal'; soltarPuntero(); setTimeout(() => $('verTermIn').focus(), 30);
 }

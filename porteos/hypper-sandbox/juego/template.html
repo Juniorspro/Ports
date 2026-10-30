@@ -60,6 +60,29 @@ body.tactil #verBt small{display:none}
 .verOpc label{display:flex;align-items:center;gap:5px;cursor:pointer}
 .verOpc button{margin-left:auto;display:flex;align-items:center;gap:4px;background:none;border:1px solid #555;border-radius:8px;color:#ccc;padding:4px 8px;cursor:pointer;font-size:12px}
 .verOpc button svg{width:15px;height:15px}
+.verIA{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:#aab}
+.verCerebro{flex:1}.verCerebro.gem{color:#7fd7ff;font-weight:600}
+.verIA button,.verIAb button{display:flex;align-items:center;gap:4px;background:none;border:1px solid #555;border-radius:8px;color:#ccc;padding:4px 8px;cursor:pointer;font-size:12px}
+.verIA button svg,.verIAb button svg{width:15px;height:15px}
+.verIAp{margin-top:6px;padding:8px;border-radius:10px;background:rgba(255,255,255,.05)}
+.verIAtx{margin:0 0 6px;font-size:12.5px;line-height:1.35;color:#dde}
+.verIAb{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.verTuto{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center}
+.verTutoC{width:min(460px,calc(100vw - 24px));box-sizing:border-box;background:#1b1f2a;border:1px solid rgba(255,214,60,.45);border-radius:14px;padding:14px 16px;color:#fff;font:14px Roboto,Arial,sans-serif}
+.verTutoC b{display:block;color:#ffd23f;font-size:15px;margin:2px 0 8px}.verTutoC img.ico{width:30px;height:30px;border-radius:8px;float:right}
+.verTutoC ol{margin:0 0 10px;padding-left:20px;line-height:1.45}.verTutoC li{margin:4px 0}
+.verTutoC a.boton{text-decoration:none;display:inline-flex;align-items:center}
+.verCreaFila{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:0 0 7px}
+.verCreaFila button,.verCreaTipos button{display:flex;align-items:center;gap:5px;justify-content:center;background:#3a3317;border:1px solid #8a7426;border-radius:9px;color:#ffd23f;padding:6px 4px;font:600 12px Roboto,Arial,sans-serif;cursor:pointer;min-width:0}
+.verCreaFila button svg,.verCreaTipos button svg{width:15px;height:15px;flex:none}.verCreaFila button span,.verCreaTipos button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.verCreaTipos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:0 0 8px}.verCreaTipos button.sel{background:#ffd23f;color:#1b1f2a;border-color:#ffd23f}
+#verCreaIn{width:100%;box-sizing:border-box;background:#11141c;border:1px solid #444b5c;border-radius:9px;color:#fff;padding:8px;font:14px Roboto,Arial,sans-serif;resize:vertical;min-height:64px}
+.verCreaCam{display:flex;align-items:center;gap:6px;margin:6px 0 0;font-size:13px;color:#ddd}.verCreaCam[hidden]{display:none}
+.verCreaMejor{display:block;margin:6px 0 0;color:#aab;font-size:12px}
+[data-vcr].ocupado{opacity:.55;pointer-events:none;animation:verLatido 1s ease-in-out infinite}
+@keyframes verLatido{50%{opacity:.3}}
+.crBt.crVer img.ico{width:20px;height:20px;vertical-align:middle}
+#edaPan .edaVer{background:#3a3317;border-color:#8a7426;color:#ffd23f}#edaPan .edaVer img.ico{width:18px;height:18px;vertical-align:middle}
 .verAnims{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:0 0 7px}
 .verAnims button{display:flex;align-items:center;gap:5px;justify-content:center;background:#2c3140;border:1px solid #444b5c;border-radius:9px;color:#ffe9a3;padding:6px 4px;font:600 12px Roboto,Arial,sans-serif;cursor:pointer;min-width:0}
 .verAnims button svg{width:16px;height:16px;flex:none}.verAnims button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

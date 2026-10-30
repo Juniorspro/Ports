@@ -163,9 +163,12 @@ await ev(`DIA.hora = 13; DIA.aplicada = -1; VER.oscura = 0; 1`); await espera(60
 await ev(`VER.modo = 'libre'; VER.ultCharla = -999; JUG.vel.set(0,0,0); verCallar(VER.yo); VER.yo.falsa = 0; 1`);
 await ev(`verPlan('pasear', 30); VER.plan.dest = vadd(JUG.pos, v3(8, 0, 3)); VER.plan.tDest = 20; 1`);
 const q0 = JSON.parse(await ev(`JSON.stringify([VER.yo.q.x, VER.yo.q.y, VER.yo.q.z, VER.yo.q.w])`)), p0 = JSON.parse(await ev(`JSON.stringify([VER.yo.pos.x, VER.yo.pos.z])`));
-for (let i = 0; i < 20; i++) { await espera(300); const p1 = JSON.parse(await ev(`JSON.stringify([VER.yo.pos.x, VER.yo.pos.z])`)); if (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) > 3) break; }
+// (el giro se suma de a poco: medido de una sola vez, más de una vuelta se confunde con poco)
+const angQ = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]))) * 180 / Math.PI;
+let qAnt = q0, giroSum = 0;
+for (let i = 0; i < 60; i++) { await espera(100); const x = JSON.parse(await ev(`JSON.stringify([VER.yo.pos.x, VER.yo.pos.z, VER.yo.q.x, VER.yo.q.y, VER.yo.q.z, VER.yo.q.w])`)), qq = x.slice(2); giroSum += angQ(qAnt, qq); qAnt = qq; if (Math.hypot(x[0] - p0[0], x[1] - p0[1]) > 3) break; }
 const ro = JSON.parse(await ev(`(() => { const I = VER.yo; return JSON.stringify({ suelo: I.suelo, apoyada: I.piso !== null ? +(I.pos.y - I.piso - VER_R).toFixed(3) : null, rueda: I.rueda, q: [I.q.x, I.q.y, I.q.z, I.q.w], p: [I.pos.x, I.pos.z], plan: VER.plan && VER.plan.n }); })()`));
-const giro = 2 * Math.acos(Math.min(1, Math.abs(q0[0] * ro.q[0] + q0[1] * ro.q[1] + q0[2] * ro.q[2] + q0[3] * ro.q[3]))) * 180 / Math.PI, anduvo = Math.hypot(ro.p[0] - p0[0], ro.p[1] - p0[1]);
+const giro = giroSum, anduvo = Math.hypot(ro.p[0] - p0[0], ro.p[1] - p0[1]);
 ok(ro.suelo && Math.abs(ro.apoyada) < 0.06 && anduvo > 2 && giro > 60, 'sola: pasea rodando por el piso (apoyada, gira como pelota)', { ...ro, q: undefined, anduvo: +anduvo.toFixed(2), giro: Math.round(giro) });
 await ev(`JUG.tercera = true; 1`); await espera(400); await p.screenshot({ path: D + 'v9_rueda.png' }); await ev(`JUG.tercera = false; 1`);
 // va a mirar un auto

@@ -150,6 +150,30 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   agarran o la empujan, mandan dónde está con `verg`. Cualquiera le puede pedir cosas (la hora no: es de cada uno). Pruebas:
   `verity.mjs`, `red_verity.mjs` y `verity_publica.mjs` (con `TIENDA_SIM` = carpeta con el token y la cuenta de Cloudflare,
   el worker corre de verdad en Node con D1 y caché de mentira).
+  **Gemini**: con la clave de Google AI Studio del dueño como secreto del worker (`GEMINI_KEY`, nunca en el juego ni en
+  el repo) Verity piensa (`gemini-3.5-flash-lite`) y habla (`gemini-3.8-flash-lite-tts`, voz natural en cualquier idioma)
+  para todos en los tres primeros servers (`VERITY_PREMIUM`) y, en cualquier lado, para el que tenga el permiso del
+  dueño: un terminal secreto (aparece buscando "terminal" en los props) donde se escribe su código; la tienda lo revisa
+  (`/api/verity/llave`, 10 intentos por día; el código y el permiso salen de la clave con HMAC, no hace falta otro
+  secreto) y devuelve un permiso firmado. Topes: 4000 charlas y 1200 frases por día con Gemini. Además cada jugador puede
+  poner su propia clave en el panel de Verity (sección IA, con un tutorial en los 14 idiomas): el juego le habla directo
+  a Google desde su aparato. Prueba: `verity_gemini.mjs`.
+  **Verity crea** (`veritycrea.js`): mods (efectos y mecánicas en código para la API de mods), construcciones (props y
+  entidades a medida delante tuyo o, en el creador de mapas, donde mirás) y animaciones (las arma en el editor). Se le
+  pide charlando (la acción `crear`; en una sala, la Verity del que la maneja se lo manda al que lo pidió con `verc` y
+  él lo crea con su cerebro), desde su panel (Crear mod / Construir / Animación), con el botón Verity del creador de mapas
+  y el del editor de animaciones; "cambiar" rehace lo último. El pedido (`/api/verity/crear`, 30 por persona por día)
+  usa Gemini `gemini-3.5-flash` en los premium o con tu clave; si no, los modelos gratis con clave opcional y, al final,
+  Workers AI o el modelo público. Lo que vuelve se revisa (`verityCreacion` en `formato.js`): el mod pasa por
+  `validarRB`, su código se compila antes (si falla se le pide que lo arregle una vez) y corre aislado como cualquier mod;
+  la construcción usa el tamaño real de cada prop (apoyado por su base, sin huecos); la animación son direcciones de
+  brazos y muslos en el marco del personaje, codos y rodillas en grados (0 = derecho) y giros de cuerpo, torso y cabeza,
+  que se pasan a huesos midiendo el muñeco del editor (sirve para cualquier personaje). Prueba: `verity_crea.mjs`
+  (17 poses medidas en 4 personajes, construcción, mod; con `GEMINI` y `TIENDA_SIM`, de punta a punta).
+  **Más modelos gratis**: el worker turna Groq, Cerebras, OpenRouter (modelos `:free`), Mistral y GitHub Models si tienen
+  su clave como secreto (`GROQ_KEY`, `CEREBRAS_KEY`, `OPENROUTER_KEY`, `MISTRAL_KEY`, `GITHUB_MODELS_KEY`; el modelo se
+  cambia con `*_MODEL`): usa el primero que no esté descansando y, si uno dice 429, descansa lo que pida y pasa al
+  siguiente. Sin claves no hace nada.
 - **Skins riggeados de verdad** (`herramientas/skin_meshy.py`): el modelo 3D se riggea aparte (esqueleto tipo mixamo con
   sus pesos) y se lleva a la pose de enlace del Hero girando cada hueso con sus propios pesos, sin estirar la malla (lo
   que dejaba los brazos "espaguetizados"); las articulaciones del juego van donde quedan en esa malla y la cadera a la
@@ -243,7 +267,7 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   músculos → huesos), `red` (MQTT: salas, lista de servidores por presencia retenida), `entrada` (incluye el
   giro a horizontal), `ui`, `menu` (dibuja el LobbyCanvas exportado con HTML), `idiomas`, `modapi` (mods con código),
   `voz`, `geo` (formas propias), `entidades`, `pantalla` (pantalla de YouTube), `nativos` (mods oficiales), `ciclope` (mod
-  Cíclope), `verity` (mod Verity), `animedit` (editor de animaciones), `emotes`, `hud` (controles), `idiomas3` (textos de la versión 8),
+  Cíclope), `verity` (mod Verity), `veritycrea` (Verity crea mods, construcciones y animaciones), `animedit` (editor de animaciones), `emotes`, `hud` (controles), `idiomas3` (textos de la versión 8),
   `creador`, `smods` (mods del server), `inicio` (RezoBox), `principal`.
 - Pruebas: `pruebas/escena.mjs` (guion de pasos), `dbg.mjs` (corre un .js en la página: `fisica_choques.js`,
   `vehiculos.js`, `pies.js`, `camara.js`, `marcas.js` devuelven números), `red2.mjs` (tres jugadores, broker local

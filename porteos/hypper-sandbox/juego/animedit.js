@@ -234,7 +234,7 @@ function edaPanel() {
   el.innerHTML = `<div class="edaPuntos"></div><div class="edaVista"></div>
     <div class="edaArriba"><b>${icoHTML('ico:animacion')}<span class="edaTit"></span></b><input class="edaNom" maxlength="40" spellcheck="false">
       <select class="edaCat"></select><select class="edaDesde"></select><span class="edaEsp"></span>
-      <button data-ea="guardar"></button><button data-ea="publicar" class="edaG"></button><button data-ea="exportar" class="edaChico"></button><button data-ea="salir" class="edaChico"></button></div>
+      <button data-ea="verity" class="edaVer" data-vcr="1"></button><button data-ea="guardar"></button><button data-ea="publicar" class="edaG"></button><button data-ea="exportar" class="edaChico"></button><button data-ea="salir" class="edaChico"></button></div>
     <div class="edaLado"><div class="edaHueso"></div><div class="edaSl"></div><div class="edaBts"></div><div class="edaAyuda"></div></div>
     <div class="edaAbajo"><div class="edaCtl"></div><div class="edaLinea"><div class="edaPista"><div class="edaClaves"></div><i class="edaCursor"></i></div></div></div>`;
   document.body.appendChild(el);
@@ -288,6 +288,7 @@ function edaAccion(a) {
   const [k, v] = a.split(':');
   if (k === 'salir') { if (EDA.cambio && !confirm(T('eda.salirQ'))) return; edaCerrar(); return; }
   if (k === 'guardar') return edaGuardar();
+  if (k === 'verity') return verCreaPanel('anim'); // (Verity te arma la animación: la deja acá para tocarla)
   if (k === 'publicar') return edaPublicar();
   if (k === 'exportar') return edaExportar();
   if (k === 'play') { EDA.play = !EDA.play; EDA.cine = false; if (EDA.play && EDA.t >= EDA.dur - 1e-3) EDA.t = 0; }
@@ -313,6 +314,7 @@ function edaDibujar() {
     + emoLista().filter((e) => e.cat !== 'clasico').map((e) => `<option value="${esc(e.id)}">${esc(e.n)}</option>`).join('');
   const bt = (k, g, t, cl) => `<button data-ea="${k}" class="${cl || ''}">${g ? glifo(g) : ''}${t ? `<span>${esc(t)}</span>` : ''}</button>`;
   el.querySelector('[data-ea=guardar]').innerHTML = glifo('guardar') + `<span>${esc(T('guardar'))}</span>`;
+  el.querySelector('[data-ea=verity]').innerHTML = icoHTML('ico:verity') + '<span>Verity</span>'; el.querySelector('[data-ea=verity]').title = T('ver.cr.t.anim');
   el.querySelector('[data-ea=publicar]').innerHTML = glifo('subir') + `<span>${esc(T('publicar'))}</span>`;
   el.querySelector('[data-ea=exportar]').innerHTML = glifo('bajar'); el.querySelector('[data-ea=exportar]').title = T('exportar');
   el.querySelector('[data-ea=salir]').innerHTML = glifo('no'); el.querySelector('[data-ea=salir]').title = T('cerrar');

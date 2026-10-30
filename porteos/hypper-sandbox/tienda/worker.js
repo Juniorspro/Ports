@@ -8,9 +8,12 @@
 // Verity (la compañera con IA del juego): /api/verity piensa (Workers AI) y /api/verity/voz habla (MeloTTS), gratis para
 // todos con un tope por persona y otro por día para no pasar la cuota gratis de la cuenta; sin cuota contesta 503 y el
 // juego piensa con un modelo público (Pollinations) desde la conexión de cada jugador; la voz la pone el navegador.
+// Con la clave de Gemini del dueño (secreto GEMINI_KEY) piensa y habla mejor en los servers premium y para quien tenga su
+// código; con más claves gratis opcionales (Groq, Cerebras, OpenRouter, Mistral, GitHub Models) se turnan; y
+// /api/verity/crear arma mods, construcciones y animaciones.
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
 const json = (o, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
-import { validarRB as validar, ETIQUETAS_RB as ETIQUETAS, MAPAS_BASE_RB, verityMensajes, verityRespuesta, VERITY_VOCES } from './formato.js';
+import { validarRB as validar, ETIQUETAS_RB as ETIQUETAS, MAPAS_BASE_RB, verityMensajes, verityRespuesta, VERITY_VOCES, VERITY_PREMIUM, VERITY_GEMINI, VERITY_GEMINI_VOZ, verityAGemini, verityVozGemini, verityWav, verityCrearMensajes, verityCreacion, VERITY_GEMINI_CREA } from './formato.js';
 const texto = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 
 async function huella(s) { const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))); return [...h].map((b) => b.toString(16).padStart(2, '0')).join(''); }
@@ -100,13 +103,94 @@ async function iaCupo(env, ip, k) {
 }
 async function iaQueda(env) { await iaTabla(env); const f = await env.DB.prepare("SELECT n FROM ia_uso WHERE dia = ?1 AND ip = '*'").bind(hoy()).first(); return !f || f.n < VER_TOPE; }
 const iaGasto = (env, n) => env.DB.prepare("INSERT INTO ia_uso (dia, ip, n) VALUES (?1, '*', ?2) ON CONFLICT(dia, ip) DO UPDATE SET n = n + excluded.n").bind(hoy(), +n || 0).run();
-async function verityPensar(env, msgs) {
+// ---------------- Verity con Gemini (la clave del dueño, como secreto GEMINI_KEY) ----------------
+// Para todos en los tres primeros servers y, en cualquier lado, para el que tenga el permiso del dueño (se lo da el
+// código secreto, que sale de la clave: no hace falta otro secreto). Tope por día (charlas y frases); si Google dice
+// que no (cupo), se sigue con Workers AI.
+const GEM_CHARLAS = 4000, GEM_FRASES = 1200;
+let GEM_AGOTADO = { t: '', v: '' };
+async function hmacHex(clave, msg) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(clave), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return [...new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg)))].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+async function verityCodigo(env) { const h = await hmacHex(env.GEMINI_KEY, 'rezobox-verity-codigo'), a = 'abcdefghjkmnpqrstuvwxyz23456789'; let c = ''; for (let i = 0; i < 8; i++) c += a[parseInt(h.slice(i * 2, i * 2 + 2), 16) % a.length]; return 'VRT-' + c.slice(0, 4) + '-' + c.slice(4); }
+const verityToken = async (env) => (await hmacHex(env.GEMINI_KEY, 'rezobox-verity-dueno')).slice(0, 40);
+async function verityPremium(env, tk, sala) { if (!env.GEMINI_KEY) return ''; if (typeof tk === 'string' && tk.length === 40 && tk === (await verityToken(env))) return 'dueno'; return VERITY_PREMIUM.includes(sala) ? 'sala' : ''; }
+// cuenta un uso de Gemini (k: 'gt' texto, 'gv' voz); false si ya se pasó el tope del día
+async function gemCupo(env, k) {
+  await iaTabla(env);
+  const f = await env.DB.prepare("INSERT INTO ia_uso (dia, ip, c) VALUES (?1, ?2, 1) ON CONFLICT(dia, ip) DO UPDATE SET c = c + 1 RETURNING c").bind(hoy(), '*' + k).first();
+  return !f || f.c <= (k === 'gt' ? GEM_CHARLAS : GEM_FRASES);
+}
+async function gemini(env, modelo, cuerpo, ms) {
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_KEY }, body: JSON.stringify(cuerpo), signal: AbortSignal.timeout(ms || 20000) });
+  if (r.status === 429) return { agotado: true };
+  if (!r.ok) return null;
+  const d = await r.json(), p = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts || [];
+  return { texto: p.map((x) => x.text || '').join(''), audio: p.find((x) => x.inlineData) };
+}
+async function verityGeminiPensar(env, msgs) {
+  if (GEM_AGOTADO.t === hoy() || !(await gemCupo(env, 'gt'))) return null;
+  for (const m of VERITY_GEMINI) {
+    try { const o = await gemini(env, m, verityAGemini(msgs, 500)); if (o && o.agotado) { GEM_AGOTADO.t = hoy(); return null; } const v = o && verityRespuesta(o.texto); if (v) return { ...v, f: 'gemini' }; } catch (e) {}
+  }
+  return null;
+}
+// ---------------- más modelos gratis: los que tengan clave (secretos opcionales) se turnan ----------------
+// Groq, Cerebras, OpenRouter (modelos :free), Mistral y GitHub Models tienen capa gratis con topes por minuto y por día.
+// Se usa el primero que tenga clave y no esté descansando; si uno dice 429 (o falla), descansa lo que pida (o un
+// minuto) y se pasa al siguiente. Sin claves no hace nada (queda Workers AI y, en el juego, el modelo público).
+const PROVEEDORES = [
+  { k: 'GROQ_KEY', u: 'https://api.groq.com/openai/v1/chat/completions', m: 'llama-3.3-70b-versatile', mm: 'GROQ_MODEL' },
+  { k: 'CEREBRAS_KEY', u: 'https://api.cerebras.ai/v1/chat/completions', m: 'gpt-oss-120b', mm: 'CEREBRAS_MODEL' },
+  { k: 'OPENROUTER_KEY', u: 'https://openrouter.ai/api/v1/chat/completions', m: 'meta-llama/llama-3.3-70b-instruct:free', mm: 'OPENROUTER_MODEL', sinJSON: true },
+  { k: 'MISTRAL_KEY', u: 'https://api.mistral.ai/v1/chat/completions', m: 'mistral-small-latest', mm: 'MISTRAL_MODEL' },
+  { k: 'GITHUB_MODELS_KEY', u: 'https://models.github.ai/inference/chat/completions', m: 'openai/gpt-4.1-mini', mm: 'GITHUB_MODELS_MODEL' },
+];
+const PROV_DESCANSO = new Map();
+async function proveedores(env, msgs, max, ms) {
+  for (const P of PROVEEDORES) {
+    const key = env[P.k]; if (!key || (PROV_DESCANSO.get(P.k) || 0) > Date.now()) continue;
+    try {
+      const r = await fetch(P.u, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+        body: JSON.stringify({ model: env[P.mm] || P.m, messages: msgs, max_tokens: max, temperature: 0.8, ...(P.sinJSON ? {} : { response_format: { type: 'json_object' } }) }), signal: AbortSignal.timeout(ms || 25000) });
+      if (!r.ok) { const seg = +r.headers.get('Retry-After') || (r.status === 429 ? 60 : r.status >= 500 ? 30 : 600); PROV_DESCANSO.set(P.k, Date.now() + Math.min(3600, seg) * 1000); continue; }
+      const d = await r.json(), t = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+      if (typeof t === 'string' && t.trim()) return { texto: t, f: P.k.split('_')[0].toLowerCase() };
+    } catch (e) { PROV_DESCANSO.set(P.k, Date.now() + 30e3); }
+  }
+  return null;
+}
+async function verityPensar(env, msgs, prem) {
+  if (prem) { const v = await verityGeminiPensar(env, msgs); if (v) return v; }
+  { const o = await proveedores(env, msgs, 300), v = o && verityRespuesta(o.texto); if (v) return { ...v, f: o.f }; }
   if (env.AI && (await iaQueda(env))) {
     try {
       const o = await env.AI.run(VER_MODELO, { messages: msgs, max_tokens: 220, temperature: 0.7 });
       const u = (o && o.usage) || {}, n = u.neurons || (u.prompt_tokens || 1000) * 0.0045 + (u.completion_tokens || 80) * 0.037;
       await iaGasto(env, n);
       const v = verityRespuesta(o && (typeof o.response === 'string' ? o.response : JSON.stringify(o.response || '')));
+      if (v) return { ...v, f: 'cf' };
+    } catch (e) {}
+  }
+  return null;
+}
+// ---------------- Verity crea (mods, cosas en el mundo, animaciones): un JSON largo ----------------
+// Con Gemini (premium) el modelo mejor; si no, los gratis con clave; si no, Workers AI (el chico: anda para cosas
+// simples). Cada persona tiene su tope por día y Gemini comparte el tope de charlas.
+const VER_CREACIONES = 30;
+async function verityCrearPensar(env, msgs, tipo, prem) {
+  if (prem && GEM_AGOTADO.t !== hoy() && (await gemCupo(env, 'gt'))) {
+    for (const m of VERITY_GEMINI_CREA) {
+      try { const o = await gemini(env, m, verityAGemini(msgs, 8192), 90000); if (o && o.agotado) { GEM_AGOTADO.t = hoy(); break; } const v = o && verityCreacion(tipo, o.texto); if (v) return { ...v, f: 'gemini' }; } catch (e) {}
+    }
+  }
+  { const o = await proveedores(env, msgs, 6000, 60000), v = o && verityCreacion(tipo, o.texto); if (v) return { ...v, f: o.f }; }
+  if (env.AI && (await iaQueda(env))) {
+    try {
+      const o = await env.AI.run(VER_MODELO, { messages: msgs, max_tokens: 2400, temperature: 0.7 });
+      const u = (o && o.usage) || {}; await iaGasto(env, u.neurons || (u.prompt_tokens || 2500) * 0.0045 + (u.completion_tokens || 1500) * 0.037);
+      const v = verityCreacion(tipo, o && (typeof o.response === 'string' ? o.response : JSON.stringify(o.response || '')));
       if (v) return { ...v, f: 'cf' };
     } catch (e) {}
   }
@@ -278,11 +362,45 @@ export default {
         let d; try { d = JSON.parse(cuerpo); } catch (e) { return json({ error: 'no es JSON' }, 400); }
         const msgs = verityMensajes(d); if (!msgs) return json({ error: 'pedido inválido' }, 400);
         const lim = await iaCupo(env, ip, 'c'); if (lim) return json({ error: lim }, 429);
-        const v = await verityPensar(env, msgs);
+        const v = await verityPensar(env, msgs, await verityPremium(env, d.tk, d.ctx && d.ctx.salaId));
         return v ? json(v) : json({ error: 'sin cupo: usar el modelo público' }, 503);
       }
+      if (req.method === 'POST' && r === '/api/verity/crear') {
+        const cuerpo = await req.text(); if (cuerpo.length > 24000) return json({ error: 'muy grande' }, 413);
+        let d; try { d = JSON.parse(cuerpo); } catch (e) { return json({ error: 'no es JSON' }, 400); }
+        const msgs = verityCrearMensajes(d); if (!msgs) return json({ error: 'pedido inválido' }, 400);
+        await iaTabla(env);
+        const f = await env.DB.prepare("INSERT INTO ia_uso (dia, ip, c) VALUES (?1, ?2, 1) ON CONFLICT(dia, ip) DO UPDATE SET c = c + 1 RETURNING c").bind(hoy(), 'crea|' + ip).first();
+        if (f && f.c > VER_CREACIONES) return json({ error: 'Verity ya creó mucho hoy' }, 429);
+        const v = await verityCrearPensar(env, msgs, d.tipo, await verityPremium(env, d.tk, d.salaId));
+        return v ? json(v) : json({ error: 'no pudo crearlo: usar el modelo público' }, 503);
+      }
+      // el código secreto del dueño → su permiso para usar Gemini en cualquier server (10 intentos por día)
+      if (req.method === 'POST' && r === '/api/verity/llave') {
+        if (!env.GEMINI_KEY) return json({ error: 'sin Gemini' }, 503);
+        await iaTabla(env);
+        const f = await env.DB.prepare("INSERT INTO ia_uso (dia, ip, c) VALUES (?1, ?2, 1) ON CONFLICT(dia, ip) DO UPDATE SET c = c + 1 RETURNING c").bind(hoy(), 'llave|' + ip).first();
+        if (f && f.c > 10) return json({ error: 'demasiados intentos' }, 429);
+        let d = {}; try { d = JSON.parse(await req.text()); } catch (e) {}
+        const cod = String(d.codigo || '').trim().toUpperCase().replace(/\s+/g, '');
+        return cod && cod === (await verityCodigo(env)).toUpperCase() ? json({ tk: await verityToken(env) }) : json({ error: 'código incorrecto' }, 403);
+      }
       if (req.method === 'GET' && r === '/api/verity/voz') {
-        const l = url.searchParams.get('l') || '', t = texto(url.searchParams.get('t'), 240);
+        const l = url.searchParams.get('l') || '', t = texto(url.searchParams.get('t'), 240), noche = url.searchParams.get('n') === '1';
+        // con Gemini: la voz natural (habla cualquier idioma)
+        const prem = await verityPremium(env, url.searchParams.get('tk'), url.searchParams.get('s'));
+        if (prem && t && GEM_AGOTADO.v !== hoy()) {
+          const ck = new Request('https://cache.rezobox/verity/vozg/' + (noche ? 'n/' : '') + (await huella(t)).slice(0, 40)), c = caches.default, hit = await c.match(ck);
+          const cab = { 'Content-Type': 'audio/wav', 'Cache-Control': 'public, max-age=604800', ...CORS };
+          if (hit) return new Response(hit.body, { headers: cab });
+          if (await gemCupo(env, 'gv')) {
+            try {
+              const o = await gemini(env, VERITY_GEMINI_VOZ, verityVozGemini(t, noche), 25000);
+              if (o && o.agotado) GEM_AGOTADO.v = hoy();
+              else if (o && o.audio) { const wav = wavLiviano(verityWav(o.audio.inlineData.data, o.audio.inlineData.mimeType)); await c.put(ck, new Response(wav, { headers: { 'Content-Type': 'audio/wav', 'Cache-Control': 'public, max-age=604800' } })); return new Response(wav, { headers: cab }); }
+            } catch (e) {}
+          }
+        }
         if (!VERITY_VOCES.includes(l) || !t) return json({ error: 'pedido inválido' }, 400);
         const ck = new Request('https://cache.rezobox/verity/voz/' + l + '/' + (await huella(l + '|' + t)).slice(0, 40)), c = caches.default, hit = await c.match(ck);
         const cab = { 'Content-Type': 'audio/wav', 'Cache-Control': 'public, max-age=604800', ...CORS };
