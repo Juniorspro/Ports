@@ -182,6 +182,7 @@ function seccion(s) {
 function subMp(s) { MENU.mp = s; for (const x of ['Main', 'ServerList', 'ServerCreate']) verNodo(nodo('Main/Multiplayer/' + x), x === s); if (s === 'ServerList') listaDibujar(); }
 function overlay(nombre, si) { verNodo(nodo('Main/' + nombre), si); }
 function menuAviso(t) {
+  if (typeof rbVisible === 'function' && rbVisible()) { rbAviso(t); return; }
   if (!MENU.el || MENU.el.classList.contains('oc')) { if (typeof aviso === 'function') aviso(t, 2.5); return; }
   let a = MENU.avisoEl; if (!a) { a = MENU.avisoEl = document.createElement('div'); a.className = 'menuAviso'; MENU.lienzo.appendChild(a); }
   a.textContent = t; a.classList.add('ve'); clearTimeout(MENU.avisoT); MENU.avisoT = setTimeout(() => a.classList.remove('ve'), 2500);
@@ -247,7 +248,8 @@ function menuLobby(si, rehacer) {
   if (MENU.lobby && (!si || rehacer)) { borrarPersona(MENU.lobby); MENU.lobby = null; }
   if (si && !MENU.lobby) { MENU.lobby = crearPersona(PREFS.skin, PREFS.gorro, { nombre: '' }); MENU.lobby.lobby = true; if (rehacer) { MENU.lobby.emote = 'Hi'; MENU.lobby.emoteT = 0; } }
 }
-const LOBBY_CAM = v3(0, 600, 0), LOBBY_PIES = v3(1.45, -1.25, 2.9);
+// (el personaje a la derecha de la pantalla: el panel de Personajes ocupa la izquierda)
+const LOBBY_CAM = v3(0, 600, 0), LOBBY_PIES = v3(-1.55, -1.25, 3.1);
 function lobbyCamara(out) { out.pos.copy(LOBBY_CAM); out.q.copy(Quat.euler(0, 0)); CAM.fov = 60; return out; }
 function dibujarLobby() {
   const P = MENU.lobby; if (!P) return;
@@ -273,9 +275,9 @@ function abrirGuardados() {
   verNodo(buscar(nodo('Main/SavesPanel'), 'EmptySaveList'), !n);
 }
 // ---------------- mostrar / ocultar todo el menú ----------------
+// (el menú del Hypper original queda armado pero no se muestra nunca: los menús son los de Definitive RezoBox)
 function menuMostrar(si) {
   if (!MENU.el) return;
-  MENU.el.classList.toggle('oc', !si);
-  if (si) { seccion(MENU.sec === 'Multiplayer' ? 'Multiplayer' : MENU.sec); menuTextosVivos(); listaConectar(); }
-  else menuLobby(false);
+  MENU.el.classList.add('oc');
+  if (si) listaConectar(); else menuLobby(false);
 }

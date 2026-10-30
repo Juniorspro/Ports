@@ -20,9 +20,21 @@ python -I herramientas/empaquetar.py SALIDA CRUDOS PAQUETE
 MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
 ```
 
-- **HypperX RezoBox** (nuestra versión): `inicio.js` es el inicio con el aspecto del menú de Garry's Mod (logo con la R de
-  Rezona, menú de texto, escenas de fondo en `PAQUETE/fondos/*.jpg`, fuera del repo). La primera vez pide **idioma** (14, en
-  `idiomas.js`) y **nombre**. La intro de JXStudios es **procedural** (lienzo, sin video) y se gira con el teléfono parado.
+- **Definitive RezoBox** (nuestra versión, antes HypperX RezoBox): el logo es la R de Rezona + "definitive rezobox"
+  (`juego/logo_dr.webp`, Nunito Black como el logo anterior). Menús propios, oscuros, sin el menú de Hypper (que sigue
+  armado abajo pero nunca se muestra): `inicio.js` (Jugar, Multijugador, Mods y mapas, Crear un mapa, Personajes,
+  Opciones; al costado cuánta gente hay en línea, el server más lleno y Verity) y `rbmenus.js` (Multijugador: lista con
+  buscador, entrar, clave en una ventanita, crear server con nombre/clave/modo/mapa, borrar los tuyos; Personajes: skins y
+  gorros con el personaje en 3D a la derecha, se gira arrastrando). La primera vez pide **idioma** (14) y **nombre**.
+- **Pantalla de carga estilo Garry's Mod** (en `template.html`, antes del juego y sin depender de él): capturas del juego
+  de fondo que se van fundiendo (`PAQUETE/carga/N_rb_mapa.jpg`, fuera del repo; `armar.py` las mete), el logo, consejos,
+  la consola con cada paso terminado y lo que cargó (tiempos y números reales: archivos, MB, modelos, animaciones,
+  mapas, resolución), el estado ("Montando el contenido...", "Compilando shaders...") y la barra abajo. El paquete va
+  en pedazos de 1 MB, así mientras baja el HTML se ve "Descargando el juego... 12.0 / 27.4 MB" (el 40 % de la barra);
+  antes se quedaba en 0 % todo lo que tardaba en bajar. Vigilante: si un paso no avanza en 25 s, o el juego no llega a
+  arrancar, muestra qué pasó con Reintentar, Modo liviano y Seguir esperando. Al entrar a una partida o a un server
+  vuelve a aparecer (`entrarConCarga`): nombre del server, la captura de su mapa, "Recuperando la info del server",
+  "Cargando el mapa" y "Enviando la info del cliente" hasta que conecta (4 s como mucho).
 - **Mods y mapas**: tienda con Mods y Mapas, buscador, orden, etiquetas, Explorar/Instalados, instalar, activar, me gusta,
   denunciar, crear un mod con un editor, publicar lo construido (pausa → Guardar guarda también una foto) y subir/bajar archivos.
   Formatos `.rbmod` y `.rbmapa` en `tienda/formato.js` (sólo datos, con límites; lo usan el juego y el servidor).
@@ -271,8 +283,7 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   Cíclope (y su grito, generado).
 - Dibujo: el cielo, las marcas y las líneas desatan la malla de WebGL sin avisarle a la caché (`R.vaoAct`); si lo
   primero transparente usaba la misma malla que lo último opaco, se dibujaba sin malla (`GL_INVALID_OPERATION`).
-- Arranque: la intro de JXStudios (video WebM/MP4 adentro del HTML, con la imagen del logo si el aparato no lo
-  reproduce) en lugar de "Cargando"; mientras tanto se lee el paquete. A prueba de fallas: cada paso queda anotado; si
+- Arranque: la pantalla de carga (arriba) mientras se lee el paquete. A prueba de fallas: cada paso queda anotado; si
   algo se rompe se prueba solo con el otro motor (WebGL 1 ↔ 2) y después con la calidad más baja, y si igual no anda
   se ve el error en pantalla. Si el navegador no trae DecompressionStream, el gzip se abre en JS; si una placa no
   acepta un shader, se usa una versión más simple.
@@ -283,7 +294,7 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   giro a horizontal), `ui`, `menu` (dibuja el LobbyCanvas exportado con HTML), `idiomas`, `modapi` (mods con código),
   `voz`, `geo` (formas propias), `entidades`, `pantalla` (pantalla de YouTube), `nativos` (mods oficiales), `ciclope` (mod
   Cíclope), `verity` (mod Verity), `veritycrea` (Verity crea mods, construcciones y animaciones), `animedit` (editor de animaciones), `emotes`, `hud` (controles), `idiomas3` (textos de la versión 8),
-  `creador`, `smods` (mods del server), `inicio` (RezoBox), `principal`.
+  `creador`, `smods` (mods del server), `inicio` (RezoBox), `rbmenus` (Multijugador, Personajes, entrar con la pantalla de carga), `principal`.
 - Pruebas: `pruebas/escena.mjs` (guion de pasos), `dbg.mjs` (corre un .js en la página: `fisica_choques.js`,
   `vehiculos.js`, `pies.js`, `camara.js`, `marcas.js` devuelven números), `red2.mjs` (tres jugadores, broker local
   aedes: sala oficial, lista, servidor con clave y sin PvP), `red3.mjs` (anfitrión: hora y reglas por la red,

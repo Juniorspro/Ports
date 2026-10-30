@@ -43,23 +43,22 @@ const vidaA = JSON.parse(await ev(A, "JSON.stringify(JUG.vida)"));
 ok('el daño llega a Ana', vidaA === 70, vidaA);
 await A.screenshot({ path: pref + '_A.png' }); await B.screenshot({ path: pref + '_B.png' });
 // lista de servidores: un tercero en el menú ve la sala oficial con 2 jugadores
-const C = await abrir('C'); await ev(C, "overlay('NicknamePanel', false); menuAccion('Main/MainMenu/Multiplayer'); 1"); await espera(2500);
-await ev(C, "menuAccion('Main/Multiplayer/Main/Server List'); 1"); await espera(1500);
+const C = await abrir('C'); await ev(C, "PREFS.bienvenida = true; inicioMostrar(false); conectarMultijugador(); 1"); await espera(4000);
 let lc = JSON.parse(await ev(C, "JSON.stringify(listaSalas().filter((e) => e.j.length).map((e) => [e.S.n, e.j.length, e.j.sort().join('+')]))"));
-let filas = JSON.parse(await ev(C, "JSON.stringify(document.querySelectorAll('.sala').length)"));
+let filas = JSON.parse(await ev(C, "JSON.stringify(document.querySelectorAll('.mpSala').length)"));
 ok('la lista muestra la sala oficial con Ana y Beto', lc.length === 1 && lc[0][1] === 2 && lc[0][2] === 'Ana+Beto' && filas >= 8, { lc, filas }); // (8 oficiales y los servers que haya creado la gente)
 await C.screenshot({ path: pref + '_lista.png' });
 // Ana crea un servidor con clave y sin PvP: aparece en la lista con candado; con la clave mala no entra
-await ev(A, "irMenuPrincipal(); seccion('Multiplayer'); subMp('ServerCreate'); MENU.ent.ServerNameFieldNew.value='Casa de Ana'; MENU.ent.Password.value='4321'; MENU.tg.PvPToogle=false; PREFS.mapa='Desert'; menuAccion('Main/Multiplayer/ServerCreate/ServerCreate/CreateServerButton'); 1");
+await ev(A, "irMenuPrincipal(); crearServidor({ n: 'Casa de Ana', pw: '4321', m: 'Desert', pvp: false }); 1");
 await espera(2500);
 lc = JSON.parse(await ev(C, "JSON.stringify(listaSalas().filter((e) => e.j.length).map((e) => [e.S.n, e.j.length, e.S.pw, e.S.pvp, e.S.m]))"));
 ok('la sala nueva aparece con candado, sin PvP y en Desert', lc.some((x) => x[0] === 'Casa de Ana' && x[1] === 1 && x[2] === 1 && x[3] === 0 && x[4] === 'Desert'), lc);
 await ev(C, "const e = listaSalas().find((x) => x.S.n === 'Casa de Ana'); entrarSala(e.S); 1"); await espera(300);
-const pwVis = JSON.parse(await ev(C, "JSON.stringify(!nodo('Main/PasswordPanel').off)"));
-await ev(C, "nodo('Main/PasswordPanel/Password/Password').inp.value='1111'; comprobarClave(); 1"); await espera(300);
+const pwVis = JSON.parse(await ev(C, "JSON.stringify(!!RB.el.querySelector('.mpModal.ve'))"));
+await ev(C, "comprobarClave('1111'); 1"); await espera(300);
 const sigue = JSON.parse(await ev(C, "JSON.stringify(JUEGO.estado)"));
 ok('pide clave y con la mala no entra', pwVis === true && sigue === 'principal', { pwVis, sigue });
-await ev(C, "nodo('Main/PasswordPanel/Password/Password').inp.value='4321'; comprobarClave(); 1"); await espera(4000);
+await ev(C, "comprobarClave('4321'); 1"); await espera(4000);
 const cc = JSON.parse(await ev(C, "JSON.stringify({e: JUEGO.estado, m: MUNDO.nombre, rem: [...RED.remotos.values()].map((r) => r.nombre)})"));
 ok('con la clave buena entra y ve a Ana', cc.e === 'juego' && cc.m === 'Desert' && cc.rem.includes('Ana'), cc);
 await ev(C, "PREFS.nombre='Caro'; const r=[...RED.remotos.values()][0]; danarPersona(r.P, 30, r.P.pos, v3(0,0,1)); 1"); await espera(700);

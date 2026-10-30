@@ -98,78 +98,51 @@ function listaSalas() {
   }
   return [...M.values()].sort((a, b) => b.j.length - a.j.length || a.S.of - b.S.of || a.S.n.localeCompare(b.S.n));
 }
-function listaContadores() {
-  if (typeof nodo !== 'function' || !MENU.el) return;
-  const L = listaSalas(), jug = L.reduce((a, e) => a + e.j.length, 0), act = L.filter((e) => e.j.length).length;
-  uiTextoPoner(nodo('Main/Multiplayer/ServerList/UpPanel/Players'), `${Lc('Players', 'Players')}: ${jug}`);
-  uiTextoPoner(nodo('Main/Multiplayer/ServerList/UpPanel/Servers'), `${Lc('Servers', 'Servers')}: ${L.length}`);
-  uiTextoPoner(nodo('Main/Multiplayer/Main/Server List/Players/PlayerCount'), String(jug));
-  uiTextoPoner(nodo('Main/Multiplayer/Main/Server List/Rooms/RoomCount'), String(act));
-}
+// la lista se dibuja en el inicio: en el panel de multijugador y en la tarjeta de quién juega ahora (rbmenus.js)
+function listaContadores() { if (typeof rbVisible === 'function' && rbVisible() && !RB.panel) rbLadoDibujar(); }
 function listaDibujar() {
   listaContadores();
-  const cont = typeof nodo === 'function' && nodo('Main/Multiplayer/ServerList/ServerList/RoomList/ScrollRect');
-  if (!cont || MENU.mp !== 'ServerList') return;
+  if (typeof RB === 'undefined' || RB.panel !== 'multi') return;
   if (Date.now() - SALAS_REG.t > 30e3) salasCargar();
-  const mias = salasMias();
-  const f = (MENU.ent.FindServerInputField && MENU.ent.FindServerInputField.value || '').trim().toLowerCase();
-  const L = listaSalas().filter((e) => !f || e.S.n.toLowerCase().includes(f) || e.S.m.toLowerCase().includes(f));
-  cont.el.innerHTML = '';
-  const est = document.createElement('div'); est.className = 'salaEst';
-  est.textContent = LISTA.on ? '' : Lc('Connecting', 'Connecting') + '…'; cont.el.appendChild(est);
-  for (const e of L) {
-    const S = e.S, d = document.createElement('div'); d.className = 'sala';
-    d.innerHTML = `<i class="salaMapa" style="background-image:url(${icono(MAPA_ICONO[S.m])})"></i><b class="salaN"></b><span class="salaD"></span>` +
-      `<span class="salaJ"><i style="-webkit-mask-image:url(${icono('TechnologyIcon_5')});mask-image:url(${icono('TechnologyIcon_5')})"></i>${e.j.length}/∞</span>` +
-      (S.pw ? `<i class="salaPw" style="background-image:url(${icono('IconHide')})"></i>` : '') + `<button class="salaB">${Lc('Join', 'Join')}</button>` +
-      (mias[S.id] ? `<button class="salaX" title="${esc(T('srv.borrar'))}">${glifo('basura')}</button>` : '');
-    d.querySelector('.salaN').textContent = S.n + (mias[S.id] ? ' · ' + T('srv.tuyo') : '');
-    const vacio = S.rg && !e.j.length ? T('srv.vacio').replace('%', salaQueda(S)) : '';
-    d.querySelector('.salaD').textContent = `${S.m} · ${S.mo}${S.pvp ? '' : ' · ' + Lc('NoPvP', 'No PvP')}${e.j.length ? ' · ' + e.j.slice(0, 4).join(', ') : ''}${vacio ? ' · ' + vacio : ''}${S.dn && !mias[S.id] && !e.j.includes(S.dn) ? ' · ' + T('por') + ' ' + S.dn : ''}`;
-    d.querySelector('.salaB').onclick = () => entrarSala(S, undefined, e.j.length);
-    if (mias[S.id]) { d.classList.add('mia'); d.querySelector('.salaX').onclick = (ev) => { ev.stopPropagation(); borrarServidor(S); }; }
-    cont.el.appendChild(d);
-  }
+  mpDibujar(listaSalas(), salasMias());
 }
 function entrarSala(S, clave, n) {
   // (sin límite de jugadores; el dueño entra a su server con clave sin escribirla)
   const mia = salasMias()[S.id]; if (S.pw && clave === undefined && mia && mia.pw) clave = mia.pw;
-  if (S.pw && clave === undefined) { MENU.salaPw = S; if (MENU.ent.Password && nodo('Main/PasswordPanel/Password/Password')) nodo('Main/PasswordPanel/Password/Password').inp.value = ''; overlay('PasswordPanel', true); return; }
+  if (S.pw && clave === undefined) { mpPedirClave(S); return; }
   SALA = Object.assign({}, S, { clave: clave || '' });
   PREFS.mapa = S.m; guardarPrefs();
-  empezarPartida(S.m);
+  entrarConCarga(S.n, S.m, () => { inicioMostrar(false); empezarPartida(S.m); }, true);
 }
-function comprobarClave() {
-  const S = MENU.salaPw, c = nodo('Main/PasswordPanel/Password/Password'), v = c && c.inp ? c.inp.value.trim() : '';
-  if (!S) return;
-  if (hashTxt('c' + S.id + v) !== S.ph) { menuAviso('Contraseña incorrecta'); return; }
-  overlay('PasswordPanel', false); entrarSala(S, v);
+function comprobarClave(v) {
+  const S = RBM.clave; if (!S) return;
+  if (hashTxt('c' + S.id + (v || '')) !== S.ph) { rbAviso(T('mp.claveMal')); return; }
+  mpClaveNo(); entrarSala(S, v || '');
 }
-async function crearServidor() {
-  if (MENU.creando) return;
-  const E = MENU.ent, nom = limpio(E.ServerNameFieldNew && E.ServerNameFieldNew.value, 24) || (PREFS.nombre + "'s server"), clave = limpio(E.Password && E.Password.value, 16);
-  RED.ID = RED.ID || idRed();
-  const S = { n: nom, m: PREFS.mapa, mo: MENU.sel.GameModeDropdown || 'Free', of: 0,
-    pvp: MENU.tg.PvPToogle ? 1 : 0, rpg: MENU.tg.RPGToogle ? 1 : 0, nb: MENU.tg.NextbotToogle ? 1 : 0,
-    mp: num(+(E.MaxPropInputField && E.MaxPropInputField.value), 0, 5000, 1000) | 0, mv: num(+(E.MaxVechiclesInputField && E.MaxVechiclesInputField.value), 0, 200, 40) | 0,
-    pw: clave ? 1 : 0, du: RED.ID, dn: limpio(PREFS.nombre, 16) };
+// crear un server con lo que se eligió en el panel (C: { n, pw, m, mo, pvp, rpg, nb, mp, mv })
+async function crearServidor(C) {
+  if (RBM.creando) return; C = C || RB.srv;
+  const nom = limpio(C.n, 24) || (PREFS.nombre + "'s server"), clave = limpio(C.pw, 16), mapa = mapaValido(C.m) ? C.m : (PREFS.mapa || 'FlatGrass');
+  RED.ID = RED.ID || idRed(); PREFS.mapa = mapa; guardarPrefs();
+  const S = { n: nom, m: mapa, mo: C.mo === 'PvP' ? 'PvP' : 'Free', of: 0, pvp: C.pvp ? 1 : 0, rpg: C.rpg ? 1 : 0, nb: C.nb ? 1 : 0,
+    mp: num(+C.mp, 0, 5000, 1000) | 0, mv: num(+C.mv, 0, 200, 40) | 0, pw: clave ? 1 : 0, du: RED.ID, dn: limpio(PREFS.nombre, 16) };
   if (S.mo === 'PvP') S.pvp = 1;
   const nuevoId = () => (Math.random().toString(36).slice(2) + '00000000').slice(0, 8);
   // se guarda en la tienda (así sigue en la lista vacío y lo podés borrar); sin conexión queda como antes, mientras haya alguien
-  let rg = 0; S.id = nuevoId(); MENU.creando = true; menuAviso(T('srv.creando'));
+  let rg = 0; S.id = nuevoId(); RBM.creando = true; rbAviso(T('srv.creando'));
   for (let intento = 0; intento < 2 && !rg; intento++) {
     S.ph = clave ? hashTxt('c' + S.id + clave) : '';
     try {
       const r = await (await fetch(TIENDA_URL + 'salas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S) })).json();
       if (r && r.id === S.id && r.clave) { rg = 1; const M = salasMias(); M[S.id] = { clave: r.clave, pw: clave, t: Date.now() }; salasMiasGuardar(M); }
       else if (r && r.error === 'id usado') S.id = nuevoId();
-      else { menuAviso(r && r.error ? r.error : T('srv.temporal')); break; }
-    } catch (e) { menuAviso(T('srv.temporal')); break; }
+      else { rbAviso(r && r.error ? r.error : T('srv.temporal')); break; }
+    } catch (e) { rbAviso(T('srv.temporal')); break; }
   }
-  MENU.creando = false;
+  RBM.creando = false;
   SALA = Object.assign(S, { rg, clave, vivo: Date.now() });
   if (rg) { SALAS_REG.l = SALAS_REG.l.filter((x) => x.id !== S.id); const c = Object.assign({}, S); delete c.clave; SALAS_REG.l.push(c); }
-  empezarPartida(S.m);
+  entrarConCarga(S.n, S.m, () => { inicioMostrar(false); empezarPartida(S.m); }, true);
 }
 // borrar un server mío: se saca de la tienda y los que están adentro vuelven al menú
 async function borrarServidor(S) {
@@ -200,13 +173,7 @@ function salaVivoPaso(dt) {
 // botón Multiplayer: conecta la lista y abre el panel (como "Connect" del juego)
 function conectarMultijugador() {
   listaConectar(); if (!SRV.mods.size) srvModsCargar(); // los servers ya tienen todos los mods de la tienda
-  if (LISTA.on || typeof mqtt === 'undefined') { seccion('Multiplayer'); subMp('Main'); return; }
-  verNodo(nodo('Connecting'), true);
-  const t0 = performance.now(), mirar = () => {
-    if (LISTA.on || performance.now() - t0 > 6000) { verNodo(nodo('Connecting'), false); seccion('Multiplayer'); subMp('Main'); if (!LISTA.on) menuAviso('Sin conexión con los servidores'); return; }
-    setTimeout(mirar, 150);
-  };
-  mirar();
+  inicioMostrar(true); inicioPanel('multi');
 }
 function redEntrar(mapa) {
   redSalir();

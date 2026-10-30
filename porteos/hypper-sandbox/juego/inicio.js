@@ -1,13 +1,16 @@
-// ---------------- HypperX RezoBox: inicio con el aspecto del menú de Garry's Mod ----------------
-// Fondo con escenas del juego que pasan solas, menú de texto, botoncitos abajo y paneles claros: bienvenida (idioma y
-// nombre), Empezar partida nueva (mapas del juego y de la comunidad) y la tienda de Mods y mapas (buscar, filtrar,
-// instalar, publicar). Los mods y mapas son sólo datos (formato.js), validados acá y en el servidor.
+// ---------------- Definitive RezoBox: el inicio ----------------
+// Fondo con escenas del juego que pasan solas, el logo, el menú (con íconos y una línea de qué hay en cada cosa), quién
+// juega ahora al costado, botoncitos abajo y paneles oscuros: bienvenida (idioma y nombre), Empezar partida nueva (mapas
+// del juego y de la comunidad), la tienda de Mods y mapas (buscar, filtrar, instalar, publicar), multijugador, crear
+// server y personajes (rbmenus.js). Los mods y mapas son sólo datos (formato.js), validados acá y en el servidor.
 const RB = { el: null, panel: null, mapa: null, mapaCom: null, cat: 'todos', hora: 'normal', base: null, fondo: 0, reloj: 0,
   t: { tab: 'mod', vista: 'explorar', q: '', etq: '', orden: 'pop', p: 0, items: [], total: 0, cargando: false, error: false, n: 0 } };
 const TIENDA_URL = 'https://rezobox-tienda.holasoyjuniors365.workers.dev/api/';
 const MODS = {}; // efectos sumados de los mods activos en la partida (armas y reloj los leen)
 const FONDOS_RB = [/*FONDOSRB*/]; // escenas armadas con cosas del juego (van con el paquete, no en el repo)
-const LOGO_RB = (document.getElementById('rbLogoIntro') || {}).src || '';
+// el logo: el cubo y el nombre (el mismo de la pantalla de carga)
+const LOGO_DR = (document.querySelector('#carga .dLogo') || {}).outerHTML || '<div class="dLogo"><div class="dLt"><small>DEFINITIVE</small><b>REZO<span>BOX</span></b></div></div>';
+const VERSION_RB = '1.0';
 const ICONOS_MOD = ['mod', ...ICO_LISTA.filter((n) => n !== 'mod' && !['cartel', 'meta', 'zona_muerte', 'boton_autos', 'teleport', 'impulso'].includes(n))].map((n) => 'ico:' + n);
 // los mods oficiales, en el mismo formato que los de la gente
 const OFICIALES = [['goku', 'ico:energia', ['personajes', 'diversion'], { skin: 'Goku', velocidad: 1.4, salto: 2.5 }], ['luna', 'ico:luna', ['fisica'], { gravedad: 0.35 }],
@@ -56,7 +59,7 @@ const mapaNom = (m) => T('m.' + m);
 function inicioCrear() {
   const el = document.createElement('div'); el.id = 'rbInicio'; el.className = 'oc';
   el.innerHTML = `<div class="rbBg"></div><div class="rbBg"></div><div class="rbSombra"></div>
-    <img class="rbLogo" alt="HypperX RezoBox" src="${LOGO_RB}"><div class="rbLista"></div>
+    <div class="rbLogo">${LOGO_DR}</div><div class="rbLista"></div><div class="rbLado"></div>
     <div class="rbAbajo"></div><div class="rbVer"></div><div class="rbPan oc"></div>`;
   document.body.appendChild(el); RB.el = el;
   el.addEventListener('click', (e) => { const b = e.target.closest('[data-rb]'); if (!b || b.tagName === 'SELECT' || b.tagName === 'INPUT') return; audioIniciar(); inicioAccion(b.dataset.rb, b, e); });
@@ -75,31 +78,22 @@ function inicioCrear() {
   if (!PREFS.lang) PREFS.lang = { SP: 'es', EN: 'en', PO: 'pt', ID: 'id', RU: 'ru', UA: 'uk' }[PREFS.bienvenida ? PREFS.idioma : ''] || idiomaDelAparato();
   RB.mapa = mapaValido(PREFS.mapa) ? PREFS.mapa : 'FlatGrass';
   overlay('NicknamePanel', false); PREFS.nombreOk = true; guardarPrefs();
-  // en el menú clásico: el logo y el nombre del juego pasan a ser los nuestros, y un botón para volver
-  for (const n of Object.values(MENU.por || {})) {
-    if (n.txt && /hypper/i.test(n.txt.t || '')) uiTextoPoner(n, n.txt.t.replace(/hypper( sandbox)?/ig, 'RezoBox'));
-    if (!/logo/i.test(n.n || '') || !n.el) continue;
-    const i = n.el.querySelector('.im'); if (!i) continue;
-    i.style.background = `url(${LOGO_RB}) center/contain no-repeat`; i.style.removeProperty('-webkit-mask'); i.style.removeProperty('mask'); i.style.opacity = 1;
-  }
-  if (MENU.el && !document.getElementById('rbVolver')) {
-    const v = document.createElement('div'); v.id = 'rbVolver'; v.innerHTML = glifo('atras') + ' RezoBox';
-    v.onclick = (e) => { e.stopPropagation(); audioIniciar(); inicioMostrar(true); };
-    MENU.el.appendChild(v);
-  }
+  rbArrastre();
 }
-// menú de texto como el de GMod: grupos separados por un espacio
+// el menú: cada cosa con su ícono y una línea de qué hay (jugar, lo primero y más grande)
 function inicioLista() {
   RB.el.dir = PREFS.lang === 'ar' ? 'rtl' : 'ltr';
-  const G = [['nueva', 'multi'], ['tienda', 'crear', 'personajes', 'opciones'], ['clasico', 'salir']];
-  RB.el.querySelector('.rbLista').innerHTML = G.map((g) => g.map((k) => `<button class="rbIt" data-rb="${k}">${esc(T('m.' + k))}</button>`).join('')).join('<div class="rbSep"></div>');
+  const IC = { nueva: glifo('jugar'), multi: glifo('gente'), tienda: icoHTML('ico:mod'), crear: glifo('martillo'), personajes: glifo('persona'), opciones: glifo('ajustes'), salir: glifo('salir') };
+  const G = [['nueva', 'multi'], ['tienda', 'crear', 'personajes'], ['opciones', 'salir']];
+  RB.el.querySelector('.rbLista').innerHTML = G.map((g) => g.map((k) => `<button class="rbIt rbIt_${k}" data-rb="${k}"><i class="rbItIco">${IC[k]}</i><span><b>${esc(T3('mt.' + k, PREFS.lang) || T('m.' + k))}</b>${k === 'salir' ? '' : `<small>${esc(T('ms.' + k))}</small>`}</span></button>`).join('')).join('<div class="rbSep"></div>');
+  rbLadoDibujar();
   const nm = modsTodos().filter((m) => PREFS.mods[m.id]).length, I = IDIOMAS_RB[PREFS.lang] || IDIOMAS_RB.en;
   RB.el.querySelector('.rbAbajo').innerHTML = `<button class="rbChipG" data-rb="tienda">${icoHTML('ico:mod')} ${nm ? `${nm} ${esc(T('modsAct'))}` : 'Sandbox'}</button>
     <button class="rbChipG" data-rb="idioma"><i class="lcod">${I[1]}</i> ${esc(I[0])}</button>
     <label class="rbChipG">${glifo('persona')} <input id="rbNombre" maxlength="16" spellcheck="false"></label>`;
   const inp = RB.el.querySelector('#rbNombre'); inp.value = PREFS.nombre || '';
   inp.oninput = () => nombrePoner(inp.value);
-  RB.el.querySelector('.rbVer').textContent = `HypperX RezoBox ${VERSION_JUEGO}`;
+  RB.el.querySelector('.rbVer').textContent = `Definitive RezoBox ${VERSION_RB}`;
 }
 function nombrePoner(v) { PREFS.nombre = limpioNombre(v); guardarPrefs(); const nick = nodo('Main/MainMenu/UpPanel/NickNameInputField'); if (nick && nick.inp) nick.inp.value = PREFS.nombre; }
 function inicioFondoPasar() {
@@ -109,9 +103,15 @@ function inicioFondoPasar() {
 }
 function inicioPanel(p) {
   RB.panel = p; const P = RB.el.querySelector('.rbPan');
-  for (const s of ['.rbLista', '.rbLogo', '.rbAbajo']) RB.el.querySelector(s).classList.toggle('oc', !!p);
+  for (const s of ['.rbLista', '.rbLogo', '.rbAbajo', '.rbLado']) RB.el.querySelector(s).classList.toggle('oc', !!p);
   P.classList.toggle('oc', !p); P.className = 'rbPan' + (p ? ' rbPan_' + p : ' oc');
-  if (!p) return;
+  // (el personaje en 3D sólo en personajes: en el resto, el fondo de siempre)
+  if (p !== 'personajes') { RB.el.classList.remove('rb3d'); menuLobby(false); }
+  if (p !== 'multi' && typeof mpClaveNo === 'function') mpClaveNo();
+  if (!p) { rbLadoDibujar(); return; }
+  if (p === 'multi') return panelMulti(P);
+  if (p === 'mcrear') return panelMultiCrear(P);
+  if (p === 'personajes') return panelPersonajes(P);
   if (p === 'bienvenida') return panelBienvenida(P);
   if (p === 'nueva') return panelNueva(P);
   if (p === 'tienda') return panelTienda(P);
@@ -132,7 +132,7 @@ function panelCrear(P) {
 }
 // ---------- bienvenida: idioma y nombre (la primera vez, y desde la banderita) ----------
 function panelBienvenida(P) {
-  P.innerHTML = `<div class="rbBienv"><img class="rbBienvLogo" alt="" src="${LOGO_RB}"><h2>${esc(T('b.tit'))}</h2><div class="rbSub">${esc(T('b.idioma'))}</div>
+  P.innerHTML = `<div class="rbBienv"><div class="rbBienvLogo">${LOGO_DR}</div><h2>${esc(T('b.tit'))}</h2><div class="rbSub">${esc(T('b.idioma'))}</div>
     <div class="rbIdiomas">${Object.entries(IDIOMAS_RB).map(([k, [n, b]]) => `<button class="rbIdi${k === PREFS.lang ? ' sel' : ''}" data-rb="lang:${k}"><i class="lcod">${b}</i><span dir="auto">${esc(n)}</span></button>`).join('')}</div>
     <label class="rbCampo rbNomB">${esc(T('b.nombre'))} <input id="rbNombreB" maxlength="16" spellcheck="false"></label>
     <button class="rbBtnG" data-rb="bienvOK">${esc(T('b.seguir'))} ${glifo('adelante')}</button></div>`;
@@ -306,6 +306,7 @@ function mapaDelForm() {
 }
 function inicioAccion(k, b) {
   const [a, v] = k.split(/:(.*)/s);
+  if (rbMenusAccion(a, v)) return; // (multijugador, crear server y personajes: rbmenus.js)
   const marcar = () => b.classList.toggle('sel');
   switch (a) {
     case 'nueva': return inicioPanel('nueva');
@@ -343,15 +344,13 @@ function inicioAccion(k, b) {
     case 'cat': RB.cat = v; return inicioPanel('nueva');
     case 'mapa': RB.mapa = v; RB.mapaCom = null; PREFS.mapa = v; guardarPrefs(); if (typeof menuMapaMarcar === 'function') menuMapaMarcar(); return inicioPanel('nueva');
     case 'mapacom': if (!mapaDe(v)) return; RB.mapaCom = v; RB.mapa = mapaDe(v).base; return inicioPanel('nueva');
-    case 'empezar': RB.horaPartida = RB.hora; RB.mapaPartida = RB.mapaCom ? mapaDe(RB.mapaCom) : null; inicioMostrar(false); SALA = null; CREA.on = false; empezarPartida(RB.mapa); return;
+    case 'empezar': RB.horaPartida = RB.hora; RB.mapaPartida = RB.mapaCom ? mapaDe(RB.mapaCom) : null; SALA = null; CREA.on = false;
+      entrarConCarga(RB.mapaPartida ? nombreDe(RB.mapaPartida) : T('ld.solo'), RB.mapa, () => { inicioMostrar(false); empezarPartida(RB.mapa); }); return;
     case 'crear': return inicioPanel('crear');
     case 'creaBase': RB.creaBase = v; return inicioPanel('crear');
     case 'creaNuevo': return creadorEmpezar(RB.creaBase, null);
     case 'creaEditar': { const m = INST.mapas[v]; if (m) creadorEmpezar(m.base, m); return; }
-    case 'multi': inicioMostrar(false); conectarMultijugador(); return;
-    case 'personajes': inicioMostrar(false); seccion('Shop'); tienda('Character'); return;
     case 'opciones': abrirAjustes('principal'); return;
-    case 'clasico': inicioMostrar(false); seccion('MainMenu'); return;
     case 'idioma': return inicioPanel('bienvenida');
     case 'lang': idiomaAplicar(v); inicioLista(); return inicioPanel('bienvenida');
     case 'bienvOK': PREFS.bienvenida = true; guardarPrefs(); inicioLista(); return inicioPanel(null);
@@ -365,7 +364,7 @@ function inicioMostrar(si) {
     if (!RB.reloj) { inicioFondoPasar(); RB.reloj = setInterval(() => { if (!RB.el.classList.contains('oc')) inicioFondoPasar(); }, 9000); }
   }
   if (RB.el) RB.el.classList.toggle('oc', !si);
-  if (MENU.lienzo) MENU.lienzo.style.visibility = si ? 'hidden' : ''; // el menú clásico no se ve abajo
+  if (!si && RB.el) { RB.el.classList.remove('rb3d'); menuLobby(false); }
 }
 // al guardar una construcción, también una foto chica para publicarla como mapa
 function fotoConstruccion() {

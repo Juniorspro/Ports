@@ -1,4 +1,4 @@
-// teléfono con pantalla táctil (acostado o parado: parado se gira 90°): menú real, un jugador, palanca, menú de spawn
+// teléfono con pantalla táctil (acostado o parado: parado se gira 90°): el inicio (tocando), un jugador, palanca, menú de spawn
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
 const [,, html, pref, orient] = process.argv;
 const parado = orient === 'parado', W = parado ? 360 : 800, H = parado ? 800 : 360;
@@ -9,10 +9,11 @@ await p.goto('file://' + html + '?test&sinred=1&gpu=' + encodeURIComponent('Adre
 await p.waitForFunction(() => window.__listo, null, { timeout: 120000 }); await p.waitForTimeout(2000);
 const ev = (s) => p.evaluate((s) => window.__ev(s), s);
 await p.screenshot({ path: pref + '_menu.png' });
-await p.tap('[data-r="Main/NicknamePanel/Panel/OK"]'); await p.waitForTimeout(300);
-await p.tap('[data-r="Main/MainMenu/Singleplayer"]'); await p.waitForTimeout(400);
+// el inicio propio: bienvenida (Continuar) → Jugar → Empezar
+await p.tap('[data-rb="bienvOK"]'); await p.waitForTimeout(300);
+await p.tap('[data-rb="nueva"]'); await p.waitForTimeout(400);
 await p.screenshot({ path: pref + '_solo.png' });
-await p.tap('[data-r="Main/SinglePlayer/CreateServerButton"]'); await p.waitForTimeout(3500);
+await p.tap('[data-rb="empezar"]'); await p.waitForTimeout(3500);
 console.log('estado', await ev('JSON.stringify({e: JUEGO.estado, rot: PANT.rot, vw: VW(), vh: VH(), cv: [R.cv.width, R.cv.height], mapa: MUNDO.nombre})'));
 await p.screenshot({ path: pref + '_juego.png' });
 // palanca: arrastrar "hacia arriba" en la pantalla del juego (coordenadas del juego → de la pantalla)

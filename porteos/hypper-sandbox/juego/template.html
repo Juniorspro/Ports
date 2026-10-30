@@ -2,7 +2,7 @@
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#1b1d22">
-<title>RezoBox</title>
+<title>Definitive RezoBox</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:Roboto,Arial,Helvetica,sans-serif;color:#fff;touch-action:none}
@@ -209,7 +209,7 @@ body.sinUI #hud>*:not(#mira){visibility:hidden}
 :root{--vw:1vw;--vh:1vh}
 html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(90deg) translateY(-100%)}
 #menuReal{position:fixed;inset:0;z-index:5;overflow:hidden}
-/* HypperX RezoBox: inicio con el aspecto del menú de Garry's Mod (tamaños por la altura real del juego: --vh) */
+/* Definitive RezoBox: inicio con el aspecto del menú de Garry's Mod (tamaños por la altura real del juego: --vh) */
 #rbInicio{position:fixed;inset:0;z-index:5;overflow:hidden;background:#000;font-family:Roboto,'Helvetica Neue',Helvetica,Arial,sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
 #rbInicio.oc,#rbInicio .oc{display:none}
 .rbBg{position:absolute;inset:0;background:#1a1d24 center/cover;opacity:0;transition:opacity 1.8s;animation:rbKen 26s linear infinite alternate}
@@ -308,6 +308,105 @@ html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(
 .rbRango output{font:700 calc(var(--vh)*2.8) Roboto,Arial,sans-serif;color:#2f86de;text-align:end}
 .rbFila{display:flex;gap:8px;flex-wrap:wrap}
 .rbGridChica{padding:0;grid-template-columns:repeat(auto-fill,minmax(calc(var(--vh)*22),1fr))}
+/* ---- Definitive RezoBox: tema propio del inicio y sus paneles (oscuro, con el naranja del logo) ---- */
+#rbInicio{--dr-a:#ff7a1a;--dr-b:#ffb347;--dr-p:rgba(14,17,30,.86);--dr-l:rgba(255,255,255,.1);--dr-t:#e9ecf6;--dr-s:#9aa3c0;--dr-c:#1b2033;--dr-c2:#242a40}
+#rbInicio.rb3d{background:transparent}#rbInicio.rb3d .rbBg,#rbInicio.rb3d .rbSombra{display:none}
+#rbInicio.rb3d::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(60% 75% at 72% 55%,transparent 40%,rgba(5,6,12,.65))}
+.rbSombra{background:linear-gradient(90deg,rgba(6,8,16,.82),rgba(6,8,16,.45) 38%,rgba(6,8,16,.05) 62%,rgba(6,8,16,.35)),linear-gradient(0deg,rgba(6,8,16,.7),rgba(0,0,0,0) 30%)}
+.rbLogo{height:auto;top:calc(var(--vh)*6);font-size:calc(var(--vh)*7.6);max-width:none}
+.rbLista{top:calc(var(--vh)*19.5);gap:calc(var(--vh)*.8)}
+.rbIt{display:flex;align-items:center;gap:calc(var(--vh)*1.8);width:calc(var(--vh)*58);max-width:44vw;padding:calc(var(--vh)*.85) calc(var(--vh)*1.6);border-radius:calc(var(--vh)*1.8);
+  background:linear-gradient(90deg,rgba(18,22,38,.78),rgba(18,22,38,.35));border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);text-shadow:none;transition:transform .14s,background .14s,border-color .14s}
+.rbIt:hover,.rbIt:focus-visible{transform:translateX(6px);background:linear-gradient(90deg,rgba(255,122,26,.32),rgba(18,22,38,.4));border-color:rgba(255,160,60,.55);text-shadow:none}
+.rbIt .rbItIco{flex:none;display:flex;align-items:center;justify-content:center;width:calc(var(--vh)*5.8);height:calc(var(--vh)*5.8);border-radius:calc(var(--vh)*1.3);background:rgba(255,255,255,.08);color:var(--dr-b);font-size:calc(var(--vh)*3.3)}
+.rbIt .rbItIco .ico{width:1.2em;height:1.2em}
+.rbIt span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rbIt b{font:800 calc(var(--vh)*3.6) Roboto,Arial,sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rbIt small{font:500 calc(var(--vh)*2.2) Roboto,Arial,sans-serif;color:var(--dr-s);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rbIt_nueva{background:linear-gradient(90deg,rgba(255,122,26,.88),rgba(233,82,12,.55));border-color:rgba(255,190,110,.6)}
+.rbIt_nueva .rbItIco{background:rgba(255,255,255,.2);color:#fff}.rbIt_nueva small{color:#ffe2c4}
+.rbIt_nueva:hover{background:linear-gradient(90deg,#ff8f2e,rgba(233,82,12,.7))}
+.rbIt_salir{width:auto;padding-inline-end:calc(var(--vh)*3);background:rgba(18,22,38,.45)}
+.rbSep{height:calc(var(--vh)*1.2)}
+@media (max-height:450px){#rbInicio .rbAbajo{inset-inline-start:auto;inset-inline-end:1.6%}#rbInicio .rbVer{display:none}.rbIt b{font-size:max(14px,calc(var(--vh)*3.6))}.rbIt small{font-size:max(9.5px,calc(var(--vh)*2.2))}}
+.rbLado{position:absolute;inset-inline-end:3.2%;top:calc(var(--vh)*7);width:min(calc(var(--vh)*52),30vw);display:flex;flex-direction:column;gap:calc(var(--vh)*1.6)}
+.rbTarj{background:var(--dr-p);border:1px solid var(--dr-l);border-radius:calc(var(--vh)*2);padding:calc(var(--vh)*2);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.rbTarjT{display:flex;align-items:center;gap:8px;font:800 calc(var(--vh)*2.4) Roboto,Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--dr-b)}
+.rbTarjT .ico{width:1.5em;height:1.5em}
+.rbCifras{display:flex;gap:calc(var(--vh)*3);margin:calc(var(--vh)*1.2) 0}
+.rbCifras span{display:flex;flex-direction:column;font:600 calc(var(--vh)*2.3) Roboto,Arial,sans-serif;color:var(--dr-s)}.rbCifras b{font:900 calc(var(--vh)*6) Roboto,Arial,sans-serif;color:#fff;line-height:1}
+.rbTop{display:flex;align-items:center;gap:10px;width:100%;background:var(--dr-c2);border:1px solid var(--dr-l);border-radius:calc(var(--vh)*1.4);padding:6px;color:#fff;cursor:pointer;margin-bottom:calc(var(--vh)*1.2);text-align:start}
+.rbTop i{width:calc(var(--vh)*7);height:calc(var(--vh)*7);border-radius:8px;background:#333 center/cover;flex:none}
+.rbTop span{flex:1;min-width:0;display:flex;flex-direction:column}.rbTop b{font:800 calc(var(--vh)*2.7) Roboto,Arial,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rbTop small{color:var(--dr-s);font-size:calc(var(--vh)*2.2)}
+.rbTop .gli{color:var(--dr-b)}
+.rbTarjV p{margin:calc(var(--vh)*1) 0 0;font:500 calc(var(--vh)*2.5)/1.4 Roboto,Arial,sans-serif;color:var(--dr-t)}
+.rbAncho{width:100%;display:flex;align-items:center;justify-content:center;gap:8px}
+.rbChipG{background:rgba(14,17,30,.75);border-color:var(--dr-l);border-radius:999px;padding-inline:14px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.rbVer{color:var(--dr-s);text-shadow:none;letter-spacing:.06em}
+/* paneles */
+.rbPan{background:linear-gradient(180deg,rgba(20,24,40,.97),rgba(12,14,26,.97));color:var(--dr-t);border:1px solid var(--dr-l);border-radius:calc(var(--vh)*2.2);box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.rbPanCab{align-items:center;background:transparent;border-bottom:1px solid var(--dr-l);color:#fff}
+.rbPanCab .gli,.rbPanCab .ico{color:var(--dr-b)}
+.rbPanCab small{color:var(--dr-s)}
+.rbCats{background:rgba(255,255,255,.03);border-inline-end:1px solid var(--dr-l)}
+.rbCat{background:transparent;color:var(--dr-t);border-radius:10px}.rbCat:hover{background:rgba(255,255,255,.06)}
+.rbCat.sel{background:linear-gradient(90deg,var(--dr-a),#e9640f);color:#fff}
+.rbMapaG{border-radius:12px}.rbMapaG .rbFoto{border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.45)}.rbMapaG b{color:var(--dr-t)}.rbMapaG small{color:var(--dr-s)}
+.rbMapaG:hover{background:rgba(255,255,255,.05)}.rbMapaG.sel{border-color:var(--dr-a);background:rgba(255,122,26,.14)}
+.rbModG,.rbCard{background:var(--dr-c);border-color:var(--dr-l);border-radius:12px;color:var(--dr-t)}
+.rbModG small,.rbInfo small,.rbInfo p{color:var(--dr-s)}.rbModG em,.rbChk em{background:transparent;border-color:#5b6380}
+.rbModG.on,.rbCard.on{border-color:var(--dr-a);background:rgba(255,122,26,.12);box-shadow:none}.rbModG.on em,.rbChk.on em{background:var(--dr-a);border-color:var(--dr-a)}
+.rbPanPie{background:rgba(255,255,255,.03);border-top:1px solid var(--dr-l)}
+.rbCampo{color:var(--dr-t)}.rbModo,.rbTotal{color:var(--dr-s)}
+.rbCampo select,.rbBarra select,.rbForm select,.rbBarra input[type=search],.rbForm input:not([type]),.rbForm textarea,.rbNomB input{background:#0d1020;color:#fff;border:1px solid #3a4160;border-radius:10px}
+.rbBtnG{background:linear-gradient(180deg,#ff8f2e,#e9640f);border-radius:12px;box-shadow:0 4px 14px rgba(233,100,15,.35);color:#fff}
+.rbBtnG:hover{filter:brightness(1.08)}.rbBtnG .gli{vertical-align:-.15em}
+.rbBtnGris{background:var(--dr-c2);border:1px solid #3a4160;border-radius:12px;color:var(--dr-t)}
+.rbBienv h2{color:#fff}.rbSub{color:var(--dr-s)}
+.rbBienvLogo{height:auto;font-size:calc(var(--vh)*6.6);background:none;box-shadow:none;padding:calc(var(--vh)*1) 0}
+.rbIdi{background:var(--dr-c);border-color:var(--dr-l);color:var(--dr-t);border-radius:12px}.rbIdi.sel{border-color:var(--dr-a);background:rgba(255,122,26,.14);box-shadow:inset 0 0 0 1px var(--dr-a)}
+.lcod{background:#e9640f}
+.rbTab{background:transparent;border:1px solid var(--dr-l);border-radius:999px;color:var(--dr-t)}.rbTab.sel{background:#fff;border-color:#fff;color:#141827}
+.rbBarra{background:transparent;border-bottom:1px solid var(--dr-l)}
+.rbSeg button{background:var(--dr-c);border-color:#3a4160;color:var(--dr-t)}.rbSeg button.sel{background:var(--dr-a);border-color:var(--dr-a);color:#fff}
+.rbSeg button:first-child{border-radius:10px 0 0 10px}.rbSeg button:last-child{border-radius:0 10px 10px 0}
+.rbEtq{background:transparent;border-color:#3a4160;color:var(--dr-t)}.rbEtq.sel{background:var(--dr-a);border-color:var(--dr-a)}
+.rbIco{background:#0d1020;border-radius:10px}.rbOf{color:var(--dr-b)}.rbEtqsC i{background:rgba(255,122,26,.16);color:#ffc28a}
+.rbChk{background:var(--dr-c);border-color:#3a4160;color:var(--dr-t);border-radius:10px}.rbChk.on{border-color:var(--dr-a);background:rgba(255,122,26,.14)}
+.rbMini button{background:var(--dr-c);border-color:#3a4160;color:var(--dr-t);border-radius:10px}
+.rbVacio{color:var(--dr-s)}.rbVacio a{color:var(--dr-b)}
+.rbRango{color:var(--dr-t)}.rbRango output{color:var(--dr-b)}.rbRango input{accent-color:var(--dr-a)}
+.rbIconos button{background:var(--dr-c);border-color:#3a4160;border-radius:10px}.rbIconos button.sel{border-color:var(--dr-a);background:rgba(255,122,26,.16);box-shadow:none}
+.rbAviso{position:absolute;left:50%;bottom:calc(var(--vh)*12);transform:translate(-50%,10px);z-index:9;background:rgba(14,17,30,.94);border:1px solid rgba(255,160,60,.55);color:#fff;padding:12px 22px;border-radius:999px;
+  font:700 calc(var(--vh)*3) Roboto,Arial,sans-serif;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:86vw;text-align:center}
+.rbAviso.ve{opacity:1;transform:translate(-50%,0)}
+/* multijugador */
+.mpEst{font:700 calc(var(--vh)*2.6) Roboto,Arial,sans-serif;color:var(--dr-b)}
+.mpLista{flex:1;overflow:auto;padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+.mpSala{display:flex;align-items:center;gap:12px;background:var(--dr-c);border:1px solid var(--dr-l);border-radius:14px;padding:8px 10px;transition:border-color .12s,background .12s}
+.mpSala:hover{border-color:#4a5274;background:var(--dr-c2)}.mpSala.conGente{border-color:rgba(255,160,60,.45)}.mpSala.mia{box-shadow:inset 3px 0 0 var(--dr-a)}
+.mpFoto{flex:none;width:calc(var(--vh)*11);height:calc(var(--vh)*11);border-radius:10px;background:#333 center/cover}
+.mpInfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.mpInfo b{font:800 calc(var(--vh)*3.3) Roboto,Arial,sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mpInfo b em{font:800 calc(var(--vh)*2.1) Roboto,Arial,sans-serif;font-style:normal;background:var(--dr-a);color:#fff;border-radius:6px;padding:1px 6px;vertical-align:.2em}.mpInfo b em.mpOf{background:#2f6fd8}
+.mpInfo small{font:600 calc(var(--vh)*2.4) Roboto,Arial,sans-serif;color:var(--dr-s)}
+.mpGente{font:600 calc(var(--vh)*2.3) Roboto,Arial,sans-serif;color:#ffc28a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mpN{display:flex;align-items:center;gap:5px;font:800 calc(var(--vh)*3) Roboto,Arial,sans-serif;color:#fff;min-width:3.2em}.mpN .gli{color:var(--dr-b)}
+.mpCand{color:var(--dr-b);font-size:calc(var(--vh)*3.2)}
+.mpModal{position:absolute;inset:0;z-index:8;background:rgba(4,5,10,.6);display:none;align-items:center;justify-content:center}.mpModal.ve{display:flex}
+.mpModalC{position:relative;width:min(420px,88vw);background:linear-gradient(180deg,#1a1f33,#11142a);border:1px solid rgba(255,160,60,.5);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.mpModalC b{font:800 18px Roboto,Arial,sans-serif;color:var(--dr-b)}.mpModalC small{color:var(--dr-s);font:600 14px Roboto,Arial,sans-serif}
+.mpModalC input{font:700 18px Roboto,Arial,sans-serif;padding:10px 12px;background:#0d1020;color:#fff;border:1px solid #3a4160;border-radius:10px}
+.mpModalB{display:flex;justify-content:flex-end}
+.mpX{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;border:1px solid #3a4160;background:var(--dr-c2);color:var(--dr-b);display:flex;align-items:center;justify-content:center;cursor:pointer}
+/* personajes: el panel a la izquierda y el personaje en 3D a la derecha */
+.rbPan_personajes{right:auto;width:min(54%,calc(var(--vh)*118))}
+.pjGrid{flex:1;overflow:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(calc(var(--vh)*17),1fr));gap:10px;align-content:start}
+.pjCelda{display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--dr-c);border:2px solid transparent;border-radius:14px;padding:8px 6px;color:var(--dr-t);cursor:pointer;min-width:0}
+.pjCelda:hover{background:var(--dr-c2)}.pjCelda.sel{border-color:var(--dr-a);background:rgba(255,122,26,.14)}
+.pjCelda i{width:100%;aspect-ratio:1;border-radius:10px;background:#0d1020 center/cover;display:flex;align-items:center;justify-content:center;color:var(--dr-s);font-size:calc(var(--vh)*5)}
+.pjCelda b{font:700 calc(var(--vh)*2.3) Roboto,Arial,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+@media (max-aspect-ratio:4/3){.rbLado{display:none}.rbIt{max-width:80vw}}
 /* íconos (imágenes del juego) y dibujos de los botones */
 .ico{width:1.35em;height:1.35em;vertical-align:-.3em;border-radius:22%;object-fit:contain;flex:none}
 .gli{width:1.1em;height:1.1em;vertical-align:-.18em;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -432,20 +531,54 @@ body.conPant{background:transparent}
 .menuAviso{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#fff;padding:12px 26px;border-radius:6px;font:700 24px 'Open Sans',Roboto,sans-serif;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
 .menuAviso.ve{opacity:1}
 #girar{position:fixed;inset:0;z-index:10;background:#1b1d22;color:#fff;display:flex;align-items:center;justify-content:center;font:700 18px Roboto,sans-serif;text-align:center;padding:20px}
-#carga{position:fixed;inset:0;z-index:11;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-size:13px;transition:opacity .45s}
+/* ---- Definitive RezoBox: el logo (cubo + nombre) y la pantalla de carga ---- */
+.dLogo{display:flex;align-items:center;line-height:0;direction:ltr}
+.dLogo img{height:1em;width:auto;max-width:88vw;object-fit:contain;object-position:left;display:block;filter:drop-shadow(0 .03em .06em rgba(0,0,0,.35))}
+#carga{position:fixed;inset:0;z-index:11;overflow:hidden;color:#fff;font:14px Roboto,Arial,sans-serif;background:#07080c;transition:opacity .5s}
 #carga.salir{opacity:0;pointer-events:none}
-#introCv,#carga .b,#cargaErr{transition:opacity .3s}
-#introCv{position:absolute;inset:0;width:100%;height:100%}
-#carga .b,#cargaErr{position:relative;z-index:1}
-#carga.apagar #introCv,#carga.apagar .b{opacity:0}
-#carga .b{width:180px;height:3px;background:#222;border-radius:2px;overflow:hidden;opacity:0;transition:opacity .4s}
-#carga.introFin .b{opacity:.9}
-#carga .b i{display:block;height:100%;width:0;background:#9fb4d8;transition:width .3s}
-#cargaErr{max-width:min(560px,90vw);color:#ddd;font:14px/1.4 Roboto,sans-serif;text-align:center;display:none}
-#cargaErr.ve{display:block}
-#cargaErr b{color:#ff8a7a}
-#cargaErr small{display:block;color:#888;margin-top:6px;word-break:break-word}
-#cargaErr button{margin:12px 6px 0;padding:10px 18px;border:0;border-radius:6px;background:#3e6fd8;color:#fff;font:700 14px Roboto,sans-serif}
+/* fondo: capturas del juego que pasan despacio (como los fondos de un server mientras entrás) */
+#carga .cgFondo{position:absolute;inset:0;background:#07080c center/cover no-repeat;opacity:0;transition:opacity 1.4s ease}
+#carga .cgFondo.ve{opacity:1}#carga .cgFondo.kb{animation:cgKen 9s linear both}
+@keyframes cgKen{from{transform:scale(1.02) translate(0,0)}to{transform:scale(1.1) translate(-1.5%,-1%)}}
+#carga .cgSombra{position:absolute;inset:0;background:linear-gradient(180deg,rgba(4,6,12,.72) 0%,rgba(4,6,12,.12) 26%,rgba(4,6,12,0) 45%,rgba(4,6,12,.55) 68%,rgba(4,6,12,.94) 100%),radial-gradient(130% 100% at 50% 45%,transparent 55%,rgba(0,0,0,.55) 100%)}
+#carga .cgArriba{position:absolute;left:clamp(16px,3vw,40px);top:clamp(14px,3vh,34px);right:clamp(16px,3vw,40px);display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+#carga .dLogo{font-size:clamp(28px,5.6vmin,52px);animation:cgEntra .8s cubic-bezier(.2,.9,.25,1.1) both}
+#carga .cgModo{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;font:700 11px Roboto,Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase}
+#carga .cgModo span{padding:5px 9px;border-radius:4px;background:rgba(10,14,24,.62);border:1px solid rgba(255,255,255,.14);color:#d6dcea}
+#carga .cgModo span b{color:#7cc4ff;font-weight:800}
+#carga .cgTit{margin-top:12px;max-width:60vw;font:800 clamp(18px,3.4vmin,30px) Roboto,Arial,sans-serif;text-shadow:0 2px 6px rgba(0,0,0,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#carga .cgTit:empty{display:none}
+@keyframes cgEntra{from{opacity:0;transform:translateY(-8px)}}
+#carga .cgTipC{width:min(340px,34vw);box-sizing:border-box;padding:12px 14px;border-radius:8px;background:rgba(10,14,24,.66);border:1px solid rgba(255,255,255,.12);border-left:3px solid #ff8a2a;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+#carga .cgTipC small{display:block;font:800 11px Roboto,Arial,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#ffb347;margin-bottom:5px}
+#carga .cgTip{margin:0;font:500 14px/1.4 Roboto,Arial,sans-serif;color:#e3e7f1;transition:opacity .35s;min-height:2.8em}
+/* consola: lo que ya se cargó, con su tiempo (como la consola mientras entra a un server) */
+#carga .cgCons{position:absolute;left:clamp(16px,3vw,40px);bottom:calc(clamp(74px,13vh,104px));width:min(620px,60vw);font:12px/1.55 Consolas,'DejaVu Sans Mono',Menlo,monospace;color:#9fb0c8;text-shadow:0 1px 2px #000;direction:ltr;text-align:left}
+#carga .cgCons div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#carga .cgCons div:last-child{color:#e9f1ff}
+#carga .cgCons i{font-style:normal;color:#6f86a6}
+#carga .cgCons em{font-style:normal;color:#8fd18b}
+/* abajo: el estado, la barra y el porcentaje */
+#carga .cgAbajo{position:absolute;left:clamp(16px,3vw,40px);right:clamp(16px,3vw,40px);bottom:clamp(14px,3vh,30px)}
+#carga .cgFila{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+#carga .cgEst{display:flex;align-items:center;gap:10px;min-width:0;font:700 clamp(15px,2.4vmin,20px) Roboto,Arial,sans-serif;text-shadow:0 1px 3px #000}
+#carga .cgEst span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#carga .cgEst bdi{flex:none;direction:ltr;unicode-bidi:isolate;font-weight:600;color:#c9d6ea;white-space:nowrap}
+#carga .cgGira{flex:none;width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.2);border-top-color:#7cc4ff;animation:cgGira .8s linear infinite}
+@keyframes cgGira{to{transform:rotate(360deg)}}
+#carga .cgPct{font:800 clamp(20px,3.6vmin,30px) Roboto,Arial,sans-serif;color:#fff;text-shadow:0 1px 3px #000;font-variant-numeric:tabular-nums}
+#carga .cgBarra{margin-top:8px;height:6px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden}
+#carga .cgBarra i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2f8cff,#7cc4ff);box-shadow:0 0 10px rgba(80,170,255,.8);position:relative;overflow:hidden}
+#carga .cgBarra i::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);transform:translateX(-100%);animation:cgRayo 1.4s linear infinite}
+@keyframes cgRayo{to{transform:translateX(100%)}}
+#carga .cgPie{display:flex;justify-content:space-between;gap:12px;margin-top:6px;font:11px Consolas,'DejaVu Sans Mono',Menlo,monospace;color:rgba(255,255,255,.5);direction:ltr}
+#carga .cgPie span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cargaAyuda,#cargaErr{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,90vw);box-sizing:border-box;background:rgba(10,12,22,.9);border:1px solid rgba(255,140,40,.5);border-radius:10px;padding:16px 18px;color:#e6e9f4;font:14px/1.4 Roboto,Arial,sans-serif;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+#cargaAyuda.ve,#cargaErr.ve{display:block}#carga.fallo .cgGira,#carga.fin .cgGira{display:none}
+#cargaAyuda b,#cargaErr b{display:block;color:#ffb347;font-size:16px}
+#cargaAyuda small,#cargaErr small{display:block;color:#9aa4c2;margin-top:6px;word-break:break-word}
+#cargaAyuda button,#cargaErr button{margin:12px 5px 0;padding:10px 16px;border:0;border-radius:8px;background:linear-gradient(#ff8f2e,#e9640f);color:#fff;font:800 14px Roboto,Arial,sans-serif;cursor:pointer}
+#cargaAyuda button.gris,#cargaErr button.gris{background:#2c3247}
+@media (max-height:460px){#carga .cgTipC{display:none}#carga .cgCons{font-size:11px;line-height:1.45;bottom:64px}#carga .cgModo{margin-top:6px}}
+@media (max-width:640px){#carga .cgTipC{display:none}#carga .cgCons{width:auto;right:16px}}
 .etiqueta.monitor{padding:4px 8px;border-radius:2px;font-size:13px;max-width:180px;white-space:normal;text-align:center}
 .etiqueta{position:absolute;left:0;top:0;font-size:12px;font-weight:bold;text-shadow:0 1px 3px #000;white-space:nowrap;pointer-events:none}
 #redEst{position:absolute;left:10px;top:66px;font-size:10px;opacity:.8;text-shadow:0 1px 2px #000}
@@ -556,84 +689,122 @@ body.edaOn #hud,body.edaOn #tactil,body.edaOn #mira,body.edaOn #usarTxt,body.eda
 <div id="ajustes" class="panel oc"><div class="caja" id="ajustesCaja"></div></div>
 <div id="emotes" class="panel oc"><div class="caja emoCaja"><div class="emoCab"><h3>Emotes</h3><div class="emoTabs"></div></div><div class="emoGrid" id="emoLista"></div><div class="emoPie"><button class="boton" id="bEmoCrear"></button><button class="boton gris" id="bEmoCerrar">Cerrar</button></div></div></div>
 <input id="chatIn" class="oc" maxlength="120">
-<div id="carga"><canvas id="introCv"></canvas><img id="rbLogoIntro" alt="" hidden src="data:image/webp;base64,/*LOGORB*/"><div class="b"><i id="cargaB"></i></div><div id="cargaErr"></div></div>
+<div id="carga"><div class="cgFondo"></div><div class="cgFondo"></div><div class="cgSombra"></div>
+  <div class="cgArriba"><div><div class="dLogo"><img src="data:image/webp;base64,/*LOGODR*/" alt="Definitive RezoBox" draggable="false"></div><div class="cgModo"><span>Sandbox</span><span id="cargaVer">v1.0</span></div><div class="cgTit" id="cargaTit"></div></div>
+    <div class="cgTipC"><small id="cargaTipT"></small><p class="cgTip" id="cargaTip"></p></div></div>
+  <div class="cgCons" id="cargaCons"></div>
+  <div class="cgAbajo"><div class="cgFila"><div class="cgEst"><i class="cgGira"></i><span id="cargaPaso"></span><bdi id="cargaMB"></bdi></div><b class="cgPct" id="cargaPct">0%</b></div>
+    <div class="cgBarra"><i id="cargaB"></i></div><div class="cgPie"><span id="cargaMapa"></span><span>JXSTUDIOS</span></div></div>
+  <div id="cargaAyuda"></div><div id="cargaErr"></div></div>
 <script>
-// intro procedural (sin video): chispas, el aro cromado de JXStudios que se dibuja con un brillo que lo recorre,
-// el monograma, los nombres y al final el logo de HypperX RezoBox. Con el teléfono parado se dibuja girada 90°
-// (salvo que la página ya esté girada por CSS). Se saltea tocando (lo maneja el juego cuando está listo).
+// La pantalla de carga de Definitive RezoBox (estilo "entrando a un server": capturas del juego de fondo, la consola con
+// lo que va cargando y la barra abajo) y su vigilante. Va antes del juego y no depende de él: el juego avisa cada
+// paso (__carga.set); si no avanza en 25 s, o si el juego ni siquiera pudo arrancar (un error antes de empezar, p. ej.
+// un navegador que no entiende algo), muestra qué pasó con botones para reintentar o entrar en modo liviano, en vez de
+// quedarse quieta para siempre. Los textos van acá en los 14 idiomas (los del juego todavía no están).
 (function () {
-  var c = document.getElementById('carga'), cv = document.getElementById('introCv'), x = cv.getContext('2d'), I = window.__intro = { fin: false };
-  var logo = document.getElementById('rbLogoIntro'), t0 = 0, DUR = 5.8, chispas = [];
-  for (var i = 0; i < 140; i++) chispas.push({ a: Math.random() * 6.283, d: 1.6 + Math.random() * 1.8, v: 0.55 + Math.random() * 0.5, s: 0.6 + Math.random() * 1.6, r: 0.75 + Math.random() * 0.5 });
-  function fin() { if (!I.fin) { I.fin = true; c.classList.add('introFin'); if (I.cb) I.cb(); } }
-  var cl = function (v) { return v < 0 ? 0 : v > 1 ? 1 : v; }, eo = function (v) { v = cl(v); return 1 - Math.pow(1 - v, 3); };
-  function cromo(cx, cy, r, giro) {
-    var g;
-    if (x.createConicGradient) { g = x.createConicGradient(giro, cx, cy); [['#fff', 0], ['#7d8590', .12], ['#e9edf2', .25], ['#4a5059', .38], ['#ffffff', .5], ['#8a929c', .63], ['#dfe4ea', .76], ['#454b53', .88], ['#fff', 1]].forEach(function (p) { g.addColorStop(p[1], p[0]); }); }
-    else { g = x.createLinearGradient(cx - r, cy - r, cx + r, cy + r); g.addColorStop(0, '#fff'); g.addColorStop(.5, '#6c737c'); g.addColorStop(1, '#eef1f4'); }
-    return g;
+  var TX = {
+    es: ['Iniciando el motor', 'Montando el contenido', 'Cargando modelos y texturas', 'Compilando shaders', 'Iniciando scripts', '¡Listo!', 'Está tardando más de lo normal', 'Paso', 'Reintentar', 'Modo liviano', 'Seguir esperando', 'No pudo arrancar en este aparato', ['Decí «Hey Verity» y pedile que te construya algo', 'Con la pistola de física agarrás, tirás y congelás casi todo', 'Creá tu propio server: queda en la lista para que entren tus amigos', 'En Mods y mapas hay creaciones de la comunidad: se instalan con un toque'], ['modelos', 'animaciones', 'mapas', 'Consejo', 'archivos', 'Descargando el juego']],
+    en: ['Starting engine', 'Mounting content', 'Loading models and textures', 'Compiling shaders', 'Starting scripts', 'Ready!', 'This is taking longer than usual', 'Step', 'Retry', 'Light mode', 'Keep waiting', 'Couldn’t start on this device', ['Say “Hey Verity” and ask her to build something', 'With the physics gun you can grab, throw and freeze almost anything', 'Create your own server: it stays listed so your friends can join', 'Mods & maps has community creations: install them with one tap'], ['models', 'animations', 'maps', 'Tip', 'files', 'Downloading the game']],
+    pt: ['Iniciando o motor', 'Montando o conteúdo', 'Carregando modelos e texturas', 'Compilando shaders', 'Iniciando scripts', 'Pronto!', 'Está demorando mais que o normal', 'Etapa', 'Tentar de novo', 'Modo leve', 'Continuar esperando', 'Não foi possível iniciar neste aparelho', ['Diga “Hey Verity” e peça para ela construir algo', 'Com a arma de física você pega, joga e congela quase tudo', 'Crie seu próprio servidor: ele fica na lista para seus amigos entrarem', 'Em Mods e mapas há criações da comunidade: instale com um toque'], ['modelos', 'animações', 'mapas', 'Dica', 'arquivos', 'Baixando o jogo']],
+    id: ['Memulai mesin', 'Memasang konten', 'Memuat model dan tekstur', 'Mengompilasi shader', 'Memulai skrip', 'Siap!', 'Ini lebih lama dari biasanya', 'Langkah', 'Coba lagi', 'Mode ringan', 'Tunggu lagi', 'Tidak bisa dijalankan di perangkat ini', ['Ucapkan “Hey Verity” dan minta dia membangun sesuatu', 'Dengan physics gun kamu bisa mengambil, melempar, dan membekukan hampir apa saja', 'Buat server sendiri: tetap ada di daftar agar temanmu bisa masuk', 'Di Mod & peta ada kreasi komunitas: pasang dengan sekali ketuk'], ['model', 'animasi', 'peta', 'Tips', 'berkas', 'Mengunduh game']],
+    ms: ['Memulakan enjin', 'Memasang kandungan', 'Memuatkan model dan tekstur', 'Mengkompil shader', 'Memulakan skrip', 'Siap!', 'Ini mengambil masa lebih lama daripada biasa', 'Langkah', 'Cuba lagi', 'Mod ringan', 'Terus menunggu', 'Tidak dapat dimulakan pada peranti ini', ['Sebut “Hey Verity” dan minta dia bina sesuatu', 'Dengan physics gun anda boleh pegang, baling dan bekukan hampir semua benda', 'Cipta pelayan anda sendiri: ia kekal dalam senarai supaya rakan boleh masuk', 'Dalam Mod & peta ada ciptaan komuniti: pasang dengan satu sentuhan'], ['model', 'animasi', 'peta', 'Petua', 'fail', 'Memuat turun permainan']],
+    fil: ['Sinisimulan ang engine', 'Inilalagay ang content', 'Nilo-load ang mga model at texture', 'Kino-compile ang mga shader', 'Sinisimulan ang mga script', 'Handa na!', 'Mas matagal ito kaysa karaniwan', 'Hakbang', 'Subukang muli', 'Light mode', 'Maghintay pa', 'Hindi makapagsimula sa device na ito', ['Sabihin ang “Hey Verity” at ipagawa sa kanya ang kahit ano', 'Gamit ang physics gun, mahahawakan, maihahagis at mapapatigil mo halos lahat', 'Gumawa ng sarili mong server: nananatili ito sa listahan para makasali ang mga kaibigan mo', 'Sa Mods at mapa may mga likha ng komunidad: i-install sa isang tap'], ['model', 'animasyon', 'mapa', 'Tip', 'file', 'Dina-download ang laro']],
+    ja: ['エンジンを起動中', 'コンテンツをマウント中', 'モデルとテクスチャを読み込み中', 'シェーダーをコンパイル中', 'スクリプトを開始中', '準備完了！', 'いつもより時間がかかっています', 'ステップ', '再試行', '軽量モード', 'このまま待つ', 'この端末では起動できませんでした', ['「Hey Verity」と言って、何か建ててもらおう', 'フィジックスガンでほとんど何でもつかんで、投げて、固定できる', '自分のサーバーを作ろう：リストに残るので友達が入れる', 'Mod＆マップにはコミュニティの作品がいっぱい：ワンタップでインストール'], ['モデル', 'アニメーション', 'マップ', 'ヒント', 'ファイル', 'ゲームをダウンロード中']],
+    th: ['กำลังเริ่มเอนจิน', 'กำลังเมานต์คอนเทนต์', 'กำลังโหลดโมเดลและพื้นผิว', 'กำลังคอมไพล์เชเดอร์', 'กำลังเริ่มสคริปต์', 'พร้อมแล้ว!', 'ใช้เวลานานกว่าปกติ', 'ขั้นตอน', 'ลองอีกครั้ง', 'โหมดเบา', 'รอต่อ', 'เริ่มเกมบนอุปกรณ์นี้ไม่ได้', ['พูดว่า “Hey Verity” แล้วขอให้เธอสร้างอะไรสักอย่าง', 'ปืนฟิสิกส์จับ ขว้าง และหยุดได้แทบทุกอย่าง', 'สร้างเซิร์ฟเวอร์ของคุณเอง: จะอยู่ในรายการให้เพื่อนเข้ามาได้', 'ในม็อดและแผนที่มีผลงานของชุมชน: ติดตั้งได้ในแตะเดียว'], ['โมเดล', 'แอนิเมชัน', 'แผนที่', 'เคล็ดลับ', 'ไฟล์', 'กำลังดาวน์โหลดเกม']],
+    tr: ['Motor başlatılıyor', 'İçerik bağlanıyor', 'Modeller ve dokular yükleniyor', 'Gölgelendiriciler derleniyor', 'Betikler başlatılıyor', 'Hazır!', 'Normalden uzun sürüyor', 'Adım', 'Tekrar dene', 'Hafif mod', 'Beklemeye devam et', 'Bu cihazda başlatılamadı', ['“Hey Verity” de ve ondan bir şey inşa etmesini iste', 'Fizik silahıyla neredeyse her şeyi tutabilir, fırlatabilir ve dondurabilirsin', 'Kendi sunucunu kur: listede kalır, arkadaşların girebilir', 'Modlar ve haritalarda topluluk yapımları var: tek dokunuşla kur'], ['model', 'animasyon', 'harita', 'İpucu', 'dosya', 'Oyun indiriliyor']],
+    ar: ['جارٍ تشغيل المحرك', 'جارٍ تحميل المحتوى', 'جارٍ تحميل النماذج والخامات', 'جارٍ تجميع المظللات', 'جارٍ تشغيل السكربتات', 'جاهز!', 'يستغرق الأمر وقتًا أطول من المعتاد', 'الخطوة', 'أعد المحاولة', 'الوضع الخفيف', 'واصل الانتظار', 'تعذّر التشغيل على هذا الجهاز', ['قل «Hey Verity» واطلب منها أن تبني شيئًا', 'بمسدس الفيزياء تمسك وترمي وتجمّد كل شيء تقريبًا', 'أنشئ خادمك الخاص: يبقى في القائمة ليدخل أصدقاؤك', 'في المودات والخرائط إبداعات المجتمع: ثبّتها بلمسة'], ['نموذج', 'حركة', 'خريطة', 'نصيحة', 'ملف', 'جارٍ تنزيل اللعبة']],
+    ru: ['Запуск движка', 'Монтирование контента', 'Загрузка моделей и текстур', 'Компиляция шейдеров', 'Запуск скриптов', 'Готово!', 'Загрузка идёт дольше обычного', 'Шаг', 'Повторить', 'Лёгкий режим', 'Подождать ещё', 'Не удалось запустить на этом устройстве', ['Скажи «Hey Verity» и попроси её что-нибудь построить', 'Физпушкой можно хватать, бросать и замораживать почти всё', 'Создай свой сервер: он останется в списке, и друзья смогут зайти', 'В «Моды и карты» — творения сообщества: ставятся в одно касание'], ['моделей', 'анимаций', 'карт', 'Совет', 'файлов', 'Загрузка игры']],
+    uk: ['Запуск рушія', 'Монтування контенту', 'Завантаження моделей і текстур', 'Компіляція шейдерів', 'Запуск скриптів', 'Готово!', 'Завантаження триває довше, ніж зазвичай', 'Крок', 'Повторити', 'Легкий режим', 'Чекати далі', 'Не вдалося запустити на цьому пристрої', ['Скажи «Hey Verity» і попроси її щось збудувати', 'Фізгарматою можна хапати, кидати й заморожувати майже все', 'Створи свій сервер: він лишиться в списку, і друзі зможуть зайти', 'У «Моди й мапи» — творіння спільноти: ставляться одним дотиком'], ['моделей', 'анімацій', 'мап', 'Порада', 'файлів', 'Завантаження гри']],
+    fr: ['Démarrage du moteur', 'Montage du contenu', 'Chargement des modèles et textures', 'Compilation des shaders', 'Démarrage des scripts', 'Prêt !', 'C’est plus long que d’habitude', 'Étape', 'Réessayer', 'Mode léger', 'Continuer d’attendre', 'Impossible de démarrer sur cet appareil', ['Dis « Hey Verity » et demande-lui de construire quelque chose', 'Avec le pistolet physique, tu attrapes, lances et figes presque tout', 'Crée ton propre serveur : il reste dans la liste pour que tes amis le rejoignent', 'Dans Mods et cartes, il y a les créations de la communauté : installe-les d’un toucher'], ['modèles', 'animations', 'cartes', 'Astuce', 'fichiers', 'Téléchargement du jeu']],
+    de: ['Engine wird gestartet', 'Inhalte werden eingebunden', 'Modelle und Texturen werden geladen', 'Shader werden kompiliert', 'Skripte werden gestartet', 'Fertig!', 'Das dauert länger als sonst', 'Schritt', 'Erneut versuchen', 'Leichter Modus', 'Weiter warten', 'Konnte auf diesem Gerät nicht starten', ['Sag „Hey Verity“ und bitte sie, etwas zu bauen', 'Mit der Physikwaffe greifst, wirfst und frierst du fast alles ein', 'Erstell deinen eigenen Server: Er bleibt in der Liste, damit Freunde beitreten können', 'Unter Mods & Karten gibt es Werke der Community: mit einem Tipp installiert'], ['Modelle', 'Animationen', 'Karten', 'Tipp', 'Dateien', 'Spiel wird heruntergeladen']]
+  };
+  var PASOS = ['abrir', 'datos', 'modelos', 'graficos', 'menus', 'listo'], P = {}, l = 'en';
+  try { P = JSON.parse(localStorage.getItem('hypper_prefs') || '{}') || {}; } catch (e) {}
+  try { l = P.lang || String((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase().split('-')[0]; } catch (e) {}
+  if (l === 'tl') l = 'fil'; if (!TX[l]) l = 'en';
+  var X = TX[l], W = window.__carga = { p: 0, paso: 'abrir', t0: Date.now(), t: Date.now(), err: '', listo: false, ayuda: false, lang: l, X: X };
+  var $ = function (i) { return document.getElementById(i); };
+  var nom = function (k) { var i = PASOS.indexOf(k); return k === 'descarga' ? X[13][5] : i >= 0 ? X[i] : k; };
+  var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  if (l === 'ar') $('carga').dir = 'rtl';
+  $('cargaTipT').textContent = X[13][3];
+  function pintar() {
+    var b = $('cargaB'), s = $('cargaPaso'), n = $('cargaPct');
+    if (b) b.style.width = (W.p * 100).toFixed(1) + '%'; if (n) n.textContent = Math.round(W.p * 100) + '%';
+    if (s) s.textContent = nom(W.paso) + (W.paso === 'listo' ? '' : '...'); var m = $('cargaMB'); if (m) m.textContent = W.paso === 'descarga' && W.mb ? W.mb : '';
   }
-  function cuadro(ms) {
-    if (!t0) t0 = ms; var t = (ms - t0) / 1000;
-    var dpr = Math.min(window.devicePixelRatio || 1, 2), W = cv.clientWidth * dpr | 0, H = cv.clientHeight * dpr | 0;
-    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
-    x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
-    var girar = H > W * 1.05 && !document.documentElement.classList.contains('rot');
-    if (girar) { x.translate(W, 0); x.rotate(Math.PI / 2); var tmp = W; W = H; H = tmp; }
-    var cx = W / 2, cy = H * 0.44, R = Math.min(W, H) * 0.3, f1 = cl((3.9 - t) / 0.4) * cl(t / 0.2);
-    if (f1 > 0) {
-      x.globalAlpha = f1;
-      // chispas que caen hacia el aro
-      x.globalCompositeOperation = 'lighter';
-      chispas.forEach(function (p) { var k = eo(t * p.v), d = R * (p.d + (p.r - p.d) * k), a = p.a + k * 1.2, al = cl(1 - k) * 0.9 + 0.1 * cl(1.2 - t);
-        x.fillStyle = 'rgba(190,215,255,' + al.toFixed(3) + ')'; x.beginPath(); x.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, p.s * dpr, 0, 6.283); x.fill(); });
-      x.globalCompositeOperation = 'source-over';
-      // disco negro y aro cromado que se dibuja
-      var ka = eo((t - 0.25) / 0.9), giro = t * 1.4;
-      x.fillStyle = '#050607'; x.beginPath(); x.arc(cx, cy, R * 0.9 * eo((t - 0.6) / 0.6), 0, 6.283); x.fill();
-      x.lineWidth = R * 0.13; x.strokeStyle = cromo(cx, cy, R, giro); x.shadowColor = 'rgba(160,200,255,.65)'; x.shadowBlur = R * 0.12 * (0.6 + 0.4 * Math.sin(t * 3));
-      x.beginPath(); x.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + 6.283 * ka); x.stroke(); x.shadowBlur = 0;
-      x.lineWidth = R * 0.018; x.strokeStyle = 'rgba(255,255,255,.55)'; x.beginPath(); x.arc(cx, cy, R * 0.93, -Math.PI / 2, -Math.PI / 2 + 6.283 * ka); x.stroke();
-      // monograma JXS con contorno cromado y el nombre
-      var km = eo((t - 1.0) / 0.6);
-      if (km > 0) {
-        x.save(); x.globalAlpha = f1 * km; x.translate(cx, cy - R * 0.12); x.scale(0.85 + 0.15 * km, 0.85 + 0.15 * km);
-        x.font = '900 ' + (R * 0.62 | 0) + 'px "Arial Black",Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-        x.lineWidth = R * 0.07; x.strokeStyle = cromo(0, 0, R * 0.5, giro + 1); x.strokeText('JXS', 0, 0); x.fillStyle = '#050607'; x.fillText('JXS', 0, 0);
-        x.lineWidth = R * 0.012; x.strokeStyle = 'rgba(255,255,255,.8)'; x.strokeText('JXS', 0, 0); x.restore();
-      }
-      var kn = eo((t - 1.6) / 0.5);
-      if (kn > 0) { x.globalAlpha = f1 * kn; x.fillStyle = '#eef2f6'; x.font = '700 ' + (R * 0.2 | 0) + 'px Roboto,Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('JXStudios', cx, cy + R * 0.42); }
-      // brillo que cruza el aro
-      var kb = cl((t - 1.9) / 0.8);
-      if (kb > 0 && kb < 1) { x.save(); x.globalAlpha = f1 * Math.sin(kb * Math.PI) * 0.7; x.beginPath(); x.arc(cx, cy, R * 1.07, 0, 6.283); x.clip();
-        var bx = cx - R * 1.3 + kb * R * 2.6, gb = x.createLinearGradient(bx - R * 0.3, 0, bx + R * 0.3, 0); gb.addColorStop(0, 'rgba(255,255,255,0)'); gb.addColorStop(.5, 'rgba(255,255,255,.9)'); gb.addColorStop(1, 'rgba(255,255,255,0)');
-        x.fillStyle = gb; x.globalCompositeOperation = 'lighter'; x.fillRect(cx - R * 1.2, cy - R * 1.2, R * 2.4, R * 2.4); x.restore(); }
-      // — JXSTUDIOS — abajo, con las líneas que se abren
-      var kl = eo((t - 2.2) / 0.6);
-      if (kl > 0) { x.globalAlpha = f1 * kl; var yb = cy + R * 1.45, tam = R * 0.17; x.font = '800 ' + (tam | 0) + 'px Roboto,Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-        var txt = 'J X S T U D I O S', an = x.measureText(txt).width; x.fillStyle = '#e8edf3'; x.fillText(txt, cx, yb);
-        x.strokeStyle = 'rgba(200,225,255,.9)'; x.lineWidth = Math.max(1, R * 0.012); x.shadowColor = 'rgba(160,200,255,.8)'; x.shadowBlur = R * 0.05;
-        var lar = R * 0.55 * kl; x.beginPath(); x.moveTo(cx - an / 2 - R * 0.1, yb); x.lineTo(cx - an / 2 - R * 0.1 - lar, yb); x.moveTo(cx + an / 2 + R * 0.1, yb); x.lineTo(cx + an / 2 + R * 0.1 + lar, yb); x.stroke(); x.shadowBlur = 0; }
-      x.globalAlpha = 1;
-    }
-    // el logo de HypperX RezoBox, con rebote y un brillo
-    var kr = cl((t - 3.9) / 0.35) * cl((DUR - t) / 0.4);
-    if (kr > 0 && logo.complete && logo.naturalWidth) {
-      var e = eo((t - 3.9) / 0.5), lw = Math.min(W * 0.78, H * 1.9 * 0.26 * logo.naturalWidth / logo.naturalHeight), lh = lw * logo.naturalHeight / logo.naturalWidth, s = 0.9 + 0.1 * e + 0.04 * Math.sin(Math.min(1, (t - 3.9) / 0.5) * Math.PI);
-      x.globalAlpha = kr; x.save(); x.translate(cx, H * 0.5); x.scale(s, s); x.drawImage(logo, -lw / 2, -lh / 2, lw, lh); x.restore(); x.globalAlpha = 1;
-    }
-    if (t >= DUR) { fin(); return; }
-    if (c.classList.contains('salir')) return; // salteada
-    requestAnimationFrame(cuadro);
+  // la consola: cada paso terminado con su tiempo y lo que cargó (números reales del juego)
+  function linea(h) {
+    var c = $('cargaCons'), d = document.createElement('div'); if (!c) return; d.innerHTML = h; c.appendChild(d);
+    while (c.children.length > 7) c.removeChild(c.firstChild);
   }
-  requestAnimationFrame(cuadro);
-  setTimeout(fin, (DUR + 2.5) * 1000); // por si la pestaña no dibuja
+  var seg = function () { return '<i>[' + ('     ' + ((Date.now() - W.t0) / 1000).toFixed(2)).slice(-6) + 's]</i> '; };
+  // det: un texto, o [[número, palabra], ...] con la palabra traducida acá (0 modelos, 1 animaciones, 2 mapas)
+  W.log = function (k, det) {
+    if (det && det.map && typeof det[0] === 'object') det = det.map(function (d) { return d[0] + (d.length > 1 ? ' ' + X[13][d[1]] : ''); }).join(' · ');
+    linea(seg() + esc(nom(k)) + (det ? ' <em>' + esc(det) + '</em>' : ''));
+  };
+  W.set = function (p, paso) { if (p > W.p) W.p = Math.min(1, p); if (paso) W.paso = paso; W.t = Date.now(); if (W.ayuda && !W.fallo) ocultar(); pintar(); };
+  linea(seg() + 'Definitive RezoBox 1.0 <em>' + innerWidth + '×' + innerHeight + (navigator.deviceMemory ? ' · ' + navigator.deviceMemory + ' GB' : '') + (navigator.hardwareConcurrency ? ' · ' + navigator.hardwareConcurrency + ' CPU' : '') + '</em>');
+  // el fondo: capturas del juego que se van fundiendo, con el nombre del mapa abajo
+  var FON = [/*FONDOSCARGA*/], capas = document.querySelectorAll('#carga .cgFondo'), iF = Math.floor(Math.random() * (FON.length || 1)), cF = 0;
+  function fondo(ya) {
+    if (!FON.length) return; var f = FON[iF++ % FON.length], c = capas[cF ^= 1], o = capas[cF ^ 1];
+    c.style.backgroundImage = 'url(' + f[1] + ')'; c.classList.remove('kb');
+    if (ya) { c.style.transition = o.style.transition = 'none'; } void c.offsetWidth; c.classList.add('kb', 've'); o.classList.remove('ve');
+    if (ya) { void c.offsetWidth; c.style.transition = o.style.transition = ''; }
+    var m = $('cargaMapa'); if (m) m.textContent = 'map: ' + (W.mapa || f[0]);
+  }
+  fondo(); var tF = setInterval(fondo, 6500);
+  // mientras el navegador baja y lee el archivo (el paquete del juego es lo más pesado): cuánto llegó, en MB
+  // (el paquete viene en pedazos de 1 MB: cuenta los que ya llegaron enteros, sin copiar nada)
+  var PKLEN = /*PKLEN*/0, PKS = document.getElementsByClassName('pk'), tD = setInterval(function () {
+    if (!PKLEN || W.p >= 0.4 || W.listo) { clearInterval(tD); return; }
+    var n = Math.min(PKLEN, Math.max(0, PKS.length - 1) * 1048576);
+    W.mb = (n / 1048576).toFixed(1) + ' / ' + (PKLEN / 1048576).toFixed(1) + ' MB';
+    W.set(0.01 + 0.37 * n / PKLEN, 'descarga');
+  }, 150);
+  var nTip = Math.floor(Math.random() * 4), tip = function () { var e = $('cargaTip'); if (!e) return; e.style.opacity = 0; setTimeout(function () { e.textContent = X[12][nTip++ % X[12].length]; e.style.opacity = 1; }, 250); };
+  tip(); var tTip = setInterval(tip, 6500);
+  addEventListener('error', function (e) { if (!W.listo && !W.err) W.err = String((e && (e.message || (e.error && e.error.message))) || 'error').slice(0, 240); });
+  function ocultar() { W.ayuda = false; var a = $('cargaAyuda'); if (a) a.className = ''; }
+  function ayuda(fallo) {
+    W.ayuda = true; W.fallo = fallo; var a = $('cargaAyuda'), k = PASOS.indexOf(W.paso); if (!a) return;
+    a.innerHTML = '<b></b><small></small>'; a.firstChild.textContent = fallo ? X[11] : X[6];
+    a.childNodes[1].textContent = X[7] + ': ' + (k >= 0 ? X[k] : W.paso) + ' · ' + Math.round(W.p * 100) + '%' + (W.err ? ' · ' + W.err : '');
+    [[X[8], function () { location.reload(); }], [X[9], function () { try { P.gfx = 'patata'; P.res = Math.min(P.res || 70, 60); P.auto = false; localStorage.setItem('hypper_prefs', JSON.stringify(P)); localStorage.setItem('hypper_fallos', '0'); } catch (e) {} location.reload(); }, 'gris']]
+      .concat(fallo ? [] : [[X[10], function () { W.t = Date.now(); ocultar(); }, 'gris']]).forEach(function (d) { var b = document.createElement('button'); b.textContent = d[0]; b.onclick = d[1]; if (d[2]) b.className = d[2]; a.appendChild(b); });
+    a.className = 've';
+  }
+  // el vigilante: un error antes de que el juego arranque, o un paso que no avanza
+  setInterval(function () {
+    if (W.listo || W.ayuda) return; var ahora = Date.now();
+    if (W.err && W.p <= 0.02 && ahora - W.t0 > 5000) ayuda(true);
+    else if (ahora - W.t > 25000) ayuda(false);
+  }, 1000);
+  // listo: se va con un fundido (sin apuro de más: un momento para que se vea)
+  // otra vez, al entrar a una partida o a un server: su nombre, la captura de su mapa (si hay) y la consola de nuevo
+  W.abrir = function (titulo, fondoNom, mapa) {
+    var c = $('carga'), k = $('cargaCons'), t = $('cargaTit'), i = -1, j;
+    W.mapa = mapa || ''; W.listo = false; W.ayuda = false; W.p = 0; W.paso = ''; W.err = ''; W.mb = ''; W.t0 = W.t = Date.now(); ocultar();
+    c.classList.remove('oc', 'salir', 'fin', 'fallo'); if (k) k.innerHTML = ''; if (t) t.textContent = titulo || '';
+    linea(seg() + esc(titulo || ''));
+    for (j = 0; j < FON.length; j++) if (FON[j][0] === fondoNom) i = j;
+    clearInterval(tF); if (i >= 0) iF = i; fondo(true); if (i < 0) tF = setInterval(fondo, 6500);
+    clearInterval(tTip); tip(); tTip = setInterval(tip, 6500); pintar();
+  };
+  W.fin = function (cb) {
+    W.listo = true; clearInterval(tTip); W.set(1, 'listo'); W.log('listo'); ocultar();
+    var c = $('carga'); c.classList.add('fin'); var espera = /[?&]test\b/.test(location.search) ? 0 : Math.max(0, 1200 - (Date.now() - W.t0));
+    setTimeout(function () { clearInterval(tF); if (cb) try { cb(); } catch (e) {} c.classList.add('salir'); setTimeout(function () { c.classList.add('oc'); }, 520); }, espera);
+  };
+  pintar();
 })();
 </script>
 <script>/*MQTT*/</script>
 <script id="pkidx" type="application/json">/*PKIDX*/</script>
-<script id="pk" type="text/plain">/*PK*/</script>
+<!--PK-->
 <script>
 /*JS*/
 </script>

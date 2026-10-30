@@ -238,7 +238,7 @@ function cuadro(ahora) {
   }
 }
 // el lobby del menú: fondo crema de la cámara del juego y, en la tienda, el personaje con la luz de la escena
-const LOBBY_LUZ = { sol: v3(-0.322, 0.765, -0.557), solCol: [1, 0.957, 0.839], amb: [0.44, 0.43, 0.42], fondo: [0.945, 0.925, 0.875] };
+const LOBBY_LUZ = { sol: v3(-0.322, 0.765, -0.557), solCol: [1, 0.957, 0.839], amb: [0.5, 0.49, 0.5], fondo: [0.055, 0.065, 0.11] };
 function dibujarMenu() {
   const gl = R.gl, W = R.cv.width, H = R.cv.height, F = LOBBY_LUZ.fondo;
   R.cuadro = (R.cuadro || 0) + 1;
@@ -326,7 +326,7 @@ function fotoGuardar() {
 const INI = { paso: 'inicio', ok: false };
 function iniFallos(n) { try { if (n === undefined) return +localStorage.getItem('hypper_fallos') || 0; localStorage.setItem('hypper_fallos', String(n)); } catch (e) {} return 0; }
 function iniError(titulo, detalle, botones) {
-  INI.err = true; const c = $('carga'), e = $('cargaErr'); c.classList.remove('salir', 'oc'); c.classList.add('introFin'); e.innerHTML = '';
+  INI.err = true; const c = $('carga'), e = $('cargaErr'); c.classList.remove('salir', 'oc'); c.classList.add('fallo'); e.innerHTML = ''; if (window.__carga) window.__carga.ayuda = true;
   e.innerHTML = '<b>' + titulo + '</b><small>' + detalle + '</small>'; e.classList.add('ve');
   for (const [t, f] of botones || []) { const b = document.createElement('button'); b.textContent = t; b.onclick = f; e.appendChild(b); }
 }
@@ -346,27 +346,35 @@ function falloInicio(err) {
   ]);
 }
 async function iniciar() {
-  const paso = (s) => { INI.paso = s; };
-  // si tarda muchísimo, se avisa en qué paso está (sin cortar nada)
-  setTimeout(() => { if (!INI.ok && !INI.err) iniError('Está tardando más de lo normal…', 'paso: ' + INI.paso, [['Reintentar', () => location.reload()]]); }, 60000);
+  // (la pantalla de carga muestra cada paso; si uno no avanza, su vigilante avisa y ofrece reintentar o el modo liviano)
+  const CG = window.__carga || { set() {}, log() {}, fin(cb) { if (cb) cb(); $('carga').classList.add('oc'); } };
+  // (lo de antes del juego, bajar y leer el archivo, ocupa hasta el 40 % de la barra: los pasos del juego van del 40 al 100)
+  const cgp = (p) => 0.4 + p * 0.6, paso = (s, p, k) => { INI.paso = s; if (k) CG.set(cgp(p), k); };
   try {
-    paso('motor gráfico');
+    paso('motor gráfico', 0.03, 'abrir');
     try { glIniciar(); } catch (e) {
       if (e && e.message === 'webgl') { iniError('Este aparato no tiene WebGL', 'Probá con Chrome actualizado.'); return; }
       throw e;
     }
     R.aniso = R.gl.getExtension('EXT_texture_filter_anisotropic');
     if (R.aniso) R.anisoMax = R.gl.getParameter(R.aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
-    paso('datos del juego');
-    await cargarPaquete((k) => ($('cargaB').style.width = k * 100 + '%'));
-    paso('gráficos'); GFX.base = perfilInicial(); aplicarGfx();
-    paso('efectos'); efectosIniciar(); marcasIniciar();
-    paso('interfaz'); uiIniciar(); entradaIniciar();
-    paso('menú'); menuIniciar(); pantallaIniciar();
-    paso('primer cuadro');
+    CG.log('abrir', (R.gl1 ? 'WebGL 1' : 'WebGL 2') + ' · ' + R.gl.getParameter(R.gl.MAX_TEXTURE_SIZE) + ' px');
+    paso('datos del juego', 0.05, 'datos');
+    let montado = false;
+    await cargarPaquete((k) => { if (k >= 0.6 && !montado) { montado = true; CG.log('datos', [[Object.keys(PK.idx).length, 4], [(PK.u8.length / 1048576).toFixed(1) + ' MB']]); } CG.set(cgp(0.05 + k * 0.7), k < 0.6 ? 'datos' : 'modelos'); });
+    CG.log('modelos', [[Object.keys(DATA.pfPorNombre).length, 0], [Object.keys(DATA.anPorNombre).length, 1], [MAPAS.length, 2]]);
+    // (entre paso y paso, un respiro para que la barra se dibuje)
+    const respiro = () => new Promise((ok) => setTimeout(ok, 0));
+    paso('gráficos', 0.78, 'graficos'); await respiro(); GFX.base = perfilInicial(); aplicarGfx();
+    paso('efectos', 0.84, 'graficos'); await respiro(); efectosIniciar(); marcasIniciar();
+    CG.log('graficos', Math.round(GFX.escala * 100) + '% · ' + GFX.lejos + ' m');
+    paso('interfaz', 0.9, 'menus'); await respiro(); uiIniciar(); entradaIniciar();
+    paso('menú', 0.95, 'menus'); await respiro(); menuIniciar(); pantallaIniciar();
+    paso('primer cuadro', 0.98, 'menus');
     if (Q.get('mapa')) empezarPartida(Q.get('mapa'));
     else { JUEGO.estado = 'principal'; inicioMostrar(true); }
     cuadro(performance.now());
+    CG.log('menus', R.cv.width + '×' + R.cv.height);
   } catch (e) { console.error(e); falloInicio(e); return; }
   INI.ok = true; INI.paso = 'listo';
   const fallos = iniFallos(); iniFallos(0);
@@ -374,13 +382,8 @@ async function iniciar() {
   addEventListener('pointerdown', audioIniciar, { once: false });
   window.__listo = true;
   window.__ev = (s) => eval(s);
-  // la intro se ve entera (se puede saltear tocando); después, el menú
-  const I = window.__intro || { fin: true }, c = $('carga');
-  const salir = () => {
-    c.classList.add('apagar');
-    setTimeout(() => { PANT.enIntro = false; pantallaRevisar(); c.classList.add('salir'); setTimeout(() => c.classList.add('oc'), 480); }, TEST ? 0 : 320);
-  };
-  if (I.fin || TEST) salir(); else { I.cb = salir; c.addEventListener('pointerdown', () => { I.fin = true; salir(); }, { once: true }); }
+  // listo: la pantalla de carga se va sola (aunque algo de la pantalla falle, se va igual)
+  CG.fin(() => { PANT.enIntro = false; try { pantallaRevisar(); } catch (e) { console.warn(e); } });
 }
 document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && JUEGO.estado === 'juego' && !UI.abierto && !ENT.tactil && !TEST) abrirPausa(); });
 iniciar();

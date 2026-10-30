@@ -106,8 +106,14 @@ async function b64bytes(s) {
 async function cargarPaquete(progreso) {
   PK.idx = JSON.parse($('pkidx').textContent);
   progreso(0.1);
-  const el = $('pk'); PK.u8 = await b64bytes(el.textContent); el.textContent = '';
-  progreso(0.5);
+  // el paquete viene en pedazos de 1 MB (así la pantalla de carga ve cuánto bajó); cada uno se decodifica solo
+  const els = [...document.getElementsByClassName('pk')], tot = els.reduce((n, e) => n + e.textContent.length, 0);
+  PK.u8 = new Uint8Array(Math.ceil(tot * 3 / 4)); let o = 0;
+  for (let i = 0; i < els.length; i++) {
+    const b = await b64bytes(els[i].textContent); PK.u8.set(b, o); o += b.length; els[i].textContent = '';
+    progreso(0.1 + 0.4 * (i + 1) / els.length);
+  }
+  PK.u8 = PK.u8.subarray(0, o);
   DATA = JSON.parse(new TextDecoder().decode(await desgz(PK.parte('d'))));
   progreso(0.7);
   BIN = await desgz(PK.parte('m'));

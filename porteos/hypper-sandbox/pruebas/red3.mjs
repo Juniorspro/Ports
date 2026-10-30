@@ -14,10 +14,9 @@ const abrir = async (n) => { const p = await b.newPage({ viewport: { width: 640,
 const ev = (p, c) => p.evaluate((c) => window.__ev(c), c);
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const RR = []; const ok = (n, c, d) => { RR.push(!!c); console.log((c ? 'OK   ' : 'FALLA') + ' ' + n + ' · ' + JSON.stringify(d)); };
-const A = await abrir('A'); await ev(A, "PREFS.nombre='Ana'; overlay('NicknamePanel', false); seccion('Multiplayer'); subMp('ServerCreate'); MENU.ent.ServerNameFieldNew.value='Sala de Ana'; MENU.ent.Password.value=''; PREFS.mapa='FlatGrass'; menuAccion('Main/Multiplayer/ServerCreate/ServerCreate/CreateServerButton'); 1");
+const A = await abrir('A'); await ev(A, "PREFS.nombre='Ana'; PREFS.bienvenida = true; crearServidor({ n: 'Sala de Ana', pw: '', m: 'FlatGrass' }); 1");
 await espera(3000);
-const B = await abrir('B'); await ev(B, "PREFS.nombre='Beto'; overlay('NicknamePanel', false); menuAccion('Main/MainMenu/Multiplayer'); 1"); await espera(2500);
-await ev(B, "menuAccion('Main/Multiplayer/Main/Server List'); 1"); await espera(1500);
+const B = await abrir('B'); await ev(B, "PREFS.nombre='Beto'; PREFS.bienvenida = true; inicioMostrar(false); conectarMultijugador(); 1"); await espera(4000);
 await ev(B, "const e = listaSalas().find((x) => x.S.n === 'Sala de Ana'); entrarSala(e.S); 1"); await espera(4000);
 let bb = JSON.parse(await ev(B, "JSON.stringify({rem: [...RED.remotos.values()].map(r=>r.nombre), du: SALA && SALA.du, anf: soyAnfitrion()})"));
 const aId = JSON.parse(await ev(A, "JSON.stringify(RED.ID)"));

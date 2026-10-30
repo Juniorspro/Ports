@@ -9,6 +9,7 @@ function icoHTML(v, cl) { const s = icoSrc(v); return s ? `<img class="ico${cl ?
 // dibujos de 24×24 con trazo (o relleno donde hace falta)
 const GLIFOS = {
   mas: '<path d="M12 5v14M5 12h14"/>',
+  candado: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/>',
   props: '<path d="M4 8l8-4 8 4-8 4z"/><path d="M4 8v8l8 4 8-4V8M12 12v8"/>',
   punto: '<path d="M12 21s-6.5-5.8-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 15.2 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.3"/>',
