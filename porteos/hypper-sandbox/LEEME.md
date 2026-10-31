@@ -100,6 +100,26 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
 - **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
   leyeron: queda en 16,5 MB en vez de ~38.
+- **Maquinitas con juegos HTML** (`juego/maquinitas.js`; prueba `pruebas/maquinitas.mjs`, 13/13): el gabinete Arcade se
+  usa (E o el botón de usar: "E: Jugar") y abre la **biblioteca**: los juegos que trae RezoBox (Serpiente, Ladrillos y
+  Meteoros, hechos para el juego), **Mis juegos** (importar un .html o una dirección https; se guardan en el navegador,
+  IndexedDB, hasta 3 MB), los **de la sala** y los **de la comunidad** (la tienda). El juego elegido queda puesto en el
+  gabinete (su tapa se ve en la pantalla de la maquinita) y se juega **en el medio de la pantalla con el mundo atrás**
+  (ocupa un tercio): el HUD de siempre se va y en el celular aparecen **la palanca, la cruceta, A B X Y, Select y Start**,
+  que le llegan al juego como **teclas de PC** (Flechas + Espacio/Z/X/C, WASD + Espacio/E/F/Q, o mouse tocando la
+  pantalla del juego; se cambia en la barra de arriba y queda guardado en el juego). En la PC, el teclado va directo.
+  - **Aislado**: cada juego corre en un iframe sandbox sin permiso de mismo origen (no puede leer la página, tus claves
+    ni tu almacenamiento: probado); un puente chico adentro recibe las teclas (con su keyCode, para los juegos viejos) y
+    le da un localStorage en memoria para que los récords no rompan el juego.
+  - **En la sala**: el gabinete avisa qué juego tiene (también en el estado del mundo, para los que entran después) y
+    quien lo puso le pasa el HTML a quien lo quiera jugar, comprimido y de a pedazos de 24 mil letras (8 por segundo).
+  - **La comunidad**: "Publicar" sube tus juegos a la tienda con el formato nuevo `rezobox-juego` (`tienda/formato.js`
+    y `worker.js`); **la tienda de internet tiene que volver a desplegarse** (`wrangler deploy` en `tienda/`) para
+    aceptarlos y listarlos: hasta entonces la pestaña Comunidad lo dice y no muestra nada equivocado.
+- **Materiales "sin luz" negros en calidad Media**: sin posproceso, los sombreadores sin sol nunca recibían la exposición
+  (quedaba en 0) y las tapas de YouTube de las pantallas, por ejemplo, salían negras. Ahora se pone en todos.
+- The Boiled One: el vaivén al deslizarse es más chico (4,2 % ± 0,8 % del alto): con ±1,5 %, según en qué momento
+  arrancaba, a veces bajaba a menos de 2 cm del piso.
 - **15 props de Half-Life 2** (Props → HL2; prueba `pruebas/props_hl2.mjs`, 8/8): sandía, barril explosivo, barril,
   caja de madera, caja de cartón, cono, neumático, bloque de cemento, carrito, bidón de nafta, garrafa, sierra circular,
   radiador, lavarropas y contenedor de basura, con sus modelos y texturas de HL2 (bajados de adentro del RAR de GMod 10

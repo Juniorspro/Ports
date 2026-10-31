@@ -75,7 +75,8 @@ function humFlotar(P, H, dt) {
   if (sp > 0.3) { H.flX = (H.flX || 0) + (P.vel.x / sp - (H.flX || 0)) * a; H.flZ = (H.flZ || 0) + (P.vel.z / sp - (H.flZ || 0)) * a; const n = Math.hypot(H.flX, H.flZ) || 1; H.flX /= n; H.flZ /= n; }
   H.flInc = (H.flInc || 0) + (0.16 * k - (H.flInc || 0)) * Math.min(1, dt * 4);
   H.flY = (H.flY || 0) + ((k > 0 ? 1 : 0) - (H.flY || 0)) * Math.min(1, dt * 3); H.flT = (H.flT || 0) + dt;
-  H.flAlto = H.flY * (0.04 + 0.015 * Math.sin(H.flT * 3.3)) * (P.tam || 1);   // (lo suma aterrizarPies, después de apoyar)
+  // (el vaivén, chico: con ±1,5 % y según en qué fase arrancaba, deslizándose bajaba a menos de 2 cm del piso)
+  H.flAlto = H.flY * (0.042 + 0.008 * Math.sin(H.flT * 3.3)) * (P.tam || 1);   // (lo suma aterrizarPies, después de apoyar)
 }
 // agachado: piernas como sentado (cadera y rodillas dobladas) y el torso un poco adelante; la altura la corrige el piso.
 // Caminando agachado (mov > 0) se suma la diferencia entre sentado y parado a las piernas que corren: siguen dando

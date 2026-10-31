@@ -225,7 +225,7 @@ export default {
     const ip = await huella((req.headers.get('CF-Connecting-IP') || '') + (env.SAL || 'rezobox'));
     try {
       if (req.method === 'GET' && r === '/api/lista') {
-        const tipo = ['mapa', 'anim'].includes(url.searchParams.get('tipo')) ? url.searchParams.get('tipo') : 'mod', q = texto(url.searchParams.get('q'), 40), etq = url.searchParams.get('etq') || '';
+        const tipo = ['mapa', 'anim', 'juego'].includes(url.searchParams.get('tipo')) ? url.searchParams.get('tipo') : 'mod', q = texto(url.searchParams.get('q'), 40), etq = url.searchParams.get('etq') || '';
         const orden = { nuevo: 'fecha DESC', desc: 'descargas DESC, fecha DESC', pop: '(likes * 3 + descargas) DESC, fecha DESC' }[url.searchParams.get('orden')] || '(likes * 3 + descargas) DESC, fecha DESC';
         const p = Math.max(0, Math.min(200, parseInt(url.searchParams.get('p'), 10) || 0));
         let where = 'tipo = ?1 AND oculto = 0'; const args = [tipo];
@@ -263,9 +263,9 @@ export default {
         const hora = await env.DB.prepare('SELECT COUNT(*) AS n FROM items WHERE ip = ?1 AND fecha > ?2').bind(ip, Date.now() - 3600e3).first();
         if (hora && hora.n >= 5) return json({ error: 'publicaste mucho: esperá una hora' }, 429);
         const id = azar(8), clave = azar(20); v.id = id;
-        const icono = v.formato === 'rezobox-mod' ? v.icono : v.foto || '', tipo = { 'rezobox-mod': 'mod', 'rezobox-mapa': 'mapa', 'rezobox-anim': 'anim' }[v.formato];
+        const icono = v.formato === 'rezobox-mod' ? v.icono : v.foto || '', tipo = { 'rezobox-mod': 'mod', 'rezobox-mapa': 'mapa', 'rezobox-anim': 'anim', 'rezobox-juego': 'juego' }[v.formato];
         await env.DB.prepare('INSERT INTO items (id, tipo, nombre, autor, descripcion, etiquetas, icono, base, datos, fecha, clave, ip, codigo) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)')
-          .bind(id, tipo, v.nombre, v.autor, v.descripcion, JSON.stringify(v.etiquetas), icono, (v.formato === 'rezobox-anim' ? v.cat : v.base) || null, JSON.stringify(v), Date.now(), await huella(clave), ip, v.codigo ? 1 : 0).run();
+          .bind(id, tipo, v.nombre, v.autor, v.descripcion, JSON.stringify(v.etiquetas), icono, (v.formato === 'rezobox-anim' ? v.cat : v.formato === 'rezobox-juego' ? v.ctrl : v.base) || null, JSON.stringify(v), Date.now(), await huella(clave), ip, v.codigo ? 1 : 0).run();
         return json({ id, clave });
       }
       if (req.method === 'POST' && (m = /^\/api\/(like|denunciar)\/([a-z0-9]{8})$/.exec(r))) {
@@ -416,7 +416,7 @@ export default {
         await c.put(ck, new Response(wav, { headers: { 'Content-Type': 'audio/wav', 'Cache-Control': 'public, max-age=604800' } }));
         return new Response(wav, { headers: cab });
       }
-      if (r === '' || r === '/api') return json({ tienda: 'HypperX RezoBox', formatos: ['rezobox-mod', 'rezobox-mapa', 'rezobox-anim'], etiquetas: ETIQUETAS });
+      if (r === '' || r === '/api') return json({ tienda: 'HypperX RezoBox', formatos: ['rezobox-mod', 'rezobox-mapa', 'rezobox-anim', 'rezobox-juego'], etiquetas: ETIQUETAS });
       return json({ error: 'no encontrado' }, 404);
     } catch (e) {
       return json({ error: 'error del servidor' }, 500);

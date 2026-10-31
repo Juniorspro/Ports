@@ -294,7 +294,7 @@ function dibujar() {
   // juntar todo lo que hay que dibujar (el mapa fijo marcado aparte para la copia de sombras)
   const t0 = performance.now();
   R.fase = 'mundo'; dibujarMundo(); R.fase = '';
-  dibujarObjetos(); aguaEncolar();
+  dibujarObjetos(); aguaEncolar(); maqDibujar();
   if (typeof dibujarPersonas === 'function') dibujarPersonas();
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();

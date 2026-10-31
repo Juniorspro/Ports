@@ -141,6 +141,7 @@ function cerrarPaneles() {
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
   for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan', 'verPan', 'verTuto', 'verTerm', 'verCrea']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
   $('chatIn').classList.add('oc');
+  if (typeof maqPanelCerrar === 'function') { maqPanelCerrar(); if ($('maqVista') && !$('maqVista').classList.contains('oc')) maqVistaCerrar(); }
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }
 function abrirPausa() { UI.abierto = 'pausa'; $('pausa').classList.remove('oc'); soltarPuntero(); }

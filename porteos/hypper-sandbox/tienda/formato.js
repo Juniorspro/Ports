@@ -14,11 +14,15 @@
 //                  hora, gravedad, objetos: [{ n, p, q, f }], aparicion: [x, y, z],
 //                  roles: [{ id, nombre, color, skin, armas, vida, velocidad, salto }], spawns: [{ p, yaw, rol }],
 //                  entidades: [{ t: tipo, p: [x, y, z], yaw, prm: { ... } }], codigo: 'JavaScript' }
+// Juego (.rbjuego): { formato: 'rezobox-juego', version: 1, nombre, autor, descripcion, etiquetas, foto, ctrl ('flechas' |
+//                  'wasd' | 'raton': qué teclas mandan los botones de la maquinita), html: el juego entero (hasta 1,8 MB) }
+//                  — para las maquinitas del juego; corre aislado (iframe sin mismo origen)
 export const ETIQUETAS_RB = ['jugabilidad', 'fisica', 'armas', 'personajes', 'diversion', 'construccion', 'vehiculos', 'aventura', 'pvp', 'otros'];
 export const MAPAS_BASE_RB = ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space', 'RB_Llanura', 'RB_Colinas', 'RB_Isla', 'RB_Ciudad', 'RB_Desierto', 'RB_Luna'];
 export const HUESOS_ANIM_RB = ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand', 'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand',
   'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase', 'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase'];
 export const CATS_ANIM_RB = ['baile', 'gesto', 'accion'];
+export const CTRL_JUEGO_RB = ['flechas', 'wasd', 'raton'];
 export const ENTIDADES_RB = ['boton_autos', 'teleport', 'zona_muerte', 'cartel', 'piano', 'radio', 'rampa', 'luz', 'impulso', 'meta', 'musica', 'pantalla'];
 const NOMBRE_RB = /^[A-Za-z0-9_ ()\-.]{1,40}$/;
 const rbTexto = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -100,6 +104,11 @@ export function validarRB(d) {
     const ap = rbVec(d.aparicion, 3, 1e5);
     return { formato: 'rezobox-mapa', ...base, base: d.base, foto: rbImagen(d.foto, 120000), hora: d.hora == null || d.hora === '' ? null : rbNum(d.hora, 0, 24, 12),
       gravedad: rbNum(d.gravedad, -50, 100, 1), objetos, aparicion: ap, roles, spawns, entidades };
+  }
+  if (d.formato === 'rezobox-juego') {
+    const html = typeof d.html === 'string' ? d.html : '';
+    if (html.length < 20 || html.length > 1800000) return 'el juego tiene que ser un HTML de hasta 1,8 MB';
+    return { formato: 'rezobox-juego', ...base, foto: rbImagen(d.foto, 120000), ctrl: CTRL_JUEGO_RB.includes(d.ctrl) ? d.ctrl : 'flechas', html };
   }
   return 'formato desconocido';
 }

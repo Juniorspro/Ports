@@ -239,7 +239,7 @@ function redPaso(dt) {
   }
   if (RED.wSucio || t - RED.ultW > 8) {
     RED.wSucio = false; RED.ultW = t;
-    const o = OBJS.filter((x) => !x.remoto).slice(-300).map((x) => [x.id, x.nombre, r3(x.b.pos.x), r3(x.b.pos.y), r3(x.b.pos.z), r4(x.b.q.x), r4(x.b.q.y), r4(x.b.q.z), r4(x.b.q.w), x.b.frozen ? 1 : 0]);
+    const o = OBJS.filter((x) => !x.remoto).slice(-300).map((x) => [x.id, x.nombre, r3(x.b.pos.x), r3(x.b.pos.y), r3(x.b.pos.z), r4(x.b.q.x), r4(x.b.q.y), r4(x.b.q.z), r4(x.b.q.w), x.b.frozen ? 1 : 0, maqAlMundo(x)]);   // (el último: el juego de la maquinita)
     publicar('w/' + RED.ID, { o, e: entidadesMias(), md: [...SMOD.ids] }, true);
   }
   redEstadoUI();
@@ -348,6 +348,7 @@ function recibirMundo(id, d) {
       o.remoto = true; o.key = key; o.auth = id; o.congReal = !!x[9]; o.b.pos.copy(p); o.b.q.copy(q); o.b.updateWorld(); o.meta = { p: p.clone(), q: q.clone() };
       RED.objs.set(key, o);
     } else if (o.auth !== RED.ID) { o.meta.p.copy(p); o.meta.q.copy(q); o.congReal = !!x[9]; }
+    if (x[10]) maqDeMundo(o, x[10]);
   }
   for (const [k, o] of [...RED.objs]) if (o.dueno === id && !vivos.has(k)) { borrarObjeto(o, true); RED.objs.delete(k); }
 }
@@ -410,6 +411,7 @@ function recibirHecho(d) {
   } else if (d.k === 'jalar') { natRed(d);
   } else if (d.k === 'cic') { cicRed(d);
   } else if (typeof d.k === 'string' && /^ver[dqgawc]$/.test(d.k)) { verRed(d); // (Verity: lo que dice, preguntas, agarre, animación, llamada, crear)
+  } else if (d.k === 'maq' || d.k === 'maqp' || d.k === 'maqd') { maqRed(d);
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
   } else if (d.k === 'fnn' || d.k === 'fnb' || d.k === 'fnx' || d.k === 'fne' || d.k === 'fnv') { nocheRed(d); // (la noche en la pizzería)
   } else if (d.k === 'dano' && d.to === RED.ID) {
