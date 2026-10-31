@@ -580,6 +580,11 @@ function glIniciar() {
   if (!gl) { gl = cv.getContext('webgl', op) || cv.getContext('experimental-webgl', op); R.gl1 = true; }
   if (!gl) throw new Error('webgl');
   R.gl = gl;
+  // si el aparato se queda sin memoria (o la app pasa a segundo plano mucho tiempo) el navegador puede perder el contexto
+  // de WebGL: antes la pantalla quedaba negra para siempre. Se deja de dibujar y, cuando el navegador lo devuelve, se
+  // recarga (rehacer cada malla, textura y shader a mano es justo lo que puede volver a fallar)
+  cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); R.perdido = true; try { aviso(T('gfx.recupera'), 3); } catch (x) {} }, false);
+  cv.addEventListener('webglcontextrestored', () => { location.reload(); }, false);
   if (R.gl1) gl1Preparar(gl);
   else {
     R.extFloat = gl.getExtension('EXT_color_buffer_float'); gl.getExtension('OES_texture_float_linear');
@@ -773,7 +778,7 @@ function encolar(mi, sub, mat, M, huesos, extra) {
   let p = R.items[R.nItems];
   if (!p) p = R.items[R.nItems] = { m: null, s0: 0, sn: 0, mt: null, M: null, h: null, x: null, z: 0, cx: 0, cy: 0, cz: 0, r: 0, est: false, vista: false };
   R.nItems++;
-  p.m = m; p.s0 = s[0]; p.sn = s[1]; p.mt = mt; p.M = M || IDM; p.h = huesos; p.x = extra || null; p.est = R.fase === 'mundo'; p.vista = R.fase === 'vista';
+  p.m = m; p.s0 = s[0]; p.sn = s[1]; p.mt = mt; p.M = M || IDM; p.h = huesos; p.x = extra || null; p.est = R.fase === 'mundo'; p.vista = R.fase === 'vista'; p.ns = !!R.encNs;   // (ns: no hace sombra)
   if (!huesos) {
     // mallas con varias partes (el mapa viene "pegado" en una sola): la esfera de cada parte
     const e = m.d.sub.length > 1 ? esferaSub(m, sub) : null, c = e || m.c, r = e ? e[3] : m.r;

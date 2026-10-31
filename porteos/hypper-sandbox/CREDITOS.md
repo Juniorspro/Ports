@@ -57,3 +57,4 @@ referencia → modelo 3D texturado y riggeado (Higgsfield, Meshy) → `skin_mesh
 se generó con Tripo H3.1 (Meshy lo rechazaba) sin riggear y lo riggea `rig_flotante.py`; a Uncle Jeppy se le repintó la
 cara desde su imagen con `cara_glb.py`.
 
+Herramientas usadas al empaquetar (no van en el juego): pyfqmr (Fast Quadric Mesh Reduction, MIT) para los LOD de los personajes.

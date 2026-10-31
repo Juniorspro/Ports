@@ -29,6 +29,7 @@ const IDI3 = {
   'emo.clasico': ['Clásicos', 'Classics', 'Clássicos', 'Klasik', 'Klasik', 'Klasiko', 'クラシック', 'คลาสสิก', 'Klasikler', 'كلاسيكية', 'Классика', 'Класика', 'Classiques', 'Klassiker'],
   'emo.mio': ['Míos', 'Mine', 'Meus', 'Milikku', 'Milik saya', 'Akin', '自分の', 'ของฉัน', 'Benimkiler', 'خاصتي', 'Мои', 'Мої', 'Les miens', 'Meine'],
   'emo.tienda': ['Tienda', 'Store', 'Loja', 'Toko', 'Kedai', 'Tindahan', 'ストア', 'ร้านค้า', 'Mağaza', 'المتجر', 'Магазин', 'Магазин', 'Boutique', 'Shop'],
+  'gfx.recupera': ['Recuperando los gráficos…', 'Recovering graphics…', 'Recuperando os gráficos…', 'Memulihkan grafis…', 'Memulihkan grafik…', 'Binabawi ang graphics…', 'グラフィックを復旧中…', 'กำลังกู้คืนกราฟิก…', 'Grafikler kurtarılıyor…', 'جارٍ استعادة الرسوميات…', 'Восстанавливаем графику…', 'Відновлюємо графіку…', 'Récupération des graphismes…', 'Grafik wird wiederhergestellt…'],
   'emo.fav': ['Favoritos', 'Favorites', 'Favoritos', 'Favorit', 'Kegemaran', 'Paborito', 'お気に入り', 'รายการโปรด', 'Favoriler', 'المفضلة', 'Избранное', 'Обране', 'Favoris', 'Favoriten'],
   'emo.rec': ['Recientes', 'Recent', 'Recentes', 'Terbaru', 'Terkini', 'Kamakailan', '最近', 'ล่าสุด', 'Son kullanılan', 'الأخيرة', 'Недавние', 'Нещодавні', 'Récents', 'Zuletzt'],
   'emo.pelea': ['Peleas', 'Fights', 'Lutas', 'Bertarung', 'Lawan', 'Laban', '格闘', 'ต่อสู้', 'Dövüş', 'قتال', 'Драки', 'Бійки', 'Combats', 'Kämpfe'],

@@ -75,14 +75,17 @@ class Modelo {
       }
       if (this.resK > 0) { const e = 0.26 * this.resK; extra = Object.assign({}, extra || {}, { em: [0.5 * e, 1.1 * e, 1.8 * e] }); }
     }
-    const A = this.A;
+    // lejos: la versión simplificada de las mallas con piel (lods, de herramientas/lod_skins.py: mismos huesos) y, si
+    // se pidió, sin sombra
+    const A = this.A, lb = this.lodBajo; R.encNs = !!this.sinSombra;
     for (let i = 0; i < A.length; i++) {
       if (!this.ver[i]) continue;
       const x = A[i];
-      if (x.bo) { const pz = this.pieles.find((q) => q.i === i); for (let k = 0; k < x.mt.length; k++) encolar(x.m, k, x.mt[k], IDM, pz.h, extra); continue; }
+      if (x.bo) { const pz = this.pieles.find((q) => q.i === i), lo = lb && DATA.ms[x.m].lods; for (let k = 0; k < x.mt.length; k++) encolar(lo ? lo[0] : x.m, k, x.mt[k], IDM, pz.h, extra); continue; }
       if (x.sb) { for (let k = 0; k < x.mt.length; k++) encolar(x.m, x.sb[0] + k, x.mt[k], IDM, null, extra); continue; }
       for (let k = 0; k < x.mt.length; k++) encolar(x.m, k, x.mt[k], this.W[i], null, extra);
     }
+    R.encNs = false;
   }
 }
 // cuaternión de un nodo en el mundo (sacado de su matriz)

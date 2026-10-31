@@ -80,6 +80,24 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   Finn 0,8 (un nene) y los Rick son altos. Jugando con uno bajito la cápsula es más baja (Jake pasa por abajo de una mesa
   a 1,2 m), los ojos van a su altura (`--ojo`), la cámara de tercera persona se acerca, y para los demás su cápsula y su
   nombre arriba también son de su tamaño (un tiro por arriba de la cabeza de Jake no le pega). `skins_nuevos.mjs`.
+- **Menos lag con mucha gente** (medido con 24 jugadores repartidos entre 6 y 48 m, en el navegador de pruebas):
+  medio de 340 mil a 67 mil triángulos por cuadro (97 → 41 dibujos, 6,7 → 13,6 cuadros por segundo) y alto de 557 mil a
+  97 mil (141 → 79 dibujos, 3,9 → 7,1):
+  - cada personaje tiene una versión simplificada al 20 % de los triángulos (`herramientas/lod_skins.py`, con pyfqmr):
+    la malla se suelda por posición y se simplifica entera, y cada triángulo nuevo toma la isla de UV del original más
+    cercano (proyectado ahí: UV, normal y pesos), así las costuras no se corren; mismos huesos. Se usa cuando el
+    personaje ocupa menos del 20 % del alto de la pantalla (12 % en ultra); a esa distancia no se nota. Suma 2,9 MB al
+    HTML (54,8 MB; una sola versión: dos sumaban 4,5);
+  - los que no se ven (fuera de la cámara y a más de 4 m) no se animan ni se dibujan (el tiempo se junta para cuando
+    vuelven), los de más de 40 m se animan un cuadro sí y uno no, y los de más de 22 m (35 en alto y ultra) no hacen
+    sombra.
+- **Titileos negros en el celular**: cambiar el tamaño del lienzo lo borra, y la resolución dinámica lo hacía después de
+  dibujar el cuadro (el navegador mostraba el cuadro vacío, negro). Ahora se hace al empezar el cuadro siguiente, sólo si
+  cambió, y la resolución ya no sube y baja cada segundo (para subir hacen falta dos segundos seguidos con resto y 3 s
+  desde el último cambio). Si el aparato pierde el contexto de WebGL (sin memoria, o en segundo plano mucho tiempo) ya no
+  queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
+- **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
+  leyeron: queda en 16,5 MB en vez de ~38.
 - **2175 emotes de captura de movimiento** (la base de CMU, conversión BVH "Poser-friendly" de B. Hahne, dominio
   público) con **panel por secciones**: Todos, Favoritos, Recientes, Clásicos, Bailes, Gestos, Acciones, Peleas,
   Deportes, Acrobacias, Animales, Caminar y correr, Otros, Míos y Tienda, con buscador (en todas las secciones), la

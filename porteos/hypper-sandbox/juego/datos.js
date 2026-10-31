@@ -133,6 +133,12 @@ async function cargarPaquete(progreso) {
   if (gz) { try { const r = await gz.r; if (!gzErr) BIN = new Uint8Array(r); } catch (e) {} }
   if (!BIN) BIN = await desgz(PK.parte('m'));   // (sin descompresor del navegador, o si falló: entero, como antes)
   if (M && M[2] === 1) desfiltrarIndices();
+  // lo que ya se leyó (los datos y las mallas comprimidas, ~19 MB) no hace falta más: el paquete se queda sólo con lo que
+  // se pide después (texturas, sonidos, íconos, videos). Importa en los celulares de 2 GB
+  { const quedan = Object.entries(PK.idx).filter(([k]) => k !== 'd' && k !== 'm'); let t = 0; for (const [, e] of quedan) t += e[1];
+    const nu = new Uint8Array(t), idx = {}; let o2 = 0;
+    for (const [k, e] of quedan) { nu.set(PK.u8.subarray(e[0], e[0] + e[1]), o2); idx[k] = [o2, e[1]]; o2 += e[1]; }
+    PK.u8 = nu; PK.idx = idx; }
   progreso(0.95);
   // índices por nombre
   DATA.pfPorNombre = {};

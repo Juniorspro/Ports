@@ -71,13 +71,19 @@ function aplicarGfx() {
   }
   if (AUD.master) AUD.master.gain.value = PREFS.vol / 100;
   ENT.sens = 0.00018 * PREFS.sens; ENT.sensT = ENT.sens * 2.6;
-  redimensionar();
+  redimensionarYa();   // (al cambiar los gráficos, ya: no es en medio de la partida)
 }
-function redimensionar() {
+// Cambiar el tamaño del lienzo lo borra: hecho después de dibujar un cuadro, el navegador mostraba ese cuadro vacío (un
+// titileo negro, en el celular cada vez que la resolución dinámica subía o bajaba). Ahora se pide y se hace al empezar
+// el cuadro siguiente, antes de dibujar
+function redimensionar() { R.redim = true; }
+function redimensionarYa() {
+  R.redim = false;
   // (con tope de píxeles por calidad: en pantallas enormes o muy densas no se dibujan más puntos de los que se notan)
   const dpr = Math.min(devicePixelRatio || 1, 2), w = VW(), h = VH(), tope = { patata: 0.5e6, bajo: 0.9e6, medio: 1.4e6, alto: 2.2e6, ultra: 3.7e6 }[GFX.nombre] || 2.2e6;
   const k = Math.min(dpr * GFX.escala, Math.sqrt(tope / Math.max(1, w * h)));
-  R.cv.width = Math.max(160, Math.round(w * k)); R.cv.height = Math.max(120, Math.round(h * k));
+  const W = Math.max(160, Math.round(w * k)), H = Math.max(120, Math.round(h * k));
+  if (R.cv.width !== W) R.cv.width = W; if (R.cv.height !== H) R.cv.height = H;   // (si no cambió, no se toca: igual borraría)
 }
 addEventListener('resize', () => R.cv && redimensionar());
 // ---------------- cámara ----------------
@@ -179,6 +185,8 @@ function cuadro(ahora) {
   requestAnimationFrame(cuadro);
   const t = ahora / 1000, dt = Math.min(0.1, Math.max(0, t - (TIEMPO.ult || t))) * (JUEGO.estado === 'juego' ? MODS.tiempo || 1 : 1); TIEMPO.ult = t; TIEMPO.dt = dt; TIEMPO.t += dt;
   const t0 = performance.now();
+  if (R.perdido) return;   // (sin contexto de WebGL: nada que dibujar hasta que vuelva)
+  if (R.redim && R.cv) redimensionarYa();
   if (JUEGO.estado === 'carga') return;
   entradaLeer(); atenderPulsos();
   // mirar
@@ -228,8 +236,11 @@ function cuadro(ahora) {
     // resolución mínima igual no alcanza baja una calidad entera
     const din = GFX.auto || PREFS.resDin !== false, piso = GFX.auto ? 0.5 : Math.max(0.5, GFX.escalaMax * 0.6);
     if (din && JUEGO.estado === 'juego' && !UI.abierto && !TEST) {
-      if (TIEMPO.fps < 48 && GFX.escala > piso) { GFX.escala = Math.max(piso, GFX.escala - 0.08); redimensionar(); TIEMPO.bajos = 0; }
-      else if (TIEMPO.fps > 57 && ms < 9 && GFX.escala < GFX.escalaMax) { GFX.escala = Math.min(GFX.escalaMax, GFX.escala + 0.04); redimensionar(); }
+      // (sin ir y venir: para volver a subir hacen falta dos segundos seguidos con resto y que hayan pasado 3 s del último
+      // cambio; si no, en un celular que anda entre 48 y 57 cuadros la resolución subía y bajaba cada segundo)
+      TIEMPO.sobra = TIEMPO.fps > 57 && ms < 9 ? (TIEMPO.sobra || 0) + 1 : 0; const quieto = TIEMPO.t - (TIEMPO.resT || -99) > 3;
+      if (TIEMPO.fps < 48 && GFX.escala > piso) { GFX.escala = Math.max(piso, GFX.escala - 0.08); redimensionar(); TIEMPO.bajos = 0; TIEMPO.resT = TIEMPO.t; TIEMPO.sobra = 0; }
+      else if (TIEMPO.sobra >= 2 && quieto && GFX.escala < GFX.escalaMax) { GFX.escala = Math.min(GFX.escalaMax, GFX.escala + 0.04); redimensionar(); TIEMPO.resT = TIEMPO.t; TIEMPO.sobra = 0; }
     }
     if (GFX.auto && JUEGO.estado === 'juego' && !UI.abierto && !TEST) {
       // ya en la resolución mínima y sigue lento: bajar una calidad entera (y no volver a subir en esta partida)

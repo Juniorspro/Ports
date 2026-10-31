@@ -136,7 +136,9 @@ function dibujarPersona(P) {
   P.cDib = PERS_N; // (lo que se lleva puesto, como la radio en la espalda, usa los huesos de este cuadro)
   ubicarPersona(P);
   // (sentado, en un emote o en el piso como muñeco no se clavan los pies; se olvida el apoyo viejo para no tirar del pie al volver)
-  if (!P.rag && P.hum && !P.sentado && !P.emote && !P.inclin && !P.cuad && !P.cic) { aterrizarPies(P); piesIK(P, TIEMPO.dt || 0.016); } else P.ik = null;
+  // (los emotes de captura sí pasan por el apoyo: trae la altura del piso de la captura y que nada quede abajo del piso)
+  const cmu = typeof P.emote === 'string' && P.emote.startsWith('c:');
+  if (!P.rag && P.hum && !P.sentado && (!P.emote || cmu) && !P.inclin && !P.cuad && !P.cic) { aterrizarPies(P); if (!P.emote) piesIK(P, TIEMPO.dt || 0.016); else P.ik = null; } else P.ik = null;
   P.md.encolar();
   if (P.gorroMd && !P.cicManos) {
     const hi = P.D.h.Head;
@@ -482,11 +484,22 @@ function personasPaso(dt) {
     if (Q2.rag) { ragdollPaso(Q2); if (Q2.npc && (Q2.muertoT -= dt) <= 0) borrarPersona(Q2); }
   }
 }
+// con mucha gente: los que no se ven (fuera de la cámara y no al lado) no se animan ni se dibujan (el tiempo se junta para
+// cuando vuelven); los de más de 40 m se animan un cuadro sí y uno no; los que ocupan menos del 20 % del alto de la
+// pantalla usan su malla simplificada y los lejanos no hacen sombra
 function dibujarPersonas() {
   PERS_N++;
+  const F = R.fr, cp = R.camPos, ty = Math.tan((CAM.fov || 70) * Math.PI / 360), umbral = GFX.lod === 0 && (GFX.sombra || 0) >= 3 ? 0.12 : 0.2, dSom = (GFX.sombra || 0) >= 2 ? 35 : 22;
   for (const P of PERS) {
-    if (P === JUG.cuerpo) { const ver = JUG.tercera || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh) || P.cicManos; if (!ver) continue; }
-    if (!P.rag) animarPersona(P, TIEMPO.dt);
+    const yo = P === JUG.cuerpo;
+    if (yo) { const ver = JUG.tercera || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh) || P.cicManos; if (!ver) continue; }
+    const tk = P.tam || 1, dx = P.pos.x - cp.x, dy = P.pos.y - cp.y, dz = P.pos.z - cp.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    P.dtJunto = Math.min(0.25, (P.dtJunto || 0) + (TIEMPO.dt || 0.016));
+    if (!yo && d > 4 && F && !sphereIn(F, P.pos.x, P.pos.y - 1 + 0.95 * tk, P.pos.z, 1.4 * tk)) continue;
+    if (!P.rag && (yo || d <= 40 || (PERS_N + (P.n1 || (P.n1 = 1 + (Math.random() * 7 | 0)))) % 2 === 0)) { animarPersona(P, P.dtJunto); P.dtJunto = 0; }
+    const frac = 1.9 * tk / (2 * ty * Math.max(d, 0.1));
+    P.md.lodBajo = !yo && (P.md.lodBajo ? frac < umbral + 0.01 : frac < umbral - 0.01);
+    P.md.sinSombra = !yo && d > dSom;
     dibujarPersona(P);
   }
 }

@@ -156,7 +156,7 @@ function sombrasDibujar(C, estaticos, ci) {
   R.progAct = null; R.texAct = null; R.vaoAct = null;
   for (let i = 0; i < R.nItems; i++) {
     const p = R.items[i];
-    if (p.est !== estaticos || p.vista || !p.mt.sombra || p.r < minR) continue;
+    if (p.est !== estaticos || p.vista || p.ns || !p.mt.sombra || p.r < minR) continue;
     if (!sphereIn(F, p.cx, p.cy, p.cz, p.r)) continue;
     const cut = p.mt.cut, P = prepararProg(progDe((cut ? 'CUT' : '') + (conPiel(p) ? ',SKIN' : ''), 'depth'));
     if (cut) { if (R.texAct !== p.mt) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texGL(p.mt.tex)); R.texAct = p.mt; } gl.uniform4fv(P.u.uC, p.mt.c); }
