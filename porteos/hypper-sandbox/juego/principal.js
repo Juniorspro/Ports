@@ -168,7 +168,8 @@ function atenderPulsos() {
     else if (k === 'emotes') abrirEmotes();
     else if (k === 'recargar') recargar();
     else if (k === 'usar') { if (typeof usar === 'function') usar(); }
-    else if (k === 'salir') { if (JUG.vehiculo) salirVehiculo(); }
+    else if (k === 'salir') { if (JUG.vehiculo) salirVehiculo(); else patear(); }   // (F: a pie, patada)
+    else if (k === 'patada') patear();
     else if (k === 'borrarApuntado') borrarApuntado();
     else if (k === 'deshacer') { const o = DESHACER.pop(); if (o && OBJS.includes(o)) { borrarObjeto(o); aviso('Deshecho: ' + o.nombre, 1); } }
     else if (k === 'lejos') ENT.pulsoDist = (ENT.pulsoDist || 0) + 1.5;
@@ -222,7 +223,7 @@ function cuadro(ahora) {
   }
   efectosPaso(dt);
   camaraActualizar(dt);
-  aguaPaso(dt); sonidosPaso(dt);
+  aguaPaso(dt); sonidosPaso(dt); patadasPaso(dt);
   dibujar();
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso();

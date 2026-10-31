@@ -169,7 +169,10 @@ function animarHumano(P, dt) {
   H.t += dt; H.gm = false;
   // la dirección del movimiento respecto de adonde mira
   const sp = Math.hypot(P.vel.x, P.vel.z);
-  if (P.emote && E[P.emote]) {
+  if (P.emote === 'Patada' && E.Kick) {   // (patadas.js: el tramo del golpe del clip Kick, más rápido)
+    const t = PAT.de + P.emoteT * PAT.v; humClip(E.Kick[0], Math.min(t, PAT.a), 1, T);
+    if (t >= PAT.a) P.emote = null;
+  } else if (P.emote && E[P.emote]) {
     const c = E[P.emote][0]; humClip(c, P.emoteT, 1, T);
     if ((P.emote === 'Backflip' || P.emote === 'Kick') && P.emoteT > c.d) P.emote = null;
   } else if (P.sentado) {

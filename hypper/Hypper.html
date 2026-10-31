@@ -3858,7 +3858,7 @@ function jugadorPaso(dt, ent) {
   const f = qy.rot(v3(0, 0, 1)), rgt = qy.rot(v3(-1, 0, 0));
   const wish = v3(f.x * ent.y + rgt.x * ent.x, 0, f.z * ent.y + rgt.z * ent.x);
   const wl = Math.min(1, wish.len()); if (wl > 1e-3) wish.scale(1 / wish.len());
-  const vmax = J.vel_max * (ent.correr ? 1.35 : 1) * (ent.agachar ? 0.5 : 1) * (J.vadeo || 1);
+  const vmax = J.vel_max * (ent.correr ? 1.35 : 1) * (ent.agachar ? 0.5 : 1) * (J.vadeo || 1) * (patadaActiva(J.cuerpo) ? 0.35 : 1);   // (pateando, casi quieto)
   if (J.noclip) {
     const fv = J.q.rot(v3(0, 0, 1));
     J.vel.set((fv.x * ent.y + rgt.x * ent.x) * vmax * 2, (fv.y * ent.y + (ent.saltar ? 1 : 0) - (ent.agachar ? 1 : 0)) * vmax * 2, (fv.z * ent.y + rgt.z * ent.x) * vmax * 2);
@@ -5427,6 +5427,64 @@ function dibujarRayoFisica() {
   }
 }
 
+// ---------------- patadas ----------------
+// F (a pie; en un vehículo sigue siendo bajar) o el botón de la patada en el celular: la patada de verdad del juego (el
+// clip "Kick", su tramo del golpe al doble de velocidad: 0,64 s). Al estirar la pierna (a los 0,2 s) empuja los props que
+// tiene adelante, lastima y empuja a la gente y tira los muñecos. En primera persona se ve el cuerpo (sin la cabeza, que
+// taparía la cámara): se ve la pierna. Los demás la ven por el estado (emote "Patada").
+const PAT = { de: 0.55, a: 1.95, v: 2.2, golpe: 0.2, espera: 0.75, t: -9 };
+const patadaActiva = (P) => P && P.emote === 'Patada';
+function patear() {
+  const P = JUG.cuerpo;
+  if (!P || !JUG.vivo || JUG.vehiculo || JUG.nada || P.rag || TIEMPO.t - PAT.t < PAT.espera) return;
+  PAT.t = TIEMPO.t; PAT.pego = false;
+  P.emote = 'Patada'; P.emoteT = 0;
+  sonar('CB_Swing', null, 0.55, 0.85 + Math.random() * 0.1);
+}
+// la cabeza y los brazos achicados a nada (pateando en primera persona: taparían la cámara y se meterían en la vista;
+// queda la pierna) o de vuelta a su tamaño
+const PAT_HUESOS = ['Head', 'LeftShoulder', 'RightShoulder'];
+function patadaCabeza(P, sin) {
+  if (!P || (!sin && !P.cabezaS)) return;
+  if (!P.cabezaS) P.cabezaS = PAT_HUESOS.map((n) => { const i = P.D.h[n]; return i === undefined ? null : [i, P.md.s[i].slice()]; }).filter(Boolean);
+  const k = sin ? 0.001 : 1;
+  for (const [i, s0] of P.cabezaS) { const s = P.md.s[i]; s[0] = s0[0] * k; s[1] = s0[1] * k; s[2] = s0[2] * k; }
+  if (!sin) P.cabezaS = null; P.md.sucio = true;
+}
+// cada cuadro: el golpe en su momento (sólo la mía; la de los demás la hace cada uno en su juego)
+function patadasPaso(dt) {
+  const P = JUG.cuerpo;
+  if (P && P.cabezaS && !patadaActiva(P)) patadaCabeza(P, false);   // (terminó en primera persona: el cuerpo ya no se dibuja, la cabeza vuelve igual)
+  if (!patadaActiva(P) || PAT.pego || P.emoteT < PAT.golpe) return;
+  PAT.pego = true;
+  const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), tk = P.tam || 1, pie = vadd(JUG.pos, v3(f.x * 0.85 * tk, -0.95 + 0.75 * tk, f.z * 0.85 * tk)), R = 0.75 * tk;
+  let pego = null;
+  // los props: empujón hacia adelante y un poco arriba (como mucho 9 m/s; a lo liviano más)
+  for (const o of OBJS) {
+    const b = o.b; if (!b || b.noPhys || b.dead || (b.frozen && !o.remoto)) continue;
+    if (b.pos.distTo(pie) > R + (b.shape.r || 0.5)) continue;
+    const d = vsub(b.pos, JUG.pos); d.y = 0; if (vdot(d, f) < 0) continue;
+    if (o.remoto) redReclamar(o);
+    const dv = Math.min(9, 600 / Math.max(b.mass, 1));
+    b.wake(); b.vel.addS(f, dv); b.vel.y += dv * 0.35; b.ang.addS(vcross(v3(0, 1, 0), f), dv * 0.4);
+    pego = pego || { p: b.pos.clone(), carne: false };
+  }
+  // la gente (NPC, otros jugadores) y los muñecos tirados
+  for (const Q of PERS) {
+    if (Q === P || Q.visible === false) continue;
+    const c = v3(Q.pos.x, Q.pos.y - 0.95 + 0.9 * (Q.tam || 1), Q.pos.z), d = vsub(c, JUG.pos); d.y = 0;
+    if (c.distTo(pie) > R + 0.45 * (Q.tam || 1) || vdot(d, f) < 0) continue;
+    if (Q.rag) { for (const [, e] of Q.rag.cuerpos) { e.b.wake(); e.b.vel.addS(f, 6); e.b.vel.y += 2.5; } }
+    else { danarPersona(Q, 20, c, f.clone()); if (Q.npc && Q.vivo !== false) { Q.vel.addS(f, 4); Q.vel.y += 2; } }
+    pego = { p: c, carne: true };
+  }
+  if (pego) {
+    const L = pego.carne ? ['CB_Flesh1', 'CB_Flesh2', 'CB_Flesh3'] : ['CB_Impact1', 'CB_Impact2'];
+    sonar(azarDe(L), pego.p, 0.85); efectoImpacto(pego.p, vscale(f, -1), pego.carne ? 'cuerpo' : 'golpe');
+    CAM.temblor = Math.max(CAM.temblor || 0, 0.12);
+  }
+}
+
 // ---------------------------------------------------------------------------------------------------------
 // vehículos: autos (suspensión por rueda con los WheelCollider del juego: radio, recorrido, resorte y
 // amortiguador), moto (dos ruedas que se mantiene derecha), helicópteros, avión y asientos (sillas, banco,
@@ -6033,6 +6091,9 @@ function ubicarPersona(P) {
 function dibujarPersona(P) {
   if (!P.visible) return;
   P.cDib = PERS_N; // (lo que se lleva puesto, como la radio en la espalda, usa los huesos de este cuadro)
+  // pateando en primera persona se ve el cuerpo: la cabeza (y el gorro) achicados a nada, que taparían la cámara
+  const sinCabeza = P === JUG.cuerpo && !JUG.tercera && patadaActiva(P);
+  patadaCabeza(P, sinCabeza);
   ubicarPersona(P);
   // (sentado, en un emote o en el piso como muñeco no se clavan los pies; se olvida el apoyo viejo para no tirar del pie al volver)
   // (los emotes de captura sí pasan por el apoyo: trae la altura del piso de la captura y que nada quede abajo del piso)
@@ -6040,7 +6101,7 @@ function dibujarPersona(P) {
   if (P.nadoK > 0.01 && P.nadoVol) nadoAltura(P);
   else if (!P.rag && P.hum && !P.sentado && (!P.emote || cmu) && !P.inclin && !P.cuad && !P.cic) { aterrizarPies(P); if (!P.emote) piesIK(P, TIEMPO.dt || 0.016); else P.ik = null; } else P.ik = null;
   P.md.encolar();
-  if (P.gorroMd && !P.cicManos) {
+  if (P.gorroMd && !P.cicManos && !sinCabeza) {
     const hi = P.D.h.Head;
     if (hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], P.gorroL, _mb); P.gorroMd.ponerRaiz(_mb); P.gorroMd.encolar(); }
   }
@@ -6404,7 +6465,7 @@ function dibujarPersonas() {
   const umbral = GFX.nombre === 'patata' ? 9 : GFX.nombre === 'bajo' ? 0.3 : GFX.lod === 0 && (GFX.sombra || 0) >= 3 ? 0.12 : 0.2;
   for (const P of PERS) {
     const yo = P === JUG.cuerpo;
-    if (yo) { const ver = JUG.tercera || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh) || P.cicManos; if (!ver) continue; }
+    if (yo) { const ver = JUG.tercera || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh) || P.cicManos || patadaActiva(P); if (!ver) continue; }
     const tk = P.tam || 1, dx = P.pos.x - cp.x, dy = P.pos.y - cp.y, dz = P.pos.z - cp.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
     P.dtJunto = Math.min(0.25, (P.dtJunto || 0) + (TIEMPO.dt || 0.016));
     if (!yo && d > 4 && F && !sphereIn(F, P.pos.x, P.pos.y - 1 + 0.95 * tk, P.pos.z, 1.4 * tk)) continue;
@@ -6588,7 +6649,10 @@ function animarHumano(P, dt) {
   H.t += dt; H.gm = false;
   // la dirección del movimiento respecto de adonde mira
   const sp = Math.hypot(P.vel.x, P.vel.z);
-  if (P.emote && E[P.emote]) {
+  if (P.emote === 'Patada' && E.Kick) {   // (patadas.js: el tramo del golpe del clip Kick, más rápido)
+    const t = PAT.de + P.emoteT * PAT.v; humClip(E.Kick[0], Math.min(t, PAT.a), 1, T);
+    if (t >= PAT.a) P.emote = null;
+  } else if (P.emote && E[P.emote]) {
     const c = E[P.emote][0]; humClip(c, P.emoteT, 1, T);
     if ((P.emote === 'Backflip' || P.emote === 'Kick') && P.emoteT > c.d) P.emote = null;
   } else if (P.sentado) {
@@ -6752,7 +6816,7 @@ function emoClip(id) {
   return (EMO.clips[id] = { id, n: c.n, fps: c.fps || 20, nf: c.nf, b: c.b, r, h, loop: !!c.loop, d: (c.nf - 1) / (c.fps || 20) });
 }
 const emoOlvidar = (id) => { delete EMO.clips[id]; };
-const emoValido = (e) => typeof e === 'string' && (DATA.emotes.includes(e) || (e.startsWith('c:') && !!CMU_I[e.slice(2)]) || !!emoClip(e));
+const emoValido = (e) => typeof e === 'string' && (e === 'Patada' || DATA.emotes.includes(e) || (e.startsWith('c:') && !!CMU_I[e.slice(2)]) || !!emoClip(e));
 // índices de los huesos del clip en un personaje (por nombre, sin el prefijo de mixamo)
 function emoIndices(P, C) {
   const D = P.D, k = C.b.join(',');
@@ -7215,7 +7279,7 @@ function recibirEstado(d) {
   R2.nombre = limpio(d.n); etiquetaRemota(R2);
   R2.P.arma = DEF_ARMAS[d.a] ? d.a : null;
   const em = emoValido(d.e) ? d.e : typeof d.e === 'string' && EMO_ID.test(d.e) ? (emoPedir(d.e, d.i), d.e) : null; // (uno hecho por la gente: se pide)
-  if (em && R2.P.emote !== em) { R2.P.emote = em; R2.P.emoteT = 0; sonEmote(R2.P, em); } else if (!em) R2.P.emote = null;
+  if (em && R2.P.emote !== em && !(em === 'Patada' && TIEMPO.t - (R2.patT || -9) < 0.9)) { R2.P.emote = em; R2.P.emoteT = 0; sonEmote(R2.P, em); if (em === 'Patada') { R2.patT = TIEMPO.t; sonar('CB_Swing', R2.P.pos, 0.5, 0.9); } } else if (!em) R2.P.emote = null;
   R2.veh = Array.isArray(d.w) ? { k: String(d.w[0]), a: d.w[1] | 0 } : null;
   R2.up = Array.isArray(d.u) ? v3(num(d.u[0], -1, 1, 0), num(d.u[1], -1, 1, 1), num(d.u[2], -1, 1, 0)).norm() : null;
   R2.tag.style.color = typeof d.c === 'string' && /^#[0-9a-fA-F]{6}$/.test(d.c) ? d.c : '';
@@ -7885,6 +7949,7 @@ const HUD_SVG = {
   emote: '<circle cx="12" cy="4.6" r="2.3" fill="#fff"/><path d="M12 7.6v6.6M12 9.4l-5-3.4M12 9.4l4.6 1.4 2.8-4M12 14.2l-3.6 6.4M12 14.2l3.2 6.6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   camara: '<path d="M3.5 8.5h3l1.6-2.5h7.8l1.6 2.5h3v10h-17z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13.3" r="3.2" fill="none" stroke="#fff" stroke-width="2"/>',
   disparo: '<circle cx="12" cy="12" r="7.5" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 1.8v5M12 17.2v5M1.8 12h5M17.2 12h5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.8" fill="#fff"/>',
+  patada: '<path d="M8 3.5l1.2 7.5-3.6 7.2a1.6 1.6 0 0 0 1.5 2.3h3.6l1.1-2.3h-2.3l2.4-4.6 6.6-2.2a1.6 1.6 0 0 0-.9-3l-5.7 1.5-1-6.4z" fill="#fff"/><path d="M18.5 15.5l2.5 1M18 18.5l2.6.2" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>',
   salto: '<path d="M12 3.5l6.5 7h-4v6h-5v-6h-4z" fill="#fff"/><path d="M5 20.5h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>',
   agachar: '<path d="M12 16.5l6.5-7h-4v-6h-5v6h-4z" fill="#fff"/><path d="M5 20.5h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>',
   recargar: '<path d="M19 12a7 7 0 1 1-2.1-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M19.5 3.5v5h-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -7910,7 +7975,7 @@ const HUD_TACTIL = [
   ['#armaAct', 1, 1, -53, -53, 100], ['[data-btn=camara]', 1, 1, -209, -50, 75], ['[data-btn=emotes]', 1, 1, -332.8, -50, 75],
   ['#bdisparo', 1, 0.5, -207, -62, 124], ['#bdisp2', 1, 0.5, -124, 27.9, 70], ['#brecargar', 1, 0.5, -124, 27.9, 70], ['#brotar', 1, 0.5, -86.5, -62, 70],
   ['#blejos', 1, 1, -43.2, -164.5, 60], ['#bcerca', 1, 1, -43.2, -236.7, 60],
-  ['#bsaltar', 0.5, 0, 346, 43, 75], ['#bagachar', 0.5, 0, 446, 43, 62], ['#bborrar', 0.5, 0, -226.6, 43, 75], ['#busar', 0.5, 0, 0, 163, 71],
+  ['#bsaltar', 0.5, 0, 346, 43, 75], ['#bpatada', 0.5, 0, 346, 140, 66], ['#bagachar', 0.5, 0, 446, 43, 62], ['#bborrar', 0.5, 0, -226.6, 43, 75], ['#busar', 0.5, 0, 0, 163, 71],
   // en un vehículo
   ['#bgas', 1, 0, -122, 153, 110], ['#bfreno', 1, 0, -287.6, 153, 110], ['#bizq', 0, 0, 179, 142, 103], ['#bder', 0, 0, 361, 142, 103], ['#bmanual', 1, 0.5, -107, 0.4, 96.4], ['#bbajar', 0, 0.5, 42, 0, 71],
 ];
@@ -7922,7 +7987,7 @@ function hudIniciar() {
   const t = $('tactil'); if (!t) return;
   // botones que agrega esta versión: borrar lo que apuntás y los del auto
   const nuevo = (id, btn, ico, mantener) => { if ($(id)) return; const d = document.createElement('div'); d.className = 'bt-t'; d.id = id; d.dataset.btn = btn; if (mantener) d.dataset.mantener = ''; d.innerHTML = `<img alt="" src="${hudIco(ico)}">`; t.appendChild(d); return d; };
-  nuevo('bborrar', 'borrarApuntado', 'borrar'); nuevo('bgas', 'pGas', 'gas', 1); nuevo('bfreno', 'pFreno', 'freno', 1); nuevo('bizq', 'pIzq', 'izq', 1); nuevo('bder', 'pDer', 'der', 1); nuevo('bmanual', 'saltar', 'manual', 1); nuevo('bbajar', 'salir', 'bajar');
+  nuevo('bborrar', 'borrarApuntado', 'borrar'); nuevo('bpatada', 'patada', 'patada'); nuevo('bgas', 'pGas', 'gas', 1); nuevo('bfreno', 'pFreno', 'freno', 1); nuevo('bizq', 'pIzq', 'izq', 1); nuevo('bder', 'pDer', 'der', 1); nuevo('bmanual', 'saltar', 'manual', 1); nuevo('bbajar', 'salir', 'bajar');
   // los íconos propios
   const pon = (id, n) => { const e = $(id); if (e) e.src = hudIco(n); };
   pon('iPausa', 'pausa'); pon('iMenu', 'props'); pon('iChat', 'chat'); pon('iEmote', 'emote'); pon('iCam', 'camara'); pon('iDisp', 'disparo'); pon('iRotar', 'rotar'); pon('iSalto', 'salto'); pon('iUsar', 'usar');
@@ -7970,7 +8035,7 @@ function hudPaso() {
     ver('brecargar', !veh && !sinBala); ver('bdisp2', !veh && (fis || arma === 'ToolBaton')); ver('busar', usar && !veh); ver('bborrar', !veh);
     const d2 = $('bdisp2'); if (d2) d2.querySelector('img').src = hudIco(fis ? 'congelar' : 'dos');
     for (const id of ['bgas', 'bfreno', 'bizq', 'bder', 'bmanual', 'bbajar']) ver(id, veh);
-    for (const id of ['bsaltar', 'bagachar', 'bdisparo']) ver(id, !veh);
+    for (const id of ['bsaltar', 'bagachar', 'bdisparo', 'bpatada']) ver(id, !veh);
   }
 }
 // borrar lo que apuntás (si es tuyo); si no apuntás a nada tuyo, deshace lo último que pusiste
@@ -15856,7 +15921,8 @@ function atenderPulsos() {
     else if (k === 'emotes') abrirEmotes();
     else if (k === 'recargar') recargar();
     else if (k === 'usar') { if (typeof usar === 'function') usar(); }
-    else if (k === 'salir') { if (JUG.vehiculo) salirVehiculo(); }
+    else if (k === 'salir') { if (JUG.vehiculo) salirVehiculo(); else patear(); }   // (F: a pie, patada)
+    else if (k === 'patada') patear();
     else if (k === 'borrarApuntado') borrarApuntado();
     else if (k === 'deshacer') { const o = DESHACER.pop(); if (o && OBJS.includes(o)) { borrarObjeto(o); aviso('Deshecho: ' + o.nombre, 1); } }
     else if (k === 'lejos') ENT.pulsoDist = (ENT.pulsoDist || 0) + 1.5;
@@ -15910,7 +15976,7 @@ function cuadro(ahora) {
   }
   efectosPaso(dt);
   camaraActualizar(dt);
-  aguaPaso(dt); sonidosPaso(dt);
+  aguaPaso(dt); sonidosPaso(dt); patadasPaso(dt);
   dibujar();
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso();

@@ -12,6 +12,7 @@ const HUD_SVG = {
   emote: '<circle cx="12" cy="4.6" r="2.3" fill="#fff"/><path d="M12 7.6v6.6M12 9.4l-5-3.4M12 9.4l4.6 1.4 2.8-4M12 14.2l-3.6 6.4M12 14.2l3.2 6.6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   camara: '<path d="M3.5 8.5h3l1.6-2.5h7.8l1.6 2.5h3v10h-17z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13.3" r="3.2" fill="none" stroke="#fff" stroke-width="2"/>',
   disparo: '<circle cx="12" cy="12" r="7.5" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 1.8v5M12 17.2v5M1.8 12h5M17.2 12h5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.8" fill="#fff"/>',
+  patada: '<path d="M8 3.5l1.2 7.5-3.6 7.2a1.6 1.6 0 0 0 1.5 2.3h3.6l1.1-2.3h-2.3l2.4-4.6 6.6-2.2a1.6 1.6 0 0 0-.9-3l-5.7 1.5-1-6.4z" fill="#fff"/><path d="M18.5 15.5l2.5 1M18 18.5l2.6.2" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>',
   salto: '<path d="M12 3.5l6.5 7h-4v6h-5v-6h-4z" fill="#fff"/><path d="M5 20.5h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>',
   agachar: '<path d="M12 16.5l6.5-7h-4v-6h-5v6h-4z" fill="#fff"/><path d="M5 20.5h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>',
   recargar: '<path d="M19 12a7 7 0 1 1-2.1-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M19.5 3.5v5h-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -37,7 +38,7 @@ const HUD_TACTIL = [
   ['#armaAct', 1, 1, -53, -53, 100], ['[data-btn=camara]', 1, 1, -209, -50, 75], ['[data-btn=emotes]', 1, 1, -332.8, -50, 75],
   ['#bdisparo', 1, 0.5, -207, -62, 124], ['#bdisp2', 1, 0.5, -124, 27.9, 70], ['#brecargar', 1, 0.5, -124, 27.9, 70], ['#brotar', 1, 0.5, -86.5, -62, 70],
   ['#blejos', 1, 1, -43.2, -164.5, 60], ['#bcerca', 1, 1, -43.2, -236.7, 60],
-  ['#bsaltar', 0.5, 0, 346, 43, 75], ['#bagachar', 0.5, 0, 446, 43, 62], ['#bborrar', 0.5, 0, -226.6, 43, 75], ['#busar', 0.5, 0, 0, 163, 71],
+  ['#bsaltar', 0.5, 0, 346, 43, 75], ['#bpatada', 0.5, 0, 346, 140, 66], ['#bagachar', 0.5, 0, 446, 43, 62], ['#bborrar', 0.5, 0, -226.6, 43, 75], ['#busar', 0.5, 0, 0, 163, 71],
   // en un vehículo
   ['#bgas', 1, 0, -122, 153, 110], ['#bfreno', 1, 0, -287.6, 153, 110], ['#bizq', 0, 0, 179, 142, 103], ['#bder', 0, 0, 361, 142, 103], ['#bmanual', 1, 0.5, -107, 0.4, 96.4], ['#bbajar', 0, 0.5, 42, 0, 71],
 ];
@@ -49,7 +50,7 @@ function hudIniciar() {
   const t = $('tactil'); if (!t) return;
   // botones que agrega esta versión: borrar lo que apuntás y los del auto
   const nuevo = (id, btn, ico, mantener) => { if ($(id)) return; const d = document.createElement('div'); d.className = 'bt-t'; d.id = id; d.dataset.btn = btn; if (mantener) d.dataset.mantener = ''; d.innerHTML = `<img alt="" src="${hudIco(ico)}">`; t.appendChild(d); return d; };
-  nuevo('bborrar', 'borrarApuntado', 'borrar'); nuevo('bgas', 'pGas', 'gas', 1); nuevo('bfreno', 'pFreno', 'freno', 1); nuevo('bizq', 'pIzq', 'izq', 1); nuevo('bder', 'pDer', 'der', 1); nuevo('bmanual', 'saltar', 'manual', 1); nuevo('bbajar', 'salir', 'bajar');
+  nuevo('bborrar', 'borrarApuntado', 'borrar'); nuevo('bpatada', 'patada', 'patada'); nuevo('bgas', 'pGas', 'gas', 1); nuevo('bfreno', 'pFreno', 'freno', 1); nuevo('bizq', 'pIzq', 'izq', 1); nuevo('bder', 'pDer', 'der', 1); nuevo('bmanual', 'saltar', 'manual', 1); nuevo('bbajar', 'salir', 'bajar');
   // los íconos propios
   const pon = (id, n) => { const e = $(id); if (e) e.src = hudIco(n); };
   pon('iPausa', 'pausa'); pon('iMenu', 'props'); pon('iChat', 'chat'); pon('iEmote', 'emote'); pon('iCam', 'camara'); pon('iDisp', 'disparo'); pon('iRotar', 'rotar'); pon('iSalto', 'salto'); pon('iUsar', 'usar');
@@ -97,7 +98,7 @@ function hudPaso() {
     ver('brecargar', !veh && !sinBala); ver('bdisp2', !veh && (fis || arma === 'ToolBaton')); ver('busar', usar && !veh); ver('bborrar', !veh);
     const d2 = $('bdisp2'); if (d2) d2.querySelector('img').src = hudIco(fis ? 'congelar' : 'dos');
     for (const id of ['bgas', 'bfreno', 'bizq', 'bder', 'bmanual', 'bbajar']) ver(id, veh);
-    for (const id of ['bsaltar', 'bagachar', 'bdisparo']) ver(id, !veh);
+    for (const id of ['bsaltar', 'bagachar', 'bdisparo', 'bpatada']) ver(id, !veh);
   }
 }
 // borrar lo que apuntás (si es tuyo); si no apuntás a nada tuyo, deshace lo último que pusiste

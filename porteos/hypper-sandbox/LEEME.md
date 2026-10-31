@@ -100,6 +100,12 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
 - **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
   leyeron: queda en 16,5 MB en vez de ~38.
+- **Patadas** (`juego/patadas.js`; prueba `pruebas/patadas.mjs`, 11/11): F a pie (en un vehículo F sigue siendo bajar) o el
+  botón del pie en el celular. Es la patada del juego (el clip "Kick", su tramo del golpe al doble de velocidad: 0,64 s,
+  casi quieto mientras dura). A los 0,2 s, con la pierna estirada: empuja los props que tenés adelante (la caja sale a
+  9 m/s), le saca 20 de vida a la gente (con el golpe, su voz y un empujón), tira lejos a los muñecos; no se repite antes de
+  0,75 s. En primera persona se ve la pierna (el cuerpo a la vista con la cabeza y los brazos achicados a nada, que
+  tapaban la cámara) y vuelve todo al terminar. Los demás la ven por el estado del jugador.
 - **Sonidos de los personajes y del ambiente** (`juego/sonidos.js`, los de Half-Life 2 de GMod 10; prueba
   `pruebas/sonidos.mjs`, 11/11):
   - **Pasos según el piso**: cada triángulo del mapa (y cada caja de choque) sabe de qué es: en los mapas de GMod, su

@@ -79,7 +79,7 @@ function jugadorPaso(dt, ent) {
   const f = qy.rot(v3(0, 0, 1)), rgt = qy.rot(v3(-1, 0, 0));
   const wish = v3(f.x * ent.y + rgt.x * ent.x, 0, f.z * ent.y + rgt.z * ent.x);
   const wl = Math.min(1, wish.len()); if (wl > 1e-3) wish.scale(1 / wish.len());
-  const vmax = J.vel_max * (ent.correr ? 1.35 : 1) * (ent.agachar ? 0.5 : 1) * (J.vadeo || 1);
+  const vmax = J.vel_max * (ent.correr ? 1.35 : 1) * (ent.agachar ? 0.5 : 1) * (J.vadeo || 1) * (patadaActiva(J.cuerpo) ? 0.35 : 1);   // (pateando, casi quieto)
   if (J.noclip) {
     const fv = J.q.rot(v3(0, 0, 1));
     J.vel.set((fv.x * ent.y + rgt.x * ent.x) * vmax * 2, (fv.y * ent.y + (ent.saltar ? 1 : 0) - (ent.agachar ? 1 : 0)) * vmax * 2, (fv.z * ent.y + rgt.z * ent.x) * vmax * 2);

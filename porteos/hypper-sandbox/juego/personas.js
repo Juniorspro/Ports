@@ -139,6 +139,9 @@ function ubicarPersona(P) {
 function dibujarPersona(P) {
   if (!P.visible) return;
   P.cDib = PERS_N; // (lo que se lleva puesto, como la radio en la espalda, usa los huesos de este cuadro)
+  // pateando en primera persona se ve el cuerpo: la cabeza (y el gorro) achicados a nada, que taparían la cámara
+  const sinCabeza = P === JUG.cuerpo && !JUG.tercera && patadaActiva(P);
+  patadaCabeza(P, sinCabeza);
   ubicarPersona(P);
   // (sentado, en un emote o en el piso como muñeco no se clavan los pies; se olvida el apoyo viejo para no tirar del pie al volver)
   // (los emotes de captura sí pasan por el apoyo: trae la altura del piso de la captura y que nada quede abajo del piso)
@@ -146,7 +149,7 @@ function dibujarPersona(P) {
   if (P.nadoK > 0.01 && P.nadoVol) nadoAltura(P);
   else if (!P.rag && P.hum && !P.sentado && (!P.emote || cmu) && !P.inclin && !P.cuad && !P.cic) { aterrizarPies(P); if (!P.emote) piesIK(P, TIEMPO.dt || 0.016); else P.ik = null; } else P.ik = null;
   P.md.encolar();
-  if (P.gorroMd && !P.cicManos) {
+  if (P.gorroMd && !P.cicManos && !sinCabeza) {
     const hi = P.D.h.Head;
     if (hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], P.gorroL, _mb); P.gorroMd.ponerRaiz(_mb); P.gorroMd.encolar(); }
   }
@@ -510,7 +513,7 @@ function dibujarPersonas() {
   const umbral = GFX.nombre === 'patata' ? 9 : GFX.nombre === 'bajo' ? 0.3 : GFX.lod === 0 && (GFX.sombra || 0) >= 3 ? 0.12 : 0.2;
   for (const P of PERS) {
     const yo = P === JUG.cuerpo;
-    if (yo) { const ver = JUG.tercera || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh) || P.cicManos; if (!ver) continue; }
+    if (yo) { const ver = JUG.tercera || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh) || P.cicManos || patadaActiva(P); if (!ver) continue; }
     const tk = P.tam || 1, dx = P.pos.x - cp.x, dy = P.pos.y - cp.y, dz = P.pos.z - cp.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
     P.dtJunto = Math.min(0.25, (P.dtJunto || 0) + (TIEMPO.dt || 0.016));
     if (!yo && d > 4 && F && !sphereIn(F, P.pos.x, P.pos.y - 1 + 0.95 * tk, P.pos.z, 1.4 * tk)) continue;

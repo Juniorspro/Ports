@@ -57,7 +57,7 @@ function emoClip(id) {
   return (EMO.clips[id] = { id, n: c.n, fps: c.fps || 20, nf: c.nf, b: c.b, r, h, loop: !!c.loop, d: (c.nf - 1) / (c.fps || 20) });
 }
 const emoOlvidar = (id) => { delete EMO.clips[id]; };
-const emoValido = (e) => typeof e === 'string' && (DATA.emotes.includes(e) || (e.startsWith('c:') && !!CMU_I[e.slice(2)]) || !!emoClip(e));
+const emoValido = (e) => typeof e === 'string' && (e === 'Patada' || DATA.emotes.includes(e) || (e.startsWith('c:') && !!CMU_I[e.slice(2)]) || !!emoClip(e));
 // índices de los huesos del clip en un personaje (por nombre, sin el prefijo de mixamo)
 function emoIndices(P, C) {
   const D = P.D, k = C.b.join(',');
