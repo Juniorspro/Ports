@@ -20,6 +20,10 @@ def bajar(rel):   # rel: 'Garrys_Mod_10/hl2/...' (sin importar mayúsculas)
             if len(b) == x[1]: open(dst, 'wb').write(b); return dst
         except Exception as e: print('  reintento', x[0], e)
     print('  FALLA', x[0]); return None
+# (--archivos RUTA...: archivos sueltos de hl2/, como sonidos: sound/player/footsteps/grass1.wav)
+if sys.argv[3] == '--archivos':
+    for r in sys.argv[4:]: print('ok' if bajar('Garrys_Mod_10/hl2/' + r) else 'FALTA', r)
+    sys.exit(0)
 for m in sys.argv[3:]:
     b = 'Garrys_Mod_10/hl2/models/' + m
     got = {e: bajar(b + e) for e in ('.mdl', '.vvd', '.dx90.vtx', '.dx80.vtx', '.sw.vtx', '.phy')}

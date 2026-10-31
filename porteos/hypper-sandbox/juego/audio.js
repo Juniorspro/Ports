@@ -71,6 +71,7 @@ function bucle(clave, n, pos, vol, tono) {
   if (!L) {
     const b = audioBuf(n); if (!b) return;
     const s = AUD.ctx.createBufferSource(); s.buffer = b; s.loop = true;
+    if (b.duration > 2) { s.loopStart = 0.03; s.loopEnd = b.duration - 0.03; }   // (el mp3 trae silencio en las puntas: sin esto, el bucle hace un hueco)
     const F = fuente3D(pos || CAM.pos, 0); s.connect(F.g); s.start(); L = { s, F, vivo: true, tOcl: 0 }; AUD.loops.set(clave, L);
   }
   const p = pos || CAM.pos; ponerPos(L.F.p, p);

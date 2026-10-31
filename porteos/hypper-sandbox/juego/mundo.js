@@ -30,7 +30,7 @@ function triFino(v, a, b, c) {
 }
 function cargarMapa(nombre) {
   MUNDO.nombre = nombre; MUNDO.modelos = []; MUNDO.cajas = []; MUNDO.grilla = new Map(); MUNDO.triCuerpo = []; MUNDO.spawns = []; MUNDO.luces = [];
-  const raices = DATA.esc[nombre], tris = [];
+  const raices = DATA.esc[nombre], tris = [], supTri = [];
   const lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9);
   const q = new Quat(), pt = v3();
   for (const arb of raices) {
@@ -48,7 +48,7 @@ function cargarMapa(nombre) {
         if (c.k === 'b') {
           const sx = Math.hypot(W[0], W[1], W[2]), sy = Math.hypot(W[4], W[5], W[6]), sz = Math.hypot(W[8], W[9], W[10]);
           const b = new Body(boxShape(Math.abs(c.s[0] * sx) / 2 + 1e-3, Math.abs(c.s[1] * sy) / 2 + 1e-3, Math.abs(c.s[2] * sz) / 2 + 1e-3), 0);
-          m4pt(W, c.c[0], c.c[1], c.c[2], b.pos); m4quat(W, b.q); b.updateWorld(); b.estatico = true; b.snd = 'concrete';
+          m4pt(W, c.c[0], c.c[1], c.c[2], b.pos); m4quat(W, b.q); b.updateWorld(); b.estatico = true; b.snd = 'concrete'; b.sup = x.mt ? sonSupDeMat(x.mt[0]) : 0;   // (de qué es: los pasos)
           MUNDO.cajas.push(b); const a = b.aabb; grillaAgregar(a.x0, a.z0, a.x1, a.z1, b);
           lo.set(Math.min(lo.x, a.x0), Math.min(lo.y, a.y0), Math.min(lo.z, a.z0)); hi.set(Math.max(hi.x, a.x1), Math.max(hi.y, a.y1), Math.max(hi.z, a.z1));
         } else if (c.k === 'm' && c.m >= 0) {
@@ -57,12 +57,15 @@ function cargarMapa(nombre) {
           const vw = new Float32Array(P.length);
           for (let k = 0; k < P.length; k += 3) { m4pt(W, P[k], P[k + 1], P[k + 2], pt); vw[k] = pt.x; vw[k + 1] = pt.y; vw[k + 2] = pt.z; }
           let n = 0; for (const s of mc.d.sub) n = Math.max(n, s[0] + s[1]);
+          // (de qué es cada parte: para el ruido de los pasos)
+          const sups = mc.d.sub.map((s, j) => sonSupDeMat(x.mt ? (c.m === x.m && x.mt[j] !== undefined ? x.mt[j] : x.mt[0]) : -1));
           // escala negativa (espejo) da vuelta los triángulos
           const det = W[0] * (W[5] * W[10] - W[6] * W[9]) - W[4] * (W[1] * W[10] - W[2] * W[9]) + W[8] * (W[1] * W[6] - W[2] * W[5]);
           for (let k = 0; k + 2 < n; k += 3) {
             let a = I[k] * 3, b = I[k + 1] * 3, cc = I[k + 2] * 3; if (det < 0) { const t = b; b = cc; cc = t; }
             if (triFino(vw, a, b, cc)) continue;   // (sin área: el choque contra eso daba NaN)
             tris.push(vw[a], vw[a + 1], vw[a + 2], vw[b], vw[b + 1], vw[b + 2], vw[cc], vw[cc + 1], vw[cc + 2]);
+            let j = 0; while (j + 1 < mc.d.sub.length && k >= mc.d.sub[j][0] + mc.d.sub[j][1]) j++; supTri.push(sups[j]);
           }
         } else if (c.k === 's' || c.k === 'c') {
           const r = c.r * m4esc(W), b = new Body(c.k === 's' ? sphereShape(r) : capsuleShape(r, Math.max(0, c.h * m4esc(W) / 2 - r)), 0);
@@ -73,7 +76,7 @@ function cargarMapa(nombre) {
     }
   }
   // triángulos a la grilla
-  const T = (MUNDO.T = new Float32Array(tris)); MUNDO.nt = T.length / 9; MUNDO.ntMapa = MUNDO.nt; MUNDO.TN = new Float32Array(MUNDO.nt * 3);
+  const T = (MUNDO.T = new Float32Array(tris)); MUNDO.nt = T.length / 9; MUNDO.ntMapa = MUNDO.nt; MUNDO.TN = new Float32Array(MUNDO.nt * 3); MUNDO.triSup = new Uint8Array(supTri);
   for (let t = 0; t < MUNDO.nt; t++) {
     const o = t * 9;
     const ux = T[o + 3] - T[o], uy = T[o + 4] - T[o + 1], uz = T[o + 5] - T[o + 2], vx = T[o + 6] - T[o], vy = T[o + 7] - T[o + 1], vz = T[o + 8] - T[o + 2];

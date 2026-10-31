@@ -1019,6 +1019,46 @@ def props_hl2():
         nuevos.append(nom); print('  prop', nom, 'masa', masa, 'tamaño', np.round(hi - lo, 2).tolist(), 'mats', mats)
     props = next(c for c in d['menu'] if c['n'] == 'Props')
     props['sub'] = [x for x in props['sub'] if x['n'] != 'HL2'] + [{'n': 'HL2', 'it': nuevos, 'rb': 1}]
+# ---------------- de qué es cada material de Source ($surfaceprop): para el ruido de los pasos ----------------
+# los números de sonidos.js (SUP): 0 hormigón, 1 pasto, 2 tierra, 3 arena, 4 metal, 5 madera, 6 baldosa, 7 grava; en las
+# mezclas de dos texturas, el de la segunda va aparte (sp2) y el juego elige por el peso de cada vértice
+def clase_sup(sp):
+    sp = (sp or '').lower()
+    for k, re_ in ((1, 'grass'), (3, 'sand'), (2, 'dirt|mud|slime|foliage'), (7, 'gravel'), (4, 'metal|chain|grate|vent|computer|canister|roller'), (5, 'wood'), (6, 'tile|ceramic|porcelain|glass')):
+        if re.search(re_, sp): return k
+    return 0
+def superficies():
+    vmts = {}
+    for k in IDX:
+        if k.startswith('materials/') and k.endswith('.vmt'): vmts.setdefault(k.rsplit('/', 1)[1][:-4], k)
+    n = 0
+    for m in d['mt']:
+        if not m.get('n', '').startswith('GM_'): continue
+        base = re.sub(r'_-?\d+_-?\d+_-?\d+$', '', m['n'][3:]).lower()   # (los parches de cubemap: el material de base)
+        ruta = vmts.get(base)
+        if not ruta: continue
+        _, c = kv_material(ruta)
+        if '$surfaceprop' in c: m['sp'] = clase_sup(c['$surfaceprop']); n += 1
+        if '$surfaceprop2' in c: m['sp2'] = clase_sup(c['$surfaceprop2'])
+    print('  superficies:', n, 'materiales de GMod con $surfaceprop')
+# ---------------- los sonidos de los personajes y del ambiente (sonidos.js) ----------------
+def sonidos_hl2():
+    for sup in ('concrete', 'grass', 'dirt', 'sand', 'metal', 'wood', 'tile', 'gravel'):
+        for i in range(1, 5): sonido('sound/player/footsteps/%s%d.wav' % (sup, i), 'PS_%s%d' % (sup, i))
+    for c, g in (('h', 'male01'), ('m', 'female01')):
+        for i in range(1, 10): sonido('sound/vo/npc/%s/pain0%d.wav' % (g, i), 'VZ_%s_dolor%d' % (c, i))
+        for k, (n, lista) in enumerate((('ay', ('ow01', 'ow02')), ('hola', ('hi01', 'hi02')), ('bien', ('yeah02', 'fantastic01')), ('no', ('no01', 'no02')), ('ayuda', ('help01',)), ('ok', ('ok01',)))):
+            for i, f in enumerate(lista): sonido('sound/vo/npc/%s/%s.wav' % (g, f), 'VZ_%s_%s%d' % (c, n, i + 1))
+    for i in range(1, 7): sonido('sound/npc/zombie/zombie_pain%d.wav' % i, 'VZ_z_dolor%d' % i)
+    for i in range(1, 4): sonido('sound/npc/zombie/zombie_die%d.wav' % i, 'VZ_z_muere%d' % i)
+    for i in range(1, 3): sonido('sound/npc/scanner/scanner_pain%d.wav' % i, 'VZ_r_dolor%d' % i)
+    sonido('sound/npc/turret_floor/die.wav', 'VZ_r_muere1')
+    for f, n in (('wind/wind_med1', 'AM_viento1'), ('wind/wind_med2', 'AM_viento2'), ('wind/wind_snippet2', 'AM_rafaga1'), ('wind/wind_snippet4', 'AM_rafaga2'),
+                 ('atmosphere/city_rumble_loop1', 'AM_ciudad'), ('atmosphere/city_truckpass1', 'AM_camion'), ('atmosphere/indoor2', 'AM_interior'), ('atmosphere/tone_quiet', 'AM_tono'),
+                 ('levels/canals/swamp_frogs_loop2', 'AM_ranas'), ('machines/lab_loop1', 'AM_lab')): sonido('sound/ambient/%s.wav' % f, n)
+    for i in range(1, 8): sonido('sound/ambient/levels/coast/coastbird%d.wav' % i, 'AM_ave%d' % i)
+    for i in range(1, 7): sonido('sound/ambient/levels/canals/swamp_bird%d.wav' % i, 'AM_pajaro%d' % i)
+    for i in range(1, 9): sonido('sound/ambient/levels/canals/critter%d.wav' % i, 'AM_bicho%d' % i)
 def guardar_paquete():
     open(PK1 + '/m.bin.gz', 'wb').write(gzip.compress(bytes(BIN), 9))
     open(PK1 + '/d.json.gz', 'wb').write(gzip.compress(json.dumps(d, separators=(',', ':')).encode(), 6))
@@ -1028,6 +1068,8 @@ SOLO = os.environ.get('GM_SOLO', '').split(',')
 if SOLO != ['']:
     if 'agua' in SOLO: recipientes()
     if 'props' in SOLO: props_hl2()
+    if 'sonidos' in SOLO: sonidos_hl2()
+    if 'superficies' in SOLO: superficies()
     guardar_paquete(); sys.exit(0)
 convertir('RB_Construct', 'gm_construct', {'cielo3d': lambda c: c[0] < -6000, 'sol': 1.15})
 convertir('RB_Flatgrass', 'gm_flatgrass', {'sol': 1.15})
@@ -1059,4 +1101,6 @@ if len(sys.argv) > 5 and os.path.isdir(sys.argv[5]):   # (fondos de carga e íco
     print('fondos de carga e íconos de los mapas de GMod')
 recipientes()
 props_hl2()
+sonidos_hl2()
+superficies()
 guardar_paquete()

@@ -100,6 +100,20 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
 - **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
   leyeron: queda en 16,5 MB en vez de ~38.
+- **Sonidos de los personajes y del ambiente** (`juego/sonidos.js`, los de Half-Life 2 de GMod 10; prueba
+  `pruebas/sonidos.mjs`, 11/11):
+  - **Pasos según el piso**: cada triángulo del mapa (y cada caja de choque) sabe de qué es: en los mapas de GMod, su
+    `$surfaceprop` de Source (lo mismo que usa HL2: el terreno de gm_construct suena a arena, el piso de adentro a
+    hormigón); en los otros, por el nombre del material (pasto, tierra, arena, metal, madera, baldosa, grava u hormigón);
+    parado sobre un prop, el del prop. El paso se alarga con la velocidad (0,72 m caminando: 1,75 pasos por segundo; 1,5 m
+    corriendo a 6 m/s: 3,75) y al caer suena uno fuerte. Los tuyos, en la cabeza; los de los demás (y los NPC), donde están.
+  - **Voces** de dolor y de muerte según el personaje: hombre o mujer (los ciudadanos de HL2), robot (Robot y los
+    animatrónicos) o monstruo (zombi, The Boiled One, Sunman, Filbus); tirado ya no habla. Algunos emotes hablan: el saludo
+    ("hi"), el festejo, el no y el grito.
+  - **Ambiente por mapa**: viento y pájaros en el campo (ranas y bichos de noche), viento fuerte con ráfagas en el
+    desierto y en Marte, la ciudad con camiones que pasan, el zumbido de adentro en las bases y la estación, un tono en la
+    Luna; bajo techo, el de afuera más bajo; en la pizzería, los suyos. Los bucles ya no hacen un hueco al dar la vuelta (el
+    silencio que trae el mp3 en las puntas se saltea).
 - **Maquinitas con juegos HTML** (`juego/maquinitas.js`; prueba `pruebas/maquinitas.mjs`, 13/13): el gabinete Arcade se
   usa (E o el botón de usar: "E: Jugar") y abre la **biblioteca**: los juegos que trae RezoBox (Serpiente, Ladrillos y
   Meteoros, hechos para el juego), **Mis juegos** (importar un .html o una dirección https; se guardan en el navegador,

@@ -222,7 +222,7 @@ function cuadro(ahora) {
   }
   efectosPaso(dt);
   camaraActualizar(dt);
-  aguaPaso(dt);
+  aguaPaso(dt); sonidosPaso(dt);
   dibujar();
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso();

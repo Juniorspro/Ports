@@ -455,8 +455,10 @@ function ragdollFin(P) { if (!P.rag) return; for (const [, e] of P.rag.cuerpos) 
 // ---------------- daño ----------------
 function danarPersona(P, dan, pos, d) {
   if (P === JUG.cuerpo) { danarJugador(dan, pos); return; }
-  if (P.vivo !== false) humAccion(P, 'golpe');
+  const vivia = P.vivo !== false;
+  if (vivia) humAccion(P, 'golpe');
   if (P.npc && P.vivo) { P.vida -= dan; if (P.vida <= 0) { P.vivo = false; ragdoll(P, vscale(d.clone().norm(), Math.min(12, dan * 0.3)), pos); P.muertoT = 8; } }
+  if (dan > 0 && vivia) sonVoz(P, P.vivo === false ? 'muere' : 'dolor', P.pos);   // (el que recibe el golpe: su voz; tirado, nada)
   if (P.remoto && typeof redDano === 'function') redDano(P, dan, d);
 }
 // ---------------- el cuerpo del jugador (tercera persona, vehículos, muerte) ----------------
@@ -473,6 +475,7 @@ function emote(e) {
     aviso(T('emo.bajando'), 1.5); emoCargar(e).then((c) => { if (c) emote(e); else aviso(T('errRed'), 2); }); return;
   }
   if (typeof emoUsado === 'function') emoUsado(e);
+  sonEmote(JUG.cuerpo, e);
   JUG.cuerpo.emote = e; JUG.cuerpo.emoteT = 0; if (!JUG.tercera) { JUG.tercera = true; JUG.terceraEmote = true; } if (typeof redEmote === 'function') redEmote(e);
 }
 function personasPaso(dt) {

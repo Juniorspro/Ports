@@ -292,7 +292,7 @@ function recibirEstado(d) {
   R2.nombre = limpio(d.n); etiquetaRemota(R2);
   R2.P.arma = DEF_ARMAS[d.a] ? d.a : null;
   const em = emoValido(d.e) ? d.e : typeof d.e === 'string' && EMO_ID.test(d.e) ? (emoPedir(d.e, d.i), d.e) : null; // (uno hecho por la gente: se pide)
-  if (em && R2.P.emote !== em) { R2.P.emote = em; R2.P.emoteT = 0; } else if (!em) R2.P.emote = null;
+  if (em && R2.P.emote !== em) { R2.P.emote = em; R2.P.emoteT = 0; sonEmote(R2.P, em); } else if (!em) R2.P.emote = null;
   R2.veh = Array.isArray(d.w) ? { k: String(d.w[0]), a: d.w[1] | 0 } : null;
   R2.up = Array.isArray(d.u) ? v3(num(d.u[0], -1, 1, 0), num(d.u[1], -1, 1, 1), num(d.u[2], -1, 1, 0)).norm() : null;
   R2.tag.style.color = typeof d.c === 'string' && /^#[0-9a-fA-F]{6}$/.test(d.c) ? d.c : '';
