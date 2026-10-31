@@ -151,7 +151,7 @@ function crearObjeto(nombre, pos, q, opt) {
   b.pos.set(pos.x, pos.y - minY + 0.01, pos.z);
   if (opt.exacto) { const c = b.q.rot(F.c); b.pos.copy(pos).add(c); }
   b.updateWorld();
-  const o = { id: opt.id || _objId++, nombre, tipo, md, b, c: F.c, F, creado: TIEMPO.t, dueno: opt.dueno || 'yo', salta: !!(rb && rb.sal) };
+  const o = { id: opt.id || _objId++, nombre, tipo, md, b, c: F.c, F, creado: TIEMPO.t, dueno: opt.dueno || 'yo', salta: !!(rb && rb.sal), art: (rb && rb.art) || null };
   b.obj = o; b.snd = (rb && rb.snd) || (masa > 300 ? 'metal' : 'wood');
   if (rb && rb.dn) b.dens = rb.dn;   // (la densidad de verdad, para el agua: la del prefab, si la trae)
   if (opt.congelado) b.frozen = true;

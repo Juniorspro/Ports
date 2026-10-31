@@ -107,6 +107,7 @@ function listaDibujar() {
   mpDibujar(listaSalas(), salasMias());
 }
 function entrarSala(S, clave, n) {
+  if (celMeEcharon(S.id)) { aviso(T('cel.teEcharon'), 3); return; }   // (me echó el dueño hace menos de 30 minutos)
   // (sin límite de jugadores; el dueño entra a su server con clave sin escribirla)
   const mia = salasMias()[S.id]; if (S.pw && clave === undefined && mia && mia.pw) clave = mia.pw;
   if (S.pw && clave === undefined) { mpPedirClave(S); return; }
@@ -272,6 +273,8 @@ function redMensaje(topic, m) {
   else if (sub === 'c' && typeof d.t === 'string') { chatMostrar(limpio(d.n), limpio(d.t, 120)); }
 }
 function recibirEstado(d) {
+  // (uno que eché de mi server: no se dibuja y se lo vuelve a echar)
+  if (CEL.echados.has(d.i) && soyAnfitrion()) { if (TIEMPO.t - (CEL.reEch || 0) > 2) { CEL.reEch = TIEMPO.t; publicar('a', { k: 'echar', to: d.i }); } return; }
   let R2 = RED.remotos.get(d.i);
   // (su personaje, si viene en un paquete aparte que todavía no llegó: mientras tanto el Hero)
   const real = DATA.chars.includes(d.k) ? d.k : 'Hero', skin = rbListo(rbDeSkin(real)) ? real : (rbPedir(rbDeSkin(real)), 'Hero'), gorro = DATA.hats.includes(d.h) ? d.h : 'HatEmpty';
@@ -415,6 +418,8 @@ function recibirHecho(d) {
   } else if (typeof d.k === 'string' && /^ver[dqgawc]$/.test(d.k)) { verRed(d); // (Verity: lo que dice, preguntas, agarre, animación, llamada, crear)
   } else if (d.k === 'maq' || d.k === 'maqp' || d.k === 'maqd') { maqRed(d);
   } else if (d.k === 'meme' || d.k === 'memed') { memeRed(d);
+  } else if (d.k === 'echar') { celEchadoRed(d);
+  } else if (d.k === 'catap' || d.k === 'omega' || d.k === 'omegab') { artRed(d);
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
   } else if (d.k === 'fnn' || d.k === 'fnb' || d.k === 'fnx' || d.k === 'fne' || d.k === 'fnv') { nocheRed(d); // (la noche en la pizzería)
   } else if (d.k === 'dano' && d.to === RED.ID) {

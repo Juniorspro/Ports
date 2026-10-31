@@ -530,6 +530,35 @@ body.tactil #redEst{left:50%;top:4px;transform:translateX(-50%);white-space:nowr
 #chat{position:absolute;left:10px;bottom:26px;width:min(360px,calc(var(--vw)*70));font-size:12px;text-shadow:0 1px 2px #000}
 #chat div{margin:1px 0}
 #chat .chMm{display:inline-flex;align-items:center;gap:5px}#chat .chMm i{width:11px;height:11px;border-radius:50%;box-shadow:inset 0 -2px 2px rgba(0,0,0,.35),0 0 0 1.5px rgba(255,255,255,.6);flex:none}#chat .chMm b{color:#ffe082}
+/* la bomba de Rick Prime: a quién borrar, y el destello verde */
+.omegaCaja{width:min(620px,calc(var(--vw)*92))}.omegaCaja h3{color:#7dff6a;margin:0 0 4px}.omegaCaja p{margin:0 0 8px;color:#bbb;font-size:12.5px}
+.omegaLista{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px;max-height:calc(var(--vh)*56);overflow:auto}
+.omegaLista button{background:#33363d;border:2px solid transparent;border-radius:8px;color:#fff;padding:5px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font:11px Roboto,Arial,sans-serif}
+.omegaLista button.cerca{border-color:#5fdc4f}.omegaLista img{width:56px;height:56px;border-radius:6px;object-fit:cover;background:#222}.omegaLista span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#omegaFlash{position:fixed;inset:0;z-index:8;pointer-events:none;background:radial-gradient(circle,rgba(190,255,160,.95),rgba(60,255,90,.75) 45%,rgba(0,120,30,.55));opacity:0}
+/* el celular (como el de GTA 5): sube desde abajo a la derecha */
+#celular{position:fixed;right:max(12px,calc(var(--vw)*4));bottom:0;z-index:7;height:min(calc(var(--vh)*80),580px);width:min(calc(var(--vh)*38.9),282px);transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.9,.3,1.1);pointer-events:auto}
+#celular.oc{display:block!important;visibility:hidden}#celular.arriba{transform:translateY(4%);visibility:visible}
+.celMarco{width:100%;height:100%;background:#0d0f13;border-radius:min(9%,26px);padding:5.5%;box-sizing:border-box;box-shadow:0 10px 30px rgba(0,0,0,.55),inset 0 0 0 2px #2a2e36}
+.celPantalla{position:relative;width:100%;height:100%;border-radius:min(7%,18px);overflow:hidden;background:radial-gradient(120% 80% at 20% 0%,#3b5bdb 0%,#5b2c8d 45%,#151827 100%);display:flex;flex-direction:column;color:#fff;font:12px Roboto,Arial,sans-serif}
+.celBarra{display:flex;justify-content:space-between;align-items:center;padding:6px 10px 2px;font-size:11px;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.celRed{display:flex;align-items:flex-end;gap:1.5px}.celRed i{width:3px;background:rgba(255,255,255,.35);border-radius:1px}.celRed i:nth-child(1){height:5px}.celRed i:nth-child(2){height:7px}.celRed i:nth-child(3){height:9px}.celRed i.on{background:#fff}
+.celRed em{width:16px;height:8px;border:1.5px solid #fff;border-radius:2px;margin-inline-start:5px;position:relative;box-sizing:border-box}.celRed em:after{content:'';position:absolute;inset:1px;background:#6fe36f;border-radius:1px}
+.celCont{flex:1;min-height:0;min-width:0;overflow-x:hidden;overflow-y:auto;padding:4px 8px 6px;scrollbar-width:none}.celCont::-webkit-scrollbar{display:none}
+.celHome{flex:none;align-self:center;width:34%;height:5px;border-radius:3px;border:0;background:rgba(255,255,255,.85);margin:6px 0 8px;cursor:pointer}
+.celApps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 6px;padding-top:12px}
+.celApp,.celIt,.celMeme{background:none;border:0;color:#fff;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:0;font:inherit;min-width:0}
+.celApp span{width:min(58px,100%);aspect-ratio:1;border-radius:24%;background:linear-gradient(160deg,color-mix(in srgb,var(--c) 75%,#fff),var(--c));display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.35)}
+.celApp span svg{width:58%;height:58%}.celApp small,.celIt small,.celMeme small{font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.celApp:active span{transform:scale(.92)}
+.celTit{display:flex;align-items:center;gap:6px;margin:2px 0 6px}.celTit button{background:rgba(255,255,255,.15);border:0;color:#fff;width:26px;height:26px;border-radius:50%;font-size:18px;line-height:24px;cursor:pointer;padding:0}.celTit b{font-size:14px}
+.celBus{width:100%;box-sizing:border-box;border:0;border-radius:10px;padding:7px 10px;background:rgba(255,255,255,.18);color:#fff;font:inherit;margin-bottom:6px}.celBus::placeholder{color:rgba(255,255,255,.7)}
+.celChips{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin-bottom:6px}.celChips::-webkit-scrollbar{display:none}.celChips button{flex:none;border:0;border-radius:12px;padding:4px 9px;background:rgba(255,255,255,.14);color:#fff;font:600 11px Roboto,Arial,sans-serif;cursor:pointer}.celChips button.sel{background:#fff;color:#1d2340}
+.celGrilla{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.celIt{background:rgba(255,255,255,.1);border-radius:10px;padding:5px 3px}.celIt img,.celIt i{width:100%;aspect-ratio:4/3;object-fit:contain;display:block}.celIt:active{background:rgba(255,255,255,.28)}
+.celPuso{position:absolute;left:8px;right:8px;bottom:22px;background:rgba(20,24,36,.9);border-radius:10px;padding:6px 8px;font-size:11px;text-align:center;opacity:0;transition:opacity .3s;pointer-events:none}.celPuso.ve{opacity:1}
+.celMemes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 4px}.celMeme span{width:min(46px,100%);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.55),rgba(255,255,255,0) 42%),var(--c);box-shadow:0 4px 0 rgba(0,0,0,.4)}.celMeme:active span{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.celGente{display:flex;flex-direction:column;gap:6px}.celPers{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border-radius:10px;padding:5px 7px}.celPers img{width:30px;height:30px;border-radius:50%;object-fit:cover;background:#333;flex:none}.celPers b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.celPers small{opacity:.7}.celPers button{border:0;border-radius:8px;background:#e53935;color:#fff;padding:4px 8px;font:600 11px Roboto,Arial,sans-serif;cursor:pointer}
+.celVacio{opacity:.75;text-align:center;font-size:11px;padding:10px 4px}
 /* pad de memes: botones redondos de colores, como un soundboard */
 .memeCaja{width:min(720px,calc(var(--vw)*94))}.memeCaja h3{display:flex;align-items:center;gap:8px}.memeCaja .mmX{margin-inline-start:auto}
 .mmBus{flex:1;min-width:80px;max-width:220px;background:#1f2024;color:#fff;border:1px solid #555;border-radius:4px;padding:6px 8px;font-size:13px}
@@ -632,7 +661,7 @@ body:not(.tactil) .mqIzq,body:not(.tactil) .mqDer,body:not(.tactil) .mqMed,#maqV
     <div class="redondo bt" data-btn="pausa"><img id="iPausa"><small>(P)</small></div>
     <div class="redondo bt" data-btn="menu"><img id="iMenu"><small>(TAB)</small></div>
     <div class="redondo bt" data-btn="chat"><img id="iChat"><small>(T)</small></div>
-    <div class="redondo bt" data-btn="memes"><img id="iMeme"><small>(I)</small></div>
+    <div class="redondo bt" data-btn="celular"><img id="iMeme"><small>(O)</small></div>
   </div>
   <div id="arribaDe">
     <div class="redondo bt" data-btn="emotes"><img id="iEmote"><small>(B)</small></div>

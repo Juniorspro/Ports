@@ -225,7 +225,8 @@ function usar() {
   { const e = !h || !h.body || !h.body.obj ? entidadCerca() : null; if (e && entidadUsar(e)) return; } // botón de autos al lado
   if (!h || !h.body || !h.body.obj) { sonar('UI_niega', null, 0.3); return; }   // (nada para usar: el sonido de HL2)
   const o = h.body.obj;
-  if (o.nombre === 'Arcade') { maqUsar(o); return; }   // (la maquinita: elegir un juego y jugarlo)
+  if (o.nombre === 'Arcade') { maqUsar(o); return; }
+  if (o.art && artUsar(o)) return;   // (la catapulta, la bomba de Rick Prime)   // (la maquinita: elegir un juego y jugarlo)
   if (o.logica && usarLogica(o)) return;
   if (o.veh) { subirVehiculo(o); return; }
   if (o.tipo === 'arma') { darArma(o.nombre); borrarObjeto(o); return; }

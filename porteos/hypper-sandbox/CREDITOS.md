@@ -71,3 +71,12 @@ Herramientas usadas al empaquetar (no van en el juego): pyfqmr (Fast Quadric Mes
 | Asset | Autor / origen | Dónde | Licencia |
 |---|---|---|---|
 | Los 36 sonidos de memes (Vine boom, Bruh, Oof, tubo de metal, MLG, Emotional damage, Sus, Taco Bell, Huh, Wow, Bonk, Ba dum tss, trombón triste, error de XP, FBI open up, AUGH, momentos después, continuará, Yeet, gnomo, aldeano, Discord, grito Wilhelm, oh no no no, Rizz, Ete sech, Chupapi, Eso Tilín, pedo, correcto, incorrecto, aplausos, risas, grillos, dun dun dun, Nani), recortados a 7 s como mucho, nivelados y pasados a mono 48 kbps | subidos por la comunidad a myinstants.com (cada meme es de su autor original) | https://www.myinstants.com | rip: myinstants (memes de internet) |
+
+## Celular, catapulta, bomba de Rick Prime y cámara (`juego/celular.js`, `juego/artefactos.js`)
+
+| Asset | Autor / origen | Dónde | Licencia |
+|---|---|---|---|
+| Catapulta (base y brazo), trípode con cámara y la bomba (modelos 3D) | generados acá (imagen con gpt-image → 3D con Higgsfield), `prop_glb.py` | — | propios |
+| La bomba de Rick Prime (diseño del aparato Omega) | Rick and Morty (Justin Roiland y Dan Harmon, Adult Swim) | referencia de https://rickandmorty.fandom.com (sólo para generar el modelo) | fan art: Rick and Morty |
+| Idea del celular que pone cosas y de la catapulta | Simple Sandbox 2 y Simple Sandbox 3 (Tiny Lab Productions) | sólo la idea; nada copiado | — |
+| Íconos de las apps del celular | hechos a mano (SVG) | `juego/celular.js` | propios |

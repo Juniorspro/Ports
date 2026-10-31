@@ -15,9 +15,12 @@ function patear() {
 // la cabeza y los brazos achicados a nada (pateando en primera persona: taparían la cámara y se meterían en la vista;
 // queda la pierna) o de vuelta a su tamaño
 const PAT_HUESOS = ['Head', 'LeftShoulder', 'RightShoulder'];
-function patadaCabeza(P, sin) {
+// en primera persona se ve el cuerpo pateando o haciendo un emote (en un emote se achica sólo la cabeza: los brazos son lo que se mira)
+const cuerpoEnPrimera = (P) => !!P && P === JUG.cuerpo && !JUG.tercera && !HCAM.ver && JUG.vivo && !JUG.vehiculo && (patadaActiva(P) || (!!P.emote && !P.rag && !P.sentado));
+function patadaCabeza(P, sin, soloCabeza) {
   if (!P || (!sin && !P.cabezaS)) return;
-  if (!P.cabezaS) P.cabezaS = PAT_HUESOS.map((n) => { const i = P.D.h[n]; return i === undefined ? null : [i, P.md.s[i].slice()]; }).filter(Boolean);
+  if (sin && P.cabezaS && P.cabezaSolo !== !!soloCabeza) patadaCabeza(P, false);   // (cambió de patada a emote o al revés)
+  if (!P.cabezaS) { P.cabezaSolo = !!soloCabeza; P.cabezaS = (soloCabeza ? ['Head'] : PAT_HUESOS).map((n) => { const i = P.D.h[n]; return i === undefined ? null : [i, P.md.s[i].slice()]; }).filter(Boolean); }
   const k = sin ? 0.001 : 1;
   for (const [i, s0] of P.cabezaS) { const s = P.md.s[i]; s[0] = s0[0] * k; s[1] = s0[1] * k; s[2] = s0[2] * k; }
   if (!sin) P.cabezaS = null; P.md.sucio = true;
@@ -25,7 +28,7 @@ function patadaCabeza(P, sin) {
 // cada cuadro: el golpe en su momento (sólo la mía; la de los demás la hace cada uno en su juego)
 function patadasPaso(dt) {
   const P = JUG.cuerpo;
-  if (P && P.cabezaS && !patadaActiva(P)) patadaCabeza(P, false);   // (terminó en primera persona: el cuerpo ya no se dibuja, la cabeza vuelve igual)
+  if (P && P.cabezaS && !cuerpoEnPrimera(P)) patadaCabeza(P, false);   // (terminó en primera persona: el cuerpo ya no se dibuja, la cabeza vuelve igual)
   if (!patadaActiva(P) || PAT.pego || P.emoteT < PAT.golpe) return;
   PAT.pego = true;
   const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), tk = P.tam || 1, pie = vadd(JUG.pos, v3(f.x * 0.85 * tk, -0.95 + 0.75 * tk, f.z * 0.85 * tk)), R = 0.75 * tk;

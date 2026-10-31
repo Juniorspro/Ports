@@ -100,6 +100,28 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
 - **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
   leyeron: queda en 16,5 MB en vez de ~38.
+- **El celular** (`juego/celular.js`, como el de GTA 5; prueba `pruebas/celular.mjs`, 7/7): el botón al lado del chat
+  (o la O) lo sube desde abajo a la derecha con sus apps: **Objetos** (como el celu de Simple Sandbox 2: tocás uno y
+  aparece adelante tuyo, el celular sigue abierto), **Memes** (el pad; la I abre directo ahí), **Jugadores** (los de la
+  sala; el dueño del server puede **echar** a alguien: le llega, sale y no puede volver a entrar a ese server por 30
+  minutos; si igual manda, se lo vuelve a echar y no se lo dibuja), **Emotes**, **Cámara**, **Mods** y **Ajustes**. Se
+  puede caminar con el celular abierto; tocar afuera, la X o el botón de inicio lo guarda.
+- **Catapulta** (como la de Simple Sandbox 3; Props → Diversión; `juego/artefactos.js`, prueba `pruebas/artefactos.mjs`,
+  9/9): E la dispara: el brazo gira sobre su eje y lo que está en la cuchara (una caja, un muñeco, gente o vos) sale
+  volando para adelante y arriba (una caja pasa los 8 m); el brazo vuelve solo. Modelo generado (imagen → 3D) en dos
+  piezas: la base con su choque de chasis y el brazo, que gira sobre el eje de la base (la cuchara se busca en la malla:
+  la punta más ancha).
+- **La bomba de Rick Prime** (el aparato Omega de Rick and Morty; Props → Diversión): E abre la lista de personajes y
+  elegís a cuál borrar; cuenta 5 segundos con pitidos y luz verde y explota en un destello verde que elimina a **todos**
+  los de ese personaje (gente de la partida, NPC, otros jugadores y vos si sos ese), sin tocar a nadie más. En la sala la
+  catapulta y la bomba pasan para todos.
+- **Emotes en primera persona** (`pruebas/emote_primera.mjs`, 4/4): hacer un emote ya no pasa a tercera persona: se ve
+  tu cuerpo (con la cabeza achicada a nada) sin el arma en la mano, y la cámara sigue al hueso de la cabeza (16 cm
+  adelante) para que se vea el baile desde tus ojos. Al terminar vuelve todo.
+- **Tool Gun → Cámara** (`pruebas/camara_tool.mjs`, 7/7): clic pone una cámara en un trípode, congelada, con el lente
+  hacia donde mirás; clic derecho mira por tus cámaras una por una (desde el lente, con la inclinación que tenías al
+  ponerla; se ve tu cuerpo entero y no el arma) y después vuelve a tus ojos. Si la borrás o cambiás de arma, volvés a
+  tus ojos. Los demás ven las cámaras (son objetos); lo que se ve por cada una es de cada uno.
 - **Patadas** (`juego/patadas.js`; prueba `pruebas/patadas.mjs`, 11/11): F a pie (en un vehículo F sigue siendo bajar) o el
   botón del pie en el celular. Es la patada del juego (el clip "Kick", su tramo del golpe al doble de velocidad: 0,64 s,
   casi quieto mientras dura). A los 0,2 s, con la pierna estirada: empuja los props que tenés adelante (la caja sale a

@@ -95,6 +95,7 @@ function camaraActualizar(dt) {
   if (JUEGO.estado === 'juego') nocheCamara(CAM, dt); // (la pizzería: mirando una cámara de seguridad)
   if (EDA.on) edaCamara(CAM); // (editor de animaciones: alrededor del muñeco o la cámara grabada)
   if (DBG.cam) { CAM.pos.copy(DBG.cam.p); CAM.q.copy(DBG.cam.q); } // (pruebas: mirar desde otro lado)
+  else if (typeof herCamaraVista === 'function') herCamaraVista();   // (la herramienta Cámara: mirando por una)
   if (CAM.temblor > 0) { CAM.temblor = Math.max(0, CAM.temblor - dt * 1.5); const k = CAM.temblor * 0.03; CAM.q.mul(Quat.euler((Math.random() - 0.5) * k, (Math.random() - 0.5) * k)); }
   CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA);
   CAM.fwd.copy(CAM.q.rot(v3(0, 0, 1)));
@@ -165,7 +166,8 @@ function atenderPulsos() {
     if (k === 'modmenu') { if (UI.abierto === 'modm') modMenuCerrar(); else if (!UI.abierto) modMenuAbrir(); continue; }
     if (k === 'servmods') { if (UI.abierto === 'sm') smCerrar(); else if (!UI.abierto) smAbrir(); continue; }
     if (k === 'menu') { if (UI.abierto === 'spawn') cerrarPaneles(); else { cerrarPaneles(); abrirSpawn(); } continue; }
-    if (k === 'memes') { if (UI.abierto === 'memes') memePanCerrar(); else if (!UI.abierto) memePanAbrir(); continue; }
+    if (k === 'memes') { if (UI.abierto === 'celular') celCerrar(); else if (!UI.abierto) celAbrir('memes'); continue; }   // (los memes van en el celular)
+    if (k === 'celular') { if (UI.abierto === 'celular') celCerrar(); else if (!UI.abierto) celAbrir(); continue; }
     if (UI.abierto) continue;
     if (k === 'chat') abrirChat();
     else if (k === 'camara') { if (JUG.vehiculo) { JUG.fpVeh = !JUG.fpVeh; JUG.yaw = JUG.fpVeh ? 0 : JUG.yaw; } else JUG.tercera = !JUG.tercera; }
@@ -229,7 +231,7 @@ function cuadro(ahora) {
   }
   efectosPaso(dt);
   camaraActualizar(dt);
-  aguaPaso(dt); sonidosPaso(dt); patadasPaso(dt);
+  aguaPaso(dt); sonidosPaso(dt); patadasPaso(dt); artPaso(dt);
   dibujar();
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso();
@@ -301,7 +303,7 @@ function dibujar() {
   // juntar todo lo que hay que dibujar (el mapa fijo marcado aparte para la copia de sombras)
   const t0 = performance.now();
   R.fase = 'mundo'; dibujarMundo(); R.fase = '';
-  dibujarObjetos(); aguaEncolar(); maqDibujar();
+  dibujarObjetos(); aguaEncolar(); maqDibujar(); artDibujar();
   if (typeof dibujarPersonas === 'function') dibujarPersonas();
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();

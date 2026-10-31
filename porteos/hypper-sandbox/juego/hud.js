@@ -29,13 +29,14 @@ const HUD_SVG = {
   manual: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="#fff" stroke-width="2"/><path d="M10 16.5v-9h2.8a2.6 2.6 0 0 1 0 5.2H10" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   bajar: '<path d="M10 4H5.5v16H10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 12h9M16 8l3.8 4-3.8 4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   meme: '<rect x="3" y="3" width="18" height="18" rx="3.5" fill="none" stroke="#fff" stroke-width="2"/><circle cx="8.6" cy="8.6" r="2.4" fill="#fff"/><circle cx="15.4" cy="8.6" r="2.4" fill="#fff"/><circle cx="8.6" cy="15.4" r="2.4" fill="#fff"/><circle cx="15.4" cy="15.4" r="2.4" fill="#fff" opacity=".55"/>',
+  celular: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.4" fill="none" stroke="#fff" stroke-width="2"/><path d="M10 5.2h4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="18.2" r="1.1" fill="#fff"/><path d="M9.4 9.2h2v2h-2zM12.6 9.2h2v2h-2zM9.4 12.4h2v2h-2zM12.6 12.4h2v2h-2z" fill="#fff"/>',
   volver: '<path d="M4.5 9.5A8 8 0 1 1 6 16" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M3.5 4.5v5h5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12.5" cy="12" r="2.3" fill="#fff"/>',
   dos: '<circle cx="12" cy="12" r="8" fill="none" stroke="#fff" stroke-width="2"/><path d="M9.3 9.6a2.8 2.8 0 0 1 5.4 1c0 2-5.3 3.6-5.3 5.4h5.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 const hudIco = (n) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${HUD_SVG[n] || ''}</svg>`);
 // [selector, ancla x, ancla y, x, y, tamaño] en la referencia 1280×720 (y para arriba)
 const HUD_TACTIL = [
-  ['[data-btn=pausa]', 0, 1, 46, -44.9, 75], ['.modmBt', 0, 1, 151.8, -46.1, 75], ['.smBt', 0, 1, 257.7, -46.2, 75], ['#vozBt', 0, 1, 363.6, -46.2, 75], ['#vocesBt', 0, 1, 469.5, -46.2, 75], ['#verBt', 0, 1, 575.4, -46.2, 75], ['[data-btn=chat]', 0, 1, 46.6, -137.6, 75], ['[data-btn=memes]', 0, 1, 151.8, -137.6, 75],
+  ['[data-btn=pausa]', 0, 1, 46, -44.9, 75], ['.modmBt', 0, 1, 151.8, -46.1, 75], ['.smBt', 0, 1, 257.7, -46.2, 75], ['#vozBt', 0, 1, 363.6, -46.2, 75], ['#vocesBt', 0, 1, 469.5, -46.2, 75], ['#verBt', 0, 1, 575.4, -46.2, 75], ['[data-btn=chat]', 0, 1, 46.6, -137.6, 75], ['[data-btn=celular]', 0, 1, 151.8, -137.6, 75],
   ['[data-btn=menu]', 0, 0.5, 46, 42.8, 75],
   ['#armaAct', 1, 1, -53, -53, 100], ['[data-btn=camara]', 1, 1, -209, -50, 75], ['[data-btn=emotes]', 1, 1, -332.8, -50, 75],
   ['#bdisparo', 1, 0.5, -207, -62, 124], ['#bdisp2', 1, 0.5, -124, 27.9, 70], ['#brecargar', 1, 0.5, -124, 27.9, 70], ['#brotar', 1, 0.5, -86.5, -62, 70], ['#bvolver', 1, 0.5, -230, 70, 62],
@@ -55,7 +56,7 @@ function hudIniciar() {
   nuevo('bborrar', 'borrarApuntado', 'borrar'); nuevo('bpatada', 'patada', 'patada'); nuevo('bvolver', 'volver', 'volver'); nuevo('bgas', 'pGas', 'gas', 1); nuevo('bfreno', 'pFreno', 'freno', 1); nuevo('bizq', 'pIzq', 'izq', 1); nuevo('bder', 'pDer', 'der', 1); nuevo('bmanual', 'saltar', 'manual', 1); nuevo('bbajar', 'salir', 'bajar');
   // los íconos propios
   const pon = (id, n) => { const e = $(id); if (e) e.src = hudIco(n); };
-  pon('iPausa', 'pausa'); pon('iMenu', 'props'); pon('iChat', 'chat'); pon('iMeme', 'meme'); pon('iEmote', 'emote'); pon('iCam', 'camara'); pon('iDisp', 'disparo'); pon('iRotar', 'rotar'); pon('iSalto', 'salto'); pon('iUsar', 'usar');
+  pon('iPausa', 'pausa'); pon('iMenu', 'props'); pon('iChat', 'chat'); pon('iMeme', 'celular'); pon('iEmote', 'emote'); pon('iCam', 'camara'); pon('iDisp', 'disparo'); pon('iRotar', 'rotar'); pon('iSalto', 'salto'); pon('iUsar', 'usar');
   const ag = $('bagachar'); if (ag) ag.innerHTML = `<img alt="" src="${hudIco('agachar')}">`;
   const rc = $('brecargar'); if (rc) rc.innerHTML = `<img alt="" src="${hudIco('recargar')}">`;
   const le = $('blejos'); if (le) le.innerHTML = `<img alt="" src="${hudIco('mas')}">`;

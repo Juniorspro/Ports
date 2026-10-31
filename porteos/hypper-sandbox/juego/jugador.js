@@ -182,6 +182,15 @@ function jugadorCamara(out) {
     const db = baja - (J.ojoBaja || 0), vmax = (db > 0 ? 2 : 1.2) * dt;
     J.ojoBaja = (J.ojoBaja || 0) + clamp(db * Math.min(1, dt * 12), -vmax, vmax);
     J.ojoPos.set(J.pos.x, oy - J.ojoBaja, J.pos.z);
+    // haciendo un emote en primera persona: los ojos van con la cabeza del cuerpo (un poco adelante de la cara), así se ve
+    // el cuerpo desde afuera y no por dentro del cuello cuando el emote inclina la cabeza
+    const P = J.cuerpo, em = P && P.emote && P.emote !== 'Patada' && typeof cuerpoEnPrimera === 'function' && cuerpoEnPrimera(P);
+    J.ojoEmK = (J.ojoEmK || 0) + ((em ? 1 : 0) - (J.ojoEmK || 0)) * Math.min(1, dt * 8);
+    if (J.ojoEmK > 0.001 && P && P.D.h.Head !== undefined) {
+      const W = P.md.W[P.D.h.Head], f = v3(Math.sin(J.yaw), 0, Math.cos(J.yaw)), t = P.tam || 1;
+      const cx = W[12] + f.x * 0.16 * t, cy = W[13] + 0.06 * t, cz = W[14] + f.z * 0.16 * t, k = J.ojoEmK;
+      J.ojoPos.set(J.ojoPos.x + (cx - J.ojoPos.x) * k, J.ojoPos.y + (cy - J.ojoPos.y) * k, J.ojoPos.z + (cz - J.ojoPos.z) * k);
+    }
   }
   J.q.copy(Quat.euler(J.yaw, J.pitch, Math.sin(ph) * 0.006 * bob));
   J.adelante.copy(J.q.rot(v3(0, 0, 1)));

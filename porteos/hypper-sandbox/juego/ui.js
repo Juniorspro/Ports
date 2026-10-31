@@ -41,7 +41,7 @@ function spawnDibujar() {
   if (C.n === 'Tools') {
     // herramientas: lista + inspector de parámetros (como el juego)
     DATA.herr.forEach((h, i) => {
-      const d = document.createElement('div'); d.className = 'cat' + (UI.herrSel === i ? ' sel' : ''); d.textContent = h.n;
+      const d = document.createElement('div'); d.className = 'cat' + (UI.herrSel === i ? ' sel' : ''); d.textContent = T('her.' + h.n) !== 'her.' + h.n ? T('her.' + h.n) : h.n;
       d.onclick = () => { UI.herrSel = i; equiparHerramienta(i); spawnDibujar(); }; cl.appendChild(d);
     });
     gr.innerHTML = '<div style="padding:10px;font-size:13px;color:#ccc">Elegí una herramienta. Se usa con la Tool Gun: clic izquierdo para aplicar, derecho para la opción.</div>';
@@ -142,6 +142,8 @@ function cerrarPaneles() {
   for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan', 'verPan', 'verTuto', 'verTerm', 'verCrea']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
   $('chatIn').classList.add('oc');
   if (typeof memePanCerrar === 'function') memePanCerrar();
+  if (typeof celCerrar === 'function') celCerrar();
+  if (typeof artOmegaPanelCerrar === 'function') artOmegaPanelCerrar();
   if (typeof maqPanelCerrar === 'function') { maqPanelCerrar(); if ($('maqVista') && !$('maqVista').classList.contains('oc')) maqVistaCerrar(); }
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }
@@ -209,7 +211,7 @@ function hudActualizar(dt) {
 
 // ---------------- menús: una X para cerrar y tocar afuera para volver a jugar ----------------
 // (el menú MOD se cierra solo al tocar afuera: modmenu.js; el chat se cierra sin mandar nada)
-const PANEL_DE = { spawn: 'spawn', pausa: 'pausa', emotes: 'emotes', memes: 'memePan', maq: 'maqPan', sm: 'smPan', radio: 'radioPan', verity: 'verPan', terminal: 'verTerm' };
+const PANEL_DE = { celular: 'celular', omega: 'omegaPan', spawn: 'spawn', pausa: 'pausa', emotes: 'emotes', memes: 'memePan', maq: 'maqPan', sm: 'smPan', radio: 'radioPan', verity: 'verPan', terminal: 'verTerm' };
 const panelAbierto = () => { const id = PANEL_DE[UI.abierto], p = id && $(id); return p && !p.classList.contains('oc') ? p : null; };
 // lo que se ve del menú (en los que oscurecen la pantalla, la caja del medio)
 const cajaDe = (p) => (p.classList.contains('panel') ? p.querySelector('.caja') || p : p);
@@ -226,7 +228,7 @@ addEventListener('pointerdown', (e) => {
 const X_SVG = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
 function ponerX() {
   const p = panelAbierto(); if (!p) return;
-  const c = cajaDe(p); if (c.querySelector('.xCerrar, .mmX, .mqX')) return;
+  const c = cajaDe(p); if (c.querySelector('.xCerrar, .mmX, .mqX, .celHome')) return;
   const b = document.createElement('button'); b.className = 'xCerrar'; b.setAttribute('aria-label', T('cerrar')); b.innerHTML = X_SVG;
   b.addEventListener('click', (e) => { e.stopPropagation(); cerrarPaneles(); });
   if (getComputedStyle(c).position === 'static') c.style.position = 'relative';

@@ -144,6 +144,8 @@ async function cargarPaquete(progreso) {
   // índices por nombre
   DATA.pfPorNombre = {};
   for (const k in DATA.pf) { const n = k.split('#')[0]; if (!DATA.pfPorNombre[n]) DATA.pfPorNombre[n] = k; }
+  // herramientas nuestras de la Tool Gun (después de las del juego)
+  for (const n of ['Camara', 'Actitud']) if (!DATA.herr.some((h) => h.n === n)) DATA.herr.push({ n, p: [] });
   DATA.anPorNombre = {};
   for (const k in DATA.an.clips) DATA.anPorNombre[k] = DATA.an.clips[k][0];
 }

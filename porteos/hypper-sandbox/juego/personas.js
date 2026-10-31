@@ -176,8 +176,8 @@ function dibujarPersona(P) {
   if (!P.visible) return;
   P.cDib = PERS_N; // (lo que se lleva puesto, como la radio en la espalda, usa los huesos de este cuadro)
   // pateando en primera persona se ve el cuerpo: la cabeza (y el gorro) achicados a nada, que taparían la cámara
-  const sinCabeza = P === JUG.cuerpo && !JUG.tercera && patadaActiva(P);
-  patadaCabeza(P, sinCabeza);
+  const sinCabeza = cuerpoEnPrimera(P);
+  patadaCabeza(P, sinCabeza, sinCabeza && !patadaActiva(P));
   ubicarPersona(P);
   // (sentado, en un emote o en el piso como muñeco no se clavan los pies; se olvida el apoyo viejo para no tirar del pie al volver)
   // (los emotes de captura sí pasan por el apoyo: trae la altura del piso de la captura y que nada quede abajo del piso)
@@ -518,7 +518,8 @@ function emote(e) {
   }
   if (typeof emoUsado === 'function') emoUsado(e);
   sonEmote(JUG.cuerpo, e);
-  JUG.cuerpo.emote = e; JUG.cuerpo.emoteT = 0; if (!JUG.tercera) { JUG.tercera = true; JUG.terceraEmote = true; } if (typeof redEmote === 'function') redEmote(e);
+  // (en primera persona se queda en primera: se ve el propio cuerpo haciendo el emote, sin la cabeza; con V se cambia)
+  JUG.cuerpo.emote = e; JUG.cuerpo.emoteT = 0; if (typeof redEmote === 'function') redEmote(e);
 }
 function personasPaso(dt) {
   const P = JUG.cuerpo;
@@ -552,7 +553,7 @@ function dibujarPersonas() {
   const umbral = GFX.nombre === 'patata' ? 9 : GFX.nombre === 'bajo' ? 0.3 : GFX.lod === 0 && (GFX.sombra || 0) >= 3 ? 0.12 : 0.2;
   for (const P of PERS) {
     const yo = P === JUG.cuerpo;
-    if (yo) { const ver = JUG.tercera || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh) || P.cicManos || patadaActiva(P); if (!ver) continue; }
+    if (yo) { const ver = JUG.tercera || !!HCAM.ver || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh) || P.cicManos || cuerpoEnPrimera(P); if (!ver) continue; }
     const tk = P.tam || 1, dx = P.pos.x - cp.x, dy = P.pos.y - cp.y, dz = P.pos.z - cp.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
     P.dtJunto = Math.min(0.25, (P.dtJunto || 0) + (TIEMPO.dt || 0.016));
     if (!yo && d > 4 && F && !sphereIn(F, P.pos.x, P.pos.y - 1 + 0.95 * tk, P.pos.z, 1.4 * tk)) continue;

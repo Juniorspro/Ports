@@ -3,8 +3,8 @@
 # viajan por la red como los del juego) y a una categoría del menú de props.
 # Uso: python3 -I prop_glb.py PAQUETE Nombre:altura:masa:categoría:modelo.glb:foto.png[:opción...] [...]
 # Opciones: col=esfera (pelotas), col=tronco (árboles: cajas en el tronco, se pasa entre las hojas), col=mesa (tabla y
-# patas, se puede meter cosas abajo), col=pila (cajas apiladas por altura: postes con base plana), col=aro (base, palo y tablero, la pelota pasa por el aro); rs=0.8 (rebote);
-# sal (cama elástica: el que la pisa rebota).
+# patas, se puede meter cosas abajo), col=pila (cajas apiladas por altura: postes con base plana), col=chasis (sólo la mitad de abajo), col=aro (base, palo y tablero, la pelota pasa por el aro); rs=0.8 (rebote);
+# sal (cama elástica: el que la pisa rebota); art=nombre (lógica propia en artefactos.js); oculto (no va al menú).
 import sys, os, io, json, gzip, hashlib, numpy as np
 from PIL import Image, ImageDraw
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -43,6 +43,10 @@ def colliders(V, tipo, H):
             anchos.append((S[:, [0, 2]].max(0) - S[:, [0, 2]].min(0)).max() if len(S) else 0)
         base = max(anchos[2:6]); fin = next((k for k in range(6, 24) if anchos[k] > 2.5 * base), 18) * paso
         return [caja(V[(y >= fin * a / 3) & (y < fin * (a + 1) / 3)]) for a in range(3)]
+    if tipo == 'chasis':
+        # sólo lo de abajo (ruedas y bastidor, hasta la mitad del alto): lo que va arriba (la catapulta con su brazo) no
+        # choca con el aire entre los soportes
+        return [caja(V[y < 0.5 * H])]
     if tipo == 'pila':
         # cuatro cajas por altura: la de abajo con la base plana (un poste no se tambalea)
         return [caja(V[(y >= H * a / 4) & (y <= H * (a + 1) / 4)]) for a in range(4)]
@@ -97,6 +101,7 @@ for arg in sys.argv[2:]:
     rb = {'m': float(masa), 'd': 0.0, 'k': 0, 'g': 1}
     if 'rs' in op: rb['rs'] = float(op['rs'])
     if 'sal' in op: rb['sal'] = 1
+    if 'art' in op: rb['art'] = op['art']   # (artefactos con su lógica en artefactos.js: catapulta, bomba de Rick Prime)
     d['pf'][key] = [{'n': nom, 'p': [0, 0, 0], 'r': [0, 0, 0, 1], 's': [1, 1, 1], 'pa': -1, 'tg': 20000, 'mb': ['PhotonView', 'Prop', 'PhotonTransformViewClassic'], 'rb': rb},
                     {'n': nom + '_m', 'p': [0, 0, 0], 'r': [0, 0, 0, 1], 's': [1, 1, 1], 'pa': 0, 'tg': 20000, 'm': mi, 'mt': [ma], 'rid': 9910000 + mi, 'col': col}]
     # ícono: la foto recortada al objeto, cuadrada
@@ -104,7 +109,7 @@ for arg in sys.argv[2:]:
     dif = np.abs(a - fondo).sum(2) > 40; ys, xs = np.where(dif)
     if len(xs): x0, x1, y0, y1 = xs.min(), xs.max(), ys.min(), ys.max(); m = max(x1 - x0, y1 - y0) * 0.56; cx, cy = (x0 + x1) / 2, (y0 + y1) / 2; f = f.crop((int(cx - m), int(cy - m), int(cx + m), int(cy + m)))
     f.resize((160, 160), Image.LANCZOS).save(PK + '/i/%s.webp' % nom, 'WEBP', quality=86); d['ico'][nom] = nom
-    cats.setdefault(cat, []).append(nom)
+    if 'oculto' not in op: cats.setdefault(cat, []).append(nom)   # (oculto: una pieza que usa otro, como el brazo de la catapulta)
     print(nom, 'vértices', len(V), 'triángulos', len(IDX), 'medidas', np.round(sc, 2), 'masa', masa)
 # en el menú de props: categorías propias primero
 props = next(c for c in d['menu'] if c['n'] == 'Props')

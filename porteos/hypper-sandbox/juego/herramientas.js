@@ -33,6 +33,8 @@ function herramientaUsar(alt) {
   efectoTraza(vistaPuntaMundo() || CAM.pos, r ? r.p : vadd(CAM.pos, vscale(CAM.fwd, 80)));
   sonar('Click', null, 0.5, 1.4);
   const o = r && r.body && r.body.obj;
+  if (h.n === 'Camara') { herCamara(alt, r); return; }
+  if (h.n === 'Actitud' && typeof actitudUsar === 'function') { actitudUsar(alt, r); return; }
   if (h.n === 'Remove') { if (o) { efectoChispas(o.b.pos); borrarObjeto(o); } return; }
   if (h.n === 'Duplicate') { if (o) { const n = crearObjeto(o.nombre, vadd(o.b.pos, v3(0, (o.b.aabb.y1 - o.b.aabb.y0) + 0.05, 0)), o.b.q.clone(), { exacto: true, congelado: o.b.frozen }); if (n) { if (o.logica) n.logica = Object.assign({}, o.logica, { params: Object.assign({}, o.logica.params), entradas: [] }); DESHACER.push(n); redObjeto(); } } return; }
   if (h.n === 'Wire') {
@@ -76,7 +78,7 @@ function herramientasPaso(dt) {
   const enTool = ARM.lista[ARM.i] === 'ToolBaton' && !UI.abierto;
   let txt = '';
   if (enTool) { const r = raycast(CAM.pos, CAM.fwd, 30, null); if (r && r.body && r.body.obj) txt = `${r.body.obj.nombre} · ID ${r.body.obj.id}`; }
-  else { const r = raycast(CAM.pos, CAM.fwd, 4.5, null); if (r && r.body && r.body.ent) txt = 'E: ' + T('ent.' + r.body.ent.t); else if (r && r.body && r.body.obj) { const o = r.body.obj; if (o.veh) txt = 'E: subir'; else if (o.nombre === 'Arcade') txt = 'E: ' + T('maq.jugar') + (o.maq ? ' · ' + o.maq.n : ''); else if (o.tipo === 'arma') txt = 'E: agarrar ' + o.nombre; else if (o.logica && (o.logica.tipo === 'Button' || o.logica.tipo === 'PasswordPanel')) txt = 'E: usar'; } }
+  else { const r = raycast(CAM.pos, CAM.fwd, 4.5, null); if (r && r.body && r.body.ent) txt = 'E: ' + T('ent.' + r.body.ent.t); else if (r && r.body && r.body.obj) { const o = r.body.obj; if (o.veh) txt = 'E: subir'; else if (o.nombre === 'Arcade') txt = 'E: ' + T('maq.jugar') + (o.maq ? ' · ' + o.maq.n : ''); else if (o.art) txt = artPista(o); else if (o.tipo === 'arma') txt = 'E: agarrar ' + o.nombre; else if (o.logica && (o.logica.tipo === 'Button' || o.logica.tipo === 'PasswordPanel')) txt = 'E: usar'; } }
   if (!txt && !enTool) txt = nocheApunta(); // (los botones de la oficina de la pizzería)
   if (herramientasPaso.txt !== txt) { herramientasPaso.txt = txt; $('usarTxt').textContent = txt; }
   const arma = ARM.lista[ARM.i];
@@ -182,4 +184,36 @@ function dibujarNextbot(o) {
   const s = N.tam / 2, p = vadd(o.b.pos, v3(0, s, 0)), c = [1, 1, 1, 1];
   PART.extra = PART.extra || [];
   PART.extra.push({ p, s, tex: N.tex });
+}
+
+// ---------------- herramienta Cámara: poner cámaras y mirar por ellas ----------------
+// Clic: pone una cámara en un trípode donde apuntás, mirando hacia donde mirás vos. Clic derecho: pasa a ver por tus
+// cámaras, una por una, y después vuelve a tus ojos. En la sala las cámaras se ven (son objetos); lo que se ve por cada
+// una es de cada uno.
+const HCAM = { ver: null };
+function herCamara(alt, r) {
+  if (alt) {
+    const mias = OBJS.filter((o) => o.art === 'camara' && !o.remoto);
+    if (!mias.length) { aviso(T('her.camNinguna'), 2); return; }
+    const i = HCAM.ver ? mias.indexOf(HCAM.ver) + 1 : 0;
+    HCAM.ver = i < mias.length ? mias[i] : null;
+    aviso(HCAM.ver ? T('her.Camara') + ' ' + (i + 1) + '/' + mias.length : T('her.camVos'), 1.5); sonar('Click', null, 0.5, 1.6);
+    return;
+  }
+  if (!r) return;
+  const f = CAM.fwd, ang = Math.atan2(f.z, -f.x);   // (el lente del modelo mira a -x)
+  const o = crearObjeto('CamaraTripode', r.p, Quat.axis(0, 1, 0, ang), { congelado: true });
+  if (!o) return;
+  o.camPitch = JUG.pitch; DESHACER.push(o); redObjeto(o);
+}
+// la vista de la cámara que se está mirando (desde el lente, hacia donde mira, con la inclinación que tenía el que la puso)
+function herCamaraVista() {
+  const o = HCAM.ver; if (!o) return false;
+  if (!OBJS.includes(o) || ARM.lista[ARM.i] !== 'ToolBaton' || !JUG.vivo) { HCAM.ver = null; return false; }
+  const ad = o.b.q.rot(v3(-1, 0, 0)), yaw = Math.atan2(ad.x, ad.z), d = DATA.ms[(DATA.pf[DATA.pfPorNombre.CamaraTripode] || []).find((x) => x.m !== undefined).m];
+  // el lente en el modelo: adelante de la punta de -x, a la altura de la caja de arriba (el cuerpo está corrido o.c)
+  const L = v3(d.mn[0] - 0.04, d.mn[1] + d.sc[1] * 0.875, d.mn[2] + d.sc[2] * 0.5);
+  CAM.pos.copy(vadd(o.b.pos, o.b.q.rot(vsub(L, o.c))));
+  CAM.q.copy(Quat.euler(yaw, o.camPitch || 0));
+  return true;
 }

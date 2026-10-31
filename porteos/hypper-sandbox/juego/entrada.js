@@ -10,7 +10,7 @@ function entradaIniciar() {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) { if (e.code === 'Escape' || e.code === 'Enter') { pulso(e.code === 'Enter' ? 'enviar' : 'cerrar'); } return; }
     if (e.repeat) return;
     ENT.teclas.add(e.code);
-    const m = { Tab: 'menu', KeyQ: 'menu', KeyE: 'usar', KeyF: 'salir', KeyR: 'recargar', KeyT: 'chat', KeyP: 'pausa', Escape: 'pausa', KeyV: 'camara', KeyB: 'emotes', KeyZ: 'deshacer', KeyN: 'noclip', KeyC: 'camara', KeyM: 'servmods', KeyU: 'modmenu', KeyG: 'fncam', KeyL: 'linterna', KeyI: 'memes', Delete: 'borrarApuntado' };
+    const m = { Tab: 'menu', KeyQ: 'menu', KeyE: 'usar', KeyF: 'salir', KeyR: 'recargar', KeyT: 'chat', KeyP: 'pausa', Escape: 'pausa', KeyV: 'camara', KeyB: 'emotes', KeyZ: 'deshacer', KeyN: 'noclip', KeyC: 'camara', KeyM: 'servmods', KeyU: 'modmenu', KeyG: 'fncam', KeyL: 'linterna', KeyI: 'memes', KeyO: 'celular', Delete: 'borrarApuntado' };
     if (m[e.code]) { pulso(m[e.code]); e.preventDefault(); }
     if (/^Digit[1-9]$/.test(e.code)) pulso('arma' + e.code.slice(5));
   });
