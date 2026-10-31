@@ -99,8 +99,8 @@ function vehiculosPaso(dt, ent) {
       }
       if (V.jets.length) luzTemporal(vadd(b.pos, b.q.rot(V.jets[0])), 8, [3 * V.motor, 1.8 * V.motor, 0.7 * V.motor], 0.05);
     }
-    // sonido del motor
-    if (V.motor > 0.02) {
+    // sonido del motor (la bici no tiene: va a pedal; el cohete suena aparte)
+    if (V.motor > 0.02 && !V.bici) {
       const s = V.tipo === 'heli' ? 'Helicopter' : V.tipo === 'avion' ? 'PropellerEngine' : 'Big4Stroke';
       bucle('veh' + o.id, s, b.pos, 0.6 * Math.min(1, V.motor), V.tipo === 'auto' || V.tipo === 'moto' ? 0.7 + V.rpm * 0.9 : 0.8 + V.motor * 0.3);
     }
@@ -108,6 +108,10 @@ function vehiculosPaso(dt, ent) {
 }
 function autoPaso(V, dt, ent) {
   const b = V.o.b, up = b.q.rot(v3(0, 1, 0)), fwd = b.q.rot(v3(0, 0, 1)), rgt = b.q.rot(v3(1, 0, 0));
+  // la bici con cohete: Shift (o el botón) prende el cohete: empuja fuerte para adelante (hasta 48 m/s)
+  V.bici = V.o.art === 'bici';
+  if (V.bici) { V.turbo = !!(ent && (ent.correr || ENT.turbo)) && !V.roto;
+    if (V.turbo !== !!V.turboEnv && JUG.vehiculo === V.o) { V.turboEnv = V.turbo; if (RED.on) publicar('a', { k: 'turbo', o: V.o.remoto ? V.o.key : claveObj(V.o), on: V.turbo ? 1 : 0 }); } if (V.turbo || V.turboRed) { if (V.turbo && vdot(b.vel, fwd) < 48) { b.wake(); b.vel.addS(fwd, 22 * dt); } cohetePaso(V, dt); } }
   // la dirección se endurece con la velocidad (a 30 m/s dobla un tercio): así no vuelca en las curvas
   const vAbs = Math.abs(V.vel || 0), objetivo = ent ? -ent.x / (1 + vAbs / 14) : 0;
   V.giro += (objetivo - V.giro) * Math.min(1, dt * 6);
@@ -143,8 +147,8 @@ function autoPaso(V, dt, ent) {
     b.applyVel(vscale(latW, jl), rL, 1);
     // motor (tracción en todas) y freno
     let fz = 0;
-    const vmax = V.tipo === 'moto' ? 34 : 32;
-    if (gas > 0.05) fz = gas * (vlon < vmax ? 1 : 0) * m * 9 / nr;
+    const vmax = V.bici ? (V.turbo ? 48 : 13) : V.tipo === 'moto' ? 34 : 32;
+    if (gas > 0.05) fz = gas * (vlon < vmax ? 1 : 0) * m * (V.bici ? 4.5 : 9) / nr;   // (la bici, a pedal)
     if (gas < -0.05) fz = vlon > 1 ? gas * m * 14 / nr : gas * (vlon > -10 ? 1 : 0) * m * 6 / nr;
     if (freno) fz = -Math.sign(vlon) * Math.min(Math.abs(vlon) * m / nr / dt, m * 12 / nr);
     if (!gas && !freno) fz = -vlon * m * 0.15 / nr;
@@ -276,4 +280,63 @@ function vehiculoCamara(o, out) {
   } else { out.pos.copy(pSeat); out.q.copy(qb.mul(Quat.euler(J.yaw, J.pitch))); }
   J.ojoPos.copy(pSeat);
   return out;
+}
+// ---------------- bocina (H en la compu, el botón mientras manejás en el celular) ----------------
+// Sintetizada (no hay sonido en el paquete): los autos, dos tonos en diente de sierra filtrados (la policía más aguda),
+// la moto un tono agudo y la bici con cohete un timbre de bici (ring ring). Sale del vehículo (3D) y en la sala la
+// oyen los demás mientras la tocás.
+const BOC = { mia: false };
+const bocTipo = (V) => (V.o.art === 'bici' ? 'timbre' : V.tipo === 'moto' ? 'moto' : /police/i.test(V.o.nombre) ? 'policia' : V.tipo === 'auto' ? 'auto' : null);
+function bocinaSonar(V, si) {
+  const tipo = bocTipo(V); if (!tipo || !AUD.ctx) return;
+  if (si === !!V.boc) return;
+  if (!si) { const B = V.boc; V.boc = null; const t = AUD.ctx.currentTime; try { B.F.g.gain.setTargetAtTime(0, t, 0.025); for (const o of B.os) o.stop(t + 0.15); clearInterval(B.iv); } catch (e) {} return; }
+  const c = AUD.ctx, F = fuente3D(V.o.b.pos, 0), t = c.currentTime, os = [];
+  if (tipo === 'timbre') {
+    // timbre: dos parciales de campana que se apagan rápido, cada 0,28 s
+    const g = c.createGain(); g.gain.value = 0; g.connect(F.g); F.g.gain.value = 0.55;
+    for (const [f, a] of [[2650, 1], [4100, 0.45], [5600, 0.2]]) { const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = f; const ga = c.createGain(); ga.gain.value = a; o.connect(ga); ga.connect(g); o.start(); os.push(o); }
+    const golpe = () => { const n = c.currentTime; g.gain.cancelScheduledValues(n); g.gain.setValueAtTime(0.9, n); g.gain.setTargetAtTime(0, n + 0.01, 0.07); };
+    golpe(); V.boc = { F, os, iv: setInterval(golpe, 280) }; return;
+  }
+  const fr = tipo === 'moto' ? [560, 700] : tipo === 'policia' ? [440, 554] : [370, 466];
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = tipo === 'moto' ? 3200 : 2200; lp.Q.value = 2; lp.connect(F.g);
+  for (const f of fr) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.connect(lp); o.start(); os.push(o); }
+  F.g.gain.setValueAtTime(0, t); F.g.gain.linearRampToValueAtTime(0.32, t + 0.02);
+  V.boc = { F, os };
+}
+function bocinaPaso() {
+  const o = JUG.vehiculo, V = o && o.veh, mia = !!(V && JUG.asiento === 0 && !V.roto && (ENT.bocina || (ENT.teclas.has('KeyH') && !UI.abierto)));
+  if (V) { if (mia !== !!V.boc && !V.bocRed) bocinaSonar(V, mia); }
+  if (mia !== BOC.mia) { BOC.mia = mia; if (RED.on && o && !o.remoto) publicar('a', { k: 'bocina', o: claveObj(o), on: mia ? 1 : 0 }); else if (RED.on && o) publicar('a', { k: 'bocina', o: o.key, on: mia ? 1 : 0 }); }
+  for (const W of VEHS) {
+    if (W.boc) ponerPos(W.boc.F.p, W.o.b.pos);
+    if (W.bocRed && TIEMPO.t - W.bocRed > 6) { W.bocRed = 0; bocinaSonar(W, false); }   // (por si no llegó el "soltó")
+    if (W.boc && W !== V && !W.bocRed) bocinaSonar(W, false);
+  }
+}
+function bocinaRed(d) {
+  const o = typeof d.o === 'string' ? buscarObjeto(d.o) : null, V = o && o.veh; if (!V) return;
+  if (d.on) { V.bocRed = TIEMPO.t; bocinaSonar(V, true); } else { V.bocRed = 0; bocinaSonar(V, false); }
+}
+// ---------------- el cohete de la bici: fuego, humo, luz y su ruido (para todos: el estado del turbo viaja por la red) ----------------
+function cohetePaso(V, dt) {
+  const b = V.o.b, f = b.q.rot(v3(0, 0, 1)), t = V.tobera || (V.tobera = coheteTobera(V.o)), p = vadd(b.pos, b.q.rot(t));
+  if (Math.random() < 0.9 * GFX.part + 0.1) {
+    particula(p, vadd(vscale(f, -12 - Math.random() * 6), b.vel), 0.12, 0.28, [1, 0.6, 0.18, 1], 'fuego', 0.25);
+    if (Math.random() < 0.5) particula(p, vadd(vscale(f, -5), vscale(b.vel, 0.85)), 1.4, 0.45, [0.6, 0.6, 0.6, 0.3], 'humo', 2.2);
+  }
+  luzTemporal(p, 9, [3.2, 1.7, 0.6], 0.05);
+  bucle('cohete' + V.o.id, 'HR_Rocket', p, 0.7, 1);
+  if (JUG.vehiculo === V.o && V.turbo) CAM.temblor = Math.max(CAM.temblor || 0, 0.06);
+}
+// la tobera: el nodo CoheteTobera del prefab (o la punta de atrás, arriba)
+function coheteTobera(o) {
+  const arb = o.md.A, i = arb.findIndex((n) => n.n === 'CoheteTobera');
+  if (i >= 0) { const md = new Modelo(arb); md.p[0] = [0, 0, 0]; md.r[0] = [0, 0, 0, 1]; md.sucio = true; md.actualizar(); const W = md.W[i]; return v3(W[12] - o.c.x, W[13] - o.c.y, W[14] - o.c.z); }
+  const a = o.b.aabb; return v3(0, 0.3, -(a.z1 - a.z0) * 0.5);
+}
+function turboRed(d) {
+  const o = typeof d.o === 'string' ? buscarObjeto(d.o) : null, V = o && o.veh; if (!V) return;
+  V.turboRed = d.on ? 1 : 0;
 }

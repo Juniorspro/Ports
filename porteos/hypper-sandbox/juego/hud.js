@@ -22,6 +22,8 @@ const HUD_SVG = {
   rotar: '<path d="M5 12a7 7 0 0 1 12-5l1.5 1.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M19 4v5h-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 12a7 7 0 0 1-12 5l-1.5-1.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" opacity=".6"/>',
   mas: '<path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>',
   menos: '<path d="M5 12h14" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>',
+  bocina: '<path d="M4 9.5h3.2L13 5.5v13l-5.8-4H4z" fill="#fff"/><path d="M16 8.6a5 5 0 0 1 0 6.8M18.6 6.2a8.5 8.5 0 0 1 0 11.6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>',
+  turbo: '<path d="M12 2.5c3 2.5 4.5 5.6 4.5 9.2V16h-9v-4.3c0-3.6 1.5-6.7 4.5-9.2z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="1.7" fill="#fff"/><path d="M9.5 18.5l-1 3M12 18.5v3.5M14.5 18.5l1 3" stroke="#ffb347" stroke-width="2" stroke-linecap="round"/>',
   gas: '<rect x="6.5" y="3" width="11" height="18" rx="3" fill="none" stroke="#fff" stroke-width="2"/><path d="M9 8l3-2.6L15 8M9 12.5l3-2.6 3 2.6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 16.5h6" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".6"/>',
   freno: '<rect x="4.5" y="7" width="15" height="11" rx="3" fill="none" stroke="#fff" stroke-width="2"/><path d="M9 10.5l3 2.6 3-2.6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 15h8" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".6"/>',
   izq: '<path d="M15 5l-7 7 7 7" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -43,7 +45,7 @@ const HUD_TACTIL = [
   ['#blejos', 1, 1, -43.2, -164.5, 60], ['#bcerca', 1, 1, -43.2, -236.7, 60],
   ['#bsaltar', 0.5, 0, 346, 43, 75], ['#bpatada', 0.5, 0, 346, 140, 66], ['#bagachar', 0.5, 0, 446, 43, 62], ['#bborrar', 0.5, 0, -226.6, 43, 75], ['#busar', 0.5, 0, 0, 163, 71],
   // en un vehículo
-  ['#bgas', 1, 0, -122, 153, 110], ['#bfreno', 1, 0, -287.6, 153, 110], ['#bizq', 0, 0, 179, 142, 103], ['#bder', 0, 0, 361, 142, 103], ['#bmanual', 1, 0.5, -107, 0.4, 96.4], ['#bbajar', 0, 0.5, 42, 0, 71],
+  ['#bgas', 1, 0, -122, 153, 110], ['#bfreno', 1, 0, -287.6, 153, 110], ['#bizq', 0, 0, 179, 142, 103], ['#bder', 0, 0, 361, 142, 103], ['#bmanual', 1, 0.5, -107, 0.4, 96.4], ['#bbajar', 0, 0.5, 42, 0, 71], ['#bbocina', 1, 0.5, -230, 0.4, 80], ['#bturbo', 1, 0.5, -107, 120, 86],
 ];
 const HUD = { k: 0, w: 0, h: 0, arma: '', veh: null, usar: null, tac: null, n: '', c: 0 };
 // cuáles botones hay y se ven (no cuántos: si aparece uno y se va otro a la vez, la cuenta no cambia y el nuevo quedaba
@@ -53,7 +55,7 @@ function hudIniciar() {
   const t = $('tactil'); if (!t) return;
   // botones que agrega esta versión: borrar lo que apuntás y los del auto
   const nuevo = (id, btn, ico, mantener) => { if ($(id)) return; const d = document.createElement('div'); d.className = 'bt-t'; d.id = id; d.dataset.btn = btn; if (mantener) d.dataset.mantener = ''; d.innerHTML = `<img alt="" src="${hudIco(ico)}">`; t.appendChild(d); return d; };
-  nuevo('bborrar', 'borrarApuntado', 'borrar'); nuevo('bpatada', 'patada', 'patada'); nuevo('bvolver', 'volver', 'volver'); nuevo('bgas', 'pGas', 'gas', 1); nuevo('bfreno', 'pFreno', 'freno', 1); nuevo('bizq', 'pIzq', 'izq', 1); nuevo('bder', 'pDer', 'der', 1); nuevo('bmanual', 'saltar', 'manual', 1); nuevo('bbajar', 'salir', 'bajar');
+  nuevo('bborrar', 'borrarApuntado', 'borrar'); nuevo('bpatada', 'patada', 'patada'); nuevo('bvolver', 'volver', 'volver'); nuevo('bbocina', 'bocina', 'bocina', 1); nuevo('bturbo', 'turbo', 'turbo', 1); nuevo('bgas', 'pGas', 'gas', 1); nuevo('bfreno', 'pFreno', 'freno', 1); nuevo('bizq', 'pIzq', 'izq', 1); nuevo('bder', 'pDer', 'der', 1); nuevo('bmanual', 'saltar', 'manual', 1); nuevo('bbajar', 'salir', 'bajar');
   // los íconos propios
   const pon = (id, n) => { const e = $(id); if (e) e.src = hudIco(n); };
   pon('iPausa', 'pausa'); pon('iMenu', 'props'); pon('iChat', 'chat'); pon('iMeme', 'celular'); pon('iEmote', 'emote'); pon('iCam', 'camara'); pon('iDisp', 'disparo'); pon('iRotar', 'rotar'); pon('iSalto', 'salto'); pon('iUsar', 'usar');
@@ -101,6 +103,7 @@ function hudPaso() {
     ver('brecargar', !veh && !sinBala); ver('bdisp2', !veh && (fis || arma === 'ToolBaton')); ver('busar', usar && !veh); ver('bborrar', !veh);
     const d2 = $('bdisp2'); if (d2) d2.querySelector('img').src = hudIco(fis ? 'congelar' : 'dos');
     for (const id of ['bgas', 'bfreno', 'bizq', 'bder', 'bmanual', 'bbajar']) ver(id, veh);
+    const V = veh && JUG.vehiculo.veh; ver('bbocina', !!(V && JUG.asiento === 0 && bocTipo(V))); ver('bturbo', !!(V && JUG.asiento === 0 && JUG.vehiculo.art === 'bici'));
     for (const id of ['bsaltar', 'bagachar', 'bdisparo', 'bpatada']) ver(id, !veh);
   }
   const sost = !!(ARM.agarre || ARM.grav);

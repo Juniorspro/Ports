@@ -100,6 +100,15 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
 - **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
   leyeron: queda en 16,5 MB en vez de ~38.
+- **Bocina** (`vehiculos.js`; prueba `pruebas/bocina_bici.mjs`, 7/7): manejando, H en la compu o el botón del parlante en el
+  celular, mientras se mantiene. Sintetizada (no hay sonido en el paquete): los autos, dos tonos (370 y 466 Hz) en diente
+  de sierra filtrados; la policía más aguda; la moto un tono agudo; la bici un timbre (ring ring). Sale del vehículo (3D) y
+  en la sala la oyen los demás mientras la tocás.
+- **Bici con cohete** (Vehículos → Motorcycle): modelo generado (imagen → 3D) y hecho vehículo de dos ruedas con
+  `herramientas/vehiculo_prop.py` (controlador, asiento, puntos de la suspensión calculados para que las ruedas apoyen
+  justo con su masa, tobera del cohete y una caja de choque en el cuadro). A pedal llega a ~13 m/s; con Shift (o el botón
+  del cohete en el celular) el cohete empuja hasta 48 m/s (pasa los 25 en 3 s, sin volcar) con fuego, humo, luz y el
+  ruido del cohete de HL2; en la sala los demás lo ven y lo oyen.
 - **Emotes que no se buguean** (`emotes.js`; prueba `pruebas/emotes_lugar.mjs`, los 2203: 2175 de captura y 28 del
   paquete, reproducidos a 30 cuadros por segundo). Medido antes → después:
   - **En el lugar**: las capturas traen el viaje de la persona (caminar, correr, girar) y la cadera se iba del jugador

@@ -31,7 +31,7 @@ function cicBoton() {
   }
   return b;
 }
-addEventListener('keydown', (e) => { if (e.code !== 'KeyH' || e.repeat || !cicHay() || UI.abierto || (e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) return; CIC.tecla = true; cicApretar(true); });
+addEventListener('keydown', (e) => { if (e.code !== 'KeyH' || e.repeat || !cicHay() || JUG.vehiculo || UI.abierto || (e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) return; CIC.tecla = true; cicApretar(true); });
 addEventListener('keyup', (e) => { if (e.code === 'KeyH' && CIC.tecla) { CIC.tecla = false; cicApretar(false); } });
 function cicApretar(si) {
   if (si) { if (CIC.apretado || !cicHay()) return; CIC.apretado = true; CIC.carga = 0; CIC.t0Carga = performance.now(); CIC.usada = false; cicSonCarga(true); return; }

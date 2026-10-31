@@ -4,7 +4,8 @@
 # Uso: python3 -I prop_glb.py PAQUETE Nombre:altura:masa:categoría:modelo.glb:foto.png[:opción...] [...]
 # Opciones: col=esfera (pelotas), col=tronco (árboles: cajas en el tronco, se pasa entre las hojas), col=mesa (tabla y
 # patas, se puede meter cosas abajo), col=pila (cajas apiladas por altura: postes con base plana), col=chasis (sólo la mitad de abajo), col=aro (base, palo y tablero, la pelota pasa por el aro); rs=0.8 (rebote);
-# sal (cama elástica: el que la pisa rebota); art=nombre (lógica propia en artefactos.js); oculto (no va al menú).
+# sal (cama elástica: el que la pisa rebota); art=nombre (lógica propia en artefactos.js); oculto (no va al menú);
+# giro=grados (sobre la vertical, antes de todo).
 import sys, os, io, json, gzip, hashlib, numpy as np
 from PIL import Image, ImageDraw
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -79,6 +80,8 @@ for arg in sys.argv[2:]:
     pr = J['meshes'][J['nodes'][mi_n]['mesh']]['primitives'][0]; A = pr['attributes']
     V = glb.acc(J, B, A['POSITION']); N = glb.acc(J, B, A['NORMAL']); UV = glb.acc(J, B, A['TEXCOORD_0']); IDX = glb.acc(J, B, pr['indices']).astype(np.int64).reshape(-1, 3)
     V = V @ M[:3, :3].T + M[:3, 3]; N = N @ M[:3, :3].T; N /= np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-9)
+    if 'giro' in op:   # (girarlo sobre la vertical, en grados: para que adelante quede en +z, como los vehículos)
+        g = np.radians(float(op['giro'])); Ry = np.array([[np.cos(g), 0, np.sin(g)], [0, 1, 0], [-np.sin(g), 0, np.cos(g)]]); V = V @ Ry.T; N = N @ Ry.T
     s = float(alto) / (V[:, 1].max() - V[:, 1].min()); c = (V.max(0) + V.min(0)) / 2
     V = (V - np.array([c[0], V[:, 1].min(), c[2]])) * s
     mat = J['materials'][pr.get('material', 0)]; tx = J['textures'][mat['pbrMetallicRoughness']['baseColorTexture']['index']]

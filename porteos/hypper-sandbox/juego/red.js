@@ -419,6 +419,8 @@ function recibirHecho(d) {
   } else if (d.k === 'maq' || d.k === 'maqp' || d.k === 'maqd') { maqRed(d);
   } else if (d.k === 'meme' || d.k === 'memed') { memeRed(d);
   } else if (d.k === 'chatcorr' && typeof d.id === 'string' && typeof d.t === 'string') { chatCambiar(d.id.slice(0, 12), censurar(limpio(d.t, 120)), d.i);
+  } else if (d.k === 'bocina') { bocinaRed(d);
+  } else if (d.k === 'turbo') { turboRed(d);
   } else if (d.k === 'echar') { celEchadoRed(d);
   } else if (typeof d.k === 'string' && d.k.startsWith('npc')) { npcRecibir(d);
   } else if (d.k === 'catap' || d.k === 'omega' || d.k === 'omegab') { artRed(d);

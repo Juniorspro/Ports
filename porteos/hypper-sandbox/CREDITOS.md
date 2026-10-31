@@ -76,7 +76,7 @@ Herramientas usadas al empaquetar (no van en el juego): pyfqmr (Fast Quadric Mes
 
 | Asset | Autor / origen | Dónde | Licencia |
 |---|---|---|---|
-| Catapulta (base y brazo), trípode con cámara y la bomba (modelos 3D) | generados acá (imagen con gpt-image → 3D con Higgsfield), `prop_glb.py` | — | propios |
+| Catapulta (base y brazo), trípode con cámara, la bomba y la bici con cohete (modelos 3D) | generados acá (imagen con gpt-image → 3D con Higgsfield), `prop_glb.py` | — | propios |
 | La bomba de Rick Prime (diseño del aparato Omega) | Rick and Morty (Justin Roiland y Dan Harmon, Adult Swim) | referencia de https://rickandmorty.fandom.com (sólo para generar el modelo) | fan art: Rick and Morty |
 | Idea del celular que pone cosas y de la catapulta | Simple Sandbox 2 y Simple Sandbox 3 (Tiny Lab Productions) | sólo la idea; nada copiado | — |
 | Íconos de las apps del celular | hechos a mano (SVG) | `juego/celular.js` | propios |

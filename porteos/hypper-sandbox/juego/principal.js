@@ -231,7 +231,7 @@ function cuadro(ahora) {
   }
   efectosPaso(dt);
   camaraActualizar(dt);
-  aguaPaso(dt); sonidosPaso(dt); patadasPaso(dt); artPaso(dt); npcPaso(dt);
+  aguaPaso(dt); sonidosPaso(dt); patadasPaso(dt); artPaso(dt); npcPaso(dt); bocinaPaso();
   dibujar();
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso();
