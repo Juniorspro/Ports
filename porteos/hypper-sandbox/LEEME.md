@@ -86,7 +86,9 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   - cada personaje tiene una versión simplificada al 20 % de los triángulos (`herramientas/lod_skins.py`, con pyfqmr):
     la malla se suelda por posición y se simplifica entera, y cada triángulo nuevo toma la isla de UV del original más
     cercano (proyectado ahí: UV, normal y pesos), así las costuras no se corren; mismos huesos. Se usa cuando el
-    personaje ocupa menos del 20 % del alto de la pantalla (12 % en ultra); a esa distancia no se nota. Suma 2,9 MB al
+    personaje ocupa menos del 20 % del alto de la pantalla (12 % en ultra, 30 % en bajo, y en patata —la de los
+    celulares de 2 GB o muy flojos— los demás siempre con la simplificada: sus mallas enteras ni se suben a la placa;
+    medido con 12 jugadores en patata: 5 de 5 a la vista con la simplificada). Suma 2,9 MB al
     HTML (54,8 MB; una sola versión: dos sumaban 4,5);
   - los que no se ven (fuera de la cámara y a más de 4 m) no se animan ni se dibujan (el tiempo se junta para cuando
     vuelven), los de más de 40 m se animan un cuadro sí y uno no, y los de más de 22 m (35 en alto y ultra) no hacen

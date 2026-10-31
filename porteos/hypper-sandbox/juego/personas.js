@@ -489,7 +489,10 @@ function personasPaso(dt) {
 // pantalla usan su malla simplificada y los lejanos no hacen sombra
 function dibujarPersonas() {
   PERS_N++;
-  const F = R.fr, cp = R.camPos, ty = Math.tan((CAM.fov || 70) * Math.PI / 360), umbral = GFX.lod === 0 && (GFX.sombra || 0) >= 3 ? 0.12 : 0.2, dSom = (GFX.sombra || 0) >= 2 ? 35 : 22;
+  // (en patata, los aparatos más flojos o de 2 GB, los demás siempre con la simplificada: sus mallas enteras ni se suben
+  // a la placa; en bajo, desde el 30 % del alto)
+  const F = R.fr, cp = R.camPos, ty = Math.tan((CAM.fov || 70) * Math.PI / 360), dSom = (GFX.sombra || 0) >= 2 ? 35 : 22;
+  const umbral = GFX.nombre === 'patata' ? 9 : GFX.nombre === 'bajo' ? 0.3 : GFX.lod === 0 && (GFX.sombra || 0) >= 3 ? 0.12 : 0.2;
   for (const P of PERS) {
     const yo = P === JUG.cuerpo;
     if (yo) { const ver = JUG.tercera || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh) || P.cicManos; if (!ver) continue; }
