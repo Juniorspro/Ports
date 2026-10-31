@@ -43,7 +43,7 @@ function humClip(c, t, w, out, espejo, soloArriba) {
     out[k] += val(attr) * s * w;
   }
 }
-const _hq = new Quat(), _hq2 = new Quat(), _hq3 = new Quat();
+const _hq = new Quat(), _hq2 = new Quat(), _hq3 = new Quat(), _hArriba = v3(0, 1, 0);
 function qArr(a, q) { return q.set(a[0], a[1], a[2], a[3]); }
 // convierte los valores a rotaciones de los huesos (en Unity) y los pasa al modelo (espacio espejado: x, -y, -z, w)
 function humAplicar(P) {
@@ -128,13 +128,13 @@ function locoV(l, amp) {
   for (let i = 1; i < A.length; i++) if (amp <= A[i]) { const t = (amp - A[i - 1]) / (A[i] - A[i - 1]); return l.vs[i - 1] + (l.vs[i] - l.vs[i - 1]) * t; }
   return l.v;
 }
-const POSE_ARMA = { Pistol: 'idle_armed2_m', Revolver: 'idle_armed2_m', PhysicsGun: 'idle_armed2_m', GravityGun: 'idle_armed2_m', ToolBaton: 'idle_armed2_m', Camera: 'idle_armed2_m',
+const POSE_ARMA = { Pistol: 'idle_armed2_m', Revolver: 'idle_armed2_m', PhysicsGun: 'gm_idle_gravgun', GravityGun: 'gm_idle_gravgun', ToolBaton: 'gm_idle_pistol', Camera: 'idle_armed2_m',
   Smg: 'SniperRifleAim', Akm: 'SniperRifleAim', Sniper: 'SniperRifleAim', Shotgun: 'SniperRifleAim', Crossbow: 'SniperRifleAim', RPG: 'SniperRifleAim', Bat: '1HandSwordReady',
   Crowbar: 'gm_idle_melee' };   // (las gm_*: las posturas de los jugadores de GMod, de herramientas/gmod.py)
 // acciones del torso (la parte de arriba toma el clip; las piernas siguen caminando)
 const ACC_ARMA = {
-  Pistol: ['blend_shoot_1', 'blend_reload_1'], Revolver: ['blend_shoot_1', 'blend_reload_1'], Camera: ['blend_shoot_1', null], ToolBaton: ['1HandSwordBackswing', null],
-  PhysicsGun: [null, null], GravityGun: ['blend_shoot_1', null], Smg: ['blend_shoot_2', 'blend_reload_2'], Akm: ['blend_shoot_2', 'blend_reload_2'],
+  Pistol: ['blend_shoot_1', 'blend_reload_1'], Revolver: ['blend_shoot_1', 'blend_reload_1'], Camera: ['blend_shoot_1', null], ToolBaton: ['gm_range_pistol', null],
+  PhysicsGun: [null, null], GravityGun: ['gm_range_gravgun', null], Smg: ['blend_shoot_2', 'blend_reload_2'], Akm: ['blend_shoot_2', 'blend_reload_2'],
   Shotgun: ['blend_shoot_2', 'blend_reload_2'], Sniper: ['blend_shoot_2', 'SniperRifleReload'], Crossbow: ['blend_shoot_2', 'blend_reload_2'],
   RPG: ['RPGAttack', 'blend_reload_2'], Bat: ['1HandSwordBackswing', null], Hands: ['Attack04', null], Crowbar: ['gm_range_melee', null],
 };
@@ -155,7 +155,7 @@ function humEstado(n) { return DATA.hu.est[n]; }
 function humClipNombre(est, nombre) { const L = humEstado(est); return L && L.find((c) => c.n === nombre); }
 function animarHumano(P, dt) {
   const H = P.hum, E = DATA.hu.est, T = H.tmp; T.fill(0);
-  H.t += dt;
+  H.t += dt; H.gm = false;
   // la dirección del movimiento respecto de adonde mira
   const sp = Math.hypot(P.vel.x, P.vel.z);
   if (P.emote && E[P.emote]) {
@@ -200,7 +200,7 @@ function animarHumano(P, dt) {
     }
     // con arma: el torso y los brazos toman la pose del arma
     const pa = P.arma && POSE_ARMA[P.arma] ? humClipNombre('Pose', P.poseForzada || POSE_ARMA[P.arma]) : null;
-    if (pa) { const U = H.tmp2; U.fill(0); humClip(pa, H.t, 1, U, false, true); for (let k = 0; k < NV; k++) if (HUM_ARRIBA[k]) T[k] = U[k]; }
+    if (pa) { const U = H.tmp2; U.fill(0); humClip(pa, H.t, 1, U, false, true); for (let k = 0; k < NV; k++) if (HUM_ARRIBA[k]) T[k] = U[k]; H.gm = !H.mov && /^gm_/.test(pa.n); }
     // aterrizaje: un golpe de rodillas que se recupera solo
     if (H.aire > 0.25) H.caida = Math.min(1, H.aire / 0.9);
     H.aire = 0;
@@ -226,23 +226,34 @@ function animarHumano(P, dt) {
   // piernas a menos de la mitad (los pies patinaban)
   const sp0 = Math.hypot(P.vel.x, P.vel.z);
   const clave = (P.emote || '') + '|' + (P.sentado ? (P.manejando ? 'm' : 's') : '') + '|' + (!P.suelo ? 'a' : sp0 < 0.3 ? 'q' : 'c' + H.par) + '|' + (P.arma || '');
-  if (!H.listo) { H.v.set(T); H.o = new Float32Array(NV); H.clave = clave; H.listo = true; }
+  // parado con un arma de GMod, el torso apunta al frente aunque la cadera se mueva con la animación de quieto (la de mirar
+  // alrededor la gira hasta 35° y el arma giraba con ella), como el aim_yaw de GMod: las posturas se hornearon con la
+  // cadera derecha. El giro que la compensa es parte de la pose: en los cambios de estado se mezcla igual que ella (al
+  // arrancar a caminar se apaga a la par de la cadera, al cambiar de arma parado entra suave)
+  const gyT = H.gm ? Math.atan2(2 * (T[6] * T[4] + T[3] * T[5]), 1 - 2 * (T[4] * T[4] + T[3] * T[3])) : 0;
+  if (!H.listo) { H.v.set(T); H.o = new Float32Array(NV); H.clave = clave; H.listo = true; H.gyO = 0; }
   if (clave !== H.clave) {
     if (H.v[3] * T[3] + H.v[4] * T[4] + H.v[5] * T[5] + H.v[6] * T[6] < 0) for (let k = 3; k < 7; k++) H.v[k] = -H.v[k];
-    for (let k = 0; k < NV; k++) H.o[k] = H.v[k] - T[k]; H.clave = clave; H.oT = 0;
+    for (let k = 0; k < NV; k++) H.o[k] = H.v[k] - T[k]; H.clave = clave; H.oT = 0; H.gyO = (H.gy || 0) - gyT;
   } else H.oT = (H.oT || 0) + dt;
   // se apaga como un resorte amortiguado (arranca sin velocidad: antes el primer cuadro daba el tirón más grande)
   const ko = 16 * H.oT, fo = ko > 12 ? 0 : (1 + ko) * Math.exp(-ko);
   for (let k = 0; k < NV; k++) H.v[k] = T[k] + H.o[k] * fo;
+  H.gy = gyT + (H.gyO || 0) * fo;
   humAplicar(P);
   // cadera girada hacia donde camina (el torso vuelve) y mirar arriba/abajo con la cabeza y el pecho
   // (la cadera vuelve de a poco al salir de un emote, del asiento o del aire; antes saltaba de golpe)
   H.cadW = (H.cadW ?? 1) + ((P.emote || P.sentado || !P.suelo ? 0 : 1) - (H.cadW ?? 1)) * Math.min(1, dt * 10);
   const cad = (H.cadera || 0) * H.cadW;
-  if (P.mira || Math.abs(cad) > 0.01) {
+  const gy = Math.abs(H.gy) > 1e-3 ? H.gy : 0;
+  if (P.mira || Math.abs(cad) > 0.01 || gy) {
     P.acc = {};
     if (Math.abs(cad) > 0.01) { girar(P, 'Hips', 0, 1, 0, -cad); girar(P, 'Spine', 0, 1, 0, cad * 0.45); girar(P, 'Spine1', 0, 1, 0, cad * 0.3); girar(P, 'Spine2', 0, 1, 0, cad * 0.25); }
     if (P.mira) { girar(P, 'Spine2', 1, 0, 0, P.mira * 0.3); girar(P, 'Head', 1, 0, 0, P.mira * 0.4); }
     aplicarGiros(P);
+    // (sobre la vertical del mundo: sobre el eje de reposo de cada vértebra, que se inclina con el cuerpo, la cara cabeceaba;
+    // con el modelo marcado para recalcular, que girarMundo parte de las matrices del mundo: con las del cuadro anterior,
+    // que ya traían el giro, se sumaba cuadro a cuadro y el torso daba vueltas)
+    if (gy) { P.md.sucio = true; girarMundo(P, 'Spine', _hArriba, gy * 0.45); girarMundo(P, 'Spine1', _hArriba, gy * 0.3); girarMundo(P, 'Spine2', _hArriba, gy * 0.25); }
   }
 }

@@ -98,14 +98,14 @@ def vtf_imagen(ruta_vtf):
     im = VTF.VTF.read(io.BytesIO(b)).get().to_PIL().convert('RGBA') if b else None
     _img[k] = im; return im
 def textura(ruta_vtf, nombre, lado, alfa_ok=True):
-    k = (ruta_vtf.lower(), lado)
+    k = (ruta_vtf.lower(), lado, alfa_ok)
     if k in _txs: return _txs[k]
     im = vtf_imagen(ruta_vtf)
     if im is None: _txs[k] = None; return None
     a = np.asarray(im)[:, :, 3]; alfa = alfa_ok and a.min() < 250
     w, h = im.size; s = min(1.0, lado / max(w, h)); w2, h2 = max(4, round(w * s)), max(4, round(h * s))
     im = im.resize((w2, h2), Image.LANCZOS)
-    huella = hashlib.md5(im.tobytes()).hexdigest()   # (la misma imagen con otro nombre: una sola vez)
+    huella = hashlib.md5(im.tobytes()).hexdigest() + ('a' if alfa else '')   # (la misma imagen con otro nombre: una sola vez)
     if huella in _txs: _txs[k] = _txs[huella]; return _txs[k]
     ti = len(d['tx']); d['tx'].append({'n': 'GM_' + nombre[-40:], 'a': 1 if alfa else 0, 'w': w2, 'h': h2})
     (im if alfa else im.convert('RGB')).save(PK1 + '/t/%d.webp' % ti, 'WEBP', quality=82, method=6)
@@ -149,11 +149,14 @@ def material_de(vmt, lado=512):
         fc = [int(round(float(x))) for x in c.get('$fogcolor', '{20 42 39}').strip('{}[] ').split()[:3]]
         _mats[k] = (mat_agua(fc), 'agua'); return _mats[k]
     bt = c.get('$basetexture')
-    tx = textura('materials/' + bt.lower().replace('\\', '/').removesuffix('.vtf') + '.vtf', bt, lado) if bt else None
+    # (con $selfillum el alfa de la textura es la máscara de lo que brilla, no transparencia: se descarta; en los modelos,
+    # con luz como en Source; en el mapa, sin luz: lámparas y ventanas que brillan)
+    propia = c.get('$selfillum', '0') not in ('0', '')
+    tx = textura('materials/' + bt.lower().replace('\\', '/').removesuffix('.vtf') + '.vtf', bt, lado, alfa_ok=not propia) if bt else None
     if tx is None: _mats[k] = (None, None); return _mats[k]
     ti, alfa = tx
     trans = c.get('$translucent', '0') not in ('0', ''); corte = c.get('$alphatest', '0') not in ('0', ''); aditivo = c.get('$additive', '0') not in ('0', '')
-    brillo = sh == 'unlitgeneric' or c.get('$selfillum', '0') not in ('0', '')
+    brillo = sh == 'unlitgeneric' or (propia and not nombre.startswith('models/'))
     modo = 'unlit' if (aditivo or brillo) and not trans else 'blend' if trans or aditivo else 'cut' if corte else 'op'
     if trans and alfa and nombre.startswith('models/'): modo = 'cut'   # (el follaje de los modelos: recortado, con luz y sombra, sin problemas de orden)
     try: am = float(c.get('$alpha', '1') or 1)
@@ -190,6 +193,11 @@ def orientar(tri, V, n):
     """el orden de un triángulo para que se vea del lado de la normal n (el juego dibuja la cara con (b-a)×(c-a) hacia uno)"""
     a, b, c = tri
     return (a, b, c) if np.dot(np.cross(V[b] - V[a], V[c] - V[a]), n) >= 0 else (a, c, b)
+def caras_mdl(T):
+    """los triángulos de un .mdl del lado de afuera: Source los dibuja en el sentido de las agujas del reloj, al revés que
+    el juego (con las normales de los vértices no alcanza: la Gravity Gun del mundo trae caras con normales de los dos lados
+    y quedaba sin el cuerpo)"""
+    return np.asarray(T)[:, [0, 2, 1]]
 def nodo(n, p=(0, 0, 0), r=(0, 0, 0, 1), s=(1, 1, 1), pa=-1, **x):
     return dict(n=n, p=[round(float(v), 5) for v in p], r=[round(float(v), 6) for v in r], s=[round(float(v), 5) for v in s], pa=pa, **x)
 class Junta:
@@ -273,7 +281,7 @@ def modelo_estatico(ruta, piel=0):
             else:
                 us = np.unique(T); inv = {int(x_): i for i, x_ in enumerate(us)}; v1, n1, u1, t1 = V[us], N[us], U[us], np.vectorize(inv.get)(T)
             v1 = np.asarray(v1); n1 = np.asarray(n1)
-            t1 = np.array([orientar(tuple(int(i) for i in t), v1, n1[t[0]] + n1[t[1]] + n1[t[2]]) for t in t1])
+            t1 = np.array([orientar(tuple(int(i) for i in t), v1, n1[t[0]] + n1[t[1]] + n1[t[2]]) for t in t1]) if total > TRIS_MAX else caras_mdl(t1)
             J.tris(('r', r), list(v1), list(n1), list(u1), t1)
             if dobles[ranuras.index(r)]: J.tris(('r', r), list(v1), list(-n1), list(u1), t1[:, ::-1])   # (la otra cara, con la normal dada vuelta)
         Va = np.array(J.V); mi, _ = J.guardar('GM_' + os.path.basename(ruta.lower().removesuffix('.mdl')))
@@ -581,20 +589,23 @@ def T4(m3, t):
 def modelo(ruta):
     b = ruta.lower().removesuffix('.mdl')
     return SM.Modelo(leer(b + '.mdl'), leer(b + '.vvd'), next(x for x in (leer(b + e) for e in ('.dx90.vtx', '.dx80.vtx', '.sw.vtx')) if x))
-def icono_modelo(V, N, U, grupos, mats_vmt, lado=128, k=4):
-    """el ícono del arma: el modelo de costado, en diagonal, con su textura y luz (como los íconos de las otras armas)"""
+def icono_modelo(V, N, U, grupos, mats_vmt, lado=128, k=4, propias=()):
+    """el ícono del arma: el modelo de costado, en diagonal, con su textura y luz (como los íconos de las otras armas); en
+    los materiales de 'propias' ($selfillum) lo que marca el alfa brilla solo, como el núcleo de la Gravity Gun"""
     a = math.radians(-50); Rz = np.array([[math.cos(a), -math.sin(a), 0], [math.sin(a), math.cos(a), 0], [0, 0, 1]])
     P2 = (Rz @ V.T).T; N2 = (Rz @ N.T).T; lo, hi = P2.min(0), P2.max(0); L = lado * k; esc = L * 0.9 / max(hi[0] - lo[0], hi[1] - lo[1])
     cen = (lo + hi) / 2; img = Image.new('RGBA', (L, L), (0, 0, 0, 0)); dr = ImageDraw.Draw(img)
     luz = np.array([0.3, 0.6, 0.75]); luz /= np.linalg.norm(luz); tris = []
     for r, T in grupos.items():
         im = vtf_imagen(mats_vmt[r]) if mats_vmt.get(r) else None; arr = np.asarray(im.convert('RGB'), float) / 255 if im else None
+        brilla = np.asarray(im, float)[:, :, 3] / 255 if im is not None and r in propias and im.mode == 'RGBA' else None
         for t in T:
             z = P2[t, 2].mean(); n = N2[t].mean(0); n /= np.linalg.norm(n) or 1
+            if n @ np.cross(P2[t[2]] - P2[t[0]], P2[t[1]] - P2[t[0]]) < 0: n = -n   # (del lado de afuera de la cara)
             if arr is not None:
-                uv = U[t].mean(0); h, w = arr.shape[:2]; c = arr[int((uv[1] % 1) * (h - 1)), int((uv[0] % 1) * (w - 1))]
+                uv = U[t].mean(0); h, w = arr.shape[:2]; y, x = int((uv[1] % 1) * (h - 1)), int((uv[0] % 1) * (w - 1)); c = arr[y, x]
             else: c = np.array([0.5, 0.5, 0.5])
-            c = c * (0.45 + 0.75 * max(0.0, float(n @ luz)))
+            c = c * (0.45 + 0.75 * max(0.0, float(n @ luz)) + (1.1 * brilla[y, x] if brilla is not None else 0))
             tris.append((z, [((P2[i, 0] - cen[0]) * esc + L / 2, L / 2 - (P2[i, 1] - cen[1]) * esc) for i in t], tuple(int(x) for x in np.clip(c * 255, 0, 255)) + (255,)))
     for z, pts, c in sorted(tris, key=lambda x: x[0]): dr.polygon(pts, fill=c)
     return img.resize((lado, lado), Image.LANCZOS)
@@ -641,6 +652,14 @@ def posturas():
     def mundo_juego(P, Q):
         W = M.mundo(P, Q); return {k: W[idx[VB + v]] for k, v in MAPA.items() if VB + v in idx}
     def pos_juego(W): return {k: (MS @ w[:3, 3] * S).round(5).tolist() for k, w in W.items()}
+    # hacia dónde miran los ojos y dónde queda el arriba de la cabeza: del punto "eyes" del jugador de GMod (male_02), que
+    # cuelga de la cabeza. La dirección del hueso del cuello a la cabeza no alcanza: en GMod el cuello va inclinado
+    # adelante y la cabeza lo compensa para mirar al frente; sin esto el horneado dejaba al personaje mirando al piso
+    J = SM.Modelo(open(os.path.join(GM, 'garrysmod10', 'models', 'player', 'male_02.mdl'), 'rb').read())
+    OJOS = [a for a in J.adjuntos if a['n'] == 'eyes'][0]['m'][:, :3]
+    def cuadro_juego(W):
+        F = pos_juego(W); R = MS @ W['Head'][:3, :3] @ OJOS
+        F['Mira'], F['MiraArriba'] = R[:, 0].round(5).tolist(), R[:, 2].round(5).tolist(); return F
     def marco(Wp, lado):
         """marco de la mano (juego): origen en la muñeca, x hacia el nudillo del medio, y normal de la palma, z la otra"""
         h, i, m, p = (np.array(Wp[lado + 'Hand' + x]) for x in ('', 'Index1', 'Middle1', 'Pinky1'))
@@ -654,7 +673,7 @@ def posturas():
             if nom not in sq: continue
             A = M.anims[sq[nom]['anim']]; fps = A['fps'] or 30; dur = (A['nf'] - 1) / fps
             n = 1 if est == 'Pose' else max(2, int(round(dur * 20)) + 1)
-            frames = [pos_juego(mundo_juego(*local(nom, i / 20 * fps))) for i in range(n)]
+            frames = [cuadro_juego(mundo_juego(*local(nom, i / 20 * fps))) for i in range(n)]
             out['clips']['gm_' + nom] = {'est': est, 'd': round((n - 1) / 20, 4) if n > 1 else 1.0, 'loop': est == 'Pose', 'frames': frames}
         # los dedos de la postura quieta: dirección de cada falange en el marco de su mano (la última sigue la curva)
         Wp = pos_juego(mundo_juego(*local('idle_' + tipo, 0))); D = {}
@@ -739,7 +758,7 @@ def arma_mano(nombre, W, tipo, piel=0):
     for m in W.mallas:
         if m['modelo'] != 0 or not len(m['tris']): continue
         mi_, _ = mat_de_modelo(W, m['mat'], piel)
-        J.tris(mi_ if mi_ is not None else 0, list(V), list(N), list(U), np.array([orientar(tuple(int(x) for x in t), V, N[t].sum(0)) for t in m['tris']]))
+        J.tris(mi_ if mi_ is not None else 0, list(V), list(N), list(U), caras_mdl(m['tris']))
     mi, mats = J.guardar('GM3P_' + nombre)
     d['gm']['armas'][nombre] = {'m': mi, 'mt': mats, 'G': [round(float(x), 6) for x in G.T.reshape(-1)], 'tipo': tipo, 'env': env}
     print('  %s en la mano: los dedos de GMod rodean el mango' % nombre, env)
@@ -778,7 +797,7 @@ def vista_source(raiz, ruta, pref, secuencias):
     for m in M.mallas:
         if m['modelo'] != 0: continue
         mi, _ = mat_de_modelo(M, m['mat'], 0)
-        for t in m['tris']: por.setdefault(mi, []).extend(orientar(tuple(int(x) for x in t), V, N[t[0]] + N[t[1]] + N[t[2]]))
+        por.setdefault(mi, []).extend(int(x) for x in caras_mdl(m['tris']).reshape(-1))
     mi, mats = malla_bin(pref + '_Vista', V, N, U, por, piel=piel, bp=bp)
     arb.append(nodo(pref + '_Malla', pa=i0, m=mi, mt=mats, bo=[i0 + 1 + k for k in usados]))
     a = next((x for x in M.adjuntos if x['n'].lower() == 'muzzle' and 0 <= x['hueso'] < nb), None)
@@ -834,7 +853,7 @@ def palanca():
     Jw = Junta()
     for r, T in grupos.items():
         mi_, vmt = mat_de_modelo(W, r, 0); vmts[r] = vmt and 'materials/' + kv_material(vmt)[1].get('$basetexture', '').lower().replace('\\', '/') + '.vtf'
-        Jw.tris(mi_, list(Pa), list(Na), list(Uw), np.array([orientar(tuple(int(x) for x in t), Pa, Na[t].sum(0)) for t in T]))
+        Jw.tris(mi_, list(Pa), list(Na), list(Uw), caras_mdl(T))
     mi_w, mats_w = Jw.guardar('CB_Mundo'); lo, hi = Pa.min(0), Pa.max(0)
     bat = d['pf'][next(k for k in d['pf'] if k.split('#')[0] == 'Bat')][0]
     pr = {k: v for k, v in bat.items() if k not in ('n', 'm', 'mt', 'col', 'rid', 'p')}
@@ -855,10 +874,12 @@ def icono_arma(ruta, nombre, piel=0):
     grupos = {}
     for m in W.mallas:
         if m['modelo'] == 0 and len(m['tris']): grupos.setdefault(m['mat'], []).append(m['tris'])
-    grupos = {r: np.concatenate(g) for r, g in grupos.items()}; vmts = {}
+    grupos = {r: np.concatenate(g) for r, g in grupos.items()}; vmts = {}; propias = set()
     for r in grupos:
-        _, vmt = mat_de_modelo(W, r, piel); vmts[r] = vmt and 'materials/' + kv_material(vmt)[1].get('$basetexture', '').lower().replace('\\', '/') + '.vtf'
-    ico = icono_modelo(Pw, Nw, Uw, grupos, vmts); ico.save(PK1 + '/i/' + nombre + '.webp', 'WEBP', quality=90); d['ico'][nombre] = nombre
+        _, vmt = mat_de_modelo(W, r, piel); c = kv_material(vmt)[1] if vmt else {}
+        vmts[r] = vmt and 'materials/' + c.get('$basetexture', '').lower().replace('\\', '/') + '.vtf'
+        if c.get('$selfillum', '0') not in ('0', ''): propias.add(r)
+    ico = icono_modelo(Pw, Nw, Uw, grupos, vmts, propias=propias); ico.save(PK1 + '/i/' + nombre + '.webp', 'WEBP', quality=90); d['ico'][nombre] = nombre
     return W
 def armas_gmod():
     """la Tool Gun y la Physics Gun de GMod y la Gravity Gun de HL2 en lugar de la taser, la láser y la de gravedad: la vista
@@ -870,7 +891,7 @@ def armas_gmod():
             ('GM_GravGun', 'models/weapons/v_physcannon.mdl', 'GG', (('GG_idle', 'idle', 1), ('GG_hold', 'hold_idle', 1), ('GG_draw', 'draw', 0), ('GG_fire', 'fire', 0), ('GG_altfire', 'altfire', 0), ('GG_holster', 'holster', 0)))):
         M, nv, nu, cl = vista_source(raiz, ruta, pref, sec); print('  %s: huesos %d, con peso %d, verts %d, clips %s' % (raiz, len(M.huesos), nu, nv, cl))
     Wt = icono_arma('models/weapons/w_toolgun.mdl', 'W_ToolGun'); arma_mano('ToolBaton', Wt, 'pistol')
-    Wp = icono_arma('models/weapons/w_physics.mdl', 'W_PhysGun', 1); arma_mano('PhysicsGun', Wp, 'pistol', 1)
+    Wp = icono_arma('models/weapons/w_physics.mdl', 'W_PhysGun', 1); arma_mano('PhysicsGun', Wp, 'gravgun', 1)   # (con las dos manos, como en el GMod de hoy)
     Wg = icono_arma('models/weapons/w_physics.mdl', 'W_GravGun', 0); arma_mano('GravityGun', Wg, 'gravgun', 0)
     for i in (1, 2): sonido('sound/weapons/airboat/airboat_gun_lastshot%d.wav' % i, 'TG_Fire%d' % i)
     for i in range(1, 5): sonido('sound/weapons/physcannon/superphys_launch%d.wav' % i, 'GG_Launch%d' % i)
@@ -878,6 +899,43 @@ def armas_gmod():
                  ('physcannon_claws_open', 'GG_Open'), ('physcannon_claws_close', 'GG_Close'), ('superphys_hold_loop', 'PG_Hold')):
         sonido('sound/weapons/physcannon/%s.wav' % f, n)
     sonido('sound/weapons/physgun_off.wav', 'PG_Off')
+# las armas de Half-Life 2 en lugar de las del juego: (arma del juego, raíz de la vista, v_, w_, prefijo, secuencias (clip,
+# secuencia, en bucle), postura de GMod, sonidos {clave del juego: [(archivo de sound/weapons, nombre)]})
+ARMAS_HL2 = (
+    ('Pistol', 'HL_Pistol', 'v_pistol', 'w_pistol', 'HP', (('HP_idle', 'idle01', 1), ('HP_draw', 'draw', 0), ('HP_fire', 'fire', 0), ('HP_reload', 'reload', 0)), 'pistol',
+     {'sF': [('pistol/pistol_fire2', 'HP_Fire1'), ('pistol/pistol_fire3', 'HP_Fire2')], 'sR': [('pistol/pistol_reload1', 'HP_Reload')], 'sV': [('pistol/pistol_empty', 'HP_Empty')]}),
+    ('Revolver', 'HL_357', 'v_357', 'w_357', 'H3', (('H3_idle', 'idle01', 1), ('H3_draw', 'draw', 0), ('H3_fire', 'fire', 0), ('H3_reload', 'reload', 0)), 'pistol',
+     {'sF': [('357/357_fire2', 'H3_Fire1'), ('357/357_fire3', 'H3_Fire2')], 'sR': [('357/357_reload1', 'H3_Reload')]}),
+    ('Smg', 'HL_SMG', 'v_smg1', 'w_smg1', 'HS', (('HS_idle', 'idle01', 1), ('HS_draw', 'draw', 0), ('HS_fire', 'fire01', 0), ('HS_reload', 'reload', 0)), 'smg1',
+     {'sF': [('smg1/smg1_fire1', 'HS_Fire')], 'sR': [('smg1/smg1_reload', 'HS_Reload')]}),
+    ('Akm', 'HL_AR2', 'v_irifle', 'w_irifle', 'HA', (('HA_idle', 'IR_idle', 1), ('HA_draw', 'IR_draw', 0), ('HA_fire', 'IR_fire', 0), ('HA_reload', 'IR_reload', 0)), 'ar2',
+     {'sF': [('ar2/fire1', 'HA_Fire')], 'sR': [('ar2/ar2_reload', 'HA_Reload')], 'sV': [('ar2/ar2_empty', 'HA_Empty')]}),
+    ('Shotgun', 'HL_Shotgun', 'v_shotgun', 'w_shotgun', 'HG', (('HG_idle', 'idle01', 1), ('HG_draw', 'draw', 0), ('HG_fire', 'fire01', 0), ('HG_reload', 'reload2', 0), ('HG_pump', 'pump2', 0)), 'shotgun',
+     {'sF': [('shotgun/shotgun_fire6', 'HG_Fire1'), ('shotgun/shotgun_fire7', 'HG_Fire2')], 'sV': [('shotgun/shotgun_empty', 'HG_Empty')]}),
+    ('Crossbow', 'HL_Crossbow', 'v_crossbow', 'w_crossbow', 'HC', (('HC_idle', 'idle', 1), ('HC_draw', 'draw', 0), ('HC_fire', 'fire', 0), ('HC_reload', 'reload', 0)), 'crossbow',
+     {'sF': [('crossbow/fire1', 'HC_Fire')], 'sR': [('crossbow/reload1', 'HC_Reload')], 'sImp': [('crossbow/hit1', 'HC_Hit')]}),
+    ('RPG', 'HL_RPG', 'v_rpg', 'w_rocket_launcher', 'HR', (('HR_idle', 'idle1', 1), ('HR_draw', 'draw', 0), ('HR_fire', 'fire', 0), ('HR_reload', 'reload', 0)), 'rpg',
+     {'sF': [('rpg/rocketfire1', 'HR_Fire')], 'sVuelo': [('rpg/rocket1', 'HR_Rocket')]}),
+    ('Sniper', 'HL_Sniper', 'v_sniper', 'w_sniper', 'HN', (('HN_idle', 'idle01', 1), ('HN_draw', 'draw', 0), ('HN_fire', 'fire01', 0), ('HN_reload', 'reload', 0)), 'ar2',
+     {'sF': [('sniper/sniper_fire', 'HN_Fire')]}),
+)
+def armas_hl2():
+    """las armas de HL2: la vista con sus animaciones, el modelo del mundo en la mano en tercera persona (con la postura de
+    GMod de su tipo), ícono y sonidos. Lo que el juego usa de cada una queda en d['gm']['hl2'][arma]"""
+    d['gm']['hl2'] = {}
+    for arma, raiz, v, w, pref, sec, tipo, sons in ARMAS_HL2:
+        if not (leer('models/weapons/%s.mdl' % v) and leer('models/weapons/%s.mdl' % w)): print('  falta', v, 'o', w); continue
+        M, nv, nu, cl = vista_source(raiz, 'models/weapons/%s.mdl' % v, pref, sec)
+        W = icono_arma('models/weapons/%s.mdl' % w, 'W_HL_' + arma); arma_mano(arma, W, tipo)
+        info = {'nodo': raiz, 'ic': 'W_HL_' + arma, 'clips': cl}
+        for clave, lista in sons.items():
+            nombres = []
+            for arch, nom in lista:
+                try: sonido('sound/weapons/%s.wav' % arch, nom); nombres.append(nom)
+                except Exception as e: print('  sin sonido', arch, e)
+            if nombres: info[clave] = nombres
+        d['gm']['hl2'][arma] = info
+        print('  %s → %s: huesos %d, verts %d, clips %s, sonidos %s' % (arma, v, len(M.huesos), nv, cl, sorted(k for k in info if k.startswith('s'))))
 convertir('RB_Construct', 'gm_construct', {'cielo3d': lambda c: c[0] < -6000, 'sol': 1.15})
 convertir('RB_Flatgrass', 'gm_flatgrass', {'sol': 1.15})
 GMP = posturas()
@@ -885,6 +943,7 @@ d['gm'] = {'dedos': GMP['dedos'], 'manoR': GMP['manoR'], 'manoL': GMP['manoL'], 
 json.dump({'fps': GMP['fps'], 'clips': GMP['clips']}, open(PK1 + '/gm_objetivos.json', 'w'), separators=(',', ':'))
 palanca()
 armas_gmod()
+armas_hl2()
 if len(sys.argv) > 4 and os.path.exists(sys.argv[4]):   # (los clips ya horneados con gmod_posturas.mjs)
     for c in json.load(open(sys.argv[4]))['clips'].values():
         est = d['hu']['est'].setdefault(c['est'], []); est[:] = [x for x in est if x['n'] != c['n']]

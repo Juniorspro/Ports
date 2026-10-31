@@ -374,7 +374,7 @@ async function iniciar() {
     paso('efectos', 0.84, 'graficos'); await respiro(); efectosIniciar(); marcasIniciar();
     CG.log('graficos', Math.round(GFX.escala * 100) + '% · ' + GFX.lejos + ' m');
     paso('interfaz', 0.9, 'menus'); await respiro(); uiIniciar(); entradaIniciar();
-    paso('menú', 0.95, 'menus'); await respiro(); menuIniciar(); pantallaIniciar();
+    paso('menú', 0.95, 'menus'); await respiro(); menuIniciar(); pantallaIniciar(); armasHL2();
     paso('primer cuadro', 0.98, 'menus');
     if (Q.get('mapa')) empezarPartida(Q.get('mapa'));
     else { JUEGO.estado = 'principal'; inicioMostrar(true); }

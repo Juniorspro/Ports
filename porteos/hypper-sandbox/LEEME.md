@@ -50,6 +50,29 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   Los skins generados no tenían pesos en los dedos (la mano entera era un mitón): `herramientas/dedos_meshy.py` reparte
   los vértices de cada mano entre las falanges (y el pulgar, lo que sobresale de la palma) y pone esos huesos donde
   están los dedos de la malla, así cierran la mano.
+  **La cabeza mira adonde miran los ojos del jugador de GMod** en cada cuadro de cada postura (el punto `eyes` de
+  `male_02.mdl`, que cuelga del hueso de la cabeza): antes se copiaba sólo la dirección del cuello, la cabeza lo seguía
+  y el personaje miraba al piso con todas las armas (28-48° abajo; en GMod, de 2° arriba a 20° abajo). Del cuello se
+  copia sólo cuánto se inclina adelante y girar o ladear cuello y cabeza cuesta un poco (si no, el horneado torcía el
+  cuello al tope y la cabeza lo compensaba). Con el Hero cada postura queda a ≤1,1° de la mirada de GMod y en todos
+  los personajes a ≤7,2°. Parado con un arma de GMod, el torso apunta al frente aunque la cadera se mueva con la
+  animación de quieto (la de mirar alrededor la gira hasta 35° y el arma giraba con ella), como el `aim_yaw` de GMod: la
+  columna se gira sobre la vertical del mundo y en toda la vuelta la mirada se mueve ≤4,9° y el arma ≤5,3° (antes, 40°).
+  Ese giro es parte de la pose: en los cambios de estado (arrancar a caminar, cambiar de arma) se mezcla igual que ella,
+  sin saltos (a 60 cuadros por segundo, el pecho gira ≤1,7° por cuadro).
+- **Las armas de GMod: Tool Gun, Physics Gun y Gravity Gun**, en lugar de la taser, la láser y la de gravedad: las
+  vistas de primera persona con sus animaciones (sacar, quieto, disparo; la Physics Gun "sujeta" con su zumbido mientras
+  agarra algo; la Gravity Gun levanta, sostiene zumbando, lanza con su disparo y suena en seco si no hay nada adelante),
+  sus sonidos e íconos, y en tercera persona el modelo del mundo en la mano: la Tool Gun con la postura de pistola, la
+  Physics Gun (con la piel azul) y la Gravity Gun con las dos manos, como en GMod.
+- **Las armas de Half-Life 2** en lugar de las del juego: pistola, .357, SMG, AR2 (en lugar de la AKM), escopeta (con la
+  corredera después del tiro), ballesta, RPG y francotirador: la vista de cada una (v_) con sus animaciones (sacar,
+  quieto, disparo, recarga), sus sonidos, el ícono y el modelo del mundo (w_) en la mano con la postura de GMod de su
+  tipo.
+- Del conversor: con `$selfillum` el alfa de la textura es la máscara de lo que brilla, no transparencia (la Physics Gun
+  salía negra); las caras de los modelos de Source se orientan por su giro (Source las dibuja en sentido horario) y las
+  normales de vértice que quedan hacia adentro se dan vuelta: a la Gravity Gun del mundo le faltaba el cuerpo (un tercio
+  de sus normales iban al revés).
 - **Personajes nuevos: Rick, Rick Prime, Finn y Jake**, fieles a la serie: cada uno generado desde una imagen oficial de
   referencia (imagen en pose T → modelo 3D riggeado → `skin_meshy.py`), con su retrato. **Cada uno con su alto**:
   `skin_meshy.py --alto K` achica la raíz del personaje (todo lo de abajo la sigue: huesos, cadera de las animaciones,
@@ -417,7 +440,10 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   (abre el HTML como la gente, con fallas simuladas en `PRE`: sin WebGL 1, sin DecompressionStream, etc.).
   De GMod: `gmod.mjs` (recorrido de los mapas), `gmod_choques.mjs HTML mapa` (caídas, caminatas, costo de dibujo),
   `palanca.mjs`, `red_gmod.mjs` (dos jugadores con la palanca, broker local), `agarre.mjs` (todos los personajes con la
-  palanca: cuánto rodea cada dedo, contra GMod, fotos de cerca) y `skins_nuevos.mjs`.
+  palanca: cuánto rodea cada dedo, contra GMod, fotos de cerca), `skins_nuevos.mjs`, `armas_gmod.mjs` (Tool Gun,
+  Physics Gun agarrando una caja, Gravity Gun levantándola y lanzándola, con sus sonidos), `armas_hl2.mjs` (las ocho de
+  HL2: sacar, quieto, tiro con sonido, recarga) y `postura_gmod.mjs` (en todos los personajes y las ocho posturas, adónde
+  mira la cara contra GMod y cuánto se mueven la mirada y el arma con la animación de quieto).
   De RezoBox (`node prueba.mjs HTML carpeta`, con `NODE_PATH` hacia playwright): `tienda.mjs` (bienvenida, idiomas,
   publicar y borrar en la tienda real), `mods_api.mjs`, `voz.mjs`, `rampa.mjs` (un auto baja la mega rampa: cabeceo
   contra la pendiente, ruedas y contactos cuadro a cuadro), `nativos.mjs` y `nativos_lado.mjs` (volar, muñeco, SCP:

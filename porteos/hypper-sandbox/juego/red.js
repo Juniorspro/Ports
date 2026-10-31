@@ -393,10 +393,10 @@ function recibirHecho(d) {
         const c = D.sCarne || ['Melee1']; sonar(c[(Math.random() * c.length) | 0], yo.p, 0.8); efectoImpacto(yo.p, vscale(dir, -1), 'golpe'); return;
       }
       const imp = h && D.sImp && (h.body && h.body.persona ? D.sCarne : D.sImp);
-      if (imp) sonar(imp[(Math.random() * imp.length) | 0], h.p, 0.8); else if (h) sonar('Melee1', h.p, 0.8); else if (D.sF) sonar(D.sF, o, 0.7);
+      if (imp) sonar(imp[(Math.random() * imp.length) | 0], h.p, 0.8); else if (h) sonar('Melee1', h.p, 0.8); else if (D.sF) sonar(azarDe(D.sF), o, 0.7);
       if (h) efectoImpacto(h.p, h.n, 'golpe');
     } else {
-      if (D && D.sF) sonar(D.sF, o, 0.8);
+      if (D && D.sF) sonar(azarDe(D.sF), o, 0.8);
       const h = raycast(o, dir, 300, R2 ? R2.b : null); efectoTraza(vadd(o, vscale(dir, 0.6)), h ? h.p : vadd(o, vscale(dir, 300)));
       if (h) efectoImpacto(h.p, h.n, 'mundo');
     }

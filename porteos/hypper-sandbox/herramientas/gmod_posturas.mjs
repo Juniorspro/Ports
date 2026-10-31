@@ -1,7 +1,8 @@
 // Hornea las posturas de GMod (de gmod.py) en clips humanoides del juego: con el Hero y el motor de verdad,
 // busca los músculos de la parte de arriba del cuerpo (columna, cuello, cabeza, hombros, brazos y manos) que dejan
-// cada segmento apuntando como en GMod (y la palma girada igual), cuadro por cuadro. Los músculos de Unity son los
-// mismos para todos los personajes: la postura sirve para todos. Informa el error de cada segmento en grados.
+// cada segmento apuntando como en GMod (y la palma girada igual), y la cabeza mirando adonde miran los ojos del jugador
+// de GMod, cuadro por cuadro. Los músculos de Unity son los mismos para todos los personajes: la postura sirve para
+// todos. Informa el error de cada segmento en grados.
 // Uso: node gmod_posturas.mjs HYPPER.html OBJETIVOS.json SALIDA.json   (con NODE_PATH apuntando a playwright)
 import { createRequire } from 'module'; import fs from 'fs';
 const { chromium } = createRequire(import.meta.url)('playwright');
@@ -27,16 +28,32 @@ const r = await p.evaluate(() => window.__ev(`(() => {
   // ¿el Hero mira a +z? (la punta del pie adelante del tobillo)
   H.v.set(base); humAplicar(P); md.sucio = true; md.actualizar();
   const fz = pos('LeftToeBase')[2] - pos('LeftFoot')[2], giro = fz < 0 ? -1 : 1;
+  // la cabeza: su giro respecto de la pose de enlace (la matriz de piel de su hueso), donde la cara mira al frente y derecho
+  let pz = null, bi = -1; for (const z of md.pieles) { const k = md.A[z.i].bo.indexOf(ix.Head); if (k >= 0) { pz = z; bi = k; break; } }
+  const nrm = (v) => { const l = Math.hypot(...v) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+  const cabeza = () => { const h = pz.h, o = bi * 12; return [nrm([0, 1, 2].map((r) => h[o + r * 4 + 2] * giro)), nrm([0, 1, 2].map((r) => h[o + r * 4 + 1]))]; };
   // y que las manos no queden más cerca de la cabeza que en GMod (en largos de torso): con el torso más derecho que el de
   // GMod, la mano levantada de la postura de la palanca se metía en la cabeza. Empuja sólo si se acerca de más
   const largo = (J) => Math.hypot(...[0, 1, 2].map((c) => J('Neck')[c] - J('Hips')[c]));
   const lejos = (J, a, b) => Math.hypot(...[0, 1, 2].map((c) => J(b)[c] - J(a)[c])) / largo(J);
-  const metas = (F) => { const J = (n) => { const q = F[n]; return [q[0] * giro, q[1], q[2] * giro]; }; const t = seg.map(([a, c, w]) => [a, c, w, dir(J(a), J(c))]); return { t, pal: { Right: palma(J, 'Right'), Left: palma(J, 'Left') }, huelgo: [['Head', 'RightHand'], ['Head', 'LeftHand']].map(([a, b]) => [a, b, lejos(J, a, b)]) }; };
+  const metas = (F) => { const J = (n) => { const q = F[n]; return [q[0] * giro, q[1], q[2] * giro]; }; const t = seg.map(([a, c, w]) => [a, c, w, dir(J(a), J(c))]); return { t, pal: { Right: palma(J, 'Right'), Left: palma(J, 'Left') }, huelgo: [['Head', 'RightHand'], ['Head', 'LeftHand']].map(([a, b]) => [a, b, lejos(J, a, b)]),
+    mira: F.Mira && pz ? [J('Mira'), J('MiraArriba')] : null }; };
+  // sin cuellos retorcidos: cabecear, ladear y girar el cuello o la cabeza cuesta un poco (si no, el horneado giraba el
+  // cuello al tope para acomodar su dirección y la cabeza lo compensaba: el cuello quedaba torcido)
+  const REG = [[16, 0.004], [17, 0.012], [18, 0.012], [19, 0.004], [20, 0.012], [21, 0.012]];
   const error = (M, det) => {
     humAplicar(P); md.sucio = true; md.actualizar(); let e = 0; const d = det ? {} : null;
-    for (const [a, c, w, t] of M.t) { const h = dir(pos(a), pos(c)), k = h[0] * t[0] + h[1] * t[1] + h[2] * t[2]; e += w * (1 - k); if (d) d[a + '>' + c] = +(Math.acos(Math.max(-1, Math.min(1, k))) * 180 / Math.PI).toFixed(1); }
+    for (const [k, w] of REG) e += w * H.v[k] * H.v[k];
+    for (const [a, c, w, t] of M.t) {
+      const h = dir(pos(a), pos(c));
+      // (del cuello a la cabeza, sólo cuánto se inclina adelante: el costado lo dan la mirada y el arriba de la cabeza; con
+      // la dirección entera el horneado giraba el cuello al tope para correr la cabeza de costado)
+      const k = a === 'Neck' ? Math.cos(Math.atan2(h[2] * giro, h[1]) - Math.atan2(t[2] * giro, t[1])) : h[0] * t[0] + h[1] * t[1] + h[2] * t[2];
+      e += w * (1 - k); if (d) d[a + '>' + c] = +(Math.acos(Math.max(-1, Math.min(1, k))) * 180 / Math.PI).toFixed(1);
+    }
     for (const l of ['Right', 'Left']) { const h = palma((n) => pos(n), l), t = M.pal[l], k = h[0] * t[0] + h[1] * t[1] + h[2] * t[2]; e += 1.5 * (1 - k); if (d) d[l + 'Palma'] = +(Math.acos(Math.max(-1, Math.min(1, k))) * 180 / Math.PI).toFixed(1); }
     for (const [a, c, m] of M.huelgo) { const q = lejos(pos, a, c), f = Math.max(0, m - q); e += 40 * f * f; if (d) d[a + '→' + c + ' falta (% torso)'] = +(f * 100).toFixed(1); }
+    if (M.mira) { const C = cabeza(); for (const [k, w, n] of [[0, 2.5, 'Mira'], [1, 1, 'MiraArriba']]) { const h = C[k], t = M.mira[k], c = h[0] * t[0] + h[1] * t[1] + h[2] * t[2]; e += w * (1 - c); if (d) d[n] = +(Math.acos(Math.max(-1, Math.min(1, c))) * 180 / Math.PI).toFixed(1); } }
     return det ? d : e;
   };
   const ajustar = (M, v0) => {

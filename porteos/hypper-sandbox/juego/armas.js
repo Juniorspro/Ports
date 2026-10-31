@@ -18,9 +18,12 @@ const DEF_ARMAS = {
   // (sacar, quieto, tres golpes que pegan y dos al aire) y sus sonidos; alcance y ritmo como en HL2 (75 unidades, 0,4 s)
   Crowbar: { nodo: 'Crowbar', ic: 'W_Crowbar', fuego: 'CB_miss1', pega: ['CB_hit1', 'CB_hit2', 'CB_hit3'], falla: ['CB_miss1', 'CB_miss2'], sacar: 'CB_draw', quieto: 'CB_idle',
     sF: 'CB_Swing', sImp: ['CB_Impact1', 'CB_Impact2'], sCarne: ['CB_Flesh1', 'CB_Flesh2', 'CB_Flesh3', 'CB_Flesh4', 'CB_Flesh5'], car: 0, cad: 0.4, dan: 25, empuje: 70, tipo: 'golpe', alcance: 1.95, prop: 'Crowbar' },
-  GravityGun: { nodo: 'GravityGun', ic: 'W_GravityGun', fuego: 'Armature|Bottle-Hit', sacar: 'Armature|Bottle-Draw', sS: 'genericReadyNew_1', car: 0, cad: 0.5, tipo: 'grav', prop: 'GravityGun' },
-  PhysicsGun: { nodo: 'PhysicsGun', ic: 'PhysicsGun', sS: 'genericReadyNew_1', car: 0, cad: 0.1, tipo: 'fisica' },
-  ToolBaton: { nodo: 'ToolBaton', ic: 'ToolBaton', fuego: 'Armature|Bottle-Hit', sacar: 'Armature|Bottle-Draw', sS: 'genericReadyNew_1', car: 0, cad: 0.35, tipo: 'tool' },
+  // (la Gravity Gun de HL2 y la Physics Gun y la Tool Gun de GMod, de herramientas/gmod.py: vista con sus animaciones,
+  // "sujeta" mientras tiene algo agarrado, y sus sonidos)
+  GravityGun: { nodo: 'GM_GravGun', ic: 'W_GravGun', fuego: 'GG_fire', sacar: 'GG_draw', quieto: 'GG_idle', sujeta: 'GG_hold', sS: 'GG_Open', sF: ['GG_Launch1', 'GG_Launch2', 'GG_Launch3', 'GG_Launch4'],
+    sAgarra: 'GG_Pickup', sSuelta: 'GG_Drop', sVacio: 'GG_Dry', sSosten: 'GG_Hold', car: 0, cad: 0.5, tipo: 'grav', prop: 'GravityGun' },
+  PhysicsGun: { nodo: 'GM_PhysGun', ic: 'W_PhysGun', sacar: 'PG_draw', quieto: 'PG_idle', sujeta: 'PG_hold', sS: 'genericReadyNew_1', sSuelta: 'PG_Off', sSosten: 'PG_Hold', car: 0, cad: 0.1, tipo: 'fisica' },
+  ToolBaton: { nodo: 'GM_ToolGun', ic: 'W_ToolGun', fuego: 'TG_fire', sacar: 'TG_draw', quieto: 'TG_idle', sS: 'genericReadyNew_1', sF: ['TG_Fire1', 'TG_Fire2'], car: 0, cad: 0.35, tipo: 'tool' },
   Camera: { nodo: 'Camera', ic: 'Camera', sS: 'Click', car: 0, cad: 0.6, tipo: 'foto' },
 };
 const ARM = { lista: ['RPG', 'Pistol', 'Camera', 'Hands', 'Crowbar', 'ToolBaton', 'PhysicsGun'], i: 6, balas: {}, t: 0, ocup: 0, recargando: 0, v: null, sway: { x: 0, y: 0, z: 0, qx: 0, qy: 0 }, bob: 0,
@@ -29,6 +32,20 @@ function darArma(n) {
   if (!DEF_ARMAS[n]) return;
   if (!ARM.lista.includes(n)) ARM.lista.push(n);
   elegirArma(ARM.lista.indexOf(n)); aviso(n);
+}
+const azarDe = (a) => (Array.isArray(a) ? a[(Math.random() * a.length) | 0] : a);   // (uno de varios sonidos)
+// las armas de Half-Life 2 (herramientas/gmod.py, DATA.gm.hl2): la vista, sus animaciones y sus sonidos en lugar de los del
+// juego (el daño, el cargador y el ritmo quedan como estaban); en tercera persona, la postura de GMod de su tipo
+function armasHL2() {
+  const H = DATA.gm && DATA.gm.hl2; if (!H) return;
+  for (const [a, x] of Object.entries(H)) {
+    const D = DEF_ARMAS[a]; if (!D) continue;
+    const c = (suf) => x.clips.find((n) => n.endsWith('_' + suf)) || null;
+    Object.assign(D, { nodo: x.nodo, ic: x.ic, sacar: c('draw'), quieto: c('idle'), fuego: c('fire'), recarga: c('reload') || D.recarga, tras: c('pump') });
+    if (x.sF) D.sF = x.sF; if (x.sR) D.sR = x.sR;
+    const t = DATA.gm.armas[a] && DATA.gm.armas[a].tipo;
+    if (t) { POSE_ARMA[a] = 'gm_idle_' + t; ACC_ARMA[a] = ['gm_range_' + t, humClipNombre('Reload', 'gm_reload_' + t) ? 'gm_reload_' + t : (ACC_ARMA[a] || [])[1] || null]; }
+  }
 }
 function elegirArma(i) {
   if (i < 0 || i >= ARM.lista.length) return;
@@ -80,18 +97,18 @@ function disparar() {
       const k = D.tipo === 'perdigones' ? 8 : 1;
       for (let i = 0; i < k; i++) impactoBala(o, rayoDesdeCamara(D.tipo === 'perdigones' ? 0.06 : (D.disp || 0.004) * (ARM.zoom ? 0.2 : 1)), D, D.dan);
       if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego);
-      sonar(D.sF, null, 0.8); efectoFogonazo();
+      sonar(azarDe(D.sF), null, 0.8); efectoFogonazo();
       JUG.pitch = Math.max(-1.55, JUG.pitch - (D.tipo === 'perdigones' ? 0.04 : D.dan > 50 ? 0.03 : 0.008)); ARM.retro = 1;   // (sin pasar de mirar arriba: si no, la cámara se da vuelta)
       if (typeof redDisparo === 'function') redDisparo(n);
       break;
     }
     case 'cohete': {
-      if (!MODS.municionInfinita) ARM.balas[n]--; if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego); sonar(D.sF, null, 0.8);
+      if (!MODS.municionInfinita) ARM.balas[n]--; if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego); sonar(azarDe(D.sF), null, 0.8);
       lanzarProyectil('RPG Rocket', o, CAM.fwd, 38, 0, D.dan, true);
       break;
     }
     case 'flecha': {
-      if (!MODS.municionInfinita) ARM.balas[n]--; if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego); sonar(D.sF, null, 0.8);
+      if (!MODS.municionInfinita) ARM.balas[n]--; if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego); sonar(azarDe(D.sF), null, 0.8);
       lanzarProyectil('Arrow', o, CAM.fwd, 70, 1, D.dan, false);
       break;
     }
@@ -100,15 +117,15 @@ function disparar() {
       if (D.pega) {   // (como en HL2: el golpe se sabe al toque; si pega, la animación que pega; si no, al aire con su silbido)
         const h = raycast(CAM.pos, CAM.fwd, D.alcance, JUG.vehiculo ? JUG.vehiculo.b : null), l = h ? D.pega : D.falla;
         if (ARM.v) vistaTocar(ARM.v, l[(Math.random() * l.length) | 0]);
-        if (h) golpeAplicar(D, h); else sonar(D.sF, null, 0.7);   // (el golpe en el momento, con lo que se apuntó)
+        if (h) golpeAplicar(D, h); else sonar(azarDe(D.sF), null, 0.7);   // (el golpe en el momento, con lo que se apuntó)
         break;
       }
-      const pun = ARM.v && (D.fuego2 && Math.random() < 0.5 ? D.fuego2 : D.fuego); if (pun) vistaTocar(ARM.v, pun); sonar(D.sF, null, 0.6);
+      const pun = ARM.v && (D.fuego2 && Math.random() < 0.5 ? D.fuego2 : D.fuego); if (pun) vistaTocar(ARM.v, pun); sonar(azarDe(D.sF), null, 0.6);
       ARM.golpeT = 0.12; ARM.golpeD = D;
       break;
     }
     case 'grav': gravPrimario(); if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego); break;
-    case 'tool': if (typeof herramientaUsar === 'function') herramientaUsar(false); if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego, { vel: 1.6 }); break;
+    case 'tool': if (typeof herramientaUsar === 'function') herramientaUsar(false); if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego, { vel: 1.6 }); if (D.sF) sonar(azarDe(D.sF), null, 0.55); break;
     case 'foto': sacarFoto(); break;
   }
   if (D.car) hudArma();
@@ -131,8 +148,8 @@ function recargar() {
   const n = ARM.lista[ARM.i], D = DEF_ARMAS[n];
   if (!D.car || ARM.balas[n] >= D.car || ARM.recargando > 0) return;
   const dur = ARM.v && D.recarga ? vistaTocar(ARM.v, D.recarga) : 1.2;
-  ARM.recargando = Math.max(0.6, Math.min(3, dur)); ARM.ocup = ARM.recargando;
-  if (D.sR) sonar(D.sR, null, 0.7);
+  ARM.recargando = Math.max(0.6, Math.min(4, dur)); ARM.ocup = ARM.recargando;   // (la .357 de HL2 tarda 3,7 s)
+  if (D.sR) sonar(azarDe(D.sR), null, 0.7);
   humAccion(JUG.cuerpo, 'recarga'); if (typeof redRecarga === 'function') redRecarga();
 }
 // ---------------- proyectiles ----------------
@@ -252,27 +269,38 @@ function agarrarFisica() {
   const camQ = Quat.axis(0, 1, 0, JUG.yaw);
   ARM.agarre = { b, dist: h.t, rl: b.q.conj().rot(vsub(h.p, b.pos)), qrel: camQ.conj().mul(b.q) };
   b.held = true; if (b.obj && b.obj.veh) b.obj.veh.agarrado = true;
+  vistaSujeta(true);
+}
+// la vista del arma mientras sostiene algo (la pistola física y la de gravedad: "sujeta" en bucle) y al soltar
+function vistaSujeta(si) {
+  const D = DEF_ARMAS[ARM.lista[ARM.i]]; if (!D || !ARM.v) return;
+  if (si && D.sujeta) vistaTocar(ARM.v, D.sujeta, { loop: true });
+  else if (!si && D.quieto) { vistaTocar(ARM.v, D.quieto, { loop: true }); if (D.sSuelta) sonar(D.sSuelta, null, 0.5); }
 }
 function soltarAgarre(congelar) {
   const A = ARM.agarre; if (!A) return;
   A.b.held = false; if (A.b.obj && A.b.obj.veh) A.b.obj.veh.agarrado = false;
   if (congelar) { A.b.frozen = true; A.b.vel.set(0, 0, 0); A.b.ang.set(0, 0, 0); efectoCongelar(A.b); sonar('Click', null, 0.6); }
   else A.b.wake();
-  ARM.agarre = null;
+  ARM.agarre = null; vistaSujeta(false);
 }
 // ---------------- pistola de gravedad ----------------
 function gravPrimario() {
-  if (ARM.grav) { const b = ARM.grav.b; soltarGrav(); b.vel.addS(CAM.fwd, Math.min(50, 2500 / Math.max(10, b.mass))); sonar('Melee1', b.pos, 0.6, 0.7); return; }
+  const D = DEF_ARMAS.GravityGun, sL = () => sonar(azarDe(D.sF), null, 0.7);
+  if (ARM.grav) { const b = ARM.grav.b; soltarGrav(true); b.vel.addS(CAM.fwd, Math.min(50, 2500 / Math.max(10, b.mass))); sL(); return; }
   const h = raycast(CAM.pos, CAM.fwd, 10, null);
-  if (h && h.body && h.body.verity) { verEmpujon(h.body.verity, vadd(vscale(CAM.fwd, 14), v3(0, 3, 0))); sonar('Melee1', h.p, 0.6, 0.7); return; }
-  if (h && h.body && h.body.dynamic) { h.body.wake(); h.body.vel.addS(CAM.fwd, Math.min(50, 1500 / Math.max(10, h.body.mass))); sonar('Melee1', h.p, 0.6, 0.7); natEmpujon(h.body); }
+  if (h && h.body && h.body.verity) { verEmpujon(h.body.verity, vadd(vscale(CAM.fwd, 14), v3(0, 3, 0))); sL(); return; }
+  if (h && h.body && h.body.dynamic) { h.body.wake(); h.body.vel.addS(CAM.fwd, Math.min(50, 1500 / Math.max(10, h.body.mass))); sL(); natEmpujon(h.body); return; }
+  sonar(D.sVacio, null, 0.6);   // (nada que empujar: en seco, como en HL2)
 }
 function gravSecundario() {
   if (ARM.grav) { soltarGrav(); return; }
   const h = raycast(CAM.pos, CAM.fwd, 25, null);
-  if (h && h.body && !h.body.estatico && h.body.mass < 2000) { if (h.body.obj) redReclamar(h.body.obj); h.body.frozen = false; ARM.grav = { b: h.body }; h.body.held = true; h.body.wake(); }
+  if (h && h.body && !h.body.estatico && h.body.mass < 2000) { if (h.body.obj) redReclamar(h.body.obj); h.body.frozen = false; ARM.grav = { b: h.body }; h.body.held = true; h.body.wake(); sonar(DEF_ARMAS.GravityGun.sAgarra, null, 0.6); vistaSujeta(true); }
+  else sonar(DEF_ARMAS.GravityGun.sVacio, null, 0.5);
 }
-function soltarGrav() { if (ARM.grav) { ARM.grav.b.held = false; ARM.grav.b.wake(); ARM.grav = null; } }
+// (lanzado: la vista vuelve a quieto sin el sonido de soltar)
+function soltarGrav(lanzado) { if (ARM.grav) { ARM.grav.b.held = false; ARM.grav.b.wake(); ARM.grav = null; const D = DEF_ARMAS[ARM.lista[ARM.i]]; if (lanzado && D && D.quieto && ARM.v) vistaTocar(ARM.v, D.quieto, { loop: true }); else vistaSujeta(false); } }
 function gravPaso(dt) {
   const G = ARM.grav; if (!G) return;
   const b = G.b; if (!PH.bodies.includes(b)) { ARM.grav = null; return; }
@@ -291,7 +319,9 @@ function armasPaso(dt) {
   if (ARM.golpeT > 0) { ARM.golpeT -= dt; if (ARM.golpeT <= 0) golpeAplicar(ARM.golpeD); }
   const n = ARM.lista[ARM.i], D = DEF_ARMAS[n];
   // (las que tienen animación de quieto, como la palanca, vuelven a ella cuando termina la otra)
-  if (ARM.v && D.quieto && ARM.v.clip && !ARM.v.loop && ARM.v.t >= ARM.v.clip.d) vistaTocar(ARM.v, D.quieto, { loop: true });
+  if (ARM.v && D.quieto && ARM.v.clip && !ARM.v.loop && ARM.v.t >= ARM.v.clip.d) {
+    if (D.tras && ARM.v.clip === DATA.anPorNombre[D.fuego]) vistaTocar(ARM.v, D.tras); else vistaTocar(ARM.v, D.quieto, { loop: true });   // (la escopeta: después del tiro, la corredera)
+  }
   // (tirado como muñeco o en cuatro patas no se usan armas; en el creador el clic elige y pone)
   if (!UI.abierto && JUG.vivo && !JUG.vehiculo && !NAT.rag && !NAT.scp && !(CREA.on && creadorPaso())) {
     if (D.tipo === 'fisica') {
@@ -319,6 +349,7 @@ function armasPaso(dt) {
   }
   ENT.rueda = 0;
   fisicaPaso(dt); gravPaso(dt);
+  if ((ARM.agarre || ARM.grav) && D.sSosten) bucle('sosten', D.sSosten, null, 0.35, 1);
   proyectilesPaso(dt); explosivosPaso(dt);
   // vaivén del arma
   const sp = Math.hypot(JUG.vel.x, JUG.vel.z) * (JUG.suelo ? 1 : 0.2);
@@ -343,7 +374,7 @@ function vistaPuntaMundo() {
 function dibujarRayoFisica() {
   const A = ARM.agarre; if (!A) return;
   const p0 = vistaPuntaMundo() || vadd(CAM.pos, v3(0, -0.2, 0)), p1 = vadd(A.b.pos, A.b.q.rot(A.rl));
-  const n = 16, c = [1, 0.82, 0.25, 0.95];
+  const n = 16, c = [0.35, 0.78, 1, 0.95];   // (celeste, como el de la Physics Gun de GMod)
   let prev = p0;
   const mid = vadd(CAM.pos, vscale(CAM.fwd, A.dist * 0.5));
   for (let i = 1; i <= n; i++) {

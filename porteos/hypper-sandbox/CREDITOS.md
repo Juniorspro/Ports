@@ -23,13 +23,16 @@ cajas), los carteles y las pantallas de los arcades, la cortina de Pirate Cove (
 con la tela del mapa), el plano de las cámaras (dibujado del mapa), el armado de los animatrónicos como personajes
 (`skin_fnaf.py`) y sus retratos, el ícono y el fondo de carga (capturas del juego).
 
-## Garry's Mod y Half-Life 2 (`RB_Construct`, `RB_Flatgrass`, la palanca, las posturas)
+## Garry's Mod y Half-Life 2 (`RB_Construct`, `RB_Flatgrass`, la palanca, las armas, las posturas)
 
 | Asset | Autor / origen | Dónde | Licencia |
 |---|---|---|---|
 | Mapas gm_construct y gm_flatgrass (geometría, texturas, props, cielos) | Garry's Mod 10 (Facepunch Studios) con contenido de Half-Life 2 (Valve) | https://archive.org/download/garrys-mod-10/Garrys_Mod_10.rar | rip: Garry's Mod 10 / Half-Life 2 |
 | La palanca: v_crowbar y w_crowbar (mallas, huesos, animaciones, texturas) y sus sonidos (silbido, golpes, carne) | Half-Life 2 (Valve), en Garry's Mod 10 | ídem | rip: Half-Life 2 |
-| Posturas del jugador (male_anims.mdl: quieto, golpe y recarga de cada tipo de arma, con los dedos) | Garry's Mod 10 / Half-Life 2 Deathmatch | ídem | rip: Garry's Mod 10 |
+| Posturas del jugador (male_anims.mdl: quieto, golpe y recarga de cada tipo de arma, con los dedos) y el punto de los ojos de male_02.mdl (adónde mira la cabeza) | Garry's Mod 10 / Half-Life 2 Deathmatch | ídem | rip: Garry's Mod 10 |
+| La Tool Gun (v_toolgun y w_toolgun: mallas, huesos, animaciones, texturas) | Garry's Mod 10 (Facepunch Studios) | ídem | rip: Garry's Mod 10 |
+| La Physics Gun (v_superphyscannon) y la Gravity Gun (v_physcannon), el modelo del mundo w_physics y sus sonidos (physcannon, physgun_off; el de la Tool Gun es airboat_gun_lastshot) | Half-Life 2 (Valve), en Garry's Mod 10 | ídem | rip: Half-Life 2 / Garry's Mod 10 |
+| Armas de Half-Life 2: pistola, .357, SMG, AR2, escopeta, ballesta, RPG y francotirador (v_ y w_: mallas, huesos, animaciones, texturas) y sus sonidos de disparo, recarga y vacío | Half-Life 2 (Valve), en Garry's Mod 10 | ídem | rip: Half-Life 2 |
 
 Hecho acá (nuestro): el conversor (`gmod.py`), el horneado de las posturas a músculos (`gmod_posturas.mjs`), el agarre
 (la mano que se cierra sobre el mango), los pesos de los dedos de los skins generados (`dedos_meshy.py`), los íconos y

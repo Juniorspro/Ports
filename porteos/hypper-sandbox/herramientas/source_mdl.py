@@ -114,6 +114,16 @@ class Modelo:
             try: self.mallas = self._vtx(vtx, nbp, bpo, tam); break
             except (AssertionError, ValueError, IndexError, struct.error): self.mallas = []
         assert self.mallas, 'vtx ilegible'
+        # normales hacia afuera: Source dibuja las caras en el sentido de las agujas del reloj, y algún modelo (la Gravity Gun
+        # del mundo) trae un tercio de las normales de vértice hacia adentro (sus caras quedaban dadas vuelta y oscuras): se
+        # dan vuelta las que contradicen a las caras que las usan
+        V, N = self.vertices['pos'], self.vertices['nor']; acc = np.zeros_like(N)
+        for m in self.mallas:
+            T = m['tris']
+            if len(T):
+                f = np.cross(V[T[:, 2]] - V[T[:, 0]], V[T[:, 1]] - V[T[:, 0]])
+                for i in range(3): np.add.at(acc, T[:, i], f)
+        N[np.einsum('ij,ij->i', N, acc) < 0] *= -1
     def _vtx(self, vtx, nbp, bpo, tam):
         out = []
         for k in range(nbp):
@@ -162,7 +172,9 @@ class Modelo:
             o = A['o'] + aidx
         else: o = A['o'] + A['idx']
         while True:
-            hb, fl, nxt = struct.unpack_from('<BBh', b, o); h = H[hb]; d = o + 4
+            hb, fl, nxt = struct.unpack_from('<BBh', b, o)
+            if hb >= len(H): break   # (hueso 255: la animación no mueve ninguno, como el centro de una matriz de puntería)
+            h = H[hb]; d = o + 4
             if fl & 0x02:   # RAWROT: cuaternión de 48 bits
                 x, y, zw = struct.unpack_from('<3H', b, d); z = zw & 0x7fff; wn = zw >> 15
                 qx, qy, qz = (x - 32768) / 32768.0, (y - 32768) / 32768.0, (z - 16384) / 16384.0
