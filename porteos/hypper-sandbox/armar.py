@@ -9,6 +9,9 @@ ORDEN = ['nucleo', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'mundo'
 FORMATO = re.sub(r'(?m)^export ', '', open(os.path.join(AQUI, 'tienda', 'formato.js'), encoding='utf-8').read())
 leer = lambda n: FORMATO if n == 'formato' else open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read()
 js = '(() => {\n"use strict";\n' + '\n'.join(leer(n) for n in ORDEN) + '\n})();'
+# el catálogo de los emotes de captura de movimiento (los archivos van al lado del HTML, en hypper/emotes/cmu)
+CMUC = os.path.join(AQUI, '..', '..', 'hypper', 'emotes', 'cmu', 'catalogo.json')
+if os.path.exists(CMUC): js = js.replace('/*CMUCAT*/null', open(CMUC, encoding='utf-8').read().strip())
 # las mallas: los índices de los triángulos van como diferencias (módulo 2^16 o 2^32, en zigzag) con los bytes en planos
 # (todos los bajos, después los altos), en el mismo lugar y con el mismo largo: así el gzip los achica casi a la mitad
 # (las mallas bajan de ~20 a ~17 MB). El juego los vuelve a armar al cargar (desfiltrarIndices en datos.js)

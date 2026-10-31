@@ -80,6 +80,25 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   Finn 0,8 (un nene) y los Rick son altos. Jugando con uno bajito la cápsula es más baja (Jake pasa por abajo de una mesa
   a 1,2 m), los ojos van a su altura (`--ojo`), la cámara de tercera persona se acerca, y para los demás su cápsula y su
   nombre arriba también son de su tamaño (un tiro por arriba de la cabeza de Jake no le pega). `skins_nuevos.mjs`.
+- **2175 emotes de captura de movimiento** (la base de CMU, conversión BVH "Poser-friendly" de B. Hahne, dominio
+  público) con **panel por secciones**: Todos, Favoritos, Recientes, Clásicos, Bailes, Gestos, Acciones, Peleas,
+  Deportes, Acrobacias, Animales, Caminar y correr, Otros, Míos y Tienda, con buscador (en todas las secciones), la
+  cuenta de cuántos hay, la estrella para guardar favoritos y los últimos 30 usados (guardados en el navegador). Se
+  dibujan de a 120 tarjetas (con "Ver más") para que el celular no se trabe.
+  - `herramientas/emote_bvh.py` los pasa al esqueleto del juego como `emote_meshy.py` (cada hueso copia la orientación
+    de su equivalente, con la diferencia entre la pose T del BVH y la de enlace del Hero; Spine1 a mitad de camino), a
+    15 cuadros por segundo y hasta 20 s, en el lugar. La altura de la cadera se mide sobre el piso de cada captura (lo
+    más bajo del cuerpo en cada cuadro, el 20 % más bajo); acostado o en cuatro patas sobre algo (una cama) se baja
+    hasta apoyar. No van los que no tienen nombre ("Unknown"), los que necesitan muebles u objetos que en el juego no
+    están (camas, sillas, escaleras, juegos de plaza...) ni los que tienen saltos de los marcadores.
+  - No van en el HTML: cada uno es un archivo chico (gzip, rotaciones y cadera como diferencias int16 con los bytes en
+    planos, ~13 KB) en `hypper/emotes/cmu/` (29 MB los 2175), al lado del HTML; en el HTML va sólo el catálogo (nombre,
+    sección, duración). Se bajan la primera vez que se eligen (de al lado del HTML, o de githack si se abre como
+    archivo) y quedan guardados en el navegador. Andan en red (el otro jugador baja el mismo).
+  - En un emote de captura ninguna parte del cuerpo queda abajo del piso (cadera, torso, cabeza, manos, puntas de los
+    dedos, rodillas, pies: se sube lo que haga falta). `pruebas/emotes_cmu.mjs` 11/11 (catálogo, secciones, buscador,
+    favoritos, se bajan y decodifican cuaterniones válidos, el cuerpo se mueve, pies en el piso en caminatas, bailes y
+    peleas, acostado o rodando sin flotar ni hundirse).
 - **Carga más rápida y HTML más liviano**: con los cinco personajes nuevos adentro el HTML pesa 51,8 MB (sin el filtro
   de abajo serían 55,6). Bajando a 3 MB/s con la CPU 4 veces más lenta (como un celular), el juego queda listo a los
   18,7 s en vez de 22,4 s, y lo que falta después de que termina de bajar pasó de 3,4 s a 1,1 s:

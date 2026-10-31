@@ -152,13 +152,25 @@ function dibujarPersona(P) {
 }
 // pies en el piso: después de animar, se sube o baja el cuerpo para que el pie más bajo quede apoyado
 // (agachado o al caer, del todo; caminando, sólo que no se hunda ni flote más de unos centímetros)
+// lo que no puede quedar abajo del piso en un emote de captura: hueso y su grueso (el centro va así de arriba del piso)
+const PISO_HUESOS = [['Hips', 0.09], ['Spine1', 0.1], ['Spine2', 0.1], ['Neck', 0.07], ['Head', 0.1], ['LeftHand', 0.03], ['RightHand', 0.03], ['LeftForeArm', 0.04], ['RightForeArm', 0.04], ['LeftLeg', 0.06], ['RightLeg', 0.06], ['LeftArm', 0.06], ['RightArm', 0.06], ['LeftFoot', 0.05], ['RightFoot', 0.05], ['LeftToeBase', 0.02], ['RightToeBase', 0.02], ['LeftHandMiddle3', 0.01], ['RightHandMiddle3', 0.01], ['LeftHandIndex3', 0.01], ['RightHandIndex3', 0.01], ['LeftHandRing3', 0.01], ['RightHandRing3', 0.01]];
 function aterrizarPies(P) {
   const md = P.md, h = P.D.h; if (h.LeftFoot === undefined || h.RightFoot === undefined) return;
   md.actualizar();
   const yl = md.W[h.LeftFoot][13], yr = md.W[h.RightFoot][13], piso = P.pos.y - 1;
   const dy = piso + P.D.tobillo - Math.min(yl, yr), lleno = P.hum && P.hum.agach > 0.05;
   // (los que flotan se despegan del piso al deslizarse: lo calcula humFlotar)
-  const meta = clamp(dy, lleno ? -0.75 : -0.06, 0.5) + (P.flota && P.hum ? P.hum.flAlto || 0 : 0);
+  // (los emotes de captura de movimiento traen la altura de la cadera medida sobre el piso de la captura: acostado o
+  // rodando los pies quedan abajo del tobillo y levantarlos lo hacía flotar; sólo se corrige un poco)
+  const cmu = typeof P.emote === 'string' && P.emote.startsWith('c:');
+  let meta = clamp(dy, lleno ? -0.75 : -0.06, cmu ? 0.06 : 0.5) + (P.flota && P.hum ? P.hum.flAlto || 0 : 0);
+  // y ninguna parte del cuerpo abajo del piso (acostado, rodando, en cuatro patas): se sube lo que haga falta
+  if (cmu) {
+    // (los dedos no están en la tabla de huesos humanoides: se buscan por nombre en el esqueleto entero)
+    const D = P.D; if (!D.pisoH) D.pisoH = PISO_HUESOS.map(([n, r]) => { const i = D.h[n] ?? D.h['mixamorig:' + n] ?? D.sub.findIndex((x) => x.n === n || x.n.endsWith(':' + n)); return [i, r * (P.tam || 1)]; }).filter((x) => x[0] !== undefined && x[0] >= 0);
+    let sube = 0; for (const [i, r] of D.pisoH) { const f = r - (md.W[i][13] - piso); if (f > sube) sube = f; }
+    meta = Math.max(meta, Math.min(sube, 0.8));
+  }
   P.pieCorr = (P.pieCorr || 0) + (meta - (P.pieCorr || 0)) * Math.min(1, (TIEMPO.dt || 0.016) * 18);
   if (Math.abs(P.pieCorr) > 1e-4) { md.raiz[13] += P.pieCorr; md.sucio = true; }
 }
@@ -440,7 +452,15 @@ function jugadorCuerpoNuevo() {
   const t = tamSkin(JUG.cuerpo.skin); jugadorTam(t.k, t.ojo);
 }
 function jugadorRagdoll() { const P = JUG.cuerpo; if (!P) return; P.vel.copy(JUG.vel); ragdoll(P, vscale(JUG.vel, 0.2)); }
-function emote(e) { if (!JUG.cuerpo || JUG.vehiculo) return; JUG.cuerpo.emote = e; JUG.cuerpo.emoteT = 0; if (!JUG.tercera) { JUG.tercera = true; JUG.terceraEmote = true; } if (typeof redEmote === 'function') redEmote(e); }
+function emote(e) {
+  if (!JUG.cuerpo || JUG.vehiculo) return;
+  // los de captura de movimiento se bajan la primera vez: arranca cuando llegó (si no, empezaría por la mitad)
+  if (typeof e === 'string' && e.startsWith('c:') && typeof emoCargar === 'function' && !EMO.clips[e]) {
+    aviso(T('emo.bajando'), 1.5); emoCargar(e).then((c) => { if (c) emote(e); else aviso(T('errRed'), 2); }); return;
+  }
+  if (typeof emoUsado === 'function') emoUsado(e);
+  JUG.cuerpo.emote = e; JUG.cuerpo.emoteT = 0; if (!JUG.tercera) { JUG.tercera = true; JUG.terceraEmote = true; } if (typeof redEmote === 'function') redEmote(e);
+}
 function personasPaso(dt) {
   const P = JUG.cuerpo;
   if (P) {

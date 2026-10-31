@@ -38,6 +38,12 @@ Hecho acá (nuestro): el conversor (`gmod.py`), el horneado de las posturas a m�
 (la mano que se cierra sobre el mango), los pesos de los dedos de los skins generados (`dedos_meshy.py`), los íconos y
 fondos de carga de los mapas (capturas del juego).
 
+## Emotes de captura de movimiento
+
+| Asset | Autor / origen | Dónde | Licencia |
+|---|---|---|---|
+| 2175 movimientos (hypper/emotes/cmu/*.bin, convertidos con `herramientas/emote_bvh.py`) | CMU Graphics Lab Motion Capture Database (mocap.cs.cmu.edu), conversión BVH "Poser-friendly" de Bruce Hahne | https://archive.org/details/cmu-ecstasy-motion-bvh-poser-friendly-2012 | CMU: libre para cualquier uso; la conversión: dominio público (Public Domain Mark) |
+
 ## Personajes de series (Personajes)
 
 | Asset | Autor / origen | Dónde | Licencia |
