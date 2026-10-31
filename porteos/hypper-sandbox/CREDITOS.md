@@ -55,6 +55,7 @@ fondos de carga de los mapas (capturas del juego).
 | Rick y Rick Prime (personajes, diseño) | Rick and Morty (Justin Roiland y Dan Harmon, Adult Swim) | imágenes de referencia de https://rickandmorty.fandom.com (sólo para generar el modelo; no van en el juego) | fan art: Rick and Morty |
 | Finn y Jake (personajes, diseño) | Adventure Time (Pendleton Ward, Cartoon Network) | imágenes de referencia de https://adventuretime.fandom.com (ídem) | fan art: Adventure Time |
 | Jeppy Jothers, Uncle Jeppy, Sunman, Filbus y The Boiled One (personajes, diseño) | Doctor Nowhere (Silas Orion, canal de YouTube Doctor Nowhere) | imágenes de referencia de https://doctor-nowhere-creatures.fandom.com (ídem) | fan art: Doctor Nowhere |
+| V1 y V2 (personajes, diseño) | ULTRAKILL (Arsi "Hakita" Patala, New Blood Interactive) | imágenes de referencia de https://ultrakill.fandom.com (sólo para generar el modelo; no van en el juego) | fan art: ULTRAKILL |
 | Bon y Sha (personajes, diseño) | The Walten Files (Martin Walls) | imágenes de referencia de https://the-walten-files-new.fandom.com (ídem) | fan art: The Walten Files |
 | Alternate (personaje, diseño) | The Mandela Catalogue (Alex Kister) | generado desde la descripción (ídem) | fan art: The Mandela Catalogue |
 | Partygoer y Bacteria (entidades, diseño) | The Backrooms (Kane Pixels y la wiki de la comunidad) | generados desde la descripción (ídem) | fan art: The Backrooms |

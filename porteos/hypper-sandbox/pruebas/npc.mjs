@@ -26,7 +26,7 @@ await ev(`(() => { const P = NPC.lista[0]; P.pos.set(JUG.pos.x + 14, JUG.pos.y, 
 const t0 = await ev(`TIEMPO.t`); await p.waitForTimeout(4500);
 const per = await ev(`(() => { const P = NPC.lista[0]; return { d: +Math.hypot(P.pos.x - JUG.pos.x, P.pos.z - JUG.pos.z).toFixed(2), vida: JUG.vida, t: +(TIEMPO.t - ${t0}).toFixed(2) }; })()`);
 await p.screenshot({ path: D + 'npc_persigue.png' });
-ok('agresivo: llega corriendo desde 14 m y te pega (baja la vida)', per.d < 2.2 && per.vida < 100, per);
+ok('agresivo: llega corriendo desde 14 m y te pega (baja la vida; la patada te empuja un poco)', per.d < 3 && per.vida < 100, per);
 await ev(`JUEGO.dios = true; JUG.vida = 100; 1`);
 // 4) huye
 await ev(`(() => { const P = NPC.lista[0]; P.pos.set(JUG.pos.x + 2, JUG.pos.y, JUG.pos.z + 2); P.vel.set(0, 0, 0); P.act = npcActDeTexto('tiene miedo y huye'); return 1; })()`);

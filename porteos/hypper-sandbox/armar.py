@@ -4,7 +4,7 @@ import re, os, sys, json, base64, gzip
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PK, OUT = sys.argv[1], sys.argv[2]
 ORDEN = ['nucleo', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'agua', 'sonidos', 'armas', 'patadas',
-         'vehiculos', 'herramientas', 'personas', 'humano', 'emotes', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'hud', 'menu', 'idiomas', 'formato', 'idiomas3', 'iconos', 'modapi', 'voz', 'geo', 'entidades', 'maquinitas', 'memes', 'celular', 'artefactos', 'npc', 'censura', 'pantalla', 'nativos', 'ciclope', 'verity', 'veritycrea', 'animedit', 'creador', 'smods', 'modmenu', 'noche', 'inicio', 'rbmenus', 'principal']
+         'vehiculos', 'herramientas', 'personas', 'humano', 'emotes', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'hud', 'menu', 'idiomas', 'formato', 'idiomas3', 'iconos', 'modapi', 'voz', 'geo', 'entidades', 'maquinitas', 'memes', 'celular', 'artefactos', 'npc', 'censura', 'juntos', 'pantalla', 'nativos', 'ciclope', 'verity', 'veritycrea', 'animedit', 'creador', 'smods', 'modmenu', 'noche', 'inicio', 'rbmenus', 'principal']
 # el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")
 FORMATO = re.sub(r'(?m)^export ', '', open(os.path.join(AQUI, 'tienda', 'formato.js'), encoding='utf-8').read())
 leer = lambda n: FORMATO if n == 'formato' else open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read()

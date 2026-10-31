@@ -35,7 +35,7 @@ const res = await ev(`(async () => { const out = {}; for (const id of ${JSON.str
 ok('se bajan y decodifican (cuaterniones de norma 1)', Object.values(res).every((x) => x && x.mal === 0), res);
 // (parado en el piso: en el aire o moviéndose el emote se corta, como debe)
 const mueve = await ev(`(async () => { const id = ${JSON.stringify(ids[0])}; for (let k = 0; k < 100 && !(JUG.suelo && Math.hypot(JUG.vel.x, JUG.vel.z) < 0.1); k++) await new Promise((r) => setTimeout(r, 50)); emote(id); await new Promise((r) => setTimeout(r, 300)); const P = JUG.cuerpo, i = P.D.h['mixamorig:LeftForeArm'] ?? Object.values(P.D.h)[10];
-  const a = []; for (let k = 0; k < 8; k++) { await new Promise((r) => setTimeout(r, 250)); P.md.actualizar(); const w = P.md.W[i]; a.push([w[12], w[13], w[14]]); }
+  const hi = P.D.h['mixamorig:Hips'] ?? P.D.h.Hips; const a = []; for (let k = 0; k < 16; k++) { await new Promise((r) => setTimeout(r, 250)); P.md.actualizar(); const w = P.md.W[i], h = P.md.W[hi]; a.push([w[12] - h[12], w[13] - h[13], w[14] - h[14]]); }   // (respecto de la cadera, 4 s: el baile en el lugar)
   let mx = 0; for (let k = 1; k < a.length; k++) mx = Math.max(mx, Math.hypot(a[k][0] - a[0][0], a[k][1] - a[0][1], a[k][2] - a[0][2])); return { emote: P.emote, mueve: +mx.toFixed(3), rec: EMO.rec[0] }; })()`);
 ok('el emote se juega: el antebrazo se mueve y queda en Recientes', mueve.mueve > 0.05 && mueve.rec === ids[0], mueve);
 ok('vale para la red', await ev(`emoValido(${JSON.stringify(ids[1])})`));

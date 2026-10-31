@@ -324,7 +324,7 @@ function remotoPaso(R2, dt) {
   const esp = !!(R2.f & 256); P.visible = !esp;
   // la cápsula a la medida del personaje (1,8 m en el de siempre; los pies quedan en el mismo lugar)
   const tk = P.tam || 1; if (R2.b.capK !== tk) { const r = Math.min(0.4, 0.9 * tk); R2.b.shape = capsuleShape(r, Math.max(0.01, 0.9 * tk - r)); R2.b.capK = tk; }
-  R2.b.pos.set(P.pos.x, P.pos.y - 0.9 + 0.9 * tk, P.pos.z); R2.b.updateWorld(); R2.b.noRay = rag || esp; R2.b.noPhys = rag || esp; R2.b.noJug = rag || esp; // tirado: sólo el muñeco choca (y se puede agarrar)
+  R2.b.pos.set(P.pos.x, P.pos.y - 0.9 + 0.9 * tk, P.pos.z); R2.b.updateWorld(); R2.b.noRay = rag || esp; R2.b.noPhys = rag || esp; R2.b.noJug = rag || esp || !!P.escena || !!(P.jntFin && TIEMPO.t < P.jntFin); // tirado: sólo el muñeco choca (y se puede agarrar)
   // etiqueta con el nombre sobre la cabeza
   const cp = vadd(P.pos, v3(0, -0.65 + 1.9 * tk, 0)), cl = clipDe(cp);
   if (cl && !esp && cp.distTo(CAM.pos) < 60) { R2.tag.style.display = ''; R2.tag.style.transform = `translate(${cl.x}px,${cl.y}px) translate(-50%,-100%)`; } else R2.tag.style.display = 'none';
@@ -419,6 +419,7 @@ function recibirHecho(d) {
   } else if (d.k === 'maq' || d.k === 'maqp' || d.k === 'maqd') { maqRed(d);
   } else if (d.k === 'meme' || d.k === 'memed') { memeRed(d);
   } else if (d.k === 'chatcorr' && typeof d.id === 'string' && typeof d.t === 'string') { chatCambiar(d.id.slice(0, 12), censurar(limpio(d.t, 120)), d.i);
+  } else if (d.k === 'jnt' || d.k === 'jntP' || d.k === 'jntS') { juntosRed(d);
   } else if (d.k === 'bocina') { bocinaRed(d);
   } else if (d.k === 'turbo') { turboRed(d);
   } else if (d.k === 'echar') { celEchadoRed(d);

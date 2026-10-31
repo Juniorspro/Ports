@@ -100,6 +100,25 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
 - **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
   leyeron: queda en 16,5 MB en vez de ~38.
+- **Emotes de a dos** (Emotes → Juntos; `juego/juntos.js`, prueba `pruebas/juntos.mjs`, 7/7): dar la mano, chocar los
+  cinco, consolar, ir de la mano, tirar del brazo, ayudar a levantarse y bailar salsa, con capturas de CMU de dos
+  personas grabadas juntas (el sujeto A y el B). Ponete frente a alguien (jugador o NPC, a menos de 3 m) y elegí uno: le
+  aparece un cartel (Aceptar o E) y lo hacen los dos ubicados como se grabó (el que pidió no se mueve; un NPC acepta
+  solo). Como los esqueletos del juego no son los de las personas grabadas, al empezar se calcula con los dos esqueletos
+  reales el momento del contacto y se corre al segundo para que se toquen: medido, en el apretón las manos derechas quedan
+  a 2,3 cm, en el choque de cinco a 5,9 cm y al consolar las manos a 19 cm de los hombros. Mientras dura, el cuerpo sigue
+  la captura entera y al terminar cada uno queda donde terminó (sin volver de golpe y sin empujarse). En la sala lo ven
+  todos.
+- **Bucles de los emotes, otra vez**: al empalmar se repetía el tramo de 1,5 s que mejor empalmaba aunque el baile durara
+  9 s (un pedacito); ahora el tramo empieza en el primer cuarto y termina en el último (cubre del 51 al 96 % del clip,
+  mediana 76 %), y el empalme es por inercialización: al dar la vuelta, cada hueso arranca con la diferencia exacta del
+  salto y la va soltando (0,3 a 0,8 s según el salto), sin mezclar poses lejanas (los giros de la salsa, un pie dado vuelta
+  en la captura). Medido en los 748 que se repiten: el 99,2 % no gira más de 12° por encima de lo que gira la captura sola;
+  los 4 peores giran 46-49° en un cuadro (antes, 177°).
+- **V1 y V2 de ULTRAKILL** (Personajes): generados desde imágenes de referencia de la wiki (pose T con las alas
+  plegadas), riggeados, con dedos para agarrar la palanca y las armas, versión simplificada y voz de robot; miden 0,95 del
+  Hero (1,80 y 1,86 m). `skins_dn.mjs V1,V2`: 5/6 (caminando, lo más bajo de V2 baja 3,4 cm más que el Hero: 4 mm más que
+  el margen de la prueba).
 - **Bocina** (`vehiculos.js`; prueba `pruebas/bocina_bici.mjs`, 7/7): manejando, H en la compu o el botón del parlante en el
   celular, mientras se mantiene. Sintetizada (no hay sonido en el paquete): los autos, dos tonos (370 y 466 Hz) en diente
   de sierra filtrados; la policía más aguda; la moto un tono agudo; la bici un timbre (ring ring). Sale del vehículo (3D) y

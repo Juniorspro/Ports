@@ -166,6 +166,7 @@ function npcPaso(dt) {
 }
 function npcCerebro(P, dt) {
   const I = P.ia, a = P.act, b = P.npcB;
+  if (P.escena) { if (b) { const hi = P.D.h.Hips, W = hi !== undefined && P.md.W[hi]; if (W) b.pos.set(W[12], P.pos.y, W[14]); b.noJug = true; b.updateWorld(); } npcGloboPaso(P); return; }   // (la cápsula con el cuerpo, sin empujar)   // (haciendo un emote de a dos: lo mueve juntos.js)
   // muerto: tirado (personas.js lo borra a los 8 s); tirado vivo: se levanta solo
   if (P.vivo === false || P.rag) {
     if (b) { b.noRay = b.noPhys = b.noJug = true; }
@@ -175,7 +176,7 @@ function npcCerebro(P, dt) {
   // levantado con la Physics Gun o la Gravity Gun: lo lleva la cápsula, patalea
   if (b && b.held) { P.pos.copy(b.pos); P.vel.copy(b.vel); P.suelo = false; I.llevado = true; P.emote = null; npcGloboPaso(P); return; }
   if (I.llevado) { I.llevado = false; P.vel.copy(b.vel); b.frozen = true; b.vel.set(0, 0, 0); b.ang.set(0, 0, 0); b.q.set(0, 0, 0, 1); if (P.vel.len() > 9) { npcTumbar(P, P.vel.clone(), 0); return; } }
-  if (b) { b.noRay = b.noPhys = b.noJug = false; }
+  if (b) { b.noRay = b.noPhys = false; b.noJug = !!(P.jntFin && TIEMPO.t < P.jntFin); }
   const obj = npcObjetivo(P), d = obj ? Math.hypot(obj.pos.x - P.pos.x, obj.pos.z - P.pos.z) : 1e9, hacia = obj ? v3(obj.pos.x - P.pos.x, 0, obj.pos.z - P.pos.z).norm() : null;
   let quiere = null, vel = a.vel, mirar = null;
   I.metaT -= dt; I.golpeT -= dt; I.saltoT -= dt;

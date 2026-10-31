@@ -222,6 +222,7 @@ function avionPaso(V, dt, ent) {
 }
 // ---------------- subir y bajar ----------------
 function usar() {
+  if (JNT.pedido) { juntosAceptar(); return; }   // (te pidieron un emote de a dos: E acepta)
   if (JUG.vehiculo) { salirVehiculo(); return; }
   if (nocheUsar()) return; // (botón de puerta o de luz de la oficina de la pizzería)
   const h = raycast(CAM.pos, CAM.fwd, 4.5, null);
