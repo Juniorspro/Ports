@@ -100,6 +100,32 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
 - **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
   leyeron: queda en 16,5 MB en vez de ~38.
+- **NPC con actitud: Tool Gun → Actitud** (`juego/npc.js`; prueba `pruebas/npc.mjs`, 15/15): clic en el piso pone un
+  NPC (clic derecho: elegís el personaje y la actitud de los próximos); clic sobre un NPC abre su panel, donde **escribís
+  cómo actúa** ("agresivo, que nos persiga corriendo") o tocás una rápida (Agresivo, Amigo, Miedoso, Bailarín, Guardia,
+  Pasea, Quieto). Lo escrito lo entiende al instante un lector local (palabras clave en español, inglés, portugués y
+  otros) y después lo afina la **IA gratis** (tus claves, los modelos libres sin clave de OVHcloud y LLM7, o Pollinations;
+  medido: Llama 3.3 70B contestó en ~2 s) con modo (quieto, pasear, seguir, perseguir, huir, bailar, guardia, mirar), a
+  quién (el más cerca, vos u otro NPC), velocidad, si pega y cuánto, qué dice (globito arriba de la cabeza), si salta y
+  su vida.
+  - Caminan y chocan como el jugador (la misma cápsula contra el mapa, los props y la gente: se reusa
+    `jugadorMoverChocar` con los datos del NPC), saltan lo bajo, rodean lo que no pueden saltar (un contenedor de 3 m: llega
+    en < 9 s) y no se tiran de un barranco de más de 4 m. Agresivo: llega desde 14 m en 3,9 s y patea (−10 de vida).
+  - **Muñeco de trapo**: un tiro lo lastima; uno fuerte (≥ 40), la patada, la Gravity Gun o la catapulta lo tiran y a los
+    ~3 s se levanta; muerto queda tirado 15 s. La Physics Gun lo levanta (cuelga y patalea) y al soltarlo cae.
+  - En la sala, cada uno mueve sus NPC y los demás los ven (6 veces por segundo, con su emote y si están tirados); un golpe
+    a un NPC ajeno le llega a su dueño; la actitud se le puede cambiar a uno ajeno (se la manda al dueño). Hasta 24 por
+    jugador. 12 persiguiendo cuestan 0,26 ms por cuadro. El tacho y Remove los borran.
+- **Censura del chat** (siempre; `juego/censura.js`, prueba `pruebas/censura.mjs`, 8/8): un filtro local, al instante y
+  sin internet, tapa (una * por letra) insultos, groserías, contenido sexual y odio en español, inglés, portugués, francés,
+  alemán, italiano, turco, indonesio, tagalo y ruso aunque vengan disfrazados (mayúsculas, acentos, letras repetidas
+  "puuuta", números por letras "sh1t", letras separadas "p.u.t.a", frases "kill yourself") y datos personales
+  (teléfonos de 8 números o más, mails), sin tocar palabras normales (computadora, putting, Nigeria, vergüenza, Bob, "te
+  voy a matar en el juego"). Pasa por ahí todo lo que se ve: tus mensajes, los de los demás (aunque usen una versión
+  vieja) y los nombres. Además la **IA gratis revisa cada mensaje tuyo** antes de mandarlo: si contesta en 1,5 s sale lo
+  que tapó; si tarda, sale con el filtro local y cuando contesta se corrige el renglón para todos. Lo que devuelve la IA
+  sólo puede tapar letras del mensaje (si escribe otra cosa se descarta) y se pasa otra vez por el filtro local. Medido:
+  Llama 3.3 70B tapó "gordo asqueroso" e "inútil" (que el filtro local no tiene) en 1,6-1,8 s.
 - **El celular** (`juego/celular.js`, como el de GTA 5; prueba `pruebas/celular.mjs`, 7/7): el botón al lado del chat
   (o la O) lo sube desde abajo a la derecha con sus apps: **Objetos** (como el celu de Simple Sandbox 2: tocás uno y
   aparece adelante tuyo, el celular sigue abierto), **Memes** (el pad; la I abre directo ahí), **Jugadores** (los de la

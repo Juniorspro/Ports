@@ -499,7 +499,12 @@ function danarPersona(P, dan, pos, d) {
   if (P === JUG.cuerpo) { danarJugador(dan, pos); return; }
   const vivia = P.vivo !== false;
   if (vivia) humAccion(P, 'golpe');
-  if (P.npc && P.vivo) { P.vida -= dan; if (P.vida <= 0) { P.vivo = false; ragdoll(P, vscale(d.clone().norm(), Math.min(12, dan * 0.3)), pos); P.muertoT = 8; } }
+  if (P.npc && P.vivo) {
+    P.vida -= dan;
+    if (P.vida <= 0) { P.vivo = false; P.emote = null; ragdoll(P, vscale(d.clone().norm(), Math.min(12, dan * 0.3)), pos); P.muertoT = 15; }
+    else if (dan >= 40 && !P.rag && typeof npcTumbar === 'function') npcTumbar(P, vscale(d.clone().norm(), Math.min(10, dan * 0.15)), dan);   // (un golpe fuerte lo tira)
+  }
+  if (P.npcRem && typeof npcGolpeRed === 'function') npcGolpeRed(P, dan, d);   // (el NPC de otro: el golpe le llega a su dueño)
   if (dan > 0 && vivia) sonVoz(P, P.vivo === false ? 'muere' : 'dolor', P.pos);   // (el que recibe el golpe: su voz; tirado, nada)
   if (P.remoto && typeof redDano === 'function') redDano(P, dan, d);
 }

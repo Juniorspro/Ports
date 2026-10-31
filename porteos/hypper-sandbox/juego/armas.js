@@ -300,6 +300,7 @@ function gravPrimario() {
   if (ARM.grav) { const b = ARM.grav.b; soltarGrav(true); b.vel.addS(CAM.fwd, Math.min(50, 2500 / Math.max(10, b.mass))); sL(); return; }
   const h = raycast(CAM.pos, CAM.fwd, 10, null);
   if (h && h.body && h.body.verity) { verEmpujon(h.body.verity, vadd(vscale(CAM.fwd, 14), v3(0, 3, 0))); sL(); return; }
+  if (h && h.body && h.body.persona && (h.body.persona.npc || h.body.persona.npcRem) && !h.body.persona.rag && typeof npcTumbar === 'function') { npcTumbar(h.body.persona, vadd(vscale(CAM.fwd, 14), v3(0, 4, 0)), 0); sL(); return; }   // (un NPC: sale volando como muñeco)
   if (h && h.body && h.body.dynamic) { h.body.wake(); h.body.vel.addS(CAM.fwd, Math.min(50, 1500 / Math.max(10, h.body.mass))); sL(); natEmpujon(h.body); return; }
   sonar(D.sVacio, null, 0.6);   // (nada que empujar: en seco, como en HL2)
 }

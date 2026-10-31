@@ -22,7 +22,7 @@ function inspectorHerramienta(el) {
     else if (p.t === 'Boolean') s += `<label><input type="checkbox" id="${id}" ${v ? 'checked' : ''} style="width:auto"> ${p.n}</label>`;
     else s += `<label>${p.n}</label><input id="${id}" value="${String(v).replace(/"/g, '')}" ${p.t === 'Single' || p.t === 'Int32' ? 'type="number" step="any"' : ''}>`;
   }
-  const ayuda = { Remove: 'Clic: borra lo que apuntás.', Duplicate: 'Clic: copia lo que apuntás.', Wire: 'Clic en lo que da la señal y después en lo que la recibe.', Mover: 'Prop Id 0 = se mueve él mismo. El ID de cada cosa se ve al apuntarla con la Tool Gun.' };
+  const ayuda = { Actitud: T('npc.ayudaHer'), Camara: T('her.camAyuda'), Remove: 'Clic: borra lo que apuntás.', Duplicate: 'Clic: copia lo que apuntás.', Wire: 'Clic en lo que da la señal y después en lo que la recibe.', Mover: 'Prop Id 0 = se mueve él mismo. El ID de cada cosa se ve al apuntarla con la Tool Gun.' };
   if (ayuda[h.n]) s += `<p style="color:#aaa;font-size:11px">${ayuda[h.n]}</p>`;
   el.innerHTML = s;
   for (const p of h.p) { const e = $('hp_' + p.n.replace(/\W/g, '')); if (!e) continue; e.onchange = e.oninput = () => { HER.params[h.n][p.n] = p.t === 'Boolean' ? e.checked : p.t === 'Single' || p.t === 'Int32' ? +e.value : e.value; }; }
@@ -35,7 +35,7 @@ function herramientaUsar(alt) {
   const o = r && r.body && r.body.obj;
   if (h.n === 'Camara') { herCamara(alt, r); return; }
   if (h.n === 'Actitud' && typeof actitudUsar === 'function') { actitudUsar(alt, r); return; }
-  if (h.n === 'Remove') { if (o) { efectoChispas(o.b.pos); borrarObjeto(o); } return; }
+  if (h.n === 'Remove') { if (o) { efectoChispas(o.b.pos); borrarObjeto(o); } else if (r && r.body && r.body.npc && typeof npcQuitar === 'function') { efectoChispas(r.body.npc.pos); npcQuitar(r.body.npc); } return; }
   if (h.n === 'Duplicate') { if (o) { const n = crearObjeto(o.nombre, vadd(o.b.pos, v3(0, (o.b.aabb.y1 - o.b.aabb.y0) + 0.05, 0)), o.b.q.clone(), { exacto: true, congelado: o.b.frozen }); if (n) { if (o.logica) n.logica = Object.assign({}, o.logica, { params: Object.assign({}, o.logica.params), entradas: [] }); DESHACER.push(n); redObjeto(); } } return; }
   if (h.n === 'Wire') {
     if (!o || !o.logica) { HER.cable = null; aviso('Apuntá a una de las cosas de la Tool Gun', 1.5); return; }

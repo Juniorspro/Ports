@@ -82,7 +82,7 @@ function artCatapultaLanzar(o, c) {
   if (!JUG.vehiculo && pies.distTo(p) < R + 0.4) { JUG.vel.copy(vscale(dir, CAT_VEL)); JUG.suelo = false; JUG.tiempoSuelo = 0; n++; }
   for (const P of PERS) {
     if (P === JUG.cuerpo || P.remoto || !P.npc) continue;
-    if (P.pos.distTo(p) < R + 0.6) { if (typeof danarPersona === 'function' && !P.rag) danarPersona(P, 1, P.pos.clone(), dir); if (P.rag) for (const [, e] of P.rag.cuerpos) { e.b.vel.copy(vscale(dir, CAT_VEL)); e.b.wake(); } n++; }
+    if (P.pos.distTo(p) < R + 0.6) { if (!P.rag && typeof npcTumbar === 'function') npcTumbar(P, vscale(dir, CAT_VEL), 0); else if (typeof danarPersona === 'function' && !P.rag) danarPersona(P, 1, P.pos.clone(), dir); if (P.rag) for (const [, e] of P.rag.cuerpos) { e.b.vel.copy(vscale(dir, CAT_VEL)); e.b.wake(); } n++; }
   }
   if (n) sonar('CB_Impact1', p, 0.6, 0.7);
 }

@@ -25,7 +25,7 @@ ok('el personaje de otro jugador: Hero mientras baja, Sha cuando llega (un solo 
 // un mapa grande
 await ev(`empezarPartida('RB_Construct'); 1`);
 await p.waitForFunction(() => window.__ev(`MUNDO.nombre === 'RB_Construct' && JUEGO.estado === 'juego'`), null, { timeout: 30000 });
-await p.waitForTimeout(2500);
+await p.waitForTimeout(1000); await p.waitForFunction(() => window.__ev(`JUG.suelo`), null, { timeout: 20000 }).catch(() => {});   // (con pocos cuadros por segundo tarda en caer al piso)
 const mapa = await ev(`({ listo: rbListo('m_RB_Construct'), tri: (MUNDO.triSup || []).length, texMapa: Object.keys(PK.extra).length, suelo: JUG.suelo || Math.abs(JUG.vel.y) < 0.5 })`);
 ok('gm_construct: se baja al entrar (mallas, choques y texturas) y se puede pisar', mapa.listo && mapa.tri > 1000 && mapa.texMapa > 20 && mapa.suelo, mapa);
 await p.screenshot({ path: '/tmp/claude-0/ah/paquetes_construct.png' });

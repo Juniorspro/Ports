@@ -144,6 +144,7 @@ function cerrarPaneles() {
   if (typeof memePanCerrar === 'function') memePanCerrar();
   if (typeof celCerrar === 'function') celCerrar();
   if (typeof artOmegaPanelCerrar === 'function') artOmegaPanelCerrar();
+  if (typeof npcPanelCerrar === 'function') npcPanelCerrar();
   if (typeof maqPanelCerrar === 'function') { maqPanelCerrar(); if ($('maqVista') && !$('maqVista').classList.contains('oc')) maqVistaCerrar(); }
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }
@@ -151,10 +152,13 @@ function abrirPausa() { UI.abierto = 'pausa'; $('pausa').classList.remove('oc');
 function abrirEmotes() { UI.abierto = 'emotes'; $('emotes').classList.remove('oc'); soltarPuntero(); }
 function abrirChat() { const c = $('chatIn'); c.classList.remove('oc'); c.focus(); soltarPuntero(); UI.abierto = 'chat'; }
 const CHAT = [];
-function chatMostrar(quien, t) {
-  CHAT.push({ t: `${quien}: ${t}`, v: 12 }); if (CHAT.length > 8) CHAT.shift();
+// (id y de: para corregir el renglón después, si la IA de la censura tapa algo; sólo lo corrige quien lo mandó)
+function chatMostrar(quien, t, id, de) {
+  const e = { t: `${quien}: ${t}`, v: 12, id, de, quien }; CHAT.push(e); if (CHAT.length > 8) CHAT.shift(); return e;
 }
-function chatEnviar(t) { UI.abierto = null; chatMostrar(PREFS.nombre, t); if (typeof redChat === 'function') redChat(t); verChat(t); }
+function chatCambiar(id, t, de) { if (!id) return; const e = CHAT.find((x) => x.id === id && x.de === de); if (e) { e.t = `${e.quien}: ${t}`; e.v = Math.max(e.v, 6); } }
+// (todo pasa por la censura: filtro local al instante y la IA antes de salir; censura.js)
+function chatEnviar(t) { UI.abierto = null; chatEnviarCensurado(t); }
 function abrirAjustes(desde) {
   const c = $('ajustesCaja');
   const sel = (id, ops) => `<select id="${id}">${ops.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>`;
@@ -211,7 +215,7 @@ function hudActualizar(dt) {
 
 // ---------------- menús: una X para cerrar y tocar afuera para volver a jugar ----------------
 // (el menú MOD se cierra solo al tocar afuera: modmenu.js; el chat se cierra sin mandar nada)
-const PANEL_DE = { celular: 'celular', omega: 'omegaPan', spawn: 'spawn', pausa: 'pausa', emotes: 'emotes', memes: 'memePan', maq: 'maqPan', sm: 'smPan', radio: 'radioPan', verity: 'verPan', terminal: 'verTerm' };
+const PANEL_DE = { celular: 'celular', omega: 'omegaPan', npc: 'npcPan', spawn: 'spawn', pausa: 'pausa', emotes: 'emotes', memes: 'memePan', maq: 'maqPan', sm: 'smPan', radio: 'radioPan', verity: 'verPan', terminal: 'verTerm' };
 const panelAbierto = () => { const id = PANEL_DE[UI.abierto], p = id && $(id); return p && !p.classList.contains('oc') ? p : null; };
 // lo que se ve del menú (en los que oscurecen la pantalla, la caja del medio)
 const cajaDe = (p) => (p.classList.contains('panel') ? p.querySelector('.caja') || p : p);

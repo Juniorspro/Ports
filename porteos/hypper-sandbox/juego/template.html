@@ -535,10 +535,20 @@ body.tactil #redEst{left:50%;top:4px;transform:translateX(-50%);white-space:nowr
 .omegaLista{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px;max-height:calc(var(--vh)*56);overflow:auto}
 .omegaLista button{background:#33363d;border:2px solid transparent;border-radius:8px;color:#fff;padding:5px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font:11px Roboto,Arial,sans-serif}
 .omegaLista button.cerca{border-color:#5fdc4f}.omegaLista img{width:56px;height:56px;border-radius:6px;object-fit:cover;background:#222}.omegaLista span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.npcCaja{width:min(640px,calc(var(--vw)*94))}.npcCaja h3{margin:0 0 4px;color:#8fd3ff}.npcCaja p{margin:0 0 8px;color:#bbb;font-size:12.5px}
+.npcSkins{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:5px;max-height:calc(var(--vh)*26);overflow:auto;margin-bottom:8px}
+.npcSkins button{background:#33363d;border:2px solid transparent;border-radius:8px;color:#fff;padding:4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;font:10.5px Roboto,Arial,sans-serif}
+.npcSkins button.sel{border-color:#4aa3ff;background:#25384d}.npcSkins img{width:46px;height:46px;border-radius:6px;object-fit:cover;background:#222}.npcSkins span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.npcAhora b{color:#fff}.npcRapidas{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}.npcRapidas button{background:#2c3e50;border:1px solid #3d5a78;color:#fff;border-radius:14px;padding:5px 10px;cursor:pointer;font:12px Roboto,Arial,sans-serif}
+.npcRapidas button:hover{background:#3a5470}#npcTxt{width:100%;box-sizing:border-box;background:#1d1f24;color:#fff;border:1px solid #4a4f58;border-radius:8px;padding:8px;font:14px Roboto,Arial,sans-serif;resize:vertical}
+.npcFila{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.npcFila button{border:0;border-radius:8px;padding:8px 14px;cursor:pointer;color:#fff;font:600 13px Roboto,Arial,sans-serif}.npcOk{background:#2f80ed}.npcBorrar{background:#7a2b2b}
+.npcEstado{min-height:16px;margin:6px 0 0!important;color:#9fe39a!important}
+.npcGlobo{position:absolute;left:0;top:0;max-width:220px;padding:5px 9px;background:rgba(255,255,255,.93);color:#111;border-radius:10px;font:600 13px Roboto,Arial,sans-serif;pointer-events:none;white-space:normal;text-align:center;z-index:2}
+.npcGlobo:after{content:'';position:absolute;left:50%;bottom:-6px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:rgba(255,255,255,.93)}
 #omegaFlash{position:fixed;inset:0;z-index:8;pointer-events:none;background:radial-gradient(circle,rgba(190,255,160,.95),rgba(60,255,90,.75) 45%,rgba(0,120,30,.55));opacity:0}
 /* el celular (como el de GTA 5): sube desde abajo a la derecha */
-#celular{position:fixed;right:max(12px,calc(var(--vw)*4));bottom:0;z-index:7;height:min(calc(var(--vh)*80),580px);width:min(calc(var(--vh)*38.9),282px);transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.9,.3,1.1);pointer-events:auto}
-#celular.oc{display:block!important;visibility:hidden}#celular.arriba{transform:translateY(4%);visibility:visible}
+#celular{position:fixed;right:max(12px,calc(var(--vw)*4));bottom:max(6px,env(safe-area-inset-bottom));z-index:7;height:min(calc(var(--vh)*80),580px);width:min(calc(var(--vh)*38.9),282px);transform:translateY(110%);transition:transform .28s cubic-bezier(.2,.9,.3,1.1);pointer-events:auto}
+#celular.oc{display:block!important;visibility:hidden}#celular.arriba{transform:none;visibility:visible}
 .celMarco{width:100%;height:100%;background:#0d0f13;border-radius:min(9%,26px);padding:5.5%;box-sizing:border-box;box-shadow:0 10px 30px rgba(0,0,0,.55),inset 0 0 0 2px #2a2e36}
 .celPantalla{position:relative;width:100%;height:100%;border-radius:min(7%,18px);overflow:hidden;background:radial-gradient(120% 80% at 20% 0%,#3b5bdb 0%,#5b2c8d 45%,#151827 100%);display:flex;flex-direction:column;color:#fff;font:12px Roboto,Arial,sans-serif}
 .celBarra{display:flex;justify-content:space-between;align-items:center;padding:6px 10px 2px;font-size:11px;text-shadow:0 1px 2px rgba(0,0,0,.5)}

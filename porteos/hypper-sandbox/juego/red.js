@@ -251,7 +251,7 @@ function redRecarga() { publicar('a', { k: 'rec' }); }
 function redDisparo(arma) { publicar('a', { k: 'tiro', a: arma, p: [r3(CAM.pos.x), r3(CAM.pos.y), r3(CAM.pos.z)], d: [r3(CAM.fwd.x), r3(CAM.fwd.y), r3(CAM.fwd.z)] }); }
 function redExplosion(p, r, d) { publicar('a', { k: 'exp', p: [r3(p.x), r3(p.y), r3(p.z)], r: r3(r || 6), d: Math.round(d || 100) }); }
 function redDano(P, dan, d) { publicar('a', { k: 'dano', to: P.remoto, d: Math.round(dan), v: [r3(d.x), r3(d.y), r3(d.z)] }); }
-function redChat(t) { publicar('c', { n: PREFS.nombre, t: t.slice(0, 120) }); }
+function redChat(t, id) { publicar('c', { n: PREFS.nombre, t: t.slice(0, 120), ...(id ? { id } : {}) }); }
 function redEmote() {}
 function redSubir() { RED.ultE = 0; }
 function redReclamar(o) {
@@ -270,7 +270,7 @@ function redMensaje(topic, m) {
   else if (sub === 'm') recibirMov(d);
   else if (sub === 'a') { if (!hostHecho(d)) recibirHecho(d); }
   else if (sub === 'cfg') recibirCfg(d);
-  else if (sub === 'c' && typeof d.t === 'string') { chatMostrar(limpio(d.n), limpio(d.t, 120)); }
+  else if (sub === 'c' && typeof d.t === 'string') { chatMostrar(censurar(limpio(d.n)), censurar(limpio(d.t, 120)), typeof d.id === 'string' ? d.id.slice(0, 12) : null, d.i); }   // (la censura también acá: por si el otro tiene una versión vieja)
 }
 function recibirEstado(d) {
   // (uno que eché de mi server: no se dibuja y se lo vuelve a echar)
@@ -281,20 +281,20 @@ function recibirEstado(d) {
   if (R2) R2.skinReal = real;
   if (R2 && (R2.skin !== skin || R2.gorro !== gorro)) {
     // cambió de personaje (o de gorro): sólo se rehace el cuerpo; sus objetos y entidades siguen
-    borrarPersona(R2.P); const P = crearPersona(skin, gorro, { nombre: limpio(d.n) }); P.remoto = d.i; R2.P = P; R2.b.persona = P; R2.skin = skin; R2.gorro = gorro;
+    borrarPersona(R2.P); const P = crearPersona(skin, gorro, { nombre: censurar(limpio(d.n)) }); P.remoto = d.i; R2.P = P; R2.b.persona = P; R2.skin = skin; R2.gorro = gorro;
   }
   if (!R2) {
-    const P = crearPersona(skin, gorro, { nombre: limpio(d.n) }); P.remoto = d.i;
+    const P = crearPersona(skin, gorro, { nombre: censurar(limpio(d.n)) }); P.remoto = d.i;
     const b = new Body(capsuleShape(0.4, 0.5), 80); b.frozen = true; b.persona = P; b.noJug = false; b.noGrab = true; addBody(b);
     const tag = document.createElement('div'); tag.className = 'etiqueta'; $('hud').appendChild(tag);
     R2 = { id: d.i, skin, skinReal: real, gorro, P, b, tag, pos: v3(), meta: v3(), yaw: 0, yawM: 0, vel: v3(), t: TIEMPO.t, f: 0, nombre: '' };
-    RED.remotos.set(d.i, R2); chatMostrar('RezoBox', limpio(d.n) + ' entró');
+    RED.remotos.set(d.i, R2); chatMostrar('RezoBox', censurar(limpio(d.n)) + ' entró');
     if (RED.mdDe && RED.mdDe.has(d.i)) smDeOtro(R2, RED.mdDe.get(d.i));
   }
   if (Array.isArray(d.p)) { R2.meta.set(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0)); if (TIEMPO.t - R2.t > 2) R2.pos.copy(R2.meta); }
   if (Array.isArray(d.v)) R2.vel.set(num(d.v[0], -80, 80, 0), num(d.v[1], -80, 80, 0), num(d.v[2], -80, 80, 0));
   R2.yawM = num(d.y, -1e3, 1e3, 0); R2.P.mira = num(d.t, -2, 2, 0); R2.f = d.f | 0; R2.t = TIEMPO.t;
-  R2.nombre = limpio(d.n); etiquetaRemota(R2);
+  R2.nombre = censurar(limpio(d.n)); etiquetaRemota(R2);
   R2.P.arma = DEF_ARMAS[d.a] ? d.a : null;
   const em = emoValido(d.e) ? d.e : typeof d.e === 'string' && EMO_ID.test(d.e) ? (emoPedir(d.e, d.i), d.e) : null; // (uno hecho por la gente: se pide)
   if (em && R2.P.emote !== em && !(em === 'Patada' && TIEMPO.t - (R2.patT || -9) < 0.9)) { R2.P.emote = em; R2.P.emoteT = 0; sonEmote(R2.P, em); if (em === 'Patada') { R2.patT = TIEMPO.t; sonar('CB_Swing', R2.P.pos, 0.5, 0.9); } } else if (!em) R2.P.emote = null;
@@ -418,7 +418,9 @@ function recibirHecho(d) {
   } else if (typeof d.k === 'string' && /^ver[dqgawc]$/.test(d.k)) { verRed(d); // (Verity: lo que dice, preguntas, agarre, animación, llamada, crear)
   } else if (d.k === 'maq' || d.k === 'maqp' || d.k === 'maqd') { maqRed(d);
   } else if (d.k === 'meme' || d.k === 'memed') { memeRed(d);
+  } else if (d.k === 'chatcorr' && typeof d.id === 'string' && typeof d.t === 'string') { chatCambiar(d.id.slice(0, 12), censurar(limpio(d.t, 120)), d.i);
   } else if (d.k === 'echar') { celEchadoRed(d);
+  } else if (typeof d.k === 'string' && d.k.startsWith('npc')) { npcRecibir(d);
   } else if (d.k === 'catap' || d.k === 'omega' || d.k === 'omegab') { artRed(d);
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
   } else if (d.k === 'fnn' || d.k === 'fnb' || d.k === 'fnx' || d.k === 'fne' || d.k === 'fnv') { nocheRed(d); // (la noche en la pizzería)

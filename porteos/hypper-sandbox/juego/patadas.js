@@ -49,7 +49,7 @@ function patadasPaso(dt) {
     const c = v3(Q.pos.x, Q.pos.y - 0.95 + 0.9 * (Q.tam || 1), Q.pos.z), d = vsub(c, JUG.pos); d.y = 0;
     if (c.distTo(pie) > R + 0.45 * (Q.tam || 1) || vdot(d, f) < 0) continue;
     if (Q.rag) { for (const [, e] of Q.rag.cuerpos) { e.b.wake(); e.b.vel.addS(f, 6); e.b.vel.y += 2.5; } }
-    else { danarPersona(Q, 20, c, f.clone()); if (Q.npc && Q.vivo !== false) { Q.vel.addS(f, 4); Q.vel.y += 2; } }
+    else { danarPersona(Q, 20, c, f.clone()); if ((Q.npc || Q.npcRem) && Q.vivo !== false && typeof npcTumbar === 'function') npcTumbar(Q, v3(f.x * 6, 3, f.z * 6), 0); }   // (la patada tira al NPC)
     pego = { p: c, carne: true };
   }
   if (pego) {

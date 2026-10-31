@@ -80,3 +80,10 @@ Herramientas usadas al empaquetar (no van en el juego): pyfqmr (Fast Quadric Mes
 | La bomba de Rick Prime (diseño del aparato Omega) | Rick and Morty (Justin Roiland y Dan Harmon, Adult Swim) | referencia de https://rickandmorty.fandom.com (sólo para generar el modelo) | fan art: Rick and Morty |
 | Idea del celular que pone cosas y de la catapulta | Simple Sandbox 2 y Simple Sandbox 3 (Tiny Lab Productions) | sólo la idea; nada copiado | — |
 | Íconos de las apps del celular | hechos a mano (SVG) | `juego/celular.js` | propios |
+
+## NPC con actitud y censura del chat (`juego/npc.js`, `juego/censura.js`)
+
+| Asset | Autor / origen | Dónde | Licencia |
+|---|---|---|---|
+| IA que arma la actitud de los NPC y revisa el chat | OVHcloud AI Endpoints (Llama 3.3 70B, Mistral Small, gpt-oss), LLM7 y Pollinations, sin clave, desde la conexión de cada jugador; o las claves propias de cada uno | https://endpoints.ai.cloud.ovh.net · https://llm7.io · https://pollinations.ai | servicios gratis (sus condiciones de uso) |
+| Lista de palabras del filtro local | hecha acá | `juego/censura.js` | propia |

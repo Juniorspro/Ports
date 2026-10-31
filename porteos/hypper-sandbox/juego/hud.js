@@ -113,6 +113,7 @@ function borrarApuntado() {
   const h = raycast(CAM.pos, CAM.fwd, 60, JUG.vehiculo ? JUG.vehiculo.b : null), o = h && h.body && h.body.obj;
   const e = entidadApuntada(h ? h.t : 60);
   if (e) { entidadQuitar(e); entidadRed('entb', e); sonar('Click', null, 0.6, 0.8); aviso(T('borrado') + ': ' + (T('ent.' + e.t) !== 'ent.' + e.t ? T('ent.' + e.t) : e.t), 1); return; }
+  if (h && h.body && h.body.npc && typeof npcQuitar === 'function') { npcQuitar(h.body.npc); sonar('Click', null, 0.6, 0.8); aviso(T('borrado') + ': NPC', 1); return; }
   if (o && OBJS.includes(o) && !o.remoto) { borrarObjeto(o); sonar('Click', null, 0.6, 0.8); aviso(T('borrado') + ': ' + propNom(o.nombre), 1); return; }
   const u = DESHACER.pop(); if (u && OBJS.includes(u)) { borrarObjeto(u); aviso(T('borrado') + ': ' + propNom(u.nombre), 1); }
 }
