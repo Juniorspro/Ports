@@ -55,7 +55,12 @@ function aplicarGiros(P) {
 // el cuerpo según lo que hace
 function animarPersona(P, dt) {
   if (P.cuad) { natCuadPose(P, dt); return; } // SCP en cuatro patas (mod)
-  if (P.hum) { if (P.emote) P.emoteT += dt; animarHumano(P, dt); if (P.poseExtra) P.poseExtra(P, dt); emoPose(P, dt); cicPose(P, dt); agarreGm(P); return; }
+  if (P.hum) {
+    if (P.emote) P.emoteT += dt;
+    // nadando (agua.js): la pose de nado entra y sale suave
+    P.nadoVol = !P.rag && !P.sentado && !P.emote ? aguaNadaPersona(P) : null; P.nadoK = (P.nadoK || 0) + ((P.nadoVol ? 1 : 0) - (P.nadoK || 0)) * Math.min(1, dt * 4);
+    animarHumano(P, dt); if (P.poseExtra) P.poseExtra(P, dt); emoPose(P, dt); nadoPose(P, dt); cicPose(P, dt); agarreGm(P); return;
+  }
   P.acc = {}; animarPersona0(P, dt); aplicarGiros(P);
 }
 function animarPersona0(P, dt) {
@@ -138,7 +143,8 @@ function dibujarPersona(P) {
   // (sentado, en un emote o en el piso como muñeco no se clavan los pies; se olvida el apoyo viejo para no tirar del pie al volver)
   // (los emotes de captura sí pasan por el apoyo: trae la altura del piso de la captura y que nada quede abajo del piso)
   const cmu = typeof P.emote === 'string' && P.emote.startsWith('c:');
-  if (!P.rag && P.hum && !P.sentado && (!P.emote || cmu) && !P.inclin && !P.cuad && !P.cic) { aterrizarPies(P); if (!P.emote) piesIK(P, TIEMPO.dt || 0.016); else P.ik = null; } else P.ik = null;
+  if (P.nadoK > 0.01 && P.nadoVol) nadoAltura(P);
+  else if (!P.rag && P.hum && !P.sentado && (!P.emote || cmu) && !P.inclin && !P.cuad && !P.cic) { aterrizarPies(P); if (!P.emote) piesIK(P, TIEMPO.dt || 0.016); else P.ik = null; } else P.ik = null;
   P.md.encolar();
   if (P.gorroMd && !P.cicManos) {
     const hi = P.D.h.Head;
@@ -151,6 +157,12 @@ function dibujarPersona(P) {
       if (A && hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], A.W, _mb); A.md.ponerRaiz(_mb); A.md.encolar(); }
     }
   }
+}
+// nadando acostado la cadera va justo debajo del agua (la captura viene acostada en el piso); flotando parado, como está
+function nadoAltura(P) {
+  P.ik = null; const hi = P.D.h.Hips; if (hi === undefined) return;
+  P.md.actualizar(); const W = P.md.W[hi], meta = P.nadoVol.y1 - 0.08 * (P.tam || 1);
+  P.md.raiz[13] += (meta - W[13]) * (P.nadoW || 0) * P.nadoK; P.md.sucio = true;
 }
 // pies en el piso: después de animar, se sube o baja el cuerpo para que el pie más bajo quede apoyado
 // (agachado o al caer, del todo; caminando, sólo que no se hunda ni flote más de unos centímetros)

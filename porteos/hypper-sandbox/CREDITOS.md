@@ -33,6 +33,7 @@ con la tela del mapa), el plano de las cámaras (dibujado del mapa), el armado d
 | La Tool Gun (v_toolgun y w_toolgun: mallas, huesos, animaciones, texturas) | Garry's Mod 10 (Facepunch Studios) | ídem | rip: Garry's Mod 10 |
 | La Physics Gun (v_superphyscannon) y la Gravity Gun (v_physcannon), el modelo del mundo w_physics y sus sonidos (physcannon, physgun_off; el de la Tool Gun es airboat_gun_lastshot) | Half-Life 2 (Valve), en Garry's Mod 10 | ídem | rip: Half-Life 2 / Garry's Mod 10 |
 | Armas de Half-Life 2: pistola, .357, SMG, AR2, escopeta, ballesta, RPG y francotirador (v_ y w_: mallas, huesos, animaciones, texturas) y sus sonidos de disparo, recarga y vacío | Half-Life 2 (Valve), en Garry's Mod 10 | ídem | rip: Half-Life 2 |
+| Recipientes de agua: la cubeta y la tina (props_junk/MetalBucket01a y 02a) y las bañeras (props_interiors/BathTub01a, props_c17/FurnitureBathtub001a), con sus texturas; los sonidos del agua (water_splash, drip, lake_water, underwater, water_flow_loop1, los pasos en el agua wade1-8 y el ahogo pl_drown1-3) | Half-Life 2 (Valve), en Garry's Mod 10 | ídem | rip: Half-Life 2 |
 
 Hecho acá (nuestro): el conversor (`gmod.py`), el horneado de las posturas a músculos (`gmod_posturas.mjs`), el agarre
 (la mano que se cierra sobre el mango), los pesos de los dedos de los skins generados (`dedos_meshy.py`), los íconos y

@@ -154,6 +154,7 @@ function crearObjeto(nombre, pos, q, opt) {
   if (F.soloGatillo || /^decal_/.test(nombre)) { b.noPhys = true; b.frozen = true; }
   if (/^(Bush)$/.test(nombre)) b.noPhys = true;
   addBody(b); OBJS.push(o);
+  if (arb[0].ag) aguaRecipiente(o, arb[0].ag);   // (cubeta, bañera: se llenan y se vuelcan)
   if (tipo === 'vehiculo' && typeof vehiculoNuevo === 'function') vehiculoNuevo(o);
   if (tipo === 'explota' || tipo === 'interactivo') o.vidaObj = 1;
   return o;
@@ -161,7 +162,7 @@ function crearObjeto(nombre, pos, q, opt) {
 function borrarObjeto(o, local) {
   if (!local && typeof redBorrar === 'function') redBorrar(o);
   const i = OBJS.indexOf(o); if (i >= 0) OBJS.splice(i, 1);
-  removeBody(o.b); if (o.veh && typeof vehiculoBorrar === 'function') vehiculoBorrar(o);
+  o.borrado = true; removeBody(o.b); if (o.veh && typeof vehiculoBorrar === 'function') vehiculoBorrar(o);
   if (JUG.vehiculo === o) salirVehiculo();
 }
 const _mo = new Float32Array(16), _mb = new Float32Array(16);

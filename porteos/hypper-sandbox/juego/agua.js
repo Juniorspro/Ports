@@ -93,8 +93,9 @@ function aguaChorro(o, litros, up) {
   const porGota = AGUA.gotas.length > 160 ? 0.5 : 0.12;
   while (R.gotas >= porGota) {
     R.gotas -= porGota;
-    aguaGota(_a1.set(p.x + (Math.random() - 0.5) * 0.04, p.y, p.z + (Math.random() - 0.5) * 0.04),
-      _a2.set(b.vel.x + dx / L * k + (Math.random() - 0.5) * 0.15, b.vel.y + (Math.random() - 0.5) * 0.15, b.vel.z + dz / L * k + (Math.random() - 0.5) * 0.15), porGota);
+    // (un poco afuera del borde y arriba: dada vuelta, la boca toca el piso y la gota no tiene que nacer adentro de él)
+    aguaGota(_a1.set(p.x + dx / L * 0.04 + (Math.random() - 0.5) * 0.04, p.y + 0.04, p.z + dz / L * 0.04 + (Math.random() - 0.5) * 0.04),
+      _a2.set(b.vel.x + dx / L * k + (Math.random() - 0.5) * 0.15, b.vel.y + (Math.random() - 0.5) * 0.15, b.vel.z + dz / L * k + (Math.random() - 0.5) * 0.15), porGota, b);
   }
 }
 // el recipiente cuyo interior (de la boca para abajo) tiene al punto: ahí caen las gotas aunque esté vacío
@@ -153,7 +154,9 @@ function aguaCuerpos(dt) {
     const antes = b.aguaK || 0;
     if (!toca) { b.aguaK = 0; continue; }
     const S = aguaPuntos(b), q = b.q, rec = b.obj && b.obj.rec, m = b.mass;
-    const rho = clamp(m / S.V, 250, 9000), k = (b.ragdoll ? 1.12 : b.buoy || 1) * Math.min(1, m / (rho * S.V));
+    // (los muñecos flotan como una persona: con el 85 % del cuerpo bajo el agua, sea cual sea la masa de cada parte)
+    // (la madera flota: los props livianos, que suenan a madera, como mucho a 700 kg/m³, como en GMod)
+    const rho = clamp(m / S.V, 250, b.snd === 'wood' ? 700 : 9000), k = b.persona ? 1.18 * m / (AGUA_RHO * S.V) : (b.buoy || 1) * m / (rho * S.V);   // (= 1 si la densidad quedó como es)
     let fx = 0, fy = 0, fz = 0, tx = 0, ty = 0, tz = 0, sub = 0;
     for (const pl of S.pts) {
       const r = q.rotTo(pl, _a1), x = b.pos.x + r.x, y = b.pos.y + r.y, z = b.pos.z + r.z;
@@ -172,6 +175,9 @@ function aguaCuerpos(dt) {
     if (sub <= 0) continue;
     const im = dt * b.invMass; b.vel.x += fx * im; b.vel.y += fy * im; b.vel.z += fz * im;
     const w = b.invIw(_a2.set(tx, ty, tz), _a3); b.ang.x += w.x * dt; b.ang.y += w.y * dt; b.ang.z += w.z * dt;
+    // (las olas que hace al moverse se llevan energía: sube y baja menos veces antes de quedarse flotando)
+    // (y el agua frena los giros aunque toque poco: un sofá que cae girando no sigue dando vueltas al flotar)
+    const am = Math.exp(-dt * 2.2 * b.aguaK), aa = Math.exp(-dt * (1.2 + 2.5 * b.aguaK)); b.vel.y *= am; b.ang.x *= aa; b.ang.y *= aa; b.ang.z *= aa;
     // al entrar con velocidad, salpica (más cuanto más pesado y más rápido)
     if (antes === 0 && b.vel.y < -1.6) aguaSalpicar(v3(b.pos.x, toca.y1, b.pos.z), clamp(-b.vel.y * Math.sqrt(m) / 45, 0.12, 1));
   }
@@ -200,9 +206,9 @@ function aguaJugador(dt, ent) {
   const wl = Math.min(1, w.len()); if (wl > 1e-3) w.scale(1 / w.len());
   const vm = J.vel_max * 0.62 * (ent.correr ? 1.3 : 1);
   let ty = w.y * vm * wl;
-  if (wl < 0.05) ty = clamp((v.y1 + 0.12 - ojos) * 2.2, -0.8, 0.8);   // (sin apretar nada flota: la cara justo afuera)
+  if (wl < 0.05) ty = clamp((v.y1 + 0.12 - ojos) * 2.2, -0.8, 1.6);   // (sin apretar nada flota: la cara justo afuera)
   if (ojos > v.y1 + 0.3 && ty > 0) ty = 0;   // (nadando para arriba no sale volando del agua)
-  const kv = Math.min(1, dt * 3.2);
+  const kv = Math.min(1, dt * (3.2 + Math.abs(J.vel.y) * 0.9));   // (al caer rápido el agua frena enseguida)
   J.vel.x += (w.x * vm * wl - J.vel.x) * kv; J.vel.y += (ty - J.vel.y) * kv; J.vel.z += (w.z * vm * wl - J.vel.z) * kv;
   // salir del agua: con el salto, en la superficie y contra un borde que está a menos de un metro sobre el agua
   if (ent.saltar && ojos > v.y1 - 0.35 && J.tiempoSalida <= 0) {
@@ -215,18 +221,18 @@ function aguaJugador(dt, ent) {
   J.tiempoSuelo = 0; J.bobK = (J.bobK || 0) * Math.exp(-dt * 8);
   return true;
 }
-// ¿la persona nada? (con el pecho bajo el agua; los de la red con su propia posición)
+// ¿la persona nada? (con el pecho bajo el agua; los de la red con su propia posición): el volumen, o null
 function aguaNadaPersona(P) {
-  if (P === JUG.cuerpo) return !!JUG.nada;
-  if (!AGUA.vols.length || !P.pos) return false;
+  if (!AGUA.vols.length || !P.pos) return null;
+  if (P === JUG.cuerpo) return JUG.nada ? aguaEn(JUG.pos.x, JUG.pos.y - 0.93, JUG.pos.z, 0) : null;
   const t = P.tam || 1, pecho = P.pos.y - 0.95 + 1.25 * t, v = aguaEn(P.pos.x, pecho, P.pos.z, 0);
-  return !!v && pecho < v.y1;
+  return v && pecho < v.y1 ? v : null;
 }
 
 // ---------------- gotas (el chorro de un recipiente) ----------------
-function aguaGota(p, v, l) {
+function aguaGota(p, v, l, b) {
   if (AGUA.gotas.length >= 220) { AGUA.gotas[AGUA.gotas.length - 1].l += l; return; }
-  AGUA.gotas.push({ p: p.clone(), v: v.clone(), l, t: 0 });
+  AGUA.gotas.push({ p: p.clone(), v: v.clone(), l, t: 0, b: b || null });   // (b: el recipiente de donde sale, que no la ataja)
 }
 const _gNada = v3();
 function aguaGotasPaso(dt) {
@@ -243,7 +249,7 @@ function aguaGotasPaso(dt) {
       if (vol && !vol.rec) { if (Math.random() < 0.3) particula(_a1.set(nx, vol.y1, nz), _a2.set((Math.random() - 0.5) * 0.6, 1 + Math.random(), (Math.random() - 0.5) * 0.6), 0.4, 0.04, [0.85, 0.93, 1, 0.6], 'gota', 0); fin = true; }
       else if (L > 1e-5) {
         // contra el piso o algo: un rayo por el tramo de este cuadro; ahí el agua hace (o agranda) un charco
-        const h = raycast(g.p, _a3.set(dx / L, dy / L, dz / L), L, null);
+        const h = raycast(g.p, _a3.set(dx / L, dy / L, dz / L), L, g.t < 0.25 ? g.b : null);
         if (h) {
           aguaCharco(h.p, g.l);
           if (Math.random() < 0.25) particula(h.p, _a2.set((Math.random() - 0.5) * 0.8, 0.6 + Math.random() * 0.8, (Math.random() - 0.5) * 0.8), 0.35, 0.035, [0.85, 0.93, 1, 0.55], 'gota', 0);
@@ -262,8 +268,9 @@ function aguaGotasPaso(dt) {
 // ---------------- charcos ----------------
 // una grilla de agua poco profunda (tubos virtuales, de Mei y otros): el agua pasa a la celda vecina según la diferencia
 // de altura (piso + agua), con el piso medido una vez con rayos. El anillo de afuera se lleva el agua (corre lejos) y
-// el agua se seca de a poco: el charco se apaga solo. Se calcula a 30 pasos por segundo
-const CH_N = 24, CH_D = 0.25, CH_M = CH_N + 2;
+// el agua se seca de a poco: el charco se apaga solo. Cada celda se queda con 2 mm (la tensión superficial: en un piso
+// plano el charco deja de correr; sin esto se estiraba hasta el borde y se iba entero). Se calcula a 30 pasos por segundo
+const CH_N = 24, CH_D = 0.25, CH_M = CH_N + 2, CH_RET = 0.002;
 function aguaCharco(p, litros) {
   let c = null;
   for (const x of AGUA.charcos) if (Math.abs(p.x - x.cx) < x.mitad - 0.6 && Math.abs(p.z - x.cz) < x.mitad - 0.6 && Math.abs(p.y - x.y) < 1.2) { c = x; break; }
@@ -279,8 +286,9 @@ function aguaCharcoNuevo(p) {
   const M = CH_M, c = { cx: p.x, cz: p.z, y: p.y, mitad: CH_N * CH_D / 2, x0: p.x - CH_N * CH_D / 2, z0: p.z - CH_N * CH_D / 2, hT: new Float32Array(M * M), w: new Float32Array(M * M), fl: new Float32Array(M * M * 4), acc: 0, total: 0, malla: null, sucio: true };
   // el piso de cada celda (y del anillo de afuera): un rayo hacia abajo; sin piso, un pozo (el agua se va por ahí)
   for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) {
-    const x = c.x0 + (i - 0.5) * CH_D, z = c.z0 + (j - 0.5) * CH_D, h = raycast(_a1.set(x, p.y + 1.1, z), _a2.set(0, -1, 0), 3.5, null);
-    c.hT[j * M + i] = h ? h.p.y : p.y - 6;
+    // (sólo el mundo: un prop encima, como la cubeta volcada, no es el piso)
+    const x = c.x0 + (i - 0.5) * CH_D, z = c.z0 + (j - 0.5) * CH_D, h = mundoRayo(_a1.set(x, p.y + 1.1, z), _a2.set(0, -1, 0), 3.5);
+    c.hT[j * M + i] = h ? p.y + 1.1 - h.t : p.y - 6;
   }
   AGUA.charcos.push(c); return c;
 }
@@ -291,7 +299,7 @@ function aguaCharcoPaso(c, dt) {
     const k = j * M + i, H = hT[k] + w[k], o = k * 4;
     let f0 = Math.max(0, fl[o] * amort + K * (H - hT[k + 1] - w[k + 1])), f1 = Math.max(0, fl[o + 1] * amort + K * (H - hT[k - 1] - w[k - 1]));
     let f2 = Math.max(0, fl[o + 2] * amort + K * (H - hT[k + M] - w[k + M])), f3 = Math.max(0, fl[o + 3] * amort + K * (H - hT[k - M] - w[k - M]));
-    const s = (f0 + f1 + f2 + f3) * dt, tope = w[k] * A;
+    const s = (f0 + f1 + f2 + f3) * dt, tope = Math.max(0, w[k] - CH_RET) * A;
     if (s > tope && s > 0) { const e = tope / s; f0 *= e; f1 *= e; f2 *= e; f3 *= e; }
     fl[o] = f0; fl[o + 1] = f1; fl[o + 2] = f2; fl[o + 3] = f3;
   }
@@ -428,10 +436,10 @@ function aguaCharcoMalla(c) {
 function aguaUniformes(p, u) {
   const gl = R.gl, k = p.x && p.x.agua ? p.x.agua : null;
   if (u.uAguaT) gl.uniform1f(u.uAguaT, AGUA.t);
-  if (u.uAguaK) { if (k) gl.uniform4f(u.uAguaK, k[0], k[1], k[2], k[3]); else gl.uniform4f(u.uAguaK, 1, 0.55, 0, 0); }
+  if (u.uAguaK) { if (k) gl.uniform4f(u.uAguaK, k[0], k[1], k[2], k[3]); else gl.uniform4f(u.uAguaK, 1, 0.72, 0, 0); }   // (el del mapa: más turbia)
   const ref = AGUA.refOn && !k && p.mt.refleja;
   if (u.uRefOn) gl.uniform1f(u.uRefOn, ref ? 1 : 0);
-  if (u.uRef && ref) { gl.activeTexture(gl.TEXTURE8); gl.bindTexture(gl.TEXTURE_2D, AGUA.rt.t); gl.activeTexture(gl.TEXTURE0); gl.uniform2f(u.uRefInv, 1 / R.cv.width, 1 / R.cv.height); }
+  if (u.uRef && ref) { gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, AGUA.rt.t); gl.activeTexture(gl.TEXTURE0); gl.uniform2f(u.uRefInv, 1 / R.cv.width, 1 / R.cv.height); }
 }
 
 // ---------------- reflejo (Alto y Ultra) ----------------
@@ -451,7 +459,7 @@ function aguaRT(w, h) {
 }
 function aguaReflejo(P, V) {
   AGUA.refOn = false;
-  const div = GFX.refl || 0; if (!div || R.gl1 || AGUA.bajo || R.salida === 'gam') return;
+  const div = GFX.refl || 0; if (!div || AGUA.bajo || R.salida === 'gam') return;
   // la altura del agua que refleja, la más cercana de las que se ven
   let h = null, mejor = -1e18;
   for (const p of R.colaT) if (p.mt.refleja && p.z > mejor) { mejor = p.z; h = p.cy; }

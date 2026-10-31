@@ -71,10 +71,15 @@ const _qe = new Quat(), _qf = new Quat(), _qg = new Quat();
 function emoPose(P, dt) {
   const e = P.emote; if (!e || !(e.startsWith('rb:') || e.startsWith('u:') || e.startsWith('c:'))) return;
   const C = emoClip(e); if (!C) return;
-  const t = P.emoteT || 0, md = P.md, idx = emoIndices(P, C), nb = C.b.length;
+  const t = P.emoteT || 0;
   if (!C.loop && t >= C.d) { if (P === JUG.cuerpo || !P.remoto) P.emote = null; return; }
   let w = ss01(clamp(t / 0.25, 0, 1)); if (!C.loop) w *= 1 - ss01(clamp((t - (C.d - 0.3)) / 0.3, 0, 1));
   let f = t * C.fps; if (C.loop) f %= (C.nf - 1); else f = Math.min(f, C.nf - 1.001);
+  emoAplicar(P, C, f, w);
+}
+// el cuadro f (con fracción) de un clip sobre la pose que ya tiene la persona, con peso w
+function emoAplicar(P, C, f, w) {
+  const md = P.md, idx = emoIndices(P, C), nb = C.b.length;
   const f0 = Math.floor(f), f1 = Math.min(C.nf - 1, f0 + 1), a = f - f0, R = C.r;
   for (let k = 0; k < nb; k++) {
     const i = idx[k]; if (i < 0) continue;
@@ -91,6 +96,31 @@ function emoPose(P, dt) {
     for (let c = 0; c < 3; c++) { const v = (C.h[o0 + c] + (C.h[o1 + c] - C.h[o0 + c]) * a) / 1000; p[c] = p[c] + (b0[c] + v - p[c]) * w; }
   }
   md.sucio = true;
+}
+// ---------------- nadar ----------------
+// dos capturas de CMU: la brazada de pecho acostado (126_04, sobre un banquito) y la brazada parado (79_02: flotando en
+// el lugar), mezcladas por la velocidad; cada una en el tramo que mejor se repite (el cuadro de la vuelta, parecido al
+// del principio)
+const NADO = { nada: 'c:126_04', flota: 'c:79_02' };
+function emoBucle(C) {
+  if (C.bucle) return C.bucle;
+  const nb = C.b.length, R = C.r, min = Math.round(1.5 * C.fps), K = 1 / (32767 * 32767); let mejor = 1e9, par = [0, C.nf - 1];
+  for (let a = 0; a < C.nf; a += 2) for (let b = a + min; b < C.nf; b += 2) {
+    let s = 0; for (let k = 0; k < nb; k++) { const o0 = (a * nb + k) * 4, o1 = (b * nb + k) * 4; s += 1 - Math.abs(R[o0] * R[o1] + R[o0 + 1] * R[o1 + 1] + R[o0 + 2] * R[o1 + 2] + R[o0 + 3] * R[o1 + 3]) * K; }
+    if (s < mejor) { mejor = s; par = [a, b]; }
+  }
+  return (C.bucle = par);
+}
+function nadoPose(P, dt) {
+  const k = P.nadoK || 0; if (k < 0.001 || P.emote) return;
+  const A = emoClip(NADO.nada), B = emoClip(NADO.flota); if (!A || !B) return;   // (se bajan la primera vez)
+  const sp = Math.hypot(P.vel.x, P.vel.z), ws = clamp((sp - 0.3) / 1.2, 0, 1);
+  P.nadoW = (P.nadoW || 0) + (ws - (P.nadoW || 0)) * Math.min(1, dt * 4);
+  P.nadoT = (P.nadoT || 0) + dt * (0.8 + Math.min(sp, 4) * 0.12);
+  for (const [C, w] of [[B, 1], [A, P.nadoW]]) {
+    if (w <= 0.001) continue;
+    const [a, b] = emoBucle(C); emoAplicar(P, C, a + (P.nadoT * C.fps) % (b - a), w * k);
+  }
 }
 // ---------------- el panel de emotes: categorías, miniaturas, los tuyos y los de la tienda ----------------
 const EMO_CATS = ['todos', 'fav', 'rec', 'clasico', 'baile', 'gesto', 'accion', 'pelea', 'deporte', 'acrobacia', 'animal', 'caminar', 'otro', 'mio', 'tienda'];

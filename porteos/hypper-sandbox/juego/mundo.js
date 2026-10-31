@@ -105,6 +105,7 @@ function cargarMapa(nombre) {
   else R.niebla = { c: C.mid.slice(), a: lejos * 0.7, b: lejos };
   if (nombre === 'Space' || aj.espacio) R.niebla = { c: [0, 0, 0], a: lejos * 0.8, b: lejos * 1.5 };
   MUNDO.gravedad = aj.grav || (nombre === 'Space' ? 0.16 : nombre === 'Mars' ? 0.38 : 1);
+  aguaMapa(aj.agua);   // (los volúmenes de agua del mapa: para nadar y para que floten las cosas)
   R.expoK = 1; R.noche = 0; R.lucesMapa = false;
   if (typeof diaGuardarBase === 'function') diaGuardarBase();
   if (typeof marcasLimpiar === 'function') marcasLimpiar();

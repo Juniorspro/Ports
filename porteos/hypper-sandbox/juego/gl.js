@@ -48,7 +48,7 @@ out vec2 vU;
 #ifndef DEPTH
 out vec3 vN; out vec3 vW;
 #endif
-#ifdef MEZ
+#if defined(MEZ) || defined(AGUA)
 out float vMz;
 #endif
 invariant gl_Position;
@@ -64,7 +64,7 @@ void main(){
 #ifndef DEPTH
   vec3 n = aN.xyz;
 #endif
-#ifdef MEZ
+#if defined(MEZ) || defined(AGUA)
   vMz = aN.w;
 #endif
 #ifdef SKIN
@@ -133,6 +133,16 @@ uniform vec4 uEP[4], uEC[4], uED[4]; uniform int uEN;
 #endif
 #ifdef AO
 uniform sampler2D uAO; uniform vec2 uAOinv; uniform float uAOon;
+#endif
+// el agua (agua.js): ondas que se mueven, Fresnel y, en Alto y Ultra, el reflejo de la escena (uRef, de aguaReflejo)
+#ifdef AGUA
+uniform float uAguaT; uniform vec4 uAguaK;
+#ifndef MEZ
+in float vMz;
+#endif
+#ifdef REFL
+uniform sampler2D uRef; uniform vec2 uRefInv; uniform float uRefOn;
+#endif
 #endif
 out vec4 o;
 const float PI = 3.14159265;
@@ -308,7 +318,44 @@ void main(){
 #ifdef CUT
   if (t.a < uCorte) discard;
 #endif
-#ifdef UNLIT
+#ifdef AGUA
+  // ondas: cuatro trenes en el plano (la pendiente de cada uno inclina la normal), más suaves a lo lejos (sin brillos que
+  // titilan); la textura se corre despacio
+  float dCam = distance(vW, uCam), T = uAguaT;
+  vec2 pa = vW.xz, g = vec2(0.80, 0.60) * cos(dot(pa, vec2(0.80, 0.60)) * 1.3 + T * 1.6) * 0.050;
+  g += vec2(-0.45, 0.89) * cos(dot(pa, vec2(-0.45, 0.89)) * 2.1 + T * 2.1) * 0.035;
+  g += vec2(0.96, -0.28) * cos(dot(pa, vec2(0.96, -0.28)) * 3.7 + T * 2.9) * 0.022;
+  g += vec2(-0.70, -0.71) * cos(dot(pa, vec2(-0.70, -0.71)) * 6.3 + T * 3.8) * 0.012;
+  g *= uAguaK.x / (1.0 + dCam * 0.02);
+  vec3 n = normalize(vec3(-g.x, 1.0, -g.y)), v = normalize(uCam - vW);
+  t = texture(uT, vU + T * vec2(0.011, 0.007)) * uC;
+  float fr = 0.02 + 0.98 * pow(1.0 - abs(dot(n, v)), 5.0);
+#if LUZ >= 2
+  vec3 alb = pow(t.rgb, vec3(2.2)), rfl = reflect(-v, n); rfl.y = abs(rfl.y);
+  vec3 refl = cieloCol(rfl);
+#else
+  vec3 alb = t.rgb, refl = mix(uAmbS * 1.3, uNieC, 0.3);
+#endif
+  vec3 cuerpo = alb * (mix(uAmbG, uAmbS, 0.8) + uSolC * max(uSol.y, 0.0) * 0.5) * 0.7;
+#ifdef REFL
+  // la escena espejada (dibujada a menos resolución en aguaReflejo), corrida un poco por las ondas
+  if (uRefOn > 0.5) {
+    vec3 rt = texture(uRef, gl_FragCoord.xy * uRefInv + n.xz * 0.05 / (1.0 + dCam * 0.02)).rgb;
+#if SALIDA == 1
+    // (sin HDR el reflejo ya salió con el tono de pantalla: se lo vuelve a lineal, la inversa de aces)
+    vec3 y = min(pow(rt, vec3(2.2)), vec3(0.985)), qa = 2.51 - 2.43 * y, qb = 0.03 - 0.59 * y;
+    rt = (-qb + sqrt(qb * qb + 4.0 * qa * 0.14 * y)) / (2.0 * qa) / uExpo;
+#endif
+    refl = rt;
+  }
+#endif
+  float spec = pow(max(dot(reflect(-v, n), uSol), 0.0), 700.0) * 6.0 * step(0.0, uSol.y);
+  vec3 col = mix(cuerpo, refl, fr) + uSolC * spec;
+  t.a = mix(uAguaK.y, 1.0, fr);
+  // de abajo (la cámara bajo el agua): casi todo se refleja para adentro, se ve el color del agua
+  if (uCam.y < vW.y) { col = cuerpo * 0.7 + refl * 0.12; t.a = 0.82; }
+  if (uAguaK.w > 0.5) t.a *= clamp(vMz, 0.0, 1.0);   // (charcos: lo hondo de cada vértice)
+#elif defined(UNLIT)
 #if LUZ >= 2
   vec3 col = pow(t.rgb, vec3(2.2)) * 1.4;
 #else
@@ -538,7 +585,7 @@ function shader(vs, fs, defs) {
   const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
   for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i), nm = a.name.replace('[0]', ''); u[nm] = gl.getUniformLocation(p, a.name); }
   gl.useProgram(p);
-  for (const [k, v] of [['uT', 0], ['uT1', 1], ['uT2', 2], ['uT3', 3], ['uSM', 5], ['uSMd', 6], ['uAO', 7], ['uTex', 0], ['uTex2', 1], ['uTex3', 2], ['uProf', 3]]) if (u[k]) gl.uniform1i(u[k], v);
+  for (const [k, v] of [['uT', 0], ['uT1', 1], ['uT2', 2], ['uT3', 3], ['uSM', 5], ['uSMd', 6], ['uAO', 7], ['uRef', 4], ['uTex', 0], ['uTex2', 1], ['uTex3', 2], ['uProf', 3]]) if (u[k]) gl.uniform1i(u[k], v);
   if (R.gl1 && u.uSMd && !u.uSM) gl.uniform1i(u.uSMd, 6);
   return { p, u, marca: 0 };
 }
@@ -546,7 +593,8 @@ function shader(vs, fs, defs) {
 function sub(a, n) { const k = '_v' + n; return a[k] || (a[k] = a.subarray(0, n)); }
 // programa según el material y la calidad (se compila la primera vez que se usa)
 function progDe(clave, modo) {
-  const k = modo + '|' + clave + '|' + R.salida + '|' + (R.sombraOn ? SM.n : 0) + (R.conAO ? 'a' : '');
+  const refl = modo !== 'depth' && GFX.refl > 0 && R.salida !== 'gam' && clave.indexOf('AGUA') >= 0;
+  const k = modo + '|' + clave + '|' + R.salida + '|' + (R.sombraOn ? SM.n : 0) + (R.conAO ? 'a' : '') + (refl ? 'r' : '');
   let P = R.progs.get(k); if (P) return P;
   const f = clave.split(','), Q = GFX, d = [];
   for (const x of f) if (x) d.push(x);
@@ -560,11 +608,12 @@ function progDe(clave, modo) {
     d.push('ESP');   // (las luces especiales: linternas y las de la pizzería)
     if (luz >= 3 && Q.det && R.deriv && !f.includes('SKIN') && !f.includes('TERR')) d.push('DET');
     if (DBG.verSombra) d.push('VERSOMBRA');
+    if (refl) d.push('REFL');
     try { P = shader(VS, FS, d); }
     catch (e) {
       // si la placa no acepta la versión completa (sombras, luces, relieve), una más simple: se ve, aunque más plano
       R.errShader = String(e.message || e).slice(0, 400); console.warn('shader simplificado', R.errShader);
-      const base = d.filter((x) => !/^(LUZ|SALIDA|SOMBRA|PCF|NLUZ)=|^(PCSS|AO|DET|VERSOMBRA|ESP)$/.test(x));
+      const base = d.filter((x) => !/^(LUZ|SALIDA|SOMBRA|PCF|NLUZ)=|^(PCSS|AO|DET|VERSOMBRA|ESP|REFL)$/.test(x));
       P = shader(VS, FS, base.concat(['LUZ=1', 'SALIDA=' + (R.salida === 'hdr' ? 2 : R.salida === 'ldr' ? 1 : 0), 'SOMBRA=0', 'NLUZ=0']));
       if (!R.avisoShader && typeof aviso === 'function') { R.avisoShader = true; aviso('Gráficos simplificados: la placa no aceptó un efecto'); }
     }
@@ -763,8 +812,10 @@ function matGL(i) {
   // la hierba "sin luz" del juego en las calidades altas recibe luz y sombra como follaje
   if (d.t2 !== undefined && !m.terr) m.mez = d.t2;   // (segunda textura mezclada por vértice)
   const tx = m.terr ? 'TERR' : m.mez !== undefined ? 'MEZ' : '';
-  m.claveBase = tx + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit && !m.fol ? 'UNLIT' : '') + ',' + (m.fol ? 'FOL' : '');
-  m.claveGam = tx + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit ? 'UNLIT' : '');
+  // el agua: la de los mapas de GMod (refleja la escena en Alto y Ultra) y la de los recipientes y los charcos (agua.js)
+  if (/^(GM_agua|RB_agua)$/.test(d.n || '')) { m.agua = true; m.refleja = d.n === 'GM_agua'; m.blend = true; m.cut = false; m.unlit = false; m.fol = false; }
+  m.claveBase = tx + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit && !m.fol ? 'UNLIT' : '') + ',' + (m.fol ? 'FOL' : '') + (m.agua ? ',AGUA' : '');
+  m.claveGam = tx + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit ? 'UNLIT' : '') + (m.agua ? ',AGUA' : '');
   m.sombra = !m.blend && !m.add && !m.oculto;
   return (R.mats[i] = m);
 }
@@ -873,6 +924,7 @@ function dibujarPedido(p, P) {
   if (u.uEm) gl.uniform3fv(u.uEm, p.x && p.x.em ? p.x.em : mt.lampara && R.lucesMapa ? EM_LAMPARA : mt.em);
   if (u.uCorte) gl.uniform1f(u.uCorte, 0.5);
   if (u.uMat) gl.uniform3fv(u.uMat, mt.pbr);
+  if (mt.agua) aguaUniformes(p, u);
   gl.uniform4fv(u.uST, mt.st);
   geomDibujar(p, u);
   R.dibujadas++; R.tris += p.sn / 3;
@@ -952,7 +1004,12 @@ function dibujarTransparentes() {
   if (!R.colaT.length) return;
   R.texAct = null; R.vaoAct = null; // (el cielo y las marcas cambian la malla atada sin avisar)
   gl.enable(gl.BLEND); gl.depthMask(false);
-  for (const p of R.colaT) { gl.blendFunc(gl.SRC_ALPHA, p.mt.add ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA); dibujarPedido(p, prepararProg(progDe(claveDe(p), 'main'))); }
+  for (const p of R.colaT) {
+    gl.blendFunc(gl.SRC_ALPHA, p.mt.add ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
+    if (p.mt.agua) gl.disable(gl.CULL_FACE);   // (el agua se ve también de abajo, buceando)
+    dibujarPedido(p, prepararProg(progDe(claveDe(p), 'main')));
+    if (p.mt.agua) gl.enable(gl.CULL_FACE);
+  }
   gl.depthMask(true); gl.disable(gl.BLEND);
   gl.bindVertexArray(null); R.vaoAct = null;
   R.colaT.length = 0;

@@ -936,6 +936,54 @@ def armas_hl2():
             if nombres: info[clave] = nombres
         d['gm']['hl2'][arma] = info
         print('  %s → %s: huesos %d, verts %d, clips %s, sonidos %s' % (arma, v, len(M.huesos), nv, cl, sorted(k for k in info if k.startswith('s'))))
+# ---------------- el agua: recipientes (cubeta, tina, bañeras de HL2) y sus sonidos ----------------
+# Cada recipiente es un prop con su interior ("ag": caja en el marco del prop, litros y si es redondo) medido con rayos
+# de arriba sobre la malla (el piso de adentro) y el borde a mano; agua.js lo llena, lo vuelca y hace flotar lo de adentro.
+# Las bañeras chocan con paredes (se puede meter cosas adentro); la cubeta y la tina, con su casco
+RECIPIENTES = [
+    # (nombre, modelo, masa kg, interior: centro x, z, medio ancho x, z, piso y, borde y, redondo, paredes)
+    ('Cubeta', 'models/props_junk/MetalBucket01a.mdl', 3.0, (0.0, 0.0, 0.185, 0.185, -0.19, 0.19, 1, False)),
+    ('Tina', 'models/props_junk/MetalBucket02a.mdl', 8.0, (0.0, 0.0, 0.47, 0.32, -0.176, 0.175, 1, False)),
+    ('Banera', 'models/props_interiors/BathTub01a.mdl', 150.0, (0.1645, -0.14, 0.395, 0.952, -0.133, 0.64, 0, True)),
+    ('BaneraPatas', 'models/props_c17/FurnitureBathtub001a.mdl', 120.0, (-0.01, -0.12, 0.288, 0.754, -0.216, 0.27, 0, True)),
+]
+def recipientes():
+    base = {'tg': 20000, 'mb': ['PhotonView', 'Prop', 'PhotonTransformViewClassic'], 'pa': -1, 'p': [0.0, 0.0, 0.0], 'r': [0.0, 0.0, 0.0, 1.0], 's': [1.0, 1.0, 1.0]}
+    nuevos = []
+    for k, (nom, ruta, masa, (cx, cz, hx, hz, y0, y1, red, paredes)) in enumerate(RECIPIENTES):
+        x = modelo_datos(ruta); mi, mats, (lo, hi) = modelo_estatico(ruta); M, V, N, U, grupos = x
+        litros = round((math.pi if red else 4) * hx * hz * (y1 - y0) * 1000, 1)
+        if paredes:
+            # piso (de abajo de todo al piso de adentro) y cuatro paredes hasta el borde, del hueco a lo de afuera
+            col = [{'k': 'b', 'c': [cx, (lo[1] + y0) / 2, cz], 's': [2 * hx, y0 - lo[1], 2 * hz], 'tr': 0}]
+            for a, b in ((lo[0], cx - hx), (cx + hx, hi[0])): col.append({'k': 'b', 'c': [(a + b) / 2, (lo[1] + y1) / 2, (lo[2] + hi[2]) / 2], 's': [b - a, y1 - lo[1], hi[2] - lo[2]], 'tr': 0})
+            for a, b in ((lo[2], cz - hz), (cz + hz, hi[2])): col.append({'k': 'b', 'c': [cx, (lo[1] + y1) / 2, (a + b) / 2], 's': [2 * hx, y1 - lo[1], b - a], 'tr': 0})
+            col = [{kk: (np.round(vv, 4).tolist() if isinstance(vv, (list, np.ndarray)) else vv) for kk, vv in c.items()} for c in col]
+        else: col = [{'k': 'm', 'm': mi, 'cv': 1, 'tr': 0}]
+        rid = 990101 + k
+        d['pf']['%s#%06x' % (nom, rid)] = [dict(base, n=nom, m=mi, mt=mats, rid=rid, rb={'m': masa, 'd': 0.0, 'k': 0, 'g': 1}, col=col,
+            ag={'lo': [cx - hx, y0, cz - hz], 'hi': [cx + hx, y1, cz + hz], 'l': litros, 'r': red})]
+        # el ícono: el modelo en diagonal con su textura (como los de las armas)
+        vmts = {}
+        for r in grupos:
+            _, vmt = mat_de_modelo(M, r, 0)
+            vmts[r] = vmt and 'materials/' + kv_material(vmt)[1].get('$basetexture', '').lower().replace('\\', '/') + '.vtf'
+        icono_modelo(V, N, U, grupos, vmts, lado=128).save(PK1 + '/i/' + nom + '.webp', 'WEBP', quality=90); d['ico'][nom] = nom
+        nuevos.append(nom); print('  recipiente', nom, 'litros', litros, 'caja', np.round(lo, 3).tolist(), np.round(hi, 3).tolist(), 'choque', len(col))
+    props = next(c for c in d['menu'] if c['n'] == 'Props')
+    props['sub'] = [x for x in props['sub'] if x['n'] != 'Agua'] + [{'n': 'Agua', 'it': nuevos, 'rb': 1}]
+    for i in range(1, 4): sonido('sound/ambient/water/water_splash%d.wav' % i, 'AG_Salpica%d' % i)
+    for i in range(1, 5): sonido('sound/ambient/water/drip%d.wav' % i, 'AG_Gota%d' % i)
+    for i in range(1, 9): sonido('sound/player/footsteps/wade%d.wav' % i, 'AG_Paso%d' % i)
+    for i in range(1, 4): sonido('sound/player/pl_drown%d.wav' % i, 'AG_Ahogo%d' % i)
+    sonido('sound/ambient/water/lake_water.wav', 'AG_Lago'); sonido('sound/ambient/water/underwater.wav', 'AG_Bajo'); sonido('sound/ambient/water/water_flow_loop1.wav', 'AG_Chorro')
+def guardar_paquete():
+    open(PK1 + '/m.bin.gz', 'wb').write(gzip.compress(bytes(BIN), 9))
+    open(PK1 + '/d.json.gz', 'wb').write(gzip.compress(json.dumps(d, separators=(',', ':')).encode(), 6))
+    print('listo: texturas', len(d['tx']), 'mallas', len(d['ms']), 'materiales', len(d['mt']), 'bin', len(BIN) // 1000, 'KB')
+# (GM_SOLO=agua: sólo los recipientes y los sonidos del agua, sobre un paquete que ya tiene lo demás)
+if os.environ.get('GM_SOLO') == 'agua':
+    recipientes(); guardar_paquete(); sys.exit(0)
 convertir('RB_Construct', 'gm_construct', {'cielo3d': lambda c: c[0] < -6000, 'sol': 1.15})
 convertir('RB_Flatgrass', 'gm_flatgrass', {'sol': 1.15})
 GMP = posturas()
@@ -964,6 +1012,5 @@ if len(sys.argv) > 5 and os.path.isdir(sys.argv[5]):   # (fondos de carga e íco
         if os.path.exists(dst): os.remove(dst)
         ic.save(dst, 'WEBP', quality=86); d['ico']['mapa_' + mapa] = 'mapa_' + mapa
     print('fondos de carga e íconos de los mapas de GMod')
-open(PK1 + '/m.bin.gz', 'wb').write(gzip.compress(bytes(BIN), 9))
-open(PK1 + '/d.json.gz', 'wb').write(gzip.compress(json.dumps(d, separators=(',', ':')).encode(), 6))
-print('listo: texturas', len(d['tx']), 'mallas', len(d['ms']), 'materiales', len(d['mt']), 'bin', len(BIN) // 1000, 'KB')
+recipientes()
+guardar_paquete()

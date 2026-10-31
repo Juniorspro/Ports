@@ -10,8 +10,8 @@ const PERFILES = {
   patata: { res: 45, lejos: 160, texMax: 128, lod: 9, sub: 5, part: 0.25, aniso: 0, luz: 0, sombra: 0 },
   bajo: { res: 60, lejos: 250, texMax: 256, lod: 2, sub: 6, part: 0.5, aniso: 0, luz: 1, sombra: 0 },
   medio: { res: 75, lejos: 450, texMax: 256, lod: 1, sub: 8, part: 0.8, aniso: 2, luz: 2, sombra: 1, smTam: 1024, sDist: 45, pcf: 1, nluz: 4 },
-  alto: { res: 100, lejos: 750, texMax: 0, lod: 0, sub: 10, part: 1, aniso: 8, luz: 2, sombra: 2, smTam: 2048, sDist: 110, pcf: 9, nluz: 6, hdr: 1, ao: 1, bloom: 1, fxaa: 1, nubes: 1 },
-  ultra: { res: 100, lejos: 1100, texMax: 0, lod: 0, sub: 10, part: 1, aniso: 16, luz: 3, sombra: 3, smTam: 4096, sDist: 220, pcf: 9, pcss: 1, nluz: 8, hdr: 1, ao: 2, bloom: 2, rayos: 1, fxaa: 1, nubes: 1, det: 1 },
+  alto: { res: 100, lejos: 750, texMax: 0, lod: 0, sub: 10, part: 1, aniso: 8, luz: 2, sombra: 2, smTam: 2048, sDist: 110, pcf: 9, nluz: 6, hdr: 1, ao: 1, bloom: 1, fxaa: 1, nubes: 1, refl: 3 },
+  ultra: { res: 100, lejos: 1100, texMax: 0, lod: 0, sub: 10, part: 1, aniso: 16, luz: 3, sombra: 3, smTam: 4096, sDist: 220, pcf: 9, pcss: 1, nluz: 8, hdr: 1, ao: 2, bloom: 2, rayos: 1, fxaa: 1, nubes: 1, det: 1, refl: 2 },
 };
 const PERF_ORDEN = ['patata', 'bajo', 'medio', 'alto', 'ultra'];
 const PREFS_DEF = { modo: 'libre', codigo: '', salaLibre: 1, nombre: 'Player' + ((Math.random() * 900 + 100) | 0), mapa: 'Desert', skin: 'Hero', gorro: 'HatEmpty', gfx: 'auto', res: 70, lejos: 350, sens: 12, vol: 80, fps: true,
@@ -42,7 +42,7 @@ function aplicarGfx() {
   GFX.escala = (PREFS.gfx === 'auto' ? p.res : PREFS.res) / 100; GFX.escalaMax = GFX.escala;
   GFX.lejos = PREFS.gfx === 'auto' ? p.lejos : PREFS.lejos;
   GFX.texMax = p.texMax; GFX.lod = p.lod; GFX.sub = p.sub; GFX.part = p.part; GFX.aniso = p.aniso;
-  for (const k of ['luz', 'sombra', 'smTam', 'sDist', 'pcf', 'pcss', 'nluz', 'hdr', 'ao', 'bloom', 'rayos', 'fxaa', 'nubes', 'det']) GFX[k] = p[k] || 0;
+  for (const k of ['luz', 'sombra', 'smTam', 'sDist', 'pcf', 'pcss', 'nluz', 'hdr', 'ao', 'bloom', 'rayos', 'fxaa', 'nubes', 'det', 'refl']) GFX[k] = p[k] || 0;
   // lo que el jugador cambió a mano (como en los ajustes del juego: Sombra, Postprocesado, Calidad de textura)
   if (PREFS.sombras !== 'auto' && GFX.luz >= 2) {
     const s = +PREFS.sombras, T = [null, [1, 1024, 45, 1, 0], [2, 2048, 110, 9, 0], [3, 4096, 220, 9, 1]][s];
@@ -205,6 +205,7 @@ function cuadro(ahora) {
       jugadorPaso(paso, ent);
       if (typeof vehiculosPaso === 'function') vehiculosPaso(paso, ent);
     }
+    aguaFisica(paso);
     physStep(paso);
     for (const b of PH.bodies) if (b.dead && b.obj) { borrarObjeto(b.obj); break; }
     if (typeof personasPaso === 'function') personasPaso(paso);
@@ -221,6 +222,7 @@ function cuadro(ahora) {
   }
   efectosPaso(dt);
   camaraActualizar(dt);
+  aguaPaso(dt);
   dibujar();
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso();
@@ -287,11 +289,12 @@ function dibujar() {
   R.sombraOn = GFX.luz >= 2 && GFX.sombra > 0 && SM.n > 0 && !MUNDO.sinSombra && !R.sinSombraDbg;
   R.conAO = !!(usaPost && GFX.ao > 0 && PO.ao.length);
   R.aoActivo = false;
+  const nieAntes = aguaNiebla();   // (debajo del agua: la niebla de cerca, del color del agua)
   if (R.salida !== 'gam') luzLineal();
   // juntar todo lo que hay que dibujar (el mapa fijo marcado aparte para la copia de sombras)
   const t0 = performance.now();
   R.fase = 'mundo'; dibujarMundo(); R.fase = '';
-  dibujarObjetos();
+  dibujarObjetos(); aguaEncolar();
   if (typeof dibujarPersonas === 'function') dibujarPersonas();
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();
@@ -306,6 +309,7 @@ function dibujar() {
   if (R.sombraOn) sombrasActualizar();
   const t2 = performance.now();
   armarCola();
+  aguaReflejo(P, V);
   if (usaPost) postEmpezar(); else { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); }
   const N = R.salida === 'gam' ? R.niebla.c : R.lin.nieC;
   gl.clearColor(N[0], N[1], N[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -314,7 +318,7 @@ function dibujar() {
     gl.depthFunc(gl.LEQUAL); gl.depthMask(false); dibujarOpacos(); gl.depthMask(true); gl.depthFunc(gl.LESS);
   } else dibujarOpacos();
   dibujarMarcas();
-  dibujarCielo(M4.inv(R.vp));
+  if (!AGUA.bajo) dibujarCielo(M4.inv(R.vp));
   dibujarTransparentes();
   dibujarEfectos();
   dibujarRayoFisica(); dibujarTrazas(); dibujarLineas();
@@ -328,6 +332,7 @@ function dibujar() {
   }
   const t3 = performance.now();
   if (usaPost) postTerminar();
+  if (nieAntes) R.niebla = nieAntes;
   pantFinCuadro(usaPost); // (alfa 1 en toda la imagen y el hueco de la pantalla de video)
   DIB.ms.juntar = t1 - t0; DIB.ms.sombras = t2 - t1; DIB.ms.escena = t3 - t2; DIB.ms.post = performance.now() - t3;
   if (JUEGO.foto > 0) { JUEGO.foto--; if (JUEGO.foto === 0) { if (JUEGO.fotoCb) { JUEGO.fotoCb(); JUEGO.fotoCb = null; } else fotoGuardar(); } }

@@ -100,6 +100,28 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
 - **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
   leyeron: queda en 16,5 MB en vez de ~38.
+- **Agua de verdad** (`juego/agua.js`; prueba `pruebas/agua.mjs`, 22/22): el lago de gm_construct (el volumen de agua
+  que trae el mapa) y lo que tienen adentro los recipientes nuevos de Props → Agua (cubeta, tina y dos bañeras de HL2).
+  - **Nadar** como en Source: se va hacia donde mira la cámara, el salto sube y agacharse baja; sin tocar nada flota con
+    los ojos 12 cm afuera; al caer el agua frena enseguida (se hunde 40 cm y vuelve). Vadeando con el agua a medio cuerpo
+    se camina más lento (59 % a 1 m). Debajo del agua: niebla de cerca del color del agua (16 m), sin cielo, el sonido de
+    abajo del agua y el aire dura 12 s; después se ahoga de a 10 por segundo, como en HL2. Salir: saltando contra la
+    orilla. El cuerpo nada con dos capturas de CMU (la brazada acostado, 126_04, y flotando parado, 79_02) mezcladas por la
+    velocidad y en el tramo que mejor se repite; acostado, la cadera va 8 cm abajo del agua.
+  - **Lo que flota**: el empuje con 27 puntos por cuerpo (los que caen adentro de su forma) una vez por paso de física
+    (20 cosas en el agua: 0,06 ms por paso). La madera (los props livianos) flota como mucho a 700 kg/m³, como en GMod
+    (la caja: 71 % abajo); lo liviano, como corcho (el sofá: 25 %); lo muy pesado se hunde; los muñecos flotan como una
+    persona. El agua frena los giros y el subir y bajar: un sofá que cae al lago queda quieto en ~5 s. Al entrar rápido,
+    salpica (gotas, espuma y el sonido de HL2).
+  - **Recipientes**: se llenan metidos en el agua (la cubeta: 41 l en menos de 4 s), pesan con el agua, no pierden
+    parados y se vuelcan por el punto más bajo del borde: chorro de gotas con su sonido, que caen en otro recipiente (se
+    suma) o en el piso, donde hacen un **charco** que corre hacia lo bajo (una grilla de 6×6 m de agua poco profunda, con
+    2 mm que se quedan en cada celda como la tensión superficial) y se seca solo. En una bañera con agua las cosas flotan
+    adentro (las bañeras chocan con paredes; la cubeta y la tina, con su casco).
+  - **El dibujo**: ondas que se mueven (cuatro trenes de ondas en el sombreador, más suaves a lo lejos), Fresnel (de
+    frente se ve el fondo, de costado refleja), el brillo del sol y, en Alto y Ultra, **el reflejo de la escena** (dibujada
+    espejada a un tercio o a la mitad de la resolución, con el plano cercano oblicuo para cortar lo de abajo del agua). Se
+    ve de abajo al bucear. Anda en todas las calidades y en WebGL 1.
 - **2175 emotes de captura de movimiento** (la base de CMU, conversión BVH "Poser-friendly" de B. Hahne, dominio
   público) con **panel por secciones**: Todos, Favoritos, Recientes, Clásicos, Bailes, Gestos, Acciones, Peleas,
   Deportes, Acrobacias, Animales, Caminar y correr, Otros, Míos y Tienda, con buscador (en todas las secciones), la

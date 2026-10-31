@@ -25,10 +25,10 @@ function efectosIniciar() {
   PART.tex.punto = t;
   const fi = DATA.tx.findIndex((t) => /MuzzleFlash2/.test(t.n)); PART.fogTex = fi;
 }
-// tipo: 'humo' (alfa), 'fuego'/'chispa'/'fog' (suma)
+// tipo: 'humo' y 'gota' (alfa; la gota cae y se ve desde el primer cuadro), 'fuego'/'chispa'/'fog' (suma)
 function particula(p, v, vida, tam, col, tipo, crece) {
   if (PART.l.length >= PART.max * GFX.part) return;
-  PART.l.push({ p: p.clone(), v: v.clone(), vida, t: 0, tam, col, tipo: tipo || 'humo', crece: crece === undefined ? (tipo === 'humo' ? 1.8 : 0.3) : crece, grav: tipo === 'chispa' ? 1 : tipo === 'humo' ? -0.05 : 0 });
+  PART.l.push({ p: p.clone(), v: v.clone(), vida, t: 0, tam, col, tipo: tipo || 'humo', crece: crece === undefined ? (tipo === 'humo' ? 1.8 : 0.3) : crece, grav: tipo === 'chispa' || tipo === 'gota' ? 1 : tipo === 'humo' ? -0.05 : 0 });
 }
 function efectosPaso(dt) {
   const L = PART.l;
@@ -50,8 +50,9 @@ function dibujarEfectos() {
   const pasada = (aditivo) => {
     n = 0;
     for (const q of L) {
-      if ((q.tipo !== 'humo') !== aditivo) continue;
-      const k = q.t / q.vida, a = q.col[3] * (1 - k) * (aditivo ? 1 : Math.min(1, k * 6)), s = q.tam * (1 + q.crece * k);
+      const gota = q.tipo === 'gota';
+      if ((q.tipo !== 'humo' && !gota) !== aditivo) continue;
+      const k = q.t / q.vida, a = gota ? q.col[3] * (1 - k * k) : q.col[3] * (1 - k) * (aditivo ? 1 : Math.min(1, k * 6)), s = q.tam * (1 + q.crece * k);
       for (let v = 0; v < 6; v++) {
         if (n >= PART.max * 6) break;
         const o = n * 10; D[o] = q.p.x; D[o + 1] = q.p.y; D[o + 2] = q.p.z; D[o + 3] = q.col[0]; D[o + 4] = q.col[1]; D[o + 5] = q.col[2]; D[o + 6] = a;
