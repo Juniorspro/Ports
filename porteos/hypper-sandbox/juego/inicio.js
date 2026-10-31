@@ -10,7 +10,7 @@ const MODS = {}; // efectos sumados de los mods activos en la partida (armas y r
 const FONDOS_RB = [/*FONDOSRB*/]; // escenas armadas con cosas del juego (van con el paquete, no en el repo)
 // el logo: la R de Rezona y el nombre (el mismo de la pantalla de carga)
 const LOGO_RB = (document.querySelector('#carga .dLogo img') || {}).src || '';
-const VERSION_RB = '1.0';
+const VERSION_RB = '1.0', ARMADO_RB = '__ARMADO__';
 const ICONOS_MOD = ['mod', ...ICO_LISTA.filter((n) => n !== 'mod' && !['cartel', 'meta', 'zona_muerte', 'boton_autos', 'teleport', 'impulso'].includes(n))].map((n) => 'ico:' + n);
 // los mods oficiales, en el mismo formato que los de la gente
 const OFICIALES = [['goku', 'ico:energia', ['personajes', 'diversion'], { skin: 'Goku', velocidad: 1.4, salto: 2.5 }], ['luna', 'ico:luna', ['fisica'], { gravedad: 0.35 }],
@@ -101,7 +101,7 @@ function inicioLista() {
     <label class="rbChipG">${glifo('persona')} <input id="rbNombre" maxlength="16" spellcheck="false"></label>`;
   const inp = RB.el.querySelector('#rbNombre'); inp.value = PREFS.nombre || '';
   inp.oninput = () => nombrePoner(inp.value);
-  RB.el.querySelector('.rbVer').textContent = `Definitive RezoBox ${VERSION_RB}`;
+  RB.el.querySelector('.rbVer').textContent = `Definitive RezoBox ${VERSION_RB} · ${ARMADO_RB}`;
 }
 function nombrePoner(v) { PREFS.nombre = limpioNombre(v); guardarPrefs(); const nick = nodo('Main/MainMenu/UpPanel/NickNameInputField'); if (nick && nick.inp) nick.inp.value = PREFS.nombre; }
 function inicioFondoPasar() {

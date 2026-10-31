@@ -9,6 +9,9 @@ ORDEN = ['nucleo', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'mundo'
 FORMATO = re.sub(r'(?m)^export ', '', open(os.path.join(AQUI, 'tienda', 'formato.js'), encoding='utf-8').read())
 leer = lambda n: FORMATO if n == 'formato' else open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read()
 js = '(() => {\n"use strict";\n' + '\n'.join(leer(n) for n in ORDEN) + '\n})();'
+# la fecha del armado (se ve en el inicio: así se sabe qué versión abrió el navegador)
+import datetime
+js = js.replace('__ARMADO__', datetime.datetime.now(datetime.timezone.utc).strftime('%d/%m/%Y %H:%M UTC'))
 # el catálogo de los emotes de captura de movimiento (los archivos van al lado del HTML, en hypper/emotes/cmu)
 CMUC = os.path.join(AQUI, '..', '..', 'hypper', 'emotes', 'cmu', 'catalogo.json')
 if os.path.exists(CMUC): js = js.replace('/*CMUCAT*/null', open(CMUC, encoding='utf-8').read().strip())
