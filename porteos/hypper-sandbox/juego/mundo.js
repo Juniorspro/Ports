@@ -5,19 +5,31 @@
 const MAPAS = ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space'];
 const MAPA_ICONO = { Desert: 'Desert', DesertV2: 'desert 1', FlatGrass: 'flatgrass', City: 'city', Base: 'base', BaseV2: 'basev2', Mars: 'Mars', Space: 'Space' };
 // los mapas propios de RezoBox (herramientas/mapas_rb.py): se suman a los del juego, que siguen todos
-const MAPAS_RB = ['RB_Llanura', 'RB_Colinas', 'RB_Isla', 'RB_Ciudad', 'RB_Desierto', 'RB_Luna', 'RB_Pizzeria'];
+const MAPAS_RB = ['RB_Llanura', 'RB_Colinas', 'RB_Isla', 'RB_Ciudad', 'RB_Desierto', 'RB_Luna', 'RB_Pizzeria', 'RB_Construct', 'RB_Flatgrass'];
+// los de Garry's Mod 10 (herramientas/gmod_mapa.py, desde los BSP originales)
+const MAPAS_GMOD = ['RB_Construct', 'RB_Flatgrass'];
 for (const m of MAPAS_RB) MAPA_ICONO[m] = 'mapa_' + m;
 const mapaValido = (m) => MAPAS_RB.includes(m) || MAPAS.includes(m);
 const MUNDO = { nombre: '', modelos: [], T: null, TN: null, nt: 0, cajas: [], celda: 6, grilla: new Map(), triCuerpo: [], marca: 1,
-  spawns: [], lo: v3(), hi: v3(), gravedad: 1 };
+  spawns: [], lo: v3(), hi: v3(), gravedad: 1, luces: [], lejosMin: 0 };
+// hasta dónde se ve: lo de la calidad, o más si el mapa lo pide (el fondo de los mapas de GMod, a 90-760 m)
+const vistaLejos = () => Math.max(GFX.lejos, MUNDO.lejosMin || 0);
 const _clave = (cx, cz) => (cx + 32768) * 65536 + (cz + 32768);
 function grillaAgregar(x0, z0, x1, z1, item) {
   const c = MUNDO.celda, G = MUNDO.grilla;
   const ax = Math.floor(x0 / c), az = Math.floor(z0 / c), bx = Math.floor(x1 / c), bz = Math.floor(z1 / c);
   for (let i = ax; i <= bx; i++) for (let j = az; j <= bz; j++) { const k = _clave(i, j); let l = G.get(k); if (!l) G.set(k, (l = [])); l.push(item); }
 }
+// triángulo sin área o una aguja (menos de 1 mm de alto): no sirve para chocar y el sólido que se arma con él da NaN
+// (los mapas de Source traen caras con vértices alineados)
+function triFino(v, a, b, c) {
+  const ux = v[b] - v[a], uy = v[b + 1] - v[a + 1], uz = v[b + 2] - v[a + 2], wx = v[c] - v[a], wy = v[c + 1] - v[a + 1], wz = v[c + 2] - v[a + 2];
+  const a2 = Math.hypot(uy * wz - uz * wy, uz * wx - ux * wz, ux * wy - uy * wx);
+  const l = Math.max(Math.hypot(ux, uy, uz), Math.hypot(wx, wy, wz), Math.hypot(wx - ux, wy - uy, wz - uz));
+  return !(a2 > 1e-9) || a2 / l < 1e-3;
+}
 function cargarMapa(nombre) {
-  MUNDO.nombre = nombre; MUNDO.modelos = []; MUNDO.cajas = []; MUNDO.grilla = new Map(); MUNDO.triCuerpo = []; MUNDO.spawns = [];
+  MUNDO.nombre = nombre; MUNDO.modelos = []; MUNDO.cajas = []; MUNDO.grilla = new Map(); MUNDO.triCuerpo = []; MUNDO.spawns = []; MUNDO.luces = [];
   const raices = DATA.esc[nombre], tris = [];
   const lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9);
   const q = new Quat(), pt = v3();
@@ -28,6 +40,8 @@ function cargarMapa(nombre) {
       const W = md.W[i];
       if (/^SpawnPoint/.test(x.n) || (x.pa >= 0 && /SpawnPoints/.test(arb[x.pa].n))) MUNDO.spawns.push(v3(W[12], W[13], W[14]));
       if (x.lz && x.lz.t === 1) { m4quat(W, q); const f = q.rot(v3(0, 0, 1)); R.sol.set(-f.x, -f.y, -f.z).norm(); R.solCol = x.lz.c.map((c) => c * x.lz.i); }
+      // luces del mapa (puntuales y focos): se prenden cada cuadro donde hay luces puntuales (efectos.js)
+      if (x.lz && (x.lz.t === 0 || x.lz.t === 2)) MUNDO.luces.push({ p: v3(W[12], W[13], W[14]), r: x.lz.r || 8, c: x.lz.c.map((c) => c * (x.lz.i || 1)), d: x.lz.t === 0 && x.lz.d ? v3(x.lz.d[0], x.lz.d[1], x.lz.d[2]).norm() : null, k: x.lz.t === 0 ? x.lz.k : -2 });
       if (!x.col) continue;
       for (const c of x.col) {
         if (c.tr) continue;
@@ -47,6 +61,7 @@ function cargarMapa(nombre) {
           const det = W[0] * (W[5] * W[10] - W[6] * W[9]) - W[4] * (W[1] * W[10] - W[2] * W[9]) + W[8] * (W[1] * W[6] - W[2] * W[5]);
           for (let k = 0; k + 2 < n; k += 3) {
             let a = I[k] * 3, b = I[k + 1] * 3, cc = I[k + 2] * 3; if (det < 0) { const t = b; b = cc; cc = t; }
+            if (triFino(vw, a, b, cc)) continue;   // (sin área: el choque contra eso daba NaN)
             tris.push(vw[a], vw[a + 1], vw[a + 2], vw[b], vw[b + 1], vw[b + 2], vw[cc], vw[cc + 1], vw[cc + 2]);
           }
         } else if (c.k === 's' || c.k === 'c') {
@@ -75,6 +90,7 @@ function cargarMapa(nombre) {
   R.cielo = { top: col('_TopColor', [0.28, 0.64, 1]), mid: col('_MiddleColor', [0.92, 0.92, 0.92]), bot: col('_BottomColor', [0.53, 0.58, 0.68]),
     exp: [(sky && sky.f && sky.f._TopExponent) || 0.8, (sky && sky.f && sky.f._BottomExponent) || 1], sol: col('_SunTint', [0.95, 0.82, 0.67]) };
   if (nombre === 'Space') R.cielo.sol = [0.6, 0.6, 0.6];
+  if (aj.cubo) R.cielo.cubo = aj.cubo;   // (cielo de caja: las seis caras ya dibujadas)
   const C = R.cielo, ai = aj.ai || 1;
   // luz ambiente como la del cielo en Unity (modo Skybox): bastante clara
   R.ambS = [0, 1, 2].map((k) => (C.top[k] * 0.4 + C.mid[k] * 0.6) * ai * 0.72);
@@ -83,9 +99,9 @@ function cargarMapa(nombre) {
   if (nombre === 'Space') { R.ambS = [0.5, 0.5, 0.56]; R.ambG = [0.34, 0.34, 0.38]; }
   if (aj.ambRB) { R.ambS = aj.ambRB[0].slice(); R.ambG = aj.ambRB[1].slice(); } // (luz de relleno propia: en la Luna el cielo negro no ilumina)
   MUNDO.sinSombra = nombre === 'Space' || !!aj.sinSombra; MUNDO.espacio = nombre === 'Space' || !!aj.espacio;
-  const lejos = GFX.lejos;
+  MUNDO.lejosMin = aj.lejos || 0; const lejos = vistaLejos();
   if (aj.fog && aj.fd > 0) R.niebla = { c: aj.fc.slice(0, 3), a: 0.15 / aj.fd, b: Math.min(lejos, 1.9 / aj.fd) };
-  else if (aj.fog && aj.fm === 1 && aj.fe > aj.fs) R.niebla = { c: aj.fc.slice(0, 3), a: aj.fs, b: aj.fe };
+  else if (aj.fog && aj.fm === 1 && aj.fe > aj.fs) R.niebla = Object.assign({ c: aj.fc.slice(0, 3) }, nieblaLineal(aj, lejos));
   else R.niebla = { c: C.mid.slice(), a: lejos * 0.7, b: lejos };
   if (nombre === 'Space' || aj.espacio) R.niebla = { c: [0, 0, 0], a: lejos * 0.8, b: lejos * 1.5 };
   MUNDO.gravedad = aj.grav || (nombre === 'Space' ? 0.16 : nombre === 'Mars' ? 0.38 : 1);
@@ -97,6 +113,12 @@ function cargarMapa(nombre) {
     const h = mundoRayo(v3(0, hi.y + 5, 0), v3(0, -1, 0), 1e4);
     MUNDO.spawns.push(v3(0, h ? hi.y + 5 - h.t + 1 : 2, 0));
   }
+}
+// niebla lineal del mapa (la de Source): la del mapa si la vista llega a todo el mapa; si no, cerrada antes de donde se
+// corta la vista (en las calidades bajas, lo de lejos se pierde en la niebla en vez de cortarse)
+function nieblaLineal(aj, lejos) {
+  const diag = Math.hypot(MUNDO.hi.x - MUNDO.lo.x, MUNDO.hi.z - MUNDO.lo.z);
+  return lejos >= diag ? { a: aj.fs, b: aj.fe } : { a: Math.min(aj.fs, lejos * 0.5), b: Math.min(aj.fe, lejos) };
 }
 // ---------------- choques contra el mundo ----------------
 // triángulo como poliedro chato (dos caras) para el solver; se arma la primera vez que algo lo toca

@@ -19,10 +19,13 @@ function datosSkin(skin) {
   const tobillo = h.LeftFoot !== undefined && h.RightFoot !== undefined ? Math.max(0.02, Math.min(rp[h.LeftFoot].y, rp[h.RightFoot].y)) : 0.08;
   return (_skinCache[skin] = { sub, h, rw, rp, cr, tobillo });
 }
+// tamaño de un personaje (los bajitos, como Jake o Finn, vienen con el modelo achicado en la raíz): alto respecto del Hero
+// (k) y la altura de los ojos respecto de la de un humano de ese alto (ojo). Los demás: 1 y 1
+function tamSkin(skin) { const t = DATA.tam && DATA.tam[skin]; return t ? { k: t[0], ojo: t[1] || 1 } : { k: 1, ojo: 1 }; }
 function crearPersona(skin, gorro, opt) {
   const D = datosSkin(skin), md = new Modelo(D.sub);
   const P = { skin, gorro, md, D, pos: v3(), yaw: 0, vel: v3(), suelo: true, sentado: false, agachado: false, arma: null, emote: null, emoteT: 0, t: Math.random() * 10,
-    fase: 0, vivo: true, rag: null, vida: 100, base: md.r.map((r) => r.slice()), visible: true, nombre: (opt && opt.nombre) || '', mira: 0 };
+    fase: 0, vivo: true, rag: null, vida: 100, base: md.r.map((r) => r.slice()), visible: true, nombre: (opt && opt.nombre) || '', mira: 0, tam: tamSkin(skin).k };
   // gorro: sub-árbol del contenedor Hats, pegado a la cabeza
   if (gorro && gorro !== 'HatEmpty') {
     const arb = arbolJugador(), hats = arb.findIndex((n, i) => n.n === 'Hats' && arb[n.pa] && arb[n.pa].n === 'CharactersRoot');
@@ -51,7 +54,7 @@ function aplicarGiros(P) {
 // el cuerpo según lo que hace
 function animarPersona(P, dt) {
   if (P.cuad) { natCuadPose(P, dt); return; } // SCP en cuatro patas (mod)
-  if (P.hum) { if (P.emote) P.emoteT += dt; animarHumano(P, dt); if (P.poseExtra) P.poseExtra(P, dt); emoPose(P, dt); cicPose(P, dt); return; }
+  if (P.hum) { if (P.emote) P.emoteT += dt; animarHumano(P, dt); if (P.poseExtra) P.poseExtra(P, dt); emoPose(P, dt); cicPose(P, dt); agarreGm(P); return; }
   P.acc = {}; animarPersona0(P, dt); aplicarGiros(P);
 }
 function animarPersona0(P, dt) {
@@ -116,12 +119,12 @@ function ubicarPersona(P) {
   if (P.rag || P.cuad) return;
   const y = P.pos.y - 1 - (P.bajar || 0) + (P.subir || 0) - (P.sentado ? 0.02 : 0);
   if (P.qVeh && P.sentado) {
-    // sentado: el giro completo del vehículo, con el pivote en la cadera (1 m arriba de los pies)
-    const q = P.qVeh, d = q.rot(v3(0, -1, 0));
+    // sentado: el giro completo del vehículo, con el pivote en la cadera (1 m arriba de los pies; menos en los bajitos)
+    const q = P.qVeh, d = q.rot(v3(0, -(P.tam || 1), 0));
     m4trs([P.pos.x + d.x, P.pos.y + d.y - (P.bajar || 0), P.pos.z + d.z], [q.x, q.y, q.z, q.w], [1, 1, 1], P.md.raiz);
   } else if (P.inclin) {
     // volando (mod): el cuerpo inclinado con el pivote en la cadera
-    const q = Quat.axis(0, 1, 0, P.yaw).mul(P.inclin), d = q.rot(v3(0, -1, 0));
+    const q = Quat.axis(0, 1, 0, P.yaw).mul(P.inclin), d = q.rot(v3(0, -(P.tam || 1), 0));
     m4trs([P.pos.x + d.x, P.pos.y + d.y, P.pos.z + d.z], [q.x, q.y, q.z, q.w], [1, 1, 1], P.md.raiz);
   } else m4trs([P.pos.x, y, P.pos.z], [0, Math.sin(P.yaw / 2), 0, Math.cos(P.yaw / 2)], [1, 1, 1], P.md.raiz);
   P.md.sucio = true;
@@ -140,8 +143,10 @@ function dibujarPersona(P) {
   }
   // el arma en la mano derecha (los modelos de tercera persona del juego, con su lugar en la mano)
   if (P.arma && !P.rag && !P.sentado && !P.emote && !P.cuad && !P.cicManos) {
-    const A = arma3p(P, P.arma), hi = P.D.h.RightHand;
-    if (A && hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], A.W, _mb); A.md.ponerRaiz(_mb); A.md.encolar(); }
+    if (!armaGmDibujar(P)) {
+      const A = arma3p(P, P.arma), hi = P.D.h.RightHand;
+      if (A && hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], A.W, _mb); A.md.ponerRaiz(_mb); A.md.encolar(); }
+    }
   }
 }
 // pies en el piso: después de animar, se sube o baja el cuerpo para que el pie más bajo quede apoyado
@@ -212,6 +217,157 @@ function piesIK(P, dt) {
   }
   if (cambio) md.sucio = true;
 }
+// ---------------- agarre como en GMod, con cualquier personaje ----------------
+// Las armas de GMod (herramientas/gmod.py) van como allá: el hueso de la mano del arma pegado al de la mano del jugador,
+// con la mano cerrada como la del jugador de GMod. Todo se hace en el marco de la mano (de la muñeca al nudillo del
+// medio, la normal de la palma y su perpendicular), que no depende de cómo esté armado cada esqueleto: el arma queda en
+// la palma y los dedos la rodean en los 32 personajes (y el arma se agranda con la mano: la de Freddy es más grande)
+const DEDOS_GM = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
+function huesosMixamo(D) {
+  if (!D.mx) { D.mx = {}; D.sub.forEach((n, i) => { const m = /^mixamorig\d*:(.*)$/.exec(n.n); if (m && D.mx[m[1]] === undefined) D.mx[m[1]] = i; }); }
+  return D.mx;
+}
+// el marco de la mano (columnas x, y, z y el origen en la muñeca) y el largo de la muñeca al nudillo del medio. Las manos
+// sin meñique usan el anular; las que tienen menos dedos (manos tipo mitón), el hueso de la mano con el marco que tiene
+// el del Hero respecto del suyo (los esqueletos de Mixamo tienen los mismos ejes)
+let _manoCal = null;
+function manoMarco(W, ix, lado, out) {
+  const h = W[ix[lado + 'Hand']]; if (!h) return 0;
+  const m = W[ix[lado + 'HandMiddle1']], i = W[ix[lado + 'HandIndex1']], k = W[ix[lado + 'HandPinky1']] || W[ix[lado + 'HandRing1']];
+  if (!m || !i || !k) {
+    const C = manoCalibrar(lado); if (!C || !i) return 0;
+    m4mul(h, C.K, out); const s = Math.hypot(out[0], out[1], out[2]) || 1;
+    for (let c = 0; c < 12; c++) if (c % 4 !== 3) out[c] /= s;   // (sin la escala del hueso)
+    return Math.hypot(i[12] - h[12], i[13] - h[13], i[14] - h[14]) * C.r;
+  }
+  let x0 = m[12] - h[12], x1 = m[13] - h[13], x2 = m[14] - h[14], L = Math.hypot(x0, x1, x2) || 1; x0 /= L; x1 /= L; x2 /= L;
+  // (hay esqueletos con el hueso de la mano a mitad del antebrazo: la palma medía 2,6 veces el dedo del medio, cuando en
+  // una mano es de 0,9 a 1,25. Ahí la muñeca va 1,15 dedos atrás del nudillo y la mano mide eso)
+  let o0 = h[12], o1 = h[13], o2 = h[14];
+  let f = 0, ant = m;   // (el largo del dedo: la suma de sus falanges, que no cambia al cerrarlo)
+  for (let s = 2; s <= 4; s++) { const q = W[ix[lado + 'HandMiddle' + s]]; if (!q) break; f += Math.hypot(q[12] - ant[12], q[13] - ant[13], q[14] - ant[14]); ant = q; }
+  if (f > 1e-4 && L > 1.5 * f) { L = 1.15 * f; o0 = m[12] - x0 * L; o1 = m[13] - x1 * L; o2 = m[14] - x2 * L; }
+  const a0 = k[12] - o0, a1 = k[13] - o1, a2 = k[14] - o2, b0 = i[12] - o0, b1 = i[13] - o1, b2 = i[14] - o2;
+  let n0 = a1 * b2 - a2 * b1, n1 = a2 * b0 - a0 * b2, n2 = a0 * b1 - a1 * b0; const dn = n0 * x0 + n1 * x1 + n2 * x2; n0 -= dn * x0; n1 -= dn * x1; n2 -= dn * x2;
+  const ln = Math.hypot(n0, n1, n2) || 1; n0 /= ln; n1 /= ln; n2 /= ln;
+  out[0] = x0; out[1] = x1; out[2] = x2; out[3] = 0; out[4] = n0; out[5] = n1; out[6] = n2; out[7] = 0;
+  out[8] = x1 * n2 - x2 * n1; out[9] = x2 * n0 - x0 * n2; out[10] = x0 * n1 - x1 * n0; out[11] = 0; out[12] = o0; out[13] = o1; out[14] = o2; out[15] = 1;
+  return L;
+}
+// el marco de la mano del Hero respecto de su hueso de la mano (y el largo respecto de la muñeca al índice), una vez
+function manoCalibrar(lado) {
+  const c = _manoCal || (_manoCal = {}); if (c[lado] !== undefined) return c[lado];
+  const D = datosSkin('Hero'), md = new Modelo(D.sub), ix = huesosMixamo(D), F = new Float32Array(16); md.actualizar();
+  const L = manoMarco(md.W, ix, lado, F), h = md.W[ix[lado + 'Hand']], i = md.W[ix[lado + 'HandIndex1']];
+  if (!L || !h || !i) return (c[lado] = null);
+  const Hn = Float32Array.from(h), s = Math.hypot(h[0], h[1], h[2]) || 1; for (let k = 0; k < 12; k++) if (k % 4 !== 3) Hn[k] /= s;
+  const K = new Float32Array(16); m4mul(M4.inv(Hn), F, K);
+  return (c[lado] = { K, r: L / Math.hypot(i[12] - h[12], i[13] - h[13], i[14] - h[14]) });
+}
+// el mango del arma en el marco de la mano (muñeca, nudillo del medio, palma; en metros): lo que queda dentro de la mano
+// (los vértices a menos de 6,4 cm del centro de la palma, con la escala de la mano), su eje principal y su radio
+function mangoArma(A, L) {
+  const k = L / DATA.gm.manoR.L, mc = mallaCPU(A.m), P = mc.P, I = mc.I, G = A.Gm || (A.Gm = Float32Array.from(A.G)), pal = v3(L * 0.5, 0, 0), rad = 0.064 * k, pts = [];
+  const V = []; for (let i = 0; i < P.length; i += 3) V.push(m4pt(G, P[i], P[i + 1], P[i + 2], v3()).scale(k));
+  // (sobre las aristas, cada 1 cm: las barras largas como la de la palanca tienen vértices sólo en las puntas)
+  for (let t = 0; t + 2 < I.length; t += 3) for (const [a, b] of [[I[t], I[t + 1]], [I[t + 1], I[t + 2]], [I[t + 2], I[t]]]) {
+    if (a > b) continue; const pa = V[a], pb = V[b], n = Math.max(1, Math.ceil(pa.distTo(pb) / 0.01));
+    for (let j = 0; j <= n; j++) { const q = vadd(pa, vscale(vsub(pb, pa), j / n)); if (q.distTo(pal) < rad) pts.push(q); }
+  }
+  if (pts.length < 6) return null;
+  const c = pts.reduce((a, q) => a.add(q), v3()).scale(1 / pts.length);
+  let ax = vsub(pts.reduce((a, q) => (q.distTo(c) > a.distTo(c) ? q : a), pts[0]), c).norm();
+  for (let it = 0; it < 40; it++) { const nx = v3(); for (const q of pts) { const d = vsub(q, c); nx.add(vscale(d, vdot(d, ax))); } ax = nx.norm(); }
+  const ds = pts.map((q) => { const d = vsub(q, c); return vsub(d, vscale(ax, vdot(d, ax))).len(); }).sort((x, y) => x - y);
+  return { c, ax, r: ds[(ds.length * 0.5) | 0] };
+}
+// cuánto rodea una cadena de puntos el eje del mango (grados, del primero al último) y lo lejos que queda un punto del eje
+function rodeaMango(Q, M) {
+  const pp = (q) => { const d = vsub(q, M.c); return vsub(d, vscale(M.ax, vdot(d, M.ax))); };
+  const ref = pp(Q[0]).norm(), e2 = vcross(M.ax, ref); let tot = 0, prev = null;
+  for (const q of Q) { const u = pp(q), a = Math.atan2(vdot(u, e2), vdot(u, ref)); if (prev !== null) { let da = a - prev; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; tot += da; } prev = a; }
+  return Math.abs(tot) * 180 / Math.PI;
+}
+const ejeMango = (q, M) => { const d = vsub(q, M.c); return vsub(d, vscale(M.ax, vdot(d, M.ax))).len(); };
+// la mano derecha que agarra: cada dedo (índice a meñique) se cierra sobre el mango de verdad. Desde la postura de GMod, se
+// prueba cuánto más (o menos) doblar las tres articulaciones (alrededor del eje en que se dobla ese dedo en GMod) y queda
+// la que deja las articulaciones y la punta donde las tiene GMod (en el marco de la mano, a la escala de la mano: el arma
+// está en el mismo lugar), sin meterse en el mango
+function cerrarSobreMango(D, md, ix, A, G, out) {
+  md.sucio = true; md.actualizar();
+  const F = new Float32Array(16), L = manoMarco(md.W, ix, 'Right', F), PG = G.Right && G.Right.pos; if (!L || !PG) return;
+  const Fi = M4.inv(F), M = mangoArma(A, L); if (!M) return;
+  const rf = 0.065 * L;   // (el radio de un dedo, con el tamaño de la mano)
+  for (const dedo of ['Index', 'Middle', 'Ring', 'Pinky']) {
+    const g = G.Right[dedo], T = PG[dedo]; if (!g || !T) continue;
+    const ids = [1, 2, 3, 4].map((k) => ix['RightHand' + dedo + k]); if (ids[0] === undefined || ids[1] === undefined || ids[2] === undefined) continue;
+    md.sucio = true; md.actualizar();
+    const J = ids.map((b) => (b === undefined ? null : m4pt(Fi, md.W[b][12], md.W[b][13], md.W[b][14], v3())));
+    if (!J[3]) J[3] = vadd(J[2], vscale(vsub(J[2], J[1]), 0.8));
+    const meta = T.map((q) => v3(q[0] * L, q[1] * L, q[2] * L));
+    const ax = vcross(v3(g[0][0], g[0][1], g[0][2]), v3(g[2][0], g[2][1], g[2][2])); if (ax.len() < 0.05) continue; ax.norm();
+    const doblar = (dl) => { const Q = J.map((q) => q.clone()); for (let k = 0; k < 3; k++) { const R = Quat.axis(ax.x, ax.y, ax.z, dl * (k === 2 ? 0.8 : 1)); for (let t = k + 1; t < 4; t++) Q[t] = vadd(Q[k], R.rot(vsub(Q[t], Q[k]))); } return Q; };
+    let mejor = null;
+    for (let dl = -0.7; dl <= 1.5; dl += 0.02) {
+      const Q = doblar(dl); let pen = 0, e = 0;
+      for (let k = 0; k < 3; k++) for (let u = 0.25; u <= 1; u += 0.25) { const d = ejeMango(vadd(Q[k], vscale(vsub(Q[k + 1], Q[k]), u)), M), f = Math.max(0, M.r + 0.6 * rf - d) / L; pen += f * f; }
+      for (const [k, w] of [[1, 0.5], [2, 1], [3, 1.5]]) e += w * (Q[k].distTo(meta[k]) / L) ** 2;
+      e += pen * 400; if (!mejor || e < mejor.e) mejor = { e, Q };
+    }
+    // cada falange hacia su dirección nueva, de a una (girando el hueso respecto de su padre)
+    for (let k = 0; k < 3; k++) {
+      const a = ids[k], bb = ids[k + 1]; if (a === undefined || bb === undefined) break;
+      md.sucio = true; md.actualizar();
+      const Wa = md.W[a], Wb = md.W[bb], cur = v3(Wb[12] - Wa[12], Wb[13] - Wa[13], Wb[14] - Wa[14]), th = vsub(mejor.Q[k + 1], mejor.Q[k]);
+      const t = v3(F[0] * th.x + F[4] * th.y + F[8] * th.z, F[1] * th.x + F[5] * th.y + F[9] * th.z, F[2] * th.x + F[6] * th.y + F[10] * th.z);
+      const loc = m4quat(md.W[D.sub[a].pa]).conj().mul(rotEntre(cur, t).mul(m4quat(Wa))).norm(), r = md.r[a];
+      r[0] = loc.x; r[1] = loc.y; r[2] = loc.z; r[3] = loc.w;
+      const o = out.find((x) => x[0] === a); if (o) { o[1] = loc.x; o[2] = loc.y; o[3] = loc.z; o[4] = loc.w; } else out.push([a, loc.x, loc.y, loc.z, loc.w]);
+    }
+  }
+}
+// los giros de los dedos para un arma, una vez por personaje: cada falange apunta como en GMod (en el marco de la mano),
+// en la pose de enlace, y la mano derecha se cierra sobre el mango (cerrarSobreMango); son giros respecto de la mano, así
+// que sirven en cualquier pose
+function dedosCalcular(D, tipo, A) {
+  const G = DATA.gm && DATA.gm.dedos && DATA.gm.dedos[tipo]; if (!G) return null;
+  const md = new Modelo(D.sub), ix = huesosMixamo(D), F = new Float32Array(16), out = []; md.actualizar();
+  for (const lado of ['Right', 'Left']) {
+    if (!manoMarco(md.W, ix, lado, F)) continue;
+    for (const dedo of DEDOS_GM) {
+      const dirs = G[lado] && G[lado][dedo]; if (!dirs) continue;
+      for (let s = 0; s < 3; s++) {
+        const a = ix[lado + 'Hand' + dedo + (s + 1)], b = ix[lado + 'Hand' + dedo + (s + 2)]; if (a === undefined || b === undefined) break;
+        md.sucio = true; md.actualizar();
+        const Wa = md.W[a], Wb = md.W[b], g = dirs[s], cur = v3(Wb[12] - Wa[12], Wb[13] - Wa[13], Wb[14] - Wa[14]);
+        const t = v3(F[0] * g[0] + F[4] * g[1] + F[8] * g[2], F[1] * g[0] + F[5] * g[1] + F[9] * g[2], F[2] * g[0] + F[6] * g[1] + F[10] * g[2]);
+        const loc = m4quat(md.W[D.sub[a].pa]).conj().mul(rotEntre(cur, t).mul(m4quat(Wa))).norm(), r = md.r[a];
+        r[0] = loc.x; r[1] = loc.y; r[2] = loc.z; r[3] = loc.w; out.push([a, loc.x, loc.y, loc.z, loc.w]);
+      }
+    }
+  }
+  if (A) cerrarSobreMango(D, md, ix, A, G, out);
+  return out;
+}
+// cada cuadro, con un arma de GMod en la mano: los dedos cerrados como en GMod
+function agarreGm(P) {
+  const A = P.arma && !P.emote && !P.sentado && DATA.gm && DATA.gm.armas[P.arma]; if (!A) return;
+  const c = P.D.dedosGm || (P.D.dedosGm = {}); if (c[P.arma] === undefined) c[P.arma] = dedosCalcular(P.D, A.tipo, A);   // (por arma: cada mango es distinto)
+  const L = c[P.arma]; if (!L) return;
+  for (const x of L) { const r = P.md.r[x[0]]; r[0] = x[1]; r[1] = x[2]; r[2] = x[3]; r[3] = x[4]; }
+  P.md.sucio = true;
+}
+// el arma de GMod en la mano: marco de la mano (agrandado con la mano) por la matriz del arma
+const _mfG = new Float32Array(16), _mgG = new Float32Array(16);
+function armaGmDibujar(P) {
+  const A = DATA.gm && DATA.gm.armas[P.arma]; if (!A) return false;
+  P.md.actualizar(); const L = manoMarco(P.md.W, huesosMixamo(P.D), 'Right', _mfG); if (!L) return false;
+  const k = clamp(L / DATA.gm.manoR.L, 0.3, 2.6); for (let i = 0; i < 12; i++) if (i % 4 !== 3) _mfG[i] *= k;   // (hasta Jake, que es chiquito)
+  if (!A.Gm) A.Gm = Float32Array.from(A.G);
+  m4mul(_mfG, A.Gm, _mgG);
+  const c = P.armasGm || (P.armasGm = {}), md = c[P.arma] || (c[P.arma] = new Modelo([{ n: P.arma, p: [0, 0, 0], r: [0, 0, 0, 1], s: [1, 1, 1], pa: -1, m: A.m, mt: A.mt }]));
+  md.ponerRaiz(_mgG); md.encolar(); return true;
+}
 const ARMA_3P = { Pistol: 'pistol', Revolver: 'revolver', Smg: 'smg', Akm: 'Akm', Sniper: 'sniper', Shotgun: 'Shotgun', RPG: 'RocketLauncher', Crossbow: 'crossbow', Bat: 'bat', GravityGun: 'GravityGun', PhysicsGun: 'PhysicGun', ToolBaton: 'ToolBaton' };
 const _arma3pDatos = {};
 function arma3p(P, nombre) {
@@ -279,6 +435,7 @@ function danarPersona(P, dan, pos, d) {
 function jugadorCuerpoNuevo() {
   if (JUG.cuerpo) borrarPersona(JUG.cuerpo);
   JUG.cuerpo = crearPersona(JUG.skinRol || JUG.skinMod || PREFS.skin, PREFS.gorro, { nombre: PREFS.nombre });
+  const t = tamSkin(JUG.cuerpo.skin); jugadorTam(t.k, t.ojo);
 }
 function jugadorRagdoll() { const P = JUG.cuerpo; if (!P) return; P.vel.copy(JUG.vel); ragdoll(P, vscale(JUG.vel, 0.2)); }
 function emote(e) { if (!JUG.cuerpo || JUG.vehiculo) return; JUG.cuerpo.emote = e; JUG.cuerpo.emoteT = 0; if (!JUG.tercera) { JUG.tercera = true; JUG.terceraEmote = true; } if (typeof redEmote === 'function') redEmote(e); }

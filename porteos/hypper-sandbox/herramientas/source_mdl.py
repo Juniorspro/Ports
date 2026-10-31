@@ -52,6 +52,12 @@ class Modelo:
         self.texturas = [_cstr(b, txi + k * 64 + struct.unpack_from('<i', b, txi + k * 64)[0]) for k in range(ntex)]
         self.carpetas = [_cstr(b, struct.unpack_from('<i', b, cdi + k * 4)[0]) for k in range(ncd)]
         self.pieles = [list(struct.unpack_from('<%dh' % nsr, b, ski + f * nsr * 2)) for f in range(nsf)] if nsr else [[]]
+        # puntos de enganche (la boca del arma, la mano...): nombre, hueso y su matriz 3×4 respecto del hueso
+        nat, ati = struct.unpack_from('<2i', b, 240); self.adjuntos = []
+        for k in range(nat):
+            o = ati + k * 92
+            self.adjuntos.append(dict(n=_cstr(b, o + struct.unpack_from('<i', b, o)[0]), hueso=struct.unpack_from('<i', b, o + 8)[0],
+                                      m=np.array(struct.unpack_from('<12f', b, o + 12)).reshape(3, 4)))
         # cuerpos → modelos → mallas
         self.cuerpos = []
         for k in range(nbp):

@@ -38,7 +38,7 @@ const srgb3 = (a) => [srgb(a[0]), srgb(a[1]), srgb(a[2])];
 
 // ---------------- shaders ----------------
 const VS = `
-layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec2 aU;
+layout(location=0) in vec3 aP; layout(location=1) in vec4 aN; layout(location=2) in vec2 aU;
 #ifdef SKIN
 layout(location=3) in vec4 aJ; layout(location=4) in vec4 aW;
 uniform vec4 uB[NHUESOS];
@@ -47,6 +47,9 @@ uniform mat4 uVP, uM; uniform vec3 uQ0, uQ1; uniform vec4 uST;
 out vec2 vU;
 #ifndef DEPTH
 out vec3 vN; out vec3 vW;
+#endif
+#ifdef MEZ
+out float vMz;
 #endif
 invariant gl_Position;
 #ifdef GL1
@@ -59,7 +62,10 @@ float h1(float h) { float s = 1.0; if (h >= 32768.0) { s = -1.0; h -= 32768.0; }
 void main(){
   vec3 p = uQ0 + aP * uQ1;
 #ifndef DEPTH
-  vec3 n = aN;
+  vec3 n = aN.xyz;
+#endif
+#ifdef MEZ
+  vMz = aN.w;
 #endif
 #ifdef SKIN
   vec4 r0 = vec4(0.0), r1 = vec4(0.0), r2 = vec4(0.0);
@@ -96,6 +102,10 @@ in vec3 vN; in vec2 vU; in vec3 vW;
 uniform sampler2D uT;
 #ifdef TERR
 uniform sampler2D uT1, uT2, uT3; uniform vec4 uS1; uniform vec2 uS3;
+#endif
+// mezcla por vértice de dos texturas (los terrenos de los mapas de Source): el peso viene en el 4.º byte de la normal
+#ifdef MEZ
+uniform sampler2D uT1; in float vMz;
 #endif
 uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uCam, uEm; uniform vec2 uNie; uniform float uCorte;
 #if LUZ >= 1
@@ -289,6 +299,8 @@ void main(){
 #ifdef TERR
   vec4 kc = texture(uT, vU);
   vec4 t = vec4(texture(uT1, vU * uS1.xy).rgb * kc.r + texture(uT2, vU * uS1.zw).rgb * kc.g + texture(uT3, vU * uS3).rgb * kc.b, 1.0);
+#elif defined(MEZ)
+  vec4 t = mix(texture(uT, vU), texture(uT1, vU), clamp(vMz, 0.0, 1.0));
 #else
   vec4 t = texture(uT, vU);
 #endif
@@ -456,6 +468,31 @@ void main(){
     float l = max(dot(d, uLuna), 0.0);
     c += vec3(0.85, 0.88, 1.0) * (smoothstep(0.9993, 0.9995, l) * 6.0 + pow(l, 60.0) * 0.08) * uNoche;
   }
+#if SALIDA == 2
+  o = vec4(c, 1.0);
+#else
+  o = vec4(pow(aces(c * uExpo), vec3(1.0 / 2.2)), 1.0);
+#endif
+#endif
+}`;
+// cielo de caja (los mapas de GMod: el cielo 2D y la ciudad de fondo ya dibujados en las seis caras de un cubo). Con el
+// ciclo del día se tiñe con el color del cielo y de noche se va al degradé oscuro
+const FS_CUBO = `
+precision highp float; in vec3 vD; uniform samplerCube uCubo; uniform vec3 uTop, uMid, uBot, uCam, uTinte; uniform vec2 uExp; uniform float uExpo, uCieloK, uDia; out vec4 o;
+#ifdef GL1
+#define TCUBO textureCube
+#else
+#define TCUBO texture
+#endif
+vec3 aces(vec3 x) { return clamp(x * (2.51 * x + 0.03) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+void main(){
+  vec3 d = normalize(vD - uCam);
+  vec3 g = d.y > 0.0 ? mix(uMid, uTop, pow(d.y, uExp.x)) : mix(uMid, uBot, pow(-d.y, uExp.y));
+  vec3 c = mix(g, TCUBO(uCubo, d).rgb * uTinte, uDia);
+#if SALIDA == 0
+  o = vec4(c, 1.0);
+#else
+  c = pow(c, vec3(2.2)) * uCieloK;
 #if SALIDA == 2
   o = vec4(c, 1.0);
 #else
@@ -659,7 +696,7 @@ function mallaGL(i) {
   const d = DATA.ms[i], gl = R.gl, vao = gl.createVertexArray(); gl.bindVertexArray(vao);
   const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, BIN.subarray(d.o, d.o + d.v * 14), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.UNSIGNED_SHORT, true, 14, 0);
-  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.BYTE, true, 14, 6);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.BYTE, true, 14, 6);
   gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, R.gl1 ? gl.UNSIGNED_SHORT : gl.HALF_FLOAT, false, 14, 10);
   if (d.sk !== undefined) {
     const sb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, sb); gl.bufferData(gl.ARRAY_BUFFER, BIN.subarray(d.sk, d.sk + d.v * 8), gl.STATIC_DRAW);
@@ -719,8 +756,10 @@ function matGL(i) {
   m.lampara = /^(Lamp_color|GS_Lamp_color|lampes|light|abatjour|Spotlight|LampOffice)$/i.test(d.n || '');
   if (sh === 'Standard' && f._Glossiness !== undefined) { m.pbr = [clamp(1 - f._Glossiness, 0.05, 1), f._Metallic || 0, 0.04]; }
   // la hierba "sin luz" del juego en las calidades altas recibe luz y sombra como follaje
-  m.claveBase = (m.terr ? 'TERR' : '') + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit && !m.fol ? 'UNLIT' : '') + ',' + (m.fol ? 'FOL' : '');
-  m.claveGam = (m.terr ? 'TERR' : '') + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit ? 'UNLIT' : '');
+  if (d.t2 !== undefined && !m.terr) m.mez = d.t2;   // (segunda textura mezclada por vértice)
+  const tx = m.terr ? 'TERR' : m.mez !== undefined ? 'MEZ' : '';
+  m.claveBase = tx + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit && !m.fol ? 'UNLIT' : '') + ',' + (m.fol ? 'FOL' : '');
+  m.claveGam = tx + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit ? 'UNLIT' : '');
   m.sombra = !m.blend && !m.add && !m.oculto;
   return (R.mats[i] = m);
 }
@@ -741,13 +780,16 @@ function encolar(mi, sub, mat, M, huesos, extra) {
     const Mx = p.M; m4pt(Mx, c[0], c[1], c[2], _vq);
     p.cx = _vq.x; p.cy = _vq.y; p.cz = _vq.z; p.r = r * (Mx === IDM ? 1 : m4esc(Mx));
   } else {
-    // con piel: el centro de la malla llevado por cada hueso, promediado (las filas son 3 x vec4 por hueso)
-    let x = 0, y = 0, z = 0, n = 0; const c = m.c, H = huesos, nb = Math.min(56, H.length / 12);
+    // con piel: el centro de la malla llevado por cada hueso, promediado (las filas son 3 x vec4 por hueso). El radio, con
+    // la escala de la piel: hay mallas guardadas en centímetros que los huesos agrandan ×100 (con el radio sin escalar, la
+    // esfera medía 2 cm y el cuerpo entero desaparecía al mirar de cerca una mano)
+    let x = 0, y = 0, z = 0, n = 0, e = 0; const c = m.c, H = huesos, nb = Math.min(56, H.length / 12);
     for (let b = 0; b < nb; b += 2) {
       const o = b * 12; if (!H[o] && !H[o + 5]) continue;
       x += H[o] * c[0] + H[o + 1] * c[1] + H[o + 2] * c[2] + H[o + 3]; y += H[o + 4] * c[0] + H[o + 5] * c[1] + H[o + 6] * c[2] + H[o + 7]; z += H[o + 8] * c[0] + H[o + 9] * c[1] + H[o + 10] * c[2] + H[o + 11]; n++;
+      if (!e) e = Math.hypot(H[o], H[o + 1], H[o + 2]);
     }
-    if (n) { p.cx = x / n; p.cy = y / n; p.cz = z / n; } p.r = m.r * 1.6;
+    if (n) { p.cx = x / n; p.cy = y / n; p.cz = z / n; } p.r = m.r * 1.6 * (e || 1);
   }
 }
 const _vq = v3(), EM_LAMPARA = [2.6, 2.2, 1.5];
@@ -818,6 +860,7 @@ function dibujarPedido(p, P) {
       gl.uniform4f(u.uS1, S[0] ? S[0][1] : 1, S[0] ? S[0][2] : 1, S[1] ? S[1][1] : 1, S[1] ? S[1][2] : 1); gl.uniform2f(u.uS3, S[2] ? S[2][1] : 1, S[2] ? S[2][2] : 1);
       gl.activeTexture(gl.TEXTURE0);
     }
+    if (mt.mez !== undefined && u.uT1) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texGL(mt.mez)); gl.activeTexture(gl.TEXTURE0); }
     R.texAct = mt;
   }
   const c = p.x && p.x.c ? p.x.c : mt.c;
@@ -927,8 +970,42 @@ function dibujarProfundidad() {
 }
 // compatibilidad: arma la cola con lo encolado y lo dibuja todo
 function dibujarCola() { armarCola(); dibujarOpacos(); dibujarTransparentes(); itemsLimpiar(); }
+// las seis caras del cielo de caja a un cubemap (se decodifican aparte: sin dar vuelta ni achicar)
+function cuboGL(ids) {
+  const k = ids.join(','), gl = R.gl;
+  if (R.cubo && R.cubo.k === k) return R.cubo.t;
+  if (R.cubo && R.cubo.t) gl.deleteTexture(R.cubo.t);
+  const C = (R.cubo = { k, t: null });
+  const dec = (i) => { const b = new Blob([PK.parte('t' + i)], { type: 'image/webp' }); return typeof createImageBitmap === 'function' ? createImageBitmap(b, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }).catch(() => decodificarImg(b).then((x) => x[0])) : decodificarImg(b).then((x) => x[0]); };
+  Promise.all(ids.map(dec)).then((ims) => {
+    if (R.cubo !== C) return;
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_CUBE_MAP, t); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    ims.forEach((im, f) => { gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + f, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, im); im.close && im.close(); });
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    C.t = t;
+  }).catch(() => {});
+  return null;
+}
+function dibujarCubo(IVP, C, cubo) {
+  const gl = R.gl, k = 'cubo|' + R.salida; let P = R.progs.get(k);
+  if (!P) { P = shader(VS_CIELO, FS_CUBO, ['SALIDA=' + (R.salida === 'hdr' ? 2 : R.salida === 'ldr' ? 1 : 0)]); R.progs.set(k, P); gl.uniform1i(P.u.uCubo, 4); }
+  gl.useProgram(P.p); R.progAct = P;
+  // cuánto se ve el cubo (de día todo; de noche el degradé) y su tinte (atardecer): del cielo de ahora contra el del mapa
+  const B = typeof DIA !== 'undefined' && DIA.base && DIA.base.cielo, lum = (c) => c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11;
+  const dia = B ? clamp(lum(C.top) / Math.max(1e-3, lum(B.top)), 0, 1) : 1;
+  const tin = B ? [0, 1, 2].map((i) => clamp(C.mid[i] / Math.max(1e-3, B.mid[i]), 0, 1.5)) : [1, 1, 1];
+  gl.uniformMatrix4fv(P.u.uIVP, false, IVP); gl.uniform3f(P.u.uCam, R.camPos.x, R.camPos.y, R.camPos.z);
+  gl.uniform3fv(P.u.uTop, C.top); gl.uniform3fv(P.u.uMid, C.mid); gl.uniform3fv(P.u.uBot, C.bot); gl.uniform2fv(P.u.uExp, C.exp);
+  gl.uniform3fv(P.u.uTinte, tin); gl.uniform1f(P.u.uDia, dia);
+  if (P.u.uExpo) gl.uniform1f(P.u.uExpo, R.expo);
+  if (P.u.uCieloK) gl.uniform1f(P.u.uCieloK, R.cieloK || 1);
+  gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubo); gl.activeTexture(gl.TEXTURE0);
+  gl.depthMask(false); gl.depthFunc(gl.LEQUAL); gl.bindVertexArray(R.quad); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindVertexArray(null); R.vaoAct = null; gl.depthMask(true); gl.depthFunc(gl.LESS);
+}
 function dibujarCielo(IVP) {
   const gl = R.gl, C = R.cielo; if (!C) return;
+  if (C.cubo) { const t = cuboGL(C.cubo); if (t) { dibujarCubo(IVP, C, t); return; } }
   let P;
   if (R.salida === 'gam') P = R.prog.cieloG;
   else { const nub = GFX.nubes && !MUNDO.espacio, k = 'cielo|' + R.salida + '|' + (nub ? 1 : 0); P = R.progs.get(k); if (!P) { P = shader(VS_CIELO, FS_CIELO, ['SALIDA=' + (R.salida === 'hdr' ? 2 : 1)].concat(nub ? ['NUBES'] : [])); R.progs.set(k, P); } } // (sin aire, sin nubes)

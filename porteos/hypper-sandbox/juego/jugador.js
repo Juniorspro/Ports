@@ -8,6 +8,14 @@ const JUG = { pos: v3(0, 5, 0), vel: v3(), yaw: 0, pitch: 0, suelo: false, suelo
   vehiculo: null, tiempoSuelo: 0, sobre: null, muertoT: 0, camPos: v3(), noclip: false };
 const _p1 = v3(), _p2 = v3(), _pn = v3(), _trisJ = [], _cercaJ = [];
 const MEDIA_VUELTA = Quat.axis(0, 1, 0, Math.PI);
+// el cuerpo según el alto del personaje (k: 1 = el de siempre, 1,9 m): los pies quedan donde estaban (la esfera de abajo
+// no cambia) y arriba van las esferas que entren hasta la cabeza; los ojos a 1,67 m de los pies en el de siempre
+JUG.esf = [[-0.5, true], [0, false], [0.5, false]]; JUG.ojoAlto = 1.67; JUG.tam = 1;
+function jugadorTam(k, ojo) {
+  const J = JUG, tope = Math.max(-J.medio, -0.95 + 1.9 * k - J.radio), n = Math.max(1, Math.ceil((tope + J.medio) / 0.5 - 1e-6) + 1);
+  J.esf = []; for (let i = 0; i < n; i++) J.esf.push([n > 1 ? -J.medio + (tope + J.medio) * i / (n - 1) : -J.medio, i === 0]);
+  J.ojoAlto = 1.67 * k * (ojo || 1); J.tam = k;
+}
 function jugadorAparecer() {
   const s = MUNDO.spawns[(Math.random() * MUNDO.spawns.length) | 0] || v3(0, 5, 0);
   JUG.pos.set(s.x, s.y + 1.2, s.z); JUG.vel.set(0, 0, 0); JUG.vida = JUG.vidaMax || 100; JUG.vivo = true; JUG.vehiculo = null;
@@ -115,7 +123,7 @@ function jugadorMoverChocar(dt) {
     J.pos.addS(J.vel, dt / pasos);
     for (let it = 0; it < 2; it++) {
       const corr = _pn.set(0, 0, 0);
-      for (const [dy, pie] of [[-J.medio, true], [0, false], [J.medio, false]]) {
+      for (const [dy, pie] of J.esf) {
         _p2.set(J.pos.x, J.pos.y + dy, J.pos.z);
         esferaFuera(_p2, J.radio, corr, pie);
         // objetos sueltos
@@ -143,12 +151,12 @@ function jugadorCamara(out) {
   const ag = J.noclip ? 0 : (J.agK || 0), bob = J.bobK || 0, ph = J.bob || 0;
   const dy = -J.caidaP * 0.45 + Math.abs(Math.sin(ph)) * 0.035 * bob - 0.015 * bob;
   if (NAT.scp && J.vivo) J.ojoPos.copy(J.pos).addS(NAT.up, 0.5); // SCP: los ojos cerca del piso que pisa
-  else J.ojoPos.set(J.pos.x, J.pos.y + J.ojo * (1 - 0.45 * ag) + dy, J.pos.z);
+  else J.ojoPos.set(J.pos.x, J.pos.y - 0.95 + J.ojoAlto * (1 - 0.194 * ag) + dy, J.pos.z);   // (agachado baja el 19 % del alto de los ojos)
   J.q.copy(Quat.euler(J.yaw, J.pitch, Math.sin(ph) * 0.006 * bob));
   J.adelante.copy(J.q.rot(v3(0, 0, 1)));
   out.q.copy(J.q);
   if (J.tercera || !J.vivo) {
-    const atras = vscale(J.adelante, -3.1), d = atras.len(), dir = vscale(atras, 1 / d);
+    const atras = vscale(J.adelante, -3.1 * clamp(0.45 + 0.55 * J.tam, 0.6, 1)), d = atras.len(), dir = vscale(atras, 1 / d);   // (más cerca de los bajitos)
     const h = mundoRayo(J.ojoPos, dir, d + 0.3), L = h ? Math.max(0.3, h.t - 0.3) : d;
     out.pos.copy(J.ojoPos).addS(dir, L);
   } else out.pos.copy(J.ojoPos);

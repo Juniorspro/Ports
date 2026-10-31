@@ -224,7 +224,10 @@ function menuAccion(r) {
 }
 // ---------------- tienda: personajes y gorros, con el personaje en 3D ----------------
 const RETRATO = { Hero: 'hero', Soldier: 'soldier', Jean: 'jean', Derik: 'derik', Business: 'business', SpecialForcesW: 'specialforce', SpecialForcesM: 'specialforce_2', Prisoner01: 'Prisoner01', PilotFemale: 'PilotFemale', Butcher: 'Butcher', Swat: 'swat', Military: 'Military', Engineer: 'Engineer', Corpse: 'corpse', Goku: 'goku', Ciclope: 'ciclope', Astronauta: 'astronauta', Ninja: 'ninja', Robot: 'robot', Zombi: 'zombi', Bombera: 'bombera', Pirata: 'pirata',
-  Broly: 'broly', Vegeta: 'vegeta', Gohan: 'gohan', Piccolo: 'piccolo', Freezer: 'freezer', Trunks: 'trunks', Freddy: 'freddy', Bonnie: 'bonnie', Chica: 'chica', Foxy: 'foxy' };
+  Broly: 'broly', Vegeta: 'vegeta', Gohan: 'gohan', Piccolo: 'piccolo', Freezer: 'freezer', Trunks: 'trunks', Freddy: 'freddy', Bonnie: 'bonnie', Chica: 'chica', Foxy: 'foxy',
+  Finn: 'finn', Jake: 'jake', Rick: 'rick', RickPrime: 'rickprime' };
+// el nombre que se ve (el de los datos no lleva espacios)
+const SKIN_NOM = { RickPrime: 'Rick Prime' }, skinNom = (s) => SKIN_NOM[s] || s;
 function tienda(tab) {
   MENU.tab = tab;
   const cat = buscar(nodo('Main/Shop/Character'), 'Root');
@@ -236,7 +239,7 @@ function tienda(tab) {
     const d = document.createElement('div'), sel = tab === 'Character' ? PREFS.skin === s : PREFS.gorro === s;
     d.className = 'celda' + (sel ? ' sel' : '');
     const ic = tab === 'Character' ? RETRATO[s] || s : s;
-    d.innerHTML = `<i style="background-image:url(${DATA.ico[ic] ? icono(ic) : icono('western-hat')})"></i><b>${s === 'HatEmpty' ? '—' : s.replace(/^Hat/, '')}</b>`;
+    d.innerHTML = `<i style="background-image:url(${DATA.ico[ic] ? icono(ic) : icono('western-hat')})"></i><b>${s === 'HatEmpty' ? '—' : tab === 'Character' ? esc(skinNom(s)) : s.replace(/^Hat/, '')}</b>`;
     d.onclick = () => { if (tab === 'Character') PREFS.skin = s; else PREFS.gorro = s; guardarPrefs(); tienda(tab); menuLobby(true, true); };
     inv.el.appendChild(d);
   }

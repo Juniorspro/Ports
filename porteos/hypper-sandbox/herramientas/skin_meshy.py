@@ -3,14 +3,21 @@
 # la del Hero, con los largos del personaje), las articulaciones del esqueleto del juego se ponen donde están en esa
 # malla (con las mismas orientaciones de enlace del Hero: así anima con todos los clips del juego) y los pesos son los
 # del riggeo. La altura se ajusta para que la cadera quede a la del Hero (los pies apoyan igual en todas las animaciones).
-# Uso: python3 -I skin_meshy.py GLB NOMBRE ICONO.png|- PAQUETE_ORIGEN PAQUETE_NUEVO [--quitar NOMBRE_VIEJO]
+# Con --alto K el personaje mide K veces lo que el Hero (Jake, Finn: los bajitos) achicando la raíz, así anima igual y
+# los pies apoyan; --ojo F corrige la altura de los ojos de la cámara (respecto de la de un humano de ese alto).
+# El retrato sale de la imagen ICONO (la cabeza, arriba al centro; --retrato x0,y0,x1,y1 en fracciones para otro recorte).
+# Uso: python3 -I skin_meshy.py GLB NOMBRE ICONO.png|- PAQUETE_ORIGEN PAQUETE_NUEVO [--quitar NOMBRE_VIEJO] [--alto K] [--ojo F] [--retrato x0,y0,x1,y1]
 import sys, os, io, json, gzip, shutil, numpy as np
 from PIL import Image, ImageDraw
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import glb
 
-args = sys.argv[1:]; quitar = None
+args = sys.argv[1:]; quitar = None; ALTO = None; OJO = 1.0
 if '--quitar' in args: i = args.index('--quitar'); quitar = args[i + 1]; del args[i:i + 2]
+if '--alto' in args: i = args.index('--alto'); ALTO = float(args[i + 1]); del args[i:i + 2]
+if '--ojo' in args: i = args.index('--ojo'); OJO = float(args[i + 1]); del args[i:i + 2]
+RECORTE = (0.36, 0, 0.64, 0.28)
+if '--retrato' in args: i = args.index('--retrato'); RECORTE = tuple(float(x) for x in args[i + 1].split(',')); del args[i:i + 2]
 GLB, NOM, ICO, PK0, PK1 = args[:5]
 d = json.load(gzip.open(PK0 + '/d.json.gz')); BIN = bytearray(gzip.decompress(open(PK0 + '/m.bin.gz', 'rb').read()))
 arb = d['pf']['PhotonPlayer#b2dc44']
@@ -37,7 +44,7 @@ def quitar_skin(nom):
     assert fin <= len(BIN)
     del arb[len(arb) - len(sub):]; d['ms'].pop(); d['mt'].pop(); d['tx'].pop(); BIN = BIN[:lo]
     if nom in d['chars']: d['chars'].remove(nom)
-    d['ico'].pop(nom.lower(), None)
+    d['ico'].pop(nom.lower(), None); d.get('tam', {}).pop(nom, None)
     print('quitado', nom, 'nodos', len(sub), 'bytes', fin - lo)
     return ti
 ti_quitada = quitar_skin(quitar) if quitar else None
@@ -179,11 +186,14 @@ while k < len(sub): sub += [i for i, n in enumerate(arb) if n['pa'] == sub[k] an
 sub.sort(); base = len(arb); mapa = {o: base + i for i, o in enumerate(sub)}
 pos_bo = {b: KB[nombres[k]] for k, b in enumerate(bo)}
 rid = 9900100 + len(d['chars'])
+# el alto pedido: la raíz se achica (o agranda) entera; todo lo de abajo (huesos, cadera de las animaciones, colisionadores)
+# la sigue. Se compara con el Hero en la misma pose de enlace (pies en 0)
+fA = ALTO * HP[:, 1].max() / V2[:, 1].max() if ALTO else 1.0
 for o in sub:
     n = json.loads(json.dumps(arb[o]))
     n['pa'] = mapa.get(n['pa'], n['pa'])
     if 'bo' in n: n['bo'] = [mapa.get(b, -1) if b >= 0 else -1 for b in n['bo']]
-    if o == HERO: n['n'] = NOM; n.pop('lod', None)
+    if o == HERO: n['n'] = NOM; n.pop('lod', None); n['s'] = [x * fA for x in n['s']]
     if o == HM: n['n'] = NOM; n['m'] = mi; n['mt'] = [ma]; n['rid'] = rid
     nm = arb[o]['n'].split(':')[-1]
     if o in pos_bo:
@@ -206,6 +216,7 @@ for o in sub:
         n['p'] = (np.array(arb[o]['p']) * razon_de(GRUPO.get(arb[arb[o]['pa']]['n'].split(':')[-1], nm))).tolist()
     arb.append(n)
 d['chars'].append(NOM)
+if ALTO: d.setdefault('tam', {})[NOM] = [ALTO, OJO]; print('alto', ALTO, 'del Hero · raíz ×', round(fA, 4), '· ojos ×', OJO)
 # ---------------- archivos ----------------
 if os.path.exists(PK1): shutil.rmtree(PK1)
 os.makedirs(PK1 + '/t'); os.makedirs(PK1 + '/i'); os.makedirs(PK1 + '/a')
@@ -233,7 +244,7 @@ ta[mk == 0] = ta[mk > 0].mean(0)
 Image.fromarray(np.clip(ta, 0, 255).astype(np.uint8)).resize((1024, 1024), Image.LANCZOS).save(PK1 + '/t/%d.webp' % ti, 'WEBP', quality=88, method=6)
 if ICO != '-':
     r = Image.open(ICO).convert('RGB'); W_, H_ = r.size
-    r.crop((int(W_ * 0.36), 0, int(W_ * 0.64), int(H_ * 0.28))).resize((256, 256), Image.LANCZOS).save(PK1 + '/i/%s.webp' % NOM.lower(), 'WEBP', quality=88)
+    r.crop((int(W_ * RECORTE[0]), int(H_ * RECORTE[1]), int(W_ * RECORTE[2]), int(H_ * RECORTE[3]))).resize((256, 256), Image.LANCZOS).save(PK1 + '/i/%s.webp' % NOM.lower(), 'WEBP', quality=88)
     d['ico'][NOM.lower()] = NOM.lower()
 open(PK1 + '/m.bin.gz', 'wb').write(gzip.compress(bytes(BIN), 6))
 open(PK1 + '/d.json.gz', 'wb').write(gzip.compress(json.dumps(d, separators=(',', ':')).encode(), 6))

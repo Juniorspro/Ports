@@ -14,12 +14,16 @@ const DEF_ARMAS = {
   Crossbow: { nodo: 'Crossbow', ic: 'W_Crossbow', fuego: 'crossbowfire', sacar: 'crossbowready', recarga: 'crossbowreload', sF: 'crossbowfire', sS: 'genericReady', sR: 'crossbowreload', car: 1, cad: 0.4, dan: 90, tipo: 'flecha', semi: true, prop: 'Crossbow' },
   Bat: { nodo: 'Bat', ic: 'W_Bat', fuego: 'bathit1', sacar: 'batReady', sF: 'Arm_Swing_edited', sS: 'grabholster', car: 0, cad: 0.55, dan: 35, tipo: 'golpe', alcance: 2.4, prop: 'Bat' },
   Hands: { nodo: 'Hands', ic: 'Hands', fuego: 'Punch', fuego2: 'Hook', sacar: 'Draw', sF: 'Arm_Swing_edited', car: 0, cad: 0.45, dan: 15, tipo: 'golpe', alcance: 2.0 },
+  // la palanca de Half-Life 2 / Garry's Mod (herramientas/gmod.py): el brazo con el guante del traje HEV, sus animaciones
+  // (sacar, quieto, tres golpes que pegan y dos al aire) y sus sonidos; alcance y ritmo como en HL2 (75 unidades, 0,4 s)
+  Crowbar: { nodo: 'Crowbar', ic: 'W_Crowbar', fuego: 'CB_miss1', pega: ['CB_hit1', 'CB_hit2', 'CB_hit3'], falla: ['CB_miss1', 'CB_miss2'], sacar: 'CB_draw', quieto: 'CB_idle',
+    sF: 'CB_Swing', sImp: ['CB_Impact1', 'CB_Impact2'], sCarne: ['CB_Flesh1', 'CB_Flesh2', 'CB_Flesh3', 'CB_Flesh4', 'CB_Flesh5'], car: 0, cad: 0.4, dan: 25, empuje: 70, tipo: 'golpe', alcance: 1.95, prop: 'Crowbar' },
   GravityGun: { nodo: 'GravityGun', ic: 'W_GravityGun', fuego: 'Armature|Bottle-Hit', sacar: 'Armature|Bottle-Draw', sS: 'genericReadyNew_1', car: 0, cad: 0.5, tipo: 'grav', prop: 'GravityGun' },
   PhysicsGun: { nodo: 'PhysicsGun', ic: 'PhysicsGun', sS: 'genericReadyNew_1', car: 0, cad: 0.1, tipo: 'fisica' },
   ToolBaton: { nodo: 'ToolBaton', ic: 'ToolBaton', fuego: 'Armature|Bottle-Hit', sacar: 'Armature|Bottle-Draw', sS: 'genericReadyNew_1', car: 0, cad: 0.35, tipo: 'tool' },
   Camera: { nodo: 'Camera', ic: 'Camera', sS: 'Click', car: 0, cad: 0.6, tipo: 'foto' },
 };
-const ARM = { lista: ['RPG', 'Pistol', 'Camera', 'Hands', 'ToolBaton', 'PhysicsGun'], i: 5, balas: {}, t: 0, ocup: 0, recargando: 0, v: null, sway: { x: 0, y: 0, z: 0, qx: 0, qy: 0 }, bob: 0,
+const ARM = { lista: ['RPG', 'Pistol', 'Camera', 'Hands', 'Crowbar', 'ToolBaton', 'PhysicsGun'], i: 6, balas: {}, t: 0, ocup: 0, recargando: 0, v: null, sway: { x: 0, y: 0, z: 0, qx: 0, qy: 0 }, bob: 0,
   agarre: null, grav: null, rotando: false, zoom: false };
 function darArma(n) {
   if (!DEF_ARMAS[n]) return;
@@ -92,6 +96,13 @@ function disparar() {
       break;
     }
     case 'golpe': {
+      if (typeof redDisparo === 'function') redDisparo(n);   // (los demás oyen el golpe y ven el movimiento)
+      if (D.pega) {   // (como en HL2: el golpe se sabe al toque; si pega, la animación que pega; si no, al aire con su silbido)
+        const h = raycast(CAM.pos, CAM.fwd, D.alcance, JUG.vehiculo ? JUG.vehiculo.b : null), l = h ? D.pega : D.falla;
+        if (ARM.v) vistaTocar(ARM.v, l[(Math.random() * l.length) | 0]);
+        if (h) golpeAplicar(D, h); else sonar(D.sF, null, 0.7);   // (el golpe en el momento, con lo que se apuntó)
+        break;
+      }
       const pun = ARM.v && (D.fuego2 && Math.random() < 0.5 ? D.fuego2 : D.fuego); if (pun) vistaTocar(ARM.v, pun); sonar(D.sF, null, 0.6);
       ARM.golpeT = 0.12; ARM.golpeD = D;
       break;
@@ -103,13 +114,15 @@ function disparar() {
   if (D.car) hudArma();
   if (D.tipo !== 'fisica') humAccion(JUG.cuerpo, 'tiro');
 }
-function golpeAplicar(D) {
-  const h = raycast(CAM.pos, CAM.fwd, D.alcance, JUG.vehiculo ? JUG.vehiculo.b : null);
+function golpeAplicar(D, h0) {
+  const h = h0 || raycast(CAM.pos, CAM.fwd, D.alcance, JUG.vehiculo ? JUG.vehiculo.b : null);
   if (!h) return;
-  sonar('Melee1', h.p, 0.8); efectoImpacto(h.p, h.n, 'golpe');
+  const imp = D.sImp && (h.body && h.body.persona ? D.sCarne : D.sImp);   // (la palanca: metal contra metal, o contra la carne)
+  sonar(imp ? imp[(Math.random() * imp.length) | 0] : 'Melee1', h.p, 0.8); efectoImpacto(h.p, h.n, 'golpe');
   if (h.body) {
     const b = h.body; b.wake && b.wake();
-    if (b.dynamic) b.applyVel(vscale(CAM.fwd, Math.min(10, D.dan * 4 / Math.max(1, b.mass * 0.2))), vsub(h.p, b.pos), 1);
+    // (la palanca empuja como en HL2: un cajón de 50 kg sale a ~1,4 m/s, algo liviano bastante más)
+    if (b.dynamic) b.applyVel(vscale(CAM.fwd, D.empuje ? Math.min(D.empuje, b.mass * 7) : Math.min(10, D.dan * 4 / Math.max(1, b.mass * 0.2))), vsub(h.p, b.pos), 1);
     if (b.obj) danarObjeto(b.obj, D.dan, h.p, CAM.fwd);
     if (b.persona) danarPersona(b.persona, D.dan, h.p, CAM.fwd, b);
   }
@@ -277,6 +290,8 @@ function armasPaso(dt) {
   if (ARM.barraT > 0) { ARM.barraT -= dt; if (ARM.barraT <= 0) { $('barra').classList.add('oc'); $('arribaDe').style.visibility = ''; } }
   if (ARM.golpeT > 0) { ARM.golpeT -= dt; if (ARM.golpeT <= 0) golpeAplicar(ARM.golpeD); }
   const n = ARM.lista[ARM.i], D = DEF_ARMAS[n];
+  // (las que tienen animación de quieto, como la palanca, vuelven a ella cuando termina la otra)
+  if (ARM.v && D.quieto && ARM.v.clip && !ARM.v.loop && ARM.v.t >= ARM.v.clip.d) vistaTocar(ARM.v, D.quieto, { loop: true });
   // (tirado como muñeco o en cuatro patas no se usan armas; en el creador el clic elige y pone)
   if (!UI.abierto && JUG.vivo && !JUG.vehiculo && !NAT.rag && !NAT.scp && !(CREA.on && creadorPaso())) {
     if (D.tipo === 'fisica') {

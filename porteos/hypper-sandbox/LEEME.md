@@ -27,6 +27,40 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   entrar, clave en una ventanita, crear server con nombre/clave/modo/mapa, borrar los tuyos) y Personajes (skins y
   gorros con el personaje en 3D a la derecha, se gira arrastrando), con los mismos paneles. La primera vez pide
   **idioma** (14) y **nombre**.
+- **Mapas de Garry's Mod: gm_construct y gm_flatgrass** (`herramientas/gmod.py`, con srctools; categoría GMod en la
+  lista de mapas, con ícono y fondo de carga sacados de capturas del juego). Del BSP: el mundo (caras con sus texturas,
+  las de mezcla con la segunda textura y el peso por vértice, los terrenos con desplazamientos sin los triángulos tapados
+  por el piso), colisiones (también caras de cielo y pinceles invisibles, sin triángulos degenerados), props, agua, luces,
+  sol, niebla, apariciones, el cielo 3D de construct (la ciudad de fondo, geometría de verdad ×16 alrededor de la cámara
+  del cielo, sin choque; la vista llega a 950 m) y el cielo de caja (6 caras). Uso:
+  `python-con-srctools -I gmod.py PAQUETE PAQUETE_NUEVO CARPETA_GMOD10 [POSTURAS.json] [FOTOS]`.
+- **La palanca (crowbar) de Half-Life 2 / GMod**: en primera persona el v_crowbar de verdad con sus animaciones (sacar,
+  quieto en bucle, golpe al aire, tres golpes que pegan, guardar) a la escala del FOV de la vista de Source; golpe con
+  alcance de 1,95 m (daño 25, empuja lo que pega), sus sonidos (silbido, golpe a superficie, carne), en red (el otro ve
+  el golpe y lo oye), suelta como prop y en el menú de armas con su ícono.
+- **Posturas de GMod en tercera persona y agarre de verdad, en todos los personajes**: las posturas de `male_anims.mdl`
+  (quieto, golpe y recarga de cada tipo de arma) se hornean a clips humanoides (`herramientas/gmod_posturas.mjs`: busca
+  los músculos del Hero que dejan cada segmento como en GMod; los músculos sirven para todos los personajes). El arma va
+  en la mano como en GMod (el hueso de la mano del arma sobre el de la mano), en el marco anatómico de cada mano
+  (muñeca, nudillos, palma) y a la escala de esa mano. Los dedos: cada falange apunta como en GMod y después la mano se
+  cierra sobre el mango de verdad (el pedazo del arma que queda dentro de la mano, muestreado sobre las aristas) hasta
+  dejar articulaciones y puntas donde las tiene GMod, sin meterse en el mango (`agarre.mjs`: con la palanca, índice,
+  medio y anular rodean el mango 210-250° en casi todos, como GMod; nada se mete adentro). Hay esqueletos con el hueso de
+  la mano a mitad del antebrazo: si la palma mide más de 1,5 dedos, la muñeca se pone 1,15 dedos atrás del nudillo.
+  Los skins generados no tenían pesos en los dedos (la mano entera era un mitón): `herramientas/dedos_meshy.py` reparte
+  los vértices de cada mano entre las falanges (y el pulgar, lo que sobresale de la palma) y pone esos huesos donde
+  están los dedos de la malla, así cierran la mano.
+- **Personajes nuevos: Rick, Rick Prime, Finn y Jake**, fieles a la serie: cada uno generado desde una imagen oficial de
+  referencia (imagen en pose T → modelo 3D riggeado → `skin_meshy.py`), con su retrato. **Cada uno con su alto**:
+  `skin_meshy.py --alto K` achica la raíz del personaje (todo lo de abajo la sigue: huesos, cadera de las animaciones,
+  bailes, gorro, muñeco de trapo) y guarda el tamaño (`DATA.tam`): Jake mide 0,44 del Hero (llega a la cintura de Finn),
+  Finn 0,8 (un nene) y los Rick son altos. Jugando con uno bajito la cápsula es más baja (Jake pasa por abajo de una mesa
+  a 1,2 m), los ojos van a su altura (`--ojo`), la cámara de tercera persona se acerca, y para los demás su cápsula y su
+  nombre arriba también son de su tamaño (un tiro por arriba de la cabeza de Jake no le pega). `skins_nuevos.mjs`.
+- **Cuerpos que desaparecían de cerca**: algunos personajes (SpecialForces, Prisoner, Engineer, Soldier) tienen la malla
+  en centímetros que los huesos agrandan ×100 y la esfera para descartar lo que no se ve medía 2 cm: al mirar de cerca
+  una mano, sin la cadera en pantalla, desaparecía el cuerpo entero (quedaba el arma flotando). Ahora el radio lleva la
+  escala de la piel.
 - **Controles en el celular**: en un aparato sólo táctil ya arrancan los de la pantalla (antes primero se veía la fila
   de la compu con las teclas). Tamaño elegible en Ajustes (60 a 120 %, de entrada 80 %: los del Hypper quedaban
   grandes); se achican en el mismo lugar (el centro de cada botón no se mueve) y la barra de armas, la vida, la palanca
@@ -381,6 +415,9 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   `acostado` o `parado` para el giro de 90°), `pasos.mjs` (cuánto patina el pie apoyado, m/s, por velocidad y
   dirección), `saltos.mjs` (cuánto salta cada hueso de un cuadro al otro en todos los cambios de estado), `arranque.mjs`
   (abre el HTML como la gente, con fallas simuladas en `PRE`: sin WebGL 1, sin DecompressionStream, etc.).
+  De GMod: `gmod.mjs` (recorrido de los mapas), `gmod_choques.mjs HTML mapa` (caídas, caminatas, costo de dibujo),
+  `palanca.mjs`, `red_gmod.mjs` (dos jugadores con la palanca, broker local), `agarre.mjs` (todos los personajes con la
+  palanca: cuánto rodea cada dedo, contra GMod, fotos de cerca) y `skins_nuevos.mjs`.
   De RezoBox (`node prueba.mjs HTML carpeta`, con `NODE_PATH` hacia playwright): `tienda.mjs` (bienvenida, idiomas,
   publicar y borrar en la tienda real), `mods_api.mjs`, `voz.mjs`, `rampa.mjs` (un auto baja la mega rampa: cabeceo
   contra la pendiente, ruedas y contactos cuadro a cuadro), `nativos.mjs` y `nativos_lado.mjs` (volar, muñeco, SCP:

@@ -89,6 +89,7 @@ function lucesJuntar() {
   R.luces.length = 0; R.esp.length = 0; nocheLucesEsp();
   if (!(GFX.nluz > 0) || GFX.luz < 2) return;
   for (const l of LUCES_T) { const k = l.t / l.dur; luzPuntual(l.p, l.r, [l.c[0] * k, l.c[1] * k, l.c[2] * k]); }
+  for (const l of MUNDO.luces) luzPuntual(l.p, l.r, l.c, l.d, l.k);   // (las del mapa)
   if (EF.fog > 0) { const p = vistaPuntaMundo() || vadd(CAM.pos, vscale(CAM.fwd, 0.8)); luzPuntual(p, 7, [6, 4.2, 2]); }
   for (const o of OBJS) {
     if (o.logica && o.logica.tipo === 'Lamp' && o.logica.luz) luzPuntual(vadd(o.b.pos, v3(0, 0.3, 0)), Math.max(4, (o.logica.params.Range || 10)), [3.2, 2.8, 2.0]);

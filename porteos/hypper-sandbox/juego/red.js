@@ -317,9 +317,11 @@ function remotoPaso(R2, dt) {
   natRemoto(R2, dt);
   // espectador (en la noche de la pizzería): no se ve, no choca y no tiene nombre arriba
   const esp = !!(R2.f & 256); P.visible = !esp;
-  R2.b.pos.copy(P.pos); R2.b.updateWorld(); R2.b.noRay = rag || esp; R2.b.noPhys = rag || esp; R2.b.noJug = rag || esp; // tirado: sólo el muñeco choca (y se puede agarrar)
+  // la cápsula a la medida del personaje (1,8 m en el de siempre; los pies quedan en el mismo lugar)
+  const tk = P.tam || 1; if (R2.b.capK !== tk) { const r = Math.min(0.4, 0.9 * tk); R2.b.shape = capsuleShape(r, Math.max(0.01, 0.9 * tk - r)); R2.b.capK = tk; }
+  R2.b.pos.set(P.pos.x, P.pos.y - 0.9 + 0.9 * tk, P.pos.z); R2.b.updateWorld(); R2.b.noRay = rag || esp; R2.b.noPhys = rag || esp; R2.b.noJug = rag || esp; // tirado: sólo el muñeco choca (y se puede agarrar)
   // etiqueta con el nombre sobre la cabeza
-  const cp = vadd(P.pos, v3(0, 1.25, 0)), cl = clipDe(cp);
+  const cp = vadd(P.pos, v3(0, -0.65 + 1.9 * tk, 0)), cl = clipDe(cp);
   if (cl && !esp && cp.distTo(CAM.pos) < 60) { R2.tag.style.display = ''; R2.tag.style.transform = `translate(${cl.x}px,${cl.y}px) translate(-50%,-100%)`; } else R2.tag.style.display = 'none';
 }
 function clipDe(p) {
@@ -369,15 +371,35 @@ function objRemotoPaso(o, dt) {
   if (b.pos.distTo(o.meta.p) > 0.0005 || Math.abs(vdot4(b.q, o.meta.q)) < 0.99999) { b.pos.lerpTo(o.meta.p, k); b.q.slerpTo(o.meta.q, k); b.updateWorld(); o.md.sucio = true; o.dibujado = false; }
 }
 const vdot4 = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+// ¿un rayo de otro jugador (un golpe) me toca? Las esferas de mi cuerpo; la distancia por el rayo y el punto, o null
+function rayoJugador(o, dir, L) {
+  if (!JUG.vivo || JUG.vehiculo) return null; let mejor = null;
+  for (const [dy] of JUG.esf) {
+    const c = v3(JUG.pos.x, JUG.pos.y + dy, JUG.pos.z), t = clamp(vdot(vsub(c, o), dir), 0, L), q = vadd(o, vscale(dir, t));
+    if (q.distTo(c) < JUG.radio && (!mejor || t < mejor.t)) mejor = { t, p: q };
+  }
+  return mejor;
+}
 function recibirHecho(d) {
   const R2 = RED.remotos.get(d.i);
   if (d.k === 'chau' && R2) { quitarRemoto(R2); RED.remotos.delete(d.i); return; }
   if (d.k === 'tiro' && Array.isArray(d.p) && Array.isArray(d.d)) {
     const o = v3(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0)), dir = v3(num(d.d[0], -1, 1, 0), num(d.d[1], -1, 1, 0), num(d.d[2], -1, 1, 1)).norm();
-    const D = DEF_ARMAS[d.a]; if (D && D.sF) sonar(D.sF, o, 0.8);
+    const D = DEF_ARMAS[d.a];
     if (R2) humAccion(R2.P, 'tiro');
-    const h = raycast(o, dir, 300, R2 ? R2.b : null); efectoTraza(vadd(o, vscale(dir, 0.6)), h ? h.p : vadd(o, vscale(dir, 300)));
-    if (h) efectoImpacto(h.p, h.n, 'mundo');
+    if (D && D.tipo === 'golpe') {   // (un golpe: el silbido al aire o el ruido de lo que pegó, sin traza)
+      const h = raycast(o, dir, D.alcance || 2, R2 ? R2.b : null), yo = rayoJugador(o, dir, D.alcance || 2);
+      if (yo && (!h || yo.t < h.t)) {   // (me pegó a mí: mi cuerpo no es un cuerpo de la física, el rayo no lo ve)
+        const c = D.sCarne || ['Melee1']; sonar(c[(Math.random() * c.length) | 0], yo.p, 0.8); efectoImpacto(yo.p, vscale(dir, -1), 'golpe'); return;
+      }
+      const imp = h && D.sImp && (h.body && h.body.persona ? D.sCarne : D.sImp);
+      if (imp) sonar(imp[(Math.random() * imp.length) | 0], h.p, 0.8); else if (h) sonar('Melee1', h.p, 0.8); else if (D.sF) sonar(D.sF, o, 0.7);
+      if (h) efectoImpacto(h.p, h.n, 'golpe');
+    } else {
+      if (D && D.sF) sonar(D.sF, o, 0.8);
+      const h = raycast(o, dir, 300, R2 ? R2.b : null); efectoTraza(vadd(o, vscale(dir, 0.6)), h ? h.p : vadd(o, vscale(dir, 300)));
+      if (h) efectoImpacto(h.p, h.n, 'mundo');
+    }
   } else if (d.k === 'rec' && R2) { humAccion(R2.P, 'recarga');
   } else if (d.k === 'exp' && Array.isArray(d.p)) {
     const p = v3(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0));

@@ -22,3 +22,26 @@ texturas de reemplazo (acero, revoque y colores lisos para lo que el mapa no tra
 cajas), los carteles y las pantallas de los arcades, la cortina de Pirate Cove (dos paños
 con la tela del mapa), el plano de las cámaras (dibujado del mapa), el armado de los animatrónicos como personajes
 (`skin_fnaf.py`) y sus retratos, el ícono y el fondo de carga (capturas del juego).
+
+## Garry's Mod y Half-Life 2 (`RB_Construct`, `RB_Flatgrass`, la palanca, las posturas)
+
+| Asset | Autor / origen | Dónde | Licencia |
+|---|---|---|---|
+| Mapas gm_construct y gm_flatgrass (geometría, texturas, props, cielos) | Garry's Mod 10 (Facepunch Studios) con contenido de Half-Life 2 (Valve) | https://archive.org/download/garrys-mod-10/Garrys_Mod_10.rar | rip: Garry's Mod 10 / Half-Life 2 |
+| La palanca: v_crowbar y w_crowbar (mallas, huesos, animaciones, texturas) y sus sonidos (silbido, golpes, carne) | Half-Life 2 (Valve), en Garry's Mod 10 | ídem | rip: Half-Life 2 |
+| Posturas del jugador (male_anims.mdl: quieto, golpe y recarga de cada tipo de arma, con los dedos) | Garry's Mod 10 / Half-Life 2 Deathmatch | ídem | rip: Garry's Mod 10 |
+
+Hecho acá (nuestro): el conversor (`gmod.py`), el horneado de las posturas a músculos (`gmod_posturas.mjs`), el agarre
+(la mano que se cierra sobre el mango), los pesos de los dedos de los skins generados (`dedos_meshy.py`), los íconos y
+fondos de carga de los mapas (capturas del juego).
+
+## Personajes de series (Personajes)
+
+| Asset | Autor / origen | Dónde | Licencia |
+|---|---|---|---|
+| Rick y Rick Prime (personajes, diseño) | Rick and Morty (Justin Roiland y Dan Harmon, Adult Swim) | imágenes de referencia de https://rickandmorty.fandom.com (sólo para generar el modelo; no van en el juego) | fan art: Rick and Morty |
+| Finn y Jake (personajes, diseño) | Adventure Time (Pendleton Ward, Cartoon Network) | imágenes de referencia de https://adventuretime.fandom.com (ídem) | fan art: Adventure Time |
+
+Los modelos 3D de esos cuatro (y los de Dragon Ball y los demás generados) se hicieron acá: imagen en pose T desde la
+referencia → modelo 3D texturado y riggeado (Higgsfield, Meshy) → `skin_meshy.py` y `dedos_meshy.py`.
+

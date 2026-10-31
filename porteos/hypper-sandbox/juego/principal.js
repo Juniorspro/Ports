@@ -63,10 +63,11 @@ function aplicarGfx() {
     else sombrasLiberar();
     if (!(GFX.luz >= 2 && (GFX.hdr || GFX.ao || GFX.fxaa))) postLiberar();
   }
-  PH.sub = GFX.sub; R.lejos = GFX.lejos;
+  PH.sub = GFX.sub; R.lejos = vistaLejos();
   if (MUNDO.nombre) {
     const aj = DATA.aj[MUNDO.nombre] || {};
-    if (!(aj.fog && aj.fd > 0) && !MUNDO.espacio && !(aj.fog && aj.fe > aj.fs)) { R.niebla.a = GFX.lejos * 0.7; R.niebla.b = GFX.lejos; }
+    if (!(aj.fog && aj.fd > 0) && !MUNDO.espacio && !(aj.fog && aj.fe > aj.fs)) { R.niebla.a = vistaLejos() * 0.7; R.niebla.b = vistaLejos(); }
+    else if (aj.fog && aj.fm === 1 && aj.fe > aj.fs && !(aj.fd > 0)) Object.assign(R.niebla, nieblaLineal(aj, vistaLejos()));
   }
   if (AUD.master) AUD.master.gain.value = PREFS.vol / 100;
   ENT.sens = 0.00018 * PREFS.sens; ENT.sensT = ENT.sens * 2.6;
@@ -105,7 +106,7 @@ function empezarPartida(mapa) {
   if (typeof personasLimpiar === 'function') personasLimpiar();
   cargarMapa(mapa); aplicarGfx();
   jugadorAparecer();
-  ARM.lista = ['RPG', 'Pistol', 'Camera', 'Hands', 'ToolBaton', 'PhysicsGun'];
+  ARM.lista = ['RPG', 'Pistol', 'Camera', 'Hands', 'Crowbar', 'ToolBaton', 'PhysicsGun'];   // (la palanca, como en GMod)
   if (typeof SALA !== 'undefined' && SALA && !SALA.rpg) ARM.lista = ARM.lista.filter((a) => a !== 'RPG');
   ARM.balas = {}; elegirArma(ARM.lista.length - 1);
   aplicarMods(); // mods y mapa de la comunidad (después de las armas: un mod puede sumar)
@@ -264,9 +265,9 @@ const DIB = { ms: {} };   // tiempos de cada parte (para medir)
 function dibujar() {
   const gl = R.gl, W = R.cv.width, H = R.cv.height;
   if (JUEGO.estado === 'principal' && typeof dibujarMenu === 'function' && MENU.el) { dibujarMenu(); pantFinCuadro(false); return; }
-  const asp = W / H, cerca = 0.08, lejos = GFX.lejos * 1.05, fovy = CAM.fov * Math.PI / 180;
+  const asp = W / H, cerca = 0.08, lejos = vistaLejos() * 1.05, fovy = CAM.fov * Math.PI / 180;
   const P = M4.persp(fovy, asp, cerca, lejos), V = M4.view(CAM.pos, CAM.qVista);
-  m4mul(P, V, R.vp); R.fr = frustum(R.vp); R.camPos.copy(CAM.pos); R.camF.copy(CAM.fwd); R.lejos = GFX.lejos;
+  m4mul(P, V, R.vp); R.fr = frustum(R.vp); R.camPos.copy(CAM.pos); R.camF.copy(CAM.fwd); R.lejos = vistaLejos();
   (R.vpMundo || (R.vpMundo = new Float32Array(16))).set(R.vp);
   R.dibujadas = 0; R.tris = 0; R.marca++; R.cuadro = (R.cuadro || 0) + 1;
   // cómo sale la imagen según la calidad

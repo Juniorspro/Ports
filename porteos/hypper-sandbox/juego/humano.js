@@ -129,13 +129,14 @@ function locoV(l, amp) {
   return l.v;
 }
 const POSE_ARMA = { Pistol: 'idle_armed2_m', Revolver: 'idle_armed2_m', PhysicsGun: 'idle_armed2_m', GravityGun: 'idle_armed2_m', ToolBaton: 'idle_armed2_m', Camera: 'idle_armed2_m',
-  Smg: 'SniperRifleAim', Akm: 'SniperRifleAim', Sniper: 'SniperRifleAim', Shotgun: 'SniperRifleAim', Crossbow: 'SniperRifleAim', RPG: 'SniperRifleAim', Bat: '1HandSwordReady' };
+  Smg: 'SniperRifleAim', Akm: 'SniperRifleAim', Sniper: 'SniperRifleAim', Shotgun: 'SniperRifleAim', Crossbow: 'SniperRifleAim', RPG: 'SniperRifleAim', Bat: '1HandSwordReady',
+  Crowbar: 'gm_idle_melee' };   // (las gm_*: las posturas de los jugadores de GMod, de herramientas/gmod.py)
 // acciones del torso (la parte de arriba toma el clip; las piernas siguen caminando)
 const ACC_ARMA = {
   Pistol: ['blend_shoot_1', 'blend_reload_1'], Revolver: ['blend_shoot_1', 'blend_reload_1'], Camera: ['blend_shoot_1', null], ToolBaton: ['1HandSwordBackswing', null],
   PhysicsGun: [null, null], GravityGun: ['blend_shoot_1', null], Smg: ['blend_shoot_2', 'blend_reload_2'], Akm: ['blend_shoot_2', 'blend_reload_2'],
   Shotgun: ['blend_shoot_2', 'blend_reload_2'], Sniper: ['blend_shoot_2', 'SniperRifleReload'], Crossbow: ['blend_shoot_2', 'blend_reload_2'],
-  RPG: ['RPGAttack', 'blend_reload_2'], Bat: ['1HandSwordBackswing', null], Hands: ['Attack04', null],
+  RPG: ['RPGAttack', 'blend_reload_2'], Bat: ['1HandSwordBackswing', null], Hands: ['Attack04', null], Crowbar: ['gm_range_melee', null],
 };
 function humAccion(P, tipo) {
   if (!P || !P.hum || !DATA.hu) return;
@@ -145,7 +146,7 @@ function humAccion(P, tipo) {
   else if (tipo === 'recarga' && A[1]) c = humClipNombre('Reload', A[1]);
   else if (tipo === 'golpe') c = humClipNombre('Hit', 'standing_react_large_gut');
   if (!c) return;
-  const dur = tipo === 'tiro' ? Math.min(c.d, A[0] === '1HandSwordBackswing' || A[0] === 'Attack04' ? 0.7 : 0.35) : c.d;
+  const dur = tipo === 'tiro' && !/^gm_/.test(A[0]) ? Math.min(c.d, A[0] === '1HandSwordBackswing' || A[0] === 'Attack04' ? 0.7 : 0.35) : c.d;   // (los gestos de GMod, enteros)
   // si corta otra acción a la mitad, se parte de la pose que se ve (sin saltar a la pose base)
   if (P.accion && P.hum) P.hum.clave = '';
   P.accion = { c, t: 0, dur, peso: tipo === 'golpe' ? 0.75 : 1, tipo };
