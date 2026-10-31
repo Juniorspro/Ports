@@ -33,8 +33,11 @@ function esferaFuera(c, r, corr, esPie) {
     const d = Math.sqrt(d2);
     let nx, ny, nz;
     if (d > 1e-6) { nx = dx / d; ny = dy / d; nz = dz / d; } else { nx = MUNDO.TN[t * 3]; ny = MUNDO.TN[t * 3 + 1]; nz = MUNDO.TN[t * 3 + 2]; }
-    const k = r - d; c.x += nx * k; c.y += ny * k; c.z += nz * k; corr.x += nx * k; corr.y += ny * k; corr.z += nz * k;
-    if (esPie && ny > 0.6) { JUG.suelo = true; JUG.sueloN.set(nx, ny, nz); }
+    const k = r - d;
+    // (los pies sobre piso caminable se sacan sólo para arriba: empujados según la pendiente, parado en una loma te ibas
+    // resbalando de a poco hacia abajo)
+    if (esPie && ny > 0.6) { const kv = k / ny; c.y += kv; corr.y += kv; JUG.suelo = true; JUG.sueloN.set(nx, ny, nz); }
+    else { c.x += nx * k; c.y += ny * k; c.z += nz * k; corr.x += nx * k; corr.y += ny * k; corr.z += nz * k; }
   }
   mundoCerca(c.x - r, c.y - r, c.z - r, c.x + r, c.y + r, c.z + r, _cercaJ);
   for (const b of _cercaJ) if (b.tri === undefined) empujarDeCuerpo(b, c, r, corr, esPie, false);
@@ -79,6 +82,7 @@ function jugadorPaso(dt, ent) {
   const f = qy.rot(v3(0, 0, 1)), rgt = qy.rot(v3(-1, 0, 0));
   const wish = v3(f.x * ent.y + rgt.x * ent.x, 0, f.z * ent.y + rgt.z * ent.x);
   const wl = Math.min(1, wish.len()); if (wl > 1e-3) wish.scale(1 / wish.len());
+  if (ent.correr && !J.corriaAntes && J.suelo && wl > 0.2 && TIEMPO.t - (J.corrT || -9) > 2) { J.corrT = TIEMPO.t; sonar('PL_correr', null, 0.18); } J.corriaAntes = !!ent.correr;
   const vmax = J.vel_max * (ent.correr ? 1.35 : 1) * (ent.agachar ? 0.5 : 1) * (J.vadeo || 1) * (patadaActiva(J.cuerpo) ? 0.35 : 1);   // (pateando, casi quieto)
   if (J.noclip) {
     const fv = J.q.rot(v3(0, 0, 1));
@@ -93,7 +97,7 @@ function jugadorPaso(dt, ent) {
   if (dl > 0) { const k = Math.min(1, mx / dl); J.vel.x += dvx * k; J.vel.z += dvz * k; }
   // (la gravedad de un mod en una sala es sólo del jugador: J.grav; negativa también: sube)
   const gJ = GRAV * MUNDO.gravedad * (J.grav || 1);
-  if (J.suelo && ent.saltar && J.tiempoSuelo > 0.05) { J.vel.y = Math.sqrt(2 * Math.abs(gJ) * J.salto) * (gJ < 0 ? -1 : 1); J.suelo = false; J.tiempoSuelo = 0; }
+  if (J.suelo && ent.saltar && J.tiempoSuelo > 0.05) { J.vel.y = Math.sqrt(2 * Math.abs(gJ) * J.salto) * (gJ < 0 ? -1 : 1); J.suelo = false; J.tiempoSuelo = 0; if (J.cuerpo) sonPaso(J.cuerpo, true, J.pos, 0.75); }   // (al saltar suena el paso, como en HL2)
   if (!J.suelo) J.vel.y -= gJ * dt; else if (J.vel.y < 0) J.vel.y = -0.5;
   const vyAntes = J.vel.y, eraSuelo = J.suelo;
   jugadorMoverChocar(dt);
@@ -111,7 +115,12 @@ function jugadorPaso(dt, ent) {
   }
   if (J.suelo) { J.tiempoSuelo += dt; if (wl < 0.01 && !base) { const k = Math.exp(-dt * 12); J.vel.x *= k; J.vel.z *= k; } } else J.tiempoSuelo = 0;
   // cámara: golpe al caer (según la velocidad de caída) y balanceo de la cabeza al caminar
-  if (!eraSuelo && J.suelo && vyAntes < -3) { J.caidaV = Math.max(J.caidaV || 0, Math.min(3, -vyAntes * 0.36)); if (vyAntes < -7) CAM.temblor = Math.max(CAM.temblor, 0.25); }
+  if (!eraSuelo && J.suelo && vyAntes < -3) {
+    J.caidaV = Math.max(J.caidaV || 0, Math.min(3, -vyAntes * 0.36)); if (vyAntes < -7) CAM.temblor = Math.max(CAM.temblor, 0.25);
+    // (el golpe sordo del cuerpo al caer; de muy alto, también el quejido de la caída de HL2)
+    if (vyAntes < -6) sonar('PL_golpe' + (1 + ((Math.random() * 3) | 0)), null, Math.min(0.8, -vyAntes / 18));
+    if (vyAntes < -11) sonar('PL_caida' + (1 + ((Math.random() * 2) | 0)), null, 0.7);
+  }
   const vh = Math.hypot(J.vel.x, J.vel.z);
   if (J.suelo) J.bob = (J.bob || 0) + vh * dt * 1.75;
   J.bobK = (J.bobK || 0) + ((J.suelo ? Math.min(1, vh / 6) : 0) - (J.bobK || 0)) * Math.min(1, dt * 8);

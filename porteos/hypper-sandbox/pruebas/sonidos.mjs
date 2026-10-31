@@ -7,7 +7,7 @@ import { abrir } from './base.mjs';
 const { b, p, err, ev } = await abrir(process.argv[2]);
 const R = []; const ok = (n, c, d) => { R.push(!!c); console.log((c ? 'OK   ' : 'FALLA') + ' ' + n + (d !== undefined ? ' · ' + JSON.stringify(d) : '')); };
 await ev(`PREFS.bienvenida = true; GFX.auto = false; PREFS.gfx = 'medio'; aplicarGfx(); inicioMostrar(false); empezarPartida('FlatGrass'); DIA.hora = 12; DIA.aplicada = -1; 1`);
-await p.waitForTimeout(2500);
+await p.waitForTimeout(1500); await p.waitForFunction(() => window.__ev(`JUEGO.estado === 'juego' && JUG.suelo`), null, { timeout: 15000 }); await p.waitForTimeout(300);   // (que ya esté pisando: al aparecer cae 1,8 m)
 await ev(`window.__son = []; const f0 = sonar; sonar = function (n, pos, vol) { window.__son.push([n, !!pos, +(vol || 0).toFixed(2), +TIEMPO.t.toFixed(2)]); return f0.apply(this, arguments); }; 1`);
 const sup = async () => ev(`(() => { const h = new Array(SUP.length).fill(0); for (const k of MUNDO.triSup) h[k]++; return Object.fromEntries(SUP.map((s, i) => [s, h[i]]).filter((x) => x[1])); })()`);
 const sFG = await ev(`SUP[sonPiso(JUG.pos, true)]`);

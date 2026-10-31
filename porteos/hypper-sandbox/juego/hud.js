@@ -29,6 +29,7 @@ const HUD_SVG = {
   manual: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="#fff" stroke-width="2"/><path d="M10 16.5v-9h2.8a2.6 2.6 0 0 1 0 5.2H10" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   bajar: '<path d="M10 4H5.5v16H10" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 12h9M16 8l3.8 4-3.8 4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   meme: '<rect x="3" y="3" width="18" height="18" rx="3.5" fill="none" stroke="#fff" stroke-width="2"/><circle cx="8.6" cy="8.6" r="2.4" fill="#fff"/><circle cx="15.4" cy="8.6" r="2.4" fill="#fff"/><circle cx="8.6" cy="15.4" r="2.4" fill="#fff"/><circle cx="15.4" cy="15.4" r="2.4" fill="#fff" opacity=".55"/>',
+  volver: '<path d="M4.5 9.5A8 8 0 1 1 6 16" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M3.5 4.5v5h5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12.5" cy="12" r="2.3" fill="#fff"/>',
   dos: '<circle cx="12" cy="12" r="8" fill="none" stroke="#fff" stroke-width="2"/><path d="M9.3 9.6a2.8 2.8 0 0 1 5.4 1c0 2-5.3 3.6-5.3 5.4h5.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 const hudIco = (n) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${HUD_SVG[n] || ''}</svg>`);
@@ -37,7 +38,7 @@ const HUD_TACTIL = [
   ['[data-btn=pausa]', 0, 1, 46, -44.9, 75], ['.modmBt', 0, 1, 151.8, -46.1, 75], ['.smBt', 0, 1, 257.7, -46.2, 75], ['#vozBt', 0, 1, 363.6, -46.2, 75], ['#vocesBt', 0, 1, 469.5, -46.2, 75], ['#verBt', 0, 1, 575.4, -46.2, 75], ['[data-btn=chat]', 0, 1, 46.6, -137.6, 75], ['[data-btn=memes]', 0, 1, 151.8, -137.6, 75],
   ['[data-btn=menu]', 0, 0.5, 46, 42.8, 75],
   ['#armaAct', 1, 1, -53, -53, 100], ['[data-btn=camara]', 1, 1, -209, -50, 75], ['[data-btn=emotes]', 1, 1, -332.8, -50, 75],
-  ['#bdisparo', 1, 0.5, -207, -62, 124], ['#bdisp2', 1, 0.5, -124, 27.9, 70], ['#brecargar', 1, 0.5, -124, 27.9, 70], ['#brotar', 1, 0.5, -86.5, -62, 70],
+  ['#bdisparo', 1, 0.5, -207, -62, 124], ['#bdisp2', 1, 0.5, -124, 27.9, 70], ['#brecargar', 1, 0.5, -124, 27.9, 70], ['#brotar', 1, 0.5, -86.5, -62, 70], ['#bvolver', 1, 0.5, -230, 70, 62],
   ['#blejos', 1, 1, -43.2, -164.5, 60], ['#bcerca', 1, 1, -43.2, -236.7, 60],
   ['#bsaltar', 0.5, 0, 346, 43, 75], ['#bpatada', 0.5, 0, 346, 140, 66], ['#bagachar', 0.5, 0, 446, 43, 62], ['#bborrar', 0.5, 0, -226.6, 43, 75], ['#busar', 0.5, 0, 0, 163, 71],
   // en un vehículo
@@ -51,7 +52,7 @@ function hudIniciar() {
   const t = $('tactil'); if (!t) return;
   // botones que agrega esta versión: borrar lo que apuntás y los del auto
   const nuevo = (id, btn, ico, mantener) => { if ($(id)) return; const d = document.createElement('div'); d.className = 'bt-t'; d.id = id; d.dataset.btn = btn; if (mantener) d.dataset.mantener = ''; d.innerHTML = `<img alt="" src="${hudIco(ico)}">`; t.appendChild(d); return d; };
-  nuevo('bborrar', 'borrarApuntado', 'borrar'); nuevo('bpatada', 'patada', 'patada'); nuevo('bgas', 'pGas', 'gas', 1); nuevo('bfreno', 'pFreno', 'freno', 1); nuevo('bizq', 'pIzq', 'izq', 1); nuevo('bder', 'pDer', 'der', 1); nuevo('bmanual', 'saltar', 'manual', 1); nuevo('bbajar', 'salir', 'bajar');
+  nuevo('bborrar', 'borrarApuntado', 'borrar'); nuevo('bpatada', 'patada', 'patada'); nuevo('bvolver', 'volver', 'volver'); nuevo('bgas', 'pGas', 'gas', 1); nuevo('bfreno', 'pFreno', 'freno', 1); nuevo('bizq', 'pIzq', 'izq', 1); nuevo('bder', 'pDer', 'der', 1); nuevo('bmanual', 'saltar', 'manual', 1); nuevo('bbajar', 'salir', 'bajar');
   // los íconos propios
   const pon = (id, n) => { const e = $(id); if (e) e.src = hudIco(n); };
   pon('iPausa', 'pausa'); pon('iMenu', 'props'); pon('iChat', 'chat'); pon('iMeme', 'meme'); pon('iEmote', 'emote'); pon('iCam', 'camara'); pon('iDisp', 'disparo'); pon('iRotar', 'rotar'); pon('iSalto', 'salto'); pon('iUsar', 'usar');
@@ -101,10 +102,28 @@ function hudPaso() {
     for (const id of ['bgas', 'bfreno', 'bizq', 'bder', 'bmanual', 'bbajar']) ver(id, veh);
     for (const id of ['bsaltar', 'bagachar', 'bdisparo', 'bpatada']) ver(id, !veh);
   }
+  const sost = !!(ARM.agarre || ARM.grav);
+  if (sost !== HUD.sost) { HUD.sost = sost; const e = $('bvolver'); if (e) e.classList.toggle('oc', !sost); }
+  const ro = !!ENT.rotar; if (ro !== HUD.ro) { HUD.ro = ro; const e = $('brotar'); if (e) e.classList.toggle('on', ro); }
 }
-// borrar lo que apuntás (si es tuyo); si no apuntás a nada tuyo, deshace lo último que pusiste
+// borrar lo que apuntás (si es tuyo: un objeto, o una tele, radio o piano que pusiste); si no apuntás a nada tuyo,
+// deshace lo último que pusiste
 function borrarApuntado() {
   const h = raycast(CAM.pos, CAM.fwd, 60, JUG.vehiculo ? JUG.vehiculo.b : null), o = h && h.body && h.body.obj;
+  const e = entidadApuntada(h ? h.t : 60);
+  if (e) { entidadQuitar(e); entidadRed('entb', e); sonar('Click', null, 0.6, 0.8); aviso(T('borrado') + ': ' + (T('ent.' + e.t) !== 'ent.' + e.t ? T('ent.' + e.t) : e.t), 1); return; }
   if (o && OBJS.includes(o) && !o.remoto) { borrarObjeto(o); sonar('Click', null, 0.6, 0.8); aviso(T('borrado') + ': ' + propNom(o.nombre), 1); return; }
   const u = DESHACER.pop(); if (u && OBJS.includes(u)) { borrarObjeto(u); aviso(T('borrado') + ': ' + propNom(u.nombre), 1); }
+}
+
+// la tele, la radio o el piano propios que están en la mira (antes de lo que pegó el rayo)
+function entidadApuntada(hasta) {
+  const RAD = { pantalla: 0, radio: 0.45, piano: 1.3 }; let mejor = null, bt = Math.min(hasta + 0.5, 20);
+  for (const e of ENTS.lista) {
+    if (e.dueno !== 'yo' || RAD[e.t] === undefined) continue;
+    const w = (e.prm && e.prm.w) || 2, c = vadd(entPos(e), v3(0, e.t === 'pantalla' ? w * 0.5 : e.t === 'piano' ? 0.8 : 0.2, 0)), r = RAD[e.t] || w * 0.6;
+    const d = vsub(c, CAM.pos), t = vdot(d, CAM.fwd); if (t < 0 || t > bt) continue;
+    if (vsub(d, vscale(CAM.fwd, t)).len() < r) { bt = t; mejor = e; }
+  }
+  return mejor;
 }

@@ -202,11 +202,15 @@ function aguaJugador(dt, ent) {
   if (!antes && J.vel.y < -2) aguaSalpicar(v3(J.pos.x, v.y1, J.pos.z), clamp(-J.vel.y / 12, 0.3, 1));
   // como en Source: se nada hacia donde mira la cámara; el salto sube y agacharse baja
   const fv = J.q.rot(_a1.set(0, 0, 1)), rgt = Quat.axis(0, 1, 0, J.yaw).rot(_a2.set(-1, 0, 0));
-  const w = _a3.set(fv.x * ent.y + rgt.x * ent.x, fv.y * ent.y + (ent.saltar ? 1 : 0) - (ent.agachar ? 1 : 0), fv.z * ent.y + rgt.z * ent.x);
+  // (mirar un poco para abajo no te hunde: hasta 20° se nada por la superficie; en el celular la cámara casi nunca queda
+  // derecha y avanzar te llevaba al fondo. Más inclinada, se bucea)
+  const DZ = 0.34, fy = Math.abs(fv.y) < DZ ? 0 : (fv.y - Math.sign(fv.y) * DZ) / (1 - DZ);
+  const w = _a3.set(fv.x * ent.y + rgt.x * ent.x, fy * ent.y + (ent.saltar ? 1 : 0) - (ent.agachar ? 1 : 0), fv.z * ent.y + rgt.z * ent.x);
   const wl = Math.min(1, w.len()); if (wl > 1e-3) w.scale(1 / w.len());
   const vm = J.vel_max * 0.62 * (ent.correr ? 1.3 : 1);
   let ty = w.y * vm * wl;
-  if (wl < 0.05) ty = clamp((v.y1 + 0.12 - ojos) * 2.2, -0.8, 1.6);   // (sin apretar nada flota: la cara justo afuera)
+  // sin apretar nada flota con la cara justo afuera; nadando derecho cerca de la superficie, se queda en la superficie
+  if (wl < 0.05 || (Math.abs(w.y) < 0.05 && ojos > v.y1 - 0.45)) ty = clamp((v.y1 + 0.12 - ojos) * 2.2, -0.8, 1.6);
   if (ojos > v.y1 + 0.3 && ty > 0) ty = 0;   // (nadando para arriba no sale volando del agua)
   const kv = Math.min(1, dt * (3.2 + Math.abs(J.vel.y) * 0.9));   // (al caer rápido el agua frena enseguida)
   J.vel.x += (w.x * vm * wl - J.vel.x) * kv; J.vel.y += (ty - J.vel.y) * kv; J.vel.z += (w.z * vm * wl - J.vel.z) * kv;

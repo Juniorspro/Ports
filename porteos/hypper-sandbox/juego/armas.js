@@ -53,7 +53,7 @@ function elegirArma(i) {
   if (ARM.balas[n] === undefined) ARM.balas[n] = D.car;
   ARM.v = vistaArma(D.nodo); ARM.recargando = 0; ARM.zoom = false;
   ARM.ocup = ARM.v && D.sacar ? Math.min(0.7, vistaTocar(ARM.v, D.sacar)) : 0.2;
-  if (D.sS) sonar(D.sS, null, 0.6);
+  if (D.sS) sonar(D.sS, null, 0.6); else sonar('UI_arma', null, 0.35);   // (cambiar de arma: el clic de HL2)
   hudArma();
 }
 function hudArma() {
@@ -267,7 +267,7 @@ function agarrarFisica() {
   if (!h || !h.body || h.body.estatico || h.body.noGrab) return;
   const b = h.body; if (b.obj) redReclamar(b.obj); b.frozen = false; b.wake();
   const camQ = Quat.axis(0, 1, 0, JUG.yaw);
-  ARM.agarre = { b, dist: h.t, rl: b.q.conj().rot(vsub(h.p, b.pos)), qrel: camQ.conj().mul(b.q) };
+  ARM.agarre = { b, dist: h.t, rl: b.q.conj().rot(vsub(h.p, b.pos)), qrel: camQ.conj().mul(b.q), ini: agarreInicio(b) };
   b.held = true; if (b.obj && b.obj.veh) b.obj.veh.agarrado = true;
   vistaSujeta(true);
 }
@@ -282,7 +282,17 @@ function soltarAgarre(congelar) {
   A.b.held = false; if (A.b.obj && A.b.obj.veh) A.b.obj.veh.agarrado = false;
   if (congelar) { A.b.frozen = true; A.b.vel.set(0, 0, 0); A.b.ang.set(0, 0, 0); efectoCongelar(A.b); sonar('Click', null, 0.6); }
   else A.b.wake();
-  ARM.agarre = null; vistaSujeta(false);
+  ARM.agarre = null; vistaSujeta(false); ENT.rotar = false;
+}
+// dónde estaba lo que se agarra (con la pistola de física o la de gravedad): un toque lo devuelve ahí, como estaba
+const agarreInicio = (b) => ({ p: b.pos.clone(), q: b.q.clone(), frozen: !!b.frozen });
+function volverAgarre() {
+  const G = ARM.agarre || ARM.grav; if (!G || !G.ini) return false;
+  const b = G.b, ini = G.ini;
+  if (ARM.agarre) soltarAgarre(false); else soltarGrav();
+  b.pos.copy(ini.p); b.q.copy(ini.q); b.vel.set(0, 0, 0); b.ang.set(0, 0, 0); b.frozen = ini.frozen; b.wake(); if (b.updateWorld) b.updateWorld();
+  if (b.obj && typeof redObjeto === 'function') redObjeto(b.obj);
+  efectoCongelar(b); sonar('Click', null, 0.6); return true;
 }
 // ---------------- pistola de gravedad ----------------
 function gravPrimario() {
@@ -296,7 +306,7 @@ function gravPrimario() {
 function gravSecundario() {
   if (ARM.grav) { soltarGrav(); return; }
   const h = raycast(CAM.pos, CAM.fwd, 25, null);
-  if (h && h.body && !h.body.estatico && h.body.mass < 2000) { if (h.body.obj) redReclamar(h.body.obj); h.body.frozen = false; ARM.grav = { b: h.body }; h.body.held = true; h.body.wake(); sonar(DEF_ARMAS.GravityGun.sAgarra, null, 0.6); vistaSujeta(true); }
+  if (h && h.body && !h.body.estatico && h.body.mass < 2000) { if (h.body.obj) redReclamar(h.body.obj); h.body.frozen = false; ARM.grav = { b: h.body, ini: agarreInicio(h.body) }; h.body.held = true; h.body.wake(); sonar(DEF_ARMAS.GravityGun.sAgarra, null, 0.6); vistaSujeta(true); }
   else sonar(DEF_ARMAS.GravityGun.sVacio, null, 0.5);
 }
 // (lanzado: la vista vuelve a quieto sin el sonido de soltar)

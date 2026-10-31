@@ -223,7 +223,7 @@ function usar() {
   const h = raycast(CAM.pos, CAM.fwd, 4.5, null);
   if (h && h.body && h.body.ent && entidadUsar(h.body.ent)) return; // radio
   { const e = !h || !h.body || !h.body.obj ? entidadCerca() : null; if (e && entidadUsar(e)) return; } // botón de autos al lado
-  if (!h || !h.body || !h.body.obj) return;
+  if (!h || !h.body || !h.body.obj) { sonar('UI_niega', null, 0.3); return; }   // (nada para usar: el sonido de HL2)
   const o = h.body.obj;
   if (o.nombre === 'Arcade') { maqUsar(o); return; }   // (la maquinita: elegir un juego y jugarlo)
   if (o.logica && usarLogica(o)) return;

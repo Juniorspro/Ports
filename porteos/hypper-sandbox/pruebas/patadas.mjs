@@ -7,7 +7,7 @@ const HTML = process.argv[2], D = (process.argv[3] || '.') + '/';
 const { b, p, err, ev } = await abrir(HTML, true);
 const R = []; const ok = (n, c, d) => { R.push(!!c); console.log((c ? 'OK   ' : 'FALLA') + ' ' + n + (d !== undefined ? ' · ' + JSON.stringify(d) : '')); };
 await ev(`PREFS.bienvenida = true; GFX.auto = false; PREFS.gfx = 'medio'; aplicarGfx(); inicioMostrar(false); empezarPartida('FlatGrass'); DIA.hora = 12; DIA.aplicada = -1; 1`);
-await p.waitForTimeout(2500);
+await p.waitForTimeout(1500); await p.waitForFunction(() => window.__ev(`JUEGO.estado === 'juego' && JUG.suelo`), null, { timeout: 15000 }); await p.waitForTimeout(300);   // (que ya esté pisando: al aparecer cae 1,8 m)
 const PASO = `const paso = (n) => { for (let i = 0; i < n; i++) { TIEMPO.t += 1 / 60; TIEMPO.dt = 1 / 60; animarPersona(JUG.cuerpo, 1 / 60); patadasPaso(1 / 60); physStep(1 / 60); } };`;
 // la caja adelante
 const caja = await ev(`(() => { ${PASO} JUG.yaw = 0; const f = v3(0, 0, 1), piso = pisoBajo(v3(JUG.pos.x, JUG.pos.y + 2, JUG.pos.z), 10), o = crearObjeto('Box4', v3(JUG.pos.x, piso, JUG.pos.z + 1.0), new Quat()); paso(30);

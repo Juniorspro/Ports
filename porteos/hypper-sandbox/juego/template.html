@@ -143,6 +143,7 @@ body.tactil #tactil{display:block}
 #busar{right:30px;bottom:24px;width:56px;height:56px}
 #bdisp2{right:110px;bottom:180px;width:50px;height:50px}
 #brotar{right:22px;bottom:200px;width:50px;height:50px}
+#brotar.on,#bvolver.on{background:rgba(70,140,255,.75)!important;box-shadow:0 0 0 2px #9cc2ff}
 #blejos{right:180px;bottom:180px;width:44px;height:44px}
 #bcerca{right:180px;bottom:120px;width:44px;height:44px}
 /* táctil como el Hypper original: cada botón en su lugar (lo ubica hud.js); íconos propios */
@@ -183,7 +184,9 @@ body.tactil #verEstado{transform:scale(min(1,var(--hk,1)));transform-origin:top 
 #spawn .pie{height:26px;background:#3a3a3a;font-size:11px;display:flex;align-items:center;gap:16px;padding:0 8px;border-top:1px solid #4a4c52}
 #spawn .pie label{display:flex;align-items:center;gap:4px}
 #spawn .pie input{margin:0}
-#spawn .cerrar{position:absolute;left:50%;top:-38px;transform:translateX(-50%);width:34px;height:34px}
+#spawn .spPuso{margin-inline-start:auto;color:#9fe39f;font-weight:600;opacity:0;transition:opacity .4s}#spawn .spPuso.ve{opacity:1}
+#spawn .cerrar{display:none}
+.xCerrar{position:absolute;top:6px;right:6px;width:34px;height:34px;border-radius:50%;border:0;background:rgba(18,20,26,.85);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:3;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.4)}.xCerrar svg{width:18px;height:18px}.xCerrar:active{transform:scale(.92)}
 #spawn .herr{flex:1;display:flex;min-width:0}
 #spawn .ins{width:220px;background:#2f3034;padding:8px;font-size:12px;overflow:auto}
 #spawn .spBus{display:flex;align-items:center;gap:4px;margin:0 6px 4px;padding:0 6px;background:#fff;border:1px solid #c9ccd3;border-radius:4px;color:#888}#spawn .spBus .gli{width:13px;height:13px;flex:none}
@@ -654,7 +657,7 @@ body:not(.tactil) .mqIzq,body:not(.tactil) .mqDer,body:not(.tactil) .mqMed,#maqV
     <div class="bt-t" id="brecargar" data-btn="recargar">R</div>
     <div class="bt-t" id="busar" data-btn="usar"><img id="iUsar"></div>
     <div id="fisBotones" class="oc">
-      <div class="bt-t" id="brotar" data-btn="rotar" data-mantener><img id="iRotar"></div>
+      <div class="bt-t" id="brotar" data-btn="rotar"><img id="iRotar"></div>
       <div class="bt-t" id="blejos" data-btn="lejos">+</div>
       <div class="bt-t" id="bcerca" data-btn="cerca">−</div>
     </div>

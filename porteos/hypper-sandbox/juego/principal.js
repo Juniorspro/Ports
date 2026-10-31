@@ -170,7 +170,9 @@ function atenderPulsos() {
     if (k === 'chat') abrirChat();
     else if (k === 'camara') { if (JUG.vehiculo) { JUG.fpVeh = !JUG.fpVeh; JUG.yaw = JUG.fpVeh ? 0 : JUG.yaw; } else JUG.tercera = !JUG.tercera; }
     else if (k === 'emotes') abrirEmotes();
-    else if (k === 'recargar') recargar();
+    else if (k === 'recargar') { if (!volverAgarre()) recargar(); }   // (sosteniendo algo con la de física o la de gravedad: R lo devuelve a su lugar)
+    else if (k === 'volver') volverAgarre();
+    else if (k === 'rotar') { ENT.rotar = !ENT.rotar && !!ARM.agarre; }   // (un toque: girar; otro: mirar)
     else if (k === 'usar') { if (typeof usar === 'function') usar(); }
     else if (k === 'salir') { if (JUG.vehiculo) salirVehiculo(); else patear(); }   // (F: a pie, patada)
     else if (k === 'patada') patear();

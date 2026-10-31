@@ -583,7 +583,7 @@ function nocheCamPintar() {
 }
 
 // ---------------- linterna (L) ----------------
-function nocheLinterna() { if (!NOC.on || NOC.esp) return; NOC.linterna = !NOC.linterna; sonar('Click', null, 0.45, NOC.linterna ? 1.3 : 1.0); NOC.ui.lin.classList.toggle('on', NOC.linterna); }
+function nocheLinterna() { if (!NOC.on || NOC.esp) return; NOC.linterna = !NOC.linterna; sonar('IT_linterna', null, 0.55, NOC.linterna ? 1.05 : 0.9); NOC.ui.lin.classList.toggle('on', NOC.linterna); }
 
 // ---------------- sustos ----------------
 function nocheSusto(quien) {

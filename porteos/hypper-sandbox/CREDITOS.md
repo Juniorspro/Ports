@@ -28,6 +28,7 @@ con la tela del mapa), el plano de las cámaras (dibujado del mapa), el armado d
 | Asset | Autor / origen | Dónde | Licencia |
 |---|---|---|---|
 | Mapas gm_construct y gm_flatgrass (geometría, texturas, props, cielos) | Garry's Mod 10 (Facepunch Studios) con contenido de Half-Life 2 (Valve) | https://archive.org/download/garrys-mod-10/Garrys_Mod_10.rar | rip: Garry's Mod 10 / Half-Life 2 |
+| Sonidos del jugador: caída (pl_fallpain), golpe del cuerpo (body_medium_impact_soft), traje al correr (suit_sprint), cambio de arma y negar (common/wpn_*), linterna (items/flashlight1), munición, botones | Half-Life 2 (Valve), en Garry's Mod 10 | https://archive.org/download/garrys-mod-10/Garrys_Mod_10.rar | rip: Half-Life 2 |
 | La palanca: v_crowbar y w_crowbar (mallas, huesos, animaciones, texturas) y sus sonidos (silbido, golpes, carne) | Half-Life 2 (Valve), en Garry's Mod 10 | ídem | rip: Half-Life 2 |
 | Posturas del jugador (male_anims.mdl: quieto, golpe y recarga de cada tipo de arma, con los dedos) y el punto de los ojos de male_02.mdl (adónde mira la cabeza) | Garry's Mod 10 / Half-Life 2 Deathmatch | ídem | rip: Garry's Mod 10 |
 | La Tool Gun (v_toolgun y w_toolgun: mallas, huesos, animaciones, texturas) | Garry's Mod 10 (Facepunch Studios) | ídem | rip: Garry's Mod 10 |

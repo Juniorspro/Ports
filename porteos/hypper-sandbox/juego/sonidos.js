@@ -27,7 +27,7 @@ function sonPiso(pos, conCuerpos) {
 }
 function sonPaso(P, yo, pos, vol) {
   const k = sonPiso(pos, yo), n = 'PS_' + SUP[k] + (1 + ((Math.random() * 4) | 0));
-  sonar(n, yo ? null : v3(pos.x, pos.y - 0.9, pos.z), vol * (yo ? 0.4 : 0.75), 0.94 + Math.random() * 0.12);
+  sonar(n, yo ? null : v3(pos.x, pos.y - 0.9, pos.z), vol * (yo ? 0.62 : 0.75), 0.94 + Math.random() * 0.12);   // (los propios, que se oigan bien)
 }
 function sonPasos(dt) {
   for (const P of PERS) {

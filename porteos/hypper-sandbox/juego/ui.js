@@ -199,9 +199,36 @@ function abrirAjustes(desde) {
 }
 // ---------------- HUD por cuadro ----------------
 function hudActualizar(dt) {
+  if (UI.abierto !== UI.xVisto) { UI.xVisto = UI.abierto; ponerX(); }
   if (UI.avisoT > 0) { UI.avisoT -= dt; if (UI.avisoT <= 0) $('aviso').classList.remove('ve'); }
   const v = Math.max(0, Math.round(JUG.vida));
   if (hudActualizar.v !== v) { hudActualizar.v = v; $('vidaN').textContent = v; $('vidaB').style.width = Math.max(0, Math.min(100, v / (JUG.vidaMax || 100) * 100)) + '%'; }
   let ch = ''; for (const c of CHAT) { c.v -= dt; if (c.v > 0) ch += `<div>${c.h || c.t.replace(/[<>&]/g, '')}</div>`; }
   if (hudActualizar.ch !== ch) { hudActualizar.ch = ch; $('chat').innerHTML = ch; }
+}
+
+// ---------------- menús: una X para cerrar y tocar afuera para volver a jugar ----------------
+// (el menú MOD se cierra solo al tocar afuera: modmenu.js; el chat se cierra sin mandar nada)
+const PANEL_DE = { spawn: 'spawn', pausa: 'pausa', emotes: 'emotes', memes: 'memePan', maq: 'maqPan', sm: 'smPan', radio: 'radioPan', verity: 'verPan', terminal: 'verTerm' };
+const panelAbierto = () => { const id = PANEL_DE[UI.abierto], p = id && $(id); return p && !p.classList.contains('oc') ? p : null; };
+// lo que se ve del menú (en los que oscurecen la pantalla, la caja del medio)
+const cajaDe = (p) => (p.classList.contains('panel') ? p.querySelector('.caja') || p : p);
+addEventListener('pointerdown', (e) => {
+  if (!UI.abierto) return;
+  const t = e.target;
+  if (UI.abierto === 'chat') { if (t !== $('chatIn')) { $('chatIn').classList.add('oc'); $('chatIn').blur(); UI.abierto = null; } return; }
+  const p = panelAbierto(); if (!p) return;
+  if (t.closest && t.closest('[data-btn], .modmBt')) return;   // (los botones de la pantalla abren y cierran lo suyo)
+  if (cajaDe(p).contains(t)) return;
+  const aj = $('ajustes'); if (aj && !aj.classList.contains('oc') && aj.contains(t) && t !== aj) return;   // (ajustes, encima de la pausa)
+  cerrarPaneles();
+}, true);
+const X_SVG = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
+function ponerX() {
+  const p = panelAbierto(); if (!p) return;
+  const c = cajaDe(p); if (c.querySelector('.xCerrar, .mmX, .mqX')) return;
+  const b = document.createElement('button'); b.className = 'xCerrar'; b.setAttribute('aria-label', T('cerrar')); b.innerHTML = X_SVG;
+  b.addEventListener('click', (e) => { e.stopPropagation(); cerrarPaneles(); });
+  if (getComputedStyle(c).position === 'static') c.style.position = 'relative';
+  c.appendChild(b);
 }

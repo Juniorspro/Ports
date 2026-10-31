@@ -106,6 +106,16 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   9 m/s), le saca 20 de vida a la gente (con el golpe, su voz y un empujón), tira lejos a los muñecos; no se repite antes de
   0,75 s. En primera persona se ve la pierna (el cuerpo a la vista con la cabeza y los brazos achicados a nada, que
   tapaban la cámara) y vuelve todo al terminar. Los demás la ven por el estado del jugador.
+- **Menús**: todo menú grande tiene una X arriba a la derecha; tocar afuera lo cierra y se sigue jugando (el chat también,
+  sin mandar nada); poner un prop no cierra el menú de props (`pruebas/menus_x.mjs`, 6/6).
+- **gm_construct**: parado en una loma ya no te resbalás (los pies sobre piso caminable se sacan sólo para arriba; antes
+  bajabas hasta 1,2 m en 5 s), y nadar con la cámara un poco hacia abajo (hasta 20°, como queda en el celular) te deja en
+  la superficie en vez de llevarte al fondo; más inclinada se bucea (`pruebas/nado_lomas.mjs`, 5/5).
+- **Agarrar**: girar se prende y se apaga con un toque (no hay que mantener); sosteniendo algo con la pistola de física o la
+  de gravedad aparece el botón **volver** (R en la compu) que lo deja donde estaba al agarrarlo; la tele, la radio o el
+  piano propios se borran con el tacho (Supr en la compu) apuntándolos (`pruebas/agarre_volver.mjs`, 5/5).
+- **Sonidos de HL2 de lo que hacés**: saltar (el paso), caer (golpe sordo; de muy alto, el quejido), cambiar de arma, usar
+  sin nada adelante, arrancar a correr, la linterna; los pasos propios suenan más (`pruebas/sonidos_accion.mjs`, 7/7).
 - **HTML liviano: paquetes aparte** (`herramientas/remotos.py`, `datos.js` `rbAsegurar`; prueba `pruebas/paquetes.mjs`,
   8/8): los personajes que no son el Hero y los mapas grandes (mallas y texturas; la pizzería con sus animatrónicos y sus
   sonidos) y los sonidos de los memes salen del HTML a archivos sueltos en `hypper/rb/` (56, 27 MB en total). El juego
