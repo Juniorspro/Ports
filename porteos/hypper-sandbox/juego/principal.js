@@ -347,7 +347,7 @@ function dibujar() {
   if (JUEGO.foto > 0) { JUEGO.foto--; if (JUEGO.foto === 0) { if (JUEGO.fotoCb) { JUEGO.fotoCb(); JUEGO.fotoCb = null; } else fotoGuardar(); } }
 }
 function fotoGuardar() {
-  try { R.cv.toBlob((b) => { if (!b) return; const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'hypper_' + Date.now() + '.png'; a.click(); aviso('Foto guardada'); }); } catch (e) {}
+  try { R.cv.toBlob((b) => { if (!b) return; const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'rezobox_' + Date.now() + '.png'; a.click(); aviso('Foto guardada'); }); } catch (e) {}
 }
 // ---------------- inicio ----------------
 // Arranque a prueba de fallas: cada paso queda anotado; si algo se rompe (un celular con un driver raro) se prueba solo

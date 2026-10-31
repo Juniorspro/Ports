@@ -61,7 +61,7 @@ function uiTextoPoner(n, txt) {
   if (!n || !n.tx) return;
   if (txt !== undefined) n.txtFijo = txt;
   const t = n.txtFijo !== undefined ? n.txtFijo : (n.k && n.k.includes('LocalizationText') ? Lc(n.n, n.txt.t) : n.txt.t);
-  n.tx.textContent = t;
+  n.tx.textContent = typeof t === 'string' ? t.replace(/Hypper(\s*Sandbox)?/gi, 'RezoBox') : t;   // (sin rastro del nombre viejo en los menús)
 }
 const hijo = (n, nombre) => n && (n.ch || []).find((c) => c.n === nombre);
 function buscar(n, nombre) { if (!n) return null; if (n.n === nombre) return n; for (const c of n.ch || []) { const r = buscar(c, nombre); if (r) return r; } return null; }

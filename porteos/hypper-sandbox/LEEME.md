@@ -100,6 +100,16 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
 - **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
   leyeron: queda en 16,5 MB en vez de ~38.
+- **Tienda en íconos cuadrados** (`inicio.js` `tiendaDibujar`; prueba `pruebas/tienda_iconos.mjs`, 12/12 en compu y
+  celular): Mods, Mapas y Emotes ya no son una lista de tarjetas con textos y botones: son íconos cuadrados por secciones
+  (Mods: oficiales de jugar, oficiales que ponen cosas y los de la gente; Mapas: oficiales y de la gente; Emotes: por
+  categoría), 7 por fila en la compu y 9 en el celular acostado, con una marca azul en los prendidos y verde en los
+  instalados. Tocar uno abre su **ficha**: ícono grande, nombre, autor, descargas y me gusta, etiquetas, la descripción
+  entera y los botones (Instalar, Quitar, Activado, Jugar, Me gusta, Denunciar, Exportar); Volver vuelve a la grilla.
+- **Menú MOD en íconos cuadrados** (como los ajustes rápidos de un celular): tocar el ícono prende o apaga el mod (con la
+  marca azul arriba a la derecha) y la fuerza de los prendidos que la tienen va abajo, una fila cada uno.
+- **Sin rastro del nombre viejo en los menús**: los textos heredados que decían "Hypper" dicen RezoBox y las fotos se
+  guardan como `rezobox_….png`.
 - **NPC con actitud: Tool Gun → Actitud** (`juego/npc.js`; prueba `pruebas/npc.mjs`, 15/15): clic en el piso pone un
   NPC (clic derecho: elegís el personaje y la actitud de los próximos); clic sobre un NPC abre su panel, donde **escribís
   cómo actúa** ("agresivo, que nos persiga corriendo") o tocás una rápida (Agresivo, Amigo, Miedoso, Bailarín, Guardia,

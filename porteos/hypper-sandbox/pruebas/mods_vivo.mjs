@@ -13,7 +13,7 @@ await p.waitForFunction(() => window.__ev('MODM.abierto'), null, { timeout: 1000
 console.log('menú:', await ev(`JSON.stringify({filas: document.querySelectorAll('#modMenu .mmCat').length, buscador: !!document.getElementById('mmQ'), usar: document.querySelectorAll('#modMenu [data-mm^="nat:"]').length})`));
 await p.screenshot({ path: D + 'v1_menu_vacio.png' });
 // (en las filas de mods se toca el interruptor: la barra de fuerza no prende ni apaga)
-const clic = async (sel) => { const s2 = /^\[data-mm="mod:/.test(sel) ? sel + ' .smSw' : sel; if (celu) await p.tap(s2); else await p.click(s2); await espera(350); };
+const clic = async (sel) => { const s2 = sel; if (celu) await p.tap(s2); else await p.click(s2); await espera(350); };   // (los mods son íconos cuadrados: se toca el ícono entero)
 await clic('[data-mm="mod:luna"]');
 console.log('luna: gravedad', await ev(`MUNDO.gravedad.toFixed(3)`), '· fuerza visible', await ev(`!!document.querySelector('[data-mf="luna"]')`), '· botón dice', await ev(`MODM.boton.querySelector('.mmN').textContent`));
 for (const v of [200, 0, 100]) { await ev(`(() => { const r = document.querySelector('[data-mf="luna"]'); r.value = ${v}; r.dispatchEvent(new Event('input', { bubbles: true })); })()`); await espera(400); console.log('  fuerza', v + '%', '→ gravedad', await ev(`MUNDO.gravedad.toFixed(3)`)); }

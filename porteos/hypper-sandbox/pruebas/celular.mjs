@@ -11,7 +11,8 @@ await ev(`PREFS.bienvenida = true; GFX.auto = false; PREFS.gfx = 'bajo'; aplicar
 await p.waitForTimeout(2500); await p.touchscreen.tap(5, 300); await p.waitForTimeout(300);
 const pos = async (sel) => ev(`(() => { const e = document.querySelector('${sel}'); if (!e) return null; const r = e.getBoundingClientRect(); return r.width ? [r.left + r.width / 2, r.top + r.height / 2] : null; })()`);
 const bt = await pos('[data-btn=celular]'); await p.touchscreen.tap(bt[0], bt[1]); await p.waitForTimeout(600);
-const ab = await ev(`(() => { const c = $('celular'), r = c.getBoundingClientRect(); return { ui: UI.abierto, apps: c.querySelectorAll('.celApp').length, dentro: r.right <= innerWidth + 1 && r.bottom <= innerHeight + 30 && r.top >= 0, alto: Math.round(r.height) }; })()`);
+await p.waitForFunction(() => { const c = document.getElementById('celular'), r = c && c.getBoundingClientRect(); return r && r.top >= 0 && r.bottom <= innerHeight + 30; }, null, { timeout: 4000 }).catch(() => {});   // (con la máquina ocupada la subida tarda más)
+const ab = await ev(`(() => { const c = $('celular'), r = c.getBoundingClientRect(); return { ui: UI.abierto, apps: c.querySelectorAll('.celApp').length, dentro: r.right <= innerWidth + 1 && r.bottom <= innerHeight + 30 && r.top >= 0, alto: Math.round(r.height), r: [r.left, r.top, r.right, r.bottom, innerWidth, innerHeight].map(Math.round) }; })()`);
 ok('el botón sube el celular con sus 7 apps, entero en la pantalla', ab.ui === 'celular' && ab.apps === 7 && ab.dentro, ab);
 await p.screenshot({ path: D + 'celular_inicio.png' });
 // Objetos: poner dos cosas sin cerrarlo

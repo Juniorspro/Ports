@@ -195,27 +195,48 @@ function tiendaCargar(desdeCero) {
     if (n !== S.n) return; S.items = S.items.concat((d.items || []).map((x) => (S.tab === 'anim' ? Object.assign(x, { cat: x.base }) : x))); S.total = (d.total || 0) + (S.tab !== 'mapa' ? S.items.filter((x) => x.oficial).length : 0); S.cargando = false; tiendaDibujar();
   }).catch(() => { if (n !== S.n) return; S.cargando = false; S.error = !S.items.length; S.total = S.items.length; tiendaDibujar(); });
 }
+// la tienda en íconos cuadrados, por secciones (para que no agobie): tocar uno abre su ficha con todo y los botones
 function tiendaDibujar() {
   const S = RB.t, G = RB.el.querySelector('.rbTiendaG'); if (!G) return;
-  const inst = (it) => (S.tab === 'mod' ? (it.oficial ? ofInstalado(it.id) : INST.mods[it.id]) : it.oficial || (S.tab === 'anim' ? INST.anims[it.id] : INST.mapas[it.id]));
-  const fijo = (it) => it.oficial && S.tab !== 'mod'; // (los emotes del juego y la Mega rampa vienen incluidos)
-  const tarjeta = (it) => {
-    const an = S.tab === 'anim', ins = inst(it), act = S.tab === 'mod' && PREFS.mods[it.id] && modTipo(it) !== 'asset';
-    const img = S.tab === 'mod' ? icoHTML(it.icono) : an ? (it.icono || it.foto ? `<img src="${esc(it.icono || it.foto)}" alt="">` : icoHTML('ico:animacion')) : `<img src="${esc(it.icono || it.foto || icono(MAPA_ICONO[it.base] || 'flatgrass'))}" alt="">`;
-    const datos = (it.oficial ? `<b class="rbOf">${esc(T(an ? 'emo.incluido' : 'oficial'))}</b>` : `${esc(T('por'))} ${esc(it.autor)}${it.descargas != null ? ` · ${glifo('bajar')} ${it.descargas} · ${glifo('corazon')} ${it.likes}` : ''}${S.tab === 'mapa' && it.base ? ` · ${esc(mapaNom(it.base))}` : ''}`)
-      + (an && it.cat ? ` · ${esc(T('emo.' + it.cat))}` : '') + (S.tab === 'mod' ? ` · ${esc(T(modTipo(it) === 'asset' ? 'mm.assets' : 'mm.juego'))}` : '');
-    return `<div class="rbCard${S.tab === 'mapa' ? ' rbCardMapa' : an ? ' rbCardAnim' : ''}${act ? ' on' : ''}"><div class="rbIco">${img}</div>
-      <div class="rbInfo"><b dir="auto">${esc(nombreDe(it))}</b><small dir="auto">${it.codigo ? '<b class="rbCod">&lt;/&gt;</b> ' : ''}${datos}</small><p dir="auto">${esc(descDe(it))}</p>
-      <span class="rbEtqsC">${(it.etiquetas || []).map((e) => `<i>${esc(T('e.' + e))}</i>`).join('')}</span></div>
-      <div class="rbAcc">${S.tab === 'mod' && ins && modTipo(it) !== 'asset' ? `<button class="rbChk${act ? ' on' : ''}" data-rb="act:${esc(it.id)}"><em></em>${esc(T('activado'))}</button>` : ''}
-        ${fijo(it) ? '' : ins ? `<button class="rbBtnGris rbChico" data-rb="quitar:${esc(it.id)}">${esc(T('quitar'))}</button>` : `<button class="rbBtnG rbChico" data-rb="instalar:${esc(it.id)}">${glifo('bajar')} ${esc(T('instalar'))}</button>`}
-        ${S.tab === 'mapa' && ins ? `<button class="rbBtnG rbChico" data-rb="jugarcom:${esc(it.id)}">${glifo('jugar')} ${esc(T('jugar'))}</button>` : ''}
-        ${it.oficial ? '' : `<span class="rbMini">${it.descargas != null ? `<button title="${esc(T('meGusta'))}" class="${LIKES[it.id] ? 'sel' : ''}" data-rb="like:${esc(it.id)}">${glifo('corazon')}</button><button title="${esc(T('denunciar'))}" data-rb="denunciar:${esc(it.id)}">${glifo('bandera')}</button>` : ''}
-        ${ins ? `<button title="${esc(T('exportar'))}" data-rb="exportar:${esc(it.id)}">${glifo('bajar')}</button>` : ''}${PUBLICADOS[it.id] ? `<button title="${esc(T('quitar'))}" data-rb="borrarpub:${esc(it.id)}">${glifo('basura')}</button>` : ''}</span>`}</div></div>`;
-  };
-  G.innerHTML = S.items.map(tarjeta).join('') + (S.cargando ? `<div class="rbVacio">${esc(T('cargando'))}</div>` : S.error ? `<div class="rbVacio">${esc(T('errRed'))}</div>` : !S.items.length ? `<div class="rbVacio">${esc(T('sinRes'))}</div>` : '');
-  const tot = RB.el.querySelector('.rbTotal'); if (tot) tot.textContent = S.total ? `${S.items.length} / ${S.total}` : '';
-  const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.visibility = S.vista === 'explorar' && S.items.length < S.total ? '' : 'hidden';
+  const an = S.tab === 'anim', esMod = S.tab === 'mod';
+  const inst = (it) => (esMod ? (it.oficial ? ofInstalado(it.id) : INST.mods[it.id]) : it.oficial || (an ? INST.anims[it.id] : INST.mapas[it.id]));
+  const fijo = (it) => it.oficial && !esMod; // (los emotes del juego y la Mega rampa vienen incluidos)
+  const activo = (it) => esMod && PREFS.mods[it.id] && modTipo(it) !== 'asset';
+  const img = (it) => (esMod ? icoHTML(it.icono) : an ? (it.icono || it.foto ? `<img src="${esc(it.icono || it.foto)}" alt="">` : icoHTML('ico:animacion')) : `<img src="${esc(it.icono || it.foto || icono(MAPA_ICONO[it.base] || 'flatgrass'))}" alt="">`);
+  const datos = (it) => (it.oficial ? `<b class="rbOf">${esc(T(an ? 'emo.incluido' : 'oficial'))}</b>` : `${esc(T('por'))} ${esc(it.autor)}${it.descargas != null ? ` · ${glifo('bajar')} ${it.descargas} · ${glifo('corazon')} ${it.likes}` : ''}${S.tab === 'mapa' && it.base ? ` · ${esc(mapaNom(it.base))}` : ''}`)
+    + (an && it.cat ? ` · ${esc(T('emo.' + it.cat))}` : '') + (esMod ? ` · ${esc(T(modTipo(it) === 'asset' ? 'mm.assets' : 'mm.juego'))}` : '');
+  const fin = S.cargando ? `<div class="rbVacio">${esc(T('cargando'))}</div>` : S.error ? `<div class="rbVacio">${esc(T('errRed'))}</div>` : !S.items.length ? `<div class="rbVacio">${esc(T('sinRes'))}</div>` : '';
+  const it = S.ficha && S.items.find((x) => x.id === S.ficha);
+  G.classList.toggle('rbFichaModo', !!it);
+  for (const s of ['.rbBarra', '.rbEtqs']) { const e = RB.el.querySelector(s); if (e) e.classList.toggle('oc', !!it); }
+  if (it) {
+    const ins = inst(it), act = activo(it);
+    G.innerHTML = `<div class="rbFicha${act ? ' on' : ''}"><button class="rbBtnGris rbChico rbFichaX" data-rb="fichaNo">${glifo('atras')} ${esc(T('volver'))}</button>
+      <div class="rbFichaCuerpo"><div class="rbFichaIco">${img(it)}</div>
+        <div class="rbFichaInfo"><h3 dir="auto">${esc(nombreDe(it))}</h3><small dir="auto">${it.codigo ? '<b class="rbCod">&lt;/&gt;</b> ' : ''}${datos(it)}</small>
+          <span class="rbEtqsC">${(it.etiquetas || []).map((e) => `<i>${esc(T('e.' + e))}</i>`).join('')}</span>
+          <p dir="auto">${esc(descDe(it)) || ''}</p>
+          <div class="rbFichaAcc">
+            ${fijo(it) ? `<span class="rbFichaIncl">${esc(T(an ? 'emo.incluido' : 'oficial'))}</span>` : ins ? `<button class="rbBtnGris" data-rb="quitar:${esc(it.id)}">${glifo('basura')} ${esc(T('quitar'))}</button>` : `<button class="rbBtnG rbFichaGrande" data-rb="instalar:${esc(it.id)}">${glifo('bajar')} ${esc(T('instalar'))}</button>`}
+            ${esMod && ins && modTipo(it) !== 'asset' ? `<button class="rbChk${act ? ' on' : ''}" data-rb="act:${esc(it.id)}"><em></em>${esc(T('activado'))}</button>` : ''}
+            ${S.tab === 'mapa' && ins ? `<button class="rbBtnG" data-rb="jugarcom:${esc(it.id)}">${glifo('jugar')} ${esc(T('jugar'))}</button>` : ''}
+            ${it.oficial ? '' : `${it.descargas != null ? `<button class="rbBtnGris${LIKES[it.id] ? ' sel' : ''}" data-rb="like:${esc(it.id)}">${glifo('corazon')} ${esc(T('meGusta'))}</button><button class="rbBtnGris" data-rb="denunciar:${esc(it.id)}">${glifo('bandera')} ${esc(T('denunciar'))}</button>` : ''}
+              ${ins ? `<button class="rbBtnGris" data-rb="exportar:${esc(it.id)}">${glifo('bajar')} ${esc(T('exportar'))}</button>` : ''}${PUBLICADOS[it.id] ? `<button class="rbBtnGris" data-rb="borrarpub:${esc(it.id)}">${glifo('basura')} ${esc(T('quitar'))}</button>` : ''}`}
+          </div></div></div></div>`;
+  } else {
+    const tile = (x) => { const ins = inst(x), act = activo(x);
+      return `<button class="rbTile${act ? ' on' : ''}${ins && !fijo(x) ? ' inst' : ''}${S.tab === 'mapa' ? ' rbTileMapa' : ''}" data-rb="ver:${esc(x.id)}"><span class="rbTileIco">${img(x)}</span><b dir="auto">${esc(nombreDe(x))}</b>${act ? '<i class="rbTileOn"></i>' : ins && !fijo(x) ? '<i class="rbTileOk"></i>' : ''}</button>`; };
+    // secciones: en Mods, oficiales de jugar / oficiales que ponen cosas / de la gente; en Mapas, oficiales y de la gente;
+    // en Emotes (sin filtro), por categoría
+    let grupos;
+    if (esMod) grupos = [[T('oficial') + ' · ' + T('mm.juego'), S.items.filter((x) => x.oficial && modTipo(x) !== 'asset')], [T('oficial') + ' · ' + T('mm.assets'), S.items.filter((x) => x.oficial && modTipo(x) === 'asset')], [T('c.comunidad'), S.items.filter((x) => !x.oficial)]];
+    else if (an && !S.etq) { const m = new Map(); for (const x of S.items) { const c = x.cat || 'otros'; if (!m.has(c)) m.set(c, []); m.get(c).push(x); } grupos = [...m].map(([c, L]) => [T('emo.' + c) !== 'emo.' + c ? T('emo.' + c) : c, L]); }
+    else grupos = [[T('oficial'), S.items.filter((x) => x.oficial)], [T('c.comunidad'), S.items.filter((x) => !x.oficial)]];
+    grupos = grupos.filter((g) => g[1].length);
+    G.innerHTML = (grupos.length > 1 ? grupos.map(([n, L]) => `<div class="rbSecc">${esc(n)}<em>${L.length}</em></div>` + L.map(tile).join('')).join('') : S.items.map(tile).join('')) + fin;
+  }
+  const tot = RB.el.querySelector('.rbTotal'); if (tot) tot.textContent = S.total && !it ? `${S.items.length} / ${S.total}` : '';
+  const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.visibility = !it && S.vista === 'explorar' && S.items.length < S.total ? '' : 'hidden';
 }
 async function instalar(id) {
   const S = RB.t, of = OFICIALES.find((m) => m.id === id);
@@ -325,15 +346,17 @@ function inicioAccion(k, b) {
     case 'nueva': return inicioPanel('nueva');
     case 'tienda': if (v) RB.t.tab = v; return inicioPanel('tienda');
     case 'volver': inicioLista(); return inicioPanel(null);
-    case 'tab': RB.t.tab = v; RB.t.etq = ''; return inicioPanel('tienda');
-    case 'vista': RB.t.vista = v; return inicioPanel('tienda');
-    case 'etq': RB.t.etq = v; return inicioPanel('tienda');
+    case 'tab': RB.t.tab = v; RB.t.etq = ''; RB.t.ficha = null; return inicioPanel('tienda');
+    case 'vista': RB.t.vista = v; RB.t.ficha = null; return inicioPanel('tienda');
+    case 'etq': RB.t.etq = v; RB.t.ficha = null; return inicioPanel('tienda');
+    case 'ver': RB.t.ficha = v; return tiendaDibujar();   // (la ficha de uno: todo lo que es y los botones)
+    case 'fichaNo': RB.t.ficha = null; return tiendaDibujar();
     case 'mas': RB.t.p++; return tiendaCargar(false);
     case 'instalar': return instalar(v);
     case 'quitar': if (RB.t.tab === 'mod') { delete INST.mods[v]; if (INST.of) delete INST.of[v]; delete PREFS.mods[v]; guardarPrefs(); inicioLista(); } else if (RB.t.tab === 'anim') { delete INST.anims[v]; emoOlvidar('u:' + v); } else delete INST.mapas[v]; guardarLS('rb_instalados', INST); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar();
     case 'act': PREFS.mods[v] = !PREFS.mods[v]; if (!PREFS.mods[v]) delete PREFS.mods[v]; guardarPrefs(); return tiendaDibujar();
     case 'like': if (LIKES[v]) return; LIKES[v] = 1; guardarLS('rb_likes', LIKES); fetch(TIENDA_URL + 'like/' + v, { method: 'POST' }).catch(() => {}); { const it = RB.t.items.find((x) => x.id === v); if (it) it.likes++; } return tiendaDibujar();
-    case 'denunciar': if (!confirm(T('denunciar') + '?')) return; fetch(TIENDA_URL + 'denunciar/' + v, { method: 'POST' }).catch(() => {}); RB.t.items = RB.t.items.filter((x) => x.id !== v); return tiendaDibujar();
+    case 'denunciar': if (!confirm(T('denunciar') + '?')) return; fetch(TIENDA_URL + 'denunciar/' + v, { method: 'POST' }).catch(() => {}); RB.t.items = RB.t.items.filter((x) => x.id !== v); RB.t.ficha = null; return tiendaDibujar();
     case 'exportar': return descargarArchivo(RB.t.tab === 'mod' ? INST.mods[v] : RB.t.tab === 'anim' ? INST.anims[v] : INST.mapas[v]);
     case 'crearanim': RB.horaPartida = 'normal'; RB.mapaPartida = null; RB.mapaCom = null; SALA = null; inicioMostrar(false); empezarPartida('FlatGrass'); setTimeout(() => edaAbrir(), 900); return;
     case 'borrarpub': if (!confirm(T('quitar') + ' ' + v + '?')) return; fetch(TIENDA_URL + 'borrar/' + v, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave: PUBLICADOS[v] }) }).then((r) => r.json()).then((r) => { if (r.ok) { delete PUBLICADOS[v]; guardarLS('rb_publicados', PUBLICADOS); tiendaCargar(true); } }).catch(() => menuAviso(T('errRed'))); return;
