@@ -12,7 +12,7 @@ await p.waitForTimeout(3000);
 const TODOS = (process.argv[4] || 'Jeppy,UncleJeppy,Sunman,Filbus,BoiledOne').split(',');
 const SK = ['Hero', ...(await ev(`${JSON.stringify(TODOS)}.filter((s) => DATA.chars.includes(s))`))];
 // alto esperado respecto del Hero (canon: Jeppy 1,68 m; los demás altos) ±5 % (la animación de quieto lo mueve unos %)
-const ALTO = { Jeppy: 0.884, UncleJeppy: 1.16, Sunman: 1.37, Filbus: 0.945, BoiledOne: 1.53 };   // (Filbus: sin --alto, la medida de su modelo)
+const ALTO = { Jeppy: 0.884, UncleJeppy: 1.16, Sunman: 1.37, Filbus: 0.945, BoiledOne: 1.53, Bon: 1.2, Sha: 1.04, Alternate: 0.95, Partygoer: 1.05, Bacteria: 1.32 };   // (Filbus: sin --alto, la medida de su modelo)
 ok('están en la lista con retrato y nombre', await ev(`${JSON.stringify(SK.slice(1))}.every((s) => DATA.ico[RETRATO[s]] && skinNom(s))`), SK.map((s) => s));
 await ev(`window.__malla = (P) => { const md = P.md; md.sucio = true; md.actualizar(); let lo = 1e9, hi = -1e9;
   const dv = new DataView(BIN.buffer, BIN.byteOffset);

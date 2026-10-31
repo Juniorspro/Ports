@@ -54,6 +54,9 @@ fondos de carga de los mapas (capturas del juego).
 | Rick y Rick Prime (personajes, diseño) | Rick and Morty (Justin Roiland y Dan Harmon, Adult Swim) | imágenes de referencia de https://rickandmorty.fandom.com (sólo para generar el modelo; no van en el juego) | fan art: Rick and Morty |
 | Finn y Jake (personajes, diseño) | Adventure Time (Pendleton Ward, Cartoon Network) | imágenes de referencia de https://adventuretime.fandom.com (ídem) | fan art: Adventure Time |
 | Jeppy Jothers, Uncle Jeppy, Sunman, Filbus y The Boiled One (personajes, diseño) | Doctor Nowhere (Silas Orion, canal de YouTube Doctor Nowhere) | imágenes de referencia de https://doctor-nowhere-creatures.fandom.com (ídem) | fan art: Doctor Nowhere |
+| Bon y Sha (personajes, diseño) | The Walten Files (Martin Walls) | imágenes de referencia de https://the-walten-files-new.fandom.com (ídem) | fan art: The Walten Files |
+| Alternate (personaje, diseño) | The Mandela Catalogue (Alex Kister) | generado desde la descripción (ídem) | fan art: The Mandela Catalogue |
+| Partygoer y Bacteria (entidades, diseño) | The Backrooms (Kane Pixels y la wiki de la comunidad) | generados desde la descripción (ídem) | fan art: The Backrooms |
 
 Los modelos 3D de esos (y los de Dragon Ball y los demás generados) se hicieron acá: imagen en pose T desde la
 referencia → modelo 3D texturado y riggeado (Higgsfield, Meshy) → `skin_meshy.py` y `dedos_meshy.py`. The Boiled One
@@ -61,3 +64,9 @@ se generó con Tripo H3.1 (Meshy lo rechazaba) sin riggear y lo riggea `rig_flot
 cara desde su imagen con `cara_glb.py`.
 
 Herramientas usadas al empaquetar (no van en el juego): pyfqmr (Fast Quadric Mesh Reduction, MIT) para los LOD de los personajes.
+
+## Pad de memes (`juego/memes.js`)
+
+| Asset | Autor / origen | Dónde | Licencia |
+|---|---|---|---|
+| Los 36 sonidos de memes (Vine boom, Bruh, Oof, tubo de metal, MLG, Emotional damage, Sus, Taco Bell, Huh, Wow, Bonk, Ba dum tss, trombón triste, error de XP, FBI open up, AUGH, momentos después, continuará, Yeet, gnomo, aldeano, Discord, grito Wilhelm, oh no no no, Rizz, Ete sech, Chupapi, Eso Tilín, pedo, correcto, incorrecto, aplausos, risas, grillos, dun dun dun, Nani), recortados a 7 s como mucho, nivelados y pasados a mono 48 kbps | subidos por la comunidad a myinstants.com (cada meme es de su autor original) | https://www.myinstants.com | rip: myinstants (memes de internet) |

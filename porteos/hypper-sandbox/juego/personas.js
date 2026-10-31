@@ -15,9 +15,42 @@ function datosSkin(skin) {
   const h = {}; for (let i = 0; i < sub.length; i++) { const m = /^mixamorig\d*:(.*)$/.exec(sub[i].n); if (m && HUESOS.includes(m[1]) && h[m[1]] === undefined) h[m[1]] = i; }
   const rw = sub.map((x, i) => m4quat(md.W[i]));
   const rp = sub.map((x, i) => v3(md.W[i][12], md.W[i][13], md.W[i][14]));
-  // altura del tobillo con el personaje parado (para apoyar los pies en el piso)
-  const tobillo = h.LeftFoot !== undefined && h.RightFoot !== undefined ? Math.max(0.02, Math.min(rp[h.LeftFoot].y, rp[h.RightFoot].y)) : 0.08;
-  return (_skinCache[skin] = { sub, h, rw, rp, cr, tobillo });
+  // altura del tobillo sobre la suela con el personaje parado (para apoyar los pies en el piso): si la malla en reposo
+  // baja del 0 de la raíz (zapatos largos, patas grandes), se cuenta desde lo más bajo de la malla
+  const S = sueloReposo(md, h, sub), tobillo = h.LeftFoot !== undefined && h.RightFoot !== undefined ? Math.max(0.02, Math.min(rp[h.LeftFoot].y, rp[h.RightFoot].y) - S.lo) : 0.08;
+  return (_skinCache[skin] = { sub, h, rw, rp, cr, tobillo, pies: S.pies });
+}
+// la suela en la pose de reposo: lo más bajo de la malla con piel (0 si no baja del piso de la raíz) y, de cada pie, el
+// talón y la punta de la suela (en el espacio del hueso del pie: al girar el pie al caminar, el talón o la punta de un
+// pie largo, como el de un disfraz, bajaban del piso). Se lee de los vértices sin guardar copia (en un celular de 2 GB
+// no conviene dejar las mallas en la memoria).
+function sueloReposo(md, h, sub) {
+  const dv = new DataView(BIN.buffer, BIN.byteOffset), lado = new Map(), pts = { L: [], R: [] }; let lo = 0;
+  for (const [l, re] of [['L', /Left(Foot|ToeBase|Toe_End)$/], ['R', /Right(Foot|ToeBase|Toe_End)$/]]) sub.forEach((n, i) => { if (re.test(n.n)) lado.set(i, l); });
+  for (const pz of md.pieles) {
+    const x = md.A[pz.i], d = DATA.ms[x.m], H = pz.h; if (!d || d.sk === undefined) continue;
+    for (let v = 0; v < d.v; v++) {
+      const o = d.o + v * 14, px = d.mn[0] + dv.getUint16(o, true) / 65535 * d.sc[0], py = d.mn[1] + dv.getUint16(o + 2, true) / 65535 * d.sc[1], pz2 = d.mn[2] + dv.getUint16(o + 4, true) / 65535 * d.sc[2];
+      let X = 0, Y = 0, Z = 0, wm = 0, bm = -1; const sk = d.sk + v * 8;
+      for (let k = 0; k < 4; k++) {
+        const w = dv.getUint8(sk + 4 + k) / 255; if (!w) continue; const b = dv.getUint8(sk + k), B = b * 12;
+        X += w * (H[B] * px + H[B + 1] * py + H[B + 2] * pz2 + H[B + 3]); Y += w * (H[B + 4] * px + H[B + 5] * py + H[B + 6] * pz2 + H[B + 7]); Z += w * (H[B + 8] * px + H[B + 9] * py + H[B + 10] * pz2 + H[B + 11]);
+        if (w > wm) { wm = w; bm = b; }
+      }
+      if (Y < lo) lo = Y;
+      const l = bm >= 0 && x.bo && lado.get(x.bo[bm]); if (l) pts[l].push(X, Y, Z);
+    }
+  }
+  // de cada pie: los puntos de la suela (hasta 1,5 cm arriba de lo más bajo del pie), el de más atrás y el de más adelante
+  const pies = {};
+  for (const [l, iF] of [['L', h.LeftFoot], ['R', h.RightFoot]]) {
+    const q = pts[l]; if (iF === undefined || q.length < 9) continue;
+    let mn = 1e9; for (let i = 1; i < q.length; i += 3) mn = Math.min(mn, q[i]);
+    let a = -1, b = -1; for (let i = 0; i < q.length; i += 3) if (q[i + 1] < mn + 0.015) { if (a < 0 || q[i + 2] < q[a + 2]) a = i; if (b < 0 || q[i + 2] > q[b + 2]) b = i; }
+    const W = md.W[iF], loc = (i) => { const dx = q[i] - W[12], dy = q[i + 1] - W[13], dz = q[i + 2] - W[14], c = (k) => (W[k] * dx + W[k + 1] * dy + W[k + 2] * dz) / (W[k] * W[k] + W[k + 1] * W[k + 1] + W[k + 2] * W[k + 2]); return v3(c(0), c(4), c(8)); };
+    pies[l] = [loc(a), loc(b)];
+  }
+  return { lo, pies: pies.L && pies.R ? pies : null };
 }
 // tamaño de un personaje (los bajitos, como Jake o Finn, vienen con el modelo achicado en la raíz): alto respecto del Hero
 // (k) y la altura de los ojos respecto de la de un humano de ese alto (ojo). Los demás: 1 y 1
@@ -175,7 +208,10 @@ function aterrizarPies(P) {
   const md = P.md, h = P.D.h; if (h.LeftFoot === undefined || h.RightFoot === undefined) return;
   md.actualizar();
   const yl = md.W[h.LeftFoot][13], yr = md.W[h.RightFoot][13], piso = P.pos.y - 1;
-  const dy = piso + P.D.tobillo - Math.min(yl, yr), lleno = P.hum && P.hum.agach > 0.05;
+  // lo más bajo de la suela: el tobillo menos su altura o, con el pie girado, el talón o la punta
+  let bajo = Math.min(yl, yr) - P.D.tobillo; const pz = P.D.pies;
+  if (pz) for (const [l, iF] of [['L', h.LeftFoot], ['R', h.RightFoot]]) { const W = md.W[iF]; for (const q of pz[l]) { const y = W[1] * q.x + W[5] * q.y + W[9] * q.z + W[13]; if (y < bajo) bajo = y; } }
+  const dy = piso - bajo, lleno = P.hum && P.hum.agach > 0.05;
   // (los que flotan se despegan del piso al deslizarse: lo calcula humFlotar)
   // (los emotes de captura de movimiento traen la altura de la cadera medida sobre el piso de la captura: acostado o
   // rodando los pies quedan abajo del tobillo y levantarlos lo hacía flotar; sólo se corrige un poco)

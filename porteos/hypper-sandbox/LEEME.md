@@ -106,6 +106,23 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   9 m/s), le saca 20 de vida a la gente (con el golpe, su voz y un empujón), tira lejos a los muñecos; no se repite antes de
   0,75 s. En primera persona se ve la pierna (el cuerpo a la vista con la cabeza y los brazos achicados a nada, que
   tapaban la cámara) y vuelve todo al terminar. Los demás la ven por el estado del jugador.
+- **Personajes de terror analógico** (Personajes; prueba `pruebas/skins_dn.mjs Bon,Sha,Alternate,Partygoer,Bacteria`):
+  Bon y Sha (The Walten Files), un Alternate (The Mandela Catalogue), un Partygoer y la Bacteria (The Backrooms). Imagen
+  en pose T desde la referencia de la wiki (o desde la descripción), modelo 3D riggeado (Meshy), `skin_meshy.py --alto`
+  (Bon 2,24 m con las orejas, Sha 1,96, Alternate 1,82, Partygoer 1,94, Bacteria 2,47), `dedos_meshy.py` y LOD.
+  Voces: Bon y Sha de robot, los otros de monstruo.
+- **Pies que no se hunden** (`personas.js`): el alto del tobillo se cuenta desde la suela de verdad (lo más bajo de la
+  malla en reposo, que en algunos personajes baja del 0) y cada pie apoya también sobre su talón y su punta (tomados de
+  la malla de cada uno): al caminar, el talón o la punta de un pie largo (un disfraz, zapatos) ya no bajan del piso.
+  Caminando, lo más bajo del Hero pasó de 11,5 cm abajo del piso a 6,2 (el Hero, los 5 nuevos y Jeppy, Sunman y
+  Filbus: entre 4,2 y 7,3).
+- **Pad de memes** (`juego/memes.js`; prueba `pruebas/memes.mjs`, 11/11): el botón al lado del chat (o la I) abre un
+  soundboard con 36 memes (Vine boom, Bruh, Oof, el tubo de metal, MLG, Emotional damage, Sus, Taco Bell, Ete sech,
+  Chupapi, Eso Tilín...). Tocar uno lo hace sonar desde tu personaje para los que están cerca (3D, con oclusión) y sale
+  en el chat con su botoncito de color; uno cada 0,8 s. Los incluidos van en el paquete (485 KB, mono 48 kbps) y se
+  decodifican recién al tocarlos (todos juntos ocupan ~15 MB decodificados). **Mis memes**: cualquier audio corto del
+  aparato (hasta 8 s y 400 KB) queda guardado en el navegador; en la sala viaja de a pedazos la primera vez que suena y
+  del otro lado suena cuando termina de llegar. Los de los demás se pueden silenciar (siguen saliendo en el chat).
 - **Sonidos de los personajes y del ambiente** (`juego/sonidos.js`, los de Half-Life 2 de GMod 10; prueba
   `pruebas/sonidos.mjs`, 11/11):
   - **Pasos según el piso**: cada triángulo del mapa (y cada caja de choque) sabe de qué es: en los mapas de GMod, su

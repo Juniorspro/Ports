@@ -162,6 +162,7 @@ function atenderPulsos() {
     if (k === 'modmenu') { if (UI.abierto === 'modm') modMenuCerrar(); else if (!UI.abierto) modMenuAbrir(); continue; }
     if (k === 'servmods') { if (UI.abierto === 'sm') smCerrar(); else if (!UI.abierto) smAbrir(); continue; }
     if (k === 'menu') { if (UI.abierto === 'spawn') cerrarPaneles(); else { cerrarPaneles(); abrirSpawn(); } continue; }
+    if (k === 'memes') { if (UI.abierto === 'memes') memePanCerrar(); else if (!UI.abierto) memePanAbrir(); continue; }
     if (UI.abierto) continue;
     if (k === 'chat') abrirChat();
     else if (k === 'camara') { if (JUG.vehiculo) { JUG.fpVeh = !JUG.fpVeh; JUG.yaw = JUG.fpVeh ? 0 : JUG.yaw; } else JUG.tercera = !JUG.tercera; }

@@ -48,7 +48,8 @@ function sonPasos(dt) {
   }
 }
 // ---------------- voces ----------------
-const VOZ_CLASE = { SpecialForcesW: 'm', PilotFemale: 'm', Bombera: 'm', Robot: 'r', Freddy: 'r', Bonnie: 'r', Chica: 'r', Foxy: 'r', Zombi: 'z', Corpse: 'z', BoiledOne: 'z', Sunman: 'z', Filbus: 'z' };
+const VOZ_CLASE = { SpecialForcesW: 'm', PilotFemale: 'm', Bombera: 'm', Robot: 'r', Freddy: 'r', Bonnie: 'r', Chica: 'r', Foxy: 'r', Zombi: 'z', Corpse: 'z', BoiledOne: 'z', Sunman: 'z', Filbus: 'z',
+  Bon: 'r', Sha: 'r', Alternate: 'z', Partygoer: 'z', Bacteria: 'z' };
 const VOZ_N = { dolor: 9, ay: 2, hola: 2, bien: 2, no: 2, ayuda: 1, ok: 1 };
 const VOZ_OTRO = { z: { dolor: 6, muere: 3 }, r: { dolor: 2, muere: 1 } };
 function sonVoz(P, tipo, pos) {

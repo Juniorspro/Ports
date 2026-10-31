@@ -412,6 +412,7 @@ function recibirHecho(d) {
   } else if (d.k === 'cic') { cicRed(d);
   } else if (typeof d.k === 'string' && /^ver[dqgawc]$/.test(d.k)) { verRed(d); // (Verity: lo que dice, preguntas, agarre, animación, llamada, crear)
   } else if (d.k === 'maq' || d.k === 'maqp' || d.k === 'maqd') { maqRed(d);
+  } else if (d.k === 'meme' || d.k === 'memed') { memeRed(d);
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
   } else if (d.k === 'fnn' || d.k === 'fnb' || d.k === 'fnx' || d.k === 'fne' || d.k === 'fnv') { nocheRed(d); // (la noche en la pizzería)
   } else if (d.k === 'dano' && d.to === RED.ID) {

@@ -141,6 +141,7 @@ function cerrarPaneles() {
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
   for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan', 'verPan', 'verTuto', 'verTerm', 'verCrea']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
   $('chatIn').classList.add('oc');
+  if (typeof memePanCerrar === 'function') memePanCerrar();
   if (typeof maqPanelCerrar === 'function') { maqPanelCerrar(); if ($('maqVista') && !$('maqVista').classList.contains('oc')) maqVistaCerrar(); }
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }
@@ -201,6 +202,6 @@ function hudActualizar(dt) {
   if (UI.avisoT > 0) { UI.avisoT -= dt; if (UI.avisoT <= 0) $('aviso').classList.remove('ve'); }
   const v = Math.max(0, Math.round(JUG.vida));
   if (hudActualizar.v !== v) { hudActualizar.v = v; $('vidaN').textContent = v; $('vidaB').style.width = Math.max(0, Math.min(100, v / (JUG.vidaMax || 100) * 100)) + '%'; }
-  let ch = ''; for (const c of CHAT) { c.v -= dt; if (c.v > 0) ch += `<div>${c.t.replace(/[<>&]/g, '')}</div>`; }
+  let ch = ''; for (const c of CHAT) { c.v -= dt; if (c.v > 0) ch += `<div>${c.h || c.t.replace(/[<>&]/g, '')}</div>`; }
   if (hudActualizar.ch !== ch) { hudActualizar.ch = ch; $('chat').innerHTML = ch; }
 }

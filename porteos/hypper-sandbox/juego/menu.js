@@ -225,7 +225,8 @@ function menuAccion(r) {
 // ---------------- tienda: personajes y gorros, con el personaje en 3D ----------------
 const RETRATO = { Hero: 'hero', Soldier: 'soldier', Jean: 'jean', Derik: 'derik', Business: 'business', SpecialForcesW: 'specialforce', SpecialForcesM: 'specialforce_2', Prisoner01: 'Prisoner01', PilotFemale: 'PilotFemale', Butcher: 'Butcher', Swat: 'swat', Military: 'Military', Engineer: 'Engineer', Corpse: 'corpse', Goku: 'goku', Ciclope: 'ciclope', Astronauta: 'astronauta', Ninja: 'ninja', Robot: 'robot', Zombi: 'zombi', Bombera: 'bombera', Pirata: 'pirata',
   Broly: 'broly', Vegeta: 'vegeta', Gohan: 'gohan', Piccolo: 'piccolo', Freezer: 'freezer', Trunks: 'trunks', Freddy: 'freddy', Bonnie: 'bonnie', Chica: 'chica', Foxy: 'foxy',
-  Finn: 'finn', Jake: 'jake', Rick: 'rick', RickPrime: 'rickprime', Jeppy: 'jeppy', UncleJeppy: 'unclejeppy', Sunman: 'sunman', Filbus: 'filbus', BoiledOne: 'boiledone' };
+  Finn: 'finn', Jake: 'jake', Rick: 'rick', RickPrime: 'rickprime', Jeppy: 'jeppy', UncleJeppy: 'unclejeppy', Sunman: 'sunman', Filbus: 'filbus', BoiledOne: 'boiledone',
+  Bon: 'bon', Sha: 'sha', Alternate: 'alternate', Partygoer: 'partygoer', Bacteria: 'bacteria' };
 // el nombre que se ve (el de los datos no lleva espacios)
 const SKIN_NOM = { RickPrime: 'Rick Prime', Jeppy: 'Jeppy Jothers', UncleJeppy: 'Uncle Jeppy', BoiledOne: 'The Boiled One' }, skinNom = (s) => SKIN_NOM[s] || s;
 function tienda(tab) {
