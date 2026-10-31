@@ -16,7 +16,7 @@
 # flatgrass_icono.jpg, a 1280×720: fondos de la pantalla de carga e íconos de la lista de mapas)
 #      (las posturas se hornean aparte: deja PAQUETE_NUEVO/gm_objetivos.json para gmod_posturas.mjs)
 #      (CARPETA_GMOD10: con garrysmod10/ y hl2/ adentro, como en el juego; los .bsp en garrysmod10/maps)
-import sys, os, io, json, gzip, math, struct, hashlib, numpy as np
+import sys, os, io, re, json, gzip, math, struct, hashlib, numpy as np
 from PIL import Image
 import srctools.bsp as BSPm, srctools.vtf as VTF
 from srctools.bsp import BSP_LUMPS as LUMP
@@ -72,10 +72,13 @@ def kv_material(ruta):
     """(shader, {clave: valor}) de un .vmt, siguiendo los 'patch' (los de los cubemaps del mapa)"""
     b = leer(ruta)
     if b is None: return None, {}
-    txt = b.decode('utf-8', 'replace')
-    for intento in range(3):
+    txt = b.decode('utf-8', 'replace').replace('\r\n', '\n')
+    for intento in range(4):
         try: kv = Keyvalues.parse(txt, ruta); break
-        except Exception: txt += '\n}'
+        except Exception:
+            # (valores de varias partes sin comillas, como "$envmaptint" .3 .3 .3 del cono: entre comillas; si no, falta una llave)
+            if intento == 0: txt = re.sub(r'(?m)^(\s*"?[$%\w]+"?[ \t]+)([^"\s{}][^"\n{}]*?\S)[ \t]*$', lambda m: m.group(1) + '"' + m.group(2) + '"', txt)
+            else: txt += '\n}'
     else: return None, {}
     raiz = next(iter(kv)); sh = raiz.real_name.lower(); claves = {}
     for x in raiz:
@@ -959,7 +962,7 @@ def recipientes():
             for a, b in ((lo[0], cx - hx), (cx + hx, hi[0])): col.append({'k': 'b', 'c': [(a + b) / 2, (lo[1] + y1) / 2, (lo[2] + hi[2]) / 2], 's': [b - a, y1 - lo[1], hi[2] - lo[2]], 'tr': 0})
             for a, b in ((lo[2], cz - hz), (cz + hz, hi[2])): col.append({'k': 'b', 'c': [cx, (lo[1] + y1) / 2, (a + b) / 2], 's': [2 * hx, y1 - lo[1], b - a], 'tr': 0})
             col = [{kk: (np.round(vv, 4).tolist() if isinstance(vv, (list, np.ndarray)) else vv) for kk, vv in c.items()} for c in col]
-        else: col = [{'k': 'm', 'm': mi, 'cv': 1, 'tr': 0}]
+        else: col = [{'k': 'm', 'm': mi, 'cv': 1, 'tr': 0}]   # (el casco de siempre: con el fino el asa sube el centro y la cubeta vacía se da vuelta y se hunde)
         rid = 990101 + k
         d['pf']['%s#%06x' % (nom, rid)] = [dict(base, n=nom, m=mi, mt=mats, rid=rid, rb={'m': masa, 'd': 0.0, 'k': 0, 'g': 1}, col=col,
             ag={'lo': [cx - hx, y0, cz - hz], 'hi': [cx + hx, y1, cz + hz], 'l': litros, 'r': red})]
@@ -977,13 +980,55 @@ def recipientes():
     for i in range(1, 9): sonido('sound/player/footsteps/wade%d.wav' % i, 'AG_Paso%d' % i)
     for i in range(1, 4): sonido('sound/player/pl_drown%d.wav' % i, 'AG_Ahogo%d' % i)
     sonido('sound/ambient/water/lake_water.wav', 'AG_Lago'); sonido('sound/ambient/water/underwater.wav', 'AG_Bajo'); sonido('sound/ambient/water/water_flow_loop1.wav', 'AG_Chorro')
+# ---------------- props de Half-Life 2 (Props → HL2) ----------------
+# El modelo (malla, texturas), el choque con su casco y la masa como en HL2; la densidad (para el agua: dn) y el sonido de
+# los golpes (snd) a mano; los explosivos (barril rojo, bidón de nafta, garrafa) explotan como el barril del juego
+PROPS_HL2 = [
+    # (nombre, modelo, masa kg, densidad kg/m³, sonido, explota)
+    ('Sandia', 'props_junk/watermelon01', 6, 700, 'wood', 0),
+    ('BarrilExplosivo', 'props_c17/oildrum001_explosive', 30, 300, 'metal', 1),
+    ('Barril', 'props_c17/oildrum001', 30, 300, 'metal', 0),
+    ('CajaMadera', 'props_junk/wood_crate001a', 40, 600, 'wood', 0),
+    ('CajaCarton', 'props_junk/cardboard_box001a', 4, 150, 'wood', 0),
+    ('Cono', 'props_junk/trafficcone001a', 4, 900, 'wood', 0),
+    ('Neumatico', 'props_vehicles/carparts_tire01a', 20, 600, 'wood', 0),
+    ('Ladrillo', 'props_junk/cinderblock01a', 15, 2000, 'concrete', 0),
+    ('Carrito', 'props_junk/pushcart01a', 30, 3000, 'metal', 0),
+    ('BidonNafta', 'props_junk/gascan001a', 8, 500, 'metal', 1),
+    ('Garrafa', 'props_junk/propane_tank001a', 15, 400, 'metal', 1),
+    ('Sierra', 'props_junk/sawblade001a', 10, 7800, 'metal', 0),
+    ('Radiador', 'props_interiors/radiator01a', 30, 3000, 'metal', 0),
+    ('Lavarropas', 'props_c17/furniturewashingmachine001a', 80, 700, 'metal', 0),
+    ('Contenedor', 'props_junk/trashdumpster01a', 350, 1500, 'metal', 0),
+]
+def props_hl2():
+    nuevos = []
+    for k, (nom, ruta, masa, dn, snd, explota) in enumerate(PROPS_HL2):
+        ruta = 'models/' + ruta + '.mdl'; x = modelo_datos(ruta)
+        if x is None: print('  falta', ruta); continue
+        mi, mats, (lo, hi) = modelo_estatico(ruta); M, V, N, U, grupos = x
+        rid = 990201 + k
+        mb = ['PhotonView', 'ExplodeProp' if explota else 'Prop', 'PhotonTransformViewClassic']
+        d['pf']['%s#%06x' % (nom, rid)] = [{'n': nom, 'p': [0.0, 0.0, 0.0], 'r': [0.0, 0.0, 0.0, 1.0], 's': [1.0, 1.0, 1.0], 'pa': -1, 'tg': 20000, 'mb': mb,
+            'rb': {'m': float(masa), 'd': 0.0, 'k': 0, 'g': 1, 'dn': dn, 'snd': snd}, 'm': mi, 'mt': mats, 'rid': rid, 'col': [{'k': 'm', 'm': mi, 'cv': 2, 'tr': 0}]}]
+        vmts = {}
+        for r in grupos:
+            _, vmt = mat_de_modelo(M, r, 0)
+            vmts[r] = vmt and 'materials/' + kv_material(vmt)[1].get('$basetexture', '').lower().replace('\\', '/') + '.vtf'
+        icono_modelo(V, N, U, grupos, vmts, lado=128).save(PK1 + '/i/' + nom + '.webp', 'WEBP', quality=90); d['ico'][nom] = nom
+        nuevos.append(nom); print('  prop', nom, 'masa', masa, 'tamaño', np.round(hi - lo, 2).tolist(), 'mats', mats)
+    props = next(c for c in d['menu'] if c['n'] == 'Props')
+    props['sub'] = [x for x in props['sub'] if x['n'] != 'HL2'] + [{'n': 'HL2', 'it': nuevos, 'rb': 1}]
 def guardar_paquete():
     open(PK1 + '/m.bin.gz', 'wb').write(gzip.compress(bytes(BIN), 9))
     open(PK1 + '/d.json.gz', 'wb').write(gzip.compress(json.dumps(d, separators=(',', ':')).encode(), 6))
     print('listo: texturas', len(d['tx']), 'mallas', len(d['ms']), 'materiales', len(d['mt']), 'bin', len(BIN) // 1000, 'KB')
-# (GM_SOLO=agua: sólo los recipientes y los sonidos del agua, sobre un paquete que ya tiene lo demás)
-if os.environ.get('GM_SOLO') == 'agua':
-    recipientes(); guardar_paquete(); sys.exit(0)
+# (GM_SOLO=agua y/o props, separados por coma: sólo eso, sobre un paquete que ya tiene lo demás)
+SOLO = os.environ.get('GM_SOLO', '').split(',')
+if SOLO != ['']:
+    if 'agua' in SOLO: recipientes()
+    if 'props' in SOLO: props_hl2()
+    guardar_paquete(); sys.exit(0)
 convertir('RB_Construct', 'gm_construct', {'cielo3d': lambda c: c[0] < -6000, 'sol': 1.15})
 convertir('RB_Flatgrass', 'gm_flatgrass', {'sol': 1.15})
 GMP = posturas()
@@ -1013,4 +1058,5 @@ if len(sys.argv) > 5 and os.path.isdir(sys.argv[5]):   # (fondos de carga e íco
         ic.save(dst, 'WEBP', quality=86); d['ico']['mapa_' + mapa] = 'mapa_' + mapa
     print('fondos de carga e íconos de los mapas de GMod')
 recipientes()
+props_hl2()
 guardar_paquete()

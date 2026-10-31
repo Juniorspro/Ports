@@ -156,7 +156,7 @@ function aguaCuerpos(dt) {
     const S = aguaPuntos(b), q = b.q, rec = b.obj && b.obj.rec, m = b.mass;
     // (los muñecos flotan como una persona: con el 85 % del cuerpo bajo el agua, sea cual sea la masa de cada parte)
     // (la madera flota: los props livianos, que suenan a madera, como mucho a 700 kg/m³, como en GMod)
-    const rho = clamp(m / S.V, 250, b.snd === 'wood' ? 700 : 9000), k = b.persona ? 1.18 * m / (AGUA_RHO * S.V) : (b.buoy || 1) * m / (rho * S.V);   // (= 1 si la densidad quedó como es)
+    const rho = b.dens || clamp(m / S.V, 250, b.snd === 'wood' ? 700 : 9000), k = b.persona ? 1.18 * m / (AGUA_RHO * S.V) : (b.buoy || 1) * m / (rho * S.V);   // (= 1 si la densidad quedó como es)
     let fx = 0, fy = 0, fz = 0, tx = 0, ty = 0, tz = 0, sub = 0;
     for (const pl of S.pts) {
       const r = q.rotTo(pl, _a1), x = b.pos.x + r.x, y = b.pos.y + r.y, z = b.pos.z + r.z;

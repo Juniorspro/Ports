@@ -5,12 +5,15 @@
 const OBJS = [];
 let _objId = 1;
 // casco convexo (incremental): devuelve vértices y caras (polígonos con las coplanares unidas)
-function cascoConvexo(P) {
+// 48 direcciones repartidas parejo (espiral de Fibonacci): el casco "fino" de los props redondos (sandía, barriles,
+// neumático), que con 14 puntos apoyaban sobre una cara y la malla se hundía hasta 10 cm en el piso
+const DIR_FINO = Array.from({ length: 48 }, (_, i) => { const y = 1 - (2 * i + 1) / 48, r = Math.sqrt(1 - y * y), a = i * 2.39996323; return v3(Math.cos(a) * r, y, Math.sin(a) * r); });
+function cascoConvexo(P, fino) {
   const n = P.length; if (n < 4) return null;
-  // reducir: extremos en 26 direcciones si hay muchos puntos
+  // reducir: los extremos en unas direcciones si hay muchos puntos
   if (n > 16) {
-    // pocos puntos = choques baratos: los extremos en 14 direcciones (ejes y diagonales)
-    const D = []; for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) if ((x || y || z) && (Math.abs(x) + Math.abs(y) + Math.abs(z) !== 2)) D.push(v3(x, y, z).norm());
+    // pocos puntos = choques baratos: los extremos en 14 direcciones (ejes y diagonales), o en 48 si es fino
+    const D = []; if (fino) D.push(...DIR_FINO, v3(0, 1, 0), v3(0, -1, 0)); else for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) if ((x || y || z) && (Math.abs(x) + Math.abs(y) + Math.abs(z) !== 2)) D.push(v3(x, y, z).norm());
     const S = new Set(); for (const d of D) { let bi = 0, bv = -1e9; for (let i = 0; i < n; i++) { const s = vdot(P[i], d); if (s > bv) { bv = s; bi = i; } } S.add(bi); }
     P = [...S].map((i) => P[i]); if (P.length < 4) return null;
   }
@@ -51,8 +54,8 @@ function cascoConvexo(P) {
   return { v: V, f: caras };
 }
 // casco convexo de una nube de puntos, centrado en su centro (forma + centro)
-function hullDePuntos(pts) {
-  const cs = cascoConvexo(pts);
+function hullDePuntos(pts, fino) {
+  const cs = cascoConvexo(pts, fino);
   if (!cs) {
     let lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9);
     for (const p of pts) { lo.set(Math.min(lo.x, p.x), Math.min(lo.y, p.y), Math.min(lo.z, p.z)); hi.set(Math.max(hi.x, p.x), Math.max(hi.y, p.y), Math.max(hi.z, p.z)); }
@@ -92,9 +95,9 @@ function formaDeArbol(arb) {
         const q = qW.clone(); if (c.d === 0) q.mul(Quat.axis(0, 0, 1, Math.PI / 2)); else if (c.d === 2) q.mul(Quat.axis(1, 0, 0, Math.PI / 2));
         partes.push({ shape: capsuleShape(r, hh), c: cen, q, vol: 3.14 * r * r * (2 * hh + 1.33 * r), cap: true });
       } else if (c.k === 'm' && c.m >= 0) {
-        const mc = mallaCPU(c.m), P = mc.P, step = Math.max(1, Math.floor(P.length / 3 / 400)), pts = [];
+        const fino = c.cv === 2, mc = mallaCPU(c.m), P = mc.P, step = Math.max(1, Math.floor(P.length / 3 / (fino ? 4000 : 400))), pts = [];
         for (let k = 0; k < P.length; k += 3 * step) pts.push(m4pt(W, P[k], P[k + 1], P[k + 2], v3()));
-        if (pts.length >= 4) { const h = hullDePuntos(pts); partes.push({ shape: h.shape, c: h.c, q: new Quat(), vol: h.vol }); }
+        if (pts.length >= 4) { const h = hullDePuntos(pts, fino); partes.push({ shape: h.shape, c: h.c, q: new Quat(), vol: h.vol, fino }); }
       }
     }
   }
@@ -113,7 +116,7 @@ function formaDeArbol(arb) {
     if (P.shape.type === 'sphere') return { shape: P.shape, c: P.c };
     if (P.shape.type === 'capsule') return { shape: P.shape, c: P.c, ejeCap: P.q.rot(v3(0, 1, 0)) };
     // caja girada o malla: sus vértices girados a la raíz, como poliedro
-    if (P.shape.type === 'hull') { const vs = P.shape.v.map((v) => P.q.rot(v)); const h = hullDePuntos(vs.map((v) => vadd(v, P.c))); return { shape: h.shape, c: h.c }; }
+    if (P.shape.type === 'hull') { const vs = P.shape.v.map((v) => P.q.rot(v)); const h = hullDePuntos(vs.map((v) => vadd(v, P.c)), P.fino); return { shape: h.shape, c: h.c }; }
   }
   let vt = 0; const c = v3();
   for (const P of partes) { c.addS(P.c, P.vol); vt += P.vol; }
@@ -149,7 +152,8 @@ function crearObjeto(nombre, pos, q, opt) {
   if (opt.exacto) { const c = b.q.rot(F.c); b.pos.copy(pos).add(c); }
   b.updateWorld();
   const o = { id: opt.id || _objId++, nombre, tipo, md, b, c: F.c, F, creado: TIEMPO.t, dueno: opt.dueno || 'yo', salta: !!(rb && rb.sal) };
-  b.obj = o; b.snd = masa > 300 ? 'metal' : 'wood';
+  b.obj = o; b.snd = (rb && rb.snd) || (masa > 300 ? 'metal' : 'wood');
+  if (rb && rb.dn) b.dens = rb.dn;   // (la densidad de verdad, para el agua: la del prefab, si la trae)
   if (opt.congelado) b.frozen = true;
   if (F.soloGatillo || /^decal_/.test(nombre)) { b.noPhys = true; b.frozen = true; }
   if (/^(Bush)$/.test(nombre)) b.noPhys = true;

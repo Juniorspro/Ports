@@ -100,6 +100,14 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
 - **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
   leyeron: queda en 16,5 MB en vez de ~38.
+- **15 props de Half-Life 2** (Props → HL2; prueba `pruebas/props_hl2.mjs`, 8/8): sandía, barril explosivo, barril,
+  caja de madera, caja de cartón, cono, neumático, bloque de cemento, carrito, bidón de nafta, garrafa, sierra circular,
+  radiador, lavarropas y contenedor de basura, con sus modelos y texturas de HL2 (bajados de adentro del RAR de GMod 10
+  en archive.org archivo por archivo con `herramientas/bajar_hl2.py`) y su ícono. Cada uno con la masa de HL2, su densidad para el agua (la sandía, el barril, la
+  caja y el neumático flotan; el bloque, la sierra, el carrito y el radiador se hunden) y su sonido de golpe; el barril
+  rojo, el bidón y la garrafa explotan a los tiros. Los redondos chocan con un casco "fino" (los extremos en 48
+  direcciones parejas en vez de 14): apoyan con la malla a ≤ 2 cm del piso (antes la sandía se hundía 5,5 cm y el
+  carrito 10). El conversor ahora lee los .vmt con valores de varias partes sin comillas y con fin de línea de Windows.
 - **Agua de verdad** (`juego/agua.js`; prueba `pruebas/agua.mjs`, 22/22): el lago de gm_construct (el volumen de agua
   que trae el mapa) y lo que tienen adentro los recipientes nuevos de Props → Agua (cubeta, tina y dos bañeras de HL2).
   - **Nadar** como en Source: se va hacia donde mira la cámara, el salto sube y agacharse baja; sin tocar nada flota con
