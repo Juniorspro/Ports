@@ -9,8 +9,24 @@ ORDEN = ['nucleo', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'mundo'
 FORMATO = re.sub(r'(?m)^export ', '', open(os.path.join(AQUI, 'tienda', 'formato.js'), encoding='utf-8').read())
 leer = lambda n: FORMATO if n == 'formato' else open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read()
 js = '(() => {\n"use strict";\n' + '\n'.join(leer(n) for n in ORDEN) + '\n})();'
+# las mallas: los índices de los triángulos van como diferencias (módulo 2^16 o 2^32, en zigzag) con los bytes en planos
+# (todos los bajos, después los altos), en el mismo lugar y con el mismo largo: así el gzip los achica casi a la mitad
+# (las mallas bajan de ~20 a ~17 MB). El juego los vuelve a armar al cargar (desfiltrarIndices en datos.js)
+def filtrar_indices(mb, ms):
+    import numpy as np
+    hechos = set()
+    for m in ms:
+        if m.get('o') is None or not m.get('sub') or m['i'] in hechos: continue
+        hechos.add(m['i']); n = max(s[0] + s[1] for s in m['sub']); w = 4 if m['i32'] else 2
+        a = np.frombuffer(bytes(mb[m['i']:m['i'] + n * w]), np.uint32 if w == 4 else np.uint16).astype(np.int64)
+        md = 1 << (8 * w); dl = np.diff(a, prepend=0) % md; sg = np.where(dl >= md // 2, dl - md, dl)
+        z = np.where(sg >= 0, sg * 2, -sg * 2 - 1).astype(np.uint32 if w == 4 else np.uint16)
+        mb[m['i']:m['i'] + n * w] = z.view(np.uint8).reshape(-1, w).T.reshape(-1).tobytes()
+    return mb
+DJ = json.load(gzip.open(os.path.join(PK, 'd.json.gz')))
+MB = filtrar_indices(bytearray(gzip.decompress(open(os.path.join(PK, 'm.bin.gz'), 'rb').read())), DJ['ms'])
 # paquete: un solo bloque con índice
-partes = [('d', open(os.path.join(PK, 'd.json.gz'), 'rb').read()), ('m', open(os.path.join(PK, 'm.bin.gz'), 'rb').read())]
+partes = [('d', open(os.path.join(PK, 'd.json.gz'), 'rb').read()), ('m', gzip.compress(bytes(MB), 9, mtime=0))]
 for f in sorted(os.listdir(os.path.join(PK, 't')), key=lambda x: int(x.split('.')[0])):
     partes.append(('t' + f.split('.')[0], open(os.path.join(PK, 't', f), 'rb').read()))
 for f in sorted(os.listdir(os.path.join(PK, 'a'))):
@@ -24,6 +40,7 @@ for f in sorted(os.listdir(VD)) if os.path.isdir(VD) else []:
 idx, blob, o = {}, bytearray(), 0
 for k, b in partes:
     idx[k] = [o, len(b)]; blob += b; o += len(b)
+idx['m'].append(1)   # (índices filtrados)
 html = open(os.path.join(AQUI, 'juego', 'template.html'), encoding='utf-8').read()
 MQTT = os.environ.get('MQTT_JS', '')  # mqtt.min.js 5.x bajado aparte (no va al repo)
 html = html.replace('/*MQTT*/', open(MQTT, encoding='utf-8').read().replace('</script', '<\\/script') if MQTT else '')

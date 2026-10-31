@@ -80,6 +80,34 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   Finn 0,8 (un nene) y los Rick son altos. Jugando con uno bajito la cápsula es más baja (Jake pasa por abajo de una mesa
   a 1,2 m), los ojos van a su altura (`--ojo`), la cámara de tercera persona se acerca, y para los demás su cápsula y su
   nombre arriba también son de su tamaño (un tiro por arriba de la cabeza de Jake no le pega). `skins_nuevos.mjs`.
+- **Carga más rápida y HTML más liviano**: con los cinco personajes nuevos adentro el HTML pesa 51,8 MB (sin el filtro
+  de abajo serían 55,6). Bajando a 3 MB/s con la CPU 4 veces más lenta (como un celular), el juego queda listo a los
+  18,7 s en vez de 22,4 s, y lo que falta después de que termina de bajar pasó de 3,4 s a 1,1 s:
+  - el código del juego va antes que el paquete: mientras el HTML sigue bajando arranca el motor gráfico (WebGL y los
+    shaders), cada pedazo de 1 MB del paquete se decodifica apenas termina de llegar y la parte de las mallas entra al
+    descompresor del navegador a medida que llega; los datos (lo primero del paquete) se leen apenas están enteros;
+  - los índices de los triángulos van como diferencias en zigzag con los bytes en planos, en el mismo lugar y con el
+    mismo largo (`armar.py`), y el juego los vuelve a armar al cargar (`desfiltrarIndices`): las mallas comprimidas
+    bajan de 19,9 a 17,1 MB. Lo que queda en memoria es idéntico byte a byte (Adler-32 igual al del paquete).
+- **Personajes de Doctor Nowhere: Jeppy Jothers, Uncle Jeppy, Sunman, Filbus y The Boiled One**, fieles a las
+  referencias de la wiki (la imagen en pose T de cada uno se comparó con la referencia y la descripción: Jeppy con la
+  cabeza de sol, la nariz rosa y las botas; Uncle Jeppy con 11 rayos ondulados, frac y zapatos enrulados; Sunman con
+  los rayos finos, los ojos chicos y la sonrisa ancha; Filbus con la galera y patas de silla; The Boiled One como en el
+  original: una columna negra altísima con púas, sin brazos ni piernas, la cara roja derretida y pelos negros). Cada uno
+  con su alto: Jeppy 1,64 m (canon 1,68), Uncle Jeppy 2,15 m, Sunman 2,5 m, Filbus 1,8 m, The Boiled One 2,9 m.
+  - **The Boiled One tiene manos flotantes y se desliza**: el modelo vino sin riggear y `herramientas/rig_flotante.py`
+    le arma el esqueleto: el cuerpo pesa en la columna (y los pelos en la cabeza), cada mano suelta pesa en su hueso de
+    la mano, los brazos son invisibles (van del hombro a la muñeca) y las piernas quedan adentro de la base. Así sostiene
+    armas, saluda y baila con las manos sueltas. `skin_meshy.py --flota` lo marca en `DATA.tam`: no usa las animaciones
+    de caminar ni correr (sigue con la de quieto), al moverse se inclina hacia donde va (hasta 9°) y se despega del piso
+    3-8 cm con un vaivén lento; al frenar se vuelve a apoyar; no se agacha (sin piernas se hundiría) ni clava los pies.
+  - A Uncle Jeppy el modelo 3D le dejó manchas en relieve en vez de la cara: `herramientas/cara_glb.py` aplana esos
+    bultos contra el plano de la cara (un disco inclinado: mira hacia arriba, como en la descripción) y la repinta
+    proyectando de frente la imagen de la que salió (ojos cerrados, nariz de pico y sonrisa).
+  - **Los altos chocan como el Hero**: el cuerpo para chocar no pasa de 1,9 m, así pasan por las puertas (Sunman pasa
+    por una de 2,05 m); se ven más altos y los ojos van a su altura, pero abajo de un techo, una viga o una puerta bajan
+    antes de llegar (se mira arriba donde está y donde va a estar en medio segundo), a lo sumo 2 m/s y sin saltos.
+  `pruebas/skins_dn.mjs` (altos, pies apoyados parados y caminando, el deslizamiento de The Boiled One, la puerta).
 - **Cuerpos que desaparecían de cerca**: algunos personajes (SpecialForces, Prisoner, Engineer, Soldier) tienen la malla
   en centímetros que los huesos agrandan ×100 y la esfera para descartar lo que no se ve medía 2 cm: al mirar de cerca
   una mano, sin la cadera en pantalla, desaparecía el cuerpo entero (quedaba el arma flotando). Ahora el radio lleva la

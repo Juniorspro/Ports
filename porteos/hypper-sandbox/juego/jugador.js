@@ -11,8 +11,10 @@ const MEDIA_VUELTA = Quat.axis(0, 1, 0, Math.PI);
 // el cuerpo según el alto del personaje (k: 1 = el de siempre, 1,9 m): los pies quedan donde estaban (la esfera de abajo
 // no cambia) y arriba van las esferas que entren hasta la cabeza; los ojos a 1,67 m de los pies en el de siempre
 JUG.esf = [[-0.5, true], [0, false], [0.5, false]]; JUG.ojoAlto = 1.67; JUG.tam = 1;
+// (los altos, como Sunman o The Boiled One, chocan como uno de 1,9 m para pasar por las puertas: se ven más altos y los ojos
+// van a su altura, salvo abajo de un techo)
 function jugadorTam(k, ojo) {
-  const J = JUG, tope = Math.max(-J.medio, -0.95 + 1.9 * k - J.radio), n = Math.max(1, Math.ceil((tope + J.medio) / 0.5 - 1e-6) + 1);
+  const J = JUG, tope = Math.max(-J.medio, -0.95 + 1.9 * Math.min(k, 1) - J.radio), n = Math.max(1, Math.ceil((tope + J.medio) / 0.5 - 1e-6) + 1);
   J.esf = []; for (let i = 0; i < n; i++) J.esf.push([n > 1 ? -J.medio + (tope + J.medio) * i / (n - 1) : -J.medio, i === 0]);
   J.ojoAlto = 1.67 * k * (ojo || 1); J.tam = k;
 }
@@ -140,6 +142,7 @@ function jugadorMoverChocar(dt) {
     }
   }
 }
+const _ojoT = v3(0, 0, 0), _ojoArr = v3(0, 1, 0), _ojoAdelante = [0, 0.2, 0.35, 0.5];
 // ubica la cámara (primera o tercera persona) y devuelve su posición y rotación
 function jugadorCamara(out) {
   const J = JUG;
@@ -151,7 +154,25 @@ function jugadorCamara(out) {
   const ag = J.noclip ? 0 : (J.agK || 0), bob = J.bobK || 0, ph = J.bob || 0;
   const dy = -J.caidaP * 0.45 + Math.abs(Math.sin(ph)) * 0.035 * bob - 0.015 * bob;
   if (NAT.scp && J.vivo) J.ojoPos.copy(J.pos).addS(NAT.up, 0.5); // SCP: los ojos cerca del piso que pisa
-  else J.ojoPos.set(J.pos.x, J.pos.y - 0.95 + J.ojoAlto * (1 - 0.194 * ag) + dy, J.pos.z);   // (agachado baja el 19 % del alto de los ojos)
+  else {
+    let oy = J.pos.y - 0.95 + J.ojoAlto * (1 - 0.194 * ag) + dy;   // (agachado baja el 19 % del alto de los ojos)
+    // un alto bajo un techo (una puerta, la pizzería): los ojos bajan hasta quedar debajo, sin saltos
+    // (se mira arriba donde está y donde va a estar en 0,2, 0,35 y 0,5 s, así baja antes de llegar, y lo que bajó se mantiene
+    // 0,6 s para no volver a subir entre que el punto de adelante pasó la viga y uno llega abajo: a lo sumo 2 m/s, sin saltos)
+    let baja = 0;
+    if (J.tam > 1 && !J.noclip) {
+      const b = J.pos.y - 0.95 + 1.75;
+      if (oy + 0.2 > b) for (const k of _ojoAdelante) {
+        _ojoT.set(J.pos.x + J.vel.x * k, b, J.pos.z + J.vel.z * k);
+        const h = raycast(_ojoT, _ojoArr, oy + 0.2 - b, null); if (h) baja = Math.max(baja, oy - (b + h.t - 0.25));   // (el mapa y los objetos)
+      }
+      const t = TIEMPO.t || 0, m = J.ojoMem || (J.ojoMem = { v: 0, t: -9 });
+      if (baja >= m.v || t - m.t > 0.6) { m.v = baja; m.t = t; } else baja = m.v;
+    }
+    const db = baja - (J.ojoBaja || 0), vmax = (db > 0 ? 2 : 1.2) * dt;
+    J.ojoBaja = (J.ojoBaja || 0) + clamp(db * Math.min(1, dt * 12), -vmax, vmax);
+    J.ojoPos.set(J.pos.x, oy - J.ojoBaja, J.pos.z);
+  }
   J.q.copy(Quat.euler(J.yaw, J.pitch, Math.sin(ph) * 0.006 * bob));
   J.adelante.copy(J.q.rot(v3(0, 0, 1)));
   out.q.copy(J.q);

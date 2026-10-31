@@ -44,7 +44,10 @@ fondos de carga de los mapas (capturas del juego).
 |---|---|---|---|
 | Rick y Rick Prime (personajes, diseño) | Rick and Morty (Justin Roiland y Dan Harmon, Adult Swim) | imágenes de referencia de https://rickandmorty.fandom.com (sólo para generar el modelo; no van en el juego) | fan art: Rick and Morty |
 | Finn y Jake (personajes, diseño) | Adventure Time (Pendleton Ward, Cartoon Network) | imágenes de referencia de https://adventuretime.fandom.com (ídem) | fan art: Adventure Time |
+| Jeppy Jothers, Uncle Jeppy, Sunman, Filbus y The Boiled One (personajes, diseño) | Doctor Nowhere (Silas Orion, canal de YouTube Doctor Nowhere) | imágenes de referencia de https://doctor-nowhere-creatures.fandom.com (ídem) | fan art: Doctor Nowhere |
 
-Los modelos 3D de esos cuatro (y los de Dragon Ball y los demás generados) se hicieron acá: imagen en pose T desde la
-referencia → modelo 3D texturado y riggeado (Higgsfield, Meshy) → `skin_meshy.py` y `dedos_meshy.py`.
+Los modelos 3D de esos (y los de Dragon Ball y los demás generados) se hicieron acá: imagen en pose T desde la
+referencia → modelo 3D texturado y riggeado (Higgsfield, Meshy) → `skin_meshy.py` y `dedos_meshy.py`. The Boiled One
+se generó con Tripo H3.1 (Meshy lo rechazaba) sin riggear y lo riggea `rig_flotante.py`; a Uncle Jeppy se le repintó la
+cara desde su imagen con `cara_glb.py`.
 

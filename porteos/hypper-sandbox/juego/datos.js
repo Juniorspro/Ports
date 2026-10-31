@@ -105,24 +105,55 @@ async function b64bytes(s) {
 }
 async function cargarPaquete(progreso) {
   PK.idx = JSON.parse($('pkidx').textContent);
-  progreso(0.1);
-  // el paquete viene en pedazos de 1 MB (así la pantalla de carga ve cuánto bajó); cada uno se decodifica solo
-  const els = [...document.getElementsByClassName('pk')], tot = els.reduce((n, e) => n + e.textContent.length, 0);
-  PK.u8 = new Uint8Array(Math.ceil(tot * 3 / 4)); let o = 0;
-  for (let i = 0; i < els.length; i++) {
-    const b = await b64bytes(els[i].textContent); PK.u8.set(b, o); o += b.length; els[i].textContent = '';
-    progreso(0.1 + 0.4 * (i + 1) / els.length);
+  // el paquete viene en pedazos de 1 MB después del código del juego: mientras el HTML baja se decodifica cada pedazo que
+  // terminó de llegar (uno está entero cuando ya empezó el siguiente, o cuando el documento terminó) y la parte de las
+  // mallas (gzip) va entrando al descompresor a medida que llega. La pantalla de carga cuenta lo bajado
+  let tam = 0; for (const k in PK.idx) tam = Math.max(tam, PK.idx[k][0] + PK.idx[k][1]);
+  PK.u8 = new Uint8Array(tam);
+  const els = document.getElementsByClassName('pk'), M = PK.idx.m, Dd = PK.idx.d;
+  let o = 0, i = 0, mDado = M ? M[0] : 0, gz = null, gzErr = null, dP = null;
+  if (M && typeof DecompressionStream === 'function') {
+    try { const ds = new DecompressionStream('gzip'); gz = { w: ds.writable.getWriter(), r: new Response(ds.readable).arrayBuffer() }; gz.r.catch((e) => { gzErr = e; }); } catch (e) { gz = null; }
   }
-  PK.u8 = PK.u8.subarray(0, o);
-  DATA = JSON.parse(new TextDecoder().decode(await desgz(PK.parte('d'))));
+  for (;;) {
+    const fin = document.readyState !== 'loading';
+    for (; i < els.length - (fin ? 0 : 1); i++) {
+      const b = await b64bytes(els[i].textContent); PK.u8.set(b, o); o += b.length; els[i].textContent = '';
+      if (gz && o > mDado && mDado < M[0] + M[1]) { const h = Math.min(o, M[0] + M[1]); gz.w.write(PK.u8.subarray(mDado, h)).catch((e) => { gzErr = e; }); mDado = h; }
+      // los datos (lo primero del paquete) se leen apenas están enteros, mientras baja lo demás
+      if (!dP && Dd && o >= Dd[0] + Dd[1]) dP = desgz(PK.parte('d')).then((u) => JSON.parse(new TextDecoder().decode(u)));
+    }
+    if (fin && i >= els.length) break;
+    await new Promise((ok) => setTimeout(ok, 25));
+  }
+  progreso(0.5);
+  if (gz) { gz.w.close().catch((e) => { gzErr = e; }); }
+  DATA = await (dP || desgz(PK.parte('d')).then((u) => JSON.parse(new TextDecoder().decode(u))));
   progreso(0.7);
-  BIN = await desgz(PK.parte('m'));
+  if (gz) { try { const r = await gz.r; if (!gzErr) BIN = new Uint8Array(r); } catch (e) {} }
+  if (!BIN) BIN = await desgz(PK.parte('m'));   // (sin descompresor del navegador, o si falló: entero, como antes)
+  if (M && M[2] === 1) desfiltrarIndices();
   progreso(0.95);
   // índices por nombre
   DATA.pfPorNombre = {};
   for (const k in DATA.pf) { const n = k.split('#')[0]; if (!DATA.pfPorNombre[n]) DATA.pfPorNombre[n] = k; }
   DATA.anPorNombre = {};
   for (const k in DATA.an.clips) DATA.anPorNombre[k] = DATA.an.clips[k][0];
+}
+// los índices de los triángulos vienen como diferencias en zigzag con los bytes en planos (lo arma armar.py): se
+// vuelven a armar en su lugar (una vez por zona, aunque dos mallas la compartan)
+function desfiltrarIndices() {
+  const hechos = new Set();
+  for (const m of DATA.ms) {
+    if (m.o === undefined || m.o === null || !m.sub || !m.sub.length || hechos.has(m.i)) continue;
+    hechos.add(m.i); let n = 0; for (const s of m.sub) n = Math.max(n, s[0] + s[1]);
+    const w = m.i32 ? 4 : 2, src = BIN.slice(m.i, m.i + n * w); let ant = 0, o = m.i;
+    if (w === 2) for (let k = 0; k < n; k++) { const z = src[k] | src[n + k] << 8; ant = (ant + ((z >>> 1) ^ -(z & 1))) & 0xffff; BIN[o++] = ant & 255; BIN[o++] = ant >>> 8; }
+    else for (let k = 0; k < n; k++) {
+      const z = (src[k] | src[n + k] << 8 | src[2 * n + k] << 16 | src[3 * n + k] << 24) >>> 0; ant = (ant + ((z >>> 1) ^ -(z & 1))) >>> 0;
+      BIN[o++] = ant & 255; BIN[o++] = (ant >>> 8) & 255; BIN[o++] = (ant >>> 16) & 255; BIN[o++] = ant >>> 24;
+    }
+  }
 }
 const icono = (n) => (DATA.ico[n] ? PK.url('i:' + DATA.ico[n], 'image/webp') : '');
 // vértices de una malla en la CPU (para choques y rayos): posiciones [x,y,z,...] e índices

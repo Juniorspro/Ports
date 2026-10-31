@@ -43,7 +43,7 @@ function humClip(c, t, w, out, espejo, soloArriba) {
     out[k] += val(attr) * s * w;
   }
 }
-const _hq = new Quat(), _hq2 = new Quat(), _hq3 = new Quat(), _hArriba = v3(0, 1, 0);
+const _hq = new Quat(), _hq2 = new Quat(), _hq3 = new Quat(), _hArriba = v3(0, 1, 0), _hFlEje = v3(1, 0, 0);
 function qArr(a, q) { return q.set(a[0], a[1], a[2], a[3]); }
 // convierte los valores a rotaciones de los huesos (en Unity) y los pasa al modelo (espacio espejado: x, -y, -z, w)
 function humAplicar(P) {
@@ -66,6 +66,16 @@ function humAplicar(P) {
   const hq = bq.clone().mul(qArr(av.dq, _hq3)).norm();
   const p = md.p[H.ci]; p[0] = -(av.rt[0] + off.x); p[1] = by + off.y; p[2] = av.rt[2] + off.z;
   const r = md.r[H.ci]; r[0] = hq.x; r[1] = -hq.y; r[2] = -hq.z; r[3] = hq.w;
+}
+// deslizarse (los que flotan, sin piernas): según la velocidad se inclina hacia donde va (hasta 9°) y se despega del piso
+// con un vaivén lento; al frenar vuelve a apoyarse. La inclinación se aplica al final, con los demás giros, y la altura en
+// aterrizarPies (si no, apoyar los pies la deshacía)
+function humFlotar(P, H, dt) {
+  const sp = P.suelo && !P.emote && !P.sentado ? Math.hypot(P.vel.x, P.vel.z) : 0, k = clamp((sp - 0.3) / 4.5, 0, 1), a = Math.min(1, dt * 5);
+  if (sp > 0.3) { H.flX = (H.flX || 0) + (P.vel.x / sp - (H.flX || 0)) * a; H.flZ = (H.flZ || 0) + (P.vel.z / sp - (H.flZ || 0)) * a; const n = Math.hypot(H.flX, H.flZ) || 1; H.flX /= n; H.flZ /= n; }
+  H.flInc = (H.flInc || 0) + (0.16 * k - (H.flInc || 0)) * Math.min(1, dt * 4);
+  H.flY = (H.flY || 0) + ((k > 0 ? 1 : 0) - (H.flY || 0)) * Math.min(1, dt * 3); H.flT = (H.flT || 0) + dt;
+  H.flAlto = H.flY * (0.04 + 0.015 * Math.sin(H.flT * 3.3)) * (P.tam || 1);   // (lo suma aterrizarPies, después de apoyar)
 }
 // agachado: piernas como sentado (cadera y rodillas dobladas) y el torso un poco adelante; la altura la corrige el piso.
 // Caminando agachado (mov > 0) se suma la diferencia entre sentado y parado a las piernas que corren: siguen dando
@@ -171,7 +181,8 @@ function animarHumano(P, dt) {
     else { const k = sal ? clamp((H.aire - 0.45) / 0.25, 0, 1) : 1; if (k < 1) humClip(sal, 0.58, 1 - k, T); humClip(E.Fall[0], H.t, k, T); }
   } else {
     const L = E.Locomotion, idle = humClipNombre('Pose', 'IdleLookAround_loop') || humClipNombre('Pose', 'Idle01') || L[0];
-    if (sp < 0.3) { humClip(idle, H.t, 1, T); H.mov = 0; H.cadera = (H.cadera || 0) * Math.max(0, 1 - dt * 6); }
+    // los que flotan (sin piernas) no caminan: siguen con la de quieto y se deslizan (la inclinación y el vaivén, más abajo)
+    if (sp < 0.3 || P.flota) { humClip(idle, H.t, 1, T); H.mov = 0; H.cadera = (H.cadera || 0) * Math.max(0, 1 - dt * 6); }
     else {
       const f = v3(Math.sin(P.yaw), 0, Math.cos(P.yaw)), dx = P.vel.x / sp, dz = P.vel.z / sp;
       const fw = f.x * dx + f.z * dz, rt = -(f.z * dx - f.x * dz);  // + = derecha (cámara mira +Z con media vuelta)
@@ -207,7 +218,7 @@ function animarHumano(P, dt) {
     H.caida = Math.max(0, (H.caida || 0) - dt * 3.2);
     const agach = Math.max(P.agachado ? 1 : 0, H.caida * 0.55);
     H.agach = (H.agach || 0) + (agach - (H.agach || 0)) * Math.min(1, dt * 10);
-    if (H.agach > 0.01) humAgachar(T, H.agach, H.mov || 0);
+    if (H.agach > 0.01 && !P.flota) humAgachar(T, H.agach, H.mov || 0);   // (sin piernas no se agacha: se hundiría en el piso)
   }
   // acción del torso encima de todo (con entrada y salida suaves)
   const A = P.accion;
@@ -225,7 +236,7 @@ function animarHumano(P, dt) {
   // la pose anterior se guarda y se apaga en ~0,2 s. Antes se filtraba todo el tiempo y eso achicaba el paso de las
   // piernas a menos de la mitad (los pies patinaban)
   const sp0 = Math.hypot(P.vel.x, P.vel.z);
-  const clave = (P.emote || '') + '|' + (P.sentado ? (P.manejando ? 'm' : 's') : '') + '|' + (!P.suelo ? 'a' : sp0 < 0.3 ? 'q' : 'c' + H.par) + '|' + (P.arma || '');
+  const clave = (P.emote || '') + '|' + (P.sentado ? (P.manejando ? 'm' : 's') : '') + '|' + (!P.suelo ? 'a' : sp0 < 0.3 || P.flota ? 'q' : 'c' + H.par) + '|' + (P.arma || '');
   // parado con un arma de GMod, el torso apunta al frente aunque la cadera se mueva con la animación de quieto (la de mirar
   // alrededor la gira hasta 35° y el arma giraba con ella), como el aim_yaw de GMod: las posturas se hornearon con la
   // cadera derecha. El giro que la compensa es parte de la pose: en los cambios de estado se mezcla igual que ella (al
@@ -241,12 +252,14 @@ function animarHumano(P, dt) {
   for (let k = 0; k < NV; k++) H.v[k] = T[k] + H.o[k] * fo;
   H.gy = gyT + (H.gyO || 0) * fo;
   humAplicar(P);
+  if (P.flota) humFlotar(P, H, dt);
   // cadera girada hacia donde camina (el torso vuelve) y mirar arriba/abajo con la cabeza y el pecho
   // (la cadera vuelve de a poco al salir de un emote, del asiento o del aire; antes saltaba de golpe)
   H.cadW = (H.cadW ?? 1) + ((P.emote || P.sentado || !P.suelo ? 0 : 1) - (H.cadW ?? 1)) * Math.min(1, dt * 10);
   const cad = (H.cadera || 0) * H.cadW;
   const gy = Math.abs(H.gy) > 1e-3 ? H.gy : 0;
-  if (P.mira || Math.abs(cad) > 0.01 || gy) {
+  const fl = P.flota && H.flInc > 0.002 ? H.flInc : 0;
+  if (P.mira || Math.abs(cad) > 0.01 || gy || fl) {
     P.acc = {};
     if (Math.abs(cad) > 0.01) { girar(P, 'Hips', 0, 1, 0, -cad); girar(P, 'Spine', 0, 1, 0, cad * 0.45); girar(P, 'Spine1', 0, 1, 0, cad * 0.3); girar(P, 'Spine2', 0, 1, 0, cad * 0.25); }
     if (P.mira) { girar(P, 'Spine2', 1, 0, 0, P.mira * 0.3); girar(P, 'Head', 1, 0, 0, P.mira * 0.4); }
@@ -255,5 +268,7 @@ function animarHumano(P, dt) {
     // con el modelo marcado para recalcular, que girarMundo parte de las matrices del mundo: con las del cuadro anterior,
     // que ya traían el giro, se sumaba cuadro a cuadro y el torso daba vueltas)
     if (gy) { P.md.sucio = true; girarMundo(P, 'Spine', _hArriba, gy * 0.45); girarMundo(P, 'Spine1', _hArriba, gy * 0.3); girarMundo(P, 'Spine2', _hArriba, gy * 0.25); }
+    // deslizándose: la columna entera se inclina hacia donde va (sobre el eje horizontal que cruza el movimiento)
+    if (fl) { P.md.sucio = true; _hFlEje.set(H.flZ, 0, -H.flX); girarMundo(P, 'Hips', _hFlEje, fl); }
   }
 }

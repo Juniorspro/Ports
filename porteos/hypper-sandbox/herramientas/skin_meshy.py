@@ -6,13 +6,16 @@
 # Con --alto K el personaje mide K veces lo que el Hero (Jake, Finn: los bajitos) achicando la raíz, así anima igual y
 # los pies apoyan; --ojo F corrige la altura de los ojos de la cámara (respecto de la de un humano de ese alto).
 # El retrato sale de la imagen ICONO (la cabeza, arriba al centro; --retrato x0,y0,x1,y1 en fracciones para otro recorte).
-# Uso: python3 -I skin_meshy.py GLB NOMBRE ICONO.png|- PAQUETE_ORIGEN PAQUETE_NUEVO [--quitar NOMBRE_VIEJO] [--alto K] [--ojo F] [--retrato x0,y0,x1,y1]
+# --flota: no tiene piernas (The Boiled One, riggeado con rig_flotante.py): en el juego se desliza en vez de caminar.
+# Uso: python3 -I skin_meshy.py GLB NOMBRE ICONO.png|- PAQUETE_ORIGEN PAQUETE_NUEVO [--quitar NOMBRE_VIEJO] [--alto K] [--ojo F] [--retrato x0,y0,x1,y1] [--flota]
 import sys, os, io, json, gzip, shutil, numpy as np
 from PIL import Image, ImageDraw
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import glb
 
 args = sys.argv[1:]; quitar = None; ALTO = None; OJO = 1.0
+FLOTA = '--flota' in args
+if FLOTA: args.remove('--flota')
 if '--quitar' in args: i = args.index('--quitar'); quitar = args[i + 1]; del args[i:i + 2]
 if '--alto' in args: i = args.index('--alto'); ALTO = float(args[i + 1]); del args[i:i + 2]
 if '--ojo' in args: i = args.index('--ojo'); OJO = float(args[i + 1]); del args[i:i + 2]
@@ -216,7 +219,7 @@ for o in sub:
         n['p'] = (np.array(arb[o]['p']) * razon_de(GRUPO.get(arb[arb[o]['pa']]['n'].split(':')[-1], nm))).tolist()
     arb.append(n)
 d['chars'].append(NOM)
-if ALTO: d.setdefault('tam', {})[NOM] = [ALTO, OJO]; print('alto', ALTO, 'del Hero · raíz ×', round(fA, 4), '· ojos ×', OJO)
+if ALTO or FLOTA: d.setdefault('tam', {})[NOM] = [ALTO or 1.0, OJO] + ([1] if FLOTA else []); print('alto', ALTO or 1.0, 'del Hero · raíz ×', round(fA, 4), '· ojos ×', OJO, '· flota' if FLOTA else '')
 # ---------------- archivos ----------------
 if os.path.exists(PK1): shutil.rmtree(PK1)
 os.makedirs(PK1 + '/t'); os.makedirs(PK1 + '/i'); os.makedirs(PK1 + '/a')

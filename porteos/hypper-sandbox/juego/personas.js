@@ -21,11 +21,12 @@ function datosSkin(skin) {
 }
 // tamaño de un personaje (los bajitos, como Jake o Finn, vienen con el modelo achicado en la raíz): alto respecto del Hero
 // (k) y la altura de los ojos respecto de la de un humano de ese alto (ojo). Los demás: 1 y 1
-function tamSkin(skin) { const t = DATA.tam && DATA.tam[skin]; return t ? { k: t[0], ojo: t[1] || 1 } : { k: 1, ojo: 1 }; }
+// (tercer dato: 1 si flota, como The Boiled One: sin piernas, se desliza en vez de caminar)
+function tamSkin(skin) { const t = DATA.tam && DATA.tam[skin]; return t ? { k: t[0], ojo: t[1] || 1, flota: !!t[2] } : { k: 1, ojo: 1, flota: false }; }
 function crearPersona(skin, gorro, opt) {
   const D = datosSkin(skin), md = new Modelo(D.sub);
   const P = { skin, gorro, md, D, pos: v3(), yaw: 0, vel: v3(), suelo: true, sentado: false, agachado: false, arma: null, emote: null, emoteT: 0, t: Math.random() * 10,
-    fase: 0, vivo: true, rag: null, vida: 100, base: md.r.map((r) => r.slice()), visible: true, nombre: (opt && opt.nombre) || '', mira: 0, tam: tamSkin(skin).k };
+    fase: 0, vivo: true, rag: null, vida: 100, base: md.r.map((r) => r.slice()), visible: true, nombre: (opt && opt.nombre) || '', mira: 0, tam: tamSkin(skin).k, flota: tamSkin(skin).flota };
   // gorro: sub-árbol del contenedor Hats, pegado a la cabeza
   if (gorro && gorro !== 'HatEmpty') {
     const arb = arbolJugador(), hats = arb.findIndex((n, i) => n.n === 'Hats' && arb[n.pa] && arb[n.pa].n === 'CharactersRoot');
@@ -156,7 +157,8 @@ function aterrizarPies(P) {
   md.actualizar();
   const yl = md.W[h.LeftFoot][13], yr = md.W[h.RightFoot][13], piso = P.pos.y - 1;
   const dy = piso + P.D.tobillo - Math.min(yl, yr), lleno = P.hum && P.hum.agach > 0.05;
-  const meta = clamp(dy, lleno ? -0.75 : -0.06, 0.5);
+  // (los que flotan se despegan del piso al deslizarse: lo calcula humFlotar)
+  const meta = clamp(dy, lleno ? -0.75 : -0.06, 0.5) + (P.flota && P.hum ? P.hum.flAlto || 0 : 0);
   P.pieCorr = (P.pieCorr || 0) + (meta - (P.pieCorr || 0)) * Math.min(1, (TIEMPO.dt || 0.016) * 18);
   if (Math.abs(P.pieCorr) > 1e-4) { md.raiz[13] += P.pieCorr; md.sucio = true; }
 }
@@ -172,7 +174,7 @@ function rotEntre(a, b) {
   return Quat.axis(c.x, c.y, c.z, Math.atan2(s, d));
 }
 function piesIK(P, dt) {
-  if (!P.suelo || P.sentado || P.emote || P.rag || DBG.sinIK) { P.ik = null; return; }
+  if (!P.suelo || P.sentado || P.emote || P.rag || P.flota || DBG.sinIK) { P.ik = null; return; }   // (sin piernas no hay pies que clavar)
   const md = P.md, h = P.D.h, A = P.D.sub; md.actualizar();
   const W = md.W, piso = P.pos.y - 1, sp = Math.hypot(P.vel.x, P.vel.z), tob = P.D.tobillo;
   const ik = P.ik || (P.ik = { L: { w: 0 }, R: { w: 0 } });

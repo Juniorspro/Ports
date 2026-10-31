@@ -356,7 +356,9 @@ async function iniciar() {
   // (lo de antes del juego, bajar y leer el archivo, ocupa hasta el 40 % de la barra: los pasos del juego van del 40 al 100)
   const cgp = (p) => 0.4 + p * 0.6, paso = (s, p, k) => { INI.paso = s; if (k) CG.set(cgp(p), k); };
   try {
-    paso('motor gráfico', 0.03, 'abrir');
+    // (el juego arranca antes de que termine de bajar el paquete: mientras baja, la barra la lleva la pantalla de carga con
+    // lo que llegó; acá sólo se anota el paso)
+    paso('motor gráfico', 0, document.readyState === 'loading' ? null : 'abrir');
     try { glIniciar(); } catch (e) {
       if (e && e.message === 'webgl') { iniError('Este aparato no tiene WebGL', 'Probá con Chrome actualizado.'); return; }
       throw e;
@@ -364,7 +366,7 @@ async function iniciar() {
     R.aniso = R.gl.getExtension('EXT_texture_filter_anisotropic');
     if (R.aniso) R.anisoMax = R.gl.getParameter(R.aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
     CG.log('abrir', (R.gl1 ? 'WebGL 1' : 'WebGL 2') + ' · ' + R.gl.getParameter(R.gl.MAX_TEXTURE_SIZE) + ' px');
-    paso('datos del juego', 0.05, 'datos');
+    paso('datos del juego', 0.05, document.readyState === 'loading' ? null : 'datos');
     let montado = false;
     await cargarPaquete((k) => { if (k >= 0.6 && !montado) { montado = true; CG.log('datos', [[Object.keys(PK.idx).length, 4], [(PK.u8.length / 1048576).toFixed(1) + ' MB']]); } CG.set(cgp(0.05 + k * 0.7), k < 0.6 ? 'datos' : 'modelos'); });
     CG.log('modelos', [[Object.keys(DATA.pfPorNombre).length, 0], [Object.keys(DATA.anPorNombre).length, 1], [MAPAS.length, 2]]);
