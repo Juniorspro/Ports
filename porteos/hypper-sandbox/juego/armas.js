@@ -77,7 +77,7 @@ function disparar() {
       for (let i = 0; i < k; i++) impactoBala(o, rayoDesdeCamara(D.tipo === 'perdigones' ? 0.06 : (D.disp || 0.004) * (ARM.zoom ? 0.2 : 1)), D, D.dan);
       if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego);
       sonar(D.sF, null, 0.8); efectoFogonazo();
-      JUG.pitch -= D.tipo === 'perdigones' ? 0.04 : D.dan > 50 ? 0.03 : 0.008; ARM.retro = 1;
+      JUG.pitch = Math.max(-1.55, JUG.pitch - (D.tipo === 'perdigones' ? 0.04 : D.dan > 50 ? 0.03 : 0.008)); ARM.retro = 1;   // (sin pasar de mirar arriba: si no, la cámara se da vuelta)
       if (typeof redDisparo === 'function') redDisparo(n);
       break;
     }

@@ -70,9 +70,12 @@ function tactilIniciar() {
     if (TOQ.palanca && TOQ.palanca.id === id) { TOQ.palanca = null; ENT.x = ENT.y = 0; bola.style.transform = ''; pal.classList.remove('activa'); }
     if (TOQ.mira && TOQ.mira.id === id) TOQ.mira = null;
   };
+  // (changedTouches trae los dedos que cambiaron en toda la pantalla, no sólo los de este elemento: cada uno atiende
+  // sólo los suyos; si no, mover la palanca mientras se mantiene el disparo daba vuelta la cámara)
   zona.addEventListener('touchstart', (e) => {
     ENT.tactil = true; document.body.classList.add('tactil');
     for (const t of e.changedTouches) {
+      if (t.target !== zona) continue;
       if (tX(t) < VW() * 0.4 && !TOQ.palanca) {
         TOQ.palanca = { id: t.identifier, x: tX(t), y: tY(t) };
         const m = (HUD.pal || 120) / 2; pal.style.left = tX(t) - m + 'px'; pal.style.top = tY(t) - m + 'px'; pal.classList.add('activa');
@@ -97,10 +100,20 @@ function tactilIniciar() {
   zona.addEventListener('touchcancel', (e) => { for (const t of e.changedTouches) fin(t.identifier); });
   // botones: los que se mantienen (disparo, salto) y los de un toque
   for (const b of document.querySelectorAll('[data-btn]')) botonTactil(b);
-  // el disparo táctil también deja mirar mientras se mantiene
+  // el disparo táctil también deja mirar mientras se mantiene (sólo con el dedo que lo apretó)
   const bd = $('bdisparo');
-  if (bd) bd.addEventListener('touchmove', (e) => { for (const t of e.changedTouches) { if (bd._u) { ENT.dx += (tX(t) - bd._u.x) * (ENT.sensT / ENT.sens); ENT.dy += (tY(t) - bd._u.y) * (ENT.sensT / ENT.sens); } bd._u = { x: tX(t), y: tY(t) }; } e.preventDefault(); }, { passive: false });
-  if (bd) bd.addEventListener('touchend', () => (bd._u = null));
+  if (bd) {
+    bd.addEventListener('touchstart', (e) => { for (const t of e.changedTouches) if (bd.contains(t.target)) bd._u = { id: t.identifier, x: tX(t), y: tY(t) }; }, { passive: false });
+    bd.addEventListener('touchmove', (e) => {
+      for (const t of e.changedTouches) {
+        if (!bd._u || t.identifier !== bd._u.id) continue;
+        ENT.dx += (tX(t) - bd._u.x) * (ENT.sensT / ENT.sens); ENT.dy += (tY(t) - bd._u.y) * (ENT.sensT / ENT.sens); bd._u.x = tX(t); bd._u.y = tY(t);
+      }
+      e.preventDefault();
+    }, { passive: false });
+    const suelta = (e) => { for (const t of e.changedTouches) if (bd._u && t.identifier === bd._u.id) bd._u = null; };
+    bd.addEventListener('touchend', suelta); bd.addEventListener('touchcancel', suelta);
+  }
 }
 // un botón: los que se mantienen (disparo, salto, pedales) y los de un toque
 function botonTactil(b) {

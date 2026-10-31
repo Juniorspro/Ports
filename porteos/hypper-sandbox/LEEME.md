@@ -31,6 +31,11 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   de la compu con las teclas). Tamaño elegible en Ajustes (60 a 120 %, de entrada 80 %: los del Hypper quedaban
   grandes); se achican en el mismo lugar (el centro de cada botón no se mueve) y la barra de armas, la vida, la palanca
   y el estado de Verity siguen la misma escala.
+  **Disparar y moverte ya no da vuelta la cámara**: el botón de disparo deja mirar arrastrando, pero tomaba también el
+  dedo de la palanca (los dedos que se mueven en un mismo evento llegan todos juntos) y la cámara saltaba hasta 172°
+  de golpe. Ahora cada control atiende sólo su dedo (el disparo, desde que lo apretás: sin perder el primer tramo ni
+  guardar el dedo de un toque cancelado), y el retroceso del arma no pasa del tope de mirar arriba
+  (`pruebas/disparo_mover.mjs`, acostado y parado).
 - **Mods oficiales desde la tienda**: ya no vienen todos puestos (la tienda quedaba vacía). En Mods y mapas → Explorar
   aparecen primero los oficiales en orden (Verity, Goku, la radio, la tele, el piano, volar, Cíclope, muñeco, SCP, salto,
   velocidad, luna, dios, cámara lenta, munición, explosiones) y después los de la gente; se instalan con un toque (los que
