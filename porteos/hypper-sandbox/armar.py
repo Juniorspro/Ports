@@ -14,7 +14,14 @@ import datetime
 js = js.replace('__ARMADO__', datetime.datetime.now(datetime.timezone.utc).strftime('%d/%m/%Y %H:%M UTC'))
 # el catálogo de los emotes de captura de movimiento (los archivos van al lado del HTML, en hypper/emotes/cmu)
 CMUC = os.path.join(AQUI, '..', '..', 'hypper', 'emotes', 'cmu', 'catalogo.json')
-if os.path.exists(CMUC): js = js.replace('/*CMUCAT*/null', open(CMUC, encoding='utf-8').read().strip())
+if os.path.exists(CMUC):
+    # (con las miniaturas: la silueta de cada una, hecha por pruebas/emotes_minis.mjs, va como sexto dato de cada uno)
+    _cat = json.load(open(CMUC, encoding='utf-8')); _mp = os.path.join(os.path.dirname(CMUC), 'minis.json')
+    if os.path.exists(_mp):
+        _m = json.load(open(_mp, encoding='utf-8'))
+        for _it in _cat['items']:
+            if _it[0] in _m: _it[5:] = [_m[_it[0]]]
+    js = js.replace('/*CMUCAT*/null', json.dumps(_cat, ensure_ascii=False, separators=(',', ':')))
 # las mallas: los índices de los triángulos van como diferencias (módulo 2^16 o 2^32, en zigzag) con los bytes en planos
 # (todos los bajos, después los altos), en el mismo lugar y con el mismo largo: así el gzip los achica casi a la mitad
 # (las mallas bajan de ~20 a ~17 MB). El juego los vuelve a armar al cargar (desfiltrarIndices en datos.js)

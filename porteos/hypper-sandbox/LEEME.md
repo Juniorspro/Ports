@@ -100,6 +100,23 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   queda negro: deja de dibujar y recarga cuando el navegador lo devuelve.
 - **Memoria (celulares de 2 GB)**: después de cargar, el paquete suelta los datos y las mallas comprimidas que ya se
   leyeron: queda en 16,5 MB en vez de ~38.
+- **Emotes que no se buguean** (`emotes.js`; prueba `pruebas/emotes_lugar.mjs`, los 2203: 2175 de captura y 28 del
+  paquete, reproducidos a 30 cuadros por segundo). Medido antes → después:
+  - **En el lugar**: las capturas traen el viaje de la persona (caminar, correr, girar) y la cadera se iba del jugador
+    (p95 3,57 m, hasta 5,7) y volvía de golpe. Ahora a la cadera se le resta (sólo en horizontal) una recta ajustada a
+    ±0,6 s y queda el vaivén: p95 0,41 m, máximo 0,45.
+  - **Sin la pose T**: el cuadro 0 de las 2175 capturas es el de referencia del BVH (pose T); se veía al empezar y en
+    cada vuelta. Se saca al cargar.
+  - **Pies dados vuelta**: errores de la conversión (un pie que gira ~170° y queda así varios cuadros) se corrigen
+    siguiendo la continuidad de cada hueso.
+  - **Empalme al repetirse**: se repite el tramo que mejor empalma (el peor hueso pesa más) con un fundido de 0,25 s (en
+    los clips cortos, después de dar la vuelta). Un hueso que giraba más de 12° por encima de lo normal al empalmar:
+    695 de 722 → 3 de 748; más de 45°: 648 → 0.
+- **Miniaturas de los emotes** (`emoMini`/`emoMiniSVG`; `pruebas/emotes_minis.mjs` las hace, `emotes_minis_panel.mjs`
+  5/5): cada una de las 2175 de captura tiene su silueta en su pose más característica (la que más aparta manos y pies de
+  estar parado, y otra bien distinta clarita atrás para que se note el movimiento), hecha con el esqueleto del juego y
+  vista en 3/4, sobre el color de su categoría. Van en el catálogo (164 KB: 64 letras cada una) y el panel se arma en
+  ~35 ms; las animaciones tuyas la hacen al verlas.
 - **Tienda en íconos cuadrados** (`inicio.js` `tiendaDibujar`; prueba `pruebas/tienda_iconos.mjs`, 12/12 en compu y
   celular): Mods, Mapas y Emotes ya no son una lista de tarjetas con textos y botones: son íconos cuadrados por secciones
   (Mods: oficiales de jugar, oficiales que ponen cosas y los de la gente; Mapas: oficiales y de la gente; Emotes: por

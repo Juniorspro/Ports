@@ -4,7 +4,7 @@
 // Se ponen encima de la animación de parado (los dedos y lo que el clip no mueve siguen igual), con entrada y salida
 // suaves; los bailes se repiten y los de un tiro terminan solos. Se llaman "rb:Id" (los del paquete) o "u:Id" (hechos
 // por la gente, guardados o bajados de la tienda).
-const EMO = { clips: {}, remotos: {}, cat: 'todos', pedidos: {}, ti: { items: [], cargando: false, error: false, q: '', n: 0 }, cargas: {}, q: '', lim: 120 };
+const EMO = { minis: {}, clips: {}, remotos: {}, cat: 'todos', pedidos: {}, ti: { items: [], cargando: false, error: false, q: '', n: 0 }, cargas: {}, q: '', lim: 120 };
 // ---------------- los de captura de movimiento (CMU, 2548): fuera del HTML, se bajan cuando se eligen ----------------
 // El catálogo (id, nombre, categoría, duración, si se repite) va adentro; cada uno es un archivo chico (herramientas/
 // emote_bvh.py) que se busca al lado del HTML (en githack es la misma rama) o en githack, y queda guardado en el navegador
@@ -36,7 +36,36 @@ function emoBin(k, u) {
   for (let i = 0; i < n; i++) { const d = (u[o + i] | u[o + n + i] << 8) << 16 >> 16, j = i % F; acc[j] += d; r[i] = acc[j] * 4; }   // (se envuelve igual que al guardar)
   const o2 = o + 2 * n; let a0 = 0, a1 = 0, a2 = 0;
   for (let i = 0; i < m; i++) { const d = (u[o2 + i] | u[o2 + m + i] << 8) << 16 >> 16, c = i % 3; h[i] = c === 0 ? (a0 = (a0 + d) << 16 >> 16) : c === 1 ? (a1 = (a1 + d) << 16 >> 16) : (a2 = (a2 + d) << 16 >> 16); }
-  return { id: 'c:' + k, n: CMU_I[k][1], fps, nf, b, r, h, loop: !!u[7], d: (nf - 1) / fps };
+  return emoLimpiar({ id: 'c:' + k, n: CMU_I[k][1], fps, nf, b, r, h, loop: !!u[7], d: (nf - 1) / fps });
+}
+// el cuadro 0 de todas las capturas (las 2175, medido) es el de referencia en pose T: al empezar y al repetirse se veía de
+// golpe. Se saca siempre; y un último cuadro que salta más que el triple de lo normal (y más de 45°), también
+function emoLimpiar(C) {
+  const nb = C.b.length, salto = (f0, f1) => { let m = 0; for (let k = 0; k < nb; k++) { const a = (f0 * nb + k) * 4, b = (f1 * nb + k) * 4, d = Math.abs(C.r[a] * C.r[b] + C.r[a + 1] * C.r[b + 1] + C.r[a + 2] * C.r[b + 2] + C.r[a + 3] * C.r[b + 3]) / (32767 * 32767); m = Math.max(m, 2 * Math.acos(Math.min(1, d))); } return m * 180 / Math.PI; };
+  if (C.nf < 6) return C;
+  // (lo que gira un hueso de un cuadro al otro en esta captura, la mediana: el límite es el triple, y al menos 45°)
+  const J = []; for (let f = 1; f < C.nf; f++) J.push(salto(f - 1, f)); const med = J.slice(1).sort((x, y) => x - y)[(J.length - 1) >> 1], lim = Math.max(45, 3 * med);
+  let ini = 1, fin = C.nf - 1;   // (el 0, la pose T)
+  while (C.nf - 1 - fin < 3 && fin - ini > 4 && J[fin - 1] > lim) fin--;   // (J[i] es el salto de i a i+1)
+  if (ini || fin < C.nf - 1) { C.r = C.r.slice(ini * nb * 4, (fin + 1) * nb * 4); if (C.h) C.h = C.h.slice(ini * 3, (fin + 1) * 3); C.nf = fin - ini + 1; }
+  // vueltas de la captura: un hueso (casi siempre un pie) que de un cuadro al otro gira más de 100° y queda así varios
+  // cuadros (un error de la conversión). Se lleva una corrección K (q' = q·K): en cada salto así, K pasa a ser la que
+  // deja ese cuadro igual al anterior corregido, y sigue para los que vienen (cuando vuelve a saltar, se deshace sola).
+  // La cadera no: ésa sí puede girar rápido
+  const R = C.r, I = 1 / 32767, mul = (a, b) => [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
+  const lee = (o) => [R[o] * I, R[o + 1] * I, R[o + 2] * I, R[o + 3] * I], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+  for (let k = 0; k < nb; k++) {
+    if (C.b[k] === 'Hips') continue;
+    let K = [0, 0, 0, 1], prevRaw = lee(k * 4), prev = prevRaw, cambio = false;
+    for (let f = 1; f < C.nf; f++) {
+      const o = (f * nb + k) * 4, raw = lee(o);
+      if (2 * Math.acos(Math.min(1, Math.abs(dot(prevRaw, raw)))) > 100 * Math.PI / 180) { const inv = [-raw[0], -raw[1], -raw[2], raw[3]]; K = mul(mul(inv, prev), [0, 0, 0, 1]); cambio = true; }
+      let qn = cambio ? mul(raw, K) : raw; const L = Math.hypot(...qn) || 1; qn = qn.map((x) => x / L);
+      if (cambio) { R[o] = Math.round(qn[0] * 32767); R[o + 1] = Math.round(qn[1] * 32767); R[o + 2] = Math.round(qn[2] * 32767); R[o + 3] = Math.round(qn[3] * 32767); }
+      prevRaw = raw; prev = qn;
+    }
+  }
+  C.d = (C.nf - 1) / C.fps; return C;
 }
 function emoCargar(id) {
   if (EMO.clips[id]) return Promise.resolve(EMO.clips[id]);
@@ -68,14 +97,21 @@ function emoIndices(P, C) {
 }
 const _qe = new Quat(), _qf = new Quat(), _qg = new Quat();
 // la pose del emote en el cuadro de ahora (lo llama animarPersona después de la animación de parado)
+// Los que se repiten: la primera vez se ven enteros desde el principio y después se repite el tramo [a, b] que mejor
+// empalma (emoBucle), con un fundido de 0,25 s antes de volver a "a": las capturas no terminan como empiezan (al dar la
+// vuelta saltaban, la mitad más de 95° en algún hueso).
 function emoPose(P, dt) {
   const e = P.emote; if (!e || !(e.startsWith('rb:') || e.startsWith('u:') || e.startsWith('c:'))) return;
   const C = emoClip(e); if (!C) return;
   const t = P.emoteT || 0;
   if (!C.loop && t >= C.d) { if (P === JUG.cuerpo || !P.remoto) P.emote = null; return; }
   let w = ss01(clamp(t / 0.25, 0, 1)); if (!C.loop) w *= 1 - ss01(clamp((t - (C.d - 0.3)) / 0.3, 0, 1));
-  let f = t * C.fps; if (C.loop) f %= (C.nf - 1); else f = Math.min(f, C.nf - 1.001);
+  if (!C.loop) { emoAplicar(P, C, Math.min(t * C.fps, C.nf - 1.001), w); return; }
+  const [a, b] = emoBucle(C), L = b - a, F0 = Math.min(Math.round(0.25 * C.fps), Math.floor(L / 3)), F = Math.min(F0, a);
+  const f0 = t * C.fps; let f = f0; if (f >= b) f = a + ((f - a) % L);
   emoAplicar(P, C, f, w);
+  if (F > 0 && f > b - F) emoAplicar(P, C, a - (b - f), w * ss01((f - (b - F)) / F));   // (fundido hacia el principio del tramo)
+  else if (!F && F0 > 0 && f0 >= b && f - a < F0) emoAplicar(P, C, b, w * (1 - ss01((f - a) / F0)));   // (clip corto: sale del último cuadro de a poco, después de dar la vuelta)
 }
 // el cuadro f (con fracción) de un clip sobre la pose que ya tiene la persona, con peso w
 function emoAplicar(P, C, f, w) {
@@ -89,13 +125,31 @@ function emoAplicar(P, C, f, w) {
     _qe.slerpTo(_qf, a);
     const r = md.r[i]; _qg.set(r[0], r[1], r[2], r[3]).slerpTo(_qe, w); r[0] = _qg.x; r[1] = _qg.y; r[2] = _qg.z; r[3] = _qg.w;
   }
-  // la cadera: su lugar de reposo más lo que se mueve en el clip
+  // la cadera: su lugar de reposo más lo que se mueve en el clip, en el lugar (sin el viaje de la captura)
   const hi = idx[C.b.indexOf('Hips')];
   if (C.h && hi >= 0) {
-    const b0 = P.D.sub[hi].p, o0 = f0 * 3, o1 = f1 * 3, p = md.p[hi];
-    for (let c = 0; c < 3; c++) { const v = (C.h[o0 + c] + (C.h[o1 + c] - C.h[o0 + c]) * a) / 1000; p[c] = p[c] + (b0[c] + v - p[c]) * w; }
+    const H = emoEnLugar(C), b0 = P.D.sub[hi].p, o0 = f0 * 3, o1 = f1 * 3, p = md.p[hi];
+    for (let c = 0; c < 3; c++) { const v = (H[o0 + c] + (H[o1 + c] - H[o0 + c]) * a) / 1000; p[c] = p[c] + (b0[c] + v - p[c]) * w; }
   }
   md.sucio = true;
+}
+// las capturas traen el viaje de la persona (caminar, correr, girar): el 43 % llevaba la cadera a más de 1 m del jugador
+// (hasta 8 m) y volvía de golpe. Se le resta a la cadera (sólo lo horizontal) su promedio de ±0,6 s: queda el vaivén
+// y el emote se hace en el lugar
+function emoEnLugar(C) {
+  if (C.hIn) return C.hIn;
+  // (una recta ajustada a ±0,6 s alrededor de cada cuadro: en los bordes del clip el promedio quedaba atrás del viaje;
+  // y como red, lo que quede no pasa de 0,45 m)
+  const h = C.h, nf = C.nf, W = Math.max(2, Math.round(0.6 * C.fps)), out = new Float32Array(h.length);
+  for (let f = 0; f < nf; f++) {
+    const lo = Math.max(0, Math.min(f - W, nf - 1 - 2 * W)), hi = Math.min(nf - 1, Math.max(f + W, 2 * W));
+    let n = 0, sf = 0, sff = 0, sx = 0, sz = 0, sfx = 0, sfz = 0;
+    for (let g = lo; g <= hi; g++) { const x = h[g * 3], z = h[g * 3 + 2], u = g - f; n++; sf += u; sff += u * u; sx += x; sz += z; sfx += u * x; sfz += u * z; }
+    const den = n * sff - sf * sf, ax = den ? (sx * sff - sf * sfx) / den : sx / n, az = den ? (sz * sff - sf * sfz) / den : sz / n;
+    let dx = h[f * 3] - ax, dz = h[f * 3 + 2] - az; const m = Math.hypot(dx, dz) / 450; if (m > 1) { dx /= m; dz /= m; }
+    out[f * 3] = dx; out[f * 3 + 1] = h[f * 3 + 1]; out[f * 3 + 2] = dz;
+  }
+  return (C.hIn = out);
 }
 // ---------------- nadar ----------------
 // dos capturas de CMU: la brazada de pecho acostado (126_04, sobre un banquito) y la brazada parado (79_02: flotando en
@@ -104,10 +158,11 @@ function emoAplicar(P, C, f, w) {
 const NADO = { nada: 'c:126_04', flota: 'c:79_02' };
 function emoBucle(C) {
   if (C.bucle) return C.bucle;
-  const nb = C.b.length, R = C.r, min = Math.round(1.5 * C.fps), K = 1 / (32767 * 32767); let mejor = 1e9, par = [0, C.nf - 1];
-  for (let a = 0; a < C.nf; a += 2) for (let b = a + min; b < C.nf; b += 2) {
-    let s = 0; for (let k = 0; k < nb; k++) { const o0 = (a * nb + k) * 4, o1 = (b * nb + k) * 4; s += 1 - Math.abs(R[o0] * R[o1] + R[o0 + 1] * R[o1 + 1] + R[o0 + 2] * R[o1 + 2] + R[o0 + 3] * R[o1 + 3]) * K; }
-    if (s < mejor) { mejor = s; par = [a, b]; }
+  // (el tramo empieza después de 0,25 s, así hay lugar para el fundido; se compara el peor hueso, no sólo la suma)
+  const nb = C.b.length, R = C.r, min = Math.min(Math.round(1.5 * C.fps), C.nf - 2), K = 1 / (32767 * 32767), paso = Math.max(2, Math.ceil(C.nf / 160)), a0 = Math.min(Math.round(0.25 * C.fps), Math.max(0, C.nf - min - 2)); let mejor = 1e9, par = [a0, C.nf - 1];
+  for (let a = a0; a < C.nf; a += paso) for (let b = a + min; b < C.nf; b += paso) {
+    let s = 0, mx = 0; for (let k = 0; k < nb; k++) { const o0 = (a * nb + k) * 4, o1 = (b * nb + k) * 4, d = 1 - Math.abs(R[o0] * R[o1] + R[o0 + 1] * R[o1 + 1] + R[o0 + 2] * R[o1 + 2] + R[o0 + 3] * R[o1 + 3]) * K; s += d; if (d > mx) mx = d; }
+    s += 4 * mx; if (s < mejor) { mejor = s; par = [a, b]; }
   }
   return (C.bucle = par);
 }
@@ -133,14 +188,63 @@ function emoUsado(id) { EMO.rec = [id, ...EMO.rec.filter((x) => x !== id)].slice
 function emoLista() {
   const l = DATA.emotes.map((e) => ({ id: e, n: emoNom(e, e), cat: 'clasico', ico: 'emo_' + e }));
   for (const [k, c] of Object.entries(DATA.emo || {})) l.push({ id: 'rb:' + k, n: emoNom('rb:' + k, c.n), cat: c.cat || (c.loop ? 'baile' : 'gesto'), ico: 'emo_' + k });
-  for (const x of CMU_CAT ? CMU_CAT.items : []) l.push({ id: 'c:' + x[0], n: x[1].charAt(0).toUpperCase() + x[1].slice(1), cat: x[2], dur: x[3], cmu: true });
+  for (const x of CMU_CAT ? CMU_CAT.items : []) l.push({ id: 'c:' + x[0], n: x[1].charAt(0).toUpperCase() + x[1].slice(1), cat: x[2], dur: x[3], cmu: true, mini: x[5] });
   for (const [k, v] of Object.entries((typeof INST !== 'undefined' && INST.anims) || {})) l.push({ id: 'u:' + k, n: v.nombre, cat: v.cat || 'baile', mio: true, foto: v.foto, local: /^local-/.test(k), autor: v.autor });
   return l;
+}
+// ---------------- miniaturas: la silueta del personaje en su pose más característica ----------------
+// Para cada animación: se prueba en un Hero aparte en 24 momentos, se elige el que más se aparta de estar parado (manos
+// y pies lejos de donde estarían) y otro bien distinto (que se ve más clarito, para que se note el movimiento), se miran
+// en 3/4 y cada uno queda en 16 articulaciones de 6 bits por eje: 32 letras. Las de captura vienen hechas en el catálogo
+// (herramientas: pruebas/emotes_minis.mjs); las tuyas se hacen al verlas.
+const EMO_MJ = ['Hips', 'Spine2', 'Neck', 'Head', 'LeftArm', 'LeftForeArm', 'LeftHand', 'RightArm', 'RightForeArm', 'RightHand', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'RightUpLeg', 'RightLeg', 'RightFoot'];
+const EMO_B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+function emoMiniP() {
+  if (EMO.miniP) return EMO.miniP;
+  const P = crearPersona('Hero', 'HatEmpty', { nombre: '' }); P.visible = false; const i = PERS.indexOf(P); if (i >= 0) PERS.splice(i, 1);
+  P.md.ponerRaiz(M4.id()); P.mi = EMO_MJ.map((n) => P.D.h[n] ?? P.D.h['mixamorig:' + n] ?? -1);
+  return (EMO.miniP = P);
+}
+function emoMiniPuntos(P, C, f) {
+  const md = P.md, nb = md.r.length, hi = P.D.h.Hips;
+  for (let i = 0; i < nb; i++) { const b0 = P.base[i]; md.r[i][0] = b0[0]; md.r[i][1] = b0[1]; md.r[i][2] = b0[2]; md.r[i][3] = b0[3]; }
+  if (hi !== undefined) { const s0 = P.D.sub[hi].p; md.p[hi][0] = s0[0]; md.p[hi][1] = s0[1]; md.p[hi][2] = s0[2]; }
+  if (C) emoAplicar(P, C, f, 1);
+  md.sucio = true; md.actualizar();
+  return P.mi.map((i) => (i < 0 ? null : [md.W[i][12], md.W[i][13], md.W[i][14]]));
+}
+function emoMini(C) {
+  if (!C || C.nf < 2) return '';
+  const P = emoMiniP(), quieto = emoMiniPuntos(P, null, 0), ext = [6, 9, 12, 15];
+  const rel = (J) => J.map((p) => p && [p[0] - J[0][0], p[1], p[2] - J[0][2]]), Q = rel(quieto);
+  const M = []; for (let s = 0; s < 24; s++) { const f = Math.min(C.nf - 1.001, (s + 0.5) / 24 * (C.nf - 1)), J = rel(emoMiniPuntos(P, C, f)); let sc = 0; for (const e of ext) if (J[e] && Q[e]) sc += Math.hypot(J[e][0] - Q[e][0], J[e][1] - Q[e][1], J[e][2] - Q[e][2]); M.push({ J, sc }); }
+  let a = M[0]; for (const m of M) if (m.sc > a.sc) a = m;
+  let b = M[0], db = -1; for (const m of M) { let d = 0; for (const e of ext) if (m.J[e] && a.J[e]) d += Math.hypot(m.J[e][0] - a.J[e][0], m.J[e][1] - a.J[e][1], m.J[e][2] - a.J[e][2]); if (d > db) { db = d; b = m; } }
+  // 3/4: girada 30°, 2,1 m = 60 px, los pies abajo (el más bajo de las dos), centrada en la cadera de la principal
+  const ca = Math.cos(0.52), sa = Math.sin(0.52), pr = (p) => [p[0] * ca + p[2] * sa, p[1]];
+  // (encuadre: la caja de las dos poses, con lugar para la cabeza; parado, 2,1 m = 60 px con los pies abajo)
+  let u0 = 1e9, u1 = -1e9, piso = 1e9, techo = -1e9; for (const m of [a, b]) for (const p of m.J) if (p) { const [u, v] = pr(p); u0 = Math.min(u0, u); u1 = Math.max(u1, u); piso = Math.min(piso, v); techo = Math.max(techo, v + 0.2); }
+  const k = Math.min(60 / 2.1, 56 / Math.max(0.3, techo - piso), 56 / Math.max(0.3, u1 - u0)), uc = Math.abs(u1 - u0) * k > 40 ? (u0 + u1) / 2 : 0;
+  const enc = (J) => J.map((p) => { const [u, v] = p ? pr(p) : [0, 0]; const x = Math.max(0, Math.min(63, Math.round(32 + (u - uc) * k))), y = Math.max(0, Math.min(63, Math.round(61 - (v - piso) * k))); return EMO_B64[x] + EMO_B64[y]; }).join('');
+  emoMiniPuntos(P, null, 0);
+  return enc(a.J) + enc(b.J);
+}
+// el SVG de la miniatura (una pose principal y otra clarita atrás)
+const EMO_HUESOS_MINI = [[0, 1], [1, 2], [2, 3], [1, 4], [4, 5], [5, 6], [1, 7], [7, 8], [8, 9], [0, 10], [10, 11], [11, 12], [0, 13], [13, 14], [14, 15]];
+const EMO_COL = { baile: ['#8e44ad', '#d35400'], caminar: ['#2471a3', '#17a589'], gesto: ['#2e86c1', '#5dade2'], accion: ['#c0392b', '#e67e22'], pelea: ['#922b21', '#cb4335'], deporte: ['#1e8449', '#52be80'], acrobacia: ['#b9770e', '#f4d03f'], animal: ['#6e2c00', '#ca6f1e'], otro: ['#4d5656', '#839192'] };
+function emoMiniSVG(s, cat) {
+  if (!s || s.length < 64) return '';
+  const pts = (o) => { const L = []; for (let i = 0; i < 16; i++) L.push([EMO_B64.indexOf(s[o + i * 2]), EMO_B64.indexOf(s[o + i * 2 + 1])]); return L; };
+  const lin = (L, op, w) => EMO_HUESOS_MINI.map(([i, j]) => `<line x1="${L[i][0]}" y1="${L[i][1]}" x2="${L[j][0]}" y2="${L[j][1]}"/>`).join('') + `<circle cx="${L[3][0]}" cy="${L[3][1] - 2}" r="${4.6}" fill="#fff" fill-opacity="${op}" stroke="none"/>`;
+  const [c1, c2] = EMO_COL[cat] || EMO_COL.otro, id = 'g' + (cat || 'o');
+  return `<svg class="emoMini" viewBox="0 0 64 64"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="64" height="64" rx="9" fill="url(#${id})"/>`
+    + `<g stroke="#fff" stroke-opacity=".32" stroke-width="3.2" stroke-linecap="round">${lin(pts(32), 0.32)}</g><g stroke="#fff" stroke-width="4" stroke-linecap="round">${lin(pts(0), 1)}</g></svg>`;
 }
 const EMO_ICO = { gesto: 'emote', clasico: 'emote', accion: 'salto', pelea: 'boom', deporte: 'meta', acrobacia: 'impulso', animal: 'dino', caminar: 'veloz', otro: 'animacion' };
 const emoIcoCat = (c) => icoHTML('ico:' + (EMO_ICO[c] || 'musica'));
 function emoTarjeta(e) {
-  const img = e.foto ? `<img src="${esc(e.foto)}" alt="">` : DATA.ico[e.ico] ? `<img src="${icono(e.ico)}" alt="" loading="lazy">` : `<div class="emoCatIco">${emoIcoCat(e.cat)}</div>`;
+  if (e.mio && !e.foto && !e.mini) { const C = emoClip(e.id); if (C) { try { e.mini = EMO.minis[e.id] || (EMO.minis[e.id] = emoMini(C)); } catch (er) {} } }
+  const img = e.foto ? `<img src="${esc(e.foto)}" alt="">` : DATA.ico[e.ico] ? `<img src="${icono(e.ico)}" alt="" loading="lazy">` : e.mini ? emoMiniSVG(e.mini, e.cat) : `<div class="emoCatIco">${emoIcoCat(e.cat)}</div>`;
   const k = e.mio ? e.id.slice(2) : '', fav = EMO.fav.has(e.id);
   return `<div class="emoIt${e.mio ? ' mio' : ''}${e.cmu ? ' cmu' : ''}" data-emo="${esc(e.id)}">${img}<b dir="auto" title="${esc(e.n)}">${esc(e.n)}</b>${e.cmu ? `<small>${esc(T('emo.' + e.cat))} · ${Math.max(1, Math.round(e.dur))} s</small>` : ''}${e.mio ? `<small>${esc(e.local ? T('emo.hecho') : T('por') + ' ' + (e.autor || ''))}</small>
     <span class="emoMis"><button data-emed="${esc(k)}" title="${esc(T('emo.editar'))}">${glifo('lapiz')}</button><button data-emdel="${esc(k)}" title="${esc(T('quitar'))}">${glifo('basura')}</button></span>` : ''}<button class="emoEst${fav ? ' si' : ''}" data-emfav="${esc(e.id)}" title="${esc(T('emo.fav'))}">${glifo('estrella')}</button></div>`;
