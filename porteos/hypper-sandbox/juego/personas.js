@@ -25,10 +25,11 @@ function datosSkin(skin) {
 // pie largo, como el de un disfraz, bajaban del piso). Se lee de los vértices sin guardar copia (en un celular de 2 GB
 // no conviene dejar las mallas en la memoria).
 function sueloReposo(md, h, sub) {
-  const dv = new DataView(BIN.buffer, BIN.byteOffset), lado = new Map(), pts = { L: [], R: [] }; let lo = 0;
+  const lado = new Map(), pts = { L: [], R: [] }; let lo = 0;
   for (const [l, re] of [['L', /Left(Foot|ToeBase|Toe_End)$/], ['R', /Right(Foot|ToeBase|Toe_End)$/]]) sub.forEach((n, i) => { if (re.test(n.n)) lado.set(i, l); });
   for (const pz of md.pieles) {
-    const x = md.A[pz.i], d = DATA.ms[x.m], H = pz.h; if (!d || d.sk === undefined) continue;
+    const x = md.A[pz.i], d = DATA.ms[x.m], H = pz.h, B = d && binDe(d); if (!d || d.sk === undefined || !B) continue;
+    const dv = new DataView(B.buffer, B.byteOffset);
     for (let v = 0; v < d.v; v++) {
       const o = d.o + v * 14, px = d.mn[0] + dv.getUint16(o, true) / 65535 * d.sc[0], py = d.mn[1] + dv.getUint16(o + 2, true) / 65535 * d.sc[1], pz2 = d.mn[2] + dv.getUint16(o + 4, true) / 65535 * d.sc[2];
       let X = 0, Y = 0, Z = 0, wm = 0, bm = -1; const sk = d.sk + v * 8;
@@ -57,6 +58,8 @@ function sueloReposo(md, h, sub) {
 // (tercer dato: 1 si flota, como The Boiled One: sin piernas, se desliza en vez de caminar)
 function tamSkin(skin) { const t = DATA.tam && DATA.tam[skin]; return t ? { k: t[0], ojo: t[1] || 1, flota: !!t[2] } : { k: 1, ojo: 1, flota: false }; }
 function crearPersona(skin, gorro, opt) {
+  // (un personaje de un paquete aparte que todavía no llegó: mientras tanto el Hero, y se pide; cuando llega, se cambia)
+  let quiere = null; if (!rbListo(rbDeSkin(skin))) { rbPedir(rbDeSkin(skin)); quiere = skin; skin = 'Hero'; }
   const D = datosSkin(skin), md = new Modelo(D.sub);
   const P = { skin, gorro, md, D, pos: v3(), yaw: 0, vel: v3(), suelo: true, sentado: false, agachado: false, arma: null, emote: null, emoteT: 0, t: Math.random() * 10,
     fase: 0, vivo: true, rag: null, vida: 100, base: md.r.map((r) => r.slice()), visible: true, nombre: (opt && opt.nombre) || '', mira: 0, tam: tamSkin(skin).k, flota: tamSkin(skin).flota };
@@ -67,7 +70,7 @@ function crearPersona(skin, gorro, opt) {
     if (gi >= 0) { P.gorroMd = new Modelo(subArbol(arb, gi)); P.gorroL = new Float32Array(16); m4trs(arb[gi].p, arb[gi].r, arb[gi].s, P.gorroL); P.gorroMd.p[0] = [0, 0, 0]; P.gorroMd.r[0] = [0, 0, 0, 1]; P.gorroMd.s[0] = [1, 1, 1]; }
   }
   P.hum = humanoPreparar(P);
-  PERS.push(P); return P;
+  P.skinQuiere = quiere; PERS.push(P); return P;
 }
 function borrarPersona(P) { const i = PERS.indexOf(P); if (i >= 0) PERS.splice(i, 1); if (P.rag) ragdollFin(P); }
 // gira un hueso alrededor de un eje del personaje (en reposo). Los giros se acumulan en el orden en que se
@@ -561,3 +564,10 @@ function dibujarPersonas() {
   }
 }
 function personasLimpiar() { for (const P of PERS.slice()) borrarPersona(P); JUG.cuerpo = null; }
+
+// llegó el paquete de un personaje: el mío y el del menú se rehacen con el de verdad (los de los otros jugadores, en red.js)
+RBP.alListo.push((k) => {
+  if (!k.startsWith('s_')) return; const s = k.slice(2);
+  if (JUG.cuerpo && JUG.cuerpo.skinQuiere === s && JUEGO.estado === 'juego' && JUG.vivo) jugadorCuerpoNuevo();
+  if (typeof MENU !== 'undefined' && MENU.lobby && MENU.lobby.skinQuiere === s) menuLobby(true, true);
+});

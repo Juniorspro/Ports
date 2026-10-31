@@ -273,7 +273,9 @@ function redMensaje(topic, m) {
 }
 function recibirEstado(d) {
   let R2 = RED.remotos.get(d.i);
-  const skin = DATA.chars.includes(d.k) ? d.k : 'Hero', gorro = DATA.hats.includes(d.h) ? d.h : 'HatEmpty';
+  // (su personaje, si viene en un paquete aparte que todavía no llegó: mientras tanto el Hero)
+  const real = DATA.chars.includes(d.k) ? d.k : 'Hero', skin = rbListo(rbDeSkin(real)) ? real : (rbPedir(rbDeSkin(real)), 'Hero'), gorro = DATA.hats.includes(d.h) ? d.h : 'HatEmpty';
+  if (R2) R2.skinReal = real;
   if (R2 && (R2.skin !== skin || R2.gorro !== gorro)) {
     // cambió de personaje (o de gorro): sólo se rehace el cuerpo; sus objetos y entidades siguen
     borrarPersona(R2.P); const P = crearPersona(skin, gorro, { nombre: limpio(d.n) }); P.remoto = d.i; R2.P = P; R2.b.persona = P; R2.skin = skin; R2.gorro = gorro;
@@ -282,7 +284,7 @@ function recibirEstado(d) {
     const P = crearPersona(skin, gorro, { nombre: limpio(d.n) }); P.remoto = d.i;
     const b = new Body(capsuleShape(0.4, 0.5), 80); b.frozen = true; b.persona = P; b.noJug = false; b.noGrab = true; addBody(b);
     const tag = document.createElement('div'); tag.className = 'etiqueta'; $('hud').appendChild(tag);
-    R2 = { id: d.i, skin, gorro, P, b, tag, pos: v3(), meta: v3(), yaw: 0, yawM: 0, vel: v3(), t: TIEMPO.t, f: 0, nombre: '' };
+    R2 = { id: d.i, skin, skinReal: real, gorro, P, b, tag, pos: v3(), meta: v3(), yaw: 0, yawM: 0, vel: v3(), t: TIEMPO.t, f: 0, nombre: '' };
     RED.remotos.set(d.i, R2); chatMostrar('RezoBox', limpio(d.n) + ' entró');
     if (RED.mdDe && RED.mdDe.has(d.i)) smDeOtro(R2, RED.mdDe.get(d.i));
   }
@@ -435,3 +437,11 @@ function redCedidosPaso(dt) {
     const b = o.b, k = 1 - Math.exp(-dt * 14); b.pos.lerpTo(o.meta.p, k); b.q.slerpTo(o.meta.q, k); b.updateWorld(); o.md.sucio = true; o.dibujado = false;
   }
 }
+
+// llegó el paquete del personaje de otro jugador: se le rehace el cuerpo (aunque esté quieto y no mande nada nuevo)
+RBP.alListo.push((k) => {
+  if (!k.startsWith('s_')) return; const s = k.slice(2);
+  for (const R2 of RED.remotos.values()) if (R2.skinReal === s && R2.skin !== s) {
+    const P0 = R2.P, P = crearPersona(s, R2.gorro, { nombre: R2.nombre }); P.remoto = R2.id; P.pos.copy(P0.pos); P.yaw = P0.yaw; borrarPersona(P0); R2.P = P; R2.b.persona = P; R2.skin = s;
+  }
+});

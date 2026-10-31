@@ -59,11 +59,10 @@ function spawnDibujar() {
     d.textContent = spawnCatNom(s); d.onclick = () => { UI.sub = i; UI.q = ''; spawnDibujar(); }; cl.appendChild(d);
   });
   spawnGrilla(C, subs);
-  if (C.n === 'Weapons') pie.innerHTML = `<label><input type="checkbox" id="chProp" ${UI.comoProp ? 'checked' : ''}>Spawn As Prop</label>`;
-  else pie.innerHTML = `<label><input type="checkbox" id="chDup" ${UI.dup ? 'checked' : ''}>Dup. Spawn</label><label><input type="checkbox" id="chFr" ${UI.freeze ? 'checked' : ''}>Freeze</label>`;
-  const a = $('chProp'), b = $('chDup'), c = $('chFr');
+  if (C.n === 'Weapons') pie.innerHTML = `<label><input type="checkbox" id="chProp" ${UI.comoProp ? 'checked' : ''}>${esc(T('sp.comoProp'))}</label>`;
+  else pie.innerHTML = `<label><input type="checkbox" id="chFr" ${UI.freeze ? 'checked' : ''}>${esc(T('sp.congelado'))}</label><span class="spPuso" id="spPuso"></span>`;
+  const a = $('chProp'), c = $('chFr');
   if (a) a.onchange = () => (UI.comoProp = a.checked);
-  if (b) b.onchange = () => (UI.dup = b.checked);
   if (c) c.onchange = () => (UI.freeze = c.checked);
 }
 // las categorías de una pestaña (en Props, la sección Mods primero) y sus nombres
@@ -107,9 +106,10 @@ function spawnAbrirMods(id) {
   const d = id && $('grilla').querySelector(`[data-mod="${CSS.escape(id)}"]`); if (d) { d.classList.add('marca'); d.scrollIntoView({ block: 'nearest' }); }
 }
 function spawnElegir(tab, nombre) {
-  if (tab === 'Weapons' && !UI.comoProp) { darArma(nombre); if (!UI.dup) cerrarPaneles(); return; }
-  spawnDelante(nombre, { congelado: UI.freeze });
-  if (!UI.dup) cerrarPaneles();
+  if (tab === 'Weapons' && !UI.comoProp) { darArma(nombre); cerrarPaneles(); return; }
+  // (el menú queda abierto para poner uno o más: abajo dice qué se puso)
+  const o = spawnDelante(nombre, { congelado: UI.freeze }), e = $('spPuso');
+  if (o && e) { UI.puestos = (UI.puestos || 0) + 1; e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}${UI.puestos > 1 ? ' (' + UI.puestos + ')' : ''}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); }
 }
 // crea la cosa donde apunta el jugador (o 4 m adelante), mirándolo
 // reglas de la sala (Create Server del juego): Nextbot sí/no, tope de props y de vehículos
@@ -135,7 +135,7 @@ function spawnDelante(nombre, opt) {
   if (o) { DESHACER.push(o); if (typeof redObjeto === 'function') redObjeto(o); }
   return o;
 }
-function abrirSpawn() { UI.abierto = 'spawn'; $('spawn').classList.remove('oc'); spawnDibujar(); soltarPuntero(); }
+function abrirSpawn() { UI.abierto = 'spawn'; UI.puestos = 0; $('spawn').classList.remove('oc'); spawnDibujar(); soltarPuntero(); }
 function cerrarPaneles() {
   UI.abierto = null; if (typeof MODM !== 'undefined' && MODM.abierto) modMenuCerrar();
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');

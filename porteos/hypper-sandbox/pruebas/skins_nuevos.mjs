@@ -13,8 +13,7 @@ const SK = ['Hero', 'Rick', 'RickPrime', 'Finn', 'Jake'];
 ok('están en la lista con retrato y tamaño', await ev(`${JSON.stringify(SK.slice(1))}.every((s) => DATA.chars.includes(s) && DATA.ico[RETRATO[s]])`), await ev(`DATA.tam`));
 // la malla con su piel en el mundo: punto más alto y más bajo
 await ev(`window.__malla = (P) => { const md = P.md; md.sucio = true; md.actualizar(); let lo = 1e9, hi = -1e9;
-  const dv = new DataView(BIN.buffer, BIN.byteOffset);
-  for (const pz of md.pieles) { const x = md.A[pz.i], d = DATA.ms[x.m], c = mallaCPU(x.m), H = pz.h;
+  for (const pz of md.pieles) { const x = md.A[pz.i], d = DATA.ms[x.m], c = mallaCPU(x.m), H = pz.h, B = binDe(d), dv = new DataView(B.buffer, B.byteOffset);
     for (let v = 0; v < d.v; v += 3) { let y = 0; const o = d.sk + v * 8;
       for (let k = 0; k < 4; k++) { const bi = dv.getUint8(o + k), w = dv.getUint8(o + 4 + k) / 255; if (!w) continue; const B = bi * 12 + 4;
         y += w * (H[B] * c.P[v * 3] + H[B + 1] * c.P[v * 3 + 1] + H[B + 2] * c.P[v * 3 + 2] + H[B + 3]); }

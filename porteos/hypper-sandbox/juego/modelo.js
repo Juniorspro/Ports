@@ -73,7 +73,7 @@ class Modelo {
         this.resT = TIEMPO.t; const meta = TIEMPO.t - this.resaltar < 0.3 ? 1 : 0, k = (this.resK || 0) + (meta - (this.resK || 0)) * Math.min(1, (TIEMPO.dt || 0.016) * 12);
         this.resK = k < 0.01 && !meta ? 0 : k;
       }
-      if (this.resK > 0) { const e = 0.26 * this.resK; extra = Object.assign({}, extra || {}, { em: [0.5 * e, 1.1 * e, 1.8 * e] }); }
+      if (this.resK > 0) { const e = this.resK; extra = Object.assign({}, extra || {}, { rim: [0.25 * e, 0.75 * e, 2.4 * e] }); }
     }
     // lejos: la versión simplificada de las mallas con piel (lods, de herramientas/lod_skins.py: mismos huesos) y, si
     // se pidió, sin sombra

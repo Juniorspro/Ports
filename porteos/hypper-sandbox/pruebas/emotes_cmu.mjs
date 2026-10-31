@@ -41,8 +41,7 @@ ok('el emote se juega: el antebrazo se mueve y queda en Recientes', mueve.mueve 
 ok('vale para la red', await ev(`emoValido(${JSON.stringify(ids[1])})`));
 // los pies en el piso: en los que no son de saltar ni de acrobacia, lo más bajo del cuerpo toca el piso en algún momento
 // (entre -15 y +3 cm, como el Hero parado) y casi siempre anda cerca (mediana entre -15 y +8 cm)
-await ev(`window.__malla = (P) => { const md = P.md; md.sucio = true; md.actualizar(); let lo = 1e9; const dv = new DataView(BIN.buffer, BIN.byteOffset);
-  for (const pz of md.pieles) { const x = md.A[pz.i], d = DATA.ms[x.m], c = mallaCPU(x.m), H = pz.h;
+await ev(`window.__malla = (P) => { const md = P.md; md.sucio = true; md.actualizar(); let lo = 1e9; for (const pz of md.pieles) { const x = md.A[pz.i], d = DATA.ms[x.m], c = mallaCPU(x.m), H = pz.h, B = binDe(d), dv = new DataView(B.buffer, B.byteOffset);
     for (let v = 0; v < d.v; v += 3) { let y = 0; const o = d.sk + v * 8;
       for (let k = 0; k < 4; k++) { const bi = dv.getUint8(o + k), w = dv.getUint8(o + 4 + k) / 255; if (!w) continue; const B = bi * 12 + 4;
         y += w * (H[B] * c.P[v * 3] + H[B + 1] * c.P[v * 3 + 1] + H[B + 2] * c.P[v * 3 + 2] + H[B + 3]); }

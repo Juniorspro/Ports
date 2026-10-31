@@ -15,8 +15,7 @@ const SK = ['Hero', ...(await ev(`${JSON.stringify(TODOS)}.filter((s) => DATA.ch
 const ALTO = { Jeppy: 0.884, UncleJeppy: 1.16, Sunman: 1.37, Filbus: 0.945, BoiledOne: 1.53, Bon: 1.2, Sha: 1.04, Alternate: 0.95, Partygoer: 1.05, Bacteria: 1.32 };   // (Filbus: sin --alto, la medida de su modelo)
 ok('están en la lista con retrato y nombre', await ev(`${JSON.stringify(SK.slice(1))}.every((s) => DATA.ico[RETRATO[s]] && skinNom(s))`), SK.map((s) => s));
 await ev(`window.__malla = (P) => { const md = P.md; md.sucio = true; md.actualizar(); let lo = 1e9, hi = -1e9;
-  const dv = new DataView(BIN.buffer, BIN.byteOffset);
-  for (const pz of md.pieles) { const x = md.A[pz.i], d = DATA.ms[x.m], c = mallaCPU(x.m), H = pz.h;
+  for (const pz of md.pieles) { const x = md.A[pz.i], d = DATA.ms[x.m], c = mallaCPU(x.m), H = pz.h, B = binDe(d), dv = new DataView(B.buffer, B.byteOffset);
     for (let v = 0; v < d.v; v += 3) { let y = 0; const o = d.sk + v * 8;
       for (let k = 0; k < 4; k++) { const bi = dv.getUint8(o + k), w = dv.getUint8(o + 4 + k) / 255; if (!w) continue; const B = bi * 12 + 4;
         y += w * (H[B] * c.P[v * 3] + H[B + 1] * c.P[v * 3 + 1] + H[B + 2] * c.P[v * 3 + 2] + H[B + 3]); }

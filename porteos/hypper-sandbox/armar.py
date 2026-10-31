@@ -30,13 +30,25 @@ def filtrar_indices(mb, ms):
         mb[m['i']:m['i'] + n * w] = z.view(np.uint8).reshape(-1, w).T.reshape(-1).tobytes()
     return mb
 DJ = json.load(gzip.open(os.path.join(PK, 'd.json.gz')))
-MB = filtrar_indices(bytearray(gzip.decompress(open(os.path.join(PK, 'm.bin.gz'), 'rb').read())), DJ['ms'])
+MB = bytearray(gzip.decompress(open(os.path.join(PK, 'm.bin.gz'), 'rb').read()))
+TX = {int(f.split('.')[0]): open(os.path.join(PK, 't', f), 'rb').read() for f in os.listdir(os.path.join(PK, 't'))}
+# lo pesado que no hace falta para arrancar (personajes y mapas grandes) va en paquetes aparte, en rb/ al lado del HTML
+# (herramientas/remotos.py; RB_ENTERO=1 para meter todo adentro, como antes)
+if not os.environ.get('RB_ENTERO'):
+    sys.path.insert(0, os.path.join(AQUI, 'herramientas')); import remotos
+    AU = {f[:-4]: open(os.path.join(PK, 'a', f), 'rb').read() for f in os.listdir(os.path.join(PK, 'a'))}
+    MB, RBPS = remotos.partir(DJ, MB, TX, filtrar_indices, AU)
+    RBD = os.path.join(os.path.dirname(os.path.abspath(OUT)), 'rb'); os.makedirs(RBD, exist_ok=True)
+    for nom, b in RBPS.items():
+        if not os.path.exists(os.path.join(RBD, nom)): open(os.path.join(RBD, nom), 'wb').write(b)
+    print('paquetes aparte', len(RBPS), round(sum(len(b) for b in RBPS.values()) / 1e6, 1), 'MB en', RBD)
+MB = filtrar_indices(MB, [m for m in DJ['ms'] if not m.get('k')])
 # paquete: un solo bloque con índice
-partes = [('d', open(os.path.join(PK, 'd.json.gz'), 'rb').read()), ('m', gzip.compress(bytes(MB), 9, mtime=0))]
-for f in sorted(os.listdir(os.path.join(PK, 't')), key=lambda x: int(x.split('.')[0])):
-    partes.append(('t' + f.split('.')[0], open(os.path.join(PK, 't', f), 'rb').read()))
+partes = [('d', gzip.compress(json.dumps(DJ, separators=(',', ':')).encode(), 9, mtime=0)), ('m', gzip.compress(bytes(MB), 9, mtime=0))]
+for t in sorted(TX):
+    partes.append(('t' + str(t), TX[t]))
 for f in sorted(os.listdir(os.path.join(PK, 'a'))):
-    partes.append(('a:' + f[:-4], open(os.path.join(PK, 'a', f), 'rb').read()))
+    if os.environ.get('RB_ENTERO') or f[:-4] in AU: partes.append(('a:' + f[:-4], open(os.path.join(PK, 'a', f), 'rb').read()))
 for f in sorted(os.listdir(os.path.join(PK, 'i'))):
     partes.append(('i:' + f[:-5], open(os.path.join(PK, 'i', f), 'rb').read()))
 # videos cortos (los sustos de la pizzería): mp4

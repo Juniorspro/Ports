@@ -45,7 +45,9 @@ function memeAudio(id) {
   if (MEME.dec.has(id)) return MEME.dec.get(id);
   audioIniciar(); if (!AUD.ctx) return Promise.resolve(null);
   let p;
-  if (id.startsWith('rb:')) { const x = PK.parte('a:MM_' + id.slice(3)); p = x ? AUD.ctx.decodeAudioData(x.slice().buffer).catch(() => null) : Promise.resolve(null); }
+  if (id.startsWith('rb:')) p = (async () => {   // (los incluidos vienen en un paquete aparte: se baja la primera vez)
+    if (!PK.parte('a:MM_' + id.slice(3))) await rbAsegurar('a_memes');
+    const x = PK.parte('a:MM_' + id.slice(3)); return x ? AUD.ctx.decodeAudioData(x.slice().buffer).catch(() => null) : null; })();
   else {
     const s = MEME.sala.get(id);
     p = (s ? Promise.resolve(s.a) : memeMios().then((L) => { const m = L.find((x) => x.id === id); return m && m.a; })).then((a) => (a ? AUD.ctx.decodeAudioData(a.slice(0)).catch(() => null) : null));
@@ -144,7 +146,7 @@ function memePan() {
   });
   return p;
 }
-function memePanAbrir() { const p = memePan(); p.classList.remove('oc'); UI.abierto = 'memes'; soltarPuntero(); p.querySelector('.mmAviso').textContent = ''; memePanDibujar(); }
+function memePanAbrir() { rbPedir('a_memes'); const p = memePan(); p.classList.remove('oc'); UI.abierto = 'memes'; soltarPuntero(); p.querySelector('.mmAviso').textContent = ''; memePanDibujar(); }
 function memePanCerrar() { const p = $('memePan'); if (p) p.classList.add('oc'); if (UI.abierto === 'memes') UI.abierto = null; }
 async function memePanDibujar() {
   const p = memePan(), n = ++MEME.dib;

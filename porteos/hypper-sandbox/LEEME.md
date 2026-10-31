@@ -106,6 +106,16 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE Hypper.html
   9 m/s), le saca 20 de vida a la gente (con el golpe, su voz y un empujón), tira lejos a los muñecos; no se repite antes de
   0,75 s. En primera persona se ve la pierna (el cuerpo a la vista con la cabeza y los brazos achicados a nada, que
   tapaban la cámara) y vuelve todo al terminar. Los demás la ven por el estado del jugador.
+- **HTML liviano: paquetes aparte** (`herramientas/remotos.py`, `datos.js` `rbAsegurar`; prueba `pruebas/paquetes.mjs`,
+  8/8): los personajes que no son el Hero y los mapas grandes (mallas y texturas; la pizzería con sus animatrónicos y sus
+  sonidos) y los sonidos de los memes salen del HTML a archivos sueltos en `hypper/rb/` (56, 27 MB en total). El juego
+  los baja cuando hacen falta: al entrar a un mapa o con un personaje (la pantalla de carga muestra los MB), cuando otro
+  jugador usa uno (mientras tanto se ve el Hero y cambia solo al llegar) y al abrir el pad de memes. Se guardan en la caché
+  del navegador (el nombre lleva el contenido: nunca quedan viejos). Abierto desde GitHub los busca al lado; abierto como
+  archivo, en GitHub (hace falta internet la primera vez). **El HTML pasó de 62,9 a 27,6 MB.** `RB_ENTERO=1` arma el de
+  antes, con todo adentro.
+- **Lo que apuntás brilla sólo en los bordes, en azul** (como la Gravity Gun) en vez de teñirse entero; el menú de props
+  ya no se cierra al poner uno (abajo dice qué pusiste y cuántos).
 - **Personajes de terror analógico** (Personajes; prueba `pruebas/skins_dn.mjs Bon,Sha,Alternate,Partygoer,Bacteria`):
   Bon y Sha (The Walten Files), un Alternate (The Mandela Catalogue), un Partygoer y la Bacteria (The Backrooms). Imagen
   en pose T desde la referencia de la wiki (o desde la descripción), modelo 3D riggeado (Meshy), `skin_meshy.py --alto`

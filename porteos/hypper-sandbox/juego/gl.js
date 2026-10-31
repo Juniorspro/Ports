@@ -32,6 +32,7 @@ function m4trs(p, r, s, out) {
   m[12] = p[0]; m[13] = p[1]; m[14] = p[2]; m[15] = 1; return m;
 }
 const m4pt = (m, x, y, z, o) => o.set(m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]);
+const RIM_NO = new Float32Array(3);
 const m4esc = (m) => Math.max(Math.hypot(m[0], m[1], m[2]), Math.hypot(m[4], m[5], m[6]), Math.hypot(m[8], m[9], m[10]));
 const srgb = (c) => Math.pow(c, 2.2);
 const srgb3 = (a) => [srgb(a[0]), srgb(a[1]), srgb(a[2])];
@@ -107,7 +108,7 @@ uniform sampler2D uT1, uT2, uT3; uniform vec4 uS1; uniform vec2 uS3;
 #ifdef MEZ
 uniform sampler2D uT1; in float vMz;
 #endif
-uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uCam, uEm; uniform vec2 uNie; uniform float uCorte;
+uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uCam, uEm, uRim; uniform vec2 uNie; uniform float uCorte;
 #if LUZ >= 1
 uniform vec3 uMat;
 #endif
@@ -457,6 +458,10 @@ void main(){
   }
 #endif
 #endif
+#if !defined(UNLIT) && !defined(AGUA)
+  // lo que se apunta: sólo los bordes brillan en azul (donde la superficie se ve de costado)
+  col += uRim * pow(1.0 - abs(dot(n, normalize(uCam - vW))), 2.2);
+#endif
   float dist = distance(vW, uCam);
   float f = clamp((dist - uNie.x) / (uNie.y - uNie.x), 0.0, 1.0);
 #if LUZ >= 3
@@ -702,8 +707,10 @@ function texGL(i) {
   if (i == null || i < 0) return R.texBlanca;
   let t = R.tex[i];
   if (t) return t.gl || R.texGris;
+  const pt = PK.parte('t' + i);
+  if (!pt) { const x = DATA.tx[i]; if (x && x.k) { rbPedir(x.k); return R.texGris; } return R.texBlanca; }   // (en un paquete aparte: cuando llegue)
   t = R.tex[i] = { gl: null };
-  const blob = new Blob([PK.parte('t' + i)], { type: 'image/webp' });
+  const blob = new Blob([pt], { type: 'image/webp' });
   decodificar(blob).then(([img, volteada]) => {
     const gl = R.gl, tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
     const src = texAjustar(img, GFX.texMax);
@@ -747,7 +754,8 @@ function texturasRecargar() { const gl = R.gl; for (const t of R.tex) if (t && t
 // ---------------- mallas (de los datos del juego al GPU) ----------------
 function mallaGL(i) {
   let m = R.mallas[i]; if (m) return m;
-  const d = DATA.ms[i], gl = R.gl, vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  const d = DATA.ms[i], BIN = binDe(d); if (!BIN) { rbPedir(d.k); return null; }   // (de un paquete aparte que todavía no llegó)
+  const gl = R.gl, vao = gl.createVertexArray(); gl.bindVertexArray(vao);
   const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, BIN.subarray(d.o, d.o + d.v * 14), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.UNSIGNED_SHORT, true, 14, 0);
   gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.BYTE, true, 14, 6);
@@ -823,7 +831,8 @@ function matGL(i) {
 // cada pedido: malla, submalla, material, matriz (o null = identidad), huesos (o null) y su esfera en el mundo
 const IDM = M4.id();
 function encolar(mi, sub, mat, M, huesos, extra) {
-  const m = mallaGL(mi), mt = matGL(mat);
+  const m = mallaGL(mi); if (!m) return;
+  const mt = matGL(mat);
   if (mt.oculto) return;
   const s = m.d.sub[sub]; if (!s) return;
   let p = R.items[R.nItems];
@@ -923,6 +932,7 @@ function dibujarPedido(p, P) {
   const c = p.x && p.x.c ? p.x.c : mt.c;
   gl.uniform4f(u.uC, c[0], c[1], c[2], c[3]);
   if (u.uEm) gl.uniform3fv(u.uEm, p.x && p.x.em ? p.x.em : mt.lampara && R.lucesMapa ? EM_LAMPARA : mt.em);
+  if (u.uRim) gl.uniform3fv(u.uRim, p.x && p.x.rim ? p.x.rim : RIM_NO);
   if (u.uCorte) gl.uniform1f(u.uCorte, 0.5);
   if (u.uMat) gl.uniform3fv(u.uMat, mt.pbr);
   if (mt.agua) aguaUniformes(p, u);
@@ -967,7 +977,7 @@ function pielCPU(p) {
 function pielCalcular(m, H, out) {
   let S = m.cpuS;
   if (!S) {
-    const d = m.d, mc = mallaCPU(m.idx), dv = new DataView(BIN.buffer, BIN.byteOffset), N = new Float32Array(d.v * 3), J = new Uint8Array(d.v * 4), W = new Float32Array(d.v * 4);
+    const d = m.d, mc = mallaCPU(m.idx), BIN = binDe(d), dv = new DataView(BIN.buffer, BIN.byteOffset), N = new Float32Array(d.v * 3), J = new Uint8Array(d.v * 4), W = new Float32Array(d.v * 4);
     for (let k = 0; k < d.v; k++) {
       const o = d.o + k * 14 + 6; for (let j = 0; j < 3; j++) N[k * 3 + j] = Math.max(-1, dv.getInt8(o + j) / 127);
       const q = d.sk + k * 8; for (let j = 0; j < 4; j++) { J[k * 4 + j] = BIN[q + j]; W[k * 4 + j] = BIN[q + 4 + j] / 255; }

@@ -106,6 +106,9 @@ function camaraActualizar(dt) {
 const DESHACER = [];
 function empezarPartida(mapa) {
   audioIniciar(); if (EDA.on) edaCerrar();
+  // (el mapa, el personaje y lo que necesiten en paquetes aparte: se bajan antes, con lo que va en la pantalla de carga)
+  const falta = rbParaPartida(mapa, JUG.skinRol || JUG.skinMod || PREFS.skin);
+  if (falta.length) { const C = window.__carga; rbAsegurarTodos(falta, (n, t) => { if (C && C.set && t) C.set(0.3 + 0.4 * n / t, T('ld.bajando') + ' ' + (n / 1048576).toFixed(1) + ' / ' + (t / 1048576).toFixed(1) + ' MB'); }).then(() => empezarPartida(mapa)); return; }
   natFin(); entidadesLimpiar(); JUG.skinRol = null; JUG.vidaMax = 0; JUG.colorRol = null; JUG.noclip = false;
   for (const o of OBJS.slice()) borrarObjeto(o);
   PH.bodies.length = 0; PH.joints.length = 0; PROY.length = 0; PART.l.length = 0;
@@ -405,6 +408,8 @@ async function iniciar() {
   const fallos = iniFallos(); iniFallos(0);
   if (fallos > 0) setTimeout(() => aviso(R.gl1 ? 'Arrancó con WebGL 1' : 'WebGL 1 falló en este aparato: uso WebGL 2'), 1500);
   addEventListener('pointerdown', audioIniciar, { once: false });
+  // (las pruebas automáticas, con todos los paquetes aparte ya bajados, salvo que prueben justamente la bajada: ?perezoso)
+  if (navigator.webdriver && DATA.rbp && !Q.has('perezoso')) await rbAsegurarTodos(Object.keys(DATA.rbp));
   window.__listo = true;
   window.__ev = (s) => eval(s);
   // listo: la pantalla de carga se va sola (aunque algo de la pantalla falle, se va igual)

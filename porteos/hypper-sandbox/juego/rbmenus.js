@@ -124,6 +124,13 @@ async function entrarConCarga(titulo, mapa, jugar, red) {
   if (TEST || !C || !C.abrir) { jugar(); return; }
   C.abrir(titulo, FONDO_MAPA[mapa] || '', 'rb_' + String(mapa).toLowerCase());
   if (red) { C.set(0.15, T('ld.info')); await cuadroLibre(); C.log(T('ld.info'), titulo); }
+  // (lo que viene en paquetes aparte: el mapa, el personaje; la primera vez se baja, después sale de la caché)
+  const falta = rbParaPartida(mapa, JUG.skinRol || JUG.skinMod || PREFS.skin);
+  if (falta.length) {
+    const t0 = performance.now(); let mb = 0; C.set(0.2, T('ld.bajando'));
+    await rbAsegurarTodos(falta, (n, t) => { mb = t; if (t) C.set(0.2 + 0.15 * n / t, T('ld.bajando') + ' ' + (n / 1048576).toFixed(1) + ' / ' + (t / 1048576).toFixed(1) + ' MB'); });
+    C.log(T('ld.bajando'), (mb / 1048576).toFixed(1) + ' MB · ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s');
+  }
   C.set(0.35, T('ld.mapa')); await cuadroLibre(); await cuadroLibre();
   const t = performance.now();
   try { jugar(); } catch (e) { console.error(e); }
