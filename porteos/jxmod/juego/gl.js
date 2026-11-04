@@ -708,8 +708,9 @@ function glIniciar() {
   else {
     R.extFloat = gl.getExtension('EXT_color_buffer_float'); gl.getExtension('OES_texture_float_linear');
     R.depthTex = R.deriv = R.fsAlta = true;
-    // (hdrC: la luz alta en 4 bytes por punto —R11F_G11F_B10F, sin alfa— en vez de 8: la escena, el resplandor, los rayos y los
-    // reflejos mueven la mitad de memoria, que en los celus es lo que más pesa; con ?hdr16=1 se vuelve a la de 8 para comparar)
+    // (hdrC: luz alta en 4 bytes por punto —R11F_G11F_B10F— para lo borroso: resplandor, rayos y reflejos. La escena va en la
+    // de 8: con 5 bits de mantisa en el azul el cielo y los degradados quedaban en franjas, 5 veces más escalones. Con
+    // ?hdr16=1, todo en la de 8)
     R.F = { hdrC: Q.get('hdr16') === '1' ? null : [gl.R11F_G11F_B10F, gl.RGB, gl.HALF_FLOAT], hdr: [gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT], ldr: [gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE], r8: [gl.R8, gl.RED, gl.UNSIGNED_BYTE], prof: [gl.DEPTH_COMPONENT24, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT] };
   }
   // huesos por personaje en el shader (3 vec4 cada uno): si el aparato tiene pocos uniformes, la piel se calcula en la CPU

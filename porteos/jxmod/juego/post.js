@@ -13,7 +13,11 @@ const FS_SSAO = `
 precision highp float; in vec2 vUV; uniform sampler2D uProf; uniform vec2 uNF, uTan, uInv; uniform float uRad, uInt; out vec4 o;
 float vz(vec2 uv) { float d = texture(uProf, uv).r * 2.0 - 1.0; return 2.0 * uNF.x * uNF.y / (uNF.y + uNF.x - d * (uNF.y - uNF.x)); }
 vec3 vpos(vec2 uv) { float z = vz(uv); return vec3((uv * 2.0 - 1.0) * uTan * z, -z); }
-float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+// (el giro de las muestras con un patrón de 4×4 que se repite —Bayer—: el desenfoque de 4 parejas lo cancela justo; con el
+// ruido de antes, que no se repite, quedaba una línea punteada en los bordes, que en el celu —a un cuarto de la resolución
+// y estirada 4 veces— se veía como rayas)
+float b2(vec2 q) { return mod(q.x * 2.0 + q.y * 3.0, 4.0); }   // (Bayer 2×2: 0 2 / 3 1)
+float bayer4(vec2 p) { vec2 q = mod(floor(p), 4.0); return 4.0 * b2(mod(q, 2.0)) + b2(floor(q / 2.0)); }
 void main(){
   float d0 = texture(uProf, vUV).r;
   if (d0 >= 0.99999) { o = vec4(1.0); return; }
@@ -25,7 +29,7 @@ void main(){
   float rPant = uRad / (-P.z * uTan.y * 2.0);               // radio en pantalla (fracción del alto)
   if (rPant < uInv.y * 1.5) { o = vec4(1.0); return; }
   rPant = min(rPant, 0.12);
-  float a0 = ign(gl_FragCoord.xy) * 6.2831853, s = 0.0;
+  float a0 = (bayer4(gl_FragCoord.xy) + 0.5) / 16.0 * 6.2831853, s = 0.0;
   for (int i = 0; i < NMUES; i++) {
     float t = (float(i) + 0.5) / float(NMUES), ang = a0 + t * 6.2831853 * 7.0;
     vec2 off = vec2(cos(ang), sin(ang)) * t * rPant; off.x *= uInv.x / uInv.y;
@@ -42,9 +46,9 @@ precision highp float; in vec2 vUV; uniform sampler2D uTex, uProf; uniform vec2 
 float vz(vec2 uv) { float d = texture(uProf, uv).r * 2.0 - 1.0; return 2.0 * uNF.x * uNF.y / (uNF.y + uNF.x - d * (uNF.y - uNF.x)); }
 void main(){
   float z0 = vz(vUV), s = 0.0, w = 0.0;
-  for (int i = -3; i <= 3; i++) {
+  for (int i = -2; i <= 1; i++) {   // (4 parejas: un período entero del patrón)
     vec2 uv = vUV + uDir * float(i);
-    float z = vz(uv), k = exp(-float(i * i) * 0.12) * max(0.0, 1.0 - abs(z - z0) / (z0 * 0.06 + 0.05));
+    float z = vz(uv), k = max(0.0, 1.0 - abs(z - z0) / (z0 * 0.06 + 0.05));
     s += texture(uTex, uv).r * k; w += k;
   }
   o = vec4(s / max(w, 1e-4), 1.0, 1.0, 1.0);
@@ -170,22 +174,23 @@ function postPreparar() {
   PO.w = w; PO.h = h; PO.cfg = postCfg();
   const hdr = R.extFloat && GFX.hdr;
   PO.hdr = !!hdr;
-  const F = R.F; let fh = hdr && F.hdrC ? F.hdrC : F.hdr;
+  // (la escena en 8 bytes por punto —RGBA16F—: en el de 4 el cielo y los degradados quedaban en franjas; el resplandor, los
+  // rayos y los reflejos, que son borrosos, en el de 4 si la placa deja: no se notan los escalones y mueven la mitad)
+  const F = R.F, fc = F.hdrC || F.hdr; let fh = F.hdr;
   PO.col = rtTex(w, h, ...(hdr ? fh : F.ldr), gl.LINEAR);
   if (R.depthTex) PO.prof = rtTex(w, h, ...F.prof, gl.NEAREST);
   else { PO.rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, PO.rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h); }
   PO.fb = rtFb(PO.col, PO.prof, PO.rb);
   // (si la placa no deja dibujar en el formato chico, el de 8 bytes de siempre)
-  if (!PO.fb && hdr && fh !== F.hdr) { gl.deleteTexture(PO.col); fh = F.hdr; PO.col = rtTex(w, h, ...fh, gl.LINEAR); PO.fb = rtFb(PO.col, PO.prof, PO.rb); }
   if (!PO.fb) { postLiberar(); return false; }
-  PO.fh = hdr ? fh : null; R.hdrF = PO.fh;
+  PO.fh = hdr ? fh : null; R.hdrF = hdr ? fc : null;
   const w2 = Math.max(1, w >> 1), h2 = Math.max(1, h >> 1), densa = postDensa(), wa = densa ? Math.max(1, w >> 2) : w2, ha = densa ? Math.max(1, h >> 2) : h2;
   if (GFX.ao && R.depthTex) PO.ao = [rt(wa, ha, ...F.r8, gl.LINEAR), rt(wa, ha, ...F.r8, gl.LINEAR)];
   if (GFX.bloom && hdr) {
     let bw = w2, bh = h2; const n = GFX.bloom >= 2 ? 6 : 5;
-    for (let i = 0; i < n && bw >= 4 && bh >= 4; i++) { PO.bl.push(rt(bw, bh, ...fh, gl.LINEAR)); bw >>= 1; bh >>= 1; }
+    for (let i = 0; i < n && bw >= 4 && bh >= 4; i++) { PO.bl.push(rt(bw, bh, ...fc, gl.LINEAR)); bw >>= 1; bh >>= 1; }
   }
-  if (GFX.rayos && hdr && R.depthTex) { const w4 = Math.max(1, w >> 2), h4 = Math.max(1, h >> 2); PO.ray = [rt(w4, h4, ...fh, gl.LINEAR), rt(w4, h4, ...fh, gl.LINEAR)]; }
+  if (GFX.rayos && hdr && R.depthTex) { const w4 = Math.max(1, w >> 2), h4 = Math.max(1, h >> 2); PO.ray = [rt(w4, h4, ...fc, gl.LINEAR), rt(w4, h4, ...fc, gl.LINEAR)]; }
   if (GFX.fxaa && !densa) PO.ldr = rt(w, h, ...F.ldr, gl.LINEAR);
   if (!PO.p.final) {
     const mk = (fs, d) => shader(VS_PANT, fs, d);

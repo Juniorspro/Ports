@@ -62,7 +62,7 @@ function porRT(w, h) {
   const gl = R.gl, X = POR.rt, hdr = R.salida === 'hdr';
   if (X && X.w === w && X.h === h && X.hdr === hdr) return X;
   porLiberar();
-  const t = rtTex(w, h, ...(hdr ? R.hdrF || R.F.hdr : R.F.ldr), gl.LINEAR), rb = gl.createRenderbuffer();
+  const t = rtTex(w, h, ...(hdr ? R.F.hdr : R.F.ldr), gl.LINEAR), rb = gl.createRenderbuffer();
   gl.bindRenderbuffer(gl.RENDERBUFFER, rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
   const f = rtFb(t, null, rb);
   if (!f) { gl.deleteTexture(t); gl.deleteRenderbuffer(rb); return null; }

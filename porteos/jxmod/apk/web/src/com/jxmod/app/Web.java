@@ -68,6 +68,7 @@ public class Web extends Activity {
         super.onCreate(b);
         Window w = getWindow();
         w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        frecuenciaPoner(1000);   // (de entrada la más alta; el juego después pide la de su calidad)
         if (Build.VERSION.SDK_INT >= 28) {
             WindowManager.LayoutParams lp = w.getAttributes();
             lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
@@ -299,6 +300,28 @@ public class Web extends Activity {
         }
     }
 
+    /** Muchos celus dejan las apps en 60 Hz aunque la pantalla dé 90, 120 o 144: se pide el modo de la misma resolución con la
+     *  frecuencia más alta (hz ≥ 90) o el más cercano a hz (60). */
+    private void frecuenciaPoner(int hz) {
+        if (Build.VERSION.SDK_INT < 23) return;
+        try {
+            android.view.Display d = getWindowManager().getDefaultDisplay(); if (d == null) return;
+            android.view.Display.Mode act = d.getMode(), mejor = null;
+            for (android.view.Display.Mode m : d.getSupportedModes()) {
+                if (m.getPhysicalWidth() != act.getPhysicalWidth() || m.getPhysicalHeight() != act.getPhysicalHeight()) continue;
+                if (mejor == null) { mejor = m; continue; }
+                float r = m.getRefreshRate(), rb = mejor.getRefreshRate();
+                if (hz >= 90 ? r > rb : Math.abs(r - hz) < Math.abs(rb - hz)) mejor = m;
+            }
+            if (mejor == null) return;
+            WindowManager.LayoutParams lp = getWindow().getAttributes();
+            if (lp.preferredDisplayModeId == mejor.getModeId()) return;
+            lp.preferredDisplayModeId = mejor.getModeId();
+            lp.preferredRefreshRate = mejor.getRefreshRate();
+            getWindow().setAttributes(lp);
+        } catch (Throwable e) { }
+    }
+
     /** Lo que la página puede pedirle a la app. */
     private class Puente {
         @JavascriptInterface public void guardar(final String nombre, String b64, final String mime) {
@@ -306,6 +329,9 @@ public class Web extends Activity {
             try { b = Base64.decode(b64, Base64.DEFAULT); } catch (Exception e) { return; }
             runOnUiThread(() -> Web.this.guardar(nombre, b, mime));
         }
+        /** La frecuencia de pantalla para la calidad elegida: 90 o más, la más alta que tenga el celu; si no, la más cercana a 60
+         *  (Alto y Ultra van a 60 parejos y así gastan menos batería). */
+        @JavascriptInterface public void frecuencia(final int hz) { runOnUiThread(() -> frecuenciaPoner(hz)); }
         @JavascriptInterface public void salir() { runOnUiThread(Web.this::finishAndRemoveTask); }
         /** Un acceso directo en la pantalla de inicio con tu logo (el juego lo arma: PNG de 192×192) y el nombre que elegiste.
          *  Android 8 o más nuevo pregunta dónde ponerlo; Android 7 lo pone el lanzador. "ok", "no" (el lanzador no deja) o "mal". */

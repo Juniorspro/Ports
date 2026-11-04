@@ -1232,3 +1232,19 @@ Todo medido en la compu (Chromium con SwiftShader, sin GPU). Nada de esto se pro
   menú y la intro (queda guardada en el aparato; «Volver al de JXMod» la saca). En la app, «Crear acceso directo» pone
   en la pantalla de inicio un ícono con tu logo y el nombre que elijas (Android 8 o más nuevo pregunta dónde). Prueba
   `pruebas/logo_propio.mjs` 5/5 (el acceso directo, con el puente de Android simulado).
+
+## JXMod 2.9-prueba4: cuadros por calidad, sombras de Ultra y franjas
+
+- **Cuadros según la calidad** (`cuadroSalta` en `juego/principal.js`): Patata, Bajo y Medio buscan 120 (lo que dé la
+  pantalla); Alto y Ultra, 60 parejos. Con la pantalla a 120 o 144 Hz, Alto y Ultra dibujan un cuadro sí y otro no (16,7 ms
+  justos) en vez de 70-90 desparejos. La resolución dinámica apunta a esa meta (antes, siempre a 60). En la app se le pide a
+  Android la frecuencia de pantalla que corresponde (`JXNativo.frecuencia`): muchos celus dejan las apps en 60 Hz aunque
+  la pantalla dé 120. Prueba `pruebas/cuadros_meta.mjs` 5/5 (con pantallas simuladas: la compu no llega a 120 de verdad).
+- **Ultra con las sombras medias** (las de Alto: 2048, sin PCSS): las de 4096 con PCSS costaban mucho y no se veían mejor.
+- **Franjas en el cielo y los degradados**: la escena volvió a la luz alta de 8 bytes (RGBA16F). En la de 4 bytes
+  (R11F_G11F_B10F, de la 2.9) el azul tiene 5 bits de mantisa y el cielo hacía 5 veces más escalones (8,9 % de los cambios
+  saltaban 2 niveles o más, contra 1,8 %). El resplandor, los rayos y los reflejos del agua, que son borrosos, siguen en la
+  de 4.
+- **SSAO sin la línea punteada en los bordes**: el giro de las muestras usa un patrón de 4×4 que se repite (Bayer) y el
+  desenfoque, 4 muestras parejas que lo cancelan justo (antes un ruido sin período y 7 muestras, que dejaban la línea; en
+  el celu, a un cuarto de la resolución y estirada 4 veces, se veía como rayas). Además es más barato.

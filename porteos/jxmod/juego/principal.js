@@ -7,11 +7,11 @@ const TIEMPO = { t: 0, dt: 0, acc: 0, fps: 60, cuadros: 0, medT: 0, ms: 0 };
 // (cuántas, tamaño del atlas, hasta qué distancia, filtro), luces puntuales, HDR, oclusión ambiental,
 // resplandor, rayos de sol, antialias, nubes y relieve de las texturas
 const PERFILES = {
-  patata: { res: 45, lejos: 160, texMax: 128, lod: 9, lodPx: 3.5, sub: 5, part: 0.25, aniso: 0, luz: 0, sombra: 0 },
-  bajo: { res: 60, lejos: 250, texMax: 256, lod: 2, lodPx: 2, sub: 6, part: 0.5, aniso: 0, luz: 1, sombra: 0 },
-  medio: { res: 75, lejos: 450, texMax: 256, lod: 1, lodPx: 0.9, sub: 8, part: 0.8, aniso: 2, luz: 2, sombra: 1, smTam: 1024, sDist: 45, pcf: 1, nluz: 4 },
-  alto: { res: 100, lejos: 750, texMax: 0, lod: 0, lodPx: 0.5, sub: 10, part: 1, aniso: 8, luz: 2, sombra: 2, smTam: 2048, sDist: 110, pcf: 9, nluz: 6, hdr: 1, ao: 1, bloom: 1, fxaa: 1, nubes: 1, refl: 3 },
-  ultra: { res: 100, lejos: 1100, texMax: 0, lod: 0, lodPx: 0.4, sub: 10, part: 1, aniso: 16, luz: 3, sombra: 3, smTam: 4096, sDist: 220, pcf: 9, pcss: 1, nluz: 8, hdr: 1, ao: 2, bloom: 2, rayos: 1, fxaa: 1, nubes: 1, det: 1, refl: 2 },
+  patata: { fps: 120, res: 45, lejos: 160, texMax: 128, lod: 9, lodPx: 3.5, sub: 5, part: 0.25, aniso: 0, luz: 0, sombra: 0 },
+  bajo: { fps: 120, res: 60, lejos: 250, texMax: 256, lod: 2, lodPx: 2, sub: 6, part: 0.5, aniso: 0, luz: 1, sombra: 0 },
+  medio: { fps: 120, res: 75, lejos: 450, texMax: 256, lod: 1, lodPx: 0.9, sub: 8, part: 0.8, aniso: 2, luz: 2, sombra: 1, smTam: 1024, sDist: 45, pcf: 1, nluz: 4 },
+  alto: { fps: 60, res: 100, lejos: 750, texMax: 0, lod: 0, lodPx: 0.5, sub: 10, part: 1, aniso: 8, luz: 2, sombra: 2, smTam: 2048, sDist: 110, pcf: 9, nluz: 6, hdr: 1, ao: 1, bloom: 1, fxaa: 1, nubes: 1, refl: 3 },
+  ultra: { fps: 60, res: 100, lejos: 1100, texMax: 0, lod: 0, lodPx: 0.4, sub: 10, part: 1, aniso: 16, luz: 3, sombra: 2, smTam: 2048, sDist: 110, pcf: 9, nluz: 8, hdr: 1, ao: 2, bloom: 2, rayos: 1, fxaa: 1, nubes: 1, det: 1, refl: 2 },
 };
 const PERF_ORDEN = ['patata', 'bajo', 'medio', 'alto', 'ultra'];
 const PREFS_DEF = { modo: 'libre', codigo: '', salaLibre: 1, nombre: 'Player' + ((Math.random() * 900 + 100) | 0), mapa: 'Desert', skin: 'Hero', gorro: 'HatEmpty', gfx: 'auto', res: 70, lejos: 350, sens: 12, vol: 80, fps: true,
@@ -82,6 +82,10 @@ function aplicarGfx() {
   GFX.lejos = PREFS.gfx === 'auto' ? p.lejos : PREFS.lejos;
   GFX.texMax = p.texMax; GFX.lod = p.lod; GFX.lodPx = p.lodPx || 1; GFX.sub = p.sub; GFX.part = p.part; GFX.aniso = p.aniso;
   for (const k of ['luz', 'sombra', 'smTam', 'sDist', 'pcf', 'pcss', 'nluz', 'hdr', 'ao', 'bloom', 'rayos', 'fxaa', 'nubes', 'det', 'refl']) GFX[k] = p[k] || 0;
+  // los cuadros que se buscan: 120 en Patata, Bajo y Medio (lo que dé la pantalla); 60 parejos en Alto y Ultra. En la app se
+  // le pide a Android la frecuencia de pantalla que corresponde (si no, muchos celus dejan las apps en 60 Hz)
+  GFX.fps = p.fps || 60;
+  try { if (window.JXNativo && JXNativo.frecuencia) JXNativo.frecuencia(GFX.fps); } catch (e) {}
   // lo que el jugador cambió a mano (como en los ajustes del juego: Sombra, Postprocesado, Calidad de textura)
   if (PREFS.sombras !== 'auto' && GFX.luz >= 2) {
     const s = +PREFS.sombras, T = [null, [1, 1024, 45, 1, 0], [2, 2048, 110, 9, 0], [3, 4096, 220, 9, 1]][s];
@@ -262,9 +266,19 @@ function atenderPulsos() {
   ENT.pulsos.length = 0;
 }
 // ---------------- el cuadro ----------------
+// ¿este llamado se saltea? (el tope de cuadros: ver cuadro)
+function cuadroSalta(ahora, jugando) {
+  const di = ahora - (TIEMPO.rafUlt || ahora); TIEMPO.rafUlt = ahora; if (di > 1) TIEMPO.rafMs = Math.min(di, (TIEMPO.rafMs || di) * 1.001);
+  const meta = 1000 / (GFX.fps || 60), dm = TIEMPO.rafMs || meta;
+  if (dm * 1.5 < meta && jugando && ahora - (TIEMPO.ultDib || 0) < meta - dm * 0.5) return true;
+  TIEMPO.ultDib = ahora; return false;
+}
 const _proj = new Float32Array(16), _vp2 = new Float32Array(16);
 function cuadro(ahora) {
   requestAnimationFrame(cuadro);
+  // la frecuencia de la pantalla (el intervalo más corto entre llamadas, que se olvida de a poco) y el tope: con la meta en
+  // 60 y la pantalla a 120 (o 144) se dibuja un cuadro sí y otro no, parejo, en vez de 70-90 desparejos
+  if (cuadroSalta(ahora, JUEGO.estado === 'juego')) return;
   const t = ahora / 1000, dt = Math.min(0.1, Math.max(0, t - (TIEMPO.ult || t))) * (JUEGO.estado === 'juego' ? MODS.tiempo || 1 : 1); TIEMPO.ult = t; TIEMPO.dt = dt; TIEMPO.t += dt;
   const t0 = performance.now();
   if (R.perdido) return;   // (sin contexto de WebGL: nada que dibujar hasta que vuelva)
@@ -318,15 +332,17 @@ function cuadro(ahora) {
   if (TIEMPO.medT >= 1) {
     TIEMPO.fps = TIEMPO.cuadros / TIEMPO.medT; const ms = TIEMPO.ms / TIEMPO.cuadros; TIEMPO.msProm = ms; TIEMPO.medR = ahoraR;
     $('fps').textContent = PREFS.fps ? `${Math.round(TIEMPO.fps)} fps` : '';
-    // resolución dinámica en todas las calidades (también las elegidas a mano), con la meta en 60: si no llega a 55 baja la
+    // resolución dinámica en todas las calidades (también las elegidas a mano), con la meta de la calidad (120 o 60): si no llega baja la
     // resolución interna antes que los efectos, y la vuelve a subir cuando sobra; en automático, además, si con la
     // resolución mínima igual no alcanza baja una calidad entera
     const din = GFX.auto || PREFS.resDin !== false, piso = GFX.auto ? 0.5 : Math.max(0.5, GFX.escalaMax * 0.6);
     if (din && JUEGO.estado === 'juego' && !UI.abierto && !TEST) {
       // (sin ir y venir: para volver a subir hacen falta dos segundos seguidos con resto y que hayan pasado 3 s del último
       // cambio; si no, en un celular que anda entre 48 y 57 cuadros la resolución subía y bajaba cada segundo)
-      TIEMPO.sobra = TIEMPO.fps > 58 && ms < 9 ? (TIEMPO.sobra || 0) + 1 : 0; const quieto = TIEMPO.t - (TIEMPO.resT || -99) > 3;
-      if (TIEMPO.fps < 55 && GFX.escala > piso) { GFX.escala = Math.max(piso, GFX.escala - 0.08); redimensionar(); TIEMPO.bajos = 0; TIEMPO.resT = TIEMPO.t; TIEMPO.sobra = 0; }
+      // (la meta: la de la calidad, sin pasar lo que da la pantalla —un celu de 60 Hz no puede dar 120—)
+      const metaF = Math.min(GFX.fps || 60, 1000 / Math.max(4, TIEMPO.rafMs || 16.7) + 2);
+      TIEMPO.sobra = TIEMPO.fps > metaF * 0.97 && ms < 550 / metaF ? (TIEMPO.sobra || 0) + 1 : 0; const quieto = TIEMPO.t - (TIEMPO.resT || -99) > 3;
+      if (TIEMPO.fps < metaF * 0.92 && GFX.escala > piso) { GFX.escala = Math.max(piso, GFX.escala - 0.08); redimensionar(); TIEMPO.bajos = 0; TIEMPO.resT = TIEMPO.t; TIEMPO.sobra = 0; }
       else if (TIEMPO.sobra >= 2 && quieto && GFX.escala < GFX.escalaMax) { GFX.escala = Math.min(GFX.escalaMax, GFX.escala + 0.04); redimensionar(); TIEMPO.resT = TIEMPO.t; TIEMPO.sobra = 0; }
     }
     if (GFX.auto && JUEGO.estado === 'juego' && !UI.abierto && !TEST) {
