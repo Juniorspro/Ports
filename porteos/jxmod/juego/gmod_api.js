@@ -256,6 +256,9 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('SetColor', (e, c) => { if (c instanceof LuaTable) e.color = ['r', 'g', 'b', 'a'].map((k) => c.get(k) ?? 255); }); E('GetColor', (e) => GMA.color(...e.color));
   E('SetMaterial', (e, m) => { e.material = m; }); E('GetMaterial', (e) => e.material || ''); E('SetSkin', (e, s) => { e.skin = s; }); E('GetSkin', (e) => e.skin || 0); E('SkinCount', () => 1);
   E('SetBodygroup', () => {}); E('GetBodygroup', () => 0); E('SetBodyGroups', () => {}); E('GetNumBodyGroups', () => 1);
+  // (la lista de grupos del modelo: uno solo, el cuerpo, con su única variante; SetIK, sin cinemática inversa que apagar)
+  E('GetBodyGroups', () => { const t = new LuaTable(), g = new LuaTable(), sm = new LuaTable(); sm.set(0, ''); g.set('id', 0); g.set('name', 'studio'); g.set('num', 1); g.set('submodels', sm); t.set(1, g); return t; });
+  E('GetBodygroupCount', () => 1); E('GetBodygroupName', () => 'studio'); E('FindBodygroupByName', () => -1); E('SetIK', () => {});
   E('SetNoDraw', (e, b) => { e.noDraw = !!b; if (e.o) e.o.gmOculto = !!b; }); E('GetNoDraw', (e) => !!e.noDraw);
   for (const n of ['DrawShadow', 'SetRenderMode', 'SetRenderFX', 'DrawModel', 'SetModelScale', 'SetUseType', 'SetTrigger', 'SetLagCompensated', 'SetPredictable', 'AddEffects', 'RemoveEffects', 'AddFlags', 'RemoveFlags', 'SetSolidFlags', 'SetSequence', 'ResetSequence', 'SetPlaybackRate', 'SetCycle', 'FrameAdvance', 'SetPoseParameter', 'ManipulateBoneAngles', 'ManipulateBonePosition', 'ManipulateBoneScale', 'SetupBones', 'InvalidateBoneCache', 'SetAnimation', 'SetLocalVelocity', 'SetFriction', 'SetElasticity', 'StartMotionController', 'StopMotionController', 'SetSubMaterial', 'CallOnRemove', 'DeleteOnRemove', 'SetShouldServerRagdoll', 'SetSpawnEffect', 'SetBloodColor', 'AddCallback', 'SetHitboxSet', 'EnableCustomCollisions', 'CollisionRulesChanged', 'RemoveAllDecals', 'SetSaveValue', 'MarkShadowAsDirty', 'CreateShadow', 'DestroyShadow', 'SetRenderBounds', 'SetRenderBoundsWS', 'SetRenderOrigin', 'SetRenderAngles', 'SetLOD', 'UseClientSideAnimation', 'SetAutomaticFrameAdvance', 'SetLocalAngularVelocity', 'SetMoveCollide', 'Input', 'TakePhysicsDamage', 'SetCreator', 'PhysWake', 'StopParticles']) E(n, () => {});
   E('DrawModel', (e) => gmrDrawModel(e));
@@ -343,6 +346,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   const P_chat = (s) => { if (typeof chatMostrar === 'function') chatMostrar('', s, null, 'sis'); };
   P('SetWalkSpeed', (p, v) => { GMA.walk = num(v, 200); JUG.vel_max = GMA.walk * GS * 1.0; }); P('GetWalkSpeed', () => GMA.walk || 200); P('SetRunSpeed', (p, v) => { GMA.run = num(v, 400); }); P('GetRunSpeed', () => GMA.run || 400);
   P('SetJumpPower', (p, v) => { GMA.jump = num(v, 200); JUG.salto = 1.1 * (GMA.jump / 200); }); P('GetJumpPower', () => GMA.jump || 200); P('SetMaxSpeed', () => {}); P('SetCrouchedWalkSpeed', () => {}); P('SetDuckSpeed', () => {});
+  P('GetAllowWeaponsInVehicle', () => false); P('SetAllowWeaponsInVehicle', () => {});
   P('InVehicle', () => !!JUG.vehiculo); P('GetVehicle', () => (JUG.vehiculo ? (GMA.asiento && GMA.asiento.vivo ? GMA.asiento : entDeObj(JUG.vehiculo)) : NULL_ENT)); P('Crouching', () => !!JUG.agachado); P('IsSprinting', () => !!(ENT && ENT.correr));
   // (el golpe de la vista al disparar, como en Source: se suma y vuelve solo a cero; lo leen las armas para la puntería)
   const punch = (p) => p.punch || (p.punch = new LAng());
@@ -887,7 +891,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   def(G, 'CompileString', (src, nombre, sinError) => { try { return R.cargar(String(src), String(nombre || 'CompileString')); } catch (e) { if (sinError === false) return R.msgErr(e); throw e; } });
   def(G, 'RunString', (src, nombre) => { try { R.c(R.cargar(String(src), String(nombre || 'RunString')), 'RunString'); } catch (e) { gmaErr(R.msgErr(e)); } }); def(G, 'RunStringEx', (src, nombre) => G.get('RunString')(src, nombre));
   { const dbg = G.get('debug'); if (dbg instanceof LuaTable) def(dbg, 'getregistry', () => { const t = new LuaTable(); for (const [n, m] of Object.entries(GMA.metas)) t.set(n, m); return t; }); }
-  def(G, 'FindMetaTable', (n) => { n = String(n); if (!GMA.metas[n] && /^[A-Z][A-Za-z_]+$/.test(n)) { const t = new LuaTable(); t.set('MetaName', n); t.set('__index', t); GMA.metas[n] = t; } return GMA.metas[n]; }); def(G, 'RegisterMetaTable', (n, t) => { GMA.metas[n] = t; });
+  def(G, 'FindMetaTable', (n) => { n = String(n); if (n === 'ConVar') return gmaMtCvar(); if (!GMA.metas[n] && /^[A-Z][A-Za-z_]+$/.test(n)) { const t = new LuaTable(); t.set('MetaName', n); t.set('__index', t); GMA.metas[n] = t; } return GMA.metas[n]; }); def(G, 'RegisterMetaTable', (n, t) => { GMA.metas[n] = t; });
   def(G, 'SafeRemoveEntity', (e) => gmaQuitar(e)); def(G, 'SafeRemoveEntityDelayed', (e, t) => GMA.tSimples.push({ t: TIEMPO.t + num(t, 0), f: () => gmaQuitar(e), ctx: 'S' }));
   def(G, 'BroadcastLua', () => {}); def(G, 'SendUserMessage', () => {}); def(G, 'AddWorldTip', () => {}); def(G, 'DeriveGamemode', () => {}); def(G, 'CreateClientConVar', (n, d, s, u, h) => gmaCvar(n, d, h)); def(G, 'CreateConVar', (n, d, f, h) => gmaCvar(n, d, h));
   // (como GMod: una variable que nadie creó no existe: GetConVar da nil, GetConVarNumber 0 y GetConVarString ""; las del motor ya están)
@@ -1036,10 +1040,15 @@ const GMA_CVARS_MOTOR = { sv_gravity: '600', sv_cheats: '0', sv_allowcslua: '0',
 const gmaCvarMotor = (n) => GMA_CVARS_MOTOR[n] ?? (/^sbox_max/.test(n) ? '100' : undefined);
 function gmaCvar(n, d, h) {
   n = String(n); let c = GMA.cvars.get(n); if (!c) { c = { n, v: d === undefined ? '0' : String(d), d: d === undefined ? '0' : String(d), h: h || '', a: GMA.addonActual ? GMA.addonActual.id : (GMA.cvarAddon || null) }; const g = typeof gmbCvarGuardada === 'function' ? gmbCvarGuardada(n) : undefined; if (g !== undefined) c.v = g; GMA.cvars.set(n, c); }
-  if (!GMA.mtCvar) { const M = (GMA.mtCvar = new LuaTable()), I = new LuaTable(); M.set('__index', I); const N = (x) => GMA.R.aNum(x.c.v) ?? 0;
+  return { c, __mt: gmaMtCvar() };
+}
+// la metatabla de los ConVar, la misma que da FindMetaTable("ConVar"): los métodos van en ella (__index = ella), así
+// un addon puede tomarlos sueltos —local GetBool = FindMetaTable("ConVar").GetBool, como First-Person Body— o agregar
+function gmaMtCvar() {
+  if (!GMA.mtCvar) { const M = (GMA.mtCvar = new LuaTable()), I = M; M.set('__index', M); M.set('MetaName', 'ConVar'); const N = (x) => GMA.R.aNum(x.c.v) ?? 0;
     Object.entries({ GetInt: (x) => Math.trunc(N(x)), GetFloat: (x) => N(x), GetBool: (x) => !!N(x) || x.c.v === 'true', GetString: (x) => String(x.c.v), GetDefault: (x) => x.c.d, GetName: (x) => x.c.n, GetHelpText: (x) => x.c.h,
       SetInt: (x, v) => gmaCvarPoner(x.c.n, Math.trunc(v)), SetFloat: (x, v) => gmaCvarPoner(x.c.n, v), SetBool: (x, v) => gmaCvarPoner(x.c.n, v ? 1 : 0), SetString: (x, v) => gmaCvarPoner(x.c.n, v), Revert: (x) => gmaCvarPoner(x.c.n, x.c.d), GetMin: () => undefined, GetMax: () => undefined, IsFlagSet: () => false }).forEach(([k, f]) => I.set(k, f)); }
-  return { c, __mt: GMA.mtCvar };
+  return GMA.mtCvar;
 }
 // correr un evento: cada hook con su lado; el primero que devuelve algo corta (como hook.Call)
 // ctx: 'S' (evento del server), 'C' (del cliente) o 'SC' (los dos lados, como Think). Un hook que falla 300 veces seguidas se saca.

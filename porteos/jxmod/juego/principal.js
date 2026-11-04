@@ -201,8 +201,9 @@ function empezarPartida(mapa) {
   // (con la pantalla de carga abierta mientras baja: antes quedaba la pantalla en blanco hasta que llegaba; si no se pudo
   // bajar —sin internet—, se avisa y se juega con lo que hay en vez de quedar esperando para siempre)
   if (falta.length && !empezarPartida.sinBajar) {
-    const C = window.__carga; if (C && C.abrir) C.abrir(mapaNom(mapa), (typeof FONDO_MAPA !== 'undefined' && FONDO_MAPA[mapa]) || null, mapaNom(mapa));
-    const sigue = (ok) => { if (C && C.fin) C.fin(); if (!ok) { aviso(T('gm.mapaMal'), 4); empezarPartida.sinBajar = true; } try { empezarPartida(mapa); } finally { empezarPartida.sinBajar = false; } };
+    // (si la carga ya la abrió otro —entrar a un server, que después baja sus mods—, no se cierra acá: la cierra quien la abrió)
+    const C = window.__carga, ajena = !!(C && C.listo === false && C.abrir); if (C && C.abrir && !ajena) C.abrir(mapaNom(mapa), (typeof FONDO_MAPA !== 'undefined' && FONDO_MAPA[mapa]) || null, mapaNom(mapa));
+    const sigue = (ok) => { if (!ajena && C && C.fin) C.fin(); if (!ok) { aviso(T('gm.mapaMal'), 4); empezarPartida.sinBajar = true; } try { empezarPartida(mapa); } finally { empezarPartida.sinBajar = false; } };
     rbAsegurarTodos(falta, (n, t) => { if (C && C.set && t) C.set(0.05 + 0.85 * n / t, T('ld.bajando') + ' ' + (n / 1048576).toFixed(1) + ' / ' + (t / 1048576).toFixed(1) + ' MB'); }).then(sigue, () => sigue(false));
     return;
   }

@@ -153,7 +153,7 @@ const FONDO_MAPA = { FlatGrass: 'rb_flatgrass', City: 'rb_city', Desert: 'rb_des
 const cuadroLibre = () => new Promise((ok) => requestAnimationFrame(() => setTimeout(ok, 0)));
 async function entrarConCarga(titulo, mapa, jugar, red) {
   const C = window.__carga;
-  if (TEST || !C || !C.abrir) { jugar(); return; }
+  if ((TEST && !window.__cargaPrueba) || !C || !C.abrir) { jugar(); return; }
   C.abrir(titulo, FONDO_MAPA[mapa] || '', 'rb_' + String(mapa).toLowerCase());
   if (red) { C.set(0.15, T('ld.info')); await cuadroLibre(); C.log(T('ld.info'), titulo); }
   // (lo que viene en paquetes aparte: el mapa, el personaje; la primera vez se baja, después sale de la caché)
@@ -172,8 +172,30 @@ async function entrarConCarga(titulo, mapa, jugar, red) {
     C.set(0.75, T('ld.cliente')); const t0 = Date.now();
     while (SALA && !RED.on && Date.now() - t0 < 4000) await new Promise((ok) => setTimeout(ok, 120));
     C.log(T('ld.cliente'), RED.on ? 'ok' : '-');
+    // (los mods del server que no tengo: se bajan acá, antes de entrar —pedido: «al unirte a un server con mods que no
+    // tenés primero debas descargarlos en la pantalla de carga y después entrar»—)
+    if (RED.on && typeof gmsEntrar === 'function') await cargaModsServer(C);
   }
   C.fin();
+}
+// la fase de los mods del server en la pantalla de carga: espera la lista (hasta 5 s), baja y monta los que faltan con
+// el avance de cada uno («2/5 · Viewfinder 45 %»); «Entrar sin esperar» deja que sigan bajando ya jugando
+async function cargaModsServer(C) {
+  if (gmsClave() && gmsClave() !== GMS.sala) gmsEntrar();
+  C.set(0.8, T('ld.modsSrv')); await gmsEsperarLista(5000);
+  const pend = gmsPendientes(); if (!pend.length) { C.log(T('ld.modsSrv'), '0'); return; }
+  const t0 = performance.now(), cg = $('carga'); let saltar = false;
+  const bt = document.createElement('button'); bt.id = 'cargaSaltar'; bt.textContent = T('ld.saltar'); bt.onclick = () => { saltar = true; }; if (cg) cg.appendChild(bt);
+  const pr = gmsMontarTodos(); let fin = false; pr.finally(() => { fin = true; });
+  try {
+    while (!fin && !saltar) {
+      await new Promise((ok) => setTimeout(ok, 200));
+      const g = GMS.prog; if (!g) continue;
+      C.set(0.8 + 0.18 * (g.i + (g.p || 0)) / g.n, T('ld.modsSrv') + ' ' + (g.i + 1) + '/' + g.n + ' · ' + g.nom + ' ' + Math.round((g.p || 0) * 100) + ' %');
+    }
+  } finally { bt.remove(); }
+  const ok = pend.filter((it) => GMOD.addons.has(it.id)).length;
+  C.log(T('ld.modsSrv'), ok + '/' + pend.length + ' · ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s' + (saltar ? ' · ' + T('ld.saltar') : ''));
 }
 
 // ---------------- las acciones de estos paneles (las llama inicioAccion primero) ----------------

@@ -16,7 +16,8 @@ function gmsEntrar() {
   const id = gmsClave(); if (!id || id === GMS.sala) return;
   gmsSalir(); GMS.sala = id; GMS.lista.clear(); GMS.votos.clear();
   try { for (const x of JSON.parse(localStorage.getItem(gmsLS(id)) || '[]')) { const it = gmsItem(x); if (it) GMS.lista.set(it.id, it); } } catch (e) {}
-  if (typeof gmApiHay === 'function') gmApiHay().then(async (si) => { if (!si || GMS.sala !== id) return; try { const d = await (await fetch(TIENDA_URL + 'gmod/sala/' + encodeURIComponent(id))).json(); let nuevos = 0; for (const x of d.l || []) { const it = gmsItem(x); if (it && !GMS.lista.has(it.id)) { GMS.lista.set(it.id, it); nuevos++; } } if (nuevos) { gmsGuardarLocal(); gmsMontarTodos(); } } catch (e) {} });
+  GMS.tiendaVista = false;
+  if (typeof gmApiHay === 'function') gmApiHay().then(async (si) => { if (!si || GMS.sala !== id) { GMS.tiendaVista = true; return; } try { const d = await (await gmFetch(TIENDA_URL + 'gmod/sala/' + encodeURIComponent(id), null, 15000)).json(); let nuevos = 0; for (const x of d.l || []) { const it = gmsItem(x); if (it && !GMS.lista.has(it.id)) { GMS.lista.set(it.id, it); nuevos++; } } if (nuevos) { gmsGuardarLocal(); gmsMontarTodos(); } } catch (e) {} GMS.tiendaVista = true; });
   gmsMontarTodos();
   // (si a los 6 s nadie publicó la lista retenida o le falta algo, la publico yo)
   GMS.tPub = TIEMPO.t + 4 + Math.random() * 4; GMS.vioRetenido = false;
@@ -27,9 +28,24 @@ function gmsSalir() {
 }
 // bajar (o tomar de la caché) y montar los addons del server; los que ya tengo instalados no se tocan
 // (lo que no está en la caché se baja sólo si pesa hasta 300 MB: la lista retenida la puede escribir cualquiera de la sala)
-async function gmsMontarTodos() {
+// De a una vuelta por vez: si llega algo nuevo mientras baja, se hace otra vuelta al terminar. GMS.prog dice qué está
+// bajando (la pantalla de carga lo muestra al entrar a un server)
+function gmsMontarTodos() {
+  if (GMS.prom) { GMS.otraVez = true; return GMS.prom; }
+  return (GMS.prom = (async () => { do { GMS.otraVez = false; await gmsMontarTodos0(); } while (GMS.otraVez); })().finally(() => { GMS.prom = null; GMS.prog = null; }));
+}
+// los del server que faltan montar (para la pantalla de carga)
+const gmsPendientes = () => [...GMS.lista.values()].filter((it) => !GMOD.addons.has(it.id) && !it.grande && !it.cens && !it.fallo);
+// esperar la lista del server: la retenida de la sala o la de la tienda (lo primero que llegue), con tope
+async function gmsEsperarLista(ms) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms && !(GMS.vioRetenido || (GMS.tiendaVista && GMS.lista.size))) await new Promise((ok) => setTimeout(ok, 150));
+}
+async function gmsMontarTodos0() {
   const C = censOficial() && typeof gmCatalogo === 'function' ? await gmCatalogo().catch(() => null) : null;
-  for (const it of [...GMS.lista.values()]) {
+  const L = [...GMS.lista.values()].filter((it) => !GMOD.addons.has(it.id) && !it.grande);
+  for (let i = 0; i < L.length; i++) {
+    const it = L[i]; GMS.prog = { i, n: L.length, nom: it.n, p: 0 };
     if (GMOD.addons.has(it.id) || it.grande) continue;
     // (en un server oficial no se monta un mod censurado aunque esté en la lista: ni por su nombre, ni por el catálogo, ni por sus archivos)
     if (censOficial() && (censModMotivo(it) || censModMotivo(C && C.porId.get(String(it.id))))) { it.cens = true; continue; }
@@ -38,14 +54,18 @@ async function gmsMontarTodos() {
       if (!b || !(b instanceof Blob || gmEsGMA(b))) {
         const [d] = await gmDetallesCompactos([it.id]); if (!d) continue;
         if (d.mb > 300) { it.grande = true; continue; }
-        aviso(T('gm.bajando') + ': ' + it.n, 2); b = await gmBajar(it.id);
+        if (JUEGO.estado === 'juego' && !(window.__carga && !window.__carga.listo)) aviso(T('gm.bajando') + ': ' + it.n, 2);
+        // (con el avance para la pantalla de carga; si se traba, una vez más)
+        const prog = (p) => { if (GMS.prog) GMS.prog.p = Math.min(1, p || 0); };
+        try { b = await gmBajar(it.id, prog); } catch (e) { if (!(e && (e.trabado || e.name === 'TypeError'))) throw e; b = await gmBajar(it.id, prog); }
       }
       if (GMS.sala !== gmsClave() || !GMS.lista.has(it.id) || GMOD.addons.has(it.id)) continue;
       const G = await gmaDeCache(it.id, b); if (!G) continue;
       if (censOficial() && censModMotivo({ archivos: G.archivos ? [...G.archivos.keys()] : [] })) { it.cens = true; continue; }
       if (GMOD.addons.has(it.id)) continue;
-      gmMontar(it.id, G, { nombre: it.n, img: it.img, srv: true }); GMS.montados.add(it.id);
-    } catch (e) { gmErr('server ' + it.id, e); }
+      const A = gmMontar(it.id, G, { nombre: it.n, img: it.img, srv: true }); GMS.montados.add(it.id); if (GMS.prog) GMS.prog.p = 1;
+      if (A && A.listo) await gmTiempo(A.listo, 60000).catch(() => {});
+    } catch (e) { it.fallo = String((e && e.message) || e).slice(0, 80); gmErr('server ' + it.id, e); }
   }
   if (SMOD.abierto && SMOD.filtro === 'gmod') smDibujar();
 }

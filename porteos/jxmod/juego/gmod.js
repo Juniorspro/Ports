@@ -597,19 +597,47 @@ function gmDependencias(A) {
 }
 // ---------------- bajar e instalar (con caché en el navegador) ----------------
 // los addons bajados quedan en IndexedDB (no se vuelven a bajar); la lista de instalados, en PREFS.gmod
-const GMDB = { db: null };
+// ---- nada de esperar para siempre: tiempo máximo para cada paso de una descarga (en algunos celulares la base de datos
+// de la caché no contesta, o una conexión se queda colgada sin cortar, y la descarga quedaba en 0 % para siempre) ----
+function gmTiempo(p, ms, msg) {
+  let t = 0; const tope = new Promise((_, mal) => { t = setTimeout(() => mal(Object.assign(new Error(msg || 'tardó demasiado'), { trabado: true })), ms); });
+  return Promise.race([p, tope]).finally(() => clearTimeout(t));
+}
+// fetch con tiempo máximo hasta que contesta (no para el cuerpo: eso lo cuida gmLeerCuerpo)
+async function gmFetch(url, opt, ms) {
+  const c = typeof AbortController === 'function' ? new AbortController() : null, t = c ? setTimeout(() => c.abort(), ms || 25000) : 0;
+  try { return await fetch(url, c ? Object.assign({}, opt || {}, { signal: c.signal }) : opt); }
+  catch (e) { if (c && c.signal.aborted) throw Object.assign(new Error('sin respuesta de ' + String(url).split('/')[2]), { trabado: true }); throw e; }
+  finally { if (t) clearTimeout(t); }
+}
+// el cuerpo de una respuesta en pedazos, con el avance; si pasan 30 s sin que llegue nada, se corta (y se reintenta)
+async function gmLeerCuerpo(r, tot, prog) {
+  if (!(r.body && r.body.getReader)) return new Uint8Array(await gmTiempo(r.arrayBuffer(), 120000, 'la descarga se trabó'));
+  const rd = r.body.getReader(), ps = []; let n = 0;
+  for (;;) {
+    let x; try { x = await gmTiempo(rd.read(), 30000, 'la descarga se trabó'); } catch (e) { try { rd.cancel(); } catch (e2) {} throw e; }
+    if (x.done) break; ps.push(x.value); n += x.value.length; if (prog) prog(n / (tot || n * 2), n);
+  }
+  const b = new Uint8Array(n); let o = 0; for (const p of ps) { b.set(p, o); o += p.length; } return b;
+}
+const GMDB = { db: null, roto: 0 };
 function gmDB() {
   if (GMDB.db) return GMDB.db;
-  return (GMDB.db = new Promise((ok, mal) => { try { const r = indexedDB.open('rb-gmod', 1); r.onupgradeneeded = () => r.result.createObjectStore('gma'); r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error); } catch (e) { mal(e); } }));
+  if (GMDB.roto && Date.now() - GMDB.roto < 120000) return Promise.reject(new Error('caché no disponible'));   // (falló hace poco: 2 min sin caché)
+  // (si la base no abre en 6 s —bloqueada por otra pestaña, o el celu cerró la conexión—, se sigue sin caché y se
+  // vuelve a probar la próxima vez)
+  const p = new Promise((ok, mal) => { try { const r = indexedDB.open('rb-gmod', 1); r.onupgradeneeded = () => r.result.createObjectStore('gma'); r.onsuccess = () => { const db = r.result; db.onclose = () => { GMDB.db = null; }; db.onversionchange = () => { try { db.close(); } catch (e) {} GMDB.db = null; }; ok(db); }; r.onerror = () => mal(r.error); r.onblocked = () => mal(new Error('caché bloqueada')); } catch (e) { mal(e); } });
+  GMDB.db = gmTiempo(p, 6000, 'la caché no contesta').catch((e) => { GMDB.db = null; GMDB.roto = Date.now(); throw e; });
+  return GMDB.db;
 }
-async function gmCacheLeer(id) { try { const db = await gmDB(); return await new Promise((ok) => { const q = db.transaction('gma').objectStore('gma').get(id); q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null); }); } catch (e) { return null; } }
-async function gmCacheGuardar(id, b) { try { const db = await gmDB(); await new Promise((ok) => { const t = db.transaction('gma', 'readwrite'); t.objectStore('gma').put(b, id); t.oncomplete = ok; t.onerror = ok; }); } catch (e) {} }
+async function gmCacheLeer(id) { try { const db = await gmDB(); return await gmTiempo(new Promise((ok) => { const q = db.transaction('gma').objectStore('gma').get(id); q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null); }), 8000, 'la caché no contesta'); } catch (e) { GMDB.db = null; return null; } }
+async function gmCacheGuardar(id, b) { try { const db = await gmDB(); await gmTiempo(new Promise((ok) => { const t = db.transaction('gma', 'readwrite'); t.objectStore('gma').put(b, id); t.oncomplete = ok; t.onerror = ok; t.onabort = ok; }), 20000, 'la caché no contesta'); } catch (e) { GMDB.db = null; } }
 // el .gma de un addon se guarda como Blob (el navegador lo deja en el disco) y se devuelve el guardado; si el navegador no
 // guarda Blobs, como antes (los bytes) y null
 async function gmCacheGuardarGMA(id, b) {
   try {
     const bl = b instanceof Blob ? b : new Blob([b]), db = await gmDB();
-    const ok = await new Promise((res, mal) => { try { const t = db.transaction('gma', 'readwrite'); t.objectStore('gma').put(bl, id); t.oncomplete = () => res(true); t.onerror = () => res(false); t.onabort = () => res(false); } catch (e) { mal(e); } });
+    const ok = await gmTiempo(new Promise((res, mal) => { try { const t = db.transaction('gma', 'readwrite'); t.objectStore('gma').put(bl, id); t.oncomplete = () => res(true); t.onerror = () => res(false); t.onabort = () => res(false); } catch (e) { mal(e); } }), 30000, 'la caché no contesta');
     if (!ok) throw new Error('no se guardó');
     const r = await gmCacheLeer(id); return r instanceof Blob ? r : null;
   } catch (e) { if (!(b instanceof Blob)) await gmCacheGuardar(id, b); return null; }
@@ -653,7 +681,7 @@ async function gmCacheBorrar(id) { try { const db = await gmDB(); await new Prom
 const GM_PUENTES = ['https://cors.eu.org/'];
 async function gmPedir(url, opt) {
   let ult = null;
-  for (const p of GM_PUENTES) { try { const r = await fetch(p + url, opt); if (r.ok) return r; ult = new Error('HTTP ' + r.status); } catch (e) { ult = e; } }
+  for (const p of GM_PUENTES) { try { const r = await gmFetch(p + url, opt, 25000); if (r.ok) return r; ult = new Error('HTTP ' + r.status); } catch (e) { ult = e; } }
   throw ult || new Error('sin conexión');
 }
 async function gmDetalles(ids) {
@@ -674,12 +702,25 @@ function gmLZMA(b, prog) {
       w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
     } catch (e) { w = null; }
     if (!w) { try { ok(GMF.lzma(b)); } catch (e) { mal(e); } return; }
-    w.onmessage = (e) => { const d = e.data; if (d.p !== undefined) { if (prog) prog(d.p); return; } w.terminate(); if (d.e) mal(new Error(d.e)); else ok(d.o); };
-    w.onerror = (e) => { w.terminate(); try { ok(GMF.lzma(b)); } catch (x) { mal(x); } };
+    // (si el hilo se queda 60 s sin avisar nada, se corta: la cola lo vuelve a intentar)
+    let vig = 0; const vigilar = () => { clearTimeout(vig); vig = setTimeout(() => { w.terminate(); mal(Object.assign(new Error('se trabó al descomprimir'), { trabado: true })); }, 60000); }; vigilar();
+    w.onmessage = (e) => { const d = e.data; if (d.p !== undefined) { vigilar(); if (prog) prog(d.p); return; } clearTimeout(vig); w.terminate(); if (d.e) mal(new Error(d.e)); else ok(d.o); };
+    w.onerror = (e) => { clearTimeout(vig); w.terminate(); try { ok(GMF.lzma(b)); } catch (x) { mal(x); } };
     const c = b.slice(); w.postMessage(c, [c.buffer]);
   });
 }
 const gmEsGMA = (b) => b && b[0] === 0x47 && b[1] === 0x4d && b[2] === 0x41 && b[3] === 0x44;
+// ¿llegó entero? (la tabla de archivos del .gma dice cuánto pesa cada uno: un .gma cortado a la mitad se instalaba roto)
+function gmaCompleto(b) {
+  try {
+    let o = 5 + 16; const str = () => { const e = b.indexOf(0, o); if (e < 0) throw 0; o = e + 1; };
+    if (b[4] > 1) { for (;;) { const e = b.indexOf(0, o); if (e < 0) return false; const vacio = e === o; o = e + 1; if (vacio) break; } }
+    str(); str(); str(); o += 4;
+    const dv = new DataView(b.buffer, b.byteOffset, b.byteLength); let tot = 0;
+    for (;;) { if (o + 4 > b.length) return false; const n = dv.getUint32(o, true); o += 4; if (!n) break; str(); tot += dv.getUint32(o, true) + dv.getInt32(o + 4, true) * 4294967296; o += 12; }
+    return b.length >= o + tot;
+  } catch (e) { return false; }
+}
 // el .gma de un addon del Workshop (de la caché o bajado de Steam), ya sin comprimir. Orden: el archivo directo por la
 // tienda, el del catálogo, SteamPipe por la tienda (los que no tienen archivo directo: gmod_pipe.js) y, si la tienda no
 // tiene el puente, el archivo directo por un puente público
@@ -687,13 +728,13 @@ async function gmBajar(wid, prog) {
   const c = await gmCacheLeer(String(wid)); if (c && (c instanceof Blob || gmEsGMA(c))) return c;
   let r = null, tot = 0, sinDir = false, b = null, errPipe = null;
   if (typeof gmApiHay === 'function' && (await gmApiHay())) {
-    try { const x = await fetch(TIENDA_URL + 'gmod/archivo/' + wid); if (x.ok) { r = x; tot = +x.headers.get('content-length') || 0; } else if (x.status === 409) sinDir = true; else if (x.status === 404) throw new Error(T('gm.noExiste')); }
+    try { const x = await gmFetch(TIENDA_URL + 'gmod/archivo/' + wid, null, 25000); if (x.ok) { r = x; tot = +x.headers.get('content-length') || 0; } else if (x.status === 409) sinDir = true; else if (x.status === 404) throw new Error(T('gm.noExiste')); }
     catch (e) { if (e.message === T('gm.noExiste')) throw e; }
   }
   // (el servidor de archivos de Steam deja bajar desde una página: con la dirección del catálogo, sin ningún puente)
   if (!r && !sinDir && typeof gmCatalogo === 'function') {
     const C = await gmCatalogo(), x = C && C.porId.get(String(wid));
-    if (x && x.f) { try { const y = await fetch(x.f); if (y.ok) { r = y; tot = +y.headers.get('content-length') || Math.round(x.mb * 1e6); } } catch (e) {} }
+    if (x && x.f) { try { const y = await gmFetch(x.f, null, 25000); if (y.ok) { r = y; tot = +y.headers.get('content-length') || Math.round(x.mb * 1e6); } } catch (e) {} }
   }
   if (!r && typeof gpBajar === 'function') {
     try { b = await gpBajar(wid, prog); } catch (e) { if (e.noExiste) throw e; errPipe = e; }
@@ -703,18 +744,14 @@ async function gmBajar(wid, prog) {
     const det = (await gmDetalles([wid])).get(String(wid));
     if (!det) throw new Error(T('gm.noExiste'));
     if (!det.file_url) throw errPipe && !errPipe.sinPuente ? errPipe : Object.assign(new Error(T('gm.sinArchivo')), { sinArchivo: true });
-    try { const y = await fetch(det.file_url); if (y.ok) r = y; } catch (e) {}
+    try { const y = await gmFetch(det.file_url, null, 25000); if (y.ok) r = y; } catch (e) {}
     if (!r) r = await gmPedir(det.file_url);
     tot = +r.headers.get('content-length') || +det.file_size || 0;
   }
-  if (b) {}
-  else if (r.body && r.body.getReader) {
-    const rd = r.body.getReader(), ps = []; let n = 0;
-    for (;;) { const { done, value } = await rd.read(); if (done) break; ps.push(value); n += value.length; if (prog) prog(0.7 * n / (tot || n * 2), 'bajando'); }
-    b = new Uint8Array(n); let o = 0; for (const p of ps) { b.set(p, o); o += p.length; }
-  } else b = new Uint8Array(await r.arrayBuffer());
+  if (!b) b = await gmLeerCuerpo(r, tot, (p) => prog && prog(0.7 * p, 'bajando'));
   if (!gmEsGMA(b)) b = await gmLZMA(b, (p) => prog && prog(0.7 + 0.3 * p, 'descomprimiendo'));
   if (!gmEsGMA(b)) throw new Error('no es un .gma');
+  if (!gmaCompleto(b)) throw Object.assign(new Error('llegó cortado'), { trabado: true });
   // (guardado como Blob y devuelto el guardado: lo bajado no queda en memoria)
   return (await gmCacheGuardarGMA(String(wid), b)) || b;
 }
@@ -768,6 +805,8 @@ async function gmInstalar(wid, meta, bytes, prog) {
     if (!G) G = GMF.gma(b);
   }
   b = null;
+  // (si la cola ya dio este intento por trabado y empezó otro, el aviso de avance corta acá: no se monta dos veces)
+  if (prog) prog(0.99, 'montando');
   const A = gmMontar(wid, G, meta);
   await A.listo;
   // (las bases que usa y no trae, y los "Required items" de su página del Workshop (texturas, bases): se instalan antes y

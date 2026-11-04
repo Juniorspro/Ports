@@ -142,13 +142,11 @@ async function rbBajar(nom, prog) {
     const url = new URL(b + nom, location.href).href;
     try {
       let r = cache && (await cache.match(url));
-      if (!r) { r = await fetch(url); if (!r.ok) continue; if (cache) cache.put(url, r.clone()).catch(() => {}); }
+      // (con tiempo máximo: si un servidor no contesta o se queda a mitad de camino, se prueba el siguiente)
+      if (!r) { r = typeof gmFetch === 'function' ? await gmFetch(url, null, 25000) : await fetch(url); if (!r.ok) continue; if (cache) cache.put(url, r.clone()).catch(() => {}); }
       // (de a pedazos, para mostrar cuánto va)
-      if (prog && r.body && r.body.getReader) {
-        const tot = +r.headers.get('content-length') || 0, rd = r.body.getReader(), ps = []; let n = 0;
-        for (;;) { const { done, value } = await rd.read(); if (done) break; ps.push(value); n += value.length; prog(n, tot); }
-        const u = new Uint8Array(n); let o = 0; for (const p of ps) { u.set(p, o); o += p.length; } return u;
-      }
+      const tot = +r.headers.get('content-length') || 0;
+      if (typeof gmLeerCuerpo === 'function') return await gmLeerCuerpo(r, tot, prog ? (p, n) => prog(n, tot) : null);
       return new Uint8Array(await r.arrayBuffer());
     } catch (e) {}
   }

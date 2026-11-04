@@ -357,6 +357,8 @@ html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(
 .gmcLista{border-top:1px solid #fff2;max-height:40vh;overflow:auto}
 .gmcF span{opacity:.8;font-weight:400;white-space:nowrap}
 .gmcF button{flex:none;background:#fff2;border:0;color:#fff;border-radius:6px;width:26px;height:22px;cursor:pointer;font:inherit}
+#cargaSaltar{position:absolute;right:max(16px,2vw);bottom:max(16px,3vh);z-index:5;background:#ffffff1f;color:#fff;border:1px solid #fff5;border-radius:8px;padding:9px 16px;font:600 14px system-ui,sans-serif;cursor:pointer}
+.gmcF button.gmcR{width:auto;padding:0 9px;background:#3a8dde;font-weight:600}
 .rbTileBaja{position:absolute;left:0;bottom:0;height:4px;background:#2f86de;transition:width .2s}
 /* la cuenta de Google: el chip del menú, el cartel para entrar y el de espera */
 .cuChip .cuFoto{width:1.4em;height:1.4em;border-radius:50%;vertical-align:middle;object-fit:cover}
@@ -1169,6 +1171,7 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
   // otra vez, al entrar a una partida o a un server: su nombre, la captura de su mapa (si hay) y la consola de nuevo
   W.abrir = function (titulo, fondoNom, mapa) {
     var c = $('carga'), k = $('cargaCons'), t = $('cargaTit'), i = -1, j;
+    clearTimeout(W.tFin); clearTimeout(W.tOc);   // (un cierre anterior todavía en camino no la esconde: se vuelve a abrir enseguida)
     W.mapa = mapa || ''; W.listo = false; W.ayuda = false; W.p = 0; W.paso = ''; W.err = ''; W.mb = ''; W.t0 = W.t = Date.now(); ocultar();
     c.classList.remove('oc', 'salir', 'fin', 'fallo'); if (k) k.innerHTML = ''; if (t) t.textContent = titulo || '';
     linea(seg() + esc(titulo || ''));
@@ -1180,7 +1183,8 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
     var I = window.__intro; if (I && !I.fin) { I.cb = function () { W.fin(cb); }; return; }      // (la intro se ve entera; se saltea tocando)
     W.listo = true; clearInterval(tTip); W.set(1, 'listo'); W.log('listo'); ocultar();
     var c = $('carga'); c.classList.add('fin'); var espera = /[?&]test\b/.test(location.search) ? 0 : Math.max(0, 1200 - (Date.now() - W.t0));
-    setTimeout(function () { clearInterval(tF); if (cb) try { cb(); } catch (e) {} c.classList.add('salir'); setTimeout(function () { c.classList.add('oc'); }, 520); }, espera);
+    clearTimeout(W.tFin); clearTimeout(W.tOc);
+    W.tFin = setTimeout(function () { clearInterval(tF); if (cb) try { cb(); } catch (e) {} c.classList.add('salir'); W.tOc = setTimeout(function () { c.classList.add('oc'); }, 520); }, espera);
   };
   pintar();
 })();

@@ -106,7 +106,8 @@ async function gpDescomprimir(d, tam) {
   if (d[0] === 0x50 && d[1] === 0x4b) return gpUnzip(d);
   const w = typeof Worker === 'function' ? gpHiloCrear() : false;
   if (!w) return gpDescomprimirSinc(d, tam);
-  const id = ++GP.nHilo, r = await new Promise((ok) => { GP.esperan.set(id, ok); const c = d.slice(); w.postMessage({ id, d: c, tam }, [c.buffer]); });
+  // (si el hilo no contesta en 45 s, se hace acá)
+  const id = ++GP.nHilo, r = await new Promise((ok) => { GP.esperan.set(id, ok); const c = d.slice(); w.postMessage({ id, d: c, tam }, [c.buffer]); setTimeout(() => { if (GP.esperan.has(id)) { GP.esperan.delete(id); ok({ e: 'hilo' }); } }, 45000); });
   if (r.e) { if (r.e === 'hilo') return gpDescomprimirSinc(d, tam); throw new Error(r.e); }
   return r.o;
 }
@@ -117,14 +118,15 @@ async function gpPedirCDN(base, hosts, ruta, intentos) {
   let ult = null;
   for (let k = 0; k < (intentos || 4); k++) {
     const h = hosts[(k + (gpPedirCDN.n = (gpPedirCDN.n || 0) + 1)) % hosts.length];
-    try { const r = await fetch(gpURL(base, h, ruta)); if (r.ok) return new Uint8Array(await r.arrayBuffer()); ult = new Error('CDN ' + r.status); if (r.status === 404 || r.status === 403) { if (k >= 1) break; } }
+    // (cada pedazo con tiempo máximo: uno colgado se vuelve a pedir a otro servidor en vez de trabar todo)
+    try { const r = await gmFetch(gpURL(base, h, ruta), null, 30000); if (r.ok) return new Uint8Array(await gmTiempo(r.arrayBuffer(), 60000, 'pedazo trabado')); ult = new Error('CDN ' + r.status); if (r.status === 404 || r.status === 403) { if (k >= 1) break; } }
     catch (e) { ult = e; }
   }
   throw ult || new Error('CDN');
 }
 async function gpBajar(wid, prog, base) {
   base = base || TIENDA_URL;
-  const r = await fetch(base + 'gmod/pipe/' + wid);
+  const r = await gmFetch(base + 'gmod/pipe/' + wid, null, 30000);
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
     if (r.status === 404 && j.noExiste) throw Object.assign(new Error(T('gm.noExiste')), { noExiste: true });

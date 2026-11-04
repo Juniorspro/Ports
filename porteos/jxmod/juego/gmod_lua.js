@@ -243,7 +243,8 @@ function luaGenerar(arbol, archivo, fid, dual) {
   const busca = (n) => { for (let i = sc.length - 1; i >= 0; i--) if (sc[i].has(n)) return sc[i].get(n); return null; };
   const S = JSON.stringify;
   let fn = null;   // la función que se está generando: { va }
-  const lazos = [];   // los bucles abiertos: { cont: etiqueta de continue (repeat), lbl }
+  const lazos = [];   // los bucles abiertos: { lbl: su etiqueta de JS (para break/continue), rep, cl: la de continue del repeat }
+  const gotos = [];   // las etiquetas (::nombre::) visibles: Map nombre → { js, modo: 'f' adelante | 'b' atrás }, por bloque
   // module("x", package.seeall) de Lua 5.1 arriba de todo: desde ahí las globales del archivo son las de la tabla x
   // ($M, que ven también las funciones del archivo; con package.seeall lo que no está se busca en _G)
   const esModulo = (s) => s && s.k === 'expr' && s.e && s.e.k === 'call' && s.e.f && s.e.f.k === 'var' && s.e.f.n === 'module';
@@ -319,9 +320,9 @@ function luaGenerar(arbol, archivo, fid, dual) {
     const una = (g) => {
       const fn0 = fn; fn = { va: f.va }; sc.push(new Map()); gen = g;
       const ps = f.ps.map(nuevo);
-      const lz0 = lazos.splice(0);
+      const lz0 = lazos.splice(0), go0 = gotos.splice(0);   // (ni los bucles ni las etiquetas cruzan una función)
       const cuerpo = bloque(f.b, false);
-      lazos.push(...lz0);
+      lazos.push(...lz0); gotos.push(...go0);
       sc.pop(); fn = fn0;
       return '(function' + (g ? '*' : '') + '(' + ps.concat(f.va ? ['...va'] : []).join(',') + '){let $t;if(++R.n>R.lim)R.largo();' + cuerpo + 'return E0;})';
     };
@@ -331,12 +332,49 @@ function luaGenerar(arbol, archivo, fid, dual) {
   function bloque(L, abre = true) {
     if (abre) sc.push(new Map());
     let out = '';
-    for (const s of L) out += sent(s);
+    if (L.some((x) => x.k === 'label')) out = conEtiquetas(L);
+    else for (const s of L) out += sent(s);
     if (abre) sc.pop();
     return out;
   }
-  // la etiqueta "continue" de GMod (y "goto continue" al final del cuerpo de un bucle)
-  const esFinDeLazo = (L, l) => L.length && L[L.length - 1].k === 'label' && L[L.length - 1].l === l;
+  // goto de Lua 5.2 (el de LuaJIT, que usan muchos addons: «goto continue», «goto skip», salir de dos bucles, volver a
+  // empezar). JavaScript no tiene goto, pero sí bloques y bucles con etiqueta: un goto hacia adelante es «break» de un
+  // bloque que va desde el primer goto hasta la etiqueta; uno hacia atrás, «continue» de un for(;;) que va desde la
+  // etiqueta hasta el final del bloque. Como en Lua, sirve desde bloques de adentro (un if, otro bucle), no desde otra
+  // función. (Las variables locales de antes del primer goto quedan afuera del bloque: se siguen viendo después)
+  const subBloques = (s) => s.k === 'do' || s.k === 'while' || s.k === 'repeat' ? [s.b] : s.k === 'fornum' || s.k === 'forin' ? [s.cu] : s.k === 'if' ? s.ramas.map((r) => r.b).concat(s.otro ? [s.otro] : []) : [];
+  const tieneGoto = (s, n) => (s.k === 'goto' && s.l === n) || subBloques(s).some((B) => B.some((x) => tieneGoto(x, n)));
+  function conEtiquetas(L) {
+    const ctx = new Map(), ade = [], atr = [];
+    L.forEach((s, i) => {
+      if (s.k !== 'label') return;
+      const n = s.l, js = '$G' + (++uid); let g = -1;
+      for (let k = 0; k < i; k++) if (tieneGoto(L[k], n)) { g = k; break; }
+      const c = { js, modo: g >= 0 ? 'f' : null, i, atr: L.slice(i + 1).some((x) => tieneGoto(x, n)) };
+      ctx.set(n, c); if (g >= 0) ade.push({ g, i, js }); if (c.atr) atr.push(i);
+    });
+    // (los bloques de los saltos hacia adelante no se pueden cruzar: si se cruzan, el de más afuera empieza antes)
+    ade.sort((a, b) => a.i - b.i);
+    for (let cambio = true; cambio;) { cambio = false; for (const a of ade) for (const b of ade) if (b.i < a.i && b.i > a.g && b.g < a.g) { a.g = b.g; cambio = true; } }
+    for (const i of atr) if (ade.some((a) => a.g < i && a.i > i)) throw new LuaError(archivo + ':' + L[i].ln + ': goto: esta combinación de saltos hacia atrás y adelante no se puede traducir');
+    gotos.push(ctx);
+    let out = '', cierres = 0;
+    for (let k = 0; k < L.length; k++) {
+      for (const a of ade.filter((x) => x.g === k).sort((x, y) => y.i - x.i)) out += a.js + 'f:{';
+      const s = L[k];
+      if (s.k === 'label') {
+        const c = ctx.get(s.l);
+        if (c.modo === 'f') out += '}';
+        c.modo = c.atr ? 'b' : null;
+        if (c.atr) { out += c.js + 'b:for(;;){if(++R.n>R.lim)R.largo();'; cierres++; }
+        continue;
+      }
+      out += sent(s);
+    }
+    for (let k = 0; k < cierres; k++) out += 'break;}';
+    gotos.pop();
+    return out;
+  }
   function sent(s) {
     const pos = 'R.p=' + (fid * 65536 + Math.min(65535, s.ln || 0)) + ';';
     switch (s.k) {
@@ -364,36 +402,42 @@ function luaGenerar(arbol, archivo, fid, dual) {
         if (s.otro) out += 'else{' + bloque(s.otro) + '}';
         return out;
       }
-      case 'while': { lazos.push({}); const b = bloque(s.b); lazos.pop(); return pos + 'while(R.T(' + exp(s.c) + ')){if(++R.n>R.lim)R.largo();' + b + '}'; }
+      case 'while': { const lz = { lbl: '$L' + (++uid) }; lazos.push(lz); const b = bloque(s.b); lazos.pop(); return pos + lz.lbl + ':while(R.T(' + exp(s.c) + ')){if(++R.n>R.lim)R.largo();' + b + '}'; }
       case 'repeat': {
-        const lz = { rep: true, lbl: 'rep' + (++uid) }; lazos.push(lz);
+        const lz = { rep: true, lbl: '$L' + (++uid), cl: 'rep' + uid }; lazos.push(lz);
         sc.push(new Map()); const b = bloque(s.b, false); const c = exp(s.c); sc.pop(); lazos.pop();
-        return pos + 'for(;;){if(++R.n>R.lim)R.largo();' + (lz.usado ? lz.lbl + ':{' + b + '}' : b) + 'if(R.T(' + c + '))break;}';
+        return pos + lz.lbl + ':for(;;){if(++R.n>R.lim)R.largo();' + (lz.usado ? lz.cl + ':{' + b + '}' : b) + 'if(R.T(' + c + '))break;}';
       }
       case 'fornum': {
         const a = '$i' + (++uid), b = '$f' + uid, st = '$s' + uid;
         const ini = 'let ' + a + '=R.num(' + exp(s.a) + ',"for"),' + b + '=R.num(' + exp(s.b) + ',"for"),' + st + '=' + (s.c ? 'R.num(' + exp(s.c) + ',"for")' : '1') + ';';
-        sc.push(new Map()); const v = nuevo(s.v); lazos.push({}); const cu = bloque(s.cu); lazos.pop(); sc.pop();
-        return pos + '{' + ini + 'for(;' + st + '>0?' + a + '<=' + b + ':' + a + '>=' + b + ';' + a + '+=' + st + '){if(++R.n>R.lim)R.largo();let ' + v + '=' + a + ';' + cu + '}}';
+        sc.push(new Map()); const v = nuevo(s.v); const lz = { lbl: '$L' + (++uid) }; lazos.push(lz); const cu = bloque(s.cu); lazos.pop(); sc.pop();
+        return pos + '{' + ini + lz.lbl + ':for(;' + st + '>0?' + a + '<=' + b + ':' + a + '>=' + b + ';' + a + '+=' + st + '){if(++R.n>R.lim)R.largo();let ' + v + '=' + a + ';' + cu + '}}';
       }
       case 'forin': {
         const f = '$g' + (++uid), e = '$e' + uid, c = '$c' + uid, r = '$r' + uid;
-        let out = pos + '{let [' + f + ',' + e + ',' + c + ']=R.iter(' + lista(s.ex) + ');for(;;){if(++R.n>R.lim)R.largo();const ' + r + '=R.c(' + f + ',"for iterator",' + e + ',' + c + ');';
+        const lz = { lbl: '$L' + (++uid) };
+        let out = pos + '{let [' + f + ',' + e + ',' + c + ']=R.iter(' + lista(s.ex) + ');' + lz.lbl + ':for(;;){if(++R.n>R.lim)R.largo();const ' + r + '=R.c(' + f + ',"for iterator",' + e + ',' + c + ');';
         sc.push(new Map()); const ns = s.ns.map(nuevo);
         out += 'let ' + ns.map((n, i) => n + '=' + r + '[' + i + ']').join(',') + ';if(' + ns[0] + '===undefined)break;' + c + '=' + ns[0] + ';';
-        lazos.push({}); out += bloque(s.cu); lazos.pop(); sc.pop();
+        lazos.push(lz); out += bloque(s.cu); lazos.pop(); sc.pop();
         return out + '}}';
       }
       case 'return': {
         if (s.ex.length === 1 && (s.ex[0].k === 'call' || s.ex[0].k === 'mcall')) return pos + 'return ' + llamada(s.ex[0]) + ';';
         return pos + 'return ' + lista(s.ex) + ';';
       }
-      case 'break': if (!lazos.length) throw new LuaError(archivo + ':' + s.ln + ": 'break' fuera de un bucle"); return 'break;';
+      // (break y continue con la etiqueta del bucle: entre medio puede haber un for(;;) de un goto hacia atrás)
+      case 'break': if (!lazos.length) throw new LuaError(archivo + ':' + s.ln + ": 'break' fuera de un bucle"); return 'break ' + lazos[lazos.length - 1].lbl + ';';
       case 'continue': case 'goto': {
-        if (s.k === 'goto' && !/^continue$|^cont/i.test(s.l)) throw new LuaError(archivo + ':' + s.ln + ': goto ' + s.l + ' (sólo se admite el goto al final del bucle)');
+        if (s.k === 'goto') {
+          for (let q = gotos.length - 1; q >= 0; q--) { const c = gotos[q].get(s.l); if (c && c.modo === 'f') return 'break ' + c.js + 'f;'; if (c && c.modo === 'b') return 'continue ' + c.js + 'b;'; if (c) break; }
+          if (!/^continue$|^cont/i.test(s.l)) throw new LuaError(archivo + ':' + s.ln + ": no visible label '" + s.l + "' for goto");
+        }
+        // (el continue de GMod, y «goto continue» sin la etiqueta: el siguiente paso del bucle)
         const lz = lazos[lazos.length - 1]; if (!lz) throw new LuaError(archivo + ':' + s.ln + ': continue fuera de un bucle');
-        if (lz.rep) { lz.usado = true; return 'break ' + lz.lbl + ';'; }
-        return 'continue;';
+        if (lz.rep) { lz.usado = true; return 'break ' + lz.cl + ';'; }
+        return 'continue ' + lz.lbl + ';';
       }
       case 'label': return '';
     }

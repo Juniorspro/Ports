@@ -24,7 +24,7 @@ const correr = (src, n) => vm.runInContext(src, ctx, { filename: n });
 correr(fs.readFileSync(J + 'nucleo.js', 'utf8'), 'nucleo.js');
 // el motor de mentira (lo que usan gmod*.js)
 correr(`
-var TIEMPO = { t: 0, dt: 1 / 60 }, CAM = { pos: v3(0, 1.7, 0), fwd: v3(0, 0, 1), der: v3(1, 0, 0), arr: v3(0, 1, 0), q: new Quat(), fov: 75 }, OBJS = [], JUG = { pos: v3(0, 1.7, 0), vivo: true, yaw: 0, medio: 0.9, vel: v3() }, PREFS = { nombre: 'Prueba' };
+var GFX = { nombre: 'medio', part: 1, texMax: 0 }, VW = () => 1280, VH = () => 720, TIEMPO = { t: 0, dt: 1 / 60 }, CAM = { pos: v3(0, 1.7, 0), fwd: v3(0, 0, 1), der: v3(1, 0, 0), arr: v3(0, 1, 0), q: new Quat(), fov: 75 }, OBJS = [], JUG = { pos: v3(0, 1.7, 0), vivo: true, yaw: 0, medio: 0.9, vel: v3() }, PREFS = { nombre: 'Prueba' };
 var DATA = { pf: [], pfPorNombre: { Crate: 0 }, menu: [], tx: [] }, JUEGO = { estado: 'juego' }, UI = { abierto: null }, ENT = { teclas: new Set(), disparo: false, disparo2: false, x: 0, y: 0 };
 var ARM = { lista: [], i: 0, sway: { x: 0, y: 0, z: 0 } }, DEF_ARMAS = {}, PH = { hits: [] }, R = { gl: null }, MUNDO = { nombre: 'gm_flatgrass' }, MODS = {};
 var CUENTA = { objetos: 0, sonidos: 0, balas: 0, part: 0, avisos: 0, explos: 0 };
@@ -62,7 +62,7 @@ async function bajar(id) {
 
 (async () => {
   await detalles(ids0);
-  const lista = an.filter((x) => x.MB <= +maxMB && det.get(x.id).file_url).map((x) => x.id);
+  const lista = an.filter((x) => x.MB <= +maxMB && (det.get(x.id).file_url || fs.existsSync(path.join(CACHE, x.id + '.gma')))).map((x) => x.id);   // (los de SteamPipe, si ya están en la caché)
   const res = [];
   for (const id of lista) {
     const meta = an.find((x) => x.id === id) || {};

@@ -4,7 +4,7 @@
 // Lua corre, sus armas, props y NPCs aparecen en el menú Q, sus mapas en la lista, sus personajes en Personajes → Mods) y
 // se avisa qué trajo. Arriba, al centro, una pastilla con lo que está bajando (tocándola se ven todas y se cancelan).
 // La cola queda guardada: si se cierra el juego a la mitad, lo que faltaba sigue solo al volver a abrirlo.
-const GMC = { l: [], activos: 0, el: null, abierta: false, dib: 0 };
+const GMC = { l: [], activos: 0, el: null, abierta: false, dib: 0, traba: 75000, trabaLarga: 180000 };
 // (de a uno en celulares con poca memoria: descomprimir dos addons grandes a la vez los cerraba)
 const gmcMax = () => (navigator.deviceMemory && navigator.deviceMemory <= 4 ? 1 : 2);
 const gmcDe = (id) => GMC.l.find((x) => x.id === String(id) && x.estado !== 'listo' && x.estado !== 'error') || null;
@@ -24,25 +24,45 @@ function gmcPoner(id, meta) {
 function gmcSeguir() {
   while (GMC.activos < gmcMax()) { const x = GMC.l.find((y) => y.estado === 'espera'); if (!x) break; gmcBajar(x); }
 }
+// (una descarga que no avanza nada —ni un byte— en 75 s, o 3 min mientras se descomprime o se monta, se da por trabada:
+// se corta ese intento y se vuelve a intentar solo, hasta 3 veces; después queda con «Reintentar»)
+const GMC_TRABA_MS = (fase) => (fase === 'montando' || fase === 'descomprimiendo' ? GMC.trabaLarga : GMC.traba);
 async function gmcBajar(x) {
-  x.estado = 'bajando'; x.fase = 'bajando'; GMC.activos++; gmcDibujar(true);
-  // (cancelar a la mitad: el aviso de avance tira un error y la bajada se corta ahí)
-  const prog = (p, fase) => { if (x.cancelar) throw Object.assign(new Error('cancelado'), { cancelado: true }); x.p = Math.max(x.p, Math.min(1, p || 0)); if (fase) x.fase = fase; gmcDibujar(); };
+  x.estado = 'bajando'; x.fase = 'conectando'; x.p = 0; GMC.activos++; x.intentos = (x.intentos || 0) + 1; const gen = (x.gen = (x.gen || 0) + 1); x.tP = Date.now(); gmcDibujar(true);
+  // (cancelar a la mitad, o un intento viejo que siguió solo después de darse por trabado: el aviso de avance tira un
+  // error y esa bajada se corta ahí)
+  const prog = (p, fase) => {
+    if (x.cancelar || x.gen !== gen) throw Object.assign(new Error('cancelado'), { cancelado: true });
+    const q = Math.max(x.p, Math.min(1, p || 0)); if (q > x.p + 1e-4 || (fase && fase !== x.fase)) x.tP = Date.now(); x.p = q; if (fase) x.fase = fase; gmcDibujar();
+  };
+  let vig = 0, reintentar = false;
+  const trabada = new Promise((_, mal) => { vig = setInterval(() => { if (Date.now() - x.tP > GMC_TRABA_MS(x.fase)) { clearInterval(vig); mal(Object.assign(new Error(T('gmc.trabada')), { trabado: true })); } }, 2000); });
   try {
-    const A = await gmInstalar(x.id, { nombre: x.n, img: x.img }, null, prog);
-    if (A && A.listo) await A.listo;
+    const A = await Promise.race([(async () => { const A = await gmInstalar(x.id, { nombre: x.n, img: x.img }, null, prog); if (A && A.listo) await A.listo; return A; })(), trabada]);
     if (x.cancelar) { gmQuitar(x.id); throw Object.assign(new Error('cancelado'), { cancelado: true }); }
     x.estado = 'listo'; x.p = 1; x.A = A; x.ok(A);
     if (!x.callado) gmcAvisoListo(A);
   } catch (e) {
-    x.estado = 'error'; x.err = e && e.cancelado ? '' : String((e && e.message) || e).slice(0, 120); x.mal(e);
-    if (!(e && e.cancelado) && !x.callado) { const sin = !!(e && e.sinArchivo); gmcAviso((sin ? T('gm.sinArchivo') : x.err) + ' · ' + x.n, 4); }
+    // (trabada o sin red: otra vez, solo, hasta 3 intentos; lo que no existe o no tiene archivo, no)
+    const red = e && (e.trabado || e.name === 'TypeError');
+    if (red && !x.cancelar && x.intentos < 3) { reintentar = true; x.gen++; }
+    else {
+      x.estado = 'error'; x.err = e && e.cancelado ? '' : String((e && e.message) || e).slice(0, 120); x.mal(e);
+      if (!(e && e.cancelado) && !x.callado) { const sin = !!(e && e.sinArchivo); gmcAviso((sin ? T('gm.sinArchivo') : x.err) + ' · ' + x.n, 4); }
+    }
   } finally {
-    GMC.activos--; gmcGuardar(); gmcSeguir(); gmcDibujar(true);
-    // (lo terminado se ve un rato con su tilde y después se va de la lista)
-    setTimeout(() => { const i = GMC.l.indexOf(x); if (i >= 0 && (x.estado === 'listo' || x.estado === 'error')) { GMC.l.splice(i, 1); gmcDibujar(true); } }, x.estado === 'error' && x.err ? 9000 : 5000);
+    clearInterval(vig); GMC.activos--;
+    if (reintentar) { x.estado = 'espera'; x.fase = 'reintento'; x.p = 0; }
+    gmcGuardar(); gmcSeguir(); gmcDibujar(true);
+    // (lo terminado se ve un rato con su tilde y después se va de la lista; lo que falló, más, con «Reintentar»)
+    if (!reintentar) setTimeout(() => { const i = GMC.l.indexOf(x); if (i >= 0 && (x.estado === 'listo' || x.estado === 'error')) { GMC.l.splice(i, 1); gmcDibujar(true); } }, x.estado === 'error' && x.err ? 30000 : 5000);
     gmcRefrescarVistas();
   }
+}
+// «Reintentar» en uno que falló: sale de la lista y vuelve a la cola desde cero
+function gmcReintentar(id) {
+  const x = GMC.l.find((y) => y.id === String(id) && y.estado === 'error'); if (!x) return;
+  GMC.l.splice(GMC.l.indexOf(x), 1); gmcPoner(x.id, { nombre: x.n, img: x.img, callado: x.callado });
 }
 function gmcCancelar(id) {
   const x = gmcDe(id); if (!x) return;
@@ -81,11 +101,11 @@ function gmcDibujar(ya) {
   if (!E) {
     E = GMC.el = document.createElement('div'); E.id = 'gmCola'; document.body.appendChild(E);
     E.addEventListener('pointerdown', (e) => e.stopPropagation());
-    E.addEventListener('click', (e) => { e.stopPropagation(); const b = e.target.closest('[data-gmc]'); if (b) { gmcCancelar(b.dataset.gmc); return; } GMC.abierta = !GMC.abierta; gmcDibujar(true); });
+    E.addEventListener('click', (e) => { e.stopPropagation(); const r = e.target.closest('[data-gmcr]'); if (r) { gmcReintentar(r.dataset.gmcr); return; } const b = e.target.closest('[data-gmc]'); if (b) { gmcCancelar(b.dataset.gmc); return; } GMC.abierta = !GMC.abierta; gmcDibujar(true); });
   }
   const vivos = GMC.l.filter((x) => x.estado === 'espera' || x.estado === 'bajando'), cur = GMC.l.find((x) => x.estado === 'bajando') || vivos[0] || GMC.l[GMC.l.length - 1];
-  const pct = (x) => Math.round(x.p * 100) + '%', fase = (x) => x.estado === 'listo' ? T('gmc.listo') : x.estado === 'error' ? (x.err ? T('gmc.error') : T('gmc.cancelado')) : x.estado === 'espera' ? T('gmc.espera') : x.fase === 'cancelando' ? T('gmc.cancelando') : x.fase === 'descomprimiendo' ? T('gm.descomp') : T('gm.bajando');
-  const fila = (x) => `<div class="gmcF ${x.estado}"><b dir="auto">${esc(x.n)}</b><span>${esc(fase(x))}${x.estado === 'bajando' ? ' ' + pct(x) : ''}</span>${x.estado === 'espera' || x.estado === 'bajando' ? `<button data-gmc="${esc(x.id)}" aria-label="${esc(T('cancelar'))}">✕</button>` : ''}<i style="width:${x.estado === 'listo' ? 100 : Math.round(x.p * 100)}%"></i></div>`;
+  const pct = (x) => Math.round(x.p * 100) + '%', fase = (x) => x.estado === 'listo' ? T('gmc.listo') : x.estado === 'error' ? (x.err ? T('gmc.error') : T('gmc.cancelado')) : x.estado === 'espera' ? (x.fase === 'reintento' ? T('gmc.reintento') + ' (' + (x.intentos + 1) + '/3)' : T('gmc.espera')) : x.fase === 'cancelando' ? T('gmc.cancelando') : x.fase === 'descomprimiendo' ? T('gm.descomp') : x.fase === 'conectando' ? T('gmc.conectando') : x.fase === 'montando' ? T('gmc.montando') : T('gm.bajando');
+  const fila = (x) => `<div class="gmcF ${x.estado}"><b dir="auto">${esc(x.n)}</b><span>${esc(fase(x))}${x.estado === 'bajando' ? ' ' + pct(x) : ''}</span>${x.estado === 'espera' || x.estado === 'bajando' ? `<button data-gmc="${esc(x.id)}" aria-label="${esc(T('cancelar'))}">✕</button>` : x.estado === 'error' && x.err ? `<button class="gmcR" data-gmcr="${esc(x.id)}">${esc(T('reintentar'))}</button>` : ''}<i style="width:${x.estado === 'listo' ? 100 : Math.round(x.p * 100)}%"></i></div>`;
   E.className = (GMC.abierta ? 'abierta' : '') + (vivos.length ? '' : ' fin');
   E.innerHTML = `<div class="gmcCab"><span class="gmcIco"></span><b dir="auto">${esc(cur.n)}</b><span>${cur.estado === 'bajando' ? pct(cur) : esc(fase(cur))}</span>${vivos.length > 1 ? `<em>+${vivos.length - 1}</em>` : ''}<i style="width:${cur.estado === 'listo' ? 100 : Math.round(cur.p * 100)}%"></i></div>` + (GMC.abierta ? `<div class="gmcLista">${GMC.l.map(fila).join('')}</div>` : '');
 }
@@ -100,5 +120,10 @@ Object.assign(IDI3, {
   'gmc.error': ['No se pudo', 'Failed', 'Falhou', 'Gagal', 'Gagal', 'Hindi nagawa', '失敗', 'ไม่สำเร็จ', 'Başarısız', 'تعذّر', 'Не удалось', 'Не вдалося', 'Échec', 'Fehlgeschlagen'],
   'gmc.cancelado': ['Cancelado', 'Cancelled', 'Cancelado', 'Dibatalkan', 'Dibatalkan', 'Kinansela', 'キャンセル済み', 'ยกเลิกแล้ว', 'İptal edildi', 'أُلغي', 'Отменено', 'Скасовано', 'Annulé', 'Abgebrochen'],
   'gmc.cancelando': ['Cancelando', 'Cancelling', 'Cancelando', 'Membatalkan', 'Membatalkan', 'Kinakansela', 'キャンセル中', 'กำลังยกเลิก', 'İptal ediliyor', 'جارٍ الإلغاء', 'Отмена', 'Скасування', 'Annulation', 'Wird abgebrochen'],
+  'gmc.conectando': ['Conectando', 'Connecting', 'Conectando', 'Menghubungkan', 'Menyambung', 'Kumokonekta', '接続中', 'กำลังเชื่อมต่อ', 'Bağlanıyor', 'جارٍ الاتصال', 'Подключение', 'Підключення', 'Connexion', 'Verbinde'],
+  'gmc.montando': ['Instalando', 'Installing', 'Instalando', 'Memasang', 'Memasang', 'Ini-install', 'インストール中', 'กำลังติดตั้ง', 'Kuruluyor', 'جارٍ التثبيت', 'Установка', 'Встановлення', 'Installation', 'Installiere'],
+  'gmc.reintento': ['Se trabó, otra vez', 'Stalled, retrying', 'Travou, de novo', 'Macet, mencoba lagi', 'Tersekat, cuba lagi', 'Naipit, uulitin', '止まったので再試行', 'ค้าง กำลังลองใหม่', 'Takıldı, yeniden', 'تعطّل، إعادة', 'Зависло, ещё раз', 'Зависло, ще раз', 'Bloqué, nouvel essai', 'Hängt, neuer Versuch'],
+  'gmc.trabada': ['La descarga se trabó', 'The download stalled', 'O download travou', 'Unduhan macet', 'Muat turun tersekat', 'Naipit ang download', 'ダウンロードが止まりました', 'การดาวน์โหลดค้าง', 'İndirme takıldı', 'تعطّل التنزيل', 'Загрузка зависла', 'Завантаження зависло', 'Le téléchargement est bloqué', 'Der Download hängt'],
+  'reintentar': ['Reintentar', 'Retry', 'Tentar de novo', 'Coba lagi', 'Cuba lagi', 'Subukan muli', '再試行', 'ลองใหม่', 'Tekrar dene', 'أعد المحاولة', 'Повторить', 'Повторити', 'Réessayer', 'Erneut'],
   'cancelar': ['Cancelar', 'Cancel', 'Cancelar', 'Batal', 'Batal', 'Kanselahin', 'キャンセル', 'ยกเลิก', 'İptal', 'إلغاء', 'Отмена', 'Скасувати', 'Annuler', 'Abbrechen']
 });

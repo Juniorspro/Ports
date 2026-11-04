@@ -77,7 +77,8 @@ async function gmFichaVivo(it) {
 let _gmApi = null;
 function gmApiHay() {
   if (_gmApi) return _gmApi;
-  return (_gmApi = (async () => { try { const r = await fetch(TIENDA_URL + 'gmod/detalles?ids=0'); return r.ok && Array.isArray((await r.json()).items); } catch (e) { return false; } })());
+  // (con tiempo máximo; si no contestó, se vuelve a preguntar en un minuto en vez de quedar en «no» para siempre)
+  return (_gmApi = (async () => { try { const r = await gmFetch(TIENDA_URL + 'gmod/detalles?ids=0', null, 10000); return r.ok && Array.isArray((await gmTiempo(r.json(), 10000)).items); } catch (e) { setTimeout(() => { _gmApi = null; }, 60000); return false; } })());
 }
 async function gmBuscar(o) {
   const p = o.p || 1;
