@@ -23,6 +23,7 @@ from srctools.bsp import BSP_LUMPS as LUMP
 from srctools.keyvalues import Keyvalues
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import source_mdl as SM
+import gmod_terreno
 
 PK0, PK1, GM = sys.argv[1:4]
 os.makedirs(PK1, exist_ok=True)
@@ -374,25 +375,7 @@ def brocha_poligonos(br):
         c = en.mean(0); e1 = en[0] - c; e1 /= np.linalg.norm(e1) or 1; e2 = np.cross(n, e1)
         ang = np.arctan2((en - c) @ e2, (en - c) @ e1); out.append((en[np.argsort(ang)], n))
     return out
-class Solidos:
-    """¿un punto está adentro de un pincel sólido del mapa? (cajas para descartar rápido y después los planos)"""
-    def __init__(self, bsp):
-        self.B = []
-        for br in bsp.brushes:
-            if not (br.contents.value & 1): continue
-            Nb = np.array([[x.plane.normal.x, x.plane.normal.y, x.plane.normal.z] for x in br.sides]); Db = np.array([x.plane.dist for x in br.sides])
-            lo, hi = np.full(3, -1e9), np.full(3, 1e9)
-            for n_, d_ in zip(Nb, Db):
-                for ax in range(3):
-                    if abs(n_[ax]) > 0.9999:
-                        if n_[ax] > 0: hi[ax] = min(hi[ax], d_ / n_[ax])
-                        else: lo[ax] = max(lo[ax], d_ / n_[ax])
-            self.B.append((Nb, Db, lo, hi))
-        self.lo, self.hi = np.array([x[2] for x in self.B]), np.array([x[3] for x in self.B])
-    def adentro(self, p, eps=0.05):
-        for k in np.nonzero(np.all((self.lo <= p + eps) & (p - eps <= self.hi), 1))[0]:
-            if np.all(self.B[k][0] @ p - self.B[k][1] < -eps): return True
-        return False
+from gmod_terreno import Solidos   # (los pinceles sólidos: ver gmod_terreno.py)
 def convertir(NOM, archivo, cfg):
     global PAK, PAKN
     bsp = BSPm.BSP(os.path.join(GM, 'garrysmod10', 'maps', archivo + '.bsp')); PAK = bsp.pakfile; PAKN = {n.lower().replace('\\', '/'): n for n in PAK.namelist()}
@@ -408,7 +391,7 @@ def convertir(NOM, archivo, cfg):
     SOL = Solidos(bsp)
     J, Jc, Jag = Junta(), Junta(), Junta()   # lo que se ve, lo que sólo choca (cielo e invisibles), el agua
     tris3d = []; stats = {'caras': 0, 'cielo': 0, 'agua': 0, 'disp': 0, 'sin_material': set()}
-    disp_v, disp_n, disp_u, disp_a, disp_t, disp_mats = [], [], [], [], [], {}
+    disp = []
     for f in mundo.faces:
         ti = f.texinfo
         if ti is None: continue
@@ -428,61 +411,21 @@ def convertir(NOM, archivo, cfg):
         tw, th = ti.tex_size; tw, th = tw or 512, th or 512
         so, to = np.array([ti.s_off.x, ti.s_off.y, ti.s_off.z]), np.array([ti.t_off.x, ti.t_off.y, ti.t_off.z])
         uvf = lambda pts: np.stack([(pts @ so + ti.s_shift) / tw, -(pts @ to + ti.t_shift) / th], 1)
-        if k >= 0:   # ---- desplazamiento: grilla de (2^n+1)² sobre la cara con las alturas de cada punto
-            sx, sy, sz, vstart, _, pw = struct.unpack_from('<3f3i', DI, k * 176)
-            n = (1 << pw) + 1; i0 = int(np.argmin(np.linalg.norm(vs - np.array([sx, sy, sz]), axis=1))); p = [vs[(i0 + j) % 4] for j in range(4)]
-            dv = DV[vstart:vstart + n * n]; G = np.zeros((n, n, 3)); Gp = np.zeros((n, n, 3))
-            for i in range(n):
-                e0 = p[0] + (p[1] - p[0]) * i / (n - 1); e1 = p[3] + (p[2] - p[3]) * i / (n - 1)
-                for j in range(n):
-                    plano = e0 + (e1 - e0) * j / (n - 1); Gp[i, j] = plano; G[i, j] = plano + dv[i * n + j, :3] * dv[i * n + j, 3]
-            al = (dv[:, 4] / 255.0).reshape(n, n) if modo == 'mezcla' else np.zeros((n, n))
-            disp_v.append(G.reshape(-1, 3)); disp_u.append(uvf(Gp.reshape(-1, 3))); disp_a.append(al.reshape(-1)); disp_mats.setdefault(mi, []).append(len(disp_v) - 1)
-            T = []
-            for i in range(n - 1):
-                for j in range(n - 1):
-                    a_, b_, c_, e_ = i * n + j, (i + 1) * n + j, (i + 1) * n + j + 1, i * n + j + 1
-                    T += [(a_, b_, c_), (a_, c_, e_)] if (i + j) % 2 == 0 else [(a_, b_, e_), (b_, c_, e_)]
-            # (lo del terreno que queda adentro de un pincel sólido no se ve en Source: el piso lo tapa. Acá se saca: si no, se
-            # pisaba con el piso (parpadeo) y el jugador chocaba con los dos y se caía por la rendija)
-            Gv = G.reshape(-1, 3); arriba = np.array([0, 0, 1.0])   # (el centro del triángulo, una unidad más arriba)
-            T = [t for t in T if not SOL.adentro(Gv[list(t)].mean(0) + arriba)]
-            stats['tapados'] = stats.get('tapados', 0) + (n - 1) * (n - 1) * 2 - len(T)
-            disp_t.append((np.array(T), n_src)); stats['disp'] += 1; continue
+        if k >= 0:   # ---- desplazamiento: grilla de (2^n+1)² sobre la cara con las alturas de cada punto (gmod_terreno.py)
+            n, G, Gp, al = gmod_terreno.desplazamiento(f, k, DI, DV, vs)
+            disp.append((mi, n, G, Gp, al if modo == 'mezcla' else np.zeros_like(al), gmod_terreno.uv_de(ti), n_src)); stats['disp'] += 1; continue   # (uv_de: la cuenta atada a esta cara)
         uv = uvf(vs); uv -= np.floor(uv.min(0))
         Vg = [P(v) for v in vs]; ng = MS @ n_src
         if modo == 'agua':
             if n_src[2] > 0.5: Jag.poligono(mi, Vg, ng, uv); stats['agua'] += 1
             continue
         J.poligono(mi, Vg, ng, uv, dos_lados=modo == 'blend'); stats['caras'] += 1
-    # ---- terrenos: normales suaves (soldadas entre parches por posición), UV corridas a enteros por bloques de 4×4
+    # ---- terrenos: normales suaves, UV por bloques y lo tapado por los sólidos recortado (no tirado: dejaba franjas sin
+    # piso junto a las veredas)
     terreno = None
-    if disp_v:
-        todas = np.concatenate(disp_v); clave = [tuple(np.round(v, 1)) for v in todas]; acum = {}
-        normales = []
-        for (T, nsrc), V in zip(disp_t, disp_v):
-            nv = np.zeros_like(V)
-            for t in T:
-                a_, b_, c_ = V[t[0]], V[t[1]], V[t[2]]; cr = np.cross(b_ - a_, c_ - a_)
-                if cr @ nsrc < 0: cr = -cr
-                nv[t] += cr
-            normales.append(nv)
-        o = 0
-        for nv in normales:
-            for k_ in range(len(nv)): acum[clave[o + k_]] = acum.get(clave[o + k_], 0) + nv[k_]
-            o += len(nv)
-        Jt = Junta(); o = 0
-        for qi, ((T, nsrc), V, U, A) in enumerate(zip(disp_t, disp_v, disp_u, disp_a)):
-            mi = next(m for m, l in disp_mats.items() if qi in l)
-            N = np.array([acum[clave[o + k_]] for k_ in range(len(V))]); N /= np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-9); o += len(V)
-            Vg = (MS @ (V * S).T).T; Ng = (MS @ N.T).T; n = int(round(math.sqrt(len(V))))
-            for bi in range(0, n - 1, 4):
-                for bj in range(0, n - 1, 4):
-                    ids = [i * n + j for i in range(bi, min(bi + 5, n)) for j in range(bj, min(bj + 5, n))]; loc = {g: l for l, g in enumerate(ids)}
-                    Tb = [t for t in T if all(x in loc for x in t) and min(x // n for x in t) >= bi and min(x % n for x in t) >= bj]
-                    Ub = U[ids] - np.floor(U[ids].min(0))
-                    Tl = np.array([orientar((loc[t[0]], loc[t[1]], loc[t[2]]), Vg[ids], MS @ nsrc) for t in Tb])
-                    Jt.tris(mi, list(Vg[ids]), list(Ng[ids]), list(Ub), Tl, list(A[ids]))
+    if disp:
+        Jt = Junta()
+        for mi, (V_, N_, U_, A_, T_) in gmod_terreno.armar(disp, SOL, stats).items(): Jt.tris(mi, V_, N_, list(U_), np.array(T_), A_)
         terreno = Jt.guardar(NOM + '_Terreno')
     # ---- pinceles invisibles (paredes que no se ven): choque
     for br in bsp.brushes:

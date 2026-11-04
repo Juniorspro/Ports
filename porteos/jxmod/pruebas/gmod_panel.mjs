@@ -1,5 +1,5 @@
 // el botón GMod y su panel (PC y celular parado, el juego girado): el botón se ve jugando; sin addons el panel invita a
-// instalar; con la Lightsaber y M9K instaladas hay un apartado por addon con sus armas, entidades, herramientas,
+// instalar; con la Lightsaber y M9K instaladas hay una tarjeta por addon (la cuadrícula de mods) y su página con sus armas, entidades, herramientas,
 // habilidades, comandos y ajustes; tocar un arma la da; un ajuste se aplica y queda guardado; una habilidad (la F de la
 // Lightsaber) llega a su PlayerBindPress; fijarla pone el botón en la pantalla; la herramienta del addon se equipa en la
 // Tool Gun y su clic izquierdo pone su entidad; el panel entra en la pantalla; sin errores.
@@ -21,13 +21,13 @@ for (const modo of ['pc', 'parado']) {
   await ev(`gmbCerrar(); 1`);
   await ev(`(async () => { for (const id of ['111412589', '128089118']) { const b = new Uint8Array(await (await fetch(${JSON.stringify(CARP)} + '/' + id + '.gma')).arrayBuffer()); const A = await gmInstalar(id, { nombre: id, sinDeps: true }, b); await A.listo; } return 1; })()`);
   await p.waitForTimeout(800);
-  const r1 = await ev(`(() => { gmbAbrir('111412589'); const P = document.getElementById('gmbPanel'), secs = [...P.querySelectorAll('.gbSec h4')].map((h) => h.textContent);
+  const r1 = await ev(`(() => { gmbAbrir(); const chips = [...document.querySelectorAll('#gmbPanel .gbMod')].map((c) => c.textContent); gmbAbrir('111412589'); const P = document.getElementById('gmbPanel'), secs = [...P.querySelectorAll('.gbSec h4')].map((h) => h.textContent);
     const habs = [...P.querySelectorAll('[data-hold]')].map((x) => x.dataset.hold), cmds = [...P.querySelectorAll('[data-gb^="cmd:"]')].map((x) => x.dataset.gb.slice(4)), ajs = [...P.querySelectorAll('[data-cv]')].map((x) => x.dataset.cv);
     const her = [...P.querySelectorAll('[data-gb^="her:"]')].map((x) => x.textContent), armas = [...P.querySelectorAll('[data-gb^="it:gmswep:"]')].map((x) => x.dataset.gb);
-    const chips = [...P.querySelectorAll('.gbChip')].map((c) => c.textContent), r = P.getBoundingClientRect();
+    const r = P.getBoundingClientRect();
     return { chips, secs, habs: habs.slice(0, 12), nHabs: habs.length, cmds: cmds.slice(0, 6), nAjs: new Set(ajs).size, ajs: [...new Set(ajs)].slice(0, 8), her, armas, caja: [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)], vw: innerWidth, vh: innerHeight }; })()`);
   await p.screenshot({ path: D + 'gmb_' + modo + '_sable.png' });
-  ok(`${modo}: un apartado por addon (2) y el de la Lightsaber trae armas, herramienta, habilidades (F y 1-9), comandos y ajustes`, r1.chips.length === 2 && r1.armas.length >= 1 && r1.her.length >= 1 && r1.habs.includes('bind:impulse 100') && r1.habs.includes('bind:slot1') && r1.cmds.length >= 1 && r1.nAjs >= 5, r1);
+  ok(`${modo}: una tarjeta por addon (2) y la página de la Lightsaber trae armas, herramienta, habilidades (F y 1-9), comandos y ajustes`, r1.chips.length === 2 && r1.armas.length >= 1 && r1.her.length >= 1 && r1.habs.includes('bind:impulse 100') && r1.habs.includes('bind:slot1') && r1.cmds.length >= 1 && r1.nAjs >= 5, r1);
   // el panel entra en la pantalla (en el celu parado se mide en el juego girado: el cuerpo rota)
   const r1b = await ev(`(() => { const P = document.getElementById('gmbPanel'); const w = P.offsetWidth, h = P.offsetHeight, l = P.offsetLeft, t = P.offsetTop; return { w, h, l, t, W: VW(), H: VH() }; })()`);
   ok(`${modo}: el panel entra entero en la pantalla del juego`, r1b.l >= 0 && r1b.t >= 0 && r1b.l + r1b.w <= r1b.W + 1 && r1b.t + r1b.h <= r1b.H + 1, r1b);

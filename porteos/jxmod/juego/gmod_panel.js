@@ -1,6 +1,10 @@
 // ---------------- el botón GMod: todo lo de los addons de GMod en un lugar, jugando ----------------
 // Un botón propio en la pantalla (al lado de MOD; en el celu, en la fila de chat y celular, movible con el editor de
-// botones) abre un panel con un apartado por addon instalado y uno para el modo de juego puesto:
+// botones) abre los mods de GMod como una cuadrícula: una tarjeta por mod (su imagen del Workshop, su nombre y qué es) y
+// el modo de juego puesto. Tocar una tarjeta entra a la página del mod («‹ Mods» vuelve). Los mods que sólo traen mapas
+// no van acá: están en Mapas. Los efectos de pantalla (los que sólo dibujan sobre la imagen: VHS, filtros, visión
+// nocturna...) no se "ponen" como un objeto: se prenden y se apagan con su interruptor (en la tarjeta y en su página) y
+// en la página se ajustan. La página de cada mod:
 //   - Armas, Entidades, NPCs, Vehículos, Personajes y Props: tocar las da o las pone (lo mismo que el menú de props).
 //   - Herramientas: las de la Tool Gun que trae el addon (stools): tocar equipa la Tool Gun con esa herramienta; sus
 //     clics llaman a LeftClick/RightClick del addon.
@@ -10,9 +14,10 @@
 //   - Comandos: los concommand del addon, como botones (con un argumento opcional).
 //   - Ajustes: sus ConVars (las de la Tool Gun, las de su menú, las del modo) como interruptor, número o texto; lo que se
 //     cambia queda guardado en el aparato.
+//   - Activado: apagado, sus hooks no corren (lo que dibuja, sus efectos y lo que hace cada cuadro); queda guardado.
 //   - Info: archivos, Lua corrido, errores y funciones de GMod que le faltan al motor (para saber qué no anda).
 const GMB = { boton: null, el: null, abierto: false, sel: null, q: '', fijos: [], arg: {} };
-const GMB_LS = 'rb_gmb_fijos', GMB_CV = 'rb_gmcvars';
+const GMB_LS = 'rb_gmb_fijos', GMB_CV = 'rb_gmcvars', GMB_OFF = 'rb_gmb_apagados';
 addEventListener('pointerdown', (e) => { if (GMB.abierto && !(e.target.closest && e.target.closest('#gmbPanel, .gmbBt'))) gmbCerrar(); }, true);
 
 // ---- el botón ----
@@ -51,7 +56,7 @@ function gmbAbrir(sel) {
   }
   if (typeof cerrarPaneles === 'function') cerrarPaneles();
   UI.abierto = 'gmb'; GMB.abierto = true; if (typeof soltarPuntero === 'function') soltarPuntero();
-  if (sel) GMB.sel = sel;
+  GMB.sel = sel || null; GMB.q = '';
   GMB.el.classList.remove('oc'); GMB.boton && GMB.boton.classList.add('on'); gmbDibujar();
 }
 function gmbCerrar() {
@@ -128,19 +133,72 @@ function gmbComandos(A) {
 function gmbAjustes(A) { if (typeof GMA === 'undefined' || !GMA.cvars) return []; return [...GMA.cvars.values()].filter((c) => c.a === A.id).sort((a, b) => (a.n < b.n ? -1 : 1)).slice(0, 80); }
 function gmbHerramientas(A) { return (A.herramientas || []).filter((h) => h.t); }
 
-// ---- el panel ----
+// ---- qué es cada mod ----
+const GMB_EV_PANT = /^(RenderScreenspaceEffects|DrawOverlay|PostDrawHUD|PreDrawHUD|HUDPaint|HUDPaintBackground|GetMotionBlurValues|PostRender|RenderScene|PreDrawEffects|PostDrawEffects)$/;
+function gmbHooksDe(A) { const L = new Set(); if (typeof GMA === 'undefined') return L; for (const [ev, H] of GMA.hooks) for (const h of H.values()) if (h.a === A.id) L.add(ev); return L; }
+function gmbArchivos(A) { return [...A.G.archivos.keys(), ...(A.G.perezosos ? A.G.perezosos.keys() : [])]; }
+const gmbTraeMapas = (A) => gmbArchivos(A).filter((r) => /^maps\/[^/]+\.bsp$/.test(r)).length;
+const gmbEsModo = (A) => typeof GMM !== 'undefined' && GMM.lista && [...GMM.lista.values()].some((x) => x && x.id === A.id);
+// (dibuja sobre la pantalla: por los hooks que puso al correr; antes de correr, por lo que dice su Lua)
+function gmbDibuja(A) {
+  for (const ev of gmbHooksDe(A)) if (GMB_EV_PANT.test(ev)) return true;
+  if (A.luaCorridos) return false;
+  return /hook\.Add\(\s*["'](RenderScreenspaceEffects|DrawOverlay|PostDrawHUD|HUDPaint)["']|DrawColorModify|DrawMaterialOverlay/.test(gmbFuente(A));
+}
+// { k: efecto | modo | armas | npcs | vehs | pms | ents | herr | props | mapa | script, n: cuántos }
+function gmbTipo(A) {
+  const I = gmbItems(A), H = gmbHerramientas(A).length, cosas = I.armas.length + I.ents.length + I.npcs.length + I.vehs.length + I.pms.length + H;
+  if (gmbEsModo(A)) return { k: 'modo', n: 0 };
+  if (!cosas && gmbDibuja(A)) return { k: 'efecto', n: 0 };
+  if (!cosas && gmbTraeMapas(A) && !(A.lua || []).length) return { k: 'mapa', n: gmbTraeMapas(A) };
+  const L = [['armas', I.armas.length], ['npcs', I.npcs.length], ['vehs', I.vehs.length], ['pms', I.pms.length], ['ents', I.ents.length], ['herr', H], ['props', I.props.length]].sort((a, b) => b[1] - a[1]);
+  return L[0][1] ? { k: L[0][0], n: L[0][1] } : { k: 'script', n: 0 };
+}
+const GMB_TIPO_TXT = { efecto: 'gmb.tEfecto', modo: 'gm.modo', armas: 'gmb.armas', npcs: 'gmb.npcs', vehs: 'gmb.vehs', pms: 'gmb.pms', ents: 'gmb.ents', herr: 'gmb.tHerr', props: 'gmb.props', script: 'gmb.tScript', mapa: 'gmb.tMapa' };
+function gmbTipoTxt(t) { return T(GMB_TIPO_TXT[t.k] || 'gmb.tScript') + (t.n ? ' · ' + t.n : ''); }
+// la imagen de la tarjeta: la del Workshop; si no, la de lo primero que trae; si no, la G
+function gmbImg(A) {
+  const u = (A.meta && A.meta.img) || (typeof PREFS !== 'undefined' && PREFS.gmod && PREFS.gmod[A.id] && PREFS.gmod[A.id].img) || '';
+  if (u) return u;
+  const I = gmbItems(A), it = I.armas[0] || I.npcs[0] || I.vehs[0] || I.ents[0] || I.pms[0] || I.props[0];
+  if (it) { const m = /src="([^"]+)"/.exec(gmbTile(it)); if (m) return m[1].replace(/&amp;/g, '&'); }
+  return GM_ICO;
+}
+// ---- prender y apagar un mod (sus hooks: gmaHook0 los saltea) ----
+const gmbApagado = (id) => typeof GMA !== 'undefined' && GMA.apagados && GMA.apagados.has(String(id));
+function gmbAlternarMod(id, on) {
+  if (typeof GMA === 'undefined' || !GMA.apagados) return;
+  id = String(id); if (on === undefined) on = GMA.apagados.has(id);
+  if (on) GMA.apagados.delete(id); else GMA.apagados.add(id);
+  try { localStorage.setItem(GMB_OFF, JSON.stringify([...GMA.apagados])); } catch (e) {}
+  const A = GMOD.addons.get(id); if (typeof aviso === 'function') aviso(`${A ? A.nombre : id}: ${T(on ? 'gmb.activado' : 'gmb.desactivado')}`, 1.4);
+  gmbDibujar();
+}
+
+// ---- el panel: la cuadrícula de mods o la página de uno ----
+function gmbAddonsVisibles() { return gmbAddons().filter((A) => gmbTipo(A).k !== 'mapa'); }
 function gmbDibujar() {
   if (!GMB.el || !GMB.abierto) return;
   const As = gmbAddons(), M = typeof GMA !== 'undefined' && GMA.modo;
-  if (!GMB.sel || (GMB.sel !== 'modo' && !GMOD.addons.has(GMB.sel)) || (GMB.sel === 'modo' && !M)) GMB.sel = M ? 'modo' : As[0] ? As[0].id : null;
-  const chip = (id, nom, img) => `<button class="gbChip${GMB.sel === id ? ' sel' : ''}" data-gb="sel:${esc(id)}">${img ? `<img alt="" src="${img}">` : ''}<span dir="auto">${esc(nom)}</span></button>`;
-  GMB.el.innerHTML = `<div class="gbCab"><img alt="" src="${GM_ICO}"><b>GMod</b><small>${As.length} ${esc(T('gmb.addons'))}</small><span class="gbEsp"></span>`
-    + `<button class="gbTienda" data-gb="tienda">${glifo('mas')}<span>${esc(T('gmb.tienda'))}</span></button><button class="mmX" data-gb="cerrar">${glifo('no')}</button></div>`
-    + (As.length || M ? `<div class="gbChips">${M ? chip('modo', GMA.modo.titulo, null) : ''}${As.map((A) => chip(A.id, A.nombre, null)).join('')}</div>`
-      + `<div class="gbBus">${glifo('buscar')}<input id="gbmQ" maxlength="40" spellcheck="false" placeholder="${esc(T('buscar'))}"></div><div class="gbCuerpo"></div>`
-      : `<div class="gbVacio"><p>${esc(T('gmb.vacio'))}</p><button class="rbBtnG" data-gb="tienda">${esc(T('gmb.tienda'))}</button></div>`);
+  if (GMB.sel && ((GMB.sel === 'modo' && !M) || (GMB.sel !== 'modo' && !GMOD.addons.has(GMB.sel)))) GMB.sel = null;
+  const cerrar = `<button class="gbTienda" data-gb="tienda">${glifo('mas')}<span>${esc(T('gmb.tienda'))}</span></button><button class="mmX" data-gb="cerrar">${glifo('no')}</button>`;
+  const bus = `<div class="gbBus">${glifo('buscar')}<input id="gbmQ" maxlength="40" spellcheck="false" placeholder="${esc(T('buscar'))}"></div>`;
+  if (!GMB.sel) {
+    GMB.el.innerHTML = `<div class="gbCab"><img alt="" src="${GM_ICO}"><b>${esc(T('gmb.mods'))}</b><small>${gmbAddonsVisibles().length + (M ? 1 : 0)}</small><span class="gbEsp"></span>${cerrar}</div>`
+      + (As.length || M ? bus + '<div class="gbCuerpo"></div>' : `<div class="gbVacio"><p>${esc(T('gmb.vacio'))}</p><button class="rbBtnG" data-gb="tienda">${esc(T('gmb.tienda'))}</button></div>`);
+  } else {
+    const A = GMB.sel === 'modo' ? null : GMOD.addons.get(GMB.sel), t = A ? gmbTipo(A) : { k: 'modo', n: 0 };
+    const tit = A ? A.nombre : M.titulo, img = A ? gmbImg(A) : GM_ICO;
+    GMB.el.innerHTML = `<div class="gbCab"><button class="gbAtras" data-gb="atras">${glifo('atras')}<span>${esc(T('gmb.mods'))}</span></button><img class="gbCabImg" alt="" src="${esc(img)}" onerror="this.src='${GM_ICO}'"><span class="gbCabT"><b dir="auto">${esc(tit)}</b><small>${esc(gmbTipoTxt(t))}</small></span><span class="gbEsp"></span>${cerrar}</div>`
+      + (t.k === 'efecto' ? '' : bus) + '<div class="gbCuerpo"></div>';
+  }
   const q = GMB.el.querySelector('#gbmQ'); if (q) { q.id = 'gmbQ'; q.value = GMB.q; }
   gmbCuerpo();
+}
+function gmbTarjeta(id, nom, img, tipo, sw) {
+  const on = sw && !gmbApagado(id);
+  return `<div class="gbMod${sw && !on ? ' off' : ''}" data-gb="ver:${esc(id)}"><img alt="" src="${esc(img)}" loading="lazy" onerror="this.src='${GM_ICO}'"><b dir="auto">${esc(nom)}</b><small>${esc(tipo)}</small>`
+    + (sw ? `<label class="gbModSw" data-gb="tog:${esc(id)}"><i class="smSw${on ? ' on' : ''}"></i></label>` : '') + '</div>';
 }
 function gmbTile(it, nom, extra) {
   let src = GM_ICO, gm = null;
@@ -154,10 +212,28 @@ function gmbSeccion(tit, html, n) { return html ? `<div class="gbSec"><h4>${esc(
 function gmbCuerpo() {
   const C = GMB.el && GMB.el.querySelector('.gbCuerpo'); if (!C) return;
   const q = GMB.q.trim().toLowerCase(), pasa = (s) => !q || String(s).toLowerCase().includes(q);
+  // la cuadrícula: el modo de juego puesto y una tarjeta por mod (sin los de mapas, que están en Mapas)
+  if (!GMB.sel) {
+    const M = typeof GMA !== 'undefined' && GMA.modo, As = gmbAddons();
+    let s = M && pasa(M.titulo + ' ' + T('gm.modo')) ? gmbTarjeta('modo', M.titulo, GM_ICO, T('gm.modo'), false) : '';
+    const tarjetas = As.map((A) => [A, gmbTipo(A)]).filter(([A, t]) => t.k !== 'mapa' && pasa(A.nombre + ' ' + gmbTipoTxt(t)))
+      .sort((a, b) => (a[1].k === 'efecto') - (b[1].k === 'efecto') || String(a[0].nombre).localeCompare(String(b[0].nombre)));
+    for (const [A, t] of tarjetas) s += gmbTarjeta(A.id, A.nombre, gmbImg(A), gmbTipoTxt(t), t.k === 'efecto');
+    const nMapas = As.filter((A) => gmbTipo(A).k === 'mapa').length;
+    C.innerHTML = (s ? `<div class="gbMods">${s}</div>` : `<div class="gbVacio"><p>${esc(T('sinRes'))}</p></div>`)
+      + (nMapas ? `<p class="gbAyuda gbMapasAviso">${glifo('mapa')}<span>${esc(T('gmb.mapasAparte').replace('%n', nMapas))}</span></p>` : '');
+    return;
+  }
   if (GMB.sel === 'modo') { C.innerHTML = gmbModoHTML(); return; }
   const A = GMOD.addons.get(GMB.sel); if (!A) { C.innerHTML = ''; return; }
-  const I = gmbItems(A), grilla = (L) => { const f = L.filter((it) => pasa(propNom(it) + ' ' + it)); return f.length ? `<div class="gbGrilla">${f.slice(0, 300).map((it) => gmbTile(it)).join('')}</div>` : ''; };
+  const t = gmbTipo(A), I = gmbItems(A), grilla = (L) => { const f = L.filter((it) => pasa(propNom(it) + ' ' + it)); return f.length ? `<div class="gbGrilla">${f.slice(0, 300).map((it) => gmbTile(it)).join('')}</div>` : ''; };
   let s = '';
+  // prendido / apagado: arriba de todo en los efectos; en los demás, si el mod corre algo propio (hooks)
+  const on = !gmbApagado(A.id), sw = `<label class="gbAj gbSw gbOnOff" data-gb="tog:${esc(A.id)}"><i class="smSw${on ? ' on' : ''}"></i><span><b>${esc(T(on ? 'gmb.activado' : 'gmb.desactivado'))}</b><small>${esc(T(t.k === 'efecto' ? 'gmb.efectoAyuda' : 'gmb.onAyuda'))}</small></span></label>`;
+  const Aj = gmbAjustes(A).filter((c) => pasa(c.n + ' ' + c.h)), ajs = Aj.length ? gmbSeccion(T('gmb.ajustes'), `<div class="gbAjs">${Aj.map(gmbCvarHTML).join('')}</div>`, Aj.length) : '';
+  if (t.k === 'efecto') { s += `<div class="gbSec gbEfecto">${sw}</div>` + ajs; }
+  else if (gmbHooksDe(A).size) s += `<div class="gbSec">${sw}</div>`;
+  if (t.k === 'modo') s += `<p class="gbAyuda">${esc(T('gmb.modoAyuda'))}</p>`;
   s += gmbSeccion(T('gmb.armas'), grilla(I.armas), I.armas.length);
   s += gmbSeccion(T('gmb.ents'), grilla(I.ents), I.ents.length);
   s += gmbSeccion(T('gmb.npcs'), grilla(I.npcs), I.npcs.length);
@@ -172,10 +248,9 @@ function gmbCuerpo() {
   // comandos
   const Cm = gmbComandos(A).filter(pasa);
   if (Cm.length) s += gmbSeccion(T('gmb.cmds'), `<div class="gbFilas">${Cm.map((n) => `<div class="gbCmd"><button class="gbFila" data-gb="cmd:${esc(n)}">${glifo('jugar')}<span>${esc(n)}</span></button><input data-arg="${esc(n)}" value="${esc(GMB.arg[n] || '')}" placeholder="${esc(T('gmb.arg'))}" spellcheck="false"></div>`).join('')}</div>`, Cm.length);
-  // ajustes
-  const Aj = gmbAjustes(A).filter((c) => pasa(c.n + ' ' + c.h));
-  if (Aj.length) s += gmbSeccion(T('gmb.ajustes'), `<div class="gbAjs">${Aj.map(gmbCvarHTML).join('')}</div>`, Aj.length);
+  if (t.k !== 'efecto') s += ajs;
   s += gmbSeccion(T('gmb.props'), grilla(I.props), I.props.length);
+  if (gmbTraeMapas(A)) s += `<p class="gbAyuda gbMapasAviso">${glifo('mapa')}<span>${esc(T('gmb.traeMapas'))}</span></p>`;
   s += gmbInfoHTML(A);
   C.innerHTML = s || `<div class="gbVacio"><p>${esc(T('sinRes'))}</p></div>`;
 }
@@ -192,7 +267,8 @@ function gmbHerNom(h) {
 function gmbCvarHTML(c) {
   // (0/1 es interruptor salvo que el nombre o la ayuda digan que es un número: colores, tamaños, tiempos, cantidades)
   const v = String(c.v), d = String(c.d), num = /^-?\d+(\.\d+)?$/.test(d), pista = c.n + ' ' + (c.h || '');
-  const color = /(^|_)(red|green|blue|r|g|b|alpha|a|color|colour|col)(_|$)|\b(red|green|blue)\b/i.test(c.n);
+  // (un canal de color va de 0 a 255; si por defecto vale un decimal entre 0 y 1 es una intensidad, aunque se llame "color")
+  const color = /(^|_)(red|green|blue|r|g|b|alpha|a|color|colour|col)(_|$)|\b(red|green|blue)\b/i.test(c.n) && !(d.includes('.') && Math.abs(+d) <= 1);
   const esNum = color || /len(gth)?|width|size|scale|speed|time|delay|dist|radius|amount|count|max|min|force|damage|dmg|health|vol(ume)?|range|rate|limit|mult|power|height|fov|\d+-\d+/i.test(pista);
   const bool = !esNum && (d === '0' || d === '1') && /^[01]$/.test(v);
   const nom = c.n.replace(/^[a-z0-9]+_/i, (x) => (x.length > 3 ? '' : x)).replace(/_/g, ' ');
@@ -222,7 +298,9 @@ function gmbModoHTML() {
 function gmbAccion(a, b, e) {
   if (a === 'cerrar') return gmbCerrar();
   if (a === 'tienda') { gmbCerrar(); if (typeof abrirTiendaGmod === 'function') return abrirTiendaGmod(); if (typeof inicioPanel === 'function' && typeof RB !== 'undefined') { RB.t.tab = 'gmod'; aviso(T('gmb.tiendaPausa'), 3); } return; }
-  if (a.startsWith('sel:')) { GMB.sel = a.slice(4); GMB.q = ''; return gmbDibujar(); }
+  if (a.startsWith('sel:') || a.startsWith('ver:')) { GMB.sel = a.slice(4); GMB.q = ''; return gmbDibujar(); }
+  if (a === 'atras') { GMB.sel = null; GMB.q = ''; return gmbDibujar(); }
+  if (a.startsWith('tog:')) { if (e) { e.preventDefault(); e.stopPropagation(); } return gmbAlternarMod(a.slice(4)); }
   if (a.startsWith('it:')) { const it = a.slice(3); if (typeof spawnElegir === 'function') { const n0 = UI.puestos || 0; spawnElegir('GMod', it); if (/^gmswep:/.test(it)) { gmbCerrar(); return; } aviso(`${T('sp.puesto')}: ${propNom(it)}`, 1.2); } return; }
   if (a.startsWith('her:')) { const [, id, nom] = a.split(':'); const A = GMOD.addons.get(id), h = A && (A.herramientas || []).find((x) => x.nombre === nom); if (h) { gmbCerrar(); gmbHerEquipar(A, h); } return; }
   if (a.startsWith('pin:')) { gmbFijar(a.slice(4)); return gmbCuerpo(); }

@@ -229,20 +229,49 @@ const ENT_PHY = (e) => GMA.metas.Entity.get('GetPhysicsObject')(e);
 // ---------------- la HUD de los addons (HUDPaint y DrawHUD del arma) ----------------
 function gmaHUDPaso() {
   if (!GMA.R || !GMA.activo) return;
-  const H = GMA.hooks.get('HUDPaint'), w = GMA.swep, hayHooks = !!(H && [...H.values()].some((h) => h.C)) || !!GMA.modo, hayArma = !!(w && w.vivo && claseTabla(w.clase, 'C'));
-  if (!hayHooks && !hayArma && !GMA.hudSucio) return;
+  const w = GMA.swep, hayArma = !!(w && w.vivo && claseTabla(w.clase, 'C'));
+  // (los hooks de la pantalla de este cuadro: los efectos —RenderScreenspaceEffects, con DrawColorModify y
+  // DrawMaterialOverlay—, la HUD y lo que va encima de todo; los de un mod apagado en el panel GMod no cuentan)
+  const hay = (ev) => { const H = GMA.hooks.get(ev); return !!(H && [...H.values()].some((h) => h.C && !(h.a && GMA.apagados.has(h.a)))); };
+  const hayEf = hay('RenderScreenspaceEffects'), hayHooks = hayEf || hay('HUDPaint') || hay('PostDrawHUD') || hay('DrawOverlay') || !!GMA.modo;
+  GMA.pp = null;
+  if (!hayHooks && !hayArma && !GMA.hudSucio) { gmaPPAplicar(null); return; }
   // (todos los cuadros, a 60; en Patata y Bajo la densidad de la pantalla hasta 1,5 en vez de 2, y el lienzo se esconde
   // cuando en el cuadro no se dibujó nada, así el celular no compone una capa transparente del tamaño de la pantalla)
   const flojo = GFX.nombre === 'patata' || GFX.nombre === 'bajo';
   const g = GMA.hudCtx(), c = GMA.hud.c, dpr = Math.min(flojo ? 1.5 : 2, devicePixelRatio || 1), W = VW(), Hh = VH();
   if (c.width !== Math.round(W * dpr) || c.height !== Math.round(Hh * dpr)) { c.width = Math.round(W * dpr); c.height = Math.round(Hh * dpr); }
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); GMA.hudSucio = false;
-  if (JUEGO.estado !== 'juego' || (!hayHooks && !hayArma)) { c.style.display = 'none'; return; }
+  if (JUEGO.estado !== 'juego' || (!hayHooks && !hayArma)) { c.style.display = 'none'; gmaPPAplicar(null); return; }
   g.setTransform(dpr, 0, 0, dpr, 0, 0); GMA.dibujoHUD = true; GMA.hudSucio = true; GMA.hudN = 0;
   const t0 = performance.now();
-  try { if (hayHooks) gmaHook('HUDPaint', 'C'); if (hayArma && JUG.vivo) metodo(w, 'DrawHUD', 'C'); }
-  finally { GMA.dibujoHUD = false; g.globalAlpha = 1; const ver = GMA.hudN > 0 ? '' : 'none'; if (c.style.display !== ver) c.style.display = ver; }
+  try {
+    if (hayEf) gmaHook('RenderScreenspaceEffects', 'C');
+    if (hayHooks) { gmaHook('HUDPaint', 'C'); gmaHook('PostDrawHUD', 'C'); }
+    if (hayArma && JUG.vivo) metodo(w, 'DrawHUD', 'C');
+    if (hayHooks) gmaHook('DrawOverlay', 'C');
+  } finally { GMA.dibujoHUD = false; g.globalAlpha = 1; const ver = GMA.hudN > 0 ? '' : 'none'; if (c.style.display !== ver) c.style.display = ver; gmaPPAplicar(GMA.pp); }
   const ms = performance.now() - t0; GMA.msHUD = GMA.msHUD === undefined ? ms : GMA.msHUD * 0.95 + ms * 0.05;
+}
+
+// DrawColorModify de los addons, sobre la imagen del juego y debajo de la HUD: el contraste (que en GMod multiplica) y la
+// saturación con un filtro del lienzo; lo que suma (color y brillo) con una capa encima que suma, y lo que resta, con
+// una que multiplica. Sólo se toca el estilo cuando cambia (un cuadro sin el efecto lo saca)
+function gmaPPAplicar(pp) {
+  const cv = typeof R !== 'undefined' && R.cv; if (!cv) return;
+  const r3 = (x) => Math.round(x * 1000) / 1000;
+  const f = pp ? `brightness(${r3(Math.max(0, pp.con))}) saturate(${r3(Math.max(0, pp.col))})` : '';
+  if (GMA.ppF !== f) { GMA.ppF = f; cv.style.filter = f; }
+  let capa = GMA.ppCapa;
+  const suma = pp ? pp.add.map((a) => Math.max(0, a + pp.bri)) : [0, 0, 0], resta = pp ? pp.add.map((a) => Math.max(0, -(a + pp.bri))) : [0, 0, 0];
+  const k = suma.concat(resta).map(r3).join(',');
+  if (GMA.ppK === k) return; GMA.ppK = k;
+  if (!capa) {
+    let ant = cv; capa = GMA.ppCapa = [0, 1].map((i) => { const d = document.createElement('div'); d.className = 'gmPP'; d.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:1;display:none;mix-blend-mode:' + (i ? 'multiply' : 'plus-lighter'); ant.after(d); ant = d; return d; });
+  }
+  const c255 = (x) => Math.round(Math.min(1, x) * 255);
+  capa[0].style.display = suma.some((x) => x > 0.002) ? '' : 'none'; capa[0].style.background = `rgb(${suma.map(c255).join(',')})`;
+  capa[1].style.display = resta.some((x) => x > 0.002) ? '' : 'none'; capa[1].style.background = `rgb(${resta.map((x) => c255(1 - x)).join(',')})`;
 }
 
 // ---------------- menú de props: entidades (gment:) y armas (gmswep:) de los addons ----------------

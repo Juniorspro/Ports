@@ -5,7 +5,9 @@
 // ve pulgadas y Z arriba (Source); el juego, metros e Y arriba: se convierte en el borde. Lo que más usan los addons
 // reales (análisis de 111 addons: Vector, Angle, ents.Create, hook, timer, net, util.TraceLine, surface/draw, SWEP...)
 // está; lo que falta responde algo neutro en vez de romper el addon.
-const GMA = { R: null, ctx: 'S', hooks: new Map(), timers: new Map(), tSimples: [], net: { S: new Map(), C: new Map() }, ents: new Map(), nid: 1000, clases: new Map(), armas: new Map(), efectos: new Map(), cvars: new Map(), lista: null, fuentes: new Map(), errores: [], cargados: new Set(), hud: null, entPorObj: new WeakMap(), jug: null, mundo: null, swep: null, dibujoHUD: false };
+const GMA = { R: null, ctx: 'S', hooks: new Map(), timers: new Map(), tSimples: [], net: { S: new Map(), C: new Map() }, ents: new Map(), nid: 1000, clases: new Map(), armas: new Map(), efectos: new Map(), cvars: new Map(), lista: null, fuentes: new Map(), errores: [], cargados: new Set(), hud: null, entPorObj: new WeakMap(), jug: null, mundo: null, swep: null, dibujoHUD: false,
+  // (los mods apagados en el panel GMod —los efectos de pantalla, por ejemplo—: sus hooks no corren; quedan guardados)
+  apagados: (() => { try { return new Set(JSON.parse(localStorage.getItem('rb_gmb_apagados') || '[]').map(String)); } catch (e) { return new Set(); } })(), hookAddon: null };
 const GS = 0.0254;
 const gmaErr = (m) => {
   m = String(m); GMA.ultErr = true; const A = GMA.addonActual; if (A && A.luaErr && A.luaErr.length < 50) A.luaErr.push(m);
@@ -901,7 +903,8 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
     const bt = prm instanceof LuaTable ? prm.get('$basetexture') : undefined; return gmaMaterial(typeof bt === 'string' && bt ? bt : String(n || '')); }); def(G, 'Matrix', () => ({ m: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], __mt: GMA.mtVacio }));
   def(G, 'GetGlobalInt', (k, d) => GMA.glob?.get(k) ?? d ?? 0); def(G, 'GetGlobalFloat', (k, d) => GMA.glob?.get(k) ?? d ?? 0); def(G, 'GetGlobalBool', (k, d) => GMA.glob?.get(k) ?? d ?? false); def(G, 'GetGlobalString', (k, d) => GMA.glob?.get(k) ?? d ?? ''); def(G, 'GetGlobalEntity', (k) => GMA.glob?.get(k) ?? NULL_ENT); def(G, 'GetGlobalVector', (k) => GMA.glob?.get(k) ?? GMA.nv(0, 0, 0)); def(G, 'GetGlobalAngle', (k) => GMA.glob?.get(k) ?? GMA.na(0, 0, 0));
   for (const t of ['Int', 'Float', 'Bool', 'String', 'Entity', 'Vector', 'Angle', 'Var']) { def(G, 'SetGlobal' + t, (k, v) => { (GMA.glob || (GMA.glob = new Map())).set(k, v); }); def(G, 'SetGlobal2' + t, (k, v) => { (GMA.glob || (GMA.glob = new Map())).set(k, v); }); def(G, 'GetGlobal2' + t, (k, d) => GMA.glob?.get(k) ?? d); }
-  def(G, 'GetRenderTarget', () => gmaMaterial('rt')); def(G, 'GetRenderTargetEx', () => gmaMaterial('rt')); def(G, 'DrawBloom', () => {}); for (const n of ['DrawBokehDOF', 'DOFModeHack', 'DOF_Start', 'DOF_Kill', 'RenderDoF', 'RenderSuperDoF', 'RenderStereoscopy', 'DrawTexturize']) if (G.get(n) === undefined) def(G, n, () => {}); def(G, 'DrawColorModify', () => {}); def(G, 'DrawMotionBlur', () => {}); def(G, 'DrawSharpen', () => {}); def(G, 'DrawSobel', () => {}); def(G, 'DrawToyTown', () => {}); def(G, 'DrawSunbeams', () => {}); def(G, 'DrawMaterialOverlay', () => {}); def(G, 'DrawTexturize', () => {});
+  def(G, 'GetRenderTarget', () => gmaMaterial('rt')); def(G, 'GetRenderTargetEx', () => gmaMaterial('rt')); def(G, 'DrawBloom', () => {}); for (const n of ['DrawBokehDOF', 'DOFModeHack', 'DOF_Start', 'DOF_Kill', 'RenderDoF', 'RenderSuperDoF', 'RenderStereoscopy', 'DrawTexturize']) if (G.get(n) === undefined) def(G, n, () => {}); def(G, 'DrawColorModify', (t) => { if (!(t instanceof LuaTable)) return; const g = (k, d) => num(t.get('$pp_colour_' + k), d);   // (se aplica al terminar el cuadro: gmaPPAplicar)
+    GMA.pp = { add: [g('addr', 0), g('addg', 0), g('addb', 0)], bri: g('brightness', 0), con: g('contrast', 1), col: g('colour', 1), mul: [g('mulr', 0), g('mulg', 0), g('mulb', 0)] }; }); def(G, 'DrawMotionBlur', () => {}); def(G, 'DrawSharpen', () => {}); def(G, 'DrawSobel', () => {}); def(G, 'DrawToyTown', () => {}); def(G, 'DrawSunbeams', () => {}); if (G.get('DrawMaterialOverlay') === undefined) def(G, 'DrawMaterialOverlay', () => {}); def(G, 'DrawTexturize', () => {});
   def(G, 'Format', (...a) => R.c(R.G.get('string').get('format'), 'format', ...a));
   // (list.Set de NPC y de vehículos: lo que cada addon agrega al menú de GMod; gmod_spawn.js lo pone en el mundo)
   def(G, '__gmLista', (n, k, v) => { n = String(n); if ((n !== 'NPC' && n !== 'Vehicles') || !(v instanceof LuaTable)) return; const A = GMA.addonActual; if (!A) return; const L = (A.listas = A.listas || {}); (L[n] = L[n] || new Map()).set(String(k), v); });
@@ -963,7 +966,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   def(timer, 'Pause', (id) => { const T = GMA.timers.get(TK(id)); if (T) { T.pausa = true; T.resta = T.t - TIEMPO.t; } return !!T; }); def(timer, 'UnPause', (id) => { const T = GMA.timers.get(TK(id)); if (T) { T.pausa = false; if (T.resta !== undefined) T.t = TIEMPO.t + T.resta; } return !!T; });
   def(timer, 'Toggle', (id) => { const T = GMA.timers.get(TK(id)); if (T) T.pausa = !T.pausa; return !!T && !T.pausa; }); def(timer, 'TimeLeft', (id) => { const T = GMA.timers.get(TK(id)); return T ? T.t - TIEMPO.t : undefined; }); def(timer, 'RepsLeft', (id) => { const T = GMA.timers.get(TK(id)); return T ? T.r : undefined; }); def(timer, 'Check', () => {});
   const hook = lib('hook');
-  def(hook, 'Add', (ev, id, f) => { if (typeof ev !== 'string' || id === undefined || typeof f !== 'function') return; let H = GMA.hooks.get(ev); if (!H) GMA.hooks.set(ev, (H = new Map())); let h = H.get(id); if (!h) H.set(id, (h = {})); h[ctxReg()] = f; h['n' + ctxReg()] = 0; });
+  def(hook, 'Add', (ev, id, f) => { if (typeof ev !== 'string' || id === undefined || typeof f !== 'function') return; let H = GMA.hooks.get(ev); if (!H) GMA.hooks.set(ev, (H = new Map())); let h = H.get(id); if (!h) H.set(id, (h = {})); h[ctxReg()] = f; h.a = GMA.addonActual ? GMA.addonActual.id : GMA.hookAddon || h.a || null; h['n' + ctxReg()] = 0; });
   def(hook, 'Remove', (ev, id) => { const H = GMA.hooks.get(ev), h = H && H.get(id); if (!h) return; delete h[ctxReg()]; if (!h.S && !h.C) H.delete(id); });
   def(hook, 'Run', (ev, ...a) => gmaHook(String(ev), GMA.ctx, ...a)); def(hook, 'Call', (ev, gm, ...a) => { const r = gmaHook0(String(ev), GMA.ctx, ...a); if (r.length && r[0] !== undefined) return r; if (gm instanceof LuaTable) { const f = gm.get(ev); if (typeof f === 'function') return R.c(f, ev, gm, ...a); } return E0; });
   def(hook, 'GetTable', () => { const t = new LuaTable(), c = ctxReg(); for (const [ev, H] of GMA.hooks) { const s = new LuaTable(); for (const [id, h] of H) if (h[c]) s.set(id, h[c]); t.set(ev, s); } return t; });
@@ -1050,9 +1053,11 @@ function gmaHook0(ev, ctx, ...a) {
   for (const [id, h] of [...H]) {
     const obj = typeof id === 'object' && id !== null;
     if (obj && id instanceof LEnt && !entValida(id)) { H.delete(id); continue; }
+    if (h.a && GMA.apagados.size && GMA.apagados.has(h.a)) continue;
     for (const c of ctx === 'SC' ? 'SC' : ctx) {
       const f = h[c]; if (!f) continue;
-      GMA.ultErr = false; const r = obj ? gmLlamar(f, c, id, ...a) : gmLlamar(f, c, ...a);
+      const ha0 = GMA.hookAddon; GMA.hookAddon = h.a || null;
+      GMA.ultErr = false; let r; try { r = obj ? gmLlamar(f, c, id, ...a) : gmLlamar(f, c, ...a); } finally { GMA.hookAddon = ha0; }
       if (GMA.ultErr) { if (++h['n' + c] > 300) { delete h[c]; gmaErr('hook ' + ev + ' ' + String(obj ? '(entidad)' : id) + ' sacado: falla siempre'); if (!h.S && !h.C) H.delete(id); } } else h['n' + c] = 0;
       if (r.length && r[0] !== undefined) return r;
     }
@@ -1130,7 +1135,8 @@ function gmaALua(o) { if (Array.isArray(o)) return GMA.R.tab(o.map(gmaALua)); if
 function gmaApiDibujo(R, G, def, lib, num) {
   const surface = lib('surface'), draw = lib('draw');
   const S = (GMA.dib = { col: [255, 255, 255, 255], tcol: [255, 255, 255, 255], mat: null, fuente: '13px Tahoma, sans-serif', tx: 0, ty: 0 });
-  const ctx = () => { if (GMA.dibujoHUD) GMA.hudN++; if (GMA.lienzo) return GMA.lienzo; if (!GMA.hud) { const c = document.createElement('canvas'); c.id = 'gmHUD'; c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:30'; document.body.appendChild(c); GMA.hud = { c, g: c.getContext('2d') }; } return GMA.hud.g; };
+  // (el lienzo de la HUD de los addons: encima de la HUD del juego, debajo de los menús y los paneles, como en GMod)
+  const ctx = () => { if (GMA.dibujoHUD) GMA.hudN++; if (GMA.lienzo) return GMA.lienzo; if (!GMA.hud) { const c = document.createElement('canvas'); c.id = 'gmHUD'; c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:4'; document.body.appendChild(c); GMA.hud = { c, g: c.getContext('2d') }; } return GMA.hud.g; };
   GMA.hudCtx = ctx;
   const rgba = (c) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${(c[3] ?? 255) / 255})`;
   const col = (r, g, b, a) => (r instanceof LuaTable ? [r.get('r') ?? 255, r.get('g') ?? 255, r.get('b') ?? 255, r.get('a') ?? 255] : [num(r, 255), num(g, 255), num(b, 255), a === undefined ? 255 : num(a, 255)]);
@@ -1147,6 +1153,9 @@ function gmaApiDibujo(R, G, def, lib, num) {
   def(surface, 'DrawPoly', (t) => { if (!(t instanceof LuaTable) || !t.a.length) return; const g = ctx(); g.fillStyle = rgba(S.col); g.beginPath(); t.a.forEach((p, i) => { const x = p.get('x'), y = p.get('y'); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.closePath(); g.fill(); });
   def(surface, 'SetMaterial', (m) => { S.mat = m; }); def(surface, 'SetTexture', (m) => { S.mat = typeof m === 'object' ? m : null; }); def(surface, 'GetTextureID', (p) => gmaMaterial(String(p || ''))); def(surface, 'NoTexture', () => { S.mat = null; });
   const tex = (x, y, w, h, u0 = 0, v0 = 0, u1 = 1, v1 = 1) => { const g = ctx(); const m = S.mat; if (m && m.img) { g.globalAlpha = (S.col[3] ?? 255) / 255; g.drawImage(m.img, u0 * m.w, v0 * m.h, Math.max(1, (u1 - u0) * m.w), Math.max(1, (v1 - v0) * m.h), x, y, w, h); g.globalAlpha = 1; } else { g.fillStyle = rgba(S.col); g.fillRect(x, y, w, h); } };
+  // (DrawMaterialOverlay: el material estirado a toda la pantalla, en la capa de la HUD —antes que HUDPaint—: las
+  // "pantallas" de los efectos, como el ruido y las líneas de un VHS)
+  def(G, 'DrawMaterialOverlay', (m) => { if (!GMA.dibujoHUD) return; const M = typeof m === 'string' ? (m ? gmaMaterial(m) : null) : m && m.n !== undefined ? m : null; if (!M || !M.img) return; const g = ctx(); g.globalAlpha = 1; g.drawImage(M.img, 0, 0, VW(), VH()); });
   def(surface, 'DrawTexturedRect', (x, y, w, h) => tex(num(x, 0), num(y, 0), num(w, 0), num(h, 0))); def(surface, 'DrawTexturedRectUV', (x, y, w, h, a, b, c, d) => tex(num(x, 0), num(y, 0), num(w, 0), num(h, 0), a, b, c, d));
   def(surface, 'DrawTexturedRectRotated', (x, y, w, h, r) => { const g = ctx(); g.save(); g.translate(num(x, 0), num(y, 0)); g.rotate(-num(r, 0) * RAD); tex(-w / 2, -h / 2, w, h); g.restore(); });
   def(surface, 'PlaySound', (s) => gmaSonar(String(s), null, 1, 100)); def(surface, 'ScreenWidth', () => VW()); def(surface, 'ScreenHeight', () => VH()); def(surface, 'GetHUDTexture', () => null); def(surface, 'DisableClipping', () => {}); def(surface, 'DrawTexturedRectRotatedPoint', () => {});
