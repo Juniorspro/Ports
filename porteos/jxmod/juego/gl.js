@@ -692,6 +692,40 @@ function progDe(clave, modo) {
 }
 function progsLimpiar() { const gl = R.gl; if (R._pe) R._pe.k++;   // (los programas guardados en cada material —progDeP— quedan viejos)
  for (const P of R.progs.values()) gl.deleteProgram(P.p); R.progs.clear(); for (const o of R.progsPend.values()) gl.deleteProgram(o.p); R.progsPend.clear(); }
+// El estado que el navegador no guarda de su lado (el viewport, el recorte, las máscaras, la mezcla, el color de borrado):
+// preguntarlo con getParameter frena el hilo del juego hasta que la placa termina todo lo pendiente (unos 150 µs en la
+// compu sin nada pendiente; en un celular, con la escena encolada, mucho más). Los mods guardan y vuelven a poner ese
+// estado en cada operación de dibujo (gmod_rt.js): el Viewfinder hace 1024 borrados al cargarse y el juego quedaba
+// congelado minutos. Acá se lleva una copia al ponerlo y getParameter la contesta sin ir a la placa.
+function glSombra(gl) {
+  const S = { vp: Array.from(gl.getParameter(gl.VIEWPORT)), sc: Array.from(gl.getParameter(gl.SCISSOR_BOX)), dm: !!gl.getParameter(gl.DEPTH_WRITEMASK), cm: gl.getParameter(gl.COLOR_WRITEMASK).map((x) => !!x),
+    bs: gl.getParameter(gl.BLEND_SRC_RGB), bd: gl.getParameter(gl.BLEND_DST_RGB), bsa: gl.getParameter(gl.BLEND_SRC_ALPHA), bda: gl.getParameter(gl.BLEND_DST_ALPHA), be: gl.getParameter(gl.BLEND_EQUATION_RGB), bea: gl.getParameter(gl.BLEND_EQUATION_ALPHA),
+    cc: Array.from(gl.getParameter(gl.COLOR_CLEAR_VALUE)), vpMax: Array.from(gl.getParameter(gl.MAX_VIEWPORT_DIMS)) };
+  const o = {}; for (const k of ['viewport', 'scissor', 'depthMask', 'colorMask', 'blendFunc', 'blendFuncSeparate', 'blendEquation', 'blendEquationSeparate', 'clearColor', 'getParameter']) o[k] = gl[k].bind(gl);
+  const ent = (x) => x | 0, c01 = (x) => Math.min(1, Math.max(0, +x || 0));
+  gl.viewport = (x, y, w, h) => { o.viewport(x, y, w, h); w = ent(w); h = ent(h); if (w >= 0 && h >= 0) S.vp = [ent(x), ent(y), Math.min(w, S.vpMax[0]), Math.min(h, S.vpMax[1])]; };
+  gl.scissor = (x, y, w, h) => { o.scissor(x, y, w, h); w = ent(w); h = ent(h); if (w >= 0 && h >= 0) S.sc = [ent(x), ent(y), w, h]; };
+  gl.depthMask = (f) => { o.depthMask(f); S.dm = !!f; };
+  gl.colorMask = (r, g, b, a) => { o.colorMask(r, g, b, a); S.cm = [!!r, !!g, !!b, !!a]; };
+  gl.blendFunc = (s, d) => { o.blendFunc(s, d); S.bs = S.bsa = s; S.bd = S.bda = d; };
+  gl.blendFuncSeparate = (s, d, sa, da) => { o.blendFuncSeparate(s, d, sa, da); S.bs = s; S.bd = d; S.bsa = sa; S.bda = da; };
+  gl.blendEquation = (m) => { o.blendEquation(m); S.be = S.bea = m; };
+  gl.blendEquationSeparate = (m, ma) => { o.blendEquationSeparate(m, ma); S.be = m; S.bea = ma; };
+  gl.clearColor = (r, g, b, a) => { o.clearColor(r, g, b, a); S.cc = [c01(r), c01(g), c01(b), c01(a)]; };
+  gl.getParameter = (p) => {
+    switch (p) {
+      case gl.VIEWPORT: return new Int32Array(S.vp);
+      case gl.SCISSOR_BOX: return new Int32Array(S.sc);
+      case gl.DEPTH_WRITEMASK: return S.dm;
+      case gl.COLOR_WRITEMASK: return S.cm.slice();
+      case gl.BLEND_SRC_RGB: return S.bs; case gl.BLEND_DST_RGB: return S.bd; case gl.BLEND_SRC_ALPHA: return S.bsa; case gl.BLEND_DST_ALPHA: return S.bda;
+      case gl.BLEND_EQUATION_RGB: return S.be; case gl.BLEND_EQUATION_ALPHA: return S.bea;
+      case gl.COLOR_CLEAR_VALUE: return new Float32Array(S.cc);
+      default: return o.getParameter(p);
+    }
+  };
+  R.sombra = S;
+}
 function glIniciar() {
   const cv = $('cv'); R.cv = cv;
   const op = { antialias: false, alpha: true, depth: true, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: TEST };
@@ -700,12 +734,16 @@ function glIniciar() {
   if (!gl) gl = (Q.get('gl') === '2' || (PREFS.motor === 'webgl2' && Q.get('gl') !== '1')) ? cv.getContext('webgl2', op) : null;
   if (!gl) { gl = cv.getContext('webgl', op) || cv.getContext('experimental-webgl', op); R.gl1 = true; }
   if (!gl) throw new Error('webgl');
-  R.gl = gl; R.progsPend = new Map();
+  R.gl = gl; R.progsPend = new Map(); if (Q.get('sombra') !== '0') glSombra(gl);
   R.kpar = Q.get('kpar') === '0' ? null : gl.getExtension('KHR_parallel_shader_compile');   // (compilar sin frenar: ver progDe; ?kpar=0 lo apaga para comparar)
   // si el aparato se queda sin memoria (o la app pasa a segundo plano mucho tiempo) el navegador puede perder el contexto
   // de WebGL: antes la pantalla quedaba negra para siempre. Se deja de dibujar y, cuando el navegador lo devuelve, se
   // recarga (rehacer cada malla, textura y shader a mano es justo lo que puede volver a fallar)
-  cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); R.perdido = true; if (typeof cierrePorWebGL === 'function') cierrePorWebGL(); try { aviso(T('gfx.recupera'), 3); } catch (x) {} }, false);
+  // (si el navegador no lo devuelve en 10 s —pasa cuando bloquea el WebGL de la página después de una caída de la placa—,
+  // se recarga igual: antes quedaba la última imagen congelada para siempre, con el juego vivo por detrás)
+  cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); R.perdido = true; if (typeof cierrePorWebGL === 'function') cierrePorWebGL(); try { aviso(T('gfx.recupera'), 3); } catch (x) {}
+    if (typeof cnAnotar === 'function') cnAnotar('GL', 'se perdió el contexto de WebGL' + (typeof CN !== 'undefined' && CN.paso ? ' (en: ' + CN.paso + ')' : ''), true);
+    setTimeout(() => { if (!R.perdido) return; if (typeof cnAnotar === 'function') cnAnotar('GL', 'no volvió en 10 s: se recarga', true); const u = new URL(location.href); u.searchParams.set('caida', 'webgl'); location.replace(u.href); }, 10000); }, false);
   cv.addEventListener('webglcontextrestored', () => { location.reload(); }, false);
   if (R.gl1) gl1Preparar(gl);
   else {

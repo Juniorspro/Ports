@@ -101,18 +101,34 @@ function cnMostrar(trabado, extra) {
   return txt;
 }
 // (con el juego listo: si la vez anterior se trabó, se avisa; si fue adentro de un mod, ese mod se apaga)
-function cnRevisar() {
-  if (!cnTerminoMal() || !CN_ANT) return;
+// (lo que se apaga va antes de montar los mods —gmArrancar lo llama primero—: si no, el mod volvería a trabar el juego
+// antes de que se muestre el aviso)
+function cnCuarentena() {
+  if (cnCuarentena.hecho !== undefined) return cnCuarentena.hecho;
+  cnCuarentena.hecho = '';
+  if (!cnTerminoMal() || !CN_ANT) return '';
   let extra = '';
-  const id = CN_ANT.paso && CN_ANT.addon;
-  if (id && typeof GMA !== 'undefined' && GMA.apagados && !GMA.apagados.has(id)) {
+  const id = CN_ANT.paso && CN_ANT.addon, n = id && ((typeof PREFS !== 'undefined' && PREFS.gmod && PREFS.gmod[id] && PREFS.gmod[id].n) || id);
+  // (si se trabó corriendo su Lua al cargarse, apagar sus hooks no alcanza: la próxima vez se volvería a trabar al abrir.
+  // Queda montado pero sin correr su Lua, hasta que se lo vuelve a cargar desde su página)
+  if (id && /^(corriendo el Lua|montando) /.test(CN_ANT.paso) && typeof GMA !== 'undefined' && GMA.trabados && !GMA.trabados.has(id)) {
+    GMA.trabados.add(id); if (typeof gmaTrabadosGuardar === 'function') gmaTrabadosGuardar();
+    extra = Lc('So it does not freeze again, the mod "' + n + '" was not loaded. You can load it again from its page (GMod button).', 'Para que no se vuelva a trabar, el mod «' + n + '» quedó sin cargar. Lo podés volver a cargar desde su página (botón GMod).');
+    cnAnotar('seguro', 'mod sin cargar por el cuelgue: ' + id, true);
+  } else if (id && typeof GMA !== 'undefined' && GMA.apagados && !GMA.apagados.has(id)) {
     GMA.apagados.add(id); try { localStorage.setItem('rb_gmb_apagados', JSON.stringify([...GMA.apagados])); } catch (e) {}
-    const n = (typeof PREFS !== 'undefined' && PREFS.gmod && PREFS.gmod[id] && PREFS.gmod[id].n) || id;
     extra = Lc('So it does not freeze again, the mod "' + n + '" was turned off. You can turn it back on in its page (GMod button).', 'Para que no se vuelva a trabar, apagué el mod «' + n + '». Lo podés volver a prender en su página (botón GMod).');
     cnAnotar('seguro', 'mod apagado por el cuelgue: ' + id, true);
   }
+  return (cnCuarentena.hecho = extra);
+}
+function cnRevisar() {
+  if (!cnTerminoMal() || !CN_ANT) return;
+  let extra = cnCuarentena();
   if (Q.get('seguro')) extra += (extra ? ' ' : '') + Lc('Safe mode: mods were not loaded.', 'Modo seguro: los mods no se cargaron esta vez.');
   cnMostrar(true, extra);
   try { if (window.JXNativo && JXNativo.registroVisto) JXNativo.registroVisto(); } catch (e) {}
+  // (sin el aviso en la dirección: si la página se recarga sola, no se vuelve a mostrar lo mismo)
+  try { const u = new URL(location.href); u.searchParams.delete('colgado'); u.searchParams.delete('caida'); history.replaceState(null, '', u.href); } catch (e) {}
 }
 setInterval(() => cnGuardar(true), 2000);

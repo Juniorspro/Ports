@@ -39,6 +39,8 @@ function gmaHooksNuevos(antes, ev, ...a) {
 function gmLuaMontar(A) {
   delete A._efObj; if (GMA.fantasmas) GMA.fantasmas.delete(A.id);
   if (!A || !A.lua || !A.lua.length) return;
+  if (GMA.trabados && GMA.trabados.has(A.id)) { A.trabado = true; return; }
+  A.trabado = false;
   const t0 = performance.now();
   if (typeof cnPaso === 'function') cnPaso('corriendo el Lua del mod ' + A.nombre, A.id);
   gmaIniciar(); const R = GMA.R, G = R.G;

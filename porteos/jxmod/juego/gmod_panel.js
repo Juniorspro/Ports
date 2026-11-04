@@ -330,7 +330,9 @@ function gmbInfoHTML(A) {
   const err = (A.luaErr || []).length, falt = (A.faltanModelos || []).length;
   const filas = [[T('gmb.archivos'), A.G.archivos.size + (A.G.perezosos ? A.G.perezosos.size : 0)], [T('gmb.lua'), `${A.luaCorridos || 0} / ${(A.lua || []).length}`], [T('gmb.errores'), err], [T('gmb.modelosFaltan'), falt]];
   const ex = err ? `<pre class="gbErr">${esc((A.luaErr || []).slice(0, 5).join('\n'))}</pre>` : '';
-  return gmbSeccion(T('gmb.info'), `<div class="gbInfo">${filas.map(([k, v]) => `<span>${esc(k)}: <b>${esc(String(v))}</b></span>`).join('')}</div>${ex}`);
+  // (un mod que trabó el juego al cargarse: su Lua no corrió; se puede volver a cargar)
+  const trab = A.trabado ? `<p class="gbAyuda">${glifo('info')}<span>${esc(Lc('This mod froze the game while loading, so it was not loaded.', 'Este mod trabó el juego al cargarse, así que quedó sin cargar.'))}</span></p><div class="gbFilas"><button class="gbFila" data-gb="cargar:${esc(A.id)}">${glifo('jugar')}<span>${esc(Lc('Load it again', 'Volver a cargarlo'))}</span></button></div>` : '';
+  return gmbSeccion(T('gmb.info'), `${trab}<div class="gbInfo">${filas.map(([k, v]) => `<span>${esc(k)}: <b>${esc(String(v))}</b></span>`).join('')}</div>${ex}`);
 }
 function gmbModoHTML() {
   const M = GMA.modo; if (!M) return '';
@@ -351,6 +353,7 @@ function gmbAccion(a, b, e) {
   if (a === 'atras') { GMB.sel = null; GMB.q = ''; return gmbDibujar(); }
   if (a.startsWith('mal:')) { const k = a.slice(4); GMB.malAbierto = GMB.malAbierto || {}; GMB.malAbierto[k] = !GMB.malAbierto[k]; return gmbCuerpo(); }
   if (a.startsWith('sie:')) { if (e) { e.preventDefault(); e.stopPropagation(); } const id = a.slice(4), on = gmaSiempreAlternar(id), A = GMOD.addons.get(id); if (typeof aviso === 'function') aviso(`${A ? A.nombre : id} · ${T('gmb.siempre')}: ${T(on ? 'gmb.activado' : 'gmb.desactivado')}`, 1.4); return gmbDibujar(); }
+  if (a.startsWith('cargar:')) { const id = a.slice(7), A = GMOD.addons.get(id); GMA.trabados.delete(id); gmaTrabadosGuardar(); if (A && typeof gmLuaMontar === 'function') { try { gmLuaMontar(A); } catch (x) { gmErr('lua ' + id, x); } gmMenu(); } return gmbDibujar(); }
   if (a.startsWith('tog:')) { if (e) { e.preventDefault(); e.stopPropagation(); } return gmbAlternarMod(a.slice(4)); }
   if (a.startsWith('it:')) { const it = a.slice(3); if (typeof spawnElegir === 'function') { const n0 = UI.puestos || 0; spawnElegir('GMod', it); if (/^gmswep:/.test(it)) { gmbCerrar(); return; } aviso(`${T('sp.puesto')}: ${propNom(it)}`, 1.2); } return; }
   if (a.startsWith('her:')) { const [, id, nom] = a.split(':'); const A = GMOD.addons.get(id), h = A && (A.herramientas || []).find((x) => x.nombre === nom); if (h) { gmbCerrar(); gmbHerEquipar(A, h); } return; }

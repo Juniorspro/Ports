@@ -1434,3 +1434,43 @@ mods y mapas bajados no aparecían.
   `vhs_viewfinder` 4/4, `gmod_panel` 18/18, `mods_cuadricula` 18/18 y `lua_goto` 13/13.
 - Sin probar en un celular de verdad: el cuelgue exacto no se pudo reproducir acá. Si vuelve a pasar, el registro dice
   en qué paso quedó.
+
+## JXMod 2.9-prueba10: el juego ya no se congela al montar el Viewfinder
+
+En la prueba9 el juego seguía quedando congelado con el Viewfinder «al 99 %» (captura del usuario: menú principal, la
+descarga girando y nada más respondiendo).
+
+- **La causa** (medida con el perfilador en un celular simulado, procesador 4 veces más lento): al cargarse, el
+  Viewfinder dibuja la textura de ruido de su visión nocturna borrando 1024 cuadraditos de a uno (`render.Clear` con
+  `render.SetViewPort`). Por cada operación de dibujo de un mod, el juego guardaba el estado de WebGL y lo volvía a poner
+  (`gmrtGuardar` en `gmod_rt.js`) preguntándoselo a la placa con `getParameter`. Once de esas preguntas (viewport,
+  recorte, máscaras, mezcla, color de borrado) no las contesta el navegador de su lado: esperan a que la placa termine
+  todo lo pendiente (~150 µs cada una en la compu sin nada encolado). Resultado: 256 s de los 267 s medidos se iban en
+  `getParameter`, y el «99 %» era el Lua del mod corriendo con el juego congelado.
+- **El arreglo** (`juego/gl.js`, `glSombra`): el juego lleva una copia de ese estado cuando lo pone (viewport, scissor,
+  depthMask, colorMask, blendFunc/Separate, blendEquation/Separate, clearColor) y `getParameter` la contesta sin ir a la
+  placa. Sirve para cualquier mod que dibuje en render targets, no sólo el Viewfinder. Con `?sombra=0`, como antes.
+- **Un mod que traba el juego al cargarse queda sin cargar** (`gmod_api.js`, `gmod_cargar.js`, `cajanegra.js`,
+  `gmod_panel.js`): si la caja negra dice que la vez anterior se trabó corriendo el Lua de un mod (o montándolo), al
+  abrir ese mod queda montado pero sin correr su Lua (antes sólo se apagaban sus hooks, y al abrir se volvía a trabar;
+  ahora se decide antes de montar los mods). El aviso lo explica y su página del panel GMod tiene «Volver a cargarlo».
+- **WebGL perdido que no vuelve**: si el navegador no devuelve el contexto en 10 s, el juego se recarga solo y avisa
+  (antes quedaba la última imagen congelada para siempre, con el juego vivo por detrás y el latido llegando a la app).
+- El paso «montando el mod» se anota sólo mientras se monta, no mientras se espera a la caché (no culpa a un mod por
+  una espera).
+
+| Celular simulado (procesador ×4), menú principal, Viewfinder por la cola | prueba9 | prueba10 |
+|---|---|---|
+| Bajado y montado | no termina: queda en «montando 99 %» | 12,3 s |
+| Juego congelado (el peor hueco) | ~250 s (perfil: 256 s en `getParameter`) | 2,2 s |
+| Latidos a la app mientras tanto | se cortan | siguen (12 en 12 s) |
+| Si se traba en el Lua de un mod | se vuelve a trabar al abrir | queda sin cargar, «Volver a cargarlo» |
+| WebGL perdido que no vuelve | imagen congelada para siempre | se recarga a los ~11 s |
+
+- La imagen no cambia: misma escena en Bajo, Medio, Alto y Ultra con y sin la copia del estado, diferencia media
+  0,54–1,51 (de 255); dos capturas iguales sin el arreglo ya difieren 0,22–1,45.
+- Prueba nueva: `pruebas/montar_sin_trabar.mjs` 4/4 (con `ANTES=1`, la versión sin el arreglo queda en «montando
+  99 %» con el hilo del juego trabado más de 25 s). Siguen pasando `caja_negra` 5/5, `mods_no_se_pierden` 4/4,
+  `vhs_viewfinder` 4/4, `efecto_siempre` 5/5, `descarga_trabada` 4/4, `server_mods_carga` 4/4, `gmod_panel` 18/18,
+  `mods_cuadricula` 18/18 y `lua_goto` 13/13.
+- Sin probar en un celular de verdad.

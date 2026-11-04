@@ -928,18 +928,19 @@ async function gmImportarArchivo(f) {
 async function gmArrancar(otraVez) {
   // (modo seguro: la app lo pide después de varios cuelgues seguidos; los mods quedan instalados pero no se cargan)
   if (Q.get('seguro') && !otraVez && !gmArrancar.forzar) { if (typeof cnAnotar === 'function') cnAnotar('seguro', 'mods sin cargar'); return; }
+  if (!otraVez && typeof cnCuarentena === 'function') cnCuarentena();   // (el mod que trabó el juego la vez anterior: sin cargar)
   // (los instalados se montan uno por uno, esperando a la caché lo que tarde. Si uno de verdad no está guardado —una
   // descarga que no llegó a guardarse—, se vuelve a bajar solo; si la caché falló, se reintenta en un rato. La lista de
   // instalados no se toca nunca acá)
   const reintentar = [];
   for (const wid of Object.keys(PREFS.gmod || {})) {
     if (GMOD.addons.has(wid)) continue;
-    if (typeof cnPaso === 'function') cnPaso('montando el mod ' + ((PREFS.gmod[wid] && PREFS.gmod[wid].n) || wid), wid);
     try {
       const c = await gmCacheLeerSeguro(wid);
       if (c === undefined) { reintentar.push(wid); continue; }
       const G = c ? await gmaDeCache(wid, c) : null;
-      if (G) gmMontar(wid, G, { nombre: PREFS.gmod[wid].n });
+      // (el paso riesgoso se anota sólo mientras se monta: esperando a la caché el juego no está trabado)
+      if (G) { if (typeof cnPaso === 'function') cnPaso('montando el mod ' + ((PREFS.gmod[wid] && PREFS.gmod[wid].n) || wid), wid); gmMontar(wid, G, { nombre: PREFS.gmod[wid].n }); if (typeof cnPaso === 'function') cnPaso(''); }
       else if (/^\d+$/.test(wid) && typeof gmcPoner === 'function') { gmErr('arranque ' + wid, 'no estaba en la caché: se vuelve a bajar'); gmcPoner(wid, { nombre: PREFS.gmod[wid].n, img: PREFS.gmod[wid].img, callado: true }); }
     } catch (e) { gmErr('arranque ' + wid, e); }
   }

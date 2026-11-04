@@ -7,7 +7,11 @@
 // está; lo que falta responde algo neutro en vez de romper el addon.
 const GMA = { R: null, ctx: 'S', hooks: new Map(), timers: new Map(), tSimples: [], net: { S: new Map(), C: new Map() }, ents: new Map(), nid: 1000, clases: new Map(), armas: new Map(), efectos: new Map(), cvars: new Map(), lista: null, fuentes: new Map(), errores: [], cargados: new Set(), hud: null, entPorObj: new WeakMap(), jug: null, mundo: null, swep: null, dibujoHUD: false,
   // (los mods apagados en el panel GMod —los efectos de pantalla, por ejemplo—: sus hooks no corren; quedan guardados)
-  apagados: (() => { try { return new Set(JSON.parse(localStorage.getItem('rb_gmb_apagados') || '[]').map(String)); } catch (e) { return new Set(); } })(), hookAddon: null };
+  apagados: (() => { try { return new Set(JSON.parse(localStorage.getItem('rb_gmb_apagados') || '[]').map(String)); } catch (e) { return new Set(); } })(), hookAddon: null,
+  // (los mods que trabaron el juego mientras corría su Lua al cargarse —lo dice la caja negra, cajanegra.js—: quedan
+  // montados pero su Lua no corre hasta que se los vuelve a cargar desde su página del panel GMod)
+  trabados: (() => { try { return new Set(JSON.parse(localStorage.getItem('rb_gm_trabados') || '[]').map(String)); } catch (e) { return new Set(); } })() };
+function gmaTrabadosGuardar() { try { localStorage.setItem('rb_gm_trabados', JSON.stringify([...GMA.trabados])); } catch (e) {} }
 const GS = 0.0254;
 const gmaErr = (m) => {
   m = String(m); GMA.ultErr = true; const A = GMA.addonActual; if (A && A.luaErr && A.luaErr.length < 50) A.luaErr.push(m);
