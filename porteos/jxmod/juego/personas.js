@@ -610,7 +610,9 @@ function dibujarPersonas() {
     P.dtJunto = Math.min(0.25, (P.dtJunto || 0) + (TIEMPO.dt || 0.016));
     if (!yo && d > 4 && F && !sphereIn(F, P.pos.x, P.pos.y - 1 + 0.95 * tk, P.pos.z, 1.4 * tk)) continue;
     // (a más de 40 m, un cuadro sí y uno no sólo si el aparato no está llegando a 60: si llega, todos a 60)
-    if (!P.rag && (yo || d <= 40 || !(TIEMPO.fps < 58) || (PERS_N + (P.n1 || (P.n1 = 1 + (Math.random() * 7 | 0)))) % 2 === 0)) { animarPersona(P, P.dtJunto); P.dtJunto = 0; }
+    // (con el procesador que no da —TIEMPO.lento—: a más de 12 m, cada dos cuadros; a más de 30 m, cada cuatro)
+    const ln = TIEMPO.lento || 0, cada = !ln ? 2 : d > 30 ? (ln >= 2 ? 4 : 3) : 2, desde = !ln ? 40 : 12;
+    if (!P.rag && (yo || d <= desde || (!ln && !(TIEMPO.fps < 58)) || (PERS_N + (P.n1 || (P.n1 = 1 + (Math.random() * 7 | 0)))) % cada === 0)) { animarPersona(P, P.dtJunto); P.dtJunto = 0; }
     const frac = 1.9 * tk / (2 * ty * Math.max(d, 0.1));
     P.lejos = !yo && (P.lejos ? frac < 0.16 : frac < 0.14);   // (menos del ~15 % del alto de la pantalla; con margen para que no prenda y apague en el borde)
     P.md.lodBajo = !yo && (P.md.lodBajo ? frac < umbral + 0.01 : frac < umbral - 0.01);

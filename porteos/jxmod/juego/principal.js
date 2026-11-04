@@ -2,7 +2,7 @@
 // arranque, preferencias, perfiles gráficos (con "patata" para teléfonos muy flojos), cámara y el bucle.
 // ---------------------------------------------------------------------------------------------------------
 const JUEGO = { estado: 'carga', dios: false, foto: 0 };
-const TIEMPO = { t: 0, dt: 0, acc: 0, fps: 60, cuadros: 0, medT: 0, ms: 0 };
+const TIEMPO = { t: 0, dt: 0, acc: 0, fps: 60, cuadros: 0, medT: 0, ms: 0, lento: 0, lentoS: 0, lentoB: 0, ahoS: 0, ahoB: 0 };
 // calidades: luz (0 difuso viejo, 1 con brillo, 2 física, 3 física + extras), sombras del sol en cascadas
 // (cuántas, tamaño del atlas, hasta qué distancia, filtro), luces puntuales, HDR, oclusión ambiental,
 // resplandor, rayos de sol, antialias, nubes y relieve de las texturas
@@ -71,14 +71,16 @@ function perfilInicial() {
   if (/rtx|radeon rx [5-9]\d{3}|rx [67]\d{3}|apple m\d|gtx 1[06-9]\d|gtx 16|arc\(tm\) a|arc a\d/.test(gpu) && nuc >= 6) return 'ultra';
   return 'alto';
 }
-function aplicarGfx() {
+function aplicarGfx(ahorro) {
   // (después de cambiar la calidad o de entrar a un mapa se compila todo de una, como siempre; ya andando, lo nuevo en
-  // paralelo: ver progDe)
-  if (typeof R !== 'undefined') { R.asinc = false; clearTimeout(R.asincT); R.asincT = setTimeout(() => { R.asinc = true; }, 6000); }
+  // paralelo: ver progDe. ahorro: sólo cambió el paso del ahorro de GPU en plena partida —gfxAhorroPaso—: sin recompilar
+  // los materiales ni tocar la resolución)
+  if (!ahorro && typeof R !== 'undefined') { R.asinc = false; clearTimeout(R.asincT); R.asincT = setTimeout(() => { R.asinc = true; }, 6000); }
+  const esc0 = GFX.escala;
   const nom = PREFS.gfx === 'auto' ? (GFX.base || 'medio') : PREFS.gfx, p = PERFILES[nom] || PERFILES.medio;
   GFX.nombre = PERFILES[nom] ? nom : 'medio';
   GFX.auto = PREFS.gfx === 'auto';
-  GFX.escala = (PREFS.gfx === 'auto' ? p.res : PREFS.res) / 100; GFX.escalaMax = GFX.escala;
+  GFX.escala = (PREFS.gfx === 'auto' ? p.res : PREFS.res) / 100; GFX.escalaMax = GFX.escala; if (ahorro && esc0) GFX.escala = Math.min(esc0, GFX.escalaMax);
   GFX.lejos = PREFS.gfx === 'auto' ? p.lejos : PREFS.lejos;
   GFX.texMax = p.texMax; GFX.lod = p.lod; GFX.lodPx = p.lodPx || 1; GFX.sub = p.sub; GFX.part = p.part; GFX.aniso = p.aniso;
   for (const k of ['luz', 'sombra', 'smTam', 'sDist', 'pcf', 'pcss', 'nluz', 'hdr', 'ao', 'bloom', 'rayos', 'fxaa', 'nubes', 'det', 'refl']) GFX[k] = p[k] || 0;
@@ -94,6 +96,12 @@ function aplicarGfx() {
   }
   if (PREFS.post === 'no') { GFX.hdr = GFX.ao = GFX.bloom = GFX.rayos = GFX.fxaa = 0; }
   else if (PREFS.post === 'si' && GFX.luz >= 2 && !GFX.hdr) { GFX.hdr = 1; GFX.ao = 1; GFX.bloom = 1; GFX.fxaa = 1; }
+  // el ahorro de GPU (gfxAhorroPaso; vuelve a 0 si el jugador cambia la calidad, la resolución, las sombras o el posproceso)
+  const ahK = [PREFS.gfx, PREFS.res, PREFS.sombras, PREFS.post].join('|'); if (GFX.ahorroK !== ahK) { GFX.ahorroK = ahK; GFX.ahorro = 0; GFX.ahorroFijo = false; }
+  const ah = GFX.auto ? 0 : GFX.ahorro || 0; R.aoDef = false;
+  if (ah >= 1 && GFX.ao) { GFX.ao = 0; GFX.rayos = 0; R.aoDef = true; }
+  if (ah >= 2) { GFX.bloom = 0; if (GFX.refl) GFX.refl = Math.max(GFX.refl, 4); }
+  if (ah >= 3 && GFX.sombra) { GFX.smTam = Math.min(GFX.smTam, 1024); GFX.sDist = Math.min(GFX.sDist, 75); }
   if (PREFS.texQ !== 'auto') GFX.texMax = { baja: 128, media: 256, alta: 0 }[PREFS.texQ] === undefined ? GFX.texMax : { baja: 128, media: 256, alta: 0 }[PREFS.texQ];
   // lo que el aparato no puede hacer (WebGL 1 sin alguna extensión) se apaga en cualquier calidad
   if (R.gl) {
@@ -102,7 +110,7 @@ function aplicarGfx() {
     if (!R.deriv) GFX.det = 0;
   }
   if (R.gl) {
-    progsLimpiar();
+    if (!ahorro) progsLimpiar();
     if (GFX.luz >= 2 && GFX.sombra > 0) { if (!sombrasIniciar(GFX.sombra, Math.min(GFX.smTam, R.gl.getParameter(R.gl.MAX_TEXTURE_SIZE)))) GFX.sombra = 0; }
     else sombrasLiberar();
     if (!(GFX.luz >= 2 && (GFX.hdr || GFX.ao || GFX.fxaa))) postLiberar();
@@ -117,7 +125,25 @@ function aplicarGfx() {
   }
   if (AUD.master) AUD.master.gain.value = PREFS.vol / 100;
   ENT.sens = 0.00018 * PREFS.sens; ENT.sensT = ENT.sens * 2.6;
-  redimensionarYa();   // (al cambiar los gráficos, ya: no es en medio de la partida)
+  if (!ahorro) redimensionarYa();   // (al cambiar los gráficos, ya: no es en medio de la partida)
+}
+// Ahorro de GPU en las calidades elegidas a mano (Alto y Ultra sobre todo; la automática ya baja una calidad entera): si
+// la resolución dinámica ya bajó a 80 % o menos (o a su piso) y unos segundos seguidos igual no llega a la meta, y no es el procesador
+// el que frena (el JavaScript del cuadro tarda menos de 2/3 del cuadro), se apaga de a uno lo que más le cuesta a la placa
+// y menos se nota: 1) la oclusión ambiental (una pasada más de todo el mapa en profundidad y el SSAO), 2) el brillo
+// (bloom) y el reflejo del agua a menos resolución, 3) el mapa de sombras a 1024. Cuando vuelve a sobrar unos segundos con
+// la resolución entera, vuelve un paso; si al volver no alcanza enseguida, se queda en ese paso hasta cambiar de calidad
+function gfxAhorroPaso(ms, metaF, piso) {
+  const A = GFX.ahorro || 0, gpu = ms < 0.66 * 1000 / Math.max(1, TIEMPO.fps);
+  if (A < 3 && TIEMPO.fps < metaF * 0.85 && GFX.escala <= Math.max(piso, GFX.escalaMax * 0.8) + 1e-3 && gpu) {
+    if (++TIEMPO.ahoS >= 3) {
+      TIEMPO.ahoS = 0; if (TIEMPO.t - (TIEMPO.ahoV || -99) < 15) GFX.ahorroFijo = true;
+      GFX.ahorro = A + 1; TIEMPO.ahoT = TIEMPO.t; aplicarGfx(true); aviso('Gráficos: ahorro ' + GFX.ahorro, 2);
+    }
+  } else TIEMPO.ahoS = 0;
+  if (A > 0 && !GFX.ahorroFijo && GFX.escala >= GFX.escalaMax - 1e-3 && TIEMPO.fps > metaF * 0.97 && TIEMPO.t - (TIEMPO.ahoT || 0) > 20) {
+    if (++TIEMPO.ahoB >= 5) { TIEMPO.ahoB = 0; GFX.ahorro = A - 1; TIEMPO.ahoT = TIEMPO.ahoV = TIEMPO.t; aplicarGfx(true); }
+  } else TIEMPO.ahoB = 0;
 }
 // Cambiar el tamaño del lienzo lo borra: hecho después de dibujar un cuadro, el navegador mostraba ese cuadro vacío (un
 // titileo negro, en el celular cada vez que la resolución dinámica subía o bajaba). Ahora se pide y se hace al empezar
@@ -305,8 +331,9 @@ function cuadro(ahora) {
       portalesPaso();
       if (typeof vehiculosPaso === 'function') vehiculosPaso(paso, ent);
     }
-    aguaFisica(paso);
-    physStep(paso);
+    // (con el procesador que no da, la física de los objetos un paso sí y uno no, con el doble de tiempo: 30 por segundo)
+    // (sólo en el nivel 2: en el 1 la física sigue a 60, que a 30 los objetos se moverían a saltitos)
+    const fis30 = TIEMPO.lento >= 2; if (!fis30 || (TIEMPO.fisPar = !TIEMPO.fisPar)) { const pf = fis30 ? paso * 2 : paso; aguaFisica(pf); physStep(pf); }
     for (const b of PH.bodies) if (b.dead && b.obj) { borrarObjeto(b.obj); break; }
     if (typeof personasPaso === 'function') personasPaso(paso);
   }
@@ -333,12 +360,24 @@ function cuadro(ahora) {
   TIEMPO.cuadros++; TIEMPO.medT = (ahoraR - TIEMPO.medR) / 1000; TIEMPO.ms += ahoraR - t0;
   if (TIEMPO.medT >= 1) {
     TIEMPO.fps = TIEMPO.cuadros / TIEMPO.medT; const ms = TIEMPO.ms / TIEMPO.cuadros; TIEMPO.msProm = ms; TIEMPO.medR = ahoraR;
+    // ¿el procesador no da? (el JavaScript de cada cuadro tarda mucho: un celu con cuatro Cortex-A53 a 1,4 GHz —Snapdragon
+    // 425, MT6739, Unisoc SC9832E— tarda 12 veces lo de una compu). Nivel 1 desde 9 ms por cuadro, 2 desde 16; para bajar
+    // tiene que bajar bastante (5,5 y 10 ms) unos segundos, así no va y viene. Con el nivel, lo que no se nota se hace
+    // menos seguido: los NPCs y las animaciones de lejos cada dos o cuatro cuadros, los pasos cada dos y, en el nivel 2,
+    // la física de los objetos a 30 por segundo. (En las pruebas automáticas, sólo si la prueba lo pide: SwiftShader dibuja con el
+    // procesador y siempre parecería un celu lento)
+    if (JUEGO.estado === 'juego' && (!navigator.webdriver || window.__lentoPrueba)) {
+      // (sólo si no llega a la meta de cuadros: si ya llega, no hace falta resignar nada)
+      const L = TIEMPO.lento || 0, meta = Math.min(GFX.fps || 60, 1000 / Math.max(4, TIEMPO.rafMs || 16.7) + 2);
+      if (L < 2 && TIEMPO.fps < meta * 0.95 && ms > (L ? 16 : 9)) { if (++TIEMPO.lentoS >= 2) { TIEMPO.lento = L + 1; TIEMPO.lentoS = 0; } } else TIEMPO.lentoS = 0;
+      if (L > 0 && ms < (L >= 2 ? 10 : 5.5)) { if (++TIEMPO.lentoB >= 4) { TIEMPO.lento = L - 1; TIEMPO.lentoB = 0; } } else TIEMPO.lentoB = 0;
+    }
     $('fps').textContent = PREFS.fps ? `${Math.round(TIEMPO.fps)} fps` : '';
     // resolución dinámica en todas las calidades (también las elegidas a mano), con la meta de la calidad (120 o 60): si no llega baja la
     // resolución interna antes que los efectos, y la vuelve a subir cuando sobra; en automático, además, si con la
     // resolución mínima igual no alcanza baja una calidad entera
-    const din = GFX.auto || PREFS.resDin !== false, piso = GFX.auto ? 0.5 : Math.max(0.5, GFX.escalaMax * 0.6);
-    if (din && JUEGO.estado === 'juego' && !UI.abierto && !TEST) {
+    const din = GFX.auto || PREFS.resDin !== false, piso = GFX.auto ? 0.5 : Math.max(0.5, GFX.escalaMax * 0.6), prAh = TEST && window.__ahorroPrueba;
+    if (din && JUEGO.estado === 'juego' && !UI.abierto && (!TEST || prAh)) {
       // (sin ir y venir: para volver a subir hacen falta dos segundos seguidos con resto y que hayan pasado 3 s del último
       // cambio; si no, en un celular que anda entre 48 y 57 cuadros la resolución subía y bajaba cada segundo)
       // (la meta: la de la calidad, sin pasar lo que da la pantalla —un celu de 60 Hz no puede dar 120—)
@@ -346,6 +385,7 @@ function cuadro(ahora) {
       TIEMPO.sobra = TIEMPO.fps > metaF * 0.97 && ms < 550 / metaF ? (TIEMPO.sobra || 0) + 1 : 0; const quieto = TIEMPO.t - (TIEMPO.resT || -99) > 3;
       if (TIEMPO.fps < metaF * 0.92 && GFX.escala > piso) { GFX.escala = Math.max(piso, GFX.escala - 0.08); redimensionar(); TIEMPO.bajos = 0; TIEMPO.resT = TIEMPO.t; TIEMPO.sobra = 0; }
       else if (TIEMPO.sobra >= 2 && quieto && GFX.escala < GFX.escalaMax) { GFX.escala = Math.min(GFX.escalaMax, GFX.escala + 0.04); redimensionar(); TIEMPO.resT = TIEMPO.t; TIEMPO.sobra = 0; }
+      if (!GFX.auto && GFX.luz >= 2) gfxAhorroPaso(ms, metaF, piso);
     }
     if (GFX.auto && JUEGO.estado === 'juego' && !UI.abierto && !TEST) {
       // ya en la resolución mínima y sigue lento: bajar una calidad entera (y no volver a subir en esta partida)

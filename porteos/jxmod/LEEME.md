@@ -1288,3 +1288,39 @@ Todo medido en la compu (Chromium con SwiftShader, sin GPU). Nada de esto se pro
   quedaban con la «G»).
 - Prueba `pruebas/mods_cuadricula.mjs` 18/18 (compu y celu; con un pack de NPCs en desorden y uno sin su modelo, y las
   funciones del VHS de prueba por separado); `pruebas/gmod_panel.mjs` 18/18.
+
+## JXMod 2.9-prueba7: optimizado para procesadores y placas de video muy flojos
+
+- **Menos trabajo del procesador en cada cuadro** (`juego/gl.js`, `juego/sombras.js`): los valores que se le pasan a cada
+  shader (cámara, sol, niebla, sombras, luces) se guardan y sólo se vuelven a mandar si cambiaron, y cada material
+  recuerda su programa en vez de armar la clave y buscarlo en cada dibujo. Medido con `pruebas/banco_cuadro.mjs`
+  (gm_construct en Alto, el procesador 12 veces más lento —como un Cortex-A53 a 1,4 GHz: Snapdragon 425, MT6739,
+  Unisoc SC9832E—, tres corridas alternadas con la versión anterior): **22,0 → 14,7 ms por cuadro (−33 %)**.
+- **Modo «procesador que no da»** (`TIEMPO.lento` en `juego/principal.js`, `npc.js`, `personas.js`, `sonidos.js`): si no
+  llega a la meta de cuadros y el JavaScript de cada cuadro tarda más de 9 ms dos segundos seguidos (nivel 1) o más de
+  16 ms (nivel 2), lo que no se nota se hace menos seguido: los NPCs a más de 15 m cada 2 cuadros y a más de 30 m cada 4,
+  las animaciones de lejos más espaciadas, los pasos cada dos cuadros (la música y los sonidos de fondo, igual que
+  siempre) y, sólo en el nivel 2, la física de los objetos a 30 por segundo con el doble de paso. Vuelve solo cuando sobra. Con el nivel 2: 14,7 → 13,3 ms en la misma escena.
+  `pruebas/lento_fisica.mjs`: las 8 cajas caen y quedan a la misma altura que sin el modo (0 cm de diferencia), los 6 NPCs
+  caminan lo mismo y ninguno se cae ni atraviesa una pared.
+- **Ahorro de GPU en Alto y Ultra elegidos a mano** (`gfxAhorroPaso` en `juego/principal.js`): si la resolución dinámica
+  ya bajó al 80 % (o a su piso) y unos segundos seguidos igual no llega a la meta, y la que frena es la placa (no el
+  procesador), se apaga de a uno lo que más le cuesta a la GPU y menos se nota, con el aviso «Gráficos: ahorro N»:
+  1) la oclusión ambiental (SSAO y la pasada de profundidad de todo el mapa), 2) el brillo (bloom) y el reflejo del agua a
+  menos resolución, 3) el mapa de sombras a 1024. Sin recompilar nada (no se traba al cambiar). Cuando vuelve a sobrar
+  con la resolución entera, vuelve un paso; si al volver no alcanza, se queda. Se reinicia al cambiar la calidad.
+  Lo que se le pide a la GPU por cuadro (`pruebas/ahorro_gpu.mjs`, 20 cuadros fijos en gm_construct):
+
+  | Paso | Dibujos | Pasadas | Megapíxeles cubiertos |
+  |---|---|---|---|
+  | 0 (Alto) | 129 | 18 | 6,2 |
+  | 1 | 90 | 14 | 4,5 |
+  | 2 | 81 | 5 | 3,9 |
+  | 3 | 80 | 5 | 3,1 |
+
+- **Arreglado antes de salir**: con el guardado de programas por material, pasar de Alto a Ultra en los ajustes dejaba
+  la pantalla blanca (quedaban programas ya borrados); ahora se invalidan al cambiar la calidad.
+  `pruebas/captura_igual.mjs`: las 4 calidades se ven igual que la versión anterior (diferencia 0,2–2,2 % de píxeles,
+  lo mismo que entre dos corridas de la misma versión, 0,5–2,6 %).
+- Sin probar en un celular de verdad: el procesador lento es una simulación (Chromium frenado 12 veces) y la GPU de las
+  pruebas dibuja con el procesador, así que el ahorro de GPU se midió por el trabajo pedido, no en cuadros por segundo.

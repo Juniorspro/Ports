@@ -95,4 +95,12 @@ function sonAmbiente(dt) {
   else if (tipo === 'ciudad' && Math.random() < 0.45) n = 'AM_camion';
   if (n) sonar(n, p, 0.4 * k, 0.95 + Math.random() * 0.1);
 }
-function sonidosPaso(dt) { if (JUEGO.estado !== 'juego') return; sonPasos(dt); sonAmbiente(dt); }
+function sonidosPaso(dt) {
+  if (JUEGO.estado !== 'juego') return;
+  // (con el procesador que no da, los pasos cada dos cuadros con el tiempo juntado; el ambiente, cada cuadro: sus bucles
+  // tienen que avisar en cada cuadro que siguen sonando —buclesFin corta los que no avisaron—)
+  sonAmbiente(dt);
+  if (TIEMPO.lento) { SON_DT.t += dt; if ((SON_DT.n = (SON_DT.n + 1) & 1)) return; dt = SON_DT.t; } SON_DT.t = 0;
+  sonPasos(dt);
+}
+const SON_DT = { t: 0, n: 0 };

@@ -648,7 +648,9 @@ function sub(a, n) { const k = '_v' + n; return a[k] || (a[k] = a.subarray(0, n)
 // programa según el material y la calidad (se compila la primera vez que se usa)
 function progDe(clave, modo) {
   const refl = modo !== 'depth' && GFX.refl > 0 && R.salida !== 'gam' && clave.indexOf('AGUA') >= 0;
-  const k = modo + '|' + clave + '|' + R.salida + '|' + (R.sombraOn ? SM.n : 0) + (R.conAO ? 'a' : '') + (refl ? 'r' : '');
+  // (R.aoDef: el ahorro de GPU apagó la oclusión ambiental en plena partida; los programas siguen con AO, que con uAOon en 0
+  // no lee nada, así no se recompila todo de golpe)
+  const k = modo + '|' + clave + '|' + R.salida + '|' + (R.sombraOn ? SM.n : 0) + (R.conAO || R.aoDef ? 'a' : '') + (refl ? 'r' : '');
   let P = R.progs.get(k); if (P) return P;
   // (compilando en paralelo: hasta que termine, lo que lo usa no se dibuja —un par de cuadros— en vez de frenar todo)
   const pe = R.progsPend.get(k);
@@ -669,7 +671,7 @@ function progDe(clave, modo) {
     d.push('LUZ=' + luz, 'SALIDA=' + (R.salida === 'hdr' ? 2 : R.salida === 'ldr' ? 1 : 0));
     if (luz >= 2 && R.sombraOn && Q.sombra > 0) { d.push('SOMBRA=' + SM.n, 'PCF=' + (Q.pcf || 1)); if (Q.pcss) d.push('PCSS'); } else d.push('SOMBRA=0');
     if (luz >= 2 && Q.nluz > 0) d.push('NLUZ=' + Q.nluz); else d.push('NLUZ=0');
-    if (luz >= 2 && R.conAO) d.push('AO');
+    if (luz >= 2 && (R.conAO || R.aoDef)) d.push('AO');
     d.push('ESP');   // (las luces especiales: linternas y las de la pizzería)
     if (luz >= 3 && Q.det && R.deriv && !f.includes('SKIN') && !f.includes('TERR')) d.push('DET');
     if (DBG.verSombra) d.push('VERSOMBRA');
@@ -688,7 +690,8 @@ function progDe(clave, modo) {
   }
   R.progs.set(k, P); return P;
 }
-function progsLimpiar() { const gl = R.gl; for (const P of R.progs.values()) gl.deleteProgram(P.p); R.progs.clear(); for (const o of R.progsPend.values()) gl.deleteProgram(o.p); R.progsPend.clear(); }
+function progsLimpiar() { const gl = R.gl; if (R._pe) R._pe.k++;   // (los programas guardados en cada material —progDeP— quedan viejos)
+ for (const P of R.progs.values()) gl.deleteProgram(P.p); R.progs.clear(); for (const o of R.progsPend.values()) gl.deleteProgram(o.p); R.progsPend.clear(); }
 function glIniciar() {
   const cv = $('cv'); R.cv = cv;
   const op = { antialias: false, alpha: true, depth: true, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: TEST };
@@ -986,32 +989,48 @@ function armarCola() {
 }
 const ordenOpaco = (a, b) => (a.mt.claveBase < b.mt.claveBase ? -1 : a.mt.claveBase > b.mt.claveBase ? 1 : (a.m.skin - b.m.skin) || (a.mt === b.mt ? 0 : (a.mt.d.n < b.mt.d.n ? -1 : 1)));
 // uniformes del cuadro para un programa (una vez por pasada)
+// (los uniformes quedan guardados en cada programa: lo que el programa ya tiene con ese mismo valor no se vuelve a mandar.
+// En un celu cada llamada a WebGL cuesta varios microsegundos y el sol, el cielo, la niebla, las sombras y las luces casi
+// nunca cambian de una pasada a la otra ni de un cuadro al siguiente: antes se mandaban todos en cada pasada, unas 25
+// llamadas por programa, unas 600 por cuadro. Sólo se usa con los programas de progDe, que nadie más toca)
+function _uval(P, loc, v, n) {
+  const c = P.__val || (P.__val = new Map()); let o = c.get(loc);
+  if (o && o.length === n) { let i = 0; for (; i < n; i++) if (o[i] !== Math.fround(v[i])) break; if (i === n) return false; for (let k = 0; k < n; k++) o[k] = v[k]; return true; }
+  o = new Float32Array(n); for (let k = 0; k < n; k++) o[k] = v[k]; c.set(loc, o); return true;
+}
+const _ut = [0, 0, 0];
+function u1f(P, loc, x) { if (!loc) return; _ut[0] = x; if (_uval(P, loc, _ut, 1)) R.gl.uniform1f(loc, x); }
+function u1i(P, loc, x) { if (!loc) return; const c = P.__val || (P.__val = new Map()); if (c.get(loc) === x) return; c.set(loc, x); R.gl.uniform1i(loc, x); }
+function u2f(P, loc, x, y) { if (!loc) return; _ut[0] = x; _ut[1] = y; if (_uval(P, loc, _ut, 2)) R.gl.uniform2f(loc, x, y); }
+function u3f(P, loc, x, y, z) { if (!loc) return; _ut[0] = x; _ut[1] = y; _ut[2] = z; if (_uval(P, loc, _ut, 3)) R.gl.uniform3f(loc, x, y, z); }
+function uNv(P, loc, v, n, t) { if (!loc || !_uval(P, loc, v, n)) return; const gl = R.gl; if (t === 16) gl.uniformMatrix4fv(loc, false, v); else if (t === 4) gl.uniform4fv(loc, v); else if (t === 3) gl.uniform3fv(loc, v); else if (t === 2) gl.uniform2fv(loc, v); else gl.uniform1fv(loc, v); }
 function prepararProg(P) {
   const gl = R.gl;
   if (R.progAct !== P) { R.progAct = P; gl.useProgram(P.p); }
   if (P.marca === R.marca) return P;
   P.marca = R.marca; P.u.__v = null;
   const u = P.u;
-  gl.uniformMatrix4fv(u.uVP, false, R.vp);
+  uNv(P, u.uVP, R.vp, 16, 16);
   const L = R.lin && R.salida !== 'gam' ? R.lin : R;
   // niebla y cámara también en los que no usan el sol (los "sin luz": sin esto la niebla quedaba en 0 a 0 y salían del
   // color de la niebla, negros de noche)
-  if (u.uNie) { gl.uniform3fv(u.uNieC, L.nieC || R.niebla.c); gl.uniform2f(u.uNie, R.niebla.a, R.niebla.b); }
-  if (u.uCam) gl.uniform3f(u.uCam, R.camPos.x, R.camPos.y, R.camPos.z);
+  if (u.uNie) { uNv(P, u.uNieC, L.nieC || R.niebla.c, 3, 3); u2f(P, u.uNie, R.niebla.a, R.niebla.b); }
+  if (u.uCam) u3f(P, u.uCam, R.camPos.x, R.camPos.y, R.camPos.z);
   // (la exposición también en los "sin luz": sin el sol no se ponía y, sin posproceso (Media), salían negros)
-  if (u.uExpo) gl.uniform1f(u.uExpo, R.expo);
+  if (u.uExpo) u1f(P, u.uExpo, R.expo);
   if (u.uSol) {
     // el arma en la mano no usa el mapa de sombras (se vería granulado tan cerca): la luz del sol según si la cámara está a la sombra
     const kv = R.fase === 'vista' ? (R.solVista === undefined ? 1 : R.solVista) : 1;
-    gl.uniform3f(u.uSol, R.sol.x, R.sol.y, R.sol.z); gl.uniform3f(u.uSolC, L.solCol[0] * kv, L.solCol[1] * kv, L.solCol[2] * kv); gl.uniform3fv(u.uAmbS, L.ambS); gl.uniform3fv(u.uAmbG, L.ambG);
-    if (u.uTop && R.lin) { gl.uniform3fv(u.uTop, R.lin.topG); gl.uniform3fv(u.uMid, R.lin.midG); gl.uniform3fv(u.uBot, R.lin.botG); gl.uniform2fv(u.uExp, R.cielo ? R.cielo.exp : [0.8, 1]); gl.uniform1f(u.uCieloK, R.cieloK || 1); }
-    if (u.uSMm) { sombrasUniformes(P); if (R.fase === 'vista') gl.uniform1f(u.uSMon, 0); }
+    u3f(P, u.uSol, R.sol.x, R.sol.y, R.sol.z); u3f(P, u.uSolC, L.solCol[0] * kv, L.solCol[1] * kv, L.solCol[2] * kv); uNv(P, u.uAmbS, L.ambS, 3, 3); uNv(P, u.uAmbG, L.ambG, 3, 3);
+    if (u.uTop && R.lin) { uNv(P, u.uTop, R.lin.topG, 3, 3); uNv(P, u.uMid, R.lin.midG, 3, 3); uNv(P, u.uBot, R.lin.botG, 3, 3); uNv(P, u.uExp, R.cielo ? R.cielo.exp : CIELO_EXP0, 2, 2); u1f(P, u.uCieloK, R.cieloK || 1); }
+    if (u.uSMm) { sombrasUniformes(P); if (R.fase === 'vista') u1f(P, u.uSMon, 0); }
     if (u.uLP) lucesUniformes(P);
     if (u.uEN) espUniformes(P);
-    if (u.uAO) { gl.uniform2f(u.uAOinv, 1 / R.cv.width, 1 / R.cv.height); gl.uniform1f(u.uAOon, R.aoActivo && R.fase !== 'vista' ? 1 : 0); }
+    if (u.uAO) { u2f(P, u.uAOinv, 1 / R.cv.width, 1 / R.cv.height); u1f(P, u.uAOon, R.aoActivo && R.fase !== 'vista' ? 1 : 0); }
   }
   return P;
 }
+const CIELO_EXP0 = [0.8, 1];
 // uniformes de cada dibujo: si el programa ya tiene ese mismo valor (el mismo arreglo en esta pasada: el mismo material,
 // la misma malla, la misma matriz) no se vuelve a mandar. Cada llamada a WebGL cuesta CPU en el celu y el mapa, por ejemplo,
 // son muchos pedazos con la misma malla, matriz y material. Se olvida en cada pasada (prepararProg), por si cambió adentro.
@@ -1112,6 +1131,16 @@ function pielCalcular(m, H, out, lista) {
     out[o + 3] = a0 * nx + a1 * ny + a2 * nz; out[o + 4] = a4 * nx + a5 * ny + a6 * nz; out[o + 5] = a8 * nx + a9 * ny + a10 * nz;
   }
 }
+// (el programa de un pedido, recordado en su material: armar la clave —un texto— y buscarla en cada dibujo costaba
+// en el celu. Vale mientras no cambie lo que entra en la clave de progDe: la salida, las sombras, la oclusión y el agua)
+function progEst() { const E = R._pe || (R._pe = { k: 0 }), s = R.salida, a = R.sombraOn ? SM.n : 0, b = R.conAO || R.aoDef ? 1 : 0, c = GFX.refl > 0 ? 1 : 0; if (E.s !== s || E.a !== a || E.b !== b || E.c !== c) { E.s = s; E.a = a; E.b = b; E.c = c; E.k++; } return E.k; }
+function progDeP(p, depth) {
+  const k = progEst(), i = (depth ? 4 : 0) + (conPiel(p) ? 1 : 0) + (!depth && p.m.lm ? 2 : 0), c = p.mt.__pc || (p.mt.__pc = []), e = c[i];
+  // (y si el material cambió —un mod que le cambia la clave después de creado—, se vuelve a buscar)
+  const mt = p.mt; if (e && e.k === k && e.cb === mt.claveBase && e.cg === mt.claveGam && e.cu === mt.cut) return e.P;
+  const P = depth ? progDe((mt.cut ? 'CUT' : '') + (i & 1 ? ',SKIN' : ''), 'depth') : progDe(claveDe(p), 'main');
+  if (P) c[i] = { k, P, cb: mt.claveBase, cg: mt.claveGam, cu: mt.cut }; return P;
+}
 function claveDe(p) { return (R.salida === 'gam' ? p.mt.claveGam : p.mt.claveBase) + (conPiel(p) ? ',SKIN' : '') + (p.m.lm ? ',LMAP' : ''); }
 // el atlas de luces horneadas de un mapa de Source (lo arma gmod_bsp.js): sin mipmaps, para que no se mezclen las caras
 function lmTexGL(k) {
@@ -1129,7 +1158,7 @@ function dibujarOpacos() {
   R.progAct = null; R.texAct = null; R.vaoAct = null; R.lmAct = null;
   gl.disable(gl.BLEND);
   for (const p of R.cola) {
-    const P0 = progDe(claveDe(p), 'main'); if (!P0) continue;
+    const P0 = progDeP(p, false); if (!P0) continue;
     const P = prepararProg(P0);
     if (p.x && p.x.dobleCara) gl.disable(gl.CULL_FACE);
     dibujarPedido(p, P);
@@ -1143,7 +1172,7 @@ function dibujarTransparentes() {
   R.texAct = null; R.vaoAct = null; R.lmAct = null; // (el cielo y las marcas cambian la malla atada sin avisar)
   gl.enable(gl.BLEND); gl.depthMask(false);
   for (const p of R.colaT) {
-    const P0 = progDe(claveDe(p), 'main'); if (!P0) continue;
+    const P0 = progDeP(p, false); if (!P0) continue;
     gl.blendFunc(gl.SRC_ALPHA, p.mt.add ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
     if (p.mt.agua) gl.disable(gl.CULL_FACE);   // (el agua se ve también de abajo, buceando)
     dibujarPedido(p, prepararProg(P0));
@@ -1160,8 +1189,8 @@ function dibujarProfundidad() {
   gl.colorMask(false, false, false, false);
   for (const p of R.cola) {
     // (si su programa de la imagen todavía se compila, tampoco va en la profundidad: si no, dejaría un hueco con su forma)
-    if (!progDe(claveDe(p), 'main')) continue;
-    const P0 = progDe((p.mt.cut ? 'CUT' : '') + (conPiel(p) ? ',SKIN' : ''), 'depth'); if (!P0) continue;
+    if (!progDeP(p, false)) continue;
+    const P0 = progDeP(p, true); if (!P0) continue;
     const P = prepararProg(P0);
     if (p.mt.cut) { if (R.texAct !== p.mt) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texGL(p.mt.tex)); R.texAct = p.mt; } const c = p.mt.c, cv = P.u.__v || (P.u.__v = {}); if (cv.uC !== c) { cv.uC = c; gl.uniform4fv(P.u.uC, c); } }
     uniV(P.u, 'uST', p.mt.st, 4);
@@ -1281,10 +1310,10 @@ function espPreparar() {
     if (l.d) { ESP_D[o] = l.d.x; ESP_D[o + 1] = l.d.y; ESP_D[o + 2] = l.d.z; ESP_D[o + 3] = l.k; } else { ESP_D[o] = 0; ESP_D[o + 1] = -1; ESP_D[o + 2] = 0; ESP_D[o + 3] = -2; }
   }
 }
-function espUniformes(P) { const gl = R.gl; gl.uniform4fv(P.u.uEP, ESP_P); gl.uniform4fv(P.u.uEC, ESP_C); gl.uniform4fv(P.u.uED, ESP_D); gl.uniform1i(P.u.uEN, R.nEsp || 0); }
+function espUniformes(P) { const n = ESP_P.length; uNv(P, P.u.uEP, ESP_P, n, 4); uNv(P, P.u.uEC, ESP_C, ESP_C.length, 4); uNv(P, P.u.uED, ESP_D, ESP_D.length, 4); u1i(P, P.u.uEN, R.nEsp || 0); }
 function lucesUniformes(P) {
   const gl = R.gl, n = GFX.nluz || 0; if (!n) return;
-  gl.uniform4fv(P.u.uLP, sub(LUZ_P, n * 4)); gl.uniform4fv(P.u.uLC, sub(LUZ_C, n * 4)); gl.uniform4fv(P.u.uLD, sub(LUZ_D, n * 4)); gl.uniform1i(P.u.uLN, R.nLuces || 0);
+  uNv(P, P.u.uLP, sub(LUZ_P, n * 4), n * 4, 4); uNv(P, P.u.uLC, sub(LUZ_C, n * 4), n * 4, 4); uNv(P, P.u.uLD, sub(LUZ_D, n * 4), n * 4, 4); u1i(P, P.u.uLN, R.nLuces || 0);
 }
 // colores del cielo y la luz pasados a lineal (para las calidades con luz física)
 function luzLineal() {

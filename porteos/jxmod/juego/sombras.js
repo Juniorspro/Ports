@@ -191,7 +191,7 @@ function sombrasDibujar(C, estaticos, ci) {
     const p = R.items[i];
     if (p.est !== estaticos || p.vista || p.ns || !p.mt.sombra || p.r < minR) continue;
     if (!sphereIn(F, p.cx, p.cy, p.cz, p.r)) continue;
-    const cut = p.mt.cut, P0 = progDe((cut ? 'CUT' : '') + (conPiel(p) ? ',SKIN' : ''), 'depth'); if (!P0) continue;
+    const cut = p.mt.cut, P0 = progDeP(p, true); if (!P0) continue;   // (el programa recordado en su material: gl.js)
     const P = prepararProg(P0);
     if (cut) { if (R.texAct !== p.mt) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texGL(p.mt.tex)); R.texAct = p.mt; } uniV(P.u, 'uC', p.mt.c, 4); }
     uniV(P.u, 'uST', p.mt.st, 4);
@@ -206,12 +206,13 @@ function sombrasDibujar(C, estaticos, ci) {
 // las texturas y los números de las cascadas para el shader de la imagen
 function sombrasUniformes(P) {
   const gl = R.gl, u = P.u, n = SM.n;
-  if (R.gl1) { gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, SM.tex); if (u.uSMtam) gl.uniform1f(u.uSMtam, SM.tam); }
+  if (R.gl1) { gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, SM.tex); if (u.uSMtam) u1f(P, u.uSMtam, SM.tam); }
   else {
     gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, SM.tex); gl.bindSampler(5, SM.sCmp);
     if (u.uSMd) { gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, SM.tex); gl.bindSampler(6, SM.sRaw); }
   }
   gl.activeTexture(gl.TEXTURE0);
-  gl.uniformMatrix4fv(u.uSMm, false, sub(SM.mm, n * 16)); gl.uniform4fv(u.uSMr, sub(SM.mr, n * 4)); gl.uniform4fv(u.uSMk, sub(SM.mk, n * 4));
-  gl.uniform1fv(u.uSMc, sub(SM.mc, n)); gl.uniform3f(u.uCamF, R.camF.x, R.camF.y, R.camF.z); gl.uniform1f(u.uSMon, 1);
+  // (sólo lo que cambió desde la última vez que se le mandó a este programa: ver _uval en gl.js)
+  uNv(P, u.uSMm, sub(SM.mm, n * 16), n * 16, 16); uNv(P, u.uSMr, sub(SM.mr, n * 4), n * 4, 4); uNv(P, u.uSMk, sub(SM.mk, n * 4), n * 4, 4);
+  uNv(P, u.uSMc, sub(SM.mc, n), n, 1); u3f(P, u.uCamF, R.camF.x, R.camF.y, R.camF.z); u1f(P, u.uSMon, 1);
 }

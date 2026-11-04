@@ -3,6 +3,10 @@
 // le manda a la GPU (pasadas con su tamaño, dibujos, triángulos, pasadas de pantalla completa, shaders usados, subidas de
 // texturas). Los shaders de fragmentos usados se guardan en CARPETA para revisarlos.
 // uso: node perfil_cuadro.mjs URL_HTML [calidad=alto] [CARPETA=/tmp/claude-0/perfil] [segundos=8]
+// VACIO=1: mientras se mide, los dibujos no llegan a la GPU de prueba (SwiftShader dibuja con el procesador y taparía el
+// JavaScript): se cuenta lo que se le pide a la GPU, pero el tiempo es sólo el del juego. FRENO=N: el procesador N veces
+// más lento (el de un celular: un Cortex-A53 a 1,4 GHz —Snapdragon 425, MT6739, Unisoc SC9832E— es unas 12 veces más
+// lento que esta máquina en JavaScript)
 import { abrir } from './base.mjs';
 import fs from 'fs';
 const [, , HTML, CAL = 'alto', D = '/tmp/claude-0/perfil', SEG = '8'] = process.argv; fs.mkdirSync(D, { recursive: true });
@@ -69,7 +73,12 @@ const ESPIA = () => {
   w('texSubImage2D', (...a) => { E.c.subidas++; if (a.length >= 9 && a[8]) E.c.bytesSubidos += a[8].byteLength || 0; });
   const corte = () => { if (E.on) { E.cuadros.push(E.c); E.c = nuevo(); pasada = null; } requestAnimationFrame(corte); }; requestAnimationFrame(corte);
 };
-const { b, p, ev } = await abrir(HTML, true, null, async (pg) => { await pg.addInitScript(ESPIA); });
+const VACIAR = () => {
+  const PS = [WebGLRenderingContext.prototype].concat(typeof WebGL2RenderingContext !== 'undefined' ? [WebGL2RenderingContext.prototype] : []);
+  for (const P of PS) for (const n of ['drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced', 'drawRangeElements', 'clear', 'blitFramebuffer']) { const o = P[n]; if (o) P[n] = function (...a) { if (window.__vacio) return; return o.apply(this, a); }; }
+};
+const { b, p, ev } = await abrir(HTML, true, null, async (pg) => { if (process.env.VACIO) await pg.addInitScript(VACIAR); await pg.addInitScript(ESPIA); });
+const FRENO = +(process.env.FRENO || 1), cdp = FRENO > 1 ? await p.context().newCDPSession(p) : null;
 await ev(`PREFS.bienvenida = true; PREFS.tutVisto = true; GFX.auto = false; PREFS.gfx = ${JSON.stringify(CAL)}; PREFS.resDin = false; const p = PERFILES[PREFS.gfx]; PREFS.res = p.res; PREFS.lejos = p.lejos; aplicarGfx(); inicioMostrar(false); empezarPartida('RB_Construct'); 1`);
 await p.waitForFunction(() => window.__ev(`JUEGO.estado === 'juego' && !!JUG.suelo`), null, { timeout: 120000 }); await p.waitForTimeout(2500);
 // (POS=x,y,z: el mismo lugar en todas las corridas —la aparición es al azar— para comparar versiones)
@@ -78,20 +87,33 @@ await ev(`(() => { cerrarPaneles(); JUG.yaw = 0; JUG.pitch = 0.1; for (let k = 0
   const f = CAM.fwd; for (let k = 0; k < 6; k++) { const d = 4 + k * 2.5, a = (k % 2 ? 1 : -1) * (0.2 + k * 0.05); npcCrear(['Hero', 'Soldier'][k % 2], v3(JUG.pos.x + (f.x * Math.cos(a) - f.z * Math.sin(a)) * d, JUG.pos.y - 0.9, JUG.pos.z + (f.x * Math.sin(a) + f.z * Math.cos(a)) * d), 0, { modo: 'pasear', vel: 1.4, vida: 100 }); }
   DIA.hora = 13; DIA.ciclo = false; diaAplicar && diaAplicar(); return 1; })()`);
 await p.waitForTimeout(3000);
+// AHORRO=N: el paso del ahorro de GPU (gfxAhorroPaso) puesto a mano. QUIETO=1: la cámara no gira (cuentas parejas)
+if (process.env.AHORRO) { await ev(`GFX.ahorro = ${+process.env.AHORRO}; aplicarGfx(true); 1`); await p.waitForTimeout(5000); }
+if (process.env.VACIO) await ev(`window.__vacio = true; 1`);
+// LENTO=1: el juego se adapta al procesador que no da (TIEMPO.lento; en las pruebas está apagado si no se pide)
+if (process.env.LENTO) await ev(`window.__lentoPrueba = true; 1`);
+if (cdp) { await cdp.send('Emulation.setCPUThrottlingRate', { rate: FRENO }); await p.waitForTimeout(process.env.LENTO ? 7000 : 1500); }
+// PERFIL_CPU=1: el perfil del procesador mientras se mide (las funciones que más tiempo propio gastan)
+const cdpP = process.env.PERFIL_CPU ? (cdp || await p.context().newCDPSession(p)) : null;
+if (cdpP) { await cdpP.send('Profiler.enable'); await cdpP.send('Profiler.setSamplingInterval', { interval: 200 }); await cdpP.send('Profiler.start'); }
 const r = await ev(`(async () => {
   const partes = 'gmLuaPaso,gmaHUDPaso,personasPaso,npcPaso,physStep,dibujar,dibujarPersonas,animarPersona,armarCola,sombrasActualizar,dibujarOpacos,hudActualizar,efectosPaso,camaraActualizar,jugadorPaso,armasPaso,postAplicar,dibujarAgua,aguaPaso,sonidosPaso,dibujarCielo,nubesDibujar,dibujarTransp,efectosDibujar,reflejoDibujar'.split(',');
   const M = {}, orig = {};
   for (const n of partes) { let f; try { f = eval(n); } catch (e) { continue; } if (typeof f !== 'function') continue; orig[n] = f; M[n] = 0; const w = function (...a) { const t0 = performance.now(); try { return f.apply(this, a); } finally { M[n] += performance.now() - t0; } }; eval(n + ' = w'); }
   const c0 = cuadro, L = []; cuadro = function (a) { const t = performance.now(); try { return c0.call(this, a); } finally { L.push(performance.now() - t); } };
-  const y0 = JUG.yaw, t0 = performance.now(); let on = true; const giro = () => { if (!on) return; JUG.yaw = y0 + Math.PI * 2 * (performance.now() - t0) / (${+SEG} * 1000); JUG.pitch = 0.1; requestAnimationFrame(giro); }; requestAnimationFrame(giro);
+  const y0 = JUG.yaw, t0 = performance.now(); let on = true; const giro = () => { if (!on) return; JUG.yaw = y0 + ${process.env.QUIETO ? 0 : 1} * Math.PI * 2 * (performance.now() - t0) / (${+SEG} * 1000); JUG.pitch = 0.1; requestAnimationFrame(giro); }; requestAnimationFrame(giro);
   const smR0 = typeof SM !== 'undefined' ? SM.rehechas : 0;
   window.__gpu.cuadros = []; window.__gpu.on = true;
   await new Promise((ok) => setTimeout(ok, ${+SEG} * 1000));
   window.__gpu.on = false; on = false; cuadro = c0; for (const n of Object.keys(orig)) eval(n + ' = orig[n]');
   const s = (L.length > 4 ? L.slice(2) : L).sort((a, b) => a - b), N = Math.max(1, s.length), prom = s.reduce((a, b) => a + b, 0) / N; if (!s.length) s.push(0);
   const out = {}; for (const n of Object.keys(M)) if (M[n] > 0) out[n] = +(M[n] / N).toFixed(3);
-  return { smRehechasPorCuadro: typeof SM !== 'undefined' ? +((SM.rehechas - smR0) / Math.max(1, L.length)).toFixed(2) : 0, motor: R.gl1 ? 'webgl1' : 'webgl2', pos: [JUG.pos.x, JUG.pos.y, JUG.pos.z].map((v) => +v.toFixed(2)).join(','), cuadros: N, prom: +prom.toFixed(2), p50: +s[Math.floor(N / 2)].toFixed(2), p95: +s[Math.floor(N * 0.95)].toFixed(2), partes: out, lienzo: R.cv.width + 'x' + R.cv.height, mapa: MUNDO.nombre, personas: PERS.length, juegoDibujadas: R.dibujadas, juegoTris: R.tris, gfx: GFX.nombre, cfg: { luz: GFX.luz, sombra: GFX.sombra, smTam: GFX.smTam, pcf: GFX.pcf, nluz: GFX.nluz, hdr: GFX.hdr, ao: GFX.ao, bloom: GFX.bloom, fxaa: GFX.fxaa, nubes: GFX.nubes, refl: GFX.refl, escala: GFX.escala } };
+  return { lento: TIEMPO.lento || 0, smRehechasPorCuadro: typeof SM !== 'undefined' ? +((SM.rehechas - smR0) / Math.max(1, L.length)).toFixed(2) : 0, motor: R.gl1 ? 'webgl1' : 'webgl2', pos: [JUG.pos.x, JUG.pos.y, JUG.pos.z].map((v) => +v.toFixed(2)).join(','), cuadros: N, prom: +prom.toFixed(2), p50: +s[Math.floor(N / 2)].toFixed(2), p95: +s[Math.floor(N * 0.95)].toFixed(2), partes: out, lienzo: R.cv.width + 'x' + R.cv.height, mapa: MUNDO.nombre, personas: PERS.length, juegoDibujadas: R.dibujadas, juegoTris: R.tris, gfx: GFX.nombre, cfg: { luz: GFX.luz, sombra: GFX.sombra, smTam: GFX.smTam, pcf: GFX.pcf, nluz: GFX.nluz, hdr: GFX.hdr, ao: GFX.ao, bloom: GFX.bloom, fxaa: GFX.fxaa, nubes: GFX.nubes, refl: GFX.refl, escala: GFX.escala } };
 })()`);
+if (cdpP) { const { profile: P } = await cdpP.send('Profiler.stop'); const yo = new Map(), total = P.samples.length, dt = P.timeDeltas;
+  const porId = new Map(P.nodes.map((n) => [n.id, n])); const cuenta = new Map(); for (const sId of P.samples) cuenta.set(sId, (cuenta.get(sId) || 0) + 1);
+  for (const [id, c] of cuenta) { const n = porId.get(id), k = n.callFrame.functionName + ' ' + (n.callFrame.url || '').split('/').pop() + ':' + n.callFrame.lineNumber; yo.set(k, (yo.get(k) || 0) + c); }
+  console.log('PERFIL_CPU ' + JSON.stringify([...yo].sort((a, b) => b[1] - a[1]).slice(0, 40).map(([k, c]) => [k, +(100 * c / total).toFixed(1)]))); }
 const G = await ev(`(() => { const E = window.__gpu; return { sub: E.sub || {}, cuadros: E.cuadros.slice(2), progs: [...E.progs].map(([k, v]) => ({ k, ...v })) }; })()`);
 await b.close();
 // resumen de la GPU: el cuadro típico (la mediana de dibujos) y el promedio de todo
@@ -103,4 +125,4 @@ const memP = (q) => { const px = q.todo || !q.z ? q.w * q.h : Math.max(0, (q.z[2
 const INI = (q) => { const t = (!(q.inicio & 1) && q.cB ? 'c' : '') + (!(q.inicio & 2) && q.dB ? 'p' : ''); return t ? 'traer ' + t : 'nada'; };
 const pas = tip.pasadas.map((q) => ({ fb: q.fb, tam: q.w + 'x' + q.h + ' ' + q.cB + '+' + q.dB + 'B', inicio: INI(q) + (q.fin ? ' fin-desc:' + q.fin : ''), mb: +(memP(q).traer + memP(q).guardar).toFixed(2), dibujos: q.dibujos, tris: Math.round(q.tris), completas: q.completas, progs: Object.entries(q.progs).sort((a, b) => b[1].t - a[1].t).slice(0, 5).map(([k, v]) => k + ':' + v.d + 'd/' + Math.round(v.t) + 't' + (v.mezcla ? '/m' + v.mezcla : '') + (v.sinColor ? '/sc' : '')) }));
 for (const q of G.progs) fs.writeFileSync(`${D}/prog_${q.k}.frag`, q.fs), fs.writeFileSync(`${D}/prog_${q.k}.vert`, q.vs);
-console.log(JSON.stringify({ subidasDe: Object.entries(G.sub).sort((a, b) => b[1].kb - a[1].kb).slice(0, 6).map(([k, v]) => k + ' ' + v.n + 'x ' + Math.round(v.kb) + 'kB').join(' | '), js: r, gpu: { cuadros: C.length, dibujosMed: med(C.map(tot)), trisMed: Math.round(med(C.map(tris))), pasadasMed: med(C.map((c) => c.pasadas.length)), pasadasPorCuadro: C.map((c) => c.pasadas.length).join(' '), dibujosPorCuadro: C.map(tot).join(' '), subidasProm: +(C.reduce((a, c) => a + c.subidas, 0) / C.length).toFixed(2), mbTraidos: +med(C.map((c) => c.pasadas.reduce((a, q) => a + memP(q).traer, 0))).toFixed(1), mbGuardados: +med(C.map((c) => c.pasadas.reduce((a, q) => a + memP(q).guardar, 0))).toFixed(1), mbCopias: +med(C.map((c) => c.blitMB)).toFixed(1), mbMemoria: +med(C.map((c) => c.blitMB + c.pasadas.reduce((a, q) => a + memP(q).traer + memP(q).guardar, 0))).toFixed(1), invalidaciones: med(C.map((c) => c.inval)), llamadas: med(C.map((c) => Object.values(c.ll).reduce((a, b) => a + b, 0))), llamadasTipo: (() => { const t = {}; for (const c of C) for (const [k, v] of Object.entries(c.ll)) t[k] = (t[k] || 0) + v; return Object.entries(t).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, v]) => k + ':' + Math.round(v / C.length)).join(' '); })(), kbSubidosProm: +(C.reduce((a, c) => a + c.bytesSubidos, 0) / C.length / 1024).toFixed(1), tipico: pas } }, null, 1));
+console.log(JSON.stringify({ subidasDe: Object.entries(G.sub).sort((a, b) => b[1].kb - a[1].kb).slice(0, 6).map(([k, v]) => k + ' ' + v.n + 'x ' + Math.round(v.kb) + 'kB').join(' | '), js: r, gpu: { cuadros: C.length, dibujosMed: med(C.map(tot)), trisMed: Math.round(med(C.map(tris))), pasadasMed: med(C.map((c) => c.pasadas.length)), pasadasPorCuadro: C.map((c) => c.pasadas.length).join(' '), dibujosPorCuadro: C.map(tot).join(' '), subidasProm: +(C.reduce((a, c) => a + c.subidas, 0) / C.length).toFixed(2), mbTraidos: +med(C.map((c) => c.pasadas.reduce((a, q) => a + memP(q).traer, 0))).toFixed(1), mbGuardados: +med(C.map((c) => c.pasadas.reduce((a, q) => a + memP(q).guardar, 0))).toFixed(1), mbCopias: +med(C.map((c) => c.blitMB)).toFixed(1), mpxMed: +(med(C.map((c) => c.pasadas.reduce((a, q) => a + (q.todo || !q.z ? q.w * q.h : Math.max(0, (q.z[2] - q.z[0]) * (q.z[3] - q.z[1]))), 0))) / 1e6).toFixed(2), mbMemoria: +med(C.map((c) => c.blitMB + c.pasadas.reduce((a, q) => a + memP(q).traer + memP(q).guardar, 0))).toFixed(1), invalidaciones: med(C.map((c) => c.inval)), llamadas: med(C.map((c) => Object.values(c.ll).reduce((a, b) => a + b, 0))), llamadasTipo: (() => { const t = {}; for (const c of C) for (const [k, v] of Object.entries(c.ll)) t[k] = (t[k] || 0) + v; return Object.entries(t).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, v]) => k + ':' + Math.round(v / C.length)).join(' '); })(), kbSubidosProm: +(C.reduce((a, c) => a + c.bytesSubidos, 0) / C.length / 1024).toFixed(1), tipico: pas } }, null, 1));

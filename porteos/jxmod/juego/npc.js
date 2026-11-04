@@ -203,7 +203,17 @@ function npcPaso(dt) {
   for (const P of NPC.lista.slice()) {
     if (!PERS.includes(P)) { npcQuitar(P); continue; }   // (se borró: cambio de mapa, muerto hace rato, la bomba...)
     if (P.pos.y < MUNDO.lo.y - 60) { npcQuitar(P); continue; }
-    npcCerebro(P, dt);
+    // (con el procesador que no da —TIEMPO.lento—, los que están a más de 15 m de la cámara piensan y se mueven cada dos
+    // cuadros y a más de 30 m cada cuatro, con el tiempo juntado; nunca más de 0,1 s de golpe, así no atraviesan paredes)
+    const lento = TIEMPO.lento || 0;
+    if (lento && P.vivo !== false && !P.rag && !(P.npcB && P.npcB.held)) {
+      const dx = P.pos.x - CAM.pos.x, dz = P.pos.z - CAM.pos.z, d2 = dx * dx + dz * dz;
+      const cada = Math.min(d2 > 900 ? (lento >= 2 ? 4 : 2) : d2 > 225 ? 2 : 1, Math.max(1, Math.floor(0.1 / Math.max(dt, 1e-3))));
+      P.npcDtA = (P.npcDtA || 0) + dt;
+      if (cada > 1 && ((P.npcCN = (P.npcCN || P.n1 || 1) + 1) % cada)) continue;
+      const dA = P.npcDtA; P.npcDtA = 0; npcCerebro(P, dA); continue;
+    }
+    P.npcDtA = 0; npcCerebro(P, dt);
   }
   npcRemotosPaso(dt);
   if (RED.on && NPC.lista.length && (NPC.redT -= dt) <= 0) { NPC.redT = 0.15; npcRedMandar(); }
