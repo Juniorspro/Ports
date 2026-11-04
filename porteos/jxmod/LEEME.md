@@ -1255,3 +1255,19 @@ Todo medido en la compu (Chromium con SwiftShader, sin GPU). Nada de esto se pro
   también dibujan todo lo que da el aparato (en la 2.9-prueba4 iban a 60 parejos). La resolución dinámica apunta a 120 en
   Patata, Bajo y Medio y a 60 en Alto y Ultra: si pasan de 60 no les baja la nitidez para perseguir 120. En la app se le
   pide siempre a Android la frecuencia más alta. Prueba `pruebas/cuadros_meta.mjs` 5/5.
+- **gm_construct sin huecos junto a las veredas** (`herramientas/gmod_terreno.py`, lo usa `gmod.py`): el conversor tiraba
+  entero cada triángulo del pasto (los terrenos de Source) cuyo centro quedaba debajo de una vereda, y esos triángulos
+  miden hasta 5 m: quedaban franjas de hasta 0,9 m sin piso por las que se veía el cielo. Ahora cada uno se recorta contra
+  los sólidos y queda lo de afuera (303 tapados → 462 pedazos; el choque usa la misma malla). Prueba
+  `pruebas/huecos_mapa.mjs` (recorre a pie el mapa, 163 lugares × 8 direcciones, fondo magenta y un rayo por píxel):
+  antes 2 vistas con 1,7 % de hueco, después ninguna (0,022 % → 0,012 %, lo que queda son bordes de un píxel). 2/2.
+- **Mods de GMod en cuadrícula** (`juego/gmod_panel.js`): el botón GMod abre una tarjeta por mod (su imagen del Workshop,
+  su nombre y qué es: armas, NPCs, vehículos, personajes, efecto de pantalla, modo de juego...). Tocar una tarjeta entra
+  a la página del mod y «‹ Mods» vuelve. Los que sólo traen mapas no están: van a Mapas (abajo avisa cuántos).
+- **Efectos de pantalla como interruptor**: un mod que sólo dibuja sobre la imagen (VHS, filtros, visión nocturna) no se
+  "pone": se prende y se apaga con el interruptor de su tarjeta, y su página empieza con el interruptor y sus ajustes.
+  Queda guardado. Cualquier mod que corre cosas propias también tiene su interruptor en la página (apagado, sus hooks no
+  corren). Antes `RenderScreenspaceEffects` no se llamaba y `DrawColorModify`/`DrawMaterialOverlay` estaban vacías: un
+  VHS no hacía nada. Ahora el color (contraste, saturación, lo que suma y resta) se aplica a la imagen del juego, debajo
+  de la HUD, y el material se dibuja a toda la pantalla. Prueba `pruebas/mods_cuadricula.mjs` 14/14 (con un VHS de prueba
+  hecho en la prueba, la Lightsaber, M9K y un mod de mapas; compu y celu); `pruebas/gmod_panel.mjs` 18/18.
