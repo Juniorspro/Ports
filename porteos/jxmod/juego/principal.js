@@ -305,6 +305,7 @@ function cuadroSalta(ahora, jugando) {
 const _proj = new Float32Array(16), _vp2 = new Float32Array(16);
 function cuadro(ahora) {
   requestAnimationFrame(cuadro);
+  if (typeof cnCuadro === 'function') cnCuadro();   // (el latido para la app y el estado en la caja negra: cajanegra.js)
   // la frecuencia de la pantalla (el intervalo más corto entre llamadas, que se olvida de a poco; la usa la resolución
   // dinámica) y, si hubiera un tope, un cuadro sí y otro no, parejo
   if (cuadroSalta(ahora, JUEGO.estado === 'juego')) return;
@@ -572,6 +573,7 @@ async function iniciar() {
   window.__listo = true;
   window.__ev = (s) => eval(s);
   setTimeout(() => { if (typeof gmArrancar === 'function') gmArrancar(); }, 500);   // (los addons de GMod instalados)
+  setTimeout(() => { if (typeof cnRevisar === 'function') cnRevisar(); }, 1200);   // (si la vez anterior se trabó: el registro)
   setTimeout(() => { if (typeof bancoSeguir === 'function') bancoSeguir(); }, 900);   // (una comparación de FPS a medias)
   // listo: la pantalla de carga se va sola (aunque algo de la pantalla falle, se va igual)
   CG.fin(() => { PANT.enIntro = false; try { pantallaRevisar(); } catch (e) { console.warn(e); } });

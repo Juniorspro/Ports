@@ -1149,7 +1149,8 @@ function gmaHook0(ev, ctx, ...a) {
     for (const c of ctx === 'SC' ? 'SC' : ctx) {
       const f = h[c]; if (!f) continue;
       const ha0 = GMA.hookAddon, he0 = GMA.hookEv; GMA.hookAddon = h.a || null; GMA.hookEv = ev;
-      GMA.ultErr = false; let r; try { r = obj ? gmLlamar(f, c, id, ...a) : gmLlamar(f, c, ...a); } finally { GMA.hookAddon = ha0; GMA.hookEv = he0; }
+      const cn0 = typeof cnHookAntes === 'function' ? cnHookAntes(ev, h) : false;   // (caja negra: las primeras veces de cada hook de un mod)
+      GMA.ultErr = false; let r; try { r = obj ? gmLlamar(f, c, id, ...a) : gmLlamar(f, c, ...a); } finally { GMA.hookAddon = ha0; GMA.hookEv = he0; if (cn0) cnHookDespues(ev, h, cn0); }
       if (GMA.ultErr) { if (++h['n' + c] > 300) { delete h[c]; gmaErr('hook ' + ev + ' ' + String(obj ? '(entidad)' : id) + ' sacado: falla siempre'); if (!h.S && !h.C) H.delete(id); } } else h['n' + c] = 0;
       if (r.length && r[0] !== undefined) return r;
     }

@@ -221,7 +221,7 @@ function abrirAjustes(desde) {
     ${fila(esc(Lc('Sensitivity', 'Sensibilidad')), rango('aS', 2, 40, 1))}
     ${fila('Volumen', rango('aV', 0, 100, 5))}
     ${ENT.tactil || COARSE ? fila(esc(T('aj.hud')), rango('aH', 60, 120, 5, 'aHv')) : ''}
-    <button class="ajBtn gris" id="aCtl">${esc(T('ctl.titulo'))}</button> <button class="ajBtn gris" id="aTut">${esc(tutTx(TUT_B.ver))}</button></section>
+    <button class="ajBtn gris" id="aCtl">${esc(T('ctl.titulo'))}</button> <button class="ajBtn gris" id="aTut">${esc(tutTx(TUT_B.ver))}</button> <button class="ajBtn gris" id="aReg">${esc(Lc('Error log', 'Registro de fallas'))}</button></section>
   ${typeof milogoSeccion === 'function' ? `<section data-ajs="l" class="oc">${milogoSeccion()}</section>` : ''}
   </div></div>
   <div class="ajPie"><button class="ajBtn" id="aOk">Listo</button></div>`;
@@ -237,6 +237,7 @@ function abrirAjustes(desde) {
   $('aR').oninput = $('aD').oninput = act;
   $('aCtl').onclick = () => ctlAbrir(desde);
   $('aTut').onclick = () => { cerrarPaneles(); UI.abierto = null; tutAbrir(); };
+  $('aReg').onclick = () => { if (typeof cnMostrar === 'function') cnMostrar(false); };
   // (comparar los FPS de los motores en la calidad elegida; en automático, Alto)
   $('aBanco').onclick = () => { const g = $('aG').value; bancoEmpezar(g === 'auto' ? 'alto' : g); };
   // el tamaño de los controles se ve al moverlo

@@ -12,6 +12,8 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
+import android.webkit.ConsoleMessage;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.view.DisplayCutout;
@@ -33,7 +35,11 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -63,6 +69,22 @@ public class Web extends Activity {
     private long atrasT;
     private int atrasN;
     private final Handler h = new Handler(Looper.getMainLooper());
+    // (el vigilante: el juego manda un latido por segundo; si deja de llegar 45 s con la app adelante (más que cualquier carga larga), el juego quedó
+    // congelado: se guarda lo que vio el sistema y la consola y se rearma la vista. Tres cuelgues en 5 minutos: modo seguro,
+    // sin cargar los mods)
+    private volatile long latidoT;
+    private boolean adelante;
+    private int colgadas;
+    private long colgadaT;
+    private final String[] consola = new String[200];
+    private int consolaN;
+    private final Runnable vigilar = new Runnable() {
+        @Override public void run() {
+            long t = SystemClock.uptimeMillis();
+            if (adelante && web != null && latidoT > 0 && t - latidoT > 45000) recuperar("colgado (sin latido " + (t - latidoT) / 1000 + " s)");
+            h.postDelayed(this, 3000);
+        }
+    };
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -197,6 +219,7 @@ public class Web extends Activity {
         @Override public void onPageFinished(WebView v, String url) { v.evaluateJavascript(DESCARGAS, null); }
         @Override public boolean onRenderProcessGone(WebView v, RenderProcessGoneDetail d) {
             if (v != web) return true;
+            registrar("el proceso que dibuja se cerró: " + (d != null && d.didCrash() ? "falló (crash)" : "el sistema lo cerró (memoria)"));
             caidas++;
             raiz.removeView(v);
             v.destroy();
@@ -237,6 +260,14 @@ public class Web extends Activity {
             });
         }
         // (sin el ícono gris de "play" que la vista web pone en los videos)
+        // (lo que el juego escribe en la consola, para el registro aunque el juego se congele)
+        @Override public boolean onConsoleMessage(ConsoleMessage m) {
+            try {
+                String x = m.messageLevel() + " " + m.message() + " @" + m.sourceId().replaceAll(".*/", "") + ":" + m.lineNumber();
+                synchronized (consola) { consola[consolaN++ % consola.length] = x.length() > 400 ? x.substring(0, 400) : x; }
+            } catch (Exception e) { /* nada */ }
+            return false;
+        }
         @Override public Bitmap getDefaultVideoPoster() { return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888); }
     }
 
@@ -333,6 +364,10 @@ public class Web extends Activity {
          *  (Alto y Ultra van a 60 parejos y así gastan menos batería). */
         @JavascriptInterface public void frecuencia(final int hz) { runOnUiThread(() -> frecuenciaPoner(hz)); }
         @JavascriptInterface public void salir() { runOnUiThread(Web.this::finishAndRemoveTask); }
+        @JavascriptInterface public void latido() { latidoT = SystemClock.uptimeMillis(); }
+        /** Lo que guardó la app del último cuelgue o cierre (el log del sistema y la consola), para el registro del juego. */
+        @JavascriptInterface public String registroNativo() { return leerRegistro(); }
+        @JavascriptInterface public void registroVisto() { /* (queda guardado hasta el próximo: se puede volver a ver en Ajustes) */ }
         /** Un acceso directo en la pantalla de inicio con tu logo (el juego lo arma: PNG de 192×192) y el nombre que elegiste.
          *  Android 8 o más nuevo pregunta dónde ponerlo; Android 7 lo pone el lanzador. "ok", "no" (el lanzador no deja) o "mal". */
         @JavascriptInterface public String accesoDirecto(final String nombre, String b64) {
@@ -393,7 +428,36 @@ public class Web extends Activity {
             + "window.dispatchEvent(new KeyboardEvent('keydown',o));window.dispatchEvent(new KeyboardEvent('keyup',o));})()", null);
     }
 
+    // ---- el registro de un cuelgue o un cierre: la consola del juego y el log de la app (el sistema deja leer el propio) ----
+    private File archivoRegistro() { return new File(getFilesDir(), "registro.txt"); }
+    private String leerRegistro() {
+        try { File f = archivoRegistro(); if (!f.exists()) return ""; byte[] b = new byte[(int) Math.min(f.length(), 120000)]; try (InputStream in = new java.io.FileInputStream(f)) { int n = 0, r; while (n < b.length && (r = in.read(b, n, b.length - n)) > 0) n += r; } return new String(b, "UTF-8"); }
+        catch (Exception e) { return ""; }
+    }
+    private void registrar(final String motivo) {
+        final StringBuilder sb = new StringBuilder();
+        sb.append("motivo: ").append(motivo).append("\nhora: ").append(new java.util.Date().toString()).append("\napp: ").append(version())
+          .append("\nandroid: ").append(Build.VERSION.RELEASE).append(" (").append(Build.VERSION.SDK_INT).append(") · ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
+          .append(" · ").append(Build.HARDWARE).append("\n--- consola del juego ---\n");
+        synchronized (consola) { int n = Math.min(consolaN, consola.length); for (int i = consolaN - n; i < consolaN; i++) sb.append(consola[i % consola.length]).append('\n'); }
+        sb.append("--- log de la app ---\n");
+        try {
+            Process p = Runtime.getRuntime().exec(new String[]{"logcat", "-d", "-v", "time", "-t", "600", "--pid", String.valueOf(android.os.Process.myPid())});
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) { String l; int tot = 0; while ((l = r.readLine()) != null && tot < 90000) { sb.append(l).append('\n'); tot += l.length() + 1; } }
+        } catch (Exception e) { sb.append("(sin log: ").append(e).append(")\n"); }
+        try (FileOutputStream o = new FileOutputStream(archivoRegistro())) { o.write(sb.toString().getBytes("UTF-8")); } catch (Exception e) { /* nada */ }
+    }
+    private void recuperar(String motivo) {
+        registrar(motivo);
+        long t = SystemClock.uptimeMillis();
+        colgadas = t - colgadaT < 5 * 60000 ? colgadas + 1 : 1; colgadaT = t;
+        latidoT = 0;
+        if (web != null) { try { raiz.removeView(web); web.destroy(); } catch (Exception e) { /* nada */ } web = null; }
+        crearWeb(INICIO + "?colgado=" + colgadas + (colgadas >= 3 ? "&seguro=1" : ""));
+    }
+
     @Override protected void onPause() {
+        adelante = false; h.removeCallbacks(vigilar);
         super.onPause();
         if (web != null) { web.onPause(); web.pauseTimers(); }
     }
@@ -402,6 +466,8 @@ public class Web extends Activity {
         super.onResume();
         if (web != null) { web.onResume(); web.resumeTimers(); }
         pantallaCompleta();
+        // (al volver adelante, se espera el primer latido de nuevo antes de vigilar)
+        latidoT = 0; adelante = true; h.removeCallbacks(vigilar); h.postDelayed(vigilar, 3000);
     }
 
     @Override protected void onDestroy() {

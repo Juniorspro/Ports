@@ -106,10 +106,17 @@ async function gpDescomprimir(d, tam) {
   if (d[0] === 0x50 && d[1] === 0x4b) return gpUnzip(d);
   const w = typeof Worker === 'function' ? gpHiloCrear() : false;
   if (!w) return gpDescomprimirSinc(d, tam);
-  // (si el hilo no contesta en 45 s, se hace acá)
-  const id = ++GP.nHilo, r = await new Promise((ok) => { GP.esperan.set(id, ok); const c = d.slice(); w.postMessage({ id, d: c, tam }, [c.buffer]); setTimeout(() => { if (GP.esperan.has(id)) { GP.esperan.delete(id); ok({ e: 'hilo' }); } }, 45000); });
-  if (r.e) { if (r.e === 'hilo') return gpDescomprimirSinc(d, tam); throw new Error(r.e); }
-  return r.o;
+  // (nunca en el hilo del juego: un pedazo grande ahí lo congela, y con muchos en cola el juego quedaba trabado. Si el
+  // hilo no contesta en 90 s —los pedazos esperan su turno, en un celular lento pueden ser muchos—, se arma otro y se
+  // prueba una vez más; si tampoco, la descarga da error y la cola la reintenta)
+  for (let k = 0; k < 2; k++) {
+    const hilo = k ? gpHiloCrear() : w; if (!hilo) break;
+    const id = ++GP.nHilo, r = await new Promise((ok) => { GP.esperan.set(id, ok); const c = d.slice(); hilo.postMessage({ id, d: c, tam }, [c.buffer]); setTimeout(() => { if (GP.esperan.has(id)) { GP.esperan.delete(id); ok({ e: 'hilo' }); } }, 90000); });
+    if (!r.e) return r.o;
+    if (r.e !== 'hilo') throw new Error(r.e);
+    if (GP.hilo === hilo) { try { hilo.terminate(); } catch (e) {} for (const f of GP.esperan.values()) f({ e: 'hilo' }); GP.esperan.clear(); GP.hilo = null; }
+  }
+  throw Object.assign(new Error('el hilo de descompresión no contesta'), { trabado: true });
 }
 
 // ---- bajar un addon entero ----

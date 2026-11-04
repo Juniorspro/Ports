@@ -118,11 +118,22 @@ function gmrtProg(gl, vs, fs) {
 // (el nivel de DirectX que ven los mods, como GMod en una placa floja: en Patata, Bajo y Medio es 90 —sin shaders ps_3_0—
 // y los mods usan su versión liviana, si la traen; en Alto y Ultra, 95. Con el VHS del Viewfinder: la cadena ps_3_0 de
 // alta fidelidad costaba 7 veces lo que cuesta dibujar toda la escena; la ps_2_0b, menos de una)
-function gmrtSM3() { return typeof GFX === 'undefined' || GFX.nombre === 'alto' || GFX.nombre === 'ultra'; }
+// En un celular, siempre 90: un ps_3_0 de un mod (bucles de hasta 255 vueltas) puede tardar muchísimo en compilar en la
+// placa del celu y dejar el juego congelado en el último cuadro.
+const GRT_CELU = typeof navigator !== 'undefined' && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
+function gmrtSM3() { return typeof GFX === 'undefined' || ((GFX.nombre === 'alto' || GFX.nombre === 'ultra') && !GRT_CELU); }
 const GRT_SIN_SM3 = { err: 'ps_3_0: en esta calidad el motor es DirectX 90 (Alto o Ultra lo prenden)' };
 function gmrtProgSS(nom) {
   const P = gmrtProgSS0(nom);
-  return P && P.ps3 && !gmrtSM3() ? GRT_SIN_SM3 : P;
+  if (!P || P.err) return P;
+  if (P.ps3 && !gmrtSM3()) return GRT_SIN_SM3;   // (sin compilarlo: ni se manda a la placa)
+  if (!P.p && P.fs) {
+    const gl = gmrtGL(); if (!gl) return null;
+    if (typeof cnPaso === 'function') cnPaso('compilando el shader ' + P.nom + ' de un mod', GMA.hookAddon || '');
+    try { Object.assign(P, gmrtProg(gl, DX9_VS, P.fs)); delete P.fs; } catch (e) { P.err = String((e && e.message) || e).slice(0, 300); if (typeof gmErr === 'function') gmErr('shader ' + P.nom, e); }
+    if (typeof cnPaso === 'function') cnPaso('');
+  }
+  return P;
 }
 function gmrtProgSS0(nom) {
   const gl = gmrtGL(); if (!gl || !nom) return null; const k = String(nom).toLowerCase();
@@ -135,7 +146,7 @@ function gmrtProgSS0(nom) {
   let P;
   try {
     const L = dx9Vcs(b), c = L.find((x) => x.st === 0 && x.dyn === 0) || L[0]; if (!c) throw new Error('sin combos');
-    const T = dx9Glsl(c.code); P = gmrtProg(gl, DX9_VS, T.fs); P.ver = T.ver; P.ps3 = !!T.ps3;
+    const T = dx9Glsl(c.code); P = { fs: T.fs, ver: T.ver, ps3: !!T.ps3, nom: k };   // (se compila recién cuando se usa: gmrtProgSS)
   } catch (e) { P = { err: String((e && e.message) || e).slice(0, 300) }; if (typeof gmErr === 'function') gmErr('shader ' + nom, e); }
   GRT.progs.set(k, P); return P;
 }

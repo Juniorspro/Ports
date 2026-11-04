@@ -1387,3 +1387,50 @@ Todo medido en la compu (Chromium con SwiftShader, sin GPU). Nada de esto se pro
   normal, sin errores).
 - Sin probar en un celular de verdad. El costo del VHS en una placa de celular no está medido: sólo la comparación de
   arriba, en un navegador que dibuja con el procesador.
+
+## JXMod 2.9-prueba9: los mods y mapas no se pierden, y si el juego se traba queda el registro
+
+Dos problemas de la prueba8: el juego se quedaba congelado en el último cuadro a los pocos segundos de abrir, y los
+mods y mapas bajados no aparecían.
+
+- **Mods y mapas que «desaparecían»** (`juego/gmod.js`): la prueba8 le ponía un tiempo máximo corto a la caché del
+  navegador al arrancar; en un celular ocupado la caché tarda y el mod se salteaba (o, peor, se daba la caché por rota
+  y no se montaba ninguno). No se borraba nada: la lista de instalados y los `.gma` seguían guardados. Ahora al
+  arrancar la caché se espera lo que haga falta (el tiempo máximo queda sólo para revisar antes de bajar y para
+  guardar); si la caché falla, se reintenta a los 15 s; si un mod de la lista de verdad no está guardado, se vuelve a
+  bajar solo. Nunca se saca un mod de la lista por un error de lectura.
+- **Modo seguro**: si el juego se traba 3 veces en 5 minutos, la app lo abre con `?seguro=1`: los mods no se cargan esa
+  vez (siguen instalados) y se avisa.
+- **Caja negra** (`juego/cajanegra.js`, nuevo): un registro chico que se guarda solo cada 2 s y en el acto antes de
+  cada paso riesgoso (montar un mod, correr su Lua, compilar un shader de un mod, las primeras veces que corre cada
+  hook de un mod, y siempre si un hook tardó más de 150 ms). Guarda el estado (mapa, calidad, cuadros por segundo,
+  memoria, mods montados, cola de bajadas, errores de Lua).
+- **La app vigila al juego** (`apk/web/.../Web.java`): el juego le manda un latido por segundo; si pasan 45 s sin
+  latido con la app adelante, la app guarda lo que vio (motivo, aparato, consola del juego y `logcat` del proceso) en
+  `registro.txt` y rearma el juego. Lo mismo si el sistema mata el proceso de dibujo. Al volver aparece «El juego se
+  trabó la última vez», con el último paso («Se quedó en: …») y «Copiar registro». Si se trabó adentro de un mod, ese
+  mod se apaga (se vuelve a prender desde su página en el panel GMod). El registro también está en Ajustes →
+  «Registro de fallas».
+- **Causas probables del cuelgue, corregidas**:
+  - en el celular el motor es siempre DirectX 90 (sin shaders ps_3_0), aunque la calidad sea Alto: la versión de alta
+    fidelidad del VHS del Viewfinder pesa unas 7 veces la escena y su compilación sola puede congelar una placa de
+    celular; los shaders de los mods se compilan recién cuando se usan, y nunca uno ps_3_0 si no corresponde;
+  - si el hilo que descomprime los mods no contesta, se rearma el hilo en vez de descomprimir en el hilo del juego
+    (eso congelaba la pantalla varios segundos con un mod grande);
+  - con la caché paciente ya no se re-bajan mods al arrancar por un tiempo máximo vencido.
+
+| | prueba8 | prueba9 |
+|---|---|---|
+| Mods montados con la caché lenta (12 s por lectura) | 0 de 2 | 2 de 2 |
+| Mod instalado que falta en la caché | no se monta | se vuelve a bajar solo y se monta |
+| Si el juego se traba | queda congelado, sin datos | la app lo rearma en ≤ 45 s y muestra el registro |
+| Shader ps_3_0 del VHS en un celular en Alto | se compila (pesado) | no se compila (DirectX 90) |
+| Descompresión si el hilo no contesta | en el hilo del juego | se rearma el hilo |
+
+- Pruebas nuevas: `pruebas/mods_no_se_pierden.mjs` 4/4 (con la prueba8: 1 y 2 fallan) y `pruebas/caja_negra.mjs` 5/5
+  (celular emulado: latidos, pasos de los hooks en la caja, DirectX 90 en Alto; después de un cuelgue simulado aparece
+  la ventana con el último paso y el log de la app, el mod se apaga, «Copiar registro» copia todo, Ajustes lo muestra,
+  sin errores). Siguen pasando `descarga_trabada` 4/4, `server_mods_carga` 4/4, `efecto_siempre` 5/5,
+  `vhs_viewfinder` 4/4, `gmod_panel` 18/18, `mods_cuadricula` 18/18 y `lua_goto` 13/13.
+- Sin probar en un celular de verdad: el cuelgue exacto no se pudo reproducir acá. Si vuelve a pasar, el registro dice
+  en qué paso quedó.

@@ -40,6 +40,7 @@ function gmLuaMontar(A) {
   delete A._efObj; if (GMA.fantasmas) GMA.fantasmas.delete(A.id);
   if (!A || !A.lua || !A.lua.length) return;
   const t0 = performance.now();
+  if (typeof cnPaso === 'function') cnPaso('corriendo el Lua del mod ' + A.nombre, A.id);
   gmaIniciar(); const R = GMA.R, G = R.G;
   GMA.activo = true; GMA.addonActual = A; A.luaErr = []; A.sents = []; A.sweps = []; A.efectos = []; A.herramientas = []; A.listas = {};
   const antes = new Map([...GMA.hooks].map(([ev, H]) => [ev, new Map([...H].map(([id, h]) => [id, { S: h.S, C: h.C }]))]));
@@ -105,7 +106,7 @@ function gmLuaMontar(A) {
   for (const [n, c] of GMA.clases) if (c.addon === A && gmaSpawneable(c)) A.sents.push(n);
   for (const [n, c] of GMA.armas) if (c.addon === A && gmaSpawneable(c, true)) A.sweps.push(n);
   A.sents.sort(); A.sweps.sort();
-  A.luaCorridos = corrido.size; A.luaMs = Math.round(performance.now() - t0);
+  A.luaCorridos = corrido.size; A.luaMs = Math.round(performance.now() - t0); if (typeof cnPaso === 'function') cnPaso('');
   const falt = new Set();
   for (const r of L) { const b = gmaBytes(A, r); if (!b) continue; const s = new TextDecoder('latin1').decode(b);
     for (const m of s.matchAll(/["'](models\/[^"'\n]{1,120}?\.mdl)["']/gi)) { const p = m[1].toLowerCase().replace(/\\/g, '/'); if (gmArchivo0(p) || (typeof GML !== 'undefined' && GML.datos.has(p)) || (typeof gmlTiene === 'function' && gmlTiene(p)) || DATA.pfPorNombre[p.replace(/^.*\//, '').replace(/\.mdl$/, '')]) continue; falt.add(p); if (falt.size >= 60) break; } }

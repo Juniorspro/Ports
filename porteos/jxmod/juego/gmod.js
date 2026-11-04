@@ -671,26 +671,42 @@ async function gmLeerCuerpo(r, tot, prog) {
   const b = new Uint8Array(n); let o = 0; for (const p of ps) { b.set(p, o); o += p.length; } return b;
 }
 const GMDB = { db: null, roto: 0 };
+// La caché de los addons (IndexedDB). Dos maneras de pedirle algo:
+//  - con paciencia (lo de siempre: montar lo instalado al arrancar, el contenido base, guardar): se espera lo que tarde.
+//    En un celular con muchos mods la caché puede tardar varios segundos en contestar, y en la 2.9-prueba8 eso se tomaba
+//    como «no está»: los mods y los mapas que traen no se montaban y parecía que se habían perdido;
+//  - con tope (sólo para ver si un mod que se va a bajar ya está): si no contesta, se baja igual y por 2 minutos las
+//    descargas no la vuelven a esperar. Nunca se da nada por perdido por eso.
 function gmDB() {
   if (GMDB.db) return GMDB.db;
-  if (GMDB.roto && Date.now() - GMDB.roto < 120000) return Promise.reject(new Error('caché no disponible'));   // (falló hace poco: 2 min sin caché)
-  // (si la base no abre en 6 s —bloqueada por otra pestaña, o el celu cerró la conexión—, se sigue sin caché y se
-  // vuelve a probar la próxima vez)
-  const p = new Promise((ok, mal) => { try { const r = indexedDB.open('rb-gmod', 1); r.onupgradeneeded = () => r.result.createObjectStore('gma'); r.onsuccess = () => { const db = r.result; db.onclose = () => { GMDB.db = null; }; db.onversionchange = () => { try { db.close(); } catch (e) {} GMDB.db = null; }; ok(db); }; r.onerror = () => mal(r.error); r.onblocked = () => mal(new Error('caché bloqueada')); } catch (e) { mal(e); } });
-  GMDB.db = gmTiempo(p, 6000, 'la caché no contesta').catch((e) => { GMDB.db = null; GMDB.roto = Date.now(); throw e; });
+  const p = new Promise((ok, mal) => { try { const r = indexedDB.open('rb-gmod', 1); r.onupgradeneeded = () => r.result.createObjectStore('gma'); r.onsuccess = () => { const db = r.result; db.onclose = () => { GMDB.db = null; }; db.onversionchange = () => { try { db.close(); } catch (e) {} GMDB.db = null; }; ok(db); }; r.onerror = () => mal(r.error); } catch (e) { mal(e); } });
+  GMDB.db = p.catch((e) => { GMDB.db = null; throw e; });
   return GMDB.db;
 }
-async function gmCacheLeer(id) { try { const db = await gmDB(); return await gmTiempo(new Promise((ok) => { const q = db.transaction('gma').objectStore('gma').get(id); q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null); }), 8000, 'la caché no contesta'); } catch (e) { GMDB.db = null; return null; } }
-async function gmCacheGuardar(id, b) { try { const db = await gmDB(); await gmTiempo(new Promise((ok) => { const t = db.transaction('gma', 'readwrite'); t.objectStore('gma').put(b, id); t.oncomplete = ok; t.onerror = ok; t.onabort = ok; }), 20000, 'la caché no contesta'); } catch (e) { GMDB.db = null; } }
+const gmDBget = (db, id) => new Promise((ok, mal) => { try { const q = db.transaction('gma').objectStore('gma').get(id); q.onsuccess = () => ok(q.result === undefined ? null : q.result); q.onerror = () => mal(q.error || new Error('no se pudo leer')); } catch (e) { mal(e); } });
+// lo guardado con esa clave (null si no está); con «tope» (ms), null también si la caché no contesta a tiempo
+async function gmCacheLeer(id, tope) {
+  if (!tope) { try { return await gmDBget(await gmDB(), id); } catch (e) { return null; } }
+  if (GMDB.roto && Date.now() - GMDB.roto < 120000) return null;
+  try { return await gmTiempo((async () => gmDBget(await gmDB(), id))(), tope, 'la caché no contesta'); }
+  catch (e) { if (e && e.trabado) GMDB.roto = Date.now(); return null; }
+}
+// como gmCacheLeer con paciencia, pero distingue «no está» (null) de «la caché falló» (undefined)
+async function gmCacheLeerSeguro(id) { try { return await gmDBget(await gmDB(), id); } catch (e) { return undefined; } }
+// (guardar sí tiene tope: si la caché no contesta, lo bajado se usa igual desde la memoria y, si no se llegó a guardar,
+// el próximo arranque lo vuelve a bajar solo)
+const gmCacheRota = () => GMDB.roto && Date.now() - GMDB.roto < 120000;
+async function gmCacheGuardar(id, b) { if (gmCacheRota()) return; try { await gmTiempo((async () => { const db = await gmDB(); await new Promise((ok) => { const t = db.transaction('gma', 'readwrite'); t.objectStore('gma').put(b, id); t.oncomplete = ok; t.onerror = ok; t.onabort = ok; }); })(), 30000, 'la caché no contesta'); } catch (e) { if (e && e.trabado) GMDB.roto = Date.now(); } }
 // el .gma de un addon se guarda como Blob (el navegador lo deja en el disco) y se devuelve el guardado; si el navegador no
 // guarda Blobs, como antes (los bytes) y null
 async function gmCacheGuardarGMA(id, b) {
   try {
-    const bl = b instanceof Blob ? b : new Blob([b]), db = await gmDB();
-    const ok = await gmTiempo(new Promise((res, mal) => { try { const t = db.transaction('gma', 'readwrite'); t.objectStore('gma').put(bl, id); t.oncomplete = () => res(true); t.onerror = () => res(false); t.onabort = () => res(false); } catch (e) { mal(e); } }), 30000, 'la caché no contesta');
+    if (gmCacheRota()) throw new Error('caché no disponible');
+    const bl = b instanceof Blob ? b : new Blob([b]);
+    const ok = await gmTiempo((async () => { const db = await gmDB(); return new Promise((res, mal) => { try { const t = db.transaction('gma', 'readwrite'); t.objectStore('gma').put(bl, id); t.oncomplete = () => res(true); t.onerror = () => res(false); t.onabort = () => res(false); } catch (e) { mal(e); } }); })(), 30000, 'la caché no contesta');
     if (!ok) throw new Error('no se guardó');
-    const r = await gmCacheLeer(id); return r instanceof Blob ? r : null;
-  } catch (e) { if (!(b instanceof Blob)) await gmCacheGuardar(id, b); return null; }
+    const r = await gmCacheLeer(id, 15000); return r instanceof Blob ? r : null;
+  } catch (e) { if (e && e.trabado) GMDB.roto = Date.now(); if (!(b instanceof Blob)) await gmCacheGuardar(id, b); return null; }
 }
 // un .gma desde un Blob: la tabla de archivos y lo chico se leen; las texturas y los mapas quedan en el Blob
 async function gmaDesdeBlob(bl) {
@@ -775,7 +791,7 @@ function gmaCompleto(b) {
 // tienda, el del catálogo, SteamPipe por la tienda (los que no tienen archivo directo: gmod_pipe.js) y, si la tienda no
 // tiene el puente, el archivo directo por un puente público
 async function gmBajar(wid, prog) {
-  const c = await gmCacheLeer(String(wid)); if (c && (c instanceof Blob || gmEsGMA(c))) return c;
+  const c = await gmCacheLeer(String(wid), 10000); if (c && (c instanceof Blob || gmEsGMA(c))) return c;
   let r = null, tot = 0, sinDir = false, b = null, errPipe = null;
   if (typeof gmApiHay === 'function' && (await gmApiHay())) {
     try { const x = await gmFetch(TIENDA_URL + 'gmod/archivo/' + wid, null, 25000); if (x.ok) { r = x; tot = +x.headers.get('content-length') || 0; } else if (x.status === 409) sinDir = true; else if (x.status === 404) throw new Error(T('gm.noExiste')); }
@@ -909,10 +925,26 @@ async function gmImportarArchivo(f) {
   return gmInstalar(id, { nombre: G.nombre || f.name.replace(/\.gma$/i, ''), local: true }, b);
 }
 // al arrancar: los instalados (de la caché, sin bajar nada)
-async function gmArrancar() {
+async function gmArrancar(otraVez) {
+  // (modo seguro: la app lo pide después de varios cuelgues seguidos; los mods quedan instalados pero no se cargan)
+  if (Q.get('seguro') && !otraVez && !gmArrancar.forzar) { if (typeof cnAnotar === 'function') cnAnotar('seguro', 'mods sin cargar'); return; }
+  // (los instalados se montan uno por uno, esperando a la caché lo que tarde. Si uno de verdad no está guardado —una
+  // descarga que no llegó a guardarse—, se vuelve a bajar solo; si la caché falló, se reintenta en un rato. La lista de
+  // instalados no se toca nunca acá)
+  const reintentar = [];
   for (const wid of Object.keys(PREFS.gmod || {})) {
-    try { const G = await gmaDeCache(wid, await gmCacheLeer(wid)); if (G) gmMontar(wid, G, { nombre: PREFS.gmod[wid].n }); } catch (e) { gmErr('arranque ' + wid, e); }
+    if (GMOD.addons.has(wid)) continue;
+    if (typeof cnPaso === 'function') cnPaso('montando el mod ' + ((PREFS.gmod[wid] && PREFS.gmod[wid].n) || wid), wid);
+    try {
+      const c = await gmCacheLeerSeguro(wid);
+      if (c === undefined) { reintentar.push(wid); continue; }
+      const G = c ? await gmaDeCache(wid, c) : null;
+      if (G) gmMontar(wid, G, { nombre: PREFS.gmod[wid].n });
+      else if (/^\d+$/.test(wid) && typeof gmcPoner === 'function') { gmErr('arranque ' + wid, 'no estaba en la caché: se vuelve a bajar'); gmcPoner(wid, { nombre: PREFS.gmod[wid].n, img: PREFS.gmod[wid].img, callado: true }); }
+    } catch (e) { gmErr('arranque ' + wid, e); }
   }
+  if (typeof cnPaso === 'function') cnPaso('');
+  if (reintentar.length) setTimeout(() => { GMDB.db = null; gmArrancar(true); }, 15000);
   // (y lo que quedó a medio bajar la última vez: un rato después, para no sumarle trabajo al arranque en el celular)
-  if (typeof gmcReanudar === 'function') setTimeout(gmcReanudar, 3000);
+  if (!otraVez && typeof gmcReanudar === 'function') setTimeout(gmcReanudar, 3000);
 }
