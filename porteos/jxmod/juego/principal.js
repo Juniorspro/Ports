@@ -82,10 +82,11 @@ function aplicarGfx() {
   GFX.lejos = PREFS.gfx === 'auto' ? p.lejos : PREFS.lejos;
   GFX.texMax = p.texMax; GFX.lod = p.lod; GFX.lodPx = p.lodPx || 1; GFX.sub = p.sub; GFX.part = p.part; GFX.aniso = p.aniso;
   for (const k of ['luz', 'sombra', 'smTam', 'sDist', 'pcf', 'pcss', 'nluz', 'hdr', 'ao', 'bloom', 'rayos', 'fxaa', 'nubes', 'det', 'refl']) GFX[k] = p[k] || 0;
-  // los cuadros que se buscan: 120 en Patata, Bajo y Medio (lo que dé la pantalla); 60 parejos en Alto y Ultra. En la app se
-  // le pide a Android la frecuencia de pantalla que corresponde (si no, muchos celus dejan las apps en 60 Hz)
-  GFX.fps = p.fps || 60;
-  try { if (window.JXNativo && JXNativo.frecuencia) JXNativo.frecuencia(GFX.fps); } catch (e) {}
+  // sin tope de cuadros en ninguna calidad: todo lo que dé la pantalla (en la app se le pide a Android la frecuencia más alta;
+  // si no, muchos celus dejan las apps en 60 Hz). GFX.fps es la meta de la resolución dinámica: en Patata, Bajo y Medio baja
+  // la resolución para llegar a 120; en Alto y Ultra sólo si no llega a 60 (no se pierde nitidez por perseguir 120)
+  GFX.fps = p.fps || 60; GFX.tope = 0;
+  try { if (window.JXNativo && JXNativo.frecuencia) JXNativo.frecuencia(1000); } catch (e) {}
   // lo que el jugador cambió a mano (como en los ajustes del juego: Sombra, Postprocesado, Calidad de textura)
   if (PREFS.sombras !== 'auto' && GFX.luz >= 2) {
     const s = +PREFS.sombras, T = [null, [1, 1024, 45, 1, 0], [2, 2048, 110, 9, 0], [3, 4096, 220, 9, 1]][s];
@@ -266,18 +267,19 @@ function atenderPulsos() {
   ENT.pulsos.length = 0;
 }
 // ---------------- el cuadro ----------------
-// ¿este llamado se saltea? (el tope de cuadros: ver cuadro)
+// ¿este llamado se saltea? (sólo con un tope puesto, GFX.tope en cuadros por segundo: hoy ninguna calidad lo usa)
 function cuadroSalta(ahora, jugando) {
   const di = ahora - (TIEMPO.rafUlt || ahora); TIEMPO.rafUlt = ahora; if (di > 1) TIEMPO.rafMs = Math.min(di, (TIEMPO.rafMs || di) * 1.001);
-  const meta = 1000 / (GFX.fps || 60), dm = TIEMPO.rafMs || meta;
+  if (!GFX.tope) { TIEMPO.ultDib = ahora; return false; }   // (sin tope: se dibuja cada vez que la pantalla lo pide)
+  const meta = 1000 / GFX.tope, dm = TIEMPO.rafMs || meta;
   if (dm * 1.5 < meta && jugando && ahora - (TIEMPO.ultDib || 0) < meta - dm * 0.5) return true;
   TIEMPO.ultDib = ahora; return false;
 }
 const _proj = new Float32Array(16), _vp2 = new Float32Array(16);
 function cuadro(ahora) {
   requestAnimationFrame(cuadro);
-  // la frecuencia de la pantalla (el intervalo más corto entre llamadas, que se olvida de a poco) y el tope: con la meta en
-  // 60 y la pantalla a 120 (o 144) se dibuja un cuadro sí y otro no, parejo, en vez de 70-90 desparejos
+  // la frecuencia de la pantalla (el intervalo más corto entre llamadas, que se olvida de a poco; la usa la resolución
+  // dinámica) y, si hubiera un tope, un cuadro sí y otro no, parejo
   if (cuadroSalta(ahora, JUEGO.estado === 'juego')) return;
   const t = ahora / 1000, dt = Math.min(0.1, Math.max(0, t - (TIEMPO.ult || t))) * (JUEGO.estado === 'juego' ? MODS.tiempo || 1 : 1); TIEMPO.ult = t; TIEMPO.dt = dt; TIEMPO.t += dt;
   const t0 = performance.now();

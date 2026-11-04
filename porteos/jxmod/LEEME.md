@@ -1248,3 +1248,10 @@ Todo medido en la compu (Chromium con SwiftShader, sin GPU). Nada de esto se pro
 - **SSAO sin la línea punteada en los bordes**: el giro de las muestras usa un patrón de 4×4 que se repite (Bayer) y el
   desenfoque, 4 muestras parejas que lo cancelan justo (antes un ruido sin período y 7 muestras, que dejaban la línea; en
   el celu, a un cuarto de la resolución y estirada 4 veces, se veía como rayas). Además es más barato.
+
+## JXMod 2.9-prueba5: sin tope de cuadros
+
+- **Ninguna calidad tiene tope** (`cuadroSalta` en `juego/principal.js`): con la pantalla a 120 o 144 Hz, Alto y Ultra
+  también dibujan todo lo que da el aparato (en la 2.9-prueba4 iban a 60 parejos). La resolución dinámica apunta a 120 en
+  Patata, Bajo y Medio y a 60 en Alto y Ultra: si pasan de 60 no les baja la nitidez para perseguir 120. En la app se le
+  pide siempre a Android la frecuencia más alta. Prueba `pruebas/cuadros_meta.mjs` 5/5.
