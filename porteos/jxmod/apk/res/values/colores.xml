@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- fondo del logo original (mediana de los píxeles oscuros: 32,32,32) -->
+    <color name="fondo">#FF202020</color>
+    <color name="fondo_icono">#FF202020</color>
+    <color name="acento">#FF5AA9FF</color>
+</resources>

@@ -1,0 +1,1055 @@
+[
+{
+"id": "trinity",
+"n": "Trinity (Gadget)",
+"m": "GA",
+"kt": 25,
+"p": "EE. UU.",
+"a": 1945,
+"t": "torre"
+},
+{
+"id": "littleboy",
+"n": "Little Boy (Hiroshima)",
+"m": "LB",
+"kt": 15,
+"p": "EE. UU.",
+"a": 1945,
+"t": "aire"
+},
+{
+"id": "fatman",
+"n": "Fat Man (Nagasaki)",
+"m": "FM",
+"kt": 21,
+"p": "EE. UU.",
+"a": 1945,
+"t": "aire"
+},
+{
+"id": "able",
+"n": "Crossroads Able",
+"m": "FM",
+"kt": 23,
+"p": "EE. UU.",
+"a": 1946,
+"t": "aire"
+},
+{
+"id": "baker",
+"n": "Crossroads Baker",
+"m": "FM",
+"kt": 23,
+"p": "EE. UU.",
+"a": 1946,
+"t": "agua"
+},
+{
+"id": "xray",
+"n": "Sandstone X-Ray",
+"m": "GA",
+"kt": 37,
+"p": "EE. UU.",
+"a": 1948,
+"t": "torre"
+},
+{
+"id": "yoke",
+"n": "Sandstone Yoke",
+"m": "GA",
+"kt": 49,
+"p": "EE. UU.",
+"a": 1948,
+"t": "torre"
+},
+{
+"id": "zebra",
+"n": "Sandstone Zebra",
+"m": "GA",
+"kt": 18,
+"p": "EE. UU.",
+"a": 1948,
+"t": "torre"
+},
+{
+"id": "ranger",
+"n": "Ranger Able",
+"m": "FM",
+"kt": 1,
+"p": "EE. UU.",
+"a": 1951,
+"t": "aire"
+},
+{
+"id": "george",
+"n": "Greenhouse George",
+"m": "GA",
+"kt": 225,
+"p": "EE. UU.",
+"a": 1951,
+"t": "torre"
+},
+{
+"id": "item",
+"n": "Greenhouse Item",
+"m": "GA",
+"kt": 45.5,
+"p": "EE. UU.",
+"a": 1951,
+"t": "torre"
+},
+{
+"id": "easy",
+"n": "Greenhouse Easy",
+"m": "GA",
+"kt": 47,
+"p": "EE. UU.",
+"a": 1951,
+"t": "torre"
+},
+{
+"id": "sugar",
+"n": "Buster-Jangle Sugar",
+"m": "GA",
+"kt": 1.2,
+"p": "EE. UU.",
+"a": 1951,
+"t": "suelo"
+},
+{
+"id": "uncle",
+"n": "Buster-Jangle Uncle",
+"m": "GA",
+"kt": 1.2,
+"p": "EE. UU.",
+"a": 1951,
+"t": "subte"
+},
+{
+"id": "charlie",
+"n": "Tumbler-Snapper Charlie",
+"m": "FM",
+"kt": 31,
+"p": "EE. UU.",
+"a": 1952,
+"t": "aire"
+},
+{
+"id": "dog",
+"n": "Tumbler-Snapper Dog",
+"m": "FM",
+"kt": 19,
+"p": "EE. UU.",
+"a": 1952,
+"t": "aire"
+},
+{
+"id": "ivymike",
+"n": "Ivy Mike",
+"m": "IM",
+"kt": 10400,
+"p": "EE. UU.",
+"a": 1952,
+"t": "suelo"
+},
+{
+"id": "ivyking",
+"n": "Ivy King",
+"m": "MK6",
+"kt": 500,
+"p": "EE. UU.",
+"a": 1952,
+"t": "aire"
+},
+{
+"id": "annie",
+"n": "Upshot-Knothole Annie",
+"m": "GA",
+"kt": 16,
+"p": "EE. UU.",
+"a": 1953,
+"t": "torre"
+},
+{
+"id": "harry",
+"n": "Upshot-Knothole Harry",
+"m": "GA",
+"kt": 32,
+"p": "EE. UU.",
+"a": 1953,
+"t": "torre"
+},
+{
+"id": "grable",
+"n": "Upshot-Knothole Grable (Atomic Annie)",
+"m": "AS",
+"kt": 15,
+"p": "EE. UU.",
+"a": 1953,
+"t": "artilleria"
+},
+{
+"id": "climax",
+"n": "Upshot-Knothole Climax",
+"m": "MK6",
+"kt": 61,
+"p": "EE. UU.",
+"a": 1953,
+"t": "aire"
+},
+{
+"id": "bravo",
+"n": "Castle Bravo",
+"m": "CB",
+"kt": 15000,
+"p": "EE. UU.",
+"a": 1954,
+"t": "suelo"
+},
+{
+"id": "romeo",
+"n": "Castle Romeo",
+"m": "CB",
+"kt": 11000,
+"p": "EE. UU.",
+"a": 1954,
+"t": "barco"
+},
+{
+"id": "koon",
+"n": "Castle Koon",
+"m": "CB",
+"kt": 110,
+"p": "EE. UU.",
+"a": 1954,
+"t": "suelo"
+},
+{
+"id": "union",
+"n": "Castle Union",
+"m": "CB",
+"kt": 6900,
+"p": "EE. UU.",
+"a": 1954,
+"t": "barco"
+},
+{
+"id": "yankee",
+"n": "Castle Yankee",
+"m": "CB",
+"kt": 13500,
+"p": "EE. UU.",
+"a": 1954,
+"t": "barco"
+},
+{
+"id": "nectar",
+"n": "Castle Nectar",
+"m": "CB",
+"kt": 1690,
+"p": "EE. UU.",
+"a": 1954,
+"t": "barco"
+},
+{
+"id": "apple2",
+"n": "Teapot Apple-2",
+"m": "GA",
+"kt": 29,
+"p": "EE. UU.",
+"a": 1955,
+"t": "torre"
+},
+{
+"id": "met",
+"n": "Teapot MET",
+"m": "GA",
+"kt": 22,
+"p": "EE. UU.",
+"a": 1955,
+"t": "torre"
+},
+{
+"id": "wigwam",
+"n": "Wigwam",
+"m": "FM",
+"kt": 30,
+"p": "EE. UU.",
+"a": 1955,
+"t": "agua"
+},
+{
+"id": "cherokee",
+"n": "Redwing Cherokee",
+"m": "MK6",
+"kt": 3800,
+"p": "EE. UU.",
+"a": 1956,
+"t": "aire"
+},
+{
+"id": "zuni",
+"n": "Redwing Zuni",
+"m": "IM",
+"kt": 3500,
+"p": "EE. UU.",
+"a": 1956,
+"t": "suelo"
+},
+{
+"id": "tewa",
+"n": "Redwing Tewa",
+"m": "IM",
+"kt": 5000,
+"p": "EE. UU.",
+"a": 1956,
+"t": "barco"
+},
+{
+"id": "navajo",
+"n": "Redwing Navajo",
+"m": "IM",
+"kt": 4500,
+"p": "EE. UU.",
+"a": 1956,
+"t": "barco"
+},
+{
+"id": "flathead",
+"n": "Redwing Flathead",
+"m": "IM",
+"kt": 365,
+"p": "EE. UU.",
+"a": 1956,
+"t": "barco"
+},
+{
+"id": "hood",
+"n": "Plumbbob Hood",
+"m": "FM",
+"kt": 74,
+"p": "EE. UU.",
+"a": 1957,
+"t": "aire"
+},
+{
+"id": "smoky",
+"n": "Plumbbob Smoky",
+"m": "GA",
+"kt": 44,
+"p": "EE. UU.",
+"a": 1957,
+"t": "torre"
+},
+{
+"id": "priscilla",
+"n": "Plumbbob Priscilla",
+"m": "FM",
+"kt": 37,
+"p": "EE. UU.",
+"a": 1957,
+"t": "aire"
+},
+{
+"id": "john",
+"n": "Plumbbob John (Genie)",
+"m": "TH",
+"kt": 2,
+"p": "EE. UU.",
+"a": 1957,
+"t": "misil"
+},
+{
+"id": "teak",
+"n": "Hardtack Teak",
+"m": "IC",
+"kt": 3800,
+"p": "EE. UU.",
+"a": 1958,
+"t": "espacio"
+},
+{
+"id": "orange",
+"n": "Hardtack Orange",
+"m": "IC",
+"kt": 3800,
+"p": "EE. UU.",
+"a": 1958,
+"t": "espacio"
+},
+{
+"id": "oak",
+"n": "Hardtack Oak",
+"m": "IM",
+"kt": 8900,
+"p": "EE. UU.",
+"a": 1958,
+"t": "barco"
+},
+{
+"id": "poplar",
+"n": "Hardtack Poplar",
+"m": "IM",
+"kt": 9300,
+"p": "EE. UU.",
+"a": 1958,
+"t": "barco"
+},
+{
+"id": "argus",
+"n": "Argus I",
+"m": "SP",
+"kt": 1.7,
+"p": "EE. UU.",
+"a": 1958,
+"t": "espacio"
+},
+{
+"id": "housatonic",
+"n": "Dominic Housatonic",
+"m": "MK6",
+"kt": 8300,
+"p": "EE. UU.",
+"a": 1962,
+"t": "aire"
+},
+{
+"id": "frigatebird",
+"n": "Dominic Frigate Bird (Polaris)",
+"m": "IC",
+"kt": 600,
+"p": "EE. UU.",
+"a": 1962,
+"t": "misil"
+},
+{
+"id": "swordfish",
+"n": "Dominic Swordfish (ASROC)",
+"m": "TH",
+"kt": 20,
+"p": "EE. UU.",
+"a": 1962,
+"t": "agua"
+},
+{
+"id": "starfish",
+"n": "Starfish Prime",
+"m": "SP",
+"kt": 1400,
+"p": "EE. UU.",
+"a": 1962,
+"t": "espacio"
+},
+{
+"id": "sedan",
+"n": "Sedan (Plowshare)",
+"m": "GA",
+"kt": 104,
+"p": "EE. UU.",
+"a": 1962,
+"t": "subte"
+},
+{
+"id": "littlefeller",
+"n": "Little Feller I (Davy Crockett)",
+"m": "DC",
+"kt": 0.018,
+"p": "EE. UU.",
+"a": 1962,
+"t": "artilleria"
+},
+{
+"id": "smallboy",
+"n": "Sunbeam Small Boy",
+"m": "GA",
+"kt": 1.65,
+"p": "EE. UU.",
+"a": 1962,
+"t": "torre"
+},
+{
+"id": "cannikin",
+"n": "Cannikin",
+"m": "GA",
+"kt": 5000,
+"p": "EE. UU.",
+"a": 1971,
+"t": "subte"
+},
+{
+"id": "divider",
+"n": "Divider (el último de EE. UU.)",
+"m": "GA",
+"kt": 5,
+"p": "EE. UU.",
+"a": 1992,
+"t": "subte"
+},
+{
+"id": "mk17",
+"n": "Mark 17",
+"m": "MK6",
+"kt": 11000,
+"p": "EE. UU.",
+"a": 1954,
+"t": "bomba"
+},
+{
+"id": "mk6",
+"n": "Mark 6",
+"m": "MK6",
+"kt": 160,
+"p": "EE. UU.",
+"a": 1951,
+"t": "bomba"
+},
+{
+"id": "mk27",
+"n": "Mark 27",
+"m": "FM",
+"kt": 2000,
+"p": "EE. UU.",
+"a": 1958,
+"t": "bomba"
+},
+{
+"id": "mk28",
+"n": "Mark 28 (B28)",
+"m": "B61",
+"kt": 1450,
+"p": "EE. UU.",
+"a": 1958,
+"t": "bomba"
+},
+{
+"id": "b41",
+"n": "B41 (la más grande de EE. UU.)",
+"m": "MK6",
+"kt": 25000,
+"p": "EE. UU.",
+"a": 1960,
+"t": "bomba"
+},
+{
+"id": "b53",
+"n": "B53",
+"m": "MK6",
+"kt": 9000,
+"p": "EE. UU.",
+"a": 1962,
+"t": "bomba"
+},
+{
+"id": "b61",
+"n": "B61",
+"m": "B61",
+"kt": 340,
+"p": "EE. UU.",
+"a": 1968,
+"t": "bomba"
+},
+{
+"id": "b83",
+"n": "B83",
+"m": "B61",
+"kt": 1200,
+"p": "EE. UU.",
+"a": 1983,
+"t": "bomba"
+},
+{
+"id": "w54",
+"n": "W54 (Davy Crockett)",
+"m": "DC",
+"kt": 0.02,
+"p": "EE. UU.",
+"a": 1961,
+"t": "artilleria"
+},
+{
+"id": "w33",
+"n": "W33 (proyectil de 203 mm)",
+"m": "AS",
+"kt": 40,
+"p": "EE. UU.",
+"a": 1957,
+"t": "artilleria"
+},
+{
+"id": "w76",
+"n": "W76 (Trident)",
+"m": "IC",
+"kt": 100,
+"p": "EE. UU.",
+"a": 1978,
+"t": "misil"
+},
+{
+"id": "w87",
+"n": "W87 (Minuteman III)",
+"m": "IC",
+"kt": 300,
+"p": "EE. UU.",
+"a": 1986,
+"t": "misil"
+},
+{
+"id": "w88",
+"n": "W88 (Trident II)",
+"m": "IC",
+"kt": 475,
+"p": "EE. UU.",
+"a": 1989,
+"t": "misil"
+},
+{
+"id": "w80",
+"n": "W80 (Tomahawk)",
+"m": "TH",
+"kt": 150,
+"p": "EE. UU.",
+"a": 1983,
+"t": "misil"
+},
+{
+"id": "w70",
+"n": "W70 (bomba de neutrones)",
+"m": "R17",
+"kt": 1,
+"p": "EE. UU.",
+"a": 1981,
+"t": "misil"
+},
+{
+"id": "rds1",
+"n": "RDS-1 (Primer relámpago)",
+"m": "FM",
+"kt": 22,
+"p": "URSS",
+"a": 1949,
+"t": "torre"
+},
+{
+"id": "rds2",
+"n": "RDS-2",
+"m": "FM",
+"kt": 38,
+"p": "URSS",
+"a": 1951,
+"t": "torre"
+},
+{
+"id": "rds3",
+"n": "RDS-3",
+"m": "FM",
+"kt": 42,
+"p": "URSS",
+"a": 1951,
+"t": "aire"
+},
+{
+"id": "rds6",
+"n": "RDS-6s (Joe 4)",
+"m": "FM",
+"kt": 400,
+"p": "URSS",
+"a": 1953,
+"t": "torre"
+},
+{
+"id": "totskoye",
+"n": "Ejercicio de Totskoye",
+"m": "FM",
+"kt": 40,
+"p": "URSS",
+"a": 1954,
+"t": "aire"
+},
+{
+"id": "rds37",
+"n": "RDS-37",
+"m": "TS",
+"kt": 1600,
+"p": "URSS",
+"a": 1955,
+"t": "aire"
+},
+{
+"id": "tsar",
+"n": "Tsar Bomba (RDS-220)",
+"m": "TS",
+"kt": 50000,
+"p": "URSS",
+"a": 1961,
+"t": "aire"
+},
+{
+"id": "t219",
+"n": "Prueba 219",
+"m": "TS",
+"kt": 24200,
+"p": "URSS",
+"a": 1962,
+"t": "aire"
+},
+{
+"id": "t147",
+"n": "Prueba 147",
+"m": "TS",
+"kt": 20000,
+"p": "URSS",
+"a": 1962,
+"t": "aire"
+},
+{
+"id": "k3",
+"n": "Proyecto K (Prueba 184)",
+"m": "IC",
+"kt": 300,
+"p": "URSS",
+"a": 1962,
+"t": "espacio"
+},
+{
+"id": "chagan",
+"n": "Chagan (el lago atómico)",
+"m": "GA",
+"kt": 140,
+"p": "URSS",
+"a": 1965,
+"t": "subte"
+},
+{
+"id": "r36",
+"n": "R-36M Satán (SS-18)",
+"m": "IC",
+"kt": 20000,
+"p": "URSS",
+"a": 1975,
+"t": "misil"
+},
+{
+"id": "topol",
+"n": "RT-2PM Topol",
+"m": "IC",
+"kt": 800,
+"p": "URSS",
+"a": 1985,
+"t": "misil"
+},
+{
+"id": "scud",
+"n": "R-17 Scud (nuclear)",
+"m": "R17",
+"kt": 70,
+"p": "URSS",
+"a": 1964,
+"t": "misil"
+},
+{
+"id": "rds4",
+"n": "RDS-4 Tatyana",
+"m": "B61",
+"kt": 30,
+"p": "URSS",
+"a": 1953,
+"t": "bomba"
+},
+{
+"id": "hurricane",
+"n": "Hurricane",
+"m": "FM",
+"kt": 25,
+"p": "Reino Unido",
+"a": 1952,
+"t": "barco"
+},
+{
+"id": "totem",
+"n": "Totem 1",
+"m": "GA",
+"kt": 9.1,
+"p": "Reino Unido",
+"a": 1953,
+"t": "torre"
+},
+{
+"id": "mosaic",
+"n": "Mosaic G2",
+"m": "GA",
+"kt": 59,
+"p": "Reino Unido",
+"a": 1956,
+"t": "torre"
+},
+{
+"id": "buffalo",
+"n": "Buffalo",
+"m": "GA",
+"kt": 15,
+"p": "Reino Unido",
+"a": 1956,
+"t": "torre"
+},
+{
+"id": "grapplex",
+"n": "Grapple X",
+"m": "MK6",
+"kt": 1800,
+"p": "Reino Unido",
+"a": 1957,
+"t": "aire"
+},
+{
+"id": "grappley",
+"n": "Grapple Y",
+"m": "MK6",
+"kt": 3000,
+"p": "Reino Unido",
+"a": 1958,
+"t": "aire"
+},
+{
+"id": "bluedanube",
+"n": "Blue Danube",
+"m": "LB",
+"kt": 12,
+"p": "Reino Unido",
+"a": 1953,
+"t": "bomba"
+},
+{
+"id": "we177",
+"n": "WE.177",
+"m": "B61",
+"kt": 400,
+"p": "Reino Unido",
+"a": 1966,
+"t": "bomba"
+},
+{
+"id": "gerboise",
+"n": "Gerboise Bleue",
+"m": "GA",
+"kt": 70,
+"p": "Francia",
+"a": 1960,
+"t": "torre"
+},
+{
+"id": "canopus",
+"n": "Canopus",
+"m": "IM",
+"kt": 2600,
+"p": "Francia",
+"a": 1968,
+"t": "aire"
+},
+{
+"id": "licorne",
+"n": "Licorne",
+"m": "IM",
+"kt": 914,
+"p": "Francia",
+"a": 1970,
+"t": "aire"
+},
+{
+"id": "xouthos",
+"n": "Xouthos",
+"m": "GA",
+"kt": 110,
+"p": "Francia",
+"a": 1995,
+"t": "subte"
+},
+{
+"id": "596",
+"n": "Proyecto 596",
+"m": "GA",
+"kt": 22,
+"p": "China",
+"a": 1964,
+"t": "torre"
+},
+{
+"id": "test6",
+"n": "Prueba n.º 6",
+"m": "TS",
+"kt": 3300,
+"p": "China",
+"a": 1967,
+"t": "aire"
+},
+{
+"id": "chic4",
+"n": "CHIC-4 (misil Dongfeng-2)",
+"m": "R17",
+"kt": 12,
+"p": "China",
+"a": 1966,
+"t": "misil"
+},
+{
+"id": "t1976",
+"n": "Prueba de 1976",
+"m": "TS",
+"kt": 4000,
+"p": "China",
+"a": 1976,
+"t": "aire"
+},
+{
+"id": "buddha",
+"n": "Smiling Buddha",
+"m": "GA",
+"kt": 8,
+"p": "India",
+"a": 1974,
+"t": "subte"
+},
+{
+"id": "shakti",
+"n": "Shakti I",
+"m": "GA",
+"kt": 45,
+"p": "India",
+"a": 1998,
+"t": "subte"
+},
+{
+"id": "chagai1",
+"n": "Chagai-I",
+"m": "GA",
+"kt": 40,
+"p": "Pakistán",
+"a": 1998,
+"t": "subte"
+},
+{
+"id": "chagai2",
+"n": "Chagai-II",
+"m": "GA",
+"kt": 20,
+"p": "Pakistán",
+"a": 1998,
+"t": "subte"
+},
+{
+"id": "kp2006",
+"n": "Corea del Norte 2006",
+"m": "GA",
+"kt": 0.7,
+"p": "Corea del Norte",
+"a": 2006,
+"t": "subte"
+},
+{
+"id": "kp2013",
+"n": "Corea del Norte 2013",
+"m": "GA",
+"kt": 7,
+"p": "Corea del Norte",
+"a": 2013,
+"t": "subte"
+},
+{
+"id": "kp2016",
+"n": "Corea del Norte 2016",
+"m": "GA",
+"kt": 10,
+"p": "Corea del Norte",
+"a": 2016,
+"t": "subte"
+},
+{
+"id": "kp2017",
+"n": "Corea del Norte 2017 (Hwasong)",
+"m": "TD",
+"kt": 250,
+"p": "Corea del Norte",
+"a": 2017,
+"t": "subte"
+},
+{
+"id": "vela",
+"n": "Incidente Vela",
+"m": "FM",
+"kt": 3,
+"p": "Atlántico Sur",
+"a": 1979,
+"t": "aire"
+},
+{
+"id": "megaton",
+"n": "Megatón (la de Fallout)",
+"m": "MG",
+"kt": 300,
+"p": "Ficción",
+"a": 2077,
+"t": "ficcion"
+},
+{
+"id": "mininuke",
+"n": "Mini Nuke (Fat Man de Fallout)",
+"m": "DC",
+"kt": 0.1,
+"p": "Ficción",
+"a": 2077,
+"t": "ficcion"
+},
+{
+"id": "cobalto",
+"n": "Bomba de cobalto (Juicio Final)",
+"m": "TS",
+"kt": 100000,
+"p": "Ficción",
+"a": 1950,
+"t": "ficcion"
+},
+{
+"id": "salada",
+"n": "Little Boy salada (de GWarheads)",
+"m": "LB",
+"kt": 15,
+"p": "Ficción",
+"a": 2016,
+"t": "ficcion"
+},
+{
+"id": "sucia",
+"n": "Bomba sucia",
+"m": "B61",
+"kt": 0.01,
+"p": "Ficción",
+"a": 2000,
+"t": "ficcion"
+},
+{
+"id": "v2nuke",
+"n": "V-2 atómica",
+"m": "V2",
+"kt": 20,
+"p": "Ficción",
+"a": 1945,
+"t": "ficcion"
+},
+{
+"id": "espacial",
+"n": "Nuke espacial (de HBOMBS)",
+"m": "SP",
+"kt": 500,
+"p": "Ficción",
+"a": 2016,
+"t": "espacio"
+},
+{
+"id": "emp",
+"n": "Bomba EMP",
+"m": "EMP",
+"kt": 0.5,
+"p": "Ficción",
+"a": 2016,
+"t": "ficcion"
+}
+]

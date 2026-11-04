@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- dibujar también al lado del recorte de la cámara (apaisado: los lados cortos) -->
+    <style name="TemaRecorte" parent="TemaBase">
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

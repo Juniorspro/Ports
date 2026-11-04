@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+: pantalla de inicio oscura con el frente del ícono adaptable (las letras JXM) -->
+    <style name="TemaJXMod" parent="TemaRecorte">
+        <item name="android:windowSplashScreenBackground">@color/fondo</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+    </style>
+</resources>

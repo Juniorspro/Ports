@@ -1,0 +1,11 @@
+ripped/
+# firma del APK: nunca en el repo (es pública)
+apk/firma/
+*.jks
+*.keystore
+# fotos y salidas de las pruebas del motor nativo (se rehacen con correr.sh)
+apk/pruebas/*/fotos/
+apk/pruebas/*/vistas/
+# capturas que generan las pruebas del juego web (se rehacen al correrlas)
+pruebas/*.jpg
+pruebas/*.png

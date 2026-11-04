@@ -1,0 +1,352 @@
+// ---------------------------------------------------------------------------------------------------------
+// el mapa: modelos de la escena del juego, luz y cielo, y el mundo fijo para choques (triángulos de los
+// MeshCollider y cajas de los BoxCollider) en una grilla sobre el piso (x, z).
+// ---------------------------------------------------------------------------------------------------------
+const MAPAS = ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space'];
+const MAPA_ICONO = { Desert: 'Desert', DesertV2: 'desert 1', FlatGrass: 'flatgrass', City: 'city', Base: 'base', BaseV2: 'basev2', Mars: 'Mars', Space: 'Space' };
+// los mapas propios de JXMod (herramientas/mapas_rb.py): se suman a los del juego, que siguen todos
+const MAPAS_RB = ['RB_Llanura', 'RB_Colinas', 'RB_Isla', 'RB_Ciudad', 'RB_Desierto', 'RB_Luna', 'RB_Pizzeria', 'RB_Construct', 'RB_Flatgrass'];
+// los de Garry's Mod 10 (herramientas/gmod_mapa.py, desde los BSP originales)
+const MAPAS_GMOD = ['RB_Construct', 'RB_Flatgrass'];
+for (const m of MAPAS_RB) MAPA_ICONO[m] = 'mapa_' + m;
+const mapaValido = (m) => MAPAS_RB.includes(m) || MAPAS.includes(m);
+const MUNDO = { nombre: '', modelos: [], T: null, TN: null, nt: 0, cajas: [], celda: 6, grilla: new Map(), triCuerpo: [], marca: 1,
+  spawns: [], lo: v3(), hi: v3(), gravedad: 1, luces: [], lejosMin: 0 };
+// hasta dónde se ve: lo de la calidad, o más si el mapa lo pide (el fondo de los mapas de GMod, a 90-760 m)
+const vistaLejos = () => Math.max(GFX.lejos, MUNDO.lejosMin || 0);
+const _clave = (cx, cz) => (cx + 32768) * 65536 + (cz + 32768);
+function grillaAgregar(x0, z0, x1, z1, item) {
+  const c = MUNDO.celda, G = MUNDO.grilla;
+  const ax = Math.floor(x0 / c), az = Math.floor(z0 / c), bx = Math.floor(x1 / c), bz = Math.floor(z1 / c);
+  for (let i = ax; i <= bx; i++) for (let j = az; j <= bz; j++) { const k = _clave(i, j); let l = G.get(k); if (!l) G.set(k, (l = [])); l.push(item); if (MUNDO.sub) MUNDO.sub.delete(k); if (typeof item === 'number' && MUNDO.aristasCel) MUNDO.aristasCel.delete(k); }
+}
+// triángulo sin área o una aguja (menos de 1 mm de alto): no sirve para chocar y el sólido que se arma con él da NaN
+// (los mapas de Source traen caras con vértices alineados)
+function triFino(v, a, b, c) {
+  const ux = v[b] - v[a], uy = v[b + 1] - v[a + 1], uz = v[b + 2] - v[a + 2], wx = v[c] - v[a], wy = v[c + 1] - v[a + 1], wz = v[c + 2] - v[a + 2];
+  const a2 = Math.hypot(uy * wz - uz * wy, uz * wx - ux * wz, ux * wy - uy * wx);
+  const l = Math.max(Math.hypot(ux, uy, uz), Math.hypot(wx, wy, wz), Math.hypot(wx - ux, wy - uy, wz - uz));
+  return !(a2 > 1e-9) || a2 / l < 1e-3;
+}
+function cargarMapa(nombre) {
+  MUNDO.nombre = nombre; MUNDO.modelos = []; MUNDO.cajas = []; MUNDO.grilla = new Map(); MUNDO.aristasCel = new Map(); MUNDO.sub = new Map(); MUNDO.triCuerpo = []; MUNDO.spawns = []; MUNDO.luces = [];
+  const raices = DATA.esc[nombre], tris = [], supTri = [];
+  const lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9);
+  const q = new Quat(), pt = v3();
+  for (const arb of raices) {
+    const md = new Modelo(arb); md.actualizar(); MUNDO.modelos.push(md);
+    for (let i = 0; i < arb.length; i++) {
+      const x = arb[i]; if (!md.act[i]) continue;
+      const W = md.W[i];
+      if (/^SpawnPoint/.test(x.n) || (x.pa >= 0 && /SpawnPoints/.test(arb[x.pa].n))) { const v = v3(W[12], W[13], W[14]); if (x.yaw !== undefined) v.yaw = x.yaw; MUNDO.spawns.push(v); }   // (con su dirección, si la trae)
+      if (x.lz && x.lz.t === 1) { m4quat(W, q); const f = q.rot(v3(0, 0, 1)); R.sol.set(-f.x, -f.y, -f.z).norm(); R.solCol = x.lz.c.map((c) => c * x.lz.i); }
+      // luces del mapa (puntuales y focos): se prenden cada cuadro donde hay luces puntuales (efectos.js)
+      if (x.lz && (x.lz.t === 0 || x.lz.t === 2)) MUNDO.luces.push({ p: v3(W[12], W[13], W[14]), r: x.lz.r || 8, c: x.lz.c.map((c) => c * (x.lz.i || 1)), d: x.lz.t === 0 && x.lz.d ? v3(x.lz.d[0], x.lz.d[1], x.lz.d[2]).norm() : null, k: x.lz.t === 0 ? x.lz.k : -2 });
+      if (!x.col) continue;
+      for (const c of x.col) {
+        if (c.tr) continue;
+        if (c.k === 'b') {
+          const sx = Math.hypot(W[0], W[1], W[2]), sy = Math.hypot(W[4], W[5], W[6]), sz = Math.hypot(W[8], W[9], W[10]);
+          const b = new Body(boxShape(Math.abs(c.s[0] * sx) / 2 + 1e-3, Math.abs(c.s[1] * sy) / 2 + 1e-3, Math.abs(c.s[2] * sz) / 2 + 1e-3), 0);
+          m4pt(W, c.c[0], c.c[1], c.c[2], b.pos); m4quat(W, b.q); b.updateWorld(); b.estatico = true; b.nodo = x.n; b.snd = 'concrete'; b.sup = x.mt ? sonSupDeMat(x.mt[0]) : 0;   // (de qué es: los pasos)
+          MUNDO.cajas.push(b); const a = b.aabb; grillaAgregar(a.x0, a.z0, a.x1, a.z1, b);
+          lo.set(Math.min(lo.x, a.x0), Math.min(lo.y, a.y0), Math.min(lo.z, a.z0)); hi.set(Math.max(hi.x, a.x1), Math.max(hi.y, a.y1), Math.max(hi.z, a.z1));
+        } else if (c.k === 'm' && c.m >= 0) {
+          const mc = mallaCPU(c.m), P = mc.P, I = mc.I;
+          const base = tris.length / 9;
+          const vw = new Float32Array(P.length);
+          for (let k = 0; k < P.length; k += 3) { m4pt(W, P[k], P[k + 1], P[k + 2], pt); vw[k] = pt.x; vw[k + 1] = pt.y; vw[k + 2] = pt.z; }
+          let n = 0; for (const s of mc.d.sub) n = Math.max(n, s[0] + s[1]);
+          // (de qué es cada parte: para el ruido de los pasos)
+          const sups = mc.d.sub.map((s, j) => sonSupDeMat(x.mt ? (c.m === x.m && x.mt[j] !== undefined ? x.mt[j] : x.mt[0]) : -1));
+          // escala negativa (espejo) da vuelta los triángulos
+          const det = W[0] * (W[5] * W[10] - W[6] * W[9]) - W[4] * (W[1] * W[10] - W[2] * W[9]) + W[8] * (W[1] * W[6] - W[2] * W[5]);
+          for (let k = 0; k + 2 < n; k += 3) {
+            let a = I[k] * 3, b = I[k + 1] * 3, cc = I[k + 2] * 3; if (det < 0) { const t = b; b = cc; cc = t; }
+            if (triFino(vw, a, b, cc)) continue;   // (sin área: el choque contra eso daba NaN)
+            tris.push(vw[a], vw[a + 1], vw[a + 2], vw[b], vw[b + 1], vw[b + 2], vw[cc], vw[cc + 1], vw[cc + 2]);
+            let j = 0; while (j + 1 < mc.d.sub.length && k >= mc.d.sub[j][0] + mc.d.sub[j][1]) j++; supTri.push(sups[j]);
+          }
+        } else if (c.k === 's' || c.k === 'c') {
+          const r = c.r * m4esc(W), b = new Body(c.k === 's' ? sphereShape(r) : capsuleShape(r, Math.max(0, c.h * m4esc(W) / 2 - r)), 0);
+          m4pt(W, c.c[0], c.c[1], c.c[2], b.pos); m4quat(W, b.q); if (c.k === 'c' && c.d !== 1) b.q.mul(c.d === 0 ? Quat.axis(0, 0, 1, Math.PI / 2) : Quat.axis(1, 0, 0, Math.PI / 2));
+          b.updateWorld(); b.estatico = true; MUNDO.cajas.push(b); const a = b.aabb; grillaAgregar(a.x0, a.z0, a.x1, a.z1, b);
+        }
+      }
+    }
+  }
+  // triángulos a la grilla
+  const T = (MUNDO.T = new Float32Array(tris)); MUNDO.nt = T.length / 9; MUNDO.ntMapa = MUNDO.nt; MUNDO.TN = new Float32Array(MUNDO.nt * 3); MUNDO.triSup = new Uint8Array(supTri);
+  for (let t = 0; t < MUNDO.nt; t++) {
+    const o = t * 9;
+    const ux = T[o + 3] - T[o], uy = T[o + 4] - T[o + 1], uz = T[o + 5] - T[o + 2], vx = T[o + 6] - T[o], vy = T[o + 7] - T[o + 1], vz = T[o + 8] - T[o + 2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+    MUNDO.TN[t * 3] = nx; MUNDO.TN[t * 3 + 1] = ny; MUNDO.TN[t * 3 + 2] = nz;
+    const x0 = Math.min(T[o], T[o + 3], T[o + 6]), x1 = Math.max(T[o], T[o + 3], T[o + 6]), z0 = Math.min(T[o + 2], T[o + 5], T[o + 8]), z1 = Math.max(T[o + 2], T[o + 5], T[o + 8]);
+    grillaAgregar(x0, z0, x1, z1, t);
+    lo.set(Math.min(lo.x, x0), Math.min(lo.y, T[o + 1], T[o + 4], T[o + 7]), Math.min(lo.z, z0)); hi.set(Math.max(hi.x, x1), Math.max(hi.y, T[o + 1], T[o + 4], T[o + 7]), Math.max(hi.z, z1));
+  }
+  MUNDO.lo.copy(lo); MUNDO.hi.copy(hi);
+  // cielo, luz ambiente y niebla del mapa
+  const aj = DATA.aj[nombre] || {}, sky = aj.sky !== undefined ? DATA.mt[aj.sky] : null, cc = (sky && sky.cc) || {};
+  const col = (k, d) => (cc[k] ? cc[k].slice(0, 3) : d);
+  R.cielo = { top: col('_TopColor', [0.28, 0.64, 1]), mid: col('_MiddleColor', [0.92, 0.92, 0.92]), bot: col('_BottomColor', [0.53, 0.58, 0.68]),
+    exp: [(sky && sky.f && sky.f._TopExponent) || 0.8, (sky && sky.f && sky.f._BottomExponent) || 1], sol: col('_SunTint', [0.95, 0.82, 0.67]) };
+  if (nombre === 'Space') R.cielo.sol = [0.6, 0.6, 0.6];
+  if (aj.cubo) R.cielo.cubo = aj.cubo;   // (cielo de caja: las seis caras ya dibujadas)
+  if (aj.cieloCubo) R.cielo.cuboPx = aj.cieloCubo;   // (los mapas del Workshop: su cielo de verdad, armado al cargar)
+  // el cielo 3D de los mapas del Workshop (la maqueta de fondo): aparte del mundo (no choca ni hace sombra)
+  MUNDO.cielo3d = null;
+  if (aj.cielo3d && aj.cielo3d.arbs && aj.cielo3d.arbs.length) {
+    const c = aj.cielo3d, fog = c.fog ? { c: c.fog.c, cLin: c.fog.c.map((x) => Math.pow(x, 2.2)), a: c.fog.a, b: c.fog.b } : null;
+    MUNDO.cielo3d = { o: v3(c.o[0], c.o[1], c.o[2]), s: c.s, lejos: c.lejos, fog, modelos: c.arbs.map((a) => { const md = new Modelo(a); md.actualizar(); return md; }), VP: new Float32Array(16), cola: [], colaT: [] };
+  }
+  const C = R.cielo, ai = aj.ai || 1;
+  // luz ambiente como la del cielo en Unity (modo Skybox): bastante clara
+  R.ambS = [0, 1, 2].map((k) => (C.top[k] * 0.4 + C.mid[k] * 0.6) * ai * 0.72);
+  R.ambG = [0, 1, 2].map((k) => (C.mid[k] * 0.45 + C.bot[k] * 0.3) * ai * 0.62);
+  // la estación espacial: el casco taparía el sol adentro (en el juego no había sombras): luz pareja y sin sombras del sol
+  if (nombre === 'Space') { R.ambS = [0.5, 0.5, 0.56]; R.ambG = [0.34, 0.34, 0.38]; }
+  if (aj.ambRB) { R.ambS = aj.ambRB[0].slice(); R.ambG = aj.ambRB[1].slice(); } // (luz de relleno propia: en la Luna el cielo negro no ilumina)
+  MUNDO.sinSombra = nombre === 'Space' || !!aj.sinSombra; MUNDO.espacio = nombre === 'Space' || !!aj.espacio;
+  MUNDO.lejosMin = aj.lejos || 0; const lejos = vistaLejos();
+  if (aj.fog && aj.fd > 0) R.niebla = { c: aj.fc.slice(0, 3), a: 0.15 / aj.fd, b: Math.min(lejos, 1.9 / aj.fd) };
+  else if (aj.fog && aj.fm === 1 && aj.fe > aj.fs) R.niebla = Object.assign({ c: aj.fc.slice(0, 3) }, nieblaLineal(aj, lejos));
+  else R.niebla = { c: C.mid.slice(), a: lejos * 0.7, b: lejos };
+  if (nombre === 'Space' || aj.espacio) R.niebla = { c: [0, 0, 0], a: lejos * 0.8, b: lejos * 1.5 };
+  MUNDO.gravedad = aj.grav || (nombre === 'Space' ? 0.16 : nombre === 'Mars' ? 0.38 : 1);
+  aguaMapa(aj.agua);   // (los volúmenes de agua del mapa: para nadar y para que floten las cosas)
+  portalesMapa(aj);   // (las puertas portal de los mapas de GMod: el pasillo infinito de los Backrooms)
+  R.expoK = 1; R.noche = 0; R.lucesMapa = false;
+  if (typeof diaGuardarBase === 'function') diaGuardarBase();
+  if (typeof marcasLimpiar === 'function') marcasLimpiar();
+  PH.gscale = MUNDO.gravedad;
+  if (!MUNDO.spawns.length) {
+    const h = mundoRayo(v3(0, hi.y + 5, 0), v3(0, -1, 0), 1e4);
+    MUNDO.spawns.push(v3(0, h ? hi.y + 5 - h.t + 1 : 2, 0));
+  }
+}
+// niebla lineal del mapa (la de Source): la del mapa si la vista llega a todo el mapa; si no, cerrada antes de donde se
+// corta la vista (en las calidades bajas, lo de lejos se pierde en la niebla en vez de cortarse)
+function nieblaLineal(aj, lejos) {
+  const diag = Math.hypot(MUNDO.hi.x - MUNDO.lo.x, MUNDO.hi.z - MUNDO.lo.z);
+  return lejos >= diag ? { a: aj.fs, b: aj.fe } : { a: Math.min(aj.fs, lejos * 0.5), b: Math.min(aj.fe, lejos) };
+}
+// ---------------- choques contra el mundo ----------------
+// triángulo como poliedro chato (dos caras) para el solver; se arma la primera vez que algo lo toca
+function triCuerpo(t) {
+  let b = MUNDO.triCuerpo[t]; if (b) return b;
+  const T = MUNDO.T, o = t * 9, c = v3((T[o] + T[o + 3] + T[o + 6]) / 3, (T[o + 1] + T[o + 4] + T[o + 7]) / 3, (T[o + 2] + T[o + 5] + T[o + 8]) / 3);
+  const vs = [v3(T[o] - c.x, T[o + 1] - c.y, T[o + 2] - c.z), v3(T[o + 3] - c.x, T[o + 4] - c.y, T[o + 5] - c.z), v3(T[o + 6] - c.x, T[o + 7] - c.y, T[o + 8] - c.z)];
+  // (el sólido de dos caras armado directo: hullFrom sirve para cualquier poliedro y es más lento; esto se hace miles de veces)
+  const n = vcross(vsub(vs[1], vs[0]), vsub(vs[2], vs[0])).norm(), d = vdot(n, vs[0]), E = [[0, 1], [1, 2], [2, 0]];
+  const sh = { type: 'hull', v: vs, f: [{ n, d, ix: [0, 1, 2] }, { n: vscale(n, -1), d: -d, ix: [2, 1, 0] }], e: E, dirs: E.map(([a, q]) => vsub(vs[q], vs[a]).norm()), r: Math.max(vs[0].len(), vs[1].len(), vs[2].len()) };
+  b = new Body(sh, 0); b.pos.copy(c); b.updateWorld(); b.estatico = true; b.tri = t; b.snd = 'concrete'; b.propio = t >= MUNDO.ntMapa; // (rampas: geo.js)
+  b.tn = v3(MUNDO.TN[t * 3], MUNDO.TN[t * 3 + 1], MUNDO.TN[t * 3 + 2]);
+  return (MUNDO.triCuerpo[t] = b);
+}
+// celdas pesadas (rocas y detalles con miles de triángulos en 6 m): una subgrilla dentro de la celda, que se arma la
+// primera vez que se mira. Así un rayo de rueda o lo que está cerca de un auto no prueba miles de triángulos.
+const SUB_MIN = 160;
+function grillaSub(k, l, ci, cj) {
+  const M = MUNDO.sub || (MUNDO.sub = new Map()); let S = M.get(k); if (S) return S;
+  const c = MUNDO.celda, n = Math.min(16, Math.max(2, Math.ceil(Math.sqrt(l.length / 12)))), s = c / n, x0 = ci * c, z0 = cj * c, T = MUNDO.T;
+  S = { n, s, x0, z0, L: [], obj: [] }; for (let q = 0; q < n * n; q++) S.L.push([]);
+  const sc = (v, b) => Math.min(n - 1, Math.max(0, Math.floor((v - b) / s)));
+  for (const it of l) {
+    if (typeof it !== 'number') { S.obj.push(it); continue; }
+    const o = it * 9, a0 = sc(Math.min(T[o], T[o + 3], T[o + 6]), x0), a1 = sc(Math.max(T[o], T[o + 3], T[o + 6]), x0), b0 = sc(Math.min(T[o + 2], T[o + 5], T[o + 8]), z0), b1 = sc(Math.max(T[o + 2], T[o + 5], T[o + 8]), z0);
+    for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) S.L[a * n + b].push(it);
+  }
+  M.set(k, S); return S;
+}
+function _triMarcas() { if (!MUNDO.triMarca || MUNDO.triMarca.length < MUNDO.nt + 1) MUNDO.triMarca = new Uint32Array(MUNDO.nt + 1); return MUNDO.triMarca; }
+function _cercaTri(it, x0, y0, z0, x1, y1, z1, mk, TM, out) {
+  if (TM[it] === mk) return; TM[it] = mk;
+  const T = MUNDO.T, o = it * 9;
+  if (Math.max(T[o], T[o + 3], T[o + 6]) < x0 || Math.min(T[o], T[o + 3], T[o + 6]) > x1) return;
+  if (Math.max(T[o + 1], T[o + 4], T[o + 7]) < y0 || Math.min(T[o + 1], T[o + 4], T[o + 7]) > y1) return;
+  if (Math.max(T[o + 2], T[o + 5], T[o + 8]) < z0 || Math.min(T[o + 2], T[o + 5], T[o + 8]) > z1) return;
+  out.push(triCuerpo(it));
+}
+function _cercaObj(it, x0, y0, z0, x1, y1, z1, mk, out) {
+  if (it.mk === mk) return; it.mk = mk; const a = it.aabb;
+  if (a.x1 < x0 || a.x0 > x1 || a.y1 < y0 || a.y0 > y1 || a.z1 < z0 || a.z0 > z1) return;
+  out.push(it);
+}
+function mundoCerca(x0, y0, z0, x1, y1, z1, out) {
+  out.length = 0; const c = MUNDO.celda, G = MUNDO.grilla, mk = ++MUNDO.marca, TM = _triMarcas();
+  const ax = Math.floor(x0 / c), az = Math.floor(z0 / c), bx = Math.floor(x1 / c), bz = Math.floor(z1 / c);
+  if ((bx - ax + 1) * (bz - az + 1) > 400) return out;
+  for (let i = ax; i <= bx; i++) for (let j = az; j <= bz; j++) {
+    const k = _clave(i, j), l = G.get(k); if (!l) continue;
+    if (l.length < SUB_MIN) { for (const it of l) { if (typeof it === 'number') _cercaTri(it, x0, y0, z0, x1, y1, z1, mk, TM, out); else _cercaObj(it, x0, y0, z0, x1, y1, z1, mk, out); } continue; }
+    const S = grillaSub(k, l, i, j), n = S.n;
+    for (const it of S.obj) _cercaObj(it, x0, y0, z0, x1, y1, z1, mk, out);
+    const a0 = Math.max(0, Math.floor((x0 - S.x0) / S.s)), a1 = Math.min(n - 1, Math.floor((x1 - S.x0) / S.s)), b0 = Math.max(0, Math.floor((z0 - S.z0) / S.s)), b1 = Math.min(n - 1, Math.floor((z1 - S.z0) / S.s));
+    for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) for (const it of S.L[a * n + b]) _cercaTri(it, x0, y0, z0, x1, y1, z1, mk, TM, out);
+  }
+  return out;
+}
+// rayo contra el mapa: recorre las celdas de la grilla que cruza
+function rayTri(o, d, t, tmax) {
+  const T = MUNDO.T, k = t * 9;
+  const e1x = T[k + 3] - T[k], e1y = T[k + 4] - T[k + 1], e1z = T[k + 5] - T[k + 2], e2x = T[k + 6] - T[k], e2y = T[k + 7] - T[k + 1], e2z = T[k + 8] - T[k + 2];
+  const px = d.y * e2z - d.z * e2y, py = d.z * e2x - d.x * e2z, pz = d.x * e2y - d.y * e2x, det = e1x * px + e1y * py + e1z * pz;
+  if (Math.abs(det) < 1e-9) return -1;
+  const inv = 1 / det, sx = o.x - T[k], sy = o.y - T[k + 1], sz = o.z - T[k + 2], u = (sx * px + sy * py + sz * pz) * inv;
+  if (u < 0 || u > 1) return -1;
+  const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x, v = (d.x * qx + d.y * qy + d.z * qz) * inv;
+  if (v < 0 || u + v > 1) return -1;
+  const tt = (e2x * qx + e2y * qy + e2z * qz) * inv;
+  return tt >= 0 && tt <= tmax ? tt : -1;
+}
+function mundoRayo(o, d, tmax) {
+  const c = MUNDO.celda, G = MUNDO.grilla, mk = ++MUNDO.marca;
+  let best = tmax, bt = -1, bb = null;
+  let cx = Math.floor(o.x / c), cz = Math.floor(o.z / c);
+  const sx = d.x > 0 ? 1 : -1, sz = d.z > 0 ? 1 : -1;
+  const tdx = Math.abs(d.x) > 1e-9 ? c / Math.abs(d.x) : 1e9, tdz = Math.abs(d.z) > 1e-9 ? c / Math.abs(d.z) : 1e9;
+  let tmx = Math.abs(d.x) > 1e-9 ? ((d.x > 0 ? (cx + 1) * c - o.x : o.x - cx * c) / Math.abs(d.x)) : 1e9;
+  let tmz = Math.abs(d.z) > 1e-9 ? ((d.z > 0 ? (cz + 1) * c - o.z : o.z - cz * c) / Math.abs(d.z)) : 1e9;
+  let tcel = 0;
+  const TM = _triMarcas();
+  for (let paso = 0; paso < 2000; paso++) {
+    const kc = _clave(cx, cz); let l = G.get(kc);
+    // (celda pesada: sólo los triángulos de las subceldas que cruza el tramo del rayo en esta celda)
+    if (l && l.length >= SUB_MIN) {
+      const S = grillaSub(kc, l, cx, cz), n = S.n, t1 = Math.min(tmx, tmz, best), px0 = o.x + d.x * tcel, pz0 = o.z + d.z * tcel, px1 = o.x + d.x * t1, pz1 = o.z + d.z * t1;
+      const a0 = Math.max(0, Math.floor((Math.min(px0, px1) - S.x0) / S.s)), a1 = Math.min(n - 1, Math.floor((Math.max(px0, px1) - S.x0) / S.s)), b0 = Math.max(0, Math.floor((Math.min(pz0, pz1) - S.z0) / S.s)), b1 = Math.min(n - 1, Math.floor((Math.max(pz0, pz1) - S.z0) / S.s));
+      for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) for (const it of S.L[a * n + b]) {
+        if (TM[it] === mk) continue; TM[it] = mk;
+        const t = rayTri(o, d, it, best); if (t >= 0) { best = t; bt = it; bb = null; }
+      }
+      l = S.obj;
+    }
+    if (l) for (const it of l) {
+      if (typeof it === 'number') {
+        if (TM[it] === mk) continue; TM[it] = mk;
+        const t = rayTri(o, d, it, best); if (t >= 0) { best = t; bt = it; bb = null; }
+      } else {
+        if (it.mk === mk) continue; it.mk = mk;
+        let h = null;
+        if (it.shape.type === 'hull') h = rayHull(it, o, d, best);
+        else if (it.shape.type === 'sphere') h = raySphere(it.pos, it.shape.r, o, d, best);
+        else for (const p of capSpheres(it)) { const k = raySphere(p, it.shape.r, o, d, best); if (k && (!h || k.t < h.t)) h = k; }
+        if (h && h.t < best) { best = h.t; bb = { b: it, n: h.n }; bt = -1; }
+      }
+    }
+    if (tcel > best) break;
+    if (tmx < tmz) { tcel = tmx; tmx += tdx; cx += sx; } else { tcel = tmz; tmz += tdz; cz += sz; }
+    if (tcel > tmax) break;
+  }
+  if (bt >= 0) {
+    const n = v3(MUNDO.TN[bt * 3], MUNDO.TN[bt * 3 + 1], MUNDO.TN[bt * 3 + 2]); if (vdot(n, d) > 0) n.scale(-1);
+    return { t: best, n, tri: bt };
+  }
+  if (bb) return { t: best, n: bb.n.clone(), caja: bb.b };
+  return null;
+}
+// las aristas de un triángulo del mapa: lisa (del otro lado sigue el piso casi en el mismo plano, o sube) o filosa
+// (borde suelto, o del otro lado cae más de 15°). Se mira con rayitos cortos a 6 cm afuera de cada arista (en tres
+// puntos), así anda también con las uniones en T de los mapas. En una arista lisa un choque "de costado" es falso
+// (el triángulo de al lado ya da el piso con su propia cara): eso frenaba los autos contra nada.
+function triSonda(px, py, pz, n, excl) {
+  const c = MUNDO.celda, G = MUNDO.grilla, T = MUNDO.T, o = v3(px + n.x * 0.3, py + n.y * 0.3, pz + n.z * 0.3), d = v3(-n.x, -n.y, -n.z);
+  const ex = o.x + d.x * 0.6, ey = o.y + d.y * 0.6, ez = o.z + d.z * 0.6;
+  const x0 = Math.min(o.x, ex), x1 = Math.max(o.x, ex), y0 = Math.min(o.y, ey), y1 = Math.max(o.y, ey), z0 = Math.min(o.z, ez), z1 = Math.max(o.z, ez);
+  let best = 0.6, hit = false;
+  for (let i = Math.floor(x0 / c); i <= Math.floor(x1 / c); i++) for (let j = Math.floor(z0 / c); j <= Math.floor(z1 / c); j++) {
+    const kc = _clave(i, j); let l = G.get(kc); if (!l) continue;
+    if (l.length >= SUB_MIN) { const S = grillaSub(kc, l, i, j), n = S.n, a0 = Math.max(0, Math.floor((x0 - S.x0) / S.s)), a1 = Math.min(n - 1, Math.floor((x1 - S.x0) / S.s)), b0 = Math.max(0, Math.floor((z0 - S.z0) / S.s)), b1 = Math.min(n - 1, Math.floor((z1 - S.z0) / S.s)); l = []; for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) for (const it of S.L[a * n + b]) l.push(it); }
+    for (const it of l) {
+      if (typeof it !== 'number' || it === excl) continue; const k = it * 9;
+      if (Math.max(T[k], T[k + 3], T[k + 6]) < x0 || Math.min(T[k], T[k + 3], T[k + 6]) > x1) continue;
+      if (Math.max(T[k + 1], T[k + 4], T[k + 7]) < y0 || Math.min(T[k + 1], T[k + 4], T[k + 7]) > y1) continue;
+      if (Math.max(T[k + 2], T[k + 5], T[k + 8]) < z0 || Math.min(T[k + 2], T[k + 5], T[k + 8]) > z1) continue;
+      const t = rayTri(o, d, it, best); if (t >= 0) { best = t; hit = true; }
+    }
+  }
+  return hit ? 0.3 - best : null;
+}
+const TRI_CONVEXO = -0.06 * Math.tan(15 * Math.PI / 180), TRI_PEND = Math.tan(15 * Math.PI / 180);
+// los triángulos que comparten cada arista, por celda de la grilla (se arma la primera vez que se mira esa celda)
+const _qv = (x) => Math.round(x * 512);
+function triAristaClave(T, o1, o2) {
+  const a = _qv(T[o1]) + ',' + _qv(T[o1 + 1]) + ',' + _qv(T[o1 + 2]), b = _qv(T[o2]) + ',' + _qv(T[o2 + 1]) + ',' + _qv(T[o2 + 2]);
+  return a < b ? a + '|' + b : b + '|' + a;
+}
+function triAristasCelda(ck) {
+  const M = MUNDO.aristasCel || (MUNDO.aristasCel = new Map()); let m = M.get(ck); if (m) return m;
+  m = new Map(); const l = MUNDO.grilla.get(ck), T = MUNDO.T;
+  if (l) for (const it of l) {
+    if (typeof it !== 'number') continue; const k = it * 9;
+    for (let e = 0; e < 3; e++) { const key = triAristaClave(T, k + e * 3, k + ((e + 1) % 3) * 3); const L = m.get(key); if (L) L.push(it); else m.set(key, [it]); }
+  }
+  M.set(ck, m); return m;
+}
+function triAristas(t) {
+  const T = MUNDO.T, k = t * 9, c0 = MUNDO.celda, n = v3(MUNDO.TN[t * 3], MUNDO.TN[t * 3 + 1], MUNDO.TN[t * 3 + 2]), P = [v3(T[k], T[k + 1], T[k + 2]), v3(T[k + 3], T[k + 4], T[k + 5]), v3(T[k + 6], T[k + 7], T[k + 8])];
+  const res = [];
+  for (let e = 0; e < 3; e++) {
+    const a = P[e], b = P[(e + 1) % 3], c = P[(e + 2) % 3], ab = vsub(b, a), fuera = vcross(ab, n).norm();
+    if (vdot(fuera, vsub(c, a)) > 0) fuera.scale(-1);
+    // 1) el vecino que comparte la arista exacta: el ángulo entre las dos caras (con su tercer vértice)
+    const m = triAristasCelda(_clave(Math.floor((a.x + b.x) / 2 / c0), Math.floor((a.z + b.z) / 2 / c0)));
+    const L = m.get(triAristaClave(T, k + e * 3, k + ((e + 1) % 3) * 3));
+    let lisa = null;
+    if (L) for (const u of L) {
+      if (u === t) continue; const q = u * 9; let ox = 0, oy = 0, oz = 0, mejor = -1;
+      for (let j = 0; j < 3; j++) { const x = T[q + j * 3], y = T[q + j * 3 + 1], z = T[q + j * 3 + 2], d = Math.min((x - a.x) ** 2 + (y - a.y) ** 2 + (z - a.z) ** 2, (x - b.x) ** 2 + (y - b.y) ** 2 + (z - b.z) ** 2); if (d > mejor) { mejor = d; ox = x; oy = y; oz = z; } }
+      const dx = ox - a.x, dy = oy - a.y, dz = oz - a.z, h = n.x * dx + n.y * dy + n.z * dz, d = fuera.x * dx + fuera.y * dy + fuera.z * dz;
+      if (d > 1e-4 && h >= -TRI_PEND * d) { lisa = true; break; }
+      lisa = false;
+    }
+    // 2) sin vecino exacto (uniones en T, bordes): rayitos cortos a 6 cm afuera de la arista, en tres puntos
+    if (lisa === null) {
+      lisa = true;
+      for (const s of [0.2, 0.5, 0.8]) {
+        const h = triSonda(a.x + ab.x * s + fuera.x * 0.06, a.y + ab.y * s + fuera.y * 0.06, a.z + ab.z * s + fuera.z * 0.06, n, t);
+        if (h === null || h < TRI_CONVEXO) { lisa = false; break; }
+      }
+    }
+    res.push(lisa);
+  }
+  return res;
+}
+// el punto más cercano de un triángulo a p (para el jugador)
+function triCercano(t, px, py, pz, out) {
+  const T = MUNDO.T, k = t * 9;
+  const ax = T[k], ay = T[k + 1], az = T[k + 2], bx = T[k + 3], by = T[k + 4], bz = T[k + 5], cx = T[k + 6], cy = T[k + 7], cz = T[k + 8];
+  const abx = bx - ax, aby = by - ay, abz = bz - az, acx = cx - ax, acy = cy - ay, acz = cz - az, apx = px - ax, apy = py - ay, apz = pz - az;
+  const d1 = abx * apx + aby * apy + abz * apz, d2 = acx * apx + acy * apy + acz * apz;
+  if (d1 <= 0 && d2 <= 0) return out.set(ax, ay, az);
+  const bpx = px - bx, bpy = py - by, bpz = pz - bz, d3 = abx * bpx + aby * bpy + abz * bpz, d4 = acx * bpx + acy * bpy + acz * bpz;
+  if (d3 >= 0 && d4 <= d3) return out.set(bx, by, bz);
+  const vc = d1 * d4 - d3 * d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) { const v = d1 / (d1 - d3); return out.set(ax + abx * v, ay + aby * v, az + abz * v); }
+  const cpx = px - cx, cpy = py - cy, cpz = pz - cz, d5 = abx * cpx + aby * cpy + abz * cpz, d6 = acx * cpx + acy * cpy + acz * cpz;
+  if (d6 >= 0 && d5 <= d6) return out.set(cx, cy, cz);
+  const vb = d5 * d2 - d1 * d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) { const w = d2 / (d2 - d6); return out.set(ax + acx * w, ay + acy * w, az + acz * w); }
+  const va = d3 * d6 - d5 * d4;
+  if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) { const w = (d4 - d3) / ((d4 - d3) + (d5 - d6)); return out.set(bx + (cx - bx) * w, by + (cy - by) * w, bz + (cz - bz) * w); }
+  const den = 1 / (va + vb + vc), v = vb * den, w = vc * den;
+  return out.set(ax + abx * v + acx * w, ay + aby * v + acy * w, az + abz * v + acz * w);
+}
+// triángulos cerca de una caja (índices)
+function trisCerca(x0, z0, x1, z1, out) {
+  out.length = 0; const c = MUNDO.celda, G = MUNDO.grilla, mk = ++MUNDO.marca;
+  if (!MUNDO.triMarca || MUNDO.triMarca.length < MUNDO.nt) MUNDO.triMarca = new Uint32Array(MUNDO.nt + 1);
+  for (let i = Math.floor(x0 / c); i <= Math.floor(x1 / c); i++) for (let j = Math.floor(z0 / c); j <= Math.floor(z1 / c); j++) {
+    const k = _clave(i, j), l = G.get(k); if (!l) continue;
+    if (l.length >= SUB_MIN) {
+      const S = grillaSub(k, l, i, j), n = S.n, a0 = Math.max(0, Math.floor((x0 - S.x0) / S.s)), a1 = Math.min(n - 1, Math.floor((x1 - S.x0) / S.s)), b0 = Math.max(0, Math.floor((z0 - S.z0) / S.s)), b1 = Math.min(n - 1, Math.floor((z1 - S.z0) / S.s));
+      for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) for (const it of S.L[a * n + b]) { if (MUNDO.triMarca[it] === mk) continue; MUNDO.triMarca[it] = mk; out.push(it); }
+      continue;
+    }
+    for (const it of l) if (typeof it === 'number') { if (MUNDO.triMarca[it] === mk) continue; MUNDO.triMarca[it] = mk; out.push(it); }
+  }
+  return out;
+}
+function dibujarMundo() { for (const m of MUNDO.modelos) m.encolar(); }

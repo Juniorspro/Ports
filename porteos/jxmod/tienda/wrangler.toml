@@ -1,0 +1,21 @@
+# tienda de JXMod: wrangler deploy (con CLOUDFLARE_API_TOKEN y CLOUDFLARE_ACCOUNT_ID en el entorno)
+name = "rezobox-tienda"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+workers_dev = true
+# (las variables puestas en el panel de Cloudflare no se borran al desplegar desde GitHub)
+keep_vars = true
+
+# el ID de cliente de OAuth de Google (no es secreto: lo ve cualquiera en la página de entrada). Con esto se pide iniciar
+# sesión para el multijugador, el progreso y lo social; sin él, todo anda como antes
+[vars]
+GOOGLE_CLIENT_ID = "586582296574-f3ghv0j0pvd93bhrs0vasequ4qejo2g1.apps.googleusercontent.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rezobox-tienda"
+database_id = "b4464be7-c6c5-4bcd-aec1-ecea2765d0fa"
+
+# Verity (la compañera con IA del juego): modelo de lenguaje y voz de Workers AI
+[ai]
+binding = "AI"

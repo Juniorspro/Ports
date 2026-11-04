@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- fondo de la ventana mientras arranca: oscuro con el logo al centro (sin escalar: drawable-nodpi) -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android" android:opacity="opaque">
+    <item android:drawable="@color/fondo" />
+    <item>
+        <bitmap android:src="@drawable/logo_inicio" android:gravity="center" android:filter="true" />
+    </item>
+</layer-list>

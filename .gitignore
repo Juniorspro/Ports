@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+# APK de JXMod: sólo se sube la versión entregada (git add -f jxmod/JXMod.apk)
+/jxmod/

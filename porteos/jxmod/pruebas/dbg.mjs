@@ -1,0 +1,11 @@
+import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
+const [,, archivo, mapa, cf] = process.argv; const codigo = require('fs').readFileSync(cf, 'utf8');
+const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const p = await b.newPage({ viewport: { width: 640, height: 360 } });
+const err = []; p.on('pageerror', (e) => err.push(e.message)); p.on('console', (m) => { if (m.type() === 'error') err.push(m.text()); });
+await p.goto('file://' + archivo + '?test&mapa=' + mapa);
+await p.waitForFunction(() => window.__listo, null, { timeout: 120000 });
+await p.waitForTimeout(3000);
+console.log(await p.evaluate((c) => window.__ev(c), codigo));
+console.log(err.join('\n'));
+await b.close();
