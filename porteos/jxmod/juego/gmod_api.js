@@ -335,7 +335,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   P('UniqueID', () => 1); P('AccountID', () => 1); P('UserID', () => 1); P('IsBot', () => false); P('Ping', () => 0); P('Frags', () => 0); P('Deaths', () => 0); P('Team', () => 1); P('SetTeam', () => {}); P('GetUserGroup', () => 'superadmin');
   P('IsAdmin', () => true); P('IsSuperAdmin', () => true); P('IsUserGroup', (p, g) => g === 'superadmin' || g === 'admin' || g === 'user'); P('IsListenServerHost', () => true); P('IsFullyAuthenticated', () => true);
   P('Alive', () => !!JUG.vivo); P('Armor', () => GMA.armor || 0); P('SetArmor', (p, a) => { GMA.armor = num(a, 0); }); P('Kill', () => { if (typeof morirJugador === 'function') morirJugador(); }); P('KillSilent', () => { if (typeof morirJugador === 'function') morirJugador(); });
-  P('GetActiveWeapon', () => gmaFantasma() || GMA.swep || NULL_ENT); P('Give', (p, c) => gmaDarArma(String(c))); P('StripWeapon', (p, c) => gmaQuitarArma(String(c))); P('StripWeapons', () => {}); P('HasWeapon', (p, c) => !!(GMA.armasJug && GMA.armasJug.has(String(c))) || !!(gmaFantasma() && gmaFantasma().clase === String(c)));
+  P('GetActiveWeapon', () => gmaFantasma() || GMA.swep || NULL_ENT); P('SetDSP', () => {});   // (los efectos de sonido de Source —eco, sordera— no están) P('Give', (p, c) => gmaDarArma(String(c))); P('StripWeapon', (p, c) => gmaQuitarArma(String(c))); P('StripWeapons', () => {}); P('HasWeapon', (p, c) => !!(GMA.armasJug && GMA.armasJug.has(String(c))) || !!(gmaFantasma() && gmaFantasma().clase === String(c)));
   P('GetWeapon', (p, c) => (GMA.armasJug && GMA.armasJug.get(String(c))) || (gmaFantasma() && gmaFantasma().clase === String(c) ? gmaFantasma() : null) || NULL_ENT); P('GetWeapons', () => R.tab([...(GMA.armasJug || new Map()).values()])); P('SelectWeapon', (p, c) => { const w = GMA.armasJug && GMA.armasJug.get(String(c)); if (w) darArma('gm:' + c); }); P('SetActiveWeapon', () => {});
   P('GetAmmoCount', () => 999); P('GiveAmmo', () => {}); P('RemoveAmmo', () => {}); P('SetAmmo', () => {}); P('StripAmmo', () => {});
   P('GetEyeTrace', () => gmaTraza(CAM.pos, CAM.fwd, 32768 * GS, null)); P('GetEyeTraceNoCursor', () => gmaTraza(CAM.pos, CAM.fwd, 32768 * GS, null));
@@ -789,20 +789,28 @@ function gmaArmasSuelo() {
 const GMA_SIEMPRE_NO = 'rb_gmb_siempreNo';
 const GMA_EV_SIN_FANTASMA = new Set(['PlayerBindPress', 'CreateMove', 'StartCommand', 'SetupMove', 'Move', 'FinishMove', 'KeyPress', 'KeyRelease', 'PlayerButtonDown', 'PlayerButtonUp', 'InputMouseApply', 'AdjustMouseSensitivity', 'PreDrawViewModel', 'PostDrawViewModel', 'CalcViewModelView', 'PlayerSwitchWeapon', 'PlayerCanPickupWeapon', 'WeaponEquip', 'PlayerDroppedWeapon', 'OnSpawnMenuOpen', 'OnContextMenuOpen']);
 function gmaSiempreNo() { if (!GMA.siempreNo) { try { GMA.siempreNo = new Set(JSON.parse(localStorage.getItem(GMA_SIEMPRE_NO) || '[]').map(String)); } catch (e) { GMA.siempreNo = new Set(); } } return GMA.siempreNo; }
-// ¿el mod es un efecto que depende de tener su objeto? → la clase de ese objeto (una o dos armas propias, hooks que dibujan
-// sobre la pantalla o mueven la cámara, y en el resto de su Lua —fuera del archivo del arma— pregunta por el arma activa y
-// nombra esa clase)
+// ¿el mod es un efecto que depende de tener su objeto? → la clase de ese objeto. Tiene que: traer una o dos armas propias;
+// poner hooks que dibujan sobre la pantalla (RenderScreenspaceEffects, PostDrawHUD...: no alcanza con la HUD o la cámara,
+// eso lo hace cualquier arma); hacer un posproceso de pantalla completa (copiar la pantalla, colormod, overlay...) fuera
+// del archivo del arma y de sus entidades; preguntar por el arma activa y nombrar esa clase; y que el arma no cree cosas
+// (ents.Create: una Portal Gun). Con 101 addons bajados sólo entra el Viewfinder: la Lightsaber (3ª persona y su HUD) y la
+// Portal Gun (el portal se dibuja desde su entidad) no.
+const GMA_PP_RE = /UpdateScreenEffectTexture|DrawColorModify|DrawMaterialOverlay|DrawBloom|DrawSharpen|DrawMotionBlur|DrawToyTown|DrawSobel|DrawTexturize|DrawScreenQuad|GetScreenEffectTexture|CopyRenderTargetToTexture|DrawBokehDOF|UpdateRefractTexture/;
 function gmaEfectoObjeto(A) {
   if (!A) return null; if (A._efObj !== undefined) return A._efObj;
   let r = null;
   const sw = A.sweps || [];
   if (sw.length >= 1 && sw.length <= 2) {
     let dibuja = false;
-    for (const [ev, H] of GMA.hooks) { const g = gmaGrupo(ev); if (g !== 'pantalla' && g !== 'hud' && ev !== 'CalcView') continue; for (const h of H.values()) if (h.a === A.id && h.C) { dibuja = true; break; } if (dibuja) break; }
+    for (const [ev, H] of GMA.hooks) { if (gmaGrupo(ev) !== 'pantalla') continue; for (const h of H.values()) if (h.a === A.id && h.C) { dibuja = true; break; } if (dibuja) break; }
     if (dibuja) {
-      const td = new TextDecoder('latin1'); let src = '';
-      for (const ru of A.lua || []) { if (sw.some((c) => ru.startsWith('lua/weapons/' + c.toLowerCase() + '/') || ru === 'lua/weapons/' + c.toLowerCase() + '.lua')) continue; const b = A.G.archivos.get(ru); if (b && src.length < 4e6) src += td.decode(b) + '\n'; }
-      if (/GetActiveWeapon\s*\(/.test(src)) r = sw.find((c) => src.includes('"' + c + '"') || src.includes("'" + c + "'")) || null;
+      const td = new TextDecoder('latin1'), deArma = (ru) => sw.some((c) => ru.startsWith('lua/weapons/' + c.toLowerCase() + '/') || ru === 'lua/weapons/' + c.toLowerCase() + '.lua');
+      let src = '', arma = '';
+      for (const ru of A.lua || []) {
+        const b = A.G.archivos.get(ru); if (!b || src.length + arma.length > 6e6) continue;
+        if (deArma(ru)) arma += td.decode(b) + '\n'; else if (!ru.startsWith('lua/entities/')) src += td.decode(b) + '\n';
+      }
+      if (/GetActiveWeapon\s*\(/.test(src) && GMA_PP_RE.test(src) && !/ents\.Create\s*\(/.test(arma)) r = sw.find((c) => src.includes('"' + c + '"') || src.includes("'" + c + "'")) || null;
     }
   }
   if (A.luaCorridos) A._efObj = r;   // (antes de que corra su Lua todavía no puso sus hooks)

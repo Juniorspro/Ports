@@ -1324,3 +1324,66 @@ Todo medido en la compu (Chromium con SwiftShader, sin GPU). Nada de esto se pro
   lo mismo que entre dos corridas de la misma versión, 0,5–2,6 %).
 - Sin probar en un celular de verdad: el procesador lento es una simulación (Chromium frenado 12 veces) y la GPU de las
   pruebas dibuja con el procesador, así que el ahorro de GPU se midió por el trabajo pedido, no en cuadros por segundo.
+
+## JXMod 2.9-prueba8: el VHS de los mods de verdad, efectos siempre activos y descargas que no se traban
+
+| | Antes | Ahora |
+|---|---|---|
+| First-Person Body | `goto skip (sólo se admite el goto al final del bucle)` | carga y corre sin errores |
+| Viewfinder (cámara VHS) | la imagen quedaba igual, sin estética VHS | corre la cadena de shaders del propio mod: señal compuesta, color corrido, fantasmas, el OSD dentro de la cinta |
+| Texto del OSD | encimado y corrido de lugar | en su lugar y con la fuente del mod |
+| Efecto sin el objeto en la mano | sólo con la cámara en la mano | siempre puesto (se apaga en la página del mod) |
+| Descarga trabada | quedaba en 0 % para siempre | se corta y se reintenta sola; a los 3 intentos, botón «Reintentar» |
+| Entrar a un server con mods | entrabas sin tenerlos | se bajan en la pantalla de carga y después entrás («Entrar sin esperar» si uno no termina) |
+
+- **`goto` completo en el Lua** (`juego/gmod_lua.js`): hacia adelante, hacia atrás, como `continue`, saliendo de dos
+  bucles, desde adentro de un `if`, en `repeat` y en corrutinas, con los errores de Lua 5.2 («no visible label»). Sirve
+  para cualquier mod, no sólo para el First-Person Body. `pruebas/lua_goto.cjs` 13/13.
+- **Los shaders de DirectX 9 de los mods, en WebGL** (`juego/gmod_dx9.js`, nuevo): los addons que traen sus propios
+  shaders compilados (`shaders/fxc/*.vcs`, ps_2_0 a ps_3_0) se traducen a GLSL al vuelo: registros, saltos y bucles,
+  modificadores, lectura y escritura en sRGB o lineal como pide el material.
+- **Render targets y pasadas de pantalla** (`juego/gmod_rt.js`, nuevo): `GetRenderTarget(Ex)` (también de coma
+  flotante), `Push/PopRenderTarget`, `render.Clear` por viewport, `UpdateScreenEffectTexture`, `CopyTexture`,
+  `DrawScreenQuad(Ex)`, `CapturePixels`/`ReadPixel`, mezclas, filtros y los shaders de pantalla de GMod
+  (`g_colourmodify`, `g_blurx/y`, `g_refract`, `pp/*`).
+- **Lo 2D de los mods en orden**: el texto y las cajas que dibuja un mod iban a una capa aparte, encima de todo, y
+  nunca entraban en lo que el mod copiaba de la pantalla. Ahora, antes de cada copia o cuadro de pantalla, lo 2D pendiente
+  se vuelca a su destino (la pantalla o el render target puesto), como en GMod: el OSD de la cámara pasa por la cinta.
+- **Las fuentes de los addons** (`resource/fonts/*.ttf|otf`): se cargan al montar el addon, se buscan por su nombre de
+  familia y el tamaño es el de GMod (alto de la celda, no el em de CSS). También `file.Open` (leer y escribir en
+  `data/`, con números binarios) y `HUDPaintBackground`.
+- **Texto de mods corrido en la compu**: los botones táctiles ocultos contaban como «zona ocupada» arriba a la izquierda
+  y el motor bajaba el texto de los mods que caía ahí (un área de ~600×300). Ahora cuentan sólo los botones que se ven,
+  y la regla se aplica únicamente al HUD común (`HUDPaint`), no a los efectos de pantalla.
+- **Efectos visuales siempre activos** (`gmaFantasma` en `juego/gmod_api.js`): si un mod dibuja sobre la pantalla sólo
+  cuando tenés su objeto en la mano (lo detecta leyendo su Lua: una o dos armas propias, hooks de pantalla, un
+  posproceso de pantalla completa fuera del arma y de sus entidades, y en el resto de su código pregunta por el arma
+  activa con esa clase; de 101 addons bajados sólo entra el Viewfinder, la Lightsaber y la Portal Gun no), dentro de sus hooks de dibujo, cámara y cuadro el jugador
+  «tiene» ese objeto aunque tenga otra cosa o nada. El mouse y el disparo no le llegan (no te roba el tiro), el teclado
+  sí (sus teclas siguen andando: grabar, la batería). En el panel GMod el mod aparece como efecto, con «Siempre activo»
+  prendido; apagado, vuelve a necesitar el objeto en la mano. Sirve para cualquier mod de ese tipo.
+- **Nivel DirectX según la calidad** (`gmrtSM3`): en Patata, Bajo y Medio el motor se comporta como GMod en una placa
+  floja (DirectX 90, sin shaders ps_3_0) y los mods que traen versión liviana la usan; en Alto y Ultra, la completa.
+  Con el Viewfinder, milisegundos por cuadro en el navegador de pruebas (dibuja por software, así que sólo sirve para
+  comparar entre sí):
+
+  | Escena | ms por cuadro |
+  |---|---|
+  | Sin el mod | 500 |
+  | VHS alta fidelidad (ps_3_0, Alto/Ultra) | 3983 |
+  | VHS compatible (ps_2_0b, Patata/Bajo/Medio) | 850 |
+  | VHS con el «modo rendimiento» del propio mod | 750 |
+
+- **Descargas que se trababan en 0 %** (`juego/gmod.js`, `gmod_cola.js`, `gmod_pipe.js`): tiempo máximo para la caché del
+  navegador, para la conexión y para cada pedazo que llega; un vigilante en la cola que da por trabada una bajada sin
+  avance, la corta y la reintenta; un `.gma` que llega cortado ya no se acepta. `pruebas/descarga_trabada.mjs` 4/4.
+- **Servers con mods**: al entrar, la pantalla de carga baja los mods del server que no tenés («Bajando los mods del
+  server 1/2 · nombre NN %») y entra cuando están montados; si uno no termina, «Entrar sin esperar».
+  `pruebas/server_mods_carga.mjs` 4/4.
+- Pruebas nuevas: `pruebas/vhs_viewfinder.mjs` 4/4 (en Alto: la prueba de píxel del propio mod pasa y elige la señal de
+  alta fidelidad, la imagen cambia, el OSD entra en la cinta con la fuente del mod, `file.Open` guarda su
+  configuración, sin errores) y `pruebas/efecto_siempre.mjs` 5/5 (en Medio, con la Physics Gun en la mano: el VHS
+  puesto con la versión liviana, el mod no recibe el disparo, el interruptor del panel lo saca y la imagen vuelve a la
+  normal, sin errores).
+- Sin probar en un celular de verdad. El costo del VHS en una placa de celular no está medido: sólo la comparación de
+  arriba, en un navegador que dibuja con el procesador.
