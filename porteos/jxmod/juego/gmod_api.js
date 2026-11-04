@@ -1164,16 +1164,23 @@ function gmaApiDibujo(R, G, def, lib, num) {
   const surface = lib('surface'), draw = lib('draw');
   const S = (GMA.dib = { col: [255, 255, 255, 255], tcol: [255, 255, 255, 255], mat: null, fuente: '13px Tahoma, sans-serif', tx: 0, ty: 0 });
   // (el lienzo de la HUD de los addons: encima de la HUD del juego, debajo de los menús y los paneles, como en GMod)
-  const ctx = () => { if (GMA.dibujoHUD) GMA.hudN++; if (GMA.lienzo) return GMA.lienzo; if (!GMA.hud) { const c = document.createElement('canvas'); c.id = 'gmHUD'; c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:4'; document.body.appendChild(c); GMA.hud = { c, g: c.getContext('2d') }; } return GMA.hud.g; };
+  // (con un render target puesto, lo 2D va a ese target —gmod_rt.js lo vuelca en orden—; si no, a la capa de la HUD)
+  const ctx = () => { if (GMA.lienzo) return GMA.lienzo; if (typeof GRT !== 'undefined' && GRT.act && GRT.act.fb && typeof gmrt2D === 'function') return gmrt2D(GRT.act); if (GMA.dibujoHUD) GMA.hudN++; if (!GMA.hud) { const c = document.createElement('canvas'); c.id = 'gmHUD'; c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:4'; document.body.appendChild(c); GMA.hud = { c, g: c.getContext('2d') }; } return GMA.hud.g; };
   GMA.hudCtx = ctx;
   const rgba = (c) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${(c[3] ?? 255) / 255})`;
   const col = (r, g, b, a) => (r instanceof LuaTable ? [r.get('r') ?? 255, r.get('g') ?? 255, r.get('b') ?? 255, r.get('a') ?? 255] : [num(r, 255), num(g, 255), num(b, 255), a === undefined ? 255 : num(a, 255)]);
-  const fuentes = GMA.fuentes; for (const [n, f] of [['DermaDefault', '13px Tahoma'], ['DermaDefaultBold', 'bold 13px Tahoma'], ['DermaLarge', '32px Roboto, Tahoma'], ['Default', '13px Tahoma'], ['Trebuchet18', '18px Trebuchet MS'], ['Trebuchet24', '24px Trebuchet MS'], ['HudHintTextLarge', '16px Verdana'], ['HudHintTextSmall', '11px Verdana'], ['ChatFont', 'bold 17px Verdana'], ['TargetID', 'bold 24px Trebuchet MS'], ['TargetIDSmall', 'bold 18px Trebuchet MS'], ['CloseCaption_Normal', '26px Tahoma'], ['HudNumbers', 'bold 32px Verdana'], ['HUDNumber5', 'bold 45px Trebuchet MS'], ['DebugFixed', '10px Courier New'], ['BudgetLabel', '14px Courier New'], ['CreditsText', '24px Trebuchet MS'], ['GModNotify', 'bold 20px Arial']]) fuentes.set(n, f + ', sans-serif');
-  def(surface, 'CreateFont', (n, d) => { if (!(d instanceof LuaTable)) return; const sz = num(d.get('size'), 13), w = num(d.get('weight'), 500); fuentes.set(String(n), `${d.get('italic') ? 'italic ' : ''}${w >= 600 ? 'bold' : 'normal'} ${Math.max(6, Math.round(sz))}px "${d.get('font') || 'Tahoma'}", Tahoma, sans-serif`); });
-  def(surface, 'SetFont', (n) => { S.fuente = fuentes.get(String(n)) || fuentes.get('DermaDefault'); }); def(surface, 'GetTextSize', (t) => { const g = ctx(); g.font = S.fuente; const m = g.measureText(String(t ?? '')); return [Math.ceil(m.width), Math.round(parseFloat(S.fuente.match(/([\d.]+)px/)?.[1] || 13))]; });   // (un tamaño con decimales, como ScreenScale en el celu, se leía mal: 8.18px daba 184375 de alto)
+  // (una fuente como en GMod: «size» es el alto de la celda, que es lo que devuelven GetTextSize y GetFontHeight; el em de
+  // CSS sale de las medidas de la fuente —la del addon si la trae, si no las de la de Windows que pide— y la línea de base
+  // va donde GMod la pone, así lo alineado arriba o al medio cae igual)
+  const hacerFuente = (fam, sz, w, ital) => { const F = typeof gmfFuente === 'function' ? gmfFuente(fam) : { css: null, k: 1, a: 0.8 }, h = Math.max(6, Math.round(sz)), px = +(h * F.k).toFixed(2); const css = `${ital ? 'italic ' : ''}${w >= 600 ? 'bold' : 'normal'} ${px}px "${F.css || fam}", Tahoma, sans-serif`; if (typeof GMFU !== 'undefined') GMFU.met.set(css, { h, b: F.a * h }); return css; };
+  const fAlto = (css) => { const m = typeof GMFU !== 'undefined' && GMFU.met.get(css); return m ? m.h : Math.round(parseFloat((String(css || '').match(/([\d.]+)px/) || [0, 13])[1]) || 13); };
+  const fBase = (g, css, y) => { const m = typeof GMFU !== 'undefined' && GMFU.met.get(css); if (m) { g.textBaseline = 'alphabetic'; return y + m.b; } g.textBaseline = 'top'; return y; };
+  const fuentes = GMA.fuentes; for (const [n, f] of [['DermaDefault', '13px Tahoma'], ['DermaDefaultBold', 'bold 13px Tahoma'], ['DermaLarge', '32px Roboto, Tahoma'], ['Default', '13px Tahoma'], ['Trebuchet18', '18px Trebuchet MS'], ['Trebuchet24', '24px Trebuchet MS'], ['HudHintTextLarge', '16px Verdana'], ['HudHintTextSmall', '11px Verdana'], ['ChatFont', 'bold 17px Verdana'], ['TargetID', 'bold 24px Trebuchet MS'], ['TargetIDSmall', 'bold 18px Trebuchet MS'], ['CloseCaption_Normal', '26px Tahoma'], ['HudNumbers', 'bold 32px Verdana'], ['HUDNumber5', 'bold 45px Trebuchet MS'], ['DebugFixed', '10px Courier New'], ['BudgetLabel', '14px Courier New'], ['CreditsText', '24px Trebuchet MS'], ['GModNotify', 'bold 20px Arial']]) { const m = /^(bold )?(\d+)px ([^,]+)/.exec(f); fuentes.set(n, hacerFuente(m[3], +m[2], m[1] ? 700 : 500, false)); }
+  def(surface, 'CreateFont', (n, d) => { if (!(d instanceof LuaTable)) return; const sz = num(d.get('size'), 13), w = num(d.get('weight'), 500); fuentes.set(String(n), hacerFuente(String(d.get('font') || 'Tahoma'), sz, w, R.T(d.get('italic')))); });
+  def(surface, 'SetFont', (n) => { S.fuente = fuentes.get(String(n)) || fuentes.get('DermaDefault'); }); def(surface, 'GetTextSize', (t) => { const g = GMA.medir || (GMA.medir = document.createElement('canvas').getContext('2d')); g.font = S.fuente; const m = g.measureText(String(t ?? '')); return [Math.ceil(m.width), fAlto(S.fuente)]; });   // (un tamaño con decimales, como ScreenScale en el celu, se leía mal: 8.18px daba 184375 de alto)
   def(surface, 'SetDrawColor', (...a) => { S.col = col(...a); }); def(surface, 'SetTextColor', (...a) => { S.tcol = col(...a); }); def(surface, 'SetTextPos', (x, y) => { S.tx = num(x, 0); S.ty = num(y, 0); });
   def(surface, 'SetAlphaMultiplier', (a) => { S.alfa = num(a, 1); }); def(surface, 'GetAlphaMultiplier', () => S.alfa ?? 1);
-  def(surface, 'DrawText', (t) => { const g = ctx(); g.font = S.fuente; g.fillStyle = rgba(S.tcol); g.textBaseline = 'top'; const s = String(t ?? ''), w = g.measureText(s).width, h = parseInt((String(S.fuente).match(/(\d+)px/) || [0, 13])[1], 10); g.fillText(s, S.tx, bajarIz(S.tx, S.ty, w, h)); S.tx += w; });
+  def(surface, 'DrawText', (t) => { const g = ctx(); g.font = S.fuente; g.fillStyle = rgba(S.tcol); const s = String(t ?? ''), w = g.measureText(s).width, h = fAlto(S.fuente); g.fillText(s, S.tx, fBase(g, S.fuente, bajarIz(S.tx, S.ty, w, h))); S.tx += w; });
   def(surface, 'DrawRect', (x, y, w, h) => { const g = ctx(); g.fillStyle = rgba(S.col); g.fillRect(num(x, 0), num(y, 0), num(w, 0), num(h, 0)); });
   def(surface, 'DrawOutlinedRect', (x, y, w, h, t) => { const g = ctx(); g.strokeStyle = rgba(S.col); g.lineWidth = num(t, 1); g.strokeRect(num(x, 0) + 0.5, num(y, 0) + 0.5, num(w, 0) - 1, num(h, 0) - 1); });
   def(surface, 'DrawLine', (a, b, c, d) => { const g = ctx(); g.strokeStyle = rgba(S.col); g.lineWidth = 1; g.beginPath(); g.moveTo(a, b); g.lineTo(c, d); g.stroke(); });
@@ -1190,17 +1197,48 @@ function gmaApiDibujo(R, G, def, lib, num) {
   const alinear = (x, y, w, h, xa, ya) => [xa === 1 ? x - w / 2 : xa === 2 ? x - w : x, ya === 1 ? y - h / 2 : ya === 4 ? y - h : y];
   // (lo que se escribe debajo de los botones de arriba a la izquierda del juego —el tiempo de Prop Hunt— baja hasta quedar
   // debajo de ellos: si no, se encimaban; sólo al dibujar el HUD)
-  const bajarIz = (px, py, w, h) => { const r = typeof HUD !== 'undefined' && HUD.resIz; if (!r || !GMA.dibujoHUD || px > r.x1 || px + w < r.x0 || py > r.y1 || py + h < r.y0) return py; return r.y1 + 4; };
-  const texto = (t, f, x, y, c, xa, ya, borde, cb) => { const g = ctx(); g.font = fuentes.get(String(f)) || fuentes.get('DermaDefault'); const s = String(t ?? ''), w = g.measureText(s).width, h = parseInt(g.font.match(/(\d+)px/)?.[1] || 13, 10); let [px, py] = alinear(num(x, 0), num(y, 0), w, h, xa, ya); py = bajarIz(px, py, w, h); g.textBaseline = 'top'; if (borde) { g.strokeStyle = rgba(col(cb)); g.lineWidth = borde * 2; g.strokeText(s, px, py); } g.fillStyle = rgba(c ? col(c) : [255, 255, 255, 255]); g.fillText(s, px, py); return [w, h]; };
+  // (sólo el HUD común —HUDPaint— y en la pantalla: un efecto que dibuja su OSD para pasarlo por la cinta, como una cámara
+  // VHS, tiene que quedar donde lo puso)
+  const bajarIz = (px, py, w, h) => { const r = typeof HUD !== 'undefined' && HUD.resIz; if (!r || !GMA.dibujoHUD || !GMA.enHUDPaint || (typeof GRT !== 'undefined' && GRT.act) || px > r.x1 || px + w < r.x0 || py > r.y1 || py + h < r.y0) return py; return r.y1 + 4; };
+  const texto = (t, f, x, y, c, xa, ya, borde, cb) => { const g = ctx(), css = fuentes.get(String(f)) || fuentes.get('DermaDefault'); g.font = css; const s = String(t ?? ''), w = g.measureText(s).width, h = fAlto(css); let [px, py] = alinear(num(x, 0), num(y, 0), w, h, xa, ya); py = fBase(g, css, bajarIz(px, py, w, h)); if (borde) { g.strokeStyle = rgba(col(cb)); g.lineWidth = borde * 2; g.strokeText(s, px, py); } g.fillStyle = rgba(c ? col(c) : [255, 255, 255, 255]); g.fillText(s, px, py); return [w, h]; };
   def(draw, 'SimpleText', (t, f, x, y, c, xa, ya) => texto(t, f || 'DermaDefault', x, y, c, xa, ya)); def(draw, 'SimpleTextOutlined', (t, f, x, y, c, xa, ya, b, cb) => texto(t, f || 'DermaDefault', x, y, c, xa, ya, num(b, 1), cb));
-  def(draw, 'DrawText', (t, f, x, y, c, xa) => { String(t ?? '').split('\n').forEach((l, i) => texto(l, f || 'DermaDefault', x, num(y, 0) + i * (parseInt((fuentes.get(String(f)) || '13px').match(/(\d+)px/)?.[1] || 13, 10) + 2), c, xa === 1 ? 1 : xa === 2 ? 2 : 0, 0)); });
+  def(draw, 'DrawText', (t, f, x, y, c, xa) => { String(t ?? '').split('\n').forEach((l, i) => texto(l, f || 'DermaDefault', x, num(y, 0) + i * fAlto(fuentes.get(String(f || 'DermaDefault')) || fuentes.get('DermaDefault')), c, xa === 1 ? 1 : xa === 2 ? 2 : 0, 0)); });
   def(draw, 'Text', (t) => { if (!(t instanceof LuaTable)) return; const p = t.get('pos'); texto(t.get('text'), t.get('font') || 'DermaDefault', p ? p.get(1) : 0, p ? p.get(2) : 0, t.get('color'), t.get('xalign'), t.get('yalign')); });
   def(draw, 'TextShadow', (t, d) => G.get('draw').get('Text')(t)); def(draw, 'WordBox', (b, x, y, t, f, cb, ct) => { const g = ctx(); g.font = fuentes.get(String(f)) || fuentes.get('DermaDefault'); const w = g.measureText(String(t)).width; g.fillStyle = rgba(col(cb)); g.fillRect(x, y, w + b * 2, 20 + b); texto(t, f, x + b, y + b / 2, ct, 0, 0); return [w + b * 2, 20 + b]; });
   const caja = (r, x, y, w, h, c, tl = true, tr = true, bl = true, br = true) => { const g = ctx(); g.fillStyle = rgba(col(c)); r = Math.min(num(r, 0), w / 2, h / 2); g.beginPath(); g.moveTo(x + (tl ? r : 0), y); g.lineTo(x + w - (tr ? r : 0), y); if (tr) g.quadraticCurveTo(x + w, y, x + w, y + r); g.lineTo(x + w, y + h - (br ? r : 0)); if (br) g.quadraticCurveTo(x + w, y + h, x + w - r, y + h); g.lineTo(x + (bl ? r : 0), y + h); if (bl) g.quadraticCurveTo(x, y + h, x, y + h - r); g.lineTo(x, y + (tl ? r : 0)); if (tl) g.quadraticCurveTo(x, y, x + r, y); g.fill(); };
   def(draw, 'RoundedBox', (r, x, y, w, h, c) => caja(r, num(x, 0), num(y, 0), num(w, 0), num(h, 0), c)); def(draw, 'RoundedBoxEx', (r, x, y, w, h, c, a, b, d, e) => caja(r, num(x, 0), num(y, 0), num(w, 0), num(h, 0), c, R.T(a), R.T(b), R.T(d), R.T(e)));
-  def(draw, 'NoTexture', () => { S.mat = null; }); def(draw, 'GetFontHeight', (f) => parseInt((fuentes.get(String(f)) || '13px').match(/(\d+)px/)?.[1] || 13, 10)); def(draw, 'TexturedQuad', (t) => { if (t instanceof LuaTable) { S.mat = t.get('texture'); tex(t.get('x'), t.get('y'), t.get('w'), t.get('h')); } });
+  def(draw, 'NoTexture', () => { S.mat = null; }); def(draw, 'GetFontHeight', (f) => fAlto(fuentes.get(String(f)) || fuentes.get('DermaDefault'))); def(draw, 'TexturedQuad', (t) => { if (t instanceof LuaTable) { S.mat = t.get('texture'); tex(t.get('x'), t.get('y'), t.get('w'), t.get('h')); } });
 }
 
+// (File: lo que devuelve file.Open; el contenido es una cadena de bytes —como las cadenas de Lua— y los números van en
+// little-endian, como en GMod)
+function gmaMtArchivo() {
+  if (GMA.mtArch) return GMA.mtArch;
+  const M = (GMA.mtArch = new LuaTable()); M.set('__index', M); M.set('MetaName', 'File');
+  const lee = (f, n) => { const s = f.s.slice(f.p, f.p + Math.max(0, n)); f.p += s.length; return s; };
+  const dv = (f, n) => { const s = lee(f, n); if (s.length < n) return null; const u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = s.charCodeAt(i) & 255; return new DataView(u.buffer); };
+  const pon = (f, s) => { if (!f.w || f.cerrado) return; f.s = f.s.slice(0, f.p) + s + f.s.slice(f.p + s.length); f.p += s.length; f.guardar(); };
+  const W = (n, fn) => (f, v) => { const u = new Uint8Array(n); fn(new DataView(u.buffer), Number(v) || 0); pon(f, String.fromCharCode(...u)); };
+  const Rd = (n, fn) => (f) => { const d = dv(f, n); return d ? fn(d) : undefined; };
+  const F = {
+    Read: (f, n) => { if (n === undefined || n === null) n = f.s.length - f.p; const s = lee(f, n | 0); return s.length || (n | 0) === 0 ? s : undefined; },
+    ReadLine: (f) => { if (f.p >= f.s.length) return undefined; let i = f.s.indexOf('\n', f.p); if (i < 0) i = f.s.length - 1; const s = f.s.slice(f.p, i + 1); f.p = i + 1; return s; },
+    ReadByte: Rd(1, (d) => d.getUint8(0)), ReadBool: Rd(1, (d) => d.getUint8(0) !== 0), ReadShort: Rd(2, (d) => d.getInt16(0, true)), ReadUShort: Rd(2, (d) => d.getUint16(0, true)),
+    ReadLong: Rd(4, (d) => d.getInt32(0, true)), ReadULong: Rd(4, (d) => d.getUint32(0, true)), ReadFloat: Rd(4, (d) => d.getFloat32(0, true)), ReadDouble: Rd(8, (d) => d.getFloat64(0, true)),
+    ReadUInt64: Rd(8, (d) => String(d.getBigUint64(0, true))), ReadInt64: Rd(8, (d) => String(d.getBigInt64(0, true))),
+    Write: (f, s) => pon(f, String(s ?? '')),
+    WriteByte: W(1, (d, v) => d.setUint8(0, v & 255)), WriteBool: W(1, (d, v) => d.setUint8(0, v ? 1 : 0)), WriteShort: W(2, (d, v) => d.setInt16(0, v, true)), WriteUShort: W(2, (d, v) => d.setUint16(0, v, true)),
+    WriteLong: W(4, (d, v) => d.setInt32(0, v, true)), WriteULong: W(4, (d, v) => d.setUint32(0, v >>> 0, true)), WriteFloat: W(4, (d, v) => d.setFloat32(0, v, true)), WriteDouble: W(8, (d, v) => d.setFloat64(0, v, true)),
+    WriteUInt64: (f, v) => { const u = new Uint8Array(8); try { new DataView(u.buffer).setBigUint64(0, BigInt(String(v).split('.')[0] || 0), true); } catch (e) {} pon(f, String.fromCharCode(...u)); },
+    Seek: (f, p) => { f.p = Math.max(0, Math.min(f.s.length, Number(p) | 0)); }, Tell: (f) => f.p, Size: (f) => f.s.length, EndOfFile: (f) => f.p >= f.s.length,
+    Skip: (f, n) => { f.p = Math.max(0, Math.min(f.s.length, f.p + (Number(n) | 0))); return f.p; },
+    Flush: (f) => f.guardar(true), Close: (f) => { if (!f.cerrado) { f.guardar(true); f.cerrado = true; } },
+  };
+  F.WriteInt64 = F.WriteUInt64;
+  for (const [k, fn] of Object.entries(F)) M.set(k, fn);
+  M.set('__tostring', () => 'File');
+  return M;
+}
 // ---------------- lo que queda: registros (entidades, armas, efectos), listas, archivos, varios ----------------
 function gmaApiResto(R, G, def, lib, num, tabla) {
   const L = (n) => G.get(n);
@@ -1221,7 +1259,19 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
   def(file, 'Exists', (p, w) => (w === 'DATA' ? localStorage.getItem(dataK(p)) !== null : rutas(p, w).some((r) => gmExiste(r) || hayDir(r))));
   def(file, 'Read', (p, w) => { if (w === 'DATA') return localStorage.getItem(dataK(p)) ?? undefined; const b = arch1(p, w); return b ? new TextDecoder('latin1').decode(b) : undefined; });
   def(file, 'Write', (p, s) => { try { localStorage.setItem(dataK(p), String(s)); } catch (e) {} }); def(file, 'Append', (p, s) => { try { localStorage.setItem(dataK(p), (localStorage.getItem(dataK(p)) || '') + String(s)); } catch (e) {} });
-  def(file, 'Delete', (p) => { try { localStorage.removeItem(dataK(p)); } catch (e) {} }); def(file, 'CreateDir', () => {}); def(file, 'IsDir', (p, w) => rutas(p, w).some(hayDir)); def(file, 'Size', (p, w) => { const b = arch1(p, w); return b ? b.length : -1; }); def(file, 'Time', () => 0); def(file, 'Open', () => undefined); def(file, 'Rename', () => false);
+  def(file, 'Delete', (p) => { try { localStorage.removeItem(dataK(p)); } catch (e) {} }); def(file, 'CreateDir', () => {}); def(file, 'IsDir', (p, w) => rutas(p, w).some(hayDir)); def(file, 'Size', (p, w) => { const b = arch1(p, w); return b ? b.length : -1; }); def(file, 'Time', () => 0); def(file, 'Open', (p, modo, w) => {
+    // (un archivo abierto como en GMod: se lee de los addons o de data/; se escribe sólo en data/, que guarda el navegador)
+    modo = String(modo || 'r'); w = w === undefined ? 'GAME' : String(w); const esc = /[wa]/.test(modo);
+    let txt;
+    if (w === 'DATA' || esc) { if (esc && w !== 'DATA') return undefined; try { txt = localStorage.getItem(dataK(p)); } catch (e) { txt = null; } }
+    else { const b = arch1(p, w); txt = b ? new TextDecoder('latin1').decode(b) : null; }
+    if (txt === null && !esc) return undefined;
+    const k = dataK(p), f = { s: /w/.test(modo) ? '' : txt || '', p: 0, w: esc, __mt: gmaMtArchivo() };
+    if (/a/.test(modo)) f.p = f.s.length;
+    let t = 0; f.guardar = (ya) => { if (!f.w) return; clearTimeout(t); const g = () => { try { localStorage.setItem(k, f.s); } catch (e) {} }; if (ya) g(); else t = setTimeout(g, 0); };
+    if (/w/.test(modo)) f.guardar(true);
+    return f;
+  }); def(file, 'Rename', () => false);
   def(file, 'Find', (p, w) => {
     const fs = new Set(), ds = new Set(), K = [...GMOD.arch.keys(), ...GMPZ.idx.keys()];
     for (const pat of rutas(p, w)) {
@@ -1272,6 +1322,8 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
   def(G, 'SetClipboardText', (x) => { try { navigator.clipboard && navigator.clipboard.writeText(R.tostr(x)).catch(() => {}); } catch (e) {} });
   def(G, 'RenderAngles', () => (G.get('EyeAngles') || (() => undefined))());
   def(G, 'SinglePlayer', () => !(typeof RED !== 'undefined' && RED.on)); def(G, 'GetWorldEntity', () => GMA.mundo);
+  // (los render targets y las pasadas de pantalla, al final: reemplazan lo de mentira de arriba —GetScreenEffectTexture...—)
+  if (typeof gmrtApi === 'function') gmrtApi(R, G, def, lib, num);
 }
 // registrar una clase (de ents/weapons.Register o de las carpetas lua/entities, lua/weapons)
 function gmaRegistrar(tipo, nombre, t) {

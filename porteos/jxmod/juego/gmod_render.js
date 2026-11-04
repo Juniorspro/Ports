@@ -135,7 +135,7 @@ function gmr2D() {
   const bb = (GR.bb = [1e9, 1e9, -1e9, -1e9]);
   const pt = (x, y) => { const m = g.getTransform(), X = m.a * x + m.c * y + m.e, Y = m.b * x + m.d * y + m.f; if (X < bb[0]) bb[0] = X; if (Y < bb[1]) bb[1] = Y; if (X > bb[2]) bb[2] = X; if (Y > bb[3]) bb[3] = Y; };
   const caja = (x, y, w, h) => { x = +x || 0; y = +y || 0; w = +w || 0; h = +h || 0; pt(x, y); pt(x + w, y); pt(x, y + h); pt(x + w, y + h); };
-  const alto = () => parseInt((g.font.match(/(\d+)px/) || [0, 13])[1], 10);
+  const alto = () => Math.round(parseFloat((g.font.match(/([\d.]+)px/) || [0, 13])[1]) * 1.2) || 13;
   // (firma de lo que se dibuja en cada bloque: si en el cuadro siguiente sale igual, la textura ya subida sirve y no se
   // vuelve a copiar ni a subir a la placa; las pantallas de las armas, como el GPhone, cambian poco)
   const ids = new WeakMap(); let nid = 0;

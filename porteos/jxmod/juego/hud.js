@@ -101,7 +101,7 @@ function hudDisponer() {
     // no bajan del mínimo, que sigue al tamaño elegido en Ajustes)
     const t = propio ? s * k : Math.max(s * k, (mn || 0) * f / 0.8), cx = ax * W + x * kb, cy = H - (ay * H + y * kb);
     Object.assign(e.style, { left: (cx - t / 2).toFixed(1) + 'px', top: (cy - t / 2).toFixed(1) + 'px', width: t.toFixed(1) + 'px', height: t.toFixed(1) + 'px', right: 'auto', bottom: 'auto' });
-    if (ax === 0 && ay === 1 && cy < H * 0.45) sumar(cx - t / 2, cy - t / 2, cx + t / 2, cy + t / 2 + 14);
+    if (tactil && ax === 0 && ay === 1 && cy < H * 0.45) sumar(cx - t / 2, cy - t / 2, cx + t / 2, cy + t / 2 + 14);   // (en la compu los táctiles no se ven: no ocupan lugar)
   }
   HUD.resIz = ri.x1 > ri.x0 ? ri : null;
 }

@@ -39,7 +39,7 @@ function T(k) { return k; } function spawnTabs() {} function gmTexDelJuego() { r
 class Modelo { constructor() { this.p = [[0, 0, 0]]; this.raiz = new Float32Array(16); } encolar() {} }
 function m4trs() {}
 `, 'motor.js');
-for (const f of ['gmod_formatos', 'gmod', 'gmod_lib', 'gmod_lua', 'gmod_prelude', 'gmod_api', 'gmod_cargar', 'gmod_render', 'gmod_vista']) correr(fs.readFileSync(J + f + '.js', 'utf8'), f + '.js');
+for (const f of ['gmod_formatos', 'gmod', 'gmod_lib', 'gmod_lua', 'gmod_prelude', 'gmod_api', 'gmod_cargar', 'gmod_render', 'gmod_dx9', 'gmod_rt', 'gmod_vista']) correr(fs.readFileSync(J + f + '.js', 'utf8'), f + '.js');
 // (los modelos: sin convertir mallas, el prop es una caja con el nombre del modelo)
 correr(`gmPrefab = function (n) { return n; }; gmIcono = function () { return 'x'; }; gmSonido = function (s) { return s; };`, 'parches.js');
 if (process.env.PILA) correr(`{ const f0 = gmLlamar; gmLlamar = function (f, ctx, ...a) { const R = GMA.R; if (!R || typeof f !== 'function') return E0; const c0 = GMA.ctx; GMA.ctx = ctx; try { return R.c(f, 'callback', ...a); } catch (e) { if (!(e instanceof LuaError)) console.log('PILA', String(e && e.stack).split('\\n').slice(0, 6).join(' | ')); gmaErr(R.msgErr(e)); return E0; } finally { GMA.ctx = c0; } }; }`, 'pila.js');

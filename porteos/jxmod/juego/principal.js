@@ -352,7 +352,8 @@ function cuadro(ahora) {
   efectosPaso(dt);
   camaraActualizar(dt);
   aguaPaso(dt); sonidosPaso(dt); if (typeof emuPaso === 'function') emuPaso(dt); patadasPaso(dt); artPaso(dt); npcPaso(dt); bocinaPaso(); juntosPaso(); nukePaso(dt);
-  dibujar(); celmCuadro(); if (typeof gmaHUDPaso === 'function') gmaHUDPaso();
+  if (typeof GRT !== 'undefined') GRT.enDibujo = true; try { dibujar(); } finally { if (typeof GRT !== 'undefined') GRT.enDibujo = false; }
+  celmCuadro(); if (typeof gmaHUDPaso === 'function') gmaHUDPaso(); if (typeof gmrtFinCuadro === 'function') gmrtFinCuadro();
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso(); if (typeof clibDevolver === 'function') clibDevolver();
   // fps y resolución automática

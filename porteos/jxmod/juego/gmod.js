@@ -112,6 +112,56 @@ const gmExiste = (r) => GMOD.arch.has(r) || GMPZ.idx.has(r) || (typeof GML !== '
 
 // ---------------- montar ----------------
 // G: lo que devuelve GMF.gma. id: el del Workshop (o 'local:<nombre>')
+// ---------------- las fuentes de letra de los addons (resource/fonts/*.ttf|otf) ----------------
+// GMod busca la fuente de surface.CreateFont por su nombre de familia (el de adentro del archivo, no el del archivo) y el
+// «size» es el alto de la celda (lo de arriba más lo de abajo de la fuente, como CreateFont de Windows), no el em de CSS:
+// por eso cada fuente guarda cuánto mide su em respecto de la celda (k) y dónde cae la línea de base (a).
+const GMFU = { fam: new Map(), met: new Map(), n: 0 };
+function gmfTTF(b) {
+  try {
+    const v = new DataView(b.buffer, b.byteOffset, b.byteLength); if (b.length < 12) return null;
+    const n = v.getUint16(4), T = {};
+    for (let i = 0; i < n; i++) { const o = 12 + i * 16; if (o + 16 > b.length) return null; T[String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3])] = { o: v.getUint32(o + 8), l: v.getUint32(o + 12) }; }
+    if (!T.head || !T.name) return null;
+    const r = { upm: v.getUint16(T.head.o + 18) || 1000, nombres: [] };
+    if (T.hhea) { r.asc = v.getInt16(T.hhea.o + 4); r.desc = -v.getInt16(T.hhea.o + 6); }
+    if (T['OS/2'] && T['OS/2'].l >= 78) { const o = T['OS/2'].o; r.wAsc = v.getUint16(o + 74); r.wDesc = v.getUint16(o + 76); }
+    const no = T.name.o, cnt = v.getUint16(no + 2), so = no + v.getUint16(no + 4);
+    for (let i = 0; i < cnt; i++) {
+      const o = no + 6 + i * 12, pid = v.getUint16(o), eid = v.getUint16(o + 2), id = v.getUint16(o + 6), len = v.getUint16(o + 8), off = v.getUint16(o + 10);
+      if (id !== 1 && id !== 4 && id !== 16) continue;
+      let s = '';
+      if (pid === 3 || pid === 0) for (let k = 0; k + 1 < len; k += 2) s += String.fromCharCode(v.getUint16(so + off + k));
+      else if (pid === 1 && eid === 0) for (let k = 0; k < len; k++) s += String.fromCharCode(b[so + off + k]);
+      s = s.replace(/\0/g, '').trim(); if (s && !r.nombres.includes(s)) r.nombres.push(s);
+    }
+    const sa = r.wAsc || r.asc || r.upm * 0.8, sd = r.wAsc ? r.wDesc : (r.desc || r.upm * 0.2);
+    r.k = r.upm / Math.max(1, sa + sd); r.a = sa / Math.max(1, sa + sd);
+    return r;
+  } catch (e) { return null; }
+}
+// (las del addon: se leen al montarlo —así surface.CreateFont ya sabe las medidas— y su Lua corre cuando están cargadas,
+// porque hay mods que miden el texto una vez y lo guardan)
+function gmfRegistrar(A) {
+  const esperas = [];
+  for (const [r, b] of A.G.archivos) {
+    if (!/^resource\/fonts\/[^/]+\.(ttf|otf)$/i.test(r)) continue;
+    const M = gmfTTF(b); if (!M || !M.nombres.length) continue;
+    const css = 'gmf' + (++GMFU.n), F = { css, k: M.k, a: M.a };
+    for (const nm of [...M.nombres, r.split('/').pop().replace(/\.\w+$/, '')]) if (!GMFU.fam.has(nm.toLowerCase())) GMFU.fam.set(nm.toLowerCase(), F);
+    if (typeof FontFace === 'function' && typeof document !== 'undefined' && document.fonts) {
+      try { const ff = new FontFace(css, b.slice().buffer); document.fonts.add(ff); esperas.push(Promise.race([ff.load(), new Promise((ok) => setTimeout(ok, 3000))]).catch(() => {})); } catch (e) {}
+    }
+  }
+  return Promise.all(esperas);
+}
+// (las de Windows que piden los mods sin traerlas: sus medidas, para que el tamaño dé como en GMod aunque se dibuje con otra)
+const GMF_SIS = { tahoma: [0.828, 0.829], arial: [0.895, 0.81], verdana: [0.823, 0.828], 'trebuchet ms': [0.858, 0.802], 'courier new': [0.885, 0.737], roboto: [0.853, 0.79], consolas: [0.855, 0.762], 'segoe ui': [0.75, 0.8], coolvetica: [0.86, 0.8], marlett: [1, 0.8] };
+function gmfFuente(nombre) {
+  const n = String(nombre || 'Tahoma').toLowerCase(), F = GMFU.fam.get(n); if (F) return F;
+  const s = GMF_SIS[n] || GMF_SIS[n.replace(/\s+(bold|regular|light|medium)$/, '')] || [0.85, 0.8];
+  return { css: null, k: s[0], a: s[1] };
+}
 function gmMontar(id, G, meta) {
   if (GMOD.addons.has(id)) return GMOD.addons.get(id);
   const A = { id, nombre: (meta && meta.nombre) || G.nombre || id, autor: G.autor, G, modelos: [], lua: [], sonidos: 0, meta: meta || {}, visita: !!(meta && meta.visita) };
@@ -135,7 +185,7 @@ function gmMontar(id, G, meta) {
   if (typeof gmmRegistrar === 'function') gmmRegistrar(A);     // (y sus modos de juego)
   gmMenu();
   // (antes de correr su Lua: lo que pide del contenido base de GMod/HL2)
-  A.listo = (typeof gmlPreparar === 'function' ? gmlPreparar(A).catch(() => {}) : Promise.resolve()).then(() => { if (GMOD.addons.get(id) === A && typeof gmLuaMontar === 'function') gmLuaMontar(A); gmMenu(); if (GMOD.addons.get(id) === A && typeof gmbAutoFijar === 'function') try { gmbAutoFijar(A); } catch (e) {} });
+  A.listo = Promise.all([typeof gmlPreparar === 'function' ? gmlPreparar(A).catch(() => {}) : null, gmfRegistrar(A).catch(() => {})]).then(() => { if (GMOD.addons.get(id) === A && typeof gmLuaMontar === 'function') gmLuaMontar(A); gmMenu(); if (GMOD.addons.get(id) === A && typeof gmbAutoFijar === 'function') try { gmbAutoFijar(A); } catch (e) {} });
   return A;
 }
 function gmDesmontar(id) {

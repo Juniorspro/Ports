@@ -233,7 +233,7 @@ function gmaHUDPaso() {
   // (los hooks de la pantalla de este cuadro: los efectos —RenderScreenspaceEffects, con DrawColorModify y
   // DrawMaterialOverlay—, la HUD y lo que va encima de todo; los de un mod apagado en el panel GMod no cuentan)
   const hay = (ev) => { const H = GMA.hooks.get(ev); return !!(H && [...H.values()].some((h) => h.C && !gmaHookApagado(h, ev))); };
-  const hayEf = hay('RenderScreenspaceEffects'), hayHooks = hayEf || hay('HUDPaint') || hay('PostDrawHUD') || hay('DrawOverlay') || !!GMA.modo;
+  const hayEf = hay('RenderScreenspaceEffects'), hayHooks = hayEf || hay('HUDPaint') || hay('HUDPaintBackground') || hay('PostDrawHUD') || hay('DrawOverlay') || !!GMA.modo;
   GMA.pp = null;
   if (!hayHooks && !hayArma && !GMA.hudSucio) { gmaPPAplicar(null); return; }
   // (todos los cuadros, a 60; en Patata y Bajo la densidad de la pantalla hasta 1,5 en vez de 2, y el lienzo se esconde
@@ -247,7 +247,7 @@ function gmaHUDPaso() {
   const t0 = performance.now();
   try {
     if (hayEf) gmaHook('RenderScreenspaceEffects', 'C');
-    if (hayHooks) { gmaHook('HUDPaint', 'C'); gmaHook('PostDrawHUD', 'C'); }
+    if (hayHooks) { gmaHook('HUDPaintBackground', 'C'); GMA.enHUDPaint = true; try { gmaHook('HUDPaint', 'C'); } finally { GMA.enHUDPaint = false; } gmaHook('PostDrawHUD', 'C'); }
     if (hayArma && JUG.vivo) metodo(w, 'DrawHUD', 'C');
     if (hayHooks) gmaHook('DrawOverlay', 'C');
   } finally { GMA.dibujoHUD = false; g.globalAlpha = 1; const ver = GMA.hudN > 0 ? '' : 'none'; if (c.style.display !== ver) c.style.display = ver; gmaPPAplicar(GMA.pp); }
