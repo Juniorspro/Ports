@@ -335,8 +335,8 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   P('UniqueID', () => 1); P('AccountID', () => 1); P('UserID', () => 1); P('IsBot', () => false); P('Ping', () => 0); P('Frags', () => 0); P('Deaths', () => 0); P('Team', () => 1); P('SetTeam', () => {}); P('GetUserGroup', () => 'superadmin');
   P('IsAdmin', () => true); P('IsSuperAdmin', () => true); P('IsUserGroup', (p, g) => g === 'superadmin' || g === 'admin' || g === 'user'); P('IsListenServerHost', () => true); P('IsFullyAuthenticated', () => true);
   P('Alive', () => !!JUG.vivo); P('Armor', () => GMA.armor || 0); P('SetArmor', (p, a) => { GMA.armor = num(a, 0); }); P('Kill', () => { if (typeof morirJugador === 'function') morirJugador(); }); P('KillSilent', () => { if (typeof morirJugador === 'function') morirJugador(); });
-  P('GetActiveWeapon', () => GMA.swep || NULL_ENT); P('Give', (p, c) => gmaDarArma(String(c))); P('StripWeapon', (p, c) => gmaQuitarArma(String(c))); P('StripWeapons', () => {}); P('HasWeapon', (p, c) => !!(GMA.armasJug && GMA.armasJug.has(String(c))));
-  P('GetWeapon', (p, c) => (GMA.armasJug && GMA.armasJug.get(String(c))) || NULL_ENT); P('GetWeapons', () => R.tab([...(GMA.armasJug || new Map()).values()])); P('SelectWeapon', (p, c) => { const w = GMA.armasJug && GMA.armasJug.get(String(c)); if (w) darArma('gm:' + c); }); P('SetActiveWeapon', () => {});
+  P('GetActiveWeapon', () => gmaFantasma() || GMA.swep || NULL_ENT); P('Give', (p, c) => gmaDarArma(String(c))); P('StripWeapon', (p, c) => gmaQuitarArma(String(c))); P('StripWeapons', () => {}); P('HasWeapon', (p, c) => !!(GMA.armasJug && GMA.armasJug.has(String(c))) || !!(gmaFantasma() && gmaFantasma().clase === String(c)));
+  P('GetWeapon', (p, c) => (GMA.armasJug && GMA.armasJug.get(String(c))) || (gmaFantasma() && gmaFantasma().clase === String(c) ? gmaFantasma() : null) || NULL_ENT); P('GetWeapons', () => R.tab([...(GMA.armasJug || new Map()).values()])); P('SelectWeapon', (p, c) => { const w = GMA.armasJug && GMA.armasJug.get(String(c)); if (w) darArma('gm:' + c); }); P('SetActiveWeapon', () => {});
   P('GetAmmoCount', () => 999); P('GiveAmmo', () => {}); P('RemoveAmmo', () => {}); P('SetAmmo', () => {}); P('StripAmmo', () => {});
   P('GetEyeTrace', () => gmaTraza(CAM.pos, CAM.fwd, 32768 * GS, null)); P('GetEyeTraceNoCursor', () => gmaTraza(CAM.pos, CAM.fwd, 32768 * GS, null));
   P('CheckLimit', () => true); P('GetCount', () => 0); P('AddCount', () => {}); P('AddCleanup', () => {}); P('LimitHit', () => {});
@@ -741,7 +741,7 @@ function gmaTeclas() {
   if (t.has('KeyE') || (typeof CTL !== 'undefined' && CTL.teclasMod.has('KeyE')) || bt('busar')) k |= IN.USE; if (t.has('KeyR') || bt('brecargar')) k |= IN.RELOAD; if (ENT.correr || t.has('ShiftLeft')) k |= IN.SPEED; if (t.has('AltLeft')) k |= IN.WALK;
   if (typeof CTL !== 'undefined') k |= CTL.inMod; return k;
 }
-const gmaTecla = (k) => !!(gmaTeclas() & k);
+const gmaTecla = (k) => !!(gmaTeclas() & (gmaFantasma() ? k & ~(1 | 2048) : k));   // (IN_ATTACK e IN_ATTACK2 no le llegan a un efecto siempre activo)
 // las teclas de GMod (KEY_*, MOUSE_*) ↔ las del navegador; las que están apretadas en este cuadro (teclado, botones de los
 // mods en la pantalla, los táctiles de usar/recargar/saltar/agachar/correr y los del mouse)
 const GMA_KEYJS = (() => { const t = []; for (let i = 0; i <= 9; i++) t[1 + i] = 'Digit' + i; for (let i = 0; i < 26; i++) t[11 + i] = 'Key' + String.fromCharCode(65 + i); for (let i = 0; i <= 9; i++) t[37 + i] = 'Numpad' + i;
@@ -758,7 +758,7 @@ function gmaBotones() {
   if (ENT.disparo) s.add(107); if (ENT.disparo2) s.add(108);
   return s;
 }
-const gmaTeclaAbajo = (k) => (GMA.botAnt || gmaBotones()).has(+k);
+const gmaTeclaAbajo = (k) => !(+k >= 107 && +k <= 113 && gmaFantasma()) && (GMA.botAnt || gmaBotones()).has(+k);   // (los botones del mouse —MOUSE_*— no le llegan a un efecto siempre activo; el teclado sí)
 function gmaSwepPrim(w, k) { const c = claseTabla(w.clase, 'S'); const p = c && buscarEnClase(c, 'Primary'); return p instanceof LuaTable ? p.get(k) : undefined; }
 function gmaSwepSec(w, k) { const c = claseTabla(w.clase, 'S'); const p = c && buscarEnClase(c, 'Secondary'); return p instanceof LuaTable ? p.get(k) : undefined; }
 function gmaConsola2(c) {
@@ -779,6 +779,62 @@ function gmaArmasSuelo() {
     const p = e.o.b.pos, dx = p.x - JUG.pos.x, dz = p.z - JUG.pos.z, dy = p.y - (JUG.pos.y - (JUG.medio || 0.9));
     if (dx * dx + dz * dz < 1.1 * 1.1 && Math.abs(dy) < 1.6) { const c = e.armaSuelo; gmaQuitar(e); gmaDarArma(c); }
   }
+}
+// ---- efectos visuales siempre activos ----
+// Hay mods que dibujan sobre la pantalla —una cámara VHS, visión nocturna, un filtro— sólo mientras tenés su objeto en la
+// mano. Para esos (los detecta gmaEfectoObjeto leyendo su Lua), y sólo dentro de sus hooks de dibujo, cámara y cuadro, el
+// jugador "tiene" ese objeto aunque tenga otra cosa o nada en la mano: así el efecto queda siempre puesto. El mouse y el
+// disparo no les llegan mientras tanto (no le roban el tiro al arma de verdad); el teclado sí, para sus propias teclas
+// (grabar, la batería, la visión nocturna). Sus hooks de teclas y movimiento ven el arma real. En la página del mod en el panel GMod se apaga («Siempre activo»); viene prendido.
+const GMA_SIEMPRE_NO = 'rb_gmb_siempreNo';
+const GMA_EV_SIN_FANTASMA = new Set(['PlayerBindPress', 'CreateMove', 'StartCommand', 'SetupMove', 'Move', 'FinishMove', 'KeyPress', 'KeyRelease', 'PlayerButtonDown', 'PlayerButtonUp', 'InputMouseApply', 'AdjustMouseSensitivity', 'PreDrawViewModel', 'PostDrawViewModel', 'CalcViewModelView', 'PlayerSwitchWeapon', 'PlayerCanPickupWeapon', 'WeaponEquip', 'PlayerDroppedWeapon', 'OnSpawnMenuOpen', 'OnContextMenuOpen']);
+function gmaSiempreNo() { if (!GMA.siempreNo) { try { GMA.siempreNo = new Set(JSON.parse(localStorage.getItem(GMA_SIEMPRE_NO) || '[]').map(String)); } catch (e) { GMA.siempreNo = new Set(); } } return GMA.siempreNo; }
+// ¿el mod es un efecto que depende de tener su objeto? → la clase de ese objeto (una o dos armas propias, hooks que dibujan
+// sobre la pantalla o mueven la cámara, y en el resto de su Lua —fuera del archivo del arma— pregunta por el arma activa y
+// nombra esa clase)
+function gmaEfectoObjeto(A) {
+  if (!A) return null; if (A._efObj !== undefined) return A._efObj;
+  let r = null;
+  const sw = A.sweps || [];
+  if (sw.length >= 1 && sw.length <= 2) {
+    let dibuja = false;
+    for (const [ev, H] of GMA.hooks) { const g = gmaGrupo(ev); if (g !== 'pantalla' && g !== 'hud' && ev !== 'CalcView') continue; for (const h of H.values()) if (h.a === A.id && h.C) { dibuja = true; break; } if (dibuja) break; }
+    if (dibuja) {
+      const td = new TextDecoder('latin1'); let src = '';
+      for (const ru of A.lua || []) { if (sw.some((c) => ru.startsWith('lua/weapons/' + c.toLowerCase() + '/') || ru === 'lua/weapons/' + c.toLowerCase() + '.lua')) continue; const b = A.G.archivos.get(ru); if (b && src.length < 4e6) src += td.decode(b) + '\n'; }
+      if (/GetActiveWeapon\s*\(/.test(src)) r = sw.find((c) => src.includes('"' + c + '"') || src.includes("'" + c + "'")) || null;
+    }
+  }
+  if (A.luaCorridos) A._efObj = r;   // (antes de que corra su Lua todavía no puso sus hooks)
+  return r;
+}
+// el arma "de mentira" que ve un efecto siempre activo (o null)
+function gmaFantasma() {
+  const a = GMA.hookAddon; if (!a || GMA.ctx !== 'C' || GMA_EV_SIN_FANTASMA.has(GMA.hookEv)) return null;
+  const M = GMA.fantasmas || (GMA.fantasmas = new Map());
+  let F = M.get(a);
+  if (F === undefined) {
+    F = null; const A = GMOD.addons.get(a), c = A && gmaEfectoObjeto(A);
+    if (c && GMA.armas.has(c)) {
+      const w = new LEnt(c, 'arma'); w.dueño = GMA.jug; w.fantasma = true; w.creado = true; const cs = gmaSwepPrim(w, 'ClipSize'); w.clip1 = cs === undefined || cs < 0 ? -1 : cs;
+      const ct = claseTabla(c, 'S'); w.vm = ct && buscarEnClase(ct, 'ViewModel'); w.wm = ct && buscarEnClase(ct, 'WorldModel');
+      F = { w, clase: c };
+      M.set(a, F);
+      const he = GMA.hookEv; GMA.hookEv = 'PlayerSwitchWeapon';   // (su Initialize ve el arma real)
+      try { gmaPreparar(w); metodo(w, 'Initialize', 'S'); const cc = GMA.armas.get(c); if (cc && cc.C && cc.C !== cc.S) metodo(w, 'Initialize', 'C'); } catch (e) {} finally { GMA.hookEv = he; }
+    }
+    M.set(a, F);
+  }
+  if (!F || gmaSiempreNo().has(a) || (GMA.apagados && GMA.apagados.has(a))) return null;
+  if (GMA.swep && GMA.swep.clase === F.clase) return null;   // (lo tiene en la mano de verdad)
+  if (typeof JUG !== 'undefined' && !JUG.vivo) return null;
+  return F.w;
+}
+function gmaSiempreAlternar(id, on) {
+  const S = gmaSiempreNo(); id = String(id); if (on === undefined) on = S.has(id);
+  if (on) S.delete(id); else S.add(id);
+  try { localStorage.setItem(GMA_SIEMPRE_NO, JSON.stringify([...S])); } catch (e) {}
+  return on;
 }
 // armas de los addons: se dan como un arma más del juego (tipo 'gmswep')
 function gmaDarArma(clase) {
@@ -1084,8 +1140,8 @@ function gmaHook0(ev, ctx, ...a) {
     if (GMA.apagados.size && gmaHookApagado(h, ev)) continue;
     for (const c of ctx === 'SC' ? 'SC' : ctx) {
       const f = h[c]; if (!f) continue;
-      const ha0 = GMA.hookAddon; GMA.hookAddon = h.a || null;
-      GMA.ultErr = false; let r; try { r = obj ? gmLlamar(f, c, id, ...a) : gmLlamar(f, c, ...a); } finally { GMA.hookAddon = ha0; }
+      const ha0 = GMA.hookAddon, he0 = GMA.hookEv; GMA.hookAddon = h.a || null; GMA.hookEv = ev;
+      GMA.ultErr = false; let r; try { r = obj ? gmLlamar(f, c, id, ...a) : gmLlamar(f, c, ...a); } finally { GMA.hookAddon = ha0; GMA.hookEv = he0; }
       if (GMA.ultErr) { if (++h['n' + c] > 300) { delete h[c]; gmaErr('hook ' + ev + ' ' + String(obj ? '(entidad)' : id) + ' sacado: falla siempre'); if (!h.S && !h.C) H.delete(id); } } else h['n' + c] = 0;
       if (r.length && r[0] !== undefined) return r;
     }
@@ -1287,7 +1343,7 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
   def(L('chat'), 'AddText', (...a) => { if (GMA.ctx !== 'C') return; const s = a.filter((x) => typeof x === 'string' || typeof x === 'number' || x instanceof LEnt).map((x) => (x instanceof LEnt ? (x.tipo === 'jug' ? PREFS.nombre : x.clase) : R.tostr(x))).join(''); if (typeof chatMostrar === 'function') chatMostrar('', s, null, 'sis'); }); def(L('chat'), 'PlaySound', () => {}); def(L('chat'), 'Open', () => {}); def(L('chat'), 'Close', () => {}); def(L('chat'), 'GetChatBoxPos', () => [20, VH() - 300]); def(L('chat'), 'GetChatBoxSize', () => [500, 250]);
   def(L('notification'), 'AddLegacy', (t, ty, d) => aviso(String(t), num(d, 3))); def(L('notification'), 'AddProgress', (id, t) => aviso(String(t), 2)); def(L('notification'), 'Kill', () => {});
   def(L('input'), 'LookupBinding', (b) => GMA_TECLA_DE[String(b || '').toLowerCase()] || (/^slot([1-9])$/.exec(String(b || '')) || [])[1]); def(L('input'), 'LookupKeyBinding', () => '');
-  def(L('input'), 'IsKeyDown', (k) => gmaTeclaAbajo(k)); def(L('input'), 'IsButtonDown', (k) => gmaTeclaAbajo(k)); def(L('input'), 'WasKeyPressed', (k) => !!(GMA.botNuevos && GMA.botNuevos.includes(+k))); def(L('input'), 'WasMousePressed', (k) => !!(GMA.botNuevos && GMA.botNuevos.includes(+k))); def(L('input'), 'GetKeyName', (k) => (GMA_KEYJS[k] || '').replace(/^Key|^Digit/, '').toLowerCase()); def(L('input'), 'GetKeyCode', (n) => { const c = String(n || '').toUpperCase(); const i = GMA_KEYJS.findIndex((x) => x && x.replace(/^Key|^Digit/, '').toUpperCase() === c); return i > 0 ? i : 0; }); def(L('input'), 'IsMouseDown', (b) => (b === 107 ? !!ENT.disparo : b === 108 ? !!ENT.disparo2 : typeof CTL !== 'undefined' && !!CTL.raton && b === CTL.raton)); def(L('input'), 'LookupBinding', (b) => ({ '+use': 'E', '+reload': 'R', '+attack': 'MOUSE1', '+attack2': 'MOUSE2', '+menu': 'Q', '+jump': 'SPACE' })[b] || undefined);
+  def(L('input'), 'IsKeyDown', (k) => gmaTeclaAbajo(k)); def(L('input'), 'IsButtonDown', (k) => gmaTeclaAbajo(k)); def(L('input'), 'WasKeyPressed', (k) => !(+k >= 107 && +k <= 113 && gmaFantasma()) && !!(GMA.botNuevos && GMA.botNuevos.includes(+k))); def(L('input'), 'WasMousePressed', (k) => !gmaFantasma() && !!(GMA.botNuevos && GMA.botNuevos.includes(+k))); def(L('input'), 'GetKeyName', (k) => (GMA_KEYJS[k] || '').replace(/^Key|^Digit/, '').toLowerCase()); def(L('input'), 'GetKeyCode', (n) => { const c = String(n || '').toUpperCase(); const i = GMA_KEYJS.findIndex((x) => x && x.replace(/^Key|^Digit/, '').toUpperCase() === c); return i > 0 ? i : 0; }); def(L('input'), 'IsMouseDown', (b) => !gmaFantasma() && (b === 107 ? !!ENT.disparo : b === 108 ? !!ENT.disparo2 : typeof CTL !== 'undefined' && !!CTL.raton && b === CTL.raton)); def(L('input'), 'LookupBinding', (b) => ({ '+use': 'E', '+reload': 'R', '+attack': 'MOUSE1', '+attack2': 'MOUSE2', '+menu': 'Q', '+jump': 'SPACE' })[b] || undefined);
   def(L('input'), 'IsShiftDown', () => !!(ENT.teclas && ENT.teclas.has('ShiftLeft'))); def(L('input'), 'IsControlDown', () => !!(ENT.teclas && ENT.teclas.has('ControlLeft'))); def(L('input'), 'GetCursorPos', () => [VW() / 2, VH() / 2]); def(L('input'), 'SelectWeapon', () => {});
   def(L('gui'), 'MouseX', () => VW() / 2); def(L('gui'), 'MouseY', () => VH() / 2); def(L('gui'), 'EnableScreenClicker', () => {}); def(L('gui'), 'OpenURL', () => {}); def(L('gui'), 'IsGameUIVisible', () => !!UI.abierto); def(L('gui'), 'IsConsoleVisible', () => false); def(L('gui'), 'ActivateGameUI', () => {}); def(L('gui'), 'HideGameUI', () => {}); def(L('gui'), 'ScreenToVector', () => GMA.Vd(CAM.fwd)); def(L('gui'), 'SetMousePos', () => {});
   def(L('team'), 'GetName', () => 'Unassigned'); def(L('team'), 'GetColor', () => GMA.color(255, 255, 100, 255)); def(L('team'), 'SetUp', () => {}); def(L('team'), 'NumPlayers', () => 1); def(L('team'), 'GetPlayers', () => R.tab([GMA.jug])); def(L('team'), 'Valid', () => true); def(L('team'), 'GetAllTeams', () => new LuaTable()); def(L('team'), 'GetScore', () => 0); def(L('team'), 'SetScore', () => {}); def(L('team'), 'BestAutoJoinTeam', () => 1); def(L('team'), 'Joinable', () => true); def(L('team'), 'TotalFrags', () => 0); def(L('team'), 'SetSpawnPoint', () => {}); def(L('team'), 'SetClass', () => {});
@@ -1300,7 +1356,7 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
   // (lo que pregunta Is/Has/Can/Should devuelve false: antes daba 0, que en Lua es verdadero, y un addon creía que sí)
   const VAC = (o) => { const t = new LuaTable(); const m = new LuaTable(); m.set('__index', (x, k) => (typeof k !== 'string' ? undefined : /^(Is|Has|Can|Should|Supports)[A-Z]/.test(k) ? () => false : /^Get/.test(k) ? () => 0 : () => {})); t.mt = m; return t; };
   for (const n of ['render', 'cam', 'mesh', 'killicon', 'resource', 'spawnmenu', 'presets', 'undo', 'cleanup', 'duplicator', 'constraint', 'properties', 'achievements', 'navmesh', 'steamworks', 'search', 'menubar', 'widgets', 'halo', 'frame_blend', 'drive', 'construct', 'numpad', 'matproxy', 'motionsensor', 'controlpanel', 'serverlist', 'video']) { const t = L(n); const v = VAC(); t.mt = v.mt; }
-  def(L('render'), 'GetScreenEffectTexture', () => gmaMaterial('rt')); def(L('render'), 'GetRenderTarget', () => gmaMaterial('rt')); def(L('render'), 'GetLightColor', () => GMA.nv(1, 1, 1)); def(L('render'), 'GetAmbientLightColor', () => GMA.nv(0.5, 0.5, 0.5)); def(L('render'), 'GetDXLevel', () => 95); def(L('render'), 'SupportsHDR', () => true); def(L('render'), 'GetViewSetup', () => tabla({ origin: GMA.V(CAM.pos), angles: GMA.A(dirAng(dS(CAM.fwd))), fov: CAM.fov || 75 }));
+  def(L('render'), 'GetScreenEffectTexture', () => gmaMaterial('rt')); def(L('render'), 'GetRenderTarget', () => gmaMaterial('rt')); def(L('render'), 'GetLightColor', () => GMA.nv(1, 1, 1)); def(L('render'), 'GetAmbientLightColor', () => GMA.nv(0.5, 0.5, 0.5)); def(L('render'), 'GetDXLevel', () => (typeof gmrtSM3 === 'function' && !gmrtSM3() ? 90 : 95)); def(L('render'), 'SupportsHDR', () => true); def(L('render'), 'GetViewSetup', () => tabla({ origin: GMA.V(CAM.pos), angles: GMA.A(dirAng(dS(CAM.fwd))), fov: CAM.fov || 75 }));
   def(L('undo'), 'Create', () => {}); def(L('constraint'), 'Weld', (a, b) => gmaSoldar(a, b)); def(L('constraint'), 'NoCollide', () => [NULL_ENT]); def(L('constraint'), 'Axis', (a, b) => gmaSoldar(a, b)); def(L('constraint'), 'Rope', () => [NULL_ENT]); def(L('constraint'), 'Find', () => undefined); def(L('constraint'), 'FindConstraints', () => new LuaTable()); def(L('constraint'), 'RemoveAll', (e) => gmaDesoldar(e)); def(L('constraint'), 'GetAllConstrainedEntities', (e) => { const t = new LuaTable(); if (e instanceof LEnt) { t.set(e, e); if (e.soldadoA) t.set(e.soldadoA, e.soldadoA); if (GMA.hijos) for (const h of GMA.hijos) if (h.soldadoA === e) t.set(h, h); } return t; });
   def(L('duplicator'), 'CopyEntTable', () => new LuaTable()); def(L('duplicator'), 'GenericDuplicatorFunction', () => NULL_ENT);
   // ---- lo que faltaba y devolvía algo que el addon usa (api_falta.mjs) ----

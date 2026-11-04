@@ -115,7 +115,16 @@ function gmrtProg(gl, vs, fs) {
   gl.useProgram(p); for (let i = 0; i < 4; i++) if (u['s' + i]) gl.uniform1i(u['s' + i], i);
   return { p, u };
 }
+// (el nivel de DirectX que ven los mods, como GMod en una placa floja: en Patata, Bajo y Medio es 90 —sin shaders ps_3_0—
+// y los mods usan su versión liviana, si la traen; en Alto y Ultra, 95. Con el VHS del Viewfinder: la cadena ps_3_0 de
+// alta fidelidad costaba 7 veces lo que cuesta dibujar toda la escena; la ps_2_0b, menos de una)
+function gmrtSM3() { return typeof GFX === 'undefined' || GFX.nombre === 'alto' || GFX.nombre === 'ultra'; }
+const GRT_SIN_SM3 = { err: 'ps_3_0: en esta calidad el motor es DirectX 90 (Alto o Ultra lo prenden)' };
 function gmrtProgSS(nom) {
+  const P = gmrtProgSS0(nom);
+  return P && P.ps3 && !gmrtSM3() ? GRT_SIN_SM3 : P;
+}
+function gmrtProgSS0(nom) {
   const gl = gmrtGL(); if (!gl || !nom) return null; const k = String(nom).toLowerCase();
   if (GRT.progs.has(k)) return GRT.progs.get(k);
   // (el archivo: shaders/fxc/<nombre>.vcs; "_ps20" busca también el de ps_2_b, como Source)
@@ -126,7 +135,7 @@ function gmrtProgSS(nom) {
   let P;
   try {
     const L = dx9Vcs(b), c = L.find((x) => x.st === 0 && x.dyn === 0) || L[0]; if (!c) throw new Error('sin combos');
-    const T = dx9Glsl(c.code); P = gmrtProg(gl, DX9_VS, T.fs); P.ver = T.ver;
+    const T = dx9Glsl(c.code); P = gmrtProg(gl, DX9_VS, T.fs); P.ver = T.ver; P.ps3 = !!T.ps3;
   } catch (e) { P = { err: String((e && e.message) || e).slice(0, 300) }; if (typeof gmErr === 'function') gmErr('shader ' + nom, e); }
   GRT.progs.set(k, P); return P;
 }
