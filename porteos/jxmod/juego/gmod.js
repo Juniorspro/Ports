@@ -486,7 +486,7 @@ function gmPrefab(nombre) {
 
 // ---------------- íconos (el modelo de costado, dibujado en 2D con su textura y luz, como los spawnicons de GMod) ----------------
 function gmIcono(nombre) {
-  if (GMOD.iconos.has(nombre)) return GMOD.iconos.get(nombre);
+  if (GMOD.iconos.has(nombre)) return GMOD.iconos.get(nombre) || GM_ICO_VACIO;   // ('' = no se pudo dibujar: GMOD.icoFallo)
   if (!GMOD.colaIco.includes(nombre)) { GMOD.colaIco.push(nombre); if (GMOD.colaIco.length === 1) setTimeout(gmIconosPaso, 30); }
   return GM_ICO_VACIO;
 }
@@ -494,13 +494,21 @@ function gmIconosPaso() {
   const t0 = performance.now();
   while (GMOD.colaIco.length && performance.now() - t0 < 25) {
     const nombre = GMOD.colaIco.shift(); let url = '';
-    if (!gmArchivo(nombre.replace(/^gm:/, ''))) continue;   // (el addon ya no está montado)
+    // (no está a mano: si es del contenido base de GMod/HL2 se está pidiendo —gmArchivo lo pide— y se vuelve a probar; si
+    // no, el addon ya no está montado)
+    if (!gmArchivo(nombre.replace(/^gm:/, ''))) {
+      const I = GMOD.icoIntentos || (GMOD.icoIntentos = new Map()), n = I.get(nombre) || 0;
+      if (gmExiste(nombre.replace(/^gm:/, '')) && n < 30) { I.set(nombre, n + 1); setTimeout(() => { GMOD.colaIco.push(nombre); if (GMOD.colaIco.length === 1) setTimeout(gmIconosPaso, 16); }, 500); }
+      continue;
+    }
     // (las texturas del modelo que están en el disco: primero se leen —sólo su nivel chico— y el ícono vuelve a la cola)
     const falta = GMOD.icoEspera && GMOD.icoEspera.has(nombre) ? [] : gmIconoTexturasFaltan(nombre.replace(/^gm:/, ''));
     if (falta.length) { (GMOD.icoEspera || (GMOD.icoEspera = new Set())).add(nombre); Promise.all(falta.map((r) => gmPzVtf(r, 64))).then(() => { GMOD.colaIco.push(nombre); if (GMOD.colaIco.length === 1) setTimeout(gmIconosPaso, 16); }); continue; }
     try { url = gmIconoDibujar(nombre.replace(/^gm:/, '')); } catch (e) { if (e.pendiente) { gmModeloPedir(nombre.replace(/^gm:/, ''), () => { GMOD.colaIco.push(nombre); if (GMOD.colaIco.length === 1) setTimeout(gmIconosPaso, 16); }); continue; } gmErr('ícono ' + nombre, e); }
     GMOD.iconos.set(nombre, url);
-    if (url) for (const img of document.querySelectorAll(`img[data-gm="${CSS.escape(nombre)}"]`)) img.src = url;
+    if (!url) (GMOD.icoFallo || (GMOD.icoFallo = new Set())).add(nombre);
+    // (en los menús: la foto y su marco, que deja el dibujo de relleno)
+    if (url) for (const img of document.querySelectorAll(`img[data-gm="${CSS.escape(nombre)}"]`)) { img.src = url; const f = img.parentElement; if (f && f.classList.contains('ph')) { f.classList.remove('ph'); f.classList.add('mod'); } }
   }
   if (GMOD.colaIco.length) setTimeout(gmIconosPaso, 16);
 }

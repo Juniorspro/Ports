@@ -1271,3 +1271,20 @@ Todo medido en la compu (Chromium con SwiftShader, sin GPU). Nada de esto se pro
   VHS no hacía nada. Ahora el color (contraste, saturación, lo que suma y resta) se aplica a la imagen del juego, debajo
   de la HUD, y el material se dibuja a toda la pantalla. Prueba `pruebas/mods_cuadricula.mjs` 14/14 (con un VHS de prueba
   hecho en la prueba, la Lightsaber, M9K y un mod de mapas; compu y celu); `pruebas/gmod_panel.mjs` 18/18.
+
+## JXMod 2.9-prueba6: funciones de los mods por separado y objetos en orden
+
+- **Cada función de un mod con su interruptor** (`juego/gmod_panel.js`, `gmaHookApagado` en `juego/gmod_api.js`): la
+  página de un mod tiene «Funciones»: lo que hace por su cuenta, agrupado (efectos de pantalla, HUD, cámara y mira,
+  movimiento y animaciones, teclas, dibujos en el mundo, daño y muertes, chat y voz, al aparecer, cada cuadro, permisos,
+  otras), con los hooks de cada una. Si algo no anda (la HUD tapa, la cámara se rompe) se apaga sólo eso y el resto sigue.
+  Queda guardado. El interruptor de arriba sigue apagando el mod entero.
+- **Los objetos de cada mod, parejos y en orden**: todos en el mismo marco (64 px, el mismo fondo): el ícono propio del
+  mod llena el marco, el modelo dibujado va entero encima del fondo y, si no hay imagen, el dibujo de su tipo (arma,
+  NPC, vehículo, entidad, prop) en vez de la «G» o un cuadro vacío. En orden alfabético (con los números como números:
+  «Alfa 2» antes que «Alfa 10»). Lo que no anda (sin su modelo, o con el modelo roto) va aparte y plegado, «No andan · N»,
+  con el motivo. Las secciones van en orden: armas, entidades, NPCs, vehículos, personajes, props; después herramientas,
+  habilidades, comandos y ajustes. Los íconos de modelos del contenido base de GMod/HL2 se reintentan cuando llegan (antes
+  quedaban con la «G»).
+- Prueba `pruebas/mods_cuadricula.mjs` 18/18 (compu y celu; con un pack de NPCs en desorden y uno sin su modelo, y las
+  funciones del VHS de prueba por separado); `pruebas/gmod_panel.mjs` 18/18.

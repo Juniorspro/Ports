@@ -1048,12 +1048,31 @@ function gmaHook(ev, ctx, ...a) {
   for (const c of ctx === 'SC' ? 'SC' : ctx) { const t = M[c], f = t && t.get(ev); if (typeof f !== 'function') continue; const r2 = gmLlamar(f, c, t, ...a); if (r2.length && r2[0] !== undefined) return r2; }
   return E0;
 }
+// las funciones de un mod, agrupadas por lo que hacen sus hooks: en el panel GMod se prenden y apagan por separado
+// (GMA.apagados guarda "id" para todo el mod y "id|grupo" para una función)
+const GMA_GRUPOS = {
+  pantalla: ['RenderScreenspaceEffects', 'DrawOverlay', 'PostDrawHUD', 'PreDrawHUD', 'HUDPaintBackground', 'GetMotionBlurValues', 'PostRender', 'RenderScene', 'PreDrawEffects', 'PostDrawEffects', 'SetupWorldFog', 'SetupSkyboxFog', 'PreDrawSkyBox', 'PostDraw2DSkyBox'],
+  hud: ['HUDPaint', 'HUDShouldDraw', 'HUDDrawTargetID', 'HUDDrawPickupHistory', 'HUDAmmoPickedUp', 'HUDItemPickedUp', 'HUDWeaponPickedUp', 'DrawDeathNotice', 'AddDeathNotice', 'HUDDrawScoreBoard', 'ScoreboardShow', 'ScoreboardHide'],
+  camara: ['CalcView', 'CalcViewModelView', 'ShouldDrawLocalPlayer', 'CreateMove', 'InputMouseApply', 'AdjustMouseSensitivity', 'PreDrawViewModel', 'PostDrawViewModel'],
+  mov: ['Move', 'SetupMove', 'FinishMove', 'StartCommand', 'PlayerTick', 'PlayerFootstep', 'OnPlayerHitGround', 'PlayerNoClip', 'CalcMainActivity', 'UpdateAnimation', 'TranslateActivity', 'DoAnimationEvent'],
+  teclas: ['PlayerBindPress', 'KeyPress', 'KeyRelease', 'PlayerButtonDown', 'PlayerButtonUp', 'OnSpawnMenuOpen', 'OnContextMenuOpen'],
+  mundo: ['PostDrawOpaqueRenderables', 'PostDrawTranslucentRenderables', 'PreDrawOpaqueRenderables', 'PreDrawTranslucentRenderables', 'PrePlayerDraw', 'PostPlayerDraw', 'PreDrawHalos', 'DrawPhysgunBeam'],
+  dano: ['EntityTakeDamage', 'ScalePlayerDamage', 'ScaleNPCDamage', 'PlayerDeath', 'DoPlayerDeath', 'PlayerHurt', 'OnNPCKilled', 'PlayerDeathThink', 'PlayerShouldTakeDamage', 'GetFallDamage', 'CreateEntityRagdoll', 'PlayerDeathSound'],
+  chat: ['OnPlayerChat', 'PlayerSay', 'ChatText', 'StartChat', 'FinishChat', 'PlayerCanSeePlayersChat', 'PlayerCanHearPlayersVoice'],
+  aparecer: ['PlayerSpawn', 'PlayerInitialSpawn', 'PlayerLoadout', 'PlayerSetModel', 'PlayerSpawnedProp', 'PlayerSpawnedNPC', 'PlayerSpawnedSENT', 'PlayerSpawnedVehicle', 'PlayerSpawnedRagdoll', 'PlayerSpawnedEffect', 'OnEntityCreated', 'EntityRemoved', 'InitPostEntity', 'Initialize', 'PostGamemodeLoaded'],
+  cuadro: ['Think', 'Tick', 'PlayerPostThink'],
+  permisos: ['PhysgunPickup', 'PhysgunDrop', 'CanTool', 'CanProperty', 'PlayerUse', 'GravGunPickupAllowed', 'PlayerCanPickupWeapon', 'PlayerCanPickupItem', 'OnPhysgunFreeze', 'OnPhysgunReload', 'PlayerSpawnProp', 'PlayerSpawnObject', 'PlayerSpawnNPC', 'PlayerSpawnSENT', 'PlayerSpawnSWEP', 'PlayerGiveSWEP', 'CanPlayerSuicide', 'CanPlayerEnterVehicle', 'PlayerEnteredVehicle', 'PlayerLeaveVehicle'],
+};
+const GMA_GRUPO_EV = new Map(); for (const [g, L] of Object.entries(GMA_GRUPOS)) for (const ev of L) GMA_GRUPO_EV.set(ev, g);
+const gmaGrupo = (ev) => GMA_GRUPO_EV.get(ev) || 'otros';
+// ¿este hook está apagado? (todo su mod, o la función a la que pertenece)
+function gmaHookApagado(h, ev) { return !!(h.a && GMA.apagados.size && (GMA.apagados.has(h.a) || GMA.apagados.has(h.a + '|' + gmaGrupo(ev)))); }
 function gmaHook0(ev, ctx, ...a) {
   const H = GMA.hooks.get(ev); if (!H || !H.size) return E0;
   for (const [id, h] of [...H]) {
     const obj = typeof id === 'object' && id !== null;
     if (obj && id instanceof LEnt && !entValida(id)) { H.delete(id); continue; }
-    if (h.a && GMA.apagados.size && GMA.apagados.has(h.a)) continue;
+    if (GMA.apagados.size && gmaHookApagado(h, ev)) continue;
     for (const c of ctx === 'SC' ? 'SC' : ctx) {
       const f = h[c]; if (!f) continue;
       const ha0 = GMA.hookAddon; GMA.hookAddon = h.a || null;

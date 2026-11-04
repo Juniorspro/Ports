@@ -10,6 +10,13 @@
 //     ajuste cambia el efecto al momento; «‹ Mods» vuelve a la cuadrícula
 //  5. en el celu parado la cuadrícula y la página entran en la pantalla
 //  6. sin errores de JS
+// (pedido: «permitir el uso de otras funciones de los mods por separado» y «me das items con una imagen y después otro sin
+// fondo y así confunde, debería haber un orden bueno»). Con un pack de prueba (NPCs en desorden y uno sin su modelo):
+//  7. la página del efecto lista sus funciones (efectos de pantalla y HUD), cada una con su interruptor: apagar sólo la HUD
+//     saca las rayas y deja el color; apagar los efectos saca el color; queda guardado; prender todo vuelve
+//  8. los objetos: el mismo marco para todos (mismo tamaño y fondo), ninguna «G» ni cuadro vacío (sin imagen, el dibujo de
+//     su tipo), en orden alfabético con los números como números; el que no anda (sin su modelo) va aparte, plegado, y
+//     se despliega con su motivo
 // uso: node mods_cuadricula.mjs URL_HTML URL_CARPETA_GMA [CARPETA_FOTOS]
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
 const [, , HTML, CARP, DIR = '.'] = process.argv, D = DIR + '/';
@@ -35,6 +42,13 @@ function gma(nombre, archivos) {
   return Buffer.concat(partes);
 }
 const VHS = gma('VHS de prueba', [['lua/autorun/client/vhs_prueba.lua', new TextEncoder().encode(LUA)]]).toString('base64');
+const PACK = gma('Pack de prueba', [['lua/autorun/npcs_prueba.lua', new TextEncoder().encode(`
+list.Set("NPC", "npc_prueba_zeta", { Name = "Zeta", Class = "npc_citizen", Category = "Prueba" })
+list.Set("NPC", "npc_prueba_alfa10", { Name = "Alfa 10", Class = "npc_citizen", Category = "Prueba" })
+list.Set("NPC", "npc_prueba_alfa2", { Name = "alfa 2", Class = "npc_citizen", Category = "Prueba" })
+list.Set("NPC", "npc_prueba_rota", { Name = "Rota", Class = "npc_citizen", Model = "models/no_existe/rota.mdl", Category = "Prueba" })
+list.Set("NPC", "npc_prueba_beta", { Name = "Beta", Class = "npc_citizen", Category = "Prueba" })
+`)]]).toString('base64');
 for (const modo of ['pc', 'parado']) {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await b.newContext(modo === 'parado' ? { viewport: { width: 393, height: 873 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 720 } });
@@ -45,7 +59,8 @@ for (const modo of ['pc', 'parado']) {
   await ev(`PREFS.bienvenida = true; PREFS.tutVisto = true; GFX.auto = false; PREFS.gfx = 'bajo'; aplicarGfx(); inicioMostrar(false); empezarPartida('FlatGrass'); cuPedirAlAbrir.hecho = true; cuDialogoCerrar(); localStorage.removeItem('rb_gmb_apagados'); GMA.apagados.clear(); 1`);
   await p.waitForTimeout(2500);
   await ev(`(async () => { for (const id of ['111412589', '128089118', '1751661372']) { const b = new Uint8Array(await (await fetch(${JSON.stringify(CARP)} + '/' + id + '.gma')).arrayBuffer()); const A = await gmInstalar(id, { nombre: { '111412589': 'Lightsaber', '128089118': 'M9K Assault Rifles', '1751661372': 'ttt_backrooms' }[id], sinDeps: true }, b); await A.listo; }
-    const v = Uint8Array.from(atob('${VHS}'), (c) => c.charCodeAt(0)); const A = await gmInstalar('local:vhs', { nombre: 'VHS de prueba', sinDeps: true }, v); await A.listo; return 1; })()`);
+    const v = Uint8Array.from(atob('${VHS}'), (c) => c.charCodeAt(0)); const A = await gmInstalar('local:vhs', { nombre: 'VHS de prueba', sinDeps: true }, v); await A.listo;
+    const k = Uint8Array.from(atob('${PACK}'), (c) => c.charCodeAt(0)); const B = await gmInstalar('local:pack', { nombre: 'Pack de prueba', sinDeps: true }, k); await B.listo; return 1; })()`);
   await p.waitForTimeout(1200);
   // (esperar cuadros del juego)
   const cuadros = async (n = 3) => { for (let i = 0; i < n; i++) { const t0 = await ev(`TIEMPO.t`); await p.waitForFunction((x) => window.__ev(`TIEMPO.t`) > x, t0, { timeout: 20000, polling: 16 }); } };
@@ -55,7 +70,7 @@ for (const modo of ['pc', 'parado']) {
     return { T, aviso: (P.querySelector('.gbMapasAviso') || {}).textContent || '', mapaEnLista: !!mapa && MAPAS_RB.includes(mapa[0]), atras: !!P.querySelector('[data-gb="atras"]') }; })()`);
   await p.screenshot({ path: D + 'mods_' + modo + '_cuadricula.png' });
   const ids = g.T.map((t) => t.id).sort(), vhs = g.T.find((t) => t.id === 'local:vhs');
-  ok(`${modo}: 1. una tarjeta por mod (imagen, nombre, qué es); el de mapas no está y su mapa sí está en Mapas`, ids.join() === ['111412589', '128089118', 'local:vhs'].join() && g.T.every((t) => t.img && t.nom && t.tipo) && vhs && vhs.sw && /effect|efecto/i.test(vhs.tipo) && /1/.test(g.aviso) && g.mapaEnLista && !g.atras, g);
+  ok(`${modo}: 1. una tarjeta por mod (imagen, nombre, qué es); el de mapas no está y su mapa sí está en Mapas`, ids.join() === ['111412589', '128089118', 'local:pack', 'local:vhs'].join() && g.T.every((t) => t.img && t.nom && t.tipo) && vhs && vhs.sw && /effect|efecto/i.test(vhs.tipo) && /1/.test(g.aviso) && g.mapaEnLista && !g.atras, g);
   // 2. el efecto prendido
   await cuadros();
   const ef = () => ev(`(() => { const c = R.cv, capas = [...document.querySelectorAll(".gmPP")].sort((a, b) => (a.style.mixBlendMode === "multiply") - (b.style.mixBlendMode === "multiply")), h = document.getElementById('gmHUD'); return { filtro: c.style.filter, suma: capas[0] ? (capas[0].style.display !== 'none' ? capas[0].style.background : '') : null, resta: capas[1] ? (capas[1].style.display !== 'none' ? capas[1].style.background : '') : null, hud: !!(h && h.style.display !== 'none'), apagados: [...GMA.apagados], guardado: localStorage.getItem('rb_gmb_apagados') }; })()`);
@@ -78,13 +93,41 @@ for (const modo of ['pc', 'parado']) {
   await ev(`document.querySelector('#gmbPanel [data-gb="atras"]').click(); 1`);
   const vuelta = await ev(`({ sel: GMB.sel, tarjetas: document.querySelectorAll('#gmbPanel .gbMod').length })`);
   const gr = await ev(`(() => { const P = document.getElementById('gmbPanel'); return { w: P.offsetWidth, h: P.offsetHeight, l: P.offsetLeft, t: P.offsetTop, W: VW(), H: VH() }; })()`);
-  ok(`${modo}: 4. la página del efecto: «‹ Mods», el interruptor y sus ajustes primero; el ajuste cambia el efecto al momento; «‹ Mods» vuelve`, pg.sel === 'local:vhs' && pg.atras && pg.primero && pg.segundo.includes('vhs_color') && /saturate\(0\.9\)/.test(on2.filtro) && !on2.apagados.length && vuelta.sel === null && vuelta.tarjetas === 3, { pg, on2: on2.filtro, vuelta });
+  ok(`${modo}: 4. la página del efecto: «‹ Mods», el interruptor y sus ajustes primero; el ajuste cambia el efecto al momento; «‹ Mods» vuelve`, pg.sel === 'local:vhs' && pg.atras && pg.primero && pg.segundo.includes('vhs_color') && /saturate\(0\.9\)/.test(on2.filtro) && !on2.apagados.length && vuelta.sel === null && vuelta.tarjetas === 4, { pg, on2: on2.filtro, vuelta });
   const entra = (x) => x.l >= 0 && x.t >= 0 && x.l + x.w <= x.W + 1 && x.t + x.h <= x.H + 1;
   ok(`${modo}: 5. la cuadrícula y la página entran en la pantalla`, entra(pr) && entra(gr), { pr, gr });
   // la página de un mod de armas: ‹ Mods y sus armas; tocar un arma la da
   const ar = await ev(`(async () => { document.querySelector('#gmbPanel .gbMod[data-gb="ver:128089118"]').click(); const n = document.querySelectorAll('#gmbPanel [data-gb^="it:gmswep:"]').length; await new Promise((r) => setTimeout(r, 200)); return { n, atras: !!document.querySelector('#gmbPanel [data-gb="atras"]') }; })()`);
   await p.screenshot({ path: D + 'mods_' + modo + '_m9k.png' });
   ok(`${modo}: la página de un mod de armas trae sus armas`, ar.n >= 10 && ar.atras, ar);
+  // 7. las funciones del efecto, por separado
+  const f0 = await ev(`(() => { gmbAbrir('local:vhs'); return [...document.querySelectorAll('#gmbPanel .gbFunc')].map((f) => f.dataset.gb); })()`);
+  await ev(`(() => { document.querySelector('#gmbPanel [data-gb="tog:local:vhs|hud"]').click(); return 1; })()`); await cuadros(2); const sinHud = await ef();
+  await ev(`(() => { document.querySelector('#gmbPanel [data-gb="tog:local:vhs|pantalla"]').click(); return 1; })()`); await cuadros(2); const sinNada = await ef();
+  await p.screenshot({ path: D + 'mods_' + modo + '_funciones.png' });
+  await ev(`(() => { document.querySelector('#gmbPanel [data-gb="tog:local:vhs|hud"]').click(); document.querySelector('#gmbPanel [data-gb="tog:local:vhs|pantalla"]').click(); return 1; })()`); await cuadros(2); const todo = await ef();
+  ok(`${modo}: 7. las funciones del efecto por separado: sin la HUD quedan el color sin rayas; sin los efectos, nada; guardado; y vuelve`,
+    f0.includes('tog:local:vhs|pantalla') && f0.includes('tog:local:vhs|hud') && /saturate/.test(sinHud.filtro) && !sinHud.hud && /local:vhs\|hud/.test(sinHud.guardado || '')
+    && sinNada.filtro === '' && !sinNada.hud && /saturate/.test(todo.filtro) && todo.hud && !todo.apagados.length, { f0, sinHud: [sinHud.filtro, sinHud.hud], sinNada: [sinNada.filtro, sinNada.hud], todo: [todo.filtro, todo.hud] });
+  // 8. los objetos: parejos y en orden (el pack: NPCs en desorden y uno sin modelo; M9K: armas con ícono propio y sin él)
+  const ob = async (id) => { await ev(`(() => { gmbAbrir('${id}'); return 1; })()`); await p.waitForTimeout(6000); await ev(`gmbCuerpo(); 1`);
+    return ev(`(() => { const P = document.getElementById('gmbPanel'), secs = {};
+      for (const sec of P.querySelectorAll('.gbSec')) { const g = sec.querySelector('.gbGrilla:not(.gbGrillaMal)'); if (!g) continue; secs[sec.querySelector('h4').firstChild.textContent.trim()] = [...g.querySelectorAll('.gbIt')].map((t) => t.querySelector('.gbItN').textContent); }
+      const fotos = [...P.querySelectorAll('.gbFoto')].map((f) => { const r = f.getBoundingClientRect(), i = f.querySelector('img'), cs = getComputedStyle(f); return { w: Math.round(r.width), h: Math.round(r.height), bg: cs.backgroundImage.slice(0, 40), k: f.className.replace('gbFoto ', ''), g: i.getAttribute('src') === GM_ICO, vacia: f.classList.contains('ph') ? !f.querySelector('.gbPh') : !(i.naturalWidth > 0) }; });
+      const malBt = [...P.querySelectorAll('.gbMalBt')].map((b) => b.textContent), malVis = P.querySelectorAll('.gbGrillaMal .gbIt').length;
+      return { secs, fotos, malBt, malVis }; })()`); };
+  const pack = await ob('local:pack');
+  await ev(`document.querySelector('#gmbPanel .gbMalBt').click(); 1`);
+  const desp = await ev(`(() => { const t = [...document.querySelectorAll('#gmbPanel .gbGrillaMal .gbIt')].map((x) => [x.querySelector('.gbItN').textContent, (x.querySelector('.gbMal') || {}).textContent || '']); return t; })()`);
+  await p.screenshot({ path: D + 'mods_' + modo + '_pack.png' });
+  const m9k = await ob('128089118'); await p.screenshot({ path: D + 'mods_' + modo + '_m9k_orden.png' });
+  const col = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }), ordenado = (L) => L.every((x, i) => !i || col.compare(L[i - 1], x) <= 0);
+  const todas = [...pack.fotos, ...m9k.fotos], tam = new Set(todas.map((f) => f.w + 'x' + f.h)), fondos = new Set(todas.map((f) => f.bg));
+  const npcs = Object.values(pack.secs)[0] || [];
+  ok(`${modo}: 8. los objetos parejos y en orden: mismo marco y fondo, sin «G» ni vacíos, alfabético (numérico) y el que no anda aparte con su motivo`,
+    tam.size === 1 && fondos.size === 1 && !todas.some((f) => f.g || f.vacia) && npcs.join('|') === 'alfa 2|Alfa 10|Beta|Zeta' && Object.values(m9k.secs).every(ordenado)
+    && pack.malBt.length === 1 && /1/.test(pack.malBt[0]) && pack.malVis === 0 && desp.length === 1 && desp[0][0] === 'Rota' && /model|modelo/i.test(desp[0][1]),
+    { tam: [...tam], fondos: fondos.size, g: todas.filter((f) => f.g).length, vacias: todas.filter((f) => f.vacia).length, npcs, m9kOrden: Object.fromEntries(Object.entries(m9k.secs).map(([k, v]) => [k, ordenado(v)])), malBt: pack.malBt, desp, tipos: [...new Set(todas.map((f) => f.k))] });
   await ev(`gmbCerrar(); 1`);
   const e2 = err.filter((x) => !/favicon|ERR_|net::|404|WebSocket|mqtt|wss:|GPU stall|swiftshader|Failed to load/i.test(x));
   ok(`${modo}: 6. sin errores de JS`, !e2.length, e2.slice(0, 5));

@@ -232,7 +232,7 @@ function gmaHUDPaso() {
   const w = GMA.swep, hayArma = !!(w && w.vivo && claseTabla(w.clase, 'C'));
   // (los hooks de la pantalla de este cuadro: los efectos —RenderScreenspaceEffects, con DrawColorModify y
   // DrawMaterialOverlay—, la HUD y lo que va encima de todo; los de un mod apagado en el panel GMod no cuentan)
-  const hay = (ev) => { const H = GMA.hooks.get(ev); return !!(H && [...H.values()].some((h) => h.C && !(h.a && GMA.apagados.has(h.a)))); };
+  const hay = (ev) => { const H = GMA.hooks.get(ev); return !!(H && [...H.values()].some((h) => h.C && !gmaHookApagado(h, ev))); };
   const hayEf = hay('RenderScreenspaceEffects'), hayHooks = hayEf || hay('HUDPaint') || hay('PostDrawHUD') || hay('DrawOverlay') || !!GMA.modo;
   GMA.pp = null;
   if (!hayHooks && !hayArma && !GMA.hudSucio) { gmaPPAplicar(null); return; }
@@ -298,7 +298,8 @@ function gmaIconoClase(it) {
   }
   const mod = buscarEnClase(x.t, x.tipo === 'swep' ? 'WorldModel' : 'Model');
   const m = typeof mod === 'string' ? mod.toLowerCase().replace(/\\/g, '/') : '';
-  if (m && gmArchivo(m)) return { src: gmIcono('gm:' + m), gm: 'gm:' + m };
+  // (también si el modelo es del contenido base de GMod/HL2 que todavía no se bajó: el ícono lo pide y sale cuando llega)
+  if (m && gmExiste(m)) return { src: gmIcono('gm:' + m), gm: 'gm:' + m };
   return { src: GM_ICO };
 }
 // tocar uno en el menú: el arma a la mano; la entidad delante del jugador con su SpawnFunction (como en GMod)
