@@ -164,7 +164,7 @@ function gmr2Dmetodo(t, k, v, caja, pt, alto) {
       switch (k) {
         case 'fillRect': case 'strokeRect': case 'rect': case 'roundRect': return (...a) => { caja(a[0], a[1], a[2], a[3]); return v.apply(t, a); };
         case 'drawImage': return (...a) => { if (a.length >= 9) caja(a[5], a[6], a[7], a[8]); else if (a.length >= 5) caja(a[1], a[2], a[3], a[4]); else caja(a[1], a[2], a[0].width, a[0].height); return v.apply(t, a); };
-        case 'fillText': case 'strokeText': return (s, x, y, ...r) => { const w = t.measureText(String(s)).width, h = alto(), al = t.textAlign, bl = t.textBaseline; const x0 = al === 'center' ? x - w / 2 : al === 'right' || al === 'end' ? x - w : x, y0 = bl === 'top' ? y : bl === 'middle' ? y - h / 2 : bl === 'bottom' ? y - h : y - h * 0.85; caja(x0 - 2, y0 - 2, w + 4, h * 1.3 + 4); return v.call(t, s, x, y, ...r); };
+        case 'fillText': case 'strokeText': return (s, x, y, ...r) => { const w = gmAncho(t, t.font, String(s)), h = alto(), al = t.textAlign, bl = t.textBaseline; const x0 = al === 'center' ? x - w / 2 : al === 'right' || al === 'end' ? x - w : x, y0 = bl === 'top' ? y : bl === 'middle' ? y - h / 2 : bl === 'bottom' ? y - h : y - h * 0.85; caja(x0 - 2, y0 - 2, w + 4, h * 1.3 + 4); return v.call(t, s, x, y, ...r); };
         case 'moveTo': case 'lineTo': return (x, y) => { pt(x, y); return v.call(t, x, y); };
         case 'arc': case 'ellipse': return (x, y, r, ...q) => { caja(x - r, y - r, 2 * r, 2 * r); return v.call(t, x, y, r, ...q); };
         default: return v.bind(t);

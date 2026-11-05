@@ -349,7 +349,8 @@ async function gbspPreparar(clave, prog) {
       arbs.push([{ n: 'gbsp_puerta_p' + (nPuerta++), p: pos, r: [q.x, q.y, q.z, q.w], s: [1, 1, 1], pa: -1, m: pf.m, mt: pf.mt, puerta: Object.assign({}, pr.puerta, { casco, solida: true }) }]);
       continue;
     }
-    arbs.push([{ n: nom, p: pos, r: [q.x, q.y, q.z, q.w], s: [1, 1, 1], pa: -1, m: pf.m, mt: pf.mt }]);
+    const es = pr.esc || 1;
+    arbs.push([{ n: nom, p: pos, r: [q.x, q.y, q.z, q.w], s: [es, es, es], pa: -1, m: pf.m, mt: pf.mt }]);
     if (!pr.solido) continue;
     // (choque: sus cascos del .phy, ya puestos en su lugar)
     for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const pts = []; for (let k = 0; k < d.hp.length; k += 3) { const v = q.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); pts.push(v.x + pos[0], v.y + pos[1], v.z + pos[2]); } if (pts.length >= 12) cascos.push(pts); }
@@ -550,10 +551,13 @@ function gbspProps(B, ents) {
       const nl = v.getInt32(p, true); p += 4 + nl * 2;
       const np = v.getInt32(p, true); p += 4; if (!(np > 0)) break;
       const paso = Math.floor((d.length - p) / np); if (paso < 32) break;
+      // (desde la versión 11 del lump —mapas de GMod nuevos— cada prop puede tener su escala: la última cosa del registro)
+      const ver = dv.getUint16(o + 6, true), conEscala = ver >= 11 && paso >= 80;
       for (let k = 0; k < np; k++, p += paso) {
         const ti = v.getUint16(p + 24, true), sol = d[p + 30];
         if (!dic[ti]) continue;
-        out.push({ modelo: dic[ti], o: [v.getFloat32(p, true), v.getFloat32(p + 4, true), v.getFloat32(p + 8, true)], a: v.getFloat32(p + 12, true) + ' ' + v.getFloat32(p + 16, true) + ' ' + v.getFloat32(p + 20, true), solido: sol !== 0 });
+        const esc = conEscala ? v.getFloat32(p + paso - 4, true) : 1;
+        out.push({ modelo: dic[ti], o: [v.getFloat32(p, true), v.getFloat32(p + 4, true), v.getFloat32(p + 8, true)], a: v.getFloat32(p + 12, true) + ' ' + v.getFloat32(p + 16, true) + ' ' + v.getFloat32(p + 20, true), solido: sol !== 0, esc: esc > 0.01 && esc < 100 ? esc : 1 });
       }
     }
   } catch (e) { gmErr && gmErr('props del mapa', e); }

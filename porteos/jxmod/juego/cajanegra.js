@@ -46,13 +46,17 @@ function cnCuadro() {
   if (t - CN.tG > 2000) cnGuardar(true);
 }
 // (un hook de un mod: las 3 primeras veces —y siempre, si alguna vez tardó más de 150 ms— queda anotado antes de correr)
+// (uno que ya se anotó y sigue siendo lento —como el VHS del Viewfinder, cada cuadro— no se escribe en el registro ni
+// se guarda en el acto cada vez: escribir el almacenamiento en cada cuadro le costaba al juego más que el hook mismo.
+// Queda el paso en memoria y se guarda a lo sumo una vez por segundo)
 function cnHookAntes(ev, h) {
   if (!h || !h.a) return false;
   const k = h.a + '|' + ev, n = CN.hooks.get(k) || 0; if (n >= 3 && !CN.lentos.has(k)) return false;
+  if (n >= 3) { const A = typeof GMOD !== 'undefined' && GMOD.addons.get(h.a); CN.paso = 'hook ' + ev + ' del mod ' + (A ? A.nombre : h.a); CN.addon = h.a; if (Date.now() - CN.tG > 1000) cnGuardar(true); return performance.now(); }
   CN.hooks.set(k, n + 1);
   const A = typeof GMOD !== 'undefined' && GMOD.addons.get(h.a); cnPaso('hook ' + ev + ' del mod ' + (A ? A.nombre : h.a), h.a); return performance.now();
 }
-function cnHookDespues(ev, h, t0) { if (!t0) return; const ms = performance.now() - t0; if (ms > 150) { CN.lentos.add(h.a + '|' + ev); cnAnotar('lento', ev + ' ' + Math.round(ms) + ' ms [' + h.a + ']'); } cnPaso(''); }
+function cnHookDespues(ev, h, t0) { if (!t0) return; const ms = performance.now() - t0, k = h.a + '|' + ev; if (ms > 150) { const ya = CN.lentos.has(k); CN.lentos.add(k); if (!ya || ms > 1000) cnAnotar('lento', ev + ' ' + Math.round(ms) + ' ms [' + h.a + ']'); } if (CN.hooks.get(k) >= 3) { CN.paso = ''; CN.addon = ''; } else cnPaso(''); }
 addEventListener('error', (e) => cnAnotar('ERROR', (e.message || '') + ' @ ' + String(e.filename || '').split('/').pop() + ':' + (e.lineno || 0)));
 addEventListener('unhandledrejection', (e) => { const r = e.reason; cnAnotar('PROMESA', (r && (r.message || r)) || ''); });
 
@@ -108,7 +112,9 @@ function cnCuarentena() {
   cnCuarentena.hecho = '';
   if (!cnTerminoMal() || !CN_ANT) return '';
   let extra = '';
-  const id = CN_ANT.paso && CN_ANT.addon, n = id && ((typeof PREFS !== 'undefined' && PREFS.gmod && PREFS.gmod[id] && PREFS.gmod[id].n) || id);
+  // (el nombre: el guardado del mod; si no está, el que quedó anotado en el paso —«montando el mod Viewfinder»—; si no, el id)
+  const id = CN_ANT.paso && CN_ANT.addon, dePaso = (/(?:del mod|el mod) (.+)$/.exec(CN_ANT.paso || '') || [])[1];
+  const n = id && ((typeof PREFS !== 'undefined' && PREFS.gmod && PREFS.gmod[id] && PREFS.gmod[id].n) || (dePaso && dePaso !== id ? dePaso : '') || id);
   // (si se trabó corriendo su Lua al cargarse, apagar sus hooks no alcanza: la próxima vez se volvería a trabar al abrir.
   // Queda montado pero sin correr su Lua, hasta que se lo vuelve a cargar desde su página)
   if (id && /^(corriendo el Lua|montando) /.test(CN_ANT.paso) && typeof GMA !== 'undefined' && GMA.trabados && !GMA.trabados.has(id)) {

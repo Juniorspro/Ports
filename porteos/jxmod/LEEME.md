@@ -1474,3 +1474,51 @@ descarga girando y nada más respondiendo).
   `vhs_viewfinder` 4/4, `efecto_siempre` 5/5, `descarga_trabada` 4/4, `server_mods_carga` 4/4, `gmod_panel` 18/18,
   `mods_cuadricula` 18/18 y `lua_goto` 13/13.
 - Sin probar en un celular de verdad.
+
+## JXMod 2.9-prueba11: puertas en los mapas, HUD ordenado, app para iPhone y lo del Discord
+
+- **Puertas de los mapas de GMod** (`juego/puertas.js`, `gmod_bsp.js`): `func_door`, `func_door_rotating` y
+  `prop_door_rotating` (esta última ni se cargaba: por eso el Liminal Hotel «no tenía puertas»). Se abren con E
+  («E: abrir la puerta»), giran para el lado contrario al jugador, se cierran solas si el mapa lo pide, no se cierran
+  encima de nadie (vuelven a abrirse) y en una sala se mueven igual para todos. Las dobles (dos hojas con el mismo
+  nombre, o `slavename`) se abren juntas. Las puertas invisibles con el modelo pegado (los casilleros de HL2) también,
+  con su caja de choque sacada del modelo de bloques. Los botones (`func_button`) y las zonas (`trigger_*`) que abren
+  puertas con sus salidas Open/Close/Toggle andan («E: apretar el botón»). La distancia que se corre una puerta es la de
+  Source (lo que mide, menos 2 unidades y menos el `lip`; con un lip grande se corre para el otro lado, como los
+  ascensores de HL2). Prueba `pruebas/puertas_mapa.mjs` 8/8 en gm_hotel (8 de modelo + 13 de bloques, 19 con caja) y
+  ph_motel_blacke_v3 (9 de 9).
+- **Agacharse y escaleras** (`jugador.js`): agachado el cuerpo mide la mitad (como en GMod) y pasa por un hueco de
+  1,25 m; si soltás agacharse debajo de algo, sigue agachado hasta que hay lugar. Las escaleras de 20 y 40 cm se suben
+  caminando casi a la misma velocidad que en llano, con la cámara suave, y se puede saltar en ellas. Prueba
+  `pruebas/agacharse_escalones.mjs` 5/5.
+- **HUD del celular ordenado** (`juego/hudorden.js`, `hud.js`): arriba a la izquierda, tres filas separadas: sistema
+  (pausa primera, chat, celular, micrófono), crear (props, MOD, GMod, spawn, Verity) y las teclas de los mods con su
+  placa. Sin huecos (lo que no se ve no deja lugar vacío), con los márgenes de la guía de diseño y respetando el área
+  segura del aparato (la isla o el agujero de la cámara, las puntas redondeadas). Prueba `pruebas/hud_orden.mjs` 5/5
+  (teléfono 873×393, teléfono chico 640×360 y tablet 1180×820: nada se pisa ni queda afuera).
+- **Las teclas de los mods se entienden** (`juego/acciones.js`): de lo que dice el Lua alrededor de cada tecla (los
+  comentarios, los nombres, los textos) sale qué hace —zoom, linterna, recargar, grabar, enfocar, poder, guardar,
+  menú…— y el botón muestra su ícono y su nombre, con la tecla en una etiqueta. Dos teclas que hacen lo mismo dan un
+  solo botón. Con el Viewfinder: Visión (N), Linterna (L), Grabar (P), Enfocar (I), Menú (O), Guardar (G).
+- **«Ordenar» y «Ordenar con IA»** en el editor de controles: «Ordenar» deja lo que más usás más cerca del pulgar (el
+  juego cuenta los toques); «Ordenar con IA» le pide el orden al Gemini del dueño por la tienda (`/api/ia/hud` en
+  `tienda/worker.js`; **hay que volver a desplegar la tienda** para que ande), o a tu clave de Gemini, o a la IA
+  pública; lo que contesta se valida (ids conocidos, sin repetir, máximo 6 por fila, la pausa primera) y si no
+  contesta, ordena por uso y avisa.
+- **Guía de diseño** (`diseno/guia_diseno.json`): 194 fuentes de 128 sitios (Apple, Material, WCAG, Xbox y Game
+  Accessibility Guidelines, Nielsen Norman, estudios del pulgar, HUD de PUBG/CoD/Free Fire/Genshin…), 54 reglas con
+  números y una sección para este juego; su resumen es lo que se le da a la IA para ordenar.
+- **Menú de pausa nuevo** (como el concepto del Discord): tarjeta blanca, «Seguir» azul, tarjetas con ícono
+  (Personaje, Arma en la mano, Social, Ajustes, Ver el tutorial, Borrar todo en rojo —pide tocar dos veces—) y abajo
+  «Salir al menú» y los cuadros por segundo. Menú principal con detalles dorados y letras sin borde negro.
+- **App para iPhone y iPad** (`juego/ios.js`, `herramientas/web_app.py`, carpeta `web/`): se abre en Safari y se
+  instala con Compartir → «Agregar a inicio»; queda a pantalla completa en horizontal, con su ícono, y anda sin
+  internet con lo que ya se usó una vez. En iPhone arranca en calidad Media y en iPad en Alta.
+- **Efectos visuales de los mods más livianos**: el VHS del Viewfinder medía sus textos en cada cuadro y la caja negra
+  guardaba el registro en el almacenamiento en cada cuadro mientras corría su hook (`cajanegra.js`, `gmod_api.js`).
+  Ahora los anchos de los textos se recuerdan y la caja negra guarda a lo sumo una vez por segundo.
+- Si un mod traba el juego al cargarse, el aviso dice su nombre (antes a veces mostraba sólo el número).
+- Los props estáticos de los mapas compilados con la versión 11 del lump (GMod nuevo) usan su escala (antes salían
+  todos de tamaño 1: muebles agrandados o achicados que parecían fuera de lugar). Las camas del Liminal Hotel no se
+  pudieron revisar: ese mapa no está en el catálogo con ese nombre.
+- Sin probar en un celular ni en un iPhone de verdad (el iPhone, simulado en Chromium: no hay Safari acá).
