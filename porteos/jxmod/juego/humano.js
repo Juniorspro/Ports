@@ -179,6 +179,66 @@ function humGm() {
   if (!G.idle || !G.cidle || G.run.length < 4 || G.cwalk.length < 4) return null;
   return (humGm.c = G);
 }
+// la velocidad de verdad del pie apoyado de cada clip de GMod EN ESTE PERSONAJE (con pasos enteros y más cortos): la que
+// trae el horneado es la del jugador de GMod y no la del personaje: a 2 m/s el pie apoyado se iba para atrás a 3 m/s
+// (el NPC «caminaba raro», como patinando). Se mide una vez por personaje y clip, recién cuando se usa (todos juntos
+// eran 45 ms la primera vez que aparecía cada personaje: un tirón en el celular; uno por vez, 2 o 3 ms)
+function humGmLoco(P, G) {
+  const D = P.D; if (D.locoGm && D.locoGm.G === G) return D.locoGm;
+  const H = P.hum, md = P.md, h = D.h, pie = humGmPies(D), raiz = md.raiz.slice(), vG = H.v.slice(); md.raiz.set(IDM);
+  // (el tamaño: el alto de la cadera parado respecto del Hero, 1,14 m. Jake 0,29: sus pasos y el roce del pie con el piso
+  // son más chicos, y los umbrales van en proporción)
+  H.v.fill(0); humClip(G.idle, 0, 1, H.v); humAplicar(P); md.sucio = true; md.actualizar();
+  const esc = clamp(h.Hips !== undefined ? (md.W[h.Hips][13] - md.W[pie[0]][13]) / 1.14 : 1, 0.2, 3);
+  md.raiz.set(raiz); H.v.set(vG); humAplicar(P); md.sucio = true;
+  return (D.locoGm = { G, M: new Map(), esc });
+}
+function humGmPies(D) {
+  const sub = D.sub; let lt = sub.findIndex((n) => /LeftToeBase$/.test(n.n)), rt = sub.findIndex((n) => /RightToeBase$/.test(n.n));
+  if (lt < 0 || rt < 0) { lt = D.h.LeftFoot; rt = D.h.RightFoot; }
+  return [lt, rt];
+}
+function humGmClip(P, LG, c) {
+  let m = LG.M.get(c); if (m !== undefined) return m;
+  const G = LG.G, quieto = G.cwalk.includes(c) ? G.cidle : G.idle, esc = LG.esc;
+  const H = P.hum, md = P.md, [lt, rt] = humGmPies(P.D), raiz = md.raiz.slice(), vG = H.v.slice(); md.raiz.set(IDM);
+  const medir = (amp) => {
+    const n = Math.max(16, Math.round(c.d * 48)), F = [];
+    for (let i = 0; i < n; i++) {
+      H.v.fill(0); if (amp < 1) humClip(quieto, 0, 1 - amp, H.v); humClip(c, c.d * i / n, amp, H.v); humAplicar(P); md.sucio = true; md.actualizar();
+      const A = md.W[lt], B = md.W[rt]; F.push([A[12], A[13], A[14], B[12], B[13], B[14]]);
+    }
+    // El pie apoyado: abajo (la punta a menos de 2,5 cm de lo más bajo que llega ese pie: de costado uno apoya 3 cm más
+    // alto que el otro) y yendo para atrás respecto de hacia dónde camina el clip; si los dos, el más bajo. No alcanza con
+    // «el más bajo»: caminando para atrás el pie que va en el aire apoya primero la punta (en Freddy, más baja que la del
+    // pie apoyado: patinaba 1,5) y el que pasa rozando el piso va para adelante. La velocidad: la mediana de esos
+    // cuadros (el promedio metía el aterrizaje, cuando el pie todavía frena: daba 4 m/s cuando el pie apoyado de gm_run_N
+    // va a 5,6, y a toda velocidad el pie se iba para atrás 2,5 m/s)
+    const ym = [1e9, 0, 0, 1e9]; for (const f of F) { ym[0] = Math.min(ym[0], f[1]); ym[3] = Math.min(ym[3], f[4]); }
+    const dx = -Math.sin(c.ang || 0), dz = Math.cos(c.ang || 0), dtm = c.d / n, s = [];
+    for (let i = 0; i < n; i++) {
+      const f = F[i], g = F[(i + 1) % n]; let mejor = null;
+      for (const o of [0, 3]) {
+        if (f[o + 1] > ym[o] + 0.025 * esc) continue;
+        const v = -((g[o] - f[o]) * dx + (g[o + 2] - f[o + 2]) * dz) / dtm; if (v <= 0) continue;
+        if (!mejor || f[o + 1] < mejor[1]) mejor = [v, f[o + 1]];
+      }
+      if (mejor) s.push(mejor[0]);
+    }
+    s.sort((a, b) => a - b); return s.length ? s[s.length >> 1] : 0;
+  };
+  // (con pasos más cortos, mezclado con el de quieto: se mide con pasos enteros, de 0,8 y de 0,5, y lo del medio se
+  // interpola; si una medida queda por debajo de la de un paso más corto, se usa esa: la velocidad tiene que crecer con
+  // el paso para elegir bien el tamaño)
+  const v = medir(1);
+  if (!(v > 0.2)) m = null;
+  else {
+    const v5 = medir(0.5) || v * 0.5, v8 = Math.max(v5, medir(0.8) || v * 0.8), v1 = Math.max(v8, v);
+    m = { v: v1, vs: [v5 * 0.7, v5, (v5 + v8) / 2, v8, v1] };
+  }
+  md.raiz.set(raiz); H.v.set(vG); humAplicar(P); md.sucio = true;
+  LG.M.set(c, m); return m;
+}
 function humGmMover(P, H, T, sp, dt, G) {
   const ag = P.agachado, quieto = ag ? G.cidle : G.idle, L = ag ? G.cwalk : G.run;
   if (sp < 0.25) { humClip(quieto, H.t, 1, T); H.mov = 0; H.par = 'q'; H.cadera = (H.cadera || 0) * Math.max(0, 1 - dt * 6); return; }
@@ -187,10 +247,22 @@ function humGmMover(P, H, T, sp, dt, G) {
   let j = L.length - 1; for (let i = 0; i < L.length; i++) if (L[i].ang <= ang) j = i;
   const A = L[j], B = L[(j + 1) % L.length]; H.par = (ag ? 'k' : 'r') + j;
   let da = B.ang - A.ang; if (da <= 0) da += TAU; let w = ang - A.ang; if (w < 0) w += TAU; w = clamp(w / da, 0, 1);
-  const vc = (1 - w) * (A.v || 1) + w * (B.v || 1), d = (1 - w) * A.d + w * B.d;
-  // (muy despacio, la de quieto; GMod corre en cámara lenta, acá se mezcla un poco para que no se vea arrastrado)
-  const amp = clamp(sp / (vc * 0.55), 0.3, 1), ritmo = clamp(sp / vc, 0.45, 1.9);
-  H.fase = ((H.fase || 0) + dt * ritmo / d) % 1;
+  // Con lo medido en este personaje el pie apoyado va a la velocidad del cuerpo, sin patinar. El largo del paso sale de cuántos pasos por segundo da una persona a esa velocidad (≈ 1,6 + 0,3·v: caminando a 2 m/s
+  // unos 2,2 pasos de 0,9 m; corriendo a 6 m/s, 3,4 de 1,7 m) y con eso, qué tan largos son los pasos del clip (amp). Un
+  // personaje más chico da pasos más seguidos, como en la naturaleza (a igual v²/largo de pierna, el mismo andar)
+  const LG = humGmLoco(P, G), mA = humGmClip(P, LG, A), mB = humGmClip(P, LG, B), d = (1 - w) * A.d + w * B.d, re = Math.sqrt(LG.esc || 1);
+  const vDe = (a) => (1 - w) * (mA ? locoV(mA, a) : (A.v || 1) * a) + w * (mB ? locoV(mB, a) : (B.v || 1) * a);
+  const meta = 2 * sp / (((ag ? 1.4 : 1.6) + 0.3 * sp / re) / re) / d;
+  let amp = 1;
+  for (let a = 0.35, va = vDe(0.35); a < 1; a += 0.05) {
+    const b = Math.min(1, a + 0.05), vb = vDe(b);
+    if (va >= meta) { amp = a; break; }
+    if (vb >= meta) { amp = a + (b - a) * (meta - va) / Math.max(1e-6, vb - va); break; }
+    va = vb;
+  }
+  const vA = vDe(amp);
+  // (hasta 5 veces más rápido que el clip: los bajitos, como Jake, dan pasos cortitos y muy seguidos para no patinar)
+  H.fase = ((H.fase || 0) + dt * clamp(sp / Math.max(0.1, vA), 0.05, 5) / d) % 1;
   if (amp < 1) humClip(quieto, H.t, 1 - amp, T);
   humClip(A.c ? A : A, H.fase * A.d, amp * (1 - w), T); humClip(B, H.fase * B.d, amp * w, T);
   H.mov = amp; H.cadera = 0;
