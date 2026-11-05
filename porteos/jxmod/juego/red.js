@@ -436,7 +436,7 @@ const vdot4 = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 // ¿un rayo de otro jugador (un golpe) me toca? Las esferas de mi cuerpo; la distancia por el rayo y el punto, o null
 function rayoJugador(o, dir, L) {
   if (!JUG.vivo || JUG.vehiculo) return null; let mejor = null;
-  for (const [dy] of JUG.esf) {
+  for (const [dy] of (JUG.agCol && JUG.esfAg ? JUG.esfAg : JUG.esf)) {
     const c = v3(JUG.pos.x, JUG.pos.y + dy, JUG.pos.z), t = clamp(vdot(vsub(c, o), dir), 0, L), q = vadd(o, vscale(dir, t));
     if (q.distTo(c) < JUG.radio && (!mejor || t < mejor.t)) mejor = { t, p: q };
   }

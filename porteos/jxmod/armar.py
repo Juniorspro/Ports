@@ -3,7 +3,7 @@
 import re, os, sys, json, base64, gzip
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PK, OUT = sys.argv[1], sys.argv[2]
-ORDEN = ['nucleo', 'cajanegra', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'agua', 'sonidos', 'armas', 'patadas',
+ORDEN = ['nucleo', 'ios', 'cajanegra', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'agua', 'sonidos', 'armas', 'patadas',
          'vehiculos', 'herramientas', 'personas', 'humano', 'emotes', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'armaaj', 'hud', 'menu', 'idiomas', 'formato', 'idiomas3', 'iconos', 'modapi', 'voz', 'geo', 'entidades', 'maquinitas', 'memes', 'celular', 'celumano', 'artefactos', 'nucleares', 'gmod_formatos', 'gmod', 'gmod_pipe', 'gmod_lib', 'gmod_steam', 'gmod_bsp', 'portales', 'cielo3d', 'gmod_modos', 'gmod_lua', 'gmod_prelude', 'gmod_api', 'gmod_cargar', 'gmod_render', 'gmod_dx9', 'gmod_rt', 'gmod_vista', 'gmod_pm', 'gmod_autorig', 'gmod_spawn', 'gmod_nextbot', 'gmod_tienda', 'gmod_cola', 'gmod_panel', 'gmod_server', 'celulares', 'npc', 'censura', 'cuenta', 'social', 'gorros', 'juntos', 'pantalla', 'nativos', 'ciclope', 'verity', 'veritycrea', 'animedit', 'creador', 'smods', 'modmenu', 'noche', 'linterna', 'tutorial', 'inicio', 'milogo', 'emomusica', 'rbmenus', 'camlibre', 'controles', 'banco', 'principal']
 # el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")
 FORMATO = re.sub(r'(?m)^export ', '', open(os.path.join(AQUI, 'tienda', 'formato.js'), encoding='utf-8').read())
@@ -136,6 +136,16 @@ else:
   const sc = document.createElement('script'); sc.textContent = (k >= 0 ? t.slice(k + SEP.length) : t) + '\\n//# sourceURL=rezobox.js'; document.body.appendChild(sc);
 })();
 </script>''')
+# APP_WEB=1 (la app web instalable, para iPhone/iPad y cualquier navegador: web/index.html, de herramientas/web_app.py):
+# manifiesto, íconos de inicio de iOS y el service worker que la deja andar sin internet
+if os.environ.get('APP_WEB'):
+    cab = ('<link rel="manifest" href="manifest.webmanifest">\n<meta name="apple-mobile-web-app-capable" content="yes">\n'
+           '<meta name="mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n'
+           '<meta name="apple-mobile-web-app-title" content="JXMod">\n<link rel="apple-touch-icon" href="app/icono-180.png">\n'
+           '<link rel="icon" type="image/png" sizes="192x192" href="app/icono-192.png">\n'
+           "<script>window.JX_APPWEB = 1; if ('serviceWorker' in navigator && window.isSecureContext) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>")
+    assert '<title>JXMod</title>' in html
+    html = html.replace('<title>JXMod</title>', '<title>JXMod</title>\n' + cab, 1)
 html = html.replace('/*PKIDX*/', json.dumps(idx, separators=(',', ':'))).replace('<!--PK-->', pks)
 assert '<script>\n/*JS*/\n</script>' in html
 html = html.replace('<script>\n/*JS*/\n</script>', bloque)

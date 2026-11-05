@@ -59,6 +59,7 @@ function cierreIniciar() {
 function perfilInicial() {
   // (un celular de la lista, por su modelo o por su GPU: celulares.js)
   if (typeof CELU !== 'undefined' && CELU.det) return celuPerfil(CELU.det);
+  if (typeof IOS !== 'undefined' && IOS) return iosPerfil();   // (iPhone y iPad: ios.js)
   const mem = navigator.deviceMemory || 4, nuc = navigator.hardwareConcurrency || 4;
   let gpu = '';
   try { const d = R.gl.getExtension('WEBGL_debug_renderer_info'); gpu = d ? R.gl.getParameter(d.UNMASKED_RENDERER_WEBGL) : ''; } catch (e) {}
@@ -537,7 +538,7 @@ async function iniciar() {
     // (el juego arranca antes de que termine de bajar el paquete: mientras baja, la barra la lleva la pantalla de carga con
     // lo que llegó; acá sólo se anota el paso)
     paso('motor gráfico', 0, document.readyState === 'loading' ? null : 'abrir');
-    cierreIniciar();
+    cierreIniciar(); if (typeof iosIniciar === 'function') iosIniciar();
     try { glIniciar(); } catch (e) {
       if (e && e.message === 'webgl') { iniError('Este aparato no tiene WebGL', 'Probá con Chrome actualizado.'); return; }
       throw e;

@@ -11,12 +11,33 @@ const MEDIA_VUELTA = Quat.axis(0, 1, 0, Math.PI);
 // el cuerpo según el alto del personaje (k: 1 = el de siempre, 1,9 m): los pies quedan donde estaban (la esfera de abajo
 // no cambia) y arriba van las esferas que entren hasta la cabeza; los ojos a 1,67 m de los pies en el de siempre
 JUG.esf = [[-0.5, true], [0, false], [0.5, false]]; JUG.ojoAlto = 1.67; JUG.tam = 1;
+// agachado (como en GMod: el cuerpo mide la mitad —72 → 36 unidades— y los ojos van a 28 de 64): las esferas de abajo
+// hasta la mitad del alto, y los ojos bien abajo (antes sólo bajaban un 19 % y el cuerpo no cambiaba: no se pasaba por
+// ningún hueco bajo)
+function jugadorAgEsf() {
+  const J = JUG, pie = -J.medio - J.radio, tope = J.esf[J.esf.length - 1][0] + J.radio, topeAg = pie + (tope - pie) * 0.5, alto = topeAg - J.radio;
+  J.esfAg = alto > -J.medio + 1e-3 ? [[-J.medio, true], [alto, false]] : [[-J.medio, true]];
+  J.ojoAg = Math.min(J.ojoAlto * 0.44, topeAg - pie - 0.18);
+}
+jugadorAgEsf();
 // (los altos, como Sunman o The Boiled One, chocan como uno de 1,9 m para pasar por las puertas: se ven más altos y los ojos
 // van a su altura, salvo abajo de un techo)
 function jugadorTam(k, ojo) {
   const J = JUG, tope = Math.max(-J.medio, -0.95 + 1.9 * Math.min(k, 1) - J.radio), n = Math.max(1, Math.ceil((tope + J.medio) / 0.5 - 1e-6) + 1);
   J.esf = []; for (let i = 0; i < n; i++) J.esf.push([n > 1 ? -J.medio + (tope + J.medio) * i / (n - 1) : -J.medio, i === 0]);
-  J.ojoAlto = 1.67 * k * (ojo || 1); J.tam = k;
+  J.ojoAlto = 1.67 * k * (ojo || 1); J.tam = k; jugadorAgEsf();
+}
+// ¿se puede parar? (agachado bajo un techo, una mesa o un ducto, se queda agachado hasta salir, como en GMod)
+const _cab = v3(), _cabC = v3();
+function jugadorCabeParado() {
+  const J = JUG, ya = J.esfAg[J.esfAg.length - 1][0];
+  for (const [dy] of J.esf) {
+    if (dy <= ya + 1e-3) continue;
+    _cab.set(J.pos.x, J.pos.y + dy, J.pos.z); _cabC.set(0, 0, 0);
+    esferaFuera(_cab, J.radio * 0.96, _cabC, false);
+    if (_cabC.len() > 0.01) return false;
+  }
+  return true;
 }
 function jugadorAparecer() {
   const s = MUNDO.spawns[(Math.random() * MUNDO.spawns.length) | 0] || v3(0, 5, 0);
@@ -70,7 +91,8 @@ function empujarDeCuerpo(b, c, r, corr, esPie, dinamico) {
     const k = 80 / (80 + B.mass);
     c.addS(n, d * (1 - k)); corr.addS(n, d * (1 - k));
     if (n.y < 0.6) { B.wake(); B.vel.addS(n, -Math.min(2, d * 30) * k); }
-  } else { c.addS(n, d); corr.addS(n, d); }
+  } else if (esPie && n.y > 0.6) { const kv = d / n.y; c.y += kv; corr.y += kv; }   // (el pie sobre algo pisable sale para arriba, como en el piso del mapa: en la punta de un escalón de cajas resbalaba para atrás)
+  else { c.addS(n, d); corr.addS(n, d); }
   if (esPie && n.y > 0.6) { JUG.suelo = true; JUG.sueloN.copy(n); JUG.pisa = B; if (dinamico) JUG.sobre = B; }
 }
 function jugadorPaso(dt, ent) {
@@ -90,7 +112,9 @@ function jugadorPaso(dt, ent) {
   const wish = v3(f.x * ent.y + rgt.x * ent.x, 0, f.z * ent.y + rgt.z * ent.x);
   const wl = Math.min(1, wish.len()); if (wl > 1e-3) wish.scale(1 / wish.len());
   if (ent.correr && !J.corriaAntes && J.suelo && wl > 0.2 && TIEMPO.t - (J.corrT || -9) > 2) { J.corrT = TIEMPO.t; sonar('PL_correr', null, 0.18); } J.corriaAntes = !!ent.correr;
-  const vmax = J.vel_max * (ent.correr ? 1.35 : 1) * (ent.agachar ? 0.5 : 1) * (J.vadeo || 1) * (patadaActiva(J.cuerpo) ? 0.35 : 1);   // (pateando, casi quieto)
+  if (ent.agachar || J.noclip) J.agCol = !J.noclip && !!ent.agachar; else if (J.agCol && jugadorCabeParado()) J.agCol = false;
+  const agachado = !!(ent.agachar || J.agCol);
+  const vmax = J.vel_max * (ent.correr ? 1.35 : 1) * (agachado ? 0.5 : 1) * (J.vadeo || 1) * (patadaActiva(J.cuerpo) ? 0.35 : 1);   // (pateando, casi quieto)
   if (J.noclip) {
     const fv = J.q.rot(v3(0, 0, 1));
     J.vel.set((fv.x * ent.y + rgt.x * ent.x) * vmax * 2, (fv.y * ent.y + (ent.saltar ? 1 : 0) - (ent.agachar ? 1 : 0)) * vmax * 2, (fv.z * ent.y + rgt.z * ent.x) * vmax * 2);
@@ -104,10 +128,20 @@ function jugadorPaso(dt, ent) {
   if (dl > 0) { const k = Math.min(1, mx / dl); J.vel.x += dvx * k; J.vel.z += dvz * k; }
   // (la gravedad de un mod en una sala es sólo del jugador: J.grav; negativa también: sube)
   const gJ = GRAV * MUNDO.gravedad * (J.grav || 1);
-  if (J.suelo && ent.saltar && J.tiempoSuelo > 0.05) { J.vel.y = Math.sqrt(2 * Math.abs(gJ) * J.salto) * (gJ < 0 ? -1 : 1); J.suelo = false; J.tiempoSuelo = 0; if (J.cuerpo) sonPaso(J.cuerpo, true, J.pos, 0.75); }   // (al saltar suena el paso, como en HL2)
+  // (también recién despegado del piso, 0,12 s: subiendo una escalera el pie toca las puntas de los escalones y no siempre
+  // queda «en el piso» justo cuando se aprieta saltar)
+  if (ent.saltar && ((J.suelo && J.tiempoSuelo > 0.05) || (!J.suelo && (J.tAire || 0) < 0.12 && TIEMPO.t - (J.saltoT || -9) > 0.4 && J.vel.y < 1))) { J.vel.y = Math.sqrt(2 * Math.abs(gJ) * J.salto) * (gJ < 0 ? -1 : 1); J.suelo = false; J.tiempoSuelo = 0; J.saltoT = TIEMPO.t; if (J.cuerpo) sonPaso(J.cuerpo, true, J.pos, 0.75); }   // (al saltar suena el paso, como en HL2)
   if (!J.suelo) J.vel.y -= gJ * dt; else if (J.vel.y < 0) J.vel.y = -0.5;
   const vyAntes = J.vel.y, eraSuelo = J.suelo;
+  _esc0.copy(J.pos); _esc1.copy(J.vel);
   jugadorMoverChocar(dt);
+  // (también apenas despegado del piso: apoyado en la punta de un escalón el pie no cuenta como piso y quedaba trabado)
+  if (!ent.saltar && (eraSuelo || ((J.tAire || 0) < 0.25 && J.vel.y < 1))) jugadorEscalon(dt, _esc0, _esc1, tx, tz);
+  // (caminando —sin haber saltado—, chocar con la punta de un escalón o de una caja no lanza para arriba: el choque
+  // convertía parte de la velocidad hacia adelante en velocidad hacia arriba y en una escalera se iba a los saltitos, casi
+  // sin pisar, y por eso no se podía saltar. Arriba sólo lo que suba lo que pisa —un ascensor—)
+  if (!ent.saltar && TIEMPO.t - (J.saltoT || -9) > 0.35 && (eraSuelo || (J.tAire || 0) < 0.25) && gJ > 0) { const vb = base ? Math.max(0, base.y) : 0; if (J.vel.y > vb) J.vel.y = vb; }
+  J.tAire = J.suelo ? 0 : (J.tAire || 0) + dt;
   // cama elástica: al pisarla rebota (más alto si venía cayendo o si salta justo; agachado frena)
   const ce = J.suelo && J.pisa && J.pisa.obj;
   if (ce && ce.salta && !ent.agachar && J.sueloN.y > 0.8) {
@@ -136,18 +170,44 @@ function jugadorPaso(dt, ent) {
   const vh = Math.hypot(J.vel.x, J.vel.z);
   if (J.suelo) J.bob = (J.bob || 0) + vh * dt * 1.75;
   J.bobK = (J.bobK || 0) + ((J.suelo ? Math.min(1, vh / 6) : 0) - (J.bobK || 0)) * Math.min(1, dt * 8);
-  J.agK = (J.agK || 0) + ((ent.agachar ? 1 : 0) - (J.agK || 0)) * Math.min(1, dt * 12);
+  J.agK = (J.agK || 0) + ((agachado ? 1 : 0) - (J.agK || 0)) * Math.min(1, dt * 12);
   if (J.pos.y < MUNDO.lo.y - 60) jugadorAparecer();
 }
+// subir un escalón (como Source: StepSize 18 unidades, ~0,45 m acá). Las esferas solas trepan un borde bajo, pero uno de
+// escalera común (8–16 unidades) las frenaba casi de golpe: subir costaba muchísimo y en el borde de cada escalón el pie
+// no quedaba apoyado (no saltaba). Si el paso normal avanzó menos del 92 % de lo que quería: se prueba subir, avanzar y
+// bajar; si así avanza más y queda parado en piso caminable, vale ese
+const _esc0 = v3(), _esc1 = v3(), _escP = v3(), _escV = v3(), _escN = v3();
+function jugadorEscalon(dt, p0, v0, tx, tz) {
+  // (lo que el jugador quiere llevar, como Source: contra el escalón la velocidad de verdad ya quedó en casi cero)
+  const J = JUG, vx = Math.hypot(tx, tz) > Math.hypot(v0.x, v0.z) ? tx : v0.x, vz = Math.hypot(tx, tz) > Math.hypot(v0.x, v0.z) ? tz : v0.z;
+  const quiero = Math.hypot(vx, vz) * dt; if (quiero < 1e-4 || J.vehiculo || J.noclip) return;
+  const hecho = Math.hypot(J.pos.x - p0.x, J.pos.z - p0.z); if (hecho > quiero * 0.92) return;
+  _escP.copy(J.pos); _escV.copy(J.vel); _escN.copy(J.sueloN); const A = { suelo: J.suelo, sobre: J.sobre, pisa: J.pisa };
+  const ESC = 0.45 * Math.max(0.6, Math.min(1, J.tam || 1));
+  J.pos.copy(p0); J.vel.set(0, ESC / dt, 0); jugadorMoverChocar(dt);
+  const subio = J.pos.y - p0.y;
+  let vale = subio > 0.04;
+  if (vale) {
+    J.vel.set(vx, 0, vz); jugadorMoverChocar(dt);
+    // (la bajada en pasitos de 4 cm: de a 17 el pie atravesaba la punta del escalón y lo empujaba para atrás)
+    J.vel.set(0, -(subio + 0.06) / dt, 0); jugadorMoverChocar(dt, 0.04);
+    const avance = Math.hypot(J.pos.x - p0.x, J.pos.z - p0.z), dh = J.pos.y - p0.y;
+    // (apoyado arriba, aunque sea en la punta del escalón: el cuadro siguiente termina de subir)
+    vale = J.suelo && avance > hecho + quiero * 0.08 && dh > -0.02 && dh < ESC + 0.02;
+    if (vale) { J.vel.set(vx, -0.5, vz); J.ojoEsc = (J.ojoEsc || 0) + Math.max(0, dh); return; }
+  }
+  J.pos.copy(_escP); J.vel.copy(_escV); J.sueloN.copy(_escN); J.suelo = A.suelo; J.sobre = A.sobre; J.pisa = A.pisa;
+}
 // moverse en pasos chicos y sacar la cápsula de lo que toque (también lo usa volar)
-function jugadorMoverChocar(dt) {
-  const J = JUG, pasos = Math.max(1, Math.ceil(J.vel.len() * dt / 0.25));
+function jugadorMoverChocar(dt, tramo) {
+  const J = JUG, pasos = Math.max(1, Math.ceil(J.vel.len() * dt / (tramo || 0.25)));
   J.suelo = false; J.sobre = null; J.pisa = null;
   for (let s = 0; s < pasos; s++) {
     J.pos.addS(J.vel, dt / pasos);
     for (let it = 0; it < 2; it++) {
       const corr = _pn.set(0, 0, 0);
-      for (const [dy, pie] of J.esf) {
+      for (const [dy, pie] of (J.agCol && J.esfAg ? J.esfAg : J.esf)) {
         _p2.set(J.pos.x, J.pos.y + dy, J.pos.z);
         esferaFuera(_p2, J.radio, corr, pie);
         // objetos sueltos
@@ -177,7 +237,9 @@ function jugadorCamara(out) {
   const dy = -J.caidaP * 0.45 + Math.abs(Math.sin(ph)) * 0.035 * bob - 0.015 * bob;
   if (NAT.scp && J.vivo) J.ojoPos.copy(J.pos).addS(NAT.up, 0.5); // SCP: los ojos cerca del piso que pisa
   else {
-    let oy = J.pos.y - 0.95 + J.ojoAlto * (1 - 0.194 * ag) + dy;   // (agachado baja el 19 % del alto de los ojos)
+    // (agachado: los ojos a la altura de agachado de GMod; al subir un escalón, la cámara lo sigue en 0,1 s en vez de saltar)
+    J.ojoEsc = (J.ojoEsc || 0) * Math.exp(-dt * 10);   // (~0,1 s, como cl_smoothtime de Source)
+    let oy = J.pos.y - 0.95 + J.ojoAlto + ((J.ojoAg || J.ojoAlto * 0.44) - J.ojoAlto) * ag + dy - J.ojoEsc;
     // un alto bajo un techo (una puerta, la pizzería): los ojos bajan hasta quedar debajo, sin saltos
     // (se mira arriba donde está y donde va a estar en 0,2, 0,35 y 0,5 s, así baja antes de llegar, y lo que bajó se mantiene
     // 0,6 s para no volver a subir entre que el punto de adelante pasó la viga y uno llega abajo: a lo sumo 2 m/s, sin saltos)

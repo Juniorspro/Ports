@@ -178,11 +178,11 @@ function npcGolpeado(Q, de) { if (Q && Q.npc && Q.ia && de && de !== Q) Q.ia.ven
 // ---------------- moverse: la cápsula del jugador (la misma función, con los datos del NPC) ----------------
 const NPC_ESF = [[-0.5, true], [0, false], [0.5, false]];
 function npcMover(P, dt) {
-  const J = JUG, s = { pos: J.pos, vel: J.vel, suelo: J.suelo, sueloN: J.sueloN, sobre: J.sobre, pisa: J.pisa, esf: J.esf, vc: J.vehiculoCuerpo };
+  const J = JUG, s = { pos: J.pos, vel: J.vel, suelo: J.suelo, sueloN: J.sueloN, sobre: J.sobre, pisa: J.pisa, esf: J.esf, vc: J.vehiculoCuerpo, ag: J.agCol };
   const sN = P.ia.sueloN || (P.ia.sueloN = v3(0, 1, 0));
-  J.pos = P.pos; J.vel = P.vel; J.sueloN = sN; J.esf = NPC_ESF; J.vehiculoCuerpo = P.npcB;
+  J.pos = P.pos; J.vel = P.vel; J.sueloN = sN; J.esf = NPC_ESF; J.agCol = false; J.vehiculoCuerpo = P.npcB;
   try { jugadorMoverChocar(dt); P.suelo = J.suelo; P.ia.pisa = J.pisa; }
-  finally { J.pos = s.pos; J.vel = s.vel; J.suelo = s.suelo; J.sueloN = s.sueloN; J.sobre = s.sobre; J.pisa = s.pisa; J.esf = s.esf; J.vehiculoCuerpo = s.vc; }
+  finally { J.pos = s.pos; J.vel = s.vel; J.suelo = s.suelo; J.sueloN = s.sueloN; J.sobre = s.sobre; J.pisa = s.pisa; J.esf = s.esf; J.agCol = s.ag; J.vehiculoCuerpo = s.vc; }
 }
 // ¿se puede ir por ahí? (rodilla libre o algo bajo que se salta; sin barranco de más de 4 m)
 function npcLibre(P, dir, largo) {
