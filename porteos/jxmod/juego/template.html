@@ -260,9 +260,9 @@ html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(
 .rbBg.on{opacity:1}
 @keyframes rbKen{from{transform:scale(1.02)}to{transform:scale(1.13) translateX(-1.6%)}}
 .rbSombra{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.5),rgba(0,0,0,.12) 40%,rgba(0,0,0,0) 60%),linear-gradient(0deg,rgba(0,0,0,.35),rgba(0,0,0,0) 22%)}
-.rbLogo{position:absolute;inset-inline-start:3.2%;top:calc(var(--vh)*4.2);height:calc(var(--vh)*18.5);max-width:60%;object-fit:contain;object-position:left}
+.rbLogo{position:absolute;inset-inline-start:3.2%;top:calc(var(--vh)*4.2);height:clamp(40px,calc(var(--vh)*18.5),150px);max-width:60%;object-fit:contain;object-position:left}
 .rbLista{position:absolute;inset-inline-start:4.5%;top:calc(var(--vh)*26);display:flex;flex-direction:column;align-items:flex-start}
-.rbIt{font:700 calc(var(--vh)*4.7) Roboto,'Helvetica Neue',Helvetica,Arial,sans-serif;color:#fff;background:none;border:0;padding:calc(var(--vh)*.55) 0;cursor:pointer;text-align:start;text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.45);transition:transform .12s,text-shadow .12s}
+.rbIt{font:700 calc(var(--vh)*4.7*var(--rbK,1)) Roboto,'Helvetica Neue',Helvetica,Arial,sans-serif;color:#fff;background:none;border:0;padding:calc(var(--vh)*.55*var(--rbK,1)) 0;cursor:pointer;text-align:start;text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.45);transition:transform .12s,text-shadow .12s}
 .rbIt:hover,.rbIt:active{transform:translateX(5px);text-shadow:0 0 12px rgba(255,255,255,.55),0 1px 2px #000}
 .rbSep{height:calc(var(--vh)*3.6)}
 .rbAbajo{position:absolute;inset-inline-start:1.6%;bottom:calc(var(--vh)*2.4);display:flex;gap:6px;align-items:center}
@@ -1032,12 +1032,12 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
 /* menú principal (Concepto #1 de la comunidad): panel oscuro translúcido detrás de las opciones, una línea dorada con
    brillo entre los grupos, letras sin el borde negro (sombra suave) y los chips de abajo con borde dorado. Sin
    backdrop-filter (caro en celulares flojos): sólo degradados y sombras quietas */
-#rbInicio .rbLista{inset-inline-start:0;padding:calc(var(--vh)*2.2) 0 calc(var(--vh)*2.2) 4.5%;width:min(58%,640px);
+#rbInicio .rbLista{inset-inline-start:0;padding:calc(var(--vh)*2.2*var(--rbK,1)) 0 calc(var(--vh)*2.2*var(--rbK,1)) 4.5%;width:min(58%,640px);box-sizing:border-box;
   background:linear-gradient(90deg,rgba(8,10,16,.74) 0%,rgba(8,10,16,.6) 52%,rgba(8,10,16,.22) 82%,rgba(8,10,16,0) 100%);
   border-top:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07)}
 #rbInicio .rbIt{text-shadow:0 1px 3px rgba(0,0,0,.35);letter-spacing:.2px}
 #rbInicio .rbIt:hover,#rbInicio .rbIt:active{text-shadow:0 0 14px rgba(255,206,120,.55),0 1px 3px rgba(0,0,0,.35);color:#fff6e2}
-#rbInicio .rbSep{position:relative;height:2px;width:calc(100% + 4.5vw);margin:calc(var(--vh)*1.7) 0 calc(var(--vh)*1.7) -4.5vw;
+#rbInicio .rbSep{position:relative;height:2px;width:calc(100% + 4.5vw);margin:calc(var(--vh)*1.7*var(--rbK,1)) 0 calc(var(--vh)*1.7*var(--rbK,1)) -4.5vw;flex:none;
   background:linear-gradient(90deg,rgba(255,214,128,.95) 0%,rgba(242,184,84,.75) 18%,rgba(242,184,84,.28) 62%,rgba(242,184,84,0) 100%);
   box-shadow:0 0 7px rgba(255,190,90,.55)}
 #rbInicio .rbSep::before{content:'';position:absolute;left:0;top:50%;width:46px;height:18px;transform:translate(-30%,-50%);
@@ -1046,8 +1046,10 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
 #rbInicio .rbSep~.rbSep::before{display:none}
 #rbInicio .rbChipG{border-radius:7px;background:rgba(12,14,20,.74);border:1px solid rgba(255,255,255,.15);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
 #rbInicio .rbChipG.cuChip,#rbInicio .rbChipG[data-rb=idioma]{border-color:rgba(232,186,96,.8);box-shadow:0 0 10px rgba(232,186,96,.3),inset 0 0 8px rgba(232,186,96,.12)}
+@media (max-height:440px){#rbInicio .rbLogo{top:calc(var(--vh)*3);height:calc(var(--vh)*15)}}   /* (celular apaisado: logo un poco más chico, más aire para la lista) */
+#rbInicio .rbLista.rbDesliza{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}#rbInicio .rbLista .rbIt{flex:none}
 #rbInicio .rbChipG:active{filter:brightness(1.15)}
-#rbInicio .rbVer{bottom:calc(var(--vh)*2.4 + var(--vh)*3 + var(--vh)*2.6 + 10px);font-size:calc(var(--vh)*2.3);opacity:.7}   /* (arriba de los chips: se encimaba con el de TikTok) */
+#rbInicio .rbVer{top:calc(var(--vh)*2.2);bottom:auto;font-size:clamp(10px,calc(var(--vh)*2.3),15px);opacity:.6}   /* (arriba a la derecha: abajo se encimaba con los chips en las pantallas anchas) */
 </style></head>
 <body>
 <canvas id="cv"></canvas>

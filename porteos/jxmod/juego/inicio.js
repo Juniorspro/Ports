@@ -114,7 +114,30 @@ function inicioLista() {
   RB.el.querySelector('.rbVer').textContent = `JXMod ${VERSION_RB} · ${ARMADO_RB}`;
   if (typeof cuentaPintar === 'function') cuentaPintar();   // (el chip de la cuenta de Google)
   if (typeof socGlobito === 'function') socGlobito();   // (lo nuevo de lo social: mensajes y solicitudes)
+  inicioEncajar();
 }
+// la lista entre el logo y los botones de abajo, sin pisarse (en un celular apaisado de 360 de alto la lista entera no
+// entraba y «Salir» quedaba debajo de los chips): si no entra, las letras y los espacios se achican juntos (--rbK) hasta
+// donde se lee bien (14 px); si ni así entra, la lista se desliza. Con el tamaño del diseño, en una pantalla alta no
+// cambia nada. Medido con offsetTop/offsetHeight: con la pantalla girada por el juego, getBoundingClientRect no sirve
+function inicioEncajar() {
+  const el = RB.el; if (!el || el.classList.contains('oc')) return;
+  const L = el.querySelector('.rbLista'), logo = el.querySelector('.rbLogo'), ab = el.querySelector('.rbAbajo'); if (!L || !logo || !ab || L.classList.contains('oc')) return;
+  const H = el.clientHeight || VH(), gap = Math.max(8, H * 0.025);
+  const arriba = logo.offsetTop + logo.offsetHeight + gap, abajo = (ab.offsetHeight ? ab.offsetTop : H) - gap, lugar = Math.max(60, abajo - arriba);
+  el.style.setProperty('--rbK', '1'); L.style.top = arriba + 'px'; L.style.maxHeight = ''; L.classList.remove('rbDesliza');
+  const alto = L.offsetHeight;
+  if (alto > lugar) {
+    const it = L.querySelector('.rbIt'), f0 = it ? parseFloat(getComputedStyle(it).fontSize) || 16 : 16, kMin = Math.min(1, 14 / f0);
+    // (un poco menos de lo justo: los altos se redondean a píxeles enteros y por medio píxel la lista se deslizaba)
+    let k = Math.max(kMin, 0.985 * lugar / alto); el.style.setProperty('--rbK', k.toFixed(3));
+    for (let i = 0; i < 5 && L.offsetHeight > lugar && k > kMin; i++) { k = Math.max(kMin, 0.985 * k * lugar / L.offsetHeight); el.style.setProperty('--rbK', k.toFixed(3)); }
+    if (L.offsetHeight > lugar + 1) { L.style.maxHeight = lugar + 'px'; L.classList.add('rbDesliza'); }
+  }
+  // (centrada en el lugar que queda, si sobra: no pegada al logo con un hueco grande abajo)
+  const sobra = lugar - L.offsetHeight; if (sobra > gap * 2) L.style.top = (arriba + Math.min(sobra / 2, H * 0.04)) + 'px';
+}
+addEventListener('resize', () => setTimeout(inicioEncajar, 60));
 function nombrePoner(v) { PREFS.nombre = limpioNombre(v); guardarPrefs(); const nick = nodo('Main/MainMenu/UpPanel/NickNameInputField'); if (nick && nick.inp) nick.inp.value = PREFS.nombre; }
 function inicioFondoPasar() {
   const capas = RB.el.querySelectorAll('.rbBg'), lista = FONDOS_RB.length ? FONDOS_RB : MAPAS.map((m) => icono(MAPA_ICONO[m]));
@@ -124,6 +147,7 @@ function inicioFondoPasar() {
 function inicioPanel(p) {
   RB.panel = p; const P = RB.el.querySelector('.rbPan');
   for (const s of ['.rbLista', '.rbLogo', '.rbAbajo']) RB.el.querySelector(s).classList.toggle('oc', !!p);
+  if (!p) requestAnimationFrame(inicioEncajar);
   P.classList.toggle('oc', !p); P.className = 'rbPan' + (p ? ' rbPan_' + p : ' oc');
   // (el personaje en 3D sólo en personajes: en el resto, el fondo de siempre)
   if (p !== 'personajes') { RB.el.classList.remove('rb3d'); menuLobby(false); }
@@ -419,6 +443,7 @@ function inicioMostrar(si) {
     if (!RB.reloj) { inicioFondoPasar(); RB.reloj = setInterval(() => { if (!RB.el.classList.contains('oc')) inicioFondoPasar(); }, 9000); }
   }
   if (RB.el) RB.el.classList.toggle('oc', !si);
+  if (si) requestAnimationFrame(inicioEncajar);
   // (en la partida, con el menú abierto la HUD táctil no se ve: si no, se asoma por las partes transparentes del menú)
   document.body.classList.toggle('rbAbierto', !!si);
   if (!si && RB.el) { RB.el.classList.remove('rb3d'); menuLobby(false); }
