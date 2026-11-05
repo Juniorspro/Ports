@@ -315,10 +315,16 @@ function emoDibujar() {
       const b = ev.target.closest('[data-emi]'); if (b) { ev.stopPropagation(); emoInstalar(b.dataset.emi); return; }
       const ed = ev.target.closest('[data-emed]'); if (ed) { ev.stopPropagation(); cerrarPaneles(); edaAbrir(ed.dataset.emed); return; }
       const del = ev.target.closest('[data-emdel]'); if (del) { ev.stopPropagation(); if (!confirm(T('quitar') + '?')) return; delete INST.anims[del.dataset.emdel]; emoOlvidar('u:' + del.dataset.emdel); guardarLS('rb_instalados', INST); emoDibujar(); return; }
-      const x = ev.target.closest('[data-emo]'); if (!x) return; cerrarPaneles(); if (x.dataset.emo.startsWith('jnt:')) { juntosPedir(x.dataset.emo.slice(4)); return; } if (typeof emote === 'function') emote(x.dataset.emo);
+      const x = ev.target.closest('[data-emo]'); if (!x) return;
+      if (typeof RUL !== 'undefined' && RUL.asignar >= 0 && !x.dataset.emo.startsWith('jnt:')) { rulAsignar(x.dataset.emo); return; }   // (eligiendo para la ruleta)
+      cerrarPaneles(); if (x.dataset.emo.startsWith('jnt:')) { juntosPedir(x.dataset.emo.slice(4)); return; } if (typeof emote === 'function') emote(x.dataset.emo);
     };
     const cr = $('bEmoCrear'); if (cr) cr.onclick = () => { cerrarPaneles(); if (typeof edaAbrir === 'function') edaAbrir(); };
+    // (la ruleta: qué emotes van en cada lugar)
+    if (cr && typeof rulAbrir === 'function' && !$('bEmoRuleta')) { const br = document.createElement('button'); br.className = 'boton'; br.id = 'bEmoRuleta'; cr.before(br); br.onclick = () => { cerrarPaneles(); RUL.editar = true; rulAbrir(true); }; }
   }
+  { const br = $('bEmoRuleta'); if (br) br.innerHTML = `${glifo('persona')} ${esc(T('rul.boton'))}`; }
+  { const h = pan.querySelector('.emoCab h3'); if (h) h.textContent = typeof RUL !== 'undefined' && RUL.asignar >= 0 ? T('rul.elegir').replace('{n}', RUL.asignar + 1) : 'Emotes'; }
   if (tabs) tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('sel', b.dataset.emc === EMO.cat));
   const cr = $('bEmoCrear'); if (cr) cr.innerHTML = `${glifo('lapiz')} ${esc(T('emo.crear'))}`;
   const cer = $('bEmoCerrar'); if (cer) cer.textContent = T('cerrar');

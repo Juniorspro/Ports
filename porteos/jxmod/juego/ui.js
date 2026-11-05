@@ -169,6 +169,7 @@ function spawnDelante(nombre, opt) {
 function abrirSpawn() { UI.abierto = 'spawn'; UI.puestos = 0; $('spawn').classList.remove('oc'); spawnDibujar(); soltarPuntero(); }
 function cerrarPaneles() {
   UI.abierto = null; if (typeof MODM !== 'undefined' && MODM.abierto) modMenuCerrar();
+  if (typeof RUL !== 'undefined') { RUL.asignar = -1; if (RUL.abierto) rulCerrar(); }   // (la ruleta de emotes)
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
   { const pj = $('pjJuego'); if (pj) pj.classList.add('oc'); }
   if (typeof EMU !== 'undefined' && EMU.ed && typeof emuCerrar === 'function') emuCerrar();   // (el panel de la música de un emote)

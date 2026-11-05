@@ -13,10 +13,12 @@ function entradaIniciar() {
     ENT.teclas.add(code);
     if (typeof gmaBindTecla === 'function' && gmaBindTecla(code)) { e.preventDefault(); return; }   // (un addon de GMod tomó la tecla)
     const m = { Tab: 'menu', KeyQ: 'menu', KeyE: 'usar', KeyF: 'salir', KeyR: 'recargar', KeyT: 'chat', KeyP: 'pausa', Escape: 'pausa', KeyV: 'camara', KeyJ: 'camLibre', KeyB: 'emotes', KeyZ: 'deshacer', KeyN: 'noclip', KeyC: 'camara', KeyM: 'servmods', KeyU: 'modmenu', KeyG: 'fncam', KeyL: 'linterna', KeyI: 'memes', KeyO: 'celular', Delete: 'borrarApuntado' };
+    // (la de emotes: mantenida abre la ruleta; un toque corto, el panel, como siempre: ruleta.js)
+    if (m[code] === 'emotes' && typeof rulApretar === 'function' && rulPuede()) { if (!RUL.quien) { RUL.tecla = e.code; rulApretar('tecla', 0, 0); } e.preventDefault(); return; }
     if (m[code]) { pulso(m[code]); e.preventDefault(); }
     if (/^Digit[1-9]$/.test(code)) pulso('arma' + code.slice(5));
   });
-  addEventListener('keyup', (e) => { ENT.teclas.delete(e.code); if (typeof ctlCodigo === 'function') ENT.teclas.delete(ctlCodigo(e.code)); });
+  addEventListener('keyup', (e) => { ENT.teclas.delete(e.code); if (typeof ctlCodigo === 'function') ENT.teclas.delete(ctlCodigo(e.code)); if (typeof RUL !== 'undefined' && RUL.quien === 'tecla' && e.code === RUL.tecla) rulSoltar(); });
   addEventListener('blur', () => ENT.teclas.clear());
   cv.addEventListener('mousedown', (e) => {
     if (ENT.tactil) return;
@@ -26,7 +28,7 @@ function entradaIniciar() {
   addEventListener('mouseup', (e) => { if (e.button === 0) ENT.disparo = false; if (e.button === 2) ENT.disparo2 = false; });
   addEventListener('contextmenu', (e) => e.preventDefault());
   document.addEventListener('pointerlockchange', () => { ENT.bloqueado = document.pointerLockElement === cv; if (!ENT.bloqueado) { ENT.disparo = ENT.disparo2 = false; } });
-  addEventListener('mousemove', (e) => { if (ENT.bloqueado) { ENT.dx += e.movementX; ENT.dy += e.movementY; } });
+  addEventListener('mousemove', (e) => { if (ENT.bloqueado) { if (typeof RUL !== 'undefined' && RUL.abierto && !RUL.fija) { RUL.mx += e.movementX; RUL.my += e.movementY; rulElegir(); } else { ENT.dx += e.movementX; ENT.dy += e.movementY; } } });
   addEventListener('wheel', (e) => { if (JUEGO.estado === 'juego' && !UI.abierto) ENT.rueda += Math.sign(e.deltaY); }, { passive: true });
   tactilIniciar();
 }
@@ -141,8 +143,10 @@ function botonTactil(b) {
   if (b._bt) return; b._bt = 1;
   const k = b.dataset.btn, mantener = b.dataset.mantener !== undefined;
   b._soltar = () => { b.classList.remove('ap'); if (mantener) ENT[k] = false; TOQ.botones.delete(b); };
-  b.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); ENT.tactil = true; b.classList.add('ap'); const t = [...e.changedTouches].find((x) => b.contains(x.target)) || e.changedTouches[0]; b._dedo = t ? t.identifier : -1; TOQ.botones.add(b); if (mantener) ENT[k] = true; else pulso(k); }, { passive: false });
-  const sol = (e) => { e.preventDefault(); b._soltar(); };
+  b.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); ENT.tactil = true; b.classList.add('ap'); const t = [...e.changedTouches].find((x) => b.contains(x.target)) || e.changedTouches[0]; b._dedo = t ? t.identifier : -1; TOQ.botones.add(b); if (mantener) ENT[k] = true; else if (k === 'emotes' && typeof rulApretar === 'function' && rulPuede() && t) rulApretar('toque', tX(t), tY(t)); else pulso(k); }, { passive: false });
+  const sol = (e) => { e.preventDefault(); b._soltar(); if (k === 'emotes' && typeof RUL !== 'undefined' && RUL.quien === 'toque') rulSoltar(); };
+  // (el de emotes: deslizar el dedo elige en la ruleta)
+  if (k === 'emotes') b.addEventListener('touchmove', (e) => { if (typeof RUL === 'undefined' || RUL.quien !== 'toque') return; const t = [...e.changedTouches].find((x) => x.identifier === b._dedo); if (t) { e.preventDefault(); rulMover(tX(t), tY(t)); } }, { passive: false });
   b.addEventListener('touchend', sol, { passive: false }); b.addEventListener('touchcancel', sol, { passive: false });
   b.addEventListener('click', (e) => { if (!ENT.tactil && !mantener) pulso(k); });
 }
