@@ -81,6 +81,13 @@ function hudIniciar() {
 }
 // el tamaño de los controles en el celular (Ajustes: 60 a 120 %; de entrada 80 %, el del JXMod quedaba grande)
 const hudTam = () => Math.min(1.2, Math.max(0.6, (+PREFS.hud || 80) / 100));
+// el área segura del aparato (la isla o el agujero de la cámara, las puntas redondeadas, la barra de gestos): lo que pide
+// el sistema con env(safe-area-inset-*); con la pantalla girada por el juego no se usa (sería de otro lado)
+function hudSegura() {
+  let e = $('hudSA'); if (!e) { e = document.createElement('div'); e.id = 'hudSA'; e.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)'; document.body.appendChild(e); }
+  const c = getComputedStyle(e), n = (x) => Math.min(80, parseFloat(x) || 0);
+  return { l: n(c.paddingLeft), r: n(c.paddingRight), t: n(c.paddingTop), b: n(c.paddingBottom) };
+}
 // la ubicación de cada botón (en el celular), escalada como el CanvasScaler del juego y por el tamaño elegido
 // (--hk: la misma escala para lo que no se ubica acá, como la barra de armas; 1 = un teléfono de 800×360 al 100 %)
 function hudDisponer() {
@@ -97,14 +104,14 @@ function hudDisponer() {
   // (las filas de arriba a la izquierda —sistema, crear, teclas de los mods—: los que se ven, en fila y sin huecos; en el
   // editor se ven todos)
   const edit = typeof CTL !== 'undefined' && CTL.edit, zp = typeof hudZonasPos === 'function' ? hudZonasPos((q) => { const e = document.querySelector(q); return !!e && (edit || (e.style.display !== 'none' && !e.classList.contains('oc'))); }, pos._orden) : {};
-  const hab = []; 
+  const hab = [], sa = typeof PANT !== 'undefined' && PANT.rot ? { l: 0, r: 0, t: 0, b: 0 } : hudSegura(); HUD.sa = sa;
   for (const [sel, ax, ay, x0, y0, s0, mn] of HUD_TACTIL) {
     const e = document.querySelector(sel); if (!e) continue;
     const o = pos[sel], propio = !!(o && o.length === 3 && o.every(Number.isFinite)), z = !propio && zp[sel], [x, y, s] = propio ? o : z ? [z[0], z[1], s0] : [x0, y0, s0];   // (los que movió el jugador en Controles)
     if (!tactil && !e.classList.contains('bt-t')) { e.style.left = e.style.top = e.style.width = e.style.height = ''; continue; }
     // (más chicos en el mismo lugar: el centro de cada botón no se mueve, así no se pegan a los bordes; en un celular chico
     // no bajan del mínimo, que sigue al tamaño elegido en Ajustes)
-    const t = propio ? s * k : Math.max(s * k, (mn || 0) * f / 0.8), cx = ax * W + x * kb, cy = H - (ay * H + y * kb);
+    const t = propio ? s * k : Math.max(s * k, (mn || 0) * f / 0.8), cx = ax * W + x * kb + (ax === 0 ? sa.l : ax === 1 ? -sa.r : 0), cy = H - (ay * H + y * kb) + (ay === 1 ? sa.t : ay === 0 ? -sa.b : 0);
     Object.assign(e.style, { left: (cx - t / 2).toFixed(1) + 'px', top: (cy - t / 2).toFixed(1) + 'px', width: t.toFixed(1) + 'px', height: t.toFixed(1) + 'px', right: 'auto', bottom: 'auto' });
     if (tactil && /^#bgmb/.test(sel) && (edit || !e.classList.contains('oc'))) hab.push([cx, cy, t]);
     if (tactil && ax === 0 && ay === 1 && cy < H * 0.45) sumar(cx - t / 2, cy - t / 2, cx + t / 2, cy + t / 2 + 14);   // (en la compu los táctiles no se ven: no ocupan lugar)

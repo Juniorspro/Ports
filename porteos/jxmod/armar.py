@@ -8,6 +8,15 @@ ORDEN = ['nucleo', 'ios', 'cajanegra', 'gl', 'sombras', 'post', 'datos', 'modelo
 # el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")
 FORMATO = re.sub(r'(?m)^export ', '', open(os.path.join(AQUI, 'tienda', 'formato.js'), encoding='utf-8').read())
 leer = lambda n: FORMATO if n == 'formato' else open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read()
+# la guía de diseño (diseno/guia_diseno.json): lo que se le dice a la IA que ordena los botones
+def _guia():
+    try:
+        g = json.load(open(os.path.join(AQUI, 'diseno', 'guia_diseno.json'), encoding='utf-8'))
+        return 'const GUIA_DISENO = ' + json.dumps({'para_ia': g.get('para_ia', ''), 'fuentes': len(g.get('fuentes', []))}, ensure_ascii=False) + ';'
+    except Exception:
+        return 'const GUIA_DISENO = null;'
+_leer0 = leer
+leer = lambda n: _leer0(n).replace('const GUIA_DISENO = null;', _guia(), 1) if n == 'hudorden' else _leer0(n)
 js = '(() => {\n"use strict";\n' + '\n'.join(leer(n) for n in ORDEN) + '\n})();'
 # la fecha del armado (se ve en el inicio: así se sabe qué versión abrió el navegador)
 import datetime

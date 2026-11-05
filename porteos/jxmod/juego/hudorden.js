@@ -7,11 +7,14 @@
 // con «Ordenar» (lo más usado más cerca del pulgar) o con «Ordenar con IA». Se guarda en las posiciones del HUD
 // (PREFS.hudPos._orden), así «De fábrica», «Cancelar» y «Guardar» del editor valen también para esto.
 const HUD_ZONAS = {
-  sis: { y: -46, l: ['[data-btn=pausa]', '[data-btn=chat]', '[data-btn=celular]', '#vozBt', '#vocesBt'] },
-  crear: { y: -140, l: ['[data-btn=menu]', '.modmBt', '.gmbBt', '.smBt', '#verBt'] },
-  hab: { y: -250, l: ['#bgmb0', '#bgmb1', '#bgmb2', '#bgmb3', '#bgmb4', '#bgmb5'] },
+  sis: { y: -72, l: ['[data-btn=pausa]', '[data-btn=chat]', '[data-btn=celular]', '#vozBt', '#vocesBt'] },
+  crear: { y: -168, l: ['[data-btn=menu]', '.modmBt', '.gmbBt', '.smBt', '#verBt'] },
+  hab: { y: -264, l: ['#bgmb0', '#bgmb1', '#bgmb2', '#bgmb3', '#bgmb4', '#bgmb5'] },
 };
-const HUD_ZX0 = 46, HUD_ZPASO = 96, HUD_ZMAX = 6;
+// (como pide la guía de diseño —diseno/guia_diseno.json—: 32 px de las esquinas, filas cada 96, a lo sumo 6 por fila)
+const HUD_ZX0 = 72, HUD_ZPASO = 96, HUD_ZMAX = 6;
+// lo que la guía le dice a la IA (armar.py lo pone desde diseno/guia_diseno.json)
+const GUIA_DISENO = null;
 // (nombres cortos para la IA y para guardar: el selector de cada uno)
 const HUD_ZID = { pausa: '[data-btn=pausa]', chat: '[data-btn=chat]', celular: '[data-btn=celular]', microfono: '#vozBt', voces: '#vocesBt', props: '[data-btn=menu]', mod: '.modmBt', gmod: '.gmbBt', spawn: '.smBt', verity: '#verBt',
   tecla1: '#bgmb0', tecla2: '#bgmb1', tecla3: '#bgmb2', tecla4: '#bgmb3', tecla5: '#bgmb4', tecla6: '#bgmb5' };

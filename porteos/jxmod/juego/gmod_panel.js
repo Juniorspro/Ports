@@ -445,7 +445,7 @@ function gmbFijosDibujar() {
       d.addEventListener('touchstart', ap(true), { passive: false }); for (const ev of ['touchend', 'touchcancel']) d.addEventListener(ev, ap(false), { passive: false });
       d.addEventListener('mousedown', ap(true)); d.addEventListener('mouseup', ap(false)); d.addEventListener('mouseleave', ap(false));
       // (arriba a la izquierda, en su propia fila debajo del sistema y de los menús de crear: hudorden.js)
-      if (typeof HUD_TACTIL !== 'undefined') { HUD_TACTIL.push(['#bgmb' + i, 0, 1, 46 + 96 * i, -250, 76, 32]); }
+      if (typeof HUD_TACTIL !== 'undefined') { HUD_TACTIL.push(['#bgmb' + i, 0, 1, 72 + 96 * i, -264, 76, 32]); }
     }
     const f = hay ? GMB.fijos[i] : null; d._f = f || null; d.classList.toggle('oc', !f);
     if (f) { const acc = typeof accBotonHTML === 'function' ? gmbAccDe(f.k) : null; d.classList.toggle('accBt', !!acc); d.innerHTML = acc ? accBotonHTML(acc, f.t) : `<b class="ctlLetra${String(f.t).length > 2 ? ' larga' : ''}">${esc(String(f.t).slice(0, 6))}</b>`; d.title = acc ? accNombre(acc) + ' (' + f.t + ')' : String(f.t); }
