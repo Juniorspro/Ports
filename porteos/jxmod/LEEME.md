@@ -1572,3 +1572,56 @@ descarga girando y nada más respondiendo).
     las versiones viejas de `web/` siguen en el historial de GitHub; `web/rb/` y `web/emotes/` (mapas, personajes y
     sonidos que se bajan aparte, muchos de otros juegos) van sin cifrar.
 - Sin probar en un celular ni en un iPhone de verdad (el iPhone, simulado en Chromium: no hay Safari acá).
+
+## JXMod 2.9-prueba13: lo del Discord (NPCs que caminan, disparo en 3ª persona, skins en red, ruleta y emote nuevo, VJ Base)
+
+- **Liminal Hotel** (`gmod.js`, `mapaio.js`): las camas usan la pose de su primera secuencia cuando la caja del modelo
+  calza con ella (la cama trae la raíz girada 90°). Antes 86 de 133 camas atravesaban la pared, hasta 82 cm; ahora
+  ninguna. Los mapas de Source mueven sus cosas: botones de dos posiciones, zonas, `ambient_generic` (los sonidos del
+  mapa, como el tocadiscos, en bucle o una vez), `func_rotating`, `logic_relay`/`logic_auto`, con demoras y veces; en
+  una sala, para todos. Pruebas `props_pose.mjs` 4/4, `mapa_io.mjs` 6/6, `puertas_mapa.mjs` 8/8.
+- **Linterna en los mapas del Workshop** (`gl.js`): con luz horneada el sombreado no usaba el sol, la placa sacaba esa
+  variable y las luces quedaban sin cargar: la linterna sumaba 0. Ahora suma +83 a +86 de brillo, como en los mapas
+  propios. Prueba `linterna_bsp.mjs` 4/4 (antes 2/4).
+- **Los NPCs y los personajes caminan sin patinar** (`humano.js`): el ritmo de los clips de GMod salía de la velocidad
+  del jugador de GMod, no del personaje. Ahora cada personaje mide, una vez por clip y recién cuando lo usa (2 ms), a qué
+  velocidad va su pie apoyado, y el largo del paso sale de los pasos por segundo de una persona a esa velocidad
+  (caminar despacio ya no es correr en cámara lenta). Prueba `npc_caminar.mjs` 5/5 con el Hero. Cuánto patina el pie
+  apoyado (0 = clavado, 1 = a la velocidad del cuerpo), antes → ahora:
+
+  | Hero | 1,5 m/s | 2 m/s | 4 m/s | 6 m/s | de costado | agachado |
+  |---|---|---|---|---|---|---|
+  | promedio | 1,48 → 0,20 | 1,47 → 0,17 | 1,41 → 0,15 | 0,70 → 0,12 | 0,76 → 0,34 | 1,03 → 0,24 |
+
+  A 2 m/s da 2,0 pasos por segundo de 0,91 m (a 6 m/s, 3,6 de 1,65 m). Jake y Freddy mejoran en todo pero no pasan
+  todos los criterios (de costado quedan cerca de 0,4; Jake, por ser bajito, da pasos de caminar casi tan largos como
+  los de correr).
+- **Armas de los addons en 3ª persona** (`gmod_api.js`, `gmod_pm.js`): `GetShootPos`, `EyePos` y `GetEyeTrace` daban la
+  cámara, que en 3ª persona va 3 m atrás. Ahora la bala sale de los ojos y va a lo que está en la mira; la trazadora y lo
+  que crea el arma salen del arma en la mano (o, si el modelo no tiene mano de Valve, como el perro, adelante del
+  hocico). Perro con la Nyan Gun: la bala salía a 3,1 m de los ojos → 0; el arcoíris a 2,87 m → 0,38 m; la bomba de
+  gatos a 2,47 m → 0,96 m. Prueba `disparo_tercera.mjs` 6/6 con el perro (antes 3/6) y con el Hero (antes 4/6). En 1ª
+  persona, igual que antes.
+- **Skins del Workshop en multijugador** (`gmod.js`, `red.js`): el que recibía sólo bajaba el modelo si estaba en el
+  catálogo de la tienda; ahora le pide los datos a Steam y lo baja igual (con el tope de peso y la censura), y si la
+  bajada se corta reintenta a los 30 s, hasta 4 veces. Un .gma importado de la compu no lo pueden bajar los demás: se
+  avisa. Prueba `red_workshop.mjs` 6/6 (antes Beto veía a Ana como el Hero).
+- **Ruleta de emotes como la de Fortnite** (`juego/ruleta.js`): mantener el botón de emotes (o la B) abre una ruleta de
+  5 lugares; se desliza el dedo (o el mouse) y al soltar el personaje hace ese emote. Un toque corto abre el panel de
+  emotes como siempre. Soltar en el medio la deja abierta: «Editar emotes» → tocar un lugar → elegir en el panel (con
+  secciones y buscador). Se guarda en el aparato. Prueba `ruleta_emotes.mjs` 7/7 (compu y celular 873×393).
+- **Emote nuevo: el baile del nene del bote («aura farming»)** (`herramientas/emote_aura.py`, `web/emotes/cmu/99_01.bin`):
+  hecho a mano con el esqueleto de los emotes de captura. Rodillas y cabeza al ritmo (2 golpes por segundo), un brazo y
+  después el otro barren del costado hacia adelante con la muñeca girando, y la cadera acompaña; 4 s que se repiten sin
+  salto. Está primero en «Baile» y en la ruleta si nunca la editaste. Prueba `emote_aura.mjs` 5/5: las manos a ≥ 39 cm
+  del torso, los pies se mueven ≤ 1 cm y ningún hueso salta más de 10,3 cm entre cuadros.
+- **VJ Base, DrG Base y Crack-Life** (`gmod_api.js`, `gmod_prelude.js`, `gmod_spawn.js`): `require()` de los módulos de
+  Lua de los addons, las constantes `SOUND_*` y `ENT.Model` como lista. Los NPCs de VJ Base (y los que viven de la IA del
+  motor de Source, que acá no está) se ponen como NPC del juego con lo que dice su Lua: modelo, vida, daño cuerpo a
+  cuerpo y si son amigos o enemigos. Prueba `vj_crack.mjs` 6/6: VJ Base (96 archivos) y DrG Base (87) cargan sin
+  errores; los 19 NPCs de Crack-Life aparecen en el menú con su modelo; los 18 enemigos persiguen y pegan y Gus es amigo.
+  - Lo que falta: la IA propia de VJ (ataques a distancia, armas, sonidos); los nextbots de DrG sólo se probó que cargan;
+    HL Resurgence no se probó (no se encontró su número del Workshop); el Árbol de Crack-Life se ve como un palo rojo
+    (no es un modelo con forma de persona).
+- APK 2.9-prueba13 y página con código (`web/`) armados de nuevo; `codigo_web.mjs` 9/9.
+- Sin probar en un celular ni en un iPhone de verdad (el iPhone, simulado en Chromium: no hay Safari acá).
