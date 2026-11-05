@@ -313,7 +313,11 @@ function redSkinDe(d) {
   if (typeof d.k === 'string' && d.k.startsWith('gmpm:') && redRutaPM(d.k.slice(5)) && typeof gmArchivo === 'function') {
     const real = 'gmpm:' + d.k.slice(5).toLowerCase();
     if (gmArchivo(real.slice(5))) return { real, skin: real };
-    const w = String(d.kw || ''); if (/^\d{3,12}$/.test(w) && typeof gmVisita === 'function' && !RED.visitas.has(w)) { RED.visitas.add(w); gmVisita(w).then((A) => { if (A) redRehacerSkin(real); }); }
+    // (si no se pudo bajar, se vuelve a intentar a los 30 s, hasta 4 veces)
+    const w = String(d.kw || ''); if (/^\d{3,12}$/.test(w) && typeof gmVisita === 'function' && !RED.visitas.has(w)) {
+      RED.visitas.add(w); RED.visitasN = RED.visitasN || new Map(); const n = (RED.visitasN.get(w) || 0) + 1; RED.visitasN.set(w, n);
+      gmVisita(w).then((A) => { if (A) redRehacerSkin(real); else if (n < 4) setTimeout(() => RED.visitas.delete(w), 30000); });
+    }
     return { real, skin: 'Hero' };
   }
   const real = DATA.chars.includes(d.k) ? d.k : 'Hero';

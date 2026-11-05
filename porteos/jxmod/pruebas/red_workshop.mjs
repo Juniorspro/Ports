@@ -4,7 +4,8 @@
 //  1. Beto entra con la lista vieja (la tienda guardaba sólo los mapas del juego: le dice Pasto plano): al conectarse le
 //     llega el mapa del anfitrión, lo baja y termina en el mismo mapa que Ana
 //  2. Caro entra con la lista nueva (mapa del Workshop y su addon): va directo a ese mapa, sin pasar por Pasto plano
-//  3. Beto y Caro ven a Ana con su modelo del Workshop (antes, con el Hero)
+//  3. Beto y Caro ven a Ana con su modelo del Workshop (antes, con el Hero); a Beto, además, el modelo no le figura en el
+//     catálogo (Ana lo encontró buscando en el Workshop) y la primera bajada se le corta: pide los datos a Steam y reintenta
 //  4. lo que bajaron es de visita: sin su Lua y sin sumarse a sus mods instalados
 //  5. sin errores
 // (Steam no se usa: el addon se toma de la carpeta y el catálogo es de prueba, con los mismos campos)
@@ -18,16 +19,16 @@ const aedes = req('aedes')(); const { WebSocketServer, createWebSocketStream } =
 const srv = http.createServer(); const wss = new WebSocketServer({ server: srv, path: '/mqtt' }); wss.on('connection', (ws) => aedes.handle(createWebSocketStream(ws)));
 await new Promise((r) => srv.listen(8896, '127.0.0.1', r));
 const errs = [], navs = [];
-const abrir = async (n) => {
+const abrir = async (n, extra = '') => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--autoplay-policy=no-user-gesture-required', '--allow-file-access-from-files'] });
   navs.push(b);
   const p = await (await b.newContext({ viewport: { width: 800, height: 450 } })).newPage();
   p.on('pageerror', (e) => errs.push(n + ': ' + e.message.slice(0, 160))); p.on('console', (m) => { if (m.type() === 'error' && !/WebSocket|mqtt|Failed to load|ERR_|CORS|net::/i.test(m.text())) errs.push(n + ': ' + m.text().slice(0, 160)); });
   await p.goto((/^https?:/.test(html) ? html : 'file://' + html) + '?test&broker=ws://127.0.0.1:8896/mqtt'); await p.waitForFunction(() => window.__listo, null, { timeout: 180000 });
   // (Steam de prueba: los .gma de la carpeta y un catálogo con esos dos)
-  await p.evaluate(([G, PM, MAPA]) => window.__ev(`(() => { gmBajar = async (wid) => new Uint8Array(await (await fetch('${G}/' + wid + '.gma')).arrayBuffer());
+  await p.evaluate(([G, PM, MAPA, EXTRA]) => window.__ev(`(() => { gmBajar = async (wid) => new Uint8Array(await (await fetch('${G}/' + wid + '.gma')).arrayBuffer());
     const C = { L: [], porId: new Map([['${PM}', { id: '${PM}', t: 'Doge Playermodel', img: '', mb: 0.8, tags: ['Model'], d: '' }], ['${MAPA}', { id: '${MAPA}', t: 'TTT Backrooms', img: '', mb: 4, tags: ['map'], d: '' }]]) };
-    gmCatalogo = () => Promise.resolve(C); cuentaPedir = () => true; cuentaFaltaPara = () => false; cuPedirAlAbrir.hecho = true; window.__mapas = []; const cm = cargarMapa; cargarMapa = (m, ...r) => { __mapas.push(m); return cm(m, ...r); }; return 1; })()`), [G, PM, MAPA]);
+    gmCatalogo = () => Promise.resolve(C); cuentaPedir = () => true; cuentaFaltaPara = () => false; cuPedirAlAbrir.hecho = true; window.__mapas = []; const cm = cargarMapa; cargarMapa = (m, ...r) => { __mapas.push(m); return cm(m, ...r); }; ${EXTRA}; return 1; })()`), [G, PM, MAPA, extra]);
   return p;
 };
 const ev = (P, s) => P.evaluate((x) => window.__ev(x), s), J = async (P, s) => JSON.parse(await ev(P, `(async () => JSON.stringify(await (${s})))()`));
@@ -45,7 +46,10 @@ const anaListo = await hasta(A, `MUNDO.nombre === '${ana.mapa}' && RED.on && JUE
 const sala = await J(A, `(() => { const s = Object.assign({}, SALA); delete s.clave; return s; })()`);
 console.log('Ana:', JSON.stringify({ ...ana, listo: anaListo, sala: { id: sala.id, m: sala.m, mw: sala.mw, du: sala.du } }));
 // Beto: la lista vieja (Pasto plano, sin el addon del mapa)
-const B = await abrir('Beto'); await prep(B, 'Beto');
+// (Beto, además: el modelo no está en su catálogo —Ana lo encontró buscando en el Workshop— y la primera vez que lo baja
+// se corta: tiene que pedirle los datos a Steam y volver a intentar)
+const B = await abrir('Beto', `C.porId.delete('${PM}'); window.__det = 0; window.__falla = 0; gmDetalles = async (ids) => { __det++; return new Map(ids.filter((x) => x === '${PM}').map((x) => [x, { publishedfileid: x, title: 'Doge Playermodel', file_size: 800000, tags: [{ tag: 'Model' }], preview_url: '' }])); };
+  const gb = gmBajar; gmBajar = async (wid) => { if (wid === '${PM}' && __falla++ === 0) throw new Error('net::ERR_PRUEBA corte'); return gb(wid); }`); await prep(B, 'Beto');
 await ev(B, `(() => { conectarMultijugador(); entrarSala(${JSON.stringify(Object.assign({}, sala, { m: 'FlatGrass', mw: '' }))}, ''); return 1; })()`);
 const bMapa = await hasta(B, `MUNDO.nombre === '${ana.mapa}' && JUEGO.estado === 'juego' && RED.on`, 180);
 ok('1. Beto entra con la lista vieja (Pasto plano) y termina en el mapa del Workshop de Ana', bMapa, await J(B, `({ mapa: MUNDO.nombre, pasó: __mapas })`));
@@ -63,6 +67,8 @@ const hastaVe = (P) => hasta(P, `(() => { const r = [...RED.remotos.values()].fi
 const [bVe, cVe] = await Promise.all([veAna(B), veAna(C)]);
 const rem = (P) => J(P, `[...RED.remotos.values()].map((r) => [r.nombre || (r.P && r.P.nombre), r.skin, r.skinReal, !!(r.P && r.P.gmp && r.P.gmp.def)])`);
 ok('3. Beto y Caro ven a Ana con su modelo del Workshop (antes la veían con el Hero)', bVe && cVe, { beto: bVe, caro: cVe, remotosB: await rem(B), remotosC: await rem(C), visitasC: await J(C, `[...RED.visitas]`) });
+const bx = await J(B, `({ det: __det, fallas: __falla })`);
+ok('3b. a Beto el modelo no le figuraba en el catálogo y la primera bajada se cortó: pidió los datos a Steam y lo volvió a bajar', bVe && bx.det >= 1 && bx.fallas >= 2, bx);
 const vis = await J(B, `(() => { const a = ['${PM}', '${MAPA}'].map((id) => { const X = GMOD.addons.get(id); return X ? { id, visita: X.visita, lua: X.lua.length } : { id, falta: true }; }); return { a, enMios: ['${PM}', '${MAPA}'].filter((id) => PREFS.gmod && PREFS.gmod[id]) }; })()`);
 ok('4. lo que bajó Beto es de visita: sin su Lua y no aparece entre sus mods instalados', vis.a.every((x) => x.visita === true && x.lua === 0) && !vis.enMios.length, vis);
 // una foto desde Beto mirando a Ana

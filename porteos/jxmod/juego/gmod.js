@@ -918,12 +918,20 @@ function gmVisita(wid, op) {
   if (GMVIS.pedidos.has(wid)) return GMVIS.pedidos.get(wid);
   const pr = (GMVIS.cola = GMVIS.cola.catch(() => {}).then(async () => {
     if (typeof PREFS !== 'undefined' && PREFS.verModsOtros === false) return null;
-    const C = typeof gmCatalogo === 'function' ? await gmCatalogo() : null, c = C && C.porId.get(wid);
+    const C = typeof gmCatalogo === 'function' ? await gmCatalogo() : null;
+    let c = C && C.porId.get(wid);
+    // (si no está en el catálogo —un modelo que el otro encontró buscando en el Workshop—, sus datos se le piden a Steam:
+    // antes no se bajaba y los demás lo veían con el Hero)
+    if (!c && typeof gmDetalles === 'function') {
+      try { const x = (await gmDetalles([wid])).get(wid); if (x) c = { id: wid, t: x.title || wid, img: x.preview_url || '', mb: (+x.file_size || 0) / 1048576, tags: (x.tags || []).map((g) => g.tag), d: String(x.description || '').slice(0, 500) }; } catch (e) { c = null; }
+    }
     if (!c || !(c.mb <= ((op && op.topeMB) || GMVIS.topeMB)) || (typeof censModMotivo === 'function' && censModMotivo(c))) return null;
     const A = await gmInstalar(wid, { nombre: c.t, img: c.img, visita: true, sinDeps: true }, null, op && op.prog);
     if (A && typeof censModMotivo === 'function' && A.cens) return null;
     return A;
   })).catch((e) => { gmErr('visita ' + wid, e); return null; });
+  // (si no se pudo —sin conexión, Steam ocupado—, se puede volver a pedir al rato)
+  pr.then((A) => { if (!A) setTimeout(() => { if (GMVIS.pedidos.get(wid) === pr) GMVIS.pedidos.delete(wid); }, 20000); });
   GMVIS.pedidos.set(wid, pr); return pr;
 }
 function gmQuitar(wid) { wid = String(wid); gmDesmontar(wid); if (PREFS.gmod) { delete PREFS.gmod[wid]; guardarPrefs(); } gmCacheBorrar(wid); }
