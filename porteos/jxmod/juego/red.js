@@ -485,6 +485,7 @@ function recibirHecho(d) {
   } else if (d.k === 'catap' || d.k === 'omega' || d.k === 'omegab') { artRed(d);
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
   } else if (d.k === 'pta') { if (typeof puertaRed === 'function') puertaRed(d);   // (una puerta del mapa que abrió otro)
+  } else if (d.k === 'mio') { if (typeof mioRed === 'function') mioRed(d);   // (un botón del mapa que apretó otro: mapaio.js)
   } else if (d.k === 'fnn' || d.k === 'fnb' || d.k === 'fnx' || d.k === 'fne' || d.k === 'fnv') { nocheRed(d); // (la noche en la pizzería)
   } else if (d.k === 'dano' && d.to === RED.ID) {
     if (SALA && !SALA.pvp) return;

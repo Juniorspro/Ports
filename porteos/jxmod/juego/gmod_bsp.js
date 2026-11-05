@@ -96,9 +96,16 @@ function gbspQuatDe(f) {   // el giro que lleva (0, 0, 1) a la dirección f
 // unidades del juego. Se abren con usar (E), o al tocarlas si el mapa lo pide; las que abre la lógica del mapa (botones,
 // disparadores), también con usar: acá no corre la lógica de entradas y salidas de Source
 function gbspPuertaDe(e, cl, o) {
+  const dirG = (v) => { const g = [v[1], v[2], v[0]], l = Math.hypot(g[0], g[1], g[2]) || 1; return g.map((x) => x / l); };
+  // (lo que gira —func_rotating: ventiladores, el disco de un tocadiscos—: va en su pieza como una puerta y lo mueve
+  // mapaio.js con Start/Stop/Toggle/Reverse; lo que tiene pegado con "parentname" gira con él)
+  if (cl === 'func_rotating') {
+    const sf = +e.spawnflags || 0;
+    return { cl, giro: true, rot: true, usa: false, silencio: true, vel: +e.maxspeed || 100, rev: !!(sf & 2), arranca: !!(sf & 1), pasa: !!(sf & 64),
+      eje: dirG(sf & 4 ? [1, 0, 0] : sf & 8 ? [0, 1, 0] : [0, 0, 1]), ejeLocal: false, dist: 0, espera: -1, nombre: e.targetname || '', esclavo: '' };
+  }
   if (!/^(func_door|func_door_rotating|func_movelinear|prop_door_rotating)$/.test(cl)) return null;
   const sf = +e.spawnflags || 0, giro = cl !== 'func_door' && cl !== 'func_movelinear';
-  const dirG = (v) => { const g = [v[1], v[2], v[0]], l = Math.hypot(g[0], g[1], g[2]) || 1; return g.map((x) => x / l); };
   const P = { cl, giro, vel: +e.speed || 100, espera: e.wait !== undefined ? +e.wait : e.returndelay !== undefined ? +e.returndelay : cl === 'prop_door_rotating' ? -1 : 4,
     toca: cl === 'func_door' ? !!(sf & 1024) : false, usa: true, pasa: cl !== 'prop_door_rotating' && !!(sf & 8), nombre: e.targetname || '', esclavo: e.slavename || '', abierta: cl === 'prop_door_rotating' ? +e.spawnpos === 1 : !!(sf & 1), silencio: !!(sf & 4096), unaVia: !!(sf & 16) || +e.opendir === 1 || +e.opendir === 2, sentido: +e.opendir === 2 ? -1 : 1 };
   if (cl !== 'prop_door_rotating' && sf & 32) P.espera = -1;
@@ -359,13 +366,29 @@ async function gbspPreparar(clave, prog) {
   // los botones y las zonas (trigger_*) que abren o cierran puertas por nombre, como sus salidas en Source
   // ("blanco,Open,,0,-1"): el botón se usa con E y la zona se activa al entrar o salir de ella
   const ptaNom = new Set(usoMo.filter((U) => U.puerta && U.nombre).map((U) => U.nombre)); for (const pr of props) if (pr.puerta && pr.puerta.nombre) ptaNom.add(pr.puerta.nombre.toLowerCase());
-  const salidas = (e, re) => { const o = []; for (const k in e) { if (!re.test(k)) continue; for (const v of [].concat(e[k])) { const s = String(v).split(/[,\x1b]/), t = (s[0] || '').toLowerCase(), i = (s[1] || '').toLowerCase(); if (ptaNom.has(t) && /^(open|close|toggle)$/.test(i)) o.push([t, i]); } } return o; };
+  // (las salidas enteras: [destino, entrada, valor, demora, veces]; mapaio.js las cumple con lo que sabe hacer)
+  const salidas = (e, re) => { const o = []; for (const k in e) { if (!re.test(k)) continue; for (const v of [].concat(e[k])) { const s = String(v).split(/[,\x1b]/), t = (s[0] || '').toLowerCase().trim(), i = (s[1] || '').toLowerCase().trim(); if (t && i) o.push([t, i, String(s[2] || ''), +s[3] || 0, s[4] !== undefined && s[4] !== '' ? +s[4] : -1]); } } return o; };
   const cajaMo = (e) => { const m = /^\*(\d+)$/.exec(e.model || ''); if (!m || +m[1] >= nMo) return null; const i = +m[1] * 48, o = String(e.origin || '0 0 0').split(/\s+/).map(Number), a = gbspG(dMo.getFloat32(i, true) + o[0], dMo.getFloat32(i + 4, true) + o[1], dMo.getFloat32(i + 8, true) + o[2]), b = gbspG(dMo.getFloat32(i + 12, true) + o[0], dMo.getFloat32(i + 16, true) + o[1], dMo.getFloat32(i + 20, true) + o[2]); return [[0, 1, 2].map((k) => Math.min(a[k], b[k])), [0, 1, 2].map((k) => Math.max(a[k], b[k]))]; };
   const ptaBot = [], ptaZona = [];
   for (const e of ents) {
     const cl = e.classname || '';
-    if (/^(func_button|func_rot_button)$/.test(cl)) { const acc = salidas(e, /^on(pressed|in|out|damaged|uselocked)$/i), c = acc.length && cajaMo(e); if (c) ptaBot.push({ c, acc }); }
-    else if (/^trigger_(multiple|once)$/.test(cl)) { const en = salidas(e, /^on(starttouch|trigger|starttouchall)$/i), sa = salidas(e, /^on(endtouch|endtouchall)$/i), c = (en.length || sa.length) && cajaMo(e); if (c) ptaZona.push({ c, en, sa, una: cl === 'trigger_once' }); }
+    if (/^(func_button|func_rot_button)$/.test(cl)) {
+      // (OnPressed siempre; los de dos posiciones —bandera 32— alternan OnIn y OnOut, como el tocadiscos del Liminal Hotel)
+      const sal = { p: salidas(e, /^onpressed$/i), i: salidas(e, /^onin$/i), o: salidas(e, /^onout$/i), l: salidas(e, /^onuselocked$/i) }, n = sal.p.length + sal.i.length + sal.o.length;
+      const c = n && cajaMo(e); if (c) ptaBot.push({ c, sal, tog: (+e.spawnflags || 0) & 32 ? 1 : 0, bloq: (+e.spawnflags || 0) & 2048 ? 1 : 0, n: String(e.targetname || '').toLowerCase() });
+    }
+    else if (/^trigger_(multiple|once)$/.test(cl)) { const en = salidas(e, /^on(starttouch|trigger|starttouchall)$/i), sa = salidas(e, /^on(endtouch|endtouchall)$/i), c = (en.length || sa.length) && cajaMo(e); if (c) ptaZona.push({ c, en, sa, una: cl === 'trigger_once', n: String(e.targetname || '').toLowerCase(), off: e.startdisabled === '1' }); }
+  }
+  // los sonidos del mapa (ambient_generic), los relevos (logic_relay) y lo que pasa al cargar (logic_auto): mapaio.js
+  const io = { snd: [], relay: [], auto: [] };
+  for (const e of ents) {
+    const cl = e.classname || '';
+    if (cl === 'ambient_generic' && e.message && e.origin && io.snd.length < 200) {
+      const sf = +e.spawnflags || 0, o = String(e.origin).split(/\s+/).map(Number);
+      io.snd.push({ n: String(e.targetname || '').toLowerCase(), s: String(e.message), v: Math.max(0, Math.min(10, e.health !== undefined && e.health !== '' ? +e.health : 10)) / 10, r: Math.max(64, +e.radius || 1250) * GM_S,
+        p: gbspG(o[0], o[1], o[2]), todo: !!(sf & 1), ini: !(sf & 16), bucle: !(sf & 32), tono: Math.max(30, Math.min(250, +e.pitch || 100)) / 100 });
+    } else if (cl === 'logic_relay' && e.targetname) io.relay.push({ n: String(e.targetname).toLowerCase(), sal: salidas(e, /^ontrigger$/i), on: e.startdisabled !== '1' });
+    else if (cl === 'logic_auto') io.auto.push(...salidas(e, /^on(mapspawn|newgame)$/i));
   }
   // apariciones (las de GMod, HL2DM, CS:S, TF2...)
   const sp = ents.filter((e) => /^info_player_(start|deathmatch|combine|rebel|terrorist|counterterrorist|teamspawn)$|^gmod_player_start$|^info_spawnpoint$/.test(e.classname || '') && e.origin);
@@ -420,7 +443,8 @@ async function gbspPreparar(clave, prog) {
     return { lo: [x0, yb < 1e8 ? yb : y - 4, z0], hi: [x1, y, z1] };
   });
   if (!sp.length) { const c = arbs.find((a) => a[0].col); if (c) { const d = DATA.ms[c[0].col[0].m]; arbs.push([{ n: 'SpawnPoint', p: [d.mn[0] + d.sc[0] / 2, d.mn[1] + d.sc[1] + 2, d.mn[2] + d.sc[2] / 2], r: [0, 0, 0, 1], s: [1, 1, 1], pa: -1 }]); } }
-  if (ptaBot.length) aj.ptaBot = ptaBot.slice(0, 200); if (ptaZona.length) aj.ptaZona = ptaZona.slice(0, 200);
+  if (ptaBot.length) aj.ptaBot = ptaBot.slice(0, 300); if (ptaZona.length) aj.ptaZona = ptaZona.slice(0, 300);
+  if (io.snd.length || io.relay.length || io.auto.length) aj.io = io;
   DATA.esc[clave] = arbs; DATA.aj[clave] = aj;
   P0(1, 'listo');
 }

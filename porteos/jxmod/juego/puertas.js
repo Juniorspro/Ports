@@ -7,14 +7,16 @@ function puertasIniciar() {
   PUERTAS.l = [];
   // (los botones y las zonas del mapa que abren puertas: gmod_bsp los lee de las salidas de Source)
   const aj = (typeof DATA !== 'undefined' && DATA.aj && DATA.aj[MUNDO.nombre]) || {};
-  PUERTAS.bot = (aj.ptaBot || []).map((b) => ({ lo: v3(...b.c[0]), hi: v3(...b.c[1]), acc: b.acc }));
-  PUERTAS.zona = (aj.ptaZona || []).map((z) => ({ lo: v3(...z.c[0]), hi: v3(...z.c[1]), en: z.en, sa: z.sa, una: z.una, dentro: false, hecha: false }));
+  PUERTAS.bot = (aj.ptaBot || []).map((b) => ({ lo: v3(...b.c[0]), hi: v3(...b.c[1]), sal: b.sal || { p: [], i: [], o: [], l: [] }, tog: b.tog, bloq: b.bloq, n: b.n || '', est: 0 }));
+  PUERTAS.zona = (aj.ptaZona || []).map((z) => ({ lo: v3(...z.c[0]), hi: v3(...z.c[1]), en: z.en, sa: z.sa, una: z.una, n: z.n || '', off: !!z.off, dentro: false, hecha: false }));
   for (const md of MUNDO.modelos) {
     const x = md.A && md.A[0]; if (!x || !x.puerta) continue;
     const P = x.puerta, piv = v3(x.p[0], x.p[1], x.p[2]), q0 = new Quat(x.r[0], x.r[1], x.r[2], x.r[3]);
     const L = []; for (let k = 0; k + 2 < (P.casco || []).length; k += 3) L.push(v3(P.casco[k], P.casco[k + 1], P.casco[k + 2]));
     let lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9); for (const p of L) { lo.set(Math.min(lo.x, p.x), Math.min(lo.y, p.y), Math.min(lo.z, p.z)); hi.set(Math.max(hi.x, p.x), Math.max(hi.y, p.y), Math.max(hi.z, p.z)); }
     const D = { i: PUERTAS.l.length, md, P, piv, q0, k: P.abierta ? 1 : 0, meta: P.abierta ? 1 : 0, sentido: P.sentido || 1, t: 0, b: null, c: v3() };
+    // (lo que gira —func_rotating—: su ángulo, si está andando, para qué lado y a qué parte de su velocidad)
+    if (P.rot) { D.ang = 0; D.on = !!P.arranca; D.dirRot = P.rev ? -1 : 1; D.velK = 1; D.velAct = 0; }
     // (la puerta que se corre, como en Source: lo que mide en su dirección, menos 2 unidades y menos el "lip"; con un lip
     // más grande que la puerta, se corre para el otro lado —los ascensores de los mapas de HL2—)
     if (!P.giro) {
@@ -42,12 +44,14 @@ function puertasIniciar() {
     D.grupo = PUERTAS.l.filter((X) => X !== D && X.P.cl === D.P.cl && ((n && String(X.P.nombre || '').toLowerCase() === n && vsub(X.piv, D.piv).len() < 3) || (es && String(X.P.nombre || '').toLowerCase() === es) || (X.P.esclavo && n && String(X.P.esclavo).toLowerCase() === n)));
   }
   if (PUERTAS.l.length && typeof audioBuf === 'function') audioBuf('fn_puerta');
+  if (typeof mioIniciar === 'function') mioIniciar();
 }
 // la puerta en su lugar según cuánto está abierta (0..1): el modelo y su caja
 const _pq = new Quat(), _pp = v3();
 function puertaPoner(D) {
   const P = D.P, md = D.md;
-  if (P.giro) {
+  if (P.rot) { _pq.copy(Quat.axis(D.eje.x, D.eje.y, D.eje.z, (D.ang * Math.PI) / 180).mul(D.q0)); _pp.copy(D.piv); }
+  else if (P.giro) {
     const ang = (P.dist * D.sentido * D.k * Math.PI) / 180;
     // (la de modelo gira en el eje de arriba del modelo; las de bloques, en el del mapa)
     const ax = P.ejeLocal ? D.q0.rot(D.eje) : D.eje;
@@ -78,17 +82,19 @@ function puertaAlternar(D, abrir, red) {
   if (!D.P.silencio && typeof sonar === 'function') sonar('fn_puerta', D.b ? D.b.pos : D.piv, 0.55);
   if (!red && typeof publicar === 'function' && typeof RED !== 'undefined' && RED.on) publicar('a', { k: 'pta', n: D.i, a: abrir ? 1 : 0, s: D.sentido });
 }
-// lo que le manda un botón o una zona del mapa a las puertas de ese nombre (Open, Close, Toggle)
-function puertaEntrada(nom, acc) {
-  for (const D of PUERTAS.l) {
-    if (String(D.P.nombre || '').toLowerCase() !== nom) continue;
-    if (acc === 'toggle') puertaAlternar(D); else if (acc === 'open' && D.meta < 0.5) puertaAlternar(D, true); else if (acc === 'close' && D.meta > 0.5) puertaAlternar(D, false);
-  }
-}
+// lo que le manda un botón o una zona del mapa a las puertas de ese nombre (Open, Close, Toggle): mapaio.js
+function puertaEntrada(nom, acc) { if (typeof mioEntrada === 'function') mioEntrada(nom, acc, '', false); }
 function puertaRed(d) { const D = PUERTAS.l[d.n | 0]; if (!D) return; if (d.s) D.sentido = d.s > 0 ? 1 : -1; puertaAlternar(D, !!d.a, true); }
 // cada cuadro: moverse hacia donde va, cerrarse sola después de "wait", abrirse al tocarla si es de las que se tocan
 function puertasPaso(dt) {
+  if (typeof mioPaso === 'function') mioPaso(dt);
   for (const D of PUERTAS.l) {
+    if (D.P.rot) {
+      // (arranca y frena en un segundo, como en Source)
+      const meta = D.on ? D.P.vel * D.velK : 0; D.velAct += Math.sign(meta - D.velAct) * Math.min(Math.abs(meta - D.velAct), D.P.vel * dt);
+      if (D.velAct > 0.01) { D.ang = (D.ang + D.velAct * D.dirRot * dt) % 360; puertaPoner(D); }
+      continue;
+    }
     if (D.k !== D.meta) {
       const P = D.P, vel = P.giro ? Math.max(20, P.vel) / Math.max(1, Math.abs(P.dist)) : Math.max(0.3, P.velM || 2.5) / Math.max(0.05, D.recorrido), k0 = D.k;
       D.k += Math.sign(D.meta - D.k) * Math.min(Math.abs(D.meta - D.k), dt * vel);
@@ -104,8 +110,8 @@ function puertasPaso(dt) {
     for (const z of PUERTAS.zona) {
       const den = p.x + r > z.lo.x && p.x - r < z.hi.x && p.z + r > z.lo.z && p.z - r < z.hi.z && y1 > z.lo.y && y0 < z.hi.y;
       if (den === z.dentro) continue; z.dentro = den;
-      if (z.una && z.hecha) continue;
-      for (const [n, a] of den ? z.en : z.sa) puertaEntrada(n, a);
+      if ((z.una && z.hecha) || z.off) continue;
+      if (typeof mioDisparar === 'function') mioDisparar(den ? z.en : z.sa, false);
       if (den) z.hecha = true;
     }
   }
@@ -135,7 +141,7 @@ function puertaApuntada() {
 function puertaApunta() { const D = puertaApuntada(); return !D ? '' : 'E: ' + T(D.bot ? 'pta.boton' : D.meta > 0.5 ? 'pta.cerrar' : 'pta.abrir'); }
 function puertaUsar() {
   const D = puertaApuntada(); if (!D) return false;
-  if (D.bot) { if (typeof sonar === 'function') sonar('fn_puerta', D.bot.lo.clone().add(D.bot.hi).scale(0.5), 0.25); for (const [n, a] of D.bot.acc) puertaEntrada(n, a); }
+  if (D.bot) { if (typeof sonar === 'function') sonar('fn_puerta', D.bot.lo.clone().add(D.bot.hi).scale(0.5), 0.25); if (typeof mioBoton === 'function') mioBoton(D.bot, true); }
   else { puertaAlternar(D); for (const X of D.grupo || []) if ((X.meta > 0.5) !== (D.meta > 0.5)) puertaAlternar(X, D.meta > 0.5); }
   return true;
 }

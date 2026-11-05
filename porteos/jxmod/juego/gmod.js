@@ -487,10 +487,20 @@ function gmPrefab(nombre) {
   // mejor calce con su casco de choque: en los aviones WAC la raíz va girada −90° en la secuencia y el casco está en esa
   // pose —con la de enlace el avión se veía de costado—; en los mangos de los sables el casco calza con la de enlace)
   const phy = gmArchivo(ruta.slice(0, -4) + '.phy'); let Fphy = null; try { Fphy = phy ? GMF.phy(phy) : null; } catch (e) { Fphy = null; }
-  let RP = GMF.poseReposo && Fphy ? GMF.poseReposo(M) : null, VP = V;
+  // (la caja que guarda el .mdl la arma el compilador con la secuencia, no con la pose de enlace: si calza con la pose y no
+  // con la de enlace, ésa es la que GMod muestra. Las camas del Liminal Hotel tienen la raíz girada 90° en «idle» y sin
+  // esto quedaban atravesando la pared de cada habitación)
+  const H0 = M.hull, hullOk = H0 && [0, 1, 2].some((c) => Math.abs(H0[1][c] - H0[0][c]) > 1);
+  let RP = GMF.poseReposo && (Fphy || hullOk) ? GMF.poseReposo(M) : null, VP = V;
   if (RP) {
     const calce = (pos, piezas) => { const a = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9], b = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9]; for (let k = 0; k < pos.length; k += 3) for (let c = 0; c < 3; c++) { a[c] = Math.min(a[c], pos[k + c]); a[c + 3] = Math.max(a[c + 3], pos[k + c]); } let hay = false; for (const x of piezas) for (let k = 0; k < x.pts.length; k += 3) { hay = true; for (let c = 0; c < 3; c++) { b[c] = Math.min(b[c], x.pts[k + c]); b[c + 3] = Math.max(b[c + 3], x.pts[k + c]); } } return hay ? Math.max(...[0, 1, 2].map((c) => Math.abs(a[c] - b[c]) + Math.abs(a[c + 3] - b[c + 3]))) : 1e9; };
-    try { const VPp = GMF.posar(M, RP), fB = calce(V.pos, GMF.phyModelo(Fphy, M, null)), fP = calce(VPp.pos, GMF.phyModelo(Fphy, M, RP)); if (fB > 8 && fP < fB * 0.5) VP = VPp; else RP = null; } catch (e) { RP = null; }
+    const calceH = (pos) => calce(pos, [{ pts: [H0[0][0], H0[0][1], H0[0][2], H0[1][0], H0[1][1], H0[1][2]] }]);
+    try {
+      const VPp = GMF.posar(M, RP); let usar = false;
+      if (Fphy) { const fB = calce(V.pos, GMF.phyModelo(Fphy, M, null)), fP = calce(VPp.pos, GMF.phyModelo(Fphy, M, RP)); usar = fB > 8 && fP < fB * 0.5; }
+      if (!usar && hullOk) { const hB = calceH(V.pos), hP = calceH(VPp.pos); usar = hB > 8 && hP < hB * 0.5; }
+      if (usar) VP = VPp; else RP = null;
+    } catch (e) { RP = null; }
   }
   // (x, y, z) de Source → (y, z, x) del juego, en metros; la V de las texturas, al revés
   for (let k = 0; k < n; k++) {

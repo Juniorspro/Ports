@@ -561,7 +561,8 @@ GMF.phyModelo = function (P, M, RP) {
   // los bordes de la geometría, se gira)
   if (M.v && M.huesos.length <= 1 && out.length) {
     const caja = (L, rot) => { const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9]; for (const f of L) for (let k = 0; k < f.length; k += 3) { const x = rot ? f[k + 1] : f[k], y = rot ? -f[k] : f[k + 1], z = f[k + 2]; const v = [x, y, z]; for (let c = 0; c < 3; c++) { if (v[c] < mn[c]) mn[c] = v[c]; if (v[c] > mx[c]) mx[c] = v[c]; } } return [mn, mx]; };
-    const m = caja([M.v.pos], false), dif = (b) => Math.max(...[0, 1, 2].map((c) => Math.abs(b[0][c] - m[0][c]) + Math.abs(b[1][c] - m[1][c])));
+    // (contra la malla en la misma pose: con la de reposo, la malla posada)
+    const m = caja([RP ? GMF.posar(M, RP).pos : M.v.pos], false), dif = (b) => Math.max(...[0, 1, 2].map((c) => Math.abs(b[0][c] - m[0][c]) + Math.abs(b[1][c] - m[1][c])));
     const L = out.map((x) => x.pts);
     if (dif(caja(L, true)) + 0.01 < dif(caja(L, false))) for (const x of out) { const f = x.pts; for (let k = 0; k < f.length; k += 3) { const a = f[k]; f[k] = f[k + 1]; f[k + 1] = -a; } }
   }
