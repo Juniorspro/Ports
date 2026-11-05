@@ -1527,7 +1527,7 @@ descarga girando y nada más respondiendo).
   pudieron revisar: ese mapa no está en el catálogo con ese nombre.
 - Sin probar en un celular ni en un iPhone de verdad (el iPhone, simulado en Chromium: no hay Safari acá).
 
-## JXMod 2.9-prueba12: menú principal sin amontonar, ícono de la app a elección y app de iPhone instalable
+## JXMod 2.9-prueba12: menú principal sin amontonar, ícono de la app a elección y página con código para iPhone
 
 - **Menú principal** (`juego/inicio.js`, `template.html`): la lista va entre el logo y los botones de abajo y se achica
   junta (letras, márgenes y separadores, nunca menos de 14 px) hasta entrar; si aun así no entra, se desliza. El logo
@@ -1539,36 +1539,24 @@ descarga girando y nada más respondiendo).
   - En Android cambia el ícono de verdad (alias de la actividad en el manifiesto; `JXNativo.iconoApp` en `Web.java`).
     «Tu imagen» se recorta cuadrada y queda como acceso directo (Android no deja que una app se ponga cualquier imagen
     como ícono propio).
-  - En la app de iPhone, iOS lo cambia con su aviso (íconos alternativos). En Safari, el elegido es el de «Agregar a
-    inicio» y hay un botón que baja un instalador (.mobileconfig) con ese ícono.
+  - En Safari, el elegido es el de «Agregar a inicio» y hay un botón que baja un instalador (.mobileconfig) con ese
+    ícono.
   - Prueba `pruebas/icono_app.mjs` 5/5.
-- **App de iPhone/iPad instalable** (`ios/`): el mismo juego dentro de una app nativa (WKWebView a pantalla completa y
-  apaisada). El juego y su paquete vienen adentro; mapas, personajes, sonidos y emotes se bajan la primera vez y
-  quedan guardados en la app. Lo que el juego «descarga» (fotos, mods exportados) abre el menú de compartir de iOS.
-  - La arma GitHub Actions en una Mac (`.github/workflows/ipa.yml` → `ios/armar_ipa.sh`) cada vez que cambia
-    `ios/` o el juego web, y la sube a `jxmod/JXMod.ipa`.
-  - Sale **sin firmar**: se instala con Sideloadly (compu), AltStore o SideStore, que la firman con tu Apple ID. Con
-    un Apple ID gratis la firma dura 7 días (AltStore/SideStore la renuevan solos).
-  - Prueba `pruebas/app_iphone.mjs` 5/5 (el juego como lo carga la app, con el puente de iOS simulado).
-  - Primera compilación en GitHub (Xcode 26.6, SDK de iOS 26.5): sin advertencias, .ipa de 26,9 MB, programa arm64 de
-    198 KB, los 8 íconos en el catálogo (`Assets.car`) con los 7 alternativos anotados en el Info.plist, y la firma ad
-    hoc válida (`codesign --verify`).
-  - El instalador .mobileconfig lo arma el juego (Safari → Ajustes → Ícono de la app → «Bajar el instalador para iPhone»): Safari lo
-    tiene que recibir como perfil, y GitHub sirve los archivos sueltos como texto, así que no hay uno fijo en `web/`.
-- **Página con código** (`herramientas/codigo_web.mjs`, la usa `web/index.html` y la app de iPhone): el link de
+- **iPhone/iPad: página con código en vez de app.** Se probó una app nativa (.ipa para instalar con Sideloadly) y se
+  sacó a pedido: en iPhone se juega desde la página, que pide un código.
+- **Página con código** (`herramientas/codigo_web.mjs`, la usa `web/index.html`): el link de
   siempre pide un código y sin él no hay juego. No es un candado de pantalla: el código del juego va cifrado en
   `web/juego.bin` (AES-GCM con una clave al azar), y esa clave va guardada una vez por código (PBKDF2-SHA256 de
   150 000 vueltas). El código se recuerda en el aparato: la próxima vez entra solo, también sin internet. Donde el
-  navegador no trae `crypto.subtle` (puede pasar en la app de iPhone), lo hace el mismo cifrado escrito en JS
+  navegador no trae `crypto.subtle` (una página sin https, un navegador viejo), lo hace el mismo cifrado escrito en JS
   (comparado contra el de Node: iguales; 0,26 s la clave y 0,05 s el juego en la compu).
   - Los códigos están **fuera del repo**, en `/root/.jxmod/codigos.txt` («CÓDIGO  nombre» por línea). Para dar de baja
     uno: borrar su línea y volver a armar. Para agregar: `node herramientas/codigo_web.mjs ../../web --nuevos 5`.
   - Armado: `armar.sh` con `APP_WEB=1` → `node herramientas/codigo_web.mjs CARPETA` → `herramientas/web_app.py CARPETA`.
   - Prueba `pruebas/codigo_web.mjs` 8/8: sin código no arranca y el juego no está en claro; uno equivocado avisa; el
     bueno (en minúsculas y sin guion también) abre en ~4 s; al volver a abrir y sin internet entra solo; uno dado de
-    baja lo vuelve a pedir; sin `crypto.subtle` abre igual (0,6 s). `app_ios.mjs` y `app_iphone.mjs` siguen 5/5
-    (con `JX_CODIGO=` un código).
+    baja lo vuelve a pedir; sin `crypto.subtle` abre igual (0,6 s). `app_ios.mjs` sigue 5/5 (con `JX_CODIGO=` un
+    código).
   - Lo que no frena: el APK es público y trae el juego, y las versiones viejas de `web/` siguen en el historial de
     GitHub. El código cierra el link del iPhone, no el juego entero.
-- Sin probar en un celular ni en un iPhone de verdad: la .ipa se compila en la Mac de GitHub, pero acá no hay iPhone
-  para abrirla.
+- Sin probar en un celular ni en un iPhone de verdad (el iPhone, simulado en Chromium: no hay Safari acá).

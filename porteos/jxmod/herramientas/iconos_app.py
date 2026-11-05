@@ -3,8 +3,7 @@
 # fondos. Escribe:
 #  - Android: mipmap-<densidad>/ic_v_<id>{,_round,_fg,_bg}.png y mipmap-anydpi-v26/ic_v_<id>{,_round}.xml (íconos
 #    adaptables: fondo + logo + el monocromo de siempre para los íconos temáticos de Android 13);
-#  - iPhone/iPad: ios/iconos/<id>-{60,76,83.5}@{2x,3x}.png (íconos alternativos de la app nativa) y web/app/icono-<id>-180.png
-#    (el de «Agregar a inicio» de Safari);
+#  - iPhone/iPad: web/app/icono-<id>-180.png (el de «Agregar a inicio» de Safari);
 #  - el juego: juego/iconosapp.js (las miniaturas para elegir, en base64).
 # Uso: python3 -I herramientas/iconos_app.py
 import os, io, base64, json, math, random
@@ -97,7 +96,7 @@ ADAPT = '''<?xml version="1.0" encoding="utf-8"?>
 '''
 
 datos = []
-os.makedirs(os.path.join(JX, 'ios', 'iconos'), exist_ok=True); os.makedirs(os.path.join(WEB, 'app'), exist_ok=True)
+os.makedirs(os.path.join(WEB, 'app'), exist_ok=True)
 for id_, nombre in VARIANTES:
     bg, lg = clasico() if id_ == 'clasico' else variante(id_)
     if id_ != 'clasico':
@@ -108,8 +107,7 @@ for id_, nombre in VARIANTES:
             armado(bg, lg, l, 'cuadrado').save(os.path.join(carp, 'ic_v_%s.png' % id_), optimize=True)
             armado(bg, lg, l, 'redondo').save(os.path.join(carp, 'ic_v_%s_round.png' % id_), optimize=True)
         for suf in ('', '_round'): open(os.path.join(RES, 'mipmap-anydpi-v26', 'ic_v_%s%s.xml' % (id_, suf)), 'w').write(ADAPT % (id_, id_))
-    # iPhone/iPad: 60 pt @2x/@3x, 76 pt @2x y 83,5 pt @2x (opacos: iOS redondea solo)
-    for nom, lado in (('60@2x', 120), ('60@3x', 180), ('76@2x', 152), ('83.5@2x', 167)): armado(bg, lg, lado, 'plano').save(os.path.join(JX, 'ios', 'iconos', '%s-%s.png' % (id_, nom)), optimize=True)
+    # iPhone/iPad: el de «Agregar a inicio» (opaco: iOS redondea solo)
     armado(bg, lg, 180, 'plano').save(os.path.join(WEB, 'app', 'icono-%s-180.png' % id_), optimize=True)
     datos.append({'id': id_, 'n': nombre, 'png': 'data:image/png;base64,' + base64.b64encode(png(armado(bg, lg, 96, 'cuadrado'))).decode()})
 
