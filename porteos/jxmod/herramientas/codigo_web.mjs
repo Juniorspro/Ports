@@ -68,10 +68,10 @@ const PUERTA = `<script>
 (function () {
   const CL = ${JSON.stringify(CL)};
   const L = (navigator.language || 'es').slice(0, 2), T = Object.assign({
-    es: { tit: 'Ingresá tu código', bot: 'Jugar', mal: 'Ese código no es. Fijate las letras y probá de nuevo.', viejo: 'Tu código ya no sirve: pedí uno nuevo.', red: 'No se pudo bajar el juego. Revisá internet y probá de nuevo.', ayuda: 'Pedíselo a quien te pasó el link.', abr: 'Abriendo…' },
-    en: { tit: 'Enter your code', bot: 'Play', mal: 'That code is not right. Check the letters and try again.', viejo: 'Your code no longer works: ask for a new one.', red: 'Could not download the game. Check your internet and try again.', ayuda: 'Ask whoever sent you the link.', abr: 'Opening…' },
-    pt: { tit: 'Digite seu código', bot: 'Jogar', mal: 'Esse código não está certo. Confira as letras e tente de novo.', viejo: 'Seu código não vale mais: peça um novo.', red: 'Não deu para baixar o jogo. Confira a internet e tente de novo.', ayuda: 'Peça a quem te mandou o link.', abr: 'Abrindo…' }
-  })[L] || { tit: 'Enter your code', bot: 'Play', mal: 'That code is not right. Check the letters and try again.', viejo: 'Your code no longer works: ask for a new one.', red: 'Could not download the game. Check your internet and try again.', ayuda: 'Ask whoever sent you the link.', abr: 'Opening…' };
+    es: { tit: 'Ingresá tu código', bot: 'Jugar', mal: 'Ese código no es. Fijate las letras y probá de nuevo.', viejo: 'Tu código ya no sirve: pedí uno nuevo.', red: 'No se pudo bajar el juego. Revisá internet y probá de nuevo.', ayuda: 'Pedíselo a quien te pasó el link.', abr: 'Abriendo…', ios: 'En iPhone: primero Compartir → «Agregar a inicio» y poné el código ahí. Queda guardado y no te lo pide más.' },
+    en: { tit: 'Enter your code', bot: 'Play', mal: 'That code is not right. Check the letters and try again.', viejo: 'Your code no longer works: ask for a new one.', red: 'Could not download the game. Check your internet and try again.', ayuda: 'Ask whoever sent you the link.', abr: 'Opening…', ios: 'On iPhone: first Share → «Add to Home Screen» and enter the code there. It is saved and you will not be asked again.' },
+    pt: { tit: 'Digite seu código', bot: 'Jogar', mal: 'Esse código não está certo. Confira as letras e tente de novo.', viejo: 'Seu código não vale mais: peça um novo.', red: 'Não deu para baixar o jogo. Confira a internet e tente de novo.', ayuda: 'Peça a quem te mandou o link.', abr: 'Abrindo…', ios: 'No iPhone: primeiro Compartilhar → «Adicionar à Tela de Início» e digite o código lá. Fica salvo e não pede mais.' }
+  })[L] || { tit: 'Enter your code', bot: 'Play', mal: 'That code is not right. Check the letters and try again.', viejo: 'Your code no longer works: ask for a new one.', red: 'Could not download the game. Check your internet and try again.', ayuda: 'Ask whoever sent you the link.', abr: 'Opening…', ios: 'On iPhone: first Share → «Add to Home Screen» and enter the code there. It is saved and you will not be asked again.' };
   const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
   const hex = (b) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, '0')).join('');
@@ -213,12 +213,16 @@ const PUERTA = `<script>
         + '#jxPuerta .t{display:flex;align-items:center;gap:12px;font-weight:700;font-size:19px;margin-bottom:12px}#jxPuerta .t img{width:44px;height:44px;border-radius:11px}'
         + '#jxPuerta .f{display:flex;gap:8px}#jxPuerta input{flex:1;min-width:0;height:48px;border-radius:12px;border:1px solid #3a4150;background:#0d0f14;color:#fff;font:600 20px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;padding:0 12px;outline:none;-webkit-user-select:text;user-select:text}'
         + '#jxPuerta input:focus{border-color:#ffce6e}#jxPuerta button{height:48px;padding:0 20px;border:0;border-radius:12px;background:#2f7cf6;color:#fff;font:700 17px system-ui,-apple-system,sans-serif}#jxPuerta button:disabled{opacity:.6}'
-        + '#jxPuerta .m{min-height:20px;margin-top:9px;color:#ff8a80;font-size:14px}#jxPuerta .m.ok{color:#9fd3ff}#jxPuerta .a{color:#9aa3b2;font-size:13px}'
+        + '#jxPuerta .m{min-height:20px;margin-top:9px;color:#ff8a80;font-size:14px}#jxPuerta .m.ok{color:#9fd3ff}#jxPuerta .a{color:#9aa3b2;font-size:13px}#jxPuerta .a.i{margin-top:6px;color:#ffce6e}'
         + '@media (max-height:500px){#jxPuerta .c{margin-top:0}}';
       const d = document.createElement('div'); d.id = 'jxPuerta';
-      d.innerHTML = '<form class="c" autocomplete="off"><div class="t"><img src="app/icono-180.png" alt=""><span></span></div><div class="f"><input name="codigo" maxlength="24" placeholder="XXXX-XXXX" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label=""><button type="submit"></button></div><div class="m"></div><div class="a"></div></form>';
+      d.innerHTML = '<form class="c" autocomplete="off"><div class="t"><img src="app/icono-180.png" alt=""><span></span></div><div class="f"><input name="codigo" maxlength="24" placeholder="XXXX-XXXX" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label=""><button type="submit"></button></div><div class="m"></div><div class="a"></div><div class="a i"></div></form>';
       const f = d.querySelector('form'), inp = f.querySelector('input'), bot = f.querySelector('button'), m = f.querySelector('.m');
       f.querySelector('.t span').textContent = T.tit; inp.setAttribute('aria-label', T.tit); bot.textContent = T.bot; f.querySelector('.a').textContent = T.ayuda; m.textContent = aviso || '';
+      // (en el iPhone, Safari y la app de la pantalla de inicio guardan cada uno lo suyo: conviene poner el código ya en la app)
+      const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const inst = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+      const ai = f.querySelector('.a.i'); if (ios && !inst) ai.textContent = T.ios; else ai.remove();
       // (el juego no deja tocar ni escribir fuera de lo suyo: la puerta frena esos eventos para que el campo ande)
       for (const ev of ['pointerdown', 'touchstart', 'keydown', 'keyup', 'mousedown']) d.addEventListener(ev, (e) => e.stopPropagation());
       f.onsubmit = async (e) => {

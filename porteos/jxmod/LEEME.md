@@ -1555,8 +1555,11 @@ descarga girando y nada más respondiendo).
   - el código se recuerda en el aparato: la próxima vez entra solo, también sin internet;
   - donde el navegador no trae `crypto.subtle` lo hace el mismo cifrado escrito en JS (comparado contra el de Node:
     iguales; 0,27 s la clave, 15 ms por MB el paquete, en la compu).
-  - Los códigos están **fuera del repo**, en `/root/.jxmod/codigos.txt` («CÓDIGO  nombre» por línea). Dar de baja uno:
-    borrar su línea y volver a armar. Agregar: `--nuevos 5`. Otra dirección: `--lugar https://.../carpeta/`.
+  - **Un solo código para todos** (pedido así): está **fuera del repo**, en `/root/.jxmod/codigos.txt` («CÓDIGO  nombre»
+    por línea; se pueden poner más). Se pone una vez por aparato. En el iPhone, Safari y la app de la pantalla de
+    inicio guardan cada uno lo suyo, así que el pedido avisa que conviene agregarla a inicio primero y poner el código
+    ahí. Cambiar el código: cambiar la línea y volver a armar (el viejo deja de andar y lo vuelve a pedir).
+    Agregar otro: `--nuevos 1`. Otra dirección: `--lugar https://.../carpeta/`.
   - Armado: `armar.sh` con `PK_BIN=1 APP_WEB=1` → `node herramientas/codigo_web.mjs CARPETA` →
     `herramientas/web_app.py CARPETA`.
   - Prueba `pruebas/codigo_web.mjs` 9/9: sin código no arranca y ni el juego ni el paquete se pueden leer; uno
