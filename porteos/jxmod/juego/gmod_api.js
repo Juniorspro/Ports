@@ -276,7 +276,8 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('WorldSpaceCenter', (e) => { const [a, b] = caja(e); return V(gmaEntPos(e).add(entQ(e).rot(vG(new LVec((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2))))); });
   E('BoundingRadius', (e) => { const [a, b] = caja(e); return Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / 2; });
   E('GetCollisionBounds', (e) => { const [a, b] = caja(e); a.__mt = b.__mt = GMA.mtVec; return [a, b]; });
-  E('SetModel', (e, m) => { e.modelo = String(m || '').toLowerCase().replace(/\\/g, '/'); if (e.creado && e.vivo && (e.o || GMA.iniciando === e)) gmaRehacer(e); });
+  // (una lista de modelos, como el ENT.Model = {"..."} de VJ Base: uno de ellos; antes quedaba «[object object]»)
+  E('SetModel', (e, m) => { if (m instanceof LuaTable) m = m.get(1 + Math.floor(Math.random() * Math.max(1, m.a.length))) || m.get(1); e.modelo = String(m || '').toLowerCase().replace(/\\/g, '/'); if (e.creado && e.vivo && (e.o || GMA.iniciando === e)) gmaRehacer(e); });
   E('GetModel', (e) => e.modelo); E('Spawn', (e) => gmaSpawn(e)); E('Activate', () => {}); E('Remove', (e) => gmaQuitar(e));
   E('SetColor', (e, c) => { if (c instanceof LuaTable) e.color = ['r', 'g', 'b', 'a'].map((k) => c.get(k) ?? 255); }); E('GetColor', (e) => GMA.color(...e.color));
   E('SetMaterial', (e, m) => { e.material = m; }); E('GetMaterial', (e) => e.material || ''); E('SetSkin', (e, s) => { e.skin = s; }); E('GetSkin', (e) => e.skin || 0); E('SkinCount', () => 1);
@@ -975,6 +976,16 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   def(G, 'ScrW', () => VW()); def(G, 'ScrH', () => VH()); def(G, 'EyePos', () => V(CAM.pos)); def(G, 'EyeAngles', () => A(dirAng(dS(CAM.fwd)))); def(G, 'EyeVector', () => GMA.Vd(CAM.fwd));
   def(G, 'Sound', (s) => s); def(G, 'Model', (s) => s); def(G, 'AddCSLuaFile', () => {}); def(G, 'IsFirstTimePredicted', () => true); def(G, 'SoundDuration', () => 1); def(G, 'GetHostName', () => (typeof SALA !== 'undefined' && SALA ? SALA.n : 'JXMod'));
   def(G, 'include', (r) => gmaIncluir(String(r))); def(G, 'IncludeCS', (r) => gmaIncluir(String(r)));
+  // require: los módulos de Lua de los addons (lua/includes/modules/NOMBRE.lua), una sola vez; los binarios (gmsv_*.dll)
+  // no existen acá: no hacen nada, como en GMod sin el módulo instalado (VJ Base pide vj_ai_schedule y vj_ai_nodegraph)
+  def(G, 'require', (n) => {
+    const k = String(n).toLowerCase().replace(/[^\w.-]/g, ''); GMA.requeridos = GMA.requeridos || new Map();
+    if (GMA.requeridos.has(k)) return GMA.requeridos.get(k);
+    GMA.requeridos.set(k, true);
+    const r = 'lua/includes/modules/' + k + '.lua', b = gmArchivo(r);
+    if (b) { const v = gmaCorrer(r, b); if (v !== undefined) GMA.requeridos.set(k, v); }
+    return GMA.requeridos.get(k);
+  });
   def(G, 'Msg', (...a) => gmaConsola(a.map(R.tostr).join(''))); def(G, 'MsgN', (...a) => gmaConsola(a.map(R.tostr).join(''))); def(G, 'MsgC', (...a) => gmaConsola(a.filter((x) => !(x instanceof LuaTable && x.mt === GMA.mtCol)).map(R.tostr).join('')));
   def(G, 'ErrorNoHalt', (...a) => gmaErr(a.map(R.tostr).join(''))); def(G, 'ErrorNoHaltWithStack', (...a) => gmaErr(a.map(R.tostr).join(''))); def(G, 'Error', (...a) => { throw new LuaError(a.map(R.tostr).join('')); });
   def(G, 'CompileString', (src, nombre, sinError) => { try { return R.cargar(String(src), String(nombre || 'CompileString')); } catch (e) { if (sinError === false) return R.msgErr(e); throw e; } });
@@ -1004,7 +1015,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   def(G, 'GetViewEntity', () => (GMA.jug && GMA.jug.vistaEnt && entValida(GMA.jug.vistaEnt) ? GMA.jug.vistaEnt : GMA.jug)); def(G, 'IsMounted', () => false); def(G, 'GetMap', () => (typeof MUNDO !== 'undefined' ? MUNDO.nombre : 'gm_flatgrass'));
   // ---- ents, player, game ----
   const ents = lib('ents'), player = lib('player'), game = lib('game'), engine = lib('engine');
-  def(ents, 'Create', (c) => { c = String(c || ''); const e = new LEnt(c, 'ent'); e.creador = GMA.jug; const cl = GMA.clases.get(c); if (cl) { const m = claseTabla(c, 'S'), mod = m && buscarEnClase(m, 'Model'); if (mod) e.modelo = String(mod).toLowerCase(); gmaPreparar(e); }
+  def(ents, 'Create', (c) => { c = String(c || ''); const e = new LEnt(c, 'ent'); e.creador = GMA.jug; const cl = GMA.clases.get(c); if (cl) { const m = claseTabla(c, 'S'), mod = m && buscarEnClase(m, 'Model'); if (typeof mod === 'string' && mod) e.modelo = mod.toLowerCase(); gmaPreparar(e); }
     // (un arma en el piso, como en GMod: con su modelo de mundo; pasando por encima se agarra)
     else if (GMA.armas.has(c) || GMA_ARMA_SUELO[c]) { const m = GMA.armas.has(c) ? claseTabla(c, 'S') : null, wm = m ? buscarEnClase(m, 'WorldModel') : GMA_ARMA_SUELO[c]; e.armaSuelo = c; if (wm) e.modelo = String(wm).toLowerCase(); }
     return e; });

@@ -84,6 +84,15 @@ function gmnpcCrear(key) {
   const cls = _lstr(v, 'Class') || key, mod = (_lstr(v, 'Model') || GM_NPC_MODELO[cls] || '').toLowerCase().replace(/\\/g, '/');
   // (donde apunta, como en GMod; si no hay nada cerca, 4 m adelante)
   const tr = gmaTraza(CAM.pos.clone(), CAM.fwd.clone(), 30, null), hp = tr.get('Hit') && tr.get('HitPos'), p = hp instanceof LVec ? vG(hp) : vadd(v3(JUG.pos.x, JUG.pos.y - (JUG.medio || 0.9), JUG.pos.z), vscale(v3(CAM.fwd.x, 0, CAM.fwd.z).norm(), 4)), yaw = JUG.yaw + Math.PI;
+  // un NPC de VJ Base (o un SNPC que vive de la IA del motor de Source: horarios, tareas, caminos): esa IA acá no está y
+  // quedaba duro y quieto; se pone como NPC del juego con lo que dice su Lua (modelo, vida, daño, amigo o enemigo)
+  const sn = GMA.clases && GMA.clases.has(cls) && gmnpcSNPC(cls);
+  if (sn) {
+    if (sn.mod && !gmArchivo(sn.mod) && typeof gmlPedir === 'function') gmlPedir(sn.mod);
+    const act = sn.hostil ? { modo: 'perseguir', vel: sn.vel, obj: 'cerca', dist: sn.dist, hostil: true, dano: sn.dano, vida: sn.vida } : { modo: 'pasear', vel: 1.6, vida: sn.vida };
+    const P = npcCrear(sn.mod ? 'gmpm:' + sn.mod : 'Hero', v3(p.x, p.y, p.z), yaw, act); if (!P) return null;
+    P.gmNpc = { key, cls, snpc: true }; return P;
+  }
   // una clase del addon (nextbot, entidad con IA propia): esa entidad con su Lua
   if (GMA.clases && GMA.clases.has(cls)) {
     const f = GMA.R && GMA.R.G.get('__gmCrearNPC'); if (typeof f !== 'function') return null;
@@ -96,6 +105,24 @@ function gmnpcCrear(key) {
   const P = npcCrear(mod ? 'gmpm:' + mod : 'Hero', v3(p.x, p.y, p.z), yaw, act); if (!P) return null;
   P.gmNpc = { key, cls };
   return P;
+}
+// ¿la clase es un NPC de VJ Base o un SNPC del motor (base_ai)? lo que el NPC del juego necesita de su Lua: el modelo (VJ
+// pone una lista: uno), la vida (StartHealth), el daño cuerpo a cuerpo y si es amigo (VJ_NPC_Class con
+// CLASS_PLAYER_ALLY o Behavior pasivo) o enemigo
+function gmnpcSNPC(cls) {
+  let t = claseTabla(cls, 'S'); if (!t) return null;
+  let base = '', n = 0;
+  for (let u = t; u && n < 20; n++) { const b = u.get('Base'); if (typeof b !== 'string') break; base = b; if (/^npc_vj_(creature|human|tank)/.test(b) || b === 'base_ai') break; const x = claseTabla(b, 'S'); u = x; }
+  const tipo = buscarEnClase(t, 'Type');
+  if (!(/^npc_vj_(creature|human|tank)/.test(base) || base === 'base_ai' || tipo === 'ai')) return null;
+  let mod = buscarEnClase(t, 'Model'); if (mod instanceof LuaTable) mod = mod.get(1 + Math.floor(Math.random() * Math.max(1, mod.a.length))) || mod.get(1);
+  mod = typeof mod === 'string' ? mod.toLowerCase().replace(/\\/g, '/') : '';
+  const num = (k, d) => { const v = +buscarEnClase(t, k); return Number.isFinite(v) && v > 0 ? v : d; };
+  const clases = buscarEnClase(t, 'VJ_NPC_Class'), lista = clases instanceof LuaTable ? clases.a.map(String) : [];
+  const beh = buscarEnClase(t, 'Behavior');   // (VJ_BEHAVIOR_AGGRESSIVE 1, NEUTRAL 2, PASSIVE 3, PASSIVE_NATURE 4)
+  const amigo = lista.some((c) => /PLAYER_ALLY/i.test(c)) || beh === 3 || beh === 4 || buscarEnClase(t, 'PlayerFriendly') === true;
+  const melee = buscarEnClase(t, 'HasMeleeAttack') !== false;
+  return { mod, vida: Math.min(5000, num('StartHealth', 100)), dano: melee ? Math.min(200, num('MeleeAttackDamage', 10)) : 6, dist: 1.2, vel: 3, hostil: !amigo, base };   // (se para a pegar a 1,2 m: el MeleeAttackDistance de VJ es desde dónde arranca el golpe, hasta 500 unidades, y a esa distancia no llegaba nunca)
 }
 // cualquier modelo de personaje de un addon (los que se pueden usar de jugador) puesto como NPC: anda, pasea y reacciona
 // como los NPC del juego, con ese modelo (el esqueleto de GMod llevado al del juego, como al ponérselo uno)
