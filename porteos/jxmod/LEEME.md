@@ -1550,5 +1550,10 @@ descarga girando y nada más respondiendo).
   - Sale **sin firmar**: se instala con Sideloadly (compu), AltStore o SideStore, que la firman con tu Apple ID. Con
     un Apple ID gratis la firma dura 7 días (AltStore/SideStore la renuevan solos).
   - Prueba `pruebas/app_iphone.mjs` 5/5 (el juego como lo carga la app, con el puente de iOS simulado).
+  - Primera compilación en GitHub (Xcode 26.6, SDK de iOS 26.5): sin advertencias, .ipa de 26,9 MB, programa arm64 de
+    198 KB, los 8 íconos en el catálogo (`Assets.car`) con los 7 alternativos anotados en el Info.plist, y la firma ad
+    hoc válida (`codesign --verify`).
+  - El instalador .mobileconfig lo arma el juego (Safari → Ajustes → Ícono de la app → «Bajar el instalador para iPhone»): Safari lo
+    tiene que recibir como perfil, y GitHub sirve los archivos sueltos como texto, así que no hay uno fijo en `web/`.
 - Sin probar en un celular ni en un iPhone de verdad: la .ipa se compila en la Mac de GitHub, pero acá no hay iPhone
   para abrirla.

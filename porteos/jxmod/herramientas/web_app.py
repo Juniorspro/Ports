@@ -59,18 +59,3 @@ self.addEventListener('fetch', (e) => {
 open(os.path.join(D, 'sw.js'), 'w', encoding='utf-8').write(SW)
 print('ok', D, 'versión', V, 'íconos', len(iconos))
 
-# el instalador para iPhone/iPad sin pasar por «Agregar a inicio»: un perfil (.mobileconfig) con el acceso a pantalla
-# completa y el ícono de siempre (el que se elige en el juego, Ajustes → Ícono de la app, lo arma el juego mismo)
-import base64, uuid, plistlib
-URL_WEB = os.environ.get('URL_WEB', 'https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/index.html')
-ic = os.path.join(D, 'app', 'icono-clasico-180.png')
-if not os.path.isfile(ic): ic = os.path.join(D, 'app', 'icono-180.png')
-u1 = str(uuid.uuid5(uuid.NAMESPACE_URL, URL_WEB + '#webclip')).upper(); u2 = str(uuid.uuid5(uuid.NAMESPACE_URL, URL_WEB + '#perfil')).upper()
-perfil = {'PayloadContent': [{'FullScreen': True, 'IsRemovable': True, 'Precomposed': True, 'IgnoreManifestScope': True,
-                              'Icon': open(ic, 'rb').read(), 'Label': 'JXMod', 'URL': URL_WEB,
-                              'PayloadType': 'com.apple.webClip.managed', 'PayloadVersion': 1,
-                              'PayloadIdentifier': 'com.jxmod.webclip.' + u1, 'PayloadUUID': u1, 'PayloadDisplayName': 'JXMod'}],
-          'PayloadDisplayName': 'JXMod', 'PayloadDescription': 'JXMod en la pantalla de inicio', 'PayloadIdentifier': 'com.jxmod.perfil.' + u2,
-          'PayloadUUID': u2, 'PayloadType': 'Configuration', 'PayloadVersion': 1, 'PayloadRemovalDisallowed': False}
-open(os.path.join(D, 'JXMod.mobileconfig'), 'wb').write(plistlib.dumps(perfil))
-print('perfil:', os.path.join(D, 'JXMod.mobileconfig'), os.path.getsize(os.path.join(D, 'JXMod.mobileconfig')), 'bytes')
