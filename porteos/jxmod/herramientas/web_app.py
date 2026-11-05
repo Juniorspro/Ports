@@ -31,9 +31,11 @@ open(os.path.join(D, 'manifest.webmanifest'), 'w', encoding='utf-8').write(json.
 
 # la versión: una huella del juego y del paquete; si cambian, el service worker es otro y el navegador lo actualiza
 h = hashlib.sha256()
-for f in ('index.html', 'pk.bin'): h.update(open(os.path.join(D, f), 'rb').read())
+# (con la página con código, el juego cifrado —juego.bin, de herramientas/codigo_web.mjs— también se guarda)
+CIF = ['juego.bin'] if os.path.isfile(os.path.join(D, 'juego.bin')) and 'jxCodigoJuego = async' in open(os.path.join(D, 'index.html'), encoding='utf-8').read() else []
+for f in ['index.html', 'pk.bin'] + CIF: h.update(open(os.path.join(D, f), 'rb').read())
 V = h.hexdigest()[:12]
-basicos = ['index.html', 'pk.bin', 'manifest.webmanifest'] + ['app/' + n for n in iconos]
+basicos = ['index.html', 'pk.bin'] + CIF + ['manifest.webmanifest'] + ['app/' + n for n in iconos]
 SW = '''// JXMod sin internet (lo arma herramientas/web_app.py: no editar acá). Versión ''' + V + '''
 // - el juego (index.html y pk.bin) y los íconos se guardan al instalar; si hay una versión nueva, el navegador baja este
 //   archivo distinto, guarda la nueva y borra la vieja;
@@ -57,5 +59,5 @@ self.addEventListener('fetch', (e) => {
 });
 '''
 open(os.path.join(D, 'sw.js'), 'w', encoding='utf-8').write(SW)
-print('ok', D, 'versión', V, 'íconos', len(iconos))
+print('ok', D, 'versión', V, 'íconos', len(iconos), '· con código' if CIF else '· sin código')
 

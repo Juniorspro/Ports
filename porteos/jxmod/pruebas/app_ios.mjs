@@ -14,6 +14,8 @@ const caso = (n, ok, info) => { console.log((ok ? 'OK   ' : 'FALLA') + ' ' + n +
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true,
   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' });
+// (con la página con código: JX_CODIGO=un código de la lista, como si ya se hubiera puesto una vez)
+if (process.env.JX_CODIGO) await ctx.addInitScript((c) => { try { if (!localStorage.getItem('jx_codigo')) localStorage.setItem('jx_codigo', c); } catch (e) {} }, process.env.JX_CODIGO.toUpperCase().replace(/[^A-Z0-9]/g, ''));
 await ctx.route('**/api/cuenta/config', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"google":false}' }));
 const p = await ctx.newPage(); const errJS = [];
 p.on('pageerror', (e) => errJS.push(e.message.slice(0, 200)));

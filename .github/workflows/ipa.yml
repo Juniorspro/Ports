@@ -4,7 +4,7 @@ name: IPA de iPhone
 on:
   push:
     branches: [claude/ports-continuation-dm754a]
-    paths: ['porteos/jxmod/ios/**', 'web/index.html', 'web/pk.bin', '.github/workflows/ipa.yml']
+    paths: ['porteos/jxmod/ios/**', 'web/index.html', 'web/pk.bin', 'web/juego.bin', '.github/workflows/ipa.yml']
   workflow_dispatch:
 permissions:
   contents: write

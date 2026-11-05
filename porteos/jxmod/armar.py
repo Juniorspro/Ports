@@ -130,8 +130,12 @@ else:
 // arranque: el código del juego (arriba, en gzip) se descomprime en segundo plano con el descompresor del navegador (la
 // intro sigue fluida) y se ejecuta; el paquete se sigue leyendo mientras baja. Sin descompresor, con el gzip en JS
 (async () => {
-  const el = document.getElementById('jsgz'), s = el.textContent; let u = null;
-  if (typeof Uint8Array.fromBase64 === 'function') { try { u = Uint8Array.fromBase64(s); } catch (e) { u = null; } }
+  const el = document.getElementById('jsgz'); let u = null;
+  // (la página con código: el juego viene cifrado en juego.bin y lo abre el código que pone el jugador; ver
+  // herramientas/codigo_web.mjs. Hasta que no hay un código bueno, el juego no arranca)
+  if (typeof jxCodigoJuego === 'function') u = await jxCodigoJuego();
+  const s = u ? '' : el.textContent;
+  if (!u && typeof Uint8Array.fromBase64 === 'function') { try { u = Uint8Array.fromBase64(s); } catch (e) { u = null; } }
   if (!u) { const n = s.length, a = new Uint8Array(Math.floor(n * 3 / 4)); let o = 0; for (let i = 0; i < n; i += 65536) { const b = atob(s.slice(i, i + 65536)); for (let j = 0; j < b.length; j++) a[o++] = b.charCodeAt(j); } u = a.subarray(0, o); }
   let c = null;
   if (typeof DecompressionStream === 'function' && Blob.prototype.stream) { try { c = new Uint8Array(await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()); } catch (e) { c = null; } }

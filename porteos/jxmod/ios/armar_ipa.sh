@@ -16,7 +16,8 @@ xcrun -sdk iphoneos swiftc -target arm64-apple-ios15.0 -sdk "$SDK" -O -module-na
 
 # 2. el juego (lo pesado de rb/ y emotes/ se baja la primera vez que se usa y queda en la caché)
 cp "$RAIZ/web/index.html" "$RAIZ/web/pk.bin" "$APP/www/"
-[ -f "$RAIZ/web/manifest.webmanifest" ] && cp "$RAIZ/web/manifest.webmanifest" "$APP/www/"
+# (con la página con código, el juego va cifrado en juego.bin: la app también pide el código)
+for f in juego.bin manifest.webmanifest; do [ -f "$RAIZ/web/$f" ] && cp "$RAIZ/web/$f" "$APP/www/"; done
 [ -d "$RAIZ/web/app" ] && cp -R "$RAIZ/web/app" "$APP/www/app"
 printf 'APPL????' > "$APP/PkgInfo"
 cp "$AQUI/Info.plist" "$APP/Info.plist"

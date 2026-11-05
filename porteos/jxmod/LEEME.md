@@ -1555,5 +1555,20 @@ descarga girando y nada más respondiendo).
     hoc válida (`codesign --verify`).
   - El instalador .mobileconfig lo arma el juego (Safari → Ajustes → Ícono de la app → «Bajar el instalador para iPhone»): Safari lo
     tiene que recibir como perfil, y GitHub sirve los archivos sueltos como texto, así que no hay uno fijo en `web/`.
+- **Página con código** (`herramientas/codigo_web.mjs`, la usa `web/index.html` y la app de iPhone): el link de
+  siempre pide un código y sin él no hay juego. No es un candado de pantalla: el código del juego va cifrado en
+  `web/juego.bin` (AES-GCM con una clave al azar), y esa clave va guardada una vez por código (PBKDF2-SHA256 de
+  150 000 vueltas). El código se recuerda en el aparato: la próxima vez entra solo, también sin internet. Donde el
+  navegador no trae `crypto.subtle` (puede pasar en la app de iPhone), lo hace el mismo cifrado escrito en JS
+  (comparado contra el de Node: iguales; 0,26 s la clave y 0,05 s el juego en la compu).
+  - Los códigos están **fuera del repo**, en `/root/.jxmod/codigos.txt` («CÓDIGO  nombre» por línea). Para dar de baja
+    uno: borrar su línea y volver a armar. Para agregar: `node herramientas/codigo_web.mjs ../../web --nuevos 5`.
+  - Armado: `armar.sh` con `APP_WEB=1` → `node herramientas/codigo_web.mjs CARPETA` → `herramientas/web_app.py CARPETA`.
+  - Prueba `pruebas/codigo_web.mjs` 8/8: sin código no arranca y el juego no está en claro; uno equivocado avisa; el
+    bueno (en minúsculas y sin guion también) abre en ~4 s; al volver a abrir y sin internet entra solo; uno dado de
+    baja lo vuelve a pedir; sin `crypto.subtle` abre igual (0,6 s). `app_ios.mjs` y `app_iphone.mjs` siguen 5/5
+    (con `JX_CODIGO=` un código).
+  - Lo que no frena: el APK es público y trae el juego, y las versiones viejas de `web/` siguen en el historial de
+    GitHub. El código cierra el link del iPhone, no el juego entero.
 - Sin probar en un celular ni en un iPhone de verdad: la .ipa se compila en la Mac de GitHub, pero acá no hay iPhone
   para abrirla.
