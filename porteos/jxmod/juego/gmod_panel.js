@@ -129,7 +129,9 @@ function gmbAutoFijar(A) {
   if (hechos.includes(A.id)) return 0;
   // (las que más se usan primero: según lo que hace cada una —acciones.js—; a igual importancia, en el orden del mod)
   const L = gmbHabilidades(A).filter((h) => !h.arma && !GMB_YA_HAY.test(h.k) && !GMB.fijos.some((f) => f.k === h.k)).map((h, i) => [h, i]).sort((a, b) => ((b[0].acc && b[0].acc.prio) || 0) - ((a[0].acc && a[0].acc.prio) || 0) || a[1] - b[1]).map((x) => x[0]);
-  let n = 0; for (const h of L) { if (GMB.fijos.length >= 6) break; GMB.fijos.push({ k: h.k, t: h.t }); n++; }
+  // (dos teclas que hacen lo mismo —«Enfocar» con I y con ENTER—: se fija una sola)
+  const ya = new Set(GMB.fijos.map((f) => { const a = gmbAccDe(f.k); return a && a.id; }).filter(Boolean));
+  let n = 0; for (const h of L) { if (GMB.fijos.length >= 6) break; const id = h.acc && h.acc.id; if (id && ya.has(id)) continue; if (id) ya.add(id); GMB.fijos.push({ k: h.k, t: h.t }); n++; }
   hechos.push(A.id); try { localStorage.setItem('rb_gmb_auto', JSON.stringify(hechos.slice(-200))); localStorage.setItem(GMB_LS, JSON.stringify(GMB.fijos)); } catch (e) {}
   if (n) { gmbFijosDibujar(); if (typeof aviso === 'function') aviso(T('gmb.autoFijo').replace('%n', n).replace('%a', A.nombre || A.id), 3); }
   return n;
@@ -442,8 +444,8 @@ function gmbFijosDibujar() {
       const ap = (on) => (e) => { e.preventDefault(); e.stopPropagation(); if (e.type === 'touchstart') ENT.tactil = true; const f = d._f; if (f) gmbHab(f.k, on, d); };
       d.addEventListener('touchstart', ap(true), { passive: false }); for (const ev of ['touchend', 'touchcancel']) d.addEventListener(ev, ap(false), { passive: false });
       d.addEventListener('mousedown', ap(true)); d.addEventListener('mouseup', ap(false)); d.addEventListener('mouseleave', ap(false));
-      // (arriba a la izquierda, siguiendo las filas de chat y del menú de props: el lado derecho es del disparo)
-      if (typeof HUD_TACTIL !== 'undefined') { const P = [[363.6, -140], [469.5, -140], [575.4, -140], [151.8, -234], [257.7, -234], [363.6, -234]][i]; HUD_TACTIL.push(['#bgmb' + i, 0, 1, P[0], P[1], 80, 32]); }
+      // (arriba a la izquierda, en su propia fila debajo del sistema y de los menús de crear: hudorden.js)
+      if (typeof HUD_TACTIL !== 'undefined') { HUD_TACTIL.push(['#bgmb' + i, 0, 1, 46 + 96 * i, -250, 76, 32]); }
     }
     const f = hay ? GMB.fijos[i] : null; d._f = f || null; d.classList.toggle('oc', !f);
     if (f) { const acc = typeof accBotonHTML === 'function' ? gmbAccDe(f.k) : null; d.classList.toggle('accBt', !!acc); d.innerHTML = acc ? accBotonHTML(acc, f.t) : `<b class="ctlLetra${String(f.t).length > 2 ? ' larga' : ''}">${esc(String(f.t).slice(0, 6))}</b>`; d.title = acc ? accNombre(acc) + ' (' + f.t + ')' : String(f.t); }

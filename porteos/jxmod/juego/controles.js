@@ -100,12 +100,14 @@ function ctlEditar() {
   if (!o) {
     o = document.createElement('div'); o.id = 'ctlEd';
     o.innerHTML = `<div class="ctlBarra"><button class="boton" data-ce="modo"></button><span class="ctlTamBox">${esc(T('ctl.tam'))} <input type="range" id="ctlSelTam" min="40" max="260" step="5"></span>
+      <button class="boton" data-ce="ordenar">${esc(T('hud.ordenar'))}</button><button class="boton ctlIA" data-ce="ordenarIA">${esc(T('hud.ordenarIA'))}</button>
       <button class="boton" data-ce="fab">${esc(T('ctl.fabrica'))}</button><button class="boton" data-ce="cancelar">${esc(T('ctl.cancelar'))}</button><button class="boton ctlGuardar" data-ce="guardar">${esc(T('ctl.guardar'))}</button></div>`;
     document.body.appendChild(o);
     o.querySelector('.ctlBarra').addEventListener('pointerdown', (e) => e.stopPropagation());
     o.querySelector('.ctlBarra').onclick = (e) => { const b = e.target.closest('[data-ce]'); if (!b) return; const a = b.dataset.ce;
       if (a === 'modo') { CTL.modo = CTL.modo === 'veh' ? 'pie' : 'veh'; CTL.sel = null; ctlMostrar(); }
       else if (a === 'fab') { CTL.borrador = {}; ctlMostrar(); }
+      else if (a === 'ordenar' || a === 'ordenarIA') { if (typeof hudOrdenBoton === 'function') hudOrdenBoton(a === 'ordenarIA', b); }
       else if (a === 'cancelar') ctlSalirEditor(false);
       else if (a === 'guardar') ctlSalirEditor(true); };
     o.addEventListener('pointerdown', ctlToqueIni); o.addEventListener('pointermove', ctlToqueMov); o.addEventListener('pointerup', ctlToqueFin); o.addEventListener('pointercancel', ctlToqueFin);
@@ -227,7 +229,8 @@ function ctlBotonesDeArma(clase) {
       if (!k) continue; const tok = b.bind ? '"' + b.bind + '"' : b.id; try { b.acc = accDe(k, accVentanasDe(crudo, tok)); } catch (e) { b.acc = null; } } }
   // (primero las que más se usan con el pulgar: zoom, apuntar, recargar; después el resto)
   out.sort((a, b) => ((b.acc && b.acc.prio) || 0) - ((a.acc && a.acc.prio) || 0));
-  const r = out.slice(0, 4); _ctlLeidos.set(clase, r); return r;
+  // (dos teclas que hacen lo mismo —«Enfocar» con I y con ENTER—: un solo botón)
+  const ya = new Set(), r = out.filter((b) => { const id = b.acc && b.acc.id; if (!id) return true; if (ya.has(id)) return false; ya.add(id); return true; }).slice(0, 4); _ctlLeidos.set(clase, r); return r;
 }
 // cada cuadro del HUD: con un arma de mod en la mano se ven apuntar (secundario) y sus botones; si no, se esconden
 function ctlPasoMod(arma) {

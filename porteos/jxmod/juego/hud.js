@@ -42,13 +42,13 @@ const hudIco = (n) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmln
 // del celular: el pulgar derecho tiene el disparo grande y alrededor saltar (abajo a la derecha), agacharse (abajo),
 // recargar (arriba a la izquierda del disparo), apuntar (a la derecha) y, en arco arriba del disparo, las teclas que pide
 // el arma de un mod; el pulgar izquierdo tiene la palanca y abajo a la izquierda no hay botones; lo del sistema (pausa,
-// MOD, chat, celular, GMod, props y las habilidades fijadas de los addons) va arriba a la izquierda. Los de uso frecuente
+// MOD, chat, celular, GMod, props y las habilidades fijadas de los addons) va arriba a la izquierda, en tres filas (hudorden.js). Los de uso frecuente
 // nunca miden menos de 44 px (la guía de Apple: 44 pt; la de Android: 48 dp) y los demás no menos de 32.
 const HUD_TACTIL = [
   ['[data-btn=pausa]', 0, 1, 46, -46, 80, 32], ['.modmBt', 0, 1, 151.8, -46, 80, 32], ['.smBt', 0, 1, 257.7, -46, 80, 32], ['#vozBt', 0, 1, 363.6, -46, 80, 32], ['#vocesBt', 0, 1, 469.5, -46, 80, 32], ['#verBt', 0, 1, 575.4, -46, 80, 32],
   ['[data-btn=chat]', 0, 1, 46.6, -140, 80, 32], ['[data-btn=celular]', 0, 1, 151.8, -140, 80, 32], ['.gmbBt', 0, 1, 257.7, -140, 80, 32],
   ['[data-btn=menu]', 0, 1, 46, -234, 80, 32],
-  ['#armaAct', 1, 1, -53, -53, 100, 40], ['[data-btn=camara]', 1, 1, -209, -50, 75], ['[data-btn=camLibre]', 1, 1, -209, -140, 75], ['[data-btn=camLibL]', 1, 1, -256, -228, 62], ['[data-btn=camLibR]', 1, 1, -162, -228, 62], ['[data-btn=emotes]', 1, 1, -332.8, -50, 75], ['#blinterna', 1, 1, -332.8, -140, 75],
+  ['#armaAct', 1, 1, -53, -53, 100, 40], ['[data-btn=camara]', 1, 1, -209, -50, 75, 34], ['[data-btn=camLibre]', 1, 1, -209, -140, 75, 34], ['[data-btn=camLibL]', 1, 1, -256, -228, 62, 30], ['[data-btn=camLibR]', 1, 1, -162, -228, 62, 30], ['[data-btn=emotes]', 1, 1, -332.8, -50, 75, 34], ['#blinterna', 1, 1, -332.8, -140, 75, 34],
   ['#bdisparo', 1, 0, -215, 225, 150, 58], ['#bdisp2', 1, 0, -72, 268, 104, 44], ['#brecargar', 1, 0, -362, 262, 100, 44], ['#brotar', 1, 0, -362, 262, 100, 44], ['#bvolver', 1, 0, -482, 190, 86, 36],
   ['#blejos', 1, 0, -215, 412, 88, 38], ['#bcerca', 1, 0, -335, 390, 88, 38],
   ['#bsaltar', 1, 0, -78, 98, 115, 46], ['#bpatada', 1, 0, -352, 112, 88, 36], ['#bagachar', 1, 0, -222, 62, 100, 44], ['#bborrar', 1, 1, -62, -190, 86, 34], ['#busar', 0.5, 0, 40, 175, 95, 38],
@@ -59,7 +59,8 @@ const HUD_TACTIL = [
 const HUD = { k: 0, w: 0, h: 0, arma: '', veh: null, usar: null, tac: null, n: '', c: 0 };
 // cuáles botones hay y se ven (no cuántos: si aparece uno y se va otro a la vez, la cuenta no cambia y el nuevo quedaba
 // sin ubicar, en la esquina, encima de pausa)
-const hudFirma = () => HUD_TACTIL.map((r) => { const e = document.querySelector(r[0]); return e && e.style.display !== 'none' ? 1 : 0; }).join('');
+// (y los escondidos con «oc»: las filas de arriba a la izquierda van sin huecos)
+const hudFirma = () => HUD_TACTIL.map((r) => { const e = document.querySelector(r[0]); return e && e.style.display !== 'none' && !e.classList.contains('oc') ? 1 : 0; }).join('');
 function hudIniciar() {
   const t = $('tactil'); if (!t) return;
   // botones que agrega esta versión: borrar lo que apuntás y los del auto
@@ -93,17 +94,25 @@ function hudDisponer() {
   // (el rectángulo de los botones de arriba a la izquierda: lo que el Lua de un modo de juego escriba ahí se corre abajo)
   const ri = { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 }, sumar = (a, b, c, d) => { ri.x0 = Math.min(ri.x0, a); ri.y0 = Math.min(ri.y0, b); ri.x1 = Math.max(ri.x1, c); ri.y1 = Math.max(ri.y1, d); };
   if (!tactil) { const ai = $('arribaIz'); if (ai) { const r = ai.getBoundingClientRect(); if (r.width > 0) sumar(r.left, r.top, r.right, r.bottom + 12); } }
+  // (las filas de arriba a la izquierda —sistema, crear, teclas de los mods—: los que se ven, en fila y sin huecos; en el
+  // editor se ven todos)
+  const edit = typeof CTL !== 'undefined' && CTL.edit, zp = typeof hudZonasPos === 'function' ? hudZonasPos((q) => { const e = document.querySelector(q); return !!e && (edit || (e.style.display !== 'none' && !e.classList.contains('oc'))); }, pos._orden) : {};
+  const hab = []; 
   for (const [sel, ax, ay, x0, y0, s0, mn] of HUD_TACTIL) {
     const e = document.querySelector(sel); if (!e) continue;
-    const o = pos[sel], propio = !!(o && o.length === 3 && o.every(Number.isFinite)), [x, y, s] = propio ? o : [x0, y0, s0];   // (los que movió el jugador en Controles)
+    const o = pos[sel], propio = !!(o && o.length === 3 && o.every(Number.isFinite)), z = !propio && zp[sel], [x, y, s] = propio ? o : z ? [z[0], z[1], s0] : [x0, y0, s0];   // (los que movió el jugador en Controles)
     if (!tactil && !e.classList.contains('bt-t')) { e.style.left = e.style.top = e.style.width = e.style.height = ''; continue; }
     // (más chicos en el mismo lugar: el centro de cada botón no se mueve, así no se pegan a los bordes; en un celular chico
     // no bajan del mínimo, que sigue al tamaño elegido en Ajustes)
     const t = propio ? s * k : Math.max(s * k, (mn || 0) * f / 0.8), cx = ax * W + x * kb, cy = H - (ay * H + y * kb);
     Object.assign(e.style, { left: (cx - t / 2).toFixed(1) + 'px', top: (cy - t / 2).toFixed(1) + 'px', width: t.toFixed(1) + 'px', height: t.toFixed(1) + 'px', right: 'auto', bottom: 'auto' });
+    if (tactil && /^#bgmb/.test(sel) && (edit || !e.classList.contains('oc'))) hab.push([cx, cy, t]);
     if (tactil && ax === 0 && ay === 1 && cy < H * 0.45) sumar(cx - t / 2, cy - t / 2, cx + t / 2, cy + t / 2 + 14);   // (en la compu los táctiles no se ven: no ocupan lugar)
   }
   HUD.resIz = ri.x1 > ri.x0 ? ri : null;
+  // (la placa detrás de las teclas de los mods: se ven como un grupo aparte del sistema; con su nombre abajo)
+  let pl = $('hudHab'); if (!pl && hab.length) { pl = document.createElement('div'); pl.id = 'hudHab'; const tc = $('tactil'); if (tc) tc.insertBefore(pl, tc.firstChild); }
+  if (pl) { if (!hab.length) pl.style.display = 'none'; else { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const [cx, cy, t] of hab) { x0 = Math.min(x0, cx - t / 2); x1 = Math.max(x1, cx + t / 2); y0 = Math.min(y0, cy - t / 2); y1 = Math.max(y1, cy + t / 2 + t * 0.42); } const m = 6 * Math.max(0.6, k / 0.559); Object.assign(pl.style, { display: '', left: (x0 - m).toFixed(1) + 'px', top: (y0 - m).toFixed(1) + 'px', width: (x1 - x0 + 2 * m).toFixed(1) + 'px', height: (y1 - y0 + 2 * m).toFixed(1) + 'px' }); } }
 }
 // cada cuadro (sólo si cambia algo): qué botones se ven según el arma, si hay algo para usar y si vas en un vehículo
 // (el modo táctil se prende con el primer toque, y los botones MOD y micrófono aparecen después: cuando cambia algo de eso

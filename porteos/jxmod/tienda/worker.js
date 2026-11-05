@@ -538,6 +538,26 @@ export default {
         return new Response(readable, { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
       }
       if (req.method === 'GET' && r === '/api/verity/ias') return json({ ias: verityIas(env) });
+      // «Ordenar con IA» del HUD del celular: el Gemini del dueño ordena los botones de arriba a la izquierda en sus 3 filas
+      // (sistema, crear, teclas de los mods); el juego vuelve a validar lo que llega (ids conocidos, máx. 6 por fila)
+      if (req.method === 'POST' && r === '/api/ia/hud') {
+        const cuerpo = await req.text(); if (cuerpo.length > 12000) return json({ error: 'muy grande' }, 413);
+        let d; try { d = JSON.parse(cuerpo); } catch (e) { return json({ error: 'no es JSON' }, 400); }
+        const IDS = ['pausa', 'chat', 'celular', 'microfono', 'voces', 'props', 'mod', 'gmod', 'spawn', 'verity', 'tecla1', 'tecla2', 'tecla3', 'tecla4', 'tecla5', 'tecla6'];
+        const bot = (Array.isArray(d.botones) ? d.botones : []).filter((b) => b && IDS.includes(b.id)).slice(0, 16).map((b) => ({ id: b.id, fila: ['sis', 'crear', 'hab'].includes(b.fila) ? b.fila : '', nombre: String(b.nombre || '').replace(/[\u0000-\u001f<>]/g, ' ').slice(0, 40), usos: Math.max(0, Math.min(1e6, +b.usos || 0)), hay: !!b.hay }));
+        if (!bot.length) return json({ error: 'pedido inválido' }, 400);
+        if (!env.GEMINI_KEY) return json({ error: 'sin Gemini' }, 503);
+        await iaTabla(env);
+        const f = await env.DB.prepare("INSERT INTO ia_uso (dia, ip, c) VALUES (?1, ?2, 1) ON CONFLICT(dia, ip) DO UPDATE SET c = c + 1 RETURNING c").bind(hoy(), 'hud|' + ip).first();
+        if (f && f.c > 20) return json({ error: 'muchos pedidos hoy' }, 429);
+        const guia = typeof d.guia === 'string' ? d.guia.replace(/[\u0000-\u0008\u000b-\u001f<>]/g, ' ').slice(0, 1500) : '';
+        const sis = 'Sos diseñador de interfaces de juegos para celular (horizontal). Ordená los botones de arriba a la izquierda del HUD táctil de un sandbox en 3 filas: "sis" (sistema: pausa, chat, celular, micrófono, voces), "crear" (menús de crear: props, mod, gmod, spawn, verity) y "hab" (teclas de mods). Reglas: pausa siempre primera de "sis"; máximo 6 por fila; agrupá por función (proximidad); dentro de cada fila, a la izquierda lo más usado (más cerca del pulgar, ley de Fitts); no repitas ni inventes ids. Contestá SOLO un JSON: {"sis":[ids],"crear":[ids],"hab":[ids],"razon":"una frase corta en español"}.' + (guia ? '\nGuía: ' + guia : '');
+        const revisar = (t) => { const m = /\{[\s\S]*\}/.exec(String(t || '').replace(/```(json)?/g, '')); if (!m) return null; let o; try { o = JSON.parse(m[0]); } catch (e) { return null; }
+          const ya = new Set(), z = {}; let n = 0; for (const k of ['sis', 'crear', 'hab']) { z[k] = (Array.isArray(o[k]) ? o[k] : []).map((x) => String(x).toLowerCase()).filter((x) => IDS.includes(x) && !ya.has(x) && ya.add(x)).slice(0, 6); n += z[k].length; }
+          return n >= 4 ? { zonas: z, razon: typeof o.razon === 'string' ? o.razon.slice(0, 200) : '' } : null; };
+        const v = await geminiPensar(env, ['gemini-2.5-flash', 'gemini-2.5-flash-lite'], { systemInstruction: { parts: [{ text: sis }] }, contents: [{ role: 'user', parts: [{ text: JSON.stringify({ botones: bot }) }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }, 30000, revisar);
+        return v ? json(v) : json({ error: 'no contestó' }, 502);
+      }
       // el código secreto del dueño → su permiso para usar Gemini en cualquier server (10 intentos por día)
       if (req.method === 'POST' && r === '/api/verity/llave') {
         if (!env.GEMINI_KEY) return json({ error: 'sin Gemini' }, 503);
