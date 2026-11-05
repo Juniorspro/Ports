@@ -1062,10 +1062,12 @@ function prepararProg(P) {
     u3f(P, u.uSol, R.sol.x, R.sol.y, R.sol.z); u3f(P, u.uSolC, L.solCol[0] * kv, L.solCol[1] * kv, L.solCol[2] * kv); uNv(P, u.uAmbS, L.ambS, 3, 3); uNv(P, u.uAmbG, L.ambG, 3, 3);
     if (u.uTop && R.lin) { uNv(P, u.uTop, R.lin.topG, 3, 3); uNv(P, u.uMid, R.lin.midG, 3, 3); uNv(P, u.uBot, R.lin.botG, 3, 3); uNv(P, u.uExp, R.cielo ? R.cielo.exp : CIELO_EXP0, 2, 2); u1f(P, u.uCieloK, R.cieloK || 1); }
     if (u.uSMm) { sombrasUniformes(P); if (R.fase === 'vista') u1f(P, u.uSMon, 0); }
-    if (u.uLP) lucesUniformes(P);
-    if (u.uEN) espUniformes(P);
     if (u.uAO) { u2f(P, u.uAOinv, 1 / R.cv.width, 1 / R.cv.height); u1f(P, u.uAOon, R.aoActivo && R.fase !== 'vista' ? 1 : 0); }
   }
+  // (las luces puntuales y las especiales —la linterna— van aparte del sol: con la luz horneada de los mapas del Workshop
+  // el sombreado no usa el sol, la placa saca uSol y la linterna quedaba en 0 en el piso y las paredes del mapa)
+  if (u.uLP) lucesUniformes(P);
+  if (u.uEN) espUniformes(P);
   return P;
 }
 const CIELO_EXP0 = [0.8, 1];
