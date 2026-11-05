@@ -105,7 +105,7 @@ function inicioLista() {
   const G = [['nueva', 'multi', 'social'], ['tienda', 'crear', 'personajes', 'opciones'], ['salir']];
   RB.el.querySelector('.rbLista').innerHTML = G.map((g) => g.map((k) => `<button class="rbIt" data-rb="${k}">${esc(T('m.' + k))}</button>`).join('')).join('<div class="rbSep"></div>');
   const nm = modsTodos().filter((m) => PREFS.mods[m.id]).length, I = IDIOMAS_RB[PREFS.lang] || IDIOMAS_RB.en;
-  RB.el.querySelector('.rbAbajo').innerHTML = `<button class="rbChipG" data-rb="tienda">${icoHTML('ico:mod')} ${nm ? `${nm} ${esc(T('modsAct'))}` : 'Sandbox'}</button>
+  RB.el.querySelector('.rbAbajo').innerHTML = `<button class="rbChipG" data-rb="tienda">${icoHTML('ico:mod')} ${nm ? `${nm} ${esc(T(nm === 1 ? 'modAct1' : 'modsAct'))}` : 'Sandbox'}</button>
     <button class="rbChipG" data-rb="idioma"><i class="lcod">${I[1]}</i> ${esc(I[0])}</button>
     <label class="rbChipG">${glifo('persona')} <input id="rbNombre" maxlength="16" spellcheck="false"></label>
     ${RED_SOCIAL.map(([n, u, ic]) => `<button class="rbChipG" data-rb="red" data-url="${u}" title="${n}">${ic} ${n}</button>`).join('')}`;

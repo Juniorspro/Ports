@@ -996,6 +996,56 @@ body.ctlEdit #tactil{z-index:30}body.ctlEdit #tactil .bt-t:not(.ctlVer),body.ctl
 body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,255,255,.55);outline-offset:2px}body.ctlEdit .ctlSel{outline:3px solid #3fa0ff!important;box-shadow:0 0 0 6px #3fa0ff55}
 #ctlPanel .caja{max-height:92vh;overflow:auto}#ctlPanel .ctlTabs{display:flex;flex-wrap:wrap;gap:6px}#ctlPanel .ctlTabs .boton,#ctlPanel .ctlFila .boton,#ctlPanel .fila>.boton:not([data-ctl=cerrar]){width:auto!important;display:inline-block;padding:6px 12px;margin:2px 0;font-size:14px}#ctlPanel .ctlFila{padding:1px 0;font-size:14px}#ctlPanel input[type=range]{flex:1}#ctlPanel #ctlNom,#ctlPanel #ctlBus{flex:1;min-width:0}.ctlTab.sel{background:#2d7be0!important}.ctlLista{max-height:46vh;overflow:auto}.ctlFila{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .ctlTecla{min-width:92px}.ctlTecla.esperando{background:#b8860b!important}.ctlAyuda{opacity:.8;font-size:13px;margin:6px 0}.bt-t .ctlLetra{color:#fff;font:700 15px system-ui}.bt-t .ctlLetra.larga{font-size:10px}
+/* botón de una tecla de mod con su acción (acciones.js): el ícono, el nombre abajo y la tecla chiquita en la esquina */
+.bt-t.accBt{overflow:visible}.bt-t.accBt .accIco{display:flex;width:52%;height:52%}.bt-t.accBt .accIco .gli{width:100%;height:100%;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.bt-t.accBt .accTxt{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:2px;font:600 10px Roboto,Arial,sans-serif;color:#fff;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.85);pointer-events:none}
+.bt-t.accBt .accTecla{position:absolute;top:-3px;right:-3px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:rgba(14,18,26,.9);border:1px solid rgba(255,255,255,.35);font:700 9px/13px Roboto,Arial,sans-serif;color:#dfe6f2;text-align:center;pointer-events:none}
+.bt-t.accBt.ap .accIco .gli,.bt-t.accBt:active .accIco .gli{stroke:#ffd27a}
+
+/* menú de pausa (concepto de la comunidad): tarjeta clara, Seguir azul, grilla de tarjetas con ícono en círculo, Borrar todo en rojo */
+#pausa{background:rgba(8,10,14,.42)}
+#pausa .pzCaja{background:#fff;color:#1d2230;border-radius:10px;padding:0;width:min(600px,calc(var(--vw)*94));max-height:calc(var(--vh)*94);overflow:auto;box-shadow:0 10px 34px rgba(0,0,0,.35);font-family:Roboto,'Helvetica Neue',Arial,sans-serif}
+#pausa .gli{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.pzCab{display:flex;align-items:center;gap:10px;padding:12px 14px 10px}
+.pzTit{display:flex;align-items:center;gap:7px;font-size:18px}.pzTit .gli{stroke-width:3.2;width:16px;height:16px}
+.pzModo{font-size:11px;color:#545b67;background:#eef0f3;border:1px solid #dde0e5;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.pzX{margin-left:auto;width:30px;height:30px;border-radius:7px;border:1px solid #d9dce1;background:#fff;color:#333;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.pzSeguir{display:flex;align-items:center;justify-content:center;gap:9px;width:calc(100% - 28px);margin:0 14px 10px;height:46px;border:0;border-radius:7px;background:linear-gradient(#4d8ff0,#3473dc);color:#fff;font:700 17px Roboto,Arial,sans-serif;cursor:pointer;box-shadow:0 2px 0 #2a5fb8}
+.pzSeguir .gli{fill:#fff;stroke:#fff}
+.pzSeguir:active,.pzTar:active,.pzSalir:active,.pzChico:active{transform:translateY(1px);filter:brightness(.96)}
+.pzGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 14px 12px}
+.pzTar{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:86px;padding:9px 6px;background:#fff;border:1px solid #e3e6ea;border-radius:8px;color:#1d2230;cursor:pointer;font-family:inherit}
+.pzTar i{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:3px}
+.pzTar b{font-size:14px;font-weight:700}.pzTar small{font-size:11px;color:#7c8390}
+.pzTar[data-c=az] i{background:#e4edfc;color:#3473dc}.pzTar[data-c=am] i{background:#fdf1d8;color:#d58c12}.pzTar[data-c=ve] i{background:#e2f4e6;color:#2f9e4e}
+.pzTar[data-c=gr] i{background:#eceef1;color:#596170}.pzTar[data-c=vi] i{background:#ede7fb;color:#7a58d6}
+.pzTar.pzRojo{background:#fdeeed;border-color:#f3cdca}.pzTar.pzRojo[data-conf]{background:#d8443a;border-color:#c23a31}.pzTar.pzRojo[data-conf] b,.pzTar.pzRojo[data-conf] small{color:#fff}.pzTar.pzRojo[data-conf] i{background:#fff3;color:#fff}.pzTar.pzRojo i{background:#fbdcd9;color:#d8443a}.pzTar.pzRojo b{color:#c23a31}.pzTar.pzRojo small{color:#cf6d66}
+.pzPie{display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid #eceef1;background:#fafbfc;border-radius:0 0 10px 10px}
+.pzSalir,.pzChico{display:flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid #d5d9df;border-radius:6px;background:#fff;color:#1d2230;font:500 13px Roboto,Arial,sans-serif;cursor:pointer}
+.pzChico{color:#545b67}.pzChico .gli{width:15px;height:15px}
+.pzFps{margin-left:auto;font-size:12px;color:#9097a2}
+@media (max-width:520px){.pzGrid{grid-template-columns:repeat(2,1fr)}.pzChico span{display:none}}
+@media (max-height:420px){.pzTar{min-height:74px;padding:7px 5px}.pzTar i{width:32px;height:32px}.pzSeguir{height:40px}}
+
+/* menú principal (Concepto #1 de la comunidad): panel oscuro translúcido detrás de las opciones, una línea dorada con
+   brillo entre los grupos, letras sin el borde negro (sombra suave) y los chips de abajo con borde dorado. Sin
+   backdrop-filter (caro en celulares flojos): sólo degradados y sombras quietas */
+#rbInicio .rbLista{inset-inline-start:0;padding:calc(var(--vh)*2.2) 0 calc(var(--vh)*2.2) 4.5%;width:min(58%,640px);
+  background:linear-gradient(90deg,rgba(8,10,16,.74) 0%,rgba(8,10,16,.6) 52%,rgba(8,10,16,.22) 82%,rgba(8,10,16,0) 100%);
+  border-top:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07)}
+#rbInicio .rbIt{text-shadow:0 1px 3px rgba(0,0,0,.35);letter-spacing:.2px}
+#rbInicio .rbIt:hover,#rbInicio .rbIt:active{text-shadow:0 0 14px rgba(255,206,120,.55),0 1px 3px rgba(0,0,0,.35);color:#fff6e2}
+#rbInicio .rbSep{position:relative;height:2px;width:calc(100% + 4.5vw);margin:calc(var(--vh)*1.7) 0 calc(var(--vh)*1.7) -4.5vw;
+  background:linear-gradient(90deg,rgba(255,214,128,.95) 0%,rgba(242,184,84,.75) 18%,rgba(242,184,84,.28) 62%,rgba(242,184,84,0) 100%);
+  box-shadow:0 0 7px rgba(255,190,90,.55)}
+#rbInicio .rbSep::before{content:'';position:absolute;left:0;top:50%;width:46px;height:18px;transform:translate(-30%,-50%);
+  background:radial-gradient(ellipse at center,rgba(255,232,170,.95) 0%,rgba(255,196,96,.55) 30%,rgba(255,196,96,0) 70%);pointer-events:none}
+#rbInicio .rbSep~.rbSep{height:1px;background:linear-gradient(90deg,rgba(255,255,255,.22),rgba(255,255,255,0) 80%);box-shadow:none}
+#rbInicio .rbSep~.rbSep::before{display:none}
+#rbInicio .rbChipG{border-radius:7px;background:rgba(12,14,20,.74);border:1px solid rgba(255,255,255,.15);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+#rbInicio .rbChipG.cuChip,#rbInicio .rbChipG[data-rb=idioma]{border-color:rgba(232,186,96,.8);box-shadow:0 0 10px rgba(232,186,96,.3),inset 0 0 8px rgba(232,186,96,.12)}
+#rbInicio .rbChipG:active{filter:brightness(1.15)}
+#rbInicio .rbVer{bottom:calc(var(--vh)*2.4 + var(--vh)*3 + var(--vh)*2.6 + 10px);font-size:calc(var(--vh)*2.3);opacity:.7}   /* (arriba de los chips: se encimaba con el de TikTok) */
 </style></head>
 <body>
 <canvas id="cv"></canvas>
@@ -1044,18 +1094,18 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
   <div class="cuerpo"><div class="cats" id="cats"></div><div class="grilla" id="grilla"></div><div class="ins oc" id="ins"></div></div>
   <div class="pie" id="pie"></div>
 </div>
-<div id="pausa" class="panel oc"><div class="caja">
-  <h3 id="tPausa">Pausa</h3>
-  <button class="boton" id="bSeguir">Seguir</button>
-  <button class="boton gris" id="bPersonaje">Personaje</button>
-  <button class="boton gris" id="bArmaAj">Arma en la mano</button>
-  <button class="boton gris" id="bSocial">Social</button>
-  <button class="boton gris" id="bAjustes">Ajustes</button>
-  <button class="boton gris" id="bTutorial">Tutorial</button>
-  <button class="boton gris" id="bLimpiar">Borrar todo</button>
-  <button class="boton gris" id="bGuardar">Guardar construcción</button>
-  <button class="boton gris" id="bCargar">Cargar construcción</button>
-  <button class="boton gris" id="bSalirMenu">Menú principal</button>
+<div id="pausa" class="panel oc"><div class="caja pzCaja">
+  <div class="pzCab"><span class="pzTit"><i data-g="pausa"></i><b id="tPausa">Pausa</b></span><span class="pzModo" id="pzModo"></span><button class="pzX mmX" id="pzX" aria-label="Cerrar"><i data-g="no"></i></button></div>
+  <button class="pzSeguir" id="bSeguir"><i data-g="chico"></i><span>Seguir</span></button>
+  <div class="pzGrid">
+    <button class="pzTar" id="bPersonaje" data-c="az"><i data-g="persona"></i><b>Personaje</b><small>Cambiar skin</small></button>
+    <button class="pzTar" id="bArmaAj" data-c="am"><i data-g="pistola"></i><b>Arma en la mano</b><small>Equipar</small></button>
+    <button class="pzTar" id="bSocial" data-c="ve"><i data-g="gente"></i><b>Social</b><small>Amigos y chats</small></button>
+    <button class="pzTar" id="bAjustes" data-c="gr"><i data-g="ajustes"></i><b>Ajustes</b><small>Controles y gráficos</small></button>
+    <button class="pzTar" id="bTutorial" data-c="vi"><i data-g="pregunta"></i><b>Ver el tutorial</b><small>Aprende a jugar</small></button>
+    <button class="pzTar pzRojo" id="bLimpiar" data-c="ro"><i data-g="basura"></i><b>Borrar todo</b><small>Limpiar el mapa</small></button>
+  </div>
+  <div class="pzPie"><button class="pzSalir" id="bSalirMenu"><i data-g="salir"></i><span>Salir al menú</span></button><button class="pzChico" id="bGuardar"><i data-g="guardar"></i><span>Guardar</span></button><button class="pzChico" id="bCargar"><i data-g="subir"></i><span>Cargar</span></button><span class="pzFps" id="pzFps"></span></div>
 </div></div>
 <div id="ajustes" class="panel oc"><div class="caja" id="ajustesCaja"></div></div>
 <div id="emotes" class="panel oc"><div class="caja emoCaja"><div class="emoCab"><h3>Emotes</h3><div class="emoTabs"></div></div><div class="emoGrid" id="emoLista"></div><div class="emoPie"><button class="boton" id="bEmoCrear"></button><button class="boton gris" id="bEmoCerrar">Cerrar</button></div></div></div>

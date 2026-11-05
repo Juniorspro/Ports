@@ -212,7 +212,7 @@ function empezarPartida(mapa) {
   for (const o of OBJS.slice()) borrarObjeto(o);
   PH.bodies.length = 0; PH.joints.length = 0; PROY.length = 0; PART.l.length = 0;
   if (typeof personasLimpiar === 'function') personasLimpiar();
-  cargarMapa(mapa); aplicarGfx(); if (typeof gbspTrasCargar === 'function') gbspTrasCargar(mapa);
+  cargarMapa(mapa); aplicarGfx(); if (typeof gbspTrasCargar === 'function') gbspTrasCargar(mapa); if (typeof puertasIniciar === 'function') puertasIniciar();
   jugadorAparecer();
   ARM.lista = ['RPG', 'Pistol', 'Camera', 'Hands', 'Crowbar', 'ToolBaton', 'PhysicsGun'];   // (la palanca, como en GMod)
   if (typeof SALA !== 'undefined' && SALA && !SALA.rpg) ARM.lista = ARM.lista.filter((a) => a !== 'RPG');
@@ -348,7 +348,7 @@ function cuadro(ahora) {
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
     modapiPaso(dt); vozPaso(dt); natPaso(dt); entidadesPaso(dt); smPaso(dt); if (typeof gmsPaso === 'function') gmsPaso(); modsVisualPaso(dt);
     if (typeof redPaso === 'function') redPaso(dt);
-    cicPaso(dt); verPaso(dt); edaPaso(dt); nochePaso(dt);
+    cicPaso(dt); verPaso(dt); edaPaso(dt); nochePaso(dt); if (typeof puertasPaso === 'function') puertasPaso(dt);
     diaPaso(dt); hostPaso();
   }
   efectosPaso(dt);

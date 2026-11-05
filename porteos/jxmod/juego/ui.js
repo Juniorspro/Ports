@@ -14,10 +14,18 @@ function uiIniciar() {
   $('iCerrarSpawn').onclick = () => cerrarPaneles();
   // pausa
   $('bSeguir').onclick = () => cerrarPaneles();
+  { const x = $('pzX'); if (x) x.onclick = () => cerrarPaneles(); }
+  for (const i of document.querySelectorAll('#pausa i[data-g]')) i.innerHTML = glifo(i.dataset.g);
   $('bAjustes').onclick = () => abrirAjustes('pausa');
-  $('bPersonaje').onclick = () => pjjAbrir(); $('bPersonaje').textContent = T('pj.boton');   // (cambiar de personaje jugando: los del juego y los de mods)
-  { const b = $('bArmaAj'); if (b) { b.onclick = () => armaAjAbrir(); b.textContent = T('aa.titulo'); } }   // (cómo se agarra el arma: armaaj.js)
-  $('bLimpiar').onclick = () => { for (const o of OBJS.filter((x) => !x.remoto)) borrarObjeto(o); cerrarPaneles(); aviso('Listo: mapa limpio'); };
+  $('bPersonaje').onclick = () => pjjAbrir();   // (cambiar de personaje jugando: los del juego y los de mods)
+  { const b = $('bArmaAj'); if (b) b.onclick = () => armaAjAbrir(); }   // (cómo se agarra el arma: armaaj.js)
+  // (borrar todo no tiene vuelta atrás: el primer toque pregunta, el segundo —en 3 s— borra)
+  $('bLimpiar').onclick = () => {
+    const B = $('bLimpiar');
+    if (!B.dataset.conf) { B.dataset.conf = '1'; pzTexto('bLimpiar', T('pz.otraVez'), T('pz.otraVezSub')); clearTimeout(B._t); B._t = setTimeout(() => { delete B.dataset.conf; pzTexto('bLimpiar', T('pz.borrar'), T('pz.borrarSub')); }, 3000); return; }
+    delete B.dataset.conf; clearTimeout(B._t);
+    for (const o of OBJS.filter((x) => !x.remoto)) borrarObjeto(o); cerrarPaneles(); aviso(T('pz.limpio'));
+  };
   $('bGuardar').onclick = () => { guardarConstruccion(); cerrarPaneles(); };
   { const b = $('bSocial'); if (b) b.onclick = () => { cerrarPaneles(); RB.desdeJuego = true; inicioMostrar(true); inicioPanel('social'); }; }
   { const b = $('bTutorial'); if (b) b.onclick = () => { cerrarPaneles(); UI.abierto = null; tutAbrir(); }; }
@@ -176,7 +184,18 @@ function cerrarPaneles() {
   if (typeof maqPanelCerrar === 'function') { maqPanelCerrar(); if ($('maqVista') && !$('maqVista').classList.contains('oc')) maqVistaCerrar(); }
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }
-function abrirPausa() { { const a = $('bArmaAj'); if (a) a.textContent = T('aa.titulo'); } { const b = $('bPersonaje'); if (b) b.textContent = T('pj.boton'); const s = $('bSocial'); if (s) s.textContent = T('m.social'); const tu = $('bTutorial'); if (tu) tu.textContent = tutTx(TUT_B.ver); } UI.abierto = 'pausa'; $('pausa').classList.remove('oc'); soltarPuntero(); if (ENT.soltarTodo) ENT.soltarTodo(); }
+// (el menú de pausa: tarjetas con título y una línea abajo; los textos en el idioma elegido cada vez que se abre)
+function pzTexto(id, t, sub) { const e = $(id); if (!e) return; const b = e.querySelector('b') || e.querySelector('span'), s = e.querySelector('small'); if (b) b.textContent = t; if (s && sub !== undefined) s.textContent = sub; }
+function abrirPausa() {
+  pzTexto('bSeguir', T('pz.seguir')); { const t = $('tPausa'); if (t) t.textContent = T('pz.pausa'); }
+  pzTexto('bPersonaje', T('pj.boton'), T('pz.skin')); pzTexto('bArmaAj', T('aa.titulo'), T('pz.equipar')); pzTexto('bSocial', T('m.social'), T('pz.amigos'));
+  pzTexto('bAjustes', T('pz.ajustes'), T('pz.ajSub')); pzTexto('bTutorial', tutTx(TUT_B.ver), T('pz.tutSub'));
+  pzTexto('bLimpiar', T('pz.borrar'), T('pz.borrarSub')); pzTexto('bSalirMenu', T('pz.salir'));
+  pzTexto('bGuardar', T('guardar')); pzTexto('bCargar', T('pz.cargar'));
+  { const m = $('pzModo'); if (m) m.textContent = typeof SALA !== 'undefined' && SALA ? SALA.n : T('pz.solo'); }
+  { const f = $('pzFps'); if (f) f.textContent = Math.round(TIEMPO.fps || 0) + ' fps'; }
+  UI.abierto = 'pausa'; $('pausa').classList.remove('oc'); soltarPuntero(); if (ENT.soltarTodo) ENT.soltarTodo();
+}
 function abrirEmotes() { UI.abierto = 'emotes'; $('emotes').classList.remove('oc'); soltarPuntero(); }
 function abrirChat() { const c = $('chatIn'); c.classList.remove('oc'); c.focus(); soltarPuntero(); UI.abierto = 'chat'; }
 const CHAT = [];

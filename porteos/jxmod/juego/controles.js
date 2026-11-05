@@ -221,6 +221,12 @@ function ctlBotonesDeArma(clase) {
   if (/PlayerBindPress/.test(s)) for (const m of s.matchAll(/bind\s*==\s*["'](impulse \d+|\+reload|\+use|\+menu|\+menu_context|\+zoom|\+attack3|\+walk|invnext|invprev)["']/g)) {
     const bd = m[1]; if (!out.some((x) => x.bind === bd)) out.unshift({ id: 'BIND_' + bd, t: (typeof GMB_BIND_NOM !== 'undefined' && GMB_BIND_NOM[bd]) || bd, tecla: null, bit: 0, bind: bd });
   }
+  // (qué hace cada una, para el ícono y el nombre del botón: acciones.js, con el Lua tal cual —los comentarios ayudan—)
+  if (typeof accDe === 'function') { const crudo = fuentes.join('\n');
+    for (const b of out) { const k = b.bind ? 'bind:' + b.bind : /^IN_/.test(b.id) ? 'in:' + b.id.slice(3) : b.tecla ? 'key:' + b.tecla : '';
+      if (!k) continue; const tok = b.bind ? '"' + b.bind + '"' : b.id; try { b.acc = accDe(k, accVentanasDe(crudo, tok)); } catch (e) { b.acc = null; } } }
+  // (primero las que más se usan con el pulgar: zoom, apuntar, recargar; después el resto)
+  out.sort((a, b) => ((b.acc && b.acc.prio) || 0) - ((a.acc && a.acc.prio) || 0));
   const r = out.slice(0, 4); _ctlLeidos.set(clase, r); return r;
 }
 // cada cuadro del HUD: con un arma de mod en la mano se ven apuntar (secundario) y sus botones; si no, se esconden
@@ -232,7 +238,7 @@ function ctlPasoMod(arma) {
   for (let i = 0; i < 4; i++) {
     const e = $('bmod' + i), b = L[i]; if (!e) continue;
     e.classList.toggle('oc', !b); e._ctl = b || null;
-    if (b) { const t = String(b.t).slice(0, 7); e.innerHTML = `<b class="ctlLetra${t.length > 2 ? ' larga' : ''}">${esc(t)}</b>`; }
+    if (b) { const t = String(b.t).slice(0, 7); e.classList.toggle('accBt', !!b.acc); e.innerHTML = b.acc && typeof accBotonHTML === 'function' ? accBotonHTML(b.acc, t) : `<b class="ctlLetra${t.length > 2 ? ' larga' : ''}">${esc(t)}</b>`; e.title = b.acc ? accNombre(b.acc) + ' (' + t + ')' : t; }
   }
   const d2 = $('bdisp2'); if (d2 && clase) { d2.classList.remove('oc'); const im = d2.querySelector('img'); if (im) im.src = hudIco('mira'); }
 }

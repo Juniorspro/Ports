@@ -8,6 +8,28 @@ function icoSrc(v) { if (typeof v === 'string' && ICO_DATA.test(v)) return v; re
 function icoHTML(v, cl) { const s = icoSrc(v); return s ? `<img class="ico${cl ? ' ' + cl : ''}" src="${s}" alt="" draggable="false">` : ''; }
 // dibujos de 24×24 con trazo (o relleno donde hace falta)
 const GLIFOS = {
+  // (los de las acciones de las teclas de los mods: acciones.js)
+  lupa: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M8 10.5h5M10.5 8v5"/>',
+  linterna: '<rect x="2.5" y="10" width="8.5" height="4" rx="1"/><path d="M11 10l4.5-3v10L11 14z"/><path d="M15.5 7v10"/><path d="M18 9.2l3.5-1.4M18.5 12H22M18 14.8l3.5 1.4"/>',
+  ojo: '<path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.8"/>',
+  camara: '<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8.5 7l1.5-2.5h4L15.5 7"/><circle cx="12" cy="13" r="3.4"/>',
+  granada: '<circle cx="11" cy="14.5" r="6"/><path d="M9 8.7V6.5h4v2.2M13 6.5l3.2-2.5 1.8 2"/>',
+  cuchillo: '<path d="M4 20l3.6-3.6"/><path d="M7.6 16.4 17.5 4c1.6 2.6 1.1 6.2-1.9 9.3l-4.6 4.6z"/>',
+  escudo: '<path d="M12 3l7.5 3v5.5c0 4.7-3.2 8.4-7.5 9.5-4.3-1.1-7.5-4.8-7.5-9.5V6z"/>',
+  rafaga: '<rect x="4" y="9" width="3.6" height="10" rx="1.8"/><rect x="10.2" y="9" width="3.6" height="10" rx="1.8"/><rect x="16.4" y="9" width="3.6" height="10" rx="1.8"/><path d="M5.8 9V6M12 9V6M18.2 9V6"/>',
+  mano: '<path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12M11 11V5a1.5 1.5 0 0 1 3 0v6M14 11V6.5a1.5 1.5 0 0 1 3 0V14c0 4-2.5 7-6 7-2.5 0-4-1.2-5.5-3.5L3.8 14.6a1.5 1.5 0 0 1 2.5-1.6L8 15"/>',
+  puerta: '<path d="M6 21V4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21M4 21h16"/><circle cx="14.5" cy="12.5" r="1"/>',
+  power: '<path d="M12 3v8"/><path d="M7.2 6.5a7 7 0 1 0 9.6 0"/>',
+  foco: '<path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.8.6 1.1 1.4 1.1 2.2h5c0-.8.3-1.6 1.1-2.2A6 6 0 0 0 12 3z"/>',
+  bocina: '<path d="M3 10h3l9-5v14l-9-5H3z"/><path d="M6 14l1.5 5H10l-1.3-4.3M18.5 9.5a3.5 3.5 0 0 1 0 5"/>',
+  sirena: '<path d="M6 18v-5a6 6 0 0 1 12 0v5"/><path d="M4 18h16v3H4zM12 3v2M4.2 6.2l1.4 1.4M19.8 6.2l-1.4 1.4"/>',
+  alas: '<path d="M12 9c-2-3-6-4.5-10-4 1 4 3.5 7 7 8M12 9c2-3 6-4.5 10-4-1 4-3.5 7-7 8"/><path d="M12 9v11"/>',
+  fantasma: '<path d="M5 21V10a7 7 0 0 1 14 0v11l-2.3-2-2.4 2-2.3-2-2.3 2-2.4-2z"/><circle cx="9.5" cy="10.5" r=".8"/><circle cx="14.5" cy="10.5" r=".8"/>',
+  vista: '<circle cx="8.5" cy="7.5" r="3"/><path d="M3.5 20c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5"/><rect x="15" y="9" width="6" height="5" rx="1"/><path d="M15 11.5l-2.5-1.5"/>',
+  pistola: '<path d="M3.5 7.5h15l1.5 1.5v2.5h-6l-1 2.5h-2.5l-.5 4.5H6l1-5.5-3.5-1z"/><path d="M12.5 11.5l-.8 2"/>',
+  pregunta: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.5M12 16.6v.2"/>',
+  pausa: '<path d="M8 5v14M16 5v14"/>',
+  chico: '<path d="M7 5l11 7-11 7z"/>',
   chat: '<path d="M4 5.5h16v10.5H10l-4.5 3.5V16H4z"/><path d="M8 9.5h8M8 12.5h5"/>',
   enviar: '<path d="M3.5 11.5 20.5 4l-6.5 16.5-3-6.8z"/><path d="M11 13.7 20.5 4"/>',
   reloj: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',

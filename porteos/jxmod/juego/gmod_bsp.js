@@ -46,7 +46,7 @@ const _gbTD = new TextDecoder('latin1');
 const gbspCad = (u8, o) => { let e = o; while (e < u8.length && u8[e]) e++; return _gbTD.decode(u8.subarray(o, e)); };
 function gbspEntidades(u8) {
   const s = _gbTD.decode(u8), out = [], re = /\{([^{}]*)\}/g; let m;
-  while ((m = re.exec(s))) { const o = {}; for (const kv of m[1].matchAll(/"([^"]*)"\s+"([^"]*)"/g)) { const k = kv[1].toLowerCase(); if (o[k] === undefined) o[k] = kv[2]; } out.push(o); }
+  while ((m = re.exec(s))) { const o = {}; for (const kv of m[1].matchAll(/"([^"]*)"\s+"([^"]*)"/g)) { const k = kv[1].toLowerCase(); if (o[k] === undefined) o[k] = kv[2]; else if (/^on[a-z]/.test(k)) o[k] = [].concat(o[k], kv[2]); } out.push(o); }
   return out;
 }
 // el zip que va adentro del .bsp (materiales, modelos y sonidos propios del mapa); los cubemaps no hacen falta
@@ -91,6 +91,28 @@ function gbspQuatDe(f) {   // el giro que lleva (0, 0, 1) a la dirección f
   const z = v3(0, 0, 1), d = vdot(z, f);
   if (d > 0.9999) return new Quat(); if (d < -0.9999) return Quat.axis(0, 1, 0, Math.PI);
   const a = vcross(z, f).norm(); return Quat.axis(a.x, a.y, a.z, Math.acos(clamp(d, -1, 1)));
+}
+// una puerta de Source: func_door (se corre en "movedir"), func_door_rotating y prop_door_rotating (giran en su eje), en
+// unidades del juego. Se abren con usar (E), o al tocarlas si el mapa lo pide; las que abre la lógica del mapa (botones,
+// disparadores), también con usar: acá no corre la lógica de entradas y salidas de Source
+function gbspPuertaDe(e, cl, o) {
+  if (!/^(func_door|func_door_rotating|func_movelinear|prop_door_rotating)$/.test(cl)) return null;
+  const sf = +e.spawnflags || 0, giro = cl !== 'func_door' && cl !== 'func_movelinear';
+  const dirG = (v) => { const g = [v[1], v[2], v[0]], l = Math.hypot(g[0], g[1], g[2]) || 1; return g.map((x) => x / l); };
+  const P = { cl, giro, vel: +e.speed || 100, espera: e.wait !== undefined ? +e.wait : e.returndelay !== undefined ? +e.returndelay : cl === 'prop_door_rotating' ? -1 : 4,
+    toca: cl === 'func_door' ? !!(sf & 1024) : false, usa: true, pasa: cl !== 'prop_door_rotating' && !!(sf & 8), nombre: e.targetname || '', esclavo: e.slavename || '', abierta: cl === 'prop_door_rotating' ? +e.spawnpos === 1 : !!(sf & 1), silencio: !!(sf & 4096), unaVia: !!(sf & 16) || +e.opendir === 1 || +e.opendir === 2, sentido: +e.opendir === 2 ? -1 : 1 };
+  if (cl !== 'prop_door_rotating' && sf & 32) P.espera = -1;
+  if (giro) {
+    P.dist = Math.abs(+e.distance || 90) * (sf & 2 ? -1 : 1);
+    // (el eje: arriba —Z de Source—, o X o Y según las banderas)
+    P.eje = dirG(cl === 'prop_door_rotating' ? [0, 0, 1] : sf & 64 ? [1, 0, 0] : sf & 128 ? [0, 1, 0] : [0, 0, 1]);
+    P.ejeLocal = cl === 'prop_door_rotating';   // (la de modelo gira en el eje de arriba del modelo)
+  } else {
+    const m = String(e.movedir || '0 0 0').split(/\s+/).map(Number), f = angMat(new LAng(m[0] || 0, m[1] || 0, m[2] || 0))[0];
+    P.dir = dirG([f[0], f[1], f[2]]); P.lip = (+e.lip || 0) * GM_S; P.velM = P.vel * GM_S;
+    if (cl === 'func_movelinear') { P.distM = (+e.movedistance || 100) * GM_S; P.toca = false; }
+  }
+  return P;
 }
 function gbspAngQ(s) { const v = String(s || '0 0 0').split(/\s+/).map(Number); return angQuat(new LAng(v[0] || 0, v[1] || 0, v[2] || 0)); }
 
@@ -151,7 +173,7 @@ async function gbspPreparar(clave, prog) {
   // una cara (polígono o grilla de displacement) ya en el juego: tris en índices locales
   // (lmv: de cada vértice, su rectángulo de luz y su luxel [r, s, t]; r -1 = la luz media del mapa, -2 = una que brilla)
   const ponerCara = (pts, nrm, uvs, tris, mi, dibuja, choca, esAgua, lmv, cielo) => {
-    let cx = 0, cz = 0; for (const p of pts) { cx += p[0]; cz += p[2]; } const p = pedazo(cx / pts.length, cz / pts.length, cielo ? pedC : ped);
+    let cx = 0, cz = 0; for (const p of pts) { cx += p[0]; cz += p[2]; } const p = pzaPuerta || pedazo(cx / pts.length, cz / pts.length, cielo ? pedC : ped);
     if (dibuja && mi >= 0) {
       const base = p.P.length / 3; let L = p.por.get(mi); if (!L) p.por.set(mi, (L = []));
       for (let k = 0; k < pts.length; k++) { p.P.push(pts[k][0], pts[k][1], pts[k][2]); p.N.push(nrm[k][0], nrm[k][1], nrm[k][2]); p.U.push(uvs[k][0], uvs[k][1]); const l = lmv ? lmv[k] : null; p.LM.push(l ? l[0] : -1, l ? l[1] : 0, l ? l[2] : 0); }
@@ -171,11 +193,17 @@ async function gbspPreparar(clave, prog) {
     // Backrooms, que se atraviesan, eran paredes: se aparecía encerrado)
     if (/^func_(brush|wall_toggle)/.test(cl) && e.startdisabled === '1') continue;
     const noSolido = /^func_illusionary/.test(cl) || (/^func_brush/.test(cl) && e.solidity === '1'), invisible = /^func_clip/.test(cl) || e.rendermode === '10' || (e.rendermode && e.rendermode !== '0' && e.renderamt === '0');
-    usoMo.push({ i: +m[1], o, rot: a.some((x) => x) ? angMat(new LAng(a[0] || 0, a[1] || 0, a[2] || 0)) : null, sinChoque: noSolido, sinDibujo: invisible });
+    usoMo.push({ i: +m[1], o, rot: a.some((x) => x) ? angMat(new LAng(a[0] || 0, a[1] || 0, a[2] || 0)) : null, sinChoque: noSolido, sinDibujo: invisible, puerta: gbspPuertaDe(e, cl, o), nombre: String(e.targetname || '').toLowerCase(), padre: String(e.parentname || '').toLowerCase() });
   }
+  // (las puertas de bloques van aparte, cada una en su pieza, para poder moverlas: puertas.js)
+  let pzaPuerta = null;
+  const ptaPorNombre = new Map();
+  for (const U of usoMo) if (U.puerta) { U.pieza = { P: [], N: [], U: [], LM: [], por: new Map(), C: [] }; if (U.nombre && !ptaPorNombre.has(U.nombre)) ptaPorNombre.set(U.nombre, U); }
+  for (const U of usoMo) if (!U.puerta && U.padre && ptaPorNombre.has(U.padre)) { const D = ptaPorNombre.get(U.padre); U.pieza = D.pieza; if (U.sinChoque) U.hijoSinChoque = true; }
   const nFc = (fc.length / 56) | 0, nDi = (di.length / 176) | 0;
   for (const U of usoMo) {
     if (U.i >= nMo) continue;
+    pzaPuerta = U.pieza || null;
     const ff = dMo.getInt32(U.i * 48 + 40, true), nf = dMo.getInt32(U.i * 48 + 44, true);
     const tr = (p) => { if (!U.rot && !U.o[0] && !U.o[1] && !U.o[2]) return p; if (!U.rot) return [p[0] + U.o[0], p[1] + U.o[1], p[2] + U.o[2]]; const [f, l, u] = U.rot; return [U.o[0] + f[0] * p[0] + l[0] * p[1] + u[0] * p[2], U.o[1] + f[1] * p[0] + l[1] * p[1] + u[1] * p[2], U.o[2] + f[2] * p[0] + l[2] * p[1] + u[2] * p[2]]; };
     const trN = (n) => { if (!U.rot) return n; const [f, l, u] = U.rot; return [f[0] * n[0] + l[0] * n[1] + u[0] * n[2], f[1] * n[0] + l[1] * n[1] + u[1] * n[2], f[2] * n[0] + l[2] * n[1] + u[2] * n[2]]; };
@@ -274,6 +302,26 @@ async function gbspPreparar(clave, prog) {
     if (p.C.length >= 9) { const n = p.C.length / 3, I = Array.from({ length: n }, (_, i) => i); nodo.col = [{ k: 'm', m: gmMallaNueva('WS_col_' + clave + '_' + k, new Float32Array(p.C), new Float32Array(n * 3), new Float32Array(n * 2), [I]), tr: 0 }]; }
     if (nodo.m !== undefined || nodo.col) arbs.push([nodo]);
   }
+  pzaPuerta = null;
+  let nPuerta = 0;
+  const ptaArbs = [], ptaArbPorNombre = new Map();
+  for (const U of usoMo) {
+    const p = U.pieza; if (!p || !U.puerta) continue;
+    // (la malla alrededor del eje de la puerta —el origen de la entidad—, para girarla o correrla desde ahí; y lo que mide,
+    // en su espacio: la que se corre lo hace según eso, como en Source)
+    const piv = gbspG(U.o[0], U.o[1], U.o[2]), lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+    const caja = (A) => { for (let k = 0; k + 2 < A.length; k += 3) for (let j = 0; j < 3; j++) { const v = A[k + j] - piv[j]; if (v < lo[j]) lo[j] = v; if (v > hi[j]) hi[j] = v; } };
+    caja(p.P); caja(p.C);
+    // (una puerta que choca con bloques invisibles —nodraw: el compilador les saca las caras—: su caja de choque es la del
+    // modelo de bloques; los casilleros de HL2 son así, con el modelo que se ve pegado)
+    if (p.C.length < 9 && !U.sinChoque && U.i > 0 && U.i < nMo) { const i = U.i * 48; for (let c = 0; c < 8; c++) { const g = gbspG(dMo.getFloat32(i + (c & 1 ? 12 : 0), true) + U.o[0], dMo.getFloat32(i + 4 + (c & 2 ? 12 : 0), true) + U.o[1], dMo.getFloat32(i + 8 + (c & 4 ? 12 : 0), true) + U.o[2]); p.C.push(g[0], g[1], g[2]); } caja(p.C); }
+    for (let k = 0; k < p.P.length; k += 3) { p.P[k] -= piv[0]; p.P[k + 1] -= piv[1]; p.P[k + 2] -= piv[2]; }
+    // (el casco de choque: hasta 300 puntos repartidos entre todos, no los primeros: si no, a una puerta grande le faltaba un lado)
+    const casco = [], nC = p.C.length / 3, paso = Math.max(1, nC / 300); for (let q = 0; q < nC && casco.length < 900; q += paso) { const k = Math.floor(q) * 3; casco.push(+(p.C[k] - piv[0]).toFixed(3), +(p.C[k + 1] - piv[1]).toFixed(3), +(p.C[k + 2] - piv[2]).toFixed(3)); }
+    const nodo = { n: 'gbsp_puerta_' + (nPuerta++), p: piv, r: [0, 0, 0, 1], s: [1, 1, 1], pa: -1, puerta: Object.assign({}, U.puerta, { casco, solida: !U.sinChoque && !U.puerta.pasa, caja: lo[0] < 1e9 ? [lo, hi] : null }) };
+    if (p.por.size) { const ms = [...p.por.keys()]; nodo.m = gmMallaNueva('WSP_' + clave + '_' + nodo.n, new Float32Array(p.P), new Float32Array(p.N), new Float32Array(p.U), ms.map((m) => p.por.get(m)), false, lmUV(p), clave); nodo.mt = ms; }
+    const arb = [nodo]; ptaArbs.push(arb); if (U.nombre && !ptaArbPorNombre.has(U.nombre)) ptaArbPorNombre.set(U.nombre, arb);
+  }
   const cielo3 = [];
   for (const [k, p] of pedC) {
     if (!p.por.size) continue; const ms = [...p.por.keys()];
@@ -285,10 +333,38 @@ async function gbspPreparar(clave, prog) {
     const pf = DATA.pf[DATA.pfPorNombre[nom]][0], pos = gbspG(...pr.o), q = gbspAngQ(pr.a);
     if (enCielo(pr.o)) { cielo3.push([{ n: nom, p: pos, r: [q.x, q.y, q.z, q.w], s: [1, 1, 1], pa: -1, m: pf.m, mt: pf.mt }]); continue; }   // (la maqueta del cielo 3D)
     if (pr.fisico) { fisicos.push({ nom, p: pos, q: [q.x, q.y, q.z, q.w] }); continue; }
+    const arbP = pr.padre && !pr.puerta ? ptaArbPorNombre.get(pr.padre) : null;
+    if (arbP) {
+      // (en el espacio de la puerta: su eje es el origen y, si es de modelo, su giro)
+      const R = arbP[0], q0 = new Quat(R.r[0], R.r[1], R.r[2], R.r[3]), qi = q0.clone().conj(), lp = qi.rot(v3(pos[0] - R.p[0], pos[1] - R.p[1], pos[2] - R.p[2])), lq = qi.clone().mul(q);
+      arbP.push({ n: nom, p: [lp.x, lp.y, lp.z], r: [lq.x, lq.y, lq.z, lq.w], s: [1, 1, 1], pa: 0, m: pf.m, mt: pf.mt });
+      if (pr.solido) { const C = R.puerta.casco, n0 = C.length; for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const n = d.hp.length / 3, paso = Math.max(1, n / 120); for (let t = 0; t < n && C.length < 1500; t += paso) { const k = Math.floor(t) * 3, v = lq.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); C.push(+(v.x + lp.x).toFixed(3), +(v.y + lp.y).toFixed(3), +(v.z + lp.z).toFixed(3)); } }
+        // (sin .phy: la caja de su malla)
+        const dm = C.length === n0 && pf.m !== undefined && DATA.ms[pf.m]; if (dm && dm.mn) for (let i = 0; i < 8; i++) { const v = lq.rot(v3(dm.mn[0] + (i & 1 ? dm.sc[0] : 0), dm.mn[1] + (i & 2 ? dm.sc[1] : 0), dm.mn[2] + (i & 4 ? dm.sc[2] : 0))); C.push(+(v.x + lp.x).toFixed(3), +(v.y + lp.y).toFixed(3), +(v.z + lp.z).toFixed(3)); } }
+      continue;
+    }
+    if (pr.puerta) {
+      // (su choque: los cascos de su .phy en el espacio del modelo; puertas.js los gira con la puerta)
+      const casco = []; for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; for (let k = 0; k < d.hp.length && casco.length < 900; k += 3) casco.push(+(d.mn[0] + d.hp[k] / 65535 * d.sc[0]).toFixed(3), +(d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1]).toFixed(3), +(d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2]).toFixed(3)); }
+      arbs.push([{ n: 'gbsp_puerta_p' + (nPuerta++), p: pos, r: [q.x, q.y, q.z, q.w], s: [1, 1, 1], pa: -1, m: pf.m, mt: pf.mt, puerta: Object.assign({}, pr.puerta, { casco, solida: true }) }]);
+      continue;
+    }
     arbs.push([{ n: nom, p: pos, r: [q.x, q.y, q.z, q.w], s: [1, 1, 1], pa: -1, m: pf.m, mt: pf.mt }]);
     if (!pr.solido) continue;
     // (choque: sus cascos del .phy, ya puestos en su lugar)
     for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const pts = []; for (let k = 0; k < d.hp.length; k += 3) { const v = q.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); pts.push(v.x + pos[0], v.y + pos[1], v.z + pos[2]); } if (pts.length >= 12) cascos.push(pts); }
+  }
+  for (const arb of ptaArbs) if (arb[0].m !== undefined || arb.length > 1) { if (!arb[0].puerta.caja && arb.length > 1) arb[0].puerta.solida = arb[0].puerta.solida && arb[0].puerta.casco.length >= 12; arbs.push(arb); }
+  // los botones y las zonas (trigger_*) que abren o cierran puertas por nombre, como sus salidas en Source
+  // ("blanco,Open,,0,-1"): el botón se usa con E y la zona se activa al entrar o salir de ella
+  const ptaNom = new Set(usoMo.filter((U) => U.puerta && U.nombre).map((U) => U.nombre)); for (const pr of props) if (pr.puerta && pr.puerta.nombre) ptaNom.add(pr.puerta.nombre.toLowerCase());
+  const salidas = (e, re) => { const o = []; for (const k in e) { if (!re.test(k)) continue; for (const v of [].concat(e[k])) { const s = String(v).split(/[,\x1b]/), t = (s[0] || '').toLowerCase(), i = (s[1] || '').toLowerCase(); if (ptaNom.has(t) && /^(open|close|toggle)$/.test(i)) o.push([t, i]); } } return o; };
+  const cajaMo = (e) => { const m = /^\*(\d+)$/.exec(e.model || ''); if (!m || +m[1] >= nMo) return null; const i = +m[1] * 48, o = String(e.origin || '0 0 0').split(/\s+/).map(Number), a = gbspG(dMo.getFloat32(i, true) + o[0], dMo.getFloat32(i + 4, true) + o[1], dMo.getFloat32(i + 8, true) + o[2]), b = gbspG(dMo.getFloat32(i + 12, true) + o[0], dMo.getFloat32(i + 16, true) + o[1], dMo.getFloat32(i + 20, true) + o[2]); return [[0, 1, 2].map((k) => Math.min(a[k], b[k])), [0, 1, 2].map((k) => Math.max(a[k], b[k]))]; };
+  const ptaBot = [], ptaZona = [];
+  for (const e of ents) {
+    const cl = e.classname || '';
+    if (/^(func_button|func_rot_button)$/.test(cl)) { const acc = salidas(e, /^on(pressed|in|out|damaged|uselocked)$/i), c = acc.length && cajaMo(e); if (c) ptaBot.push({ c, acc }); }
+    else if (/^trigger_(multiple|once)$/.test(cl)) { const en = salidas(e, /^on(starttouch|trigger|starttouchall)$/i), sa = salidas(e, /^on(endtouch|endtouchall)$/i), c = (en.length || sa.length) && cajaMo(e); if (c) ptaZona.push({ c, en, sa, una: cl === 'trigger_once' }); }
   }
   // apariciones (las de GMod, HL2DM, CS:S, TF2...)
   const sp = ents.filter((e) => /^info_player_(start|deathmatch|combine|rebel|terrorist|counterterrorist|teamspawn)$|^gmod_player_start$|^info_spawnpoint$/.test(e.classname || '') && e.origin);
@@ -343,6 +419,7 @@ async function gbspPreparar(clave, prog) {
     return { lo: [x0, yb < 1e8 ? yb : y - 4, z0], hi: [x1, y, z1] };
   });
   if (!sp.length) { const c = arbs.find((a) => a[0].col); if (c) { const d = DATA.ms[c[0].col[0].m]; arbs.push([{ n: 'SpawnPoint', p: [d.mn[0] + d.sc[0] / 2, d.mn[1] + d.sc[1] + 2, d.mn[2] + d.sc[2] / 2], r: [0, 0, 0, 1], s: [1, 1, 1], pa: -1 }]); } }
+  if (ptaBot.length) aj.ptaBot = ptaBot.slice(0, 200); if (ptaZona.length) aj.ptaZona = ptaZona.slice(0, 200);
   DATA.esc[clave] = arbs; DATA.aj[clave] = aj;
   P0(1, 'listo');
 }
@@ -481,8 +558,9 @@ function gbspProps(B, ents) {
     }
   } catch (e) { gmErr && gmErr('props del mapa', e); }
   for (const e of ents) {
-    if (!/^prop_(dynamic|dynamic_override|physics|physics_multiplayer|physics_override|static)$/.test(e.classname || '') || !/\.mdl$/i.test(e.model || '') || !e.origin) continue;
-    out.push({ modelo: e.model.toLowerCase().replace(/\\/g, '/'), o: e.origin.split(/\s+/).map(Number), a: e.angles || '0 0 0', solido: e.solid !== '0', fisico: /^prop_physics/.test(e.classname) });
+    if (!/^prop_(dynamic|dynamic_override|physics|physics_multiplayer|physics_override|static|door_rotating)$/.test(e.classname || '') || !/\.mdl$/i.test(e.model || '') || !e.origin) continue;
+    const puerta = e.classname === 'prop_door_rotating' ? gbspPuertaDe(e, e.classname, e.origin.split(/\s+/).map(Number)) : null;
+    out.push({ modelo: e.model.toLowerCase().replace(/\\/g, '/'), o: e.origin.split(/\s+/).map(Number), a: e.angles || '0 0 0', solido: e.solid !== '0', fisico: /^prop_physics/.test(e.classname), puerta, padre: String(e.parentname || '').toLowerCase() });
   }
   return out.slice(0, 4000);
 }

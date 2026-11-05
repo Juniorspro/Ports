@@ -106,8 +106,18 @@ function gmbHabilidades(A) {
     if (/KeyPress|KeyDown|KeyPressed|KeyReleased/.test(p)) for (const m of p.matchAll(/\bIN_(ATTACK2|RELOAD|USE|ZOOM|WALK|SPEED|GRENADE1|GRENADE2|ALT1|ALT2)\b/g)) add({ k: 'in:' + m[1], t: { ATTACK2: '◎ 2', RELOAD: 'R', USE: 'E', ZOOM: 'Zoom', WALK: 'Alt', SPEED: 'Shift', GRENADE1: 'G1', GRENADE2: 'G2', ALT1: 'Alt1', ALT2: 'Alt2' }[m[1]], d: GMB_IN[m[1]] });
     if (arma) for (let i = n0; i < out.length; i++) out[i].arma = true;
   }
-  return (A._gmbHab = out);
+  // (un mod que usa más de 15 teclas sueltas es un teclado —un piano, un chat propio—: esas no son botones)
+  const sueltas = out.filter((h) => h.k.startsWith('key:'));
+  const fin = sueltas.length > 15 ? out.filter((h) => !h.k.startsWith('key:')) : out;
+  // (qué hace cada una: acciones.js lee el Lua de alrededor —con los comentarios: muchas veces dicen qué es la tecla—)
+  if (typeof accDe === 'function') for (const h of fin) {
+    const tok = h.k.startsWith('bind:') ? '"' + h.d + '"' : h.k.startsWith('in:') ? 'IN_' + h.k.slice(3) : 'KEY_' + h.t.replace('Num ', 'PAD_');
+    try { h.acc = accDe(h.k, accVentanasDe(s, tok).concat(h.k.startsWith('bind:') ? accVentanasDe(s, "'" + h.d + "'") : [])); } catch (e) { h.acc = null; }
+  }
+  return (A._gmbHab = fin);
 }
+// la acción de una habilidad fijada (por su clave, en los mods montados)
+function gmbAccDe(k) { for (const A of GMOD.addons.values()) { const h = gmbHabilidades(A).find((x) => x.k === k); if (h) return h.acc || null; } return null; }
 // en el celu, al montar un addon cuyas teclas no son de un arma (la F de la Fuerza, los poderes de un mod de
 // habilidades, la tecla de un vehículo): sus botones se fijan solos en la pantalla, una vez por addon y mientras haya
 // lugar (6); lo que ya tiene botón propio (saltar, agacharse, usar, recargar, disparar) no se repite. Se quitan con la
@@ -117,7 +127,8 @@ function gmbAutoFijar(A) {
   if (!(typeof ENT !== 'undefined' && ENT.tactil) && !(typeof COARSE !== 'undefined' && COARSE)) return 0;
   let hechos; try { hechos = JSON.parse(localStorage.getItem('rb_gmb_auto') || '[]'); } catch (e) { hechos = []; }
   if (hechos.includes(A.id)) return 0;
-  const L = gmbHabilidades(A).filter((h) => !h.arma && !GMB_YA_HAY.test(h.k) && !GMB.fijos.some((f) => f.k === h.k));
+  // (las que más se usan primero: según lo que hace cada una —acciones.js—; a igual importancia, en el orden del mod)
+  const L = gmbHabilidades(A).filter((h) => !h.arma && !GMB_YA_HAY.test(h.k) && !GMB.fijos.some((f) => f.k === h.k)).map((h, i) => [h, i]).sort((a, b) => ((b[0].acc && b[0].acc.prio) || 0) - ((a[0].acc && a[0].acc.prio) || 0) || a[1] - b[1]).map((x) => x[0]);
   let n = 0; for (const h of L) { if (GMB.fijos.length >= 6) break; GMB.fijos.push({ k: h.k, t: h.t }); n++; }
   hechos.push(A.id); try { localStorage.setItem('rb_gmb_auto', JSON.stringify(hechos.slice(-200))); localStorage.setItem(GMB_LS, JSON.stringify(GMB.fijos)); } catch (e) {}
   if (n) { gmbFijosDibujar(); if (typeof aviso === 'function') aviso(T('gmb.autoFijo').replace('%n', n).replace('%a', A.nombre || A.id), 3); }
@@ -435,7 +446,7 @@ function gmbFijosDibujar() {
       if (typeof HUD_TACTIL !== 'undefined') { const P = [[363.6, -140], [469.5, -140], [575.4, -140], [151.8, -234], [257.7, -234], [363.6, -234]][i]; HUD_TACTIL.push(['#bgmb' + i, 0, 1, P[0], P[1], 80, 32]); }
     }
     const f = hay ? GMB.fijos[i] : null; d._f = f || null; d.classList.toggle('oc', !f);
-    if (f) { const s = String(f.t).slice(0, 6); d.innerHTML = `<b class="ctlLetra${s.length > 2 ? ' larga' : ''}">${esc(s)}</b>`; }
+    if (f) { const acc = typeof accBotonHTML === 'function' ? gmbAccDe(f.k) : null; d.classList.toggle('accBt', !!acc); d.innerHTML = acc ? accBotonHTML(acc, f.t) : `<b class="ctlLetra${String(f.t).length > 2 ? ' larga' : ''}">${esc(String(f.t).slice(0, 6))}</b>`; d.title = acc ? accNombre(acc) + ' (' + f.t + ')' : String(f.t); }
   }
 }
 gmbFijosCargar();

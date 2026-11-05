@@ -244,6 +244,7 @@ function usar() {
   if (JNT.pedido) { juntosAceptar(); return; }   // (te pidieron un emote de a dos: E acepta)
   if (JUG.vehiculo) { salirVehiculo(); return; }
   if (nocheUsar()) return; // (botón de puerta o de luz de la oficina de la pizzería)
+  if (typeof puertaUsar === 'function' && puertaUsar()) return;   // (una puerta del mapa: puertas.js)
   // (desde los ojos, como en GMod: con la cámara en tercera persona —la de un modo como Prop Hunt— el rayo arranca en el
   // punto de la línea de mira más cercano al jugador; si no, lo de entre la cámara y el jugador tapaba y no llegaba)
   let o0 = CAM.pos; { const ojo = JUG.ojoPos; if (ojo && vsub(ojo, CAM.pos).len() > 0.6) { const t = Math.max(0, vdot(vsub(ojo, CAM.pos), CAM.fwd)); o0 = vadd(CAM.pos, vscale(CAM.fwd, t)); } }

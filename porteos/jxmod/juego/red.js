@@ -237,7 +237,7 @@ function publicar(c, obj, ret) {
 }
 function redEstadoUI() {
   const e = $('redEst'); if (!e) return;
-  e.textContent = !SALA ? Lc('Singleplayer', 'Singleplayer') : RED.on ? `${SALA.n} · ${RED.remotos.size + 1}/∞` : Lc('Connecting', 'Connecting') + '…';
+  e.textContent = !SALA ? T('pz.solo') : RED.on ? `${SALA.n} · ${RED.remotos.size + 1}/∞` : Lc('Connecting', 'Connecting') + '…';
 }
 const r3 = (v) => Math.round(v * 1000) / 1000, r4 = (v) => Math.round(v * 10000) / 10000;
 // ---------------- lo que mando ----------------
@@ -484,6 +484,7 @@ function recibirHecho(d) {
   } else if (typeof d.k === 'string' && d.k.startsWith('npc')) { npcRecibir(d);
   } else if (d.k === 'catap' || d.k === 'omega' || d.k === 'omegab') { artRed(d);
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
+  } else if (d.k === 'pta') { if (typeof puertaRed === 'function') puertaRed(d);   // (una puerta del mapa que abrió otro)
   } else if (d.k === 'fnn' || d.k === 'fnb' || d.k === 'fnx' || d.k === 'fne' || d.k === 'fnv') { nocheRed(d); // (la noche en la pizzería)
   } else if (d.k === 'dano' && d.to === RED.ID) {
     if (SALA && !SALA.pvp) return;
