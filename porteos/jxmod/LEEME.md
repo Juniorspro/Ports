@@ -1517,6 +1517,10 @@ descarga girando y nada más respondiendo).
 - **Efectos visuales de los mods más livianos**: el VHS del Viewfinder medía sus textos en cada cuadro y la caja negra
   guardaba el registro en el almacenamiento en cada cuadro mientras corría su hook (`cajanegra.js`, `gmod_api.js`).
   Ahora los anchos de los textos se recuerdan y la caja negra guarda a lo sumo una vez por segundo.
+  Medido con el Viewfinder siempre activo en Medio (240 cuadros, dos corridas alternando la versión anterior y ésta):
+  su hook de la HUD pasó de 3,73 y 3,59 ms por cuadro a 3,12 y 2,54 ms (−23 %); todo el Lua de hooks, de 4,78 y 4,63
+  a 4,25 y 3,65 ms (−16 %). En la compu de prueba el cuadro lo manda la placa simulada (~0,5 s), así que los cuadros
+  por segundo de acá no muestran la mejora; en un celular el procesador pesa más.
 - Si un mod traba el juego al cargarse, el aviso dice su nombre (antes a veces mostraba sólo el número).
 - Los props estáticos de los mapas compilados con la versión 11 del lump (GMod nuevo) usan su escala (antes salían
   todos de tamaño 1: muebles agrandados o achicados que parecían fuera de lugar). Las camas del Liminal Hotel no se
