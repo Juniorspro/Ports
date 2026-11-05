@@ -7,12 +7,15 @@
 //  4. al volver a abrir entra solo, sin pedir el código;
 //  5. sin internet (después de la primera vez) también entra solo;
 //  6. un código dado de baja: lo vuelve a pedir, avisando, y se olvida el guardado;
-//  7. sin crypto.subtle (la app de iPhone, con su esquema propio, puede no tenerlo): abre igual con el cifrado en JS;
-//  8. sin errores de JS.
-// uso: node codigo_web.mjs URL_DE_web/index.html ARCHIVO_DE_CODIGOS [CAPTURA.png]
+//  7. sin crypto.subtle (una página sin https, un navegador viejo): abre igual con el cifrado en JS;
+//  8. una copia de los archivos en otro lugar no abre ni con un código bueno (otra carpeta, o la página de verdad
+//     servida desde otra dirección: el HTML «robado»);
+//  9. sin errores de JS.
+// (también en 1: el paquete pk.bin va cifrado; y en 3, 4 y 5 el juego anda con el paquete descifrado)
+// uso: node codigo_web.mjs URL_DE_index.html ARCHIVO_DE_CODIGOS [URL_DE_UNA_COPIA ...]   (FOTO=captura.png opcional)
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
 import fs from 'fs';
-const [, , URL0, ARCH, FOTO] = process.argv;
+const [, , URL0, ARCH, ...COPIAS] = process.argv; const FOTO = process.env.FOTO;
 const BUENO = fs.readFileSync(ARCH, 'utf8').split('\n').find((l) => l.trim() && !l.startsWith('#')).trim().split(/\s+/)[0];
 const RES = []; const caso = (n, ok, info) => { RES.push(!!ok); console.log((ok ? 'OK   ' : 'FALLA') + ' ' + n + ' · ' + JSON.stringify(info).slice(0, 600)); return ok; };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -27,9 +30,11 @@ await p.goto(URL0); await p.waitForSelector('#jxPuerta input', { timeout: 60000 
 const arranco1 = await listo(8000);
 const c1 = await p.evaluate(async () => {
   const h = await (await fetch('index.html', { cache: 'no-store' })).text(), j = new Uint8Array(await (await fetch('juego.bin', { cache: 'no-store' })).arrayBuffer());
-  return { claro: /function fotoGuardar|function inicioEncajar|function puertaUsar/.test(h), jsgz: (/<script id="jsgz" type="text\/plain">([^<]*)<\/script>/.exec(h) || [, '?'])[1].length, gz: j[0] === 0x1f && j[1] === 0x8b, binMB: +(j.length / 1048576).toFixed(2), titulo: document.querySelector('#jxPuerta .t span').textContent };
+  const ix = JSON.parse(document.getElementById('pkidx').textContent), pk = new Uint8Array(await (await fetch('pk.bin', { cache: 'no-store' })).arrayBuffer());
+  const gzEn = (o) => pk[o] === 0x1f && pk[o + 1] === 0x8b, partesGz = ['d', 'm'].filter((k) => ix[k]).map((k) => gzEn(ix[k][0]));
+  return { claro: /function fotoGuardar|function inicioEncajar|function puertaUsar/.test(h), jsgz: (/<script id="jsgz" type="text\/plain">([^<]*)<\/script>/.exec(h) || [, '?'])[1].length, gz: j[0] === 0x1f && j[1] === 0x8b, binMB: +(j.length / 1048576).toFixed(2), paqueteLegible: partesGz.some(Boolean), titulo: document.querySelector('#jxPuerta .t span').textContent };
 });
-caso('1. sin código: lo pide, el juego no arranca y no está en claro', !arranco1 && !c1.claro && c1.jsgz === 0 && !c1.gz && c1.titulo === 'Ingresá tu código', { arranco: arranco1, ...c1 });
+caso('1. sin código: lo pide, el juego no arranca y no está en claro (ni el código ni el paquete)', !arranco1 && !c1.claro && c1.jsgz === 0 && !c1.gz && !c1.paqueteLegible && c1.titulo === 'Ingresá tu código', { arranco: arranco1, ...c1 });
 // 2
 await p.fill('#jxPuerta input', 'AAAA-BBBB'); await p.click('#jxPuerta button');
 await p.waitForFunction(() => /no es/.test(document.querySelector('#jxPuerta .m').textContent), null, { timeout: 15000 }).catch(() => {});
@@ -41,9 +46,9 @@ if (FOTO) { await p.fill('#jxPuerta input', ''); await p.screenshot({ path: FOTO
 await p.fill('#jxPuerta input', BUENO.toLowerCase().replace(/-/g, ''));
 const t0 = Date.now(); await p.click('#jxPuerta button');
 const ok3 = await listo(180000);
-const c3 = await p.evaluate(() => ({ puerta: !!document.getElementById('jxPuerta'), menu: !!document.querySelector('#rbInicio'), guardado: (localStorage.getItem('jx_codigo') || '').length }));
+const c3 = await p.evaluate(() => ({ puerta: !!document.getElementById('jxPuerta'), menu: !!document.querySelector('#rbInicio'), guardado: (localStorage.getItem('jx_codigo') || '').length, aLaVista: [...document.scripts].some((x) => /function fotoGuardar/.test(x.textContent)) }));
 const entra = caja.card.x >= 0 && caja.card.d <= caja.vw && caja.card.b <= caja.vh && caja.input.h >= 44 && caja.boton.h >= 44 && caja.input.b <= 180;
-caso('3. el código bueno (minúsculas, sin guion) abre el juego; el pedido entra en el iPhone y el campo queda arriba', ok3 && !c3.puerta && c3.menu && c3.guardado === 8 && entra, { ...c3, s: ((Date.now() - t0) / 1000).toFixed(1), caja });
+caso('3. el código bueno (minúsculas, sin guion) abre el juego (sin dejarlo a la vista en la página); el pedido entra en el iPhone y el campo queda arriba', ok3 && !c3.puerta && c3.menu && c3.guardado === 8 && !c3.aLaVista && entra, { ...c3, s: ((Date.now() - t0) / 1000).toFixed(1), caja });
 // 4
 await p.reload(); const ok4 = await listo(180000);
 caso('4. al volver a abrir entra solo', ok4 && !(await p.evaluate(() => window.__puerta)), { listo: ok4, puerta: await p.evaluate(() => window.__puerta) });
@@ -72,7 +77,19 @@ const abre7 = (Date.now() - t7) / 1000;
 const ok7 = await p2.waitForFunction(() => window.__listo, null, { timeout: 180000 }).then(() => true, () => false);
 caso('7. sin crypto.subtle abre igual (cifrado en JS)', /no es/.test(mal7) && ok7, { mal: mal7, abreS: abre7.toFixed(1), listo: ok7 });
 await ctx2.close();
+// 8
+const copias = [];
+for (const u of COPIAS) {
+  const c3x = await b.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, locale: 'es-AR' });
+  await c3x.route('**/api/cuenta/config', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"google":false}' }));
+  const p3 = await c3x.newPage(); p3.on('pageerror', (e) => errJS.push(e.message.slice(0, 200)));
+  await p3.goto(u); const hay = await p3.waitForSelector('#jxPuerta input', { timeout: 60000 }).then(() => true, () => false);
+  if (hay) { await p3.fill('#jxPuerta input', BUENO); await p3.click('#jxPuerta button'); await p3.waitForFunction(() => /no es/.test(document.querySelector('#jxPuerta .m').textContent), null, { timeout: 30000 }).catch(() => {}); }
+  const r = await p3.evaluate(() => ({ msj: (document.querySelector('#jxPuerta .m') || {}).textContent || '', listo: !!window.__listo }));
+  copias.push({ u: u.replace(/^https?:\/\/[^/]+/, ''), puerta: hay, ...r }); await c3x.close();
+}
+caso('8. una copia en otro lugar no abre ni con un código bueno', COPIAS.length > 0 && copias.every((c) => c.puerta && /no es/.test(c.msj) && !c.listo), copias);
 const e2 = errJS.filter((e) => !/WebSocket|net::|Failed to load|Failed to fetch|NetworkError|Internet|offline/i.test(e));
-caso('8. sin errores de JS', !e2.length, e2.slice(0, 4));
+caso('9. sin errores de JS', !e2.length, e2.slice(0, 4));
 console.log('RESUMEN ' + RES.filter(Boolean).length + '/' + RES.length);
 await b.close(); process.exit(RES.every(Boolean) ? 0 : 1);

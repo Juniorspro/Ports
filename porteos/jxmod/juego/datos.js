@@ -40,29 +40,34 @@ async function cargarPaquete(progreso) {
   let tam = 0; for (const k in PK.idx) tam = Math.max(tam, PK.idx[k][0] + PK.idx[k][1]);
   PK.u8 = new Uint8Array(tam);
   const els = document.getElementsByClassName('pk'), M = PK.idx.m, Dd = PK.idx.d;
-  let o = 0, i = 0, mDado = M ? M[0] : 0, gz = null, gzErr = null, dP = null;
+  // (oL: hasta dónde se puede leer; con la página con código el paquete viene cifrado y se descifra a medida que llega)
+  let o = 0, oL = 0, i = 0, mDado = M ? M[0] : 0, gz = null, gzErr = null, dP = null;
   if (M && typeof DecompressionStream === 'function') {
     try { const ds = new DecompressionStream('gzip'); gz = { w: ds.writable.getWriter(), r: new Response(ds.readable).arrayBuffer() }; gz.r.catch((e) => { gzErr = e; }); } catch (e) { gz = null; }
   }
   // lo que llegó hasta o: la parte de las mallas entra al descompresor y los datos (lo primero del paquete) se leen apenas
   // están enteros, mientras baja lo demás
   const llego = () => {
-    if (gz && o > mDado && mDado < M[0] + M[1]) { const h = Math.min(o, M[0] + M[1]); gz.w.write(PK.u8.subarray(mDado, h)).catch((e) => { gzErr = e; }); mDado = h; }
-    if (!dP && Dd && o >= Dd[0] + Dd[1]) dP = desgz(PK.parte('d')).then((u) => JSON.parse(new TextDecoder().decode(u)));
+    if (gz && oL > mDado && mDado < M[0] + M[1]) { const h = Math.min(oL, M[0] + M[1]); gz.w.write(PK.u8.subarray(mDado, h)).catch((e) => { gzErr = e; }); mDado = h; }
+    if (!dP && Dd && oL >= Dd[0] + Dd[1]) dP = desgz(PK.parte('d')).then((u) => JSON.parse(new TextDecoder().decode(u)));
   };
   const pb = document.getElementById('pkbin');
   if (pb && pb.dataset.src) {
     // (en la app de Android el paquete viene como archivo binario aparte, sin base64: se lee de a pedazos directo a su
     // lugar, sin tener 28 MB de texto en la página; mucho menos memoria al arrancar en los celulares de 2–4 GB)
     const r = await fetch(pb.dataset.src); if (!r.ok) throw new Error('paquete ' + r.status);
+    // (la página con código: herramientas/codigo_web.mjs deja acá el que descifra el paquete; se usa una vez y se borra)
+    const cif = typeof window.jxCodigoPaq === 'function' ? window.jxCodigoPaq : null; window.jxCodigoPaq = null;
+    const listo = async (fin) => { oL = cif ? await cif(PK.u8, o, fin) : o; llego(); };
     if (r.body && r.body.getReader) {
       const rd = r.body.getReader();
-      for (;;) { const { done, value } = await rd.read(); if (done) break; PK.u8.set(value, o); o += value.length; window.__pkN = o; llego(); }
-    } else { const u = new Uint8Array(await r.arrayBuffer()); PK.u8.set(u, 0); o = u.length; window.__pkN = o; llego(); }
+      for (;;) { const { done, value } = await rd.read(); if (done) break; PK.u8.set(value, o); o += value.length; window.__pkN = o; await listo(false); }
+    } else { const u = new Uint8Array(await r.arrayBuffer()); PK.u8.set(u, 0); o = u.length; window.__pkN = o; }
+    await listo(true);
   } else for (;;) {
     const fin = document.readyState !== 'loading';
     for (; i < els.length - (fin ? 0 : 1); i++) {
-      const b = await b64bytes(els[i].textContent); PK.u8.set(b, o); o += b.length; els[i].textContent = '';
+      const b = await b64bytes(els[i].textContent); PK.u8.set(b, o); o += b.length; oL = o; els[i].textContent = '';
       llego();
     }
     if (fin && i >= els.length) break;

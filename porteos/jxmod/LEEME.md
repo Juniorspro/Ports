@@ -1544,19 +1544,28 @@ descarga girando y nada más respondiendo).
   - Prueba `pruebas/icono_app.mjs` 5/5.
 - **iPhone/iPad: página con código en vez de app.** Se probó una app nativa (.ipa para instalar con Sideloadly) y se
   sacó a pedido: en iPhone se juega desde la página, que pide un código.
-- **Página con código** (`herramientas/codigo_web.mjs`, la usa `web/index.html`): el link de
-  siempre pide un código y sin él no hay juego. No es un candado de pantalla: el código del juego va cifrado en
-  `web/juego.bin` (AES-GCM con una clave al azar), y esa clave va guardada una vez por código (PBKDF2-SHA256 de
-  150 000 vueltas). El código se recuerda en el aparato: la próxima vez entra solo, también sin internet. Donde el
-  navegador no trae `crypto.subtle` (una página sin https, un navegador viejo), lo hace el mismo cifrado escrito en JS
-  (comparado contra el de Node: iguales; 0,26 s la clave y 0,05 s el juego en la compu).
-  - Los códigos están **fuera del repo**, en `/root/.jxmod/codigos.txt` («CÓDIGO  nombre» por línea). Para dar de baja
-    uno: borrar su línea y volver a armar. Para agregar: `node herramientas/codigo_web.mjs ../../web --nuevos 5`.
-  - Armado: `armar.sh` con `APP_WEB=1` → `node herramientas/codigo_web.mjs CARPETA` → `herramientas/web_app.py CARPETA`.
-  - Prueba `pruebas/codigo_web.mjs` 8/8: sin código no arranca y el juego no está en claro; uno equivocado avisa; el
-    bueno (en minúsculas y sin guion también) abre en ~4 s; al volver a abrir y sin internet entra solo; uno dado de
-    baja lo vuelve a pedir; sin `crypto.subtle` abre igual (0,6 s). `app_ios.mjs` sigue 5/5 (con `JX_CODIGO=` un
-    código).
-  - Lo que no frena: el APK es público y trae el juego, y las versiones viejas de `web/` siguen en el historial de
-    GitHub. El código cierra el link del iPhone, no el juego entero.
+- **Página con código** (`herramientas/codigo_web.mjs`, la usa `web/index.html`): el link pide un código y sin él no
+  hay juego; si alguien se baja el HTML, no le sirve. No es un candado de pantalla:
+  - el código del juego va cifrado en `web/juego.bin` (AES-GCM con una clave al azar) y el paquete `web/pk.bin`
+    (modelos, texturas, sonidos) también (AES-CTR: se descifra a medida que baja, `juego/datos.js`);
+  - la clave se guarda una vez por código, cifrada con lo que sale del código **y de la dirección de la página**
+    (PBKDF2-SHA256, 150 000 vueltas): una copia en otro lado (otra página, otra carpeta, el HTML bajado a la compu) no
+    abre ni con un código bueno;
+  - ya abierto, el código del juego no queda en la página (se saca el `<script>` apenas corre);
+  - el código se recuerda en el aparato: la próxima vez entra solo, también sin internet;
+  - donde el navegador no trae `crypto.subtle` lo hace el mismo cifrado escrito en JS (comparado contra el de Node:
+    iguales; 0,27 s la clave, 15 ms por MB el paquete, en la compu).
+  - Los códigos están **fuera del repo**, en `/root/.jxmod/codigos.txt` («CÓDIGO  nombre» por línea). Dar de baja uno:
+    borrar su línea y volver a armar. Agregar: `--nuevos 5`. Otra dirección: `--lugar https://.../carpeta/`.
+  - Armado: `armar.sh` con `PK_BIN=1 APP_WEB=1` → `node herramientas/codigo_web.mjs CARPETA` →
+    `herramientas/web_app.py CARPETA`.
+  - Prueba `pruebas/codigo_web.mjs` 9/9: sin código no arranca y ni el juego ni el paquete se pueden leer; uno
+    equivocado avisa; el bueno (en minúsculas y sin guion también) abre en ~4 s y no lo deja a la vista; al volver a
+    abrir y sin internet entra solo; uno dado de baja lo vuelve a pedir; sin `crypto.subtle` abre igual (0,6 s); una
+    copia en otra carpeta y la página de verdad servida desde otra dirección no abren con un código bueno.
+    `app_ios.mjs` 5/5 con el paquete cifrado (juega gm_construct sin internet).
+  - Lo que esto no tapa: quien tiene un código y sabe usar las herramientas del navegador puede sacar el juego mientras
+    corre (pasa con cualquier juego web); el APK trae el juego sin cifrar; el código fuente está en este repo público y
+    las versiones viejas de `web/` siguen en el historial de GitHub; `web/rb/` y `web/emotes/` (mapas, personajes y
+    sonidos que se bajan aparte, muchos de otros juegos) van sin cifrar.
 - Sin probar en un celular ni en un iPhone de verdad (el iPhone, simulado en Chromium: no hay Safari acá).

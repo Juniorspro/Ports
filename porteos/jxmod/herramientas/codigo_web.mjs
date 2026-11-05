@@ -2,10 +2,14 @@
 // se abre con uno de los códigos de la lista. Sin un código bueno no hay juego que leer (no es un candado de pantalla):
 //  - el código del juego (el gzip de #jsgz) va cifrado con una clave al azar (AES-GCM) en juego.bin;
 //  - esa clave va guardada una vez por código, cifrada con lo que sale del código (PBKDF2-SHA256, 150 000 vueltas);
-//  - la página pide el código, lo recuerda en ese aparato y la próxima vez abre sola (también sin internet).
+//  - la página pide el código, lo recuerda en ese aparato y la próxima vez abre sola (también sin internet);
+//  - el paquete (pk.bin: modelos, texturas, sonidos) también va cifrado (AES-CTR, se descifra a medida que baja);
+//  - sólo abre en su lugar (--lugar, la carpeta de la página en internet): lo que sale del código depende también de la
+//    dirección, así que una copia de los archivos en otro lado (otra página, otra carpeta, el HTML bajado a la compu) no
+//    abre ni con un código bueno.
 // La lista de códigos queda FUERA del repo (por defecto /root/.jxmod/codigos.txt: «CÓDIGO  nombre» por línea, # para
 // comentarios). Sacar un código de la lista y volver a armar = ese código deja de andar.
-// uso: node herramientas/codigo_web.mjs CARPETA [--codigos ARCHIVO] [--nuevos N] [--mostrar]
+// uso: node herramientas/codigo_web.mjs CARPETA [--codigos ARCHIVO] [--nuevos N] [--mostrar] [--lugar URL_DE_LA_CARPETA ...]
 //      (CARPETA: la de index.html recién armado con APP_WEB=1; después, herramientas/web_app.py)
 import fs from 'fs'; import path from 'path'; import crypto from 'crypto';
 const args = process.argv.slice(2); const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
@@ -14,6 +18,9 @@ const NUEVOS = +opt('--nuevos', 0) || 0; const MOSTRAR = args.includes('--mostra
 const ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // (sin 0/O, 1/I/L: que no se confundan al tipearlos)
 const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const IT = 150000;
+const LUGARES = args.flatMap((a, i) => (args[i - 1] === '--lugar' ? [a] : []));
+if (!LUGARES.length) LUGARES.push('https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/');
+for (const l of LUGARES) if (!/^https?:\/\/[^/]+\/(.*\/)?$/.test(l)) { console.error('--lugar tiene que ser la carpeta, con / al final: ' + l); process.exit(1); }
 
 // 1. la lista de códigos (y los nuevos que se pidan)
 let lineas = fs.existsSync(ARCH) ? fs.readFileSync(ARCH, 'utf8').split('\n') : ['# códigos de la página de JXMod: «CÓDIGO  nombre» (sacar una línea y volver a armar = ese código deja de andar)'];
@@ -38,16 +45,21 @@ const K = crypto.randomBytes(32), ivJ = crypto.randomBytes(12);
 const cJ = crypto.createCipheriv('aes-256-gcm', K, ivJ); const bin = Buffer.concat([ivJ, cJ.update(gz), cJ.final(), cJ.getAuthTag()]);
 fs.writeFileSync(path.join(D, 'juego.bin'), bin);
 const V = crypto.createHash('sha256').update(bin).digest('hex').slice(0, 12);
+// (el paquete, en su lugar: modo contador con una clave que sale de la del juego; se puede descifrar de a pedazos)
+const PKB = path.join(D, 'pk.bin'); if (!fs.existsSync(PKB)) { console.error('falta pk.bin (armar con PK_BIN=1)'); process.exit(1); }
+const Kp = crypto.createHash('sha256').update(K).update('jxmod-paquete').digest(), pn = crypto.randomBytes(8);
+const cP = crypto.createCipheriv('aes-256-ctr', Kp, Buffer.concat([pn, Buffer.alloc(8)])); const pk = fs.readFileSync(PKB);
+fs.writeFileSync(PKB, Buffer.concat([cP.update(pk), cP.final()]));
 
 // 3. la clave del juego, una vez por código
 const sal = crypto.randomBytes(16), C = {};
-for (const { c } of codigos) {
-  const bits = crypto.pbkdf2Sync(norm(c), sal, IT, 64, 'sha256');
+for (const { c } of codigos) for (const lugar of LUGARES) {
+  const bits = crypto.pbkdf2Sync(norm(c) + '|' + lugar, sal, IT, 64, 'sha256');
   const id = crypto.createHash('sha256').update(bits.subarray(0, 32)).digest('hex').slice(0, 16);
   const iv = crypto.randomBytes(12), ci = crypto.createCipheriv('aes-256-gcm', bits.subarray(32), iv);
   C[id] = Buffer.concat([iv, ci.update(K), ci.final(), ci.getAuthTag()]).toString('base64');
 }
-const CL = { v: V, it: IT, sal: sal.toString('base64'), c: C };
+const CL = { v: V, it: IT, sal: sal.toString('base64'), pn: pn.toString('base64'), c: C };
 
 // 4. la página: el pedido del código (va antes del arranque del juego, que lo espera)
 const PUERTA = `<script>
@@ -63,6 +75,8 @@ const PUERTA = `<script>
   const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
   const hex = (b) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, '0')).join('');
+  // (la carpeta donde está la página: con otra, lo que sale del código es otro y no abre nada)
+  const LUGAR = location.origin + location.pathname.replace(/[^/]*$/, '');
   // (lo de cifrar lo hace el navegador —crypto.subtle— y, donde no está —una página sin https o un navegador viejo pueden no
   // tenerlo—, esto mismo en JS: SHA-256, PBKDF2 y AES-256 en modo contador como el de GCM)
   const S = (window.crypto && crypto.subtle && !window.__jxSinSubtle) ? crypto.subtle : null;
@@ -126,10 +140,10 @@ const PUERTA = `<script>
       }
       return w;
     }
-    function ctr(k, d) {   // d: iv (12) + cifrado + etiqueta (16); la etiqueta no se revisa (el código ya se verificó por su huella)
-      const w = expandir(k), iv = pal(d.subarray(0, 12)), c = d.subarray(12, d.length - 16), o = new Uint8Array(c.length);
-      for (let off = 0, n = 2; off < c.length; off += 16, n++) {
-        let s0 = iv[0] ^ w[0], s1 = iv[1] ^ w[1], s2 = iv[2] ^ w[2], s3 = n ^ w[3];
+    // modo contador: el bloque n se cifra con el contador [c0 c1 c2 n] (puede ser c = o, en su lugar)
+    function ctrX(w, c0, c1, c2, n, c, o) {
+      for (let off = 0; off < c.length; off += 16, n = (n + 1) | 0) {
+        let s0 = c0 ^ w[0], s1 = c1 ^ w[1], s2 = c2 ^ w[2], s3 = n ^ w[3];
         for (let r = 4; r < 56; r += 4) {
           const t0 = T0[s0 >>> 24] ^ T1[(s1 >>> 16) & 255] ^ T2[(s2 >>> 8) & 255] ^ T3[s3 & 255] ^ w[r];
           const t1 = T0[s1 >>> 24] ^ T1[(s2 >>> 16) & 255] ^ T2[(s3 >>> 8) & 255] ^ T3[s0 & 255] ^ w[r + 1];
@@ -146,11 +160,15 @@ const PUERTA = `<script>
       }
       return o;
     }
-    return { sha, pbkdf2, ctr };
+    function ctr(k, d) {   // d: iv (12) + cifrado + etiqueta (16), como GCM; la etiqueta no se revisa (el código ya se verificó por su huella)
+      const iv = pal(d.subarray(0, 12)), c = d.subarray(12, d.length - 16);
+      return ctrX(expandir(k), iv[0], iv[1], iv[2], 2, c, new Uint8Array(c.length));
+    }
+    return { sha, pbkdf2, ctr, ctrX, expandir, pal };
   })();
   async function claveDe(cod) {
     const n = norm(cod); if (n.length < 6) return null;
-    const pass = new TextEncoder().encode(n); let bits, id;
+    const pass = new TextEncoder().encode(n + '|' + LUGAR); let bits, id;
     if (S) {
       const base = await S.importKey('raw', pass, 'PBKDF2', false, ['deriveBits']);
       bits = new Uint8Array(await S.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: b64(CL.sal), iterations: CL.it }, base, 512));
@@ -162,12 +180,28 @@ const PUERTA = `<script>
     const kw = await S.importKey('raw', bits.slice(32), 'AES-GCM', false, ['decrypt']);
     try { return new Uint8Array(await S.decrypt({ name: 'AES-GCM', iv: w.slice(0, 12) }, kw, w.slice(12))); } catch (x) { return null; }
   }
+  // el paquete (pk.bin) se descifra en su lugar a medida que llega (juego/datos.js llama una vez por pedazo)
+  async function paquete(k) {
+    const m = new Uint8Array(k.length + 13); m.set(k); m.set(new TextEncoder().encode('jxmod-paquete'), k.length);
+    const kp = S ? await S.importKey('raw', await S.digest('SHA-256', m), 'AES-CTR', false, ['decrypt']) : null, pn = b64(CL.pn);
+    const w = S ? null : JS.expandir(JS.sha(m)), pw = JS.pal(pn); let hecho = 0;
+    return async (u8, o, fin) => {
+      const hasta = fin ? o : o - (o % 16); if (hasta <= hecho) return hecho;
+      const parte = u8.subarray(hecho, hasta), n = hecho / 16;
+      if (S) {
+        const ctr = new Uint8Array(16); ctr.set(pn); ctr[12] = n >>> 24; ctr[13] = n >>> 16; ctr[14] = n >>> 8; ctr[15] = n;
+        u8.set(new Uint8Array(await S.decrypt({ name: 'AES-CTR', counter: ctr, length: 64 }, kp, parte)), hecho);
+      } else JS.ctrX(w, pw[0], pw[1], 0, n, parte, parte);
+      hecho = hasta; return hecho;
+    };
+  }
   async function abrir(k) {
     const r = await fetch('juego.bin?v=' + CL.v); if (!r.ok) throw new Error('red');
-    const d = new Uint8Array(await r.arrayBuffer());
-    if (!S) return JS.ctr(k, d);
-    const kj = await S.importKey('raw', k, 'AES-GCM', false, ['decrypt']);
-    return new Uint8Array(await S.decrypt({ name: 'AES-GCM', iv: d.slice(0, 12) }, kj, d.slice(12)));
+    const d = new Uint8Array(await r.arrayBuffer()); let g;
+    if (!S) g = JS.ctr(k, d);
+    else { const kj = await S.importKey('raw', k, 'AES-GCM', false, ['decrypt']); g = new Uint8Array(await S.decrypt({ name: 'AES-GCM', iv: d.slice(0, 12) }, kj, d.slice(12))); }
+    window.jxCodigoPaq = await paquete(k);
+    return g;
   }
   const leer = () => { try { return localStorage.getItem('jx_codigo') || ''; } catch (e) { return ''; } };
   const anotar = (c) => { try { if (c) localStorage.setItem('jx_codigo', c); else localStorage.removeItem('jx_codigo'); } catch (e) {} };
@@ -213,5 +247,5 @@ const PUERTA = `<script>
 `;
 html = html.slice(0, i0) + PUERTA + A + html.slice(i1);
 fs.writeFileSync(IDX, html);
-console.log('ok', codigos.length, 'códigos · juego.bin', (bin.length / 1048576).toFixed(2), 'MB · index.html', (Buffer.byteLength(html) / 1048576).toFixed(2), 'MB · versión', V);
+console.log('ok', codigos.length, 'códigos ·', LUGARES.length === 1 ? 'en ' + LUGARES[0] : LUGARES.length + ' lugares', '· pk.bin cifrado', (pk.length / 1048576).toFixed(1), 'MB · juego.bin', (bin.length / 1048576).toFixed(2), 'MB · index.html', (Buffer.byteLength(html) / 1048576).toFixed(2), 'MB · versión', V);
 if (MOSTRAR) for (const { c, n } of codigos) console.log('  ' + c + (n ? '  (' + n + ')' : ''));

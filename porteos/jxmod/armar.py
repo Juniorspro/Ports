@@ -147,6 +147,8 @@ else:
   // el multijugador decía «Sin conexión con los servers» aunque hubiera internet)
   if (k >= 0) { try { (0, eval)(t.slice(0, k) + '\\n;if (typeof mqtt !== "undefined") globalThis.mqtt = mqtt;\\n//# sourceURL=sala.js'); } catch (e) { try { console.warn('sin modo en línea: ' + e); } catch (x) {} } }
   const sc = document.createElement('script'); sc.textContent = (k >= 0 ? t.slice(k + SEP.length) : t) + '\\n//# sourceURL=rezobox.js'; document.body.appendChild(sc);
+  // (con la página con código, el juego ya abierto no queda a la vista en la página)
+  if (typeof jxCodigoJuego === 'function') { sc.remove(); sc.textContent = ''; }
 })();
 </script>''')
 # APP_WEB=1 (la app web instalable, para iPhone/iPad y cualquier navegador: web/index.html, de herramientas/web_app.py):

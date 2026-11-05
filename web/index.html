@@ -1342,7 +1342,7 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
 // ---------------- la página con código (la arma herramientas/codigo_web.mjs: no editar acá) ----------------
 // El juego viene cifrado en juego.bin. El código abre su clave; se recuerda en este aparato y la próxima vez abre solo.
 (function () {
-  const CL = {"v":"fe55bad3b8b9","it":150000,"sal":"ZApXhPlHcuM+hWpjWqpptg==","c":{"a64e7605d19968d5":"kOOWtQV+YUe0XcLnEQqWg8EYEQosRhNLI7i1LDaRYw0bEikJmGD/Rd0QZp3asgp5h4E5coU7+cHDTCkK","8c3c2c81223351d4":"Gz0P3FUKujaEpl4CYL8tWVUQqLDFCRkYva1esucXY6bHu5xeE+QbyVau8G2qh9L7sv2sLgFATOm240fA","b0b13a1fb0ccfde1":"lVmzHVu8zuIrS/PGNkhrcB8o95+87DKubAQqpYQla39dJtybojrNWBryMQ0F1n1q8u86PqIPARPGYPZP","ccdbce009cc7dd31":"DPsI6JU+MMmN2zFzHBtwuThvScJc0a0VhjPn+e7v9g2ru6kPLL/oUs/pBgaqL0tnyCUA8HJyfiq1ScAp","ea0dcca0594f98c5":"QkfBqFEzFVIx1h/XzqQU1I0HQJ4+3VuUdX2rHDeEh0t9rfQggqCK55xwxUbKW7UXDGbTQ0uwToQcL1Pr","78945323b35173fa":"MgG7KltoQMo3oED28W+LZg17TcSN13iht6EB+9B2StoXcJ6aCmo9iMzx8DUM9k5acTkUImq0uDmjddIs","92058c508f4665cc":"qWoEuBnhBonZL6twTEGD0mm6L3vZeA0vxoIor85P0G/Ki8RQQFTqhwHvT8gFp/3POrijJtiuUnPTPqxD","4b9fa32093888933":"xweXZMCu9hYyvNLpDwT1fvBHxjWtxy18V4ZdgjqpDUghLjGJfPjV/GNM2L4jb3OE2dNc/kEvEE80mWkc","f54cd13cf5a228e5":"+ETElK6IoQj3B3U1/qb8giBzmlci4g3a8pjCtokpRK28T2vpsOTIfgx704Tbg26OLxuA7z1ZSpFGGvpk","bddc334d608e591c":"uYZxzgp6Fs0u5ja5l4Wm0UrKbUia2IAuYGxvIG+Omhz22UTkpnMtMZWt6hBE5aSybZBwFJyJdAJm8rML"}};
+  const CL = {"v":"fdfdb72c1bab","it":150000,"sal":"yCPJUEnQtFnnnJS0WYB8zA==","pn":"OZoIFgy64qk=","c":{"a35582fc99511394":"4vy7mz0g+lH4Ij8vVcuxzh6qdvQJuKYFDEfTLEdBMXD8HSwpqdobK2Pxw8HDleim2WWSaXWoAmOZKCje","837ec185f4a41b99":"pb5R+wQkOUMZ5d3dkJGqvj1dfLJZoE6WSkXyI6H4gnM/q0DxvKRHLeazNMCIigKBhGvBTGZiop4MkwCx","8e48e3dff34c1d05":"LgVBEWbbjlVpdrX1eKaAK5LTKa8zA7KBstW190wEatK/esqRRvbiaqUs9oLf1OcJbGqEls5z41B10H+Q","3212e0bf56ee1863":"/VQUpDCPAb7m+AYTg0DMpkBUMmZFUDcjH2I1CzCpql4u+xxPaawxza2Ia4F8AmQyf5k2HzdmmhJ1nPap","219de84854b0aad4":"0TC3/HHkojsg8EEyFa0tM6eN0AlAOO3YYz6CSsI07hyxWYxZaY65T07YO1MXsvLTchVKTRhDsKP0Vthy","94cd478f019e8bd5":"Jq/l0zOGcELAMf/EHrm1jvw0hsrBn5LHNfK0xXLOG8f3O9tN7eET8632S/96Tu9e2JRQnIyWkwpm2NSO","69b1888442f7b057":"i+azkXBNLNAXngkgGXeBCu294Olamrw1R0GEjhBF12UaFRq9QnhQUHoK9aWKruwYe296eBI4x5CZlj/r","1d5df5269629e45d":"6DYiEhvpNnSk/D5tOSxfk7RPnCy4EWsSSlzTzJnye+pP/7BTWA6BRNupvmD6Ywj99WfY7nhzt8fUI2u7","6a236ccaa6b7b5a0":"SDrEx+KMeoQ+acqFHUnw5oJzk9Qsi0AK28bz0qb7udBpQE3MLZJhwyQKamg+l848CLTGt99egk6yHtYT","2cc46ae1ce4e4601":"RJhVeyelNDU7YqG7E7+8M6DSf0IUJdcHBUK97yvLD6I9NM72xYJpO8Jv1DBZBtqv5vH9dKsq3m+Qnvmd"}};
   const L = (navigator.language || 'es').slice(0, 2), T = Object.assign({
     es: { tit: 'Ingresá tu código', bot: 'Jugar', mal: 'Ese código no es. Fijate las letras y probá de nuevo.', viejo: 'Tu código ya no sirve: pedí uno nuevo.', red: 'No se pudo bajar el juego. Revisá internet y probá de nuevo.', ayuda: 'Pedíselo a quien te pasó el link.', abr: 'Abriendo…' },
     en: { tit: 'Enter your code', bot: 'Play', mal: 'That code is not right. Check the letters and try again.', viejo: 'Your code no longer works: ask for a new one.', red: 'Could not download the game. Check your internet and try again.', ayuda: 'Ask whoever sent you the link.', abr: 'Opening…' },
@@ -1351,8 +1351,10 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
   const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
   const hex = (b) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, '0')).join('');
-  // (lo de cifrar lo hace el navegador —crypto.subtle— y, donde no está —la app de iPhone con su esquema propio puede no
-  // tenerlo, o una página sin https—, esto mismo en JS: SHA-256, PBKDF2 y AES-256 en modo contador como el de GCM)
+  // (la carpeta donde está la página: con otra, lo que sale del código es otro y no abre nada)
+  const LUGAR = location.origin + location.pathname.replace(/[^/]*$/, '');
+  // (lo de cifrar lo hace el navegador —crypto.subtle— y, donde no está —una página sin https o un navegador viejo pueden no
+  // tenerlo—, esto mismo en JS: SHA-256, PBKDF2 y AES-256 en modo contador como el de GCM)
   const S = (window.crypto && crypto.subtle && !window.__jxSinSubtle) ? crypto.subtle : null;
   const JS = (() => {
     const KK = new Int32Array([0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]);
@@ -1414,10 +1416,10 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
       }
       return w;
     }
-    function ctr(k, d) {   // d: iv (12) + cifrado + etiqueta (16); la etiqueta no se revisa (el código ya se verificó por su huella)
-      const w = expandir(k), iv = pal(d.subarray(0, 12)), c = d.subarray(12, d.length - 16), o = new Uint8Array(c.length);
-      for (let off = 0, n = 2; off < c.length; off += 16, n++) {
-        let s0 = iv[0] ^ w[0], s1 = iv[1] ^ w[1], s2 = iv[2] ^ w[2], s3 = n ^ w[3];
+    // modo contador: el bloque n se cifra con el contador [c0 c1 c2 n] (puede ser c = o, en su lugar)
+    function ctrX(w, c0, c1, c2, n, c, o) {
+      for (let off = 0; off < c.length; off += 16, n = (n + 1) | 0) {
+        let s0 = c0 ^ w[0], s1 = c1 ^ w[1], s2 = c2 ^ w[2], s3 = n ^ w[3];
         for (let r = 4; r < 56; r += 4) {
           const t0 = T0[s0 >>> 24] ^ T1[(s1 >>> 16) & 255] ^ T2[(s2 >>> 8) & 255] ^ T3[s3 & 255] ^ w[r];
           const t1 = T0[s1 >>> 24] ^ T1[(s2 >>> 16) & 255] ^ T2[(s3 >>> 8) & 255] ^ T3[s0 & 255] ^ w[r + 1];
@@ -1434,11 +1436,15 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
       }
       return o;
     }
-    return { sha, pbkdf2, ctr };
+    function ctr(k, d) {   // d: iv (12) + cifrado + etiqueta (16), como GCM; la etiqueta no se revisa (el código ya se verificó por su huella)
+      const iv = pal(d.subarray(0, 12)), c = d.subarray(12, d.length - 16);
+      return ctrX(expandir(k), iv[0], iv[1], iv[2], 2, c, new Uint8Array(c.length));
+    }
+    return { sha, pbkdf2, ctr, ctrX, expandir, pal };
   })();
   async function claveDe(cod) {
     const n = norm(cod); if (n.length < 6) return null;
-    const pass = new TextEncoder().encode(n); let bits, id;
+    const pass = new TextEncoder().encode(n + '|' + LUGAR); let bits, id;
     if (S) {
       const base = await S.importKey('raw', pass, 'PBKDF2', false, ['deriveBits']);
       bits = new Uint8Array(await S.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: b64(CL.sal), iterations: CL.it }, base, 512));
@@ -1450,12 +1456,28 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
     const kw = await S.importKey('raw', bits.slice(32), 'AES-GCM', false, ['decrypt']);
     try { return new Uint8Array(await S.decrypt({ name: 'AES-GCM', iv: w.slice(0, 12) }, kw, w.slice(12))); } catch (x) { return null; }
   }
+  // el paquete (pk.bin) se descifra en su lugar a medida que llega (juego/datos.js llama una vez por pedazo)
+  async function paquete(k) {
+    const m = new Uint8Array(k.length + 13); m.set(k); m.set(new TextEncoder().encode('jxmod-paquete'), k.length);
+    const kp = S ? await S.importKey('raw', await S.digest('SHA-256', m), 'AES-CTR', false, ['decrypt']) : null, pn = b64(CL.pn);
+    const w = S ? null : JS.expandir(JS.sha(m)), pw = JS.pal(pn); let hecho = 0;
+    return async (u8, o, fin) => {
+      const hasta = fin ? o : o - (o % 16); if (hasta <= hecho) return hecho;
+      const parte = u8.subarray(hecho, hasta), n = hecho / 16;
+      if (S) {
+        const ctr = new Uint8Array(16); ctr.set(pn); ctr[12] = n >>> 24; ctr[13] = n >>> 16; ctr[14] = n >>> 8; ctr[15] = n;
+        u8.set(new Uint8Array(await S.decrypt({ name: 'AES-CTR', counter: ctr, length: 64 }, kp, parte)), hecho);
+      } else JS.ctrX(w, pw[0], pw[1], 0, n, parte, parte);
+      hecho = hasta; return hecho;
+    };
+  }
   async function abrir(k) {
     const r = await fetch('juego.bin?v=' + CL.v); if (!r.ok) throw new Error('red');
-    const d = new Uint8Array(await r.arrayBuffer());
-    if (!S) return JS.ctr(k, d);
-    const kj = await S.importKey('raw', k, 'AES-GCM', false, ['decrypt']);
-    return new Uint8Array(await S.decrypt({ name: 'AES-GCM', iv: d.slice(0, 12) }, kj, d.slice(12)));
+    const d = new Uint8Array(await r.arrayBuffer()); let g;
+    if (!S) g = JS.ctr(k, d);
+    else { const kj = await S.importKey('raw', k, 'AES-GCM', false, ['decrypt']); g = new Uint8Array(await S.decrypt({ name: 'AES-GCM', iv: d.slice(0, 12) }, kj, d.slice(12))); }
+    window.jxCodigoPaq = await paquete(k);
+    return g;
   }
   const leer = () => { try { return localStorage.getItem('jx_codigo') || ''; } catch (e) { return ''; } };
   const anotar = (c) => { try { if (c) localStorage.setItem('jx_codigo', c); else localStorage.removeItem('jx_codigo'); } catch (e) {} };
@@ -1597,6 +1619,8 @@ function inflarJS(src, tam) {
   // el multijugador decía «Sin conexión con los servers» aunque hubiera internet)
   if (k >= 0) { try { (0, eval)(t.slice(0, k) + '\n;if (typeof mqtt !== "undefined") globalThis.mqtt = mqtt;\n//# sourceURL=sala.js'); } catch (e) { try { console.warn('sin modo en línea: ' + e); } catch (x) {} } }
   const sc = document.createElement('script'); sc.textContent = (k >= 0 ? t.slice(k + SEP.length) : t) + '\n//# sourceURL=rezobox.js'; document.body.appendChild(sc);
+  // (con la página con código, el juego ya abierto no queda a la vista en la página)
+  if (typeof jxCodigoJuego === 'function') { sc.remove(); sc.textContent = ''; }
 })();
 </script>
 <script id="pkbin" type="text/plain" data-src="pk.bin"></script>
