@@ -7,7 +7,7 @@
 //  - en Safari sin instalar, un aviso de cómo instalarla (Compartir → «Agregar a inicio»), una vez.
 const IOS = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 const IOS_IPAD = IOS && !/iPhone|iPod/.test(navigator.userAgent || '');
-const IOS_INSTALADA = typeof navigator !== 'undefined' && (navigator.standalone === true || (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches));
+const IOS_INSTALADA = typeof navigator !== 'undefined' && (!!window.JX_IOS_APP || navigator.standalone === true || (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches));
 function iosIniciar() {
   if (!IOS) return;
   document.documentElement.classList.add('ios');

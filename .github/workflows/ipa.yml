@@ -1,0 +1,48 @@
+# Arma la app de iPhone/iPad (jxmod/JXMod.ipa, sin firmar) en una Mac de GitHub y la sube al repo, al lado del APK.
+# Se instala con Sideloadly, AltStore, SideStore o eSign (la firman con tu Apple ID). Ver porteos/jxmod/ios/armar_ipa.sh.
+name: IPA de iPhone
+on:
+  push:
+    branches: [claude/ports-continuation-dm754a]
+    paths: ['porteos/jxmod/ios/**', 'web/index.html', 'web/pk.bin', '.github/workflows/ipa.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: ipa-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ipa:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            porteos/jxmod/ios
+            web/app
+      - name: Armar la .ipa
+        run: bash porteos/jxmod/ios/armar_ipa.sh "$PWD/jxmod/JXMod.ipa" 2.9
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JXMod-ipa
+          path: jxmod/JXMod.ipa
+          retention-days: 30
+      - name: Subir la .ipa al repo
+        # (encima de la última versión de la rama: si alguien subió algo mientras se armaba, se vuelve a intentar)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
+          cp jxmod/JXMod.ipa "$RUNNER_TEMP/JXMod.ipa"
+          for i in 1 2 3 4 5; do
+            git fetch -q --depth=1 origin "$GITHUB_REF_NAME"
+            git checkout -q -f -B subir FETCH_HEAD
+            mkdir -p jxmod && cp "$RUNNER_TEMP/JXMod.ipa" jxmod/JXMod.ipa
+            git add --sparse -f jxmod/JXMod.ipa
+            if git diff --cached --quiet; then echo "sin cambios"; exit 0; fi
+            git commit -q -m "IPA de iPhone armada en GitHub Actions (${GITHUB_SHA::7}) [skip ci]"
+            if git push origin HEAD:"$GITHUB_REF_NAME"; then exit 0; fi
+            sleep $((i * 5))
+          done
+          exit 1

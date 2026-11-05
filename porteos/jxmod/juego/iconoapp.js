@@ -9,7 +9,7 @@
 //  - en la compu: se guarda para cuando la instales.
 const ICAPP = { k: 'jx_icono_app', kp: 'jx_icono_propio' };
 const icappNativo = () => !!(window.JXNativo && JXNativo.iconoApp);
-const icappIOSApp = () => !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.jx);
+const icappIOSApp = () => !!window.JX_IOS_APP && !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.jx);
 function icappElegido() { try { return localStorage.getItem(ICAPP.k) || (icappNativo() && JXNativo.iconoActual ? JXNativo.iconoActual() : 'clasico'); } catch (e) { return 'clasico'; } }
 function icappPropio() { try { const u = localStorage.getItem(ICAPP.kp); return u && /^data:image\/png;base64,/.test(u) ? u : null; } catch (e) { return null; } }
 // (la imagen del ícono para «Agregar a inicio» de Safari y para el instalador: 180 px)
