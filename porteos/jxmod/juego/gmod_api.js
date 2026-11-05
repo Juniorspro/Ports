@@ -64,8 +64,29 @@ const entValida = (e) => e instanceof LEnt && e.vivo && (e.tipo !== 'ent' || !e.
 // origen; antes se usaba el centro, y LocalToWorld, los asientos y las piezas quedaban hasta medio metro corridos)
 const gmaOrigen = (o) => (o.c ? vsub(o.b.pos, o.b.q.rot(o.c)) : o.b.pos.clone());
 const gmaOrigenPon = (o, p, q) => { o.b.pos.copy(p); if (o.c) o.b.pos.add((q || o.b.q).rot(o.c)); };
-const gmaEntPos = (e) => (e.tipo === 'jug' ? (e === GMA.jug ? JUG.pos.clone().add(v3(0, -JUG.medio, 0)) : e.P ? e.P.pos.clone() : v3()) : e.P ? e.P.pos.clone() : e.o ? gmaOrigen(e.o) : e.pos.clone());
-const entQ = (e) => (e.tipo === 'jug' ? Quat.axis(0, 1, 0, e === GMA.jug ? JUG.yaw : 0) : e.o ? e.o.b.q.clone() : e.q.clone());
+const gmaEntPos = (e) => (e.tipo === 'jug' ? (e === GMA.jug ? JUG.pos.clone().add(v3(0, -JUG.medio, 0)) : e.P ? e.P.pos.clone() : v3()) : e.P ? e.P.pos.clone() : e.o ? gmaOrigen(e.o) : e === GMA.swep && gmaArmaW(e) ? v3(gmaArmaW(e)[12], gmaArmaW(e)[13], gmaArmaW(e)[14]) : e.pos.clone());
+const entQ = (e) => (e.tipo === 'jug' ? Quat.axis(0, 1, 0, e === GMA.jug ? JUG.yaw : 0) : e.o ? e.o.b.q.clone() : e === GMA.swep && gmaArmaW(e) ? m4quat(gmaArmaW(e)) : e.q.clone());
+// el arma que el jugador tiene en la mano: donde se dibuja (su modelo de mundo en la mano) o, si no se dibuja, la mano o
+// adelante de los ojos (gmhArmaSinModelo). Antes quedaba donde se creó, en 0,0,0: en 3ª persona la trazadora de la
+// Nyan Gun salía de ahí
+function gmaArmaW(w) {
+  if (typeof gmhArmaSinModelo !== 'function') return null;
+  if (w.mundoW && TIEMPO.t - (w.mundoT || 0) <= 0.5) return w.mundoW;
+  return gmhArmaSinModelo(w);
+}
+// los ojos del jugador y hacia dónde apunta, como en GMod (GetShootPos, EyePos, GetAimVector): en 3ª persona la cámara va
+// 3 m atrás (y con el perro, más arriba que la cabeza) y la bala salía de ahí; ahora sale de los ojos del personaje y va a
+// lo que está en la mira (lo primero que toca el rayo del centro de la pantalla, desde la altura del personaje)
+function gmaOjo() { return typeof JUG !== 'undefined' && JUG.tercera && JUG.ojoPos && !JUG.vehiculo ? JUG.ojoPos : CAM.pos; }
+const _gmaMira = { k: '', d: null };
+function gmaApunta() {
+  if (gmaOjo() === CAM.pos) return CAM.fwd;
+  const c = CAM.pos, f = CAM.fwd, o = JUG.ojoPos, k = c.x + ',' + c.y + ',' + c.z + ',' + f.x + ',' + f.y + ',' + f.z + ',' + o.x + ',' + o.y + ',' + o.z;
+  if (_gmaMira.k === k) return _gmaMira.d;
+  const t0 = Math.max(0, vdot(vsub(o, c), f)), h = raycast(vadd(c, vscale(f, t0)), f, 300, null), q = vadd(c, vscale(f, t0 + (h ? h.t : 300)));
+  let d = vsub(q, o); const L = d.len(); d = L > 0.3 ? vscale(d, 1 / L) : f.clone(); if (vdot(d, f) < 0.2) d = f.clone();
+  _gmaMira.k = k; _gmaMira.d = d; return d;
+}
 function entDeObj(o) { let e = GMA.entPorObj.get(o); if (!e) { e = new LEnt(o.gmClase || (o.nombre && o.nombre.startsWith('gm:') ? 'prop_physics' : 'prop_physics'), 'ent'); e.o = o; e.modelo = o.nombre && o.nombre.startsWith('gm:') ? o.nombre.slice(3) : 'models/' + (o.nombre || 'error') + '.mdl'; GMA.entPorObj.set(o, e); } return e; }
 // métodos de entidad que en GMod sólo están del lado del servidor
 const GMA_SOLO_SERVIDOR = new Set(['Fire', 'Input', 'Use', 'Activate', 'Ignite', 'Extinguish', 'SetUseType', 'TakeDamage', 'TakeDamageInfo', 'SetTrigger', 'SetKeyValue', 'GetKeyValues', 'PointAtEntity', 'SetCreator', 'GetCreator', 'SetPhysicsAttacker', 'GetUnFreezable', 'SetUnFreezable']);
@@ -309,7 +330,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('GetBrushPlane', () => undefined); E('GetFlags', () => 0); E('IsFlagSet', () => false); E('GetEffects', () => 0); E('IsEffectActive', () => false); E('GetRenderMode', () => 0); E('GetMoveCollide', () => 0);
   E('GetNetworkOrigin', (e) => V(gmaEntPos(e))); E('GetLocalPos', (e) => (e.padre && e.padreOff ? V(e.padreOff) : V(gmaEntPos(e)))); E('SetLocalPos', (e, v) => { if (e.padre && v instanceof LVec) { e.padreOff = vG(v); gmaHijoMover(e); } else ENT_M.get('SetPos')(e, v); });
   E('GetLocalAngles', (e) => (e.padre && e.padreQ ? A(quatAng(e.padreQ)) : ENT_M.get('GetAngles')(e))); E('SetLocalAngles', (e, a) => { if (e.padre && a instanceof LAng) { e.padreQ = angQuat(a); gmaHijoMover(e); } else ENT_M.get('SetAngles')(e, a); });
-  E('EyePos', (e) => V(e === yo() ? CAM.pos : gmaEntPos(e))); E('EyeAngles', (e) => A(e === yo() ? dirAng(dS(CAM.fwd)) : quatAng(entQ(e))));
+  E('EyePos', (e) => V(e === yo() ? gmaOjo() : gmaEntPos(e))); E('EyeAngles', (e) => A(e === yo() ? dirAng(dS(gmaApunta())) : quatAng(entQ(e))));
   E('GetGravity', () => 1); E('SetGravity', () => {}); E('GetElasticity', () => 1); E('GetFriction', () => 1);
   // NW y DT (lo de la red: acá se guarda en la entidad y se comparte entre los dos lados)
   for (const t of ['Int', 'Float', 'Bool', 'String', 'Entity', 'Vector', 'Angle', 'Var', '2Int', '2Float', '2Bool', '2String', '2Entity', '2Vector', '2Angle', '2Var']) {
@@ -342,9 +363,9 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   P('GetActiveWeapon', () => gmaFantasma() || GMA.swep || NULL_ENT); P('SetDSP', () => {});   // (los efectos de sonido de Source —eco, sordera— no están) P('Give', (p, c) => gmaDarArma(String(c))); P('StripWeapon', (p, c) => gmaQuitarArma(String(c))); P('StripWeapons', () => {}); P('HasWeapon', (p, c) => !!(GMA.armasJug && GMA.armasJug.has(String(c))) || !!(gmaFantasma() && gmaFantasma().clase === String(c)));
   P('GetWeapon', (p, c) => (GMA.armasJug && GMA.armasJug.get(String(c))) || (gmaFantasma() && gmaFantasma().clase === String(c) ? gmaFantasma() : null) || NULL_ENT); P('GetWeapons', () => R.tab([...(GMA.armasJug || new Map()).values()])); P('SelectWeapon', (p, c) => { const w = GMA.armasJug && GMA.armasJug.get(String(c)); if (w) darArma('gm:' + c); }); P('SetActiveWeapon', () => {});
   P('GetAmmoCount', () => 999); P('GiveAmmo', () => {}); P('RemoveAmmo', () => {}); P('SetAmmo', () => {}); P('StripAmmo', () => {});
-  P('GetEyeTrace', () => gmaTraza(CAM.pos, CAM.fwd, 32768 * GS, null)); P('GetEyeTraceNoCursor', () => gmaTraza(CAM.pos, CAM.fwd, 32768 * GS, null));
+  P('GetEyeTrace', () => gmaTraza(gmaOjo(), gmaApunta(), 32768 * GS, null)); P('GetEyeTraceNoCursor', () => gmaTraza(gmaOjo(), gmaApunta(), 32768 * GS, null));
   P('CheckLimit', () => true); P('GetCount', () => 0); P('AddCount', () => {}); P('AddCleanup', () => {}); P('LimitHit', () => {});
-  P('ShouldDrawLocalPlayer', () => !!(typeof JUG !== 'undefined' && JUG.tercera)); P('GetShootPos', () => V(CAM.pos)); P('GetAimVector', () => Vd(CAM.fwd)); P('SetEyeAngles', (p, a) => { const f = dG(new LVec(...angMat(a)[0])); JUG.yaw = Math.atan2(f.x, f.z); JUG.pitch = clamp(-Math.asin(clamp(f.y, -1, 1)), -1.55, 1.55); });
+  P('ShouldDrawLocalPlayer', () => !!(typeof JUG !== 'undefined' && JUG.tercera)); P('GetShootPos', (p) => V(p && p !== yo() && p.P ? vadd(p.P.pos, v3(0, 0.7, 0)) : gmaOjo())); P('GetAimVector', (p) => Vd(p && p !== yo() && p.P ? Quat.axis(0, 1, 0, p.P.yaw || 0).rot(v3(0, 0, 1)) : gmaApunta())); P('SetEyeAngles', (p, a) => { const f = dG(new LVec(...angMat(a)[0])); JUG.yaw = Math.atan2(f.x, f.z); JUG.pitch = clamp(-Math.asin(clamp(f.y, -1, 1)), -1.55, 1.55); });
   P('KeyDown', (p, k) => gmaTecla(k)); P('KeyPressed', (p, k) => gmaTecla(k) && !(GMA.tecAnt & k)); P('KeyReleased', (p, k) => !gmaTecla(k) && !!(GMA.tecAnt & k)); P('KeyDownLast', (p, k) => !!(GMA.tecAnt & k));
   P('ChatPrint', (p, s) => { if (typeof chatMostrar === 'function') chatMostrar('', String(s), null, 'sis'); else aviso(String(s), 3); }); P('PrintMessage', (p, t, s) => { if (t === 4) aviso(String(s), 3); else P_chat(String(s)); });
   const P_chat = (s) => { if (typeof chatMostrar === 'function') chatMostrar('', s, null, 'sis'); };

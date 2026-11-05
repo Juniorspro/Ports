@@ -301,6 +301,19 @@ function gmhAdjuntoArma(w, i) {
   m4mul(_gmhA, gmhDeSource(a.m, _gmhF), _gmhB); return _gmhB;
 }
 const _gmhI = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); const _gmhIdent = () => _gmhI;
+// el arma en la mano del jugador cuando no se dibujó su modelo de mundo (en 1ª persona, o con un modelo sin mano de Valve,
+// como el perro doge_player: GMod la pega a ValveBiped.Bip01_R_Hand y, si no está, queda en los pies): en la mano, si la
+// hay, o adelante de los ojos, a la altura del hocico; mirando a donde apunta (columnas: izquierda, arriba, adelante)
+const _gmhS = new Float32Array(16), _gmhM = new Float32Array(16);
+function gmhArmaSinModelo(w) {
+  if (typeof JUG === 'undefined' || w !== GMA.swep || !JUG.ojoPos) return null;
+  const P = JUG.cuerpo, f = typeof gmaApunta === 'function' ? gmaApunta() : CAM.fwd;
+  let p = null;
+  if (P && P.md && !(P.gmp && P.gmp.propio) && gmhManoValve(P, 'Right', _gmhM)) p = vadd(v3(_gmhM[12], _gmhM[13], _gmhM[14]), vscale(f, 0.3));
+  if (!p) p = vadd(vadd(JUG.ojoPos, vscale(f, 0.35)), v3(0, -0.12, 0));
+  const u0 = Math.abs(f.y) > 0.98 ? v3(0, 0, 1) : v3(0, 1, 0), l = vcross(u0, f).norm(), u = vcross(f, l).norm();
+  _gmhS.set([l.x, l.y, l.z, 0, u.x, u.y, u.z, 0, f.x, f.y, f.z, 0, p.x, p.y, p.z, 1]); return _gmhS;
+}
 // un hueso del personaje con nombre de Valve: la mano de Source calibrada; los demás, el hueso del personaje que le toca
 function gmhPersona(e) { if (typeof JUG !== 'undefined' && e === GMA.jug) return JUG.cuerpo || null; return e && e.P && e.P.md && e.P.D ? e.P : null; }
 function gmhHuesoMundo(e, i) {
@@ -321,7 +334,7 @@ function gmhApi(R, G) {
   envolver('GetBoneCount', (e) => (gmhPersona(e) ? gmhVB().length : undefined));
   envolver('GetBoneName', (e, i) => (gmhPersona(e) && gmhVB()[i] ? 'ValveBiped.Bip01_' + gmhVB()[i].replace(/^(.)_/, (x, c) => c.toUpperCase() + '_').replace(/_(.)/g, (x, c) => '_' + c.toUpperCase()) : undefined));
   envolver('GetBonePosition', (e, i) => { const W = gmhPersona(e) && gmhHuesoMundo(e, i); return W ? [pos(W), Ag(angDe(W))] : undefined; });
-  envolver('GetAttachment', (e, i) => { if (!(e instanceof LEnt) || e.tipo !== 'arma') return undefined; const W = gmhAdjuntoArma(e, i); return W ? tabla({ Pos: pos(W), Ang: Ag(angDe(W)), Bone: 0 }) : undefined; });
+  envolver('GetAttachment', (e, i) => { if (!(e instanceof LEnt) || e.tipo !== 'arma') return undefined; const W = gmhAdjuntoArma(e, i) || gmhArmaSinModelo(e); return W ? tabla({ Pos: pos(W), Ang: Ag(angDe(W)), Bone: 0 }) : undefined; });
   // (las armas en la mano: sus adjuntos y su modelo, por el modelo de mundo que se dibuja)
   envolver('LookupAttachment', (e, n) => { if (!(e instanceof LEnt) || e.tipo !== 'arma' || !e.mundoRuta) return undefined; const A = GMH.defs.get(e.mundoRuta); if (!A) return undefined; const i = A.M.adjuntos.findIndex((a) => a.n.toLowerCase() === String(n).toLowerCase()); return i < 0 ? 0 : i + 1; });
   envolver('GetAttachments', (e) => { if (!(e instanceof LEnt) || e.tipo !== 'arma' || !e.mundoRuta) return undefined; const A = GMH.defs.get(e.mundoRuta); if (!A) return undefined; return R.tab(A.M.adjuntos.map((a, i) => tabla({ id: i + 1, name: a.n }))); });
