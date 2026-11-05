@@ -1526,3 +1526,29 @@ descarga girando y nada más respondiendo).
   todos de tamaño 1: muebles agrandados o achicados que parecían fuera de lugar). Las camas del Liminal Hotel no se
   pudieron revisar: ese mapa no está en el catálogo con ese nombre.
 - Sin probar en un celular ni en un iPhone de verdad (el iPhone, simulado en Chromium: no hay Safari acá).
+
+## JXMod 2.9-prueba12: menú principal sin amontonar, ícono de la app a elección y app de iPhone instalable
+
+- **Menú principal** (`juego/inicio.js`, `template.html`): la lista va entre el logo y los botones de abajo y se achica
+  junta (letras, márgenes y separadores, nunca menos de 14 px) hasta entrar; si aun así no entra, se desliza. El logo
+  es más bajo en pantallas bajas y la versión pasó arriba a la derecha. Prueba `pruebas/menu_principal.mjs` 4/4 en
+  800×368 (la captura del Discord), 640×360, 873×393, tablet 1180×820 y compu 1366×768: nada se pisa (con 8 px de aire)
+  y las letras quedan entre 17 y 18 px en el celular (antes la lista se metía debajo de los botones).
+- **Ícono de la app a elección, como en Discord** (Ajustes → Ícono de la app; `juego/iconoapp.js`,
+  `herramientas/iconos_app.py`): 8 que vienen (Clásico, Noche, Dorado, Neón, Rojo, Blanco, Azul, VHS) y «Tu imagen».
+  - En Android cambia el ícono de verdad (alias de la actividad en el manifiesto; `JXNativo.iconoApp` en `Web.java`).
+    «Tu imagen» se recorta cuadrada y queda como acceso directo (Android no deja que una app se ponga cualquier imagen
+    como ícono propio).
+  - En la app de iPhone, iOS lo cambia con su aviso (íconos alternativos). En Safari, el elegido es el de «Agregar a
+    inicio» y hay un botón que baja un instalador (.mobileconfig) con ese ícono.
+  - Prueba `pruebas/icono_app.mjs` 5/5.
+- **App de iPhone/iPad instalable** (`ios/`): el mismo juego dentro de una app nativa (WKWebView a pantalla completa y
+  apaisada). El juego y su paquete vienen adentro; mapas, personajes, sonidos y emotes se bajan la primera vez y
+  quedan guardados en la app. Lo que el juego «descarga» (fotos, mods exportados) abre el menú de compartir de iOS.
+  - La arma GitHub Actions en una Mac (`.github/workflows/ipa.yml` → `ios/armar_ipa.sh`) cada vez que cambia
+    `ios/` o el juego web, y la sube a `jxmod/JXMod.ipa`.
+  - Sale **sin firmar**: se instala con Sideloadly (compu), AltStore o SideStore, que la firman con tu Apple ID. Con
+    un Apple ID gratis la firma dura 7 días (AltStore/SideStore la renuevan solos).
+  - Prueba `pruebas/app_iphone.mjs` 5/5 (el juego como lo carga la app, con el puente de iOS simulado).
+- Sin probar en un celular ni en un iPhone de verdad: la .ipa se compila en la Mac de GitHub, pero acá no hay iPhone
+  para abrirla.
