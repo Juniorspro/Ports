@@ -222,7 +222,7 @@ function abrirAjustes(desde) {
   const motorAct = R.gl1 ? 'webgl1' : 'webgl2';
   const celu = typeof CELU !== 'undefined' && CELU.det ? esc((CELU.det.nom || CELU.det.gpu || '') + (CELU.det.soc ? ' · ' + CELU.det.soc : '') + ' → ' + celuPerfil(CELU.det)) : '';
   c.innerHTML = `<div class="ajCab"><h3>${esc(Lc('Settings', 'Ajustes'))}</h3>${celu ? `<span class="ajCelu" id="aCelu">${celu}</span>` : ''}</div>
-  <div class="ajCuerpo"><nav class="ajTabs"><button data-aj="g" class="sel">${glifo('ajustes')}<span>${esc(Lc('Graphics', 'Gráficos'))}</span></button><button data-aj="r">${glifo('video')}<span>${esc(Lc('Rendering', 'Renderizado'))}</span></button><button data-aj="c">${glifo('volumen')}<span>${esc(Lc('ControlsAudio', 'Controles y audio'))}</span></button>${typeof milogoSeccion === 'function' ? `<button data-aj="l">${glifo('estrella')}<span>${esc(T('lg.titulo'))}</span></button>` : ''}</nav>
+  <div class="ajCuerpo"><nav class="ajTabs"><button data-aj="g" class="sel">${glifo('ajustes')}<span>${esc(Lc('Graphics', 'Gráficos'))}</span></button><button data-aj="r">${glifo('video')}<span>${esc(Lc('Rendering', 'Renderizado'))}</span></button><button data-aj="c">${glifo('volumen')}<span>${esc(Lc('ControlsAudio', 'Controles y audio'))}</span></button>${typeof icappSeccion === 'function' ? `<button data-aj="l">${glifo('estrella')}<span>${esc(T('ic.titulo'))}</span></button>` : ''}</nav>
   <div class="ajSecs">
   <section data-ajs="g"><h4>${esc(Lc('Graphics', 'Gráficos'))}</h4>
     ${fila(esc(Lc('GraphicsQuality', 'Calidad gráfica')), sel('aG', [['auto', 'Automático'], ['patata', 'Patata (muy bajo)'], ['bajo', 'Bajo'], ['medio', 'Medio'], ['alto', 'Alto'], ['ultra', 'Ultra (realista)']]))}
@@ -241,12 +241,13 @@ function abrirAjustes(desde) {
     ${fila('Volumen', rango('aV', 0, 100, 5))}
     ${ENT.tactil || COARSE ? fila(esc(T('aj.hud')), rango('aH', 60, 120, 5, 'aHv')) : ''}
     <button class="ajBtn gris" id="aCtl">${esc(T('ctl.titulo'))}</button> <button class="ajBtn gris" id="aTut">${esc(tutTx(TUT_B.ver))}</button> <button class="ajBtn gris" id="aReg">${esc(Lc('Error log', 'Registro de fallas'))}</button></section>
-  ${typeof milogoSeccion === 'function' ? `<section data-ajs="l" class="oc">${milogoSeccion()}</section>` : ''}
+  ${typeof icappSeccion === 'function' ? `<section data-ajs="l" class="oc">${icappSeccion()}${typeof milogoSeccion === 'function' ? `<div class="icDiv"></div>${milogoSeccion()}` : ''}</section>` : ''}
   </div></div>
   <div class="ajPie"><button class="ajBtn" id="aOk">Listo</button></div>`;
   c.querySelector('.ajTabs').onclick = (e) => { const b = e.target.closest('[data-aj]'); if (!b) return; for (const x of c.querySelectorAll('[data-aj]')) x.classList.toggle('sel', x === b); for (const x of c.querySelectorAll('[data-ajs]')) x.classList.toggle('oc', x.dataset.ajs !== b.dataset.aj); };
   $('aM').value = motorAct;
-  if (typeof milogoConectar === 'function') milogoConectar();   // (tu logo: milogo.js)
+  if (typeof icappConectar === 'function') icappConectar();   // (el ícono de la app: iconoapp.js)
+  if (typeof milogoConectar === 'function') milogoConectar();   // (tu logo en el juego: milogo.js)
   $('aG').value = PREFS.gfx; $('aSo').value = String(PREFS.sombras); $('aPo').value = PREFS.post; $('aTq').value = PREFS.texQ;
   $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI; $('aDin').checked = PREFS.resDin !== false;
   if ($('aH')) $('aH').value = PREFS.hud || 80;

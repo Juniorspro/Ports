@@ -55,6 +55,9 @@ import java.util.Map;
  * juego, que al ver el cierre arranca más liviano.
  */
 public class Web extends Activity {
+    /** Los íconos que se pueden elegir (AndroidManifest: activity-alias .Icono<Nombre>). */
+    static final String[] ICONOS = { "clasico", "noche", "dorado", "neon", "rojo", "blanco", "azul", "vhs" };
+    static String iconoAlias(String id) { return "com.jxmod.app.Icono" + Character.toUpperCase(id.charAt(0)) + id.substring(1); }
     static final String HOST = "appassets.androidplatform.net";
     static final String INICIO = "https://" + HOST + "/index.html";
     static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13;
@@ -393,6 +396,26 @@ public class Web extends Activity {
                 sendBroadcast(i);
                 return "ok";
             } catch (Throwable e) { return "mal"; }
+        }
+        /** El ícono de la app (como en Discord): prende la entrada del lanzador con ese ícono y apaga las otras (primero
+         *  prende la nueva, así nunca queda la app sin ícono). El lanzador lo cambia en unos segundos. "ok" o "mal". */
+        @JavascriptInterface public String iconoApp(final String id) {
+            if (id == null || java.util.Arrays.asList(ICONOS).indexOf(id) < 0) return "mal";
+            try {
+                PackageManager pm = getPackageManager();
+                pm.setComponentEnabledSetting(new android.content.ComponentName(getPackageName(), iconoAlias(id)), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP);
+                for (String i : ICONOS) if (!i.equals(id))
+                    pm.setComponentEnabledSetting(new android.content.ComponentName(getPackageName(), iconoAlias(i)), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+                return "ok";
+            } catch (Throwable e) { return "mal"; }
+        }
+        /** El ícono que tiene ahora ("clasico" si nunca se cambió). */
+        @JavascriptInterface public String iconoActual() {
+            try {
+                PackageManager pm = getPackageManager();
+                for (String i : ICONOS) if (pm.getComponentEnabledSetting(new android.content.ComponentName(getPackageName(), iconoAlias(i))) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED) return i;
+            } catch (Throwable e) { }
+            return "clasico";
         }
         @JavascriptInterface public String version() { return Web.this.version(); }
         /** Abre un enlace (redes de JXStudios) en su app o en el navegador. */

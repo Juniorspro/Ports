@@ -236,6 +236,10 @@ def main():
         global PRINCIPAL
         if _m: PRINCIPAL = (PAQUETE + _m.group(1)) if _m.group(1).startswith('.') else _m.group(1)
         if 'L%s;' % PRINCIPAL.replace('.', '/') not in definidas: fallar(PRINCIPAL, 'no está en el dex')
+        # (lo que abre el lanzador: la actividad principal o, si el ícono se elige —activity-alias—, la entrada prendida)
+        global LANZADOR
+        _al = _re.search(r'<activity-alias\s[^>]*android:name="([^"]+)"[^>]*android:enabled="true"', open(a.manifiesto, encoding='utf-8').read())
+        LANZADOR = ((PAQUETE + _al.group(1)) if _al.group(1).startswith('.') else _al.group(1)) if _al else PRINCIPAL
         # 3) aapt2: recursos y manifiesto
         rz = os.path.join(tmp, 'res.zip')
         correr([h['aapt2'], 'compile', '--dir', os.path.join(AQUI, 'res'), '-o', rz], 'aapt2 compile')
@@ -280,9 +284,19 @@ def main():
         b = correr([h['aapt2'], 'dump', 'badging', final], 'aapt2 dump badging')
         esperado = ["package: name='%s' versionCode='%d' versionName='%s'" % (PAQUETE, a.version_code, a.version_name),
                     "targetSdkVersion:'%d'" % TARGET_SDK, "application-label:'JXMod'",
-                    "launchable-activity: name='%s'" % PRINCIPAL]
+                    ] + (["launchable-activity: name='%s'" % PRINCIPAL] if LANZADOR == PRINCIPAL else [])
         for e in esperado:
             if e not in b: fallar('badging: falta', repr(e), '\n' + b)
+        # (con el ícono elegible, el lanzador abre una activity-alias: badging no la lista como launchable; se revisa en el
+        # manifiesto compilado que esté prendida, apunte a la principal y tenga MAIN/LAUNCHER)
+        if LANZADOR != PRINCIPAL:
+            xt = correr([h['aapt2'], 'dump', 'xmltree', '--file', 'AndroidManifest.xml', final], 'aapt2 dump xmltree')
+            bloques = re.split(r'\n\s*E: activity-alias', xt)[1:]
+            corto = lambda n: '.' + n[len(PAQUETE) + 1:] if n.startswith(PAQUETE + '.') else n
+            ok = [x for x in bloques if re.search(r':name\(0x01010003\)="(%s|%s)"' % (re.escape(LANZADOR), re.escape(corto(LANZADOR))), x) and re.search(r':enabled\(0x0101000e\)=(true|\(type 0x12\)0xffffffff)', x)
+                  and re.search(r':targetActivity\(0x01010202\)="(%s|%s)"' % (re.escape(PRINCIPAL), re.escape(corto(PRINCIPAL))), x) and 'android.intent.category.LAUNCHER' in x]
+            if not ok: fallar('manifiesto: la entrada', LANZADOR, 'no está prendida con MAIN/LAUNCHER hacia Inicio\n' + (bloques[0][:1500] if bloques else xt[:3000]))
+            print('  lanzador:', LANZADOR, '(+%d íconos para elegir)' % (len(bloques) - 1))
         if not re.search(r"^(?:min)?[sS]dkVersion:'%d'$" % MIN_SDK, b, re.M): fallar('badging: minSdk no es', MIN_SDK, '\n' + b)
         abis = sorted({k.split('/')[1] for k in nativas})
         nc = re.search(r"native-code: (.*)", b)

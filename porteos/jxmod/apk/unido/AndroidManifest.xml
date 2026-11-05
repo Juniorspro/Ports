@@ -41,12 +41,106 @@
             android:exported="true"
             android:theme="@android:style/Theme.NoDisplay"
             android:noHistory="true"
-            android:excludeFromRecents="true">
+            android:excludeFromRecents="true" />
+
+        <!-- el ícono de la app que se elige en Ajustes (como en Discord): una entrada al lanzador por ícono, prendida
+             sólo la elegida (Web.java: iconoApp). La de fábrica es «Clásico» -->
+        <activity-alias
+            android:name=".IconoClasico"
+            android:targetActivity=".Inicio"
+            android:exported="true"
+            android:enabled="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconoNoche"
+            android:targetActivity=".Inicio"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_v_noche"
+            android:roundIcon="@mipmap/ic_v_noche_round">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconoDorado"
+            android:targetActivity=".Inicio"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_v_dorado"
+            android:roundIcon="@mipmap/ic_v_dorado_round">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconoNeon"
+            android:targetActivity=".Inicio"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_v_neon"
+            android:roundIcon="@mipmap/ic_v_neon_round">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconoRojo"
+            android:targetActivity=".Inicio"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_v_rojo"
+            android:roundIcon="@mipmap/ic_v_rojo_round">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconoBlanco"
+            android:targetActivity=".Inicio"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_v_blanco"
+            android:roundIcon="@mipmap/ic_v_blanco_round">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconoAzul"
+            android:targetActivity=".Inicio"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_v_azul"
+            android:roundIcon="@mipmap/ic_v_azul_round">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconoVhs"
+            android:targetActivity=".Inicio"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_v_vhs"
+            android:roundIcon="@mipmap/ic_v_vhs_round">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <activity
             android:name=".Web"
