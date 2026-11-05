@@ -7,7 +7,8 @@ const RUL = { n: 5, abierto: false, fija: false, editar: false, sel: -1, mx: 0, 
 // los emotes de cada lugar: los elegidos o, si nunca se eligieron, los favoritos, los últimos usados y los clásicos
 function rulSlots() {
   let L = Array.isArray(PREFS.ruleta) ? PREFS.ruleta.slice(0, RUL.n).map((x) => (typeof x === 'string' && x ? x : null)) : null;
-  if (!L) { const C = []; for (const id of [...((EMO && EMO.fav) || []), ...((EMO && EMO.rec) || []), ...((DATA && DATA.emotes) || [])]) if (!C.includes(id)) C.push(id); L = C.slice(0, RUL.n); }
+  // (el baile del nene del bote, «aura farming», viene puesto)
+  if (!L) { const C = []; for (const id of [...((EMO && EMO.fav) || []), ...((EMO && EMO.rec) || []), 'c:99_01', ...((DATA && DATA.emotes) || [])]) if (!C.includes(id)) C.push(id); L = C.slice(0, RUL.n); }
   while (L.length < RUL.n) L.push(null);
   return L;
 }

@@ -233,11 +233,14 @@ const emoGuardados = (k) => { try { const v = JSON.parse(localStorage.getItem(k)
 EMO.fav = new Set(emoGuardados('rb_emo_fav')); EMO.rec = emoGuardados('rb_emo_rec');
 function emoUsado(id) { EMO.rec = [id, ...EMO.rec.filter((x) => x !== id)].slice(0, 30); guardarLS('rb_emo_rec', EMO.rec); }
 // los que se pueden elegir: los del juego (clásicos), los nuevos del paquete, los de captura de movimiento y los tuyos
+const EMO_NUEVOS = ['c:99_01'];
 function emoLista() {
   const l = DATA.emotes.map((e) => ({ id: e, n: emoNom(e, e), cat: 'clasico', ico: 'emo_' + e }));
   for (const [k, c] of Object.entries(DATA.emo || {})) l.push({ id: 'rb:' + k, n: emoNom('rb:' + k, c.n), cat: c.cat || (c.loop ? 'baile' : 'gesto'), ico: 'emo_' + k });
   for (const x of CMU_CAT ? CMU_CAT.items : []) l.push({ id: 'c:' + x[0], n: x[1].charAt(0).toUpperCase() + x[1].slice(1), cat: x[2], dur: x[3], cmu: true, mini: x[5] });
   for (const [k, v] of Object.entries((typeof INST !== 'undefined' && INST.anims) || {})) l.push({ id: 'u:' + k, n: v.nombre, cat: v.cat || 'baile', mio: true, foto: v.foto, local: /^local-/.test(k), autor: v.autor });
+  // (los nuevos, primero: el baile del nene del bote)
+  for (const id of EMO_NUEVOS.slice().reverse()) { const i = l.findIndex((e) => e.id === id); if (i > 0) l.unshift(l.splice(i, 1)[0]); }
   return l;
 }
 // ---------------- miniaturas: la silueta del personaje en su pose más característica ----------------
