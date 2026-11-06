@@ -132,7 +132,7 @@ function gmaReiniciar() {
   for (const e of [...GMA.ents.values()]) if (e.tipo === 'ent' && e.o && !e.o.borrado && e.clase !== 'prop_physics') { try { borrarObjeto(e.o); } catch (x) {} }
   if (GMA.armasJug && typeof ARM !== 'undefined') for (const c of [...GMA.armasJug.keys()]) gmaQuitarArma(c);
   if (GMA.hud) GMA.hud.g.clearRect(0, 0, GMA.hud.c.width, GMA.hud.c.height);
-  Object.assign(GMA, { fantasmas: new Map(), R: null, modo: null, ctx: 'S', hooks: new Map(), timers: new Map(), tSimples: [], net: { S: new Map(), C: new Map() }, ents: new Map(), clases: new Map(), armas: new Map(), efectos: new Map(), cvars: new Map(), fuentes: new Map(), cargados: new Set(), entPorObj: new WeakMap(), hijos: new Set(), rutasCorridas: new Map(), asiento: null, jug: null, mundo: null, swep: null, armasJug: null, netCola: [], partCola: [], efVivos: [], bases: null, mats: null, glob: null, activo: false, teclasAnt: 0, jugVivo: undefined });
+  Object.assign(GMA, { fantasmas: new Map(), R: null, modo: null, ctx: 'S', hooks: new Map(), timers: new Map(), tSimples: [], net: { S: new Map(), C: new Map() }, ents: new Map(), clases: new Map(), armas: new Map(), efectos: new Map(), cvars: new Map(), fuentes: new Map(), cargados: new Set(), entPorObj: new WeakMap(), hijos: new Set(), rutasCorridas: new Map(), asiento: null, jug: null, mundo: null, swep: null, armasJug: null, netCola: [], partCola: [], efVivos: [], bases: null, mats: null, glob: null, activo: false, teclasAnt: 0, jugVivo: undefined, pts: new Set(), dls: new Map() });
 }
 
 // ---------------- cada cuadro ----------------

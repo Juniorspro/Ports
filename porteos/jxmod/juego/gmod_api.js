@@ -396,7 +396,9 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
     w.recarga = TIEMPO.t + (d > 0.3 && d < 6 ? d : 1.4); w.nextP = Math.max(w.nextP || 0, w.recarga); w.nextS = Math.max(w.nextS || 0, w.recarga);
     if (w.dueño === GMA.jug || GMA.swep === w) { if (typeof humAccion === 'function' && JUG.cuerpo) humAccion(JUG.cuerpo, 'recarga'); if (typeof redRecarga === 'function') redRecarga(); }
     return true; });
-  W('GetActivity', () => 0); W('CallOnClient', () => {}); W('IsCarriedByLocalPlayer', (w) => w.dueño === GMA.jug); W('GetPrintName', (w) => { const c = claseTabla(w.clase, 'S'); return (c && c.get('PrintName')) || w.clase; });
+  W('GetActivity', () => 0); W('CallOnClient', (w, n, arg) => {   // (en una partida sola GMod corre esa función del arma también en el cliente, un momento después; Extended Flashlight prende la luz así)
+    if (GMA.ctx !== 'S' || n === undefined || n === null) return; const nom = String(n), x = arg === undefined || arg === null ? '' : String(arg);
+    GMA.tSimples.push({ t: 0, f: () => { if (w.vivo !== false && GMA.swep === w) metodo(w, nom, 'C', x); }, ctx: 'C', js: true }); }); W('IsCarriedByLocalPlayer', (w) => w.dueño === GMA.jug); W('GetPrintName', (w) => { const c = claseTabla(w.clase, 'S'); return (c && c.get('PrintName')) || w.clase; });
   W('SetDeploySpeed', () => {}); W('IsScripted', () => true); W('Clip1Max', () => 0); W('HasAmmo', (w) => (w.clip1 ?? 1) > 0); W('LastShootTime', (w) => w.ultTiro || 0); W('SetLastShootTime', (w) => { w.ultTiro = TIEMPO.t; }); W('IsWeaponVisible', () => true); W('GetWeaponViewModel', (w) => w.vm || ''); W('GetWeaponWorldModel', (w) => w.wm || '');
   // ---- física ----
   const MP = (GMA.mtPhy = new LuaTable()); MP.set('__index', PHY_M); MP.set('__tostring', (f) => 'PhysObject [' + (f.e ? f.e.id : 0) + ']');
@@ -932,7 +934,9 @@ function gmaQuitarArma(clase) { const w = GMA.armasJug && GMA.armasJug.get(clase
 // (cada cuadro, con un arma de un addon en la mano: ataques, recarga, Think; y Deploy/Holster al cambiar)
 function gmaSwepPaso() {
   const n = ARM.lista[ARM.i], D = DEF_ARMAS[n], w = D && D.tipo === 'gmswep' && GMA.armasJug ? GMA.armasJug.get(D.gm) : null;
-  if (w !== GMA.swep) { if (GMA.swep && GMA.swep.vivo) metodo(GMA.swep, 'Holster', 'S'); GMA.swep = w; if (w) { metodo(w, 'Deploy', 'S'); w.vmMd = null; } }
+  // (Holster también en el cliente, como en GMod con varios jugadores: ahí los mods sacan lo que dibujaban; Extended
+  // Flashlight apaga su luz. Sin esto quedaba prendida donde estaba al cambiar de arma)
+  if (w !== GMA.swep) { const o = GMA.swep; if (o && o.vivo) { metodo(o, 'Holster', 'S'); const c = GMA.armas.get(o.clase); if (c && c.C && c.C !== c.S) metodo(o, 'Holster', 'C'); } GMA.swep = w; if (w) { metodo(w, 'Deploy', 'S'); w.vmMd = null; } }
   if (!w || UI.abierto || !JUG.vivo) { if (w) w.prevP = false; return; }
   const t = TIEMPO.t;
   if (w.recarga && t >= w.recarga) { w.recarga = 0; const cs = gmaSwepPrim(w, 'ClipSize'); if (cs > 0) w.clip1 = cs; }
@@ -1001,7 +1005,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   def(G, 'RunConsoleCommand', (...a) => gmaConsola2(a.map(R.tostr).join(' ')));
   def(G, 'ParticleEmitter', (p) => ({ p, __mt: GMA.mtEmisor })); def(G, 'EffectData', () => ({ d: new Map(), __mt: GMA.mtEfecto })); def(G, 'DamageInfo', () => gmaDmgInfo(0));
   def(G, 'ClientsideModel', (m) => { const e = new LEnt('class C_BaseFlex', 'ent'); e.modelo = String(m || '').toLowerCase().replace(/\\/g, '/'); e.cs = true; e.creado = true; e.pos = v3(); return e; }); def(G, 'ClientsideRagdoll', () => NULL_ENT); def(G, 'ClientsideScene', () => NULL_ENT);
-  def(G, 'CreateSound', (e, s) => ({ e, s, __mt: GMA.mtSnd, vol: 1, tono: 100 })); def(G, 'DynamicLight', () => new LuaTable()); def(G, 'ProjectedTexture', () => ({ __mt: GMA.mtVacio }));
+  def(G, 'CreateSound', (e, s) => ({ e, s, __mt: GMA.mtSnd, vol: 1, tono: 100 })); def(G, 'DynamicLight', (i) => gmaLuzDin(i)); def(G, 'ProjectedTexture', () => gmaLuzProy());
   def(G, 'Material', (p, prm) => { const m = gmaMaterial(String(p || '')); if (prm !== undefined && m.pngp === undefined) m.pngp = String(prm); return m; }); def(G, 'CreateMaterial', (n, sh, prm) => {   // (con su $basetexture; los de refracción no se dibujan: no hay esa pasada)
     if (/refract/i.test(String(sh || ''))) { const m = gmaMaterial(String(n || '')); m.r3 = { nada: true }; return m; }
     const bt = prm instanceof LuaTable ? prm.get('$basetexture') : undefined; return gmaMaterial(typeof bt === 'string' && bt ? bt : String(n || '')); }); def(G, 'Matrix', () => ({ m: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], __mt: GMA.mtVacio }));
@@ -1104,6 +1108,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   const SNM = (GMA.mtSnd = new LuaTable()), SNI = new LuaTable(); SNM.set('__index', SNI);
   SNI.set('Play', (s) => { s.on = true; gmaSonar(s.s, s.e instanceof LEnt ? gmaEntPos(s.e) : null, s.vol, s.tono); }); SNI.set('PlayEx', (s, v, p) => { s.vol = v; s.tono = p; SNI.get('Play')(s); }); SNI.set('Stop', (s) => { s.on = false; }); SNI.set('FadeOut', (s) => { s.on = false; });
   SNI.set('IsPlaying', (s) => !!s.on); SNI.set('ChangeVolume', (s, v) => { s.vol = v; }); SNI.set('ChangePitch', (s, p) => { s.tono = p; }); SNI.set('SetSoundLevel', () => {}); SNI.set('GetVolume', (s) => s.vol); SNI.set('GetPitch', (s) => s.tono); SNI.set('SetDSP', () => {}); SNI.set('GetSoundLevel', () => 75);
+  gmaApiLuces(num);
   // ---- surface y draw (la HUD en un lienzo encima del juego) ----
   gmaApiDibujo(R, G, def, lib, num);
   // ---- efectos, partículas, daño ----
@@ -1459,3 +1464,72 @@ function gmAncho(g, f, s) {
   return w;
 }
 try { if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => GM_ANCHO.clear()); } catch (e) {}
+
+// ---------------- luces de los addons: ProjectedTexture (un cono de luz, como la linterna) y DynamicLight ----------------
+// Antes eran objetos vacíos y las linternas de los mods (Extended Flashlight y otras) no iluminaban nada. Ahora cada
+// ProjectedTexture vivo con brillo se suma a las luces especiales del juego (las de la linterna: andan en todas las
+// calidades) y cada DynamicLight a las luces comunes hasta su DieTime.
+function gmaApiLuces(num) {
+  const M = (GMA.mtPT = new LuaTable()), I = new LuaTable(); M.set('__index', I); M.set('MetaName', 'ProjectedTexture');
+  const v = (x) => (x instanceof LVec ? new LVec(x.x, x.y, x.z) : null), a = (x) => (x instanceof LAng ? new LAng(x.p, x.y, x.r) : null);
+  const nv = (p) => { const r = new LVec(p.x, p.y, p.z); r.__mt = GMA.mtVec; return r; }, na = (x) => { const r = new LAng(x.p, x.y, x.r); r.__mt = GMA.mtAng; return r; };
+  const F = {
+    SetPos: (t, p) => { const x = v(p); if (x) t.pos = x; }, GetPos: (t) => nv(t.pos),
+    SetAngles: (t, x) => { const y = a(x); if (y) t.ang = y; }, GetAngles: (t) => na(t.ang),
+    SetFOV: (t, f) => { t.fovH = t.fovV = num(f, 90); }, GetHorizontalFOV: (t) => t.fovH, GetVerticalFOV: (t) => t.fovV,
+    SetHorizontalFOV: (t, f) => { t.fovH = num(f, 90); }, SetVerticalFOV: (t, f) => { t.fovV = num(f, 90); },
+    SetFarZ: (t, z) => { t.lejos = num(z, 1000); }, GetFarZ: (t) => t.lejos, SetNearZ: (t, z) => { t.cerca = num(z, 4); }, GetNearZ: (t) => t.cerca,
+    SetColor: (t, c) => { if (c instanceof LuaTable) t.col = [num(c.get('r'), 255), num(c.get('g'), 255), num(c.get('b'), 255)]; }, GetColor: (t) => GMA.color(t.col[0], t.col[1], t.col[2], 255),
+    SetBrightness: (t, b) => { t.brillo = Math.max(0, num(b, 0)); }, GetBrightness: (t) => t.brillo,
+    SetTexture: (t, x) => { t.tex = typeof x === 'string' ? x : (x && x.n) || t.tex; }, GetTexture: (t) => ({ n: t.tex, w: 256, h: 256, __mt: typeof gmrtMtTex === 'function' ? gmrtMtTex() : GMA.mtVacio }),
+    SetTextureFrame: (t, f) => { t.cuadro = num(f, 0); }, GetTextureFrame: (t) => t.cuadro || 0,
+    Update: (t) => { t.listo = true; }, Remove: (t) => { t.vivo = false; GMA.pts.delete(t); }, IsValid: (t) => !!t.vivo,
+    SetEnableShadows: (t, b) => { t.sombras = !!b; }, GetEnableShadows: (t) => !!t.sombras,
+  };
+  for (const [k, f] of Object.entries(F)) I.set(k, f);
+  // (lo demás —atenuaciones, sombras, orto, entidad objetivo, estrellas de luz— se acepta y no cambia nada)
+  for (const k of ['SetShadowDepthBias', 'SetShadowSlopeScaleDepthBias', 'SetShadowFilter', 'SetOrthographic', 'SetLightWorld', 'SetConstantAttenuation', 'SetLinearAttenuation', 'SetQuadraticAttenuation', 'SetTargetEntity', 'SetStencilBitMask']) I.set(k, () => {});
+  for (const k of ['GetConstantAttenuation', 'GetLinearAttenuation', 'GetQuadraticAttenuation']) I.set(k, () => 0);
+  I.set('GetTargetEntity', () => (typeof NULL_ENT !== 'undefined' ? NULL_ENT : null)); I.set('GetOrthographic', () => false); I.set('GetLightWorld', () => true);
+  M.set('__tostring', () => 'ProjectedTexture');
+}
+function gmaLuzProy() {
+  if (!GMA.pts) GMA.pts = new Set();
+  const t = { __mt: GMA.mtPT, pos: new LVec(), ang: new LAng(), fovH: 90, fovV: 90, lejos: 1000, cerca: 4, col: [255, 255, 255], brillo: 1, tex: 'effects/flashlight001', cuadro: 0, vivo: true, listo: false };
+  // (un tope: un addon que crea una por cuadro sin borrarlas no llena la memoria)
+  if (GMA.pts.size >= 64) { const v = GMA.pts.values().next().value; v.vivo = false; GMA.pts.delete(v); }
+  GMA.pts.add(t); return t;
+}
+// (DynamicLight(i) da siempre la misma luz para el mismo índice, como en GMod; vive hasta DieTime)
+function gmaLuzDin(i) {
+  if (!GMA.dls) GMA.dls = new Map();
+  const k = String(i === undefined ? 0 : i); let t = GMA.dls.get(k);
+  if (!t) { t = new LuaTable(); GMA.dls.set(k, t); if (GMA.dls.size > 64) GMA.dls.delete(GMA.dls.keys().next().value); }
+  t.pedida = TIEMPO.t; return t;
+}
+const LUZ_GMOD = 6.8;   // (brillo 1 de GMod ≈ la linterna del juego)
+// las luces de los addons de este cuadro (lo llama lucesJuntar, efectos.js): los conos van con las especiales; las
+// dinámicas, sólo si la calidad tiene luces comunes (comun = true)
+function gmaLuces(comun) {
+  if (!comun && GMA.pts && GMA.pts.size) {
+    for (const t of GMA.pts) {
+      if (!t.vivo || !t.listo || !(t.brillo > 0)) continue;
+      const [f] = angMat(t.ang), d = dG({ x: f[0], y: f[1], z: f[2] }), k = (LUZ_GMOD * Math.min(t.brillo, 8)) / 255;
+      const radio = Math.max(2, Math.min(60, t.lejos * GS)), cono = Math.cos(Math.min(170, Math.max(t.fovH, t.fovV)) * RAD / 2);
+      luzEspecial(vG(t.pos), radio, [t.col[0] * k, t.col[1] * k, t.col[2] * k], d, cono, 8);
+    }
+  }
+  if (comun && GMA.dls && GMA.dls.size) {
+    const ahora = TIEMPO.t;
+    for (const [i, t] of GMA.dls) {
+      const fin = t.get('DieTime') ?? t.get('dietime'), muere = typeof fin === 'number' ? fin : t.pedida + 0.1;
+      if (muere < ahora) { GMA.dls.delete(i); continue; }
+      const p = t.get('pos') ?? t.get('Pos'); if (!(p instanceof LVec)) continue;
+      const b = t.get('brightness') ?? t.get('Brightness') ?? 1, tam = t.get('Size') ?? t.get('size') ?? 256;
+      const k = (LUZ_GMOD * 0.6 * Math.max(0, Math.min(8, +b || 0))) / 255; if (!(k > 0)) continue;
+      const c = [+(t.get('r') ?? 255) || 0, +(t.get('g') ?? 255) || 0, +(t.get('b') ?? 255) || 0].map((x) => x * k);
+      const dir = t.get('dir') ?? t.get('Dir'), ext = t.get('outerangle') ?? t.get('OuterAngle');
+      luzPuntual(vG(p), Math.max(0.3, Math.min(30, (+tam || 256) * GS)), c, dir instanceof LVec && typeof ext === 'number' ? dG(dir) : null, dir instanceof LVec && typeof ext === 'number' ? Math.cos(Math.min(170, ext) * RAD / 2) : undefined);
+    }
+  }
+}

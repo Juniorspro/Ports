@@ -238,6 +238,12 @@ function gmvApi() {
   soloVm('LookupAttachment', (v, e, n) => { const s = String(n).toLowerCase(), i = v.M.adjuntos.findIndex((a) => a.n.toLowerCase() === s); return i < 0 ? 0 : i + 1; });
   soloVm('GetAttachment', (v, e, i) => { const k = (i | 0) - 1, ni = v.nodoAdj[k]; if (ni === undefined || ni < 0) return null; v.md.actualizar(); const x = ejes(v, v.md.W[ni]); return tab({ Pos: pos(x.P), Ang: ang(x) }); });
   soloVm('GetAttachments', (v) => GMA.R.tab(v.M.adjuntos.map((a, i) => tab({ id: i + 1, name: a.n }))));
+  // dónde está y hacia dónde mira la vista (la raíz: la cámara con el balanceo, sin el espejo del modelo). Antes daba la
+  // entidad sin ubicar (ángulos 0) mientras los enganches venían en el mundo: Extended Flashlight hace
+  // CalcView = ángulos − (vm:GetAngles() − enganche.Ang) y la cámara se sumaba a sí misma en cada cuadro y salía girando
+  const raiz = (v) => ejes({ fx: 1 }, v.md.raiz);
+  soloVm('GetPos', (v) => pos(raiz(v).P)); soloVm('GetAngles', (v) => ang(raiz(v)));
+  soloVm('GetForward', (v) => pos(raiz(v).F)); soloVm('GetUp', (v) => pos(raiz(v).U)); soloVm('GetRight', (v) => { const L = raiz(v).L; return pos(new LVec(-L.x, -L.y, -L.z)); });
   soloVm('LookupSequence', (v, e, n) => { const s = String(n).toLowerCase(), i = v.M.secuencias.findIndex((q) => q.n.toLowerCase() === s); return [i, i >= 0 && v.sec[i] ? DATA.anPorNombre[v.sec[i]].d : 0]; });
   soloVm('GetSequence', (v) => Math.max(0, v.sec.findIndex((n) => n && DATA.anPorNombre[n] === v.clip)));
   soloVm('GetSequenceName', (v, e, i) => (v.M.secuencias[i | 0] ? v.M.secuencias[i | 0].n : 'Unknown'));

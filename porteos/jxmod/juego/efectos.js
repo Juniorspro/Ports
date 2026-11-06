@@ -140,7 +140,9 @@ const EF = { fog: 0 }, TRAZAS = [], LUCES_T = [];
 function luzTemporal(p, r, c, dur) { LUCES_T.push({ p: p.clone(), r, c, t: dur, dur }); }
 function lucesJuntar() {
   R.luces.length = 0; R.esp.length = 0; nocheLucesEsp(); linternaLuces();
+  if (typeof gmaLuces === 'function') gmaLuces(false);   // (las linternas de los mods de GMod: gmod_api.js)
   if (!(GFX.nluz > 0) || GFX.luz < 2) return;
+  if (typeof gmaLuces === 'function') gmaLuces(true);
   for (const l of LUCES_T) { const k = l.t / l.dur; luzPuntual(l.p, l.r, [l.c[0] * k, l.c[1] * k, l.c[2] * k]); }
   for (const l of MUNDO.luces) luzPuntual(l.p, l.r, l.c, l.d, l.k);   // (las del mapa)
   if (EF.fog > 0) { const p = vistaPuntaMundo() || vadd(CAM.pos, vscale(CAM.fwd, 0.8)); luzPuntual(p, 7, [6, 4.2, 2]); }
