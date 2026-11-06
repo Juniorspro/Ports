@@ -1625,3 +1625,31 @@ descarga girando y nada más respondiendo).
     (no es un modelo con forma de persona).
 - APK 2.9-prueba13 y página con código (`web/`) armados de nuevo; `codigo_web.mjs` 9/9.
 - Sin probar en un celular ni en un iPhone de verdad (el iPhone, simulado en Chromium: no hay Safari acá).
+
+## JXMod 2.9-prueba14: habilitar y deshabilitar mods, y la franja gris de gm_construct
+
+- **Habilitar / Deshabilitar mods, uno o todos** (Discord: «opciones para desactivar/habilitar, desactivar todos/habilitar
+  todos los mods», con el dibujo de los botones abajo del panel). En Mods y mapas, en el pie del panel:
+  - en la página de un mod, sólo «Deshabilitar» o «Habilitar» de ese mod (los de «todo» no van ahí, como aclararon);
+  - en la lista, «Deshabilitar todo» y «Habilitar todo» (el que no tiene a cuál aplicarse queda gris);
+  - **GMod** (`gmod.js`, `gmod_tienda.js`): deshabilitado sigue instalado y guardado, pero no se carga (ni su Lua, ni sus
+    armas, entidades, NPCs, modelos o mapas), como en el menú de addons de GMod. Se aplica al toque, también jugando (si
+    tenías su arma en la mano, se saca), y al habilitarlo se vuelve a montar desde la caché sin bajar nada (0,4 s con la
+    Nyan Gun en la compu de prueba). Si un server donde estás lo pide, sigue cargado hasta que salís; el modelo de otro
+    jugador que viene de un addon deshabilitado se sigue viendo (de visita, sin su Lua);
+  - **Mods del juego** (`inicio.js`): lo mismo; reemplaza la casilla «Activado» de la ficha. Los que ponen cosas (radio,
+    piano, props) no tienen botón: están siempre en el menú de props;
+  - los deshabilitados se ven apagados en la lista, con su marca, y la ficha lo avisa; textos en 14 idiomas;
+  - el pie entra en un solo renglón también en un celular chico (640×360): el botón «más» oculto ya no ocupa lugar.
+  - Prueba `pruebas/mods_habilitar.mjs` 9/9 (lista, ficha, guardado al volver a abrir, desde la caché, jugando con el arma
+    en la mano, todo, pestaña Mods, pie en 873×393 y 640×360, sin errores).
+- **La franja gris de gm_construct** (captura del Discord: el cordón entre la vereda y el pasto, gris liso, en un celular
+  mientras se bajaba un mod grande): el gris es el que pone el juego mientras una textura no está lista. Si decodificar
+  una textura fallaba (en el celular pasa con poca memoria libre, por ejemplo mientras se descomprime un mod), quedaba
+  gris para siempre. Ahora se vuelve a intentar (1,5 s, 4 s, 10 s, 30 s y después cada minuto), también si no contesta en
+  12 s, y queda anotado en la caja negra (`gl.js`). Prueba `pruebas/textura_reintento.mjs` 5/5 (antes 2/5: el cordón
+  seguía gris a los 30 s); con 2 fallas seguidas la textura llega y el cordón se ve igual que sin fallas (0 de diferencia).
+  - Lo que no se pudo: reproducir la falla de memoria de verdad (se simula haciendo fallar la decodificación); no se sabe
+    con certeza que ésa fue la causa en ese celular, pero es la única forma en que el juego deja una sola textura gris.
+- APK 2.9-prueba14 y página con código (`web/`) armados de nuevo; `codigo_web.mjs` 9/9.
+- Sin probar en un celular ni en un iPhone de verdad.

@@ -338,6 +338,9 @@ html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(
 .rbTileIco img{width:100%;height:100%;object-fit:cover}.rbTileMapa .rbTileIco{aspect-ratio:16/10}
 .rbTile b{font:700 calc(var(--vh)*2.5) Roboto,Arial,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rbTileOn,.rbTileOk{position:absolute;top:4px;right:4px;width:calc(var(--vh)*4.2);height:calc(var(--vh)*4.2);border-radius:50%;background:#2f86de;box-shadow:0 0 0 2px #fff}
+.rbTileOff{position:absolute;top:4px;right:4px;width:calc(var(--vh)*4.2);height:calc(var(--vh)*4.2);border-radius:50%;background:#8d8d8d;box-shadow:0 0 0 2px #fff}.rbTileOff:after{content:'';position:absolute;left:20%;top:45%;width:60%;height:2px;background:#fff;transform:rotate(45deg)}
+.rbTile.off .rbTileIco{filter:grayscale(1);opacity:.5}.rbTile.off b{color:#888}.rbFicha.off .rbFichaIco{filter:grayscale(1);opacity:.6}
+.rbHab{display:flex;gap:10px;flex-wrap:wrap}@media (max-width:760px){.rbPanPie{gap:6px;padding-left:10px;padding-right:10px}.rbPanPie .rbHab{gap:6px}.rbPanPie .rbBtnGris{padding-left:9px;padding-right:9px}.rbPanPie .rbBtnG{padding-left:14px;padding-right:14px}}.rbHabNo .gli{color:#d23c3c}.rbHabSi .gli{color:#2a9d4b}.rbPanPie button[disabled]{opacity:.45;cursor:default}.rbOffAyuda .gli{width:1.15em;height:1.15em;vertical-align:-.22em}
 .rbTileOk{background:#3aa55c}.rbTileOn:after,.rbTileOk:after{content:'';position:absolute;left:32%;top:20%;width:24%;height:42%;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
 .rbTiendaG.rbFichaModo{display:block}
 .rbFicha{position:relative;background:#fff;border:1px solid #c9c9c9;border-radius:8px;padding:calc(var(--vh)*2);max-width:900px;margin:0 auto}
@@ -1351,7 +1354,7 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
 // ---------------- la página con código (la arma herramientas/codigo_web.mjs: no editar acá) ----------------
 // El juego viene cifrado en juego.bin. El código abre su clave; se recuerda en este aparato y la próxima vez abre solo.
 (function () {
-  const CL = {"v":"3f8825fc384f","it":150000,"sal":"lBSPrDdRfZnysa4QlRbCpA==","pn":"jSur/rs/5+4=","c":{"d616cc5f62e1319b":"0/bUMN8Z97HbQIxwQirxZ7Ha7rSDBXQh8j4nnTxnqOExxaNk0C9C3XzHRkNGWQ0zlSZ6KFJI8uCu3Gyi"}};
+  const CL = {"v":"655a39e7bfe0","it":150000,"sal":"UNezkQHTQ8iUW9RuH6Mj9A==","pn":"S2u79u4SiVM=","c":{"d8a1851f635c2d72":"EfwvJu3j/+4N6MAsVJHW5jIkROu0BtGnV2cs35fwS7DAxt21C5BI1vMrI0bEzYbzHlj5bfv5xciL1ywi"}};
   const L = (navigator.language || 'es').slice(0, 2), T = Object.assign({
     es: { tit: 'Ingresá tu código', bot: 'Jugar', mal: 'Ese código no es. Fijate las letras y probá de nuevo.', viejo: 'Tu código ya no sirve: pedí uno nuevo.', red: 'No se pudo bajar el juego. Revisá internet y probá de nuevo.', ayuda: 'Pedíselo a quien te pasó el link.', abr: 'Abriendo…', ios: 'En iPhone: primero Compartir → «Agregar a inicio» y poné el código ahí. Queda guardado y no te lo pide más.' },
     en: { tit: 'Enter your code', bot: 'Play', mal: 'That code is not right. Check the letters and try again.', viejo: 'Your code no longer works: ask for a new one.', red: 'Could not download the game. Check your internet and try again.', ayuda: 'Ask whoever sent you the link.', abr: 'Opening…', ios: 'On iPhone: first Share → «Add to Home Screen» and enter the code there. It is saved and you will not be asked again.' },
