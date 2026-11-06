@@ -177,15 +177,17 @@ function _cercaObj(it, x0, y0, z0, x1, y1, z1, mk, out) {
   if (a.x1 < x0 || a.x0 > x1 || a.y1 < y0 || a.y0 > y1 || a.z1 < z0 || a.z0 > z1) return;
   out.push(it);
 }
-function mundoCerca(x0, y0, z0, x1, y1, z1, out) {
+// (soloObj: sólo los objetos de la grilla, sin los triángulos del mapa —el jugador y los NPCs ya los miran con trisCerca—)
+function mundoCerca(x0, y0, z0, x1, y1, z1, out, soloObj) {
   out.length = 0; const c = MUNDO.celda, G = MUNDO.grilla, mk = ++MUNDO.marca, TM = _triMarcas();
   const ax = Math.floor(x0 / c), az = Math.floor(z0 / c), bx = Math.floor(x1 / c), bz = Math.floor(z1 / c);
   if ((bx - ax + 1) * (bz - az + 1) > 400) return out;
   for (let i = ax; i <= bx; i++) for (let j = az; j <= bz; j++) {
     const k = _clave(i, j), l = G.get(k); if (!l) continue;
-    if (l.length < SUB_MIN) { for (const it of l) { if (typeof it === 'number') _cercaTri(it, x0, y0, z0, x1, y1, z1, mk, TM, out); else _cercaObj(it, x0, y0, z0, x1, y1, z1, mk, out); } continue; }
+    if (l.length < SUB_MIN) { for (const it of l) { if (typeof it === 'number') { if (!soloObj) _cercaTri(it, x0, y0, z0, x1, y1, z1, mk, TM, out); } else _cercaObj(it, x0, y0, z0, x1, y1, z1, mk, out); } continue; }
     const S = grillaSub(k, l, i, j), n = S.n;
     for (const it of S.obj) _cercaObj(it, x0, y0, z0, x1, y1, z1, mk, out);
+    if (soloObj) continue;
     const a0 = Math.max(0, Math.floor((x0 - S.x0) / S.s)), a1 = Math.min(n - 1, Math.floor((x1 - S.x0) / S.s)), b0 = Math.max(0, Math.floor((z0 - S.z0) / S.s)), b1 = Math.min(n - 1, Math.floor((z1 - S.z0) / S.s));
     for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) for (const it of S.L[a * n + b]) _cercaTri(it, x0, y0, z0, x1, y1, z1, mk, TM, out);
   }

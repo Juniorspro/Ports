@@ -50,7 +50,12 @@ function jugadorAparecer() {
 // empuja una esfera (centro c, radio r) fuera del mundo; devuelve la corrección y anota el piso
 function esferaFuera(c, r, corr, esPie) {
   trisCerca(c.x - r, c.z - r, c.x + r, c.z + r, _trisJ);
+  const T = MUNDO.T, TN = MUNDO.TN;
   for (const t of _trisJ) {
+    // (lejos del plano del triángulo no lo toca: se descarta antes de buscar el punto más cercano —la mayoría de los
+    // triángulos de la caja son paredes o pisos de al lado—)
+    const k9 = t * 9, pl = TN[t * 3] * (c.x - T[k9]) + TN[t * 3 + 1] * (c.y - T[k9 + 1]) + TN[t * 3 + 2] * (c.z - T[k9 + 2]);
+    if (pl >= r || pl <= -r) continue;
     triCercano(t, c.x, c.y, c.z, _p1);
     const dx = c.x - _p1.x, dy = c.y - _p1.y, dz = c.z - _p1.z, d2 = dx * dx + dy * dy + dz * dz;
     if (d2 >= r * r) continue;
@@ -63,7 +68,7 @@ function esferaFuera(c, r, corr, esPie) {
     if (esPie && ny > 0.6) { const kv = k / ny; c.y += kv; corr.y += kv; JUG.suelo = true; JUG.sueloN.set(nx, ny, nz); }
     else { c.x += nx * k; c.y += ny * k; c.z += nz * k; corr.x += nx * k; corr.y += ny * k; corr.z += nz * k; }
   }
-  mundoCerca(c.x - r, c.y - r, c.z - r, c.x + r, c.y + r, c.z + r, _cercaJ);
+  mundoCerca(c.x - r, c.y - r, c.z - r, c.x + r, c.y + r, c.z + r, _cercaJ, true);
   for (const b of _cercaJ) if (b.tri === undefined) empujarDeCuerpo(b, c, r, corr, esPie, false);
 }
 function empujarDeCuerpo(b, c, r, corr, esPie, dinamico) {

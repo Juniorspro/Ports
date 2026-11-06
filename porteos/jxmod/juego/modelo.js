@@ -23,7 +23,8 @@ class Modelo {
     for (let i = 0; i < n; i++) { const x = arbol[i]; this.ver[i] = this.act[i] && x.m !== undefined && x.m >= 0 && x.mt && !x.mroff && !this.ocultoLod[i] ? 1 : 0; }
     // huesos de las mallas con piel
     this.pieles = [];
-    for (let i = 0; i < n; i++) if (arbol[i].bo && this.ver[i]) this.pieles.push({ i, h: new Float32Array(168 * 4) });
+    // (nf: cuántos números de la paleta usa la malla —3 vec4 por hueso—; es lo que se manda a la placa)
+    for (let i = 0; i < n; i++) if (arbol[i].bo && this.ver[i]) { const h = new Float32Array(168 * 4); h.nf = Math.max(4, Math.min(56, arbol[i].bo.length) * 12); this.pieles.push({ i, h }); }
     this.ignorarRaizLocal = !!opt.ignorarRaizLocal;
     this.nombre = opt.nombre || arbol[0].n;
   }

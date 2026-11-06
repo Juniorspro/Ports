@@ -1073,7 +1073,9 @@ function u1f(P, loc, x) { if (!loc) return; _ut[0] = x; if (_uval(P, loc, _ut, 1
 function u1i(P, loc, x) { if (!loc) return; const c = P.__val || (P.__val = new Map()); if (c.get(loc) === x) return; c.set(loc, x); R.gl.uniform1i(loc, x); }
 function u2f(P, loc, x, y) { if (!loc) return; _ut[0] = x; _ut[1] = y; if (_uval(P, loc, _ut, 2)) R.gl.uniform2f(loc, x, y); }
 function u3f(P, loc, x, y, z) { if (!loc) return; _ut[0] = x; _ut[1] = y; _ut[2] = z; if (_uval(P, loc, _ut, 3)) R.gl.uniform3f(loc, x, y, z); }
-function uNv(P, loc, v, n, t) { if (!loc || !_uval(P, loc, v, n)) return; const gl = R.gl; if (t === 16) gl.uniformMatrix4fv(loc, false, v); else if (t === 4) gl.uniform4fv(loc, v); else if (t === 3) gl.uniform3fv(loc, v); else if (t === 2) gl.uniform2fv(loc, v); else gl.uniform1fv(loc, v); }
+// (un vector suelto va con sus números: el navegador convierte cada arreglo común a uno de floats y eso, en la llamada
+// «…fv», costaba 4 veces más que «…f» con los números; los arreglos de varios —luces, sombras— siguen con «…fv»)
+function uNv(P, loc, v, n, t) { if (!loc || !_uval(P, loc, v, n)) return; const gl = R.gl; if (t === 16) gl.uniformMatrix4fv(loc, false, v); else if (n === t && t === 3) gl.uniform3f(loc, v[0], v[1], v[2]); else if (n === t && t === 4) gl.uniform4f(loc, v[0], v[1], v[2], v[3]); else if (n === t && t === 2) gl.uniform2f(loc, v[0], v[1]); else if (t === 4) gl.uniform4fv(loc, v); else if (t === 3) gl.uniform3fv(loc, v); else if (t === 2) gl.uniform2fv(loc, v); else gl.uniform1fv(loc, v); }
 function prepararProg(P) {
   const gl = R.gl;
   if (R.progAct !== P) { R.progAct = P; gl.useProgram(P.p); }
@@ -1106,7 +1108,7 @@ const CIELO_EXP0 = [0.8, 1];
 // uniformes de cada dibujo: si el programa ya tiene ese mismo valor (el mismo arreglo en esta pasada: el mismo material,
 // la misma malla, la misma matriz) no se vuelve a mandar. Cada llamada a WebGL cuesta CPU en el celu y el mapa, por ejemplo,
 // son muchos pedazos con la misma malla, matriz y material. Se olvida en cada pasada (prepararProg), por si cambió adentro.
-function uniV(u, k, v, n) { const c = u.__v || (u.__v = {}); if (c[k] === v) return; c[k] = v; const gl = R.gl; if (n === 4) gl.uniform4fv(u[k], v); else if (n === 3) gl.uniform3fv(u[k], v); else gl.uniformMatrix4fv(u[k], false, v); }
+function uniV(u, k, v, n) { const c = u.__v || (u.__v = {}); if (c[k] === v) return; c[k] = v; const gl = R.gl; if (n === 4) gl.uniform4f(u[k], v[0], v[1], v[2], v[3]); else if (n === 3) gl.uniform3f(u[k], v[0], v[1], v[2]); else gl.uniformMatrix4fv(u[k], false, v); }
 function dibujarPedido(p, P) {
   const gl = R.gl, mt = p.mt, u = P.u;
   if (R.texAct !== mt) {
@@ -1142,7 +1144,10 @@ function geomDibujar(p, u) {
     if (R.vaoAct !== c.vao) { gl.bindVertexArray(c.vao); R.vaoAct = c.vao; }
   } else {
     if (cv.q !== d) { cv.q = d; gl.uniform3f(u.uQ0, d.mn[0], d.mn[1], d.mn[2]); gl.uniform3f(u.uQ1, d.sc[0], d.sc[1], d.sc[2]); }
-    if (p.h) gl.uniform4fv(u.uB, R.nHuesos < 168 ? sub(p.h, R.nHuesos * 4) : p.h);
+    // (los huesos: sólo los que usa esa malla —nf, de modelo.js— y no otra vez si el programa ya tiene esa misma paleta en
+    // esta pasada (los pedazos de un mismo personaje van seguidos en las sombras). Antes se mandaban los 168 vec4 —2,7 kB—
+    // en cada pedazo de cada personaje y en cada pasada: era lo que más costaba del cuadro en un procesador lento)
+    if (p.h && cv.uB !== p.h) { cv.uB = p.h; const nf = Math.min(p.h.nf || p.h.length, R.nHuesos * 4); if (R.gl1) gl.uniform4fv(u.uB, sub(p.h, nf)); else gl.uniform4fv(u.uB, p.h, 0, nf); }
     if (R.vaoAct !== p.m.vao) { gl.bindVertexArray(p.m.vao); R.vaoAct = p.m.vao; }
   }
   // (la piel en la CPU rehace la malla de cada pedido: su matriz se manda siempre)

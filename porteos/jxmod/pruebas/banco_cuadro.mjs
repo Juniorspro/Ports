@@ -28,12 +28,15 @@ const FRENO = +(process.env.FRENO || 1); let cdp = null;
 if (FRENO > 1) { cdp = await p.context().newCDPSession(p); await cdp.send('Emulation.setCPUThrottlingRate', { rate: FRENO }); }
 const niveles = NIV.split(',').map(Number), res = Object.fromEntries(niveles.map((n) => [n, []]));
 // (calentar: unos cuadros de cada nivel antes de medir)
-for (const n of niveles) await ev(`(() => { TIEMPO.lento = ${n}; let T = window.__bT || performance.now(); for (let i = 0; i < 20; i++) { T += 1000 / 60; cuadro(T); } window.__bT = T; return 1; })()`);
+for (const n of niveles) await ev(`(() => { TIEMPO.lento = ${n}; let T = window.__bT || performance.now(); for (let i = 0; i < 40; i++) { T += 1000 / 60; cuadro(T); } window.__bT = T; return 1; })()`);
 for (let t = 0; t < +TANDAS; t++) for (const n of (t % 2 ? niveles.slice().reverse() : niveles)) {
   const v = await ev(`(() => { TIEMPO.lento = ${n}; let T = window.__bT; const o = []; for (let i = 0; i < ${+K}; i++) { T += 1000 / 60; const a = performance.now(); cuadro(T); o.push(performance.now() - a); } window.__bT = T; return o; })()`);
   res[n].push(...v);
 }
-const est = (a) => { const s = a.slice().sort((x, y) => x - y), m = a.reduce((x, y) => x + y, 0) / a.length; return { n: a.length, prom: +m.toFixed(2), p50: +s[Math.floor(s.length / 2)].toFixed(2), p95: +s[Math.floor(s.length * 0.95)].toFixed(2) }; };
+// (picos: cuadros de más de 8 veces la mediana. Con la placa de prueba —SwiftShader, en el procesador— a veces se traba
+// un par de segundos una vez por corrida, pase lo que pase en el juego —le pasa igual a la versión anterior—: se cuentan
+// aparte y el promedio es sin ellos, así no decide la comparación dónde cayó esa traba)
+const est = (a) => { const s = a.slice().sort((x, y) => x - y), p50 = s[Math.floor(s.length / 2)], b = a.filter((x) => x <= 8 * p50), m = b.reduce((x, y) => x + y, 0) / b.length; return { n: a.length, prom: +m.toFixed(2), p50: +p50.toFixed(2), p95: +s[Math.floor(s.length * 0.95)].toFixed(2), picos: a.length - b.length }; };
 const info = await ev(`({ gfx: GFX.nombre, lienzo: R.cv.width + 'x' + R.cv.height, npcs: NPC.lista.length, lejos15: NPC.lista.filter((P) => Math.hypot(P.pos.x - CAM.pos.x, P.pos.z - CAM.pos.z) > 15).length })`);
 console.log(JSON.stringify({ html: HTML.split('/').pop(), freno: FRENO, ...info, niveles: Object.fromEntries(niveles.map((n) => [n, est(res[n])])) }));
 await b.close();

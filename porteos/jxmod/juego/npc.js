@@ -303,7 +303,11 @@ function npcCerebro(P, dt) {
   // esquivar: probar la dirección, si no, de a 35° para cada lado; si es bajo, saltarlo
   if (quiere && !pateando) {
     if (I.desvioT > 0) { I.desvioT -= dt; quiere = rotY(quiere, I.desvio); }
-    let ok = npcLibre(P, quiere, 1.0);
+    // (lo libre del camino, recordado 0,1 s mientras va para el mismo lado: son 2 a 4 rayos por NPC en cada cuadro, y
+    // caminando a 5,5 m/s en 0,1 s avanza 0,55 m de los 1,0 m que mira adelante)
+    let ok;
+    if (I.libreD && TIEMPO.t - I.libreT < 0.1 && I.libreD.x * quiere.x + I.libreD.z * quiere.z > 0.995) ok = I.libreR;
+    else { ok = npcLibre(P, quiere, 1.0); I.libreT = TIEMPO.t; I.libreR = ok; (I.libreD || (I.libreD = v3())).copy(quiere); }
     if (ok === 'saltar') { if (P.suelo && I.saltoT <= 0) { I.saltoT = 0.7; P.vel.y = Math.sqrt(2 * GRAV * MUNDO.gravedad * 1.1); P.suelo = false; } }
     else if (!ok) {
       let alt = null; for (const g of [0.6, -0.6, 1.2, -1.2, 1.8, -1.8]) { const q = rotY(quiere, g); if (npcLibre(P, q, 1.0) === true) { alt = q; I.desvio = g; I.desvioT = 0.6; break; } }
