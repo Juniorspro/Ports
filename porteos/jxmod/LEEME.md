@@ -1709,3 +1709,76 @@ descarga girando y nada más respondiendo).
   navegadores a la vez uno no llegó a armar el modelo del otro en 90 s; sola, 6/6).
 - Sin probar en un celular ni en un iPhone de verdad, ni con un mouse de verdad (el clic y el mouse trabado se simulan en
   Chromium).
+
+## JXMod 2.9-prueba16: optimizado para celulares de 512 MB y 1,4 GHz (Alto con sombras medias, y las demás calidades)
+
+Pedido del Discord: «seguí optimizando todos los gráficos, ahora 512 de RAM, procesador a 1,4, en Alto y sombras
+medianas; y los otros gráficos». Todo medido en la compu con un celular simulado: pantalla de 960×480, el procesador 12
+veces más lento (lo que rinde un Cortex-A53 a 1,4 GHz en JavaScript), gm_construct con 6 objetos y 10 personajes
+caminando. Las comparaciones son contra la prueba15, en las mismas condiciones.
+
+- **Memoria** (`pruebas/celu512.mjs`: la de JavaScript después de juntar la basura y lo que se sube a la placa):
+  - las animaciones guardan sus cuadros en arreglos de números chicos (`Float32Array`) en vez de listas de listas
+    (`datos.js`, `vista.js`, `gmod_vista.js`); se ven igual;
+  - la librería del multijugador armaba, la primera vez que mandaba algo, una tabla de 65 536 números (~7 MB) que casi no
+    usa: ahora arma sólo los que hacen falta (`armar.py`);
+  - al cambiar de mapa se sueltan las mallas y texturas del mapa anterior (antes quedaban en la memoria y en la placa:
+    gm_construct → pizzería → desierto llegaba a 322 MB);
+  - **modo memoria baja**, solo en aparatos de 1 GB o menos (o con `?mem512`): texturas sin transparencia en 16 bits
+    (RGB565), las de los mods de GMod hasta 512 px, el mapa de sombras en 16 bits y las texturas que no se usaron en
+    30 s se sueltan (se vuelven a subir si hacen falta). `pruebas/memoria_baja.mjs` 4/4: se ve igual (diferencia media
+    1,5 a 2,8 de 255 en lo que no se mueve, sombras en el mismo lugar), la placa ocupa 36 MB en vez de 55.
+
+  | Alto + sombras medias | JavaScript | Placa | Total |
+  |---|---|---|---|
+  | prueba15 | 87,4 MB | 64,6 MB | 152,8 MB |
+  | prueba16 | 62,6 MB | 64,6 MB | 127,8 MB |
+  | prueba16, memoria baja | 62,7 MB | 45,1 MB | 108,5 MB |
+
+  | Total por mapa (Alto) | gm_construct | pizzería | desierto |
+  |---|---|---|---|
+  | prueba15 | 152,8 MB | 307,7 MB | 322 MB |
+  | prueba16 | 127,8 MB | 248,3 MB | 147,5 MB |
+  | prueba16, memoria baja | 108,5 MB | 107,7 MB | 103,4 MB |
+
+  | Total por calidad | Patata | Bajo | Medio |
+  |---|---|---|---|
+  | prueba15 | 101,8 MB | 109,3 MB | 117,8 MB |
+  | prueba16 | 76,1 MB | 84,4 MB | 92,9 MB |
+  | prueba16, memoria baja | 75,3 MB | 80,0 MB | 84,8 MB |
+- **Procesador** (`pruebas/banco_ab.mjs`, nuevo: las dos versiones abiertas en el mismo navegador, con el mismo azar —los
+  personajes aparecen y caminan igual— y turnándose por tandas; antes las dos corridas de la misma versión daban 12,5 y
+  14,5 ms y no se podía comparar):
+  - cada pedazo de cada personaje mandaba a la placa la paleta entera de huesos (168 vectores, 2,7 kB) en cada pasada
+    (sombras, profundidad, imagen): ahora sólo los huesos que usa esa malla y una vez por pasada si sigue el mismo
+    personaje: de 59 a 7 subidas por cuadro (`gl.js`, `modelo.js`);
+  - los colores y vectores sueltos de cada material (3 o 4 números) iban como listas, que el navegador convierte en cada
+    llamada (4 veces más lento): ahora van como números sueltos;
+  - los choques del jugador y de los NPCs descartan antes los triángulos que no pueden tocar (lejos de su plano) y ya no
+    arman los cuerpos de los triángulos del mapa sólo para saltearlos (`jugador.js`, `mundo.js`);
+  - los NPCs miran si el camino está libre (2 a 4 rayos cada uno) cada 0,1 s mientras van para el mismo lado, no en cada
+    cuadro (`npc.js`);
+  - `pruebas/huesos_igual.mjs` (nuevo) 3/3: el mismo instante con 8 personajes dibujado con el código de antes y el de
+    ahora da la misma imagen, píxel por píxel, en Alto, Medio y Bajo.
+
+  | JavaScript por cuadro (procesador de 1,4 GHz simulado) | prueba15 | prueba16 | cambio |
+  |---|---|---|---|
+  | Alto + sombras medias | 14,96 ms | 12,17 ms | −18,6 % |
+  | Alto + sombras medias, con el ahorro de procesador | 12,88 ms | 10,51 ms | −18,4 % |
+  | Medio | 15,58 ms | 14,35 ms | −7,9 % |
+  | Bajo | 12,03 ms | 10,83 ms | −10 % |
+  | Patata | 12,83 ms | 10,71 ms | −16,5 % |
+- La placa de video dibuja lo mismo que antes: las mismas 21 pasadas y los mismos dibujos por cuadro en Alto. En el modo
+  memoria baja las texturas y el mapa de sombras pesan la mitad, así que también hay la mitad para leer, pero el tiempo
+  de la placa de un celular no se puede medir en la compu (la placa de prueba dibuja con el procesador). En un celular
+  así la que manda es la resolución automática, que ya baja sola si no llegan los cuadros.
+- Se ve igual: `captura_igual.mjs` en las cinco calidades, sin personajes, contra la prueba15: hasta 2,9 % de píxeles
+  distintos, lo mismo que la prueba15 contra sí misma en otra corrida (hasta 3 %: nubes y pasto que se mueven).
+- Choques y NPCs, de nuevo con los cambios: `colisiones` 5/5, `agacharse_escalones` 5/5, `npc_caminar` 5/5; `npc` 14/15:
+  falla «la Physics Gun lo levanta», y falla igual con la prueba15 (no es de esta versión; queda para revisar).
+- APK 2.9-prueba16 y página con código (`web/`) armados de nuevo; `codigo_web.mjs` 9/9.
+- Pruebas de antes, de nuevo: `mouse_pc` 6/6, `linterna_mod` 7/7, `hl_resurgence` 5/5, `mods_habilitar` 9/9,
+  `textura_reintento` 5/5, `vj_crack` 6/6, `disparo_tercera` 6/6, `ruleta_emotes` 7/7, `red_workshop` 6/6,
+  `linterna_bsp` 4/4, `mapa_io` 6/6, `props_pose` 4/4, `gmod_abrir` 7/7, `gmod_mira_recarga` 7/7 y `celu_mano` 27/27.
+- Sin probar en un celular de 512 MB de verdad: el procesador lento se simula frenando el de la compu, la memoria se mide
+  en Chromium y la placa de video de prueba no es la de un celular.
