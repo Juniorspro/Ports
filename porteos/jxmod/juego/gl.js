@@ -818,10 +818,10 @@ function texSolida(c) {
 function texGL(i) {
   if (i == null || i < 0) return R.texBlanca;
   let t = R.tex[i];
-  if (t) { if (!t.gl && t.fallas && !t.va && performance.now() >= t.otra) texDecodificar(i, t); return t.gl || R.texGris; }   // (sólo las del paquete que fallaron)
+  if (t) { t.u = R.msCuadro; if (!t.gl && t.fallas && !t.va && performance.now() >= t.otra) texDecodificar(i, t); return t.gl || R.texGris; }   // (sólo las del paquete que fallaron)
   const pt = PK.parte('t' + i);
   if (!pt) { const x = DATA.tx[i]; if (x && x.k) { rbPedir(x.k); return R.texGris; } return R.texBlanca; }   // (en un paquete aparte: cuando llegue)
-  t = R.tex[i] = { gl: null, va: false, n: 0, fallas: 0, otra: 0 };
+  t = R.tex[i] = { gl: null, va: false, n: 0, fallas: 0, otra: 0, u: R.msCuadro };
   texDecodificar(i, t);
   return R.texGris;
 }
@@ -846,7 +846,9 @@ function texDecodificar(i, t) {
     const src = texAjustar(img, GFX.texMax);
     const gl = R.gl, tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, !volteada && src === img);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    // (memoria baja: las opacas en 16 bits, la mitad; las que tienen transparencia, como siempre)
+    if (GFX.memBaja && DATA.tx[i] && !DATA.tx[i].a) gl.texImage2D(gl.TEXTURE_2D, 0, R.gl1 ? gl.RGB : gl.RGB565, gl.RGB, gl.UNSIGNED_SHORT_5_6_5, src);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
@@ -854,6 +856,17 @@ function texDecodificar(i, t) {
     if (R.aniso && GFX.aniso) gl.texParameterf(gl.TEXTURE_2D, R.aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(GFX.aniso, R.anisoMax || 16));
     t.gl = tx; t.va = false; img.close && img.close();
   }).catch((e) => { clearTimeout(tope); fallo(e); });
+}
+// memoria baja (GFX.memBaja): las texturas del paquete que no se dibujan hace 30 s se sacan de la placa; si se las vuelve a
+// ver, se decodifican solas (un instante en gris). Antes quedaban todas las de los mapas por los que se pasó
+function texPodar(ahora) {
+  const gl = R.gl, lim = ahora - 30000; let n = 0;
+  for (let i = 0; i < R.tex.length; i++) {
+    const t = R.tex[i]; if (!t || !t.gl || t.va || t.gl === R.texGris || t.gl === R.texBlanca || (t.u || 0) > lim) continue;
+    const d = DATA.tx[i]; if (!d || d.gm || !PK.parte('t' + i)) continue;
+    gl.deleteTexture(t.gl); R.tex[i] = undefined; n++;
+  }
+  return n;
 }
 // imagen decodificada y ya dada vuelta (las UV del juego tienen el origen abajo). Sin createImageBitmap (Safari
 // viejo) se usa un <img> y la vuelta la hace WebGL al subirla
@@ -904,9 +917,10 @@ function mallaGL(i) {
   gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.BYTE, true, 14, 6);
   gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, R.gl1 ? gl.UNSIGNED_SHORT : gl.HALF_FLOAT, false, 14, 10);
   // (la luz horneada de los mapas de Source: dónde cae cada vértice en el atlas de luces del mapa)
-  if (d.lm !== undefined) { const lb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, lb); gl.bufferData(gl.ARRAY_BUFFER, BIN.subarray(d.lm, d.lm + d.v * 4), gl.STATIC_DRAW); gl.enableVertexAttribArray(5); gl.vertexAttribPointer(5, 2, gl.UNSIGNED_SHORT, true, 4, 0); }
+  let lb = null, sb = null;
+  if (d.lm !== undefined) { lb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, lb); gl.bufferData(gl.ARRAY_BUFFER, BIN.subarray(d.lm, d.lm + d.v * 4), gl.STATIC_DRAW); gl.enableVertexAttribArray(5); gl.vertexAttribPointer(5, 2, gl.UNSIGNED_SHORT, true, 4, 0); }
   if (d.sk !== undefined) {
-    const sb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, sb); gl.bufferData(gl.ARRAY_BUFFER, BIN.subarray(d.sk, d.sk + d.v * 8), gl.STATIC_DRAW);
+    sb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, sb); gl.bufferData(gl.ARRAY_BUFFER, BIN.subarray(d.sk, d.sk + d.v * 8), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 4, gl.UNSIGNED_BYTE, false, 8, 0);
     gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 4, gl.UNSIGNED_BYTE, true, 8, 4);
   }
@@ -918,7 +932,7 @@ function mallaGL(i) {
   gl.bindVertexArray(null);
   // esfera que la envuelve (para no dibujar lo que no se ve)
   const c = [d.mn[0] + d.sc[0] / 2, d.mn[1] + d.sc[1] / 2, d.mn[2] + d.sc[2] / 2], r = Math.hypot(d.sc[0], d.sc[1], d.sc[2]) / 2;
-  m = R.mallas[i] = { vao, vb, ib, d, it: d.i32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, isz: d.i32 ? 4 : 2, c, r, skin: d.sk !== undefined, idx: i, lm: d.lm !== undefined && !Q.get('sinLM') ? d.lmT : null };
+  m = R.mallas[i] = { vao, vb, ib, lb, sb, d, it: d.i32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, isz: d.i32 ? 4 : 2, c, r, skin: d.sk !== undefined, idx: i, lm: d.lm !== undefined && !Q.get('sinLM') ? d.lmT : null };
   return m;
 }
 // ---------------- materiales ----------------

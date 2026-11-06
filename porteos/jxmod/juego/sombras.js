@@ -21,7 +21,7 @@ function sombrasIniciar(n, tam) {
   const mk = () => {
     const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
     if (R.gl1) gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, tam, tam, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
-    else gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, tam, tam);
+    else gl.texStorage2D(gl.TEXTURE_2D, 1, GFX.memBaja ? gl.DEPTH_COMPONENT16 : gl.DEPTH_COMPONENT24, tam, tam);   // (memoria baja: 16 bits; con la caja de las sombras, pasos de ~5 mm, menos que el margen de 2 cm)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t, 0);

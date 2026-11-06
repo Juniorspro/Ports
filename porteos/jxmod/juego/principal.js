@@ -72,7 +72,16 @@ function perfilInicial() {
   if (/rtx|radeon rx [5-9]\d{3}|rx [67]\d{3}|apple m\d|gtx 1[06-9]\d|gtx 16|arc\(tm\) a|arc a\d/.test(gpu) && nuc >= 6) return 'ultra';
   return 'alto';
 }
+// celulares de 1 GB de RAM o menos (Android Go: 512 MB): la memoria es lo que primero se termina (el sistema cierra el
+// juego). Sin cambiar la calidad elegida, se guarda más chico lo que casi no se nota: las texturas opacas en 16 bits
+// (RGB565) y el mapa de sombras en 16 bits. ?mem512 lo fuerza para probar
+function memoriaBaja() {
+  if (Q.has('mem512')) return true;
+  const ram = Math.max((typeof CELU !== 'undefined' && CELU.det && CELU.det.ram) || 0, navigator.deviceMemory || 0);
+  return ram > 0 && ram <= 1;
+}
 function aplicarGfx(ahorro) {
+  if (GFX.memBaja === undefined) GFX.memBaja = memoriaBaja();
   // (después de cambiar la calidad o de entrar a un mapa se compila todo de una, como siempre; ya andando, lo nuevo en
   // paralelo: ver progDe. ahorro: sólo cambió el paso del ahorro de GPU en plena partida —gfxAhorroPaso—: sin recompilar
   // los materiales ni tocar la resolución)
@@ -437,7 +446,9 @@ function dibujar() {
   m4mul(P, V, R.vp); R.fr = frustum(R.vp); R.camPos.copy(CAM.pos); R.camF.copy(CAM.fwd); R.lejos = vistaLejos();
   R.lodK = H / (2 * Math.tan(fovy / 2));   // (píxeles por metro a un metro: para los niveles de detalle)
   (R.vpMundo || (R.vpMundo = new Float32Array(16))).set(R.vp);
-  R.dibujadas = 0; R.tris = 0; R.marca++; R.cuadro = (R.cuadro || 0) + 1;
+  R.dibujadas = 0; R.tris = 0; R.marca++; R.cuadro = (R.cuadro || 0) + 1; R.msCuadro = performance.now();
+  // (memoria baja: cada 5 s, las texturas que no se dibujan hace 30 s se sacan de la placa —texPodar, gl.js—)
+  if (GFX.memBaja && R.msCuadro - (R.podaT || 0) > 5000) { R.podaT = R.msCuadro; texPodar(R.msCuadro); }
   // cómo sale la imagen según la calidad
   const usaPost = GFX.luz >= 2 && (GFX.hdr || GFX.ao || GFX.fxaa) && postPreparar();
   R.salida = GFX.luz < 2 ? 'gam' : usaPost && PO.hdr ? 'hdr' : 'ldr';

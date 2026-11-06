@@ -266,10 +266,17 @@ function gmTexSubir(px, w, h, n, alfa) {
   R.tex[ti] = { gl: gmTexGL(px, w, h) };
   return ti;
 }
-function gmTexGL(px, w, h) {
+// (el tope de las de los addons: el de la calidad, o 1024; con memoria baja, 512 —los .vtf traen sus niveles más chicos—)
+const gmTexTope = (ico) => (ico ? 64 : Math.min((GFX && GFX.texMax) || 1024, GFX && GFX.memBaja ? 512 : 1e9));
+function gmTexGL(px, w, h, alfa) {
   const gl = R.gl, tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  // (memoria baja: las que no tienen transparencia en 16 bits, la mitad)
+  if (GFX.memBaja && alfa === false) {
+    const n = w * h, q = new Uint16Array(n);
+    for (let i = 0, o = 0; i < n; i++, o += 4) q[i] = ((px[o] >> 3) << 11) | ((px[o + 1] >> 2) << 5) | (px[o + 2] >> 3);
+    gl.texImage2D(gl.TEXTURE_2D, 0, R.gl1 ? gl.RGB : gl.RGB565, w, h, 0, gl.RGB, gl.UNSIGNED_SHORT_5_6_5, q);
+  } else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   const pot = (w & (w - 1)) === 0 && (h & (h - 1)) === 0;
   if (pot || !R.gl1) { gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); }
@@ -286,19 +293,19 @@ function gmTexLlenar(ti, u, ruta, max) {
     if (!u) throw new Error('no se pudo leer');
     const T = GMF.vtf(u, max), px = GMF.vtfRGBA(T);
     let alfa = false; if (T.alfa) for (let i = 3; i < px.length; i += 4) if (px[i] < 250) { alfa = true; break; }
-    t.gl = gmTexGL(px, T.w, T.h); const d = DATA.tx[ti]; if (d) { d.a = alfa ? 1 : 0; d.w = T.w; d.h = T.h; }
+    t.gl = gmTexGL(px, T.w, T.h, alfa); const d = DATA.tx[ti]; if (d) { d.a = alfa ? 1 : 0; d.w = T.w; d.h = T.h; }
   } catch (e) { gmErr('vtf ' + ruta, e); const f = R.tex[gmTexFaltante()]; t.gl = f ? f.gl : null; }
 }
 // con la calidad de textura nueva: la de un addon se vuelve a leer de su .vtf y reemplaza a la vieja en el mismo lugar
 // (los materiales la siguen usando por su número); si no se puede, queda la que estaba
 function gmTexReleer(ti) {
   const d = DATA.tx[ti], t = R.tex[ti]; if (!d || !t || !/^GMA_/.test(d.n || '') || /^GMA_(faltante|blanca)$/.test(d.n)) return;
-  const ruta = d.n.slice(4), rr = 'materials/' + ruta + '.vtf', max = (GFX && GFX.texMax) || 1024;
+  const ruta = d.n.slice(4), rr = 'materials/' + ruta + '.vtf', max = gmTexTope();
   const poner = (u) => {
     if (!u || R.tex[ti] !== t) return;
     try {
       const T = GMF.vtf(u, max), px = GMF.vtfRGBA(T), viejo = t.gl;
-      t.gl = gmTexGL(px, T.w, T.h); d.w = T.w; d.h = T.h;
+      t.gl = gmTexGL(px, T.w, T.h, d.a ? true : d.a === 0 ? false : undefined); d.w = T.w; d.h = T.h;
       if (viejo && viejo !== t.gl && viejo !== R.texGris && viejo !== R.texBlanca) R.gl.deleteTexture(viejo);
     } catch (e) {}
   };
@@ -330,7 +337,7 @@ function gmTexDelJuego(ruta) {
 function gmTextura(ruta, ico) {
   const k = ruta + (ico ? '|i' : ''); if (GMOD.tex.has(k)) return GMOD.tex.get(k);
   let res = -1;
-  const rr = 'materials/' + ruta + '.vtf', max = ico ? 64 : (GFX && GFX.texMax) || 1024;
+  const rr = 'materials/' + ruta + '.vtf', max = gmTexTope(ico);
   let b = null;
   if (!GMOD.arch.has(rr) && GMPZ.idx.has(rr)) {
     b = gmVtfYa(rr, max);

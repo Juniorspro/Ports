@@ -143,7 +143,7 @@ function gmvConstruir(ruta, flip, fovVm, clase, manos) {
       const hc = crc32(camino(1 + h)); pistas.push({ h: hc, k: 'p', f: Pk }, { h: hc, k: 'r', f: Rk });
     }
     const nom = id + ':' + sq.n, clip = { d: (n30 - 1) / fps30, loop: sq.loop, p: pistas };
-    DATA.an.clips[nom] = [clip]; DATA.anPorNombre[nom] = clip; v.sec.push(nom);
+    animCompactar(clip); DATA.an.clips[nom] = [clip]; DATA.anPorNombre[nom] = clip; v.sec.push(nom);
     const act = String(sq.act || '').toUpperCase(); if (act) { const L = v.actos.get(act) || []; L.push(nom); v.actos.set(act, L); }
   });
   // las cuatro de siempre (por actividad; si no, por el nombre de la secuencia)

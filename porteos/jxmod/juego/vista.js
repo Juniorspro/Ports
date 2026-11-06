@@ -47,7 +47,21 @@ function vistaAplicar(v, dt) {
   const fps = DATA.an.fps, f = t * fps, i0 = Math.floor(f), w = f - i0, md = v.md;
   for (const pz of c.p) {
     const i = v.porHash.get(pz.h); if (i === undefined) continue;
-    const F = pz.f, a = F[Math.min(i0, F.length - 1)], b = F[Math.min(i0 + 1, F.length - 1)];
+    const F = pz.f, e = pz.e;
+    // (las pistas compactas: animCompactar, datos.js)
+    if (e) {
+      const n = pz.n, ia = Math.min(i0, n - 1) * e, ib = Math.min(i0 + 1, n - 1) * e;
+      if (pz.k === 'a') { md.act[i] = (w < 0.5 ? F[ia] : F[ib]) > 0.5 ? 1 : 0; continue; }
+      const dst = pz.k === 'p' ? md.p[i] : pz.k === 's' ? md.s[i] : md.r[i];
+      if (pz.k === 'r') {
+        const ax = F[ia], ay = F[ia + 1], az = F[ia + 2], aw = F[ia + 3]; let bx = F[ib], by = F[ib + 1], bz = F[ib + 2], bw = F[ib + 3];
+        if (ax * bx + ay * by + az * bz + aw * bw < 0) { bx = -bx; by = -by; bz = -bz; bw = -bw; }
+        dst[0] = ax + (bx - ax) * w; dst[1] = ay + (by - ay) * w; dst[2] = az + (bz - az) * w; dst[3] = aw + (bw - aw) * w;
+        const l = Math.hypot(dst[0], dst[1], dst[2], dst[3]) || 1; dst[0] /= l; dst[1] /= l; dst[2] /= l; dst[3] /= l;
+      } else for (let k = 0; k < 3; k++) dst[k] = F[ia + k] + (F[ib + k] - F[ia + k]) * w;
+      continue;
+    }
+    const a = F[Math.min(i0, F.length - 1)], b = F[Math.min(i0 + 1, F.length - 1)];
     if (pz.k === 'a') { const on = (w < 0.5 ? a : b) > 0.5; md.act[i] = on ? 1 : 0; continue; }
     const dst = pz.k === 'p' ? md.p[i] : pz.k === 's' ? md.s[i] : md.r[i];
     if (pz.k === 'r') {

@@ -78,6 +78,18 @@ idx['m'].append(1)   # (índices filtrados)
 html = open(os.path.join(AQUI, 'juego', 'template.html'), encoding='utf-8').read()
 MQTT = os.environ.get('MQTT_JS', '')  # mqtt.min.js 5.x bajado aparte (no va al repo)
 MQTT_TXT = open(MQTT, encoding='utf-8').read() if MQTT else ''
+# (mqtt-packet arma, la primera vez que manda algo, un búfer de 2 bytes para cada número de 16 bits: 65 536 búferes, ~7 MB
+# de memoria de JavaScript, aunque se juegue solo —el juego se conecta para la lista de servers y los amigos—. Se arma
+# sólo el número que se usa, cuando se usa: en un celular de 512 MB eso importa)
+def _mqtt_numeros(t):
+    m = re.search(r'function (\w+)\(\)\{for\(let t=0;t<(\w+);t\+\+\)(\w+)\[t\]=(\w+)\(t\)\}', t)
+    if not m: return t
+    fn, n, cache, gen = m.groups()
+    d = re.search(r'([,\s])' + re.escape(cache) + r'=\{\}', t)
+    if not d: return t
+    t = t[:m.start()] + 'function ' + fn + '(){}' + t[m.end():]
+    return t.replace(d.group(0), d.group(1) + cache + '=new Proxy({},{get:(o,k)=>typeof k!=="string"||o[k]?o[k]:(o[k]=' + gen + '(+k))})', 1)
+if MQTT_TXT: MQTT_TXT = _mqtt_numeros(MQTT_TXT)
 # (con el código comprimido, la biblioteca de la sala va adentro del mismo gzip, justo antes del juego: 369 KB → ~110)
 if os.environ.get('JS_PLANO'): html = html.replace('/*MQTT*/', MQTT_TXT.replace('</script', '<\\/script'))
 else: html = html.replace('<script>/*MQTT*/</script>\n', '')

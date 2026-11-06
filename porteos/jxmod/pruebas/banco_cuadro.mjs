@@ -3,7 +3,7 @@
 // (sin esperar a la pantalla) y sin espiar WebGL, así lo que se mide es sólo el JavaScript del juego. Con VACIO los
 // dibujos no llegan a la GPU de prueba. Mide por tandas alternando los niveles de TIEMPO.lento pedidos (0, 1, 2) en la
 // misma página, así el ruido de la máquina les toca a todos por igual.
-// uso: FRENO=12 node banco_cuadro.mjs URL_HTML [calidad=alto] [niveles=0,2] [tandas=6] [cuadros=40]
+// uso: FRENO=12 [SOMBRAS=1] node banco_cuadro.mjs URL_HTML [calidad=alto] [niveles=0,2] [tandas=6] [cuadros=40]
 import { abrir } from './base.mjs';
 const [, , HTML, CAL = 'alto', NIV = '0,2', TANDAS = '6', K = '40'] = process.argv;
 const VACIAR = () => {
@@ -11,7 +11,7 @@ const VACIAR = () => {
   for (const P of PS) for (const n of ['drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced', 'drawRangeElements', 'clear', 'blitFramebuffer']) { const o = P[n]; if (o) P[n] = function (...a) { if (window.__vacio) return; return o.apply(this, a); }; }
 };
 const { b, p, ev } = await abrir(HTML, true, null, async (pg) => { await pg.addInitScript(VACIAR); });
-await ev(`PREFS.bienvenida = true; PREFS.tutVisto = true; GFX.auto = false; PREFS.gfx = ${JSON.stringify(CAL)}; PREFS.resDin = false; const p = PERFILES[PREFS.gfx]; PREFS.res = p.res; PREFS.lejos = p.lejos; aplicarGfx(); inicioMostrar(false); empezarPartida('RB_Construct'); 1`);
+await ev(`PREFS.bienvenida = true; PREFS.tutVisto = true; GFX.auto = false; PREFS.gfx = ${JSON.stringify(CAL)}; PREFS.sombras = ${JSON.stringify(process.env.SOMBRAS || 'auto')}; PREFS.resDin = false; const p = PERFILES[PREFS.gfx]; PREFS.res = p.res; PREFS.lejos = p.lejos; aplicarGfx(); inicioMostrar(false); empezarPartida('RB_Construct'); 1`);
 await p.waitForFunction(() => window.__ev(`JUEGO.estado === 'juego' && !!JUG.suelo`), null, { timeout: 120000 }); await p.waitForTimeout(2500);
 await ev(`(() => { JUG.pos.set(${process.env.POS || '3.42,-2.72,24.14'}); JUG.vel.set(0, 0, 0); return 1; })()`); await p.waitForTimeout(1500);
 // (10 personajes: 2 cerca y el resto a más de 15 y 30 m, como en un mapa con NPCs repartidos)

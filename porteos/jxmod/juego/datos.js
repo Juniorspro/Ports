@@ -93,7 +93,19 @@ async function cargarPaquete(progreso) {
   // herramientas nuestras de la Tool Gun (después de las del juego)
   for (const n of ['Camara', 'Actitud']) if (!DATA.herr.some((h) => h.n === n)) DATA.herr.push({ n, p: [] });
   DATA.anPorNombre = {};
-  for (const k in DATA.an.clips) DATA.anPorNombre[k] = DATA.an.clips[k][0];
+  for (const k in DATA.an.clips) { for (const c of DATA.an.clips[k]) animCompactar(c); DATA.anPorNombre[k] = DATA.an.clips[k][0]; }
+}
+// las animaciones: cada pista en un solo bloque de números (Float32Array, e números por cuadro) en vez de una lista por
+// cuadro. Eran 438 mil listitas de 3 o 4 números: ~30 MB de memoria; así, ~6 MB (importa en los celus de 512 MB–1 GB)
+function animCompactar(c) {
+  if (!c || !c.p) return c;
+  for (const pz of c.p) {
+    const F = pz.f; if (pz.e || !Array.isArray(F) || !F.length) continue;
+    const n = F.length, e = typeof F[0] === 'number' ? 1 : F[0].length, out = new Float32Array(n * e);
+    if (e === 1) for (let i = 0; i < n; i++) out[i] = F[i]; else for (let i = 0, o = 0; i < n; i++) { const x = F[i]; for (let k = 0; k < e; k++) out[o++] = x[k]; }
+    pz.f = out; pz.e = e; pz.n = n;
+  }
+  return c;
 }
 // los índices de los triángulos vienen como diferencias en zigzag con los bytes en planos (lo arma armar.py): se
 // vuelven a armar en su lugar (una vez por zona, aunque dos mallas la compartan)
@@ -134,7 +146,7 @@ function mallaCPU(i) {
 // Los personajes que no son el Hero y los mapas grandes (mallas y texturas) no van adentro del HTML: se bajan cuando
 // hacen falta (al elegir el personaje, al entrar al mapa, cuando otro jugador lo usa) del lado del HTML o, si se abrió
 // como archivo, de GitHub. Se guardan en la caché del navegador (el nombre lleva el contenido: nunca quedan viejos).
-const RBP = { bins: {}, est: {}, prom: {}, alListo: [], falla: {},
+const RBP = { bins: {}, est: {}, prom: {}, alListo: [], falla: {}, tex: {},
   bases: ['rb/', 'https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/rb/', 'https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/rb/'] };
 const rbListo = (k) => !k || !DATA.rbp || !DATA.rbp[k] || RBP.est[k] === 'ok';
 const binDe = (d) => (d && d.k ? RBP.bins[d.k] || null : BIN);
@@ -168,6 +180,7 @@ function rbAsegurar(k, prog) {
         const n = u8[4] | u8[5] << 8 | u8[6] << 16 | u8[7] << 24, idx = JSON.parse(new TextDecoder().decode(u8.subarray(8, 8 + n))), c = u8.subarray(8 + n);
         if (idx.m) { const b = await desgz(c.subarray(idx.m[0], idx.m[0] + idx.m[1])); desfiltrarIndices(b, DATA.ms.filter((m) => m.k === k)); RBP.bins[k] = b; }
         for (const t in idx.t) PK.extra['t' + t] = c.subarray(idx.t[t][0], idx.t[t][0] + idx.t[t][1]);
+        RBP.tex[k] = Object.keys(idx.t);
         for (const a in idx.a || {}) { PK.extra['a:' + a] = c.subarray(idx.a[a][0], idx.a[a][0] + idx.a[a][1]); if (DATA.son.includes(a) && typeof audioBuf === 'function') audioBuf(a); }   // (los de la lista de entrada, listos para sonar)
         ok = true;
       }
@@ -178,6 +191,22 @@ function rbAsegurar(k, prog) {
     for (const f of RBP.alListo) { try { f(k); } catch (e) {} }
     return true;
   })());
+}
+// al entrar a un mapa se sueltan los paquetes de los otros mapas propios (sus mallas y texturas, en la memoria y en la
+// placa); si se vuelve, se toman de nuevo de la caché del navegador o de al lado del juego
+function rbSoltarMapas(salvo) {
+  const gl = R.gl;
+  for (const k of Object.keys(RBP.bins)) {
+    if (!/^m_/.test(k) || k === salvo || RBP.prom[k]) continue;
+    for (let i = 0; i < DATA.ms.length; i++) {
+      if (!DATA.ms[i] || DATA.ms[i].k !== k) continue; delete _mallaCPU[i];
+      const m = R.mallas[i]; if (!m) continue; R.mallas[i] = undefined;
+      if (gl) { gl.deleteVertexArray(m.vao); for (const b of [m.vb, m.ib, m.lb, m.sb]) if (b) gl.deleteBuffer(b); }
+    }
+    for (const t of RBP.tex[k] || []) { delete PK.extra['t' + t]; const x = R.tex[t]; if (x && x.gl && gl && x.gl !== R.texGris && x.gl !== R.texBlanca) gl.deleteTexture(x.gl); R.tex[t] = undefined; }
+    delete RBP.bins[k]; delete RBP.est[k]; delete RBP.tex[k];
+    if (typeof cnAnotar === 'function') cnAnotar('memoria', 'paquete soltado: ' + k);
+  }
 }
 // lo que hace falta para jugar en un mapa con un personaje (la pizzería trae a los animatrónicos como personajes)
 function rbParaPartida(mapa, skin) {

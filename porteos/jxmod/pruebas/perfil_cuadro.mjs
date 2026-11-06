@@ -78,8 +78,10 @@ const VACIAR = () => {
   for (const P of PS) for (const n of ['drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced', 'drawRangeElements', 'clear', 'blitFramebuffer']) { const o = P[n]; if (o) P[n] = function (...a) { if (window.__vacio) return; return o.apply(this, a); }; }
 };
 const { b, p, ev } = await abrir(HTML, true, null, async (pg) => { if (process.env.VACIO) await pg.addInitScript(VACIAR); await pg.addInitScript(ESPIA); });
+// (VISTA=ANCHOxALTO: el tamaño de la página; con la densidad 2 de base.mjs, 480x240 son 960×480 píxeles. SOMBRAS=0-3)
+if (process.env.VISTA) { const [vw, vh] = process.env.VISTA.split('x').map(Number); await p.setViewportSize({ width: vw, height: vh }); await p.waitForTimeout(500); }
 const FRENO = +(process.env.FRENO || 1), cdp = FRENO > 1 ? await p.context().newCDPSession(p) : null;
-await ev(`PREFS.bienvenida = true; PREFS.tutVisto = true; GFX.auto = false; PREFS.gfx = ${JSON.stringify(CAL)}; PREFS.resDin = false; const p = PERFILES[PREFS.gfx]; PREFS.res = p.res; PREFS.lejos = p.lejos; aplicarGfx(); inicioMostrar(false); empezarPartida('RB_Construct'); 1`);
+await ev(`PREFS.bienvenida = true; PREFS.tutVisto = true; GFX.auto = false; PREFS.gfx = ${JSON.stringify(CAL)}; PREFS.sombras = ${JSON.stringify(process.env.SOMBRAS || 'auto')}; PREFS.resDin = false; const p = PERFILES[PREFS.gfx]; PREFS.res = p.res; PREFS.lejos = p.lejos; aplicarGfx(); inicioMostrar(false); empezarPartida('RB_Construct'); 1`);
 await p.waitForFunction(() => window.__ev(`JUEGO.estado === 'juego' && !!JUG.suelo`), null, { timeout: 120000 }); await p.waitForTimeout(2500);
 // (POS=x,y,z: el mismo lugar en todas las corridas —la aparición es al azar— para comparar versiones)
 if (process.env.POS) { await ev(`(() => { JUG.pos.set(${process.env.POS}); JUG.vel.set(0, 0, 0); return 1; })()`); await p.waitForTimeout(1500); }

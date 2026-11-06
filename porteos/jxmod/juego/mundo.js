@@ -29,6 +29,9 @@ function triFino(v, a, b, c) {
   return !(a2 > 1e-9) || a2 / l < 1e-3;
 }
 function cargarMapa(nombre) {
+  // (los paquetes de los otros mapas propios, fuera: antes quedaban todos los mapas visitados en la memoria y en la placa;
+  // pasar de gm_construct a la pizzería y al desierto llegaba a 322 MB y cerraba el juego en celus de 2 GB)
+  if (typeof rbSoltarMapas === 'function') rbSoltarMapas(rbDeMapa(nombre));
   MUNDO.nombre = nombre; MUNDO.modelos = []; MUNDO.cajas = []; MUNDO.grilla = new Map(); MUNDO.aristasCel = new Map(); MUNDO.sub = new Map(); MUNDO.triCuerpo = []; MUNDO.spawns = []; MUNDO.luces = [];
   const raices = DATA.esc[nombre], tris = [], supTri = [];
   const lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9);
