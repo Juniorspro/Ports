@@ -48,16 +48,26 @@ function vehiculoNuevo(o) {
     const Wk = md.W[k], Wi = md.W[i], pw = m4pt(Wk, cl.x, cl.y, cl.z, v3());
     const inv = M4.inv(Wi); return { local: m4pt(inv, pw.x, pw.y, pw.z, v3()), mundo: pw };
   };
+  // (sin los grupos: en el Sofie el nodo que junta las cuatro ruedas se llama «wheels» y tiene mallas abajo; la rueda de
+  // atrás a la izquierda lo tomaba como su dibujo y al girar se llevaba el grupo entero: las ruedas volaban alrededor del
+  // auto, cada vez más lejos. Un nodo que tiene otra rueda adentro no es una rueda)
+  const anc = (a, d) => { for (let k = arb[d].pa; k >= 0; k = arb[k].pa) if (k === a) return true; return false; };
+  const visR = vis.filter((i) => !vis.some((j) => j !== i && anc(i, j)));
   const usados = new Set();
   for (const w of V.ruedas) {
     let best = -1, bd = 1e9, bc = null;
-    for (const i of vis) { if (usados.has(i)) continue; const c = cen(i), d = vsub(vsub(c.mundo, o.c), w.p).len(); if (d < bd) { bd = d; best = i; bc = c; } }
+    // (primero la que se llama igual que la rueda de la física —FLwheel, BRwheel…—; si no, la más cercana)
+    const igual = w.n ? visR.filter((i) => !usados.has(i) && arb[i].n.toLowerCase() === w.n.toLowerCase()) : [];
+    for (const i of igual.length ? igual : visR) { if (usados.has(i)) continue; const c = cen(i), d = vsub(vsub(c.mundo, o.c), w.p).len(); if (d < bd) { bd = d; best = i; bc = c; } }
     if (best >= 0 && bd < 1.5) {
       usados.add(best); w.vis = best; w.cl = bc.local;
       // ejes del auto (x = eje de la rueda, y = arriba) vistos desde el nodo de la rueda
       const q = m4quat(md.W[best]).conj(); w.ejeX = q.rot(v3(1, 0, 0)); w.ejeY = q.rot(v3(0, 1, 0));
       // (si el nodo de la rueda está espejado, el giro alrededor de su eje se ve al revés)
       const Wb = md.W[best]; w.esp = Wb[0] * (Wb[5] * Wb[10] - Wb[9] * Wb[6]) - Wb[4] * (Wb[1] * Wb[10] - Wb[9] * Wb[2]) + Wb[8] * (Wb[1] * Wb[6] - Wb[5] * Wb[2]) < 0 ? -1 : 1;
+      // (la escala del nodo en el auto: la suspensión mueve la rueda en sus unidades. La silla de ruedas trae las ruedas con
+      // escala 220 —el modelo viene en unidades chicas— y 10 cm de suspensión la llevaban 22 m lejos)
+      w.esc = Math.max(1e-6, Math.hypot(Wb[0], Wb[1], Wb[2]));
     }
   }
   for (const r of V.rotores) { const c = cen(r.i), q = m4quat(md.W[r.i]).conj(); r.cl = c.local; r.ejeL = q.rot(r.eje); r.ang = 0; }
@@ -83,7 +93,7 @@ function vehiculoAntesDeDibujar(o) {
     // (la rueda de adelante dibujada gira para el mismo lado que la de la física: antes se veía al revés)
     matrizGiro(w.cl, [[w.ejeY, w.del ? V.giro * 0.6 * (w.esp || 1) : 0], [w.ejeX, w.giroAng || 0]], M);
     // la suspensión sube y baja la rueda
-    const t = w.ejeY; M[12] += t.x * (w.compVis || 0); M[13] += t.y * (w.compVis || 0); M[14] += t.z * (w.compVis || 0);
+    const t = w.ejeY, k = (w.compVis || 0) / (w.esc || 1); M[12] += t.x * k; M[13] += t.y * k; M[14] += t.z * k;
   }
   for (const r of V.rotores) { const M = E[r.i] || (E[r.i] = new Float32Array(16)); matrizGiro(r.cl, [[r.ejeL, r.ang]], M); }
   o.md.sucio = true;
