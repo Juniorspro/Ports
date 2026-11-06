@@ -20,11 +20,22 @@ function entradaIniciar() {
   });
   addEventListener('keyup', (e) => { ENT.teclas.delete(e.code); if (typeof ctlCodigo === 'function') ENT.teclas.delete(ctlCodigo(e.code)); if (typeof RUL !== 'undefined' && RUL.quien === 'tecla' && e.code === RUL.tecla) rulSoltar(); });
   addEventListener('blur', () => ENT.teclas.clear());
-  cv.addEventListener('mousedown', (e) => {
-    if (ENT.tactil) return;
+  // (la capa de los toques (#toque) tapa toda la pantalla, también en la compu: el clic le llega a ella y no al juego.
+  // Antes sólo lo escuchaba el juego, así que en la PC nunca se trababa el mouse y la cámara no se movía. Con el
+  // mouse trabado los clics van directo al juego.)
+  const abajo = (e) => {
+    // (una compu con pantalla táctil arranca en modo táctil: el primer clic de un mouse de verdad la pasa al de compu.
+    // Un clic que el navegador inventa después de un toque no cuenta: Chrome lo marca (firesTouchEvents); donde no hay
+    // esa marca, sólo si el aparato tiene un mouse o un trackpad. En #toque casi no llegan: su touchstart los cancela.)
+    if (ENT.tactil) {
+      const deToque = e.sourceCapabilities ? e.sourceCapabilities.firesTouchEvents : !matchMedia('(any-pointer: fine)').matches;
+      if (deToque) return;
+      ENT.tactil = false; document.body.classList.remove('tactil');
+    }
     if (!ENT.bloqueado && JUEGO.estado === 'juego' && (!UI.abierto || (UI.abierto === 'celular' && CELM.foco))) { if (CELM.foco) celmFoco(false); cv.requestPointerLock && cv.requestPointerLock(); return; }
     if (e.button === 0) ENT.disparo = true; if (e.button === 2) ENT.disparo2 = true;
-  });
+  };
+  cv.addEventListener('mousedown', abajo); $('toque').addEventListener('mousedown', abajo);
   addEventListener('mouseup', (e) => { if (e.button === 0) ENT.disparo = false; if (e.button === 2) ENT.disparo2 = false; });
   addEventListener('contextmenu', (e) => e.preventDefault());
   document.addEventListener('pointerlockchange', () => { ENT.bloqueado = document.pointerLockElement === cv; if (!ENT.bloqueado) { ENT.disparo = ENT.disparo2 = false; } });
