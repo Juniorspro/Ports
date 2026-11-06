@@ -1653,3 +1653,59 @@ descarga girando y nada más respondiendo).
     con certeza que ésa fue la causa en ese celular, pero es la única forma en que el juego deja una sola textura gris.
 - APK 2.9-prueba14 y página con código (`web/`) armados de nuevo; `codigo_web.mjs` 9/9.
 - Sin probar en un celular ni en un iPhone de verdad.
+
+## JXMod 2.9-prueba15: mouse en la PC, linterna de los mods, Half-Life Resurgence y Crack-Life Resurgence
+
+- **Cámara congelada en la PC** (Discord: «quise jugar con un amigo y la cámara no reconoce el movimiento del mouse»): la
+  capa de los controles táctiles cubre toda la pantalla también en la compu, así que el clic le llegaba a ella y el juego
+  nunca pedía trabar el mouse; sin el mouse trabado la cámara no se mueve. Pasaba en un jugador y en red, también en las
+  versiones anteriores. Ahora el clic se escucha también en esa capa (`entrada.js`). Una compu con pantalla táctil, que
+  arranca con los controles táctiles, pasa a los de compu con el primer clic de un mouse de verdad (los clics que el
+  navegador inventa después de un toque no cuentan). Prueba `pruebas/mouse_pc.mjs` 6/6 (antes 2/6): un jugador, dos
+  jugadores en red (los dos), clic izquierdo y derecho con el mouse trabado, compu con pantalla táctil, y en el celular
+  tocar no cambia nada y deslizar el dedo sigue girando la cámara.
+- **La linterna de los mods** (Discord: «el mod de la linterna dinámica está súper bug: no ilumina y la cámara se vuelve
+  loca»; es [VManip and SWEP] Extended Flashlight):
+  - `ProjectedTexture` y `DynamicLight` eran objetos vacíos: ahora son un cono de luz (con las luces especiales del juego,
+    las de la linterna: andan en todas las calidades) y una luz puntual que dura hasta su `DieTime` (`gmod_api.js`).
+    Sirve para cualquier mod que las use (linternas, lámparas, fogonazos);
+  - la cámara: el mod hace `CalcView = ángulos − (vm:GetAngles() − enganche.Ang)`, y `GetAngles()` del arma en primera
+    persona daba 0 mientras los enganches venían en el mundo: la cámara se sumaba a sí misma en cada cuadro. Ahora la vista
+    del arma dice dónde está y hacia dónde mira (`gmod_vista.js`);
+  - el mod prende la luz con `CallOnClient` (en GMod con un jugador corre esa función del arma en el cliente): no hacía
+    nada; ahora sí. Y al guardar el arma, `Holster` también corre en el cliente (el mod apaga ahí su luz: si no, quedaba
+    una luz flotando);
+  - Prueba `pruebas/linterna_mod.mjs` 7/7 (la versión anterior, 2 de 6): suma +29 a +33 de brillo en el centro (la
+    linterna del juego, +28 a +30); el botón principal la apaga y la prende; quieta, la vista no se aparta (0°) y prendiéndola el arma la mueve 2° (como en
+    GMod; antes estaba corrida 64°); girando 40° con el mouse la vista gira 40° (antes 100°); al cambiar de arma se apaga.
+- **Half-Life Resurgence y Crack-Life Resurgence** (Discord: «compatibilidad con Crack-Life y Half-Life Resurgence»;
+  2548809283, 705 MB, y 2691157473, 93 MB, con VJ Base):
+  - los dos packs registran sus NPCs como «plugins» que VJ Base busca en `lua/vj_base/plugins/` cuando arranca. En GMod
+    todos los mods están montados antes de que corra el Lua; acá un pack podía montarse después de que VJ Base ya había
+    buscado, y sus NPCs no aparecían (0 en el menú). Ahora el juego anota dónde busca cada mod con `file.Find` mientras
+    carga; si después se monta uno con archivos ahí, su Lua no corre suelto: el de todos se vuelve a cargar en orden, una
+    sola vez (al arrancar, cuando terminó de montar todos) (`gmod.js`, `gmod_api.js`, `gmod_cargar.js`). Lo que registra un
+    archivo de un pack queda anotado en ese pack aunque lo haya corrido VJ Base, así sus NPCs salen en su página;
+  - al volver a cargar el Lua se olvidaban los módulos de `require()` del Lua anterior y VJ Base quedaba sin
+    `ai_schedule` (pasaba también al deshabilitar un mod con VJ Base instalado): arreglado;
+  - los rebeldes y ciudadanos eligen su modelo al aparecer (`PreInit`: hombre, mujer, médico); el juego lo corre para
+    saber cuál usar. Esos modelos son de Half-Life 2: en el juego salen del contenido de GMod en Steam (por la tienda);
+  - Prueba `pruebas/hl_resurgence.mjs` 5/5 (antes: 0 NPCs de los dos packs en el menú): los tres cargan su Lua sin
+    errores (12 s en la compu de prueba); 125 NPCs de HL Resurgence y 46 de Crack-Life Resurgence en el menú; una muestra
+    pareja de 36 aparece con su modelo (35 NPCs y la espora de Xen, que es una entidad); los 26 enemigos de la muestra
+    persiguen y pegan en 5 s; los otros 10 (científicos, Barney, ciudadanos, cucarachas, la espora) no atacan.
+  - Lo que falta: la IA propia de VJ (ataques a distancia, armas, sonidos) sigue sin estar: los NPCs andan como los del
+    juego (persiguen y pegan, o pasean). HL Resurgence pesa 705 MB: en un celular de 2 GB puede no entrar; conviene
+    instalarlo con wifi y en un aparato con lugar.
+- **Texturas naranjas en gm_mallparking** (captura del Discord): no se pudo reproducir. En la compu de prueba los muebles
+  de la cocina se ven beige en todas las calidades, con WebGL 1 y 2, en esta versión y en la de antes de la prueba13. Las
+  texturas se decodifican igual en la compu y en el celular, así que no es eso. Puede venir de alguno de los mods
+  instalados (con «Deshabilitar todo» se prueba en un minuto) o de algo de la placa de video de ese aparato; para seguir
+  hacen falta el modelo del celular, la calidad gráfica y si pasa con los mods deshabilitados.
+- APK 2.9-prueba15 y página con código (`web/`) armados de nuevo; `codigo_web.mjs` 9/9.
+- Pruebas de antes, de nuevo: `mods_habilitar` 9/9, `textura_reintento` 5/5, `vj_crack` 6/6, `disparo_tercera` 6/6,
+  `ruleta_emotes` 7/7, `linterna_bsp` 4/4, `mapa_io` 6/6, `props_pose` 4/4, `npc_caminar` 5/5, `gmod_abrir` 7/7,
+  `gmod_mira_recarga` 7/7, `celu_mano` 27/27 y `red_workshop` 6/6 (en la tanda con todo junto dio una vez 5/6: con tres
+  navegadores a la vez uno no llegó a armar el modelo del otro en 90 s; sola, 6/6).
+- Sin probar en un celular ni en un iPhone de verdad, ni con un mouse de verdad (el clic y el mouse trabado se simulan en
+  Chromium).
