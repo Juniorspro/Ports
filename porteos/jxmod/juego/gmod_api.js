@@ -1213,9 +1213,13 @@ function gmaIncluir(r) {
 function gmaCorrer(ruta, b) {
   const R = GMA.R, src = (typeof b === 'string' ? b : new TextDecoder('utf-8').decode(b)).replace(/^﻿/, '').replace(/DEFINE_BASECLASS\s*\(\s*(["'][^"']*["'])\s*\)/g, 'local BaseClass = baseclass.Get($1)');
   const d0 = GMA.dir; GMA.dir = ruta.replace(/[^/]*$/, '');
+  // (un archivo de otro addon que incluye el que está cargando —VJ Base corre los plugins de HL Resurgence—: lo que
+  // registra —NPCs, vehículos— queda anotado en el addon dueño del archivo, que es donde lo busca el menú)
+  const a0 = GMA.addonActual, dueño = a0 && !a0.G.archivos.has(ruta) && typeof gmAddonDe === 'function' ? gmAddonDe(ruta) : null;
+  if (dueño && dueño !== a0) { GMA.addonActual = dueño; gmaListasDe(dueño); }
   try { const f = luaCompilar(src, ruta, R); const n0 = R.n; R.n = 0; try { return R.c(f, ruta)[0]; } finally { R.n = n0; } }
   catch (e) { gmaErr(R.msgErr(e)); return undefined; }
-  finally { GMA.dir = d0; }
+  finally { GMA.dir = d0; GMA.addonActual = a0; }
 }
 // materiales (para la HUD): imagen del addon (.png/.jpg/.vtf) en un lienzo
 function gmaMaterial(p) {
@@ -1382,6 +1386,9 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
     const fs = new Set(), ds = new Set(), K = [...GMOD.arch.keys(), ...GMPZ.idx.keys()];
     for (const pat of rutas(p, w)) {
       const dir = pat.replace(/[^/]*$/, ''), re = new RegExp('^' + pat.slice(dir.length).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*') + '$');
+      // (lo que busca un addon mientras carga su Lua —VJ Base, sus plugins en lua/vj_base/plugins/—: si después se monta otro
+      // con archivos ahí, el Lua se vuelve a cargar en orden para que lo encuentre, como en GMod: gmBusquedaNueva, gmod.js)
+      if (GMA.addonActual && dir.startsWith('lua/')) { GMA.busq = GMA.busq || new Map(); if (GMA.busq.size < 400) GMA.busq.set(pat, { dir, re, de: GMA.addonActual.id }); }
       for (const k of K) { if (!k.startsWith(dir)) continue; const resto = k.slice(dir.length), i = resto.indexOf('/'); if (i < 0) { if (re.test(resto)) fs.add(resto); } else { const d = resto.slice(0, i); if (re.test(d)) ds.add(d); } }
     }
     return [R.tab([...fs].sort()), R.tab([...ds].sort())];

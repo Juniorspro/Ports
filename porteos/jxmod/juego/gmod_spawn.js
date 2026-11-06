@@ -115,7 +115,11 @@ function gmnpcSNPC(cls) {
   for (let u = t; u && n < 20; n++) { const b = u.get('Base'); if (typeof b !== 'string') break; base = b; if (/^npc_vj_(creature|human|tank)/.test(b) || b === 'base_ai') break; const x = claseTabla(b, 'S'); u = x; }
   const tipo = buscarEnClase(t, 'Type');
   if (!(/^npc_vj_(creature|human|tank)/.test(base) || base === 'base_ai' || tipo === 'ai')) return null;
-  let mod = buscarEnClase(t, 'Model'); if (mod instanceof LuaTable) mod = mod.get(1 + Math.floor(Math.random() * Math.max(1, mod.a.length))) || mod.get(1);
+  let mod = buscarEnClase(t, 'Model');
+  // (los rebeldes y ciudadanos de HL Resurgence eligen el modelo en PreInit —hombre, mujer, médico—: sin uno fijo se corre
+  // PreInit con una entidad de prueba y se usa el que puso)
+  if (!mod) { const pre = buscarEnClase(t, 'PreInit'); if (typeof pre === 'function') { const e = new LEnt(cls, 'ent'); try { gmLlamar(pre, 'S', e); mod = e.tabla.get('Model'); } catch (x) {} finally { e.vivo = false; GMA.ents.delete(e.id); } } }
+  if (mod instanceof LuaTable) mod = mod.get(1 + Math.floor(Math.random() * Math.max(1, mod.a.length))) || mod.get(1);
   mod = typeof mod === 'string' ? mod.toLowerCase().replace(/\\/g, '/') : '';
   const num = (k, d) => { const v = +buscarEnClase(t, k); return Number.isFinite(v) && v > 0 ? v : d; };
   const clases = buscarEnClase(t, 'VJ_NPC_Class'), lista = clases instanceof LuaTable ? clases.a.map(String) : [];

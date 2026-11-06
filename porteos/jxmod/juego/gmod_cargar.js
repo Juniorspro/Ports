@@ -44,7 +44,7 @@ function gmLuaMontar(A) {
   const t0 = performance.now();
   if (typeof cnPaso === 'function') cnPaso('corriendo el Lua del mod ' + A.nombre, A.id);
   gmaIniciar(); const R = GMA.R, G = R.G;
-  GMA.activo = true; GMA.addonActual = A; A.luaErr = []; A.sents = []; A.sweps = []; A.efectos = []; A.herramientas = []; A.listas = {};
+  GMA.activo = true; GMA.addonActual = A; A.luaErr = []; A.sents = []; A.sweps = []; A.efectos = []; A.herramientas = []; gmaListasDe(A);
   const antes = new Map([...GMA.hooks].map(([ev, H]) => [ev, new Map([...H].map(([id, h]) => [id, { S: h.S, C: h.C }]))]));
   const L = A.lua.slice().sort(), corrido = new Set();
   // (como en GMod, los archivos de todos los addons comparten las rutas: si dos traen el mismo lua/autorun/x.lua o la
@@ -126,13 +126,18 @@ function gmaEnlazarTodo() {
 
 // desmontar: el Lua de cero con los addons que quedan
 function gmLuaDesmontar() { gmaReiniciar(); for (const A of GMOD.addons.values()) gmLuaMontar(A); }
+// (las listas de NPCs y vehículos de un addon se vacían una vez por cada vez que arranca el Lua: lo que registra un
+// archivo suyo que corrió otro addon antes —los plugins de VJ Base— no se pierde cuando después corre su propio Lua)
+function gmaListasDe(A) { if (!A.listas || A.listasGen !== GMA.gen) { A.listas = {}; A.listasGen = GMA.gen; } return A.listas; }
 function gmaReiniciar() {
   if (typeof JUG !== 'undefined') JUG.congelado = false;   // (lo que congeló el Lua anterior no queda pegado)
   if (typeof gmbHerQuitarTodas === 'function') gmbHerQuitarTodas();
   for (const e of [...GMA.ents.values()]) if (e.tipo === 'ent' && e.o && !e.o.borrado && e.clase !== 'prop_physics') { try { borrarObjeto(e.o); } catch (x) {} }
   if (GMA.armasJug && typeof ARM !== 'undefined') for (const c of [...GMA.armasJug.keys()]) gmaQuitarArma(c);
   if (GMA.hud) GMA.hud.g.clearRect(0, 0, GMA.hud.c.width, GMA.hud.c.height);
-  Object.assign(GMA, { fantasmas: new Map(), R: null, modo: null, ctx: 'S', hooks: new Map(), timers: new Map(), tSimples: [], net: { S: new Map(), C: new Map() }, ents: new Map(), clases: new Map(), armas: new Map(), efectos: new Map(), cvars: new Map(), fuentes: new Map(), cargados: new Set(), entPorObj: new WeakMap(), hijos: new Set(), rutasCorridas: new Map(), asiento: null, jug: null, mundo: null, swep: null, armasJug: null, netCola: [], partCola: [], efVivos: [], bases: null, mats: null, glob: null, activo: false, teclasAnt: 0, jugVivo: undefined, pts: new Set(), dls: new Map() });
+  // (los módulos de require() y lo guardado del Lua anterior se olvidan: con el Lua nuevo hay que volver a correrlos; antes
+  // VJ Base quedaba sin ai_schedule después de deshabilitar un mod)
+  Object.assign(GMA, { fantasmas: new Map(), R: null, modo: null, ctx: 'S', hooks: new Map(), timers: new Map(), tSimples: [], net: { S: new Map(), C: new Map() }, ents: new Map(), clases: new Map(), armas: new Map(), efectos: new Map(), cvars: new Map(), fuentes: new Map(), cargados: new Set(), entPorObj: new WeakMap(), hijos: new Set(), rutasCorridas: new Map(), asiento: null, jug: null, mundo: null, swep: null, armasJug: null, netCola: [], partCola: [], efVivos: [], bases: null, mats: null, glob: null, activo: false, teclasAnt: 0, jugVivo: undefined, pts: new Set(), dls: new Map(), busq: new Map(), gen: (GMA.gen || 0) + 1, requeridos: new Map(), vlBase: undefined, vmEnt: null });
 }
 
 // ---------------- cada cuadro ----------------

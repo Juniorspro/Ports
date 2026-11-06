@@ -185,8 +185,34 @@ function gmMontar(id, G, meta) {
   if (typeof gmmRegistrar === 'function') gmmRegistrar(A);     // (y sus modos de juego)
   gmMenu();
   // (antes de correr su Lua: lo que pide del contenido base de GMod/HL2)
-  A.listo = Promise.all([typeof gmlPreparar === 'function' ? gmlPreparar(A).catch(() => {}) : null, gmfRegistrar(A).catch(() => {})]).then(() => { if (GMOD.addons.get(id) === A && typeof gmLuaMontar === 'function') gmLuaMontar(A); gmMenu(); if (GMOD.addons.get(id) === A && typeof gmbAutoFijar === 'function') try { gmbAutoFijar(A); } catch (e) {} });
+  A.listo = Promise.all([typeof gmlPreparar === 'function' ? gmlPreparar(A).catch(() => {}) : null, gmfRegistrar(A).catch(() => {})]).then(() => { if (GMOD.addons.get(id) === A && typeof gmLuaMontar === 'function') { if (gmBusquedaNueva(A)) gmRecargarLuaPronto(); else gmLuaMontar(A); } gmMenu(); if (GMOD.addons.get(id) === A && typeof gmbAutoFijar === 'function') try { gmbAutoFijar(A); } catch (e) {} });
   return A;
+}
+// Bases que buscan sus agregados en una carpeta (VJ Base corre lo que haya en lua/vj_base/plugins/: así se registran los
+// NPCs de HL Resurgence y Crack-Life Resurgence). En GMod todos los addons están montados antes de que corra el Lua y la
+// base los encuentra; acá uno se puede montar después de que su base ya buscó. Si trae archivos donde otro addon buscó
+// con file.Find, su Lua no corre suelto: el de todos se vuelve a cargar en orden, una sola vez (al arrancar, cuando termina
+// de montar todos).
+function gmBusquedaNueva(A) {
+  const B = GMA.busq; if (!B || !B.size || A.visita) return false;
+  const rutas = [...A.G.archivos.keys(), ...(A.G.perezosos ? A.G.perezosos.keys() : [])].filter((r) => r.startsWith('lua/'));
+  for (const x of B.values()) if (x.de !== A.id && rutas.some((r) => r.startsWith(x.dir) && x.re.test(r.slice(x.dir.length)))) return true;
+  return false;
+}
+function gmRecargarLuaPronto() {
+  if (GMOD.recargaT) return GMOD.recarga;
+  let fin; GMOD.recarga = new Promise((r) => (fin = r));
+  GMOD.recargaT = setTimeout(async () => {
+    try {
+      while (GMOD.arrancando) await new Promise((r) => setTimeout(r, 200));
+      await Promise.all([...GMOD.addons.values()].map((A) => A.listo).filter(Boolean)).catch(() => {});
+      if (typeof cnAnotar === 'function') cnAnotar('mods', 'Lua cargado de nuevo: un mod trae agregados de otro');
+      if (typeof gmLuaDesmontar === 'function') gmLuaDesmontar();
+      gmMenu();
+    } catch (e) { gmErr('recargar Lua', e); }
+    finally { GMOD.recargaT = 0; fin(); }
+  }, 300);
+  return GMOD.recarga;
 }
 function gmDesmontar(id) {
   const A = GMOD.addons.get(id); if (!A) return;
@@ -989,6 +1015,8 @@ async function gmArrancar(otraVez) {
   // descarga que no llegó a guardarse—, se vuelve a bajar solo; si la caché falló, se reintenta en un rato. La lista de
   // instalados no se toca nunca acá)
   const reintentar = [];
+  GMOD.arrancando = true;
+  try {
   for (const wid of Object.keys(PREFS.gmod || {})) {
     if (GMOD.addons.has(wid) || !gmHabilitado(wid)) continue;   // (los deshabilitados quedan instalados sin montar)
     try {
@@ -1000,6 +1028,7 @@ async function gmArrancar(otraVez) {
       else if (/^\d+$/.test(wid) && typeof gmcPoner === 'function') { gmErr('arranque ' + wid, 'no estaba en la caché: se vuelve a bajar'); gmcPoner(wid, { nombre: PREFS.gmod[wid].n, img: PREFS.gmod[wid].img, callado: true }); }
     } catch (e) { gmErr('arranque ' + wid, e); }
   }
+  } finally { GMOD.arrancando = false; }
   if (typeof cnPaso === 'function') cnPaso('');
   if (reintentar.length) setTimeout(() => { GMDB.db = null; gmArrancar(true); }, 15000);
   // (y lo que quedó a medio bajar la última vez: un rato después, para no sumarle trabajo al arranque en el celular)
