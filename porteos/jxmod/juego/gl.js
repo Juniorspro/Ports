@@ -818,14 +818,33 @@ function texSolida(c) {
 function texGL(i) {
   if (i == null || i < 0) return R.texBlanca;
   let t = R.tex[i];
-  if (t) return t.gl || R.texGris;
+  if (t) { if (!t.gl && t.fallas && !t.va && performance.now() >= t.otra) texDecodificar(i, t); return t.gl || R.texGris; }   // (sólo las del paquete que fallaron)
   const pt = PK.parte('t' + i);
   if (!pt) { const x = DATA.tx[i]; if (x && x.k) { rbPedir(x.k); return R.texGris; } return R.texBlanca; }   // (en un paquete aparte: cuando llegue)
-  t = R.tex[i] = { gl: null };
-  const blob = new Blob([pt], { type: 'image/webp' });
-  decodificar(blob).then(([img, volteada]) => {
-    const gl = R.gl, tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
+  t = R.tex[i] = { gl: null, va: false, n: 0, fallas: 0, otra: 0 };
+  texDecodificar(i, t);
+  return R.texGris;
+}
+// Decodificar y subir una textura del paquete. Si falla o no contesta —en el celular pasa con poca memoria libre, por
+// ejemplo mientras se baja y descomprime un mod grande—, se vuelve a intentar al rato (1,5 s, 4 s, 10 s, 30 s y después
+// cada minuto). Antes quedaba con el gris de relleno para siempre: en el Discord, el cordón entre la vereda y el pasto de
+// gm_construct salía como una franja gris lisa.
+const TEX_OTRA = [1500, 4000, 10000, 30000, 60000];
+function texDecodificar(i, t) {
+  const pt = PK.parte('t' + i); if (!pt) return;
+  const yo = ++t.n; t.va = true;
+  const fallo = (e) => {
+    if (t.n !== yo || t.gl || !t.va) return;
+    t.va = false; t.fallas++; t.otra = performance.now() + TEX_OTRA[Math.min(t.fallas, TEX_OTRA.length) - 1];
+    if ((t.fallas === 1 || t.fallas === 4) && typeof cnAnotar === 'function') cnAnotar('textura', `${(DATA.tx[i] && DATA.tx[i].n) || i}: no se pudo decodificar (${t.fallas}ª vez; ${String((e && e.message) || e).slice(0, 80)}): se reintenta`);
+  };
+  const tope = setTimeout(() => fallo('no contestó en 12 s'), 12000);
+  decodificar(new Blob([pt], { type: 'image/webp' })).then(([img, volteada]) => {
+    clearTimeout(tope);
+    // (llegó tarde: la textura ya se rearmó con otra calidad o ya llegó por otro intento)
+    if (R.tex[i] !== t || t.gl) { img.close && img.close(); return; }
     const src = texAjustar(img, GFX.texMax);
+    const gl = R.gl, tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, !volteada && src === img);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
@@ -833,9 +852,8 @@ function texGL(i) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
     if (R.aniso && GFX.aniso) gl.texParameterf(gl.TEXTURE_2D, R.aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(GFX.aniso, R.anisoMax || 16));
-    t.gl = tx; img.close && img.close();
-  }).catch(() => { t.gl = R.texGris; });
-  return R.texGris;
+    t.gl = tx; t.va = false; img.close && img.close();
+  }).catch((e) => { clearTimeout(tope); fallo(e); });
 }
 // imagen decodificada y ya dada vuelta (las UV del juego tienen el origen abajo). Sin createImageBitmap (Safari
 // viejo) se usa un <img> y la vuelta la hace WebGL al subirla

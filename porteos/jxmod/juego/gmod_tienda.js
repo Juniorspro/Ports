@@ -118,7 +118,7 @@ function gmTiendaPanel(P) {
     <div class="rbEtqs"><button class="rbEtq${!S.etq ? ' sel' : ''}" data-rb="etq:">${esc(T('e.todas'))}</button>${GM_TAGS_UI.map((e) => `<button class="rbEtq${S.etq === e ? ' sel' : ''}" data-rb="etq:${e}">${esc(T('gm.t.' + e))}</button>`).join('')}<button class="rbChk gmDir${S.gmDir ? ' on' : ''}" data-rb="gmdir"><em></em>${esc(T('gm.soloDir'))}</button></div>
     <p class="gmPMnota">${esc(T('pjm.nota'))} <button class="rbBtnGris" data-rb="pjMods">${esc(T('m.personajes'))} → ${esc(T('pjm.tab'))}</button></p>
     <div class="rbGrid rbTiendaG"></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris" data-rb="mas">${glifo('mas3')}</button>
+    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbHab"></span><span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris" data-rb="mas">${glifo('mas3')}</button>
       <button class="rbBtnG" data-rb="nueva">${esc(T('m.nueva'))} ${glifo('jugar')}</button></div>`;
   P.querySelector('#rbOrden').addEventListener('change', (e) => { S.gmOrden = e.target.value; });   // (antes que el de inicio.js, que vuelve a cargar)
   P.querySelector('#gmArchivo').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) gmTiendaImportar(f); });
@@ -169,28 +169,53 @@ function gmTiendaDibujar() {
   for (const s of ['.rbBarra', '.rbEtqs']) { const e = RB.el.querySelector(s); if (e) e.classList.toggle('oc', !!it); }
   if (it) {
     if (!it.detVivo && (!it.d || !it.subs) && /^\d+$/.test(it.id)) gmFichaVivo(it);
-    const ins = gmInstalado(it.id), A = GMOD.addons.get(String(it.id)), pr = gmcDe(it.id);
+    const ins = gmInstalado(it.id), A = GMOD.addons.get(String(it.id)), pr = gmcDe(it.id), off = ins && !gmHabilitado(it.id);
     const cont = A ? [`${A.props.length} ${T('gm.modelos')}`, A.sweps && A.sweps.length ? `${A.sweps.length} ${T('gm.t.Weapon')}` : '', A.sents && A.sents.length ? `${A.sents.length} ${T('gm.t.Entity')}` : '', A.lua.length ? `${A.lua.length} ${T('gm.lua')}` : '', A.luaErr && A.luaErr.length ? `${A.luaErr.length} ${T('gm.errLua')}` : ''].filter(Boolean).join(' · ') : '';
     const acc = pr ? `<div class="gmProg"><i style="width:${Math.round(pr.p * 100)}%"></i><span>${esc(T(pr.estado === 'espera' ? 'gmc.espera' : pr.fase === 'descomprimiendo' ? 'gm.descomp' : 'gm.bajando'))}${pr.estado === 'espera' ? '' : ' ' + Math.round(pr.p * 100) + '%'}</span></div><button class="rbBtnGris" data-rb="cancelarGm:${esc(it.id)}">${esc(T('cancelar'))}</button>`
       : ins ? gmFichaAbrir(A) + `<button class="rbBtnGris" data-rb="quitar:${esc(it.id)}">${glifo('basura')} ${esc(T('quitar'))}</button>`
       : it.sinPipe ? `<label class="rbBtnG rbFichaGrande">${glifo('subir')} ${esc(T('gm.importar'))}<input type="file" class="gmImpFicha" accept=".gma,.bin" hidden></label>`
       : `<button class="rbBtnG rbFichaGrande" data-rb="instalar:${esc(it.id)}">${glifo('bajar')} ${esc(T('instalar'))}${it.mb ? ` <small>${it.mb} MB</small>` : ''}</button>`;
-    G.innerHTML = `<div class="rbFicha${ins ? ' on' : ''}"><button class="rbBtnGris rbChico rbFichaX" data-rb="fichaNo">${glifo('atras')} ${esc(T('volver'))}</button>
+    G.innerHTML = `<div class="rbFicha${ins && !off ? ' on' : ''}${off ? ' off' : ''}"><button class="rbBtnGris rbChico rbFichaX" data-rb="fichaNo">${glifo('atras')} ${esc(T('volver'))}</button>
       <div class="rbFichaCuerpo"><div class="rbFichaIco">${img(it)}</div>
         <div class="rbFichaInfo"><h3 dir="auto">${esc(it.t)}</h3><small>${[it.subs ? `${glifo('gente')} ${gmCifra(it.subs)} ${esc(T('gm.subs'))}` : '', it.fav ? `${glifo('corazon')} ${gmCifra(it.fav)}` : '', it.mb ? it.mb + ' MB' : '', it.autor ? esc(T('por')) + ' ' + esc(it.autor) : ''].filter(Boolean).join(' · ')}</small>
           <span class="rbEtqsC">${(it.tags || []).filter((t) => t !== 'Addon').map((e) => `<i>${esc(T('gm.t.' + e) !== 'gm.t.' + e ? T('gm.t.' + e) : e)}</i>`).join('')}</span>
-          ${gmNoCompat(it) ? `<p class="gmAviso">${esc(T('gm.noCompat'))}</p>` : ''}${it.sinPipe && !ins ? `<p class="gmAviso">${esc(T('gm.sinArchivo'))}</p>` : ''}
+          ${off ? `<p class="gmAviso rbOffAyuda">${glifo('prohibido')} ${esc(T('hab.offGm'))}</p>` : ''}${gmNoCompat(it) ? `<p class="gmAviso">${esc(T('gm.noCompat'))}</p>` : ''}${it.sinPipe && !ins ? `<p class="gmAviso">${esc(T('gm.sinArchivo'))}</p>` : ''}
           ${cont ? `<p class="gmCont"><b>${esc(T('gm.contenido'))}:</b> ${esc(cont)}</p>` : ''}${A && A.faltanModelos && A.faltanModelos.length ? `<p class="gmAviso">${esc(T('gm.otroAddon').replace('{n}', A.faltanModelos.length))}: ${esc(A.faltanModelos.slice(0, 3).map((m) => m.replace(/^.*\//, '')).join(', '))}${A.faltanModelos.length > 3 ? '…' : ''}</p>` : ''}
           <p dir="auto">${esc(it.d || '')}</p>
           <div class="rbFichaAcc">${acc}${/^\d+$/.test(it.id) ? `<a class="rbBtnGris" href="https://steamcommunity.com/sharedfiles/filedetails/?id=${it.id}" target="_blank" rel="noopener">${esc(T('gm.steam'))}</a>` : ''}</div></div></div></div>`;
     const fi = G.querySelector('.gmImpFicha'); if (fi) fi.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) gmTiendaImportar(f, it); });
   } else {
-    const tile = (x) => `<button class="rbTile${gmInstalado(x.id) ? ' inst' : ''}" data-rb="ver:${esc(x.id)}"><span class="rbTileIco">${img(x)}</span><b dir="auto">${esc(x.t)}</b><small class="gmTileD">${x.subs ? `${glifo('gente')} ${gmCifra(x.subs)}` : esc(x.autor || '')}${x.dir ? ` · ${glifo('bajar')}` : x.dir === false ? ' · .gma' : ''}</small>${gmInstalado(x.id) ? '<i class="rbTileOk"></i>' : gmcDe(x.id) ? `<i class="rbTileBaja" style="width:${Math.round(gmcDe(x.id).p * 100)}%"></i>` : ''}</button>`;
+    const tile = (x) => `<button class="rbTile${gmInstalado(x.id) ? ' inst' : ''}${gmInstalado(x.id) && !gmHabilitado(x.id) ? ' off' : ''}" data-rb="ver:${esc(x.id)}"><span class="rbTileIco">${img(x)}</span><b dir="auto">${esc(x.t)}</b><small class="gmTileD">${x.subs ? `${glifo('gente')} ${gmCifra(x.subs)}` : esc(x.autor || '')}${x.dir ? ` · ${glifo('bajar')}` : x.dir === false ? ' · .gma' : ''}</small>${gmInstalado(x.id) ? (gmHabilitado(x.id) ? '<i class="rbTileOk"></i>' : '<i class="rbTileOff"></i>') : gmcDe(x.id) ? `<i class="rbTileBaja" style="width:${Math.round(gmcDe(x.id).p * 100)}%"></i>` : ''}</button>`;
     const fin = S.cargando ? `<div class="rbVacio">${esc(T('cargando'))}</div>` : S.error ? `<div class="rbVacio">${esc(T('gm.puente'))}</div>` : !S.items.length ? `<div class="rbVacio">${esc(T(S.gmDir && S.vista === 'explorar' && S.vistosGM ? 'gm.ningunoDir' : 'sinRes'))}</div>` : '';
     G.innerHTML = S.items.map(tile).join('') + fin;
   }
   const tot = RB.el.querySelector('.rbTotal'); if (tot) tot.textContent = S.total && !it ? `${S.items.length} / ${gmCifra(S.total)}` : '';
-  const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.visibility = !it && S.vista === 'explorar' && !S.finGM && S.items.length < S.total && !S.cargando ? '' : 'hidden';
+  const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.display = !it && S.vista === 'explorar' && !S.finGM && S.items.length < S.total && !S.cargando ? '' : 'none';   // (sin ocupar lugar: en un celular chico el pie entra en un renglón)
+  const hab = RB.el.querySelector('.rbHab'); if (hab) hab.innerHTML = habBotones(it ? (PREFS.gmod && PREFS.gmod[it.id] ? it.id : null) : undefined, Object.keys(PREFS.gmod || {}), gmHabilitado, 'Gm', S.habVa);
+}
+// Habilitar / Deshabilitar (Discord: «opciones para habilitar/deshabilitar, deshabilitar todos/habilitar todos los mods»),
+// en el pie del panel como en el dibujo que mandaron. En la ficha de un mod, sólo el de ese mod (el que corresponde); en la
+// lista, «Deshabilitar todo» y «Habilitar todo» (el que no tiene a cuál aplicarse queda gris). Lo usa también la pestaña Mods.
+// id: el de la ficha (null: ficha de algo no instalado; undefined: la lista); ids: los instalados; on(id): si está habilitado
+function habBotones(id, ids, on, suf, va) {
+  if (va) return `<button class="rbBtnGris" disabled>${esc(T(va.on ? 'hab.vaSi' : 'hab.vaNo').replace('{i}', Math.min(va.i + 1, va.n)).replace('{n}', va.n))}</button>`;
+  const no = (d, k, a) => `<button class="rbBtnGris rbHabNo" data-rb="${a}"${d ? ' disabled' : ''}>${glifo('prohibido')} ${esc(T(k))}</button>`;
+  const si = (d, k, a) => `<button class="rbBtnGris rbHabSi" data-rb="${a}"${d ? ' disabled' : ''}>${glifo('si')} ${esc(T(k))}</button>`;
+  if (id === null) return '';
+  if (id !== undefined) return on(id) ? no(false, 'hab.no', `des${suf}:${id}`) : si(false, 'hab.si', `hab${suf}:${id}`);
+  if (!ids.length) return '';
+  const nOn = ids.filter(on).length;
+  return no(!nOn, 'hab.todoNo', `desTodo${suf}`) + si(nOn === ids.length, 'hab.todoSi', `habTodo${suf}`);
+}
+async function gmTiendaHab(ids, on) {
+  const S = RB.t; if (S.habVa) return;
+  const todos = ids === null, L = todos ? Object.keys(PREFS.gmod || {}).filter((w) => gmHabilitado(w) !== on) : [ids];
+  S.habVa = { i: 0, n: L.length, on }; gmTiendaDibujar();
+  try { for (let i = 0; i < L.length; i++) { S.habVa = { i, n: L.length, on }; gmTiendaDibujar(); await gmHabilitar(L[i], on); } }
+  finally { S.habVa = null; }
+  const nom = !todos && ((S.items.find((x) => x.id === ids) || {}).t || (PREFS.gmod[ids] || {}).n || ids);
+  menuAviso(todos ? T(on ? 'hab.okSi' : 'hab.okNo').replace('{n}', L.length) : `${nom}: ${T(on ? 'hab.on' : 'hab.off')}`);
+  gmTiendaDibujar();
 }
 // (a la cola de descargas: se pueden poner varios, cerrar la tienda y jugar mientras bajan; ver gmod_cola.js)
 async function gmTiendaInstalar(id) {
@@ -228,6 +253,8 @@ function gmTiendaAccion(a, v) {
       entrarConCarga(T('ld.solo'), m, () => { inicioMostrar(false); const r = empezarPartida(m); Promise.resolve(r).then(abrir); return r; }); return true;
     }
     case 'pmGm': PREFS.skin = 'gmpm:' + v; guardarPrefs(); if (JUEGO.estado === 'juego' && JUG.vivo && typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo(); if (typeof redSkin === 'function') redSkin(); menuAviso(T('gm.pm.puesto').replace('{m}', propNom('gmpm:' + v))); return true;
+    case 'habGm': case 'desGm': gmTiendaHab(v, a === 'habGm'); return true;
+    case 'habTodoGm': case 'desTodoGm': gmTiendaHab(null, a === 'habTodoGm'); return true;
     case 'quitar': gmQuitar(v); menuAviso(T('quitar') + ': ' + ((S.items.find((x) => x.id === v) || {}).t || v)); if (S.vista === 'instalados') { S.ficha = null; gmTiendaCargar(true); } else gmTiendaDibujar(); return true;
   }
   return false;
@@ -235,6 +262,19 @@ function gmTiendaAccion(a, v) {
 
 // ---------------- textos (es, en, pt, id, ms, fil, ja, th, tr, ar, ru, uk, fr, de) ----------------
 Object.assign(IDI3, {
+  // (habilitar / deshabilitar mods: es, en, pt, id, ms, fil, ja, th, tr, ar, ru, uk, fr, de)
+  'hab.si': ['Habilitar', 'Enable', 'Habilitar', 'Aktifkan', 'Dayakan', 'I-enable', '有効にする', 'เปิดใช้', 'Etkinleştir', 'تفعيل', 'Включить', 'Увімкнути', 'Activer', 'Aktivieren'],
+  'hab.no': ['Deshabilitar', 'Disable', 'Desabilitar', 'Nonaktifkan', 'Nyahdayakan', 'I-disable', '無効にする', 'ปิดใช้', 'Devre dışı bırak', 'تعطيل', 'Отключить', 'Вимкнути', 'Désactiver', 'Deaktivieren'],
+  'hab.todoSi': ['Habilitar todo', 'Enable all', 'Habilitar tudo', 'Aktifkan semua', 'Dayakan semua', 'I-enable lahat', 'すべて有効', 'เปิดใช้ทั้งหมด', 'Tümünü etkinleştir', 'تفعيل الكل', 'Включить все', 'Увімкнути все', 'Tout activer', 'Alle aktivieren'],
+  'hab.todoNo': ['Deshabilitar todo', 'Disable all', 'Desabilitar tudo', 'Nonaktifkan semua', 'Nyahdayakan semua', 'I-disable lahat', 'すべて無効', 'ปิดใช้ทั้งหมด', 'Tümünü devre dışı bırak', 'تعطيل الكل', 'Отключить все', 'Вимкнути все', 'Tout désactiver', 'Alle deaktivieren'],
+  'hab.on': ['habilitado', 'enabled', 'habilitado', 'aktif', 'didayakan', 'naka-enable', '有効', 'เปิดใช้แล้ว', 'etkin', 'مفعّل', 'включён', 'увімкнено', 'activé', 'aktiviert'],
+  'hab.off': ['deshabilitado', 'disabled', 'desabilitado', 'nonaktif', 'dinyahdayakan', 'naka-disable', '無効', 'ปิดใช้แล้ว', 'devre dışı', 'معطّل', 'отключён', 'вимкнено', 'désactivé', 'deaktiviert'],
+  'hab.okSi': ['Mods habilitados: {n}', 'Mods enabled: {n}', 'Mods habilitados: {n}', 'Mod diaktifkan: {n}', 'Mod didayakan: {n}', 'Na-enable na mod: {n}', '有効にしたMOD：{n}', 'เปิดใช้ม็อดแล้ว: {n}', 'Etkinleştirilen mod: {n}', 'المودات المفعّلة: {n}', 'Включено модов: {n}', 'Увімкнено модів: {n}', 'Mods activés : {n}', 'Aktivierte Mods: {n}'],
+  'hab.okNo': ['Mods deshabilitados: {n}', 'Mods disabled: {n}', 'Mods desabilitados: {n}', 'Mod dinonaktifkan: {n}', 'Mod dinyahdayakan: {n}', 'Na-disable na mod: {n}', '無効にしたMOD：{n}', 'ปิดใช้ม็อดแล้ว: {n}', 'Devre dışı bırakılan mod: {n}', 'المودات المعطّلة: {n}', 'Отключено модов: {n}', 'Вимкнено модів: {n}', 'Mods désactivés : {n}', 'Deaktivierte Mods: {n}'],
+  'hab.vaSi': ['Habilitando {i}/{n}…', 'Enabling {i}/{n}…', 'Habilitando {i}/{n}…', 'Mengaktifkan {i}/{n}…', 'Mendayakan {i}/{n}…', 'Ine-enable {i}/{n}…', '有効化中 {i}/{n}…', 'กำลังเปิดใช้ {i}/{n}…', 'Etkinleştiriliyor {i}/{n}…', 'جارٍ التفعيل {i}/{n}…', 'Включение {i}/{n}…', 'Увімкнення {i}/{n}…', 'Activation {i}/{n}…', 'Aktiviere {i}/{n}…'],
+  'hab.vaNo': ['Deshabilitando {i}/{n}…', 'Disabling {i}/{n}…', 'Desabilitando {i}/{n}…', 'Menonaktifkan {i}/{n}…', 'Menyahdayakan {i}/{n}…', 'Dine-disable {i}/{n}…', '無効化中 {i}/{n}…', 'กำลังปิดใช้ {i}/{n}…', 'Devre dışı bırakılıyor {i}/{n}…', 'جارٍ التعطيل {i}/{n}…', 'Отключение {i}/{n}…', 'Вимкнення {i}/{n}…', 'Désactivation {i}/{n}…', 'Deaktiviere {i}/{n}…'],
+  'hab.offGm': ['Deshabilitado: sigue instalado, pero no se carga (ni su Lua, ni sus armas, entidades, modelos o mapas).', 'Disabled: still installed, but not loaded (no Lua, weapons, entities, models or maps).', 'Desabilitado: continua instalado, mas não é carregado (nem Lua, armas, entidades, modelos ou mapas).', 'Nonaktif: tetap terpasang, tapi tidak dimuat (tanpa Lua, senjata, entitas, model, atau peta).', 'Dinyahdayakan: masih dipasang, tetapi tidak dimuatkan (tiada Lua, senjata, entiti, model atau peta).', 'Naka-disable: naka-install pa rin, pero hindi nilo-load (walang Lua, armas, entity, model o mapa).', '無効：インストールされたままですが、読み込まれません（Lua、武器、エンティティ、モデル、マップなし）。', 'ปิดใช้: ยังติดตั้งอยู่ แต่ไม่ถูกโหลด (ไม่มี Lua อาวุธ เอนทิตี โมเดล หรือแผนที่)', 'Devre dışı: yüklü kalır ama yüklenmez (Lua, silah, varlık, model veya harita yok).', 'معطّل: لا يزال مثبتًا لكنه لا يُحمَّل (بلا Lua أو أسلحة أو كيانات أو نماذج أو خرائط).', 'Отключён: остаётся установленным, но не загружается (без Lua, оружия, сущностей, моделей и карт).', 'Вимкнено: лишається встановленим, але не завантажується (без Lua, зброї, сутностей, моделей і мап).', 'Désactivé : toujours installé, mais pas chargé (ni Lua, ni armes, entités, modèles ou cartes).', 'Deaktiviert: bleibt installiert, wird aber nicht geladen (kein Lua, keine Waffen, Entities, Modelle oder Karten).'],
+  'hab.offMod': ['Deshabilitado: sigue instalado, pero no se usa en la partida.', 'Disabled: still installed, but not used in the game.', 'Desabilitado: continua instalado, mas não é usado na partida.', 'Nonaktif: tetap terpasang, tapi tidak dipakai dalam permainan.', 'Dinyahdayakan: masih dipasang, tetapi tidak digunakan dalam permainan.', 'Naka-disable: naka-install pa rin, pero hindi ginagamit sa laro.', '無効：インストールされたままですが、ゲームでは使われません。', 'ปิดใช้: ยังติดตั้งอยู่ แต่ไม่ถูกใช้ในเกม', 'Devre dışı: yüklü kalır ama oyunda kullanılmaz.', 'معطّل: لا يزال مثبتًا لكنه لا يُستخدم في اللعب.', 'Отключён: остаётся установленным, но не используется в игре.', 'Вимкнено: лишається встановленим, але не використовується в грі.', 'Désactivé : toujours installé, mais pas utilisé en jeu.', 'Deaktiviert: bleibt installiert, wird im Spiel aber nicht verwendet.'],
   't.gmod': ['GMod', 'GMod', 'GMod', 'GMod', 'GMod', 'GMod', 'GMod', 'GMod', 'GMod', 'GMod', 'GMod', 'GMod', 'GMod', 'GMod'],
   'gm.tit': ["Addons de Garry's Mod del Workshop", "Garry's Mod addons from the Workshop", "Addons do Garry's Mod da Oficina", "Addon Garry's Mod dari Workshop", "Addon Garry's Mod dari Workshop", "Mga addon ng Garry's Mod mula sa Workshop", "ワークショップのGarry's Modアドオン", "แอดออน Garry's Mod จาก Workshop", "Atölyeden Garry's Mod eklentileri", "إضافات Garry's Mod من الورشة", "Аддоны Garry's Mod из Мастерской", "Аддони Garry's Mod з Майстерні", "Addons Garry's Mod du Workshop", "Garry's-Mod-Addons aus dem Workshop"],
   'gm.o.pop': ['Tendencia', 'Trending', 'Em alta', 'Sedang tren', 'Sohor kini', 'Trending', '人気急上昇', 'มาแรง', 'Trend', 'الرائج', 'В тренде', 'У тренді', 'Tendances', 'Im Trend'],

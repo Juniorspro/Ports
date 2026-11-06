@@ -214,7 +214,7 @@ function panelTienda(P) {
       <span class="rbSeg"><button class="${S.vista === 'explorar' ? 'sel' : ''}" data-rb="vista:explorar">${esc(T('v.tienda'))}</button><button class="${S.vista === 'instalados' ? 'sel' : ''}" data-rb="vista:instalados">${esc(T('v.instalados'))}</button></span></div>
     <div class="rbEtqs"><button class="rbEtq${!S.etq ? ' sel' : ''}" data-rb="etq:">${esc(T('e.todas'))}</button>${etqs.map((e) => `<button class="rbEtq${S.etq === e ? ' sel' : ''}" data-rb="etq:${e}">${esc(etqNom(e))}</button>`).join('')}</div>
     <div class="rbGrid rbTiendaG"></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris" data-rb="mas">${glifo('mas3')}</button>
+    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbHab"></span><span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris" data-rb="mas">${glifo('mas3')}</button>
       <button class="rbBtnG" data-rb="nueva">${esc(T('m.nueva'))} ${glifo('jugar')}</button></div>`;
   tiendaCargar(true);
 }
@@ -256,17 +256,16 @@ function tiendaDibujar() {
       <div class="rbFichaCuerpo"><div class="rbFichaIco">${img(it)}</div>
         <div class="rbFichaInfo"><h3 dir="auto">${esc(nombreDe(it))}</h3><small dir="auto">${it.codigo ? '<b class="rbCod">&lt;/&gt;</b> ' : ''}${datos(it)}</small>
           <span class="rbEtqsC">${(it.etiquetas || []).map((e) => `<i>${esc(T('e.' + e))}</i>`).join('')}</span>
-          <p dir="auto">${esc(descDe(it)) || ''}</p>
+          ${esMod && ins && modTipo(it) !== 'asset' && !act ? `<p class="gmAviso rbOffAyuda">${glifo('prohibido')} ${esc(T('hab.offMod'))}</p>` : ''}<p dir="auto">${esc(descDe(it)) || ''}</p>
           <div class="rbFichaAcc">
             ${fijo(it) ? `<span class="rbFichaIncl">${esc(T(an ? 'emo.incluido' : 'oficial'))}</span>` : ins ? `<button class="rbBtnGris" data-rb="quitar:${esc(it.id)}">${glifo('basura')} ${esc(T('quitar'))}</button>` : `<button class="rbBtnG rbFichaGrande" data-rb="instalar:${esc(it.id)}">${glifo('bajar')} ${esc(T('instalar'))}</button>`}
-            ${esMod && ins && modTipo(it) !== 'asset' ? `<button class="rbChk${act ? ' on' : ''}" data-rb="act:${esc(it.id)}"><em></em>${esc(T('activado'))}</button>` : ''}
             ${S.tab === 'mapa' && ins ? `<button class="rbBtnG" data-rb="jugarcom:${esc(it.id)}">${glifo('jugar')} ${esc(T('jugar'))}</button>` : ''}
             ${it.oficial ? '' : `${it.descargas != null ? `<button class="rbBtnGris${LIKES[it.id] ? ' sel' : ''}" data-rb="like:${esc(it.id)}">${glifo('corazon')} ${esc(T('meGusta'))}</button><button class="rbBtnGris" data-rb="denunciar:${esc(it.id)}">${glifo('bandera')} ${esc(T('denunciar'))}</button>` : ''}
               ${ins ? `<button class="rbBtnGris" data-rb="exportar:${esc(it.id)}">${glifo('bajar')} ${esc(T('exportar'))}</button>` : ''}${PUBLICADOS[it.id] ? `<button class="rbBtnGris" data-rb="borrarpub:${esc(it.id)}">${glifo('basura')} ${esc(T('quitar'))}</button>` : ''}`}
           </div></div></div></div>`;
   } else {
-    const tile = (x) => { const ins = inst(x), act = activo(x);
-      return `<button class="rbTile${act ? ' on' : ''}${ins && !fijo(x) ? ' inst' : ''}${S.tab === 'mapa' ? ' rbTileMapa' : ''}" data-rb="ver:${esc(x.id)}"><span class="rbTileIco">${img(x)}</span><b dir="auto">${esc(nombreDe(x))}</b>${act ? '<i class="rbTileOn"></i>' : ins && !fijo(x) ? '<i class="rbTileOk"></i>' : ''}</button>`; };
+    const tile = (x) => { const ins = inst(x), act = activo(x), off = esMod && ins && !act && modTipo(x) !== 'asset';
+      return `<button class="rbTile${act ? ' on' : ''}${ins && !fijo(x) ? ' inst' : ''}${off ? ' off' : ''}${S.tab === 'mapa' ? ' rbTileMapa' : ''}" data-rb="ver:${esc(x.id)}"><span class="rbTileIco">${img(x)}</span><b dir="auto">${esc(nombreDe(x))}</b>${act ? '<i class="rbTileOn"></i>' : off ? '<i class="rbTileOff"></i>' : ins && !fijo(x) ? '<i class="rbTileOk"></i>' : ''}</button>`; };
     // secciones: en Mods, oficiales de jugar / oficiales que ponen cosas / de la gente; en Mapas, oficiales y de la gente;
     // en Emotes (sin filtro), por categoría
     let grupos;
@@ -277,7 +276,17 @@ function tiendaDibujar() {
     G.innerHTML = (grupos.length > 1 ? grupos.map(([n, L]) => `<div class="rbSecc">${esc(n)}<em>${L.length}</em></div>` + L.map(tile).join('')).join('') : S.items.map(tile).join('')) + fin;
   }
   const tot = RB.el.querySelector('.rbTotal'); if (tot) tot.textContent = S.total && !it ? `${S.items.length} / ${S.total}` : '';
-  const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.visibility = !it && S.vista === 'explorar' && S.items.length < S.total ? '' : 'hidden';
+  const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.display = !it && S.vista === 'explorar' && S.items.length < S.total ? '' : 'none';   // (sin ocupar lugar: en un celular chico el pie entra en un renglón)
+  const hab = RB.el.querySelector('.rbHab');
+  if (hab) { const ids = esMod && typeof habBotones === 'function' ? modsHabilitables() : []; hab.innerHTML = ids.length || (it && esMod) ? habBotones(it ? (ids.includes(it.id) ? it.id : null) : undefined, ids, (id) => !!PREFS.mods[id], 'Mod') : ''; }
+}
+// los mods instalados que se pueden habilitar o deshabilitar (los que ponen cosas —radio, piano, props— están siempre)
+const modsHabilitables = () => modsTodos().filter((m) => modTipo(m) !== 'asset').map((m) => m.id);
+function modsHabilitar(ids, on) {
+  for (const id of ids) { if (on) PREFS.mods[id] = true; else delete PREFS.mods[id]; }
+  guardarPrefs(); inicioLista();
+  // (si la tienda se abrió jugando solo, se aplica al toque, como desde el menú MOD)
+  if (typeof smAplicar === 'function' && typeof JUEGO !== 'undefined' && JUEGO.estado === 'juego' && !SALA) try { smAplicar(false); } catch (e) {}
 }
 async function instalar(id) {
   const S = RB.t, of = OFICIALES.find((m) => m.id === id);
@@ -396,6 +405,8 @@ function inicioAccion(k, b) {
     case 'mas': RB.t.p++; return tiendaCargar(false);
     case 'instalar': return instalar(v);
     case 'quitar': if (RB.t.tab === 'mod') { delete INST.mods[v]; if (INST.of) delete INST.of[v]; delete PREFS.mods[v]; guardarPrefs(); inicioLista(); } else if (RB.t.tab === 'anim') { delete INST.anims[v]; emoOlvidar('u:' + v); } else delete INST.mapas[v]; guardarLS('rb_instalados', INST); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar();
+    case 'habMod': case 'desMod': { modsHabilitar([v], a === 'habMod'); const m = modsTodos().find((x) => x.id === v); menuAviso(`${m ? nombreDe(m) : v}: ${T(a === 'habMod' ? 'hab.on' : 'hab.off')}`); return tiendaDibujar(); }
+    case 'habTodoMod': case 'desTodoMod': { const on = a === 'habTodoMod', L = modsHabilitables().filter((id) => !!PREFS.mods[id] !== on); modsHabilitar(L, on); menuAviso(T(on ? 'hab.okSi' : 'hab.okNo').replace('{n}', L.length)); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar(); }
     case 'act': PREFS.mods[v] = !PREFS.mods[v]; if (!PREFS.mods[v]) delete PREFS.mods[v]; guardarPrefs(); return tiendaDibujar();
     case 'like': if (LIKES[v]) return; LIKES[v] = 1; guardarLS('rb_likes', LIKES); fetch(TIENDA_URL + 'like/' + v, { method: 'POST' }).catch(() => {}); { const it = RB.t.items.find((x) => x.id === v); if (it) it.likes++; } return tiendaDibujar();
     case 'denunciar': if (!confirm(T('denunciar') + '?')) return; fetch(TIENDA_URL + 'denunciar/' + v, { method: 'POST' }).catch(() => {}); RB.t.items = RB.t.items.filter((x) => x.id !== v); RB.t.ficha = null; return tiendaDibujar();

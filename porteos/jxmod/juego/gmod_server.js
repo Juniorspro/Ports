@@ -23,7 +23,7 @@ function gmsEntrar() {
   GMS.tPub = TIEMPO.t + 4 + Math.random() * 4; GMS.vioRetenido = false;
 }
 function gmsSalir() {
-  for (const w of GMS.montados) if (!(PREFS.gmod && PREFS.gmod[w])) { try { gmDesmontar(w); } catch (e) {} }
+  for (const w of GMS.montados) if (!(PREFS.gmod && PREFS.gmod[w]) || (typeof gmHabilitado === 'function' && !gmHabilitado(w))) { try { gmDesmontar(w); } catch (e) {} }   // (los que no son míos o los tengo deshabilitados)
   GMS.montados.clear(); GMS.sala = ''; const c = $('gmNotis'); if (c) c.innerHTML = '';
 }
 // bajar (o tomar de la caché) y montar los addons del server; los que ya tengo instalados no se tocan

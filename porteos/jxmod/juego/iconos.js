@@ -48,6 +48,7 @@ const GLIFOS = {
   bajar: '<path d="M12 4v11.5M6.5 10 12 15.5 17.5 10M4.5 20h15"/>',
   si: '<path d="m4.5 12.5 5 5 10-10.5"/>',
   no: '<path d="m6 6 12 12M18 6 6 18"/>',
+  prohibido: '<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
   lapiz: '<path d="m4 20 1.2-4.8L15.8 4.6a2 2 0 0 1 2.8 0l.8.8a2 2 0 0 1 0 2.8L8.8 18.8z"/><path d="m13.8 6.6 3.6 3.6"/>',
   girar: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.8 4.2v4.6h-4.6"/>',
   traer: '<path d="M12 3.5v9M8 8.5l4 4 4-4"/><circle cx="12" cy="17.5" r="3"/>',

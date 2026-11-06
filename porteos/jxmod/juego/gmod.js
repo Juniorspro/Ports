@@ -935,6 +935,44 @@ function gmVisita(wid, op) {
   GMVIS.pedidos.set(wid, pr); return pr;
 }
 function gmQuitar(wid) { wid = String(wid); gmDesmontar(wid); if (PREFS.gmod) { delete PREFS.gmod[wid]; guardarPrefs(); } gmCacheBorrar(wid); }
+// Habilitado o deshabilitado, como en el menú de addons de GMod (Discord: «opciones para habilitar/deshabilitar y
+// habilitar/deshabilitar todos los mods»). Deshabilitado sigue instalado y guardado, pero no se monta: ni su Lua, ni sus
+// armas, entidades, NPCs, modelos o mapas. Se aplica al toque, también jugando. Si un server donde estoy lo pide, sigue
+// montado hasta salir de la sala; y el modelo de otro jugador que viene de ese addon se sigue viendo (de visita, sin Lua).
+const gmHabilitado = (wid) => !(PREFS.gmod && PREFS.gmod[String(wid)] && PREFS.gmod[String(wid)].off);
+async function gmHabilitar(wid, on) {
+  wid = String(wid); const P = PREFS.gmod && PREFS.gmod[wid]; if (!P || gmHabilitado(wid) === !!on) return false;
+  if (on) delete P.off; else P.off = 1;
+  guardarPrefs();
+  if (!on) {
+    if (typeof GMS !== 'undefined' && GMS.sala && GMS.lista.has(wid) && GMOD.addons.has(wid)) GMS.montados.add(wid);
+    else gmDesmontar(wid);
+    return true;
+  }
+  const A0 = GMOD.addons.get(wid);
+  if (A0) {
+    // (estaba montado de visita —el modelo de otro jugador—: pasa a ser suyo otra vez, con su Lua)
+    if (A0.visita) { A0.visita = false; A0.lua = [...A0.G.archivos.keys()].filter((r) => r.endsWith('.lua')); if (typeof gmLuaMontar === 'function') try { gmLuaMontar(A0); } catch (e) { gmErr('lua ' + wid, e); } gmMenu(); }
+    return true;
+  }
+  // (de la caché, como al arrancar; si no estaba guardado, se vuelve a bajar)
+  try {
+    const c = await gmCacheLeerSeguro(wid);
+    if (!gmHabilitado(wid) || GMOD.addons.has(wid)) return true;
+    const G = c ? await gmaDeCache(wid, c) : null;
+    if (!gmHabilitado(wid) || GMOD.addons.has(wid)) return true;
+    if (G) { if (typeof cnPaso === 'function') cnPaso('montando el mod ' + (P.n || wid), wid); const A = gmMontar(wid, G, { nombre: P.n }); if (typeof cnPaso === 'function') cnPaso(''); await gmTiempo(A.listo, 60000).catch(() => {}); }
+    else if (/^\d+$/.test(wid) && typeof gmcPoner === 'function') gmcPoner(wid, { nombre: P.n, img: P.img, callado: true });
+  } catch (e) { gmErr('habilitar ' + wid, e); }
+  return true;
+}
+// todos los instalados (de a uno: montar varios a la vez traba el celular); prog(i, n) para mostrar cuánto va
+async function gmHabilitarTodos(on, prog) {
+  const L = Object.keys(PREFS.gmod || {}).filter((w) => gmHabilitado(w) !== !!on);
+  for (let i = 0; i < L.length; i++) { if (prog) prog(i, L.length); await gmHabilitar(L[i], on); }
+  if (prog) prog(L.length, L.length);
+  return L.length;
+}
 // importar un .gma de la compu (el id es una huella del contenido: el mismo archivo, el mismo addon)
 async function gmImportarArchivo(f) {
   let b = new Uint8Array(await f.arrayBuffer()); if (!gmEsGMA(b)) b = await gmLZMA(b);
@@ -952,7 +990,7 @@ async function gmArrancar(otraVez) {
   // instalados no se toca nunca acá)
   const reintentar = [];
   for (const wid of Object.keys(PREFS.gmod || {})) {
-    if (GMOD.addons.has(wid)) continue;
+    if (GMOD.addons.has(wid) || !gmHabilitado(wid)) continue;   // (los deshabilitados quedan instalados sin montar)
     try {
       const c = await gmCacheLeerSeguro(wid);
       if (c === undefined) { reintentar.push(wid); continue; }
