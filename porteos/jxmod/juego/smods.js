@@ -31,10 +31,11 @@ async function srvModsCargar() {
   if (SALA && JUEGO.estado === 'juego') smAplicar(false);
   if (SMOD.abierto) smDibujar();
 }
-// cada cuadro en una sala: busca mods nuevos cada minuto
+// cada cuadro en una sala: busca mods nuevos cada 2 minutos
 function smPaso(dt) {
   if (!SALA || JUEGO.estado !== 'juego') return;
-  SRV.t -= dt; if (SRV.t > 0) return; SRV.t = SRV.falta ? 15 : 60; srvModsCargar();
+  // (cada 2 minutos; si la tienda no contestó, al minuto: antes 1 minuto y 15 s, y con la tienda saturada eran 4 pedidos por minuto por jugador)
+  SRV.t -= dt; if (SRV.t > 0) return; SRV.t = SRV.falta ? 60 : 120; srvModsCargar();
 }
 // ---------------- aplicar al momento lo que elegiste (en una sala o jugando solo) ----------------
 // Solo: los mods de la tienda que tenés (PREFS.mods); en una sala: los del server (PREFS.modsSrv). Se prenden y apagan

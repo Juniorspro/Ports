@@ -43,6 +43,8 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -166,10 +168,54 @@ public class Web extends Activity {
         web.loadUrl(url);
     }
 
+    // ---- lo que la app pide por su cuenta (/red/<sitio>/<ruta>) ----
+    // El servidor de la tienda del juego (plan gratis de Cloudflare) tiene un tope de pedidos por día; al pasarlo, todo se
+    // corta hasta el día siguiente. Los pedazos de los addons de Steam (cientos por addon) y la búsqueda de YouTube no
+    // necesitan la tienda: la página no los puede pedir directo (el navegador no deja leer otros sitios sin su permiso),
+    // pero la app sí. Sólo estos sitios y sólo GET: no es un paso abierto a cualquier lado.
+    private WebResourceResponse red(Uri u, String metodo) {
+        Map<String, String> cab = new HashMap<>();
+        cab.put("Cache-Control", "no-store");
+        if (!"GET".equalsIgnoreCase(metodo)) return new WebResourceResponse("text/plain", "utf-8", 405, "Method Not Allowed", cab, new ByteArrayInputStream(new byte[0]));
+        String destino = Red.destino(u.getEncodedPath(), u.getEncodedQuery());
+        if (destino == null) return new WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", cab, new ByteArrayInputStream(new byte[0]));
+        boolean yt = destino.startsWith("https://www.youtube.com/");
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL(destino).openConnection();
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(30000);
+            c.setInstanceFollowRedirects(true);
+            if (yt) {
+                // (como la tienda: la página de resultados de una compu, en español, sin el cartel de cookies)
+                c.setRequestProperty("User-Agent", Red.UA_PC);
+                c.setRequestProperty("Accept-Language", "es-419,es;q=0.9,en;q=0.8");
+                c.setRequestProperty("Cookie", "CONSENT=YES+1; SOCS=CAI");
+            } else c.setRequestProperty("User-Agent", "JXMod/" + version() + " (Android)");
+            int st = c.getResponseCode();
+            InputStream in = st >= 400 ? c.getErrorStream() : c.getInputStream();
+            if (in == null) in = new ByteArrayInputStream(new byte[0]);
+            String ct = c.getContentType(), mime = "application/octet-stream", cs = null;
+            if (ct != null) {
+                String[] partes = ct.split(";");
+                mime = partes[0].trim();
+                for (String x : partes) { x = x.trim(); if (x.toLowerCase(Locale.ROOT).startsWith("charset=")) cs = x.substring(8).replace("\"", ""); }
+            }
+            String razon = c.getResponseMessage();
+            if (razon == null || razon.trim().isEmpty()) razon = st < 400 ? "OK" : "Error";
+            if (st < 100 || st > 599) st = 502;
+            return new WebResourceResponse(mime, cs, st, razon, cab, in);
+        } catch (Exception e) {
+            if (c != null) try { c.disconnect(); } catch (Exception x) { /* nada */ }
+            return new WebResourceResponse("text/plain", "utf-8", 502, "Bad Gateway", cab, new ByteArrayInputStream(new byte[0]));
+        }
+    }
+
     // ---- los archivos del juego, servidos desde la app ----
-    private WebResourceResponse servir(Uri u) {
+    private WebResourceResponse servir(Uri u, String metodo) {
         if (u == null || !HOST.equals(u.getHost())) return null;
         String p = u.getPath();
+        if (p != null && p.startsWith("/red/")) return red(u, metodo);
         if (p == null || p.isEmpty() || p.equals("/")) p = "/index.html";
         Map<String, String> cab = new HashMap<>();
         cab.put("Access-Control-Allow-Origin", "*");
@@ -211,7 +257,7 @@ public class Web extends Activity {
         "f.readAsDataURL(b)});return;}return c.apply(this,arguments)};})();";
 
     private class Cliente extends WebViewClient {
-        @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) { return servir(r.getUrl()); }
+        @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) { return servir(r.getUrl(), r.getMethod()); }
         @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
             Uri u = r.getUrl();
             if (HOST.equals(u.getHost()) || !r.isForMainFrame()) return false;
@@ -368,6 +414,8 @@ public class Web extends Activity {
         @JavascriptInterface public void frecuencia(final int hz) { runOnUiThread(() -> frecuenciaPoner(hz)); }
         @JavascriptInterface public void salir() { runOnUiThread(Web.this::finishAndRemoveTask); }
         @JavascriptInterface public void latido() { latidoT = SystemClock.uptimeMillis(); }
+        /** La app sabe pedir por su cuenta /red/… (la búsqueda de YouTube y los pedazos de Steam sin la tienda). */
+        @JavascriptInterface public int red() { return 1; }
         /** Lo que guardó la app del último cuelgue o cierre (el log del sistema y la consola), para el registro del juego. */
         @JavascriptInterface public String registroNativo() { return leerRegistro(); }
         @JavascriptInterface public void registroVisto() { /* (queda guardado hasta el próximo: se puede volver a ver en Ajustes) */ }

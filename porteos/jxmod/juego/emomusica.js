@@ -114,8 +114,8 @@ async function emuBuscar(q) {
   const E = EMU.ed; if (!E) return; q = String(q || '').trim().slice(0, 80); if (!q) return;
   if (ytMalo(q)) { E.res = []; E.bloq = true; emuRes(); aviso(T('yt.bloq'), 2.5); return; }
   E.bloq = false; const n = ++E.n; E.cargando = true; emuRes();
-  try { const d = await (await fetch(TIENDA_URL + 'yt?q=' + encodeURIComponent(q))).json(); if (n !== E.n || EMU.ed !== E) return; E.res = ytFiltrar((d.items || []).filter((x) => ytId(x.id) === x.id)); }
-  catch (e) { if (n !== E.n) return; E.res = []; aviso(T('errRed'), 2); }
+  try { const L = await ytBuscar(q); if (n !== E.n || EMU.ed !== E) return; E.res = ytFiltrar((L || []).filter((x) => ytId(x.id) === x.id)); }
+  catch (e) { if (n !== E.n) return; E.res = []; tiendaAvisoSat(); }
   E.cargando = false; emuRes();
   if (E.res.length && typeof ytIA === 'function') { const no = await ytIA(E.res, 9000); if (no && no.size && n === E.n && EMU.ed === E) { E.res = E.res.filter((x) => !no.has(x.id)); emuRes(); } }
 }

@@ -797,7 +797,7 @@ async function verMedia(t, q) {
   entidadPonerMod(t, true);
   const e = ENTS.lista.find((x) => x.t === t && x.dueno === 'yo' && x.red && !x.mod); if (!e) return;
   try {
-    const d = await (await fetch(TIENDA_URL + 'yt?q=' + encodeURIComponent(q || 'music'))).json(), L = ytFiltrar((d.items || []).filter((x) => ytId(x.id) === x.id));
+    const L = ytFiltrar(((await ytBuscar(q || 'music')) || []).filter((x) => ytId(x.id) === x.id));
     if (!L.length) return;
     e.lista = L.map((x) => ({ id: x.id, t: x.t })); audioIniciar(); radioPoner(e, L[0].id, 0, L[0].t, true);
   } catch (x) {}

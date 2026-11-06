@@ -120,13 +120,18 @@ async function gpDescomprimir(d, tam) {
 }
 
 // ---- bajar un addon entero ----
-const gpURL = (base, host, ruta) => base + 'gmod/cdn/' + host + ruta;
+// (en la app de Android los pedazos se piden directo a Steam —/red/, Web.java—; en la web, por la tienda. Antes cada pedazo
+// era un pedido a la tienda: un addon de 700 MB, unos 700, y la tienda llegaba a su tope por día)
+const gpURL = (base, host, ruta, directo) => (directo ? redURL(host, ruta) : base + 'gmod/cdn/' + host + ruta);
 async function gpPedirCDN(base, hosts, ruta, intentos) {
   let ult = null;
+  const app = typeof redApp === 'function' && redApp();
   for (let k = 0; k < (intentos || 4); k++) {
     const h = hosts[(k + (gpPedirCDN.n = (gpPedirCDN.n || 0) + 1)) % hosts.length];
+    // (directo las dos primeras veces; si no sale, por la tienda)
+    const directo = app && k < 2 && /\.steamcontent\.com$/i.test(h);
     // (cada pedazo con tiempo máximo: uno colgado se vuelve a pedir a otro servidor en vez de trabar todo)
-    try { const r = await gmFetch(gpURL(base, h, ruta), null, 30000); if (r.ok) return new Uint8Array(await gmTiempo(r.arrayBuffer(), 60000, 'pedazo trabado')); ult = new Error('CDN ' + r.status); if (r.status === 404 || r.status === 403) { if (k >= 1) break; } }
+    try { const r = await gmFetch(gpURL(base, h, ruta, directo), null, 30000); if (r.ok) return new Uint8Array(await gmTiempo(r.arrayBuffer(), 60000, 'pedazo trabado')); ult = new Error('CDN ' + r.status); if ((r.status === 404 || r.status === 403) && !directo) { if (k >= 1) break; } }
     catch (e) { ult = e; }
   }
   throw ult || new Error('CDN');

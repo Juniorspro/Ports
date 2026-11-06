@@ -185,11 +185,12 @@ async function salaCerradaRevisar() {
     if (SALA && !(d.salas || []).some((x) => x.id === SALA.id)) { const n = SALA.n; irMenuPrincipal(); setTimeout(() => menuAviso(T('srv.cerrado').replace('%', n)), 300); }
   } catch (e) {}
 }
-// el server creado sigue vivo mientras alguien juega: avisa el de id más chico de la sala, una vez por minuto (y al salir)
+// el server creado sigue vivo mientras alguien juega: avisa el de id más chico de la sala, cada 3 minutos (y al salir)
 function salaVivo(id) { if (typeof TIENDA_URL !== 'undefined') fetch(TIENDA_URL + 'salas/' + id + '/vivo', { method: 'POST' }).catch(() => {}); }
 function salaVivoPaso(dt) {
   if (!SALA || !SALA.rg || !RED.on) return;
-  RED.tVivo = (RED.tVivo === undefined ? 0 : RED.tVivo) - dt; if (RED.tVivo > 0) return; RED.tVivo = 60;
+  // (cada 3 minutos alcanza: la tienda borra un server a los 10 sin aviso)
+  RED.tVivo = (RED.tVivo === undefined ? 0 : RED.tVivo) - dt; if (RED.tVivo > 0) return; RED.tVivo = 180;
   const ids = [RED.ID, ...RED.remotos.keys()].sort(); if (ids[0] === RED.ID) salaVivo(SALA.id);
 }
 // botón Multiplayer: conecta la lista y abre el panel (como "Connect" del juego)

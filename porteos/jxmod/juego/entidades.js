@@ -406,7 +406,9 @@ const EST = { son: new Map(), url: new Map(), t: 0, max: 3 };
 // la dirección del audio de la emisora; si no es https (o no deja pasarlo por el sonido del juego) va por la tienda
 function estUrl(id) {
   if (EST.url.has(id)) return Promise.resolve(EST.url.get(id));
-  return fetch(TIENDA_URL + 'radio/u/' + id).then((r) => r.json()).then((d) => { const u = /^https:\/\//.test(d.u || '') ? d.u : null; EST.url.set(id, u); return u; }).catch(() => null);
+  // (directo en Radio Browser; si no contesta, la tienda)
+  return radioUrlDirecta(id).catch(() => fetch(TIENDA_URL + 'radio/u/' + id).then((r) => r.json()).then((d) => d.u || ''))
+    .then((d) => { const u = /^https:\/\//.test(d || '') ? d : null; EST.url.set(id, u); return u; }).catch(() => null);
 }
 function estSonar(e) {
   const c = AUD.ctx; if (!c) return null;
@@ -563,7 +565,7 @@ function radioPoner(e, vid, s, tit, mio) {
   const antes = e.vid; e.vid = vid || null; e.t0 = ahoraS() - (s || 0); e.tit = tit || ''; e.prm.v = e.vid || '';
   if (e.vid !== antes) { e.estMala = null; estParar(e); }
   if (YT.fuente === e) { if (!vid || esEst(vid)) ytQuitar(); else ytCargar(e); }
-  if (mio) { entidadRed('radio', e); if (esEst(vid)) fetch(TIENDA_URL + 'radio/clic/' + vid.slice(3)).catch(() => {}); }
+  if (mio) entidadRed('radio', e);   // (la escucha se cuenta en Radio Browser al pedir la dirección: estUrl)
   if (RADIO.e === e) radioDibujar();
 }
 
@@ -726,14 +728,18 @@ async function radioBuscar(q, tag) {
   if (yt && !q) return;
   // (el filtro: una búsqueda con algo que no va no se hace)
   if (ytMalo(q)) { RADIO.q = q; RADIO.n++; RADIO.res = []; RADIO.cargando = false; RADIO.bloq = true; radioDibujar(); aviso(T('yt.bloq'), 2.5); return; }
-  RADIO.bloq = false;
+  RADIO.bloq = false; RADIO.sat = false; RADIO.err = false;
   RADIO.q = q; RADIO.tag = tag; const n = ++RADIO.n; RADIO.cargando = true; radioDibujar();
   try {
-    const u = yt ? 'yt?q=' + encodeURIComponent(q) : 'radio?q=' + encodeURIComponent(q) + (tag ? '&tag=' + encodeURIComponent(tag) : '');
-    const d = await (await fetch(TIENDA_URL + u)).json(); if (n !== RADIO.n) return;
-    RADIO.res = (d.items || []).filter((x) => (yt ? ytId(x.id) === x.id : /^[0-9a-f-]{36}$/.test(x.id || '')));
+    // (YouTube: un link pegado va directo, la app busca sola y si no, la tienda; las emisoras, directo en Radio Browser y
+    // si no contesta, por la tienda: tiendared.js)
+    let L;
+    if (yt) L = await ytBuscar(q);
+    else { try { L = await radioBuscarDirecto(q, tag); } catch (e) { L = null; } if (!L) L = (await (await fetch(TIENDA_URL + 'radio?q=' + encodeURIComponent(q) + (tag ? '&tag=' + encodeURIComponent(tag) : ''))).json()).items || []; }
+    if (n !== RADIO.n) return;
+    RADIO.res = (L || []).filter((x) => (yt ? ytId(x.id) === x.id : /^[0-9a-f-]{36}$/.test(x.id || '')));
     RADIO.res = yt ? ytFiltrar(RADIO.res) : RADIO.res.filter((x) => !ytMalo(x.t));
-  } catch (x) { if (n !== RADIO.n) return; RADIO.res = []; aviso(T('errRed'), 2); }
+  } catch (x) { if (n !== RADIO.n) return; RADIO.res = []; RADIO.err = true; RADIO.sat = !!(x && x.sat) || tiendaFrenada(); tiendaAvisoSat(); }
   RADIO.cargando = false; radioDibujar();
   // (y la IA revisa la lista: saca lo que no va para un juego con chicos)
   if (yt && RADIO.res.length) { const no = await ytIA(RADIO.res, 9000); if (no && no.size && n === RADIO.n) { RADIO.res = RADIO.res.filter((x) => !no.has(x.id)); radioDibujar(); } }
@@ -742,13 +748,13 @@ function radioDibujar() {
   const R0 = $('radioRes'); if (!R0 || !RADIO.e) return; const e = RADIO.e, yt = RADIO.modo === 'yt', p = $('radioPan');
   p.querySelectorAll('.raTabs button').forEach((b) => b.classList.toggle('sel', b.dataset.ra === 'modo:' + RADIO.modo));
   p.querySelector('.raGen').innerHTML = yt ? '' : RADIO_GENEROS.map((g) => `<button class="${RADIO.tag === g ? 'sel' : ''}" data-ra="gen:${g}">${esc(g)}</button>`).join('');
-  p.querySelector('.raNota').textContent = yt ? T('ra.notaYt') : '';
+  p.querySelector('.raNota').textContent = yt ? T('ra.notaYt') + ' ' + T('ra.link') : '';
   p.querySelector('[data-ra=espalda]').innerHTML = glifo('espalda') + ' ' + esc(T(e.prm.ll ? 'ra.soltar' : 'ra.espalda'));
   p.querySelector('[data-ra=espalda]').style.display = e.dueno === 'yo' && e.t === 'radio' ? '' : 'none';
   p.querySelector('.raTam').innerHTML = e.t === 'pantalla' && e.dueno === 'yo' ? `<span>${esc(T('pant.tam'))}</span>` + PANT_TAM.map((w) => `<button class="${Math.abs(w - (+e.prm.w || 2)) < 0.01 ? 'sel' : ''}" data-ra="tam:${w}">${w.toLocaleString(document.documentElement.lang || undefined)} m</button>`).join('') : '';
   $('radioAhora').innerHTML = e.vid ? `<div class="radioYa">${glifo(esEst(e.vid) ? 'musica' : 'video')} <b dir="auto">${esc(sinEmoji(e.tit) || e.vid)}</b></div>` : '';
   const sel = (x) => (yt ? x.id : 'rb:' + x.id) === e.vid;
-  R0.innerHTML = RADIO.cargando ? `<div class="radioVacio">${esc(T('cargando'))}</div>` : !RADIO.res.length ? `<div class="radioVacio">${esc(T(RADIO.bloq ? 'yt.bloq' : 'sinRes'))}</div>`
+  R0.innerHTML = RADIO.cargando ? `<div class="radioVacio">${esc(T('cargando'))}</div>` : !RADIO.res.length ? `<div class="radioVacio">${esc(T(RADIO.bloq ? 'yt.bloq' : RADIO.sat ? 'tienda.sat' : RADIO.err ? 'errRed' : 'sinRes'))}</div>`
     : RADIO.res.map((x, i) => yt
       ? `<button class="radioIt${sel(x) ? ' sel' : ''}" data-ra="poner:${i}"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/${x.id}/mqdefault.jpg"><span><b dir="auto">${esc(sinEmoji(x.t))}</b><small dir="auto">${esc(sinEmoji(x.c))}${x.d ? ' · ' + esc(x.d) : ''}</small></span></button>`
       : `<button class="radioIt est${sel(x) ? ' sel' : ''}" data-ra="poner:${i}">${x.i ? `<img loading="lazy" alt="" referrerpolicy="no-referrer" data-f="1" src="${esc(x.i)}">` : icoHTML('ico:radio')}<span><b dir="auto">${esc(sinEmoji(x.t))}</b><small dir="auto">${esc(sinEmoji([x.c, x.g, x.b ? x.b + ' kbps' : ''].filter(Boolean).join(' · ')))}</small></span></button>`).join('');

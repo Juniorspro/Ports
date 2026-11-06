@@ -1,8 +1,8 @@
 // ---------------- social: perfil con ID, buscar jugador, amigos, chats y grupos, invitar a partida ----------------
 // Con los diseños de la comunidad (GOLDEN): un panel con cuatro pestañas (Chats, Amigos, Buscar, Perfil) en el menú
-// principal y en la pausa. Todo pasa por la tienda (tienda/social.js) con la sesión de Google. Cada 30 s el juego "late"
+// principal y en la pausa. Todo pasa por la tienda (tienda/social.js) con la sesión de Google. Cada 60 s el juego "late"
 // (en línea, y en qué server está) y se entera de lo nuevo: el globito del menú y un aviso jugando cuando llega un
-// mensaje. Con un chat abierto se pregunta cada 2,5 s. Lo que se escribe pasa por la censura local antes de salir y lo
+// mensaje. Con un chat abierto se pregunta cada 4 s. Lo que se escribe pasa por la censura local antes de salir y lo
 // que llega se muestra censurado.
 const SOC = { tab: 'chats', sub: 'amigos', yo: null, amigos: null, chats: null, chat: null, info: null, msgs: [], ultId: 0, lei: 0, esc: [], sel: null, busc: null, badge: 0, sol: 0, ultAviso: 0, q: '' };
 const socApi = async (ruta, o) => { const r = await cuApi('social/' + ruta, o); const j = await r.json().catch(() => ({})); if (!r.ok) throw Object.assign(new Error(j.error || r.status), { st: r.status }); return j; };
@@ -21,6 +21,7 @@ function socIniciar() {
   if (SOC.iniciado) return; SOC.iniciado = true;
   const latir = async () => {
     if (!cuDentro() || !cuRequerida()) return;
+    if (typeof document !== 'undefined' && document.hidden) return;   // (con la app en segundo plano no late: ahorra pedidos a la tienda)
     try {
       if (!SOC.yo) { try { const y = await socApi('yo'); SOC.yo = y.perfil; SOC.estado = y.estado; } catch (e) {} }
       const j = await socApi('latido', { method: 'POST', body: { sala: socSala(), skin: PREFS.skin } });
@@ -28,7 +29,8 @@ function socIniciar() {
       const u = j.ultimo; if (u && u.id > SOC.ultAviso) { const viendo = SOC.chat === u.chat && RB.panel === 'social' && rbVisible && rbVisible(); if (SOC.ultAviso && !viendo) cuAviso((u.tipo === 'sis' ? '' : (u.nombre || '?') + ': ') + socResumen(u).slice(0, 80)); SOC.ultAviso = u.id; }
     } catch (e) {}
   };
-  SOC.latir = latir; setTimeout(latir, 4000); setInterval(latir, 30000);
+  // (cada 60 s: antes cada 30, y el latido de todos los jugadores juntos llenaba el tope de pedidos por día de la tienda)
+  SOC.latir = latir; setTimeout(latir, 4000); setInterval(latir, 60000);
 }
 function socGlobito() {
   const b = typeof RB !== 'undefined' && RB.el && RB.el.querySelector('.rbIt[data-rb=social]'); if (!b) return;
@@ -59,7 +61,7 @@ async function socDibujar(cargar) {
     if (tab === 'perfil') { if (cargar || !SOC.yo) { const j = await socApi('yo'); SOC.yo = j.perfil; SOC.estado = j.estado; } if (sigue()) socPerfil(I, D); }
     else if (tab === 'buscar') socBuscar(I, D);
     else if (tab === 'amigos') { if (cargar || !SOC.amigos) SOC.amigos = await socApi('amigos'); if (sigue()) socAmigos(I, D); }
-    else { if (cargar || !SOC.chats) SOC.chats = (await socApi('chats')).chats; if (!sigue()) return; socChats(I, D); if (SOC.chat) await socChatCargar(true); if (sigue()) SOC.tPoll = SOC.tPoll || setInterval(socPoll, 2500); }
+    else { if (cargar || !SOC.chats) SOC.chats = (await socApi('chats')).chats; if (!sigue()) return; socChats(I, D); if (SOC.chat) await socChatCargar(true); if (sigue()) SOC.tPoll = SOC.tPoll || setInterval(socPoll, 4000); }
   } catch (e) { if (!sigue()) return; if (e.st === 401) { cuSesionVencida(); inicioPanel('social'); return; } I.innerHTML = `<p class="soVacio">${esc(T('so.error'))}</p>`; }
 }
 async function socPoll() {
