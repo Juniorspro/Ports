@@ -380,6 +380,16 @@ function gmrAntes() {
       const c = claseTabla(e.clase, 'C');
       if (!c || !GMA.clases.has(e.clase)) { if (e.cs && !e.noDraw) { GR.entAct = e; gmrModelo(e); } continue; }
       if (e.noDraw) { if (e.o) e.o.md.oculto = true; continue; }
+      // RenderOverride (de la clase o puesto en la entidad): en GMod reemplaza al dibujo de siempre. Los nextbots de la
+      // plantilla clásica (Doge, Obunga, Sanic.png, Shaq…) dibujan su cara sólo ahí: sin esto eran invisibles
+      const tE = e.tablaC || e.tabla, roE = tE instanceof LuaTable ? tE.get('RenderOverride') : undefined, ro = typeof roE === 'function' ? roE : buscarEnClase(c, 'RenderOverride');
+      if (typeof ro === 'function') {
+        GR.entAct = e; GR.dm = false; GR.mat = null; GR.ignZ = false; GR.mod = [1, 1, 1]; GR.blend = 1;
+        gmLlamar(ro, 'C', e, flags);
+        if (e.o) e.o.md.oculto = !GR.dm;
+        if (e.nb && typeof gmnbDibujar === 'function') gmnbDibujar(e);
+        GR.d2 && gmrTerminar3D2D(); continue;
+      }
       const rg = buscarEnClase(c, 'RenderGroup'), trans = rg === 8 || rg === 9, op = rg !== 8;
       const fo = op ? buscarEnClase(c, 'Draw') : null, ft = trans ? buscarEnClase(c, 'DrawTranslucent') : null;
       const propio = (fo && fo !== d0) || (ft && ft !== d1 && ft !== d0);

@@ -316,7 +316,10 @@ function luaGenerar(arbol, archivo, fid, dual) {
     return 'R.tab([' + pos.join(',') + ']' + (kv.length ? ',[' + kv.join(',') + ']' : '') + ')';
   }
   function funcion(f) {
-    const doble = dual && (prof === 0 || forzar), gen0 = gen, f0 = forzar; forzar = false; prof++;
+    // (también las de adentro de una versión generadora: DrGBase arma métodos dentro de otras funciones y los llama desde la
+    // corrutina del nextbot; sin versión generadora, su coroutine.yield cortaba con «yield across a C-call boundary». Así
+    // crece lineal con la profundidad —la versión normal del padre las lleva sólo normales—, no al doble por nivel)
+    const doble = dual && (prof === 0 || forzar || gen), gen0 = gen, f0 = forzar; forzar = false; prof++;
     const una = (g) => {
       const fn0 = fn; fn = { va: f.va }; sc.push(new Map()); gen = g;
       const ps = f.ps.map(nuevo);
@@ -765,7 +768,9 @@ function luaCompilar(src, archivo, R) {
   let gen = LUA.cache.get(k);
   if (!gen) {
     let fid = LUA.archivos.indexOf(archivo); if (fid < 0) { fid = LUA.archivos.length; LUA.archivos.push(archivo); }
-    const dual = /coroutine\.|RunBehaviour|MoveToPos|PlaySequenceAndWait|BehaveThread/.test(src);
+    // (con versión generadora: los archivos que usan corrutinas y los de nextbots —por su ruta o por los métodos de DrGBase
+    // que ceden el turno: YieldCoroutine, PauseCoroutine—, que se llaman desde la corrutina del nextbot)
+    const dual = /coroutine\.|RunBehaviour|MoveToPos|AndWait|AndMove|BehaveThread|BehaveUpdate|YieldCoroutine|PauseCoroutine|DrGBase/.test(src) || /nextbot|drgbase/i.test(archivo) || /ENT\.Base\s*=\s*["'][^"']*nextbot/i.test(src);
     const js = luaGenerar(luaParsear(luaLexico(src, archivo), archivo), archivo, fid, dual);
     try { gen = new Function('R', 'LuaTable', 'E0', js); } catch (e) { throw new LuaError(archivo + ': no se pudo traducir (' + e.message + ')'); }
     LUA.cache.set(k, gen); if (LUA.cache.size > 4000) LUA.cache.delete(LUA.cache.keys().next().value);

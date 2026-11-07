@@ -44,8 +44,10 @@ function gmnbPath() {
     P('Compute', (p, bot, pos) => { if (!(pos instanceof LVec) || !(bot instanceof LEnt)) return false; p.meta = vG(pos); p.ini = gmaEntPos(bot); p.t0 = TIEMPO.t; p.ok = true; return true; });
     P('IsValid', (p) => !!p.ok); P('Invalidate', (p) => { p.ok = false; }); P('GetAge', (p) => TIEMPO.t - p.t0);
     P('GetLength', (p) => (p.ok ? vsub(p.meta, p.ini).len() / GS : 0)); P('GetStart', (p) => GMA.V(p.ini || v3())); P('GetEnd', (p) => GMA.V(p.meta || v3()));
-    P('GetCurrentGoal', (p) => { const t = new LuaTable(); t.set('pos', GMA.V(p.meta || v3())); t.set('type', 0); return t; }); P('FirstSegment', (p) => { const t = new LuaTable(); t.set('pos', GMA.V(p.ini || v3())); return t; }); P('LastSegment', (p) => { const t = new LuaTable(); t.set('pos', GMA.V(p.meta || v3())); return t; });
-    P('GetAllSegments', (p) => { const t = new LuaTable(); for (const x of [p.ini, p.meta]) { const s = new LuaTable(); s.set('pos', GMA.V(x || v3())); t.a.push(s); } return t; });
+    // (los tramos como los de GMod: posición, tipo —0: por el piso—, distancia desde el principio, largo y hacia dónde va)
+    const tramo = (p, fin) => { const t = new LuaTable(), a = p.ini || v3(), b = p.meta || a, d = vsub(b, a), L = d.len(); t.set('pos', GMA.V(fin ? b : a)); t.set('type', 0); t.set('how', 9); t.set('distanceFromStart', fin ? L / GS : 0); t.set('length', fin ? L / GS : 0); t.set('forward', GMA.Vd(L > 1e-4 ? vscale(d, 1 / L) : v3(0, 0, 1))); t.set('curvature', 0); return t; };
+    P('GetCurrentGoal', (p) => tramo(p, true)); P('FirstSegment', (p) => tramo(p, false)); P('LastSegment', (p) => tramo(p, true)); P('NextSegment', (p) => tramo(p, true)); P('PriorSegment', (p) => tramo(p, false));
+    P('GetAllSegments', (p) => { const t = new LuaTable(); t.a.push(tramo(p, false), tramo(p, true)); return t; });
     P('GetPositionOnPath', (p) => GMA.V(p.meta || v3())); P('GetClosestPosition', (p) => GMA.V(p.meta || v3())); P('GetCursorPosition', () => 0); P('GetCursorData', () => new LuaTable());
     P('ResetAge', (p) => { p.t0 = TIEMPO.t; }); P('MoveCursorToStart', () => {}); P('MoveCursorToEnd', () => {}); P('MoveCursorTo', () => {}); P('MoveCursorToClosestPosition', () => {}); P('MoveCursor', () => {}); P('Draw', () => {}); P('GetHindrance', () => NULL_ENT);
     // seguirlo: la locomoción va hacia la meta y mira para ahí; cerca de la meta, el camino terminó
@@ -64,6 +66,9 @@ function gmnbPath() {
 function gmnbApi() {
   const R = GMA.R, G = R.G, def = (t, n, f) => t.set(n, f), EM = GMA.metas && GMA.metas.Entity, E = (n, f) => EM && EM.set(n, f);
   def(G, 'Path', () => gmnbPath());
+  // (las metatablas de verdad para FindMetaTable: DrGBase cambia PathFollower:Compute para anotar si el camino salió; con
+  // una tabla suelta su cambio no llegaba a los caminos, nunca «salía» y todo enemigo le quedaba inalcanzable)
+  if (GMA.metas) { gmnbPath(); gmnbArea(v3()); gmnbLoco({}); GMA.metas.PathFollower = GMNB.mtPath.get('__index'); GMA.metas.CLuaLocomotion = GMNB.mtLoco.get('__index'); GMA.metas.CNavArea = GMNB.mtArea.get('__index'); }
   E('StartActivity', (e, act) => { e.nbAct = +act || 0; gmnbSecuencia(e, { act: e.nbAct }); }); E('GetActivity', (e) => e.nbAct || 0);
   E('BodyMoveXY', () => {}); E('GetRangeTo', (e, x) => vsub(gmaEntPos(e), x instanceof LEnt ? gmaEntPos(x) : x instanceof LVec ? vG(x) : gmaEntPos(e)).len() / GS);
   E('GetRangeSquaredTo', (e, x) => { const d = vsub(gmaEntPos(e), x instanceof LEnt ? gmaEntPos(x) : x instanceof LVec ? vG(x) : gmaEntPos(e)).len() / GS; return d * d; });
@@ -82,6 +87,16 @@ function gmnbApi() {
   envolver('SelectWeightedSequence', (e, act) => { const d = gmnbDef(e); if (!d) return -1; const i = d.M.secuencias.findIndex((s) => s.act && gmnbNum(String(s.act).toUpperCase()) === +act); return i; });
   envolver('GetSequenceActivity', (e, i) => { const d = gmnbDef(e), s = d && d.M.secuencias[+i]; return s && s.act ? gmnbNum(String(s.act).toUpperCase()) || -1 : -1; });
   envolver('FrameAdvance', () => {});
+  // (las secuencias de una actividad, para elegir una —GMod sortea entre las que tienen esa actividad—; la lista y la
+  // cuenta de secuencias, con las que DrGBase busca las suyas: el zombie no encontraba su golpe y nunca atacaba)
+  const deAct = (e, act) => { const d = gmnbDef(e); if (!d) return []; const L = []; d.M.secuencias.forEach((s, i) => { if (s.act && gmnbNum(String(s.act).toUpperCase()) === +act) L.push(i); }); return L; };
+  envolver('SelectWeightedSequenceSeeded', (e, act, semilla) => { const L = deAct(e, act); return L.length ? L[Math.abs(Math.floor(+semilla || 0)) % L.length] : -1; });
+  envolver('GetSequenceList', (e) => { const d = gmnbDef(e), t = new LuaTable(); if (d) d.M.secuencias.forEach((s, i) => t.set(i, s.n)); return t; });
+  envolver('GetSequenceCount', (e) => { const d = gmnbDef(e); return d ? d.M.secuencias.length : 0; });
+  envolver('GetSequenceInfo', (e, i) => { const d = gmnbDef(e), s = d && d.M.secuencias[+i]; if (!s) return undefined; const a = d.M.anims[s.anim], t = new LuaTable(); t.set('label', s.n); t.set('activityname', s.act || ''); t.set('activity', s.act ? gmnbNum(String(s.act).toUpperCase()) || -1 : -1); t.set('numframes', a ? a.nf : 1); t.set('fps', a ? a.fps : 30); t.set('flags', s.flags || 0); return t; });
+  // (el nombre y la actividad de una secuencia: DrGBase decide así si la animación que corre es un ataque)
+  envolver('GetSequenceName', (e, i) => { const d = gmnbDef(e), s = d && d.M.secuencias[i === undefined ? (e.nbSec ? e.nbSec.i : 0) : +i]; return s ? s.n : 'Unknown'; });
+  envolver('GetSequenceActivityName', (e, i) => { const d = gmnbDef(e), s = d && d.M.secuencias[i === undefined ? (e.nbSec ? e.nbSec.i : 0) : +i]; return s && s.act ? String(s.act) : ''; });
   const nav = R.G.get('navmesh'); if (nav instanceof LuaTable) {
     // (sin malla de navegación: las listas vacías y las búsquedas sin área; los bots igual caminan derecho a su meta)
     nav.set('IsLoaded', () => true); nav.set('GetNavAreaCount', () => 1); nav.set('IsGenerating', () => false);
@@ -125,6 +140,14 @@ function gmnbSecuencia(e, q) {
   e.nbSec = { i, anim: M.secuencias[i].anim, t: 0, loop: M.secuencias[i].loop, dur: Math.max(0, (a.nf - 1) / (a.fps > 0 ? a.fps : 30)) };
   return e.nbSec.dur;
 }
+// los eventos de la animación que se cruzaron en este paso (de c0 a c1, en ciclos; si da la vuelta, los del final y los
+// del principio): a ENT:HandleAnimEvent(evento, tiempo, ciclo, tipo, opciones), como el motor de Source. Los de DrGBase
+// (OnAnimEvent) pegan ahí: el zombie golpeaba el aire sin hacer daño
+function gmnbEventos(e, S, c0, c1) {
+  const def = gmnbDef(e), q = def && def.M.secuencias[S.i]; if (!q || !q.ev || !(c1 > c0)) return;
+  const cruza = (c) => (S.loop ? (Math.floor(c1) > Math.floor(c0) ? c > c0 % 1 || c <= c1 % 1 : c > c0 % 1 && c <= c1 % 1) : c > c0 && c <= c1);
+  for (const x of q.ev) if (cruza(x.c)) { metodo(e, 'HandleAnimEvent', 'S', x.ev, TIEMPO.t, x.c, x.tipo, x.op || x.n || ''); if (!e.vivo) return; }
+}
 function gmnbDef(e) { const m = String(e.modelo || '').toLowerCase(); if (!m || typeof gmpDef !== 'function') return null; if (e.nbDefDe !== m) { e.nbDefDe = m; e.nbDef = gmpDef(m) || null; e.nbMd = null; } return e.nbDef; }
 // cada cuadro: la corrutina, la locomoción y el cuerpo
 function gmnbPaso(dt) {
@@ -134,7 +157,7 @@ function gmnbPaso(dt) {
     if (!e.vivo) continue;
     gmnbMover(e, dt);
     metodo(e, 'BodyUpdate', 'S');
-    if (e.nbSec) e.nbSec.t += dt * (e.nbRate || 1);
+    if (e.nbSec) { const S = e.nbSec, c0 = S.dur > 0 ? S.t / S.dur : 1; S.t += dt * (e.nbRate || 1); gmnbEventos(e, S, c0, S.dur > 0 ? S.t / S.dur : 1); }
   }
 }
 const _nbq = new Quat();

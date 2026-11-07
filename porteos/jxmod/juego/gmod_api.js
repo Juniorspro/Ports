@@ -11,6 +11,25 @@ const GMA = { R: null, ctx: 'S', hooks: new Map(), timers: new Map(), tSimples: 
   // (los mods que trabaron el juego mientras corría su Lua al cargarse —lo dice la caja negra, cajanegra.js—: quedan
   // montados pero su Lua no corre hasta que se los vuelve a cargar desde su página del panel GMod)
   trabados: (() => { try { return new Set(JSON.parse(localStorage.getItem('rb_gm_trabados') || '[]').map(String)); } catch (e) { return new Set(); } })() };
+// las metatablas de FindMetaTable (Entity, Player, Weapon…): en GMod el servidor y el cliente son dos Lua separados, cada
+// uno con su copia; acá comparten la tabla. Si el lado del cliente cambia una función que ya estaba, cada lado sigue
+// usando la suya (DrGBase cambia Entity:OnGround e IsOnGround sólo en el cliente para leer lo que manda el servidor: con
+// una sola tabla el servidor también leía eso, nunca se veía en el piso y sus nextbots se quedaban saltando quietos)
+class LuaTablaLados extends LuaTable {
+  set(k, v) {
+    if (typeof k === 'string' && typeof v === 'function' && k.charCodeAt(0) !== 95) {
+      const prev = this.h.get(k), lado = GMA.ctx === 'C' ? 'c' : 's';
+      if (prev && prev.__lados) { prev.__lados[lado] = v; return; }
+      if (lado === 'c' && typeof prev === 'function' && prev !== v) { super.set(k, gmaDosLados(prev, v)); return; }
+    }
+    super.set(k, v);
+  }
+}
+function gmaDosLados(s, c) {
+  const L = { s, c }, f = function (...a) { return (GMA.ctx === 'C' ? L.c : L.s)(...a); };
+  f.g = function* (...a) { const t = GMA.ctx === 'C' ? L.c : L.s; if (t.g) return yield* t.g(...a); return t(...a); };
+  f.__lados = L; return f;
+}
 function gmaTrabadosGuardar() { try { localStorage.setItem('rb_gm_trabados', JSON.stringify([...GMA.trabados])); } catch (e) {} }
 const GS = 0.0254;
 const gmaErr = (m) => {
@@ -184,7 +203,7 @@ function gmaIniciar() {
   def(G, 'HSVToColor', (h, s, v) => { const f = (n) => { const k = (n + h / 60) % 6; return v - v * s * Math.max(Math.min(k, 4 - k, 1), 0); }; return gmColor(f(5) * 255, f(3) * 255, f(1) * 255, 255); });
   def(G, 'IsColor', (c) => c instanceof LuaTable && c.mt === CM);
   // ---- entidades ----
-  const EM = (GMA.mtEnt = new LuaTable()), ENT_M = new LuaTable(), PLY_M = new LuaTable(), WEP_M = new LuaTable(), NPC_M = new LuaTable(), VEH_M = new LuaTable(), PHY_M = new LuaTable();
+  const EM = (GMA.mtEnt = new LuaTable()), ENT_M = new LuaTablaLados(), PLY_M = new LuaTablaLados(), WEP_M = new LuaTablaLados(), NPC_M = new LuaTablaLados(), VEH_M = new LuaTablaLados(), PHY_M = new LuaTablaLados();
   GMA.metas = { Entity: ENT_M, Player: PLY_M, Weapon: WEP_M, NPC: NPC_M, Vehicle: VEH_M, PhysObj: PHY_M, Vector: VI, Angle: AI };
   for (const [n, t] of Object.entries(GMA.metas)) { t.set('MetaName', n); if (n !== 'Vector' && n !== 'Angle' && n !== 'Entity') { const m = new LuaTable(); m.set('__index', ENT_M); t.mt = m; } }
   EM.set('__index', (e, k) => {
@@ -305,7 +324,9 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('SetRenderAngles', (e, a) => { e.rAng = a instanceof LAng ? new LAng(a.p, a.y, a.r) : null; }); E('GetRenderAngles', (e) => A(e.rAng ? new LAng(e.rAng.p, e.rAng.y, e.rAng.r) : quatAng(entQ(e)))); E('SetModelScale', (e, s) => { e.escala = s; }); E('GetModelScale', (e) => e.escala || 1);
   E('PhysicsInit', (e, t) => { e.solido = e.solidoT = num(t, 6) | 0; if (e.creado && e.vivo && !e.o && e.modelo) gmaRehacer(e); gmaSolidez(e); return true; }); E('PhysicsInitSphere', (e) => { e.solido = e.solidoT = 6; gmaSolidez(e); return true; }); E('PhysicsInitBox', (e) => { e.solido = e.solidoT = 6; gmaSolidez(e); return true; }); E('PhysicsInitShadow', () => true); E('PhysicsDestroy', (e) => { e.solido = 0; });
   E('SetMoveType', (e, t) => { e.mov = t; if (e.o) { e.o.b.frozen = t === 0; if (t !== 0) e.o.b.wake(); } }); E('GetMoveType', (e) => e.mov ?? 6);
-  E('GetSequence', () => 0); E('LookupSequence', () => -1); E('SequenceDuration', () => 1); E('GetPlaybackRate', (e) => e.velAnim ?? 1); E('SetPlaybackRate', (e, r) => { e.velAnim = Number.isFinite(+r) ? +r : 1; }); E('GetCycle', () => 0); E('GetPoseParameter', () => 0);
+  E('GetSequence', () => 0); E('LookupSequence', () => -1); E('SequenceDuration', () => 1); E('GetPlaybackRate', (e) => e.velAnim ?? 1); E('SetPlaybackRate', (e, r) => { e.velAnim = Number.isFinite(+r) ? +r : 1; }); E('GetCycle', () => 0); E('GetPoseParameter', () => 0); E('GetNumPoseParameters', () => 0); E('GetSequenceMovement', () => [false]);
+  // (sin datos de cada secuencia: la velocidad de caminar de la clase; DrGBase la usa para sus nextbots que «caminan con la animación»)
+  E('GetSequenceGroundSpeed', (e) => { const c = e.clase ? claseTabla(e.clase, GMA.ctx) : null, w = c ? buscarEnClase(c, 'WalkSpeed') : undefined; return typeof w === 'number' && w > 0 ? w : 100; }); E('GetPoseParameterName', () => ''); E('LookupPoseParameter', () => -1); E('GetPoseParameterRange', () => [0, 1]);
   E('GetPhysicsObject', (e) => { const f = e.fis || (e.fis = { e, __mt: GMA.mtPhy }); return f; }); E('GetPhysicsObjectCount', (e) => (e.o ? 1 : 0)); E('GetPhysicsObjectNum', (e) => ENT_M.get('GetPhysicsObject')(e));
   E('EmitSound', (e, s, nivel, tono, vol) => gmaSonar(s, gmaEntPos(e), vol, tono)); E('StopSound', () => {});
   E('Health', (e) => (e === yo() ? Math.max(0, Math.round(JUG.vida)) : e.P ? (e.P.vivo === false || (e.P.rag && e.P.npc && !(e.P.vida > 0)) ? 0 : typeof e.P.vida === 'number' ? Math.max(0, Math.round(e.P.vida)) : e.vida) : e.vida)); E('SetHealth', (e, h) => { if (e === yo()) JUG.vida = num(h, 100); else e.vida = num(h, 100); });
@@ -319,7 +340,8 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('IsSolid', (e) => gmaSolidoTipo(e) !== 0); E('SetCollisionGroup', (e, g) => { e.grupoCol = num(g, 0) | 0; gmaSolidez(e); }); E('GetCollisionGroup', (e) => e.grupoCol | 0);
   E('GetCreator', (e) => e.creador || yo()); E('SetCreator', (e, p) => { e.creador = p; });
   E('IsPlayer', (e) => e.tipo === 'jug'); E('IsNPC', (e) => e.tipo === 'npc'); E('IsWeapon', (e) => e.tipo === 'arma'); E('IsVehicle', (e) => !!(e.o && e.o.veh)); E('IsWorld', (e) => e.tipo === 'mundo'); E('IsRagdoll', (e) => e.clase === 'prop_ragdoll'); E('IsNextBot', () => false);
-  E('IsOnGround', (e) => (e === yo() ? !!JUG.suelo : !!(e.o && e.o.b.sleep))); E('GetGroundEntity', () => GMA.mundo); E('WaterLevel', () => 0); E('IsOnFire', (e) => !!e.fuego);
+  // (un nextbot: lo que dice su locomoción; DrGBase lo creía en el aire y se quedaba saltando quieto)
+  const enSuelo = (e) => (e === yo() ? !!JUG.suelo : e.nb && typeof gmnbLoco === 'function' ? !!gmnbLoco(e).st.suelo : !!(e.o && e.o.b.sleep)); GMA.enSuelo = enSuelo; E('IsOnGround', enSuelo); E('GetGroundEntity', () => GMA.mundo); E('WaterLevel', () => 0); E('IsOnFire', (e) => !!e.fuego);
   E('Ignite', (e, t) => { e.fuego = TIEMPO.t + num(t, 5); }); E('Extinguish', (e) => { e.fuego = 0; }); E('IsInWorld', () => true); E('Visible', () => true); E('IsDormant', () => false);
   E('Fire', (e, inp, val, dem) => { GMA.tSimples.push({ t: TIEMPO.t + Math.max(0, +dem || 0), f: () => { if (e.vivo !== false) gmaEntrada(e, String(inp || ''), val); }, ctx: 'S', js: true }); });   // (como en GMod: va a la cola, en tiempo del juego; con demora 0, al cuadro siguiente) E('Input', (e, inp, a, c, val) => gmaEntrada(e, String(inp || ''), val)); E('SetKeyValue', (e, k, v) => { (e.kv || (e.kv = new Map())).set(k, v); }); E('GetKeyValues', (e) => tabla(Object.fromEntries(e.kv || [])));
   E('GetTable', (e) => { const T = gmaTablaDe(e); if (!T.mt) { const m = new LuaTable(); m.set('__index', (t, k) => { if (k === 'dt') return gmaDT(e); if (k === 'Entity' || k === 'Weapon') return e; if (k === 'Owner') return e.dueño || NULL_ENT; const c = e.tipo === 'efecto' ? e.efecto : claseTabla(e.clase, GMA.ctx); const v = c ? buscarEnClase(c, k) : undefined; if (v !== undefined) return v; const f = GMA.mtEnt.get('__index')(e, k); return typeof f === 'function' ? (s, ...x) => f(s === t ? e : s, ...x) : f; }); T.mt = m; } return T; }); E('SetTable', (e, t) => { if (t instanceof LuaTable) { if (GMA.ctx === 'C') e.tablaC = t; else e.tabla = t; } }); E('SetVar', (e, k, v) => gmaTablaDe(e).set(k, v)); E('GetVar', (e, k, d) => gmaTablaDe(e).get(k) ?? d);
@@ -327,7 +349,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('LookupAttachment', (e, n) => { const M = gmaModeloInfo(e); const i = M ? M.adjuntos.findIndex((a) => a.n.toLowerCase() === String(n).toLowerCase()) : -1; return i < 0 ? 0 : i + 1; });
   E('GetAttachment', (e, i) => { if (e.tipo === 'vm') { const p = (typeof vistaPuntaMundo === 'function' && vistaPuntaMundo()) || vadd(CAM.pos, vadd(vscale(CAM.fwd, 0.6), vadd(vscale(CAM.der, 0.15), vscale(CAM.arr, -0.12)))); return tabla({ Pos: V(p), Ang: A(dirAng(dS(CAM.fwd))), Bone: 0 }); } const M = gmaModeloInfo(e), a = M && M.adjuntos[i - 1]; if (!M) return tabla({ Pos: V(gmaEntPos(e)), Ang: A(quatAng(entQ(e))), Bone: 0 }); if (!a) return undefined; const lp = new LVec(a.m[3], a.m[7], a.m[11]); const w = gmaEntPos(e).add(entQ(e).rot(vG(lp))); return tabla({ Pos: V(w), Ang: A(quatAng(entQ(e))) }); });
   E('GetAttachments', (e) => { const M = gmaModeloInfo(e); return R.tab((M ? M.adjuntos : []).map((a, i) => tabla({ id: i + 1, name: a.n }))); });
-  E('Use', (e, act, caller) => gmaUsar(e, act || caller)); E('GetName', (e) => e.nombre || ''); E('SetName', (e, n) => { e.nombre = n; }); E('MapCreationID', () => -1); E('GetSpawnEffect', () => false);
+  E('Use', (e, act, caller) => gmaUsar(e, act || caller)); E('GetName', (e) => e.nombre || ''); E('SetName', (e, n) => { e.nombre = n; }); E('MapCreationID', () => -1); E('GetCreationID', (e) => (e.tipo === 'jug' ? 1 : e.id));   // (DrGBase arma el nombre de cada nextbot con esto: sin él, su Initialize se cortaba y nada andaba) E('GetSpawnEffect', () => false);
   E('GetBrushPlane', () => undefined); E('GetFlags', () => 0); E('IsFlagSet', () => false); E('GetEffects', () => 0); E('IsEffectActive', () => false); E('GetRenderMode', () => 0); E('GetMoveCollide', () => 0);
   E('GetNetworkOrigin', (e) => V(gmaEntPos(e))); E('GetLocalPos', (e) => (e.padre && e.padreOff ? V(e.padreOff) : V(gmaEntPos(e)))); E('SetLocalPos', (e, v) => { if (e.padre && v instanceof LVec) { e.padreOff = vG(v); gmaHijoMover(e); } else ENT_M.get('SetPos')(e, v); });
   E('GetLocalAngles', (e) => (e.padre && e.padreQ ? A(quatAng(e.padreQ)) : ENT_M.get('GetAngles')(e))); E('SetLocalAngles', (e, a) => { if (e.padre && a instanceof LAng) { e.padreQ = angQuat(a); gmaHijoMover(e); } else ENT_M.get('SetAngles')(e, a); });
@@ -420,18 +442,21 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   // ---- lo que usan muchos addons y faltaba (api_falta.mjs sobre 86 addons reales): sólo lo que no estaba ya ----
   const solo = (M, n, f) => { if (M.get(n) === undefined) M.set(n, f); };
   const pisoDe = (p) => { const h = mundoRayo(v3(p.x, p.y + 0.5, p.z), v3(0, -1, 0), 60); return h ? p.y + 0.5 - h.t : null; };
-  solo(ENT_M, 'OnGround', (e) => ENT_M.get('IsOnGround')(e));
+  solo(ENT_M, 'OnGround', (e) => GMA.enSuelo(e));   // (no por IsOnGround: DrGBase lo cambia por uno que llama a OnGround)
   solo(ENT_M, 'DropToFloor', (e) => {   // (la cosa baja hasta apoyarse en el piso de abajo)
     if (e === yo()) { const y = pisoDe(JUG.pos); if (y !== null) { JUG.pos.y = y + JUG.medio + JUG.radio; JUG.vel.y = 0; } return; }
     const b = e.o && e.o.b; if (!b) return; b.updateWorld(); const a = b.aabb, y = pisoDe(v3((a.x0 + a.x1) / 2, a.y0, (a.z0 + a.z1) / 2)); if (y === null) return;
     b.pos.y += y - a.y0; b.vel.set(0, 0, 0); b.wake(); b.updateWorld();
   });
-  solo(ENT_M, 'WorldSpaceAABB', (e) => {
+  const aabbMundo = (e) => {
     if (e === yo()) { const p = JUG.pos, r = JUG.radio; return [V(v3(p.x - r, p.y - JUG.medio - r, p.z - r)), V(v3(p.x + r, p.y + JUG.ojoAlto - JUG.medio, p.z + r))]; }
     const b = e.o && e.o.b; if (!b) { const p = gmaEntPos(e); return [V(p), V(p)]; } const a = b.aabb;
     const p0 = V(v3(a.x0, a.y0, a.z0)), p1 = V(v3(a.x1, a.y1, a.z1));   // (en Source z es arriba: se ordenan por componente)
     return [GMA.nv(Math.min(p0.x, p1.x), Math.min(p0.y, p1.y), Math.min(p0.z, p1.z)), GMA.nv(Math.max(p0.x, p1.x), Math.max(p0.y, p1.y), Math.max(p0.z, p1.z))];
-  });
+  };
+  solo(ENT_M, 'WorldSpaceAABB', aabbMundo);
+  // el punto de la caja de la entidad más cerca de otro (DrGBase mide así a qué distancia está de su enemigo)
+  solo(ENT_M, 'NearestPoint', (e, p) => { const [a, b] = aabbMundo(e); if (!p || typeof p.x !== 'number') return GMA.nv((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); const c = (x, lo, hi) => Math.min(Math.max(x, lo), hi); return GMA.nv(c(p.x, a.x, b.x), c(p.y, a.y, b.y), c(p.z, a.z, b.z)); });
   solo(ENT_M, 'GetFlexNum', () => 0); solo(ENT_M, 'GetFlexName', () => ''); solo(ENT_M, 'GetFlexWeight', () => 0); solo(ENT_M, 'SetFlexWeight', () => {}); solo(ENT_M, 'SetFlexScale', () => {}); solo(ENT_M, 'GetFlexScale', () => 1);
   for (const n of ['SetExpensiveShadow', 'SetTransmitWithParent', 'SetPreventTransmit', 'SetNetworkKeyValue', 'SetGroundEntity', 'SetShouldPlayPickupSound', 'AddToMotionController', 'RemoveFromMotionController', 'StartMotionController', 'StopMotionController', 'SetLagCompensated']) solo(ENT_M, n, () => {});
   solo(ENT_M, 'GetShouldPlayPickupSound', () => false);
@@ -995,7 +1020,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   def(G, 'CompileString', (src, nombre, sinError) => { try { return R.cargar(String(src), String(nombre || 'CompileString')); } catch (e) { if (sinError === false) return R.msgErr(e); throw e; } });
   def(G, 'RunString', (src, nombre) => { try { R.c(R.cargar(String(src), String(nombre || 'RunString')), 'RunString'); } catch (e) { gmaErr(R.msgErr(e)); } }); def(G, 'RunStringEx', (src, nombre) => G.get('RunString')(src, nombre));
   { const dbg = G.get('debug'); if (dbg instanceof LuaTable) def(dbg, 'getregistry', () => { const t = new LuaTable(); for (const [n, m] of Object.entries(GMA.metas)) t.set(n, m); return t; }); }
-  def(G, 'FindMetaTable', (n) => { n = String(n); if (n === 'ConVar') return gmaMtCvar(); if (!GMA.metas[n] && /^[A-Z][A-Za-z_]+$/.test(n)) { const t = new LuaTable(); t.set('MetaName', n); t.set('__index', t); GMA.metas[n] = t; } return GMA.metas[n]; }); def(G, 'RegisterMetaTable', (n, t) => { GMA.metas[n] = t; });
+  def(G, 'FindMetaTable', (n) => { n = String(n); if (n === 'ConVar') return gmaMtCvar(); if (!GMA.metas[n] && /^[A-Z][A-Za-z_]+$/.test(n)) { const t = new LuaTablaLados(); t.set('MetaName', n); t.set('__index', t); GMA.metas[n] = t; } return GMA.metas[n]; }); def(G, 'RegisterMetaTable', (n, t) => { GMA.metas[n] = t; });
   def(G, 'SafeRemoveEntity', (e) => gmaQuitar(e)); def(G, 'SafeRemoveEntityDelayed', (e, t) => GMA.tSimples.push({ t: TIEMPO.t + num(t, 0), f: () => gmaQuitar(e), ctx: 'S' }));
   def(G, 'BroadcastLua', () => {}); def(G, 'SendUserMessage', () => {}); def(G, 'AddWorldTip', () => {}); def(G, 'DeriveGamemode', () => {}); def(G, 'CreateClientConVar', (n, d, s, u, h) => gmaCvar(n, d, h)); def(G, 'CreateConVar', (n, d, f, h) => gmaCvar(n, d, h));
   // (como GMod: una variable que nadie creó no existe: GetConVar da nil, GetConVarNumber 0 y GetConVarString ""; las del motor ya están)

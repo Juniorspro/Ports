@@ -95,6 +95,9 @@ function gmLuaMontar(A) {
       // (como en GMod: TOOL.ClientConVar.x y TOOL.ServerConVar.x son variables "<herramienta>_x" con su valor por defecto;
       // otras partes del addon las leen, como el color de la hoja de la Lightsaber)
       if (h.t instanceof LuaTable) for (const k of ['ClientConVar', 'ServerConVar']) { const t = h.t.get(k); if (t instanceof LuaTable) for (const c of t.claves()) if (typeof c === 'string') gmaCvar(h.nombre + '_' + c, String(t.get(c) ?? '')); } });
+    // (y del lado del cliente, como en GMod: las herramientas son compartidas. DrGBase arma ahí DrGBase.INFO_TOOL, que
+    // después lee al dibujar sus nextbots de sprites: sin esto, todos sus nextbots 2D tiraban error y no se veían)
+    for (const h of A.herramientas) gmaEnLado('C', () => { const T = new LuaTable(); T.set('Mode', h.nombre); T.set('ClientConVar', new LuaTable()); T.set('ServerConVar', new LuaTable()); G.set('TOOL', T); correr('C', h.r); h.tc = G.get('TOOL'); G.set('TOOL', undefined); });
     if (typeof gmbHerRegistrar === 'function') gmbHerRegistrar(A);
     // 4) las bases que se registraron después de sus hijas
     gmaEnlazarTodo();

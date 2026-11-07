@@ -320,6 +320,10 @@ GMF.mdl = function (mdl, vvd, vtx) {
     // mira—; y el peso por hueso, para las capas)
     const g = [Math.max(1, i32(o + 68)), Math.max(1, i32(o + 72))], q = { n: _cs(mdl, o + i32(o + 4)), act: _cs(mdl, o + i32(o + 8)), peso: i32(o + 16), flags: fl, loop: !!(fl & 1), anim, o, wl: i32(o + 156) };
     if (g[0] * g[1] > 1 && g[0] * g[1] <= 64) { q.g = g; q.par = [i32(o + 76), i32(o + 80)]; q.ps = [f32(o + 84), f32(o + 88)]; q.pe = [f32(o + 92), f32(o + 96)]; q.grid = []; try { for (let j = 0; j < g[0] * g[1]; j++) q.grid.push(dv.getInt16(o + aii + j * 2, true)); } catch (e) { q.grid = null; } }
+    // (los eventos de la animación —el golpe de un zombie, los pasos—: en qué parte de la secuencia y con qué datos; el
+    // motor los manda a ENT:HandleAnimEvent. Cada uno: ciclo, número, tipo, opciones y su nombre si es de los nuevos)
+    const nev = i32(o + 24), evi = i32(o + 28);
+    if (nev > 0 && nev <= 64 && evi > 0) { q.ev = []; for (let j = 0; j < nev; j++) { const eo = o + evi + j * 80; if (eo + 80 > mdl.length) break; const ni = i32(eo + 76); q.ev.push({ c: f32(eo), ev: i32(eo + 4), tipo: i32(eo + 8), op: _cs(mdl, eo + 12), n: ni ? _cs(mdl, eo + ni) : '' }); } }
     M.secuencias.push(q);
   }
   M.poseParams = []; { const npp = i32(300), ppi = i32(304); for (let k = 0; k < Math.min(npp, 32); k++) { const o = ppi + k * 20; if (o + 20 > mdl.length) break; M.poseParams.push(_cs(mdl, o + i32(o))); } }
