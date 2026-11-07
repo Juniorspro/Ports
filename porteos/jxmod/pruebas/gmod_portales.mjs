@@ -34,7 +34,9 @@ const cruce = await ev(`(async () => { const s0 = POR.saltos, d = POR.L.find((x)
   const tj = TIEMPO.t; while (TIEMPO.t - tj < 0.4) await new Promise((r) => setTimeout(r, 16)); ENT.teclas.delete('KeyW');
   const lB2 = porLocal(B, JUG.pos);
   return { saltos: POR.saltos - s0, ms: t, juego: +(TIEMPO.t - tg0).toFixed(2), lB: lB.map((x) => +x.toFixed(3)), fwB: +(fw.x * B.f[0] + fw.z * B.f[2]).toFixed(3), vB: +vB.toFixed(2), lB2: lB2.map((x) => +x.toFixed(2)), ultimos: pasos.slice(-4).map((x) => +x.toFixed(3)) }; })()`);
-ok('al cruzar door1 caminando sale delante de door2, mirando y yendo hacia adelante de door2, y sigue caminando sin volver', cruce.saltos === 1 && cruce.lB[0] > 0 && cruce.lB[0] < 0.3 && cruce.fwB > 0.99 && cruce.vB > 1 && cruce.lB2[0] > 1, cruce);
+// (lB va redondeado al milímetro: cruzando despacio sale a menos de medio milímetro delante de door2 —la salida es el
+// reflejo de lo que pasó de door1— y se ve 0; con «> 0» fallaba la mitad de las veces sin que nada estuviera mal)
+ok('al cruzar door1 caminando sale delante de door2, mirando y yendo hacia adelante de door2, y sigue caminando sin volver', cruce.saltos === 1 && cruce.lB[0] >= 0 && cruce.lB[0] < 0.3 && cruce.fwB > 0.99 && cruce.vB > 1 && cruce.lB2[0] > 1, cruce);
 await p.screenshot({ path: `${D}/despues.jpg`, type: 'jpeg', quality: 75 });
 // cuadros justo antes de cruzar: de 30 cm a 1 cm del plano (la caja tapa el corte del plano cercano)
 for (const dist of [0.3, 0.15, 0.08, 0.04, 0.01]) { await poner('door1', dist); await p.waitForTimeout(250); await p.screenshot({ path: `${D}/cerca_${dist}.jpg`, type: 'jpeg', quality: 75 }); }
