@@ -222,7 +222,12 @@ function gmaIniciar() {
   GMA.metas = { Entity: ENT_M, Player: PLY_M, Weapon: WEP_M, NPC: NPC_M, Vehicle: VEH_M, PhysObj: PHY_M, Vector: VI, Angle: AI };
   for (const [n, t] of Object.entries(GMA.metas)) { t.set('MetaName', n); if (n !== 'Vector' && n !== 'Angle' && n !== 'Entity') { const m = new LuaTable(); m.set('__index', ENT_M); t.mt = m; } }
   EM.set('__index', (e, k) => {
-    let v = (GMA.ctx === 'C' ? e.tablaC || e.tabla : e.tabla).get(k); if (v !== undefined) return v;
+    const T0 = GMA.ctx === 'C' ? e.tablaC || e.tabla : e.tabla;
+    let v = T0.get(k); if (v !== undefined) return v;
+    // (un arma, del lado del cliente: lo que su Think del servidor dejó y el cliente no tiene. En GMod con varios jugadores
+    // el Think del arma corre también en el cliente y deja lo mismo; en una partida sola no: las de M9K —IronSightsPos =
+    // RunSightsPos al correr— se dibujaban con la mira puesta y los puños con la guardia arriba)
+    if (T0 !== e.tabla && e.tipo === 'arma') { v = e.tabla.get(k); if (v !== undefined) return v; }
     if (k === 'dt') return gmaDT(e);
     if (k === 'loco' && e.nb && typeof gmnbLoco === 'function') return gmnbLoco(e);
     if (e.dt) { v = e.dt.get(k); if (v !== undefined) return v; }
@@ -806,7 +811,7 @@ function gmaTeclas() {
   // (los botones de la pantalla también cuentan mientras el dedo está encima: hay armas que miran KeyDown(IN_RELOAD) en su
   // Think en vez de usar SWEP:Reload)
   const bt = (id) => typeof TOQ !== 'undefined' && [...TOQ.botones].some((b) => b.id === id);
-  if (t.has('KeyE') || (typeof CTL !== 'undefined' && CTL.teclasMod.has('KeyE')) || bt('busar')) k |= IN.USE; if (t.has('KeyR') || bt('brecargar')) k |= IN.RELOAD; if (ENT.correr || t.has('ShiftLeft')) k |= IN.SPEED; if (t.has('AltLeft')) k |= IN.WALK;
+  if (t.has('KeyE') || (typeof CTL !== 'undefined' && CTL.teclasMod.has('KeyE')) || bt('busar')) k |= IN.USE; if (t.has('KeyR') || bt('brecargar')) k |= IN.RELOAD; if ((ENT.correr && !ENT.correrPalanca) || t.has('ShiftLeft') || t.has('ShiftRight')) k |= IN.SPEED;   // (la palanca táctil al tope corre más rápido, pero no aprieta el «correr» de GMod: las armas de M9K bajan el arma y no dejan disparar mientras se corre, y en el celular se corre casi siempre así) if (t.has('AltLeft')) k |= IN.WALK;
   if (typeof CTL !== 'undefined') k |= CTL.inMod; return k;
 }
 const gmaTecla = (k) => !!(gmaTeclas() & (gmaFantasma() ? k & ~(1 | 2048) : k));   // (IN_ATTACK e IN_ATTACK2 no le llegan a un efecto siempre activo)
@@ -978,6 +983,12 @@ function gmaSwepPaso() {
   // Flashlight apaga su luz. Sin esto quedaba prendida donde estaba al cambiar de arma)
   if (w !== GMA.swep) { const o = GMA.swep; if (o && o.vivo) { metodo(o, 'Holster', 'S'); const c = GMA.armas.get(o.clase); if (c && c.C && c.C !== c.S) metodo(o, 'Holster', 'C'); } GMA.swep = w; if (w) { metodo(w, 'Deploy', 'S'); w.vmMd = null; } }
   if (!w || UI.abierto || !JUG.vivo) { if (w) w.prevP = false; return; }
+  // (KeyPressed/KeyReleased del arma, contra las teclas que vio en su último Think: con un menú abierto o muerto el Think
+  // no corre, y lo que se soltó en ese rato —correr, la guardia de los puños de M9K, la mira— quedaba apretado para ella)
+  const tecFrame = GMA.tecAnt; if (w.tecW !== undefined) GMA.tecAnt = w.tecW;
+  try { gmaSwepPaso2(w); } finally { GMA.tecAnt = tecFrame; w.tecW = gmaTeclas(); }
+}
+function gmaSwepPaso2(w) {
   const t = TIEMPO.t;
   if (w.recarga && t >= w.recarga) { w.recarga = 0; const cs = gmaSwepPrim(w, 'ClipSize'); if (cs > 0) w.clip1 = cs; }
   const auto = R_T(gmaSwepPrim(w, 'Automatic'));

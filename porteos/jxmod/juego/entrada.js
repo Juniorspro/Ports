@@ -83,7 +83,9 @@ function tactilIniciar() {
   // (si no, primero se veía la fila de la compu con las teclas)
   if (COARSE && !matchMedia('(pointer: fine)').matches) { ENT.tactil = true; document.body.classList.add('tactil'); }
   const fin = (id) => {
-    if (TOQ.palanca && TOQ.palanca.id === id) { TOQ.palanca = null; ENT.x = ENT.y = 0; bola.style.transform = ''; pal.classList.remove('activa'); }
+    // (y deja de correr: antes, soltar la palanca corriendo —el dedo al tope— dejaba ENT.correr prendido para siempre en el
+    // celular, y las armas de los mods que miran IN_SPEED —M9K— quedaban con la mira puesta o los puños arriba)
+    if (TOQ.palanca && TOQ.palanca.id === id) { TOQ.palanca = null; ENT.x = ENT.y = 0; ENT.correr = ENT.correrPalanca = false; bola.style.transform = ''; pal.classList.remove('activa'); }
     if (TOQ.mira && TOQ.mira.id === id) TOQ.mira = null;
   };
   // (changedTouches trae los dedos que cambiaron en toda la pantalla, no sólo los de este elemento: cada uno atiende
@@ -108,7 +110,7 @@ function tactilIniciar() {
       if (TOQ.palanca && t.identifier === TOQ.palanca.id) {
         // (el radio y el recorrido de la bolita siguen el tamaño de la palanca: 50 y 45 con la de 120)
         const P = HUD.pal || 120; let dx = (tX(t) - TOQ.palanca.x) / (P * 0.42), dy = (tY(t) - TOQ.palanca.y) / (P * 0.42); const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; }
-        ENT.x = dx; ENT.y = -dy; ENT.correr = l > 1.6; bola.style.transform = `translate(${dx * P * 0.375}px,${dy * P * 0.375}px)`;
+        ENT.x = dx; ENT.y = -dy; ENT.correr = ENT.correrPalanca = l > 1.6; bola.style.transform = `translate(${dx * P * 0.375}px,${dy * P * 0.375}px)`;
       } else if (TOQ.mira && t.identifier === TOQ.mira.id) {
         ENT.dx += (tX(t) - TOQ.mira.x) * (ENT.sensT / ENT.sens); ENT.dy += (tY(t) - TOQ.mira.y) * (ENT.sensT / ENT.sens);
         TOQ.mira.x = tX(t); TOQ.mira.y = tY(t);
@@ -168,7 +170,7 @@ function entradaLeer() {
     ENT.y = (T.has('KeyW') ? 1 : 0) - (T.has('KeyS') ? 1 : 0);
     ENT.saltar = T.has('Space'); ENT.agachar = T.has('ControlLeft') || T.has('KeyC') && false; ENT.correr = T.has('ShiftLeft') || T.has('ShiftRight');
     if (T.has('ControlLeft')) ENT.agachar = true;
-  }
+  } else ENT.correr = !!ENT.correrPalanca;   // (táctil sin teclas: corre sólo la palanca al tope; antes, soltar Shift de un teclado conectado al celu dejaba corriendo para siempre)
   // en un vehículo con los pedales y las flechas de la pantalla (si no se usa la palanca)
   if (ENT.tactil && JUG.vehiculo && !TOQ.palanca && !T.size) { ENT.y = (ENT.pGas ? 1 : 0) - (ENT.pFreno ? 1 : 0); ENT.x = (ENT.pDer ? 1 : 0) - (ENT.pIzq ? 1 : 0); }
 }
