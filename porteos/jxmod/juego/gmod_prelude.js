@@ -1102,6 +1102,9 @@ do
   function T:GetClientNumber(n, d) local v = tonumber(GetConVarString(self.Mode .. "_" .. n)); if v == nil then return d or 0 end return v end
   function T:GetClientBool(n, d) local v = GetConVarString(self.Mode .. "_" .. n); if v == "" then return d or false end return v ~= "0" end
   function T:GetServerInfo(n) return GetConVarString(self.Mode .. "_" .. n) end
+  -- (los presets del panel: "<modo>_x" → su valor por defecto; la Lightsaber lo llama al cargar, del lado del cliente)
+  function T:BuildConVarList() local m, l = self:GetMode(), {} for k, v in pairs(self.ClientConVar or {}) do l[m .. "_" .. k] = v end return l end
+  function T:CreateConVars() end
   function T:Allowed() return true end
   function T:Init() end
   function T:CheckObjects() for k, v in pairs(self.Objects) do if not (v.Ent and (v.Ent.IsWorld and v.Ent:IsWorld())) and not IsValid(v.Ent) then self:ClearObjects() return end end end
