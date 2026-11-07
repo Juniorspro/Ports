@@ -326,7 +326,10 @@ GMF.mdl = function (mdl, vvd, vtx) {
     if (nev > 0 && nev <= 64 && evi > 0) { q.ev = []; for (let j = 0; j < nev; j++) { const eo = o + evi + j * 80; if (eo + 80 > mdl.length) break; const ni = i32(eo + 76); q.ev.push({ c: f32(eo), ev: i32(eo + 4), tipo: i32(eo + 8), op: _cs(mdl, eo + 12), n: ni ? _cs(mdl, eo + ni) : '' }); } }
     M.secuencias.push(q);
   }
-  M.poseParams = []; { const npp = i32(300), ppi = i32(304); for (let k = 0; k < Math.min(npp, 32); k++) { const o = ppi + k * 20; if (o + 20 > mdl.length) break; M.poseParams.push(_cs(mdl, o + i32(o))); } }
+  M.poseParams = []; M.poseRangos = []; { const npp = i32(300), ppi = i32(304); for (let k = 0; k < Math.min(npp, 32); k++) { const o = ppi + k * 20; if (o + 20 > mdl.length) break; M.poseParams.push(_cs(mdl, o + i32(o))); M.poseRangos.push([f32(o + 8), f32(o + 12)]); } }
+  // los bloques de animación: el .ani (su nombre) y dónde empieza y termina cada bloque dentro de él (GMF.pose)
+  M.aniNom = ''; M.bloques = []; { const no = i32(348), nbl = i32(352), bli = i32(356);
+    if (nbl > 1 && nbl < 4096 && bli > 0 && bli + nbl * 8 <= mdl.length) { for (let k = 0; k < nbl; k++) M.bloques.push([i32(bli + k * 8), i32(bli + k * 8 + 4)]); if (no > 0 && no < mdl.length) M.aniNom = _cs(mdl, no).toLowerCase().replace(/\\/g, '/').replace(/^\/+/, ''); } }
   M.b = mdl;
   if (vvd && vtx) GMF._geo(M, vvd, vtx);
   return M;
@@ -335,16 +338,24 @@ GMF.mdl = function (mdl, vvd, vtx) {
 // cuaterniones crudos de 48 o 64 bits, ángulos y posiciones comprimidos con RLE (en secciones); lo que no está animado
 // queda en la pose de referencia; las animaciones "delta" parten de cero
 GMF.pose = function (M, ia, f) {
+  if (M.anims[ia] && M.anims[ia].src) return GMF._poseIncluida(M, M.anims[ia], f);   // (de un modelo incluido)
   const H = M.huesos, nb = H.length, P = new Float32Array(nb * 3), Q = new Float32Array(nb * 4), A = M.anims[ia];
   const delta = A && !!(A.flags & 4);
   for (let k = 0; k < nb; k++) { const h = H[k]; if (delta) { Q[k * 4 + 3] = 1; continue; } P.set(h.pos, k * 3); Q.set(h.q, k * 4); }
-  if (!A || A.bloque !== 0) return { P, Q, ok: false };
-  const b = M.b, dv = new DataView(b.buffer, b.byteOffset, b.byteLength), i16 = (o) => dv.getInt16(o, true), u16 = (o) => dv.getUint16(o, true);
+  if (!A) return { P, Q, ok: false };
+  // dónde están los datos de este cuadro: en el .mdl o en un bloque de animación del .ani (los NPC de HL2 —zombies,
+  // hormigas león, headcrabs, combine— y las animaciones de los modelos de jugador de GMod, m_anm, están todas en el
+  // .ani: sin leerlo quedaban en la pose de referencia, la pose T); por secciones, cada sección dice su bloque
+  const bm = M.b, dvm = new DataView(bm.buffer, bm.byteOffset, bm.byteLength);
+  f = Math.max(0, Math.min(A.nf - 1, f | 0));
+  let blk = A.bloque, idx = A.idx;
+  if (A.sfr) { const sec = Math.floor(f / A.sfr), so = A.o + A.sidx + sec * 8; if (so + 8 > bm.length) return { P, Q, ok: false }; blk = dvm.getInt32(so, true); idx = dvm.getInt32(so + 4, true); f -= sec * A.sfr; }
+  let b, o;
+  if (blk === 0) { b = bm; o = A.o + idx; }
+  else { const bl = M.bloques && M.bloques[blk]; if (!M.ani || !bl || blk < 0) return { P, Q, ok: false, falta: !!bl && !M.ani }; b = M.ani; o = bl[0] + idx; }
+  const dv = b === bm ? dvm : new DataView(b.buffer, b.byteOffset, b.byteLength), i16 = (o) => dv.getInt16(o, true), u16 = (o) => dv.getUint16(o, true);
   const valor = (o, k, esc) => { for (let n = 0; n < 4096; n++) { const valid = b[o], total = b[o + 1]; if (total === 0) return 0; if (total > k) return (valid > k ? i16(o + (k + 1) * 2) : i16(o + valid * 2)) * esc; k -= total; o += (valid + 1) * 2; } return 0; };
   const aq = (x, y, z) => { const sr = Math.sin(x / 2), cr = Math.cos(x / 2), sp = Math.sin(y / 2), cp = Math.cos(y / 2), sy = Math.sin(z / 2), cy = Math.cos(z / 2); const srcp = sr * cp, crsp = cr * sp, crcp = cr * cp, srsp = sr * sp; return [srcp * cy - crsp * sy, crsp * cy + srcp * sy, crcp * sy - srsp * cy, crcp * cy + srsp * sy]; };
-  f = Math.max(0, Math.min(A.nf - 1, f | 0));
-  let o;
-  if (A.sfr) { const sec = Math.floor(f / A.sfr); o = A.o + dv.getInt32(A.o + A.sidx + sec * 8 + 4, true); f -= sec * A.sfr; } else o = A.o + A.idx;
   for (let guard = 0; guard < 512 && o > 0 && o + 4 <= b.length; guard++) {
     const hb = b[o], fl = b[o + 1], nxt = i16(o + 2); if (hb >= nb) break;
     const h = H[hb]; let d = o + 4;
@@ -355,6 +366,54 @@ GMF.pose = function (M, ia, f) {
     else if (fl & 0x04) { for (let i = 0; i < 3; i++) { const of = i16(d + i * 2), v = of ? valor(d + of, f, h.ps[i]) : 0; P[hb * 3 + i] = delta ? v : v + h.pos[i]; } }
     if (nxt === 0) break; o += nxt;
   }
+  return { P, Q, ok: true };
+};
+// los modelos incluidos ($includemodel): los NPC de HL2 (ciudadanos, policías), los modelos de jugador (m_anm.mdl) y
+// muchos NPC y nextbots del Workshop guardan sus animaciones en otros .mdl, y Source las suma al modelo (un modelo
+// «virtual»). Sin ellas no había secuencias que elegir y el modelo quedaba en su pose de referencia: la pose T
+// (Discord: «DrGBase: se queda todo pose T»). Los nombres, como en el .mdl: se buscan con «models/» adelante
+GMF.incluidos = function (M) {
+  const b = M.b; if (!b || b.length < 344) return [];
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength), n = dv.getInt32(336, true), o = dv.getInt32(340, true), L = [];
+  if (!(n > 0 && n <= 32 && o > 0 && o + n * 8 <= b.length)) return L;
+  for (let j = 0; j < n; j++) {
+    const so = o + j * 8, ni = dv.getInt32(so + 4, true); if (!ni || so + ni >= b.length) continue;
+    let r = _cs(b, so + ni).toLowerCase().replace(/\\/g, '/').replace(/^\/+/, ''); if (!r) continue;
+    if (!/^models\//.test(r)) r = 'models/' + r; if (!/\.mdl$/.test(r)) r += '.mdl'; if (!L.includes(r)) L.push(r);
+  }
+  return L;
+};
+// suma al modelo las animaciones y las secuencias de uno incluido: sus huesos se emparejan por nombre (lo que el
+// incluido no tiene queda en la pose del modelo), los parámetros de pose por nombre, y una secuencia que el modelo ya
+// tiene con ese nombre queda la del modelo (como Source)
+GMF.unirIncluido = function (M, IM) {
+  if (!IM || !IM.anims || !IM.secuencias || !IM.huesos) return 0;
+  const nom = new Map(); M.huesos.forEach((h, i) => { const k = String(h.n).toLowerCase(); if (!nom.has(k)) nom.set(k, i); });
+  const mapa = IM.huesos.map((h) => { const k = String(h.n).toLowerCase(); return nom.has(k) ? nom.get(k) : -1; });
+  if (!mapa.some((k) => k >= 0)) return 0;   // (otro esqueleto: no sirve)
+  const base = M.anims.length;
+  for (let k = 0; k < IM.anims.length; k++) M.anims.push(Object.assign({}, IM.anims[k], { src: IM, srcI: k, mapa }));
+  M.poseParams = M.poseParams || []; M.poseRangos = M.poseRangos || [];
+  const pp = (i) => { const n = IM.poseParams && IM.poseParams[i]; if (n === undefined) return i; let j = M.poseParams.indexOf(n); if (j < 0) { M.poseParams.push(n); M.poseRangos.push((IM.poseRangos && IM.poseRangos[i]) || [0, 1]); j = M.poseParams.length - 1; } return j; };
+  (IM.poseParams || []).forEach((n, i) => pp(i));   // (todos los del incluido: move_x, move_y, aim_yaw...)
+  const ya = new Set(M.secuencias.map((q) => String(q.n).toLowerCase()));
+  let n = 0;
+  for (const q of IM.secuencias) {
+    const k = String(q.n).toLowerCase(); if (ya.has(k)) continue;
+    const c = Object.assign({}, q, { anim: q.anim >= 0 ? q.anim + base : -1, inc: true });
+    if (q.grid) c.grid = q.grid.map((a) => (a >= 0 ? a + base : a));
+    if (q.par) c.par = q.par.map(pp);
+    M.secuencias.push(c); ya.add(k); n++;
+  }
+  return n;
+};
+// la pose de una animación de un modelo incluido, llevada a los huesos del modelo
+GMF._poseIncluida = function (M, A0, f) {
+  const r = GMF.pose(A0.src, A0.srcI, f), H = M.huesos, nb = H.length, P = new Float32Array(nb * 3), Q = new Float32Array(nb * 4), delta = !!(A0.flags & 4);
+  for (let k = 0; k < nb; k++) { const h = H[k]; if (delta) { Q[k * 4 + 3] = 1; continue; } P.set(h.pos, k * 3); Q.set(h.q, k * 4); }
+  if (!r.ok) return { P, Q, ok: false, falta: !!r.falta };
+  const mapa = A0.mapa;
+  for (let j = 0; j < mapa.length; j++) { const k = mapa[j]; if (k < 0) continue; P[k * 3] = r.P[j * 3]; P[k * 3 + 1] = r.P[j * 3 + 1]; P[k * 3 + 2] = r.P[j * 3 + 2]; Q[k * 4] = r.Q[j * 4]; Q[k * 4 + 1] = r.Q[j * 4 + 1]; Q[k * 4 + 2] = r.Q[j * 4 + 2]; Q[k * 4 + 3] = r.Q[j * 4 + 3]; }
   return { P, Q, ok: true };
 };
 // la animación de una secuencia con los parámetros de pose dados (por nombre; los que faltan, en 0): en una mezcla, la
@@ -390,7 +449,7 @@ GMF.poseCapas = function (M, ia, f) {
   const nb = M.huesos.length, P = ps.P, Q = ps.Q;
   for (const c of L) {
     const fr = c.nf > 1 ? Math.max(0, Math.min(c.nf - 1, f | 0)) : 0;
-    let d = c.cache.get(fr); if (!d) { d = GMF.pose(M, c.ia, fr); if (c.cache.size < 256) c.cache.set(fr, d); }
+    let d = c.cache.get(fr); if (!d) { d = GMF.pose(M, c.ia, fr); if (c.cache.size < 256 && !d.falta) c.cache.set(fr, d); }   // (sin el .ani todavía: no se guarda)
     if (!d.ok) continue;
     for (let h = 0; h < nb; h++) {
       const s = c.w ? c.w[h] : 1; if (!(s > 0)) continue;

@@ -494,7 +494,39 @@ function gmLeerModelo(ruta) {
   const vtx = A.get(base + '.dx90.vtx') || A.get(base + '.vtx') || A.get(base + '.dx80.vtx') || A.get(base + '.sw.vtx');
   const M = GMF.mdl(A.get(ruta), A.get(base + '.vvd'), vtx);
   if (!M.v || !M.mallas) throw new Error('sin geometría');
+  gmAniCargar(M); gmIncluidos(M, 0);
   return M;
+}
+// el .ani de los bloques de animación (GMF.pose): de los addons o de la biblioteca de GMod/HL2; si todavía no está, se
+// pide y se vuelve a probar cada medio segundo (gmAniReintentar, desde el paso de los nextbots y de los personajes)
+const GMANI = { falta: new Set(), t: 0 };
+function gmAniCargar(M) {
+  if (!M || !M.aniNom || !M.bloques || M.bloques.length < 2 || M.ani) return true;
+  const b = gmArchivo(M.aniNom); if (b) { M.ani = b; GMANI.falta.delete(M); return true; }
+  if (!M.aniPedido) { M.aniPedido = true; if (typeof gmlPedir === 'function') { try { gmlPedir(M.aniNom); } catch (e) {} } }
+  GMANI.falta.add(M); return false;
+}
+function gmAniReintentar() {
+  if (!GMANI.falta.size) return; const t = performance.now(); if (t - GMANI.t < 500) return; GMANI.t = t;
+  for (const M of [...GMANI.falta]) gmAniCargar(M);
+}
+// las animaciones de los modelos que incluye (GMF.incluidos): de los addons o de la biblioteca de GMod/HL2; los que
+// todavía no están se piden y se suman cuando llegan (gmIncluidosReintentar, cuando se busca una secuencia que falta)
+function gmIncluidos(M, prof) {
+  let L; try { L = GMF.incluidos(M); } catch (e) { return; } if (!L.length) return;
+  M.incHechos = M.incHechos || new Set();
+  for (const r of L) {
+    if (M.incHechos.has(r)) continue;
+    const b = gmArchivo(r);
+    if (!b) { M.incFaltan = M.incFaltan || new Set(); if (!M.incFaltan.has(r)) { M.incFaltan.add(r); if (typeof gmlPedir === 'function') { try { gmlPedir(r); } catch (e) {} } } continue; }
+    M.incHechos.add(r); if (M.incFaltan) M.incFaltan.delete(r);
+    try { const IM = GMF.mdl(b); gmAniCargar(IM); if ((prof || 0) < 2) gmIncluidos(IM, (prof || 0) + 1); GMF.unirIncluido(M, IM); } catch (e) { gmErr('modelo incluido ' + r, e); }
+  }
+}
+function gmIncluidosReintentar(M) {
+  if (!M || !M.incFaltan || !M.incFaltan.size) return false;
+  const t = performance.now(); if (M.incT && t - M.incT < 800) return false; M.incT = t;
+  const n0 = M.secuencias.length; gmIncluidos(M, 0); return M.secuencias.length > n0;
 }
 const _gmSup = { metal: 'metal', metal_box: 'metal', metalpanel: 'metal', solidmetal: 'metal', canister: 'metal', metalvehicle: 'metal', wood: 'madera', wood_crate: 'madera', wood_box: 'madera', wood_plank: 'madera', wood_furniture: 'madera', plastic: 'plastico', plastic_box: 'plastico', glass: 'vidrio', glassbottle: 'vidrio', concrete: 'concreto', rock: 'concreto', brick: 'concreto', cardboard: 'carton', paper: 'carton', rubber: 'goma', rubbertire: 'goma', flesh: 'carne', watermelon: 'carne', computer: 'plastico', tile: 'concreto', porcelain: 'vidrio' };
 // las UV de cada malla de Source llevadas cerca de 0 (hay modelos con UV entre 4 y 5: se repite igual, pero así no se

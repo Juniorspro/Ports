@@ -45,16 +45,25 @@ function gmpDef(ruta) {
   // (sin esqueleto de Valve, como un perro o un objeto con patas: se mueve con sus propias secuencias por actividad,
   // como hace GMod con esos modelos: quieto, caminar, correr, agachado, saltar)
   let secs = null;
-  if (porMix.Hips === undefined) {
-    const busca = (acts, re, mov) => { let i = M.secuencias.findIndex((q) => acts.includes(String(q.act || '').toUpperCase())); if (i < 0) i = M.secuencias.findIndex((q) => re.test(q.n)); const ia = i >= 0 ? GMF.animDe(M, i, mov ? { move_x: 1, move_y: 0 } : null) : -1, A2 = ia >= 0 && M.anims[ia]; return A2 && A2.bloque === 0 && A2.nf > 0 ? ia : -1; };
-    secs = { quieto: busca(['ACT_MP_STAND_IDLE', 'ACT_HL2MP_IDLE', 'ACT_IDLE'], /idle|stand/i), camina: busca(['ACT_MP_WALK', 'ACT_HL2MP_WALK', 'ACT_WALK'], /walk/i, true), corre: busca(['ACT_MP_RUN', 'ACT_HL2MP_RUN', 'ACT_RUN'], /run/i, true),
+  const calcSecs = () => {
+    const busca = (acts, re, mov) => { let i = M.secuencias.findIndex((q) => acts.includes(String(q.act || '').toUpperCase())); if (i < 0) i = M.secuencias.findIndex((q) => re.test(q.n)); const ia = i >= 0 ? GMF.animDe(M, i, mov ? { move_x: 1, move_y: 0 } : null) : -1, A2 = ia >= 0 && M.anims[ia]; return A2 && A2.nf > 0 && (A2.bloque === 0 || A2.src || (M.bloques && M.bloques[A2.bloque])) ? ia : -1; };   // (también las de un bloque del .ani o de un modelo incluido)
+    return { quieto: busca(['ACT_MP_STAND_IDLE', 'ACT_HL2MP_IDLE', 'ACT_IDLE'], /idle|stand/i), camina: busca(['ACT_MP_WALK', 'ACT_HL2MP_WALK', 'ACT_WALK'], /walk/i, true), corre: busca(['ACT_MP_RUN', 'ACT_HL2MP_RUN', 'ACT_RUN'], /run/i, true),
       agachado: busca(['ACT_MP_CROUCH_IDLE', 'ACT_HL2MP_IDLE_CROUCH', 'ACT_CROUCHIDLE'], /crouch|duck/i), salta: busca(['ACT_MP_JUMP', 'ACT_HL2MP_JUMP', 'ACT_JUMP'], /jump/i) };
-  }
+  };
+  if (porMix.Hips === undefined) secs = calcSecs();
   // lo más bajo de la malla en reposo (los pies): la cadera se pone a esa altura sobre el piso
   let piso = Infinity; for (const n of arb) if (n.m !== undefined) { const d = DATA.ms[n.m]; if (d && d.mn) piso = Math.min(piso, d.mn[1]); }
   if (!isFinite(piso)) piso = 0;
-  const def = { ruta, arb, nb, restQ, restP, mix, porMix, piso, M, secs, pv, rot };
+  const def = { ruta, arb, nb, restQ, restP, mix, porMix, piso, M, secs, pv, rot, recalcSecs: calcSecs };
   GMP.cache.set(ruta, def); return def;
+}
+// un modelo incluido que llegó tarde (de la biblioteca o de Steam): se suman sus animaciones y, en los que se mueven
+// con sus propias secuencias, se vuelven a elegir (antes quedaban en la pose de referencia: la pose T)
+function gmpDefAlDia(def) {
+  if (typeof gmAniReintentar === 'function') gmAniReintentar();
+  if (!def || !def.M || !def.M.incFaltan || !def.M.incFaltan.size || typeof gmIncluidosReintentar !== 'function') return def;
+  if (gmIncluidosReintentar(def.M) && def.porMix.Hips === undefined && def.recalcSecs) def.secs = def.recalcSecs();
+  return def;
 }
 // los modelos de jugador de los addons instalados (los de AddValidModel y los .mdl de models/player/ que no son manos
 // ni animaciones)
@@ -68,7 +77,7 @@ function gmpLista() {
 }
 // lo de cada personaje: el modelo y, por hueso del .mdl, el hueso del Hero y la alineación de reposo
 function gmpPreparar(P) {
-  const def = gmpDef(P.gmpRuta); if (!def) return null;
+  const def = gmpDefAlDia(gmpDef(P.gmpRuta)); if (!def) return null;
   if (def.secs) { const md = new Modelo(def.arb); md.fijo = def.arb.map(() => null); return { def, md, propio: true, t: 0, sec: -1, W: def.arb.map(() => new Float32Array(16)) }; }
   const D = P.D, sub = D.sub, porNom = {};
   sub.forEach((n, i) => { const m = /^mixamorig\d*:(.*)$/.exec(n.n); if (m && porNom[m[1]] === undefined) porNom[m[1]] = i; });

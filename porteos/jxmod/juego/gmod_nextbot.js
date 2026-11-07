@@ -79,17 +79,29 @@ function gmnbApi() {
   // secuencias del modelo en los nextbots (en lo demás queda lo que había, como las de la vista del arma)
   const envolver = (n, f) => { const orig = EM && EM.get(n); E(n, (e, ...a) => (e.nb ? f(e, ...a) : typeof orig === 'function' ? orig(e, ...a) : undefined)); };
   const sec = (e, s) => gmnbSecuencia(e, typeof s === 'number' ? { idx: s } : { nombre: s });
+  // los parámetros de pose del modelo (con los de sus modelos incluidos): move_x/move_y eligen la celda de las mezclas de
+  // caminar (gmnbDibujar), y DrGBase los mira para saber si es un modelo de jugador (ACT_HL2MP_*) o de NPC (ACT_IDLE...):
+  // antes decían que no había ninguno y un nextbot con modelo de jugador pedía animaciones de NPC y quedaba en pose T
+  const pps = (e) => { const d = gmnbDef(e); return (d && d.M.poseParams) || []; };
+  const ppNom = (e, n) => (typeof n === 'number' ? pps(e)[n] : String(n == null ? '' : n));
+  envolver('GetNumPoseParameters', (e) => pps(e).length);
+  envolver('GetPoseParameterName', (e, i) => pps(e)[+i] || '');
+  envolver('LookupPoseParameter', (e, n) => { const k = String(n).toLowerCase(); return pps(e).findIndex((x) => String(x).toLowerCase() === k); });
+  envolver('GetPoseParameterRange', (e, i) => { const d = gmnbDef(e), r = d && d.M.poseRangos && d.M.poseRangos[+i]; return r ? [r[0], r[1]] : [0, 1]; });
+  envolver('SetPoseParameter', (e, n, v) => { const k = ppNom(e, n); if (k) (e.poseVals || (e.poseVals = {}))[k] = +v || 0; });
+  envolver('GetPoseParameter', (e, n) => { const k = ppNom(e, n); return (e.poseVals && e.poseVals[k]) || 0; });
+  envolver('ClearPoseParameters', (e) => { e.poseVals = {}; });
   envolver('SetSequence', (e, s) => sec(e, s)); envolver('ResetSequence', (e, s) => sec(e, s)); envolver('ResetSequenceInfo', () => {});
   envolver('LookupSequence', (e, n) => { const d = gmnbDef(e); if (!d) return [-1, 0]; const i = d.M.secuencias.findIndex((s) => s.n.toLowerCase() === String(n).toLowerCase()); if (i < 0) return [-1, 0]; const a = d.M.anims[d.M.secuencias[i].anim]; return [i, a ? Math.max(0, (a.nf - 1) / (a.fps > 0 ? a.fps : 30)) : 0]; });
   envolver('SequenceDuration', (e, i) => { const d = gmnbDef(e); const k = i === undefined ? (e.nbSec ? e.nbSec.i : -1) : +i; const s = d && d.M.secuencias[k], a = s && d.M.anims[s.anim]; return a ? Math.max(0, (a.nf - 1) / (a.fps > 0 ? a.fps : 30)) : 0; });
   envolver('GetSequence', (e) => (e.nbSec ? e.nbSec.i : 0)); envolver('SetPlaybackRate', (e, r) => { e.nbRate = +r || 0; }); envolver('GetPlaybackRate', (e) => e.nbRate ?? 1);
   envolver('SetCycle', (e, c) => { if (e.nbSec) e.nbSec.t = (+c || 0) * e.nbSec.dur; }); envolver('GetCycle', (e) => (e.nbSec && e.nbSec.dur > 0 ? (e.nbSec.loop ? (e.nbSec.t / e.nbSec.dur) % 1 : Math.min(1, e.nbSec.t / e.nbSec.dur)) : 0));
-  envolver('SelectWeightedSequence', (e, act) => { const d = gmnbDef(e); if (!d) return -1; const i = d.M.secuencias.findIndex((s) => s.act && gmnbNum(String(s.act).toUpperCase()) === +act); return i; });
-  envolver('GetSequenceActivity', (e, i) => { const d = gmnbDef(e), s = d && d.M.secuencias[+i]; return s && s.act ? gmnbNum(String(s.act).toUpperCase()) || -1 : -1; });
+  envolver('SelectWeightedSequence', (e, act) => { const d = gmnbDef(e); if (!d) return -1; const L = gmnbSecsDeAct(d.M, act); if (!L.length) return -1; gmnbAlias(e, d.M, L[0], act); return L[0]; });
+  envolver('GetSequenceActivity', (e, i) => { if (e.nbAlias && e.nbAlias[+i] !== undefined) return e.nbAlias[+i]; const d = gmnbDef(e), s = d && d.M.secuencias[+i]; return s && s.act ? gmnbNum(String(s.act).toUpperCase()) || -1 : -1; });
   envolver('FrameAdvance', () => {});
   // (las secuencias de una actividad, para elegir una —GMod sortea entre las que tienen esa actividad—; la lista y la
   // cuenta de secuencias, con las que DrGBase busca las suyas: el zombie no encontraba su golpe y nunca atacaba)
-  const deAct = (e, act) => { const d = gmnbDef(e); if (!d) return []; const L = []; d.M.secuencias.forEach((s, i) => { if (s.act && gmnbNum(String(s.act).toUpperCase()) === +act) L.push(i); }); return L; };
+  const deAct = (e, act) => { const d = gmnbDef(e); if (!d) return []; const L = gmnbSecsDeAct(d.M, act); for (const i of L) gmnbAlias(e, d.M, i, act); return L; };
   envolver('SelectWeightedSequenceSeeded', (e, act, semilla) => { const L = deAct(e, act); return L.length ? L[Math.abs(Math.floor(+semilla || 0)) % L.length] : -1; });
   envolver('GetSequenceList', (e) => { const d = gmnbDef(e), t = new LuaTable(); if (d) d.M.secuencias.forEach((s, i) => t.set(i, s.n)); return t; });
   envolver('GetSequenceCount', (e) => { const d = gmnbDef(e); return d ? d.M.secuencias.length : 0; });
@@ -126,16 +138,42 @@ function gmnbArea(g) {
   return { __mt: GMNB.mtArea, c: h ? vadd(g, v3(0, 2 - h.t, 0)) : g.clone() };
 }
 // la secuencia del modelo (por actividad o por nombre): el dibujo la anima
+// (el nombre de una actividad por su número: ACT_HL2MP_RUN_FAST, ACT_MP_WALK...)
+const _gmnbActNom = new Map();
+function gmnbActNombre(v) {
+  if (!_gmnbActNom.size && GMA.R) { const G = GMA.R.G; for (const k of G.claves()) if (typeof k === 'string' && /^ACT_/.test(k)) { const x = G.get(k); if (typeof x === 'number' && !_gmnbActNom.has(x)) _gmnbActNom.set(x, k); } }
+  return _gmnbActNom.get(v) || '';
+}
+// las secuencias de una actividad; si el modelo no tiene ninguna, las de la actividad equivalente (de NPC ↔ de jugador:
+// ACT_IDLE ↔ ACT_HL2MP_IDLE, ACT_RUN ↔ ACT_HL2MP_RUN...: la más simple de su clase) y si no, por el nombre. Un nextbot con
+// modelo de jugador que todavía no se había bajado cuando arrancó pedía las de NPC y quedaba en pose T
+const gmnbClase = (nom) => { nom = String(nom || '').toUpperCase(); if (!nom) return ''; if (/CROUCH|COVER_LOW/.test(nom)) return /WALK|RUN/.test(nom) ? 'cwalk' : 'cidle'; if (/JUMP|GLIDE/.test(nom)) return 'jump'; if (/RELOAD/.test(nom)) return 'reload'; if (/ATTACK|MELEE|RANGE|SHOOT|FIRE/.test(nom)) return 'attack'; if (/RUN/.test(nom)) return 'run'; if (/WALK/.test(nom)) return 'walk'; if (/IDLE/.test(nom)) return 'idle'; return ''; };
+function gmnbSecsDeAct(M, act) {
+  const L = []; M.secuencias.forEach((s, i) => { if (s.act && gmnbNum(String(s.act).toUpperCase()) === +act) L.push(i); });
+  if (L.length) return L;
+  const cat = gmnbClase(gmnbActNombre(+act)); if (!cat) return L;
+  let mejor = null;
+  M.secuencias.forEach((s, i) => { if (!s.act) return; const n = String(s.act).toUpperCase(); if (gmnbClase(n) !== cat) return; if (!mejor || n.length < mejor.a.length) mejor = { a: n, L: [i] }; else if (n === mejor.a) mejor.L.push(i); });
+  if (mejor) return mejor.L;
+  const re = { idle: /idle|stand/i, walk: /walk/i, run: /run/i, jump: /jump|glide/i, attack: /attack|melee|shoot|fire/i, cidle: /crouch|duck/i, cwalk: /crouch|duck/i, reload: /reload/i }[cat];
+  M.secuencias.forEach((s, i) => { if (re && re.test(s.n)) L.push(i); }); return L.slice(0, 8);
+}
+function gmnbAlias(e, M, i, act) { const s = M.secuencias[i]; if (s && !(s.act && gmnbNum(String(s.act).toUpperCase()) === +act)) (e.nbAlias || (e.nbAlias = {}))[i] = +act; }
 function gmnbSecuencia(e, q) {
   const def = gmnbDef(e); if (!def) return 0;
-  const M = def.M; let i = -1;
-  if (q.nombre !== undefined) { const n = String(q.nombre).toLowerCase(); i = M.secuencias.findIndex((s) => s.n.toLowerCase() === n); }
-  else if (q.idx !== undefined) i = q.idx;
-  else if (q.act) {
-    i = M.secuencias.findIndex((s) => s.act && gmnbNum(String(s.act).toUpperCase()) === q.act);
-    if (i < 0) { const nom = ['ACT_RUN', 'ACT_WALK', 'ACT_IDLE', 'ACT_JUMP', 'ACT_MELEE_ATTACK1'].find((n) => gmnbNum(n) === q.act); const re = nom === 'ACT_RUN' ? /run/i : nom === 'ACT_WALK' ? /walk/i : nom === 'ACT_IDLE' ? /idle/i : nom === 'ACT_JUMP' ? /jump/i : /attack|melee/i; if (nom) i = M.secuencias.findIndex((s) => re.test(s.n)); }
-  }
-  if (i < 0 || !M.secuencias[i]) return 0;
+  const M = def.M;
+  const buscar = () => {
+    let i = -1;
+    if (q.nombre !== undefined) { const n = String(q.nombre).toLowerCase(); i = M.secuencias.findIndex((s) => s.n.toLowerCase() === n); }
+    else if (q.idx !== undefined) i = q.idx;
+    else if (q.act) { const L = gmnbSecsDeAct(M, q.act); i = L.length ? L[0] : -1; if (i >= 0) gmnbAlias(e, M, i, q.act); }
+    return i;
+  };
+  let i = buscar();
+  // (las animaciones de un modelo incluido que llegó recién —de la biblioteca o de Steam—: se suman y se busca otra vez)
+  if ((i < 0 || !M.secuencias[i]) && typeof gmIncluidosReintentar === 'function' && gmIncluidosReintentar(M)) i = buscar();
+  if (i < 0 || !M.secuencias[i]) { e.nbPide = q; return 0; }
+  e.nbPide = null;
   const a = M.anims[M.secuencias[i].anim]; if (!a) return 0;
   e.nbSec = { i, anim: M.secuencias[i].anim, t: 0, loop: M.secuencias[i].loop, dur: Math.max(0, (a.nf - 1) / (a.fps > 0 ? a.fps : 30)) };
   return e.nbSec.dur;
@@ -148,9 +186,10 @@ function gmnbEventos(e, S, c0, c1) {
   const cruza = (c) => (S.loop ? (Math.floor(c1) > Math.floor(c0) ? c > c0 % 1 || c <= c1 % 1 : c > c0 % 1 && c <= c1 % 1) : c > c0 && c <= c1);
   for (const x of q.ev) if (cruza(x.c)) { metodo(e, 'HandleAnimEvent', 'S', x.ev, TIEMPO.t, x.c, x.tipo, x.op || x.n || ''); if (!e.vivo) return; }
 }
-function gmnbDef(e) { const m = String(e.modelo || '').toLowerCase(); if (!m || typeof gmpDef !== 'function') return null; if (e.nbDefDe !== m) { e.nbDefDe = m; e.nbDef = gmpDef(m) || null; e.nbMd = null; } return e.nbDef; }
+function gmnbDef(e) { const m = String(e.modelo || '').toLowerCase(); if (!m || typeof gmpDef !== 'function') return null; if (e.nbDefDe !== m) { e.nbDefDe = m; e.nbDef = gmpDef(m) || null; e.nbMd = null; } if (e.nbDef && e.nbDef.M.incFaltan && e.nbDef.M.incFaltan.size && typeof gmpDefAlDia === 'function') { const n0 = e.nbDef.M.secuencias.length; gmpDefAlDia(e.nbDef); if (e.nbDef.M.secuencias.length > n0 && e.nbPide && !e.nbSec) gmnbSecuencia(e, e.nbPide); } return e.nbDef; }   // (y la secuencia que pidió y no estaba, cuando llegan las animaciones)
 // cada cuadro: la corrutina, la locomoción y el cuerpo
 function gmnbPaso(dt) {
+  if (typeof gmAniReintentar === 'function') gmAniReintentar();   // (los .ani que se pidieron y todavía no llegaban)
   for (const e of GMA.ents.values()) {
     if (!e.nb || !e.vivo) continue;
     metodo(e, 'BehaveUpdate', 'S', dt);
@@ -196,7 +235,7 @@ function gmnbDibujar(e) {
   const md = e.nbMd, A = def.arb, M = def.M, W = e.nbW, s = e.nbSec;
   const org = gmaOrigen(e.o); m4trs([org.x, org.y, org.z], [e.o.b.q.x, e.o.b.q.y, e.o.b.q.z, e.o.b.q.w], [1, 1, 1], W[0]); md.fijo[0] = W[0];
   let pa = null, pb = null, w = 0;
-  if (s) { const An = M.anims[s.anim], fps = An.fps > 0 ? An.fps : 30, n = Math.max(1, An.nf - 1), fr = s.loop ? (s.t * fps) % n : Math.min(n, s.t * fps), f0 = Math.floor(fr); w = fr - f0; pa = GMF.poseCapas(M, s.anim, f0); pb = GMF.poseCapas(M, s.anim, Math.min(An.nf - 1, f0 + 1)); }
+  if (s) { const ia = e.poseVals && M.secuencias[s.i] && M.secuencias[s.i].grid ? GMF.animDe(M, s.i, e.poseVals) : s.anim, An = M.anims[ia] || M.anims[s.anim], fps = An.fps > 0 ? An.fps : 30, n = Math.max(1, An.nf - 1), fr = s.loop ? (s.t * fps) % n : Math.min(n, s.t * fps), f0 = Math.floor(fr); w = fr - f0; pa = GMF.poseCapas(M, ia, f0); pb = GMF.poseCapas(M, ia, Math.min(An.nf - 1, f0 + 1)); }
   for (let i = 1; i <= def.nb; i++) {
     const h = i - 1; let p = A[i].p, r = A[i].r;
     if (pa) {
