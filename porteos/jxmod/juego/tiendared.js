@@ -40,6 +40,9 @@ function tiendaAvisoSat() { if (typeof aviso === 'function') aviso(T(tiendaFrena
 // búsqueda de YouTube— y sólo GET; desde el juego es el mismo sitio, así que no hace falta permiso)
 const redApp = () => typeof window !== 'undefined' && !!window.JXNativo && typeof window.JXNativo.red === 'function' && location.host === 'appassets.androidplatform.net';
 const redURL = (host, ruta) => location.origin + '/red/' + host + ruta;
+// (2: la app además pide a Steam la clave, los detalles, el contenido base y lo requerido de los addons —/red/_steam…—, sin la
+// tienda: con la tienda en su tope del día los mods se bajan igual)
+const redNivel = () => { try { return redApp() ? +window.JXNativo.red() || 1 : 0; } catch (e) { return 0; } };
 
 // ---------------- YouTube: buscar ----------------
 const YTB = { cache: new Map() };

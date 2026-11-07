@@ -177,6 +177,13 @@ public class Web extends Activity {
         Map<String, String> cab = new HashMap<>();
         cab.put("Cache-Control", "no-store");
         if (!"GET".equalsIgnoreCase(metodo)) return new WebResourceResponse("text/plain", "utf-8", 405, "Method Not Allowed", cab, new ByteArrayInputStream(new byte[0]));
+        // (Steam sin la tienda —SteamPipe.java—: la clave y el código de un addon, los detalles de varios, el contenido base y
+        // los «Required items». El mismo JSON que da la tienda: si la tienda llegó a su tope del día, los mods bajan igual)
+        SteamPipe.Resp r = SteamPipe.ruta(u.getPath());
+        if (r != null) {
+            return new WebResourceResponse("application/json", "utf-8", r.estado, r.estado == 200 ? "OK" : r.estado == 404 ? "Not Found" : r.estado == 409 ? "Conflict" : r.estado == 400 ? "Bad Request" : "Bad Gateway",
+                    cab, new ByteArrayInputStream(r.cuerpo.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        }
         String destino = Red.destino(u.getEncodedPath(), u.getEncodedQuery());
         if (destino == null) return new WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", cab, new ByteArrayInputStream(new byte[0]));
         boolean yt = destino.startsWith("https://www.youtube.com/");
@@ -414,8 +421,9 @@ public class Web extends Activity {
         @JavascriptInterface public void frecuencia(final int hz) { runOnUiThread(() -> frecuenciaPoner(hz)); }
         @JavascriptInterface public void salir() { runOnUiThread(Web.this::finishAndRemoveTask); }
         @JavascriptInterface public void latido() { latidoT = SystemClock.uptimeMillis(); }
-        /** La app sabe pedir por su cuenta /red/… (la búsqueda de YouTube y los pedazos de Steam sin la tienda). */
-        @JavascriptInterface public int red() { return 1; }
+        /** La app sabe pedir por su cuenta /red/… (la búsqueda de YouTube y los pedazos de Steam sin la tienda); 2: también
+         *  /red/_steam… (la clave, los detalles, el contenido base y lo requerido de los addons, sin la tienda). */
+        @JavascriptInterface public int red() { return 2; }
         /** Lo que guardó la app del último cuelgue o cierre (el log del sistema y la consola), para el registro del juego. */
         @JavascriptInterface public String registroNativo() { return leerRegistro(); }
         @JavascriptInterface public void registroVisto() { /* (queda guardado hasta el próximo: se puede volver a ver en Ajustes) */ }

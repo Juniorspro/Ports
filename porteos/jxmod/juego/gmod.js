@@ -829,7 +829,10 @@ async function gmDetalles(ids) {
   const out = new Map(); ids = [...new Set(ids.map(String))].filter((x) => /^\d{3,12}$/.test(x));
   for (let i = 0; i < ids.length; i += 100) {
     const ch = ids.slice(i, i + 100), body = 'itemcount=' + ch.length + ch.map((x, k) => `&publishedfileids[${k}]=${x}`).join('');
-    const d = await (await gmPedir('https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })).json();
+    // (en la app, directo a Steam; en la web, por el puente público)
+    let d = null;
+    if (typeof redNivel === 'function' && redNivel() >= 2) { try { const r = await gmFetch(redURL('_steamdet', '/' + ch.join(',')), null, 25000); if (r.ok) d = await r.json(); } catch (e) { d = null; } }
+    if (!d) d = await (await gmPedir('https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })).json();
     for (const x of (d.response && d.response.publishedfiledetails) || []) if (x.result === 1) out.set(x.publishedfileid, x);
   }
   return out;
@@ -865,10 +868,15 @@ function gmaCompleto(b) {
 // el .gma de un addon del Workshop (de la caché o bajado de Steam), ya sin comprimir. Orden: el archivo directo por la
 // tienda, el del catálogo, SteamPipe por la tienda (los que no tienen archivo directo: gmod_pipe.js) y, si la tienda no
 // tiene el puente, el archivo directo por un puente público
+// (sin conexión con Steam ni con la tienda —«Failed to fetch» y parecidos—: un aviso que se entienda; la cola lo reintenta)
+const gmErrRed = (e) => (e && /failed to fetch|networkerror|load failed|network request failed|sin respuesta de/i.test(e.message || '') ? Object.assign(new Error(T('gm.sinRed')), { trabado: true, red: true }) : e);
 async function gmBajar(wid, prog) {
   const c = await gmCacheLeer(String(wid), 10000); if (c && (c instanceof Blob || gmEsGMA(c))) return c;
   let r = null, tot = 0, sinDir = false, b = null, errPipe = null;
-  if (typeof gmApiHay === 'function' && (await gmApiHay())) {
+  // (en la app nada de esto pasa por la tienda: los detalles y SteamPipe se los pide ella misma a Steam —SteamPipe.java—, y
+  // el archivo directo se baja de Steam, que deja)
+  const app = typeof redNivel === 'function' && redNivel() >= 2;
+  if (!app && typeof gmApiHay === 'function' && (await gmApiHay())) {
     try { const x = await gmFetch(TIENDA_URL + 'gmod/archivo/' + wid, null, 25000); if (x.ok) { r = x; tot = +x.headers.get('content-length') || 0; } else if (x.status === 409) sinDir = true; else if (x.status === 404) throw new Error(T('gm.noExiste')); }
     catch (e) { if (e.message === T('gm.noExiste')) throw e; }
   }
@@ -877,14 +885,20 @@ async function gmBajar(wid, prog) {
     const C = await gmCatalogo(), x = C && C.porId.get(String(wid));
     if (x && x.f) { try { const y = await gmFetch(x.f, null, 25000); if (y.ok) { r = y; tot = +y.headers.get('content-length') || Math.round(x.mb * 1e6); } } catch (e) {} }
   }
+  if (!r && app) {
+    let det = null, falla = false; try { det = (await gmDetalles([wid])).get(String(wid)) || null; } catch (e) { falla = true; }
+    if (!falla && !det) throw Object.assign(new Error(T('gm.noExiste')), { noExiste: true });
+    if (det && det.file_url) { try { const y = await gmFetch(det.file_url, null, 25000); if (y.ok) { r = y; tot = +y.headers.get('content-length') || +det.file_size || 0; } } catch (e) {} }
+  }
   if (!r && typeof gpBajar === 'function') {
     try { b = await gpBajar(wid, prog); } catch (e) { if (e.noExiste) throw e; errPipe = e; }
   }
   if (!r && !b) {
-    if (sinDir) throw errPipe && !errPipe.sinPuente ? errPipe : Object.assign(new Error(T('gm.sinArchivo')), { sinArchivo: true });
-    const det = (await gmDetalles([wid])).get(String(wid));
+    if (sinDir) throw errPipe && !errPipe.sinPuente ? gmErrRed(errPipe) : Object.assign(new Error(T('gm.sinArchivo')), { sinArchivo: true });
+    let det;
+    try { det = (await gmDetalles([wid])).get(String(wid)); } catch (e) { throw gmErrRed(errPipe && !errPipe.sinPuente ? errPipe : e); }
     if (!det) throw new Error(T('gm.noExiste'));
-    if (!det.file_url) throw errPipe && !errPipe.sinPuente ? errPipe : Object.assign(new Error(T('gm.sinArchivo')), { sinArchivo: true });
+    if (!det.file_url) throw errPipe && !errPipe.sinPuente ? gmErrRed(errPipe) : Object.assign(new Error(T('gm.sinArchivo')), { sinArchivo: true });
     try { const y = await gmFetch(det.file_url, null, 25000); if (y.ok) r = y; } catch (e) {}
     if (!r) r = await gmPedir(det.file_url);
     tot = +r.headers.get('content-length') || +det.file_size || 0;
@@ -901,6 +915,7 @@ async function gmBajar(wid, prog) {
 // se sabe. Y cuánto contenido pedido por un addon se baja solo (en celulares con poca memoria, menos)
 async function gmPesoMB(wid) {
   try { const d = typeof gmCatalogo === 'function' ? await gmCatalogo() : null, x = d && (d.porId ? d.porId.get(String(wid)) || d.porId.get(+wid) : null); if (x && x.mb) return +x.mb; } catch (e) {}
+  if (typeof redNivel === 'function' && redNivel() >= 2) { try { const d = (await gmTiempo(gmDetalles([wid]), 10000)).get(String(wid)); if (d && +d.file_size) return +d.file_size / 1e6; } catch (e) {} }
   try { const c = new AbortController(), t = setTimeout(() => c.abort(), 8000), r = await fetch(TIENDA_URL + 'gmod/pipe/' + wid, { signal: c.signal }); clearTimeout(t); if (r.ok) { const j = await r.json(); if (j && j.tam) return j.tam / 1e6; } } catch (e) {}
   return null;
 }
@@ -909,6 +924,9 @@ const GM_TOPE_DEPS_MB = () => (navigator.deviceMemory && navigator.deviceMemory 
 async function gmRequeridos(wid) {
   // (con tope de tiempo: si no contesta, el addon queda instalado igual, sin lo que pide)
   const pedir = async (u, ms) => { const c = typeof AbortController === 'function' ? new AbortController() : null, t = c ? setTimeout(() => c.abort(), ms) : 0; try { return await fetch(u, c ? { signal: c.signal } : undefined); } finally { if (t) clearTimeout(t); } };
+  if (typeof redNivel === 'function' && redNivel() >= 2) {
+    try { const r = await pedir(redURL('_steamreq', '/' + wid), 15000); if (r.ok) return ((await r.json()).ids || []).map(String).filter((x) => /^\d{3,12}$/.test(x)); } catch (e) {}
+  }
   if (typeof gmApiHay === 'function' && (await gmApiHay())) {
     try { const r = await pedir(TIENDA_URL + 'gmod/requiere/' + wid, 8000); if (r.ok) return ((await r.json()).ids || []).map(String).filter((x) => /^\d{3,12}$/.test(x)); } catch (e) {}
   }

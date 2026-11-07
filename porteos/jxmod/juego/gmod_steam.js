@@ -14,7 +14,10 @@ function gbsIniciar() {
   if (GBS.prom) return GBS.prom;
   return (GBS.prom = (async () => {
     if (typeof TIENDA_URL === 'undefined' || typeof gpManifiesto !== 'function') return null;
-    const r = await fetch(TIENDA_URL + 'gmod/base'); if (!r.ok) return null;
+    // (en la app, se lo pide ella misma a Steam; si no, la tienda)
+    let r = null;
+    if (typeof redNivel === 'function' && redNivel() >= 2) { try { r = await gmFetch(redURL('_steambase', ''), null, 45000); if (!r.ok) r = null; } catch (e) { r = null; } }
+    if (!r) r = await fetch(TIENDA_URL + 'gmod/base'); if (!r.ok) return null;
     const info = await r.json(); if (!info.clave || !info.man) return null;
     GBS.info = info; GBS.K = await crypto.subtle.importKey('raw', gpDeHex(info.clave), 'AES-CBC', false, ['encrypt', 'decrypt']);
     const ck = 'base:' + info.dep + ':' + info.man + ':';

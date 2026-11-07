@@ -9,7 +9,7 @@
 //  4. web: la tele sin la tienda avisa que no pudo conectar (o que el servidor está saturado), no «No hay resultados»;
 //  5. lo que se pide solo (el latido de lo social) deja de ir a la tienda después de 3 fallas: de 20 seguidos llegan ≤ 3;
 //     lo que pide la persona (abrir la lista de la tienda) sí sale;
-//  6. app: los pedazos de Steam van por /red/ (y si fallan, por la tienda); web: por la tienda;
+//  6. app: los pedazos de Steam van por /red/ probando 5 servidores (y si fallan, por la tienda); web: por la tienda;
 //  7. sin errores de JS.
 // uso: node tienda_caida.mjs URL_HTML (de /tmp/claude-0/srv, servido en 127.0.0.1)
 import { createRequire } from 'module'; import fs from 'fs'; import path from 'path'; import { execFile } from 'child_process';
@@ -105,7 +105,7 @@ ok('2. app y web: un link de YouTube pegado se pone con su título, sin la tiend
 ok('3. app y web: la radio encuentra emisoras sin la tienda', [A, W].every((x) => x.radio.n >= 3 && x.radio.tienda === 0), { app: A.radio, web: W.radio });
 ok('4. web: la tele sin la tienda avisa que no pudo conectar o que está saturada (no «No hay resultados»)', !W.redApp && W.tele.n === 0 && W.vacioSat.includes(W.tele.vacio), W.tele);
 ok('5. el latido deja de ir a la tienda tras 3 fallas (de 20, ≤ 3) y lo que pide la persona sale', [A, W].every((x) => x.freno.latidosQueLlegaron <= 3 && x.freno.frenada && x.freno.personaSale), { app: A.freno, web: W.freno });
-ok('6. app: los pedazos de Steam van por /red/ (2) y después por la tienda; web: por la tienda', A.steam.red === 2 && A.steam.tienda === 2 && W.steam.red === 0 && W.steam.tienda >= 1, { app: A.steam, web: W.steam });
+ok('6. app: los pedazos de Steam van por /red/ (5 servidores) y al final por la tienda (1); web: por la tienda', A.steam.red === 5 && A.steam.tienda === 1 && W.steam.red === 0 && W.steam.tienda >= 1, { app: A.steam, web: W.steam });
 ok('7. sin errores de JS', !errs.length, errs.slice(0, 4));
 console.log('RESUMEN ' + R0.filter(Boolean).length + '/' + R0.length);
 process.exit(R0.every(Boolean) ? 0 : 1);

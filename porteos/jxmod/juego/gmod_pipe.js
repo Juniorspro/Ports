@@ -124,26 +124,37 @@ async function gpDescomprimir(d, tam) {
 // era un pedido a la tienda: un addon de 700 MB, unos 700, y la tienda llegaba a su tope por día)
 const gpURL = (base, host, ruta, directo) => (directo ? redURL(host, ruta) : base + 'gmod/cdn/' + host + ruta);
 async function gpPedirCDN(base, hosts, ruta, intentos) {
-  let ult = null;
+  let ult = null, ultDir = null;
   const app = typeof redApp === 'function' && redApp();
-  for (let k = 0; k < (intentos || 4); k++) {
-    const h = hosts[(k + (gpPedirCDN.n = (gpPedirCDN.n || 0) + 1)) % hosts.length];
-    // (directo las dos primeras veces; si no sale, por la tienda)
-    const directo = app && k < 2 && /\.steamcontent\.com$/i.test(h);
-    // (cada pedazo con tiempo máximo: uno colgado se vuelve a pedir a otro servidor en vez de trabar todo)
-    try { const r = await gmFetch(gpURL(base, h, ruta, directo), null, 30000); if (r.ok) return new Uint8Array(await gmTiempo(r.arrayBuffer(), 60000, 'pedazo trabado')); ult = new Error('CDN ' + r.status); if ((r.status === 404 || r.status === 403) && !directo) { if (k >= 1) break; } }
-    catch (e) { ult = e; }
+  // (en la app, directo a Steam probando otros servidores —uno del CDN a veces contesta 503 un rato— y la tienda sólo al
+  // final: con la tienda en su tope, dos intentos directos no alcanzaban y el addon entero fallaba. En la web, por la tienda)
+  const n = app ? Math.max(intentos || 4, 6) : intentos || 4, nDir = app ? n - 1 : 0, b0 = (gpPedirCDN.n = (gpPedirCDN.n || 0) + 1);
+  for (let k = 0; k < n; k++) {
+    const h = hosts[(b0 + k) % hosts.length], directo = k < nDir && /\.steamcontent\.com$/i.test(h);
+    if (k > 0 && app) await new Promise((ok) => setTimeout(ok, Math.min(1200, 150 * k)));
+    // (cada pedazo con tiempo máximo: uno colgado se vuelve a pedir a otro servidor en vez de trabar todo; 5xx y 429 se
+    // vuelven a intentar también desde la cola)
+    try {
+      const r = await gmFetch(gpURL(base, h, ruta, directo), null, 30000); if (r.ok) return new Uint8Array(await gmTiempo(r.arrayBuffer(), 60000, 'pedazo trabado'));
+      ult = Object.assign(new Error('CDN ' + r.status), { trabado: r.status >= 500 || r.status === 429 }); if (directo) ultDir = ult;
+      if ((r.status === 404 || r.status === 403) && !directo) { if (k >= 1) break; }
+    } catch (e) { ult = e; if (directo) ultDir = e; }
   }
-  throw ult || new Error('CDN');
+  throw ultDir || ult || new Error('CDN');
 }
 async function gpBajar(wid, prog, base) {
   base = base || TIENDA_URL;
-  const r = await gmFetch(base + 'gmod/pipe/' + wid, null, 30000);
+  // (en la app, la clave y el código se los pide ella misma a Steam; si eso falla —Steam caído, sin red—, por la tienda)
+  let r = null;
+  if (typeof redNivel === 'function' && redNivel() >= 2) { try { r = await gmFetch(redURL('_steampipe', '/' + wid), null, 45000); if (r.status >= 500) r = null; } catch (e) { r = null; } }
+  if (!r) r = await gmFetch(base + 'gmod/pipe/' + wid, null, 30000);
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
     if (r.status === 404 && j.noExiste) throw Object.assign(new Error(T('gm.noExiste')), { noExiste: true });
     if (r.status === 409) throw Object.assign(new Error(T('gm.sinArchivo')), { sinArchivo: true });
     if (r.status === 404) throw Object.assign(new Error(T('gm.sinArchivo')), { sinArchivo: true, sinPuente: true });   // (la tienda todavía no tiene este puente)
+    // (la tienda en su tope —429— o Steam que no contesta: un aviso que se entienda, y la cola lo vuelve a intentar)
+    if (r.status === 429 || r.status >= 500) throw Object.assign(new Error(T('gm.sinRed')), { trabado: true, red: true, det: j.error || r.status });
     throw new Error('Steam: ' + (j.error || r.status));
   }
   const info = await r.json(), hosts = info.cdn && info.cdn.length ? info.cdn : ['cache1-lax1.steamcontent.com'];
