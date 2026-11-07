@@ -57,31 +57,55 @@
   s2.girar = s1.girar + hc(s1.id, tcDe(s1, s2.t0)) - hc(s2.id, s2.tc0);
   s3.girar = s2.girar + hc(s2.id, tcDe(s2, s3.t0)) - hc(s3.id, s3.tc0);
   for (const s of [s1, s2, s3]) s.fn = C.locomocion({ id: s.id, t0: s.t0, p0: pj, yaw, girar: s.girar, esc: s.esc, desde: s.tc0, hasta: s.tc0 + 4.5 * s.esc });
-  // 9b: se agacha y estira la mano a la cola del arma («agacharse y levantar», 26_09, en cámara lenta). Mira al arma; se
-  // lo ubica para que la mano llegue a la cola justo cuando baja a esa altura
-  const s4 = { id: 'c:26_09', t0: TB, tc0: 0.25, esc: 0.48 };
+  // 9b: se agacha y estira la mano a la cola del arma («agacharse y levantar», 26_09, en cámara lenta). Mira al arma.
+  // Se lo ubica con el cuerpo ya parado donde va a estar (la arena sube 22 cm hacia el arma: medida en otro lado, la mano
+  // quedaba 18 cm arriba de la cola y el brazo, estirado del todo hacia un punto al que no llegaba, giraba) y se elige
+  // desde qué parte del clip arranca para que la muñeca baje a la altura de la cola justo en TT, con la misma cámara lenta
+  // la cola de verdad, de la malla del arma clavada: el modelo tiene el origen cerca de la cola (hacia +X llega sólo 12 cm,
+  // y la mitad de adelante queda enterrada), así que se toman los vértices de sus últimos 4 cm, con su giro y su escala:
+  // arriba de todo de esa punta es donde apoya la mano (el medio de los dedos, 1,2 cm sobre la superficie)
+  const colaArma = (() => {
+    const A = DATA.gm && DATA.gm.armas && DATA.gm.armas.PhysicsGun; if (!A) return null;
+    const pts = [];
+    for (const mi of (Array.isArray(A.m) ? A.m : [A.m])) {
+      const d = DATA.ms[mi], BIN = d && binDe(d); if (!BIN) return null;
+      const dv = new DataView(BIN.buffer, BIN.byteOffset + d.o, d.v * 14);
+      for (let i = 0; i < d.v; i++) pts.push(v3(d.mn[0] + d.sc[0] * dv.getUint16(i * 14, true) / 65535, d.mn[1] + d.sc[1] * dv.getUint16(i * 14 + 2, true) / 65535, d.mn[2] + d.sc[2] * dv.getUint16(i * 14 + 4, true) / 65535));
+    }
+    let xm = -1e9; for (const p of pts) xm = Math.max(xm, p.x);
+    const W = pts.filter((p) => p.x > xm - 0.04).map((p) => vadd(oPG, qFin.rot(vscale(p, 1.05))));
+    let c = v3(0, 0, 0), ym = -1e9; for (const p of W) { c = vadd(c, p); ym = Math.max(ym, p.y); }
+    c = vscale(c, 1 / W.length); return v3(c.x, ym, c.z);
+  })();
+  const apoyo = colaArma ? vadd(colaArma, v3(0, 0.012, 0)) : agarre.clone(); C.apoyo9 = apoyo;   // (para medir)
+  const TT = 36.33;
+  const s4 = { id: 'c:26_09', t0: TB, tc0: 0.25, esc: 0.48, mano: 'RightHand' };
   const dirG = Math.atan2(gP.x - pj.x, gP.z - pj.z);
   s4.girar = dirG - yaw - hc(s4.id, 1.2);
-  let fn4 = C.locomocion({ id: s4.id, t0: s4.t0, p0: pj, yaw, girar: s4.girar, esc: s4.esc, desde: s4.tc0, hasta: 4.0 });
-  const altoAgarre = agarre.y - gP.y;
-  let mejor = null;
-  for (const n of ['RightHand', 'LeftHand']) {
-    for (let tc = 1.0; tc <= 2.7; tc += 1 / 30) {
-      const t = s4.t0 + (tc - s4.tc0) / s4.esc, H = C.poseHuesos(fn4, t, [n]);
-      if (H[n] && H[n].y - gP.y <= altoAgarre + 0.05) { if (!mejor || tc < mejor.tc) mejor = { n, y: H[n].y, p: H[n].clone(), t, tc }; break; }
-    }
+  let p4 = pj.clone(), fn4 = null, tcT = 1.6, meta = vadd(apoyo, v3(0, 0.08, 0));
+  const armar4 = () => C.locomocion({ id: s4.id, t0: s4.t0, p0: p4, yaw, girar: s4.girar, esc: s4.esc, desde: s4.tc0, hasta: 4.0 });
+  for (let it = 0; it < 8; it++) {
+    fn4 = armar4();
+    let tc = 1.0; for (; tc < 2.2; tc += 1 / 120) if (C.poseHuesos(fn4, s4.t0 + (tc - s4.tc0) / s4.esc, ['RightHand']).RightHand.y <= meta.y) break;
+    tcT = tc; s4.tc0 = tcT - s4.esc * (TT - s4.t0);
+    fn4 = armar4();
+    const H = C.poseHuesos(fn4, TT, ['RightHand', 'RightHandIndex2']);
+    // (la muñeca, para que el medio de los dedos quede apoyado: con la mano como la trae la captura en ese instante)
+    if (H.RightHandIndex2) meta = vadd(apoyo, vsub(H.RightHand, H.RightHandIndex2));
+    p4 = enPiso(v3(p4.x + (meta.x - H.RightHand.x), 0, p4.z + (meta.z - H.RightHand.z)));
   }
-  if (!mejor) { const t = s4.t0 + (2.2 - s4.tc0) / s4.esc, H = C.poseHuesos(fn4, t, ['RightHand']); mejor = { n: 'RightHand', y: H.RightHand.y, p: H.RightHand.clone(), t, tc: 2.2 }; }
-  const p4 = enPiso(v3(pj.x + (agarre.x - mejor.p.x), 0, pj.z + (agarre.z - mejor.p.z)));
-  fn4 = C.locomocion({ id: s4.id, t0: s4.t0, p0: p4, yaw, girar: s4.girar, esc: s4.esc, desde: s4.tc0, hasta: 4.0 });
-  s4.tToca = mejor.t; s4.tcToca = mejor.tc; s4.mano = mejor.n;
+  fn4 = armar4();
+  const H4 = C.poseHuesos(fn4, TT, ['RightHand', 'RightArm', 'RightForeArm']);
+  const corr = vsub(meta, H4.RightHand);   // lo que le falta a la captura para llegar: lo suma la IK, de a poco
+  const largoBrazo = H4.RightArm.distTo(H4.RightForeArm) + H4.RightForeArm.distTo(H4.RightHand);
+  s4.tToca = TT; s4.tcToca = tcT;
   // (después de tocarla se queda ahí: el clip frena suave en vez de seguir bajando)
   s4.fn = (t) => {
     if (t <= s4.tToca) return fn4(t);
     const e = t - s4.tToca, tc = s4.tcToca + 0.05 * (1 - Math.exp(-e * 4));
     return fn4(s4.t0 + (tc - s4.tc0) / s4.esc);
   };
-  C.p9 = { mano: mejor.n, tToca: +mejor.t.toFixed(3), tcToca: +mejor.tc.toFixed(3), altoMano: +(mejor.y - gP.y).toFixed(3), giros: [s1.girar, s2.girar, s3.girar, s4.girar].map((x) => +x.toFixed(3)) };
+  C.p9 = { mano: s4.mano, tToca: TT, tcToca: +tcT.toFixed(3), tc0: +s4.tc0.toFixed(3), corrCm: +(corr.len() * 100).toFixed(1), colaReal: !!colaArma, apoyoSobreArena: +(apoyo.y - gP.y).toFixed(3), alcance: +(meta.distTo(H4.RightArm) / largoBrazo).toFixed(3), subeP4: +(p4.y - pj.y).toFixed(3), giros: [s1.girar, s2.girar, s3.girar, s4.girar].map((x) => +x.toFixed(3)) };
   const XF = 0.22;
   const actor = (t) => {
     if (t >= TB) { s4.fn(t); return; }
@@ -118,12 +142,14 @@
   C.pose = (P) => {
     const t = C.tAct || 0;
     if (t >= TB) {
-      // 9b: la mano llega a la cola del arma (cinemática inversa sobre la captura, sólo el último medio segundo)
-      const w = C.suave(C.tramo(t, s4.tToca - 0.6, s4.tToca - 0.02)); if (w <= 0.001) return;
-      const L = s4.mano === 'LeftHand' ? 'Left' : 'Right';
+      // 9b: la mano llega a la cola del arma. La captura ya la lleva casi ahí: la cinemática inversa sólo suma lo que le
+      // falta (corr), de a poco en el último medio segundo, y desde el toque la deja quieta en la cola mientras el cuerpo
+      // termina de bajar (IK blanda: el brazo nunca queda trabado recto)
+      const w = C.suave(C.tramo(t, s4.tToca - 0.6, s4.tToca)); if (w <= 0.001) return;
+      const L = 'Right';
       const cur = C.hueso(P, L + 'Hand'), hom = C.hueso(P, L + 'Arm'), codo = C.hueso(P, L + 'ForeArm'); if (!cur || !hom || !codo) return;
-      const meta = vadd(agarre, v3(0, 0.075, 0)), wr = vadd(cur, vscale(vsub(meta, cur), w));
-      C.brazo(P, L, wr, { flex: 0.35 }, v3(0, -1, 0), vsub(codo, hom));
+      const wr = t >= s4.tToca ? meta.clone() : vadd(cur, vscale(corr, w));
+      C.brazo(P, L, wr, { flex: 0.35, suave: 0.92 }, v3(0, -1, 0), vsub(codo, hom));
       C.dedos(P, L, 0.6 * C.suave(C.tramo(t, s4.tToca - 0.12, s4.tToca + 0.3)));
       P.md.sucio = true; P.md.actualizar();
       return;

@@ -52,12 +52,19 @@ if (fotos) {
   const dir = salida.replace(/\.mp4$/, '') + '_cuadros', reanudar = args.includes('--reanudar');
   const solo = op('solo', ''), [sa, sb] = solo ? solo.split(':').map(Number) : [0, Infinity];
   fs.mkdirSync(dir, { recursive: true });
-  const nf = Math.round((hasta - desde) * fps); let hechos = 0, saltados = 0;
+  const nf = Math.round((hasta - desde) * fps); let hechos = 0, saltados = 0, porCalentar = false;
   for (let i = 0; i < nf && i < sb; i++) {
     const tf = desde + i / fps, arch = path.join(dir, String(i).padStart(4, '0') + '.jpg');
     if (i < sa || (reanudar && fs.existsSync(arch) && fs.statSync(arch).size > 1000)) {
       await ev(`(() => { const fd = 1 / ${fps}; for (let k = 0; k < ${n}; k++) { const ti = ${tf} + (${n} > 1 ? k * fd * ${obt} / ${n} : 0), dt = CINE.tUlt === null ? fd : Math.max(0, ti - CINE.tUlt); CINE.avanzar(ti, dt); } return 1; })()`);
-      saltados++; continue;
+      saltados++; porCalentar = true; continue;
+    }
+    // después de saltar cuadros (sin dibujar), lo que aparece recién acá todavía no pidió sus texturas: se dibuja este
+    // instante unas veces, sin avanzar el tiempo, dándole al navegador tiempo para decodificarlas (si no, los primeros
+    // cuadros muestran cosas sin textura, como el arma clavada al empezar 9b)
+    if (porCalentar) {
+      for (let k = 0; k < 6; k++) { await ev(`CINE.renderCuadro(${tf}, 1, ${obt}, 0)`); await espera(k < 2 ? 600 : 300); }
+      porCalentar = false;
     }
     const jpg = await render(tf, n, obt, null, 0.95); fs.writeFileSync(arch, jpg); hechos++;
     if (args.includes('--muestras') && i % 12 === 0) fs.writeFileSync(salida.replace(/\.mp4$/, '') + `_m${String(i).padStart(3, '0')}.jpg`, jpg);

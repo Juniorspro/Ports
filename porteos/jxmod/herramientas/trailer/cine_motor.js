@@ -92,7 +92,7 @@
     const P = JUG.cuerpo, g = { pos: P.pos.clone(), yaw: P.yaw, e: P.emote, t: P.emoteT, s: P.escena, m: C.mocap };
     fn(t); P.pos.set(C.act.pos.x, C.act.pos.y + 1, C.act.pos.z); P.yaw = C.act.yaw;
     P.emote = C.mocap.id; P.escena = null; P.emoteT = C.mocap.tc; P.emoLift = 0; anP(P, 0); ubicarPersona(P); P.md.sucio = true; P.md.actualizar();
-    const out = {}; for (const n of nombres) { const i = P.D.h[n]; if (i !== undefined) out[n] = celmPos(P.md, i); }
+    const out = {}, hx = huesosMixamo(P.D); for (const n of nombres) { const i = P.D.h[n] !== undefined ? P.D.h[n] : hx[n]; if (i !== undefined) out[n] = celmPos(P.md, i); }   // (también los dedos, con su nombre de Mixamo)
     P.pos.copy(g.pos); P.yaw = g.yaw; P.emote = g.e; P.emoteT = g.t; P.escena = g.s; C.mocap = g.m;
     return out;
   };
@@ -540,7 +540,14 @@ void main() {
     const sh = h[L + 'Arm'], el = h[L + 'ForeArm'], hand = h[L + 'Hand']; if ([sh, el, hand].some((x) => x === undefined)) return;
     md.actualizar();
     const a = celmPos(md, sh).distTo(celmPos(md, el)), b = celmPos(md, el).distTo(celmPos(md, hand)), S = celmPos(md, sh);
-    const dW = vsub(wrist, S), dist = Math.min(dW.len(), (a + b) * 0.999), dn = dW.clone().norm();
+    const dW = vsub(wrist, S), dn = dW.clone().norm(); let dist = Math.min(dW.len(), (a + b) * 0.999);
+    // IK blanda (fT.suave: desde qué fracción del largo del brazo empieza a frenar). Cerca del largo máximo el codo se
+    // estira de golpe (pasa de doblado a recto en un instante, y la mano gira con él): así se acerca suave y nunca
+    // llega a quedar trabado recto; la muñeca va al punto de esa distancia sobre la misma recta
+    if (fT && fT.suave) {
+      const dM = a + b, dS = dM * fT.suave, sf = dM - dS, d0 = dW.len();
+      dist = d0 > dS ? dS + sf * (1 - Math.exp(-(d0 - dS) / sf)) : d0; wrist = vadd(S, vscale(dn, dist));
+    }
     const cosA = clamp((a * a + dist * dist - b * b) / (2 * a * dist), -1, 1), alto = a * Math.sqrt(1 - cosA * cosA);
     const lado = vsub(polo, vscale(dn, vdot(polo, dn))).norm(), codo = vadd(S, vadd(vscale(dn, a * cosA), vscale(lado, alto)));
     celmGirar(md, sh, celmDesde(vsub(celmPos(md, el), S).norm(), vsub(codo, S).norm()));
@@ -559,12 +566,17 @@ void main() {
     }
     md.actualizar();
   };
-  // dedos: dobla las falanges (k 0 = como vienen, 1 = puño) — giro alrededor del eje de los nudillos
+  // dedos: dobla las falanges (k 0 = como vienen, 1 = puño) — giro alrededor del eje de los nudillos, siempre desde la
+  // pose de base de cada falange: la captura de movimiento no trae dedos, así que nada los vuelve a poner en cada cuadro
+  // y doblarlos sobre lo que ya estaba los hacía girar sin parar (≈29 rad/s); si la animación sí los pone, esa es la base
   C.dedos = (P, L, k) => {
-    const md = P.md, hx = huesosMixamo(P.D);
+    const md = P.md, hx = huesosMixamo(P.D), est = md._dedos || (md._dedos = {});
     for (const D of ['Index', 'Middle', 'Ring', 'Pinky']) for (const j of [1, 2, 3]) {
       const i = hx[L + 'Hand' + D + j]; if (i === undefined) continue;
-      const r = md.r[i], q = new Quat(r[0], r[1], r[2], r[3]).mul(Quat.axis(1, 0, 0, k * (j === 1 ? 0.5 : 0.7))).norm(); r[0] = q.x; r[1] = q.y; r[2] = q.z; r[3] = q.w;
+      const r = md.r[i], e = est[i];
+      if (!e || r[0] !== e.w[0] || r[1] !== e.w[1] || r[2] !== e.w[2] || r[3] !== e.w[3]) est[i] = { b: [r[0], r[1], r[2], r[3]] };
+      const b = est[i].b, q = new Quat(b[0], b[1], b[2], b[3]).mul(Quat.axis(1, 0, 0, k * (j === 1 ? 0.5 : 0.7))).norm();
+      r[0] = q.x; r[1] = q.y; r[2] = q.z; r[3] = q.w; est[i].w = [r[0], r[1], r[2], r[3]];
     }
     md.sucio = true; md.actualizar();
   };
