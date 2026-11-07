@@ -4,12 +4,15 @@ import { abrir, codificador } from './cine.mjs'; import fs from 'fs'; import pat
 const args = process.argv.slice(2), plano = args[0], salida = args[1];
 const op = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : args[i + 1]; };
 const W = +op('W', 960), H = +op('H', 402), n = +op('n', 1), obt = +op('obt', 0.5), fotos = op('fotos', ''), video = args.includes('--video');
-const HTML = op('html', 'http://127.0.0.1:8979/JX.html');
+const HTML = op('html', process.env.JX_URL || 'http://127.0.0.1:8979/JX.html');
 const t00 = Date.now();
-const { b, ev, err, render } = await abrir(HTML, { W, H });
+const { b, ev, err, render } = await abrir(HTML, { W, H, skin: op('skin', 'SpecialForcesM') });
 const comun = op('comun', '');
 if (comun) console.log('común:', await ev(fs.readFileSync(comun, 'utf8')));
 const code = fs.readFileSync(plano, 'utf8');
+// los clips de captura de movimiento que usa el plano ('c:NN_NN'): bajados antes de armarlo
+const clips = [...new Set((code.match(/'c:\d+_\d+'/g) || []).map((x) => x.slice(1, -1)))];
+if (clips.length) console.log('clips', clips.join(' '), await ev(`Promise.all(${JSON.stringify(clips)}.map((k) => emoCargar(k))).then((r) => r.map((c) => !!c).join(','))`));
 const r = await ev(code); console.log('plano:', r);
 // --k: el factor del ángulo de visión para otro formato (pisa el CINE.aspK del plano)
 if (op('k', '')) console.log('aspK', await ev(`CINE.aspK = ${+op('k', 1)}`)); else console.log('aspK', await ev('CINE.aspK || 1'));

@@ -8,7 +8,9 @@
   const piso = pisoBajo(v3(X, 0, Z), 300);
   JUG.pos.set(X, piso + 1.0, Z); JUG.vel.set(0, 0, 0); JUG.yaw = yaw; JUG.pitch = 0; JUG.tercera = true;
   elegirArma(ARM.lista.indexOf('Hands'));
-  C.sinVista = true; C.sinCabeza = JUG.cuerpo;
+  // (sin achicar la cabeza: en algunos personajes, como la Piloto, los brazos cuelgan de ese hueso y desaparecían con
+  // ella; la cámara va delante de la cara, así la cabeza queda atrás del lente)
+  C.sinVista = true; C.sinCabeza = null;
   // (la sombra del propio cuerpo, con el sol bajo y tan cerca de la cámara, salía con muaré: sin sombra en este plano)
   C.sinSombraYo = true;
   const az = yaw, el = 0.62; const cG = C.grietaDir(az, el, 0.15);
@@ -73,7 +75,7 @@
     // cámara en los ojos: mira las manos y después arriba
     if (h) {
       const f = v3(Math.sin(P.yaw), 0, Math.cos(P.yaw)), up = v3(0, 1, 0);
-      const ojo = vadd(h, vadd(vscale(f, 0.09), vscale(up, 0.05)));
+      const ojo = vadd(h, vadd(vscale(f, 0.17), vscale(up, 0.06)));
       const pit = C.claves(t, [[2.0, 0.62], [3.4, 0.46], [5.6, 0.40], [6.0, 0.40], [6.42, -0.40], [7.3, -0.47], [9.2, -0.44]], C.suave2);
       const yw = yaw + C.claves(t, [[2.0, 0.0], [6.0, 0.0], [6.42, 0.04], [9.2, 0.0]]) + C.ruido(t * 0.6, 1) * 0.012;
       const temb = 0.004 + 0.01 * C.pulsos(t, golpesGrieta, 0.25);

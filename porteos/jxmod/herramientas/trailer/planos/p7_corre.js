@@ -9,7 +9,9 @@
   JUG.pos.set(X0, piso + 1.0, Z0); JUG.vel.set(0, 0, 0); JUG.yaw = yawRun; JUG.pitch = 0; JUG.tercera = true; JUEGO.dios = true;
   elegirArma(ARM.lista.indexOf('Hands'));
   C.sinVista = true; C.sinCabeza = null; C.pose = null;
-  ENT.teclas.add('KeyW'); ENT.teclas.add('ShiftLeft');
+  // la corrida: captura de movimiento real (CMU 127_07, a 1,15×), el cuerpo avanza lo que el pie apoyado se va para atrás
+  C.suaveJug = false;
+  const corre = C.corre7 = C.locomocion({ id: 'c:127_07', t0: T0 - 4.6, p0: v3(X0, piso, Z0), yaw: yawRun, girar: Math.PI, esc: 1.15, desde: 0.6, hasta: 0.6 + (T1 - T0 + 4.8) * 1.15 });
   const cG = C.grietaDir(-Math.PI / 2, 0.62, 0.15);
   C.grieta.on = true; C.grieta.tam = 0.78; C.grieta.abre = 1;
   C.tarde = C.tarde || { dir: v3(0.55, 0.42, -0.72).norm(), solCol: [1.0, 0.80, 0.58], ambS: [0.46, 0.52, 0.66], ambG: [0.42, 0.36, 0.30], top: [0.20, 0.42, 0.78], mid: [0.95, 0.83, 0.70], bot: [0.62, 0.55, 0.50], sol: [1.0, 0.72, 0.45], niebla: [0.93, 0.82, 0.68] };
@@ -17,7 +19,8 @@
   const f = v3(1, 0, 0), r = vcross(f, v3(0, 1, 0)).norm();
   const enPiso = (p) => { const y = pisoBajo(v3(p.x, p.y + 30, p.z), 80); return v3(p.x, y === null ? p.y : y, p.z); };
   const pN = v3(X0 - 120 - 640, piso, Z0 - 75);
-  C.nuke = null; C.nukeK = 2.2;
+  // la nuclear propia (volumen con marcha de rayos: cine_motor.js); la del juego no se usa
+  C.nuke = null; C.nuc.on = false; C.nuc.p.copy(pN); C.nuc.tau = 0;
   C.caidas.length = 0;
   let sem = 13; const rn = () => { sem = (sem * 16807) % 2147483647; return sem / 2147483647; };
   const cosas = ['Crate', 'TV', 'Wheelchair', 'CajaMadera', 'Cone', 'BidonNafta', 'Heladera'];
@@ -28,10 +31,10 @@
   }
   C.escena = (t, dt) => {
     C.tAct = t;
-    if (!C.nuke && t >= 18.98) { C.nuke = nukeExplotar(pN, 'NK_zuni', false); NUK.flash = 0; }
-    if (C.nuke) C.nuke.t += dt * (C.nukeK - 1);
+    if (corre) corre(t);
+    C.nuc.on = t >= 19.02; C.nuc.tau = Math.max(0, t - 19.02);
     C.caidasPaso(t, dt);
-    C.luces.length = 0; C.caidasLuces();
+    C.luces.length = 0; C.caidasLuces(); C.nucLuz();
     C.luces.push({ p: vadd(v3(JUG.pos.x, JUG.pos.y + 0.5, JUG.pos.z), vadd(vscale(f, 2.2), vscale(r, 1.6))), r: 7, c: [1.6, 1.2, 1.9] });
     C.grieta.abre = 1; C.grieta.t = t; C.grieta.pulso = C.pulsos(t, [[23.76, 0.6], [24.55, 0.6], [25.33, 0.9], [25.95, 1.0]], 0.3);
     const k = 0.92; C.cielo(k, { dir: vadd(vscale(C.tarde.dir, 1 - k), vscale(cG, k)).norm(), base: C.tarde });

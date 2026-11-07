@@ -1,10 +1,10 @@
-# mezcla del tráiler (34,0 s, 48 kHz estéreo): canción + voces procesadas + efectos del juego, con atenuación de la
-# música bajo las voces, el silencio de la nuclear, corte seco en 34,0 y limitador final
+# mezcla del tráiler v2 (40,0 s, 48 kHz estéreo): la canción hasta su final natural (golpe en 37,5 y silencio después
+# de 39,5) + efectos del juego y sintéticos, sin voces. El silencio de la nuclear, la onda expansiva, el meteoro de la
+# Physics Gun, el zumbido del arma que crece hasta el corte a negro (36,92), el golpe de la placa final y limitador
 import subprocess, numpy as np, wave, sys, os
-SR = 48000; DUR = 34.0; N = int(SR * DUR)
+SR = 48000; DUR = 40.0; N = int(SR * DUR)
 A = os.environ.get('JX_SONIDOS', '') + '/'   # (la carpeta a/ del paquete armado del juego: los .mp3)
 AQUI = os.path.dirname(os.path.abspath(__file__))
-VOZ = os.environ.get('JX_VOCES', os.path.join(AQUI, 'voces'))   # (L1–L4.wav)
 rng = np.random.default_rng(7)
 
 def cargar(ruta):
@@ -43,7 +43,7 @@ def paneo(x, p):   # -1 izq, 1 der
     m = x.mean(1); return np.stack([m * l * 1.414, m * r * 1.414], 1).astype(np.float32)
 def db(g): return 10 ** (g / 20)
 
-mus = np.zeros((N, 2), np.float32); voz = np.zeros((N, 2), np.float32); fx = np.zeros((N, 2), np.float32)
+mus = np.zeros((N, 2), np.float32); fx = np.zeros((N, 2), np.float32)
 def poner(dst, x, t, g=0.0):
     i = int(t * SR)
     if i >= N: return
@@ -56,30 +56,9 @@ def lazo(x, dur):   # repetir con fundido cruzado hasta dur
         seg = env(x.copy(), fc, fc); m = min(len(seg), n - pos); out[pos:pos + m] += seg[:m]; pos += max(1, len(x) - cf)
     return out
 
-# ---------------- la canción (0–34 s del video de 41 s) ----------------
+# ---------------- la canción (0–40 s del video de 41 s: termina sola, con el golpe de 37,5) ----------------
 can = cargar(os.path.join(AQUI, 'audio', 'cancion41.wav'))[:N]
 mus[:len(can)] = can
-
-# ---------------- voces ----------------
-def vozLeer(n):
-    w = wave.open(os.path.join(VOZ, n + '.wav')); x = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768
-    sr = w.getframerate(); x = np.stack([x, x], 1)
-    return remuestrear(x, sr / SR) if sr != SR else x
-L1, L2, L3, L4 = [vozLeer(n) for n in ['L1', 'L2', 'L3', 'L4']]
-# L1 «Otra vez no...»: susurro cercano, cuarto chico
-v = filtro(L1, lo=90, hi=9000); v = reverb(v, 0.6, 0.12, brillo=5000); poner(voz, v, 4.05, -1.5)
-# L2 «Te encontramos.» (la grieta): 3 semitonos más grave, una octava abajo por debajo, eco de catedral y un temblor
-k = 2 ** (-3 / 12); base = remuestrear(L2, k); oct = remuestrear(L2, 0.5)[:len(base) * 2]
-capa = np.zeros((max(len(base), len(oct)), 2), np.float32); capa[:len(base)] += base; capa[:len(oct)] += oct * 0.45
-t = np.arange(len(capa)) / SR; capa *= (1 + 0.12 * np.sin(2 * np.pi * 9 * t))[:, None]
-capa = filtro(capa, lo=45, hi=7000); capa = reverb(capa, 3.8, 0.42, pre=0.04, brillo=3500)
-# (y un susurro doble, más agudo, detrás)
-sus = filtro(remuestrear(L2, 2 ** (2 / 12)), lo=1500, hi=9000); sus = reverb(sus, 2.5, 0.6)
-poner(voz, capa, 10.42, 1.0); poner(voz, paneo(sus, 0.4), 10.47, -16)
-# L3 «Acá no llegan...»: cansado, al aire libre (eco corto de la playa)
-v = filtro(L3, lo=90, hi=10000); v = reverb(v, 0.9, 0.1, brillo=6000); poner(voz, v, 28.9, -0.5)
-# L4 «Es mía.»: grave y cerca
-v = filtro(remuestrear(L4, 2 ** (-0.6 / 12)), lo=70, hi=9000); v = reverb(v, 0.7, 0.1, brillo=5000); poner(voz, v, 33.06, 0.5)
 
 # ---------------- efectos ----------------
 def boom(dur=2.5, f=38, g=0.0):   # golpe grave sintético (sub + clic)
@@ -143,35 +122,72 @@ pasos(23.4, 26.55, 0.30, -9); poner(fx, snd('fn_corre1'), 23.5, -12); poner(fx, 
 poner(fx, lazo(snd('AM_rafaga1'), 3.3) * 0.8, 23.36, -10)
 for tt in [23.8, 24.6, 25.33, 25.95]: explosion(tt, -9 if tt > 25 else -14, tt < 25)
 # --- la playa (26,6–34): olas (ruido con la marea cada 6,5 s), brisa, pasos cansados, respiración ---
-n = int(7.4 * SR); t = np.arange(n) / SR
+n = int(4.3 * SR); t = np.arange(n) / SR
 ola = filtro(np.stack([rng.standard_normal(n), rng.standard_normal(n)], 1).astype(np.float32), lo=150, hi=2600)
 ola *= (0.35 + 0.65 * np.clip(np.sin(2 * np.pi * (t / 6.5) - 0.6), 0, 1) ** 1.5 + 0.1 * np.sin(2 * np.pi * t / 2.9))[:, None]
-poner(fx, env(ola, 0.15, 0.02), 26.6, -15); poner(fx, env(lazo(snd('AG_Lago'), 7.4), 0.2, 0.02), 26.6, -12)
-poner(fx, env(lazo(snd('AM_viento2'), 7.4), 0.3, 0.02) , 26.6, -20)
-pasos(26.62, 27.95, 0.48, -14); poner(fx, filtro(snd('fn_aliento'), hi=5000), 28.0, -11)
-# --- la Physics Gun (31,45): silbido que baja, golpe seco en la arena, chispazo y su zumbido ---
-poner(fx, silbido(0.45, 1400, 500, -11, ruido=True), 31.0, 0)
-poner(fx, boom(1.2, 48), 31.45, -1); poner(fx, filtro(snd('PL_caida1'), hi=3000), 31.45, -2); poner(fx, snd('PG_Off'), 31.47, -6); poner(fx, chispa(0.7), 31.45, -6)
-pg = lazo(snd('PG_Hold'), 2.6); poner(fx, env(pg, 0.3, 0.01), 31.4, -18)
-pasos(31.95, 33.0, 0.5, -15)
+poner(fx, env(ola, 0.15, 0.02), 26.6, -15); poner(fx, env(lazo(snd('AG_Lago'), 4.3), 0.2, 0.02), 26.6, -12)
+poner(fx, env(lazo(snd('AM_viento2'), 10.4), 0.3, 0.02) , 26.6, -20)
+pasos(26.75, 28.5, 0.58, -13); poner(fx, filtro(snd('fn_aliento'), hi=5000), 27.2, -12); poner(fx, filtro(snd('fn_respira'), hi=5000), 28.7, -12)
+# --- la onda expansiva de la nuclear le llega (20,92): ráfaga de arena y viento, retumbo ---
+raf = lazo(snd('AM_rafaga2'), 2.6); tt = np.arange(len(raf)) / SR; raf *= (np.clip(tt / 0.12, 0, 1) * np.exp(-np.maximum(tt - 0.4, 0) * 1.4))[:, None]
+poner(fx, raf, 20.92, -2); poner(fx, filtro(remuestrear(snd('NK_onda'), 0.85), hi=2200), 20.88, -3); poner(fx, boom(2.2, 32), 20.92, -4)
+are = filtro(np.stack([rng.standard_normal(int(2.4 * SR))] * 2, 1).astype(np.float32), lo=2500, hi=11000); tt = np.arange(len(are)) / SR
+poner(fx, are * (np.clip(tt / 0.1, 0, 1) * np.exp(-tt * 1.3))[:, None], 20.95, -16)
+# --- el final (30,86–36,92) ---
+# las olas y la brisa siguen hasta el corte
+n = int(6.2 * SR); tt = np.arange(n) / SR
+ola = filtro(np.stack([rng.standard_normal(n), rng.standard_normal(n)], 1).astype(np.float32), lo=150, hi=2600)
+ola *= (0.35 + 0.65 * np.clip(np.sin(2 * np.pi * ((tt + 4.26) / 6.5) - 0.6), 0, 1) ** 1.5)[:, None]
+poner(fx, env(ola, 0.02, 0.005), 30.86, -17); poner(fx, env(lazo(snd('AG_Lago'), 6.2), 0.02, 0.005), 30.86, -14)
+# el meteoro: chillido que crece y se acerca (sube de tono), con crepitar eléctrico
+poner(fx, silbido(0.55, 380, 2300, -6, ruido=True), 30.92, 0)
+poner(fx, filtro(silbido(0.5, 90, 260, -8, ruido=False), hi=400), 30.97, 0)
+for i in range(6): poner(fx, chispa(0.18, -12), 31.05 + i * 0.065, 0)
+# el golpe (31,45): estampido, crujido, arena que salta y llueve, chispazo de la gun
+poner(fx, boom(2.6, 34), 31.45, 2); poner(fx, filtro(snd('PL_caida1'), hi=3500), 31.45, 0); poner(fx, snd('GrenadeExplode'), 31.45, -6)
+cr = filtro(np.stack([rng.standard_normal(int(0.3 * SR))] * 2, 1).astype(np.float32), lo=1200) * np.exp(-np.arange(int(0.3 * SR)) / SR * 18)[:, None]
+poner(fx, cr, 31.45, -3); poner(fx, snd('PG_Off'), 31.47, -3); poner(fx, chispa(1.2), 31.45, -4)
+llu = filtro(np.stack([rng.standard_normal(int(1.6 * SR)) * (rng.random(int(1.6 * SR)) < 0.08)] * 2, 1).astype(np.float32), lo=1800, hi=9000)
+tt = np.arange(len(llu)) / SR; poner(fx, llu * np.exp(-tt * 2.2)[:, None], 31.75, -10)
+# el pitido en los oídos después del golpe (tensión)
+pit = np.sin(2 * np.pi * 4200 * np.arange(int(2.2 * SR)) / SR).astype(np.float32); pit = np.stack([pit, pit], 1) * (np.exp(-np.arange(len(pit)) / SR * 1.2))[:, None]
+poner(fx, pit, 31.5, -30)
+# se da vuelta: pasos en la arena
+for tt0 in [32.72, 33.08, 33.46]: poner(fx, snd('PS_sand%d' % (1 + int(tt0 * 10) % 4)), tt0, -13)
+# el zumbido del arma: late y crece hasta que él la toca; ahí sube de tono y se dispara; corte seco en 36,92
+hum = lazo(snd('PG_Hold'), 5.4); tt = np.arange(len(hum)) / SR
+hum *= ((0.75 + 0.25 * np.sin(2 * np.pi * 1.08 * tt)) * np.clip(tt / 0.6, 0, 1) * (0.5 + 0.5 * np.clip((tt - 1.5) / 3.3, 0, 1)))[:, None]
+poner(fx, env(hum, 0.01, 0.002), 31.52, -15)
+sube = remuestrear(lazo(snd('PG_Hold'), 1.4), 0.75); sube = remuestrear(sube, 1.0)
+k = np.linspace(1.0, 2.2, int(0.62 * SR)); idx = np.clip(np.cumsum(k).astype(int), 0, len(sube) - 2); sub = sube[idx] * np.linspace(0.4, 1.0, len(idx))[:, None]
+poner(fx, env(sub, 0.05, 0.002), 36.30, -6); poner(fx, chispa(0.62), 36.30, -6); poner(fx, snd('GG_Pickup'), 36.28, -8)
+# el dron de suspenso (33,4–36,92): grave que crece y sube un poco, con aire
+n = int(3.52 * SR); tt = np.arange(n) / SR; fr = 42 + 10 * (tt / 3.52) ** 2
+dr = np.sin(2 * np.pi * np.cumsum(fr) / SR) * 0.8 + filtro(np.stack([rng.standard_normal(n)] * 2, 1).astype(np.float32), lo=60, hi=500)[:, 0] * 0.35
+dr = (dr * (tt / 3.52) ** 1.6).astype(np.float32); poner(fx, env(np.stack([dr, dr], 1), 0.3, 0.002), 33.4, -7)
+# el corte: un soplo suave al pasar a la toma de cerca (34,0)
+wh = filtro(np.stack([rng.standard_normal(int(0.5 * SR))] * 2, 1).astype(np.float32), lo=400, hi=3000); tt = np.arange(len(wh)) / SR
+poner(fx, wh * (np.sin(np.pi * tt / 0.5) ** 2)[:, None], 33.78, -20)
+# --- la placa final (37,5): golpe grave, falla digital; y la falla al romperse (39,6) ---
+def falla(dur, g):
+    n = int(dur * SR); x = np.repeat(rng.standard_normal(n // 64 + 1), 64)[:n] * (rng.random(n // 400 + 1).repeat(400)[:n] < 0.6)
+    x = filtro(np.stack([x, x], 1).astype(np.float32), lo=600, hi=9000); return x * db(g)
+poner(fx, boom(2.4, 30), 37.5, 3); poner(fx, falla(0.22, -10), 37.5, 0); poner(fx, chispa(0.5), 37.5, -8); poner(fx, falla(0.12, -16), 38.0, 0)
+poner(fx, falla(0.4, -14), 39.6, 0)
 
-# ---------------- mezcla: la música baja bajo las voces y en el silencio de la nuclear ----------------
-ve = np.abs(voz).max(1); k = int(0.01 * SR)
-def media(x, k):   # promedio móvil centrado (con suma acumulada: rápido)
-    c = np.cumsum(np.concatenate([np.zeros(k // 2 + 1), x, np.zeros(k)])); return ((c[k:k + len(x)] - c[:len(x)]) / k).astype(np.float32)
-envv = media(ve, k); envv = media((envv > 0.01).astype(np.float32), int(0.35 * SR))
-gm = 1 - 0.5 * np.clip(envv, 0, 1)
+# ---------------- mezcla: el silencio de la nuclear; del corte a negro (36,92) a la placa (37,5) sólo queda la canción ----------------
 t = np.arange(N) / SR
 calla = np.where((t >= 19.02) & (t < 19.75), 0.35 + 0.65 * np.clip((t - 19.02) / 0.73, 0, 1) ** 2, 1.0)   # (el destello: todo apagado, vuelve)
-mix = mus * db(-2.5) * gm[:, None] * calla[:, None] + fx * db(-4) * calla[:, None] + voz * db(1.5)
+fx[(t >= 36.92) & (t < 37.5)] = 0
+mix = mus * db(-2.5) * calla[:, None] + fx * db(-4) * calla[:, None]
 # negro de 13,05 a 13,50: sólo la canción
 neg = (t >= 13.05) & (t < 13.5); mix[neg] = mus[neg] * db(-2.5)
 # limitador suave y normalización a −1 dBFS
 pk = np.abs(mix).max(); mix = mix / max(pk, 1e-6) * 1.4; mix = np.tanh(mix) / np.tanh(1.4); mix *= db(-1.0)
-# corte seco en 34,0 (los últimos 5 ms bajan para no hacer clic)
+# final: los últimos 5 ms bajan para no hacer clic
 mix[-int(0.005 * SR):] *= np.linspace(1, 0, int(0.005 * SR))[:, None]
 out = os.path.join(AQUI, 'audio', 'mezcla.wav')
 w = wave.open(out, 'wb'); w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes((np.clip(mix, -1, 1) * 32767).astype(np.int16).tobytes()); w.close()
 rms = lambda a, b: 20 * np.log10(np.sqrt((mix[int(a * SR):int(b * SR)] ** 2).mean()) + 1e-9)
 print('listo', out, 'pico', round(20 * np.log10(np.abs(mix).max()), 2), 'dBFS')
-for a, b, n in [(0, 2.06, 'logo'), (2.06, 6.4, 'manos'), (6.4, 9.16, 'grieta'), (9.16, 13.05, 'voz grieta'), (13.5, 19.02, 'lluvia'), (19.02, 23.36, 'nuclear'), (23.36, 26.6, 'corre'), (26.6, 30.86, 'playa'), (30.86, 34, 'final')]: print(f'  {n:11s} {rms(a, b):6.1f} dB RMS')
+for a, b, n in [(0, 2.06, 'logo'), (2.06, 6.4, 'manos'), (6.4, 9.16, 'grieta'), (9.16, 13.05, 'grieta 2'), (13.5, 19.02, 'lluvia'), (19.02, 23.36, 'nuclear'), (23.36, 26.6, 'corre'), (26.6, 30.86, 'playa'), (30.86, 34, 'meteoro'), (34, 36.92, 'la agarra'), (36.92, 37.5, 'negro'), (37.5, 40, 'placa')]: print(f'  {n:11s} {rms(a, b):6.1f} dB RMS')

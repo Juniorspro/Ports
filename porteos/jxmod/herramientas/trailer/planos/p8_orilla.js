@@ -6,27 +6,31 @@
   C.plano = { t0: T0, t1: T1, previo: 1.6 };
   const O = C.orilla, yaw = Math.PI / 2, f = v3(1, 0, 0), up = v3(0, 1, 0), r = vcross(f, up).norm();
   // arranca 4,5 m tierra adentro y camina hasta la orilla
-  const ini = v3(O.x - 7.6, 0, O.z), pi = pisoBajo(v3(ini.x, 0, ini.z), 300);
+  const ini = v3(O.x - 4.9, 0, O.z), pi = pisoBajo(v3(ini.x, 0, ini.z), 300);
   JUG.pos.set(ini.x, pi + 1.0, ini.z); JUG.vel.set(0, 0, 0); JUG.yaw = yaw; JUG.pitch = 0; JUG.tercera = true; JUEGO.dios = true;
   elegirArma(ARM.lista.indexOf('Hands'));
   C.sinVista = true; C.sinCabeza = null;
-  ENT.teclas.clear(); ENT.teclas.add('KeyW'); C.vmax0 = C.vmax0 || JUG.vel_max; JUG.vel_max = 2.4;
+  ENT.teclas.clear();
+  // caminata cansada, encorvado: captura de movimiento real (CMU 105_26, «caminar con dolor de panza», mira para atrás en
+  // el clip); en la toma B ya está parado en la orilla: «parado quieto» real (CMU 111_28, con su peso que va y viene)
+  C.suaveJug = false;
+  const camina = C.locomocion({ id: 'c:105_26', t0: T0 - 1.6, p0: v3(ini.x + 0.8, pi, ini.z), yaw, girar: Math.PI, esc: 1.0, desde: 0.7, hasta: 0.7 + (28.6 - T0 + 1.9) });
+  const pp = v3(O.x - 0.6, 0, O.z); pp.y = pisoBajo(v3(pp.x, 0, pp.z), 300);
+  const parado = C.locomocion({ id: 'c:111_28', t0: 28.55, p0: pp, yaw, girar: Math.PI / 2, esc: 1.0, desde: 1.2, hasta: 6.0 });
   C.grietaDir(-Math.PI / 2 - 0.25, 0.40, 0.15);
   C.grieta.on = true; C.grieta.tam = 0.42; C.grieta.abre = 1; C.grieta.brillo = 0.55;
   C.cielo(0, { dir: C.playa.dir, base: C.playa });
   C.mar.on = true;
   // respira agitado: el pecho y los hombros suben y bajan, la cabeza un poco gacha
   C.pose = (P) => {
-    const t = C.tAct || 0, k = C.tramo(t, 27.4, 27.9), fr = 2 * Math.PI * 0.62, s = Math.sin(t * fr);
+    const t = C.tAct || 0, k = C.tramo(t, 28.45, 28.6), fr = 2 * Math.PI * 0.62, s = Math.sin(t * fr);
     const fw = v3(Math.sin(P.yaw), 0, Math.cos(P.yaw)), rr = vcross(fw, v3(0, 1, 0)).norm();
     girarMundo(P, 'Spine2', rr, (-0.04 + s * 0.035) * k); girarMundo(P, 'Neck', rr, 0.12 * k); girarMundo(P, 'Head', rr, (0.1 + s * 0.02) * k);
-    girarMundo(P, 'LeftArm', fw, 0.2 * k); girarMundo(P, 'RightArm', fw, -0.2 * k); girarMundo(P, 'LeftForeArm', rr, -0.25 * k); girarMundo(P, 'RightForeArm', rr, -0.25 * k);
-    P.md.sucio = true; P.md.actualizar();
+        P.md.sucio = true; P.md.actualizar();
   };
   C.escena = (t, dt) => {
     C.tAct = t; C.mar.t = t;
-    // deja de caminar a 0,6 m del agua
-    if (JUG.pos.x >= O.x - 0.6 && ENT.teclas.has('KeyW')) ENT.teclas.delete('KeyW');
+    if (t < 28.55 && camina) camina(t); else if (parado) parado(t);
     // la ola: el agua sube y baja en la orilla (cada 6,5 s)
     C.mar.sube = 0.07 * Math.sin(t * 2 * Math.PI / 6.5) + 0.025 * Math.sin(t * 2 * Math.PI / 2.9 + 1.0);
     C.grieta.t = t; C.grieta.pulso = 0.15 + 0.1 * Math.sin(t * 1.3);

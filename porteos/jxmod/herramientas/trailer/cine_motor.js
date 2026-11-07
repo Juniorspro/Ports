@@ -29,6 +29,12 @@
       if (C.sinSombraYo) P.md.sinSombra = true;
       // el cuerpo en el tiempo exacto del subcuadro (ver C.suaveJug): lo que pasó desde el último paso de física, con su
       // velocidad; el giro, el de este subcuadro
+      // con captura de movimiento (C.act): el cuerpo va donde dice el clip, exacto en cada subcuadro
+      if (C.act && C.act.on && !P.rag) {
+        const p0 = P.pos.clone(), y0 = P.yaw;
+        P.pos.set(C.act.pos.x, C.act.pos.y + 1, C.act.pos.z); P.yaw = C.act.yaw;
+        try { return dibP(P); } finally { P.pos.copy(p0); P.yaw = y0; }
+      }
       if (C.suaveJug && JUG.vivo && !JUG.vehiculo && !P.rag) {
         const a = TIEMPO.acc || 0, p0 = P.pos.clone(), y0 = P.yaw;
         P.pos.set(JUG.pos.x + JUG.vel.x * a, JUG.pos.y + JUG.vel.y * a, JUG.pos.z + JUG.vel.z * a); P.yaw = JUG.yaw;
@@ -51,6 +57,145 @@
       if (JUG.pos.x === pe.x && JUG.pos.y === pe.y && JUG.pos.z === pe.z) JUG.pos.copy(p0);   // (si la escena lo movió a propósito —un corte—, queda)
     }
   };
+  // ---------------- captura de movimiento (CMU) para caminar y correr ----------------
+  // C.mocap = { id: 'c:09_01', tc } : el cuerpo del jugador hace ese clip (en el lugar) en el tiempo tc del clip. El
+  // emote se pone justo antes de animar (el juego lo cancela al moverse y le suma su propio tiempo)
+  const anP = animarPersona;
+  // fundido entre dos clips (C.mocap.prev = { id, tc, dyaw }, C.mocap.w = peso del nuevo): cada clip trae su propio rumbo
+  // de cadera (compensado con 'girar' en el cuerpo), así que el anterior se pone entero, girado dyaw alrededor de la
+  // vertical para que mire para el mismo lado, y el nuevo encima con peso w (sin esto, al cambiar de clip el cuerpo
+  // saltaba de pose de golpe)
+  animarPersona = function (P, dt) {
+    const M = C.mocap, yo = M && M.id && P === JUG.cuerpo;
+    if (yo) { P.emote = M.id; P.escena = null; P.emoteT = M.tc - (P.hum ? dt : 0); }
+    const r = anP(P, dt);
+    if (yo && M.prev && M.w < 1) {
+      const Cn = emoClip(M.id), Cp = emoClip(M.prev.id);
+      if (Cn && Cp) {
+        emoAplicar(P, Cp, clamp(M.prev.tc * Cp.fps, 0, Cp.nf - 1.001), 1);
+        if (M.prev.dyaw) girarMundo(P, 'Hips', v3(0, 1, 0), M.prev.dyaw);
+        emoAplicar(P, Cn, clamp(M.tc * Cn.fps, 0, Cn.nf - 1.001), M.w);
+        P.md.sucio = true;
+      }
+    }
+    return r;
+  };
+  // el rumbo de la cadera de un clip en tc (radianes, como el yaw del juego)
+  C.rumboCadera = (id, tc) => {
+    const Cl = emoClip(id); if (!Cl) return 0;
+    const k = Cl.b.indexOf('Hips'), nb = Cl.b.length, f = clamp(Math.round(tc * Cl.fps), 0, Cl.nf - 1), o = (f * nb + k) * 4, R = Cl.r;
+    const x = R[o] / 32767, y = R[o + 1] / 32767, z = R[o + 2] / 32767, w = R[o + 3] / 32767;
+    return Math.atan2(2 * (x * z + w * y), 1 - 2 * (x * x + y * y));
+  };
+  // dónde quedan unos huesos con el cuerpo puesto como lo pone un tramo de locomoción (fn) en el instante t
+  C.poseHuesos = (fn, t, nombres) => {
+    const P = JUG.cuerpo, g = { pos: P.pos.clone(), yaw: P.yaw, e: P.emote, t: P.emoteT, s: P.escena, m: C.mocap };
+    fn(t); P.pos.set(C.act.pos.x, C.act.pos.y + 1, C.act.pos.z); P.yaw = C.act.yaw;
+    P.emote = C.mocap.id; P.escena = null; P.emoteT = C.mocap.tc; P.emoLift = 0; anP(P, 0); ubicarPersona(P); P.md.sucio = true; P.md.actualizar();
+    const out = {}; for (const n of nombres) { const i = P.D.h[n]; if (i !== undefined) out[n] = celmPos(P.md, i); }
+    P.pos.copy(g.pos); P.yaw = g.yaw; P.emote = g.e; P.emoteT = g.t; P.escena = g.s; C.mocap = g.m;
+    return out;
+  };
+  // la velocidad del clip: el pie apoyado (el más bajo, a menos de 3,5 cm de su punto más bajo) se va para atrás a la
+  // velocidad con la que el actor avanzaba; si el cuerpo avanza así, el pie queda clavado en el piso
+  C.mocapVel = (id, desde, hasta) => {
+    const P = JUG.cuerpo, Cl = emoClip(id); if (!P || !Cl) return null;
+    const h = P.D.h, iL = h.LeftFoot, iR = h.RightFoot; if (iL === undefined || iR === undefined) return null;
+    const guarda = { e: P.emote, t: P.emoteT, s: P.escena, pos: P.pos.clone(), yaw: P.yaw };
+    P.pos.set(0, 1, 0); P.yaw = 0; const pasos = [], dtm = 1 / 60;
+    let prev = null;
+    for (let t = desde; t <= hasta; t += dtm) {
+      P.emote = id; P.escena = null; P.emoteT = t; anP(P, 0); ubicarPersona(P); P.md.sucio = true; P.md.actualizar();
+      const L = celmPos(P.md, iL), R = celmPos(P.md, iR);
+      if (prev) pasos.push({ L, R, dL: (L.z - prev.L.z) / dtm, dR: (R.z - prev.R.z) / dtm, xL: (L.x - prev.L.x) / dtm, xR: (R.x - prev.R.x) / dtm });
+      prev = { L, R };
+    }
+    const mnL = Math.min(...pasos.map((x) => x.L.y)), mnR = Math.min(...pasos.map((x) => x.R.y)), v = [], l = [];
+    for (const x of pasos) {
+      const aL = x.L.y < mnL + 0.035, aR = x.R.y < mnR + 0.035;
+      if (aL && (!aR || x.L.y <= x.R.y)) { v.push(-x.dL); l.push(-x.xL); } else if (aR) { v.push(-x.dR); l.push(-x.xR); }
+    }
+    P.emote = guarda.e; P.emoteT = guarda.t; P.escena = guarda.s; P.pos.copy(guarda.pos); P.yaw = guarda.yaw;
+    if (!v.length) return { v: 0, lat: 0, n: 0 };
+    const med = (a) => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
+    return { v: med(v), lat: med(l), n: v.length, apoyo: v.length / pasos.length };
+  };
+  // el recorrido del clip con el pie clavado: en cada instante el cuerpo avanza lo que el pie apoyado se fue para atrás
+  // (en el aire, al correr, sigue con la última velocidad). Sirve para clips que frenan o arrancan (caminar y parar).
+  // Devuelve una tabla de (tc, x, z) en el marco del cuerpo (z adelante)
+  C.mocapRuta = (id, desde, hasta) => {
+    const P = JUG.cuerpo, Cl = emoClip(id); if (!P || !Cl) return null;
+    const h = P.D.h, iL = h.LeftFoot, iR = h.RightFoot;
+    const guarda = { e: P.emote, t: P.emoteT, s: P.escena, pos: P.pos.clone(), yaw: P.yaw };
+    P.pos.set(0, 1, 0); P.yaw = 0; const dtm = 1 / 120, M = [];
+    for (let t = desde; t <= hasta + 1e-9; t += dtm) {
+      P.emote = id; P.escena = null; P.emoteT = t; P.emoLift = 0; anP(P, 0); ubicarPersona(P); P.md.sucio = true; P.md.actualizar();
+      M.push({ t, L: celmPos(P.md, iL), R: celmPos(P.md, iR) });
+    }
+    P.emote = guarda.e; P.emoteT = guarda.t; P.escena = guarda.s; P.pos.copy(guarda.pos); P.yaw = guarda.yaw;
+    const mnL = Math.min(...M.map((m) => m.L.y)), mnR = Math.min(...M.map((m) => m.R.y));
+    // (la altura: la suela del pie más bajo, apoyada justo en el piso; la captura trae la cadera unos cm más alta)
+    const offY = (P.D.tobillo || 0.08) - Math.min(mnL, mnR);
+    const T = [{ t: desde, x: 0, z: 0 }]; let vx = 0, vz = 0, x = 0, z = 0;
+    for (let i = 1; i < M.length; i++) {
+      const a = M[i - 1], b = M[i], cL = b.L.y < mnL + 0.035, cR = b.R.y < mnR + 0.035;
+      let f = null; if (cL && (!cR || b.L.y <= b.R.y)) f = 'L'; else if (cR) f = 'R';
+      if (f) { vx = -(b[f].x - a[f].x) / dtm; vz = -(b[f].z - a[f].z) / dtm; }
+      x += vx * dtm; z += vz * dtm; T.push({ t: b.t, x, z });
+    }
+    // (un suavizado corto: al cambiar de pie apoyado la velocidad salta)
+    const S = T.map((p, i) => { let sx = 0, sz = 0, n = 0; for (let j = Math.max(0, i - 4); j <= Math.min(T.length - 1, i + 4); j++) { sx += T[j].x; sz += T[j].z; n++; } return { t: p.t, x: sx / n, z: sz / n }; });
+    return { desde, dtm, S, offY };
+  };
+  C.rutaEn = (R, tc) => {
+    const S = R.S, f = clamp((tc - R.desde) / R.dtm, 0, S.length - 1.0001), i = Math.floor(f), a = f - i;
+    return { x: S[i].x + (S[i + 1].x - S[i].x) * a, z: S[i].z + (S[i + 1].z - S[i].z) * a };
+  };
+  // un tramo de caminar o correr: op = { id, t0 (tiempo del tráiler), p0 (dónde está en t0), yaw (para dónde mira),
+  // esc (velocidad de reproducción), desde (tiempo del clip en t0), hasta (último tiempo del clip que se usa), girar
+  // (radianes que se le suman al cuerpo si el clip mira para atrás) }. Devuelve (t) → la posición del actor en t
+  C.locomocion = (op) => {
+    const esc = op.esc || 1, desde = op.desde === undefined ? 0.6 : op.desde, hasta = op.hasta || desde + 6;
+    const R = C.mocapRuta(op.id, desde, hasta); if (!R) return null;
+    const yawC = op.yaw + (op.girar || 0), cs = Math.cos(yawC), sn = Math.sin(yawC);
+    return (t) => {
+      const tc = Math.min(hasta, desde + (t - op.t0) * esc), d = C.rutaEn(R, tc);
+      // (del marco del cuerpo al mundo: z adelante = (sin yaw, cos yaw), x = (cos yaw, -sin yaw))
+      const wx = d.x * cs + d.z * sn, wz = -d.x * sn + d.z * cs;
+      const p = v3(op.p0.x + wx, op.p0.y, op.p0.z + wz), y = pisoBajo(v3(p.x, p.y + 20, p.z), 60); if (y !== null) p.y = y; const suelo = p.y; p.y += R.offY;
+      const d2 = C.rutaEn(R, Math.min(hasta, tc + 0.05)), vx = ((d2.x - d.x) * cs + (d2.z - d.z) * sn) / 0.05 * esc, vz = (-(d2.x - d.x) * sn + (d2.z - d.z) * cs) / 0.05 * esc;
+      C.mocap = { id: op.id, tc }; C.actPoner(p, yawC, v3(vx, 0, vz)); C.act.suelo = suelo;
+      return p;
+    };
+  };
+  // medición: cuánto patinan los pies apoyados (cm) en un tramo de locomoción ya armado (fn = lo que devuelve
+  // C.locomocion): con el cuerpo donde lo pone el tramo, el pie apoyado tendría que quedarse quieto en el mundo
+  C.medirPatinar = (fn, t0, t1) => {
+    const P = JUG.cuerpo, h = P.D.h, iL = h.LeftFoot, iR = h.RightFoot, dtm = 1 / 120, M = [];
+    const guarda = { pos: P.pos.clone(), yaw: P.yaw, e: P.emote, t: P.emoteT, s: P.escena };
+    for (let t = t0; t <= t1; t += dtm) {
+      fn(t); P.pos.set(C.act.pos.x, C.act.pos.y + 1, C.act.pos.z); P.yaw = C.act.yaw;
+      P.emote = C.mocap.id; P.escena = null; P.emoteT = C.mocap.tc; P.emoLift = 0; anP(P, 0); ubicarPersona(P); P.md.sucio = true; P.md.actualizar();
+      M.push({ L: celmPos(P.md, iL), R: celmPos(P.md, iR), suelo: C.act.suelo });
+    }
+    P.pos.copy(guarda.pos); P.yaw = guarda.yaw; P.emote = guarda.e; P.emoteT = guarda.t; P.escena = guarda.s;
+    const res = {};
+    for (const f of ['L', 'R']) {
+      const alt = M.map((m) => m[f].y - m.suelo - (P.D.tobillo || 0.08)), mn = Math.min(...alt), vel = [];
+      for (let i = 1; i < M.length; i++) if (alt[i] < mn + 0.035 && alt[i - 1] < mn + 0.035) vel.push(Math.hypot(M[i][f].x - M[i - 1][f].x, M[i][f].z - M[i - 1][f].z) / dtm);
+      vel.sort((a, b) => a - b);
+      res[f] = { altMin: +mn.toFixed(3), cuadrosApoyo: vel.length, velMediana: vel.length ? +vel[Math.floor(vel.length / 2)].toFixed(3) : null, velP90: vel.length ? +vel[Math.floor(vel.length * 0.9)].toFixed(3) : null };
+    }
+    return res;
+  };
+  const aterr = aterrizarPies;
+  aterrizarPies = function (P) { if (C.act && C.act.on && P === JUG.cuerpo && C.mocap) { P.pieCorr = 0; return; } return aterr(P); };
+  // el actor: dónde está y para dónde mira en el instante t (lo pone la escena); el cuerpo se dibuja ahí
+  C.act = { on: false, pos: v3(), yaw: 0 };
+  C.actPoner = (pos, yaw, vel) => {
+    C.act.on = true; C.act.pos.copy(pos); C.act.yaw = yaw;
+    JUG.pos.set(pos.x, pos.y + 1, pos.z); JUG.yaw = yaw; if (vel) JUG.vel.copy(vel); else JUG.vel.set(0, 0, 0);
+  };
   const ubi = ubicarPersona;
   ubicarPersona = function (P) {
     ubi(P);
@@ -58,7 +203,11 @@
     if (C.pose && P === JUG.cuerpo) C.pose(P);
   };
   const cie = dibujarCielo;
-  dibujarCielo = function (IVP) { cie(IVP); if (C.grieta.on && (C.grieta.abre > 0 || C.grieta.estrellas > 0)) grietaDibujar(IVP); };
+  dibujarCielo = function (IVP) {
+    cie(IVP); if (C.grieta.on && (C.grieta.abre > 0 || C.grieta.estrellas > 0)) grietaDibujar(IVP);
+    // (la nuclear: después del cielo y antes de las partículas, que están más cerca)
+    if (C.nuc && C.nuc.on) { try { C.nucDibujar(IVP); } catch (e) { C.nucError = String(e && e.message || e); C.nuc.on = false; } }
+  };
   const lj = lucesJuntar;
   lucesJuntar = function () { lj(); for (const l of C.luces) { if (l.esp) luzEspecial(l.p, l.r, l.c, l.d || null, l.k, 9, false); else luzPuntual(l.p, l.r, l.c); } };
 
@@ -660,6 +809,279 @@ void main(){ float x = abs(vX) / max(vW, 0.35); float k = uDuro > 0.5 ? exp(-x *
     G.dir = c; G.e1 = f1; G.e2 = f2; return c;
   };
   C.grietaDir(0, 0.6, 0);
+
+  // ---------------- la nuclear (efecto propio): un hongo volumétrico ----------------
+  // Un volumen con marcha de rayos en una pasada de pantalla completa, después del cielo y antes de las partículas. La forma
+  // es una función de distancia que cambia con el tiempo τ desde la detonación: la bola de fuego que nace en el piso y sube,
+  // se abre en un toro que rueda (el aire sube por el medio, sale por arriba y baja por afuera) con un domo encima, el
+  // tallo de polvo que chupa del piso y la falda de polvo que corre por el suelo. El borde se come con ruido 3D (una
+  // textura de 64³ repetible: ruido celular invertido —coliflor— y de gradiente). Luz de la grieta con sombra propia (la
+  // forma grande) y sombreado de cada coliflor (hacia dónde crece la densidad), luz del cielo y del suelo, y el fuego de
+  // adentro: brilla (cuerpo negro según la temperatura) y alumbra el humo de alrededor. Cada fragmento escribe la
+  // profundidad del punto donde el rayo entra en el humo: lo que está delante (él, las dunas) lo tapa
+  const NUC = C.nuc = { on: false, p: v3(), tau: 0, prog: null, tex: null, sem: 0 };
+  function nucRuido() {
+    const N = 64, n3 = N * N * N, gl = R.gl;
+    let sem = 11; const rnd = () => { sem = (sem * 16807) % 2147483647; return sem / 2147483647; };
+    const w3 = (i, f) => ((i % f) + f) % f;
+    // celular repetible con f celdas por lado: 1 − d² al punto más cercano (bultos redondos con pliegues entre ellos)
+    const celular = (f) => {
+      const P = new Float32Array(f * f * f * 3); for (let i = 0; i < P.length; i++) P[i] = rnd();
+      const o = new Float32Array(n3), k = f / N; let mn = 9, mx = -9;
+      for (let z = 0; z < N; z++) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        const px = (x + 0.5) * k, py = (y + 0.5) * k, pz = (z + 0.5) * k, cx = Math.floor(px), cy = Math.floor(py), cz = Math.floor(pz);
+        let m = 9;
+        for (let dz = -1; dz <= 1; dz++) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const ix = cx + dx, iy = cy + dy, iz = cz + dz, j = ((w3(iz, f) * f + w3(iy, f)) * f + w3(ix, f)) * 3;
+          const ex = ix + P[j] - px, ey = iy + P[j + 1] - py, ez = iz + P[j + 2] - pz, d = ex * ex + ey * ey + ez * ez;
+          if (d < m) m = d;
+        }
+        const v = 1 - m; o[(z * N + y) * N + x] = v; if (v < mn) mn = v; if (v > mx) mx = v;
+      }
+      for (let i = 0; i < n3; i++) o[i] = (o[i] - mn) / (mx - mn);
+      return o;
+    };
+    // gradiente repetible con f celdas por lado
+    const gradiente = (f) => {
+      const G = new Float32Array(f * f * f * 3);
+      for (let i = 0; i < f * f * f; i++) { const a = rnd() * 6.2832, zz = rnd() * 2 - 1, r = Math.sqrt(1 - zz * zz); G[i * 3] = r * Math.cos(a); G[i * 3 + 1] = r * Math.sin(a); G[i * 3 + 2] = zz; }
+      const o = new Float32Array(n3), k = f / N, fd = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+      const g = (ix, iy, iz, x, y, z) => { const j = ((w3(iz, f) * f + w3(iy, f)) * f + w3(ix, f)) * 3; return G[j] * x + G[j + 1] * y + G[j + 2] * z; };
+      for (let zz = 0; zz < N; zz++) for (let yy = 0; yy < N; yy++) for (let xx = 0; xx < N; xx++) {
+        const px = (xx + 0.5) * k, py = (yy + 0.5) * k, pz = (zz + 0.5) * k, ix = Math.floor(px), iy = Math.floor(py), iz = Math.floor(pz);
+        const fx = px - ix, fy = py - iy, fz = pz - iz, u = fd(fx), v = fd(fy), w = fd(fz);
+        const a = g(ix, iy, iz, fx, fy, fz), b = g(ix + 1, iy, iz, fx - 1, fy, fz), c = g(ix, iy + 1, iz, fx, fy - 1, fz), d = g(ix + 1, iy + 1, iz, fx - 1, fy - 1, fz);
+        const e = g(ix, iy, iz + 1, fx, fy, fz - 1), f2 = g(ix + 1, iy, iz + 1, fx - 1, fy, fz - 1), h = g(ix, iy + 1, iz + 1, fx, fy - 1, fz - 1), m = g(ix + 1, iy + 1, iz + 1, fx - 1, fy - 1, fz - 1);
+        const x1 = a + (b - a) * u, x2 = c + (d - c) * u, x3 = e + (f2 - e) * u, x4 = h + (m - h) * u, y1 = x1 + (x2 - x1) * v, y2 = x3 + (x4 - x3) * v;
+        o[(zz * N + yy) * N + xx] = y1 + (y2 - y1) * w;
+      }
+      return o;
+    };
+    const c4 = celular(4), c8 = celular(8), c16 = celular(16), g4 = gradiente(4), g8 = gradiente(8), g16 = gradiente(16), g32 = gradiente(32);
+    const D = new Uint8Array(n3 * 4), cl = (x) => Math.max(0, Math.min(255, Math.round(x * 255)));
+    for (let i = 0; i < n3; i++) {
+      const pf = 0.5 + 0.9 * (0.5 * g4[i] + 0.25 * g8[i] + 0.125 * g16[i]);   // (gradiente: de 0 a 1 más o menos)
+      D[i * 4] = cl(0.62 * c4[i] + 0.38 * pf);                                  // R: bultos grandes (celular + gradiente)
+      D[i * 4 + 1] = cl(c8[i]);                                                 // G: bultos medianos
+      D[i * 4 + 2] = cl(c16[i]);                                                // B: coliflor chica
+      D[i * 4 + 3] = cl(0.5 + 0.9 * (0.5 * g8[i] + 0.25 * g16[i] + 0.125 * g32[i]));   // A: jirones
+    }
+    const tex = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_3D, tex); R.texAct = null;
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA8, N, N, N, 0, gl.RGBA, gl.UNSIGNED_BYTE, D);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    for (const w of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T, gl.TEXTURE_WRAP_R]) gl.texParameteri(gl.TEXTURE_3D, w, gl.REPEAT);
+    gl.bindTexture(gl.TEXTURE_3D, null);
+    return tex;
+  }
+  const FS_NUC = `
+precision highp float; precision highp sampler3D;
+in vec3 vD;
+uniform mat4 uVP;
+uniform vec3 uCam, uO, uSol, uSolC, uAmbS, uAmbG, uNieC, uAlbH, uAlbT, uAlbF;
+uniform float uNieA, uNieB, uSem;
+uniform vec4 uCap;    // H (altura del centro del tubo), Rm (radio del anillo), Rn (radio del tubo), giro (rad)
+uniform vec4 uTallo;  // radio abajo, radio arriba, tope, subida del ruido (m)
+uniform vec4 uFalda;  // radio del frente, alto, ancho del frente, densidad
+uniform vec4 uFuego;  // brillo, temperatura (0..1), hollín (0..1), luz del fuego sobre el humo
+uniform vec4 uDens;   // extinción del hongo, del tallo, de la falda (1/m), tallo presente (0..1)
+uniform vec2 uCaja;   // radio y alto del cilindro que contiene todo
+uniform sampler3D uRu;
+uniform float uDbg;
+out vec4 o;
+float smin(float a, float b, float k) { float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
+float h12(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float sdHongo(vec3 p) {
+  float rho = length(p.xz);
+  float st = length(vec2(rho - uCap.y, p.y - uCap.x)) - uCap.z;
+  float ax = uCap.y + 0.62 * uCap.z, ay = 1.0 * uCap.z;
+  vec2 e = vec2(rho / ax, (p.y - uCap.x - 0.22 * uCap.z) / ay);
+  float sd = max((length(e) - 1.0) * min(ax, ay), uCap.x - 0.15 * uCap.z - p.y);
+  return smin(st, sd, 0.3 * uCap.z);
+}
+float sdTallo(vec3 p) {
+  float top = uTallo.z, u = clamp(p.y / max(top, 1.0), 0.0, 1.0);
+  float r = mix(uTallo.x, uTallo.y, u) + uTallo.x * 1.3 * exp(-p.y / 20.0);
+  r *= 1.0 + 0.22 * sin(p.y * 0.034 - uTallo.w * 0.06) + 0.12 * sin(p.y * 0.083 + 1.7 - uTallo.w * 0.11);   // (bultos que suben)
+  return max(length(p.xz) - r, p.y - top) + (1.0 - uDens.w) * 80.0;
+}
+float sdFalda(vec3 p) {
+  float rho = length(p.xz), w = 0.5 * uFalda.z;
+  vec2 d = vec2((rho - uFalda.x + w) / w, p.y / uFalda.y);
+  float s1 = (length(d) - 1.0) * min(w, uFalda.y);
+  float s2 = max(rho - uFalda.x + w, p.y - 0.45 * uFalda.y);
+  return min(s1, s2) + (1.0 - uFalda.w) * 60.0;
+}
+// coordenadas del ruido del hongo: cada corte del tubo gira alrededor de su centro (el rodado), sin costuras
+vec3 qHongo(vec3 p) {
+  float rho = length(p.xz); vec2 dir = rho > 0.01 ? p.xz / rho : vec2(1.0, 0.0);
+  vec2 d = vec2(rho - uCap.y, p.y - uCap.x);
+  float a = uCap.w * smoothstep(0.0, 0.8 * uCap.y + 1.0, rho), c = cos(a), s = sin(a);
+  vec2 r = vec2(c * d.x - s * d.y, s * d.x + c * d.y);
+  float rr = uCap.y + r.x;
+  return vec3(dir.x * rr, uCap.x + r.y, dir.y * rr);
+}
+// ruido de borde: de -0,5 a 0,5 más o menos (bultos grandes, medianos, coliflor chica y jirones)
+float ruido(vec3 q, float L) {
+  vec4 a = texture(uRu, q / L), b = texture(uRu, q / (L * 0.29));
+  return (a.r - 0.5) * 0.56 + (a.g - 0.5) * 0.24 + (b.b - 0.5) * 0.13 + (b.a - 0.5) * 0.07;
+}
+float ruidoG(vec3 q, float L) { vec4 a = texture(uRu, q / L); return (a.r - 0.5) * 0.56 + (a.g - 0.5) * 0.24; }
+vec3 cuerpoNegro(float T) {
+  vec3 c = vec3(1.0, 0.18, 0.02);
+  c = mix(c, vec3(1.0, 0.42, 0.08), smoothstep(0.25, 0.5, T));
+  c = mix(c, vec3(1.0, 0.72, 0.36), smoothstep(0.5, 0.78, T));
+  c = mix(c, vec3(1.0, 0.95, 0.86), smoothstep(0.78, 1.05, T));
+  return c * (0.2 + 0.8 * smoothstep(0.1, 0.55, T));
+}
+float hg(float c, float g) { float g2 = g * g; return (1.0 - g2) / pow(max(1.0 + g2 - 2.0 * g * c, 1e-4), 1.5); }
+// densidad de todo en p (extinción por metro); devuelve también qué es (hongo, tallo, falda) y lo caliente
+float medio(vec3 p, out vec3 cual, out float cal, out float sBase) {
+  float sh = sdHongo(p), stl = sdTallo(p), sf = sdFalda(p);
+  sBase = min(sh, min(stl, sf));
+  float Rn = uCap.z, Ah = 0.62 * Rn, At = 1.0 * uTallo.x + 8.0, Af = 1.0 * uFalda.y + 6.0;
+  float m = sBase;
+  float nh = 0.0, nt = 0.0, nf = 0.0;
+  if (sh < m + Ah * 0.6 && sh < Ah * 0.6) nh = ruido(qHongo(p), 2.3 * Rn);
+  if (stl < m + At * 0.6 && stl < At * 0.6) { float g = 0.004 * p.y + 0.12 * uTallo.w / 32.0, cg = cos(g), sg = sin(g); nt = ruido(vec3(cg * p.x - sg * p.z, p.y - uTallo.w, sg * p.x + cg * p.z), 1.3 * uTallo.x + 18.0); }
+  if (sf < m + Af * 0.6 && sf < Af * 0.6) { float k = 120.0 / max(uFalda.x, 60.0); nf = ruido(vec3(p.x * k, p.y * 1.6, p.z * k) + vec3(17.0, 0.0, 31.0), 75.0); }
+  float blando = 3.0 + 0.02 * Rn;
+  float dh = clamp(-(sh - Ah * 2.0 * nh) / blando, 0.0, 1.0) * uDens.x;
+  float dt = clamp(-(stl - At * 2.0 * nt) / (blando * 1.6), 0.0, 1.0) * uDens.y;
+  float df = clamp(-(sf - Af * 2.0 * nf) / (blando * 2.0), 0.0, 1.0) * uDens.z * (1.0 - smoothstep(0.0, uFalda.y * 1.4, p.y) * 0.6);
+  float tot = max(dh, max(dt, df));
+  cual = vec3(dh, dt, df) / max(dh + dt + df, 1e-6);
+  // lo caliente: adentro del hongo, más abajo y adentro del tubo; con el hollín, la piel negra de afuera se hace gruesa
+  float prof = -(sh - Ah * 2.0 * nh);
+  float bajo = 1.0 - smoothstep(-0.6 * Rn, 0.7 * Rn, p.y - uCap.x);
+  float piel = mix(3.0, 0.55 * Rn, uFuego.z) * mix(1.0, 0.45, bajo);
+  cal = smoothstep(piel * 0.6, piel * 1.6 + 6.0, prof) * mix(1.0, 0.35 + 0.65 * bajo, uFuego.z) * cual.x;
+  // el tallo: arriba, cerca del hongo, caliente al principio
+  cal += smoothstep(0.55, 1.0, p.y / max(uTallo.z, 1.0)) * (1.0 - uFuego.z * 0.85) * 0.7 * cual.y * smoothstep(2.0, 12.0, -(stl - At * 2.0 * nt));
+  return tot;
+}
+float base(vec3 p) { return min(sdHongo(p), min(sdTallo(p), sdFalda(p))); }
+// la densidad con el ruido grueso solo (para el sombreado de los bultos)
+float medioG(vec3 p) {
+  float sh = sdHongo(p), stl = sdTallo(p), sf = sdFalda(p), Rn = uCap.z, Ah = 0.62 * Rn, At = 1.0 * uTallo.x + 8.0, Af = 1.0 * uFalda.y + 6.0, blando = 3.0 + 0.02 * Rn;
+  float dh = 0.0, dt = 0.0, df = 0.0;
+  if (sh < Ah * 0.6) dh = clamp(-(sh - Ah * 2.0 * ruidoG(qHongo(p), 2.3 * Rn)) / blando, 0.0, 1.0) * uDens.x;
+  if (stl < At * 0.6) dt = clamp(-(stl - At * 2.0 * ruidoG(vec3(p.x, p.y - uTallo.w, p.z), 1.3 * uTallo.x + 18.0)) / (blando * 1.6), 0.0, 1.0) * uDens.y;
+  if (sf < Af * 0.6) df = clamp(-sf / (blando * 2.0), 0.0, 1.0) * uDens.z;
+  return max(dh, max(dt, df));
+}
+void main() {
+  vec3 rd = normalize(vD - uCam), ro = uCam - uO;
+  // el cilindro que lo contiene todo (y el piso)
+  float a = dot(rd.xz, rd.xz), b = dot(ro.xz, rd.xz), c = dot(ro.xz, ro.xz) - uCaja.x * uCaja.x, disc = b * b - a * c;
+  if (disc <= 0.0 || a < 1e-9) discard;
+  float sq = sqrt(disc), t0 = (-b - sq) / a, t1 = (-b + sq) / a;
+  float ty0 = (0.0 - ro.y) / rd.y, ty1 = (uCaja.y - ro.y) / rd.y;
+  float tA = max(max(t0, min(ty0, ty1)), 0.0), tB = min(t1, max(ty0, ty1));
+  if (tA >= tB) discard;
+  float Rn = uCap.z, paso = max(2.2, 0.045 * Rn);
+  float t = tA + h12(gl_FragCoord.xy + uSem) * paso, Tr = 1.0, tHit = -1.0;
+  vec3 col = vec3(0.0);
+  float cosT = dot(rd, uSol), fase = mix(hg(cosT, 0.3), hg(cosT, -0.1), 0.45) * 0.8 + 0.2;
+  float margen = 0.62 * Rn + 8.0;
+  int it = 0;
+  for (int i = 0; i < 100; i++) {
+    it = i;
+    if (t > tB || Tr < 0.02) break;
+    vec3 p = ro + rd * t;
+    float sb = base(p);
+    if (sb > margen) { t += max(sb - margen * 0.9, paso); continue; }
+    vec3 cual; float cal, sBase;
+    float sig = medio(p, cual, cal, sBase);
+    if (sig > 0.0005) {
+      if (tHit < 0.0) tHit = t;
+      // sombra hacia la luz con la forma grande (sin ruido) y el sombreado de cada bulto (¿crece la densidad hacia la luz?)
+      float sl = 0.0;
+      for (int j = 1; j <= 3; j++) { float d = float(j * j) * 10.0 + 4.0; sl += clamp(-base(p + uSol * d) / (0.3 * Rn), 0.0, 1.0) * float(2 * j - 1) * 10.0; }
+      float sig2 = medioG(p + uSol * (0.09 * Rn + 2.0));
+      float sigK = dot(cual, uDens.xyz);
+      float Ts = max(exp(-sl * sigK * 0.9), 0.3 * exp(-sl * sigK * 0.15)) * clamp(1.0 - (sig2 - sig) / max(sigK, 1e-4) * 0.9, 0.12, 1.0);
+      vec3 alb = uAlbH * cual.x + uAlbT * cual.y + uAlbF * cual.z;
+      alb *= mix(1.0, 0.55, uFuego.z * cual.x * (1.0 - smoothstep(-0.3 * Rn, 0.9 * Rn, p.y - uCap.x)));   // (abajo del hongo, más hollín)
+      float arriba = clamp((p.y - uCap.x) / (1.2 * Rn) * 0.5 + 0.5, 0.0, 1.0);
+      float occ = exp(-max(0.0, -sBase) / (0.55 * Rn));
+      vec3 amb = (uAmbS * (0.45 + 0.55 * arriba) + uAmbG * (0.55 - 0.4 * arriba)) * occ;
+      // la luz del fuego sobre el humo: del centro del tubo (o de la bola), más fuerte cerca
+      float dt2 = length(vec2(length(p.xz) - uCap.y, p.y - uCap.x));
+      vec3 fuegoL = cuerpoNegro(uFuego.y * 0.85) * uFuego.w * (Rn * Rn) / (Rn * Rn + dt2 * dt2 * 1.6) * (cual.y + cual.z + cual.x * 0.5 * (1.0 - smoothstep(-0.5 * Rn, 0.2 * Rn, p.y - uCap.x)));
+      // debajo del sombrero: el cielo y la luz de la grieta tapados por el hongo
+      float Rext = uCap.y + uCap.z, cov = (1.0 - smoothstep(0.8 * Rext, 1.15 * Rext, length(p.xz))) * (1.0 - smoothstep(uCap.x - 0.9 * Rn, uCap.x - 0.3 * Rn, p.y)) * (1.0 - cual.x);
+      amb *= mix(1.0, 0.38, cov); Ts *= mix(1.0, 0.3, cov);
+      vec3 S = alb * (uSolC * fase * Ts + amb + fuegoL);
+      S += cuerpoNegro(uFuego.y + 0.25 * cal) * uFuego.x * cal;
+      // niebla (como el resto: según la distancia)
+      float fN = clamp((t - uNieA) / max(1.0, uNieB - uNieA), 0.0, 1.0);
+      S = mix(S, uNieC, fN * fN * 0.85);
+      float Tp = exp(-sig * paso);
+      col += Tr * (1.0 - Tp) * S; Tr *= Tp;
+    }
+    t += paso;
+  }
+  if (Tr < 0.03) { col /= (1.0 - Tr); Tr = 0.0; }
+  if (uDbg > 0.5) { o = vec4(Tr, float(it) / 120.0, t > tB ? 1.0 : 0.0, 1.0); gl_FragDepth = 0.5; return; }
+  if (tHit < 0.0 || Tr > 0.998) discard;
+  vec4 cl = uVP * vec4(ro + rd * tHit + uO, 1.0);
+  gl_FragDepth = clamp(cl.z / cl.w * 0.5 + 0.5, 0.0, 0.99998);
+  o = vec4(col, 1.0 - Tr);
+}`;
+  // el estado del hongo en τ (segundos desde la detonación)
+  NUC.estado = (tau) => {
+    const e = Math.exp, sv = C.suave, tr = C.tramo, mx = (a, b, k) => a + (b - a) * k;
+    const Rf = 95 * (1 - e(-tau * 4.0));
+    const H = 25 + (tau > 0.15 ? 430 * (1 - e(-(tau - 0.15) / 2.4)) : 0);
+    const m = sv(tr(tau, 0.45, 2.6));
+    const Rm = m * 140 * (1 - e(-tau / 2.5));
+    const Rn = Math.max(1, mx(Rf, 58 + 30 * (1 - e(-tau / 3)), m));
+    const top = Math.min(H - 0.4 * Rn, 160 * Math.max(0, tau - 0.4));
+    const Rb = 30 + 400 * (1 - e(-tau / 2.2)), hb = 12 + 30 * (1 - e(-tau / 2)), wb = 40 + 50 * (1 - e(-tau / 3));
+    const fuego = 60 * e(-tau * 3.5) + 6 * e(-tau * 0.9) + 1.2 * e(-tau / 3);
+    return {
+      cap: [H, Rm, Rn, NUC.giro0 + 0.33 * tau],
+      tallo: [28 + 14 * (1 - e(-tau / 3)), 20 + 14 * (1 - e(-tau / 3)), Math.max(1, top), 32 * tau],
+      falda: [Rb, hb, wb, sv(tr(tau, 0.1, 0.6)) * (1 - 0.4 * sv(tr(tau, 4, 8)))],
+      fuegoV: [fuego, 0.25 + 0.8 * e(-tau * 1.8), sv(tr(tau, 0.15, 1.5)), fuego * 0.12],
+      dens: [0.1, 0.06, 0.04, sv(tr(tau, 0.4, 1.2))],
+      caja: [Math.max(Rb + 30, Rm + Rn * 1.4 + 40), H + Rn * 1.6 + 40],
+      fuego, Rf, H, Rn, Rm,
+    };
+  };
+  NUC.giro0 = 0; NUC.ambK = 2.2; NUC.solK = 0.8; NUC.albH = [0.62, 0.5, 0.44]; NUC.albT = [0.58, 0.48, 0.4]; NUC.albF = [0.55, 0.46, 0.38];
+  C.nucDibujar = (IVP) => {
+    if (!NUC.on || R.salida !== 'hdr') return;
+    const gl = R.gl, L = R.lin;
+    if (!NUC.tex) NUC.tex = nucRuido();
+    if (!NUC.prog) NUC.prog = shader(VS_G, FS_NUC, []);
+    const P = NUC.prog; gl.useProgram(P.p); R.progAct = P;
+    const E = NUC.estado(NUC.tau);
+    gl.uniformMatrix4fv(P.u.uIVP, false, IVP); gl.uniformMatrix4fv(P.u.uVP, false, R.vp);
+    gl.uniform3f(P.u.uCam, R.camPos.x, R.camPos.y, R.camPos.z); gl.uniform3f(P.u.uO, NUC.p.x, NUC.p.y, NUC.p.z);
+    gl.uniform3f(P.u.uSol, R.sol.x, R.sol.y, R.sol.z); gl.uniform3fv(P.u.uSolC, L.solCol.map((x) => x * (NUC.solK || 1)));
+    gl.uniform3fv(P.u.uAmbS, L.ambS.map((x) => x * (NUC.ambK || 1))); gl.uniform3fv(P.u.uAmbG, L.ambG.map((x) => x * (NUC.ambK || 1)));
+    gl.uniform3fv(P.u.uNieC, L.nieC); gl.uniform1f(P.u.uNieA, R.niebla.a); gl.uniform1f(P.u.uNieB, R.niebla.b);
+    gl.uniform3fv(P.u.uAlbH, NUC.albH || [0.56, 0.44, 0.38]); gl.uniform3fv(P.u.uAlbT, NUC.albT || [0.74, 0.6, 0.48]); gl.uniform3fv(P.u.uAlbF, NUC.albF || [0.8, 0.66, 0.53]);
+    gl.uniform1f(P.u.uSem, (NUC.sem = (NUC.sem + 1) % 977) * 7.31);
+    gl.uniform4fv(P.u.uCap, E.cap); gl.uniform4fv(P.u.uTallo, E.tallo); gl.uniform4fv(P.u.uFalda, E.falda); gl.uniform4fv(P.u.uFuego, E.fuegoV); gl.uniform4fv(P.u.uDens, E.dens);
+    gl.uniform2f(P.u.uCaja, E.caja[0], E.caja[1]);
+    gl.uniform1f(P.u.uDbg, NUC.dbg ? 1 : 0);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_3D, NUC.tex); R.texAct = null; gl.uniform1i(P.u.uRu, 0);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false); gl.depthFunc(gl.LEQUAL); gl.bindVertexArray(R.quad); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindVertexArray(null); R.vaoAct = null;
+    gl.bindTexture(gl.TEXTURE_3D, null);
+    gl.depthMask(true); gl.depthFunc(gl.LESS); gl.disable(gl.BLEND);
+  };
+  // la luz de la explosión sobre la escena (el piso, él): una luz puntual enorme en la bola de fuego
+  C.nucLuz = () => {
+    if (!NUC.on) return;
+    const E = NUC.estado(NUC.tau), k = Math.min(1, E.fuego / 8);
+    const p = vadd(NUC.p, v3(0, E.H * 0.8, 0));
+    C.luces.push({ p, r: NUC.luzR || 2600, c: [1.0, 0.62, 0.3].map((x) => x * (NUC.luzK || 3.0) * (0.08 + 0.92 * k) * Math.min(1, E.fuego / 3)) });
+  };
 
   // ---------------- captura con acumulación (suavizado + desenfoque de movimiento) ----------------
   C.acc = null; C.tUlt = null; C.escena = null;

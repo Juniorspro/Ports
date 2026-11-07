@@ -9,7 +9,10 @@
   JUG.pos.set(X0, piso + 1.0, Z0); JUG.vel.set(0, 0, 0); JUG.yaw = yawRun; JUG.pitch = 0; JUG.tercera = true; JUEGO.dios = true;
   elegirArma(ARM.lista.indexOf('Hands'));
   C.sinVista = true; C.sinCabeza = null; C.pose = null;
-  ENT.teclas.add('KeyW'); ENT.teclas.add('ShiftLeft');
+  // la corrida: captura de movimiento real (CMU 127_07, a 1,15×), el cuerpo avanza lo que el pie apoyado se va para atrás
+  C.suaveJug = false;
+  // (arranca 6,5 m más adelante: con la corrida real, más lenta que la del juego, el barril le caía encima)
+  const corre = C.locomocion({ id: 'c:127_07', t0: T0 - 1.2, p0: v3(X0 + 6.5, piso, Z0), yaw: yawRun, girar: Math.PI, esc: 1.15, desde: 0.6, hasta: 0.6 + (T1 - T0 + 1.2 + 0.3) * 1.15 });
   const cG = C.grietaDir(-Math.PI / 2, 0.62, 0.15);
   C.grieta.on = true; C.grieta.tam = 0.78; C.grieta.abre = 1;
   C.tarde = C.tarde || { dir: v3(0.55, 0.42, -0.72).norm(), solCol: [1.0, 0.80, 0.58], ambS: [0.46, 0.52, 0.66], ambG: [0.42, 0.36, 0.30], top: [0.20, 0.42, 0.78], mid: [0.95, 0.83, 0.70], bot: [0.62, 0.55, 0.50], sol: [1.0, 0.72, 0.45], niebla: [0.93, 0.82, 0.68] };
@@ -30,6 +33,7 @@
   C.golpe = 0;
   C.escena = (t, dt) => {
     C.tAct = t;
+    if (corre) corre(t);
     C.caidasPaso(t, dt);
     C.luces.length = 0; C.caidasLuces();
     C.grieta.abre = 1; C.grieta.t = t; C.grieta.pulso = C.pulsos(t, [[17.84, 0.8], [18.63, 1.2]], 0.3);

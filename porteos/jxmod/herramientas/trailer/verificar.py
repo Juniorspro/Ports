@@ -31,13 +31,14 @@ else:
     print(f'formato {W}×{H} ({W / H:.3f}:1), sin barras')
 # negros: cuadros con media < 6 fuera de los esperados (fin del logo ~1,9–2,04, comienzo de P1, negro 13,04–13,50)
 neg = [i for i in range(len(media)) if media[i] < 6]
-esperado = lambda i: (44 <= i <= 52) or (313 <= i <= 323) or i < 3
+# (v2, 40 s: fin del logo, el negro antes del golpe, el corte a negro antes de la placa y el final de la placa)
+esperado = lambda i: (44 <= i <= 52) or (313 <= i <= 323) or i < 3 or (885 <= i <= 900) or i >= 950
 print('cuadros negros:', len(neg), '— fuera de lugar:', [i for i in neg if not esperado(i)])
 # congelados: diferencia casi nula entre cuadros seguidos (fuera del negro)
 cong = [i + 1 for i in range(len(dif)) if dif[i] < 0.08 and not esperado(i + 1)]
 print('cuadros repetidos (dif < 0,08):', cong[:40], '…' if len(cong) > 40 else '')
 # destellos: subidas de brillo
-for nombre, ts in [('grieta 6,40', 6.40), ('golpe 13,50', 13.50), ('barril 18,63', 18.63), ('nuclear 19,04', 19.04)]:
+for nombre, ts in [('grieta 6,40', 6.40), ('golpe 13,50', 13.50), ('barril 18,63', 18.63), ('nuclear 19,04', 19.04), ('meteoro 31,45', 31.45), ('placa 37,50', 37.50)]:
     i = int(round(ts * 24)); ven = media[max(0, i - 6):i + 7]; k = int(np.argmax(ven)) + max(0, i - 6)
     print(f"destello {nombre}: pico de luz en {k / 24:.3f} s (cuadro {k}, {media[k]:.0f} vs {media[max(0, i - 8)]:.0f} antes)")
 # cortes: los cuadros con más cambio
@@ -49,11 +50,11 @@ au = np.frombuffer(rawa, np.float32).reshape(-1, 2)
 print(f"sonido: {len(au) / 48000:.3f} s, pico {20 * np.log10(np.abs(au).max() + 1e-9):.2f} dBFS, "
       f"muestras ≥ 0,999: {(np.abs(au) >= 0.999).sum()}")
 env = np.sqrt((au ** 2).mean(axis=1))
-for nombre, ts in [('grieta 6,40', 6.40), ('golpe 13,50', 13.50), ('barril 18,63', 18.63), ('nuclear 19,75', 19.75)]:
+for nombre, ts in [('grieta 6,40', 6.40), ('golpe 13,50', 13.50), ('barril 18,63', 18.63), ('nuclear 19,75', 19.75), ('onda 20,92', 20.92), ('meteoro 31,45', 31.45), ('placa 37,50', 37.50)]:
     i0, i1 = int((ts - 0.25) * 48000), int((ts + 0.35) * 48000)
     blk = env[i0:i1].reshape(-1, 480).mean(axis=1); k = int(np.argmax(np.diff(blk)))
     print(f"golpe de sonido {nombre}: subida más fuerte en {(i0 + k * 480) / 48000:.3f} s")
-sec = [(0, 2.04, 'logo'), (2.04, 6.4, 'manos'), (6.4, 9.17, 'grieta'), (9.17, 12.33, 'voz grieta'), (12.33, 13.04, 'salen'),
+sec = [(0, 2.04, 'logo'), (2.04, 6.4, 'manos'), (6.4, 9.17, 'grieta'), (9.17, 12.33, 'grieta 2'), (12.33, 13.04, 'salen'),
        (13.04, 13.5, 'negro'), (13.5, 19.04, 'lluvia+barril'), (19.04, 23.38, 'nuclear'), (23.38, 26.63, 'corre'),
-       (26.63, 30.88, 'playa'), (30.88, 34.0, 'final')]
+       (26.63, 30.88, 'playa'), (30.88, 34.0, 'meteoro'), (34.0, 36.92, 'la agarra'), (36.92, 37.5, 'negro 2'), (37.5, 40.0, 'placa')]
 print('volumen por parte (dB RMS):', ', '.join(f"{n} {20 * np.log10(np.sqrt((au[int(a0 * 48000):int(a1 * 48000)] ** 2).mean()) + 1e-9):.1f}" for a0, a1, n in sec))
