@@ -286,7 +286,7 @@ function atenderPulsos() {
     if (k === 'chat') abrirChat();
     else if (k === 'camLibre') clibMenu(); else if (k === 'camLibL') clibElegir('L'); else if (k === 'camLibR') clibElegir('R');   // (cámara libre)
     else if (k === 'camara') { if (JUG.vehiculo) { JUG.fpVeh = !JUG.fpVeh; JUG.yaw = JUG.fpVeh ? 0 : JUG.yaw; } else JUG.tercera = !JUG.tercera; }
-    else if (k === 'emotes') abrirEmotes();
+    else if (k === 'emotes') emoBoton();   // (sólo la ruleta, o el panel si en Ajustes se apagó: ruleta.js)
     else if (k === 'recargar') { if (!volverAgarre()) recargar(); }   // (sosteniendo algo con la de física o la de gravedad: R lo devuelve a su lugar)
     else if (k === 'volver') volverAgarre();
     else if (k === 'rotar') { ENT.rotar = !ENT.rotar && !!ARM.agarre; }   // (un toque: girar; otro: mirar)

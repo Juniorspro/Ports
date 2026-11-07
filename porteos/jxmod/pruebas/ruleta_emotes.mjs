@@ -1,7 +1,9 @@
 // La ruleta de emotes (Discord: «ruleta de emotes como Fortnite»). En la compu y en el celular:
 //  1. mantener la B abre la ruleta con 5 lugares; mover el mouse hacia uno lo marca y al soltar la B el personaje hace
 //     ese emote;
-//  2. un toque corto de la B sigue abriendo el panel de emotes (y no la ruleta);
+//  2. (3.0, Discord: «que los emotes abran sólo la ruleta») un toque corto de la B abre sólo la ruleta, quieta, con
+//     «Editar emotes», «Todos los emotes» y «Cerrar»; «Todos los emotes» abre el panel; en Ajustes → Controles está
+//     «El botón de emotes abre la ruleta», prendido de fábrica, y apagado un toque abre el panel como antes;
 //  3. en el celular: mantener el botón de emotes y deslizar el dedo hacia arriba (el lugar 1), al soltar hace ese emote;
 //  4. soltar en el medio deja la ruleta abierta; «Editar emotes» → tocar el lugar 3 → el panel dice «Elegí el emote
 //     para el lugar 3» → tocar un emote lo pone en ese lugar, vuelve a la ruleta y queda guardado (PREFS.ruleta);
@@ -31,8 +33,19 @@ const prep = `idiomaAplicar('es'); PREFS.bienvenida = true; PREFS.tutVisto = tru
   ok('1. mantener la B abre la ruleta (5 lugares); el mouse marca uno y al soltar hace ese emote', abierta.abierta && abierta.visible && abierta.lugares === 5 && marcado === 3 && hizo.emote === slots[3] && !hizo.abierta, { abierta, marcado, hizo, esperado: slots[3] });
   await ev(`(() => { JUG.cuerpo.emote = null; cerrarPaneles(); return 1; })()`);
   await p.keyboard.down('KeyB'); await p.waitForTimeout(60); await p.keyboard.up('KeyB'); await p.waitForTimeout(300);
-  const corto = await ev(`({ ui: UI.abierto, panel: !$('emotes').classList.contains('oc'), ruleta: RUL.abierto })`);
-  ok('2. un toque corto de la B abre el panel de emotes (no la ruleta)', corto.ui === 'emotes' && corto.panel && !corto.ruleta, corto);
+  const corto = await ev(`({ ui: UI.abierto, panel: !$('emotes').classList.contains('oc'), ruleta: RUL.abierto, fija: RUL.fija, editar: !!document.querySelector('#ruleta .rulEd'), todos: !!document.querySelector('#ruleta .rulTodos'), cerrar: !!document.querySelector('#ruleta .rulCerrar') })`);
+  await p.screenshot({ path: D + '/compu_toque.png' });
+  await p.click('#ruleta .rulTodos'); await p.waitForTimeout(300);
+  const todos = await ev(`({ ui: UI.abierto, panel: !$('emotes').classList.contains('oc'), ruleta: RUL.abierto, asignar: RUL.asignar })`);
+  // (la opción de Ajustes: apagada, un toque abre el panel como antes)
+  await ev(`(() => { cerrarPaneles(); abrirAjustes('juego'); return 1; })()`); await p.waitForTimeout(300);
+  const aj = await ev(`({ hay: !!$('aEmoR'), on: !!($('aEmoR') && $('aEmoR').checked), txt: $('aEmoR') ? $('aEmoR').closest('label').textContent.trim() : null })`);
+  await ev(`(() => { $('aEmoR').checked = false; $('aOk').click(); cerrarPaneles(); return 1; })()`); await p.waitForTimeout(300);
+  await p.keyboard.down('KeyB'); await p.waitForTimeout(60); await p.keyboard.up('KeyB'); await p.waitForTimeout(300);
+  const apagada = await ev(`({ ui: UI.abierto, panel: !$('emotes').classList.contains('oc'), ruleta: RUL.abierto, pref: PREFS.emoRuleta })`);
+  await ev(`(() => { PREFS.emoRuleta = true; guardarPrefs(); cerrarPaneles(); return 1; })()`);
+  ok('2. un toque corto de la B abre sólo la ruleta (quieta, con Editar emotes, Todos los emotes y Cerrar); «Todos los emotes» abre el panel; con la opción de Ajustes apagada, un toque abre el panel como antes',
+    corto.ruleta && corto.fija && corto.ui === 'ruleta' && !corto.panel && corto.editar && corto.todos && corto.cerrar && todos.ui === 'emotes' && todos.panel && !todos.ruleta && aj.hay && aj.on && apagada.ui === 'emotes' && apagada.panel && !apagada.ruleta && apagada.pref === false, { corto, todos, aj, apagada });
   // 4. soltar en el medio, editar, elegir
   await ev(`(() => { cerrarPaneles(); return 1; })()`);
   await p.keyboard.down('KeyB'); await p.waitForTimeout(400); await p.mouse.move(640, 360); await p.keyboard.up('KeyB'); await p.waitForTimeout(300);
@@ -73,6 +86,17 @@ const prep = `idiomaAplicar('es'); PREFS.bienvenida = true; PREFS.tutVisto = tru
     celu.emote = await ev(`JUG.cuerpo.emote`); celu.esperado = await ev(`DATA.emotes[0]`);
   }
   ok('3. en el celular: mantener el botón de emotes y deslizar hacia arriba hace el emote del lugar 1', celu.abierta && celu.sel === 0 && celu.emote === celu.esperado, celu);
+  // (un toque corto en el botón: la ruleta quieta, entera en la pantalla con sus botones de abajo)
+  let toqueC = null;
+  if (bt && bt[2]) {
+    await ev(`(() => { JUG.cuerpo.emote = null; cerrarPaneles(); return 1; })()`);
+    await toque('touchStart', bt[0], bt[1]); await p.waitForTimeout(80); await toque('touchEnd'); await p.waitForTimeout(350);
+    toqueC = await ev(`(() => { const R = $('ruleta'), q = (s) => { const e = R.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom].map(Math.round); }; return { ruleta: RUL.abierto, fija: RUL.fija, ui: UI.abierto, rueda: q('.rulRueda'), pie: q('.rulPie'), W: innerWidth, H: innerHeight }; })()`);
+    await p.screenshot({ path: D + '/celu_toque.png' });
+    await ev(`(() => { rulCerrar(); return 1; })()`);
+  }
+  const dentro = (r, t) => r && r[0] >= 0 && r[1] >= 0 && r[2] <= t.W && r[3] <= t.H;
+  ok('3b. en el celular: un toque corto en el botón de emotes abre sólo la ruleta, entera en la pantalla con sus botones', toqueC && toqueC.ruleta && toqueC.fija && toqueC.ui === 'ruleta' && dentro(toqueC.rueda, toqueC) && dentro(toqueC.pie, toqueC), toqueC);
   const c = celu.caja || [0, 0, 0, 0, 1, 1];
   ok('5. la ruleta entra en la pantalla del celular', c[0] >= 0 && c[1] >= 0 && c[2] <= c[4] && c[3] <= c[5], { caja: celu.caja });
   const e = err.filter((x) => !/WebSocket|net::|Failed to load|404|favicon|shader simplificado|willReadFrequently/i.test(x));

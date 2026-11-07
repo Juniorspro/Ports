@@ -52,7 +52,7 @@ function celApp(a) {
   if (a === 'camara') { celCerrar(); const i = ARM.lista.indexOf('Camera'); if (i >= 0) elegirArma(i); return; }
   if (a === 'ajustes') { celCerrar(); abrirAjustes('juego'); return; }
   if (a === 'mods') { celCerrar(); if (typeof modMenuAbrir === 'function') modMenuAbrir(); return; }
-  if (a === 'emotes') { celCerrar(); abrirEmotes(); return; }
+  if (a === 'emotes') { celCerrar(); emoBoton(); return; }
   if (a === 'memes') rbPedir('a_memes');
   celDibujar();
 }

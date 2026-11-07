@@ -1,8 +1,10 @@
 // ---------------- la ruleta de emotes (como la de Fortnite) ----------------
 // Discord: «ruleta de emotes como Fortnite». Mantener apretado el botón de emotes (o la B) abre la ruleta en el medio de
-// la pantalla; se desliza el dedo (o se mueve el mouse) hacia uno de los 5 lugares y al soltar el personaje lo hace. Un
-// toque corto sigue abriendo el panel de emotes. Soltar en el medio deja la ruleta abierta: se toca un emote o «Editar
-// emotes», que deja elegir qué va en cada lugar (desde el panel, con sus secciones y el buscador). Se guarda en el aparato.
+// la pantalla; se desliza el dedo (o se mueve el mouse) hacia uno de los 5 lugares y al soltar el personaje lo hace.
+// En la 3.0 (Discord: «que los emotes abran sólo la ruleta, con Editar emotes»), un toque corto también abre sólo la
+// ruleta, quieta: se toca un emote, «Editar emotes» (elegir qué va en cada lugar, desde el panel con sus secciones y el
+// buscador) o «Todos los emotes» (el panel entero). En Ajustes → Controles se puede volver a lo de antes (un toque abre
+// el panel). Soltar en el medio también la deja abierta. Se guarda en el aparato.
 const RUL = { n: 5, abierto: false, fija: false, editar: false, sel: -1, mx: 0, my: 0, quien: null, tecla: '', x0: 0, y0: 0, timer: 0, asignar: -1, por: null };
 // los emotes de cada lugar: los elegidos o, si nunca se eligieron, los favoritos, los últimos usados y los clásicos
 function rulSlots() {
@@ -32,6 +34,7 @@ function rulDibujar() {
       const l = ev.target.closest('[data-rul]');
       if (l) { const i = +l.dataset.rul; if (RUL.editar) { rulElegirPara(i); return; } const id = rulSlots()[i]; if (id) { rulCerrar(); rulHacer(id); } else rulElegirPara(i); return; }
       if (ev.target.closest('.rulEd')) { RUL.editar = !RUL.editar; rulDibujar(); return; }
+      if (ev.target.closest('.rulTodos')) { RUL.asignar = -1; rulCerrar(); abrirEmotes(); if (typeof emoDibujar === 'function') emoDibujar(); return; }
       if (ev.target.closest('.rulCerrar') || !ev.target.closest('.rulRueda')) rulCerrar();
     });
     R.addEventListener('mousemove', (ev) => { if (!RUL.abierto || RUL.fija || ENT.bloqueado) return; const r = R.querySelector('.rulRueda').getBoundingClientRect(); RUL.mx = ev.clientX - (r.left + r.width / 2); RUL.my = ev.clientY - (r.top + r.height / 2); rulElegir(); });
@@ -42,8 +45,8 @@ function rulDibujar() {
     const a = (i / RUL.n) * Math.PI * 2, x = 50 + 37 * Math.sin(a), y = 50 - 37 * Math.cos(a), e = rulInfo(id);
     return `<div class="rulLug${i === sel ? ' sel' : ''}${id ? '' : ' vacio'}" data-rul="${i}" style="left:${x.toFixed(2)}%;top:${y.toFixed(2)}%">${rulImg(e)}<b dir="auto">${esc(e ? e.n : T('rul.vacio'))}</b>${RUL.editar && id ? `<span class="rulX" data-rulx="${i}" title="${esc(T('quitar'))}">×</span>` : ''}</div>`;
   }).join('');
-  const nom = sel >= 0 ? (rulInfo(L[sel]) || { n: T('rul.vacio') }).n : RUL.editar ? T('rul.editando') : T('rul.ayuda');
-  R.innerHTML = `<div class="rulRueda">${lug}<div class="rulCentro"><div class="rulNom" dir="auto">${esc(nom)}</div>${RUL.fija ? `<button class="boton rulEd">${esc(T(RUL.editar ? 'rul.listo' : 'rul.editar'))}</button>` : ''}</div></div>${RUL.fija ? `<button class="boton gris rulCerrar">${esc(T('cerrar'))}</button>` : ''}`;
+  const nom = sel >= 0 ? (rulInfo(L[sel]) || { n: T('rul.vacio') }).n : RUL.editar ? T('rul.editando') : T(RUL.fija ? 'rul.tocar' : 'rul.ayuda');   // (quieta: se toca)
+  R.innerHTML = `<div class="rulRueda">${lug}<div class="rulCentro"><div class="rulNom" dir="auto">${esc(nom)}</div>${RUL.fija ? `<button class="boton rulEd">${esc(T(RUL.editar ? 'rul.listo' : 'rul.editar'))}</button>` : ''}</div></div>${RUL.fija ? `<div class="rulPie"><button class="boton gris rulTodos">${esc(T('rul.todos'))}</button><button class="boton gris rulCerrar">${esc(T('cerrar'))}</button></div>` : ''}`;
 }
 // el lugar hacia donde va el dedo o el mouse (en el medio, ninguno)
 function rulElegir() {
@@ -93,6 +96,10 @@ function rulSoltar() {
 }
 // ¿la tecla o el botón de emotes va a la ruleta? (en el juego, sin otro panel abierto)
 const rulPuede = () => typeof JUEGO !== 'undefined' && JUEGO.estado === 'juego' && !UI.abierto && JUG.vivo;
+// un toque en el botón de emotes (o la B): sólo la ruleta (Ajustes → «El botón de emotes abre la ruleta», prendido de
+// fábrica); apagado, el panel con todos, como antes
+const rulPrefiere = () => !PREFS || PREFS.emoRuleta !== false;
+function emoBoton() { if (rulPrefiere() && rulPuede()) { RUL.asignar = -1; rulAbrir(true); } else abrirEmotes(); }
 Object.assign(IDI3, {
   'rul.editar': ['Editar emotes', 'Edit emotes', 'Editar emotes', 'Ubah emote', 'Sunting emote', 'I-edit ang emotes', 'エモートを編集', 'แก้ไขอีโมต', 'İfadeleri düzenle', 'تعديل التعبيرات', 'Изменить эмоции', 'Змінити емоції', 'Modifier les emotes', 'Emotes bearbeiten'],
   'rul.listo': ['Listo', 'Done', 'Pronto', 'Selesai', 'Siap', 'Tapos', '完了', 'เสร็จ', 'Tamam', 'تم', 'Готово', 'Готово', 'Terminé', 'Fertig'],
@@ -100,5 +107,8 @@ Object.assign(IDI3, {
   'rul.ayuda': ['Deslizá hacia un emote y soltá', 'Slide to an emote and let go', 'Deslize até um emote e solte', 'Geser ke emote lalu lepas', 'Leret ke emote dan lepaskan', 'I-slide sa emote at bitawan', 'エモートの方へスライドして離す', 'เลื่อนไปที่อีโมตแล้วปล่อย', 'Bir ifadeye kaydır ve bırak', 'اسحب إلى تعبير ثم اترك', 'Проведи к эмоции и отпусти', 'Проведи до емоції й відпусти', 'Glisse vers une emote et relâche', 'Zu einem Emote ziehen und loslassen'],
   'rul.editando': ['Tocá un lugar para elegir su emote', 'Tap a slot to choose its emote', 'Toque um espaço para escolher o emote', 'Ketuk slot untuk memilih emote', 'Ketik slot untuk pilih emote', 'I-tap ang slot para pumili ng emote', '枠をタップしてエモートを選ぶ', 'แตะช่องเพื่อเลือกอีโมต', 'İfadesini seçmek için bir yere dokun', 'المس خانة لاختيار تعبيرها', 'Нажми на ячейку, чтобы выбрать эмоцию', 'Торкнись комірки, щоб вибрати емоцію', 'Touche un emplacement pour choisir son emote', 'Tippe auf einen Platz, um sein Emote zu wählen'],
   'rul.elegir': ['Elegí el emote para el lugar {n} de la ruleta', 'Choose the emote for wheel slot {n}', 'Escolha o emote para o espaço {n} da roleta', 'Pilih emote untuk slot roda {n}', 'Pilih emote untuk slot roda {n}', 'Piliin ang emote para sa slot {n} ng wheel', 'ホイールの枠{n}のエモートを選ぶ', 'เลือกอีโมตสำหรับช่อง {n} ของวงล้อ', 'Çarkın {n}. yeri için ifadeyi seç', 'اختر التعبير للخانة {n} في العجلة', 'Выбери эмоцию для ячейки {n} колеса', 'Вибери емоцію для комірки {n} колеса', 'Choisis l’emote pour l’emplacement {n} de la roue', 'Wähle das Emote für Platz {n} im Rad'],
+  'rul.tocar': ['Tocá un emote', 'Tap an emote', 'Toque em um emote', 'Ketuk emote', 'Ketik emote', 'I-tap ang emote', 'エモートをタップ', 'แตะอีโมต', 'Bir ifadeye dokun', 'اضغط على تعبير', 'Нажмите на эмоцию', 'Торкніться емоції', 'Touchez une emote', 'Tippe auf ein Emote'],
+  'rul.todos': ['Todos los emotes', 'All emotes', 'Todos os emotes', 'Semua emote', 'Semua emote', 'Lahat ng emotes', 'すべてのエモート', 'อีโมตทั้งหมด', 'Tüm ifadeler', 'كل التعبيرات', 'Все эмоции', 'Усі емоції', 'Toutes les emotes', 'Alle Emotes'],
+  'aj.emoRuleta': ['El botón de emotes abre la ruleta', 'Emote button opens the wheel', 'O botão de emotes abre a roleta', 'Tombol emote membuka roda', 'Butang emote membuka roda', 'Binubuksan ng emote button ang wheel', 'エモートボタンでホイールを開く', 'ปุ่มอีโมตเปิดวงล้อ', 'İfade düğmesi çarkı açar', 'زر التعبيرات يفتح العجلة', 'Кнопка эмоций открывает колесо', 'Кнопка емоцій відкриває колесо', 'Le bouton d’emotes ouvre la roue', 'Emote-Taste öffnet das Rad'],
   'rul.boton': ['Ruleta', 'Wheel', 'Roleta', 'Roda', 'Roda', 'Wheel', 'ホイール', 'วงล้อ', 'Çark', 'العجلة', 'Колесо', 'Колесо', 'Roue', 'Rad'],
 });
