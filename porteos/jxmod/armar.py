@@ -96,6 +96,7 @@ else: html = html.replace('<script>/*MQTT*/</script>\n', '')
 J = lambda n: base64.b64encode(open(os.path.join(AQUI, 'juego', n), 'rb').read()).decode()
 html = html.replace('/*LOGORB*/', J('logo_jxm.webp'))
 html = html.replace('/*LOGODR*/', J('logo_jxm.webp'))  # el logo de JXMod (apk/logo_jxm_original.jpg → herramientas/logo_jxm.py)
+html = html.replace('/*FUENTEOSWALD*/', J('fuentes/oswald_jx.woff2'))  # la letra del menú (Oswald, OFL: juego/fuentes/OFL_Oswald.txt)
 # fondos de la pantalla de carga (capturas del juego, fuera del repo): PAQUETE/carga/N_nombre.jpg → [nombre, dataURI]
 CD = os.path.join(PK, 'carga')
 # (las fotos de fondo van en WebP calidad 82: un 32 % menos que los JPEG y sin diferencia a la vista, PSNR ≥ 37,8 dB)

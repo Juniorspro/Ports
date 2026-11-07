@@ -1042,27 +1042,37 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
 @media (max-width:520px){.pzGrid{grid-template-columns:repeat(2,1fr)}.pzChico span{display:none}}
 @media (max-height:420px){.pzTar{min-height:74px;padding:7px 5px}.pzTar i{width:32px;height:32px}.pzSeguir{height:40px}}
 
-/* menú principal (Concepto #1 de la comunidad): panel oscuro translúcido detrás de las opciones, una línea dorada con
-   brillo entre los grupos, letras sin el borde negro (sombra suave) y los chips de abajo con borde dorado. Sin
-   backdrop-filter (caro en celulares flojos): sólo degradados y sombras quietas */
-#rbInicio .rbLista{inset-inline-start:0;padding:calc(var(--vh)*2.2*var(--rbK,1)) 0 calc(var(--vh)*2.2*var(--rbK,1)) 4.5%;width:min(58%,640px);box-sizing:border-box;
-  background:linear-gradient(90deg,rgba(8,10,16,.74) 0%,rgba(8,10,16,.6) 52%,rgba(8,10,16,.22) 82%,rgba(8,10,16,0) 100%);
-  border-top:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07)}
-#rbInicio .rbIt{text-shadow:0 1px 3px rgba(0,0,0,.35);letter-spacing:.2px}
-#rbInicio .rbIt:hover,#rbInicio .rbIt:active{text-shadow:0 0 14px rgba(255,206,120,.55),0 1px 3px rgba(0,0,0,.35);color:#fff6e2}
-#rbInicio .rbSep{position:relative;height:2px;width:calc(100% + 4.5vw);margin:calc(var(--vh)*1.7*var(--rbK,1)) 0 calc(var(--vh)*1.7*var(--rbK,1)) -4.5vw;flex:none;
-  background:linear-gradient(90deg,rgba(255,214,128,.95) 0%,rgba(242,184,84,.75) 18%,rgba(242,184,84,.28) 62%,rgba(242,184,84,0) 100%);
-  box-shadow:0 0 7px rgba(255,190,90,.55)}
-#rbInicio .rbSep::before{content:'';position:absolute;left:0;top:50%;width:46px;height:18px;transform:translate(-30%,-50%);
-  background:radial-gradient(ellipse at center,rgba(255,232,170,.95) 0%,rgba(255,196,96,.55) 30%,rgba(255,196,96,0) 70%);pointer-events:none}
-#rbInicio .rbSep~.rbSep{height:1px;background:linear-gradient(90deg,rgba(255,255,255,.22),rgba(255,255,255,0) 80%);box-shadow:none}
-#rbInicio .rbSep~.rbSep::before{display:none}
-#rbInicio .rbChipG{border-radius:7px;background:rgba(12,14,20,.74);border:1px solid rgba(255,255,255,.15);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
-#rbInicio .rbChipG.cuChip,#rbInicio .rbChipG[data-rb=idioma]{border-color:rgba(232,186,96,.8);box-shadow:0 0 10px rgba(232,186,96,.3),inset 0 0 8px rgba(232,186,96,.12)}
-@media (max-height:440px){#rbInicio .rbLogo{top:calc(var(--vh)*3);height:calc(var(--vh)*15)}}   /* (celular apaisado: logo un poco más chico, más aire para la lista) */
+/* menú principal 3.0: placas rectas y planas (sin brillos, degradados de adorno ni bordes redondeados), letra condensada
+   en mayúsculas (Oswald, va adentro del HTML: se ve igual en todos los celulares) y un solo color de acento, el amarillo
+   de advertencia, para lo que importa: «Empezar partida nueva» y el botón que tocás. La versión en una placa abajo a la
+   derecha. Todo alineado al mismo borde que el recuadro del logo (--jxM) */
+@font-face{font-family:'JX Oswald';src:url(data:font/woff2;base64,/*FUENTEOSWALD*/) format('woff2');font-weight:200 700;font-display:block}
+#rbInicio{--jxA:#f2b31b;--jxA2:#ffc531;--jxT:#efede7;--jxP:rgba(12,13,15,.85);--jxP2:rgba(26,27,30,.94);--jxF:'JX Oswald','Roboto Condensed',sans-serif-condensed,'Arial Narrow',Roboto,Arial,sans-serif;
+  --jxM:calc(var(--vh)*5);--jxLh:clamp(40px,calc(var(--vh)*18.5),150px);--jxCh:max(30px,calc(var(--vh)*7.4))}
+@media (max-height:440px){#rbInicio{--jxLh:calc(var(--vh)*15)}#rbInicio .rbLogo{top:calc(var(--vh)*3)}}   /* (celular apaisado: logo un poco más chico, más aire para la lista) */
+#rbInicio .rbSombra{background:linear-gradient(90deg,rgba(0,0,0,.42),rgba(0,0,0,0) 50%)}
+/* (el logo tiene un borde de sombra transparente: se corre para que su recuadro quede en la misma línea que las placas) */
+#rbInicio .rbLogo{inset-inline-start:var(--jxM);height:var(--jxLh);margin-inline-start:calc(var(--jxLh)*-.09)}
+#rbInicio .rbLista{inset-inline-start:var(--jxM);max-width:calc(100% - var(--jxM)*2);gap:calc(var(--vh)*.6*var(--rbK,1));align-items:stretch}
+#rbInicio .rbIt{font:500 calc(var(--vh)*4.3*var(--rbK,1))/1.1 var(--jxF);text-transform:uppercase;letter-spacing:.02em;color:var(--jxT);text-shadow:none;background:var(--jxP);
+  padding:calc(var(--vh)*1.05*var(--rbK,1)) calc(var(--vh)*4) calc(var(--vh)*1.05*var(--rbK,1)) calc(var(--vh)*2.2);border-inline-start:calc(var(--vh)*.7) solid transparent;transform:none;transition:none}
+#rbInicio .rbIt:hover{border-inline-start-color:var(--jxA);background:var(--jxP2);color:#fff;transform:none;text-shadow:none}
+#rbInicio .rbIt:active,#rbInicio .rbIt.rbPri{background:var(--jxA);border-inline-start-color:var(--jxA);color:#121212}
+#rbInicio .rbIt.rbPri{font-weight:600}#rbInicio .rbIt.rbPri:hover{background:var(--jxA2);border-inline-start-color:var(--jxA2)}
+#rbInicio .rbIt:focus-visible,#rbInicio .rbChipG:focus-visible{outline:2px solid var(--jxA);outline-offset:-2px}
+#rbInicio .rbSep{height:calc(var(--vh)*1.4*var(--rbK,1));flex:none}
 #rbInicio .rbLista.rbDesliza{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}#rbInicio .rbLista .rbIt{flex:none}
-#rbInicio .rbChipG:active{filter:brightness(1.15)}
-#rbInicio .rbVer{top:calc(var(--vh)*2.2);bottom:auto;font-size:clamp(10px,calc(var(--vh)*2.3),15px);opacity:.6}   /* (arriba a la derecha: abajo se encimaba con los chips en las pantallas anchas) */
+#rbInicio .rbAbajo{inset-inline-start:var(--jxM);bottom:calc(var(--vh)*3);gap:calc(var(--vh)*.6)}
+#rbInicio .rbChipG{box-sizing:border-box;height:var(--jxCh);border:0;border-radius:0;background:var(--jxP);box-shadow:none;font:500 max(12px,calc(var(--vh)*2.9))/1 var(--jxF);text-transform:uppercase;letter-spacing:.03em;color:var(--jxT);padding:0 calc(var(--vh)*1.8);gap:calc(var(--vh)*1.1);white-space:nowrap}
+#rbInicio .rbChipG:hover{background:var(--jxP2)}
+#rbInicio .rbChipG:active{background:var(--jxA);color:#121212;filter:none}
+#rbInicio .rbChipG .gli{width:1.25em;height:1.25em;flex:none}
+#rbInicio .rbChipG input{font:500 max(12px,calc(var(--vh)*2.9))/1 var(--jxF);height:100%;padding:0;color:inherit;width:calc(var(--vh)*20)}
+#rbInicio .rbChipG.rbRed{padding:0;width:var(--jxCh);justify-content:center}#rbInicio .rbChipG.rbRed svg{width:1.3em;height:1.3em}
+#rbInicio .rbVer{inset-inline-end:var(--jxM);bottom:calc(var(--vh)*3);box-sizing:border-box;height:var(--jxCh);display:flex;align-items:center;gap:.7em;padding:0 calc(var(--vh)*1.8);background:var(--jxP);
+  font:500 max(12px,calc(var(--vh)*2.9))/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em;color:var(--jxT);text-shadow:none;opacity:1;white-space:nowrap;direction:ltr}
+#rbInicio[dir=rtl] .rbVer{right:auto;left:var(--jxM)}   /* (la versión se lee igual en árabe, del otro lado) */
+#rbInicio .rbVer b{color:var(--jxA);font-weight:600;margin-inline-start:-.35em}#rbInicio .rbVer i{font-style:normal;color:rgba(239,237,231,.5)}
 </style></head>
 <body>
 <canvas id="cv"></canvas>

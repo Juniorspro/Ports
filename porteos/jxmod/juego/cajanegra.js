@@ -37,7 +37,7 @@ function cnGuardar(ya) {
   const t = Date.now();
   if (!ya && t - CN.tG < 1000) { if (!CN.pend) CN.pend = setTimeout(() => { CN.pend = 0; cnGuardar(true); }, 1000); return; }
   CN.tG = t;
-  try { localStorage.setItem(CN_K, JSON.stringify({ v: typeof JX_VERSION !== 'undefined' ? JX_VERSION : '__ARMADO__', t, paso: CN.paso, addon: CN.addon, l: CN.l.slice(-100), e: cnEstado() })); } catch (e) {}
+  try { localStorage.setItem(CN_K, JSON.stringify({ v: JX_VERSION + ' · __ARMADO__', t, paso: CN.paso, addon: CN.addon, l: CN.l.slice(-100), e: cnEstado() })); } catch (e) {}
 }
 // (cada cuadro: el latido para la app y, cada 2 s, el estado)
 function cnCuadro() {

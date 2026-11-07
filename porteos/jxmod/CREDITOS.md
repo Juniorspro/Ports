@@ -3,6 +3,12 @@
 RezoBox es `uso: sin fines de lucro` (ver `CLAUDE.md`). Lo extraído de otros juegos y addons no está en el repo: los
 scripts de `herramientas/` lo leen de afuera y va sólo dentro del HTML armado.
 
+## Letra del menú principal (3.0)
+
+| Asset | Autor / origen | Dónde | Licencia |
+|---|---|---|---|
+| Oswald (recortada a latín y cirílico, `juego/fuentes/oswald_jx.woff2`; va adentro del HTML) | The Oswald Project Authors (https://github.com/googlefonts/OswaldFont), bajada de github.com/google/fonts | menú principal (`juego/template.html`) | SIL Open Font License 1.1 (`juego/fuentes/OFL_Oswald.txt`; también dentro de la letra) |
+
 ## Pizzería de Freddy (`RB_Pizzeria`, `juego/noche.js`)
 
 | Asset | Autor / origen | Dónde | Licencia |

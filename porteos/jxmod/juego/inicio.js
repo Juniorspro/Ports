@@ -10,7 +10,7 @@ const MODS = {}; // efectos sumados de los mods activos en la partida (armas y r
 const FONDOS_RB = [/*FONDOSRB*/]; // escenas armadas con cosas del juego (van con el paquete, no en el repo)
 // el logo: la R de Rezona y el nombre (el mismo de la pantalla de carga)
 let LOGO_RB = (document.querySelector('#carga .dLogo img') || {}).src || '';   // (o el tuyo: milogo.js)
-const VERSION_RB = '1.0', ARMADO_RB = '__ARMADO__';
+const VERSION_RB = JX_VERSION, ARMADO_RB = '__ARMADO__';
 const ICONOS_MOD = ['mod', ...ICO_LISTA.filter((n) => n !== 'mod' && !['cartel', 'meta', 'zona_muerte', 'boton_autos', 'teleport', 'impulso'].includes(n))].map((n) => 'ico:' + n);
 // los mods oficiales, en el mismo formato que los de la gente
 const OFICIALES = [['goku', 'ico:energia', ['personajes', 'diversion'], { skin: 'Goku', velocidad: 1.4, salto: 2.5 }], ['luna', 'ico:luna', ['fisica'], { gravedad: 0.35 }],
@@ -103,15 +103,19 @@ function inicioCrear() {
 function inicioLista() {
   RB.el.dir = PREFS.lang === 'ar' ? 'rtl' : 'ltr';
   const G = [['nueva', 'multi', 'social'], ['tienda', 'crear', 'personajes', 'opciones'], ['salir']];
-  RB.el.querySelector('.rbLista').innerHTML = G.map((g) => g.map((k) => `<button class="rbIt" data-rb="${k}">${esc(T('m.' + k))}</button>`).join('')).join('<div class="rbSep"></div>');
+  // (la 3.0: «Empezar partida nueva» es el botón principal, en el color de acento)
+  RB.el.querySelector('.rbLista').innerHTML = G.map((g) => g.map((k) => `<button class="rbIt${k === 'nueva' ? ' rbPri' : ''}" data-rb="${k}">${esc(T('m.' + k))}</button>`).join('')).join('<div class="rbSep"></div>');
   const nm = modsTodos().filter((m) => PREFS.mods[m.id]).length, I = IDIOMAS_RB[PREFS.lang] || IDIOMAS_RB.en;
-  RB.el.querySelector('.rbAbajo').innerHTML = `<button class="rbChipG" data-rb="tienda">${icoHTML('ico:mod')} ${nm ? `${nm} ${esc(T(nm === 1 ? 'modAct1' : 'modsAct'))}` : 'Sandbox'}</button>
-    <button class="rbChipG" data-rb="idioma"><i class="lcod">${I[1]}</i> ${esc(I[0])}</button>
+  // abajo, placas del mismo alto: los mods, el idioma (el globo y el código; el nombre entero en la bienvenida), tu nombre
+  // y las redes (sólo el ícono)
+  RB.el.querySelector('.rbAbajo').innerHTML = `<button class="rbChipG" data-rb="tienda">${glifo('caja')} ${nm ? `${nm} ${esc(T(nm === 1 ? 'modAct1' : 'modsAct'))}` : 'Sandbox'}</button>
+    <button class="rbChipG" data-rb="idioma" title="${esc(I[0])}">${glifo('mundo')} ${esc(I[1])}</button>
     <label class="rbChipG">${glifo('persona')} <input id="rbNombre" maxlength="16" spellcheck="false"></label>
-    ${RED_SOCIAL.map(([n, u, ic]) => `<button class="rbChipG" data-rb="red" data-url="${u}" title="${n}">${ic} ${n}</button>`).join('')}`;
+    ${RED_SOCIAL.map(([n, u, ic]) => `<button class="rbChipG rbRed" data-rb="red" data-url="${u}" title="${n}" aria-label="${n}">${ic}</button>`).join('')}`;
   const inp = RB.el.querySelector('#rbNombre'); inp.value = PREFS.nombre || '';
   inp.oninput = () => nombrePoner(inp.value);
-  RB.el.querySelector('.rbVer').textContent = `JXMod ${VERSION_RB} · ${ARMADO_RB}`;
+  // la versión (JXMod 3.0) y el día del armado; tocándola o con el mouse encima, también la hora
+  const ver = RB.el.querySelector('.rbVer'); ver.innerHTML = `JXMod <b>${esc(VERSION_RB)}</b> <i>${esc(ARMADO_RB.split(' ')[0])}</i>`; ver.title = `JXMod ${VERSION_RB} · ${ARMADO_RB}`;
   if (typeof cuentaPintar === 'function') cuentaPintar();   // (el chip de la cuenta de Google)
   if (typeof socGlobito === 'function') socGlobito();   // (lo nuevo de lo social: mensajes y solicitudes)
   inicioEncajar();
