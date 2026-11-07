@@ -24,7 +24,33 @@
   // sin sombra del cuerpo propio (C.sinSombraYo): el juego la vuelve a poner en cada cuadro antes de dibujar a cada persona
   // (personas.js: P.md.sinSombra = !yo && …), así que se pisa justo antes de dibujarla
   const dibP = dibujarPersona;
-  dibujarPersona = function (P) { if (C.sinSombraYo && P === JUG.cuerpo && P.md) P.md.sinSombra = true; return dibP(P); };
+  dibujarPersona = function (P) {
+    if (P === JUG.cuerpo && P.md) {
+      if (C.sinSombraYo) P.md.sinSombra = true;
+      // el cuerpo en el tiempo exacto del subcuadro (ver C.suaveJug): lo que pasó desde el último paso de física, con su
+      // velocidad; el giro, el de este subcuadro
+      if (C.suaveJug && JUG.vivo && !JUG.vehiculo && !P.rag) {
+        const a = TIEMPO.acc || 0, p0 = P.pos.clone(), y0 = P.yaw;
+        P.pos.set(JUG.pos.x + JUG.vel.x * a, JUG.pos.y + JUG.vel.y * a, JUG.pos.z + JUG.vel.z * a); P.yaw = JUG.yaw;
+        try { return dibP(P); } finally { P.pos.copy(p0); P.yaw = y0; }
+      }
+    }
+    return dibP(P);
+  };
+  // C.suaveJug: la física del juego avanza a pasos fijos de 1/60 s y los subcuadros (y la cámara) en tiempo continuo. Sin
+  // esto, con el desenfoque de movimiento el que corre salía doble: la cámara se calculaba con la posición de antes del
+  // paso y el cuerpo se dibujaba con la de después. La escena (la cámara) ve al jugador adelantado con su velocidad hasta
+  // el instante del subcuadro, y el cuerpo se dibuja en ese mismo instante
+  C.suaveJug = true;
+  C.conJugSuave = (dt, fn) => {
+    if (!C.suaveJug || !JUG.vivo || JUG.vehiculo) return fn();
+    const a = (TIEMPO.acc || 0) + dt, p0 = JUG.pos.clone();
+    const pe = v3(p0.x + JUG.vel.x * a, p0.y + JUG.vel.y * a, p0.z + JUG.vel.z * a);
+    JUG.pos.copy(pe);
+    try { return fn(); } finally {
+      if (JUG.pos.x === pe.x && JUG.pos.y === pe.y && JUG.pos.z === pe.z) JUG.pos.copy(p0);   // (si la escena lo movió a propósito —un corte—, queda)
+    }
+  };
   const ubi = ubicarPersona;
   ubicarPersona = function (P) {
     ubi(P);
@@ -648,7 +674,7 @@ void main(){ float x = abs(vX) / max(vW, 0.35); float k = uDuro > 0.5 ? exp(-x *
     for (let i = 0; i < n; i++) {
       const ti = t0 + (n > 1 ? i * fd * obt / n : 0), dt = C.tUlt === null ? fd : Math.max(0, ti - C.tUlt);
       C.jx = n > 1 ? hal(i + 1, 2) - 0.5 : 0; C.jy = n > 1 ? hal(i + 1, 3) - 0.5 : 0;
-      if (C.escena) C.escena(ti, dt);
+      if (C.escena) C.conJugSuave(dt, () => C.escena(ti, dt));
       window.__T += dt * 1000; C.saltar = false; cuadro(window.__T); C.tUlt = ti;
       ctx.globalAlpha = 1 / (i + 1); ctx.drawImage(R.cv, 0, 0);
     }
@@ -656,6 +682,6 @@ void main(){ float x = abs(vX) / max(vW, 0.35); float k = uDuro > 0.5 ? exp(-x *
     return q === 0 ? 1 : C.acc.toDataURL('image/jpeg', q || 0.95);
   };
   // avanzar el tiempo sin dibujar (para dejar que las cosas se acomoden antes del plano)
-  C.avanzar = (t, dt) => { if (C.escena) C.escena(t, dt); window.__T += dt * 1000; C.saltar = true; cuadro(window.__T); C.saltar = false; C.tUlt = t; };
+  C.avanzar = (t, dt) => { if (C.escena) C.conJugSuave(dt, () => C.escena(t, dt)); window.__T += dt * 1000; C.saltar = true; cuadro(window.__T); C.saltar = false; C.tUlt = t; };
   return 'ok';
 })();
