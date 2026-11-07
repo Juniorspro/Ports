@@ -105,9 +105,12 @@ function hudDisponer() {
   // editor se ven todos)
   const edit = typeof CTL !== 'undefined' && CTL.edit, zp = typeof hudZonasPos === 'function' ? hudZonasPos((q) => { const e = document.querySelector(q); return !!e && (edit || (e.style.display !== 'none' && !e.classList.contains('oc'))); }, pos._orden) : {};
   const hab = [], sa = typeof PANT !== 'undefined' && PANT.rot ? { l: 0, r: 0, t: 0, b: 0 } : hudSegura(); HUD.sa = sa;
+  // (en un celular apaisado y bajo —800×360, 915×412— las tres filas se juntan un poco para que la última, la de las teclas
+  // de los mods, no baje a la zona de la palanca, que empieza al 45 % del alto; nunca a menos de 6 px entre fila y fila)
+  const tB = Math.max(76 * k, 32 * f / 0.8), vf = typeof HUD_ZONAS === 'undefined' ? 1 : Math.min(1, Math.max((tB + 6) / (HUD_ZPASO * kb), (H * 0.45 - 6 - tB / 2 - sa.t) / (-HUD_ZONAS.hab.y * kb)));
   for (const [sel, ax, ay, x0, y0, s0, mn] of HUD_TACTIL) {
     const e = document.querySelector(sel); if (!e) continue;
-    const o = pos[sel], propio = !!(o && o.length === 3 && o.every(Number.isFinite)), z = !propio && zp[sel], [x, y, s] = propio ? o : z ? [z[0], z[1], s0] : [x0, y0, s0];   // (los que movió el jugador en Controles)
+    const o = pos[sel], propio = !!(o && o.length === 3 && o.every(Number.isFinite)), z = !propio && zp[sel], [x, y, s] = propio ? o : z ? [z[0], z[1] * vf, s0] : [x0, y0, s0];   // (los que movió el jugador en Controles)
     if (!tactil && !e.classList.contains('bt-t')) { e.style.left = e.style.top = e.style.width = e.style.height = ''; continue; }
     // (más chicos en el mismo lugar: el centro de cada botón no se mueve, así no se pegan a los bordes; en un celular chico
     // no bajan del mínimo, que sigue al tamaño elegido en Ajustes)
@@ -132,7 +135,10 @@ function hudPaso() {
   const vt = veh ? (JUG.vehiculo.veh && JUG.vehiculo.veh.tipo) || '' : '', aire = vt === 'heli' || vt === 'avion', tierra = veh && !aire && vt !== 'asiento';
   if (arma !== HUD.arma || veh !== HUD.veh || usar !== HUD.usar || vt !== HUD.vt) {
     HUD.arma = arma; HUD.veh = veh; HUD.usar = usar; HUD.vt = vt;
-    const fis = /^(PhysicsGun|GravityGun)$/.test(arma), sinBala = /^(PhysicsGun|GravityGun|ToolBaton|Hands|Camera)$/.test(arma);
+    // (sin cargador no hay nada que recargar: el celular, las de golpe y las pistolas del sandbox; las de los mods de GMod
+    // sí lo muestran, porque su Lua usa la R. Con el celular en la mano el botón quedaba pegado al borde del celular)
+    const Da = typeof DEF_ARMAS !== 'undefined' ? DEF_ARMAS[arma] : null;
+    const fis = /^(PhysicsGun|GravityGun)$/.test(arma), sinBala = /^(PhysicsGun|GravityGun|ToolBaton|Hands|Camera|Celular)$/.test(arma) || !!(Da && Da.tipo !== 'gmswep' && !(Da.car > 0));
     // (en un auto, una moto o un asiento no hay palanca de caminar: se dobla con las flechas; en el aire sí, para inclinar)
     document.body.classList.toggle('enVeh', veh); document.body.classList.toggle('vehAire', aire);
     const ver = (id, si) => { const e = $(id); if (e) e.classList.toggle('oc', !si); };

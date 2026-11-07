@@ -42,6 +42,9 @@ await ev(`if (!ARM.lista.includes('GravityGun')) ARM.lista.push('GravityGun'); e
 const gq = await ev(clipAhora); await foto('grav_quieta');
 await ev(`window.__son = []; ENT.disparo2 = true; 1`); await juego(0.6);
 const ga = await ev(`({ tiene: !!ARM.grav, clip: ${clipAhora}, son: window.__son.slice() })`); await foto('grav_sosteniendo');
+// (se lanza mirando al frente, como un jugador: mirando a la caja en el piso, la sostenida queda casi en el suelo y a veces
+// el lanzamiento pegaba enseguida contra el piso: 1,1 m/s en vez de 35)
+await ev(`JUG.pitch = 0.05; 1`); await juego(0.4);
 const v0 = await ev(`[window.__caja.b.pos.x, window.__caja.b.pos.z]`);
 await ev(`window.__son = []; ARM.t = 0; ARM.ocup = 0; disparar(); 1`); await juego(0.1); await foto('grav_lanza');
 const gl = await ev(`({ tiene: !!ARM.grav, clip: ${clipAhora}, son: window.__son.slice(), vel: +Math.hypot(window.__caja.b.vel.x, window.__caja.b.vel.z).toFixed(1) })`);
