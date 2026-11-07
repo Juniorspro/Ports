@@ -1906,10 +1906,18 @@ más suspenso y que diga Beta lanzada; caminatas y corridas bien cinemáticas; c
   meteoro en 31,46 s y la placa en 37,50 s) con sus golpes de sonido (la onda expansiva llega en 21,0 s); el pico del
   audio en −0,95 dB, sin recortes.
 - **Arreglos en el camino**: la grieta se veía a través del hongo (el volumen dejaba pasar un 2 % de luz y la grieta es
-  muy brillante: ahora es opaco cuando casi no deja pasar luz); la mano no llegaba al arma (en el clip de agacharse
-  queda a 0,55 m del piso: el arma queda clavada de punta con la cola para arriba y el brazo llega con cinemática
-  inversa); la cara salía roja en la playa (con el sol del atardecer de frente, la textura de la piel se iba a un rojo
-  saturado: un tinte sólo en el material de la cabeza la deja marrón cálida); los renders largos se cortaban a la media
-  hora (ahora cada cuadro queda guardado y el render se retoma donde quedó).
-- **Límites**: los modelos son los del juego; la mano llega al arma con cinemática inversa sobre la captura (los dedos no
-  la rodean del todo); todo se renderizó con el procesador, sin placa de video.
+  muy brillante: ahora es opaco cuando casi no deja pasar luz); la cara salía roja en la playa (con el sol del
+  atardecer de frente, la textura de la piel se iba a un rojo saturado: un tinte sólo en el material de la cabeza la
+  deja marrón cálida); los renders largos se cortaban a la media hora (ahora cada cuadro queda guardado y el render se
+  retoma donde quedó).
+- **La mano del final giraba** («la mano al final gira»). Eran dos cosas: los dedos se doblaban sobre lo que ya estaban (la
+  captura de movimiento no trae dedos, así que nada los volvía a poner) y daban vueltas sin parar, hasta 8,7 cm entre
+  subcuadros; y el brazo se estiraba del todo hacia un punto al que no llegaba (el cuerpo se ubicaba con la arena de
+  otro lugar, 22 cm más baja, y el punto de agarre quedaba en el aire, 11 cm sobre el arma), con latigazos de hasta 12°
+  por subcuadro. Ahora los dedos se doblan desde su pose de base (se mueven 0,6 cm como mucho), el cuerpo se ubica
+  donde está parado de verdad, el agarre sale de la forma real del arma clavada y la mano gira 0,9° por subcuadro como
+  mucho; los dedos apoyan en la cola del arma (a 0,9 cm en el toque, 36,33 s). Se volvió a renderizar sólo ese plano
+  (9b, 70 cuadros).
+- **Límites**: los modelos son los del juego (la mano del soldado es como un mitón, con los dedos juntos: apoya y se
+  cierra sobre la cola del arma, pero no la rodea dedo por dedo); todo se renderizó con el procesador, sin placa de
+  video.
