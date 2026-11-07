@@ -307,8 +307,27 @@ function celmBrazo3p(P) {
   const ex = celmExceso(md, (x) => (x === 'RightHand' ? hand : hx[x]), C, t); if (ex > 0) C.c = vadd(C.c, vscale(n, ex + 0.001 * t));
   P.celu3p = C;
 }
+// con un modelo de jugador de GMod (por dentro se anima el Hero): el celular se corre de la mano del Hero a la del modelo
+// y toma el tamaño del personaje, como las armas (armaGmp); antes quedaba donde iba la mano del Hero, flotando lejos de
+// la del modelo (Discord: «el celular no sigue al avatar»). Y se separa de la palma lo que haga falta para que ningún dedo
+// del modelo lo atraviese
+function celmEnPm(P, C) {
+  const G = P.gmp, D = G && !G.propio && G.armaD; if (!C || !D) return C;
+  const s = D.s, X = G.def.porMix;
+  // (anclado a los nudillos —el nudillo del medio, donde se agarra—, no a la muñeca: los modelos de mano chica lo tenían
+  // corrido hacia la punta de los dedos; si alguno de los dos no tiene nudillos, a la muñeca)
+  const kH = huesosMixamo(P.D).RightHandMiddle1, kP = X.RightHandMiddle1;
+  const a0 = kH !== undefined && kP !== undefined && G.Pw[kP] ? celmPos(P.md, kH) : D.hero, a1 = kH !== undefined && kP !== undefined && G.Pw[kP] ? G.Pw[kP] : D.pm;
+  const out = { c: vadd(a1, vscale(vsub(C.c, a0), s)), r: C.r, u: C.u, n: C.n, t: C.t * s };
+  let ex = 0;
+  const ver = (i, r) => { if (i === undefined || !G.Pw[i]) return; const d = vsub(G.Pw[i], out.c), x = vdot(d, out.r) / out.t, y = vdot(d, out.u) / out.t, z = vdot(d, out.n) / out.t; if (Math.abs(x) < CELM_W / 2 && Math.abs(y) < CELM_H / 2) ex = Math.max(ex, z + r + CELM_D / 2); };
+  for (const Dd of [...CELM_DEDOS, 'Thumb']) for (const k of [1, 2, 3]) ver(X['RightHand' + Dd + k], Dd === 'Thumb' ? 0.009 : 0.008);
+  ver(X.RightHand, 0.014);
+  if (ex > 0) out.c = vadd(out.c, vscale(out.n, (ex + 0.001) * out.t));
+  return out;
+}
 function celmDibujar3p(P) {
-  const C = P.celu3p; if (!C) return;
+  const C = P.celuDib = celmEnPm(P, P.celu3p); if (!C) return;
   const M = celmMats(), q = qBase(C.r, C.u, C.n), t = C.t;
   dibujarCaja(C.c, [CELM_W * t, CELM_H * t, CELM_D * t], q, M.cuerpo);
   dibujarCaja(vadd(C.c, vscale(C.n, CELM_D * t / 2 + 0.0004)), [(CELM_W - 0.003) * t, (CELM_H - 0.006) * t, 0.0006], q, matPropio('celuPant3p', [0.25, 0.4, 0.9], { em: [0.35, 0.55, 1.2] }));
