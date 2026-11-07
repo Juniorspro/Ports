@@ -1782,3 +1782,93 @@ caminando. Las comparaciones son contra la prueba15, en las mismas condiciones.
   `linterna_bsp` 4/4, `mapa_io` 6/6, `props_pose` 4/4, `gmod_abrir` 7/7, `gmod_mira_recarga` 7/7 y `celu_mano` 27/27.
 - Sin probar en un celular de 512 MB de verdad: el procesador lento se simula frenando el de la compu, la memoria se mide
   en Chromium y la placa de video de prueba no es la de un celular.
+
+## JXMod 3.0: menú nuevo, la versión a la vista y lo del Discord
+
+Pedido: «la próxima ya es la 3.0; que el juego diga qué versión es, con un menú nuevo y renovado, menos IA», más los
+videos y capturas del Discord (ruedas que volaban, mancha blanca, tienda caída, nextbots, emotes, linterna, Minecraft
+SWEP, borrar varios mods, el celular en la mano, carteles de «moriste», pestaña de NPCs y DrGBase en pose T).
+
+- **La versión y el menú principal nuevo** (`juego/inicio.js`, `juego/template.html`): «JXMod 3.0» y el día del armado
+  en una placa abajo a la derecha; placas rectas, letra Oswald (OFL, va adentro del HTML), un solo color de acento y
+  nada de brillos ni degradados. `JX_VERSION` (en `nucleo.js`) es la única fuente: el inicio, la caja negra y el APK
+  (`--version-name 3.0`). Prueba `menu_30` 7/7 (compu, celular, celular chico y parado, los 14 idiomas, árabe espejado).
+- **Ruedas que volaban alrededor del auto** (video): una rueda ya no toma un nodo que tiene otras ruedas adentro y la
+  suspensión va en la escala del nodo (la silla de ruedas las llevaba a 22 m; prueba `ruedas_autos`).
+- **Tienda saturada (error 1027)**: menos pedidos, freno cuando no contesta; la app pide directo a Steam y a YouTube.
+  La búsqueda de la tele y la radio («música para jugar» daba «No hay resultados») anda de nuevo (`tienda_caida`).
+- **Mancha blanca que perseguía la vista** (video): era el brillo del sol en el lago, una bola blanca pegada a la
+  cámara; ahora es el reflejo del sol con el Fresnel del agua y, buceando, la luz en la niebla del color del agua
+  (`agua_sol`).
+- **Nextbots**: los clásicos de sprite se ven (Walter, Obunga, Sanic…) y DrGBase anda (`nextbots_drg` 6/6).
+- **Emotes**: un toque abre sólo la ruleta, con «Editar emotes» y «Todos los emotes»; se puede volver al panel en
+  Ajustes → Controles (`ruleta_emotes` 8/8).
+- **Borrar varios mods a la vez**, con cupo por tamaño: 20 chicos, 10 medianos o 4 grandes por vez
+  (`gm_borrar_varios` 13/13).
+- **El celular en la mano de los avatares de mods** (modelos de jugador del Workshop): antes flotaba a 22–41 cm de la
+  mano; ahora va en la mano del modelo, de su tamaño, sin dedos adentro (`celu_mano_gmp` 6/6).
+- **La linterna hace sombra** (`sombras.js`, `gl.js`): lo que tapa la luz deja su sombra detrás. Mapa de 512 en Medio y
+  Alto, 1024 con el borde suave en Ultra; en Bajo, Patata y WebGL 1 no hay. `linterna_sombra` 7/7: la sombra cae 100 %
+  donde la caja tapa la luz y la llena en un 98 %, sin manchas fuera de ella; cuesta +9,7 % de cuadro en Alto en esta
+  compu, que no tiene placa de video (todo lo dibuja el procesador: en un celular con placa cuesta menos).
+- **Minecraft SWEP** (Workshop 116592647): en el Pasto plano los bloques quedaban 40 cm en el aire, la mira pasaba por
+  debajo y no se podían apilar ni sacar. La grilla del addon va alineada con el cero del mapa y nuestro piso estaba en
+  z = 20,87: ahora, en los mapas propios, el piso de la aparición es el cero de Source (como en la mayoría de los mapas
+  de GMod); en los de GMod y los del Workshop no cambia nada. Las conversiones del Lua se separaron en posiciones (con
+  ese cero) y velocidades, fuerzas y desplazamientos locales (sin él). El arma se llama «Minecraft SWEP» (el nombre del
+  lado del cliente, como el selector de GMod). `minecraft_swep` 8/8: el bloque apoyado en el pasto (0 cm; antes 39,6 cm),
+  en la grilla, apilado justo, al costado, sacarlo, y las cuentas del Lua (SetPos, LocalToWorld, la caja local, la
+  velocidad, una traza) sin corrimiento. Falta: el menú de bloques que abre la R (es un menú Derma, que el juego todavía
+  no dibuja); el tipo de bloque se cambia en GMod → Minecraft SWEP → Ajustes (`minecraft_blocktype`).
+- **Sin carteles de «moriste»**: fuera «Te moriste», «¡Te caíste!» y «Disparar o saltar para reaparecer», como en GMod
+  (`sin_carteles_muerte` 4/4).
+- **Pestaña NPCs en el menú de spawn**, como la de GMod: los personajes del juego como NPC y los NPC de los addons por su
+  categoría, con el buscador (`npcs_menu` 6/6, compu y celular).
+- **DrGBase y NPCs en pose T**: las animaciones de los NPC de HL2 (zombies, hormigas león, headcrabs, combine) y de los
+  modelos de jugador de GMod (m_anm) están en archivos `.ani` (bloques de animación) y en otros `.mdl`
+  (`$includemodel`), y el juego no leía ninguno de los dos: los modelos quedaban en su pose de referencia. Ahora se leen
+  los bloques del `.ani` y se suman las secuencias de los modelos incluidos (pidiéndolos si faltan), los nextbots tienen
+  sus parámetros de pose (move_x/move_y eligen la animación de caminar) y, si un modelo no tiene la actividad pedida, se
+  usa la equivalente (de NPC ↔ de jugador). `drg_poses` 4/4: la hormiga león, el headcrab, el zombie, el nextbot y el
+  humano de prueba se animan (11–34° de giro medio respecto de la pose T, que da 0°).
+- **Herramientas de la Tool Gun de los mods** (`gmod_cargar.js`, `gmod_prelude.js`): la tabla `TOOL` que ve cada archivo
+  ya tiene los métodos del objeto de herramienta de GMod (`BuildConVarList`, `CreateConVars`…). Desde que las
+  herramientas se cargan también del lado del cliente (para DrGBase), la Lightsaber tiraba un error de Lua al cargar.
+- **Las teclas que muestran los mods** (`input.LookupBinding`): una definición vieja pisaba a la completa y los addons
+  que dicen qué tecla apretar mostraban «<NOT BOUND>» (la Lightsaber: «Press <NOT BOUND> to toggle Force selection»).
+  Ahora dicen F para `impulse 100` (la Fuerza, la linterna), 1…9 para las ranuras y E, R, Q… para el resto.
+- **Cómo se ponen mods** (pregunta del Discord): Menú principal → Mods y mapas → GMod → buscar el addon → Instalar; un
+  `.gma` propio entra con «Importar .gma».
+- **El botón de recargar y las teclas de los mods en el celular** (`hud.js`): con el celular en la mano (y con las armas
+  de golpe) ya no aparece el botón de recargar, que no servía y quedaba pegado al borde del celular; las armas de los
+  mods de GMod lo siguen mostrando (su Lua usa la R). En los celulares apaisados y bajos (800×360 a 915×412), un mod con
+  6 teclas ponía 5 en la zona de la palanca de caminar (ya pasaba antes de la 3.0): las tres filas de arriba a la
+  izquierda se juntan lo justo, nunca a menos de 6 px. `hud_celu` 7/7 (antes 6/7), `celu_mano` 27/27 cuatro veces
+  seguidas (antes fallaba 1 de cada 4 por el botón de recargar).
+- Tres pruebas que estaban mal, no el juego: `npc` 15/15 (antes 14/15 desde la prueba15: un NPC agarrado se vuelve muñeco
+  de trapo y la prueba miraba el cuerpo viejo; ahora mira el muñeco: lo levanta 1,1 m con los pies a 0,9 m del piso y al
+  soltarlo queda en el piso) y `armas_gmod` 8/8 (la Gravity Gun lanzaba la caja mirando al piso y a veces pegaba contra
+  el suelo enseguida: 1,1 m/s; mirando al frente sale a 50 m/s siempre) y `gmod_portales` 2/2 (la salida queda a
+  menos de medio milímetro delante de la otra puerta, la prueba redondeaba al milímetro y veía 0: fallaba la mitad de
+  las veces, también antes de la 3.0).
+- Pruebas, todas sobre el armado final: `menu_30` 7/7, `menu_principal` 4/4, `ruleta_emotes` 8/8,
+  `sin_carteles_muerte` 4/4, `npcs_menu` 6/6, `minecraft_swep` 8/8, `drg_poses` 4/4, `nextbots_drg` 6/6,
+  `gmod_nextbot_muerte` 8/8, `linterna_sombra` 7/7, `celu_mano` 27/27, `celu_mano_gmp` 6/6, `arma_mano_gmp` 3/3,
+  `gm_borrar_varios` 13/13, `mods_habilitar` 9/9, `personajes_mods` 8/8, `tienda_caida` 7/7, `ruedas_autos` 5/5,
+  `agua_sol` 4/4, `huesos_igual` 3/3, `memoria_baja` 4/4, `social` 42/42, `npc` 15/15, `npc_caminar` 5/5, `vj_crack` 6/6,
+  `hl_resurgence` 5/5, `disparo_tercera` 6/6, `textura_reintento` 5/5, `linterna_mod` 7/7, `linterna_bsp` 4/4,
+  `mapa_io` 6/6, `props_pose` 4/4, `gmod_abrir` 7/7, `gmod_mira_recarga` 7/7, `armas_gmod` 8/8, `mouse_pc` 6/6,
+  `red_workshop` 6/6, `hud_celu` 7/7, `hud_orden` 5/5, `girado` 11/11, `gmod_panel` 18/18, `apuntar` 5/5,
+  `gmod_addon` 7/7, `gmod_wac` 9/9, `gmod_munecos` 9/9, `gmod_arma_suelo` 5/5, `efecto_siempre` 5/5, `gmod_nuke` 5/5,
+  `gmod_movimiento` 14/14, `npc_armas` 7/7 y `gmod_portales` 2/2.
+- Lo que ya fallaba antes (igual con un armado de antes de estos cambios): `gmod_sable` 8/10 (el mango del sable queda a
+  24 cm de la muñeca, la prueba pide ≤ 15) y `gmod_lua` (dos fallas con la Nyan Gun y después se cierra el navegador).
+- Para armar el juego de prueba hay que usar `armar.sh` (o `MQTT_JS=…/mqtt.min.js` con `armar.py`): sin la librería del
+  multijugador el juego arranca igual, pero sin red (`mouse_pc` y `red_workshop` fallan por eso, no por el juego).
+- APK 3.0 (versionCode 26110704, firma v1+v2+v3) y página con código (`web/`) armados de nuevo; `codigo_web.mjs` 9/9.
+- La tienda (el Worker de Cloudflare) no hace falta volver a subirla. La app de Android pide directo a Steam y a YouTube;
+  la página con código (iPhone y navegadores) todavía usa la tienda para buscar en YouTube y para bajar los addons de
+  Steam: si la tienda llega a su tope del día, eso no anda hasta el día siguiente (la radio y los links de YouTube
+  pegados sí andan).
+- Sin probar en celulares ni en un iPhone de verdad: todo se probó en Chromium en la compu (con pantalla y toque de
+  celular simulados), y la placa de video de prueba dibuja con el procesador.
