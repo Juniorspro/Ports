@@ -1872,3 +1872,27 @@ SWEP, borrar varios mods, el celular en la mano, carteles de «moriste», pesta�
   pegados sí andan).
 - Sin probar en celulares ni en un iPhone de verdad: todo se probó en Chromium en la compu (con pantalla y toque de
   celular simulados), y la placa de video de prueba dibuja con el procesador.
+
+## Tráiler de la 3.0 (34 s, 4:3 en FHD)
+
+Pedido: un tráiler de 34 s con la canción del video de 41 s, que cuente una historia sin narrarla, con suspenso, voces
+para los personajes, sin interfaz, el logo recortado al principio y renderizado mejor que el juego; después, «solamente
+necesito que sea 4:3 aprox… no discord… fhd».
+
+- **El video**: `jxmod/JXMod_trailer_3_0.mp4`, 1440×1080 (4:3), 24 cuadros por segundo, 34,0 s, 42 MB.
+- **Todo sale del juego**, sin interfaz: los 9 planos se renderizan dentro de JXMod con las herramientas de
+  `herramientas/trailer/` (ver su LEEME): Ultra, sombras de 4096, 4 subcuadros por cuadro (suavizado y desenfoque de
+  movimiento), cámara guionada, la grieta del cielo (efecto propio), las cosas que caen con fuego, el barril, la
+  nuclear y el mar de la playa.
+- **La historia**: el desierto en primera persona y las manos que brillan («Otra vez no…»); el cielo se raja y la grieta
+  habla («Te encontramos.»); la lluvia de cosas en llamas; el barril al ras del piso; la nuclear; la corrida; la playa
+  («Acá no llegan…»); cae la Physics Gun a su espalda, se da vuelta («Es mía.») y corte.
+- **Sonido**: la canción del video de 41 s, 4 voces generadas y efectos del juego; la música baja bajo las voces.
+- **Revisado con `verificar.py`**: 816 cuadros, 34,000 s, sin negros fuera de lugar ni cuadros repetidos, los cortes en
+  los tiempos del guion, los destellos y los golpes del sonido juntos (la grieta en 6,42 s, el golpe en 13,50 s, el
+  barril en 18,67 s, la nuclear en 19,04 s) y el pico del audio en -1 dB sin recortes.
+- **Arreglos en el camino**: la sombra cuadriculada del propio cuerpo en primera persona (el juego la volvía a poner en
+  cada cuadro), el personaje doble con el desenfoque de movimiento (la física del juego avanza a pasos de 1/60 s y la
+  cámara iba en tiempo continuo) y el resplandor del logo, que se cortaba en un rectángulo.
+- **Límites**: los modelos y las animaciones son los del juego (el caminar en la playa se ve algo rígido); todo se
+  renderizó con el procesador, sin placa de video.

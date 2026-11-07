@@ -55,5 +55,6 @@ grandes y no asome el cuerpo abajo. En un lienzo panorámico, `C.aspK` no cambia
 7. Armar el video: `python3 armar_final.py`.
 8. Revisarlo: `python3 verificar.py JXMod_trailer_3_0.mp4`.
 
-En esta compu (sin placa de video, todo con el procesador) cada cuadro final tarda unos 6 s con dos carriles en
-paralelo. El tráiler entero (756 cuadros de juego) tarda unos 40 minutos.
+En esta compu (sin placa de video, todo lo dibuja el procesador) cada cuadro de 1440×1080 tarda de 9 a 10 s con tres
+carriles en paralelo (uno cada 3,2 s en total): los 756 cuadros de juego, unos 45 minutos, más de 1 a 4 minutos de
+previo por plano. El armado final, con dos pasadas, tarda 2 min 21 s.
