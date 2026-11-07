@@ -88,7 +88,7 @@ const _gp = v3();
 function gmrP(p, out) {
   let x = p.x, y = p.y, z = p.z; const M = GR.M;
   if (M) { const a = M; const X = a[0] * x + a[1] * y + a[2] * z + a[3], Y = a[4] * x + a[5] * y + a[6] * z + a[7], Z = a[8] * x + a[9] * y + a[10] * z + a[11]; x = X; y = Y; z = Z; }
-  out = out || v3(); out.set(y * GS, z * GS, x * GS); return out;
+  out = out || v3(); out.set(y * GS, z * GS + GMA.oy, x * GS); return out;   // (una posición: con el cero de Source del mapa, gmod_api.js)
 }
 function gmrCol(c, m) {
   let r = 1, g = 1, b = 1, a = 1;
@@ -481,7 +481,7 @@ function gmrApiParticulas(R, G, def, num) {
     SetStartAlpha: (q, v) => { q.a0 = n(v, 255); }, SetEndAlpha: (q, v) => { q.a1 = n(v, 0); }, GetStartAlpha: (q) => q.a0, GetEndAlpha: (q) => q.a1,
     SetStartLength: (q, v) => { q.l0 = n(v, 0); }, SetEndLength: (q, v) => { q.l1 = n(v, 0); }, GetStartLength: (q) => q.l0, GetEndLength: (q) => q.l1,
     SetColor: (q, r, g, b) => { q.c = [n(r, 255), n(g, 255), n(b, 255)]; }, GetColor: (q) => q.c.slice(),
-    SetVelocity: (q, v) => { if (v instanceof LVec) q.v = vG(v); }, GetVelocity: (q) => GMA.V(q.v), SetGravity: (q, v) => { if (v instanceof LVec) q.g = vG(v); }, GetGravity: (q) => GMA.V(q.g),
+    SetVelocity: (q, v) => { if (v instanceof LVec) q.v = vGr(v); }, GetVelocity: (q) => GMA.Vr(q.v), SetGravity: (q, v) => { if (v instanceof LVec) q.g = vGr(v); }, GetGravity: (q) => GMA.Vr(q.g),
     SetPos: (q, p) => { if (p instanceof LVec) q.p = vG(p); }, GetPos: (q) => GMA.V(q.p), SetAirResistance: (q, v) => { q.aire = n(v, 0); }, GetAirResistance: (q) => q.aire,
     SetRoll: (q, v) => { q.roll = n(v, 0); }, GetRoll: (q) => q.roll, SetRollDelta: (q, v) => { q.droll = n(v, 0); }, GetRollDelta: (q) => q.droll,
     SetAngles: (q, a) => { if (a instanceof LAng) q.ang = new LAng(a.p, a.y, a.r); }, GetAngles: (q) => GMA.A(q.ang ? new LAng(q.ang.p, q.ang.y, q.ang.r) : new LAng()), SetAngleVelocity: (q, a) => { if (a instanceof LAng) q.dang = new LAng(a.p, a.y, a.r); }, GetAngleVelocity: (q) => GMA.A(q.dang || new LAng()),

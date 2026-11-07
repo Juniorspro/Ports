@@ -128,6 +128,7 @@ function cargarMapa(nombre) {
     const h = mundoRayo(v3(0, hi.y + 5, 0), v3(0, -1, 0), 1e4);
     MUNDO.spawns.push(v3(0, h ? hi.y + 5 - h.t + 1 : 2, 0));
   }
+  if (typeof gmaOrigenMapa === 'function') gmaOrigenMapa(nombre);   // (el cero de Source del mapa, para el Lua de GMod)
 }
 // niebla lineal del mapa (la de Source): la del mapa si la vista llega a todo el mapa; si no, cerrada antes de donde se
 // corta la vista (en las calidades bajas, lo de lejos se pierde en la niebla en vez de cortarse)

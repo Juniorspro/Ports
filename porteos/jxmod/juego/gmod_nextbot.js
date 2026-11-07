@@ -22,7 +22,7 @@ function gmnbLoco(e) {
     L('SetJumpHeight', (s, l, v) => { s.salto = +v || 0; }); L('GetJumpHeight', (s) => s.salto); L('SetStepHeight', (s, l, v) => { s.paso = +v || 0; }); L('GetStepHeight', (s) => s.paso);
     L('SetMaxYawRate', (s, l, v) => { s.giro = +v || 0; }); L('GetMaxYawRate', (s) => s.giro); L('SetGravity', (s, l, v) => { s.grav = +v; }); L('GetGravity', (s) => s.grav);
     L('SetDeathDropHeight', (s, l, v) => { s.caida = +v || 0; }); L('GetDeathDropHeight', (s) => s.caida);
-    L('GetVelocity', (s) => GMA.Vd(s.v)); L('SetVelocity', (s, l, v) => { if (v instanceof LVec) s.v.copy(vG(v)); });
+    L('GetVelocity', (s) => GMA.Vd(s.v)); L('SetVelocity', (s, l, v) => { if (v instanceof LVec) s.v.copy(vGr(v)); });
     L('IsStuck', (s) => s.trabado); L('ClearStuck', (s) => { s.trabado = false; s.tTrabado = 0; });
     L('Jump', (s) => { if (s.suelo) { s.v.y = Math.sqrt(2 * Math.max(1, s.grav) * Math.max(1, s.salto)) * GS; s.suelo = false; } });
     L('JumpAcrossGap', (s, l, g) => { if (s.suelo) { if (g instanceof LVec) s.meta = vG(g); s.v.y = Math.sqrt(2 * Math.max(1, s.grav) * Math.max(1, s.salto)) * GS; s.suelo = false; } });

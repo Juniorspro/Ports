@@ -5,7 +5,7 @@
 // ve pulgadas y Z arriba (Source); el juego, metros e Y arriba: se convierte en el borde. Lo que más usan los addons
 // reales (análisis de 111 addons: Vector, Angle, ents.Create, hook, timer, net, util.TraceLine, surface/draw, SWEP...)
 // está; lo que falta responde algo neutro en vez de romper el addon.
-const GMA = { R: null, ctx: 'S', hooks: new Map(), timers: new Map(), tSimples: [], net: { S: new Map(), C: new Map() }, ents: new Map(), nid: 1000, clases: new Map(), armas: new Map(), efectos: new Map(), cvars: new Map(), lista: null, fuentes: new Map(), errores: [], cargados: new Set(), hud: null, entPorObj: new WeakMap(), jug: null, mundo: null, swep: null, dibujoHUD: false,
+const GMA = { R: null, ctx: 'S', oy: 0, oyMapa: null, hooks: new Map(), timers: new Map(), tSimples: [], net: { S: new Map(), C: new Map() }, ents: new Map(), nid: 1000, clases: new Map(), armas: new Map(), efectos: new Map(), cvars: new Map(), lista: null, fuentes: new Map(), errores: [], cargados: new Set(), hud: null, entPorObj: new WeakMap(), jug: null, mundo: null, swep: null, dibujoHUD: false,
   // (los mods apagados en el panel GMod —los efectos de pantalla, por ejemplo—: sus hooks no corren; quedan guardados)
   apagados: (() => { try { return new Set(JSON.parse(localStorage.getItem('rb_gmb_apagados') || '[]').map(String)); } catch (e) { return new Set(); } })(), hookAddon: null,
   // (los mods que trabaron el juego mientras corría su Lua al cargarse —lo dice la caja negra, cajanegra.js—: quedan
@@ -41,8 +41,23 @@ const gmaErr = (m) => {
 // ---------------- valores: Vector, Angle, Color ----------------
 class LVec { constructor(x, y, z) { this.x = +x || 0; this.y = +y || 0; this.z = +z || 0; } }
 class LAng { constructor(p, y, r) { this.p = +p || 0; this.y = +y || 0; this.r = +r || 0; } }
-const vG = (v) => (v ? v3(v.y * GS, v.z * GS, v.x * GS) : v3());               // Source → juego
-const vS = (v) => new LVec(v.z / GS, v.x / GS, v.y / GS);          // juego → Source
+// las posiciones: en los mapas propios el piso de la aparición queda en el cero de Source (z = 0), como en la mayoría de
+// los mapas de GMod (en los de GMod y los del Workshop, tal cual: GMA.oy = 0). Antes el piso del Pasto plano quedaba en
+// z = 20,87 y lo que se alinea con el cero del mapa quedaba en el aire (los bloques del Minecraft SWEP flotaban 40 cm, la
+// mira pasaba por debajo y no se podían apilar ni sacar). vGr/vSr: lo que no es una posición (velocidades, fuerzas,
+// desplazamientos y cajas locales), sin ese corrimiento
+const vG = (v) => (v ? v3(v.y * GS, v.z * GS + GMA.oy, v.x * GS) : v3());               // Source → juego
+const vS = (v) => new LVec(v.z / GS, v.x / GS, (v.y - GMA.oy) / GS);          // juego → Source
+const vGr = (v) => (v ? v3(v.y * GS, v.z * GS, v.x * GS) : v3());
+const vSr = (v) => new LVec(v.z / GS, v.x / GS, v.y / GS);
+// el cero de Source del mapa (ver vG), al cargarlo (mundo.js): en los mapas propios, el piso debajo de la primera
+// aparición; en los de GMod (los convertidos, la pizzería que viene de un BSP y los del Workshop), el del mapa
+function gmaOrigenMapa(nombre) {
+  GMA.oyMapa = nombre; GMA.oy = 0;
+  const propio = (typeof MAPAS !== 'undefined' && MAPAS.includes(nombre)) || (typeof MAPAS_RB !== 'undefined' && MAPAS_RB.includes(nombre) && !/^RB_(Pizzeria|Construct|Flatgrass)$/.test(nombre));
+  const s = propio && MUNDO.spawns && MUNDO.spawns[0]; if (!s) return;
+  const y = typeof pisoBajo === 'function' ? pisoBajo(s, 1.5) : null; if (y !== null && Number.isFinite(y)) GMA.oy = y;
+}
 const dG = (v) => (v ? v3(v.y, v.z, v.x) : v3(0, 0, 1));                               // direcciones
 const dS = (v) => new LVec(v.z, v.x, v.y);
 const RAD = Math.PI / 180;
@@ -274,8 +289,8 @@ function gmaPantalla(v) {
 
 // ---------------- métodos de entidades, jugadores, armas y física ----------------
 function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, num) {
-  const V = (g) => { const v = vS(g); v.__mt = GMA.mtVec; return v; }, Vd = (g) => { const v = dS(g); v.__mt = GMA.mtVec; return v; }, A = (a) => { a.__mt = GMA.mtAng; return a; };
-  GMA.V = V; GMA.Vd = Vd; GMA.A = A;
+  const V = (g) => { const v = vS(g); v.__mt = GMA.mtVec; return v; }, Vr = (g) => { const v = vSr(g); v.__mt = GMA.mtVec; return v; }, Vd = (g) => { const v = dS(g); v.__mt = GMA.mtVec; return v; }, A = (a) => { a.__mt = GMA.mtAng; return a; };
+  GMA.V = V; GMA.Vr = Vr; GMA.Vd = Vd; GMA.A = A;
   const E = (n, f) => ENT_M.set(n, f), P = (n, f) => PLY_M.set(n, f), W = (n, f) => WEP_M.set(n, f), F = (n, f) => PHY_M.set(n, f);
   const yo = () => GMA.jug;
   E('IsValid', (e) => entValida(e)); E('EntIndex', (e) => (e.tipo === 'jug' ? 1 : e.id)); E('GetClass', (e) => e.clase);
@@ -283,16 +298,16 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('SetPos', (e, v) => { if (!(v instanceof LVec)) return; const p = vG(v); if (e === yo()) { JUG.pos.copy(p).add(v3(0, JUG.medio, 0)); JUG.vel.set(0, 0, 0); } else if (e.o) { gmaOrigenPon(e.o, p); e.o.b.wake(); e.o.b.updateWorld(); } else e.pos.copy(p); if (e.padre || e.soldadoA) gmaPadreFijar(e, 'pos'); });
   E('GetAngles', (e) => A(e === yo() ? new LAng(0, quatAng(Quat.axis(0, 1, 0, JUG.yaw)).y, 0) : quatAng(entQ(e))));
   E('SetAngles', (e, a) => { if (!(a instanceof LAng)) return; const q = angQuat(a); if (e === yo()) { JUG.yaw = Math.atan2(q.rot(v3(0, 0, 1)).x, q.rot(v3(0, 0, 1)).z); } else if (e.o) { const org = gmaOrigen(e.o); e.o.b.q.copy(q); gmaOrigenPon(e.o, org); e.o.b.wake(); e.o.b.updateWorld(); } else e.q.copy(q); if (e.padre || e.soldadoA) gmaPadreFijar(e, 'ang'); });
-  E('GetVelocity', (e) => V(e === yo() ? JUG.vel : e.o ? e.o.b.vel : v3()));
-  E('SetVelocity', (e, v) => { const g = vG(v); if (e === yo()) JUG.vel.add(g); else if (e.o) { e.o.b.vel.copy(g); e.o.b.wake(); } });
+  E('GetVelocity', (e) => Vr(e === yo() ? JUG.vel : e.o ? e.o.b.vel : v3()));
+  E('SetVelocity', (e, v) => { const g = vGr(v); if (e === yo()) JUG.vel.add(g); else if (e.o) { e.o.b.vel.copy(g); e.o.b.wake(); } });
   const dirE = (e, k) => { const a = e === yo() ? dirAng(dS(CAM.fwd)) : quatAng(entQ(e)), m = angMat(a); const v = k === 0 ? m[0] : k === 1 ? m[1].map((x) => -x) : m[2]; return GMA.nv(v[0], v[1], v[2]); };
   E('GetForward', (e) => dirE(e, 0)); E('GetRight', (e) => dirE(e, 1)); E('GetUp', (e) => dirE(e, 2));
-  E('LocalToWorld', (e, v) => V(gmaEntPos(e).add(entQ(e).rot(vG(v))))); E('WorldToLocal', (e, v) => V(entQ(e).conj().rot(vsub(vG(v), gmaEntPos(e)))));
+  E('LocalToWorld', (e, v) => V(gmaEntPos(e).add(entQ(e).rot(vGr(v))))); E('WorldToLocal', (e, v) => Vr(entQ(e).conj().rot(vsub(vG(v), gmaEntPos(e)))));
   E('LocalToWorldAngles', (e, a) => A(quatAng(new Quat().mulTo(entQ(e), angQuat(a))))); E('WorldToLocalAngles', (e, a) => A(quatAng(new Quat().mulTo(entQ(e).conj(), angQuat(a)))));
-  const caja = (e) => { const k = e.o && DATA.pfPorNombre[e.o.nombre], d = k ? DATA.ms[DATA.pf[k][0].m] : null; if (!d || !d.mn) return [new LVec(-8, -8, 0), new LVec(8, 8, 16)]; const mn = vS(v3(d.mn[0], d.mn[1], d.mn[2])), mx = vS(v3(d.mn[0] + d.sc[0], d.mn[1] + d.sc[1], d.mn[2] + d.sc[2])); return [mn, mx]; };
+  const caja = (e) => { const k = e.o && DATA.pfPorNombre[e.o.nombre], d = k ? DATA.ms[DATA.pf[k][0].m] : null; if (!d || !d.mn) return [new LVec(-8, -8, 0), new LVec(8, 8, 16)]; const mn = vSr(v3(d.mn[0], d.mn[1], d.mn[2])), mx = vSr(v3(d.mn[0] + d.sc[0], d.mn[1] + d.sc[1], d.mn[2] + d.sc[2])); return [mn, mx]; };
   E('OBBMins', (e) => { const v = caja(e)[0]; v.__mt = GMA.mtVec; return v; }); E('OBBMaxs', (e) => { const v = caja(e)[1]; v.__mt = GMA.mtVec; return v; });
   E('OBBCenter', (e) => { const [a, b] = caja(e); return GMA.nv((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); });
-  E('WorldSpaceCenter', (e) => { const [a, b] = caja(e); return V(gmaEntPos(e).add(entQ(e).rot(vG(new LVec((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2))))); });
+  E('WorldSpaceCenter', (e) => { const [a, b] = caja(e); return V(gmaEntPos(e).add(entQ(e).rot(vGr(new LVec((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2))))); });
   E('BoundingRadius', (e) => { const [a, b] = caja(e); return Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / 2; });
   E('GetCollisionBounds', (e) => { const [a, b] = caja(e); a.__mt = b.__mt = GMA.mtVec; return [a, b]; });
   // (una lista de modelos, como el ENT.Model = {"..."} de VJ Base: uno de ellos; antes quedaba «[object object]»)
@@ -347,11 +362,11 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('GetTable', (e) => { const T = gmaTablaDe(e); if (!T.mt) { const m = new LuaTable(); m.set('__index', (t, k) => { if (k === 'dt') return gmaDT(e); if (k === 'Entity' || k === 'Weapon') return e; if (k === 'Owner') return e.dueño || NULL_ENT; const c = e.tipo === 'efecto' ? e.efecto : claseTabla(e.clase, GMA.ctx); const v = c ? buscarEnClase(c, k) : undefined; if (v !== undefined) return v; const f = GMA.mtEnt.get('__index')(e, k); return typeof f === 'function' ? (s, ...x) => f(s === t ? e : s, ...x) : f; }); T.mt = m; } return T; }); E('SetTable', (e, t) => { if (t instanceof LuaTable) { if (GMA.ctx === 'C') e.tablaC = t; else e.tabla = t; } }); E('SetVar', (e, k, v) => gmaTablaDe(e).set(k, v)); E('GetVar', (e, k, d) => gmaTablaDe(e).get(k) ?? d);
   E('GetBoneCount', () => 0); E('LookupBone', () => undefined); E('GetBonePosition', (e) => [V(gmaEntPos(e)), A(quatAng(entQ(e)))]); E('GetBoneMatrix', () => undefined);
   E('LookupAttachment', (e, n) => { const M = gmaModeloInfo(e); const i = M ? M.adjuntos.findIndex((a) => a.n.toLowerCase() === String(n).toLowerCase()) : -1; return i < 0 ? 0 : i + 1; });
-  E('GetAttachment', (e, i) => { if (e.tipo === 'vm') { const p = (typeof vistaPuntaMundo === 'function' && vistaPuntaMundo()) || vadd(CAM.pos, vadd(vscale(CAM.fwd, 0.6), vadd(vscale(CAM.der, 0.15), vscale(CAM.arr, -0.12)))); return tabla({ Pos: V(p), Ang: A(dirAng(dS(CAM.fwd))), Bone: 0 }); } const M = gmaModeloInfo(e), a = M && M.adjuntos[i - 1]; if (!M) return tabla({ Pos: V(gmaEntPos(e)), Ang: A(quatAng(entQ(e))), Bone: 0 }); if (!a) return undefined; const lp = new LVec(a.m[3], a.m[7], a.m[11]); const w = gmaEntPos(e).add(entQ(e).rot(vG(lp))); return tabla({ Pos: V(w), Ang: A(quatAng(entQ(e))) }); });
+  E('GetAttachment', (e, i) => { if (e.tipo === 'vm') { const p = (typeof vistaPuntaMundo === 'function' && vistaPuntaMundo()) || vadd(CAM.pos, vadd(vscale(CAM.fwd, 0.6), vadd(vscale(CAM.der, 0.15), vscale(CAM.arr, -0.12)))); return tabla({ Pos: V(p), Ang: A(dirAng(dS(CAM.fwd))), Bone: 0 }); } const M = gmaModeloInfo(e), a = M && M.adjuntos[i - 1]; if (!M) return tabla({ Pos: V(gmaEntPos(e)), Ang: A(quatAng(entQ(e))), Bone: 0 }); if (!a) return undefined; const lp = new LVec(a.m[3], a.m[7], a.m[11]); const w = gmaEntPos(e).add(entQ(e).rot(vGr(lp))); return tabla({ Pos: V(w), Ang: A(quatAng(entQ(e))) }); });
   E('GetAttachments', (e) => { const M = gmaModeloInfo(e); return R.tab((M ? M.adjuntos : []).map((a, i) => tabla({ id: i + 1, name: a.n }))); });
   E('Use', (e, act, caller) => gmaUsar(e, act || caller)); E('GetName', (e) => e.nombre || ''); E('SetName', (e, n) => { e.nombre = n; }); E('MapCreationID', () => -1); E('GetCreationID', (e) => (e.tipo === 'jug' ? 1 : e.id));   // (DrGBase arma el nombre de cada nextbot con esto: sin él, su Initialize se cortaba y nada andaba) E('GetSpawnEffect', () => false);
   E('GetBrushPlane', () => undefined); E('GetFlags', () => 0); E('IsFlagSet', () => false); E('GetEffects', () => 0); E('IsEffectActive', () => false); E('GetRenderMode', () => 0); E('GetMoveCollide', () => 0);
-  E('GetNetworkOrigin', (e) => V(gmaEntPos(e))); E('GetLocalPos', (e) => (e.padre && e.padreOff ? V(e.padreOff) : V(gmaEntPos(e)))); E('SetLocalPos', (e, v) => { if (e.padre && v instanceof LVec) { e.padreOff = vG(v); gmaHijoMover(e); } else ENT_M.get('SetPos')(e, v); });
+  E('GetNetworkOrigin', (e) => V(gmaEntPos(e))); E('GetLocalPos', (e) => (e.padre && e.padreOff ? Vr(e.padreOff) : V(gmaEntPos(e)))); E('SetLocalPos', (e, v) => { if (e.padre && v instanceof LVec) { e.padreOff = vGr(v); gmaHijoMover(e); } else ENT_M.get('SetPos')(e, v); });
   E('GetLocalAngles', (e) => (e.padre && e.padreQ ? A(quatAng(e.padreQ)) : ENT_M.get('GetAngles')(e))); E('SetLocalAngles', (e, a) => { if (e.padre && a instanceof LAng) { e.padreQ = angQuat(a); gmaHijoMover(e); } else ENT_M.get('SetAngles')(e, a); });
   E('EyePos', (e) => V(e === yo() ? gmaOjo() : gmaEntPos(e))); E('EyeAngles', (e) => A(e === yo() ? dirAng(dS(gmaApunta())) : quatAng(entQ(e))));
   E('GetGravity', () => 1); E('SetGravity', () => {}); E('GetElasticity', () => 1); E('GetFriction', () => 1);
@@ -428,17 +443,17 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   F('IsValid', (f) => !!bo(f)); F('Wake', (f) => { const b = bo(f); if (b) b.wake(); }); F('Sleep', () => {}); F('IsAsleep', (f) => !!(bo(f) && bo(f).sleep));
   F('EnableMotion', (f, s) => { const b = bo(f); if (!b) return; if (R.T(s) && f.e && (f.e.fijoNS || gmaPadreDe(f.e))) return; b.frozen = !R.T(s); if (R.T(s)) b.wake(); });   // (lo pegado o no sólido sigue quieto) F('IsMotionEnabled', (f) => !!(bo(f) && !bo(f).frozen)); F('IsMoveable', (f) => !!(bo(f) && !bo(f).frozen));
   F('EnableGravity', (f, s) => { const b = bo(f); if (b) b.sinGrav = !R.T(s); }); F('IsGravityEnabled', (f) => !(bo(f) && bo(f).sinGrav)); F('EnableCollisions', () => {}); F('EnableDrag', () => {});
-  F('ApplyForceCenter', (f, F2) => { const b = bo(f); if (b && F2 instanceof LVec && b.mass) { b.wake(); b.vel.add(vG(F2).scale(1 / b.mass)); } });
-  F('ApplyForceOffset', (f, F2, p) => { const b = bo(f); if (b && F2 instanceof LVec && b.mass) { b.wake(); const d = vG(F2).scale(1 / b.mass); b.vel.add(d); if (p instanceof LVec && b.applyVel) b.applyVel(vG(F2).scale(GS * 0), vsub(vG(p), b.pos), 1); } });
+  F('ApplyForceCenter', (f, F2) => { const b = bo(f); if (b && F2 instanceof LVec && b.mass) { b.wake(); b.vel.add(vGr(F2).scale(1 / b.mass)); } });
+  F('ApplyForceOffset', (f, F2, p) => { const b = bo(f); if (b && F2 instanceof LVec && b.mass) { b.wake(); const d = vGr(F2).scale(1 / b.mass); b.vel.add(d); if (p instanceof LVec && b.applyVel) b.applyVel(vGr(F2).scale(GS * 0), vsub(vG(p), b.pos), 1); } });
   F('ApplyTorqueCenter', (f, t) => { const b = bo(f); if (b && t instanceof LVec) { b.wake(); b.ang.add(dG(t).scale(0.0005)); } });
-  F('SetVelocity', (f, v) => { const b = bo(f); if (b) { b.vel.copy(vG(v)); b.wake(); } }); F('SetVelocityInstantaneous', (f, v) => { const b = bo(f); if (b) { b.vel.copy(vG(v)); b.wake(); } }); F('AddVelocity', (f, v) => { const b = bo(f); if (b) { b.vel.add(vG(v)); b.wake(); } });
-  F('GetVelocity', (f) => V(bo(f) ? bo(f).vel : v3())); F('GetAngleVelocity', (f) => Vd(bo(f) ? bo(f).ang.clone().scale(1 / RAD) : v3()));
+  F('SetVelocity', (f, v) => { const b = bo(f); if (b) { b.vel.copy(vGr(v)); b.wake(); } }); F('SetVelocityInstantaneous', (f, v) => { const b = bo(f); if (b) { b.vel.copy(vGr(v)); b.wake(); } }); F('AddVelocity', (f, v) => { const b = bo(f); if (b) { b.vel.add(vGr(v)); b.wake(); } });
+  F('GetVelocity', (f) => Vr(bo(f) ? bo(f).vel : v3())); F('GetAngleVelocity', (f) => Vd(bo(f) ? bo(f).ang.clone().scale(1 / RAD) : v3()));
   F('AddAngleVelocity', (f, a) => { const b = bo(f); if (b && a instanceof LVec) { b.wake(); b.ang.add(b.q.rot(dG(a)).scale(RAD)); } });
   F('SetMass', (f, m) => { const b = bo(f); if (b && b.setMasa) b.setMasa(num(m, 1)); else if (b) { const k = num(m, 1) / (b.mass || 1); b.mass = num(m, 1); b.invMass = 1 / b.mass; if (b.invI) b.invI.scale(1 / k); } }); F('GetMass', (f) => (bo(f) ? bo(f).mass || 1 : 0));
   F('GetPos', (f) => V(f.e && f.e.o ? gmaOrigen(f.e.o) : v3())); F('SetPos', (f, p) => { const o = f.e && f.e.o; if (o) { gmaOrigenPon(o, vG(p)); o.b.wake(); } }); F('GetAngles', (f) => A(quatAng(bo(f) ? bo(f).q : new Quat()))); F('SetAngles', (f, a) => { const b = bo(f); if (b) { b.q.copy(angQuat(a)); b.wake(); } });
   F('GetEntity', (f) => f.e); F('SetMaterial', () => {}); F('GetMaterial', () => 'metal'); F('SetDamping', () => {}); F('SetDragCoefficient', () => {}); F('SetBuoyancyRatio', () => {}); F('SetInertia', () => {}); F('GetInertia', () => GMA.nv(1, 1, 1));
   F('LocalToWorld', (f, v) => ENT_M.get('LocalToWorld')(f.e, v)); F('WorldToLocal', (f, v) => ENT_M.get('WorldToLocal')(f.e, v)); F('GetVolume', (f) => { const b = bo(f), A = b && b.aabb; return A ? Math.abs((A.x1 - A.x0) * (A.y1 - A.y0) * (A.z1 - A.z0)) * 0.6 / (GS * GS * GS) : 0; });   // (en pulgadas³, como GMod: Prop Hunt saca la vida de la utilería de acá)
-  F('GetMassCenter', (f) => { const o = f.e && f.e.o; return o && o.c ? GMA.V(o.c) : GMA.nv(0, 0, 0); }); F('OutputDebugInfo', () => {}); F('RecheckCollisionFilter', () => {}); F('ComputeShadowControl', () => {}); F('UpdateShadow', () => {});
+  F('GetMassCenter', (f) => { const o = f.e && f.e.o; return o && o.c ? GMA.Vr(o.c) : GMA.nv(0, 0, 0); }); F('OutputDebugInfo', () => {}); F('RecheckCollisionFilter', () => {}); F('ComputeShadowControl', () => {}); F('UpdateShadow', () => {});
   // ---- lo que usan muchos addons y faltaba (api_falta.mjs sobre 86 addons reales): sólo lo que no estaba ya ----
   const solo = (M, n, f) => { if (M.get(n) === undefined) M.set(n, f); };
   const pisoDe = (p) => { const h = mundoRayo(v3(p.x, p.y + 0.5, p.z), v3(0, -1, 0), 60); return h ? p.y + 0.5 - h.t : null; };
@@ -908,7 +923,7 @@ function gmaDarArma(clase) {
     const c = claseTabla(clase, 'S'); w.vm = c && buscarEnClase(c, 'ViewModel'); w.wm = c && buscarEnClase(c, 'WorldModel');
     GMA.armasJug.set(clase, w);
     const base = gmaVistaBase(w.vm, c && buscarEnClase(c, 'HoldType')), B = base ? DEF_ARMAS[base] : null;
-    DEF_ARMAS['gm:' + clase] = Object.assign({}, B ? { nodo: B.nodo, ic: B.ic, fuego: B.fuego, sacar: B.sacar, recarga: B.recarga, quieto: B.quieto, base } : { nodo: '', ic: 'W_Pistol' }, { car: 0, cad: 0.05, tipo: 'gmswep', gm: clase, nom: String((c && c.get('PrintName')) || clase) });
+    DEF_ARMAS['gm:' + clase] = Object.assign({}, B ? { nodo: B.nodo, ic: B.ic, fuego: B.fuego, sacar: B.sacar, recarga: B.recarga, quieto: B.quieto, base } : { nodo: '', ic: 'W_Pistol' }, { car: 0, cad: 0.05, tipo: 'gmswep', gm: clase, nom: typeof gmaNomClase === 'function' ? gmaNomClase('gmswep:' + clase) : String((c && c.get('PrintName')) || clase) });   // (el nombre del lado del cliente, como el selector de armas de GMod: muchos SWEP ponen PrintName sólo en «if CLIENT»; antes se veía la clase, «minecraft_swep»)
     gmaPreparar(w); metodo(w, 'Initialize', 'S'); const cc = GMA.armas.get(clase); if (cc && cc.C && cc.C !== cc.S) metodo(w, 'Initialize', 'C');
   }
   darArma('gm:' + clase);
@@ -1073,7 +1088,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   const util = lib('util');
   const traza = (t, hull) => { const s = t.get('start') instanceof LVec ? vG(t.get('start')) : CAM.pos.clone(), e = t.get('endpos') instanceof LVec ? vG(t.get('endpos')) : vadd(s, CAM.fwd), d = vsub(e, s), L = d.len() || 1e-6; return gmaTraza(s, d.scale(1 / L), L, gmaIgnorar(t.get('filter'))); };
   def(util, 'TraceLine', (t) => traza(t)); def(util, 'TraceHull', (t) => traza(t, true)); def(util, 'TraceEntity', (t) => traza(t, true));
-  def(util, 'QuickTrace', (o, d, f) => { const s = vG(o), dd = vG(d), L = dd.len() || 1e-6; return gmaTraza(s, dd.scale(1 / L), L, gmaIgnorar(f)); });
+  def(util, 'QuickTrace', (o, d, f) => { const s = vG(o), dd = vGr(d), L = dd.len() || 1e-6; return gmaTraza(s, dd.scale(1 / L), L, gmaIgnorar(f)); });
   def(util, 'GetPlayerTrace', (p, d) => { const t = new LuaTable(); t.set('start', V(CAM.pos)); t.set('endpos', V(vadd(CAM.pos, vscale(d instanceof LVec ? dG(d).norm() : CAM.fwd, 32768 * GS)))); t.set('filter', GMA.jug); return t; });
   def(util, 'Effect', (n, d) => gmaEfecto(String(n), d)); def(util, 'BlastDamage', (inf, at, p, r, d) => { if (p instanceof LVec) { explosion.sinFx = true; try { explosion(vG(p), Math.max(1, num(r, 200) * GS), num(d, 100)); } finally { explosion.sinFx = false; } } });
   def(util, 'BlastDamageInfo', (di, p, r) => { if (p instanceof LVec) explosion(vG(p), Math.max(1, num(r, 200) * GS), di && di.dan || 100); }); def(util, 'ScreenShake', (p, amp) => { CAM.temblor = Math.max(CAM.temblor || 0, Math.min(1, num(amp, 5) / 20)); });
@@ -1087,8 +1102,8 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   def(util, 'DistanceToLine', (a, b, p) => { const A0 = [a.x, a.y, a.z], B0 = [b.x, b.y, b.z], P0 = [p.x, p.y, p.z], d = B0.map((v, i) => v - A0[i]), L2 = d.reduce((s, v) => s + v * v, 0) || 1, t = Math.max(0, Math.min(1, P0.reduce((s, v, i) => s + (v - A0[i]) * d[i], 0) / L2)), c = A0.map((v, i) => v + d[i] * t); return [Math.hypot(...P0.map((v, i) => v - c[i])), GMA.nv(...c), t]; });
   def(util, 'SteamIDTo64', () => '76561197960265728'); def(util, 'SteamIDFrom64', () => 'STEAM_0:0:1'); def(util, 'NetworkStringToID', () => 1); def(util, 'NetworkIDToString', () => ''); def(util, 'GetSurfaceIndex', () => 0); def(util, 'GetSurfaceData', () => undefined); def(util, 'GetSurfacePropName', () => 'default');
   def(util, 'TimerCycle', () => 0); def(util, 'RelativePathToFull', (p) => p); def(util, 'GetModelInfo', () => new LuaTable()); def(util, 'GetModelMeshes', () => new LuaTable()); def(util, 'IsSkyboxVisibleFromPoint', () => true); def(util, 'IsBoxIntersectingSphere', () => false); def(util, 'AimVector', () => GMA.Vd(CAM.fwd)); def(util, 'SharedRandom', (n, a, b) => num(a, 0) + Math.random() * (num(b, 1) - num(a, 0)));
-  def(util, 'LocalToWorld', (lp, la, op, oa) => { const q = angQuat(oa), p = vG(op).add(q.rot(vG(lp))); return [V(p), A(quatAng(new Quat().mulTo(q, angQuat(la))))]; });
-  def(G, 'LocalToWorld', util.get('LocalToWorld')); def(G, 'WorldToLocal', (p, a, op, oa) => { const q = angQuat(oa).conj(); return [V(q.rot(vsub(vG(p), vG(op)))), A(quatAng(new Quat().mulTo(q, angQuat(a))))]; });
+  def(util, 'LocalToWorld', (lp, la, op, oa) => { const q = angQuat(oa), p = vG(op).add(q.rot(vGr(lp))); return [V(p), A(quatAng(new Quat().mulTo(q, angQuat(la))))]; });
+  def(G, 'LocalToWorld', util.get('LocalToWorld')); def(G, 'WorldToLocal', (p, a, op, oa) => { const q = angQuat(oa).conj(); return [Vr(q.rot(vsub(vG(p), vG(op)))), A(quatAng(new Quat().mulTo(q, angQuat(a))))]; });
   // ---- timer y hook (cada función, con el lado en que se registró) ----
   const timer = lib('timer'), TK = (id) => ctxReg() + ':' + String(id);
   def(timer, 'Create', (id, d, r, f) => { GMA.timers.set(TK(id), { d: num(d, 0), r: num(r, 1), f, t: TIEMPO.t + num(d, 0), ctx: ctxReg(), pausa: false }); return true; });
@@ -1148,8 +1163,8 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   PEI.set('Add', (em, mat, p) => { const q = { mat: String(mat || ''), p: p instanceof LVec ? vG(p) : vG(em.p || new LVec()), v: v3(), vida: 1, t0: 10, t1: 0, a0: 255, a1: 0, c: [255, 255, 255], g: v3(), __mt: GMA.mtPart }; (GMA.partCola || (GMA.partCola = [])).push(q); return q; });
   for (const n of ['Finish', 'SetNearClip', 'SetNoDraw', 'SetPos', 'SetBBox', 'Draw']) PEI.set(n, () => {}); PEI.set('GetNumActiveParticles', () => 0); PEI.set('Is3D', () => false); PEI.set('IsValid', () => true);
   const PTM = (GMA.mtPart = new LuaTable()), PTI = new LuaTable(); PTM.set('__index', PTI);
-  Object.entries({ SetVelocity: (q, v) => { q.v = vG(v); }, SetDieTime: (q, t) => { q.vida = num(t, 1); }, SetLifeTime: () => {}, SetStartSize: (q, s) => { q.t0 = num(s, 10); }, SetEndSize: (q, s) => { q.t1 = num(s, 0); }, SetStartAlpha: (q, a) => { q.a0 = num(a, 255); }, SetEndAlpha: (q, a) => { q.a1 = num(a, 0); },
-    SetColor: (q, r, g, b) => { q.c = [num(r, 255), num(g, 255), num(b, 255)]; }, SetGravity: (q, v) => { q.g = vG(v); }, GetPos: (q) => GMA.V(q.p), SetPos: (q, p) => { q.p = vG(p); }, GetVelocity: (q) => GMA.V(q.v) }).forEach(([k, f]) => PTI.set(k, f));
+  Object.entries({ SetVelocity: (q, v) => { q.v = vGr(v); }, SetDieTime: (q, t) => { q.vida = num(t, 1); }, SetLifeTime: () => {}, SetStartSize: (q, s) => { q.t0 = num(s, 10); }, SetEndSize: (q, s) => { q.t1 = num(s, 0); }, SetStartAlpha: (q, a) => { q.a0 = num(a, 255); }, SetEndAlpha: (q, a) => { q.a1 = num(a, 0); },
+    SetColor: (q, r, g, b) => { q.c = [num(r, 255), num(g, 255), num(b, 255)]; }, SetGravity: (q, v) => { q.g = vGr(v); }, GetPos: (q) => GMA.V(q.p), SetPos: (q, p) => { q.p = vG(p); }, GetVelocity: (q) => GMA.Vr(q.v) }).forEach(([k, f]) => PTI.set(k, f));
   for (const n of ['SetRoll', 'SetRollDelta', 'SetAirResistance', 'SetCollide', 'SetBounce', 'SetLighting', 'SetAngles', 'SetAngleVelocity', 'SetStartLength', 'SetEndLength', 'SetCollideCallback', 'SetThinkFunction', 'SetNextThink', 'SetVelocityScale', 'SetMaterial']) PTI.set(n, () => {});
   const VAC = (GMA.mtVacio = new LuaTable()); VAC.set('__index', (o, k) => (typeof k === 'string' && /^(Get|Is|Has)/.test(k) ? () => 0 : () => o));
   // ---- lo que queda: tablas vacías que responden algo (vgui y derma los arma el prelude) ----
