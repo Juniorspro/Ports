@@ -143,6 +143,25 @@ uniform vec4 uLP[NLUZ], uLC[NLUZ], uLD[NLUZ]; uniform int uLN;
 #ifdef ESP
 uniform vec4 uEP[4], uEC[4], uED[4]; uniform int uEN;
 #endif
+// la sombra de la linterna propia (sombras.js: espSombraActualizar): un mapa de profundidad en perspectiva desde la luz
+// uESmI (la luz especial que la tiene; -1 ninguna). uESmK: x, el margen de profundidad; y, lo que mide un punto del mapa
+// por metro de distancia (para correr el punto por la normal lo justo y que la superficie no se sombree a sí misma)
+#ifdef ESPSH
+uniform highp sampler2DShadow uESm; uniform mat4 uESmM; uniform int uESmI; uniform vec2 uESmK;
+float espSombra(vec3 w, vec3 nn, float d) {
+  vec4 q = uESmM * vec4(w + nn * (1.5 * d * uESmK.y + 0.01), 1.0);
+  if (q.w <= 1e-4) return 1.0;
+  vec3 p = q.xyz / q.w;
+  if (p.x <= 0.0 || p.x >= 1.0 || p.y <= 0.0 || p.y >= 1.0 || p.z >= 1.0) return 1.0;
+  float z = p.z - uESmK.x;
+#ifdef ESPSH4
+  vec2 o = 0.75 / vec2(textureSize(uESm, 0));
+  return 0.25 * (texture(uESm, vec3(p.xy + vec2(-o.x, -o.y), z)) + texture(uESm, vec3(p.xy + vec2(o.x, -o.y), z)) + texture(uESm, vec3(p.xy + vec2(-o.x, o.y), z)) + texture(uESm, vec3(p.xy + o, z)));
+#else
+  return texture(uESm, vec3(p.xy, z));
+#endif
+}
+#endif
 #ifdef AO
 uniform sampler2D uAO; uniform vec2 uAOinv; uniform float uAOon;
 #endif
@@ -430,6 +449,9 @@ void main(){
     // (cae suave para que un pasillo se vea a 10-15 m, y un poco envolvente: el piso se ve aunque le llegue de costado)
     float at = pow(1.0 - d / r, 1.2) / (1.0 + 0.012 * d2);
     if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + 0.08, dot(-L, uED[i].xyz));
+#ifdef ESPSH
+    if (i == uESmI && at > 0.0) at *= espSombra(vW, ng, d);
+#endif
     col += (brdf(n, v, L, dif, f0, max(a, 0.05)) + dif * 0.08) * uEC[i].rgb * at;
   }
 #endif
@@ -471,6 +493,9 @@ void main(){
     float d = sqrt(d2); L /= d;
     float at = pow(1.0 - d / r, 1.2) / (1.0 + 0.012 * d2);
     if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + 0.08, dot(-L, uED[i].xyz));
+#ifdef ESPSH
+    if (i == uESmI && at > 0.0) at *= espSombra(vW, n, d);
+#endif
     col += t.rgb * uEC[i].rgb * ((0.3 + 0.7 * max(dot(n, L), 0.0)) * 0.3 * at);
   }
 #endif
@@ -491,6 +516,9 @@ void main(){
     float d = sqrt(d2); L /= d;
     float at = pow(1.0 - d / r, 1.2) / (1.0 + 0.012 * d2);
     if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + 0.08, dot(-L, uED[i].xyz));
+#ifdef ESPSH
+    if (i == uESmI && at > 0.0) at *= espSombra(vW, n, d);
+#endif
     col += t.rgb * uEC[i].rgb * ((0.3 + 0.7 * max(dot(n, L), 0.0)) * 0.3 * at);
   }
 #endif
@@ -645,7 +673,7 @@ function shaderTerminar(o) {
   const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
   for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i), nm = a.name.replace('[0]', ''); u[nm] = gl.getUniformLocation(p, a.name); }
   gl.useProgram(p);
-  for (const [k, v] of [['uT', 0], ['uT1', 1], ['uT2', 2], ['uT3', 3], ['uLM', 3], ['uSM', 5], ['uSMd', 6], ['uAO', 7], ['uRef', 4], ['uTex', 0], ['uTex2', 1], ['uTex3', 2], ['uProf', 3]]) if (u[k]) gl.uniform1i(u[k], v);
+  for (const [k, v] of [['uT', 0], ['uT1', 1], ['uT2', 2], ['uT3', 3], ['uLM', 3], ['uSM', 5], ['uSMd', 6], ['uAO', 7], ['uESm', 8], ['uRef', 4], ['uTex', 0], ['uTex2', 1], ['uTex3', 2], ['uProf', 3]]) if (u[k]) gl.uniform1i(u[k], v);
   if (R.gl1 && u.uSMd && !u.uSM) gl.uniform1i(u.uSMd, 6);
   R.progAct = null;   // (quedó puesto éste: el que se estaba usando se vuelve a poner en el próximo dibujo)
   return { p, u, marca: 0 };
@@ -657,7 +685,8 @@ function progDe(clave, modo) {
   const refl = modo !== 'depth' && GFX.refl > 0 && R.salida !== 'gam' && clave.indexOf('AGUA') >= 0;
   // (R.aoDef: el ahorro de GPU apagó la oclusión ambiental en plena partida; los programas siguen con AO, que con uAOon en 0
   // no lee nada, así no se recompila todo de golpe)
-  const k = modo + '|' + clave + '|' + R.salida + '|' + (R.sombraOn ? SM.n : 0) + (R.conAO || R.aoDef ? 'a' : '') + (refl ? 'r' : '');
+  const esh = modo !== 'depth' && GFX.espSh > 0 && ESH.tex ? (GFX.espSh >= 1024 ? 2 : 1) : 0;   // (la sombra de la linterna: sombras.js)
+  const k = modo + '|' + clave + '|' + R.salida + '|' + (R.sombraOn ? SM.n : 0) + (R.conAO || R.aoDef ? 'a' : '') + (refl ? 'r' : '') + (esh ? 'e' + esh : '');
   let P = R.progs.get(k); if (P) return P;
   // (compilando en paralelo: hasta que termine, lo que lo usa no se dibuja —un par de cuadros— en vez de frenar todo)
   const pe = R.progsPend.get(k);
@@ -680,6 +709,7 @@ function progDe(clave, modo) {
     if (luz >= 2 && Q.nluz > 0) d.push('NLUZ=' + Q.nluz); else d.push('NLUZ=0');
     if (luz >= 2 && (R.conAO || R.aoDef)) d.push('AO');
     d.push('ESP');   // (las luces especiales: linternas y las de la pizzería)
+    if (esh) { d.push('ESPSH'); if (esh > 1) d.push('ESPSH4'); }
     if (luz >= 3 && Q.det && R.deriv && !f.includes('SKIN') && !f.includes('TERR')) d.push('DET');
     if (DBG.verSombra) d.push('VERSOMBRA');
     if (DBG.verLuz && f.includes('LMAP')) d.push('VERLUZ');   // (depuración: sólo la luz horneada)
@@ -690,7 +720,7 @@ function progDe(clave, modo) {
     catch (e) {
       // si la placa no acepta la versión completa (sombras, luces, relieve), una más simple: se ve, aunque más plano
       R.errShader = String(e.message || e).slice(0, 400); console.warn('shader simplificado', R.errShader);
-      const base = d.filter((x) => !/^(LUZ|SALIDA|SOMBRA|PCF|NLUZ)=|^(PCSS|AO|DET|VERSOMBRA|ESP|REFL)$/.test(x));
+      const base = d.filter((x) => !/^(LUZ|SALIDA|SOMBRA|PCF|NLUZ)=|^(PCSS|AO|DET|VERSOMBRA|ESP|ESPSH|ESPSH4|REFL)$/.test(x));
       P = shader(VS, FS, base.concat(['LUZ=1', 'SALIDA=' + (R.salida === 'hdr' ? 2 : R.salida === 'ldr' ? 1 : 0), 'SOMBRA=0', 'NLUZ=0']));
       if (!R.avisoShader && typeof aviso === 'function') { R.avisoShader = true; aviso('Gráficos simplificados: la placa no aceptó un efecto'); }
     }
@@ -1383,11 +1413,12 @@ function lucesPreparar() {
 }
 // luces especiales: se juntan en R.esp (las más importantes primero) y van las 4 primeras
 const ESP_P = new Float32Array(16), ESP_C = new Float32Array(16), ESP_D = new Float32Array(16);
-function luzEspecial(p, radio, col, dir, cono, prioridad) { R.esp.push({ p, r: radio, c: col, d: dir || null, k: cono === undefined ? -2 : cono, q: prioridad || 0 }); }
+function luzEspecial(p, radio, col, dir, cono, prioridad, sombra) { R.esp.push({ p, r: radio, c: col, d: dir || null, k: cono === undefined ? -2 : cono, q: prioridad || 0, sh: !!sombra }); }
 function espPreparar() {
   const L = R.esp, cp = R.camPos;
   if (L.length > 4) L.sort((a, b) => b.q - a.q || a.p.distTo(cp) - b.p.distTo(cp));
-  R.nEsp = Math.min(4, L.length);
+  R.nEsp = Math.min(4, L.length); R.espShI = -1; R.espShL = null;
+  for (let i = 0; i < R.nEsp; i++) if (L[i].sh && L[i].d && L[i].k > 0) { R.espShI = i; R.espShL = L[i]; break; }   // (la linterna propia: la sombra)
   for (let i = 0; i < R.nEsp; i++) {
     const l = L[i], o = i * 4;
     ESP_P[o] = l.p.x; ESP_P[o + 1] = l.p.y; ESP_P[o + 2] = l.p.z; ESP_P[o + 3] = l.r;
@@ -1395,7 +1426,11 @@ function espPreparar() {
     if (l.d) { ESP_D[o] = l.d.x; ESP_D[o + 1] = l.d.y; ESP_D[o + 2] = l.d.z; ESP_D[o + 3] = l.k; } else { ESP_D[o] = 0; ESP_D[o + 1] = -1; ESP_D[o + 2] = 0; ESP_D[o + 3] = -2; }
   }
 }
-function espUniformes(P) { const n = ESP_P.length; uNv(P, P.u.uEP, ESP_P, n, 4); uNv(P, P.u.uEC, ESP_C, ESP_C.length, 4); uNv(P, P.u.uED, ESP_D, ESP_D.length, 4); u1i(P, P.u.uEN, R.nEsp || 0); }
+function espUniformes(P) {
+  const n = ESP_P.length; uNv(P, P.u.uEP, ESP_P, n, 4); uNv(P, P.u.uEC, ESP_C, ESP_C.length, 4); uNv(P, P.u.uED, ESP_D, ESP_D.length, 4); u1i(P, P.u.uEN, R.nEsp || 0);
+  // (la sombra de la linterna: no en el arma en la mano, que se dibuja aparte)
+  if (P.u.uESmI) { const on = R.espShOn && R.fase !== 'vista'; u1i(P, P.u.uESmI, on ? R.espShI : -1); if (on) { uNv(P, P.u.uESmM, ESH.M, 16, 16); u2f(P, P.u.uESmK, ESH.sesgo, ESH.texM); } }
+}
 function lucesUniformes(P) {
   const gl = R.gl, n = GFX.nluz || 0; if (!n) return;
   uNv(P, P.u.uLP, sub(LUZ_P, n * 4), n * 4, 4); uNv(P, P.u.uLC, sub(LUZ_C, n * 4), n * 4, 4); uNv(P, P.u.uLD, sub(LUZ_D, n * 4), n * 4, 4); u1i(P, P.u.uLN, R.nLuces || 0);

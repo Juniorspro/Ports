@@ -24,9 +24,12 @@ function linternaLuces() {
   if (linternaFnaf()) return;   // (la noche dibuja las suyas)
   const cp = CAM.pos;
   if (LINT.on && JUG.vivo) {
-    const f = CAM.fwd, ojo = JUG.tercera && JUG.cuerpo ? vadd(JUG.pos, v3(0, 0.62, 0)) : cp;
-    const o = vadd(vadd(ojo, vscale(f, 0.15)), vscale(CAM.der, 0.12)); o.y -= 0.12;
-    luzEspecial(o, 30, [6.8, 6.5, 5.9], f.clone(), Math.cos(0.42), 10);
+    // (con la cámara libre, la linterna sigue la mira del jugador, como en GMod, y no la cámara: antes alumbraba hacia
+    // donde miraba la cámara libre)
+    const libre = typeof CLIB !== 'undefined' && !!CLIB.modo, qm = libre ? Quat.euler(JUG.yaw, JUG.pitch) : null;
+    const f = libre ? qm.rot(v3(0, 0, 1)) : CAM.fwd, der = libre ? qm.rot(v3(-1, 0, 0)) : CAM.der, ojo = JUG.tercera && JUG.cuerpo ? vadd(JUG.pos, v3(0, 0.62, 0)) : cp;
+    const o = vadd(vadd(ojo, vscale(f, 0.15)), vscale(der, 0.12)); o.y -= 0.12;
+    luzEspecial(o, 30, [6.8, 6.5, 5.9], f.clone(), Math.cos(0.42), 10, true);   // (la propia hace sombra: sombras.js)
   }
   for (const R2 of RED.remotos.values()) {   // (sólo hay remotos en una sala)
     if (!(R2.f & 128) || !R2.P || R2.pos.distTo(cp) > 32) continue;

@@ -9,9 +9,9 @@ const TIEMPO = { t: 0, dt: 0, acc: 0, fps: 60, cuadros: 0, medT: 0, ms: 0, lento
 const PERFILES = {
   patata: { fps: 120, res: 45, lejos: 160, texMax: 128, lod: 9, lodPx: 3.5, sub: 5, part: 0.25, aniso: 0, luz: 0, sombra: 0 },
   bajo: { fps: 120, res: 60, lejos: 250, texMax: 256, lod: 2, lodPx: 2, sub: 6, part: 0.5, aniso: 0, luz: 1, sombra: 0 },
-  medio: { fps: 120, res: 75, lejos: 450, texMax: 256, lod: 1, lodPx: 0.9, sub: 8, part: 0.8, aniso: 2, luz: 2, sombra: 1, smTam: 1024, sDist: 45, pcf: 1, nluz: 4 },
-  alto: { fps: 60, res: 100, lejos: 750, texMax: 0, lod: 0, lodPx: 0.5, sub: 10, part: 1, aniso: 8, luz: 2, sombra: 2, smTam: 2048, sDist: 110, pcf: 9, nluz: 6, hdr: 1, ao: 1, bloom: 1, fxaa: 1, nubes: 1, refl: 3 },
-  ultra: { fps: 60, res: 100, lejos: 1100, texMax: 0, lod: 0, lodPx: 0.4, sub: 10, part: 1, aniso: 16, luz: 3, sombra: 2, smTam: 2048, sDist: 110, pcf: 9, nluz: 8, hdr: 1, ao: 2, bloom: 2, rayos: 1, fxaa: 1, nubes: 1, det: 1, refl: 2 },
+  medio: { fps: 120, res: 75, lejos: 450, texMax: 256, lod: 1, lodPx: 0.9, sub: 8, part: 0.8, aniso: 2, luz: 2, sombra: 1, smTam: 1024, sDist: 45, pcf: 1, nluz: 4, espSh: 512 },
+  alto: { fps: 60, res: 100, lejos: 750, texMax: 0, lod: 0, lodPx: 0.5, sub: 10, part: 1, aniso: 8, luz: 2, sombra: 2, smTam: 2048, sDist: 110, pcf: 9, nluz: 6, hdr: 1, ao: 1, bloom: 1, fxaa: 1, nubes: 1, refl: 3, espSh: 512 },
+  ultra: { fps: 60, res: 100, lejos: 1100, texMax: 0, lod: 0, lodPx: 0.4, sub: 10, part: 1, aniso: 16, luz: 3, sombra: 2, smTam: 2048, sDist: 110, pcf: 9, nluz: 8, hdr: 1, ao: 2, bloom: 2, rayos: 1, fxaa: 1, nubes: 1, det: 1, refl: 2, espSh: 1024 },
 };
 const PERF_ORDEN = ['patata', 'bajo', 'medio', 'alto', 'ultra'];
 const PREFS_DEF = { modo: 'libre', codigo: '', salaLibre: 1, nombre: 'Player' + ((Math.random() * 900 + 100) | 0), mapa: 'Desert', skin: 'Hero', gorro: 'HatEmpty', gfx: 'auto', res: 70, lejos: 350, sens: 12, vol: 80, fps: true,
@@ -93,7 +93,7 @@ function aplicarGfx(ahorro) {
   GFX.escala = (PREFS.gfx === 'auto' ? p.res : PREFS.res) / 100; GFX.escalaMax = GFX.escala; if (ahorro && esc0) GFX.escala = Math.min(esc0, GFX.escalaMax);
   GFX.lejos = PREFS.gfx === 'auto' ? p.lejos : PREFS.lejos;
   GFX.texMax = p.texMax; GFX.lod = p.lod; GFX.lodPx = p.lodPx || 1; GFX.sub = p.sub; GFX.part = p.part; GFX.aniso = p.aniso;
-  for (const k of ['luz', 'sombra', 'smTam', 'sDist', 'pcf', 'pcss', 'nluz', 'hdr', 'ao', 'bloom', 'rayos', 'fxaa', 'nubes', 'det', 'refl']) GFX[k] = p[k] || 0;
+  for (const k of ['luz', 'sombra', 'smTam', 'sDist', 'pcf', 'pcss', 'nluz', 'hdr', 'ao', 'bloom', 'rayos', 'fxaa', 'nubes', 'det', 'refl', 'espSh']) GFX[k] = p[k] || 0;
   // sin tope de cuadros en ninguna calidad: todo lo que dé la pantalla (en la app se le pide a Android la frecuencia más alta;
   // si no, muchos celus dejan las apps en 60 Hz). GFX.fps es la meta de la resolución dinámica: en Patata, Bajo y Medio baja
   // la resolución para llegar a 120; en Alto y Ultra sólo si no llega a 60 (no se pierde nitidez por perseguir 120)
@@ -117,12 +117,14 @@ function aplicarGfx(ahorro) {
   if (R.gl) {
     if (!R.fsAlta) GFX.luz = Math.min(GFX.luz, 1);
     if (!R.depthTex) { GFX.sombra = 0; GFX.ao = 0; GFX.rayos = 0; }
+    if (R.gl1 || !R.depthTex || GFX.luz < 1) GFX.espSh = 0;   // (la sombra de la linterna: sólo WebGL 2)
     if (!R.deriv) GFX.det = 0;
   }
   if (R.gl) {
     if (!ahorro) progsLimpiar();
     if (GFX.luz >= 2 && GFX.sombra > 0) { if (!sombrasIniciar(GFX.sombra, Math.min(GFX.smTam, R.gl.getParameter(R.gl.MAX_TEXTURE_SIZE)))) GFX.sombra = 0; }
     else sombrasLiberar();
+    if (GFX.espSh > 0) { if (!espSombraIniciar(GFX.espSh)) GFX.espSh = 0; } else espSombraLiberar();
     if (!(GFX.luz >= 2 && (GFX.hdr || GFX.ao || GFX.fxaa))) postLiberar();
   }
   // (GPU floja: el reflejo del agua se rehace un cuadro sí y uno no)
@@ -474,6 +476,9 @@ function dibujar() {
   } else R.solVista = 1;
   const t1 = performance.now();
   if (R.sombraOn) sombrasActualizar();
+  // (la sombra de la linterna propia, si está prendida y la calidad la tiene: sombras.js)
+  R.espShOn = GFX.espSh > 0 && !!ESH.tex && R.espShI >= 0 && JUEGO.estado === 'juego' && !DBG.sinEsh;   // (DBG.sinEsh: para comparar en las pruebas)
+  if (R.espShOn) espSombraActualizar();
   const t2 = performance.now();
   armarCola();
   aguaReflejo(P, V);

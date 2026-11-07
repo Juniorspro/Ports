@@ -216,3 +216,64 @@ function sombrasUniformes(P) {
   uNv(P, u.uSMm, sub(SM.mm, n * 16), n * 16, 16); uNv(P, u.uSMr, sub(SM.mr, n * 4), n * 4, 4); uNv(P, u.uSMk, sub(SM.mk, n * 4), n * 4, 4);
   uNv(P, u.uSMc, sub(SM.mc, n), n, 1); u3f(P, u.uCamF, R.camF.x, R.camF.y, R.camF.z); u1f(P, u.uSMon, 1);
 }
+// ---------------------------------------------------------------------------------------------------------
+// la sombra de la linterna (Discord: «que la linterna haga sombra: lo que tapa la luz deja la sombra detrás»). Un mapa de
+// profundidad en perspectiva desde tu linterna, del ancho del cono, rehecho cada cuadro con la linterna prendida (se mueve
+// con la cámara) con todo lo que hace sombra adentro del cono. 512² en Medio y Alto, 1024² en Ultra (con 4 lecturas,
+// más suave); en Bajo, Patata y WebGL 1, sin. Sólo la propia: las de los demás de la sala costarían una pasada cada una.
+// ---------------------------------------------------------------------------------------------------------
+const ESH = { tex: null, fb: null, samp: null, tam: 0, V: new Float32Array(16), P: new Float32Array(16), VP: new Float32Array(16), M: new Float32Array(16), fr: null, sesgo: 0.0006, texM: 0, dib: 0, ms: 0 };
+function espSombraLiberar() {
+  const gl = R.gl; if (!gl || !ESH.tex) return;
+  gl.deleteTexture(ESH.tex); gl.deleteFramebuffer(ESH.fb); if (ESH.samp) gl.deleteSampler(ESH.samp);
+  ESH.tex = ESH.fb = ESH.samp = null; ESH.tam = 0;
+}
+function espSombraIniciar(tam) {
+  const gl = R.gl; if (!gl || R.gl1) return false;
+  if (ESH.tex && ESH.tam === tam) return true;
+  espSombraLiberar();
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, tam, tam);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t, 0);
+  gl.drawBuffers([gl.NONE]); gl.readBuffer(gl.NONE);
+  const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  gl.clear(gl.DEPTH_BUFFER_BIT); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  if (!ok) { gl.deleteTexture(t); gl.deleteFramebuffer(f); return false; }
+  const s = gl.createSampler();
+  gl.samplerParameteri(s, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.samplerParameteri(s, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.samplerParameteri(s, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE); gl.samplerParameteri(s, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+  gl.samplerParameteri(s, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.samplerParameteri(s, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  ESH.tex = t; ESH.fb = f; ESH.samp = s; ESH.tam = tam;
+  espSombraUnidad();
+  return true;
+}
+// (la unidad 8 queda con el mapa y la comparación puestos: ningún otro dibujo la usa)
+function espSombraUnidad() { const gl = R.gl; if (!ESH.tex) return; gl.activeTexture(gl.TEXTURE8); gl.bindTexture(gl.TEXTURE_2D, ESH.tex); gl.bindSampler(8, ESH.samp); gl.activeTexture(gl.TEXTURE0); R.texAct = null; }
+const _eshUp = v3();
+function espSombraActualizar() {
+  const L = R.espShL, gl = R.gl; if (!L || !ESH.tex) return;
+  const t0 = performance.now(), d = L.d.clone().norm(), ang = Math.acos(clamp(L.k, -1, 1)), fov = Math.min(2.6, 2 * ang + 0.14), lejos = Math.max(2, L.r);
+  _eshUp.set(0, 1, 0); if (Math.abs(d.y) > 0.95) _eshUp.set(1, 0, 0);
+  ESH.V.set(M4.lookAt(L.p, vadd(L.p, d), _eshUp));
+  ESH.P.set(M4.persp(fov, 1, 0.3, lejos));
+  m4mul(ESH.P, ESH.V, ESH.VP); ESH.fr = frustum(ESH.VP);
+  const B = _eshB; m4mul(B, ESH.VP, ESH.M);
+  ESH.texM = 2 * Math.tan(fov / 2) / ESH.tam;
+  // (con 24 bits y cerca 0,3 m / lejos 30 m, un margen fijo pequeño alcanza: lo demás lo pone el corrimiento por la normal)
+  ESH.sesgo = 0.00015;
+  const vpGuard = R.vp, frGuard = R.fr, faseG = R.fase;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, ESH.fb); gl.viewport(0, 0, ESH.tam, ESH.tam);
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.4, 2.0);
+  const C = { VP: ESH.VP, fr: ESH.fr };
+  const n0 = SM.dib || 0;
+  sombrasDibujar(C, true, 0); sombrasDibujar(C, false, 0);
+  ESH.dib = (SM.dib || 0) - n0; SM.dib = n0;
+  gl.disable(gl.POLYGON_OFFSET_FILL);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  R.vp = vpGuard; R.fr = frGuard; R.fase = faseG; R.marca++;
+  ESH.ms = performance.now() - t0;
+}
+const _eshB = new Float32Array([0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0.5, 0, 0.5, 0.5, 0.5, 1]);
