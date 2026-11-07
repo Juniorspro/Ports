@@ -63,11 +63,15 @@ await ev(`(() => { const P = NPC.lista[0]; const f = v3(Math.sin(JUG.yaw), 0, Ma
 await p.waitForTimeout(300);
 await ev(`ENT.disparo = true; agarrarFisica(); 1`); await p.waitForTimeout(100);
 await ev(`JUG.pitch = -0.5; 1`); await p.waitForTimeout(900);
-const gr = await ev(`({ held: !!NPC.lista[0].npcB.held, y: +(NPC.lista[0].pos.y - JUG.pos.y).toFixed(2), suelo: NPC.lista[0].suelo })`);
+// (un NPC vivo agarrado se vuelve muñeco de trapo, npcAgarrarRag: la pistola sostiene la parte más cercana del muñeco)
+const gr = await ev(`(() => { const P = NPC.lista[0], A = ARM.agarre, cs = P.rag ? [...P.rag.cuerpos.values()].map((e) => e.b) : [];
+  const held = !!A && (A.b === P.npcB || cs.includes(A.b)), cad = P.rag && P.rag.cuerpos.get(P.D.h.Hips), yc = cad ? cad.b.pos.y : P.pos.y;
+  const bajo = cs.length ? Math.min(...cs.map((b) => b.pos.y - (pisoBajo(b.pos, 0.3) ?? b.pos.y))) : P.pos.y - 0.95 - (pisoBajo(P.pos, 0.5) ?? P.pos.y);
+  return { held, rag: !!P.rag, y: +(yc - JUG.pos.y).toFixed(2), suelo: bajo < 0.3, bajo: +bajo.toFixed(2) }; })()`);
 await p.screenshot({ path: D + 'npc_physgun.png' });
 await ev(`ENT.disparo = false; soltarAgarre(false); JUG.pitch = 0.2; 1`); await p.waitForTimeout(2500);
-const gr2 = await ev(`(() => { const P = NPC.lista[0]; const piso = pisoBajo(P.pos, 0.5); return { pies: +(P.pos.y - 0.95 - piso).toFixed(2), frozen: P.npcB.frozen, held: P.npcB.held, rag: !!P.rag }; })()`);
-ok('la Physics Gun lo levanta (sube > 1 m, colgando) y al soltarlo cae al piso', gr.held && gr.y > 1 && !gr.suelo && gr2.frozen && !gr2.held && (gr2.rag || Math.abs(gr2.pies) < 0.15), { gr, gr2 });
+const gr2 = await ev(`(() => { const P = NPC.lista[0]; const piso = pisoBajo(P.pos, 0.5), cs = P.rag ? [...P.rag.cuerpos.values()].map((e) => e.b) : []; const bajo = cs.length ? Math.min(...cs.map((b) => b.pos.y - (pisoBajo(b.pos, 0.3) ?? b.pos.y))) : null; return { pies: +(P.pos.y - 0.95 - piso).toFixed(2), frozen: P.npcB.frozen, held: P.npcB.held || !!ARM.agarre, rag: !!P.rag, bajo: bajo === null ? null : +bajo.toFixed(2) }; })()`);
+ok('la Physics Gun lo levanta (como muñeco de trapo: sube > 1 m, colgando) y al soltarlo cae al piso', gr.held && gr.y > 1 && !gr.suelo && gr2.frozen && !gr2.held && (gr2.rag ? gr2.bajo !== null && gr2.bajo < 0.35 : Math.abs(gr2.pies) < 0.15), { gr, gr2 });
 await p.waitForTimeout(3500);
 // 10) los tiros lo matan: muñeco
 const ti = await ev(`(() => { const P = NPC.lista[0]; if (P.rag) npcLevantar(P); P.vida = 100; danarPersona(P, 30, P.pos.clone(), v3(0, 0, 1)); const v1 = P.vida, r1 = !!P.rag; danarPersona(P, 90, P.pos.clone(), v3(0, 0, 1)); return { v1, r1, vivo: P.vivo, rag: !!P.rag }; })()`);
