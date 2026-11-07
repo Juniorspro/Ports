@@ -520,3 +520,8 @@ const IDI3 = {
 })();
 // la clave en el idioma de ahora (o en inglés); undefined si no está acá
 function T3(k, l) { const v = IDI3[k]; if (!v) return undefined; const i = IDI3_L.indexOf(l); return (i >= 0 && v[i]) || v[1]; }
+// la pestaña NPCs del menú de spawn (ui.js)
+Object.assign(IDI3, {
+  'sp.npcJuego': ['Personajes', 'Characters', 'Personagens', 'Karakter', 'Watak', 'Mga karakter', 'キャラクター', 'ตัวละคร', 'Karakterler', 'الشخصيات', 'Персонажи', 'Персонажі', 'Personnages', 'Figuren'],
+  'sp.npcModelos': ['Personajes de los mods', 'Mod characters', 'Personagens dos mods', 'Karakter mod', 'Watak mod', 'Mga karakter ng mod', 'MODのキャラクター', 'ตัวละครจากม็อด', 'Mod karakterleri', 'شخصيات المودات', 'Персонажи из модов', 'Персонажі з модів', 'Personnages des mods', 'Mod-Figuren'],
+});
