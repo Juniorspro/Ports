@@ -400,8 +400,8 @@ function inicioAccion(k, b) {
   switch (a) {
     case 'nueva': return inicioPanel('nueva');
     case 'tienda': if (v) RB.t.tab = v; return inicioPanel('tienda');
-    case 'volver': if (RB.desdeJuego && typeof gmbVolverAlJuego === 'function') return gmbVolverAlJuego(); inicioLista(); return inicioPanel(null);
-    case 'tab': RB.t.tab = v; RB.t.etq = ''; RB.t.ficha = null; if (v !== 'gmod' && !['pop', 'nuevo', 'desc'].includes(RB.t.orden)) RB.t.orden = 'pop'; return inicioPanel('tienda');
+    case 'volver': RB.t.sel = null; if (RB.desdeJuego && typeof gmbVolverAlJuego === 'function') return gmbVolverAlJuego(); inicioLista(); return inicioPanel(null);
+    case 'tab': RB.t.tab = v; RB.t.etq = ''; RB.t.ficha = null; RB.t.sel = null; if (v !== 'gmod' && !['pop', 'nuevo', 'desc'].includes(RB.t.orden)) RB.t.orden = 'pop'; return inicioPanel('tienda');
     case 'vista': RB.t.vista = v; RB.t.ficha = null; return inicioPanel('tienda');
     case 'etq': RB.t.etq = v; RB.t.ficha = null; return inicioPanel('tienda');
     case 'ver': RB.t.ficha = v; return tiendaDibujar();   // (la ficha de uno: todo lo que es y los botones)

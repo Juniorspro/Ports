@@ -118,7 +118,7 @@ function gmTiendaPanel(P) {
     <div class="rbEtqs"><button class="rbEtq${!S.etq ? ' sel' : ''}" data-rb="etq:">${esc(T('e.todas'))}</button>${GM_TAGS_UI.map((e) => `<button class="rbEtq${S.etq === e ? ' sel' : ''}" data-rb="etq:${e}">${esc(T('gm.t.' + e))}</button>`).join('')}<button class="rbChk gmDir${S.gmDir ? ' on' : ''}" data-rb="gmdir"><em></em>${esc(T('gm.soloDir'))}</button></div>
     <p class="gmPMnota">${esc(T('pjm.nota'))} <button class="rbBtnGris" data-rb="pjMods">${esc(T('m.personajes'))} → ${esc(T('pjm.tab'))}</button></p>
     <div class="rbGrid rbTiendaG"></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbHab"></span><span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris" data-rb="mas">${glifo('mas3')}</button>
+    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbHab"></span><span class="gmSelPie"></span><span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris" data-rb="mas">${glifo('mas3')}</button>
       <button class="rbBtnG" data-rb="nueva">${esc(T('m.nueva'))} ${glifo('jugar')}</button></div>`;
   P.querySelector('#rbOrden').addEventListener('change', (e) => { S.gmOrden = e.target.value; });   // (antes que el de inicio.js, que vuelve a cargar)
   P.querySelector('#gmArchivo').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) gmTiendaImportar(f); });
@@ -130,7 +130,7 @@ function gmTiendaCargar(desdeCero) {
   if (S.vista === 'instalados') {
     const q = S.q.toLowerCase();
     S.items = Object.entries(PREFS.gmod || {}).map(([id, x]) => Object.assign({ id, t: x.n, img: x.img || '', tags: x.tags || [], subs: x.subs || 0, mb: x.mb || 0, dir: !/^local:/.test(id), d: x.d || '' }, S.det && S.det[id] ? S.det[id] : {}))
-      .filter((x) => (!q || String(x.t).toLowerCase().includes(q)) && (!S.etq || (x.tags || []).includes(S.etq))).sort((a, b) => String(a.t).localeCompare(String(b.t)));
+      .filter((x) => (!q || String(x.t).toLowerCase().includes(q)) && (!S.etq || (x.tags || []).includes(S.etq))).sort((a, b) => String(a.t).localeCompare(String(b.t), undefined, { numeric: true, sensitivity: 'base' }));   // (con los números en su lugar: 2 antes que 10)
     S.total = S.items.length; S.error = false; S.cargando = false; return gmTiendaDibujar();
   }
   S.cargando = true; S.error = false; gmTiendaDibujar();
@@ -185,6 +185,7 @@ function gmTiendaDibujar() {
           <div class="rbFichaAcc">${acc}${/^\d+$/.test(it.id) ? `<a class="rbBtnGris" href="https://steamcommunity.com/sharedfiles/filedetails/?id=${it.id}" target="_blank" rel="noopener">${esc(T('gm.steam'))}</a>` : ''}</div></div></div></div>`;
     const fi = G.querySelector('.gmImpFicha'); if (fi) fi.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) gmTiendaImportar(f, it); });
   } else {
+    if (S.sel) return gmSelDibujar(G, img);
     const tile = (x) => `<button class="rbTile${gmInstalado(x.id) ? ' inst' : ''}${gmInstalado(x.id) && !gmHabilitado(x.id) ? ' off' : ''}" data-rb="ver:${esc(x.id)}"><span class="rbTileIco">${img(x)}</span><b dir="auto">${esc(x.t)}</b><small class="gmTileD">${x.subs ? `${glifo('gente')} ${gmCifra(x.subs)}` : esc(x.autor || '')}${x.dir ? ` · ${glifo('bajar')}` : x.dir === false ? ' · .gma' : ''}</small>${gmInstalado(x.id) ? (gmHabilitado(x.id) ? '<i class="rbTileOk"></i>' : '<i class="rbTileOff"></i>') : gmcDe(x.id) ? `<i class="rbTileBaja" style="width:${Math.round(gmcDe(x.id).p * 100)}%"></i>` : ''}</button>`;
     const fin = S.cargando ? `<div class="rbVacio">${esc(T('cargando'))}</div>` : S.error ? `<div class="rbVacio">${esc(T('gm.puente'))}</div>` : !S.items.length ? `<div class="rbVacio">${esc(T(S.gmDir && S.vista === 'explorar' && S.vistosGM ? 'gm.ningunoDir' : 'sinRes'))}</div>` : '';
     G.innerHTML = S.items.map(tile).join('') + fin;
@@ -192,6 +193,74 @@ function gmTiendaDibujar() {
   const tot = RB.el.querySelector('.rbTotal'); if (tot) tot.textContent = S.total && !it ? `${S.items.length} / ${gmCifra(S.total)}` : '';
   const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.display = !it && S.vista === 'explorar' && !S.finGM && S.items.length < S.total && !S.cargando ? '' : 'none';   // (sin ocupar lugar: en un celular chico el pie entra en un renglón)
   const hab = RB.el.querySelector('.rbHab'); if (hab) hab.innerHTML = habBotones(it ? (PREFS.gmod && PREFS.gmod[it.id] ? it.id : null) : undefined, Object.keys(PREFS.gmod || {}), gmHabilitado, 'Gm', S.habVa);
+  gmSelModo(false);
+  // (en Instalados, «Borrar varios»: en una pantalla chica, sólo el tacho)
+  const sp = RB.el.querySelector('.gmSelPie'); if (sp) sp.innerHTML = !it && S.vista === 'instalados' && !S.habVa && S.items.length > 1 ? `<button class="rbBtnGris gmSelBtn" data-rb="selGm" title="${esc(T('sel.boton'))}" aria-label="${esc(T('sel.boton'))}">${glifo('basura')}<span>${esc(T('sel.boton'))}</span></button>` : '';
+}
+// (eligiendo: sin «Empezar partida nueva» ni el total, para que el pie entre en un renglón)
+// (en Instalados, en una pantalla chica, sin el total —«2 / 2»—: el pie con «Borrar varios» entra en un renglón)
+function gmSelModo(on) { const P = RB.el && RB.el.querySelector('.rbPan'); if (P) { P.classList.toggle('gmSelModo', !!on); P.classList.toggle('gmInst', RB.t.vista === 'instalados'); } }
+// ---------------- borrar varios a la vez ----------------
+// Discord: «poder borrar varios mods a la vez; los chicos hasta unos 20, los medianos 10 y los grandes 3 a 5». En
+// Instalados, «Borrar varios» deja marcar varios; cada uno ocupa del cupo según lo que pesa (chico ≤ 15 MB: 1, mediano
+// ≤ 100 MB: 2, grande: 5) y por vez entran 20: 20 chicos, 10 medianos, 4 grandes o mezclados. Así un celular flojo no se
+// traba sacando de golpe cientos de MB de la caché. Se borran de a uno, con el avance en el botón.
+const GM_SEL_CUPO = 20;
+const gmSelClase = (mb) => (!(mb > 0) || mb <= 15 ? 'chico' : mb <= 100 ? 'mediano' : 'grande');
+const gmSelPuntos = (mb) => ({ chico: 1, mediano: 2, grande: 5 })[gmSelClase(mb)];
+// lo que pesa uno instalado (MB): lo guardado en la caché (anotado al instalar), si no el del Workshop; si no se sabe, se
+// cuenta como mediano (null)
+function gmSelMB(id) {
+  const P = (PREFS.gmod && PREFS.gmod[id]) || {}, A = GMOD.addons.get(String(id)), bl = A && A.G && A.G.blob;
+  if (P.mbG != null) return P.mbG; if (bl && bl.size) return bl.size / 1048576; if (P.mb > 0) return P.mb;
+  const c = RB.t.cat && RB.t.cat.porId.get(String(id)); return c && c.mb > 0 ? c.mb : null;
+}
+const gmSelPts = (id) => { const mb = gmSelMB(id); return mb === null ? 2 : gmSelPuntos(mb); };
+// (el tamaño escrito: los de menos de 1 MB en KB; si no se sabe, «?»)
+const gmTamTxt = (mb) => (mb === null ? '? MB' : mb < 1 ? Math.max(1, Math.round(mb * 1024)) + ' KB' : (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB');
+function gmSelUsado() { let p = 0, mb = 0; for (const id of RB.t.sel.ids) { p += gmSelPts(id); mb += gmSelMB(id) || 0; } return { p, mb }; }
+function gmSelDibujar(G, img) {
+  const S = RB.t, u = gmSelUsado();
+  const tile = (x) => { const on = S.sel.ids.has(x.id), mb = gmSelMB(x.id), no = !on && u.p + gmSelPts(x.id) > GM_SEL_CUPO;
+    return `<button class="rbTile gmSelT${on ? ' sel' : ''}${no ? ' bloq' : ''}" data-rb="ver:${esc(x.id)}"><span class="rbTileIco">${img(x)}</span><b dir="auto">${esc(x.t)}</b><small class="gmTileD gmSel_${mb === null ? 'mediano' : gmSelClase(mb)}">${gmTamTxt(mb)}</small><i class="gmSelMarca"></i></button>`; };
+  G.innerHTML = `<p class="gmSelRegla">${esc(T('sel.regla'))}</p>` + (S.items.map(tile).join('') || `<div class="rbVacio">${esc(T('sinRes'))}</div>`);
+  const tot = RB.el.querySelector('.rbTotal'); if (tot) tot.textContent = '';
+  const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.display = 'none';
+  const hab = RB.el.querySelector('.rbHab'), sp = RB.el.querySelector('.gmSelPie'); if (!hab || !sp) return;
+  gmSelModo(true); hab.innerHTML = '';
+  const n = S.sel.ids.size, va = S.sel.va;
+  sp.innerHTML = va ? `<button class="rbBtnGris" disabled>${esc(T('sel.borrando').replace('{i}', Math.min(va.i + 1, va.n)).replace('{n}', va.n))}</button>`
+    : `<button class="rbBtnGris" data-rb="selNo">${esc(T('cancelar'))}</button><span class="gmSelInfo">${esc(T('sel.info').replace('{n}', n).replace('{mb}', u.mb < 1 && u.mb > 0 ? '<1' : Math.round(u.mb)).replace('{p}', u.p))}</span>`
+      + `<button class="rbBtnGris gmSelBorrar" data-rb="selBorrar"${n ? '' : ' disabled'}>${glifo('basura')} ${esc(T('sel.borrar').replace('{n}', n))}</button>`;
+}
+function gmSelTocar(id) {
+  const S = RB.t, L = S.sel.ids; if (S.sel.va) return;
+  if (L.has(id)) L.delete(id);
+  else if (gmSelUsado().p + gmSelPts(id) > GM_SEL_CUPO) { menuAviso(T('sel.regla')); return; }
+  else L.add(id);
+  gmTiendaDibujar();
+}
+function gmSelPreguntar() {
+  const S = RB.t, ids = [...S.sel.ids]; if (!ids.length || S.sel.va) return;
+  const u = gmSelUsado(), nom = (id) => (PREFS.gmod && PREFS.gmod[id] && PREFS.gmod[id].n) || ((S.items.find((x) => x.id === id) || {}).t) || id;
+  const filas = ids.map((id) => `<b dir="auto">${esc(nom(id))}</b> <small>${gmTamTxt(gmSelMB(id))}</small>`);
+  const ok = () => gmSelBorrar(ids, u.mb);
+  if (typeof confirmarLista === 'function') { confirmarLista(T('sel.tit').replace('{n}', ids.length) + ' · ' + gmTamTxt(u.mb), filas, T('sel.borrar').replace('{n}', ids.length), ok); const si = document.querySelector('#cfDlg [data-cf=si]'); if (si) si.classList.add('rojo'); }
+  else if (confirm(T('sel.tit').replace('{n}', ids.length))) ok();
+}
+async function gmSelBorrar(ids, mb) {
+  const S = RB.t; S.sel.va = { i: 0, n: ids.length }; gmTiendaDibujar();
+  for (let i = 0; i < ids.length; i++) {
+    S.sel.va = { i, n: ids.length }; gmTiendaDibujar();
+    const id = String(ids[i]);
+    try { gmDesmontar(id); } catch (e) { gmErr('desmontar ' + id, e); }
+    if (PREFS.gmod) delete PREFS.gmod[id];
+    await gmCacheBorrar(id);
+    await new Promise((r) => setTimeout(r, 0));   // (que el panel se vea avanzar)
+  }
+  guardarPrefs(); if (typeof gmMenu === 'function') try { gmMenu(); } catch (e) {}
+  S.sel = null; menuAviso(T('sel.listo').replace('{n}', ids.length).replace('{mb}', mb < 1 ? '<1' : Math.round(mb)));
+  if (S.tab === 'gmod') gmTiendaCargar(true);
 }
 // Habilitar / Deshabilitar (Discord: «opciones para habilitar/deshabilitar, deshabilitar todos/habilitar todos los mods»),
 // en el pie del panel como en el dibujo que mandaron. En la ficha de un mod, sólo el de ese mod (el que corresponde); en la
@@ -236,9 +305,12 @@ async function gmTiendaImportar(f, it) {
 function gmTiendaAccion(a, v) {
   const S = RB.t; if (S.tab !== 'gmod') return false;
   switch (a) {
-    case 'vista': S.vista = v; S.ficha = null; inicioPanel('tienda'); return true;
+    case 'vista': S.vista = v; S.ficha = null; S.sel = null; inicioPanel('tienda'); return true;
     case 'etq': S.etq = v; S.ficha = null; inicioPanel('tienda'); return true;
-    case 'ver': S.ficha = v; gmTiendaDibujar(); return true;
+    case 'ver': if (S.sel) { gmSelTocar(v); return true; } S.ficha = v; gmTiendaDibujar(); return true;
+    case 'selGm': S.sel = { ids: new Set(), va: null }; S.ficha = null; gmCatalogo().then((C) => { S.cat = C; if (S.sel) gmTiendaDibujar(); }); gmTiendaDibujar(); return true;
+    case 'selNo': if (S.sel && !S.sel.va) S.sel = null; gmTiendaDibujar(); return true;
+    case 'selBorrar': gmSelPreguntar(); return true;
     case 'fichaNo': S.ficha = null; gmTiendaDibujar(); return true;
     case 'gmdir': S.gmDir = !S.gmDir; S.ficha = null; inicioPanel('tienda'); return true;
     case 'mas': S.p++; gmTiendaCargar(false); return true;
@@ -262,6 +334,14 @@ function gmTiendaAccion(a, v) {
 
 // ---------------- textos (es, en, pt, id, ms, fil, ja, th, tr, ar, ru, uk, fr, de) ----------------
 Object.assign(IDI3, {
+  // (borrar varios a la vez)
+  'sel.boton': ['Borrar varios', 'Delete several', 'Apagar vários', 'Hapus beberapa', 'Padam beberapa', 'Burahin ang ilan', '複数削除', 'ลบหลายรายการ', 'Birkaçını sil', 'حذف عدة', 'Удалить несколько', 'Видалити кілька', 'Supprimer plusieurs', 'Mehrere löschen'],
+  'sel.borrar': ['Borrar ({n})', 'Delete ({n})', 'Apagar ({n})', 'Hapus ({n})', 'Padam ({n})', 'Burahin ({n})', '削除 ({n})', 'ลบ ({n})', 'Sil ({n})', 'حذف ({n})', 'Удалить ({n})', 'Видалити ({n})', 'Supprimer ({n})', 'Löschen ({n})'],
+  'sel.regla': ['Por vez: hasta 20 chicos, 10 medianos o 4 grandes', 'At once: up to 20 small, 10 medium or 4 large', 'Por vez: até 20 pequenos, 10 médios ou 4 grandes', 'Sekaligus: hingga 20 kecil, 10 sedang, atau 4 besar', 'Sekali gus: sehingga 20 kecil, 10 sederhana atau 4 besar', 'Sabay-sabay: hanggang 20 maliit, 10 katamtaman o 4 malaki', '一度に：小20個、中10個、大4個まで', 'ต่อครั้ง: เล็กได้ 20 กลาง 10 หรือใหญ่ 4', 'Tek seferde: en fazla 20 küçük, 10 orta veya 4 büyük', 'في المرة الواحدة: حتى 20 صغيرًا أو 10 متوسطة أو 4 كبيرة', 'За раз: до 20 маленьких, 10 средних или 4 больших', 'За раз: до 20 малих, 10 середніх або 4 великих', 'À la fois : jusqu’à 20 petits, 10 moyens ou 4 gros', 'Auf einmal: bis zu 20 kleine, 10 mittlere oder 4 große'],
+  'sel.info': ['{n} elegidos · {mb} MB · cupo {p}/20', '{n} selected · {mb} MB · {p}/20 used', '{n} selecionados · {mb} MB · cota {p}/20', '{n} dipilih · {mb} MB · kuota {p}/20', '{n} dipilih · {mb} MB · kuota {p}/20', '{n} napili · {mb} MB · {p}/20', '{n}個選択 · {mb} MB · 枠 {p}/20', 'เลือก {n} · {mb} MB · โควตา {p}/20', '{n} seçili · {mb} MB · kota {p}/20', '{n} محدد · {mb} م.ب · الحصة {p}/20', 'Выбрано: {n} · {mb} МБ · лимит {p}/20', 'Вибрано: {n} · {mb} МБ · ліміт {p}/20', '{n} sélectionnés · {mb} Mo · quota {p}/20', '{n} ausgewählt · {mb} MB · Kontingent {p}/20'],
+  'sel.tit': ['Borrar {n} mods', 'Delete {n} mods', 'Apagar {n} mods', 'Hapus {n} mod', 'Padam {n} mod', 'Burahin ang {n} mod', '{n}個のMODを削除', 'ลบ {n} ม็อด', '{n} modu sil', 'حذف {n} مودات', 'Удалить модов: {n}', 'Видалити модів: {n}', 'Supprimer {n} mods', '{n} Mods löschen'],
+  'sel.borrando': ['Borrando {i}/{n}…', 'Deleting {i}/{n}…', 'Apagando {i}/{n}…', 'Menghapus {i}/{n}…', 'Memadam {i}/{n}…', 'Binubura {i}/{n}…', '削除中 {i}/{n}…', 'กำลังลบ {i}/{n}…', 'Siliniyor {i}/{n}…', 'جارٍ الحذف {i}/{n}…', 'Удаление {i}/{n}…', 'Видалення {i}/{n}…', 'Suppression {i}/{n}…', 'Lösche {i}/{n}…'],
+  'sel.listo': ['Borrados: {n} ({mb} MB)', 'Deleted: {n} ({mb} MB)', 'Apagados: {n} ({mb} MB)', 'Dihapus: {n} ({mb} MB)', 'Dipadam: {n} ({mb} MB)', 'Nabura: {n} ({mb} MB)', '削除済み: {n} ({mb} MB)', 'ลบแล้ว: {n} ({mb} MB)', 'Silindi: {n} ({mb} MB)', 'تم الحذف: {n} ({mb} م.ب)', 'Удалено: {n} ({mb} МБ)', 'Видалено: {n} ({mb} МБ)', 'Supprimés : {n} ({mb} Mo)', 'Gelöscht: {n} ({mb} MB)'],
   // (habilitar / deshabilitar mods: es, en, pt, id, ms, fil, ja, th, tr, ar, ru, uk, fr, de)
   'hab.si': ['Habilitar', 'Enable', 'Habilitar', 'Aktifkan', 'Dayakan', 'I-enable', '有効にする', 'เปิดใช้', 'Etkinleştir', 'تفعيل', 'Включить', 'Увімкнути', 'Activer', 'Aktivieren'],
   'hab.no': ['Deshabilitar', 'Disable', 'Desabilitar', 'Nonaktifkan', 'Nyahdayakan', 'I-disable', '無効にする', 'ปิดใช้', 'Devre dışı bırak', 'تعطيل', 'Отключить', 'Вимкнути', 'Désactiver', 'Deaktivieren'],

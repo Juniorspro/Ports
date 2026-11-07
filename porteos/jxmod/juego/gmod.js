@@ -937,7 +937,10 @@ async function gmInstalar(wid, meta, bytes, prog) {
     if (A.deps.length) { GMOD.addons.delete(wid); GMOD.addons.set(wid, A); if (typeof gmLuaDesmontar === 'function') gmLuaDesmontar(); }
   }
   if (A.visita) return A;   // (de visita no queda entre los instalados: la próxima vez se toma de la caché si hace falta)
-  PREFS.gmod = PREFS.gmod || {}; PREFS.gmod[wid] = { n: A.nombre, t: Date.now(), img: (meta && meta.img) || '' }; if (Array.isArray(req) && /^\d+$/.test(wid)) PREFS.gmod[wid].req = req.slice(0, 20); guardarPrefs();
+  PREFS.gmod = PREFS.gmod || {}; PREFS.gmod[wid] = { n: A.nombre, t: Date.now(), img: (meta && meta.img) || '' }; if (Array.isArray(req) && /^\d+$/.test(wid)) PREFS.gmod[wid].req = req.slice(0, 20);
+  // (lo que ocupa guardado, para el cupo de «borrar varios»: gmod_tienda.js)
+  if (G.blob && G.blob.size) PREFS.gmod[wid].mbG = Math.round(G.blob.size / 1048.576) / 1000;
+  guardarPrefs();
   return A;
 }
 // el addon que trae un archivo (el de un modelo de jugador, para decirles a los demás cuál bajar)
