@@ -47,12 +47,15 @@ if (fotos) {
   // cada cuadro queda como JPEG en <salida>_cuadros/ (si el proceso se corta, lo hecho no se pierde); con --reanudar
   // los cuadros que ya están no se vuelven a dibujar: la escena avanza igual (los mismos subcuadros, sin dibujar). Al
   // final, el MP4 se arma con los JPEG
+  // --solo a:b: sólo los cuadros a..b-1 (los de antes se saltan avanzando la escena igual, como con --reanudar): así
+  // un plano se reparte entre varios carriles y queda idéntico a dibujarlo de corrido; el MP4 se arma aparte
   const dir = salida.replace(/\.mp4$/, '') + '_cuadros', reanudar = args.includes('--reanudar');
+  const solo = op('solo', ''), [sa, sb] = solo ? solo.split(':').map(Number) : [0, Infinity];
   fs.mkdirSync(dir, { recursive: true });
   const nf = Math.round((hasta - desde) * fps); let hechos = 0, saltados = 0;
-  for (let i = 0; i < nf; i++) {
+  for (let i = 0; i < nf && i < sb; i++) {
     const tf = desde + i / fps, arch = path.join(dir, String(i).padStart(4, '0') + '.jpg');
-    if (reanudar && fs.existsSync(arch) && fs.statSync(arch).size > 1000) {
+    if (i < sa || (reanudar && fs.existsSync(arch) && fs.statSync(arch).size > 1000)) {
       await ev(`(() => { const fd = 1 / ${fps}; for (let k = 0; k < ${n}; k++) { const ti = ${tf} + (${n} > 1 ? k * fd * ${obt} / ${n} : 0), dt = CINE.tUlt === null ? fd : Math.max(0, ti - CINE.tUlt); CINE.avanzar(ti, dt); } return 1; })()`);
       saltados++; continue;
     }
@@ -61,6 +64,10 @@ if (fotos) {
     if (i % 24 === 0) console.log('cuadro', i, '/', nf, ((Date.now() - t00) / 1000).toFixed(0) + ' s');
   }
   console.log('cuadros dibujados', hechos, 'ya estaban', saltados);
+  if (solo) {
+    console.log('parte', solo, 'lista (el MP4 se arma cuando estén todas)'); console.log('errores', JSON.stringify(err.filter((e) => !/WebSocket|mqtt/i.test(e)).slice(0, 6)));
+    console.log('total', ((Date.now() - t00) / 1000).toFixed(0), 's'); await b.close(); process.exit(0);
+  }
   const { spawnSync } = await import('child_process');
   const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(dir, '%04d.jpg'), '-frames:v', String(nf), '-c:v', 'libx264', '-preset', 'medium', '-crf', String(+op('crf', 12)), '-pix_fmt', 'yuv444p', '-r', String(fps), salida], { stdio: 'inherit' });
   console.log('mp4', r.status === 0 ? 'listo' : 'ERROR ' + r.status, salida);

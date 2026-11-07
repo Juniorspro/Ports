@@ -18,7 +18,7 @@ grandes y no asome el cuerpo abajo. En un lienzo panorámico, `C.aspK` no cambia
 | Archivo | Qué hace |
 |---|---|
 | `cine_motor.js` | Se evalúa dentro del juego. La cámara guionada (y su ajuste por formato, `C.aspK`); la sombra del propio cuerpo apagada en primera persona; el jugador ubicado en el instante exacto de cada subcuadro (`C.suaveJug`); el suavizado y el desenfoque de movimiento (4 subcuadros); la captura de movimiento (`C.locomocion`: el cuerpo avanza lo que el pie apoyado se va para atrás, así los pies no patinan; fundido entre clips que compensa el rumbo de la cadera de cada uno; `C.poseHuesos` para saber dónde queda una mano en un instante); los brazos con cinemática inversa; el cielo violeta y su luz; la grieta; las cosas que caen con fuego; el mar; las estrellas; los modelos sueltos (la Physics Gun de mundo) y **la nuclear**: un volumen con marcha de rayos en una pasada de pantalla completa (bola de fuego, toro que rueda con un domo encima, tallo, falda de polvo; ruido 3D de 64³ repetible; luz de la grieta con sombra, luz del cielo y del suelo, el fuego de adentro que brilla y alumbra el humo; escribe la profundidad de donde entra el rayo, así lo de adelante lo tapa). |
-| `cine.mjs`, `correr.mjs` | Abren el juego en Ultra con sombras de 4096 y el personaje pedido (`--skin`, por defecto SpecialForcesM), bajan los clips de captura de movimiento que nombra el plano (`'c:NN_NN'`) y, en cada plano, hacen un previo de 1 a 4,6 s para que se acomode la escena. Después renderizan y mandan los JPEG a ffmpeg (`<carpeta>/<plano>.mp4`, 1440×1080, 24 cuadros por segundo). Con `--muestras` dejan además un JPEG cada 12 cuadros. |
+| `cine.mjs`, `correr.mjs` | Abren el juego en Ultra con sombras de 4096 y el personaje pedido (`--skin`, por defecto SpecialForcesM), bajan los clips de captura de movimiento que nombra el plano (`'c:NN_NN'`) y, en cada plano, hacen un previo de 1 a 4,6 s para que se acomode la escena. Después guardan cada cuadro como JPEG (`<carpeta>/<plano>_cuadros/`) y al final arman el MP4 con ffmpeg (`<carpeta>/<plano>.mp4`, 1440×1080, 24 cuadros por segundo). Con `--reanudar` siguen donde se cortó un render (los cuadros hechos se saltan avanzando la escena igual) y con `--solo a:b` dibujan sólo esos cuadros, para repartir un plano entre carriles: sale idéntico a dibujarlo de corrido. Con `--muestras` dejan además un JPEG cada 12 cuadros. |
 | `planos/p1…p8`, `planos/p9_final.js` | Un archivo por plano. Cada uno arma la escena (lugar, personaje, cielo, objetos) y define `CINE.escena(t)` con el tiempo del tráiler. |
 | `playa_comun.js` | Arma el mar para la playa. Lo usan P8 y P9. |
 | `carril.sh` | Renderiza varios planos seguidos, en 1440×1080 si no se le dice otra cosa (`W`, `H` y la carpeta `SAL`). Se corren dos o tres carriles en paralelo. |
@@ -58,6 +58,9 @@ grandes y no asome el cuerpo abajo. En un lienzo panorámico, `C.aspK` no cambia
    - `SAL=vid2 JX_URL=http://127.0.0.1:8978/JX.html ./carril.sh p2_grieta:220:296 p4_lluvia:324:399 p6_nuclear:457:561`
    - `SAL=vid2 JX_URL=http://127.0.0.1:8977/JX.html ./carril.sh p5_barril:399:457 p7_corre:561:639`
    - P3 (sin personaje) y el logo van en `vid43/`: `SAL=vid43 ./carril.sh p3_salen:296:313` y `python3 logo_intro.py`.
+   - Un plano también se puede repartir: varios `node correr.mjs` del mismo plano y la misma salida, cada uno con su
+     `--solo` (por ejemplo `0:34`, `34:68` y `68:102`), y después `ffmpeg -framerate 24 -i <plano>_cuadros/%04d.jpg
+     -c:v libx264 -crf 14 -pix_fmt yuv444p <plano>.mp4`.
 4. Correr `node placa/texto.mjs` y `python3 placa_final.py`.
 5. Correr la mezcla: `JX_SONIDOS=<paquete>/a python3 mezcla.py`.
 6. Armar el video: `python3 armar_final.py`.

@@ -21,6 +21,10 @@
   C.grieta.on = true; C.grieta.tam = 0.42; C.grieta.abre = 1; C.grieta.brillo = 0.55;
   C.cielo(0, { dir: C.playa.dir, base: C.playa });
   C.mar.on = true;
+  // la cara: con el sol del atardecer de frente, la piel (una textura rojiza) se iba a un rojo saturado (tono 4–6°);
+  // un tinte sólo en el material de la cabeza la deja marrón cálida (tono 17–20°) y la armadura queda igual
+  const iCara = DATA.mt.findIndex((d) => d && d.n === 'Mat_SpecialForces_01_M_Head');
+  if (iCara >= 0) matGL(iCara).c = [0.72, 1.08, 1.08, 1];
   // respira agitado: el pecho y los hombros suben y bajan, la cabeza un poco gacha
   C.pose = (P) => {
     const t = C.tAct || 0, k = C.tramo(t, 28.45, 28.6), fr = 2 * Math.PI * 0.62, s = Math.sin(t * fr);
