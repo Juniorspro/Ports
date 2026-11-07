@@ -1873,26 +1873,43 @@ SWEP, borrar varios mods, el celular en la mano, carteles de «moriste», pesta�
 - Sin probar en celulares ni en un iPhone de verdad: todo se probó en Chromium en la compu (con pantalla y toque de
   celular simulados), y la placa de video de prueba dibuja con el procesador.
 
-## Tráiler de la 3.0 (34 s, 4:3 en FHD)
+## Tráiler de la 3.0 (40 s, 4:3 en FHD), v2
 
-Pedido: un tráiler de 34 s con la canción del video de 41 s, que cuente una historia sin narrarla, con suspenso, voces
-para los personajes, sin interfaz, el logo recortado al principio y renderizado mejor que el juego; después, «solamente
-necesito que sea 4:3 aprox… no discord… fhd».
+Pedido: un tráiler con la canción del video de 41 s, con suspenso, sin interfaz, el logo recortado al principio y
+renderizado mejor que el juego; en 4:3 FHD («no discord»). Después: «terminó muy en seco, debería haber estrellado
+bien la Physics Gun, la bomba nuclear nada que ver y las voces quitalas; mejorá los colores y efectos; un final con
+más suspenso y que diga Beta lanzada; caminatas y corridas bien cinemáticas; cambiá el personaje» (el soldado).
 
-- **El video**: `jxmod/JXMod_trailer_3_0.mp4`, 1440×1080 (4:3), 24 cuadros por segundo, 34,0 s, 42 MB.
-- **Todo sale del juego**, sin interfaz: los 9 planos se renderizan dentro de JXMod con las herramientas de
-  `herramientas/trailer/` (ver su LEEME): Ultra, sombras de 4096, 4 subcuadros por cuadro (suavizado y desenfoque de
-  movimiento), cámara guionada, la grieta del cielo (efecto propio), las cosas que caen con fuego, el barril, la
-  nuclear y el mar de la playa.
-- **La historia**: el desierto en primera persona y las manos que brillan («Otra vez no…»); el cielo se raja y la grieta
-  habla («Te encontramos.»); la lluvia de cosas en llamas; el barril al ras del piso; la nuclear; la corrida; la playa
-  («Acá no llegan…»); cae la Physics Gun a su espalda, se da vuelta («Es mía.») y corte.
-- **Sonido**: la canción del video de 41 s, 4 voces generadas y efectos del juego; la música baja bajo las voces.
-- **Revisado con `verificar.py`**: 816 cuadros, 34,000 s, sin negros fuera de lugar ni cuadros repetidos, los cortes en
-  los tiempos del guion, los destellos y los golpes del sonido juntos (la grieta en 6,42 s, el golpe en 13,50 s, el
-  barril en 18,67 s, la nuclear en 19,04 s) y el pico del audio en -1 dB sin recortes.
-- **Arreglos en el camino**: la sombra cuadriculada del propio cuerpo en primera persona (el juego la volvía a poner en
-  cada cuadro), el personaje doble con el desenfoque de movimiento (la física del juego avanza a pasos de 1/60 s y la
-  cámara iba en tiempo continuo) y el resplandor del logo, que se cortaba en un rectángulo.
-- **Límites**: los modelos y las animaciones son los del juego (el caminar en la playa se ve algo rígido); todo se
-  renderizó con el procesador, sin placa de video.
+- **El video**: `jxmod/JXMod_trailer_3_0.mp4`, 1440×1080 (4:3), 24 cuadros por segundo, 40,0 s (960 cuadros), 46,5 MB.
+- **Todo sale del juego**, sin interfaz: cada plano se renderiza dentro de JXMod con las herramientas de
+  `herramientas/trailer/` (ver su LEEME), en Ultra, con sombras de 4096 y 4 subcuadros por cuadro (suavizado y
+  desenfoque de movimiento).
+- **El protagonista** es el soldado de fuerzas especiales (SpecialForcesM).
+- **Movimiento real**: todo lo que hace con el cuerpo es captura de movimiento real de la biblioteca de CMU que ya trae
+  el juego: la corrida (127_07), la caminata cansada (105_26), quedarse parado (111_28), agacharse cuando le pasa el
+  meteoro (77_09), darse vuelta (69_16) y agacharse a agarrar el arma (26_09, en cámara lenta). El cuerpo avanza lo que
+  el pie apoyado se va para atrás (los pies no patinan) y los clips se funden entre sí. DeepMotion no se usó: pide
+  cuenta y créditos pagos.
+- **La nuclear nueva** es un efecto propio: un hongo volumétrico (bola de fuego que nace en el piso, toro que rueda con
+  un domo, tallo de polvo, falda que corre por el suelo), con su luz y la onda expansiva que le llega con una ráfaga
+  de arena. Reemplaza a la nuclear de partículas del juego.
+- **La Physics Gun** baja como un meteoro azul desde el sol, le pasa al lado de la cabeza (se agacha), se estrella en
+  la arena (destello, corona de arena, anillo de polvo, chispas, marca quemada, sacudón) y queda clavada de punta.
+- **El final**: se da vuelta, se agacha y estira la mano en cámara lenta; cuando la toca, el arma se enciende; corte a
+  negro, silencio, y en el golpe de la canción (37,5 s) entra la placa: JXM, «BETA LANZADA», «JXMOD 3.0».
+- **Sin voces**. Sonido: la canción hasta su final natural, efectos del juego y sintéticos (onda expansiva, meteoro,
+  golpe, zumbido del arma que crece, dron de suspenso, golpe de la placa).
+- **Color**: gradación de cine en cada plano (resplandor cálido en las luces fuertes, contraste con luces suaves,
+  sombras frías y luces cálidas, vibrancia, un píxel de aberración cromática, viñeta y grano).
+- **Revisado con `verificar.py`**: 960 cuadros, 40,000 s, sin negros fuera de lugar ni cuadros repetidos; los
+  destellos en su lugar (la grieta en 6,42 s, el golpe en 13,50 s, el barril en 18,75 s, la nuclear en 19,04 s, el
+  meteoro en 31,46 s y la placa en 37,50 s) con sus golpes de sonido (la onda expansiva llega en 21,0 s); el pico del
+  audio en −0,95 dB, sin recortes.
+- **Arreglos en el camino**: la grieta se veía a través del hongo (el volumen dejaba pasar un 2 % de luz y la grieta es
+  muy brillante: ahora es opaco cuando casi no deja pasar luz); la mano no llegaba al arma (en el clip de agacharse
+  queda a 0,55 m del piso: el arma queda clavada de punta con la cola para arriba y el brazo llega con cinemática
+  inversa); la cara salía roja en la playa (con el sol del atardecer de frente, la textura de la piel se iba a un rojo
+  saturado: un tinte sólo en el material de la cabeza la deja marrón cálida); los renders largos se cortaban a la media
+  hora (ahora cada cuadro queda guardado y el render se retoma donde quedó).
+- **Límites**: los modelos son los del juego; la mano llega al arma con cinemática inversa sobre la captura (los dedos no
+  la rodean del todo); todo se renderizó con el procesador, sin placa de video.
