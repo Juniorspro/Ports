@@ -203,7 +203,7 @@ function autoPaso(V, dt, ent) {
   }
   // choque de frente con la moto: el piloto sale volando (como el CrashController del juego)
   if (V.tipo === 'moto' && JUG.vehiculo === V.o && (V.velAnt || 0) - Math.abs(V.vel) > 9) {
-    const vAnt = V.velAnt; salirVehiculo(); JUG.vel.copy(vadd(vscale(fwd, vAnt * 0.7), v3(0, 4, 0))); aviso('¡Te caíste!', 1.5); CAM.temblor = 0.8;
+    const vAnt = V.velAnt; salirVehiculo(); JUG.vel.copy(vadd(vscale(fwd, vAnt * 0.7), v3(0, 4, 0))); CAM.temblor = 0.8;   // (sin cartel de «¡Te caíste!»: el golpe ya se ve)
   }
   V.velAnt = Math.abs(V.vel);
   // si quedó dado vuelta y quieto, se endereza solo

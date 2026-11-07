@@ -180,7 +180,7 @@ function gmaPaso(dt) {
     // (con un modo de juego: se aparece sin las armas del sandbox y su PlayerSpawn da las suyas; morir callado es KillSilent)
     if (vivo) { gmaPuntosAparicion(); if (GMA.modo && !GMA.modo.sandbox) gmmSinArmas(); gmaHook('PlayerSpawn', 'S', GMA.jug, false); if (!GMA.modo) gmaHook('PlayerLoadout', 'S', GMA.jug); }
     else if (GMA.muerteMuda) { GMA.muerteMuda = false; gmaHook('PlayerSilentDeath', 'S', GMA.jug); }
-    else { gmaHook('DoPlayerDeath', 'S', GMA.jug, GMA.mundo, gmaDmgInfo(100)); gmaHook('PlayerDeath', 'S', GMA.jug, GMA.mundo, GMA.mundo); if (GMA.modo) aviso(T('gm.reaparecer'), 3); }
+    else { gmaHook('DoPlayerDeath', 'S', GMA.jug, GMA.mundo, gmaDmgInfo(100)); gmaHook('PlayerDeath', 'S', GMA.jug, GMA.mundo, GMA.mundo); }   // (sin cartel al morir, como GMod)
   }
   // (muerto con un modo de juego: el modo decide cuándo se reaparece, como en GMod)
   if (!vivo && GMA.modo && !GMA.modo.muerteRota) { GMA.ultErr = false; gmaHook('PlayerDeathThink', 'S', GMA.jug); if (GMA.ultErr) GMA.modo.muerteRota = true; }

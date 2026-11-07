@@ -252,7 +252,8 @@ function morirJugador(callado) {   // (callado: KillSilent de un modo de juego, 
   if (JUG.vehiculo) salirVehiculo();
   if (callado) return;
   if (typeof jugadorRagdoll === 'function') jugadorRagdoll();
-  aviso('Te moriste', 3);
+  // (sin cartel de «Te moriste»: como en GMod, al morir se ve el muñeco y se reaparece; Discord: «quiten los carteles de
+  // "moriste" o parecidos»)
 }
 function guardarConstruccion() {
   if (typeof cuentaPedir === 'function' && !cuentaPedir('guardar', guardarConstruccion)) return;   // (guardar pide la sesión de Google)
