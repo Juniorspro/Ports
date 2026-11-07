@@ -119,7 +119,7 @@ uniform sampler2D uT1, uT2, uT3; uniform vec4 uS1; uniform vec2 uS3;
 #ifdef MEZ
 uniform sampler2D uT1; in float vMz;
 #endif
-uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uCam, uEm, uRim; uniform vec2 uNie; uniform float uCorte;
+uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uRim; uniform vec2 uNie; uniform float uCorte;
 #if LUZ >= 1
 uniform vec3 uMat;
 #endif
@@ -361,7 +361,12 @@ void main(){
     refl = rt;
   }
 #endif
-  float spec = pow(max(dot(reflect(-v, n), uSol), 0.0), 700.0) * 6.0 * step(0.0, uSol.y);
+  // el sol en el agua: un destello chico (el sol mide medio grado; las olas lo parten en chispas) y con el Fresnel del
+  // agua: mirando para abajo refleja poco y a ras del agua casi todo. Antes se sumaba entero y ancho: mirando el lago desde
+  // arriba era una mancha blanca de metros que seguía a la cámara y, con el brillo (bloom) de Alto, un velo en la pantalla
+  // (a ras del agua las olas abren el reflejo en un camino de destellos, como al atardecer: ahí el lóbulo es más ancho)
+  float rv = max(dot(reflect(-v, n), uSol), 0.0), fs = clamp(fr * 2.5, 0.0, 1.0);
+  float spec = pow(rv, mix(2400.0, 700.0, fs)) * 5.0 * mix(0.06, 1.0, fs) * step(0.0, uSol.y);
   vec3 col = mix(cuerpo, refl, fr) + uSolC * spec;
   t.a = mix(uAguaK.y, 1.0, fr);
   // de abajo (la cámara bajo el agua): casi todo se refleja para adentro, se ve el color del agua
@@ -504,7 +509,9 @@ void main(){
   float f = clamp((dist - uNie.x) / (uNie.y - uNie.x), 0.0, 1.0);
 #if LUZ >= 3
   vec3 vd = (vW - uCam) / dist;
-  vec3 nc = uNieC + uSolC * pow(max(dot(vd, uSol), 0.0), 6.0) * 0.35;
+  // (la luz del sol en la niebla, mirando para el sol; uNieS: el color del sol por 0,35, y debajo del agua el del agua y
+  // más suave —antes era blanca: buceando y mirando para arriba, un velo blanco tapaba media pantalla—)
+  vec3 nc = uNieC + uNieS * pow(max(dot(vd, uSol), 0.0), 6.0);
   f = 1.0 - (1.0 - f) * exp(-max(0.0, dist - 20.0) * 0.0006 * exp(-max(vW.y - uCam.y + 5.0, 0.0) * 0.02));
   col = mix(col, nc, f);
 #else
@@ -1094,6 +1101,7 @@ function prepararProg(P) {
     // el arma en la mano no usa el mapa de sombras (se vería granulado tan cerca): la luz del sol según si la cámara está a la sombra
     const kv = R.fase === 'vista' ? (R.solVista === undefined ? 1 : R.solVista) : 1;
     u3f(P, u.uSol, R.sol.x, R.sol.y, R.sol.z); u3f(P, u.uSolC, L.solCol[0] * kv, L.solCol[1] * kv, L.solCol[2] * kv); uNv(P, u.uAmbS, L.ambS, 3, 3); uNv(P, u.uAmbG, L.ambG, 3, 3);
+    if (u.uNieS) { const t = R.nieS || NIE_S1; u3f(P, u.uNieS, L.solCol[0] * kv * t[0], L.solCol[1] * kv * t[1], L.solCol[2] * kv * t[2]); }
     if (u.uTop && R.lin) { uNv(P, u.uTop, R.lin.topG, 3, 3); uNv(P, u.uMid, R.lin.midG, 3, 3); uNv(P, u.uBot, R.lin.botG, 3, 3); uNv(P, u.uExp, R.cielo ? R.cielo.exp : CIELO_EXP0, 2, 2); u1f(P, u.uCieloK, R.cieloK || 1); }
     if (u.uSMm) { sombrasUniformes(P); if (R.fase === 'vista') u1f(P, u.uSMon, 0); }
     if (u.uAO) { u2f(P, u.uAOinv, 1 / R.cv.width, 1 / R.cv.height); u1f(P, u.uAOon, R.aoActivo && R.fase !== 'vista' ? 1 : 0); }
@@ -1392,6 +1400,8 @@ function lucesUniformes(P) {
   const gl = R.gl, n = GFX.nluz || 0; if (!n) return;
   uNv(P, P.u.uLP, sub(LUZ_P, n * 4), n * 4, 4); uNv(P, P.u.uLC, sub(LUZ_C, n * 4), n * 4, 4); uNv(P, P.u.uLD, sub(LUZ_D, n * 4), n * 4, 4); u1i(P, P.u.uLN, R.nLuces || 0);
 }
+// la luz del sol que se ve en la niebla (por color): fuera del agua 0,35 del sol; debajo, del color del agua y a la mitad
+const NIE_S1 = [0.35, 0.35, 0.35];
 // colores del cielo y la luz pasados a lineal (para las calidades con luz física)
 function luzLineal() {
   const C = R.cielo; if (!C) return;
@@ -1402,5 +1412,7 @@ function luzLineal() {
   const des = (a, t) => { const l = a[0] * 0.3 + a[1] * 0.59 + a[2] * 0.11; return a.map((x) => l + (x - l) * t); };
   k.ambS = des(srgb3(R.ambS), 0.45).map((x) => x * 1.3); k.ambG = des(srgb3(R.ambG), 0.6).map((x) => x * 1.25);
   k.nieC = srgb3(R.niebla.c);
+  // (debajo del agua —aguaNiebla puso el color del agua en R.niebla.a = 0—: el tinte del agua, con el canal más fuerte en 1)
+  if (R.niebla.agua) { const c = k.nieC, m = Math.max(1e-4, c[0], c[1], c[2]); R.nieS = [0.17 * c[0] / m, 0.17 * c[1] / m, 0.17 * c[2] / m]; } else R.nieS = null;
   R.expo = 0.66 * (R.expoK || 1);
 }

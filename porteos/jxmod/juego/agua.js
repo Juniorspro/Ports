@@ -370,7 +370,7 @@ function aguaPaso(dt) {
 function aguaNiebla() {
   if (!AGUA.bajo) return null;
   const antes = R.niebla, col = AGUA.camVol && AGUA.camVol.rec ? [0.32, 0.5, 0.56] : [0.08, 0.24, 0.27];
-  R.niebla = { c: col, a: 0, b: AGUA.camVol && AGUA.camVol.rec ? 4 : 16 };
+  R.niebla = { c: col, a: 0, b: AGUA.camVol && AGUA.camVol.rec ? 4 : 16, agua: true };
   return antes;
 }
 function aguaMallaGL(V, I, dinamica) {
