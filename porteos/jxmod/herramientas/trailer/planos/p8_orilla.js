@@ -2,6 +2,7 @@
 // el sol del atardecer le da de frente; detrás, tierra adentro, la grieta lejana. «Acá no llegan…»
 (() => {
   const C = CINE, T0 = 26.60, T1 = 30.86;
+  C.aspK = 1.343;   // 4:3: la franja del medio del panorámico, más alta (misma nitidez por píxel; más cielo y más piso)
   C.plano = { t0: T0, t1: T1, previo: 1.6 };
   const O = C.orilla, yaw = Math.PI / 2, f = v3(1, 0, 0), up = v3(0, 1, 0), r = vcross(f, up).norm();
   // arranca 4,5 m tierra adentro y camina hasta la orilla

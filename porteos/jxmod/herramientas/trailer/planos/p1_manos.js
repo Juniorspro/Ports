@@ -2,6 +2,7 @@
 // golpes de la canción); un trueno sordo lo hace mirar arriba y el cielo se raja: la grieta se abre a golpes
 (() => {
   const C = CINE, T0 = 2.06, T1 = 9.16;
+  C.aspK = 1.15;   // 4:3: un poco más cerrado que el panorámico (manos más grandes, sin que asome el cuerpo abajo)
   C.plano = { t0: T0, t1: T1, previo: 2.0 };
   const X = -150, Z = -120, yaw = -Math.PI / 2;
   const piso = pisoBajo(v3(X, 0, Z), 300);
@@ -9,7 +10,7 @@
   elegirArma(ARM.lista.indexOf('Hands'));
   C.sinVista = true; C.sinCabeza = JUG.cuerpo;
   // (la sombra del propio cuerpo, con el sol bajo y tan cerca de la cámara, salía con muaré: sin sombra en este plano)
-  if (JUG.cuerpo && JUG.cuerpo.md) JUG.cuerpo.md.sinSombra = true;
+  C.sinSombraYo = true;
   const az = yaw, el = 0.62; const cG = C.grietaDir(az, el, 0.15);
   C.grieta.on = true; C.grieta.abre = 0; C.grieta.tam = 0.78;
   const golpesManos = [[3.24, 1], [4.82, 0.7], [5.21, 1], [6.0, 0.5]];

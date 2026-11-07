@@ -2,6 +2,7 @@
 // bola de fuego y el hongo crece debajo de la grieta; la cámara sube despacio siguiéndolo
 (() => {
   const C = CINE, T0 = 19.02, T1 = 23.36;
+  C.aspK = 1.343;   // 4:3: la franja del medio del panorámico, más alta (misma nitidez por píxel; más cielo y más piso)
   C.plano = { t0: T0, t1: T1, previo: 1.0 };
   const yawRun = Math.PI / 2, X0 = -90, Z0 = -95;
   const piso = pisoBajo(v3(X0, 0, Z0), 300);

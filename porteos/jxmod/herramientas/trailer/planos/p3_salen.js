@@ -1,6 +1,7 @@
 // P3 (12,31–13,05): teleobjetivo a la grieta: de la luz del centro salen las primeras cosas encendidas, hacia nosotros
 (() => {
   const C = CINE, T0 = 12.31, T1 = 13.05;
+  C.aspK = 1.343;   // 4:3: la franja del medio del panorámico, más alta (misma nitidez por píxel; más cielo y más piso)
   C.plano = { t0: T0, t1: T1, previo: 1.2, calentar: ['police_car_v5', 'Fridge1', 'Crate', 'TV'] };
   const X = -150, Z = -120, yaw = -Math.PI / 2;
   const piso = pisoBajo(v3(X, 0, Z), 300);

@@ -22,10 +22,13 @@ media = cen.mean(axis=(1, 2))
 dif = np.abs(np.diff(cen, axis=0)).mean(axis=(1, 2))
 t = np.arange(len(media)) / 24
 # barras: a tamaño real, el promedio de las filas de arriba y de abajo (sin el borde con la imagen)
-rawb = subprocess.run(['ffmpeg', '-v', 'error', '-i', f, '-vf', f'crop={W}:{bar - 4}:0:0,scale=64:8,format=gray', '-f', 'rawvideo', '-'],
-                      capture_output=True).stdout
-barras = np.frombuffer(rawb, np.uint8).reshape(-1, 8, 64).astype(np.float32).max(axis=(1, 2))
-print(f"barras de arriba (cuadros 49+): máx {barras[49:].max():.1f} de 255 (tienen que ser negras)")
+if W / H > 1.6:   # (sólo el panorámico con barras de cine; el 4:3 va a cuadro completo)
+    rawb = subprocess.run(['ffmpeg', '-v', 'error', '-i', f, '-vf', f'crop={W}:{bar - 4}:0:0,scale=64:8,format=gray', '-f', 'rawvideo', '-'],
+                          capture_output=True).stdout
+    barras = np.frombuffer(rawb, np.uint8).reshape(-1, 8, 64).astype(np.float32).max(axis=(1, 2))
+    print(f"barras de arriba (cuadros 49+): máx {barras[49:].max():.1f} de 255 (tienen que ser negras)")
+else:
+    print(f'formato {W}×{H} ({W / H:.3f}:1), sin barras')
 # negros: cuadros con media < 6 fuera de los esperados (fin del logo ~1,9–2,04, comienzo de P1, negro 13,04–13,50)
 neg = [i for i in range(len(media)) if media[i] < 6]
 esperado = lambda i: (44 <= i <= 52) or (313 <= i <= 323) or i < 3

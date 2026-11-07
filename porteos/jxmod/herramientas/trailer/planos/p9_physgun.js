@@ -2,6 +2,7 @@
 // Gravity Gun y se clava en la arena entre la cámara y él (31,45). Se da vuelta despacio, la ve. Corte en 34,00
 (() => {
   const C = CINE, T0 = 30.86, T1 = 34.0;
+  C.aspK = 1.343;   // 4:3: la franja del medio del panorámico, más alta (misma nitidez por píxel; más cielo y más piso)
   C.plano = { t0: T0, t1: T1, previo: 1.6 };
   const O = C.orilla, f = v3(1, 0, 0), up = v3(0, 1, 0), r = vcross(f, up).norm();
   const pj = v3(O.x - 0.6, 0, O.z), py = pisoBajo(v3(pj.x, 0, pj.z), 300);

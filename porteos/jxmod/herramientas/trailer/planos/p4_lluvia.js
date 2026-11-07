@@ -2,6 +2,7 @@
 // en llamas que explotan; la cámara, baja y adelante, retrocede con él y tiembla con cada golpe
 (() => {
   const C = CINE, T0 = 13.50, T1 = 16.65;
+  C.aspK = 1.343;   // 4:3: la franja del medio del panorámico, más alta (misma nitidez por píxel; más cielo y más piso)
   C.plano = { t0: T0, t1: T1, previo: 1.6, calentar: ['police_car_v5', 'Fridge1', 'BarrilExplosivo', 'police_car_v4', 'Sofa', 'Oxygen_tank', 'Crate', 'TV', 'Wheelchair', 'Gaspump', 'police_car_v6', 'Inflatable_boat', 'CajaMadera', 'Heladera', 'Carrito', 'BidonNafta', 'Table', 'Cone'] };
   const yawRun = Math.PI / 2, X0 = -182, Z0 = -128;
   const piso = pisoBajo(v3(X0, 0, Z0), 300);

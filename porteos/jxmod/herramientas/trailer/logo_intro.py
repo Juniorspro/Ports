@@ -4,13 +4,16 @@
 import numpy as np, subprocess, os, sys
 from PIL import Image, ImageFilter
 AQUI = os.path.dirname(os.path.abspath(__file__))
-W, H, FPS, NF = 1920, 1080, 24, 49
+# tamaño: python3 logo_intro.py [ancho alto] (por defecto 1440×1080, 4:3; con 1920 1080 sale el de 16:9)
+W, H = (int(sys.argv[1]), int(sys.argv[2])) if len(sys.argv) > 2 else (1440, 1080)
+FPS, NF = 24, 49
+KX = W / 1920   # (los corrimientos de la falla, en proporción al ancho)
 src = Image.open(os.path.join(AQUI, '..', '..', 'juego', 'logo_jxm.webp')).convert('RGBA')
 L = np.asarray(src).astype(np.float32) / 255
 lum = L[..., :3] @ np.array([0.3, 0.59, 0.11], np.float32)
 alfa = np.clip((lum - 0.38) / 0.22, 0, 1) * L[..., 3]          # (las letras: lo claro; la placa y las siluetas, fuera)
 alfa = np.asarray(Image.fromarray((alfa * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.6))).astype(np.float32) / 255
-ancho = int(W * 0.56); alto = int(ancho * src.height / src.width)
+ancho = int(W * (0.56 if W / H > 1.5 else 0.66)); alto = int(ancho * src.height / src.width)
 def escalar(a, k):
     w, h = int(ancho * k), int(alto * k)
     return np.asarray(Image.fromarray((a * 255).astype(np.uint8)).resize((w, h), Image.LANCZOS)).astype(np.float32) / 255
@@ -33,10 +36,14 @@ def cuadro(i):
     capa = base * a[..., None]
     # resplandor cian detrás (más fuerte en los golpes)
     g = 0.35 + 1.6 * golpe(t, 0.09, 0.18) + 0.9 * golpe(t, 1.66, 0.12) + 0.08 * np.sin(t * 37)
-    halo = np.asarray(Image.fromarray((a * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(18))).astype(np.float32) / 255
-    halo2 = np.asarray(Image.fromarray((a * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(60))).astype(np.float32) / 255
+    # el resplandor se calcula con margen alrededor de las letras (si no, se corta en un rectángulo sobre el negro)
+    M = 200; ap = np.pad(a, M)
+    halo = np.asarray(Image.fromarray((ap * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(18))).astype(np.float32) / 255
+    halo2 = np.asarray(Image.fromarray((ap * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(60))).astype(np.float32) / 255
     glow = (halo * 0.9 + halo2 * 0.7)[..., None] * np.array([0.25, 0.65, 1.0], np.float32) * g
-    img[y0:y0 + h, x0:x0 + w] += capa + glow * (1 - a[..., None] * 0.6)
+    glow[M:M + h, M:M + w] = capa + glow[M:M + h, M:M + w] * (1 - a[..., None] * 0.6)
+    ya, xa = y0 - M, x0 - M; yb, xb = max(0, ya), max(0, xa)
+    img[yb:min(H, ya + h + 2 * M), xb:min(W, xa + w + 2 * M)] += glow[yb - ya:min(H, ya + h + 2 * M) - ya, xb - xa:min(W, xa + w + 2 * M) - xa]
     # destello del golpe (todo el cuadro un instante)
     img += np.array([0.5, 0.75, 1.0], np.float32) * 0.85 * golpe(t, 0.09, 0.05)
     # fallas de señal: en el golpe, en 1,66 y al romperse (1,86–2,04)
@@ -44,10 +51,10 @@ def cuadro(i):
     if fal > 0.05:
         out = img.copy(); n = int(6 + 30 * fal)
         for _ in range(n):
-            yA = rng.integers(0, H - 8); hh = int(rng.integers(4, 40 + int(80 * fal))); dx = int(rng.normal(0, 60 * fal + 5))
+            yA = rng.integers(0, H - 8); hh = int(rng.integers(4, 40 + int(80 * fal))); dx = int(rng.normal(0, (60 * fal + 5) * KX))
             out[yA:yA + hh] = np.roll(img[yA:yA + hh], dx, axis=1)
         # separación de color
-        s = int(4 + 22 * fal)
+        s = int((4 + 22 * fal) * KX)
         out[..., 0] = np.roll(out[..., 0], s, axis=1); out[..., 2] = np.roll(out[..., 2], -s, axis=1)
         img = out
         if t > 1.86: img *= (1 - np.clip((t - 1.86) / 0.17, 0, 1)) ** 1.5
@@ -55,9 +62,10 @@ def cuadro(i):
     img *= 0.96 + 0.04 * np.sin(t * 61) * (t < 1.86)
     img += rng.normal(0, 0.012, (H, W, 1)).astype(np.float32)
     return np.clip(img, 0, 1)
-os.makedirs(os.path.join(AQUI, 'vid'), exist_ok=True); out = os.path.join(AQUI, 'vid', 'p0_logo.mp4')
+SAL = 'vid' if W / H > 1.5 else 'vid43'; os.makedirs(os.path.join(AQUI, SAL), exist_ok=True)
+out = os.path.join(AQUI, SAL, 'p0_logo.mp4')
 f = subprocess.Popen(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-', '-c:v', 'libx264', '-crf', '14', '-pix_fmt', 'yuv444p', out], stdin=subprocess.PIPE)
 for i in range(NF):
     fr = (cuadro(i) * 255 + 0.5).astype(np.uint8); f.stdin.write(fr.tobytes())
-    if i in (3, 20, 41): os.makedirs(os.path.join(AQUI, 'prev'), exist_ok=True); Image.fromarray(fr).resize((960, 540)).save(os.path.join(AQUI, 'prev', f'logo_{i}.jpg'), quality=88)
+    if i in (3, 20, 41): os.makedirs(os.path.join(AQUI, 'prev'), exist_ok=True); Image.fromarray(fr).resize((W // 2, H // 2)).save(os.path.join(AQUI, 'prev', f'logo_{W}_{i}.jpg'), quality=88)
 f.stdin.close(); f.wait(); print('logo listo', out)

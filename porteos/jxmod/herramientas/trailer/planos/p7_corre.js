@@ -2,6 +2,7 @@
 // grieta; caen cosas encendidas, polvo
 (() => {
   const C = CINE, T0 = 23.36, T1 = 26.60;
+  C.aspK = 1.343;   // 4:3: la franja del medio del panorámico, más alta (misma nitidez por píxel; más cielo y más piso)
   C.plano = { t0: T0, t1: T1, previo: 4.6, calentar: ['Crate', 'TV', 'Wheelchair', 'CajaMadera', 'Cone', 'BidonNafta', 'Heladera'] };
   const yawRun = Math.PI / 2, X0 = -120, Z0 = -60;
   const piso = pisoBajo(v3(X0, 0, Z0), 300);

@@ -9,13 +9,22 @@
     objs: [], sinTemblor: true, luces: [] });
   // ---------------- enganches ----------------
   const camA = camaraActualizar;
-  camaraActualizar = function (dt) { if (C.sinTemblor) CAM.temblor = 0; camA(dt); if (C.fov) CAM.fov = C.fov; };
+  // C.aspK: para otro formato de cuadro (4:3), agranda el ángulo de visión vertical: tan(fov/2) se multiplica por aspK
+  // (con aspK = 1080/804 cada píxel ve lo mismo que en el panorámico 2,39:1 y el cuadro 4:3 es su franja del medio, más alta)
+  // (sólo cuando el lienzo no es panorámico: en 1920×804 no cambia nada)
+  C.kFmt = () => (R.cv.width / R.cv.height > 2.2 ? 1 : (C.aspK || 1));
+  C.fovReal = (f) => { const k = C.kFmt(); return k !== 1 ? Math.atan(k * Math.tan(f * Math.PI / 360)) * 360 / Math.PI : f; };
+  camaraActualizar = function (dt) { if (C.sinTemblor) CAM.temblor = 0; camA(dt); if (C.fov) CAM.fov = C.fovReal(C.fov); };
   const persp = M4.persp;
   M4.persp = function (f, a, n, l) { const P = persp.call(M4, f, a, n, l); if (C.jx || C.jy) { P[8] -= C.jx * 2 / R.cv.width; P[9] -= C.jy * 2 / R.cv.height; } return P; };
   const dib = dibujar;
   dibujar = function () { if (C.saltar) return; dib(); };
   const vis = dibujarVista;
   dibujarVista = function () { return C.sinVista ? false : vis(); };
+  // sin sombra del cuerpo propio (C.sinSombraYo): el juego la vuelve a poner en cada cuadro antes de dibujar a cada persona
+  // (personas.js: P.md.sinSombra = !yo && …), así que se pisa justo antes de dibujarla
+  const dibP = dibujarPersona;
+  dibujarPersona = function (P) { if (C.sinSombraYo && P === JUG.cuerpo && P.md) P.md.sinSombra = true; return dibP(P); };
   const ubi = ubicarPersona;
   ubicarPersona = function (P) {
     ubi(P);
@@ -607,7 +616,7 @@ void main(){ float x = abs(vX) / max(vW, 0.35); float k = uDuro > 0.5 ? exp(-x *
     if (!G.lprog) G.lprog = shader(VS_L, FS_L, []);
     const L = G.lprog; gl.useProgram(L.p); R.progAct = L;
     gl.uniformMatrix4fv(L.u.uVP, false, R.vp); gl.uniform2f(L.u.uPx, R.cv.width, R.cv.height); gl.uniform1f(L.u.uAbre, G.abre); gl.uniform1f(L.u.uT, G.t);
-    const kz = Math.sqrt(Math.max(1, 52 / (CAM.fov || 52))) * (R.cv.height / 804);
+    const kz = Math.sqrt(Math.max(1, 52 / (C.fov || CAM.fov || 52))) * (R.cv.height / C.kFmt() / 804);   // (mismo grosor por grado que en 2,39:1)
     gl.blendFunc(gl.ONE, gl.ONE); gl.disable(gl.CULL_FACE); gl.bindVertexArray(G.lvao);
     const pul = 1 + G.pulso * 1.4;
     // resplandor angosto (cian) y núcleo (blanco)

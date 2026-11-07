@@ -1,22 +1,28 @@
-# Tráiler de JXMod 3.0 (34 s)
+# Tráiler de JXMod 3.0 (34 s, 4:3 en FHD: 1440×1080)
 
 Todo se renderiza con el juego mismo: el motor abre JXMod en Chromium y controla el tiempo cuadro por cuadro. La
 captura toma solo el lienzo de WebGL, así que no sale nada de la interfaz. Encima del juego se agregan efectos propios:
 la grieta del cielo, el mar de la playa, las estelas de fuego y la cámara de cine.
 
+Va en 4:3 a cuadro completo. Cada plano se renderiza directamente en 1440×1080 (no se recorta de un panorámico) y
+define cuánto se abre el ángulo de visión para ese formato con `C.aspK`. Con 1,343 (= 1080/804), cada píxel ve lo
+mismo que en el panorámico 2,39:1 de 1920×804: el cuadro 4:3 es la franja del medio de ese panorámico, más alta,
+y muestra más cielo con la grieta y más piso. El plano 1 (primera persona) usa 1,15 para que las manos se vean más
+grandes y no asome el cuerpo abajo. En un lienzo panorámico, `C.aspK` no cambia nada.
+
 ## Piezas
 
 | Archivo | Qué hace |
 |---|---|
-| `cine_motor.js` | Se evalúa dentro del juego. Incluye: la cámara guionada con el ángulo de visión; el suavizado y el desenfoque de movimiento, que promedian 4 subcuadros corridos una fracción de píxel; los brazos con cinemática inversa; el cielo violeta y su luz; la grieta; las cosas que caen con fuego; las explosiones ajustadas; el mar; las estrellas; y los modelos sueltos, como la Physics Gun de mundo. |
-| `cine.mjs`, `correr.mjs` | Abren el juego en Ultra con sombras de 4096 y, en cada plano, hacen un previo de 1 a 4,6 s para que se acomode la escena y se carguen las texturas. Después renderizan y mandan los JPEG a ffmpeg, que guarda `vid/<plano>.mp4` (1920×804, 24 cuadros por segundo). |
+| `cine_motor.js` | Se evalúa dentro del juego. Incluye: la cámara guionada con el ángulo de visión (y su ajuste por formato, `C.aspK`); la sombra del propio cuerpo apagada en primera persona (`C.sinSombraYo`); el suavizado y el desenfoque de movimiento, que promedian 4 subcuadros corridos una fracción de píxel; los brazos con cinemática inversa; el cielo violeta y su luz; la grieta; las cosas que caen con fuego; las explosiones ajustadas; el mar; las estrellas; y los modelos sueltos, como la Physics Gun de mundo. |
+| `cine.mjs`, `correr.mjs` | Abren el juego en Ultra con sombras de 4096 y, en cada plano, hacen un previo de 1 a 4,6 s para que se acomode la escena y se carguen las texturas. Después renderizan y mandan los JPEG a ffmpeg, que guarda `vid43/<plano>.mp4` (1440×1080, 24 cuadros por segundo). Con `--muestras` dejan además un JPEG cada 12 cuadros, para revisar el plano mientras se renderiza. |
 | `planos/p1…p9` | Un archivo por plano. Cada uno arma la escena (lugar, personaje, cielo, objetos) y define `CINE.escena(t)` con el tiempo del tráiler. |
 | `playa_comun.js` | Arma el mar para la playa. Lo usan P8 y P9. |
-| `carril.sh` | Renderiza varios planos seguidos. Se corren dos carriles en paralelo. |
-| `logo_intro.py` | El logo JXM recortado (solo las letras, sin la placa), con destello cian y falla de señal (0 a 2,04 s). |
+| `carril.sh` | Renderiza varios planos seguidos, en 1440×1080 si no se le dice otra cosa (`W` y `H`). Se corren dos o tres carriles en paralelo. |
+| `logo_intro.py` | El logo JXM recortado (solo las letras, sin la placa), con destello cian y falla de señal (0 a 2,04 s), en 1440×1080. El resplandor se calcula con margen alrededor de las letras, así no se corta en un rectángulo sobre el negro. |
 | `mezcla.py` | El sonido: la canción del video de 41 s (de 0 a 34 s), las voces y los efectos del juego. La música baja bajo las voces, el destello de la nuclear deja un silencio y el final es un corte seco. |
-| `armar_final.py` | Une todo con gradación de color, grano (solo en el brillo), viñeta, barras de cine 2,39:1 y destellos. Con `alta` arma la versión 1080p (dos pasadas, unos 42 MB); con `discord` arma una de 720p de menos de 10 MB. |
-| `verificar.py` | Mide el video armado: duración, cuadros, tamaño, negros o cuadros repetidos fuera de lugar, barras negras, destellos y golpes de sonido en su lugar, y recortes de audio. |
+| `armar_final.py` | Une todo con gradación de color, grano (solo en el brillo), viñeta y destellos, en 4:3 a cuadro completo: `JXMod_trailer_3_0.mp4`, 1440×1080, dos pasadas a 9,6 Mb/s (unos 42 MB). |
+| `verificar.py` | Mide el video armado: duración, cuadros, tamaño, negros o cuadros repetidos fuera de lugar, destellos y golpes de sonido en su lugar, y recortes de audio. |
 | `hoja.py` | Arma una hoja de contacto con las capturas de una carpeta, para revisar un plano de un vistazo. |
 
 ## Guion (sincronizado con los golpes de la canción)
@@ -40,12 +46,13 @@ la grieta del cielo, el mar de la playa, las estelas de fuego y la cámara de ci
 1. Armar el juego (`armar.sh`) y servirlo por HTTP.
 2. Extraer el audio del video de 41 s en `audio/cancion41.wav`.
 3. Poner las voces en `voces/L1…L4.wav`.
-4. Correr los renders en dos carriles a la vez (cada pieza es `plano:primer_cuadro:cuadro_final[:común]`, en cuadros del tráiler):
-   - `JX_URL=http://127.0.0.1:8979/JX.html ./carril.sh p1_manos:49:220 p5_barril:399:457 p7_corre:561:639 p9_physgun:741:816:playa_comun.js`
-   - `JX_URL=http://127.0.0.1:8979/JX.html ./carril.sh p2_grieta:220:296 p3_salen:296:313 p4_lluvia:324:399 p6_nuclear:457:561 p8_orilla:639:741:playa_comun.js`
+4. Correr los renders en tres carriles a la vez (cada pieza es `plano:primer_cuadro:cuadro_final[:común]`, en cuadros del tráiler):
+   - `JX_URL=http://127.0.0.1:8979/JX.html ./carril.sh p1_manos:49:220 p8_orilla:639:741:playa_comun.js`
+   - `JX_URL=http://127.0.0.1:8979/JX.html ./carril.sh p2_grieta:220:296 p3_salen:296:313 p4_lluvia:324:399 p9_physgun:741:816:playa_comun.js`
+   - `JX_URL=http://127.0.0.1:8979/JX.html ./carril.sh p5_barril:399:457 p6_nuclear:457:561 p7_corre:561:639`
 5. Correr `python3 logo_intro.py`.
 6. Correr la mezcla: `JX_SONIDOS=<paquete>/a python3 mezcla.py`.
-7. Armar el video: `python3 armar_final.py alta` y `python3 armar_final.py discord`.
+7. Armar el video: `python3 armar_final.py`.
 8. Revisarlo: `python3 verificar.py JXMod_trailer_3_0.mp4`.
 
 En esta compu (sin placa de video, todo con el procesador) cada cuadro final tarda unos 6 s con dos carriles en

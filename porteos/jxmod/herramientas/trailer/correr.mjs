@@ -11,6 +11,8 @@ const comun = op('comun', '');
 if (comun) console.log('común:', await ev(fs.readFileSync(comun, 'utf8')));
 const code = fs.readFileSync(plano, 'utf8');
 const r = await ev(code); console.log('plano:', r);
+// --k: el factor del ángulo de visión para otro formato (pisa el CINE.aspK del plano)
+if (op('k', '')) console.log('aspK', await ev(`CINE.aspK = ${+op('k', 1)}`)); else console.log('aspK', await ev('CINE.aspK || 1'));
 const P = JSON.parse(await ev(`JSON.stringify(CINE.plano)`));
 const desde = +op('desde', P.t0), hasta = +op('hasta', P.t1);
 // previo: dejar que todo se acomode (sin dibujar) y después dibujar el último medio segundo, con pausas para que el
@@ -43,7 +45,8 @@ if (fotos) {
   const nf = Math.round((hasta - desde) * fps);
   for (let i = 0; i < nf; i++) {
     const tf = desde + i / fps;
-    await enc.poner(await render(tf, n, obt, null, 0.95));
+    const jpg = await render(tf, n, obt, null, 0.95); await enc.poner(jpg);
+    if (args.includes('--muestras') && i % 12 === 0) fs.writeFileSync(salida.replace(/\.mp4$/, '') + `_m${String(i).padStart(3, '0')}.jpg`, jpg);
     if (i % 24 === 0) console.log('cuadro', i, '/', nf, ((Date.now() - t00) / 1000).toFixed(0) + ' s');
   }
   await enc.cerrar();

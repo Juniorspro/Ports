@@ -2,6 +2,7 @@
 // cae delante de la cámara (17,84), rebota y se queda; en 18,63 revienta y la bola de fuego viene hacia la cámara
 (() => {
   const C = CINE, T0 = 16.65, T1 = 19.02;
+  C.aspK = 1.343;   // 4:3: la franja del medio del panorámico, más alta (misma nitidez por píxel; más cielo y más piso)
   C.plano = { t0: T0, t1: T1, previo: 1.2, calentar: ['BarrilExplosivo', 'Crate', 'police_car_v6', 'TV', 'Fridge1', 'Gaspump', 'Wheelchair', 'CajaMadera', 'Table'] };
   const yawRun = Math.PI / 2, X0 = -120, Z0 = -110;
   const piso = pisoBajo(v3(X0, 0, Z0), 300);

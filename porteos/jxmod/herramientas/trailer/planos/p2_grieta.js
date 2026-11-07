@@ -2,6 +2,7 @@
 // cielo y late con la voz («Te encontramos»). La cámara se acerca despacio y sube apenas
 (() => {
   const C = CINE, T0 = 9.16, T1 = 12.31;
+  C.aspK = 1.343;   // 4:3: la franja del medio del panorámico, más alta (misma nitidez por píxel; más cielo y más piso)
   C.plano = { t0: T0, t1: T1, previo: 1.5 };
   const X = -150, Z = -120, yaw = -Math.PI / 2;
   const piso = pisoBajo(v3(X, 0, Z), 300);
