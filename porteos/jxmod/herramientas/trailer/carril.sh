@@ -10,5 +10,5 @@ for item in "$@"; do
   d=$(python3 -c "print($f0/24)"); h=$(python3 -c "print($f1/24)")
   extra=""; [ -n "$comun" ] && extra="--comun $T/planos/$comun"
   echo "== $nombre $f0..$f1 $(date +%T)"
-  node "$T/correr.mjs" "$T/planos/$nombre.js" "$T/$SAL/$nombre.mp4" --video --muestras --W $W --H $H --n 4 --obt 0.5 --crf 14 --desde $d --hasta $h --html "$JX_URL" $extra
+  node "$T/correr.mjs" "$T/planos/$nombre.js" "$T/$SAL/$nombre.mp4" --video --muestras --reanudar --W $W --H $H --n 4 --obt 0.5 --crf 14 --desde $d --hasta $h --html "$JX_URL" $extra
 done
