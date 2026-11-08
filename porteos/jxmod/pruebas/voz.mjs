@@ -7,7 +7,8 @@ const srv = http.createServer(); const wss = new WebSocketServer({ server: srv, 
 await new Promise((r) => srv.listen(8897, '127.0.0.1', r));
 const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
 const errs = [];
-const abrir = async (n) => { const c = await b.newContext({ viewport: { width: 640, height: 360 }, permissions: ['microphone'] }); const p = await c.newPage(); p.on('pageerror', (e) => errs.push(n + ': ' + e.message.slice(0, 120)));
+// (la tienda real pide la sesión de Google para el multijugador: sin esto nadie entra a la sala; como en base.mjs)
+const abrir = async (n) => { const c = await b.newContext({ viewport: { width: 640, height: 360 }, permissions: ['microphone'] }); const p = await c.newPage(); await p.route('**/api/cuenta/config', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"google":false}' })); p.on('pageerror', (e) => errs.push(n + ': ' + e.message.slice(0, 120)));
   await p.goto('file://' + html + '?test&gfx=patata&broker=ws://127.0.0.1:8897/mqtt'); await p.waitForFunction(() => window.__listo, null, { timeout: 120000 }); return p; };
 const ev = (p, c) => p.evaluate((c) => window.__ev(c), c), espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const A = await abrir('A'), B = await abrir('B');
