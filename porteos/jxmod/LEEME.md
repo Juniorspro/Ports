@@ -2000,6 +2000,156 @@ mejoralo, optimizá y sobre todo nuevas capturas de fondo para los menús», má
   `red_barril` 6/6, `red2` 13/13, `red3` 6/6, `evento_grieta` 8/8, `red_a15` 7/7, `voz_hud` 13/13, `menu_30` 7/7,
   `social` 42/42 (la prueba leía el aviso de «creó el grupo» antes de que llegara del servidor; ahora lo espera).
 
+## JXMod 3.0 · identidad propia: intro, menús, skins y mapas, cielos por mapa, gráficos automáticos y nucleares en Bajo
+
+Pedido: «cambiar los menús de mapas, de juego y de pausa a algo más original; modificar los mapas base y las skins
+porque tienen que tener identidad propia y no la del juego del que vienen; las nukes de lejos salen con imágenes 2D y eso sólo en Patata; las
+volumétricas optimizadas para celus de bajos recursos también en Bajo; viento al explotar; cielos diferentes en cada
+mapa, más GOTY, con nubes dibujadas que tapen el ambiente y aparezcan y desaparezcan, súper optimizados; más de 15
+técnicas de optimización; el automático siempre activado: al iniciar busca la mejor calidad con 60 fps pegados (si en
+una más alta da 60 y en una más baja 70, no bajar; si ninguna llega, la que más se acerque por debajo); y una intro
+nueva, minimalista, GOTY y rápida, porque JXStudios se ve vieja», más la captura del Discord de los nextbots («a veces
+los nextbots 3D son muy tontos, no hacen su animación, y en DrGBase son chicos, no caminan rápido y no matan»).
+
+- **Intro nueva de JXStudios** (`juego/template.html`, `juego/inicio.js`): 1,7 s y sólo CSS (14 animaciones de
+  transform y opacidad, sin video, imágenes ni lienzo): la placa amarilla se abre, sube «JX», STUDIOS sale de atrás y
+  funde a negro. Arranca con los primeros ~300 KB del HTML, no se traba aunque el juego esté compilando y se saltea con
+  un toque o una tecla; con el juego ya cargado el menú queda a ~2,25 s. `intro_jx` 7/7 (`intro` adaptada).
+- **Menús con la identidad de la 3.0** (`juego/ui.js`, `juego/idiomas3.js`, `juego/milogo.js`): Nueva partida (el mapa
+  elegido en grande, los grupos como pestañas, la grilla no salta), el menú de spawn, la pausa, Ajustes, los emotes y
+  Crear un mapa con placas oscuras rectas, Oswald, el amarillo para lo principal y el filo amarillo en los títulos.
+  Pestañas del spawn en 14 idiomas que se achican en el celular, títulos de la pausa que se achican. `menus_jx` 6/6
+  (7 pantallas, 14 idiomas).
+- **Las skins heredadas con identidad propia** (`juego/identidad.js`): las 12 humanas que venían del paquete original
+  pasan a ser el equipo de JXMod, con nombre nuevo y la ropa teñida con colores propios: Nico (amarillo), Brasa
+  (terracota), Tomi (petróleo y grafito), Don Ferro (bordó), Vega y Rocco (ártico), Rulo (violeta), Alas (celeste),
+  Carnicero (musgo), Sombra (azul noche), Duna (arena) y Chispa (naranja fuego). Cada punto de la ropa toma el color de
+  una rampa de tres tonos según su luminancia, así quedan los pliegues, costuras y bolsillos; la piel y las zonas marcadas
+  (la cara con el pelo de Nico, los brazos y zapatillas de Rulo) no se tocan. El retrato del menú se tiñe igual, desde
+  donde empieza la ropa y cuidando el cuello (sin pérdida: la cara queda idéntica). Por dentro las skins se siguen
+  llamando igual (partidas, red, mods). Las de terror (Derik, Corpse) quedan como estaban. `?sinids` deja todo como
+  venía, para comparar.
+- **Los mapas base heredados, con nombre y un hito propios** (`juego/identidad.js`): Cañadón Ocre, Médanos, Pradera,
+  Distrito Norte, Hangar 7, Polo Industrial, Planeta Rojo y Órbita (en los 14 idiomas). En los siete de superficie, a 46 m
+  de la aparición y a la vista, aparece la **plaza JX**: plataforma de hormigón claro con rampas suaves en los cuatro
+  lados (se sube caminando o en auto), un filo amarillo luminoso, un monolito de 16 m de grafito con el «JX» y una costura
+  luminosa, y cuatro postes con farol (luz de noche). Tono del hormigón según el suelo (gris, arena, rojo de Marte).
+  Choca como el mapa, son 3 mallas (370 triángulos, 3 llamadas de dibujo, ~0,1 ms). Si delante no hay piso parejo, prueba
+  a los costados, atrás o a otra distancia. No aparece sobre un mapa de la comunidad, en el creador ni en Espacio, y no se
+  guarda con lo del jugador. `identidad` 12/12: los 12 nombres; cada textura de ropa cambia ≥ 85 % y queda a ≤ 2,3° del
+  tono de su rampa; lo protegido 0 puntos; piel suelta < 3 %; 6,9–10,4 ms por textura; retratos con la cara igual y la
+  ropa cambiada; la textura que sube a la placa es la teñida; `?sinids` igual que antes; los 8 nombres en 14 idiomas; la
+  plaza en los 7 mapas (46 m, a la vista); se sube caminando por la rampa (de 0,95 a 1,40 m: los 0,45 de la plataforma)
+  y el monolito frena a 1,25 m de su centro; no en Espacio/comunidad/creador; 0,1 ms más por cuadro.
+- **Un cielo propio en cada mapa** (`juego/cielos.js`, nuevo; la pasada del cielo en `gl.js`; `mundo.js` lo aplica al
+  entrar): Cañadón Ocre con cúmulos de verano, Médanos con calima y cirros, Pradera con cúmulos chicos de buen tiempo,
+  Distrito Norte con una capa partida de estratocúmulos, Hangar 7 con cirros en pinceladas sobre azul profundo, Polo
+  Industrial cubierto con claros (el sol del mapa más suave), Planeta Rojo color caramelo con polvo y nubes de hielo,
+  Órbita con estrellas y una nebulosa, la Llanura con cúmulos grandes, las Colinas al atardecer dorado (el sol del mapa
+  bajo y naranja), la Isla con los cúmulos de los alisios, la Ciudad con bruma y altocúmulos, el Desierto RB con cirros,
+  la Luna con la Vía Láctea y la pizzería de noche siempre (15 presets, todos distintos). gm_construct, gm_flatgrass y
+  los del Workshop siguen con su cielo de caja de GMod.
+- **Nubes pintadas que se forman y se deshacen**: bordes suaves con lóbulos, el lado al sol blanco tibio, la sombra gris
+  azulada y el borde plateado mirando al sol; salen de una textura de ruido propia (celdas y gradiente, 256 × 256, que se
+  arma una vez en ~40 ms). Tres campos se mezclan con pesos que giran: en 60 s se forma un 28 % de nubes nuevas y se
+  deshace un 37 % de las que había, tapando siempre lo mismo (a ±0,10 de lo de cada mapa), y el viento las corre (cambia
+  un 35 % del cielo); de un cuadro al siguiente no salta nada (0,0003 de media). En el horizonte, una bruma del color
+  exacto de la niebla del mapa (0/255 de diferencia): lo lejano se pierde en el cielo sin línea. Siguen el ciclo del día
+  (doradas al atardecer, rosadas con el sol recién puesto, oscuras con la luna de noche, las estrellas detrás) y la
+  grieta del evento queda encima y las alumbra de azul.
+- **Súper barato**: el color de una nube depende sólo de la dirección, así que se pintan en una textura del cielo (el
+  hemisferio en proyección equidistante: 384 en Patata, 512 en Bajo, 768 en Medio, 1024 en Alto y Ultra) que se rehace
+  de a franjas entre cuadro y cuadro (entera en medio segundo de juego, a cualquier ritmo de cuadros, sin cortar la
+  pasada de la escena, que en los celus obliga a guardar y volver a traer la pantalla). La pasada del cielo la lee una
+  sola vez por punto; en Patata y Bajo esa textura trae el cielo entero. Costo contra el cielo de antes (1280 × 720, sin
+  placa de video, contando la franja): Alto y Ultra 0,76 × (antes ya tenían nubes: ahora cuestan menos), Medio 1,20 ×,
+  Bajo 1,25 ×, Patata 1,24 × (antes sólo el degradé). La franja cuesta ≤ 1,3 ms; un cambio de hora la rehace en 6 u 8
+  cuadros de ≤ 5,2 ms. Si un aparato no compila el sombreador queda el degradé: nunca sin cielo. Igual en WebGL 1. Dos
+  mapas cambian también su luz para que el mapa y el cielo cuenten lo mismo: las Colinas (sol a 13°, naranja) y Polo
+  Industrial (sol al 72 %, más luz de relleno). `cielos` 10/10 (sin costuras: 0 puntos sueltos; pintada de a franjas
+  difiere de pintada de una vez 0,93/255), `cielo_gmod` 5/5, `evento_grieta` 8/8.
+- **Nucleares con volumen también en Bajo, sin carteles de lejos, y viento al explotar** (`juego/nuclear_vol.js`,
+  `juego/nucleares.js`): el hongo con volumen ahora sale en Bajo, Medio, Alto y Ultra (los carteles 2D quedan sólo para
+  Patata y WebGL 1). Bajo usa un búfer de un cuarto de pantalla y 18 pasos; en los aparatos sin búferes de punto
+  flotante se dibuja por un camino de 8 bits (difiere del de punto flotante 1,8/255 en promedio, tope 8/255). De lejos
+  (3 y 6 km) ya no pasa a cartel. Hasta 2 bombas con volumen a la vez en Bajo y Medio, 3 en Alto y Ultra (las más
+  cercanas). Costo de Bajo contra Medio: de lejos 3,35 contra 7,9 ms; de cerca 10,4 contra 31,3 ms (en este procesador
+  sin placa). **El viento**: un frente que sale del punto cero a la velocidad de la onda; al pasar empuja al jugador (en
+  el piso hasta ~4,4 m/s en una de 4 Mt a 2 radios), levanta tierra y polvo alrededor de la cámara, suena un soplido
+  grave y empuja las cosas livianas (< 300 kg) que no destruyó; después vuelve un viento de retorno hacia el hongo.
+  Lo liviano que alcanza la onda recibe también el viento: antes, justo adentro del daño casi nada y justo afuera 6 m/s;
+  ahora el empuje baja siempre con la distancia (18,7 / 14,3 / 8,2 / 5,5 / 4,4 m/s a 0,6 / 1,2 / 1,9 / 2,8 / 3,6 radios) y
+  llega de a poco (0,47 / 0,77 / 1,12 / 1,63 / 2,05 s). `nuclear_vol` 12/12 (el costo, contra el cielo de la 3.0 guardado
+  en la prueba: el cielo nuevo de Alto cuesta un 23 % menos y la vara no puede achicarse con él; de cerca Alto 2,32 y
+  Ultra 3,29 veces), `nucleares` 11/11 (los carteles, en Patata: 0,11 ms).
+- **Gráficos automáticos por defecto, buscando 60 cuadros pegados** (`juego/gfxauto.js`): Automático viene prendido (el
+  que tenía guardada una calidad fija pasa una vez a Automático; si después elige otra, se respeta). La primera vez que se
+  entra a un mapa en la sesión, detrás de la pantalla de carga y con el mapa ya armado, se dibuja la escena de verdad en
+  una calidad y se cuentan los cuadros: si da 60 (≥ 57: una pantalla de 60 Hz da 59,x) sube a la siguiente, si no baja
+  hasta la que llega. Si en una más alta da 60 y en una más baja 70, se queda en la alta; si ninguna llega a 60, la que más
+  se acerca por debajo (si otra más alta queda a menos del 4 %, que es lo que varía una misma medida, la más alta: no se
+  baja de calidad por 2 cuadros de ruido). Arranca por la calidad que se estima para el aparato o por la que salió la vez
+  anterior en la misma placa, y mide sólo lo necesario. **Cómo mide**: después de cambiar de calidad espera a que se
+  compile y no quede ninguna textura subiéndose, y cuenta en ventanas de 0,4 s hasta que dos seguidas coinciden (±15 %):
+  al pasar de Medio a Bajo los primeros cuadros tardan 555, 188 y 218 ms y después vienen seis de 72 ms antes de los 17 de
+  siempre, y contando ese tramo Bajo daba 25 cuadros cuando anda a 55. Los tirones sueltos (recolector de basura) no
+  cuentan: se descartan los cuadros que tardan más del triple de la mediana. Tope de 12 s para toda la búsqueda: no se
+  empieza otra calidad si no queda tiempo para medirla, y una medida cortada por el tope no cuenta. Al terminar, las
+  texturas que se subieron con el tope de tamaño de otra calidad se rearman con el de la elegida (una Alto elegida desde
+  Medio quedaba con texturas de 256). Mientras mide, la pantalla de carga frena su foto animada y el desenfoque, y no
+  corre la resolución dinámica. El resultado queda anotado en la consola de la carga («Alto · 52 fps») y guardado.
+  `gfx_auto` 10/10 tres veces seguidas (9,7, 10,3 y 10,2 s; medido contra jugado a ±35 %): la elección con cuadros
+  inventados (todas pasan → Ultra; Alto a 60 y Medio a 70 → Alto; ninguna → la de más cuadros; empate → la más alta;
+  59,4 cuenta como 60; tope de tiempo), el conteo sin tirones (60/40/50/20 exactos), Automático por defecto, una vez por
+  sesión y la vez siguiente arranca por la que salió.
+- **Técnicas de optimización por calidad** (las nuevas de esta versión, sumadas a las de antes —resolución dinámica,
+  escalera de ahorro de la placa, LOD de mallas y de animación, tope de texturas, texturas de 16 bits con poca memoria,
+  sombras cacheadas, física a 30 con el procesador justo, presupuesto del Lua, carteles para las explosiones lejanas,
+  partículas por calidad, menos sonidos en Patata—):
+  1. calidad elegida midiendo en el aparato (arriba);
+  2. menú principal y pausa a 30 cuadros (con un reloj que recupera el atraso; en partida sin tope): menos calor y batería
+     mientras se elige;
+  3. partículas fuera de la vista no se arman ni se mandan a la placa (con un radio que cubre el cartel girado y lo que se
+     estira una chispa);
+  4. partículas de menos de medio punto en pantalla, tampoco;
+  5. en Patata y Bajo, las chicas (< 1,2 m) pasado el 60 % de la distancia de dibujo, tampoco;
+  6. tope de sonidos a la vez por calidad (10, 16, 24, 32 y 40): llegado el tope, los lejanos (> 12 m) no suenan, los
+     cercanos sí;
+  7. sonido 3D fino (HRTF, varias veces más caro) sólo en Alto y Ultra;
+  8. tope de marcas de frenada por calidad (200, 400, 700, 900);
+  9. tope de trazas de balas por calidad (12, 24, 64);
+  10. hongo nuclear con volumen barato para Bajo (un cuarto de pantalla, 18 pasos);
+  11. camino de 8 bits para el hongo en placas sin punto flotante;
+  12. tope de hongos con volumen a la vez (2 o 3, los más cercanos);
+  13. tope de partículas del viento nuclear por calidad (por segundo, según `GFX.part`);
+  14. el cielo pintado en una textura por calidad (384, 512, 768 y 1024) que se rehace de a franjas y se lee una vez por
+      punto (en Patata y Bajo trae el cielo entero);
+  15. retratos y texturas teñidas una sola vez al subirlas (6,9 ms por textura), nunca por cuadro.
+  `gfx_auto` mide 3, 7, 8 y 9: de 300 partículas (100 detrás de la cámara, 100 adelante, 100 de 1 cm a 300 m) se
+  arman 100; con 50 sonidos lejanos en Patata suenan 10 y uno cercano suena igual; HRTF sólo en Alto; 1200 tramos de
+  frenada dejan 200/400/900 y 200 trazas dejan 12/24/64 (siempre las últimas).
+- **Fotos de fondo con los cielos nuevos**: las 6 del menú y las 12 de la pantalla de carga se volvieron a sacar del
+  juego en Ultra (`herramientas/fondos/`), con el cielo propio de cada mapa y, donde entra entera, la plaza JX (Pasto
+  plano y la City de carga, Marte, la City de noche y el Desierto del menú). Si el monolito quedaría cortado por el borde de
+  la foto, la plaza se saca de esa foto (pasó en Pasto plano del menú y el Desierto de carga). `medir.py`: en las 18, la
+  grieta y lo que cae siguen donde no los tapa el menú ni la pantalla de carga.
+- **Nextbots 3D y de DrGBase** (`juego/gmod_nextbot.js`, `gmod_api.js`, `gmod_prelude.js`, `gmod_formatos.js`):
+  - salen mirando al jugador, como `InternalSpawnNPC` (los de DrGBase, con 150° de visión, no veían al que los ponía);
+  - si la recta está tapada, buscan camino en una grilla de 0,5 m sobre el piso (A*, escalones, caídas, el ancho del
+    bot) y resbalan por las paredes; `OnStuck`/`OnUnStuck`, `OnLandOnGround`/`OnLeaveGround` y `OnContact`;
+  - la animación que pide su Lua antes de que llegue el modelo ya no se pierde; mezclas; `m_anm.mdl` entero (se cortaba
+    en 600/400); la secuencia 0 por defecto, como Source;
+  - `SetModelScale` (con tiempo) y el `SetScale` de DrGBase se dibujan y la velocidad sigue la escala; el alcance usa la
+    caja de `SetCollisionBounds`; los NPC del juego son entidades del Lua y reciben daño; `IsNextBot`; `SCREENFADE`.
+  `nextbots_ia` 9/9 (antes 3/9): Cartoon Cat corre a 15,24 m/s (antes 9,78) y mata en 1,6 s (antes 15,2); Doro mata en
+  0,2 s (antes nunca); el zombie rodea la pared; SCP-049 con su animación 16/16; `SetScale` 1,6 → ×1,60. De paso,
+  `ev6_nextbots` B1 a veces medía el sprite con el bot ya corriendo hacia el jugador: ahora lo vuelve a dejar quieto
+  antes de medir (7/7 en 3 corridas de 3).
+- Pruebas, todas sobre el armado final (con las fotos nuevas): `fondos_30` 6/6, `menu_30` 7/7, `menus_jx` 6/6, `intro_jx` 7/7,
+  `identidad` 12/12, `gfx_auto` 10/10, `cielos` 10/10, `cielo_gmod` 5/5, `evento_grieta` 8/8, `nucleares` 11/11,
+  `nuclear_vol` 12/12, `nextbots_ia` 9/9, `ev6_nextbots` 7/7. Las medidas de tiempo, con la compu sin otras pruebas
+  corriendo (en esta compu sin placa de video todas las calidades rondan los 50 cuadros: lo que limita es el procesador).
+
 ## Tráiler de la 3.0 (40 s, 4:3 en FHD), v2
 
 Pedido: un tráiler con la canción del video de 41 s, con suspenso, sin interfaz, el logo recortado al principio y
