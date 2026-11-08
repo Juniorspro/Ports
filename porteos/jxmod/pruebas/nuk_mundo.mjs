@@ -3,8 +3,7 @@
 //     red.js entrarSala → empezarPartida) y no tiene que quedar nada (explosiones vivas, radiación, destello, luces, soplido).
 //  B) el humo de una nuclear lejana (más allá de la vista: la tanda «lejos» de nukeDibujar) no se dibuja encima de lo que
 //     está delante. En Patata (sin volumen: van las bocanadas), cámara fija mirando el horizonte; la bomba más allá de la
-//     vista y fuera del alcance de la onda (sin polvo cerca); foto a los 7 s (ya sin destello ni luz) contra la misma vista
-//     sin bomba: en el PISO (filas de abajo) no tiene que cambiar nada; en el CIELO la nube tiene que verse.
+//     vista: esa tanda tiene que ir con prueba de profundidad y al fondo (se mira el estado de WebGL en cada dibujo).
 // uso: node nuk_mundo.mjs URL_HTML [CARPETA_FOTOS]   (URL_HTML con http://; un python3 -m http.server en su carpeta)
 import { abrir } from './base.mjs';
 import fs from 'fs';
@@ -38,31 +37,22 @@ const a3 = await ev(est); res(a3.vivas === 0 && !a3.flashVis, 'A: volver al men�
 await ev(`inicioMostrar(false); 1`); await partida('FlatGrass');
 
 // ---- B) el humo lejano no se dibuja encima de lo de adelante ----
-const geo = await ev(`(() => { const s = MUNDO.spawns[0] || JUG.pos; const E = nukeRadio(nukeDe(${JSON.stringify(nom)}).kt); return { x: s.x, y: s.y, z: s.z, lejos: R.lejos || 300, R: E, alc: E * 2.3 }; })()`);
+// La tanda de bocanadas de más allá de la vista (nukeDibujar) tiene que ir CON prueba de profundidad y al fondo
+// (depthRange 1..1 + LEQUAL): así sólo se pinta donde no hay nada dibujado (el cielo no escribe profundidad y el cielo 3D
+// la borra) y la tapa todo lo que esté delante. Se mira el estado de WebGL en cada dibujo de la nuclear (una comparación
+// de fotos no sirve acá: las nubes del cielo se mueven solas entre foto y foto).
+const geo = await ev(`(() => { const s = MUNDO.spawns[0] || JUG.pos; const E = nukeRadio(nukeDe(${JSON.stringify(nom)}).kt); return { x: s.x, y: s.y, z: s.z, lejos: R.lejos || 300, alc: E * 2.3 }; })()`);
 const dist = Math.max(geo.lejos * 1.6, geo.alc * 1.3 + 50);
-// cámara a 1,7 m, mirando al -Z apenas para abajo: la mitad de abajo es piso (cerca), la de arriba cielo
-await ev(`DBG.cam = { p: v3(${geo.x}, ${geo.y + 1.7}, ${geo.z}), q: Quat.euler(0, 0.06) }; JUG.congelado = true; 1`);
-await p.waitForTimeout(2500);
-const foto = async () => { await p.waitForTimeout(300); return p.screenshot(); };
-await ev(`NUK.vivas.length = 0; if (NUK.zonas) NUK.zonas.length = 0; 1`); await p.waitForTimeout(1500);
-const sin = await foto(); const sin2 = await foto();
-await ev(`nukeExplotar(v3(${geo.x}, ${geo.y}, ${geo.z - dist}), ${JSON.stringify(nom)}, false); 1`);
-await p.waitForTimeout(7000);
-const vivoB = await ev(`({ vivas: NUK.vivas.length, vol: NUK.vivas.map((E) => !!E.vol), flash: +(NUK.flash || 0).toFixed(4), luces: LUCES_T.length, dist: ${dist.toFixed(0)}, lejos: R.lejos, cam: [CAM.pos.x, CAM.pos.y, CAM.pos.z].map((v) => +v.toFixed(1)) })`);
-const con = await foto();
-fs.writeFileSync(D + 'nuk_sin.png', sin); fs.writeFileSync(D + 'nuk_con.png', con);
-// diferencia por zonas: piso = el 30 % de abajo; cielo = el 35 % de arriba
-const m = await p.evaluate(async ([a, c]) => {
-  const img = async (s) => { const i = new Image(); i.src = 'data:image/png;base64,' + s; await i.decode(); const cv = document.createElement('canvas'); cv.width = i.width; cv.height = i.height; const x = cv.getContext('2d'); x.drawImage(i, 0, 0); return x.getImageData(0, 0, i.width, i.height); };
-  const A = await img(a), C = await img(c), W = A.width, H = A.height;
-  const zona = (y0, y1, x0 = 0, x1 = 1) => { let n = 0, d8 = 0, s = 0; for (let y = Math.floor(y0 * H); y < Math.floor(y1 * H); y++) for (let x = Math.floor(x0 * W); x < Math.floor(x1 * W); x++) { const o = (y * W + x) * 4; const d = (Math.abs(A.data[o] - C.data[o]) + Math.abs(A.data[o + 1] - C.data[o + 1]) + Math.abs(A.data[o + 2] - C.data[o + 2])) / 3; n++; s += d; if (d > 8) d8++; } return { cambiados: +(100 * d8 / n).toFixed(2), media: +(s / n).toFixed(2) }; };
-  return { piso: zona(0.70, 1.0, 0, 0.5), cielo: zona(0.0, 0.35) };
-}, [sin.toString('base64'), con.toString('base64')]);
-const ruido = await p.evaluate(async ([a, c]) => { const img = async (s) => { const i = new Image(); i.src = 'data:image/png;base64,' + s; await i.decode(); const cv = document.createElement('canvas'); cv.width = i.width; cv.height = i.height; const x = cv.getContext('2d'); x.drawImage(i, 0, 0); return x.getImageData(0, 0, i.width, i.height); }; const A = await img(a), C = await img(c), W = A.width, H = A.height; let n = 0, d8 = 0; for (let y = Math.floor(0.7 * H); y < H; y++) for (let x = 0; x < W >> 1; x++) { const o = (y * W + x) * 4; const d = (Math.abs(A.data[o] - C.data[o]) + Math.abs(A.data[o + 1] - C.data[o + 1]) + Math.abs(A.data[o + 2] - C.data[o + 2])) / 3; n++; if (d > 8) d8++; } return +(100 * d8 / n).toFixed(2); }, [sin.toString('base64'), sin2.toString('base64')]);
-console.log('ruido del piso (dos fotos sin bomba): ' + ruido + ' %');
-res(vivoB.vivas >= 1 && vivoB.vol.every((v) => !v), 'B: la nuclear lejana sigue viva y va con bocanadas (Patata, sin volumen)', vivoB);
-res(m.cielo.cambiados > 0.5, 'B: la nube se ve en el cielo', m.cielo);
-res(m.piso.cambiados < 0.5, 'B: el piso de adelante NO queda tapado por el humo lejano (izquierda, sin el arma)', m.piso);
+await ev(`NUK.vivas.length = 0; if (NUK.zonas) NUK.zonas.length = 0; 1`);
+await ev(`(() => { const gl = R.gl, dA = gl.drawArrays.bind(gl); window.__nkGL = []; gl.drawArrays = function (...a) { if (window.__nkDib) window.__nkGL.push({ dt: gl.isEnabled(gl.DEPTH_TEST), dr: Array.from(gl.getParameter(gl.DEPTH_RANGE)), df: gl.getParameter(gl.DEPTH_FUNC) === gl.LEQUAL ? 'LEQUAL' : gl.getParameter(gl.DEPTH_FUNC) === gl.LESS ? 'LESS' : 'otra' }); return dA(...a); }; const nd = nukeDibujar; window.nukeDibujar = nukeDibujar = function () { window.__nkDib = true; try { return nd(); } finally { window.__nkDib = false; } }; return 1; })()`);
+await ev(`nukeExplotar(vadd(JUG.pos, v3(0, 0, -${dist.toFixed(0)})), ${JSON.stringify(nom)}, false); 1`);
+await p.waitForTimeout(5000);
+const vivoB = await ev(`({ vivas: NUK.vivas.length, vol: NUK.vivas.map((E) => !!E.vol), dist: ${dist.toFixed(0)}, lejos: R.lejos })`);
+const gls = await ev(`(window.__nkGL || [])`);
+const lejos = gls.filter((g) => g.dr[0] === 1 || !g.dt), sinProf = gls.filter((g) => !g.dt).length;
+res(vivoB.vivas >= 1 && vivoB.vol.every((v) => !v), 'B: nuclear más allá de la vista, con bocanadas (Patata, sin volumen)', vivoB);
+res(gls.length > 0 && sinProf === 0, 'B: ninguna tanda de la nuclear se dibuja sin prueba de profundidad', { dibujos: gls.length, sinProfundidad: sinProf });
+res(lejos.length > 0 && lejos.every((g) => g.dt && g.dr[0] === 1 && g.dr[1] === 1 && g.df === 'LEQUAL'), 'B: la tanda lejana va al fondo (depthRange 1..1, LEQUAL)', lejos.slice(0, 1));
 const e2 = err.filter((x) => !/favicon|ERR_|net::|404|WebSocket|mqtt|wss:/i.test(x));
 res(!e2.length, 'sin errores de JS', e2.slice(0, 3));
 console.log(`RESUMEN ${ok}/${ok + mal}`);
