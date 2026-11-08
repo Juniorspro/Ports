@@ -40,7 +40,7 @@ let BR = null;
 async function abrir(nombre, celu, app, url, propio) {
   // (Ana y Beto en un Chromium, cada uno en su contexto; Caro en otro: con los tres juegos en el mismo proceso de gráficos,
   // por software en esta compu, se perdía el contexto de WebGL)
-  const b = propio ? await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio'] }) : BR || (BR = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio'] }));
+  const b = propio ? await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--disable-gpu-watchdog'] }) : BR || (BR = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--disable-gpu-watchdog'] }));
   // (ventanas chicas: los tres juegos abiertos a la vez dibujan con la CPU en esta compu)
   const ctx = await b.newContext(celu ? { viewport: { width: 640, height: 288 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } : { viewport: { width: 640, height: 360 } });
   // sin internet: sólo esta compu y la red local; y la tienda (que no responde) con la cuenta de Google pedida desde antes
