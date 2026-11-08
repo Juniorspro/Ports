@@ -1954,7 +1954,19 @@ mejoralo, optimizá y sobre todo nuevas capturas de fondo para los menús», má
   personaje), el nombre y un anillo que late; en la compu una columna a la derecha, en el celular una fila arriba al
   medio; se apaga en Ajustes (Controles y audio). `voz_hud` 13/13: tu ficha a los 42–61 ms de hablar, la del otro
   132–191 ms de punta a punta, se va en menos de 1 s al callarse, sin tapar botones en 7 tamaños de pantalla.
-- **Partida por LAN sin internet**: quedó sin terminar (no va en esta versión).
+- **Partida por LAN / Wi-Fi, sin internet** (`juego/lan.js`, `apk/web/src/com/jxmod/app/Lan.java`): Multijugador →
+  LAN / Wi-Fi. En la app, el anfitrión corre un broker MQTT chico en su celular (el mismo protocolo del multijugador de
+  siempre: `red.js` sólo cambia la dirección), anuncia la partida por UDP cada segundo y sirve el juego por HTTP en el
+  puerto 8765. Los demás la ven sola en la lista o escriben la IP; con la app entran por un puente en 127.0.0.1 (la
+  página de la app es https y no puede abrir un ws:// a otra IP de la red); sin la app (compu, iPhone), abriendo
+  http://IP:8765/ en el navegador. No pide la cuenta de Google ni la tienda, y no va a la lista pública. Sin internet
+  no hay mods ni paquetes que no estén ya guardados, y en http://IP el navegador no da el micrófono. `PruebaLan`
+  22/22 (WebSocket, MQTT con comodines, retenidos, testamento, keepalive, 5000 mensajes en orden, puente, anuncio).
+- **Barriles explosivos en multijugador que explotaban dos veces**: al explotar un barril, en la pantalla del otro la
+  explosión también dañaba su copia de ese barril (y de los de al lado): la copia explotaba otra vez y mandaba su
+  explosión de vuelta. Ahora cada objeto lo daña sólo su dueño, cuando le llega la explosión, y la explosión lleva el
+  barril que la causó: el que la recibe borra su copia sin explotarla, y si los dos le pegan a la vez cada uno ve una
+  sola. `red_barril` 6/6 (antes 3/6: dos barriles en cadena daban 3 explosiones; dos golpes a la vez, 2).
 - **Las bombas nucleares como la del tráiler, con el destello blanco** (`juego/nuclear_vol.js`): las 117 bombas usan
   ahora el hongo con volumen del tráiler (bola de fuego que sube, sombrero que rueda con fuego adentro, tallo de hollín y
   falda de polvo, con ruido 3D de coliflor y luz del sol y del cielo). Cada una a su escala: el tráiler es una de R ≈ 260 m

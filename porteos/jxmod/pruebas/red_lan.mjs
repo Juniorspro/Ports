@@ -47,7 +47,7 @@ async function abrir(nombre, celu, app, url) {
   await ctx.addInitScript(() => { try { localStorage.setItem('jx_cu_conf', '{"google":true}'); } catch (e) {} });
   if (app) await ctx.addInitScript(NAT, { pc: PC, pp: PP });
   const p = await ctx.newPage(), err = []; p.on('pageerror', (e) => err.push(nombre + ': ' + e.message.slice(0, 200)));
-  await p.goto(url);
+  await p.goto(url, { timeout: 240000 });   // (30 MB con los otros dos dibujando con la CPU: más de los 30 s de siempre)
   await p.waitForFunction(() => window.__listo, null, { timeout: 240000 });
   const ev = (s) => p.evaluate((x) => window.__ev(x), s);
   await ev(`PREFS.nombre = ${JSON.stringify(nombre)}; PREFS.bienvenida = true; 1`);
@@ -78,6 +78,8 @@ await clic(B, '.lanSala [data-rb^=lanEntrar]'); await espera(4500);
 const b1 = JSON.parse(await B.ev("JSON.stringify({ on: RED.on, lan: SALA && SALA.lan, du: SALA && SALA.du, anf: soyAnfitrion(), rem: [...RED.remotos.values()].map((r) => r.nombre), objs: [...RED.objs.values()].map((o) => o.nombre) })"));
 ok('Beto entra por el puente de la app (ws://127.0.0.1:…/lan/IP:puerto/mqtt), ve a Ana y la caja que puso; Ana es la anfitriona', b1.on && b1.lan.includes('/lan/' + lista[0][1] + ':' + P + '/mqtt') && b1.rem.includes('Ana') && b1.objs.includes('Crate') && b1.du === a1.id && !b1.anf, b1);
 // ---- Caro: sin la app, desde el juego que sirve el anfitrión ----
+// (mientras carga Caro, Ana y Beto dibujan en una ventana chica: en esta compu se dibuja con la CPU)
+await A.p.setViewportSize({ width: 480, height: 270 }); await B.p.setViewportSize({ width: 480, height: 216 });
 const C = await abrir('Caro', false, false, 'http://' + IP + ':' + P + '/' + ARCH + '?test&gfx=patata&lan' + SINPUB);
 await C.ev("inicioMostrar(true); conectarMultijugador(); 1"); await espera(300);
 await clic(C, '[data-rb=lan]');
