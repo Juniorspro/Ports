@@ -282,7 +282,10 @@ function redRecarga() { publicar('a', { k: 'rec' }); }
 // (de los ojos del personaje y hacia donde apunta, como el tiro propio: con la cámara libre o en tercera persona los demás
 // veían salir la traza de la cámara y los golpes no llegaban: armas.js, miraOjo)
 function redDisparo(arma) { const o = miraOjo(), f = miraDir(); publicar('a', { k: 'tiro', a: arma, p: [r3(o.x), r3(o.y), r3(o.z)], d: [r3(f.x), r3(f.y), r3(f.z)] }); }
-function redExplosion(p, r, d) { publicar('a', { k: 'exp', p: [r3(p.x), r3(p.y), r3(p.z)], r: r3(r || 6), d: Math.round(d || 100) }); }
+// (con la fuente, el barril que explotó: el que la recibe borra su copia sin hacerlo explotar otra vez; y si los dos le
+// pegaron a la vez, cada uno ve una sola explosión)
+function redExplosion(p, r, d, f) { const o = f && f.b ? claveObj(f) : undefined; if (o) redExpMarcar(o); publicar('a', { k: 'exp', p: [r3(p.x), r3(p.y), r3(p.z)], r: r3(r || 6), d: Math.round(d || 100), o }); }
+function redExpMarcar(k) { const M = RED.expl || (RED.expl = new Map()); if (M.size > 60) for (const [x, t] of M) if (TIEMPO.t - t > 10) M.delete(x); M.set(k, TIEMPO.t); }
 function redDano(P, dan, d) { publicar('a', { k: 'dano', to: P.remoto, d: Math.round(dan), v: [r3(d.x), r3(d.y), r3(d.z)] }); }
 function redChat(t, id) { publicar('c', { n: PREFS.nombre, t: t.slice(0, 120), ...(id ? { id } : {}) }); }
 function redEmote() {}
@@ -489,7 +492,11 @@ function recibirHecho(d) {
   } else if (d.k === 'rec' && R2) { humAccion(R2.P, 'recarga');
   } else if (d.k === 'exp' && Array.isArray(d.p)) {
     const p = v3(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0));
-    explosion.remota = true; explosion(p, num(d.r, 0.5, 600, 6), num(d.d, 0, 1e5, 100)); explosion.remota = false; // del tamaño que tuvo en su juego (con sus mods)
+    const k = typeof d.o === 'string' ? d.o.slice(0, 80) : null, f = k ? buscarObjeto(k) : null;
+    if (k && ((RED.expl && RED.expl.has(k)) || (f && f.exploto))) return;   // (ya explotó acá)
+    if (k) redExpMarcar(k); if (f) f.exploto = true;
+    explosion.remota = true; explosion.fuente = f; explosion(p, num(d.r, 0.5, 600, 6), num(d.d, 0, 1e5, 100)); explosion.remota = false; explosion.fuente = null; // del tamaño que tuvo en su juego (con sus mods)
+    if (f && !f.borrado) { borrarObjeto(f, true); if (!f.remoto) RED.wSucio = true; }
   } else if (d.k === 'cerrada') { salaCerradaRevisar();
   } else if (d.k === 'rtc' && d.to === RED.ID) { vozSenal(d);
   } else if (d.k === 'ent' || d.k === 'entb' || d.k === 'radio' || d.k === 'entp') { entidadHecho(d);

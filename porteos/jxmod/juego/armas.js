@@ -236,7 +236,7 @@ function explosion(p, radio, dan) {
   if (MODS.explosion && MODS.explosion !== 1 && !explosion.remota) { radio *= MODS.explosion; dan *= MODS.explosion; }
   // (util.BlastDamage de los addons es sólo el daño: sin dibujo ni sonido, como en GMod)
   if (!explosion.sinFx) sonar('GrenadeExplode', p, 1.4); verExplosion(p, radio);
-  if (!explosion.remota) redExplosion(p, radio, dan);
+  if (!explosion.remota) redExplosion(p, radio, dan, explosion.fuente);
   if (!explosion.sinFx) efectoExplosion(p, clamp(radio / 6, 0.6, 3));
   for (const b of PH.bodies) {
     if (!b.dynamic && !b.frozen) continue;
@@ -244,7 +244,9 @@ function explosion(p, radio, dan) {
     const k = (1 - L / (radio * 1.6)); b.frozen = b.frozen && !b.obj ? b.frozen : b.frozen; b.wake();
     if (b.dynamic) b.vel.addS(d.scale(1 / (L || 1)), k * 22 * Math.min(1, 300 / b.mass + 0.15)).y += k * 6;
     if (b.dynamic) b.ang.addS(v3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5), k * 6);
-    if (b.obj && b.obj !== explosion.fuente) danarObjeto(b.obj, dan * k, b.pos, d);
+    // (en multijugador cada objeto lo daña sólo su dueño, cuando le llega la explosión: si no, la copia del barril del otro
+    // explotaba acá también y mandaba su explosión, y en la pantalla del dueño explotaba dos veces)
+    if (b.obj && b.obj !== explosion.fuente && !b.obj.remoto) danarObjeto(b.obj, dan * k, b.pos, d);
     if (b.persona && !explosion.remota) danarPersona(b.persona, dan * k, b.pos, d, b);
   }
   const dj = JUG.pos.distTo(p);
