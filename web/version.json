@@ -1,8 +1,8 @@
 {
- "codigo": 3000,
- "version": "3.0",
+ "codigo": 3001,
+ "version": "3.0.1",
  "apk": "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXMod.apk",
  "web": "https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/index.html",
- "notas_es": "JXMod 3.0 — súper cifrado. Tocá Descargar para la última versión.",
- "notas_en": "JXMod 3.0 — super encrypted. Tap Download for the latest version."
+ "notas_es": "JXMod 3.0.1 — arreglo de las texturas estiradas en los mapas (sobre todo en el celular). Tocá Descargar para actualizar.",
+ "notas_en": "JXMod 3.0.1 — fixes stretched textures on maps (especially on phones). Tap Download to update."
 }

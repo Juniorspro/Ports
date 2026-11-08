@@ -149,7 +149,7 @@ public class Web extends Activity {
     // El APK no se actualiza solo (no está en Play): la app pregunta por una versión nueva en version.json (en el repo) y, si
     // la hay, ofrece bajar el APK nuevo desde el navegador. La URL del APK es FIJA acá (no se toma del json): aunque alguien
     // cambie el json, la app sólo abre el APK oficial. Subir VERSION_PROPIA y el "codigo" de version.json en cada release.
-    private static final int VERSION_PROPIA = 3000;
+    private static final int VERSION_PROPIA = 3001;
     private static final String URL_VERSION = "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/version.json";
     private static final String URL_APK = "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXMod.apk";
 

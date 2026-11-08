@@ -92,7 +92,7 @@ void main(){
 // sólo profundidad (sombras y pasada previa): recorte por transparencia si hace falta
 const FS_DEPTH = `
 precision mediump float;
-in vec2 vU; uniform sampler2D uT; uniform vec4 uC; out vec4 o;
+in highp vec2 vU; uniform sampler2D uT; uniform vec4 uC; out vec4 o;
 void main(){
 #ifdef CUT
   if (texture(uT, vU).a * uC.a < 0.5) discard;
@@ -105,11 +105,13 @@ precision highp float;
 #else
 precision mediump float;
 #endif
-in vec3 vN; in vec2 vU; in vec3 vW;
+// (las UV en highp siempre: en mediump, en la GPU de un celu —16 bits— una textura repetida muchas veces en una cara
+// grande, sobre todo las chicas de los mapas tipo Minecraft, se ve estirada en franjas; el resto puede seguir en mediump)
+in vec3 vN; in highp vec2 vU; in vec3 vW;
 uniform sampler2D uT;
 // la luz horneada del mapa (los lightmaps de Source): guardada en gamma hasta 4 veces el blanco
 #ifdef LMAP
-uniform sampler2D uLM; in vec2 vL;
+uniform sampler2D uLM; in highp vec2 vL;
 vec3 lmLin() { return pow(texture(uLM, vL).rgb, vec3(2.2)) * 4.0; }
 #endif
 #ifdef TERR
@@ -724,8 +726,11 @@ function a100(src, vs) {
     x = x.replace(/(^|[;\s])out\s+(?=(?:highp |mediump |lowp )?(?:vec|float|mat))/gm, '$1varying ');
   } else {
     x = x.replace(/(^|[;\s])in\s+(?=(?:highp |mediump |lowp )?(?:vec|float|mat))/gm, '$1varying ');
+    // (las entradas en highp —las UV de las texturas y de la luz horneada— en un celu sin highp en el fragment shader,
+    // como los Mali-400, bajan a mediump en vez de no compilar)
+    x = x.replace(/\bvarying highp /g, 'varying JX_HP ');
     x = x.replace(/\bout\s+vec4\s+o\s*;/, '');
-    x = '#define o gl_FragColor\n' + x.replace(/precision highp float;/g, '\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n');
+    x = '#define o gl_FragColor\n#ifdef GL_FRAGMENT_PRECISION_HIGH\n#define JX_HP highp\n#else\n#define JX_HP mediump\n#endif\n' + x.replace(/precision highp float;/g, '\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n');
   }
   x = x.replace(/\btexture\(/g, 'texture2D(');
   return { x, at };

@@ -525,7 +525,6 @@ function gbspCieloCubo(nombre, L) {
   }
   return { L, caras };
 }
-// (las UV de una cara llevadas cerca de 0 por un entero: se repiten igual y no pierden precisión en medio float)
 // el atlas de la luz horneada: cada rectángulo de luxels (RGB + exponente, ColorRGBExp32) en su lugar, con un borde
 // repetido para que el filtrado no traiga luz de la cara vecina; arriba a la izquierda, dos bloques de 4×4: la luz media
 // del mapa (caras sin luz propia) y una que brilla (paneles de luz). Se guarda en gamma hasta 4 veces el blanco. Si no
@@ -565,7 +564,16 @@ function gbspAtlasLuz(lit, R, tope) {
   }
   return null;
 }
-function gbspUVcorr(uvs) { let mu = 1e9, mv = 1e9; for (const u of uvs) { if (u[0] < mu) mu = u[0]; if (u[1] < mv) mv = u[1]; } const du = Math.floor(mu), dv = Math.floor(mv); for (const u of uvs) { u[0] -= du; u[1] = 1 - (u[1] - dv); } }
+// las UV de una cara llevadas cerca de 0 por un entero (se repiten igual y no pierden precisión en el medio float del
+// vértice). Las caras que repiten la textura muchas veces, por el entero de su CENTRO: |u| queda en la mitad y el medio
+// float es el doble de preciso (en un mapa tipo Minecraft, con caras de cientos de bloques, la textura ya no se corre en
+// los bordes); las que la usan una sola vez —pueden ir con la textura sin repetir—, por el de su mínimo, como siempre
+function gbspUVcorr(uvs) {
+  let mu = 1e9, mv = 1e9, Mu = -1e9, Mv = -1e9;
+  for (const u of uvs) { if (u[0] < mu) mu = u[0]; if (u[0] > Mu) Mu = u[0]; if (u[1] < mv) mv = u[1]; if (u[1] > Mv) Mv = u[1]; }
+  const ancha = Mu - mu > 2 || Mv - mv > 2, du = Math.floor(ancha ? (mu + Mu) / 2 : mu), dv = Math.floor(ancha ? (mv + Mv) / 2 : mv);
+  for (const u of uvs) { u[0] -= du; u[1] = 1 - (u[1] - dv); }
+}
 // los props del mapa: los estáticos (game lump "sprp") y los de entidades (prop_dynamic fijos, prop_physics sueltos)
 function gbspProps(B, ents) {
   const out = [], gl = B.lump(35);

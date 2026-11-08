@@ -2191,6 +2191,52 @@ teoría, sacarla—. Lo que se hace acá (como cualquier juego comercial) es sub
 - Si algún día se publica en Google Play (firma de Play): la llave tendría que salir del certificado de Play, no del de la
   firma propia; hoy el reparto es por APK directo (link), así que la firma en el aparato es la misma con la que se armó.
 
+## JXMod 3.0.1: actualizaciones desde la app y texturas estiradas en los mapas
+
+Pedidos: «que las actualizaciones lleguen en un botón para descargar» y, del Discord (#bugs): «en muchos, PERO
+MUCHOS mapas las texturas se ven estiradas».
+
+**Actualizar desde la app** (`web/version.json`, `apk/web/.../Web.java`, `herramientas/codigo_web.mjs`):
+- `web/version.json` tiene el número de la versión (`codigo`) y los links; uno solo para la web y el APK.
+- APK: a los 6 s de abrir mira `version.json` en silencio y, si su `codigo` es mayor que el de la app
+  (`VERSION_PROPIA`), muestra un cartel con **Descargar** que abre el APK nuevo. El link del APK está fijo en la app
+  (no se toma del json).
+  Desde el juego: `JXNativo.buscarActualizacion()`.
+- Web: si `version.json` trae un `codigo` mayor que el de la página (`JX_COD` al armar), aparece **Actualizar** abajo
+  a la derecha (limpia la caché del service worker y recarga). La web igual se actualiza sola.
+- Para sacar una versión: subir `codigo` en `web/version.json`, `VERSION_PROPIA` en `Web.java` y `JX_VERSION` en
+  `juego/nucleo.js`, y armar con `JX_COD=<codigo>` (web) y `VERSION=<x.y.z>` (APK). La 3.0.1 es la primera que llega así
+  (3000 → 3001).
+
+**Texturas estiradas: dos causas.**
+1. La precisión del celular. El shader del mundo (`FS` en `juego/gl.js`) iba entero en `mediump` en las calidades bajas
+   y medias; en la GPU de un celu eso es de 16 bits y la UV de una textura repetida muchas veces pierde precisión
+   (escalones de varios téxeles: franjas). En la compu mediump ya es de 32 bits, por eso ahí no se veía. Ahora la UV de
+   la textura y la de la luz horneada van en `highp` (el resto sigue en mediump); en un WebGL 1 sin highp (Mali-400)
+   bajan solas a mediump (`JX_HP` en `a100`) en vez de no compilar. Además las caras se corren por el entero de su
+   centro (`gbspUVcorr`): la UV que se guarda en el vértice es el doble de precisa.
+2. Un bug en `gmF2H` (`juego/gmod.js`), que guarda en medio float la UV de todas las mallas de GMod (mapas, props,
+   modelos): el acarreo del redondeo se perdía con exponente impar (7,999 quedaba en 4) y ese triángulo salía con la
+   textura aplastada o estirada en todos los aparatos, también en la compu.
+
+Medido en 6 BSP reales (gm_flatgrass, gm_construct y su v13, fnaf1customfedy, gm_liminal_hotel, toxic), con las texturas
+al tope del celu (512 px):
+
+| | antes | 3.0.1 |
+|---|---|---|
+| franjas por la precisión del celu (escalón ≥ 2 téxeles, % de superficie) | 5,1–99,8 % | 0 % |
+| ídem, tipo Minecraft simulado (16 px agrandadas a 512, bloque de 64 u) | 62–100 % | 0 % |
+| UV rotas por `gmF2H` (error > 0,01) | hasta 299 por mapa, en 163 caras | 0 |
+| celu emulado, gm_flatgrass (% de píxeles vecinos iguales: bloques) | 17,1 % | 1,52 % |
+
+- Los shaders compilan y enlazan sin errores en WebGL 2 (las 5 calidades) y WebGL 1 (también la rama sin highp forzada).
+- En la compu se ve igual que antes en gm_construct (diferencia 0,02/255, lo mismo que el ruido); en gm_flatgrass la
+  nueva queda más cerca de la referencia exacta (el pasto ya no queda corrido).
+- `gmF2H`: los 61 440 medio float vuelven exactos y 0 de 2 000 348 valores al azar se pasan de medio escalón.
+- No había un mapa tipo Minecraft del Workshop para probar: ese caso está simulado sobre la geometría de los 6 mapas.
+- Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
+  `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
+
 ## Tráiler de la 3.0 (40 s, 4:3 en FHD), v2
 
 Pedido: un tráiler con la canción del video de 41 s, con suspenso, sin interfaz, el logo recortado al principio y

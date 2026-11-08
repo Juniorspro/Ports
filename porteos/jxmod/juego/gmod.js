@@ -396,8 +396,11 @@ function gmMaterial(tex, carpetas) {
 const _f2hB = new Float32Array(1), _f2hI = new Uint32Array(_f2hB.buffer);
 function gmF2H(v) {
   _f2hB[0] = v; const x = _f2hI[0], s = (x >>> 16) & 0x8000, e = ((x >>> 23) & 0xff) - 112, m = x & 0x7fffff;
-  if (e <= 0) return s; if (e >= 31) return s | 0x7c00;
-  return s | (e << 10) | ((m + 0x1000) >>> 13);
+  if (e <= 0) return s; if (e >= 31) return s | 0x7bff;
+  // (el redondeo puede pasar a la potencia de 2 siguiente: el acarreo se SUMA al exponente. Antes iba con "o" y, con
+  // exponente impar, se perdía: 7,999 quedaba en 4 y ese triángulo salía con la textura aplastada o estirada)
+  const h = (e << 10) + ((m + 0x1000) >>> 13);
+  return s | (h > 0x7bff ? 0x7bff : h);
 }
 // una malla del juego en un bloque propio (registrado como paquete ya bajado): posiciones en 16 bits sobre la caja,
 // normal en 8, UV en medio float; los triángulos por material
