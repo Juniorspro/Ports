@@ -329,9 +329,18 @@ function __EFFECT_BASE:Think() return false end
 -- ---------- coroutine.wait de GMod ----------
 function coroutine.wait(s) local t = CurTime() + (tonumber(s) or 0) while CurTime() < t do coroutine.yield() end end
 -- ---------- NPC de una clase de un addon (menú de NPCs) ----------
-function __gmCrearNPC(c, pos, m)
+-- (la tabla del fundido de pantalla, como GMod: el Cartoon Cat de DrGBase la usa al agarrarte —SCREENFADE.IN— y sin ella
+-- su Lua se cortaba en el medio del agarre)
+SCREENFADE = SCREENFADE or { IN = 1, OUT = 2, MODULATE = 4, STAYOUT = 8, PURGE = 16 }
+function __gmCrearNPC(c, pos, m, yaw)
   local e = ents.Create(c) if not IsValid(e) then return end
-  e:SetPos(pos) if m then e:SetModel(m) end
+  e:SetPos(pos)
+  -- (mirando al jugador, como el menú de GMod —InternalSpawnNPC: el ángulo del jugador + 180—. Antes salían todos mirando
+  -- al este: los nextbots que buscan con la vista —DrGBase, 150° de campo visual— no veían al jugador que los había puesto
+  -- y se iban a pasear, quietos o lejos, y nunca atacaban)
+  if yaw == nil then local pl = player.GetAll()[1] if IsValid(pl) then yaw = pl:GetAngles().y + 180 end end
+  if yaw then e:SetAngles(Angle(0, yaw, 0)) end
+  if m then e:SetModel(m) end
   e:Spawn() e:Activate() return e
 end
 -- ---------- list, language ----------

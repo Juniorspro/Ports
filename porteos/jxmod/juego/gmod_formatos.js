@@ -316,14 +316,17 @@ GMF.mdl = function (mdl, vvd, vtx) {
     M.cuerpos.push({ n: _cs(mdl, o + nn), modelos: mods });
   }
   // las animaciones (descriptores) y las secuencias (nombre, actividad, bucle, su primera animación)
+  // (hasta 4096 y 2048, mientras quepan en el archivo: m_anm.mdl, las animaciones de los modelos de jugador de GMod, trae
+  // 1563 animaciones y 464 secuencias; con el tope de antes —600 y 400— las que pasaban de ahí quedaban sin animación y un
+  // nextbot que pedía una —el SCP-049 persigue con swim_idle_pistol, la animación 897— se deslizaba en la pose de referencia)
   const nan = i32(180), ani = i32(184); M.anims = [];
-  for (let k = 0; k < Math.min(nan, 600); k++) { const o = ani + k * 100; M.anims.push({ n: _cs(mdl, o + i32(o + 4)), o, fps: f32(o + 8), flags: i32(o + 12), nf: i32(o + 16), bloque: i32(o + 52), idx: i32(o + 56), sidx: i32(o + 80), sfr: i32(o + 84) });
+  for (let k = 0; k < Math.min(nan, 4096) && ani + k * 100 + 100 <= mdl.length; k++) { const o = ani + k * 100; M.anims.push({ n: _cs(mdl, o + i32(o + 4)), o, fps: f32(o + 8), flags: i32(o + 12), nf: i32(o + 16), bloque: i32(o + 52), idx: i32(o + 56), sidx: i32(o + 80), sfr: i32(o + 84) });
     // (lo que avanza la animación —los «walkframes»: mstudiomovement_t, por tramos de cuadros—; de ahí sale la velocidad de
     // suelo de cada secuencia, con la que los nextbots de DrGBase con UseWalkframes caminan y ajustan el paso)
     const nm = i32(o + 20), mi = i32(o + 24);
     if (nm > 0 && nm <= 64 && mi > 0 && o + mi + nm * 44 <= mdl.length) { const L = []; for (let j = 0; j < nm; j++) { const q = o + mi + j * 44; L.push({ fin: i32(q), v0: f32(q + 8), v1: f32(q + 12), ang: f32(q + 16), vec: [f32(q + 20), f32(q + 24), f32(q + 28)], pos: [f32(q + 32), f32(q + 36), f32(q + 40)] }); } M.anims[k].mov = L; } }
   const nseq = i32(188), sqi = i32(192); M.secuencias = [];
-  for (let k = 0; k < Math.min(nseq, 400); k++) {
+  for (let k = 0; k < Math.min(nseq, 2048) && sqi + k * 212 + 212 <= mdl.length; k++) {
     const o = sqi + k * 212, fl = i32(o + 12), aii = i32(o + 60);
     let anim = -1; try { anim = dv.getInt16(o + aii, true); } catch (e) {}
     // (las mezclas: una grilla de g[0]×g[1] animaciones según uno o dos parámetros de pose —move_x/move_y al caminar, la

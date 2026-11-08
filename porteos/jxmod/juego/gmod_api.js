@@ -310,7 +310,9 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('GetForward', (e) => dirE(e, 0)); E('GetRight', (e) => dirE(e, 1)); E('GetUp', (e) => dirE(e, 2));
   E('LocalToWorld', (e, v) => V(gmaEntPos(e).add(entQ(e).rot(vGr(v))))); E('WorldToLocal', (e, v) => Vr(entQ(e).conj().rot(vsub(vG(v), gmaEntPos(e)))));
   E('LocalToWorldAngles', (e, a) => A(quatAng(new Quat().mulTo(entQ(e), angQuat(a))))); E('WorldToLocalAngles', (e, a) => A(quatAng(new Quat().mulTo(entQ(e).conj(), angQuat(a)))));
-  const caja = (e) => { const k = e.o && DATA.pfPorNombre[e.o.nombre], d = k ? DATA.ms[DATA.pf[k][0].m] : null; if (!d || !d.mn) return [new LVec(-8, -8, 0), new LVec(8, 8, 16)]; const mn = vSr(v3(d.mn[0], d.mn[1], d.mn[2])), mx = vSr(v3(d.mn[0] + d.sc[0], d.mn[1] + d.sc[1], d.mn[2] + d.sc[2])); return [mn, mx]; };
+  // (la caja local: la de SetCollisionBounds si la puso —por la escala del modelo, como Source—; si no, la del modelo)
+  const caja = (e) => { if (e.limites && e.tipo !== 'jug') { const [a, b] = e.limites, s = typeof gmnbEscala === 'function' ? gmnbEscala(e) : +e.escala || 1; return [new LVec(Math.min(a.x, b.x) * s, Math.min(a.y, b.y) * s, Math.min(a.z, b.z) * s), new LVec(Math.max(a.x, b.x) * s, Math.max(a.y, b.y) * s, Math.max(a.z, b.z) * s)]; }
+    const k = e.o && DATA.pfPorNombre[e.o.nombre], d = k ? DATA.ms[DATA.pf[k][0].m] : null; if (!d || !d.mn) return [new LVec(-8, -8, 0), new LVec(8, 8, 16)]; const mn = vSr(v3(d.mn[0], d.mn[1], d.mn[2])), mx = vSr(v3(d.mn[0] + d.sc[0], d.mn[1] + d.sc[1], d.mn[2] + d.sc[2])); return [mn, mx]; };
   E('OBBMins', (e) => { const v = caja(e)[0]; v.__mt = GMA.mtVec; return v; }); E('OBBMaxs', (e) => { const v = caja(e)[1]; v.__mt = GMA.mtVec; return v; });
   E('OBBCenter', (e) => { const [a, b] = caja(e); return GMA.nv((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); });
   E('WorldSpaceCenter', (e) => { const [a, b] = caja(e); return V(gmaEntPos(e).add(entQ(e).rot(vGr(new LVec((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2))))); });
@@ -342,7 +344,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   P('SetViewOffset', (e, v) => { if (v instanceof LVec) e.vistaOff = new LVec(v.x, v.y, v.z); }); P('GetViewOffset', (e) => (e.vistaOff ? GMA.nv(e.vistaOff.x, e.vistaOff.y, e.vistaOff.z) : GMA.nv(0, 0, 64)));
   P('SetViewOffsetDucked', () => {}); P('GetViewOffsetDucked', () => GMA.nv(0, 0, 28)); P('SetHull', () => {}); P('SetHullDuck', () => {}); P('GetHull', () => [GMA.nv(-16, -16, 0), GMA.nv(16, 16, 72)]); P('GetHullDuck', () => [GMA.nv(-16, -16, 0), GMA.nv(16, 16, 36)]);
   E('SetRenderOrigin', (e, p) => { e.rOrigen = p instanceof LVec ? new LVec(p.x, p.y, p.z) : null; }); E('GetRenderOrigin', (e) => (e.rOrigen ? GMA.nv(e.rOrigen.x, e.rOrigen.y, e.rOrigen.z) : V(gmaEntPos(e))));
-  E('SetRenderAngles', (e, a) => { e.rAng = a instanceof LAng ? new LAng(a.p, a.y, a.r) : null; }); E('GetRenderAngles', (e) => A(e.rAng ? new LAng(e.rAng.p, e.rAng.y, e.rAng.r) : quatAng(entQ(e)))); E('SetModelScale', (e, s) => { e.escala = s; }); E('GetModelScale', (e) => e.escala || 1);
+  E('SetRenderAngles', (e, a) => { e.rAng = a instanceof LAng ? new LAng(a.p, a.y, a.r) : null; }); E('GetRenderAngles', (e) => A(e.rAng ? new LAng(e.rAng.p, e.rAng.y, e.rAng.r) : quatAng(entQ(e)))); E('SetModelScale', (e, s, t) => { const a = typeof gmnbEscala === 'function' ? gmnbEscala(e) : +e.escala || 1, b = +s > 0 ? +s : 1; e.escalaDe = +t > 0 ? { a, b, t0: TIEMPO.t, t1: TIEMPO.t + +t } : null; e.escala = b; }); E('GetModelScale', (e) => (typeof gmnbEscala === 'function' ? gmnbEscala(e) : e.escala || 1));   // (con tiempo, de a poco, como en GMod)
   E('PhysicsInit', (e, t) => { e.solido = e.solidoT = num(t, 6) | 0; if (e.creado && e.vivo && !e.o && e.modelo) gmaRehacer(e); gmaSolidez(e); return true; }); E('PhysicsInitSphere', (e) => { e.solido = e.solidoT = 6; gmaSolidez(e); return true; }); E('PhysicsInitBox', (e) => { e.solido = e.solidoT = 6; gmaSolidez(e); return true; }); E('PhysicsInitShadow', () => true); E('PhysicsDestroy', (e) => { e.solido = 0; });
   E('SetMoveType', (e, t) => { e.mov = t; if (e.o) { e.o.b.frozen = t === 0; if (t !== 0) e.o.b.wake(); } }); E('GetMoveType', (e) => e.mov ?? 6);
   E('GetSequence', () => 0); E('LookupSequence', () => -1); E('SequenceDuration', () => 1); E('GetPlaybackRate', (e) => e.velAnim ?? 1); E('SetPlaybackRate', (e, r) => { e.velAnim = Number.isFinite(+r) ? +r : 1; }); E('GetCycle', () => 0); E('GetPoseParameter', () => 0); E('GetNumPoseParameters', () => 0); E('GetSequenceMovement', () => [false]);
@@ -360,7 +362,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('SetSolid', (e, t) => { e.solidoT = num(t, 0) | 0; gmaSolidez(e); }); E('GetSolid', (e) => gmaSolidoTipo(e)); E('SetNotSolid', (e, b) => { e.noSolido = b !== false && b !== undefined && b !== null; gmaSolidez(e); });
   E('IsSolid', (e) => gmaSolidoTipo(e) !== 0); E('SetCollisionGroup', (e, g) => { e.grupoCol = num(g, 0) | 0; gmaSolidez(e); }); E('GetCollisionGroup', (e) => e.grupoCol | 0);
   E('GetCreator', (e) => e.creador || yo()); E('SetCreator', (e, p) => { e.creador = p; });
-  E('IsPlayer', (e) => e.tipo === 'jug'); E('IsNPC', (e) => e.tipo === 'npc'); E('IsWeapon', (e) => e.tipo === 'arma'); E('IsVehicle', (e) => !!(e.o && e.o.veh)); E('IsWorld', (e) => e.tipo === 'mundo'); E('IsRagdoll', (e) => e.clase === 'prop_ragdoll'); E('IsNextBot', () => false);
+  E('IsPlayer', (e) => e.tipo === 'jug'); E('IsNPC', (e) => e.tipo === 'npc'); E('IsWeapon', (e) => e.tipo === 'arma'); E('IsVehicle', (e) => !!(e.o && e.o.veh)); E('IsWorld', (e) => e.tipo === 'mundo'); E('IsRagdoll', (e) => e.clase === 'prop_ragdoll'); E('IsNextBot', (e) => !!e.nb);   // (los nextbots lo son: DrGBase y otros los cuentan así como enemigos o aliados)
   // (un nextbot: lo que dice su locomoción; DrGBase lo creía en el aire y se quedaba saltando quieto)
   const enSuelo = (e) => (e === yo() ? !!JUG.suelo : e.nb && typeof gmnbLoco === 'function' ? !!gmnbLoco(e).st.suelo : !!(e.o && e.o.b.sleep)); GMA.enSuelo = enSuelo; E('IsOnGround', enSuelo); E('GetGroundEntity', () => GMA.mundo); E('WaterLevel', () => 0); E('IsOnFire', (e) => !!e.fuego);
   E('Ignite', (e, t) => { e.fuego = TIEMPO.t + num(t, 5); }); E('Extinguish', (e) => { e.fuego = 0; }); E('IsInWorld', () => true); E('Visible', () => true); E('IsDormant', () => false);
@@ -471,6 +473,15 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   });
   const aabbMundo = (e) => {
     if (e === yo()) { const p = JUG.pos, r = JUG.radio; return [V(v3(p.x - r, p.y - JUG.medio - r, p.z - r)), V(v3(p.x + r, p.y + JUG.ojoAlto - JUG.medio, p.z + r))]; }
+    // (con SetCollisionBounds, la caja es esa —girada con la entidad y por su escala—, como en GMod: DrGBase mide con ella
+    // a qué distancia está de su enemigo. Antes era la del cuerpo físico, que en un modelo con los brazos abiertos —el
+    // Cartoon Cat, 4 m de punta a punta— lo hacía pegar al aire desde 4 m)
+    if (e.limites && e.tipo !== 'jug') { const [l0, l1] = e.limites, s = typeof gmnbEscala === 'function' ? gmnbEscala(e) : +e.escala || 1, q = entQ(e), p = gmaEntPos(e); let lo = null, hi = null;
+      for (let c = 0; c < 8; c++) { const w = V(vadd(p, q.rot(vGr(new LVec((c & 1 ? l1.x : l0.x) * s, (c & 2 ? l1.y : l0.y) * s, (c & 4 ? l1.z : l0.z) * s))))); lo = lo ? [Math.min(lo[0], w.x), Math.min(lo[1], w.y), Math.min(lo[2], w.z)] : [w.x, w.y, w.z]; hi = hi ? [Math.max(hi[0], w.x), Math.max(hi[1], w.y), Math.max(hi[2], w.z)] : [w.x, w.y, w.z]; }
+      return [GMA.nv(lo[0], lo[1], lo[2]), GMA.nv(hi[0], hi[1], hi[2])]; }
+    // (una persona —un NPC del juego—: su cápsula, 40 cm de radio, de los pies a la cabeza. Antes era un punto en su cintura
+    // y los nextbots, que miden hasta el borde de la caja, nunca la tenían al alcance: el zombie la empujaba metros sin pegarle)
+    if (e.P && e.P.pos && !e.o) { const c = e.P.pos, r = 0.4, a0 = V(v3(c.x - r, c.y - 0.96, c.z - r)), a1 = V(v3(c.x + r, c.y + 0.9, c.z + r)); return [GMA.nv(Math.min(a0.x, a1.x), Math.min(a0.y, a1.y), Math.min(a0.z, a1.z)), GMA.nv(Math.max(a0.x, a1.x), Math.max(a0.y, a1.y), Math.max(a0.z, a1.z))]; }
     const b = e.o && e.o.b; if (!b) { const p = gmaEntPos(e); return [V(p), V(p)]; } const a = b.aabb;
     const p0 = V(v3(a.x0, a.y0, a.z0)), p1 = V(v3(a.x1, a.y1, a.z1));   // (en Source z es arriba: se ordenan por componente)
     return [GMA.nv(Math.min(p0.x, p1.x), Math.min(p0.y, p1.y), Math.min(p0.z, p1.z)), GMA.nv(Math.max(p0.x, p1.x), Math.max(p0.y, p1.y), Math.max(p0.z, p1.z))];
@@ -697,6 +708,9 @@ function gmaDanar(e, dan, at, inf, di) {
   di = di || gmaDmgInfo(dan, at, inf);
   const r = gmaHook('EntityTakeDamage', 'S', e, di); if (r[0] === true) return;
   if (e === GMA.jug) { danarJugador(di.dan); return; }
+  // (un NPC del juego: el golpe le llega a su persona —vida, caída, muerte—, desde donde está el que pega. Antes no le
+  // pasaba nada: los nextbots les pegaban a los NPC sin hacerles daño)
+  if (e.P && e.tipo === 'npc' && typeof danarPersona === 'function') { const a = di.at instanceof LEnt && di.at.vivo ? gmaEntPos(di.at) : null, d = a ? vsub(e.P.pos, a) : v3(0, 0, 1); d.y = 0; if (d.lenSq() < 1e-6) d.set(0, 0, 1); danarPersona(e.P, +di.dan || 0, e.P.pos.clone(), d); return; }
   if (claseTabla(e.clase, 'S')) { metodo(e, 'OnTakeDamage', 'S', di); return; }
   if (e.o) danarObjeto(e.o, di.dan, e.o.b.pos.clone(), v3(0, 1, 0));
 }
@@ -1089,7 +1103,10 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
     GMA.apar = { de: L, e: E }; return E; };
   // (GAMEMODE.SpawnPoints, como lo llena el PlayerSelectSpawn de la base de GMod al aparecer: lo usan los nextbots)
   GMA.aparicionesLua = () => { try { const gm = G.get('GAMEMODE'); if (gm instanceof LuaTable) { const sp = gm.get('SpawnPoints'); const E = apariciones(); if (!(sp instanceof LuaTable) || !E.length || sp.get(1) !== E[0]) gm.set('SpawnPoints', R.tab(E)); } } catch (e) {} };
-  const todos = () => { for (const o of OBJS) entDeObj(o); apariciones(); return [...GMA.ents.values()].filter((e) => e.vivo && e.tipo !== 'vm' && (e.tipo !== 'ent' || !e.o || !e.o.borrado)); };
+  // (y los NPC del juego —los del menú de NPCs, los de clase del motor como npc_citizen—, como entidades de Lua: así los
+  // nextbots que cazan NPCs —DrGBase con sus facciones— los ven, los persiguen y los pueden matar, como en GMod)
+  const npcsJuego = () => { if (typeof NPC === 'undefined' || !NPC.lista) return; for (const P of NPC.lista) if (P && P.npc && !P.borrado && !P.muneco && P.vivo !== false) gmaEntPersona(P); };
+  const todos = () => { for (const o of OBJS) entDeObj(o); apariciones(); npcsJuego(); return [...GMA.ents.values()].filter((e) => e.vivo && e.tipo !== 'vm' && (e.tipo !== 'ent' || !e.o || !e.o.borrado)); };
   const patron = (c) => new RegExp('^' + String(c).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$', 'i');
   def(ents, 'GetAll', () => R.tab([GMA.jug, ...todos()])); def(ents, 'GetCount', () => todos().length + 1); def(ents, 'GetByIndex', (i) => G.get('Entity')(i)); def(ents, 'Iterator', () => { const L = [GMA.jug, ...todos()]; let i = 0; return [() => (i < L.length ? [++i, L[i - 1]] : undefined), undefined, 0]; });
   def(ents, 'FindByClass', (c) => { const re = patron(c); return R.tab([GMA.jug, ...todos()].filter((e) => re.test(e.clase))); }); def(ents, 'FindByModel', (m) => R.tab(todos().filter((e) => e.modelo === String(m).toLowerCase()))); def(ents, 'FindByName', () => new LuaTable()); def(ents, 'FindByClassAndParent', () => new LuaTable());
