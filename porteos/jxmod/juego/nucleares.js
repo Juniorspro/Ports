@@ -96,7 +96,12 @@ function nukeOnda(E, dt) {
       E.tocados.add(b); const k = Math.pow(clamp(1 - L / E.alc, 0, 1), 1.4), dir = L > 0.01 ? dv.scale(1 / L) : v3(0, 1, 0);
       if (b.frozen && b.obj && L < R) b.frozen = false;   // (como en HBOMBS: lo congelado cerca se suelta)
       b.wake();
-      if (b.dynamic) { const fz = (18 + R * 0.12) * k * Math.min(1, 400 / b.mass + 0.2); b.vel.addS(dir, fz); b.vel.y += fz * 0.35 + (E.tipo === 'subte' ? 6 * k : 0); b.ang.addS(v3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5), 8 * k); }
+      if (b.dynamic) {
+        const fz = (18 + R * 0.12) * k * Math.min(1, 400 / b.mass + 0.2); b.vel.addS(dir, fz); b.vel.y += fz * 0.35 + (E.tipo === 'subte' ? 6 * k : 0); b.ang.addS(v3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5), 8 * k);
+        // (y el viento que viene con la onda, el mismo que empuja lo liviano de afuera —nukeViento—: así el empujón no salta
+        // en el borde del daño —antes, justo adentro casi nada y justo afuera 6 m/s— y siempre baja con la distancia)
+        const fv = nukeVientoCosa(E, b, L); if (fv > 0) { const hx = b.pos.x - p.x, hz = b.pos.z - p.z, hl = Math.hypot(hx, hz) || 1; b.vel.x += hx / hl * fv; b.vel.z += hz / hl * fv; b.vel.y += fv * 0.25; }
+      }
       if (b.obj) danarObjeto(b.obj, L < R * 0.35 ? 9999 : 600 * k, b.pos, dir);
       if (b.persona && !b.persona.rag) { const P = b.persona; if (typeof danarPersona === 'function') danarPersona(P, L < R * 0.35 ? 9999 : 260 * k, b.pos, dir, b); if (P.npc && !P.rag && typeof npcTumbar === 'function') npcTumbar(P, vadd(vscale(dir, 20 * k), v3(0, 8 * k, 0)), 0); }
     }
@@ -165,10 +170,16 @@ function nukeViento(E, dt) {
     for (const b of PH.bodies) {
       if (!b.dynamic || b.frozen || b.mass > 300 || E.tocados.has(b)) continue;
       const ddx = b.pos.x - p.x, ddz = b.pos.z - p.z, L = Math.hypot(ddx, ddz); if (L < r0 || L > frente) continue;
-      E.tocados.add(b); const kk = clamp(1 - L / alcV, 0, 1), fz = 9 * kk * Math.min(1, 120 / b.mass + 0.2);
+      E.tocados.add(b); const fz = nukeVientoCosa(E, b, L);
       b.wake(); b.vel.x += ddx / L * fz; b.vel.z += ddz / L * fz; b.vel.y += fz * 0.25;
     }
   }
+}
+// (el empujón del viento a una cosa suelta y liviana —hasta 300 kg— a L metros: baja derecho hasta el final del viento, 3 veces
+// el alcance del daño; las pesadas, nada)
+function nukeVientoCosa(E, b, L) {
+  if (E.tipo === 'espacio' || E.tipo === 'subte' || E.sinViento || !b.dynamic || b.mass > 300) return 0;
+  return 9 * clamp(1 - L / (E.alc * 3), 0, 1) * Math.min(1, 120 / b.mass + 0.2);
 }
 // el soplido: ruido filtrado que sube, ruge y se va (WebAudio, sin archivos)
 function nukeSoplido(k, dura) {

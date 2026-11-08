@@ -9,8 +9,9 @@
 //     ≥ 0,4 (antes, nada más allá de 7 radios); de espaldas, menos pero algo; la subterránea, nada; a los 3 s, < 0,03
 //  4. lo que está delante la tapa: un contenedor entre la cámara y el hongo se ve igual que sin la bomba (≤ 6 de 255), y el
 //     hongo sí cambia la imagen (≥ 3 % de la pantalla)
-//  5. costo (en esta compu, esperando a la placa; contra la pasada del cielo): de lejos ≤ 1,5; de cerca (tapa ~40 %)
-//     ≤ 2,6 en Medio y Alto y ≤ 4 en Ultra
+//  5. costo (en esta compu, esperando a la placa; contra la pasada del cielo de la 3.0 —guardada acá como vara fija: el
+//     cielo del juego cambió con los cielos por mapa y en Alto cuesta un 23 % menos, y la vara no puede achicarse con él—):
+//     de lejos ≤ 1,5; de cerca (tapa ~40 %) ≤ 2,6 en Medio y Alto y ≤ 4 en Ultra
 //  6. el ruido 3D se arma de a poco: ningún tramo de más de 15 ms en esta compu (de a filas: no traba el juego)
 //  7. sin errores de JS
 //  8. sin texturas de medio float (muchos celulares de gama baja): el búfer en 8 bits dibuja el mismo hongo (cambia ≥ 3 %,
@@ -122,6 +123,18 @@ ok('4. un contenedor delante del hongo se ve igual que sin la bomba (≤ 6 de 25
 await ev(`(() => { if (window.__cont) borrarObjeto(window.__cont, true); return 1; })()`);
 
 // ---------------- 5. el costo ----------------
+// (la vara: el sombreador del cielo de la 3.0, con las nubes de ruido en Alto y Ultra, tal cual se dibujaba entonces)
+const FS_CIELO_30 = "\nprecision highp float; in vec3 vD; uniform vec3 uTop, uMid, uBot, uSol, uSolC, uCam, uLuna; uniform vec2 uExp; uniform float uExpo, uTiempo, uNoche, uNubes, uSolTam, uCieloK, uAire; out vec4 o;\nvec3 aces(vec3 x) { return clamp(x * (2.51 * x + 0.03) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }\nfloat h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }\nfloat vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }\nfloat fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * vn(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return s; }\nvoid main(){\n  vec3 d = normalize(vD - uCam); float y = d.y;\n  vec3 c = y > 0.0 ? mix(uMid, uTop, pow(y, uExp.x)) : mix(uMid, uBot, pow(-y, uExp.y));\n  float s = max(dot(d, uSol), 0.0);\n#if SALIDA == 0\n  c += uSolC * (pow(s, 900.0) * 1.2 + pow(s, 12.0) * 0.12);\n  o = vec4(c, 1.0);\n#else\n  c = pow(c, vec3(2.2)) * uCieloK;                                          // el degradé del juego (en gamma) pasado a lineal\n  c += uSolC * pow(s, 8.0) * 0.18 * (1.0 - abs(y)) * uAire;               // brillo del horizonte hacia el sol (sin aire, nada)\n  float disco = smoothstep(1.0 - uSolTam, 1.0 - uSolTam * 0.6, s);\n  c += uSolC * (disco * 40.0 + pow(s, 1200.0) * 3.0 + pow(s, 40.0) * 0.25 * uAire) * step(-0.02, y) * (1.0 - uNoche);\n#ifdef NUBES\n  if (y > 0.0) {\n    vec2 p = d.xz / (y + 0.12) * 0.55 + uTiempo * vec2(0.004, 0.0015);\n    float n = fbm(p * 1.6), cov = smoothstep(0.62 - uNubes * 0.3, 0.92, n) * smoothstep(0.0, 0.18, y);\n    float lado = pow(s, 6.0);\n    vec3 nc = mix(uMid * 0.85 + uSolC * 0.12, uSolC * 1.25 + uMid * 0.3, 0.35 + 0.65 * lado) * (1.0 - uNoche * 0.85);\n    c = mix(c, nc, cov * 0.9);\n  }\n#endif\n  if (uNoche > 0.0 && y > 0.0) {\n    vec2 st = d.xz / (y + 0.3) * 160.0; float e = h21(floor(st));\n    c += vec3(0.8, 0.85, 1.0) * step(0.9975, e) * smoothstep(0.0, 0.25, y) * uNoche * (0.6 + 0.4 * sin(uTiempo * 3.0 + e * 60.0)) * 1.5;\n    float l = max(dot(d, uLuna), 0.0);\n    c += vec3(0.85, 0.88, 1.0) * (smoothstep(0.9993, 0.9995, l) * 6.0 + pow(l, 60.0) * 0.08) * uNoche;\n  }\n#if SALIDA == 2\n  o = vec4(c, 1.0);\n#else\n  o = vec4(pow(aces(c * uExpo), vec3(1.0 / 2.2)), 1.0);\n#endif\n#endif\n}";
+await ev(`(() => { window.__FS30 = ${JSON.stringify(FS_CIELO_30)}; window.__cielo30 = (IVP) => {
+  const gl = R.gl, C = R.cielo, sal = R.salida === 'hdr' ? 2 : R.salida === 'gam' ? 0 : 1, nub = sal && GFX.nubes && !MUNDO.espacio, k = 'v30|' + sal + '|' + (nub ? 1 : 0);
+  const PV = window.__pv30 || (window.__pv30 = {}); let P = PV[k]; if (!P) P = PV[k] = shader(VS_CIELO, window.__FS30, ['SALIDA=' + sal].concat(nub ? ['NUBES'] : []));
+  gl.useProgram(P.p); R.progAct = P; const L = sal && R.lin ? R.lin : null;
+  gl.uniformMatrix4fv(P.u.uIVP, false, IVP); gl.uniform3fv(P.u.uTop, C.top); gl.uniform3fv(P.u.uMid, C.mid); gl.uniform3fv(P.u.uBot, C.bot); gl.uniform2fv(P.u.uExp, C.exp);
+  gl.uniform3f(P.u.uSol, R.sol.x, R.sol.y, R.sol.z); gl.uniform3fv(P.u.uSolC, L ? L.cieloSol : C.sol); gl.uniform3f(P.u.uCam, R.camPos.x, R.camPos.y, R.camPos.z);
+  if (sal) { gl.uniform1f(P.u.uExpo, R.expo); gl.uniform1f(P.u.uTiempo, TIEMPO.t); gl.uniform1f(P.u.uCieloK, R.cieloK || 1); gl.uniform1f(P.u.uNoche, R.noche || 0); gl.uniform1f(P.u.uNubes, R.nubes === undefined ? 0.5 : R.nubes); if (P.u.uAire) gl.uniform1f(P.u.uAire, 1);
+    gl.uniform1f(P.u.uSolTam, 0.00012 + (C.solTam || 0.3) * 0.0004); const l = R.luna || v3(-R.sol.x, Math.abs(R.sol.y), -R.sol.z); gl.uniform3f(P.u.uLuna, l.x, l.y, l.z); }
+  gl.depthMask(false); gl.depthFunc(gl.LEQUAL); gl.bindVertexArray(R.quad); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindVertexArray(null); R.vaoAct = null; gl.depthMask(true); gl.depthFunc(gl.LESS); };
+  return 1; })()`);
 const c5 = {};
 for (const cal of ['bajo', 'medio', 'alto', 'ultra']) {
   await ev(`(() => { PREFS.gfx = '${cal}'; aplicarGfx(); return 1; })()`); await listo();
@@ -133,14 +146,14 @@ for (const cal of ['bajo', 'medio', 'alto', 'ultra']) {
       const IVP = M4.inv(R.vp), N = 8, t = { cielo: 0, hongo: 0 };
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbE); gl.viewport(0, 0, W, H); espera();
       for (let k = 0; k < 3; k++) {
-        let a = performance.now(); for (let i = 0; i < N; i++) { gl.bindFramebuffer(gl.FRAMEBUFFER, fbE); gl.viewport(0, 0, W, H); dibujarCielo(IVP); } espera(); t.cielo += performance.now() - a;
+        let a = performance.now(); for (let i = 0; i < N; i++) { gl.bindFramebuffer(gl.FRAMEBUFFER, fbE); gl.viewport(0, 0, W, H); window.__cielo30(IVP); } espera(); t.cielo += performance.now() - a;
         a = performance.now(); for (let i = 0; i < N; i++) nvDibujar(); espera(); t.hongo += performance.now() - a;
       }
       return { k: +(t.hongo / t.cielo).toFixed(2), hongoMs: +(t.hongo / (3 * N)).toFixed(2), cieloMs: +(t.cielo / (3 * N)).toFixed(2), buf: NUKV.w + 'x' + NUKV.h, vol: !!E.vol }; })()`);
   }
 }
 const k5 = Object.entries(c5).filter(([n]) => !/^bajo/.test(n)).every(([n, x]) => x.vol && x.k <= (/lejos/.test(n) ? 1.5 : /ultra/.test(n) ? 4 : 2.6));
-ok('5. costo contra el cielo: de lejos ≤ 1,5; de cerca ≤ 2,6 en Medio y Alto y ≤ 4 en Ultra', k5, c5);
+ok('5. costo contra el cielo de la 3.0: de lejos ≤ 1,5; de cerca ≤ 2,6 en Medio y Alto y ≤ 4 en Ultra', k5, c5);
 
 // ---------------- 8. en 8 bits (sin medio float) ----------------
 const c8 = {};

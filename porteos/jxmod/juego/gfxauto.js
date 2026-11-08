@@ -14,9 +14,17 @@ const GFXA = { midiendo: false, medido: false, res: null, umbral: 57, med: 0.6, 
 async function gfxMedirUna(q) {
   GFX.base = q; aplicarGfx(); GFX.escala = GFX.escalaMax; redimensionar();
   const L = [], t0 = performance.now();
-  await new Promise((ok) => { let ult = 0, buenos = 0; const f = (a) => { if (ult && a - ult < 80) buenos++; else buenos = 0; ult = a; if (buenos >= 6 || a - t0 > 3000) ok(); else requestAnimationFrame(f); }; requestAnimationFrame(f); });
+  // (asentada: 6 cuadros seguidos de menos de 80 ms y ninguna textura subiéndose —las que se ven por primera vez o con el
+  // tope de otra calidad se decodifican y suben de a una: si se cuenta mientras tanto, la calidad parece más lenta—)
+  await new Promise((ok) => { let ult = 0, buenos = 0; const f = (a) => { if (ult && a - ult < 80 && !gfxTexSubiendo()) buenos++; else buenos = 0; ult = a; if (buenos >= 6 || a - t0 > 3000) ok(); else requestAnimationFrame(f); }; requestAnimationFrame(f); });
   await new Promise((ok) => { const f = (a) => { L.push(a); const n = L.length - 1, dt = a - L[0]; if ((dt >= GFXA.med * 1000 && n >= 30) || dt >= 1500) ok(); else requestAnimationFrame(f); }; requestAnimationFrame(f); });
   return gfxFps(L);
+}
+function gfxTexSubiendo() { const T = (typeof R !== 'undefined' && R.tex) || []; for (let i = 0; i < T.length; i++) if (T[i] && T[i].va) return true; return false; }
+// (espera a que no quede ninguna textura subiéndose —3 cuadros seguidos—, hasta max ms)
+function gfxTexListas(max) {
+  const t0 = performance.now();
+  return new Promise((ok) => { let n = 0; const f = () => { n = gfxTexSubiendo() ? 0 : n + 1; if (n >= 3 || performance.now() - t0 > max) ok(); else requestAnimationFrame(f); }; requestAnimationFrame(f); });
 }
 // (los tirones sueltos —el recolector de basura, una textura que sube, otra app— no cuentan: se sacan los cuadros que tardan
 // más del triple de la mediana; lo que queda es lo que la calidad sostiene. A 50 cuadros en una pantalla de 60 Hz los
@@ -58,10 +66,18 @@ async function gfxMedir(C) {
   try {
     if (C && C.set) { C.set(0.9, 'graficos'); }
     const prev = PREFS.gfxMedido, inicio = prev && PERF_ORDEN.includes(prev.base) && prev.gpu === gfxClave() ? prev.base : GFX.base || 'medio';
-    const r = await gfxBuscar(inicio, window.__gfxMedirFalso || gfxMedirUna, () => performance.now() - t0 > GFXA.tope);
+    // (cada textura se sube con el tope de tamaño de la calidad que estaba puesta cuando se vio por primera vez: la estimada
+    // o alguna de las medidas. Se anotan los topes que hubo, y si alguno no es el de la elegida se rearman con el suyo,
+    // todavía detrás de la carga: si no, una Alto elegida desde Medio quedaba con texturas de 256 y una Medio elegida
+    // desde Alto, con las enteras —más memoria de la que esa calidad se permite—)
+    const topes = new Set([GFX.texMax]), medir0 = window.__gfxMedirFalso || gfxMedirUna;
+    const r = await gfxBuscar(inicio, async (q) => { const f = await medir0(q); topes.add(GFX.texMax); return f; }, () => performance.now() - t0 > GFXA.tope);
+    const msBusca = Math.round(performance.now() - t0);
     GFX.base = r.elegida; aplicarGfx();
+    const texRearmar = [...topes].some((t) => t !== GFX.texMax), t1 = performance.now();
+    if (texRearmar && typeof texturasRecargar === 'function') { texturasRecargar(); await gfxTexListas(2000); }
     PREFS.gfxMedido = { base: r.elegida, fps: r.med, gpu: gfxClave(), t: Date.now() }; guardarPrefs();
-    GFXA.res = Object.assign({ ms: Math.round(performance.now() - t0), inicio, tirones: GFXA.tirones }, r); GFXA.medido = true;
+    GFXA.res = Object.assign({ ms: msBusca, texRearmar, msTex: Math.round(performance.now() - t1), inicio, tirones: GFXA.tirones }, r); GFXA.medido = true;
     if (C && C.log) C.log('graficos', r.elegida[0].toUpperCase() + r.elegida.slice(1) + ' · ' + Math.round(r.med[r.elegida] || 0) + ' fps');
     return GFXA.res;
   } catch (e) { console.error(e); return null; }

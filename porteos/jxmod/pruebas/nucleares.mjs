@@ -44,7 +44,10 @@ const ex = await ev(`(async () => {
 await p.screenshot({ path: D + 'nk_onda.png' });
 const dentro = ex.vel.filter((x) => x[0] < 2.3), afuera = ex.vel.filter((x) => x[0] > 2.3);
 ok('explota y la bomba desaparece; avisa a la sala', ex.bombaSeFue && ex.red === 1, ex);
-ok('la onda empuja todo lo que está dentro de su alcance (2,3 radios; más fuerte cerca: ≥ 5 m/s en la mitad de adentro, ≥ 1 m/s hasta el borde) y nada de afuera; llega de a poco (lo de más lejos, después)', dentro.every((x) => x[1] >= (x[0] < 1.15 ? 5 : 1)) && dentro.every((x, i) => i === 0 || x[1] < dentro[i - 1][1]) && afuera.every((x) => x[1] < 1) && dentro[1][2] > dentro[0][2], ex.vel);
+// (desde el viento de la 3.0, lo liviano de afuera del daño también se mueve —hasta 3 veces el alcance—, menos que lo de
+// adentro: el empujón baja siempre con la distancia, sin salto en el borde del daño; lo de más lejos llega después)
+const llegan = ex.vel.filter((x) => x[2] >= 0).map((x) => x[2]);
+ok('la onda empuja todo lo que está dentro de su alcance (2,3 radios; más fuerte cerca: ≥ 5 m/s en la mitad de adentro, ≥ 1 m/s hasta el borde) y el viento lo liviano de afuera, menos; todo baja con la distancia (sin salto en el borde) y llega de a poco (lo de más lejos, después)', dentro.every((x) => x[1] >= (x[0] < 1.15 ? 5 : 1)) && ex.vel.every((x, i) => i === 0 || x[1] < ex.vel[i - 1][1]) && afuera.every((x) => x[1] > 0.5) && llegan.length >= 4 && llegan.every((t, i) => i === 0 || t > llegan[i - 1]), ex.vel);
 const est = ex.son.find((x) => !/rumble|despues|sirena/.test(x[0]));
 ok('el estruendo suena con la demora del sonido (distancia / 340 m/s ± 0,25 s)', est && Math.abs(est[1] - ex.dCam / 340) <= 0.25, { est, esperado: +(ex.dCam / 340).toFixed(2) });
 // en la bola de fuego: muerte; a 1,5 radios: lastima; a 3 radios: nada
@@ -76,13 +79,13 @@ ok('la del espacio explota bien arriba (≥ 250 m) y no lastima en el piso; la s
 // la que llega de la sala
 const red = await ev(`(async () => { const n0 = NUK.vivas.length, f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), c = vadd(JUG.pos, vscale(f, 600)); nukeRed({ k: 'nk', i: 'otro', n: 'NK_ivymike', p: [c.x, c.y, c.z] }); return { nuevas: NUK.vivas.length - n0 }; })()`);
 ok('la que llega de la sala se ve acá', red.nuevas === 1, red);
-// el costo del dibujo con una de megatones (y la foto de lejos), con los carteles: en Bajo (en Medio, Alto y Ultra va con
-// volumen —nuclear_vol.js—, que se mide en nuclear_vol.mjs)
-await ev(`(() => { PREFS.gfx = 'bajo'; aplicarGfx(); NUK.vivas.length = 0; const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)); window.__E = nukeExplotar(vadd(JUG.pos, vscale(f, 900)), 'NK_bravo', false); NUK.flash = 0; JUG.pitch = -0.35; return 1; })()`);
+// el costo del dibujo con una de megatones (y la foto de lejos), con los carteles: en Patata (desde la 3.0 Bajo, Medio, Alto
+// y Ultra van con volumen —nuclear_vol.js—, que se mide en nuclear_vol.mjs)
+await ev(`(() => { PREFS.gfx = 'patata'; aplicarGfx(); NUK.vivas.length = 0; const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)); window.__E = nukeExplotar(vadd(JUG.pos, vscale(f, 900)), 'NK_bravo', false); NUK.flash = 0; JUG.pitch = -0.35; return 1; })()`);
 await p.waitForTimeout(9000);
 await p.screenshot({ path: D + 'nk_bravo.png' });
 const costo = await ev(`(() => { const t0 = performance.now(); for (let i = 0; i < 100; i++) nukeDibujar(); return +((performance.now() - t0) / 100).toFixed(3); })()`);
-ok('el dibujo de una de megatones con carteles (en Bajo) cuesta < 1,5 ms por cuadro', costo > 0 && costo < 1.5, costo);
+ok('el dibujo de una de megatones con carteles (en Patata) cuesta < 1,5 ms por cuadro', costo > 0 && costo < 1.5, costo);
 ok('sin errores', err.filter((e) => !/WebSocket|ERR_CONNECTION|net::|404/.test(e)).length === 0, err.filter((e) => !/WebSocket|ERR_CONNECTION|net::|404/.test(e)).slice(0, 4));
 console.log(R.every(Boolean) ? 'TODO BIEN' : 'HAY FALLAS', R.filter(Boolean).length + '/' + R.length);
 await b.close();
