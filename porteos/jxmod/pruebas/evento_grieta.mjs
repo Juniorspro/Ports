@@ -161,6 +161,10 @@ const ids = { A: await J(A, `RED.ID`), B: await J(B, `RED.ID`) };
 const [L, F] = ids.A < ids.B ? [A, B] : [B, A];
 const quien = { reparte: ids.A < ids.B ? 'Ana' : 'Beto', A: await J(A, `evtReparto()`), B: await J(B, `evtReparto()`) };
 const objsF0 = await J(F, `OBJS.filter((o) => !o.remoto).length`);
+// (que no explote ninguna, en los dos desde que llegan: antes se le cambiaba al otro después de recibirla, y con la
+// máquina cargada su copia a veces pegaba antes (la primera cae a los 4,1 s) y explotaba sólo en su juego, rompiendo
+// las de verdad que ya habían llegado; en el juego los dos reciben lo mismo)
+for (const P of [L, F]) await ev(P, `(() => { if (!window.__evtR0) { window.__evtR0 = evtRecibir; evtRecibir = (l, mia) => { for (const x of l) x[9] = 0; return window.__evtR0(l, mia); }; } return 1; })()`);
 const lan7 = await J(L, `(() => { const n = eventoForzar(4); for (const c of EVT.cola) c.ex = 0; return { n, l: EVT.cola.map((c) => [c.nombre, c.suelo.x, c.suelo.y, c.suelo.z]) }; })()`);
 const llego = await hasta(F, `EVT.cola.length === ${lan7.n}`, 6);
 const colaF = await J(F, `EVT.cola.map((c) => [c.nombre, c.suelo.x, c.suelo.y, c.suelo.z, c.ex])`);
@@ -169,13 +173,19 @@ const igual = lan7.l.every((x, i) => colaF[i] && colaF[i][0] === x[0] && Math.hy
 await ev(F, `(() => { for (const c of EVT.cola) c.ex = 0; return 1; })()`);
 await juego(F, 4.5); await hasta(F, `EVT.cola.length === 0`, 15); await juego(F, 2);
 await foto(F, 'red_otro');
+// (si el juego del que reparte va atrasado —un celular lento, o esta compu cargada—, a él todavía le pueden estar cayendo:
+// se espera a que peguen todas en su juego y a que al otro le lleguen por la red)
+await hasta(L, `EVT.cola.every((c) => c.estado >= 2) && EVT.vivos.filter((o) => !o.borrado).length >= ${lan7.n}`, 40);
 // (las de verdad del que repartió, por su clave en la red, y dónde quedaron respecto de dónde cayeron: ruedan o se deslizan)
 const realesL = await J(L, `EVT.vivos.filter((o) => !o.borrado).map((o) => [RED.ID + ':' + o.id, o.nombre])`);
+await hasta(F, `${JSON.stringify(realesL)}.every(([k]) => RED.objs.get(k) && !RED.objs.get(k).borrado)`, 15);
 const enF = await J(F, `(() => { const K = ${JSON.stringify(realesL)}, L = ${JSON.stringify(lan7.l)}; return { reales: K.length, llegaron: K.map(([k, n]) => !!(RED.objs.get(k) && RED.objs.get(k).nombre === n && !RED.objs.get(k).borrado)),
   corrieron: K.map(([k]) => { const o = RED.objs.get(k), x = o && L.find((y) => y[0] === o.nombre); return o && x ? +Math.hypot(o.b.pos.x - x[1], o.b.pos.z - x[3]).toFixed(1) : null; }), visuales: EVT.cola.filter((c) => c.vis).length, propios: OBJS.filter((o) => !o.remoto).length }; })()`);
 // (el que no reparte, aunque le toque, no lanza)
 await ev(F, `EVT.prox = TIEMPO.t; 1`); await juego(F, 1);
-const propiaF = await J(F, `EVT.cola.length`), recibioL = await J(L, `EVT.cola.length`);
+// (y al que reparte no le llega nada: se cuentan sólo las que recibió por la red; las suyas pueden seguir ardiendo en el
+// piso si su juego va atrasado, como pasaba con la máquina cargada: «recibioL» 4 con las 4 suyas todavía en la cola)
+const propiaF = await J(F, `EVT.cola.length`), recibioL = await J(L, `EVT.cola.filter((c) => !c.mia).length`);
 ok('7. en la red: reparte el de ID más chico; al otro le llegan las mismas (±2 cm), ve las de verdad y nada repetido; el otro no lanza',
   quien[ids.A < ids.B ? 'A' : 'B'] === true && quien[ids.A < ids.B ? 'B' : 'A'] === false && lan7.n >= 3 && llego && igual && enF.reales === lan7.n && enF.llegaron.every(Boolean) && enF.visuales === 0 && enF.propios === objsF0 && propiaF === 0 && recibioL === 0,
   { quien, lan7: lan7.n, llego, igual, enF, objsF0, propiaF, recibioL });

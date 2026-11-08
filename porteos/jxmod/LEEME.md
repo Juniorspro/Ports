@@ -1899,6 +1899,19 @@ mejoralo, optimizá y sobre todo nuevas capturas de fondo para los menús», má
   textura. **«Los objetos se ponen naranjas»**: el brillo del sol de Source se pasaba elevado a 2,2 (un sol de 1,6 daba
   2,8 veces: props quemados y naranjas) y la tarde se calculaba con la altura del sol del mapa (los de sol bajo
   quedaban naranjas a las 12); ahora el brillo va lineal y la fase del día sale de la hora. `cielo_gmod` 5/5.
+- **«No puedo instalar ningún mod» (Failed to fetch · DrGBase, los nextbots 3D) y «le doy a jugar y no me deja»**: la
+  tienda estaba en su tope del día (429, «error code: 1027», sin permiso de otro sitio: el navegador lo ve como «sin
+  red») y los addons sin archivo directo no se podían bajar. Ahora la app hace lo de la tienda por su cuenta
+  (`SteamPipe.java`: entra anónima al WebSocket de Steam, como un servidor dedicado) y le pide a Steam la clave, los
+  detalles y el contenido base; los pedazos prueban 5 servidores del CDN antes que la tienda. En la web, un aviso que
+  se entiende en vez de «Failed to fetch»; Jugar entra en menos de 40 s aunque la tienda no conteste.
+  `PruebaSteamPipe` 39/39 contra Steam, `mods_sin_tienda` 8/8, `tienda_caida` 7/7.
+- **La AK-47 fuera de lugar y «las manos se me elevaron»**: en el celular, soltar la palanca corriendo (el dedo al tope)
+  dejaba el correr prendido para siempre; el Lua veía Shift apretado y las armas de M9K quedaban «corriendo», y como
+  su Think corre sólo del lado del servidor, la vista se dibujaba con la mira puesta (la AK) o con la guardia arriba
+  (los puños). Ahora soltar la palanca deja de correr, la palanca al tope corre sin ser el «correr» de GMod, la vista
+  del arma lee lo que dejó su Think y las teclas del arma se miden contra su último Think (soltar algo con un menú
+  abierto ya no queda apretado). `armas_correr` 8/8 (M9K Assault Rifles y Specialties).
 - **Armas desde la cámara libre** (la bazuca disparaba desde la cámara): disparos, cohetes, flechas, la Physics Gun, la
   Gravity Gun, la palanca y la Tool Gun salen de los ojos o la mano del personaje y van adonde apunta él, también en
   tercera persona y mirando por la cámara de la Tool Gun (antes el cohete salía a 28 m, de la cámara; ahora a 0,3 m de
