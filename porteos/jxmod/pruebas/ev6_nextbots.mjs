@@ -90,7 +90,11 @@ for (const [id, nom] of SPR) {
   const quieto = `(() => { const x = window.__e; if (!(x instanceof LEnt) || !x.loco) return 0; const L = x.loco.st; L.v.set(0, 0, 0); L.vel0 = 0; L.acel = 0; GMA.metas.Entity.get('SetPos')(x, GMA.V(v3(0, ${PISO}, 10))); return 1; })()`;
   await ev(quieto); await p.waitForTimeout(250); await ev(quieto); await p.waitForTimeout(250);
   const e = await ev(`(() => { const x = window.__e; if (!(x instanceof LEnt)) return { tipo: x ? 'npc del juego (' + (x.skin || '?') + ')' : null }; const q = gmaEntPos(x); return { tipo: 'nextbot', clase: x.clase, getClass: x.claseNom || x.clase, nb: !!x.nb, y: +q.y.toFixed(3), z: +q.z.toFixed(2) }; })()`);
-  const q = await ev(`(() => { const x = window.__e; if (!(x instanceof LEnt)) return null; const P = gmaEntPos(x), out = [];
+  // (desde que salen mirando al jugador —nextbots_ia— el de Cartman lo ve y corre enseguida: entre que se lo deja quieto y
+  // que se lee lo dibujado en el último cuadro puede haberse movido metros. Se vuelve a dejar quieto y se mide hasta 12
+  // veces, cada 150 ms, y vale la primera vez que su cuadro está donde está él)
+  let q = null;
+  for (let k = 0; k < 12 && !(q && q.length); k++) { await ev(quieto); await p.waitForTimeout(150); q = await ev(`(() => { const x = window.__e; if (!(x instanceof LEnt)) return null; const P = gmaEntPos(x), out = [];
     for (const t of GR.L.mundo) { if (!t.n || t.n !== 6) continue; const V = []; for (const k of [0, 1, 2, 5]) { const o = (t.o + k) * 9; V.push([GR.vb[o], GR.vb[o + 1], GR.vb[o + 2], GR.vb[o + 7], GR.vb[o + 8]]); }   // (las cuatro esquinas: son dos triángulos, 0 1 2 y 0 2 3)
       const cx = V.reduce((s, v) => s + v[0], 0) / 4, cz = V.reduce((s, v) => s + v[2], 0) / 4; if (Math.hypot(cx - P.x, cz - P.z) > 2) continue;
       const m = t.m; let tx = 'sin'; try { const T = m && m.tex && m.tex(); tx = !T ? 'sin' : 'real'; for (const k in GR.tex) if (GR.tex[k] === T) tx = 'reemplazo:' + k; } catch (e) { tx = 'err'; }
@@ -99,7 +103,7 @@ for (const [id, nom] of SPR) {
       const up = [arr[0] - aba[0], arr[1] - aba[1], arr[2] - aba[2]], alto = Math.hypot(...up), ancho = Math.hypot(der[0] - izq[0], der[1] - izq[1], der[2] - izq[2]);
       const bajo = Math.min(...V.map((v) => v[1]));
       out.push({ tx, alto: +alto.toFixed(3), ancho: +ancho.toFixed(3), ang: +(Math.acos(Math.max(-1, Math.min(1, up[1] / Math.max(1e-6, alto)))) * 180 / Math.PI).toFixed(1), pie: +(bajo - P.y).toFixed(3) }); }
-    return out; })()`);
+    return out; })()`); }
   await p.screenshot({ path: `${D}/ev6_B1_sprite_${nom}.png` });
   B1.push({ id, nom, c, e, quads: q });
 }
