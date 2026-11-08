@@ -1877,6 +1877,65 @@ SWEP, borrar varios mods, el celular en la mano, carteles de «moriste», pesta�
 - Sin probar en celulares ni en un iPhone de verdad: todo se probó en Chromium en la compu (con pantalla y toque de
   celular simulados), y la placa de video de prueba dibuja con el procesador.
 
+## JXMod 3.0 · evento: la grieta en el cielo, el cielo de GMod, fondos nuevos y lo del Discord
+
+Pedido: «esto es 3.0, un tipo de evento: que los mapas principales tengan la grieta y que de vez en cuando lluevan
+objetos del cielo, a veces uno o incluso 6; los descargados no, que usen la skybox de GMod, incluido gm_construct;
+mejoralo, optimizá y sobre todo nuevas capturas de fondo para los menús», más las capturas del Discord.
+
+- **La grieta y lo que cae** (`juego/evento.js`): en los mapas del juego (no en gm_construct ni gm_flatgrass, ni en los
+  del Workshop, ni en la pizzería, que es bajo techo) hay una grieta en el cielo, la del tráiler (efecto propio: la forma
+  de la fractura con semilla, las vetas horneadas una vez en la placa al entrar al mapa, 512 en los celulares y 1024 en
+  la compu). De vez en cuando caen cosas de ella prendidas fuego, con estela y humo: la primera a los 35–75 s de entrar
+  y después cada 100–260 s; casi siempre 1 o 2 (34 % y 24 %) y a veces hasta 6 (16, 11, 8 y 7 % para 3, 4, 5 y 6). Las
+  garrafas, los barriles explosivos, los bidones y a veces los autos explotan al pegar; los autos caen derechos y quedan
+  sobre las ruedas; no se juntan más de 12. En la sala decide el de ID más chico y les llega a todos la misma caída (las
+  cosas de verdad llegan por la red como cualquier objeto). Se apaga en Ajustes (Evento 3.0). Cuesta: de frente, 4,9 ms
+  contra 15,2 ms del cielo en Alto en esta compu sin placa de video (32 %); de espaldas no se dibuja.
+  `evento_grieta` 8/8.
+- **El cielo de GMod** (`mundo.js`, `gmod_bsp.js`, `gl.js`): gm_construct y gm_flatgrass con el cielo «painted» de GMod
+  (el celeste de siempre, medido de sus caras) en vez del nublado gris; los mapas del Workshop con su propio cielo y, si
+  no se puede traer (sin el contenido base), el de GMod. El cielo de caja ya no sale un 15 % más oscuro y gris que su
+  textura. **«Los objetos se ponen naranjas»**: el brillo del sol de Source se pasaba elevado a 2,2 (un sol de 1,6 daba
+  2,8 veces: props quemados y naranjas) y la tarde se calculaba con la altura del sol del mapa (los de sol bajo
+  quedaban naranjas a las 12); ahora el brillo va lineal y la fase del día sale de la hora. `cielo_gmod` 5/5.
+- **Armas desde la cámara libre** (la bazuca disparaba desde la cámara): disparos, cohetes, flechas, la Physics Gun, la
+  Gravity Gun, la palanca y la Tool Gun salen de los ojos o la mano del personaje y van adonde apunta él, también en
+  tercera persona y mirando por la cámara de la Tool Gun (antes el cohete salía a 28 m, de la cámara; ahora a 0,3 m de
+  la mano y explota a 0,0 m de donde apunta). En primera persona, igual que antes.
+- **La linterna que atravesaba las cosas**: en Bajo y Patata (sin mapa de sombra) la luz sale de los ojos, así lo que se
+  ve detrás de una columna ya no queda iluminado (0 puntos en gm_construct y gm_hotel); Medio, Alto y Ultra ya la
+  tapaban. En Alto y Ultra queda un resplandor del bloom de la mancha casi blanca (no es luz que pasa).
+- **Physics Gun**: las partes celestes brillan como en GMod (el `$selfillum` del arma con su color), también en la de
+  tercera persona: en lo oscuro, brillo 167–174 y tono 181° (antes, 7–14: negras).
+- **Nextbots**: los de DrGBase caminan a la velocidad de su animación (la hormiga león a 355 pulgadas/s, como en GMod);
+  Cartman y Kenny (sprites y 3D) salen con su tamaño, parados y en el piso, también como NPC y muñeco de trapo.
+- **Pack de armas de Team Fortress 2**: la minigun arranca, dispara en bucle con su sonido y frena; la escopeta recarga
+  por partes; la mira del sniper ya no es un cuadro blanco; el agarre en tercera persona (mango en la mano a 6 cm). Los
+  guiones de sonido de GMod (`gmod_sonidos.js`, de `herramientas/gmod_guiones.py`).
+- **Celulares de los jugadores** (S20 FE, POCO X6 Pro, TCL NXTPAPER 70 Pro, Honor Magic6 Lite, Tecno Spark Go, Moto
+  g13/g20, Galaxy A05/A15…): 343 modelos, 20 marcas, 64 chips, con su perfil automático. `celulares` 9/9.
+- **Fotos de fondo nuevas** (el pedido principal): las 6 del menú principal y las de la pantalla de carga, sacadas del
+  juego mismo en Ultra con `herramientas/fondos/` (ver su LEEME): la grieta y cosas que salen de ella prendidas fuego
+  cruzando el cielo, explosiones, cosas ardiendo en el piso, gente que corre y alguien que se queda mirando la grieta;
+  en gm_construct y gm_flatgrass, el cielo celeste de GMod y sin grieta. El menú: Pasto plano, la Ciudad, la Isla, el
+  Desierto RB, la City de noche y el Desierto. La pantalla de carga pasa de 9 a 13 fotos: ahora cada mapa del juego
+  tiene la suya (la Ciudad, la Isla, el Desierto RB, la Llanura, las Colinas y la Luna no tenían), dos en primera
+  persona con la Physics Gun (Pasto plano y gm_construct); la de la pizzería queda la de antes. Lo importante va donde no
+  lo tapa el menú (los dos tercios de la derecha, y entre el 12 y el 88 % del alto, que en los celulares se recorta) ni
+  la pantalla de carga (el consejo arriba a la derecha y la consola abajo): `herramientas/fondos/medir.py` lo mide en
+  las 18 (dónde quedó la grieta, cuántas cosas vuelan y cuántas ya pegaron). En el HTML van en WebP: 300 KB las del
+  menú y 661 KB las de carga (0,33 MB más que antes, por las 4 de carga nuevas). `fondos_30` 6/6.
+- **La foto de la pantalla de carga en el celular**: en una pantalla de 20:9 la foto pierde un quinto de su alto, y
+  centrada, con el zoom lento hasta 1,1 y subiendo, la grieta quedaba cortada arriba (con la grieta al 20 % de la foto,
+  su centro quedaba al 8–12 % de la pantalla; en la Isla, al 2–7 %: cortada a la mitad). Ahora se encuadra al 35 % del
+  alto, con zoom hasta 1,06 y sin subir: 14–16 % (en la Isla, 9–11 %), con los rayos enteros. Lo del piso baja 4 puntos
+  (del 82 al 86 % del alto), dentro de la franja que la pantalla de carga ya oscurece para la consola. En la compu
+  (16:9) la foto no se recorta y se ve igual.
+- **La pantalla de carga** decía «v1.0» y «JXMod 1.0»: ahora sale la versión del juego (la de `nucleo.js`, la misma del
+  menú). Al entrar a un mapa del juego mostraba «map: rb_rb_ciudad»; ahora «map: rb_ciudad», «map: gm_construct» y, en
+  los del Workshop, el nombre de su BSP.
+
 ## Tráiler de la 3.0 (40 s, 4:3 en FHD), v2
 
 Pedido: un tráiler con la canción del video de 41 s, con suspenso, sin interfaz, el logo recortado al principio y

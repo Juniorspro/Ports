@@ -781,10 +781,11 @@ body.conPant{background:transparent}
 .dLogo img{height:1em;width:auto;max-width:88vw;object-fit:contain;object-position:left;display:block;filter:drop-shadow(0 .03em .06em rgba(0,0,0,.35))}
 #carga{position:fixed;inset:0;z-index:11;overflow:hidden;color:#fff;font:14px Roboto,Arial,sans-serif;background:#07080c;transition:opacity .5s}
 #carga.salir{opacity:0;pointer-events:none}
-/* fondo: capturas del juego que pasan despacio (como los fondos de un server mientras entrás) */
-#carga .cgFondo{position:absolute;inset:0;background:#07080c center/cover no-repeat;opacity:0;transition:opacity 1.4s ease}
+/* fondo: capturas del juego que pasan despacio (como los fondos de un server mientras entrás); al 35 % de alto y con poco
+   zoom: en un celular de 20:9 la foto pierde 1/5 de su alto, y centrada (zoom 1,1 y subiendo) la grieta quedaba cortada arriba */
+#carga .cgFondo{position:absolute;inset:0;background:#07080c 50% 35%/cover no-repeat;opacity:0;transition:opacity 1.4s ease}
 #carga .cgFondo.ve{opacity:1}#carga .cgFondo.kb{animation:cgKen 9s linear both}
-@keyframes cgKen{from{transform:scale(1.02) translate(0,0)}to{transform:scale(1.1) translate(-1.5%,-1%)}}
+@keyframes cgKen{from{transform:scale(1.02) translate(0,0)}to{transform:scale(1.06) translate(-1.5%,0)}}
 #carga .cgSombra{position:absolute;inset:0;background:linear-gradient(180deg,rgba(4,6,12,.72) 0%,rgba(4,6,12,.12) 26%,rgba(4,6,12,0) 45%,rgba(4,6,12,.55) 68%,rgba(4,6,12,.94) 100%),radial-gradient(130% 100% at 50% 45%,transparent 55%,rgba(0,0,0,.55) 100%)}
 #carga .cgArriba{position:absolute;left:clamp(16px,calc(var(--vw,1vw)*3),40px);top:clamp(14px,calc(var(--vh,1vh)*3),34px);right:clamp(16px,calc(var(--vw,1vw)*3),40px);display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
 #carga .dLogo{font-size:clamp(44px,12vmin,104px);animation:cgEntra .8s cubic-bezier(.2,.9,.25,1.1) both}
@@ -1147,7 +1148,7 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
 <div id="emotes" class="panel oc"><div class="caja emoCaja"><div class="emoCab"><h3>Emotes</h3><div class="emoTabs"></div></div><div class="emoGrid" id="emoLista"></div><div class="emoPie"><button class="boton" id="bEmoCrear"></button><button class="boton gris" id="bEmoCerrar">Cerrar</button></div></div></div>
 <input id="chatIn" class="oc" maxlength="120">
 <div id="carga"><div class="cgFondo"></div><div class="cgFondo"></div><div class="cgSombra"></div>
-  <div class="cgArriba"><div><div class="dLogo"><img src="data:image/webp;base64,/*LOGODR*/" alt="JXMod" draggable="false"></div><div class="cgModo"><span>Sandbox</span><span id="cargaVer">v1.0</span></div><div class="cgTit" id="cargaTit"></div></div>
+  <div class="cgArriba"><div><div class="dLogo"><img src="data:image/webp;base64,/*LOGODR*/" alt="JXMod" draggable="false"></div><div class="cgModo"><span>Sandbox</span><span id="cargaVer">v/*VERSION*/</span></div><div class="cgTit" id="cargaTit"></div></div>
     <div class="cgTipC"><small id="cargaTipT"></small><p class="cgTip" id="cargaTip"></p></div></div>
   <div class="cgCons" id="cargaCons"></div>
   <div class="cgAbajo"><div class="cgFila"><div class="cgEst"><i class="cgGira"></i><span id="cargaPaso"></span><bdi id="cargaMB"></bdi></div><b class="cgPct" id="cargaPct">0%</b></div>
@@ -1217,7 +1218,7 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
     linea(seg() + esc(nom(k)) + (det ? ' <em>' + esc(det) + '</em>' : ''));
   };
   W.set = function (p, paso) { if (p > W.p) W.p = Math.min(1, p); if (paso) W.paso = paso; W.t = Date.now(); if (W.ayuda && !W.fallo) ocultar(); pintar(); };
-  linea(seg() + 'JXMod 1.0 <em>' + innerWidth + '×' + innerHeight + (navigator.deviceMemory ? ' · ' + navigator.deviceMemory + ' GB' : '') + (navigator.hardwareConcurrency ? ' · ' + navigator.hardwareConcurrency + ' CPU' : '') + '</em>');
+  linea(seg() + 'JXMod /*VERSION*/ <em>' + innerWidth + '×' + innerHeight + (navigator.deviceMemory ? ' · ' + navigator.deviceMemory + ' GB' : '') + (navigator.hardwareConcurrency ? ' · ' + navigator.hardwareConcurrency + ' CPU' : '') + '</em>');
   // el fondo: capturas del juego que se van fundiendo, con el nombre del mapa abajo
   var FON = [/*FONDOSCARGA*/], capas = document.querySelectorAll('#carga .cgFondo'), iF = Math.floor(Math.random() * (FON.length || 1)), cF = 0;
   function fondo(ya) {

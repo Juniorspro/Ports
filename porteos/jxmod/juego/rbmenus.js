@@ -149,12 +149,17 @@ function rbArrastre() {
 // ---------------- entrar a una partida con la pantalla de carga (como al entrar a un server) ----------------
 // el nombre del server y la captura de su mapa; "Recuperando la info del server", "Cargando el mapa" (lo pesado, con
 // la pantalla ya dibujada) y, en un server, "Enviando la info del cliente" hasta que conecta (o 4 s como mucho)
-const FONDO_MAPA = { FlatGrass: 'rb_flatgrass', City: 'rb_city', Desert: 'rb_desert', DesertV2: 'rb_desert', Mars: 'rb_mars', RB_Pizzeria: 'rb_pizzeria', RB_Construct: 'rb_construct', RB_Flatgrass: 'rb_gmflatgrass' };
+// (la foto de la pantalla de carga de cada mapa: PAQUETE/carga/N_<nombre>.jpg, sacadas con herramientas/fondos/)
+const FONDO_MAPA = { FlatGrass: 'rb_flatgrass', City: 'rb_city', Desert: 'rb_desert', DesertV2: 'rb_desert', Mars: 'rb_mars', RB_Pizzeria: 'rb_pizzeria', RB_Construct: 'rb_construct', RB_Flatgrass: 'rb_gmflatgrass',
+  RB_Ciudad: 'rb_ciudad', RB_Isla: 'rb_isla', RB_Desierto: 'rb_desierto', RB_Llanura: 'rb_llanura', RB_Colinas: 'rb_colinas', RB_Luna: 'rb_luna' };
+// el nombre de archivo del mapa que muestra la pantalla de carga («map: gm_construct», como en GMod): los de GMod con su
+// nombre de verdad, los del Workshop con el de su BSP y los del juego con rb_ (antes los RB_ salían «rb_rb_ciudad»)
+const mapaArchivoNom = (m) => { m = String(m || ''); if (MAPAS_GMOD.includes(m)) return 'gm_' + m.slice(3).toLowerCase(); if (/^WS_/.test(m)) return m.slice(3); return 'rb_' + m.toLowerCase().replace(/^rb_/, ''); };
 const cuadroLibre = () => new Promise((ok) => requestAnimationFrame(() => setTimeout(ok, 0)));
 async function entrarConCarga(titulo, mapa, jugar, red) {
   const C = window.__carga;
   if ((TEST && !window.__cargaPrueba) || !C || !C.abrir) { jugar(); return; }
-  C.abrir(titulo, FONDO_MAPA[mapa] || '', 'rb_' + String(mapa).toLowerCase());
+  C.abrir(titulo, FONDO_MAPA[mapa] || '', mapaArchivoNom(mapa));
   if (red) { C.set(0.15, T('ld.info')); await cuadroLibre(); C.log(T('ld.info'), titulo); }
   // (lo que viene en paquetes aparte: el mapa, el personaje; la primera vez se baja, después sale de la caché)
   const falta = rbParaPartida(mapa, JUG.skinRol || JUG.skinMod || PREFS.skin);
