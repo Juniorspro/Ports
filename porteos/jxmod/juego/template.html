@@ -831,6 +831,18 @@ body.conPant{background:transparent}
 .etiqueta.monitor{padding:4px 8px;border-radius:2px;font-size:13px;max-width:180px;white-space:normal;text-align:center}
 .etiqueta{position:absolute;left:0;top:0;font-size:12px;font-weight:bold;text-shadow:0 1px 3px #000;white-space:nowrap;pointer-events:none;will-change:transform}
 #redEst{position:absolute;left:10px;top:66px;font-size:10px;opacity:.8;text-shadow:0 1px 2px #000}
+/* quién habla (voz.js): panel en su propia capa; las fichas entran con una animación y se van con un fundido */
+#vozHud{position:absolute;display:flex;gap:6px;pointer-events:none;z-index:3;will-change:transform;contain:layout style}
+#vozHud.fila{flex-direction:row;justify-content:center;flex-wrap:nowrap;overflow:hidden;padding:2px 0}#vozHud.col{flex-direction:column;align-items:flex-end}
+.vozF{display:flex;align-items:center;gap:6px;max-width:150px;min-width:0;padding:3px 10px 3px 3px;border-radius:999px;background:rgba(14,18,26,.66);border:1px solid rgba(255,255,255,.14);color:#fff;font:700 12px/1.15 Roboto,Arial,sans-serif;box-sizing:border-box;animation:vozEntra .12s ease-out;transition:opacity .35s ease-in}
+.vozF.sale{opacity:0}.vozF b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;text-shadow:0 1px 2px rgba(0,0,0,.6)}.vozF .gli{flex:none;width:13px;height:13px;color:#7ee2a0}
+.vozAv{position:relative;flex:none;width:24px;height:24px;border-radius:50%;background:#3a3f4b;box-shadow:0 0 0 2px rgba(255,255,255,.18)}.vozAv img{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
+.vozAv.ini{display:flex;align-items:center;justify-content:center;font:800 10px/1 Roboto,Arial,sans-serif;letter-spacing:.2px}
+.vozAv::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:2px solid #3ba55d;opacity:0;transition:opacity .15s}.vozF.hab .vozAv::after{opacity:1;animation:vozLate .9s ease-in-out infinite}
+.vozMas{padding:3px 9px;font-size:11px}#vozHud.compacto .vozF{padding:3px}#vozHud.compacto .vozF b,#vozHud.compacto .vozF .gli{display:none}
+@keyframes vozEntra{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}@keyframes vozLate{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.13);opacity:.5}}
+body.tactil #vozHud .vozF{font-size:11px}body.tactil #vozHud .vozAv{width:22px;height:22px}
+
 body.tactil #redEst{left:50%;top:4px;transform:translateX(-50%);white-space:nowrap}
 #chat{position:absolute;left:10px;bottom:26px;width:min(360px,calc(var(--vw)*70));font-size:12px;text-shadow:0 1px 2px #000}
 #chat div{margin:1px 0}

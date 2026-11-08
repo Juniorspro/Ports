@@ -120,6 +120,7 @@ function hudDisponer() {
     if (tactil && ax === 0 && ay === 1 && cy < H * 0.45) sumar(cx - t / 2, cy - t / 2, cx + t / 2, cy + t / 2 + 14);   // (en la compu los táctiles no se ven: no ocupan lugar)
   }
   HUD.resIz = ri.x1 > ri.x0 ? ri : null;
+  if (typeof vozHudUbicar === 'function') vozHudUbicar();   // (el panel de quién habla, en el hueco que queda: voz.js)
   // (la placa detrás de las teclas de los mods: se ven como un grupo aparte del sistema; con su nombre abajo)
   let pl = $('hudHab'); if (!pl && hab.length) { pl = document.createElement('div'); pl.id = 'hudHab'; const tc = $('tactil'); if (tc) tc.insertBefore(pl, tc.firstChild); }
   if (pl) { if (!hab.length) pl.style.display = 'none'; else { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const [cx, cy, t] of hab) { x0 = Math.min(x0, cx - t / 2); x1 = Math.max(x1, cx + t / 2); y0 = Math.min(y0, cy - t / 2); y1 = Math.max(y1, cy + t / 2 + t * 0.42); } const m = 6 * Math.max(0.6, k / 0.559); Object.assign(pl.style, { display: '', left: (x0 - m).toFixed(1) + 'px', top: (y0 - m).toFixed(1) + 'px', width: (x1 - x0 + 2 * m).toFixed(1) + 'px', height: (y1 - y0 + 2 * m).toFixed(1) + 'px' }); } }

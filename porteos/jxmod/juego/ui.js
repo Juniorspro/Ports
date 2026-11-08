@@ -275,6 +275,7 @@ function abrirAjustes(desde) {
     ${fila('Volumen', rango('aV', 0, 100, 5))}
     ${ENT.tactil || COARSE ? fila(esc(T('aj.hud')), rango('aH', 60, 120, 5, 'aHv')) : ''}
     ${sw('aEmoR', esc(T('aj.emoRuleta')))}
+    ${sw('aVozH', esc(T('aj.vozHud')))}
     <button class="ajBtn gris" id="aCtl">${esc(T('ctl.titulo'))}</button> <button class="ajBtn gris" id="aTut">${esc(tutTx(TUT_B.ver))}</button> <button class="ajBtn gris" id="aReg">${esc(Lc('Error log', 'Registro de fallas'))}</button></section>
   ${typeof icappSeccion === 'function' ? `<section data-ajs="l" class="oc">${icappSeccion()}${typeof milogoSeccion === 'function' ? `<div class="icDiv"></div>${milogoSeccion()}` : ''}</section>` : ''}
   </div></div>
@@ -287,6 +288,7 @@ function abrirAjustes(desde) {
   $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI; $('aDin').checked = PREFS.resDin !== false;
   if ($('aH')) $('aH').value = PREFS.hud || 80;
   $('aEmoR').checked = PREFS.emoRuleta !== false;
+  $('aVozH').checked = PREFS.vozHud !== false;
   $('aEv').checked = PREFS.evento !== false;
   const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; if ($('aH')) $('aHv').textContent = $('aH').value + '%'; };
   act();
@@ -305,6 +307,7 @@ function abrirAjustes(desde) {
     PREFS.sombras = $('aSo').value; PREFS.post = $('aPo').value; PREFS.texQ = $('aTq').value; PREFS.contorno = $('aC').checked; PREFS.ocultarUI = $('aU').checked; PREFS.resDin = $('aDin').checked;
     if ($('aH')) PREFS.hud = +$('aH').value;
     PREFS.emoRuleta = $('aEmoR').checked;
+    PREFS.vozHud = $('aVozH').checked; if (typeof vozHudAjuste === 'function') vozHudAjuste();   // (quién habla: voz.js)
     PREFS.evento = $('aEv').checked;
     const motorNuevo = $('aM').value; PREFS.motor = motorNuevo;
     guardarPrefs();
