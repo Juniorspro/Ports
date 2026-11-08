@@ -955,11 +955,15 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE JXMod.html
   Motorola, Realme, Tecno, Infinix, Oppo, Vivo, Honor, Nokia, ZTE, itel, Huawei, Lenovo, Alcatel...) con el código que
   manda el navegador (verificado contra la lista de aparatos de Google Play), su chip y la RAM; y 60 chips con un
   puntaje de su GPU (GFXBench Manhattan 3.0, mediana de Notebookcheck). La primera vez el juego lee el modelo (Client
-  Hints o el user agent; si no, la GPU que muestra WebGL) y elige la calidad: Patata por debajo de 19 puntos (PowerVR
-  GE8320 de los Helio G25/G35/P35), Bajo hasta 29 (Unisoc T606, Exynos 850), Medio hasta 59 (Helio G85, Snapdragon 680),
-  Alto desde 60 (Helio G99); con 2 GB no pasa de Bajo y con 1 GB es Patata. En Ajustes se ve el aparato detectado.
-  Prueba `pruebas/celulares.mjs` (7/7: los 717 códigos dan su equipo, modelos con sufijos y sin marca, el user agent,
-  la GPU sola, la memoria, y abrir el juego en un Tecno Spark 10C da Bajo).
+  Hints o el user agent; si no, la GPU que muestra WebGL) y elige la calidad: Patata por debajo de 25 puntos (PowerVR
+  GE8320 de los Helio G25/G35/P35, Unisoc T606, Exynos 850), Bajo hasta 47 (Helio G85, Snapdragon 680: Mali-G52 MC2 y
+  Adreno 610, sin sombras), Medio hasta 69 (Helio G99, Dimensity 6100+), Alto desde 70; con 2 GB no pasa de Bajo y con
+  1 GB es Patata. En Ajustes se ve el aparato detectado. (En la 3.0: 343 modelos de 20 marcas y 64 chips, con los que
+  mandaron los jugadores —Tecno Spark Go 2023 y Go 2, POCO X6 Pro, Moto g20 y g13, TCL NXTPAPER 70 Pro y K70, Galaxy S20
+  FE, A05 y A15, Honor Magic6 Lite—, y el modelo de los Motorola con paréntesis —«moto g(20)»— que antes se cortaba.)
+  Prueba `pruebas/celulares.mjs` (9/9: los 739 códigos dan su equipo, modelos con sufijos y sin marca, el user agent,
+  la GPU sola, la memoria, los celulares de los jugadores, un moto g(20) en la app, y abrir el juego en un Tecno Spark
+  10C da Patata).
 - **Niveles de detalle para los modelos de los addons** (`gmLodGen` en `juego/gmod.js`): de 755 modelos medidos sólo 72
   traen los suyos, y los personajes más pesados (20-31 mil triángulos) ninguno. Al cargar una malla de más de 1200
   triángulos se arman hasta tres niveles (la mitad, un quinto y un catorceavo) juntando vértices por celdas de una
