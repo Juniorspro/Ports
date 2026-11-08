@@ -2003,13 +2003,14 @@ mejoralo, optimizá y sobre todo nuevas capturas de fondo para los menús», má
 ## JXMod 3.0 · identidad propia: intro, menús, skins y mapas, cielos por mapa, gráficos automáticos y nucleares en Bajo
 
 Pedido: «cambiar los menús de mapas, de juego y de pausa a algo más original; modificar los mapas base y las skins
-porque tienen que tener identidad propia y no la del juego del que vienen; las nukes de lejos salen con imágenes 2D y eso sólo en Patata; las
-volumétricas optimizadas para celus de bajos recursos también en Bajo; viento al explotar; cielos diferentes en cada
-mapa, más GOTY, con nubes dibujadas que tapen el ambiente y aparezcan y desaparezcan, súper optimizados; más de 15
-técnicas de optimización; el automático siempre activado: al iniciar busca la mejor calidad con 60 fps pegados (si en
-una más alta da 60 y en una más baja 70, no bajar; si ninguna llega, la que más se acerque por debajo); y una intro
-nueva, minimalista, GOTY y rápida, porque JXStudios se ve vieja», más la captura del Discord de los nextbots («a veces
-los nextbots 3D son muy tontos, no hacen su animación, y en DrGBase son chicos, no caminan rápido y no matan»).
+porque tienen que tener identidad propia y no la del juego del que vienen; las nukes de lejos salen con imágenes 2D y
+eso sólo en Patata; las volumétricas optimizadas para celus de bajos recursos también en Bajo; viento al explotar;
+cielos diferentes en cada mapa, más GOTY, con nubes dibujadas que tapen el ambiente y aparezcan y desaparezcan, súper
+optimizados; más de 15 técnicas de optimización; el automático siempre activado: al iniciar busca la mejor calidad con
+60 fps pegados (si en una más alta da 60 y en una más baja 70, no bajar; si ninguna llega, la que más se acerque por
+debajo); y una intro nueva, minimalista, GOTY y rápida, porque JXStudios se ve vieja», más la captura del Discord de los
+nextbots («a veces los nextbots 3D son muy tontos, no hacen su animación, y en DrGBase son chicos, no caminan rápido y
+no matan»).
 
 - **Intro nueva de JXStudios** (`juego/template.html`, `juego/inicio.js`): 1,7 s y sólo CSS (14 animaciones de
   transform y opacidad, sin video, imágenes ni lienzo): la placa amarilla se abre, sube «JX», STUDIOS sale de atrás y
