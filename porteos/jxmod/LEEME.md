@@ -1945,6 +1945,19 @@ mejoralo, optimizá y sobre todo nuevas capturas de fondo para los menús», má
   alto, con zoom hasta 1,06 y sin subir: 14–16 % (en la Isla, 9–11 %), con los rayos enteros. Lo del piso baja 4 puntos
   (del 82 al 86 % del alto), dentro de la franja que la pantalla de carga ya oscurece para la consola. En la compu
   (16:9) la foto no se recorta y se ve igual.
+- **Las bombas nucleares como la del tráiler, con el destello blanco** (`juego/nuclear_vol.js`): las 117 bombas usan
+  ahora el hongo con volumen del tráiler (bola de fuego que sube, sombrero que rueda con fuego adentro, tallo de hollín y
+  falda de polvo, con ruido 3D de coliflor y luz del sol y del cielo). Cada una a su escala: el tráiler es una de R ≈ 260 m
+  (≈ 4 Mt) y todo se mide en R / 260, así que de 10 t a 100 Mt cambian el tamaño del hongo (alto final 1,75 R en todas), la
+  destrucción (alcance 2,3 R) y el tiempo (las grandes más lentas). En el aire la bola nace arriba y el tallo sube después;
+  en el agua y los barcos, blanca; la subterránea y la del espacio siguen con su polvo y su esfera. En Medio, Alto y Ultra
+  con WebGL 2; en Bajo, Patata o WebGL 1, los carteles de antes. Se dibuja en un búfer chico (un tercio a la mitad de la
+  pantalla, más chico si el hongo la llena) sólo en el rectángulo donde cae, y lo de adelante lo tapa. Costo contra la
+  pasada del cielo: de lejos 0,6–1,1; de cerca 1,8 (Medio), 2,2 (Alto) y 3,5 (Ultra). El ruido 3D se arma de a filas
+  durante la cuenta regresiva (tramos de ≤ 12 ms). **El destello**: blanco al instante, 0,12 s al máximo y se apaga en un
+  par de segundos; se ve de lejos (a 40 radios, 0,4; antes nada más allá de 7 radios) y, de espaldas, el cielo blanco un
+  35 %. **Arreglo de paso**: el piso de la explosión se buscaba desde 400 m arriba y tomaba el primer techo o borde del
+  mapa que hubiera encima (el hongo podía nacer en el aire). `nuclear_vol` 7/7, `nucleares` 11/11.
 - **La pantalla de carga** decía «v1.0» y «JXMod 1.0»: ahora sale la versión del juego (la de `nucleo.js`, la misma del
   menú). Al entrar a un mapa del juego mostraba «map: rb_rb_ciudad»; ahora «map: rb_ciudad», «map: gm_construct» y, en
   los del Workshop, el nombre de su BSP.

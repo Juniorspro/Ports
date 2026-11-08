@@ -16,7 +16,7 @@ const nukeFicha = (nk) => `${nk.n} · ${nk.p} ${nk.a > 0 ? nk.a : ''} · ${nukeP
 // (los modelos, texturas y sonidos de las bombas vienen en un paquete aparte, web/rb/p_nuk.*.rbp: se piden al abrir la
 // sección o al aparecer una; un sonido que todavía no llegó suena apenas llega, si no pasaron más de 4 s)
 const NUK_PAQ = 'p_nuk';
-function nukePrecargar() { rbPedir(NUK_PAQ); }
+function nukePrecargar() { rbPedir(NUK_PAQ); if (typeof nvPreparar === 'function') nvPreparar(); }   // (y el hongo con volumen: nuclear_vol.js)
 function nukeSonar(n, pos, v, t0) {
   if (!AUD.ctx || !PREFS.vol) return;
   if (AUD.buf[n]) { sonar(n, pos, v); return; }
@@ -31,6 +31,7 @@ function nukeUsar(o) {
 }
 function nukeArmar(o, cuenta, local) {
   o.nkArm = { t: cuenta, tot: cuenta, bip: Math.ceil(cuenta) };
+  if (typeof nvPreparar === 'function') nvPreparar();   // (en la cuenta regresiva se arma el ruido del hongo, de a poco)
   nukeSonar('NK_sirena', o.b.pos, 1.2); aviso(T('nk.armada').replace('{0}', Math.ceil(cuenta)), 2.5);
   if (local && RED.on) publicar('a', { k: 'nkarm', o: claveObj(o), c: cuenta });
 }
@@ -47,27 +48,41 @@ function nukePaso(dt) {
   // la radiación (a los que están adentro de la zona de las de superficie)
   nukeRadiacion(dt);
   // (el destello se apaga solo; la capa sigue al valor aunque alguien lo cambie de golpe)
-  const f = $('nukFlash'); if (f && f.style.display !== 'none') { NUK.flash = Math.max(0, (NUK.flash || 0) - dt * 0.45); f.style.opacity = Math.min(1, NUK.flash).toFixed(3); if (NUK.flash <= 0) f.style.display = 'none'; }
+  // (el destello: al máximo 0,12 s y después se apaga en un par de segundos; si alguien lo pone en 0, se corta)
+  const f = $('nukFlash');
+  if (f && f.style.display !== 'none') {
+    if ((NUK.flash || 0) > 0) { NUK.flashT = (NUK.flashT || 0) + dt; NUK.flash = (NUK.flashI || 0) * (NUK.flashT < 0.12 ? 1 : Math.exp(-(NUK.flashT - 0.12) * 1.7)); if (NUK.flash < 0.004) NUK.flash = 0; }
+    f.style.opacity = Math.min(1, NUK.flash || 0).toFixed(3); if (!(NUK.flash > 0)) f.style.display = 'none';
+  }
 }
 
 // ---------------- la explosión ----------------
 function nukeExplotar(p0, nombre, local) {
   const nk = nukeDe(nombre); if (!nk) return;
   const R = nukeRadio(nk.kt), tipo = nk.t, p = p0.clone();
-  let piso = pisoBajo(v3(p.x, p.y + 2, p.z), 400); if (piso === null) piso = p.y - 1;
+  // (el piso debajo de la bomba: desde un poco más arriba, para abajo; antes se le pasaba 400 como «alto» y el rayo arrancaba
+  // 400 m arriba y no llegaba al piso: tomaba el primer techo, árbol o borde del mapa que hubiera encima)
+  let piso = pisoBajo(v3(p.x, p.y + 1, p.z), 1); if (piso === null || piso > p.y + 1.5) piso = p.y - 1;
   // (a qué altura: en el aire la bola de fuego no toca el piso; en el espacio, bien arriba)
   if (tipo === 'aire' || tipo === 'bomba' || tipo === 'misil' || tipo === 'ficcion') p.y = Math.max(p.y, piso + R * 0.45);
   if (tipo === 'espacio') p.y = piso + Math.max(250, R * 3);
   const E = { p, piso, nk, R, tipo, t: 0, dura: tipo === 'subte' ? 25 : 150, onda: 0, vel: Math.max(70, R * 1.7), alc: R * 2.3, tocados: new Set(), jug: false, son: false, seed: (NUK.n = (NUK.n || 0) + 1) * 977 };
   NUK.vivas.push(E);
   if (local && RED.on) publicar('a', { k: 'nk', n: nombre, p: [r3(p0.x), r3(p0.y), r3(p0.z)] });
-  // el destello: más fuerte cerca y mirando hacia ella; la luz del mundo, un instante
-  const d = CAM.pos.distTo(p), mira = Math.max(0, vdot(vsub(p, CAM.pos).norm(), CAM.fwd));
-  if (tipo !== 'subte') { NUK.flash = Math.max(NUK.flash || 0, clamp(1.6 - d / (R * (tipo === 'espacio' ? 30 : 7)), 0, 1.6) * (0.55 + 0.45 * mira)); const f = nukeFlashEl(); f.style.display = 'block'; }
+  // el destello blanco: de cerca encandila del todo; de lejos baja pero no se apaga (una nuclear se ve a decenas de km), y
+  // aunque no la estés mirando el cielo se pone blanco (menos). La luz del mundo, un instante
+  const d = CAM.pos.distTo(p), mira = vdot(vsub(p, CAM.pos).norm(), CAM.fwd);
+  if (tipo !== 'subte') { const I = nukeDestello(d, R, mira, tipo); if (I > (NUK.flash || 0)) { NUK.flashI = I; NUK.flashT = 0; NUK.flash = I; } const f = nukeFlashEl(); f.style.display = 'block'; f.style.opacity = Math.min(1, NUK.flash).toFixed(3); }
+  if (typeof nvPreparar === 'function') nvPreparar();
   luzTemporal(vadd(p, v3(0, R * 0.3, 0)), R * 4, tipo === 'subte' ? [6, 4, 2] : [900, 600, 300], tipo === 'subte' ? 0.5 : 2.5);
   // la radiación: las de superficie (la bola toca el piso)
   if (tipo === 'suelo' || tipo === 'torre' || tipo === 'barco' || tipo === 'artilleria') (NUK.zonas || (NUK.zonas = [])).push({ p: v3(p.x, piso, p.z), r: R * 0.85, t: 100 });
   return E;
+}
+// cuánto encandila: 1,35 a menos de 4 radios, baja de a poco con la distancia (0,4 como mínimo) y, si no la mirás, un 35 %
+function nukeDestello(d, R, mira, tipo) {
+  const k = clamp(1.35 - 0.3 * Math.log2(1 + d / (R * (tipo === 'espacio' ? 30 : 4))), 0.4, 1.35);
+  return k * (0.35 + 0.65 * clamp((mira + 0.2) / 0.8, 0, 1));
 }
 function nukeFlashEl() { let f = $('nukFlash'); if (!f) { f = document.createElement('div'); f.id = 'nukFlash'; document.body.appendChild(f); } return f; }
 // la onda: avanza con su velocidad y a cada cosa la alcanza una vez
@@ -127,6 +142,7 @@ function nukeRed(d) {
 // Los lejanos (más allá de la vista del mapa, como el sombrero de las de megatones) se dibujan aparte, sin profundidad.
 function nukeAzar(E, i) { const x = Math.sin((E.seed + i) * 12.9898) * 43758.5453; return x - Math.floor(x); }
 function nukeCarteles(E, out) {
+  if (E.vol) return;   // (ésta va con volumen: nuclear_vol.js)
   // (más bocanadas en Alto y Ultra: son cuadros enormes que tapan la pantalla y en un celular cuesta cada uno)
   const t = E.t, R = E.R, p = E.p, piso = E.piso, pocos = GFX.part < 0.5, mas = GFX.part >= 1 ? 1.4 : 1, fin = clamp((E.dura - t) / 20, 0, 1);
   const pon = (x, y, z, s, c, a, suma) => out.push(x, y, z, c[0], c[1], c[2], a * fin, s, suma ? 1 : 0);

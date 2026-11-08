@@ -457,7 +457,7 @@ function dibujar() {
   if (GFX.memBaja && R.msCuadro - (R.podaT || 0) > 5000) { R.podaT = R.msCuadro; texPodar(R.msCuadro); }
   // cómo sale la imagen según la calidad
   const usaPost = GFX.luz >= 2 && (GFX.hdr || GFX.ao || GFX.fxaa) && postPreparar();
-  R.salida = GFX.luz < 2 ? 'gam' : usaPost && PO.hdr ? 'hdr' : 'ldr';
+  R.salida = GFX.luz < 2 ? 'gam' : usaPost && PO.hdr ? 'hdr' : 'ldr'; R.usaPost = usaPost;
   R.sombraOn = GFX.luz >= 2 && GFX.sombra > 0 && SM.n > 0 && !MUNDO.sinSombra && !R.sinSombraDbg;
   R.conAO = !!(usaPost && GFX.ao > 0 && PO.ao.length);
   R.aoActivo = false;
@@ -501,6 +501,7 @@ function dibujar() {
   dibujarMarcas();
   portalesQuad();
   if (!AGUA.bajo && !c3d) { dibujarCielo(M4.inv(R.vp)); if (typeof eventoCieloDibujar === 'function') eventoCieloDibujar(); }
+  if (typeof nvDibujar === 'function') nvDibujar();   // (el hongo de una nuclear, con volumen: después del cielo y antes de lo transparente)
   dibujarTransparentes();
   if (typeof gmrDibujar === 'function') gmrDibujar('mundo');
   dibujarEfectos(); nukeDibujar();

@@ -76,12 +76,13 @@ ok('la del espacio explota bien arriba (≥ 250 m) y no lastima en el piso; la s
 // la que llega de la sala
 const red = await ev(`(async () => { const n0 = NUK.vivas.length, f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), c = vadd(JUG.pos, vscale(f, 600)); nukeRed({ k: 'nk', i: 'otro', n: 'NK_ivymike', p: [c.x, c.y, c.z] }); return { nuevas: NUK.vivas.length - n0 }; })()`);
 ok('la que llega de la sala se ve acá', red.nuevas === 1, red);
-// el costo del dibujo con una de megatones (y la foto de lejos)
-await ev(`(() => { NUK.vivas.length = 0; const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)); window.__E = nukeExplotar(vadd(JUG.pos, vscale(f, 900)), 'NK_bravo', false); NUK.flash = 0; JUG.pitch = -0.35; return 1; })()`);
+// el costo del dibujo con una de megatones (y la foto de lejos), con los carteles: en Bajo (en Medio, Alto y Ultra va con
+// volumen —nuclear_vol.js—, que se mide en nuclear_vol.mjs)
+await ev(`(() => { PREFS.gfx = 'bajo'; aplicarGfx(); NUK.vivas.length = 0; const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)); window.__E = nukeExplotar(vadd(JUG.pos, vscale(f, 900)), 'NK_bravo', false); NUK.flash = 0; JUG.pitch = -0.35; return 1; })()`);
 await p.waitForTimeout(9000);
 await p.screenshot({ path: D + 'nk_bravo.png' });
 const costo = await ev(`(() => { const t0 = performance.now(); for (let i = 0; i < 100; i++) nukeDibujar(); return +((performance.now() - t0) / 100).toFixed(3); })()`);
-ok('el dibujo de una de megatones (el hongo) cuesta < 1,5 ms por cuadro', costo < 1.5, costo);
+ok('el dibujo de una de megatones con carteles (en Bajo) cuesta < 1,5 ms por cuadro', costo > 0 && costo < 1.5, costo);
 ok('sin errores', err.filter((e) => !/WebSocket|ERR_CONNECTION|net::|404/.test(e)).length === 0, err.filter((e) => !/WebSocket|ERR_CONNECTION|net::|404/.test(e)).slice(0, 4));
 console.log(R.every(Boolean) ? 'TODO BIEN' : 'HAY FALLAS', R.filter(Boolean).length + '/' + R.length);
 await b.close();
