@@ -6,19 +6,27 @@
 // armado, se dibuja la escena de verdad en una calidad y se cuentan los cuadros que da la pantalla durante 0,6 s (después de
 // que se compilen sus shaders). Se arranca por la calidad que se estima para el aparato (la base de celulares o la placa) o la
 // que salió la vez anterior, y se sube mientras sostenga 60 (se acepta ≥ 57: la pantalla de 60 Hz da 59,x) o se baja hasta
-// que llegue; si ninguna llega, la que dio más cuadros (empate: la más alta). Sin resolución dinámica mientras se mide.
+// que llegue; si ninguna llega, la que dio más cuadros (empate —a menos del 4 %—: la más alta). Sin resolución dinámica mientras se mide.
 // Después, en partida, sigue la resolución dinámica de siempre (principal.js).
 const GFXA = { midiendo: false, medido: false, res: null, umbral: 57, med: 0.6, tirones: 0, tope: 12000 };
-// (cuadros por segundo de la escena en una calidad: espera a que compile y se asiente —hasta 3 s— y cuenta al menos 0,6 s y
-// 30 cuadros —hasta 1,5 s—)
+// (cuadros por segundo de la escena en una calidad: espera a que compile y se asiente —hasta 2 s— y cuenta en ventanas de
+// 0,4 s hasta que dos seguidas coinciden —hasta 1,8 s—; nunca después del tope de la búsqueda)
 async function gfxMedirUna(q) {
   GFX.base = q; aplicarGfx(); GFX.escala = GFX.escalaMax; redimensionar();
-  const L = [], t0 = performance.now();
+  const L = [], t0 = performance.now(), hasta = GFXA.hasta || Infinity;   // (hasta: el tope de toda la búsqueda; ninguna medida lo pasa)
   // (asentada: 6 cuadros seguidos de menos de 80 ms y ninguna textura subiéndose —las que se ven por primera vez o con el
   // tope de otra calidad se decodifican y suben de a una: si se cuenta mientras tanto, la calidad parece más lenta—)
-  await new Promise((ok) => { let ult = 0, buenos = 0; const f = (a) => { if (ult && a - ult < 80 && !gfxTexSubiendo()) buenos++; else buenos = 0; ult = a; if (buenos >= 6 || a - t0 > 3000) ok(); else requestAnimationFrame(f); }; requestAnimationFrame(f); });
-  await new Promise((ok) => { const f = (a) => { L.push(a); const n = L.length - 1, dt = a - L[0]; if ((dt >= GFXA.med * 1000 && n >= 30) || dt >= 1500) ok(); else requestAnimationFrame(f); }; requestAnimationFrame(f); });
-  return gfxFps(L);
+  await new Promise((ok) => { let ult = 0, buenos = 0; const f = (a) => { if (ult && a - ult < 80 && !gfxTexSubiendo()) buenos++; else buenos = 0; ult = a; if (buenos >= 6 || a - t0 > 2000 || a > hasta - 900) ok(); else requestAnimationFrame(f); }; requestAnimationFrame(f); });
+  // (se cuenta en ventanas de 0,4 s y ≥ 20 cuadros, y vale cuando dos seguidas dan lo mismo —±15 %—: al cambiar de
+  // calidad, después de compilar quedan unos cuadros lentos parejos —medido de Medio a Bajo: 555, 188 y 218 ms y después
+  // seis de 72 ms antes de los 17 de siempre— que pasaban la espera y se contaban: Bajo daba 25 cuadros y anda a 55)
+  const W = []; let V = []; const tc = performance.now();
+  await new Promise((ok) => { const f = (a) => { V.push(a); L.push(a); const n = V.length - 1, dt = a - V[0];
+    if (dt >= 400 && n >= 20) { W.push(gfxFps(V)); V = [a]; const k = W.length; if (k >= 2 && Math.abs(W[k - 1] - W[k - 2]) <= 0.15 * Math.max(W[k - 1], W[k - 2])) return ok(); }
+    if (a - tc > 1800 || a > hasta) return ok(); requestAnimationFrame(f); }; requestAnimationFrame(f); });
+  GFXA.ventanas = W.length;
+  // (cortada por el tope antes de una ventana entera: no se midió —null—, no es que dé 0)
+  return W.length ? W[W.length - 1] : L.length >= 12 ? gfxFps(L) : null;
 }
 function gfxTexSubiendo() { const T = (typeof R !== 'undefined' && R.tex) || []; for (let i = 0; i < T.length; i++) if (T[i] && T[i].va) return true; return false; }
 // (espera a que no quede ninguna textura subiéndose —3 cuadros seguidos—, hasta max ms)
@@ -42,7 +50,8 @@ function gfxFps(L) {
 async function gfxBuscar(inicio, medir, vence) {
   const O = PERF_ORDEN, med = {}, tarde = () => !!(vence && vence());
   let i = O.indexOf(inicio); if (i < 0) i = 2;
-  const fps = async (k) => (med[O[k]] !== undefined ? med[O[k]] : (med[O[k]] = await medir(O[k])));
+  // (null: no se llegó a medir —el tope—; no cuenta para elegir)
+  const fps = async (k) => { if (med[O[k]] === undefined) { const f = await medir(O[k]); med[O[k]] = f == null ? null : f; } return med[O[k]] == null ? -1 : med[O[k]]; };
   let elegida = null;
   if ((await fps(i)) >= GFXA.umbral) {
     elegida = O[i];
@@ -50,7 +59,10 @@ async function gfxBuscar(inicio, medir, vence) {
   } else {
     for (let k = i - 1; k >= 0 && !tarde(); k--) { if ((await fps(k)) >= GFXA.umbral) { elegida = O[k]; break; } }
     // (ninguna llega a 60: la que más se acerca por debajo; si empatan, la más alta)
-    if (!elegida) for (const q of O) { if (med[q] === undefined) continue; if (!elegida || med[q] > med[elegida] + 0.5 || (Math.abs(med[q] - med[elegida]) <= 0.5 && O.indexOf(q) > O.indexOf(elegida))) elegida = q; }
+    // (empate: a menos del 4 % de la mejor —lo que varía una misma medida de una vez a otra—; así no se baja de calidad por
+    // 2 cuadros de ruido: con Alto 49,7, Medio 50,3 y Bajo 52 queda Alto)
+    if (!elegida) { let mejor = 0; for (const q of O) if (med[q] != null) mejor = Math.max(mejor, med[q]); for (const q of O) if (med[q] != null && med[q] >= mejor * 0.96) elegida = q; }
+    if (!elegida) elegida = O[i];   // (ni una medida: la de arranque)
   }
   return { elegida, med };
 }
@@ -71,7 +83,11 @@ async function gfxMedir(C) {
     // todavía detrás de la carga: si no, una Alto elegida desde Medio quedaba con texturas de 256 y una Medio elegida
     // desde Alto, con las enteras —más memoria de la que esa calidad se permite—)
     const topes = new Set([GFX.texMax]), medir0 = window.__gfxMedirFalso || gfxMedirUna;
-    const r = await gfxBuscar(inicio, async (q) => { const f = await medir0(q); topes.add(GFX.texMax); return f; }, () => performance.now() - t0 > GFXA.tope);
+    // (no se empieza otra calidad si no queda tiempo para medirla: lo que tardó la más lenta hasta ahora —cambiar de calidad
+    // compila sus sombreadores: en esta compu sin placa, pasar a Medio tarda 8 s—, o 2,5 s)
+    GFXA.hasta = t0 + GFXA.tope; let dura = 2500;
+    const r = await gfxBuscar(inicio, async (q) => { const a = performance.now(), f = await medir0(q); dura = Math.max(dura, performance.now() - a); topes.add(GFX.texMax); return f; }, () => performance.now() - t0 + dura > GFXA.tope);
+    GFXA.hasta = 0;
     const msBusca = Math.round(performance.now() - t0);
     GFX.base = r.elegida; aplicarGfx();
     const texRearmar = [...topes].some((t) => t !== GFX.texMax), t1 = performance.now();
