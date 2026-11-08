@@ -894,7 +894,8 @@ function texDecodificar(i, t) {
     clearTimeout(tope);
     // (llegó tarde: la textura ya se rearmó con otra calidad o ya llegó por otro intento)
     if (R.tex[i] !== t || t.gl) { img.close && img.close(); return; }
-    const src = texAjustar(img, GFX.texMax);
+    // (la ropa de las skins heredadas, teñida con los colores de JXMod: identidad.js)
+    const src0 = texAjustar(img, GFX.texMax), src = (typeof idTex === 'function' && idTex(i, src0, img)) || src0;
     const gl = R.gl, tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, !volteada && src === img);
     // (memoria baja: las opacas en 16 bits, la mitad; las que tienen transparencia, como siempre)
