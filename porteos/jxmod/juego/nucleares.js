@@ -193,6 +193,17 @@ function nukeSoplido(k, dura) {
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t + dura + 0.6);
   s.connect(f); f.connect(g); g.connect(AUD.master); s.start(t); s.stop(t + dura + 0.8);
   NUK.soplidos = (NUK.soplidos || 0) + 1;
+  // (anotado, para cortarlo si se cambia de mundo: nukeLimpiar)
+  const L = NUK.sons || (NUK.sons = []); L.push(s); s.onended = () => { const i = L.indexOf(s); if (i >= 0) L.splice(i, 1); };
+}
+// al empezar otro mundo, entrar a un server o volver al menú, lo de una nuclear de antes no sigue. Antes la explosión, la
+// onda, el viento, la radiación, el destello y el soplido seguían en el mundo nuevo hasta terminarse (hasta 150 s), también
+// al pasar de un server a otro (Discord: «si creás un mundo nuevo y en un anterior detonaste una, sigue estando»)
+function nukeLimpiar() {
+  NUK.vivas.length = 0; NUK.zonas = []; NUK.flash = NUK.flashI = NUK.flashT = 0; NUK.rad = 0; NUK.radAviso = false; NUK.radT = 0;
+  const f = $('nukFlash'); if (f) { f.style.opacity = '0'; f.style.display = 'none'; }
+  const g = $('nukRad'); if (g) g.style.opacity = '0';
+  if (NUK.sons) { for (const s of NUK.sons.splice(0)) try { s.stop(); } catch (e) { /* ya terminó */ } }
 }
 // el estruendo, con la demora del sonido (340 m/s), y el rumor que sigue
 function nukeSonido(E) {
@@ -280,7 +291,10 @@ function nukeDibujar() {
   gl.uniform3f(P.u.uDer, CAM.der.x, CAM.der.y, CAM.der.z); gl.uniform3f(P.u.uArr, CAM.arr.x, CAM.arr.y, CAM.arr.z); gl.uniform3f(P.u.uCam, CAM.pos.x, CAM.pos.y, CAM.pos.z);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, PART.tex.atlas); R.texAct = null;
   gl.bindVertexArray(PART.vao); gl.bindBuffer(gl.ARRAY_BUFFER, PART.buf); gl.enable(gl.BLEND); gl.depthMask(false); gl.disable(gl.CULL_FACE);
-  // dos tandas: lo que está dentro de la vista del mapa (con profundidad) y lo de más allá (con una proyección más larga, sin profundidad)
+  // dos tandas: lo que está dentro de la vista del mapa (con profundidad) y lo de más allá (con una proyección más larga).
+  // Lo de más allá va AL FONDO (depthRange 1..1 con LEQUAL): sólo se pinta donde no hay nada dibujado —el cielo— y lo tapa
+  // cualquier cosa que esté delante. Antes iba sin profundidad y la nube se veía encima de los edificios, los cerros y los
+  // objetos (Discord: «se sobreponen las explosiones sobre objetos»); en el celu pasaba casi siempre, porque la vista es corta
   const VPlejos = NUK.vpL || (NUK.vpL = new Float32Array(16)); m4mul(M4.persp(CAM.fov * Math.PI / 180, R.cv.width / R.cv.height, 1, 6000), M4.view(CAM.pos, CAM.qVista), VPlejos);
   for (const [vp, cerca] of [[VPlejos, false], [R.vp, true]]) {
     for (const suma of [false, true]) {
@@ -291,11 +305,13 @@ function nukeDibujar() {
         m = partVertices(D, m, L[o], L[o + 1], L[o + 2], L[o + 3], L[o + 4], L[o + 5], L[o + 6], L[o + 7], i * 2.39996, suma ? 2 : 1, 0, 0, 0, 0);
       }
       if (!m) continue;
-      gl.uniformMatrix4fv(P.u.uVP, false, vp); if (cerca) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);
+      gl.uniformMatrix4fv(P.u.uVP, false, vp); gl.enable(gl.DEPTH_TEST);
+      if (cerca) { gl.depthRange(0, 1); gl.depthFunc(gl.LESS); } else { gl.depthRange(1, 1); gl.depthFunc(gl.LEQUAL); }
       gl.bufferData(gl.ARRAY_BUFFER, D.subarray(0, m * PART_F), gl.STREAM_DRAW);
       gl.blendFunc(gl.SRC_ALPHA, suma ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA); gl.uniform1f(P.u.uBri, suma ? 3 : 1);
       gl.drawArrays(gl.TRIANGLES, 0, m);
     }
   }
+  gl.depthRange(0, 1); gl.depthFunc(gl.LESS);
   gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE); gl.depthMask(true); gl.disable(gl.BLEND); gl.bindVertexArray(null); R.vaoAct = null;
 }

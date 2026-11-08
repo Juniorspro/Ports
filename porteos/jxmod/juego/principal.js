@@ -223,6 +223,8 @@ function empezarPartida(mapa) {
   natFin(); entidadesLimpiar(); JUG.skinRol = null; JUG.vidaMax = 0; JUG.colorRol = null; JUG.noclip = false; JUG.congelado = false;
   for (const o of OBJS.slice()) borrarObjeto(o);
   PH.bodies.length = 0; PH.joints.length = 0; PROY.length = 0; PART.l.length = 0;
+  if (typeof nukeLimpiar === 'function') nukeLimpiar();   // (una nuclear del mundo de antes no sigue en éste: nucleares.js)
+  if (typeof LUCES_T !== 'undefined') LUCES_T.length = 0;   // (ni la luz de una explosión de antes, en el mismo lugar del mundo nuevo)
   if (typeof personasLimpiar === 'function') personasLimpiar();
   cargarMapa(mapa); aplicarGfx(); if (typeof gbspTrasCargar === 'function') gbspTrasCargar(mapa); if (typeof puertasIniciar === 'function') puertasIniciar();
   if (typeof EVT !== 'undefined') EVT.mapa = null;   // (el evento 3.0 empieza de cero en cada partida, aunque sea el mismo mapa: evento.js)
@@ -241,6 +243,7 @@ function empezarPartida(mapa) {
 }
 function irMenuPrincipal() {
   modapiDescargar(); natFin(); entidadesLimpiar(); creadorSalir(); rolCerrar();
+  if (typeof nukeLimpiar === 'function') nukeLimpiar();   // (sin destello, radiación ni soplido encima del menú)
   if (typeof redSalir === 'function') redSalir();
   if (typeof lanSalir === 'function') lanSalir();   // (si eras anfitrión en la red local, la partida se cierra: lan.js)
   if (typeof nocheFin === 'function') nocheFin();   // (la hora, la energía y los botones de la pizzería no quedan encima del menú)
