@@ -65,16 +65,47 @@ function hudArma() {
   ARM.lista.forEach((x, k) => { const d = document.createElement('div'); d.className = 'ra' + (k === ARM.i ? ' sel' : ''); d.innerHTML = `<img src="${icA(DEF_ARMAS[x], x)}">${esc(DEF_ARMAS[x].nom || x)}`; d.onclick = () => { elegirArma(k); }; b.appendChild(d); });
   b.classList.remove('oc'); ARM.barraT = 2.5; $('arribaDe').style.visibility = 'hidden';
 }
+// ---------------- de dónde sale el tiro ----------------
+// Lo que dispara el jugador (balas, perdigones, el cohete, la flecha, los golpes, la pistola física, la de gravedad y la
+// Tool Gun) sale de sus ojos y va hacia donde apunta él, como en GMod (GetShootPos y GetAimVector), no de la cámara de la
+// imagen. En primera persona son lo mismo; con la cámara libre (camlibre.js) no: el cohete, las balas y el rayo salían de
+// la cámara libre y hacia donde miraba ella (Discord: «si activás la freecam, después equipás el bazooka y disparás, no
+// dispara desde tu personaje, sino desde la freecam»). Igual con la cámara de la Tool Gun (HCAM) y en tercera persona, donde
+// la cámara va 3 m atrás: el rumbo era el mismo, pero el cohete salía detrás de la cabeza y los golpes (2 m) no llegaban.
+// ¿la cámara no está en los ojos? (la cámara libre arranca en los ojos, pero gira sola: cuenta aunque no se haya movido; en
+// un vehículo no se dispara y los ojos no se actualizan: la cámara es la del vehículo, como siempre)
+function camaraAfuera() { return !JUG.vehiculo && !!((typeof CLIB !== 'undefined' && CLIB.modo) || HCAM.ver || JUG.tercera || (JUG.ojoPos && CAM.pos.distTo(JUG.ojoPos) > 0.25)); }
+function miraOjo() { return camaraAfuera() && JUG.ojoPos ? JUG.ojoPos : CAM.pos; }
+function miraDir() { return camaraAfuera() ? Quat.euler(JUG.yaw, JUG.pitch).rot(v3(0, 0, 1)) : CAM.fwd; }
+// la boca del arma: en primera persona la del arma de la vista; con la cámara afuera, la mano derecha del personaje (donde
+// lleva el arma) 0,3 m hacia donde apunta o, si no hay cuerpo, debajo de los ojos (como npcBoca con los NPCs)
+function bocaArma(d) {
+  if (!camaraAfuera()) return vistaPuntaMundo();
+  const f = d || miraDir(), o = JUG.ojoPos, P = JUG.cuerpo, hi = P && P.D && P.D.h && P.D.h.RightHand, W = hi !== undefined && P.md && P.md.W && P.md.W[hi];
+  let p = W ? v3(W[12], W[13], W[14]) : null;
+  if (!p || !isFinite(p.x + p.y + p.z) || p.distTo(o) > 1.2 * (JUG.tam || 1)) p = vadd(o, v3(0, -0.3, 0));
+  return p.addS(f, 0.3);
+}
+// de dónde sale un proyectil del jugador y hacia dónde va: en primera persona, 0,8 m adelante de los ojos sobre la mira;
+// con la cámara afuera, de la boca del arma en la mano hacia lo que está en la mira (lo primero que toca el rayo de los
+// ojos), así pega donde apunta. Si entre los ojos y la salida hay algo (pegado a una pared), sale de los ojos: si no,
+// aparecía del otro lado y la atravesaba
+function salidaProyectil(o, d) {
+  const afuera = camaraAfuera(); let p = afuera ? bocaArma(d) : vadd(o, vscale(d, 0.8)), dir = d;
+  if (afuera) { const h = raycast(o, d, 300, null), v = vsub(h ? h.p : vadd(o, vscale(d, 300)), p), L = v.len(); if (L > 1.5 && vdot(v, d) > 0.7 * L) dir = v.scale(1 / L); }
+  const e = vsub(p, o), Le = e.len(); if (Le > 1e-3 && raycast(o, e.scale(1 / Le), Le, null)) p = o.clone();
+  return { p, d: dir };
+}
 // ---------------- disparo ----------------
-function rayoDesdeCamara(disp) {
-  const d = CAM.fwd.clone();
+function rayoDesdeCamara(disp, base) {
+  const d = (base || CAM.fwd).clone();
   if (disp) { d.x += (Math.random() - 0.5) * disp * 2; d.y += (Math.random() - 0.5) * disp * 2; d.z += (Math.random() - 0.5) * disp * 2; d.norm(); }
   return d;
 }
 function impactoBala(o, d, D, dan) {
   const h = raycast(o, d, 400, JUG.vehiculo ? JUG.vehiculo.b : null);
   const fin = h ? h.p : vadd(o, vscale(d, 400));
-  const mz = vistaPuntaMundo();
+  const mz = bocaArma(d);
   efectoTraza(mz || o, fin);
   if (!h) return;
   efectoImpacto(h.p, h.n, h.body ? 'cuerpo' : 'mundo');
@@ -91,32 +122,34 @@ function disparar() {
   if (ARM.ocup > 0 || ARM.t > 0) return;
   if (D.car && ARM.balas[n] <= 0) { recargar(); return; }
   ARM.t = D.cad;
-  const o = CAM.pos.clone();
+  const o = miraOjo().clone(), dir = miraDir().clone();   // (de los ojos del personaje hacia donde apunta: ver camaraAfuera)
   switch (D.tipo) {
     case 'bala': case 'perdigones': {
       if (!MODS.municionInfinita) ARM.balas[n]--;
       const k = D.tipo === 'perdigones' ? 8 : 1;
-      for (let i = 0; i < k; i++) impactoBala(o, rayoDesdeCamara(D.tipo === 'perdigones' ? 0.06 : (D.disp || 0.004) * (ARM.zoom ? 0.2 : 1) * (1 - 0.6 * (ARM.apK || 0))), D, D.dan);
+      for (let i = 0; i < k; i++) impactoBala(o, rayoDesdeCamara(D.tipo === 'perdigones' ? 0.06 : (D.disp || 0.004) * (ARM.zoom ? 0.2 : 1) * (1 - 0.6 * (ARM.apK || 0)), dir), D, D.dan);
       if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego);
       sonar(azarDe(D.sF), null, 0.8); efectoFogonazo();
-      JUG.pitch = Math.max(-1.55, JUG.pitch - (D.tipo === 'perdigones' ? 0.04 : D.dan > 50 ? 0.03 : 0.008)); ARM.retro = 1;   // (sin pasar de mirar arriba: si no, la cámara se da vuelta)
+      // (el arma sube la mira; no con la cámara libre ni mirando por la cámara de la Tool Gun: ahí la mira del personaje no
+      // se mueve con el dedo y cada tiro la dejaba más arriba, sin poder bajarla)
+      if (!(typeof CLIB !== 'undefined' && CLIB.modo) && !HCAM.ver) JUG.pitch = Math.max(-1.55, JUG.pitch - (D.tipo === 'perdigones' ? 0.04 : D.dan > 50 ? 0.03 : 0.008)); ARM.retro = 1;   // (sin pasar de mirar arriba: si no, la cámara se da vuelta)
       if (typeof redDisparo === 'function') redDisparo(n);
       break;
     }
     case 'cohete': {
       if (!MODS.municionInfinita) ARM.balas[n]--; if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego); sonar(azarDe(D.sF), null, 0.8);
-      lanzarProyectil('RPG Rocket', o, CAM.fwd, 38, 0, D.dan, true);
+      const s = salidaProyectil(o, dir); lanzarProyectil('RPG Rocket', s.p, s.d, 38, 0, D.dan, true, 0);
       break;
     }
     case 'flecha': {
       if (!MODS.municionInfinita) ARM.balas[n]--; if (ARM.v && D.fuego) vistaTocar(ARM.v, D.fuego); sonar(azarDe(D.sF), null, 0.8);
-      lanzarProyectil('Arrow', o, CAM.fwd, 70, 1, D.dan, false);
+      const s = salidaProyectil(o, dir); lanzarProyectil('Arrow', s.p, s.d, 70, 1, D.dan, false, 0);
       break;
     }
     case 'golpe': {
       if (typeof redDisparo === 'function') redDisparo(n);   // (los demás oyen el golpe y ven el movimiento)
       if (D.pega) {   // (como en HL2: el golpe se sabe al toque; si pega, la animación que pega; si no, al aire con su silbido)
-        const h = raycast(CAM.pos, CAM.fwd, D.alcance, JUG.vehiculo ? JUG.vehiculo.b : null), l = h ? D.pega : D.falla;
+        const h = raycast(o, dir, D.alcance, JUG.vehiculo ? JUG.vehiculo.b : null), l = h ? D.pega : D.falla;
         if (ARM.v) vistaTocar(ARM.v, l[(Math.random() * l.length) | 0]);
         if (h) golpeAplicar(D, h); else sonar(azarDe(D.sF), null, 0.7);   // (el golpe en el momento, con lo que se apuntó)
         break;
@@ -133,16 +166,16 @@ function disparar() {
   if (D.tipo !== 'fisica') humAccion(JUG.cuerpo, 'tiro');
 }
 function golpeAplicar(D, h0) {
-  const h = h0 || raycast(CAM.pos, CAM.fwd, D.alcance, JUG.vehiculo ? JUG.vehiculo.b : null);
+  const f = miraDir(), h = h0 || raycast(miraOjo(), f, D.alcance, JUG.vehiculo ? JUG.vehiculo.b : null);
   if (!h) return;
   const imp = D.sImp && (h.body && h.body.persona ? D.sCarne : D.sImp);   // (la palanca: metal contra metal, o contra la carne)
   sonar(imp ? imp[(Math.random() * imp.length) | 0] : 'Melee1', h.p, 0.8); efectoImpacto(h.p, h.n, 'golpe');
   if (h.body) {
     const b = h.body; b.wake && b.wake();
     // (la palanca empuja como en HL2: un cajón de 50 kg sale a ~1,4 m/s, algo liviano bastante más)
-    if (b.dynamic) b.applyVel(vscale(CAM.fwd, D.empuje ? Math.min(D.empuje, b.mass * 7) : Math.min(10, D.dan * 4 / Math.max(1, b.mass * 0.2))), vsub(h.p, b.pos), 1);
-    if (b.obj) danarObjeto(b.obj, D.dan, h.p, CAM.fwd);
-    if (b.persona) danarPersona(b.persona, D.dan, h.p, CAM.fwd, b);
+    if (b.dynamic) b.applyVel(vscale(f, D.empuje ? Math.min(D.empuje, b.mass * 7) : Math.min(10, D.dan * 4 / Math.max(1, b.mass * 0.2))), vsub(h.p, b.pos), 1);
+    if (b.obj) danarObjeto(b.obj, D.dan, h.p, f);
+    if (b.persona) danarPersona(b.persona, D.dan, h.p, f, b);
   }
 }
 function recargar() {
@@ -156,10 +189,11 @@ function recargar() {
 }
 // ---------------- proyectiles ----------------
 const PROY = [];
-function lanzarProyectil(nombre, o, d, vel, grav, dan, explota) {
+// (adel: cuánto adelante de o aparece; el jugador ya pasa la salida justa —salidaProyectil— y va 0)
+function lanzarProyectil(nombre, o, d, vel, grav, dan, explota, adel) {
   const key = DATA.pfPorNombre[nombre]; const md = key ? new Modelo(DATA.pf[key]) : null;
   if (md) md.p[0] = [0, 0, 0];
-  const p = { md, pos: vadd(o, vscale(d, 0.8)), vel: vscale(d, vel), grav, dan, explota, vida: 6, clavado: null, nombre };
+  const p = { md, pos: vadd(o, vscale(d, adel === undefined ? 0.8 : adel)), vel: vscale(d, vel), grav, dan, explota, vida: 6, clavado: null, nombre };
   PROY.push(p); return p;
 }
 function proyectilesPaso(dt) {
@@ -253,7 +287,7 @@ function fisicaPaso(dt) {
   if (!A) return;
   const b = A.b;
   if (!PH.bodies.includes(b)) { ARM.agarre = null; return; }
-  const meta = vadd(CAM.pos, vscale(CAM.fwd, A.dist));
+  const meta = vadd(miraOjo(), vscale(miraDir(), A.dist));   // (adelante de los ojos del personaje, no de la cámara libre)
   const pAg = vadd(b.pos, b.q.rot(A.rl));
   const dv = vsub(meta, pAg);
   b.held = true; b.frozen = false; b.wake();
@@ -267,7 +301,7 @@ function fisicaPaso(dt) {
   b.ang.set(dq.x * 2 / dt * 0.35, dq.y * 2 / dt * 0.35, dq.z * 2 / dt * 0.35);
 }
 function agarrarFisica() {
-  const h = raycast(CAM.pos, CAM.fwd, 50, JUG.vehiculo ? JUG.vehiculo.b : null);
+  const h = raycast(miraOjo(), miraDir(), 50, JUG.vehiculo ? JUG.vehiculo.b : null);
   if (!h || !h.body || h.body.estatico || h.body.noGrab) return;
   let b = h.body; if (b.npc && typeof npcAgarrarRag === 'function') b = npcAgarrarRag(b, h.p);   // (un NPC vivo: muñeco de trapo)
   if (b.obj) redReclamar(b.obj); b.frozen = false; b.wake();
@@ -301,17 +335,17 @@ function volverAgarre() {
 }
 // ---------------- pistola de gravedad ----------------
 function gravPrimario() {
-  const D = DEF_ARMAS.GravityGun, sL = () => sonar(azarDe(D.sF), null, 0.7);
-  if (ARM.grav) { const b = ARM.grav.b; soltarGrav(true); b.vel.addS(CAM.fwd, Math.min(50, 2500 / Math.max(10, b.mass))); sL(); return; }
-  const h = raycast(CAM.pos, CAM.fwd, 10, null);
-  if (h && h.body && h.body.verity) { verEmpujon(h.body.verity, vadd(vscale(CAM.fwd, 14), v3(0, 3, 0))); sL(); return; }
-  if (h && h.body && h.body.persona && (h.body.persona.npc || h.body.persona.npcRem) && !h.body.persona.rag && typeof npcTumbar === 'function') { npcTumbar(h.body.persona, vadd(vscale(CAM.fwd, 14), v3(0, 4, 0)), 0); sL(); return; }   // (un NPC: sale volando como muñeco)
-  if (h && h.body && h.body.dynamic) { h.body.wake(); h.body.vel.addS(CAM.fwd, Math.min(50, 1500 / Math.max(10, h.body.mass))); sL(); natEmpujon(h.body); return; }
+  const D = DEF_ARMAS.GravityGun, sL = () => sonar(azarDe(D.sF), null, 0.7), f = miraDir();
+  if (ARM.grav) { const b = ARM.grav.b; soltarGrav(true); b.vel.addS(f, Math.min(50, 2500 / Math.max(10, b.mass))); sL(); return; }
+  const h = raycast(miraOjo(), f, 10, null);
+  if (h && h.body && h.body.verity) { verEmpujon(h.body.verity, vadd(vscale(f, 14), v3(0, 3, 0))); sL(); return; }
+  if (h && h.body && h.body.persona && (h.body.persona.npc || h.body.persona.npcRem) && !h.body.persona.rag && typeof npcTumbar === 'function') { npcTumbar(h.body.persona, vadd(vscale(f, 14), v3(0, 4, 0)), 0); sL(); return; }   // (un NPC: sale volando como muñeco)
+  if (h && h.body && h.body.dynamic) { h.body.wake(); h.body.vel.addS(f, Math.min(50, 1500 / Math.max(10, h.body.mass))); sL(); natEmpujon(h.body); return; }
   sonar(D.sVacio, null, 0.6);   // (nada que empujar: en seco, como en HL2)
 }
 function gravSecundario() {
   if (ARM.grav) { soltarGrav(); return; }
-  const h = raycast(CAM.pos, CAM.fwd, 25, null);
+  const h = raycast(miraOjo(), miraDir(), 25, null);
   if (h && h.body && h.body.npc && typeof npcAgarrarRag === 'function') h.body = npcAgarrarRag(h.body, h.p);   // (un NPC vivo: muñeco de trapo)
   if (h && h.body && !h.body.estatico && h.body.mass < 2000) { if (h.body.obj) redReclamar(h.body.obj); h.body.frozen = false; ARM.grav = { b: h.body, ini: agarreInicio(h.body) }; h.body.held = true; h.body.wake(); sonar(DEF_ARMAS.GravityGun.sAgarra, null, 0.6); vistaSujeta(true); }
   else sonar(DEF_ARMAS.GravityGun.sVacio, null, 0.5);
@@ -321,7 +355,7 @@ function soltarGrav(lanzado) { if (ARM.grav) { ARM.grav.b.held = false; ARM.grav
 function gravPaso(dt) {
   const G = ARM.grav; if (!G) return;
   const b = G.b; if (!PH.bodies.includes(b)) { ARM.grav = null; return; }
-  const meta = vadd(CAM.pos, vscale(CAM.fwd, 2.5 + b.r));
+  const meta = vadd(miraOjo(), vscale(miraDir(), 2.5 + b.r));
   b.vel.copy(vsub(meta, b.pos).scale(Math.min(1 / dt, 12))); b.ang.scale(0.8); b.held = true; b.wake();
 }
 // ---------------- cámara de fotos ----------------
@@ -354,7 +388,7 @@ function armasPaso(dt) {
       // (después de congelar algo hay que soltar el clic para agarrar otra vez: si no, lo volvía a agarrar y descongelar)
       else { if (!ENT.disparo) ARM.trasCongelar = false; if (ENT.disparo && !ARM.agarre && !ARM.trasCongelar) agarrarFisica(); if (!ENT.disparo && ARM.agarre) soltarAgarre(false); }
       if (ARM.agarre && ENT.disparo2) { soltarAgarre(true); ENT.disparo2 = false; ARM.trasCongelar = true; }
-      else if (!ARM.agarre && ENT.disparo2) { ENT.disparo2 = false; const h = raycast(CAM.pos, CAM.fwd, 50, null); if (h && h.body && h.body.frozen && !h.body.estatico) { h.body.frozen = false; h.body.wake(); aviso('Descongelado', 1); } }
+      else if (!ARM.agarre && ENT.disparo2) { ENT.disparo2 = false; const h = raycast(miraOjo(), miraDir(), 50, null); if (h && h.body && h.body.frozen && !h.body.estatico) { h.body.frozen = false; h.body.wake(); aviso('Descongelado', 1); } }
       if (ARM.agarre && ENT.rueda) { ARM.agarre.dist = clamp(ARM.agarre.dist - ENT.rueda * 0.6, 1.5, 50); }
       ARM.rotando = !!ARM.agarre && (ENT.teclas.has('KeyE') || ENT.rotar);
       if (ARM.agarre && ENT.pulsoDist) { ARM.agarre.dist = clamp(ARM.agarre.dist + ENT.pulsoDist, 1.5, 50); ENT.pulsoDist = 0; }
@@ -400,10 +434,11 @@ function vistaPuntaMundo() {
 }
 function dibujarRayoFisica() {
   const A = ARM.agarre; if (!A) return;
-  const p0 = vistaPuntaMundo() || vadd(CAM.pos, v3(0, -0.2, 0)), p1 = vadd(A.b.pos, A.b.q.rot(A.rl));
+  // (de la boca del arma: con la cámara libre o en tercera persona, la del arma en la mano del personaje)
+  const o = miraOjo(), f = miraDir(), p0 = bocaArma(f) || vadd(o, v3(0, -0.2, 0)), p1 = vadd(A.b.pos, A.b.q.rot(A.rl));
   const n = 16, c = [0.35, 0.78, 1, 0.95];   // (celeste, como el de la Physics Gun de GMod)
   let prev = p0;
-  const mid = vadd(CAM.pos, vscale(CAM.fwd, A.dist * 0.5));
+  const mid = vadd(o, vscale(f, A.dist * 0.5));
   for (let i = 1; i <= n; i++) {
     const t = i / n, a = vadd(vscale(p0, (1 - t) * (1 - t)), vadd(vscale(mid, 2 * t * (1 - t)), vscale(p1, t * t)));
     linea(prev, a, c); prev = a;

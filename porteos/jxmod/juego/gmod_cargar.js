@@ -180,7 +180,8 @@ function gmaPaso(dt) {
   else if (vivo !== GMA.jugVivo) {
     GMA.jugVivo = vivo;
     // (con un modo de juego: se aparece sin las armas del sandbox y su PlayerSpawn da las suyas; morir callado es KillSilent)
-    if (vivo) { gmaPuntosAparicion(); if (GMA.modo && !GMA.modo.sandbox) gmmSinArmas(); gmaHook('PlayerSpawn', 'S', GMA.jug, false); if (!GMA.modo) gmaHook('PlayerLoadout', 'S', GMA.jug); }
+    // (al aparecer, sin el zoom de una mira —Player:SetFOV—, como GMod)
+    if (vivo) { GMA.fovLua = 0; gmaPuntosAparicion(); if (GMA.modo && !GMA.modo.sandbox) gmmSinArmas(); gmaHook('PlayerSpawn', 'S', GMA.jug, false); if (!GMA.modo) gmaHook('PlayerLoadout', 'S', GMA.jug); }
     else if (GMA.muerteMuda) { GMA.muerteMuda = false; gmaHook('PlayerSilentDeath', 'S', GMA.jug); }
     else { gmaHook('DoPlayerDeath', 'S', GMA.jug, GMA.mundo, gmaDmgInfo(100)); gmaHook('PlayerDeath', 'S', GMA.jug, GMA.mundo, GMA.mundo); }   // (sin cartel al morir, como GMod)
   }
@@ -200,6 +201,7 @@ function gmaPaso(dt) {
   gmaHook('Tick', 'SC'); gmaHook('Think', 'SC'); gmaHook('PlayerTick', 'S', GMA.jug, null); gmaHook('PlayerPostThink', 'S', GMA.jug);
   // armas de los addons
   gmaSwepPaso();
+  gmsnPaso();   // (los sonidos en bucle que siguen: gmod_sonidos.js)
   // choques fuertes → PhysicsCollide
   if (PH.hits.length) for (const h of PH.hits.slice(0, 64)) for (const [a, b] of [[h.b, h.o], [h.o, h.b]]) {
     const e = a && a.obj && GMA.entPorObj.get(a.obj); if (!e || !e.vivo || !claseTabla(e.clase, 'S')) continue;

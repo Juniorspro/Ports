@@ -142,7 +142,7 @@ function gmpDibujar(P) {
     if (!P.gmp) { P.md.encolar(); return; }   // (el addon todavía no llegó: el Hero)
   }
   if (P.gmp.propio) { gmpPropio(P); return; }
-  const G = P.gmp, def = G.def, A = def.arb, hmd = P.md, D = P.D, nb = def.nb, X = def.porMix; hmd.actualizar();
+  const G = P.gmp, def = G.def, A = def.arb, hmd = P.md, D = P.D, nb = def.nb, X = def.porMix, rag = !!P.rag; hmd.actualizar();
   const rwc = D._rwc || (D._rwc = D.rw.map((q) => q.conj()));   // (los giros de reposo del Hero ya invertidos, una vez por skin)
   const raiz = hmd.raiz, rq = m4quat(raiz, _gq2), rp = v3(raiz[12], raiz[13], raiz[14]);
   G.Q[0].copy(rq); G.Pw[0].copy(rp); G.S[0] = 1; G.W[0].set(raiz); G.md.fijo[0] = G.W[0]; G.bajar = 0; G.armaD = null;
@@ -158,15 +158,19 @@ function gmpDibujar(P) {
       const pa = A[i].pa, h = G.hero[i];
       if (h < 0) { const r = A[i].r; G.Q[i].copy(G.Q[pa]).mul(_gq.set(r[0], r[1], r[2], r[3])).norm(); G.S[i] = G.S[pa]; }
       if (i === X.Hips && h >= 0) {
-        // la cadera: donde está la del Hero, con la altura sobre la raíz escalada al largo de las piernas del modelo
-        const W = hmd.W[h], k = G.k, pi = P.pos.y - 1; G.Pw[i].set(rp.x + (W[12] - rp.x) * k, pi + (W[13] - pi) * k, rp.z + (W[14] - rp.z) * k); if (G.bajar) G.Pw[i].y -= G.bajar;
+        // la cadera: donde está la del Hero, con la altura sobre la raíz escalada al largo de las piernas del modelo (la raíz del
+        // Hero es donde pisa, ya con el ajuste de los pies al piso; antes se tomaba 1 m debajo del centro del cuerpo, que queda
+        // unos centímetros más abajo, y en uno chico —Cartman y Kenny de South Park, a 0,13 de escala— los pies se enterraban
+        // 10 a 15 cm. Tirado como muñeco, en la del muñeco del Hero, y después se apoya en el piso: gmpApoyar)
+        const W = hmd.W[h], k = G.k, pi = rp.y; if (rag) G.Pw[i].set(W[12], W[13], W[14]); else G.Pw[i].set(rp.x + (W[12] - rp.x) * k, pi + (W[13] - pi) * k, rp.z + (W[14] - rp.z) * k); if (G.bajar) G.Pw[i].y -= G.bajar;
       } else { const p = A[i].p; G.Q[pa].rotTo(_gv.set(p[0] * G.S[pa], p[1] * G.S[pa], p[2] * G.S[pa]), G.Pw[i]); G.Pw[i].add(G.Pw[pa]); }
     }
   };
   posar();
   // (lejos, con menos del 15 % del alto de la pantalla: sin el ajuste de piernas ni la IK de manos y pies, que no se ven y
   // costaban dos pasadas más del esqueleto)
-  const cerca = !P.lejos;
+  // (y de muñeco tampoco: no pisa, cae como caen sus huesos)
+  const cerca = !P.lejos && !rag;
   // (si las piernas del modelo no llegan a los tobillos del Hero, la cadera baja lo que falta: que pise, no que flote)
   if (cerca) { let falta = 0; for (const L of ['Left', 'Right']) { const ua = X[L + 'UpLeg'], ub = X[L + 'Leg'], uc = X[L + 'Foot'], hf = D.h[L + 'Foot']; if (ua === undefined || ub === undefined || uc === undefined || hf === undefined) continue;
       const largo = vsub(G.Pw[ub], G.Pw[ua]).len() + vsub(G.Pw[uc], G.Pw[ub]).len(), sube = (def.restP[uc].y - def.piso) - D.tobillo, hU0 = D.h[L + 'UpLeg'];
@@ -210,10 +214,60 @@ function gmpDibujar(P) {
     }
   }
   if (ik) posar();
+  if (rag) gmpApoyar(P, G); else if (cerca && G.otraEsc && P.suelo && !P.sentado) gmpNoHundir(G, rp.y);   // (sólo los de otras medidas: en los demás la IK ya los apoya)
   if (G.armaD && X.RightHand !== undefined) G.armaD.pm = G.Pw[X.RightHand].clone();   // (donde quedó de verdad la mano)
   for (let i = 1; i <= nb; i++) { const Q = G.Q[i], s = G.S[i] < 0.02 ? 0.0001 : G.S[i]; _gpP[0] = G.Pw[i].x; _gpP[1] = G.Pw[i].y; _gpP[2] = G.Pw[i].z; _gpQ[0] = Q.x; _gpQ[1] = Q.y; _gpQ[2] = Q.z; _gpQ[3] = Q.w; _gpS[0] = _gpS[1] = _gpS[2] = s; m4trs(_gpP, _gpQ, _gpS, G.W[i]); G.md.fijo[i] = G.W[i]; }
   G.md.color = hmd.color; G.md.extra = hmd.extra; G.md.resaltar = hmd.resaltar; G.md.sinSombra = hmd.sinSombra;
   G.md.sucio = true; G.md.encolar();
+}
+// lo que ocupa la malla alrededor de cada hueso, en los ejes del hueso (metros, ejes del juego): de los vértices que dependen
+// sobre todo de él, los de más afuera en 98 direcciones (las de la cáscara de un cubo de 5×5×5). Con eso se sabe dónde
+// queda lo más bajo del modelo en cualquier pose sin recorrer toda la malla (una caja girada se pasaba de largo)
+const _GMP_DIRS = []; for (let x = -2; x <= 2; x++) for (let y = -2; y <= 2; y++) for (let z = -2; z <= 2; z++) if (Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) === 2) _GMP_DIRS.push([x, y, z]);
+function gmpPuntos(def) {
+  if (def.puntos) return def.puntos;
+  const M = def.M, V = M.v, H = M.huesos, best = H.map(() => null); def.puntos = H.map(() => null); if (!V || !V.n) return def.puntos;
+  for (let k = 0; k < V.n; k++) {
+    let b = V.hb[k * 3], bw = V.w[k * 3]; for (let j = 1; j < 3; j++) if (V.w[k * 3 + j] > bw) { bw = V.w[k * 3 + j]; b = V.hb[k * 3 + j]; }
+    const m = H[b] && H[b].p2b; if (!m) continue;
+    const x = V.pos[k * 3], y = V.pos[k * 3 + 1], z = V.pos[k * 3 + 2], p = def.pv([m[0] * x + m[1] * y + m[2] * z + m[3], m[4] * x + m[5] * y + m[6] * z + m[7], m[8] * x + m[9] * y + m[10] * z + m[11]]);
+    const B = best[b] || (best[b] = _GMP_DIRS.map(() => [-Infinity, null]));
+    for (let d = 0; d < _GMP_DIRS.length; d++) { const D = _GMP_DIRS[d], v = D[0] * p[0] + D[1] * p[1] + D[2] * p[2]; if (v > B[d][0]) { B[d][0] = v; B[d][1] = p; } }
+  }
+  best.forEach((B, b) => { if (!B) return; const L = [...new Set(B.map((x) => x[1]).filter(Boolean))]; const f = new Float32Array(L.length * 3); L.forEach((p, i) => f.set(p, i * 3)); def.puntos[b] = f; });
+  // (y los huesos que llegan al tercio de abajo de la malla en reposo: los únicos que pueden quedar más abajo parado)
+  const ys = def.puntos.map((c, b) => { if (!c || !def.restQ[1 + b]) return null; let mn = Infinity, mx = -Infinity; for (let k = 0; k < c.length; k += 3) { const y = def.restQ[1 + b].rot(v3(c[k], c[k + 1], c[k + 2])).y + def.restP[1 + b].y; if (y < mn) mn = y; if (y > mx) mx = y; } return [mn, mx]; });
+  let y0 = Infinity, y1 = -Infinity; for (const r of ys) if (r) { y0 = Math.min(y0, r[0]); y1 = Math.max(y1, r[1]); }
+  def.bajos = []; ys.forEach((r, b) => { if (r && r[0] < y0 + 0.35 * (y1 - y0)) def.bajos.push(b); });
+  return def.puntos;
+}
+// parado en el piso: lo más bajo de la malla no queda debajo de donde pisa el Hero, salvo los pies (esos los pone la IK).
+// Un modelo con las piernas metidas en la malla de la cadera —el Cartman de South Park— se hundía cuando el Hero mueve la
+// cadera (la malla de abajo gira con ella)
+function gmpNoHundir(G, piso) {
+  const def = G.def, C = gmpPuntos(def), B = def.bajos; if (!B || !B.length) return;
+  const X = def.porMix, pies = def.pies || (def.pies = new Set(['LeftFoot', 'RightFoot', 'LeftToeBase', 'RightToeBase'].map((n) => X[n]).filter((x) => x !== undefined)));
+  let bajo = Infinity, cual = -1;
+  for (const b of B) { const i = 1 + b, c = C[b], Q = G.Q[i], s = G.S[i] || 1, y0 = G.Pw[i].y; for (let k = 0; k < c.length; k += 3) { Q.rotTo(_gpa.set(c[k] * s, c[k + 1] * s, c[k + 2] * s), _gpb); if (_gpb.y + y0 < bajo) { bajo = _gpb.y + y0; cual = i; } } }
+  if (bajo < piso - 0.005 && !pies.has(cual)) { const d = piso - bajo; for (let i = 1; i <= def.nb; i++) G.Pw[i].y += d; }
+}
+// el muñeco de trapo con un modelo de otras medidas: apoyado donde se apoya el del Hero (lo más bajo de la malla, a la altura
+// de lo más bajo de los cuerpos del muñeco). Antes la cadera iba a la del Hero escalada hacia un piso supuesto —un metro
+// debajo de la cadera, que tirado en el suelo está a centímetros— y uno chico, como Cartman o Kenny de South Park, quedaba
+// medio metro bajo tierra: no se veía
+const _gpa = v3(), _gpb = v3(), _gpAb = v3(0, -1, 0);
+function gmpApoyar(P, G) {
+  let piso = Infinity; for (const [, x] of P.rag.cuerpos) if (x.b && x.b.aabb && x.b.aabb.y0 < piso) piso = x.b.aabb.y0;
+  if (!isFinite(piso)) return;
+  // (y nunca debajo del piso del mapa que tiene abajo: los cuerpos del muñeco se hunden un poco al apoyarse)
+  if (typeof mundoRayo === 'function') { const h = mundoRayo(_gpa.set(P.pos.x, P.pos.y + 0.5, P.pos.z), _gpAb, 4); if (h) piso = Math.max(piso, P.pos.y + 0.5 - h.t); }
+  const C = gmpPuntos(G.def); let bajo = Infinity;
+  for (let i = 1; i <= G.def.nb; i++) {
+    const c = C[i - 1]; if (!c) continue; const Q = G.Q[i], s = G.S[i] || 1, y0 = G.Pw[i].y;
+    for (let k = 0; k < c.length; k += 3) { Q.rotTo(_gpa.set(c[k] * s, c[k + 1] * s, c[k + 2] * s), _gpb); if (_gpb.y + y0 < bajo) bajo = _gpb.y + y0; }
+  }
+  if (!isFinite(bajo)) return;
+  const d = piso - bajo; for (let i = 1; i <= G.def.nb; i++) G.Pw[i].y += d;
 }
 // un modelo sin ValveBiped: su secuencia según lo que hace el personaje, cuadro a cuadro desde el .mdl (GMF.pose)
 function gmpPropio(P) {
@@ -287,9 +341,23 @@ function gmhArmaDef(ruta) {
   const x = GMOD.pf.get(nom), M = x && x.M, nodos = DATA.pf[DATA.pfPorNombre[nom]];
   if (!M || !nodos) { GMH.defs.set(ruta, null); return null; }
   const H = M.huesos || [], hb = Math.max(0, H.findIndex((h) => /r_hand$/i.test(h.n)));
-  const Gi = gmhInvRigida(gmhHuesoReposo(H[hb]), new Float32Array(16));
+  // (la malla del prop puede estar en la pose de su primera secuencia y no en la de enlace —gmPrefab elige la que calza con
+  // su .phy—: entonces la mano y los adjuntos van con los huesos de esa pose. Los modelos de mundo de TF2 traen la raíz
+  // girada 90° en «idle» y la minigun y el rifle quedaban de costado en la mano: Discord, «el agarre de las armas está mal»)
+  const RP = gmhPoseDeMalla(M, nodos);
+  const huesos = RP ? RP.W.map((w) => gmhDeSource(w, new Float32Array(16))) : H.map((h) => gmhHuesoReposo(h));
+  const Gi = gmhInvRigida(huesos[hb] || gmhHuesoReposo(H[hb]), new Float32Array(16));
   const md = new Modelo(nodos.map((n) => ({ n: n.n, p: n.p, r: n.r, s: n.s, pa: n.pa, m: n.m, mt: n.mt })));
-  const d = { md, Gi, M, ruta, huesos: H.map((h) => gmhHuesoReposo(h)) }; GMH.defs.set(ruta, d); return d;
+  const d = { md, Gi, M, ruta, huesos }; GMH.defs.set(ruta, d); return d;
+}
+// la pose en que quedó la malla del prop (null: la de enlace): se compara la caja de la malla con la de los vértices en
+// cada pose (gmPrefab no la guarda; la malla está en metros con los ejes del juego)
+function gmhPoseDeMalla(M, nodos) {
+  const d = nodos && nodos[0] && DATA.ms[nodos[0].m], V = M.v; if (!d || !d.mn || !d.sc || !V || !V.n || !GMF.poseReposo) return null;
+  let RP = null; try { RP = GMF.poseReposo(M); } catch (e) { RP = null; } if (!RP || !RP.W) return null;
+  const caja = (pos) => { const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9]; for (let k = 0; k < V.n; k++) for (let c = 0; c < 3; c++) { const x = pos[k * 3 + [1, 2, 0][c]] * GM_S; if (x < mn[c]) mn[c] = x; if (x > mx[c]) mx[c] = x; } return [0, 1, 2].reduce((s, c) => s + Math.abs(mn[c] - d.mn[c]) + Math.abs(mx[c] - mn[c] - d.sc[c]), 0); };
+  let VP = null; try { VP = GMF.posar(M, RP); } catch (e) { return null; }
+  return caja(VP.pos) < caja(V.pos) ? RP : null;
 }
 const gmhRutaMundo = (w) => { const r = String(w.modelo || w.wm || '').toLowerCase().replace(/\\/g, '/'); return /\.mdl$/.test(r) ? (r.startsWith('models/') ? r : 'models/' + r) : null; };
 // (desde el dibujo del personaje) el arma del addon que tiene en la mano: su modelo de mundo pegado a la mano

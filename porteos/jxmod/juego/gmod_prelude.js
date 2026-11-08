@@ -629,7 +629,12 @@ do
   -- (sin malla de navegación: un lugar al azar dentro del radio)
   function NB:FindSpot(type, options) options = options or {} local r = options.radius or 1000 return self:GetPos() + Vector(math.Rand(-r, r), math.Rand(-r, r), 0) end
   function NB:FindSpots(options) local t = {} for i = 1, 5 do t[i] = { vector = self:FindSpot("random", options), distance = 0 } end return t end
-  function NB:BodyUpdate() end
+  -- (como el de GMod: caminando o corriendo, BodyMoveXY pone move_x/move_y y el paso según la velocidad)
+  function NB:BodyUpdate()
+    local act = self:GetActivity()
+    if act == ACT_RUN or act == ACT_WALK then self:BodyMoveXY() return end
+    self:FrameAdvance()
+  end
   function NB:OnStuck() end
   function NB:OnUnStuck() end
   function NB:OnInjured() end

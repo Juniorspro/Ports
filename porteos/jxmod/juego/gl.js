@@ -523,6 +523,17 @@ void main(){
   }
 #endif
 #endif
+#ifdef EMC
+  // lo celeste brilla solo, como el $selfillum de la Physics Gun en GMod: ni la oscuridad ni la luz naranja del mapa lo
+  // tiñen. La máscara de Source va en el alfa de su textura, que acá no viene: se saca del color (contra la de verdad, IoU
+  // 0,70). El color, el de la textura por el tinte de GMod (cl_weaponcolor 0,3 1,8 2,1): pasa del blanco y hace resplandor
+  float cel = smoothstep(0.02, 0.15, min(t.g, t.b) - t.r) * smoothstep(0.2, 0.5, max(t.g, t.b));
+#if LUZ >= 2
+  col = mix(col, pow(t.rgb, vec3(2.2)) * vec3(0.3, 1.8, 2.1), cel);
+#else
+  col = mix(col, min(t.rgb * vec3(0.4, 1.05, 1.08), vec3(1.0)), cel);
+#endif
+#endif
 #ifdef VERLUZ
   col = lmL;
 #endif
@@ -1022,8 +1033,11 @@ function matGL(i) {
   const tx = m.terr ? 'TERR' : m.mez !== undefined ? 'MEZ' : '';
   // el agua: la de los mapas de GMod (refleja la escena en Alto y Ultra) y la de los recipientes y los charcos (agua.js)
   if (/^(GM_agua|RB_agua)$/.test(d.n || '')) { m.agua = true; m.refleja = d.n === 'GM_agua'; m.blend = true; m.cut = false; m.unlit = false; m.fol = false; }
-  m.claveBase = tx + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit && !m.fol ? 'UNLIT' : '') + ',' + (m.fol ? 'FOL' : '') + (m.agua ? ',AGUA' : '');
-  m.claveGam = tx + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit ? 'UNLIT' : '') + (m.agua ? ',AGUA' : '');
+  // la Physics Gun (la de la mano y la del mundo): sus partes celestes brillan solas (EMC en el shader; Discord: «que brillen
+  // las partes celestes de la physics gun»)
+  const emc = /^GM_(v_superphyscannon_sheet|w_physics_sheet2)$/.test(d.n || '') ? ',EMC' : '';
+  m.claveBase = tx + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit && !m.fol ? 'UNLIT' : '') + ',' + (m.fol ? 'FOL' : '') + (m.agua ? ',AGUA' : '') + emc;
+  m.claveGam = tx + ',' + (m.cut ? 'CUT' : '') + ',' + (m.unlit ? 'UNLIT' : '') + (m.agua ? ',AGUA' : '') + emc;
   m.sombra = !m.blend && !m.add && !m.oculto;
   return (R.mats[i] = m);
 }
@@ -1415,12 +1429,14 @@ function lucesPreparar() {
   }
 }
 // luces especiales: se juntan en R.esp (las más importantes primero) y van las 4 primeras
-const ESP_P = new Float32Array(16), ESP_C = new Float32Array(16), ESP_D = new Float32Array(16);
-function luzEspecial(p, radio, col, dir, cono, prioridad, sombra) { R.esp.push({ p, r: radio, c: col, d: dir || null, k: cono === undefined ? -2 : cono, q: prioridad || 0, sh: !!sombra }); }
+const ESP_P = new Float32Array(16), ESP_C = new Float32Array(16), ESP_D = new Float32Array(16), ESP_PV = new Float32Array(16);
+// (pv: de dónde alumbra al arma en la mano, si no es p: la linterna sin mapa de sombra sale de los ojos —linterna.js— y el
+// arma sigue alumbrada como antes)
+function luzEspecial(p, radio, col, dir, cono, prioridad, sombra, pv) { R.esp.push({ p, r: radio, c: col, d: dir || null, k: cono === undefined ? -2 : cono, q: prioridad || 0, sh: !!sombra, pv: pv || null }); }
 function espPreparar() {
   const L = R.esp, cp = R.camPos;
   if (L.length > 4) L.sort((a, b) => b.q - a.q || a.p.distTo(cp) - b.p.distTo(cp));
-  R.nEsp = Math.min(4, L.length); R.espShI = -1; R.espShL = null;
+  R.nEsp = Math.min(4, L.length); R.espShI = -1; R.espShL = null; R.espPV = false;
   for (let i = 0; i < R.nEsp; i++) if (L[i].sh && L[i].d && L[i].k > 0) { R.espShI = i; R.espShL = L[i]; break; }   // (la linterna propia: la sombra)
   for (let i = 0; i < R.nEsp; i++) {
     const l = L[i], o = i * 4;
@@ -1428,9 +1444,10 @@ function espPreparar() {
     ESP_C[o] = l.c[0]; ESP_C[o + 1] = l.c[1]; ESP_C[o + 2] = l.c[2]; ESP_C[o + 3] = 0;
     if (l.d) { ESP_D[o] = l.d.x; ESP_D[o + 1] = l.d.y; ESP_D[o + 2] = l.d.z; ESP_D[o + 3] = l.k; } else { ESP_D[o] = 0; ESP_D[o + 1] = -1; ESP_D[o + 2] = 0; ESP_D[o + 3] = -2; }
   }
+  for (let i = 0; i < R.nEsp; i++) { const v = L[i].pv; if (!v) continue; if (!R.espPV) { ESP_PV.set(ESP_P); R.espPV = true; } ESP_PV[i * 4] = v.x; ESP_PV[i * 4 + 1] = v.y; ESP_PV[i * 4 + 2] = v.z; }
 }
 function espUniformes(P) {
-  const n = ESP_P.length; uNv(P, P.u.uEP, ESP_P, n, 4); uNv(P, P.u.uEC, ESP_C, ESP_C.length, 4); uNv(P, P.u.uED, ESP_D, ESP_D.length, 4); u1i(P, P.u.uEN, R.nEsp || 0);
+  const n = ESP_P.length; uNv(P, P.u.uEP, R.espPV && R.fase === 'vista' ? ESP_PV : ESP_P, n, 4); uNv(P, P.u.uEC, ESP_C, ESP_C.length, 4); uNv(P, P.u.uED, ESP_D, ESP_D.length, 4); u1i(P, P.u.uEN, R.nEsp || 0);
   // (la sombra de la linterna: no en el arma en la mano, que se dibuja aparte)
   if (P.u.uESmI) { const on = R.espShOn && R.fase !== 'vista'; u1i(P, P.u.uESmI, on ? R.espShI : -1); if (on) { uNv(P, P.u.uESmM, ESH.M, 16, 16); u2f(P, P.u.uESmK, ESH.sesgo, ESH.texM); } }
 }

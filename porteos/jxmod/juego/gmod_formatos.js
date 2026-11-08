@@ -168,8 +168,14 @@ GMF.vmt = function (bytes, buscar) {
   for (const c of cond) for (const [kk, vv] of Object.entries(k[c])) if (k[kk] === undefined) k[kk] = vv;
   const vec = (x) => { if (x === undefined) return null; const v = String(x).replace(/[\[\]{}]/g, ' ').trim().split(/\s+/).map(Number); return v.length >= 3 && v.every(Number.isFinite) ? (/\{/.test(x) ? v.slice(0, 3).map((c) => c / 255) : v.slice(0, 3)) : null; };
   const ruta = (x) => (x ? String(x).toLowerCase().replace(/\\/g, '/').replace(/^\/+/, '').replace(/\.vtf$/, '') : null);
+  // (el espejo de la textura: "scale" de $basetexturetransform, o el de un proxy TextureTransform —scaleVar, la variable con
+  // la escala—; la mira del sniper de TF2 dibuja los cuatro cuartos con una sola textura espejada así)
+  const espejo = (() => { const tp = k.proxies && k.proxies.texturetransform, rv = tp && String(tp.resultvar || '').toLowerCase();
+    const sv = tp && tp.scalevar && (rv === '$basetexturetransform' || (rv === '$bumptransform' && /refract/.test(m.shader))) ? k[String(tp.scalevar).toLowerCase()] : undefined;
+    const de = (x) => { const v = String(x).replace(/[\[\]{}]/g, ' ').trim().split(/\s+/).map(Number); return v.length >= 2 && v.every(Number.isFinite) ? [Math.sign(v[0]) || 1, Math.sign(v[1]) || 1] : null; };
+    if (sv !== undefined) return de(sv); const bt = k.$basetexturetransform && /scale\s+(\S+)\s+(\S+)/i.exec(String(k.$basetexturetransform)); return bt ? de(bt[1] + ' ' + bt[2]) : null; })();
   return {
-    shader: m.shader, base: ruta(k.$basetexture), bump: ruta(k.$bumpmap), detalle: ruta(k.$detail),
+    shader: m.shader, base: ruta(k.$basetexture), bump: ruta(k.$bumpmap), detalle: ruta(k.$detail), tinte: ruta(k.$refracttinttexture), espejo,
     trans: num(k.$translucent, 0) !== 0 || num(k.$alpha, 1) < 1, alfa: num(k.$alpha, 1), corte: num(k.$alphatest, 0) !== 0, umbral: num(k.$alphatestreference, 0.5),
     suma: num(k.$additive, 0) !== 0, dosLados: num(k.$nocull, 0) !== 0, brilla: num(k.$selfillum, 0) !== 0,
     sinLuz: /unlit|sprite|spritecard/.test(m.shader), color: vec(k.$color2) || vec(k.$color), env: !!k.$envmap, phong: num(k.$phong, 0) !== 0,
@@ -311,7 +317,11 @@ GMF.mdl = function (mdl, vvd, vtx) {
   }
   // las animaciones (descriptores) y las secuencias (nombre, actividad, bucle, su primera animación)
   const nan = i32(180), ani = i32(184); M.anims = [];
-  for (let k = 0; k < Math.min(nan, 600); k++) { const o = ani + k * 100; M.anims.push({ n: _cs(mdl, o + i32(o + 4)), o, fps: f32(o + 8), flags: i32(o + 12), nf: i32(o + 16), bloque: i32(o + 52), idx: i32(o + 56), sidx: i32(o + 80), sfr: i32(o + 84) }); }
+  for (let k = 0; k < Math.min(nan, 600); k++) { const o = ani + k * 100; M.anims.push({ n: _cs(mdl, o + i32(o + 4)), o, fps: f32(o + 8), flags: i32(o + 12), nf: i32(o + 16), bloque: i32(o + 52), idx: i32(o + 56), sidx: i32(o + 80), sfr: i32(o + 84) });
+    // (lo que avanza la animación —los «walkframes»: mstudiomovement_t, por tramos de cuadros—; de ahí sale la velocidad de
+    // suelo de cada secuencia, con la que los nextbots de DrGBase con UseWalkframes caminan y ajustan el paso)
+    const nm = i32(o + 20), mi = i32(o + 24);
+    if (nm > 0 && nm <= 64 && mi > 0 && o + mi + nm * 44 <= mdl.length) { const L = []; for (let j = 0; j < nm; j++) { const q = o + mi + j * 44; L.push({ fin: i32(q), v0: f32(q + 8), v1: f32(q + 12), ang: f32(q + 16), vec: [f32(q + 20), f32(q + 24), f32(q + 28)], pos: [f32(q + 32), f32(q + 36), f32(q + 40)] }); } M.anims[k].mov = L; } }
   const nseq = i32(188), sqi = i32(192); M.secuencias = [];
   for (let k = 0; k < Math.min(nseq, 400); k++) {
     const o = sqi + k * 212, fl = i32(o + 12), aii = i32(o + 60);
@@ -319,7 +329,9 @@ GMF.mdl = function (mdl, vvd, vtx) {
     // (las mezclas: una grilla de g[0]×g[1] animaciones según uno o dos parámetros de pose —move_x/move_y al caminar, la
     // mira—; y el peso por hueso, para las capas)
     const g = [Math.max(1, i32(o + 68)), Math.max(1, i32(o + 72))], q = { n: _cs(mdl, o + i32(o + 4)), act: _cs(mdl, o + i32(o + 8)), peso: i32(o + 16), flags: fl, loop: !!(fl & 1), anim, o, wl: i32(o + 156) };
-    if (g[0] * g[1] > 1 && g[0] * g[1] <= 64) { q.g = g; q.par = [i32(o + 76), i32(o + 80)]; q.ps = [f32(o + 84), f32(o + 88)]; q.pe = [f32(o + 92), f32(o + 96)]; q.grid = []; try { for (let j = 0; j < g[0] * g[1]; j++) q.grid.push(dv.getInt16(o + aii + j * 2, true)); } catch (e) { q.grid = null; } }
+    if (g[0] * g[1] > 1 && g[0] * g[1] <= 64) { q.g = g; q.par = [i32(o + 76), i32(o + 80)]; q.ps = [f32(o + 84), f32(o + 88)]; q.pe = [f32(o + 92), f32(o + 96)]; q.grid = []; try { for (let j = 0; j < g[0] * g[1]; j++) q.grid.push(dv.getInt16(o + aii + j * 2, true)); } catch (e) { q.grid = null; }
+      // (las «pose keys»: el valor del parámetro en cada columna/fila de la grilla, cuando no están parejas)
+      const pk = i32(o + 160); if (pk > 0 && o + pk + (g[0] + g[1]) * 4 <= mdl.length) q.claves = [0, 1].map((a) => { const L = []; for (let j = 0; j < g[a]; j++) L.push(f32(o + pk + (a * g[0] + j) * 4)); return L; }); }
     // (los eventos de la animación —el golpe de un zombie, los pasos—: en qué parte de la secuencia y con qué datos; el
     // motor los manda a ENT:HandleAnimEvent. Cada uno: ciclo, número, tipo, opciones y su nombre si es de los nuevos)
     const nev = i32(o + 24), evi = i32(o + 28);
@@ -422,9 +434,70 @@ GMF._poseIncluida = function (M, A0, f) {
 GMF.animDe = function (M, k, vals) {
   const q = M.secuencias[k]; if (!q) return -1;
   if (!q.grid || !q.grid.length) return q.anim;
-  const idx = [0, 1].map((a) => { if (q.g[a] <= 1) return 0; const nom = M.poseParams && M.poseParams[q.par[a]], v = vals && nom && vals[nom] !== undefined ? vals[nom] : 0, d = q.pe[a] - q.ps[a];
-    const t = Math.abs(d) > 1e-6 ? Math.max(0, Math.min(1, (v - q.ps[a]) / d)) : 0; return Math.round(t * (q.g[a] - 1)); });
-  const a = q.grid[idx[0] + idx[1] * q.g[0]]; return a >= 0 && M.anims[a] ? a : q.anim;
+  let a = -1, w = -1; for (const x of GMF.mezcla(M, k, vals)) if (x.w > w) { w = x.w; a = x.ia; }   // (la de más peso en la mezcla)
+  return a >= 0 && M.anims[a] ? a : q.anim;
+};
+// la mezcla de una secuencia con esos parámetros de pose, como Studio_SeqAnims de Source: hasta cuatro animaciones de la
+// grilla con su peso (entre las dos columnas y las dos filas que rodean el valor, o los tramos de sus «pose keys»; el
+// valor fuera del rango del parámetro se recorta, como SetPoseParameter); sin grilla, la única
+GMF.mezcla = function (M, k, vals) {
+  const q = M.secuencias[k]; if (!q) return [];
+  if (!q.grid || !q.grid.length) return q.anim >= 0 && M.anims[q.anim] ? [{ ia: q.anim, w: 1 }] : [];
+  const ix = [0, 0], s = [0, 0];
+  for (let a = 0; a < 2; a++) {
+    const g = q.g[a], pi = q.par[a], nom = M.poseParams && M.poseParams[pi]; if (g <= 1 || pi < 0 || nom === undefined) continue;
+    const R = (M.poseRangos && M.poseRangos[pi]) || [q.ps[a], q.pe[a]], lo = Math.min(R[0], R[1]), hi = Math.max(R[0], R[1]);
+    const v = Math.max(lo, Math.min(hi, vals && vals[nom] !== undefined ? +vals[nom] || 0 : 0));
+    let i = 0, t = 0;
+    if (q.claves) { const K = q.claves[a]; for (;;) { const d = K[i + 1] - K[i]; t = Math.abs(d) > 1e-9 ? (v - K[i]) / d : 0; if (i < g - 2 && t > 1) { i++; continue; } break; } }
+    else { const d = q.pe[a] - q.ps[a]; t = Math.abs(d) > 1e-9 ? Math.max(0, Math.min(1, (v - q.ps[a]) / d)) : 0; if (g > 2) { i = Math.min(g - 2, Math.floor(t * (g - 1))); t = t * (g - 1) - i; } }
+    ix[a] = i; s[a] = Math.max(0, Math.min(1, t));
+  }
+  const L = [], g0 = q.g[0];
+  const pon = (x, y, w) => { if (!(w > 1e-6)) return; const a = q.grid[x + y * g0]; if (!(a >= 0 && M.anims[a])) return; const o = L.find((e) => e.ia === a); if (o) o.w += w; else L.push({ ia: a, w }); };
+  pon(ix[0], ix[1], (1 - s[0]) * (1 - s[1])); pon(ix[0] + 1, ix[1], s[0] * (1 - s[1])); pon(ix[0], ix[1] + 1, (1 - s[0]) * s[1]); pon(ix[0] + 1, ix[1] + 1, s[0] * s[1]);
+  return L;
+};
+// lo que avanzó una animación hasta el ciclo c (Studio_AnimPosition: por los tramos de sus walkframes, en pulgadas, y el
+// giro en yaw; con más de una vuelta suma las vueltas enteras); null si no tiene movimiento
+const _gmfAnimPos = (A, c) => {
+  const L = A.mov; if (!L || !L.length) return null;
+  const vueltas = c > 1 ? Math.trunc(c) : c < 0 ? Math.trunc(c) - 1 : 0, fr = (c - vueltas) * Math.max(0, A.nf - 1);
+  let ant = 0, p = [0, 0, 0], y = 0;
+  for (const m of L) {
+    if (m.fin >= fr) {
+      const f = m.fin > ant ? (fr - ant) / (m.fin - ant) : 1, d = m.v0 * f + 0.5 * (m.v1 - m.v0) * f * f;
+      p = [p[0] + d * m.vec[0], p[1] + d * m.vec[1], p[2] + d * m.vec[2]]; y = y * (1 - f) + m.ang * f;
+      if (vueltas) { const u = L[L.length - 1]; p = [p[0] + vueltas * u.pos[0], p[1] + vueltas * u.pos[1], p[2] + vueltas * u.pos[2]]; y += vueltas * u.ang; }
+      return { p, y };
+    }
+    ant = m.fin; p = m.pos.slice(); y = m.ang;
+  }
+  return null;
+};
+// lo que avanza una secuencia entre los ciclos c0 y c1 con esos parámetros de pose (Studio_SeqMovement: en los ejes de su
+// arranque, pulgadas de Source, y el giro en yaw); ok: hay movimiento (o una animación quieta, que también vale)
+GMF.secMov = function (M, k, vals, c0, c1) {
+  const p = [0, 0, 0]; let y = 0, ok = false;
+  for (const { ia, w } of GMF.mezcla(M, k, vals)) {
+    const A = M.anims[ia], a = _gmfAnimPos(A, c0), b = a && _gmfAnimPos(A, c1);
+    if (a && b) {
+      const r = -a.y * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r), dx = b.p[0] - a.p[0], dy = b.p[1] - a.p[1];
+      p[0] += (dx * cs - dy * sn) * w; p[1] += (dx * sn + dy * cs) * w; p[2] += (b.p[2] - a.p[2]) * w; y += (b.y - a.y) * w; ok = true;
+    } else if (!(A.flags & 4) && !(A.mov && A.mov.length)) ok = true;
+  }
+  return { ok, p, y };
+};
+// lo que dura una secuencia con esos parámetros (Studio_Duration: la inversa de los ciclos por segundo de la mezcla)
+GMF.secDur = function (M, k, vals) {
+  let cps = 0; for (const { ia, w } of GMF.mezcla(M, k, vals)) { const A = M.anims[ia]; if (A && A.nf > 1) cps += ((A.fps > 0 ? A.fps : 30) / (A.nf - 1)) * w; }
+  return cps > 0 ? 1 / cps : 0;
+};
+// la velocidad de suelo de una secuencia (GetSequenceGroundSpeed: lo que avanza en una vuelta sobre lo que dura), en
+// pulgadas por segundo; 0 si no avanza (una animación hecha para moverse «en el lugar»)
+GMF.secVelSuelo = function (M, k, vals) {
+  const t = GMF.secDur(M, k, vals); if (!(t > 0)) return 0;
+  const m = GMF.secMov(M, k, vals, 0, 1); return m.ok ? Math.hypot(m.p[0], m.p[1], m.p[2]) / t : 0;
 };
 // las capas que el motor de Source suma siempre (secuencias «autoplay» de diferencia): en muchos modelos de jugador del
 // Workshop las animaciones son de otro esqueleto y una capa «proportions» lleva cada hueso a las medidas del modelo (el
@@ -633,19 +706,24 @@ GMF.phyModelo = function (P, M, RP) {
 };
 
 // ---------------- .wav: lo que el navegador no lee (ADPCM) pasa a PCM de 16 bits ----------------
+// (un .wav con un punto "cue" —o un bucle "smpl"— es un sonido en bucle para Source: suena hasta que lo paran, desde ese
+// punto; se anota en lo que devuelve, .bucle = segundos desde donde vuelve: la minigun y el lanzallamas de TF2)
 GMF.wav = function (b) {
   if (!(b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46)) return b;
-  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength); let p = 12, fmt = null, datos = null;
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength); let p = 12, fmt = null, datos = null, cue = -1, smpl = -1;
   while (p + 8 <= b.length) {
     const id = String.fromCharCode(b[p], b[p + 1], b[p + 2], b[p + 3]), t = dv.getUint32(p + 4, true);
     if (id === 'fmt ') fmt = { tag: dv.getUint16(p + 8, true), ch: dv.getUint16(p + 10, true), sr: dv.getUint32(p + 12, true), align: dv.getUint16(p + 20, true), bits: dv.getUint16(p + 22, true), p: p + 8, t };
     else if (id === 'data') datos = b.subarray(p + 8, Math.min(b.length, p + 8 + t));
+    else if (id === 'cue ' && t >= 28 && p + 36 <= b.length && dv.getUint32(p + 8, true) > 0) cue = dv.getUint32(p + 32, true);
+    else if (id === 'smpl' && t >= 60 && p + 56 <= b.length && dv.getUint32(p + 36, true) > 0) smpl = dv.getUint32(p + 52, true);
     p += 8 + t + (t & 1);
   }
   if (!fmt || !datos) return b;
+  const bucle = smpl >= 0 ? smpl : cue, fin = (o) => { if (bucle >= 0 && fmt.sr > 0) o.bucle = bucle / fmt.sr; return o; };
   if (fmt.tag === 1 || fmt.tag === 3) {
     // (PCM: se rearma limpio, porque Source deja "cue"/"LIST" que algunos navegadores no aceptan bien)
-    return GMF._wavPCM(datos, fmt.ch, fmt.sr, fmt.bits, fmt.tag);
+    return fin(GMF._wavPCM(datos, fmt.ch, fmt.sr, fmt.bits, fmt.tag));
   }
   if (fmt.tag !== 2 && fmt.tag !== 0x11) return b;
   const ch = fmt.ch, blk = fmt.align, nb = Math.floor(datos.length / blk), out = [];
@@ -683,7 +761,7 @@ GMF.wav = function (b) {
     }
   }
   const pcm = new Uint8Array(out.length * 2), pv = new DataView(pcm.buffer); out.forEach((v, i) => pv.setInt16(i * 2, v, true));
-  return GMF._wavPCM(pcm, ch, fmt.sr, 16, 1);
+  return fin(GMF._wavPCM(pcm, ch, fmt.sr, 16, 1));
 };
 GMF._wavPCM = function (pcm, ch, sr, bits, tag) {
   const o = new Uint8Array(44 + pcm.length), dv = new DataView(o.buffer), S = (p, s) => { for (let i = 0; i < 4; i++) o[p + i] = s.charCodeAt(i); };

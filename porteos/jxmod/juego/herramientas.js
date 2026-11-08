@@ -36,8 +36,8 @@ function inspectorHerramienta(el) {
 }
 function herramientaUsar(alt) {
   const h = DATA.herr[HER.sel]; if (!h) return;
-  const r = raycast(CAM.pos, CAM.fwd, 80, null);
-  efectoTraza(vistaPuntaMundo() || CAM.pos, r ? r.p : vadd(CAM.pos, vscale(CAM.fwd, 80)));
+  const oj = miraOjo(), f = miraDir(), r = raycast(oj, f, 80, null);   // (de los ojos del personaje, no de la cámara libre: armas.js)
+  efectoTraza(bocaArma(f) || oj, r ? r.p : vadd(oj, vscale(f, 80)));
   sonar('Click', null, 0.5, 1.4);
   const o = r && r.body && r.body.obj;
   if (h.gmTool) { if (typeof gmbHerUsar === 'function') gmbHerUsar(h, alt ? 'RightClick' : 'LeftClick'); return; }   // (una herramienta de un addon de GMod)
@@ -85,14 +85,14 @@ function herramientasPaso(dt) {
   // mira de la Tool Gun: mostrar el ID de lo que apunta
   const enTool = ARM.lista[ARM.i] === 'ToolBaton' && !UI.abierto;
   let txt = '';
-  if (enTool) { const r = raycast(CAM.pos, CAM.fwd, 30, null); if (r && r.body && r.body.obj) txt = `${r.body.obj.nombre} · ID ${r.body.obj.id}`; }
+  if (enTool) { const r = raycast(miraOjo(), miraDir(), 30, null); if (r && r.body && r.body.obj) txt = `${r.body.obj.nombre} · ID ${r.body.obj.id}`; }
   else { const r = raycast(CAM.pos, CAM.fwd, 4.5, null); if (r && r.body && r.body.ent) txt = 'E: ' + T('ent.' + r.body.ent.t); else if (r && r.body && r.body.obj) { const o = r.body.obj; if (o.veh) txt = 'E: subir'; else if (o.nombre === 'Arcade') txt = 'E: ' + T('maq.jugar') + (o.maq ? ' · ' + o.maq.n : ''); else if (o.art) txt = artPista(o); else if (o.nk) txt = (o.nkArm ? T('nk.armada').replace('{0}', Math.max(0, Math.ceil(o.nkArm.t))) : 'E: ' + T('nk.armar')) + ' · ' + nukeFicha(o.nk); else if (o.tipo === 'arma') txt = 'E: agarrar ' + o.nombre; else if (o.logica && (o.logica.tipo === 'Button' || o.logica.tipo === 'PasswordPanel')) txt = 'E: usar'; } }
   if (!txt && !enTool) txt = nocheApunta(); // (los botones de la oficina de la pizzería)
   if (!txt && !enTool && typeof puertaApunta === 'function') txt = puertaApunta();   // (una puerta del mapa)
   if (herramientasPaso.txt !== txt) { herramientasPaso.txt = txt; $('usarTxt').textContent = txt; }
   const arma = ARM.lista[ARM.i];
   if (PREFS.contorno !== false && !UI.abierto && (arma === 'PhysicsGun' || arma === 'ToolBaton' || arma === 'GravityGun')) {
-    const A = ARM.agarre && ARM.agarre.b.obj, r = A ? null : raycast(CAM.pos, CAM.fwd, arma === 'GravityGun' ? 25 : 50, null), o = A || (r && r.body && r.body.obj);
+    const A = ARM.agarre && ARM.agarre.b.obj, r = A ? null : raycast(miraOjo(), miraDir(), arma === 'GravityGun' ? 25 : 50, null), o = A || (r && r.body && r.body.obj);   // (lo que agarraría el arma)
     if (o && !o.remoto) o.md.resaltar = TIEMPO.t;
   }
   for (let k = HER.ents.length - 1; k >= 0; k--) {
@@ -163,7 +163,7 @@ function dibujarHerramientas() {
         L.tag.style.display = ''; L.tag.style.background = col; L.tag.textContent = L.texto; L.tag.style.transform = `translate(${cl.x}px,${cl.y}px) translate(-50%,-50%)`; } else L.tag.style.display = 'none';
     }
   }
-  if (HER.cable && OBJS.includes(HER.cable)) { const r = raycast(CAM.pos, CAM.fwd, 60, null); linea(HER.cable.b.pos, r ? r.p : vadd(CAM.pos, vscale(CAM.fwd, 10)), [1, 1, 0.3, 0.9]); }
+  if (HER.cable && OBJS.includes(HER.cable)) { const o = miraOjo(), f = miraDir(), r = raycast(o, f, 60, null); linea(HER.cable.b.pos, r ? r.p : vadd(o, vscale(f, 10)), [1, 1, 0.3, 0.9]); }
 }
 // ---------------- Nextbot: una imagen que persigue al jugador ----------------
 function nextbotNuevo(o) {
@@ -210,7 +210,7 @@ function herCamara(alt, r) {
     return;
   }
   if (!r) return;
-  const f = CAM.fwd, ang = Math.atan2(f.z, -f.x);   // (el lente del modelo mira a -x)
+  const f = miraDir(), ang = Math.atan2(f.z, -f.x);   // (el lente del modelo mira a -x)
   const o = crearObjeto('CamaraTripode', r.p, Quat.axis(0, 1, 0, ang), { congelado: true });
   if (!o) return;
   o.camPitch = JUG.pitch; DESHACER.push(o); redObjeto(o);

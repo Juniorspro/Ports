@@ -24,12 +24,18 @@ function linternaLuces() {
   if (linternaFnaf()) return;   // (la noche dibuja las suyas)
   const cp = CAM.pos;
   if (LINT.on && JUG.vivo) {
-    // (con la cámara libre, la linterna sigue la mira del jugador, como en GMod, y no la cámara: antes alumbraba hacia
-    // donde miraba la cámara libre)
-    const libre = typeof CLIB !== 'undefined' && !!CLIB.modo, qm = libre ? Quat.euler(JUG.yaw, JUG.pitch) : null;
-    const f = libre ? qm.rot(v3(0, 0, 1)) : CAM.fwd, der = libre ? qm.rot(v3(-1, 0, 0)) : CAM.der, ojo = JUG.tercera && JUG.cuerpo ? vadd(JUG.pos, v3(0, 0.62, 0)) : cp;
+    // (con la cámara afuera —la libre, la de la Tool Gun— la linterna sigue la mira del jugador, como en GMod, y no la
+    // cámara: antes alumbraba hacia donde miraba la cámara libre; y sale del personaje: armas.js, camaraAfuera)
+    const afuera = camaraAfuera(), qm = afuera ? Quat.euler(JUG.yaw, JUG.pitch) : null;
+    const f = afuera ? qm.rot(v3(0, 0, 1)) : CAM.fwd, der = afuera ? qm.rot(v3(-1, 0, 0)) : CAM.der, ojo = JUG.tercera && JUG.cuerpo ? vadd(JUG.pos, v3(0, 0.62, 0)) : afuera ? JUG.ojoPos : cp;
     const o = vadd(vadd(ojo, vscale(f, 0.15)), vscale(der, 0.12)); o.y -= 0.12;
-    luzEspecial(o, 30, [6.8, 6.5, 5.9], f.clone(), Math.cos(0.42), 10, true);   // (la propia hace sombra: sombras.js)
+    // Sin el mapa de sombra de la linterna (Bajo, Patata y WebGL 1: sombras.js) nada la tapa. Corrida 17 cm de los ojos, en
+    // primera persona se veía la luz «atravesar» lo que tiene adelante: detrás del borde de una columna queda una franja de
+    // pared que el ojo ve y la linterna no (de 2° a 10°, más ancha cuanto más cerca está la columna), y se iluminaba igual
+    // (Discord, en un mapa BSP en el celu). Ahí la luz sale de los ojos: lo que se ve es justo lo que la linterna alcanza, sin
+    // costo. El arma en la mano sigue alumbrada desde donde estaba (pv: gl.js, espUniformes)
+    const sinMapa = !(GFX.espSh > 0 && ESH.tex) && !afuera && !JUG.tercera;
+    luzEspecial(sinMapa ? vadd(cp, vscale(f, 0.02)) : o, 30, [6.8, 6.5, 5.9], f.clone(), Math.cos(0.42), 10, true, sinMapa ? o : null);   // (la propia hace sombra: sombras.js)
   }
   for (const R2 of RED.remotos.values()) {   // (sólo hay remotos en una sala)
     if (!(R2.f & 128) || !R2.P || R2.pos.distTo(cp) > 32) continue;

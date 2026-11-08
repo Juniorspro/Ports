@@ -192,7 +192,8 @@ function camaraActualizar(dt) {
   CAM.fwd.copy(CAM.q.rot(v3(0, 0, 1)));
   CAM.der.copy(CAM.qVista.rot(v3(1, 0, 0))); CAM.arr.copy(CAM.qVista.rot(v3(0, 1, 0)));
   // (con un mod de velocidad, la vista se abre al correr rápido)
-  const vh = Math.hypot(JUG.vel.x, JUG.vel.z), z = ARM.zoom ? 18 : (70 + ((MODS.velocidad || 1) > 1.15 && !JUG.vehiculo ? clamp((vh - 7) * 0.8, 0, 14) : 0)) * (1 - 0.27 * (ARM.apK || 0)); CAM.fov += (z - CAM.fov) * Math.min(1, dt * (Math.abs(z - CAM.fov) > 10 ? 12 : 4));
+  // (o el zoom que pidió el Lua de un addon con Player:SetFOV: gmaFovLua, gmod_vista.js)
+  const vh = Math.hypot(JUG.vel.x, JUG.vel.z), z = ARM.zoom ? 18 : (typeof gmaFovLua === 'function' && gmaFovLua()) || (70 + ((MODS.velocidad || 1) > 1.15 && !JUG.vehiculo ? clamp((vh - 7) * 0.8, 0, 14) : 0)) * (1 - 0.27 * (ARM.apK || 0)); CAM.fov += (z - CAM.fov) * Math.min(1, dt * (Math.abs(z - CAM.fov) > 10 ? 12 : 4));
 }
 // ---------------- partidas ----------------
 const DESHACER = [];
@@ -335,7 +336,7 @@ function cuadro(ahora) {
   if (JUEGO.estado === 'juego' && !UI.abierto) {
     if (ARM.rotando) { ENT.rdx = mx; ENT.rdy = my; }
     else if (typeof CLIB !== 'undefined' && CLIB.modo && !JUG.vehiculo) clibMirar(mx, my);   // (la cámara libre gira sola)
-    else { const kz = (ARM.zoom ? 0.25 : 1) * (1 - 0.4 * (ARM.apK || 0)); JUG.yaw -= mx * ENT.sens * kz; JUG.pitch = clamp(JUG.pitch + my * ENT.sens * kz, -1.55, 1.55); }
+    else { const kz = (ARM.zoom ? 0.25 : 1) * (1 - 0.4 * (ARM.apK || 0)) * (typeof gmaSensLua === 'function' && (mx || my) ? gmaSensLua() : 1); JUG.yaw -= mx * ENT.sens * kz; JUG.pitch = clamp(JUG.pitch + my * ENT.sens * kz, -1.55, 1.55); }
   }
   // simulación con paso fijo
   TIEMPO.acc += dt; const paso = 1 / 60; let n = 0;

@@ -81,7 +81,10 @@ const GM_NPC_HOSTIL = /combine|metropolice|police|zombi|zombie|antlion|headcrab|
 const GM_NPC_MODELO = { npc_citizen: 'models/humans/group01/male_07.mdl', npc_metropolice: 'models/police.mdl', npc_combine_s: 'models/combine_soldier.mdl', npc_zombie: 'models/zombie/classic.mdl', npc_fastzombie: 'models/zombie/fast.mdl', npc_alyx: 'models/alyx.mdl', npc_barney: 'models/barney.mdl', npc_kleiner: 'models/kleiner.mdl', npc_breen: 'models/breen.mdl', npc_eli: 'models/eli.mdl', npc_gman: 'models/gman.mdl', npc_monk: 'models/monk.mdl', npc_mossman: 'models/mossman.mdl', npc_antlion: 'models/antlion.mdl', npc_headcrab: 'models/headcrabclassic.mdl', npc_vortigaunt: 'models/vortigaunt.mdl' };
 function gmnpcCrear(key) {
   const v = gmLista('NPC', key); if (!v) return null;
-  const cls = _lstr(v, 'Class') || key, mod = (_lstr(v, 'Model') || GM_NPC_MODELO[cls] || '').toLowerCase().replace(/\\/g, '/');
+  // (la clase, sin importar mayúsculas como en GMod: los nextbots de Cartman piden «npc_EricCartman» y la clase es la del
+  // archivo, npc_ericcartman.lua; antes no se encontraba y en su lugar salía un NPC del juego cualquiera)
+  const cls0 = _lstr(v, 'Class') || key, cls = GMA.clases && !GMA.clases.has(cls0) && GMA.clases.has(cls0.toLowerCase()) ? cls0.toLowerCase() : cls0;   // (se crea con el nombre pedido: GetClass lo devuelve así)
+  const mod = (_lstr(v, 'Model') || GM_NPC_MODELO[cls] || '').toLowerCase().replace(/\\/g, '/');
   // (donde apunta, como en GMod; si no hay nada cerca, 4 m adelante)
   const tr = gmaTraza(CAM.pos.clone(), CAM.fwd.clone(), 30, null), hp = tr.get('Hit') && tr.get('HitPos'), p = hp instanceof LVec ? vG(hp) : vadd(v3(JUG.pos.x, JUG.pos.y - (JUG.medio || 0.9), JUG.pos.z), vscale(v3(CAM.fwd.x, 0, CAM.fwd.z).norm(), 4)), yaw = JUG.yaw + Math.PI;
   // un NPC de VJ Base (o un SNPC que vive de la IA del motor de Source: horarios, tareas, caminos): esa IA acá no está y
@@ -96,7 +99,7 @@ function gmnpcCrear(key) {
   // una clase del addon (nextbot, entidad con IA propia): esa entidad con su Lua
   if (GMA.clases && GMA.clases.has(cls)) {
     const f = GMA.R && GMA.R.G.get('__gmCrearNPC'); if (typeof f !== 'function') return null;
-    const e = gmLlamar(f, 'S', cls, GMA.V(p), mod || undefined)[0]; if (e instanceof LEnt) { e.creador = GMA.jug; gmaHook('PlayerSpawnedNPC', 'S', GMA.jug, e); } return e || null;
+    const e = gmLlamar(f, 'S', cls0, GMA.V(p), mod || undefined)[0]; if (e instanceof LEnt) { e.creador = GMA.jug; gmaHook('PlayerSpawnedNPC', 'S', GMA.jug, e); } return e || null;
   }
   // una clase del motor: un NPC del juego con el modelo del addon
   if (!mod || !gmArchivo(mod)) { if (mod && typeof gmlPedir === 'function') gmlPedir(mod); }

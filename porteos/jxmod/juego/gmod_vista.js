@@ -199,10 +199,16 @@ function gmaVistaDibujar() {
   vistaUbicar(v, pos, q, ARM.sway); v.md.encolar();
   return true;
 }
-// SendWeaponAnim con la vista propia: la secuencia de esa actividad (si hay varias, una al azar)
+// el número de una actividad por su nombre, como la ve el Lua: las del prelude y también las que no están ahí y salen del
+// número fijo por nombre de gmod_api.js (ACT_RELOAD_START, ACT_RELOAD_FINISH, ACT_DEPLOY, ACT_UNDEPLOY...)
+function gmvActNum(k) { const R = GMA.R; let x = R.G.get(k); if (x === undefined && R.ix) { try { x = R.ix(R.G, k); } catch (e) { x = undefined; } } return x; }
+// SendWeaponAnim con la vista propia: la secuencia de esa actividad (si hay varias, una al azar). Se busca entre las
+// actividades del modelo: antes se buscaba el nombre entre las globales de Lua y las que no están en el prelude no
+// aparecían (Discord, Team Fortress 2 Weapon Pack: «las animaciones no cargan»; la minigun nunca bajaba ni subía —ACT_DEPLOY,
+// ACT_UNDEPLOY— y las recargas de a un cartucho no empezaban ni terminaban —ACT_RELOAD_START, ACT_RELOAD_FINISH—)
 function gmvActividad(v, act) {
-  const G = GMA.R.G; let nom = null;
-  if (typeof act === 'number') { for (const [k, x] of G.h || []) if (typeof k === 'string' && k.startsWith('ACT_') && x === act && v.actos.has(k)) { nom = k; break; } }
+  let nom = null;
+  if (typeof act === 'number') { for (const k of v.actos.keys()) if (gmvActNum(k) === act) { nom = k; break; } }
   const L = nom ? v.actos.get(nom) : null; if (!L || !L.length) return 0;
   return vistaTocar(v, L[(Math.random() * L.length) | 0], { loop: /IDLE/.test(nom) });
 }
@@ -247,9 +253,9 @@ function gmvApi() {
   soloVm('LookupSequence', (v, e, n) => { const s = String(n).toLowerCase(), i = v.M.secuencias.findIndex((q) => q.n.toLowerCase() === s); return [i, i >= 0 && v.sec[i] ? DATA.anPorNombre[v.sec[i]].d : 0]; });
   soloVm('GetSequence', (v) => Math.max(0, v.sec.findIndex((n) => n && DATA.anPorNombre[n] === v.clip)));
   soloVm('GetSequenceName', (v, e, i) => (v.M.secuencias[i | 0] ? v.M.secuencias[i | 0].n : 'Unknown'));
-  soloVm('GetSequenceActivity', (v, e, i) => { const a = v.M.secuencias[i | 0] && v.M.secuencias[i | 0].act; const x = a && GMA.R.G.get(a.toUpperCase()); return typeof x === 'number' ? x : -1; });
+  soloVm('GetSequenceActivity', (v, e, i) => { const a = v.M.secuencias[i | 0] && v.M.secuencias[i | 0].act; const x = a && gmvActNum(a.toUpperCase()); return typeof x === 'number' ? x : -1; });
   soloVm('GetSequenceActivityName', (v, e, i) => (v.M.secuencias[i | 0] ? v.M.secuencias[i | 0].act : ''));
-  soloVm('SelectWeightedSequence', (v, e, act) => { for (const [k, x] of GMA.R.G.h) if (x === act && typeof k === 'string' && v.actos.has(k)) return v.sec.indexOf(v.actos.get(k)[0]); return -1; });
+  soloVm('SelectWeightedSequence', (v, e, act) => { for (const [k, L] of v.actos) if (gmvActNum(k) === act) return v.sec.indexOf(L[0]); return -1; });
   const tocar = (v, i) => { const n = v.sec[i | 0]; if (n) vistaTocar(v, n, { loop: DATA.anPorNombre[n].loop }); };
   soloVm('SendViewModelMatchingSequence', (v, e, i) => { tocar(v, i); return true; }); soloVm('ResetSequence', (v, e, i) => { tocar(v, i); return true; }); soloVm('SetSequence', (v, e, i) => { tocar(v, i); return true; });
   soloVm('SetPlaybackRate', (v, e, r) => { v.vel = Math.max(0.01, +r || 1); return true; }); soloVm('GetPlaybackRate', (v) => v.vel || 1);
@@ -321,4 +327,19 @@ function gmaVistaLua(C) {
   if (vo instanceof LVec && Math.hypot(vo.x - o.x, vo.y - o.y, vo.z - o.z) > 0.5) C.pos.copy(vG(vo));
   else if (ter && JUG.ojoPos) C.pos.copy(JUG.ojoPos);
   if (va instanceof LAng && (Math.abs(va.p - a.p) > 0.05 || Math.abs(((va.y - a.y + 540) % 360) - 180) > 0.05 || Math.abs(va.r - a.r) > 0.05)) C.q.copy(angQuat(va));
+}
+// el zoom de Player:SetFOV (las miras: el sniper de TF2 hace SetFOV(GetFOV() / 5)); 0 = el de siempre. Lo usa la cámara
+// (principal.js) junto con la sensibilidad del mouse: la que diga SWEP:AdjustMouseSensitivity o, si no dice, la proporción
+// del zoom, como GMod
+function gmaFovLua() { return GMA.R && GMA.activo && GMA.fovLua > 0 && typeof JUG !== 'undefined' && JUG.vivo && !JUG.vehiculo && JUEGO.estado === 'juego' ? GMA.fovLua : 0; }
+function gmaSensLua() {
+  if (!GMA.R || !GMA.activo) return 1;
+  let k = 0; const w = GMA.swep && GMA.swep.vivo ? GMA.swep : null;
+  if (w) {
+    if (GMA.amsBase === undefined) { const b = claseTabla('weapon_base', 'C'); GMA.amsBase = b ? b.get('AdjustMouseSensitivity') : null; }
+    const c = claseTabla(w.clase, 'C'), f = c && buscarEnClase(c, 'AdjustMouseSensitivity');
+    if (typeof f === 'function' && f !== GMA.amsBase) { const r = gmLlamar(f, 'C', w), x = +r[0]; if (x > 0) k = x; }
+  }
+  const fz = gmaFovLua(); if (!k && fz) k = fz / 70;
+  return k > 0 ? Math.max(0.02, Math.min(4, k)) : 1;
 }

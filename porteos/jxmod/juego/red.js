@@ -276,7 +276,9 @@ function redPaso(dt) {
 const claveObj = (o) => (o.remoto ? o.key : RED.ID + ':' + o.id);
 function redObjeto() { RED.wSucio = true; }
 function redRecarga() { publicar('a', { k: 'rec' }); }
-function redDisparo(arma) { publicar('a', { k: 'tiro', a: arma, p: [r3(CAM.pos.x), r3(CAM.pos.y), r3(CAM.pos.z)], d: [r3(CAM.fwd.x), r3(CAM.fwd.y), r3(CAM.fwd.z)] }); }
+// (de los ojos del personaje y hacia donde apunta, como el tiro propio: con la cámara libre o en tercera persona los demás
+// veían salir la traza de la cámara y los golpes no llegaban: armas.js, miraOjo)
+function redDisparo(arma) { const o = miraOjo(), f = miraDir(); publicar('a', { k: 'tiro', a: arma, p: [r3(o.x), r3(o.y), r3(o.z)], d: [r3(f.x), r3(f.y), r3(f.z)] }); }
 function redExplosion(p, r, d) { publicar('a', { k: 'exp', p: [r3(p.x), r3(p.y), r3(p.z)], r: r3(r || 6), d: Math.round(d || 100) }); }
 function redDano(P, dan, d) { publicar('a', { k: 'dano', to: P.remoto, d: Math.round(dan), v: [r3(d.x), r3(d.y), r3(d.z)] }); }
 function redChat(t, id) { publicar('c', { n: PREFS.nombre, t: t.slice(0, 120), ...(id ? { id } : {}) }); }

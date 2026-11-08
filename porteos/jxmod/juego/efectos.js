@@ -146,7 +146,7 @@ function lucesJuntar() {
   for (const l of LUCES_T) { const k = l.t / l.dur; luzPuntual(l.p, l.r, [l.c[0] * k, l.c[1] * k, l.c[2] * k]); }
   if (typeof eventoLuces === 'function') eventoLuces();   // (lo que cae de la grieta, encendido)
   for (const l of MUNDO.luces) luzPuntual(l.p, l.r, l.c, l.d, l.k);   // (las del mapa)
-  if (EF.fog > 0) { const p = vistaPuntaMundo() || vadd(CAM.pos, vscale(CAM.fwd, 0.8)); luzPuntual(p, 7, [6, 4.2, 2]); }
+  if (EF.fog > 0) { const p = bocaArma() || vadd(miraOjo(), vscale(miraDir(), 0.8)); luzPuntual(p, 7, [6, 4.2, 2]); }   // (en la boca del arma: con la cámara libre, en la mano del personaje)
   for (const o of OBJS) {
     if (o.logica && o.logica.tipo === 'Lamp' && o.logica.luz) luzPuntual(vadd(o.b.pos, v3(0, 0.3, 0)), Math.max(4, (o.logica.params.Range || 10)), [3.2, 2.8, 2.0]);
     if (o.veh && typeof vehiculoLuces === 'function') vehiculoLuces(o);
@@ -157,7 +157,7 @@ function efectoTraza(a, b) { TRAZAS.push({ a: a.clone(), b: b.clone(), t: 0.06 }
 function dibujarTrazas() { for (const t of TRAZAS) linea(t.a, t.b, [1, 0.92, 0.6, 0.8 * t.t / 0.06]); }
 function efectoFogonazo() {
   EF.fog = 0.05;
-  const p = vistaPuntaMundo(); if (p) particula(p, v3(), 0.06, 0.12, [1, 0.8, 0.4, 1], 'fog', 1.2);
+  const p = bocaArma(); if (p) particula(p, v3(), 0.06, 0.12, [1, 0.8, 0.4, 1], 'fog', 1.2);
 }
 function efectoImpacto(p, n, tipo) {
   const k = GFX.part > 0.5 ? 6 : 2;

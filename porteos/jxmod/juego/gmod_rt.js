@@ -437,6 +437,9 @@ function gmrtApi(R0, G, def, lib, num) {
   const surface = lib('surface'), sm0 = surface.get('SetMaterial'), dc0 = surface.get('SetDrawColor'), dt0 = surface.get('DrawTexturedRect'), duv0 = surface.get('DrawTexturedRectUV');
   const esRT = (m) => { if (!m || typeof m !== 'object') return false; if (m.rt) return true; const v = m.prm && m.prm.get('$basetexture'); return !!((v && typeof v === 'object' && v.rt) || (typeof v === 'string' && (GRT.rts.has(v.toLowerCase()) || /^_rt_/i.test(v)))) || (m.prm && /screenspace_general/i.test(m.shader || '')); };
   if (typeof sm0 === 'function') def(surface, 'SetMaterial', (m) => { GRT.surfMat = m; return sm0(m); });
+  // (SetTexture y NoTexture también cambian el material: si no, uno de render target puesto antes por otro addon seguía
+  // valiendo y los DrawTexturedRect de una mira con SetTexture dibujaban ése)
+  for (const [n, f] of [['SetTexture', (m) => m], ['NoTexture', () => null]]) { const o = surface.get(n); if (typeof o === 'function') def(surface, n, (m) => { GRT.surfMat = f(m); return o(m); }); }
   if (typeof dc0 === 'function') def(surface, 'SetDrawColor', (r, g, b, a) => { if (r && typeof r === 'object' && r.r !== undefined) GRT.dc = [r.r, r.g, r.b, r.a ?? 255]; else if (r instanceof LuaTable) GRT.dc = [num(r.get('r'), 255), num(r.get('g'), 255), num(r.get('b'), 255), num(r.get('a'), 255)]; else GRT.dc = [num(r, 255), num(g, 255), num(b, 255), num(a, 255)]; return dc0(r, g, b, a); });
   if (typeof dt0 === 'function') def(surface, 'DrawTexturedRect', (x, y, w, h) => {
     const m = GRT.surfMat; if (!esRT(m)) return dt0(x, y, w, h);
