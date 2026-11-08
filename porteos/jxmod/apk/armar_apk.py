@@ -10,6 +10,8 @@
 #   clave en $JXMOD_FIRMA_CLAVE o, si no está, en clave.txt al lado del almacén (chmod 600). Si no existe el
 #   almacén se crea una vez (con clave al azar si no hay ninguna). La clave nunca se muestra.
 import argparse, datetime, glob, os, re, secrets, shutil, struct, subprocess, sys, tempfile, zipfile
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'herramientas'))
+import cifrar_apk   # cifrado de index.html y pk.bin dentro del APK (anti-robo de código y anti-repaquetado)
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PAQUETE, PRINCIPAL = 'com.jxmod.app', 'com.jxmod.app.Inicio'
@@ -159,6 +161,14 @@ def firma():
     return ks, 'file:' + archivo
 
 
+def cert_der(ks, clave, tmp):
+    """El certificado de firma en DER (para su huella SHA-256, la misma que ve Android). `clave` viene de firma()."""
+    pw = ['-storepass:env', clave[4:]] if clave.startswith('env:') else ['-storepass:file', clave[5:]]
+    out = os.path.join(tmp, 'cert.der')
+    correr(['keytool', '-exportcert', '-keystore', ks, '-alias', 'jxmod', '-file', out] + pw, 'keytool exportcert')
+    with open(out, 'rb') as f: return f.read()
+
+
 def activos_con_mapas(tmp, dir_mapas, origen=None):
     """apk/assets más el paquete de mapas (gm_mapas.*: gm_flatgrass y gm_construct con su contenido) en assets/mapas/,
     con mapas/lista.txt ("nombre tamaño"), para que el juego arranque sin red. Se arma en la carpeta temporal."""
@@ -200,6 +210,23 @@ def main():
     tmp = tempfile.mkdtemp(prefix='jxmod_apk_')
     try:
         jars, nativas = bibliotecas(tmp, a.libs)
+        # 0) cifrado del APK: la llave sale de la firma + un secreto nuevo; Llave.java (el secreto partido) se compila al dex.
+        # Llave.java se genera SIEMPRE (así Cifrado.java compila); SIN_CIFRAR=1 sólo deja los activos en claro (para depurar).
+        cifrar = not os.environ.get('SIN_CIFRAR')
+        cks, cclave = firma()
+        cif_sha = cifrar_apk.huella_cert(cert_der(cks, cclave, tmp))
+        secreto = cifrar_apk.nuevo_secreto()
+        cif_key = cifrar_apk.clave_aes(cif_sha, secreto)
+        gensrc = os.path.join(tmp, 'gensrc', *PAQUETE.split('.'))
+        os.makedirs(gensrc)
+        with open(os.path.join(gensrc, 'Llave.java'), 'w', encoding='utf-8') as f:
+            f.write(cifrar_apk.generar_llave_java(PAQUETE, secreto, cif_sha))
+        srcs = srcs + [os.path.join(tmp, 'gensrc')]
+        # sólo para las pruebas (JXMOD_CIF_DUMP=archivo): guardar la llave para poder descifrar y verificar el APK sin un
+        # teléfono. En un armado normal esta variable no está y el secreto nunca sale del .dex.
+        if os.environ.get('JXMOD_CIF_DUMP'):
+            with open(os.environ['JXMOD_CIF_DUMP'], 'w') as f:
+                f.write('cert_sha=%s\nsecreto=%s\nclave=%s\n' % (cif_sha.hex(), secreto.hex(), cif_key.hex()))
         # 1) javac (Java 8, contra android.jar)
         fuentes = sorted(os.path.join(r, f) for s in srcs for r, _, fs in os.walk(s) for f in fs if f.endswith('.java'))
         if not fuentes: fallar('no hay fuentes Java en', srcs)
@@ -248,6 +275,10 @@ def main():
                '--min-sdk-version', MIN_SDK, '--target-sdk-version', TARGET_SDK, '--version-code', a.version_code,
                '--version-name', a.version_name]
         activos = activos_con_mapas(tmp, a.mapas, a.activos)
+        if cifrar and activos:
+            hechos = cifrar_apk.cifrar_www(os.path.join(activos, 'www'), cif_key)
+            if hechos: print('APK cifrado:', ', '.join('%s %.1f MB' % (n, s / 1e6) for n, s in hechos))
+            else: fallar('no se encontró index.html/pk.bin para cifrar en', os.path.join(activos, 'www'))
         if activos: cmd += ['-A', activos]
         for e in NO_COMPRIMIR: cmd += ['-0', e]
         avisos = correr(cmd + [rz], 'aapt2 link').strip()
@@ -281,6 +312,11 @@ def main():
             if 'Verified using %s: true' % esq not in v: fallar('firma', esq, 'no verificada:\n' + v)
         cert = re.search(r'Signer #1 certificate DN: (.*)', v)
         sha = re.search(r'Signer #1 certificate SHA-256 digest: (\w+)', v)
+        # red de seguridad del cifrado: la huella del certificado del APK firmado tiene que ser la misma con la que ciframos
+        # los activos; si no, el aparato derivaría otra llave y el juego no abriría. Antes de entregar un APK así, fallar.
+        if cifrar:
+            got = (sha.group(1).lower() if sha else ''); want = cif_sha.hex()
+            if got != want: fallar('la huella del certificado del APK firmado (' + got + ') no coincide con la usada para cifrar (' + want + ')')
         b = correr([h['aapt2'], 'dump', 'badging', final], 'aapt2 dump badging')
         esperado = ["package: name='%s' versionCode='%d' versionName='%s'" % (PAQUETE, a.version_code, a.version_name),
                     "targetSdkVersion:'%d'" % TARGET_SDK, "application-label:'JXMod'",

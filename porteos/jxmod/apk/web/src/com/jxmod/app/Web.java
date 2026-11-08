@@ -146,6 +146,9 @@ public class Web extends Activity {
     }
 
     private void crearWeb(String url) {
+        // depuración remota de la WebView (chrome://inspect) sólo en una compilación depurable: en la app firmada queda
+        // apagada, así nadie se mete a mirar o tocar el juego desde afuera (anti-trampa básico)
+        try { WebView.setWebContentsDebuggingEnabled((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0); } catch (Exception e) { /* nada */ }
         web = new WebView(this);
         web.setBackgroundColor(0xFF000000);
         WebSettings s = web.getSettings();
@@ -235,7 +238,8 @@ public class Web extends Activity {
         cab.put("Cache-Control", "no-cache");
         if (!p.contains("..")) {
             try {
-                InputStream in = getAssets().open("www" + p);
+                // los activos cifrados (index.html, pk.bin) se descifran al vuelo; los demás pasan igual (Cifrado.abrir)
+                InputStream in = Cifrado.abrir(getAssets().open("www" + p), Cifrado.clave(this));
                 String m = tipo(p);
                 return new WebResourceResponse(m, m.startsWith("text/") || m.endsWith("javascript") || m.endsWith("json") ? "utf-8" : null, 200, "OK", cab, in);
             } catch (IOException e) { /* no está en la app: 404 y el juego lo busca en internet */ }
@@ -532,8 +536,11 @@ public class Web extends Activity {
     private final Lan.Archivos lanArchivos = (ruta) -> {
         if (ruta == null || ruta.isEmpty() || ruta.contains("..") || ruta.startsWith("/") || ruta.contains("\\")) return null;
         String p = "www/" + ruta; long largo = -1;
-        try (android.content.res.AssetFileDescriptor fd = getAssets().openFd(p)) { largo = fd.getLength(); } catch (IOException e) { /* comprimido en el APK: sin largo */ }
-        try { return new Lan.Archivo(getAssets().open(p), largo); } catch (IOException e) { return null; }
+        // index.html y pk.bin van cifrados en el APK: al servirlos por LAN se descifran, así que el largo del archivo ya no
+        // vale (el descifrado cambia el tamaño); para el resto, el largo del asset sirve de Content-Length
+        boolean cif = "www/index.html".equals(p) || "www/pk.bin".equals(p);
+        if (!cif) try (android.content.res.AssetFileDescriptor fd = getAssets().openFd(p)) { largo = fd.getLength(); } catch (IOException e) { /* comprimido en el APK: sin largo */ }
+        try { return new Lan.Archivo(Cifrado.abrir(getAssets().open(p), Cifrado.clave(getApplicationContext())), largo); } catch (IOException e) { return null; }
     };
     private static String ipsJson() {
         StringBuilder b = new StringBuilder("[");

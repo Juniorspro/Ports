@@ -2151,6 +2151,46 @@ no matan»).
   `nuclear_vol` 12/12, `nextbots_ia` 9/9, `ev6_nextbots` 7/7. Las medidas de tiempo, con la compu sin otras pruebas
   corriendo (en esta compu sin placa de video todas las calidades rondan los 50 cuadros: lo que limita es el procesador).
 
+## JXMod 3.0 · cifrado: iOS con código y APK que no se puede descomprimir (anti-robo de código)
+
+Pedido: «la versión de iOS optimizada con su código; súper cifrada, que nadie sepa cómo usar el HTML; y en el APK que
+nadie pueda descomprimir nada. Android entra normal sin código, iOS con código; de todas formas un cifrado fuerte para
+que ningún hacker entre (anti-trampa y anti-robo de código)».
+
+Lo honesto primero: nada que corra en el aparato del jugador se puede volver 100 % imposible de abrir —la llave tiene que
+estar en la app para que el juego arranque, así que alguien muy experto con las herramientas justas siempre podría, en
+teoría, sacarla—. Lo que se hace acá (como cualquier juego comercial) es subir la vara muchísimo: un `unzip` del APK o un
+«Ver código fuente» dan **sólo basura cifrada**, y abrirlo de verdad cuesta un trabajo enorme.
+
+- **iOS (y cualquier navegador): la página con código** (`herramientas/codigo_web.mjs`, ya de la 3.0, ahora rearmada sobre
+  el juego de hoy). El juego (el gzip del código) viaja cifrado en `juego.bin` (AES-256-GCM) y el paquete (modelos,
+  texturas, sonidos) en `pk.bin` (AES-256-CTR, se descifra a medida que baja). En el `index.html` **no queda nada del
+  juego en claro** (el bloque del código quedó vacío: sólo está el arranque genérico y la puerta del código). La clave sale
+  del código que pone el jugador (PBKDF2-SHA256, 150 000 vueltas) y está **atada a la dirección** de la página: una copia
+  de los archivos en otra carpeta o bajada a la compu no abre ni con un código bueno. Sin código no hay juego que leer.
+  Verificado en Chromium: un código malo no abre; el bueno abre y el juego arranca (`window.__listo`), sin errores.
+  Índice: `index.html` 1,16 MB (antes 3,69), `juego.bin` 1,78 MB, `pk.bin` cifrado 18,9 MB.
+- **Android: el APK cifrado de compilación** (`herramientas/cifrar_apk.py` + `juego/…/Cifrado.java` + `Llave.java` generado;
+  enganchado en `apk/armar_apk.py`). `index.html` y `pk.bin` **no van en claro adentro del APK**: van con AES-256-CTR, así
+  que un `unzip` da sólo basura (empiezan con la marca `JXENC1`, 0 HTML legible). La app los descifra al vuelo en streaming
+  (sin cargar 19 MB en memoria). La llave **no es una cadena guardada**: sale de
+  `SHA-256( etiqueta || SHA-256(certificado de firma) || secreto )`, donde el secreto son 32 bytes al azar por armado,
+  partidos y enmascarados en `Llave.java` (compilado al `.dex`: no salta con `strings`), y la huella del certificado es la
+  de la firma del APK. **Anti-repaquetado / anti-trampa**: si alguien modifica el APK y lo vuelve a firmar (otro
+  certificado), la huella cambia, la llave cambia y los activos ya no se descifran: el juego no abre. Para sacar el código
+  hay que juntar a la vez el secreto del `.dex` y el certificado, y aun así sólo se descifra la copia original intacta. De
+  paso, la depuración remota de la WebView (chrome://inspect) queda apagada en la app firmada, así nadie se mete a mirar o
+  tocar el juego de afuera. El jugador no pone ningún código: el APK se instala y abre solo. El APK sigue pesando 24,3 MB
+  (el cifrado suma 24 bytes por archivo).
+- **Red de seguridad del armado**: al final, el armado compara la huella del certificado del APK firmado contra la que usó
+  para cifrar; si no coinciden, **falla** y no entrega un APK que no se pueda abrir.
+- Pruebas: acuerdo Python↔Java de la llave y del AES-256-CTR (`apk/pruebas/unido/PruebaCifrado.java`: Java descifra lo que
+  cifró Python y la llave da igual); de punta a punta sobre el APK armado: `unzip` de `index.html`/`pk.bin` da sólo basura,
+  se descifran byte por byte iguales al original y el juego descifrado arranca en Chromium sin errores; el selector de
+  motor del APK, 5/5; firma v1+v2+v3 ok.
+- Si algún día se publica en Google Play (firma de Play): la llave tendría que salir del certificado de Play, no del de la
+  firma propia; hoy el reparto es por APK directo (link), así que la firma en el aparato es la misma con la que se armó.
+
 ## Tráiler de la 3.0 (40 s, 4:3 en FHD), v2
 
 Pedido: un tráiler con la canción del video de 41 s, con suspenso, sin interfaz, el logo recortado al principio y
