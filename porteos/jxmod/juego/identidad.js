@@ -133,3 +133,111 @@ const _idsT = setInterval(() => { if (IDS.off) { clearInterval(_idsT); return; }
 if (!IDS.off) Object.assign(SKIN_NOM, Object.fromEntries(Object.entries(IDS_SKINS).map(([s, v]) => [s, v.n])));
 const _retratoOrig = retrato;
 retrato = function (s) { if (IDS_SKINS[s] && !IDS.off) { idsRetratos(); if (IDS.ret[s]) return IDS.ret[s]; } return _retratoOrig(s); };
+
+// ---------------- los mapas base heredados: nombre propio y un hito de JXMod en cada uno ----------------
+// Los ocho mapas que venían con el paquete (Desierto, Desierto II, Pasto plano, Ciudad, Base, Base II, Marte y Espacio)
+// cambian de nombre en los 14 idiomas, y en los siete de superficie aparece, a unos 46 m de la aparición y a la vista, la
+// plaza JX: una plataforma de hormigón con rampas en los cuatro lados (se sube caminando o en auto), un monolito de 16 m
+// con el «JX» y una costura luminosa en amarillo, y cuatro postes con luz. Todo es una malla por material (3 llamadas de
+// dibujo) y choca como el mapa. Sólo en el mapa base solo: no en un mapa de la comunidad montado encima, ni en el creador
+// de mapas (para no pisar lo que armó alguien), y sólo si el terreno es parejo ahí (si no, prueba otros rumbos).
+// Los nombres internos (Desert, FlatGrass...) no cambian: partidas, servers y mods los siguen usando.
+const IDS_MAPAS = {
+  // orden: es en pt id ms fil ja th tr ar ru uk fr de
+  Desert: ['Cañadón Ocre', 'Ochre Canyon', 'Cânion Ocre', 'Ngarai Oker', 'Ngarai Oker', 'Kanyong Okre', 'オーカー渓谷', 'หุบเขาสีดินเหลือง', 'Okr Kanyonu', 'وادي المغرة', 'Охровый каньон', 'Охровий каньйон', "Canyon d'Ocre", 'Ockerschlucht'],
+  DesertV2: ['Médanos', 'Dunes', 'Dunas', 'Bukit Pasir', 'Bukit Pasir', 'Mga Buhanginan', '砂丘', 'เนินทราย', 'Kum Tepeleri', 'الكثبان', 'Дюны', 'Дюни', 'Dunes', 'Dünen'],
+  FlatGrass: ['Pradera', 'Meadow', 'Pradaria', 'Padang Rumput', 'Padang Rumput', 'Parang', '草原', 'ทุ่งหญ้า', 'Çayır', 'المرج', 'Луг', 'Луг', 'Prairie', 'Wiese'],
+  City: ['Distrito Norte', 'North District', 'Distrito Norte', 'Distrik Utara', 'Daerah Utara', 'Hilagang Distrito', '北地区', 'เขตเหนือ', 'Kuzey Bölgesi', 'الحي الشمالي', 'Северный район', 'Північний район', 'Quartier Nord', 'Nordviertel'],
+  Base: ['Hangar 7', 'Hangar 7', 'Hangar 7', 'Hangar 7', 'Hangar 7', 'Hangar 7', 'ハンガー7', 'โรงเก็บ 7', 'Hangar 7', 'الحظيرة 7', 'Ангар 7', 'Ангар 7', 'Hangar 7', 'Hangar 7'],
+  BaseV2: ['Polo Industrial', 'Industrial Park', 'Polo Industrial', 'Kawasan Industri', 'Kawasan Perindustrian', 'Industriyal na Sona', '工業地帯', 'นิคมอุตสาหกรรม', 'Sanayi Bölgesi', 'المنطقة الصناعية', 'Промзона', 'Промзона', 'Zone Industrielle', 'Industriegebiet'],
+  Mars: ['Planeta Rojo', 'Red Planet', 'Planeta Vermelho', 'Planet Merah', 'Planet Merah', 'Pulang Planeta', '赤い惑星', 'ดาวแดง', 'Kızıl Gezegen', 'الكوكب الأحمر', 'Красная планета', 'Червона планета', 'Planète Rouge', 'Roter Planet'],
+  Space: ['Órbita', 'Orbit', 'Órbita', 'Orbit', 'Orbit', 'Orbit', '軌道', 'วงโคจร', 'Yörünge', 'المدار', 'Орбита', 'Орбіта', 'Orbite', 'Orbit'],
+};
+const IDS_LANGS = ['es', 'en', 'pt', 'id', 'ms', 'fil', 'ja', 'th', 'tr', 'ar', 'ru', 'uk', 'fr', 'de'];
+(function idsNombresMapas() {
+  if (IDS.off || typeof IDI_T === 'undefined' || typeof IDI_K === 'undefined') return;
+  IDS_LANGS.forEach((l, j) => {
+    if (!IDI_T[l]) return; const a = IDI_T[l].split('|');
+    for (const m in IDS_MAPAS) { const i = IDI_K.indexOf('m.' + m); if (i >= 0 && i < a.length) a[i] = IDS_MAPAS[m][j]; }
+    IDI_T[l] = a.join('|');
+  });
+  if (typeof _idiCache !== 'undefined') for (const k in _idiCache) delete _idiCache[k];
+})();
+// los tonos de la plaza por mapa: el hormigón y el grafito cambian con el suelo; el amarillo JX es siempre el mismo
+const IDS_TONOS = {
+  gris: { piso: [0.78, 0.77, 0.74], graf: [0.14, 0.155, 0.18] }, arena: { piso: [0.84, 0.76, 0.62], graf: [0.23, 0.18, 0.14] }, marte: { piso: [0.73, 0.5, 0.42], graf: [0.17, 0.11, 0.1] },
+};
+const IDS_HITOS = { Desert: 'arena', DesertV2: 'arena', FlatGrass: 'gris', City: 'gris', Base: 'gris', BaseV2: 'gris', Mars: 'marte' };
+// (un triángulo con su normal, para los costados de las rampas)
+function idsTri(B, a, b, c, n) { const k = B.P.length / 3; for (const p of [a, b, c]) { B.P.push(p.x, p.y, p.z); B.N.push(n.x, n.y, n.z); } B.U.push(0, 0, 1, 0, 0, 1); if (vdot(vcross(vsub(b, a), vsub(c, a)), n) < 0) B.I.push(k, k + 2, k + 1); else B.I.push(k, k + 1, k + 2); }
+ENT_INFO.jx_plaza = ['jx_plaza', { tono: 'gris' }];
+ENT_TIPO.jx_plaza = {
+  crear(e) {
+    const T = IDS_TONOS[e.prm.tono] || IDS_TONOS.gris, S = geoNuevo(), G = geoNuevo(), A = geoNuevo(), tris = [];
+    const ew = (x, y, z) => vadd(e.p, e.q.rot(v3(x, y, z))), up = e.q.rot(v3(0, 1, 0));
+    const caja = (B, x, y, z, hx, hy, hz, q2, choca) => { const c = ew(x, y, z), q = q2 ? e.q.clone().mul(q2) : e.q; geoCaja(B, c, [hx, hy, hz], q, 2); if (choca) e.cajas.push(cajaFija(c, [hx, hy, hz], q)); };
+    const L = 9, H = 0.45, F = 1.2, RL = 5.5, RW = 4;   // (medio lado, alto, falda bajo tierra, largo y medio ancho de cada rampa)
+    // la plataforma: tapa clara, costados de grafito (con falda hacia abajo para que no quede luz si el piso no es plano)
+    const t = [ew(L, H, L), ew(-L, H, L), ew(-L, H, -L), ew(L, H, -L)];
+    geoQuad(S, t[0], t[1], t[2], t[3], up, 3); tris.push(...[0, 1, 2, 0, 2, 3].flatMap((i) => [t[i].x, t[i].y, t[i].z]));
+    for (let k = 0; k < 4; k++) {
+      const a = t[k], b = t[(k + 1) % 4], a2 = vsub(a, vscale(up, H + F)), b2 = vsub(b, vscale(up, H + F)), n = vcross(vsub(b, a), up).norm();
+      geoQuad(G, a2, b2, b, a, vscale(n, -1), 2); tris.push(a2.x, a2.y, a2.z, b2.x, b2.y, b2.z, b.x, b.y, b.z, a2.x, a2.y, a2.z, b.x, b.y, b.z, a.x, a.y, a.z);
+    }
+    // las cuatro rampas (5° de pendiente: se sube caminando y en auto)
+    for (let k = 0; k < 4; k++) {
+      const ang = k * Math.PI / 2, rq = Quat.axis(0, 1, 0, ang), pr = (x, y, z) => vadd(e.p, e.q.rot(rq.rot(v3(x, y, z))));
+      const p0 = pr(RW, H, L), p1 = pr(-RW, H, L), p2 = pr(-RW, 0, L + RL), p3 = pr(RW, 0, L + RL);
+      const nr = e.q.rot(rq.rot(v3(0, RL, H).norm()));
+      geoQuad(S, p0, p1, p2, p3, nr, 3); tris.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, p0.x, p0.y, p0.z, p2.x, p2.y, p2.z, p3.x, p3.y, p3.z);
+      for (const s of [1, -1]) { const top = pr(s * RW, H, L), bot = pr(s * RW, -F, L), fin = pr(s * RW, -F, L + RL), pie = pr(s * RW, 0, L + RL), ns = e.q.rot(rq.rot(v3(s, 0, 0))); idsTri(G, top, bot, pie, ns); idsTri(G, bot, fin, pie, ns); }
+    }
+    // el filo amarillo (luminoso) a 0,6 m del borde y una franja en cada rampa
+    for (const [x, z, hx, hz] of [[0, L - 0.6, L - 0.6, 0.07], [0, -(L - 0.6), L - 0.6, 0.07], [L - 0.6, 0, 0.07, L - 0.6], [-(L - 0.6), 0, 0.07, L - 0.6]]) caja(A, x, H + 0.012, z, hx, 0.012, hz);
+    // el monolito: 4,4 × 16 × 1,6 m, con el «JX» y una costura luminosa en las dos caras
+    const MH = 8, MW = 2.2, MD = 0.8;
+    caja(G, 0, H + MH, 0, MW, MH, MD, null, true); caja(S, 0, H + MH * 2 + 0.2, 0, MW + 0.25, 0.2, MD + 0.25);
+    for (const s of [1, -1]) {
+      const z = s * (MD + 0.02), lz = 0.025;
+      caja(A, 0, H + 5.2, z, 0.09, 4.6, lz);   // (la costura de abajo)
+      // la J: palo, gancho y punta
+      caja(A, -0.7, H + 12.6, z, 0.16, 1.5, lz); caja(A, -1.25, H + 11.25, z, 0.55, 0.15, lz); caja(A, -1.65, H + 11.6, z, 0.15, 0.4, lz); caja(A, -0.95, H + 14.0, z, 0.55, 0.13, lz);
+      // la X: dos diagonales
+      caja(A, 1.05, H + 12.6, z, 0.15, 1.75, lz, Quat.axis(0, 0, 1, 0.5)); caja(A, 1.05, H + 12.6, z, 0.15, 1.75, lz, Quat.axis(0, 0, 1, -0.5));
+    }
+    // cuatro postes con un farol amarillo
+    for (const [x, z] of [[L - 1.2, L - 1.2], [-(L - 1.2), L - 1.2], [L - 1.2, -(L - 1.2)], [-(L - 1.2), -(L - 1.2)]]) { caja(G, x, H + 1.6, z, 0.17, 1.6, 0.17, null, true); caja(A, x, H + 3.32, z, 0.21, 0.12, 0.21); }
+    e.tris = mundoSumarTris(tris);
+    // (hormigón liso y claro: contra el grafito del monolito y el amarillo, la plaza se lee de lejos)
+    e.mPiso = matPropio('jxPiso_' + e.prm.tono, T.piso, { pbr: [0.82, 0, 0.04] }); e.mGraf = matPropio('jxGraf_' + e.prm.tono, T.graf, { pbr: [0.55, 0.15, 0.05] });
+    e.mLuz = matPropio('jxLuz', [1, 0.74, 0.16], { pbr: [0.4, 0, 0.04], em: [2.4, 1.55, 0.25] });
+    e.mallas = [mallaPropia(S), mallaPropia(G), mallaPropia(A)];
+  },
+  dibujar(e) { encolar(e.mallas[0], 0, e.mPiso, IDM, null, null); encolar(e.mallas[1], 0, e.mGraf, IDM, null, null); encolar(e.mallas[2], 0, e.mLuz, IDM, null, null); },
+  luz(e) { luzPuntual(entW(e, 0, 1.4, 1.6), 12, [2.2, 1.5, 0.35]); },
+};
+// ¿dónde va la plaza? Delante de la aparición (46 m; si ahí no es parejo, a los costados, atrás o más lejos): el piso en
+// 13 puntos de su huella (plataforma más rampas) tiene que estar a ±0,6 m del centro y sin nada encima (techos, autos)
+function idsLugarPlaza() {
+  const s = MUNDO.spawns[0]; if (!s) return null;
+  const yaw = s.yaw || 0;
+  for (const d of [46, 60, 34]) for (const giro of [0, Math.PI / 2, -Math.PI / 2, Math.PI]) {
+    const a = yaw + giro, c = v3(s.x + Math.sin(a) * d, s.y + 30, s.z + Math.cos(a) * d), y0 = pisoBajo(c, 0); if (y0 === null || Math.abs(y0 - s.y) > 6) continue;
+    let bien = true;
+    for (const [dx, dz] of [[0, 0], [9, 9], [-9, 9], [9, -9], [-9, -9], [14, 0], [-14, 0], [0, 14], [0, -14], [5, 0], [-5, 0], [0, 5], [0, -5]]) {
+      const yy = pisoBajo(v3(c.x + dx, y0 + 30, c.z + dz), 0); if (yy === null || Math.abs(yy - y0) > 0.6) { bien = false; break; }
+    }
+    if (bien) return { p: [c.x, y0, c.z], yaw: a };
+  }
+  return null;
+}
+function idsHitoMapa(mapa) {
+  IDS.hito = null;
+  if (IDS.off || !IDS_HITOS[mapa] || (typeof RB !== 'undefined' && RB.mapaPartida) || (typeof CREA !== 'undefined' && CREA.on)) return;
+  const L = idsLugarPlaza(); if (!L) { IDS.hito = { omitido: true }; return; }
+  const e = entidadCrear({ t: 'jx_plaza', p: L.p, yaw: L.yaw + Math.PI, prm: { tono: IDS_HITOS[mapa] } }, { dueno: 'mapa' });
+  IDS.hito = e ? { p: L.p, yaw: L.yaw } : null;
+}
+// (después de armar el mapa: cargarMapa de mundo.js, envuelta)
+const _idsCargarMapa = cargarMapa;
+cargarMapa = function (m) { const r = _idsCargarMapa.apply(this, arguments); try { idsHitoMapa(m); } catch (x) { console.warn('plaza JX', x); } return r; };

@@ -10,13 +10,21 @@
 //     costados de abajo (la ropa) cambian (distancia media de color ≥ 40)
 //  6. en partida: al ponerse a Nico, su textura sale teñida (la que está en la placa es la teñida)
 //  7. con ?sinids todo queda como venía (para comparar)
-//  8. sin errores de JS
+//  8. mapas: los 8 heredados con nombre nuevo en los 14 idiomas (y los propios, RB_*, igual que antes)
+//  9. la plaza JX en los 7 de superficie, a 30–65 m de la aparición, en piso parejo y a la vista desde la aparición
+//     (el centro del «JX» cae adentro de la pantalla mirando hacia la plaza); en Espacio, en un mapa de la comunidad y en
+//     el creador no aparece; no se guarda con lo del jugador (el creador sólo guarda lo suyo)
+// 10. se sube caminando por la rampa (el jugador queda arriba, a la altura de la plataforma) y el monolito
+//     frena (caminando contra él no se lo atraviesa: queda a ≥ 0,8 m de su centro en la dirección de avance)
+// 11. cuesta poco: 3 mallas (3 llamadas de dibujo), ≤ 2000 triángulos, y el cuadro sube ≤ 1,5 ms mirándola
+// 12. sin errores de JS
 // uso: node identidad.mjs URL_HTML
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
 const [, , HTML] = process.argv;
 const R = []; const ok = (n, c, d) => { R.push(!!c); console.log((c ? 'OK   ' : 'FALLA') + ' ' + n + ' · ' + JSON.stringify(d).slice(0, 1500)); };
 const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio'] });
 const errs = [];
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const abrir = async (extra = '') => {
   const c = await b.newContext({ viewport: { width: 800, height: 450 } });
   await c.route('**/api/cuenta/config', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"google":false}' }));
@@ -99,7 +107,60 @@ const B = await abrir('&sinids');
 const s7 = await B.ev(`(() => { const T = idsTabla(), i = Object.keys(T)[0]; return { nombres: ${JSON.stringify(SK)}.map(skinNom).join(','), idTex: idTex(+i, document.createElement('canvas'), null), ret: retrato('Hero') === _retratoOrig('Hero') }; })()`);
 ok('7. con ?sinids todo como venía', s7.nombres === SK.join(',') && s7.idTex === null && s7.ret, s7);
 await B.c.close();
+// ---- 8..11: mapas ----
+const C = await abrir();
+const LANGS = ['es', 'en', 'pt', 'id', 'ms', 'fil', 'ja', 'th', 'tr', 'ar', 'ru', 'uk', 'fr', 'de'];
+const viejos = { es: ['Desierto', 'Desierto II', 'Pasto plano', 'Ciudad', 'Base', 'Base II', 'Marte', 'Espacio'], en: ['Desert', 'Desert II', 'Flatgrass', 'City', 'Base', 'Base II', 'Mars', 'Space'] };
+const nom = await C.ev(`(() => { const o = {}; for (const l of ${JSON.stringify(LANGS)}) { idiomaAplicar(l); PREFS.lang = l; o[l] = ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space', 'RB_Llanura'].map(mapaNom); } idiomaAplicar('es'); PREFS.lang = 'es'; return o; })()`);
+const nomOk = LANGS.every((l) => nom[l].slice(0, 8).every((x, i) => x && x !== 'm.' + i && !(viejos[l] && viejos[l][i] === x))) && new Set(nom.es.slice(0, 8)).size === 8;
+ok('8. los 8 mapas heredados con nombre nuevo en los 14 idiomas', nomOk, { es: nom.es, en: nom.en, ja: nom.ja, ar: nom.ar });
+const M7 = ['FlatGrass', 'Desert', 'DesertV2', 'City', 'Base', 'BaseV2', 'Mars'], pz = {};
+for (const m of M7) {
+  pz[m] = await C.ev(`(async () => { PREFS.bienvenida = true; empezarPartida('${m}'); inicioMostrar(false); await new Promise((ok) => setTimeout(ok, 1200));
+    const H = IDS.hito, s = MUNDO.spawns[0]; if (!H || !H.p) return { hito: H };
+    const d = Math.hypot(H.p[0] - s.x, H.p[2] - s.z), e = ENTS.lista.find((x) => x.t === 'jx_plaza');
+    JUG.pos.set(s.x, s.y + 1.2, s.z); JUG.yaw = Math.atan2(H.p[0] - s.x, H.p[2] - s.z); JUG.pitch = 0.06; await new Promise((ok) => setTimeout(ok, 1000));
+    const top = entW(e, 0, 0.45 + 12.6, 0), c = clipDe(top); const enPantalla = !!c && c.x > 0 && c.x < VW() && c.y > 0 && c.y < VH();
+    const tris = e.mallas.reduce((a, id) => a + ((R.mallas[id] && R.mallas[id].d.sub[0][1]) || 0) / 3, 0);
+    return { d: +d.toFixed(1), enPantalla, mallas: e.mallas.length, tris, dueno: e.dueno, guardable: ENTS.lista.filter((x) => x.dueno === 'yo' && !x.red).includes(e) };
+  })()`);
+}
+const sinPlaza = await C.ev(`(async () => {
+  const o = {}; empezarPartida('Space'); await new Promise((ok) => setTimeout(ok, 800)); o.space = ENTS.lista.some((x) => x.t === 'jx_plaza');
+  RB.mapaPartida = OFICIALES_MAPAS[0]; empezarPartida('FlatGrass'); await new Promise((ok) => setTimeout(ok, 800)); o.comunidad = ENTS.lista.some((x) => x.t === 'jx_plaza'); RB.mapaPartida = null;
+  // (el creador: con el creador prendido, armar el mapa no pone la plaza)
+  empezarPartida('FlatGrass'); for (const x of ENTS.lista.filter((x) => x.t === 'jx_plaza')) entidadQuitar(x);
+  CREA.on = true; try { idsHitoMapa('FlatGrass'); o.creador = ENTS.lista.some((x) => x.t === 'jx_plaza'); } finally { CREA.on = false; }
+  return o; })()`).catch((e) => ({ error: e.message }));
+ok('9. la plaza en los 7 de superficie (30–65 m, a la vista desde la aparición); no en Espacio, ni sobre un mapa de la comunidad, ni en el creador; no se guarda con lo del jugador',
+  M7.every((m) => pz[m].d >= 30 && pz[m].d <= 65 && pz[m].enPantalla && pz[m].dueno === 'mapa' && !pz[m].guardable) && sinPlaza.space === false && sinPlaza.comunidad === false && sinPlaza.creador === false, { pz, sinPlaza });
+// 10: subir caminando y chocar con el monolito
+await C.ev(`(async () => { empezarPartida('FlatGrass'); inicioMostrar(false); cerrarPaneles(); await new Promise((ok) => setTimeout(ok, 1000)); return 1; })()`);
+const ini = await C.ev(`(() => { const H = IDS.hito, e = ENTS.lista.find((x) => x.t === 'jx_plaza'), f = e.q.rot(v3(0, 0, 1)); const p = vadd(e.p, vscale(f, 17)); JUG.pos.set(p.x, p.y + 1.2, p.z); JUG.vel.set(0, 0, 0); JUG.yaw = Math.atan2(-f.x, -f.z); JUG.pitch = 0; return { y0: e.p.y }; })()`);
+await C.p.mouse.click(400, 225).catch(() => {}); await C.p.keyboard.down('KeyW');
+// (en este entorno el juego va a pocos cuadros y la física se frena: se camina hasta 40 s, hasta quedar trabado contra el
+// monolito tres muestras seguidas)
+const subida = [];
+for (let i = 0; i < 40; i++) {
+  await espera(1000); subida.push(await C.ev(`(() => { const e = ENTS.lista.find((x) => x.t === 'jx_plaza'), L = entLocal(e, JUG.pos); return { y: +(JUG.pos.y - e.p.y).toFixed(2), z: +L.z.toFixed(2), x: +L.x.toFixed(2) }; })()`));
+  const n = subida.length; if (n >= 4 && subida[n - 1].z < 3 && Math.abs(subida[n - 1].z - subida[n - 3].z) < 0.05) break;
+}
+await C.p.keyboard.up('KeyW');
+const arriba = subida.find((s) => s.y > 0.45 + 0.6 && Math.abs(s.z) < 8.5);
+const ultimo = subida[subida.length - 1];
+ok('10. se sube caminando por la rampa y el monolito frena (no se lo atraviesa)', !!arriba && subida.every((s) => !(Math.abs(s.x) < 2 && Math.abs(s.z) < 0.8 + 0.2)) && ultimo.z >= 0.8, { arriba, ultimo, recorrido: subida.map((s) => [s.z, s.y]) });
+// 11: costo
+const costo = await C.ev(`(async () => {
+  const e = ENTS.lista.find((x) => x.t === 'jx_plaza'), H = IDS.hito; JUG.pos.set(e.p.x, e.p.y + 1.2, e.p.z + 30); JUG.yaw = Math.PI; JUG.pitch = 0.05;
+  const medir = async () => { await new Promise((ok) => setTimeout(ok, 600)); const L = []; for (let i = 0; i < 40; i++) { const t = performance.now(); dibujar(); L.push(performance.now() - t); await new Promise((ok) => requestAnimationFrame(ok)); } L.sort((a, b) => a - b); return L[L.length >> 1]; };
+  const conMs = []; const sinMs = [];
+  for (let r = 0; r < 3; r++) { conMs.push(await medir()); const i = ENTS.lista.indexOf(e); ENTS.lista.splice(i, 1); sinMs.push(await medir()); ENTS.lista.push(e); }
+  const md = (a) => a.sort((x, y) => x - y)[1];
+  return { con: +md(conMs).toFixed(2), sin: +md(sinMs).toFixed(2) };
+})()`);
+ok('11. cuesta poco: 3 mallas, ≤ 2000 triángulos, ≤ 1,5 ms más por cuadro', pz.FlatGrass.mallas === 3 && pz.FlatGrass.tris <= 2000 && costo.con - costo.sin <= 1.5, { mallas: pz.FlatGrass.mallas, tris: pz.FlatGrass.tris, ...costo });
+await C.c.close();
 const e2 = errs.filter((x) => !/broker|mqtt|tienda|CORS|ERR_FAILED|Failed to load|net::|willRead/i.test(x));
-ok('8. sin errores de JS', !e2.length, e2.slice(0, 4));
+ok('12. sin errores de JS', !e2.length, e2.slice(0, 4));
 console.log('RESUMEN ' + R.filter(Boolean).length + '/' + R.length);
 await b.close(); process.exit(R.every(Boolean) ? 0 : 1);
