@@ -37,10 +37,10 @@ const NAT = ({ pc, pp }) => {   // (addInitScript pasa un solo argumento: van ju
 };
 const LOCAL = new RegExp('^(https?|wss?)://(127\\.0\\.0\\.1|localhost|' + IPS.map((x) => x.replace(/\./g, '\\.')).join('|') + ')(:|/)');
 let BR = null;
-async function abrir(nombre, celu, app, url) {
-  // (un solo Chromium con un contexto por jugador, aislados como tres aparatos: con tres Chromium a la vez el tercero se
-  // caía al cargar en esta compu)
-  const b = BR || (BR = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio'] }));
+async function abrir(nombre, celu, app, url, propio) {
+  // (Ana y Beto en un Chromium, cada uno en su contexto; Caro en otro: con los tres juegos en el mismo proceso de gráficos,
+  // por software en esta compu, se perdía el contexto de WebGL)
+  const b = propio ? await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio'] }) : BR || (BR = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio'] }));
   // (ventanas chicas: los tres juegos abiertos a la vez dibujan con la CPU en esta compu)
   const ctx = await b.newContext(celu ? { viewport: { width: 640, height: 288 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } : { viewport: { width: 640, height: 360 } });
   // sin internet: sólo esta compu y la red local; y la tienda (que no responde) con la cuenta de Google pedida desde antes
@@ -63,7 +63,7 @@ const A = await abrir('Ana', false, true, U);
 // (Caro abre ya el juego que sirve el celular de Ana, antes de que haya partida: en esta compu, cargar el juego con otros
 // dos jugando hace caer la página, también desde 127.0.0.1 —nada que ver con la red local—; y así se prueba que la
 // página abierta antes encuentra la partida después)
-const C = await abrir('Caro', false, false, 'http://' + IP + ':' + P + '/' + ARCH + '?test&gfx=patata&lan' + SINPUB);
+const C = await abrir('Caro', false, false, 'http://' + IP + ':' + P + '/' + ARCH + '?test&gfx=patata&lan' + SINPUB, true);
 await A.ev("inicioMostrar(true); conectarMultijugador(); 1"); await espera(500);
 const conLogin = await A.ev("JSON.stringify({ falta: cuentaFaltaPara(), boton: !!RB.el.querySelector('[data-rb=lan]') })");
 await clic(A, '[data-rb=lan]'); await espera(400);
@@ -105,7 +105,7 @@ await B.ev(`RB.el.querySelector('#lanIp').value = ${JSON.stringify(IP + ':' + P)
 const b2 = JSON.parse(await B.ev("JSON.stringify({ on: RED.on, rem: [...RED.remotos.values()].map((r) => r.nombre).sort(), lan: SALA && SALA.lan })"));
 ok('Beto vuelve escribiendo la IP: entra otra vez', b2.on && b2.rem.join() === 'Ana,Caro', b2);
 // Caro cierra el navegador de golpe: su testamento la saca de los demás
-await C.ctx.close(); let remA = []; for (let k = 0; k < 40; k++) { await espera(250); remA = JSON.parse(await A.ev("JSON.stringify([...RED.remotos.values()].map((r) => r.nombre).sort())")); if (!remA.includes('Caro')) break; }
+await C.b.close(); let remA = []; for (let k = 0; k < 40; k++) { await espera(250); remA = JSON.parse(await A.ev("JSON.stringify([...RED.remotos.values()].map((r) => r.nombre).sort())")); if (!remA.includes('Caro')) break; }
 ok('Caro se corta de golpe: desaparece para Ana enseguida (testamento del broker)', remA.join() === 'Beto', remA);
 // Ana deja de ser anfitriona al volver al menú
 await A.ev('irMenuPrincipal(); 1'); await espera(1500);
