@@ -30,6 +30,8 @@ const IP = IPS[0] || '127.0.0.1';
 console.log('anfitrión en Java: broker y juego en ' + P + ', IPs ' + IPS.join(', '));
 const control = async (r) => (await fetch('http://127.0.0.1:' + PC + r)).json();
 // ---- los navegadores ----
+// (--no-proxy-server: esta compu sale a internet por un proxy que no deja pasar el ws:// a la IP de la red; en una red de
+// casa no hay proxy)
 const NAT = ({ pc, pp }) => {   // (addInitScript pasa un solo argumento: van juntos)
   // (lo que la app de Android le da al juego por JXNativo, llamando al Java por el control: síncrono, como en la WebView)
   const sx = (r) => { const x = new XMLHttpRequest(); x.open('GET', 'http://127.0.0.1:' + pc + r, false); x.send(); return x.responseText; }, e = encodeURIComponent;
@@ -40,7 +42,7 @@ let BR = null;
 async function abrir(nombre, celu, app, url, propio) {
   // (Ana y Beto en un Chromium, cada uno en su contexto; Caro en otro: con los tres juegos en el mismo proceso de gráficos,
   // por software en esta compu, se perdía el contexto de WebGL)
-  const b = propio ? await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--disable-gpu-watchdog'] }) : BR || (BR = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--disable-gpu-watchdog'] }));
+  const b = propio ? await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--disable-gpu-watchdog', '--no-proxy-server'] }) : BR || (BR = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--disable-gpu-watchdog', '--no-proxy-server'] }));
   // (ventanas chicas: los tres juegos abiertos a la vez dibujan con la CPU en esta compu)
   const ctx = await b.newContext(celu ? { viewport: { width: 640, height: 288 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } : { viewport: { width: 640, height: 360 } });
   // sin internet: sólo esta compu y la red local; y la tienda (que no responde) con la cuenta de Google pedida desde antes
@@ -119,7 +121,7 @@ try {
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(T, 'k.pem'), '-out', path.join(T, 'c.pem'), '-days', '1', '-subj', '/CN=prueba'], { stdio: 'pipe' });
   const S = https.createServer({ key: fs.readFileSync(path.join(T, 'k.pem')), cert: fs.readFileSync(path.join(T, 'c.pem')) }, (q, r) => { r.writeHead(200, { 'Content-Type': 'text/html' }); r.end('<!doctype html><title>https</title>'); });
   await new Promise((r) => S.listen(PC + 1, '0.0.0.0', r));
-  const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' }); const pg = await (await b.newContext({ ignoreHTTPSErrors: true })).newPage();
+  const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--no-proxy-server'] }); const pg = await (await b.newContext({ ignoreHTTPSErrors: true })).newPage();
   await pg.goto('https://' + IP + ':' + (PC + 1) + '/');
   mixto = await pg.evaluate(async ([ip, p, pp]) => {
     const prueba = (u) => new Promise((ok2) => { try { const w = new WebSocket(u, 'mqtt'); w.onopen = () => { w.close(); ok2('abre'); }; w.onerror = () => ok2('error'); setTimeout(() => ok2('nada'), 3000); } catch (e) { ok2('bloqueado: ' + e.name); } });
