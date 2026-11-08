@@ -48,8 +48,10 @@ for (const modo of ['R', 'L']) {
     JUG.tercera = true; return 1; })()`);
   await p.waitForTimeout(300);
   await ev(`pulso('camLibre'); 1`); await p.waitForTimeout(200); await ev(`pulso('camLib${modo}'); 1`); await p.waitForTimeout(400);
-  // (agarra la caja mirándola desde la cámara libre, como en el video)
+  // (agarra la caja mirándola desde la cámara libre, como en el video; con la cámara libre la pistola apunta desde los ojos
+  // del personaje y hacia donde mira él, como en GMod (miraOjo/miraDir en armas.js), así que el personaje también la mira)
   const ag = await ev(`(async () => { const b = window.__o.b, d = vsub(b.pos, CAM.pos).norm(); CLIB.yaw = Math.atan2(d.x, d.z); CLIB.pitch = -Math.asin(d.y); await new Promise((r) => setTimeout(r, 250));
+    const o = JUG.ojoPos || CAM.pos, e = vsub(b.pos, o).norm(); JUG.yaw = Math.atan2(e.x, e.z); JUG.pitch = -Math.asin(clamp(e.y, -1, 1)); await new Promise((r) => setTimeout(r, 100));
     agarrarFisica(); await new Promise((r) => setTimeout(r, 300)); return { agarre: !!ARM.agarre, lejos: +CAM.pos.distTo(JUG.pos).toFixed(2), modo: CLIB.modo }; })()`);
   if (modo === 'R') await p.screenshot({ path: D + 'girado_camR.png' });
   const yawLib = await ev(`CLIB.yaw`);
