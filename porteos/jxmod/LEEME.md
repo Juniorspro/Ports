@@ -1962,6 +1962,11 @@ mejoralo, optimizá y sobre todo nuevas capturas de fondo para los menús», má
   http://IP:8765/ en el navegador. No pide la cuenta de Google ni la tienda, y no va a la lista pública. Sin internet
   no hay mods ni paquetes que no estén ya guardados, y en http://IP el navegador no da el micrófono. `PruebaLan`
   22/22 (WebSocket, MQTT con comodines, retenidos, testamento, keepalive, 5000 mensajes en orden, puente, anuncio).
+  `red_lan` 12/12 con el broker de la app en Java y el juego de verdad, sin internet ni cuenta: Ana es anfitriona,
+  Beto (app) la ve sola en la lista y entra por el puente, Caro (sin app) abre http://IP:8765/ y entra; el anfitrión
+  cuenta 3, el chat y el daño llegan, Beto vuelve escribiendo la IP, Caro se corta de golpe y desaparece para los
+  demás, Ana deja de anunciar al volver al menú, y desde https el ws:// a la red queda bloqueado pero el puente abre.
+  De paso: si la página del anfitrión se abría antes de que creara la partida, nunca la encontraba.
 - **Barriles explosivos en multijugador que explotaban dos veces**: al explotar un barril, en la pantalla del otro la
   explosión también dañaba su copia de ese barril (y de los de al lado): la copia explotaba otra vez y mandaba su
   explosión de vuelta. Ahora cada objeto lo daña sólo su dueño, cuando le llega la explosión, y la explosión lleva el
