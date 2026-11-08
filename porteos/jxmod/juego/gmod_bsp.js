@@ -399,7 +399,7 @@ async function gbspPreparar(clave, prog) {
   if (le) {
     const a = String(le.angles || '0 0 0').split(/\s+/).map(Number), pit = le.pitch !== undefined ? +le.pitch : a[0], f = angMat(new LAng(pit || -45, a[1] || 0, 0))[0], fG = dG({ x: f[0], y: f[1], z: f[2] }).norm(), q = gbspQuatDe(fG);
     const lz = String(le._light || '255 255 255 200').split(/\s+/).map(Number), am = String(le._ambient || '').split(/\s+/).map(Number);
-    arbs.push([{ n: 'Sol', p: [0, 0, 0], r: [q.x, q.y, q.z, q.w], s: [1, 1, 1], pa: -1, lz: { t: 1, c: [lz[0] / 255, lz[1] / 255, lz[2] / 255], i: clamp((lz[3] || 200) / 220, 0.4, 1.6) } }]);
+    arbs.push([{ n: 'Sol', p: [0, 0, 0], r: [q.x, q.y, q.z, q.w], s: [1, 1, 1], pa: -1, lz: { t: 1, c: [lz[0] / 255, lz[1] / 255, lz[2] / 255], i: Math.pow(clamp((lz[3] || 200) / 220, 0.4, 1.6), 1 / 2.2) } }]);   // (el brillo de Source es lineal: el color del sol se pasa a lineal y después se lo multiplica; acá el color y el brillo se pasan juntos —(c·i)^2,2—, así que el brillo va con su raíz y no queda elevado a 2,2: un sol de 1,6 daba 2,8 veces y los props se veían quemados y naranjas)
     if (am.length >= 3 && am.every(Number.isFinite)) { const k = clamp((am[3] || 20) / 60, 0.25, 1.2), c = [am[0], am[1], am[2]].map((x) => clamp(x / 255 * k + 0.12, 0.08, 0.9)); aj.ambRB = [c.map((x) => x), c.map((x) => x * 0.75)]; }
   }
   // la luz horneada para el dibujo; y si el mapa no tiene sol (un interior), la luz de relleno de los personajes y props
@@ -425,11 +425,15 @@ async function gbspPreparar(clave, prog) {
       fog: skc.fogenable === '1' && +skc.fogend > +skc.fogstart ? { c: fc, a: (+skc.fogstart || 0) * GM_S / sc, b: (+skc.fogend || 1) * GM_S / sc } : null };
   }
   // el cielo 2D de verdad: sus seis caras pasadas a un cubo (en los aparatos flojos, más chico)
-  try { const Lc = (typeof GFX !== 'undefined' && GFX.texMax && GFX.texMax <= 256) ? 256 : 512; await gbspCieloTraer(cielo, Lc); const cub = gbspCieloCubo(cielo, Lc); if (cub) aj.cieloCubo = cub; } catch (e) {}
+  // (el «painted» de GMod —el celeste de gm_construct— se arma acá sin bajar nada; si el de un mapa no se puede traer —sin el
+  // contenido base—, también: el cielo de siempre de GMod antes que el degradé del juego)
+  if (cielo !== 'painted') try { const Lc = (typeof GFX !== 'undefined' && GFX.texMax && GFX.texMax <= 256) ? 256 : 512; await gbspCieloTraer(cielo, Lc); const cub = gbspCieloCubo(cielo, Lc); if (cub) aj.cieloCubo = cub; } catch (e) {}
+  if (!aj.cieloCubo) aj.cieloCubo = cieloPainted(64);
   // el color del cielo: el promedio de las caras de su caja (arriba, el horizonte y abajo)
   const media = (r) => { try { const b = gmArchivo('materials/' + r + '.vmt'), v = b ? GMF.vmt(b, (p) => gmArchivo('materials/' + p.replace(/\.vmt$/, '') + '.vmt')) : null, tb = v && v.base ? gmVtfYa('materials/' + v.base + '.vtf', 16) : gmVtfYa('materials/' + r + '.vtf', 16); if (!tb) return null; const t = GMF.vtf(tb, 16), px = GMF.vtfRGBA(t), s = [0, 0, 0]; for (let i = 0; i < px.length; i += 4) { s[0] += px[i]; s[1] += px[i + 1]; s[2] += px[i + 2]; } const n = px.length / 4; return s.map((x) => x / n / 255); } catch (e) { return null; } };
-  const up = media(caras[0]), dn = media(caras[1]), lados = [2, 3, 4, 5].map((i) => media(caras[i])).filter(Boolean);
-  const mid = lados.length ? [0, 1, 2].map((k) => lados.reduce((a, x) => a + x[k], 0) / lados.length) : null;
+  let up = media(caras[0]), dn = media(caras[1]), lados = [2, 3, 4, 5].map((i) => media(caras[i])).filter(Boolean);
+  let mid = lados.length ? [0, 1, 2].map((k) => lados.reduce((a, x) => a + x[k], 0) / lados.length) : null;
+  if (cielo === 'painted' || (!up && !mid && aj.cieloCubo === cieloPainted(64))) { const P = CIELO_PAINTED; up = P[0].map((x) => x / 255); mid = P[16].map((x) => x / 255); dn = up; }
   if (up || mid) { aj.sky = DATA.mt.length; DATA.mt.push({ n: 'GMA_cielo_' + clave, t: -1, gm: 1, sh: 'Skybox/Procedural', cc: { _TopColor: (up || mid).concat(1), _MiddleColor: (mid || up).concat(1), _BottomColor: (dn || mid || up).concat(1), _SunTint: [1, 0.95, 0.85, 1] }, f: { _TopExponent: 0.8, _BottomExponent: 1 } }); }
   // hasta dónde se ve: lo que mide el mapa (con tope)
   let lo = [1e9, 1e9], hi = [-1e9, -1e9]; for (const [k] of ped) { const [x, z] = k.split(':').map(Number); lo = [Math.min(lo[0], x), Math.min(lo[1], z)]; hi = [Math.max(hi[0], x + 1), Math.max(hi[1], z + 1)]; }

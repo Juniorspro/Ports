@@ -17,7 +17,7 @@
 import { createRequire } from 'module'; import http from 'http'; import fs from 'fs';
 const { chromium } = createRequire(import.meta.url)('playwright');
 const S = process.env.BROKER_DIR || '/tmp/claude-0/-home-user-Ports/eeadafdf-53e8-5696-a49a-cc5a848c1abe/scratchpad', req = createRequire(S + '/mc/broker/package.json');
-const [, , HTML, D = '/tmp/claude-0/ev3/prueba'] = process.argv;
+const [, , HTML, D = '/tmp/claude-0/ev3/prueba', GMA = ''] = process.argv;   // (GMA: carpeta con 143190159.gma —mapas de Prop Hunt— para probar un mapa del Workshop de verdad)
 fs.mkdirSync(D, { recursive: true });
 const aedes = req('aedes')(); const { WebSocketServer, createWebSocketStream } = req('ws');
 const srv = http.createServer(); const wss = new WebSocketServer({ server: srv, path: '/mqtt' }); wss.on('connection', (ws) => aedes.handle(createWebSocketStream(ws)));
@@ -79,8 +79,15 @@ for (const m of ['RB_Construct', 'RB_Flatgrass']) {
   const d0 = await J(A, `EVT.dib`); await ev(A, `(() => { JUG.yaw = Math.atan2(EVT.dir.x, EVT.dir.z); JUG.pitch = -0.5; EVT.prox = TIEMPO.t; return 1; })()`); await juego(A, 1.5);
   g2[m] = await J(A, `({ grieta: EVT.grieta, caidas: EVT.caidas, dibujos: EVT.dib - ${d0}, cola: EVT.cola.length })`);
 }
-const unidad = await J(A, `({ ws: evtConGrieta('WS_gm_bigcity'), pizzeria: evtConGrieta('RB_Pizzeria'), espacioCaidas: evtConCaidas('Space'), desierto: evtConGrieta('Desert'), llanura: evtConGrieta('RB_Llanura') })`);
-ok('2. gm_construct y gm_flatgrass sin grieta ni caídas (nada dibujado); Workshop y pizzería sin grieta', Object.values(g2).every((x) => !x.grieta && !x.caidas && x.dibujos === 0 && x.cola === 0) && !unidad.ws && !unidad.pizzeria && !unidad.espacioCaidas && unidad.desierto && unidad.llanura, { g2, unidad });
+// (un mapa del Workshop instalado de verdad: queda en la lista de mapas como WS_*, y adentro no hay grieta)
+if (GMA) {
+  const ws = await J(A, `(async () => { const b = new Uint8Array(await (await fetch('${GMA}/143190159.gma')).arrayBuffer()); await gmInstalar('143190159', { nombre: 'ph', sinDeps: true }, b); return [...GBSP.mapas].filter(([k, x]) => x.id === '143190159').map(([k]) => k); })()`);
+  const m = ws.find((x) => /no1office/.test(x)) || ws[0];
+  await mapa(A, m); await juego(A, 1); const d0 = await J(A, `EVT.dib`); await ev(A, `(() => { JUG.yaw = Math.atan2(EVT.dir.x, EVT.dir.z); JUG.pitch = -0.6; return 1; })()`); await juego(A, 1);
+  g2[m] = await J(A, `({ grieta: EVT.grieta, caidas: EVT.caidas, dibujos: EVT.dib - ${d0}, cola: EVT.cola.length, enLista: MAPAS_RB.includes(${JSON.stringify(m)}) })`);
+}
+const unidad = await J(A, `({ ws: evtConGrieta('WS_gm_bigcity') || evtConGrieta(MAPAS_RB.find((m) => /^WS_/.test(m)) || 'WS_x') || [...(GBSP.mapas || new Map()).keys()].some(evtConGrieta), pizzeria: evtConGrieta('RB_Pizzeria'), espacioCaidas: evtConCaidas('Space'), desierto: evtConGrieta('Desert'), llanura: evtConGrieta('RB_Llanura') })`);
+ok('2. gm_construct, gm_flatgrass y un mapa del Workshop instalado sin grieta ni caídas (nada dibujado); la pizzería tampoco', Object.values(g2).every((x) => !x.grieta && !x.caidas && x.dibujos === 0 && x.cola === 0) && !unidad.ws && !unidad.pizzeria && !unidad.espacioCaidas && unidad.desierto && unidad.llanura, { g2, unidad });
 
 // ---------------- 3. lo que cuesta ----------------
 await mapa(A, 'Desert'); await ev(A, `(() => { PREFS.gfx = 'alto'; aplicarGfx(); DIA.hora = 12; DIA.aplicada = -1; return 1; })()`); await mirar(A); await juego(A, 1);
@@ -115,13 +122,13 @@ const cayo = await J(A, `(() => {
   const vivos = EVT.vivos.filter((o) => !o.borrado);
   return { esperaExtra: +(TIEMPO.t - window.__tLlego).toFixed(1), cola: EVT.cola.length, vivos: vivos.map((o) => { let minY = 1e9; for (const v of puntosForma(o.F.shape)) minY = Math.min(minY, o.b.q.rot(v).y + o.b.pos.y);
     const h = mundoRayo(v3(o.b.pos.x, o.b.pos.y + 3, o.b.pos.z), v3(0, -1, 0), 50), piso = h ? o.b.pos.y + 3 - h.t : null;
-    return { n: o.nombre, hueco: piso === null ? null : +(minY - piso).toFixed(3), vel: +o.b.vel.len().toFixed(2), duerme: !!o.b.sleep }; }),
+    return { n: o.nombre, veh: o.tipo === 'vehiculo', arriba: +o.b.q.rot(v3(0, 1, 0)).y.toFixed(2), hueco: piso === null ? null : +(minY - piso).toFixed(3), vel: +o.b.vel.len().toFixed(2), duerme: !!o.b.sleep }; }),
     pico: window.__picoPart, tope: Math.round(partTope()), exp: window.__exp };
 })()`);
 await foto(A, 'cae_quedo');
 const noExplotan = lanz.l.filter((x) => !x.ex).length, explotan = lanz.l.length - noExplotan;
-ok('4. caída de 6: todas caen lejos (≥ 8 m), las que quedan apoyadas (hueco −5…+30 cm) y quietas (a los 5 s, o 15 s si las empujó una explosión), explosiones = las que explotan, partículas ≤ tope',
-  lanz.n === 6 && lanz.l.every((x) => x.d >= 8) && cayo.cola === 0 && cayo.vivos.length === noExplotan && cayo.vivos.every((o) => o.hueco !== null && o.hueco >= -0.05 && o.hueco <= 0.3 && o.vel < 0.5) && cayo.exp >= explotan && cayo.pico <= cayo.tope,
+ok('4. caída de 6: todas caen lejos (≥ 8 m), las que quedan apoyadas (hueco −5…+30 cm; los autos sobre las ruedas, derechos) y quietas (a los 5 s, o 15 s si las empujó una explosión o ruedan), explosiones = las que explotan, partículas ≤ tope',
+  lanz.n === 6 && lanz.l.every((x) => x.d >= 8) && cayo.cola === 0 && cayo.vivos.length === noExplotan && cayo.vivos.every((o) => o.hueco !== null && o.hueco >= -0.05 && o.hueco <= (o.veh ? 0.5 : 0.3) && o.vel < 0.5 && (!o.veh || o.arriba > 0.9)) && cayo.exp >= explotan && cayo.pico <= cayo.tope,
   { lanz, cayo });
 
 // ---------------- 5. sola, de 1 a 6, y el tope de 12 ----------------

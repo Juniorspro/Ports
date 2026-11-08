@@ -22,7 +22,10 @@ function diaAplicar() {
   // elevación: el mapa a las 12; 0 a las 6 y 18; negativa de noche. Recorrido de este a oeste
   const el = el0 * Math.sin((h - 6) / 12 * Math.PI), az = az0 + (h - 12) / 12 * Math.PI * 0.85;
   const sol = v3(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)).norm();
-  const s = sol.y;
+  // (cuánto es de día, de tarde o de noche sale de la hora —la altura del sol de 0 a 1 en su arco: 1 a las 12, 0 a las 6 y
+  // a las 18—, no de la altura de verdad: los mapas de GMod con el sol bajo —muy común, 10 a 20°— quedaban con el tinte
+  // naranja del atardecer aunque fueran las 12; a las 12 cada mapa se ve como lo hizo su autor)
+  const s = Math.sin((h - 6) / 12 * Math.PI);
   const dia = sstep(-0.1, 0.3, s), tarde = sstep(-0.16, 0.02, s) * (1 - sstep(0.06, 0.36, s)), noche = 1 - sstep(-0.22, 0.0, s);
   const C = R.cielo, N = { top: [0.012, 0.02, 0.06], mid: [0.05, 0.07, 0.13], bot: [0.03, 0.035, 0.05] };
   C.top = _mix3(_mix3(N.top, B.cielo.top, dia), [0.25, 0.32, 0.55], tarde * 0.35);

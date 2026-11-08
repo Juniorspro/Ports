@@ -98,6 +98,9 @@ function cargarMapa(nombre) {
   if (nombre === 'Space') R.cielo.sol = [0.6, 0.6, 0.6];
   if (aj.cubo) R.cielo.cubo = aj.cubo;   // (cielo de caja: las seis caras ya dibujadas)
   if (aj.cieloCubo) R.cielo.cuboPx = aj.cieloCubo;   // (los mapas del Workshop: su cielo de verdad, armado al cargar)
+  // (gm_construct y gm_flatgrass: su cielo de verdad es el «painted» de GMod —el celeste de siempre—; el que traían horneado
+  // era otro, nublado y gris)
+  if (MAPAS_GMOD.includes(nombre)) { delete R.cielo.cubo; R.cielo.cuboPx = cieloPainted(64); }
   // el cielo 3D de los mapas del Workshop (la maqueta de fondo): aparte del mundo (no choca ni hace sombra)
   MUNDO.cielo3d = null;
   if (aj.cielo3d && aj.cielo3d.arbs && aj.cielo3d.arbs.length) {
@@ -129,6 +132,23 @@ function cargarMapa(nombre) {
     MUNDO.spawns.push(v3(0, h ? hi.y + 5 - h.t + 1 : 2, 0));
   }
   if (typeof gmaOrigenMapa === 'function') gmaOrigenMapa(nombre);   // (el cero de Source del mapa, para el Lua de GMod)
+}
+// el cielo «painted» de GMod (gm_construct, gm_flatgrass y muchos mapas del Workshop): un degradé celeste que se aclara hasta
+// casi blanco en el horizonte; arriba y abajo, celeste parejo. Medido de sus caras (256 × 256, cada fila de un solo color
+// ±8): 17 colores del borde de arriba de una cara del costado hasta el medio; la mitad de abajo es igual, al revés. Se arma
+// acá (no hay que bajar nada) y con las caras de WebGL: +X, -X, +Y arriba, -Y abajo, +Z, -Z
+const CIELO_PAINTED = [[126, 189, 255], [132, 190, 255], [140, 195, 255], [148, 199, 255], [154, 202, 253], [162, 206, 252], [170, 210, 250], [177, 213, 251], [185, 217, 251],
+  [192, 220, 250], [198, 223, 247], [206, 227, 247], [214, 231, 247], [222, 235, 247], [229, 238, 247], [236, 242, 247], [244, 246, 244]];
+function cieloPainted(L) {
+  L = L || 64; if (cieloPainted.c && cieloPainted.c.L === L) return cieloPainted.c;
+  const P = CIELO_PAINTED, lado = new Uint8Array(L * L * 3), azul = new Uint8Array(L * L * 3);
+  for (let y = 0; y < L; y++) {
+    const v = (y + 0.5) / L, t = (v <= 0.5 ? v : 1 - v) * 32, i = Math.min(15, Math.floor(t)), f = t - i;
+    const c = [0, 1, 2].map((k) => Math.round(P[i][k] + (P[i + 1][k] - P[i][k]) * f));
+    for (let x = 0; x < L; x++) { const o = (y * L + x) * 3; lado[o] = c[0]; lado[o + 1] = c[1]; lado[o + 2] = c[2]; }
+  }
+  for (let i = 0; i < L * L; i++) { azul[i * 3] = 126; azul[i * 3 + 1] = 188; azul[i * 3 + 2] = 255; }
+  return (cieloPainted.c = { L, caras: [lado, lado, azul, azul, lado, lado] });
 }
 // niebla lineal del mapa (la de Source): la del mapa si la vista llega a todo el mapa; si no, cerrada antes de donde se
 // corta la vista (en las calidades bajas, lo de lejos se pierde en la niebla en vez de cortarse)

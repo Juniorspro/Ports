@@ -618,10 +618,13 @@ void main(){
   o = vec4(c, 1.0);
 #else
   c = pow(c, vec3(2.2)) * uCieloK;
+  // (el cielo de caja ya es una imagen terminada, como en GMod: se le deshace el tono —ACES— que le pone después el
+  // posproceso, o directamente no se le pone; antes quedaba un 15 % más oscuro y gris que su textura)
 #if SALIDA == 2
-  o = vec4(c, 1.0);
+  vec3 L = min(c, vec3(0.97)), a = 2.51 - 2.43 * L, b = 0.03 - 0.59 * L;
+  o = vec4((-b + sqrt(b * b + 0.56 * a * L)) / (2.0 * a) / uExpo, 1.0);
 #else
-  o = vec4(pow(aces(c * uExpo), vec3(1.0 / 2.2)), 1.0);
+  o = vec4(pow(min(c, vec3(1.0)), vec3(1.0 / 2.2)), 1.0);
 #endif
 #endif
 }`;

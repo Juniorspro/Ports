@@ -19,7 +19,8 @@ const EVT_COSAS = [['CajaMadera', 6, 1.2], ['Barril', 4, 1.1], ['Neumatico', 4, 
   ['Sofa', 2, 1.6], ['Carrito', 2, 1.2], ['Sandia', 2, 0.7], ['Cono', 2, 0.7], ['Radiador', 1, 1.0], ['Arcade', 1, 1.5], ['Contenedor', 1, 2.6],
   ['BarrilExplosivo', 3, 1.0, 0.8, 1.6], ['Garrafa', 2, 0.9, 0.8, 1.3], ['BidonNafta', 1, 0.8, 0.8, 1.1], ['Sedan', 1, 2.6, 0.4, 2.2]];
 // ¿este mapa tiene la grieta? (los del juego, salvo los de GMod y la pizzería, que es bajo techo) ¿y caídas? (no en el espacio)
-const evtConGrieta = (m) => (MAPAS.includes(m) || MAPAS_RB.includes(m)) && !MAPAS_GMOD.includes(m) && m !== 'RB_Pizzeria';
+// (los del Workshop instalados también están en MAPAS_RB, como WS_*: ésos van con su cielo, igual que los de GMod)
+const evtConGrieta = (m) => typeof m === 'string' && !/^WS_/.test(m) && !(typeof GBSP !== 'undefined' && GBSP.mapas && GBSP.mapas.has(m)) && (MAPAS.includes(m) || MAPAS_RB.includes(m)) && !MAPAS_GMOD.includes(m) && m !== 'RB_Pizzeria';
 const evtConCaidas = (m) => evtConGrieta(m) && m !== 'Space';
 const evtActivo = () => PREFS.evento !== false;
 // (un modo que no va con cosas cayendo: la noche de la pizzería, el creador de mapas, un modo de juego de GMod, el editor)
@@ -350,8 +351,11 @@ function evtRecibir(l, mia) {
   for (const x of l) {
     const def = EVT_COSAS.find((c) => c[0] === x[0]), sz = def ? def[2] : 1.2;
     const hasta = v3(x[1], x[2], x[3]), desde = v3(x[4], x[5], x[6]), t0 = TIEMPO.t + x[7], T = x[8];
-    const c = { nombre: x[0], suelo: hasta.clone(), hasta, desde, t0, t1: t0 + T, g: -16, sz, ex: x[9], mia, estado: 0, vis: null, q0: Quat.euler(Math.random() * 6.28, Math.random() * 2 - 1, Math.random() * 2 - 1),
-      giro: v3(Math.random() * 6 - 3, Math.random() * 6 - 3, Math.random() * 6 - 3), ult: null, acF: 0, acH: 0, silbo: false };
+    // (los vehículos caen derechos y girando sólo sobre sí mismos: aterrizan sobre las ruedas y se pueden manejar; lo demás da vueltas)
+    const k = DATA.pfPorNombre[x[0]], veh = !!(k && tipoDe(DATA.pf[k]) === 'vehiculo'), az = Math.random() * 6.28;
+    const c = { nombre: x[0], suelo: hasta.clone(), hasta, desde, t0, t1: t0 + T, g: -16, sz, ex: x[9], mia, estado: 0, vis: null, veh,
+      q0: veh ? Quat.euler(az, 0, 0) : Quat.euler(az, Math.random() * 2 - 1, Math.random() * 2 - 1),
+      giro: veh ? v3(0, Math.random() * 1.6 - 0.8, 0) : v3(Math.random() * 6 - 3, Math.random() * 6 - 3, Math.random() * 6 - 3), ult: null, acF: 0, acH: 0, silbo: false };
     EVT.cola.push(c);
   }
 }
@@ -462,8 +466,9 @@ function evtPega(c) {
   const o = crearObjeto(c.nombre, c.suelo, c.q.clone());
   c.vis = null; if (!o) return;
   const b = o.b; let minY = 1e9; for (const v of puntosForma(o.F.shape)) minY = Math.min(minY, b.q.rot(v).y);
-  b.pos.set(p.x, c.suelo.y - minY + 0.02, p.z); b.vel.copy(vscale(c.v, 0.12)); b.vel.y = Math.abs(c.v.y) * 0.08;
-  b.ang.set(Math.random() * 6 - 3, Math.random() * 6 - 3, Math.random() * 6 - 3); b.updateWorld(); b.wake(); o.md.sucio = true;
+  b.pos.set(p.x, c.suelo.y - minY + 0.02, p.z); b.vel.copy(vscale(c.v, c.veh ? 0.04 : 0.12)); b.vel.y = c.veh ? 0 : Math.abs(c.v.y) * 0.08;
+  if (c.veh) b.ang.set(0, 0, 0); else b.ang.set(Math.random() * 6 - 3, Math.random() * 6 - 3, Math.random() * 6 - 3);
+  b.updateWorld(); b.wake(); o.md.sucio = true;
   c.o = o; EVT.vivos.push(o);
   if (typeof redObjeto === 'function') redObjeto();
   // (no se juntan para siempre: las más viejas se van)
