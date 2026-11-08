@@ -144,6 +144,7 @@ function lucesJuntar() {
   if (!(GFX.nluz > 0) || GFX.luz < 2) return;
   if (typeof gmaLuces === 'function') gmaLuces(true);
   for (const l of LUCES_T) { const k = l.t / l.dur; luzPuntual(l.p, l.r, [l.c[0] * k, l.c[1] * k, l.c[2] * k]); }
+  if (typeof eventoLuces === 'function') eventoLuces();   // (lo que cae de la grieta, encendido)
   for (const l of MUNDO.luces) luzPuntual(l.p, l.r, l.c, l.d, l.k);   // (las del mapa)
   if (EF.fog > 0) { const p = vistaPuntaMundo() || vadd(CAM.pos, vscale(CAM.fwd, 0.8)); luzPuntual(p, 7, [6, 4.2, 2]); }
   for (const o of OBJS) {

@@ -224,6 +224,7 @@ function empezarPartida(mapa) {
   PH.bodies.length = 0; PH.joints.length = 0; PROY.length = 0; PART.l.length = 0;
   if (typeof personasLimpiar === 'function') personasLimpiar();
   cargarMapa(mapa); aplicarGfx(); if (typeof gbspTrasCargar === 'function') gbspTrasCargar(mapa); if (typeof puertasIniciar === 'function') puertasIniciar();
+  if (typeof EVT !== 'undefined') EVT.mapa = null;   // (el evento 3.0 empieza de cero en cada partida, aunque sea el mismo mapa: evento.js)
   jugadorAparecer();
   ARM.lista = ['RPG', 'Pistol', 'Camera', 'Hands', 'Crowbar', 'ToolBaton', 'PhysicsGun'];   // (la palanca, como en GMod)
   if (typeof SALA !== 'undefined' && SALA && !SALA.rpg) ARM.lista = ARM.lista.filter((a) => a !== 'RPG');
@@ -362,6 +363,7 @@ function cuadro(ahora) {
     if (typeof redPaso === 'function') redPaso(dt);
     cicPaso(dt); verPaso(dt); edaPaso(dt); nochePaso(dt); if (typeof puertasPaso === 'function') puertasPaso(dt);
     diaPaso(dt); hostPaso();
+    if (typeof eventoPaso === 'function') eventoPaso(dt);   // (el evento 3.0: la grieta y lo que cae de ella)
   }
   efectosPaso(dt);
   camaraActualizar(dt);
@@ -464,7 +466,7 @@ function dibujar() {
   const t0 = performance.now();
   R.fase = 'mundo'; dibujarMundo(); R.fase = '';
   if (typeof gmrAntes === 'function') gmrAntes();   // (el Lua de los addons dibuja: sus primitivas y qué modelos se ven)
-  dibujarObjetos(); aguaEncolar(); maqDibujar(); artDibujar();
+  dibujarObjetos(); aguaEncolar(); maqDibujar(); artDibujar(); if (typeof eventoEncolar === 'function') eventoEncolar();
   if (typeof dibujarPersonas === 'function') dibujarPersonas();
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();
@@ -497,7 +499,7 @@ function dibujar() {
   } else dibujarOpacos();
   dibujarMarcas();
   portalesQuad();
-  if (!AGUA.bajo && !c3d) dibujarCielo(M4.inv(R.vp));
+  if (!AGUA.bajo && !c3d) { dibujarCielo(M4.inv(R.vp)); if (typeof eventoCieloDibujar === 'function') eventoCieloDibujar(); }
   dibujarTransparentes();
   if (typeof gmrDibujar === 'function') gmrDibujar('mundo');
   dibujarEfectos(); nukeDibujar();

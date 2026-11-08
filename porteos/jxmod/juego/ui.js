@@ -269,7 +269,7 @@ function abrirAjustes(desde) {
     ${fila('Resolución', rango('aR', 35, 100, 5, 'aRv'))}
     ${sw('aDin', 'Resolución dinámica <small>(baja la resolución antes que los efectos para mantener los cuadros)</small>')}
     ${fila('Distancia', rango('aD', 100, 1200, 50, 'aDv'))}
-    ${sw('aC', 'Contorno <small>(resaltar lo que apuntás)</small>')}${sw('aF', 'Mostrar FPS')}${sw('aU', esc(Lc('HideUI', 'Ocultar UI')))}</section>
+    ${sw('aC', 'Contorno <small>(resaltar lo que apuntás)</small>')}${sw('aF', 'Mostrar FPS')}${sw('aU', esc(Lc('HideUI', 'Ocultar UI')))}${sw('aEv', esc(T('aj.evento')))}</section>
   <section data-ajs="c" class="oc"><h4>${esc(Lc('ControlsAudio', 'Controles y audio'))}</h4>
     ${fila(esc(Lc('Sensitivity', 'Sensibilidad')), rango('aS', 2, 40, 1))}
     ${fila('Volumen', rango('aV', 0, 100, 5))}
@@ -287,6 +287,7 @@ function abrirAjustes(desde) {
   $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI; $('aDin').checked = PREFS.resDin !== false;
   if ($('aH')) $('aH').value = PREFS.hud || 80;
   $('aEmoR').checked = PREFS.emoRuleta !== false;
+  $('aEv').checked = PREFS.evento !== false;
   const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; if ($('aH')) $('aHv').textContent = $('aH').value + '%'; };
   act();
   $('aG').onchange = () => { PREFS.gfx = $('aG').value; const p = PERFILES[PREFS.gfx]; if (p) { PREFS.res = p.res; PREFS.lejos = p.lejos; $('aR').value = p.res; $('aD').value = p.lejos; } act(); };
@@ -304,6 +305,7 @@ function abrirAjustes(desde) {
     PREFS.sombras = $('aSo').value; PREFS.post = $('aPo').value; PREFS.texQ = $('aTq').value; PREFS.contorno = $('aC').checked; PREFS.ocultarUI = $('aU').checked; PREFS.resDin = $('aDin').checked;
     if ($('aH')) PREFS.hud = +$('aH').value;
     PREFS.emoRuleta = $('aEmoR').checked;
+    PREFS.evento = $('aEv').checked;
     const motorNuevo = $('aM').value; PREFS.motor = motorNuevo;
     guardarPrefs();
     // cambiar de motor necesita empezar de nuevo (el contexto de WebGL no se puede cambiar)
