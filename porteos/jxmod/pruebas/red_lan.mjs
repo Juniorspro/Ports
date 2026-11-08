@@ -86,7 +86,9 @@ ok('Beto entra por el puente de la app (ws://127.0.0.1:…/lan/IP:puerto/mqtt), 
 await C.ev("inicioMostrar(true); conectarMultijugador(); 1"); await espera(300);
 await clic(C, '[data-rb=lan]');
 let listaC = []; for (let i = 0; i < 10 && !listaC.length; i++) { await espera(500); listaC = JSON.parse(await C.ev("JSON.stringify(LAN.lista.map((H) => [H.s, H.du]))")); }
-await clic(C, '.lanSala [data-rb^=lanEntrar]'); await espera(4500);
+await clic(C, '.lanSala [data-rb^=lanEntrar]');
+// (espera a que entre: carga el mapa con otros dos juegos dibujando en esta compu; tope 60 s)
+for (let i = 0; i < 120; i++) { await espera(500); if (await C.ev('RED.on && RED.remotos.size >= 2 && RED.objs.size >= 1')) break; }
 const c1 = JSON.parse(await C.ev("JSON.stringify({ on: RED.on, lan: SALA && SALA.lan, rem: [...RED.remotos.values()].map((r) => r.nombre).sort(), objs: [...RED.objs.values()].map((o) => o.nombre), seguro: window.isSecureContext })"));
 ok('Caro (sin la app, http://IP:' + P + '/) ve la partida y entra directo al broker del anfitrión; ve a Ana y a Beto', listaC.length === 1 && c1.on && c1.lan === 'ws://' + IP + ':' + P + '/mqtt' && c1.rem.join() === 'Ana,Beto' && c1.objs.includes('Crate'), Object.assign({ listaC }, c1));
 await espera(1500);
