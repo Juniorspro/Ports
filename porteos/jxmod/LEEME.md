@@ -1945,6 +1945,16 @@ mejoralo, optimizá y sobre todo nuevas capturas de fondo para los menús», má
   alto, con zoom hasta 1,06 y sin subir: 14–16 % (en la Isla, 9–11 %), con los rayos enteros. Lo del piso baja 4 puntos
   (del 82 al 86 % del alto), dentro de la franja que la pantalla de carga ya oscurece para la consola. En la compu
   (16:9) la foto no se recorta y se ve igual.
+- **Multijugador a 0 fps en el Galaxy A15**: en la sala, cada cuadro reescribía el texto de la sala y movía los nombres
+  de los jugadores dentro de la capa de los controles (pantalla completa, con íconos y sombras): el celular volvía a
+  pintar toda esa capa en cada cuadro; y leer el tamaño de la ventana varias veces por cuadro obligaba a rehacer el
+  diseño. Ahora el texto sólo se escribe si cambió, los nombres van en su propia capa y el tamaño se guarda.
+  `red_a15` (A15 emulado: procesador ×5, 4 jugadores): antes 18–27 fps (p95 52–151 ms), ahora 58–60 fps (p95 19–24 ms).
+- **Quién habla por voz**: un panel con la foto (la tuya de Google sólo la ves vos; de los demás, el retrato de su
+  personaje), el nombre y un anillo que late; en la compu una columna a la derecha, en el celular una fila arriba al
+  medio; se apaga en Ajustes (Controles y audio). `voz_hud` 13/13: tu ficha a los 42–61 ms de hablar, la del otro
+  132–191 ms de punta a punta, se va en menos de 1 s al callarse, sin tapar botones en 7 tamaños de pantalla.
+- **Partida por LAN sin internet**: quedó sin terminar (no va en esta versión).
 - **Las bombas nucleares como la del tráiler, con el destello blanco** (`juego/nuclear_vol.js`): las 117 bombas usan
   ahora el hongo con volumen del tráiler (bola de fuego que sube, sombrero que rueda con fuego adentro, tallo de hollín y
   falda de polvo, con ruido 3D de coliflor y luz del sol y del cielo). Cada una a su escala: el tráiler es una de R ≈ 260 m
