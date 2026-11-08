@@ -1971,6 +1971,14 @@ mejoralo, optimizá y sobre todo nuevas capturas de fondo para los menús», má
 - **La pantalla de carga** decía «v1.0» y «JXMod 1.0»: ahora sale la versión del juego (la de `nucleo.js`, la misma del
   menú). Al entrar a un mapa del juego mostraba «map: rb_rb_ciudad»; ahora «map: rb_ciudad», «map: gm_construct» y, en
   los del Workshop, el nombre de su BSP.
+- Pruebas, todas sobre el armado final: `red_a15` 7/7, `voz_hud` 13/13, `red2` 13/13, `red3` 6/6, `voz` (la voz llega,
+  nivel 124, y se corta al apagar), `evento_grieta` 8/8, `mouse_pc` 6/6, `social` 42/42, `fondos_30` 6/6, `menu_30` 7/7,
+  `cielo_gmod` 5/5, `ev5_arreglos` 19/19, `ev6_nextbots` 7/7, `ev7_tf2` 8/8, `armas_correr` 8/8, `celulares` 9/9,
+  `mods_sin_tienda` 8/8, `hud_celu` 7/7, `girado` 11/11, `npc` 15/15, `gmod_panel` 18/18, `armas_gmod` 8/8,
+  `nucleares` 11/11, `nuclear_vol` 7/7. `girado` se arregló en la prueba: desde el arreglo del bazooka la pistola de física
+  apunta desde el personaje con la cámara libre, así que ahora el personaje también mira la caja. Corriendo dos tandas a
+  la vez, cuatro pasaron de su tope por la carga de la máquina (`voz_hud` 161 ms contra 150, el tramo del ruido 3D 25 ms
+  contra 15, un sprite de nextbot que no llegó a tiempo); solas, todas pasan.
 
 ## Tráiler de la 3.0 (40 s, 4:3 en FHD), v2
 
