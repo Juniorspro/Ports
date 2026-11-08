@@ -89,7 +89,7 @@ let listaC = []; for (let i = 0; i < 10 && !listaC.length; i++) { await espera(5
 await clic(C, '.lanSala [data-rb^=lanEntrar]');
 // (espera a que entre: carga el mapa con otros dos juegos dibujando en esta compu; tope 60 s)
 for (let i = 0; i < 120; i++) { await espera(500); if (await C.ev('RED.on && RED.remotos.size >= 2 && RED.objs.size >= 1')) break; }
-const c1 = JSON.parse(await C.ev("JSON.stringify({ on: RED.on, lan: SALA && SALA.lan, rem: [...RED.remotos.values()].map((r) => r.nombre).sort(), objs: [...RED.objs.values()].map((o) => o.nombre), seguro: window.isSecureContext })"));
+const c1 = JSON.parse(await C.ev("JSON.stringify({ on: RED.on, lan: SALA && SALA.lan, rem: [...RED.remotos.values()].map((r) => r.nombre).sort(), objs: [...RED.objs.values()].map((o) => o.nombre), seguro: window.isSecureContext, est: JUEGO.estado, cli: !!RED.cli, con: !!(RED.cli && RED.cli.connected), carga: !!document.querySelector('#carga:not(.oc)'), mapa: MUNDO.nombre })")); c1.err = C.err.slice(0, 4);
 ok('Caro (sin la app, http://IP:' + P + '/) ve la partida y entra directo al broker del anfitrión; ve a Ana y a Beto', listaC.length === 1 && c1.on && c1.lan === 'ws://' + IP + ':' + P + '/mqtt' && c1.rem.join() === 'Ana,Beto' && c1.objs.includes('Crate'), Object.assign({ listaC }, c1));
 await espera(1500);
 const est = await control('/estado'), hostsAhora = JSON.parse(await B.ev("JSON.stringify(JSON.parse(JXNativo.lanHosts()).map((x) => JSON.parse(x.d).j))"));
