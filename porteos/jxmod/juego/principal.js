@@ -379,6 +379,7 @@ function cuadro(ahora) {
   TIEMPO.cuadros++; TIEMPO.medT = (ahoraR - TIEMPO.medR) / 1000; TIEMPO.ms += ahoraR - t0;
   if (TIEMPO.medT >= 1) {
     TIEMPO.fps = TIEMPO.cuadros / TIEMPO.medT; const ms = TIEMPO.ms / TIEMPO.cuadros; TIEMPO.msProm = ms; TIEMPO.medR = ahoraR;
+    if (typeof VENT !== 'undefined') VENT.ok = false;   // (el tamaño de la ventana se vuelve a leer una vez por segundo, por las dudas: entrada.js)
     // ¿el procesador no da? (el JavaScript de cada cuadro tarda mucho: un celu con cuatro Cortex-A53 a 1,4 GHz —Snapdragon
     // 425, MT6739, Unisoc SC9832E— tarda 12 veces lo de una compu). Nivel 1 desde 9 ms por cuadro, 2 desde 16; para bajar
     // tiene que bajar bastante (5,5 y 10 ms) unos segundos, así no va y viene. Con el nivel, lo que no se nota se hace

@@ -236,9 +236,12 @@ function publicar(c, obj, ret) {
   obj.i = RED.ID;
   try { RED.cli.publish(RED.ROOM + '/' + c, JSON.stringify(obj), { qos: 0, retain: !!ret }); } catch (e) {}
 }
+// (sólo si cambió: se llama en cada cuadro y escribir el mismo texto igual cambia la página; en un celular eso hacía volver
+// a pintar toda la capa de los controles en cada cuadro de la sala —Galaxy A15 a 0 fps en multijugador: LEEME, JXMod 3.0.1—)
 function redEstadoUI() {
   const e = $('redEst'); if (!e) return;
-  e.textContent = !SALA ? T('pz.solo') : RED.on ? `${SALA.n} · ${RED.remotos.size + 1}/∞` : Lc('Connecting', 'Connecting') + '…';
+  const t = !SALA ? T('pz.solo') : RED.on ? `${SALA.n} · ${RED.remotos.size + 1}/∞` : Lc('Connecting', 'Connecting') + '…';
+  if (RED.estTxt !== t || e.textContent !== t) { RED.estTxt = t; e.textContent = t; }
 }
 const r3 = (v) => Math.round(v * 1000) / 1000, r4 = (v) => Math.round(v * 10000) / 10000;
 // ---------------- lo que mando ----------------
@@ -356,7 +359,9 @@ function recibirEstado(d) {
   if (Array.isArray(d.p)) { R2.meta.set(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0)); if (TIEMPO.t - R2.t > 2 || R2.pos.distTo(R2.meta) > 15) R2.pos.copy(R2.meta); }   // (un salto grande, como cruzar una puerta portal, va de una: si no, se lo veía volar por el mapa)
   if (Array.isArray(d.v)) R2.vel.set(num(d.v[0], -80, 80, 0), num(d.v[1], -80, 80, 0), num(d.v[2], -80, 80, 0));
   R2.yawM = num(d.y, -1e3, 1e3, 0); R2.P.mira = num(d.t, -2, 2, 0); R2.f = d.f | 0; R2.t = TIEMPO.t;
-  R2.nombre = censurar(limpio(d.n)); etiquetaRemota(R2); R2.sp = /^\d{8}$/.test(d.sp || '') ? d.sp : null;
+  // (el nombre pasa por la censura sólo si cambió: llega 10 veces por segundo de cada jugador)
+  if (R2.nCrudo !== d.n) { R2.nCrudo = d.n; R2.nombre = censurar(limpio(d.n)); }
+  etiquetaRemota(R2); R2.sp = /^\d{8}$/.test(d.sp || '') ? d.sp : null;
   R2.P.arma = DEF_ARMAS[d.a] ? d.a : null;
   R2.mu = typeof emuValida === 'function' && emuValida(d.mu) ? d.mu : null;   // (la música de su emote: se oye según la distancia)
   const em = emoValido(d.e) ? d.e : typeof d.e === 'string' && EMO_ID.test(d.e) ? (emoPedir(d.e, d.i), d.e) : null; // (uno hecho por la gente: se pide)
@@ -390,7 +395,19 @@ function remotoPaso(R2, dt) {
   R2.b.pos.set(P.pos.x, P.pos.y - 0.9 + 0.9 * tk, P.pos.z); R2.b.updateWorld(); R2.b.noRay = rag || esp; R2.b.noPhys = rag || esp; R2.b.noJug = rag || esp || !!P.escena || !!(P.jntFin && TIEMPO.t < P.jntFin); // tirado: sólo el muñeco choca (y se puede agarrar)
   // etiqueta con el nombre sobre la cabeza
   const cp = vadd(P.pos, v3(0, -0.65 + 1.9 * tk, 0)), cl = clipDe(cp);
-  if (cl && !esp && cp.distTo(CAM.pos) < 60) { R2.tag.style.display = ''; R2.tag.style.transform = `translate(${cl.x}px,${cl.y}px) translate(-50%,-100%)`; } else R2.tag.style.display = 'none';
+  etiquetaMover(R2.tag, cl && !esp && cp.distTo(CAM.pos) < 60 ? cl : null);
+}
+// una etiqueta (nombre, globo) sobre un punto de la pantalla. Antes se escribía la posición y el display en cada cuadro
+// aunque no cambiaran; con las etiquetas dentro de la capa de los controles, cada cuadro de la sala volvía a pintar y
+// rasterizar toda esa capa (pantalla completa, con los íconos y sus sombras) y en un celular con la GPU justa (Galaxy A15,
+// Mali-G57 MC2) el multijugador bajaba a 0 fps. Ahora va en su propia capa (will-change en el CSS de .etiqueta: moverla es
+// trabajo del compositor, sin volver a pintar) y sólo se toca si cambió (en décimas de píxel)
+function etiquetaMover(el, cl, ajuste) {
+  if (!el) return;
+  if (!cl) { if (el._vis !== 0) { el._vis = 0; el.style.display = 'none'; } return; }
+  if (el._vis !== 1) { el._vis = 1; el.style.display = ''; }
+  const x = Math.round(cl.x * 10) / 10, y = Math.round(cl.y * 10) / 10;
+  if (el._x !== x || el._y !== y) { el._x = x; el._y = y; el.style.transform = `translate(${x}px,${y}px) ${ajuste || 'translate(-50%,-100%)'}`; }
 }
 function clipDe(p) {
   const m = R.vpMundo || R.vp, x = m[0] * p.x + m[4] * p.y + m[8] * p.z + m[12], y = m[1] * p.x + m[5] * p.y + m[9] * p.z + m[13], w = m[3] * p.x + m[7] * p.y + m[11] * p.z + m[15];

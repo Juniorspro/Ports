@@ -437,7 +437,7 @@ function npcGloboPaso(P) {
   P.globoT -= TIEMPO.dt || 0.016;
   if (P.globoT <= 0 || !PERS.includes(P)) { G.remove(); P.globo = null; return; }
   const tk = P.tam || 1, cp = vadd(P.pos, v3(0, -0.95 + 2.02 * tk, 0)), cl = cp.distTo(CAM.pos) < 40 && clipDe(cp);
-  if (cl) { G.style.display = ''; G.style.transform = `translate(${cl.x}px,${cl.y}px) translate(-50%,-100%)`; } else G.style.display = 'none';
+  etiquetaMover(G, cl || null);   // (red.js: en su capa y sólo si cambió)
 }
 // ---------------- la red: el dueño manda a sus NPC; los demás los ven y les pegan ----------------
 function npcRedMandar() {

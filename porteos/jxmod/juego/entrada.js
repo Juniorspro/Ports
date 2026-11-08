@@ -48,7 +48,17 @@ function entradaIniciar() {
 // la orientación; si el navegador no deja (iPhone, o sin pantalla completa) se gira todo 90° con CSS y los
 // toques se pasan a las coordenadas giradas.
 const PANT = { rot: false, pedido: false, enIntro: !TEST };
-const VW = () => (PANT.rot ? innerHeight : innerWidth), VH = () => (PANT.rot ? innerWidth : innerHeight);
+// el tamaño de la ventana, guardado: en un celular (con la vista de celular la escala sale del diseño de la página) leer
+// innerWidth/innerHeight con algo de la página cambiado obliga a rehacer estilos y diseño en ese momento, y se leían varias
+// veces por cuadro (la posición de cada etiqueta, los controles). Se vuelve a leer al cambiar el tamaño, al girar, con la
+// pantalla completa y, por las dudas, una vez por segundo (principal.js)
+const VENT = { w: innerWidth, h: innerHeight, ok: true };
+const ventSucia = () => { VENT.ok = false; };
+addEventListener('resize', ventSucia, true); addEventListener('orientationchange', ventSucia, true);
+document.addEventListener('fullscreenchange', ventSucia, true);
+if (window.visualViewport && visualViewport.addEventListener) visualViewport.addEventListener('resize', ventSucia);
+function ventLeer() { if (!VENT.ok) { VENT.w = innerWidth; VENT.h = innerHeight; VENT.ok = true; } }
+const VW = () => (ventLeer(), PANT.rot ? VENT.h : VENT.w), VH = () => (ventLeer(), PANT.rot ? VENT.w : VENT.h);
 const tX = (t) => (PANT.rot ? t.clientY : t.clientX), tY = (t) => (PANT.rot ? innerWidth - t.clientX : t.clientY);
 function pantallaRevisar() {
   // también durante la intro (el lienzo de la intro se dibuja derecho dentro de la página girada)

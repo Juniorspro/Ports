@@ -143,7 +143,8 @@ function gmsPaso() {
   if (!GMS.sala) return;
   for (const V of GMS.votos.values()) {
     if (!V.fin && TIEMPO.t - V.t0 > 60) gmsDecidir(V, true);
-    if (!V.fin) { const b = document.querySelector(`.gmNoti[data-v="${V.v}"] .gmNotiT`); if (b) b.textContent = Math.max(0, Math.ceil(60 - (TIEMPO.t - V.t0))) + 's'; }
+    // (la cuenta regresiva sólo se escribe cuando cambia el número: en cada cuadro volvía a pintar la pantalla del celular)
+    if (!V.fin) { const s = Math.max(0, Math.ceil(60 - (TIEMPO.t - V.t0))) + 's'; if (V.cuentaTx !== s) { const b = document.querySelector(`.gmNoti[data-v="${V.v}"] .gmNotiT`); if (b) { b.textContent = s; V.cuentaTx = s; } } }
   }
   if (GMS.tPub && TIEMPO.t > GMS.tPub && RED.on) { if (GMS.lista.size) gmsPublicarLista(); GMS.tPub = 0; }
 }
@@ -155,7 +156,7 @@ function gmsNoti(V) {
   if (!el) { el = document.createElement('div'); el.className = 'gmNoti'; el.dataset.v = V.v; c.prepend(el); while (c.children.length > 4) c.lastChild.remove(); if (!V.mio) sonar('Click', null, 0.6, 1.1); }
   const n = V.e.size, img = V.it.img ? `<img src="${esc(V.it.img)}" alt="" referrerpolicy="no-referrer">` : `<img src="${GM_ICO}" alt="">`;
   const estado = V.fin ? `<b class="${V.ok ? 'ok' : 'mal'}">${esc(T(V.ok ? 'gm.activado' : 'gm.rechazado'))}</b>` : `${glifo('si')} ${V.si.size} · ${glifo('no')} ${V.no.size} · ${glifo('gente')} ${n} <i class="gmNotiT"></i>`;
-  el.classList.toggle('fin', V.fin);
+  el.classList.toggle('fin', V.fin); V.cuentaTx = null;   // (el aviso se rehace: gmsPaso vuelve a escribir la cuenta)
   el.innerHTML = `<div class="gmNotiCab">${img}<span><b dir="auto">${esc(T('gm.pide').replace('{j}', V.j || '?').replace('{n}', V.it.n))}</b><small>${V.fin || V.yo ? estado : esc(T('gm.toca')) + ' · ' + estado}</small></span><button class="gmNotiX" data-gms="x:${V.v}">×</button></div>
     <div class="gmNotiCuerpo">${img}<div><b dir="auto">${esc(V.it.n)}</b><small>${V.mb ? V.mb + ' MB · ' : ''}${esc(T('gm.votando'))}</small>
       ${V.fin || V.yo ? `<p>${estado}</p>` : `<div class="gmNotiBt"><button class="boton" data-gms="si:${V.v}">${glifo('si')} ${esc(T('gm.aceptar'))}</button><button class="boton gris" data-gms="no:${V.v}">${glifo('no')} ${esc(T('gm.rechazar'))}</button></div>`}</div></div>`;
