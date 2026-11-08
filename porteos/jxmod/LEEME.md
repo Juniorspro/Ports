@@ -1996,6 +1996,9 @@ mejoralo, optimizá y sobre todo nuevas capturas de fondo para los menús», má
   apunta desde el personaje con la cámara libre, así que ahora el personaje también mira la caja. Corriendo dos tandas a
   la vez, cuatro pasaron de su tope por la carga de la máquina (`voz_hud` 161 ms contra 150, el tramo del ruido 3D 25 ms
   contra 15, un sprite de nextbot que no llegó a tiempo); solas, todas pasan.
+- Pruebas sobre el armado con la partida por LAN y el arreglo de los barriles: `red_lan` 12/12, `PruebaLan` 22/22,
+  `red_barril` 6/6, `red2` 13/13, `red3` 6/6, `evento_grieta` 8/8, `red_a15` 7/7, `voz_hud` 13/13, `menu_30` 7/7,
+  `social` 42/42 (la prueba leía el aviso de «creó el grupo» antes de que llegara del servidor; ahora lo espera).
 
 ## Tráiler de la 3.0 (40 s, 4:3 en FHD), v2
 

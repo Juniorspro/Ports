@@ -164,6 +164,8 @@ await A.ev(`SOC.amigos = null; 1`); await clic(A, '[data-rb="soc:grupoNuevo"]');
 await A.p.screenshot({ path: 'social_grupo_elegir_pc.png' });
 await A.ev(`(() => { const D = document.getElementById('cfDlg'); D.querySelector('.soGN').value = 'Los pibes'; D.querySelectorAll('input[type=checkbox]').forEach((c) => { c.checked = true; }); D.querySelector('[data-cf=si]').click(); return 1; })()`);
 await esperar(A.p, `!!document.querySelector('.soConvCab') && /Los pibes/.test(document.querySelector('.soConvCab').textContent)`, 8000);
+// (el aviso de «creó el grupo» llega con el mensaje del servidor, después de la cabecera)
+await esperar(A.p, `!!document.querySelector('.soSis')`, 8000).catch(() => {});
 const gA = await A.ev(`({ cab: document.querySelector('.soConvCab').textContent.replace(/\\s+/g, ' ').trim(), sis: [...document.querySelectorAll('.soSis')].map((x) => x.textContent) })`);
 ok('Ana crea el grupo «Los pibes» con Beto y Caro (cabecera con 3 miembros) y el aviso en el idioma del jugador', /Los pibes/.test(gA.cab) && /3/.test(gA.cab) && gA.sis.includes('Ana Gamer created the group'), gA);
 await A.ev(`(() => { const i = document.querySelector('.soMsgIn'); i.value = 'bienvenidos al grupo'; return 1; })()`); await clic(A, '[data-rb="soc:enviar"]'); await A.p.waitForTimeout(500);
