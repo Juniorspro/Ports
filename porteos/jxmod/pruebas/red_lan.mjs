@@ -41,7 +41,8 @@ async function abrir(nombre, celu, app, url) {
   // (un solo Chromium con un contexto por jugador, aislados como tres aparatos: con tres Chromium a la vez el tercero se
   // caía al cargar en esta compu)
   const b = BR || (BR = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio'] }));
-  const ctx = await b.newContext(celu ? { viewport: { width: 873, height: 393 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1000, height: 560 } });
+  // (ventanas chicas: los tres juegos abiertos a la vez dibujan con la CPU en esta compu)
+  const ctx = await b.newContext(celu ? { viewport: { width: 640, height: 288 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true } : { viewport: { width: 640, height: 360 } });
   // sin internet: sólo esta compu y la red local; y la tienda (que no responde) con la cuenta de Google pedida desde antes
   await ctx.route('**/*', (r) => (LOCAL.test(r.request().url()) || r.request().url().startsWith('data:') ? r.continue() : r.abort()));
   await ctx.addInitScript(() => { try { localStorage.setItem('jx_cu_conf', '{"google":true}'); } catch (e) {} });
