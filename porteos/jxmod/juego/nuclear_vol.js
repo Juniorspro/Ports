@@ -16,20 +16,28 @@ const NUKV = { tex: null, ruido: null, progs: {}, fb: null, tc: null, td: null, 
   // (la luz y el color del humo: más oscuro y con menos luz del cielo que en el tráiler, que tenía la luz de la tarde)
   solK: 0.9, ambK: 1.6, albH: [0.5, 0.4, 0.35], albT: [0.48, 0.39, 0.32], albF: [0.55, 0.46, 0.38] };
 const NV_R0 = 260;
+// (n: cuántas bombas a la vez van con volumen —las más cercanas—; las que sobran, con carteles. En Bajo, para los celulares
+// flojos: búfer de un cuarto, 18 pasos largos y una sola muestra de sombra; los carteles quedan sólo para Patata y WebGL 1)
 const NV_CAL = {
-  medio: { esc: 0.34, pasos: 32, som: 1, bul: 0, pk: 1.6, max: 520 },
-  alto: { esc: 0.42, pasos: 48, som: 2, bul: 1, pk: 1.25, max: 680 },
-  ultra: { esc: 0.5, pasos: 64, som: 3, bul: 1, pk: 1.0, max: 820 },
+  bajo: { esc: 0.25, pasos: 18, som: 1, bul: 0, pk: 2.3, max: 360, n: 2 },
+  medio: { esc: 0.34, pasos: 32, som: 1, bul: 0, pk: 1.6, max: 520, n: 2 },
+  alto: { esc: 0.42, pasos: 48, som: 2, bul: 1, pk: 1.25, max: 680, n: 3 },
+  ultra: { esc: 0.5, pasos: 64, som: 3, bul: 1, pk: 1.0, max: 820, n: 3 },
 };
 const NV_TIPOS = { aire: 1, bomba: 1, misil: 1, ficcion: 1, torre: 1, suelo: 1, artilleria: 1, agua: 1, barco: 1 };
 // la calidad del hongo (null: carteles)
+// (antes, sin texturas de color de medio float —muchos celulares de gama baja— o en Bajo, salían los carteles 2D: y como el
+// automático baja a Bajo cuando la bomba pesa, «de lejos a veces se ven las imágenes». Ahora: volumen en todo menos Patata
+// y WebGL 1 —sin texturas 3D—; sin medio float, el búfer chico va en 8 bits —NUKV.ocho—)
 function nvCalidad() {
-  if (R.gl1 || !R.extFloat || R.salida === 'gam' || NUKV.no || (typeof AGUA !== 'undefined' && AGUA.bajo)) return null;
-  return GFX.luz >= 3 ? NV_CAL.ultra : GFX.hdr ? NV_CAL.alto : GFX.luz >= 2 ? NV_CAL.medio : null;
+  if (R.gl1 || NUKV.no || (typeof AGUA !== 'undefined' && AGUA.bajo)) return null;
+  return GFX.luz >= 3 ? NV_CAL.ultra : GFX.hdr ? NV_CAL.alto : GFX.luz >= 2 ? NV_CAL.medio : GFX.luz >= 1 ? NV_CAL.bajo : null;
 }
+// (8 bits: el color ya pasado a pantalla —con la exposición— y la distancia repartida en dos canales)
+const nvOcho = () => !R.extFloat || !!NUKV.forzarOcho;
 // (que esté listo cuando haga falta: el ruido y el programa, sin trabar)
 function nvPreparar() {
-  if (R.gl1 || !R.extFloat) return;
+  if (R.gl1) return;
   nvRuidoEmpezar();
   const q = nvCalidad(); if (q) nvProg(q);
 }
@@ -110,7 +118,7 @@ const FS_NV = `
 precision highp float; precision highp sampler3D;
 in vec3 vD;
 uniform vec3 uCam, uO, uSol, uSolC, uAmbS, uAmbG, uNieC, uAlbH, uAlbT, uAlbF;
-uniform float uNieA, uNieB, uNieK, uSem, uEsc;
+uniform float uNieA, uNieB, uNieK, uSem, uEsc, uExpo;
 uniform vec4 uCap, uTallo, uFalda, uFuego, uDens;
 uniform vec2 uCaja;
 uniform sampler3D uRu;
@@ -249,8 +257,16 @@ void main() {
   }
   if (Tr < 0.03) { col /= (1.0 - Tr); Tr = 0.0; }
   if (tHit < 0.0 || Tr > 0.998) discard;
+#ifdef OCHO
+  // (en 8 bits: el color ya en la pantalla —la misma curva que el pegado— y la distancia en 2 canales: hasta 16 km, de a 25 cm)
+  vec3 u = col / max(1.0 - Tr, 1e-4);
+  o = vec4(pow(1.0 - exp(-u * uExpo), vec3(0.4545)) * (1.0 - Tr), 1.0 - Tr);
+  float dn = clamp(tHit * uEsc / 16384.0, 0.0, 1.0) * 255.0;
+  oD = vec4(floor(dn) / 255.0, fract(dn), 0.0, 1.0);
+#else
   o = vec4(col, 1.0 - Tr);
   oD = vec4(tHit * uEsc, 0.0, 0.0, 1.0);
+#endif
 }`;
 // el pegado sobre la escena: el color del búfer chico (suave) y la profundidad del punto donde entra al humo
 const FS_NVC = `
@@ -261,10 +277,14 @@ void main(){
   vec2 uv = gl_FragCoord.xy * uInv;
   vec4 c = texture(uCol, uv);
   if (c.a < 0.004) discard;
+#ifdef OCHO
+  vec2 dd = texture(uDist, uv).rg; float d = (dd.x + dd.y / 255.0) * 16384.0;
+#else
   float d = texture(uDist, uv).r;
+#endif
   vec4 cl = uVP * vec4(uCam + normalize(vD - uCam) * d, 1.0);
   gl_FragDepth = clamp(cl.z / cl.w * 0.5 + 0.5, 0.0, 0.99998);
-#if SALIDA == 2
+#if SALIDA == 2 || defined(OCHO)
   o = c;
 #else
   vec3 u = c.rgb / c.a; o = vec4(pow(1.0 - exp(-u * uExpo), vec3(0.4545)) * c.a, c.a);
@@ -272,19 +292,19 @@ void main(){
 }`;
 // el programa de una calidad (con KHR_parallel_shader_compile se compila sin frenar: hasta que esté, carteles)
 function nvProg(q) {
-  const k = q.pasos + '|' + q.som + '|' + q.bul, P = NUKV.progs[k];
+  const ocho = nvOcho(), k = q.pasos + '|' + q.som + '|' + q.bul + (ocho ? '|8' : ''), P = NUKV.progs[k];
   if (P && P.listo) return P;
   if (!P) {
     const sk = (90 / [0, 10, 40, 90][q.som]).toFixed(3);
-    NUKV.progs[k] = { o: shaderEmpezar(VS_NV, FS_NV, ['PASOS=' + q.pasos, 'SOMBRA=' + q.som, 'SOMBRAK=' + sk, 'BULTOS=' + q.bul, 'PASOK=' + q.pk.toFixed(2)]) };
+    NUKV.progs[k] = { o: shaderEmpezar(VS_NV, FS_NV, ['PASOS=' + q.pasos, 'SOMBRA=' + q.som, 'SOMBRAK=' + sk, 'BULTOS=' + q.bul, 'PASOK=' + q.pk.toFixed(2), ...(ocho ? ['OCHO'] : [])]) };
     return null;
   }
   if (!shaderListo(P.o)) return null;
   try { Object.assign(P, shaderTerminar(P.o)); P.listo = true; return P; } catch (e) { NUKV.no = true; NUKV.err = String(e && e.message || e).slice(0, 300); return null; }
 }
 function nvComp(sal) {
-  const k = 'c' + sal; let P = NUKV.progs[k];
-  if (!P) P = NUKV.progs[k] = { o: shaderEmpezar(VS_NV, FS_NVC, ['SALIDA=' + sal]) };
+  const ocho = nvOcho(), k = 'c' + sal + (ocho ? '8' : ''); let P = NUKV.progs[k];
+  if (!P) P = NUKV.progs[k] = { o: shaderEmpezar(VS_NV, FS_NVC, ['SALIDA=' + sal, ...(ocho ? ['OCHO'] : [])]) };
   if (P.listo) return P;
   if (!shaderListo(P.o)) return null;
   try { Object.assign(P, shaderTerminar(P.o)); P.listo = true; return P; } catch (e) { NUKV.no = true; NUKV.err = String(e && e.message || e).slice(0, 300); return null; }
@@ -292,7 +312,8 @@ function nvComp(sal) {
 // el búfer chico: el color (con alfa) y la distancia a la que el rayo entra al humo
 function nvBufer(w, h) {
   const gl = R.gl;
-  if (NUKV.fb && NUKV.w === w && NUKV.h === h) return NUKV.ok;
+  const ocho = nvOcho();
+  if (NUKV.fb && NUKV.w === w && NUKV.h === h && NUKV.fbOcho === ocho) return NUKV.ok;
   if (NUKV.fb) { gl.deleteFramebuffer(NUKV.fb); gl.deleteTexture(NUKV.tc); gl.deleteTexture(NUKV.td); }
   const tx = (fi, fo, ty, filtro) => {
     const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, fi, w, h, 0, fo, ty, null);
@@ -301,7 +322,9 @@ function nvBufer(w, h) {
     return t;
   };
   gl.activeTexture(gl.TEXTURE0);
-  NUKV.tc = tx(gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR); NUKV.td = tx(gl.R16F, gl.RED, gl.HALF_FLOAT, gl.NEAREST);
+  if (ocho) { NUKV.tc = tx(gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR); NUKV.td = tx(gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST); }
+  else { NUKV.tc = tx(gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR); NUKV.td = tx(gl.R16F, gl.RED, gl.HALF_FLOAT, gl.NEAREST); }
+  NUKV.fbOcho = ocho;
   gl.bindTexture(gl.TEXTURE_2D, null); R.texAct = null;
   NUKV.fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, NUKV.fb);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, NUKV.tc, 0);
@@ -342,8 +365,9 @@ function nvEstado(E) {
   };
 }
 // ¿cuál se dibuja con volumen? (la más cercana de las que hacen hongo y se ven; una por vez)
-function nvElegir() {
-  let mejor = null, dm = 1e18;
+// (las que se ven, de la más cercana a la más lejana; las primeras n van con volumen)
+function nvElegir(n) {
+  const L = [];
   for (const E of NUK.vivas) {
     E.vol = false;
     if (!NV_TIPOS[E.tipo] || E.t > E.dura) continue;
@@ -354,9 +378,10 @@ function nvElegir() {
     // (cuánto de la pantalla tapa, más o menos: la esfera proyectada; adentro, toda)
     const d = c.distTo(CAM.pos), ry = d <= r ? 9 : Math.tan(Math.asin(r / d)) / Math.tan((CAM.fov || 70) * Math.PI / 360);
     S.tapa = Math.min(1, Math.PI * ry * ry * (R.cv.height / R.cv.width) / 4); S.c = c; S.r = r; S.d = d; S.ry = ry;
-    if (d < dm) { dm = d; mejor = [E, S]; }
+    L.push([E, S]);
   }
-  return mejor;
+  L.sort((a, b) => a[1].d - b[1].d); L.length = Math.min(L.length, n || 1);
+  return L;
 }
 function nvDibujar() {
   if (!NUK.vivas.length) return;
@@ -364,15 +389,23 @@ function nvDibujar() {
   const q = nvCalidad(); if (!q) { for (const E of NUK.vivas) E.vol = false; NUKV.razon = 'calidad'; return; }
   if (!NUKV.tex) { nvRuidoEmpezar(); for (const E of NUK.vivas) E.vol = false; NUKV.razon = 'ruido'; return; }
   const P = nvProg(q), C = nvComp(R.salida === 'hdr' ? 2 : 1); if (!P || !C) { for (const E of NUK.vivas) E.vol = false; NUKV.razon = 'programa'; return; }
-  const el = nvElegir(); if (!el) { NUKV.razon = 'no se ve'; return; }
+  const L = nvElegir(q.n); if (!L.length) { NUKV.razon = 'no se ve'; return; }
   NUKV.razon = '';
-  const [E, S] = el, gl = R.gl, t0 = performance.now();
-  const W = R.usaPost ? PO.w : R.cv.width, H = R.usaPost ? PO.h : R.cv.height;
+  const t0 = performance.now(), W = R.usaPost ? PO.w : R.cv.width, H = R.usaPost ? PO.h : R.cv.height;
+  // (en Bajo la escena va en gamma y sin la luz lineal: se calcula para el hongo, sin tocar la exposición de lo demás)
+  let expo = R.expo || 1;
+  if (R.salida === 'gam' || !R.lin) { const e0 = R.expo; luzLineal(); expo = R.expo; R.expo = e0; }
+  const IVP = NUKV.ivp || (NUKV.ivp = new Float32Array(16)); IVP.set(M4.inv(R.vp));
+  // (de la más lejana a la más cercana: se pegan una encima de la otra)
+  for (let i = L.length - 1; i >= 0; i--) nvDibujarUna(L[i][0], L[i][1], q, P, C, W, H, IVP, expo);
+  NUKV.ms = performance.now() - t0; NUKV.dib++; NUKV.E = L[0][0]; NUKV.n = L.length;
+}
+function nvDibujarUna(E, S, q, P, C, W, H, IVP, expo) {
+  const gl = R.gl;
   // (el búfer chico, más chico cuando el hongo llena la pantalla: es humo, suave, y así no cuesta 5 a 9 veces el cielo)
   const k = Math.min(q.esc * clamp(Math.sqrt(0.15 / Math.max(S.tapa, 1e-3)), 0.6, 1), q.max / W), w = Math.max(16, Math.round(W * k)), h = Math.max(16, Math.round(H * k));
   if (!nvBufer(w, h)) { E.vol = false; return; }
   E.vol = true;
-  const IVP = NUKV.ivp || (NUKV.ivp = new Float32Array(16)); IVP.set(M4.inv(R.vp));
   // (el rectángulo de la pantalla donde cae, con margen: las dos pasadas sólo ahí —de lejos casi no cuesta—; de cerca, toda)
   let rc = null;
   if (S.d > S.r * 1.15) {
@@ -393,7 +426,7 @@ function nvDibujar() {
   // (la niebla sobre el hongo empieza donde termina la del mapa y llega a lo sumo al 60 %: se ve de lejos, con algo de bruma)
   gl.uniform3fv(u.uNieC, L.nieC); gl.uniform1f(u.uNieA, R.niebla.b); gl.uniform1f(u.uNieB, R.niebla.b + 2500); gl.uniform1f(u.uNieK, 0.6);
   gl.uniform3fv(u.uAlbH, agua ? [0.86, 0.87, 0.9] : NUKV.albH); gl.uniform3fv(u.uAlbT, agua ? [0.88, 0.89, 0.92] : NUKV.albT); gl.uniform3fv(u.uAlbF, agua ? [0.9, 0.91, 0.94] : NUKV.albF);
-  gl.uniform1f(u.uSem, (E.seed % 977) * 7.31);
+  gl.uniform1f(u.uSem, (E.seed % 977) * 7.31); if (u.uExpo) gl.uniform1f(u.uExpo, expo);
   gl.uniform4fv(u.uCap, S.cap); gl.uniform4fv(u.uTallo, S.tallo); gl.uniform4fv(u.uFalda, S.falda); gl.uniform4fv(u.uFuego, S.fuegoV); gl.uniform4fv(u.uDens, S.dens);
   gl.uniform2f(u.uCaja, S.caja[0], S.caja[1]);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_3D, NUKV.tex); R.texAct = null; gl.uniform1i(u.uRu, 0);
@@ -403,12 +436,11 @@ function nvDibujar() {
   gl.bindFramebuffer(gl.FRAMEBUFFER, R.usaPost ? PO.fb : null); gl.viewport(0, 0, W, H); tijera(W, H);
   gl.useProgram(C.p); R.progAct = C; const v = C.u;
   gl.uniformMatrix4fv(v.uIVP, false, IVP); gl.uniformMatrix4fv(v.uVP, false, R.vp); gl.uniform3f(v.uCam, R.camPos.x, R.camPos.y, R.camPos.z);
-  gl.uniform2f(v.uInv, 1 / W, 1 / H); if (v.uExpo) gl.uniform1f(v.uExpo, R.expo || 1);
+  gl.uniform2f(v.uInv, 1 / W, 1 / H); if (v.uExpo) gl.uniform1f(v.uExpo, expo);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, NUKV.tc); gl.uniform1i(v.uCol, 0);
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, NUKV.td); gl.uniform1i(v.uDist, 1); gl.activeTexture(gl.TEXTURE0); R.texAct = null;
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(false); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.bindVertexArray(null); R.vaoAct = null;
   gl.depthFunc(gl.LESS); gl.depthMask(true); gl.disable(gl.BLEND); gl.enable(gl.CULL_FACE); gl.disable(gl.SCISSOR_TEST);
-  NUKV.ms = performance.now() - t0; NUKV.dib++; NUKV.E = E;
 }

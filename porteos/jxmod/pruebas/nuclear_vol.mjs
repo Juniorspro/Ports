@@ -1,7 +1,7 @@
 // La nuclear con volumen (Discord, noviembre de 2026: «las bombas nucleares deben ser como el vídeo y faltó el destello
 // blanco; agregá al juego esas bombas a todas las existentes con diferentes tamaños, destrucción, etc.»):
-//  1. en Medio, Alto y Ultra (WebGL 2) la de superficie va con volumen —contra la misma vista sin bomba, cambia ≥ 3 % de
-//     la pantalla (más de 20 de 255)— y sin errores de WebGL; en Bajo y Patata, los carteles de siempre
+//  1. en Bajo, Medio, Alto y Ultra (WebGL 2) la de superficie va con volumen —contra la misma vista sin bomba, cambia ≥ 3 %
+//     de la pantalla (más de 20 de 255)— y sin errores de WebGL; sólo en Patata, los carteles («eso sólo en patatas»)
 //  2. las 117 bombas: los tipos que hacen hongo (en el aire, torre, superficie, agua, barco...) van con volumen; la
 //     subterránea y la del espacio, con carteles; el hongo escala con la bomba (el alto final sobre el radio, igual en
 //     todas ±1 %) y la destrucción también (alcance 2,3 radios), de 10 t a 100 Mt
@@ -13,6 +13,15 @@
 //     ≤ 2,6 en Medio y Alto y ≤ 4 en Ultra
 //  6. el ruido 3D se arma de a poco: ningún tramo de más de 15 ms en esta compu (de a filas: no traba el juego)
 //  7. sin errores de JS
+//  8. sin texturas de medio float (muchos celulares de gama baja): el búfer en 8 bits dibuja el mismo hongo (cambia ≥ 3 %,
+//     sin errores de WebGL, ≤ 8 de 255 de diferencia media con el de medio float en el rectángulo del hongo)
+//  9. de lejos sigue con volumen, sin carteles: a 3 y 6 km, en Bajo y en Medio
+// 10. dos bombas a la vez: las dos con volumen en Bajo y en Medio
+// 11. Bajo cuesta menos que Medio, de lejos y de cerca (misma vista, esperando a la placa)
+// 12. el viento: la ráfaga te llega cuando llega el frente (±0,15 s de distancia / velocidad), te empuja hacia afuera
+//     (≥ 2 m/s), levanta polvo y basuritas al lado de la cámara (≥ 8 partículas, sin pasar de 200: no le saca el tope de
+//     partículas a los demás efectos), suena el soplido, después vuelve hacia la
+//     bola de fuego (viento de retorno), y una caja suelta fuera del alcance del daño también sale empujada (≥ 1 m/s)
 // uso: node nuclear_vol.mjs URL_HTML [CARPETA_FOTOS]
 import { abrir } from './base.mjs';
 const [, , HTML, D] = process.argv;
@@ -26,8 +35,8 @@ const listo = () => p.waitForFunction(() => window.__ev(`!!(NUKV.tex && nvCalida
 await listo();
 const espera = (s) => ev(`new Promise((ok) => { const t0 = TIEMPO.t, r0 = performance.now(); const f = () => (TIEMPO.t >= t0 + ${s} || performance.now() - r0 > 30000 ? ok(1) : setTimeout(f, 20)); f(); })`);
 // (una bomba de superficie de 4 Mt —la del tráiler— a una distancia, ya con el hongo armado y sin el destello)
-const poner = (dist, t = 8, nombre = 'NK_navajo', tipo = 'suelo', R = 260) => ev(`(() => { NUK.vivas.length = 0; LUCES_T.length = 0; const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw));
-  const E = nukeExplotar(vadd(JUG.pos, vscale(f, ${dist})), '${nombre}', false); if ('${tipo}') E.tipo = '${tipo}'; if (${R}) { E.R = ${R}; E.alc = E.R * 2.3; } if (!/^(aire|bomba|misil|ficcion)$/.test(E.tipo)) E.p.y = E.piso + 1;
+const poner = (dist, t = 8, nombre = 'NK_navajo', tipo = 'suelo', R = 260, otra = false) => ev(`(() => { if (!${otra}) NUK.vivas.length = 0; LUCES_T.length = 0; const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw));
+  const E = nukeExplotar(vadd(vadd(JUG.pos, vscale(f, ${dist})), v3(f.z * (${otra} ? ${dist} * 0.35 : 0), 0, -f.x * (${otra} ? ${dist} * 0.35 : 0))), '${nombre}', false); E.sinViento = true; if ('${tipo}') E.tipo = '${tipo}'; if (${R}) { E.R = ${R}; E.alc = E.R * 2.3; } if (!/^(aire|bomba|misil|ficcion)$/.test(E.tipo)) E.p.y = E.piso + 1;
   E.t = ${t}; E.onda = E.alc; E.jug = true; E.son = true; NUK.flash = 0; LUCES_T.length = 0; JUG.pitch = -0.2; window.__E = E; return 1; })()`);
 // diferencia media (0..255) entre dos capturas en un rectángulo (en fracciones de la pantalla)
 const difer = (a, c, r) => p.evaluate(async ([a, c, r]) => {
@@ -44,7 +53,7 @@ const foto = async (n) => (await p.screenshot(D ? { path: D + '/' + n + '.png' }
 const c1 = {};
 for (const cal of ['medio', 'alto', 'ultra', 'bajo', 'patata']) {
   await ev(`(() => { PREFS.gfx = '${cal}'; aplicarGfx(); nvPreparar(); return 1; })()`);
-  if (['medio', 'alto', 'ultra'].includes(cal)) await listo();
+  if (cal !== 'patata') await listo();
   await poner(900); await espera(0.6);
   const con = await foto('vol_' + cal), st = await ev(`({ vol: !!window.__E.vol, rc: NUKV.rc, razon: NUKV.razon, glErr: R.gl.getError(), carteles: (() => { const L = []; nukeCarteles(window.__E, L); return L.length / 9; })() })`);
   await ev(`(() => { window.__Eg = NUK.vivas.splice(0); return 1; })()`); await espera(0.3);
@@ -52,8 +61,8 @@ for (const cal of ['medio', 'alto', 'ultra', 'bajo', 'patata']) {
   const dd = await difer(con, sin, [0, 0, 1, 1]);
   c1[cal] = { vol: st.vol, glErr: st.glErr, carteles: st.carteles, cambia: +dd.frac.toFixed(3), razon: st.razon };
 }
-const vol3 = ['medio', 'alto', 'ultra'].every((k) => c1[k].vol && c1[k].cambia >= 0.03 && c1[k].glErr === 0), cart2 = ['bajo', 'patata'].every((k) => !c1[k].vol && c1[k].carteles > 20 && c1[k].cambia >= 0.03);
-ok('1. con volumen en Medio, Alto y Ultra (cambia ≥ 3 % de la pantalla contra sin bomba, sin errores de WebGL); en Bajo y Patata, carteles', vol3 && cart2, c1);
+const vol3 = ['bajo', 'medio', 'alto', 'ultra'].every((k) => c1[k].vol && c1[k].carteles === 0 && c1[k].cambia >= 0.03 && c1[k].glErr === 0), cart2 = ['patata'].every((k) => !c1[k].vol && c1[k].carteles > 20 && c1[k].cambia >= 0.03);
+ok('1. con volumen en Bajo, Medio, Alto y Ultra (cambia ≥ 3 % de la pantalla contra sin bomba, sin errores de WebGL); sólo en Patata, carteles', vol3 && cart2, c1);
 
 // ---------------- 2. las 117 bombas: tipo, escala y destrucción ----------------
 await ev(`(() => { PREFS.gfx = 'alto'; aplicarGfx(); return 1; })()`); await listo();
@@ -114,7 +123,7 @@ await ev(`(() => { if (window.__cont) borrarObjeto(window.__cont, true); return 
 
 // ---------------- 5. el costo ----------------
 const c5 = {};
-for (const cal of ['medio', 'alto', 'ultra']) {
+for (const cal of ['bajo', 'medio', 'alto', 'ultra']) {
   await ev(`(() => { PREFS.gfx = '${cal}'; aplicarGfx(); return 1; })()`); await listo();
   for (const [nom, dist] of [['lejos', 1600], ['cerca', 520]]) {
     await poner(dist); await espera(0.5);
@@ -130,9 +139,58 @@ for (const cal of ['medio', 'alto', 'ultra']) {
       return { k: +(t.hongo / t.cielo).toFixed(2), hongoMs: +(t.hongo / (3 * N)).toFixed(2), cieloMs: +(t.cielo / (3 * N)).toFixed(2), buf: NUKV.w + 'x' + NUKV.h, vol: !!E.vol }; })()`);
   }
 }
-const k5 = Object.entries(c5).every(([n, x]) => x.vol && x.k <= (/lejos/.test(n) ? 1.5 : /ultra/.test(n) ? 4 : 2.6));
+const k5 = Object.entries(c5).filter(([n]) => !/^bajo/.test(n)).every(([n, x]) => x.vol && x.k <= (/lejos/.test(n) ? 1.5 : /ultra/.test(n) ? 4 : 2.6));
 ok('5. costo contra el cielo: de lejos ≤ 1,5; de cerca ≤ 2,6 en Medio y Alto y ≤ 4 en Ultra', k5, c5);
 
+// ---------------- 8. en 8 bits (sin medio float) ----------------
+const c8 = {};
+await ev(`(() => { PREFS.gfx = 'bajo'; aplicarGfx(); NUKV.forzarOcho = false; return 1; })()`); await listo();
+await poner(900); await espera(0.6); const f16 = await foto('ocho_no'), rc8 = await ev(`NUKV.rc`);
+await ev(`(() => { NUKV.forzarOcho = true; return 1; })()`); await listo(); await poner(900); await espera(0.6);
+const f8 = await foto('ocho_si'), st8 = await ev(`({ vol: !!window.__E.vol, glErr: R.gl.getError(), ocho: NUKV.fbOcho })`);
+await ev(`(() => { window.__Eg = NUK.vivas.splice(0); return 1; })()`); await espera(0.3); const s8 = await foto('ocho_sin'); await ev(`(() => { NUK.vivas.push(...window.__Eg); NUKV.forzarOcho = false; return 1; })()`);
+const d8 = rc8 ? await difer(f16, f8, rc8) : { media: 999 }, cam8 = await difer(f8, s8, [0, 0, 1, 1]);
+Object.assign(c8, st8, { difMedia: +d8.media.toFixed(1), cambia: +cam8.frac.toFixed(3) });
+ok('8. en 8 bits (celus sin medio float) el mismo hongo: cambia ≥ 3 %, sin errores de WebGL, ≤ 8 de 255 contra el de medio float', c8.vol && c8.ocho && c8.glErr === 0 && c8.cambia >= 0.03 && c8.difMedia <= 8, c8);
+// ---------------- 9. de lejos, con volumen ----------------
+const c9 = {};
+for (const cal of ['bajo', 'medio']) {
+  await ev(`(() => { PREFS.gfx = '${cal}'; aplicarGfx(); return 1; })()`); await listo();
+  for (const dist of [3000, 6000]) { await poner(dist); await espera(0.4); c9[cal + '_' + dist] = await ev(`({ vol: !!window.__E.vol, carteles: (() => { const L = []; nukeCarteles(window.__E, L); return L.length / 9; })(), razon: NUKV.razon })`); }
+}
+ok('9. de lejos (3 y 6 km) sigue con volumen y sin carteles, en Bajo y en Medio', Object.values(c9).every((x) => x.vol && x.carteles === 0), c9);
+// ---------------- 10. dos a la vez ----------------
+const c10 = {};
+for (const cal of ['bajo', 'medio']) {
+  await ev(`(() => { PREFS.gfx = '${cal}'; aplicarGfx(); return 1; })()`); await listo();
+  await poner(1400); await ev(`(() => { window.__E1 = window.__E; return 1; })()`); await poner(1800, 8, 'NK_navajo', 'suelo', 260, true); await espera(0.4);
+  c10[cal] = await ev(`({ n: NUKV.n, vol: [!!window.__E1.vol, !!window.__E.vol] })`);
+}
+ok('10. dos bombas a la vez, las dos con volumen (Bajo y Medio)', Object.values(c10).every((x) => x.n === 2 && x.vol.every(Boolean)), c10);
+// ---------------- 11. Bajo cuesta menos que Medio ----------------
+const c11 = { lejos: [c5.bajo_lejos.hongoMs, c5.medio_lejos.hongoMs], cerca: [c5.bajo_cerca.hongoMs, c5.medio_cerca.hongoMs] };
+ok('11. Bajo cuesta menos que Medio (ms del hongo de lejos y de cerca)', c5.bajo_lejos.vol && c5.bajo_cerca.vol && c11.lejos[0] < c11.lejos[1] && c11.cerca[0] < c11.cerca[1], c11);
+// ---------------- 12. el viento ----------------
+await ev(`(() => { PREFS.gfx = 'medio'; aplicarGfx(); return 1; })()`); await listo();
+const c12 = await ev(`(async () => {
+  NUK.vivas.length = 0; const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), pos0 = JUG.pos.clone();
+  // (una de ~60 m de radio a 1,5 alcances: fuera del daño, dentro del viento; una caja suelta un poco más allá)
+  const E = nukeExplotar(vadd(JUG.pos, vscale(f, 207)), 'NK_navajo', false); E.R = 60; E.alc = E.R * 2.3; E.vel = Math.max(70, E.R * 1.7); NUK.flash = 0;
+  const dist = Math.hypot(JUG.pos.x - E.p.x, JUG.pos.z - E.p.z), lleg = dist / E.vel;
+  const caja = crearObjeto('Crate', vadd(pos0, vscale(f, -40)), new Quat()); const dc = Math.hypot(caja.b.pos.x - E.p.x, caja.b.pos.z - E.p.z);
+  const sop0 = NUK.soplidos || 0, part0 = PART.l.length; let t0 = null, vMax = 0, partMax = 0, ret = 0, cajaV = 0;
+  const salir = (x, z) => ((x) * (JUG.pos.x - E.p.x) + (z) * (JUG.pos.z - E.p.z)) / Math.max(1, dist);
+  await new Promise((ok) => { const r0 = performance.now(), f2 = () => {
+    const V = E.viento; if (V && V.t0 >= 0 && t0 === null) t0 = V.t0;
+    vMax = Math.max(vMax, salir(JUG.vel.x, JUG.vel.z)); partMax = Math.max(partMax, PART.l.length - part0);
+    if (V && V.ahora < -0.005) ret++;
+    cajaV = Math.max(cajaV, ((caja.b.vel.x) * (caja.b.pos.x - E.p.x) + (caja.b.vel.z) * (caja.b.pos.z - E.p.z)) / Math.max(1, dc));
+    if (E.t > lleg + (E.viento && E.viento.dura || 3) + 4 || performance.now() - r0 > 60000) ok(1); else setTimeout(f2, 16); }; f2(); });
+  borrarObjeto(caja, true);
+  return { llegaEsperado: +lleg.toFixed(2), llego: t0 === null ? null : +t0.toFixed(2), vMax: +vMax.toFixed(2), particulas: partMax, soplido: (NUK.soplidos || 0) - sop0, retorno: ret, cajaV: +cajaV.toFixed(2), cajaFuera: +(dc / E.alc).toFixed(2) };
+})()`);
+ok('12. el viento: llega con el frente (±0,15 s), empuja ≥ 2 m/s hacia afuera, 8 a 200 partículas, soplido, viento de retorno y una caja fuera del daño empujada ≥ 1 m/s',
+  c12.llego !== null && Math.abs(c12.llego - c12.llegaEsperado) <= 0.15 && c12.vMax >= 2 && c12.particulas >= 8 && c12.particulas <= 200 && c12.soplido === 1 && c12.retorno > 0 && c12.cajaV >= 1, c12);
 // ---------------- 6. el ruido se arma de a poco ----------------
 const c6 = await ev(`({ tramoMaxMs: +(NUKV.tramoMax || 0).toFixed(1), totalMs: Math.round(NUKV.msRuido || 0) })`);
 ok('6. el ruido 3D se arma de a poco (ningún tramo de más de 15 ms)', c6.tramoMaxMs > 0 && c6.tramoMaxMs <= 15, c6);

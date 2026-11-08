@@ -44,7 +44,7 @@ function nukePaso(dt) {
     if ((A.t <= 0 || golpe) && !o.remoto && !o.nkBum) { o.nkBum = true; const p = o.b.pos.clone(), nk = o.nk; nukeExplotar(p, o.nombre, true); borrarObjeto(o, true); }
   }
   // las que explotaron: la onda avanza y alcanza lo que encuentra
-  for (let i = NUK.vivas.length - 1; i >= 0; i--) { const E = NUK.vivas[i]; E.t += dt; nukeOnda(E, dt); if (E.t > E.dura) NUK.vivas.splice(i, 1); }
+  for (let i = NUK.vivas.length - 1; i >= 0; i--) { const E = NUK.vivas[i]; E.t += dt; nukeOnda(E, dt); nukeViento(E, dt); if (E.t > E.dura) NUK.vivas.splice(i, 1); }
   // la radiación (a los que están adentro de la zona de las de superficie)
   nukeRadiacion(dt);
   // (el destello se apaga solo; la capa sigue al valor aunque alguien lo cambie de golpe)
@@ -109,6 +109,79 @@ function nukeOnda(E, dt) {
     }
   }
   nukeSonido(E);
+}
+// ---------------- el viento de la explosión ----------------
+// La onda sigue de largo como viento hasta 3 veces el alcance del daño: cuando te llega, una ráfaga hacia afuera (te empuja,
+// tiembla la cámara, polvo y basuritas que vuelan a ras del piso y un soplido) que dura más cuanto más grande la bomba; después,
+// mientras sube el hongo, el viento de vuelta hacia la bola de fuego (el «viento de retorno» de las pruebas reales), más suave.
+// Lo suelto y liviano lejos del daño también se mueve. Las partículas, sólo cerca de la cámara y con tope por calidad: cuesta
+// lo mismo con una de 10 t que con una de 100 Mt
+function nukeViento(E, dt) {
+  if (E.tipo === 'espacio' || E.tipo === 'subte' || E.sinViento) return;   // (sinViento: las fotos de las pruebas)
+  const R = E.R, p = E.p, alcV = E.alc * 3, frente = Math.min(alcV, E.vel * E.t);
+  const V = E.viento || (E.viento = { t0: -1, k: 0, sop: false, ret: 0 });
+  // (a mí: cuándo me alcanza el frente y con cuánta fuerza; dura de 1,5 s a 6 s según el tamaño)
+  const dj = Math.hypot(JUG.pos.x - p.x, JUG.pos.z - p.z);
+  if (V.t0 < 0 && frente >= dj && dj < alcV) { V.t0 = E.t; V.k = Math.pow(clamp(1 - dj / alcV, 0, 1), 1.2); V.dura = clamp(1.5 + R / 60, 1.5, 6); }
+  let k = 0, sale = 1;
+  if (V.t0 >= 0) {
+    const u = E.t - V.t0;
+    if (u < V.dura) k = V.k * Math.min(1, u / 0.15) * (1 - u / V.dura);   // la ráfaga: sube en 0,15 s y se apaga
+    else if (E.t < 40) { sale = -1; k = V.k * 0.28 * clamp((u - V.dura) / 3, 0, 1) * clamp((40 - E.t) / 10, 0, 1); }   // el retorno
+    if (!V.sop && V.k > 0.02) { V.sop = true; nukeSoplido(V.k, V.dura); }
+  }
+  V.ahora = k * sale; V.dir = dj > 0.5 ? [(JUG.pos.x - p.x) / dj, (JUG.pos.z - p.z) / dj] : [1, 0];
+  if (k > 0.002) {
+    const dx = V.dir[0] * sale, dz = V.dir[1] * sale;
+    // (en el piso el roce frena e^(-12·dt): con 75·k se sienten 2 a 6 m/s; en el aire, menos)
+    if (JUG.vivo && !JUG.vehiculo && !CIC.inmune) { const a = (JUG.suelo ? 75 : 25) * k; JUG.vel.x += dx * a * dt; JUG.vel.z += dz * a * dt; }
+    if (sale > 0) CAM.temblor = Math.max(CAM.temblor || 0, 0.25 * k);
+    // (basuritas y polvo que pasan volando al lado de la cámara)
+    // (unas 45 por segundo con la ráfaga a pleno, por la cantidad de partículas de la calidad: duran 1 a 2 s, así quedan ~60)
+    const lam = (GFX.part || 0.25) * 45 * k * dt, n = Math.floor(lam) + (Math.random() < lam % 1 ? 1 : 0), agua = E.tipo === 'agua' || E.tipo === 'barco';
+    for (let i = 0; i < n; i++) {
+      const lat = (Math.random() - 0.5) * 40, adel = -sale * (10 + Math.random() * 25), q = v3(JUG.pos.x + dx * adel - dz * lat, JUG.pos.y - 1 + Math.random() * 2.5, JUG.pos.z + dz * adel + dx * lat);
+      const vv = (25 + 30 * k) * (0.7 + Math.random() * 0.6), chico = Math.random() < 0.45;
+      const h = chico ? particula(q, v3(dx * vv, Math.random() * 3, dz * vv), 1.1, 0.08 + Math.random() * 0.12, agua ? [0.8, 0.83, 0.86, 0.9] : [0.22, 0.19, 0.16, 0.95], 'humo', 0)
+                      : particula(q, v3(dx * vv * 0.6, 1 + Math.random() * 2, dz * vv * 0.6), 2.2, 1.5 + Math.random() * 2.5, agua ? [0.85, 0.87, 0.9, 0.35] : [0.62, 0.52, 0.4, 0.38], 'humo', 2.2);
+      if (h) { h.fr = 0.3; h.grav = chico ? 0.3 : 0; if (chico) h.dr = (Math.random() - 0.5) * 9; }
+    }
+  }
+  // (el frente que avanza: el polvo que levanta a ras del piso, en la parte que está cerca de la cámara)
+  if (frente > E.alc * 0.6 && frente < alcV && E.t < 60) {
+    const dc = Math.hypot(CAM.pos.x - p.x, CAM.pos.z - p.z);
+    if (Math.abs(dc - frente) < 140) {
+      const lam = (GFX.part || 0.25) * 25 * dt, m = Math.floor(lam) + (Math.random() < lam % 1 ? 1 : 0), ang0 = Math.atan2(CAM.pos.z - p.z, CAM.pos.x - p.x), agua = E.tipo === 'agua' || E.tipo === 'barco';
+      for (let i = 0; i < m; i++) {
+        const a = ang0 + (Math.random() - 0.5) * Math.min(1.4, 160 / Math.max(frente, 1)), cx = p.x + Math.cos(a) * frente, cz = p.z + Math.sin(a) * frente;
+        const h = particula(v3(cx, E.piso + 0.5 + Math.random() * 1.5, cz), v3(Math.cos(a) * E.vel * 0.35, 2 + Math.random() * 4, Math.sin(a) * E.vel * 0.35), 3, 4 + Math.random() * 5, agua ? [0.88, 0.9, 0.93, 0.35] : [0.6, 0.5, 0.38, 0.4], 'humo', 2.6);
+        if (h) { h.fr = 0.8; h.grav = 0; }
+      }
+    }
+  }
+  // (lo suelto y liviano entre el daño y el final del viento: un empujón al pasar el frente; lo que ya tocó la onda, no)
+  if (frente > E.alc && frente < alcV) {
+    const r0 = Math.max(E.alc, frente - E.vel * dt);
+    for (const b of PH.bodies) {
+      if (!b.dynamic || b.frozen || b.mass > 300 || E.tocados.has(b)) continue;
+      const ddx = b.pos.x - p.x, ddz = b.pos.z - p.z, L = Math.hypot(ddx, ddz); if (L < r0 || L > frente) continue;
+      E.tocados.add(b); const kk = clamp(1 - L / alcV, 0, 1), fz = 9 * kk * Math.min(1, 120 / b.mass + 0.2);
+      b.wake(); b.vel.x += ddx / L * fz; b.vel.z += ddz / L * fz; b.vel.y += fz * 0.25;
+    }
+  }
+}
+// el soplido: ruido filtrado que sube, ruge y se va (WebAudio, sin archivos)
+function nukeSoplido(k, dura) {
+  if (typeof AUD === 'undefined' || !AUD.ctx || !PREFS.vol) return;
+  const c = AUD.ctx, t = c.currentTime, n = Math.round(c.sampleRate * Math.min(7, dura + 1));
+  if (!NUK.ruidoBuf || NUK.ruidoBuf.length < n) { const b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0); let ult = 0; for (let i = 0; i < n; i++) { ult = ult * 0.97 + (Math.random() * 2 - 1) * 0.03; d[i] = ult * 9; } NUK.ruidoBuf = b; }
+  const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+  s.buffer = NUK.ruidoBuf; f.type = 'lowpass'; f.Q.value = 0.8;
+  f.frequency.setValueAtTime(250, t); f.frequency.exponentialRampToValueAtTime(1400, t + 0.2); f.frequency.exponentialRampToValueAtTime(320, t + dura);
+  const v = clamp(0.25 + 0.75 * k, 0.1, 1);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t + dura + 0.6);
+  s.connect(f); f.connect(g); g.connect(AUD.master); s.start(t); s.stop(t + dura + 0.8);
+  NUK.soplidos = (NUK.soplidos || 0) + 1;
 }
 // el estruendo, con la demora del sonido (340 m/s), y el rumor que sigue
 function nukeSonido(E) {
