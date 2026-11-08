@@ -20,6 +20,7 @@ function panelMulti(P) {
   if (typeof cuentaFaltaPara === 'function' && cuentaFaltaPara()) { cuPanelMulti(P); return; }
   if (typeof listaConectar === 'function') listaConectar();
   P.innerHTML = `<div class="rbPanCab">${glifo('gente')} ${esc(T('m.multi'))}<small class="mpCuenta"></small><span class="rbEsp"></span>
+      <button class="rbBtnGris rbChico" data-rb="lan">${glifo('wifi')} ${esc(T('lan.boton'))}</button>
       <button class="rbBtnG rbChico" data-rb="mcrear">${glifo('mas')} ${esc(T('mp.crear'))}</button></div>
     <div class="rbBarra"><input id="mpBuscar" type="search" placeholder="${esc(T('mp.buscar'))}" value="${esc(RBM.q)}"><span class="mpEst"></span>
       <button class="rbBtnGris rbChico" data-rb="mpRef" title="${esc(T('mp.ref'))}">${glifo('girar')}</button></div>
@@ -205,6 +206,7 @@ async function cargaModsServer(C) {
 
 // ---------------- las acciones de estos paneles (las llama inicioAccion primero) ----------------
 function rbMenusAccion(a, v) {
+  if (typeof lanAccion === 'function' && lanAccion(a, v)) return true;   // (la red local: lan.js)
   switch (a) {
     case 'multi': inicioPanel('multi'); return true;
     case 'cuenta': cuDialogo(); return true;

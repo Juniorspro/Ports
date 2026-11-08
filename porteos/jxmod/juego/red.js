@@ -63,7 +63,8 @@ function listaConectar() {
 function presencia() {
   if (!LISTA.on) return;
   LISTA.ultP = TIEMPO.t;
-  const S = SALA && RED.cli ? Object.assign({}, SALA) : null; if (S) delete S.clave;
+  // (una partida en la red local no va a la lista pública: lan.js)
+  const S = SALA && RED.cli && !SALA.lan ? Object.assign({}, SALA) : null; if (S) delete S.clave;
   try { LISTA.cli.publish(NS + 'l/' + RED.ID, S ? JSON.stringify({ s: S, j: PREFS.nombre, t: Math.round(Date.now() / 1000) }) : '', { retain: true, qos: 0 }); } catch (e) {}
 }
 let _listaT = 0;
@@ -108,7 +109,8 @@ function listaDibujar() {
   mpDibujar(listaSalas(), salasMias());
 }
 function entrarSala(S, clave, n) {
-  if (typeof cuentaPedir === 'function' && !cuentaPedir('multi', () => entrarSala(S, clave, n))) return;   // (sesión de Google)
+  // (sesión de Google; en una partida en la red local no: puede no haber internet y son los de la misma casa —lan.js—)
+  if (!S.lan && typeof cuentaPedir === 'function' && !cuentaPedir('multi', () => entrarSala(S, clave, n))) return;
   if (celMeEcharon(S.id)) { aviso(T('cel.teEcharon'), 3); return; }   // (me echó el dueño hace menos de 30 minutos)
   // (sin límite de jugadores; el dueño entra a su server con clave sin escribirla)
   const mia = salasMias()[S.id]; if (S.pw && clave === undefined && mia && mia.pw) clave = mia.pw;
@@ -201,14 +203,15 @@ function conectarMultijugador() {
 function redEntrar(mapa) {
   redSalir();
   // (por si se llegó a un server por otro camino: sin la sesión de Google que hace falta, se juega solo)
-  if (SALA && typeof cuentaFaltaPara === 'function' && cuentaFaltaPara()) { SALA = null; redEstadoUI(); return; }
+  if (SALA && !SALA.lan && typeof cuentaFaltaPara === 'function' && cuentaFaltaPara()) { SALA = null; redEstadoUI(); return; }
   if (!SALA || typeof mqtt === 'undefined') { redEstadoUI(); return; }
-  listaConectar();
+  if (!SALA.lan) listaConectar();
   RED.ID = RED.ID || idRed(); RED.ROOM = topicoSala(SALA);
   RED.tVivo = 0; if (SALA.rg) salaVivo(SALA.id);
   let cli;
   try {
-    cli = mqtt.connect(BROKER, { clientId: NS + RED.ID + '_' + Math.random().toString(36).slice(2, 6), clean: true, reconnectPeriod: 3000, connectTimeout: 9000, keepalive: 30,
+    // (una partida en la red local: el broker del anfitrión —lan.js—; si no, el público de siempre)
+    cli = mqtt.connect(SALA.lan || BROKER, { clientId: NS + RED.ID + '_' + Math.random().toString(36).slice(2, 6), clean: true, reconnectPeriod: 3000, connectTimeout: 9000, keepalive: 30,
       will: { topic: RED.ROOM + '/w/' + RED.ID, payload: '', retain: true, qos: 0 } });
   } catch (e) { return; }
   RED.cli = cli;

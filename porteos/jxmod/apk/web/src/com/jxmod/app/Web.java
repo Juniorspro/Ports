@@ -80,6 +80,12 @@ public class Web extends Activity {
     private volatile long latidoT;
     private boolean adelante;
     private int colgadas;
+    // (la partida en la red local: Lan.java)
+    private Lan.Broker lanBroker;
+    private Lan.Anuncio lanAnuncio;
+    private Lan.Escucha lanEscucha;
+    private Lan.Puente lanPuente;
+    private android.net.wifi.WifiManager.MulticastLock lanCandado;
     private long colgadaT;
     private final String[] consola = new String[200];
     private int consolaN;
@@ -489,6 +495,20 @@ public class Web extends Activity {
             if (!p.exists() || !f.exists()) return "";
             try (java.io.InputStream in = new java.io.FileInputStream(f)) { java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream(); byte[] b = new byte[65536]; for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n); p.delete(); return new String(o.toByteArray(), java.nio.charset.StandardCharsets.UTF_8); } catch (Exception e) { return ""; }
         }
+        // ---- la partida en la red local (LAN / Wifi, sin internet): Lan.java ----
+        /** 1: la app sabe ser anfitrión (broker + juego por HTTP + anuncio), buscar partidas y hacer de puente. */
+        @JavascriptInterface public int lan() { return 1; }
+        /** Ser anfitrión: {"ok":true,"puerto":8765,"ips":[…]} o {"ok":false,"error":"…"}. */
+        @JavascriptInterface public String lanHostear(String nombre, String sala, String mapa, String du) { return Web.this.lanHostear(nombre, sala, mapa, du); }
+        @JavascriptInterface public void lanParar() { Web.this.lanParar(); }
+        /** Buscar partidas en la red (escuchar los anuncios): "ok" o "mal". */
+        @JavascriptInterface public String lanBuscar(boolean si) { return Web.this.lanBuscar(si); }
+        /** Las partidas que se oyeron en los últimos 5 s: [{"ip","edad","d"}] (el juego valida "d"). */
+        @JavascriptInterface public String lanHosts() { Lan.Escucha e = lanEscucha; return e == null ? "[]" : e.lista(); }
+        /** El puente de 127.0.0.1 hacia el anfitrión (la página es https: no puede abrir un ws:// a otra IP). El puerto, o 0. */
+        @JavascriptInterface public int lanPuente() { return Web.this.lanPuenteIniciar(); }
+        /** Mis IPs en la red local (para mostrar http://IP:8765 a los que entran sin la app). */
+        @JavascriptInterface public String lanIps() { return ipsJson(); }
         /** RAM total del aparato en MB (para elegir la calidad). */
         @JavascriptInterface public int ramMB() {
             try { android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE); android.app.ActivityManager.MemoryInfo mi = new android.app.ActivityManager.MemoryInfo(); am.getMemoryInfo(mi); return (int) (mi.totalMem >> 20); } catch (Throwable e) { return 0; }
@@ -506,6 +526,67 @@ public class Web extends Activity {
         web.evaluateJavascript("(function(){var o={key:'Escape',code:'Escape',keyCode:27,which:27,bubbles:true};"
             + "window.dispatchEvent(new KeyboardEvent('keydown',o));window.dispatchEvent(new KeyboardEvent('keyup',o));})()", null);
     }
+
+    // ---- la partida en la red local (Lan.java) ----
+    // Los archivos del juego que sirve el anfitrión a los que entran sin la app (http://IP:8765/): los de assets/www
+    private final Lan.Archivos lanArchivos = (ruta) -> {
+        if (ruta == null || ruta.isEmpty() || ruta.contains("..") || ruta.startsWith("/") || ruta.contains("\\")) return null;
+        String p = "www/" + ruta; long largo = -1;
+        try (android.content.res.AssetFileDescriptor fd = getAssets().openFd(p)) { largo = fd.getLength(); } catch (IOException e) { /* comprimido en el APK: sin largo */ }
+        try { return new Lan.Archivo(getAssets().open(p), largo); } catch (IOException e) { return null; }
+    };
+    private static String ipsJson() {
+        StringBuilder b = new StringBuilder("[");
+        for (String ip : Lan.ips()) { if (b.length() > 1) b.append(','); b.append(Lan.jsonTexto(ip)); }
+        return b.append(']').toString();
+    }
+    private synchronized String lanHostear(String nombre, String sala, String mapa, String du) {
+        String info = "{\"n\":" + Lan.jsonTexto(corto(nombre, 16)) + ",\"s\":" + Lan.jsonTexto(corto(sala, 24)) + ",\"m\":" + Lan.jsonTexto(corto(mapa, 40))
+            + ",\"du\":" + Lan.jsonTexto(corto(du, 20)) + ",\"v\":" + Lan.jsonTexto(corto(version(), 12));
+        String error = "";
+        if (lanBroker == null || !lanBroker.vivo()) {
+            lanBroker = null;
+            // (si el puerto está ocupado por otra app, el siguiente)
+            for (int p : new int[] { Lan.PUERTO, Lan.PUERTO + 10, Lan.PUERTO + 20 }) {
+                Lan.Broker b = new Lan.Broker(p, lanArchivos);
+                try { b.iniciar(); lanBroker = b; break; } catch (IOException e) { error = String.valueOf(e.getMessage()); }
+            }
+            if (lanBroker == null) return "{\"ok\":false,\"error\":" + Lan.jsonTexto(error) + "}";
+        }
+        lanBroker.info = info + ",\"p\":" + lanBroker.puerto + "}";
+        if (lanAnuncio == null) {
+            Lan.Anuncio a = new Lan.Anuncio(Lan.PUERTO_ANUNCIO); a.broker = lanBroker;
+            try { a.iniciar(); lanAnuncio = a; } catch (IOException e) { /* sin anuncio: igual se puede entrar escribiendo la IP */ }
+        } else lanAnuncio.broker = lanBroker;
+        return "{\"ok\":true,\"puerto\":" + lanBroker.puerto + ",\"ips\":" + ipsJson() + ",\"anuncio\":" + (lanAnuncio != null) + "}";
+    }
+    private synchronized void lanParar() {
+        if (lanAnuncio != null) { lanAnuncio.parar(); lanAnuncio = null; }
+        if (lanBroker != null) { lanBroker.parar(); lanBroker = null; }
+    }
+    private synchronized String lanBuscar(boolean si) {
+        if (!si) {
+            if (lanEscucha != null) { lanEscucha.parar(); lanEscucha = null; }
+            if (lanCandado != null) { try { lanCandado.release(); } catch (Exception e) { /* nada */ } lanCandado = null; }
+            return "ok";
+        }
+        // (muchos celulares tiran los broadcast del wifi para ahorrar batería si nadie tiene este candado)
+        try {
+            android.net.wifi.WifiManager wm = (android.net.wifi.WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+            if (wm != null && lanCandado == null) { lanCandado = wm.createMulticastLock("jxmod-lan"); lanCandado.setReferenceCounted(false); lanCandado.acquire(); }
+        } catch (Exception e) { lanCandado = null; }
+        if (lanEscucha == null) {
+            Lan.Escucha e = new Lan.Escucha(Lan.PUERTO_ANUNCIO);
+            try { e.iniciar(); lanEscucha = e; } catch (IOException x) { return "mal"; }
+        }
+        return "ok";
+    }
+    private synchronized int lanPuenteIniciar() {
+        if (lanPuente != null && lanPuente.vivo()) return lanPuente.puerto;
+        Lan.Puente p = new Lan.Puente(Lan.PUERTO_PUENTE);
+        try { p.iniciar(); lanPuente = p; return p.puerto; } catch (IOException e) { return 0; }
+    }
+    private static String corto(String s, int n) { s = s == null ? "" : s.replaceAll("\\p{Cntrl}", "").trim(); return s.length() > n ? s.substring(0, n) : s; }
 
     // ---- el registro de un cuelgue o un cierre: la consola del juego y el log de la app (el sistema deja leer el propio) ----
     private File archivoRegistro() { return new File(getFilesDir(), "registro.txt"); }
@@ -550,6 +631,7 @@ public class Web extends Activity {
     }
 
     @Override protected void onDestroy() {
+        lanParar(); lanBuscar(false); synchronized (this) { if (lanPuente != null) { lanPuente.parar(); lanPuente = null; } }
         if (web != null) { raiz.removeView(web); web.destroy(); web = null; }
         super.onDestroy();
     }

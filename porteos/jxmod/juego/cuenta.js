@@ -223,7 +223,8 @@ function cuDialogoMods(faltan) {
 }
 // (el panel de multijugador sin sesión: el cartel para entrar en vez de la lista)
 function cuPanelMulti(P) {
-  P.innerHTML = `<div class="rbPanCab">${glifo('gente')} ${esc(T('m.multi'))}</div>
+  // (la partida en la red local no pide la cuenta: puede no haber internet —lan.js—)
+  P.innerHTML = `<div class="rbPanCab">${glifo('gente')} ${esc(T('m.multi'))}<span class="rbEsp"></span><button class="rbBtnGris rbChico" data-rb="lan">${glifo('wifi')} ${esc(T('lan.boton'))}</button></div>
     <div class="cuPanel"><p>${esc(T('cu.paraMulti'))}</p><button class="cuGoogle" data-rb="cuentaEntrar">${CU_G}<span>${esc(T('cu.entrar'))}</span></button></div>
     <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button></div>`;
 }

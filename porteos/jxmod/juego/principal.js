@@ -242,6 +242,7 @@ function empezarPartida(mapa) {
 function irMenuPrincipal() {
   modapiDescargar(); natFin(); entidadesLimpiar(); creadorSalir(); rolCerrar();
   if (typeof redSalir === 'function') redSalir();
+  if (typeof lanSalir === 'function') lanSalir();   // (si eras anfitrión en la red local, la partida se cierra: lan.js)
   if (typeof nocheFin === 'function') nocheFin();   // (la hora, la energía y los botones de la pizzería no quedan encima del menú)
   JUEGO.estado = 'principal'; $('hud').classList.add('oc'); soltarPuntero(); cerrarPaneles();
   if (typeof SALA !== 'undefined') SALA = null;

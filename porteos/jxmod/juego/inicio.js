@@ -158,6 +158,7 @@ function inicioPanel(p) {
   if (p !== 'multi' && typeof mpClaveNo === 'function') mpClaveNo();
   if (!p) return;
   if (p === 'multi') return panelMulti(P);
+  if (p === 'lan' && typeof panelLan === 'function') return panelLan(P);   // (partida en la red local: lan.js)
   if (p === 'social' && typeof panelSocial === 'function') return panelSocial(P);
   if (p === 'mcrear') return panelMultiCrear(P);
   if (p === 'personajes') return panelPersonajes(P);
