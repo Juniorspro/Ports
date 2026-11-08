@@ -22,7 +22,7 @@ function uiIniciar() {
   // (borrar todo no tiene vuelta atrás: el primer toque pregunta, el segundo —en 3 s— borra)
   $('bLimpiar').onclick = () => {
     const B = $('bLimpiar');
-    if (!B.dataset.conf) { B.dataset.conf = '1'; pzTexto('bLimpiar', T('pz.otraVez'), T('pz.otraVezSub')); clearTimeout(B._t); B._t = setTimeout(() => { delete B.dataset.conf; pzTexto('bLimpiar', T('pz.borrar'), T('pz.borrarSub')); }, 3000); return; }
+    if (!B.dataset.conf) { B.dataset.conf = '1'; pzTexto('bLimpiar', T('pz.otraVez'), T('pz.otraVezSub')); pzEncajar(); clearTimeout(B._t); B._t = setTimeout(() => { delete B.dataset.conf; pzTexto('bLimpiar', T('pz.borrar'), T('pz.borrarSub')); pzEncajar(); }, 3000); return; }
     delete B.dataset.conf; clearTimeout(B._t);
     for (const o of OBJS.filter((x) => !x.remoto)) borrarObjeto(o); cerrarPaneles(); aviso(T('pz.limpio'));
   };
@@ -60,15 +60,28 @@ function spawnNpcsTab() {
 }
 function spawnTabs() {
   spawnNpcsTab();
-  const tabs = $('tabs'); if (!tabs) return; tabs.innerHTML = '';
+  const tabs = $('tabs'); if (!tabs) return; tabs.innerHTML = ''; UI.tabsLang = PREFS.lang;
   DATA.menu.forEach((c, i) => {
-    const t = document.createElement('div'); t.className = 'tab' + (i === UI.tab ? ' sel' : ''); t.innerHTML = `<img src="${c.icUrl || icono(c.ic)}">${esc(c.n)}`;
+    // (el nombre en el idioma elegido —spt.Props, spt.Vehicles…—; c.n sigue siendo el nombre interno de la pestaña)
+    const k = 'spt.' + c.n, nom = T(k) === k ? c.n : T(k);
+    const t = document.createElement('div'); t.className = 'tab' + (i === UI.tab ? ' sel' : ''); t.innerHTML = `<img src="${c.icUrl || icono(c.ic)}" alt=""><span>${esc(nom)}</span>`; t.title = nom; t.firstChild.onload = spawnTabsEncajar;
     t.onclick = () => { UI.tab = i; UI.sub = 0; UI.q = ''; spawnDibujar(); }; tabs.appendChild(t);
   });
 }
+// (si las pestañas no entran a lo ancho —celular—, primero se juntan (menos aire y letra un punto más chica); si tampoco,
+// las que no están elegidas quedan sólo con su ícono; si ni así, se deslizan y la elegida queda a la vista. Se vuelve a
+// medir cuando llega cada ícono —recién armadas miden sin él— y al cambiar el tamaño de la pantalla)
+function spawnTabsEncajar() {
+  const tb = $('tabs'); if (!tb || $('spawn').classList.contains('oc')) return;
+  const sobra = () => tb.scrollWidth > tb.clientWidth + 1;
+  tb.classList.remove('justas', 'apretadas'); if (sobra()) tb.classList.add('justas'); if (sobra()) tb.classList.add('apretadas');
+  const s = tb.children[UI.tab]; if (s && tb.scrollWidth > tb.clientWidth + 1) tb.scrollLeft = Math.max(0, s.offsetLeft - tb.offsetLeft - (tb.clientWidth - s.offsetWidth) / 2);
+}
+addEventListener('resize', () => setTimeout(spawnTabsEncajar, 80));
 function spawnDibujar() {
   const cats = DATA.menu, C = cats[UI.tab] || cats[0];
   [...$('tabs').children].forEach((t, i) => t.classList.toggle('sel', i === UI.tab));
+  spawnTabsEncajar();
   const cl = $('cats'), gr = $('grilla'), pie = $('pie'), ins = $('ins');
   cl.innerHTML = ''; gr.innerHTML = ''; ins.classList.add('oc');
   if (C.n === 'Host') { pie.innerHTML = ''; const d = document.createElement('div'); d.className = 'cat sel'; d.textContent = typeof SALA !== 'undefined' && SALA ? SALA.n : Lc('Singleplayer', 'Un jugador'); cl.appendChild(d); hostDibujar(gr); return; }
@@ -199,7 +212,7 @@ function spawnDelante(nombre, opt) {
   if (o) { DESHACER.push(o); if (typeof redObjeto === 'function') redObjeto(o); }
   return o;
 }
-function abrirSpawn() { UI.abierto = 'spawn'; UI.puestos = 0; $('spawn').classList.remove('oc'); spawnDibujar(); soltarPuntero(); }
+function abrirSpawn() { UI.abierto = 'spawn'; UI.puestos = 0; if (UI.tabsLang !== PREFS.lang) spawnTabs(); $('spawn').classList.remove('oc'); spawnDibujar(); soltarPuntero(); }   // (las pestañas, de nuevo si cambió el idioma)
 function cerrarPaneles() {
   UI.abierto = null; if (typeof MODM !== 'undefined' && MODM.abierto) modMenuCerrar();
   if (typeof RUL !== 'undefined') { RUL.asignar = -1; if (RUL.abierto) rulCerrar(); }   // (la ruleta de emotes)
@@ -229,6 +242,17 @@ function abrirPausa() {
   { const m = $('pzModo'); if (m) m.textContent = typeof SALA !== 'undefined' && SALA ? SALA.n : T('pz.solo'); }
   { const f = $('pzFps'); if (f) f.textContent = Math.round(TIEMPO.fps || 0) + ' fps'; }
   UI.abierto = 'pausa'; $('pausa').classList.remove('oc'); soltarPuntero(); if (ENT.soltarTodo) ENT.soltarTodo();
+  pzEncajar();
+}
+// (los títulos de las tarjetas en un renglón: si en algún idioma no entran —«Переглянути навчання», «Panoorin ang
+// tutorial»—, la letra se achica de a 1 px hasta 12; si ni así, pasa a dos renglones. Medido con la pausa ya a la vista)
+function pzEncajar() {
+  for (const b of document.querySelectorAll('#pausa .pzTar b')) {
+    b.style.fontSize = ''; b.style.whiteSpace = '';
+    let f = parseFloat(getComputedStyle(b).fontSize) || 16;
+    while (b.scrollWidth > b.clientWidth + 1 && f > 12) { f -= 1; b.style.fontSize = f + 'px'; }
+    if (b.scrollWidth > b.clientWidth + 1) b.style.whiteSpace = 'normal';
+  }
 }
 function abrirEmotes() { UI.abierto = 'emotes'; $('emotes').classList.remove('oc'); soltarPuntero(); }
 function abrirChat() { const c = $('chatIn'); c.classList.remove('oc'); c.focus(); soltarPuntero(); UI.abierto = 'chat'; }

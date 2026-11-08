@@ -189,22 +189,46 @@ function panelBienvenida(P) {
   const i = P.querySelector('#rbNombreB'); i.value = PREFS.nombre || ''; i.oninput = () => nombrePoner(i.value);
 }
 // ---------- Empezar partida nueva ----------
+// (3.0) el elegido en grande a la izquierda: la foto del juego de ese mapa (la de la pantalla de carga, si tiene; si no,
+// su ícono), de qué grupo es y quién lo hizo; los grupos como pestañas arriba y las tarjetas al costado. Elegir otro
+// vuelve a armar el panel: la grilla queda donde estaba (antes saltaba arriba y había que buscar de nuevo)
 function panelNueva(P) {
   const coms = mapasCom(), cats = [['todos', [...MAPAS, ...MAPAS_RB]], ['tierra', ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2']], ['espacio', ['Mars', 'Space', 'RB_Luna']], ['rezobox', MAPAS_RB.filter((m) => !MAPAS_GMOD.includes(m))], ['gmod', MAPAS_GMOD], ['comunidad', coms]];
   const cat = cats.find((c) => c[0] === RB.cat) || cats[0], nm = modsTodos().filter((m) => PREFS.mods[m.id]).length;
   const tarjeta = (m) => typeof m === 'string'
     ? `<div class="rbMapaG${m === RB.mapa && !RB.mapaCom ? ' sel' : ''}" data-rb="mapa:${m}"><div class="rbFoto" style="background-image:url(${icono(MAPA_ICONO[m])})"></div><b>${esc(mapaNom(m))}</b></div>`
     : `<div class="rbMapaG${RB.mapaCom === m.id ? ' sel' : ''}" data-rb="mapacom:${esc(m.id)}"><div class="rbFoto" style="background-image:url(${m.foto ? esc(m.foto) : icono(MAPA_ICONO[m.base])})"></div><b>${esc(nombreDe(m))}</b><small>${m.oficial ? `<b class="rbOf">${esc(T('oficial'))}</b>` : `${esc(T('por'))} ${esc(m.autor)}`}</small></div>`;
-  const sel = RB.mapaCom && mapaDe(RB.mapaCom) ? nombreDe(mapaDe(RB.mapaCom)) : mapaNom(RB.mapa);
+  const mc = RB.mapaCom && mapaDe(RB.mapaCom), sel = mc ? nombreDe(mc) : mapaNom(RB.mapa);
+  const C = window.__carga, fotoCarga = !mc && C && C.foto && typeof FONDO_MAPA !== 'undefined' && FONDO_MAPA[RB.mapa] ? C.foto(FONDO_MAPA[RB.mapa]) : '';
+  const foto = fotoCarga || (mc ? mc.foto || icono(MAPA_ICONO[mc.base]) : icono(MAPA_ICONO[RB.mapa]));
+  const grupo = mc ? 'comunidad' : (cats.slice(1, -1).find((c) => c[1].includes(RB.mapa)) || cats[0])[0];
+  const quien = mc ? (mc.oficial ? T('oficial') : `${T('por')} ${mc.autor}`) : MAPAS_GMOD.includes(RB.mapa) ? "Garry's Mod" : 'JXMod';
+  const g0 = P.querySelector('.rbGrid[data-nv]'), desliz = g0 && g0.dataset.nv === cat[0] ? g0.scrollTop : 0;
+  const modos = typeof gmmElegibles === 'function' ? gmmElegibles() : [];   // (los modos de juego de los addons de GMod)
   P.innerHTML = `<div class="rbPanCab">${esc(T('m.nueva'))}<small>${esc(sel)}</small></div>
-    <div class="rbPanCuerpo"><div class="rbCats">${cats.map(([k, l]) => `<button class="rbCat${k === cat[0] ? ' sel' : ''}" data-rb="cat:${k}">${esc(T('c.' + k))}<em>${l.length}</em></button>`).join('')}</div>
-    <div class="rbGrid">${cat[1].map(tarjeta).join('') || `<div class="rbVacio">${esc(T('sinRes'))} · <a data-rb="tienda:mapa">${esc(T('m.tienda'))}</a></div>`}</div></div>
+    <div class="rbCats">${cats.map(([k, l]) => `<button class="rbCat${k === cat[0] ? ' sel' : ''}" data-rb="cat:${k}">${esc(T('c.' + k))}<em>${l.length}</em></button>`).join('')}</div>
+    <div class="rbPanCuerpo"><div class="nvHero"><div class="nvFoto" style="background-image:url(${esc(foto)})"></div><div class="nvInfo"><small>${esc(T('c.' + grupo))}</small><b dir="auto">${esc(sel)}</b><span dir="auto">${esc(quien)}</span></div></div>
+    <div class="rbGrid" data-nv="${cat[0]}">${cat[1].map(tarjeta).join('') || `<div class="rbVacio">${esc(T('sinRes'))} · <a data-rb="tienda:mapa">${esc(T('m.tienda'))}</a></div>`}</div></div>
     <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button>
       <label class="rbCampo">${esc(T('hora'))} <select id="rbHora">${['normal', 'dia', 'tarde', 'noche', 'ciclo'].map((k) => `<option value="${k}"${RB.hora === k ? ' selected' : ''}>${esc(T('h.' + k))}</option>`).join('')}</select></label>
-      ${typeof gmmElegibles === 'function' && gmmElegibles().length ? `<label class="rbCampo">${esc(T('gm.modo'))} <select id="rbModoJ">${[['auto', T('gm.modoAuto')], ['sandbox', 'Sandbox'], ...gmmElegibles().map((M) => [M.n, M.titulo])].map(([k, l]) => `<option value="${esc(k)}"${GMM.elegido === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>` : ''}
-      <button class="rbBtnGris" data-rb="tienda">${icoHTML('ico:mod')} ${nm ? `${nm} ${esc(T('modsAct'))}` : esc(T('sinMods'))}</button>
-      <span class="rbEsp"></span><span class="rbModo">${esc(T('unJugador'))}</span><button class="rbBtnG" data-rb="empezar">${esc(T('empezar'))}</button></div>`;
+      ${modos.length ? `<label class="rbCampo">${esc(T('gm.modo'))} <select id="rbModoJ">${[['auto', T('gm.modoAuto')], ['sandbox', 'Sandbox'], ...modos.map((M) => [M.n, M.titulo])].map(([k, l]) => `<option value="${esc(k)}"${GMM.elegido === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>` : ''}
+      <button class="rbBtnGris nvMods" data-rb="tienda" data-n="${nm || ''}" title="${esc(nm ? `${nm} ${T(nm === 1 ? 'modAct1' : 'modsAct')}` : T('sinMods'))}">${icoHTML('ico:mod')} <span>${nm ? `${nm} ${esc(T(nm === 1 ? 'modAct1' : 'modsAct'))}` : esc(T('sinMods'))}</span></button>
+      <span class="rbEsp"></span><span class="rbModo">${esc(T('unJugador'))}</span><button class="rbBtnG" data-rb="empezar">${glifo('jugar')} ${esc(T('empezar'))}</button></div>`;
+  if (desliz) P.querySelector('.rbGrid').scrollTop = desliz;
+  nvEncajar();
 }
+// el pie de Nueva partida en un renglón: si no entra (celular, un idioma largo, el selector de modos de GMod) se achica por
+// pasos —sin «Un jugador»; los mods como ícono con el número; sin las palabras «Hora» y «Modo» (los selectores ya dicen lo
+// elegido)— hasta que entra. Medido con offsetTop (con el juego girado, getBoundingClientRect da la pantalla girada)
+function nvEncajar() {
+  const pie = RB.el && !RB.el.classList.contains('oc') && RB.el.querySelector('.rbPan_nueva .rbPanPie'); if (!pie) return;
+  const pasos = ['nvC1', 'nvC2', 'nvC3']; pie.classList.remove(...pasos);
+  const dos = () => { const h = [...pie.children].filter((e) => e.offsetHeight && !e.classList.contains('rbEsp')); const t0 = Math.min(...h.map((e) => e.offsetTop)), b0 = Math.min(...h.map((e) => e.offsetTop + e.offsetHeight)); return h.some((e) => e.offsetTop >= b0 - 1 && e.offsetTop > t0 + 4); };
+  for (const c of pasos) { if (!dos()) break; pie.classList.add(c); }
+  // (en el último paso el selector queda angosto: «Automático (el del mapa)» pasa a «Automático», que entra entero)
+  const o = pie.classList.contains('nvC3') && pie.querySelector('#rbModoJ option[value=auto]'); if (o) o.textContent = o.textContent.replace(/\s*[(（].*[)）]\s*$/, '');
+}
+addEventListener('resize', () => setTimeout(() => { if (RB.panel === 'nueva') nvEncajar(); }, 80));
 // ---------- tienda: Mods y Mapas (explorar en el servidor o ver los instalados) ----------
 function panelTienda(P) {
   if (RB.t.tab === 'gmod' && typeof gmTiendaPanel === 'function') return gmTiendaPanel(P);

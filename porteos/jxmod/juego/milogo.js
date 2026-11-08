@@ -1,6 +1,6 @@
 // ---------------- tu propio logo (idea de Discord: «poner nuestro propio logo») ----------------
 // En Ajustes → «Tu logo»: elegís una imagen del aparato y pasa a ser el logo del juego (el de la pantalla de carga, el del
-// menú, el de la bienvenida y el de la intro; la pantalla de carga lo pone antes que nada, ver template.html). En la app,
+// menú y el de la bienvenida; la pantalla de carga lo pone antes que nada, ver template.html; la intro es la de JXStudios). En la app,
 // «Acceso directo» pone en la pantalla de inicio un ícono con tu logo y el nombre que quieras (Android 8 o más nuevo
 // pregunta dónde; Android 7, va solo). Queda guardado en el aparato; «Volver al de JXMod» lo saca.
 const MILOGO = { k: 'jx_logo', ki: 'jx_logo_ic', kn: 'jx_logo_nom' };

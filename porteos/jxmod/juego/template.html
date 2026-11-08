@@ -184,7 +184,8 @@ body.tactil #barra .ra{width:calc(44px*var(--hk,1));height:calc(40px*var(--hk,1)
 body.tactil #barra .ra img{width:calc(38px*var(--hk,1));height:calc(24px*var(--hk,1))}
 body.tactil #vida{width:calc(150px*var(--hk,1));height:max(14px,calc(18px*var(--hk,1)))}
 body.tactil #verEstado{transform:scale(min(1,var(--hk,1)));transform-origin:top right}
-/* menú de spawn (como el del juego) */
+/* menú de spawn: la forma (pestañas, categorías, grilla y pie); los colores, la letra y las placas de la 3.0 van al final,
+   con los otros menús */
 #spawn{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(900px,calc(var(--vw)*94));height:min(500px,calc(var(--vh)*86));z-index:5;display:flex;flex-direction:column}
 #spawn .tabs{display:flex;gap:2px;height:28px}
 #spawn .tab{background:#3b3d42;color:#ddd;font-size:12px;padding:0 10px;display:flex;align-items:center;gap:5px;cursor:pointer;border-radius:3px 3px 0 0}
@@ -231,7 +232,7 @@ body.tactil #verEstado{transform:scale(min(1,var(--hk,1)));transform-origin:top 
 .hJ{display:flex;align-items:center;justify-content:space-between;padding:3px 6px;background:rgba(255,255,255,.06);border-radius:3px;margin:2px 0}
 body.sinUI #hud>*:not(#mira){visibility:hidden}
 .fila{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:13px}
-/* ajustes (como el diseño de la comunidad): oscuro, pestañas al costado, secciones en tarjetas */
+/* ajustes (como el diseño de la comunidad): oscuro, pestañas al costado, secciones en tarjetas (los colores de la 3.0, al final) */
 #ajustesCaja{background:rgba(22,25,32,.96);color:#e8eaf0;border:1px solid #333a48;border-radius:14px;padding:0;width:min(720px,94vw);max-height:min(92vh,calc(var(--vh)*92));display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 40px #000a}
 .ajCab{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #2c323e}.ajCab h3{margin:0;font-size:17px;letter-spacing:.5px;text-transform:uppercase}
 .ajCelu{margin-left:auto;font-size:11px;color:#aeb6c6;background:#2a3040;border-radius:10px;padding:3px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
@@ -797,12 +798,12 @@ body.conPant{background:transparent}
 #carga .cgArriba{position:absolute;left:clamp(16px,calc(var(--vw,1vw)*3),40px);top:clamp(14px,calc(var(--vh,1vh)*3),34px);right:clamp(16px,calc(var(--vw,1vw)*3),40px);display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
 #carga .dLogo{font-size:clamp(44px,12vmin,104px);animation:cgEntra .8s cubic-bezier(.2,.9,.25,1.1) both}
 #carga .cgModo{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;font:700 11px Roboto,Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase}
-#carga .cgModo span{padding:5px 9px;border-radius:4px;background:rgba(10,14,24,.62);border:1px solid rgba(255,255,255,.14);color:#d6dcea}
-#carga .cgModo span b{color:#7cc4ff;font-weight:800}
+#carga .cgModo span{padding:5px 9px;border-radius:0;background:rgba(10,14,24,.62);border:1px solid rgba(255,255,255,.14);color:#d6dcea}
+#carga .cgModo span b{color:#f2b31b;font-weight:800}
 #carga .cgTit{margin-top:12px;max-width:calc(var(--vw,1vw)*60);font:800 clamp(18px,3.4vmin,30px) Roboto,Arial,sans-serif;text-shadow:0 2px 6px rgba(0,0,0,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#carga .cgTit:empty{display:none}
 @keyframes cgEntra{from{opacity:0;transform:translateY(-8px)}}
-#carga .cgTipC{width:min(340px,calc(var(--vw,1vw)*34));box-sizing:border-box;padding:12px 14px;border-radius:8px;background:rgba(10,14,24,.66);border:1px solid rgba(255,255,255,.12);border-left:3px solid #ff8a2a;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-#carga .cgTipC small{display:block;font:800 11px Roboto,Arial,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#ffb347;margin-bottom:5px}
+#carga .cgTipC{width:min(340px,calc(var(--vw,1vw)*34));box-sizing:border-box;padding:12px 14px;border-radius:0;background:rgba(10,14,24,.66);border:1px solid rgba(255,255,255,.12);border-inline-start:3px solid #f2b31b;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+#carga .cgTipC small{display:block;font:800 11px Roboto,Arial,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#f2b31b;margin-bottom:5px}
 #carga .cgTip{margin:0;font:500 14px/1.4 Roboto,Arial,sans-serif;color:#e3e7f1;transition:opacity .35s;min-height:2.8em}
 /* consola: lo que ya se cargó, con su tiempo (como la consola mientras entra a un server) */
 #carga .cgCons{position:absolute;left:clamp(16px,calc(var(--vw,1vw)*3),40px);bottom:calc(clamp(74px,calc(var(--vh,1vh)*13),104px));width:min(620px,calc(var(--vw,1vw)*60));font:12px/1.55 Consolas,'DejaVu Sans Mono',Menlo,monospace;color:#9fb0c8;text-shadow:0 1px 2px #000;direction:ltr;text-align:left}
@@ -815,13 +816,11 @@ body.conPant{background:transparent}
 #carga .cgFila{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
 #carga .cgEst{display:flex;align-items:center;gap:10px;min-width:0;font:700 clamp(15px,2.4vmin,20px) Roboto,Arial,sans-serif;text-shadow:0 1px 3px #000}
 #carga .cgEst span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#carga .cgEst bdi{flex:none;direction:ltr;unicode-bidi:isolate;font-weight:600;color:#c9d6ea;white-space:nowrap}
-#carga .cgGira{flex:none;width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.2);border-top-color:#7cc4ff;animation:cgGira .8s linear infinite}
+#carga .cgGira{flex:none;width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.2);border-top-color:#f2b31b;animation:cgGira .8s linear infinite}
 @keyframes cgGira{to{transform:rotate(360deg)}}
 #carga .cgPct{font:800 clamp(20px,3.6vmin,30px) Roboto,Arial,sans-serif;color:#fff;text-shadow:0 1px 3px #000;font-variant-numeric:tabular-nums}
-#carga .cgBarra{margin-top:8px;height:6px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden}
-#carga .cgBarra i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2f8cff,#7cc4ff);box-shadow:0 0 10px rgba(80,170,255,.8);position:relative;overflow:hidden}
-#carga .cgBarra i::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);transform:translateX(-100%);animation:cgRayo 1.4s linear infinite}
-@keyframes cgRayo{to{transform:translateX(100%)}}
+#carga .cgBarra{margin-top:8px;height:6px;border-radius:0;background:rgba(255,255,255,.14);overflow:hidden}
+#carga .cgBarra i{display:block;height:100%;width:0;background:#f2b31b}
 #carga .cgPie{display:flex;justify-content:space-between;gap:12px;margin-top:6px;font:11px Consolas,'DejaVu Sans Mono',Menlo,monospace;color:rgba(255,255,255,.5);direction:ltr}
 #carga .cgPie span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #cargaAyuda,#cargaErr{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(var(--vw,1vw)*90));box-sizing:border-box;background:rgba(10,12,22,.9);border:1px solid rgba(255,140,40,.5);border-radius:10px;padding:16px 18px;color:#e6e9f4;font:14px/1.4 Roboto,Arial,sans-serif;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.6)}
@@ -833,8 +832,49 @@ body.conPant{background:transparent}
 /* (bajo y angosto los pone el giro, con la medida girada: las media queries miran la del aparato parado) */
 #carga.bajo .cgTipC{display:none}#carga.bajo .cgCons{font-size:11px;line-height:1.45;bottom:64px}#carga.bajo .cgModo{margin-top:6px}
 #carga.angosto .cgTipC{display:none}#carga.angosto .cgCons{width:auto;right:16px}
-/* la intro de JXStudios, encima de la pantalla de carga hasta que termina (o se toca) */
-#introCv{position:absolute;inset:0;width:100%;height:100%;z-index:6;background:#000;transition:opacity .45s}#carga.introFin #introCv{opacity:0;pointer-events:none}
+/* la intro de JXStudios, encima de la pantalla de carga hasta que termina (o se toca). Si el juego ya había cargado, la
+   carga no se asoma (introDirecto): se va entera, en negro, junto con la intro. Si no, el logo de la carga entra después */
+#intro{position:absolute;inset:0;z-index:6;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;transition:opacity .25s;touch-action:none;direction:ltr;user-select:none;-webkit-user-select:none;
+  --S:max(30px,min(calc(var(--vh,1vh)*15),calc(var(--vw,1vw)*17.7),190px));--g:calc(var(--S)*.2)}
+#carga.introFin #intro{animation:none;opacity:0;pointer-events:none}
+/* (al terminar se va sola, sin esperar al JavaScript: si el juego está compilando, la carga aparece a tiempo igual) */
+#intro.va{animation:inFuera .25s linear 1.7s both}@keyframes inFuera{to{opacity:0}}
+#carga.introDirecto{background:#000}#carga.introDirecto>:not(#intro){visibility:hidden}
+/* las medidas salen de Oswald (alto 1,19 em, bajo 0,29, mayúscula 0,81): «JX» con la mayúscula a media placa, STUDIOS al
+   30 % y las dos centradas en la placa (-0,045 em: la mayúscula queda un poco abajo del medio del renglón). STUDIOS con
+   0,3 em entre letras mide 1,828 placas: la marca entera, 3,03, y al empezar se corre la mitad de lo que queda a la derecha
+   de la placa (1,014) para que la placa sola quede en el medio */
+#intro .inSale,#intro .inMarca{display:flex;align-items:center;flex:none}
+#intro .inMarca{transform:translateX(calc(var(--S)*1.014))}
+#intro .inPlaca{position:relative;width:var(--S);height:var(--S);overflow:hidden;flex:none}
+#intro .inPlaca>i,#intro .inPlaca>i>i{position:absolute;inset:0}
+#intro .inPlaca>i{transform:scaleY(0)}#intro .inPlaca>i>i{background:#f2b31b;transform:scaleX(.12)}
+#intro .inPlaca b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 calc(var(--S)*.617)/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;color:#121212;transform:translateY(calc(100% - .045em))}
+#intro .inTxt{overflow:hidden;padding:0 calc(var(--S)*.8) 0 var(--g);margin-inline-end:calc(var(--S)*-.8)}
+#intro .inLetras{display:flex;font:300 calc(var(--S)*.37)/1.3 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;color:#efede7;letter-spacing:.3em;transform:translateX(calc(-100% - var(--g) - 2.1em))}
+#intro .inLetras i{display:block;font-style:normal;transform:translateY(-.045em)}#intro .inLetras i:last-child{letter-spacing:0}
+#intro .inLetras i:nth-child(2){--i:1}#intro .inLetras i:nth-child(3){--i:2}#intro .inLetras i:nth-child(4){--i:3}#intro .inLetras i:nth-child(5){--i:4}#intro .inLetras i:nth-child(6){--i:5}#intro .inLetras i:nth-child(7){--i:6}
+/* (los tiempos: ver el script de la intro; curvas: salida exponencial para lo que aparece, suave a los dos lados para lo que se corre) */
+#intro.va .inPlaca>i{animation:inAlto .22s cubic-bezier(.16,1,.3,1) .08s both}
+#intro.va .inPlaca>i>i{animation:inAncho .24s cubic-bezier(.16,1,.3,1) .22s both}
+#intro.va .inPlaca b{animation:inJX .3s cubic-bezier(.16,1,.3,1) .34s both}
+#intro.va .inMarca{animation:inCorre .42s cubic-bezier(.65,0,.35,1) .46s both}
+#intro.va .inLetras{animation:inSalen .45s cubic-bezier(.16,1,.3,1) .5s both}
+#intro.va .inLetras i{animation:inJunta .84s cubic-bezier(.16,1,.3,1) .46s both}
+#intro.va .inSale{animation:inSale .34s cubic-bezier(.65,0,.35,1) 1.36s both}
+@keyframes inAlto{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes inAncho{from{transform:scaleX(.12)}to{transform:scaleX(1)}}
+@keyframes inJX{from{transform:translateY(calc(100% - .045em))}to{transform:translateY(-.045em)}}
+@keyframes inCorre{from{transform:translateX(calc(var(--S)*1.014))}to{transform:translateX(0)}}
+@keyframes inSalen{from{transform:translateX(calc(-100% - var(--g) - 2.1em))}to{transform:translateX(0)}}
+@keyframes inJunta{from{transform:translateX(calc(var(--i,0)*.3em)) translateY(-.045em)}to{transform:translateX(0) translateY(-.045em)}}
+@keyframes inSale{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(calc(var(--S)*-.06))}}
+@keyframes inQuieta{0%{opacity:0}17%{opacity:1}74%{opacity:1}to{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  #intro .inMarca,#intro .inPlaca>i,#intro .inPlaca>i>i,#intro .inLetras,#intro.va .inMarca,#intro.va .inPlaca>i,#intro.va .inPlaca>i>i,#intro.va .inLetras{animation:none;transform:none}
+  #intro .inPlaca b,#intro.va .inPlaca b,#intro .inLetras i,#intro.va .inLetras i{animation:none;transform:translateY(-.045em)}
+  #intro .inSale{opacity:0}#intro.va .inSale{animation:inQuieta 1.15s linear both}#intro.va{animation-delay:1.15s}}
+#carga.introFin .dLogo{animation:cgEntra2 .6s cubic-bezier(.2,.9,.25,1) both}@keyframes cgEntra2{from{opacity:0;transform:translateY(-8px)}}
 .etiqueta.monitor{padding:4px 8px;border-radius:2px;font-size:13px;max-width:180px;white-space:normal;text-align:center}
 .etiqueta{position:absolute;left:0;top:0;font-size:12px;font-weight:bold;text-shadow:0 1px 3px #000;white-space:nowrap;pointer-events:none;will-change:transform}
 #redEst{position:absolute;left:10px;top:66px;font-size:10px;opacity:.8;text-shadow:0 1px 2px #000}
@@ -1046,7 +1086,8 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
 #ctlEd .ctlIA{background:linear-gradient(180deg,#3d7bff,#2a5fd6);color:#fff;border-color:#5b8fff}#ctlEd .ctlIA:disabled{opacity:.6}
 .bt-t.accBt.ap .accIco .gli,.bt-t.accBt:active .accIco .gli{stroke:#ffd27a}
 
-/* menú de pausa (concepto de la comunidad): tarjeta clara, Seguir azul, grilla de tarjetas con ícono en círculo, Borrar todo en rojo */
+/* menú de pausa (concepto de la comunidad): grilla de tarjetas con ícono, Seguir arriba, Borrar todo en rojo. La forma; desde la
+   3.0 va oscuro, con placas y el amarillo del menú principal (las reglas #pausa del final) */
 #pausa{background:rgba(8,10,14,.42)}
 #pausa .pzCaja{background:#fff;color:#1d2230;border-radius:10px;padding:0;width:min(600px,calc(var(--vw)*94));max-height:calc(var(--vh)*94);overflow:auto;box-shadow:0 10px 34px rgba(0,0,0,.35);font-family:Roboto,'Helvetica Neue',Arial,sans-serif}
 #pausa .gli{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
@@ -1102,6 +1143,196 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
   font:500 max(12px,calc(var(--vh)*2.9))/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em;color:var(--jxT);text-shadow:none;opacity:1;white-space:nowrap;direction:ltr}
 #rbInicio[dir=rtl] .rbVer{right:auto;left:var(--jxM)}   /* (la versión se lee igual en árabe, del otro lado) */
 #rbInicio .rbVer b{color:var(--jxA);font-weight:600;margin-inline-start:-.35em}#rbInicio .rbVer i{font-style:normal;color:rgba(239,237,231,.5)}
+/* ---- 3.0: los otros menús con la identidad del principal (pedido: «cambiar esos menús de mapas, de juego y de pausa a
+   algo más original… no hay que darle identidad de hyper sandbox»). Las mismas reglas que el menú principal: placas
+   rectas y planas (sin bordes redondeados, brillos ni degradados), Oswald en mayúsculas para lo que es interfaz (Roboto
+   para los nombres de las cosas, que pueden ser largos), el amarillo sólo para lo principal y lo elegido, y como firma la
+   placa amarilla de la intro: el filo amarillo al costado del título de cada menú. Objetivos táctiles de 40 px o más y
+   textos con contraste ≥ 4,5 (los grises sobre las placas oscuras, ≥ 7) ---- */
+:root{--jxA:#f2b31b;--jxA2:#ffc531;--jxT:#efede7;--jxT2:#aeaca6;--jxT3:#8f8d88;--jxF:'JX Oswald','Roboto Condensed',sans-serif-condensed,'Arial Narrow',Roboto,Arial,sans-serif;
+  --jxFo:rgba(12,13,15,.96);--jxPl:#1b1c1f;--jxPl2:#26272b;--jxPl3:#313237;--jxLin:rgba(239,237,231,.12);--jxRo:#ff6b5e}
+
+/* -- pausa: las mismas tarjetas con ícono (U1), ahora placas oscuras; Seguir es la placa amarilla, como «Empezar partida
+   nueva»; el título lleva la placa amarilla con el ícono de pausa en la esquina, como la marca de la intro -- */
+#pausa{background:rgba(5,6,8,.55)}
+#pausa .pzCaja{background:var(--jxFo);color:var(--jxT);border:1px solid var(--jxLin);border-radius:0;box-shadow:none;width:min(620px,calc(var(--vw)*94))}
+#pausa .pzCab{padding:0 12px 0 0;gap:14px;min-height:52px}
+#pausa .pzTit{font:600 24px/1 var(--jxF);text-transform:uppercase;letter-spacing:.03em;gap:14px;align-self:stretch;align-items:center;min-width:0}
+#pausa .pzTit i{flex:none;align-self:stretch;width:52px;display:flex;align-items:center;justify-content:center;background:var(--jxA);color:#121212}
+#pausa .pzTit .gli{width:18px;height:18px;stroke-width:3.2}
+#pausa .pzTit b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;line-height:1.3}
+#pausa .pzModo{white-space:nowrap;font:500 12px/1.3 var(--jxF);text-transform:uppercase;letter-spacing:.08em;color:var(--jxT2);background:none;border:1px solid var(--jxLin);border-radius:0;padding:3px 8px;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#pausa .pzX{flex:none;width:40px;height:40px;border:0;border-radius:0;background:var(--jxPl2);color:var(--jxT)}
+#pausa .pzX:hover,#pausa .pzX:focus-visible{background:var(--jxA);color:#121212}
+#pausa .pzSeguir{justify-content:flex-start;gap:14px;width:calc(100% - 28px);height:52px;margin:12px 14px 8px;padding:0 18px;border:0;border-radius:0;background:var(--jxA);color:#121212;box-shadow:none;font:600 20px/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em}
+#pausa .pzSeguir .gli{fill:#121212;stroke:#121212;width:16px;height:16px}
+#pausa .pzSeguir:hover,#pausa .pzSeguir:focus-visible{background:var(--jxA2);outline:0}
+#pausa .pzGrid{gap:6px;padding:0 14px 14px}
+#pausa .pzTar{align-items:flex-start;justify-content:flex-start;gap:0;min-height:92px;padding:12px 12px 11px 13px;background:var(--jxPl);border:0;border-inline-start:3px solid transparent;border-radius:0;color:var(--jxT);text-align:start;min-width:0}
+#pausa .pzTar i{width:auto;height:auto;margin:0 0 6px;border-radius:0;background:none;color:var(--jxT2)}
+#pausa .pzTar .gli{width:22px;height:22px}
+#pausa .pzTar b{margin-top:auto;font:500 16px/1.3 var(--jxF);text-transform:uppercase;letter-spacing:.03em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#pausa .pzTar small{font:400 12px/1.35 Roboto,Arial,sans-serif;color:var(--jxT2);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#pausa .pzTar:hover,#pausa .pzTar:focus-visible{background:var(--jxPl2);border-inline-start-color:var(--jxA);outline:0}
+#pausa .pzTar:hover i,#pausa .pzTar:focus-visible i{color:var(--jxA)}
+#pausa .pzTar:active,#pausa .pzSeguir:active,#pausa .pzSalir:active,#pausa .pzChico:active{transform:none;filter:none}
+#pausa .pzTar:active{background:var(--jxPl3)}
+#pausa .pzTar.pzRojo{background:var(--jxPl);border-color:transparent;--jxRo:#ff8a7e}#pausa .pzTar.pzRojo i,#pausa .pzTar.pzRojo b{color:var(--jxRo)}#pausa .pzTar.pzRojo small{color:var(--jxT2)}
+#pausa .pzTar.pzRojo:hover,#pausa .pzTar.pzRojo:focus-visible{border-inline-start-color:var(--jxRo)}
+#pausa .pzTar.pzRojo[data-conf]{background:#b8382e;border-inline-start-color:#fff}#pausa .pzTar.pzRojo[data-conf] i,#pausa .pzTar.pzRojo[data-conf] b,#pausa .pzTar.pzRojo[data-conf] small{color:#fff}
+#pausa .pzPie{gap:6px;padding:10px 14px;background:transparent;border-top:1px solid var(--jxLin);border-radius:0}
+#pausa .pzSalir,#pausa .pzChico{height:40px;padding:0 14px;gap:8px;border:0;border-radius:0;background:var(--jxPl2);color:var(--jxT);font:500 14px/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em}
+#pausa .pzSalir:hover,#pausa .pzChico:hover{background:var(--jxPl3)}#pausa .pzSalir:hover{box-shadow:inset 3px 0 0 var(--jxA)}
+#pausa .pzChico .gli,#pausa .pzSalir .gli{width:16px;height:16px}
+#pausa .pzFps{font:500 12px/1 var(--jxF);letter-spacing:.08em;text-transform:uppercase;color:var(--jxT3)}
+@media (max-width:520px){#pausa .pzGrid{grid-template-columns:repeat(2,1fr)}}
+/* (con el celular parado el juego está girado y las media queries miran el aparato: el ancho del juego es el alto del
+   aparato —nunca angosto— y el alto del juego, el ancho del aparato; por eso cada regla de «bajo» va también como
+   html.rot dentro de max-width) */
+html.rot #pausa .pzGrid{grid-template-columns:repeat(3,1fr)}html.rot #pausa .pzChico span{display:inline}
+@media (max-height:420px){#pausa .pzCab{min-height:44px}#pausa .pzTit{font-size:21px}#pausa .pzTit i{width:44px}#pausa .pzSeguir{height:44px;margin:8px 14px 8px;font-size:18px}
+  #pausa .pzTar{min-height:70px;padding:9px 10px 8px 11px}#pausa .pzTar i{margin-bottom:3px}#pausa .pzTar .gli{width:20px;height:20px}#pausa .pzPie{padding:8px 14px}#pausa .pzGrid{padding-bottom:10px}}
+@media (max-width:420px){html.rot #pausa .pzCab{min-height:44px}html.rot #pausa .pzTit{font-size:21px}html.rot #pausa .pzTit i{width:44px}html.rot #pausa .pzSeguir{height:44px;margin:8px 14px 8px;font-size:18px}
+  html.rot #pausa .pzTar{min-height:70px;padding:9px 10px 8px 11px}html.rot #pausa .pzTar i{margin-bottom:3px}html.rot #pausa .pzTar .gli{width:20px;height:20px}html.rot #pausa .pzPie{padding:8px 14px}html.rot #pausa .pzGrid{padding-bottom:10px}}
+
+/* -- menú de spawn: deja de ser una copia del de GMod (pestañas grises con carpetitas de colores, letra de 8,5 px). Las
+   pestañas son placas (la elegida, amarilla) que se deslizan si no entran; las categorías, una lista con el filo amarillo
+   en la elegida; las cosas, tarjetas oscuras con el nombre legible (11 px) que se marcan en amarillo -- */
+#spawn{background:#0e0f11;border:1px solid var(--jxLin);color:var(--jxT);color-scheme:dark}
+#spawn .tabs.justas .tab{padding:0 9px;gap:6px;font-size:14px;letter-spacing:.02em}#spawn .tabs.apretadas .tab:not(.sel) span{display:none}#spawn .tabs.apretadas .tab{padding:0 13px;gap:8px}
+#spawn .tabs{flex:none;height:auto;gap:0;margin-right:40px;background:#0b0c0d;border-bottom:1px solid var(--jxLin);overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+#spawn .tabs::-webkit-scrollbar{display:none}
+#spawn .tab{flex:none;height:40px;padding:0 14px;gap:8px;background:none;border-radius:0;color:var(--jxT2);font:500 15px/1 var(--jxF);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+#spawn .tab:hover{background:var(--jxPl);color:var(--jxT)}
+#spawn .tab.sel{background:var(--jxA);color:#121212}
+#spawn .tab img{height:18px}
+#spawn .cuerpo{background:transparent;border:0}
+#spawn .cats{width:172px;padding:8px 0;background:#121315;color:var(--jxT);border-inline-end:1px solid var(--jxLin)}
+#spawn .cat{display:block;padding:0 12px 0 11px;min-height:0;line-height:36px;border-inline-start:3px solid transparent;color:var(--jxT2);font:500 14px/36px var(--jxF);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#spawn .cat:before{display:inline-block;vertical-align:middle;width:6px;height:6px;margin:-2px 9px 0 0;border-radius:0;background:#5b5c61}
+#spawn .cat:hover{background:var(--jxPl);color:var(--jxT)}
+#spawn .cat.sel{background:var(--jxPl2);color:var(--jxT);border-inline-start-color:var(--jxA)}
+#spawn .cat.catMods{color:var(--jxA);font-weight:600}#spawn .cat.catMods:before{background:var(--jxA)}#spawn .cat.catNueva:before{background:#5fc9a8}
+#spawn .spBus{height:36px;margin:0 8px 8px;padding:0 9px;gap:7px;background:#0b0c0d;border:1px solid var(--jxLin);border-radius:0;color:var(--jxT2)}
+#spawn .spBus .gli{width:15px;height:15px}
+#spawn .spBus input{font:14px Roboto,Arial,sans-serif;color:var(--jxT)}#spawn .spBus input::placeholder{color:var(--jxT3)}
+#spawn .grilla{padding:8px;gap:6px}
+#spawn .it{width:84px;padding:6px 4px 5px;border-radius:0;background:var(--jxPl);color:var(--jxT);font:400 11px/1.25 Roboto,Arial,sans-serif;box-shadow:inset 0 0 0 2px transparent}
+#spawn .it img{width:72px;height:54px}
+#spawn .it span{margin-top:4px}
+#spawn .it:hover{background:var(--jxPl2);box-shadow:inset 0 0 0 2px var(--jxA)}
+#spawn .it:active{background:var(--jxPl3)}
+#spawn .it.sel{box-shadow:inset 0 0 0 2px var(--jxA)}
+#spawn .it.itMod{font-size:11px;font-weight:500;color:var(--jxT)}#spawn .it.itMod .ico{width:54px;height:54px;border-radius:0}
+#spawn .it.marca{background:#4a3c0b;animation:marcaJx 1.2s ease 2}@keyframes marcaJx{50%{background:#6e5812}}
+#spawn .spVacio{color:var(--jxT2);font-size:13px}
+#spawn .pie{height:40px;gap:16px;padding:0 12px;background:#0b0c0d;border-top:1px solid var(--jxLin);color:var(--jxT);font:500 14px/1 var(--jxF);text-transform:uppercase;letter-spacing:.04em}
+#spawn .pie label{gap:9px;min-height:40px;cursor:pointer}
+#spawn .pie input[type=checkbox],#spawn .ins input[type=checkbox]{-webkit-appearance:none;appearance:none;flex:none;width:20px;height:20px;margin:0;border:2px solid #85848a;border-radius:0;background:transparent;display:grid;place-content:center;cursor:pointer}
+#spawn .pie input[type=checkbox]:checked,#spawn .ins input[type=checkbox]:checked{background:var(--jxA);border-color:var(--jxA)}
+#spawn .pie input[type=checkbox]:checked::after,#spawn .ins input[type=checkbox]:checked::after{content:'';width:5px;height:10px;border:solid #121212;border-width:0 2.5px 2.5px 0;transform:translateY(-1px) rotate(45deg)}
+#spawn .spPuso{color:var(--jxA);font-weight:500;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#spawn .ins{background:#121315;border-inline-start:1px solid var(--jxLin)}
+#spawn .ins input,#spawn .ins select{background:#0b0c0d;border:1px solid var(--jxLin);border-radius:0;color:var(--jxT)}
+#spawn .ins h4{font:600 15px/1.1 var(--jxF);text-transform:uppercase;letter-spacing:.03em}
+#spawn .xCerrar{top:0;right:0;width:40px;height:40px;border-radius:0;background:var(--jxPl2);color:var(--jxT);box-shadow:none}
+#spawn .xCerrar:hover{background:var(--jxA);color:#121212}#spawn .xCerrar:active{transform:none;background:var(--jxA2)}
+@media (pointer:coarse){#spawn .cat{line-height:40px}#spawn .spBus{height:40px}#spawn .it{width:78px}#spawn .it img{width:66px;height:50px}}
+@media (max-height:420px){#spawn .cats{width:150px}}@media (max-width:420px){html.rot #spawn .cats{width:150px}}
+
+/* -- Nueva partida (elegir mapa) y el mapa base de Crear un mapa: ya no el panel claro con la grilla de cuadraditos; el
+   mapa elegido en grande a la izquierda (la foto del juego de ese mapa, de qué grupo es y quién lo hizo), los grupos como
+   pestañas arriba y las tarjetas en 16:9 con el nombre en la placa (la elegida, amarilla). Abajo, las mismas opciones -- */
+.rbPan.rbPan_nueva,.rbPan.rbPan_crear{top:var(--jxM);bottom:var(--jxM);left:var(--jxM);right:var(--jxM);background:rgba(11,12,14,.95);color:var(--jxT);border:1px solid var(--jxLin);border-radius:0;box-shadow:none;color-scheme:dark}
+.rbPan_nueva .rbPanCab,.rbPan_crear .rbPanCab{flex:none;align-items:center;gap:calc(var(--vh)*2);min-height:max(40px,calc(var(--vh)*9));padding:0 calc(var(--vh)*2.4) 0 0;background:transparent;border-bottom:1px solid var(--jxLin);color:var(--jxT);font:600 clamp(18px,calc(var(--vh)*4.6),34px)/1 var(--jxF);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.rbPan_nueva .rbPanCab::before,.rbPan_crear .rbPanCab::before{content:'';flex:none;align-self:stretch;width:max(8px,calc(var(--vh)*1.4));background:var(--jxA)}
+.rbPan_nueva .rbPanCab small,.rbPan_crear .rbPanCab small{margin-inline-start:auto;font:500 clamp(12px,calc(var(--vh)*2.8),18px)/1.3 var(--jxF);letter-spacing:.06em;color:var(--jxT2);overflow:hidden;text-overflow:ellipsis}
+.rbPan_nueva .rbPanCab small{display:none}
+.rbPan_crear .rbPanCab .gli{width:.9em;height:.9em;flex:none}
+.rbPan_nueva .rbCats{flex:none;flex-direction:row;width:auto;min-width:0;gap:0;padding:0 calc(var(--vh)*1.2);background:transparent;border:0;border-bottom:1px solid var(--jxLin);overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.rbPan_nueva .rbCats::-webkit-scrollbar{display:none}
+.rbPan_nueva .rbCat{flex:none;align-items:center;justify-content:flex-start;gap:.55em;min-height:max(40px,calc(var(--vh)*8));padding:0 calc(var(--vh)*2);background:none;border:0;border-bottom:3px solid transparent;border-radius:0;color:var(--jxT2);font:500 clamp(13px,calc(var(--vh)*3),19px)/1 var(--jxF);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.rbPan_nueva .rbCat em{opacity:1;color:var(--jxT3);font-size:.85em}
+.rbPan_nueva .rbCat:hover{color:var(--jxT)}
+.rbPan_nueva .rbCat.sel{background:none;color:var(--jxT);border-bottom-color:var(--jxA)}.rbPan_nueva .rbCat.sel em{color:var(--jxA)}
+.rbPan_nueva .rbPanCuerpo{min-height:0}
+.nvHero{flex:none;width:36%;max-width:calc(var(--vh)*84);display:flex;flex-direction:column;min-height:0;border-inline-end:1px solid var(--jxLin)}
+.nvFoto{flex:1;min-height:calc(var(--vh)*12);background:#1b1c1f center/cover no-repeat}
+.nvInfo{flex:none;display:flex;flex-direction:column;gap:calc(var(--vh)*.4);padding:calc(var(--vh)*2.2) calc(var(--vh)*2.4);background:#0b0c0d;min-width:0}
+.nvInfo small{font:500 clamp(11px,calc(var(--vh)*2.4),15px)/1 var(--jxF);letter-spacing:.14em;text-transform:uppercase;color:var(--jxA)}
+.nvInfo b{font:600 clamp(20px,calc(var(--vh)*6.2),48px)/1.2 var(--jxF);text-transform:uppercase;letter-spacing:.01em;color:var(--jxT);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.nvInfo span{font:400 clamp(12px,calc(var(--vh)*2.6),15px)/1.35 Roboto,Arial,sans-serif;color:var(--jxT2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rbPan_nueva .rbGrid,.rbPan_crear .rbGrid{padding:calc(var(--vh)*2);gap:max(6px,calc(var(--vh)*1.4));grid-template-columns:repeat(auto-fill,minmax(max(104px,calc(var(--vh)*25)),1fr))}
+.rbPan_crear .rbGrid.rbGridChica{flex:none;overflow:visible}
+.rbPan_nueva .rbMapaG,.rbPan_crear .rbMapaG{min-width:0;padding:0;border:0;border-radius:0;background:var(--jxPl);text-align:start;outline:3px solid transparent;outline-offset:-3px}
+.rbPan_nueva .rbMapaG .rbFoto,.rbPan_crear .rbMapaG .rbFoto{aspect-ratio:16/9;border-radius:0;box-shadow:none;background-color:#2a2b2f}
+.rbPan_nueva .rbMapaG>b,.rbPan_crear .rbMapaG>b{display:block;margin:0;padding:calc(var(--vh)*.8) calc(var(--vh)*1.5);color:var(--jxT);font:500 clamp(12px,calc(var(--vh)*2.9),18px)/1.3 var(--jxF);text-transform:uppercase;letter-spacing:.03em;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.rbPan_nueva .rbMapaG>small,.rbPan_crear .rbMapaG>small{display:block;margin-top:calc(var(--vh)*-.8);padding:0 calc(var(--vh)*1.5) calc(var(--vh)*1.2);color:var(--jxT2);font:400 clamp(11px,calc(var(--vh)*2.3),14px)/1.35 Roboto,Arial,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rbPan_nueva .rbMapaG .gli,.rbPan_crear .rbMapaG .gli{width:1em;height:1em;vertical-align:-.15em}
+.rbPan_nueva .rbOf,.rbPan_crear .rbOf{color:var(--jxA);font:600 1em/1 var(--jxF);text-transform:uppercase;letter-spacing:.06em}
+.rbPan_nueva .rbMapaG:hover,.rbPan_crear .rbMapaG:hover{background:var(--jxPl2);outline-color:rgba(242,179,27,.55)}
+.rbPan_nueva .rbMapaG.sel,.rbPan_crear .rbMapaG.sel{background:var(--jxA);outline-color:var(--jxA)}
+.rbPan_nueva .rbMapaG.sel>b,.rbPan_crear .rbMapaG.sel>b{color:#121212;font-weight:600}
+.rbPan_nueva .rbMapaG.sel>small,.rbPan_crear .rbMapaG.sel>small,.rbPan_nueva .rbMapaG.sel .rbOf{color:#2b2208}
+.rbPan_nueva .rbVacio{color:var(--jxT2)}.rbPan_nueva .rbVacio a{color:var(--jxA)}
+.rbPan_crear .rbSub{padding:calc(var(--vh)*2) calc(var(--vh)*2) 0;color:var(--jxA);font:500 clamp(11px,calc(var(--vh)*2.5),15px)/1 var(--jxF);letter-spacing:.14em;text-transform:uppercase}
+.rbPan_crear .rbAyudaC{color:var(--jxT2)}
+.rbPan_nueva .rbPanPie,.rbPan_crear .rbPanPie{flex:none;gap:calc(var(--vh)*1.4);padding:calc(var(--vh)*1.6) calc(var(--vh)*2.4);background:#0b0c0d;border-top:1px solid var(--jxLin)}
+.rbPan_nueva .rbBtnGris,.rbPan_crear .rbBtnGris{display:inline-flex;align-items:center;gap:.5em;min-height:max(40px,calc(var(--vh)*9));padding:0 calc(var(--vh)*2.4);background:var(--jxPl2);color:var(--jxT);border:0;border-radius:0;font:500 clamp(13px,calc(var(--vh)*3),18px)/1 var(--jxF);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.rbPan_nueva .rbBtnGris:hover,.rbPan_crear .rbBtnGris:hover{background:var(--jxPl3)}
+.rbPan_nueva .rbBtnGris .ico{width:1.25em;height:1.25em;border-radius:0}.rbPan_nueva .rbBtnGris .gli,.rbPan_crear .rbBtnGris .gli{width:1em;height:1em}
+.rbPan_nueva .rbBtnG,.rbPan_crear .rbBtnG{display:inline-flex;align-items:center;gap:.6em;min-height:max(44px,calc(var(--vh)*10));padding:0 calc(var(--vh)*3.6);background:var(--jxA);color:#121212;border:0;border-radius:0;box-shadow:none;font:600 clamp(15px,calc(var(--vh)*3.8),24px)/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.rbPan_nueva .rbBtnG:hover,.rbPan_crear .rbBtnG:hover{background:var(--jxA2)}
+.rbPan_nueva .rbBtnG .gli,.rbPan_crear .rbBtnG .gli{width:.8em;height:.8em;fill:currentColor}
+.rbPan_nueva .rbCampo,.rbPan_crear .rbCampo{gap:.6em;color:var(--jxT2);font:500 clamp(12px,calc(var(--vh)*2.7),16px)/1 var(--jxF);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.rbPan_nueva .rbCampo select{min-height:max(40px,calc(var(--vh)*9));padding:0 calc(var(--vh)*1.4);background:var(--jxPl2);color:var(--jxT);border:0;border-radius:0;font:500 clamp(13px,calc(var(--vh)*3),18px)/1 var(--jxF);text-transform:uppercase;letter-spacing:.03em;max-width:calc(var(--vh)*40)}
+.rbPan_nueva .rbModo{color:var(--jxT3);font:500 clamp(12px,calc(var(--vh)*2.7),16px)/1 var(--jxF);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
+.rbPan_nueva [data-rb]:focus-visible,.rbPan_crear [data-rb]:focus-visible,.rbPan_nueva select:focus-visible{outline:2px solid var(--jxA);outline-offset:-2px}
+/* (los nombres de los mapas, hasta en dos renglones: en malayo «Kawasan Perindustrian» no entraba en uno en el celular;
+   en el celular, el elegido más angosto; el pie se achica por pasos si no entra en un renglón —nvEncajar, inicio.js—:
+   nvC1 sin «Un jugador», nvC2 los mods como ícono con el número, nvC3 sin las palabras «Hora» y «Modo») */
+@media (max-height:500px){.nvHero{width:34%}}@media (max-width:500px){html.rot .nvHero{width:34%}}
+.rbPan_nueva .rbPanPie.nvC1 .rbModo{display:none}
+.rbPan_nueva .rbPanPie.nvC2 .nvMods span{display:none}.rbPan_nueva .rbPanPie.nvC2 .nvMods::after{content:attr(data-n)}
+.rbPan_nueva .rbPanPie.nvC3 .rbCampo{font-size:0;gap:0}.rbPan_nueva .rbPanPie.nvC3 select{max-width:calc(var(--vh)*30)}
+
+/* -- ajustes (se abren desde la pausa y desde Opciones): las mismas placas; la pestaña elegida con el filo amarillo,
+   los interruptores y las barras en amarillo, «Listo» en la placa amarilla -- */
+#ajustesCaja{background:var(--jxFo);color:var(--jxT);border:1px solid var(--jxLin);border-radius:0;box-shadow:none;color-scheme:dark}
+#ajustesCaja .ajCab{gap:14px;min-height:52px;padding:0 14px 0 0;border-bottom:1px solid var(--jxLin)}
+#ajustesCaja .ajCab::before{content:'';flex:none;align-self:stretch;width:10px;background:var(--jxA)}
+#ajustesCaja .ajCab h3{font:600 22px/1 var(--jxF);letter-spacing:.03em}
+#ajustesCaja .ajCelu{border-radius:0;background:var(--jxPl);color:var(--jxT2)}
+#ajustesCaja .ajTabs{gap:2px;background:#0b0c0d;border-inline-end:1px solid var(--jxLin)}
+#ajustesCaja .ajTabs button{min-height:56px;border-radius:0;color:var(--jxT2);font:500 11px/1.15 var(--jxF);text-transform:uppercase;letter-spacing:.04em}
+#ajustesCaja .ajTabs button:hover{background:var(--jxPl);color:var(--jxT)}
+#ajustesCaja .ajTabs button.sel{background:var(--jxPl2);color:var(--jxT);box-shadow:inset 3px 0 0 var(--jxA)}
+#ajustesCaja .ajSecs section{background:var(--jxPl);border:0;border-radius:0}
+#ajustesCaja .ajSecs h4{margin-bottom:8px;color:var(--jxA);font:500 13px/1 var(--jxF);letter-spacing:.12em}
+#ajustesCaja .ajF small{color:var(--jxT3)}
+#ajustesCaja .ajF select{min-height:34px;background:#0b0c0d;border:1px solid var(--jxLin);border-radius:0;color:var(--jxT)}
+#ajustesCaja .ajR input{accent-color:var(--jxA)}
+#ajustesCaja .ajSw i{border-radius:0;background:var(--jxPl3)}#ajustesCaja .ajSw i:after{border-radius:0}
+#ajustesCaja .ajSw input:checked+i{background:var(--jxA)}#ajustesCaja .ajSw input:checked+i:after{background:#121212}
+#ajustesCaja .ajPie{border-top:1px solid var(--jxLin)}
+#ajustesCaja .ajBtn{min-height:40px;padding:0 22px;border-radius:0;background:var(--jxA);color:#121212;font:600 16px/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em}
+#ajustesCaja .ajBtn.gris{background:var(--jxPl2);color:var(--jxT);font:500 14px/1 var(--jxF)}
+#ajustesCaja .ajBtn:hover{background:var(--jxA2)}#ajustesCaja .ajBtn.gris:hover{background:var(--jxPl3)}
+
+/* (en una pantalla grande —1080p o más— la pausa, los ajustes y el spawn no quedan chiquitos en el medio: las cajas que van
+   centradas por la capa de atrás crecen con zoom, que también agranda su lugar; el spawn, que se ubica solo, se agranda) */
+@media (min-width:1600px) and (min-height:900px){#pausa .pzCaja,#ajustesCaja{zoom:1.3}#pausa .pzCaja{max-height:calc(var(--vh)*72)}#ajustesCaja{max-height:calc(var(--vh)*70)}
+  #spawn{width:min(1240px,calc(var(--vw)*94));height:min(700px,calc(var(--vh)*86))}#spawn .tab{height:46px;font-size:17px}#spawn .tab img{height:21px}
+  #spawn .cats{width:210px}#spawn .cat{font-size:16px;line-height:40px}#spawn .it{width:100px;font-size:12px}#spawn .it img{width:86px;height:64px}#spawn .pie{height:46px;font-size:16px}#spawn .xCerrar{width:46px;height:46px}#spawn .tabs{margin-right:46px}}
+/* -- emotes: la misma caja; las categorías como placas (la elegida, amarilla) -- */
+#emotes .emoCaja{background:var(--jxFo);border:1px solid var(--jxLin);border-radius:0;color:var(--jxT)}
+#emotes .emoCab h3{font:600 22px/1 var(--jxF);text-transform:uppercase;letter-spacing:.03em;padding-inline-start:12px;border-inline-start:6px solid var(--jxA)}
+#emotes .emoTabs button{border:0;border-radius:0;background:var(--jxPl2);color:var(--jxT2);font:500 13px/1 var(--jxF);text-transform:uppercase;letter-spacing:.04em;padding:7px 11px}
+#emotes .emoTabs button:hover{color:var(--jxT);background:var(--jxPl3)}#emotes .emoTabs button.sel{background:var(--jxA);color:#121212}
+/* (abajo son acciones de al lado —lo principal es tocar un emote—: placas oscuras, el ícono en amarillo) */
+#emotes .emoPie .boton{border-radius:0;font:500 15px/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em;min-height:40px;background:var(--jxPl2);color:var(--jxT)}
+#emotes .emoPie .boton:hover{background:var(--jxPl3)}#emotes .emoPie .boton .gli{color:var(--jxA)}
+#emotes .xCerrar{top:0;right:0;width:40px;height:40px;border-radius:0;background:var(--jxPl2);box-shadow:none}#emotes .xCerrar:hover{background:var(--jxA);color:#121212}
 </style></head>
 <body>
 <canvas id="cv"></canvas>
@@ -1172,7 +1403,71 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
   <div class="cgCons" id="cargaCons"></div>
   <div class="cgAbajo"><div class="cgFila"><div class="cgEst"><i class="cgGira"></i><span id="cargaPaso"></span><bdi id="cargaMB"></bdi></div><b class="cgPct" id="cargaPct">0%</b></div>
     <div class="cgBarra"><i id="cargaB"></i></div><div class="cgPie"><span id="cargaMapa"></span><span>JXSTUDIOS</span></div></div>
-  <div id="cargaAyuda"></div><div id="cargaErr"></div><canvas id="introCv"></canvas></div>
+  <div id="cargaAyuda"></div><div id="cargaErr"></div>
+  <div id="intro" role="img" aria-label="JXStudios"><div class="inSale"><div class="inMarca"><div class="inPlaca"><i><i></i></i><b>JX</b></div><div class="inTxt"><span class="inLetras"><i>S</i><i>T</i><i>U</i><i>D</i><i>I</i><i>O</i><i>S</i></span></div></div></div></div></div>
+<script>
+// el giro con el celular parado: va primero y es chico (antes iba en el script de la pantalla de carga, que trae adentro
+// las fotos de fondo —~0,9 MB—, y con internet lento la intro arrancaba tarde y sin girar). Con el celular parado se gira
+// todo 90° desde el primer cuadro, igual que hace el juego cuando arranca (la pantalla de carga y la intro también); las
+// medidas, por la pantalla girada (--vw, --vh, y bajo/angosto para la carga)
+(function () {
+  var COARSE0 = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  function girar0() {
+    var rot = COARSE0 && innerHeight > innerWidth * 1.05 && !/[?&]sinGiro\b/.test(location.search), b = document.body.style, r = document.documentElement.style;
+    document.documentElement.classList.toggle('rot', rot);
+    if (rot) { b.width = innerHeight + 'px'; b.height = innerWidth + 'px'; } else { b.width = ''; b.height = ''; }
+    var vw = rot ? innerHeight : innerWidth, vh = rot ? innerWidth : innerHeight, c = document.getElementById('carga');
+    r.setProperty('--vw', vw / 100 + 'px'); r.setProperty('--vh', vh / 100 + 'px');
+    if (c) { c.classList.toggle('bajo', vh <= 460); c.classList.toggle('angosto', vw <= 640); }
+  }
+  girar0(); addEventListener('resize', girar0); addEventListener('orientationchange', function () { setTimeout(girar0, 60); });
+})();
+</script>
+<script>
+// La intro de JXStudios: procedural, sin video ni imágenes (unas líneas de CSS), corta y con el idioma del menú 3.0 —la
+// placa amarilla de «Empezar partida nueva» y la letra condensada del menú (Oswald, que ya va adentro del HTML)—:
+//   0,08 s  aparece el filo amarillo (el mismo borde que marca el botón elegido en el menú) y se abre en la placa
+//   0,34 s  sube «JX», en negro, adentro de la placa
+//   0,46 s  la placa se corre a la izquierda y STUDIOS sale de atrás de ella, con las letras que se van juntando
+//   1,36 s  todo se funde a negro; 1,70 s termina (I.fin)
+// Después, el menú; o la pantalla de carga, si el juego sigue bajando. Si el juego ya había cargado, la carga no se asoma
+// en el medio: se va entera junto con la intro (el menú queda a ~2,25 s del primer cuadro). Se saltea con un toque, un clic
+// o cualquier tecla. Todo se mueve con animaciones de CSS de sólo transform y opacity: las dibuja el compositor, sin
+// JavaScript por cuadro, y siguen suaves aunque el juego esté compilando (con un lienzo y requestAnimationFrame la intro
+// se trababa hasta 0,8 s mientras arrancaba el juego). Va antes del script de la carga (que trae las fotos): arranca con
+// los primeros ~270 KB del HTML. Con el celular parado se ve derecha dentro de la página girada; con «reducir movimiento»
+// del sistema, la marca quieta con un fundido. Para las pruebas deja en __intro cuándo empezó y terminó y cómo se salteó.
+(function () {
+  var c = document.getElementById('carga'), el = document.getElementById('intro'), I = window.__intro = { fin: false };
+  if (!el || /[?&]test\b/.test(location.search)) { I.fin = true; if (c) c.classList.add('introFin'); return; }      // (en las pruebas, sin intro)
+  var QUIETA = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches), DUR = QUIETA ? 1.15 : 1.7;
+  var tPedida = performance.now(), tSeg = setTimeout(fin, (DUR + 3) * 1000);   // (por si la pestaña no dibuja)
+  I.dur = DUR; I.quieta = QUIETA;
+  function fuenteOk() { try { return document.fonts.check("600 20px 'JX Oswald'") && document.fonts.check("300 20px 'JX Oswald'"); } catch (e) { return true; } }
+  try { document.fonts.load("600 20px 'JX Oswald'"); document.fonts.load("300 20px 'JX Oswald'"); } catch (e) {}
+  function tecla() { saltar('tecla'); }
+  function saltar(como) { if (!I.fin) { I.salto = como; fin(); } }
+  function fin() {
+    if (I.fin) return; I.fin = true; I.tFin = I.t0 ? +((performance.now() - I.t0) / 1000).toFixed(3) : 0;
+    removeEventListener('keydown', tecla, true); clearTimeout(tSeg);
+    // (si el juego ya cargó, W.fin estaba esperando: la carga se esconde y se va todo junto al menú)
+    if (I.cb) { var f = I.cb; I.cb = null; c.classList.add('introDirecto', 'introFin'); f(); } else c.classList.add('introFin');
+    setTimeout(function () { el.style.display = 'none'; }, 450);   // (después del fundido, sin capas de más)
+  }
+  el.addEventListener('pointerdown', function () { saltar('toque'); });
+  addEventListener('keydown', tecla, true);
+  el.addEventListener('animationend', function (e) { if (e.animationName === 'inSale' || e.animationName === 'inQuieta') fin(); });
+  // arranca cuando la letra del menú está lista (va adentro del HTML: unos milisegundos) o a los 0,35 s con la de reserva
+  (function empezar() {
+    if (I.fin) return;
+    if (!fuenteOk() && performance.now() - tPedida < 350) { setTimeout(empezar, 16); return; }
+    el.classList.add('va'); I.t0 = performance.now(); clearTimeout(tSeg); tSeg = setTimeout(fin, (DUR + 1.5) * 1000);
+    // (el momento justo en que el compositor arrancó las animaciones, si el navegador lo dice)
+    I.inicio = +(I.t0 / 1000).toFixed(3);
+    try { var a = el.getAnimations({ subtree: true })[0]; if (a && a.ready) a.ready.then(function () { if (a.startTime != null && !I.fin) { I.t0 = a.startTime; I.inicio = +(I.t0 / 1000).toFixed(3); } }); } catch (e) {}
+  })();
+})();
+</script>
 <script>
 // La pantalla de carga de JXMod (estilo "entrando a un server": capturas del juego de fondo, la consola con
 // lo que va cargando y la barra abajo) y su vigilante. Va antes del juego y no depende de él: el juego avisa cada
@@ -1204,18 +1499,6 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
   if (l === 'tl') l = 'fil'; if (!TX[l]) l = 'en';
   var X = TX[l], W = window.__carga = { p: 0, paso: 'abrir', t0: Date.now(), t: Date.now(), err: '', listo: false, ayuda: false, lang: l, X: X };
   var $ = function (i) { return document.getElementById(i); };
-  // con el celular parado se gira todo 90° desde el primer cuadro, igual que hace el juego cuando arranca (la pantalla
-  // de carga y la intro también); las medidas, por la pantalla girada (--vw, --vh, y bajo/angosto para la carga)
-  var COARSE0 = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
-  function girar0() {
-    var rot = COARSE0 && innerHeight > innerWidth * 1.05 && !/[?&]sinGiro\b/.test(location.search), b = document.body.style, r = document.documentElement.style;
-    document.documentElement.classList.toggle('rot', rot);
-    if (rot) { b.width = innerHeight + 'px'; b.height = innerWidth + 'px'; } else { b.width = ''; b.height = ''; }
-    var vw = rot ? innerHeight : innerWidth, vh = rot ? innerWidth : innerHeight, c = $('carga');
-    r.setProperty('--vw', vw / 100 + 'px'); r.setProperty('--vh', vh / 100 + 'px');
-    if (c) { c.classList.toggle('bajo', vh <= 460); c.classList.toggle('angosto', vw <= 640); }
-  }
-  girar0(); addEventListener('resize', girar0); addEventListener('orientationchange', function () { setTimeout(girar0, 60); });
   var nom = function (k) { var i = PASOS.indexOf(k); return k === 'descarga' ? X[13][5] : i >= 0 ? X[i] : k; };
   var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   if (l === 'ar') $('carga').dir = 'rtl';
@@ -1248,6 +1531,8 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
     var m = $('cargaMapa'); if (m) m.textContent = 'map: ' + (W.mapa || f[0]);
   }
   fondo(); var tF = setInterval(fondo, 6500);
+  // (la foto de un mapa por su nombre: el menú de Nueva partida la muestra en grande)
+  W.foto = function (n) { for (var j = 0; j < FON.length; j++) if (FON[j][0] === n) return FON[j][1]; return ''; };
   // mientras el navegador baja y lee el archivo (el paquete del juego es lo más pesado): cuánto llegó, en MB
   // (el paquete viene en pedazos de 1 MB: cuenta los que ya llegaron enteros, sin copiar nada)
   var PKLEN = /*PKLEN*/0, PKS = document.getElementsByClassName('pk'), tD = setInterval(function () {
@@ -1280,16 +1565,20 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
     var c = $('carga'), k = $('cargaCons'), t = $('cargaTit'), i = -1, j;
     clearTimeout(W.tFin); clearTimeout(W.tOc);   // (un cierre anterior todavía en camino no la esconde: se vuelve a abrir enseguida)
     W.mapa = mapa || ''; W.listo = false; W.ayuda = false; W.p = 0; W.paso = ''; W.err = ''; W.mb = ''; W.t0 = W.t = Date.now(); ocultar();
-    c.classList.remove('oc', 'salir', 'fin', 'fallo'); if (k) k.innerHTML = ''; if (t) t.textContent = titulo || '';
+    c.classList.remove('oc', 'salir', 'fin', 'fallo', 'introDirecto'); if (k) k.innerHTML = ''; if (t) t.textContent = titulo || '';
     linea(seg() + esc(titulo || ''));
     for (j = 0; j < FON.length; j++) if (FON[j][0] === fondoNom) i = j;
     clearInterval(tF); if (i >= 0) iF = i; fondo(true); if (i < 0) tF = setInterval(fondo, 6500);
     clearInterval(tTip); tip(); tTip = setInterval(tip, 6500); pintar();
   };
   W.fin = function (cb) {
-    var I = window.__intro; if (I && !I.fin) { I.cb = function () { W.fin(cb); }; return; }      // (la intro se ve entera; se saltea tocando)
+    // (la intro se ve entera —se saltea tocando—; como el juego ya está, la carga ya no se va a mostrar: se esconde abajo
+    // de la intro y cuando ella termina se va todo junto al menú)
+    var I = window.__intro; if (I && !I.fin) { I.cb = function () { W.fin(cb); }; $('carga').classList.add('introDirecto'); return; }
     W.listo = true; clearInterval(tTip); W.set(1, 'listo'); W.log('listo'); ocultar();
-    var c = $('carga'); c.classList.add('fin'); var espera = /[?&]test\b/.test(location.search) ? 0 : Math.max(0, 1200 - (Date.now() - W.t0));
+    var c = $('carga'); c.classList.add('fin');
+    // (la carga se deja ver al menos 1,2 s; si no se llegó a ver —el juego cargó durante la intro—, se va enseguida)
+    var espera = /[?&]test\b/.test(location.search) || c.classList.contains('introDirecto') ? 0 : Math.max(0, 1200 - (Date.now() - W.t0));
     clearTimeout(W.tFin); clearTimeout(W.tOc);
     W.tFin = setTimeout(function () { clearInterval(tF); if (cb) try { cb(); } catch (e) {} c.classList.add('salir'); W.tOc = setTimeout(function () { c.classList.add('oc'); }, 520); }, espera);
   };
@@ -1297,86 +1586,9 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
 })();
 </script>
 <script>
-// tu logo (milogo.js): si elegiste uno, va en la pantalla de carga y en la intro desde el primer cuadro
+// tu logo (milogo.js): si elegiste uno, va en la pantalla de carga desde el primer cuadro (la intro es la de JXStudios)
 (function () { try { var im = document.querySelector('#carga .dLogo img'), u = localStorage.getItem('jx_logo'); window.__logoOrig = im ? im.src : '';
   if (im && u && u.length < 3e6 && /^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+\/=]+$/.test(u)) im.src = u; } catch (e) {} })();
-</script>
-<script>
-// la intro de JXStudios (procedural, sin video): chispas, el aro cromado que se dibuja con un brillo que lo recorre, el
-// monograma, los nombres y al final el logo de JXMod. Va encima de la pantalla de carga mientras el juego
-// baja; al terminar (o al tocarla) se funde y queda la carga, o el menú si ya cargó. Con el teléfono parado se dibuja
-// derecha dentro de la página girada (si la página no estuviera girada, se gira ella).
-(function () {
-  var c = document.getElementById('carga'), cv = document.getElementById('introCv'), x = cv && cv.getContext('2d'), I = window.__intro = { fin: false };
-  var logo = document.querySelector('#carga .dLogo img'), t0 = 0, DUR = 5.8, chispas = [];
-  if (!x || /[?&]test\b/.test(location.search)) { I.fin = true; if (c) c.classList.add('introFin'); return; }      // (en las pruebas, sin intro)
-  for (var i = 0; i < 140; i++) chispas.push({ a: Math.random() * 6.283, d: 1.6 + Math.random() * 1.8, v: 0.55 + Math.random() * 0.5, s: 0.6 + Math.random() * 1.6, r: 0.75 + Math.random() * 0.5 });
-  function fin() { if (!I.fin) { I.fin = true; c.classList.add('introFin'); if (I.cb) { var f = I.cb; I.cb = null; f(); } } }
-  cv.addEventListener('pointerdown', fin);
-  var cl = function (v) { return v < 0 ? 0 : v > 1 ? 1 : v; }, eo = function (v) { v = cl(v); return 1 - Math.pow(1 - v, 3); };
-  function cromo(cx, cy, r, giro) {
-    var g;
-    if (x.createConicGradient) { g = x.createConicGradient(giro, cx, cy); [['#fff', 0], ['#7d8590', .12], ['#e9edf2', .25], ['#4a5059', .38], ['#ffffff', .5], ['#8a929c', .63], ['#dfe4ea', .76], ['#454b53', .88], ['#fff', 1]].forEach(function (p) { g.addColorStop(p[1], p[0]); }); }
-    else { g = x.createLinearGradient(cx - r, cy - r, cx + r, cy + r); g.addColorStop(0, '#fff'); g.addColorStop(.5, '#6c737c'); g.addColorStop(1, '#eef1f4'); }
-    return g;
-  }
-  function cuadro(ms) {
-    if (!t0) t0 = ms; var t = (ms - t0) / 1000;
-    var dpr = Math.min(window.devicePixelRatio || 1, 2), W = cv.clientWidth * dpr | 0, H = cv.clientHeight * dpr | 0;
-    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
-    x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
-    var girar = H > W * 1.05 && !document.documentElement.classList.contains('rot');
-    if (girar) { x.translate(W, 0); x.rotate(Math.PI / 2); var tmp = W; W = H; H = tmp; }
-    var cx = W / 2, cy = H * 0.44, R = Math.min(W, H) * 0.3, f1 = cl((3.9 - t) / 0.4) * cl(t / 0.2);
-    if (f1 > 0) {
-      x.globalAlpha = f1;
-      // chispas que caen hacia el aro
-      x.globalCompositeOperation = 'lighter';
-      chispas.forEach(function (p) { var k = eo(t * p.v), d = R * (p.d + (p.r - p.d) * k), a = p.a + k * 1.2, al = cl(1 - k) * 0.9 + 0.1 * cl(1.2 - t);
-        x.fillStyle = 'rgba(190,215,255,' + al.toFixed(3) + ')'; x.beginPath(); x.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, p.s * dpr, 0, 6.283); x.fill(); });
-      x.globalCompositeOperation = 'source-over';
-      // disco negro y aro cromado que se dibuja
-      var ka = eo((t - 0.25) / 0.9), giro = t * 1.4;
-      x.fillStyle = '#050607'; x.beginPath(); x.arc(cx, cy, R * 0.9 * eo((t - 0.6) / 0.6), 0, 6.283); x.fill();
-      x.lineWidth = R * 0.13; x.strokeStyle = cromo(cx, cy, R, giro); x.shadowColor = 'rgba(160,200,255,.65)'; x.shadowBlur = R * 0.12 * (0.6 + 0.4 * Math.sin(t * 3));
-      x.beginPath(); x.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + 6.283 * ka); x.stroke(); x.shadowBlur = 0;
-      x.lineWidth = R * 0.018; x.strokeStyle = 'rgba(255,255,255,.55)'; x.beginPath(); x.arc(cx, cy, R * 0.93, -Math.PI / 2, -Math.PI / 2 + 6.283 * ka); x.stroke();
-      // monograma JXS con contorno cromado y el nombre
-      var km = eo((t - 1.0) / 0.6);
-      if (km > 0) {
-        x.save(); x.globalAlpha = f1 * km; x.translate(cx, cy - R * 0.12); x.scale(0.85 + 0.15 * km, 0.85 + 0.15 * km);
-        x.font = '900 ' + (R * 0.62 | 0) + 'px "Arial Black",Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-        x.lineWidth = R * 0.07; x.strokeStyle = cromo(0, 0, R * 0.5, giro + 1); x.strokeText('JXS', 0, 0); x.fillStyle = '#050607'; x.fillText('JXS', 0, 0);
-        x.lineWidth = R * 0.012; x.strokeStyle = 'rgba(255,255,255,.8)'; x.strokeText('JXS', 0, 0); x.restore();
-      }
-      var kn = eo((t - 1.6) / 0.5);
-      if (kn > 0) { x.globalAlpha = f1 * kn; x.fillStyle = '#eef2f6'; x.font = '700 ' + (R * 0.2 | 0) + 'px Roboto,Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('JXStudios', cx, cy + R * 0.42); }
-      // brillo que cruza el aro
-      var kb = cl((t - 1.9) / 0.8);
-      if (kb > 0 && kb < 1) { x.save(); x.globalAlpha = f1 * Math.sin(kb * Math.PI) * 0.7; x.beginPath(); x.arc(cx, cy, R * 1.07, 0, 6.283); x.clip();
-        var bx = cx - R * 1.3 + kb * R * 2.6, gb = x.createLinearGradient(bx - R * 0.3, 0, bx + R * 0.3, 0); gb.addColorStop(0, 'rgba(255,255,255,0)'); gb.addColorStop(.5, 'rgba(255,255,255,.9)'); gb.addColorStop(1, 'rgba(255,255,255,0)');
-        x.fillStyle = gb; x.globalCompositeOperation = 'lighter'; x.fillRect(cx - R * 1.2, cy - R * 1.2, R * 2.4, R * 2.4); x.restore(); }
-      // — JXSTUDIOS — abajo, con las líneas que se abren
-      var kl = eo((t - 2.2) / 0.6);
-      if (kl > 0) { x.globalAlpha = f1 * kl; var yb = cy + R * 1.45, tam = R * 0.17; x.font = '800 ' + (tam | 0) + 'px Roboto,Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-        var txt = 'J X S T U D I O S', an = x.measureText(txt).width; x.fillStyle = '#e8edf3'; x.fillText(txt, cx, yb);
-        x.strokeStyle = 'rgba(200,225,255,.9)'; x.lineWidth = Math.max(1, R * 0.012); x.shadowColor = 'rgba(160,200,255,.8)'; x.shadowBlur = R * 0.05;
-        var lar = R * 0.55 * kl; x.beginPath(); x.moveTo(cx - an / 2 - R * 0.1, yb); x.lineTo(cx - an / 2 - R * 0.1 - lar, yb); x.moveTo(cx + an / 2 + R * 0.1, yb); x.lineTo(cx + an / 2 + R * 0.1 + lar, yb); x.stroke(); x.shadowBlur = 0; }
-      x.globalAlpha = 1;
-    }
-    // el logo de JXMod, con rebote y un brillo
-    var kr = cl((t - 3.9) / 0.35) * cl((DUR - t) / 0.4);
-    if (kr > 0 && logo.complete && logo.naturalWidth) {
-      var e = eo((t - 3.9) / 0.5), lw = Math.min(W * 0.78, H * 1.9 * 0.26 * logo.naturalWidth / logo.naturalHeight), lh = lw * logo.naturalHeight / logo.naturalWidth, s = 0.9 + 0.1 * e + 0.04 * Math.sin(Math.min(1, (t - 3.9) / 0.5) * Math.PI);
-      x.globalAlpha = kr; x.save(); x.translate(cx, H * 0.5); x.scale(s, s); x.drawImage(logo, -lw / 2, -lh / 2, lw, lh); x.restore(); x.globalAlpha = 1;
-    }
-    if (t >= DUR) { fin(); return; }
-    if (I.fin) return; // salteada
-    requestAnimationFrame(cuadro);
-  }
-  requestAnimationFrame(cuadro);
-  setTimeout(fin, (DUR + 2.5) * 1000); // por si la pestaña no dibuja
-})();
 </script>
 <script>/*MQTT*/</script>
 <script id="pkidx" type="application/json">/*PKIDX*/</script>

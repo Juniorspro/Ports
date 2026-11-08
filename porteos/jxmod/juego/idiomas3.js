@@ -525,3 +525,13 @@ Object.assign(IDI3, {
   'sp.npcJuego': ['Personajes', 'Characters', 'Personagens', 'Karakter', 'Watak', 'Mga karakter', 'キャラクター', 'ตัวละคร', 'Karakterler', 'الشخصيات', 'Персонажи', 'Персонажі', 'Personnages', 'Figuren'],
   'sp.npcModelos': ['Personajes de los mods', 'Mod characters', 'Personagens dos mods', 'Karakter mod', 'Watak mod', 'Mga karakter ng mod', 'MODのキャラクター', 'ตัวละครจากม็อด', 'Mod karakterleri', 'شخصيات المودات', 'Персонажи из модов', 'Персонажі з модів', 'Personnages des mods', 'Mod-Figuren'],
 });
+// (3.0) los nombres de las pestañas del menú de spawn (ui.js: antes salían en inglés, como en GMod)
+Object.assign(IDI3, {
+  'spt.Props': ['Props', 'Props', 'Props', 'Props', 'Prop', 'Props', 'プロップ', 'พร็อพ', 'Nesneler', 'الأغراض', 'Пропы', 'Пропи', 'Props', 'Props'],
+  'spt.NPCs': ['NPCs', 'NPCs', 'NPCs', 'NPC', 'NPC', 'Mga NPC', 'NPC', 'NPC', 'NPC\'ler', 'الشخصيات', 'NPC', 'NPC', 'PNJ', 'NPCs'],
+  'spt.Vehicles': ['Vehículos', 'Vehicles', 'Veículos', 'Kendaraan', 'Kenderaan', 'Mga sasakyan', '乗り物', 'ยานพาหนะ', 'Araçlar', 'المركبات', 'Транспорт', 'Транспорт', 'Véhicules', 'Fahrzeuge'],
+  'spt.Entities': ['Entidades', 'Entities', 'Entidades', 'Entitas', 'Entiti', 'Mga entity', 'エンティティ', 'เอนทิตี', 'Varlıklar', 'الكيانات', 'Сущности', 'Сутності', 'Entités', 'Entitäten'],
+  'spt.Weapons': ['Armas', 'Weapons', 'Armas', 'Senjata', 'Senjata', 'Mga armas', '武器', 'อาวุธ', 'Silahlar', 'الأسلحة', 'Оружие', 'Зброя', 'Armes', 'Waffen'],
+  'spt.Tools': ['Herramientas', 'Tools', 'Ferramentas', 'Alat', 'Alatan', 'Mga tool', 'ツール', 'เครื่องมือ', 'Aletler', 'الأدوات', 'Инструменты', 'Інструменти', 'Outils', 'Werkzeuge'],
+  'spt.Host': ['Anfitrión', 'Host', 'Anfitrião', 'Host', 'Hos', 'Host', 'ホスト', 'โฮสต์', 'Sunucu', 'المضيف', 'Хост', 'Хост', 'Hôte', 'Host'],
+});
