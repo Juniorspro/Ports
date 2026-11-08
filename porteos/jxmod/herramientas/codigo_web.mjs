@@ -249,7 +249,37 @@ const PUERTA = `<script>
 })();
 </script>
 `;
-html = html.slice(0, i0) + PUERTA + A + html.slice(i1);
+// botón "Actualizar" en la web: si version.json (al lado) trae un "codigo" mayor que el de esta web, aparece un botón abajo a
+// la derecha que limpia la caché del service worker y recarga (la web igual se auto-actualiza sola; esto es para forzarlo).
+const COD = parseInt(process.env.JX_COD || '3000', 10);
+const ACT = `<script>
+(function(){
+  var COD=${COD};
+  function boton(){
+    if(document.getElementById('jxAct'))return;
+    var en=(navigator.language||'es').slice(0,2)==='en';
+    var b=document.createElement('button');b.id='jxAct';b.textContent=en?'Update':'Actualizar';
+    b.setAttribute('style','position:fixed;z-index:2147483647;right:12px;bottom:12px;padding:10px 16px;border:0;border-radius:10px;background:#2f6bff;color:#fff;font:600 15px system-ui,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.45);cursor:pointer');
+    b.onclick=function(){
+      b.disabled=true;b.textContent='…';var fin=function(){location.reload();};
+      Promise.resolve().then(function(){
+        if('serviceWorker' in navigator)return navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.update().catch(function(){});}));});
+      }).then(function(){
+        if(window.caches)return caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k);}));});
+      }).then(fin,fin);
+    };
+    document.body.appendChild(b);
+  }
+  function ver(){
+    fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(j&&typeof j.codigo==='number'&&j.codigo>COD)boton();
+    }).catch(function(){});
+  }
+  if(document.readyState==='loading')addEventListener('DOMContentLoaded',ver);else ver();
+  setInterval(ver,1800000);
+})();
+</script>`;
+html = html.slice(0, i0) + PUERTA + ACT + A + html.slice(i1);
 fs.writeFileSync(IDX, html);
 console.log('ok', codigos.length, 'códigos ·', LUGARES.length === 1 ? 'en ' + LUGARES[0] : LUGARES.length + ' lugares', '· pk.bin cifrado', (pk.length / 1048576).toFixed(1), 'MB · juego.bin', (bin.length / 1048576).toFixed(2), 'MB · index.html', (Buffer.byteLength(html) / 1048576).toFixed(2), 'MB · versión', V);
 if (MOSTRAR) for (const { c, n } of codigos) console.log('  ' + c + (n ? '  (' + n + ')' : ''));

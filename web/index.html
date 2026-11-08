@@ -1605,7 +1605,7 @@ html.rot #pausa .pzGrid{grid-template-columns:repeat(3,1fr)}html.rot #pausa .pzC
 // ---------------- la página con código (la arma herramientas/codigo_web.mjs: no editar acá) ----------------
 // El juego viene cifrado en juego.bin. El código abre su clave; se recuerda en este aparato y la próxima vez abre solo.
 (function () {
-  const CL = {"v":"7b6436c61518","it":150000,"sal":"TwckgenLyLf/y0chk+pKKA==","pn":"N5TG2XeFJLg=","c":{"ae84c1882e645ab5":"wamTav7eGo7kpEA/NcBPU9gO4VFm4GXEO0ClCoQhrjzsXFEQY6Jl+np5BfD743ND4rBGEXm98/YfLc/F"}};
+  const CL = {"v":"b8ae3a3be196","it":150000,"sal":"xmxY8CeAQperK6CyRTdbHA==","pn":"0X8HpPUyvxI=","c":{"e831d0369ec680d3":"nc2im8JRE90Ig0d6JYMeb7+fu+ZgWO4FuKkNJIoi0u3l3mipqQUm54u1prLaAsHhrp8jP0/aGuCYPHjo"}};
   const L = (navigator.language || 'es').slice(0, 2), T = Object.assign({
     es: { tit: 'Ingresá tu código', bot: 'Jugar', mal: 'Ese código no es. Fijate las letras y probá de nuevo.', viejo: 'Tu código ya no sirve: pedí uno nuevo.', red: 'No se pudo bajar el juego. Revisá internet y probá de nuevo.', ayuda: 'Pedíselo a quien te pasó el link.', abr: 'Abriendo…', ios: 'En iPhone: primero Compartir → «Agregar a inicio» y poné el código ahí. Queda guardado y no te lo pide más.' },
     en: { tit: 'Enter your code', bot: 'Play', mal: 'That code is not right. Check the letters and try again.', viejo: 'Your code no longer works: ask for a new one.', red: 'Could not download the game. Check your internet and try again.', ayuda: 'Ask whoever sent you the link.', abr: 'Opening…', ios: 'On iPhone: first Share → «Add to Home Screen» and enter the code there. It is saved and you will not be asked again.' },
@@ -1787,7 +1787,33 @@ html.rot #pausa .pzGrid{grid-template-columns:repeat(3,1fr)}html.rot #pausa .pzC
   };
 })();
 </script>
-<script id="jsgz" type="text/plain"></script>
+<script>
+(function(){
+  var COD=3000;
+  function boton(){
+    if(document.getElementById('jxAct'))return;
+    var en=(navigator.language||'es').slice(0,2)==='en';
+    var b=document.createElement('button');b.id='jxAct';b.textContent=en?'Update':'Actualizar';
+    b.setAttribute('style','position:fixed;z-index:2147483647;right:12px;bottom:12px;padding:10px 16px;border:0;border-radius:10px;background:#2f6bff;color:#fff;font:600 15px system-ui,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.45);cursor:pointer');
+    b.onclick=function(){
+      b.disabled=true;b.textContent='…';var fin=function(){location.reload();};
+      Promise.resolve().then(function(){
+        if('serviceWorker' in navigator)return navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.update().catch(function(){});}));});
+      }).then(function(){
+        if(window.caches)return caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k);}));});
+      }).then(fin,fin);
+    };
+    document.body.appendChild(b);
+  }
+  function ver(){
+    fetch('version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(j&&typeof j.codigo==='number'&&j.codigo>COD)boton();
+    }).catch(function(){});
+  }
+  if(document.readyState==='loading')addEventListener('DOMContentLoaded',ver);else ver();
+  setInterval(ver,1800000);
+})();
+</script><script id="jsgz" type="text/plain"></script>
 <script>
 // ---------------- gzip en JS (para navegadores sin DecompressionStream) ----------------
 // Va afuera del código del juego, sin comprimir: el arranque del HTML lo usa para descomprimir el código del juego (que

@@ -145,6 +145,57 @@ public class Web extends Activity {
         try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return "1"; }
     }
 
+    // ---- actualizaciones: un botón "Descargar" cuando hay una versión nueva ----
+    // El APK no se actualiza solo (no está en Play): la app pregunta por una versión nueva en version.json (en el repo) y, si
+    // la hay, ofrece bajar el APK nuevo desde el navegador. La URL del APK es FIJA acá (no se toma del json): aunque alguien
+    // cambie el json, la app sólo abre el APK oficial. Subir VERSION_PROPIA y el "codigo" de version.json en cada release.
+    private static final int VERSION_PROPIA = 3000;
+    private static final String URL_VERSION = "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/version.json";
+    private static final String URL_APK = "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXMod.apk";
+
+    private void buscarActualizacion(final boolean avisarSiNoHay) {
+        new Thread(() -> {
+            int nueva = 0; String ver = "", notas = "";
+            HttpURLConnection c = null;
+            try {
+                c = (HttpURLConnection) new URL(URL_VERSION).openConnection();
+                c.setConnectTimeout(12000); c.setReadTimeout(20000); c.setInstanceFollowRedirects(true);
+                c.setRequestProperty("User-Agent", "JXMod/" + version() + " (Android)");
+                if (c.getResponseCode() == 200) {
+                    java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                    InputStream in = c.getInputStream(); byte[] bf = new byte[8192]; int n, tot = 0;
+                    while ((n = in.read(bf)) > 0 && tot < 65536) { bo.write(bf, 0, n); tot += n; }
+                    org.json.JSONObject j = new org.json.JSONObject(new String(bo.toByteArray(), java.nio.charset.StandardCharsets.UTF_8));
+                    nueva = j.optInt("codigo", 0);
+                    ver = j.optString("version", "");
+                    String L = java.util.Locale.getDefault().getLanguage();
+                    notas = j.optString("notas_" + L, j.optString("notas_es", ""));
+                }
+            } catch (Exception e) { /* sin internet o json raro: no molestar */ }
+            finally { if (c != null) try { c.disconnect(); } catch (Exception x) { /* nada */ } }
+            final boolean hay = nueva > VERSION_PROPIA; final String fv = ver, fn = notas;
+            runOnUiThread(() -> {
+                if (isFinishing()) return;
+                if (hay) dialogoActualizar(fv, fn);
+                else if (avisarSiNoHay) Toast.makeText(this, "Ya tenés la última versión", Toast.LENGTH_SHORT).show();
+            });
+        }).start();
+    }
+
+    private void dialogoActualizar(String ver, String notas) {
+        boolean en = "en".equals(java.util.Locale.getDefault().getLanguage());
+        String msg = (ver != null && !ver.isEmpty() ? (en ? "Version " : "Versión ") + ver : "")
+                   + (notas != null && !notas.isEmpty() ? "\n\n" + notas : "");
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(en ? "Update available" : "Hay una actualización")
+            .setMessage(msg.trim().isEmpty() ? (en ? "A new version is available." : "Hay una versión nueva.") : msg.trim())
+            .setPositiveButton(en ? "Download" : "Descargar", (d, w) -> {
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(URL_APK))); } catch (Exception e) { aviso("No se pudo abrir"); }
+            })
+            .setNegativeButton(en ? "Later" : "Después", null)
+            .show();
+    }
+
     private void crearWeb(String url) {
         // depuración remota de la WebView (chrome://inspect) sólo en una compilación depurable: en la app firmada queda
         // apagada, así nadie se mete a mirar o tocar el juego desde afuera (anti-trampa básico)
@@ -175,6 +226,8 @@ public class Web extends Activity {
         web.addJavascriptInterface(new Puente(), "JXNativo");
         raiz.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         web.loadUrl(url);
+        // a los 6 s, en silencio, mirar si hay una versión nueva (si la hay, un diálogo con "Descargar"; si no, nada)
+        web.postDelayed(() -> buscarActualizacion(false), 6000);
     }
 
     // ---- lo que la app pide por su cuenta (/red/<sitio>/<ruta>) ----
@@ -484,6 +537,10 @@ public class Web extends Activity {
             return "clasico";
         }
         @JavascriptInterface public String version() { return Web.this.version(); }
+        /** Buscar una versión nueva del APK: si la hay, un diálogo con "Descargar"; si no, un aviso. Lo llama el menú del juego. */
+        @JavascriptInterface public void buscarActualizacion() { Web.this.buscarActualizacion(true); }
+        /** La versión propia (número) para que el juego sepa si mostrar su botón "Actualizar". */
+        @JavascriptInterface public int versionCodigo() { return VERSION_PROPIA; }
         /** Abre un enlace (redes de JXStudios) en su app o en el navegador. */
         @JavascriptInterface public void abrir(final String url) {
             if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return;
