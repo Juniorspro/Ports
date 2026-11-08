@@ -120,6 +120,10 @@ function cargarMapa(nombre) {
   else if (aj.fog && aj.fm === 1 && aj.fe > aj.fs) R.niebla = Object.assign({ c: aj.fc.slice(0, 3) }, nieblaLineal(aj, lejos));
   else R.niebla = { c: C.mid.slice(), a: lejos * 0.7, b: lejos };
   if (nombre === 'Space' || aj.espacio) R.niebla = { c: [0, 0, 0], a: lejos * 0.8, b: lejos * 1.5 };
+  // el cielo propio del mapa (cielos.js): su degradé, la bruma del horizonte del color de la niebla y las nubes pintadas; en
+  // el atardecer y el cubierto también la luz del sol, para que el mapa y su cielo cuenten lo mismo. La luz de relleno de
+  // arriba sale del cielo original del mapa (los presets andan cerca): así no cambia cómo se ven las cosas en cada mapa
+  if (typeof cieloAplicar === 'function') cieloAplicar(nombre, aj);
   MUNDO.gravedad = aj.grav || (nombre === 'Space' ? 0.16 : nombre === 'Mars' ? 0.38 : 1);
   aguaMapa(aj.agua);   // (los volúmenes de agua del mapa: para nadar y para que floten las cosas)
   portalesMapa(aj);   // (las puertas portal de los mapas de GMod: el pasillo infinito de los Backrooms)

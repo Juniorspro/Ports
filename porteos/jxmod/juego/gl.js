@@ -571,46 +571,117 @@ void main(){
 const VS_CIELO = `
 layout(location=0) in vec2 aP; uniform mat4 uIVP; out vec3 vD;
 void main(){ vec4 a = uIVP * vec4(aP, 1.0, 1.0); vD = a.xyz / a.w; gl_Position = vec4(aP, 0.99999, 1.0); }`;
+// el cielo de los mapas propios (cielos.js arma los presets, la textura del cielo con las nubes y los uniformes): el degradé
+// del mapa, el sol, las estrellas y la luna detrás de las nubes, las nubes (una lectura de la textura del cielo —NUB > 0—,
+// pintada de a franjas aparte) y encima la bruma del horizonte, del color de la niebla del mapa. ESPACIO: estrellas por
+// todos lados y la nebulosa de la textura (sin aire: sin bruma ni nubes). Las potencias del sol van con multiplicaciones
+// (s^8, s^32, s^1024): el emulador de placa de las pruebas y las placas viejas cobran caro cada pow
 const FS_CIELO = `
-precision highp float; in vec3 vD; uniform vec3 uTop, uMid, uBot, uSol, uSolC, uCam, uLuna; uniform vec2 uExp; uniform float uExpo, uTiempo, uNoche, uNubes, uSolTam, uCieloK, uAire; out vec4 o;
+precision highp float; in vec3 vD; uniform vec3 uTop, uMid, uBot, uSol, uSolC, uCam, uLuna, uNie; uniform vec2 uExp; uniform vec4 uK, uK2, uK3; out vec4 o;
+#if NUB > 0
+uniform sampler2D uNubCT;
+#if NUB >= 3 && !defined(ESPACIO)
+uniform vec4 uGri;
+#endif
+#endif
 vec3 aces(vec3 x) { return clamp(x * (2.51 * x + 0.03) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
-float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * vn(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return s; }
+// una estrella en algunas celdas (dens: qué parte): un punto redondo en un lugar al azar de la celda, que titila
+float estrella(vec2 st, float dens) {
+  vec2 i = floor(st), f = fract(st) - 0.5; float e = h21(i);
+  vec2 p = vec2(h21(i + 17.3), h21(i + 41.9)) - 0.5;
+  return step(1.0 - dens, e) * (1.0 - smoothstep(0.06, 0.32, length(f - p * 0.5))) * (0.6 + 0.4 * sin(uK2.y * 3.0 + e * 60.0));
+}
+// (el arco coseno, para la proyección equidistante de la textura del cielo: Abramowitz y Stegun 4.4.45, sin pedir acos)
+float acosP(float y) { return 1.5707288 + y * (-0.2121144 + y * (0.0742610 - 0.0187293 * y)); }
+#if SALIDA == 0 && NUB > 0 && !defined(ESPACIO)
+// Patata y Bajo: el cielo de arriba entero (degradé, nubes, bruma y halo) ya está en la textura del cielo; acá sólo se lee
+// y se le pone el sol y la luna (lo nítido). Debajo del horizonte, el degradé con la bruma, como siempre
 void main(){
-  vec3 d = normalize(vD - uCam); float y = d.y;
-  vec3 c = y > 0.0 ? mix(uMid, uTop, pow(y, uExp.x)) : mix(uMid, uBot, pow(-y, uExp.y));
-  float s = max(dot(d, uSol), 0.0);
-#if SALIDA == 0
-  c += uSolC * (pow(s, 900.0) * 1.2 + pow(s, 12.0) * 0.12);
+  vec3 d = normalize(vD - uCam), c; float y = d.y;
+  if (y >= 0.0) c = texture(uNubCT, d.xz * (acosP(y) * inversesqrt(1.0 + y) * 0.3183099) + 0.5).rgb;
+  else { float hx = -y * uK2.w; c = mix(mix(uMid, uBot, pow(-y, uExp.y)), uNie, uK2.z / (1.0 + hx + hx * hx)); }
+  float s = max(dot(d, uSol), 0.0), s32 = s * s; s32 *= s32; s32 *= s32; s32 *= s32; s32 *= s32;
+  float s1k = s32 * s32; s1k *= s1k; s1k *= s1k; s1k *= s1k; s1k *= s1k;   // (s^1024)
+  c += uSolC * s1k * 1.2 * uK3.x;
+  if (uK.z > 0.0) c += vec3(0.8, 0.82, 0.9) * smoothstep(0.9993, 0.9995, max(dot(d, uLuna), 0.0)) * uK3.y;
   o = vec4(c, 1.0);
+}
 #else
-  c = pow(c, vec3(2.2)) * uCieloK;                                          // el degradé del juego (en gamma) pasado a lineal
-  c += uSolC * pow(s, 8.0) * 0.18 * (1.0 - abs(y)) * uAire;               // brillo del horizonte hacia el sol (sin aire, nada)
-  float disco = smoothstep(1.0 - uSolTam, 1.0 - uSolTam * 0.6, s);
-  c += uSolC * (disco * 40.0 + pow(s, 1200.0) * 3.0 + pow(s, 40.0) * 0.25 * uAire) * step(-0.02, y) * (1.0 - uNoche);
-#ifdef NUBES
-  if (y > 0.0) {
-    vec2 p = d.xz / (y + 0.12) * 0.55 + uTiempo * vec2(0.004, 0.0015);
-    float n = fbm(p * 1.6), cov = smoothstep(0.62 - uNubes * 0.3, 0.92, n) * smoothstep(0.0, 0.18, y);
-    float lado = pow(s, 6.0);
-    vec3 nc = mix(uMid * 0.85 + uSolC * 0.12, uSolC * 1.25 + uMid * 0.3, 0.35 + 0.65 * lado) * (1.0 - uNoche * 0.85);
-    c = mix(c, nc, cov * 0.9);
+void main(){
+  vec3 d = normalize(vD - uCam); float y = d.y, yp = max(y, 0.0), ay = abs(y);
+  vec3 c = y > 0.0 ? mix(uMid, uTop, pow(yp, uExp.x)) : mix(uMid, uBot, pow(-y, uExp.y));
+  float s = max(dot(d, uSol), 0.0), s2 = s * s, s4 = s2 * s2, s8 = s4 * s4, s32 = s8 * s8; s32 *= s32;
+  float s1k = s32 * s32; s1k *= s1k; s1k *= s1k; s1k *= s1k; s1k *= s1k;   // (s^1024)
+#if SALIDA == 0
+  c += uSolC * s1k * 1.2 * uK3.x;
+#else
+  c = c * c * (0.74 + 0.26 * c) * uK.y;                                    // el degradé del mapa (en gamma) a lineal (≈ ^2,2)
+  c += uSolC * (s8 * 0.18 * (1.0 - ay) * uK2.x);                           // brillo del horizonte hacia el sol (sin aire, nada)
+  float disco = smoothstep(1.0 - uK.w, 1.0 - uK.w * 0.6, s);
+  c += uSolC * (disco * 40.0 + s1k * 3.0) * (step(-0.02, y) * uK3.x);
+#endif
+  // las estrellas y la luna, detrás de las nubes
+#ifdef ESPACIO
+#if SALIDA != 0
+  vec3 ad = abs(d); vec2 cf = ad.x > max(ad.y, ad.z) ? d.yz / ad.x + vec2(sign(d.x) * 3.0, 0.0) : ad.y > ad.z ? d.xz / ad.y + vec2(sign(d.y) * 7.0, 0.0) : d.xy / ad.z + vec2(sign(d.z) * 11.0, 0.0);
+  c += vec3(0.85, 0.9, 1.0) * estrella(cf * 160.0, 0.012) * 2.4 * uK.z;    // (en las seis caras de un cubo: sin pliegue)
+#endif
+#else
+  if (uK.z > 0.0) {
+    float l = max(dot(d, uLuna), 0.0);
+#if SALIDA != 0
+    c += vec3(0.8, 0.85, 1.0) * estrella(d.xz / (yp + 0.3) * 160.0, 0.0025) * smoothstep(0.0, 0.25, y) * uK.z * 2.2;
+    c += vec3(0.85, 0.88, 1.0) * (smoothstep(0.9993, 0.9995, l) * 6.0 + pow(l, 60.0) * 0.08) * uK3.y;
+#else
+    c += vec3(0.8, 0.82, 0.9) * smoothstep(0.9993, 0.9995, l) * uK3.y;
+#endif
   }
 #endif
-  if (uNoche > 0.0 && y > 0.0) {
-    vec2 st = d.xz / (y + 0.3) * 160.0; float e = h21(floor(st));
-    c += vec3(0.8, 0.85, 1.0) * step(0.9975, e) * smoothstep(0.0, 0.25, y) * uNoche * (0.6 + 0.4 * sin(uTiempo * 3.0 + e * 60.0)) * 1.5;
-    float l = max(dot(d, uLuna), 0.0);
-    c += vec3(0.85, 0.88, 1.0) * (smoothstep(0.9993, 0.9995, l) * 6.0 + pow(l, 60.0) * 0.08) * uNoche;
+  float cubre = 0.0;
+#if NUB > 0
+#ifdef ESPACIO
+  // la nebulosa (la esfera entera en la textura): luz que se suma y polvo que tapa las estrellas
+  float t0 = sqrt(1.0 - ay) * acosP(ay), th = y >= 0.0 ? t0 : 3.14159265 - t0;
+  vec4 ct = texture(uNubCT, d.xz * (th * inversesqrt(max(1.0 - y * y, 1e-6)) * 0.1591549) + 0.5);
+#if SALIDA != 0
+  vec3 nb = ct.rgb * ct.rgb * (0.5 * uK3.z);                               // (guardada en raíz de la luz en lineal)
+#else
+  vec3 nb = ct.rgb * 0.7071;                                                // (en gamma, ≈ la raíz)
+#endif
+  c = c * (1.0 - ct.a * 0.85) + nb;
+#else
+  // las nubes: una lectura de la textura del cielo (el hemisferio de arriba, equidistante, con el color premultiplicado por
+  // lo que tapa); debajo del horizonte no se lee (la textura no tiene niveles: no hace falta la derivada de los vecinos)
+  if (y > 0.0) {
+    vec4 ct = texture(uNubCT, d.xz * (acosP(y) * inversesqrt(1.0 + y) * 0.3183099) + 0.5);
+    vec3 nc = ct.rgb * (1.5 / max(ct.a, 0.004));
+#if SALIDA != 0
+    nc = nc * nc * (0.74 + 0.26 * nc) * uK3.z;
+#endif
+#if NUB >= 3
+    float g = max(dot(d, uGri.xyz), 0.0), g2 = g * g, g8 = g2 * g2; g8 *= g8;
+    nc += vec3(0.25, 0.6, 1.3) * (g8 * g8 * g8 * uGri.w);                  // (la luz de la grieta, g^24)
+#endif
+    c = mix(c, nc, ct.a); cubre = ct.a;
   }
+#endif
+#endif
+  // la bruma del horizonte, del color de la niebla del mapa: lo lejano del mapa y el cielo se juntan sin línea
+  float hx = ay * uK2.w; c = mix(c, uNie, uK2.z / (1.0 + hx + hx * hx));
+#if SALIDA == 0
+  c += uSolC * (s8 * s4 * 0.12 * uK3.x * (1.0 - 0.6 * cubre));
+  o = vec4(c, 1.0);
+#else
+  c += uSolC * (s32 * s8 * 0.25 * uK2.x * uK3.x * (1.0 - 0.6 * cubre));   // (el halo del sol: las nubes lo apagan un poco)
 #if SALIDA == 2
   o = vec4(c, 1.0);
 #else
-  o = vec4(pow(aces(c * uExpo), vec3(1.0 / 2.2)), 1.0);
+  o = vec4(pow(aces(c * uK.x), vec3(1.0 / 2.2)), 1.0);
 #endif
 #endif
-}`;
+}
+#endif`;
 // cielo de caja (los mapas de GMod: el cielo 2D y la ciudad de fondo ya dibujados en las seis caras de un cubo). Con el
 // ciclo del día se tiñe con el color del cielo y de noche se va al degradé oscuro
 const FS_CUBO = `
@@ -809,7 +880,7 @@ function glIniciar() {
   const vu = gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS) || 0;
   R.nHuesos = vu >= 184 ? 168 : vu >= 172 ? 156 : 0; R.cpuSkin = R.nHuesos === 0 || Q.get('pielcpu') === '1';
   R.defsBase = ['NHUESOS=' + (R.nHuesos || 3)].concat(R.gl1 ? ['GL1'] : []).concat(R.deriv ? ['DERIV'] : []);
-  R.prog.cieloG = shader(VS_CIELO, FS_CIELO, ['SALIDA=0']);
+  R.prog.cieloG = shader(VS_CIELO, FS_CIELO, ['SALIDA=0', 'NUB=0']);   // (de reserva: el degradé solo; los demás, en dibujarCielo)
   R.prog.lin = shader(VS_LIN, FS_LIN);
   R.quad = gl.createVertexArray(); gl.bindVertexArray(R.quad);
   const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
@@ -1381,23 +1452,29 @@ function dibujarCubo(IVP, C, cubo) {
   gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubo); gl.activeTexture(gl.TEXTURE0);
   gl.depthMask(false); gl.depthFunc(gl.LEQUAL); gl.bindVertexArray(R.quad); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindVertexArray(null); R.vaoAct = null; gl.depthMask(true); gl.depthFunc(gl.LESS);
 }
+// el cielo de los mapas sin caja: el preset del mapa (cielos.js); las nubes, de la textura del cielo (una lectura por punto
+// en cualquier calidad: lo que cambia es cuánto trabaja la franja que la pinta entre cuadro y cuadro)
+function cieloNub(C) {
+  if (!C.nub || !CIELO.tex || CIELO.texGL !== R.gl) return 0;
+  const n = cieloNubCalidad().n; return cieloCTListo(n, !!C.nub.Pr.espacio) ? n : 0;
+}
 function dibujarCielo(IVP) {
   const gl = R.gl, C = R.cielo; if (!C) return;
   if (C.cubo) { const t = cuboGL(C.cubo); if (t) { dibujarCubo(IVP, C, t); return; } }
   if (C.cuboPx) { const t = cuboGLpx(C.cuboPx); if (t) { dibujarCubo(IVP, C, t); return; } }
-  let P;
-  if (R.salida === 'gam') P = R.prog.cieloG;
-  else { const nub = GFX.nubes && !MUNDO.espacio, k = 'cielo|' + R.salida + '|' + (nub ? 1 : 0); P = R.progs.get(k); if (!P) { P = shader(VS_CIELO, FS_CIELO, ['SALIDA=' + (R.salida === 'hdr' ? 2 : 1)].concat(nub ? ['NUBES'] : [])); R.progs.set(k, P); } } // (sin aire, sin nubes)
-  gl.useProgram(P.p); R.progAct = P;
-  const L = R.salida !== 'gam' && R.lin ? R.lin : null;
-  gl.uniformMatrix4fv(P.u.uIVP, false, IVP);
-  gl.uniform3fv(P.u.uTop, C.top); gl.uniform3fv(P.u.uMid, C.mid); gl.uniform3fv(P.u.uBot, C.bot); gl.uniform2fv(P.u.uExp, C.exp);
-  gl.uniform3f(P.u.uSol, R.sol.x, R.sol.y, R.sol.z); gl.uniform3fv(P.u.uSolC, L ? L.cieloSol : C.sol); gl.uniform3f(P.u.uCam, R.camPos.x, R.camPos.y, R.camPos.z);
-  if (R.salida !== 'gam') {
-    gl.uniform1f(P.u.uExpo, R.expo); gl.uniform1f(P.u.uTiempo, TIEMPO.t); gl.uniform1f(P.u.uCieloK, R.cieloK || 1); gl.uniform1f(P.u.uNoche, R.noche || 0); gl.uniform1f(P.u.uNubes, R.nubes === undefined ? 0.5 : R.nubes); if (P.u.uAire) gl.uniform1f(P.u.uAire, MUNDO.espacio ? 0 : 1);
-    gl.uniform1f(P.u.uSolTam, 0.00012 + (C.solTam || 0.3) * 0.0004);
-    const l = R.luna || v3(-R.sol.x, Math.abs(R.sol.y), -R.sol.z); gl.uniform3f(P.u.uLuna, l.x, l.y, l.z);
+  const sal = R.salida === 'hdr' ? 2 : R.salida === 'gam' ? 0 : 1, esp = !!(C.nub && C.nub.Pr.espacio);
+  // (la textura del cielo: si todavía no está o cambió la calidad, se arma; la franja siguiente, después de este cuadro)
+  if (C.nub) { if (!CIELO.ct || CIELO.ct.gl !== gl || CIELO.ct.S !== cieloNubCalidad().S) cieloCT(); cieloCTPedir(); }
+  let nub = cieloNub(C); const k = 'cielo|' + sal + '|' + nub + (esp ? 'e' : '');
+  let P = R.progs.get(k);
+  if (!P && !(CIELO.malos && CIELO.malos[k])) {
+    // (si en algún aparato no compila, queda el degradé solo: nunca sin cielo)
+    try { P = shader(VS_CIELO, FS_CIELO, ['SALIDA=' + sal, 'NUB=' + nub].concat(esp ? ['ESPACIO'] : [])); R.progs.set(k, P); }
+    catch (e) { (CIELO.malos || (CIELO.malos = {}))[k] = 1; if (typeof cnAnotar === 'function') cnAnotar('cielo', String(e && e.message || e).slice(0, 200)); }
   }
+  if (!P) { nub = 0; P = sal ? R.progs.get('cielo|' + sal + '|0') : R.prog.cieloG; if (!P) { P = shader(VS_CIELO, FS_CIELO, ['SALIDA=' + sal, 'NUB=0']); R.progs.set('cielo|' + sal + '|0', P); } }
+  gl.useProgram(P.p); R.progAct = P;
+  cieloUniformes(P, IVP, sal, nub, esp);
   gl.depthMask(false); gl.depthFunc(gl.LEQUAL); gl.bindVertexArray(R.quad); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindVertexArray(null); R.vaoAct = null; gl.depthMask(true); gl.depthFunc(gl.LESS);
 }
 // líneas sueltas (rayos de la pistola física, el cable, la mira de herramientas)
