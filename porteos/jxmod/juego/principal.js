@@ -313,10 +313,17 @@ function atenderPulsos() {
 // ¿este llamado se saltea? (sólo con un tope puesto, GFX.tope en cuadros por segundo: hoy ninguna calidad lo usa)
 function cuadroSalta(ahora, jugando) {
   const di = ahora - (TIEMPO.rafUlt || ahora); TIEMPO.rafUlt = ahora; if (di > 1) TIEMPO.rafMs = Math.min(di, (TIEMPO.rafMs || di) * 1.001);
-  if (!GFX.tope) { TIEMPO.ultDib = ahora; return false; }   // (sin tope: se dibuja cada vez que la pantalla lo pide)
-  const meta = 1000 / GFX.tope, dm = TIEMPO.rafMs || meta;
-  if (dm * 1.5 < meta && jugando && ahora - (TIEMPO.ultDib || 0) < meta - dm * 0.5) return true;
-  TIEMPO.ultDib = ahora; return false;
+  // (en el menú principal y con la pausa abierta, a 30 cuadros: no hace falta más y el celular no se calienta ni gasta batería
+  // mientras elegís; en partida, sin tope)
+  const menu = !GFX.tope && (!TEST || window.__menu30) && (JUEGO.estado !== 'juego' || (typeof UI !== 'undefined' && UI.abierto === 'pausa'));
+  const tope = GFX.tope || (menu ? 30 : 0);
+  if (!tope) { TIEMPO.ultDib = ahora; return false; }   // (sin tope: se dibuja cada vez que la pantalla lo pide)
+  const meta = 1000 / tope, dm = TIEMPO.rafMs || meta;
+  const ult = TIEMPO.ultDib || 0;
+  if (dm * 1.5 < meta && (jugando || menu) && ahora - ult < meta - dm * 0.5) return true;
+  // (la marca avanza de a un cuadro de la meta —no a «ahora»—: si uno salió tarde, el siguiente lo recupera y el promedio
+  // queda en la meta; si se atrasó más de dos cuadros, se vuelve a empezar desde ahora)
+  TIEMPO.ultDib = ahora - ult < meta * 2 ? ult + meta : ahora; return false;
 }
 const _proj = new Float32Array(16), _vp2 = new Float32Array(16);
 function cuadro(ahora) {
@@ -398,7 +405,7 @@ function cuadro(ahora) {
     // resolución interna antes que los efectos, y la vuelve a subir cuando sobra; en automático, además, si con la
     // resolución mínima igual no alcanza baja una calidad entera
     const din = GFX.auto || PREFS.resDin !== false, piso = GFX.auto ? 0.5 : Math.max(0.5, GFX.escalaMax * 0.6), prAh = TEST && window.__ahorroPrueba;
-    if (din && JUEGO.estado === 'juego' && !UI.abierto && (!TEST || prAh)) {
+    if (din && JUEGO.estado === 'juego' && !UI.abierto && (!TEST || prAh) && !(typeof GFXA !== 'undefined' && GFXA.midiendo)) {   // (sin resolución dinámica mientras gfxauto.js mide)
       // (sin ir y venir: para volver a subir hacen falta dos segundos seguidos con resto y que hayan pasado 3 s del último
       // cambio; si no, en un celular que anda entre 48 y 57 cuadros la resolución subía y bajaba cada segundo)
       // (la meta: la de la calidad, sin pasar lo que da la pantalla —un celu de 60 Hz no puede dar 120—)
@@ -408,7 +415,7 @@ function cuadro(ahora) {
       else if (TIEMPO.sobra >= 2 && quieto && GFX.escala < GFX.escalaMax) { GFX.escala = Math.min(GFX.escalaMax, GFX.escala + 0.04); redimensionar(); TIEMPO.resT = TIEMPO.t; TIEMPO.sobra = 0; }
       if (!GFX.auto && GFX.luz >= 2) gfxAhorroPaso(ms, metaF, piso);
     }
-    if (GFX.auto && JUEGO.estado === 'juego' && !UI.abierto && !TEST) {
+    if (GFX.auto && JUEGO.estado === 'juego' && !UI.abierto && !TEST && !(typeof GFXA !== 'undefined' && GFXA.midiendo)) {
       // ya en la resolución mínima y sigue lento: bajar una calidad entera (y no volver a subir en esta partida)
       if (TIEMPO.fps < 50 && GFX.escala <= 0.5) {
         TIEMPO.bajos = (TIEMPO.bajos || 0) + 1;
@@ -575,7 +582,7 @@ async function iniciar() {
     CG.log('modelos', [[Object.keys(DATA.pfPorNombre).length, 0], [Object.keys(DATA.anPorNombre).length, 1], [MAPAS.length, 2]]);
     // (entre paso y paso, un respiro para que la barra se dibuje)
     const respiro = () => new Promise((ok) => setTimeout(ok, 0));
-    paso('gráficos', 0.78, 'graficos'); await respiro(); try { await celuDetectar(); } catch (e) {} GFX.base = perfilInicial();
+    paso('gráficos', 0.78, 'graficos'); await respiro(); try { await celuDetectar(); } catch (e) {} if (typeof gfxAutoUnaVez === 'function') gfxAutoUnaVez(); GFX.base = perfilInicial();
     if (CIERRE.n > 0) { const i = PERF_ORDEN.indexOf(GFX.base); GFX.base = PERF_ORDEN[Math.max(0, (i < 0 ? 2 : i) - CIERRE.n)]; if (CIERRE.nuevo && PREFS.gfx === 'auto') setTimeout(() => aviso(T('gfx.cierre'), 5), 2500); }
     aplicarGfx();
     paso('efectos', 0.84, 'graficos'); await respiro(); efectosIniciar(); marcasIniciar();

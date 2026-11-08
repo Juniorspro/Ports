@@ -91,10 +91,20 @@ function dibujarEfectos() {
   if (PART.extra && PART.extra.length) dibujarCarteles();
   if (!L.length) return;
   const gl = R.gl, P = PART.prog, D = PART.data, tope = Math.min(D.length / PART_F, 900 * 6), luz = partLuz(), cam = CAM.pos;
+  // (técnicas de ahorro —LEEME, «Optimización»—: lo que está fuera de la vista, lo que mide menos de medio punto de la
+  // pantalla y, en Patata y Bajo, lo chico pasado el 60 % de la distancia de dibujo no se arma ni se manda a la placa)
+  const F = R.fr, px = R.cv.height / (2 * Math.tan((CAM.fov || 70) * Math.PI / 360)), lejosB = GFX.luz < 2 ? (GFX.lejos || 250) * 0.6 : 1e9;
+  PART.vistas = 0; PART.salt = 0;
   const pasada = (aditivo) => {
     // (las de alfa de lejos a cerca, para que se encimen bien)
     const O = PART.orden; O.length = 0;
-    for (const q of L) { if (q.t < 0 || (q.tipo !== 'humo' && q.tipo !== 'gota') !== aditivo) continue; O.push(q); }
+    for (const q of L) {
+      if (q.t < 0 || (q.tipo !== 'humo' && q.tipo !== 'gota') !== aditivo) continue;
+      // (el radio que cubre todo lo dibujado: el cartel girado mide hasta s·√2 y la chispa se estira media velocidad·0,06)
+      const w = q.modo === 1 ? (q.sv || q.v) : null, sm = q.tam * (1 + Math.max(0, q.crece)) * 1.42 + (w ? Math.hypot(w.x, w.y, w.z) * (q.sv ? 0.5 : 0.03) : 0) + 0.3, dx = q.p.x - cam.x, dy = q.p.y - cam.y, dz = q.p.z - cam.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if ((F && d > sm && !sphereIn(F, q.p.x, q.p.y, q.p.z, sm)) || sm * px < 0.5 * d || (d > lejosB && sm < 1.2)) { PART.salt++; continue; }
+      O.push(q); PART.vistas++;
+    }
     if (!O.length) return;
     if (!aditivo && O.length > 1 && O.length < 700) { for (const q of O) q.d2 = (q.p.x - cam.x) ** 2 + (q.p.y - cam.y) ** 2 + (q.p.z - cam.z) ** 2; O.sort((a, b) => b.d2 - a.d2); }
     let n = 0;
@@ -153,7 +163,8 @@ function lucesJuntar() {
   }
   entidadesLuces(); cicLuces(); verLuces(); nocheLuces();
 }
-function efectoTraza(a, b) { TRAZAS.push({ a: a.clone(), b: b.clone(), t: 0.06 }); }
+// (las trazas de las balas, con tope por calidad: en Patata 12 a la vez, en Bajo 24; arriba, 64)
+function efectoTraza(a, b) { if (TRAZAS.length >= (GFX.luz < 1 ? 12 : GFX.luz < 2 ? 24 : 64)) TRAZAS.shift(); TRAZAS.push({ a: a.clone(), b: b.clone(), t: 0.06 }); }
 function dibujarTrazas() { for (const t of TRAZAS) linea(t.a, t.b, [1, 0.92, 0.6, 0.8 * t.t / 0.06]); }
 function efectoFogonazo() {
   EF.fog = 0.05;

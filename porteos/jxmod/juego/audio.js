@@ -55,7 +55,8 @@ function fuente3D(pos, vol) {
   const c = AUD.ctx, g = c.createGain(), f = c.createBiquadFilter(), p = c.createPanner(), d = pos.distTo(CAM.pos);
   g.gain.value = vol; f.type = 'lowpass';
   const tapado = audioTapado(pos); f.frequency.value = tapado ? 900 : audioAbierto(); if (tapado) g.gain.value *= 0.55;
-  p.panningModel = d < 25 && AUD.hrtf < 24 ? 'HRTF' : 'equalpower'; p.distanceModel = 'inverse'; p.refDistance = 2.5; p.rolloffFactor = 1; p.maxDistance = 400;
+  // (el sonido 3D fino —HRTF, varias veces más caro para el procesador— sólo en Alto y Ultra; en las otras, el paneo simple)
+  p.panningModel = d < 25 && AUD.hrtf < 24 && (GFX.hdr || GFX.luz >= 3) ? 'HRTF' : 'equalpower'; p.distanceModel = 'inverse'; p.refDistance = 2.5; p.rolloffFactor = 1; p.maxDistance = 400;
   ponerPos(p, pos);
   g.connect(f); f.connect(p); p.connect(AUD.master);
   let r = null; if (AUD.rev) { r = c.createGain(); r.gain.value = 0.35; f.connect(r); r.connect(AUD.rev); }
@@ -71,10 +72,15 @@ function sonar(n, pos, vol, tono) {
     return null;
   }
   if (pos && pos.distTo(CAM.pos) > 160) return null;
+  // (tope de sonidos a la vez por calidad: llegado el tope, los lejanos —más de 12 m— no suenan; los cercanos sí. En un
+  // tiroteo con 30 armas el celular no arma 60 cadenas de audio por segundo)
+  const topeV = [10, 16, 24, 32, 40][Math.max(0, PERF_ORDEN.indexOf(GFX.nombre))] || 24;
+  if (pos && (AUD.vocesN || 0) >= topeV && pos.distTo(CAM.pos) > 12) { AUD.vocesDesc = (AUD.vocesDesc || 0) + 1; return null; }
   const s = AUD.ctx.createBufferSource(); s.buffer = b; s.playbackRate.value = tono || 1;
+  AUD.vocesN = (AUD.vocesN || 0) + 1; const finV = () => { AUD.vocesN = Math.max(0, AUD.vocesN - 1); };
   const v = vol === undefined ? 1 : vol;
-  if (pos) { const F = fuente3D(pos, v); s.connect(F.g); if (F.p.panningModel === 'HRTF') { AUD.hrtf++; s.onended = () => AUD.hrtf--; } }
-  else { const g = AUD.ctx.createGain(); g.gain.value = v; s.connect(g); g.connect(AUD.master); }
+  if (pos) { const F = fuente3D(pos, v); s.connect(F.g); if (F.p.panningModel === 'HRTF') { AUD.hrtf++; s.onended = () => { AUD.hrtf--; finV(); }; } else s.onended = finV; }
+  else { const g = AUD.ctx.createGain(); g.gain.value = v; s.connect(g); g.connect(AUD.master); s.onended = finV; }
   s.start();
   return s;
 }

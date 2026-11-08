@@ -19,6 +19,9 @@ function marcaTramo(a, b, n, w, k) {
   const d = vsub(b, a), L = d.len(); if (L < 0.02 || L > 3) return;
   const lado = vcross(n, d).norm().scale(w / 2), e = vscale(n, 0.02), al = clamp(k, 0.15, 1) * 0.55;
   const p = [vadd(vadd(a, lado), e), vadd(vsub(a, lado), e), vadd(vsub(b, lado), e), vadd(vadd(b, lado), e)];
+  // (con tope por calidad: en Patata 200 tramos, en Bajo 400, en Medio 700; en Alto y Ultra los 900)
+  const tope = Math.min(MARCAS.max, [200, 400, 700, 900, 900][Math.max(0, PERF_ORDEN.indexOf(GFX.nombre))] || MARCAS.max);
+  if (MARCAS.n >= tope && MARCAS.n < MARCAS.max) { MARCAS.ini = (MARCAS.ini + 1) % MARCAS.max; MARCAS.n--; }
   const i = (MARCAS.ini + MARCAS.n) % MARCAS.max; if (MARCAS.n < MARCAS.max) MARCAS.n++; else MARCAS.ini = (MARCAS.ini + 1) % MARCAS.max;
   const V = MARCAS.v; let o = i * 42;
   for (const q of [p[0], p[1], p[2], p[0], p[2], p[3]]) { V[o] = q.x; V[o + 1] = q.y; V[o + 2] = q.z; V[o + 3] = 0.05; V[o + 4] = 0.05; V[o + 5] = 0.05; V[o + 6] = al; o += 7; }
