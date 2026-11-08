@@ -25,8 +25,9 @@ function lanSala(H, url) {
   return { id: 'lan' + H.du, n: H.s, m: H.m, mo: 'Free', of: 0, rg: 0, pvp: 1, rpg: 1, nb: 1, mp: 1000, mv: 40, pw: 0, du: H.du, dn: H.n, lan: url };
 }
 // ¿esta página la sirve un anfitrión de la red (http://IP:8765/)? Sus datos, de /lan.json
+// (sólo se recuerda si contestó: si la página se abrió antes de que el anfitrión creara la partida, se vuelve a preguntar)
 async function lanServida() {
-  if (LAN.srv !== undefined) return LAN.srv;
+  if (LAN.srv) return LAN.srv;
   LAN.srv = null;
   if (location.protocol !== 'http:' || /^(localhost|127\.)/.test(location.hostname) && !Q.has('lan')) return null;
   try { const c = typeof AbortController === 'function' ? new AbortController() : null; if (c) setTimeout(() => c.abort(), 3000); const d = await (await fetch('/lan.json', { cache: 'no-store', signal: c ? c.signal : undefined })).json(); LAN.srv = lanDatos(d, location.hostname, +location.port || 80); }

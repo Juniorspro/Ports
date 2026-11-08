@@ -59,6 +59,10 @@ const U = 'http://127.0.0.1:' + P + '/' + ARCH + '?test&gfx=patata' + SINPUB;
 const clic = (Q, sel) => Q.ev(`(() => { const e = RB.el.querySelector(${JSON.stringify(sel)}); if (!e) return false; e.click(); return true; })()`);
 // ---- Ana: anfitriona en la app ----
 const A = await abrir('Ana', false, true, U);
+// (Caro abre ya el juego que sirve el celular de Ana, antes de que haya partida: en esta compu, cargar el juego con otros
+// dos jugando hace caer la página, también desde 127.0.0.1 —nada que ver con la red local—; y así se prueba que la
+// página abierta antes encuentra la partida después)
+const C = await abrir('Caro', false, false, 'http://' + IP + ':' + P + '/' + ARCH + '?test&gfx=patata&lan' + SINPUB);
 await A.ev("inicioMostrar(true); conectarMultijugador(); 1"); await espera(500);
 const conLogin = await A.ev("JSON.stringify({ falta: cuentaFaltaPara(), boton: !!RB.el.querySelector('[data-rb=lan]') })");
 await clic(A, '[data-rb=lan]'); await espera(400);
@@ -78,9 +82,6 @@ await clic(B, '.lanSala [data-rb^=lanEntrar]'); await espera(4500);
 const b1 = JSON.parse(await B.ev("JSON.stringify({ on: RED.on, lan: SALA && SALA.lan, du: SALA && SALA.du, anf: soyAnfitrion(), rem: [...RED.remotos.values()].map((r) => r.nombre), objs: [...RED.objs.values()].map((o) => o.nombre) })"));
 ok('Beto entra por el puente de la app (ws://127.0.0.1:…/lan/IP:puerto/mqtt), ve a Ana y la caja que puso; Ana es la anfitriona', b1.on && b1.lan.includes('/lan/' + lista[0][1] + ':' + P + '/mqtt') && b1.rem.includes('Ana') && b1.objs.includes('Crate') && b1.du === a1.id && !b1.anf, b1);
 // ---- Caro: sin la app, desde el juego que sirve el anfitrión ----
-// (mientras carga Caro, Ana y Beto dibujan en una ventana chica: en esta compu se dibuja con la CPU)
-await A.p.setViewportSize({ width: 480, height: 270 }); await B.p.setViewportSize({ width: 480, height: 216 });
-const C = await abrir('Caro', false, false, 'http://' + IP + ':' + P + '/' + ARCH + '?test&gfx=patata&lan' + SINPUB);
 await C.ev("inicioMostrar(true); conectarMultijugador(); 1"); await espera(300);
 await clic(C, '[data-rb=lan]');
 let listaC = []; for (let i = 0; i < 10 && !listaC.length; i++) { await espera(500); listaC = JSON.parse(await C.ev("JSON.stringify(LAN.lista.map((H) => [H.s, H.du]))")); }
