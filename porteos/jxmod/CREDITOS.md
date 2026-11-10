@@ -135,6 +135,19 @@ redistribuyen).
 | Lectura de la página del Workshop sin puente propio | servicio público r.jina.ai (Jina AI Reader) | se usa en vivo, no se copia | servicio de terceros |
 | Lista de celulares (modelo → código, chip, RAM) y puntaje de GPU por chip | armada a partir de datos públicos: lista de aparatos compatibles de Google Play (`supported_devices.csv`), fichas de GSMArena y sitios de las marcas; puntajes GFXBench Manhattan 3.0 de Notebookcheck | `juego/celulares.js` | datos públicos (sólo nombres, códigos y números) |
 
+## Pill Packs (`juego/pillpacks.js`, `juego/pill_gmod.js`)
+
+La idea (una pestaña «Pill Packs» para transformarse en un personaje, con vida, barra de poder y nivel) es de Henderson,
+del Discord de JXMod, sobre el addon Parakeet's Pill Pack de GMod. Los personajes propios son los del juego (con sus
+modelos y animaciones de siempre); los de los addons de pk_pills no vienen en el juego: cada uno instala el addon.
+
+| Qué | De dónde | Dónde | Licencia |
+|---|---|---|---|
+| Pestaña, HUD (vida, poder, nivel), habilidades, nivel, íconos SVG de las habilidades y de la cápsula, tonos de transformarse | hechos acá | `juego/pillpacks.js` | propio |
+| Módulo `pk_pills` propio (packStart, register con «parent», common.melee/shoot, la entidad «pill» para el Lua de cada addon) | escrito de nuevo según la API que usan los addons de Parakeet's Pill Pack (Steam Workshop 950845673); sin copiar código | `juego/pill_gmod.js` | propio |
+| Sonidos de los animatrónicos transformados (grito, risa, pasos, cajita musical, estática, ollas, carrera de Foxy) | los mismos `fn_*` de la pizzería (ver arriba), repetidos en el paquete chico `a_pill` | `web/rb/a_pill.*.rbp` | ídem pizzería |
+| Addons de prueba: Parakeet's Pill Pack y el pill pack de FNaF (Freddy, Bonnie, Chica, Foxy, Gold Freddy) | rip: Steam Workshop 950845673 y 320621862, bajados como .gma a `ripped/gma/` (fuera del repo) para `pruebas/pill_gmod.mjs`; no se redistribuyen | `ripped/gma/` | de sus autores; uso personal sin fines de lucro |
+
 ## Bibliotecas del navegador propio (`jxrt/`) — retiradas en la 2.9
 
 El motor nativo con V8 (linkedom 0.18.15 de Andrea Giammarchi, licencia ISC, y Javet 6.0.3 de Sam Cao con el V8 de
