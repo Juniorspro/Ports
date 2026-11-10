@@ -5,7 +5,9 @@
 // público. Los addons sin archivo directo (más o menos la mitad) bajan por SteamPipe con la tienda (gmod_pipe.js); si no
 // se puede, se importan desde la compu (.gma).
 const GM_CAT = 'gm_cat.56ecba085b.bin';   // (el catálogo del Workshop en web/rb/: lo escribe herramientas/gmod_catalogo.mjs)
-const GM_TAGS_UI = ['Weapon', 'Entity', 'NPC', 'Vehicle', 'Tool', 'Model', 'Effects', 'Fun', 'Roleplay', 'Realism', 'Cartoon', 'Scenic', 'Build'];
+// (las categorías de la izquierda: primero las del concepto de GOLDEN —armas, vehículos, NPC, herramientas, modelos y
+// diversión— y después las demás)
+const GM_TAGS_UI = ['Weapon', 'Vehicle', 'NPC', 'Tool', 'Model', 'Fun', 'Entity', 'Effects', 'Roleplay', 'Realism', 'Cartoon', 'Scenic', 'Build'];
 const GM_ORDENES = ['subs', 'pop', 'votos', 'nuevo', 'act'];
 const GM_ORDEN_STEAM = { pop: 'trend', nuevo: 'mostrecent', subs: 'totaluniquesubscribers', votos: 'toprated', act: 'lastupdated' };
 const gmCompactoCli = (x) => ({ id: String(x.publishedfileid), t: String(x.title || '').slice(0, 90), img: /^https:\/\//.test(x.preview_url || '') ? x.preview_url : '', mb: Math.round((+x.file_size || 0) / 1e5) / 10, subs: x.subscriptions | 0, fav: x.favorited | 0,
@@ -108,18 +110,16 @@ const gmInstalado = (id) => GMOD.addons.has(String(id)) || !!(PREFS.gmod && PREF
 // ---------------- la pestaña GMod de la tienda (menú principal) ----------------
 function gmTiendaPanel(P) {
   const S = RB.t; if (!GM_ORDENES.includes(S.gmOrden)) S.gmOrden = 'subs'; if (S.gmDir === undefined) S.gmDir = false;
-  const tab = (k, ic, t) => `<button class="rbTab${S.tab === k ? ' sel' : ''}" data-rb="tab:${k}">${ic} ${esc(T(t))}</button>`;
-  P.innerHTML = `<div class="rbPanCab">${esc(T('m.tienda'))}
-      <span class="rbTabs">${tab('mod', icoHTML('ico:mod'), 't.mods')}${tab('mapa', glifo('mapa'), 't.mapas')}${tab('anim', icoHTML('ico:animacion'), 't.anims')}${tab('gmod', `<img class="rbGmIco" src="${GM_ICO}" alt="">`, 't.gmod')}</span>
-      <span class="rbEsp"></span><label class="rbBtnGris rbChico">${glifo('subir')} ${esc(T('gm.importar'))}<input type="file" id="gmArchivo" accept=".gma,.bin" hidden></label></div>
-    <div class="rbBarra"><input id="rbBuscar" type="search" placeholder="${esc(T('buscar'))} · ${esc(T('gm.tit'))}" value="${esc(S.q)}">
-      <select id="rbOrden">${GM_ORDENES.map((k) => `<option value="${k}"${S.gmOrden === k ? ' selected' : ''}>${esc(T('gm.o.' + k))}</option>`).join('')}</select>
-      <span class="rbSeg"><button class="${S.vista === 'explorar' ? 'sel' : ''}" data-rb="vista:explorar">${esc(T('v.tienda'))}</button><button class="${S.vista === 'instalados' ? 'sel' : ''}" data-rb="vista:instalados">${esc(T('v.instalados'))}</button></span></div>
-    <div class="rbEtqs"><button class="rbEtq${!S.etq ? ' sel' : ''}" data-rb="etq:">${esc(T('e.todas'))}</button>${GM_TAGS_UI.map((e) => `<button class="rbEtq${S.etq === e ? ' sel' : ''}" data-rb="etq:${e}">${esc(T('gm.t.' + e))}</button>`).join('')}<button class="rbChk gmDir${S.gmDir ? ' on' : ''}" data-rb="gmdir"><em></em>${esc(T('gm.soloDir'))}</button></div>
-    <p class="gmPMnota">${esc(T('pjm.nota'))} <button class="rbBtnGris" data-rb="pjMods">${esc(T('m.personajes'))} → ${esc(T('pjm.tab'))}</button></p>
-    <div class="rbGrid rbTiendaG"></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbHab"></span><span class="gmSelPie"></span><span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris" data-rb="mas">${glifo('mas3')}</button>
-      <button class="rbBtnG" data-rb="nueva">${esc(T('m.nueva'))} ${glifo('jugar')}</button></div>`;
+  // (el marco es el de las otras pestañas —tiendaMarco, inicio.js—: a la izquierda las categorías del Workshop y el
+  // interruptor «Sólo descarga directa»; arriba de la grilla, que los personajes están aparte y cuántos addons hay)
+  tiendaMarco(P, {
+    acc: `<label class="rbBtnGris tiSubir tiSubir1" title="${esc(T('gm.importar'))}">${glifo('subir')}<span><b>${esc(T('gm.importar'))}</b></span><input type="file" id="gmArchivo" accept=".gma,.bin" hidden></label>`,
+    ph: T('ti.buscarGm'), orden: GM_ORDENES.map((k) => [k, T('gm.o.' + k)]), ordenSel: S.gmOrden,
+    cats: [['', T('e.todas')], ...GM_TAGS_UI.map((e) => [e, T('gm.t.' + e)])],
+    lado: `<button class="rbChk gmDir tiInter${S.gmDir ? ' on' : ''}" data-rb="gmdir" role="switch" aria-checked="${S.gmDir}"><em></em><span>${esc(T('gm.soloDir'))}</span></button>`,
+    nota: `<p class="gmPMnota">${glifo('info')}<span>${esc(T('pjm.nota'))} <button class="tiLink" data-rb="pjMods">${esc(T('m.personajes'))} → ${esc(T('pjm.tab'))}</button></span><b class="tiCuantos"></b></p>`,
+    pie: '<span class="gmSelPie"></span>',
+  });
   P.querySelector('#rbOrden').addEventListener('change', (e) => { S.gmOrden = e.target.value; });   // (antes que el de inicio.js, que vuelve a cargar)
   P.querySelector('#gmArchivo').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) gmTiendaImportar(f); });
   gmTiendaCargar(true);
@@ -165,37 +165,50 @@ function gmTiendaDibujar() {
   const S = RB.t, G = RB.el && RB.el.querySelector('.rbTiendaG'); if (!G || S.tab !== 'gmod') return;
   const img = (it) => (it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<img src="${GM_ICO}" alt="">`);
   const it = S.ficha && S.items.find((x) => x.id === S.ficha);
-  G.classList.toggle('rbFichaModo', !!it);
-  for (const s of ['.rbBarra', '.rbEtqs']) { const e = RB.el.querySelector(s); if (e) e.classList.toggle('oc', !!it); }
+  G.classList.toggle('rbFichaModo', !!it); tiFichaModo(!!it);
+  // (lo que dice la barra de avance: en cola, bajando o descomprimiendo, con el porcentaje)
+  const avance = (pr) => `${T(pr.estado === 'espera' ? 'gmc.espera' : pr.fase === 'descomprimiendo' ? 'gm.descomp' : 'gm.bajando')}${pr.estado === 'espera' ? '' : ' ' + Math.round(pr.p * 100) + '%'}`;
   if (it) {
     if (!it.detVivo && (!it.d || !it.subs) && /^\d+$/.test(it.id)) gmFichaVivo(it);
     const ins = gmInstalado(it.id), A = GMOD.addons.get(String(it.id)), pr = gmcDe(it.id), off = ins && !gmHabilitado(it.id);
     const cont = A ? [`${A.props.length} ${T('gm.modelos')}`, A.sweps && A.sweps.length ? `${A.sweps.length} ${T('gm.t.Weapon')}` : '', A.sents && A.sents.length ? `${A.sents.length} ${T('gm.t.Entity')}` : '', A.lua.length ? `${A.lua.length} ${T('gm.lua')}` : '', A.luaErr && A.luaErr.length ? `${A.luaErr.length} ${T('gm.errLua')}` : ''].filter(Boolean).join(' · ') : '';
-    const acc = pr ? `<div class="gmProg"><i style="width:${Math.round(pr.p * 100)}%"></i><span>${esc(T(pr.estado === 'espera' ? 'gmc.espera' : pr.fase === 'descomprimiendo' ? 'gm.descomp' : 'gm.bajando'))}${pr.estado === 'espera' ? '' : ' ' + Math.round(pr.p * 100) + '%'}</span></div><button class="rbBtnGris" data-rb="cancelarGm:${esc(it.id)}">${esc(T('cancelar'))}</button>`
-      : ins ? gmFichaAbrir(A) + `<button class="rbBtnGris" data-rb="quitar:${esc(it.id)}">${glifo('basura')} ${esc(T('quitar'))}</button>`
+    const acc = pr ? `<div class="gmProg"><i style="width:${Math.round(pr.p * 100)}%"></i><span>${esc(avance(pr))}</span></div><button class="rbBtnGris" data-rb="cancelarGm:${esc(it.id)}">${glifo('no')} ${esc(T('cancelar'))}</button>`
+      : ins ? gmFichaAbrir(A) + `<button class="rbBtnGris tiRojo" data-rb="quitar:${esc(it.id)}">${glifo('basura')} ${esc(T('quitar'))}</button>`
       : it.sinPipe ? `<label class="rbBtnG rbFichaGrande">${glifo('subir')} ${esc(T('gm.importar'))}<input type="file" class="gmImpFicha" accept=".gma,.bin" hidden></label>`
       : `<button class="rbBtnG rbFichaGrande" data-rb="instalar:${esc(it.id)}">${glifo('bajar')} ${esc(T('instalar'))}${it.mb ? ` <small>${it.mb} MB</small>` : ''}</button>`;
-    G.innerHTML = `<div class="rbFicha${ins && !off ? ' on' : ''}${off ? ' off' : ''}"><button class="rbBtnGris rbChico rbFichaX" data-rb="fichaNo">${glifo('atras')} ${esc(T('volver'))}</button>
-      <div class="rbFichaCuerpo"><div class="rbFichaIco">${img(it)}</div>
-        <div class="rbFichaInfo"><h3 dir="auto">${esc(it.t)}</h3><small>${[it.subs ? `${glifo('gente')} ${gmCifra(it.subs)} ${esc(T('gm.subs'))}` : '', it.fav ? `${glifo('corazon')} ${gmCifra(it.fav)}` : '', it.mb ? it.mb + ' MB' : '', it.autor ? esc(T('por')) + ' ' + esc(it.autor) : ''].filter(Boolean).join(' · ')}</small>
-          <span class="rbEtqsC">${(it.tags || []).filter((t) => t !== 'Addon').map((e) => `<i>${esc(T('gm.t.' + e) !== 'gm.t.' + e ? T('gm.t.' + e) : e)}</i>`).join('')}</span>
-          ${off ? `<p class="gmAviso rbOffAyuda">${glifo('prohibido')} ${esc(T('hab.offGm'))}</p>` : ''}${gmNoCompat(it) ? `<p class="gmAviso">${esc(T('gm.noCompat'))}</p>` : ''}${it.sinPipe && !ins ? `<p class="gmAviso">${esc(T('gm.sinArchivo'))}</p>` : ''}
-          ${cont ? `<p class="gmCont"><b>${esc(T('gm.contenido'))}:</b> ${esc(cont)}</p>` : ''}${A && A.faltanModelos && A.faltanModelos.length ? `<p class="gmAviso">${esc(T('gm.otroAddon').replace('{n}', A.faltanModelos.length))}: ${esc(A.faltanModelos.slice(0, 3).map((m) => m.replace(/^.*\//, '')).join(', '))}${A.faltanModelos.length > 3 ? '…' : ''}</p>` : ''}
-          <p dir="auto">${esc(it.d || '')}</p>
-          <div class="rbFichaAcc">${acc}${/^\d+$/.test(it.id) ? `<a class="rbBtnGris" href="https://steamcommunity.com/sharedfiles/filedetails/?id=${it.id}" target="_blank" rel="noopener">${esc(T('gm.steam'))}</a>` : ''}</div></div></div></div>`;
+    G.innerHTML = tiFicha({ cls: `${ins && !off ? ' on' : ''}${off ? ' off' : ''}`, img: img(it), titulo: it.t,
+      // (el autor, si es un nombre: el puente da a veces el número de cuenta de Steam, que no le dice nada a nadie)
+      meta: [it.subs ? `${glifo('gente')} ${gmCifra(it.subs)} ${esc(T('gm.subs'))}` : '', it.fav ? `${glifo('corazon')} ${gmCifra(it.fav)}` : '', it.mb ? it.mb + ' MB' : '', it.autor && !/^\d{10,}$/.test(it.autor) ? esc(T('por')) + ' ' + esc(it.autor) : ''].filter(Boolean).join(' · '),
+      chips: (ins ? '' : it.dir ? `<i class="tiChip">${glifo('bajar')} ${esc(T('ti.directa'))}</i>` : it.dir === false ? '<i class="tiChip">.gma</i>' : '') + (it.tags || []).filter((t) => t !== 'Addon').map((e) => `<i>${esc(T('gm.t.' + e) !== 'gm.t.' + e ? T('gm.t.' + e) : e)}</i>`).join(''),
+      avisos: `${off ? `<p class="gmAviso rbOffAyuda">${glifo('prohibido')} ${esc(T('hab.offGm'))}</p>` : ''}${gmNoCompat(it) ? `<p class="gmAviso">${esc(T('gm.noCompat'))}</p>` : ''}${it.sinPipe && !ins ? `<p class="gmAviso">${esc(T('gm.sinArchivo'))}</p>` : ''}`,
+      acc: acc + (/^\d+$/.test(it.id) ? `<a class="rbBtnGris" href="https://steamcommunity.com/sharedfiles/filedetails/?id=${it.id}" target="_blank" rel="noopener">${glifo('mundo')} ${esc(T('gm.steam'))}</a>` : ''),
+      extra: `${cont ? `<p class="gmCont"><b>${esc(T('gm.contenido'))}:</b> ${esc(cont)}</p>` : ''}${A && A.faltanModelos && A.faltanModelos.length ? `<p class="gmAviso">${esc(T('gm.otroAddon').replace('{n}', A.faltanModelos.length))}: ${esc(A.faltanModelos.slice(0, 3).map((m) => m.replace(/^.*\//, '')).join(', '))}${A.faltanModelos.length > 3 ? '…' : ''}</p>` : ''}`,
+      desc: esc(it.d || '') });
     const fi = G.querySelector('.gmImpFicha'); if (fi) fi.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) gmTiendaImportar(f, it); });
   } else {
     if (S.sel) return gmSelDibujar(G, img);
-    const tile = (x) => `<button class="rbTile${gmInstalado(x.id) ? ' inst' : ''}${gmInstalado(x.id) && !gmHabilitado(x.id) ? ' off' : ''}" data-rb="ver:${esc(x.id)}"><span class="rbTileIco">${img(x)}</span><b dir="auto">${esc(x.t)}</b><small class="gmTileD">${x.subs ? `${glifo('gente')} ${gmCifra(x.subs)}` : esc(x.autor || '')}${x.dir ? ` · ${glifo('bajar')}` : x.dir === false ? ' · .gma' : ''}</small>${gmInstalado(x.id) ? (gmHabilitado(x.id) ? '<i class="rbTileOk"></i>' : '<i class="rbTileOff"></i>') : gmcDe(x.id) ? `<i class="rbTileBaja" style="width:${Math.round(gmcDe(x.id).p * 100)}%"></i>` : ''}</button>`;
+    // la tarjeta: los suscriptos y si baja directo («Directa») o hace falta el .gma; el botón instala (con la barra de
+    // avance mientras baja), habilita uno deshabilitado o —ya instalado— abre la ficha
+    const tile = (x) => {
+      const id = x.id, ins = gmInstalado(id), on = ins && gmHabilitado(id), pr = !ins && gmcDe(id);
+      const btn = pr ? `<button class="tiBtn tiBtn_va" data-rb="ver:${esc(id)}"><i class="rbTileBaja" style="width:${Math.round(pr.p * 100)}%"></i>${glifo('bajar')}<span>${esc(avance(pr))}</span></button>`
+        : ins ? (on ? tiBtn('ok', 'ver:' + id, `<i class="rbTileOk">${glifo('si')}</i>`, T('instalado')) : tiBtn('si', 'habGm:' + id, `<i class="rbTileOff">${glifo('si')}</i>`, T('hab.si')))
+        : x.sinPipe ? tiBtn('si', 'ver:' + id, glifo('subir'), '.gma')
+        : tiBtn('si', 'instalar:' + id, glifo('bajar'), T('instalar'));
+      const meta = (x.subs ? `<i>${glifo('gente')} ${gmCifra(x.subs)}</i>` : x.autor && !/^\d{10,}$/.test(x.autor) ? `<i>${esc(x.autor)}</i>` : '') + (ins ? '' : x.dir ? `<i class="tiChip">${glifo('bajar')} ${esc(T('ti.directa'))}</i>` : x.dir === false ? '<i class="tiChip">.gma</i>' : '');
+      return tiTarjeta({ id, img: img(x), nombre: x.t, meta: meta || '&nbsp;', btn, cls: `${ins ? 'inst' : ''}${ins && !on ? ' off' : ''}` });
+    };
     const fin = S.cargando ? `<div class="rbVacio">${esc(T('cargando'))}</div>` : S.error ? `<div class="rbVacio">${esc(T('gm.puente'))}</div>` : !S.items.length ? `<div class="rbVacio">${esc(T(S.gmDir && S.vista === 'explorar' && S.vistosGM ? 'gm.ningunoDir' : 'sinRes'))}</div>` : '';
     G.innerHTML = S.items.map(tile).join('') + fin;
   }
+  const cu = RB.el.querySelector('.tiCuantos'); if (cu) cu.textContent = S.total ? `${gmCifra(S.total)} ${T('gmb.addons')}` : '';
   const tot = RB.el.querySelector('.rbTotal'); if (tot) tot.textContent = S.total && !it ? `${S.items.length} / ${gmCifra(S.total)}` : '';
   const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.display = !it && S.vista === 'explorar' && !S.finGM && S.items.length < S.total && !S.cargando ? '' : 'none';   // (sin ocupar lugar: en un celular chico el pie entra en un renglón)
   const hab = RB.el.querySelector('.rbHab'); if (hab) hab.innerHTML = habBotones(it ? (PREFS.gmod && PREFS.gmod[it.id] ? it.id : null) : undefined, Object.keys(PREFS.gmod || {}), gmHabilitado, 'Gm', S.habVa);
   gmSelModo(false);
   // (en Instalados, «Borrar varios»: en una pantalla chica, sólo el tacho)
   const sp = RB.el.querySelector('.gmSelPie'); if (sp) sp.innerHTML = !it && S.vista === 'instalados' && !S.habVa && S.items.length > 1 ? `<button class="rbBtnGris gmSelBtn" data-rb="selGm" title="${esc(T('sel.boton'))}" aria-label="${esc(T('sel.boton'))}">${glifo('basura')}<span>${esc(T('sel.boton'))}</span></button>` : '';
+  tiEncajar();
 }
 // (eligiendo: sin «Empezar partida nueva» ni el total, para que el pie entre en un renglón)
 // (en Instalados, en una pantalla chica, sin el total —«2 / 2»—: el pie con «Borrar varios» entra en un renglón)
@@ -222,7 +235,7 @@ function gmSelUsado() { let p = 0, mb = 0; for (const id of RB.t.sel.ids) { p +=
 function gmSelDibujar(G, img) {
   const S = RB.t, u = gmSelUsado();
   const tile = (x) => { const on = S.sel.ids.has(x.id), mb = gmSelMB(x.id), no = !on && u.p + gmSelPts(x.id) > GM_SEL_CUPO;
-    return `<button class="rbTile gmSelT${on ? ' sel' : ''}${no ? ' bloq' : ''}" data-rb="ver:${esc(x.id)}"><span class="rbTileIco">${img(x)}</span><b dir="auto">${esc(x.t)}</b><small class="gmTileD gmSel_${mb === null ? 'mediano' : gmSelClase(mb)}">${gmTamTxt(mb)}</small><i class="gmSelMarca"></i></button>`; };
+    return `<div class="rbTile tiCard gmSelT${on ? ' sel' : ''}${no ? ' bloq' : ''}" data-rb="ver:${esc(x.id)}" role="checkbox" aria-checked="${on}" tabindex="0"><span class="rbTileIco">${img(x)}</span><b dir="auto" title="${esc(x.t)}">${esc(x.t)}</b><small class="gmTileD gmSel_${mb === null ? 'mediano' : gmSelClase(mb)}">${gmTamTxt(mb)}</small><i class="gmSelMarca"></i></div>`; };
   G.innerHTML = `<p class="gmSelRegla">${esc(T('sel.regla'))}</p>` + (S.items.map(tile).join('') || `<div class="rbVacio">${esc(T('sinRes'))}</div>`);
   const tot = RB.el.querySelector('.rbTotal'); if (tot) tot.textContent = '';
   const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.display = 'none';
@@ -232,6 +245,7 @@ function gmSelDibujar(G, img) {
   sp.innerHTML = va ? `<button class="rbBtnGris" disabled>${esc(T('sel.borrando').replace('{i}', Math.min(va.i + 1, va.n)).replace('{n}', va.n))}</button>`
     : `<button class="rbBtnGris" data-rb="selNo">${esc(T('cancelar'))}</button><span class="gmSelInfo">${esc(T('sel.info').replace('{n}', n).replace('{mb}', u.mb < 1 && u.mb > 0 ? '<1' : Math.round(u.mb)).replace('{p}', u.p))}</span>`
       + `<button class="rbBtnGris gmSelBorrar" data-rb="selBorrar"${n ? '' : ' disabled'}>${glifo('basura')} ${esc(T('sel.borrar').replace('{n}', n))}</button>`;
+  tiEncajar();
 }
 function gmSelTocar(id) {
   const S = RB.t, L = S.sel.ids; if (S.sel.va) return;
@@ -268,8 +282,9 @@ async function gmSelBorrar(ids, mb) {
 // id: el de la ficha (null: ficha de algo no instalado; undefined: la lista); ids: los instalados; on(id): si está habilitado
 function habBotones(id, ids, on, suf, va) {
   if (va) return `<button class="rbBtnGris" disabled>${esc(T(va.on ? 'hab.vaSi' : 'hab.vaNo').replace('{i}', Math.min(va.i + 1, va.n)).replace('{n}', va.n))}</button>`;
-  const no = (d, k, a) => `<button class="rbBtnGris rbHabNo" data-rb="${a}"${d ? ' disabled' : ''}>${glifo('prohibido')} ${esc(T(k))}</button>`;
-  const si = (d, k, a) => `<button class="rbBtnGris rbHabSi" data-rb="${a}"${d ? ' disabled' : ''}>${glifo('si')} ${esc(T(k))}</button>`;
+  // (con el nombre también de título: en un celular chico el pie los deja con el ícono solo)
+  const no = (d, k, a) => `<button class="rbBtnGris rbHabNo" data-rb="${a}" title="${esc(T(k))}"${d ? ' disabled' : ''}>${glifo('prohibido')} ${esc(T(k))}</button>`;
+  const si = (d, k, a) => `<button class="rbBtnGris rbHabSi" data-rb="${a}" title="${esc(T(k))}"${d ? ' disabled' : ''}>${glifo('si')} ${esc(T(k))}</button>`;
   if (id === null) return '';
   if (id !== undefined) return on(id) ? no(false, 'hab.no', `des${suf}:${id}`) : si(false, 'hab.si', `hab${suf}:${id}`);
   if (!ids.length) return '';

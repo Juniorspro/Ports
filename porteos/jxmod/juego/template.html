@@ -255,7 +255,7 @@ body.sinUI #hud>*:not(#mira){visibility:hidden}
 html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(90deg) translateY(-100%)}
 #menuReal{position:fixed;inset:0;z-index:5;overflow:hidden}
 /* JXMod: inicio con el aspecto del menú de Garry's Mod (tamaños por la altura real del juego: --vh) */
-#rbInicio{position:fixed;inset:0;z-index:5;overflow:hidden;background:#000;font-family:Roboto,'Helvetica Neue',Helvetica,Arial,sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+#rbInicio{position:fixed;inset:0;z-index:5;overflow:hidden;overflow:clip;background:#000;font-family:Roboto,'Helvetica Neue',Helvetica,Arial,sans-serif;color:#fff;user-select:none;-webkit-user-select:none}   /* (clip: el fondo que se agranda —rbKen— lo hacía más alto y, al llevar una tarjeta a la vista, el menú entero se corría unos px para arriba) */
 #rbInicio.oc,#rbInicio .oc{display:none}
 .rbBg{position:absolute;inset:0;background:#1a1d24 center/cover;opacity:0;transition:opacity 1.8s;animation:rbKen 26s linear infinite alternate}
 .rbBg.on{opacity:1}
@@ -1333,6 +1333,225 @@ html.rot #pausa .pzGrid{grid-template-columns:repeat(3,1fr)}html.rot #pausa .pzC
 #emotes .emoPie .boton{border-radius:0;font:500 15px/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em;min-height:40px;background:var(--jxPl2);color:var(--jxT)}
 #emotes .emoPie .boton:hover{background:var(--jxPl3)}#emotes .emoPie .boton .gli{color:var(--jxA)}
 #emotes .xCerrar{top:0;right:0;width:40px;height:40px;border-radius:0;background:var(--jxPl2);box-shadow:none}#emotes .xCerrar:hover{background:var(--jxA);color:#121212}
+
+/* -- «Mods y mapas» con el concepto de GOLDEN en el Discord («Mejor interfaz en el apartado de mods»): panel oscuro con el
+   amarillo de acento; pestañas en placas (la elegida, amarilla); las categorías en una columna a la izquierda; el
+   buscador, el orden y Explorar/Instalados arriba de la grilla; tarjetas con la imagen sobre una placa, el nombre, una
+   línea de datos y el botón a lo ancho (amarillo: lo que se puede hacer; verde con contorno: ya está); títulos de sección
+   con el filo amarillo y su número; el pie con Volver, habilitar/deshabilitar todo, el total y «Empezar partida nueva».
+   Como en el concepto: bordes apenas redondeados y letra normal (no la condensada en mayúsculas de los otros menús). Las
+   medidas siguen al alto de la pantalla (--vh) entre un mínimo y un máximo; en el celular, objetivos de 40 px (los
+   botones de las tarjetas, 36) y nada encimado: arriba y el pie se achican por pasos si no entran (tiEncajar, inicio.js) -- */
+.rbPan.rbPan_tienda{--tiF:clamp(14px,calc(var(--vh)*2.05),19px);--tiFs:clamp(12px,calc(var(--vh)*1.7),16px);--tiH:clamp(40px,calc(var(--vh)*6.2),56px);--tiHb:clamp(34px,calc(var(--vh)*5),46px);--tiR:6px;--tiG:clamp(6px,calc(var(--vh)*1.3),14px);
+  --tiPl:#1b1c20;--tiPl2:#232429;--tiCaja:#27282d;--tiBo:rgba(239,237,231,.13);--tiBo2:rgba(239,237,231,.22);--tiVe:#5fd385;--tiT:#d6d4ce;
+  top:var(--jxM);bottom:var(--jxM);left:var(--jxM);right:var(--jxM);background:rgba(16,17,19,.97);color:var(--jxT);border:1px solid var(--tiBo);border-radius:10px;box-shadow:0 14px 50px rgba(0,0,0,.6);color-scheme:dark;font:400 var(--tiF)/1.3 Roboto,Arial,sans-serif}
+.rbPan_tienda ::-webkit-scrollbar{width:8px;height:8px}.rbPan_tienda ::-webkit-scrollbar-thumb{background:#3a3b41;border-radius:4px}.rbPan_tienda ::-webkit-scrollbar-track{background:transparent}
+.rbPan_tienda [data-rb]:focus-visible,.rbPan_tienda .tiBus:focus-within,.rbPan_tienda select:focus-visible{outline:2px solid var(--jxA);outline-offset:-2px}
+/* (arriba: el título, las pestañas y las acciones de la pestaña, en un renglón) */
+.rbPan_tienda .tiCab{flex:none;display:flex;align-items:center;flex-wrap:nowrap;overflow:hidden;gap:var(--tiG);padding:calc(var(--tiG)*.9) calc(var(--tiG)*1.4);background:transparent;border-bottom:1px solid var(--tiBo);color:var(--jxT);font:inherit}
+.rbPan_tienda .tiCab>*{flex:none}.rbPan_tienda .tiCab>.rbEsp{flex:1 1 0;min-width:0}
+.rbPan_tienda .tiTit{font:700 clamp(17px,calc(var(--vh)*3.1),28px)/1.1 Roboto,Arial,sans-serif;white-space:nowrap;margin-inline-end:calc(var(--tiG)*.4)}
+.rbPan_tienda .tiTabs{display:flex;gap:calc(var(--tiG)*.7);margin:0;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
+.rbPan_tienda .tiTabs::-webkit-scrollbar{display:none}
+.rbPan_tienda .rbTab{flex:none;display:inline-flex;align-items:center;gap:.5em;height:var(--tiH);padding:0 calc(var(--tiG)*1.25);background:var(--tiPl);color:var(--jxT);border:1px solid var(--tiBo);border-radius:var(--tiR);font:500 calc(var(--tiF)*1.06)/1 Roboto,Arial,sans-serif;white-space:nowrap;cursor:pointer;box-sizing:border-box}
+.rbPan_tienda .rbTab .ico,.rbPan_tienda .rbTab .rbGmIco,.rbPan_tienda .rbTab .gli{width:1.35em;height:1.35em;border-radius:4px;vertical-align:0;flex:none}
+.rbPan_tienda .rbTab:hover{background:var(--tiPl2);border-color:var(--tiBo2)}
+.rbPan_tienda .rbTab.sel{background:var(--jxA);border-color:var(--jxA);color:#141414;font-weight:700}
+.rbPan_tienda .tiAcc{display:flex;gap:calc(var(--tiG)*.7);align-items:center}
+/* (los botones de todo el panel: el amarillo para lo principal; el oscuro con contorno para lo demás) */
+.rbPan_tienda .rbBtnG,.rbPan_tienda .rbBtnGris{display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:var(--tiH);padding:0 calc(var(--tiG)*1.5);border-radius:var(--tiR);font:500 var(--tiF)/1.15 Roboto,Arial,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:none;text-decoration:none;box-sizing:border-box}
+.rbPan_tienda .rbBtnG{background:var(--jxA);color:#141414;border:1px solid var(--jxA);font-weight:700}
+.rbPan_tienda .rbBtnG:hover{background:var(--jxA2);border-color:var(--jxA2)}
+.rbPan_tienda .rbBtnGris{background:var(--tiPl);color:var(--jxT);border:1px solid var(--tiBo2)}
+.rbPan_tienda .rbBtnGris:hover{background:var(--tiPl2);border-color:rgba(239,237,231,.34)}
+.rbPan_tienda .rbBtnG .gli,.rbPan_tienda .rbBtnGris .gli{width:1.2em;height:1.2em;vertical-align:0}.rbPan_tienda .rbBtnG .gli{stroke-width:2.6}
+.rbPan_tienda .rbBtnGris.sel{border-color:var(--jxA);color:var(--jxA)}
+.rbPan_tienda button[disabled],.rbPan_tienda .rbPanPie button[disabled]{opacity:.42;cursor:default;background:var(--tiPl)}
+.rbPan_tienda .tiRojo .gli,.rbPan_tienda .rbHabNo .gli{color:var(--jxRo)}.rbPan_tienda .rbHabSi .gli{color:var(--tiVe)}
+.rbPan_tienda .rbHabNo:not([disabled]),.rbPan_tienda .tiRojo{border-color:rgba(255,107,94,.5)}.rbPan_tienda .rbHabNo:not([disabled]):hover,.rbPan_tienda .tiRojo:hover{border-color:rgba(255,107,94,.8)}
+.rbPan_tienda .tiSubir>span{display:flex;flex-direction:column;align-items:flex-start;line-height:1.05}.rbPan_tienda .tiSubir b{font-weight:500}
+.rbPan_tienda .tiSubir small{font-size:var(--tiFs);color:var(--jxT3);margin-top:1px}
+/* (los pasos para que arriba entre en un renglón: sin el título, «Subir archivo» con el ícono solo, las pestañas no
+   elegidas con el ícono solo y la acción de la pestaña con el ícono solo) */
+.rbPan_tienda .tiCab.tiC1 .tiTit{display:none}
+.rbPan_tienda .tiCab.tiC2 .tiSubir>span,.rbPan_tienda .tiCab.tiC4 .tiPri>span{display:none}
+.rbPan_tienda .tiCab.tiC2 .tiSubir,.rbPan_tienda .tiCab.tiC4 .tiPri{padding:0;width:var(--tiH)}
+.rbPan_tienda .tiCab.tiC3 .rbTab:not(.sel)>span{display:none}.rbPan_tienda .tiCab.tiC3 .rbTab:not(.sel){padding:0 calc(var(--tiG)*1.05);min-width:var(--tiH);justify-content:center}
+/* (el cuerpo: las categorías a la izquierda y la grilla) */
+.rbPan_tienda .tiCuerpo{flex:1;min-height:0;display:flex}
+.rbPan_tienda .tiLado{flex:none;width:clamp(136px,calc(var(--vh)*27),250px);display:flex;flex-direction:column;min-height:0;padding:calc(var(--tiG)*1.1) calc(var(--tiG)*.9);border-inline-end:1px solid var(--tiBo);box-sizing:border-box}
+.rbPan_tienda .tiLado.oc{display:none}
+/* (la lista se desliza si no entra —el celular—; lo de abajo —«Sólo descarga directa»— queda siempre a la vista) */
+.rbPan_tienda .tiCats{flex:0 1 auto;min-height:0;display:flex;flex-direction:column;gap:2px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#3a3b41 transparent}
+.rbPan_tienda .tiLadoTit{flex:none;padding:calc(var(--tiG)*.3) calc(var(--tiG)*.8) calc(var(--tiG)*.6);color:var(--jxT3);font:700 var(--tiFs)/1 Roboto,Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.rbPan_tienda .tiCat{flex:none;display:flex;align-items:center;width:100%;min-height:calc(var(--tiH)*.86);padding:calc(var(--tiG)*.35) calc(var(--tiG)*.9);background:none;border:0;border-radius:5px;color:var(--tiT);font:500 var(--tiF)/1.2 Roboto,Arial,sans-serif;text-align:start;cursor:pointer;overflow-wrap:anywhere;box-sizing:border-box}
+.rbPan_tienda .tiCat:hover{background:var(--tiPl2);color:var(--jxT)}
+.rbPan_tienda .tiCat.sel{background:var(--jxA);color:#141414;font-weight:700}
+/* («Sólo descarga directa» como interruptor) */
+.rbPan_tienda .tiInter{flex:none;position:relative;display:flex;align-items:center;gap:.65em;width:100%;min-height:var(--tiH);margin-top:calc(var(--tiG)*1.7);padding:calc(var(--tiG)*.5) calc(var(--tiG)*.8);background:var(--tiPl);border:1px solid var(--tiBo);border-radius:var(--tiR);color:var(--tiT);font:500 var(--tiFs)/1.2 Roboto,Arial,sans-serif;text-align:start;cursor:pointer;box-sizing:border-box}
+.rbPan_tienda .tiInter::before{content:'';position:absolute;left:0;right:0;top:calc(var(--tiG)*-.9);border-top:1px solid var(--tiBo)}
+.rbPan_tienda .tiInter em{flex:none;position:relative;width:2.4em;height:1.35em;border:0;border-radius:1em;background:#4a4b51;transition:background .15s}
+.rbPan_tienda .tiInter em::after{content:'';position:absolute;top:.17em;inset-inline-start:.17em;width:1em;height:1em;border:0;border-radius:50%;background:#dcdad4;transform:none;transition:inset-inline-start .15s}
+.rbPan_tienda .tiInter.on{background:var(--tiPl);border-color:rgba(242,179,27,.5);color:var(--jxT)}
+.rbPan_tienda .tiInter.on em{background:var(--jxA);border:0}.rbPan_tienda .tiInter.on em::after{inset-inline-start:1.23em;width:1em;height:1em;border:0;background:#141414;transform:none}
+.rbPan_tienda .tiMain{flex:1;min-width:0;display:flex;flex-direction:column}
+.rbPan_tienda .rbBarra{flex:none;display:flex;flex-wrap:wrap;gap:calc(var(--tiG)*.8);align-items:center;padding:calc(var(--tiG)*1.1) calc(var(--tiG)*1.4) calc(var(--tiG)*.7);background:none;border:0}
+.rbPan_tienda .rbBarra.oc{display:none}
+.rbPan_tienda .tiBus{flex:1 1 160px;min-width:130px;display:flex;align-items:center;gap:.6em;height:var(--tiH);padding:0 .8em;background:var(--tiPl);border:1px solid var(--tiBo);border-radius:var(--tiR);color:var(--jxT3);box-sizing:border-box;cursor:text}
+.rbPan_tienda .tiBus .gli{width:1.3em;height:1.3em}
+.rbPan_tienda .tiBus input[type=search]{flex:1;min-width:0;height:100%;padding:0;margin:0;background:none;border:0;border-radius:0;outline:0;color:var(--jxT);font:400 var(--tiF) Roboto,Arial,sans-serif}
+.rbPan_tienda .tiBus input::placeholder{color:var(--jxT3)}
+.rbPan_tienda #rbOrden{flex:none;height:var(--tiH);max-width:42%;padding:0 2.1em 0 .85em;background:var(--tiPl) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6' fill='none' stroke='%23aeaca6' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right .7em center/1em;border:1px solid var(--tiBo);border-radius:var(--tiR);color:var(--jxT);font:500 var(--tiF) Roboto,Arial,sans-serif;-webkit-appearance:none;appearance:none;cursor:pointer;text-overflow:ellipsis}
+#rbInicio[dir=rtl] .rbPan_tienda #rbOrden{padding:0 .85em 0 2.1em;background-position:left .7em center}
+.rbPan_tienda #rbOrden option{background:#1b1c20;color:var(--jxT)}
+.rbPan_tienda .rbSeg{flex:none;display:flex;height:var(--tiH);padding:0;background:var(--tiPl);border:0;box-shadow:inset 0 0 0 1px var(--tiBo);border-radius:var(--tiR);box-sizing:border-box;overflow:hidden}
+/* (cada mitad ocupa todo el alto —se toca en cualquier parte—; la elegida se ve como una placa adentro) */
+.rbPan_tienda .rbSeg button{display:flex;align-items:center;height:100%;padding:0 calc(var(--tiG)*1.2);background:none;background-clip:padding-box;border:3px solid transparent;border-radius:calc(var(--tiR) + 1px);color:var(--tiT);font:500 var(--tiF) Roboto,Arial,sans-serif;white-space:nowrap;cursor:pointer;box-sizing:border-box}
+.rbPan_tienda .rbSeg button:hover{color:var(--jxT);background-color:var(--tiPl2)}
+.rbPan_tienda .rbSeg button.sel{background-color:var(--jxA);border-color:transparent;color:#141414;font-weight:700}
+/* (lo que se desliza: la nota de arriba y la grilla; la grilla se vuelve a dibujar sin perder dónde estaba) */
+.rbPan_tienda .tiDesliza{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:calc(var(--tiG)*.4) calc(var(--tiG)*1.4) calc(var(--tiG)*1.4);scrollbar-width:thin;scrollbar-color:#3a3b41 transparent}
+.rbPan_tienda.tiConFicha .tiDesliza{padding-top:calc(var(--tiG)*1.1)}
+.rbPan_tienda .gmPMnota{display:flex;flex-wrap:nowrap;align-items:center;gap:.6em;margin:0 0 var(--tiG);padding:calc(var(--tiG)*.5) calc(var(--tiG)*.9);background:rgba(242,179,27,.07);border:1px solid rgba(242,179,27,.3);border-radius:var(--tiR);color:var(--tiT);font:400 var(--tiFs)/1.35 Roboto,Arial,sans-serif}
+.rbPan_tienda .gmPMnota>.gli{color:var(--jxA);width:1.25em;height:1.25em}.rbPan_tienda .gmPMnota>span{flex:1 1 auto;min-width:0}
+.rbPan_tienda .tiLink{display:inline-flex;align-items:center;min-height:1.9em;padding:0 .6em;margin:0 .15em;background:none;border:1px solid rgba(242,179,27,.6);border-radius:5px;color:var(--jxA);font:500 1em/1 Roboto,Arial,sans-serif;vertical-align:middle;cursor:pointer;white-space:nowrap}
+.rbPan_tienda .tiLink:hover{background:rgba(242,179,27,.12)}
+.rbPan_tienda .tiCuantos{flex:none;margin-inline-start:auto;color:var(--jxT3);font-weight:500;white-space:nowrap}
+.rbPan_tienda.tiConFicha .gmPMnota{display:none}
+.rbPan_tienda .rbTiendaG{display:grid;flex:none;overflow:visible;padding:0;gap:var(--tiG);grid-template-columns:repeat(auto-fill,minmax(clamp(148px,calc(var(--vh)*30),300px),1fr));align-content:start}
+.rbPan_tienda .rbTiendaG.rbFichaModo{display:block}
+.rbPan_tienda .rbVacio{color:var(--jxT2);font:500 var(--tiF) Roboto,Arial,sans-serif;padding:calc(var(--tiG)*2)}
+/* (los títulos de sección: el filo amarillo y el número) */
+.rbPan_tienda .rbSecc{grid-column:1/-1;display:flex;align-items:center;gap:.6em;margin:calc(var(--tiG)*.7) 0 0;padding:.1em 0;padding-inline-start:.65em;border:0;border-inline-start:3px solid var(--jxA);color:#e6e4de;font:700 var(--tiFs)/1.3 Roboto,Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.rbPan_tienda .rbSecc:first-child{margin-top:calc(var(--tiG)*.2)}
+.rbPan_tienda .rbSecc em{font-style:normal;padding:.08em .6em;background:#2d2e34;border-radius:1em;color:var(--jxT2);font-size:1em;letter-spacing:0}
+/* (la tarjeta) */
+.rbPan_tienda .tiCard{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:calc(var(--tiG)*.45);min-width:0;padding:calc(var(--tiG)*.6);background:var(--tiPl);border:1px solid var(--tiBo);border-radius:8px;color:var(--jxT);text-align:center;cursor:pointer;box-shadow:none;transform:none;transition:border-color .12s,background .12s;box-sizing:border-box}
+.rbPan_tienda .tiCard:hover{background:var(--tiPl2);border-color:var(--tiBo2);transform:none;box-shadow:none}
+.rbPan_tienda .tiCard:active{transform:none}
+.rbPan_tienda .tiCard.on{border-color:var(--tiBo);box-shadow:none}
+.rbPan_tienda .tiCard .rbTileIco{flex:none;aspect-ratio:auto;height:clamp(62px,calc(var(--vh)*13),140px);display:flex;align-items:center;justify-content:center;padding:calc(var(--tiG)*.45);background:var(--tiCaja);border-radius:6px;overflow:hidden;font-size:inherit;box-sizing:border-box}
+.rbPan_tienda .tiCard .rbTileIco img{width:auto;height:100%;max-width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px}
+.rbPan_tienda .tiCard.rbTileMapa .rbTileIco img{aspect-ratio:16/10}
+.rbPan_tienda .tiCard>b{margin-top:calc(var(--tiG)*.15);color:var(--jxT);font:700 var(--tiF)/1.25 Roboto,Arial,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rbPan_tienda .tiCard.off>b{color:var(--jxT2)}
+.rbPan_tienda .tiMeta{display:flex;justify-content:center;align-items:center;gap:.55em;min-height:1.45em;margin-top:-1px;color:var(--jxT2);font:400 var(--tiFs)/1.2 Roboto,Arial,sans-serif;white-space:nowrap;overflow:hidden}
+.rbPan_tienda .tiMeta i{display:inline-flex;align-items:center;gap:.3em;min-width:0;font-style:normal;overflow:hidden;text-overflow:ellipsis}
+.rbPan_tienda .tiMeta .gli{width:1.15em;height:1.15em}
+.rbPan_tienda .tiChip{padding:.12em .6em;background:#2f3036;border-radius:1em;color:var(--tiT)}
+/* (el botón a lo ancho de la tarjeta) */
+.rbPan_tienda .tiBtn{position:relative;overflow:hidden;margin-top:auto;display:flex;align-items:center;justify-content:center;gap:.45em;width:100%;min-height:var(--tiHb);padding:0 .5em;border-radius:5px;font:700 calc(var(--tiF)*.96)/1 Roboto,Arial,sans-serif;white-space:nowrap;cursor:pointer;box-sizing:border-box}
+.rbPan_tienda .tiBtn>span{position:relative;overflow:hidden;text-overflow:ellipsis}
+.rbPan_tienda .tiBtn .gli{position:relative;width:1.15em;height:1.15em}
+.rbPan_tienda .tiBtn i{position:static;display:inline-flex;width:auto;height:auto;background:none;box-shadow:none;border-radius:0;font-style:normal}
+.rbPan_tienda .tiBtn i::after{display:none}
+.rbPan_tienda .tiBtn_si{background:var(--jxA);border:1px solid var(--jxA);color:#141414}.rbPan_tienda .tiBtn_si .gli{stroke-width:2.7}
+.rbPan_tienda .tiBtn_si:hover{background:var(--jxA2);border-color:var(--jxA2)}
+.rbPan_tienda .tiBtn_ok{background:rgba(95,211,133,.09);border:1px solid rgba(95,211,133,.55);color:var(--tiVe);font-weight:600}
+.rbPan_tienda .tiBtn_ok:hover{background:rgba(95,211,133,.17)}
+.rbPan_tienda .tiBtn_va{background:var(--tiCaja);border:1px solid var(--tiBo2);color:var(--jxT);font-weight:600}
+.rbPan_tienda .tiBtn_va .rbTileBaja{position:absolute;inset:0 auto 0 0;height:auto;background:rgba(242,179,27,.38);transition:width .2s}
+/* (la tarjeta punteada para hacer un mapa nuevo) */
+.rbPan_tienda .tiNuevo{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25em;min-height:calc(var(--tiH)*3.6);padding:var(--tiG);background:none;border:2px dashed rgba(239,237,231,.26);border-radius:8px;color:var(--jxT);font:inherit;cursor:pointer;box-sizing:border-box}
+.rbPan_tienda .tiNuevo:hover{border-color:var(--jxA);background:rgba(242,179,27,.05)}
+.rbPan_tienda .tiNuevo i{display:flex;align-items:center;justify-content:center;width:2.7em;height:2.7em;margin-bottom:.35em;border:2px solid var(--jxA);border-radius:50%;color:var(--jxA);font-style:normal;box-sizing:border-box}
+.rbPan_tienda .tiNuevo i .gli{width:1.4em;height:1.4em;stroke-width:2.4}
+.rbPan_tienda .tiNuevo b{font:700 var(--tiF)/1.2 Roboto,Arial,sans-serif}.rbPan_tienda .tiNuevo small{color:var(--jxT2);font:400 var(--tiFs)/1.2 Roboto,Arial,sans-serif}
+/* (borrar varios: la casilla en la esquina y el tamaño en colores) */
+.rbPan_tienda .gmSelRegla{grid-column:1/-1;margin:0;color:var(--jxT2);font:500 var(--tiFs)/1.3 Roboto,Arial,sans-serif}
+.rbPan_tienda .gmSelT{padding-bottom:calc(var(--tiG)*.9)}.rbPan_tienda .gmSelT .gmTileD{font:600 var(--tiFs)/1.3 Roboto,Arial,sans-serif}
+.rbPan_tienda .gmSelT .gmSelMarca{top:calc(var(--tiG)*1.1);inset-inline-end:calc(var(--tiG)*1.1);width:24px;height:24px;border:2px solid #8a898f;border-radius:5px;background:rgba(16,17,19,.85)}
+.rbPan_tienda .gmSelT.sel{border-color:var(--jxRo);box-shadow:inset 0 0 0 1px var(--jxRo);background:rgba(255,107,94,.06)}
+.rbPan_tienda .gmSelT.sel .gmSelMarca{background:var(--jxRo);border-color:var(--jxRo)}.rbPan_tienda .gmSelT.bloq{opacity:.4}
+.rbPan_tienda .gmSel_chico{color:#6fd68f}.rbPan_tienda .gmSel_mediano{color:#f2c14e}.rbPan_tienda .gmSel_grande{color:#ff8a7e}
+.rbPan_tienda .gmSelInfo{color:var(--jxT2);font:500 calc(var(--tiF)*.9) Roboto,Arial,sans-serif;white-space:nowrap}
+.rbPan_tienda .gmSelBorrar:not([disabled]){background:#c0392b;border-color:#c0392b;color:#fff}.rbPan_tienda .gmSelBorrar:not([disabled]) .gli{color:#fff}
+/* (el pie, en un renglón) */
+.rbPan_tienda .rbPanPie{flex:none;display:flex;flex-wrap:nowrap;overflow:hidden;align-items:center;gap:calc(var(--tiG)*.8);padding:calc(var(--tiG)*.9) calc(var(--tiG)*1.4);background:rgba(0,0,0,.2);border-top:1px solid var(--tiBo)}
+.rbPan_tienda .rbPanPie>*{flex:none}.rbPan_tienda .rbPanPie>.rbEsp{flex:1 1 0;min-width:0}
+.rbPan_tienda .rbHab,.rbPan_tienda .gmSelPie{display:flex;flex-wrap:nowrap;gap:calc(var(--tiG)*.8);align-items:center}
+.rbPan_tienda .rbHab:empty,.rbPan_tienda .gmSelPie:empty{display:none}
+.rbPan_tienda .rbPanPie .rbTotal{display:inline;color:var(--jxT2);font:500 var(--tiF) Roboto,Arial,sans-serif;white-space:nowrap}.rbPan_tienda .rbPanPie .rbTotal:empty{display:none}
+.rbPan_tienda .tiMas{padding:0;width:var(--tiH)}
+.rbPan_tienda .tiNueva{gap:.6em;padding:0 calc(var(--tiG)*1.8);font-size:calc(var(--tiF)*1.12)}.rbPan_tienda .tiNueva .gli{width:.95em;height:.95em;fill:currentColor}
+.rbPan_tienda .tiNuevaC{display:none}
+.rbPan_tienda .gmSelBtn span{display:inline;margin:0}
+/* (los pasos para que el pie entre en un renglón: sin el total, «Volver» con la flecha sola, «Nueva partida», «Borrar
+   varios» con el tacho solo y habilitar/deshabilitar con el ícono solo) */
+.rbPan_tienda .rbPanPie.tiP1 .rbTotal{display:none}
+.rbPan_tienda .rbPanPie.tiP2 .tiVolver>span,.rbPan_tienda .rbPanPie.tiP4 .gmSelBtn span{display:none}
+.rbPan_tienda .rbPanPie.tiP2 .tiVolver,.rbPan_tienda .rbPanPie.tiP4 .gmSelBtn{padding:0;width:var(--tiH)}
+.rbPan_tienda .rbPanPie.tiP3 .tiNuevaL{display:none}.rbPan_tienda .rbPanPie.tiP3 .tiNuevaC{display:inline}
+.rbPan_tienda .rbPanPie.tiP5 .rbHab button{width:var(--tiH);padding:0;gap:0;font-size:0}.rbPan_tienda .rbPanPie.tiP5 .rbHab .gli{width:20px;height:20px}
+/* (la ficha) */
+.rbPan_tienda .tiFicha{max-width:1040px;margin:0 auto;padding:calc(var(--tiG)*1.3);background:var(--tiPl);border:1px solid var(--tiBo);border-radius:10px;box-shadow:none;color:var(--jxT);box-sizing:border-box}
+.rbPan_tienda .tiFicha.on{border-color:var(--tiBo);box-shadow:none}
+.rbPan_tienda .rbFichaCuerpo{display:flex;flex-wrap:nowrap;align-items:flex-start;gap:calc(var(--tiG)*1.8)}
+.rbPan_tienda .tiFichaIzq{flex:none;width:clamp(120px,calc(var(--vh)*34),340px);max-width:36%;display:flex;flex-direction:column;align-items:flex-start;gap:var(--tiG)}
+.rbPan_tienda .rbFichaX{margin:0}
+.rbPan_tienda .rbFichaIco{flex:none;width:100%;max-width:none;aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:var(--tiCaja);border:1px solid var(--tiBo);border-radius:10px;overflow:hidden;font-size:inherit;box-sizing:border-box}
+.rbPan_tienda .rbFichaIco img{width:100%;height:100%;object-fit:cover}.rbPan_tienda .rbFichaIco img.ico{width:74%;height:74%;border-radius:14%}
+.rbPan_tienda .tiFicha.off .rbFichaIco{filter:grayscale(1);opacity:.6}
+.rbPan_tienda .rbFichaInfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:calc(var(--tiG)*.75)}
+.rbPan_tienda .rbFichaInfo h3{margin:0;color:var(--jxT);font:700 clamp(19px,calc(var(--vh)*4),36px)/1.15 Roboto,Arial,sans-serif;overflow-wrap:anywhere}
+.rbPan_tienda .rbFichaInfo small{color:var(--jxT2);font:400 calc(var(--tiF)*.92)/1.4 Roboto,Arial,sans-serif;overflow-wrap:anywhere}
+.rbPan_tienda .rbFichaInfo small .gli{width:1.1em;height:1.1em;vertical-align:-.18em}
+.rbPan_tienda .rbEtqsC{display:flex;flex-wrap:wrap;gap:.4em}.rbPan_tienda .rbEtqsC:empty{display:none}
+.rbPan_tienda .rbEtqsC i{display:inline-flex;align-items:center;gap:.3em;margin:0;padding:.22em .75em;background:#2d2e34;border-radius:1em;color:var(--tiT);font:500 var(--tiFs)/1.3 Roboto,Arial,sans-serif;font-style:normal}
+.rbPan_tienda .rbEtqsC i .gli{width:1.05em;height:1.05em}
+.rbPan_tienda .rbFichaInfo p{margin:0;max-height:none;overflow:visible;color:#cfcdc7;font:400 calc(var(--tiF)*.95)/1.5 Roboto,Arial,sans-serif;white-space:pre-line;overflow-wrap:anywhere}
+.rbPan_tienda .rbFichaInfo p:empty{display:none}
+.rbPan_tienda .rbFichaAcc{display:flex;flex-wrap:wrap;gap:calc(var(--tiG)*.8);margin:calc(var(--tiG)*.3) 0 calc(var(--tiG)*.2)}
+.rbPan_tienda .rbFichaGrande{min-width:min(100%,calc(var(--vh)*26));padding:0 calc(var(--tiG)*2.4);font-size:calc(var(--tiF)*1.1)}
+.rbPan_tienda .rbFichaGrande small{color:inherit;opacity:.72;font-weight:500}
+.rbPan_tienda .rbFichaIncl{display:inline-flex;align-items:center;gap:.45em;min-height:var(--tiH);padding:0 calc(var(--tiG)*1.4);background:rgba(95,211,133,.09);border:1px solid rgba(95,211,133,.55);border-radius:var(--tiR);color:var(--tiVe);font:600 var(--tiF) Roboto,Arial,sans-serif;box-sizing:border-box}
+.rbPan_tienda .gmAviso{padding:.55em .85em;background:rgba(255,150,70,.08);border:1px solid rgba(255,150,70,.35);border-radius:var(--tiR);color:#ffb784!important;font-weight:500!important}
+.rbPan_tienda .gmAviso .gli{width:1.15em;height:1.15em;vertical-align:-.2em}
+.rbPan_tienda .gmCont{color:#8fdca8!important}.rbPan_tienda .gmCont b{color:var(--jxT)}
+.rbPan_tienda .rbOf{color:var(--jxA);font-weight:600}.rbPan_tienda .rbCod{color:#ffb784}
+.rbPan_tienda .gmProg{flex:1 1 220px;min-width:180px;height:var(--tiH);background:var(--tiCaja);border:1px solid var(--tiBo2);border-radius:var(--tiR);box-sizing:border-box}
+.rbPan_tienda .gmProg i{background:rgba(242,179,27,.42)}.rbPan_tienda .gmProg span{color:var(--jxT);font:600 var(--tiF) Roboto,Arial,sans-serif;text-shadow:none}
+/* (los formularios que se abren desde acá —crear un mod y publicar una construcción—, con el mismo estilo: campos
+   oscuros con contorno, lo elegido en amarillo; el pie puede partirse en dos renglones si no entra) */
+.rbPan_tienda.tiForm .rbPanCab{flex:none;display:flex;align-items:center;gap:var(--tiG);min-height:var(--tiH);padding:calc(var(--tiG)*.9) calc(var(--tiG)*1.6);background:transparent;border-bottom:1px solid var(--tiBo);color:var(--jxT);font:700 clamp(17px,calc(var(--vh)*3.1),28px)/1.1 Roboto,Arial,sans-serif}
+.tiForm .rbForm{gap:calc(var(--tiG)*2.2);padding:calc(var(--tiG)*1.4) calc(var(--tiG)*1.6);scrollbar-width:thin;scrollbar-color:#3a3b41 transparent}
+.tiForm .rbCol{gap:calc(var(--tiG)*1.3)}
+.tiForm .rbCampo{gap:.45em;color:var(--jxT2);font:600 calc(var(--tiF)*.9)/1.2 Roboto,Arial,sans-serif}
+.tiForm .rbForm input:not([type]),.tiForm .rbForm textarea,.tiForm .rbForm select{min-height:var(--tiH);padding:.5em .75em;background:var(--tiPl);border:1px solid var(--tiBo2);border-radius:var(--tiR);color:var(--jxT);font:400 var(--tiF)/1.35 Roboto,Arial,sans-serif;box-sizing:border-box}
+.tiForm .rbForm input:not([type]):focus,.tiForm .rbForm textarea:focus,.tiForm .rbForm select:focus{outline:0;border-color:var(--jxA)}
+.tiForm .rbForm textarea.rbCodigo{background:#0c0d0f;color:#d8dee9;border-color:var(--tiBo2)!important}
+.tiForm .rbForm ::placeholder{color:var(--jxT3)}
+.tiForm .rbIconos{gap:calc(var(--tiG)*.5)}
+.tiForm .rbIconos button{display:flex;align-items:center;justify-content:center;width:var(--tiH);height:var(--tiH);padding:4px;background:var(--tiPl);border:1px solid var(--tiBo);border-radius:var(--tiR);font-size:inherit;box-sizing:border-box}
+.tiForm .rbIconos button .ico{width:100%;height:100%}
+.tiForm .rbIconos button.sel{background:rgba(242,179,27,.14);border-color:var(--jxA);box-shadow:inset 0 0 0 1px var(--jxA)}
+.tiForm .rbEtqs{gap:calc(var(--tiG)*.55);padding:0}
+.tiForm .rbEtq{display:inline-flex;align-items:center;min-height:calc(var(--tiH)*.8);padding:0 .95em;background:var(--tiPl);border:1px solid var(--tiBo2);border-radius:2em;color:var(--tiT);font:500 calc(var(--tiF)*.92)/1 Roboto,Arial,sans-serif;cursor:pointer}
+.tiForm .rbEtq:hover{border-color:rgba(239,237,231,.4)}
+.tiForm .rbEtq.sel{background:var(--jxA);border-color:var(--jxA);color:#141414;font-weight:700}
+.tiForm .rbRango{color:var(--tiT);font:500 var(--tiF)/1.2 Roboto,Arial,sans-serif}
+.tiForm .rbRango output{color:var(--jxA);font:700 var(--tiF) Roboto,Arial,sans-serif}
+.tiForm input[type=range]{min-height:calc(var(--tiH)*.7);accent-color:var(--jxA)}
+.tiForm .rbFila{gap:calc(var(--tiG)*.8)}
+.tiForm .rbChk{min-height:var(--tiH);padding:0 .95em;gap:.6em;background:var(--tiPl);border:1px solid var(--tiBo2);border-radius:var(--tiR);color:var(--tiT);font:500 var(--tiF) Roboto,Arial,sans-serif;box-sizing:border-box}
+.tiForm .rbChk em{width:1.25em;height:1.25em;border:2px solid #8a898f;border-radius:4px;background:transparent;box-sizing:border-box}
+.tiForm .rbChk.on{background:var(--tiPl);border-color:rgba(242,179,27,.55);color:var(--jxT)}
+.tiForm .rbChk.on em{background:var(--jxA);border-color:var(--jxA)}.tiForm .rbChk.on em::after{border-color:#141414}
+.tiForm .rbAyuda{color:var(--jxT3);font-size:var(--tiFs)}
+.tiForm .rbGrid.rbGridChica{flex:none;overflow:visible;padding:0;gap:var(--tiG);grid-template-columns:repeat(auto-fill,minmax(clamp(120px,calc(var(--vh)*24),240px),1fr))}
+.tiForm .rbMapaG{padding:calc(var(--tiG)*.6);background:var(--tiPl);border:1px solid var(--tiBo);border-radius:8px}
+.tiForm .rbMapaG .rbFoto{aspect-ratio:16/10;border-radius:6px;box-shadow:none;background-color:var(--tiCaja)}
+.tiForm .rbMapaG b{margin-top:calc(var(--tiG)*.5);color:var(--jxT);font:700 var(--tiF)/1.25 Roboto,Arial,sans-serif}
+.tiForm .rbMapaG small{color:var(--jxT2);font:400 var(--tiFs)/1.3 Roboto,Arial,sans-serif}
+.tiForm .rbMapaG:hover{border-color:var(--tiBo2)}
+.tiForm .rbMapaG.sel{background:rgba(242,179,27,.1);border-color:var(--jxA);box-shadow:inset 0 0 0 1px var(--jxA)}
+.rbPan_tienda.tiForm .rbPanPie{flex-wrap:wrap;overflow:visible}
+/* (el celular acostado: el panel casi de borde a borde; con los dedos, categorías de 40 px y los botones de las
+   tarjetas de 36. Con el celular parado el juego está girado: va también como html.rot dentro de max-width) */
+@media (max-height:500px){.rbPan.rbPan_tienda{top:6px;bottom:6px;left:6px;right:6px;border-radius:8px}}
+@media (max-width:500px){html.rot .rbPan.rbPan_tienda{top:6px;bottom:6px;left:6px;right:6px;border-radius:8px}}
+@media (pointer:coarse){.rbPan.rbPan_tienda{--tiHb:clamp(36px,calc(var(--vh)*5.2),48px)}.rbPan_tienda .tiCat{min-height:40px}.rbPan_tienda .tiLink{min-height:34px}}
+@media (hover:none){.rbPan_tienda .tiCard:hover{background:var(--tiPl);border-color:var(--tiBo)}.rbPan_tienda .rbBtnGris:hover{background:var(--tiPl)}}
 </style></head>
 <body>
 <canvas id="cv"></canvas>
