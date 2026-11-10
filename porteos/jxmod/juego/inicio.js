@@ -152,7 +152,10 @@ function inicioPanel(p) {
   RB.panel = p; const P = RB.el.querySelector('.rbPan');
   for (const s of ['.rbLista', '.rbLogo', '.rbAbajo']) RB.el.querySelector(s).classList.toggle('oc', !!p);
   if (!p) requestAnimationFrame(inicioEncajar);
-  P.classList.toggle('oc', !p); P.className = 'rbPan' + (p ? ' rbPan_' + p : ' oc');
+  // (crear un mod y publicar una construcción se abren desde la tienda: llevan su mismo estilo)
+  P.classList.toggle('oc', !p); P.className = 'rbPan' + (p ? ' rbPan_' + p + (p === 'pubmod' || p === 'pubmapa' ? ' rbPan_tienda tiForm' : '') : ' oc');
+  // (la versión de abajo a la derecha se asomaba por debajo del panel de la tienda, que llega casi hasta el borde)
+  RB.el.querySelector('.rbVer').classList.toggle('oc', P.classList.contains('rbPan_tienda'));
   // (el personaje en 3D sólo en personajes: en el resto, el fondo de siempre)
   if (p !== 'personajes') { RB.el.classList.remove('rb3d'); menuLobby(false); }
   if (p !== 'multi' && typeof mpClaveNo === 'function') mpClaveNo();
@@ -178,7 +181,7 @@ function panelCrear(P) {
     <div class="rbGrid rbGridChica">${[...MAPAS, ...MAPAS_RB].map((m) => `<div class="rbMapaG${m === RB.creaBase ? ' sel' : ''}" data-rb="creaBase:${m}"><div class="rbFoto" style="background-image:url(${icono(MAPA_ICONO[m])})"></div><b>${esc(mapaNom(m))}</b></div>`).join('')}</div>
     ${mios.length ? `<div class="rbSub">${esc(T('cr.misMapas'))}</div><div class="rbGrid rbGridChica">${mios.map((m) => `<div class="rbMapaG" data-rb="creaEditar:${esc(m.id)}"><div class="rbFoto" style="background-image:url(${m.foto ? esc(m.foto) : icono(MAPA_ICONO[m.base])})"></div><b>${esc(m.nombre)}</b><small>${glifo('lapiz')} ${esc(mapaNom(m.base))}</small></div>`).join('')}</div>` : ''}
     <p class="rbAyudaC">${esc(T('cr.intro'))}</p></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><button class="rbBtnG" data-rb="creaNuevo">${glifo('martillo')} ${esc(T('cr.empezar'))}</button></div>`;
+    <div class="rbPanPie"><button class="rbBtnGris" data-rb="${RB.creaVuelve ? 'tienda:mapa' : 'volver'}">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><button class="rbBtnG" data-rb="creaNuevo">${glifo('martillo')} ${esc(T('cr.empezar'))}</button></div>`;
 }
 // ---------- bienvenida: idioma y nombre (la primera vez, y desde la banderita) ----------
 function panelBienvenida(P) {
@@ -230,23 +233,103 @@ function nvEncajar() {
 }
 addEventListener('resize', () => setTimeout(() => { if (RB.panel === 'nueva') nvEncajar(); }, 80));
 // ---------- tienda: Mods y Mapas (explorar en el servidor o ver los instalados) ----------
+// (el concepto de GOLDEN en el Discord: «Mejor interfaz en el apartado de mods»). Panel oscuro con el amarillo de acento:
+// arriba el título, las pestañas (la elegida en amarillo) y las acciones de la pestaña; a la izquierda las categorías;
+// el buscador, el orden y Explorar/Instalados arriba de la grilla; tarjetas con la imagen, el nombre, una línea de datos
+// y el botón a lo ancho (amarillo: lo que se puede hacer; verde con contorno: ya está). Tocar la tarjeta abre la ficha.
+// Lo usa también la pestaña GMod (gmod_tienda.js). o: { acc (las acciones de arriba a la derecha), ph (el buscador),
+// orden ([valor, texto]), ordenSel, cats ([valor, texto]; la primera, «Todas»), lado (debajo de las categorías, fijo), nota
+// (arriba de la grilla, se va con ella al deslizar), pie (lo de más en el pie, después de habilitar/deshabilitar) }
+function tiendaMarco(P, o) {
+  const S = RB.t, tab = (k, ic, t) => `<button class="rbTab${S.tab === k ? ' sel' : ''}" data-rb="tab:${k}" title="${esc(T(t))}">${ic}<span>${esc(T(t))}</span></button>`;
+  // (cambiar de categoría vuelve a armar el panel: la lista de categorías queda donde estaba —en el celular se desliza—)
+  const lado0 = P.querySelector('.tiCats'), desliz = lado0 && lado0.dataset.tab === S.tab ? lado0.scrollTop : 0;
+  P.innerHTML = `<div class="rbPanCab tiCab"><b class="tiTit">${esc(T('m.tienda'))}</b>
+      <span class="rbTabs tiTabs">${tab('mod', icoHTML('ico:mod'), 't.mods')}${tab('mapa', glifo('mapa'), 't.mapas')}${tab('anim', icoHTML('ico:animacion'), 't.anims')}${typeof GM_ICO !== 'undefined' ? tab('gmod', `<img class="rbGmIco" src="${GM_ICO}" alt="">`, 't.gmod') : ''}</span>
+      <span class="rbEsp"></span><span class="tiAcc">${o.acc}</span></div>
+    <div class="tiCuerpo"><nav class="tiLado"><div class="tiLadoTit">${esc(T('ti.cats'))}</div>
+        <div class="tiCats" data-tab="${S.tab}">${o.cats.map(([k, t]) => `<button class="rbEtq tiCat${(S.etq || '') === k ? ' sel' : ''}" data-rb="etq:${esc(k)}">${esc(t)}</button>`).join('')}</div>${o.lado || ''}</nav>
+      <div class="tiMain"><div class="rbBarra"><label class="tiBus">${glifo('buscar')}<input id="rbBuscar" type="search" placeholder="${esc(o.ph)}" value="${esc(S.q)}"></label>
+          <select id="rbOrden">${o.orden.map(([k, t]) => `<option value="${esc(k)}"${o.ordenSel === k ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
+          <span class="rbSeg"><button class="${S.vista === 'explorar' ? 'sel' : ''}" data-rb="vista:explorar">${esc(T('v.tienda'))}</button><button class="${S.vista === 'instalados' ? 'sel' : ''}" data-rb="vista:instalados">${esc(T('v.instalados'))}</button></span></div>
+        <div class="tiDesliza">${o.nota || ''}<div class="rbGrid rbTiendaG"></div></div></div></div>
+    <div class="rbPanPie"><button class="rbBtnGris tiVolver" data-rb="volver" title="${esc(T('volver'))}">${glifo('atras')}<span>${esc(T('volver'))}</span></button><span class="rbHab"></span>${o.pie || ''}<span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris tiMas" data-rb="mas" aria-label="+">${glifo('mas3')}</button>
+      <button class="rbBtnG tiNueva" data-rb="nueva"><span class="tiNuevaL">${esc(T('m.nueva'))}</span><span class="tiNuevaC">${esc(T('ti.nuevaC'))}</span>${glifo('jugar')}</button></div>`;
+  if (desliz) P.querySelector('.tiCats').scrollTop = desliz;
+  S.deslizA = null; S.grillaEn = 0;
+  // (las tarjetas son <div> con botón adentro: con el teclado, Enter o espacio la abren como un clic)
+  P.onkeydown = (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('tiCard')) { e.preventDefault(); e.target.click(); } };
+}
 function panelTienda(P) {
   if (RB.t.tab === 'gmod' && typeof gmTiendaPanel === 'function') return gmTiendaPanel(P);
-  const S = RB.t, mods = S.tab === 'mod', anims = S.tab === 'anim', tab = (k, ic, t) => `<button class="rbTab${S.tab === k ? ' sel' : ''}" data-rb="tab:${k}">${ic} ${esc(T(t))}</button>`;
+  const S = RB.t, mods = S.tab === 'mod', anims = S.tab === 'anim';
   const etqs = anims ? CATS_ANIM_RB : ETIQUETAS_RB, etqNom = (e) => T(anims ? 'emo.' + e : 'e.' + e);
-  P.innerHTML = `<div class="rbPanCab">${esc(T('m.tienda'))}
-      <span class="rbTabs">${tab('mod', icoHTML('ico:mod'), 't.mods')}${tab('mapa', glifo('mapa'), 't.mapas')}${tab('anim', icoHTML('ico:animacion'), 't.anims')}${typeof GM_ICO !== 'undefined' ? tab('gmod', `<img class="rbGmIco" src="${GM_ICO}" alt="">`, 't.gmod') : ''}</span>
-      <span class="rbEsp"></span><button class="rbBtnG rbChico" data-rb="${mods ? 'pubmod' : anims ? 'crearanim' : 'pubmapa'}">${glifo('mas')} ${esc(T(mods ? 'p.mod' : anims ? 'emo.crear' : 'p.mapa'))}</button>
-      <label class="rbBtnGris rbChico">${glifo('subir')} ${esc(T('p.archivo'))}<input type="file" id="rbArchivo" accept=".rbmod,.rbmapa,.rbanim,.json" hidden></label></div>
-    <div class="rbBarra"><input id="rbBuscar" type="search" placeholder="${esc(T('buscar'))}" value="${esc(S.q)}">
-      <select id="rbOrden">${['pop', 'nuevo', 'desc'].map((k) => `<option value="${k}"${S.orden === k ? ' selected' : ''}>${esc(T('o.' + k))}</option>`).join('')}</select>
-      <span class="rbSeg"><button class="${S.vista === 'explorar' ? 'sel' : ''}" data-rb="vista:explorar">${esc(T('v.tienda'))}</button><button class="${S.vista === 'instalados' ? 'sel' : ''}" data-rb="vista:instalados">${esc(T('v.instalados'))}</button></span></div>
-    <div class="rbEtqs"><button class="rbEtq${!S.etq ? ' sel' : ''}" data-rb="etq:">${esc(T('e.todas'))}</button>${etqs.map((e) => `<button class="rbEtq${S.etq === e ? ' sel' : ''}" data-rb="etq:${e}">${esc(etqNom(e))}</button>`).join('')}</div>
-    <div class="rbGrid rbTiendaG"></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbHab"></span><span class="rbEsp"></span><span class="rbTotal"></span><button class="rbBtnGris" data-rb="mas">${glifo('mas3')}</button>
-      <button class="rbBtnG" data-rb="nueva">${esc(T('m.nueva'))} ${glifo('jugar')}</button></div>`;
+  // «Subir archivo» en grande y abajo, chiquito, qué archivos (los mismos de siempre: el juego se fija qué es cada uno)
+  const subir = T('p.archivo').replace(/\s*[(（].*$/, '');
+  tiendaMarco(P, {
+    acc: `<button class="rbBtnG tiPri" data-rb="${mods ? 'pubmod' : anims ? 'crearanim' : 'pubmapa'}" title="${esc(T(mods ? 'p.mod' : anims ? 'emo.crear' : 'p.mapa'))}">${glifo('mas')}<span>${esc(T(mods ? 'p.mod' : anims ? 'emo.crear' : 'p.mapa'))}</span></button>
+      <label class="rbBtnGris tiSubir" title="${esc(T('p.archivo'))}">${glifo('subir')}<span><b>${esc(subir)}</b><small>${anims ? '.rbanim' : '.rbmod / .rbmapa'}</small></span><input type="file" id="rbArchivo" accept=".rbmod,.rbmapa,.rbanim,.json" hidden></label>`,
+    ph: T('buscar'), orden: ['pop', 'nuevo', 'desc'].map((k) => [k, T('o.' + k)]), ordenSel: S.orden,
+    cats: [['', T('e.todas')], ...etqs.map((e) => [e, etqNom(e)])],
+  });
   tiendaCargar(true);
 }
+// «Equipar» un emote desde la tienda: va a la ruleta de emotes (ruleta.js). El de la tienda con su nombre de emote: los
+// del juego ya lo traen («rb:…»); los de la gente, «u:» + el suyo
+const emoDeTienda = (id) => (/^rb:/.test(id) ? id : 'u:' + id);
+// si hay un lugar vacío, ahí; si la ruleta está llena, entra primero y sale el del último lugar (así, equipando varios
+// seguidos quedan todos y no se pisan entre ellos). Devuelve el que salió, si salió alguno
+function emoEquipar(id, on) {
+  if (typeof rulSlots !== 'function') return null;
+  const L = rulSlots(), eid = emoDeTienda(id), i = L.indexOf(eid); let sale = null;
+  if (!on) { if (i < 0) return null; L[i] = null; }
+  else { if (i >= 0) return null; const j = L.indexOf(null); if (j >= 0) L[j] = eid; else { sale = L.pop(); L.unshift(eid); } }
+  PREFS.ruleta = L; guardarPrefs(); return sale;
+}
+// una tarjeta de la grilla. o: { id, img, nombre, meta (la línea de datos, HTML), btn (el botón de abajo, HTML), cls }
+function tiTarjeta(o) {
+  return `<div class="rbTile tiCard${o.cls ? ' ' + o.cls : ''}" data-rb="ver:${esc(o.id)}" role="button" tabindex="0"><span class="rbTileIco">${o.img}</span><b dir="auto" title="${esc(o.nombre)}">${esc(o.nombre)}</b>${o.meta ? `<small class="gmTileD tiMeta">${o.meta}</small>` : ''}${o.btn}</div>`;
+}
+// el botón a lo ancho de la tarjeta. tipo: 'si' (amarillo: instalar, activar, jugar), 'ok' (verde con contorno: ya está;
+// abre la ficha), 'va' (bajando, con la barra de avance)
+const tiBtn = (tipo, accion, ico, txt, extra) => `<button class="tiBtn tiBtn_${tipo}" data-rb="${esc(accion)}"${extra || ''}>${ico}<span>${esc(txt)}</span></button>`;
+// la ficha de uno (todo lo que es y los botones), con el mismo estilo. o: { cls, img, titulo, meta, chips, avisos, acc,
+// extra (debajo de los botones), desc }. Primero lo que se hace (los botones) y después la descripción; arriba de la
+// imagen, en su columna, el botón para volver a la lista (dice a cuál: «Mods», «Mapas»…; el «Volver» del pie sale del
+// panel): en el celular acostado los botones se ven sin deslizar
+function tiFicha(o) {
+  const lista = T({ mod: 't.mods', mapa: 't.mapas', anim: 't.anims', gmod: 't.gmod' }[RB.t.tab] || 'volver');
+  return `<div class="rbFicha tiFicha${o.cls || ''}"><div class="rbFichaCuerpo"><div class="tiFichaIzq"><button class="rbBtnGris rbFichaX" data-rb="fichaNo" title="${esc(T('volver'))}">${glifo('atras')}<span>${esc(lista)}</span></button><div class="rbFichaIco">${o.img}</div></div>
+      <div class="rbFichaInfo"><h3 dir="auto">${esc(o.titulo)}</h3>${o.meta ? `<small dir="auto">${o.meta}</small>` : ''}${o.chips ? `<span class="rbEtqsC">${o.chips}</span>` : ''}${o.avisos || ''}
+        <div class="rbFichaAcc">${o.acc}</div>${o.extra || ''}<p dir="auto">${o.desc || ''}</p></div></div></div>`;
+}
+// con la ficha abierta, sin las categorías, el buscador ni la nota (la ficha usa todo el ancho)
+function tiFichaModo(on) {
+  const P = RB.el && RB.el.querySelector('.rbPan'); if (!P) return;
+  // (al abrir una ficha se anota por dónde iba la grilla: al volver queda ahí, no arriba de todo; la ficha, desde arriba)
+  const D = P.querySelector('.tiDesliza'), antes = P.classList.contains('tiConFicha');
+  if (D && !!on !== antes) { if (on) RB.t.grillaEn = D.scrollTop; RB.t.deslizA = on ? 0 : RB.t.grillaEn || 0; }
+  P.classList.toggle('tiConFicha', !!on);
+  for (const s of ['.rbBarra', '.tiLado']) { const e = P.querySelector(s); if (e) e.classList.toggle('oc', !!on); }
+}
+// arriba y el pie, en un renglón: si no entran (celular, un idioma largo) se achican por pasos hasta que entran.
+// Arriba: tiC1 sin el título, tiC2 «Subir archivo» sólo con el ícono, tiC3 las pestañas no elegidas sólo con el ícono,
+// tiC4 la acción de la pestaña sólo con el ícono. El pie: tiP1 sin el total, tiP2 «Volver» sólo con la flecha,
+// tiP3 «Nueva partida» en vez de «Empezar partida nueva», tiP4 «Borrar varios» sólo con el tacho, tiP5 habilitar y
+// deshabilitar sólo con el ícono. Medido con scrollWidth (con el juego girado, getBoundingClientRect da la pantalla girada)
+function tiEncajar() {
+  const P = RB.el && !RB.el.classList.contains('oc') && RB.panel === 'tienda' && RB.el.querySelector('.rbPan_tienda'); if (!P || !P.offsetWidth) return;
+  // (lo llaman al terminar de dibujar: la grilla, donde quedó pendiente —al abrir o cerrar una ficha, tiFichaModo—)
+  if (RB.t.deslizA != null) { const D = P.querySelector('.tiDesliza'); if (D) D.scrollTop = RB.t.deslizA; RB.t.deslizA = null; }
+  const pasos = (el, cls, sub) => {
+    if (!el) return; el.classList.remove(...cls);
+    const sobra = () => el.scrollWidth > el.clientWidth + 1 || (sub && sub.scrollWidth > sub.clientWidth + 1);
+    for (const c of cls) { if (!sobra()) break; el.classList.add(c); }
+  };
+  const cab = P.querySelector('.tiCab'); pasos(cab, ['tiC1', 'tiC2', 'tiC3', 'tiC4'], cab && cab.querySelector('.tiTabs'));
+  pasos(P.querySelector('.rbPanPie'), ['tiP1', 'tiP2', 'tiP3', 'tiP4', 'tiP5']);
+}
+addEventListener('resize', () => setTimeout(() => { if (RB.panel === 'tienda') tiEncajar(); }, 80));
 function tiendaCargar(desdeCero) {
   if (RB.t.tab === 'gmod' && typeof gmTiendaCargar === 'function') return gmTiendaCargar(desdeCero);
   const S = RB.t, n = ++S.n; if (desdeCero) { S.p = 0; S.items = []; }
@@ -264,50 +347,71 @@ function tiendaCargar(desdeCero) {
     if (n !== S.n) return; S.items = S.items.concat((d.items || []).map((x) => (S.tab === 'anim' ? Object.assign(x, { cat: x.base }) : x))); S.total = (d.total || 0) + (S.tab !== 'mapa' ? S.items.filter((x) => x.oficial).length : 0); S.cargando = false; tiendaDibujar();
   }).catch(() => { if (n !== S.n) return; S.cargando = false; S.error = !S.items.length; S.total = S.items.length; tiendaDibujar(); });
 }
-// la tienda en íconos cuadrados, por secciones (para que no agobie): tocar uno abre su ficha con todo y los botones
+// la tienda en tarjetas, por secciones (para que no agobie): el botón de cada una hace lo principal (instalar, activar,
+// jugar) y tocar la tarjeta abre su ficha con todo y los botones
 function tiendaDibujar() {
   if (RB.t.tab === 'gmod' && typeof gmTiendaDibujar === 'function') return gmTiendaDibujar();
   const S = RB.t, G = RB.el.querySelector('.rbTiendaG'); if (!G) return;
-  const an = S.tab === 'anim', esMod = S.tab === 'mod';
+  const an = S.tab === 'anim', esMod = S.tab === 'mod', esMapa = S.tab === 'mapa';
   const inst = (it) => (esMod ? (it.oficial ? ofInstalado(it.id) : INST.mods[it.id]) : it.oficial || (an ? INST.anims[it.id] : INST.mapas[it.id]));
   const fijo = (it) => it.oficial && !esMod; // (los emotes del juego y la Mega rampa vienen incluidos)
   const activo = (it) => esMod && PREFS.mods[it.id] && modTipo(it) !== 'asset';
+  // (en Emotes, «Equipar» lo pone en la ruleta de emotes —ruleta.js— y «Equipado» dice que ya está en uno de sus lugares)
+  const rul = an && typeof rulSlots === 'function' ? rulSlots() : [], equipado = (it) => rul.includes(emoDeTienda(it.id));
   const img = (it) => (esMod ? icoHTML(it.icono) : an ? (it.icono || it.foto ? `<img src="${esc(it.icono || it.foto)}" alt="">` : icoHTML('ico:animacion')) : `<img src="${esc(it.icono || it.foto || icono(MAPA_ICONO[it.base] || 'flatgrass'))}" alt="">`);
-  const datos = (it) => (it.oficial ? `<b class="rbOf">${esc(T(an ? 'emo.incluido' : 'oficial'))}</b>` : `${esc(T('por'))} ${esc(it.autor)}${it.descargas != null ? ` · ${glifo('bajar')} ${it.descargas} · ${glifo('corazon')} ${it.likes}` : ''}${S.tab === 'mapa' && it.base ? ` · ${esc(mapaNom(it.base))}` : ''}`)
+  const datos = (it) => (it.oficial ? `<b class="rbOf">${esc(T(an ? 'emo.incluido' : 'oficial'))}</b>` : `${esc(T('por'))} ${esc(it.autor)}${it.descargas != null ? ` · ${glifo('bajar')} ${it.descargas} · ${glifo('corazon')} ${it.likes}` : ''}${esMapa && it.base ? ` · ${esc(mapaNom(it.base))}` : ''}`)
     + (an && it.cat ? ` · ${esc(T('emo.' + it.cat))}` : '') + (esMod ? ` · ${esc(T(modTipo(it) === 'asset' ? 'mm.assets' : 'mm.juego'))}` : '');
-  const fin = S.cargando ? `<div class="rbVacio">${esc(T('cargando'))}</div>` : S.error ? `<div class="rbVacio">${esc(T('errRed'))}</div>` : !S.items.length ? `<div class="rbVacio">${esc(T('sinRes'))}</div>` : '';
-  const it = S.ficha && S.items.find((x) => x.id === S.ficha);
-  G.classList.toggle('rbFichaModo', !!it);
-  for (const s of ['.rbBarra', '.rbEtqs']) { const e = RB.el.querySelector(s); if (e) e.classList.toggle('oc', !!it); }
+  // (en Mapas, arriba «Mis mapas»: los que hiciste con el creador o publicaste —también en Explorar— y la tarjeta para
+  // hacer uno nuevo desde cero)
+  const q = S.q.toLowerCase(), mio = (m) => !!(m.creado || PUBLICADOS[m.id]);
+  const mios = esMapa ? Object.values(INST.mapas).filter((m) => mio(m) && (!q || (nombreDe(m) + ' ' + m.autor + ' ' + descDe(m)).toLowerCase().includes(q)) && (!S.etq || (m.etiquetas || []).includes(S.etq))).sort(porNombre) : [];
+  const resto = esMapa ? S.items.filter((x) => !mios.some((m) => m.id === x.id)) : S.items;
+  const fin = S.cargando ? `<div class="rbVacio">${esc(T('cargando'))}</div>` : S.error ? `<div class="rbVacio">${esc(T('errRed'))}</div>` : !resto.length && (!esMapa || q || S.etq) ? `<div class="rbVacio">${esc(T('sinRes'))}</div>` : '';
+  const it = S.ficha && (S.items.find((x) => x.id === S.ficha) || mios.find((x) => x.id === S.ficha));
+  G.classList.toggle('rbFichaModo', !!it); tiFichaModo(!!it);
   if (it) {
-    const ins = inst(it), act = activo(it);
-    G.innerHTML = `<div class="rbFicha${act ? ' on' : ''}"><button class="rbBtnGris rbChico rbFichaX" data-rb="fichaNo">${glifo('atras')} ${esc(T('volver'))}</button>
-      <div class="rbFichaCuerpo"><div class="rbFichaIco">${img(it)}</div>
-        <div class="rbFichaInfo"><h3 dir="auto">${esc(nombreDe(it))}</h3><small dir="auto">${it.codigo ? '<b class="rbCod">&lt;/&gt;</b> ' : ''}${datos(it)}</small>
-          <span class="rbEtqsC">${(it.etiquetas || []).map((e) => `<i>${esc(T('e.' + e))}</i>`).join('')}</span>
-          ${esMod && ins && modTipo(it) !== 'asset' && !act ? `<p class="gmAviso rbOffAyuda">${glifo('prohibido')} ${esc(T('hab.offMod'))}</p>` : ''}<p dir="auto">${esc(descDe(it)) || ''}</p>
-          <div class="rbFichaAcc">
-            ${fijo(it) ? `<span class="rbFichaIncl">${esc(T(an ? 'emo.incluido' : 'oficial'))}</span>` : ins ? `<button class="rbBtnGris" data-rb="quitar:${esc(it.id)}">${glifo('basura')} ${esc(T('quitar'))}</button>` : `<button class="rbBtnG rbFichaGrande" data-rb="instalar:${esc(it.id)}">${glifo('bajar')} ${esc(T('instalar'))}</button>`}
-            ${S.tab === 'mapa' && ins ? `<button class="rbBtnG" data-rb="jugarcom:${esc(it.id)}">${glifo('jugar')} ${esc(T('jugar'))}</button>` : ''}
-            ${it.oficial ? '' : `${it.descargas != null ? `<button class="rbBtnGris${LIKES[it.id] ? ' sel' : ''}" data-rb="like:${esc(it.id)}">${glifo('corazon')} ${esc(T('meGusta'))}</button><button class="rbBtnGris" data-rb="denunciar:${esc(it.id)}">${glifo('bandera')} ${esc(T('denunciar'))}</button>` : ''}
-              ${ins ? `<button class="rbBtnGris" data-rb="exportar:${esc(it.id)}">${glifo('bajar')} ${esc(T('exportar'))}</button>` : ''}${PUBLICADOS[it.id] ? `<button class="rbBtnGris" data-rb="borrarpub:${esc(it.id)}">${glifo('basura')} ${esc(T('quitar'))}</button>` : ''}`}
-          </div></div></div></div>`;
+    const ins = inst(it), act = activo(it), b = (cl, a, g, t) => `<button class="${cl}" data-rb="${a}:${esc(it.id)}">${glifo(g)} ${esc(T(t))}</button>`;
+    G.innerHTML = tiFicha({ cls: act ? ' on' : esMod && ins && modTipo(it) !== 'asset' ? ' off' : '', img: img(it), titulo: nombreDe(it),
+      meta: `${it.codigo ? '<b class="rbCod">&lt;/&gt;</b> ' : ''}${datos(it)}`, chips: (it.etiquetas || []).map((e) => `<i>${esc(T('e.' + e))}</i>`).join(''),
+      avisos: esMod && ins && modTipo(it) !== 'asset' && !act ? `<p class="gmAviso rbOffAyuda">${glifo('prohibido')} ${esc(T('hab.offMod'))}</p>` : '',
+      acc: (esMapa && ins ? b('rbBtnG rbFichaGrande', 'jugarcom', 'jugar', 'jugar') : '')
+        + (ins ? '' : b('rbBtnG rbFichaGrande', 'instalar', 'bajar', 'instalar'))
+        + (an && ins ? (equipado(it) ? `<span class="rbFichaIncl">${glifo('si')} ${esc(T('ti.equipado'))}</span>` + b('rbBtnGris', 'desequipar', 'no', 'ti.desequipar') : b('rbBtnG rbFichaGrande', 'equipar', 'mas', 'ti.equipar')) : '')
+        + (esMapa && it.creado && INST.mapas[it.id] ? b('rbBtnGris', 'creaEditar', 'lapiz', 'emo.editar') : '')
+        + (it.oficial ? '' : (it.descargas != null ? `<button class="rbBtnGris${LIKES[it.id] ? ' sel' : ''}" data-rb="like:${esc(it.id)}">${glifo('corazon')} ${esc(T('meGusta'))}</button>` + b('rbBtnGris', 'denunciar', 'bandera', 'denunciar') : '')
+          + (ins ? b('rbBtnGris', 'exportar', 'bajar', 'exportar') : '') + (PUBLICADOS[it.id] ? b('rbBtnGris tiRojo', 'borrarpub', 'basura', 'quitar') : ''))
+        + (ins && !fijo(it) ? b('rbBtnGris tiRojo', 'quitar', 'basura', 'quitar') : ''),
+      desc: esc(descDe(it) || '') });
   } else {
-    const tile = (x) => { const ins = inst(x), act = activo(x), off = esMod && ins && !act && modTipo(x) !== 'asset';
-      return `<button class="rbTile${act ? ' on' : ''}${ins && !fijo(x) ? ' inst' : ''}${off ? ' off' : ''}${S.tab === 'mapa' ? ' rbTileMapa' : ''}" data-rb="ver:${esc(x.id)}"><span class="rbTileIco">${img(x)}</span><b dir="auto">${esc(nombreDe(x))}</b>${act ? '<i class="rbTileOn"></i>' : off ? '<i class="rbTileOff"></i>' : ins && !fijo(x) ? '<i class="rbTileOk"></i>' : ''}</button>`; };
-    // secciones: en Mods, oficiales de jugar / oficiales que ponen cosas / de la gente; en Mapas, oficiales y de la gente;
+    const tile = (x) => {
+      const ins = inst(x), act = activo(x), asset = esMod && modTipo(x) === 'asset', off = esMod && ins && !act && !asset, id = x.id;
+      // el botón: lo que se puede hacer en amarillo; lo que ya está, verde con contorno (abre la ficha: ahí se saca o se apaga)
+      const btn = esMapa ? (ins ? tiBtn('si', 'jugarcom:' + id, glifo('jugar'), T('jugar')) : tiBtn('si', 'instalar:' + id, glifo('bajar'), T('instalar')))
+        : !ins ? tiBtn('si', 'instalar:' + id, glifo('bajar'), T('instalar'))
+        : an ? (equipado(x) ? tiBtn('ok', 'ver:' + id, `<i class="rbTileOn">${glifo('si')}</i>`, T('ti.equipado')) : tiBtn('si', 'equipar:' + id, glifo('mas'), T('ti.equipar')))
+        : off ? tiBtn('si', 'habMod:' + id, `<i class="rbTileOff">${glifo('mas')}</i>`, T('ti.activar'))
+        : act ? tiBtn('ok', 'ver:' + id, `<i class="rbTileOn">${glifo('si')}</i>`, T('ti.activado'))
+        : tiBtn('ok', 'ver:' + id, `<i class="rbTileOk">${glifo('si')}</i>`, T('instalado'));
+      // (la línea de datos: los de la gente, cuántos lo bajaron y los «me gusta»; tus mapas, sobre qué mapa están)
+      const meta = x.oficial ? '' : esMapa && mio(x) && x.base ? `<i>${glifo('mapa')} ${esc(mapaNom(x.base))}</i>` : x.descargas != null ? `<i>${glifo('bajar')} ${x.descargas | 0}</i><i>${glifo('corazon')} ${x.likes | 0}</i>` : x.autor ? `<i>${glifo('persona')} ${esc(x.autor)}</i>` : '';
+      return tiTarjeta({ id, img: img(x), nombre: nombreDe(x), meta, btn, cls: `${act ? 'on' : ''}${ins && !fijo(x) ? ' inst' : ''}${off ? ' off' : ''}${esMapa ? ' rbTileMapa' : ''}` });
+    };
+    const secc = (n, L, extra) => `<div class="rbSecc">${esc(n)}<em>${L.length}</em></div>` + L.map(tile).join('') + (extra || '');
+    // secciones: en Mods, de jugar / los que ponen cosas / de la gente; en Mapas, los tuyos, oficiales y de la gente;
     // en Emotes (sin filtro), por categoría
     let grupos;
-    if (esMod) grupos = [[T('oficial') + ' · ' + T('mm.juego'), S.items.filter((x) => x.oficial && modTipo(x) !== 'asset')], [T('oficial') + ' · ' + T('mm.assets'), S.items.filter((x) => x.oficial && modTipo(x) === 'asset')], [T('c.comunidad'), S.items.filter((x) => !x.oficial)]];
-    else if (an && !S.etq) { const m = new Map(); for (const x of S.items) { const c = x.cat || 'otros'; if (!m.has(c)) m.set(c, []); m.get(c).push(x); } grupos = [...m].map(([c, L]) => [T('emo.' + c) !== 'emo.' + c ? T('emo.' + c) : c, L]); }
-    else grupos = [[T('oficial'), S.items.filter((x) => x.oficial)], [T('c.comunidad'), S.items.filter((x) => !x.oficial)]];
+    if (esMod) grupos = [[T('mm.juego'), resto.filter((x) => x.oficial && modTipo(x) !== 'asset')], [T('mm.assets'), resto.filter((x) => x.oficial && modTipo(x) === 'asset')], [T('c.comunidad'), resto.filter((x) => !x.oficial)]];
+    else if (an && !S.etq) { const m = new Map(); for (const x of resto) { const c = x.cat || 'otros'; if (!m.has(c)) m.set(c, []); m.get(c).push(x); } grupos = [...m].map(([c, L]) => [T('emo.' + c) !== 'emo.' + c ? T('emo.' + c) : c, L]); }
+    else grupos = [[T('oficial'), resto.filter((x) => x.oficial)], [T('c.comunidad'), resto.filter((x) => !x.oficial)]];
     grupos = grupos.filter((g) => g[1].length);
-    G.innerHTML = (grupos.length > 1 ? grupos.map(([n, L]) => `<div class="rbSecc">${esc(n)}<em>${L.length}</em></div>` + L.map(tile).join('')).join('') : S.items.map(tile).join('')) + fin;
+    const nuevo = esMapa ? `<button class="tiNuevo" data-rb="crear:tienda"><i>${glifo('mas')}</i><b>${esc(T('ti.nuevoMapa'))}</b><small>${esc(T('ti.desdeCero'))}</small></button>` : '';
+    G.innerHTML = (esMapa ? secc(T('cr.misMapas'), mios, nuevo) : '') + (grupos.length > 1 || esMapa ? grupos.map(([n, L]) => secc(n, L)).join('') : resto.map(tile).join('')) + fin;
   }
   const tot = RB.el.querySelector('.rbTotal'); if (tot) tot.textContent = S.total && !it ? `${S.items.length} / ${S.total}` : '';
   const mas = RB.el.querySelector('[data-rb=mas]'); if (mas) mas.style.display = !it && S.vista === 'explorar' && S.items.length < S.total ? '' : 'none';   // (sin ocupar lugar: en un celular chico el pie entra en un renglón)
   const hab = RB.el.querySelector('.rbHab');
   if (hab) { const ids = esMod && typeof habBotones === 'function' ? modsHabilitables() : []; hab.innerHTML = ids.length || (it && esMod) ? habBotones(it ? (ids.includes(it.id) ? it.id : null) : undefined, ids, (id) => !!PREFS.mods[id], 'Mod') : ''; }
+  tiEncajar();
 }
 // los mods instalados que se pueden habilitar o deshabilitar (los que ponen cosas —radio, piano, props— están siempre)
 const modsHabilitables = () => modsTodos().filter((m) => modTipo(m) !== 'asset').map((m) => m.id);
@@ -433,7 +537,10 @@ function inicioAccion(k, b) {
     case 'fichaNo': RB.t.ficha = null; return tiendaDibujar();
     case 'mas': RB.t.p++; return tiendaCargar(false);
     case 'instalar': return instalar(v);
-    case 'quitar': if (RB.t.tab === 'mod') { delete INST.mods[v]; if (INST.of) delete INST.of[v]; delete PREFS.mods[v]; guardarPrefs(); inicioLista(); } else if (RB.t.tab === 'anim') { delete INST.anims[v]; emoOlvidar('u:' + v); } else delete INST.mapas[v]; guardarLS('rb_instalados', INST); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar();
+    // (Emotes: a la ruleta de emotes o fuera de ella; avisa cuál salió si estaba llena)
+    case 'equipar': case 'desequipar': { const on = a === 'equipar', it = RB.t.items.find((x) => x.id === v), n = it ? nombreDe(it) : v, sale = emoEquipar(v, on), s = sale && typeof rulInfo === 'function' && rulInfo(sale);
+      menuAviso(T(on ? 'ti.enRuleta' : 'ti.fueraRuleta').replace('{n}', n) + (s ? ` (${T('ti.salio').replace('{m}', s.n)})` : '')); return tiendaDibujar(); }
+    case 'quitar': if (RB.t.tab === 'mod') { delete INST.mods[v]; if (INST.of) delete INST.of[v]; delete PREFS.mods[v]; guardarPrefs(); inicioLista(); } else if (RB.t.tab === 'anim') { emoEquipar(v, false); delete INST.anims[v]; emoOlvidar('u:' + v); } else delete INST.mapas[v]; guardarLS('rb_instalados', INST); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar();
     case 'habMod': case 'desMod': { modsHabilitar([v], a === 'habMod'); const m = modsTodos().find((x) => x.id === v); menuAviso(`${m ? nombreDe(m) : v}: ${T(a === 'habMod' ? 'hab.on' : 'hab.off')}`); return tiendaDibujar(); }
     case 'habTodoMod': case 'desTodoMod': { const on = a === 'habTodoMod', L = modsHabilitables().filter((id) => !!PREFS.mods[id] !== on); modsHabilitar(L, on); menuAviso(T(on ? 'hab.okSi' : 'hab.okNo').replace('{n}', L.length)); return RB.t.vista === 'instalados' ? tiendaCargar(true) : tiendaDibujar(); }
     case 'act': PREFS.mods[v] = !PREFS.mods[v]; if (!PREFS.mods[v]) delete PREFS.mods[v]; guardarPrefs(); return tiendaDibujar();
@@ -464,7 +571,7 @@ function inicioAccion(k, b) {
     case 'mapacom': if (!mapaDe(v)) return; RB.mapaCom = v; RB.mapa = mapaDe(v).base; return inicioPanel('nueva');
     case 'empezar': RB.horaPartida = RB.hora; RB.mapaPartida = RB.mapaCom ? mapaDe(RB.mapaCom) : null; SALA = null; CREA.on = false;
       entrarConCarga(RB.mapaPartida ? nombreDe(RB.mapaPartida) : T('ld.solo'), RB.mapa, () => { inicioMostrar(false); return empezarPartida(RB.mapa); }); return;
-    case 'crear': return inicioPanel('crear');
+    case 'crear': RB.creaVuelve = v === 'tienda'; return inicioPanel('crear');   // (desde «Nuevo mapa» de la tienda, Volver vuelve a la tienda)
     case 'creaBase': RB.creaBase = v; return inicioPanel('crear');
     case 'creaNuevo': return creadorEmpezar(RB.creaBase, null);
     case 'creaEditar': { const m = INST.mapas[v]; if (m) creadorEmpezar(m.base, m); return; }
@@ -483,7 +590,7 @@ function inicioMostrar(si) {
     if (!RB.reloj) { inicioFondoPasar(); RB.reloj = setInterval(() => { if (!RB.el.classList.contains('oc')) inicioFondoPasar(); }, 9000); }
   }
   if (RB.el) RB.el.classList.toggle('oc', !si);
-  if (si) requestAnimationFrame(inicioEncajar);
+  if (si) requestAnimationFrame(() => { inicioEncajar(); tiEncajar(); });
   // (en la partida, con el menú abierto la HUD táctil no se ve: si no, se asoma por las partes transparentes del menú)
   document.body.classList.toggle('rbAbierto', !!si);
   if (!si && RB.el) { RB.el.classList.remove('rb3d'); menuLobby(false); }

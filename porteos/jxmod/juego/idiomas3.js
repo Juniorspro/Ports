@@ -535,3 +535,21 @@ Object.assign(IDI3, {
   'spt.Tools': ['Herramientas', 'Tools', 'Ferramentas', 'Alat', 'Alatan', 'Mga tool', 'ツール', 'เครื่องมือ', 'Aletler', 'الأدوات', 'Инструменты', 'Інструменти', 'Outils', 'Werkzeuge'],
   'spt.Host': ['Anfitrión', 'Host', 'Anfitrião', 'Host', 'Hos', 'Host', 'ホスト', 'โฮสต์', 'Sunucu', 'المضيف', 'Хост', 'Хост', 'Hôte', 'Host'],
 });
+// (el panel «Mods y mapas» con el concepto de GOLDEN: inicio.js tiendaMarco y gmod_tienda.js)
+Object.assign(IDI3, {
+  'ti.cats': ['Categorías', 'Categories', 'Categorias', 'Kategori', 'Kategori', 'Mga kategorya', 'カテゴリー', 'หมวดหมู่', 'Kategoriler', 'الفئات', 'Категории', 'Категорії', 'Catégories', 'Kategorien'],
+  'ti.activar': ['Activar', 'Turn on', 'Ativar', 'Aktifkan', 'Aktifkan', 'I-on', 'オンにする', 'เปิด', 'Aç', 'تشغيل', 'Включить', 'Увімкнути', 'Activer', 'Einschalten'],
+  'ti.activado': ['Activado', 'On', 'Ativado', 'Aktif', 'Aktif', 'Naka-on', 'オン', 'เปิดอยู่', 'Açık', 'مفعّل', 'Включён', 'Увімкнено', 'Activé', 'An'],
+  // (Emotes: «Equipar» pone el emote en la ruleta de emotes)
+  'ti.equipar': ['Equipar', 'Equip', 'Equipar', 'Pasang', 'Pasang', 'I-equip', '装備する', 'สวมใส่', 'Kuşan', 'تجهيز', 'Экипировать', 'Екіпірувати', 'Équiper', 'Ausrüsten'],
+  'ti.equipado': ['Equipado', 'Equipped', 'Equipado', 'Terpasang', 'Dipasang', 'Naka-equip', '装備中', 'สวมใส่แล้ว', 'Kuşanıldı', 'مجهّز', 'Экипировано', 'Екіпіровано', 'Équipé', 'Ausgerüstet'],
+  'ti.desequipar': ['Sacar de la ruleta', 'Remove from wheel', 'Tirar da roleta', 'Lepas dari roda', 'Keluarkan dari roda', 'Alisin sa wheel', 'ホイールから外す', 'นำออกจากวงล้อ', 'Çarktan çıkar', 'إزالة من العجلة', 'Убрать из колеса', 'Прибрати з колеса', 'Retirer de la roue', 'Aus dem Rad nehmen'],
+  'ti.enRuleta': ['{n}: en la ruleta de emotes', '{n}: added to the emote wheel', '{n}: na roleta de emotes', '{n}: masuk roda emote', '{n}: masuk roda emote', '{n}: nasa emote wheel na', '{n}：エモートホイールに追加', '{n}: อยู่ในวงล้ออีโมตแล้ว', '{n}: ifade çarkında', '{n}: في عجلة التعبيرات', '{n}: в колесе эмоций', '{n}: у колесі емоцій', '{n} : dans la roue des emotes', '{n}: im Emote-Rad'],
+  'ti.fueraRuleta': ['{n}: fuera de la ruleta de emotes', '{n}: removed from the emote wheel', '{n}: fora da roleta de emotes', '{n}: dilepas dari roda emote', '{n}: dikeluarkan dari roda emote', '{n}: inalis sa emote wheel', '{n}：エモートホイールから外しました', '{n}: นำออกจากวงล้ออีโมตแล้ว', '{n}: ifade çarkından çıkarıldı', '{n}: أُزيل من عجلة التعبيرات', '{n}: убрано из колеса эмоций', '{n}: прибрано з колеса емоцій', '{n} : retiré de la roue des emotes', '{n}: aus dem Emote-Rad genommen'],
+  'ti.salio': ['salió {m}', '{m} was removed', 'saiu {m}', '{m} keluar', '{m} keluar', 'natanggal ang {m}', '{m}を外しました', 'นำ {m} ออก', '{m} çıkarıldı', 'أُزيل {m}', '{m} убрано', '{m} прибрано', '{m} retiré', '{m} entfernt'],
+  'ti.directa': ['Directa', 'Direct', 'Direto', 'Langsung', 'Terus', 'Direkta', '直接', 'ตรง', 'Doğrudan', 'مباشر', 'Прямая', 'Пряма', 'Direct', 'Direkt'],
+  'ti.nuevoMapa': ['Nuevo mapa', 'New map', 'Novo mapa', 'Peta baru', 'Peta baharu', 'Bagong mapa', '新しいマップ', 'แผนที่ใหม่', 'Yeni harita', 'خريطة جديدة', 'Новая карта', 'Нова мапа', 'Nouvelle carte', 'Neue Karte'],
+  'ti.desdeCero': ['Crear desde cero', 'Build from scratch', 'Criar do zero', 'Buat dari nol', 'Cipta dari kosong', 'Gumawa mula sa simula', 'ゼロから作る', 'สร้างใหม่ทั้งหมด', 'Sıfırdan oluştur', 'أنشئ من الصفر', 'Создать с нуля', 'Створити з нуля', 'Créer de zéro', 'Neu erstellen'],
+  'ti.nuevaC': ['Nueva partida', 'New game', 'Novo jogo', 'Main baru', 'Main baharu', 'Bagong laro', '新しいゲーム', 'เกมใหม่', 'Yeni oyun', 'لعبة جديدة', 'Новая игра', 'Нова гра', 'Nouvelle partie', 'Neues Spiel'],
+  'ti.buscarGm': ['Buscar addons del Workshop…', 'Search Workshop addons…', 'Buscar addons da Oficina…', 'Cari addon Workshop…', 'Cari addon Workshop…', 'Maghanap ng addon sa Workshop…', 'ワークショップのアドオンを検索…', 'ค้นหาแอดออนใน Workshop…', 'Atölye eklentilerinde ara…', 'ابحث في إضافات الورشة…', 'Поиск аддонов в Мастерской…', 'Пошук аддонів у Майстерні…', 'Chercher des addons du Workshop…', 'Workshop-Addons suchen…'],
+});

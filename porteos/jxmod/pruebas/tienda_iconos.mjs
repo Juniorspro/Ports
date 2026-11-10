@@ -1,6 +1,6 @@
-// la tienda en íconos cuadrados por secciones: en Mods se ven secciones (oficiales de jugar, los que ponen cosas, de
-// la gente) con íconos cuadrados (≥ 4 por fila en la compu, ≥ 3 en el celular acostado), sin textos largos ni botones en
-// la grilla; tocar uno abre su ficha (nombre, datos, descripción entera y los botones) y esconde el buscador; Instalar
+// la tienda por secciones: en Mods se ven secciones (oficiales de jugar, los que ponen cosas, de la gente) con tarjetas
+// (≥ 4 por fila en la compu, ≥ 3 en el celular acostado), cada una con su ícono cuadrado y un botón a lo ancho (el
+// concepto de GOLDEN: lo prueba entero tienda_panel.mjs); tocar uno abre su ficha (nombre, datos, descripción entera y los botones) y esconde el buscador; Instalar
 // desde la ficha lo instala y aparecen Quitar y Activado; Volver vuelve a la grilla con la marca de activado; Emotes por
 // categoría; sin errores. (compu y celular)
 // uso: node tienda_iconos.mjs URL_HTML [CARPETA_FOTOS]
@@ -13,9 +13,9 @@ for (const celu of [false, true]) {
   await ev(`PREFS.bienvenida = true; localStorage.removeItem('rb_instalados'); INST.of = {}; for (const k in PREFS.mods) delete PREFS.mods[k]; inicioMostrar(true); RB.t.tab = 'mod'; RB.t.vista = 'explorar'; RB.t.ficha = null; inicioPanel('tienda'); 1`);
   await p.waitForTimeout(2500);
   const g = await ev(`(() => { const T = [...document.querySelectorAll('.rbTiendaG .rbTile')], r = T.map((x) => x.querySelector('.rbTileIco').getBoundingClientRect());
-    const fila = r.filter((x) => Math.abs(x.top - r[0].top) < 2).length; return { n: T.length, secc: [...document.querySelectorAll('.rbSecc')].map((x) => x.textContent), fila, cuadrado: r.every((x) => Math.abs(x.width - x.height) < 2), botones: document.querySelectorAll('.rbTiendaG .rbTile button').length, ancho: Math.round(r[0] && r[0].width) }; })()`);
+    const fila = r.filter((x) => Math.abs(x.top - r[0].top) < 2).length; return { n: T.length, secc: [...document.querySelectorAll('.rbSecc')].map((x) => x.textContent), fila, cuadrado: [...T].every((x) => { const i = x.querySelector('.rbTileIco img, .rbTileIco svg, .rbTileIco .ico'), q = i && i.getBoundingClientRect(); return q && Math.abs(q.width - q.height) < 2; }), botones: document.querySelectorAll('.rbTiendaG .rbTile .tiBtn').length, ancho: Math.round(r[0] && r[0].width) }; })()`);
   await p.screenshot({ path: D + 'tienda_grilla_' + tag + '.png' });
-  ok(`${tag}: Mods en secciones con íconos cuadrados (≥ ${celu ? 3 : 4} por fila), sin botones en la grilla`, g.n >= 8 && g.secc.length >= 2 && g.fila >= (celu ? 3 : 4) && g.cuadrado && g.botones === 0, g);
+  ok(`${tag}: Mods en secciones con tarjetas (≥ ${celu ? 3 : 4} por fila), ícono cuadrado y un botón cada una`, g.n >= 8 && g.secc.length >= 2 && g.fila >= (celu ? 3 : 4) && g.cuadrado && g.botones === g.n, g);
   // tocar uno: la ficha
   const id = await ev(`(() => { const x = RB.t.items.find((m) => m.oficial && modTipo(m) !== 'asset'); return x && x.id; })()`);
   const el = await p.$(`.rbTile[data-rb="ver:${id}"]`); await el.click(); await p.waitForTimeout(300);
