@@ -11,6 +11,9 @@ CORE_SKIN = {'Hero'}
 # prefabs que van en un paquete propio (prefijo del nombre → grupo): se bajan al ponerlos o al abrir su sección
 PF_APARTE = {'NK_': 'p_nuk'}
 SON_APARTE = {'NK_': 'p_nuk', 'MM_': 'a_memes', 'fn_': 'm_RB_Pizzeria'}
+# los que además van en otro paquete chico (los Pill Packs, juego/pillpacks.js: transformado en un animatrónico suenan el
+# grito, la risa, los pasos... sin bajar los 5 MB de la pizzería; la pizzería sigue trayendo los suyos)
+SON_TAMBIEN = {'a_pill': ('fn_grito', 'fn_risa', 'fn_paso1', 'fn_paso2', 'fn_paso3', 'fn_cajita', 'fn_estatica', 'fn_ollas', 'fn_foxycorre')}
 # los 50 rumbos del casco fino de objetos.js (DIR_FINO y arriba/abajo) y los 14 del común
 _DIR_FINO = [(math.cos(i * 2.39996323) * math.sqrt(1 - (1 - (2 * i + 1) / 48) ** 2), 1 - (2 * i + 1) / 48, math.sin(i * 2.39996323) * math.sqrt(1 - (1 - (2 * i + 1) / 48) ** 2)) for i in range(48)] + [(0, 1, 0), (0, -1, 0)]
 _DIR_14 = [tuple(c / math.sqrt(abs(x) + abs(y) + abs(z)) for c in (x, y, z)) for x in (-1, 0, 1) for y in (-1, 0, 1) for z in (-1, 0, 1) if (x or y or z) and abs(x) + abs(y) + abs(z) != 2]
@@ -163,6 +166,9 @@ def partir(DJ, MB, texturas, filtrar, audios=None):
         paquetes.setdefault(g, {'m': None, 't': {}})['t'][t] = texturas.pop(t)
         DJ['tx'][t]['k'] = g
     # sonidos: los de la pizzería con el mapa, los memes en uno propio (se bajan al abrir el pad), los de las bombas con ellas
+    for g2, L in SON_TAMBIEN.items():
+        for n in L:
+            if n in (audios or {}): paquetes.setdefault(g2, {'m': None, 't': {}}).setdefault('a', {})[n] = audios[n]
     for n in list(audios or {}):
         g = next((g for pre, g in SON_APARTE.items() if n.startswith(pre)), None)
         if g: paquetes.setdefault(g, {'m': None, 't': {}}).setdefault('a', {})[n] = audios.pop(n)

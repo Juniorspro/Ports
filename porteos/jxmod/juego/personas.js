@@ -552,11 +552,13 @@ function danarPersona(P, dan, pos, d) {
 // ---------------- el cuerpo del jugador (tercera persona, vehículos, muerte) ----------------
 function jugadorCuerpoNuevo() {
   if (JUG.cuerpo) borrarPersona(JUG.cuerpo);
-  let sk = JUG.skinRol || JUG.skinMod || PREFS.skin;
+  const pil = typeof pillSkin === 'function' ? pillSkin() : null;   // (transformado: Pill Packs, pillpacks.js)
+  let sk = pil || JUG.skinRol || JUG.skinMod || PREFS.skin;
   // (en un server oficial, el modelo de jugador de un mod censurado no se usa: se entra con el de siempre)
   if (typeof censOficial === 'function' && censOficial() && typeof gmAddonDeItem === 'function') { const A = gmAddonDeItem(sk); if (A && A.cens) sk = 'Hero'; }
   JUG.cuerpo = crearPersona(sk, PREFS.gorro, { nombre: PREFS.nombre });
-  const t = tamSkin(JUG.cuerpo.skin); jugadorTam(t.k, t.ojo);
+  const t = (pil && pillTam()) || tamSkin(JUG.cuerpo.skin); jugadorTam(t.k, t.ojo);
+  if (pil && typeof pillCuerpo === 'function') pillCuerpo(JUG.cuerpo);
 }
 function jugadorRagdoll() { const P = JUG.cuerpo; if (!P) return; P.vel.copy(JUG.vel); ragdoll(P, vscale(JUG.vel, 0.2)); }
 function emote(e) {

@@ -220,7 +220,7 @@ function empezarPartida(mapa) {
     rbAsegurarTodos(falta, (n, t) => { if (C && C.set && t) C.set(0.05 + 0.85 * n / t, T('ld.bajando') + ' ' + (n / 1048576).toFixed(1) + ' / ' + (t / 1048576).toFixed(1) + ' MB'); }).then(sigue, () => sigue(false));
     return;
   }
-  natFin(); entidadesLimpiar(); JUG.skinRol = null; JUG.vidaMax = 0; JUG.colorRol = null; JUG.noclip = false; JUG.congelado = false;
+  natFin(); if (typeof pillFin === 'function') pillFin(true); entidadesLimpiar(); JUG.skinRol = null; JUG.vidaMax = 0; JUG.colorRol = null; JUG.noclip = false; JUG.congelado = false;
   for (const o of OBJS.slice()) borrarObjeto(o);
   PH.bodies.length = 0; PH.joints.length = 0; PROY.length = 0; PART.l.length = 0;
   if (typeof nukeLimpiar === 'function') nukeLimpiar();   // (una nuclear del mundo de antes no sigue en éste: nucleares.js)
@@ -242,7 +242,7 @@ function empezarPartida(mapa) {
   if (typeof MENU !== 'undefined' && MENU.cargarGuardado) { MENU.cargarGuardado = false; cargarConstruccion(); }
 }
 function irMenuPrincipal() {
-  modapiDescargar(); natFin(); entidadesLimpiar(); creadorSalir(); rolCerrar();
+  modapiDescargar(); natFin(); if (typeof pillFin === 'function') pillFin(true); entidadesLimpiar(); creadorSalir(); rolCerrar();
   if (typeof nukeLimpiar === 'function') nukeLimpiar();   // (sin destello, radiación ni soplido encima del menú)
   if (typeof redSalir === 'function') redSalir();
   if (typeof lanSalir === 'function') lanSalir();   // (si eras anfitrión en la red local, la partida se cierra: lan.js)
@@ -376,6 +376,7 @@ function cuadro(ahora) {
     cicPaso(dt); verPaso(dt); edaPaso(dt); nochePaso(dt); if (typeof puertasPaso === 'function') puertasPaso(dt);
     diaPaso(dt); hostPaso();
     if (typeof eventoPaso === 'function') eventoPaso(dt);   // (el evento 3.0: la grieta y lo que cae de ella)
+    if (typeof pillPaso === 'function') pillPaso(dt);   // (Pill Packs: transformado en un personaje)
   }
   efectosPaso(dt);
   camaraActualizar(dt);

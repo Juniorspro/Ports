@@ -257,9 +257,10 @@ function redPaso(dt) {
   if (t - LISTA.ultP > 120) presencia();
   if (t - RED.ultE > 0.1) {
     const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits() | nocheBits() | linternaBits();
-    const kE = J.skinRol || J.skinMod || PREFS.skin;
+    const kE = (typeof pillSkin === 'function' && pillSkin()) || J.skinRol || J.skinMod || PREFS.skin;   // (transformado: su personaje, pillpacks.js)
     const e = { n: PREFS.nombre, k: kE, kw: redSkinWid(kE), h: PREFS.gorro, ga: PREFS.gorroAj || 0, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
       e: JUG.cuerpo && JUG.cuerpo.emote || 0, mu: typeof emuRed === 'function' ? emuRed() : 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0, vr: verRedEstado() };
+    { const pl = typeof pillRed === 'function' ? pillRed() : 0; if (pl) e.pl = pl; }   // (Pill Packs: en qué está transformado)
     // (tu ID de Social, si entraste con Google: así los de la sala te agregan de amigo sin escribirlo)
     if (typeof SOC !== 'undefined' && SOC.yo && /^\d{8}$/.test(SOC.yo.pid || '')) e.sp = SOC.yo.pid;
     const s = JSON.stringify(e);
@@ -376,6 +377,7 @@ function recibirEstado(d) {
   R2.up = Array.isArray(d.u) ? v3(num(d.u[0], -1, 1, 0), num(d.u[1], -1, 1, 1), num(d.u[2], -1, 1, 0)).norm() : null;
   R2.tag.style.color = typeof d.c === 'string' && /^#[0-9a-fA-F]{6}$/.test(d.c) ? d.c : '';
   verRemoto(R2, d.vr); // (su Verity, si la tiene)
+  if (typeof pillRemoto === 'function') pillRemoto(R2, d.pl);   // (transformado: Pill Packs)
 }
 // nombre arriba del jugador con los íconos de los mods que usa (se rehace sólo si cambió)
 function etiquetaRemota(R2) {
@@ -504,6 +506,7 @@ function recibirHecho(d) {
   } else if (d.k === 'rtc' && d.to === RED.ID) { vozSenal(d);
   } else if (d.k === 'ent' || d.k === 'entb' || d.k === 'radio' || d.k === 'entp') { entidadHecho(d);
   } else if (d.k === 'jalar') { natRed(d);
+  } else if (d.k === 'pill') { if (typeof pillHecho === 'function') pillHecho(d, R2);   // (lo que hace el personaje de otro: pillpacks.js)
   } else if (d.k === 'cic') { cicRed(d);
   } else if (typeof d.k === 'string' && /^ver[dqgawc]$/.test(d.k)) { verRed(d); // (Verity: lo que dice, preguntas, agarre, animación, llamada, crear)
   } else if (d.k === 'maqv') { maqVivoRed(d);
