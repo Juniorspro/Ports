@@ -13,9 +13,10 @@ scripts de `herramientas/` lo leen de afuera y va sólo dentro del HTML armado.
 
 | Asset | Autor / origen | Dónde | Licencia |
 |---|---|---|---|
-| Mapa de la pizzería (geometría, texturas y props de la oficina, el comedor, el escenario, Pirate Cove y el resto) | "FNaF 1 Custom map by Fedy!" (Garry's Mod, workshop 2795755942); modelos de robgamings, rynfox, chuizaproductions, Keithy, Team VR | https://archive.org/details/gmod_addons_2795755942_1652108797 | rip: Five Nights at Freddy's (addon de la comunidad) |
-| Texturas de props de Keithy: el escritorio de la oficina, monitores, parlantes, la silla, la cámara de seguridad, cupcakes, gorritos de fiesta, el sol y las nubes del escenario | "FNaF 2 Map Props" (Keithy, Garry's Mod, workshop 2290047639), bajadas sólo esas por rangos | https://archive.org/details/gmod_addons_2290047639_1605614845 | rip: Five Nights at Freddy's 2 (addon de la comunidad) |
-| Texturas de las mesas del comedor, la computadora vieja, el cartel de salida y las piletas de los baños (modelo y textura) | "[urf.im] FNAF Map Winter" (Garry's Mod, workshop 2322584409), con contenido de Half-Life 2 y Black Mesa | https://archive.org/details/gmod_addons_2322584409_1608274540 | rip: Five Nights at Freddy's / Half-Life 2 (addon de la comunidad) |
+| Mapa de la pizzería (geometría, texturas, props, calcomanías, las puertas de seguridad y sus botones, luces y cámaras: la oficina, el comedor, el escenario, Pirate Cove, los pasillos, la cocina, los baños, el armario y el cuarto de atrás) | "Freddy Fazbears Pizza (Event) REUPLOAD" (Garry's Mod, workshop 1723579046, `fnaf_freddypizzaevents.bsp`; resubida, no es del que la subió) | https://steamcommunity.com/sharedfiles/filedetails/?id=1723579046 | rip: Five Nights at Freddy's (addon de la comunidad) |
+| Modelos de los props que el mapa pide y no trae (mesas, sillas, arcades, carteles, peluches, pizzas, estrellas, cocina, baños, la tela de la cortina de Pirate Cove; de Keithy, i6nis, Black Mesa y otros) | "FNAF MAPs Model Pack" (workshop 1723581405), dependencia del mapa | https://steamcommunity.com/sharedfiles/filedetails/?id=1723581405 | rip: Five Nights at Freddy's / Black Mesa (addon de la comunidad) |
+| Texturas de esos props y del mapa | "FNAF MAPs Texture Materials #1, #2 y #3" (workshop 1723583571, 1723585641, 1723586812), dependencias del mapa | https://steamcommunity.com/sharedfiles/filedetails/?id=1723583571 (y las otras dos) | rip: Five Nights at Freddy's (addon de la comunidad) |
+| Muebles y texturas de Half-Life 2 que usa el mapa (inodoros, piletas, heladera, cocinas, estantes; madera, metal y concreto) | Half-Life 2 (Valve), de la biblioteca de GMod/HL2 del juego (`herramientas/gmod_base.py`) | ídem | rip: Half-Life 2 |
 | Freddy, Bonnie, Chica y Foxy (mallas, huesos, texturas y animaciones: quieto, caminar, correr, susto, mirar); también como personajes jugables | "FNAF Help Wanted NEXTBOT Pack [DrGBase]" (cl3nr / linux55), modelos de FNaF VR: Help Wanted | https://archive.org/details/gmod_addons_2718492387_1642128380 | rip: FNaF VR: Help Wanted |
 | Risa de Freddy, ollas de Chica, respiración, cajita de música, grito, pasos de carrera | el mismo pack (sound/cl3nr/fnaf1) | ídem | rip: FNaF VR: Help Wanted |
 | Ventilador, zumbido de las luces, puertas, golpes y carrera de Foxy, apagón, campanas de las 6, estática, cámaras, pasos, ambiente, risas de chicos, respiración en la ventana, el error de los botones, la pantalla de Game Over y las llamadas de las noches 1 a 4 (castellano e inglés) | "FNAF In Real Time" (Real Time Studio) | https://kingdragonsyt.itch.io/fnaf-in-real-time | rip: FNAF In Real Time |
@@ -23,10 +24,8 @@ scripts de `herramientas/` lo leen de afuera y va sólo dentro del HTML armado.
 | Personajes y nombres de Five Nights at Freddy's | Scott Cawthon | — | rip: Five Nights at Freddy's |
 
 Hecho acá (nuestro): el conversor de Source (`source_mdl.py`, `pizzeria.py`), la lógica de la noche, la interfaz, las
-texturas de reemplazo (acero, revoque y colores lisos para lo que el mapa no traía), los muebles de Half-Life 2 que faltaban
-(mesadas, cocinas, heladera, estante, inodoros, escritorio y silla, reflectores del escenario y apliques, hechos con
-cajas), los carteles y las pantallas de los arcades, la cortina de Pirate Cove (dos paños
-con la tela del mapa), el plano de las cámaras (dibujado del mapa), el armado de los animatrónicos como personajes
+texturas de reemplazo (madera, concreto, metal y colores lisos para lo poco que no vino de ningún lado), la cortina de Pirate Cove (dos paños con la tela del Model Pack), las cámaras de
+FNAF puestas en cada sala, el plano de las cámaras (dibujado del mapa), la lista de quién está en la oficina, el armado de los animatrónicos como personajes
 (`skin_fnaf.py`) y sus retratos, el ícono y el fondo de carga (capturas del juego).
 
 ## Garry's Mod y Half-Life 2 (`RB_Construct`, `RB_Flatgrass`, la palanca, las armas, las posturas)

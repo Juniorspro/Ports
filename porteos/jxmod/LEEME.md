@@ -1017,7 +1017,8 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE JXMod.html
   (con oasis) y Luna (cráteres, gravedad baja, cielo negro sin nubes ni brillo de aire). Las texturas base son imágenes
   generadas, vueltas sin costura y llevadas al color de cada mapa; las líneas de la calle, las juntas y las ventanas se
   dibujan encima. Cada triángulo del terreno toma pasto, arena, tierra o roca según altura y pendiente.
-- **Pizzería de Freddy (la noche de FNAF 1)**, `RB_Pizzeria`, con server oficial y elegible al crear uno. Sobrevivir de
+- **Pizzería de Freddy (la noche de FNAF 1)**, `RB_Pizzeria`, con server oficial y elegible al crear uno. El mapa es
+  "Freddy Fazbears Pizza (Event)" del Workshop (pedido en el Discord; antes era el de Fedy). Sobrevivir de
   las 12 a las 6 (89 s por hora) en la oficina. Solo: menú de noches (nueva, continuar, la 6 y la personalizada con los
   cuatro niveles de 0 a 20; el progreso se guarda); en una sala arranca sola. Como en FNAF 1: los niveles de cada noche
   (y Bonnie, Chica y Foxy suben a las 2, 3 y 4), una oportunidad de moverse cada 3,02 / 4,97 / 4,98 / 5,01 s, cada uno por
@@ -1028,42 +1029,56 @@ MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE JXMod.html
   tableta arriba (la cortina se va abriendo) y corre a los 25 s o si alguien mira la 2A; cada golpe en la puerta saca 1,
   6, 11 % de energía. Energía: 0,1 % por segundo por barra de uso más 0,1 % cada 6, 5, 4 o 3 s desde la noche 2; sin
   energía se apaga todo y viene Freddy con la cajita (si dan las 6 antes, se gana). Con alguien adentro los botones no
-  andan; mientras corre la noche no se pueden poner props. Cámaras (G) con el plano de FNAF hecho del mapa; linterna (L)
+  andan; mientras corre la noche no se pueden poner props. Cámaras (G) con el plano de FNAF hecho del mapa (cada
+  una arriba, en un rincón de su sala, desde donde se ven los lugares de los animatrónicos de esa sala); linterna (L)
   que alumbra en todas las calidades (luces especiales en el shader: la linterna, las de los demás, la lámpara de la
   oficina, las de las puertas y, en las calidades sin luces puntuales, las del techo); llamadas de las noches 1 a 4
   (castellano o inglés según el idioma) con "Silenciar llamada"; sustos en video; Game Over con Reintentar y Menú (todo de
   cero). En una sala la noche la maneja uno solo (el de id más chico; si se va, sigue el próximo desde donde estaba) y cada
   noche lleva un número para que todos se reinicien juntos; al que agarran pasa a espectador (no se ve ni choca): sigue a
   los demás en primera o tercera persona, vuela libre o mira las cámaras, y vuelve a la oficina en la noche siguiente; si
-  agarran a todos, Game Over y la misma noche otra vez a los 8 s. Al lado del micrófono, **VOCES** silencia las voces de
+  agarran a todos, Game Over y la misma noche otra vez a los 8 s. En una sala, abajo de la hora, la lista de los que
+  juegan: en la oficina, afuera o mirando (los agarrados; en el celular, abajo al centro). Al lado del micrófono, **VOCES** silencia las voces de
   los demás. Freddy, Bonnie, Chica y Foxy también están en **Personajes** para jugar con ellos. `juego/noche.js`. Armado (lo
   extraído queda fuera del repo, `CREDITOS.md` dice de dónde sale cada cosa):
   ```sh
-  # el mapa y los animatrónicos (con srctools, pyfqmr y scipy); FN_EXTRA: texturas y modelos de props de otros addons
-  FN_EXTRA=keithy:winter python -I herramientas/pizzeria.py PAQUETE PAQUETE_NUEVO fnaf1customfedy.bsp CARPETA_PACK_HW
+  # el mapa y los animatrónicos (con srctools, pyfqmr y scipy); FN_EXTRA: lo que el mapa pide y no trae (el Model Pack
+  # y las Texture Materials #1-3 del Workshop, 1723581405 y 1723583571/85641/86812); FN_LIB: la biblioteca de HL2 del
+  # juego; FN_CARGA: la captura para la pantalla de carga
+  FN_EXTRA=mp:t1:t2:t3 FN_LIB=web/rb/gm_lib.X.idx FN_CARGA=captura.jpg python -I herramientas/pizzeria.py PAQUETE PAQUETE_NUEVO fnaf_freddypizzaevents.bsp CARPETA_PACK_HW
   # sonidos, llamadas y sustos (de los .ogg/.webm sacados de FNAF In Real Time con UnityPy, y los .wav del pack)
   python3 -I herramientas/pizzeria_medios.py PAQUETE_NUEVO OGG_IRT VIDEO_IRT SONIDOS_HW
   # los cuatro como personajes (la misma malla del mapa con los huesos del juego) y sus retratos para la tienda
   python3 -I herramientas/skin_fnaf.py PAQUETE_NUEVO PAQUETE_FINAL CARPETA_RETRATOS
   ```
   `herramientas/source_mdl.py` lee los modelos de Source (.mdl/.vvd/.vtx: huesos, mallas, secuencias y las animaciones
-  comprimidas). El mapa pasa de Source al juego con (x, y, z) → (y, z, x) en metros. Cada cara se dibuja del lado donde no
-  hay brocha sólida (en este BSP el plano de la cara no alcanza: medido con rayos desde adentro de las salas, el 48 % de lo
-  que se miraba eran caras de espaldas, techos y paredes que no se dibujaban; ahora 0,1 %); vidrios y cortinas, de los dos
-  lados y transparentes. Los muebles de Half-Life 2 que el mapa usa y no trae (mesadas, cocinas, heladera, estante,
-  inodoros, el escritorio y la silla del cuarto de atrás) están hechos con cajas a la medida de lo que va encima (antes la
-  compu y el microondas flotaban), igual que los reflectores del escenario y los apliques; las manijas giran con sus
-  puertas, los arcades apoyan en el piso (con carteles y pantallas dibujados acá) y Pirate Cove tiene su cortina de dos
-  paños. Si un material no está en la carpeta que pide el modelo, se busca cerca en el mapa (la textura suelta, con
-  `color` al final, en una carpeta hermana o en la de arriba: así salen las cabezas del cuarto de atrás). Los props muy
-  detallados se simplifican y las texturas que no vinieron de ningún lado son un color parecido. (Arreglado de paso en el
-  motor: los materiales "sin luz" salían del color de la niebla en todos los mapas salvo en ultra, porque la niebla y la
-  cámara se cargaban sólo en los programas que usan el sol.) Los
+  comprimidas). El mapa pasa de Source al juego con (x, y, z) → (y, z, x) en metros. De las dos variantes del addon va
+  `fnaf_freddypizzaevents` (la 2 es la misma pizzería con otros eventos encima: más sala de control y más entidades, nada
+  que el juego use). Lo de los eventos del mapa (la sala de control de arriba, lo que aparece con disparadores, los
+  animatrónicos quietos del mapa, que el juego reemplaza por los suyos, los de FNAF 2) no va. Cada cara se dibuja del
+  lado donde no hay brocha sólida (en los BSP el plano de la cara no siempre alcanza); vidrios, de los dos lados. Las
+  puertas de seguridad son las `func_door` del mapa (bajan y suben como en FNAF y chocan cerradas), los botones son sus
+  `func_button` (el de arriba, la puerta; el de abajo, la luz) y la oficina sale de ahí: su caja, hacia dónde mira el
+  guardia (al escritorio), la lámpara, las luces de las puertas y el ventilador (`DATA.fn.oficina`). Las salas de FNAF
+  (dónde se para cada uno) están marcadas en el mapa; las esquinas, afuera de cada puerta. Los caminos salen de una
+  grilla de 20 cm sobre el piso (A* y estirados). Las cámaras del mapa son las de sus eventos y varias no veían su sala:
+  cada cámara de FNAF se busca sola en su sala, cerca del techo y con pared atrás, viendo (contra las caras que se
+  dibujan y las cajas de los muebles) a todos los que se paran ahí, todos dentro del cuadro y sin nada pegado delante;
+  Pirate Cove, de frente a la cortina; la cocina sigue siendo sólo audio. La cortina de Pirate Cove son dos paños (la
+  tela del Model Pack, que es un atlas: cada paño toma el suyo) de pared a pared en la boca de la cueva. Las
+  calcomanías (los carteles SECURITY, las rejillas) van derechas; los props de un hueso que su secuencia gira (las pizzas
+  pegadas en las paredes) giran también sus normales (si no, la luz les daba del otro lado y se veían negras). Los props
+  que el mapa pone cerca van juntos en una malla por zona de 8 m y los muy detallados se simplifican. De noche, en el
+  celular, el tacho de borrar props no aparece (no hay props y tapaba la energía). (Arreglado en su momento en el motor:
+  los materiales "sin luz" salían del color de la niebla en todos los mapas salvo en ultra, porque la niebla y la cámara
+  se cargaban sólo en los programas que usan el sol.) Los
   animatrónicos son mallas con piel (a lo sumo 56 huesos con peso) y sus clips en float16. Pruebas: `pruebas/noche.mjs`
   (solo: menú, llamada y silenciar, noches 1, 4 y 6, energía, apagón, Game Over y reintentar, progreso, pausa encima, sin
   props), `pruebas/red_noche.mjs` (dos jugadores: quién maneja, sincronía, puertas, linterna, espectador, Game Over y
-  reinicio en sala, traspaso), `pruebas/noche_luz.mjs` + `noche_luz.py` (luz medida con y sin linterna en cada calidad),
-  `pruebas/pizzeria.mjs` (recorrido y las 11 cámaras) y `pruebas/skins_fnaf.mjs`.
+  reinicio en sala, traspaso, la lista de la sala), `pruebas/noche_luz.mjs` + `noche_luz.py` (luz medida con y sin linterna en cada calidad),
+  `pruebas/pizzeria.mjs` (recorrido por la oficina y cada sala, y las 11 cámaras con los animatrónicos en su lugar; los
+  lugares salen del mapa), `pruebas/noche_ia.mjs` (noche 20/20/20/20 defendida hasta las 6: recorren las salas, a
+  menos de 5 cm del piso y a 22 cm o más de las paredes, con fotos caminando) y `pruebas/skins_fnaf.mjs`.
 - **Rendimiento para jugar en alto**: resolución dinámica en todas las calidades (también las elegidas a mano; se
   apaga en Ajustes): con menos de ~48 cuadros baja la resolución interna antes que los efectos (hasta el 60 % de la
   elegida) y la vuelve a subir cuando sobra, midiendo en tiempo real. Tope de píxeles por calidad (pantallas enormes o

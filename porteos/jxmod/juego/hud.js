@@ -143,7 +143,7 @@ function hudPaso() {
     // (en un auto, una moto o un asiento no hay palanca de caminar: se dobla con las flechas; en el aire sí, para inclinar)
     document.body.classList.toggle('enVeh', veh); document.body.classList.toggle('vehAire', aire);
     const ver = (id, si) => { const e = $(id); if (e) e.classList.toggle('oc', !si); };
-    ver('brecargar', !veh && !sinBala); ver('bdisp2', !veh && (fis || arma === 'ToolBaton')); ver('busar', usar && !veh); ver('bborrar', !veh);
+    ver('brecargar', !veh && !sinBala); ver('bdisp2', !veh && (fis || arma === 'ToolBaton')); ver('busar', usar && !veh); ver('bborrar', !veh && !(typeof NOC !== 'undefined' && NOC.on));   // (de noche en la pizzería no hay props: el botón taparía la energía)
     // (un arma de un mod: apuntar con el secundario, y los botones que pide su Lua)
     const gmw = !veh && typeof DEF_ARMAS !== 'undefined' && DEF_ARMAS[arma] && DEF_ARMAS[arma].tipo === 'gmswep'; if (gmw) ver('bdisp2', true);
     // (las de fuego del juego también: apuntar; el francotirador, su mira)

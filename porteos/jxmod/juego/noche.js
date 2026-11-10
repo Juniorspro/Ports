@@ -28,14 +28,18 @@ const NOC_SIG = {   // adónde puede ir desde cada sala (como en FNAF 1)
   F: { escenario: ['comedor'], comedor: ['banos'], banos: ['cocina'], cocina: ['este'], este: ['esqE'] },
   B: { escenario: ['comedor', 'atras'], comedor: ['atras', 'oeste'], atras: ['comedor', 'oeste'], oeste: ['armario', 'esqO'], armario: ['oeste', 'esqO'] },
   C: { escenario: ['comedor'], comedor: ['banos', 'cocina'], banos: ['cocina', 'este'], cocina: ['banos', 'este'], este: ['esqE', 'comedor'] } };
-// cámaras: [cámara del mapa (-1: no hay, sólo audio), número, nombre, sala, a qué sala apunta]
-const NOC_CAMS = [[6, '1A', 'fn.c1a', 'escenario', 'escenario'], [4, '1B', 'fn.c1b', 'comedor'], [5, '1C', 'fn.c1c', 'pirata'], [0, '2A', 'fn.c2a', 'oeste'], [1, '2B', 'fn.c2b', 'esqO', 'esqO'],
-  [9, '3', 'fn.c3', 'armario'], [2, '4A', 'fn.c4a', 'este'], [3, '4B', 'fn.c4b', 'esqE', 'esqE'], [7, '5', 'fn.c5', 'atras'], [-1, '6', 'fn.c6', 'cocina'], [8, '7', 'fn.c7', 'banos']];
+// cámaras: [cámara del mapa (-1: no hay, sólo audio), número, nombre, sala, a qué sala apunta]. Vienen con el mapa
+// (DATA.fn.cams, de herramientas/pizzeria.py), igual que la oficina (DATA.fn.oficina: su caja, hacia dónde mira el guardia,
+// la lámpara, las luces de las puertas y el ventilador) y dónde se para y hacia dónde mira cada uno en cada sala
+let NOC_CAMS = [];
 const nocheActiva = () => NOC.on;
-const enOficina = (p) => p.x < -20.4 && p.x > -25.3 && p.z > -2.05 && p.z < 2.05;
+const nocheOf = () => DATA.fn.oficina;
+const enOficina = (p) => { const c = DATA.fn.oficina.caja; return p.x > c[0] && p.x < c[1] && p.z > c[2] && p.z < c[3]; };
 const miId = () => (typeof RED !== 'undefined' && RED.on ? RED.ID : 'yo');
 const enSala = () => typeof SALA !== 'undefined' && !!SALA && typeof RED !== 'undefined' && RED.on;
 const nocheSpot = (sala, k) => { const s = DATA.fn.salas[sala]; const p = s && (s[k] || Object.values(s)[0]); return v3(p[0], p[1], p[2]); };
+const nocheSpotYaw = (sala, k) => { const s = DATA.fn.salas[sala]; const p = s && (s[k] || Object.values(s)[0]); return p && p.length > 3 ? p[3] : 0; };
+const nocheV = (a) => v3(a[0], a[1], a[2]);
 
 // ---------------- clips (float16 en el paquete: pos y giro locales de cada hueso por cuadro) ----------------
 function h2f(h) {
@@ -76,10 +80,10 @@ function nocheAnimCrear(k) {
 function nocheAnimInicio(A) {
   A.sala = A.k === 'X' ? 'pirata' : 'escenario'; A.ruta = null; A.destino = null; A.estado = 'quieto'; A.fase = 0; A.tFuera = 0; A.respiro = false;
   A.tMov = NOC_CADA[A.k] * (0.3 + Math.random() * 0.7);
-  A.pos.copy(nocheFoxyPos(A)); A.yaw = A.k === 'X' ? 0 : -Math.PI / 2; A.meta.copy(A.pos); A.metaYaw = A.yaw; nocheAnimClip(A, 'quieto');
+  A.pos.copy(nocheFoxyPos(A)); A.yaw = nocheSpotYaw(A.sala, A.k); A.meta.copy(A.pos); A.metaYaw = A.yaw; nocheAnimClip(A, 'quieto');
 }
 // Foxy: más adelante en la cueva en cada etapa (la 3, en la boca, listo para correr)
-function nocheFoxyPos(A) { const p = nocheSpot(A.sala, A.k); if (A.k === 'X' && A.sala === 'pirata') p.z += A.fase * 0.75; return p; }
+function nocheFoxyPos(A) { const p = nocheSpot(A.sala, A.k), c = DATA.fn.cueva || [0, 0.75]; if (A.k === 'X' && A.sala === 'pirata') { p.x += A.fase * c[0]; p.z += A.fase * c[1]; } return p; }
 function nocheAnimClip(A, clip) {
   if (!DATA.fn.clips[A.nom + ':' + clip]) clip = clip === 'corre' ? 'camina' : clip === 'camina' ? 'corre' : 'quieto';
   if (A.clip === clip) return;
@@ -125,16 +129,17 @@ function nocheLlegar(A) {
   A.sala = A.destino; A.destino = null; A.tEst = 0; nocheAnimClip(A, 'quieto');
   if (A.sala === 'oficina') { A.estado = 'dentro'; return; }
   if (A.sala === 'esqO' || A.sala === 'esqE') {
-    A.estado = 'esquina'; A.respiro = false; A.yaw = A.sala === 'esqO' ? 0 : Math.PI;   // (mirando a la puerta)
+    A.estado = 'esquina'; A.respiro = false; A.yaw = nocheSpotYaw(A.sala, A.k);   // (mirando a la puerta)
     if (A.k === 'X') nocheFoxyPuerta(A);
     return;
   }
-  A.estado = 'quieto'; A.yaw = A.sala === 'escenario' ? -Math.PI / 2 : A.yaw;
+  A.estado = 'quieto'; A.yaw = A.sala === 'escenario' ? nocheSpotYaw(A.sala, A.k) : A.yaw;
 }
 
 // ---------------- empezar y terminar ----------------
 function nocheIniciar() {
   if (!DATA.fn || !DATA.fn.pf || !DATA.fn.salas) return;
+  NOC_CAMS = DATA.fn.cams || []; NOC.bts = null;
   NOC.on = true; NOC.fuera.clear(); NOC.rem.clear(); NOC.vistas.clear(); NOC.ctl = false; NOC.tCtl = TIEMPO.t; NOC.linterna = false; NOC.cam = null; NOC.susto = null; NOC.esp = null;
   NOC.anim = NOC_K.map(nocheAnimCrear);
   // las puertas de la oficina: su modelo y su caja de choque (arriba, lejos, mientras está abierta)
@@ -179,7 +184,7 @@ function nocheResetLocal() {
   nocheSustoFin(); if (UI.abierto === 'fngo') UI.abierto = null;
   NOC.ui.go.classList.add('oc');
   NOC.linterna = false; NOC.ui.lin.classList.remove('on');
-  JUG.noclip = false; jugadorAparecer(); JUG.yaw = Math.PI / 2; JUG.pitch = 0;   // (mirando hacia el comedor)
+  JUG.noclip = false; jugadorAparecer(); JUG.yaw = nocheOf().yaw; JUG.pitch = 0;   // (mirando al escritorio)
 }
 function nocheNivel(k) {
   const i = NOC_K.indexOf(k);
@@ -349,7 +354,7 @@ function nocheFoxy(A, dt) {
 function nocheFoxyPuerta(A) {
   if (NOC.puerta.izq) {   // golpea la puerta: energía (1 %, 6 %, 11 %...) y a la cueva
     nocheMandarEvento('golpe'); nocheGolpes(); NOC.poder = Math.max(0, NOC.poder - (1 + 5 * NOC.golpes)); NOC.golpes++;
-    A.fase = Math.random() < 0.5 ? 0 : 1; A.sala = 'pirata'; A.estado = 'quieto'; A.pos.copy(nocheFoxyPos(A)); A.yaw = 0; A.tMov = NOC_CADA.X;
+    A.fase = Math.random() < 0.5 ? 0 : 1; A.sala = 'pirata'; A.estado = 'quieto'; A.pos.copy(nocheFoxyPos(A)); A.yaw = nocheSpotYaw('pirata', 'X'); A.tMov = NOC_CADA.X;
   } else { nocheIr(A, 'oficina', true); }
 }
 function nocheGolpes() { for (let i = 0; i < 3; i++) setTimeout(() => sonar('fn_golpe', nocheSpot('esqO', 'B'), 1), i * 260); }
@@ -383,7 +388,7 @@ function nocheAgarrar(A, id) {
 // apagón: Freddy aparece en la puerta izquierda con la cajita de música, se apaga todo y asusta a todos
 function nocheApagonPaso() {
   const t = NOC.estT, F = NOC.anim[0];
-  if (t > NOC.tFreddy && F.sala !== 'esqO') { F.ruta = null; F.sala = 'esqO'; F.estado = 'apagon'; F.pos.copy(nocheSpot('esqO', 'B')); F.yaw = 0; nocheAnimClip(F, 'quieto'); sonar('fn_cajita', F.pos, 1); nocheMandarEvento('cajita'); }
+  if (t > NOC.tFreddy && F.sala !== 'esqO') { F.ruta = null; F.sala = 'esqO'; F.estado = 'apagon'; F.pos.copy(nocheSpot('esqO', 'B')); F.yaw = nocheSpotYaw('esqO', 'B'); nocheAnimClip(F, 'quieto'); sonar('fn_cajita', F.pos, 1); nocheMandarEvento('cajita'); }
   if (t > NOC.tFreddy + NOC.tMusica + NOC.tFin && NOC.estado === 'apagon') {
     for (const j of nocheVivos()) { NOC.fuera.add(j.id); if (j.yo) nocheSusto('apagon'); else publicar('a', { k: 'fnx', to: j.id, a: 'apagon' }); }
     NOC.estado = 'perdiendo'; NOC.estT = 0;
@@ -395,8 +400,10 @@ function nocheApagonPaso() {
 function nocheBotones() {
   if (NOC.bts) return NOC.bts;
   const B = (DATA.fn.botones || []).map((p) => v3(p[0], p[1], p[2])), out = [];
+  // (cada botón es de la puerta que tiene más cerca; el de arriba, la puerta; el de abajo, la luz)
+  const cerca = (p) => { const a = nocheV(DATA.fn.puertas.izq.p), b = nocheV(DATA.fn.puertas.der.p); return Math.hypot(p.x - a.x, p.z - a.z) < Math.hypot(p.x - b.x, p.z - b.z) ? 'izq' : 'der'; };
   for (const lado of ['izq', 'der']) {
-    const L = B.filter((p) => (lado === 'izq' ? p.z < 0 : p.z > 0)).sort((a, b) => b.y - a.y);
+    const L = B.filter((p) => cerca(p) === lado).sort((a, b) => b.y - a.y);
     if (L[0]) out.push({ p: L[0], que: 'puerta', lado }); if (L[1]) out.push({ p: L[1], que: 'luz', lado });
   }
   return (NOC.bts = out);
@@ -417,9 +424,10 @@ function nocheUsar() {
   if (NOC.ctl) nocheBoton(b.que, b.lado); else publicar('a', { k: 'fnb', q: b.que, l: b.lado });
   return true;
 }
+const nocheBotonPos = (lado) => { const b = nocheBotones().find((x) => x.lado === lado); return b ? b.p : nocheV(DATA.fn.puertas[lado].p); };
 function nocheBoton(que, lado) {
   // sin energía, o con uno de ellos adentro de la oficina, los botones no andan (como en FNAF)
-  if (NOC.estado !== 'juega' || NOC.anim.some((A) => A.estado === 'dentro')) { sonar('fn_error', v3(-23.8, 1.9, lado === 'izq' ? -2 : 2), 0.8); nocheMandarEvento('error_' + lado); return; }
+  if (NOC.estado !== 'juega' || NOC.anim.some((A) => A.estado === 'dentro')) { sonar('fn_error', nocheBotonPos(lado), 0.8); nocheMandarEvento('error_' + lado); return; }
   if (que === 'puerta') { NOC.puerta[lado] = !NOC.puerta[lado]; sonar('fn_puerta', v3(...DATA.fn.puertas[lado].p), 1); nocheMandarEvento('puerta_' + lado); }
   else { NOC.luz[lado] = !NOC.luz[lado]; if (NOC.luz[lado]) for (const A of NOC.anim) if (A.estado === 'esquina' && NOC_PUERTA[A.k] === lado) A.respiro = false; }
   NOC.tRed = 0;
@@ -458,7 +466,7 @@ function nocheRed(d) {
     else if (e === 'risa') sonar('fn_risa', NOC.anim[0] ? NOC.anim[0].pos : null, 0.9);
     else if (/^aliento_[BC]$/.test(e)) { const A = NOC.anim[NOC_K.indexOf(e.slice(8))]; if (A) sonar('fn_aliento', A.pos, 1); }
     else if (/^puerta_(izq|der)$/.test(e)) sonar('fn_puerta', v3(...DATA.fn.puertas[e.slice(7)].p), 1);
-    else if (/^error_(izq|der)$/.test(e)) sonar('fn_error', v3(-23.8, 1.9, e.endsWith('izq') ? -2 : 2), 0.8);
+    else if (/^error_(izq|der)$/.test(e)) sonar('fn_error', nocheBotonPos(e.slice(6)), 0.8);
   }
 }
 // bits del jugador para los demás: 128 linterna prendida, 256 espectador (no se ve ni choca)
@@ -480,11 +488,12 @@ function nocheLucesEsp() {
     const f = Quat.euler(R2.yaw, R2.P.mira || 0).rot(v3(0, 0, 1)); luzEspecial(vadd(R2.pos, v3(0, 0.5, 0)), 22, [6.5, 6.1, 5.4], f, Math.cos(0.47), 6);
   }
   if (!apagon) {
-    if (Math.abs(cp.x + 23) < 16 && Math.abs(cp.z) < 16) luzEspecial(v3(-23.2, 3.0, 0), 8, [3.2, 3.0, 2.6], null, -2, 7);   // la lámpara de la oficina
-    for (const lado of ['izq', 'der']) if (NOC.luz[lado]) { const s = lado === 'izq' ? -1 : 1; luzEspecial(v3(-22.4, 3.1, 2.3 * s), 8, [8, 7.4, 6.3], v3(0, -0.78, 0.62 * s).norm(), Math.cos(0.75), 8); }
+    const O = nocheOf(), lp = nocheV(O.lampara);
+    if (lp.distTo(cp) < 24) luzEspecial(lp, 8, [3.2, 3.0, 2.6], null, -2, 7);   // la lámpara de la oficina
+    for (const lado of ['izq', 'der']) if (NOC.luz[lado]) { const L = O.luces[lado]; luzEspecial(nocheV(L.p), 8, [8, 7.4, 6.3], nocheV(L.d).norm(), Math.cos(0.75), 8); }
     if (!(GFX.nluz > 0) || GFX.luz < 2) for (const L of DATA.fn.luces) { if (L.d) continue; const p = v3(L.p[0], L.p[1], L.p[2]); if (p.distTo(cp) < 16) luzEspecial(p, L.r * 1.3, [L.c[0] * 2.6, L.c[1] * 2.6, L.c[2] * 2.6], null, -2, 1); }
   } else if (NOC.estado === 'apagon' && NOC.estT > NOC.tFreddy && NOC.estT < NOC.tFreddy + NOC.tMusica && Math.sin(t * 9) * Math.sin(t * 2.3) > 0.1) {
-    luzEspecial(vadd(nocheSpot('esqO', 'B'), v3(0, 2.0, 0.4)), 2.6, [3, 2.6, 1.8], null, -2, 9);   // la cara de Freddy titila con la música
+    { const sp = nocheSpot('esqO', 'B'), o = nocheOf().c, d = v3(o[0] - sp.x, 0, o[2] - sp.z).norm(); luzEspecial(vadd(sp, v3(d.x * 0.45, 2.0, d.z * 0.45)), 2.6, [3, 2.6, 1.8], null, -2, 9); }   // la cara de Freddy titila con la música (del lado de la oficina)
   }
 }
 // las del techo del mapa (en las calidades con luces puntuales): más fuertes y titilando un poco
@@ -509,8 +518,8 @@ function nocheAmbiente() {
 // ---------------- sonidos ----------------
 function nocheSonidos(dt) {
   const apagon = NOC.estado === 'apagon' || NOC.estado === 'perdiendo', juega = NOC.estado === 'juega' || apagon;
-  if (!apagon && juega) bucle('fn_vent', 'fn_ventilador', v3(-19.5, 1.6, 0.4), 0.55);
-  for (const lado of ['izq', 'der']) if (NOC.luz[lado] && !apagon) bucle('fn_luz_' + lado, 'fn_zumbido', v3(-22.4, 3, lado === 'izq' ? -2.4 : 2.4), 0.5);
+  if (!apagon && juega) bucle('fn_vent', 'fn_ventilador', nocheV(nocheOf().vent), 0.55);
+  for (const lado of ['izq', 'der']) if (NOC.luz[lado] && !apagon) bucle('fn_luz_' + lado, 'fn_zumbido', nocheV(nocheOf().luces[lado].p), 0.5);
   if (juega) bucle('fn_amb', 'fn_ambiente', null, 0.2);
   if (NOC.cam !== null) bucle('fn_est', 'fn_estatica', null, NOC.ruidoT > 0 ? 0.45 : 0.1);
   if (NOC.cam !== null && NOC_CAMS[NOC.cam][0] < 0 && NOC.anim.some((A) => A.sala === 'cocina' && !A.ruta) && Math.random() < dt * 0.5) sonar('fn_ollas', null, 0.45, 0.9 + Math.random() * 0.2);   // (la cocina: sólo audio)
@@ -571,9 +580,9 @@ function nocheCamara(out, dt) {
   if (NOC.cam === null) return;
   const k = NOC_CAMS[NOC.cam], c = DATA.fn.camaras[k[0]];
   NOC.camT += dt; NOC.ruidoT = Math.max(0, NOC.ruidoT - dt);
-  if (!c) { out.pos.set(-15, 30, 12); out.q.copy(Quat.euler(0, 1.5, 0)); return; }   // (la cocina no tiene cámara: no se ve nada)
-  let f = c.f; if (k[4]) { const s = nocheSpot(k[4], { esqO: 'B', esqE: 'C' }[k[4]] || 'F'), d = v3(s.x - c.p[0], s.y + 1.1 - c.p[1], s.z - c.p[2]).norm(); f = [d.x, d.y, d.z]; }   // (apunta a donde se paran)
-  const yaw0 = Math.atan2(f[0], f[2]), pitch = Math.asin(-f[1]) + (k[4] ? 0 : 0.08), gira = Math.sin(NOC.camT * 0.35) * (k[4] ? 0.12 : 0.32);   // (se va moviendo de un lado al otro, como en FNAF)
+  if (!c) { const o = nocheOf().c; out.pos.set(o[0], o[1] + 40, o[2]); out.q.copy(Quat.euler(0, -1.5, 0)); return; }   // (la cocina no tiene cámara: no se ve nada)
+  let f = c.f; if (k[4]) { const s = nocheSpot(k[4], { esqO: 'B', esqE: 'C', pirata: 'X', atras: 'B', armario: 'B' }[k[4]] || 'F'), d = v3(s.x - c.p[0], s.y + 1.1 - c.p[1], s.z - c.p[2]).norm(); f = [d.x, d.y, d.z]; }   // (apunta a donde se paran)
+  const yaw0 = Math.atan2(f[0], f[2]), pitch = Math.asin(-f[1]) + (k[4] || k[5] ? 0 : 0.08), gira = Math.sin(NOC.camT * 0.35) * (k[5] || (k[4] ? 0.12 : 0.32));   // (se va moviendo de un lado al otro, como en FNAF; cuánto, según la sala)
   out.pos.set(c.p[0], c.p[1], c.p[2]); out.q.copy(Quat.euler(yaw0 + gira, pitch, 0));
 }
 function nocheCamPintar() {
@@ -705,6 +714,9 @@ function nocheUI() {
 #fnRaiz.oc{display:none}
 #fnHora{position:absolute;top:calc(env(safe-area-inset-top) + 58px);right:calc(env(safe-area-inset-right) + 14px);text-align:right;text-shadow:0 1px 3px #000}
 #fnHora b{display:block;font-size:30px;letter-spacing:1px}#fnHora small{font-size:14px;opacity:.85}
+#fnGente{position:absolute;top:calc(env(safe-area-inset-top) + 112px);right:calc(env(safe-area-inset-right) + 14px);text-align:right;font-size:12px;line-height:1.45;text-shadow:0 1px 3px #000;max-width:40vw}
+#fnGente div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#fnGente i{font-style:normal;opacity:.7}#fnGente .of:before,#fnGente .af:before,#fnGente .es:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:1px;background:#5ad35a}
+#fnGente .af:before{background:#e2c33b}#fnGente .es:before{background:#888}#fnGente .es{opacity:.75}
 #fnPoder{position:absolute;left:calc(env(safe-area-inset-left) + 12px);bottom:calc(env(safe-area-inset-bottom) + 34px);font-size:14px;text-shadow:0 1px 3px #000}
 #fnPoder i{display:inline-block;width:9px;height:14px;margin-right:2px;background:#5ad35a;vertical-align:-2px}#fnPoder i.r{background:#e2c33b}#fnPoder i.rr{background:#e04a3a}
 #fnBtns{position:absolute;right:calc(env(safe-area-inset-right) + 14px);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;pointer-events:auto}
@@ -742,15 +754,17 @@ function nocheUI() {
 #fnEsp{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 14px);transform:translateX(-50%);display:flex;align-items:center;gap:6px;pointer-events:auto;background:rgba(10,12,16,.75);padding:6px 8px;border:1px solid #556;border-radius:4px;font-size:14px;flex-wrap:wrap;justify-content:center;max-width:94vw}
 #fnEsp span{min-width:90px;text-align:center;font-weight:bold}#fnEsp div{padding:6px 10px;border:1px solid #667;cursor:pointer}#fnEsp div.sel{background:#3d8d3d}
 #fnEspTit{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 50px);transform:translateX(-50%);font-size:13px;opacity:.75;letter-spacing:1px}
-body.tactil #fnHora{top:calc(env(safe-area-inset-top) + 50px)}body.tactil #fnBtns{top:calc(env(safe-area-inset-top) + 150px);transform:none;right:calc(env(safe-area-inset-right) + 10px)}
+body.tactil #fnHora{top:calc(env(safe-area-inset-top) + 50px)}body.tactil #fnBtns{top:calc(env(safe-area-inset-top) + 164px);transform:none;right:calc(env(safe-area-inset-right) + 10px)}
 body.tactil #fnPoder{left:auto;bottom:auto;right:calc(env(safe-area-inset-right) + 14px);top:calc(env(safe-area-inset-top) + 100px);text-align:right;font-size:12px}
+body.tactil #fnGente{top:auto;bottom:calc(env(safe-area-inset-bottom) + 8px);right:auto;left:50%;transform:translateX(-50%);text-align:center;font-size:11px;display:flex;gap:10px;max-width:60vw}body.tactil #fnGente div{max-width:20vw}body.tactil.fnEsp #fnGente{bottom:auto;top:calc(env(safe-area-inset-top) + 72px)}
+body.tactil #fnMudo{top:calc(env(safe-area-inset-top) + 20px)}
 body.tactil #fnMapa{transform:scale(.78);transform-origin:right bottom}
-body.fnCam #hud,body.fnSusto #hud,body.fnEsp #hud,body.fnCam #fnBtns,body.fnEsp #fnBtns,body.fnEsp #fnPoder{visibility:hidden}
+body.fnSusto #fnGente,body.fnCam.tactil #fnGente,body.fnCam #hud,body.fnSusto #hud,body.fnEsp #hud,body.fnCam #fnBtns,body.fnEsp #fnBtns,body.fnEsp #fnPoder{visibility:hidden}
 body.fnCam.fnEsp #fnCerrar{display:none}`;
   document.head.appendChild(st);
   const r = document.createElement('div'); r.id = 'fnRaiz';
   const ico = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">${d}</svg>`;
-  r.innerHTML = `<div id="fnHora"><b>12 AM</b><small></small></div><div id="fnPoder"></div>
+  r.innerHTML = `<div id="fnHora"><b>12 AM</b><small></small></div><div id="fnGente" class="oc"></div><div id="fnPoder"></div>
 <div id="fnBtns"><div id="fnLin" title="L">${ico('<path d="M8 3h8l-1 6H9z"/><path d="M9 9h6v12H9z"/><path d="M12 13v3"/>')}</div><div id="fnCamB" title="G">${ico('<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/>')}</div></div>
 <div id="fnMudo" class="oc"></div>
 <div id="fnCam" class="oc"><div id="fnAudio" class="oc"></div><canvas id="fnRuido" width="160" height="90"></canvas><div id="fnRec"></div><div id="fnCamTit"></div><div id="fnMapa"></div><div id="fnCerrar">✕</div></div>
@@ -759,14 +773,14 @@ body.fnCam.fnEsp #fnCerrar{display:none}`;
   document.body.prepend(r);   // (antes que los paneles del juego: la pausa queda encima)
   const q = (s) => r.querySelector(s);
   const U = (NOC.ui = { raiz: r, hora: q('#fnHora b'), noche: q('#fnHora small'), poder: q('#fnPoder'), lin: q('#fnLin'), cam: q('#fnCam'), camTit: q('#fnCamTit'), camMapa: q('#fnMapa'),
-    ruido: q('#fnRuido'), audio: q('#fnAudio'), susto: q('#fnSusto'), video: q('video'), tapa: q('#fnTapa'), go: q('#fnGo'), menu: q('#fnMenu'), mudo: q('#fnMudo'), esp: q('#fnEsp'), espNom: q('#fnEsp span') });
+    ruido: q('#fnRuido'), audio: q('#fnAudio'), susto: q('#fnSusto'), video: q('video'), tapa: q('#fnTapa'), go: q('#fnGo'), menu: q('#fnMenu'), mudo: q('#fnMudo'), esp: q('#fnEsp'), espNom: q('#fnEsp span'), gente: q('#fnGente') });
   U.audio.textContent = T('fn.soloAudio'); U.mudo.textContent = T('fn.silenciar');
   U.mudo.onclick = () => { NOC.mudo = true; nocheLlamadaCortar(); };
   // el plano de las cámaras: el mapa visto de arriba (la oficina abajo, el escenario arriba) y cada cámara donde está
   const M = DATA.fn.mapa || null;
   if (M) U.camMapa.style.backgroundImage = 'url(' + icono('fn_mapa') + ')';
   const X = (z) => M ? (z - M.z0) / (M.z1 - M.z0) * 220 : 110, Y = (x) => M ? (M.x1 - x) / (M.x1 - M.x0) * 240 : 120;
-  U.camMapa.innerHTML = NOC_CAMS.map((k, i) => { const c = k[0] >= 0 ? DATA.fn.camaras[k[0]].p : (() => { const s = nocheSpot(k[3], 'F'); return [s.x, s.y, s.z]; })(); return `<b data-c="${i}" style="left:${X(c[2])}px;top:${Y(c[0])}px">${k[1]}</b>`; }).join('');
+  U.camMapa.innerHTML = NOC_CAMS.map((k, i) => { const c = k[0] >= 0 && (!k[4] || k[5]) ? DATA.fn.camaras[k[0]].p : (() => { const s = nocheSpot(k[4] || k[3], { esqO: 'B', esqE: 'C' }[k[4]] || 'F'); return [s.x, s.y, s.z]; })(); return `<b data-c="${i}" style="left:${X(c[2])}px;top:${Y(c[0])}px">${k[1]}</b>`; }).join('');
   U.camMapa.querySelectorAll('[data-c]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); nocheCamElegir(+b.dataset.c); }));
   q('#fnCerrar').onclick = () => nocheTablet();
   U.lin.onclick = () => nocheLinterna(); q('#fnCamB').onclick = () => nocheTablet();
@@ -793,6 +807,15 @@ function nocheHUD() {
   if (U.pT !== key) {
     U.pT = key; let b = ''; for (let i = 0; i < Math.min(5, uso); i++) b += `<i class="${i >= 3 ? 'rr' : i >= 2 ? 'r' : ''}"></i>`;
     U.poder.innerHTML = esc(T('fn.energia')) + ': <b>' + Math.max(0, p) + '%</b><br>' + esc(T('fn.uso')) + ': ' + b;
+  }
+  // en una sala: quién está en la oficina, quién anda afuera y quién mira (los agarrados), con su nombre
+  const g = enSala() ? nocheJugadores().map((j) => [j.yo ? (PREFS.nombre || '?') : (j.R2.nombre || '?'), NOC.fuera.has(j.id) ? 'es' : enOficina(j.pos) ? 'of' : 'af', j.yo ? 1 : 0]) : [];
+  const gk = g.map((x) => x.join(',')).join('|');
+  if (U.gT !== gk) {
+    U.gT = gk; U.gente.classList.toggle('oc', g.length < 2);
+    const et = { of: T('fn.enOficina'), af: T('fn.afuera'), es: T('fn.espectador') };
+    const ord = { of: 0, af: 1, es: 2 }; g.sort((a, b) => ord[a[1]] - ord[b[1]] || b[2] - a[2]);
+    U.gente.innerHTML = g.map(([n, e, yo]) => `<div class="${e}"${yo ? ' style="font-weight:bold"' : ''}>${esc(n)} <i>· ${esc(et[e])}</i></div>`).join('');
   }
   // la tapa negra: "12:00 AM · Noche N" al empezar; "5 AM → 6 AM" al ganar
   const tapa = NOC.estado === 'intro' ? 'intro' + NOC.noche : NOC.estado === 'gano' ? 'gano' + NOC.noche : '';
