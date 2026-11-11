@@ -340,6 +340,6 @@ function gmaSensLua() {
     const c = claseTabla(w.clase, 'C'), f = c && buscarEnClase(c, 'AdjustMouseSensitivity');
     if (typeof f === 'function' && f !== GMA.amsBase) { const r = gmLlamar(f, 'C', w), x = +r[0]; if (x > 0) k = x; }
   }
-  const fz = gmaFovLua(); if (!k && fz) k = fz / 70;
+  const fz = gmaFovLua(); if (!k && fz) k = fz / (typeof fovBase === 'function' ? fovBase() : 70);   // (proporción con el campo de visión elegido)
   return k > 0 ? Math.max(0.02, Math.min(4, k)) : 1;
 }

@@ -410,7 +410,7 @@ async function gbspPreparar(clave, prog) {
   }
   // la niebla (env_fog_controller)
   const fo = ents.find((e) => e.classname === 'env_fog_controller' && e.fogenable !== '0');
-  if (fo && +fo.fogend > +fo.fogstart) { const c = String(fo.fogcolor || '200 200 200').split(/\s+/).map((x) => +x / 255); aj.fog = 1; aj.fm = 1; aj.fs = +fo.fogstart * GM_S; aj.fe = +fo.fogend * GM_S; aj.fc = [c[0], c[1], c[2], 1]; }
+  if (fo && +fo.fogend > +fo.fogstart) { const c = String(fo.fogcolor || '200 200 200').split(/\s+/).map((x) => +x / 255); aj.fog = 1; aj.fm = 1; aj.fs = +fo.fogstart * GM_S; aj.fe = +fo.fogend * GM_S; aj.fc = [c[0], c[1], c[2], 1]; aj.fmax = fo.fogmaxdensity !== undefined && Number.isFinite(+fo.fogmaxdensity) ? clamp(+fo.fogmaxdensity, 0, 1) : 1; }
   // las puertas portal (linked_portal_door, del addon World Portals): el centro, hacia dónde mira (adelante, derecha y
   // arriba, ya en el juego) y la mitad del ancho y del alto; cada una con el nombre de su compañera
   const pds = ents.filter((e) => e.classname === 'linked_portal_door' && e.origin && e.targetname && e.partnername && e.startactive !== '0');
@@ -422,7 +422,7 @@ async function gbspPreparar(clave, prog) {
   if (cc3 && cielo3.length) {
     const o = skc.origin.split(/\s+/).map(Number), sc = Math.max(1, +skc.scale || 16), fc = String(skc.fogcolor || '255 255 255').split(/\s+/).map((x) => clamp((+x || 0) / 255, 0, 1));
     aj.cielo3d = { o: gbspG(o[0], o[1], o[2]), s: sc, arbs: cielo3, lejos: Math.hypot(cc3[3] - cc3[0], cc3[4] - cc3[1], cc3[5] - cc3[2]) * GM_S * 1.2 + 10,
-      fog: skc.fogenable === '1' && +skc.fogend > +skc.fogstart ? { c: fc, a: (+skc.fogstart || 0) * GM_S / sc, b: (+skc.fogend || 1) * GM_S / sc } : null };
+      fog: skc.fogenable === '1' && +skc.fogend > +skc.fogstart ? { c: fc, a: (+skc.fogstart || 0) * GM_S / sc, b: (+skc.fogend || 1) * GM_S / sc, m: skc.fogmaxdensity !== undefined && Number.isFinite(+skc.fogmaxdensity) ? clamp(+skc.fogmaxdensity, 0, 1) : 1 } : null };
   }
   // el cielo 2D de verdad: sus seis caras pasadas a un cubo (en los aparatos flojos, más chico)
   // (el «painted» de GMod —el celeste de gm_construct— se arma acá sin bajar nada; si el de un mapa no se puede traer —sin el
