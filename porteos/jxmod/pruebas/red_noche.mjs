@@ -14,10 +14,13 @@ await new Promise((r) => srv.listen(8898, '127.0.0.1', r));
 const navs = [], errs = [];
 const abrir = async (n) => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio', '--autoplay-policy=no-user-gesture-required'] }); navs.push(b);
-  const p = await (await b.newContext({ viewport: { width: 800, height: 450 } })).newPage();
+  const ctx = await b.newContext({ viewport: { width: 800, height: 450 } });
+  await ctx.route('**/api/cuenta/config', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"google":false}' }));   // (como en base.mjs)
+  const p = await ctx.newPage();
   p.on('pageerror', (e) => errs.push(n + ': ' + e.message.slice(0, 160))); p.on('console', (m) => { if (m.type() === 'error' && !/WebSocket|mqtt|Failed to load|ERR_/i.test(m.text())) errs.push(n + ': ' + m.text().slice(0, 160)); });
-  await p.goto('file://' + html + '?test&broker=ws://127.0.0.1:8898/mqtt'); await p.waitForFunction(() => window.__listo, null, { timeout: 180000 }); return p;
+  await p.goto((/^https?:/.test(html) ? html : 'file://' + html) + '?test&broker=ws://127.0.0.1:8898/mqtt'); await p.waitForFunction(() => window.__listo, null, { timeout: 180000 }); return p;
 };
+const P_ = (P) => P;
 const ev = (P, s) => P.evaluate((x) => window.__ev(x), s), J = async (P, s) => JSON.parse(await ev(P, `JSON.stringify(${s})`));
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const hasta = async (P, cond, seg) => { for (let i = 0; i < seg * 2; i++) { if (await J(P, cond)) return true; await espera(500); } return false; };
@@ -45,7 +48,7 @@ chk(dmax < 1.5, 'los animatrónicos están en el mismo lugar para los dos');
 chk((await J(O, `NOC.noche`)) === 6, 'la noche nueva (6) le llega al otro');
 await ev(M, `NOC.quieta = true; for (const x of NOC.anim) nocheAnimInicio(x); 1`);   // (quietos para lo que sigue)
 // el que no maneja cierra la puerta izquierda (pedido por la red) y prende la linterna
-await ev(O, `JUG.pos.set(-23.3, 1.4, -1.3); JUG.vel.set(0,0,0); const bt = nocheBotones().find(x => x.que==='puerta' && x.lado==='izq'); const d = vsub(bt.p, vadd(JUG.pos, v3(0, JUG.ojo, 0))); JUG.yaw = Math.atan2(d.x, d.z); JUG.pitch = Math.asin(-d.y / d.len()); 0`);
+await ev(O, `const bt = nocheBotones().find(x => x.que==='puerta' && x.lado==='izq'), oc = DATA.fn.oficina.c, dx = oc[0] - bt.p.x, dz = oc[2] - bt.p.z, dl = Math.hypot(dx, dz); JUG.pos.set(bt.p.x + dx / dl * 1.1, DATA.fn.salas.oficina.F[1] + 1.0, bt.p.z + dz / dl * 1.1); JUG.vel.set(0,0,0); const d = vsub(bt.p, vadd(JUG.pos, v3(0, JUG.ojo, 0))); JUG.yaw = Math.atan2(d.x, d.z); JUG.pitch = Math.asin(-d.y / d.len()); 0`);
 await espera(1500); await ev(O, `usar(); nocheLinterna(); 0`); await espera(3000);
 await ev(M, `NOC.quieta = false; 1`);
 const pm = await J(M, `{p: NOC.puerta.izq, luzRemota: [...RED.remotos.values()].some(r => r.f & 128), esp: R.esp.length}`), po = await J(O, `{p: NOC.puerta.izq, k: +NOC.pk.izq.toFixed(2), caja: +NOC.cuerpoP.izq.pos.y.toFixed(2)}`);
@@ -64,6 +67,11 @@ chk(enEsp && eo.modo === 'seguir' && eo.siguiendo === nM && (eo.bits & 256) && e
 await espera(3000);
 const vm = await J(M, `(() => { const R2 = RED.remotos.get('${oId}'); return { visible: R2.P.visible, noRay: R2.b.noRay, noJug: R2.b.noJug, tag: R2.tag.style.display }; })()`);
 chk(!vm.visible && vm.noRay && vm.noJug && vm.tag === 'none', 'para ' + nM + ' el espectador no se ve, no choca y no tiene nombre arriba');
+// la lista de la sala (arriba a la derecha): quién está en la oficina y quién mira
+const gm = await J(M, `[...NOC.ui.gente.querySelectorAll('div')].map((d) => d.className + ':' + d.textContent)`), go_ = await J(O, `[...NOC.ui.gente.querySelectorAll('div')].map((d) => d.className + ':' + d.textContent)`);
+console.log('lista:', nM, JSON.stringify(gm), '|', nO, JSON.stringify(go_));
+chk(gm.length === 2 && gm[0].startsWith('of:' + nM) && gm[1].startsWith('es:' + nO) && go_.length === 2 && go_[1].startsWith('es:' + nO), 'la lista de la sala dice quién está en la oficina y quién mira (en los dos)');
+if (process.env.FOTOS) { await P_(M).screenshot({ path: process.env.FOTOS + '/red_' + nM + '.png' }); await P_(O).screenshot({ path: process.env.FOTOS + '/red_' + nO + '_espectador.png' }); }
 await ev(O, `nocheEspModo('libre'); 1`); await espera(1500); const el = await J(O, `{modo: NOC.esp.modo, noclip: JUG.noclip, abierto: UI.abierto}`);
 await ev(O, `nocheEspModo('cams'); 1`); await espera(1500); const ec = await J(O, `{modo: NOC.esp.modo, cam: NOC.cam, abierto: UI.abierto}`);
 await ev(O, `nocheTablet(); nocheEspModo('seguir'); 1`); await espera(1000);
