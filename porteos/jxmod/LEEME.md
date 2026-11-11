@@ -2252,6 +2252,38 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.1: Pill Packs, Mods y mapas nuevo, la pizzería del Workshop, FOV, niebla y la pierna en el piso
+
+Lo último del Discord junto en una versión: el panel de GOLDEN, la idea de Henderson, la pizzería sobre el mapa del
+Workshop «Freddy Fazbears Pizza (Event)», «agregar FOV», «¿por qué tanta neblina?» y «la pierna se traba en el piso».
+Llega a todos por el botón **Actualizar** (`web/version.json` código 3100: la app dice «Hay una actualización» y baja el
+APK; la web muestra el botón y recarga).
+
+- **Mods y mapas** (concepto de GOLDEN, `gmod_tienda.js`, `inicio.js`, `template.html`): panel oscuro con acento
+  amarillo, pestañas Mods / Mapas / Emotes / GMod arriba, categorías a la izquierda, tarjetas con Instalar / Activado y
+  la ficha de cada uno. Prueba `pruebas/tienda_panel.mjs` 24/24 (compu y celular, 14 idiomas).
+- **Pill Packs** (idea de Henderson, `pillpacks.js`, `pill_gmod.js`): pestaña al lado de GMod en el menú de spawn;
+  elegir un personaje es ser él (modelo, vida, velocidad, tamaño), con barra de poder, nivel 1-10 que se guarda y 4
+  habilidades; anda en red y con los addons del Workshop hechos para pk_pills. Pruebas: compu 72/72, celular 38/38,
+  red 13/13, Workshop 31/31 (más abajo, en su sección).
+- **La pizzería de FNAF** ahora es el mapa del Workshop (`herramientas/pizzeria.py`, `noche.js`): cámaras ubicadas
+  solas en cada sala, apagón, cortina de Pirate Cove, lista de quién está en la oficina en multijugador. Noches 22/22,
+  red 15/15, IA 5/5; en el celular en Patata dibuja menos que la vieja (oficina 270 dibujos y 160 mil triángulos
+  contra 378 y 290 mil) y usa 24 MB más de memoria (≈ 163 MB). Detalle en la sección de la pizzería.
+- **FOV, niebla y la pierna**: ver la sección siguiente. Después de juntar todo se agregó:
+  - `pruebas/fov.mjs`: la silueta del arma entre fotos se mece con su animación de reposo (de 1,7 a 6,9 % entre dos
+    fotos en 70°), así que ahora la prueba además mira la pasada del arma en la mano, que usa 60° con el FOV en 50,
+    70 y 110 (18/18, compu y celular).
+  - **El cielo 3D de gm_construct 13** (`gmod_bsp.js`, `gbspCajaCielo`): con la niebla del mapa en su color, en el
+    horizonte quedaban a la vista las paredes del borde (el corte vertical es la esquina entre una al sol y otra a la
+    sombra) y detrás no había nada: el área del cielo 3D se descartaba por tener más del 40 % de las hojas del BSP
+    (61 %: la ciudad es muy detallada). Esa regla ahora sólo vale si el mapa no tiene puntos de aparición (con ellos,
+    el área que los contiene ya se descarta). Se ven la ciudad y las lomas, como en GMod; cuesta de 19 a 25 mil
+    triángulos más en ese mapa (de 16 a 35-41 mil en Patata-Medio, de 31 a 42-49 mil en Alto-Ultra).
+- **Junto**: las pruebas de las cuatro partes pasan juntas sobre la misma versión (panel 24/24, Pill Packs 72/72 y
+  38/38, red de Pill Packs 13/13, nucleares 9/9, noches 22/22, red de las noches 15/15, IA 5/5, FOV 18/18, niebla 12/12,
+  muñeco en el piso 0/37 en RB_Flatgrass y 1/152 en RB_Construct, que es la medición de una mano bajo un alero).
+
 ## Del Discord: campo de visión, la niebla de los mapas de GMod y la pierna del muñeco metida en el piso
 
 **«Agregar FOV»** (`principal.js`, `ui.js`, `idiomas3.js`, `gmod_vista.js`; prueba `pruebas/fov.mjs`, 16/16):
