@@ -2279,9 +2279,19 @@ al tope del celu (512 px):
   niebla media del piso baja de 61–62 % a 37–38 % y a 100 m de 100 % a 60 %, con el color del mapa en vez de blanco.
 - Lo que no es: la vista corta de las calidades bajas sólo esfuma la última franja (en Patata, de 112 a 160 m: el piso
   hasta 100 m queda sin niebla) y el evento no toca la niebla (no está en los mapas de GMod).
-- Límite: gm_construct sin el contenido de GMod (sin sus materiales ni la maqueta del cielo 3D) no da una niebla
-  espesa; el caso de la captura se reprodujo con la misma niebla en un mapa con el `env_fog_controller` de un mapa del
-  Workshop.
+- Límite: gm_construct 13 no da una niebla espesa; el caso de la captura se reprodujo con la misma niebla en un mapa
+  con el `env_fog_controller` de un mapa del Workshop.
+- **El cielo 3D de gm_construct 13 no aparecía** (`gmod_bsp.js`, gbspCajaCielo). Sin la niebla blanca se veían, del
+  otro lado del lago, las paredes del borde del mapa (caras del mundo, no del cielo 3D: `GM_CONSTRUCT/WALL_TOP`, el
+  mismo material en las dos, que se resuelve) con cielo liso arriba, y en la esquina un corte vertical: una pared mira
+  al sol (normal −X de Source, coseno 0,33) y la otra le da la espalda (−Y) y sólo tiene la luz del cielo. Ese corte
+  también está en GMod; lo que faltaba era la ciudad y las lomas del cielo 3D detrás. Su área del BSP tiene el 61 % de
+  las hojas (1192 de 1967: es muy detallado) y la regla «el área del cielo no puede pasar del 40 %» lo descartaba;
+  ahora esa regla sólo se usa si el mapa no tiene puntos de aparición (con puntos, ya se descarta un área que los
+  tenga adentro). Este BSP no trae luz horneada (los lumps 8 y 53 están vacíos): se ilumina con el sol y el ambiente de
+  su `light_environment`. Con el cielo 3D, el tercio de arriba de la pantalla cambia un 25–31 % mirando al lago (la
+  ciudad detrás de las paredes) y la niebla del mapa sigue igual (0 % de piso lavado); fotos en compu y celu, en las 5
+  calidades, mirando al lago y hacia otros dos rumbos.
 
 **«La pierna se traba en el piso»** (`fisica.js`, `personas.js`; prueba `pruebas/rag_piso.mjs`):
 - Causa: un triángulo del mapa no tiene grosor y de qué lado está algo se decidía en cada paso por su centro (el del

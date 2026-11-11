@@ -473,7 +473,10 @@ function gbspCajaCielo(B, o, apar) {
     if (area(i) !== A) continue; nA++;
     for (let j = 0; j < 3; j++) { c[j] = Math.min(c[j], dH.getInt16(i * HS + 8 + j * 2, true)); c[3 + j] = Math.max(c[3 + j], dH.getInt16(i * HS + 14 + j * 2, true)); }
   }
-  if (!nA || nA > nTot * 0.4) return null;
+  // (si la cámara del cielo cae en el área del mapa, su caja tiene a los puntos de aparición adentro y no vale; sin puntos de
+  // aparición para mirar, el área del cielo no puede ser casi todo el mapa. No alcanzaba con el tamaño: gm_construct 13 tiene
+  // un cielo 3D tan detallado que su área es el 61 % de las hojas, no se reconocía y la ciudad del fondo no se veía)
+  if (!nA || (!(apar && apar.length) && nA > nTot * 0.4)) return null;
   for (const q of apar || []) if (q[0] >= c[0] && q[0] <= c[3] && q[1] >= c[1] && q[1] <= c[4] && q[2] >= c[2] && q[2] <= c[5]) return null;
   return c;
 }
