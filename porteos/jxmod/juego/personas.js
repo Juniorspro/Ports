@@ -508,7 +508,7 @@ function ragdoll(P, impulso, donde) {
     const b = new Body(sh, Math.max(1, x.rb.m), { fric: 0.8, rest: 0.05, damp: 0.1, angDamp: 0.8 });
     b.pos.copy(cen); b.q.copy(m4quat(W));
     if (c.k === 'c' && c.d !== 1) b.q.mul(c.d === 0 ? Quat.axis(0, 0, 1, Math.PI / 2) : Quat.axis(1, 0, 0, Math.PI / 2));
-    b.group = 1000 + (P.id || PERS.indexOf(P)); b.persona = P; b.noJug = true; b.noGrab = false;
+    b.group = 1000 + (P.id || PERS.indexOf(P)); b.persona = P; b.noJug = true; b.noGrab = false; b.noCruza = true;   // (noCruza: ninguna parte cruza el piso; fisica.js)
     b.vel.copy(P.vel); addBody(b);
     // del cuerpo al hueso: W = M(cuerpo) · off
     const Mb = m4trs([b.pos.x, b.pos.y, b.pos.z], [b.q.x, b.q.y, b.q.z, b.q.w], [1, 1, 1], new Float32Array(16));

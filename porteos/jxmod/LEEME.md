@@ -2252,6 +2252,56 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## Del Discord: campo de visión, la niebla de los mapas de GMod y la pierna del muñeco metida en el piso
+
+**«Agregar FOV»** (`principal.js`, `ui.js`, `idiomas3.js`, `gmod_vista.js`; prueba `pruebas/fov.mjs`, 16/16):
+- Ajustes → Renderizado → **Campo de visión (FOV)**, de 50° a 110° (grados de alto de la imagen, como la cámara del
+  juego; 70° el de siempre). Se ve al moverlo (la cámara cambia en el acto, detrás del panel), queda en las
+  preferencias (`PREFS.fov`, `jx_prefs`) y la partida empieza con él. En la compu y en el celular, en 14 idiomas.
+- El arma en la mano se dibuja con su propio campo de 60° (y el celular en la mano con el suyo): no se estira. Medido
+  con la cámara mirando el cielo: la silueta del arma cambia lo mismo entre 50°, 70° y 110° que entre dos fotos
+  seguidas en 70° (2,6–4,9 % de borde contra 3,8–6,9 % del control), mientras el fondo cambia 14–70 %.
+- La mira (zoom fijo de 18°), la apertura al apuntar (proporcional) y el correr rápido con el mod de velocidad salen
+  del elegido; el zoom de un addon (`Player:SetFOV`) manda mientras está y la sensibilidad del mouse con él es la
+  proporción contra el elegido (antes, contra 70).
+
+**«¿Por qué tanta neblina?»** (`gl.js`, `gmod_bsp.js`, `mundo.js`, `cielo3d.js`, `dia.js`; prueba
+`pruebas/niebla_gmod.mjs`, 12/12 con la niebla de un mapa del Workshop):
+- Lo que hacía la niebla de los mapas de GMod más espesa y más blanca que en GMod: 1) el color: el ciclo del día la
+  pasaba al del horizonte del cielo «painted» (0,96, casi blanco) en vez del de su `env_fog_controller` (en
+  gm_construct, 142 164 178, gris azulado); 2) `fogmaxdensity` no se leía: la niebla tapaba siempre el 100 % a partir
+  del fin (muchos mapas del Workshop la tienen en 0,3–0,8 y en GMod lo de lejos sigue viéndose). Ahora el color es el
+  del mapa de día (al atardecer y de noche va hacia el del cielo) y el shader multiplica la niebla por la densidad
+  máxima (`uNieD`: comienzo, fin y densidad; también la del cielo 3D).
+- Medido (cámara del jugador en el lugar más abierto, 12° para abajo, 1200 puntos del piso; «lavado» = niebla > 25 %),
+  igual en las cinco calidades y en compu y celu: gm_construct (BSP 13) y el del juego no cambian (0 % lavado; a 100 m
+  1 % y 9 %, 5 % y 13 % en Ultra por su bruma); con una niebla de mapa del Workshop (de 6,5 a 76 m, densidad 0,6) la
+  niebla media del piso baja de 61–62 % a 37–38 % y a 100 m de 100 % a 60 %, con el color del mapa en vez de blanco.
+- Lo que no es: la vista corta de las calidades bajas sólo esfuma la última franja (en Patata, de 112 a 160 m: el piso
+  hasta 100 m queda sin niebla) y el evento no toca la niebla (no está en los mapas de GMod).
+- Límite: gm_construct sin el contenido de GMod (sin sus materiales ni la maqueta del cielo 3D) no da una niebla
+  espesa; el caso de la captura se reprodujo con la misma niebla en un mapa con el `env_fog_controller` de un mapa del
+  Workshop.
+
+**«La pierna se traba en el piso»** (`fisica.js`, `personas.js`; prueba `pruebas/rag_piso.mjs`):
+- Causa: un triángulo del mapa no tiene grosor y de qué lado está algo se decidía en cada paso por su centro (el del
+  cuerpo, o el de cada esfera de la cápsula). Si en un paso ese centro pasaba al otro lado —la rodilla arrastra el pie
+  al caer, un golpe fuerte, la física a 30 pasos por segundo de los celus lentos—, desde el paso siguiente el choque lo
+  empujaba para abajo y quedaba trabado.
+- Arreglo: cada parte del muñeco (`noCruza`) recuerda de qué lado está de cada triángulo que tiene cerca (el de su
+  centro cuando lo ve por primera vez, o el de la cara si ya lo está tocando) y sólo cambia si su centro pasó al otro
+  lado rodeando el borde, sin atravesar ningún triángulo. Si una parte quedó del otro lado, el choque la saca hacia el
+  lado recordado (la cara del triángulo hacia ese lado; en las cajas, con todos sus vértices). Sin costo apreciable.
+- Medido: 7 personajes (tamaños 0,44 a 1,53), de 2 cm a 12 m de alto, hasta 20 m/s de lado y 15 m/s para abajo, con
+  un empujón al azar, en piso plano y rampas, física a 60 y 30 pasos y 5 y 10 subpasos; «trabada» = una parte más de
+  1,5 cm adentro durante todo el último medio segundo (de 5 s). Tiradas trabadas antes → ahora (la peor): RB_Flatgrass
+  19/84 (86 cm) → 0/84; gm_flatgrass (BSP) 20/84 (86 cm) → 0/84; RB_Construct 32/168 (78 cm) → 1/168; gm_construct
+  (BSP) 35/175 (233 cm) → 0/175; Pasto plano (su piso es una caja, no triángulos) 3/88 (26 cm) → 1/88 (2,6 cm). Lo que
+  se mete un momento al caer y vuelve a salir (p95): 34–44 cm → 14–19 cm. La que queda en RB_Construct es una mano
+  bajo un alero de un solo lado (la medida la cuenta como metida aunque esté afuera del sólido).
+- Fotos de la cámara del jugador, antes y después, en la compu y el celu: la tirada que peor quedaba (la mano y el
+  brazo enterrados 86 cm) ahora queda entera sobre el pasto.
+
 ## Tráiler de la 3.0 (40 s, 4:3 en FHD), v2
 
 Pedido: un tráiler con la canción del video de 41 s, con suspenso, sin interfaz, el logo recortado al principio y

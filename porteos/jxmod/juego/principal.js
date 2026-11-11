@@ -15,7 +15,7 @@ const PERFILES = {
 };
 const PERF_ORDEN = ['patata', 'bajo', 'medio', 'alto', 'ultra'];
 const PREFS_DEF = { modo: 'libre', codigo: '', salaLibre: 1, nombre: 'Player' + ((Math.random() * 900 + 100) | 0), mapa: 'Desert', skin: 'Hero', gorro: 'HatEmpty', gfx: 'auto', res: 70, lejos: 350, sens: 12, vol: 80, fps: true,
-  sombras: 'auto', post: 'auto', texQ: 'auto', ocultarUI: false, contorno: true, motor: 'webgl2' };
+  sombras: 'auto', post: 'auto', texQ: 'auto', ocultarUI: false, contorno: true, motor: 'webgl2', fov: 70 };
 let PREFS = Object.assign({}, PREFS_DEF);
 try { Object.assign(PREFS, JSON.parse(localStorage.getItem('jx_prefs') || '{}')); } catch (e) {}
 // (desde la 2.9 el motor de siempre es WebGL 2: a los que tenían guardado el WebGL 1 de antes —que era el de entrada— se
@@ -177,6 +177,10 @@ function redimensionarYa() {
 addEventListener('resize', () => R.cv && redimensionar());
 // ---------------- cámara ----------------
 const CAM = { pos: v3(), q: new Quat(), qVista: new Quat(), fwd: v3(0, 0, 1), der: v3(1, 0, 0), arr: v3(0, 1, 0), fov: 70, temblor: 0 };
+// el campo de visión elegido en Ajustes (grados de alto de la imagen, como CAM.fov; 70 el de siempre). El arma en la mano se
+// dibuja con su propio campo (60°, dibujar) y el celular en la mano con el suyo (celumano.js): no se estiran al cambiarlo
+const FOV_MIN = 50, FOV_MAX = 110;
+const fovBase = () => clamp(Math.round(+PREFS.fov) || 70, FOV_MIN, FOV_MAX);
 function camaraActualizar(dt) {
   if (JUEGO.estado === 'principal' && typeof lobbyCamara === 'function') { lobbyCamara(CAM); CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); return; }
   jugadorCamara(CAM);
@@ -193,7 +197,7 @@ function camaraActualizar(dt) {
   CAM.der.copy(CAM.qVista.rot(v3(1, 0, 0))); CAM.arr.copy(CAM.qVista.rot(v3(0, 1, 0)));
   // (con un mod de velocidad, la vista se abre al correr rápido)
   // (o el zoom que pidió el Lua de un addon con Player:SetFOV: gmaFovLua, gmod_vista.js)
-  const vh = Math.hypot(JUG.vel.x, JUG.vel.z), z = ARM.zoom ? 18 : (typeof gmaFovLua === 'function' && gmaFovLua()) || (70 + ((MODS.velocidad || 1) > 1.15 && !JUG.vehiculo ? clamp((vh - 7) * 0.8, 0, 14) : 0)) * (1 - 0.27 * (ARM.apK || 0)); CAM.fov += (z - CAM.fov) * Math.min(1, dt * (Math.abs(z - CAM.fov) > 10 ? 12 : 4));
+  const vh = Math.hypot(JUG.vel.x, JUG.vel.z), z = ARM.zoom ? 18 : (typeof gmaFovLua === 'function' && gmaFovLua()) || (fovBase() + ((MODS.velocidad || 1) > 1.15 && !JUG.vehiculo ? clamp((vh - 7) * 0.8, 0, 14) : 0)) * (1 - 0.27 * (ARM.apK || 0)); CAM.fov += (z - CAM.fov) * Math.min(1, dt * (Math.abs(z - CAM.fov) > 10 ? 12 : 4));
 }
 // ---------------- partidas ----------------
 const DESHACER = [];
@@ -209,6 +213,7 @@ function empezarPartida(mapa) {
     return gbspPreparar(mapa, (p, t) => { if (C && C.set) C.set(p0 + (0.95 - p0) * p, t); }).then(() => { cerrar(); empezarPartida(mapa); }).catch((e) => { gmErr && gmErr('mapa ' + mapa, e); cerrar(); aviso(T('gm.mapaMal'), 4); empezarPartida('FlatGrass'); });
   }
   if (!DATA.esc[mapa]) mapa = 'FlatGrass';
+  CAM.fov = fovBase();   // (la partida empieza con el campo de visión elegido, sin acercarse desde el de antes)
   // (el mapa, el personaje y lo que necesiten en paquetes aparte: se bajan antes, con lo que va en la pantalla de carga)
   const falta = rbParaPartida(mapa, JUG.skinRol || JUG.skinMod || PREFS.skin);
   // (con la pantalla de carga abierta mientras baja: antes quedaba la pantalla en blanco hasta que llegaba; si no se pudo

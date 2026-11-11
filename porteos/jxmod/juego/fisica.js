@@ -401,7 +401,98 @@ function contactosAlPadre(n0, PA, PB, a, b) {
     if (b !== PB) { if (!c.wB) { b.q.rotTo(c.rB, _wp).add(b.pos); PB.q.invRotTo(_wp.sub(PB.pos), c.rB); } c.B = PB; }
   }
 }
+// ---------------- muñeco de trapo: de qué lado de cada triángulo del mapa está ----------------
+// Un triángulo del mapa no tiene grosor: de qué lado está algo se decidía en cada paso por dónde quedaba su centro (el del
+// cuerpo en hullTri y hullHull, el de cada esfera de la cápsula en sphereHull). Si en un paso ese centro pasaba al otro
+// lado —al caer, la unión de la rodilla arrastra el pie; un golpe fuerte; la física a 30 pasos por segundo en los celus
+// lentos—, desde el paso siguiente el choque lo empujaba para abajo y quedaba trabado bajo el piso (Discord: «la pierna se
+// traba en el piso»; medido con pruebas/rag_piso.mjs). Con noCruza (lo pone ragdoll, personas.js) cada cuerpo recuerda de
+// qué lado está de cada triángulo que tiene cerca: el de su centro la primera vez que lo ve; después cambia sólo si el
+// centro pasó al otro lado rodeando el borde, sin atravesar ningún triángulo. Si una parte quedó del otro lado, el choque
+// la saca hacia el lado recordado.
+const _ladoP = v3();
+// ¿la proyección de p sobre el plano del triángulo t cae adentro (con margen m, en metros)?
+function triPrisma(t, p, m) {
+  const T = MUNDO.T, o = t * 9, ax = T[o], ay = T[o + 1], az = T[o + 2];
+  const e0x = T[o + 3] - ax, e0y = T[o + 4] - ay, e0z = T[o + 5] - az, e1x = T[o + 6] - ax, e1y = T[o + 7] - ay, e1z = T[o + 8] - az;
+  const nx = e0y * e1z - e0z * e1y, ny = e0z * e1x - e0x * e1z, nz = e0x * e1y - e0y * e1x, nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+  // (las tres aristas: del lado de adentro, con el margen)
+  const ed = (bx, by, bz, cx, cy, cz, px, py, pz) => { const ux = cx - bx, uy = cy - by, uz = cz - bz, qx = px - bx, qy = py - by, qz = pz - bz; return ((uy * qz - uz * qy) * nx + (uz * qx - ux * qz) * ny + (ux * qy - uy * qx) * nz) / nl / (Math.sqrt(ux * ux + uy * uy + uz * uz) || 1); };
+  const bx = ax + e0x, by = ay + e0y, bz = az + e0z, cx = ax + e1x, cy = ay + e1y, cz = az + e1z;
+  return ed(ax, ay, az, bx, by, bz, p.x, p.y, p.z) > -m && ed(bx, by, bz, cx, cy, cz, p.x, p.y, p.z) > -m && ed(cx, cy, cz, ax, ay, az, p.x, p.y, p.z) > -m;
+}
+// ¿el tramo de o a p atraviesa el triángulo t (con un margen de 2 cm alrededor, por las uniones entre triángulos)?
+function tramoCruzaTri(t, o, p) {
+  const T = MUNDO.T, k = t * 9, ax = T[k], ay = T[k + 1], az = T[k + 2];
+  const e0x = T[k + 3] - ax, e0y = T[k + 4] - ay, e0z = T[k + 5] - az, e1x = T[k + 6] - ax, e1y = T[k + 7] - ay, e1z = T[k + 8] - az;
+  const nx = e0y * e1z - e0z * e1y, ny = e0z * e1x - e0x * e1z, nz = e0x * e1y - e0y * e1x;
+  const s0 = (o.x - ax) * nx + (o.y - ay) * ny + (o.z - az) * nz, s1 = (p.x - ax) * nx + (p.y - ay) * ny + (p.z - az) * nz;
+  if ((s0 > 0) === (s1 > 0) && s0 !== 0 && s1 !== 0) return false;
+  const f = s0 / ((s0 - s1) || 1e-12), x = o.x + (p.x - o.x) * f, y = o.y + (p.y - o.y) * f, z = o.z + (p.z - o.z) * f;
+  _ladoP.set(x, y, z); return triPrisma(t, _ladoP, 0.02);
+}
+const _cruz = [];
+function ladosActualizar(a, L) {
+  const viejo = a.lados, nuevo = a.lados2 || new Map(), ant = a.ladoAnt || (a.ladoAnt = a.pos.clone()), T = MUNDO.T; nuevo.clear();
+  // (los triángulos que el centro atravesó en este paso)
+  _cruz.length = 0; if (viejo) for (const s of L) if (s.tri !== undefined && tramoCruzaTri(s.tri, ant, a.pos)) _cruz.push(s);
+  for (const s of L) {
+    if (s.tri === undefined) continue;
+    const tn = s.tn, o = s.tri * 9, sd = (a.pos.x - T[o]) * tn.x + (a.pos.y - T[o + 1]) * tn.y + (a.pos.z - T[o + 2]) * tn.z;
+    const prev = viejo && viejo.get(s.tri), ahora = sd >= 0 ? 1 : -1;
+    let lado = ahora;
+    if (!prev) { if (Math.abs(sd) < a.r) lado = 1; }   // (recién visto y ya tocándolo: del lado de la cara, el de afuera del sólido)
+    else if (prev !== ahora) {
+      // cambió de lado: vale sólo si en este paso el centro no atravesó ningún triángulo (rodeó el borde); si atravesó uno
+      // —éste o el de al lado: el piso de un terreno son muchos, cada uno en su plano—, o si ya estaba del otro lado
+      // (quedó metido antes), sigue el de antes y el choque lo saca
+      const sAnt = (ant.x - T[o]) * tn.x + (ant.y - T[o + 1]) * tn.y + (ant.z - T[o + 2]) * tn.z >= 0 ? 1 : -1;
+      if (sAnt !== prev || _cruz.length) lado = prev;
+    }
+    nuevo.set(s.tri, lado);
+  }
+  a.lados2 = viejo || new Map(); a.lados = nuevo; ant.copy(a.pos);
+}
+// una esfera (centro p, radio r) contra el triángulo B, del lado sg: si su centro quedó del otro lado (dentro del prisma),
+// la normal es la de la cara hacia el lado recordado y lo metido es el radio más lo que pasó
+function esferaTriLado(A, p, r, B, sg, flip) {
+  const tn = B.tn, T = MUNDO.T, o = B.tri * 9, sd = sg * ((p.x - T[o]) * tn.x + (p.y - T[o + 1]) * tn.y + (p.z - T[o + 2]) * tn.z);
+  if (sd >= 0 || !triPrisma(B.tri, p, 0.005)) return sphereHull(A, p, r, B, flip);
+  const n = _ladoP.set(tn.x * sg, tn.y * sg, tn.z * sg), q = vsub(p, vscale(n, sd)), pS = vsub(p, vscale(n, r));
+  if (!flip) mkContact(A, B, pS, q, n, r - sd);
+  else mkContact(B, A, q, pS, vscale(n, -1), r - sd);
+}
+// poliedro contra un triángulo del mapa con la cara hacia el lado recordado (los vértices que pasaron del otro lado)
+function hullTriLado(A, B, sg) {
+  const T = MUNDO.T, o = B.tri * 9, m = A.spec + (B.spec || 0);
+  const a = v3(T[o], T[o + 1], T[o + 2]), e0 = v3(T[o + 3] - a.x, T[o + 4] - a.y, T[o + 5] - a.z), e1 = v3(T[o + 6] - a.x, T[o + 7] - a.y, T[o + 8] - a.z);
+  const d00 = vdot(e0, e0), d01 = vdot(e0, e1), d11 = vdot(e1, e1), den = d00 * d11 - d01 * d01; if (Math.abs(den) < 1e-12) return;
+  const n = vscale(B.tn, sg); let pts = [];
+  for (const v of A.wv) {
+    const s = vdot(vsub(v, a), n); if (s > m || s < -1.2) continue;
+    const q = vsub(v, vscale(n, s)), w = vsub(q, a), d20 = vdot(w, e0), d21 = vdot(w, e1);
+    const bv = (d11 * d20 - d01 * d21) / den, bw = (d00 * d21 - d01 * d20) / den;
+    if (bv < -0.02 || bw < -0.02 || bv + bw > 1.02) continue;
+    pts.push({ p: v, q, depth: -s });
+  }
+  for (const c of pts) mkContact(A, B, c.p, c.q, n, c.depth);   // (todos: con 4, al caer de punta y girar, los otros se hundían)
+}
+// el choque de un cuerpo del muñeco contra un triángulo del mapa, del lado que recuerda; false = el choque de siempre
+function choqueLado(A, B) {
+  const sg = A.lados.get(B.tri); if (!sg) return false;
+  const ta = A.shape.type, T = MUNDO.T, o = B.tri * 9, tn = B.tn;
+  if (ta === 'hull') {
+    // (con el centro del lado bueno, el choque de siempre; si no, sólo la cara, hacia el lado recordado)
+    const sd = sg * ((A.pos.x - T[o]) * tn.x + (A.pos.y - T[o + 1]) * tn.y + (A.pos.z - T[o + 2]) * tn.z);
+    if (sd >= 0) { if (B.propio) { if (!triLejos(A, B)) hullTriLado(A, B, sg); } else hullTriMundo(A, B); return true; }
+    hullTriLado(A, B, sg); return true;
+  }
+  if (ta === 'sphere') { esferaTriLado(A, A.pos, A.shape.r, B, sg, false); return true; }
+  if (ta === 'capsule') { for (const p of capSpheres(A)) esferaTriLado(A, p, A.shape.r, B, sg, false); return true; }
+  return false;
+}
 function collidePair(A, B) {
+  if (A.lados && B.tri !== undefined && choqueLado(A, B)) return;
   if (A.hijos || B.hijos) {
     const LA = A.hijos || [A], LB = B.hijos || [B], m = A.spec + (B.spec || 0) + 0.02;
     for (const a of LA) {
@@ -445,6 +536,7 @@ function detect(dt) {
     if (!a.dynamic) continue;
     const A = a.aabb, m = a.spec + 0.02;
     mundoCerca(A.x0 - m, A.y0 - m, A.z0 - m, A.x1 + m, A.y1 + m, A.z1 + m, _near);
+    if (a.noCruza) ladosActualizar(a, _near);   // (el muñeco: de qué lado está de cada triángulo cercano)
     for (const s of _near) collidePair(a, s);
   }
   // pares de cuerpos (barrido por x)

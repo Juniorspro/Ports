@@ -121,7 +121,7 @@ uniform sampler2D uT1, uT2, uT3; uniform vec4 uS1; uniform vec2 uS3;
 #ifdef MEZ
 uniform sampler2D uT1; in float vMz;
 #endif
-uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uRim; uniform vec2 uNie; uniform float uCorte;
+uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uRim, uNieD; uniform float uCorte;
 #if LUZ >= 1
 uniform vec3 uMat;
 #endif
@@ -547,7 +547,8 @@ void main(){
   col += uRim * pow(1.0 - abs(dot(n, normalize(uCam - vW))), 2.2);
 #endif
   float dist = distance(vW, uCam);
-  float f = clamp((dist - uNie.x) / (uNie.y - uNie.x), 0.0, 1.0);
+  // (uNieD: dónde empieza y dónde termina la niebla, y hasta cuánto tapa —fogmaxdensity de los mapas de GMod—)
+  float f = clamp((dist - uNieD.x) / (uNieD.y - uNieD.x), 0.0, 1.0) * uNieD.z;
 #if LUZ >= 3
   vec3 vd = (vW - uCam) / dist;
   // (la luz del sol en la niebla, mirando para el sol; uNieS: el color del sol por 0,35, y debajo del agua el del agua y
@@ -1217,7 +1218,7 @@ function prepararProg(P) {
   const L = R.lin && R.salida !== 'gam' ? R.lin : R;
   // niebla y cámara también en los que no usan el sol (los "sin luz": sin esto la niebla quedaba en 0 a 0 y salían del
   // color de la niebla, negros de noche)
-  if (u.uNie) { uNv(P, u.uNieC, L.nieC || R.niebla.c, 3, 3); u2f(P, u.uNie, R.niebla.a, R.niebla.b); }
+  if (u.uNieD) { uNv(P, u.uNieC, L.nieC || R.niebla.c, 3, 3); u3f(P, u.uNieD, R.niebla.a, R.niebla.b, R.niebla.m === undefined ? 1 : R.niebla.m); }
   if (u.uCam) u3f(P, u.uCam, R.camPos.x, R.camPos.y, R.camPos.z);
   // (la exposición también en los "sin luz": sin el sol no se ponía y, sin posproceso (Media), salían negros)
   if (u.uExpo) u1f(P, u.uExpo, R.expo);

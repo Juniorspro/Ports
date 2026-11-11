@@ -293,6 +293,7 @@ function abrirAjustes(desde) {
     ${fila('Resolución', rango('aR', 35, 100, 5, 'aRv'))}
     ${sw('aDin', 'Resolución dinámica <small>(baja la resolución antes que los efectos para mantener los cuadros)</small>')}
     ${fila('Distancia', rango('aD', 100, 1200, 50, 'aDv'))}
+    ${fila(esc(T('aj.fov')), rango('aFov', FOV_MIN, FOV_MAX, 1, 'aFovv'))}
     ${sw('aC', 'Contorno <small>(resaltar lo que apuntás)</small>')}${sw('aF', 'Mostrar FPS')}${sw('aU', esc(Lc('HideUI', 'Ocultar UI')))}${sw('aEv', esc(T('aj.evento')))}</section>
   <section data-ajs="c" class="oc"><h4>${esc(Lc('ControlsAudio', 'Controles y audio'))}</h4>
     ${fila(esc(Lc('Sensitivity', 'Sensibilidad')), rango('aS', 2, 40, 1))}
@@ -309,12 +310,13 @@ function abrirAjustes(desde) {
   if (typeof icappConectar === 'function') icappConectar();   // (el ícono de la app: iconoapp.js)
   if (typeof milogoConectar === 'function') milogoConectar();   // (tu logo en el juego: milogo.js)
   $('aG').value = PREFS.gfx; $('aSo').value = String(PREFS.sombras); $('aPo').value = PREFS.post; $('aTq').value = PREFS.texQ;
+  $('aFov').value = fovBase();
   $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI; $('aDin').checked = PREFS.resDin !== false;
   if ($('aH')) $('aH').value = PREFS.hud || 80;
   $('aEmoR').checked = PREFS.emoRuleta !== false;
   $('aVozH').checked = PREFS.vozHud !== false;
   $('aEv').checked = PREFS.evento !== false;
-  const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; if ($('aH')) $('aHv').textContent = $('aH').value + '%'; };
+  const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; $('aFovv').textContent = $('aFov').value + '°'; if ($('aH')) $('aHv').textContent = $('aH').value + '%'; };
   act();
   $('aG').onchange = () => { PREFS.gfx = $('aG').value; const p = PERFILES[PREFS.gfx]; if (p) { PREFS.res = p.res; PREFS.lejos = p.lejos; $('aR').value = p.res; $('aD').value = p.lejos; } act(); };
   $('aR').oninput = $('aD').oninput = act;
@@ -323,11 +325,15 @@ function abrirAjustes(desde) {
   $('aReg').onclick = () => { if (typeof cnMostrar === 'function') cnMostrar(false); };
   // (comparar los FPS de los motores en la calidad elegida; en automático, Alto)
   $('aBanco').onclick = () => { const g = $('aG').value; bancoEmpezar(g === 'auto' ? 'alto' : g); };
+  // el campo de visión se ve al moverlo (detrás del panel) y queda guardado al soltarlo; sin la mira ni el zoom de un addon
+  // puestos, la cámara salta derecho al nuevo (si no, vuelve a él al sacarlos)
+  $('aFov').oninput = () => { act(); PREFS.fov = +$('aFov').value; if (!ARM.zoom && !(typeof gmaFovLua === 'function' && gmaFovLua())) CAM.fov = fovBase() * (1 - 0.27 * (ARM.apK || 0)); };
+  $('aFov').onchange = () => { PREFS.fov = +$('aFov').value; guardarPrefs(); };
   // el tamaño de los controles se ve al moverlo
   if ($('aH')) $('aH').oninput = () => { act(); PREFS.hud = +$('aH').value; hudDisponer(); };
   $('aOk').onclick = () => {
     const texAntes = GFX.texMax;
-    PREFS.res = +$('aR').value; PREFS.lejos = +$('aD').value; PREFS.sens = +$('aS').value; PREFS.vol = +$('aV').value; PREFS.fps = $('aF').checked;
+    PREFS.res = +$('aR').value; PREFS.lejos = +$('aD').value; PREFS.fov = +$('aFov').value; PREFS.sens = +$('aS').value; PREFS.vol = +$('aV').value; PREFS.fps = $('aF').checked;
     PREFS.sombras = $('aSo').value; PREFS.post = $('aPo').value; PREFS.texQ = $('aTq').value; PREFS.contorno = $('aC').checked; PREFS.ocultarUI = $('aU').checked; PREFS.resDin = $('aDin').checked;
     if ($('aH')) PREFS.hud = +$('aH').value;
     PREFS.emoRuleta = $('aEmoR').checked;

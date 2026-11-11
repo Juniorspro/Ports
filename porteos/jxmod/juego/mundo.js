@@ -104,7 +104,7 @@ function cargarMapa(nombre) {
   // el cielo 3D de los mapas del Workshop (la maqueta de fondo): aparte del mundo (no choca ni hace sombra)
   MUNDO.cielo3d = null;
   if (aj.cielo3d && aj.cielo3d.arbs && aj.cielo3d.arbs.length) {
-    const c = aj.cielo3d, fog = c.fog ? { c: c.fog.c, cLin: c.fog.c.map((x) => Math.pow(x, 2.2)), a: c.fog.a, b: c.fog.b } : null;
+    const c = aj.cielo3d, fog = c.fog ? { c: c.fog.c, cLin: c.fog.c.map((x) => Math.pow(x, 2.2)), a: c.fog.a, b: c.fog.b, m: c.fog.m === undefined ? 1 : c.fog.m } : null;
     MUNDO.cielo3d = { o: v3(c.o[0], c.o[1], c.o[2]), s: c.s, lejos: c.lejos, fog, modelos: c.arbs.map((a) => { const md = new Modelo(a); md.actualizar(); return md; }), VP: new Float32Array(16), cola: [], colaT: [] };
   }
   const C = R.cielo, ai = aj.ai || 1;
@@ -117,7 +117,7 @@ function cargarMapa(nombre) {
   MUNDO.sinSombra = nombre === 'Space' || !!aj.sinSombra; MUNDO.espacio = nombre === 'Space' || !!aj.espacio;
   MUNDO.lejosMin = aj.lejos || 0; const lejos = vistaLejos();
   if (aj.fog && aj.fd > 0) R.niebla = { c: aj.fc.slice(0, 3), a: 0.15 / aj.fd, b: Math.min(lejos, 1.9 / aj.fd) };
-  else if (aj.fog && aj.fm === 1 && aj.fe > aj.fs) R.niebla = Object.assign({ c: aj.fc.slice(0, 3) }, nieblaLineal(aj, lejos));
+  else if (aj.fog && aj.fm === 1 && aj.fe > aj.fs) R.niebla = Object.assign({ c: aj.fc.slice(0, 3), m: aj.fmax === undefined ? 1 : aj.fmax }, nieblaLineal(aj, lejos));   // (m: fogmaxdensity, hasta cuánto tapa)
   else R.niebla = { c: C.mid.slice(), a: lejos * 0.7, b: lejos };
   if (nombre === 'Space' || aj.espacio) R.niebla = { c: [0, 0, 0], a: lejos * 0.8, b: lejos * 1.5 };
   // el cielo propio del mapa (cielos.js): su degradé, la bruma del horizonte del color de la niebla y las nubes pintadas; en

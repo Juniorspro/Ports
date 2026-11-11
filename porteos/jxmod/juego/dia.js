@@ -40,8 +40,14 @@ function diaAplicar() {
   R.ambS = _mix3(B.ambS.map((x) => x * k), [0.11, 0.13, 0.23], noche * 0.8);
   R.ambG = _mix3(B.ambG.map((x) => x * k), [0.05, 0.05, 0.07], noche * 0.8);
   R.ambS = _mix3(R.ambS, [0.75, 0.48, 0.38], tarde * 0.35);
-  if (!(DATA.aj[MUNDO.nombre] && DATA.aj[MUNDO.nombre].fog && DATA.aj[MUNDO.nombre].fd > 0)) R.niebla.c = C.mid.slice();
-  else R.niebla.c = _mix3(B.niebla.c, C.mid, 1 - dia * 0.7);
+  // el color de la niebla: el del horizonte del cielo, salvo en los mapas que traen la suya. La exponencial (los de Unity)
+  // se mezcla con el cielo como siempre; la lineal de los mapas de GMod (env_fog_controller) es la del mapa de día, como en
+  // GMod (antes pasaba a ser la del horizonte del cielo «painted», casi blanca: «¿por qué tanta neblina?»), y de noche y al
+  // atardecer va hacia la del cielo
+  const ajN = DATA.aj[MUNDO.nombre];
+  if (ajN && ajN.fog && ajN.fd > 0) R.niebla.c = _mix3(B.niebla.c, C.mid, 1 - dia * 0.7);
+  else if (ajN && ajN.fog && ajN.fm === 1 && ajN.fe > ajN.fs && !MUNDO.espacio) R.niebla.c = _mix3(B.niebla.c, C.mid, 1 - dia * (1 - tarde));
+  else R.niebla.c = C.mid.slice();
   R.noche = noche;
   // los ojos se acostumbran: de noche se ve un poco más (pero sigue oscuro)
   R.expoK = 1 + noche * 1.3 + tarde * 0.15;
