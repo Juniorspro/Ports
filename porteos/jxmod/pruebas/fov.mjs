@@ -68,9 +68,13 @@ for (const celu of [false, true]) {
   }
   await ev(`dibujarVista = window.__dv; document.body.classList.toggle('sinUI', !!PREFS.ocultarUI); 1`);
   const c0 = await MED(p, fotos[70], sin[70], fotos['70b'], sin['70b']), c1 = await MED(p, fotos[70], sin[70], fotos[50], sin[50]), c2 = await MED(p, fotos[70], sin[70], fotos[110], sin[110]);
-  // (control: dos fotos en 70 —el arma se mece apenas y los bordes contra el cielo varían—; con otro FOV no puede cambiar
-  // más de 1 punto por encima de eso)
-  ok(`C ${et}: la silueta del arma no cambia con el FOV (lo mismo que entre dos fotos en 70°, ±1 %)`, c1.armaPx > 2000 && c1.armaCambia <= c0.armaCambia + 1 && c2.armaCambia <= c0.armaCambia + 1, { control70: c0, '50': c1, '110': c2 });
+  // (control: dos fotos en 70 —el arma se mece con su animación de reposo y los bordes contra el cielo varían: entre dos
+  // fotos en 70 se midió de 1,7 a 6,9 %—; con otro FOV el arma no puede cambiar más que eso más 4 puntos, ni más de un
+  // tercio de lo que cambia el fondo con el mismo FOV —si el arma se estirara con el FOV cambiaría tanto como el fondo—)
+  ok(`C ${et}: la silueta del arma no cambia con el FOV (como entre dos fotos en 70°, +4 puntos; y mucho menos que el fondo)`, c1.armaPx > 2000 && [c1, c2].every((c) => c.armaCambia <= c0.armaCambia + 4 && c.armaCambia < c.fondoCambia / 3), { control70: c0, '50': c1, '110': c2 });
+  // (y sin fotos: la pasada del arma en la mano —la única con cerca 0,01, principal.js— usa siempre 60°, elija el FOV que elija)
+  const pv = await ev(`(() => { const o = M4.persp, r = {}; let f = 0; M4.persp = function (fy, a, n, l) { if (n === 0.01) r[f] = Math.round(fy * 180 / Math.PI * 100) / 100; return o.apply(this, arguments); }; return new Promise((ok) => { const L = [50, 70, 110]; let i = 0; const paso = () => { if (i >= L.length) { M4.persp = o; PREFS.fov = 70; CAM.fov = 70; return ok(r); } f = L[i++]; PREFS.fov = f; CAM.fov = f; setTimeout(paso, 400); }; paso(); }); })()`);
+  ok(`C ${et}: la pasada del arma usa 60° con el FOV en 50, 70 y 110`, [50, 70, 110].every((f) => pv[f] === 60), pv);
   // (y el mundo sí: fotos de la cámara real mirando el mapa)
   await ev(`JUG.pos.set(${pos0[0]}, ${pos0[1]}, ${pos0[2]}); JUG.vel.set(0, 0, 0); JUG.pitch = 0.08; 1`); await p.waitForTimeout(1200);
   for (const f of [50, 70, 110]) { await ev(`PREFS.fov = ${f}; CAM.fov = ${f}; 1`); await p.waitForTimeout(700); fs.writeFileSync(`${D}fov_${et}_mapa_${f}.png`, await p.screenshot()); }
