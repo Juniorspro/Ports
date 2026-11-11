@@ -1,8 +1,8 @@
 {
- "codigo": 3001,
- "version": "3.0.1",
+ "codigo": 3100,
+ "version": "3.1",
  "apk": "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXMod.apk",
  "web": "https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/index.html",
- "notas_es": "JXMod 3.0.1 — arreglo de las texturas estiradas en los mapas (sobre todo en el celular). Tocá Descargar para actualizar.",
- "notas_en": "JXMod 3.0.1 — fixes stretched textures on maps (especially on phones). Tap Download to update."
+ "notas_es": "JXMod 3.1 — Pill Packs (transformate en personajes con habilidades y nivel), panel de Mods y mapas nuevo, la pizzería de FNAF ahora es un mapa del Workshop (también en multijugador), campo de visión (FOV) en Ajustes, menos neblina en los mapas de GMod, el muñeco de trapo ya no se traba en el piso y las nucleares ya no siguen en el mundo nuevo. Tocá Descargar para actualizar.",
+ "notas_en": "JXMod 3.1 — Pill Packs (turn into characters with abilities and levels), new Mods & maps panel, the FNAF pizzeria is now a Workshop map (multiplayer too), field of view (FOV) in Settings, less fog on GMod maps, ragdolls no longer get stuck in the floor and nukes no longer carry over to a new world. Tap Download to update."
 }
