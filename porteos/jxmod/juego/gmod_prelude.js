@@ -357,7 +357,7 @@ end
 language = language or {}
 do local F = {}
   function language.Add(k, v) F[k] = v end
-  function language.GetPhrase(k) if type(k) ~= "string" then return k end local s = string.gsub(k, "^#", ""); return F[s] or F[k] or s end
+  function language.GetPhrase(k) if type(k) ~= "string" then return k end local s = string.gsub(k, "^#", ""); return F[s] or F[k] or (__jxFrase and __jxFrase(s)) or s end
 end
 
 -- ---------- vgui y derma: paneles que aceptan todo (la UI de GMod no se dibuja; lo que dibuja la HUD sí) ----------
@@ -669,6 +669,34 @@ EQUIP_NONE, EQUIP_ARMOR, EQUIP_RADAR, EQUIP_DISGUISE = 0, 1, 2, 4
 LANG = LANG or { AddToLanguage = function() end, GetTranslation = function(n) return n end, GetParamTranslation = function(n) return n end, TryTranslation = function(n) return n end, GetUnsafeLanguageTable = function() return {} end, GetRawTranslation = function(n) return n end }
 GetTranslation = GetTranslation or function(n) return n end
 GetPTranslation = GetPTranslation or function(n) return n end
+-- (los números de verdad de PLAYER_*: el SetAnimation del jugador los distingue —PLAYER_ATTACK1 es el gesto de ataque—)
+PLAYER_IDLE, PLAYER_WALK, PLAYER_JUMP, PLAYER_SUPERJUMP, PLAYER_DIE, PLAYER_ATTACK1, PLAYER_IN_VEHICLE, PLAYER_RELOAD, PLAYER_START_AIMING, PLAYER_LEAVE_AIMING = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+-- (el comando del jugador de este cuadro, CUserCmd: CW 2.0 siembra el azar de cada disparo con su CommandNumber y sin él
+-- ninguna bala salía; y lo que ArcCW pregunta del jugador al disparar y al mover la vista)
+do
+  local P, C, E = FindMetaTable("Player"), FindMetaTable("CUserCmd"), FindMetaTable("Entity")
+  if P and C then
+    C.__index = C
+    local n = 0
+    function C:CommandNumber() return self.n end
+    function C:TickCount() return self.n end
+    function C:KeyDown(k) return LocalPlayer():KeyDown(k) end
+    function C:GetButtons()
+      local b = 0
+      for _, k in ipairs({ IN_ATTACK, IN_JUMP, IN_DUCK, IN_FORWARD, IN_BACK, IN_USE, IN_MOVELEFT, IN_MOVERIGHT, IN_ATTACK2, IN_RELOAD, IN_SPEED, IN_WALK, IN_ZOOM }) do
+        if isnumber(k) and LocalPlayer():KeyDown(k) then b = bit.bor(b, k) end
+      end
+      return b
+    end
+    function C:GetViewAngles() return LocalPlayer():EyeAngles() end
+    for _, k in ipairs({ "GetForwardMove", "GetSideMove", "GetUpMove", "GetMouseX", "GetMouseY", "GetMouseWheel", "GetImpulse" }) do C[k] = function() return 0 end end
+    for _, k in ipairs({ "SetButtons", "SetViewAngles", "SetForwardMove", "SetSideMove", "SetUpMove", "SetMouseX", "SetMouseY", "SetMouseWheel", "SetImpulse", "ClearButtons", "ClearMovement", "RemoveKey", "AddKey", "SelectWeapon" }) do C[k] = function() end end
+    function C:IsForced() return false end
+    P.GetCurrentCommand = P.GetCurrentCommand or function() n = n + 1 return setmetatable({ n = n }, C) end
+    P.GetCurrentViewOffset = P.GetCurrentViewOffset or function(s) if s:Crouching() then return s:GetViewOffsetDucked() end return s:GetViewOffset() end
+  end
+  if E then E.GetAbsVelocity = E.GetAbsVelocity or function(s) return s:GetVelocity() end end
+end
 do
   local P = FindMetaTable and FindMetaTable("Player")
   if P then

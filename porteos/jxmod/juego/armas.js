@@ -180,7 +180,7 @@ function golpeAplicar(D, h0) {
 }
 function recargar() {
   const n = ARM.lista[ARM.i], D = DEF_ARMAS[n];
-  if (D && D.tipo === 'gmswep') { if (typeof GMA !== 'undefined') GMA.pedirRecarga = true; return; }   // (el arma de un mod recarga con su SWEP:Reload: también desde el botón de la pantalla)
+  if (D && D.tipo === 'gmswep') { if (typeof GMA !== 'undefined') { GMA.pedirRecarga = true; GMA.recargaPulso = TIEMPO.t + 0.12; } return; }   // (y la R apretada un instante: la TFA Base recarga al soltarla)   // (el arma de un mod recarga con su SWEP:Reload: también desde el botón de la pantalla)
   if (!D.car || ARM.balas[n] >= D.car || ARM.recargando > 0) return;
   const dur = ARM.v && D.recarga ? vistaTocar(ARM.v, D.recarga) : 1.2;
   ARM.recargando = Math.max(0.6, Math.min(4, dur)); ARM.ocup = ARM.recargando;   // (la .357 de HL2 tarda 3,7 s)

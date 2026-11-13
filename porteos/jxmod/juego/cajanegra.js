@@ -107,6 +107,15 @@ function cnMostrar(trabado, extra) {
 // (con el juego listo: si la vez anterior se trabó, se avisa; si fue adentro de un mod, ese mod se apaga)
 // (lo que se apaga va antes de montar los mods —gmArrancar lo llama primero—: si no, el mod volvería a trabar el juego
 // antes de que se muestre el aviso)
+// Cuándo se culpa a un mod: si la app vio el juego congelado 45 s (?colgado) con ese mod cargándose, ya; si el juego sólo
+// se cerró mal (el sistema lo mató por memoria —?caida—, se cerró la app, se cayó la pestaña), hace falta que pase dos veces
+// seguidas con el mismo mod. Antes bastaba una: cerrar el juego mientras montaba los mods al arrancar dejaba «sin cargar»
+// al que tocaba en ese momento, y de una vez a la otra varios mods quedaban sin sus armas, como «Script» (Discord).
+const CN_SOSP = 'rb_gm_sospechas';
+function cnSospechas() { try { const o = JSON.parse(localStorage.getItem(CN_SOSP) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+function cnSospechasGuardar(o) { try { localStorage.setItem(CN_SOSP, JSON.stringify(o)); } catch (e) {} }
+// (su Lua corrió entero: deja de ser sospechoso; así las dos veces tienen que ser seguidas)
+function cnSospechaOk(id) { const o = cnSospechas(); if (o[id]) { delete o[id]; cnSospechasGuardar(o); } }
 function cnCuarentena() {
   if (cnCuarentena.hecho !== undefined) return cnCuarentena.hecho;
   cnCuarentena.hecho = '';
@@ -115,15 +124,19 @@ function cnCuarentena() {
   // (el nombre: el guardado del mod; si no está, el que quedó anotado en el paso —«montando el mod Viewfinder»—; si no, el id)
   const id = CN_ANT.paso && CN_ANT.addon, dePaso = (/(?:del mod|el mod) (.+)$/.exec(CN_ANT.paso || '') || [])[1];
   const n = id && ((typeof PREFS !== 'undefined' && PREFS.gmod && PREFS.gmod[id] && PREFS.gmod[id].n) || (dePaso && dePaso !== id ? dePaso : '') || id);
+  if (!id) return '';
+  const S = cnSospechas(), vez = (S[id] && Date.now() - (+S[id].t || 0) < 864e5 ? +S[id].n || 0 : 0) + 1;
+  S[id] = { n: vez, t: Date.now() }; cnSospechasGuardar(S);
+  if (!Q.get('colgado') && vez < 2) { cnAnotar('seguro', 'se cerró mal con el mod ' + id + ' cargándose (1.ª vez: se vuelve a probar)', true); return ''; }
   // (si se trabó corriendo su Lua al cargarse, apagar sus hooks no alcanza: la próxima vez se volvería a trabar al abrir.
   // Queda montado pero sin correr su Lua, hasta que se lo vuelve a cargar desde su página)
-  if (id && /^(corriendo el Lua|montando) /.test(CN_ANT.paso) && typeof GMA !== 'undefined' && GMA.trabados && !GMA.trabados.has(id)) {
+  if (/^(corriendo el Lua|montando) /.test(CN_ANT.paso) && typeof GMA !== 'undefined' && GMA.trabados && !GMA.trabados.has(id)) {
     GMA.trabados.add(id); if (typeof gmaTrabadosGuardar === 'function') gmaTrabadosGuardar();
-    extra = Lc('So it does not freeze again, the mod "' + n + '" was not loaded. You can load it again from its page (GMod button).', 'Para que no se vuelva a trabar, el mod «' + n + '» quedó sin cargar. Lo podés volver a cargar desde su página (botón GMod).');
+    extra = T('cn.sinCargar').replace('%m', n);
     cnAnotar('seguro', 'mod sin cargar por el cuelgue: ' + id, true);
-  } else if (id && typeof GMA !== 'undefined' && GMA.apagados && !GMA.apagados.has(id)) {
+  } else if (typeof GMA !== 'undefined' && GMA.apagados && !GMA.apagados.has(id)) {
     GMA.apagados.add(id); try { localStorage.setItem('rb_gmb_apagados', JSON.stringify([...GMA.apagados])); } catch (e) {}
-    extra = Lc('So it does not freeze again, the mod "' + n + '" was turned off. You can turn it back on in its page (GMod button).', 'Para que no se vuelva a trabar, apagué el mod «' + n + '». Lo podés volver a prender en su página (botón GMod).');
+    extra = T('cn.apagado').replace('%m', n);
     cnAnotar('seguro', 'mod apagado por el cuelgue: ' + id, true);
   }
   return (cnCuarentena.hecho = extra);

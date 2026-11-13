@@ -158,18 +158,68 @@ function gmbDibuja(A) {
   if (A.luaCorridos) return false;
   return /hook\.Add\(\s*["'](RenderScreenspaceEffects|DrawOverlay|PostDrawHUD|HUDPaint)["']|DrawColorModify|DrawMaterialOverlay/.test(gmbFuente(A));
 }
-// { k: efecto | modo | armas | npcs | vehs | pms | ents | herr | props | mapa | script, n: cuántos }
-function gmbTipo(A) {
-  const I = gmbItems(A), H = gmbHerramientas(A).length, cosas = I.armas.length + I.ents.length + I.npcs.length + I.vehs.length + I.pms.length + H;
-  if (gmbEsModo(A)) return { k: 'modo', n: 0 };
-  if (!cosas && gmbDibuja(A)) return { k: 'efecto', n: 0 };
-  if (typeof gmaEfectoObjeto === 'function' && gmaEfectoObjeto(A)) return { k: 'efecto', n: 0, obj: true };   // (un efecto que viene con su objeto: una cámara VHS)
-  if (!cosas && gmbTraeMapas(A) && !(A.lua || []).length) return { k: 'mapa', n: gmbTraeMapas(A) };
-  const L = [['armas', I.armas.length], ['npcs', I.npcs.length], ['vehs', I.vehs.length], ['pms', I.pms.length], ['ents', I.ents.length], ['herr', H], ['props', I.props.length]].sort((a, b) => b[1] - a[1]);
-  return L[0][1] ? { k: L[0][0], n: L[0][1] } : { k: 'script', n: 0 };
+// lo que trae, leído de sus archivos sin correr su Lua: las clases de armas y entidades (y si alguna se puede poner:
+// «Spawnable = true»), las herramientas y las listas de NPCs y vehículos. Sirve para la tarjeta mientras su Lua todavía
+// no corrió (al arrancar el juego espera el contenido base de GMod: en el celular, de 10 a 60 s) o si quedó sin cargar:
+// antes la tarjeta decía «Script» sin nada adentro y parecía que el mod se había borrado (Discord). Y para reconocer las
+// bases (TFA Base, ArcCW, M9K...): clases de armas que ninguna se pone sola, que usan los packs.
+function gmbTipoArchivos(A) {
+  if (A._tipoArch) return A._tipoArch;
+  const td = new TextDecoder('latin1'), cls = new Map(); let npcs = 0, vehs = 0, herr = 0;
+  for (const r of A.lua || []) {
+    if (/^lua\/weapons\/gmod_tool\/stools\/[^/]+\.lua$/.test(r)) { herr++; continue; }
+    const m = /^(?:lua|gamemodes\/[^/]+\/entities)\/(weapons|entities)\/([^/]+?)(?:\.lua|\/(?:init|cl_init|shared)\.lua)$/.exec(r);
+    const b = A.G.archivos.get(r); if (!b) continue;
+    const t = td.decode(b.length > 300000 ? b.subarray(0, 300000) : b);
+    if (m && m[2] !== 'gmod_tool') { const k = m[1] + '/' + m[2].toLowerCase(), c = cls.get(k) || { tipo: m[1], pone: false }; if (/\b(?:Admin)?Spawnable\s*=\s*true\b/.test(t)) c.pone = true; cls.set(k, c); }
+    npcs += (t.match(/list\.Set\(\s*["']NPC["']/g) || []).length; vehs += (t.match(/list\.Set\(\s*["']Vehicles["']/g) || []).length;
+  }
+  const C = [...cls.values()];
+  return (A._tipoArch = { armas: C.filter((c) => c.tipo === 'weapons' && c.pone).length, ents: C.filter((c) => c.tipo === 'entities' && c.pone).length, npcs, vehs, herr, bases: C.filter((c) => !c.pone).length });
 }
-const GMB_TIPO_TXT = { efecto: 'gmb.tEfecto', modo: 'gm.modo', armas: 'gmb.armas', npcs: 'gmb.npcs', vehs: 'gmb.vehs', pms: 'gmb.pms', ents: 'gmb.ents', herr: 'gmb.tHerr', props: 'gmb.props', script: 'gmb.tScript', mapa: 'gmb.tMapa' };
-function gmbTipoTxt(t) { return T(GMB_TIPO_TXT[t.k] || 'gmb.tScript') + (t.n ? ' · ' + t.n : ''); }
+// { k: efecto | modo | armas | npcs | vehs | pms | ents | herr | props | base | mapa | script, n: cuántos, estado: '' |
+// 'cargando' (su Lua todavía no corrió) | 'sinCargar' (trabó el juego al cargarse y quedó sin correr) }
+function gmbTipo(A) {
+  const I = gmbItems(A), H = gmbHerramientas(A).length, F = gmbTipoArchivos(A);
+  // (lo que registró su Lua; si todavía no corrió o quedó sin cargar, lo que dicen sus archivos)
+  const corrio = A.luaCorridos !== undefined && !A.trabado, x = (lua, arch) => (corrio ? lua : Math.max(lua, arch));
+  const estado = A.trabado ? 'sinCargar' : (A.lua || []).length && A.luaCorridos === undefined ? 'cargando' : '';
+  const n = { armas: x(I.armas.length, F.armas), npcs: x(I.npcs.length, F.npcs), vehs: x(I.vehs.length, F.vehs), pms: I.pms.length, ents: x(I.ents.length, F.ents), herr: x(H, F.herr) };
+  const cosas = n.armas + n.ents + n.npcs + n.vehs + n.pms + n.herr;
+  if (gmbEsModo(A)) return { k: 'modo', n: 0 };
+  if (typeof gmaEfectoObjeto === 'function' && gmaEfectoObjeto(A)) return { k: 'efecto', n: 0, obj: true, estado };   // (un efecto que viene con su objeto: una cámara VHS)
+  // (lo que el autor dijo que es —el «type» de su addon.json: weapon, npc, vehicle, model, entity, tool— si trae de eso: el
+  // Minecraft SWEP es un arma aunque traiga 293 bloques y 45 modelos de personajes; una base de armas que no trae armas
+  // propias —TFA Base, ArcCW—, «Base», aunque dibuje su HUD)
+  const tipoGMA = String((A.G && A.G.info && A.G.info.type) || '').toLowerCase(), K = GMB_TIPO_GMA[tipoGMA];
+  if (K && n[K] > 0) return { k: K, n: n[K], estado };
+  if (K && F.bases) return { k: 'base', n: 0, estado };
+  if (!cosas && gmbDibuja(A)) return { k: 'efecto', n: 0, estado };
+  if (!cosas && gmbTraeMapas(A) && !(A.lua || []).length) return { k: 'mapa', n: gmbTraeMapas(A) };
+  if (tipoGMA === 'model' && I.props.length && !n.pms) return { k: 'props', n: I.props.length, estado };
+  // (si no, lo que más trae; lo que se pone antes que los props)
+  const L = [['armas', n.armas], ['npcs', n.npcs], ['vehs', n.vehs], ['pms', n.pms], ['ents', n.ents], ['herr', n.herr]].sort((a, b) => b[1] - a[1]);
+  if (L[0][1]) return { k: L[0][0], n: L[0][1], estado };
+  if (I.props.length) return { k: 'props', n: I.props.length, estado };
+  if (F.bases) return { k: 'base', n: 0, estado };
+  return { k: 'script', n: 0, estado };
+}
+const GMB_TIPO_GMA = { weapon: 'armas', npc: 'npcs', vehicle: 'vehs', model: 'pms', entity: 'ents', tool: 'herr' };
+const GMB_TIPO_TXT = { efecto: 'gmb.tEfecto', modo: 'gm.modo', armas: 'gmb.armas', npcs: 'gmb.npcs', vehs: 'gmb.vehs', pms: 'gmb.pms', ents: 'gmb.ents', herr: 'gmb.tHerr', props: 'gmb.props', base: 'gmb.tBase', script: 'gmb.tScript', mapa: 'gmb.tMapa' };
+function gmbTipoTxt(t) { return T(GMB_TIPO_TXT[t.k] || 'gmb.tScript') + (t.n ? ' · ' + t.n : '') + (t.estado ? ' · ' + T(t.estado === 'cargando' ? 'gmb.cargando' : 'gmb.sinCargar') : ''); }
+// (los mods que usan a una base: los que la piden en el Workshop o tienen armas y entidades hechas sobre sus clases)
+function gmbUsanBase(A) {
+  const L = [], mias = new Set(); if (typeof GMA === 'undefined') return L;
+  for (const M of [GMA.armas, GMA.clases]) for (const [n, c] of M) if (c.addon === A) mias.add(n);
+  for (const B of GMOD.addons.values()) {
+    if (B === A) continue;
+    const req = (PREFS.gmod && PREFS.gmod[B.id] && PREFS.gmod[B.id].req) || GMOD.req.get(B.id) || [];
+    let usa = req.includes(A.id);
+    if (!usa) for (const M of [GMA.armas, GMA.clases]) { for (const c of M.values()) { if (c.addon !== B) continue; const t = c.S || c.C, b = t && t.get('Base'); if (typeof b === 'string' && mias.has(b.toLowerCase())) { usa = true; break; } } if (usa) break; }
+    if (usa) L.push(B.nombre);
+  }
+  return L;
+}
 // la imagen de la tarjeta: la del Workshop; si no, la de lo primero que trae; si no, la G
 function gmbImg(A) { return gmbImgDe(A).src; }
 function gmbImgDe(A) {
@@ -289,6 +339,10 @@ function gmbCuerpo() {
   };
   const sec = (k, tit, L) => { const [h, n] = grilla(L, k); return gmbSeccion(tit, h, n); };
   let s = '';
+  // (su Lua todavía no corrió: lo que trae aparece en unos segundos; o quedó sin cargar: se puede volver a cargar)
+  if (t.estado === 'cargando') s += `<p class="gbAyuda">${glifo('reloj')}<span>${esc(T('gmb.cargandoAyuda'))}</span></p>`;
+  if (t.estado === 'sinCargar') s += `<p class="gbAyuda">${glifo('info')}<span>${esc(T('gmb.sinCargarAyuda'))}</span></p><div class="gbFilas"><button class="gbFila" data-gb="cargar:${esc(A.id)}">${glifo('jugar')}<span>${esc(T('gmb.recargar'))}</span></button></div>`;
+  if (t.k === 'base') { const U = gmbUsanBase(A); s += `<p class="gbAyuda">${glifo('info')}<span>${esc(T('gmb.baseAyuda'))}${U.length ? ' ' + esc(T('gmb.usanBase').replace('%m', U.slice(0, 6).join(', ') + (U.length > 6 ? '…' : ''))) : ''}</span></p>`; }
   // prendido / apagado: arriba de todo en los efectos; en los demás, si el mod corre algo propio (hooks)
   const on = !gmbApagado(A.id), sw = `<label class="gbAj gbSw gbOnOff" data-gb="tog:${esc(A.id)}"><i class="smSw${on ? ' on' : ''}"></i><span><b>${esc(T(on ? 'gmb.activado' : 'gmb.desactivado'))}</b><small>${esc(T(t.k === 'efecto' ? 'gmb.efectoAyuda' : 'gmb.onAyuda'))}</small></span></label>`;
   const Aj = gmbAjustes(A).filter((c) => pasa(c.n + ' ' + c.h)), ajs = Aj.length ? gmbSeccion(T('gmb.ajustes'), `<div class="gbAjs">${Aj.map(gmbCvarHTML).join('')}</div>`, Aj.length) : '';
@@ -343,9 +397,7 @@ function gmbInfoHTML(A) {
   const err = (A.luaErr || []).length, falt = (A.faltanModelos || []).length;
   const filas = [[T('gmb.archivos'), A.G.archivos.size + (A.G.perezosos ? A.G.perezosos.size : 0)], [T('gmb.lua'), `${A.luaCorridos || 0} / ${(A.lua || []).length}`], [T('gmb.errores'), err], [T('gmb.modelosFaltan'), falt]];
   const ex = err ? `<pre class="gbErr">${esc((A.luaErr || []).slice(0, 5).join('\n'))}</pre>` : '';
-  // (un mod que trabó el juego al cargarse: su Lua no corrió; se puede volver a cargar)
-  const trab = A.trabado ? `<p class="gbAyuda">${glifo('info')}<span>${esc(Lc('This mod froze the game while loading, so it was not loaded.', 'Este mod trabó el juego al cargarse, así que quedó sin cargar.'))}</span></p><div class="gbFilas"><button class="gbFila" data-gb="cargar:${esc(A.id)}">${glifo('jugar')}<span>${esc(Lc('Load it again', 'Volver a cargarlo'))}</span></button></div>` : '';
-  return gmbSeccion(T('gmb.info'), `${trab}<div class="gbInfo">${filas.map(([k, v]) => `<span>${esc(k)}: <b>${esc(String(v))}</b></span>`).join('')}</div>${ex}`);
+  return gmbSeccion(T('gmb.info'), `<div class="gbInfo">${filas.map(([k, v]) => `<span>${esc(k)}: <b>${esc(String(v))}</b></span>`).join('')}</div>${ex}`);
 }
 function gmbModoHTML() {
   const M = GMA.modo; if (!M) return '';

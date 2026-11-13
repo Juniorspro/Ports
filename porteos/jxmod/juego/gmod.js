@@ -162,6 +162,7 @@ function gmfFuente(nombre) {
   const s = GMF_SIS[n] || GMF_SIS[n.replace(/\s+(bold|regular|light|medium)$/, '')] || [0.85, 0.8];
   return { css: null, k: s[0], a: s[1] };
 }
+const GM_PREP_MS = 12000;
 function gmMontar(id, G, meta) {
   if (GMOD.addons.has(id)) return GMOD.addons.get(id);
   const A = { id, nombre: (meta && meta.nombre) || G.nombre || id, autor: G.autor, G, modelos: [], lua: [], sonidos: 0, meta: meta || {}, visita: !!(meta && meta.visita) };
@@ -184,8 +185,14 @@ function gmMontar(id, G, meta) {
   if (typeof gbspRegistrar === 'function') gbspRegistrar(A);   // (sus mapas, a la lista)
   if (typeof gmmRegistrar === 'function') gmmRegistrar(A);     // (y sus modos de juego)
   gmMenu();
-  // (antes de correr su Lua: lo que pide del contenido base de GMod/HL2)
-  A.listo = Promise.all([typeof gmlPreparar === 'function' ? gmlPreparar(A).catch(() => {}) : null, gmfRegistrar(A).catch(() => {})]).then(() => { if (GMOD.addons.get(id) === A && typeof gmLuaMontar === 'function') { if (gmBusquedaNueva(A)) gmRecargarLuaPronto(); else gmLuaMontar(A); } gmMenu(); if (GMOD.addons.get(id) === A && typeof gmbAutoFijar === 'function') try { gmbAutoFijar(A); } catch (e) {} });
+  // (antes de correr su Lua: lo que pide del contenido base de GMod/HL2, con tope: si la red tarda, el Lua corre igual y lo
+  // que llega después se pone solo —gmlLlegaron—; antes un celular con la red lenta dejaba los mods sin sus armas un buen
+  // rato al arrancar. Y el Lua de los addons corre de a uno en el orden en que se montaron —primero las bases, como en
+  // GMod—, no en el que termina de llegar su contenido: un pack de TFA corría antes que la TFA Base)
+  const prep = Promise.all([typeof gmlPreparar === 'function' ? gmlPreparar(A).catch(() => {}) : null, gmfRegistrar(A).catch(() => {})]);
+  const turno = GMOD.turnoLua || Promise.resolve();
+  A.listo = Promise.race([prep, new Promise((r) => setTimeout(r, GM_PREP_MS))]).then(() => turno).then(() => { if (GMOD.addons.get(id) === A && typeof gmLuaMontar === 'function') { if (gmBusquedaNueva(A)) gmRecargarLuaPronto(); else gmLuaMontar(A); } gmMenu(); if (GMOD.addons.get(id) === A && typeof gmbAutoFijar === 'function') try { gmbAutoFijar(A); } catch (e) {} });
+  GMOD.turnoLua = A.listo.catch(() => {});
   return A;
 }
 // Bases que buscan sus agregados en una carpeta (VJ Base corre lo que haya en lua/vj_base/plugins/: así se registran los
@@ -777,14 +784,19 @@ const gmCacheRota = () => GMDB.roto && Date.now() - GMDB.roto < 120000;
 async function gmCacheGuardar(id, b) { if (gmCacheRota()) return; try { await gmTiempo((async () => { const db = await gmDB(); await new Promise((ok) => { const t = db.transaction('gma', 'readwrite'); t.objectStore('gma').put(b, id); t.oncomplete = ok; t.onerror = ok; t.onabort = ok; }); })(), 30000, 'la caché no contesta'); } catch (e) { if (e && e.trabado) GMDB.roto = Date.now(); } }
 // el .gma de un addon se guarda como Blob (el navegador lo deja en el disco) y se devuelve el guardado; si el navegador no
 // guarda Blobs, como antes (los bytes) y null
+// (sin lugar en el aparato —el navegador dice QuotaExceededError o el cupo que queda no alcanza—: queda en GMDB.sinLugar
+// con su id y su peso; el mod se usa igual desde la memoria y al volver a abrir se baja de nuevo)
+async function gmLugarLibre() { try { if (!navigator.storage || !navigator.storage.estimate) return null; const e = await gmTiempo(navigator.storage.estimate(), 3000); return e && e.quota ? e.quota - (e.usage || 0) : null; } catch (e) { return null; } }
 async function gmCacheGuardarGMA(id, b) {
   try {
     if (gmCacheRota()) throw new Error('caché no disponible');
     const bl = b instanceof Blob ? b : new Blob([b]);
-    const ok = await gmTiempo((async () => { const db = await gmDB(); return new Promise((res, mal) => { try { const t = db.transaction('gma', 'readwrite'); t.objectStore('gma').put(bl, id); t.oncomplete = () => res(true); t.onerror = () => res(false); t.onabort = () => res(false); } catch (e) { mal(e); } }); })(), 30000, 'la caché no contesta');
+    const libre = await gmLugarLibre();
+    if (libre !== null && libre < bl.size + 8e6) { GMDB.sinLugar = { id, mb: bl.size / 1048576 }; throw new Error('sin lugar'); }
+    const ok = await gmTiempo((async () => { const db = await gmDB(); return new Promise((res, mal) => { try { const t = db.transaction('gma', 'readwrite'); t.objectStore('gma').put(bl, id); t.oncomplete = () => res(true); const no = () => { const n = (t.error && t.error.name) || ''; if (/Quota/i.test(n)) GMDB.sinLugar = { id, mb: bl.size / 1048576 }; res(false); }; t.onerror = no; t.onabort = no; } catch (e) { if (e && /Quota/i.test(e.name || '')) GMDB.sinLugar = { id, mb: bl.size / 1048576 }; mal(e); } }); })(), 30000, 'la caché no contesta');
     if (!ok) throw new Error('no se guardó');
     const r = await gmCacheLeer(id, 15000); return r instanceof Blob ? r : null;
-  } catch (e) { if (e && e.trabado) GMDB.roto = Date.now(); if (!(b instanceof Blob)) await gmCacheGuardar(id, b); return null; }
+  } catch (e) { if (e && e.trabado) GMDB.roto = Date.now(); if (!(b instanceof Blob) && !(GMDB.sinLugar && GMDB.sinLugar.id === id)) await gmCacheGuardar(id, b); return null; }
 }
 // un .gma desde un Blob: la tabla de archivos y lo chico se leen; las texturas y los mapas quedan en el Blob
 async function gmaDesdeBlob(bl) {
@@ -958,7 +970,9 @@ async function gmInstalar(wid, meta, bytes, prog) {
   const prof = (meta && meta.prof) || 0, reqAnt = (PREFS.gmod && PREFS.gmod[wid] && PREFS.gmod[wid].req) || GMOD.req.get(wid);
   const sinDeps = !!(meta && meta.sinDeps), reqP = sinDeps || prof >= 2 || !/^\d+$/.test(wid) ? Promise.resolve([]) : reqAnt ? Promise.resolve(reqAnt) : gmRequeridos(wid).catch(() => null);
   let b = bytes || (await gmBajar(wid, prog)), G = null;
-  if (b instanceof Blob) G = await gmaDesdeBlob(b);
+  // (lo guardado no se puede leer —el archivo del navegador se perdió o quedó a medio escribir—: se borra y se baja de nuevo)
+  if (b instanceof Blob && !bytes) { try { G = await gmaDesdeBlob(b); } catch (e) { gmErr('guardado ' + wid, e); await gmCacheBorrar(wid); b = await gmBajar(wid, prog); } }
+  if (G) { /* (ya leído) */ } else if (b instanceof Blob) G = await gmaDesdeBlob(b);
   else {
     if (!gmEsGMA(b)) b = await gmLZMA(b, prog);
     // (guardado como Blob y montado desde ahí: lo grande —texturas, mapas— no queda en memoria)
@@ -990,9 +1004,19 @@ async function gmInstalar(wid, meta, bytes, prog) {
     if (A.deps.length) { GMOD.addons.delete(wid); GMOD.addons.set(wid, A); if (typeof gmLuaDesmontar === 'function') gmLuaDesmontar(); }
   }
   if (A.visita) return A;   // (de visita no queda entre los instalados: la próxima vez se toma de la caché si hace falta)
-  PREFS.gmod = PREFS.gmod || {}; PREFS.gmod[wid] = { n: A.nombre, t: Date.now(), img: (meta && meta.img) || '' }; if (Array.isArray(req) && /^\d+$/.test(wid)) PREFS.gmod[wid].req = req.slice(0, 20);
+  // (la fecha de instalación es la de la primera vez: al volver a bajarlo solo —si no estaba guardado— no cambia, así el
+  // orden de montar al arrancar sigue siendo el de instalación)
+  PREFS.gmod = PREFS.gmod || {}; const P0 = PREFS.gmod[wid];
+  PREFS.gmod[wid] = { n: A.nombre, t: (P0 && P0.t) || Date.now(), img: (meta && meta.img) || (P0 && P0.img) || '' }; if (Array.isArray(req) && /^\d+$/.test(wid)) PREFS.gmod[wid].req = req.slice(0, 20); else if (P0 && P0.req) PREFS.gmod[wid].req = P0.req;
   // (lo que ocupa guardado, para el cupo de «borrar varios»: gmod_tienda.js)
   if (G.blob && G.blob.size) PREFS.gmod[wid].mbG = Math.round(G.blob.size / 1048.576) / 1000;
+  // (no entró en el aparato: queda puesto hasta cerrar el juego y al volver a abrirlo se baja de nuevo; se avisa, y la ficha
+  // de la tienda lo dice. Antes no se decía nada: con el celular lleno, cada vez que se abría el juego faltaban mods hasta
+  // que se volvían a bajar, y sin conexión no aparecían)
+  if (!G.blob && GMDB.sinLugar && GMDB.sinLugar.id === wid) {
+    PREFS.gmod[wid].sinGuardar = Math.round(GMDB.sinLugar.mb);
+    if (typeof aviso === 'function' || typeof menuAviso === 'function') { const t = T('gm.sinLugar').replace('%m', A.nombre).replace('%n', Math.round(GMDB.sinLugar.mb)); if (typeof JUEGO !== 'undefined' && JUEGO.estado === 'juego' && typeof aviso === 'function') aviso(t, 7); else if (typeof menuAviso === 'function') menuAviso(t); }
+  }
   guardarPrefs();
   return A;
 }
@@ -1069,6 +1093,19 @@ async function gmImportarArchivo(f) {
   const G = GMF.gma(b), id = 'local:' + (h >>> 0).toString(36) + '_' + b.length.toString(36);
   return gmInstalar(id, { nombre: G.nombre || f.name.replace(/\.gma$/i, ''), local: true }, b);
 }
+// en qué orden se montan al arrancar: el de instalación (las bases y lo que pide cada uno se instalan antes) y, por las
+// dudas, lo que pide cada uno antes que él. Antes era el de la lista guardada, que el navegador ordena por número de
+// Workshop: la TFA Base (2840031720) quedaba después de sus packs
+function gmOrdenMontar(L) {
+  const P = PREFS.gmod || {}, hay = new Set(L), t = (id) => +(P[id] && P[id].t) || 0;
+  const out = [], ya = new Set();
+  const poner = (id, k) => { if (ya.has(id)) return; ya.add(id); if (k < 6) for (const d of (P[id] && P[id].req) || []) if (hay.has(String(d))) poner(String(d), k + 1); out.push(id); };
+  for (const id of L.slice().sort((a, b) => t(a) - t(b))) poner(id, 0);
+  return out;
+}
+// que el navegador no borre lo guardado cuando el aparato se queda sin lugar (sin esto, los mods guardados son lo primero
+// que puede borrar); si no lo da, sigue todo igual
+function gmPedirLugarFijo() { try { if (navigator.storage && navigator.storage.persist) navigator.storage.persisted().then((p) => (p ? true : navigator.storage.persist())).then((p) => { GMDB.fijo = !!p; }).catch(() => {}); } catch (e) {} }
 // al arrancar: los instalados (de la caché, sin bajar nada)
 async function gmArrancar(otraVez) {
   // (modo seguro: la app lo pide después de varios cuelgues seguidos; los mods quedan instalados pero no se cargan)
@@ -1079,16 +1116,24 @@ async function gmArrancar(otraVez) {
   // instalados no se toca nunca acá)
   const reintentar = [];
   GMOD.arrancando = true;
+  if (!otraVez) gmPedirLugarFijo();
   try {
-  for (const wid of Object.keys(PREFS.gmod || {})) {
+  for (const wid of gmOrdenMontar(Object.keys(PREFS.gmod || {}))) {
     if (GMOD.addons.has(wid) || !gmHabilitado(wid)) continue;   // (los deshabilitados quedan instalados sin montar)
     try {
       const c = await gmCacheLeerSeguro(wid);
       if (c === undefined) { reintentar.push(wid); continue; }
-      const G = c ? await gmaDeCache(wid, c) : null;
+      // (lo guardado que no se puede leer —el archivo del navegador se perdió o quedó a medio escribir— se trata como si no
+      // estuviera: antes ese mod no se montaba nunca más ni se volvía a bajar, y desaparecía del panel GMod)
+      let G = null, roto = false;
+      if (c) { try { G = await gmaDeCache(wid, c); } catch (e) { roto = String((e && e.message) || e).slice(0, 80); } }
       // (el paso riesgoso se anota sólo mientras se monta: esperando a la caché el juego no está trabado)
       if (G) { if (typeof cnPaso === 'function') cnPaso('montando el mod ' + ((PREFS.gmod[wid] && PREFS.gmod[wid].n) || wid), wid); gmMontar(wid, G, { nombre: PREFS.gmod[wid].n }); if (typeof cnPaso === 'function') cnPaso(''); }
-      else if (/^\d+$/.test(wid) && typeof gmcPoner === 'function') { gmErr('arranque ' + wid, 'no estaba en la caché: se vuelve a bajar'); gmcPoner(wid, { nombre: PREFS.gmod[wid].n, img: PREFS.gmod[wid].img, callado: true }); }
+      else if (/^\d+$/.test(wid) && typeof gmcPoner === 'function') {
+        gmErr('arranque ' + wid, roto ? 'lo guardado no se pudo leer (' + roto + '): se vuelve a bajar' : 'no estaba en la caché: se vuelve a bajar');
+        if (c) await gmCacheBorrar(wid);
+        gmcPoner(wid, { nombre: PREFS.gmod[wid].n, img: PREFS.gmod[wid].img, callado: true });
+      }
     } catch (e) { gmErr('arranque ' + wid, e); }
   }
   } finally { GMOD.arrancando = false; }

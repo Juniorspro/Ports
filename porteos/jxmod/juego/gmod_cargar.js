@@ -114,11 +114,30 @@ function gmLuaMontar(A) {
   for (const [n, c] of GMA.armas) if (c.addon === A && gmaSpawneable(c, true)) A.sweps.push(n);
   A.sents.sort(); A.sweps.sort();
   A.luaCorridos = corrido.size; A.luaMs = Math.round(performance.now() - t0); if (typeof cnPaso === 'function') cnPaso('');
+  if (typeof cnSospechaOk === 'function') cnSospechaOk(A.id);   // (corrió entero: ya no es sospechoso de trabar el juego)
   const falt = new Set();
   for (const r of L) { const b = gmaBytes(A, r); if (!b) continue; const s = new TextDecoder('latin1').decode(b);
     for (const m of s.matchAll(/["'](models\/[^"'\n]{1,120}?\.mdl)["']/gi)) { const p = m[1].toLowerCase().replace(/\\/g, '/'); if (gmArchivo0(p) || (typeof GML !== 'undefined' && GML.datos.has(p)) || (typeof gmlTiene === 'function' && gmlTiene(p)) || DATA.pfPorNombre[p.replace(/^.*\//, '').replace(/\.mdl$/, '')]) continue; falt.add(p); if (falt.size >= 60) break; } }
   A.faltanModelos = [...falt];
   if (typeof gmMenu === 'function') gmMenu();
+}
+// el CMoveData de este cuadro (lo que se aprieta ahora y en el anterior; lo que el Lua cambia de la velocidad no se aplica:
+// el movimiento es el del juego) y los cuatro ganchos de GMod en orden
+function gmaMovimientoLua(k, k0) {
+  if (!GMA.mtMov) {
+    const M = (GMA.mtMov = new LuaTable()); M.set('__index', M); M.set('MetaName', 'CMoveData');
+    const nada = () => {}, cero = () => 0, ang = () => { const f = GMA.R.G.get('EyeAngles'); return typeof f === 'function' ? f() : undefined; };
+    const F = { GetButtons: (m) => m.b, GetOldButtons: (m) => m.b0, SetButtons: (m, b) => { m.b = b | 0; }, SetOldButtons: (m, b) => { m.b0 = b | 0; },
+      KeyDown: (m, x) => !!(m.b & x), KeyPressed: (m, x) => !!(m.b & x) && !(m.b0 & x), KeyReleased: (m, x) => !(m.b & x) && !!(m.b0 & x), KeyWasDown: (m, x) => !!(m.b0 & x),
+      GetVelocity: () => GMA.Vr(JUG.vel), GetOrigin: () => GMA.V(gmaEntPos(GMA.jug)), GetAngles: ang, GetMoveAngles: ang, GetAbsMoveAngles: ang,
+      GetMaxSpeed: (m) => m.max ?? GMA.run ?? 400, GetMaxClientSpeed: (m) => m.max ?? GMA.run ?? 400, SetMaxSpeed: (m, v) => { m.max = +v || 0; }, SetMaxClientSpeed: (m, v) => { m.max = +v || 0; },
+      GetForwardSpeed: cero, GetSideSpeed: cero, GetUpSpeed: cero, GetImpulseCommand: cero, GetConstraintRadius: cero, GetFinalIdealVelocity: () => GMA.Vr(JUG.vel), GetFinalJumpVelocity: () => GMA.nv(0, 0, 0), GetFinalStepHeight: () => 18,
+      SetVelocity: nada, SetOrigin: nada, SetAngles: nada, SetMoveAngles: nada, SetForwardSpeed: nada, SetSideSpeed: nada, SetUpSpeed: nada, SetImpulseCommand: nada, SetConstraintRadius: nada, SetFinalIdealVelocity: nada, SetFinalJumpVelocity: nada, SetFinalStepHeight: nada, AddKey: (m, x) => { m.b |= x; }, RemoveKey: (m, x) => { m.b &= ~x; } };
+    for (const [n, f] of Object.entries(F)) M.set(n, f);
+  }
+  const mv = { b: k | 0, b0: k0 | 0, __mt: GMA.mtMov };
+  const gc = GMA.metas && GMA.metas.Player.get('GetCurrentCommand'), cmd = typeof gc === 'function' ? gmLlamar(gc, 'S', GMA.jug)[0] : undefined;
+  gmaHook('StartCommand', 'SC', GMA.jug, cmd); gmaHook('SetupMove', 'SC', GMA.jug, mv, cmd); gmaHook('Move', 'SC', GMA.jug, mv); gmaHook('FinishMove', 'SC', GMA.jug, mv);
 }
 // (las armas de TTT no dicen Spawnable —en TTT se compran—: acá se sacan del menú como las demás)
 const gmaEsTTT = (t) => { const b = String(t.get('Base') || ''); return b === 'weapon_tttbase' || b === 'weapon_tttbasegrenade' || (t.get('CanBuy') !== undefined && t.get('Kind') !== undefined); };
@@ -191,6 +210,9 @@ function gmaPaso(dt) {
   const k = UI.abierto ? 0 : gmaTeclas(), k0 = GMA.teclasAnt || 0;
   GMA.tecAnt = k0;   // (las del cuadro anterior: KeyPressed/KeyReleased del Lua comparan contra éstas)
   if (k !== k0) { for (let b = 1; b <= 16777216; b *= 2) { if ((k & b) && !(k0 & b)) gmaHook('KeyPress', 'SC', GMA.jug, b); else if (!(k & b) && (k0 & b)) gmaHook('KeyRelease', 'SC', GMA.jug, b); } GMA.teclasAnt = k; }
+  // (el comando y el movimiento del jugador de cada cuadro: StartCommand, SetupMove, Move y FinishMove, con un CUserCmd y un
+  // CMoveData que dicen qué se aprieta. La TFA Base lee ahí los botones: recarga al soltar la R, la mira, el culatazo)
+  if (GMA.hooks.has('StartCommand') || GMA.hooks.has('SetupMove') || GMA.hooks.has('Move') || GMA.hooks.has('FinishMove')) gmaMovimientoLua(k, k0);
   // (PlayerButtonDown/Up con el número de KEY_ o MOUSE_: las habilidades de muchos addons —"G para...", "F para..."—
   // van por acá, también desde los botones que el mod agrega a la pantalla)
   { const bs = gmaBotones(), b0 = GMA.botAnt || new Set(), nuevos = [];

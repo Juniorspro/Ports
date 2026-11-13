@@ -2408,3 +2408,116 @@ más suspenso y que diga Beta lanzada; caminatas y corridas bien cinemáticas; c
 - **Límites**: los modelos son los del juego (la mano del soldado es como un mitón, con los dedos juntos: apoya y se
   cierra sobre la cola del arma, pero no la rodea dedo por dedo); todo se renderizó con el procesador, sin placa de
   video.
+
+## Del Discord (Gumball): mods de GMod que «se borran y ponen que son scripts», y SWEPs que no andan
+
+**«Se borran varios mods de gmod y ponen que son scripts»** (`gmod_panel.js`, `gmod.js`, `cajanegra.js`,
+`gmod_cargar.js`; prueba nueva `pruebas/mods_reabrir.mjs`). Reproducido con addons de verdad (Nyan Gun, Vape,
+Minecraft SWEP, AK-47 Vulcan, M9K Assault Rifles, CrossFire, Legacy TFA Assault y su TFA Base) instalados por la cola y
+cerrando y abriendo el juego con el mismo perfil, en la compu y en un celular emulado (procesador ×4, 2 GB, cupo de
+150 MB). La lista de instalados nunca se tocaba; lo que pasaba:
+- **Al abrir, las tarjetas decían «Script»**: cada mod se monta enseguida, pero su Lua corre recién cuando llega el
+  contenido base de GMod (de 10 a 60 s en un celular) y la tarjeta del panel GMod salía de lo que había registrado su
+  Lua: nada. Nyan Gun, AK-47 y Legacy TFA: «Script»; M9K: «Props · 7»; Vape y TFA Base: «Efecto de pantalla»; sin
+  armas adentro. Ahora el tipo sale también de sus archivos (clases de armas y entidades con `Spawnable = true`, listas
+  de NPCs y vehículos) y del `type` de su addon.json, con «cargando…» hasta que corre.
+- **Un cierre en pleno arranque dejaba un mod sin cargar para siempre**: si el juego moría mientras corría el Lua de un
+  mod (el sistema lo cierra por memoria, o se cierra la app), la caja negra lo ponía en cuarentena al volver: montado
+  pero sin Lua, o sea sin armas (el Vape quedó «Efecto de pantalla» con 0 armas). Ahora hace falta que pase dos veces
+  seguidas con el mismo mod sin que su Lua llegue a terminar entre medio (o que la app lo vea congelado 45 s), y la
+  tarjeta igual dice «Armas · 21 · sin cargar», con «Volver a cargarlo» arriba de su página (14 idiomas). Medido: el
+  navegador guarda el localStorage en el disco a lo sumo una vez por minuto (lo escrito 5 s antes de matar el proceso
+  se pierde), así que cerrar bien el juego en el celular a veces igual se toma como un cierre malo.
+- **Lo guardado que se perdía no volvía**: si el archivo del .gma que guarda el navegador desaparecía (el aparato
+  lleno) o quedaba a medias, ese mod no se montaba nunca más ni se volvía a bajar: desaparecía del panel (M9K, 134 MB,
+  en todas las aperturas siguientes). Ahora se borra lo roto y se baja de nuevo solo.
+- **Con poco lugar**, 2 o 3 de 8 mods no entraban y se volvían a bajar en cada arranque, sin avisar; sin conexión no
+  aparecían. Ahora se avisa («No hay lugar en el aparato para guardar…»), la ficha de la tienda lo dice y se le pide al
+  navegador lugar persistente (`navigator.storage.persist`).
+- **Cada addon en su categoría**: la TFA Base salía «Efecto de pantalla» o «Entidades · 9»: ahora «Base» (su página dice
+  qué mods la usan); el Minecraft SWEP salía «Props · 293»: ahora «Armas · 1» (lo que se pone va antes que los props).
+- **Orden**: al arrancar se montaban por número del Workshop (la TFA Base, 2840031720, después de su pack) y el Lua
+  corría según iba llegando su contenido. Ahora en el orden de instalación (lo que pide cada uno, antes) y de a uno; el
+  contenido base se espera hasta 12 s y lo que llega después se pone solo.
+
+| Al volver a abrir (compu, 7 addons) | 3.1 | ahora |
+|---|---|---|
+| Tarjetas bien antes de que corra el Lua | 1 de 7 | 7 de 7 |
+| Tarjetas bien con todo cargado (TFA Base, Minecraft SWEP) | 5 de 7 | 7 de 7 |
+| Un cierre malo en el Lua de un pack | queda sin armas | sigue con sus 21 armas |
+| Dos cierres malos seguidos | «Script»/«Efecto», 0 armas | «Armas · 21 · sin cargar» + «Volver a cargarlo» |
+| Se pierde lo guardado del más grande (134 MB) | desaparece para siempre | se baja solo y vuelve |
+| `mods_reabrir.mjs` | 6/15 | 15/15 (celular con 150 MB: 11/11) |
+
+**«No funcionan muchas SWEPs»** (`gmod_api.js`, `gmod_lua.js`, `gmod_prelude.js`, `gmod_vista.js`, `gmod_render.js`,
+`gmod_cargar.js`, `armas.js`; prueba nueva `pruebas/sweps_tanda.mjs`). 34 armas de 30 addons de los más suscriptos
+(M9K ×4, FA:S 2.0 ×2, TFA ×2 con su base, ArcCW con Counter-Strike +, CW 2.0, CoD BO2, CSO, CS:GO, Star Wars,
+CrossFire, Nyan Gun, Admin Gun, Nuke Pack, Minecraft SWEP, Vape, extintor, Cat Gun, Thanos, Shrekzooka, Popcorn, AWP
+Dragon Lore, AK-47 Vulcan, Lightsabers, C4, Portal Gun). Por arma: se ve en 1ª persona (≥ 0,4 % de la pantalla, sin el
+damero de textura que falta) y en 3ª (cámara al costado, con y sin el arma en la mano), el disparo hace algo (las de
+fuego tiran balas y suenan), apunta y recarga si tiene mira y cargador, y sin errores de Lua. **3.1: 24/34; ahora:
+34/34.** Lo que más armas arregló:
+- **La TFA Base no cargaba**: le faltaban `string.dump` (la usa al cargar y cortaba la mitad de su base),
+  `ProtectedCall` y `DEFINE_BASECLASS(ENT.Base)` con expresión; el `Initialize` del cliente veía el `HasInitialized`
+  del servidor («called out of order»: su vista no se armaba); `GetMin`/`GetMax` de los ConVar; las subtablas como
+  `SWEP.Primary` no traían lo de la base (GMod las mezcla, `TableInherit`); `SelectWeightedSequenceSeeded`; campos
+  propios en las partículas; y recarga al soltar la R, que lee en `FinishMove`: ahora corren `StartCommand`,
+  `SetupMove`, `Move` y `FinishMove` con un `CMoveData` y un `CUserCmd`. Su HUD decía «tfa.hud.ammo.clip1»: ahora se
+  leen las frases de los addons (`resource/localization/*.properties`).
+- **FA:S 2.0 no se veía y CW 2.0 no apuntaba**: dibujan su propia vista con un `ClientsideModel` en
+  `PostDrawViewModel` (FA:S pone una granada de HL2 como ViewModel de mentira). Ese modelo se dibujaba quieto en el
+  origen del mapa y, cuando llegaba de la biblioteca, quedaba como un prop tirado en el piso. Ahora es una vista
+  animada (huesos, secuencias por nombre, `FrameAdvance`, enganches) donde la ubica el Lua (`SetRenderOrigin`/`SetPos`),
+  y la de siempre no se dibuja. FA:S espera su animación larga de la primera vez antes de disparar, como en GMod.
+- **ArcCW**: le faltaban `GetCurrentViewOffset` y `GetAbsVelocity`; `WorldToLocal` tiraba un error de JS; su penetración
+  volvía a disparar desde el mismo punto sin fin (6211 balas en 1,2 s y «stack overflow»: ahora hasta 6 balas
+  encadenadas y las trazas dicen `Contents`); su mira corre la vista cambiando el mismo vector que recibe y eso se
+  tomaba como «no la movió»; y `DefaultClip` −1 arranca con el cargador lleno.
+- **CW 2.0**: `Player:GetCurrentCommand():CommandNumber()` (sin él no salía ninguna bala). **CrossFire**:
+  `LookupSequence` sin la vista lista devolvía un solo valor (GMod da dos).
+- **Lightsabers**: `Player:SetAnimation(PLAYER_ATTACK1)` no hacía nada y `PLAYER_*` no tenían sus números: ahora es el
+  gesto de ataque del personaje y la hoja se mueve, corta y silba (no con las manos vacías: el Vape no tira una piña).
+- Además: `Entity:GetMaterials`, `util.GetModelInfo` (cuántas pieles) y los ganchos de la vista del Lua no corren
+  mientras la vista se lee del disco (el SWEP Construction Kit de M9K pedía huesos que todavía no estaban).
+
+| Addon | Arma | 3.1 | Ahora |
+|---|---|---|---|
+| M9K Assault Rifles | m9k_acr | anda | anda |
+| M9K Assault Rifles | m9k_g3a3 | anda | anda |
+| M9K Heavy Weapons | m9k_1887winchester | anda | anda |
+| M9K Small Arms pack | m9k_bizonp19 | anda | anda |
+| M9K Specialties | m9k_damascus | anda | anda |
+| FA:S 2.0 Alpha SWEPS - Pistols | fas2_deagle | no se ve, no apunta, no recarga | anda |
+| FA:S 2.0 Alpha SWEPs - Rifles | fas2_famas | no se ve, no apunta, no recarga | anda |
+| Call Of Duty: Black Ops II Wea | weapon_bo2_an94 | anda | anda |
+| CSOCF Weapons pack | 47_ethereal | anda | anda |
+| Counter-Strike: Global Offensi | weapon_csgo_awp | anda | anda |
+| Star Wars Weapons | weapon_752_bowcaster | anda | anda |
+| Legacy TFA Assault | tfa_acr | sin balas, no apunta, no recarga, error de Lua | anda |
+| Legacy TFA Assault | tfa_g3a3 | sin balas, no apunta, no recarga, error de Lua | anda |
+| TFA Big Glock | tfa_dax_big_glock | sin balas, no apunta, no recarga, error de Lua | anda |
+| [ArcCW] Counter-Strike + | arccw_ak47 | no dispara, no apunta, error de Lua | anda |
+| [ArcCW] Counter-Strike + | arccw_minimi | no dispara, no apunta | anda |
+| Customizable Weaponry 2.0 | cw_ak74 | sin balas, no apunta, error de Lua | anda |
+| Customizable Weaponry 2.0 | cw_frag_grenade | no apunta | anda |
+| CrossFire - Beast Pack | weapon_ak47_beast | error de Lua | anda |
+| Nyan Gun | weapon_nyangun | anda | anda |
+| The Ultimate Admin Gun Fixed | pist_weagon | anda | anda |
+| Nuke Pack 4 | weapon_clusternuke | anda | anda |
+| Minecraft SWEP | minecraft_swep | anda | anda |
+| Vape SWEP | weapon_vape | anda | anda |
+| Fire Extinguisher | weapon_extinguisher | anda | anda |
+| M1A0 Cat Gun | weapon_catgun | anda | anda |
+| Thanos's Infinity Gauntlet SWE | infinitygauntlet | anda | anda |
+| Shrekzooka (PanzerShrek) | gidzco_shrekzooka | anda | anda |
+| Popcorn SWEP | weapon_popcorn | anda | anda |
+| AWP - Dragon Lore | awpdragon | anda | anda |
+| AK-47 - Vulcan | clt_akvlcn | anda | anda |
+| Star Wars Lightsabers | weapon_lightsaber | anda | anda |
+| Black Ops C4 (Sandbox) | seal6-c4 | anda | anda |
+| Aperture Science Handheld Port | weapon_portalgun | anda | anda |
+
+- Las «bolas negras o blancas»: el damero de «falta la textura» no aparece en ninguna (0 % en las 34);
+  lo negro o blanco puro que queda es del arma (el Shrekzooka es negro, el pochoclo y la Portal Gun blancos, las bolas
+  de metal del bowcaster de Chewbacca). Sin probar en un celular de verdad. Fotos de cada arma (1ª, 3ª y disparo) y del
+  panel GMod antes y después, fuera del repo.

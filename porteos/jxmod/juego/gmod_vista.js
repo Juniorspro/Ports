@@ -81,8 +81,8 @@ function gmvMallas(Mx, nodo, etiqueta, arb, pv, C, flip) {
   return tris.length / 4;
 }
 // arma la vista desde el .mdl: { md, porHash, clip, t, base, mz, M, sec (secuencia → clip), actos (ACT → clips), huesoNodo }
-function gmvConstruir(ruta, flip, fovVm, clase, manos) {
-  const k = ruta + '|' + (flip ? 1 : 0) + '|' + fovVm + '|' + (manos || '');
+function gmvConstruir(ruta, flip, fovVm, clase, manos, aparte) {
+  const k = ruta + '|' + (flip ? 1 : 0) + '|' + fovVm + '|' + (manos || '') + (aparte ? '|' + aparte : '');
   if (GMV.cache.has(k)) return GMV.cache.get(k);
   GMV.cache.set(k, null);
   let M; try { M = gmLeerModelo(ruta); } catch (e) { if (e.pendiente) return null; try { M = GMF.mdl(gmArchivo(ruta)); M.mallas = []; } catch (e2) { gmErr('vista ' + ruta, e); return null; } }   // (sin .vvd/.vtx: sólo huesos y animaciones; si se están leyendo del disco, se vuelve a armar cuando llegan)
@@ -169,12 +169,59 @@ function gmvDeArma(w) {
   const D = DEF_ARMAS['gm:' + w.clase]; if (D) { D.quieto = v.quieto; D.fuego = v.fuego; D.recarga = v.recarga; D.sacar = v.sacar; }
   return v;
 }
+// ---- la vista que dibuja el Lua del arma: un ClientsideModel con el modelo de primera persona (FA:S 2.0, CW 2.0) ----
+// Esas bases ponen un ViewModel de mentira (FA:S: una granada de HL2) o lo esconden, y en PostDrawViewModel ubican su propio
+// modelo (SetRenderOrigin / SetPos), le ponen la secuencia por nombre, lo avanzan con FrameAdvance y lo dibujan. Antes ese
+// modelo se dibujaba quieto en el origen del mapa: las armas de FA:S no se veían y las de CW 2.0 no apuntaban (la mira mueve
+// ese modelo). Ahora es una vista más (gmvConstruir, aparte de la del arma), con sus huesos, enganches y secuencias para
+// el Lua, y mientras se dibuja la vista de siempre del arma no se dibuja.
+const GMV_RE_VISTA = /(^|\/)(v|c)_[^/]*\.mdl$|\/view\//i;
+function gmvCS(e) {
+  if (!e || !e.cs || typeof e.modelo !== 'string') return null;
+  if (e.gmvCSRuta === e.modelo && (e.gmvCS || (e.gmvCS === null && !(TIEMPO.t > e.gmvCSprox)))) return e.gmvCS;
+  let ruta = e.modelo.toLowerCase().replace(/\\/g, '/'); if (!ruta.startsWith('models/')) ruta = 'models/' + ruta;
+  e.gmvCSRuta = e.modelo; e.gmvCS = null; e.gmvCSprox = Infinity;
+  // (un modelo de primera persona por su nombre, o el mismo ViewModel del arma: CW 2.0 copia el suyo, models/cw2/...)
+  const w0 = GMA.swep, vmArma = w0 && typeof w0.vm === 'string' ? w0.vm.toLowerCase().replace(/\\/g, '/').replace(/^(?!models\/)/, 'models/') : '';
+  // (si todavía no es el arma en la mano —CW 2.0 lo crea en su Initialize—, se vuelve a mirar en un segundo)
+  if (!GMV_RE_VISTA.test(ruta) && ruta !== vmArma) { e.gmvCSprox = TIEMPO.t + 1; return null; }
+  // (su modelo puede estar todavía en camino —la biblioteca o el disco—: se vuelve a probar cada segundo)
+  if (!gmArchivo(ruta)) { e.gmvCSprox = TIEMPO.t + 1; return null; }
+  const w = GMA.swep, c = w && (claseTabla(w.clase, 'C') || claseTabla(w.clase, 'S'));
+  const manos = c && R_T(buscarEnClase(c, 'UseHands')) && /(^|\/)c_[^/]*$/.test(ruta) && gmArchivo('models/weapons/c_arms_citizen.mdl') ? 'models/weapons/c_arms_citizen.mdl' : null;
+  const v = gmvConstruir(ruta, !!(c && buscarEnClase(c, 'ViewModelFlip')), +(c && buscarEnClase(c, 'ViewModelFOV')) || 62, w && w.clase, manos, 'cs');
+  // (todavía se lee del disco: se vuelve a probar; un modelo que no es una vista —sin quieto ni sacar— se dibuja como prop)
+  if (!v) { e.gmvCSprox = TIEMPO.t + 1; return null; }
+  if (!v.quieto && !v.sacar && !v.fuego) return null;
+  return (e.gmvCS = v);
+}
+// DrawModel de ese modelo en la pasada de la vista: ubicado donde lo puso el Lua, con la pose de su secuencia
+function gmvDibujarCS(e) {
+  const v = gmvCS(e); if (!v) return false;
+  const pos = e.rOrigen ? vG(e.rOrigen) : gmaEntPos(e), q = e.rAng ? angQuat(e.rAng) : entQ(e);
+  if (!v.clip && v.quieto) vistaTocar(v, v.quieto, { loop: true });
+  vistaAplicar(v, 0); vistaUbicar(v, pos, q, { x: 0, y: 0, z: 0 }); v.md.encolar();
+  const w = GMA.swep; if (w) { w.vmPropioT = TIEMPO.t; w.vmPropio = v; }
+  return true;
+}
+// ¿el arma dibuja su vista desde el Lua? (PreDrawViewModel, ViewModelDrawn o PostDrawViewModel propios, o un hook de
+// PostDrawViewModel —CW 2.0—): entonces esos ganchos corren aunque la vista de siempre no exista
+function gmvVistaLua(w) {
+  const c = claseTabla(w.clase, 'C'); if (!c) return false;
+  const b = claseTabla('weapon_base', 'C');
+  for (const k of ['PostDrawViewModel', 'ViewModelDrawn', 'PreDrawViewModel']) { const f = buscarEnClase(c, k); if (typeof f === 'function' && f !== (b && buscarEnClase(b, k))) return true; }
+  const H = GMA.hooks.get('PostDrawViewModel'); return !!(H && [...H.values()].some((h) => h.C));
+}
 // lo llama dibujarVista (armas.js) cuando el arma de un addon trae su propio ViewModel
 function gmaVistaDibujar() {
   const n = ARM.lista[ARM.i], D = DEF_ARMAS[n]; if (!D || D.tipo !== 'gmswep') return false;
   const w = GMA.armasJug && GMA.armasJug.get(D.gm); if (!w) return false;
-  const v = gmvDeArma(w); if (!v) return false;
+  // (sin vista: si es que no tiene —FA:S, con un ViewModel que no existe—, los ganchos del Lua igual corren; si todavía se
+  // está leyendo del disco, no: el Lua de la vista —el SWEP Construction Kit de M9K— espera sus huesos)
+  const v = gmvDeArma(w); if (!v) return w.vista === null && gmvVistaLua(w);
   if (ARM.v !== v) { ARM.v = v; v.t = 0; v.clip = null; if (v.sacar) vistaTocar(v, v.sacar); else if (v.quieto) vistaTocar(v, v.quieto, { loop: true }); }
+  // (el Lua dibuja su propia vista —gmvDibujarCS en el cuadro anterior—: la de siempre no se dibuja, pero sigue para el Lua)
+  if (w.vmPropioT && TIEMPO.t - w.vmPropioT < 0.5) return true;
   // (Player:DrawViewModel(false) —las miras telescópicas de M9K, CW, FA:S...— o SWEP:ShouldDrawViewModel() falso: con la
   // mira puesta sólo se ve el dibujo de la mira, no el arma adentro)
   if (w.vmOculta || w.vmApagada) return false;
@@ -183,10 +230,14 @@ function gmaVistaDibujar() {
   let pos = CAM.pos, q = CAM.q;
   try {
     const ang = dirAng(dS(CAM.fwd)); ang.__mt = GMA.mtAng; const p0 = GMA.V(CAM.pos);
+    // (lo que había antes de llamar: ArcCW corre la vista cambiando el mismo vector que recibe —pos:Add— y lo devuelve; antes
+    // eso se tomaba como «no la movió» y la mira de ArcCW no se veía)
+    const x0 = [p0.x, p0.y, p0.z, ang.p, ang.y, ang.r];
     let r = metodo(w, 'GetViewModelPosition', 'C', p0, ang);
     let P = r[0] instanceof LVec ? r[0] : p0, A = r[1] instanceof LAng ? r[1] : ang;
     const vm = G_vm(); r = metodo(w, 'CalcViewModelView', 'C', vm, p0, ang, P, A); if (r[0] instanceof LVec) P = r[0]; if (r[1] instanceof LAng) A = r[1];
-    if (P !== p0 || A !== ang) {
+    const cambio = P !== p0 || A !== ang || P.x !== x0[0] || P.y !== x0[1] || P.z !== x0[2] || A.p !== x0[3] || A.y !== x0[4] || A.r !== x0[5];
+    if (cambio) {
       pos = vG(P); q = angQuat(A);
       // (ViewModelFlip: GMod espeja la vista ya ubicada, en el espacio de la cámara; las miras de las de CS:S vienen pensadas
       // así —IronSightsPos.x positivo— y sin espejar el corrimiento quedan del lado de afuera)
@@ -233,8 +284,10 @@ function gmvApi() {
     let ix = v.ixHuesos; if (!ix) { ix = v.ixHuesos = new Map(); v.M.huesos.forEach((h, i) => { const k = h.n.toLowerCase(); if (!ix.has(k)) ix.set(k, i); }); }
     const i = ix.get(typeof n === 'string' ? n.toLowerCase() : String(n).toLowerCase()); return i === undefined ? -1 : i;
   };
-  const reemplazar = (M, nombre, f) => { const orig = M.get(nombre) || (M !== EM ? EM.get(nombre) : undefined); M.set(nombre, (e, ...a) => { const v = (e.tipo === 'vm' || (e.tipo === 'arma' && e === GMA.swep)) && gmvVista(); if (v) { const r = f(v, e, ...a); if (r !== undefined) return r; } return typeof orig === 'function' ? orig(e, ...a) : undefined; }); };
-  const soloVm = (nombre, f) => reemplazar(EM, nombre, (v, e, ...a) => (e.tipo === 'vm' ? f(v, e, ...a) : undefined));
+  const vDe = (e) => (!e ? null : e.cs ? gmvCS(e) : (e.tipo === 'vm' || (e.tipo === 'arma' && e === GMA.swep)) && gmvVista());
+  const reemplazar = (M, nombre, f) => { const orig = M.get(nombre) || (M !== EM ? EM.get(nombre) : undefined); M.set(nombre, (e, ...a) => { const v = vDe(e); if (v) { const r = f(v, e, ...a); if (r !== undefined) return r; } return typeof orig === 'function' ? orig(e, ...a) : undefined; }); };
+  // (cs: también para la vista que dibuja el Lua; no lo que es del arma —esconderla— ni dibujar)
+  const soloVm = (nombre, f, cs = true) => reemplazar(EM, nombre, (v, e, ...a) => (e.tipo === 'vm' || (cs && e.cs) ? f(v, e, ...a) : undefined));
   soloVm('GetModel', (v) => v.ruta);
   soloVm('LookupBone', (v, e, n) => { const i = hueso(v, n); return i < 0 ? null : i; });
   soloVm('GetBoneCount', (v) => v.M.huesos.length); soloVm('GetBoneName', (v, e, i) => (v.M.huesos[i | 0] ? v.M.huesos[i | 0].n : '__INVALIDBONE__')); soloVm('GetBoneParent', (v, e, i) => (v.M.huesos[i | 0] ? v.M.huesos[i | 0].pa : -1));
@@ -256,11 +309,15 @@ function gmvApi() {
   soloVm('GetSequenceActivity', (v, e, i) => { const a = v.M.secuencias[i | 0] && v.M.secuencias[i | 0].act; const x = a && gmvActNum(a.toUpperCase()); return typeof x === 'number' ? x : -1; });
   soloVm('GetSequenceActivityName', (v, e, i) => (v.M.secuencias[i | 0] ? v.M.secuencias[i | 0].act : ''));
   soloVm('SelectWeightedSequence', (v, e, act) => { for (const [k, L] of v.actos) if (gmvActNum(k) === act) return v.sec.indexOf(L[0]); return -1; });
-  const tocar = (v, i) => { const n = v.sec[i | 0]; if (n) vistaTocar(v, n, { loop: DATA.anPorNombre[n].loop }); };
+  soloVm('SelectWeightedSequenceSeeded', (v, e, act) => { for (const [k, L] of v.actos) if (gmvActNum(k) === act) return v.sec.indexOf(L[0]); return -1; });   // (la TFA Base)
+  // (la secuencia por número o por nombre, como en GMod: FA:S 2.0 y otras bases ponen las animaciones por nombre)
+  const tocar = (v, i) => { if (typeof i === 'string') { const s = i.toLowerCase(); i = v.M.secuencias.findIndex((q) => q.n.toLowerCase() === s); if (i < 0) return; } const n = v.sec[i | 0]; if (n) vistaTocar(v, n, { loop: DATA.anPorNombre[n].loop }); };
   soloVm('SendViewModelMatchingSequence', (v, e, i) => { tocar(v, i); return true; }); soloVm('ResetSequence', (v, e, i) => { tocar(v, i); return true; }); soloVm('SetSequence', (v, e, i) => { tocar(v, i); return true; });
   soloVm('SetPlaybackRate', (v, e, r) => { v.vel = Math.max(0.01, +r || 1); return true; }); soloVm('GetPlaybackRate', (v) => v.vel || 1);
   soloVm('GetCycle', (v) => (v.clip && v.clip.d ? Math.min(1, v.t / v.clip.d) : 0)); soloVm('SetCycle', (v, e, c) => { if (v.clip) v.t = Math.max(0, Math.min(1, +c || 0)) * v.clip.d; return true; });
-  soloVm('SetNoDraw', (v, e, b) => { const w = GMA.swep; if (w) w.vmOculta = !!b; return true; }); soloVm('GetNoDraw', () => !!(GMA.swep && GMA.swep.vmOculta));
+  soloVm('SetNoDraw', (v, e, b) => { const w = GMA.swep; if (w) w.vmOculta = !!b; return true; }, false); soloVm('GetNoDraw', () => !!(GMA.swep && GMA.swep.vmOculta), false);
+  // (avanzar la animación: la vista del Lua la avanza el Lua, como en GMod)
+  soloVm('FrameAdvance', (v, e, dt) => { if (e.cs) vistaAplicar(v, +dt > 0 ? +dt : TIEMPO.dt || 1 / 60); return true; });
   // manipular huesos (las armas del SWEP Construction Kit agrandan, achican y mueven huesos del ViewModel)
   // (las bases de armas como la de M9K ponen en cada cuadro escala 1, ángulo 0 y posición 0 a TODOS los huesos: lo que no
   // cambia nada no hace nada, y lo que cambia rehace sólo la matriz de ese hueso; antes se rehacían todas en cada llamada
@@ -282,7 +339,7 @@ function gmvApi() {
   soloVm('GetManipulateBoneScale', (v, e, i) => { const m = v.manip && v.manip.get(hueso(v, i)); return m ? GMA.nv(m.s.x, m.s.y, m.s.z) : GMA.nv(1, 1, 1); });
   soloVm('GetManipulateBonePosition', (v, e, i) => { const m = v.manip && v.manip.get(hueso(v, i)); return m ? GMA.nv(m.p.x, m.p.y, m.p.z) : GMA.nv(0, 0, 0); });
   soloVm('GetManipulateBoneAngles', (v, e, i) => { const m = v.manip && v.manip.get(hueso(v, i)); const a = m ? new LAng(m.a.p, m.a.y, m.a.r) : new LAng(); a.__mt = GMA.mtAng; return a; });
-  soloVm('SetupBones', () => true); soloVm('InvalidateBoneCache', () => true); soloVm('IsValid', () => true); soloVm('DrawModel', () => true);
+  soloVm('SetupBones', () => true); soloVm('InvalidateBoneCache', () => true); soloVm('IsValid', () => true, false); soloVm('DrawModel', () => true, false);
   // (el arma: la duración de lo que está haciendo la vista)
   const dur = (v, e, i) => { if (typeof i === 'number' && v.sec[i]) return DATA.anPorNombre[v.sec[i]].d; return v.clip ? v.clip.d / (v.vel || 1) : 0; };
   reemplazar(EM, 'SequenceDuration', dur); if (WM) reemplazar(WM, 'SequenceDuration', dur);
