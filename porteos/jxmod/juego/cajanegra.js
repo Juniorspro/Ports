@@ -4,7 +4,12 @@
 // dice dónde. La app de Android (Web.java) escucha un latido del juego: si deja de llegar, rearma el juego, guarda lo que
 // vio el sistema y la consola, y al volver se muestra «El juego se trabó» con el registro para copiar. Si se trabó adentro
 // de un mod, ese mod se apaga (se vuelve a prender en su página del panel GMod).
-const CN = { l: [], paso: '', addon: '', tG: 0, pend: 0, tL: 0, hooks: new Map(), lentos: new Set() };
+// Sólo cuenta como «se trabó» lo que de verdad lo fue (Discord, 3.1: a Juanpepo le salió el aviso con el juego todavía
+// cargando, sin mapa ni mods —{"juego":"carga","motor":"-"}—: esa vez el aparato no dio WebGL al arrancar y salió el
+// cartel de error; no se trabó). Se anota si la página se ocultó con el juego vivo (oc) o si se salió bien (salio), y la
+// app de Android dice cómo terminó la vez anterior (CN_NATIVO): con la app adelante, o en segundo plano con el juego
+// andando, cargando o sin latido.
+const CN = { l: [], paso: '', addon: '', tG: 0, pend: 0, tL: 0, hooks: new Map(), lentos: new Set(), oc: 0, salio: 0 };
 const CN_K = 'jx_caja', CN_KA = 'jx_caja_ant';
 function cnHora() { const d = new Date(); return d.toTimeString().slice(0, 8); }
 function cnAnotar(tipo, txt, ya) {
@@ -20,6 +25,7 @@ function cnPaso(p, addon) {
 function cnEstado() {
   const e = {};
   try { e.juego = typeof JUEGO !== 'undefined' ? JUEGO.estado : '-'; } catch (x) {}
+  try { if (typeof INI !== 'undefined') e.ini = INI.ok ? 'ok' : INI.err ? 'error' : 'cargando: ' + INI.paso + (INI.glReint ? ' (WebGL, intento ' + INI.glReint + ')' : ''); } catch (x) {}
   try { e.mapa = typeof MUNDO !== 'undefined' ? MUNDO.nombre : '-'; } catch (x) {}
   try { e.calidad = typeof GFX !== 'undefined' ? GFX.nombre : '-'; e.fps = typeof TIEMPO !== 'undefined' ? Math.round(TIEMPO.fps || 0) : 0; } catch (x) {}
   try { e.motor = typeof R !== 'undefined' && R.gl ? (R.gl1 ? 'webgl1' : 'webgl2') + (R.perdido ? ' (perdido)' : '') : '-'; } catch (x) {}
@@ -37,8 +43,14 @@ function cnGuardar(ya) {
   const t = Date.now();
   if (!ya && t - CN.tG < 1000) { if (!CN.pend) CN.pend = setTimeout(() => { CN.pend = 0; cnGuardar(true); }, 1000); return; }
   CN.tG = t;
-  try { localStorage.setItem(CN_K, JSON.stringify({ v: JX_VERSION + ' · __ARMADO__', t, paso: CN.paso, addon: CN.addon, l: CN.l.slice(-100), e: cnEstado() })); } catch (e) {}
+  try { localStorage.setItem(CN_K, JSON.stringify({ v: JX_VERSION + ' · __ARMADO__', t, paso: CN.paso, addon: CN.addon, oc: CN.oc, salio: CN.salio, l: CN.l.slice(-100), e: cnEstado() })); } catch (e) {}
 }
+// (la página se ocultó con el juego vivo —se guarda en el acto: puede ser lo último que alcanza a escribir antes de que el
+// sistema cierre la app en segundo plano— o volvió a verse)
+document.addEventListener('visibilitychange', () => { CN.oc = document.visibilityState === 'hidden' ? Date.now() : 0; cnGuardar(true); });
+addEventListener('pagehide', () => { CN.oc = CN.oc || Date.now(); cnGuardar(true); });
+// salir con el botón Salir (la app se cierra sola enseguida: inicio.js)
+function cnSalir() { CN.salio = Date.now(); cnGuardar(true); if (typeof cierreVivo === 'function') cierreVivo(false); }
 // (cada cuadro: el latido para la app y, cada 2 s, el estado)
 function cnCuadro() {
   const t = Date.now(); if (t - CN.tL < 1000) return; CN.tL = t;
@@ -62,7 +74,26 @@ addEventListener('unhandledrejection', (e) => { const r = e.reason; cnAnotar('PR
 
 // ---- al arrancar: la caja de la vez anterior ----
 const CN_ANT = (() => { try { const a = localStorage.getItem(CN_K); if (a) localStorage.setItem(CN_KA, a); return a ? JSON.parse(a) : null; } catch (e) { return null; } })();
-// ¿la vez anterior terminó mal? (la app avisa con ?colgado= o ?caida=; el juego sabe si quedó «andando» sin salir bien)
+// cómo terminó la vez anterior según la app de Android (Web.java: cierreAnterior, se da una sola vez): 'adelante' (el
+// proceso murió con la app a la vista), 'atras:ok' / 'atras:cargando' / 'atras:sin latido N s' (se fue a segundo plano con
+// el juego andando, cargando o ya congelado) o '' (no se sabe: la web, o la primera vez)
+const CN_NATIVO = (() => { try { return window.JXNativo && JXNativo.cierreAnterior ? String(JXNativo.cierreAnterior() || '') : ''; } catch (e) { return ''; } })();
+// ¿el juego que quedó «andando» (rb_vivo, principal.js) se cortó de verdad? Un cuelgue o un cierre es haberse cortado con
+// el juego a la vista; si se ocultó vivo y después lo cerró el sistema (o la persona desde Recientes), o si salió el cartel
+// de error del arranque (sin WebGL), no.
+function cnCierreReal() {
+  if (CN_NATIVO) return CN_NATIVO === 'adelante' || /^atras:sin latido/.test(CN_NATIVO);
+  const c = CN_ANT; if (!c) return true;
+  if (c.salio || c.oc) return false;
+  if (c.e && c.e.ini === 'error') return false;
+  // (sin WebGL y cargando —el registro de la 3.1 de Juanpepo, que no tenía «ini»—: el juego estaba vivo, guardando su
+  // registro, y nunca tuvo motor gráfico; o salió el cartel de error o estaba por reintentar. Trabarse no se trabó)
+  if (c.e && c.e.motor === '-' && c.e.juego === 'carga') return false;
+  return true;
+}
+// ¿la vez anterior terminó mal? (la app avisa con ?colgado= —se trabó: sin latido 45 s con la app adelante— o ?caida= —se
+// cerró el proceso que dibuja, o se perdió el WebGL—; y el juego sabe si quedó «andando» sin salir bien: CIERRE.nuevo, que
+// ya pasó por cnCierreReal)
 function cnTerminoMal() { return !!(Q.get('colgado') || Q.get('caida') || (typeof CIERRE !== 'undefined' && CIERRE.nuevo)); }
 function cnTexto(c, nativo) {
   const L = [];
@@ -70,6 +101,8 @@ function cnTexto(c, nativo) {
   if (c) {
     L.push('versión: ' + c.v + ' · guardado: ' + new Date(c.t).toISOString());
     if (c.paso) L.push('ÚLTIMO PASO (se quedó acá): ' + c.paso + (c.addon ? ' [mod ' + c.addon + ']' : ''));
+    if (c.oc || c.salio) L.push(c.salio ? 'salió con Salir: ' + new Date(c.salio).toISOString() : 'se ocultó con el juego vivo: ' + new Date(c.oc).toISOString());
+    if (CN_NATIVO) L.push('la app: la vez anterior terminó ' + CN_NATIVO);
     L.push('estado: ' + JSON.stringify(c.e || {}));
     L.push('--- lo último ---'); for (const x of c.l || []) L.push(x);
   } else L.push('(sin registro anterior)');

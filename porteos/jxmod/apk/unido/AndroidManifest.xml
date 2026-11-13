@@ -40,12 +40,15 @@
 
         <meta-data android:name="android.max_aspect" android:value="2.4" />
 
+        <!-- (sin excludeFromRecents: Inicio abre la tarea de la app —es la raíz, la del ícono— y ese atributo sacaba de
+             Recientes la tarea ENTERA, con el juego adentro. Al salir con el botón de inicio la app no aparecía en Recientes
+             —Discord: «ni siquiera se me muestra la ventana de la app»— y no había forma de cerrarla mientras seguía
+             sonando. Inicio igual no se ve nunca: se cierra sola —noHistory, finish— y deja la tarea al juego) -->
         <activity
             android:name=".Inicio"
             android:exported="true"
             android:theme="@android:style/Theme.NoDisplay"
-            android:noHistory="true"
-            android:excludeFromRecents="true" />
+            android:noHistory="true" />
 
         <!-- el ícono de la app que se elige en Ajustes (como en Discord): una entrada al lanzador por ícono, prendida
              sólo la elegida (Web.java: iconoApp). La de fábrica es «Clásico» -->

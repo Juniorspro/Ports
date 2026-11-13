@@ -25,7 +25,8 @@ public final class Inicio extends Activity {
             Toast.makeText(this, es ? "Para jugar hace falta «Android System WebView»: instalala o activala desde Play Store"
                 : "JXMod needs \"Android System WebView\": install or enable it from the Play Store", Toast.LENGTH_LONG).show();
             abrirTienda();
-            finish(); return;
+            // (sin el juego, la tarea queda vacía: que no quede una tarjeta en blanco en Recientes)
+            finishAndRemoveTask(); return;
         }
         if (EleccionMotor.WEBVIEW_VIEJA.equals(m)) Toast.makeText(this, es ? "Actualizá «Android System WebView» desde Play Store para que el juego ande bien"
             : "Update \"Android System WebView\" from the Play Store so the game runs well", Toast.LENGTH_LONG).show();

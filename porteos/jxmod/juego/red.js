@@ -208,6 +208,7 @@ function redEntrar(mapa) {
   if (!SALA.lan) listaConectar();
   RED.ID = RED.ID || idRed(); RED.ROOM = topicoSala(SALA);
   RED.tVivo = 0; if (SALA.rg) salaVivo(SALA.id);
+  redLugarVolver();   // (volver al mismo server: donde estabas; si no, un lugar libre —se revisa otra vez al conectar—)
   let cli;
   try {
     // (una partida en la red local: el broker del anfitrión —lan.js—; si no, el público de siempre)
@@ -217,7 +218,15 @@ function redEntrar(mapa) {
   RED.cli = cli;
   // cada conexión sólo toca el estado si sigue siendo la actual (al cambiar de sala, el cierre de la vieja
   // llega después de abrir la nueva y no tiene que apagarla)
-  cli.on('connect', () => { if (RED.cli !== cli) return; RED.on = true; cli.subscribe(RED.ROOM + '/#'); RED.wSucio = true; redEstadoUI(); presencia(); chatMostrar('JXMod', Lc('Connected', 'Connected') + ': ' + SALA.n); if (soyAnfitrion()) hostPublicar(); });
+  cli.on('connect', () => {
+    if (RED.cli !== cli) return; RED.on = true; cli.subscribe(RED.ROOM + '/#'); RED.wSucio = true; redEstadoUI(); presencia(); chatMostrar('JXMod', Lc('Connected', 'Connected') + ': ' + SALA.n); if (soyAnfitrion()) hostPublicar();
+    // (la primera vez: lo de antes con otro número —se reabrió la app— se borra para todos, y cuando ya llegó lo de los demás
+    // se mira que el lugar donde aparecí siga libre; al reconectarse después de un corte no se mueve a nadie)
+    if (RED.lugar && !RED.lugar.conectado) {
+      RED.lugar.conectado = true; RED.lugar.revisarT = TIEMPO.t + 1.5; RED.lugar.hastaT = TIEMPO.t + 9;
+      if (RED.antes) try { cli.publish(RED.ROOM + '/w/' + RED.antes, '', { retain: true }); } catch (e) {}
+    }
+  });
   cli.on('close', () => { if (RED.cli !== cli) return; RED.on = false; redEstadoUI(); });
   cli.on('message', (t, m) => { if (RED.cli !== cli) return; try { redMensaje(t, m); } catch (e) {} });
   redEstadoUI();
@@ -233,6 +242,96 @@ function redSalir() {
   for (const R2 of RED.remotos.values()) quitarRemoto(R2);
   RED.remotos.clear(); for (const o of RED.objs.values()) borrarObjeto(o, true); RED.objs.clear();
   redEstadoUI();
+}
+// ---------------- volver al mismo server: dónde aparecés ----------------
+// (Discord: «cuando te desconectas del server y vuelves a conectarte apareces en otro lugar») Si volvés al mismo server,
+// con el mismo mapa, antes de 5 minutos de haberte ido (saliste al menú, se te cerró la app, se te cortó internet y
+// entraste de nuevo), aparecés donde estabas y mirando para el mismo lado; si no —o si estabas muerto—, en un punto de
+// aparición, el que esté más lejos de los demás. Siempre en un lugar libre: con piso abajo, adentro del mapa y sin meterse
+// en una pared, un prop ni otro jugador (si ahí no se puede, el lugar libre más cercano). Se mira al entrar y otra vez
+// cuando ya llegó lo de los demás (sus props y dónde están). Todos te ven donde te ves vos: es tu posición la que viaja.
+// Si volviste con otro número (se reabrió la app), los demás borran en el acto tu fantasma —ahora queda quieto donde se
+// cortó, antes seguía de largo— y tus cosas de antes (recibirEstado, «an»).
+const RED_VOLVER_MS = 5 * 60e3, RED_LUGAR_K = 'jx_red_lugar';
+function redLugarGuardar() {
+  if (!SALA || JUEGO.estado !== 'juego' || !RED.ID) return;
+  try { localStorage.setItem(RED_LUGAR_K, JSON.stringify({ s: SALA.id, m: MUNDO.nombre, id: RED.ID, p: [r3(JUG.pos.x), r3(JUG.pos.y), r3(JUG.pos.z)], y: r3(JUG.yaw), v: JUG.vivo && !JUG.noclip ? 1 : 0, t: Date.now() })); } catch (e) {}
+}
+// cuánto se mete en algo el cuerpo del jugador parado en p (sus dos esferas: los pies y el pecho) contra el mapa, los props
+// y los demás jugadores (m)
+function lugarMetido(p) {
+  const r = JUG.radio, corr = v3(); let m = 0;
+  for (const dy of [-JUG.medio + 0.06, 0.45]) {
+    const c = v3(p.x, p.y + dy, p.z); corr.set(0, 0, 0);
+    esferaFuera(c, r, corr, false);
+    for (const b of PH.bodies) { if (b.noPhys || b.noJug || b.ragdoll || !b.shape || b.pos.distTo(c) > (b.r || 3) + r) continue; empujarDeCuerpo(b, c, r, corr, false, false); }
+    m = Math.max(m, corr.len());
+  }
+  // (los demás jugadores, también los recién llegados —que todavía no chocan—: dos cápsulas de 0,4 y 0,45 m)
+  for (const R2 of RED.remotos.values()) { if (R2.P && R2.P.visible === false) continue; const dh = Math.hypot(R2.pos.x - p.x, R2.pos.z - p.z); if (dh < 0.85 && Math.abs(R2.pos.y - p.y) < 1.7) m = Math.max(m, 0.85 - dh); }
+  return m;
+}
+// parado sobre lo que haya debajo de p (el piso del mapa o un prop): la altura del jugador ahí, o null (sin piso)
+function lugarPiso(p) {
+  const h = raycast(v3(p.x, p.y + 0.6, p.z), v3(0, -1, 0), 60, null);
+  return h && h.n.y > 0.6 ? p.y + 0.6 - h.t + JUG.medio + JUG.radio + 0.02 : null;
+}
+// p, si está libre, o el lugar libre más cercano (anillos de 1,3 m hasta 6,5 m); null si no hay
+function lugarLibreCerca(p) {
+  const lo = MUNDO.lo, hi = MUNDO.hi;
+  for (const R0 of [0, 1.3, 2.6, 3.9, 5.2, 6.5]) {
+    const n = R0 ? Math.round(R0 * 5) : 1;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU, x = p.x + Math.cos(a) * R0, z = p.z + Math.sin(a) * R0;
+      if (lo && hi && hi.x > lo.x && (x < lo.x || x > hi.x || z < lo.z || z > hi.z)) continue;
+      const y = lugarPiso(v3(x, p.y, z)); if (y === null) continue;
+      const q = v3(x, y, z); if (lugarMetido(q) < 0.05) return q;
+    }
+  }
+  return null;
+}
+// el punto de aparición más lejos de los demás jugadores (con uno solo, ése)
+function redAparicionLibre() {
+  const S = MUNDO.spawns; if (!S.length) return null;
+  let best = S[0], bd = -1;
+  for (const s of S) { let d = 1e9; for (const R2 of RED.remotos.values()) d = Math.min(d, R2.pos.distTo(s)); if (d > bd) { bd = d; best = s; } }
+  return v3(best.x, best.y + 1.2, best.z);
+}
+function redPonerEn(q, yaw) { JUG.pos.copy(q); JUG.vel.set(0, 0, 0); if (yaw !== undefined) JUG.yaw = yaw; if (RED.lugar) RED.lugar.puesto = q.clone(); }
+// al entrar (antes de conectar): ¿vuelvo?
+function redLugarVolver() {
+  let L = null; try { L = JSON.parse(localStorage.getItem(RED_LUGAR_K) || 'null'); } catch (e) {}
+  const ahora = Date.now(), edad = L ? ahora - (+L.t || 0) : 1e12;
+  // (otro número que guardó hace menos de 3 s es otra pestaña abierta en el mismo server: no es «volver»)
+  const mio = L && L.s === SALA.id && L.m === MUNDO.nombre && edad < RED_VOLVER_MS && (L.id === RED.ID || edad > 3000);
+  RED.antes = mio && L.id && L.id !== RED.ID && /^[\w-]{1,20}$/.test(L.id) ? L.id : null;
+  RED.lugar = { t0: TIEMPO.t, volvio: false, puesto: JUG.pos.clone(), guardado: null, conectado: false, revisarT: 0 };
+  // (con un modo de juego de GMod —Prop Hunt, TTT…— dónde aparece cada uno lo decide el modo)
+  const modo = typeof GMM !== 'undefined' && !!GMM.actual;
+  if (mio && !modo && L.v && Array.isArray(L.p) && L.p.every((x) => Number.isFinite(+x))) {
+    const p = v3(+L.p[0], +L.p[1], +L.p[2]); RED.lugar.guardado = p;
+    const q = lugarLibreCerca(p);
+    if (q) { redPonerEn(q, Number.isFinite(+L.y) ? +L.y : JUG.yaw); RED.lugar.volvio = true; }
+  }
+  if (!RED.lugar.volvio && !modo) { const q = lugarLibreCerca(JUG.pos); if (q) redPonerEn(q); }
+  RED.lugar.modo = modo;
+}
+// cuando va llegando lo de los demás (de 1,5 a 9 s de juego después de conectar, y cuando llega uno nuevo): si sigo donde me puso redLugarVolver y ahora eso
+// está ocupado (un prop de otro que llegó recién, otro jugador parado ahí), al lugar libre más cercano; si no volví, el
+// punto de aparición más lejos de los demás. Si ya me moví, no se toca nada
+function redLugarRevisar() {
+  const L = RED.lugar; if (!L || L.modo || JUEGO.estado !== 'juego' || JUG.vehiculo || !JUG.vivo) return;
+  // (si ya caminó lejos, no se lo mueve; lo que empuja la física —un prop que llegó encima— no cuenta como caminar)
+  const P = L.puesto, corrido = Math.hypot(JUG.pos.x - P.x, JUG.pos.z - P.z); if (corrido > 1.5) return;
+  const ocupado = (p) => lugarMetido(p) >= 0.05 || [...RED.remotos.values()].some((R2) => R2.pos.distTo(p) < 1.2);
+  let base;
+  // (si volví y sigo ahí —o metido en algo—, otra vez desde donde estaba: si estaba arriba de un prop que recién llegó,
+  // ahora hay piso ahí; si alguien está parado ahí, al lado)
+  if (L.volvio && L.guardado) { if (corrido > 0.3 && lugarMetido(JUG.pos) < 0.05) return; base = L.guardado; }
+  else if (ocupado(JUG.pos)) base = redAparicionLibre() || JUG.pos;
+  else return;
+  // (corrido una vez, ése es su lugar: si el otro después se va, no vuelve a saltar al de antes)
+  const q = lugarLibreCerca(base); if (q && q.distTo(JUG.pos) > 0.1) { redPonerEn(q); L.guardado = q.clone(); }
 }
 function publicar(c, obj, ret) {
   if (!RED.on) return;
@@ -255,12 +354,19 @@ function redPaso(dt) {
   for (const o of RED.objs.values()) objRemotoPaso(o, dt);
   redCedidosPaso(dt); salaVivoPaso(dt);
   if (t - LISTA.ultP > 120) presencia();
-  if (t - RED.ultE > 0.1) {
+  // (a los 1,5 s de conectar y después cada medio segundo hasta los 9 s, en tiempo del juego: el estado de un jugador
+  // quieto llega una vez por segundo de su juego, y en un celular lento los dos juegos van más despacio)
+  if (RED.lugar && RED.lugar.revisarT && t > RED.lugar.revisarT) { RED.lugar.revisarT = t < RED.lugar.hastaT ? t + 0.5 : 0; RED.lugar.mando = true; redLugarRevisar(); }
+  if (t - (RED.lugT || 0) > 1) { RED.lugT = t; redLugarGuardar(); }
+  // (recién entrado, hasta que se revisó que el lugar donde aparecí está libre —redLugarRevisar, 1,5 s— no mando dónde
+  // estoy: si no, al que estaba parado ahí lo empujaba mi cuerpo; así el que llega es el que se corre)
+  if (t - RED.ultE > 0.1 && !(RED.lugar && RED.lugar.conectado && !RED.lugar.mando)) {
     const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits() | nocheBits() | linternaBits();
     const kE = (typeof pillSkin === 'function' && pillSkin()) || J.skinRol || J.skinMod || PREFS.skin;   // (transformado: su personaje, pillpacks.js)
     const e = { n: PREFS.nombre, k: kE, kw: redSkinWid(kE), h: PREFS.gorro, ga: PREFS.gorroAj || 0, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
       e: JUG.cuerpo && JUG.cuerpo.emote || 0, mu: typeof emuRed === 'function' ? emuRed() : 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0, vr: verRedEstado() };
     { const pl = typeof pillRed === 'function' ? pillRed() : 0; if (pl) e.pl = pl; }   // (Pill Packs: en qué está transformado)
+    if (RED.antes && RED.lugar && t - RED.lugar.t0 < 20) e.an = RED.antes;   // (volví con otro número: el de antes, para que borren su fantasma)
     // (tu ID de Social, si entraste con Google: así los de la sala te agregan de amigo sin escribirlo)
     if (typeof SOC !== 'undefined' && SOC.yo && /^\d{8}$/.test(SOC.yo.pid || '')) e.sp = SOC.yo.pid;
     const s = JSON.stringify(e);
@@ -347,6 +453,16 @@ function recibirEstado(d) {
   // (uno que eché de mi server: no se dibuja y se lo vuelve a echar)
   if (CEL.echados.has(d.i) && soyAnfitrion()) { if (TIEMPO.t - (CEL.reEch || 0) > 2) { CEL.reEch = TIEMPO.t; publicar('a', { k: 'echar', to: d.i }); } return; }
   let R2 = RED.remotos.get(d.i);
+  // (volvió con otro número —se le reabrió la app—: el de antes, si ya no manda nada, es su fantasma; pasa a ser él, sin
+  // «salió» ni «entró», y lo que tenía el número viejo —sus cosas, su radio, su voz— se va. Uno que sigue mandando su
+  // estado no se puede borrar así)
+  if (!R2 && typeof d.an === 'string' && d.an !== d.i && d.an.length <= 20) {
+    const V = RED.remotos.get(d.an);
+    if (V && TIEMPO.t - V.t > 1.5) {
+      vozCerrar(V.id); entidadesDe(V.id); for (const o of [...RED.objs.values()]) if (o.dueno === V.id) { borrarObjeto(o, true); RED.objs.delete(o.key); }
+      RED.remotos.delete(V.id); V.id = d.i; V.P.remoto = d.i; RED.remotos.set(d.i, V); R2 = V; R2.t = -1e9;   // (llega de una a donde está ahora)
+    }
+  }
   // (su personaje, si viene en un paquete aparte que todavía no llegó: mientras tanto el Hero)
   const { real, skin } = redSkinDe(d), gorro = DATA.hats.includes(d.h) ? d.h : 'HatEmpty';
   if (R2) R2.skinReal = real;
@@ -355,15 +471,16 @@ function recibirEstado(d) {
     // cambió de personaje (o de gorro): sólo se rehace el cuerpo; sus objetos y entidades siguen
     borrarPersona(R2.P); const P = crearPersona(skin, gorro, { nombre: censurar(limpio(d.n)) }); P.remoto = d.i; R2.P = P; R2.b.persona = P; R2.skin = skin; R2.gorro = gorro;
   }
+  const nuevo = !R2;
   if (!R2) {
     const P = crearPersona(skin, gorro, { nombre: censurar(limpio(d.n)) }); P.remoto = d.i;
     const b = new Body(capsuleShape(0.4, 0.5), 80); b.frozen = true; b.persona = P; b.noJug = false; b.noGrab = true; addBody(b);
     const tag = document.createElement('div'); tag.className = 'etiqueta'; $('hud').appendChild(tag);
-    R2 = { id: d.i, skin, skinReal: real, gorro, P, b, tag, pos: v3(), meta: v3(), yaw: 0, yawM: 0, vel: v3(), t: TIEMPO.t, f: 0, nombre: '' };
+    R2 = { id: d.i, skin, skinReal: real, gorro, P, b, tag, pos: v3(), meta: v3(), yaw: 0, yawM: 0, vel: v3(), t: TIEMPO.t, f: 0, nombre: '', nace: TIEMPO.t };
     RED.remotos.set(d.i, R2); chatMostrar('JXMod', censurar(limpio(d.n)) + ' entró');
     if (RED.mdDe && RED.mdDe.has(d.i)) smDeOtro(R2, RED.mdDe.get(d.i));
   }
-  if (Array.isArray(d.p)) { R2.meta.set(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0)); if (TIEMPO.t - R2.t > 2 || R2.pos.distTo(R2.meta) > 15) R2.pos.copy(R2.meta); }   // (un salto grande, como cruzar una puerta portal, va de una: si no, se lo veía volar por el mapa)
+  if (Array.isArray(d.p)) { R2.meta.set(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0)); if (nuevo || TIEMPO.t - R2.t > 2 || R2.pos.distTo(R2.meta) > 15) R2.pos.copy(R2.meta); }   // (un salto grande, como cruzar una puerta portal, va de una: si no, se lo veía volar por el mapa)
   if (Array.isArray(d.v)) R2.vel.set(num(d.v[0], -80, 80, 0), num(d.v[1], -80, 80, 0), num(d.v[2], -80, 80, 0));
   R2.yawM = num(d.y, -1e3, 1e3, 0); R2.P.mira = num(d.t, -2, 2, 0); R2.f = d.f | 0; R2.t = TIEMPO.t;
   // (el nombre pasa por la censura sólo si cambió: llega 10 veces por segundo de cada jugador)
@@ -378,6 +495,8 @@ function recibirEstado(d) {
   R2.tag.style.color = typeof d.c === 'string' && /^#[0-9a-fA-F]{6}$/.test(d.c) ? d.c : '';
   verRemoto(R2, d.vr); // (su Verity, si la tiene)
   if (typeof pillRemoto === 'function') pillRemoto(R2, d.pl);   // (transformado: Pill Packs)
+  // (llegó uno nuevo mientras recién entré —su estado, quieto, llega una vez por segundo de su juego—: ¿estoy parado donde está él?)
+  if (nuevo && RED.lugar && RED.lugar.mando && TIEMPO.t < (RED.lugar.hastaT || 0)) redLugarRevisar();
 }
 // nombre arriba del jugador con los íconos de los mods que usa (se rehace sólo si cambió)
 function etiquetaRemota(R2) {
@@ -387,7 +506,11 @@ function etiquetaRemota(R2) {
 function remotoPaso(R2, dt) {
   if (TIEMPO.t - R2.t > 10) { quitarRemoto(R2); RED.remotos.delete(R2.id); return; }
   const P = R2.P, k = 1 - Math.exp(-dt * 12);
-  R2.meta.addS(R2.vel, dt * 0.5);
+  // (se adelanta con su velocidad sólo un momento: si deja de mandar —se le cortó la red, se le cerró la app— queda quieto
+  // donde estaba; antes seguía con la última velocidad hasta que se lo borraba a los 10 s, y uno que venía cayendo se
+  // hundía bajo el piso)
+  // (parado en el piso no se adelanta para abajo: la velocidad de caída que trae cada cuadro lo hundía hasta 1 m)
+  if (TIEMPO.t - R2.t < 0.5) { R2.meta.x += R2.vel.x * dt * 0.5; R2.meta.z += R2.vel.z * dt * 0.5; if (!(R2.f & 1)) R2.meta.y += R2.vel.y * dt * 0.5; }
   R2.pos.lerpTo(R2.meta, k);
   let dy = R2.yawM - R2.yaw; dy = ((dy + Math.PI) % TAU + TAU) % TAU - Math.PI; R2.yaw += dy * k;
   P.pos.copy(R2.pos); P.yaw = R2.yaw; P.vel.copy(R2.vel); P.suelo = !!(R2.f & 1); P.agachado = !!(R2.f & 2); P.sentado = !!(R2.f & 8);
@@ -400,7 +523,7 @@ function remotoPaso(R2, dt) {
   const esp = !!(R2.f & 256); P.visible = !esp;
   // la cápsula a la medida del personaje (1,8 m en el de siempre; los pies quedan en el mismo lugar)
   const tk = P.tam || 1; if (R2.b.capK !== tk) { const r = Math.min(0.4, 0.9 * tk); R2.b.shape = capsuleShape(r, Math.max(0.01, 0.9 * tk - r)); R2.b.capK = tk; }
-  R2.b.pos.set(P.pos.x, P.pos.y - 0.9 + 0.9 * tk, P.pos.z); R2.b.updateWorld(); R2.b.noRay = rag || esp; R2.b.noPhys = rag || esp; R2.b.noJug = rag || esp || !!P.escena || !!(P.jntFin && TIEMPO.t < P.jntFin); // tirado: sólo el muñeco choca (y se puede agarrar)
+  R2.b.pos.set(P.pos.x, P.pos.y - 0.9 + 0.9 * tk, P.pos.z); R2.b.updateWorld(); R2.b.noRay = rag || esp; R2.b.noPhys = rag || esp; R2.b.noJug = rag || esp || !!P.escena || !!(P.jntFin && TIEMPO.t < P.jntFin) || TIEMPO.t - (R2.nace || 0) < 3; // tirado: sólo el muñeco choca (y se puede agarrar); recién llegado (3 s), no empuja a nadie: si apareció encima de otro, se corre él (redLugarRevisar)
   // etiqueta con el nombre sobre la cabeza
   const cp = vadd(P.pos, v3(0, -0.65 + 1.9 * tk, 0)), cl = clipDe(cp);
   etiquetaMover(R2.tag, cl && !esp && cp.distTo(CAM.pos) < 60 ? cl : null);

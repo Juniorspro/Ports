@@ -580,7 +580,7 @@ function inicioAccion(k, b) {
     case 'lang': idiomaAplicar(v); inicioLista(); return inicioPanel('bienvenida');
     case 'bienvOK': PREFS.bienvenida = true; guardarPrefs(); inicioLista(); return inicioPanel(null);
     case 'red': return abrirRed(b.dataset.url);
-    case 'salir': if (window.JXNativo && JXNativo.salir) { JXNativo.salir(); return; } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); menuAviso(T('salirAviso'));
+    case 'salir': if (window.JXNativo && JXNativo.salir) { if (typeof cnSalir === 'function') cnSalir(); if (typeof fondoCallar === 'function') { FONDO.oculto = true; fondoCallar(); } JXNativo.salir(); return; } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); menuAviso(T('salirAviso'));
   }
 }
 // muestra el inicio arriba del menú real (que queda armado abajo); la primera vez, la bienvenida

@@ -906,6 +906,12 @@ async function gmBajar(wid, prog) {
     if (!r) r = await gmPedir(det.file_url);
     tot = +r.headers.get('content-length') || +det.file_size || 0;
   }
+  // (SteamPipe lo da en un Blob, sin pasar el addon entero por la memoria del juego: gmod_pipe.js. Un .gma va directo a
+  // la caché; si no fuera un .gma, como siempre)
+  if (b instanceof Blob) {
+    if (gmEsGMA(new Uint8Array(await b.slice(0, 4).arrayBuffer()))) return (await gmCacheGuardarGMA(String(wid), b)) || b;
+    b = new Uint8Array(await b.arrayBuffer());
+  }
   if (!b) b = await gmLeerCuerpo(r, tot, (p) => prog && prog(0.7 * p, 'bajando'));
   if (!gmEsGMA(b)) b = await gmLZMA(b, (p) => prog && prog(0.7 + 0.3 * p, 'descomprimiendo'));
   if (!gmEsGMA(b)) throw new Error('no es un .gma');

@@ -473,7 +473,7 @@ function estPaso(dt) {
     S.F.g.gain.setTargetAtTime(1.15 * gd * clamp(+e.prm.vol || 1, 0, 1) * (S.tap ? 0.5 : 1), t, 0.06);
     if (S.F.r) S.F.r.gain.setTargetAtTime(Math.min(1.3, 0.3 / Math.sqrt(Math.max(gd, 0.05))), t, 0.1); // (de lejos se oye más el eco que la radio)
     S.C.ruido.gain.setTargetAtTime(S.listo && !S.a.paused ? 0.011 : S.a.getAttribute('src') ? 0.09 : 0, t, S.listo ? 0.25 : 0.05); // (sintonizando: estática)
-    if (S.a.paused && S.a.getAttribute('src') && (S.reint -= dt) <= 0) { S.reint = 2; S.a.play().catch(() => {}); } // (si el navegador no la dejó arrancar sin un toque)
+    if (S.a.paused && S.a.getAttribute('src') && !FONDO.oculto && (S.reint -= dt) <= 0) { S.reint = 2; S.a.play().catch(() => {}); } // (si el navegador no la dejó arrancar sin un toque)
     // una emisora que se queda cargando sin dar error: a los 9 s se prueba por la tienda (y si tampoco, la siguiente)
     if (!S.listo && S.espera && !S.a.paused && performance.now() > S.espera) { S.espera = 0; estFallo(S); continue; }
   }
@@ -486,40 +486,60 @@ function estPaso(dt) {
 }
 
 // ---------------- videos de YouTube: un solo reproductor (escondido) para el más cercano que se oye ----------------
-const YT = { caja: null, ifr: null, fuente: null, vid: null, vol: -1, t: 0, pan: null, est: -1, cargaT: 0, cur: 0, curT: 0, dur: 0, reintT: 0, seekT: 0 };
+const YT = { caja: null, ifr: null, fuente: null, vid: null, vol: -1, t: 0, pan: null, est: -1, cargaT: 0, cur: 0, curT: 0, dur: 0, reintT: 0, seekT: 0, cargas: 0, toque: false, intentos: 0 };
 function ytCaja() {
   if (YT.caja) return YT.caja;
   const c = document.createElement('div'); c.id = 'ytMini'; c.className = 'oc';
-  c.innerHTML = '<div class="ytV"></div>'; c.setAttribute('aria-hidden', 'true');
+  c.innerHTML = '<div class="ytToque"></div><div class="ytV"></div>'; c.setAttribute('aria-hidden', 'true');
   document.body.appendChild(c); return (YT.caja = c);
 }
 function ytCmd(func, args) { try { YT.ifr.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: args || [] }), '*'); } catch (e) {} }
 function ytQuitar() {
-  if (YT.ifr) YT.ifr.remove(); YT.ifr = null; YT.fuente = null; YT.vid = null; YT.vol = -1;
+  if (YT.ifr) YT.ifr.remove(); YT.ifr = null; YT.fuente = null; YT.vid = null; YT.vol = -1; ytToque(false);
   if (YT.caja) { YT.caja.classList.add('oc'); YT.caja.classList.remove('pant', 'pantVe'); } document.body.classList.remove('conPant'); TELE.vis = false; TELE.css = '';
+}
+// Cuando el navegador no deja arrancar el video solo (iPhone/iPad: Safari no deja que un video con sonido de otro sitio
+// arranque sin un toque adentro de él, y la tele quedaba con la tapa y el botón de play sin poder tocarlo, porque el
+// reproductor va detrás del juego y no recibe toques): el reproductor pasa adelante y se puede tocar —la tele, en su
+// lugar; el de la radio, visible arriba con un cartel— hasta que arranca. Después vuelve a esconderse.
+function ytToque(si) {
+  if (YT.toque === !!si) return; YT.toque = !!si;
+  const c = YT.caja; if (!c) return;
+  c.classList.toggle('toque', YT.toque); c.setAttribute('aria-hidden', YT.toque ? 'false' : 'true');
+  if (YT.ifr) YT.ifr.tabIndex = YT.toque ? 0 : -1;
+  if (YT.toque) { const pant = YT.fuente && YT.fuente.t === 'pantalla'; c.querySelector('.ytToque').textContent = T(pant ? 'yt.toqueTele' : 'yt.toque'); if (pant) aviso(T('yt.toqueTele'), 4); }
 }
 function ytCargar(e) {
   ytQuitar(); const c = ytCaja();
-  YT.fuente = e; YT.vid = e.vid;
+  YT.fuente = e; YT.vid = e.vid; YT.cargas++;
   const s = Math.max(0, Math.floor(ahoraS() - (e.t0 || ahoraS()))), f = document.createElement('iframe');
   f.allow = 'autoplay; encrypted-media'; f.title = 'YouTube'; f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
   f.src = `https://www.youtube-nocookie.com/embed/${e.vid}?autoplay=1&enablejsapi=1&playsinline=1&controls=0&rel=0&modestbranding=1&start=${s}` + (/^https?:/.test(location.origin) ? '&origin=' + encodeURIComponent(location.origin) : '');
-  f.onload = () => { try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'rb' }), '*'); } catch (x) {} YT.vol = -1; ytVolumen(true); };
+  f.onload = () => { if (YT.ifr !== f) return; YT.listo = true; try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'rb' }), '*'); } catch (x) {} YT.vol = -1; ytVolumen(true); };
   f.tabIndex = -1; c.querySelector('.ytV').appendChild(f); YT.ifr = f; c.classList.remove('oc');
-  YT.est = -1; YT.cargaT = Date.now(); YT.cur = s; YT.curT = Date.now(); YT.dur = 0;
+  YT.est = -1; YT.cargaT = Date.now(); YT.cur = s; YT.curT = Date.now(); YT.dur = 0; YT.listo = false; YT.listoT = 0; YT.intentos = 0; YT.bloq = false;
   // en una pantalla el video se ve: va detrás del juego, donde el juego deja el hueco
-  const pant = e.t === 'pantalla'; c.classList.toggle('pant', pant); document.body.classList.toggle('conPant', pant); if (pant) { c.style.transform = ''; TELE.css = ''; }
+  // (la perspectiva de una tele de antes no queda puesta en el de la radio: con el cartel de «tocá» se veía chiquito y torcido)
+  const pant = e.t === 'pantalla'; c.classList.toggle('pant', pant); document.body.classList.toggle('conPant', pant); c.style.transform = ''; TELE.css = '';
 }
 function ytVolumen(forzar) {
   const e = YT.fuente; if (!e || !YT.ifr) return;
   const d = entPos(e).distTo(CAM.pos), tap = d > 2 && audioTapado(entPos(e));
   const vol = Math.round(100 * clamp(PREFS.vol / 100, 0, 1) * radioDist(e, d) * clamp(+e.prm.vol || 1, 0, 1) * (tap ? 0.45 : 1));
+  if (vol === 0 && YT.vol !== 0) YT.ceroT = Date.now();
   if (forzar || Math.abs(vol - YT.vol) >= 2 || (vol === 0) !== (YT.vol === 0)) { ytCmd('setVolume', [vol]); YT.vol = vol; }
 }
 function ytPaso(dt) {
   YT.t -= dt; if (YT.t > 0) return; YT.t = 0.25;
   let best = null, bd = 1e9;
-  if (JUEGO.estado === 'juego') for (const e of ENTS.lista) { if (!e.vid || esEst(e.vid) || !ytPermitido(e)) continue; const d = entPos(e).distTo(CAM.pos); if (d < clamp(+e.prm.r || 40, 4, 400) && d < bd) { bd = d; best = e; } }
+  // (la que ya suena sigue cargada hasta 6 m más allá de su alcance —ahí ya no se oye— y le gana a otra que esté hasta
+  // 4 m más cerca: en el borde del alcance, o parado entre dos radios, el reproductor se rearmaba a cada paso, y cada vez
+  // son ~2,5 MB de código de YouTube que el celular vuelve a leer y a guardar en memoria)
+  if (JUEGO.estado === 'juego') for (const e of ENTS.lista) {
+    if (!e.vid || esEst(e.vid) || !ytPermitido(e)) continue;
+    const d = entPos(e).distTo(CAM.pos), r = clamp(+e.prm.r || 40, 4, 400), ya = e === YT.fuente && e.vid === YT.vid && YT.ifr, dd = ya ? d - 4 : d;
+    if ((d < r || (ya && d < r + 6)) && dd < bd) { bd = dd; best = e; }
+  }
   if (!best) { if (YT.ifr) ytQuitar(); return; }
   if (best !== YT.fuente || best.vid !== YT.vid) ytCargar(best);
   ytVolumen(false);
@@ -531,7 +551,16 @@ function ytPaso(dt) {
 function ytSeguir(e) {
   if (!YT.ifr || YT.fuente !== e) return;
   const ahora = Date.now(), frenado = YT.est === 2 || YT.est === 5 || (YT.est === -1 && ahora - YT.cargaT > 5000);
-  if (frenado && ahora - YT.reintT > 1500) { ytCmd('playVideo'); YT.reintT = ahora; }
+  // (la radio que no se oye —volumen en 0, o ya fuera de su alcance— hace más de 8 s queda en pausa: el celular no sigue
+  // bajando y decodificando un video que nadie oye ni ve. Al volver a oírse sigue, al tiempo de todos. La tele no: se ve)
+  const mudo = e.t !== 'pantalla' && YT.vol === 0 && ahora - (YT.ceroT || ahora) > 8000;
+  if (mudo && YT.est === 1 && ahora - YT.reintT > 1500) { ytCmd('pauseVideo'); YT.reintT = ahora; }
+  // (en segundo plano no: lo calló FONDO —audio.js— y sigue al volver)
+  if (frenado && !mudo && !FONDO.oculto && ahora - YT.reintT > 1500) { ytCmd('playVideo'); YT.reintT = ahora; if (YT.est !== 2 && YT.listoT) YT.intentos++; }
+  // (el reproductor ya contesta, se le pidió dos veces y 5 s después sigue sin empezar: el navegador pide un toque en el
+  // video —ytToque—; si arranca o carga, se esconde. Un reproductor que todavía está cargando —celular lento— no cuenta)
+  if (YT.est === 1 || YT.est === 3) ytToque(false);
+  else if (YT.listoT && (YT.est === -1 || YT.est === 5) && (YT.bloq || (YT.intentos >= 2 && ahora - YT.listoT > 5000))) ytToque(true);
   const esp = ahoraS() - (e.t0 || ahoraS()), va = YT.cur + (YT.est === 1 ? (ahora - YT.curT) / 1000 : 0);
   if (YT.est === 1 && YT.dur > 0 && esp > 0 && esp < YT.dur - 3 && Math.abs(va - esp) > 6 && ahora - YT.seekT > 8000) { ytCmd('seekTo', [esp, true]); YT.seekT = ahora; }
 }
@@ -542,6 +571,8 @@ addEventListener('message', (ev) => {
   const e = YT.fuente; if (!e) return;
   // (en qué está el reproductor: 1 sonando, 2 en pausa, 3 cargando, 5 sin empezar; y por dónde va)
   if (d.event === 'onStateChange' && typeof d.info === 'number') YT.est = d.info;
+  if (d.event === 'onAutoplayBlocked') YT.bloq = true;   // (el reproductor avisa que el navegador no lo dejó arrancar solo)
+  if (!YT.listoT && (d.event === 'onReady' || d.event === 'initialDelivery' || d.event === 'infoDelivery')) YT.listoT = Date.now();   // (ya contesta)
   if (d.event === 'infoDelivery' && d.info) {
     if (typeof d.info.playerState === 'number') YT.est = d.info.playerState;
     if (typeof d.info.currentTime === 'number') { YT.cur = d.info.currentTime; YT.curT = Date.now(); }

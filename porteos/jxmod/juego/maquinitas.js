@@ -27,7 +27,10 @@ var CAP={t:0,c:null,g:null};function cap(){var n=performance.now();if(n-CAP.t<12
 for(var i=0;i<cs.length;i++){var c=cs[i],a=c.width*c.height;if(a>ba&&c.width>15&&c.height>15){ba=a;b=c}}if(!b)return;
 if(!CAP.c){CAP.c=document.createElement('canvas');CAP.c.width=256;CAP.c.height=192;CAP.g=CAP.c.getContext('2d',{willReadFrequently:true})}var g=CAP.g,s=Math.min(256/b.width,192/b.height),w=b.width*s,h=b.height*s;
 g.fillStyle='#000';g.fillRect(0,0,256,192);try{g.imageSmoothingEnabled=b.width>256;g.drawImage(b,(256-w)/2,(192-h)/2,w,h);var d=g.getImageData(0,0,256,192).data.buffer;parent.postMessage({rbMaqPix:d},'*',[d])}catch(e){}}
-var RAF=window.requestAnimationFrame;window.requestAnimationFrame=function(f){return RAF.call(window,function(t){f(t);cap()})};setInterval(cap,250);})();<\/script>`;
+var RAF=window.requestAnimationFrame;window.requestAnimationFrame=function(f){return RAF.call(window,function(t){f(t);cap()})};setInterval(cap,250);
+var AC=window.AudioContext||window.webkitAudioContext,ACS=[],CALL=[];if(AC){var W=function(a){var c=a===undefined?new AC():new AC(a);ACS.push(c);return c};W.prototype=AC.prototype;try{window.AudioContext=W;window.webkitAudioContext=W}catch(x){}}
+addEventListener('message',function(e){var m=e.data;if(!m||m.rbMaqFondo===undefined)return;if(m.rbMaqFondo){CALL=[];ACS.forEach(function(c){if(c.state==='running'){CALL.push(c);c.suspend()}});[].forEach.call(document.querySelectorAll('audio,video'),function(v){if(!v.paused){CALL.push(v);v.pause()}})}
+else{CALL.forEach(function(x){try{if(x.resume)x.resume();else x.play()}catch(y){}});CALL=[]}});})();<\/script>`;
 const maqConPuente = (h) => (/<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, (m) => m + MAQ_PUENTE) : MAQ_PUENTE + h);
 
 // ---------------- los juegos que trae (hechos para JXMod) ----------------

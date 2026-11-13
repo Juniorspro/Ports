@@ -77,8 +77,15 @@ public class Web extends Activity {
     // (el vigilante: el juego manda un latido por segundo; si deja de llegar 45 s con la app adelante (más que cualquier carga larga), el juego quedó
     // congelado: se guarda lo que vio el sistema y la consola y se rearma la vista. Tres cuelgues en 5 minutos: modo seguro,
     // sin cargar los mods)
-    private volatile long latidoT;
-    private boolean adelante;
+    private volatile long latidoT, latidoUlt;
+    private long adelanteT;
+    private boolean adelante, webRearmada;
+    // cómo terminó la vez anterior (para la caja negra del juego: cajanegra.js, CN_NATIVO): se lee al crear la actividad,
+    // de lo que quedó guardado en onResume/onPause. «adelante»: el proceso se murió con la app a la
+    // vista (un cierre de verdad); «atras:…»: la app ya estaba en segundo plano —con el juego andando, cargando o sin
+    // latido— cuando el sistema (o la persona, desde Recientes) la cerró
+    private static String cierreAnt = null;
+    private static final String VIDA = "jx_vida";
     private int colgadas;
     // (la partida en la red local: Lan.java)
     private Lan.Broker lanBroker;
@@ -99,6 +106,13 @@ public class Web extends Activity {
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
+        // (todavía no pasó por onResume: lo guardado es cómo terminó la vez anterior)
+        synchronized (Web.class) {
+            try {
+                android.content.SharedPreferences sp = getSharedPreferences(VIDA, MODE_PRIVATE);
+                cierreAnt = !sp.contains("adelante") ? "" : sp.getBoolean("adelante", false) ? "adelante" : "atras:" + sp.getString("pausa", "ok");
+            } catch (Throwable e) { cierreAnt = ""; }
+        }
         Window w = getWindow();
         w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_FULLSCREEN);
         frecuenciaPoner(1000);   // (de entrada la más alta; el juego después pide la de su calidad)
@@ -226,6 +240,10 @@ public class Web extends Activity {
         web.addJavascriptInterface(new Puente(), "JXNativo");
         raiz.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         web.loadUrl(url);
+        // (rearmada con la app en segundo plano —el proceso que dibuja se cerró mientras tanto—: arranca pausada y callada;
+        // la primera, la de onCreate, no: enseguida viene onResume)
+        if (webRearmada && !adelante) { web.onPause(); web.evaluateJavascript(CALLAR, null); }
+        webRearmada = true;
         // a los 6 s, en silencio, mirar si hay una versión nueva (si la hay, un diálogo con "Descargar"; si no, nada)
         web.postDelayed(() -> buscarActualizacion(false), 6000);
     }
@@ -483,7 +501,10 @@ public class Web extends Activity {
          *  (Alto y Ultra van a 60 parejos y así gastan menos batería). */
         @JavascriptInterface public void frecuencia(final int hz) { runOnUiThread(() -> frecuenciaPoner(hz)); }
         @JavascriptInterface public void salir() { runOnUiThread(Web.this::finishAndRemoveTask); }
-        @JavascriptInterface public void latido() { latidoT = SystemClock.uptimeMillis(); }
+        @JavascriptInterface public void latido() { latidoT = latidoUlt = SystemClock.uptimeMillis(); }
+        /** Cómo terminó la vez anterior ("adelante", "atras:ok", "atras:cargando", "atras:sin latido N s" o ""): se da una
+         *  sola vez por proceso (si el juego se recarga solo, la segunda vez es ""). */
+        @JavascriptInterface public String cierreAnterior() { synchronized (Web.class) { String r = cierreAnt == null ? "" : cierreAnt; cierreAnt = ""; return r; } }
         /** La app sabe pedir por su cuenta /red/… (la búsqueda de YouTube y los pedazos de Steam sin la tienda); 2: también
          *  /red/_steam… (la clave, los detalles, el contenido base y lo requerido de los addons, sin la tienda). */
         @JavascriptInterface public int red() { return 2; }
@@ -680,18 +701,35 @@ public class Web extends Activity {
         crearWeb(INICIO + "?colgado=" + colgadas + (colgadas >= 3 ? "&seguro=1" : ""));
     }
 
+    // Al irse a segundo plano (botón de inicio, otra app, pantalla apagada) el juego se calla entero: web.onPause() no
+    // frena el sonido (el AudioContext, la radio, YouTube y el micrófono seguían: Discord, «salís del juego y se queda el
+    // sonido en el celular»). Se le pide a la página antes de pausarla (audio.js: __jxFondo); la página además se entera
+    // sola porque deja de verse. Y se guarda cómo quedó, para saber la próxima vez si se cortó con la app adelante.
+    private static final String CALLAR = "window.__jxFondo&&window.__jxFondo(1)", SEGUIR = "window.__jxFondo&&window.__jxFondo(0)";
+    private void vidaGuardar(boolean adelanteAhora) {
+        try {
+            long t = SystemClock.uptimeMillis(), ult = Math.max(latidoUlt, adelanteT);
+            String pausa = latidoUlt == 0 ? "cargando" : t - ult < 8000 ? "ok" : "sin latido " + (t - ult) / 1000 + " s";
+            android.content.SharedPreferences.Editor e = getSharedPreferences(VIDA, MODE_PRIVATE).edit().putBoolean("adelante", adelanteAhora);
+            if (!adelanteAhora) e.putString("pausa", pausa);
+            if (adelanteAhora) e.apply(); else e.commit();
+        } catch (Throwable e) { /* nada */ }
+    }
+
     @Override protected void onPause() {
         adelante = false; h.removeCallbacks(vigilar);
+        vidaGuardar(false);
         super.onPause();
-        if (web != null) { web.onPause(); web.pauseTimers(); }
+        if (web != null) { try { web.evaluateJavascript(CALLAR, null); } catch (Throwable e) { /* nada */ } web.onPause(); web.pauseTimers(); }
     }
 
     @Override protected void onResume() {
         super.onResume();
-        if (web != null) { web.onResume(); web.resumeTimers(); }
+        if (web != null) { web.onResume(); web.resumeTimers(); try { web.evaluateJavascript(SEGUIR, null); } catch (Throwable e) { /* nada */ } }
         pantallaCompleta();
         // (al volver adelante, se espera el primer latido de nuevo antes de vigilar)
-        latidoT = 0; adelante = true; h.removeCallbacks(vigilar); h.postDelayed(vigilar, 3000);
+        latidoT = 0; adelanteT = SystemClock.uptimeMillis(); adelante = true; h.removeCallbacks(vigilar); h.postDelayed(vigilar, 3000);
+        vidaGuardar(true);
     }
 
     @Override protected void onDestroy() {

@@ -35,7 +35,9 @@ function cierreLeer() {
     const c = JSON.parse(localStorage.getItem('rb_cierres') || '{}'), vivo = +localStorage.getItem('rb_vivo') || 0, ahora = Date.now();
     CIERRE.n = Math.min(3, +c.n || 0); CIERRE.t = +c.t || 0;
     if (ahora - CIERRE.t > 3 * 864e5) CIERRE.n = 0;   // (de hace más de 3 días: se olvida)
-    if (vivo && ahora - vivo < 30 * 60e3) { CIERRE.n = Math.min(3, CIERRE.n + 1); CIERRE.t = ahora; CIERRE.nuevo = true; }
+    // (y sólo si se cortó de verdad: no si se ocultó vivo y después lo cerró el sistema, ni si el arranque avisó un error —
+    // cajanegra.js: cnCierreReal—)
+    if (vivo && ahora - vivo < 30 * 60e3 && (typeof cnCierreReal !== 'function' || cnCierreReal())) { CIERRE.n = Math.min(3, CIERRE.n + 1); CIERRE.t = ahora; CIERRE.nuevo = true; }
     localStorage.setItem('rb_cierres', JSON.stringify({ n: CIERRE.n, t: CIERRE.t })); localStorage.removeItem('rb_vivo');
   } catch (e) {}
 }
@@ -249,6 +251,7 @@ function empezarPartida(mapa) {
 function irMenuPrincipal() {
   modapiDescargar(); natFin(); if (typeof pillFin === 'function') pillFin(true); entidadesLimpiar(); creadorSalir(); rolCerrar();
   if (typeof nukeLimpiar === 'function') nukeLimpiar();   // (sin destello, radiación ni soplido encima del menú)
+  if (typeof redLugarGuardar === 'function' && typeof RED !== 'undefined' && RED.cli) redLugarGuardar();   // (dónde estaba, por si vuelve al mismo server: red.js)
   if (typeof redSalir === 'function') redSalir();
   if (typeof lanSalir === 'function') lanSalir();   // (si eras anfitrión en la red local, la partida se cierra: lan.js)
   if (typeof nocheFin === 'function') nocheFin();   // (la hora, la energía y los botones de la pizzería no quedan encima del menú)
@@ -568,6 +571,22 @@ function falloInicio(err) {
     ['Probar ' + (R.gl && !R.gl1 ? 'WebGL 1' : 'WebGL 2'), () => { iniFallos(2); PREFS.motor = R.gl && !R.gl1 ? 'webgl1' : 'webgl2'; guardarPrefs(); location.reload(); }],
   ]);
 }
+// Sin WebGL al arrancar (Discord, 3.1: una tablet con Android 13 que un rato antes y un rato después anduvo bien): puede
+// ser pasajero —la app arrancó en segundo plano, la placa se estaba reiniciando, o el navegador bloqueó el WebGL de la
+// página un rato después de perderlo—. Se vuelve a pedir con la página a la vista (4 veces, cada vez esperando más) y,
+// si no, se recarga la página una vez; recién después sale el cartel de error. Mientras, la pantalla de carga sigue.
+async function glReintentar() {
+  for (let k = 0; k < 4; k++) {
+    INI.glReint = k + 1;
+    await new Promise((ok) => {
+      const f = () => { if (document.visibilityState === 'hidden') return; document.removeEventListener('visibilitychange', f); setTimeout(ok, 500 + 700 * k); };
+      document.addEventListener('visibilitychange', f); f();
+    });
+    try { glIniciar(); INI.glReint = 0; return true; } catch (e) { if (!(e && e.message === 'webgl')) throw e; }
+  }
+  if (!Q.has('glre')) { const u = new URL(location.href); u.searchParams.set('glre', '1'); location.replace(u.href); return new Promise(() => {}); }
+  return false;
+}
 async function iniciar() {
   // (la pantalla de carga muestra cada paso; si uno no avanza, su vigilante avisa y ofrece reintentar o el modo liviano)
   const CG = window.__carga || { set() {}, log() {}, fin(cb) { if (cb) cb(); $('carga').classList.add('oc'); } };
@@ -579,8 +598,8 @@ async function iniciar() {
     paso('motor gráfico', 0, document.readyState === 'loading' ? null : 'abrir');
     cierreIniciar(); if (typeof iosIniciar === 'function') iosIniciar();
     try { glIniciar(); } catch (e) {
-      if (e && e.message === 'webgl') { iniError('Este aparato no tiene WebGL', 'Probá con Chrome actualizado.'); return; }
-      throw e;
+      if (!(e && e.message === 'webgl')) throw e;
+      if (!(await glReintentar())) { iniError('Este aparato no tiene WebGL', 'Probá con Chrome actualizado.', [[T('fn.reintentar'), () => location.reload()]]); return; }
     }
     R.aniso = R.gl.getExtension('EXT_texture_filter_anisotropic');
     if (R.aniso) R.anisoMax = R.gl.getParameter(R.aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
@@ -605,6 +624,7 @@ async function iniciar() {
     CG.log('menus', R.cv.width + '×' + R.cv.height);
   } catch (e) { console.error(e); falloInicio(e); return; }
   INI.ok = true; INI.paso = 'listo';
+  if (Q.has('glre')) try { const u = new URL(location.href); u.searchParams.delete('glre'); history.replaceState(null, '', u.href); } catch (e) {}
   const fallos = iniFallos(); iniFallos(0);
   if (fallos > 0) setTimeout(() => aviso(R.gl1 ? 'Arrancó con WebGL 1' : 'WebGL 1 falló en este aparato: uso WebGL 2'), 1500);
   addEventListener('pointerdown', audioIniciar, { once: false });

@@ -2408,3 +2408,83 @@ más suspenso y que diga Beta lanzada; caminatas y corridas bien cinemáticas; c
 - **Límites**: los modelos son los del juego (la mano del soldado es como un mitón, con los dedos juntos: apoya y se
   cierra sobre la cola del arma, pero no la rodea dedo por dedo); todo se renderizó con el procesador, sin placa de
   video.
+
+## Del Discord (3.1): el sonido que seguía, «se trabó» sin trabarse, la radio con YouTube, volver al server e iOS
+
+**«Salís del juego y se queda el sonido»** (`AndroidManifest.xml`, `Inicio.java`, `Web.java`, `audio.js`; prueba
+`pruebas/fondo_callado.mjs`, 5/5; la 3.1 da 2/5):
+- `Inicio` (la puerta sin pantalla, raíz de la tarea) tenía `excludeFromRecents`: sacaba de Recientes la tarea entera,
+  con el juego adentro, y no había cómo cerrarla («ni siquiera se me muestra la ventana de la app»). Se quitó (Inicio
+  igual no se ve: `noHistory` y se cierra sola); sin WebView cierra la tarea vacía (`finishAndRemoveTask`).
+- `WebView.onPause()` no frena el sonido. Ahora, al ocultarse la página (`visibilitychange`, `pagehide`, `freeze`) o
+  cuando la app lo pide en `onPause` (`__jxFondo(1)`), se calla todo: el AudioContext (efectos, mods, Verity, voces
+  del chat), las emisoras, YouTube (radio, tele, música de emotes), la voz del sistema, los `<audio>`/`<video>`, las
+  maquinitas (su puente suspende sus AudioContext) y el micrófono deja de mandar; al volver sigue todo (YouTube, al
+  tiempo de la sala). Medido en 4 s oculta: el reloj del sonido, un `<audio>`, YouTube y una maquinita avanzan 0 s
+  (antes 4,1 / 4,0 / 4,1 / 4,1 s) y el micrófono queda apagado; al volver avanzan 4,0 s.
+- La app guarda en `onPause`/`onResume` cómo quedó (`jx_vida`: adelante, o atrás con el juego andando, cargando o sin
+  latido) para la caja negra (`JXNativo.cierreAnterior`).
+
+**«El juego se trabó la última vez»** con el juego cargando (`cajanegra.js`, `principal.js`; prueba
+`pruebas/caja_falso.mjs`, 10/10; la 3.1 da 4/10):
+- El registro de Juanpepo (`{"juego":"carga","mapa":"","motor":"-","memJS":"38/1020 MB","mods":[]}`) es lo que guarda
+  el juego cuando el aparato no da WebGL al arrancar (con WebGL apagado: `{"juego":"carga","mapa":"","fps":60,
+  "motor":"-","dx":90,"memJS":"33/4192 MB"}`): no se había leído ni el paquete ni montado ningún mod (los 6
+  instalados no tienen que ver); salió el cartel «Este aparato no tiene WebGL». El aviso salía porque quedó «andando»
+  (`rb_vivo`), que también queda si el sistema cierra la app en segundo plano antes de guardar.
+- Ahora avisa sólo si se trabó de verdad: la app lo vio (`?colgado`, `?caida`, o «adelante» / «sin latido»), o se
+  cortó a la vista. No si se ocultó con el juego vivo, si salió con Salir, si el arranque mostró su error, o (registro
+  de la 3.1) sin WebGL y cargando. Lo mismo para bajar los gráficos por cierres.
+- Sin WebGL al arrancar se reintenta 4 veces con la página a la vista y una recarga antes del cartel (que ahora trae
+  «Reintentar»): con el WebGL fallando las primeras veces, arranca igual.
+
+**La radio con YouTube «se crashea»** (`entidades.js`, `emomusica.js`; prueba `pruebas/radio_yt_liviana.mjs`, 5/5):
+- Medido como la vista web de Android (todo en un proceso, celular de gama baja: Patata y el procesador 4× más lento):
+  el reproductor de YouTube escondido de 200×113 decodifica igual el video en 854×480 a 25 cuadros por segundo (ni el
+  tamaño, ni `vq`, ni `setPlaybackQuality`, ni ocultarlo lo bajan) y suma ~40 MB al proceso que dibuja (318 → 358-364
+  MB de PSS) y 15-30 MB de memoria de JavaScript. Eso no se puede sacar desde el juego (YouTube no da sólo audio).
+- Lo que sí: el reproductor se volvía a armar a cada paso en el borde del alcance o entre dos radios (cada vez ~2,5 MB
+  de código de YouTube a leer y guardar en memoria); parado entre dos radios, moviéndose medio metro, 9 armadas en 20 s,
+  ahora 0 (yendo y viniendo por el borde, 1 y ahora 0). La que suena sigue cargada hasta 6 m más allá de su alcance y le
+  gana a otra hasta 4 m más cerca; y si no se oye hace 8 s (volumen 0 o fuera de alcance) queda en pausa sin bajar ni
+  decodificar (a 43 m: el video avanza 0 s en 3 s; antes se desarmaba y al volver se armaba de nuevo), y al volver
+  sigue al tiempo de la sala.
+- Límite: el cierre en sí no se reprodujo (esta máquina tiene 16 GB); se midió el costo y se sacó lo evitable.
+
+**«Cuando te desconectas del server y vuelves apareces en otro lugar»** (`red.js`; prueba `pruebas/red_volver.mjs`
+con dos navegadores y broker local, 8/8 —la 3.1 da 3/8—: corte de red, menú, app que se cae, más de 5 min,
+otro jugador o un cajón donde estaba, y otro mapa):
+- Antes: al volver del menú o al reabrir la app aparecía en la aparición del mapa (a 28-30 m de donde estaba) y, si se
+  le cerró la app, los demás veían un fantasma suyo hasta 10 s que seguía con su última velocidad (se hundía bajo el
+  piso, hasta 8 m) junto al nuevo.
+- Ahora: si vuelve al mismo server (mismo mapa) antes de 5 minutos, aparece donde estaba y mirando igual; si no (o si
+  estaba muerto, o hay un modo de juego de GMod), en la aparición más lejos de los demás. Siempre en un lugar libre (con
+  piso, adentro del mapa, sin meterse en pared, prop ni jugador; si no, el lugar libre más cercano), revisado otra vez
+  cuando llegan los props y jugadores de los demás (hasta entonces no manda su posición: no empuja al que está ahí). El
+  que vuelve con otro número avisa el de antes y los demás borran su fantasma y sus cosas viejas en el acto; uno que
+  deja de mandar queda quieto donde se cortó. Recién llegado, durante 3 s no empuja a nadie: el que se corre es él.
+- Medido: del menú y al reabrir la app vuelve a 0 m de donde estaba (antes 28-30 m) y el otro ve una sola Ana
+  donde está; con Beto parado ahí aparece a 1,3 m sin moverlo; con un cajón ahí, no queda adentro (0 cm metida).
+
+**iOS: «no deja ver la tele, no instalan los mods»** (`entidades.js`, `template.html`, `gmod_pipe.js`, `gmod.js`;
+pruebas `pruebas/tele_toque.mjs` y `pruebas/gmod_pipe_memoria.mjs`):
+- La tele: Safari no deja que un video con sonido de otro sitio arranque sin un toque adentro de él, y el reproductor
+  va detrás del juego sin recibir toques: quedaba la tapa con el play para siempre. Ahora, si el reproductor ya contesta
+  y 5 s después no arrancó, pasa adelante (la tele en su lugar; el de la radio, visible arriba con un cartel) hasta que
+  arranca, con el aviso «Tocá la tele…». Probado en Chromium con la regla de autoplay que pide gesto e identidad de
+  iPhone (`tele_toque.mjs` 4/4; la 3.1 da 2/4): la tele queda en pausa y su reproductor pasa adelante (antes quedaba
+  detrás, sin toques); un toque en ella y suena con sonido y avanza, y vuelve detrás; la radio, lo mismo con su cartel
+  arriba (antes, además, quedaba con la perspectiva de la tele de antes: 26×15 px fuera de la pantalla). Ojo: en
+  Chromium un toque en cualquier lado de la página ya habilita el video (delega el permiso al reproductor); Safari no.
+- Los mods: el addon de SteamPipe se armaba entero en memoria (más una copia al guardarlo y otra lectura para su
+  SHA-1); en un iPhone, que cierra la página al pasar su tope de memoria, los grandes no llegaban. Ahora va a un Blob a
+  medida que llegan los pedazos en orden (cada uno con su SHA-1; en memoria quedan a lo sumo 24). Medido con un addon
+  de 39,5 MB por la tienda de verdad (111412589), mientras baja y se guarda, dos veces cada una alternadas: el proceso
+  que dibuja subía 152 y 153 MB y ahora 86 y 93 MB (60-67 MB menos: 1,6 veces el addon; en uno de 400 MB, estimado,
+  ~600 MB menos), y el pico de memoria de JavaScript con los arreglos baja de 212 a 175-178 MB. El .gma guardado es
+  el mismo (mismo SHA-256) y se monta igual (15 props, 171 archivos).
+- Otra causa que no se arregla desde el juego: en la web (y un iPhone sólo tiene la web) todo lo de Steam pasa por la
+  tienda, que en el plan gratis tiene un tope de pedidos por día; la app de Android lo pide directo y la web no puede
+  (Steam no deja leer su CDN desde otra página).
+- No se probó en un iPhone ni en un Android de verdad (acá no hay Safari ni APK: la firma se perdió y no se armó); el
+  Java compila con `javac` contra `android.jar` 35 (0 errores).

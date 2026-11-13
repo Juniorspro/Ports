@@ -165,21 +165,36 @@ async function gpBajar(wid, prog, base) {
   const gmas = archivos.filter((f) => /\.gma$/i.test(f.nombre) && f.pedazos.length), f = (gmas.length ? gmas : archivos.filter((x) => x.pedazos.length)).sort((a, b) => b.tam - a.tam)[0];
   if (!f) throw new Error('el addon no trae archivos');
   if (f.tam > 1.5e9) throw new Error('addon demasiado grande');
-  const out = new Uint8Array(f.tam), tot = f.pedazos.reduce((s, c) => s + (c.comp || c.tam), 0) || 1; let hecho = 0, sig = 0, err = null;
+  // Lo bajado se junta en un Blob a medida que los pedazos quedan en orden, no en un arreglo del tamaño del addon entero:
+  // un addon de 400 MB eran 400 MB de memoria del juego, más otra copia al guardarlo en la caché, más leerlo entero para
+  // su SHA-1 (en un iPhone, que cierra la página cuando pasa de su tope de memoria —y en los celulares de 2-4 GB—, «no se
+  // instalan los mods»). En memoria quedan sólo los pedazos que llegaron antes de su turno (a lo sumo 24 adelante). Cada
+  // pedazo se comprueba con su SHA-1 y cubren el archivo de punta a punta, así que el SHA-1 del archivo entero sobra.
+  // (si los pedazos no cubren el archivo seguido —huecos o pisados—, como antes: todo en un arreglo y el SHA-1 entero)
+  let cubre = 0, seguido = true; for (const c of f.pedazos) { if (c.off !== cubre) { seguido = false; break; } cubre += c.tam; }
+  seguido = seguido && cubre === f.tam && typeof Blob === 'function';
+  const out = seguido ? null : new Uint8Array(f.tam), tot = f.pedazos.reduce((s, c) => s + (c.comp || c.tam), 0) || 1; let hecho = 0, sig = 0, err = null;
+  const listos = new Map(); let enOrden = 0, partes = [], blob = null;
+  const juntar = (fin) => { if (partes.length >= 16 || (fin && partes.length)) { blob = new Blob(blob ? [blob, ...partes] : partes); partes = []; } };
   const uno = async () => {
     while (!err && sig < f.pedazos.length) {
-      const c = f.pedazos[sig++];
+      while (seguido && !err && sig - enOrden > 24) await new Promise((ok) => setTimeout(ok, 40));
+      if (err || sig >= f.pedazos.length) break;
+      const i = sig++, c = f.pedazos[i];
       try {
         const enc = await gpPedirCDN(base, hosts, `/depot/${info.dep}/chunk/${c.sha}`);
         const d = await gpDescomprimir(await gpDescifrar(K, enc), c.tam);
         if (d.length !== c.tam) throw new Error('pedazo de tamaño malo');
         if (gpHex(new Uint8Array(await crypto.subtle.digest('SHA-1', d))) !== c.sha) throw new Error('pedazo dañado');
-        out.set(d, c.off); hecho += c.comp || c.tam; if (prog) prog(0.02 + 0.96 * hecho / tot, 'bajando');
+        if (seguido) { listos.set(i, d); while (listos.has(enOrden)) { partes.push(listos.get(enOrden)); listos.delete(enOrden); enOrden++; juntar(false); } }
+        else out.set(d, c.off);
+        hecho += c.comp || c.tam; if (prog) prog(0.02 + 0.96 * hecho / tot, 'bajando');
       } catch (e) { err = e; }
     }
   };
   await Promise.all(Array.from({ length: Math.min(GP.paralelo, f.pedazos.length) }, uno));
   if (err) throw err;
+  if (seguido) { juntar(true); if (!blob || blob.size !== f.tam) throw new Error('el addon llegó cortado'); return blob; }
   if (f.sha && f.sha.length === 20 && gpHex(new Uint8Array(await crypto.subtle.digest('SHA-1', out))) !== gpHex(f.sha)) throw new Error('el addon llegó dañado');
   return out;
 }

@@ -5,7 +5,9 @@
 // ---------------------------------------------------------------------------------------------------------
 const AUD = { ctx: null, buf: {}, pend: {}, esperan: {}, master: null, loops: new Map(), rev: null, revG: null, adentro: 0, tLugar: 0, hrtf: 0 };
 function audioIniciar() {
-  if (AUD.ctx) { if (AUD.ctx.state === 'suspended') AUD.ctx.resume(); return; }
+  // (callado en segundo plano —FONDO, abajo—: no se vuelve a prender hasta que la página se vea; «interrupted»: Safari
+  // después de una llamada o de otra app con sonido)
+  if (AUD.ctx) { if ((AUD.ctx.state === 'suspended' || AUD.ctx.state === 'interrupted') && !FONDO.oculto) AUD.ctx.resume().catch(() => {}); return; }
   // (celulares de 4 GB o menos, o calidad patata/baja: los sonidos se guardan a 22 kHz y en mono —cada fuente suena en 3D
   // igual—: los ~230 sonidos decodificados pasan de ~54 MB a ~13 MB, que en un celular barato es lo que hace cerrar el juego)
   AUD.mono = (navigator.deviceMemory || 4) <= 4 || /patata|bajo/.test((typeof GFX !== 'undefined' && GFX.nombre) || '');
@@ -124,4 +126,56 @@ function audioPaso(dt) {
   }
   AUD.adentro += ((AUD.adentroMeta || 0) - AUD.adentro) * Math.min(1, dt * 2);
   if (AUD.revG) AUD.revG.gain.value = 0.06 + 0.4 * AUD.adentro;
+}
+// ---------------- en segundo plano, todo callado ----------------
+// (Discord, noviembre de 2026: «salís del juego y se queda el sonido en el celular») Cuando la página deja de verse —el
+// celular va al inicio, se apaga la pantalla, se cambia de app o de pestaña— se calla todo lo que suena: el sonido del
+// juego (efectos, mods, Verity y las voces del chat: todo pasa por AUD.ctx), las emisoras de la radio, los videos de
+// YouTube (radio, tele, música de los emotes y su editor), la voz del sistema, los videos de la pizzería y las
+// maquinitas; el micrófono deja de mandar y Verity deja de escuchar. Al volver, sigue lo que sonaba. La app de Android
+// también lo pide al pausarse (Web.java: __jxFondo), por si la página no se entera a tiempo de que dejó de verse.
+const FONDO = { oculto: false, nativo: false, ctx: false, media: [], yt: [], mic: [], maq: false, n: 0 };
+const fondoOculta = () => FONDO.nativo || (typeof document !== 'undefined' && document.visibilityState === 'hidden');
+function fondoRevisar() {
+  const o = fondoOculta(); if (o === FONDO.oculto) return;
+  FONDO.oculto = o; FONDO.n++;
+  try { if (o) fondoCallar(); else fondoSeguir(); } catch (e) { console.warn('fondo', e); }
+}
+// (los reproductores de YouTube de la página: el de la radio y la tele, el de la música de los emotes y su editor)
+function fondoYT() { const L = []; for (const f of document.querySelectorAll('iframe')) if (/youtube(-nocookie)?\.com\/embed\//.test(f.src || '')) L.push(f); return L; }
+function fondoYTcmd(f, func, args) { try { f.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: args || [] }), '*'); } catch (e) {} }
+function fondoCallar() {
+  const c = AUD.ctx; FONDO.ctx = !!(c && c.state === 'running'); if (FONDO.ctx) c.suspend().catch(() => {});
+  // (los <audio> y <video>: los de la página y las emisoras de la radio, que no están en la página; las voces del chat
+  // —<audio> mudos, el sonido va por AUD.ctx— no hace falta tocarlas)
+  const M = new Set(document.querySelectorAll('audio,video')); if (typeof EST !== 'undefined') for (const S of EST.son.values()) M.add(S.a);
+  FONDO.media = []; for (const m of M) if (!m.paused && !(m.srcObject && m.muted)) { FONDO.media.push(m); try { m.pause(); } catch (e) {} }
+  FONDO.yt = fondoYT(); for (const f of FONDO.yt) fondoYTcmd(f, 'pauseVideo');
+  FONDO.mic = []; if (typeof VOZ !== 'undefined' && VOZ.stream) for (const t of VOZ.stream.getAudioTracks()) if (t.enabled) { t.enabled = false; FONDO.mic.push(t); }
+  try { if ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); } catch (e) {}
+  if (typeof OIDO !== 'undefined' && OIDO.r && typeof oidoParar === 'function') oidoParar();
+  FONDO.maq = !!(typeof MAQ !== 'undefined' && MAQ.ifr); if (FONDO.maq) try { MAQ.ifr.contentWindow.postMessage({ rbMaqFondo: 1 }, '*'); } catch (e) {}
+}
+function fondoSeguir() {
+  if (FONDO.ctx && AUD.ctx) AUD.ctx.resume().catch(() => {});
+  FONDO.ctx = false;
+  for (const m of FONDO.media) { const p = m.play && m.play(); if (p && p.catch) p.catch(() => {}); } FONDO.media = [];
+  // (los de YouTube siguen solos —sus pasos los vuelven a poner, y al tiempo de todos, en cuanto ven que están en pausa—;
+  // acá se les da el empujón por si el juego no está en una partida)
+  for (const f of FONDO.yt) if (f.isConnected) fondoYTcmd(f, 'playVideo'); FONDO.yt = [];
+  if (typeof YT !== 'undefined') YT.vol = -1;
+  if (typeof EST !== 'undefined') for (const S of EST.son.values()) if (!S.listo && S.espera) S.espera = performance.now() + 9000;   // (una que se estaba conectando no se da por mala)
+  for (const t of FONDO.mic) if (t.readyState === 'live') t.enabled = true; FONDO.mic = [];
+  if (FONDO.maq && typeof MAQ !== 'undefined' && MAQ.ifr) try { MAQ.ifr.contentWindow.postMessage({ rbMaqFondo: 0 }, '*'); } catch (e) {}
+  FONDO.maq = false;
+}
+// (la app nativa: 1 al pausarse, 0 al volver adelante; devuelve si quedó callado)
+window.__jxFondo = (si) => { FONDO.nativo = !!+si; fondoRevisar(); return FONDO.oculto; };
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', fondoRevisar);
+  // (al irse de la página o congelarla el navegador: callado ya; al volver —pageshow, resume— se mira si se ve)
+  const yaCallar = () => { if (FONDO.oculto) return; FONDO.oculto = true; FONDO.n++; try { fondoCallar(); } catch (e) {} };
+  addEventListener('pagehide', yaCallar); document.addEventListener('freeze', yaCallar);
+  addEventListener('pageshow', () => { FONDO.oculto = !fondoOculta(); fondoRevisar(); });
+  document.addEventListener('resume', () => { FONDO.oculto = !fondoOculta(); fondoRevisar(); });
 }

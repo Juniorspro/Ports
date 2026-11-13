@@ -29,6 +29,7 @@ function emuCargar(src, m) {
 // cada 0,2 s: cuál se oye (la mía o la del más cercano que está haciendo un emote con música), el volumen y el bucle
 function emuPaso(dt) {
   EMU.t -= dt; if (EMU.t > 0) return; EMU.t = 0.2;
+  if (FONDO.oculto) return;   // (en segundo plano queda callada: audio.js)
   if (EMU.ed) { if (EMU.ifr) emuQuitar(); return; }   // (con el editor abierto suena el del editor)
   let src = null, m = null, d = 0;
   if (JUEGO.estado === 'juego' && PREFS.emoMusica !== false) {
