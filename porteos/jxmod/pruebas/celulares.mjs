@@ -64,6 +64,7 @@ const jug = [
   [WV(14, 'SM-A055M', 'UP1A.231005.007'), 'Samsung Galaxy A05', 'MediaTek Helio G85', 'bajo'],
   [WV(16, 'T522A', 'BP2A.250605.031.A2'), 'TCL K70 (4G)', 'MediaTek Helio G100', 'medio'],
   [WV(14, 'ALI-NX1', 'HONORALI-N21'), 'Honor Magic6 Lite / X9b', 'Qualcomm Snapdragon 6 Gen 1', 'alto'],
+  [WV(12, 'SM-G970F', 'SP1A.210812.016'), 'Samsung Galaxy S10e', 'Samsung Exynos 9820', 'alto'],   // (Discord: 60 fps en Alto con algunos bajones)
   [CR(14, 'SM-A155F'), 'Samsung Galaxy A15', 'MediaTek Helio G99', 'medio'],
   [WV(14, 'SM-A156M', 'UP1A.231005.007'), 'Samsung Galaxy A15 5G', 'MediaTek Dimensity 6100+', 'medio'],
 ];
