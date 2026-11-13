@@ -1,8 +1,8 @@
 {
- "codigo": 3100,
- "version": "3.1",
+ "codigo": 3200,
+ "version": "3.2",
  "apk": "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXMod.apk",
  "web": "https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/index.html",
- "notas_es": "JXMod 3.1 — Pill Packs (transformate en personajes con habilidades y nivel), panel de Mods y mapas nuevo, la pizzería de FNAF ahora es un mapa del Workshop (también en multijugador), campo de visión (FOV) en Ajustes, menos neblina en los mapas de GMod, el muñeco de trapo ya no se traba en el piso y las nucleares ya no siguen en el mundo nuevo. Tocá Descargar para actualizar.",
- "notas_en": "JXMod 3.1 — Pill Packs (turn into characters with abilities and levels), new Mods & maps panel, the FNAF pizzeria is now a Workshop map (multiplayer too), field of view (FOV) in Settings, less fog on GMod maps, ragdolls no longer get stuck in the floor and nukes no longer carry over to a new world. Tap Download to update."
+ "notas_es": "JXMod 3.2 — IMPORTANTE: esta vez desinstalá la app vieja antes de instalar la nueva (cambió la firma; si no, Android dice «App no instalada»). Novedades: Pill Packs que saltan, más rápidos y con ajustes de velocidad y recarga; botones y panel de Personajes nuevos (concepto de GOLDEN); importar tu propio personaje con rig automático; la app ya no sigue sonando al salir; arreglos de autos, nextbots, ascensores, la escopeta, la neblina de las nucleares y muchas armas de mods (SWEPs).",
+ "notas_en": "JXMod 3.2 — IMPORTANT: this time uninstall the old app before installing the new one (the signature changed; otherwise Android says \"App not installed\"). New: Pill Packs that jump, run faster and have speed and cooldown settings; new buttons and Characters panel (GOLDEN's concept); import your own character with automatic rigging; the app no longer keeps playing sound after you leave; fixes for cars, nextbots, elevators, the shotgun, nuke fog and many mod weapons (SWEPs)."
 }
