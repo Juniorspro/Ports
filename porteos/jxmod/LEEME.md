@@ -2360,6 +2360,70 @@ APK; la web muestra el botón y recarga).
 - Fotos de la cámara del jugador, antes y después, en la compu y el celu: la tirada que peor quedaba (la mano y el
   brazo enterrados 86 cm) ahora queda entera sobre el pasto.
 
+## Del Discord: importar personajes con rig automático, como Prisma 3D
+
+Pedido (lore1221): «una manera de que poner personajes sea más fácil, como la opción de Prisma que riggea los
+personajes de manera automática». `juego/pjimportar.js`, una ventana propia con un solo punto de entrada,
+`pjiAbrir()`: el botón «Importar personaje» de Personajes → Mods (y de la pausa → Personaje → Mods).
+
+- **Tres pasos, en la compu y en el celular**: 1) elegir el archivo (GLB, GLTF, VRM u OBJ con su .mtl y texturas,
+  elegidos juntos o soltados encima; un .gma sigue por el camino de siempre); 2) los puntos, como en Prisma: barbilla,
+  hombros, codos, muñecas, ingle, rodillas y tobillos sobre la vista de frente (dibujada por software, con su textura),
+  propuestos solos y arrastrables (simétrico, «Dar vuelta», «Proponer de nuevo»); 3) probarlo con las animaciones del
+  juego a la derecha (quieto, caminar, correr, saltar, agacharse, saludar, bailar; se gira arrastrando), nombre y alto,
+  y «Guardar y usar». Queda en IndexedDB y aparece en Personajes → Mods → «Importados».
+- **Lo para derecho y lo escala solo**: el eje de arriba es el que deja dos piernas separadas abajo y una cabeza angosta
+  arriba; adelante, para donde apuntan los pies. Si mide entre 0,4 y 3 m se deja su alto; si no, 1,83 m.
+- **Puntos automáticos** (silueta de frente): la ingle es donde se cierra el hueco entre los muslos (en Λ; si cierra
+  recto y la silueta se ensancha, es el ruedo de una pollera o un tapado y va por proporción), la barbilla y los hombros
+  por el ancho bajando desde la cabeza, la punta de la mano lo más lejos del hombro por la silueta, y codo y muñeca al
+  42 % y 75,5 % del brazo. Contra las articulaciones de verdad de MakeHuman: codos 0-3 cm, muñecas 2-3 cm, rodillas 1-2
+  cm, tobillos 1 cm, hombros 3-6 cm (con pollera o tapado las rodillas van por proporción: 6-8 cm).
+- **Esqueleto y pesos** (22 huesos, los del Hero sin dedos): cada vértice va al hueso más cercano *por dentro* del
+  cuerpo (Dijkstra en una grilla de ~110 vóxeles de alto, rellena; por el aire cuesta 7 veces más), así un brazo pegado
+  al costado no se lleva el torso. Las articulaciones se mezclan en un ancho que sale del grosor del miembro; en la
+  ingle, mitad cadera y un cuarto de cada muslo; la ropa suelta de abajo se reparte entre la cadera y las piernas; se
+  suaviza por las aristas hasta ~2,4 % del alto (las pasadas salen del largo de las aristas), sin tocar la mano: la mano
+  y los dedos quedan rígidos. La cabeza arranca en la barbilla (antes la cara iba con el cuello).
+- **Si ya trae esqueleto, usa el suyo** (retargeteo con sus pesos): por VRM, por el nombre (mixamo, Unreal, Blender,
+  Valve, «.L/_l/Left»; cada parte busca el candidato que cuelga de la anterior) o por la forma del árbol. Arregla los
+  rigs con IK (pies colgando de la raíz: pasan a hijos de la pierna; una mano hecha de palmas: una mano nueva), las
+  piernas que cuelgan del padre de la cadera y los lados con nombres al revés (por para dónde apuntan los pies).
+- **Reusa `gmod_pm.js`**: el resultado es un modelo de jugador más (`gmpm:jxpj/<id>.mdl`), con sus mallas armadas por
+  `gmvMallas` (niveles de detalle incluidos). Dos agregados ahí: la mano sin dedos se alinea con la del Hero por una
+  punta que da el modelo (antes una mano en A quedaba doblada en la muñeca) y, sólo en los importados, el blanco de la
+  mano no entra en el torso, la cadera ni los muslos de ese modelo (perfil del cuerpo por altura medido en el reposo,
+  sin saltos) y el «no hundirse» sube y baja como mucho 1,2 m/s.
+- **Multijugador, como las skins del Workshop**: el que no lo tiene se lo pide al que lo tiene puesto y le llega de a
+  pedazos por la sala (24 mil letras, 8 por segundo, como los memes); el id es la huella del paquete y lo que llega se
+  verifica. Paquete (`JXPJ`, gzip): 18 bytes por vértice más las texturas (WebP); la MakeHuman pesa 319 KB.
+- Textos en los 14 idiomas (`idiomas3.js`). Archivos: `pjimportar.js` (nuevo), y enganches chicos en `gmod_pm.js`,
+  `red.js`, `menu.js`, `principal.js` y `armar.py`.
+
+Medido (`pruebas/importar_rig.mjs`: 13 modelos libres de `CREDITOS.md`, cada animación a 30 cuadros por segundo con la
+piel calculada en la CPU como la placa, contra el propio Hero en la misma animación; `importar_personaje.mjs`;
+`red_importado.mjs`):
+
+| Modelo | rig | aristas fuera de 0,6-1,5 (quieto / caminar / correr / agachado) | Hero |
+|---|---|---|---|
+| MakeHuman en A, 14 677 vértices | automático | 0,17 / 0,30 / 0,69 / 4,6 % | 0,92 / 1,11 / 2,03 / 5,3 % |
+| MakeHuman en T / alta / cabezona | automático | 0,27-0,32 / 0,30-0,53 / 0,61-1,15 / 3,3-5,3 % | ídem |
+| MakeHuman con vestido / con tapado | automático | 0,54-1,44 / 1,8-2,6 / 4,5-5,0 / 9,4-10,4 % | ídem |
+| CesiumMan con su esqueleto | retargeteo | 0,79 / 0,88 / 1,08 / 2,2 % | ídem |
+
+- Lo rígido (aristas con las dos puntas 100 % en un hueso: manos y dedos) no se estira en ninguno: ≤ 0,04 %.
+- Saltos (aceleración de un hueso entre cuadros, de más respecto del Hero): MakeHuman 0,6-1,9 cm, el bajito 4,5 cm.
+- Manos en el cuerpo, quieto/caminando/corriendo: MakeHuman ≤ 0,8 cm (con tapado 2,5-4,2 cm); con emotes, hasta 7,5 cm.
+- Tiempos (mínimo de 3, máquina compartida con carga 30 en 4 núcleos: varían ×3): rig de la MakeHuman 1,0-1,3 s en la
+  compu; en un celular de gama baja emulado (procesador ×6, 873×393) leer 2,6 s, rig 1,6 s y guardar 1,8 s.
+- Celular: el flujo entero 10/10 (lienzo de puntos de 460×241, todos los botones ≥ 36 px). Multijugador 6/6: Beto lo ve
+  a los 5,6 s de entrar y Caro, que entra después, a los 10 s; a ellos no les queda entre sus importados.
+- **Lo que no quedó**: brazos arriba (Victory) estira 3,9-4,2 % contra 2,1 % del Hero (un modelo en A gira 125° el
+  hombro para llegar arriba, el Hero en T 80°); con vestido o tapado, agachado y corriendo la tela se estira el doble
+  que el Hero; el Robot con su esqueleto dobla sus dedos de bloques como el Hero y los nudillos se abren (9,5 % de
+  aristas); el personaje de bloques de Kenney (patas de 20 cm, brazos más largos que las piernas) estira 16-27 % y mete
+  las manos en el cuerpo: proporciones a las que las animaciones del Hero no llegan. Sin probar en un celular de verdad.
+
 ## Tráiler de la 3.0 (40 s, 4:3 en FHD), v2
 
 Pedido: un tráiler con la canción del video de 41 s, con suspenso, sin interfaz, el logo recortado al principio y

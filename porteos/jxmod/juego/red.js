@@ -323,6 +323,8 @@ function redSkinWid(k) {
 // mientras tanto se ve el Hero; antes los demás te veían siempre con el Hero)
 const redRutaPM = (r) => typeof r === 'string' && r.length < 200 && /^models\/[\w\-./ ()]+\.mdl$/i.test(r) && !r.includes('..');
 function redSkinDe(d) {
+  // (un personaje importado de un archivo: si no lo tengo, se lo pido al que lo tiene puesto; pjimportar.js)
+  if (typeof pjiRedSkin === 'function') { const x = pjiRedSkin(d); if (x) return x; }
   if (typeof d.k === 'string' && d.k.startsWith('gmpm:') && redRutaPM(d.k.slice(5)) && typeof gmArchivo === 'function') {
     const real = 'gmpm:' + d.k.slice(5).toLowerCase();
     if (gmArchivo(real.slice(5))) return { real, skin: real };
@@ -338,7 +340,7 @@ function redSkinDe(d) {
 }
 // llegó lo que faltaba de un personaje: se les rehace el cuerpo a los que lo usan (aunque estén quietos y no manden nada)
 function redRehacerSkin(s) {
-  if (typeof gmpEs === 'function' && gmpEs(s) && !gmArchivo(s.slice(5))) return;
+  if (typeof gmpEs === 'function' && gmpEs(s) && !gmArchivo(s.slice(5)) && !(typeof pjiEs === 'function' && pjiEs(s))) return;
   for (const R2 of RED.remotos.values()) if (R2.skinReal === s && R2.skin !== s) {
     const P0 = R2.P, P = crearPersona(s, R2.gorro, { nombre: R2.nombre }); P.remoto = R2.id; P.pos.copy(P0.pos); P.yaw = P0.yaw; borrarPersona(P0); R2.P = P; R2.b.persona = P; R2.skin = s;
   }
@@ -513,6 +515,7 @@ function recibirHecho(d) {
   } else if (d.k === 'nk' || d.k === 'nkarm') { nukeRed(d);
   } else if (d.k === 'maq' || d.k === 'maqp' || d.k === 'maqd') { maqRed(d);
   } else if (d.k === 'meme' || d.k === 'memed') { memeRed(d);
+  } else if (d.k === 'pjq' || d.k === 'pjd') { if (typeof pjiRed === 'function') pjiRed(d);   // (personajes importados: pedido y pedazos)
   } else if (d.k === 'chatcorr' && typeof d.id === 'string' && typeof d.t === 'string') { chatCambiar(d.id.slice(0, 12), censurar(limpio(d.t, 120)), d.i);
   } else if (d.k === 'jnt' || d.k === 'jntP' || d.k === 'jntS') { juntosRed(d);
   } else if (d.k === 'bocina') { bocinaRed(d);
