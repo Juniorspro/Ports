@@ -107,7 +107,7 @@ function pjTarjeta(dat, nom, img, o) {
 }
 const pjGorroNom = (s) => (s === 'HatEmpty' ? T('pj.sin') : String(s).replace(/^Hat/, ''));
 const pjGorroImg = (s) => (s === 'HatEmpty' ? '' : DATA.ico[s] ? icono(s) : (typeof GN !== 'undefined' && GN.ico[s]) || icono('western-hat'));
-function pjNomActual() { const s = PREFS.skin || 'Hero'; return gmpEs(s) ? s.replace(/^.*\//, '').replace(/\.mdl$/, '').replace(/_/g, ' ') : skinNom(s); }
+function pjNomActual() { const s = PREFS.skin || 'Hero'; const im = typeof pjiNombre === 'function' && pjiNombre(s); if (im) return im; return gmpEs(s) ? s.replace(/^.*\//, '').replace(/\.mdl$/, '').replace(/_/g, ' ') : skinNom(s); }
 function panelPersonajes(P) {
   RB.el.classList.add('rb3d'); if (!MENU.lobby) MENU.yaw = Math.PI + 0.25; menuLobby(true);
   P.classList.add('rbPan_tienda', 'pjV2'); { const v = RB.el.querySelector('.rbVer'); if (v) v.classList.add('oc'); }
@@ -156,7 +156,7 @@ function pjEscenaTexto() {
   const E = RB.el && RB.el.querySelector('.pjEscena'); if (!E) return;
   const g = PREFS.gorro && PREFS.gorro !== 'HatEmpty' ? pjGorroNom(PREFS.gorro) : '';
   E.querySelector('.pjEscInfo b').textContent = pjNomActual();
-  E.querySelector('.pjEscInfo small').textContent = g ? T('pj.conGorro').replace('%g', g) : gmpEs(PREFS.skin) ? T('pjm.tab') : '';
+  E.querySelector('.pjEscInfo small').textContent = g ? T('pj.conGorro').replace('%g', g) : (typeof pjiNombre === 'function' && pjiNombre(PREFS.skin)) ? T('pji.importado') : gmpEs(PREFS.skin) ? T('pjm.tab') : '';
 }
 // arriba en un renglón (como en Mods y mapas): si las pestañas no entran (celular chico, un idioma largo), las no elegidas
 // quedan sólo con el ícono (medido con scrollWidth: con el juego girado getBoundingClientRect da la pantalla girada)
