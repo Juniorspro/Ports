@@ -2252,6 +2252,22 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## Si se pierde el paquete del juego (pasó al cambiar de máquina)
+
+El paquete (mallas, texturas, sonidos, videos, fotos de fondo) vive fuera del repo; si la máquina cambia, se pierde. Se
+rearma desde lo publicado en `web/` con el código de la página de iPhone:
+
+```
+node herramientas/recuperar_web.mjs ../../web R889-Y5UG https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/ PLANO
+python3 -I herramientas/recuperar_paquete.py PLANO ../../web PAQUETE
+```
+
+El primero descifra `juego.bin` y `pk.bin`; el segundo junta los paquetes de `web/rb`, deshace el filtro de los índices
+y saca las fotos de la pantalla de carga y del inicio y la biblioteca de la sala (`PAQUETE/mqtt.min.js`, para
+`MQTT_JS`). Probado: armando de nuevo con ese paquete, el `pk.bin` y los 61 paquetes de `web/rb` salen idénticos byte
+a byte. Las fotos de fondo vuelven en PNG (salieron de las WebP publicadas). La firma del APK no se puede recuperar así:
+tiene que guardarse como secreto del entorno.
+
 ## JXMod 3.1: Pill Packs, Mods y mapas nuevo, la pizzería del Workshop, FOV, niebla y la pierna en el piso
 
 Lo último del Discord junto en una versión: el panel de GOLDEN, la idea de Henderson, la pizzería sobre el mapa del
