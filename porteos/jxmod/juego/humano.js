@@ -313,7 +313,9 @@ function animarHumano(P, dt) {
     if (sal && H.aire < 0.45 && P.vel.y > -1) humClip(sal, 0.18 + H.aire * 0.9, 1, T);
     else { const k = sal ? clamp((H.aire - 0.45) / 0.25, 0, 1) : 1; if (k < 1) humClip(sal, 0.58, 1 - k, T); humClip(E.Fall[0], H.t, k, T); }
   } else {
-    const L = E.Locomotion, idle = humClipNombre('Pose', 'IdleLookAround_loop') || humClipNombre('Pose', 'Idle01') || L[0], G = !P.flota ? humGm() : null;
+    // (el del escenario de Personajes —P.lobby, menu.js— usa el reposo del juego, que respira y mira alrededor: el de GMod,
+    // gm_idle_all, es casi una pose quieta y ahí, en grande, parecía una estatua)
+    const L = E.Locomotion, idle = humClipNombre('Pose', 'IdleLookAround_loop') || humClipNombre('Pose', 'Idle01') || L[0], G = !P.flota && !P.lobby ? humGm() : null;
     if (G) humGmMover(P, H, T, sp, dt, G); else
     // los que flotan (sin piernas) no caminan: siguen con la de quieto y se deslizan (la inclinación y el vaivén, más abajo)
     if (sp < 0.3 || P.flota) { humClip(idle, H.t, 1, T); H.mov = 0; H.cadera = (H.cadera || 0) * Math.max(0, 1 - dt * 6); }

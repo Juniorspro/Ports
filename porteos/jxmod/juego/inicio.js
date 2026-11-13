@@ -157,7 +157,7 @@ function inicioPanel(p) {
   // (la versión de abajo a la derecha se asomaba por debajo del panel de la tienda, que llega casi hasta el borde)
   RB.el.querySelector('.rbVer').classList.toggle('oc', P.classList.contains('rbPan_tienda'));
   // (el personaje en 3D sólo en personajes: en el resto, el fondo de siempre)
-  if (p !== 'personajes') { RB.el.classList.remove('rb3d'); menuLobby(false); }
+  if (p !== 'personajes') { RB.el.classList.remove('rb3d'); menuLobby(false); MENU.caja = null; }
   if (p !== 'multi' && typeof mpClaveNo === 'function') mpClaveNo();
   if (!p) return;
   if (p === 'multi') return panelMulti(P);
@@ -529,7 +529,7 @@ function inicioAccion(k, b) {
   switch (a) {
     case 'nueva': return inicioPanel('nueva');
     case 'tienda': if (v) RB.t.tab = v; return inicioPanel('tienda');
-    case 'volver': RB.t.sel = null; if (RB.desdeJuego && typeof gmbVolverAlJuego === 'function') return gmbVolverAlJuego(); inicioLista(); return inicioPanel(null);
+    case 'volver': RB.t.sel = null; if (RB.desdeJuego === 'pausa' && typeof pjjVolverPausa === 'function') return pjjVolverPausa(); if (RB.desdeJuego && typeof gmbVolverAlJuego === 'function') return gmbVolverAlJuego(); inicioLista(); return inicioPanel(null);
     case 'tab': RB.t.tab = v; RB.t.etq = ''; RB.t.ficha = null; RB.t.sel = null; if (v !== 'gmod' && !['pop', 'nuevo', 'desc'].includes(RB.t.orden)) RB.t.orden = 'pop'; return inicioPanel('tienda');
     case 'vista': RB.t.vista = v; RB.t.ficha = null; return inicioPanel('tienda');
     case 'etq': RB.t.etq = v; RB.t.ficha = null; return inicioPanel('tienda');
@@ -593,7 +593,7 @@ function inicioMostrar(si) {
   if (si) requestAnimationFrame(() => { inicioEncajar(); tiEncajar(); });
   // (en la partida, con el menú abierto la HUD táctil no se ve: si no, se asoma por las partes transparentes del menú)
   document.body.classList.toggle('rbAbierto', !!si);
-  if (!si && RB.el) { RB.el.classList.remove('rb3d'); menuLobby(false); }
+  if (!si && RB.el) { RB.el.classList.remove('rb3d'); menuLobby(false); MENU.caja = null; }
 }
 // al guardar una construcción, también una foto chica para publicarla como mapa
 function fotoConstruccion() {

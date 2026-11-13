@@ -447,14 +447,17 @@ function pjmBuscar() {
     pjmDibujar();
   }).catch(() => { PJM.ws = []; pjmDibujar(); });
 }
-// la lista (instalados y del Workshop) dentro de un contenedor con su buscador; se rehace sin tocar el buscador
+// la lista (instalados y del Workshop) dentro de un contenedor con su buscador; se rehace sin tocar el buscador.
+// (GOLDEN) Tarjetas como las de Personajes: la de un modelo tuyo dice «Equipar» (o «En uso»); la del Workshop, «Instalar»
 function pjmListasHTML() {
   const q = PJM.q.toLowerCase().trim(), I = pjmInstalados().filter((p) => !q || (p.n + ' ' + p.addon).toLowerCase().includes(q));
-  const celda = (dat, n, img, sub, sel) => `<button class="pjCelda${sel ? ' sel' : ''}" data-pjm="${esc(dat)}"><i style="${img ? `background-image:url('${esc(img)}')` : ''}">${img ? '' : glifo('persona')}</i><b dir="auto">${esc(n)}</b>${sub ? `<small dir="auto">${esc(sub)}</small>` : ''}</button>`;
-  return `<div class="pjmTit">${esc(T('pjm.tuyos'))} · ${I.length}</div>
-    <div class="pjGrid pjmGrid">${I.map((p) => celda('sel:gmpm:' + p.r, p.n, p.img, p.addon, PREFS.skin === 'gmpm:' + p.r)).join('') || `<p class="pjmVacio">${esc(T('pjm.ninguno'))}</p>`}</div>
-    <div class="pjmTit">${esc(T('pjm.workshop'))}</div>
-    <div class="pjGrid pjmGrid">${PJM.ws === null ? '<p class="pjmVacio">…</p>' : PJM.ws.map((x) => celda('inst:' + x.id, x.t, x.img, PJM.bajando.has(String(x.id)) ? T('pjm.bajando') : T('pjm.instalar') + ' · ' + x.mb + ' MB', false)).join('') || `<p class="pjmVacio">${esc(T('pjm.sinRes'))}</p>`}</div>`;
+  const celda = (dat, n, img, sub, o) => (typeof pjTarjeta === 'function' ? pjTarjeta(`data-pjm="${esc(dat)}"`, n, img, Object.assign({ sub }, o))
+    : `<button class="pjCelda" data-pjm="${esc(dat)}"><b dir="auto">${esc(n)}</b></button>`);
+  const tuyos = I.map((p) => { const sel = PREFS.skin === 'gmpm:' + p.r; return celda('sel:gmpm:' + p.r, p.n, p.img, p.addon, { sel, acc: sel ? glifo('si') + esc(T('pj.enUso')) : esc(T('pj.equipar')), accCls: sel ? 'pjAccOk' : 'pjAccEq' }); }).join('');
+  const ws = PJM.ws === null ? '<p class="pjmVacio">…</p>' : PJM.ws.map((x) => { const baja = PJM.bajando.has(String(x.id));
+    return celda('inst:' + x.id, x.t, x.img, baja ? T('pjm.bajando') : x.mb + ' MB', { acc: baja ? esc(T('pjm.bajando')) + '…' : glifo('bajar') + esc(T('pjm.instalar')), accCls: baja ? 'pjAccVa' : 'pjAccSi' }); }).join('') || `<p class="pjmVacio">${esc(T('pjm.sinRes'))}</p>`;
+  return `<div class="pjGrid pjmGrid"><div class="rbSecc pjmTit">${esc(T('pjm.tuyos'))}<em>${I.length}</em></div>${tuyos || `<p class="pjmVacio">${esc(T('pjm.ninguno'))}</p>`}
+    <div class="rbSecc pjmTit">${esc(T('pjm.workshop'))}</div>${ws}</div>`;
 }
 function pjmHTML() { return `<div class="pjmCaja"><div class="pjmBarra"><input class="pjmBus" type="search" dir="auto" placeholder="${esc(T('pjm.buscar'))}" value="${esc(PJM.q)}"><label class="rbBtnGris rbChico pjmImp">${glifo('subir')} ${esc(T('pjm.importar'))}<input type="file" accept=".gma,.bin" hidden></label></div><div class="pjmListas">${pjmListasHTML()}</div></div>`; }
 // (antes de bajar un modelo, una pregunta: un toque sin querer bajaba megas)
@@ -473,19 +476,21 @@ function pjmDibujar() { for (const L of document.querySelectorAll('.pjmListas'))
 function pjmMontar(raiz) {
   const c = raiz.querySelector('.pjmCaja'); if (!c || c._pjm) return; c._pjm = 1;
   if (PJM.ws === null || performance.now() - PJM.t > 60000) { PJM.t = performance.now(); pjmBuscar(); }
-  const b = c.querySelector('.pjmBus'); let tt = 0;
-  b.addEventListener('input', () => { PJM.q = b.value; pjmDibujar(); clearTimeout(tt); tt = setTimeout(pjmBuscar, 250); });
-  b.addEventListener('keydown', (e) => e.stopPropagation());
+  // (el buscador y «Importar personaje»: adentro de la caja o, en el panel de Personajes, arriba y en el pie)
+  const b = c.querySelector('.pjmBus') || raiz.querySelector('.pjmBus'); let tt = 0;
+  if (b) { b.addEventListener('input', () => { PJM.q = b.value; pjmDibujar(); clearTimeout(tt); tt = setTimeout(pjmBuscar, 250); }); b.addEventListener('keydown', (e) => e.stopPropagation()); }
   c.addEventListener('click', (e) => { const x = e.target.closest('[data-pjm]'); if (!x) return; e.stopPropagation(); const [k, ...r] = x.dataset.pjm.split(':'), v = r.join(':'); if (k === 'sel') pjElegirSkin(v); else if (k === 'inst') pjmConfirmar(v); });
-  const fi = c.querySelector('.pjmImp input'); if (fi) fi.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) pjmImportar(f); e.target.value = ''; });
+  const fi = c.querySelector('.pjmImp input') || raiz.querySelector('.pjmImp input'); if (fi) fi.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) pjmImportar(f); e.target.value = ''; });
 }
 // cambiar de personaje (del juego o de un mod): jugando, al momento; en el menú, en el de la vista
 function pjElegirSkin(s) {
   if (typeof censPermite === 'function' && !censPermite(s)) return;
   PREFS.skin = s; guardarPrefs();
-  if (typeof JUEGO !== 'undefined' && JUEGO.estado === 'juego') { jugadorCuerpoNuevo(); aviso(T('pjm.listo') + ' ' + (gmpEs(s) ? s.replace(/^.*\//, '').replace(/\.mdl$/, '') : skinNom(s)), 2); }
-  else if (typeof menuLobby === 'function') menuLobby(true, true);
-  pjmDibujar(); if (typeof pjjDibujar === 'function') pjjDibujar();
+  const rb = typeof rbVisible === 'function' && rbVisible() && typeof RB !== 'undefined' && RB.panel === 'personajes';
+  if (typeof JUEGO !== 'undefined' && JUEGO.estado === 'juego') { jugadorCuerpoNuevo(); if (!rb) aviso(T('pjm.listo') + ' ' + (gmpEs(s) ? s.replace(/^.*\//, '').replace(/\.mdl$/, '') : skinNom(s)), 2); }
+  // (el del escenario de Personajes también: en el inicio y jugando, desde la pausa)
+  if (typeof menuLobby === 'function' && (rb || JUEGO.estado !== 'juego')) menuLobby(true, true);
+  pjmDibujar(); if (typeof pjjDibujar === 'function') pjjDibujar(); if (typeof pjEscenaTexto === 'function') pjEscenaTexto();
   for (const c of document.querySelectorAll('[data-rb^="pjSel:"]')) c.classList.toggle('sel', c.dataset.rb === 'pjSel:' + s);
 }
 async function pjmInstalar(id) {
@@ -500,8 +505,21 @@ async function pjmInstalar(id) {
   } catch (e) { if (!(e && e.cancelado)) aviso(String((e && e.message) || e).slice(0, 90), 3); }
   PJM.bajando.delete(id); pjmDibujar();
 }
-// ---- en la pausa: Personaje (los del juego y los de mods) ----
+// ---- en la pausa: Personaje (los del juego, los de mods y los gorros) ----
+// (GOLDEN) es el mismo panel de Personajes del inicio, con el escenario 3D, arriba de la partida; «Volver a la pausa» vuelve
+// a la pausa. El panel viejo (pjjAbrirViejo) queda por si el inicio no está
 function pjjAbrir() {
+  if (typeof inicioMostrar !== 'function' || typeof RB === 'undefined') return pjjAbrirViejo();
+  if (typeof cerrarPaneles === 'function') cerrarPaneles();
+  if (typeof RBM !== 'undefined' && RBM.pjTab !== 'hat') RBM.pjTab = gmpEs(PREFS.skin) ? 'mod' : 'skin';
+  RB.desdeJuego = 'pausa'; inicioMostrar(true); inicioPanel('personajes'); UI.abierto = 'personaje';
+}
+// (volver de Personajes a la pausa)
+function pjjVolverPausa() {
+  RB.desdeJuego = false; inicioMostrar(false); if (typeof menuMostrar === 'function') menuMostrar(false);
+  const h = $('hud'); if (h) h.classList.remove('oc'); UI.abierto = null; abrirPausa();
+}
+function pjjAbrirViejo() {
   let P = $('pjJuego');
   if (!P) { P = document.createElement('div'); P.id = 'pjJuego'; P.className = 'panel oc'; document.body.appendChild(P); P.addEventListener('click', (e) => { if (e.target === P) pjjCerrar(); }); }
   PJM.tabJ = PJM.tabJ || (gmpEs(PREFS.skin) ? 'mod' : 'skin');

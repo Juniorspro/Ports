@@ -1,6 +1,8 @@
 // Los botones del celular ordenados (pedido: «los botones quiero que los reordenes, está todo junto» y «una IA con mi key
 // de Gemini que reordene esto automáticamente»). En un celular emulado, con el Viewfinder (6 teclas fijadas):
-//  1. arriba a la izquierda, tres filas separadas: sistema (pausa primera), crear (props, MOD, GMod) y las teclas del mod,
+//  (desde «Mejores botones», de GOLDEN: en la disposición nueva —«Mejores botones», hud.js— los grupos son columnas: la del sistema en la esquina, la de
+//  crear al lado y las teclas; «fila» acá es cada grupo, en el orden de arriba abajo y de izquierda a derecha)
+//  1. arriba a la izquierda, tres grupos separados: sistema (pausa primera), crear (props, MOD, GMod) y las teclas del mod,
 //     éstas con ícono, nombre y una placa que las agrupa; sin dos teclas que hagan lo mismo;
 //  2. en tres pantallas (teléfono 873×393, teléfono chico 640×360, tablet 1180×820): ningún botón (ni su nombre) se pisa
 //     con otro, todos adentro de la pantalla, y los de las filas, parejos y sin huecos;
@@ -33,9 +35,10 @@ const medir = () => ev(`(() => {
   const W = innerWidth, H = innerHeight, pisa = [], fuera = [];
   for (let i = 0; i < L.length; i++) { const a = L[i]; if (a.x0 < -1 || a.y0 < -1 || a.x1 > W + 1 || a.y1 > H + 1) fuera.push(a.sel);
     for (let j = i + 1; j < L.length; j++) { const c = L[j]; if (a.de === c.sel || c.de === a.sel || (a.de && a.de === c.de)) continue; const ix = Math.min(a.x1, c.x1) - Math.max(a.x0, c.x0), iy = Math.min(a.y1, c.y1) - Math.max(a.y0, c.y0); if (ix > 2 && iy > 2) pisa.push(a.sel + ' × ' + c.sel); } }
-  const fila = (q) => [...document.querySelectorAll(q.join(','))].filter(vis).map((e) => { const r = e.getBoundingClientRect(); return { id: e.id || e.dataset.btn || e.className.split(' ')[0], x: +(r.left + r.width / 2).toFixed(1), y: +(r.top + r.height / 2).toFixed(1) }; }).sort((a, b) => a.x - b.x);
+  const fila = (q) => [...document.querySelectorAll(q.join(','))].filter(vis).map((e) => { const r = e.getBoundingClientRect(); return { id: e.id || e.dataset.btn || e.className.split(' ')[0], x: +(r.left + r.width / 2).toFixed(1), y: +(r.top + r.height / 2).toFixed(1) }; }).sort((a, b) => (Math.abs(a.x - b.x) > 1.5 ? a.x - b.x : a.y - b.y));
   const filas = { sis: fila(HUD_ZONAS.sis.l), crear: fila(HUD_ZONAS.crear.l), hab: fila(HUD_ZONAS.hab.l) };
-  const parejo = (F) => F.length < 2 || (F.every((f) => Math.abs(f.y - F[0].y) < 1.5) && F.slice(1).every((f, i) => Math.abs((f.x - F[i].x) - (F[1].x - F[0].x)) < 1.5));
+  const parejo = (F) => { if (F.length < 2) return true; const xs = [...new Set(F.map((f) => Math.round(f.x)))].sort((a, b) => a - b), ys = [...new Set(F.map((f) => Math.round(f.y)))].sort((a, b) => a - b);
+    const paso = (L) => L.length < 3 || L.slice(1).every((v, i) => Math.abs((v - L[i]) - (L[1] - L[0])) < 2); return paso(xs) && paso(ys) && F.every((f) => xs.some((x) => Math.abs(x - f.x) < 1.5) && ys.some((y) => Math.abs(y - f.y) < 1.5)); };
   const pl = document.getElementById('hudHab'), pr = pl && pl.style.display !== 'none' ? pl.getBoundingClientRect() : null;
   const habR = [...document.querySelectorAll(HUD_ZONAS.hab.l.join(','))].filter(vis).map((e) => e.getBoundingClientRect());
   const placa = !!pr && habR.every((r) => r.left >= pr.left - 1 && r.right <= pr.right + 1 && r.top >= pr.top - 1 && r.bottom <= pr.bottom + 1);

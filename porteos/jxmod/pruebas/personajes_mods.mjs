@@ -26,19 +26,20 @@ ok('el buscador filtra (patriot → los 2 de patriot) y tocar lo pone', m.fil.le
 // jugando: pausa → Personaje
 await ev(`inicioMostrar(false); empezarPartida('FlatGrass'); 1`);
 await p.waitForTimeout(1500); await p.waitForFunction(() => window.__ev(`JUG.suelo`), null, { timeout: 60000 });
-const j = await ev(`(async () => { const esp = (s) => new Promise((r) => setTimeout(r, s * 1000)); JUG.tercera = true; PJM.q = ''; abrirPausa(); document.getElementById('bPersonaje').click(); await esp(0.5);
-  const vis = !document.getElementById('pjJuego').classList.contains('oc'), boton = document.getElementById('bPersonaje').textContent;
-  document.querySelector('#pjJuego [data-pjj="mod"]').click(); await esp(1.5);
-  const c = [...document.querySelectorAll('#pjJuego [data-pjm^="sel:"]')].find((x) => /mark7/.test(x.dataset.pjm)); if (c) c.click(); await esp(2.5);
+// (con el panel nuevo de GOLDEN: Personaje en la pausa abre el mismo panel de Personajes del inicio, con el escenario 3D; «Volver a la pausa»)
+const j = await ev(`(async () => { const esp = (s) => new Promise((r) => setTimeout(r, s * 1000)); JUG.tercera = true; PJM.q = ''; abrirPausa(); document.getElementById('bPersonaje').click(); await esp(0.8);
+  const vis = rbVisible() && RB.panel === 'personajes', boton = document.getElementById('bPersonaje').textContent;
+  RB.el.querySelector('[data-rb="pjTab:mod"]').click(); await esp(1.5);
+  const c = [...RB.el.querySelectorAll('[data-pjm^="sel:"]')].find((x) => /mark7/.test(x.dataset.pjm)); if (c) c.click(); await esp(2.5);
   const r1 = JUG.cuerpo && JUG.cuerpo.gmpRuta || '';
-  document.querySelector('#pjJuego [data-pjj="skin"]').click(); await esp(0.4); const s0 = DATA.chars.find((s) => s !== 'Hero') || DATA.chars[0]; const b2 = document.querySelector('#pjJuego [data-pjs="' + s0 + '"]'); if (b2) b2.click(); await esp(1.5);
-  const r2 = JUG.cuerpo && JUG.cuerpo.skin; document.querySelector('#pjJuego [data-pjj="x"]').click(); await esp(0.3);
-  return { vis, boton, r1, s0, r2, cerrado: document.getElementById('pjJuego').classList.contains('oc'), pausa: !document.getElementById('pausa').classList.contains('oc') }; })()`);
+  RB.el.querySelector('[data-rb="pjTab:skin"]').click(); await esp(0.4); const s0 = DATA.chars.find((s) => s !== 'Hero') || DATA.chars[0]; const b2 = RB.el.querySelector('[data-rb="pjSel:' + s0 + '"]'); if (b2) b2.click(); await esp(1.5);
+  const r2 = JUG.cuerpo && JUG.cuerpo.skin; RB.el.querySelector('[data-rb=volver]').click(); await esp(0.3);
+  return { vis, boton, r1, s0, r2, cerrado: !rbVisible(), pausa: !document.getElementById('pausa').classList.contains('oc') }; })()`);
 await p.screenshot({ path: D + 'pj_pausa.png' });
 ok('la pausa tiene Personaje y abre el panel', j.vis && !!j.boton, j);
 ok('jugando, elegir un modelo de mod lo pone al momento (mark7)', /mark7/.test(j.r1), j.r1);
 ok('y uno del juego también', j.r2 === j.s0, { r2: j.r2, s0: j.s0 });
-ok('la X vuelve a la pausa', j.cerrado && j.pausa, j);
+ok('«Volver a la pausa» vuelve a la pausa', j.cerrado && j.pausa, j);
 // (el broker público de la red a veces no contesta desde la máquina de pruebas: no es un error del juego)
 const e = err.filter((x) => !/GPU stall|swiftshader|ERR_|404|Failed to load|WebSocket connection to 'wss:/i.test(x));
 ok('sin errores de JS', !e.length, e.slice(0, 4));

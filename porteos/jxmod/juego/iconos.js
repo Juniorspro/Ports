@@ -55,6 +55,7 @@ const GLIFOS = {
   basura: '<path d="M4 7h16M9.5 7V4.5h5V7M6 7l1 13h10l1-13M10 11v5.5M14 11v5.5"/>',
   dado: '<rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/>',
   persona: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
+  gorro: '<path d="M2.5 17.2c3 2.2 16 2.2 19 0"/><path d="M6.2 17V10.8C6.2 7.2 8.8 5 12 5s5.8 2.2 5.8 5.8V17"/><path d="M6.3 13.6c3.6 1.1 7.8 1.1 11.4 0"/>',
   corazon: '<path d="M12 20s-7.8-4.7-7.8-10.3A4.4 4.4 0 0 1 12 7.2a4.4 4.4 0 0 1 7.8 2.5C19.8 15.3 12 20 12 20z"/>',
   rayo: '<path d="M13.5 2.5 5 13.5h6l-1.5 8 9-11.5h-6z"/>',
   salto: '<path d="m6 12.5 6-6 6 6M6 19l6-6 6 6"/>',

@@ -5,22 +5,25 @@
 // borrar abajo, el arma arriba a la derecha con la cámara y los emotes al lado; con la pistola de física aparecen girar,
 // congelar, acercar y alejar; en un auto, pedales (acelerar y frenar), doblar, freno de mano y bajarse. En la compu
 // quedan arriba en fila (pausa, props, chat) como en su versión de PC. Los íconos son dibujos propios (SVG).
+// (Discord, «Mejores botones» de GOLDEN) la mira del disparo va en amarillo, congelar en celeste, y la linterna (parecía
+// un parlante), la cámara libre (una cámara con las cuatro flechas) y la patada (una bota) están redibujadas. Dónde va
+// cada botón en la disposición nueva: HUD_V2, más abajo; HUD_TACTIL queda como la de antes.
 const HUD_SVG = {
-  linterna: '<path d="M4 9.2h7.5l3.6-2.7h1.4v11h-1.4l-3.6-2.7H4z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M18.6 8.4l2.4-1.4M18.6 12h2.8M18.6 15.6l2.4 1.4" stroke="#fff" stroke-width="2" stroke-linecap="round"/>',
+  linterna: '<g transform="rotate(-40 12 12)"><rect x="2" y="9.7" width="9.6" height="4.6" rx="1.3" fill="none" stroke="#fff" stroke-width="1.9"/><path d="M11.6 9.5l2.9-2.1h1.4v9.2h-1.4l-2.9-2.1z" fill="#fff"/><circle cx="6.8" cy="12" r="1" fill="#fff"/></g><path d="M17.8 8.9l3.3-.6M17.2 7.6l2.6-2.2M16.1 6.9l1.2-3" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>',
   pausa: '<rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="#fff"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="#fff"/>',
   props: '<path d="M12 2.8l8 4.2v9.8l-8 4.4-8-4.4V7z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M4.3 7.2L12 11.4l7.7-4.2M12 11.4v9.4" fill="none" stroke="#fff" stroke-width="1.6" opacity=".8"/>',
   chat: '<path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 20 17h-8.5L7 20.5V17H4a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 4 5.5z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="11.3" r="1.3" fill="#fff"/><circle cx="12" cy="11.3" r="1.3" fill="#fff"/><circle cx="16" cy="11.3" r="1.3" fill="#fff"/>',
   emote: '<circle cx="12" cy="4.6" r="2.3" fill="#fff"/><path d="M12 7.6v6.6M12 9.4l-5-3.4M12 9.4l4.6 1.4 2.8-4M12 14.2l-3.6 6.4M12 14.2l3.2 6.6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
-  camlibre: '<path d="M12 3l2.2 4.5L19 8l-3.5 3.4.8 4.8L12 14l-4.3 2.2.8-4.8L5 8l4.8-.5z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 20h16" stroke="#fff" stroke-width="2" stroke-linecap="round"/>',
+  camlibre: '<rect x="7.6" y="8.9" width="8.8" height="6.2" rx="1.4" fill="none" stroke="#fff" stroke-width="1.8"/><circle cx="12" cy="12" r="1.6" fill="#fff"/><path d="M12 2.5v3.6M12 17.9v3.6M2.5 12h3.6M17.9 12h3.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M10.2 4.3L12 2.5l1.8 1.8M10.2 19.7l1.8 1.8 1.8-1.8M4.3 10.2L2.5 12l1.8 1.8M19.7 10.2l1.8 1.8-1.8 1.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   camara: '<path d="M3.5 8.5h3l1.6-2.5h7.8l1.6 2.5h3v10h-17z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13.3" r="3.2" fill="none" stroke="#fff" stroke-width="2"/>',
-  disparo: '<circle cx="12" cy="12" r="7.5" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 1.8v5M12 17.2v5M1.8 12h5M17.2 12h5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.8" fill="#fff"/>',
-  patada: '<path d="M8 3.5l1.2 7.5-3.6 7.2a1.6 1.6 0 0 0 1.5 2.3h3.6l1.1-2.3h-2.3l2.4-4.6 6.6-2.2a1.6 1.6 0 0 0-.9-3l-5.7 1.5-1-6.4z" fill="#fff"/><path d="M18.5 15.5l2.5 1M18 18.5l2.6.2" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>',
+  disparo: '<circle cx="12" cy="12" r="7" fill="none" stroke="#f2b31b" stroke-width="2.1"/><path d="M12 1.8v5.2M12 17v5.2M1.8 12H7M17 12h5.2" stroke="#f2b31b" stroke-width="2.3" stroke-linecap="round"/><circle cx="12" cy="12" r="1.7" fill="#f2b31b"/>',
+  patada: '<path d="M8.6 3.2h4.8v8.3l5.7 2.1a2.6 2.6 0 0 1 1.7 2.4v2.4H8.6z" fill="#fff"/><path d="M8.2 20.3h12.4" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M2.6 9.4h3.6M2 13.2h4.2M2.8 17h3.4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity=".75"/>',
   salto: '<path d="M12 3.5l6.5 7h-4v6h-5v-6h-4z" fill="#fff"/><path d="M5 20.5h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>',
   agachar: '<path d="M12 16.5l6.5-7h-4v-6h-5v6h-4z" fill="#fff"/><path d="M5 20.5h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>',
   recargar: '<path d="M19 12a7 7 0 1 1-2.1-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M19.5 3.5v5h-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   usar: '<path d="M9.5 12V5a1.6 1.6 0 0 1 3.2 0v5.2l5.6 1.2c1 .2 1.7 1.2 1.5 2.2l-1 5.3a2 2 0 0 1-2 1.6h-5.4a2 2 0 0 1-1.6-.8L5 15.6a1.5 1.5 0 0 1 2.2-2z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>',
   borrar: '<path d="M4.5 6.5h15M9.5 6.5V4h5v2.5M6.5 6.5l1 13.5h9l1-13.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 10v6.5M14 10v6.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>',
-  congelar: '<g stroke="#fff" stroke-width="2" stroke-linecap="round" fill="none"><path d="M12 2.5v19M3.8 7.2l16.4 9.6M3.8 16.8l16.4-9.6"/><path d="M9.5 3.8L12 6l2.5-2.2M9.5 20.2L12 18l2.5 2.2M3.7 10.4l3-.9-.6-3.2M20.3 13.6l-3 .9.6 3.2M3.7 13.6l3 .9-.6 3.2M20.3 10.4l-3-.9.6-3.2"/></g>',
+  congelar: '<g stroke="#9fe3ff" stroke-width="2" stroke-linecap="round" fill="none"><path d="M12 2.5v19M3.8 7.2l16.4 9.6M3.8 16.8l16.4-9.6"/><path d="M9.5 3.8L12 6l2.5-2.2M9.5 20.2L12 18l2.5 2.2M3.7 10.4l3-.9-.6-3.2M20.3 13.6l-3 .9.6 3.2M3.7 13.6l3 .9-.6 3.2M20.3 10.4l-3-.9.6-3.2"/></g>',
   rotar: '<path d="M5 12a7 7 0 0 1 12-5l1.5 1.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M19 4v5h-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 12a7 7 0 0 1-12 5l-1.5-1.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" opacity=".6"/>',
   mas: '<path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>',
   menos: '<path d="M5 12h14" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>',
@@ -88,6 +91,76 @@ function hudSegura() {
   const c = getComputedStyle(e), n = (x) => Math.min(80, parseFloat(x) || 0);
   return { l: n(c.paddingLeft), r: n(c.paddingRight), t: n(c.paddingTop), b: n(c.paddingBottom) };
 }
+// ---------------- (Discord) la disposición nueva por defecto: «Mejores botones», el concepto de GOLDEN, mejorado ----------------
+// Como en el concepto: arriba a la izquierda los botones en columnas (la primera, la del sistema: pausa, chat, celular,
+// micrófono, voces; la segunda, la de crear: props, MOD, GMod, spawn, Verity; después, con su placa y su nombre, las teclas
+// de los mods fijadas), arriba a la derecha el arma en la esquina con la cámara y los emotes al lado, abajo la linterna,
+// la cámara libre (con L y R debajo) y borrar; abajo a la derecha el disparo grande con la mira amarilla, al lado el
+// secundario, saltar en la esquina, agacharse y la patada a su izquierda, recargar arriba a la izquierda del disparo y, en
+// arco arriba, lo de la pistola de física (+ y −) o las teclas del arma de un mod. Mejor que la foto:
+//  · cada grupo se escala entero —los botones y la distancia entre ellos con la misma escala—, así nunca se pisan, en
+//    ninguna pantalla ni con ningún tamaño de los controles (antes, al agrandarlos al 120 % el disparo pisaba al secundario);
+//  · la escala de cada grupo no baja de la que deja cada botón en su mínimo para el dedo (con los controles al 80 %: 64 px
+//    el disparo, 54 saltar, 48 agacharse y el secundario, 44 recargar y los de arriba a la izquierda, 38-42 los demás y
+//    34 L y R), y todos se tocan en un área de al menos 44 px (--hit) aunque se vean más chicos;
+//  · si en un celular bajo la columna de la derecha no entra entera, los dos grupos de la derecha se achican lo justo;
+//  · las columnas de arriba a la izquierda tienen 3 filas si entran arriba de la zona de la palanca (el 45 % del alto) y 2
+//    si no (con los controles muy grandes en un celular chico); si con todo a la vista —micrófono, voces, SM, 6 teclas de
+//    mods— no entran a lo ancho antes de los de arriba a la derecha, se achican lo justo.
+// Unidades: las de la referencia de 1280×720 (como HUD_TACTIL); cada grupo las pasa a px con su escala.
+const HUD_V2 = {
+  zona: { S: 96, mn: 44, Sh: 88, mnh: 40, m: 20, g: 18, gg: 10, lab: 37 },
+  // arriba a la derecha: [x desde el borde derecho (negativo), y desde arriba, tamaño, mínimo en px]
+  ad: { '#armaAct': [-66, 66, 100, 48], '[data-btn=camara]': [-176, 66, 84, 40], '[data-btn=emotes]': [-278, 66, 84, 40],
+    '#bborrar': [-66, 180, 88, 42], '#bbajar': [-66, 180, 88, 42], '[data-btn=camLibre]': [-176, 180, 84, 40], '#blinterna': [-278, 180, 84, 40],
+    '[data-btn=camLibL]': [-226, 266, 70, 34], '[data-btn=camLibR]': [-126, 266, 70, 34] },
+  // abajo a la derecha: [x desde el borde derecho (negativo), y desde abajo, tamaño, mínimo en px]
+  ab: { '#bsaltar': [-90, 90, 136, 54], '#bagachar': [-228, 74, 104, 48], '#bdisparo': [-235, 262, 176, 64], '#bdisp2': [-74, 300, 104, 48],
+    '#bpatada': [-344, 100, 92, 42], '#brecargar': [-410, 282, 96, 44], '#brotar': [-410, 282, 96, 44], '#bvolver': [-452, 170, 86, 38],
+    '#blejos': [-170, 402, 84, 38], '#bcerca': [-302, 404, 84, 38], '#bmod0': [-170, 404, 90, 40], '#bmod1': [-300, 404, 90, 40], '#bmod2': [-450, 400, 90, 40], '#bmod3': [-540, 290, 90, 40] },
+};
+// qué disposición usa el jugador: la 2 (la nueva) salvo que haya guardado botones movidos o agrandados antes de que existiera ésta
+// (PREFS.hudPos sin «_v: 2» y con posiciones propias): esos quedan exactamente como estaban, con los de fábrica de antes
+// alrededor (la 1). «Volver a los de fábrica» y «Probar la nueva» (Ajustes → Controles) pasan a la 2
+function hudVer(pos) {
+  const o = pos === undefined ? PREFS.hudPos : pos; if (!o || typeof o !== 'object') return 2; if (o._v === 2) return 2;
+  for (const k in o) if (k !== '_orden' && k !== '_v' && Array.isArray(o[k])) return 1;
+  return 2;
+}
+// los lugares de la disposición nueva, en px: { sel: [cx, cy, tamaño] } (ver(sel): si se ve; orden: el de «Ordenar»)
+function hudV2Pos(W, H, k, f, sa, ver, orden) {
+  const out = {}, fz = f / 0.8, Z = HUD_V2.zona;
+  // ---- la columna de la derecha: arriba y abajo, cada uno con su escala; si no entran los dos, se achican lo justo ----
+  const esc = (T) => { let q = k; for (const sel in T) q = Math.max(q, T[sel][3] * fz / T[sel][2]); return q; };
+  const tope = (T) => Math.max(...Object.values(T).map((v) => v[1] + v[2] / 2));
+  let kd = esc(HUD_V2.ad), kab = esc(HUD_V2.ab);
+  const q = Math.min(1, (H - sa.t - sa.b - 6) / (tope(HUD_V2.ad) * kd + tope(HUD_V2.ab) * kab)); kd *= q; kab *= q;
+  for (const sel in HUD_V2.ad) { const [dx, dy, S] = HUD_V2.ad[sel]; out[sel] = [W - sa.r + dx * kd, sa.t + dy * kd, S * kd]; }
+  for (const sel in HUD_V2.ab) { const [dx, dy, S] = HUD_V2.ab[sel]; out[sel] = [W - sa.r + dx * kab, H - sa.b - dy * kab, S * kab]; }
+  // ---- arriba a la izquierda: columnas por grupo (en unidades; después se pasan a px con la escala ka) ----
+  const L = typeof hudZonasListas === 'function' ? hudZonasListas(orden) : { sis: [], crear: [], hab: [] };
+  const armar = (R) => { const o = {}; let x = Z.m, der = 0;
+    for (const z of ['sis', 'crear', 'hab']) {
+      // (los que no se ven también tienen lugar, después de los que se ven: cuando aparece uno —el micrófono al entrar a una
+      // sala, la primera tecla fijada— ya está donde va, sin esperar a que se vuelvan a ubicar todos)
+      const vis = (L[z] || []).filter(ver), resto = (L[z] || []).filter((q) => !ver(q));
+      const h = z === 'hab', S = h ? Z.Sh : Z.S, Rz = h ? 2 : R, py = S + Z.g + (h ? Z.lab : 0), x0 = x + (h ? 6 : 0);
+      [...vis, ...resto].forEach((sel, i) => { const c = Math.floor(i / Rz), r = i % Rz, cx = x0 + c * (S + Z.g) + S / 2; o[sel] = [cx, Z.m + r * py + S / 2, S]; if (i < vis.length) der = Math.max(der, cx + S / 2); });
+      if (vis.length) x = x0 + Math.ceil(vis.length / Rz) * (S + Z.g) + Z.gg;
+    }
+    return { o, der };
+  };
+  // (la escala: la que piden el tamaño elegido y los mínimos para el dedo, sin bajar a la zona de la palanca —el 45 % del
+  // alto— ni llegar a los de arriba a la derecha; con 3 filas o con 2, la que deje los botones más grandes)
+  const ka0 = Math.max(k, Z.mn * fz / Z.S, Z.mnh * fz / Z.Sh), libre = H * 0.45 - sa.t - 4, ancho = W - sa.r - 320 * kd - 10 - sa.l;
+  // (las teclas de los mods van en 2 filas con su nombre abajo: con 2 filas en el resto, ellas pueden ser lo más alto)
+  const hayHab = (L.hab || []).some(ver), alto = (R) => Math.max(Z.m + R * Z.S + (R - 1) * Z.g, hayHab ? Z.m + 2 * Z.Sh + Z.g + 2 * Z.lab : 0);
+  let mejor = null;
+  for (const R of [3, 2]) { const A = armar(R), ka = Math.min(ka0, libre / alto(R), A.der > 0 ? ancho / A.der : ka0); if (!mejor || ka > mejor.ka * 1.001) mejor = { R, ka, A }; }
+  const ka = mejor.ka;
+  for (const sel in mejor.A.o) { const [cx, cy, S] = mejor.A.o[sel]; out[sel] = [sa.l + cx * ka, sa.t + cy * ka, S * ka]; }
+  return { pos: out, ka, kd, kab, R: mejor.R, q };
+}
 // la ubicación de cada botón (en el celular), escalada como el CanvasScaler del juego y por el tamaño elegido
 // (--hk: la misma escala para lo que no se ubica acá, como la barra de armas; 1 = un teléfono de 800×360 al 100 %)
 function hudDisponer() {
@@ -97,29 +170,52 @@ function hudDisponer() {
   if (pal && bola) { const b = Math.round(HUD.pal * 0.42); pal.style.width = pal.style.height = HUD.pal + 'px'; Object.assign(bola.style, { width: b + 'px', height: b + 'px', left: (HUD.pal - b) / 2 - 2 + 'px', top: (HUD.pal - b) / 2 - 2 + 'px' }); }
   const tactil = document.body.classList.contains('tactil'); HUD.tac = tactil;
   HUD.n = hudFirma();
-  const pos = typeof ctlPosiciones === 'function' ? ctlPosiciones() : {};
+  const pos = typeof ctlPosiciones === 'function' ? ctlPosiciones() : {}, v2 = hudVer(pos) === 2; HUD.ver = v2 ? 2 : 1;
+  document.body.classList.toggle('hudV2', v2);
   // (el rectángulo de los botones de arriba a la izquierda: lo que el Lua de un modo de juego escriba ahí se corre abajo)
   const ri = { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 }, sumar = (a, b, c, d) => { ri.x0 = Math.min(ri.x0, a); ri.y0 = Math.min(ri.y0, b); ri.x1 = Math.max(ri.x1, c); ri.y1 = Math.max(ri.y1, d); };
   if (!tactil) { const ai = $('arribaIz'); if (ai) { const r = ai.getBoundingClientRect(); if (r.width > 0) sumar(r.left, r.top, r.right, r.bottom + 12); } }
   // (las filas de arriba a la izquierda —sistema, crear, teclas de los mods—: los que se ven, en fila y sin huecos; en el
   // editor se ven todos)
-  const edit = typeof CTL !== 'undefined' && CTL.edit, zp = typeof hudZonasPos === 'function' ? hudZonasPos((q) => { const e = document.querySelector(q); return !!e && (edit || (e.style.display !== 'none' && !e.classList.contains('oc'))); }, pos._orden) : {};
+  const edit = typeof CTL !== 'undefined' && CTL.edit, seVe = (q) => { const e = document.querySelector(q); return !!e && (edit || (e.style.display !== 'none' && !e.classList.contains('oc'))); };
+  const propioDe = (sel) => { const o = pos[sel]; return !!(o && o.length === 3 && o.every(Number.isFinite)); };
+  const zp = !v2 && typeof hudZonasPos === 'function' ? hudZonasPos(seVe, pos._orden) : {};
   const hab = [], sa = typeof PANT !== 'undefined' && PANT.rot ? { l: 0, r: 0, t: 0, b: 0 } : hudSegura(); HUD.sa = sa;
+  // (la nueva: los que el jugador movió no ocupan lugar en las columnas, que siguen sin huecos)
+  const V2 = v2 ? hudV2Pos(W, H, k, f, sa, (q) => seVe(q) && !propioDe(q), pos._orden) : null; HUD.v2 = V2;
   // (en un celular apaisado y bajo —800×360, 915×412— las tres filas se juntan un poco para que la última, la de las teclas
   // de los mods, no baje a la zona de la palanca, que empieza al 45 % del alto; nunca a menos de 6 px entre fila y fila)
   const tB = Math.max(76 * k, 32 * f / 0.8), vf = typeof HUD_ZONAS === 'undefined' ? 1 : Math.min(1, Math.max((tB + 6) / (HUD_ZPASO * kb), (H * 0.45 - 6 - tB / 2 - sa.t) / (-HUD_ZONAS.hab.y * kb)));
+  HUD.ef = {};
   for (const [sel, ax, ay, x0, y0, s0, mn] of HUD_TACTIL) {
     const e = document.querySelector(sel); if (!e) continue;
-    const o = pos[sel], propio = !!(o && o.length === 3 && o.every(Number.isFinite)), z = !propio && zp[sel], [x, y, s] = propio ? o : z ? [z[0], z[1] * vf, s0] : [x0, y0, s0];   // (los que movió el jugador en Controles)
+    const o = pos[sel], propio = propioDe(sel), z = !propio && zp[sel], [x, y, s] = propio ? o : z ? [z[0], z[1] * vf, s0] : [x0, y0, s0];   // (los que movió el jugador en Controles)
     if (!tactil && !e.classList.contains('bt-t')) { e.style.left = e.style.top = e.style.width = e.style.height = ''; continue; }
     // (más chicos en el mismo lugar: el centro de cada botón no se mueve, así no se pegan a los bordes; en un celular chico
     // no bajan del mínimo, que sigue al tamaño elegido en Ajustes)
-    const t = propio ? s * k : Math.max(s * k, (mn || 0) * f / 0.8), cx = ax * W + x * kb + (ax === 0 ? sa.l : ax === 1 ? -sa.r : 0), cy = H - (ay * H + y * kb) + (ay === 1 ? sa.t : ay === 0 ? -sa.b : 0);
+    const sx = ax === 0 ? sa.l : ax === 1 ? -sa.r : 0, sy = ay === 1 ? sa.t : ay === 0 ? -sa.b : 0, n2 = !propio && V2 && V2.pos[sel];
+    let t = propio ? s * k : Math.max(s * k, (mn || 0) * f / 0.8), cx = ax * W + x * kb + sx, cy = H - (ay * H + y * kb) + sy;
+    if (n2) [cx, cy, t] = n2;
+    // (dónde quedó, en las unidades del editor: al arrastrarlo arranca de ahí y no salta)
+    HUD.ef[sel] = [Math.round((cx - ax * W - sx) / kb * 10) / 10, Math.round((H - ay * H + sy - cy) / kb * 10) / 10, Math.round(t / k * 10) / 10];
     Object.assign(e.style, { left: (cx - t / 2).toFixed(1) + 'px', top: (cy - t / 2).toFixed(1) + 'px', width: t.toFixed(1) + 'px', height: t.toFixed(1) + 'px', right: 'auto', bottom: 'auto' });
     if (tactil && /^#bgmb/.test(sel) && (edit || !e.classList.contains('oc'))) hab.push([cx, cy, t]);
     if (tactil && ax === 0 && ay === 1 && cy < H * 0.45) sumar(cx - t / 2, cy - t / 2, cx + t / 2, cy + t / 2 + 14);   // (en la compu los táctiles no se ven: no ocupan lugar)
   }
   HUD.resIz = ri.x1 > ri.x0 ? ri : null;
+  // (el área para el dedo de cada botón: hasta 44 px aunque se vea más chico, pero sin meterse en la de otro que se ve —a lo
+  // sumo hasta la mitad del hueco entre los dos—: con los controles al 60 % los botones quedan cerca y el dedo no tiene que
+  // caer en el de al lado)
+  { const L = []; for (const [sel] of HUD_TACTIL) { const e = document.querySelector(sel); if (!e || !e.style.width) continue; const t = parseFloat(e.style.width);
+      L.push({ e, t, cx: parseFloat(e.style.left) + t / 2, cy: parseFloat(e.style.top) + t / 2, ve: edit ? e.classList.contains('ctlVer') : e.style.display !== 'none' && !e.closest('.oc') }); }
+    for (const a of L) { let h = Math.max(0, (44 - a.t) / 2); if (h > 0) for (const c of L) if (c !== a && c.ve) h = Math.min(h, Math.max(0, (Math.hypot(a.cx - c.cx, a.cy - c.cy) - a.t / 2 - c.t / 2) / 2));
+      a.e.style.setProperty('--hit', h.toFixed(1) + 'px'); } }
+  // (la nueva: las balas, dentro del recuadro del arma, abajo, en vez de su nombre)
+  const mu = $('muni'), aa = $('armaAct');
+  if (mu) {
+    if (v2 && tactil && aa && aa.style.left) { const l = parseFloat(aa.style.left), tp = parseFloat(aa.style.top), w = parseFloat(aa.style.width), h = parseFloat(aa.style.height); Object.assign(mu.style, { left: (l + w / 2).toFixed(1) + 'px', top: (tp + h - 3).toFixed(1) + 'px', right: 'auto' }); }
+    else mu.style.left = mu.style.top = mu.style.right = '';
+  }
   if (typeof vozHudUbicar === 'function') vozHudUbicar();   // (el panel de quién habla, en el hueco que queda: voz.js)
   // (la placa detrás de las teclas de los mods: se ven como un grupo aparte del sistema; con su nombre abajo)
   let pl = $('hudHab'); if (!pl && hab.length) { pl = document.createElement('div'); pl.id = 'hudHab'; const tc = $('tactil'); if (tc) tc.insertBefore(pl, tc.firstChild); }
@@ -130,7 +226,7 @@ function hudDisponer() {
 // o el tamaño de la pantalla, se vuelven a ubicar; si no, quedaban todos amontonados en la esquina)
 function hudPaso() {
   const tactil = document.body.classList.contains('tactil');
-  if (tactil !== HUD.tac || HUD.w !== VW() || HUD.h !== VH() || HUD.f !== hudTam() || (++HUD.c % 10 === 0 && hudFirma() !== HUD.n)) hudDisponer();
+  if (tactil !== HUD.tac || HUD.w !== VW() || HUD.h !== VH() || HUD.f !== hudTam() || (++HUD.c % 3 === 0 && hudFirma() !== HUD.n)) hudDisponer();   // (cada 3 cuadros: antes 10, y un botón que aparecía se veía un rato fuera de lugar)
   if (!tactil || (typeof CTL !== 'undefined' && CTL.edit)) return;
   const arma = ARM.lista[ARM.i] || '', veh = !!JUG.vehiculo, usar = !!($('usarTxt').textContent || (!veh && entidadCerca()));
   const vt = veh ? (JUG.vehiculo.veh && JUG.vehiculo.veh.tipo) || '' : '', aire = vt === 'heli' || vt === 'avion', tierra = veh && !aire && vt !== 'asiento';
@@ -156,6 +252,8 @@ function hudPaso() {
     for (const id of ['bsaltar', 'bagachar']) ver(id, !veh || (aire && cond));
     for (const id of ['bdisparo', 'bpatada']) ver(id, !veh);
   }
+  // (la nueva: con balas, el número va dentro del recuadro del arma en vez del nombre)
+  { const mu = $('muni'), cm = !!(mu && mu.textContent); if (cm !== HUD.cm) { HUD.cm = cm; document.body.classList.toggle('conMuni', cm); } }
   const sost = !!(ARM.agarre || ARM.grav);
   if (sost !== HUD.sost) { HUD.sost = sost; const e = $('bvolver'); if (e) e.classList.toggle('oc', !sost); }
   const ro = !!ENT.rotar; if (ro !== HUD.ro) { HUD.ro = ro; const e = $('brotar'); if (e) e.classList.toggle('on', ro); }

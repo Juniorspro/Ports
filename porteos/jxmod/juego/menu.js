@@ -262,9 +262,45 @@ const LOBBY_CAM = v3(0, 600, 0), LOBBY_PIES = v3(-1.55, -1.25, 3.1);
 function lobbyCamara(out) { out.pos.copy(LOBBY_CAM); out.q.copy(Quat.euler(0, 0)); CAM.fov = 60; return out; }
 function dibujarLobby() {
   const P = MENU.lobby; if (!P) return;
-  P.pos.set(LOBBY_CAM.x + LOBBY_PIES.x, LOBBY_CAM.y + LOBBY_PIES.y + 1, LOBBY_CAM.z + LOBBY_PIES.z); P.yaw = MENU.yaw; P.vel.set(0, 0, 0); P.suelo = true;
+  const E = lobbyEncuadre(P);
+  if (E) P.pos.set(E.x, E.y, E.z); else P.pos.set(LOBBY_CAM.x + LOBBY_PIES.x, LOBBY_CAM.y + LOBBY_PIES.y + 1, LOBBY_CAM.z + LOBBY_PIES.z);
+  P.yaw = MENU.yaw; P.vel.set(0, 0, 0); P.suelo = true;
   if (P.emote && P.emoteT > (P.emoteMax || 3)) P.emote = null;
   animarPersona(P, TIEMPO.dt); dibujarPersona(P);
+  if (!P.altoM) lobbyMedir(P);
+}
+// (GOLDEN) el escenario de Personajes (MENU.caja, rbmenus.js): el personaje se ubica para llenarlo, centrado a lo ancho, con
+// los pies cerca de abajo y la coronilla debajo del nombre (del 17 % al 92 % del alto del escenario: 75 %; si el escenario
+// es angosto, que entre a lo ancho). Las medidas son las de la página sin girar (offsetLeft/Top), así sirve también con el
+// juego girado en el celular parado. La cámara del lobby no se mueve: el personaje va a la distancia que hace falta.
+const LOBBY_ESC = { arriba: 0.17, pies: 0.92, ancho: 0.62 };
+function lobbyRect(E) {
+  let x = 0, y = 0, e = E; while (e) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }
+  return { x, y, w: E.offsetWidth, h: E.offsetHeight };
+}
+function lobbyEncuadre(P) {
+  const E = MENU.caja;
+  if (!E || !E.isConnected || !E.offsetWidth || !E.offsetHeight || typeof RB === 'undefined' || !RB.el || RB.el.classList.contains('oc')) return null;
+  const r = lobbyRect(E), W = VW(), H = VH(), tv = Math.tan(Math.PI / 6), asp = W / H, k = P.tam || 1;
+  // el alto del personaje en metros (de los pies a la coronilla, con el gorro): lo medido o, mientras tanto, uno común
+  const alto = P.altoM || 1.82 * k, ancho = P.anchoM || 0.62 * k;
+  let px = (LOBBY_ESC.pies - LOBBY_ESC.arriba) * r.h;
+  px = Math.min(px, r.w * LOBBY_ESC.ancho * alto / ancho);   // (en un escenario angosto, lo que entra a lo ancho)
+  const d = alto * H / (2 * tv * px), pies = r.y + LOBBY_ESC.pies * r.h, nx = ((r.x + r.w / 2) / W) * 2 - 1, ny = 1 - (pies / H) * 2;
+  MENU.encuadre = { r, d, px: +px.toFixed(1), alto, pies };
+  return { x: LOBBY_CAM.x - nx * d * tv * asp, y: LOBBY_CAM.y + ny * d * tv + k, z: LOBBY_CAM.z + d };
+}
+// el alto (de los pies a la coronilla) y el ancho del personaje, de sus huesos en reposo: la cabeza y su punta, más el gorro
+function lobbyMedir(P) {
+  if (!P.md || !P.D || !P.D.h) return;
+  P.md.actualizar(); const W = P.md.W, h = P.D.h, k = P.tam || 1, pie = P.pos.y - k;
+  const y = (n) => (h[n] !== undefined && W[h[n]] ? W[h[n]][13] : null);
+  const tope = y('HeadTop_End'), cab = y('Head');
+  if (cab === null) return;
+  let top = tope !== null && tope > cab ? tope + 0.02 * k : cab + 0.2 * k;
+  if (PREFS.gorro && PREFS.gorro !== 'HatEmpty') top += 0.12 * k;
+  const brazo = (a, b) => (h[a] !== undefined && h[b] !== undefined ? Math.hypot(W[h[a]][12] - W[h[b]][12], W[h[a]][14] - W[h[b]][14]) : 0);
+  P.altoM = Math.max(0.6 * k, top - pie); P.anchoM = Math.max(0.45 * k, brazo('LeftHand', 'RightHand') + 0.16 * k, brazo('LeftShoulder', 'RightShoulder') + 0.3 * k);
 }
 // ---------------- guardados (construcciones por mapa) ----------------
 function abrirGuardados() {

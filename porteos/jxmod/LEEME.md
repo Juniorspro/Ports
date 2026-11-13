@@ -2360,6 +2360,69 @@ APK; la web muestra el botón y recarga).
 - Fotos de la cámara del jugador, antes y después, en la compu y el celu: la tirada que peor quedaba (la mano y el
   brazo enterrados 86 cm) ahora queda entera sobre el pasto.
 
+## Del Discord: los botones nuevos del celular y Personajes de GOLDEN, y el celular encima de la pausa (Kris)
+
+Dos conceptos más de GOLDEN («Mejores botones»: «hacerlos mejor que la foto pero con ese estilo»; «Mejora en la
+interfaz de skins»: «tipo así, pero que la skin se vea más») y el bug de Kris («si tenés equipado el celular y abrís
+el menú de pausa», el celular queda dibujado encima).
+
+- **Botones del celular** (`hud.js`: `HUD_V2`, `hudV2Pos`; `controles.js`, `hudorden.js`, `template.html`): la
+  disposición del concepto como la nueva de fábrica. Arriba a la izquierda, en columnas: la del sistema (pausa en la
+  esquina, chat, celular, micrófono, voces), al lado la de crear (props, MOD, GMod, SM, Verity) y después las teclas
+  de los mods con su placa y su nombre; arriba a la derecha el arma en la esquina (con las balas adentro), la cámara y
+  los emotes, abajo la linterna, la cámara libre (amarilla con L y R debajo cuando está abierta) y borrar; abajo a la
+  derecha el disparo grande con la mira amarilla, el secundario (congelar en celeste), saltar en la esquina, agacharse,
+  la patada, recargar y, en arco arriba del disparo, + y − de la pistola de física o las teclas del arma de un mod.
+  Estilo: círculos oscuros translúcidos con filo blanco fino, amarillo para lo principal y lo prendido, la G de GMod
+  blanca, globitos amarillos; linterna, cámara libre y patada redibujadas (la linterna parecía un parlante).
+- **Mejor que la foto**: cada grupo se escala entero (los botones y la distancia entre ellos), así no se pisan con
+  ningún tamaño de controles (antes, al 120 % el disparo pisaba al secundario); ningún botón baja de su mínimo para
+  el dedo (al 80 %: disparo ≥ 64 px, saltar ≥ 54, agacharse y secundario ≥ 48, recargar y los de arriba a la izquierda
+  ≥ 44, el resto ≥ 34) y cada uno se toca en un área de hasta 44 px que nunca se mete en la del vecino (`--hit`); si
+  en un celular bajo la columna derecha no entra, se achica lo justo; 3 filas a la izquierda si entran arriba de la
+  zona de la palanca (45 % del alto), si no 2; con todo a la vista, si no entran a lo ancho, se achican lo justo. Un
+  botón que aparece (el micrófono al entrar a una sala, la primera tecla fijada) ya sale en su lugar, y la HUD mira
+  qué se ve cada 3 cuadros (antes 10: lo que aparecía se veía un rato fuera de lugar).
+- **Lo guardado no se rompe**: quien había movido o agrandado botones (`PREFS.hudPos` con posiciones y sin `_v: 2`)
+  los ve exactamente igual, con los de fábrica de antes alrededor (`hudVer`: 1); en Ajustes → Controles → Pantalla
+  táctil puede «Probar la nueva» (la suya queda en `PREFS.hudPosV1`) y «Volver a la mía». La nueva con un botón
+  movido sigue siendo la nueva; el editor arranca cada botón de donde está (antes los de arriba a la izquierda saltaban
+  al agarrarlos); la tienda de controles publica `v: 2` y lo de antes (`v: 1`) se ve como se publicó. Los botones de
+  las armas de mods, las teclas fijadas del panel GMod y los de Pill Packs (que copian el lugar del disparo, el
+  secundario, la patada, recargar y el arma) siguen igual.
+- **Personajes** (`rbmenus.js`, `gmod_pm.js`, `menu.js`, `principal.js`, `template.html`): pestañas Personajes / Mods /
+  Gorros con buscador (por el nombre que se ve), tarjetas con la cara y el tilde amarillo en la elegida, «Equipar» /
+  «En uso» / «Instalar» en los de mods (pregunta antes de bajar), «Importar personaje» en el pie y la personalización
+  del gorro al costado de la grilla. A la derecha, de arriba a abajo, el escenario: el personaje en 3D, girable
+  arrastrando y con el reposo del juego, que respira y mira alrededor (`humano.js`: el de GMod lo dejaba quieto como
+  una estatua), y arriba su nombre (Oswald, filo amarillo) y su gorro. El escenario es un hueco del panel
+  (`MENU.caja`): `lobbyEncuadre` pone al personaje para llenarlo (del 17 al 92 % del alto, centrado) y el lienzo se
+  pinta oscuro. Es el mismo panel en la pausa (Personaje): ahí el cambio de personaje y de gorro es al momento y
+  «Volver a la pausa» vuelve; la tecla de pausa lo cierra.
+- **El celular encima de la pausa** (`ui.js`: `capasRevisar`; `template.html`): la regla que lo escondía era
+  `body:has(.panel:not(.oc)) #celular,#celular.tapado`; un navegador sin `:has()` (WebView viejos de Android, Safari
+  antes de 15.4) tira la regla **entera**, también lo de `.tapado`. Ahora un MutationObserver pone `body.menuEncima`
+  apenas se abre un menú grande (cualquier `.panel`, el spawn, el inicio, el editor de botones, un diálogo) y eso
+  esconde el celular, la ruleta de emotes, el panel GMod, el menú MOD, el chat, Verity, el arma en la mano, el cartel
+  de «juntos» y la barra del modo de GMod; el celular además va en la capa 5, debajo de los paneles. Sin `:has()` en
+  el CSS.
+- **Medido**: en 873×393 al 80 %, disparo 86 px (antes 73), saltar 66 (56), agacharse 51 (49), los de arriba a la
+  izquierda 47 (39), los de arriba a la derecha 41 (37); en 640×360 nada baja de su mínimo. El personaje del escenario
+  ocupa el 80 % de su alto, centrado (±4 %), y el 72-79 % del alto de la pantalla (antes, al costado, ~50 %).
+- **Pruebas** nuevas: `botones_golden.mjs` 13/13 (13 pantallas, también el juego girado; controles al 60, 80, 100 y
+  120 %; 10 situaciones: nada se pisa ni a menos de 6 px, el área del dedo tampoco, tamaños, la zona de la palanca,
+  las columnas; lo guardado antes queda igual que en el juego de antes en los 91 botones comparados; probar la nueva y
+  volver; el editor; Pill Packs), `personajes_golden.mjs` 12/12 (compu, celu, celu chico, girado y tablet; 14 idiomas;
+  buscador, gorros, mods, girar, reposo, la pausa) y `capas_menus.mjs` 10/10 (con el juego de antes en un navegador
+  sin `:has()` se reproduce la captura de Kris: el celular arriba aunque tenga `.tapado`; ahora no, con y sin
+  `:has()`, ni con Ajustes, Controles, Personaje, el spawn, los emotes, el editor ni con la ruleta, el panel GMod, el
+  menú MOD o el chat abiertos debajo). Las de antes: `hud_celu` 7/7, `personajes_gorro` 7/7 en compu y en celu,
+  `tienda_panel` 24/24, `menus_jx` 6/6, `tutorial` 22/22, `girado` 10/11 y `celu_mano` con fallas de tiempo que
+  cambian de corrida a corrida (la máquina con carga 40-65 y 1-4 cuadros por segundo; el juego de antes falla lo mismo:
+  `girado` «cámara R» igual, y en `celu_mano` caminar y la tercera persona). Adaptadas a lo nuevo: `hud_orden.mjs`
+  (columnas) y `personajes_mods.mjs` (la pausa abre el panel nuevo); las dos piden addons del Workshop que no están
+  en esta máquina.
+
 ## Tráiler de la 3.0 (40 s, 4:3 en FHD), v2
 
 Pedido: un tráiler con la canción del video de 41 s, con suspenso, sin interfaz, el logo recortado al principio y
