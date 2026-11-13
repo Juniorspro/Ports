@@ -561,6 +561,7 @@ Object.assign(IDI3, {
 Object.assign(IDI3, {
   'yt.toque': ['Tocá el video para que suene', 'Tap the video to play it', 'Toque no vídeo para tocar', 'Ketuk videonya agar diputar', 'Ketik video untuk memainkannya', 'I-tap ang video para tumugtog', '動画をタップすると再生されます', 'แตะวิดีโอเพื่อเล่น', 'Oynatmak için videoya dokun', 'المس الفيديو لتشغيله', 'Нажми на видео, чтобы оно заиграло', 'Торкнися відео, щоб воно заграло', 'Touche la vidéo pour la lancer', 'Tippe auf das Video, damit es spielt'],
   'yt.toqueTele': ['Tocá la tele para que arranque el video', 'Tap the TV to start the video', 'Toque na TV para o vídeo começar', 'Ketuk TV untuk memulai video', 'Ketik TV untuk memulakan video', 'I-tap ang TV para magsimula ang video', 'テレビをタップすると動画が始まります', 'แตะทีวีเพื่อเริ่มวิดีโอ', 'Videonun başlaması için televizyona dokun', 'المس التلفاز ليبدأ الفيديو', 'Нажми на телевизор, чтобы включить видео', 'Торкнися телевізора, щоб увімкнути відео', 'Touche la télé pour lancer la vidéo', 'Tippe auf den Fernseher, um das Video zu starten'],
+});
 // (Discord) Personajes con el concepto de GOLDEN: buscador de gorros, Equipar / En uso en los modelos de mods, el gorro debajo del
 // nombre en el escenario y, desde la pausa, volver a la pausa
 Object.assign(IDI3, {
