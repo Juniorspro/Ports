@@ -265,6 +265,7 @@ function dibujarLobby() {
   const E = lobbyEncuadre(P);
   if (E) P.pos.set(E.x, E.y, E.z); else P.pos.set(LOBBY_CAM.x + LOBBY_PIES.x, LOBBY_CAM.y + LOBBY_PIES.y + 1, LOBBY_CAM.z + LOBBY_PIES.z);
   P.yaw = MENU.yaw; P.vel.set(0, 0, 0); P.suelo = true;
+  if (typeof pjiLobbyAnim === 'function') pjiLobbyAnim(P);   // (la vista previa de Importar personaje: caminar, correr, saltar...)
   if (P.emote && P.emoteT > (P.emoteMax || 3)) P.emote = null;
   animarPersona(P, TIEMPO.dt); dibujarPersona(P);
   if (!P.altoM) lobbyMedir(P);

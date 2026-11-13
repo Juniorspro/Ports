@@ -465,7 +465,7 @@ function dibujar() {
   if (JUEGO.estado === 'principal' && typeof dibujarMenu === 'function' && MENU.el) { dibujarMenu(); pantFinCuadro(false); return; }
   // (en la pausa, Perfil y Personajes muestran tu personaje en 3D como en el menú: se dibuja el lobby con su cámara, sin
   // tocar la de la partida)
-  if (JUEGO.estado === 'juego' && typeof dibujarMenu === 'function' && MENU.lobby && typeof RB !== 'undefined' && RB.el && RB.el.classList.contains('rb3d') && !RB.el.classList.contains('oc')) {
+  if (JUEGO.estado === 'juego' && typeof dibujarMenu === 'function' && MENU.lobby && ((typeof RB !== 'undefined' && RB.el && RB.el.classList.contains('rb3d') && !RB.el.classList.contains('oc')) || (typeof PJI !== 'undefined' && PJI.vista3d))) {
     const p = CAM.pos.clone(), q = CAM.q.clone(), qv = CAM.qVista.clone(), f = CAM.fov;
     lobbyCamara(CAM); CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); dibujarMenu();
     CAM.pos.copy(p); CAM.q.copy(q); CAM.qVista.copy(qv); CAM.fov = f; pantFinCuadro(false); return;

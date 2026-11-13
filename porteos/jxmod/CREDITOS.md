@@ -147,6 +147,21 @@ modelos y animaciones de siempre); los de los addons de pk_pills no vienen en el
 | Sonidos de los animatrónicos transformados (grito, risa, pasos, cajita musical, estática, ollas, carrera de Foxy) | los mismos `fn_*` de la pizzería (ver arriba), repetidos en el paquete chico `a_pill` | `web/rb/a_pill.*.rbp` | ídem pizzería |
 | Addons de prueba: Parakeet's Pill Pack y el pill pack de FNaF (Freddy, Bonnie, Chica, Foxy, Gold Freddy) | rip: Steam Workshop 950845673 y 320621862, bajados como .gma a `ripped/gma/` (fuera del repo) para `pruebas/pill_gmod.mjs`; no se redistribuyen | `ripped/gma/` | de sus autores; uso personal sin fines de lucro |
 
+## Importar personaje (`juego/pjimportar.js`)
+
+El rig automático, el retargeteo, la ventana y el formato del paquete son propios (sin bibliotecas). Los modelos con
+los que se probó no están en el repo ni en el juego: se bajan aparte para `pruebas/importar_rig.mjs`,
+`pruebas/importar_personaje.mjs` y `pruebas/red_importado.mjs` (las variantes de MakeHuman —en T, alta, bajita,
+cabezona, con vestido y con tapado— se arman de su malla base con un script de prueba, fuera del repo).
+
+| Modelo | Autor / origen | Para qué | Licencia |
+|---|---|---|---|
+| CesiumMan (`CesiumMan.glb`, con esqueleto) | Cesium, KhronosGroup/glTF-Sample-Assets | retargeteo; y sin esqueleto (OBJ) para el rig automático | CC-BY 4.0 |
+| RiggedFigure (`RiggedFigure.glb`) | Cesium, KhronosGroup/glTF-Sample-Assets | retargeteo de un esqueleto mínimo | CC-BY 4.0 |
+| RobotExpressive (`RobotExpressive.glb`) | Tomás Laulhé (Quaternius), cambios de Don McCurdy; repositorio de three.js | cabezón, con esqueleto de IK (pies sueltos, palmas sin mano) y sin esqueleto (OBJ) | CC0 1.0 |
+| Malla base de MakeHuman (`base.obj`) y sus articulaciones (cubitos `joint-*`) | MakeHuman Team, makehumancommunity/makehuman | rig automático en A, T, alto, bajito, cabezón, vestido y tapado; las articulaciones de verdad miden los puntos automáticos | CC0 1.0 (assets de MakeHuman) |
+| Personaje del Starter Kit 3D Platformer (`character.glb`) | Kenney, KenneyNL/Starter-Kit-3D-Platformer | personaje de bloques muy bajito (patas cortas, sin esqueleto con piel) | MIT (el repositorio; los assets de Kenney son CC0) |
+
 ## Bibliotecas del navegador propio (`jxrt/`) — retiradas en la 2.9
 
 El motor nativo con V8 (linkedom 0.18.15 de Andrea Giammarchi, licencia ISC, y Javet 6.0.3 de Sam Cao con el V8 de

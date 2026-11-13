@@ -23,6 +23,8 @@ for (const [v, m] of [['l', 'Left'], ['r', 'Right']]) {
 const gmpEs = (s) => typeof s === 'string' && s.startsWith('gmpm:');
 // el .mdl armado: árbol (huesos en los ejes del juego, en metros, y las mallas con piel), reposo y qué hueso es cuál
 function gmpDef(ruta) {
+  // (un personaje importado de un GLB/OBJ: lo arma pjimportar.js, con su rig automático o su propio esqueleto)
+  if (typeof pjiDefDe === 'function' && /^jxpj\//.test(ruta)) return pjiDefDe(ruta);
   if (GMP.cache.has(ruta)) return GMP.cache.get(ruta);
   if (!gmArchivo(ruta)) return null;   // (el addon todavía no está: se vuelve a probar después)
   GMP.cache.set(ruta, null);
@@ -95,8 +97,11 @@ function gmpPreparar(P) {
     const m = def.mix[i], h = m ? porNom[m] : undefined; hero.push(h === undefined ? -1 : h); alin.push(null);
     if (h === undefined) continue;
     const pm = GMP_PUNTA[m], gT = pm && def.porMix[pm], hT = pm && porNom[pm];
-    if (gT === undefined || hT === undefined || m === 'Hips') continue;
-    const dG = vsub(restP[gT], restP[i]), dH = vsub(D.rp[hT], D.rp[h]);
+    // (sin el hueso de la punta —una mano sin dedos—, la punta que da el modelo, si la da: si no, la mano de un modelo en A
+    // quedaba doblada en la muñeca con el brazo ya en T)
+    const pG = gT !== undefined ? restP[gT] : def.puntaP && def.puntaP[i] ? ry.rot(def.puntaP[i]) : null;
+    if (!pG || hT === undefined || m === 'Hips') continue;
+    const dG = vsub(pG, restP[i]), dH = vsub(D.rp[hT], D.rp[h]);
     if (dG.len() > 1e-4 && dH.len() > 1e-4) alin[i] = rotEntre(dG, dH);
   }
   const hipsH = Math.max(0.1, D.rp[porNom.Hips].y), hipsG = Math.max(0.1, def.restP[def.porMix.Hips].y - def.piso);
@@ -122,6 +127,21 @@ function gmpPieEsc(G, L, ua, hU, T) {
 // plano en que ya estaban (el codo y la rodilla para el mismo lado). Cambia los giros del mundo Q[a] y Q[b].
 // polo: hacia dónde va el codo o la rodilla (el del Hero); sin él, el plano en que ya estaban (con la pierna casi recta ese
 // plano sale para cualquier lado: rodillas para adentro y codos abiertos)
+// (los personajes importados —pjimportar.js— traen el perfil de su cuerpo por altura: si el blanco de la mano queda adentro del
+// torso, la cadera o los muslos de ese modelo —más anchos que los del Hero, cuyos brazos copia—, se lo corre al borde, para
+// afuera. Sin saltos: entre dos franjas se mezcla, arriba y abajo del perfil la elipse se achica de a poco hasta nada, y la
+// dirección se inclina hacia el lado de esa mano cuanto más adentro está (en el medio no cambia de lado de un cuadro al otro;
+// en el borde es la de siempre)
+function gmpFueraDelCuerpo(G, T, lado) {
+  const C = G.def.torso, n = C.fr.length, i = C.i, Q = G.Q[i], s = G.S[i] || 1, d = Q.clone().conj().rot(vsub(T, G.Pw[i]));
+  const x = vdot(d, C.lat) / s, y = vdot(d, C.up) / s, z = vdot(d, C.fw) / s, t = (y - C.y0) / C.h - 0.5, tc = Math.max(0, Math.min(n - 1, t)), k = Math.min(n - 2, Math.floor(tc));
+  const a = C.fr[k] || C.fr[k + 1], b = C.fr[k + 1] || a; if (!a) return T;
+  const u = tc - k, f = { cx: a.cx + (b.cx - a.cx) * u, cz: a.cz + (b.cz - a.cz) * u, rx: a.rx + (b.rx - a.rx) * u, rz: a.rz + (b.rz - a.rz) * u };
+  const enc = Math.max(0, 1 - Math.abs(t - tc) / 3), rx = (f.rx + C.m) * enc, rz = (f.rz + C.m) * enc; if (rx < 1e-4 || rz < 1e-4) return T;
+  const ex = (x - f.cx) / rx, ez = (z - f.cz) / rz, e = Math.hypot(ex, ez); if (e >= 1) return T;
+  let ux = ex + 0.6 * (1 - e) * lado, uz = ez; const l = Math.hypot(ux, uz) || 1; ux /= l; uz /= l;
+  return vadd(T, Q.rot(vadd(vscale(C.lat, (f.cx + ux * rx * 1.01 - x) * s), vscale(C.fw, (f.cz + uz * rz * 1.01 - z) * s))));
+}
 function gmpIK(G, a, b, c, T, polo) {
   const A = G.Pw[a], B = G.Pw[b], C = G.Pw[c], lab = vsub(B, A).len(), lbc = vsub(C, B).len(); if (lab < 1e-4 || lbc < 1e-4) return;
   const at = vsub(T, A), lt = Math.min(lab + lbc - 1e-4, Math.max(Math.abs(lab - lbc) + 1e-4, at.len())); if (at.len() < 1e-5) return;
@@ -199,6 +219,7 @@ function gmpDibujar(P) {
         if (armado && L === 'Right') { T = vadd(G.Pw[a], vscale(vsub(hW, hS), G.esc.bRight)); G.armaD = { hero: hW, pm: T, s: clamp(G.k, 0.45, 1.6) }; }
         else if (armado && TR) { const hR = hp('RightHand'); T = hR && vsub(hW, hR).len() < 0.45 ? vadd(TR, vscale(vsub(hW, hR), G.armaD ? G.armaD.s : 1)) : vadd(G.Pw[a], vscale(vsub(hW, hS), G.esc['b' + L])); }   // (las dos manos en el arma)
         else T = vadd(G.Pw[a], vscale(vsub(hW, hS), G.esc['b' + L]));
+        if (def.torso) T = gmpFueraDelCuerpo(G, T, L === 'Left' ? 1 : -1);
         gmpIK(G, a, b, c, T, polo(hS, hE, hW, vadd(vscale(fw, -0.7), v3(0, -0.7, 0)).norm())); ik = true; if (L === 'Right') TR = T;
       }
       const ua = X[L + 'UpLeg'], ub = X[L + 'Leg'], uc = X[L + 'Foot'], hf = D.h[L + 'Foot'];
@@ -249,7 +270,11 @@ function gmpNoHundir(G, piso) {
   const X = def.porMix, pies = def.pies || (def.pies = new Set(['LeftFoot', 'RightFoot', 'LeftToeBase', 'RightToeBase'].map((n) => X[n]).filter((x) => x !== undefined)));
   let bajo = Infinity, cual = -1;
   for (const b of B) { const i = 1 + b, c = C[b], Q = G.Q[i], s = G.S[i] || 1, y0 = G.Pw[i].y; for (let k = 0; k < c.length; k += 3) { Q.rotTo(_gpa.set(c[k] * s, c[k + 1] * s, c[k + 2] * s), _gpb); if (_gpb.y + y0 < bajo) { bajo = _gpb.y + y0; cual = i; } } }
-  if (bajo < piso - 0.005 && !pies.has(cual)) { const d = piso - bajo; for (let i = 1; i <= def.nb; i++) G.Pw[i].y += d; }
+  let d = bajo < piso - 0.005 && !pies.has(cual) ? piso - bajo : 0;
+  // (un personaje importado de proporciones raras —patas cortitas y brazos largos— subía y bajaba de golpe hasta 40 cm
+  // cuando la mano o el cuerpo tocaban el piso: sube y baja como mucho 1,2 m/s)
+  if (def.pji) { const p = TIEMPO.dt > 0 ? 1.2 * Math.min(0.1, TIEMPO.dt) : 0.04, a = G.alzar || 0; G.alzar = d = a + Math.max(-p, Math.min(p, d - a)); }
+  if (d > 0) for (let i = 1; i <= def.nb; i++) G.Pw[i].y += d;
 }
 // el muñeco de trapo con un modelo de otras medidas: apoyado donde se apoya el del Hero (lo más bajo de la malla, a la altura
 // de lo más bajo de los cuerpos del muñeco). Antes la cadera iba a la del Hero escalada hacia un piso supuesto —un metro
@@ -456,10 +481,13 @@ function pjmListasHTML() {
   const tuyos = I.map((p) => { const sel = PREFS.skin === 'gmpm:' + p.r; return celda('sel:gmpm:' + p.r, p.n, p.img, p.addon, { sel, acc: sel ? glifo('si') + esc(T('pj.enUso')) : esc(T('pj.equipar')), accCls: sel ? 'pjAccOk' : 'pjAccEq' }); }).join('');
   const ws = PJM.ws === null ? '<p class="pjmVacio">…</p>' : PJM.ws.map((x) => { const baja = PJM.bajando.has(String(x.id));
     return celda('inst:' + x.id, x.t, x.img, baja ? T('pjm.bajando') : x.mb + ' MB', { acc: baja ? esc(T('pjm.bajando')) + '…' : glifo('bajar') + esc(T('pjm.instalar')), accCls: baja ? 'pjAccVa' : 'pjAccSi' }); }).join('') || `<p class="pjmVacio">${esc(T('pjm.sinRes'))}</p>`;
-  return `<div class="pjGrid pjmGrid"><div class="rbSecc pjmTit">${esc(T('pjm.tuyos'))}<em>${I.length}</em></div>${tuyos || `<p class="pjmVacio">${esc(T('pjm.ninguno'))}</p>`}
+  // (Importar personaje, pjimportar.js: los importados van primero, con la misma tarjeta)
+  const Im = typeof PJI !== 'undefined' ? PJI.lista.filter((m) => !q || m.n.toLowerCase().includes(q)) : [];
+  const imp = Im.map((m) => { const sk = pjiSkin(m.id), sel = PREFS.skin === sk; return celda('sel:' + sk, m.n, m.img, T('pji.importado'), { sel, acc: sel ? glifo('si') + esc(T('pj.enUso')) : esc(T('pj.equipar')), accCls: sel ? 'pjAccOk' : 'pjAccEq' }); }).join('');
+  return `<div class="pjGrid pjmGrid">${imp ? `<div class="rbSecc pjmTit">${esc(T('pji.importados'))}<em>${Im.length}</em></div>${imp}` : ''}<div class="rbSecc pjmTit">${esc(T('pjm.tuyos'))}<em>${I.length}</em></div>${tuyos || `<p class="pjmVacio">${esc(T('pjm.ninguno'))}</p>`}
     <div class="rbSecc pjmTit">${esc(T('pjm.workshop'))}</div>${ws}</div>`;
 }
-function pjmHTML() { return `<div class="pjmCaja"><div class="pjmBarra"><input class="pjmBus" type="search" dir="auto" placeholder="${esc(T('pjm.buscar'))}" value="${esc(PJM.q)}"><label class="rbBtnGris rbChico pjmImp">${glifo('subir')} ${esc(T('pjm.importar'))}<input type="file" accept=".gma,.bin" hidden></label></div><div class="pjmListas">${pjmListasHTML()}</div></div>`; }
+function pjmHTML() { return `<div class="pjmCaja"><div class="pjmBarra"><input class="pjmBus" type="search" dir="auto" placeholder="${esc(T('pjm.buscar'))}" value="${esc(PJM.q)}"><button class="rbBtnGris rbChico pjmImp" data-pjm="importar:">${glifo('subir')} ${esc(T('pjm.importar'))}</button></div><div class="pjmListas">${pjmListasHTML()}</div></div>`; }
 // (antes de bajar un modelo, una pregunta: un toque sin querer bajaba megas)
 function pjmConfirmar(id) {
   const x = PJM.cat && PJM.cat.porId.get(String(id)) || (PJM.ws || []).find((y) => String(y.id) === String(id));
@@ -479,15 +507,18 @@ function pjmMontar(raiz) {
   // (el buscador y «Importar personaje»: adentro de la caja o, en el panel de Personajes, arriba y en el pie)
   const b = c.querySelector('.pjmBus') || raiz.querySelector('.pjmBus'); let tt = 0;
   if (b) { b.addEventListener('input', () => { PJM.q = b.value; pjmDibujar(); clearTimeout(tt); tt = setTimeout(pjmBuscar, 250); }); b.addEventListener('keydown', (e) => e.stopPropagation()); }
-  c.addEventListener('click', (e) => { const x = e.target.closest('[data-pjm]'); if (!x) return; e.stopPropagation(); const [k, ...r] = x.dataset.pjm.split(':'), v = r.join(':'); if (k === 'sel') pjElegirSkin(v); else if (k === 'inst') pjmConfirmar(v); });
+  c.addEventListener('click', (e) => { const x = e.target.closest('[data-pjm]'); if (!x) return; e.stopPropagation(); const [k, ...r] = x.dataset.pjm.split(':'), v = r.join(':'); if (k === 'sel') pjElegirSkin(v); else if (k === 'inst') pjmConfirmar(v); else if (k === 'importar' && typeof pjiAbrir === 'function') pjiAbrir(); });
   const fi = c.querySelector('.pjmImp input') || raiz.querySelector('.pjmImp input'); if (fi) fi.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) pjmImportar(f); e.target.value = ''; });
+  // (el botón «Importar personaje» —en la caja o en el pie del panel de Personajes— abre la ventana guiada de
+  // pjimportar.js; sin ella, el selector de archivo de siempre)
+  for (const ib of [c.querySelector('.pjmImp'), raiz.querySelector('.pjmImp')]) if (ib && !ib._pji) { ib._pji = 1; ib.addEventListener('click', (e) => { if (typeof pjiAbrir !== 'function') return; e.preventDefault(); e.stopPropagation(); pjiAbrir(); }); }
 }
 // cambiar de personaje (del juego o de un mod): jugando, al momento; en el menú, en el de la vista
 function pjElegirSkin(s) {
   if (typeof censPermite === 'function' && !censPermite(s)) return;
   PREFS.skin = s; guardarPrefs();
   const rb = typeof rbVisible === 'function' && rbVisible() && typeof RB !== 'undefined' && RB.panel === 'personajes';
-  if (typeof JUEGO !== 'undefined' && JUEGO.estado === 'juego') { jugadorCuerpoNuevo(); if (!rb) aviso(T('pjm.listo') + ' ' + (gmpEs(s) ? s.replace(/^.*\//, '').replace(/\.mdl$/, '') : skinNom(s)), 2); }
+  if (typeof JUEGO !== 'undefined' && JUEGO.estado === 'juego') { jugadorCuerpoNuevo(); if (!rb) aviso(T('pjm.listo') + ' ' + ((typeof pjiNombre === 'function' && pjiNombre(s)) || (gmpEs(s) ? s.replace(/^.*\//, '').replace(/\.mdl$/, '') : skinNom(s))), 2); }
   // (el del escenario de Personajes también: en el inicio y jugando, desde la pausa)
   if (typeof menuLobby === 'function' && (rb || JUEGO.estado !== 'juego')) menuLobby(true, true);
   pjmDibujar(); if (typeof pjjDibujar === 'function') pjjDibujar(); if (typeof pjEscenaTexto === 'function') pjEscenaTexto();

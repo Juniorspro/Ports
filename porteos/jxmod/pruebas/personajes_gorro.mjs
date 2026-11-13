@@ -28,9 +28,9 @@ const cf = await ev(`(async () => { window.__inst = 0; const o = pjmInstalar; pj
   const t = RB.el.querySelector('[data-pjm="inst:12345"]'); if (!t) return { sinTile: true }; t.click(); await new Promise((r) => setTimeout(r, 200));
   const D = document.getElementById('cfDlg'), ve = D && !D.classList.contains('oc'), txt = D ? D.textContent : '', antes = window.__inst;
   D.querySelector('[data-cf=no]').click(); const tras = window.__inst; t.click(); await new Promise((r) => setTimeout(r, 200)); document.querySelector('#cfDlg [data-cf=si]').click(); const si = window.__inst; pjmInstalar = o;
-  return { ve, txt: txt.slice(0, 80), antes, tras, si, imp: !!RB.el.querySelector('.pjmImp input[type=file]') }; })()`);
+  return { ve, txt: txt.slice(0, 80), antes, tras, si, imp: (() => { const b = RB.el.querySelector('.pjmImp'); if (!b) return false; b.click(); const v = document.querySelector('#pjiVen:not(.oc) input[type=file]'); if (typeof pjiCerrar === 'function') pjiCerrar(); return !!v; })() }; })()`);
 ok('antes de instalar un modelo pregunta «¿Seguro…?» y sólo instala si se acepta', cf.ve && /Modelo de prueba/.test(cf.txt) && cf.antes === 0 && cf.tras === 0 && cf.si === 1, cf);
-ok('en Personajes → Mods está «Importar personaje»', cf.imp);
+ok('en Personajes → Mods está «Importar personaje» (abre la ventana para elegir el archivo)', cf.imp);
 await p.screenshot({ path: 'gorro_mods.png' });
 const e2 = err.filter((x) => !/favicon|ERR_|net::|404|WebSocket|mqtt|wss:/i.test(x));
 ok('sin errores de JS', !e2.length, e2.slice(0, 5));
