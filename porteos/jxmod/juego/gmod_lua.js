@@ -632,6 +632,10 @@ function luaCrearRuntime() {
   def(str, 'lower', (s) => sArg(s, 'lower').toLowerCase());
   def(str, 'rep', (s, n, sep) => { s = sArg(s, 'rep'); n = Math.trunc(R.num(n, 'rep')); if (n <= 0) return ''; if (s.length * n > 5e7) err('resultado demasiado grande'); return sep ? Array(n).fill(s).join(sep) : s.repeat(n); });
   def(str, 'reverse', (s) => sArg(s, 'reverse').split('').reverse().join(''));
+  // (acá no hay bytecode: string.dump da una huella distinta para cada función, la misma si es la misma función. La TFA Base
+  // la usa al cargar para comparar funciones —«¿está vacía?»— y sin ella se cortaba la mitad de su base de armas)
+  const dumps = new WeakMap(); let nDump = 0;
+  def(str, 'dump', (f) => { if (typeof f !== 'function') err("bad argument #1 to 'dump' (function expected, got " + tipo(f) + ')'); let k = dumps.get(f); if (!k) dumps.set(f, (k = ++nDump)); return '\x1bLuaR' + k; });
   def(str, 'byte', (s, i, j) => { s = sArg(s, 'byte'); i = i === undefined ? 1 : posI(Math.trunc(i), s.length); j = j === undefined ? i : posI(Math.trunc(j), s.length); const o = []; for (let k = Math.max(1, i); k <= Math.min(j, s.length); k++) o.push(s.charCodeAt(k - 1) & 255); return o; });
   def(str, 'char', (...a) => String.fromCharCode(...a.map((x) => R.num(x, 'char') & 255)));
   def(str, 'format', (f, ...a) => luaFormat(R, sArg(f, 'format'), a));

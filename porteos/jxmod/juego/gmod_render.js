@@ -346,7 +346,7 @@ function gmrModelo(e) {
   const ruta = e.modelo; if (!ruta) return;
   let md = e.mdCS;
   if (!md || md.ruta !== ruta) { const pf = gmaPrefabCS(ruta); if (!pf) { e.mdCS = null; return; } const k = DATA.pfPorNombre[pf]; if (!k) return; md = e.mdCS = new Modelo(DATA.pf[k]); md.ruta = ruta; }
-  const p = gmaEntPos(e), q = entQ(e), s = +e.escala || 1;
+  const p = e.rOrigen ? vG(e.rOrigen) : gmaEntPos(e), q = e.rAng ? angQuat(e.rAng) : entQ(e), s = +e.escala || 1;   // (SetRenderOrigin/SetRenderAngles: el modelo de mundo de FA:S en la mano)
   m4trs([p.x, p.y, p.z], [q.x, q.y, q.z, q.w], [s, s, s], md.raiz); md.sucio = true;
   md.color = gmrTinte(e); md.encolar();
 }
@@ -359,6 +359,7 @@ function gmrDrawModel(e) {
   if (!(e instanceof LEnt) || !GR.enPasada) return;
   if (e.o && !e.o.borrado) { if (e === GR.entAct) { GR.dm = true; e.o.md.color = gmrTinte(e); } else if (GR.dmOtros) { GR.dmOtros.add(e); e.o.md.color = gmrTinte(e); } return; }
   if (e.tipo === 'vm' || e === GMA.jug || e === GR.armaMundo) { GR.dm = true; return; }
+  if (e.cs && GR.lista === 'vista' && typeof gmvDibujarCS === 'function' && gmvDibujarCS(e)) return;   // (la vista que dibuja el Lua: FA:S, CW 2.0)
   gmrModelo(e);
 }
 
@@ -459,7 +460,9 @@ function gmrEstelas() {
 GR.parts = [];
 function gmrApiParticulas(R, G, def, num) {
   const PEM = new LuaTable(), PEI = new LuaTable(); PEM.set('__index', PEI); PEM.set('MetaName', 'CLuaEmitter');
-  const PTM = new LuaTable(), PTI = new LuaTable(); PTM.set('__index', PTI); PTM.set('MetaName', 'CLuaParticle');
+  // (a una partícula, como a una entidad, el Lua le puede guardar campos suyos: los fogonazos de la TFA Base le ponen
+  // FollowEnt y Att para seguir la boca del arma; antes eso era un error en cada disparo)
+  const PTM = new LuaTable(), PTI = new LuaTable(); PTM.set('__index', (q, k) => { const f = PTI.get(k); return f !== undefined ? f : q.ex ? q.ex.get(k) : undefined; }); PTM.set('__newindex', (q, k, v) => { (q.ex || (q.ex = new Map())).set(k, v); }); PTM.set('MetaName', 'CLuaParticle');
   GMA.mtEmisor = PEM; GMA.mtPart = PTM;
   def(G, 'ParticleEmitter', (p, d3) => ({ p: p instanceof LVec ? p : new LVec(), d3: !!d3, n: 0, vivo: true, nodraw: false, __mt: PEM }));
   PEI.set('Add', (em, mat, p) => {
