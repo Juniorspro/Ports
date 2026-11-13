@@ -53,7 +53,7 @@ function ctlDibujar(tab) {
       <div class="fila"><button class="boton" data-ctl="editar">${esc(T('ctl.editar'))}</button></div>
       <div class="fila">${esc(T('aj.hud'))} <input type="range" id="ctlTam" min="50" max="160" step="5" value="${+PREFS.hud || 80}"><span id="ctlTamV">${+PREFS.hud || 80}%</span></div>
       <div class="fila">${esc(T('ctl.palanca'))} <input type="range" id="ctlPal" min="60" max="160" step="5" value="${Math.round((+PREFS.palTam || 1) * 100)}"><span id="ctlPalV">${Math.round((+PREFS.palTam || 1) * 100)}%</span></div>
-      <div class="fila"><button class="boton" data-ctl="hudFab">${esc(T('ctl.fabrica'))}</button></div>`;
+      <div class="fila"><button class="boton" data-ctl="hudFab">${esc(T('ctl.fabrica'))}</button></div>${ctlNuevaHTML()}`;
   } else {
     cuerpo = `<div class="fila"><input id="ctlNom" maxlength="40" placeholder="${esc(T('ctl.nombre'))}"><button class="boton" data-ctl="publicar">${esc(T('ctl.publicar'))}</button></div>
       <div class="fila"><input id="ctlBus" type="search" maxlength="40" placeholder="${esc(T('buscar'))}" value="${esc(CTL.q || '')}"></div>
@@ -73,7 +73,10 @@ function ctlAccion(a) {
   if (k === 'cerrar') return ctlCerrar();
   if (k === 'tecla') { CTL.capturando = CTL.capturando === v ? null : v; return ctlDibujar(); }
   if (k === 'teclasFab') { PREFS.teclas = {}; _ctlMapa = null; guardarPrefs(); return ctlDibujar(); }
-  if (k === 'hudFab') { PREFS.hudPos = {}; PREFS.hud = 80; PREFS.palTam = 1; guardarPrefs(); hudDisponer(); return ctlDibujar(); }
+  if (k === 'hudFab') { PREFS.hudPos = { _v: 2 }; PREFS.hud = 80; PREFS.palTam = 1; guardarPrefs(); hudDisponer(); return ctlDibujar(); }
+  // (GOLDEN) probar la disposición nueva (la tuya queda guardada aparte) y volver a la tuya
+  if (k === 'hudNueva') { const o = PREFS.hudPos || {}; PREFS.hudPosV1 = JSON.parse(JSON.stringify(o)); PREFS.hudPos = o._orden ? { _v: 2, _orden: o._orden } : { _v: 2 }; guardarPrefs(); hudDisponer(); aviso(T('hud.probando'), 3); return ctlDibujar(); }
+  if (k === 'hudMia') { if (PREFS.hudPosV1) PREFS.hudPos = PREFS.hudPosV1; delete PREFS.hudPosV1; guardarPrefs(); hudDisponer(); return ctlDibujar(); }
   if (k === 'editar') return ctlEditar();
   if (k === 'publicar') return ctlPublicar();
   if (k === 'usar') return ctlUsarDeTienda(v);
@@ -94,7 +97,8 @@ function ctlEditables() {
 }
 function ctlEditar() {
   const p = $('ctlPanel'); if (p) p.classList.add('oc');
-  CTL.edit = true; CTL.borrador = JSON.parse(JSON.stringify(PREFS.hudPos || {})); CTL.sel = null; CTL.tacAntes = document.body.classList.contains('tactil');
+  CTL.edit = true; CTL.borrador = JSON.parse(JSON.stringify(PREFS.hudPos || {})); CTL.sel = null;
+  if (hudVer(CTL.borrador) === 2) CTL.borrador._v = 2;   // (la nueva sigue siendo la nueva aunque se mueva un botón) CTL.tacAntes = document.body.classList.contains('tactil');
   document.body.classList.add('tactil', 'ctlEdit'); if (typeof soltarPuntero === 'function') soltarPuntero();
   let o = $('ctlEd');
   if (!o) {
@@ -106,7 +110,7 @@ function ctlEditar() {
     o.querySelector('.ctlBarra').addEventListener('pointerdown', (e) => e.stopPropagation());
     o.querySelector('.ctlBarra').onclick = (e) => { const b = e.target.closest('[data-ce]'); if (!b) return; const a = b.dataset.ce;
       if (a === 'modo') { CTL.modo = CTL.modo === 'veh' ? 'pie' : 'veh'; CTL.sel = null; ctlMostrar(); }
-      else if (a === 'fab') { CTL.borrador = {}; ctlMostrar(); }
+      else if (a === 'fab') { CTL.borrador = { _v: 2 }; ctlMostrar(); }
       else if (a === 'ordenar' || a === 'ordenarIA') { if (typeof hudOrdenBoton === 'function') hudOrdenBoton(a === 'ordenarIA', b); }
       else if (a === 'cancelar') ctlSalirEditor(false);
       else if (a === 'guardar') ctlSalirEditor(true); };
@@ -127,7 +131,7 @@ function ctlMostrar() {
   if (r) $('ctlSelTam').value = Math.round(ctlPosDe(r)[2] / r[5] * 100);
   hudDisponer();
 }
-const ctlPosDe = (r) => { const o = ctlPosiciones()[r[0]]; return o && o.length === 3 ? o : [r[3], r[4], r[5]]; };
+const ctlPosDe = (r) => { const o = ctlPosiciones()[r[0]]; return o && o.length === 3 ? o : (typeof HUD !== 'undefined' && HUD.ef && HUD.ef[r[0]]) || [r[3], r[4], r[5]]; };
 // el botón que está debajo del dedo (en las coordenadas de la pantalla girada, como los ubica hudDisponer)
 function ctlBotonEn(x, y) {
   let mejor = null, md = 1e9;
@@ -169,7 +173,16 @@ function ctlSalirEditor(guardar) {
 }
 
 // ---------------- la tienda de controles ----------------
-const ctlDatos = () => ({ v: 1, hud: PREFS.hudPos || {}, tam: +PREFS.hud || 80, pal: +PREFS.palTam || 1, teclas: PREFS.teclas || {} });
+// (v 2: la de «Mejores botones»; en hud va «_v: 2» si es la disposición nueva. Las de antes —v 1, sin «_v»— se siguen viendo como se
+// publicaron: hudVer las reconoce y les pone los de fábrica de antes alrededor)
+const ctlDatos = () => ({ v: 2, hud: PREFS.hudPos || {}, tam: +PREFS.hud || 80, pal: +PREFS.palTam || 1, teclas: PREFS.teclas || {} });
+// (Ajustes → Controles → Pantalla táctil: si tenés tus botones guardados de antes, la nueva se puede probar y volver)
+function ctlNuevaHTML() {
+  if (typeof hudVer !== 'function') return '';
+  if (hudVer(PREFS.hudPos) === 1) return `<div class="fila ctlNueva"><span>${esc(T('hud.nueva'))}</span><button class="boton" data-ctl="hudNueva">${esc(T('hud.probar'))}</button></div>`;
+  if (PREFS.hudPosV1) return `<div class="fila ctlNueva"><span>${esc(T('hud.probando'))}</span><button class="boton" data-ctl="hudMia">${esc(T('hud.volverMia'))}</button></div>`;
+  return '';
+}
 async function ctlPublicar() {
   const nom = ($('ctlNom') && $('ctlNom').value.trim()) || '';
   if (nom.length < 2) { aviso(T('ctl.ponNombre'), 2); return; }

@@ -439,12 +439,14 @@ function cuadro(ahora) {
   }
 }
 // el lobby del menú: fondo crema de la cámara del juego y, en la tienda, el personaje con la luz de la escena
-const LOBBY_LUZ = { sol: v3(-0.322, 0.765, -0.557), solCol: [1, 0.957, 0.839], amb: [0.44, 0.43, 0.42], fondo: [0.945, 0.925, 0.875] };
+const LOBBY_LUZ = { sol: v3(-0.322, 0.765, -0.557), solCol: [1, 0.957, 0.839], amb: [0.44, 0.43, 0.42], fondo: [0.945, 0.925, 0.875], fondoEsc: [0.118, 0.122, 0.137] };
 function dibujarMenu() {
   const gl = R.gl, W = R.cv.width, H = R.cv.height, F = LOBBY_LUZ.fondo;
   R.cuadro = (R.cuadro || 0) + 1;
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  gl.viewport(0, 0, W, H); gl.clearColor(F[0], F[1], F[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  // (con el escenario de Personajes —el concepto de GOLDEN— el fondo es oscuro, como el panel; la luz del personaje es la misma)
+  const C = MENU.caja && MENU.caja.isConnected ? LOBBY_LUZ.fondoEsc : F;
+  gl.viewport(0, 0, W, H); gl.clearColor(C[0], C[1], C[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   if (!MENU.lobby) return;
   const g = { sol: R.sol.clone(), solCol: R.solCol, ambS: R.ambS, ambG: R.ambG, niebla: R.niebla, lin: R.lin, expo: R.expo };
   R.sol.copy(LOBBY_LUZ.sol); R.solCol = LOBBY_LUZ.solCol; R.ambS = LOBBY_LUZ.amb; R.ambG = LOBBY_LUZ.amb; R.niebla = { c: F, a: 900, b: 1000 };

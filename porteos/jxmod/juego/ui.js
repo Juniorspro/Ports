@@ -218,6 +218,8 @@ function cerrarPaneles() {
   if (typeof RUL !== 'undefined') { RUL.asignar = -1; if (RUL.abierto) rulCerrar(); }   // (la ruleta de emotes)
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
   { const pj = $('pjJuego'); if (pj) pj.classList.add('oc'); }
+  // (Personajes abierto desde la pausa: el panel del inicio arriba de la partida; la tecla de pausa lo cierra y se vuelve a jugar)
+  if (typeof RB !== 'undefined' && RB.desdeJuego === 'pausa' && typeof rbVisible === 'function' && rbVisible()) { RB.desdeJuego = false; inicioMostrar(false); if (typeof menuMostrar === 'function') menuMostrar(false); }
   if (typeof EMU !== 'undefined' && EMU.ed && typeof emuCerrar === 'function') emuCerrar();   // (el panel de la música de un emote)
   { const p = $('armaAjPan'); if (p && !p.classList.contains('oc') && typeof armaAjCerrar === 'function') armaAjCerrar(); }
   for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan', 'verPan', 'verTuto', 'verTerm', 'verCrea', 'emuPan']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
@@ -231,6 +233,30 @@ function cerrarPaneles() {
   if (typeof maqPanelCerrar === 'function') { maqPanelCerrar(); if ($('maqVista') && !$('maqVista').classList.contains('oc')) maqVistaCerrar(); }
 }
 function soltarPuntero() { if (document.pointerLockElement) document.exitPointerLock(); ENT.disparo = ENT.disparo2 = false; }
+// ---------------- las capas: lo del juego nunca queda encima de un menú grande ----------------
+// (Discord, Kris: «si tenés equipado el celular y abrís la pausa», el celular quedaba dibujado encima del menú.) Con un
+// menú grande a la vista —cualquier .panel (pausa, Ajustes, Controles, Personaje, emotes, radio...), el spawn, el inicio
+// (también jugando: Personajes, Social, la tienda), el editor de botones o un diálogo— body.menuEncima esconde lo que
+// flota sobre el juego (el CSS dice qué). Lo mira un MutationObserver: cambia en el mismo momento en que se abre o se
+// cierra un menú, sin esperar al cuadro siguiente (con la pausa a 30 cuadros) y sin :has() en el CSS: los WebView viejos
+// de Android y Safari antes de 15.4 no lo entienden y tiran la regla entera (eso dejaba el celular encima de la pausa)
+const CAPAS = { si: null, sel: '.panel:not(.oc), #spawn:not(.oc), #rbInicio:not(.oc), #gmmEq:not(.oc), .verTuto:not(.oc), #cuDlg:not(.oc), #cfDlg:not(.oc), #ctlEd:not(.oc)' };
+function capasRevisar() {
+  const si = !!document.querySelector(CAPAS.sel) || document.body.classList.contains('ctlEdit');
+  if (si !== CAPAS.si) { CAPAS.si = si; document.body.classList.toggle('menuEncima', si); }
+  return si;
+}
+// (sólo se vuelve a mirar si cambió la clase de un menú o del body, o si se agregó algo al body: el celular en la mano
+// toca sus clases en cada cuadro y eso no tiene que costar una búsqueda en toda la página)
+CAPAS.ids = new Set(['spawn', 'rbInicio', 'gmmEq', 'cuDlg', 'cfDlg', 'ctlEd']);
+function capasMut(L) {
+  for (const m of L) { const t = m.target; if (m.type === 'childList' ? t === document.body : t === document.body || (t.id && CAPAS.ids.has(t.id)) || (t.classList && (t.classList.contains('panel') || t.classList.contains('verTuto')))) { capasRevisar(); return; } }
+}
+function capasIniciar() {
+  if (typeof MutationObserver === 'function' && document.body) { const o = new MutationObserver(capasMut); o.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] }); }
+  capasRevisar();
+}
+if (document.body) capasIniciar(); else addEventListener('DOMContentLoaded', capasIniciar);
 // (el menú de pausa: tarjetas con título y una línea abajo; los textos en el idioma elegido cada vez que se abre)
 function pzTexto(id, t, sub) { const e = $(id); if (!e) return; const b = e.querySelector('b') || e.querySelector('span'), s = e.querySelector('small'); if (b) b.textContent = t; if (s && sub !== undefined) s.textContent = sub; }
 function abrirPausa() {
@@ -241,7 +267,7 @@ function abrirPausa() {
   pzTexto('bGuardar', T('guardar')); pzTexto('bCargar', T('pz.cargar'));
   { const m = $('pzModo'); if (m) m.textContent = typeof SALA !== 'undefined' && SALA ? SALA.n : T('pz.solo'); }
   { const f = $('pzFps'); if (f) f.textContent = Math.round(TIEMPO.fps || 0) + ' fps'; }
-  UI.abierto = 'pausa'; $('pausa').classList.remove('oc'); soltarPuntero(); if (ENT.soltarTodo) ENT.soltarTodo();
+  UI.abierto = 'pausa'; $('pausa').classList.remove('oc'); capasRevisar(); soltarPuntero(); if (ENT.soltarTodo) ENT.soltarTodo();
   pzEncajar();
 }
 // (los títulos de las tarjetas en un renglón: si en algún idioma no entran —«Переглянути навчання», «Panoorin ang

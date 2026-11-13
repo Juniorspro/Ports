@@ -1,5 +1,8 @@
 // ---------------- el orden de los botones de arriba a la izquierda (celular) ----------------
-// Tres filas, cada una con lo suyo (la proximidad agrupa: lo que está junto se entiende como de lo mismo):
+// (GOLDEN) En la disposición nueva («Mejores botones», hud.js: HUD_V2) los tres grupos son columnas, como en el concepto de
+// GOLDEN: la del sistema en la esquina, la de crear al lado y las teclas de los mods con su placa; el orden de cada grupo
+// es el mismo de acá (de arriba abajo). En la de antes —la guardada por quien había movido botones— siguen siendo filas.
+// Tres grupos, cada uno con lo suyo (la proximidad agrupa: lo que está junto se entiende como de lo mismo):
 //  1. el sistema: pausa (siempre primera, en la esquina, como en todos los juegos), chat, celular, micrófono, voces;
 //  2. lo de crear: props, MOD, GMod, spawn de los mods, Verity;
 //  3. las teclas de los mods fijadas, con ícono y nombre.
@@ -50,7 +53,7 @@ function hudOrdenAuto() {
   return hudZonasListas(o);
 }
 // ---- «Ordenar con IA»: el Gemini del dueño (por la tienda); si no, tu propia clave de Gemini; si no, la IA pública ----
-const HUD_IA_REGLAS = 'Sos diseñador de interfaces de juegos para celular (horizontal). Ordená los botones de arriba a la izquierda del HUD táctil de un sandbox en 3 filas: "sis" (sistema: pausa, chat, celular, micrófono, voces), "crear" (menús de crear: props, mod, gmod, spawn, verity) y "hab" (teclas de mods). Reglas: pausa siempre primera de "sis"; máximo 6 por fila; agrupá por función (proximidad de la Gestalt); dentro de cada fila, a la izquierda lo más usado (más cerca del pulgar izquierdo, ley de Fitts); no repitas ni inventes ids; si un botón de una fila se usa muchísimo más que el resto y es parecido a otra fila, podés moverlo. Contestá SOLO un JSON: {"sis":[ids],"crear":[ids],"hab":[ids],"razon":"una frase"}.';
+const HUD_IA_REGLAS = 'Sos diseñador de interfaces de juegos para celular (horizontal). Ordená los botones de arriba a la izquierda del HUD táctil de un sandbox en 3 grupos (en el celular son columnas; el primero de cada grupo va arriba): "sis" (sistema: pausa, chat, celular, micrófono, voces), "crear" (menús de crear: props, mod, gmod, spawn, verity) y "hab" (teclas de mods). Reglas: pausa siempre primera de "sis"; máximo 6 por fila; agrupá por función (proximidad de la Gestalt); dentro de cada fila, a la izquierda lo más usado (más cerca del pulgar izquierdo, ley de Fitts); no repitas ni inventes ids; si un botón de una fila se usa muchísimo más que el resto y es parecido a otra fila, podés moverlo. Contestá SOLO un JSON: {"sis":[ids],"crear":[ids],"hab":[ids],"razon":"una frase"}.';
 function hudIAPedido() {
   const u = PREFS.hudUso || {}, nom = (s) => { const e = document.querySelector(s); return e ? (e.title || e.getAttribute('aria-label') || e.textContent || '').trim().slice(0, 40) : ''; };
   const b = Object.entries(HUD_ZID).map(([id, s]) => ({ id, fila: hudZonaDe(s), nombre: nom(s), usos: u[id] || 0, hay: !!document.querySelector(s) && !document.querySelector(s).classList.contains('oc') }));

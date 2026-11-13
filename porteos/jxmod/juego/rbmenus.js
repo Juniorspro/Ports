@@ -93,24 +93,79 @@ function panelMultiCrear(P) {
   P.querySelectorAll('[data-mp]').forEach((r) => { r.oninput = () => { C[r.dataset.mp] = +r.value; r.nextElementSibling.textContent = r.value; }; });
 }
 
-// ---------------- personajes: skins y gorros, con el tuyo en 3D al costado ----------------
-function panelPersonajes(P) {
-  RB.el.classList.add('rb3d'); if (!MENU.lobby) MENU.yaw = Math.PI + 0.45; menuLobby(true);
-  const skin = RBM.pjTab === 'skin', mod = RBM.pjTab === 'mod', lista = skin ? DATA.chars : DATA.hats;
-  const cab = `<div class="rbPanCab">${glifo('persona')} ${esc(T('m.personajes'))}
-      <span class="rbTabs"><button class="rbTab${skin ? ' sel' : ''}" data-rb="pjTab:skin">${esc(T('pj.skins'))}</button><button class="rbTab${mod ? ' sel' : ''}" data-rb="pjTab:mod">${esc(T('pjm.tab'))}</button><button class="rbTab${!skin && !mod ? ' sel' : ''}" data-rb="pjTab:hat">${esc(T('pj.gorros'))}</button></span></div>`;
-  // (los modelos de jugador de los mods: los instalados y los del Workshop, con buscador)
-  if (mod) { P.innerHTML = cab + pjmHTML() + `<div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><span class="rbModo">${glifo('girar')} ${esc(T('pj.girar'))}</span></div>`; pjmMontar(P); return; }
-  const gorros = !skin && !mod;
-  P.innerHTML = cab + (gorros ? `<div class="pjGorros">` : '') + `
-    <div class="pjGrid">${lista.map((s) => {
-      const sel = skin ? PREFS.skin === s : (PREFS.gorro || 'HatEmpty') === s, ic = skin ? RETRATO[s] || s : s;
-      const img = DATA.ico[ic] ? icono(ic) : skin ? '' : (typeof GN !== 'undefined' && GN.ico[s]) || icono('western-hat');
-      return `<button class="pjCelda${sel ? ' sel' : ''}" data-rb="pjSel:${esc(s)}"><i style="${img ? `background-image:url(${img})` : ''}">${s === 'HatEmpty' ? glifo('no') : img ? '' : glifo('persona')}</i><b>${esc(s === 'HatEmpty' ? T('pj.sin') : skin ? skinNom(s) : s.replace(/^Hat/, ''))}</b></button>`;
-    }).join('')}</div>${gorros ? gorroAjHTML() + '</div>' : ''}
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><span class="rbModo">${glifo('girar')} ${esc(T('pj.girar'))}</span></div>`;
-  if (gorros) gorroAjMontar(P);
+// ---------------- personajes (concepto de GOLDEN): pestañas Personajes / Mods / Gorros con buscador, tarjetas con la
+// cara de cada uno y el elegido en 3D bien grande en el escenario de la derecha (pedido: «que la skin se vea más»), que se
+// gira arrastrando y está con su animación de reposo. Con el estilo de Mods y mapas de la 3.1 (oscuro, amarillo para lo
+// elegido). Es el mismo panel en el inicio y en la pausa (Personaje): ahí vuelve a la pausa y el cambio es al momento.
+// El escenario es un hueco en el panel (el panel no tiene fondo: lo pintan las otras zonas), así se ve el lienzo 3D de
+// atrás, y el personaje se ubica para llenarlo (menu.js, lobbyEncuadre) ----------------
+const PJ_Q = { skin: '', hat: '' };
+function pjTarjeta(dat, nom, img, o) {
+  o = o || {};
+  return `<button class="pjCard${o.sel ? ' sel' : ''}${o.cls ? ' ' + o.cls : ''}" ${dat} title="${esc(nom)}"><span class="pjFoto"${img ? ` style="background-image:url('${esc(img)}')"` : ''}>${o.glifo ? glifo(o.glifo) : img ? '' : glifo('persona')}</span>`
+    + `<b dir="auto">${esc(nom)}</b>${o.sub ? `<small dir="auto">${esc(o.sub)}</small>` : ''}${o.acc ? `<span class="pjAcc ${o.accCls || ''}">${o.acc}</span>` : ''}${o.sel ? `<i class="pjOk">${glifo('si')}</i>` : ''}</button>`;
 }
+const pjGorroNom = (s) => (s === 'HatEmpty' ? T('pj.sin') : String(s).replace(/^Hat/, ''));
+const pjGorroImg = (s) => (s === 'HatEmpty' ? '' : DATA.ico[s] ? icono(s) : (typeof GN !== 'undefined' && GN.ico[s]) || icono('western-hat'));
+function pjNomActual() { const s = PREFS.skin || 'Hero'; return gmpEs(s) ? s.replace(/^.*\//, '').replace(/\.mdl$/, '').replace(/_/g, ' ') : skinNom(s); }
+function panelPersonajes(P) {
+  RB.el.classList.add('rb3d'); if (!MENU.lobby) MENU.yaw = Math.PI + 0.25; menuLobby(true);
+  P.classList.add('rbPan_tienda', 'pjV2'); { const v = RB.el.querySelector('.rbVer'); if (v) v.classList.add('oc'); }
+  const tabK = RBM.pjTab === 'mod' || RBM.pjTab === 'hat' ? RBM.pjTab : 'skin'; RBM.pjTab = tabK;
+  const tab = (k, ic, t) => `<button class="rbTab${tabK === k ? ' sel' : ''}" data-rb="pjTab:${k}" title="${esc(T(t))}">${ic}<span>${esc(T(t))}</span></button>`;
+  const q = tabK === 'mod' ? PJM.q : PJ_Q[tabK] || '';
+  const ph = T(tabK === 'hat' ? 'pj.buscarGorro' : 'pjm.buscar');
+  // (en el inicio «Volver» lleva al menú; en la pausa, a la pausa)
+  const volver = RB.desdeJuego === 'pausa' ? T('pj.volverPausa') : T('volver');
+  // (sin título arriba, como en el concepto: la primera pestaña ya dice «Personajes» y el escenario, a quién elegiste)
+  P.innerHTML = `<div class="rbPanCab tiCab pjCab" aria-label="${esc(T('m.personajes'))}">
+      <span class="rbTabs tiTabs">${tab('skin', glifo('persona'), 'pj.skins')}${tab('mod', icoHTML('ico:mod'), 'pjm.tab')}${tab('hat', glifo('gorro'), 'pj.gorros')}</span>
+      <span class="rbEsp"></span><label class="tiBus pjBus">${glifo('buscar')}<input id="pjBuscar" class="${tabK === 'mod' ? 'pjmBus' : ''}" type="search" dir="auto" placeholder="${esc(ph)}" value="${esc(q)}"></label></div>
+    <div class="pjIzq pjT_${tabK}"></div>
+    <div class="pjEscena lobbyCaja"><div class="pjEscInfo"><b dir="auto"></b><small dir="auto"></small></div><span class="pjGira">${glifo('girar')}<span>${esc(T('pj.girar'))}</span></span></div>
+    <div class="rbPanPie"><button class="rbBtnGris tiVolver" data-rb="volver" title="${esc(volver)}">${glifo('atras')}<span>${esc(volver)}</span></button><span class="rbEsp"></span>
+      ${tabK === 'mod' ? `<label class="rbBtnGris pjmImp" title="${esc(T('pjm.importar'))}">${glifo('subir')}<span>${esc(T('pjm.importar'))}</span><input type="file" accept=".gma,.bin" hidden></label>` : ''}
+      <span class="pjCuenta"></span></div>`;
+  const izq = P.querySelector('.pjIzq');
+  if (tabK === 'mod') { izq.innerHTML = `<div class="pjmCaja"><div class="pjmListas">${pjmListasHTML()}</div></div>`; pjmMontar(P); }
+  else pjListaDibujar(P);
+  const bus = P.querySelector('#pjBuscar');
+  if (tabK !== 'mod') { bus.addEventListener('input', () => { PJ_Q[tabK] = bus.value; pjListaDibujar(P); }); bus.addEventListener('keydown', (e) => e.stopPropagation()); }
+  MENU.caja = P.querySelector('.pjEscena'); pjEscenaTexto(); requestAnimationFrame(pjEncajar);
+}
+// la grilla de Personajes o de Gorros (con la personalización al costado), filtrada por el buscador; no rehace el buscador
+function pjListaDibujar(P) {
+  const izq = P && P.querySelector('.pjIzq'); if (!izq) return;
+  const hat = RBM.pjTab === 'hat', q = (PJ_Q[hat ? 'hat' : 'skin'] || '').toLowerCase().trim();
+  const pasa = (n) => !q || n.toLowerCase().includes(q);
+  // (por el nombre que se ve: el de adentro —Hero, Business...— confundía: «ro» traía a Nico, que por dentro es Hero)
+  const L = (hat ? DATA.hats : DATA.chars).filter((s) => pasa(hat ? pjGorroNom(s) : skinNom(s)));
+  const cel = L.map((s) => hat ? pjTarjeta(`data-rb="pjSel:${esc(s)}"`, pjGorroNom(s), pjGorroImg(s), { sel: (PREFS.gorro || 'HatEmpty') === s, glifo: s === 'HatEmpty' ? 'no' : '', cls: 'pjHat' })
+    : pjTarjeta(`data-rb="pjSel:${esc(s)}"`, skinNom(s), retrato(s), { sel: PREFS.skin === s })).join('') || `<p class="pjVacio">${esc(T('pjm.sinRes'))}</p>`;
+  const grilla = `<div class="pjGrid${hat ? ' pjGridHat' : ''}">${cel}</div>`;
+  if (hat) {
+    // (al buscar sólo cambia la grilla: la personalización queda como está, con lo que se estaba tocando)
+    const g = izq.querySelector('.pjGridHat');
+    if (g && izq.querySelector('.gorroAj')) g.outerHTML = grilla;
+    else { izq.innerHTML = `<div class="pjGorros">${grilla}${gorroAjHTML()}</div>`; gorroAjMontar(P); }
+  } else izq.innerHTML = grilla;
+  const c = P.querySelector('.pjCuenta'); if (c) c.textContent = hat ? '' : `${L.length} ${T('pj.skins').toLowerCase()}`;
+}
+// el nombre del elegido (y su gorro) sobre el escenario
+function pjEscenaTexto() {
+  const E = RB.el && RB.el.querySelector('.pjEscena'); if (!E) return;
+  const g = PREFS.gorro && PREFS.gorro !== 'HatEmpty' ? pjGorroNom(PREFS.gorro) : '';
+  E.querySelector('.pjEscInfo b').textContent = pjNomActual();
+  E.querySelector('.pjEscInfo small').textContent = g ? T('pj.conGorro').replace('%g', g) : gmpEs(PREFS.skin) ? T('pjm.tab') : '';
+}
+// arriba en un renglón (como en Mods y mapas): si las pestañas no entran (celular chico, un idioma largo), las no elegidas
+// quedan sólo con el ícono (medido con scrollWidth: con el juego girado getBoundingClientRect da la pantalla girada)
+function pjEncajar() {
+  const P = RB.el && !RB.el.classList.contains('oc') && RB.panel === 'personajes' && RB.el.querySelector('.rbPan.pjV2'); if (!P || !P.offsetWidth) return;
+  const cab = P.querySelector('.pjCab'), tb = cab && cab.querySelector('.tiTabs'); if (!cab) return; cab.classList.remove('tiC3');
+  if (cab.scrollWidth > cab.clientWidth + 1 || (tb && tb.scrollWidth > tb.clientWidth + 1)) cab.classList.add('tiC3');
+}
+addEventListener('resize', () => setTimeout(() => { if (RB.panel === 'personajes') pjEncajar(); }, 80));
 // la personalización del gorro (como pidió la comunidad): tamaño, mover en X/Y/Z y color; se ve al momento en el personaje
 const GORRO_COLORES = ['', '#4c8bf5', '#d0d4dc', '#1d1f24', '#26346b', '#e0524f', '#f09a3e', '#f2d04b', '#5bbf6a', '#8e5bd6', '#e58cc2'];
 function gorroAjHTML() {
@@ -137,12 +192,16 @@ function gorroAjMontar(P) {
   });
 }
 function pjElegir(s) {
-  if (RBM.pjTab === 'skin') PREFS.skin = s; else PREFS.gorro = s;
-  guardarPrefs(); menuLobby(true, true); inicioPanel('personajes');
+  // (el personaje por pjElegirSkin, que también pasa por la censura y rehace el del escenario; el gorro, acá)
+  if (RBM.pjTab === 'skin') { if (typeof pjElegirSkin === 'function') pjElegirSkin(s); else { PREFS.skin = s; guardarPrefs(); menuLobby(true, true); } if (PREFS.skin !== s) return; }
+  else { PREFS.gorro = s; guardarPrefs(); if (typeof JUEGO !== 'undefined' && JUEGO.estado === 'juego' && typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo(); menuLobby(true, true); }
+  // (sólo se marca la tarjeta nueva: la grilla no salta arriba ni se pierde lo escrito en el buscador)
+  if (RB.el) for (const c of RB.el.querySelectorAll('.pjCard[data-rb^="pjSel:"]')) { const si = c.dataset.rb === 'pjSel:' + s; c.classList.toggle('sel', si); const ok = c.querySelector('.pjOk'); if (si && !ok) c.insertAdjacentHTML('beforeend', `<i class="pjOk">${glifo('si')}</i>`); else if (!si && ok) ok.remove(); }
+  pjEscenaTexto();
 }
-// girar el personaje arrastrando en el espacio libre (fuera del panel)
+// girar el personaje arrastrando en el escenario (o en el espacio libre fuera del panel)
 function rbArrastre() {
-  RB.el.addEventListener('pointerdown', (e) => { if (RB.panel !== 'personajes' || e.target.closest('.rbPan, .rbAbajo, button')) return; RBM.arr = tX(e); });
+  RB.el.addEventListener('pointerdown', (e) => { if (RB.panel !== 'personajes' || (e.target.closest('.rbPan, .rbAbajo, button') && !e.target.closest('.pjEscena'))) return; RBM.arr = tX(e); if (e.target.closest('.pjEscena')) e.preventDefault(); });
   addEventListener('pointermove', (e) => { if (RBM.arr === null || RB.panel !== 'personajes') return; MENU.yaw -= (tX(e) - RBM.arr) * 0.012; RBM.arr = tX(e); });
   addEventListener('pointerup', () => { RBM.arr = null; });
 }
