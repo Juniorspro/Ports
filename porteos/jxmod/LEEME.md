@@ -2615,3 +2615,94 @@ pruebas `pruebas/tele_toque.mjs` y `pruebas/gmod_pipe_memoria.mjs`):
   (Steam no deja leer su CDN desde otra página).
 - No se probó en un iPhone ni en un Android de verdad (acá no hay Safari ni APK: la firma se perdió y no se armó); el
   Java compila con `javac` contra `android.jar` 35 (0 errores).
+
+## Del Discord: «Mejora en los Pill Packs» (saltar, más rápidos y ajustes de velocidad y recarga)
+
+Pedido de Deep: que puedan saltar, poder cambiar la velocidad o el tiempo de recarga, y que sean más rápidos («si
+querés jugar una persecución con un amigo, él te gana en velocidad»). `pillpacks.js`, `pill_gmod.js`, `jugador.js`,
+`red.js`, `personas.js`, `idiomas3.js`; prueba nueva `pruebas/pill_mejoras.mjs` (compu y celular) y más controles en
+`red_pill.mjs` y `pill_gmod.mjs`. Todo medido en FlatGrass con el reloj de la física (el navegador de las pruebas va a
+menos de tiempo real y medir con el reloj de la pared daba la mitad).
+
+- **Velocidad**: el jugador camina a 6,0 m/s y corre a 8,1. Antes 21 de los 26 Pill propios caminaban más lento que él
+  (el Zombi a 3,1, el Boiled One a 3,4, Freddy a 4,3) y 15 no le ganaban corriendo ni con la Carrera (Freddy 6,7, Zombi
+  5,3; la del Astronauta estaba en el lugar de la habilidad 2 y nunca andaba). Ahora caminan a 6,0–8,0 y la Carrera va
+  de 9,0 a 14,0: Foxy es el que más corre; Freddy, el Zombi y el Boiled One caminan como el jugador y corren 9,0–9,6.
+  Sin poder, Shift (o la palanca al tope) es el correr de siempre, ×1,35 (8,1 o más): una persecución larga queda
+  pareja o a favor del Pill. La carrera ahora se escribe por su tope en m/s (`hCarrera(14)`), no por un multiplicador.
+
+  | Pill | camina (m/s) | Carrera (m/s) | salto (m) |
+  |---|---|---|---|
+  | Freddy | 4,3 → 6,0 | 6,7 → 9,2 | 0,75 → 0,8 |
+  | Bonnie | 4,6 → 6,4 | 7,4 → 10,2 | 0,85 → 0,95 |
+  | Chica | 4,5 → 6,3 | 7,0 → 9,8 | 0,85 → 0,9 |
+  | Foxy | 5,1 → 7,0 | 9,9 → **14,0** | 1,0 → 1,3 |
+  | Zombi | 3,1 → 6,0 | 5,3 → 9,6 | 0,7 → 0,8 |
+  | The Boiled One | 3,4 → 6,0 | 5,4 → 9,0 | 0,6 → 0,75 |
+  | Sunman | 4,0 → 6,2 | 6,4 → 9,6 | 0,9 → 1,0 |
+  | Bon | 4,2 → 6,3 | 6,5 → 9,8 | 0,8 → 0,9 |
+  | Sha | 4,4 → 6,5 | 6,8 → 10,0 | 0,9 → 1,0 |
+  | Partygoer | 4,6 → 6,8 | 8,3 → 12,0 | 1,0 → 1,2 |
+  | Bacteria | 4,8 → 6,8 | 10,1 → 13,0 | 1,0 → 1,3 |
+  | Alternate | 4,2 → 6,3 | 6,3 → 9,6 | 0,9 → 1,0 |
+  | Filbus | 4,4 → 6,5 | 7,0 → 10,2 | 1,0 → 1,1 |
+  | Goku | 6,4 → 7,5 | 10,2 → 12,5 | 2,4 (igual) |
+  | Vegeta | 6,4 → 7,5 | 10,2 → 12,5 | 2,4 (igual) |
+  | Broly | 5,6 → 6,8 | 8,4 → 10,5 | 2,0 (igual) |
+  | Gohan | 6,2 → 7,3 | 9,9 → 12,0 | 2,3 (igual) |
+  | Piccolo | 5,8 → 7,0 | 9,0 → 11,0 | 2,2 (igual) |
+  | Ninja | 7,0 → 8,0 | 10,5 → 12,8 | 2,0 (igual) |
+  | Robot | 4,6 → 6,2 | 7,4 → 9,8 | 1,0 → 0,9 |
+  | V1 | 7,2 → 8,0 | 10,8 → 13,2 | 2,0 (igual) |
+  | Jake | 4,6 → 6,5 | 7,4 → 10,4 | 1,6 (igual) |
+  | Finn | 5,4 → 7,0 | 8,6 → 11,2 | 1,5 (igual) |
+  | Astronauta | 4,6 → 6,2 | 6,2 (Shift ×1,35: no andaba) → 9,4 | 2,6 (igual) |
+  | Pirata | 5,2 → 6,6 | 7,8 → 10,0 | 1,1 (igual) |
+  | Rick | 5,4 → 6,6 | 8,1 → 9,9 | 1,1 (igual) |
+
+- **Saltar** (Espacio; en el celular, el botón de saltar de siempre): lo que no dejaba saltar era el pack de FNaF del
+  Workshop y 7 del pack base de Parakeet (el zombi, el vortigaunt, el antlion guard…), que traen `jumpPower = 0`; así
+  ahora saltan según su tamaño (1,1 m uno de 1,9 m; los de FNaF del pack, de 2,6–3 m, 0,9–0,97 m). Además, con menos
+  de ~14 cuadros por segundo el salto se cortaba en la subida (la física da 3 pasos por cuadro como mucho y el «hace
+  cuánto saltó» se medía con el reloj del juego, que corría más: Jake llegaba a 0,9 m de 1,6); ahora con el reloj de
+  la física (`JUG.reloj`) y llega a su altura con cualquier cantidad de cuadros (medido a 6–17 cuadros por segundo:
+  96–98 % de lo nominal, como el jugador). Los pesados saltan menos y los ágiles más (tabla). En el aire, la animación
+  de salto (la de GMod en los del juego; la del modelo, si la tiene, en los del Workshop: el antlion, la suya) y al caer
+  los pies quedan a la misma altura que parado (−5,0 cm del piso, igual que el jugador). Para eso, `personas.js`
+  (`aterrizarPies`): en el aire el cuerpo se bajaba 6 cm buscando un piso que no estaba (las piernas encogidas del
+  salto) y al caer, mientras la pose pasa de encogida a parada, el suavizado se quedaba atrás: los pies quedaban 3–6 cm
+  más adentro (Freddy −8,1, Alternate −11,3, Foxy −9,2 cm). Ahora en el aire no se baja, y subir (que el pie no quede
+  más de 1 cm debajo de lo de parado) es en el acto; bajar sigue siendo suave. Vale para todos los cuerpos.
+- **Los del Workshop** (`pill_gmod.js`): la velocidad sale respecto del jugador de GMod (200 unidades/s = 6 m/s, antes
+  0,0254 m por unidad: más lentos que uno). Los de FNaF: Freddy 4,6 → 6,0, Chica 6,6 → 7,8, Bonnie 7,1 → 8,4, Foxy
+  7,6 → 9,0 m/s; todos tienen Carrera (la del pack si corre más de lo que camina, como mínimo ×1,5 y por encima de
+  9 m/s; antes los que caminan igual que corren no tenían y Shift no hacía nada). El salto es el de su `jumpPower`
+  (200 = 1,1 m), y sin él, el de GMod.
+- **Ajustes** (pestaña Pill Packs, arriba de las tarjetas, en todas las categorías): **Velocidad** ×0,5 a ×2 y
+  **Tiempo de recarga** ×0,25 a ×2 (la espera entre usos de cada habilidad y lo que tarda en volver el poder), de a
+  0,05, con «Por defecto» (×1). Se aplican en el acto, transformado o no, y quedan en `PREFS.pillVel` / `pillRec`
+  (`jx_prefs`). Con la identidad de los menús 3.0; textos en los 14 idiomas (en alemán, ruso, filipino, árabe y
+  japonés entran en una línea en la compu y en el celular).
+- **En la sala** (`red.js`): los demás se dibujaban yendo hacia la última posición que llegó, adelantada con la mitad de
+  su velocidad; entre un estado y el siguiente se quedaban atrás y saltaban para adelante. Medido con mensajes
+  armados (cada 0,1 s, demora de red de 50–100 ms y variación de 0–120 ms, a 30 y 60 cuadros por segundo): la velocidad
+  que se veía variaba un 20–31 % (picos de 36–117 %) a cualquier velocidad, y al caer de un salto lo metía 18 cm en el
+  piso. Ahora cada estado lleva el reloj de la física del que lo manda (`rt`) y se lo dibuja ~0,14 s en el pasado,
+  entre dos muestras, con sus velocidades: varía 0,5–3,8 % (picos 1–17 %, el más alto a 28 m/s con 120 ms de
+  variación), sin saltos de lugar, se pasa 1 cm al frenar y al caer queda en el piso (0 cm). Se dibuja con el reloj de
+  verdad (el del juego da como mucho 0,1 s por cuadro) y al ritmo del que manda: si su física va al 25–50 % del tiempo
+  real (menos de ~14 cuadros por segundo), se lo ve a ese ritmo, parejo (4–5 % de variación, sin saltos), en vez de a
+  los tirones. Uno con una versión de antes, sin `rt`, se ve como antes.
+- **Pruebas** (con la máquina muy cargada: 25–60 de carga en 4 núcleos): `pill_mejoras` compu 119/119 (los 26: camina,
+  Carrera, sin poder, salto, animación y caída; Foxy el que más corre; los ajustes, que se guardan, y los 14 idiomas) y
+  celular 38/38 (el salto con el botón de la pantalla); `pill_packs` compu 72/72 y celular 38/38; `red_pill` 16/16
+  (Foxy saltando 1,25 de 1,3 m y a ×2 a 28 m/s parejo, visto por el otro); `pill_gmod` 45/45 con los dos .gma del
+  Workshop; `emote_piso` 8/8 (las dos versiones; a veces sale «The user aborted a request.», un pedido sin red, en las
+  dos). `agacharse_escalones` 2/5 y 3/5 la de antes, en las mismas condiciones: camina con el reloj de la pared y la
+  física va más lenta; medido con el de la física, agachado pasa igual en las dos. `red_pill` acepta `BROKER_PORT` y
+  la `aedes` 1.x.
+- **Quedó**: los cuerpos van 5 cm adentro del piso parados, el del jugador también: `aterrizarPies` apoya los pies en
+  `P.pos.y − 1` y el piso de la cápsula está en `P.pos.y − 0,95` (jugador, los demás y los NPC); es un cambio de una
+  línea pero de todos los cuerpos y no se tocó. Los ~15 addons que no respetan su tamaño, no entró. Los textos viejos de
+  los Pill Packs (la descripción de la pestaña, «Sos … · nivel …», los nombres de las habilidades) siguen en español,
+  inglés y portugués; en los otros idiomas salen en inglés.

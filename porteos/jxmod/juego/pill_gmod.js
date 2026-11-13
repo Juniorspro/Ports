@@ -121,11 +121,19 @@ function pillGmDef(id) {
     if (ruta && gmExiste(ruta)) {
       const mv = T.get('moveSpeed'), walk = clamp(pgmNum(mv instanceof LuaTable ? mv.get('walk') : undefined, 200), 20, 800), run = clamp(pgmNum(mv instanceof LuaTable ? mv.get('run') : undefined, walk), walk, 1200);
       const cam = T.get('camera'), dist = pgmNum(cam instanceof LuaTable ? cam.get('dist') : undefined, 100), snd = T.get('sounds'), an = T.get('anims');
-      const hab = [pgmHab(T.get('attack'), T, 'lua1'), pgmHab(T.get('attack2'), T, 'lua2'), run > walk * 1.1 ? { t: 'carrera', mult: clamp(run / walk, 1.15, 2.6), gasto: 14, man: true } : null, pgmHab(T.get('reload'), T, 'lua3')];
+      // la velocidad respecto del jugador de GMod (camina a 200 unidades/s, el de acá a 6 m/s): Foxy del pack de FNaF (300)
+      // camina a 9 m/s y Freddy (180), al mínimo, 6, lo que camina el jugador (antes iban a 0,0254 m por unidad: 4,6 y
+      // 7,6, más lentos que uno). Todos tienen carrera: la del pack si corre más de lo que camina (como mínimo ×1,5) y si
+      // no ×1,5, siempre por encima de 9 m/s, más que el correr del jugador (8,1)
+      const vel = clamp(walk * PILL_VEL_JUG / 200, PILL_VEL_JUG, 15), mult = clamp(Math.max(run > walk * 1.1 ? run / walk : 1.5, 1.5, 9 / vel), 1.5, Math.max(1.5, 18 / vel));
+      const hab = [pgmHab(T.get('attack'), T, 'lua1'), pgmHab(T.get('attack2'), T, 'lua2'), { t: 'carrera', mult, gasto: 14, man: true }, pgmHab(T.get('reload'), T, 'lua3')];
+      // el salto: el de pk_pills (jumpPower; sin él, el de GMod: 200 = 1,1 m, lo del jugador); con jumpPower = 0 el pack
+      // no deja saltar (el de FNaF): acá sí, según el tamaño del modelo (pillSaltoDe, salto 0)
+      const jp = pgmNum(T.get('jumpPower'), 200);
       D = { id, gm: true, gmN: n, gmT: T, R: GMA.R, nom: String(T.get('printName')).slice(0, 40), skin: 'gmpm:' + ruta, ruta, cat: 'gm', poder: /fnaf|freddy/i.test(F.pack.n + ' ' + F.pack.id) ? 'fnaf' : 'energia', pack: F.pack.n,   // (los de FNaF, con la barra «FNAF Power» como en la idea)
          addon: F.addon,
-        vida: clamp(Math.round(pgmNum(T.get('health'), 100)), 1, 999999), vel: clamp(walk * GM_S, 0.5, 15), salto: clamp(1.1 * pgmNum(T.get('jumpPower'), 200) / 200, 0, 12), cam: clamp(dist * GM_S + 1.2, 2.2, 9),
-        sinCorrer: run <= walk * 1.1, hab, sinHab: !hab.some(Boolean), pasosGm: snd instanceof LuaTable ? pgmLista(snd.get('step')) : [],
+        vida: clamp(Math.round(pgmNum(T.get('health'), 100)), 1, 999999), vel, salto: jp > 0 ? clamp(1.1 * jp / 200, 0.3, 12) : 0, cam: clamp(dist * GM_S + 1.2, 2.2, 9),
+        hab, sinHab: !hab.some((h) => h && h.t !== 'carrera'), pasosGm: snd instanceof LuaTable ? pgmLista(snd.get('step')) : [],
         anims: an instanceof LuaTable && an.get('default') instanceof LuaTable ? an.get('default') : null, alCuerpo: pgmCuerpo };
     }
   }

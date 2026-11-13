@@ -21,48 +21,54 @@ const PILL_NIV_MAX = 10;
 // cada una: t (tipo), costo (de poder), cd (espera en segundos) y lo suyo. Las de mantener (carrera) gastan por segundo
 const hGolpe = (dan, o) => Object.assign({ t: 'golpe', dan, alc: 1.9, cd: 0.8, costo: 0, clip: 'gm_range_melee', imp: 0.2 }, o);
 const hSusto = (o) => Object.assign({ t: 'susto', costo: 35, cd: 6, radio: 10, son: 'fn_grito' }, o);
-const hCarrera = (mult, o) => Object.assign({ t: 'carrera', mult, gasto: 18, man: true }, o);
+// (la carrera se da por su tope en m/s; el multiplicador sobre el caminar sale al registrar al personaje)
+const hCarrera = (tope, o) => Object.assign({ t: 'carrera', tope, gasto: 18, man: true }, o);
+// Las velocidades, respecto del jugador (camina a 6 m/s y corre a 8,1: jugador.js): todos caminan por lo menos como él y
+// su carrera le gana a su correr (9 a 14 m/s), así una persecución con un amigo es pareja o a favor del Pill. Sin poder,
+// Shift (o la palanca al tope) es el correr de siempre (×1,35). Los pesados (Freddy, el Boiled One, el Zombi) van al
+// mínimo y Foxy es el que más corre. El salto, en metros (el jugador, 1,1): los pesados menos, los ágiles más
+const PILL_VEL_JUG = 6;
 const PILL_FNAF = { cat: 'fnaf', poder: 'fnaf', pasos: ['fn_paso1', 'fn_paso2', 'fn_paso3'], cam: 3.9, paq: 'a_pill', metal: true };
 const PILL_TERROR = { cat: 'terror', poder: 'miedo', cam: 3.6 };
 const PILL_DBZ = { cat: 'accion', poder: 'ki', cam: 3.4 };
 // el plantel propio: los personajes del juego (sus animaciones, con su tamaño) con lo que los hace distintos
 const PILL_PROPIOS = [
-  Object.assign({ id: 'freddy', skin: 'Freddy', nom: 'Freddy Fazbear', vida: 260, vel: 4.3, salto: 0.75,
-    hab: [hGolpe(30), hSusto({ cola: 'fn_risa' }), hCarrera(1.55), { t: 'cajita', costo: 50, cd: 20, radio: 14, dur: 9, son: 'fn_cajita' }] }, PILL_FNAF),
-  Object.assign({ id: 'bonnie', skin: 'Bonnie', nom: 'Bonnie', vida: 220, vel: 4.6, salto: 0.85,
-    hab: [hGolpe(26, { clip: 'Attack04', imp: 0.24 }), hSusto(), hCarrera(1.6), { t: 'tele', costo: 40, cd: 7, alc: 14, son: 'fn_estatica' }] }, PILL_FNAF),
-  Object.assign({ id: 'chica', skin: 'Chica', nom: 'Chica', vida: 220, vel: 4.5, salto: 0.85,
-    hab: [hGolpe(26), hSusto(), hCarrera(1.55), { t: 'curar', costo: 40, cd: 14, cura: 70, son: 'fn_ollas' }] }, PILL_FNAF),
-  Object.assign({ id: 'foxy', skin: 'Foxy', nom: 'Foxy', vida: 190, vel: 5.1, salto: 1.0,
-    hab: [hGolpe(22, { cd: 0.6, clip: 'Attack04', imp: 0.22 }), hSusto(), hCarrera(1.95, { gasto: 22, son: 'fn_foxycorre' }), { t: 'embestida', costo: 30, cd: 4.5, dan: 40, vel: 15, son: 'fn_foxycorre' }] }, PILL_FNAF),
+  Object.assign({ id: 'freddy', skin: 'Freddy', nom: 'Freddy Fazbear', vida: 260, vel: 6.0, salto: 0.8,
+    hab: [hGolpe(30), hSusto({ cola: 'fn_risa' }), hCarrera(9.2), { t: 'cajita', costo: 50, cd: 20, radio: 14, dur: 9, son: 'fn_cajita' }] }, PILL_FNAF),
+  Object.assign({ id: 'bonnie', skin: 'Bonnie', nom: 'Bonnie', vida: 220, vel: 6.4, salto: 0.95,
+    hab: [hGolpe(26, { clip: 'Attack04', imp: 0.24 }), hSusto(), hCarrera(10.2), { t: 'tele', costo: 40, cd: 7, alc: 14, son: 'fn_estatica' }] }, PILL_FNAF),
+  Object.assign({ id: 'chica', skin: 'Chica', nom: 'Chica', vida: 220, vel: 6.3, salto: 0.9,
+    hab: [hGolpe(26), hSusto(), hCarrera(9.8), { t: 'curar', costo: 40, cd: 14, cura: 70, son: 'fn_ollas' }] }, PILL_FNAF),
+  Object.assign({ id: 'foxy', skin: 'Foxy', nom: 'Foxy', vida: 190, vel: 7.0, salto: 1.3,
+    hab: [hGolpe(22, { cd: 0.6, clip: 'Attack04', imp: 0.22 }), hSusto(), hCarrera(14.0, { gasto: 22, son: 'fn_foxycorre' }), { t: 'embestida', costo: 30, cd: 4.5, dan: 40, vel: 15, son: 'fn_foxycorre' }] }, PILL_FNAF),
   // terror
-  Object.assign({ id: 'zombi', skin: 'Zombi', nom: 'Zombi', vida: 240, vel: 3.1, salto: 0.7, hab: [hGolpe(32, { cd: 1, clip: 'Attack04' }), hSusto({ son: 'VZ_z_muere1', radio: 9 }), hCarrera(1.7)] }, PILL_TERROR),
-  Object.assign({ id: 'boiled', skin: 'BoiledOne', nom: 'The Boiled One', vida: 420, vel: 3.4, salto: 0.6, cam: 4.6, hab: [hGolpe(40, { cd: 1.1, alc: 2.6 }), hSusto({ son: 'VZ_z_muere3', radio: 14 }), hCarrera(1.6), { t: 'tele', costo: 45, cd: 9, alc: 18, son: 'VZ_z_dolor4' }] }, PILL_TERROR),
-  Object.assign({ id: 'sunman', skin: 'Sunman', nom: 'Sunman', vida: 320, vel: 4.0, salto: 0.9, cam: 4.3, hab: [hGolpe(34, { alc: 2.3 }), hSusto({ son: 'VZ_z_muere2', radio: 12 }), hCarrera(1.6)] }, PILL_TERROR),
-  Object.assign({ id: 'bon', skin: 'Bon', nom: 'Bon', vida: 260, vel: 4.2, salto: 0.8, cam: 4, hab: [hGolpe(30), hSusto({ son: 'VZ_r_muere1' }), hCarrera(1.55), { t: 'tele', costo: 40, cd: 8, alc: 14, son: 'VZ_r_dolor1' }] }, PILL_TERROR),
-  Object.assign({ id: 'sha', skin: 'Sha', nom: 'Sha', vida: 220, vel: 4.4, salto: 0.9, hab: [hGolpe(26), hSusto({ son: 'VZ_r_muere1' }), hCarrera(1.55)] }, PILL_TERROR),
-  Object.assign({ id: 'partygoer', skin: 'Partygoer', nom: 'Partygoer', vida: 220, vel: 4.6, salto: 1.0, hab: [hGolpe(28), hSusto({ son: 'VZ_z_muere1' }), hCarrera(1.8), { t: 'tele', costo: 40, cd: 8, alc: 14, son: 'VZ_z_dolor2' }] }, PILL_TERROR),
-  Object.assign({ id: 'bacteria', skin: 'Bacteria', nom: 'Bacteria', vida: 300, vel: 4.8, salto: 1.0, cam: 4.2, hab: [hGolpe(36, { alc: 2.3 }), hSusto({ son: 'VZ_z_muere2', radio: 12 }), hCarrera(2.1, { gasto: 24 }), { t: 'embestida', costo: 30, cd: 5, dan: 45, vel: 16, son: 'VZ_z_dolor5' }] }, PILL_TERROR),
-  Object.assign({ id: 'alternate', skin: 'Alternate', nom: 'Alternate', vida: 200, vel: 4.2, salto: 0.9, hab: [hGolpe(24), hSusto({ son: 'VZ_z_muere3' }), hCarrera(1.5), { t: 'tele', costo: 40, cd: 8, alc: 12, son: 'VZ_z_dolor3' }] }, PILL_TERROR),
-  Object.assign({ id: 'filbus', skin: 'Filbus', nom: 'Filbus', vida: 210, vel: 4.4, salto: 1.0, hab: [hGolpe(26), hSusto({ son: 'VZ_z_muere1' }), hCarrera(1.6)] }, PILL_TERROR),
+  Object.assign({ id: 'zombi', skin: 'Zombi', nom: 'Zombi', vida: 240, vel: 6.0, salto: 0.8, hab: [hGolpe(32, { cd: 1, clip: 'Attack04' }), hSusto({ son: 'VZ_z_muere1', radio: 9 }), hCarrera(9.6)] }, PILL_TERROR),
+  Object.assign({ id: 'boiled', skin: 'BoiledOne', nom: 'The Boiled One', vida: 420, vel: 6.0, salto: 0.75, cam: 4.6, hab: [hGolpe(40, { cd: 1.1, alc: 2.6 }), hSusto({ son: 'VZ_z_muere3', radio: 14 }), hCarrera(9.0), { t: 'tele', costo: 45, cd: 9, alc: 18, son: 'VZ_z_dolor4' }] }, PILL_TERROR),
+  Object.assign({ id: 'sunman', skin: 'Sunman', nom: 'Sunman', vida: 320, vel: 6.2, salto: 1.0, cam: 4.3, hab: [hGolpe(34, { alc: 2.3 }), hSusto({ son: 'VZ_z_muere2', radio: 12 }), hCarrera(9.6)] }, PILL_TERROR),
+  Object.assign({ id: 'bon', skin: 'Bon', nom: 'Bon', vida: 260, vel: 6.3, salto: 0.9, cam: 4, hab: [hGolpe(30), hSusto({ son: 'VZ_r_muere1' }), hCarrera(9.8), { t: 'tele', costo: 40, cd: 8, alc: 14, son: 'VZ_r_dolor1' }] }, PILL_TERROR),
+  Object.assign({ id: 'sha', skin: 'Sha', nom: 'Sha', vida: 220, vel: 6.5, salto: 1.0, hab: [hGolpe(26), hSusto({ son: 'VZ_r_muere1' }), hCarrera(10.0)] }, PILL_TERROR),
+  Object.assign({ id: 'partygoer', skin: 'Partygoer', nom: 'Partygoer', vida: 220, vel: 6.8, salto: 1.2, hab: [hGolpe(28), hSusto({ son: 'VZ_z_muere1' }), hCarrera(12.0), { t: 'tele', costo: 40, cd: 8, alc: 14, son: 'VZ_z_dolor2' }] }, PILL_TERROR),
+  Object.assign({ id: 'bacteria', skin: 'Bacteria', nom: 'Bacteria', vida: 300, vel: 6.8, salto: 1.3, cam: 4.2, hab: [hGolpe(36, { alc: 2.3 }), hSusto({ son: 'VZ_z_muere2', radio: 12 }), hCarrera(13.0, { gasto: 24 }), { t: 'embestida', costo: 30, cd: 5, dan: 45, vel: 16, son: 'VZ_z_dolor5' }] }, PILL_TERROR),
+  Object.assign({ id: 'alternate', skin: 'Alternate', nom: 'Alternate', vida: 200, vel: 6.3, salto: 1.0, hab: [hGolpe(24), hSusto({ son: 'VZ_z_muere3' }), hCarrera(9.6), { t: 'tele', costo: 40, cd: 8, alc: 12, son: 'VZ_z_dolor3' }] }, PILL_TERROR),
+  Object.assign({ id: 'filbus', skin: 'Filbus', nom: 'Filbus', vida: 210, vel: 6.5, salto: 1.1, hab: [hGolpe(26), hSusto({ son: 'VZ_z_muere1' }), hCarrera(10.2)] }, PILL_TERROR),
   // acción
-  Object.assign({ id: 'goku', skin: 'Goku', nom: 'Goku', vida: 260, vel: 6.4, salto: 2.4, hab: [hGolpe(28, { cd: 0.45, clip: 'Attack04', imp: 0.2 }), { t: 'rafaga', costo: 25, cd: 1.2, dan: 45, radio: 2.6 }, hCarrera(1.6, { gasto: 14 }), { t: 'salto', costo: 25, cd: 2, alto: 9 }] }, PILL_DBZ),
-  Object.assign({ id: 'vegeta', skin: 'Vegeta', nom: 'Vegeta', vida: 250, vel: 6.4, salto: 2.4, hab: [hGolpe(30, { cd: 0.45, clip: 'Attack04', imp: 0.2 }), { t: 'rafaga', costo: 25, cd: 1.2, dan: 48, radio: 2.6 }, hCarrera(1.6, { gasto: 14 }), { t: 'salto', costo: 25, cd: 2, alto: 9 }] }, PILL_DBZ),
-  Object.assign({ id: 'broly', skin: 'Broly', nom: 'Broly', vida: 420, vel: 5.6, salto: 2.0, cam: 3.9, hab: [hGolpe(42, { cd: 0.7, alc: 2.2 }), { t: 'rafaga', costo: 35, cd: 2, dan: 70, radio: 4 }, hCarrera(1.5), { t: 'embestida', costo: 30, cd: 4, dan: 50, vel: 17, son: 'GG_Launch3' }] }, PILL_DBZ),
-  Object.assign({ id: 'gohan', skin: 'Gohan', nom: 'Gohan', vida: 230, vel: 6.2, salto: 2.3, hab: [hGolpe(26, { cd: 0.45, clip: 'Attack04', imp: 0.2 }), { t: 'rafaga', costo: 25, cd: 1.2, dan: 44, radio: 2.6 }, hCarrera(1.6, { gasto: 14 }), { t: 'salto', costo: 25, cd: 2, alto: 9 }] }, PILL_DBZ),
-  Object.assign({ id: 'piccolo', skin: 'Piccolo', nom: 'Piccolo', vida: 260, vel: 5.8, salto: 2.2, hab: [hGolpe(28, { cd: 0.5 }), { t: 'rafaga', costo: 25, cd: 1.4, dan: 46, radio: 2.6 }, hCarrera(1.55), { t: 'curar', costo: 50, cd: 16, cura: 60, son: 'GG_Pickup' }] }, PILL_DBZ),
-  Object.assign({ id: 'ninja', skin: 'Ninja', nom: 'Ninja', vida: 170, vel: 7.0, salto: 2.0, cat: 'accion', poder: 'energia', cam: 3.4, hab: [hGolpe(24, { cd: 0.4, clip: '1HandSwordBackswing', imp: 0.18 }), { t: 'embestida', costo: 25, cd: 3, dan: 34, vel: 18, son: 'Arm_Swing_edited' }, hCarrera(1.5, { gasto: 12 }), { t: 'salto', costo: 20, cd: 1.6, alto: 7 }] }),
-  Object.assign({ id: 'robot', skin: 'Robot', nom: 'Robot', vida: 340, vel: 4.6, salto: 1.0, cat: 'accion', poder: 'energia', cam: 3.6, metal: true, hab: [hGolpe(32, { cd: 0.8 }), { t: 'rafaga', costo: 25, cd: 1.6, dan: 40, radio: 2.2, laser: true }, hCarrera(1.6), { t: 'curar', costo: 50, cd: 16, cura: 80, son: 'UI_interruptor' }] }),
-  Object.assign({ id: 'v1', skin: 'V1', nom: 'V1', vida: 180, vel: 7.2, salto: 2.0, cat: 'accion', poder: 'energia', cam: 3.4, metal: true, hab: [hGolpe(28, { cd: 0.4, clip: 'Attack04', imp: 0.18 }), { t: 'rafaga', costo: 20, cd: 0.9, dan: 34, radio: 2, laser: true }, hCarrera(1.5, { gasto: 12 }), { t: 'embestida', costo: 20, cd: 2, dan: 30, vel: 20, son: 'GG_Launch1' }] }),
+  Object.assign({ id: 'goku', skin: 'Goku', nom: 'Goku', vida: 260, vel: 7.5, salto: 2.4, hab: [hGolpe(28, { cd: 0.45, clip: 'Attack04', imp: 0.2 }), { t: 'rafaga', costo: 25, cd: 1.2, dan: 45, radio: 2.6 }, hCarrera(12.5, { gasto: 14 }), { t: 'salto', costo: 25, cd: 2, alto: 9 }] }, PILL_DBZ),
+  Object.assign({ id: 'vegeta', skin: 'Vegeta', nom: 'Vegeta', vida: 250, vel: 7.5, salto: 2.4, hab: [hGolpe(30, { cd: 0.45, clip: 'Attack04', imp: 0.2 }), { t: 'rafaga', costo: 25, cd: 1.2, dan: 48, radio: 2.6 }, hCarrera(12.5, { gasto: 14 }), { t: 'salto', costo: 25, cd: 2, alto: 9 }] }, PILL_DBZ),
+  Object.assign({ id: 'broly', skin: 'Broly', nom: 'Broly', vida: 420, vel: 6.8, salto: 2.0, cam: 3.9, hab: [hGolpe(42, { cd: 0.7, alc: 2.2 }), { t: 'rafaga', costo: 35, cd: 2, dan: 70, radio: 4 }, hCarrera(10.5), { t: 'embestida', costo: 30, cd: 4, dan: 50, vel: 17, son: 'GG_Launch3' }] }, PILL_DBZ),
+  Object.assign({ id: 'gohan', skin: 'Gohan', nom: 'Gohan', vida: 230, vel: 7.3, salto: 2.3, hab: [hGolpe(26, { cd: 0.45, clip: 'Attack04', imp: 0.2 }), { t: 'rafaga', costo: 25, cd: 1.2, dan: 44, radio: 2.6 }, hCarrera(12.0, { gasto: 14 }), { t: 'salto', costo: 25, cd: 2, alto: 9 }] }, PILL_DBZ),
+  Object.assign({ id: 'piccolo', skin: 'Piccolo', nom: 'Piccolo', vida: 260, vel: 7.0, salto: 2.2, hab: [hGolpe(28, { cd: 0.5 }), { t: 'rafaga', costo: 25, cd: 1.4, dan: 46, radio: 2.6 }, hCarrera(11.0), { t: 'curar', costo: 50, cd: 16, cura: 60, son: 'GG_Pickup' }] }, PILL_DBZ),
+  Object.assign({ id: 'ninja', skin: 'Ninja', nom: 'Ninja', vida: 170, vel: 8.0, salto: 2.0, cat: 'accion', poder: 'energia', cam: 3.4, hab: [hGolpe(24, { cd: 0.4, clip: '1HandSwordBackswing', imp: 0.18 }), { t: 'embestida', costo: 25, cd: 3, dan: 34, vel: 18, son: 'Arm_Swing_edited' }, hCarrera(12.8, { gasto: 12 }), { t: 'salto', costo: 20, cd: 1.6, alto: 7 }] }),
+  Object.assign({ id: 'robot', skin: 'Robot', nom: 'Robot', vida: 340, vel: 6.2, salto: 0.9, cat: 'accion', poder: 'energia', cam: 3.6, metal: true, hab: [hGolpe(32, { cd: 0.8 }), { t: 'rafaga', costo: 25, cd: 1.6, dan: 40, radio: 2.2, laser: true }, hCarrera(9.8), { t: 'curar', costo: 50, cd: 16, cura: 80, son: 'UI_interruptor' }] }),
+  Object.assign({ id: 'v1', skin: 'V1', nom: 'V1', vida: 180, vel: 8.0, salto: 2.0, cat: 'accion', poder: 'energia', cam: 3.4, metal: true, hab: [hGolpe(28, { cd: 0.4, clip: 'Attack04', imp: 0.18 }), { t: 'rafaga', costo: 20, cd: 0.9, dan: 34, radio: 2, laser: true }, hCarrera(13.2, { gasto: 12 }), { t: 'embestida', costo: 20, cd: 2, dan: 30, vel: 20, son: 'GG_Launch1' }] }),
   // más personajes
-  Object.assign({ id: 'jake', skin: 'Jake', nom: 'Jake', vida: 150, vel: 4.6, salto: 1.6, cat: 'mas', poder: 'energia', hab: [hGolpe(18, { alc: 1.2 }), hSusto({ son: 'VZ_h_hola1', costo: 20, radio: 6 }), hCarrera(1.6), { t: 'salto', costo: 20, cd: 1.6, alto: 6 }] }),
-  Object.assign({ id: 'finn', skin: 'Finn', nom: 'Finn', vida: 160, vel: 5.4, salto: 1.5, cat: 'mas', poder: 'energia', hab: [hGolpe(24, { cd: 0.5, clip: '1HandSwordBackswing', imp: 0.18 }), hSusto({ son: 'VZ_h_hola2', costo: 20, radio: 6 }), hCarrera(1.6), { t: 'salto', costo: 20, cd: 1.6, alto: 6 }] }),
-  Object.assign({ id: 'astronauta', skin: 'Astronauta', nom: 'Astronauta', vida: 200, vel: 4.6, salto: 2.6, cat: 'mas', poder: 'energia', hab: [hGolpe(20), hCarrera(1.5), null, { t: 'salto', costo: 20, cd: 1.5, alto: 10 }] }),
-  Object.assign({ id: 'pirata', skin: 'Pirata', nom: 'Pirata', vida: 200, vel: 5.2, salto: 1.1, cat: 'mas', poder: 'energia', hab: [hGolpe(28, { cd: 0.55, clip: '1HandSwordBackswing', imp: 0.18 }), hSusto({ son: 'VZ_h_no1', costo: 20, radio: 7 }), hCarrera(1.5), { t: 'embestida', costo: 25, cd: 4, dan: 30, vel: 14, son: 'Arm_Swing_edited' }] }),
-  Object.assign({ id: 'rick', skin: 'Rick', nom: 'Rick', vida: 180, vel: 5.4, salto: 1.1, cat: 'mas', poder: 'energia', hab: [hGolpe(18), { t: 'rafaga', costo: 25, cd: 1.4, dan: 36, radio: 2.2, laser: true }, hCarrera(1.5), { t: 'tele', costo: 35, cd: 5, alc: 20, son: 'GG_Launch4' }] }),
+  Object.assign({ id: 'jake', skin: 'Jake', nom: 'Jake', vida: 150, vel: 6.5, salto: 1.6, cat: 'mas', poder: 'energia', hab: [hGolpe(18, { alc: 1.2 }), hSusto({ son: 'VZ_h_hola1', costo: 20, radio: 6 }), hCarrera(10.4), { t: 'salto', costo: 20, cd: 1.6, alto: 6 }] }),
+  Object.assign({ id: 'finn', skin: 'Finn', nom: 'Finn', vida: 160, vel: 7.0, salto: 1.5, cat: 'mas', poder: 'energia', hab: [hGolpe(24, { cd: 0.5, clip: '1HandSwordBackswing', imp: 0.18 }), hSusto({ son: 'VZ_h_hola2', costo: 20, radio: 6 }), hCarrera(11.2), { t: 'salto', costo: 20, cd: 1.6, alto: 6 }] }),
+  Object.assign({ id: 'astronauta', skin: 'Astronauta', nom: 'Astronauta', vida: 200, vel: 6.2, salto: 2.6, cat: 'mas', poder: 'energia', hab: [hGolpe(20), null, hCarrera(9.4), { t: 'salto', costo: 20, cd: 1.5, alto: 10 }] }),
+  Object.assign({ id: 'pirata', skin: 'Pirata', nom: 'Pirata', vida: 200, vel: 6.6, salto: 1.1, cat: 'mas', poder: 'energia', hab: [hGolpe(28, { cd: 0.55, clip: '1HandSwordBackswing', imp: 0.18 }), hSusto({ son: 'VZ_h_no1', costo: 20, radio: 7 }), hCarrera(10.0), { t: 'embestida', costo: 25, cd: 4, dan: 30, vel: 14, son: 'Arm_Swing_edited' }] }),
+  Object.assign({ id: 'rick', skin: 'Rick', nom: 'Rick', vida: 180, vel: 6.6, salto: 1.1, cat: 'mas', poder: 'energia', hab: [hGolpe(18), { t: 'rafaga', costo: 25, cd: 1.4, dan: 36, radio: 2.2, laser: true }, hCarrera(9.9), { t: 'tele', costo: 35, cd: 5, alc: 20, son: 'GG_Launch4' }] }),
 ];
 const PILL_CATS = ['fnaf', 'terror', 'accion', 'mas'];
-for (const d of PILL_PROPIOS) PILL.defs.set(d.id, d);
+for (const d of PILL_PROPIOS) { PILL.defs.set(d.id, d); for (const h of d.hab) if (h && h.t === 'carrera' && h.tope) h.mult = h.tope / d.vel; }
 // un Pill por id (los propios y los de los addons: 'gm:<nombre>', pill_gmod.js)
 function pillDef(id) { return PILL.defs.get(id) || (typeof pillGmDef === 'function' ? pillGmDef(id) : null) || null; }
 const pillSkinDisp = (D) => !D || !D.skin || (typeof gmpEs === 'function' && gmpEs(D.skin)) || (DATA.chars || []).includes(D.skin);
@@ -161,11 +167,25 @@ function pillFin(callado) {
 // (personas.js, al armar el cuerpo del jugador transformado)
 function pillCuerpo(P) { if (!P || !PILL.def) return; P.pill = PILL.def; if (typeof PILL.def.alCuerpo === 'function') { try { PILL.def.alCuerpo(P); } catch (e) {} } }
 // la velocidad y el salto del personaje (con los mods de la partida: velocidad y supersalto siguen valiendo)
+// (y los ajustes de la pestaña: Velocidad, un multiplicador de lo rápido que va cualquier Pill)
 function pillStats() {
   const D = PILL.def; if (!D) return;
   const mv = (typeof MODS !== 'undefined' && MODS.velocidad) || 1, ms = (typeof MODS !== 'undefined' && MODS.salto) || 1, h2 = PILL.carrera && D.hab[2];
-  JUG.vel_max = D.vel * mv * (h2 ? h2.mult / (ENT.correr ? 1.35 : 1) : D.sinCorrer && ENT.correr ? 1 / 1.35 : 1);   // (correr multiplica por 1,35 en jugador.js)
-  JUG.salto = D.salto * ms;
+  JUG.vel_max = D.vel * mv * pillAj('vel') * (h2 ? h2.mult / (ENT.correr ? 1.35 : 1) : 1);   // (correr multiplica por 1,35 en jugador.js)
+  JUG.salto = pillSaltoDe(D) * ms;
+}
+// el salto: el del personaje; el de un pack que no trae (o que lo apaga con jumpPower = 0, como el de FNaF), según su
+// tamaño: uno de 1,9 m salta como el jugador (1,1 m) y uno más grande, menos
+const pillSaltoDe = (D) => (D.salto > 0 ? D.salto : clamp(1.1 - 0.35 * ((D.tam || JUG.tam || 1) - 1), 0.8, 1.25));
+// ---------------- los ajustes (pestaña Pill Packs): velocidad y tiempo de recarga, multiplicadores que se guardan ----------------
+// Velocidad: de 0,5 a 2 (×1 = lo de cada personaje). Recarga: de 0,25 a 2, la espera entre usos de cada habilidad y lo que
+// tarda en volver el poder (×0,5 = la mitad de espera)
+const PILL_AJ = { vel: { k: 'pillVel', min: 0.5, max: 2, paso: 0.05 }, rec: { k: 'pillRec', min: 0.25, max: 2, paso: 0.05 } };
+function pillAj(n) { const A = PILL_AJ[n], v = +PREFS[A.k]; return isFinite(v) && v > 0 ? clamp(v, A.min, A.max) : 1; }
+function pillAjPoner(n, v) {
+  const A = PILL_AJ[n]; v = clamp(Math.round(+v / A.paso) * A.paso, A.min, A.max); if (!isFinite(v)) v = 1;
+  PREFS[A.k] = +v.toFixed(2); if (PILL.on) { pillStats(); if (PILL.hud) PILL.hud.cds = []; }
+  return PREFS[A.k];
 }
 // ---------------- cada cuadro ----------------
 function pillPaso(dt) {
@@ -194,8 +214,9 @@ function pillPaso(dt) {
     PILL.ant[i] = ap[i];
   }
   // el poder vuelve solo (más rápido con el nivel), un rato después de gastarlo
+  // (con el tiempo de recarga de los ajustes: ×0,5 vuelve el doble de rápido)
   if (PILL.sinRegen > 0) PILL.sinRegen -= dt;
-  else if (!PILL.carrera) PILL.pod = Math.min(pillPodMax(), PILL.pod + 9 * (1 + 0.05 * (pillNivel() - 1)) * dt);
+  else if (!PILL.carrera) PILL.pod = Math.min(pillPodMax(), PILL.pod + 9 * (1 + 0.05 * (pillNivel() - 1)) * dt / pillAj('rec'));
   pillStats();
   // el golpe pega en su momento; la embestida lastima a lo que toca mientras dura
   if (PILL.golpe && (PILL.golpe.t -= dt) <= 0) { const g = PILL.golpe; PILL.golpe = null; pillGolpeAplicar(g.h); }
@@ -215,7 +236,7 @@ function pillCarrera(h, ap, dt) {
   const si = ap && PILL.pod > 0.5 && (mueve || PILL.carrera);
   if (si && !PILL.carrera) { if (PILL.pod < 8) { PILL.ant[2] = true; return; } if (h.son) { sonar(h.son, null, 0.65); pillPublicar({ h: 'son', s: h.son }); } }
   if (si !== PILL.carrera) { PILL.carrera = si; redSubir(); }
-  if (si && mueve) { PILL.pod = Math.max(0, PILL.pod - h.gasto * dt); PILL.sinRegen = 0.6; if ((PILL.carXp += dt) >= 2) { PILL.carXp -= 2; pillXp(1); } }
+  if (si && mueve) { PILL.pod = Math.max(0, PILL.pod - h.gasto * dt); PILL.sinRegen = 0.6 * pillAj('rec'); if ((PILL.carXp += dt) >= 2) { PILL.carXp -= 2; pillXp(1); } }
   if (PILL.pod <= 0.5 && PILL.carrera) { PILL.carrera = false; redSubir(); }
 }
 // una habilidad de un toque: si hay poder y ya pasó la espera
@@ -225,8 +246,10 @@ function pillUsar(i) {
   if (PILL.pod + 1e-6 < (h.costo || 0)) { if (!PILL.ant[i]) { aviso(T('pill.sinPoder'), 1); sonar('UI_niega', null, 0.4); } return; }
   const r = pillHab(h, i);
   if (r === false) return;   // (no se pudo: sin gastar)
-  PILL.pod -= h.costo || 0; if (h.costo) PILL.sinRegen = 0.8; PILL.cd[i] = h.cd || 0.5;
+  PILL.pod -= h.costo || 0; if (h.costo) PILL.sinRegen = 0.8 * pillAj('rec'); PILL.cd[i] = pillCdDe(h);
 }
+// la espera de una habilidad, con el tiempo de recarga de los ajustes
+const pillCdDe = (h) => (h.cd || 0.5) * pillAj('rec');
 function pillHab(h, i) {
   switch (h.t) {
     case 'golpe': return pillGolpe(h);
@@ -378,7 +401,7 @@ function pillEmbestidaPaso(E) {
 function pillSalto(h) {
   if (!JUG.suelo && (JUG.tAire || 0) > 0.15) return false;
   const g = GRAV * ((typeof MUNDO !== 'undefined' && MUNDO.gravedad) || 1) * (JUG.grav || 1);
-  JUG.vel.y = Math.sqrt(2 * Math.abs(g) * h.alto) * (g < 0 ? -1 : 1); JUG.suelo = false; JUG.tiempoSuelo = 0; JUG.saltoT = TIEMPO.t;
+  JUG.vel.y = Math.sqrt(2 * Math.abs(g) * h.alto) * (g < 0 ? -1 : 1); JUG.suelo = false; JUG.tiempoSuelo = 0; JUG.saltoT = JUG.reloj || 0;
   const f = pillAdelante(), sp = JUG.vel.x * f.x + JUG.vel.z * f.z; if (sp > 1) { JUG.vel.x += f.x * 2; JUG.vel.z += f.z * 2; }
   sonar('Arm_Swing_edited', null, 0.6, 0.7); for (let i = 0; i < 10; i++) particula(vadd(JUG.pos, v3((Math.random() - 0.5) * 0.8, -0.9, (Math.random() - 0.5) * 0.8)), v3((Math.random() - 0.5) * 2, 0.5, (Math.random() - 0.5) * 2), 0.6, 0.25, [0.85, 0.85, 0.8, 0.5], 'humo');
   pillPublicar({ h: 'salto' });
@@ -519,7 +542,7 @@ function pillHecho(d, R2) {
     }
     case 'cajita': tono(son(d.s), p, 1); break;
     case 'tele': {
-      const a = nv(d.a), b = nv(d.b); if (a) pillEstatica(a); if (b) { pillEstatica(b); if (R2) { R2.pos.copy(b); R2.meta.copy(b); if (P) P.pos.copy(b); } }
+      const a = nv(d.a), b = nv(d.b); if (a) pillEstatica(a); if (b) { pillEstatica(b); if (R2) { if (typeof remotoPoner === 'function') remotoPoner(R2, b); else { R2.pos.copy(b); R2.meta.copy(b); if (P) P.pos.copy(b); } } }
       tono(son(d.s), b || p, 0.9); break;
     }
     case 'curar': tono(son(d.s), p, 0.8); pillChispas(p, [1, 0.55, 0.3, 1]); break;
@@ -606,6 +629,14 @@ body.tactil #pillBar{display:none}
 #spawn .grilla .it.pillIt .pillNv{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.72);color:#ffd27a;font:700 11px Roboto,Arial,sans-serif;padding:1px 4px}
 #spawn .grilla .it.pillIt .pillSin{position:absolute;top:6px;left:6px;background:rgba(160,40,40,.85);color:#fff;font:700 11px Roboto,Arial,sans-serif;padding:1px 4px}
 #spawn .grilla .pillInfo{width:100%;color:#d8dade;font:13px/1.35 Roboto,Arial,sans-serif;padding:2px 4px 6px}
+#spawn .grilla .pillAj{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;gap:0 18px;padding:2px 4px 2px 12px;margin-bottom:2px;background:var(--jxPl);border-inline-start:3px solid var(--jxA)}
+#spawn .grilla .pillAjF{flex:1 1 200px;display:flex;align-items:center;gap:10px;min-height:42px;color:var(--jxT);font:500 13px/1.1 var(--jxF);text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
+#spawn .grilla .pillAjF span{flex:none;white-space:nowrap}
+#spawn .grilla .pillAjF input{flex:1 1 72px;width:72px;min-width:72px;height:32px;margin:0;accent-color:var(--jxA);cursor:pointer}
+#spawn .grilla .pillAjF output{flex:none;min-width:3.5em;text-align:end;color:var(--jxA);font:700 14px Roboto,Arial,sans-serif;letter-spacing:0}
+#spawn .grilla .pillAjDef{flex:none;min-height:40px;margin:1px 0;padding:0 12px;border:1px solid var(--jxLin);border-radius:0;background:transparent;color:var(--jxT2);font:500 13px/1 var(--jxF);text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
+#spawn .grilla .pillAjDef:hover:not(:disabled){background:var(--jxPl2);color:var(--jxT)}
+#spawn .grilla .pillAjDef:disabled{opacity:.4;cursor:default}
 #spawn .pie .pillPie{flex:1;min-width:0;white-space:normal;line-height:1.2;color:#e6e7ea}
 #spawn .pie .pillVolverBt{display:inline-flex;align-items:center;width:auto;min-height:40px;margin:0;padding:3px 12px;font-size:13px;background:#a8283a;color:#fff;white-space:nowrap;border-radius:0}
 `;
@@ -691,7 +722,7 @@ function pillHudPaso() {
   // las esperas y lo que no alcanza (de a 5 %)
   for (let i = 0; i < 4; i++) {
     const h = D.hab[i]; if (!h) continue;
-    const c = h.cd ? Math.round(clamp(PILL.cd[i] / h.cd, 0, 1) * 20) * 5 : 0, no = !!h.rota || (h.costo || 0) > PILL.pod + 1e-6 || !!(h.man && PILL.pod < 8 && !PILL.carrera), on = !!(h.man && PILL.carrera), est = (no ? 1 : 0) | (on ? 2 : 0);
+    const c = h.cd ? Math.round(clamp(PILL.cd[i] / pillCdDe(h), 0, 1) * 20) * 5 : 0, no = !!h.rota || (h.costo || 0) > PILL.pod + 1e-6 || !!(h.man && PILL.pod < 8 && !PILL.carrera), on = !!(h.man && PILL.carrera), est = (no ? 1 : 0) | (on ? 2 : 0);
     if (c !== U.cds[i]) { U.cds[i] = c; U.bts[i].querySelector('.pillCd').style.setProperty('--c', c); const e = U.B.querySelector(`.pbH[data-i="${i}"] .pillCd`); if (e) e.style.setProperty('--c', c); }
     if (est !== U.est[i]) { U.est[i] = est; U.bts[i].classList.toggle('no', no); U.bts[i].classList.toggle('on', on); const e = U.B.querySelector(`.pbH[data-i="${i}"]`); if (e) { e.classList.toggle('no', no); e.classList.toggle('on', on); } }
   }
@@ -723,12 +754,14 @@ const _pillSpawnTabs0 = spawnTabs;
 spawnTabs = function () { try { pillTab(); } catch (e) { console.warn('pill tab', e); } return _pillSpawnTabs0.apply(this, arguments); };
 const pillRetrato = (D) => (D.gm && typeof pillGmIcono === 'function' ? pillGmIcono(D) : { src: retrato(D.skin) });
 function pillGrilla(C, subs) {
+  pillCss();   // (la pestaña se puede abrir sin haberse transformado nunca: los estilos de las tarjetas y los ajustes)
   const gr = $('grilla'); gr.innerHTML = ''; const q = (UI.q || '').trim().toLowerCase();
   $('cats').querySelectorAll('.cat').forEach((d, i) => d.classList.toggle('sel', !q && i === UI.sub));
   const lista = [];
   if (q) { for (const s of subs) for (const it of s.it) { const D = pillDef(it.slice(5)); if (D && (D.nom + ' ' + it).toLowerCase().includes(q) && !lista.includes(it)) lista.push(it); } }
   else { const S = subs[UI.sub] || subs[0]; if (S) lista.push(...S.it); }
   if (!q && UI.sub === 0) { const inf = document.createElement('div'); inf.className = 'pillInfo'; inf.textContent = T('pill.info'); gr.appendChild(inf); }
+  if (!q) gr.appendChild(pillAjArmar());
   for (const it of lista.slice(0, 400)) {
     const id = it.slice(5), D = pillDef(id); if (!D) continue;
     const d = document.createElement('div'); d.className = 'it pillIt' + (PILL.on && PILL.id === id ? ' sel' : ''); d.dataset.pill = id;
@@ -742,6 +775,18 @@ function pillGrilla(C, subs) {
   if (!lista.length) gr.innerHTML += `<div class="spVacio">${esc(T('sinRes'))}</div>`;
   // (los íconos de un pack que estaban en el disco: llegan enseguida y se vuelve a dibujar, una vez)
   if (typeof PGM !== 'undefined' && PGM.icoPend) { PGM.icoPend = false; if (!pillGrilla.t) pillGrilla.t = setTimeout(() => { pillGrilla.t = 0; if (UI.abierto === 'spawn' && DATA.menu[UI.tab] && DATA.menu[UI.tab].pill) pillGrilla(C, subs); }, 700); }
+}
+// los ajustes arriba de las tarjetas, en todas las categorías: Velocidad y Tiempo de recarga (barras de ×0,5 a ×2 y de
+// ×0,25 a ×2), y volver a lo de cada personaje. Se aplican en el momento, transformado o no
+const pillAjTxt = (v) => { let s; try { s = v.toLocaleString(PREFS.lang || document.documentElement.lang || undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2, numberingSystem: 'latn' }); } catch (e) { s = v.toFixed(2); } return '×' + s; };
+function pillAjArmar() {
+  const d = document.createElement('div'); d.className = 'pillAj';
+  const fila = (n) => { const A = PILL_AJ[n], v = pillAj(n); return `<label class="pillAjF" title="${esc(T('pill.aj.' + n + 'Ay'))}"><span>${esc(T('pill.aj.' + n))}</span><input type="range" min="${A.min}" max="${A.max}" step="${A.paso}" value="${v}" data-pa="${n}"><output>${esc(pillAjTxt(v))}</output></label>`; };
+  d.innerHTML = fila('vel') + fila('rec') + `<button class="pillAjDef" type="button">${esc(T('pill.aj.def'))}</button>`;
+  const def = d.querySelector('.pillAjDef'), marcar = () => { def.disabled = pillAj('vel') === 1 && pillAj('rec') === 1; };
+  for (const r of d.querySelectorAll('input[data-pa]')) { r.oninput = () => { const v = pillAjPoner(r.dataset.pa, r.value); r.nextElementSibling.textContent = pillAjTxt(v); marcar(); }; r.onchange = guardarPrefs; }
+  def.onclick = (e) => { e.stopPropagation(); for (const r of d.querySelectorAll('input[data-pa]')) { r.value = pillAjPoner(r.dataset.pa, 1); r.nextElementSibling.textContent = pillAjTxt(1); } guardarPrefs(); marcar(); };
+  marcar(); return d;
 }
 const _pillGrilla0 = spawnGrilla;
 spawnGrilla = function (C, subs) { if (C && C.pill) return pillGrilla(C, subs); return _pillGrilla0.apply(this, arguments); };

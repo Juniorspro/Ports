@@ -251,6 +251,10 @@ function aterrizarPies(P) {
   // rodando los pies quedan abajo del tobillo y levantarlos lo hacía flotar; sólo se corrige un poco)
   const cmu = typeof P.emote === 'string' && P.emote.startsWith('c:');
   let meta = clamp(dy, lleno ? -0.75 : -0.06, cmu ? 0.06 : 0.5) + (P.flota && P.hum ? P.hum.flAlto || 0 : 0);
+  // (en el aire no se baja el cuerpo hacia un piso que no está: con las piernas encogidas del salto lo bajaba 6 cm y al
+  // caer tardaba unos cuadros en volver, con los pies 3–6 cm adentro del piso; subirlo sí, para que no lo atraviese al caer)
+  const libre = !P.flota && !cmu;
+  if (P.suelo === false && libre && !lleno) meta = Math.max(meta, 0);
   // y ninguna parte del cuerpo abajo del piso (acostado, rodando, en cuatro patas): se sube lo que haga falta
   if (cmu) {
     // (los dedos no están en la tabla de huesos humanoides: se buscan por nombre en el esqueleto entero)
@@ -259,6 +263,10 @@ function aterrizarPies(P) {
     meta = Math.max(meta, Math.min(sube, 0.8));
   }
   P.pieCorr = (P.pieCorr || 0) + (meta - (P.pieCorr || 0)) * Math.min(1, (TIEMPO.dt || 0.016) * 18);
+  // (subir es en el acto: al caer de un salto, mientras la pose pasa de las piernas encogidas a paradas, el suavizado se
+  // quedaba atrás y el pie más bajo llegaba a 4 cm más abajo que parado —también agachado: el salto de GMod encoge las
+  // piernas—; bajar sigue siendo suave)
+  if (libre && P.pieCorr < Math.min(dy, 0.5) - 0.01) P.pieCorr = Math.min(dy, 0.5) - 0.01;
   if (Math.abs(P.pieCorr) > 1e-4) { md.raiz[13] += P.pieCorr; md.sucio = true; }
 }
 // pies clavados: cuando un pie pisa, su lugar en el piso queda fijo mientras dure el apoyo y la pierna se acomoda

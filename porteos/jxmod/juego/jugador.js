@@ -102,6 +102,10 @@ function empujarDeCuerpo(b, c, r, corr, esPie, dinamico) {
 }
 function jugadorPaso(dt, ent) {
   const J = JUG; if (typeof linternaPaso === 'function') linternaPaso();
+  // (el reloj de la física del jugador: lo que pasó desde que saltó se mide con él. Con TIEMPO.t, a menos de ~14 cuadros
+  // por segundo —la física da 3 pasos por cuadro como mucho— el reloj del juego corría más que la física y el salto se
+  // cortaba en la subida: Jake, que salta 1,6 m, llegaba a 0,9)
+  J.reloj = (J.reloj || 0) + dt;
   J.q.copy(Quat.euler(J.yaw, J.pitch));
   const qy = Quat.axis(0, 1, 0, J.yaw);
   if (!J.vivo) { J.muertoT -= dt; return; }
@@ -135,7 +139,7 @@ function jugadorPaso(dt, ent) {
   const gJ = GRAV * MUNDO.gravedad * (J.grav || 1);
   // (también recién despegado del piso, 0,12 s: subiendo una escalera el pie toca las puntas de los escalones y no siempre
   // queda «en el piso» justo cuando se aprieta saltar)
-  if (ent.saltar && ((J.suelo && J.tiempoSuelo > 0.05) || (!J.suelo && (J.tAire || 0) < 0.12 && TIEMPO.t - (J.saltoT || -9) > 0.4 && J.vel.y < 1))) { J.vel.y = Math.sqrt(2 * Math.abs(gJ) * J.salto) * (gJ < 0 ? -1 : 1); J.suelo = false; J.tiempoSuelo = 0; J.saltoT = TIEMPO.t; if (J.cuerpo) sonPaso(J.cuerpo, true, J.pos, 0.75); }   // (al saltar suena el paso, como en HL2)
+  if (ent.saltar && ((J.suelo && J.tiempoSuelo > 0.05) || (!J.suelo && (J.tAire || 0) < 0.12 && J.reloj - (J.saltoT ?? -9) > 0.4 && J.vel.y < 1))) { J.vel.y = Math.sqrt(2 * Math.abs(gJ) * J.salto) * (gJ < 0 ? -1 : 1); J.suelo = false; J.tiempoSuelo = 0; J.saltoT = J.reloj; if (J.cuerpo) sonPaso(J.cuerpo, true, J.pos, 0.75); }   // (al saltar suena el paso, como en HL2)
   if (!J.suelo) J.vel.y -= gJ * dt; else if (J.vel.y < 0) J.vel.y = -0.5;
   const vyAntes = J.vel.y, eraSuelo = J.suelo;
   _esc0.copy(J.pos); _esc1.copy(J.vel);
@@ -145,7 +149,7 @@ function jugadorPaso(dt, ent) {
   // (caminando —sin haber saltado—, chocar con la punta de un escalón o de una caja no lanza para arriba: el choque
   // convertía parte de la velocidad hacia adelante en velocidad hacia arriba y en una escalera se iba a los saltitos, casi
   // sin pisar, y por eso no se podía saltar. Arriba sólo lo que suba lo que pisa —un ascensor—)
-  if (!ent.saltar && TIEMPO.t - (J.saltoT || -9) > 0.35 && (eraSuelo || (J.tAire || 0) < 0.25) && gJ > 0) { const vb = base ? Math.max(0, base.y) : 0; if (J.vel.y > vb) J.vel.y = vb; }
+  if (!ent.saltar && J.reloj - (J.saltoT ?? -9) > 0.35 && (eraSuelo || (J.tAire || 0) < 0.25) && gJ > 0) { const vb = base ? Math.max(0, base.y) : 0; if (J.vel.y > vb) J.vel.y = vb; }
   J.tAire = J.suelo ? 0 : (J.tAire || 0) + dt;
   // cama elástica: al pisarla rebota (más alto si venía cayendo o si salta justo; agachado frena)
   const ce = J.suelo && J.pisa && J.pisa.obj;
