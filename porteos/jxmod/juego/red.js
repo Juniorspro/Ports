@@ -594,7 +594,7 @@ function remotoPaso(R2, dt) {
   // (con las muestras, la velocidad y si pisa son las del momento que se dibuja: las piernas y el salto van con el cuerpo)
   P.pos.copy(R2.pos); P.yaw = R2.yaw; P.vel.copy(mm ? R2.mmV : R2.vel); P.suelo = !!((mm ? R2.mmF : R2.f) & 1); P.agachado = !!(R2.f & 2); P.sentado = !!(R2.f & 8);
   // si va en un vehículo, el cuerpo sigue al asiento
-  if (R2.veh) { const o = buscarObjeto(R2.veh.k); if (o && o.veh) { const a = o.veh.asientos[R2.veh.a] || v3(); P.pos.copy(vadd(o.b.pos, o.b.q.rot(vadd(a, v3(0, 0.25, 0))))); const f = o.b.q.rot(v3(0, 0, 1)); P.yaw = Math.atan2(f.x, f.z); P.manejando = R2.veh.a === 0; P.qVeh = o.b.q; } } else P.qVeh = null;
+  if (R2.veh) { const o = buscarObjeto(R2.veh.k); if (o && o.veh) { const a = o.veh.asientos[R2.veh.a] || v3(); P.pos.copy(vadd(o.b.pos, o.b.q.rot(vadd(a, v3(0, 0.25, 0))))); const f = o.b.q.rot(v3(0, 0, 1)); P.yaw = Math.atan2(f.x, f.z); P.manejando = R2.veh.a === 0; P.qVeh = o.b.q; P.vehO = o; P.vehA = R2.veh.a; } } else { P.qVeh = null; P.vehO = null; }
   const vivo = !!(R2.f & 4), rag = !vivo || !!(R2.f & 32);
   if (rag && !P.rag) { P.vel.copy(R2.vel); P.cuad = null; P.inclin = null; ragdoll(P, null); } else if (!rag && P.rag) ragdollFin(P);
   natRemoto(R2, dt);

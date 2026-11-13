@@ -2487,6 +2487,79 @@ piel calculada en la CPU como la placa, contra el propio Hero en la misma animac
   aristas); el personaje de bloques de Kenney (patas de 20 cm, brazos más largos que las piernas) estira 16-27 % y mete
   las manos en el cuerpo: proporciones a las que las animaciones del Hero no llegan. Sin probar en un celular de verdad.
 
+## Del Discord: pies bajo el auto, nextbots, el ascensor de gm_mallparking, la escopeta, la pizzería y la neblina
+
+**«Pies traspasando el suelo del auto»** (Ferrari F40, con el Viper blanco de «TDMCars - Dodge»; `vehiculos.js`,
+`personas.js`, `humano.js`, `red.js`):
+- Causa: el cuerpo iba a una altura fija bajo el asiento (1 m por la escala del personaje) con la pose de sentado de una
+  silla (canillas paradas, pies 84 cm bajo la cadera). En los autos de los addons el asiento sale de los ojos del
+  conductor y en uno bajo las piernas quedaban abajo del auto; los grandes se hundían y los chicos flotaban.
+- Arreglo: de la malla del auto (una vez por asiento) el almohadón y el piso de adelante; la cadera de cada personaje va
+  sobre el almohadón (en los autos del juego, donde ya estaba la del Hero) y los pies al piso con IK de dos huesos (el
+  pie plano, sin pasar la pared de los pedales). Si los muslos o lo que cuelga de la cadera bajan más que lo que se
+  hunde en el asiento, la cadera sube (Jake) o lo que cuelga va para adelante (el sobretodo de BoiledOne, 1,2 m).
+- Medido (vértices con su piel contra la malla del auto: % que queda sin auto abajo y cuánto): Hero 6,3–11,5 % y hasta
+  32 cm → 0 % en los 7 autos (Sedan, Derby6, policía, Sofie y tres de TDMCars, Viper incluido); BoiledOne (1,53)
+  27–32 % y hasta 113 cm → 0 % en 5, 0,4 % (2 cm) y 1,3 % (5 cm) en dos de TDMCars y 4,4 % en el Derby6 (el sobretodo
+  adelante, en el hueco del motor); Jake (0,44) 0 % antes y después. Fotos de costado desde la cámara del juego.
+- Límite: a BoiledOne la cabeza le sale por el techo (mide 1,5 veces el Hero: no entra en un auto).
+
+**«Nextbots lentos y resbaladizos»** (`gmod_nextbot.js`, `gmod_api.js`):
+- Lentos: los nextbots de la base de Sanic (Obunga, Walter, Smiley, Doge, Shaq) miden con SysTime cuánto tarda
+  Path:Compute y si pasa de 5 ms no buscan camino por 5 s. Acá (rayos y A* en JavaScript) pasaba casi siempre en un
+  celular: seguían un camino viejo o se quedaban parados. SysTime ya no cuenta lo que tardan los caminos del motor.
+- Resbaladizos: la velocidad entera iba hacia la pedida con la aceleración del addon (doblar 90° a 650 pulgadas/s con
+  500 de aceleración: 1,8 s; al llegar seguía frenando 8 m). Ahora como NextBotGroundLocomotion: acelera y frena en la
+  dirección de la meta, lo de costado lo frena el roce de costado de Source (3/s) y sin Approach por 0,25 s se para.
+- Medido con Obunga y Walter (650 de velocidad, 500 de aceleración): antes quietos 2,1–2,4 s cuando el jugador se iba al
+  costado; ahora de 0 a 16,5 m/s (650 pulgadas/s) en 1,3 s, como pide su Lua, y apuntan al jugador nuevo en 0,3–1,4 s
+  pasándose 4,8–5,0 m (el roce de GMod da ≈ 5,5 m). Los de DrGBase y el SCP-049 van a la velocidad que piden.
+
+**«Zonas de mapas sin colisión (el ascensor de gm_mallparking)»** (`gmod_bsp.js`, `puertas.js`, `mapaio.js`,
+`mundo.js`, `principal.js`, `armas.js`):
+- Causa: el choque salía sólo de las caras, y el compilador no deja caras de los lados invisibles (nodraw, clip,
+  playerclip, invisible). El ascensor es un `func_tracktrain` sin caras (la cabina que se ve es un prop pegado) y no se
+  movía: no se leían los trenes ni los `path_track`.
+- Arreglo: se leen las brochas del BSP (lumps 17-19, recorriendo el árbol de cada modelo); las que chocan y no dejaron
+  caras chocan con sus lados (las de playerclip y rejas no frenan las balas, como en Source; `func_clip_vphysics` no
+  frena al jugador). Trenes (`func_tracktrain`, `func_tanktrain`): siguen sus `path_track` con StartForward,
+  StartBackward, Stop, Toggle, Resume, Reverse, SetSpeed..., cumplen OnPass, chocan con un casco por brocha y por pieza
+  del .phy de lo pegado, llevan botones, props y puertas pegadas, y al jugador parado arriba (en el paso fijo de la
+  física).
+- Medido en gm_mallparking: antes la cabina no tenía piso (el rayo no encontraba nada) y el botón no hacía nada; ahora 8
+  cascos, sube a 2,54 m/s (100 pulgadas/s con su aceleración), para en el piso de arriba (11,58 m) y vuelve a bajar; el
+  jugador viaja con los pies a la misma distancia del piso en las 28 muestras; las paredes no dejan salir (1,3–1,4 m del
+  medio, cabina de ±1,9) y se sale por la puerta. Otros mapas: gm_bigcity 101 brochas invisibles que ahora chocan,
+  ttt_minecraft_b5 1044 y sus 16 vagonetas andan, gm_fork 154; todos cargan y el jugador aparece en el piso.
+
+**«¿Por qué la escopeta se ve así?»** (`herramientas/gmod.py`, `GM_SOLO=escopeta`; `pruebas/armas_hl2.mjs`):
+- Causa: el v_shotgun del GMod 10 de archive.org no es el de Valve: otro modelo con una textura cromada (shotgun_diff:
+  brillo medio 78/255 y 20 % de la textura blanca) y otras manos. Las otras armas sí eran las de HL2.
+- Arreglo: la escopeta de HL2 de verdad (contenido base de Steam, depósito 4021: v_shotgun con vshotgun_albedo, brillo
+  medio 32/255, 0 % blanco, y el guante del HEV como las otras), como vista nueva `HL_Shotgun2` con sus clips `HE_*`
+  (la corredera es «pump»). Va en el paquete (`d.json.gz`, `m.bin.gz` y las texturas 657-658). Arreglado de paso:
+  `vista_source` devolvía `len(V)` sin `V`. La prueba mira la corredera en lo que se tocó (antes dependía de la foto).
+  Las 8 armas de HL2 en primera persona y la de tercera (w_shotgun, ya de Valve) se ven bien: 9/9.
+
+**La pizzería del Workshop** (sin cambios): desde 469 lugares donde entra el jugador (todas las salas, cada 0,5 m) en
+8 rumbos y mirando al techo, con la linterna y el cielo pintado de magenta: 0 vistas con cielo (0,002 % de píxeles
+sueltos). Los 95 modelos del mapa tienen malla y textura; fotos de cada sala con la linterna y de las 11 cámaras.
+
+**«¿Por qué tanta neblina?» «Por la bomba»** (`nuclear_vol.js`):
+- Causa: la falda de polvo del hongo quedaba espesa los 150 s, de 1,65 radios (265 m en una de 1 Mt, casi un kilómetro
+  en la Tsar) y a la altura de los ojos: tapaba el mapa entero.
+- Arreglo: la falda se disipa de los 10-18 s a los 33-58 s según el tamaño y el tallo de los 47-73 s a los 90-129 s;
+  adentro de la falda, detrás del frente, es más rala. El sombrero queda arriba como antes.
+- Medido (lo que tapa el humo en la mitad de abajo de la pantalla, mirando a la bomba a 1 radio): a los 60 s, de
+  15–31 % a 1–7 %; a los 120 s, de 12–26 % a 0 %; a 2 radios, de 2–25 % a 0–1 %. Bombas de 1 kt, 15 kt, 914 kt,
+  15 Mt y 50 Mt.
+
+**Pruebas**: nuevas `pruebas/autos_asiento.mjs` 4/4 (con el .gma de TDMCars), `pruebas/ascensor_mapa.mjs` 7/7 (con el de
+gm_mallparking y el contenido de HL2 de Steam) y `pruebas/nuclear_neblina.mjs` 4/4; `armas_hl2.mjs` 9/9,
+`nextbots_ia.mjs` 9/9, `autos.mjs` 20/21 sola (la que falló, la deriva del patrullero sin volante, no toca nada de esto
+y pasó en las otras corridas) y `nucleares.mjs` 8/11, igual que antes de los cambios en esta máquina (empuje, daño a 1,5
+radios y radiación dependen del ritmo de cuadros).
+
 ## Tráiler de la 3.0 (40 s, 4:3 en FHD), v2
 
 Pedido: un tráiler con la canción del video de 41 s, con suspenso, sin interfaz, el logo recortado al principio y

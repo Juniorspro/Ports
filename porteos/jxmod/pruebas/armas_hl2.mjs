@@ -10,7 +10,7 @@ await ev(`PREFS.bienvenida = true; GFX.auto = false; PREFS.gfx = 'alto'; aplicar
 await p.waitForTimeout(4000);
 const juego = async (s) => { const t0 = await ev(`TIEMPO.t`); for (let i = 0; i < 400 && (await ev(`TIEMPO.t`)) < t0 + s; i++) await p.waitForTimeout(60); };
 const clipAhora = `(Object.entries(DATA.anPorNombre).find(([k, v]) => v === (ARM.v && ARM.v.clip))?.[0] || null)`;
-await ev(`$('hud').classList.add('oc'); JUG.noclip = true; JUG.pitch = 0.1; window.__son = []; const _s = sonar; sonar = (n, ...r) => { window.__son.push(n); return _s(n, ...r); }; 1`);
+await ev(`$('hud').classList.add('oc'); JUG.noclip = true; JUG.pitch = 0.1; window.__son = []; const _s = sonar; sonar = (n, ...r) => { window.__son.push(n); return _s(n, ...r); }; window.__clips = []; const _vt = vistaTocar; vistaTocar = (v, n, o) => { window.__clips.push(n); return _vt(v, n, o); }; 1`);
 const ARMAS = ['Pistol', 'Revolver', 'Smg', 'Akm', 'Shotgun', 'Crossbow', 'RPG', 'Sniper'];
 for (const a of ARMAS) {
   const x = await ev(`(() => { const H = DATA.gm.hl2 && DATA.gm.hl2['${a}'], D = DEF_ARMAS['${a}']; if (!H) return null;
@@ -21,13 +21,15 @@ for (const a of ARMAS) {
   await p.screenshot({ path: D + 'hl2_' + a + '.jpg', type: 'jpeg', quality: 82 });
   const tiro = await ev(`(() => { window.__son = []; ARM.t = 0; ARM.ocup = 0; ENT.disparo = true; armasPaso(0.016); ENT.disparo = false; return { clip: ${clipAhora}, son: window.__son.slice() }; })()`);
   await juego(0.08); await p.screenshot({ path: D + 'hl2_' + a + '_tiro.jpg', type: 'jpeg', quality: 82 });
-  let tras = null; if (a === 'Shotgun') { await ev(`(() => { ARM.v.t = ARM.v.clip.d; return 1; })()`); await juego(0.1); tras = await ev(clipAhora); }
+  // (la corredera: el clip que sigue al tiro, de lo que se tocó —la escopeta de HL2 tira en 0,33 s y la corredera dura 0,53:
+  // esperando a la foto ya terminaba—)
+  let tras = null; if (a === 'Shotgun') { await ev(`(() => { ARM.v.t = ARM.v.clip.d; return 1; })()`); await juego(0.1); tras = await ev(`(() => { const L = window.__clips || [], i = L.lastIndexOf(DEF_ARMAS.Shotgun.fuego), t = i >= 0 ? L[i + 1] || null : null; return t && t === DEF_ARMAS.Shotgun.tras ? t : 'no: ' + t; })()`); }
   await juego(1.6);
   const rec = await ev(`(() => { window.__son = []; ARM.balas['${a}'] = 0; ARM.recargando = 0; ARM.ocup = 0; recargar(); return { clip: ${clipAhora}, son: window.__son.slice(), dura: +ARM.recargando.toFixed(2) }; })()`);
   await juego(4.3); const fin = await ev(`({ clip: ${clipAhora}, balas: ARM.balas['${a}'] })`);
   const pref = x.nodo.replace('HL_', '');
   const bien = x.vista && x.ic && x.mano && /_draw$/.test(x.sacar || '') && /_idle$/.test(quieto || '') && /_fire$/.test(tiro.clip || '') &&
-    (a === 'Sniper' || tiro.son.some((n) => /^H[A-Z0-9]_Fire/.test(n))) && /_reload$/.test(rec.clip || '') && /_idle$/.test(fin.clip || '') && fin.balas > 0 && (a !== 'Shotgun' || tras === 'HG_pump');
+    (a === 'Sniper' || tiro.son.some((n) => /^H[A-Z0-9]_Fire/.test(n))) && /_reload$/.test(rec.clip || '') && /_idle$/.test(fin.clip || '') && fin.balas > 0 && (a !== 'Shotgun' || /^H[A-Z]_pump$/.test(tras || ''));
   ok(`${a} (${x.nodo}): sacar, quieto, tiro con sonido, recarga y vuelve a quieto${a === 'Shotgun' ? ', corredera' : ''}`, bien, { ...x, quieto, tiro, tras, rec, fin });
 }
 ok('sin errores', !err.filter((e) => !/WebSocket|mqtt|ERR_/i.test(e)).length, err.filter((e) => !/WebSocket|mqtt|ERR_/i.test(e)).slice(0, 4));

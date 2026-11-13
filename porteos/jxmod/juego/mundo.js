@@ -33,7 +33,7 @@ function cargarMapa(nombre) {
   // pasar de gm_construct a la pizzería y al desierto llegaba a 322 MB y cerraba el juego en celus de 2 GB)
   if (typeof rbSoltarMapas === 'function') rbSoltarMapas(rbDeMapa(nombre));
   MUNDO.nombre = nombre; MUNDO.modelos = []; MUNDO.cajas = []; MUNDO.grilla = new Map(); MUNDO.aristasCel = new Map(); MUNDO.sub = new Map(); MUNDO.triCuerpo = []; MUNDO.spawns = []; MUNDO.luces = [];
-  const raices = DATA.esc[nombre], tris = [], supTri = [];
+  const raices = DATA.esc[nombre], tris = [], supTri = [], clipTri = [];
   const lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9);
   const q = new Quat(), pt = v3();
   for (const arb of raices) {
@@ -67,7 +67,7 @@ function cargarMapa(nombre) {
           for (let k = 0; k + 2 < n; k += 3) {
             let a = I[k] * 3, b = I[k + 1] * 3, cc = I[k + 2] * 3; if (det < 0) { const t = b; b = cc; cc = t; }
             if (triFino(vw, a, b, cc)) continue;   // (sin área: el choque contra eso daba NaN)
-            tris.push(vw[a], vw[a + 1], vw[a + 2], vw[b], vw[b + 1], vw[b + 2], vw[cc], vw[cc + 1], vw[cc + 2]);
+            tris.push(vw[a], vw[a + 1], vw[a + 2], vw[b], vw[b + 1], vw[b + 2], vw[cc], vw[cc + 1], vw[cc + 2]); clipTri.push(c.clip ? 1 : 0);
             let j = 0; while (j + 1 < mc.d.sub.length && k >= mc.d.sub[j][0] + mc.d.sub[j][1]) j++; supTri.push(sups[j]);
           }
         } else if (c.k === 's' || c.k === 'c') {
@@ -79,7 +79,7 @@ function cargarMapa(nombre) {
     }
   }
   // triángulos a la grilla
-  const T = (MUNDO.T = new Float32Array(tris)); MUNDO.nt = T.length / 9; MUNDO.ntMapa = MUNDO.nt; MUNDO.TN = new Float32Array(MUNDO.nt * 3); MUNDO.triSup = new Uint8Array(supTri);
+  const T = (MUNDO.T = new Float32Array(tris)); MUNDO.nt = T.length / 9; MUNDO.ntMapa = MUNDO.nt; MUNDO.TN = new Float32Array(MUNDO.nt * 3); MUNDO.triSup = new Uint8Array(supTri); MUNDO.triClip = clipTri.some((x) => x) ? new Uint8Array(clipTri) : null;   // (los clips de los mapas del Workshop: las balas pasan, MUNDO.bala)
   for (let t = 0; t < MUNDO.nt; t++) {
     const o = t * 9;
     const ux = T[o + 3] - T[o], uy = T[o + 4] - T[o + 1], uz = T[o + 5] - T[o + 2], vx = T[o + 6] - T[o], vy = T[o + 7] - T[o + 1], vz = T[o + 8] - T[o + 2];
@@ -248,14 +248,14 @@ function mundoRayo(o, d, tmax) {
       const S = grillaSub(kc, l, cx, cz), n = S.n, t1 = Math.min(tmx, tmz, best), px0 = o.x + d.x * tcel, pz0 = o.z + d.z * tcel, px1 = o.x + d.x * t1, pz1 = o.z + d.z * t1;
       const a0 = Math.max(0, Math.floor((Math.min(px0, px1) - S.x0) / S.s)), a1 = Math.min(n - 1, Math.floor((Math.max(px0, px1) - S.x0) / S.s)), b0 = Math.max(0, Math.floor((Math.min(pz0, pz1) - S.z0) / S.s)), b1 = Math.min(n - 1, Math.floor((Math.max(pz0, pz1) - S.z0) / S.s));
       for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) for (const it of S.L[a * n + b]) {
-        if (TM[it] === mk) continue; TM[it] = mk;
+        if (TM[it] === mk) continue; TM[it] = mk; if (MUNDO.bala && MUNDO.triClip && MUNDO.triClip[it]) continue;
         const t = rayTri(o, d, it, best); if (t >= 0) { best = t; bt = it; bb = null; }
       }
       l = S.obj;
     }
     if (l) for (const it of l) {
       if (typeof it === 'number') {
-        if (TM[it] === mk) continue; TM[it] = mk;
+        if (TM[it] === mk) continue; TM[it] = mk; if (MUNDO.bala && MUNDO.triClip && MUNDO.triClip[it]) continue;
         const t = rayTri(o, d, it, best); if (t >= 0) { best = t; bt = it; bb = null; }
       } else {
         if (it.mk === mk) continue; it.mk = mk;

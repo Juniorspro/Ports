@@ -7,7 +7,19 @@
 // (subiendo escalones y cayendo) y resbalando a lo largo de lo que no puede pasar, como en GMod.
 // StartActivity / SetSequence ponen la secuencia del modelo por su actividad (ACT_RUN, ACT_WALK, ACT_IDLE...) o por su
 // nombre, y el modelo se dibuja animado (gmod_pm.js: los huesos del .mdl cuadro a cuadro).
-const GMNB = { mtLoco: null, mtPath: null, actNum: null };
+const GMNB = { mtLoco: null, mtPath: null, actNum: null, sysDesc: 0, sysUlt: 0 };
+// SysTime para el Lua, sin lo que tardan los caminos de acá. Los nextbots de la base de Sanic —Obunga, Walter, Smiley, Doge,
+// Shaq: los más bajados— miden con SysTime cuánto tarda Path:Compute y, si pasa de 5 ms, no vuelven a buscar camino por
+// 5 s («workaround for the navmesh pathing bug»). En GMod el camino sale de la malla de navegación en una fracción de
+// milisegundo; acá, con rayos y A* en JavaScript, en un celular pasaba de 5 ms casi siempre: el nextbot seguía un camino
+// viejo o se quedaba parado hasta 5 s («nextbots lentos»). El tiempo de los caminos no cuenta (y se recupera de a poco,
+// a un cuarto de la velocidad del reloj, para no quedar atrasado)
+function gmnbSysTime() {
+  const t = performance.now() / 1000;
+  if (GMNB.sysDesc > 0 && GMNB.sysUlt) { GMNB.sysDesc = Math.max(0, GMNB.sysDesc - Math.max(0, t - GMNB.sysUlt) * 0.25); }
+  GMNB.sysUlt = t; return t - GMNB.sysDesc;
+}
+function gmnbSinTiempo(f) { const t0 = performance.now(); try { return f(); } finally { GMNB.sysDesc += (performance.now() - t0) / 1000; GMNB.sysUlt = performance.now() / 1000; } }
 const gmnbEs = (e) => { const t = claseTabla(e.clase, 'S'); return !!t && buscarEnClase(t, 'Type') === 'nextbot'; };
 // la escala del modelo de ahora (SetModelScale con tiempo: va de la de antes a la nueva en ese tiempo, como en GMod)
 function gmnbEscala(e) {
@@ -22,7 +34,7 @@ function gmnbLoco(e) {
   if (!GMNB.mtLoco) {
     const M = (GMNB.mtLoco = new LuaTable()), I = new LuaTable(); M.set('__index', I); M.set('MetaName', 'CLuaLocomotion');
     const L = (n, f) => I.set(n, (l, ...a) => f(l.st, l, ...a));
-    L('Approach', (s, l, g) => { if (g instanceof LVec) s.meta = vG(g); }); L('FaceTowards', (s, l, g) => { if (g instanceof LVec) s.mirar = vG(g); });
+    L('Approach', (s, l, g) => { if (g instanceof LVec) { s.meta = vG(g); s.tAp = TIEMPO.t; } }); L('FaceTowards', (s, l, g) => { if (g instanceof LVec) s.mirar = vG(g); });
     L('SetDesiredSpeed', (s, l, v) => { s.vel0 = +v || 0; }); L('GetDesiredSpeed', (s) => s.vel0);
     L('SetAcceleration', (s, l, v) => { s.acel = +v || 0; }); L('GetAcceleration', (s) => s.acel); L('SetDeceleration', (s, l, v) => { s.decel = +v || 0; }); L('GetDeceleration', (s) => s.decel);
     L('SetJumpHeight', (s, l, v) => { s.salto = +v || 0; }); L('GetJumpHeight', (s) => s.salto); L('SetStepHeight', (s, l, v) => { s.paso = +v || 0; }); L('GetStepHeight', (s) => s.paso);
@@ -34,8 +46,8 @@ function gmnbLoco(e) {
     L('GetVelocity', (s) => GMA.Vr(s.v)); L('SetVelocity', (s, l, v) => { if (v instanceof LVec) s.v.copy(vGr(v)); });
     L('IsStuck', (s) => s.trabado); L('ClearStuck', (s) => { s.trabado = false; s.tTrabado = 0; });
     L('Jump', (s) => { if (s.suelo) { s.v.y = Math.sqrt(2 * Math.max(1, s.grav) * Math.max(1, s.salto)) * GS; s.suelo = false; } });
-    L('JumpAcrossGap', (s, l, g) => { if (s.suelo) { if (g instanceof LVec) s.meta = vG(g); s.v.y = Math.sqrt(2 * Math.max(1, s.grav) * Math.max(1, s.salto)) * GS; s.suelo = false; } });
-    L('IsOnGround', (s) => s.suelo); L('IsClimbingOrJumping', (s) => !s.suelo); L('IsAttemptingToMove', (s) => !!s.metaAnt); L('IsUsingLadder', () => false);
+    L('JumpAcrossGap', (s, l, g) => { if (s.suelo) { if (g instanceof LVec) { s.meta = vG(g); s.tAp = TIEMPO.t; } s.v.y = Math.sqrt(2 * Math.max(1, s.grav) * Math.max(1, s.salto)) * GS; s.suelo = false; } });
+    L('IsOnGround', (s) => s.suelo); L('IsClimbingOrJumping', (s) => !s.suelo); L('IsAttemptingToMove', (s) => s.tAp !== undefined && TIEMPO.t - s.tAp < 0.25); L('IsUsingLadder', () => false);
     L('GetGroundMotionVector', (s) => { const h = Math.hypot(s.v.x, s.v.z); return h > 1e-4 ? GMA.Vd(v3(s.v.x / h, 0, s.v.z / h)) : GMA.nv(0, 0, 0); });
     L('GetCurrentAcceleration', () => GMA.nv(0, 0, 0)); L('IsAreaTraversable', () => true); L('GetNextBot', (s, l) => l.e);
     for (const n of ['SetClimbAllowed', 'SetJumpGapsAllowed', 'SetAvoidAllowed', 'SetDuckAllowed']) L(n, () => {});
@@ -167,7 +179,7 @@ function gmnbPath() {
     P('SetMinLookAheadDistance', (p, d) => { p.ver = +d || 0; }); P('GetMinLookAheadDistance', (p) => p.ver);
     P('SetGoalTolerance', (p, d) => { p.tol = +d || 0; }); P('GetGoalTolerance', (p) => p.tol);
     // (devuelve si el camino llega a la meta; si no, igual queda uno hasta lo más cerca, como en GMod)
-    P('Compute', (p, bot, pos) => { if (!(pos instanceof LVec) || !(bot instanceof LEnt)) return false; p.t0 = TIEMPO.t; return gmnbCalcular(p, bot, vG(pos), null); });
+    P('Compute', (p, bot, pos) => { if (!(pos instanceof LVec) || !(bot instanceof LEnt)) return false; p.t0 = TIEMPO.t; return gmnbSinTiempo(() => gmnbCalcular(p, bot, vG(pos), null)); });
     P('IsValid', (p) => !!p.ok); P('Invalidate', (p) => { p.ok = false; }); P('GetAge', (p) => TIEMPO.t - p.t0);
     const largo = (p) => (p.largos ? p.largos[p.largos.length - 1] : 0);
     P('GetLength', (p) => (p.ok ? largo(p) / GS : 0)); P('GetStart', (p) => GMA.V(p.ini || v3())); P('GetEnd', (p) => GMA.V(p.meta || v3()));
@@ -196,10 +208,10 @@ function gmnbPath() {
       while ((p.idx || 1) < P0.length - 1) { const w = P0[p.idx || 1]; if (Math.hypot(w.x - pos.x, w.z - pos.z) < R) p.idx = (p.idx || 1) + 1; else break; }
       const w = P0[Math.min(P0.length - 1, p.idx || 1)], d = v3(p.meta.x - pos.x, 0, p.meta.z - pos.z);
       if ((p.idx || 1) >= P0.length - 1 && d.len() <= Math.max(p.tol || 20, 8) * GS) { p.ok = false; return; }
-      const l = gmnbLoco(bot).st; l.meta = w.clone(); l.mirar = w.clone();
+      const l = gmnbLoco(bot).st; l.meta = w.clone(); l.mirar = w.clone(); l.tAp = TIEMPO.t;   // (como su Approach)
     };
     P('Update', (p, bot) => seguir(p, bot));
-    P('Chase', (p, bot, ent) => { if (ent instanceof LEnt && ent.vivo && bot instanceof LEnt && (!p.ok || TIEMPO.t - (p.t0 || 0) > 0.1)) { p.t0 = TIEMPO.t; gmnbCalcular(p, bot, gmaEntPos(ent), ent); } seguir(p, bot); });
+    P('Chase', (p, bot, ent) => { if (ent instanceof LEnt && ent.vivo && bot instanceof LEnt && (!p.ok || TIEMPO.t - (p.t0 || 0) > 0.1)) { p.t0 = TIEMPO.t; gmnbSinTiempo(() => gmnbCalcular(p, bot, gmaEntPos(ent), ent)); } seguir(p, bot); });
   }
   return { __mt: GMNB.mtPath, ok: false, meta: null, ini: null, t0: 0, tol: 25, ver: 300, pts: null, idx: 1, largos: null };
 }
@@ -411,11 +423,22 @@ function gmnbPaso(dt) {
 const _nbq = new Quat();
 function gmnbMover(e, dt) {
   const L = gmnbLoco(e).st, pos = gmaEntPos(e), v = L.v, ign = e.o ? e.o.b : null;
-  // hacia la meta de este cuadro (Approach), con aceleración; si no hay, frena
-  const vh = v3(v.x, 0, v.z); let quiere = v3();
-  if (L.meta) { const d = vsub(L.meta, pos); d.y = 0; const l = d.len(); if (l > 0.02) quiere = vscale(d, Math.min(L.vel0 * GS, l / Math.max(dt, 1e-3)) / l); }
-  const dif = vsub(quiere, vh), dl = dif.len(), ac = (quiere.len() > vh.len() ? L.acel : L.decel) * GS * dt;
-  if (dl > 1e-5) vh.add(vscale(dif, Math.min(1, ac / dl)));
+  // como la locomoción de suelo de GMod (NextBotGroundLocomotion): hacia la meta de este cuadro (Approach) acelera con su
+  // Acceleration hasta su DesiredSpeed —o frena con su Deceleration— en la dirección de la meta; lo que va de costado lo
+  // frena el roce de costado (3 por segundo, el GetFrictionSideways de Source: dobla con algo de inercia y se endereza en
+  // un tercio de segundo); y en el piso, si hace más de 0,25 s que no se le pide moverse, se para en seco. Antes la
+  // velocidad entera iba hacia la pedida con la aceleración del addon: para doblar 90° a 650 pulgadas/s con 500 de
+  // aceleración tardaba 1,8 s y se pasaba 10 m de largo, y al llegar seguía deslizándose 8 m frenando («resbaladizos»)
+  const vh = v3(v.x, 0, v.z), quiereMover = L.tAp !== undefined && TIEMPO.t - L.tAp < 0.25;
+  if (L.meta) { const d = vsub(L.meta, pos); d.y = 0; const l = d.len(); if (l > 0.02) L.dirMov = vscale(d, 1 / l), L.distMeta = l; else L.distMeta = 0; }
+  if (L.suelo && !quiereMover) { vh.set(0, 0, 0); L.dirMov = null; }
+  else if (L.suelo && L.dirMov) {
+    const m = L.dirMov, der = v3(m.z, 0, -m.x), fw = vdot(vh, m), sd = vdot(vh, der);
+    // (hasta su velocidad, sin pasarse de la meta en este paso)
+    const meta = L.meta ? Math.min(L.vel0 * GS, (L.distMeta || 0) / Math.max(dt, 1e-3)) : fw;
+    const fw2 = fw < meta ? Math.min(meta, fw + L.acel * GS * dt) : Math.max(meta, fw - L.decel * GS * dt), sd2 = sd * Math.exp(-3 * dt);
+    vh.set(m.x * fw2 + der.x * sd2, 0, m.z * fw2 + der.z * sd2);
+  }
   v.x = vh.x; v.z = vh.z;
   // contra lo que no puede pasar (a la altura de la rodilla): resbala a lo largo de la pared, como la locomoción de GMod
   // (NextBotGroundLocomotion: choca, saca lo que va contra la pared y sigue con el resto). Antes frenaba en seco y con la

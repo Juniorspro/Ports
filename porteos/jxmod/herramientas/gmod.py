@@ -857,7 +857,7 @@ def vista_source(raiz, ruta, pref, secuencias):
             pistas.append({'h': hcrc, 'k': 'p', 'f': Pk[k]}); pistas.append({'h': hcrc, 'k': 'r', 'f': [[round(float(x), 5) for x in q] for q in Rk[k]]})
         clips[nom] = [{'d': round((n30 - 1) / 30, 4), 'loop': loop, 'p': pistas}]; nombres.append(nom)
     d['an']['ctl'][raiz] = nombres
-    return M, len(V), len(usados), nombres
+    return M, len(Vx['pos']), len(usados), nombres
 def palanca():
     global PAK, PAKN
     PAK, PAKN = None, {}
@@ -978,6 +978,25 @@ def revistas():
         if A and (not A['mt'] or any(x is None or x == 0 for x in A['mt'])):
             mi, mats = arma_mano_malla(arma, modelo('models/weapons/%s.mdl' % w)); A['m'] = mi; A['mt'] = mats
             print('  %s en la mano rehecha: materiales %s' % (arma, [d['mt'][x]['n'] for x in mats]))
+def escopeta_hl2():
+    """la escopeta de HL2 de verdad en primera persona (Discord: «¿por qué la escopeta se ve así?», blanca y plateada). El
+    v_shotgun del GMod 10 de archive.org no es el de Valve: es otro modelo, con una textura cromada (shotgun_diff, casi
+    toda degradés blancos y plateados con reflejos azules) y otras manos (v_arms). El de HL2 y GMod de hoy (el contenido
+    base de Steam, depósito 4021: models/weapons/v_shotgun.mdl) usa vshotgun_albedo (metal gastado oscuro) y el guante del
+    traje HEV (v_hand_sheet), como las otras armas. Va como vista nueva (HL_Shotgun2, clips HE_*) y el arma pasa a usarla;
+    la vieja queda en el paquete sin usar. La de tercera persona (w_shotgun) ya era la de Valve.
+    Uso: GM_SOLO=escopeta python-con-srctools -I gmod.py PAQUETE_ORIGEN PAQUETE_NUEVO CARPETA (con hl2/models/weapons/
+    v_shotgun.* y hl2/materials/models/weapons/v_shotgun/vshotgun_albedo.*, shell/casing01.*)"""
+    arma, raiz, v, w, pref, sec, tipo, sons = next(x for x in ARMAS_HL2 if x[0] == 'Shotgun')
+    # (el guante: el mismo material que ya usan las otras armas de HL2; el v_hand_sheet de GMod de hoy es gris, para teñirlo
+    # con el color del jugador)
+    mano = next((i for i, m in enumerate(d['mt']) if m and m.get('n') == 'GM_v_hand_sheet'), None)
+    if mano is not None: _mats[('materials/models/weapons/v_hand/v_hand_sheet.vmt', 512)] = (mano, 'op')
+    sec2 = tuple((c.replace(pref + '_', 'HE_'), 'pump' if s == 'pump2' else s, l) for c, s, l in sec)   # (en el de Valve la corredera es «pump»)
+    M, nv, nu, cl = vista_source(raiz + '2', 'models/weapons/%s.mdl' % v, 'HE', sec2)
+    d['gm']['hl2'][arma].update(nodo=raiz + '2', clips=cl)
+    n = next(x for x in d['pf'][next(k for k in d['pf'] if k.split('#')[0] == 'PhotonPlayer')] if x['n'] == 'HE_Malla')
+    print('  escopeta de HL2: huesos %d, con peso %d, verts %d, clips %s, materiales %s' % (len(M.huesos), nu, nv, cl, [d['mt'][x]['n'] for x in n['mt']]))
 # ---------------- el agua: recipientes (cubeta, tina, bañeras de HL2) y sus sonidos ----------------
 # Cada recipiente es un prop con su interior ("ag": caja en el marco del prop, litros y si es redondo) medido con rayos
 # de arriba sobre la malla (el piso de adentro) y el borde a mano; agua.js lo llena, lo vuelca y hace flotar lo de adentro.
@@ -1156,6 +1175,7 @@ if SOLO != ['']:
     if 'superficies' in SOLO: superficies()
     if 'nucleares' in SOLO: nucleares()
     if 'vistas' in SOLO: revistas()
+    if 'escopeta' in SOLO: escopeta_hl2()
     if 'loco' in SOLO:   # (los objetivos para hornear: PAQUETE_NUEVO/gm_loco_obj.json)
         L = locomocion(); json.dump(L, open(PK1 + '/gm_loco_obj.json', 'w'), separators=(',', ':'))
         for n, c in L['clips'].items(): print(n, len(c['frames']), 'cuadros', c['d'], 's', 'v', c['v'], 'ang', round(math.degrees(c['ang'])))

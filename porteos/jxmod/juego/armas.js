@@ -103,7 +103,7 @@ function rayoDesdeCamara(disp, base) {
   return d;
 }
 function impactoBala(o, d, D, dan) {
-  const h = raycast(o, d, 400, JUG.vehiculo ? JUG.vehiculo.b : null);
+  MUNDO.bala = true; let h; try { h = raycast(o, d, 400, JUG.vehiculo ? JUG.vehiculo.b : null); } finally { MUNDO.bala = false; }   // (los clips del mapa no frenan las balas, como en Source)
   const fin = h ? h.p : vadd(o, vscale(d, 400));
   const mz = bocaArma(d);
   efectoTraza(mz || o, fin);

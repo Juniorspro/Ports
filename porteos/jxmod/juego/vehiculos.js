@@ -377,3 +377,139 @@ function turboRed(d) {
   const o = typeof d.o === 'string' ? buscarObjeto(d.o) : null, V = o && o.veh; if (!V) return;
   V.turboRed = d.on ? 1 : 0;
 }
+// ---------------- sentado de verdad: la cabina de cada auto y el cuerpo de cada personaje ----------------
+// (Discord: «pies traspasando el suelo del auto», con un deportivo de un addon). Antes el cuerpo iba a una altura fija bajo
+// el asiento (1 m por la escala del personaje): los grandes quedaban hundidos, los chicos flotando, y la pose de sentado
+// —la de una silla: las canillas paradas, los pies 80 cm bajo la cadera— en un auto bajo dejaba las piernas abajo del
+// auto. Ahora, de la malla del auto (una vez por asiento): el almohadón debajo del asiento y el piso de adelante; la
+// cadera de cada personaje va sobre el almohadón y los pies al piso, con las rodillas dobladas lo que haga falta.
+// (la malla del auto en su marco, en una grilla de 10 cm para preguntar qué cruza una vertical; sin las ruedas)
+function vehCols(V) {
+  if (V.cols) return V.cols;
+  const o = V.o, inv = o.b.q.clone().conj(), sin = new Set(V.ruedas.map((w) => w.vis).filter((i) => i >= 0)), A = o.md.A, T = [];
+  const deRueda = (i) => { for (let k = i; k >= 0; k = A[k].pa) if (sin.has(k)) return true; return false; };
+  o.md.sucio = true; o.md.actualizar();
+  for (let i = 0; i < A.length; i++) {
+    const x = A[i]; if (!(x.m >= 0) || !o.md.ver[i] || /collider/i.test(x.n) || deRueda(i)) continue;
+    const mc = mallaCPU(x.m); if (!mc) return null;   // (la malla todavía no llegó: se prueba otra vez)
+    const W = o.md.W[i], P = mc.P, I = mc.I, L = new Float32Array(P.length), w = v3();
+    for (let k = 0; k < P.length; k += 3) { m4pt(W, P[k], P[k + 1], P[k + 2], w); const l = inv.rot(vsub(w, o.b.pos)); L[k] = l.x; L[k + 1] = l.y; L[k + 2] = l.z; }
+    let n = 0; for (const s of mc.d.sub) n = Math.max(n, s[0] + s[1]);
+    for (let k = 0; k + 2 < n; k += 3) for (const j of [I[k], I[k + 1], I[k + 2]]) T.push(L[j * 3], L[j * 3 + 1], L[j * 3 + 2]);
+  }
+  const C = 0.1, G = new Map();
+  for (let t = 0; t < T.length; t += 9) {
+    const x0 = Math.floor(Math.min(T[t], T[t + 3], T[t + 6]) / C), x1 = Math.floor(Math.max(T[t], T[t + 3], T[t + 6]) / C), z0 = Math.floor(Math.min(T[t + 2], T[t + 5], T[t + 8]) / C), z1 = Math.floor(Math.max(T[t + 2], T[t + 5], T[t + 8]) / C);
+    if ((x1 - x0 + 1) * (z1 - z0 + 1) > 2500) continue;
+    for (let i = x0; i <= x1; i++) for (let j = z0; j <= z1; j++) { const k = i * 4096 + j; let l = G.get(k); if (!l) G.set(k, (l = [])); l.push(t); }
+  }
+  // (las alturas de lo que cruza la vertical por x, z)
+  const cortes = (x, z) => {
+    const l = G.get(Math.floor(x / C) * 4096 + Math.floor(z / C)) || [], ys = [];
+    for (const t of l) {
+      const ax = T[t], ay = T[t + 1], az = T[t + 2], bx = T[t + 3], by = T[t + 4], bz = T[t + 5], cx = T[t + 6], cy = T[t + 7], cz = T[t + 8];
+      const d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz); if (Math.abs(d) < 1e-10) continue;
+      const u = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d, v = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d, w = 1 - u - v;
+      if (u >= -1e-4 && v >= -1e-4 && w >= -1e-4) ys.push(u * ay + v * by + w * cy);
+    }
+    return ys;
+  };
+  return (V.cols = { cortes, n: T.length / 9 });
+}
+// la cabina de un asiento (en el marco del auto): el almohadón y el piso de adelante (de 30 a 90 cm adelante: lo más alto
+// que queda 12 cm o más bajo el almohadón) y hasta dónde llega ese piso (la pared de los pedales). El almohadón: en los
+// autos del juego, donde ya se sentaba el Hero (su punto de asiento —SitPoint— está hecho para él: cadera 24 cm arriba,
+// 10 cm sobre el almohadón); en los de los addons de GMod, el punto sale de los ojos del conductor (vehicle_driver_eyes)
+// y el almohadón se mide en la malla: lo más alto debajo de ese punto (de 35 cm abajo a 25 cm arriba); si no hay malla
+// ahí, los ojos menos lo que hay de los ojos a la cadera del Hero sentado (0,69 m)
+function vehCabina(V, a) {
+  V.cab = V.cab || []; if (V.cab[a]) return V.cab[a];
+  const S = V.asientos[a], C = S && vehCols(V); if (!C) return null;
+  let coj = null;
+  if (/^gmveh:/.test(V.o.nombre || '')) {
+    for (const [dx, dz] of [[0, 0], [0.06, 0], [-0.06, 0], [0, -0.06], [0, 0.06]]) for (const y of C.cortes(S.x + dx, S.z + dz)) if (y < S.y + 0.25 && y > S.y - 0.35 && (coj === null || y > coj)) coj = y;
+    if (coj === null) coj = S.y - 0.04;
+  } else coj = S.y + 0.14;
+  const R = { coj, piso: null, lejos: null };
+  {
+    const pisos = [];
+    for (let dz = 0.3; dz <= 0.901; dz += 0.05) {
+      let p = null; for (const dx of [-0.12, 0, 0.12]) for (const y of C.cortes(S.x + dx, S.z + dz)) if (y < coj - 0.12 && y > coj - 1.2 && (p === null || y > p)) p = y;
+      if (p === null) break;   // (adelante no hay piso: se terminó la cabina)
+      pisos.push([dz, p]); R.lejos = dz;
+    }
+    // (el piso de los pies: lo más alto de esos —los pedales, la pared de adelante inclinada—)
+    if (pisos.length) R.piso = Math.max(...pisos.map((x) => x[1]));
+  }
+  return (V.cab[a] = R);
+}
+// el cuerpo sentado: la cadera sobre el almohadón y los pies apoyados en el piso de adelante (después de ubicarPersona)
+const _apF = v3(), _apU = v3();
+function asientoPose(P) {
+  const o = P.vehO, V = o && o.veh; if (!V || !P.sentado || V.tipo !== 'auto' || P.rag) return;
+  const a = P.vehA || 0, cab = vehCabina(V, a), h = P.D.h; if (!cab || cab.coj === null || h.Hips === undefined) return;
+  const md = P.md, q = o.b.q, qi = q.clone().conj(), W = md.W; md.actualizar();
+  const loc = (W2) => qi.rot(vsub(v3(W2[12], W2[13], W2[14]), o.b.pos));
+  // (la escala del personaje; la cadera de la pose de sentado queda 10 cm sobre el almohadón en el Hero)
+  // (y si lo que la piel pega a los muslos baja de la cadera más que lo que se hunde en el asiento —20 cm en el Hero: el
+  // almohadón y el hueco de abajo—, la cadera sube lo que falta: a Jake el muslo le arrastra parte de la panza y se metía
+  // 33 cm abajo de la cadera, por debajo del auto)
+  if (P.faldon === undefined) { const F = asientoFaldon(P, o); P.faldon = F.cadera; P.nalga = F.muslos; }
+  const s = clamp(P.tam || 1, 0.3, 3), cad = loc(W[h.Hips]), dy = Math.max(cab.coj + 0.1 * s, cab.coj - 0.2 * s + (P.nalga || 0)) - cad.y;
+  _apU.copy(q.rot(v3(0, 1, 0))); _apF.copy(q.rot(v3(0, 0, 1)));
+  md.raiz[12] += _apU.x * dy; md.raiz[13] += _apU.y * dy; md.raiz[14] += _apU.z * dy; md.sucio = true; md.actualizar();
+  // (el origen del modelo, que parado está en los pies, sentado quedaba 1 m abajo de la cadera: lo que va pegado a él —en
+  // BoiledOne, una cuarta parte de la malla— salía por debajo del auto. Sube hasta el almohadón y la cadera baja lo mismo
+  // en su hueso padre: el cuerpo queda igual)
+  const H = P.hum, ci = H && H.ci;
+  if (H && ci === h.Hips && P.D.sub[ci].pa >= 0) {
+    const r0 = qi.rot(v3(md.raiz[12] - o.b.pos.x, md.raiz[13] - o.b.pos.y, md.raiz[14] - o.b.pos.z)), sube = cab.coj - r0.y;
+    if (sube > 0.01) {
+      md.raiz[12] += _apU.x * sube; md.raiz[13] += _apU.y * sube; md.raiz[14] += _apU.z * sube;
+      // (la cadera, una vez por pose nueva: humAplicar la vuelve a poner en cada cuadro animado)
+      if (H.nAp !== P.apNAp) { P.apNAp = H.nAp; const Ip = M4.inv(W[P.D.sub[ci].pa]), p = md.p[ci], dx = -_apU.x * sube, dyy = -_apU.y * sube, dz = -_apU.z * sube; p[0] += Ip[0] * dx + Ip[4] * dyy + Ip[8] * dz; p[1] += Ip[1] * dx + Ip[5] * dyy + Ip[9] * dz; p[2] += Ip[2] * dx + Ip[6] * dyy + Ip[10] * dz; }
+      md.sucio = true; md.actualizar();
+    }
+  }
+  // (lo que cuelga de la cadera —el sobretodo de BoiledOne, 1,2 m pegado entero al hueso de la cadera—: sentado, va para
+  // adelante sobre las piernas como un abrigo, no para abajo atravesando el asiento y el piso. Se inclina la cadera hacia
+  // adelante lo justo y la columna vuelve a como estaba: el torso no cambia)
+  if (P.faldon > 0.35 * s && cab.piso !== null) {
+    const hy = loc(W[h.Hips]).y, c = clamp((hy - cab.piso - 0.05) / P.faldon, 0.09, 1), th = Math.acos(c), eje = q.rot(v3(1, 0, 0));
+    if (th > 0.02) { girarMundo(P, 'Hips', eje, -th); girarMundo(P, 'Spine', eje, th); md.sucio = true; md.actualizar(); }
+  }
+  // los pies: al piso de adelante, a lo que da la pierna (88 % estirada), sin pasar la pared de los pedales
+  if (cab.piso === null) return;
+  const zTope = V.asientos[a].z + (cab.lejos || 0.6) - 0.06;
+  for (const [u, k, f] of [[h.LeftUpLeg, h.LeftLeg, h.LeftFoot], [h.RightUpLeg, h.RightLeg, h.RightFoot]]) {
+    if (u === undefined || k === undefined || f === undefined) continue;
+    const Hp = loc(W[u]), Kp = loc(W[k]), Fp = loc(W[f]), largo = Hp.distTo(Kp) + Kp.distTo(Fp), yPie = cab.piso + 0.08 * s, alto = Hp.y - yPie;
+    // (si el pie ya queda arriba del piso y adentro de la cabina, como está)
+    if (Fp.y >= yPie - 0.005 && Fp.z <= zTope) continue;
+    const adel = Math.max(0.05, Math.min(Math.sqrt(Math.max(0, (largo * 0.88) ** 2 - alto * alto)), zTope - Hp.z));
+    const T = vadd(o.b.pos, q.rot(v3(Fp.x, yPie, Hp.z + adel)));
+    // (la rodilla hacia arriba y adelante; el pie, con el giro que tenía —plano en el piso—: si no, giraba con la canilla y
+    // en los de pies largos, como BoiledOne, la punta atravesaba el piso casi un metro)
+    ik2(P, u, k, f, T, vadd(vscale(_apU, 0.8), vscale(_apF, 0.6)), m4quat(W[f])); md.sucio = true; md.actualizar();
+  }
+}
+// cuánto cuelga debajo de la cadera (en la pose de sentado, sobre la vertical del auto) lo que la piel pega sobre todo a la
+// cadera (en una persona, ≈ 15 cm; en uno con sobretodo, el sobretodo entero) y lo que pega a los muslos
+function asientoFaldon(P, o) {
+  const md = P.md, ih = P.D.h.Hips, qi = o.b.q.clone().conj(); let L = 0, Lm = 0;
+  try {
+    md.actualizar(); const Wh = md.W[ih], hy = qi.rot(v3(Wh[12] - o.b.pos.x, Wh[13] - o.b.pos.y, Wh[14] - o.b.pos.z)).y;
+    for (let i = 0; i < md.A.length; i++) {
+      const x = md.A[i]; if (!x.bo || !md.ver[i]) continue; const pz = md.pieles.find((z) => z.i === i), m = mallaGL(x.m); if (!pz || !m) continue;
+      const d = m.d, B = binDe(d), j = x.bo.indexOf(ih), jm = [P.D.h.LeftUpLeg, P.D.h.RightUpLeg].map((u) => (u === undefined ? -2 : x.bo.indexOf(u))); if ((j < 0 && jm[0] < 0 && jm[1] < 0) || !B) continue;
+      const out = new Float32Array(d.v * 6); pielCalcular(m, pz.h, out, null);
+      for (let k = 0; k < d.v; k++) {
+        const q = d.sk + k * 8; let mj = 0, mw = -1; for (let c = 0; c < 4; c++) if (B[q + 4 + c] > mw) { mw = B[q + 4 + c]; mj = B[q + c]; }
+        const muslo = mj === jm[0] || mj === jm[1]; if (mj !== j && !muslo) continue;
+        const y = qi.rot(v3(out[k * 6] - o.b.pos.x, out[k * 6 + 1] - o.b.pos.y, out[k * 6 + 2] - o.b.pos.z)).y;
+        if (muslo) { if (hy - y > Lm) Lm = hy - y; } else if (hy - y > L) L = hy - y;
+      }
+    }
+  } catch (e) { return { cadera: 0, muslos: 0 }; }
+  return { cadera: L, muslos: Lm };
+}
