@@ -263,8 +263,10 @@ function redPaso(dt) {
     { const pl = typeof pillRed === 'function' ? pillRed() : 0; if (pl) e.pl = pl; }   // (Pill Packs: en qué está transformado)
     // (tu ID de Social, si entraste con Google: así los de la sala te agregan de amigo sin escribirlo)
     if (typeof SOC !== 'undefined' && SOC.yo && /^\d{8}$/.test(SOC.yo.pid || '')) e.sp = SOC.yo.pid;
+    // (rt: el reloj de la física del jugador, para que los demás lo dibujen entre dos muestras: remotoMuestra. No entra en
+    // la comparación: quieto, el estado sigue saliendo una vez por segundo)
     const s = JSON.stringify(e);
-    if (s !== RED.eAnt || t - RED.ultE > 1) { publicar('e', e); RED.eAnt = s; RED.ultE = t; }
+    if (s !== RED.eAnt || t - RED.ultE > 1) { e.rt = r3(J.reloj || 0); publicar('e', e); RED.eAnt = s; RED.ultE = t; }
   }
   if (t - RED.ultM > 0.1) {
     RED.ultM = t; const l = [];
@@ -365,6 +367,7 @@ function recibirEstado(d) {
   }
   if (Array.isArray(d.p)) { R2.meta.set(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0)); if (TIEMPO.t - R2.t > 2 || R2.pos.distTo(R2.meta) > 15) R2.pos.copy(R2.meta); }   // (un salto grande, como cruzar una puerta portal, va de una: si no, se lo veía volar por el mapa)
   if (Array.isArray(d.v)) R2.vel.set(num(d.v[0], -80, 80, 0), num(d.v[1], -80, 80, 0), num(d.v[2], -80, 80, 0));
+  remotoMuestra(R2, d);
   R2.yawM = num(d.y, -1e3, 1e3, 0); R2.P.mira = num(d.t, -2, 2, 0); R2.f = d.f | 0; R2.t = TIEMPO.t;
   // (el nombre pasa por la censura sólo si cambió: llega 10 veces por segundo de cada jugador)
   if (R2.nCrudo !== d.n) { R2.nCrudo = d.n; R2.nombre = censurar(limpio(d.n)); }
@@ -384,13 +387,83 @@ function etiquetaRemota(R2) {
   const icos = R2.icos || [], k = R2.nombre + '|' + icos.map((v) => v.length + v.slice(-12)).join(','); if (R2.tagK === k) return; R2.tagK = k;
   R2.tag.innerHTML = `<span dir="auto">${esc(R2.nombre)}</span>${icos.map((v) => icoHTML(v, 'tagIco')).join('')}`;
 }
+// ---------------- dónde se dibuja a otro jugador ----------------
+// Antes: hacia la última posición que llegó, adelantada con la mitad de su velocidad. Entre un estado y el siguiente
+// (0,1 s) se quedaba atrás y al llegar el otro saltaba para adelante: la velocidad que se veía subía y bajaba un 20 % (con
+// picos del 48 %) aunque la red fuera perfecta, y con los Pill Packs rápidos (14 m/s, ×2 con el ajuste de velocidad) eso
+// se ve como temblequeo; y al caer de un salto la velocidad hacia abajo lo metía 18 cm en el piso hasta el estado
+// siguiente. Ahora cada estado trae el reloj de la física del que lo manda (rt) y se lo dibuja un poquito en el pasado
+// (lo que tardan en llegar dos estados seguidos y su variación: ~0,14 s), entre las dos muestras de ese momento, con sus
+// velocidades (Hermite): se mueve parejo y el alto nunca baja de lo que pisaba en las dos (al caer, no atraviesa el
+// piso). El reloj de dibujo va al ritmo del reloj del que manda y se apura o se frena de a poco (+25 % / −60 %) para no
+// quedarse sin muestras; si se adelanta igual, sigue con su velocidad hasta 0,2 s. Un salto grande entre dos muestras (un
+// portal, reaparecer, el teletransporte de Bonnie) va de una. Uno con una versión de antes (sin rt) se ve como antes.
+function remotoMuestra(R2, d) {
+  const rt = typeof d.rt === 'number' && isFinite(d.rt) && d.rt >= 0 ? d.rt : -1;
+  if (rt < 0 || !Array.isArray(d.p)) { R2.mm = null; return; }
+  const L = R2.mm || (R2.mm = []), u = L[L.length - 1];
+  if (u && rt <= u.rt) { if (rt < u.rt - 2) { L.length = 0; R2.rr = undefined; R2.mmH = null; } else return; }   // (repetido o viejo; muy atrás: recargó la página)
+  const ahora = remotoReloj();
+  // (a qué ritmo corre el reloj del que manda respecto del de verdad, en los últimos 2,5 s: con menos de ~14 cuadros por
+  // segundo su física va más lenta que el tiempo real y a él se lo dibuja igual de lento, parejo, en vez de a los tirones.
+  // Por encima del 80 % alcanza con apurar o frenar el reloj de dibujo: así la variación de lo que tardan los estados no
+  // se nota en la velocidad)
+  const H = R2.mmH || (R2.mmH = []); H.push([rt, ahora]); while (H.length > 2 && ahora - H[0][1] > 2.5) H.shift();
+  const sH = H[H.length - 1][1] - H[0][1]; R2.mmRit = sH > 0.5 ? clamp((H[H.length - 1][0] - H[0][0]) / sH, 0.05, 1.5) : 1;
+  // (cada cuánto llegan, mientras se mueve, y cuánto varía la demora —en su reloj—: también con el estado de quieto, una
+  // vez por segundo, así ya se sabe cuando arranca)
+  if (u) { const dR = rt - u.rt, dA = (ahora - u.lleg) * (R2.mmRit < 0.8 ? R2.mmRit : 1); if (dR < 0.35) R2.mmInt = R2.mmInt ? R2.mmInt + (dR - R2.mmInt) * 0.15 : dR; if (dR < 2) R2.mmJit = (R2.mmJit || 0) + (Math.abs(dA - dR) - (R2.mmJit || 0)) * 0.15; }
+  // (en el piso la velocidad hacia abajo es la de pegarse al suelo, -0,5: no cuenta para dibujarlo)
+  const m = { rt, p: R2.meta.clone(), v: R2.vel.clone(), f: d.f | 0, lleg: ahora }; if (m.f & 1) m.v.y = Math.max(0, m.v.y);
+  L.push(m); if (L.length > 16) L.shift();
+  const D = clamp((R2.mmInt || 0.12) * 1.15 + 2.5 * (R2.mmJit || 0), 0.1, 0.5);
+  if (R2.rr === undefined || L.length === 1) { R2.rr = rt - D; R2.rrErr = 0; R2.mmT = ahora; }
+  else { R2.rrErr = rt - R2.rr - D; if (Math.abs(R2.rrErr) > 0.75) { R2.rr = rt - D; R2.rrErr = 0; } }
+}
+// (al teletransportarse —pillpacks.js—: ya está allá; las muestras de antes no van más)
+function remotoPoner(R2, p) { R2.pos.copy(p); R2.meta.copy(p); if (R2.mm) { R2.mm.length = 0; R2.rr = undefined; } if (R2.P) R2.P.pos.copy(p); }
+// (el reloj con el que se dibuja a los demás: el de verdad. El del juego da como mucho 0,1 s por cuadro y con menos de
+// 10 cuadros por segundo se atrasaba respecto del que manda: las muestras se juntaban y había que saltear)
+function remotoReloj() { return performance.now() / 1000; }
+const _mmP = v3();
+function remotoMuestraPaso(R2) {
+  const ahora = remotoReloj(), dt = clamp(ahora - (R2.mmT || ahora), 0, 0.5); R2.mmT = ahora;
+  R2.mmRitS = (R2.mmRitS || 1) + (((R2.mmRit || 1) < 0.8 ? R2.mmRit : 1) - (R2.mmRitS || 1)) * Math.min(1, dt * 1.5);
+  const L = R2.mm, rit = R2.mmRitS, adv = dt * rit * (1 + clamp((R2.rrErr || 0) * 0.6, -0.6, 0.25));
+  // (sin muestras nuevas, no más de 0,2 s adelante de la última: cuando llega la siguiente sigue desde ahí, sin salto)
+  R2.rr = Math.min(R2.rr + adv, L[L.length - 1].rt + 0.2); R2.rrErr -= adv - dt * rit;
+  while (L.length > 2 && L[1].rt <= R2.rr) L.shift();
+  const a = L[0], b = L[1], V = R2.mmV || (R2.mmV = v3()), rr = R2.rr;
+  if (!b || rr >= b.rt) {
+    // (sin la muestra que sigue: con su velocidad, hasta 0,2 s; en el piso, sin bajar)
+    const u = b || a, e = clamp(rr - u.rt, 0, 0.2), g = GRAV * ((typeof MUNDO !== 'undefined' && MUNDO.gravedad) || 1);
+    _mmP.set(u.p.x + u.v.x * e, u.f & 1 ? u.p.y : Math.max(u.p.y - 0.3, u.p.y + u.v.y * e - 0.5 * g * e * e), u.p.z + u.v.z * e);
+    V.copy(u.v); R2.mmF = u.f;
+  } else if (rr <= a.rt) { _mmP.copy(a.p); V.copy(a.v); R2.mmF = a.f; }
+  else {
+    // (quieto, el estado sale una vez por segundo: lo de la muestra vieja vale hasta el paso anterior a la nueva)
+    const t0 = b.rt - a.rt > 0.3 ? Math.max(a.rt, b.rt - 0.13) : a.rt, T = b.rt - t0;
+    if (rr <= t0) { _mmP.copy(a.p); V.copy(a.v); R2.mmF = a.f; }
+    else {
+      const w = (rr - t0) / T, w2 = w * w, w3 = w2 * w, h00 = 2 * w3 - 3 * w2 + 1, h10 = w3 - 2 * w2 + w, h01 = -2 * w3 + 3 * w2, h11 = w3 - w2;
+      const sx = b.p.x - a.p.x - (a.v.x + b.v.x) * 0.5 * T, sy = b.p.y - a.p.y - (a.v.y + b.v.y) * 0.5 * T, sz = b.p.z - a.p.z - (a.v.z + b.v.z) * 0.5 * T;
+      if (sx * sx + sy * sy + sz * sz > 9) _mmP.copy(a.p);   // (un salto de lugar: hasta su momento, donde estaba)
+      else {
+        _mmP.set(h00 * a.p.x + h10 * T * a.v.x + h01 * b.p.x + h11 * T * b.v.x, Math.max(Math.min(a.p.y, b.p.y), h00 * a.p.y + h10 * T * a.v.y + h01 * b.p.y + h11 * T * b.v.y), h00 * a.p.z + h10 * T * a.v.z + h01 * b.p.z + h11 * T * b.v.z);
+      }
+      V.set(a.v.x + (b.v.x - a.v.x) * w, a.v.y + (b.v.y - a.v.y) * w, a.v.z + (b.v.z - a.v.z) * w); R2.mmF = w < 0.5 ? a.f : b.f;
+    }
+  }
+  R2.pos.copy(_mmP);
+}
 function remotoPaso(R2, dt) {
   if (TIEMPO.t - R2.t > 10) { quitarRemoto(R2); RED.remotos.delete(R2.id); return; }
-  const P = R2.P, k = 1 - Math.exp(-dt * 12);
-  R2.meta.addS(R2.vel, dt * 0.5);
-  R2.pos.lerpTo(R2.meta, k);
+  const P = R2.P, k = 1 - Math.exp(-dt * 12), mm = !!(R2.mm && R2.mm.length);
+  if (mm) remotoMuestraPaso(R2);
+  else { R2.meta.addS(R2.vel, dt * 0.5); R2.pos.lerpTo(R2.meta, k); }
   let dy = R2.yawM - R2.yaw; dy = ((dy + Math.PI) % TAU + TAU) % TAU - Math.PI; R2.yaw += dy * k;
-  P.pos.copy(R2.pos); P.yaw = R2.yaw; P.vel.copy(R2.vel); P.suelo = !!(R2.f & 1); P.agachado = !!(R2.f & 2); P.sentado = !!(R2.f & 8);
+  // (con las muestras, la velocidad y si pisa son las del momento que se dibuja: las piernas y el salto van con el cuerpo)
+  P.pos.copy(R2.pos); P.yaw = R2.yaw; P.vel.copy(mm ? R2.mmV : R2.vel); P.suelo = !!((mm ? R2.mmF : R2.f) & 1); P.agachado = !!(R2.f & 2); P.sentado = !!(R2.f & 8);
   // si va en un vehículo, el cuerpo sigue al asiento
   if (R2.veh) { const o = buscarObjeto(R2.veh.k); if (o && o.veh) { const a = o.veh.asientos[R2.veh.a] || v3(); P.pos.copy(vadd(o.b.pos, o.b.q.rot(vadd(a, v3(0, 0.25, 0))))); const f = o.b.q.rot(v3(0, 0, 1)); P.yaw = Math.atan2(f.x, f.z); P.manejando = R2.veh.a === 0; P.qVeh = o.b.q; } } else P.qVeh = null;
   const vivo = !!(R2.f & 4), rag = !vivo || !!(R2.f & 32);
