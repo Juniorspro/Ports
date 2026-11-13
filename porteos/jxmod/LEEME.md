@@ -2252,6 +2252,38 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.2: lo del Discord (Pill Packs, botones y skins de GOLDEN, personajes fáciles, app, mapas y mods)
+
+Catorce mensajes del Discord juntos (el detalle y los números de cada parte están en sus secciones, más abajo).
+
+- **Firma nueva del APK.** La máquina de trabajo se reemplazó y la llave de la firma (fuera del repo) se perdió: no se
+  puede rehacer. La 3.2 va firmada con una llave nueva (huella SHA-256 `04:4A:87:38:59:23:4C:EF…`), guardada para que no
+  se pierda más como dos variables del entorno (`JXMOD_FIRMA_JKS_B64`, `JXMOD_FIRMA_CLAVE`, que `apk/armar_apk.py` ya
+  sabe leer). Android no deja instalar una firma distinta encima: **esta vez hay que desinstalar la 3.1 antes** (se
+  avisa en la ventana de «Hay una actualización»). El paquete del juego sí se recuperó idéntico (sección siguiente).
+- **Pill Packs** (Deep): saltan todos (el pack de FNaF del Workshop traía salto 0), caminan a 6 m/s o más y la Carrera
+  va de 9 a 14 m/s (el jugador camina a 6,0 y corre a 8,1); ajustes de Velocidad (×0,5–×2) y Tiempo de recarga
+  (×0,25–×2) en la pestaña; los demás jugadores se ven parejos en la sala (antes la velocidad vista variaba 20–31 %).
+- **Botones del celular** (GOLDEN, «mejor que la foto pero con ese estilo»): grupos que se agrandan enteros sin
+  pisarse, ningún botón bajo el mínimo para el dedo (disparo 86 px en 873×393), lo que cada uno guardó se ve igual
+  (91 botones, 0 diferencias) y se puede probar la nueva o volver a la propia.
+- **Personajes** (GOLDEN): pestañas Personajes / Mods / Gorros con buscador y el personaje grande al costado (72–79 %
+  del alto de la pantalla, antes ~50 %), girable y respirando. **El celular encima de la pausa** (Kris): la regla con
+  `:has()` no existe en WebView viejos; ahora cualquier menú grande esconde las capas del juego.
+- **Importar personaje** (lore1221, como Prisma 3D): GLB, GLTF, VRM u OBJ; lo para derecho, lo escala, propone los
+  puntos (barbilla, hombros, codos, muñecas, ingle, rodillas, tobillos), arma el esqueleto y los pesos, se prueba con
+  las animaciones y se guarda; si trae esqueleto usa el suyo. Se ve en multijugador. Desde Personajes → Mods.
+- **App**: deja de sonar al salir y vuelve a aparecer en Recientes; «el juego se trabó» sólo con trabas reales (el de
+  Juanpepo era un arranque sin WebGL, que ahora se reintenta); la radio con YouTube no se rearma a cada paso y se pausa
+  si nadie la oye; al volver al mismo server antes de 5 minutos aparecés donde estabas (y sin fantasma); en iPhone la
+  tele pide el toque que Safari exige y los mods de Steam usan mucha menos memoria (152 → ~90 MB con uno de 39,5 MB).
+- **Juego y mapas**: el conductor sentado adentro del auto (0 % del Hero afuera en 7 autos, antes hasta 32 cm abajo);
+  nextbots que aceleran y frenan como en GMod; el ascensor de gm_mallparking y las paredes invisibles de los mapas
+  (brochas de clip) andan; la escopeta es la de HL2 (la de archive.org era otra, cromada); la neblina de las nucleares
+  se disipa en 1–2 minutos. La pizzería del Workshop no tenía huecos (469 lugares revisados).
+- **Mods de GMod** (Gumball): no «se borran» ni salen como «Script» (era el tipo antes de que corra su Lua, una
+  cuarentena por un solo cierre malo y archivos guardados que se rompían); SWEPs de 30 addons populares: 24/34 → 34/34.
+
 ## Si se pierde el paquete del juego (pasó al cambiar de máquina)
 
 El paquete (mallas, texturas, sonidos, videos, fotos de fondo) vive fuera del repo; si la máquina cambia, se pierde. Se
