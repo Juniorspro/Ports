@@ -104,6 +104,7 @@ function gbspPuertaDe(e, cl, o) {
     return { cl, giro: true, rot: true, usa: false, silencio: true, vel: +e.maxspeed || 100, rev: !!(sf & 2), arranca: !!(sf & 1), pasa: !!(sf & 64),
       eje: dirG(sf & 4 ? [1, 0, 0] : sf & 8 ? [0, 1, 0] : [0, 0, 1]), ejeLocal: false, dist: 0, espera: -1, nombre: e.targetname || '', esclavo: '' };
   }
+  if (cl === 'func_tracktrain' || cl === 'func_tanktrain') return gbspTrenDe(e, cl);
   if (!/^(func_door|func_door_rotating|func_movelinear|prop_door_rotating)$/.test(cl)) return null;
   const sf = +e.spawnflags || 0, giro = cl !== 'func_door' && cl !== 'func_movelinear';
   const P = { cl, giro, vel: +e.speed || 100, espera: e.wait !== undefined ? +e.wait : e.returndelay !== undefined ? +e.returndelay : cl === 'prop_door_rotating' ? -1 : 4,
@@ -122,6 +123,77 @@ function gbspPuertaDe(e, cl, o) {
   return P;
 }
 function gbspAngQ(s) { const v = String(s || '0 0 0').split(/\s+/).map(Number); return angQuat(new LAng(v[0] || 0, v[1] || 0, v[2] || 0)); }
+// un tren de Source (func_tracktrain, como el ascensor de gm_mallparking): sigue su camino de path_track (puertas.js), con
+// las entradas StartForward, StartBackward, Stop, Toggle, Resume, Reverse, SetSpeed... y lo que tiene pegado con
+// "parentname" (la cabina, los botones, las puertas) va con él
+function gbspTrenDe(e, cl) {
+  const sf = +e.spawnflags || 0, man = String(e.manualspeedchanges || '0') === '1';
+  return { cl, tren: true, usa: false, giro: false, silencio: true, espera: -1, nombre: e.targetname || '', esclavo: '', primero: String(e.target || '').toLowerCase(),
+    velMax: Math.abs(+e.startspeed || 100) * GM_S, velIni: (+e.speed || 0) * GM_S, alto: (+e.height || 0) * GM_S, fija: !!(sf & 16), sinPitch: !!(sf & 1), pasa: !!(sf & 8),
+    acel: man ? Math.max(1, +e.manualaccelspeed || 0) * GM_S : 0, decel: man ? Math.max(1, +e.manualdecelspeed || 0) * GM_S : 0,
+    sIni: String(e.startsound || ''), sFin: String(e.stopsound || ''), sMov: String(e.movesound || ''), vol: Math.max(0, Math.min(10, e.volume !== undefined && e.volume !== '' ? +e.volume : 10)) / 10 };
+}
+// las brochas de Source (lumps 18 y 19) de cada modelo de bloques, recorriendo su árbol (nodos, hojas y brochas de hoja).
+// El compilador no deja caras de los lados invisibles (nodraw, clip, playerclip, invisible): una brocha así —las paredes
+// invisibles, las rampas sobre escaleras, el piso de un ascensor hecho con un prop encima— choca en Source y acá no tenía
+// nada con qué chocar. Con sus planos se arman sus lados
+const BR_CHOCA = 0x1 | 0x2 | 0x8 | 0x4000 | 0x10000;   // (sólido, ventana, reja, movible y playerclip: lo que frena a un jugador)
+function gbspBrochas(B, texNom) {
+  const nd = B.lump(5), hj = B.lump(10), lb = B.lump(17), br = B.lump(18), bs = B.lump(19), pl = B.lump(1), ti = B.lump(6), mo = B.lump(14);
+  if (!nd.length || !hj.length || !lb.length || !br.length || !bs.length) return null;
+  const DV = (u) => new DataView(u.buffer, u.byteOffset, u.byteLength), dN = DV(nd), dH = DV(hj), dLb = DV(lb), dBr = DV(br), dBs = DV(bs), dPl = DV(pl), dTi = DV(ti), dMo = DV(mo);
+  const HS = B.lver(10) === 0 ? 56 : 32, nN = (nd.length / 32) | 0, nH = (hj.length / HS) | 0, nLb = (lb.length / 2) | 0, nBr = (br.length / 12) | 0, nBs = (bs.length / 8) | 0, nPl = (pl.length / 20) | 0, nTi = (ti.length / 72) | 0, nMo = (mo.length / 48) | 0;
+  const deModelo = (m) => {
+    if (m < 0 || m >= nMo) return [];
+    const L = new Set(), pila = [dMo.getInt32(m * 48 + 36, true)];
+    for (let k = 0; pila.length && k < 200000; k++) {
+      const n = pila.pop();
+      if (n >= 0) { if (n < nN) pila.push(dN.getInt32(n * 32 + 4, true), dN.getInt32(n * 32 + 8, true)); continue; }
+      const h = -1 - n; if (h >= nH) continue;
+      const f = dH.getUint16(h * HS + 24, true), c = dH.getUint16(h * HS + 26, true);
+      for (let i = f; i < f + c && i < nLb; i++) { const b = dLb.getUint16(i * 2, true); if (b < nBr) L.add(b); }
+    }
+    return [...L];
+  };
+  // ¿tiene algún lado que el compilador deja como cara? (con textura que se ve, o del cielo, o de agua: esas ya chocan)
+  const conCara = (b) => {
+    const f = dBr.getInt32(b * 12, true), n = dBr.getInt32(b * 12 + 4, true);
+    for (let i = f; i < f + n && i < nBs; i++) {
+      if (bs[i * 8 + 6]) continue;   // (bisel: un plano que agrega el compilador, no un lado)
+      const t = dBs.getInt16(i * 8 + 2, true); if (t < 0 || t >= nTi) continue;
+      const fl = dTi.getInt32(t * 72 + 64, true), nom = texNom[dTi.getInt32(t * 72 + 68, true)] || '';
+      if (!(fl & (SURF_NODRAW | SURF_TRIGGER | SURF_HINT | SURF_SKIP)) && (!nom.startsWith('tools/') || /toolsblack|toolsskybox/.test(nom))) return true;
+    }
+    return false;
+  };
+  const contenido = (b) => dBr.getInt32(b * 12 + 8, true);
+  // los lados de la brocha: cada plano recortado por los demás (adentro: n·p ≤ d)
+  const lados = (b) => {
+    const f = dBr.getInt32(b * 12, true), n = dBr.getInt32(b * 12 + 4, true), P = [];
+    for (let i = f; i < f + n && i < nBs && P.length < 64; i++) { const pi = dBs.getUint16(i * 8, true); if (pi >= nPl) continue; P.push([dPl.getFloat32(pi * 20, true), dPl.getFloat32(pi * 20 + 4, true), dPl.getFloat32(pi * 20 + 8, true), dPl.getFloat32(pi * 20 + 12, true), bs[i * 8 + 6]]); }
+    const out = [];
+    for (let i = 0; i < P.length; i++) {
+      if (P[i][4]) continue;   // (un bisel no es un lado: sólo recorta)
+      const [nx, ny, nz, d] = P[i], ax = Math.abs(nx) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+      let ux = ny * ax[2] - nz * ax[1], uy = nz * ax[0] - nx * ax[2], uz = nx * ax[1] - ny * ax[0]; const ul = Math.hypot(ux, uy, uz) || 1; ux /= ul; uy /= ul; uz /= ul;
+      const vx = ny * uz - nz * uy, vy = nz * ux - nx * uz, vz = nx * uy - ny * ux, S = 32768, cx = nx * d, cy = ny * d, cz = nz * d;
+      let poly = [[cx + (ux + vx) * S, cy + (uy + vy) * S, cz + (uz + vz) * S], [cx + (ux - vx) * S, cy + (uy - vy) * S, cz + (uz - vz) * S], [cx - (ux + vx) * S, cy - (uy + vy) * S, cz - (uz + vz) * S], [cx - (ux - vx) * S, cy - (uy - vy) * S, cz - (uz - vz) * S]];
+      for (let j = 0; j < P.length && poly.length >= 3; j++) {
+        if (j === i) continue; const q = P[j]; if (q[0] * nx + q[1] * ny + q[2] * nz > 0.9999 && Math.abs(q[3] - d) < 0.01) { if (j < i) { poly = []; break; } continue; }   // (el mismo plano dos veces: un solo lado)
+        const s = poly.map((p) => q[0] * p[0] + q[1] * p[1] + q[2] * p[2] - q[3]), nue = [];
+        for (let k = 0; k < poly.length; k++) {
+          const a = poly[k], b2 = poly[(k + 1) % poly.length], sa = s[k], sb = s[(k + 1) % poly.length];
+          if (sa <= 0.01) nue.push(a);
+          if ((sa <= 0.01) !== (sb <= 0.01)) { const t = sa / (sa - sb); nue.push([a[0] + (b2[0] - a[0]) * t, a[1] + (b2[1] - a[1]) * t, a[2] + (b2[2] - a[2]) * t]); }
+        }
+        poly = nue;
+      }
+      if (poly.length >= 3) out.push({ n: [nx, ny, nz], pts: poly });
+    }
+    return out;
+  };
+  return { deModelo, conCara, contenido, lados, n: nBr };
+}
 
 // arma el mapa (DATA.esc / DATA.aj); prog(0..1, texto) para la pantalla de carga
 async function gbspPreparar(clave, prog) {
@@ -175,7 +247,7 @@ async function gbspPreparar(clave, prog) {
   const mats = new Map(), matDe = (i) => { let m = mats.get(i); if (m === undefined) { try { m = gmMaterial(texNom[i], ['']); if (m && m.vmt && /water/i.test(m.vmt.shader || '')) m = aguaMat(); } catch (e) { m = null; } mats.set(i, m); } return m; };
   const nVt = (vt.length / 12) | 0, vx = (i) => [dVt.getFloat32(i * 12, true), dVt.getFloat32(i * 12 + 4, true), dVt.getFloat32(i * 12 + 8, true)];
   // los pedazos: por celda de 64 m, por material (para dibujar) y aparte los triángulos de choque
-  const ped = new Map(), pedC = new Map(), pedazo = (x, z, M) => { const k = Math.floor(x / GBSP_CELDA) + ':' + Math.floor(z / GBSP_CELDA); let p = M.get(k); if (!p) M.set(k, (p = { P: [], N: [], U: [], LM: [], por: new Map(), C: [] })); return p; };
+  const ped = new Map(), pedC = new Map(), pedazo = (x, z, M) => { const k = Math.floor(x / GBSP_CELDA) + ':' + Math.floor(z / GBSP_CELDA); let p = M.get(k); if (!p) M.set(k, (p = { P: [], N: [], U: [], LM: [], por: new Map(), C: [], Cc: [] })); return p; };
   const agua = [];
   // una cara (polígono o grilla de displacement) ya en el juego: tris en índices locales
   // (lmv: de cada vértice, su rectángulo de luz y su luxel [r, s, t]; r -1 = la luz media del mapa, -2 = una que brilla)
@@ -199,15 +271,17 @@ async function gbspPreparar(clave, prog) {
     // (las claves de las entidades quedan en minúsculas: con "Solidity" no se encontraba y las puertas de ascensor de los
     // Backrooms, que se atraviesan, eran paredes: se aparecía encerrado)
     if (/^func_(brush|wall_toggle)/.test(cl) && e.startdisabled === '1') continue;
-    const noSolido = /^func_illusionary/.test(cl) || (/^func_brush/.test(cl) && e.solidity === '1'), invisible = /^func_clip/.test(cl) || e.rendermode === '10' || (e.rendermode && e.rendermode !== '0' && e.renderamt === '0');
+    // (func_clip_vphysics frena sólo a los objetos sueltos, no al jugador: acá, como sus brochas ahora chocan, no choca)
+    const noSolido = /^func_illusionary|^func_clip_vphysics/.test(cl) || (/^func_brush/.test(cl) && e.solidity === '1'), invisible = /^func_clip/.test(cl) || e.rendermode === '10' || (e.rendermode && e.rendermode !== '0' && e.renderamt === '0');
     usoMo.push({ i: +m[1], o, rot: a.some((x) => x) ? angMat(new LAng(a[0] || 0, a[1] || 0, a[2] || 0)) : null, sinChoque: noSolido, sinDibujo: invisible, puerta: gbspPuertaDe(e, cl, o), nombre: String(e.targetname || '').toLowerCase(), padre: String(e.parentname || '').toLowerCase() });
   }
   // (las puertas de bloques van aparte, cada una en su pieza, para poder moverlas: puertas.js)
   let pzaPuerta = null;
   const ptaPorNombre = new Map();
-  for (const U of usoMo) if (U.puerta) { U.pieza = { P: [], N: [], U: [], LM: [], por: new Map(), C: [] }; if (U.nombre && !ptaPorNombre.has(U.nombre)) ptaPorNombre.set(U.nombre, U); }
+  for (const U of usoMo) if (U.puerta) { U.pieza = { P: [], N: [], U: [], LM: [], por: new Map(), C: [], H: [], esTren: !!U.puerta.tren }; if (U.nombre && !ptaPorNombre.has(U.nombre)) ptaPorNombre.set(U.nombre, U); }
   for (const U of usoMo) if (!U.puerta && U.padre && ptaPorNombre.has(U.padre)) { const D = ptaPorNombre.get(U.padre); U.pieza = D.pieza; if (U.sinChoque) U.hijoSinChoque = true; }
   const nFc = (fc.length / 56) | 0, nDi = (di.length / 176) | 0;
+  let BR = null, nBrInv = 0, nBrTren = 0; try { BR = gbspBrochas(B, texNom); } catch (e) { BR = null; }
   for (const U of usoMo) {
     if (U.i >= nMo) continue;
     pzaPuerta = U.pieza || null;
@@ -218,7 +292,8 @@ async function gbspPreparar(clave, prog) {
       const o = f * 56, tix = dFc.getInt16(o + 10, true); if (tix < 0 || tix * 72 + 72 > ti.length) continue;
       const fl = dTi.getInt32(tix * 72 + 64, true), tdi = dTi.getInt32(tix * 72 + 68, true); if (fl & (SURF_TRIGGER | SURF_HINT | SURF_SKIP)) continue;
       const nom = texNom[tdi] || '', herramienta = nom.startsWith('tools/') && !/toolsblack/.test(nom), esAgua = (fl & SURF_WARP) || /(^|\/)(water|liquids?)[^/]*\/|water/.test(nom) && !/waterfall|underwater/.test(nom);
-      const dibuja = !U.sinDibujo && !(fl & (SURF_SKY | SURF_SKY2D | SURF_NODRAW)) && !herramienta, choca = !U.sinChoque;
+      // (un tren choca con sus brochas, una por una —más abajo—: el casco de todas sus caras juntas era un bloque macizo)
+      const dibuja = !U.sinDibujo && !(fl & (SURF_SKY | SURF_SKY2D | SURF_NODRAW)) && !herramienta, choca = !U.sinChoque && !(pzaPuerta && pzaPuerta.esTren);
       if (!dibuja && !choca) continue;
       const pn = dFc.getUint16(o, true), side = fc[o + 2], fe = dFc.getInt32(o + 4, true), ne = dFc.getInt16(o + 8, true), dix = dFc.getInt16(o + 12, true);
       const poly = []; for (let k = 0; k < ne; k++) { const s = dSe.getInt32((fe + k) * 4, true), vi = s >= 0 ? dEd.getUint16(s * 4, true) : dEd.getUint16(-s * 4 + 2, true); if (vi < nVt) poly.push(vx(vi)); }
@@ -289,6 +364,30 @@ async function gbspPreparar(clave, prog) {
       ponerCara(pts, nrm, uvs, tris, mi, dibuja, chocaC, esAgua, lmDe ? poly.map(lmDe) : null, esCielo);
       if (esAgua && dibuja && !esCielo && Math.abs(nG[1]) > 0.9) agua.push(pts);
     }
+    // las brochas que chocan y no dejaron caras (nodraw, clip, playerclip, invisibles): sus lados, sólo para chocar. En un
+    // tren, cada brocha (con caras o sin) es un casco que se mueve con él
+    if (BR && !U.sinChoque) {
+      const tren = pzaPuerta && pzaPuerta.esTren;
+      for (const bi of BR.deModelo(U.i)) {
+        if (!(BR.contenido(bi) & BR_CHOCA) || (!tren && BR.conCara(bi))) continue;
+        const L = BR.lados(bi); if (L.length < 4) continue;
+        if (cc3) { let ex = 0, ey = 0, ez = 0, n = 0; for (const l of L) for (const q of l.pts) { ex += q[0]; ey += q[1]; ez += q[2]; n++; } if (enCielo(tr([ex / n, ey / n, ez / n]))) continue; }
+        if (tren) { const H = []; for (const l of L) for (const q of l.pts) H.push(...gbspG(...tr(q))); pzaPuerta.H.push(H); nBrTren++; continue; }
+        for (const l of L) {
+          const pts = l.pts.map((q) => gbspG(...tr(q))), nG = gbspG(...trN(l.n)).map((x) => x / GM_S), tris = [];
+          for (let k = 1; k + 1 < pts.length; k++) {
+            const a = pts[0], b = pts[k], cc = pts[k + 1], t = [0, k, k + 1];
+            const nx = (b[1] - a[1]) * (cc[2] - a[2]) - (b[2] - a[2]) * (cc[1] - a[1]), ny = (b[2] - a[2]) * (cc[0] - a[0]) - (b[0] - a[0]) * (cc[2] - a[2]), nz = (b[0] - a[0]) * (cc[1] - a[1]) - (b[1] - a[1]) * (cc[0] - a[0]);
+            if (nx * nG[0] + ny * nG[1] + nz * nG[2] < 0) { t[1] = k + 1; t[2] = k; }
+            tris.push(t);
+          }
+          // (las que sólo frenan al jugador —playerclip— o son rejas: en Source las balas pasan; van aparte, marcadas)
+          if (!pzaPuerta && !(BR.contenido(bi) & (0x1 | 0x2 | 0x4000))) { let cx = 0, cz = 0; for (const q of pts) { cx += q[0]; cz += q[2]; } const pc = pedazo(cx / pts.length, cz / pts.length, ped); for (const t of tris) for (const i of t) pc.Cc.push(pts[i][0], pts[i][1], pts[i][2]); }
+          else ponerCara(pts, null, null, tris, -1, false, true, false, null, false);
+        }
+        nBrInv++;
+      }
+    }
   }
   P0(0.75, 'props');
   // el atlas de la luz horneada (en los aparatos flojos, más chico: la luz se ve más suave pero ocupa menos)
@@ -304,9 +403,11 @@ async function gbspPreparar(clave, prog) {
   // el árbol del mapa: un nodo por pedazo (dibujo y choque), los props, las apariciones y el sol
   const arbs = [];
   for (const [k, p] of ped) {
+    if (!p.por.size && p.C.length < 9 && p.Cc.length < 9) continue;
     const nodo = { n: 'ws_' + k, p: [0, 0, 0], r: [0, 0, 0, 1], s: [1, 1, 1], pa: -1 };
     if (p.por.size) { const ms = [...p.por.keys()]; nodo.m = gmMallaNueva('WS_' + clave + '_' + k, new Float32Array(p.P), new Float32Array(p.N), new Float32Array(p.U), ms.map((m) => p.por.get(m)), false, lmUV(p), clave); nodo.mt = ms; }
     if (p.C.length >= 9) { const n = p.C.length / 3, I = Array.from({ length: n }, (_, i) => i); nodo.col = [{ k: 'm', m: gmMallaNueva('WS_col_' + clave + '_' + k, new Float32Array(p.C), new Float32Array(n * 3), new Float32Array(n * 2), [I]), tr: 0 }]; }
+    if (p.Cc.length >= 9) { const n = p.Cc.length / 3, I = Array.from({ length: n }, (_, i) => i); (nodo.col = nodo.col || []).push({ k: 'm', m: gmMallaNueva('WS_clip_' + clave + '_' + k, new Float32Array(p.Cc), new Float32Array(n * 3), new Float32Array(n * 2), [I]), tr: 0, clip: 1 }); }
     if (nodo.m !== undefined || nodo.col) arbs.push([nodo]);
   }
   pzaPuerta = null;
@@ -325,7 +426,9 @@ async function gbspPreparar(clave, prog) {
     for (let k = 0; k < p.P.length; k += 3) { p.P[k] -= piv[0]; p.P[k + 1] -= piv[1]; p.P[k + 2] -= piv[2]; }
     // (el casco de choque: hasta 300 puntos repartidos entre todos, no los primeros: si no, a una puerta grande le faltaba un lado)
     const casco = [], nC = p.C.length / 3, paso = Math.max(1, nC / 300); for (let q = 0; q < nC && casco.length < 900; q += paso) { const k = Math.floor(q) * 3; casco.push(+(p.C[k] - piv[0]).toFixed(3), +(p.C[k + 1] - piv[1]).toFixed(3), +(p.C[k + 2] - piv[2]).toFixed(3)); }
-    const nodo = { n: 'gbsp_puerta_' + (nPuerta++), p: piv, r: [0, 0, 0, 1], s: [1, 1, 1], pa: -1, puerta: Object.assign({}, U.puerta, { casco, solida: !U.sinChoque && !U.puerta.pasa, caja: lo[0] < 1e9 ? [lo, hi] : null }) };
+    const nodo = { n: 'gbsp_puerta_' + (nPuerta++), p: piv, r: [0, 0, 0, 1], s: [1, 1, 1], pa: -1, puerta: Object.assign({}, U.puerta, { casco, solida: !U.sinChoque && !U.puerta.pasa, caja: lo[0] < 1e9 ? [lo, hi] : null, padre: U.padre || '' }) };
+    // (el tren: un casco por brocha, en su espacio)
+    if (U.puerta.tren) { nodo.puerta.casco = []; nodo.puerta.cascos = p.H.map((H) => H.map((v, k) => +(v - piv[k % 3]).toFixed(3))); }
     if (p.por.size) { const ms = [...p.por.keys()]; nodo.m = gmMallaNueva('WSP_' + clave + '_' + nodo.n, new Float32Array(p.P), new Float32Array(p.N), new Float32Array(p.U), ms.map((m) => p.por.get(m)), false, lmUV(p), clave); nodo.mt = ms; }
     const arb = [nodo]; ptaArbs.push(arb); if (U.nombre && !ptaArbPorNombre.has(U.nombre)) ptaArbPorNombre.set(U.nombre, arb);
   }
@@ -345,7 +448,11 @@ async function gbspPreparar(clave, prog) {
       // (en el espacio de la puerta: su eje es el origen y, si es de modelo, su giro)
       const R = arbP[0], q0 = new Quat(R.r[0], R.r[1], R.r[2], R.r[3]), qi = q0.clone().conj(), lp = qi.rot(v3(pos[0] - R.p[0], pos[1] - R.p[1], pos[2] - R.p[2])), lq = qi.clone().mul(q);
       arbP.push({ n: nom, p: [lp.x, lp.y, lp.z], r: [lq.x, lq.y, lq.z, lq.w], s: [1, 1, 1], pa: 0, m: pf.m, mt: pf.mt });
-      if (pr.solido) { const C = R.puerta.casco, n0 = C.length; for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const n = d.hp.length / 3, paso = Math.max(1, n / 120); for (let t = 0; t < n && C.length < 1500; t += paso) { const k = Math.floor(t) * 3, v = lq.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); C.push(+(v.x + lp.x).toFixed(3), +(v.y + lp.y).toFixed(3), +(v.z + lp.z).toFixed(3)); } }
+      if (pr.solido && R.puerta.tren) {
+        // (pegado a un tren —la cabina del ascensor—: cada pieza de su .phy es un casco aparte que se mueve con él; juntas en un
+        // solo casco serían un bloque macizo y no se podría entrar)
+        const H = R.puerta.cascos; for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const pts = [], n = d.hp.length / 3; for (let t = 0; t < n && pts.length < 600; t++) { const k = t * 3, v = lq.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); pts.push(+(v.x + lp.x).toFixed(3), +(v.y + lp.y).toFixed(3), +(v.z + lp.z).toFixed(3)); } if (pts.length >= 12) H.push(pts); }
+      } else if (pr.solido) { const C = R.puerta.casco, n0 = C.length; for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const n = d.hp.length / 3, paso = Math.max(1, n / 120); for (let t = 0; t < n && C.length < 1500; t += paso) { const k = Math.floor(t) * 3, v = lq.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); C.push(+(v.x + lp.x).toFixed(3), +(v.y + lp.y).toFixed(3), +(v.z + lp.z).toFixed(3)); } }
         // (sin .phy: la caja de su malla)
         const dm = C.length === n0 && pf.m !== undefined && DATA.ms[pf.m]; if (dm && dm.mn) for (let i = 0; i < 8; i++) { const v = lq.rot(v3(dm.mn[0] + (i & 1 ? dm.sc[0] : 0), dm.mn[1] + (i & 2 ? dm.sc[1] : 0), dm.mn[2] + (i & 4 ? dm.sc[2] : 0))); C.push(+(v.x + lp.x).toFixed(3), +(v.y + lp.y).toFixed(3), +(v.z + lp.z).toFixed(3)); } }
       continue;
@@ -362,7 +469,11 @@ async function gbspPreparar(clave, prog) {
     // (choque: sus cascos del .phy, ya puestos en su lugar)
     for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const pts = []; for (let k = 0; k < d.hp.length; k += 3) { const v = q.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); pts.push(v.x + pos[0], v.y + pos[1], v.z + pos[2]); } if (pts.length >= 12) cascos.push(pts); }
   }
-  for (const arb of ptaArbs) if (arb[0].m !== undefined || arb.length > 1) { if (!arb[0].puerta.caja && arb.length > 1) arb[0].puerta.solida = arb[0].puerta.solida && arb[0].puerta.casco.length >= 12; arbs.push(arb); }
+  for (const arb of ptaArbs) {
+    const P = arb[0].puerta;
+    if (P.tren) { P.solida = P.solida && P.cascos.length > 0; if (arb[0].m !== undefined || arb.length > 1 || P.cascos.length) arbs.push(arb); continue; }   // (un tren sin caras —sólo brochas invisibles— igual va: choca y lleva lo suyo)
+    if (arb[0].m !== undefined || arb.length > 1) { if (!P.caja && arb.length > 1) P.solida = P.solida && P.casco.length >= 12; arbs.push(arb); }
+  }
   // los botones y las zonas (trigger_*) que abren o cierran puertas por nombre, como sus salidas en Source
   // ("blanco,Open,,0,-1"): el botón se usa con E y la zona se activa al entrar o salir de ella
   const ptaNom = new Set(usoMo.filter((U) => U.puerta && U.nombre).map((U) => U.nombre)); for (const pr of props) if (pr.puerta && pr.puerta.nombre) ptaNom.add(pr.puerta.nombre.toLowerCase());
@@ -375,9 +486,17 @@ async function gbspPreparar(clave, prog) {
     if (/^(func_button|func_rot_button)$/.test(cl)) {
       // (OnPressed siempre; los de dos posiciones —bandera 32— alternan OnIn y OnOut, como el tocadiscos del Liminal Hotel)
       const sal = { p: salidas(e, /^onpressed$/i), i: salidas(e, /^onin$/i), o: salidas(e, /^onout$/i), l: salidas(e, /^onuselocked$/i) }, n = sal.p.length + sal.i.length + sal.o.length;
-      const c = n && cajaMo(e); if (c) ptaBot.push({ c, sal, tog: (+e.spawnflags || 0) & 32 ? 1 : 0, bloq: (+e.spawnflags || 0) & 2048 ? 1 : 0, n: String(e.targetname || '').toLowerCase() });
+      const c = n && cajaMo(e); if (c) ptaBot.push({ c, sal, tog: (+e.spawnflags || 0) & 32 ? 1 : 0, bloq: (+e.spawnflags || 0) & 2048 ? 1 : 0, n: String(e.targetname || '').toLowerCase(), pa: String(e.parentname || '').toLowerCase() });
     }
     else if (/^trigger_(multiple|once)$/.test(cl)) { const en = salidas(e, /^on(starttouch|trigger|starttouchall)$/i), sa = salidas(e, /^on(endtouch|endtouchall)$/i), c = (en.length || sa.length) && cajaMo(e); if (c) ptaZona.push({ c, en, sa, una: cl === 'trigger_once', n: String(e.targetname || '').toLowerCase(), off: e.startdisabled === '1' }); }
+  }
+  // los caminos de los trenes (path_track): dónde está cada punto, el siguiente, el otro camino, lo que avisa al pasar
+  // (OnPass: el ascensor de gm_mallparking se para así en cada piso) y la velocidad nueva que pone
+  const caminos = [];
+  if (usoMo.some((U) => U.puerta && U.puerta.tren)) for (const e of ents) {
+    if (e.classname !== 'path_track' || !e.targetname || !e.origin || caminos.length >= 2000) continue;
+    const o = String(e.origin).split(/\s+/).map(Number);
+    caminos.push({ n: String(e.targetname).toLowerCase(), p: gbspG(o[0], o[1], o[2]), sig: String(e.target || '').toLowerCase(), alt: String(e.altpath || '').toLowerCase(), sal: salidas(e, /^onpass$/i), vel: (+e.speed || 0) * GM_S, sf: +e.spawnflags || 0 });
   }
   // los sonidos del mapa (ambient_generic), los relevos (logic_relay) y lo que pasa al cargar (logic_auto): mapaio.js
   const io = { snd: [], relay: [], auto: [] };
@@ -449,6 +568,8 @@ async function gbspPreparar(clave, prog) {
   if (!sp.length) { const c = arbs.find((a) => a[0].col); if (c) { const d = DATA.ms[c[0].col[0].m]; arbs.push([{ n: 'SpawnPoint', p: [d.mn[0] + d.sc[0] / 2, d.mn[1] + d.sc[1] + 2, d.mn[2] + d.sc[2] / 2], r: [0, 0, 0, 1], s: [1, 1, 1], pa: -1 }]); } }
   if (ptaBot.length) aj.ptaBot = ptaBot.slice(0, 300); if (ptaZona.length) aj.ptaZona = ptaZona.slice(0, 300);
   if (io.snd.length || io.relay.length || io.auto.length) aj.io = io;
+  if (caminos.length) aj.caminos = caminos;
+  aj.brochas = { invisibles: nBrInv, tren: nBrTren };   // (cuántas brochas sin caras chocan ahora, y los cascos de los trenes)
   DATA.esc[clave] = arbs; DATA.aj[clave] = aj;
   P0(1, 'listo');
 }

@@ -47,7 +47,7 @@ const _hq = new Quat(), _hq2 = new Quat(), _hq3 = new Quat(), _hArriba = v3(0, 1
 function qArr(a, q) { return q.set(a[0], a[1], a[2], a[3]); }
 // convierte los valores a rotaciones de los huesos (en Unity) y los pasa al modelo (espacio espejado: x, -y, -z, w)
 function humAplicar(P) {
-  const H = P.hum, v = H.v, md = P.md;
+  const H = P.hum, v = H.v, md = P.md; H.nAp = (H.nAp || 0) + 1;   // (cuántas veces se puso la pose: asientoPose, vehiculos.js)
   for (const h of H.huesos) {
     const d = HUM_DOF[h.b], a = [0, 0, 0];
     for (let k = 0; k < 3; k++) {

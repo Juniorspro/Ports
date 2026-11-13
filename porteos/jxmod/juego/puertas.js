@@ -7,11 +7,13 @@ function puertasIniciar() {
   PUERTAS.l = [];
   // (los botones y las zonas del mapa que abren puertas: gmod_bsp los lee de las salidas de Source)
   const aj = (typeof DATA !== 'undefined' && DATA.aj && DATA.aj[MUNDO.nombre]) || {};
-  PUERTAS.bot = (aj.ptaBot || []).map((b) => ({ lo: v3(...b.c[0]), hi: v3(...b.c[1]), sal: b.sal || { p: [], i: [], o: [], l: [] }, tog: b.tog, bloq: b.bloq, n: b.n || '', est: 0 }));
+  PUERTAS.bot = (aj.ptaBot || []).map((b) => ({ lo: v3(...b.c[0]), hi: v3(...b.c[1]), lo0: v3(...b.c[0]), hi0: v3(...b.c[1]), sal: b.sal || { p: [], i: [], o: [], l: [] }, tog: b.tog, bloq: b.bloq, n: b.n || '', pa: b.pa || '', est: 0 }));
   PUERTAS.zona = (aj.ptaZona || []).map((z) => ({ lo: v3(...z.c[0]), hi: v3(...z.c[1]), en: z.en, sa: z.sa, una: z.una, n: z.n || '', off: !!z.off, dentro: false, hecha: false }));
+  PUERTAS.caminos = new Map(); for (const c of aj.caminos || []) PUERTAS.caminos.set(c.n, { n: c.n, p: v3(c.p[0], c.p[1], c.p[2]), sig: c.sig, alt: c.alt, altOn: false, off: !!(c.sf & 1), sal: c.sal || [], vel: c.vel || 0, sf: c.sf || 0 });
   for (const md of MUNDO.modelos) {
     const x = md.A && md.A[0]; if (!x || !x.puerta) continue;
     const P = x.puerta, piv = v3(x.p[0], x.p[1], x.p[2]), q0 = new Quat(x.r[0], x.r[1], x.r[2], x.r[3]);
+    if (P.tren) { trenNuevo(md, P, piv, q0); continue; }
     const L = []; for (let k = 0; k + 2 < (P.casco || []).length; k += 3) L.push(v3(P.casco[k], P.casco[k + 1], P.casco[k + 2]));
     let lo = v3(1e9, 1e9, 1e9), hi = v3(-1e9, -1e9, -1e9); for (const p of L) { lo.set(Math.min(lo.x, p.x), Math.min(lo.y, p.y), Math.min(lo.z, p.z)); hi.set(Math.max(hi.x, p.x), Math.max(hi.y, p.y), Math.max(hi.z, p.z)); }
     const D = { i: PUERTAS.l.length, md, P, piv, q0, k: P.abierta ? 1 : 0, meta: P.abierta ? 1 : 0, sentido: P.sentido || 1, t: 0, b: null, c: v3() };
@@ -37,6 +39,8 @@ function puertasIniciar() {
     }
     PUERTAS.l.push(D); puertaPoner(D);
   }
+  // (las puertas pegadas a un tren —con "parentname"— se corren con él)
+  for (const D of PUERTAS.l) if (D.P.tren && D.P.nombre) { const n = String(D.P.nombre).toLowerCase(); for (const X of PUERTAS.l) if (X !== D && !X.P.tren && String(X.P.padre || '').toLowerCase() === n) { X.trenPadre = D; puertaPoner(X); } }
   // (las puertas dobles: dos hojas con el mismo nombre una al lado de la otra —o la que el mapa dice con "slavename"—
   // se abren juntas, si no una sola hoja no deja pasar)
   for (const D of PUERTAS.l) {
@@ -57,6 +61,7 @@ function puertaPoner(D) {
     const ax = P.ejeLocal ? D.q0.rot(D.eje) : D.eje;
     _pq.copy(Quat.axis(ax.x, ax.y, ax.z, ang).mul(D.q0)); _pp.copy(D.piv);
   } else { _pq.copy(D.q0); _pp.copy(D.piv).addS(D.dir, D.recorrido * D.k); }
+  if (D.trenPadre) _pp.add(vsub(D.trenPadre.T.pos, D.trenPadre.T.pos0));   // (pegada a un tren —la puerta de un ascensor—: se corre con él)
   md.p[0][0] = _pp.x; md.p[0][1] = _pp.y; md.p[0][2] = _pp.z; md.r[0][0] = _pq.x; md.r[0][1] = _pq.y; md.r[0][2] = _pq.z; md.r[0][3] = _pq.w; md.sucio = true;
   if (D.b) { D.b.q.copy(_pq); D.b.pos.copy(_pp).add(_pq.rot(D.c)); D.b.updateWorld(); }
 }
@@ -89,6 +94,7 @@ function puertaRed(d) { const D = PUERTAS.l[d.n | 0]; if (!D) return; if (d.s) D
 function puertasPaso(dt) {
   if (typeof mioPaso === 'function') mioPaso(dt);
   for (const D of PUERTAS.l) {
+    if (D.P.tren) continue;   // (los trenes, en el paso fijo de la física: trenesPaso)
     if (D.P.rot) {
       // (arranca y frena en un segundo, como en Source)
       const meta = D.on ? D.P.vel * D.velK : 0; D.velAct += Math.sign(meta - D.velAct) * Math.min(Math.abs(meta - D.velAct), D.P.vel * dt);
@@ -144,4 +150,112 @@ function puertaUsar() {
   if (D.bot) { if (typeof sonar === 'function') sonar('fn_puerta', D.bot.lo.clone().add(D.bot.hi).scale(0.5), 0.25); if (typeof mioBoton === 'function') mioBoton(D.bot, true); }
   else { puertaAlternar(D); for (const X of D.grupo || []) if ((X.meta > 0.5) !== (D.meta > 0.5)) puertaAlternar(X, D.meta > 0.5); }
   return true;
+}
+// ---------------- trenes (func_tracktrain: el ascensor de gm_mallparking, vagonetas, plataformas) ----------------
+// Siguen su camino de path_track (gmod_bsp.js deja los puntos en DATA.aj.caminos): StartForward va al siguiente de cada
+// punto, StartBackward al anterior; al pasar por un punto se cumplen sus salidas OnPass (en el ascensor, «elevator,Stop»
+// en cada piso). Chocan con un casco por brocha y por pieza del .phy de lo que llevan pegado (la cabina), mueven lo que
+// tienen pegado (botones, puertas) y llevan al jugador que está parado arriba. En una sala todos reciben el mismo botón
+// (mapaio.js) y cada uno mueve el tren igual.
+function trenNuevo(md, P, piv, q0) {
+  const T = { pos: piv.clone(), pos0: piv.clone(), q: q0.clone(), cur: null, vel: 0, meta: 0, dir: 1 };
+  const D = { i: PUERTAS.l.length, md, P, piv, q0, T, k: 0, meta: 0, sentido: 1, t: 0, b: null, bs: [], c: v3() };
+  // (arranca en su primer punto, como en Source: el origen del tren va al punto —más su "height"—)
+  const C = PUERTAS.caminos, ini = C.get(P.primero);
+  if (ini) { T.cur = ini; T.pos.copy(ini.p); T.pos.y += P.alto || 0; }
+  T.vel = T.meta = P.velIni || 0; if (T.vel < 0) T.dir = -1;
+  if (P.solida) for (const H of P.cascos || []) {
+    const L = []; for (let k = 0; k + 2 < H.length; k += 3) L.push(v3(H[k], H[k + 1], H[k + 2]));
+    if (L.length < 4) continue;
+    try { const h = hullDePuntos(L), b = new Body(h.shape, 0); b.estatico = true; b.snd = 'metal'; b.puerta = D; b.tren = D; D.bs.push({ b, c: h.c.clone() }); MUNDO.cajas.push(b); } catch (e) { /* casco que no sale */ }
+  }
+  D.b = D.bs.length ? D.bs[0].b : null;
+  // (lo pegado a él: las puertas con "parentname" —se corren con el tren— y los botones —su caja va con él—)
+  const n = String(P.nombre || '').toLowerCase();
+  if (n) D.botones = PUERTAS.bot.filter((b) => b.pa === n);
+  PUERTAS.l.push(D); trenPoner(D);
+  // (en la grilla de choques por todo el camino que puede recorrer: cada tramo entre dos puntos, con lo que mide el tren)
+  if (D.bs.length) {
+    const vistos = new Set(), tramos = [], pila = ini ? [ini] : [];
+    while (pila.length && vistos.size < 400) { const m = pila.pop(); if (vistos.has(m)) continue; vistos.add(m); for (const k of [m.sig, m.alt]) { const q = k && C.get(k); if (q) { tramos.push([m.p, q.p]); pila.push(q); } } }
+    if (!tramos.length) tramos.push([T.pos, T.pos]);
+    let r = 0; for (const { b } of D.bs) { const a = b.aabb; r = Math.max(r, Math.hypot(a.x0 - T.pos.x, a.z0 - T.pos.z), Math.hypot(a.x1 - T.pos.x, a.z1 - T.pos.z)); }
+    const g = P.fija ? 0 : r;
+    for (const { b } of D.bs) {
+      const a = b.aabb, dx0 = Math.min(a.x0 - T.pos.x, -g), dx1 = Math.max(a.x1 - T.pos.x, g), dz0 = Math.min(a.z0 - T.pos.z, -g), dz1 = Math.max(a.z1 - T.pos.z, g);
+      for (const [u, v] of tramos) grillaAgregar(Math.min(u.x, v.x) + dx0 - 0.3, Math.min(u.z, v.z) + dz0 - 0.3, Math.max(u.x, v.x) + dx1 + 0.3, Math.max(u.z, v.z) + dz1 + 0.3, b);
+    }
+  }
+  return D;
+}
+// el tren en su lugar: el modelo, sus cascos y lo que lleva pegado
+function trenPoner(D) {
+  const T = D.T, md = D.md;
+  md.p[0][0] = T.pos.x; md.p[0][1] = T.pos.y; md.p[0][2] = T.pos.z; md.r[0][0] = T.q.x; md.r[0][1] = T.q.y; md.r[0][2] = T.q.z; md.r[0][3] = T.q.w; md.sucio = true;
+  for (const { b, c } of D.bs) { b.q.copy(T.q); b.pos.copy(T.pos).add(T.q.rot(c)); b.updateWorld(); }
+  const d = vsub(T.pos, T.pos0);
+  for (const b of D.botones || []) { b.lo.copy(b.lo0).add(d); b.hi.copy(b.hi0).add(d); }
+  for (const X of PUERTAS.l) if (X.trenPadre === D) puertaPoner(X);
+}
+// el siguiente punto del camino (para adelante) o el anterior (para atrás)
+function trenSig(n, dir) {
+  const C = PUERTAS.caminos; if (!n) return null;
+  if (dir > 0) { const k = n.altOn && n.alt ? n.alt : n.sig; return (k && C.get(k)) || null; }
+  for (const m of C.values()) if ((m.altOn && m.alt ? m.alt : m.sig) === n.n) return m;
+  return null;
+}
+function trenSonido(D, cual) {
+  const s = cual === 'ini' ? D.P.sIni : D.P.sFin; if (!s || typeof gmSonido !== 'function' || typeof sonar !== 'function') return;
+  try { const n = gmSonido(s); if (n) sonar(n, D.T.pos, 0.8 * (D.P.vol ?? 1)); } catch (e) { /* sin el sonido */ }
+}
+// las entradas de un tren (y las de sus puntos: EnableAlternatePath, DisablePath...)
+function trenEntrada(D, inp, par) {
+  const T = D.T, max = D.P.velMax || 2.5, v = +par;
+  const andar = (dir, vel) => { const antes = Math.abs(T.meta) > 0.01 || Math.abs(T.vel) > 0.01; T.dir = dir; T.meta = dir * vel; if (!D.P.acel) T.vel = T.meta; if (!antes && vel > 0) trenSonido(D, 'ini'); };
+  if (inp === 'startforward') andar(1, max);
+  else if (inp === 'startbackward') andar(-1, max);
+  else if (inp === 'stop') { const iba = Math.abs(T.vel) > 0.01; T.vel = T.meta = 0; if (iba) trenSonido(D, 'fin'); }
+  else if (inp === 'resume') andar(T.dir, max);
+  else if (inp === 'toggle') { if (Math.abs(T.meta) > 0.01) trenEntrada(D, 'stop', ''); else andar(T.dir, max); }
+  else if (inp === 'reverse') { T.dir = -T.dir; T.meta = -T.meta; T.vel = -T.vel; }
+  else if (inp === 'setspeed' && isFinite(v)) andar(T.dir, clamp(v, 0, 1) * max);
+  else if (inp === 'setspeedreal' && isFinite(v)) andar(T.dir, Math.abs(v) * GM_S);
+  else if ((inp === 'setspeeddir' || inp === 'setspeeddiraccel') && isFinite(v)) andar(v < 0 ? -1 : 1, Math.min(1, Math.abs(v)) * max);
+  else if (inp === 'setmaxspeed' && isFinite(v)) D.P.velMax = Math.abs(v) * GM_S;
+  else if (inp === 'teleporttopathtrack') { const n = PUERTAS.caminos.get(String(par || '').toLowerCase()); if (n) { T.cur = n; T.pos.copy(n.p); T.pos.y += D.P.alto || 0; trenPoner(D); } }
+}
+function caminoEntrada(n, inp) {
+  if (inp === 'enablealternatepath') n.altOn = true; else if (inp === 'disablealternatepath') n.altOn = false; else if (inp === 'togglealternatepath') n.altOn = !n.altOn;
+  else if (inp === 'enablepath') n.off = false; else if (inp === 'disablepath') n.off = true; else if (inp === 'togglepath') n.off = !n.off;
+}
+// (cada paso fijo de la física, antes del jugador: así lo lleva paso a paso, sin saltitos con pocos cuadros por segundo)
+function trenesPaso(dt) { for (const D of PUERTAS.l) if (D.P.tren) trenPaso(D, dt); }
+const _trA = v3();
+function trenPaso(D, dt) {
+  const T = D.T, P = D.P;
+  // (la velocidad va hacia la pedida con la aceleración manual del mapa, si la tiene)
+  if (T.vel !== T.meta) { const a = (Math.abs(T.meta) > Math.abs(T.vel) ? P.acel : P.decel) || 1e9; T.vel += Math.sign(T.meta - T.vel) * Math.min(Math.abs(T.meta - T.vel), a * dt); }
+  if (Math.abs(T.vel) < 1e-4) return;
+  const dir = T.vel > 0 ? 1 : -1; let resto = Math.abs(T.vel) * dt; _trA.copy(T.pos);
+  for (let k = 0; k < 8 && resto > 1e-6; k++) {
+    const h = trenSig(T.cur, dir);
+    // (sin camino para ese lado, o el punto apagado: se para, como en Source)
+    if (!h || h.off) { T.vel = T.meta = 0; trenSonido(D, 'fin'); break; }
+    const meta = v3(h.p.x, h.p.y + (P.alto || 0), h.p.z), d = vsub(meta, T.pos), L = d.len();
+    // (mirando hacia donde va, salvo los de orientación fija —el ascensor—)
+    if (!P.fija && L > 0.01) { const f = vscale(d, dir / L), yaw = Math.atan2(f.x, f.z), pit = P.sinPitch ? 0 : -Math.asin(clamp(f.y, -1, 1)); T.q.copy(Quat.axis(0, 1, 0, yaw).mul(Quat.axis(1, 0, 0, pit))); }
+    if (L > resto) { T.pos.addS(d, resto / L); resto = 0; break; }
+    T.pos.copy(meta); resto -= L; T.cur = h;
+    // al pasar el punto: sus salidas (OnPass), la velocidad nueva que pide y si para o salta al siguiente
+    if (h.vel > 0) { T.meta = dir * h.vel; if (!P.acel) T.vel = T.meta; }
+    if (typeof mioDisparar === 'function') mioDisparar(h.sal, false);
+    if (h.sf & 16) { const s2 = trenSig(h, dir); if (s2) { T.pos.set(s2.p.x, s2.p.y + (P.alto || 0), s2.p.z); T.cur = s2; } }
+    if ((h.sf & 8) || Math.abs(T.meta) < 1e-4) { if (Math.abs(T.vel) > 0.01) trenSonido(D, 'fin'); T.vel = T.meta = 0; break; }
+  }
+  // lo que movió: el jugador parado arriba va con el tren
+  const dx = T.pos.x - _trA.x, dy = T.pos.y - _trA.y, dz = T.pos.z - _trA.z;
+  if (JUG.pisa && JUG.pisa.tren === D && !JUG.vehiculo && JUG.vivo) { JUG.pos.x += dx; JUG.pos.y += dy; JUG.pos.z += dz; }
+  trenPoner(D);
+  // el ruido mientras anda
+  if (P.sMov && typeof gmSonido === 'function' && typeof bucle === 'function' && Math.abs(T.vel) > 0.01) { try { const n = gmSonido(P.sMov); if (n) bucle('tren' + D.i, n, T.pos, 0.6 * (P.vol ?? 1), 1); } catch (e) { /* sin el ruido */ } }
 }

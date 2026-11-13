@@ -185,6 +185,7 @@ function dibujarPersona(P) {
   const sinCabeza = cuerpoEnPrimera(P) && !(P === JUG.cuerpo && (JUG.emo3K || 0) > 0.3);   // (un emote de piso se ve en tercera: con cabeza)
   patadaCabeza(P, sinCabeza, sinCabeza && !patadaActiva(P));
   ubicarPersona(P);
+  if (P.sentado && P.vehO && typeof asientoPose === 'function') asientoPose(P);   // (en un auto: la cadera en el asiento y los pies en el piso, vehiculos.js)
   // (sentado, en un emote o en el piso como muñeco no se clavan los pies; se olvida el apoyo viejo para no tirar del pie al volver)
   // (los emotes de captura sí pasan por el apoyo: trae la altura del piso de la captura y que nada quede abajo del piso)
   const cmu = typeof P.emote === 'string' && P.emote.startsWith('c:');
@@ -581,7 +582,7 @@ function personasPaso(dt) {
       P.pos.copy(JUG.pos); P.vel.copy(JUG.vel); P.suelo = JUG.suelo || !!JUG.vehiculo; P.agachado = ENT.agachar && !JUG.vehiculo;
       P.yaw = JUG.vehiculo ? Math.atan2(...(() => { const f = JUG.vehiculo.b.q.rot(v3(0, 0, 1)); return [f.x, f.z]; })()) : JUG.yaw;
       P.sentado = !!JUG.vehiculo; P.manejando = !!JUG.vehiculo && JUG.asiento === 0 && JUG.vehiculo.veh.tipo !== 'asiento';
-      P.qVeh = JUG.vehiculo ? JUG.vehiculo.b.q : null;
+      P.qVeh = JUG.vehiculo ? JUG.vehiculo.b.q : null; P.vehO = JUG.vehiculo || null; P.vehA = JUG.asiento || 0;
       P.arma = JUG.vehiculo ? null : ARM.lista[ARM.i]; P.mira = JUG.pitch;
       if (P.emote && !P.escena && (Math.hypot(JUG.vel.x, JUG.vel.z) > 0.5 || !JUG.suelo)) { P.emote = null; if (JUG.terceraEmote) { JUG.tercera = false; JUG.terceraEmote = false; } }
       if (!P.emote && JUG.terceraEmote) { JUG.tercera = false; JUG.terceraEmote = false; }

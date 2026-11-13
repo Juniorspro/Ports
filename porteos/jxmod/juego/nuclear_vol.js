@@ -180,7 +180,7 @@ float medio(vec3 p, out vec3 cual, out float cal, out float sBase, out float dSu
   float blando = 3.0 + 0.02 * Rn;
   float dh = clamp(-(sh - Ah * 2.0 * nh) / blando, 0.0, 1.0) * uDens.x;
   float dt = clamp(-(stl - At * 2.0 * nt) / (blando * 1.6), 0.0, 1.0) * uDens.y;
-  float df = clamp(-(sf - Af * 2.0 * nf) / (blando * 2.0), 0.0, 1.0) * uDens.z * (1.0 - smoothstep(0.0, uFalda.y * 1.4, p.y) * 0.6);
+  float df = clamp(-(sf - Af * 2.0 * nf) / (blando * 2.0), 0.0, 1.0) * uDens.z * (1.0 - smoothstep(0.0, uFalda.y * 1.4, p.y) * 0.6) * mix(0.35, 1.0, smoothstep(uFalda.x - 1.2 * uFalda.z, uFalda.x - 0.5 * uFalda.z, length(p.xz)));
   // (la distancia a la superficie ya deformada por el ruido: afuera, cuánto se puede saltar sin pisar humo)
   dSup = min(sh - Ah * 2.0 * nh, min(stl - At * 2.0 * nt, sf - Af * 2.0 * nf));
   float tot = max(dh, max(dt, df));
@@ -354,12 +354,18 @@ function nvEstado(E) {
   let fuego = 60 * e(-tau * 3.5) + 8 * e(-tau * 0.6) + 2 * e(-tau / 5); if (agua) fuego *= 0.55;
   // (se va: en los últimos 40 s de las 150 que dura, se adelgaza)
   const fin = clamp((E.dura - E.t) / 40, 0, 1);
+  // (el polvo del piso —la falda— y el tallo se van mucho antes que el sombrero, que queda arriba. Antes la falda quedaba
+  // espesa los 150 s, de 1,65 radios —265 m en una de 1 Mt, casi un kilómetro en la Tsar—: una neblina que tapaba el mapa
+  // entero a la altura de los ojos («¿por qué tanta neblina?» «por la bomba»). Ahora se disipa de los 10-18 s a los 33-58 s
+  // según el tamaño, y el tallo de los 47-73 s a los 90-129 s; adentro de la falda, detrás del frente, es más rala)
+  const sz = Math.sqrt(Math.max(0.05, s)), finF = 1 - sv(tr(E.t, 8 + 6 * sz, 25 + 20 * sz)), finT = 1 - sv(tr(E.t, 40 + 20 * sz, 80 + 30 * sz));
   return {
     s, cap: [H, Rm, Rn, (E.seed % 7) + 0.33 * tau],
     tallo: [28 + 14 * (1 - e(-tau / 3)), 20 + 14 * (1 - e(-tau / 3)), Math.max(1, top), 32 * tau],
-    falda: [Rb, hb2, wb, sv(tr(tau, 0.1, 0.6)) * (1 - 0.4 * sv(tr(tau, 4, 8))) * (aire ? 0.7 : 1)],
+    falda: [Rb, hb2, wb, sv(tr(tau, 0.1, 0.6)) * (1 - 0.4 * sv(tr(tau, 4, 8))) * (aire ? 0.7 : 1) * (0.55 + 0.45 * finF)],
     fuegoV: [fuego, 0.25 + 0.8 * e(-tau * 1.4), sv(tr(tau, 0.15, 1.5)), fuego * 0.12],
-    dens: [0.1 * fin, 0.06 * fin, 0.04 * fin, sv(tr(tau, 0.4 + tallo0, 1.2 + tallo0))],
+    dens: [0.1 * fin, 0.06 * fin * finT, 0.04 * fin * finF, sv(tr(tau, 0.4 + tallo0, 1.2 + tallo0))],
+    finF, finT,
     caja: [Math.max(Rb + 30, Rm + Rn * 1.4 + 40), H + Rn * 1.6 + 40],
     agua, fuego, H, Rn,
   };

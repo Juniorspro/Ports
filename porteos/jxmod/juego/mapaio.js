@@ -3,6 +3,8 @@
 // disco empiece a girar y que en 2 s suene la música» ("rotatedisc,Start,,0,-1" y "drifting,PlaySound,,2,-1").
 // gmod_bsp.js deja esas salidas; acá se cumplen las que el juego sabe hacer:
 //  - puertas (Open, Close, Toggle) y lo que gira (func_rotating: Start, Stop, Toggle, Reverse, SetSpeed...): puertas.js;
+//  - los trenes (func_tracktrain: StartForward, StartBackward, Stop, Toggle, Resume, SetSpeed...) y los puntos de su
+//    camino (path_track: EnableAlternatePath, DisablePath...): puertas.js;
 //  - los sonidos del mapa (ambient_generic): PlaySound, StopSound, ToggleSound, Volume, FadeIn, FadeOut, Kill; los que
 //    empiezan sonando y se repiten (zumbidos de tubos, ambiente) suenan solos cerca de donde están;
 //  - los relevos (logic_relay: Trigger, Enable, Disable, Toggle), lo que pasa al cargar (logic_auto), y botones y zonas
@@ -41,9 +43,11 @@ function mioEntrada(t, inp, par, remoto) {
   const P = typeof PUERTAS !== 'undefined' ? PUERTAS : null;
   if (P) for (const D of P.l) {
     if (!igual(String(D.P.nombre || '').toLowerCase())) continue;
-    if (D.P.rot) rotEntrada(D, inp, par);
+    if (D.P.tren) trenEntrada(D, inp, par);   // (un tren: lo mueve cada uno, también lo que apretó otro)
+    else if (D.P.rot) rotEntrada(D, inp, par);
     else if (!remoto) { if (inp === 'toggle') puertaAlternar(D); else if (inp === 'open' && D.meta < 0.5) puertaAlternar(D, true); else if (inp === 'close' && D.meta > 0.5) puertaAlternar(D, false); }
   }
+  if (P && P.caminos) for (const [n, c] of P.caminos) if (igual(n)) caminoEntrada(c, inp);   // (los puntos del camino de un tren)
   for (const s of MIO.snd) if (igual(s.n)) sndEntrada(s, inp, par);
   for (const [n, R] of MIO.relay) {
     if (!igual(n)) continue;

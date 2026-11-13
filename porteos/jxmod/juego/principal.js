@@ -360,6 +360,7 @@ function cuadro(ahora) {
     TIEMPO.acc -= paso; n++;
     if (JUEGO.estado === 'juego') {
       const ent = UI.abierto || CIC.quieto ? { x: 0, y: 0, saltar: false, agachar: false, correr: false } : ENT;
+      if (typeof trenesPaso === 'function') trenesPaso(paso);   // (los trenes de los mapas —ascensores—: antes que el jugador, que va parado arriba)
       jugadorPaso(paso, ent);
       portalesPaso();
       if (typeof vehiculosPaso === 'function') vehiculosPaso(paso, ent);
