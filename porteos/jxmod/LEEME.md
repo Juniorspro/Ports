@@ -2924,3 +2924,71 @@ fuego tiran balas y suenan), apunta y recarga si tiene mira y cargador, y sin er
   lo negro o blanco puro que queda es del arma (el Shrekzooka es negro, el pochoclo y la Portal Gun blancos, las bolas
   de metal del bowcaster de Chewbacca). Sin probar en un celular de verdad. Fotos de cada arma (1ª, 3ª y disparo) y del
   panel GMod antes y después, fuera del repo.
+
+## Del Discord (TerminatorX): la carpeta de mods, los addons en carpetas como en GMod de PC
+
+«Para poder poner los mods manualmente en sus respectivas carpetas… no tengo los .gma, tengo una conexión pésima y los
+que tengo están en carpetas». Ahora en **Mods y mapas → GMod → «Carpeta de mods»** (y en **Ajustes → Carpeta de mods**,
+también jugando):
+
+- **Android (la app).** «Elegir carpeta» abre el selector del sistema: entrar al almacenamiento interno, crear una
+  carpeta (por ejemplo `JXMOD`), entrar y tocar «Usar esta carpeta» → «Permitir». Si está vacía, el juego le crea
+  adentro `addons` con un `JXMod - LEEME.txt`. Con cualquier gestor de archivos se pega cada addon en su carpeta, como
+  en `garrysmod/addons`: `JXMOD/addons/mi_addon/` con `addon.json`, `lua/`, `models/`, `materials/`, `sound/`, `maps/`…
+  Las mayúsculas no importan, sirven los `.gma` sueltos y se pueden ordenar en subcarpetas (`addons/armas/mi_arma/`).
+  Después «Volver a leer» (también se lee sola al abrir el juego). Sin internet. Además se lee
+  `Android/data/com.jxmod.app/files/addons`, sin pedir permisos: en Android 10 o anterior la abre cualquier gestor;
+  desde el 11 casi ningún gestor entra ahí (sí la compu por cable), por eso la principal es la elegida.
+- **Compu (Chrome, Edge).** «Elegir carpeta de mods» (por ejemplo `garrysmod/addons`). El permiso queda guardado: al
+  abrir el juego se relee sola si el navegador lo deja; si no, «Volver a leer» lo vuelve a pedir. También se puede
+  soltar una carpeta, un `.zip` o un `.gma` sobre la pestaña GMod. **Firefox y Safari** no dejan guardar la carpeta:
+  «Elegir carpeta de mods» la importa esa vez (para releer, se elige de nuevo).
+- **iPhone y iPad.** Safari no deja elegir carpetas: en Archivos, mantener apretada la carpeta → «Comprimir», y en el
+  juego «Importar .zip».
+- **Lo leído queda guardado en el juego**: al abrir se monta desde ahí sin tocar la carpeta, y al releer sólo se copia
+  lo nuevo o lo que cambió (cada addon tiene una firma con las rutas, tamaños y fechas de sus archivos). Lo que se borra
+  de la carpeta se quita del juego. «Quitar» en la ficha lo saca y no vuelve hasta que cambie en la carpeta o se toque
+  «Volver a ponerlo»; «Olvidar carpeta» saca todo lo de esa carpeta (en la carpeta queda); deshabilitar anda igual que
+  con los del Workshop. Arriba dice cuántos hay y de dónde («7 addons … (6 de tu carpeta · 1 de Android/data)»), lo
+  mismo que suman las secciones de abajo; lo que pasó al leer se dice adentro del panel, no con el aviso de abajo.
+
+**Cómo anda** (`gmod_carpeta.js`; en la app, `Carpeta.java` y `Web.java`). Con cada addon se arma un `.gma` como el de
+gmad (rutas en minúsculas, sólo lo que gmad deja —sin `.psd`, `Thumbs.db`…— y sin lo que diga `ignore` del addon.json),
+que va a la misma caché que los del Workshop y se monta con `gmMontar`: mismo panel, mismas categorías, mismo menú de
+props, deshabilitar y borrar varios. El addon.json se lee aunque tenga BOM, comentarios o comas de más; si no hay, el
+nombre sale de `info.txt` o de la carpeta (y la tarjeta no sabe el `type` que puso el autor: Kermit dice «NPCs» en vez
+de «Personajes»). En la app, `/carpeta/lista` da los archivos de las dos carpetas (selector del sistema,
+`ACTION_OPEN_DOCUMENT_TREE` con permiso guardado: Android 7 a 15 y tarjeta SD) y `/carpeta/paquete` los de un addon
+seguidos, en un solo pedido. Mientras se copia el siguiente, el Lua del anterior corre en orden (antes, esperando el
+contenido base de GMod, 7 addons tardaban 45 s). Lo que un addon usa del Workshop y no está (TFA Base, ArcCW…) no se
+baja solo: su fila dice qué base falta y tiene «Bajar». Si un Chromium se cerrara al sacar la carpeta guardada de su
+base (pasa con Chrome for Testing, el de las pruebas), al abrir no se vuelve a leer: se borra, se avisa y en ese
+navegador se elige cada vez. En Ajustes, en una pantalla baja las pestañas se compactan: con la quinta, la última
+quedaba debajo del pie y no se podía tocar.
+
+**Pruebas** (`pruebas/gmod_carpeta.mjs`, 32/32): 7 addons reales del Workshop desarmados a mano en `JXMOD/addons` (Nyan
+Gun; SCP 096 Nextbot con un addon.json con BOM, comentarios y comas de más; Kermit con mayúsculas mezcladas
+—`Models/PLAYER/Kermit.MDL`— y sin addon.json; el Jetski dentro de `vehiculos/`; Destructible House, un mapa; Popcorn
+SWEP como `.gma` suelto; el extintor en Android/data), más una carpeta que no es addon, un `.psd` y un `Thumbs.db`. La
+app la hace `PruebaCarpeta --servir`, con la misma `Carpeta.java` del APK; la compu, una carpeta del navegador (OPFS).
+Sin internet en todas.
+
+| Medido | Resultado |
+|---|---|
+| App recién instalada | lee sola Android/data (vacía) y ofrece «Elegir carpeta» y «Volver a leer» |
+| Elegir JXMOD (app) | 7 nuevos (6 + 1 de Android/data), 0 errores, la carpeta que no es addon dice «No es un addon» |
+| Archivos iguales, byte por byte, a su .gma original | 142 de 142 (7 addons) |
+| Igual que instalar el .gma (armas, NPCs, vehículos, mapas, personajes, Lua, menú de props) | 7 de 7 |
+| Total de arriba = suma de las secciones; singular | 7 = 6 + 1; «1 addon», «1 archivo», «1 nuevo», «1 actualizado» |
+| Al volver a abrir | los 7 desde lo guardado; relectura de 0,5 a 1,2 s, 705 bytes leídos, nada copiado |
+| Cambia un addon · se borra una carpeta · vuelve | se copia sólo ése (5,2 MB) · se quita con su mapa · se pone |
+| Quitado a mano · deshabilitado · sin permiso | no vuelve · no se copia ni se monta · no se borra nada |
+| Compu (carpeta del navegador) | 6 nuevos byte por byte; al abrir, 6 iguales sin copiar; con un `.lua` nuevo, 1 |
+| Firefox/Safari · `.zip` de 16,3 MB · soltar el mismo `.zip` | 6 importados · 6 byte por byte · nada copiado |
+| Celular: alemán, ruso, árabe, filipino; Ajustes con 5 pestañas | nada se sale; las 5 pestañas se tocan |
+
+`apk/pruebas/unido/PruebaCarpeta.java` (16/16): lista, rangos, paquete igual byte por byte, archivos que cambian o se
+borran entre la lista y el paquete, tope de 30 000 archivos y JSON. Todo el Java compila con `javac` contra
+`android.jar` (API 35; lo nuevo es de las API 19 a 21, salvo `EXTRA_INITIAL_URI`, con `if` para la 26). **Sin probar en
+un teléfono:** el selector del sistema y su permiso guardado en Android 7 a 15 (y en la tarjeta SD), la velocidad de
+leer por `DocumentsContract`, `Android/data` con gestores de verdad y Safari en un iPhone de verdad.

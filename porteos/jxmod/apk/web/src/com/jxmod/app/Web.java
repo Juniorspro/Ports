@@ -2,9 +2,11 @@ package com.jxmod.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
@@ -14,6 +16,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.webkit.ConsoleMessage;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.view.DisplayCutout;
@@ -45,7 +48,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -62,7 +67,7 @@ public class Web extends Activity {
     static String iconoAlias(String id) { return "com.jxmod.app.Icono" + Character.toUpperCase(id.charAt(0)) + id.substring(1); }
     static final String HOST = "appassets.androidplatform.net";
     static final String INICIO = "https://" + HOST + "/index.html";
-    static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13;
+    static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13, PEDIR_CARPETA = 14;
 
     private FrameLayout raiz;
     private WebView web;
@@ -303,6 +308,7 @@ public class Web extends Activity {
         if (u == null || !HOST.equals(u.getHost())) return null;
         String p = u.getPath();
         if (p != null && p.startsWith("/red/")) return red(u, metodo);
+        if (p != null && p.startsWith("/carpeta/")) return carpetaServir(u, metodo);
         if (p == null || p.isEmpty() || p.equals("/")) p = "/index.html";
         Map<String, String> cab = new HashMap<>();
         cab.put("Access-Control-Allow-Origin", "*");
@@ -429,6 +435,8 @@ public class Web extends Activity {
             }
             elegirCb.onReceiveValue(r);
             elegirCb = null;
+        } else if (req == PEDIR_CARPETA) {
+            carpetaElegida(res == RESULT_OK && data != null ? data.getData() : null);
         } else if (req == GUARDAR) {
             boolean ok = res == RESULT_OK && data != null && data.getData() != null && guardarDatos != null && escribir(data.getData(), guardarDatos);
             aviso(ok ? "Guardado: " + guardarNombre : "No se pudo guardar");
@@ -592,8 +600,177 @@ public class Web extends Activity {
         /** Mis IPs en la red local (para mostrar http://IP:8765 a los que entran sin la app). */
         @JavascriptInterface public String lanIps() { return ipsJson(); }
         /** RAM total del aparato en MB (para elegir la calidad). */
+        // ---- la carpeta de mods (addons de GMod desarmados, como garrysmod/addons de la compu): ver carpetaServir ----
+        /** 1: la app sabe leer la carpeta de mods (/carpeta/lista y /carpeta/paquete). */
+        @JavascriptInterface public int carpeta() { return 1; }
+        /** Abre el selector de carpetas del sistema; lo elegido llega al juego por window.__jxCarpeta(json). */
+        @JavascriptInterface public void carpetaElegir() { runOnUiThread(Web.this::carpetaSelector); }
+        /** {"arbol":"primary:JXMOD","nombre":"JXMOD","permiso":true,"app":"Android/data/…/files/addons","sdk":34} */
+        @JavascriptInterface public String carpetaEstado() { return Web.this.carpetaEstadoJson(); }
+        /** Deja de usar la carpeta elegida (suelta el permiso); lo que hay en ella queda como estaba. */
+        @JavascriptInterface public void carpetaOlvidar() { Web.this.carpetaSoltar(); }
+        /** Crea la carpeta «nombre» adentro de la elegida (si no está), con un LEEME: "ok", "ya" o "mal". */
+        @JavascriptInterface public String carpetaCrear(String nombre, String leeme) { return Web.this.carpetaCrearDir(nombre, leeme); }
         @JavascriptInterface public int ramMB() {
             try { android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE); android.app.ActivityManager.MemoryInfo mi = new android.app.ActivityManager.MemoryInfo(); am.getMemoryInfo(mi); return (int) (mi.totalMem >> 20); } catch (Throwable e) { return 0; }
+        }
+    }
+
+    // ---- la carpeta de mods (Carpeta.java; el juego: gmod_carpeta.js) ----
+    // Dos carpetas: la que el jugador elige con el selector del sistema (ACTION_OPEN_DOCUMENT_TREE: el permiso queda
+    // guardado, anda de Android 7 a 15, también en la tarjeta SD, y la abre cualquier gestor de archivos) y
+    // Android/data/com.jxmod.app/files/addons (sin permisos; desde Android 11 casi ningún gestor la abre). El juego pide la
+    // lista de todos los archivos (/carpeta/lista) y después los de cada addon en un solo pedido (/carpeta/paquete), y
+    // arma el .gma él mismo. Sólo GET y sólo lo de esas dos carpetas.
+    private static final String CARPETA = "jx_carpeta";
+    private volatile Carpeta.Listado carpetaUlt;
+    private int carpetaGen;
+    private Uri carpetaArbol() {
+        String s = getSharedPreferences(CARPETA, MODE_PRIVATE).getString("arbol", null);
+        return s == null || s.isEmpty() ? null : Uri.parse(s);
+    }
+    private boolean carpetaPermiso(Uri u) {
+        if (u == null) return false;
+        try { for (android.content.UriPermission p : getContentResolver().getPersistedUriPermissions()) if (p.getUri().equals(u) && p.isReadPermission()) return true; }
+        catch (Exception e) { /* nada */ }
+        return false;
+    }
+    private File carpetaApp() {
+        File ext; try { ext = getExternalFilesDir(null); } catch (Exception e) { ext = null; }
+        if (ext == null) return null;
+        File f = new File(ext, "addons"); if (!f.isDirectory()) f.mkdirs();
+        return f.isDirectory() ? f : null;
+    }
+    private String carpetaAppNombre() { return "Android/data/" + getPackageName() + "/files/addons"; }
+    private void carpetaSelector() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+        i.putExtra("android.content.extra.SHOW_ADVANCED", true);   // (en Android 7 y 8 el almacenamiento interno está escondido si no)
+        if (Build.VERSION.SDK_INT >= 26) {
+            // (empieza en la elegida antes o, la primera vez, en el almacenamiento interno, donde se crea JXMOD)
+            Uri a = carpetaArbol(), ini;
+            try { ini = a != null ? DocumentsContract.buildDocumentUriUsingTree(a, DocumentsContract.getTreeDocumentId(a)) : DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:"); }
+            catch (Exception e) { ini = null; }
+            if (ini != null) i.putExtra(DocumentsContract.EXTRA_INITIAL_URI, ini);
+        }
+        try { startActivityForResult(i, PEDIR_CARPETA); }
+        catch (Exception e) { aviso("No se pudo abrir el selector de carpetas"); carpetaAvisar("{\"ok\":false}"); }
+    }
+    private void carpetaElegida(Uri u) {
+        if (u == null) { carpetaAvisar("{\"ok\":false}"); return; }
+        ContentResolver cr = getContentResolver();
+        try { cr.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION); }
+        catch (Exception e) { try { cr.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception e2) { /* sólo esta vez */ } }
+        Uri ant = carpetaArbol();
+        if (ant != null && !ant.equals(u)) { try { cr.releasePersistableUriPermission(ant, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch (Exception e) { /* nada */ } }
+        getSharedPreferences(CARPETA, MODE_PRIVATE).edit().putString("arbol", u.toString()).apply();
+        String nom = "", id = "";
+        try { id = DocumentsContract.getTreeDocumentId(u); nom = Doc.raiz(cr, u).nom; } catch (Exception e) { /* nada */ }
+        carpetaAvisar("{\"ok\":true,\"nombre\":" + Carpeta.texto(nom) + ",\"arbol\":" + Carpeta.texto(id) + "}");
+    }
+    private void carpetaAvisar(String json) {
+        if (web != null) web.evaluateJavascript("window.__jxCarpeta&&window.__jxCarpeta(" + Carpeta.texto(json) + ")", null);
+    }
+    private String carpetaEstadoJson() {
+        Uri a = carpetaArbol(); String id = "";
+        try { if (a != null) id = DocumentsContract.getTreeDocumentId(a); } catch (Exception e) { id = ""; }
+        String nom = id.contains(":") ? id.substring(id.indexOf(':') + 1) : id;
+        if (nom.contains("/")) nom = nom.substring(nom.lastIndexOf('/') + 1);
+        return "{\"arbol\":" + Carpeta.texto(id) + ",\"nombre\":" + Carpeta.texto(nom) + ",\"permiso\":" + carpetaPermiso(a) + ",\"app\":" + Carpeta.texto(carpetaAppNombre()) + ",\"sdk\":" + Build.VERSION.SDK_INT + "}";
+    }
+    private void carpetaSoltar() {
+        Uri a = carpetaArbol();
+        if (a != null) { try { getContentResolver().releasePersistableUriPermission(a, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch (Exception e) { try { getContentResolver().releasePersistableUriPermission(a, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception e2) { /* nada */ } } }
+        getSharedPreferences(CARPETA, MODE_PRIVATE).edit().remove("arbol").apply();
+        carpetaUlt = null;
+    }
+    private String carpetaCrearDir(String nombre, String leeme) {
+        Uri a = carpetaArbol(); if (a == null || nombre == null || !nombre.matches("[A-Za-z0-9 _.-]{1,40}") || nombre.startsWith(".")) return "mal";
+        ContentResolver cr = getContentResolver();
+        try {
+            Doc r = Doc.raiz(cr, a);
+            for (Carpeta.Nodo n : r.hijos()) if (n.dir() && n.nombre().equalsIgnoreCase(nombre)) return "ya";
+            Uri d = DocumentsContract.createDocument(cr, DocumentsContract.buildDocumentUriUsingTree(a, r.id), DocumentsContract.Document.MIME_TYPE_DIR, nombre);
+            if (d == null) return "mal";
+            if (leeme != null && !leeme.isEmpty()) {
+                try {
+                    Uri t = DocumentsContract.createDocument(cr, d, "text/plain", "JXMod - LEEME.txt");
+                    if (t != null) try (OutputStream o = cr.openOutputStream(t)) { if (o != null) o.write(leeme.getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
+                } catch (Exception e) { /* sin el LEEME */ }
+            }
+            return "ok";
+        } catch (Exception e) { return "mal"; }
+    }
+    private WebResourceResponse carpetaServir(Uri u, String metodo) {
+        Map<String, String> cab = new HashMap<>();
+        cab.put("Cache-Control", "no-store");
+        String p = u.getPath();
+        if (!"GET".equalsIgnoreCase(metodo)) return new WebResourceResponse("text/plain", "utf-8", 405, "Method Not Allowed", cab, new ByteArrayInputStream(new byte[0]));
+        if ("/carpeta/lista".equals(p)) {
+            List<Carpeta.Raiz> R = new ArrayList<>();
+            File app = carpetaApp();
+            Carpeta.Raiz ra = new Carpeta.Raiz("a", carpetaAppNombre(), "", app == null ? null : new Carpeta.Archivo(app));
+            if (app == null) ra.error = "sin almacenamiento";
+            R.add(ra);
+            Uri a = carpetaArbol(); Carpeta.Nodo n = null; String nom = "", id = "", err = "";
+            if (a != null) {
+                try { id = DocumentsContract.getTreeDocumentId(a); Doc d = Doc.raiz(getContentResolver(), a); n = d; nom = d.nom; }
+                catch (Exception e) { err = carpetaPermiso(a) ? String.valueOf(e.getMessage()) : "sin permiso"; }
+            }
+            Carpeta.Raiz rc = new Carpeta.Raiz("c", nom, id, n); rc.sin = a == null; rc.error = err;
+            R.add(rc);
+            int gen; synchronized (this) { gen = ++carpetaGen; }
+            Carpeta.Listado L = Carpeta.listar(gen, R);
+            carpetaUlt = L;
+            return new WebResourceResponse("application/json", "utf-8", 200, "OK", cab, new ByteArrayInputStream(Carpeta.json(L).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        }
+        if ("/carpeta/paquete".equals(p)) {
+            Carpeta.Listado L = carpetaUlt;
+            if (L == null || !String.valueOf(L.gen).equals(u.getQueryParameter("gen"))) return new WebResourceResponse("text/plain", "utf-8", 409, "Conflict", cab, new ByteArrayInputStream(new byte[0]));
+            List<Carpeta.Arch> l = Carpeta.elegir(L, u.getQueryParameter("i"));
+            if (l == null) return new WebResourceResponse("text/plain", "utf-8", 400, "Bad Request", cab, new ByteArrayInputStream(new byte[0]));
+            cab.put("Content-Length", String.valueOf(Carpeta.largo(l)));
+            return new WebResourceResponse("application/octet-stream", null, 200, "OK", cab, Carpeta.paquete(l));
+        }
+        return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", cab, new ByteArrayInputStream(new byte[0]));
+    }
+    /** Un archivo o una carpeta de la carpeta elegida (DocumentsContract: el permiso es sobre todo lo que tiene adentro). */
+    static final class Doc implements Carpeta.Nodo {
+        static final String[] COLS = { DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_SIZE, DocumentsContract.Document.COLUMN_LAST_MODIFIED };
+        final ContentResolver cr; final Uri arbol; final String id, nom, mime; final long tam, t;
+        Doc(ContentResolver cr, Uri arbol, String id, String nom, String mime, long tam, long t) { this.cr = cr; this.arbol = arbol; this.id = id; this.nom = nom == null ? "" : nom; this.mime = mime; this.tam = tam; this.t = t; }
+        private static Doc de(ContentResolver cr, Uri arbol, Cursor c) {
+            return new Doc(cr, arbol, c.getString(0), c.getString(1), c.getString(2), c.isNull(3) ? 0 : c.getLong(3), c.isNull(4) ? 0 : c.getLong(4));
+        }
+        static Doc raiz(ContentResolver cr, Uri arbol) throws IOException {
+            String id = DocumentsContract.getTreeDocumentId(arbol);
+            Cursor c = null;
+            try {
+                c = cr.query(DocumentsContract.buildDocumentUriUsingTree(arbol, id), COLS, null, null, null);
+                if (c == null || !c.moveToFirst()) throw new IOException("la carpeta ya no está");
+                return de(cr, arbol, c);
+            } catch (SecurityException e) { throw new IOException("sin permiso"); }
+            finally { if (c != null) c.close(); }
+        }
+        public String nombre() { return nom; }
+        public boolean dir() { return DocumentsContract.Document.MIME_TYPE_DIR.equals(mime); }
+        public long tam() { return tam; }
+        public long t() { return t; }
+        public List<Carpeta.Nodo> hijos() throws IOException {
+            List<Carpeta.Nodo> out = new ArrayList<>();
+            Cursor c = null;
+            try {
+                c = cr.query(DocumentsContract.buildChildDocumentsUriUsingTree(arbol, id), COLS, null, null, null);
+                if (c == null) throw new IOException("no se puede leer " + nom);
+                while (c.moveToNext()) out.add(de(cr, arbol, c));
+            } catch (SecurityException e) { throw new IOException("sin permiso"); }
+            finally { if (c != null) c.close(); }
+            return out;
+        }
+        public InputStream abrir() throws IOException {
+            try { InputStream in = cr.openInputStream(DocumentsContract.buildDocumentUriUsingTree(arbol, id)); if (in == null) throw new IOException("no se pudo abrir " + nom); return in; }
+            catch (SecurityException e) { throw new IOException("sin permiso"); }
         }
     }
 

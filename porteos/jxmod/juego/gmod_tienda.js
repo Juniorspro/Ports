@@ -113,7 +113,7 @@ function gmTiendaPanel(P) {
   // (el marco es el de las otras pestañas —tiendaMarco, inicio.js—: a la izquierda las categorías del Workshop y el
   // interruptor «Sólo descarga directa»; arriba de la grilla, que los personajes están aparte y cuántos addons hay)
   tiendaMarco(P, {
-    acc: `<label class="rbBtnGris tiSubir tiSubir1" title="${esc(T('gm.importar'))}">${glifo('subir')}<span><b>${esc(T('gm.importar'))}</b></span><input type="file" id="gmArchivo" accept=".gma,.bin" hidden></label>`,
+    acc: `<button class="rbBtnGris tiSubir gmkBtn${S.carpeta ? ' sel' : ''}" data-rb="gmk" title="${esc(T('gmk.titulo'))}">${glifo('carpeta')}<span><b>${esc(T('gmk.titulo'))}</b></span></button><label class="rbBtnGris tiSubir tiSubir1" title="${esc(T('gm.importar'))}">${glifo('subir')}<span><b>${esc(T('gm.importar'))}</b></span><input type="file" id="gmArchivo" accept=".gma,.bin" hidden></label>`,
     ph: T('ti.buscarGm'), orden: GM_ORDENES.map((k) => [k, T('gm.o.' + k)]), ordenSel: S.gmOrden,
     cats: [['', T('e.todas')], ...GM_TAGS_UI.map((e) => [e, T('gm.t.' + e)])],
     lado: `<button class="rbChk gmDir tiInter${S.gmDir ? ' on' : ''}" data-rb="gmdir" role="switch" aria-checked="${S.gmDir}"><em></em><span>${esc(T('gm.soloDir'))}</span></button>`,
@@ -122,6 +122,7 @@ function gmTiendaPanel(P) {
   });
   P.querySelector('#rbOrden').addEventListener('change', (e) => { S.gmOrden = e.target.value; });   // (antes que el de inicio.js, que vuelve a cargar)
   P.querySelector('#gmArchivo').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) gmTiendaImportar(f); });
+  if (typeof gmkSoltarConectar === 'function') gmkSoltarConectar(P);   // (soltar carpetas, .zip o .gma: gmod_carpeta.js)
   gmTiendaCargar(true);
 }
 function gmTiendaCargar(desdeCero) {
@@ -129,7 +130,7 @@ function gmTiendaCargar(desdeCero) {
   if (desdeCero) { S.p = 0; S.items = []; S.vistosGM = 0; }
   if (S.vista === 'instalados') {
     const q = S.q.toLowerCase();
-    S.items = Object.entries(PREFS.gmod || {}).map(([id, x]) => Object.assign({ id, t: x.n, img: x.img || '', tags: x.tags || [], subs: x.subs || 0, mb: x.mb || 0, dir: !/^local:/.test(id), d: x.d || '' }, S.det && S.det[id] ? S.det[id] : {}))
+    S.items = Object.entries(PREFS.gmod || {}).map(([id, x]) => Object.assign({ id, t: x.n, img: x.img || (x.carpeta && typeof gmkFoto === 'function' ? gmkFoto(GMOD.addons.get(id)).src : ''), tags: x.tags || [], subs: x.subs || 0, mb: x.mb || 0, dir: !/^(local|carpeta):/.test(id), d: x.d || '' }, S.det && S.det[id] ? S.det[id] : {}))
       .filter((x) => (!q || String(x.t).toLowerCase().includes(q)) && (!S.etq || (x.tags || []).includes(S.etq))).sort((a, b) => String(a.t).localeCompare(String(b.t), undefined, { numeric: true, sensitivity: 'base' }));   // (con los números en su lugar: 2 antes que 10)
     S.total = S.items.length; S.error = false; S.cargando = false; return gmTiendaDibujar();
   }
@@ -163,6 +164,8 @@ function gmFichaAbrir(A) {
 }
 function gmTiendaDibujar() {
   const S = RB.t, G = RB.el && RB.el.querySelector('.rbTiendaG'); if (!G || S.tab !== 'gmod') return;
+  if (S.carpeta && typeof gmkTiendaDibujar === 'function') { const b = RB.el.querySelector('.gmkBtn'); if (b) b.classList.add('sel'); return gmkTiendaDibujar(G); }
+  { const b = RB.el.querySelector('.gmkBtn'); if (b) b.classList.remove('sel'); }
   const img = (it) => (it.img ? `<img src="${esc(it.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<img src="${GM_ICO}" alt="">`);
   const it = S.ficha && S.items.find((x) => x.id === S.ficha);
   G.classList.toggle('rbFichaModo', !!it); tiFichaModo(!!it);
@@ -180,7 +183,7 @@ function gmTiendaDibujar() {
       // (el autor, si es un nombre: el puente da a veces el número de cuenta de Steam, que no le dice nada a nadie)
       meta: [it.subs ? `${glifo('gente')} ${gmCifra(it.subs)} ${esc(T('gm.subs'))}` : '', it.fav ? `${glifo('corazon')} ${gmCifra(it.fav)}` : '', it.mb ? it.mb + ' MB' : '', it.autor && !/^\d{10,}$/.test(it.autor) ? esc(T('por')) + ' ' + esc(it.autor) : ''].filter(Boolean).join(' · '),
       chips: (ins ? '' : it.dir ? `<i class="tiChip">${glifo('bajar')} ${esc(T('ti.directa'))}</i>` : it.dir === false ? '<i class="tiChip">.gma</i>' : '') + (it.tags || []).filter((t) => t !== 'Addon').map((e) => `<i>${esc(T('gm.t.' + e) !== 'gm.t.' + e ? T('gm.t.' + e) : e)}</i>`).join(''),
-      avisos: `${off ? `<p class="gmAviso rbOffAyuda">${glifo('prohibido')} ${esc(T('hab.offGm'))}</p>` : ''}${ins && PREFS.gmod && PREFS.gmod[it.id] && PREFS.gmod[it.id].sinGuardar ? `<p class="gmAviso">${glifo('info')} ${esc(T('gm.sinGuardar'))}</p>` : ''}${gmNoCompat(it) ? `<p class="gmAviso">${esc(T('gm.noCompat'))}</p>` : ''}${it.sinPipe && !ins ? `<p class="gmAviso">${esc(T('gm.sinArchivo'))}</p>` : ''}`,
+      avisos: `${ins && typeof gmkEsDe === 'function' && gmkEsDe(it.id) && PREFS.gmod && PREFS.gmod[it.id] ? `<p class="gmAviso">${glifo('carpeta')} ${esc(T(PREFS.gmod[it.id].carpeta === 'i' ? 'gmk.deImportado' : 'gmk.deCarpeta').replace('{r}', PREFS.gmod[it.id].ruta || ''))}</p>` : ''}${off ? `<p class="gmAviso rbOffAyuda">${glifo('prohibido')} ${esc(T('hab.offGm'))}</p>` : ''}${ins && PREFS.gmod && PREFS.gmod[it.id] && PREFS.gmod[it.id].sinGuardar ? `<p class="gmAviso">${glifo('info')} ${esc(T('gm.sinGuardar'))}</p>` : ''}${gmNoCompat(it) ? `<p class="gmAviso">${esc(T('gm.noCompat'))}</p>` : ''}${it.sinPipe && !ins ? `<p class="gmAviso">${esc(T('gm.sinArchivo'))}</p>` : ''}`,
       acc: acc + (/^\d+$/.test(it.id) ? `<a class="rbBtnGris" href="https://steamcommunity.com/sharedfiles/filedetails/?id=${it.id}" target="_blank" rel="noopener">${glifo('mundo')} ${esc(T('gm.steam'))}</a>` : ''),
       extra: `${cont ? `<p class="gmCont"><b>${esc(T('gm.contenido'))}:</b> ${esc(cont)}</p>` : ''}${A && A.faltanModelos && A.faltanModelos.length ? `<p class="gmAviso">${esc(T('gm.otroAddon').replace('{n}', A.faltanModelos.length))}: ${esc(A.faltanModelos.slice(0, 3).map((m) => m.replace(/^.*\//, '')).join(', '))}${A.faltanModelos.length > 3 ? '…' : ''}</p>` : ''}`,
       desc: esc(it.d || '') });
@@ -267,6 +270,7 @@ async function gmSelBorrar(ids, mb) {
   for (let i = 0; i < ids.length; i++) {
     S.sel.va = { i, n: ids.length }; gmTiendaDibujar();
     const id = String(ids[i]);
+    if (typeof gmkQuitado === 'function') gmkQuitado(id);   // (los de la carpeta de mods no vuelven en la próxima lectura)
     try { gmDesmontar(id); } catch (e) { gmErr('desmontar ' + id, e); }
     if (PREFS.gmod) delete PREFS.gmod[id];
     await gmCacheBorrar(id);
@@ -320,13 +324,17 @@ async function gmTiendaImportar(f, it) {
 function gmTiendaAccion(a, v) {
   const S = RB.t; if (S.tab !== 'gmod') return false;
   switch (a) {
-    case 'vista': S.vista = v; S.ficha = null; S.sel = null; inicioPanel('tienda'); return true;
-    case 'etq': S.etq = v; S.ficha = null; inicioPanel('tienda'); return true;
-    case 'ver': if (S.sel) { gmSelTocar(v); return true; } S.ficha = v; gmTiendaDibujar(); return true;
+    case 'vista': S.vista = v; S.ficha = null; S.sel = null; S.carpeta = false; inicioPanel('tienda'); return true;
+    case 'etq': S.etq = v; S.ficha = null; S.carpeta = false; inicioPanel('tienda'); return true;
+    // (la carpeta de mods: gmod_carpeta.js; desde ahí, «Ver» abre la ficha del addon y «‹» vuelve a la carpeta)
+    case 'gmk': S.carpeta = !S.carpeta; S.ficha = null; S.sel = null; S.desdeCarpeta = false; gmTiendaDibujar(); return true;
+    case 'ver': if (S.sel) { gmSelTocar(v); return true; }
+      if (S.carpeta) { S.carpeta = false; S.desdeCarpeta = true; const x = PREFS.gmod && PREFS.gmod[v]; if (x && !S.items.some((y) => y.id === v)) S.items.push({ id: v, t: x.n, img: x.img || (typeof gmkFoto === 'function' ? gmkFoto(GMOD.addons.get(v)).src : ''), tags: x.tags || [], subs: 0, mb: x.mbG || 0, dir: false, d: '' }); }
+      S.ficha = v; gmTiendaDibujar(); return true;
     case 'selGm': S.sel = { ids: new Set(), va: null }; S.ficha = null; gmCatalogo().then((C) => { S.cat = C; if (S.sel) gmTiendaDibujar(); }); gmTiendaDibujar(); return true;
     case 'selNo': if (S.sel && !S.sel.va) S.sel = null; gmTiendaDibujar(); return true;
     case 'selBorrar': gmSelPreguntar(); return true;
-    case 'fichaNo': S.ficha = null; gmTiendaDibujar(); return true;
+    case 'fichaNo': if (S.carpeta) S.carpeta = false; else if (S.desdeCarpeta && S.ficha) S.carpeta = true; S.desdeCarpeta = false; S.ficha = null; gmTiendaDibujar(); return true;
     case 'gmdir': S.gmDir = !S.gmDir; S.ficha = null; inicioPanel('tienda'); return true;
     case 'mas': S.p++; gmTiendaCargar(false); return true;
     case 'instalar': gmTiendaInstalar(v); return true;
@@ -342,7 +350,10 @@ function gmTiendaAccion(a, v) {
     case 'pmGm': PREFS.skin = 'gmpm:' + v; guardarPrefs(); if (JUEGO.estado === 'juego' && JUG.vivo && typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo(); if (typeof redSkin === 'function') redSkin(); menuAviso(T('gm.pm.puesto').replace('{m}', propNom('gmpm:' + v))); return true;
     case 'habGm': case 'desGm': gmTiendaHab(v, a === 'habGm'); return true;
     case 'habTodoGm': case 'desTodoGm': gmTiendaHab(null, a === 'habTodoGm'); return true;
-    case 'quitar': gmQuitar(v); menuAviso(T('quitar') + ': ' + ((S.items.find((x) => x.id === v) || {}).t || v)); if (S.vista === 'instalados') { S.ficha = null; gmTiendaCargar(true); } else gmTiendaDibujar(); return true;
+    case 'quitar': { const nom = (S.items.find((x) => x.id === v) || {}).t || v, q = () => T('quitar') + ': ' + nom; gmQuitar(v);
+      // (vuelve a la carpeta de mods si vino de ahí, y lo dice adentro del panel: el aviso de abajo tapaba la lista)
+      if (S.desdeCarpeta) { S.desdeCarpeta = false; S.carpeta = true; S.ficha = null; gmTiendaDibujar(); if (typeof gmkAvisar === 'function') gmkAvisar(q); return true; }
+      menuAviso(q()); } if (S.vista === 'instalados') { S.ficha = null; gmTiendaCargar(true); } else gmTiendaDibujar(); return true;
   }
   return false;
 }
