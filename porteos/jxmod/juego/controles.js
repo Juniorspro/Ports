@@ -98,7 +98,7 @@ function ctlEditables() {
 function ctlEditar() {
   const p = $('ctlPanel'); if (p) p.classList.add('oc');
   CTL.edit = true; CTL.borrador = JSON.parse(JSON.stringify(PREFS.hudPos || {})); CTL.sel = null;
-  if (hudVer(CTL.borrador) === 2) CTL.borrador._v = 2;   // (la nueva sigue siendo la nueva aunque se mueva un botón) CTL.tacAntes = document.body.classList.contains('tactil');
+  if (hudVer(CTL.borrador) === 2) CTL.borrador._v = 2; CTL.tacAntes = document.body.classList.contains('tactil');   // (la nueva sigue siendo la nueva aunque se mueva un botón)
   document.body.classList.add('tactil', 'ctlEdit'); if (typeof soltarPuntero === 'function') soltarPuntero();
   let o = $('ctlEd');
   if (!o) {

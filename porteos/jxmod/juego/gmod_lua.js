@@ -52,12 +52,15 @@ function luaLexico(src, archivo) {
   while (i < n) {
     const c = src[i];
     if (c === '\n') { ln++; i++; continue; }
-    if (c === ' ' || c === '\t' || c === '\r' || c === '\f' || c === '\v' || c === '﻿') { i++; continue; }
+    // (un \r solo también termina la línea, como en Lua: hay addons con los finales de línea del Mac viejo; antes el primer
+    // comentario «--» se comía el resto del archivo y sus armas quedaban sin Spawnable —la TFA CrossFire G-Spirit—)
+    if (c === '\r') { if (src[i + 1] !== '\n') ln++; i++; continue; }
+    if (c === ' ' || c === '\t' || c === '\f' || c === '\v' || c === '﻿') { i++; continue; }
     if (c === '-' && src[i + 1] === '-') {
       if (src[i + 2] === '[') { const L = largo(i + 2); if (L) { i = L.fin; continue; } }
-      while (i < n && src[i] !== '\n') i++; continue;
+      while (i < n && src[i] !== '\n' && src[i] !== '\r') i++; continue;
     }
-    if (c === '/' && src[i + 1] === '/') { while (i < n && src[i] !== '\n') i++; continue; }
+    if (c === '/' && src[i + 1] === '/') { while (i < n && src[i] !== '\n' && src[i] !== '\r') i++; continue; }
     if (c === '/' && src[i + 1] === '*') { const e = src.indexOf('*/', i + 2); const f = e < 0 ? n : e + 2; for (let q = i; q < f; q++) if (src[q] === '\n') ln++; i = f; continue; }
     if (i === 0 && c === '#' && src[1] === '!') { while (i < n && src[i] !== '\n') i++; continue; }
     const l0 = ln;

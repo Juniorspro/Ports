@@ -121,24 +121,48 @@ function gmLuaMontar(A) {
   A.faltanModelos = [...falt];
   if (typeof gmMenu === 'function') gmMenu();
 }
-// el CMoveData de este cuadro (lo que se aprieta ahora y en el anterior; lo que el Lua cambia de la velocidad no se aplica:
-// el movimiento es el del juego) y los cuatro ganchos de GMod en orden
+// el CMoveData de este cuadro y los cuatro ganchos de GMod en orden (StartCommand, SetupMove, Move, FinishMove). Lo que el
+// Lua cambia de la velocidad y del origen se le aplica al jugador, como en GMod: las armas de superpoderes —Sonic, Shadow,
+// Superman, Spider-Man, los de One Piece, Gojo, Jason...— corren, vuelan, se lanzan y se enganchan así (mv:SetVelocity,
+// mv:SetOrigin). Antes la 3.2 corría los ganchos con un CMoveData que no hacía nada (y la 3.1 ni los corría): esas armas se
+// sacaban pero no hacían lo suyo. Si un Move devuelve true, el Lua mueve al jugador ese cuadro y la física del juego no
+// (gmaMovLuaTomado, desde jugador.js), como el motor de GMod.
 function gmaMovimientoLua(k, k0) {
   if (!GMA.mtMov) {
     const M = (GMA.mtMov = new LuaTable()); M.set('__index', M); M.set('MetaName', 'CMoveData');
     const nada = () => {}, cero = () => 0, ang = () => { const f = GMA.R.G.get('EyeAngles'); return typeof f === 'function' ? f() : undefined; };
+    const vec = (v) => GMA.nv(v.x, v.y, v.z), A = (a) => { const x = new LAng(a.p, a.y, a.r); x.__mt = GMA.mtAng; return x; };
+    // (lo que se aprieta para caminar, como en GMod: adelante y al costado —a la derecha positivo— por la velocidad máxima)
+    const vmax = (m) => m.max ?? (ENT.correr ? GMA.run || 400 : GMA.walk || 200);
     const F = { GetButtons: (m) => m.b, GetOldButtons: (m) => m.b0, SetButtons: (m, b) => { m.b = b | 0; }, SetOldButtons: (m, b) => { m.b0 = b | 0; },
       KeyDown: (m, x) => !!(m.b & x), KeyPressed: (m, x) => !!(m.b & x) && !(m.b0 & x), KeyReleased: (m, x) => !(m.b & x) && !!(m.b0 & x), KeyWasDown: (m, x) => !!(m.b0 & x),
-      GetVelocity: () => GMA.Vr(JUG.vel), GetOrigin: () => GMA.V(gmaEntPos(GMA.jug)), GetAngles: ang, GetMoveAngles: ang, GetAbsMoveAngles: ang,
-      GetMaxSpeed: (m) => m.max ?? GMA.run ?? 400, GetMaxClientSpeed: (m) => m.max ?? GMA.run ?? 400, SetMaxSpeed: (m, v) => { m.max = +v || 0; }, SetMaxClientSpeed: (m, v) => { m.max = +v || 0; },
-      GetForwardSpeed: cero, GetSideSpeed: cero, GetUpSpeed: cero, GetImpulseCommand: cero, GetConstraintRadius: cero, GetFinalIdealVelocity: () => GMA.Vr(JUG.vel), GetFinalJumpVelocity: () => GMA.nv(0, 0, 0), GetFinalStepHeight: () => 18,
-      SetVelocity: nada, SetOrigin: nada, SetAngles: nada, SetMoveAngles: nada, SetForwardSpeed: nada, SetSideSpeed: nada, SetUpSpeed: nada, SetImpulseCommand: nada, SetConstraintRadius: nada, SetFinalIdealVelocity: nada, SetFinalJumpVelocity: nada, SetFinalStepHeight: nada, AddKey: (m, x) => { m.b |= x; }, RemoveKey: (m, x) => { m.b &= ~x; } };
+      GetVelocity: (m) => (m.vel ? vec(m.vel) : GMA.Vr(JUG.vel)), SetVelocity: (m, v) => { if (v instanceof LVec && Number.isFinite(v.x + v.y + v.z)) m.vel = new LVec(v.x, v.y, v.z); },
+      GetOrigin: (m) => (m.org ? vec(m.org) : GMA.V(gmaEntPos(GMA.jug))), SetOrigin: (m, v) => { if (v instanceof LVec && Number.isFinite(v.x + v.y + v.z)) m.org = new LVec(v.x, v.y, v.z); },
+      GetAngles: (m) => (m.ang ? A(m.ang) : ang()), SetAngles: (m, a) => { if (a instanceof LAng) m.ang = a; }, GetMoveAngles: (m) => (m.angM ? A(m.angM) : ang()), SetMoveAngles: (m, a) => { if (a instanceof LAng) m.angM = a; }, GetAbsMoveAngles: (m) => (m.angM ? A(m.angM) : ang()),
+      GetMaxSpeed: (m) => vmax(m), GetMaxClientSpeed: (m) => vmax(m), SetMaxSpeed: (m, v) => { m.max = +v || 0; }, SetMaxClientSpeed: (m, v) => { m.max = +v || 0; },
+      GetForwardSpeed: (m) => m.fwd ?? (+ENT.y || 0) * vmax(m), GetSideSpeed: (m) => m.side ?? (+ENT.x || 0) * vmax(m), GetUpSpeed: (m) => m.up ?? 0,
+      SetForwardSpeed: (m, v) => { m.fwd = +v || 0; }, SetSideSpeed: (m, v) => { m.side = +v || 0; }, SetUpSpeed: (m, v) => { m.up = +v || 0; },
+      GetImpulseCommand: cero, GetConstraintRadius: cero, GetFinalIdealVelocity: (m) => (m.vel ? vec(m.vel) : GMA.Vr(JUG.vel)), GetFinalJumpVelocity: () => GMA.nv(0, 0, 0), GetFinalStepHeight: () => 18,
+      SetImpulseCommand: nada, SetConstraintRadius: nada, SetFinalIdealVelocity: nada, SetFinalJumpVelocity: nada, SetFinalStepHeight: nada, AddKey: (m, x) => { m.b |= x; }, RemoveKey: (m, x) => { m.b &= ~x; } };
     for (const [n, f] of Object.entries(F)) M.set(n, f);
   }
   const mv = { b: k | 0, b0: k0 | 0, __mt: GMA.mtMov };
   const gc = GMA.metas && GMA.metas.Player.get('GetCurrentCommand'), cmd = typeof gc === 'function' ? gmLlamar(gc, 'S', GMA.jug)[0] : undefined;
-  gmaHook('StartCommand', 'SC', GMA.jug, cmd); gmaHook('SetupMove', 'SC', GMA.jug, mv, cmd); gmaHook('Move', 'SC', GMA.jug, mv); gmaHook('FinishMove', 'SC', GMA.jug, mv);
+  gmaHook('StartCommand', 'SC', GMA.jug, cmd); gmaHook('SetupMove', 'SC', GMA.jug, mv, cmd); const rm = gmaHook('Move', 'SC', GMA.jug, mv); gmaHook('FinishMove', 'SC', GMA.jug, mv);
+  if (!JUG.vivo || JUG.vehiculo) return;
+  GMA.movLua = R_T(rm[0]) && (mv.org || mv.vel) ? TIEMPO.t : 0;
+  if (mv.org) { const p = vG(mv.org); if (vsub(p, gmaEntPos(GMA.jug)).len() > 1e-3) { JUG.pos.set(p.x, p.y + JUG.medio, p.z); if (!mv.vel) JUG.suelo = false; GMA.movN = (GMA.movN || 0) + 1; } }
+  if (mv.vel) { const v = vGr(mv.vel); if (vsub(v, JUG.vel).len() > 0.05) GMA.movN = (GMA.movN || 0) + 1; gmaVelJugador(v, true); }   // (movN: cuántas veces el Lua movió al jugador, para las pruebas)
 }
+// la velocidad que el Lua le pone al jugador (mv:SetVelocity la pone; Player:SetVelocity la suma). Para arriba lo despega del
+// piso: el juego, caminando sin saltar, no deja subir más que lo que sube el piso (para las escaleras) y eso anulaba los
+// saltos y lanzamientos de los mods
+function gmaVelJugador(v, poner) {
+  if (poner) JUG.vel.copy(v); else JUG.vel.add(v);
+  if (v.y > 0.3 && JUG.vel.y > 0.3) { JUG.suelo = false; JUG.tiempoSuelo = 0; JUG.saltoT = JUG.reloj || 0; }
+}
+// (un Move del Lua devolvió true hace un momento: mueve al jugador él y la física del juego no lo mueve)
+function gmaMovLuaTomado() { return !!(typeof GMA !== 'undefined' && GMA.movLua && TIEMPO.t - GMA.movLua < 0.2 && GMA.activo); }
 // (las armas de TTT no dicen Spawnable —en TTT se compran—: acá se sacan del menú como las demás)
 const gmaEsTTT = (t) => { const b = String(t.get('Base') || ''); return b === 'weapon_tttbase' || b === 'weapon_tttbasegrenade' || (t.get('CanBuy') !== undefined && t.get('Kind') !== undefined); };
 const gmaSpawneable = (c, arma) => { const t = c.C || c.S; if (!t) return false; const s = t.get('Spawnable'), a = t.get('AdminSpawnable'); return R_T(s) || (s === undefined && R_T(a)) || (!!arma && s === undefined && gmaEsTTT(t)); };
@@ -161,7 +185,7 @@ function gmaReiniciar() {
   if (GMA.hud) GMA.hud.g.clearRect(0, 0, GMA.hud.c.width, GMA.hud.c.height);
   // (los módulos de require() y lo guardado del Lua anterior se olvidan: con el Lua nuevo hay que volver a correrlos; antes
   // VJ Base quedaba sin ai_schedule después de deshabilitar un mod)
-  Object.assign(GMA, { fantasmas: new Map(), R: null, modo: null, ctx: 'S', hooks: new Map(), timers: new Map(), tSimples: [], net: { S: new Map(), C: new Map() }, ents: new Map(), clases: new Map(), armas: new Map(), efectos: new Map(), cvars: new Map(), fuentes: new Map(), cargados: new Set(), entPorObj: new WeakMap(), hijos: new Set(), rutasCorridas: new Map(), asiento: null, jug: null, mundo: null, swep: null, armasJug: null, netCola: [], partCola: [], efVivos: [], bases: null, mats: null, glob: null, activo: false, teclasAnt: 0, jugVivo: undefined, pts: new Set(), dls: new Map(), busq: new Map(), gen: (GMA.gen || 0) + 1, requeridos: new Map(), vlBase: undefined, vmEnt: null });
+  Object.assign(GMA, { fantasmas: new Map(), R: null, modo: null, ctx: 'S', hooks: new Map(), timers: new Map(), tSimples: [], net: { S: new Map(), C: new Map() }, ents: new Map(), clases: new Map(), armas: new Map(), efectos: new Map(), cvars: new GmaMapaCvars(), fuentes: new Map(), cargados: new Set(), entPorObj: new WeakMap(), hijos: new Set(), rutasCorridas: new Map(), asiento: null, jug: null, mundo: null, swep: null, armasJug: null, netCola: [], partCola: [], efVivos: [], bases: null, mats: null, glob: null, activo: false, teclasAnt: 0, jugVivo: undefined, pts: new Set(), dls: new Map(), busq: new Map(), gen: (GMA.gen || 0) + 1, requeridos: new Map(), vlBase: undefined, vmEnt: null });
 }
 
 // ---------------- cada cuadro ----------------
@@ -201,7 +225,7 @@ function gmaPaso(dt) {
     GMA.jugVivo = vivo;
     // (con un modo de juego: se aparece sin las armas del sandbox y su PlayerSpawn da las suyas; morir callado es KillSilent)
     // (al aparecer, sin el zoom de una mira —Player:SetFOV—, como GMod)
-    if (vivo) { GMA.fovLua = 0; gmaPuntosAparicion(); if (GMA.modo && !GMA.modo.sandbox) gmmSinArmas(); gmaHook('PlayerSpawn', 'S', GMA.jug, false); if (!GMA.modo) gmaHook('PlayerLoadout', 'S', GMA.jug); }
+    if (vivo) { GMA.fovLua = 0; if (GMA.jug && GMA.jug.mov !== undefined) gmaMovTipoJug(2); gmaPuntosAparicion(); if (GMA.modo && !GMA.modo.sandbox) gmmSinArmas(); gmaHook('PlayerSpawn', 'S', GMA.jug, false); if (!GMA.modo) gmaHook('PlayerLoadout', 'S', GMA.jug); }
     else if (GMA.muerteMuda) { GMA.muerteMuda = false; gmaHook('PlayerSilentDeath', 'S', GMA.jug); }
     else { gmaHook('DoPlayerDeath', 'S', GMA.jug, GMA.mundo, gmaDmgInfo(100)); gmaHook('PlayerDeath', 'S', GMA.jug, GMA.mundo, GMA.mundo); }   // (sin cartel al morir, como GMod)
   }
