@@ -27,8 +27,10 @@ function gmvMallaPiel(nombre, P, N, U, J, Wb, porSub, bp) {
   return mi;
 }
 // las mallas de un modelo (con cada hueso suyo en un nodo del árbol: nodo(h)) en los ejes del juego que dan pv (posiciones)
-// y C (giros); caras por material (piel 0, primer modelo de cada cuerpo), partidas en grupos de 56 huesos como mucho
-function gmvMallas(Mx, nodo, etiqueta, arb, pv, C, flip) {
+// y C (giros); caras por material (piel 0, primer modelo de cada cuerpo, o la piel y los cuerpos de op: { piel, cuerpos },
+// como Entity:SetSkin y SetBodyGroups: las manos de un modelo de jugador con guantes o de otro color), partidas en grupos
+// de 56 huesos como mucho
+function gmvMallas(Mx, nodo, etiqueta, arb, pv, C, flip, op) {
   const CT = _m3T(C);
   if (!Mx.v || !Mx.mallas || !Mx.mallas.length) return 0;
   // la malla: vértices en los ejes de la vista; caras por material (piel 0, primer modelo de cada cuerpo)
@@ -38,9 +40,11 @@ function gmvMallas(Mx, nodo, etiqueta, arb, pv, C, flip) {
     for (let c = 0; c < 3; c++) Nn[i * 3 + c] = C[c][0] * V.nor[i * 3] + C[c][1] * V.nor[i * 3 + 1] + C[c][2] * V.nor[i * 3 + 2];
     U[i * 2] = V.uv[i * 2] - Uc[i * 2]; U[i * 2 + 1] = 1 - (V.uv[i * 2 + 1] - Uc[i * 2 + 1]);
   }
-  const piel = Mx.pieles[0] || [], tris = [];   // [a, b, c, material]
+  const piel = (op && Mx.pieles[op.piel | 0]) || Mx.pieles[0] || [], tris = [];   // [a, b, c, material]
+  // (el modelo de cada cuerpo: el pedido si existe; si no, el primero, como SetBodygroup con un valor que no hay)
+  const cuerpo = (k) => { const x = op && op.cuerpos ? op.cuerpos[k] | 0 : 0, c = Mx.cuerpos && Mx.cuerpos[k]; return c && x < c.modelos.length ? x : 0; };
   for (const m of Mx.mallas) {
-    if (m.modelo !== 0) continue;
+    if (m.modelo !== cuerpo(m.cuerpo)) continue;
     const ti = piel[m.mat] !== undefined ? piel[m.mat] : m.mat, tex = Mx.texturas[ti] || Mx.texturas[m.mat] || 'error', mat = gmMaterial(tex, Mx.carpetas);
     const T = m.tris; for (let t = 0; t + 2 < T.length; t += 3) { if (flip) tris.push(T[t], T[t + 1], T[t + 2], mat.mi); else tris.push(T[t], T[t + 2], T[t + 1], mat.mi); }
   }
@@ -81,8 +85,9 @@ function gmvMallas(Mx, nodo, etiqueta, arb, pv, C, flip) {
   return tris.length / 4;
 }
 // arma la vista desde el .mdl: { md, porHash, clip, t, base, mz, M, sec (secuencia → clip), actos (ACT → clips), huesoNodo }
+// manos: las del jugador (UseHands): { model, skin, body, tinte, k } de gmvManosJugador
 function gmvConstruir(ruta, flip, fovVm, clase, manos, aparte) {
-  const k = ruta + '|' + (flip ? 1 : 0) + '|' + fovVm + '|' + (manos || '') + (aparte ? '|' + aparte : '');
+  const k = ruta + '|' + (flip ? 1 : 0) + '|' + fovVm + '|' + (manos ? manos.k : '') + (aparte ? '|' + aparte : '');
   if (GMV.cache.has(k)) return GMV.cache.get(k);
   GMV.cache.set(k, null);
   let M; try { M = gmLeerModelo(ruta); } catch (e) { if (e.pendiente) return null; try { M = GMF.mdl(gmArchivo(ruta)); M.mallas = []; } catch (e2) { gmErr('vista ' + ruta, e); return null; } }   // (sin .vvd/.vtx: sólo huesos y animaciones; si se están leyendo del disco, se vuelve a armar cuando llegan)
@@ -101,14 +106,11 @@ function gmvConstruir(ruta, flip, fovVm, clase, manos, aparte) {
   const mallas = (Mx, nodo, etiqueta) => gmvMallas(Mx, nodo, etiqueta, arb, pv, C, flip);
   // (hay ViewModels sin malla, sólo huesos y animaciones: las manos las pone UseHands, como el parkour)
   if (!mallas(M, (h) => 1 + h, ruta) && !manos) { gmErr('vista ' + ruta, 'sin caras'); return null; }
-  // las manos de GMod (UseHands): el modelo c_arms pegado a los huesos del arma por nombre, como el bonemerge de GMod
+  // las manos del jugador (UseHands): gmvManosArmar, como la entidad gmod_hands de GMod pegada a la vista
+  let manosArm = null;
   if (manos) {
-    let Mh = null; try { Mh = gmLeerModelo(manos); } catch (e) { Mh = null; if (e.pendiente) { gmModeloPedir(manos, () => GMV.cache.delete(k)); return null; } }
-    if (Mh) {
-      const porNombre = new Map(H.map((h, i) => [h.n.toLowerCase(), 1 + i]));
-      const nodo = (h) => { for (let k = h, n = 0; k >= 0 && n < 64; k = Mh.huesos[k].pa, n++) { const x = porNombre.get(Mh.huesos[k].n.toLowerCase()); if (x !== undefined) return x; } return 0; };
-      mallas(Mh, nodo, manos);
-    }
+    let Mh = null; try { Mh = gmLeerModelo(manos.model); } catch (e) { Mh = null; if (e.pendiente) { gmModeloPedir(manos.model, () => GMV.cache.delete(k)); GMV.cache.delete(k); return null; } gmErr('manos ' + manos.model, e); }
+    if (Mh) manosArm = gmvManosArmar(M, Mh, manos, arb, pv, rot, C, flip);
   }
   // los enganches: un nodo por cada uno (la boca primero)
   const adj = M.adjuntos.map((a, i) => ({ a, i })), boca = adj.find((x) => /muzzle|flash/i.test(x.a.n)) || adj.find((x) => x.a.n === '1') || adj[0];
@@ -122,6 +124,9 @@ function gmvConstruir(ruta, flip, fovVm, clase, manos, aparte) {
   const md = new Modelo(arb), camino = (i) => { const s = []; while (i > 0) { s.push(arb[i].n); i = arb[i].pa; } return s.reverse().join('/'); };
   const porHash = new Map(); for (let i = 1; i < arb.length; i++) porHash.set(crc32(camino(i)), i); porHash.set(crc32(''), 0);
   const v = { md, porHash, flip: !!flip, clip: null, t: 0, base: { p: md.p.map((x) => x.slice()), r: md.r.map((x) => x.slice()), s: md.s.map((x) => x.slice()) }, mz: arb.findIndex((x) => x.n === 'Muzzle'), M, ruta, sec: [], actos: new Map(), nodoAdj, kf, fx, gm: true };
+  // (las manos: sus huesos procedurales —la muñeca y el cúbito— se calculan en cada cuadro después de la animación, en
+  // vistaAplicar; y sus mallas, para esconderlas si un addon lo pide con PreDrawPlayerHands)
+  if (manosArm) { v.manos = manosArm; v.proc = manosArm.proc.length ? manosArm.proc : null; v.ejesC = C; if (v.proc) gmvProcAplicar(v); }
   // las secuencias → clips a 30 cuadros por segundo
   const fps30 = (DATA.an && DATA.an.fps) || 30;
   M.secuencias.forEach((sq, si) => {
@@ -157,15 +162,21 @@ function gmvConstruir(ruta, flip, fovVm, clase, manos, aparte) {
 }
 // la vista del arma del addon que tiene el jugador
 function gmvDeArma(w) {
+  // (si cambiaron las manos —otro modelo de jugador, o su addon las registró después—, se rearma con las nuevas)
+  if (w.vista && w.vistaManos && w.vistaManos !== gmvManosClave()) w.vista = undefined;
   if (w.vista !== undefined) return w.vista;
   const c = claseTabla(w.clase, 'C') || claseTabla(w.clase, 'S'), ruta = String((c && buscarEnClase(c, 'ViewModel')) || '').toLowerCase().replace(/\\/g, '/');
   w.vista = null;
-  if (!ruta || !gmArchivo(ruta)) return null;
-  const manos = c && R_T(buscarEnClase(c, 'UseHands')) && gmArchivo('models/weapons/c_arms_citizen.mdl') ? 'models/weapons/c_arms_citizen.mdl' : null;   // (las manos del jugador, las de ciudadano)
+  if (!ruta) return null;
+  if (!gmArchivo(ruta)) { if (gmExiste(ruta)) w.vista = undefined; return null; }   // (se está bajando: se vuelve a probar)
+  // (las manos del modelo de jugador que tenés puesto, si el arma las usa: UseHands; si todavía se están bajando, se vuelve
+  // a probar en los cuadros siguientes)
+  const manos = c && R_T(buscarEnClase(c, 'UseHands')) ? gmvManosListas(gmvManosJugador()) : null;
+  if (manos === false) { w.vista = undefined; return null; }
   const v = gmvConstruir(ruta, !!(c && buscarEnClase(c, 'ViewModelFlip')), +(c && buscarEnClase(c, 'ViewModelFOV')) || 62, w.clase, manos);
   // (su geometría o la de las manos se está leyendo del disco: se vuelve a probar en los cuadros siguientes)
-  if (!v) { if (typeof gmModeloFaltan === 'function' && (GMPZ.mdl.size || gmModeloFaltan(ruta).length || (manos && gmModeloFaltan(manos).length))) w.vista = undefined; return null; }
-  w.vista = v;
+  if (!v) { if (typeof gmModeloFaltan === 'function' && (GMPZ.mdl.size || gmModeloFaltan(ruta).length || (manos && gmModeloFaltan(manos.model).length))) w.vista = undefined; return null; }
+  w.vista = v; w.vistaManos = manos ? manos.k : '';
   const D = DEF_ARMAS['gm:' + w.clase]; if (D) { D.quieto = v.quieto; D.fuego = v.fuego; D.recarga = v.recarga; D.sacar = v.sacar; }
   return v;
 }
@@ -178,7 +189,7 @@ function gmvDeArma(w) {
 const GMV_RE_VISTA = /(^|\/)(v|c)_[^/]*\.mdl$|\/view\//i;
 function gmvCS(e) {
   if (!e || !e.cs || typeof e.modelo !== 'string') return null;
-  if (e.gmvCSRuta === e.modelo && (e.gmvCS || (e.gmvCS === null && !(TIEMPO.t > e.gmvCSprox)))) return e.gmvCS;
+  if (e.gmvCSRuta === e.modelo && (e.gmvCS || (e.gmvCS === null && !(TIEMPO.t > e.gmvCSprox))) && !(e.gmvCS && e.gmvCS.manos && e.gmvCS.manos.k !== gmvManosClave())) return e.gmvCS;
   let ruta = e.modelo.toLowerCase().replace(/\\/g, '/'); if (!ruta.startsWith('models/')) ruta = 'models/' + ruta;
   e.gmvCSRuta = e.modelo; e.gmvCS = null; e.gmvCSprox = Infinity;
   // (un modelo de primera persona por su nombre, o el mismo ViewModel del arma: CW 2.0 copia el suyo, models/cw2/...)
@@ -188,7 +199,8 @@ function gmvCS(e) {
   // (su modelo puede estar todavía en camino —la biblioteca o el disco—: se vuelve a probar cada segundo)
   if (!gmArchivo(ruta)) { e.gmvCSprox = TIEMPO.t + 1; return null; }
   const w = GMA.swep, c = w && (claseTabla(w.clase, 'C') || claseTabla(w.clase, 'S'));
-  const manos = c && R_T(buscarEnClase(c, 'UseHands')) && /(^|\/)c_[^/]*$/.test(ruta) && gmArchivo('models/weapons/c_arms_citizen.mdl') ? 'models/weapons/c_arms_citizen.mdl' : null;
+  const manos = c && R_T(buscarEnClase(c, 'UseHands')) && /(^|\/)c_[^/]*$/.test(ruta) ? gmvManosListas(gmvManosJugador()) : null;
+  if (manos === false) { e.gmvCSprox = TIEMPO.t + 0.25; return null; }
   const v = gmvConstruir(ruta, !!(c && buscarEnClase(c, 'ViewModelFlip')), +(c && buscarEnClase(c, 'ViewModelFOV')) || 62, w && w.clase, manos, 'cs');
   // (todavía se lee del disco: se vuelve a probar; un modelo que no es una vista —sin quieto ni sacar— se dibuja como prop)
   if (!v) { e.gmvCSprox = TIEMPO.t + 1; return null; }
@@ -200,7 +212,7 @@ function gmvDibujarCS(e) {
   const v = gmvCS(e); if (!v) return false;
   const pos = e.rOrigen ? vG(e.rOrigen) : gmaEntPos(e), q = e.rAng ? angQuat(e.rAng) : entQ(e);
   if (!v.clip && v.quieto) vistaTocar(v, v.quieto, { loop: true });
-  vistaAplicar(v, 0); vistaUbicar(v, pos, q, { x: 0, y: 0, z: 0 }); v.md.encolar();
+  vistaAplicar(v, 0); if (v.manos) gmvManosCuadro(v, GMA.swep); vistaUbicar(v, pos, q, { x: 0, y: 0, z: 0 }); v.md.encolar();
   const w = GMA.swep; if (w) { w.vmPropioT = TIEMPO.t; w.vmPropio = v; }
   return true;
 }
@@ -247,8 +259,18 @@ function gmaVistaDibujar() {
       }
     }
   } catch (e) { /* (el arma sigue en la mano aunque su Lua falle) */ }
+  if (v.manos) gmvManosCuadro(v, w);
   vistaUbicar(v, pos, q, ARM.sway); v.md.encolar();
   return true;
+}
+// las manos en este cuadro: el color de un personaje del juego cuando está, y PreDrawPlayerHands (como GM:PostDrawViewModel
+// de GMod: si un hook devuelve true, esas manos no se dibujan; sólo se pregunta si algún addon lo usa)
+function gmvManosCuadro(v, w) {
+  gmvTintePaso(v);
+  const H = GMA.hooks && GMA.hooks.get('PreDrawPlayerHands');
+  let ver = !GMVT.ocultar;   // (ocultar: para medir lo que cuestan)
+  if (ver && H && H.size && [...H.values()].some((h) => h.C)) { try { const r = gmaHook0('PreDrawPlayerHands', 'C', NULL_ENT, G_vm(), GMA.jug, w); ver = r[0] !== true; } catch (e) { ver = true; } }
+  gmvManosVer(v, ver);
 }
 // el número de una actividad por su nombre, como la ve el Lua: las del prelude y también las que no están ahí y salen del
 // número fijo por nombre de gmod_api.js (ACT_RELOAD_START, ACT_RELOAD_FINISH, ACT_DEPLOY, ACT_UNDEPLOY...)
@@ -355,6 +377,319 @@ function gmvManipAplicar(v, solo) {
   }
   md.sucio = true;
 }
+
+// ---------------- las manos de las armas c_ (UseHands): las del modelo de jugador que tenés puesto ----------------
+// Las armas «c_» no traen brazos: GMod les pega la entidad gmod_hands (bonemerge a la vista) con las manos que da el modelo
+// de jugador (GM:PlayerSetHandsModel → player_manager.TranslatePlayerHands(TranslateToPlayerModelName(modelo)) →
+// { model, skin, body }): las que registró su addon con player_manager.AddValidHands. Un modelo que nadie registró es
+// «kleiner» (c_arms_citizen, piel 0) y uno registrado sin manos lleva las de por defecto (c_arms_citizen, cuerpo
+// «100000000»). Los de HL2, CS:S, DoD y Portal 2 que trae GMod, con su tabla (GMV_PM_BASE, de player_manager.lua). Los
+// personajes del juego (Hero, Goku, Freddy...) y los importados no son de GMod: c_arms_citizen con las mangas del color de
+// la ropa de su antebrazo y las manos del de su mano (gmvTinte).
+const GMV_CARMS = { c: 'citizen', r: 'refugee', b: 'combine', s: 'cstrike', h: 'chell', d: 'dod' };
+const GMV_PM_BASE = new Map();   // nombre → [modelo, manos | null]
+('alyx alyx c 0 0,breen breen c 0 0,eli eli c 1 0,gman gman_high c 0 0,kleiner kleiner c 0 0,monk monk c 0 0,odessa odessa c 0 0,barney barney b 0 0,' +
+ 'magnusson magnusson c 0 0,mossman mossman c 0 0,mossmanarctic mossman_arctic c 0 1,combine combine_soldier b 0 0,combineprison combine_soldier_prisonguard b 0 0,' +
+ 'combineelite combine_super_soldier b 0 0,police police b 0 0,policefem police_fem b 0 0,stripped soldier_stripped c 0 0,charple charple c 2 0,corpse corpse1 c 2 0,' +
+ 'skeleton skeleton c 2 0,zombie zombie_classic c 2 0,zombiefast zombie_fast c 2 0,zombine zombie_soldier b 0 0,female01 group01/female_01 c 0 0,female02 group01/female_02 c 0 0,' +
+ 'female03 group01/female_03 c 1 0,female04 group01/female_04 c 0 0,female05 group01/female_05 c 1 0,female06 group01/female_06 c 0 0,female07 group03/female_01 r 0 1,' +
+ 'female08 group03/female_02 r 0 1,female09 group03/female_03 r 1 1,female10 group03/female_04 r 0 1,female11 group03/female_05 r 1 1,female12 group03/female_06 r 0 1,' +
+ 'male01 group01/male_01 c 1 0,male02 group01/male_02 c 0 0,male03 group01/male_03 c 1 0,male04 group01/male_04 c 0 0,male05 group01/male_05 c 0 0,male06 group01/male_06 c 0 0,' +
+ 'male07 group01/male_07 c 0 0,male08 group01/male_08 c 0 0,male09 group01/male_09 c 0 0,male10 group03/male_01 r 1 1,male11 group03/male_02 r 0 0,male12 group03/male_03 r 1 0,' +
+ 'male13 group03/male_04 r 0 1,male14 group03/male_05 r 0 1,male15 group03/male_06 r 0 1,male16 group03/male_07 r 0 1,male17 group03/male_08 r 0 0,male18 group03/male_09 r 0 1,' +
+ 'medic01 group03m/male_01 r 1 1,medic02 group03m/male_02 r 0 0,medic03 group03m/male_03 r 1 1,medic04 group03m/male_04 r 0 0,medic05 group03m/male_05 r 0 1,' +
+ 'medic06 group03m/male_06 r 0 0,medic07 group03m/male_07 r 0 0,medic08 group03m/male_08 r 0 0,medic09 group03m/male_09 r 0 0,medic10 group03m/female_01 r 0 1,' +
+ 'medic11 group03m/female_02 r 0 0,medic12 group03m/female_03 r 1 0,medic13 group03m/female_04 r 0 1,medic14 group03m/female_05 r 0 1,medic15 group03m/female_06 r 1 1,' +
+ 'refugee01 group02/male_02 c 0 0,refugee02 group02/male_04 c 0 0,refugee03 group02/male_06 c 0 0,refugee04 group02/male_08 c 0 0,hostage01 hostage/hostage_01,' +
+ 'hostage02 hostage/hostage_02,hostage03 hostage/hostage_03,hostage04 hostage/hostage_04,css_arctic arctic s 0 0,css_gasmask gasmask s 0 0,css_guerilla guerilla s 0 0,' +
+ 'css_leet leet s 0 0,css_phoenix phoenix s 0 0,css_riot riot s 0 0,css_swat swat s 0 0,css_urban urban s 0 0,chell p2_chell h 0 0,dod_german dod_german d 0 0,dod_american dod_american d 1 0')
+  .split(',').forEach((x) => { const [n, m, h, s, b] = x.split(' '); GMV_PM_BASE.set(n, ['models/player/' + m + '.mdl', h ? { model: 'models/weapons/c_arms_' + GMV_CARMS[h] + '.mdl', skin: +s, body: b === '1' ? '0100000' : '0000000' } : null]); });
+const GMV_MANOS_DEF = { model: 'models/weapons/c_arms_citizen.mdl', skin: 0, body: '100000000' };
+const gmvRutaMdl = (m) => { const r = String(m || '').toLowerCase().replace(/\\/g, '/').replace(/^\/+/, ''); return r && !r.startsWith('models/') ? 'models/' + r : r; };
+// TranslateToPlayerModelName: el nombre con que lo registró su addon (AddValidModel), el de GMod, o «kleiner»
+function gmvPmNombre(m) {
+  const r = gmvRutaMdl(m);
+  if (typeof GMA !== 'undefined' && GMA.pmNombres && GMA.pmNombres.has(r)) return GMA.pmNombres.get(r);
+  for (const [n, x] of GMV_PM_BASE) if (x[0] === r) return n;
+  return 'kleiner';
+}
+// TranslatePlayerHands: { model, skin, body, matchBodySkin }
+function gmvManosDeNombre(n) {
+  const a = typeof GMA !== 'undefined' && GMA.pmanos && GMA.pmanos.get(String(n)); if (a) return a;
+  const b = GMV_PM_BASE.get(String(n)); return (b && b[1]) || GMV_MANOS_DEF;
+}
+// las manos de un modelo de jugador: las de GMod (TranslatePlayerHands del nombre con que quedó registrado) y, si con ese
+// nombre no hay manos pero el addon sí registró unas para ese modelo con otro nombre, ésas: el Kermit se registra dos veces
+// («Kermit», con manos, y después «kermit» para el NPC) y el Picolas Cage registra las manos con el nombre del archivo
+// («picolas_cage_reference») y el modelo como «Picolas_Cage». En GMod los dos quedan con las de ciudadano; acá, con las
+// que trajo su addon
+function gmvManosDeModelo(m) {
+  const r = gmvRutaMdl(m), n = gmvPmNombre(r), H = typeof GMA !== 'undefined' && GMA.pmanos;
+  if (H && H.has(n)) return H.get(n);
+  if (H && H.size) {
+    const bajo = (x) => String(x).toLowerCase(), alias = [n];
+    if (GMA.pmodels) for (const [k, x] of GMA.pmodels) if (gmvRutaMdl(x) === r) alias.push(k);
+    alias.push(r.replace(/^.*\//, '').replace(/\.mdl$/, ''));
+    for (const a of alias) for (const [k, h] of H) if (bajo(k) === bajo(a)) return h;
+  }
+  return gmvManosDeNombre(n);
+}
+// ¿un modelo de jugador trae sus propias manos? (las registró su addon y no son las de ciudadano: la tarjeta lo dice)
+function gmvPmTieneManos(m) {
+  const a = gmvManosDeModelo(m);
+  return !!(a && a !== GMV_MANOS_DEF && gmvRutaMdl(a.model) !== GMV_MANOS_DEF.model && gmExiste(gmvRutaMdl(a.model)));
+}
+// el modelo del jugador como lo ve el Lua (Player:GetModel): el del addon que tiene puesto; los del juego, Kleiner
+function gmvModeloJugador() {
+  const P = typeof JUG !== 'undefined' ? JUG.cuerpo : null, r = P && P.gmpRuta ? String(P.gmpRuta) : '';
+  return r && !/^jxpj\//.test(r) ? r : 'models/player/kleiner.mdl';
+}
+// las manos del jugador de ahora: { model, skin, body, tinte (el personaje del juego o importado del que sale el color), k }
+// (se recalcula si cambia el cuerpo o un addon registra modelos o manos: GMA.pmV)
+function gmvManosJugador() {
+  const P = typeof JUG !== 'undefined' ? JUG.cuerpo : null, pv = (typeof GMA !== 'undefined' && GMA.pmV) || 0;
+  if (P && P._manos && P._manosV === pv) return P._manos;
+  const r = P && P.gmpRuta ? String(P.gmpRuta).toLowerCase() : '';
+  let s;
+  if (r && !/^jxpj\//.test(r)) {
+    const h = gmvManosDeModelo(r), model = gmvRutaMdl(h.model) || GMV_MANOS_DEF.model, skin = Math.max(0, +h.skin || 0), body = String(h.body === undefined || h.body === null ? '' : h.body);
+    s = { model, skin, body, k: model + '|' + skin + '|' + body };
+  } else {
+    const t = r || (P && P.skin) || (typeof PREFS !== 'undefined' && PREFS.skin) || 'Hero';
+    s = { model: GMV_MANOS_DEF.model, skin: 0, body: '0000000', tinte: t, k: GMV_MANOS_DEF.model + '|0|0000000|' + t };
+  }
+  if (P) { P._manos = s; P._manosV = pv; }
+  return s;
+}
+const gmvManosClave = () => gmvManosJugador().k;
+// ¿están los archivos de esas manos? (se piden a la biblioteca de GMod o al disco si faltan): la misma especificación, o
+// false mientras llegan. Si el modelo no existe en ningún lado —un addon que registra manos que no trae— o no llega en
+// 10 s, las de por defecto, como el modelo de error de GMod pero con manos
+function gmvManosListas(s) {
+  const tiene = (m) => { const b = m.slice(0, -4); return !!(gmArchivo(m) && gmArchivo(b + '.vvd') && (gmArchivo(b + '.dx90.vtx') || gmArchivo(b + '.vtx') || gmArchivo(b + '.dx80.vtx') || gmArchivo(b + '.sw.vtx'))); };
+  if (tiene(s.model)) { GMVT.espera.delete(s.model); return s; }
+  const t0 = GMVT.espera.get(s.model) ?? (GMVT.espera.set(s.model, TIEMPO.t), TIEMPO.t);
+  if (s.model !== GMV_MANOS_DEF.model && (!gmExiste(s.model) || TIEMPO.t - t0 > 10)) { const d = Object.assign({}, s, { model: GMV_MANOS_DEF.model, skin: 0, body: '0000000', k: s.k }); return tiene(d.model) ? d : false; }
+  return false;
+}
+// ¿la vista ya trae sus brazos? (las «v_»: cientos de vértices en dedos, antebrazos o brazos). Entonces no se le pegan las
+// manos, aunque diga UseHands (GMod las dibujaría encima, dos brazos en el mismo lugar: la Freeze Gun, el MUDA MUDA)
+function gmvTraeBrazos(M) {
+  const V = M.v; if (!V || !V.n) return false;
+  const ih = new Uint8Array(M.huesos.length); M.huesos.forEach((h, i) => { if (/finger|forearm|upperarm|clavicle/i.test(h.n)) ih[i] = 1; });
+  let n = 0; for (let k = 0; k < V.n; k++) if (ih[V.hb[k * 3]] && V.w[k * 3] > 0.5 && ++n >= 100) return true;
+  return false;
+}
+// las manos pegadas a la vista (el bonemerge de Source): cada hueso de las manos con el mismo nombre que uno de la vista va
+// donde va ése; los que la vista no tiene cuelgan de su padre con su pose de reposo, y los procedurales (la muñeca y el cúbito
+// de las c_arms, «quaternion» de $proceduralbones, que giran con la mano para que el antebrazo no se retuerza) se calculan
+// en cada cuadro como Source (gmvProcAplicar). Antes los que faltaban —ninguna c_ de GMod trae Ulna ni Wrist— se pegaban
+// al antebrazo con su propia pose de enlace: la piel de la muñeca y del antebrazo quedaba corrida 15 y 29 cm hacia el codo.
+// Un brazo cuya mano la vista no tiene (la Physics Gun: sólo la izquierda) no se dibuja
+function gmvManosArmar(M, Mh, manos, arb, pv, rot, C, flip) {
+  if (gmvTraeBrazos(M)) return null;
+  const porNombre = new Map(M.huesos.map((h, i) => [h.n.toLowerCase(), 1 + i]));
+  if (!porNombre.has('valvebiped.bip01_r_hand') && !porNombre.has('valvebiped.bip01_l_hand')) return null;
+  const oculto = { R: !porNombre.has('valvebiped.bip01_r_hand'), L: !porNombre.has('valvebiped.bip01_l_hand') };
+  let nOc = -1; const nodoOculto = () => (nOc >= 0 ? nOc : (nOc = arb.push({ n: 'GMV_manoOculta', p: [0, 0, 0], r: [0, 0, 0, 1], s: [1e-4, 1e-4, 1e-4], pa: 0 }) - 1));
+  const nodoH = [], proc = [], H = Mh.huesos;
+  H.forEach((h, j) => {
+    const lado = /_([lr])_/i.exec(h.n), x = porNombre.get(h.n.toLowerCase());
+    if (lado && oculto[lado[1].toUpperCase()]) { nodoH.push(nodoOculto()); return; }
+    if (x !== undefined) { nodoH.push(x); return; }
+    const pa = h.pa >= 0 ? nodoH[h.pa] : 0;
+    nodoH.push(arb.length); arb.push({ n: 'GMV_mano:' + h.n, p: pv(h.pos), r: rot(h.q), s: [1, 1, 1], pa });
+    if (h.proc && h.pa >= 0 && H[h.proc.ctrl] && H[h.proc.ctrl].pa >= 0) proc.push({ i: nodoH[j], ctrl: h.proc.ctrl, tr: h.proc.tr });
+  });
+  for (const x of proc) { x.ctrlPa = nodoH[H[x.ctrl].pa]; x.ctrl = nodoH[x.ctrl]; }
+  const ini = arb.length;
+  const op = { piel: manos.skin | 0, cuerpos: [...String(manos.body || '')].map((ch) => parseInt(ch, 36) || 0) };
+  gmvMallas(Mh, (h) => nodoH[h], 'manos:' + manos.model, arb, pv, C, flip, op);
+  const nodos = []; for (let i = ini; i < arb.length; i++) if (arb[i].m !== undefined) nodos.push(i);
+  // (los personajes del juego: los materiales propios, teñidos con sus colores; los de las mangas y los de las manos)
+  if (manos.tinte) for (const i of nodos) arb[i].mt = arb[i].mt.map((mi) => gmvMatTenido(mi, manos.tinte));
+  return { k: manos.k, model: manos.model, proc: proc.filter((x) => x.ctrl !== undefined && x.ctrlPa !== undefined), nodos, nodoH, oculto, tinte: manos.tinte || null };
+}
+// los huesos procedurales de las manos (DoQuatInterpBone de Source): el giro de la mano respecto de su antebrazo elige, entre
+// los disparadores del hueso, cuánto pesa cada uno (1 − 2·ángulo·tolerancia⁻¹) y el hueso toma la mezcla de sus giros y
+// posiciones, respecto de su padre. Va en los ejes de Source (las c_arms los traen así) y se pasa a los de la vista
+const _gpQa = [0, 0, 0, 1], _gpQb = [0, 0, 0, 1];
+function _gpCadena(md, i, out) {   // (el giro de un nodo desde la raíz de la vista, sin la raíz: lo que la escala de la raíz no toca)
+  out[0] = 0; out[1] = 0; out[2] = 0; out[3] = 1;
+  for (let n = 0; i > 0 && n < 128; i = md.A[i].pa, n++) { const r = md.r[i], x = r[0] * out[3] + r[3] * out[0] + r[1] * out[2] - r[2] * out[1], y = r[1] * out[3] + r[3] * out[1] + r[2] * out[0] - r[0] * out[2], z = r[2] * out[3] + r[3] * out[2] + r[0] * out[1] - r[1] * out[0], w = r[3] * out[3] - r[0] * out[0] - r[1] * out[1] - r[2] * out[2]; out[0] = x; out[1] = y; out[2] = z; out[3] = w; }
+  return out;
+}
+// (los ejes: Source (x, y, z) → vista (fx·y, z, x) en las posiciones; en los giros, la parte vectorial va igual y, si está
+// espejada (fx = −1, que invierte la mano), cambia de signo: así no se arman matrices en cada cuadro)
+const _gpQs = [0, 0, 0, 0], _gpAcc = [0, 0, 0, 0], _gpPos = [0, 0, 0];
+function gmvProcAplicar(v) {
+  const md = v.md, fx = v.fx, sc = GM_S / 0.3, s = _gpQs, q = _gpAcc, p = _gpPos;
+  for (const x of v.proc) {
+    // giro de la mano respecto de su antebrazo (en el mundo de la vista) → ejes de Source
+    const a = _gpCadena(md, x.ctrlPa, _gpQa), b = _gpCadena(md, x.ctrl, _gpQb);
+    const gx = -a[0] * b[3] + a[3] * b[0] - a[1] * b[2] + a[2] * b[1], gy = -a[1] * b[3] + a[3] * b[1] - a[2] * b[0] + a[0] * b[2], gz = -a[2] * b[3] + a[3] * b[2] - a[0] * b[1] + a[1] * b[0], gw = a[3] * b[3] + a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    s[0] = fx * gz; s[1] = gx; s[2] = fx * gy; s[3] = gw;
+    let tot = 0; const w = x.w || (x.w = new Float32Array(x.tr.length));
+    for (let t = 0; t < x.tr.length; t++) { const u = x.tr[t].tq, d = Math.min(1, Math.abs(u[0] * s[0] + u[1] * s[1] + u[2] * s[2] + u[3] * s[3])); w[t] = Math.max(0, 1 - 2 * Math.acos(d) * x.tr[t].inv); tot += w[t]; }
+    q[0] = q[1] = q[2] = q[3] = 0; p[0] = p[1] = p[2] = 0;
+    if (tot <= 0.001) { const T = x.tr[0]; for (let c = 0; c < 4; c++) q[c] = T.q[c]; for (let c = 0; c < 3; c++) p[c] = T.pos[c]; }
+    else for (let t = 0; t < x.tr.length; t++) {
+      if (!w[t]) continue; const k = w[t] / tot, T = x.tr[t], tq = T.q;
+      // (QuaternionAlign: lo acumulado del mismo lado que este disparador)
+      let da = 0, db = 0; for (let c = 0; c < 4; c++) { da += (tq[c] - q[c]) ** 2; db += (tq[c] + q[c]) ** 2; } if (da > db) for (let c = 0; c < 4; c++) q[c] = -q[c];
+      for (let c = 0; c < 4; c++) q[c] += k * tq[c]; for (let c = 0; c < 3; c++) p[c] += k * T.pos[c];
+    }
+    const l = Math.hypot(q[0], q[1], q[2], q[3]) || 1, P = md.p[x.i], Rr = md.r[x.i];
+    P[0] = sc * fx * p[1]; P[1] = sc * p[2]; P[2] = sc * p[0];
+    Rr[0] = q[1] / l; Rr[1] = fx * q[2] / l; Rr[2] = fx * q[0] / l; Rr[3] = q[3] / l;
+  }
+  md.sucio = true;
+}
+// PreDrawPlayerHands (un addon que esconde las manos con cierta arma) y lo que pide la vista: se muestran o no
+function gmvManosVer(v, si) {
+  const md = v.md; if (!v.manos || v.manosVer === si) return; v.manosVer = si;
+  for (const i of v.manos.nodos) md.act[i] = si ? 1 : 0;
+  for (const i of v.manos.nodos) { const x = md.A[i]; md.ver[i] = md.act[i] && md.act[x.pa] && x.m !== undefined && x.m >= 0 && x.mt && !x.mroff && !md.ocultoLod[i] ? 1 : 0; }
+  md.sucio = true;
+}
+
+// ---- el color de las manos de los personajes del juego y de los importados ----
+// De la malla del personaje: los vértices que dependen sobre todo de un antebrazo (la ropa: las mangas) y de una mano o sus
+// dedos (la piel, o el guante), con el color de su textura en sus coordenadas UV (la misma que se ve, ya teñida por
+// identidad.js) por el del material. Cada pieza de las c_arms se tiñe para que su color medio sea ése (color del material ×
+// lo que falta: objetivo ÷ promedio de su textura). Se calcula una vez por personaje, sin trabar el cuadro (las texturas se
+// leen cuando ya están decodificadas)
+const GMVT = { col: new Map(), mats: new Map(), base: new Map(), espera: new Map(), tex: new Map() };
+const GMVT_MANGA = /forearm|lowerarm|ulna|elbow/i, GMVT_MANO = /hand|finger|thumb|index|middle|ring|pinky|palm|wrist/i;
+function _gmvH2F(h) { const s = h & 0x8000 ? -1 : 1, e = (h >> 10) & 31, f = h & 1023; return e === 0 ? s * f * 5.960464477539063e-8 : e === 31 ? 0 : s * (1 + f / 1024) * Math.pow(2, e - 15); }
+// los píxeles de una textura (fila 0 = v 0, como las UV del juego), chicos; null si todavía no está
+function gmvTexPx(ti) {
+  if (GMVT.tex.has(ti)) return GMVT.tex.get(ti);
+  const pt = typeof PK !== 'undefined' && PK.parte('t' + ti), d = DATA.tx[ti];
+  if (pt) {   // (del paquete del juego: el webp, decodificado aparte y teñido como el que se sube a la placa)
+    GMVT.tex.set(ti, null);
+    decodificar(new Blob([pt], { type: 'image/webp' })).then(([img, volteada]) => {
+      const L = 64, c = document.createElement('canvas'); c.width = L; c.height = L; const x = c.getContext('2d', { willReadFrequently: true });
+      if (!volteada) { x.translate(0, L); x.scale(1, -1); }
+      x.drawImage(img, 0, 0, L, L); img.close && img.close();
+      let src = c; try { src = (typeof idTex === 'function' && idTex(ti, c, null)) || c; } catch (e) { src = c; }
+      GMVT.tex.set(ti, { w: L, h: L, px: src.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, L, L).data });
+    }).catch(() => GMVT.tex.set(ti, { w: 1, h: 1, px: new Uint8Array([255, 255, 255, 255]) }));
+    return null;
+  }
+  // (de un addon o importado: ya está en la placa; se lee de ahí)
+  const t = R.tex && R.tex[ti], gl = R.gl;
+  if (!d || !t || !t.gl || t.gl === R.texGris || t.gl === R.texBlanca || !gl) { if (d && d.k && typeof texGL === 'function') texGL(ti); return null; }
+  const w = d.w | 0, h = d.h | 0; if (w < 1 || h < 1 || w * h > 4096 * 4096) return null;
+  let out = null; const fb0 = gl.getParameter(gl.FRAMEBUFFER_BINDING), fb = gl.createFramebuffer();
+  try {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t.gl, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE) { const px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); out = { w, h, px }; }
+  } catch (e) { out = null; }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb0); gl.deleteFramebuffer(fb);
+  out = out || { w: 1, h: 1, px: new Uint8Array([255, 255, 255, 255]) };
+  GMVT.tex.set(ti, out); return out;
+}
+const _gmvMuestra = (T, u, v) => { const x = Math.min(T.w - 1, Math.max(0, Math.floor((u - Math.floor(u)) * T.w))), y = Math.min(T.h - 1, Math.max(0, Math.floor((v - Math.floor(v)) * T.h))), i = (y * T.w + x) * 4; return [T.px[i], T.px[i + 1], T.px[i + 2], T.px[i + 3]]; };
+// el color medio por zona (mangas, manos) de las mallas con piel de un árbol (nodos con m, mt y bo: los huesos por nombre).
+// null si falta alguna textura (se vuelve a probar); {} si no hay nada que medir
+function gmvColores(A, nombre) {
+  const mu = { mangas: [], manos: [] }, nom = nombre || ((b) => (A[b] && A[b].n) || '');
+  for (const x of A) {
+    if (x.m === undefined || x.m < 0 || !x.bo || !x.mt) continue;
+    const d = DATA.ms[x.m], B = d && binDe(d); if (!d || d.sk === undefined || !B) continue;
+    const dv = new DataView(B.buffer, B.byteOffset), zona = x.bo.map((b) => { const n = nom(b); return GMVT_MANGA.test(n) ? 'mangas' : GMVT_MANO.test(n) ? 'manos' : null; });
+    if (!zona.some(Boolean)) continue;
+    // (cada vértice pesa el área de sus triángulos: las articulaciones de Freddy tienen muchos vértices chicos de metal y
+    // contados de a uno le ganaban a la piel marrón, que es lo que se ve)
+    const pos = (vi, o) => { const b = d.o + vi * 14; for (let c = 0; c < 3; c++) o[c] = d.mn[c] + dv.getUint16(b + c * 2, true) / 65535 * d.sc[c]; return o; }, P0 = [0, 0, 0], P1 = [0, 0, 0], P2 = [0, 0, 0];
+    for (let k = 0; k < x.mt.length && k < d.sub.length; k++) {
+      const mi = x.mt[k], M = DATA.mt[mi]; if (!M) continue; const ti = matGL(mi).tex;
+      const T = ti !== undefined && ti >= 0 ? gmvTexPx(ti) : { w: 1, h: 1, px: [255, 255, 255, 255] }; if (!T) return null;
+      const c = M.c || [1, 1, 1, 1], [s0, n] = d.sub[k], idx = (q) => (d.i32 ? dv.getUint32(d.i + (s0 + q) * 4, true) : dv.getUint16(d.i + (s0 + q) * 2, true));
+      for (let q = 0; q + 2 < n; q += 3) {
+        const V = [idx(q), idx(q + 1), idx(q + 2)]; if (V.some((vi) => vi >= d.v)) continue;
+        pos(V[0], P0); pos(V[1], P1); pos(V[2], P2);
+        const ax = P1[0] - P0[0], ay = P1[1] - P0[1], az = P1[2] - P0[2], bx = P2[0] - P0[0], by = P2[1] - P0[1], bz = P2[2] - P0[2];
+        const area = 0.5 * Math.hypot(ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx) / 3; if (!(area > 0)) continue;
+        for (const vi of V) {
+          let bm = 0, wm = -1; for (let j = 0; j < 4; j++) { const wj = dv.getUint8(d.sk + vi * 8 + 4 + j); if (wj > wm) { wm = wj; bm = dv.getUint8(d.sk + vi * 8 + j); } }
+          const z = zona[bm]; if (!z) continue;
+          const o = d.o + vi * 14, px = _gmvMuestra(T, _gmvH2F(dv.getUint16(o + 10, true)), _gmvH2F(dv.getUint16(o + 12, true))); if (px[3] < 100) continue;
+          mu[z].push(px[0] * c[0], px[1] * c[1], px[2] * c[2], area);
+        }
+      }
+    }
+  }
+  // (el color que más hay, no el promedio: el antebrazo de Goku es piel con una muñequera azul y el promedio daba un gris
+  // azulado que no es ninguno de los dos. Se suma el área por cubos de 32 niveles, se toma el más lleno y se promedian las
+  // muestras que están a menos de 48 niveles de ése)
+  const out = {};
+  for (const z of ['mangas', 'manos']) {
+    const L = mu[z]; if (L.length < 32) continue; let tot = 0; for (let i = 3; i < L.length; i += 4) tot += L[i];
+    const cub = new Map(); let mejor = null;
+    for (let i = 0; i < L.length; i += 4) { const q = (x) => Math.min(7, Math.max(0, x >> 5)), k = (q(L[i]) << 6) | (q(L[i + 1]) << 3) | q(L[i + 2]), w = L[i + 3], c = cub.get(k) || [0, 0, 0, 0]; c[0] += L[i] * w; c[1] += L[i + 1] * w; c[2] += L[i + 2] * w; c[3] += w; cub.set(k, c); if (!mejor || c[3] > mejor[3]) mejor = c; }
+    const m = [mejor[0] / mejor[3], mejor[1] / mejor[3], mejor[2] / mejor[3]], S = [0, 0, 0, 0];
+    for (let i = 0; i < L.length; i += 4) if (Math.hypot(L[i] - m[0], L[i + 1] - m[1], L[i + 2] - m[2]) < 48) { const w = L[i + 3]; S[0] += L[i] * w; S[1] += L[i + 1] * w; S[2] += L[i + 2] * w; S[3] += w; }
+    out[z] = [S[0] / S[3] / 255, S[1] / S[3] / 255, S[2] / S[3] / 255]; out[z + 'Parte'] = +(S[3] / tot).toFixed(2);
+  }
+  return out;
+}
+// el color de un personaje del juego o importado (por su nombre de skin o su ruta jxpj/): { mangas, manos } o null mientras
+// se calcula
+function gmvTinte(clave) {
+  const x = GMVT.col.get(clave); if (x) return x;
+  let A = null;
+  let nom = null;   // (los importados: el nombre del hueso que les dio el rig —LeftHand, RightForeArm...—, no el del archivo)
+  if (/^jxpj\//.test(clave)) { const def = typeof pjiDefDe === 'function' ? pjiDefDe(clave) : null; A = def && def.arb; if (def && def.mix) nom = (b) => def.mix[b] || (A[b] && A[b].n) || ''; }
+  else if (typeof datosSkin === 'function' && typeof rbListo === 'function' && rbListo(rbDeSkin(clave))) A = datosSkin(clave).sub;
+  if (!A) return null;
+  const c = gmvColores(A, nom); if (!c) return null;
+  // (sin antebrazo con malla propia —un personaje de manga corta o sin brazos—: la mano para las dos; sin nada, sin teñir)
+  if (!c.mangas && c.manos) c.mangas = c.manos; if (!c.manos && c.mangas) c.manos = c.mangas;
+  GMVT.col.set(clave, c); return c;
+}
+// un material propio de las manos de un personaje (copia del de las c_arms, que se tiñe cuando está su color)
+function gmvMatTenido(mi0, clave) {
+  const m0 = DATA.mt[mi0]; if (!m0) return mi0;
+  const rol = /hand|glove|finger|skin/i.test(String(m0.n || '')) ? 'manos' : 'mangas';   // (c_arms_citizen: _sleeves, _hands, _glove)
+  const c = (m0.c || [1, 1, 1, 1]).slice(), m = Object.assign({}, m0, { n: m0.n + '#' + rol, c, cc: Object.assign({}, m0.cc || {}, { _Color: c }) });
+  const mi = DATA.mt.length; DATA.mt.push(m);
+  const L = GMVT.mats.get(clave) || []; L.push({ mi, mi0, rol, ok: false }); GMVT.mats.set(clave, L);
+  gmvTinteAplicar(clave);
+  return mi;
+}
+// cuando está el color del personaje y el promedio de la textura de cada pieza: se tiñen (y si no están, se vuelve a probar
+// en los cuadros siguientes: gmvTintePaso). La copia sigue a su original: si la textura de las c_arms llegó después de la
+// biblioteca (gmlLlegaron rehace el material en el mismo lugar), la copia la toma y se vuelve a medir y a teñir; antes de
+// eso no se mide (la textura de relleno, blanca o el damero, daba un promedio falso)
+const GMVT_RELLENO = /^GMA_(faltante|blanca)$/;
+function gmvTinteAplicar(clave) {
+  const L = GMVT.mats.get(clave); if (!L) return true;
+  for (const x of L) {   // (la textura del original, si cambió)
+    const m0 = DATA.mt[x.mi0], m = DATA.mt[x.mi]; if (!m0 || !m) continue;
+    if (m.t !== m0.t || m.tt !== m0.tt || m.sh !== m0.sh) { m.t = m0.t; m.tt = m0.tt; m.sh = m0.sh; m.f = m0.f; GMVT.base.delete(x.mi0); x.ok = false; if (R.mats) R.mats[x.mi] = undefined; }
+  }
+  if (L.every((x) => x.ok)) return true;
+  const col = gmvTinte(clave); if (!col) return false;
+  for (const x of L) {
+    if (x.ok) continue;
+    let b = GMVT.base.get(x.mi0);
+    if (!b) {
+      const ti = matGL(x.mi0).tex, d = ti !== undefined && ti >= 0 ? DATA.tx[ti] : null;
+      if (d && GMVT_RELLENO.test(d.n || '') && (x.t0 ?? (x.t0 = TIEMPO.t)) > TIEMPO.t - 15) continue;   // (todavía no llegó la de verdad)
+      const T = d ? gmvTexPx(ti) : { w: 1, h: 1, px: [255, 255, 255, 255] }; if (!T) continue;
+      let s = [0, 0, 0], n = 0; for (let i = 0; i < T.w * T.h; i++) if (T.px[i * 4 + 3] > 100) { s[0] += T.px[i * 4]; s[1] += T.px[i * 4 + 1]; s[2] += T.px[i * 4 + 2]; n++; }
+      const c0 = DATA.mt[x.mi0].c || [1, 1, 1, 1]; b = n ? [s[0] / n / 255 * c0[0], s[1] / n / 255 * c0[1], s[2] / n / 255 * c0[2]] : [1, 1, 1]; GMVT.base.set(x.mi0, b);
+    }
+    const obj = col[x.rol], m = DATA.mt[x.mi], c0 = DATA.mt[x.mi0].c || [1, 1, 1, 1]; x.ok = true; if (!obj || !m) continue;
+    for (let k = 0; k < 3; k++) m.c[k] = Math.max(0, Math.min(4, c0[k] * obj[k] / Math.max(0.03, b[k])));
+    m.cc._Color = m.c; if (R.mats) R.mats[x.mi] = undefined;
+  }
+  return L.every((x) => x.ok);
+}
+// (cada tanto, desde la vista: las que esperan su color o su textura)
+function gmvTintePaso(v) { if (v && v.manos && v.manos.tinte && !(v.tinteT > TIEMPO.t)) { v.tinteT = TIEMPO.t + 0.25; gmvTinteAplicar(v.manos.tinte); } }
 
 // ---------------- la cámara del Lua: CalcView (hooks, el modo de juego y el arma) ----------------
 // En GMod cada cuadro se pregunta CalcView (hook.Run, y si nadie contesta GM:CalcView, que le pregunta al arma con

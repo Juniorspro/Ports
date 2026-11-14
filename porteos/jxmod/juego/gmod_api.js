@@ -217,6 +217,9 @@ function gmaIniciar() {
   CM.set('Unpack', (c) => [c.get('r'), c.get('g'), c.get('b'), c.get('a')]); CM.set('Copy', (c) => gmColor(c.get('r'), c.get('g'), c.get('b'), c.get('a')));
   def(G, 'Color', (r, g, b, a) => gmColor(r, g, b, a === undefined ? 255 : a));
   def(G, 'ColorAlpha', (c, a) => gmColor(c.get('r'), c.get('g'), c.get('b'), a));
+  // (ColorToHSV: lo inverso, h en grados y s, v de 0 a 1; el Water Balloon lo usa para el color del globo)
+  def(G, 'ColorToHSV', (c) => { const g = (k) => (c instanceof LuaTable ? num(c.get(k), 0) : 0) / 255, r = g('r'), gg = g('g'), b = g('b'), mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), d = mx - mn;
+    let h = 0; if (d > 0) h = mx === r ? 60 * (((gg - b) / d) % 6) : mx === gg ? 60 * ((b - r) / d + 2) : 60 * ((r - gg) / d + 4); if (h < 0) h += 360; return [h, mx > 0 ? d / mx : 0, mx]; });
   def(G, 'HSVToColor', (h, s, v) => { const f = (n) => { const k = (n + h / 60) % 6; return v - v * s * Math.max(Math.min(k, 4 - k, 1), 0); }; return gmColor(f(5) * 255, f(3) * 255, f(1) * 255, 255); });
   def(G, 'IsColor', (c) => c instanceof LuaTable && c.mt === CM);
   // ---- entidades ----
@@ -432,7 +435,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   P('ViewPunchReset', (p, t) => { const q = punch(p); if (!(+t > 0)) { q.p = q.y = q.r = 0; } }); P('SetViewPunchAngles', (p, a) => { if (a instanceof LAng) { const q = punch(p); q.p = a.p; q.y = a.y; q.r = a.r; } }); P('SetViewPunchVelocity', () => {});
   P('GetViewPunchAngles', (p) => { const q = punch(p); return A(new LAng(q.p, q.y, q.r)); }); P('GetPunchAngle', (p) => { const q = punch(p); return A(new LAng(q.p, q.y, q.r)); }); P('GetViewPunchVelocity', () => A(new LAng()));
   P('GetViewModel', () => GMA.vmEnt || (GMA.vmEnt = new LEnt('viewmodel', 'vm'))); P('GetHands', () => NULL_ENT); P('SetupHands', () => {}); P('ConCommand', (p, c) => gmaConsola2(String(c))); P('SendLua', () => {}); P('GetInfo', (p, k) => { const c = GMA.cvars.get(k); return c ? String(c.v) : ''; }); P('GetInfoNum', (p, k, d) => { const c = GMA.cvars.get(k); return c ? num(c.v, d) : d; });
-  P('SetModel', () => {}); P('GetModel', () => 'models/player/kleiner.mdl'); P('SetPlayerColor', () => {}); P('GetPlayerColor', () => GMA.nv(0.24, 0.34, 0.41)); P('SetWeaponColor', () => {}); P('GetWeaponColor', () => GMA.nv(0.3, 1.8, 2.1));
+  P('SetModel', () => {}); P('GetModel', () => gmvModeloJugador()); P('SetPlayerColor', () => {}); P('GetPlayerColor', () => GMA.nv(0.24, 0.34, 0.41)); P('SetWeaponColor', () => {}); P('GetWeaponColor', () => GMA.nv(0.3, 1.8, 2.1));
   P('GetObserverMode', () => 0); P('Spectate', () => {}); P('UnSpectate', () => {}); P('Freeze', (p, b) => { JUG.congelado = !!b; }); P('IsFrozen', () => !!JUG.congelado); P('Lock', () => {}); P('UnLock', () => {}); P('DrawViewModel', (p, b) => { const w = GMA.swep; if (w) w.vmApagada = b === false; }); P('DrawWorldModel', () => {});
   P('AddFrags', () => {}); P('AddDeaths', () => {}); P('SetFrags', () => {}); P('SetDeaths', () => {}); P('GetFOV', () => CAM.fov || 75); P('SetFOV', (p, f) => { if (p !== GMA.jug) return; const x = num(f, 0); GMA.fovLua = x > 0 ? Math.max(1, Math.min(170, x)) : 0; GMA.fovArma = x > 0 ? GMA.swep : null; });   // (el zoom de las miras: gmaFovLua, gmod_vista.js) P('GetHull', () => [GMA.nv(-16, -16, 0), GMA.nv(16, 16, 72)]); P('IPAddress', () => 'loopback'); P('TimeConnected', () => TIEMPO.t);
   P('LastHitGroup', () => 0); P('GetRagdollEntity', () => NULL_ENT); P('GetEyeTraceNoCursor', () => gmaTraza(CAM.pos, CAM.fwd, 32768 * GS, null)); P('IsTyping', () => false); P('IsSpeaking', () => false); P('IsMuted', () => false); P('SetNoTarget', () => {}); P('GodEnable', () => {}); P('GodDisable', () => {}); P('HasGodMode', () => !!JUEGO.dios);
@@ -1018,7 +1021,9 @@ function gmaHoldBase(n) {
 }
 function gmaVistaBase(vm, hold) {
   const m = String(vm || '').toLowerCase().replace(/\\/g, '/');
-  if (m && gmArchivo(m)) return null;   // (trae su propio ViewModel)
+  // (trae su propio ViewModel; también si todavía se está bajando de la biblioteca de GMod —las c_ de HL2 y CS:S—: antes, si
+  // al darla no había llegado, el arma quedaba para siempre con la vista del juego —el brazo del traje HEV— y sin las manos)
+  if (m && (gmArchivo(m) || gmExiste(m))) return null;
   for (const [re, n] of GMA_VM) if (re.test(m) && DEF_ARMAS[n]) return n;
   const h = GMA_HOLD[String(hold || '').toLowerCase()]; return h && DEF_ARMAS[h] ? h : DEF_ARMAS.Pistol ? 'Pistol' : null;
 }
@@ -1081,7 +1086,10 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   // ---- globales ----
   def(G, 'IsValid', (x) => { if (x === undefined || x === null || x === false) return false; if (x instanceof LEnt) return entValida(x); const f = R.T(x) && typeof x === 'object' ? (() => { try { return R.ix(x, 'IsValid'); } catch (e) { return undefined; } })() : undefined; return typeof f === 'function' ? R.T(R.c(f, 'IsValid', x)[0]) : !(x instanceof LuaTable); });   // (como en GMod: una tabla común sin IsValid no es válida)
   def(G, 'LocalPlayer', () => GMA.jug); def(G, 'Entity', (i) => (i === 1 ? GMA.jug : i === 0 ? GMA.mundo : GMA.ents.get(i) || NULL_ENT));
-  def(G, 'CurTime', () => TIEMPO.t); def(G, 'UnPredictedCurTime', () => TIEMPO.t); def(G, 'RealTime', () => performance.now() / 1000); def(G, 'SysTime', () => (typeof gmnbSysTime === 'function' ? gmnbSysTime() : performance.now() / 1000));   // (sin lo que tardan los caminos de los nextbots: gmod_nextbot.js) def(G, 'FrameTime', () => TIEMPO.dt || 1 / 60); def(G, 'RealFrameTime', () => TIEMPO.dt || 1 / 60); def(G, 'FrameNumber', () => R.cuadro || 0); def(G, 'VGUIFrameTime', () => performance.now() / 1000);
+  def(G, 'CurTime', () => TIEMPO.t); def(G, 'UnPredictedCurTime', () => TIEMPO.t); def(G, 'RealTime', () => performance.now() / 1000); def(G, 'SysTime', () => (typeof gmnbSysTime === 'function' ? gmnbSysTime() : performance.now() / 1000));   // (sin lo que tardan los caminos de los nextbots: gmod_nextbot.js)
+  // (en otra línea: detrás del comentario de arriba quedaban comentadas y FrameTime, RealFrameTime, FrameNumber y VGUIFrameTime
+  // no existían: el Parkour, el Motion Tracker y los efectos de Toxic Nukes tiraban «attempt to call a nil value» en cada cuadro)
+  def(G, 'FrameTime', () => TIEMPO.dt || 1 / 60); def(G, 'RealFrameTime', () => TIEMPO.dt || 1 / 60); def(G, 'FrameNumber', () => R.cuadro || 0); def(G, 'VGUIFrameTime', () => performance.now() / 1000);
   def(G, 'ScrW', () => VW()); def(G, 'ScrH', () => VH()); def(G, 'EyePos', () => V(CAM.pos)); def(G, 'EyeAngles', () => A(dirAng(dS(CAM.fwd)))); def(G, 'EyeVector', () => GMA.Vd(CAM.fwd));
   def(G, 'Sound', (s) => s); def(G, 'Model', (s) => s); def(G, 'AddCSLuaFile', () => {}); def(G, 'IsFirstTimePredicted', () => true); def(G, 'SoundDuration', () => 1); def(G, 'GetHostName', () => (typeof SALA !== 'undefined' && SALA ? SALA.n : 'JXMod'));
   def(G, 'include', (r) => gmaIncluir(String(r))); def(G, 'IncludeCS', (r) => gmaIncluir(String(r)));
@@ -1548,7 +1556,11 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
   def(L('input'), 'IsShiftDown', () => !!(ENT.teclas && ENT.teclas.has('ShiftLeft'))); def(L('input'), 'IsControlDown', () => !!(ENT.teclas && ENT.teclas.has('ControlLeft'))); def(L('input'), 'GetCursorPos', () => [VW() / 2, VH() / 2]); def(L('input'), 'SelectWeapon', () => {});
   def(L('gui'), 'MouseX', () => VW() / 2); def(L('gui'), 'MouseY', () => VH() / 2); def(L('gui'), 'EnableScreenClicker', () => {}); def(L('gui'), 'OpenURL', () => {}); def(L('gui'), 'IsGameUIVisible', () => !!UI.abierto); def(L('gui'), 'IsConsoleVisible', () => false); def(L('gui'), 'ActivateGameUI', () => {}); def(L('gui'), 'HideGameUI', () => {}); def(L('gui'), 'ScreenToVector', () => GMA.Vd(CAM.fwd)); def(L('gui'), 'SetMousePos', () => {});
   def(L('team'), 'GetName', () => 'Unassigned'); def(L('team'), 'GetColor', () => GMA.color(255, 255, 100, 255)); def(L('team'), 'SetUp', () => {}); def(L('team'), 'NumPlayers', () => 1); def(L('team'), 'GetPlayers', () => R.tab([GMA.jug])); def(L('team'), 'Valid', () => true); def(L('team'), 'GetAllTeams', () => new LuaTable()); def(L('team'), 'GetScore', () => 0); def(L('team'), 'SetScore', () => {}); def(L('team'), 'BestAutoJoinTeam', () => 1); def(L('team'), 'Joinable', () => true); def(L('team'), 'TotalFrags', () => 0); def(L('team'), 'SetSpawnPoint', () => {}); def(L('team'), 'SetClass', () => {});
-  def(L('player_manager'), 'AddValidModel', (n, m) => { (GMA.pmodels || (GMA.pmodels = new Map())).set(String(n), String(m)); }); def(L('player_manager'), 'AddValidHands', () => {}); def(L('player_manager'), 'TranslatePlayerModel', (n) => (GMA.pmodels && GMA.pmodels.get(n)) || 'models/player/kleiner.mdl'); def(L('player_manager'), 'AllValidModels', () => new LuaTable()); def(L('player_manager'), 'RegisterClass', () => {}); def(L('player_manager'), 'SetPlayerClass', () => {}); def(L('player_manager'), 'RunClass', () => {}); def(L('player_manager'), 'GetPlayerClass', () => 'player_sandbox'); def(L('player_manager'), 'TranslateToPlayerModelName', (m) => m);
+  // (los modelos de jugador y sus manos, como player_manager.lua de GMod: las manos de las armas c_ salen de acá, gmod_vista.js)
+  def(L('player_manager'), 'AddValidModel', (n, m) => { if (typeof n !== 'string' || typeof m !== 'string') return; (GMA.pmodels || (GMA.pmodels = new Map())).set(n, m); (GMA.pmNombres || (GMA.pmNombres = new Map())).set(gmvRutaMdl(m), n); GMA.pmV = (GMA.pmV || 0) + 1; });
+  def(L('player_manager'), 'AddValidHands', (n, m, sk, b, mb) => { if (n === undefined || n === null || typeof m !== 'string') return; (GMA.pmanos || (GMA.pmanos = new Map())).set(String(n), { model: m, skin: num(sk, 0), body: b === undefined || b === null ? '0000000' : String(b), matchBodySkin: R_T(mb) }); GMA.pmV = (GMA.pmV || 0) + 1; });
+  def(L('player_manager'), 'TranslatePlayerModel', (n) => (GMA.pmodels && GMA.pmodels.get(n)) || (GMV_PM_BASE.get(String(n)) || [])[0] || 'models/player/kleiner.mdl');
+  def(L('player_manager'), 'AllValidModels', () => { const t = new LuaTable(); for (const [n, x] of GMV_PM_BASE) t.set(n, x[0]); if (GMA.pmodels) for (const [n, m] of GMA.pmodels) t.set(n, m); return t; }); def(L('player_manager'), 'RegisterClass', () => {}); def(L('player_manager'), 'SetPlayerClass', () => {}); def(L('player_manager'), 'RunClass', () => {}); def(L('player_manager'), 'GetPlayerClass', () => 'player_sandbox'); def(L('player_manager'), 'TranslateToPlayerModelName', (m) => gmvPmNombre(m));
   def(L('physenv'), 'GetGravity', () => GMA.nv(0, 0, -600)); def(L('physenv'), 'SetGravity', () => {}); def(L('physenv'), 'GetPerformanceSettings', () => new LuaTable()); def(L('physenv'), 'SetPerformanceSettings', () => {}); def(L('physenv'), 'AddSurfaceData', () => {}); def(L('physenv'), 'GetAirDensity', () => 2); def(L('physenv'), 'SetAirDensity', () => {});
   def(L('gamemode'), 'Call', (ev, ...a) => { const r = gmaHook0(String(ev), GMA.ctx, ...a); if (r.length && r[0] !== undefined) return r; const gm = G.get('GAMEMODE'); const f = gm instanceof LuaTable ? gm.get(ev) : undefined; return typeof f === 'function' ? R.c(f, ev, gm, ...a) : E0; }); def(L('gamemode'), 'Get', () => G.get('GAMEMODE')); def(L('gamemode'), 'Register', () => {});
   def(L('ai'), 'GetScheduleID', () => 0); def(L('ai'), 'GetTaskID', () => 0); def(L('ai_schedule'), 'New', () => ({ __mt: GMA.mtVacio })); def(L('ai_task'), 'New', () => ({ __mt: GMA.mtVacio }));
@@ -1568,7 +1580,7 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
   def(L('util'), 'IsValidPhysicsObject', (e) => e instanceof LEnt && entValida(e) && (e === GMA.jug || !!e.o));
   def(L('gui'), 'MousePos', () => [VW() / 2, VH() / 2]);
   def(L('engine'), 'IsMounted', (n) => ['hl2', 'cstrike', 'garrysmod'].includes(String(n).toLowerCase()));
-  def(L('player_manager'), 'TranslatePlayerHands', () => tabla({ model: 'models/weapons/c_arms_citizen.mdl', skin: 0, body: '0000000' }));
+  def(L('player_manager'), 'TranslatePlayerHands', (n) => { const h = gmvManosDeNombre(n); return tabla({ model: h.model, skin: h.skin, body: h.body, matchBodySkin: !!h.matchBodySkin }); });
   def(L('team'), 'AddScore', () => {}); def(L('team'), 'GetClass', () => new LuaTable()); def(L('team'), 'Valid', (t) => num(t, 0) >= 0);
   if (G.get('gameevent') === undefined) G.set('gameevent', new LuaTable()); def(L('gameevent'), 'Listen', () => {});
   // (el filtro de a quién le llega un sonido o un mensaje: acá siempre es el jugador)

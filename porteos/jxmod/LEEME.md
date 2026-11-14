@@ -2924,3 +2924,52 @@ fuego tiran balas y suenan), apunta y recarga si tiene mira y cargador, y sin er
   lo negro o blanco puro que queda es del arma (el Shrekzooka es negro, el pochoclo y la Portal Gun blancos, las bolas
   de metal del bowcaster de Chewbacca). Sin probar en un celular de verdad. Fotos de cada arma (1ª, 3ª y disparo) y del
   panel GMod antes y después, fuera del repo.
+
+## Del Discord (DEMO.29.06): «C_Arms compatibles», las manos del modelo de jugador en las armas c_
+
+Las armas «c_» de los addons (`SWEP.UseHands = true`) no traen brazos: GMod les pega la entidad `gmod_hands` con las
+manos del modelo de jugador que tenés puesto. La 3.2 ponía siempre las de ciudadano, y mal pegadas (`gmod_vista.js`,
+`gmod_api.js`, `vista.js`, `gmod_pm.js`; prueba nueva `pruebas/manos_c.mjs` con `pruebas/manos_c_medir.js`):
+- **Qué manos**: como `GM:PlayerSetHandsModel`: las que registró el addon del modelo con
+  `player_manager.AddValidHands` (modelo, piel y cuerpos); un modelo que no registró manos lleva las de GMod
+  (c_arms_citizen); los 87 de HL2, CS:S, DoD y Portal 2 que trae GMod, con su tabla (rebeldes con c_arms_refugee,
+  combine y policías con c_arms_combine, Eli con la piel negra, zombis con la infectada). Más que GMod: si el addon
+  registró las manos con otro nombre (el Kermit se registra dos veces, el Picolas Cage usa el nombre del archivo), se
+  usan igual. Los personajes del juego (Hero, Goku, Freddy, Jake...) y los importados: las de ciudadano con las mangas
+  del color que más hay en su antebrazo y las manos del de su mano, medidos de su malla y su textura.
+  `AddValidHands`, `TranslatePlayerHands`, `TranslateToPlayerModelName`, `AllValidModels` y `Player:GetModel` ahora
+  responden de verdad. La tarjeta de un modelo con manos propias dice «manos propias» (14 idiomas).
+- **Pegadas como en Source**: ninguna c_ trae los huesos de ayuda de las c_arms (`Ulna` y `Wrist`, procedurales, que
+  giran el antebrazo con la mano). La 3.2 los pegaba al antebrazo con su propia pose de enlace y la piel de la muñeca y
+  del antebrazo quedaba corrida hasta 29,7 cm hacia el codo (con las manos del Ghost Rider, 141,6 cm). Ahora cuelgan del
+  antebrazo y se calculan en cada cuadro como `DoQuatInterpBone` de Source; los huesos que la vista no tiene van en su
+  pose de reposo y un brazo cuya mano la vista no tiene no se dibuja (la Physics Gun c_).
+- **No rompe las v_**: una vista que ya trae brazos (≥ 100 vértices en dedos, antebrazos o brazos) no lleva otras manos
+  encima aunque diga UseHands (Freeze Gun, MUDA MUDA, el guante de Thanos: GMod las dibuja dobles).
+- Van en la misma vista que el arma: su campo visual (ViewModelFOV), espejadas con ViewModelFlip, con la luz y las
+  sombras de donde estás y, como en GMod, sin sombra propia ni reflejo. `PreDrawPlayerHands` las puede esconder.
+- Un arma que usa una c_ de la biblioteca de GMod (c_smg1, c_pistol...) que todavía se estaba bajando al darla quedaba
+  para siempre con la vista del juego (el brazo del traje HEV, sin manos): ahora se espera a que llegue.
+- De paso: `FrameTime`, `RealFrameTime`, `FrameNumber` y `VGUIFrameTime` estaban comentadas sin querer (detrás de un
+  comentario en la misma línea) y el Parkour, el Motion Tracker y Toxic Nukes tiraban errores en cada cuadro; y faltaba
+  `ColorToHSV` (Water Balloon).
+
+Medido cuadro a cuadro (30 por segundo) de sacar, quieto, disparar y recargar contra una referencia aparte hecha con la
+matemática de Source (bonemerge + `DoQuatInterpBone` + piel), 2539 cuadros:
+
+| | 3.2 | ahora |
+|---|---|---|
+| Armas c_ de addons con manos (15 addons: Nyan Gun, extintor, Cat Gun, karambit, Parkour...) | ciudadano | 15/15 |
+| De prueba: c_ de CS:S espejada, Physics Gun c_ (una mano), v_ con UseHands | — | 3/3 (la v_ sin duplicar) |
+| Modelos de jugador de addons (8 con manos propias, Picolas Cage con guantes, 3 sin manos) | ciudadano | 12/12 |
+| Personajes del juego (Hero, Goku, Freddy, Jake, Robot, Zombi) e importado (CesiumMan) | ciudadano | 7/7 teñidas |
+| Piel de muñeca y antebrazo corrida respecto de Source | hasta 29,7 cm | 0,00 cm |
+| Huesos de las manos respecto de Source | — | 0,000 u y ≤ 0,023° |
+| Palma–empuñadura y hueco mano–arma, diferencia con Source en cada cuadro | — | 0,00 cm |
+| Dibujos y triángulos con la Nyan Gun | 9 y 7227 | 9 y 7227 |
+| Procesador por cuadro (vista y manos; los huesos procedurales solos) | 0,017 ms | 0,014 ms (0,007 ms) |
+
+Pendiente: los adornos que el Lua pega a la vista (SWEP Construction Kit) no llevan el agrandado de ViewModelFOV y
+en las armas con FOV chico quedan corridos (el globo del Water Balloon, a unas 15 unidades de la palma); las armas
+propias de HL2 siguen con su brazo v_ (traje HEV); sin el color de jugador (PlayerColor) en las mangas;
+`Player:GetHands()` sigue sin entidad. Sin probar en un celular de verdad (emulado 873×393). Fotos, fuera del repo.
