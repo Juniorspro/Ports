@@ -447,7 +447,9 @@ function dibujarMenu() {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   // (con el escenario de Personajes —el concepto de GOLDEN— el fondo es oscuro, como el panel; la luz del personaje es la misma)
   const C = MENU.caja && MENU.caja.isConnected ? LOBBY_LUZ.fondoEsc : F;
-  gl.viewport(0, 0, W, H); gl.clearColor(C[0], C[1], C[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  // (en la portada —portada.js— el lienzo se borra transparente: atrás está el escenario, con la pantalla gigante y las luces)
+  const vacio = typeof PTD !== 'undefined' && MENU.caja && MENU.caja === PTD.esc && MENU.caja.isConnected; R.alfaLibre = !!vacio;
+  gl.viewport(0, 0, W, H); gl.clearColor(vacio ? 0 : C[0], vacio ? 0 : C[1], vacio ? 0 : C[2], vacio ? 0 : 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   if (!MENU.lobby) return;
   const g = { sol: R.sol.clone(), solCol: R.solCol, ambS: R.ambS, ambG: R.ambG, niebla: R.niebla, lin: R.lin, expo: R.expo };
   R.sol.copy(LOBBY_LUZ.sol); R.solCol = LOBBY_LUZ.solCol; R.ambS = LOBBY_LUZ.amb; R.ambG = LOBBY_LUZ.amb; R.niebla = { c: F, a: 900, b: 1000 };
@@ -463,7 +465,11 @@ function dibujarMenu() {
 const DIB = { ms: {} };   // tiempos de cada parte (para medir)
 function dibujar() {
   const gl = R.gl, W = R.cv.width, H = R.cv.height;
-  if (JUEGO.estado === 'principal' && typeof dibujarMenu === 'function' && MENU.el) { dibujarMenu(); pantFinCuadro(false); return; }
+  R.alfaLibre = false;
+  if (JUEGO.estado === 'principal' && typeof dibujarMenu === 'function' && MENU.el) {
+    if (typeof ptdSaltarCuadro === 'function' && ptdSaltarCuadro()) return;   // (la portada en los celulares flojos: el personaje quieto, portada.js)
+    dibujarMenu(); pantFinCuadro(false); R.alfaLibre = false; return;
+  }
   // (en la pausa, Perfil y Personajes muestran tu personaje en 3D como en el menú: se dibuja el lobby con su cámara, sin
   // tocar la de la partida)
   if (JUEGO.estado === 'juego' && typeof dibujarMenu === 'function' && MENU.lobby && ((typeof RB !== 'undefined' && RB.el && RB.el.classList.contains('rb3d') && !RB.el.classList.contains('oc')) || (typeof PJI !== 'undefined' && PJI.vista3d))) {

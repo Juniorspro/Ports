@@ -292,14 +292,6 @@ html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(
 @keyframes rbKen{from{transform:scale(1.02)}to{transform:scale(1.13) translateX(-1.6%)}}
 .rbSombra{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.5),rgba(0,0,0,.12) 40%,rgba(0,0,0,0) 60%),linear-gradient(0deg,rgba(0,0,0,.35),rgba(0,0,0,0) 22%)}
 .rbLogo{position:absolute;inset-inline-start:3.2%;top:calc(var(--vh)*4.2);height:clamp(40px,calc(var(--vh)*18.5),150px);max-width:60%;object-fit:contain;object-position:left}
-.rbLista{position:absolute;inset-inline-start:4.5%;top:calc(var(--vh)*26);display:flex;flex-direction:column;align-items:flex-start}
-.rbIt{font:700 calc(var(--vh)*4.7*var(--rbK,1)) Roboto,'Helvetica Neue',Helvetica,Arial,sans-serif;color:#fff;background:none;border:0;padding:calc(var(--vh)*.55*var(--rbK,1)) 0;cursor:pointer;text-align:start;text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.45);transition:transform .12s,text-shadow .12s}
-.rbIt:hover,.rbIt:active{transform:translateX(5px);text-shadow:0 0 12px rgba(255,255,255,.55),0 1px 2px #000}
-.rbSep{height:calc(var(--vh)*3.6)}
-.rbAbajo{position:absolute;inset-inline-start:1.6%;bottom:calc(var(--vh)*2.4);display:flex;gap:6px;align-items:center}
-.rbChipG{display:flex;align-items:center;gap:6px;font:700 calc(var(--vh)*3) Roboto,Arial,sans-serif;color:#fff;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.12);border-radius:4px;padding:calc(var(--vh)*1.3) 10px;cursor:pointer}
-.rbChipG input{width:calc(var(--vh)*22);font:700 calc(var(--vh)*3) Roboto,Arial,sans-serif;color:#fff;background:transparent;border:0;outline:none}
-.rbVer{position:absolute;inset-inline-end:1.6%;bottom:calc(var(--vh)*2.4);font:500 calc(var(--vh)*2.6) Roboto,Arial,sans-serif;text-shadow:0 1px 2px #000;opacity:.85}
 .rbPan{position:absolute;top:calc(var(--vh)*5);bottom:calc(var(--vh)*5);left:4%;right:4%;background:#e8e8e8;color:#222;border-radius:5px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.6)}
 .rbPanCab{display:flex;align-items:baseline;gap:12px;padding:calc(var(--vh)*1.8) 16px;background:#fafafa;border-bottom:1px solid #c9c9c9;font:800 calc(var(--vh)*4.2) Roboto,Arial,sans-serif}
 .rbPanCab small{font:600 calc(var(--vh)*2.8) Roboto,Arial,sans-serif;color:#777}
@@ -449,7 +441,6 @@ html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(
 .soIt .rbChico{flex:none}
 .soHora{display:flex;flex-direction:column;align-items:flex-end;gap:3px;color:#888;font-size:.82em;flex:none}
 .soBadge{display:inline-block;background:#e53935;color:#fff;border-radius:10px;font:800 11px/16px Roboto,Arial,sans-serif;padding:0 5px;font-style:normal;min-width:16px;text-align:center;text-shadow:none;vertical-align:middle}
-.rbIt .soBadge{margin-inline-start:10px;font-size:calc(var(--vh)*2.6);line-height:1.5}
 .soFila{display:flex;gap:8px;align-items:stretch}
 .soBusIn,.soMsgIn{flex:1;min-width:0;font:600 calc(var(--vh)*3) Roboto,Arial,sans-serif;padding:calc(var(--vh)*1.3) 12px;border:1px solid #b9b9b9;border-radius:7px;background:#fff;color:#222;outline:0}
 .soBusIn:focus,.soMsgIn:focus{border-color:#2c7ccc;box-shadow:0 0 0 2px #2c7ccc33}
@@ -1167,28 +1158,10 @@ body.ctlEdit .ctlVer{pointer-events:none!important;outline:2px dashed rgba(255,2
   --jxM:calc(var(--vh)*5);--jxLh:clamp(40px,calc(var(--vh)*18.5),150px);--jxCh:max(30px,calc(var(--vh)*7.4))}
 @media (max-height:440px){#rbInicio{--jxLh:calc(var(--vh)*15)}#rbInicio .rbLogo{top:calc(var(--vh)*3)}}   /* (celular apaisado: logo un poco más chico, más aire para la lista) */
 #rbInicio .rbSombra{background:linear-gradient(90deg,rgba(0,0,0,.42),rgba(0,0,0,0) 50%)}
+/* (la lista de texto, los botones de abajo y la placa de la versión del menú 3.0 se fueron con la portada nueva:
+   juego/portada.js; sus reglas, al final) */
 /* (el logo tiene un borde de sombra transparente: se corre para que su recuadro quede en la misma línea que las placas) */
 #rbInicio .rbLogo{inset-inline-start:var(--jxM);height:var(--jxLh);margin-inline-start:calc(var(--jxLh)*-.09)}
-#rbInicio .rbLista{inset-inline-start:var(--jxM);max-width:calc(100% - var(--jxM)*2);gap:calc(var(--vh)*.6*var(--rbK,1));align-items:stretch}
-#rbInicio .rbIt{font:500 calc(var(--vh)*4.3*var(--rbK,1))/1.1 var(--jxF);text-transform:uppercase;letter-spacing:.02em;color:var(--jxT);text-shadow:none;background:var(--jxP);
-  padding:calc(var(--vh)*1.05*var(--rbK,1)) calc(var(--vh)*4) calc(var(--vh)*1.05*var(--rbK,1)) calc(var(--vh)*2.2);border-inline-start:calc(var(--vh)*.7) solid transparent;transform:none;transition:none}
-#rbInicio .rbIt:hover{border-inline-start-color:var(--jxA);background:var(--jxP2);color:#fff;transform:none;text-shadow:none}
-#rbInicio .rbIt:active,#rbInicio .rbIt.rbPri{background:var(--jxA);border-inline-start-color:var(--jxA);color:#121212}
-#rbInicio .rbIt.rbPri{font-weight:600}#rbInicio .rbIt.rbPri:hover{background:var(--jxA2);border-inline-start-color:var(--jxA2)}
-#rbInicio .rbIt:focus-visible,#rbInicio .rbChipG:focus-visible{outline:2px solid var(--jxA);outline-offset:-2px}
-#rbInicio .rbSep{height:calc(var(--vh)*1.4*var(--rbK,1));flex:none}
-#rbInicio .rbLista.rbDesliza{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}#rbInicio .rbLista .rbIt{flex:none}
-#rbInicio .rbAbajo{inset-inline-start:var(--jxM);bottom:calc(var(--vh)*3);gap:calc(var(--vh)*.6)}
-#rbInicio .rbChipG{box-sizing:border-box;height:var(--jxCh);border:0;border-radius:0;background:var(--jxP);box-shadow:none;font:500 max(12px,calc(var(--vh)*2.9))/1 var(--jxF);text-transform:uppercase;letter-spacing:.03em;color:var(--jxT);padding:0 calc(var(--vh)*1.8);gap:calc(var(--vh)*1.1);white-space:nowrap}
-#rbInicio .rbChipG:hover{background:var(--jxP2)}
-#rbInicio .rbChipG:active{background:var(--jxA);color:#121212;filter:none}
-#rbInicio .rbChipG .gli{width:1.25em;height:1.25em;flex:none}
-#rbInicio .rbChipG input{font:500 max(12px,calc(var(--vh)*2.9))/1 var(--jxF);height:100%;padding:0;color:inherit;width:calc(var(--vh)*20)}
-#rbInicio .rbChipG.rbRed{padding:0;width:var(--jxCh);justify-content:center}#rbInicio .rbChipG.rbRed svg{width:1.3em;height:1.3em}
-#rbInicio .rbVer{inset-inline-end:var(--jxM);bottom:calc(var(--vh)*3);box-sizing:border-box;height:var(--jxCh);display:flex;align-items:center;gap:.7em;padding:0 calc(var(--vh)*1.8);background:var(--jxP);
-  font:500 max(12px,calc(var(--vh)*2.9))/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em;color:var(--jxT);text-shadow:none;opacity:1;white-space:nowrap;direction:ltr}
-#rbInicio[dir=rtl] .rbVer{right:auto;left:var(--jxM)}   /* (la versión se lee igual en árabe, del otro lado) */
-#rbInicio .rbVer b{color:var(--jxA);font-weight:600;margin-inline-start:-.35em}#rbInicio .rbVer i{font-style:normal;color:rgba(239,237,231,.5)}
 /* ---- 3.0: los otros menús con la identidad del principal (pedido: «cambiar esos menús de mapas, de juego y de pausa a
    algo más original… no hay que darle identidad de hyper sandbox»). Las mismas reglas que el menú principal: placas
    rectas y planas (sin bordes redondeados, brillos ni degradados), Oswald en mayúsculas para lo que es interfaz (Roboto
@@ -1729,6 +1702,255 @@ html.rot #pausa .pzGrid{grid-template-columns:repeat(3,1fr)}html.rot #pausa .pzC
 @media (max-width:500px){html.rot .rbPan.rbPan_personajes.pjV2{top:6px;bottom:6px;left:6px;right:6px;border-radius:8px;--pjEscW:clamp(190px,37%,420px)}}
 .pjV2 .tiCab.tiC1 .tiTit{display:none}
 .pjV2 .tiCab.tiC3 .rbTab:not(.sel)>span{display:none}.pjV2 .tiCab.tiC3 .rbTab:not(.sel){padding:0 calc(var(--tiG)*1.05);min-width:var(--tiH);justify-content:center}
+/* ---- la portada del menú principal (juego/portada.js; pedido del dueño: «una interfaz nueva así… mejores botones con
+   diseño en los botones»). Botones con forma: esquinas cortadas en ángulo, marco con brillo (degradado), relleno con
+   degradado o con arte del juego adentro, una sombra dura abajo (el canto) y estados de toque y foco propios: al tocar se
+   hunden (bajan el canto), con el mouse el marco se pone amarillo y el foco del teclado o el mando es un aro blanco y
+   amarillo. El amarillo de JXMod (--jxA) sigue siendo el de la acción: JUGAR, lo elegido y lo nuevo. Todo fijo (sin
+   animaciones que no paren ni filtros): se pinta una vez. Tamaños por el alto real del juego (--vh) con mínimos táctiles
+   de 40 px y letras de 12 px o más; los costados respetan la muesca (safe-area) ---- */
+#rbInicio.ptOn{background:transparent}#rbInicio.ptOn>.rbBg,#rbInicio.ptOn>.rbSombra{display:none}
+body.rbAbierto #jxAct{display:none!important}   /* (el Actualizar de la web: en la portada está en la columna de la derecha) */
+/* el escenario: detrás del lienzo del juego (que en la portada se borra transparente) */
+#ptFondo{position:fixed;inset:0;overflow:hidden;pointer-events:none;background:radial-gradient(120% 95% at 50% 26%,#1a2030 0%,#0d1017 48%,#050609 100%)}
+#ptFondo.oc{display:none}
+#ptFondo img{display:block;width:100%;height:100%;object-fit:cover}
+#ptFondo .ptLed{position:absolute;left:50%;top:calc(var(--vh)*9);width:min(86%,calc(var(--vh)*170));height:calc(var(--vh)*56);transform:translateX(-50%);background:#0b0d12;opacity:.7;
+  box-shadow:0 0 0 calc(var(--vh)*.6) #14171e,0 0 0 calc(var(--vh)*1.1) #2a2f3a}
+#ptFondo .ptLed::before{content:'';position:absolute;inset:0;z-index:1;background:radial-gradient(circle,rgba(0,0,0,0) 48%,rgba(0,0,0,.42) 72%) 0 0/4px 4px}   /* (los puntos del LED) */
+#ptFondo .ptLed::after{content:'';position:absolute;inset:0;z-index:2;background:linear-gradient(180deg,rgba(6,7,10,.25),rgba(6,7,10,0) 30%,rgba(6,7,10,.1) 62%,rgba(6,7,10,.92)),linear-gradient(90deg,rgba(6,7,10,.75),rgba(6,7,10,0) 22%,rgba(6,7,10,0) 78%,rgba(6,7,10,.75))}
+#ptFondo .ptRefl{position:absolute;left:50%;top:calc(var(--vh)*66);width:min(86%,calc(var(--vh)*170));height:calc(var(--vh)*30);transform:translateX(-50%) scaleY(-1);opacity:.16;overflow:hidden}
+#ptFondo .ptRefl img{height:calc(var(--vh)*56);object-position:50% 100%}
+#ptFondo .ptPiso{position:absolute;left:0;right:0;bottom:0;height:calc(var(--vh)*36);background:linear-gradient(180deg,rgba(9,11,15,.55),#07080b 38%,#040507),
+  repeating-linear-gradient(90deg,rgba(239,237,231,.035) 0 1px,rgba(0,0,0,0) 1px calc(var(--vh)*9))}
+#ptFondo .ptTorre{position:absolute;top:calc(var(--vh)*3);bottom:calc(var(--vh)*24);width:calc(var(--vh)*5);background:repeating-linear-gradient(45deg,rgba(0,0,0,0) 0 calc(var(--vh)*2.2),#2b303a calc(var(--vh)*2.2) calc(var(--vh)*2.7)),
+  repeating-linear-gradient(-45deg,rgba(0,0,0,0) 0 calc(var(--vh)*2.2),#2b303a calc(var(--vh)*2.2) calc(var(--vh)*2.7));border-inline:calc(var(--vh)*.5) solid #343a46}
+#ptFondo .ptTorreI{left:calc(50% - min(43%,calc(var(--vh)*85)) - var(--vh)*6)}#ptFondo .ptTorreD{right:calc(50% - min(43%,calc(var(--vh)*85)) - var(--vh)*6)}
+#ptFondo .ptTruss{position:absolute;left:4%;right:4%;top:calc(var(--vh)*3);height:calc(var(--vh)*4.2);border-block:calc(var(--vh)*.5) solid #343a46;
+  background:repeating-linear-gradient(60deg,rgba(0,0,0,0) 0 calc(var(--vh)*2.4),#2b303a calc(var(--vh)*2.4) calc(var(--vh)*2.9)),#0b0d12}
+/* (los haces de luz: trapecios con un degradado que se apaga hacia abajo; uno amarillo, el de JXMod, en el medio) */
+#ptFondo .ptHaz{position:absolute;top:calc(var(--vh)*6);height:calc(var(--vh)*78);width:calc(var(--vh)*44);clip-path:polygon(46% 0,54% 0,100% 100%,0 100%);transform-origin:50% 0}
+#ptFondo .ptHaz1{left:calc(50% - var(--vh)*62);transform:rotate(-24deg);background:linear-gradient(180deg,rgba(150,190,255,.22),rgba(150,190,255,0) 85%)}
+#ptFondo .ptHaz2{left:calc(50% + var(--vh)*18);transform:rotate(26deg);background:linear-gradient(180deg,rgba(150,190,255,.2),rgba(150,190,255,0) 85%)}
+#ptFondo .ptHaz3{left:calc(50% - var(--vh)*70);top:calc(var(--vh)*4);transform:rotate(12deg);background:linear-gradient(180deg,rgba(242,179,27,.16),rgba(242,179,27,0) 80%)}
+/* la luz de arriba sobre el personaje y la base donde está parado (las ubica portada.js donde quedan los pies: --px, --py) */
+#ptFondo .ptLuz{position:absolute;left:var(--px,50%);top:calc(var(--py,80%) - var(--pa,60%) * 1.12);width:calc(var(--pw,200px) * 1.15);height:calc(var(--pa,60%) * 1.14);transform:translateX(-50%);
+  clip-path:polygon(38% 0,62% 0,100% 100%,0 100%);background:linear-gradient(180deg,rgba(255,236,190,.2),rgba(255,236,190,.07) 70%,rgba(255,236,190,0))}
+#ptFondo .ptBase{position:absolute;left:var(--px,50%);top:var(--py,80%);width:var(--pw,200px);height:calc(var(--pw,200px) * .2);transform:translate(-50%,-50%);border-radius:50%;
+  background:radial-gradient(closest-side,rgba(0,0,0,.8),rgba(0,0,0,.6) 55%,rgba(30,24,10,.75) 74%,#f2b31b 80%,rgba(242,179,27,.35) 86%,rgba(242,179,27,0) 100%);
+  box-shadow:0 calc(var(--pw,200px) * .02) calc(var(--pw,200px) * .12) rgba(242,179,27,.22)}
+/* ---- la portada ---- */
+#rbInicio .ptHome{position:absolute;inset:0;--g:clamp(10px,calc(var(--vh)*3),28px);
+  --sl:max(var(--g),env(safe-area-inset-left,0px));--sr:max(var(--g),env(safe-area-inset-right,0px));--st:max(var(--g),env(safe-area-inset-top,0px));--sb:max(var(--g),env(safe-area-inset-bottom,0px));
+  --si:var(--sl);--se:var(--sr);--gap:clamp(8px,calc(var(--vh)*1.9),16px);
+  --hb:clamp(40px,calc(var(--vh)*11.5),70px);--ht:clamp(40px,calc(var(--vh)*11),64px);--hj:clamp(50px,calc(var(--vh)*16),112px);--hm:clamp(46px,calc(var(--vh)*14),100px);
+  --wj:clamp(180px,calc(var(--vw)*27),460px);--wl:clamp(200px,calc(var(--vw)*27),460px);--wc:clamp(40px,calc(var(--vh)*10.5),60px);--lv:clamp(15px,calc(var(--vh)*3.6),22px);
+  --f0:clamp(12px,calc(var(--vh)*3.1),18px);--f1:clamp(14px,calc(var(--vh)*4.6),30px);--f2:clamp(14px,calc(var(--vh)*3.5),18px);
+  --bA:rgba(239,237,231,.2);--fo:rgba(12,13,17,.88);--fo2:rgba(28,31,38,.94);font-family:var(--jxF);color:var(--jxT)}
+html.rot #rbInicio .ptHome{--sl:var(--g);--sr:var(--g);--st:var(--g);--sb:var(--g)}
+#rbInicio[dir=rtl] .ptHome{--si:var(--sr);--se:var(--sl)}
+#rbInicio[dir=rtl] .ptHome *{letter-spacing:0!important}   /* (el árabe se escribe ligado: con espacio entre letras se corta) */
+#rbInicio .ptHome.oc{display:none}
+#rbInicio .ptEscena{position:absolute;left:30%;top:15%;width:40%;height:80%;cursor:grab;touch-action:none;outline:none}
+#rbInicio .ptEscena:focus-visible{box-shadow:inset 0 0 0 2px rgba(255,255,255,.75),inset 0 0 0 5px rgba(242,179,27,.55)}
+#rbInicio .ptUI{position:absolute;inset:0;pointer-events:none}
+#rbInicio .ptUI>*{pointer-events:auto}
+#rbInicio .ptHome :where(button){font-family:inherit;color:inherit;-webkit-tap-highlight-color:transparent;cursor:pointer}
+#rbInicio .ptHome .gli{width:1.2em;height:1.2em;flex:none}
+/* el canto (la sombra dura de abajo) y el aro del foco van en la misma capa de atrás de cada botón: ::before */
+#rbInicio .ptHome :is(.ptCarta,.ptIco,.ptMini,.ptCont,.ptMas,.ptTab,.ptModo,.ptAvatar,.ptCu)::-moz-focus-inner{border:0}
+#rbInicio .ptHome :is(button,input):focus{outline:none}
+/* ---- arriba ---- */
+#rbInicio .ptArriba{position:absolute;top:var(--st);inset-inline:var(--si) var(--se);height:var(--hb);display:flex;align-items:center;gap:var(--gap);pointer-events:none}
+#rbInicio .ptArriba>*{pointer-events:auto}
+#rbInicio .ptPerfil{position:relative;display:flex;align-items:center;height:100%;min-width:0;flex:0 1 auto;gap:calc(var(--hb)*.16);padding-inline-end:calc(var(--hb)*.5);isolation:isolate}
+#rbInicio .ptPerfil::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(10,11,14,.92),rgba(18,20,26,.86));
+  clip-path:polygon(0 0,100% 0,calc(100% - var(--hb)*.38) 100%,0 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+#rbInicio[dir=rtl] .ptPerfil::before{clip-path:polygon(0 0,100% 0,100% 100%,calc(var(--hb)*.38) 100%)}
+#rbInicio .ptAvatar{position:relative;flex:none;width:var(--hb);height:var(--hb);padding:0;border:0;background:linear-gradient(160deg,#ffd256,#f2b31b 45%,#a8730a);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - var(--hb)*.24),calc(100% - var(--hb)*.24) 100%,0 100%)}
+#rbInicio .ptAvatarI{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:cover;background:#1b1c1f;clip-path:polygon(0 0,100% 0,100% calc(100% - var(--hb)*.22),calc(100% - var(--hb)*.22) 100%,0 100%)}
+#rbInicio .ptAvatar:hover .ptAvatarI{opacity:.86}#rbInicio .ptAvatar:active{transform:translateY(1px)}
+#rbInicio .ptAvatar:focus-visible{background:#fff}
+#rbInicio .ptNomL{display:flex;flex-direction:column;justify-content:center;min-width:0;height:100%;cursor:text}
+#rbInicio .ptNom{width:clamp(96px,calc(var(--vh)*30),240px);height:calc(var(--f2)*1.45);padding:0;border:0;border-bottom:1px solid rgba(239,237,231,.18);background:transparent;color:#fff;
+  font:700 var(--f2)/1.2 Roboto,'Helvetica Neue',Arial,sans-serif;letter-spacing:.01em}
+#rbInicio .ptNom:hover{border-bottom-color:rgba(242,179,27,.6)}#rbInicio .ptNom:focus{border-bottom-color:var(--jxA)}
+#rbInicio .ptPj{display:flex;align-items:center;gap:.35em;margin-top:.15em;max-width:clamp(96px,calc(var(--vh)*30),240px);overflow-x:clip;overflow-y:visible;white-space:nowrap;font:500 var(--f0)/1.2 var(--jxF);text-transform:uppercase;letter-spacing:.05em;color:#c9c6be}
+#rbInicio .ptPj .gli{color:var(--jxA);width:1em;height:1em}
+#rbInicio .ptCuenta:not(.ptCuOn){display:none}
+#rbInicio .ptCu{display:flex;align-items:center;gap:.4em;height:max(40px,calc(var(--hb)*.8));padding:0 .8em;border:1px solid rgba(239,237,231,.22);background:rgba(255,255,255,.06);white-space:nowrap;
+  font:600 var(--f0)/1 var(--jxF);text-transform:uppercase;letter-spacing:.04em;clip-path:polygon(0 0,100% 0,100% 70%,calc(100% - 8px) 100%,0 100%)}
+#rbInicio .ptCu:hover{border-color:var(--jxA)}#rbInicio .ptCu:active{background:var(--jxA);color:#141414}#rbInicio .ptCu:focus-visible{border-color:#fff;box-shadow:inset 0 0 0 2px var(--jxA)}
+#rbInicio .ptCu .cuG,#rbInicio .ptCu .gli{width:1.3em;height:1.3em}
+#rbInicio .ptUI.ptCuC .ptCu span{display:none}
+#rbInicio .ptLogo{position:static;flex:0 1 auto;min-width:0;height:calc(var(--hb)*.8);width:auto;max-width:22%;margin:0 auto;object-fit:contain;inset:auto}
+#rbInicio .ptUI.ptSinLogo .ptLogo{visibility:hidden;width:0;flex:0 0 0;margin:0 auto 0 0}
+#rbInicio .ptDer{display:flex;align-items:center;gap:calc(var(--gap)*.5);height:100%;margin-inline-start:auto;flex:none}
+#rbInicio .ptSepV{width:1px;height:60%;background:rgba(239,237,231,.18);margin:0 calc(var(--gap)*.4)}
+/* los contadores (de verdad: mods activos y addons de GMod) */
+#rbInicio .ptCont{position:relative;display:flex;align-items:center;gap:.4em;height:max(40px,calc(var(--hb)*.84));padding:0 .9em 0 .55em;border:0;background:none;isolation:isolate;
+  font:600 var(--f2)/1 var(--jxF);letter-spacing:.03em;color:#fff}
+#rbInicio .ptCont::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(34,37,45,.95),rgba(14,15,19,.95));border:1px solid rgba(239,237,231,.16);
+  border-radius:999px;box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
+#rbInicio .ptContI{width:1.45em;height:1.45em;border-radius:5px}
+#rbInicio .ptCont:hover::before{border-color:rgba(242,179,27,.7)}#rbInicio .ptCont:active{transform:translateY(1px)}
+#rbInicio .ptCont:focus-visible::before{border:2px solid #fff;box-shadow:0 0 0 3px rgba(242,179,27,.6)}
+/* los íconos de arriba y los accesos de la derecha: cuadrados con una esquina cortada */
+#rbInicio :is(.ptIco,.ptMini,.ptMas){position:relative;display:flex;align-items:center;justify-content:center;flex:none;width:max(40px,calc(var(--hb)*.84));height:max(40px,calc(var(--hb)*.84));padding:0;border:0;background:none;isolation:isolate;color:var(--jxT)}
+#rbInicio :is(.ptIco,.ptMini,.ptMas) .gli,#rbInicio :is(.ptMini) svg{width:46%;height:46%}
+#rbInicio .ptIcoF{position:absolute;inset:0;z-index:-1;background:linear-gradient(160deg,rgba(255,255,255,.28),rgba(255,255,255,.06) 40%,rgba(255,255,255,.16));
+  clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,0 100%)}
+#rbInicio .ptIcoF::after{content:'';position:absolute;inset:1.5px;background:linear-gradient(180deg,#252830,#121418);box-shadow:inset 0 1px 0 rgba(255,255,255,.12);clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)}
+#rbInicio :is(.ptIco,.ptMini,.ptMas):hover{color:var(--jxA)}
+#rbInicio :is(.ptIco,.ptMini,.ptMas):hover .ptIcoF{background:linear-gradient(160deg,#ffd256,rgba(242,179,27,.35) 45%,#f2b31b)}
+#rbInicio :is(.ptIco,.ptMini,.ptMas):active{transform:translateY(2px)}
+#rbInicio :is(.ptIco,.ptMini,.ptMas):active .ptIcoF::after{background:linear-gradient(180deg,#121418,#1c1f26)}
+#rbInicio :is(.ptIco,.ptMini,.ptMas):focus-visible .ptIcoF{background:#fff;inset:-3px;box-shadow:none}
+#rbInicio :is(.ptIco,.ptMini,.ptMas):focus-visible .ptIcoF::after{inset:3px}
+#rbInicio .ptIdiB{width:auto;padding:0 .7em;gap:.3em}#rbInicio .ptIdiB .gli{width:1.15em;height:1.15em}
+#rbInicio .ptIdi{font:600 var(--f0)/1 var(--jxF);letter-spacing:.06em}
+#rbInicio .ptSalir:hover{color:#ff8a7e}
+#rbInicio .ptHome .soBadge{position:absolute;top:-4px;inset-inline-end:-4px;z-index:2;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e53935;color:#fff;
+  font:800 12px/18px Roboto,Arial,sans-serif;box-shadow:0 0 0 2px #0b0c0f;box-sizing:border-box}
+/* ---- las tarjetas de la izquierda ---- */
+#rbInicio .ptIzq{position:absolute;top:calc(var(--st) + var(--hb) + var(--gap));bottom:calc(var(--sb) + var(--lv) + var(--ht) + var(--gap)*1.6);inset-inline-start:var(--si);width:var(--wl);
+  display:flex;flex-direction:column;gap:var(--gap);pointer-events:none}
+#rbInicio .ptIzq>*{pointer-events:auto}
+#rbInicio .ptDoble{display:flex;gap:calc(var(--gap)*.7);flex:1.45 1 0;min-height:60px;max-height:calc(var(--vh)*31)}
+#rbInicio .ptMultiC{position:relative;flex:1 1 0;min-height:44px;max-height:calc(var(--vh)*19);display:flex;gap:calc(var(--gap)*.5)}
+#rbInicio .ptCarta{position:relative;display:flex;flex-direction:column;justify-content:flex-end;flex:1 1 0;min-width:0;min-height:40px;padding:0;border:0;background:none;text-align:start;isolation:isolate;--cc:clamp(9px,calc(var(--vh)*3),18px);--b1:rgba(239,237,231,.42);--b2:rgba(239,237,231,.08)}
+#rbInicio .ptCarta::before{content:'';position:absolute;inset:0;z-index:-3;transform:translateY(3px);background:rgba(0,0,0,.6);clip-path:polygon(0 0,calc(100% - var(--cc)) 0,100% var(--cc),100% 100%,var(--cc) 100%,0 calc(100% - var(--cc)))}
+#rbInicio .ptMarco{position:absolute;inset:0;z-index:-2;background:linear-gradient(150deg,var(--b1),var(--b2) 38%,var(--b2) 62%,var(--b1));clip-path:polygon(0 0,calc(100% - var(--cc)) 0,100% var(--cc),100% 100%,var(--cc) 100%,0 calc(100% - var(--cc)))}
+#rbInicio .ptRelleno{position:absolute;inset:2px;overflow:hidden;background:var(--relleno,#15171c);clip-path:polygon(0 0,calc(100% - var(--cc) + 1px) 0,100% calc(var(--cc) - 1px),100% 100%,calc(var(--cc) - 1px) 100%,0 calc(100% - var(--cc) + 1px))}
+#rbInicio .ptRelleno::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,0) 26%),linear-gradient(0deg,rgba(6,7,10,.55),rgba(6,7,10,0) 55%)}
+#rbInicio .ptFoto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#rbInicio .ptRayas{position:absolute;inset:0;background:repeating-linear-gradient(-55deg,rgba(255,255,255,.07) 0 2px,rgba(255,255,255,0) 2px 11px)}
+#rbInicio .ptTxt{position:relative;z-index:2;display:flex;flex-direction:column;align-items:stretch;gap:.1em;max-width:100%;box-sizing:border-box;margin:0 0 calc(var(--cc)*.45);padding:.3em .8em .35em .7em;
+  background:linear-gradient(90deg,rgba(8,9,12,.86),rgba(8,9,12,.8) 70%,rgba(8,9,12,0))}
+#rbInicio .ptCT{display:block;max-width:100%;overflow-x:clip;overflow-y:visible;white-space:nowrap;font:600 var(--f1)/1.08 var(--jxF);text-transform:uppercase;letter-spacing:.03em;color:#fff}
+#rbInicio .ptCS{display:flex;align-items:center;gap:.4em;max-width:100%;overflow-x:clip;overflow-y:visible;white-space:nowrap;font:500 var(--f0)/1.2 var(--jxF);letter-spacing:.04em;color:#d9d6ce}
+#rbInicio .ptCarta.ptSinSub .ptCS{display:none}#rbInicio .ptEvento.ptSwC .ptSw b{display:none}
+#rbInicio .ptCarta:hover{--b1:#ffd256;--b2:rgba(242,179,27,.3)}
+#rbInicio .ptCarta:active{transform:translateY(2px)}#rbInicio .ptCarta:active::before{transform:translateY(1px)}
+#rbInicio .ptCarta:focus-visible{--b1:#fff;--b2:#fff}#rbInicio .ptCarta:focus-visible::before{inset:-4px;transform:none;background:var(--jxA)}
+#rbInicio .ptNuevo{position:absolute;top:calc(var(--cc)*.15);inset-inline-start:calc(var(--cc)*.4);z-index:3;padding:.2em .55em .22em;background:var(--jxA);color:#141414;
+  font:700 max(12px,calc(var(--f0)*.85))/1 var(--jxF);text-transform:uppercase;letter-spacing:.06em;font-style:normal;transform:skewX(-12deg);box-shadow:0 2px 0 #7a5208}
+/* Workshop: el render de la Physics Gun, que se asoma por arriba, y el logo de GMod */
+#rbInicio .ptWs{--relleno:linear-gradient(155deg,#2b78cf,#13447f 48%,#0a1f3d)}
+#rbInicio .ptArte{position:absolute;z-index:1;top:-6%;inset-inline-end:-6%;width:92%;height:min(70%,calc(var(--vh)*22));object-fit:contain;transform:rotate(-16deg);pointer-events:none;transition:transform .12s}
+#rbInicio .ptMarca{position:absolute;z-index:1;top:calc(var(--cc)*.2);inset-inline-start:calc(var(--cc)*.4);width:clamp(18px,calc(var(--vh)*6),32px);height:auto;pointer-events:none}
+#rbInicio .ptWs .ptNuevo{top:auto;bottom:calc(100% - var(--cc)*.2 - 1.5em);inset-inline-start:auto;inset-inline-end:calc(var(--cc)*.9)}
+#rbInicio .ptCarta:hover .ptArte{transform:rotate(-12deg) translateY(-3%) scale(1.05)}
+/* Emotes: los íconos del juego como calcomanías */
+#rbInicio .ptEmo{--relleno:linear-gradient(155deg,#a24ff0,#5a1fa8 50%,#26104a)}
+#rbInicio .ptArteE{position:absolute;inset:6% 6% 34%;z-index:1;pointer-events:none}
+#rbInicio .ptArteE .ico{position:absolute;width:min(50%,calc(var(--vh)*17));height:auto;border-radius:18%;box-shadow:0 3px 0 rgba(0,0,0,.45)}
+#rbInicio .ptE1{inset-inline-end:2%;top:0;transform:rotate(10deg)}#rbInicio .ptE2{inset-inline-end:36%;top:24%;transform:rotate(-12deg)}
+#rbInicio .ptEmo .ptNuevo{top:auto;bottom:calc(100% - var(--cc)*.2 - 1.5em)}
+/* Multijugador: una pantalla de carga de fondo, el aro con los que están en línea y las caras del equipo */
+#rbInicio .ptMulti{flex-direction:row;align-items:center;justify-content:flex-start;padding-inline:calc(var(--gap)*.9) calc(var(--cc)*.6);--relleno:#0f1218}
+#rbInicio .ptMulti .ptFoto{opacity:.85}
+#rbInicio .ptMulti .ptRelleno::after{background:linear-gradient(90deg,rgba(8,10,14,.94) 0%,rgba(8,10,14,.86) 62%,rgba(8,10,14,.25)),linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,0) 26%)}
+#rbInicio[dir=rtl] .ptMulti .ptRelleno::after{background:linear-gradient(270deg,rgba(8,10,14,.94) 0%,rgba(8,10,14,.86) 62%,rgba(8,10,14,.25))}
+#rbInicio .ptAnillo{position:relative;flex:none;display:flex;align-items:center;justify-content:center;width:clamp(30px,calc(var(--vh)*10.5),64px);aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(closest-side,#16191f 74%,rgba(0,0,0,0) 76%),#4a4f5a;box-shadow:0 0 0 2px rgba(0,0,0,.55)}   /* (sin conexión, gris; en línea, amarillo) */
+#rbInicio .ptMulti.ptVivo .ptAnillo{background:radial-gradient(closest-side,#16191f 74%,rgba(0,0,0,0) 76%),conic-gradient(#f2b31b,#ffd256,#f2b31b)}
+#rbInicio .ptEnN .gli{width:.8em;height:.8em;color:#c9c6be}
+#rbInicio .ptEnN{font:700 calc(var(--f1)*1.02)/1 var(--jxF);color:#fff}
+#rbInicio .ptMulti .ptTxt{margin:0;background:none;padding-inline:.5em .3em;min-width:0;flex:1 1 auto}
+#rbInicio .ptLed{display:inline-block;flex:none;width:.6em;height:.6em;border-radius:50%;background:#7c8089;box-shadow:0 0 0 2px rgba(0,0,0,.4)}
+#rbInicio .ptMulti.ptVivo .ptLed{background:#43d36a;box-shadow:0 0 0 2px rgba(0,0,0,.4),0 0 6px #43d36a}
+#rbInicio .ptUI.ptMultiW .ptMulti .ptCT{white-space:normal;line-height:1.02;overflow-wrap:anywhere}
+#rbInicio .ptMultiC .ptMas{height:auto;align-self:stretch;width:max(40px,calc(var(--hb)*.84))}
+#rbInicio .ptMas .gli{width:min(46%,26px);height:auto;aspect-ratio:1}
+#rbInicio .ptMas .ptIcoF{background:linear-gradient(160deg,#ffd256,#f2b31b 50%,#b27a08)}#rbInicio .ptMas .ptIcoF::after{background:linear-gradient(180deg,#2a2412,#15130c)}
+#rbInicio .ptMas{color:var(--jxA)}
+/* Evento: la escena de la grieta y el interruptor */
+#rbInicio .ptEvento{flex:0 0 clamp(40px,calc(var(--vh)*11),70px);flex-direction:row;align-items:center;justify-content:space-between;--relleno:#120f1c}
+#rbInicio .ptEvento .ptFoto{object-position:80% 18%;transform:scale(1.35);transform-origin:80% 20%}
+#rbInicio .ptEvento .ptRelleno::after{background:linear-gradient(90deg,rgba(8,9,12,.9),rgba(8,9,12,.55) 55%,rgba(8,9,12,.1))}
+#rbInicio[dir=rtl] .ptEvento .ptRelleno::after{background:linear-gradient(270deg,rgba(8,9,12,.9),rgba(8,9,12,.55) 55%,rgba(8,9,12,.1))}
+#rbInicio .ptEvento .ptTxt{margin:0;flex-direction:row;align-items:baseline;gap:.5em;background:none;min-width:0;flex:1 1 auto}
+#rbInicio .ptEvento .ptCT{font-size:var(--f2)}
+#rbInicio .ptSw{display:flex;align-items:center;gap:.45em;flex:none;margin-inline-end:calc(var(--cc)*.9);padding:.25em .55em;background:rgba(8,9,12,.85);font:600 var(--f0)/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em;color:#c9c6be}
+#rbInicio .ptSw i{position:relative;width:2.1em;height:1.15em;border-radius:1em;background:#3b3f48;box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
+#rbInicio .ptSw i::after{content:'';position:absolute;top:.15em;inset-inline-start:.15em;width:.85em;height:.85em;border-radius:50%;background:#c9c6be}
+#rbInicio .ptEvento.on .ptSw{color:#ffd256}#rbInicio .ptEvento.on .ptSw i{background:#f2b31b}#rbInicio .ptEvento.on .ptSw i::after{inset-inline-start:1.1em;background:#fff}
+/* ---- la columna de la derecha ---- */
+#rbInicio .ptCol{position:absolute;top:calc(var(--st) + var(--hb) + var(--gap));inset-inline-end:var(--se);display:flex;flex-direction:column;gap:calc(var(--gap)*.6);width:max(40px,calc(var(--hb)*.84))}
+#rbInicio .ptUI.ptCol2 .ptCol{flex-direction:row;flex-wrap:wrap;width:calc(max(40px,calc(var(--hb)*.84))*2 + var(--gap)*.6);justify-content:flex-end}
+#rbInicio .ptMini.oc{display:none}
+#rbInicio .ptRed svg{width:44%;height:44%}
+#rbInicio .ptAct.ptHay{color:var(--jxA)}#rbInicio .ptAct.ptHay::after{content:'';position:absolute;top:-3px;inset-inline-end:-3px;width:10px;height:10px;border-radius:50%;background:#e53935;box-shadow:0 0 0 2px #0b0c0f}
+/* ---- las pestañas de abajo ---- */
+#rbInicio .ptTabs{position:absolute;inset-inline-start:var(--si);bottom:calc(var(--sb) + var(--lv) + 2px);height:var(--ht);display:flex;
+  max-width:calc(100% - var(--si) - var(--se) - var(--wj) - var(--gap)*2);overflow:hidden;
+  background:linear-gradient(180deg,rgba(24,26,32,.94),rgba(9,10,13,.94));box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 -2px 0 rgba(0,0,0,.4);
+  clip-path:polygon(0 0,calc(100% - var(--ht)*.32) 0,100% 100%,0 100%)}
+#rbInicio[dir=rtl] .ptTabs{clip-path:polygon(calc(var(--ht)*.32) 0,100% 0,100% 100%,0 100%)}
+#rbInicio .ptTab{position:relative;display:flex;align-items:center;gap:.5em;flex:0 1 auto;min-width:0;height:100%;padding:0 1em;border:0;background:none;white-space:nowrap;
+  font:500 var(--f2)/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em;color:var(--jxT)}
+#rbInicio .ptTab:last-child{padding-inline-end:calc(1em + var(--ht)*.32)}
+#rbInicio .ptTab+.ptTab::after{content:'';position:absolute;inset-inline-start:0;top:22%;bottom:22%;width:1px;background:rgba(239,237,231,.16);transform:skewX(-14deg)}
+#rbInicio .ptTabF{position:absolute;left:12%;right:12%;bottom:0;height:3px;background:transparent}
+#rbInicio .ptTab .ico{width:1.3em;height:1.3em;border-radius:4px}
+#rbInicio .ptTab .gli{color:var(--jxA)}
+#rbInicio .ptTabT{display:block;min-width:0;overflow-x:clip;overflow-y:visible}
+#rbInicio .ptTab:hover{color:#fff;background:linear-gradient(180deg,rgba(242,179,27,0),rgba(242,179,27,.14))}#rbInicio .ptTab:hover .ptTabF{background:var(--jxA)}
+#rbInicio .ptTab:active{background:rgba(242,179,27,.24)}
+#rbInicio .ptTab:focus-visible{box-shadow:inset 0 0 0 2px #fff}#rbInicio .ptTab:focus-visible .ptTabF{background:var(--jxA);height:4px}
+#rbInicio .ptUI.ptTabsC .ptTab{flex-direction:column;justify-content:center;gap:.15em;padding:0 .6em;font-size:inherit}
+#rbInicio .ptUI.ptTabsC .ptTabs{font-size:max(14px,calc(var(--f0)*.9))}
+#rbInicio .ptUI.ptTabsC .ptTab:last-child{padding-inline-end:calc(.6em + var(--ht)*.32)}
+#rbInicio .ptUI.ptTabsC2 .ptTab :is(.gli,.ico){display:none}#rbInicio .ptUI.ptTabsC2 .ptTabT{max-width:6.6em;white-space:normal;text-align:center;line-height:1.08}
+/* la versión, abajo de las pestañas */
+#rbInicio .ptVer{position:absolute;inset-inline-start:var(--si);bottom:var(--sb);height:var(--lv);display:flex;align-items:center;gap:.6em;pointer-events:none;white-space:nowrap;
+  font:500 max(12px,calc(var(--lv)*.78))/1 var(--jxF);text-transform:uppercase;letter-spacing:.08em;color:#a9a69e}
+#rbInicio .ptVer b{color:var(--jxA);font-weight:600}#rbInicio .ptVer i{font-style:normal}
+/* ---- el mapa elegido y JUGAR ---- */
+#rbInicio .ptPartida{position:absolute;inset-inline-end:var(--se);bottom:var(--sb);width:var(--wj);display:flex;flex-direction:column;align-items:stretch;gap:var(--gap);pointer-events:none}
+#rbInicio .ptPartida>*{pointer-events:auto}
+#rbInicio .ptCartel{align-self:flex-start;max-width:90%;box-sizing:border-box;margin-inline-start:calc(var(--hm)*.12);margin-bottom:calc(var(--gap)*-.4);overflow-x:clip;overflow-y:visible;white-space:nowrap;padding:.32em .8em;
+  background:linear-gradient(180deg,#ffffff,#e4e1d8);color:#16171b;font:600 max(12px,calc(var(--f0)*.92))/1.1 var(--jxF);text-transform:uppercase;letter-spacing:.05em;transform:skewX(-12deg);
+  box-shadow:0 2px 0 rgba(0,0,0,.45);pointer-events:none}
+#rbInicio[dir=rtl] .ptCartel{transform:skewX(12deg)}
+#rbInicio .ptModo{position:relative;display:flex;align-items:center;gap:calc(var(--gap)*.8);height:var(--hm);margin:0 calc(var(--hm)*.12);padding:0 .8em 0 0;border:0;background:none;text-align:start;isolation:isolate;transform:skewX(-12deg)}
+#rbInicio .ptModo>*{transform:skewX(12deg)}
+#rbInicio[dir=rtl] .ptModo{transform:skewX(12deg);padding:0 0 0 .8em}#rbInicio[dir=rtl] .ptModo>*{transform:skewX(-12deg)}
+#rbInicio .ptModoF{position:absolute;inset:0;z-index:-1;transform:none!important;background:linear-gradient(180deg,rgba(30,33,41,.95),rgba(12,13,17,.95));border:1px solid rgba(239,237,231,.2);
+  border-inline-start:4px solid var(--jxA);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 3px 0 rgba(0,0,0,.55)}
+#rbInicio .ptModoFoto{flex:none;align-self:stretch;width:calc(var(--hm)*1.02);overflow:hidden;transform:none!important;border-inline-end:1px solid rgba(239,237,231,.2)}
+#rbInicio .ptModoFoto img{width:100%;height:100%;object-fit:cover;transform:skewX(12deg) scale(1.25)}
+#rbInicio[dir=rtl] .ptModoFoto img{transform:skewX(-12deg) scale(1.25)}
+#rbInicio .ptModoTxt{display:flex;flex-direction:column;justify-content:center;gap:.12em;min-width:0;flex:1 1 auto}
+#rbInicio .ptTags{display:flex;align-items:center;gap:.5em;min-width:0}
+#rbInicio .ptTag{flex:none;padding:.18em .45em;background:var(--jxA);color:#141414;font:700 max(12px,calc(var(--f0)*.85))/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em;font-style:normal}
+#rbInicio .ptModoL{min-width:0;overflow-x:clip;overflow-y:visible;white-space:nowrap;font:500 max(12px,calc(var(--f0)*.85))/1 var(--jxF);text-transform:uppercase;letter-spacing:.08em;color:#b9b6ae}
+#rbInicio .ptModoN{display:block;min-width:0;overflow-x:clip;overflow-y:visible;white-space:nowrap;font:600 var(--f2)/1.15 var(--jxF);text-transform:uppercase;letter-spacing:.03em;color:#fff}
+#rbInicio .ptModoS{display:flex;align-items:center;gap:.3em;min-width:0;overflow-x:clip;overflow-y:visible;white-space:nowrap;font:400 max(12px,calc(var(--f0)*.9))/1.2 Roboto,Arial,sans-serif;color:#c9c6be}
+#rbInicio .ptModoS .gli{width:1.05em;height:1.05em;color:var(--jxA);margin-inline-start:.3em}
+#rbInicio .ptModo.ptModoC .ptModoQ{display:none}#rbInicio .ptModo.ptModoC2 .ptModoFoto{display:none}#rbInicio .ptModo.ptModoC2{padding-inline-start:.8em}
+#rbInicio .ptModoFl{color:var(--jxA);width:1.1em;height:1.1em}
+#rbInicio[dir=rtl] .ptModoFl{transform:skewX(-12deg) scaleX(-1)}
+#rbInicio .ptModo:hover .ptModoF{border-color:rgba(242,179,27,.75)}
+#rbInicio .ptModo:active{transform:skewX(-12deg) translateY(2px)}#rbInicio[dir=rtl] .ptModo:active{transform:skewX(12deg) translateY(2px)}
+#rbInicio .ptModo:focus-visible .ptModoF{border-color:#fff;box-shadow:inset 0 0 0 1px #fff,0 0 0 3px rgba(242,179,27,.7)}
+/* JUGAR: grande, inclinado y amarillo; brillo arriba, canto abajo y unas franjas de velocidad a la derecha */
+#rbInicio .ptJugar{position:relative;display:flex;align-items:center;justify-content:center;gap:calc(var(--hj)*.16);height:var(--hj);margin:0 calc(var(--hj)*.11);padding:0 1.1em;border:0;background:none;isolation:isolate;
+  color:#17130a;transform:skewX(-12deg)}
+#rbInicio .ptJugar>*{transform:skewX(12deg)}
+#rbInicio[dir=rtl] .ptJugar{transform:skewX(12deg)}#rbInicio[dir=rtl] .ptJugar>*{transform:skewX(-12deg)}
+#rbInicio .ptJugarF{position:absolute;inset:0;z-index:-1;transform:none!important;background:linear-gradient(180deg,#ffe486 0%,#ffcc3d 40%,#f2b31b 54%,#d99a0b 100%);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.7),inset 0 -5px 0 rgba(120,66,0,.42),inset 0 0 0 1px rgba(255,240,190,.5),0 5px 0 #6b4806,0 0 0 2px rgba(10,10,10,.55),0 10px 24px rgba(0,0,0,.5)}
+#rbInicio .ptJugarR{position:absolute;inset-block:0;inset-inline-end:0;width:24%;z-index:-1;transform:none!important;background:repeating-linear-gradient(-60deg,rgba(255,255,255,0) 0 9px,rgba(255,255,255,.32) 9px 14px)}
+#rbInicio .ptJugarI{display:flex;align-items:center;justify-content:center;width:calc(var(--hj)*.5);height:calc(var(--hj)*.5);border-radius:50%;background:#17130a;color:var(--jxA);flex:none}
+#rbInicio .ptJugarI .gli{width:52%;height:52%;margin-inline-start:6%}
+#rbInicio .ptJugarT{display:block;min-width:0;overflow-x:clip;overflow-y:visible;white-space:nowrap;font:700 calc(var(--hj)*.44)/1.1 var(--jxF);text-transform:uppercase;letter-spacing:.07em}
+#rbInicio .ptJugar:hover .ptJugarF{background:linear-gradient(180deg,#fff0b0 0%,#ffd64f 40%,#ffc531 54%,#e7a612 100%)}
+#rbInicio .ptJugar:active{transform:skewX(-12deg) translateY(4px)}#rbInicio[dir=rtl] .ptJugar:active{transform:skewX(12deg) translateY(4px)}
+#rbInicio .ptJugar:active .ptJugarF{background:linear-gradient(180deg,#f2b31b,#d99a0b);box-shadow:inset 0 3px 6px rgba(90,50,0,.5),0 1px 0 #6b4806,0 0 0 2px rgba(10,10,10,.55)}
+#rbInicio .ptJugar:focus-visible .ptJugarF{box-shadow:inset 0 2px 0 rgba(255,255,255,.7),inset 0 -5px 0 rgba(120,66,0,.42),0 5px 0 #6b4806,0 0 0 3px #fff,0 0 0 7px rgba(242,179,27,.6)}
 </style></head>
 <body>
 <canvas id="cv"></canvas>
@@ -1860,7 +2082,9 @@ html.rot #pausa .pzGrid{grid-template-columns:repeat(3,1fr)}html.rot #pausa .pzC
     el.classList.add('va'); I.t0 = performance.now(); clearTimeout(tSeg); tSeg = setTimeout(fin, (DUR + 1.5) * 1000);
     // (el momento justo en que el compositor arrancó las animaciones, si el navegador lo dice)
     I.inicio = +(I.t0 / 1000).toFixed(3);
-    try { var a = el.getAnimations({ subtree: true })[0]; if (a && a.ready) a.ready.then(function () { if (a.startTime != null && !I.fin) { I.t0 = a.startTime; I.inicio = +(I.t0 / 1000).toFixed(3); } }); } catch (e) {}
+    // (si la intro termina antes de que la animación arranque —se saltea o el juego cargó—, ready se rechaza con AbortError:
+    // sin el catch quedaba un error sin atender; con la portada nueva el primer cuadro del menú pesa más y pasaba seguido)
+    try { var a = el.getAnimations({ subtree: true })[0]; if (a && a.ready) a.ready.then(function () { if (a.startTime != null && !I.fin) { I.t0 = a.startTime; I.inicio = +(I.t0 / 1000).toFixed(3); } }, function () {}); } catch (e) {}
   })();
 })();
 </script>

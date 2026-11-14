@@ -267,7 +267,8 @@ function dibujarLobby() {
   P.yaw = MENU.yaw; P.vel.set(0, 0, 0); P.suelo = true;
   if (typeof pjiLobbyAnim === 'function') pjiLobbyAnim(P);   // (la vista previa de Importar personaje: caminar, correr, saltar...)
   if (P.emote && P.emoteT > (P.emoteMax || 3)) P.emote = null;
-  animarPersona(P, TIEMPO.dt); dibujarPersona(P);
+  // (MENU.dt0: la portada quieta de los celulares flojos se redibuja sin mover al personaje, portada.js)
+  animarPersona(P, MENU.dt0 ? 1e-4 : TIEMPO.dt); dibujarPersona(P);
   if (!P.altoM) lobbyMedir(P);
 }
 // (GOLDEN) el escenario de Personajes (MENU.caja, rbmenus.js): el personaje se ubica para llenarlo, centrado a lo ancho, con
@@ -282,12 +283,14 @@ function lobbyRect(E) {
 function lobbyEncuadre(P) {
   const E = MENU.caja;
   if (!E || !E.isConnected || !E.offsetWidth || !E.offsetHeight || typeof RB === 'undefined' || !RB.el || RB.el.classList.contains('oc')) return null;
-  const r = lobbyRect(E), W = VW(), H = VH(), tv = Math.tan(Math.PI / 6), asp = W / H, k = P.tam || 1;
+  const r = E._rect || lobbyRect(E), W = VW(), H = VH(), tv = Math.tan(Math.PI / 6), asp = W / H, k = P.tam || 1;   // (_rect: el encuadre de la portada, si es más ancho que el hueco que se toca)
+  // (cada escenario puede traer su encuadre: el de la portada —portada.js— va más grande, casi de arriba a abajo)
+  const L = E._esc || LOBBY_ESC;
   // el alto del personaje en metros (de los pies a la coronilla, con el gorro): lo medido o, mientras tanto, uno común
   const alto = P.altoM || 1.82 * k, ancho = P.anchoM || 0.62 * k;
-  let px = (LOBBY_ESC.pies - LOBBY_ESC.arriba) * r.h;
-  px = Math.min(px, r.w * LOBBY_ESC.ancho * alto / ancho);   // (en un escenario angosto, lo que entra a lo ancho)
-  const d = alto * H / (2 * tv * px), pies = r.y + LOBBY_ESC.pies * r.h, nx = ((r.x + r.w / 2) / W) * 2 - 1, ny = 1 - (pies / H) * 2;
+  let px = (L.pies - L.arriba) * r.h;
+  px = Math.min(px, r.w * L.ancho * alto / ancho);   // (en un escenario angosto, lo que entra a lo ancho)
+  const d = alto * H / (2 * tv * px), pies = r.y + L.pies * r.h, nx = ((r.x + r.w / 2) / W) * 2 - 1, ny = 1 - (pies / H) * 2;
   MENU.encuadre = { r, d, px: +px.toFixed(1), alto, pies };
   return { x: LOBBY_CAM.x - nx * d * tv * asp, y: LOBBY_CAM.y + ny * d * tv + k, z: LOBBY_CAM.z + d };
 }

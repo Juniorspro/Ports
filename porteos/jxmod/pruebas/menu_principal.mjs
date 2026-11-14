@@ -1,10 +1,14 @@
 // El menú principal sin amontonar (captura del usuario en un celular apaisado de ~800×368: «Salir» quedaba debajo de los
-// botones de abajo y todo muy junto). En 5 pantallas (ese celular, uno chico 640×360, uno común 873×393, una tablet
-// 1180×820 y la compu 1366×768):
-//  1. ningún botón del menú se pisa con el logo, con los botones de abajo ni con la versión (con 8 px de aire) y todos
-//     se ven enteros adentro de la pantalla;
-//  2. las letras del menú miden al menos 14 px y los botones de abajo entran en el ancho;
-//  3. en la compu las letras quedan casi del tamaño del diseño (≥ 90 %: ya ahí «Salir» tocaba los chips) y sin deslizar;
+// botones de abajo y todo muy junto). Ahora el menú principal es la portada (juego/portada.js): las mismas
+// exigencias, medidas sobre sus bloques (arriba: el perfil, el logo y los íconos; a la izquierda las tarjetas; a la derecha
+// los accesos chicos; abajo las pestañas con la versión; abajo a la derecha el mapa elegido y JUGAR). En 5 pantallas (ese
+// celular, uno chico 640×360, uno común 873×393, una tablet 1180×820 y la compu 1366×768):
+//  1. ningún bloque se pisa con otro (con 8 px de aire), ningún botón se pisa con otro y todo se ve entero adentro de la
+//     pantalla (antes: la lista con el logo, los botones de abajo y la versión);
+//  2. las letras del menú miden al menos 14 px (los títulos de las tarjetas, las pestañas, JUGAR y el mapa elegido; antes,
+//     las 8 placas de la lista);
+//  3. en la compu todo queda del tamaño del diseño: sin ninguno de los pasos para achicar (ni letras achicadas, ni el logo
+//     escondido, ni las pestañas apretadas) —antes: la lista al ≥ 90 % y sin deslizar—;
 //  4. sin errores de JS.
 // uso: node menu_principal.mjs URL_HTML [CARPETA_FOTOS]
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
@@ -22,32 +26,29 @@ for (const [nom, w, h, movil] of PANT) {
   await ev(`PREFS.bienvenida = true; PREFS.tutVisto = true; PREFS.nombre = 'NijulaX'; idiomaAplicar('es'); guardarPrefs(); inicioMostrar(true); 1`);
   await p.waitForTimeout(1500);
   M[nom] = await ev(`(() => {
-    const el = RB.el, r = (e) => { const q = e.getBoundingClientRect(); return { x0: q.left, y0: q.top, x1: q.right, y1: q.bottom }; };
-    const items = [...el.querySelectorAll('.rbLista .rbIt')].map((e) => ({ t: e.textContent.trim(), ...r(e), f: parseFloat(getComputedStyle(e).fontSize) }));
-    const logo = r(el.querySelector('.rbLogo')), chips = [...el.querySelectorAll('.rbAbajo .rbChipG')].map(r), ver = r(el.querySelector('.rbVer'));
+    const U = PTD.ui, r = (e) => { const q = e.getBoundingClientRect(); return { x0: q.left, y0: q.top, x1: q.right, y1: q.bottom }; };
+    const vis = (e) => e && e.offsetWidth > 0 && !e.closest('.oc') && getComputedStyle(e).visibility !== 'hidden';
+    const une = (L) => L.filter(vis).map(r).reduce((a, q) => ({ x0: Math.min(a.x0, q.x0), y0: Math.min(a.y0, q.y0), x1: Math.max(a.x1, q.x1), y1: Math.max(a.y1, q.y1) }));
+    const B = { arriba: une([U.querySelector('.ptArriba')]), izquierda: une([U.querySelector('.ptIzq')]), derecha: une([...U.querySelectorAll('.ptCol .ptMini')]),
+      abajo: une([U.querySelector('.ptTabs'), U.querySelector('.ptVer')]), jugar: une([U.querySelector('.ptCartel'), U.querySelector('.ptModo'), U.querySelector('.ptJugar')]) };
     const pisa = (a, b, m) => a.x0 < b.x1 + m && b.x0 < a.x1 + m && a.y0 < b.y1 + m && b.y0 < a.y1 + m;
-    const L = el.querySelector('.rbLista'), lr = r(L), desliza = L.classList.contains('rbDesliza');
-    const probs = [];
-    for (const it of items) {
-      if (pisa(it, logo, 8)) probs.push(it.t + ' × logo');
-      for (const c of chips) if (pisa(it, c, 8)) probs.push(it.t + ' × chip');
-      if (pisa(it, ver, 8)) probs.push(it.t + ' × versión');
-      if (!desliza && (it.y0 < 0 || it.y1 > innerHeight || it.x1 > innerWidth)) probs.push(it.t + ' afuera');
-      if (desliza && (it.y0 < lr.y0 - 1 || it.y1 > lr.y1 + 1)) probs.push(it.t + ' tapado en la lista');
-    }
-    for (const c of chips) if (c.x1 > innerWidth + 1 || c.x0 < -1) probs.push('chip afuera');
-    for (const c of chips) if (pisa(c, ver, 4)) probs.push('chip × versión');
-    const ys = items.map((i) => i.y0);
-    return { W: innerWidth, H: innerHeight, k: +getComputedStyle(el).getPropertyValue('--rbK') || 1, fMin: Math.min(...items.map((i) => i.f)), desliza, n: items.length, probs,
-      aireArriba: +(items[0].y0 - logo.y1).toFixed(1), aireAbajo: +(Math.min(...chips.map((c) => c.y0)) - items[items.length - 1].y1).toFixed(1), salir: items.find((i) => /Salir/.test(i.t)) };
+    const probs = [], K = Object.keys(B);
+    for (let i = 0; i < K.length; i++) for (let j = i + 1; j < K.length; j++) if (pisa(B[K[i]], B[K[j]], 8)) probs.push(K[i] + ' × ' + K[j]);
+    const bt = [...U.querySelectorAll('button')].filter(vis).map((e) => ({ k: e.dataset.rb, ...r(e) }));
+    for (let i = 0; i < bt.length; i++) for (let j = i + 1; j < bt.length; j++) if (pisa(bt[i], bt[j], -1)) probs.push(bt[i].k + ' × ' + bt[j].k);
+    for (const e of bt) if (e.x0 < 0 || e.y0 < 0 || e.x1 > innerWidth || e.y1 > innerHeight) probs.push(e.k + ' afuera');
+    const letras = [...U.querySelectorAll('.ptCT, .ptTabT, .ptJugarT, .ptModoN, #rbNombre')].filter(vis).map((e) => ({ t: (e.textContent || e.value).trim(), f: parseFloat(getComputedStyle(e).fontSize) }));
+    const pasos = ['ptSinLogo', 'ptCuC', 'ptCol2', 'ptTabsC', 'ptTabsC2', 'ptMultiW'].filter((c) => U.classList.contains(c))
+      .concat([...U.querySelectorAll('.ptSinSub, .ptSwC, .ptModoC, .ptModoC2')].map((e) => e.className)).concat([...U.querySelectorAll('.ptFit')].filter((e) => e.style.fontSize).map((e) => 'achicado: ' + e.textContent.trim()));
+    return { W: innerWidth, H: innerHeight, probs, fMin: Math.min(...letras.map((x) => x.f)), chicas: letras.filter((x) => x.f < 14), pasos, n: bt.length };
   })()`);
   await p.screenshot({ path: D + 'menu_' + nom + '.png' });
   await ctx.close();
 }
 const R = Object.entries(M);
-caso('1. nada se pisa (con 8 px de aire) y todo se ve entero, en las 5 pantallas', R.every(([, m]) => !m.probs.length && m.n === 8), R.map(([k, m]) => ({ k, probs: m.probs, aireArriba: m.aireArriba, aireAbajo: m.aireAbajo, desliza: m.desliza })));
-caso('2. letras del menú de al menos 14 px', R.every(([, m]) => m.fMin >= 14), R.map(([k, m]) => ({ k, fMin: +m.fMin.toFixed(1), k2: m.k })));
-caso('3. en la compu casi del tamaño del diseño (≥ 90 %) y sin deslizar', M.compu && M.compu.k >= 0.9 && !M.compu.desliza, M.compu && { k: M.compu.k, fMin: M.compu.fMin });
+caso('1. nada se pisa (los bloques con 8 px de aire) y todo se ve entero, en las 5 pantallas', R.every(([, m]) => !m.probs.length && m.n >= 20), R.map(([k, m]) => ({ k, probs: m.probs, n: m.n })));
+caso('2. letras del menú de al menos 14 px', R.every(([, m]) => m.fMin >= 14), R.map(([k, m]) => ({ k, fMin: +m.fMin.toFixed(1), chicas: m.chicas })));
+caso('3. en la compu, del tamaño del diseño (sin ningún paso para achicar)', M.compu && !M.compu.pasos.length, M.compu && M.compu.pasos);
 const e2 = errJS.filter((e) => !/WebSocket|net::|Failed to load|Failed to fetch|NetworkError/i.test(e));
 caso('4. sin errores de JS', !e2.length, e2.slice(0, 4));
 console.log('RESUMEN ' + RES.filter(Boolean).length + '/' + RES.length);

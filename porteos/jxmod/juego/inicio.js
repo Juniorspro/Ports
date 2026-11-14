@@ -73,10 +73,9 @@ const RED_SOCIAL = [['Discord', 'https://discord.gg/bsdThEjje', '<svg viewBox="0
 function abrirRed(u) { try { if (window.JXNativo && JXNativo.abrir) { JXNativo.abrir(u); return; } } catch (e) {} window.open(u, '_blank', 'noopener'); }
 function inicioCrear() {
   const el = document.createElement('div'); el.id = 'rbInicio'; el.className = 'oc';
-  el.innerHTML = `<div class="rbBg"></div><div class="rbBg"></div><div class="rbSombra"></div>
-    <img class="rbLogo" alt="JXMod" src="${LOGO_RB}"><div class="rbLista"></div>
-    <div class="rbAbajo"></div><div class="rbVer"></div><div class="rbPan oc"></div>`;
-  document.body.appendChild(el); RB.el = el;
+  // (la portada —portada.js— va arriba del fondo de escenas, que queda para los paneles)
+  el.innerHTML = `<div class="rbBg"></div><div class="rbBg"></div><div class="rbSombra"></div><div class="ptHome oc"></div><div class="rbPan oc"></div>`;
+  document.body.appendChild(el); RB.el = el; ptdCrear(el.querySelector('.ptHome'));
   el.addEventListener('click', (e) => { const b = e.target.closest('[data-rb]'); if (!b || b.tagName === 'SELECT' || b.tagName === 'INPUT') return; audioIniciar(); inicioAccion(b.dataset.rb, b, e); });
   el.addEventListener('change', (e) => {
     const t = e.target;
@@ -99,49 +98,15 @@ function inicioCrear() {
   overlay('NicknamePanel', false); PREFS.nombreOk = true; guardarPrefs();
   rbArrastre();
 }
-// menú de texto como el de GMod: grupos separados por un espacio
+// la portada (portada.js): tu personaje en el escenario, el perfil, las tarjetas, las pestañas y JUGAR. (Antes, la 3.0:
+// una lista de texto como la de GMod y botoncitos abajo)
 function inicioLista() {
   RB.el.dir = PREFS.lang === 'ar' ? 'rtl' : 'ltr';
-  const G = [['nueva', 'multi', 'social'], ['tienda', 'crear', 'personajes', 'opciones'], ['salir']];
-  // (la 3.0: «Empezar partida nueva» es el botón principal, en el color de acento)
-  RB.el.querySelector('.rbLista').innerHTML = G.map((g) => g.map((k) => `<button class="rbIt${k === 'nueva' ? ' rbPri' : ''}" data-rb="${k}">${esc(T('m.' + k))}</button>`).join('')).join('<div class="rbSep"></div>');
-  const nm = modsTodos().filter((m) => PREFS.mods[m.id]).length, I = IDIOMAS_RB[PREFS.lang] || IDIOMAS_RB.en;
-  // abajo, placas del mismo alto: los mods, el idioma (el globo y el código; el nombre entero en la bienvenida), tu nombre
-  // y las redes (sólo el ícono)
-  RB.el.querySelector('.rbAbajo').innerHTML = `<button class="rbChipG" data-rb="tienda">${glifo('caja')} ${nm ? `${nm} ${esc(T(nm === 1 ? 'modAct1' : 'modsAct'))}` : 'Sandbox'}</button>
-    <button class="rbChipG" data-rb="idioma" title="${esc(I[0])}">${glifo('mundo')} ${esc(I[1])}</button>
-    <label class="rbChipG">${glifo('persona')} <input id="rbNombre" maxlength="16" spellcheck="false"></label>
-    ${RED_SOCIAL.map(([n, u, ic]) => `<button class="rbChipG rbRed" data-rb="red" data-url="${u}" title="${n}" aria-label="${n}">${ic}</button>`).join('')}`;
-  const inp = RB.el.querySelector('#rbNombre'); inp.value = PREFS.nombre || '';
-  inp.oninput = () => nombrePoner(inp.value);
-  // la versión (JXMod 3.0) y el día del armado; tocándola o con el mouse encima, también la hora
-  const ver = RB.el.querySelector('.rbVer'); ver.innerHTML = `JXMod <b>${esc(VERSION_RB)}</b> <i>${esc(ARMADO_RB.split(' ')[0])}</i>`; ver.title = `JXMod ${VERSION_RB} · ${ARMADO_RB}`;
-  if (typeof cuentaPintar === 'function') cuentaPintar();   // (el chip de la cuenta de Google)
+  ptdDibujar();
   if (typeof socGlobito === 'function') socGlobito();   // (lo nuevo de lo social: mensajes y solicitudes)
-  inicioEncajar();
 }
-// la lista entre el logo y los botones de abajo, sin pisarse (en un celular apaisado de 360 de alto la lista entera no
-// entraba y «Salir» quedaba debajo de los chips): si no entra, las letras y los espacios se achican juntos (--rbK) hasta
-// donde se lee bien (14 px); si ni así entra, la lista se desliza. Con el tamaño del diseño, en una pantalla alta no
-// cambia nada. Medido con offsetTop/offsetHeight: con la pantalla girada por el juego, getBoundingClientRect no sirve
-function inicioEncajar() {
-  const el = RB.el; if (!el || el.classList.contains('oc')) return;
-  const L = el.querySelector('.rbLista'), logo = el.querySelector('.rbLogo'), ab = el.querySelector('.rbAbajo'); if (!L || !logo || !ab || L.classList.contains('oc')) return;
-  const H = el.clientHeight || VH(), gap = Math.max(8, H * 0.025);
-  const arriba = logo.offsetTop + logo.offsetHeight + gap, abajo = (ab.offsetHeight ? ab.offsetTop : H) - gap, lugar = Math.max(60, abajo - arriba);
-  el.style.setProperty('--rbK', '1'); L.style.top = arriba + 'px'; L.style.maxHeight = ''; L.classList.remove('rbDesliza');
-  const alto = L.offsetHeight;
-  if (alto > lugar) {
-    const it = L.querySelector('.rbIt'), f0 = it ? parseFloat(getComputedStyle(it).fontSize) || 16 : 16, kMin = Math.min(1, 14 / f0);
-    // (un poco menos de lo justo: los altos se redondean a píxeles enteros y por medio píxel la lista se deslizaba)
-    let k = Math.max(kMin, 0.985 * lugar / alto); el.style.setProperty('--rbK', k.toFixed(3));
-    for (let i = 0; i < 5 && L.offsetHeight > lugar && k > kMin; i++) { k = Math.max(kMin, 0.985 * k * lugar / L.offsetHeight); el.style.setProperty('--rbK', k.toFixed(3)); }
-    if (L.offsetHeight > lugar + 1) { L.style.maxHeight = lugar + 'px'; L.classList.add('rbDesliza'); }
-  }
-  // (centrada en el lugar que queda, si sobra: no pegada al logo con un hueco grande abajo)
-  const sobra = lugar - L.offsetHeight; if (sobra > gap * 2) L.style.top = (arriba + Math.min(sobra / 2, H * 0.04)) + 'px';
-}
-addEventListener('resize', () => setTimeout(inicioEncajar, 60));
+// (que todo entre en la pantalla: portada.js)
+function inicioEncajar() { ptdEncajar(); }
 function nombrePoner(v) { PREFS.nombre = limpioNombre(v); guardarPrefs(); const nick = nodo('Main/MainMenu/UpPanel/NickNameInputField'); if (nick && nick.inp) nick.inp.value = PREFS.nombre; }
 function inicioFondoPasar() {
   const capas = RB.el.querySelectorAll('.rbBg'), lista = FONDOS_RB.length ? FONDOS_RB : MAPAS.map((m) => icono(MAPA_ICONO[m]));
@@ -150,14 +115,12 @@ function inicioFondoPasar() {
 }
 function inicioPanel(p) {
   RB.panel = p; const P = RB.el.querySelector('.rbPan');
-  for (const s of ['.rbLista', '.rbLogo', '.rbAbajo']) RB.el.querySelector(s).classList.toggle('oc', !!p);
-  if (!p) requestAnimationFrame(inicioEncajar);
+  // (sin panel, la portada con tu personaje en el escenario; con un panel, el fondo de escenas de siempre)
+  ptdMostrar(!p);
   // (crear un mod y publicar una construcción se abren desde la tienda: llevan su mismo estilo)
   P.classList.toggle('oc', !p); P.className = 'rbPan' + (p ? ' rbPan_' + p + (p === 'pubmod' || p === 'pubmapa' ? ' rbPan_tienda tiForm' : '') : ' oc');
-  // (la versión de abajo a la derecha se asomaba por debajo del panel de la tienda, que llega casi hasta el borde)
-  RB.el.querySelector('.rbVer').classList.toggle('oc', P.classList.contains('rbPan_tienda'));
-  // (el personaje en 3D sólo en personajes: en el resto, el fondo de siempre)
-  if (p !== 'personajes') { RB.el.classList.remove('rb3d'); menuLobby(false); MENU.caja = null; }
+  // (el personaje en 3D sólo en la portada y en Personajes: en el resto, el fondo de siempre)
+  if (p !== 'personajes') { RB.el.classList.remove('rb3d'); if (p) { menuLobby(false); MENU.caja = null; } }
   if (p !== 'multi' && typeof mpClaveNo === 'function') mpClaveNo();
   if (!p) return;
   if (p === 'multi') return panelMulti(P);
@@ -523,6 +486,7 @@ function mapaDelForm() {
 }
 function inicioAccion(k, b) {
   const [a, v] = k.split(/:(.*)/s);
+  if (ptdAccion(a, v)) return; // (lo propio de la portada: Jugar, las tarjetas y los contadores: portada.js)
   if (rbMenusAccion(a, v)) return; // (multijugador, crear server y personajes: rbmenus.js)
   if (typeof gmTiendaAccion === 'function' && gmTiendaAccion(a, v)) return; // (la pestaña GMod de la tienda: gmod_tienda.js)
   const marcar = () => b.classList.toggle('sel');
@@ -590,7 +554,7 @@ function inicioMostrar(si) {
     if (!RB.reloj) { inicioFondoPasar(); RB.reloj = setInterval(() => { if (!RB.el.classList.contains('oc')) inicioFondoPasar(); }, 9000); }
   }
   if (RB.el) RB.el.classList.toggle('oc', !si);
-  if (si) requestAnimationFrame(() => { inicioEncajar(); tiEncajar(); });
+  if (si) { ptdMostrar(!RB.panel); requestAnimationFrame(() => { inicioEncajar(); tiEncajar(); }); } else ptdMostrar(false);
   // (en la partida, con el menú abierto la HUD táctil no se ve: si no, se asoma por las partes transparentes del menú)
   document.body.classList.toggle('rbAbierto', !!si);
   if (!si && RB.el) { RB.el.classList.remove('rb3d'); menuLobby(false); MENU.caja = null; }

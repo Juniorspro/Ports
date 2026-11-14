@@ -77,8 +77,9 @@ const desborde = (A) => A.ev(`(() => { const P = document.querySelector('.rbPan_
 
 const A = await aparato(SA, false), B = await aparato(SB, true);
 // ---- el menú: Social y su globito ----
-const menu = await A.ev(`(() => { const it = RB.el.querySelector('.rbIt[data-rb=social]'); return { hay: !!it, txt: it && it.textContent.trim(), dlg: !!document.querySelector('#cuDlg:not(.oc)') }; })()`);
-ok('el menú principal tiene «Social» y con sesión no pide entrar', menu.hay && /Social/.test(menu.txt) && !menu.dlg, menu);
+// (la portada nueva tiene Social en dos íconos de arriba: Amigos —con las solicitudes— y Chats —con lo sin leer—)
+const menu = await A.ev(`(() => { const a = PTD.ui.querySelector('.ptAmigos'), c = PTD.ui.querySelector('.ptChats'); return { hay: !!a && !!c, txt: a && [a.title, c.title], ok: !!a && a.title === T('so.amigos') && c.title === T('so.chats'), dlg: !!document.querySelector('#cuDlg:not(.oc)') }; })()`);
+ok('el menú principal tiene Social (Amigos y Chats) y con sesión no pide entrar', menu.hay && menu.ok && !menu.dlg, menu);
 // ---- perfil ----
 await A.ev(`inicioAccion('social'); 1`); await A.p.waitForTimeout(600); await tab(A, 'perfil');
 await esperar(A.p, `!!document.querySelector('.soId b') && /\\d{8}/.test(document.querySelector('.soId b').textContent)`);
@@ -107,8 +108,8 @@ await A.p.screenshot({ path: 'social_buscar_pc.png' });
 ok('Buscar (compu): nada desbordado', !(await desborde(A)).length, await desborde(A));
 // ---- Beto: globito y aceptar ----
 await B.ev(`SOC.latir(); 1`); await esperar(B.p, `SOC.badge >= 1`);
-const glo = await B.ev(`(() => { const e = RB.el.querySelector('.rbIt[data-rb=social] .soBadge'); return e ? e.textContent : null; })()`);
-ok('a Beto le aparece el globito en «Social» con la solicitud', glo === '1', glo);
+const glo = await B.ev(`(() => { const e = PTD.ui.querySelector('.ptAmigos .soBadge'); return e ? e.textContent : null; })()`);
+ok('a Beto le aparece el globito en «Amigos» con la solicitud', glo === '1', glo);
 await B.ev(`inicioAccion('social'); 1`); await B.p.waitForTimeout(600); await tab(B, 'amigos');
 await esperar(B.p, `!!document.querySelector('[data-rb="soc:sub|sol"]')`); await clic(B, '[data-rb="soc:sub|sol"]'); await esperar(B.p, `!!document.querySelector('[data-rb="soc:amigo|aceptar|${PA}"]')`);
 await B.p.screenshot({ path: 'social_solicitudes_celu.png' });
@@ -208,8 +209,10 @@ ok('desbloquear la saca de «Bloqueados» (y vuelve a aparecer al buscar)', !(aw
 await A.ev(`inicioPanel(null); 1`); await A.p.waitForTimeout(300); LENTO = 1800;
 await A.ev(`SOC.tab = 'perfil'; SOC.yo = null; inicioPanel('social'); 1`); await A.p.waitForTimeout(250);
 await clic(A, '.rbPan_social [data-rb=volver]'); await A.p.waitForTimeout(2600); LENTO = 0;
-const lento = await A.ev(`({ rb3d: RB.el.classList.contains('rb3d'), lobby: !!MENU.lobby, panel: RB.panel || null, lista: !RB.el.querySelector('.rbLista').classList.contains('oc') })`);
-ok('con internet lento, entrar al Perfil y volver enseguida deja el menú como estaba (sin el personaje en 3D ni el fondo crema)', !lento.rb3d && !lento.lobby && !lento.panel && lento.lista, lento);
+// (la portada nueva tiene su propio personaje en el escenario: tiene que quedar ése —en su lugar, MENU.caja—, no el
+// del Perfil con el fondo crema)
+const lento = await A.ev(`({ rb3d: RB.el.classList.contains('rb3d'), lobby: !!MENU.lobby, enPortada: MENU.caja === PTD.esc, panel: RB.panel || null, portada: ptdVisible() })`);
+ok('con internet lento, entrar al Perfil y volver enseguida deja el menú como estaba (la portada con su personaje, sin el fondo crema del Perfil)', !lento.rb3d && lento.lobby && lento.enPortada && !lento.panel && lento.portada, lento);
 await A.p.screenshot({ path: 'social_volver_lento.png' });
 // ---- sin sesión / sin configurar ----
 const sin = await llamar('/api/social/yo'), sinConf = await llamar('/api/social/yo', { headers: { Authorization: 'Bearer ' + SA.token } }, { DB });

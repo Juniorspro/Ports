@@ -3327,3 +3327,151 @@ Pendiente: los adornos que el Lua pega a la vista (SWEP Construction Kit) no lle
 en las armas con FOV chico quedan corridos (el globo del Water Balloon, a unas 15 unidades de la palma); las armas
 propias de HL2 siguen con su brazo v_ (traje HEV); sin el color de jugador (PlayerColor) en las mangas;
 `Player:GetHands()` sigue sin entidad. Sin probar en un celular de verdad (emulado 873×393). Fotos, fuera del repo.
+
+## Portada nueva del menú principal (pedido del dueño: «una interfaz nueva así… mejores botones con diseño»)
+
+El dueño mandó una captura de la pantalla principal de otro juego de tiros de celular y pidió «hagamos una interfaz
+nueva así, vos ordenás y diseñás mejores botones con diseño en los botones». De la captura se tomó **sólo la
+distribución y la sensación**: nada de su nombre, su logo, su artista ni sus imágenes. Todo lo que se ve es de JXMod:
+tu personaje en 3D, las fotos de las pantallas de carga, las escenas del evento de la grieta, el render de la Physics
+Gun del juego y los íconos de `iconos.js`. No se usó nada extraído.
+
+**Qué hay y dónde** (`juego/portada.js`; los paneles —Empezar partida nueva, Multijugador, Social, la tienda, Crear,
+Personajes…— son los de siempre: la portada reemplaza la lista de texto y los botones de abajo del menú 3.0):
+- **En el centro, tu personaje** grande (de la coronilla al 3,5 % del escenario a los pies al 94 %: 76 % del alto en el
+  celular) parado en un escenario: una pantalla gigante de puntos de LED que muestra **el mapa elegido** (su foto de
+  la pantalla de carga), torres y un puente de luces, haces de luz y una base con el filo amarillo. El escenario va
+  **detrás del lienzo del juego** (`#ptFondo`, antes de `#cv`), que en la portada se borra transparente
+  (`dibujarMenu` y `pantFinCuadro`, con `R.alfaLibre`). Se gira arrastrándolo; tocarlo abre Personajes.
+- **Arriba a la izquierda, el perfil**: tu personaje (abre Personajes), tu nombre (se escribe ahí mismo, es el mismo
+  `#rbNombre`), el nombre de tu personaje y, si la tienda tiene las cuentas prendidas, el botón de Google (`.cuChip`,
+  `cuenta.js`).
+- **Arriba al medio, el logo** (`.rbLogo`: el tuyo, si elegiste uno en Ajustes).
+- **Arriba a la derecha, los contadores que existen de verdad** (nada de monedas): los mods activos (abre los
+  instalados) y los addons de GMod instalados (abre los instalados de GMod); y los íconos Amigos (con el globito de las
+  solicitudes), Chats (con lo sin leer), Idioma (con su código), Ajustes y Salir.
+- **A la izquierda, las tarjetas con arte**: Workshop de GMod (la Physics Gun asomándose y el logo de GMod) | Emotes
+  (las calcomanías de la fiesta y el saludo), las dos con el cartel «Nuevo» hasta que las abrís (`PREFS.ptVisto`);
+  Multijugador (una pantalla de carga de fondo, el aro con los que están **en línea** según la lista de servers —gris
+  sin conexión— y al costado «+», Crear server); y el Evento de la grieta (la escena del evento y el interruptor:
+  prende y apaga `PREFS.evento`, lo mismo que Ajustes → Renderizado).
+- **A la derecha, los accesos chicos**: Tutorial, Discord, TikTok y Actualizar: en la app busca una versión nueva
+  (`JXNativo.buscarActualizacion`, avisa si ya está la última); en la web aparece sólo si apareció el botón suelto de
+  `codigo_web.mjs` (que en el menú se esconde: abajo a la derecha tapaba JUGAR) y lo aprieta.
+- **Abajo, las pestañas** Personajes · Mods y mapas · Crear mapa (nombres cortos propios, `pt.tab*`) y la versión con
+  el día del armado (`.ptVer`).
+- **Abajo a la derecha, el mapa elegido** (su foto, «Un jugador», el nombre, de quién es, la hora y el modo de GMod; el
+  cartelito de arriba dice cuántos mods van) —tocarlo abre Empezar partida nueva, con el mapa, la hora y el modo— y
+  **JUGAR**, que entra directo a ese mapa.
+
+**Por qué ese orden.** Con el celular acostado se juega con los dos pulgares: lo que más se toca va en las esquinas de
+abajo. JUGAR, lo más usado, abajo a la derecha (el pulgar derecho), con el mapa arriba para saber adónde entra. Las
+secciones de siempre (personaje, mods, crear) son pestañas abajo a la izquierda (el pulgar izquierdo). Las tarjetas
+grandes son lo que hay para ver y descubrir (Workshop, Emotes, jugar con otros, el evento), con su arte. Lo que se
+toca poco y no se tiene que tocar sin querer (idioma, ajustes, salir) va arriba a la derecha, lejos de JUGAR. Cada
+cosa está una sola vez, salvo Personajes (la pestaña, tu foto y tu personaje: las tres cosas que uno toca para eso).
+Del menú anterior a la portada nada queda más lejos y varias cosas quedan más cerca (la prueba hace la tabla):
+
+| Qué | Toques antes | Ahora |
+|---|---|---|
+| Jugar el último mapa | 2 (Empezar partida nueva → Empezar) | 1 (JUGAR) |
+| Crear un server | 2 (Multijugador → Crear server) | 1 (+) |
+| Amigos y solicitudes | 2 (Social → Amigos) | 1 |
+| Los mods instalados | 2 (el botón de mods → Instalados) | 1 |
+| Workshop de GMod / Emotes | 2 (Mods y mapas → la pestaña) | 1 |
+| Addons de GMod instalados | 3 | 1 |
+| Tutorial | 3 (Opciones → Controles y audio → Tutorial) | 1 |
+| Prender o apagar el evento | 3 (Opciones → Renderizado → interruptor) | 1 |
+
+Lo demás queda igual (un toque, o dos la red local): Empezar partida nueva, Multijugador, Chats, la tienda, Crear un
+mapa, Personajes, Opciones, Idioma, tu nombre, la cuenta, Discord, TikTok y Salir.
+
+**Botones con diseño.** Nada de rectángulos planos: esquinas cortadas en ángulo (`clip-path`); un marco con brillo (un
+degradado claro que con el mouse se vuelve amarillo) y adentro el relleno con degradado o con el arte; un brillo de luz
+arriba y un canto abajo (la sombra dura que se hunde al tocar); JUGAR inclinado, con brillo, canto, el círculo de
+«play» y franjas de velocidad; carteles «Nuevo» inclinados y globitos rojos con números. Cada botón tiene su estado
+con el mouse encima, apretado (se hunde) y con el foco del teclado o del mando (un aro blanco y amarillo). Letra Oswald
+en mayúsculas para la interfaz y Roboto para los nombres; el amarillo de JXMod (`--jxA`, #f2b31b) sólo para JUGAR,
+lo elegido y lo nuevo. Todo fijo: sin animaciones que no paren ni filtros (`filter`, `backdrop-filter`).
+
+**Celular primero.** Los tamaños salen del alto real del juego (`--vh`) con mínimos (40 px para tocar, 12 px de letra)
+y los costados respetan la muesca (`env(safe-area-inset-*)`; con el juego girado, el borde de siempre). Si algo no
+entra, `ptdEncajar` lo arregla por pasos y mide cada vez (con `offsetLeft/Top`, que sirven con el juego girado):
+achica la letra de lo que no entra de a medio píxel hasta 12; esconde el logo; deja la cuenta con su ícono; pasa la
+columna de la derecha a dos; en el Evento deja el interruptor sin su palabra; saca la línea de abajo de una tarjeta o
+«de quién es» del mapa (queda en el globito); y si las pestañas no dejan lugar para el personaje (0,53 del alto del
+escenario: su ancho con los brazos más aire) les pone el ícono arriba y les achica la letra de 14 a 12 px. El hueco que
+se toca del escenario nunca se pisa con nada; si queda angosto, el personaje se encuadra en uno más ancho
+(`MENU.caja._rect`, `lobbyEncuadre`). En árabe todo se espeja y sin espacio entre letras (cortaba la escritura ligada).
+
+**Teclado y mando** (el menú 3.0 no se podía usar con el teclado: el juego se quedaba con el Tab): en la portada, las
+flechas van al botón más cercano en esa dirección, Tab y Mayús+Tab en orden y Enter elige (sin foco, la primera flecha
+va a JUGAR); con un mando, la cruceta o la palanca mueven, A elige y B vuelve de un panel a la portada (sólo se lee el
+mando mientras hay uno conectado).
+
+**Rendimiento.** El menú 3.0 borraba el lienzo 30 veces por segundo y movía la foto del fondo (la animación `rbKen`),
+así que la GPU componía la pantalla ~50 veces por segundo. En la portada el fondo es fijo (se pinta una vez) y en
+**Gráficos bajos y Patata** —los celulares flojos— el personaje queda quieto: se anima al aparecer, al saludar y
+mientras lo girás (y 2,5 s después); el resto del tiempo el lienzo se queda con el último cuadro y una vez por segundo
+se redibuja sin moverlo, por si llegó una textura (`ptdSaltarCuadro`). Lo mismo si el aparato pide menos movimiento.
+En las otras calidades se anima, salvo que el menú no llegue a 24 cuadros por segundo tres segundos seguidos
+(`PTD.lento`). Medido en `pruebas/menu_nuevo.mjs` (873×393 a 2×, procesador 4× más lento, corridas alternadas):
+
+| Gráficos bajos (3 corridas por lado) | menú 3.0 | portada |
+|---|---|---|
+| Cuadros por segundo del juego (el menú tiene tope de 30) | 28,6 | 30,0 |
+| Cuadros por segundo de la página | 50,2 | 60,0 |
+| ms de JavaScript del juego por cuadro | 1,16 | 1,20 |
+| ms del hilo principal por cuadro de la página | 4,80 | 1,66 |
+| ms del hilo principal por segundo | 241 | 100 |
+| Cuadros que compone la GPU por segundo (traza de Chrome) | 47,5 | 0,9 |
+
+Con **Gráficos medios** (el personaje animado; 2 corridas por lado) cuesta más: 4,19 ms de JS por cuadro contra 1,34 y
+21,6 cuadros por segundo del juego contra 29,0 en el procesador emulado (el lienzo lo dibuja SwiftShader con el mismo
+procesador, compartido con otras pruebas), aunque la GPU compone menos (16 por segundo contra 51) y el hilo principal
+trabaja menos por segundo (197 ms contra 219). En esa corrida el menú bajó de 24 cuadros y quedó quieto solo
+(`PTD.lento`), como tiene que pasar en un aparato que no da.
+
+**Otros archivos.** `inicio.js` (arma la portada en vez de la lista; los paneles muestran el fondo de escenas de
+siempre), `menu.js` (`lobbyEncuadre` con el encuadre de cada escenario), `principal.js` y `pantalla.js` (el lienzo
+transparente y el personaje quieto), `cuenta.js` (el botón de Google en el perfil), `social.js` (los globitos en
+Amigos y Chats), `red.js` (`listaContadores` avisa a la portada), `armar.py` (el módulo nuevo), `template.html` (el
+estilo, al final; se fueron las reglas de la lista y los botones del menú 3.0) e `idiomas3.js` (21 textos en los 14
+idiomas).
+
+**Pruebas.** `pruebas/menu_nuevo.mjs` (`node menu_nuevo.mjs URL_HTML [URL_ANTES] [CARPETA_FOTOS]`; `SOLO=2,3` corre
+sólo esas partes): el inventario (cada cosa del menú anterior y de sus paneles se toca en la portada —a la vista,
+entera y sin nada encima—, llega a donde tiene que llegar, en las mismas pantallas o menos, y al volver la portada
+queda con su personaje), siete pantallas (celular 873×393, 640×360, 800×368 y parado; tablet; compu 1280×720 y
+1920×1080), la muesca, el contraste medido en la imagen (se esconde el texto, se saca la foto y el 5 % de los puntos
+que menos contrastan con la letra tiene que dar ≥ 4,5), los 14 idiomas en el celular chico y en el común, teclado,
+mando, los estados de los botones, el rendimiento contra el menú anterior y sin errores de JS.
+Cambiadas porque medían el menú 3.0, con la misma exigencia sobre la portada:
+- `menu_principal.mjs`: los bloques (arriba, tarjetas, accesos, pestañas con la versión, JUGAR) sin pisarse con 8 px
+  de aire y ningún botón con otro; las letras del menú ≥ 14 px (títulos, pestañas, JUGAR, el mapa y tu nombre); en la
+  compu, sin ningún paso para achicar (antes: la lista al ≥ 90 % y sin deslizar).
+- `menu_30.mjs`: la versión (ahora la de `JX_VERSION`: decía «3.0» fijo y ya fallaba con la 3.3), la letra, la
+  alineación y el contraste sobre la portada (los textos principales ≥ 7); los 14 idiomas sin salirse ni partirse en
+  dos renglones. El punto 3 cambió de sentido: la 3.0 no quería degradados, sombras ni bordes y el dueño ahora pide
+  botones con esa forma; queda medido que no haya filtros ni desenfoques, animaciones sin fin ni sombras borrosas en
+  las letras, y que los degradados estén sólo en las capas de los botones, las tarjetas y el escenario.
+- `social.mjs` (Social, su globito y volver del Perfil, en los íconos de Amigos y Chats), `mods_sin_tienda.mjs` (Jugar
+  desde el mapa elegido) y `tienda.mjs` (sólo lo que imprime).
+
+Con la portada: `menu_nuevo` 77/77, `menu_principal` 4/4, `menu_30` 7/7, `tienda_panel` 24/24, `celulares` 9/9,
+`gmod_carpeta` 32/32 (con la página en `127.0.0.1`: la prueba corta todo lo demás), `menus_jx` 6/6, `menus_x` 6/6,
+`capas_menus` 9/9 (sin el juego viejo, que tiene que ser uno de antes del arreglo de `:has()`), `botones_golden` 13/13,
+`personajes_golden` 12/12, `cuenta_google` 22/22, `logo_propio` 5/5, `tutorial` 22/22, `fondos_30` 6/6, `identidad`
+12/12, `icono_app` 5/5 y `social` 42/42 (tres corridas seguidas). `mods_sin_tienda` no corre acá (necesita su servidor
+de Java aparte) e `intro_jx` da 6/7 igual que antes: su «primer cuadro < 0,5 s» depende de lo cargada que esté la
+máquina (el menú anterior, 0,26 y 0,64 s; con la portada, 0,57 y 0,64 s).
+**De paso, un error de la intro**: `social` fallaba en 4 de 6 corridas con un «The user aborted a request» sin dueño.
+Con la pila asíncrona (CDP) salió de la intro (`template.html`): `animación.ready.then(…)` sin `catch`; si la intro
+termina antes de que su animación arranque —se saltea o el juego ya cargó—, `ready` se rechaza. Con la portada el
+primer cuadro del menú pesa más (el personaje) y pasaba seguido; ahora se atiende el rechazo.
+
+Pendiente: no se probó en un celular de verdad (emulado, con SwiftShader); con Gráficos medios el personaje animado
+cuesta más que el menú anterior en el procesador emulado (ver la tabla); los Pill Packs no tienen tarjeta (se usan
+adentro de una partida, desde el menú de spawn); no hay renglón de chat o sala abajo a la izquierda como en la captura
+(en el menú no hay número de sala y los chats necesitan la cuenta: están a un toque, con lo sin leer en su globito; ahí
+va la versión). Fotos, fuera del repo.

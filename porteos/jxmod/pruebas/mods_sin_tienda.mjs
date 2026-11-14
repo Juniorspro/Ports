@@ -91,7 +91,7 @@ async function correr(app) {
   o.sinRed = await ev(`T('gm.sinRed')`);
   o.errRed = await ev(`[gmErrRed(new TypeError('Failed to fetch')).message, gmErrRed(new TypeError('Load failed')).message, gmErrRed(new Error('otra cosa')).message]`);
   // 3 y 5: Jugar desde el menú, con la pantalla de carga
-  await ev(`(() => { const b = document.querySelector('.rbLista [data-rb="nueva"]'); b.click(); return 1; })()`);
+  await ev(`(() => { const b = document.querySelector('.ptHome [data-rb="nueva"]'); b.click(); return 1; })()`);   // (el mapa elegido de la portada: abre Empezar partida nueva)
   await p.waitForSelector('[data-rb="empezar"]', { timeout: 15000 });
   const tj = Date.now();
   await p.click('[data-rb="empezar"]');

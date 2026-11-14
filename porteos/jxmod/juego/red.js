@@ -101,7 +101,8 @@ function listaSalas() {
   return [...M.values()].sort((a, b) => b.j.length - a.j.length || a.S.of - b.S.of || a.S.n.localeCompare(b.S.n));
 }
 // la lista se dibuja en el inicio: en el panel de multijugador y en la tarjeta de quién juega ahora (rbmenus.js)
-function listaContadores() {} // (las cuentas van en el título del panel Multijugador: mpDibujar)
+// (las cuentas van en el título del panel Multijugador —mpDibujar— y en la tarjeta de la portada: portada.js)
+function listaContadores() { if (typeof ptdEnLinea === 'function') ptdEnLinea(); }
 function listaDibujar() {
   listaContadores();
   if (typeof RB === 'undefined' || RB.panel !== 'multi') return;

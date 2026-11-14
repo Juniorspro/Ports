@@ -132,7 +132,8 @@ function pantMatriz(an, al, P) {
 function pantFinCuadro(usaPost) {
   const gl = R.gl, W = R.cv.width, H = R.cv.height;
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H);
-  gl.colorMask(false, false, false, true); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); gl.colorMask(true, true, true, true);
+  // (en la portada del menú el lienzo queda transparente donde no hay personaje: atrás está el escenario, portada.js)
+  if (!R.alfaLibre) { gl.colorMask(false, false, false, true); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); gl.colorMask(true, true, true, true); }
   const e = YT.fuente, ok = e && e.t === 'pantalla' && YT.ifr && JUEGO.estado === 'juego' && ENTS.lista.includes(e);
   let vis = false;
   if (ok) {

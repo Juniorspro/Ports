@@ -32,11 +32,8 @@ function socIniciar() {
   // (cada 60 s: antes cada 30, y el latido de todos los jugadores juntos llenaba el tope de pedidos por día de la tienda)
   SOC.latir = latir; setTimeout(latir, 4000); setInterval(latir, 60000);
 }
-function socGlobito() {
-  const b = typeof RB !== 'undefined' && RB.el && RB.el.querySelector('.rbIt[data-rb=social]'); if (!b) return;
-  let e = b.querySelector('.soBadge'); if (!SOC.badge) { if (e) e.remove(); return; }
-  if (!e) { e = document.createElement('em'); e.className = 'soBadge'; b.appendChild(e); } e.textContent = SOC.badge > 99 ? '99+' : SOC.badge;
-}
+// (en la portada: las solicitudes en Amigos y los mensajes sin leer en Chats, portada.js)
+function socGlobito() { if (typeof ptdGlobos === 'function') ptdGlobos(); }
 
 // ---- el panel ----
 function panelSocial(P) {
