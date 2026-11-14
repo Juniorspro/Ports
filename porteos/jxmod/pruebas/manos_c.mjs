@@ -92,15 +92,18 @@ if (s) await s.b.close();
 // ---- los criterios ----
 const anims = (r) => (r.medida && r.medida.anims ? Object.values(r.medida.anims) : []);
 const mx = (r, k) => Math.max(0, ...anims(r).map((a) => a[k]));
-const conManos = res.filter((r) => r.clase !== 'carms_v_pistola');
+// (una vista v_ trae sus brazos —la v_pistol de prueba, el guantelete de Thanos que del lado del cliente usa la v_pistol—:
+// no lleva manos; las demás son c_ y tienen que llevar las del personaje)
+const esV = (r) => !!(r.vista && /(^|\/)v_[^/]*$/.test(r.vista.ruta || ''));
+const conManos = res.filter((r) => !esV(r));
 ok('1. las armas c_ tienen manos (y son las del personaje)', conManos.every((r) => r.vista && r.vista.manos && r.vista.manos === r.esperadas), conManos.filter((r) => !(r.vista && r.vista.manos === r.esperadas)).map((r) => [r.pm, r.clase, r.vista && r.vista.manos, r.esperadas, r.fallo]));
 ok('2. huesos ≤ 0,01 u y ≤ 0,1°, piel ≤ 0,05 cm contra Source, en todos los cuadros', conManos.every((r) => anims(r).length && mx(r, 'huesoErr') <= 0.01 && mx(r, 'huesoGrados') <= 0.1 && mx(r, 'verticeErrCm') <= 0.05),
   conManos.map((r) => [r.pm, r.clase, mx(r, 'huesoErr'), mx(r, 'huesoGrados'), mx(r, 'verticeErrCm'), mx(r, 'antesErrCm')]).filter((x) => x[2] > 0.01 || x[3] > 0.1 || x[4] > 0.05));
 console.log('antes (3.2: el antepasado con la pose de enlace propia), cm de piel corrida como mucho:', Math.max(0, ...conManos.map((r) => mx(r, 'antesErrCm'))));
 ok('3. la palma y la empuñadura como en Source (≤ 0,05 cm en cada cuadro)', conManos.every((r) => mx(r, 'difRefCm') <= 0.05), conManos.map((r) => [r.clase, mx(r, 'difRefCm'), mx(r, 'huecoMaxR'), mx(r, 'saltoMaxCmR')]));
 const vp = res.find((r) => r.clase === 'carms_v_pistola');
-ok('4. la v_ con brazos no lleva otras manos', vp && vp.vista && !vp.vista.manos, vp && vp.vista);
-const propios = res.filter((r) => r.tinte && r.clase !== 'carms_v_pistola');
+ok('4. la v_ con brazos no lleva otras manos', vp && vp.vista && !vp.vista.manos && res.filter(esV).every((r) => !r.vista.manos), [vp && vp.vista, [...new Set(res.filter(esV).map((r) => r.clase))]]);
+const propios = res.filter((r) => r.tinte && !esV(r));
 ok('5. personajes del juego: manos teñidas con sus colores', propios.every((r) => r.vista && r.vista.tinte && r.vista.tinte.mangas && r.vista.tinte.manos), propios.map((r) => [r.pm, r.vista && r.vista.tinte]));
 ok('5b. sin errores de Lua', res.every((r) => !(r.errLua || []).length && !r.fallo), res.filter((r) => (r.errLua || []).length || r.fallo).map((r) => [r.pm, r.clase, r.errLua, r.fallo]));
 const c = res.find((r) => r.costo); if (c) console.log('costo', JSON.stringify(c.costo));
