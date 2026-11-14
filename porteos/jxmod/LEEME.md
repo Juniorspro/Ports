@@ -2252,6 +2252,39 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.3: lo del Discord después de la 3.2 (nextbots, armas custom, C_Arms, carpeta de mods y el S10e)
+
+Cinco mensajes del Discord (el detalle y los números de cada parte están en sus secciones, más abajo). Misma firma que
+la 3.2: quien ya tiene la 3.2 actualiza encima; quien sigue en la 3.1 tiene que desinstalarla antes (cambió la firma).
+
+- **Lo que rompió la 3.2** (Gumball): al juntar las ramas de la 3.2, el comentario de `SysTime` quedó en el medio de una
+  línea de `gmod_api.js` y se tragó `FrameTime`, `RealFrameTime`, `FrameNumber` y `VGUIFrameTime`. Por eso el Sanic
+  original «no mataba» (te alcanzaba y tiraba un error en cada golpe) y 46 de 127 armas de mods tiraban errores en cada
+  cuadro (FA:S, TFA, ArcCW, CW 2.0, ARC9, sables…). `pruebas/codigo_tragado.mjs` busca código adentro de comentarios en
+  todo `juego/`: en la 3.2 había 9 (algunos de la 2.9); ahora 0.
+- **Nextbots** (Gumball, «no se mueven», «no matan», «te ignoran»): matan otra vez (Sanic: 3.1 mata en 3,4 s, 3.2 no
+  mata, 3.3 en 3,5 s); en multijugador el dueño los manda 10 veces por segundo y los demás los ven moverse, animados, y
+  los matan aunque no haya PvP (antes los de imagen eran invisibles para los demás y los 3D quedaban quietos); no salen
+  como caja de madera mientras baja su modelo; los 15 NPCs del Terminator aparecen en el menú.
+- **Armas custom** (Gumball): andan en todo (se ven, disparan, apuntan, recargan, sin errores) 70/129 en la 3.1, 56/129
+  en la 3.2 y 100/129 en la 3.3; además piezas gigantes del SWEP Construction Kit, superpoderes que mueven al jugador
+  (Sonic 8 → 62 m/s, Iron Man vuela), Lua con finales de línea de Mac viejo y `Player:Give` (Prop Hunt con armas).
+- **C_Arms** (DEMO.29.06): las armas c_ usan las manos del modelo de jugador puesto (como `gmod_hands`); sin manos
+  registradas, las c_arms_citizen de GMod; los personajes del juego las llevan teñidas con su color. Muñeca y cúbito
+  como Source (error 0,00 cm; en la 3.2 la piel se corría hasta 29,7 cm). Costo por cuadro igual que la 3.2.
+- **Carpeta de mods** (TerminatorX): addons desarmados en carpetas como `garrysmod/addons` de la PC, sin internet. En
+  la app se elige una vez la carpeta (por ejemplo `JXMOD`) y se pegan los addons con cualquier gestor de archivos; en
+  la compu, «Elegir carpeta de mods». 142/142 archivos iguales byte por byte a su `.gma`.
+- **Galaxy S10e, S10 y S10+** (Exynos 9820 y Snapdragon 855) en la base de celulares: arrancan en Alto (el del Discord
+  juega a 60 fps en Alto).
+- **Las cuatro partes juntas**: al juntarlas, `gmvConstruir` seguía tomando las manos como una ruta
+  (`gmvEnCamino(manos)`) y las de C_Arms ahora son {modelo, piel, cuerpo}: un arma c_ con piezas todavía en camino
+  habría dado error. Arreglado al juntar. Pruebas sobre el juego con todo junto: armas de la tanda de la 3.2 32/34
+  (igual que cada parte sola), `manos_c` todos los criterios (47 casos: huesos 0,000 u, piel 0,00 cm),
+  `nextbots_red` 25/25, `nextbots_ia` 9/9 (la 3.2: 7/9), `gmod_carpeta` 32/32, `mods_habilitar` 9/9,
+  `tienda_panel` 24/24, `celulares` 9/9, `armas_gmod` 8/8, `gmod_mira_recarga` 7/7, `codigo_tragado` 0 y la página
+  con código 9/9.
+
 ## JXMod 3.2: lo del Discord (Pill Packs, botones y skins de GOLDEN, personajes fáciles, app, mapas y mods)
 
 Catorce mensajes del Discord juntos (el detalle y los números de cada parte están en sus secciones, más abajo).
