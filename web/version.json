@@ -1,8 +1,8 @@
 {
- "codigo": 3200,
- "version": "3.2",
+ "codigo": 3300,
+ "version": "3.3",
  "apk": "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXMod.apk",
  "web": "https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/index.html",
- "notas_es": "JXMod 3.2 — IMPORTANTE: esta vez desinstalá la app vieja antes de instalar la nueva (cambió la firma; si no, Android dice «App no instalada»). Novedades: Pill Packs que saltan, más rápidos y con ajustes de velocidad y recarga; botones y panel de Personajes nuevos (concepto de GOLDEN); importar tu propio personaje con rig automático; la app ya no sigue sonando al salir; arreglos de autos, nextbots, ascensores, la escopeta, la neblina de las nucleares y muchas armas de mods (SWEPs).",
- "notas_en": "JXMod 3.2 — IMPORTANT: this time uninstall the old app before installing the new one (the signature changed; otherwise Android says \"App not installed\"). New: Pill Packs that jump, run faster and have speed and cooldown settings; new buttons and Characters panel (GOLDEN's concept); import your own character with automatic rigging; the app no longer keeps playing sound after you leave; fixes for cars, nextbots, elevators, the shotgun, nuke fog and many mod weapons (SWEPs)."
+ "notas_es": "JXMod 3.3 — Si ya tenés la 3.2, se instala encima. Si seguís en la 3.1, desinstalala antes (cambió la firma). Novedades: los nextbots vuelven a matar y en multijugador se mueven y te persiguen a todos; muchas más armas de mods andan (100 de 129 probadas, antes 56) y las TFA ya no se bajan solas; las armas c_ usan las manos de tu modelo de jugador (C_Arms); carpeta de mods: pegá addons desarmados como en GMod de PC y se leen sin internet; Galaxy S10e, S10 y S10+ arrancan en gráficos Altos.",
+ "notas_en": "JXMod 3.3 — If you already have 3.2, it installs on top. If you are still on 3.1, uninstall it first (the signature changed). New: nextbots kill again and in multiplayer they move and chase everyone; many more mod weapons work (100 of 129 tested, before 56) and TFA weapons no longer lower themselves; c_ weapons use your player model's hands (C_Arms); mods folder: drop unpacked addons like in GMod on PC and they load without internet; Galaxy S10e, S10 and S10+ start on High graphics."
 }
