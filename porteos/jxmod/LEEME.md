@@ -2276,7 +2276,7 @@ antes.
 - **Pruebas sobre el juego con todo junto** (tres tandas a la vez en 4 núcleos): `menu_nuevo` 77/77, `menu_principal`
   4/4, `menu_30` 7/7, `social` 42/42, `bsmod` 56/58 (las dos que fallaron —una ejecución de costado que salió de frente
   y la de red que no bajó BSMod en 120 s— pasan solas: 2/2 y 4/4), armas de la tanda de la 3.2 32/34 y la muestra de 94
-  armas 67/94 (arma por arma igual que la 3.3 salvo la Brawlers, que ahora anda), `manos_c` (repetida aparte), `armas_gmod` 8/8,
+  armas 67/94 (arma por arma igual que la 3.3 salvo la Brawlers, que ahora anda), `manos_c` 6/6 (64 casos; en la tanda se cortó a los 40 min que le di y sola tarda 44), `armas_gmod` 8/8,
   `gmod_mira_recarga` 7/7, `nextbots_red` 25/25, `nextbots_ia` 8/9 en la tanda y 9/9 sola (el Cartoon Cat no rodeó la
   pared con la máquina cargada), `nextbots_tanda` igual que la 3.3, `gmod_carpeta` 32/32, `mods_habilitar` 9/9,
   `tienda_panel` 24/24, `celulares` 9/9, `codigo_tragado` 0.
