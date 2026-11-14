@@ -106,12 +106,19 @@ function gmbHabilidades(A) {
     if (/KeyPress|KeyDown|KeyPressed|KeyReleased/.test(p)) for (const m of p.matchAll(/\bIN_(ATTACK2|RELOAD|USE|ZOOM|WALK|SPEED|GRENADE1|GRENADE2|ALT1|ALT2)\b/g)) add({ k: 'in:' + m[1], t: { ATTACK2: '◎ 2', RELOAD: 'R', USE: 'E', ZOOM: 'Zoom', WALK: 'Alt', SPEED: 'Shift', GRENADE1: 'G1', GRENADE2: 'G2', ALT1: 'Alt1', ALT2: 'Alt2' }[m[1]], d: GMB_IN[m[1]] });
     if (arma) for (let i = n0; i < out.length; i++) out[i].arma = true;
   }
+  // los comandos que el mod pide poner en una tecla («bind <tecla> bsmod_kick», como dice el menú de BSMod) o que son de apretar
+  // y soltar (+comando): en GMod se atan a una tecla desde la consola, que acá no hay; son habilidades como las demás —botón
+  // en el celu y tecla en la compu (gmbCmdTecla)—. Antes sólo estaban entre los Comandos de su página y no se podían usar jugando
+  { const cs = luaSinComentarios(s), vistos = new Set();
+    for (const m of cs.matchAll(/concommand\.Add\s*\(\s*["']([^"'\s]{2,48})["']/g)) { const c = m[1]; if (vistos.has(c)) continue; vistos.add(c);
+      const re = new RegExp('\\bbind\\b[^\\n]{0,40}?' + c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+      if (c.startsWith('+') || re.test(s)) add({ k: 'cmd:' + c, t: c.replace(/^\+/, ''), d: c }); } }
   // (un mod que usa más de 15 teclas sueltas es un teclado —un piano, un chat propio—: esas no son botones)
   const sueltas = out.filter((h) => h.k.startsWith('key:'));
   const fin = sueltas.length > 15 ? out.filter((h) => !h.k.startsWith('key:')) : out;
   // (qué hace cada una: acciones.js lee el Lua de alrededor —con los comentarios: muchas veces dicen qué es la tecla—)
   if (typeof accDe === 'function') for (const h of fin) {
-    const tok = h.k.startsWith('bind:') ? '"' + h.d + '"' : h.k.startsWith('in:') ? 'IN_' + h.k.slice(3) : 'KEY_' + h.t.replace('Num ', 'PAD_');
+    const tok = h.k.startsWith('cmd:') ? h.d : h.k.startsWith('bind:') ? '"' + h.d + '"' : h.k.startsWith('in:') ? 'IN_' + h.k.slice(3) : 'KEY_' + h.t.replace('Num ', 'PAD_');
     try { h.acc = accDe(h.k, accVentanasDe(s, tok).concat(h.k.startsWith('bind:') ? accVentanasDe(s, "'" + h.d + "'") : [])); } catch (e) { h.acc = null; }
   }
   return (A._gmbHab = fin);
@@ -433,6 +440,7 @@ function gmbHab(k, on, el) {
   if (on) GMB.apretadas.add(k); else { if (!GMB.apretadas.has(k)) return; GMB.apretadas.delete(k); }
   if (el) el.classList.toggle('ap', on);
   const [tipo, ...r] = k.split(':'), d = r.join(':');
+  if (tipo === 'cmd') { if (on) gmaConsola2(d); else if (d.startsWith('+')) gmaConsola2('-' + d.slice(1)); return; }   // (un comando del mod, como su bind en GMod)
   if (tipo === 'bind') { if (on) gmbBind(d); return; }
   if (tipo === 'key') { if (on) CTL.teclasMod.add(d); else CTL.teclasMod.delete(d); return; }
   if (tipo === 'in') { const bit = GMB_IN[d] || 0; CTL.inMod = on ? CTL.inMod | bit : CTL.inMod & ~bit; }
@@ -504,6 +512,47 @@ function gmbFijosDibujar() {
   }
 }
 gmbFijosCargar();
+// (los botones de una acción que necesita algo adelante —la ejecución de BSMod: apuntarle, a menos de 100 unidades, a alguien
+// que el mod resalta con halo.Add—: aparecen sólo entonces, como el cartel de usar. Cada cuadro, desde gmod_anim.js)
+function gmbContextoPaso() {
+  const hay = typeof JUEGO !== 'undefined' && JUEGO.estado === 'juego' && !UI.abierto;
+  for (let i = 0; i < 6; i++) {
+    const d = $('bgmb' + i); if (!d || !d._f) continue;
+    if (d._accK !== d._f.k) { d._accK = d._f.k; d._acc = gmbAccDe(d._f.k); }
+    if (!d._acc || !ACC_CONTEXTO.has(d._acc.id)) continue;
+    const v = hay && gmbContextoListo(); d.classList.toggle('oc', !v); d.classList.toggle('accListo', v);
+  }
+  GMB.contexto = hay && gmbContextoListo();
+}
+const gmbContextoListo = () => typeof gmanApuntaResaltada === 'function' && !(typeof JUG !== 'undefined' && (JUG.bloqueado || !JUG.vivo || JUG.vehiculo)) && gmanApuntaResaltada(100);
+// las habilidades de comando en la compu: la de una acción con algo adelante, en la tecla de usar (cuando hay a quién: si no,
+// usar es lo de siempre); las demás, en la tecla de su acción (la patada en la G). Sus teclas se avisan al montar el mod
+function gmbCmdTecla(code) {
+  if (typeof GMOD === 'undefined') return null;
+  for (const A of GMOD.addons.values()) {
+    if (GMA.apagados && GMA.apagados.has(A.id)) continue;
+    for (const h of gmbHabilidades(A)) {
+      if (!h.k.startsWith('cmd:') || !h.acc) continue;
+      if (ACC_CONTEXTO.has(h.acc.id)) { if (code === ctlTeclaDe('usar') && gmbContextoListo()) return h; continue; }
+      if (ACC_TECLA_CMD[h.acc.id] === code) return h;
+    }
+  }
+  return null;
+}
+addEventListener('keydown', (e) => {
+  if (e.repeat || typeof JUEGO === 'undefined' || JUEGO.estado !== 'juego' || UI.abierto || (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName))) return;
+  const h = gmbCmdTecla(e.code); if (!h) return;
+  e.preventDefault(); e.stopImmediatePropagation(); GMB.teclaCmd = GMB.teclaCmd || new Map(); GMB.teclaCmd.set(e.code, h.k); gmbHab(h.k, true);
+}, true);
+addEventListener('keyup', (e) => { const k = GMB.teclaCmd && GMB.teclaCmd.get(e.code); if (!k) return; GMB.teclaCmd.delete(e.code); e.stopImmediatePropagation(); gmbHab(k, false); }, true);
+// (al montar un mod con habilidades de comando, en la compu: cuáles teclas son)
+function gmbAvisoTeclas(A) {
+  if ((typeof ENT !== 'undefined' && ENT.tactil) || (typeof COARSE !== 'undefined' && COARSE) || typeof aviso !== 'function') return;
+  const L = gmbHabilidades(A).filter((h) => h.k.startsWith('cmd:') && h.acc && (ACC_CONTEXTO.has(h.acc.id) || ACC_TECLA_CMD[h.acc.id]));
+  if (!L.length) return;
+  const t = L.map((h) => (ACC_CONTEXTO.has(h.acc.id) ? ctlNomTecla(ctlTeclaDe('usar')) + ': ' + accNombre(h.acc) + ' (' + T('gmb.cmdResaltado') + ')' : ctlNomTecla(ACC_TECLA_CMD[h.acc.id]) + ': ' + accNombre(h.acc))).join(' · ');
+  aviso((A.nombre || A.id) + ' — ' + t, 6);
+}
 
 // ---- la tienda de GMod desde una partida: en un server, la de GMod del server; jugando solo, la del menú (con Volver al juego) ----
 function abrirTiendaGmod() {

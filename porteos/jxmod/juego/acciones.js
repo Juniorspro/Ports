@@ -20,7 +20,10 @@ const ACC = [
   ['granada', 'Granada', 'Grenade', 'granada', ['grenade', 'granada', 'frag', 'throwable', 'molotov', 'flashbang'], 7],
   ['gancho', 'Gancho', 'Hook', 'enviar', ['grapple', 'grappling', 'gancho', 'hook shot', 'rope', 'zipline', 'swing'], 6],
   ['lanzar', 'Lanzar', 'Throw', 'enviar', ['throw', 'lanzar', 'tirar', 'toss', 'launch', 'yeet'], 6],
-  ['golpe', 'Golpe', 'Melee', 'cuchillo', ['melee', 'knife', 'cuchillo', 'stab', 'bash', 'punch', 'golpe', 'slash', 'kick', 'patada'], 7],
+  ['golpe', 'Golpe', 'Melee', 'cuchillo', ['melee', 'knife', 'cuchillo', 'stab', 'bash', 'punch', 'golpe', 'slash'], 7],
+  ['patada', 'Patada', 'Kick', 'pie', ['kick', 'patada', 'patear', 'stomp', 'dropkick'], 7],
+  // (las ejecuciones —killmoves de BSMod y parecidos—: el botón aparece sólo cuando hay a quién, ACC_CONTEXTO)
+  ['ejecutar', 'Ejecutar', 'Execute', 'calavera', ['killmove', 'kill move', 'takedown', 'take down', 'finisher', 'finishing move', 'execution', 'execute', 'fatality', 'glory kill', 'ejecuc', 'remate'], 9],
   ['poder', 'Poder', 'Power', 'rayo', ['force', '~power', 'ability', 'habilidad', 'poder', 'skill', 'spell', 'magic', 'ultimate', '~special', 'superpower'], 8],
   ['escudo', 'Escudo', 'Shield', 'escudo', ['shield', 'escudo', '~block', '~guard', 'parry', 'deflect', 'bloquear'], 6],
   ['modo', 'Modo', 'Mode', 'rafaga', ['firemode', 'fire mode', 'selectivefire', 'burst', 'semi', 'auto fire', '~mode', '~modo'], 5],
@@ -66,6 +69,9 @@ const ACC = [
   ['bloquear', 'Trabar', 'Lock', 'candado', ['lockon', 'lock on', 'trabar', 'fijar'], 4],
 ];
 const ACC_ID = new Map(ACC.map((a) => [a[0], a]));
+// (las que sólo sirven con algo adelante: su botón aparece cuando lo hay —gmod_panel.js, gmbContextoPaso— y en la compu van
+// en la tecla de usar; las demás de un comando, en la de su lista: la patada en la G)
+const ACC_CONTEXTO = new Set(['ejecutar']), ACC_TECLA_CMD = { patada: 'KeyG' };
 // (lo que la tecla ya significa en Source/GMod o por costumbre: suma de entrada, menos que el código)
 // (las IN_ que son una acción del motor —correr, caminar, recargar, zoom, granada— pesan mucho: el mod usa esa tecla para eso)
 const ACC_PREVIO = { 'in:ZOOM': ['zoom', 8], 'bind:+zoom': ['zoom', 8], 'in:RELOAD': ['recargar', 8], 'bind:+reload': ['recargar', 6], 'in:USE': ['usar', 5], 'bind:+use': ['usar', 5],
@@ -125,7 +131,7 @@ function accVentanasDe(s, tok) {
   }
   return L;
 }
-const accNombre = (a) => (a ? (PREFS.lang === 'es' || !PREFS.lang ? a.es : a.en) : '');
+const accNombre = (a) => { if (!a) return ''; const k = 'acc.' + a.id, t = typeof T === 'function' && typeof IDI3 !== 'undefined' && IDI3[k] ? T(k) : null; return t || (PREFS.lang === 'es' || !PREFS.lang ? a.es : a.en); };
 // el botón: el ícono de la acción, su nombre abajo y la tecla chiquita en la esquina; sin acción, la letra como antes
 function accBotonHTML(acc, tecla) {
   const t = String(tecla == null ? '' : tecla).slice(0, 6);

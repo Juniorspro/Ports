@@ -178,7 +178,7 @@ function gmLuaDesmontar() { gmaReiniciar(); for (const A of GMOD.addons.values()
 // archivo suyo que corrió otro addon antes —los plugins de VJ Base— no se pierde cuando después corre su propio Lua)
 function gmaListasDe(A) { if (!A.listas || A.listasGen !== GMA.gen) { A.listas = {}; A.listasGen = GMA.gen; } return A.listas; }
 function gmaReiniciar() {
-  if (typeof JUG !== 'undefined') JUG.congelado = false;   // (lo que congeló el Lua anterior no queda pegado)
+  if (typeof JUG !== 'undefined') { JUG.congelado = false; JUG.bloqueado = false; }   // (lo que congeló el Lua anterior no queda pegado)
   if (typeof gmbHerQuitarTodas === 'function') gmbHerQuitarTodas();
   for (const e of [...GMA.ents.values()]) if (e.tipo === 'ent' && e.o && !e.o.borrado && e.clase !== 'prop_physics') { try { borrarObjeto(e.o); } catch (x) {} }
   if (GMA.armasJug && typeof ARM !== 'undefined') for (const c of [...GMA.armasJug.keys()]) gmaQuitarArma(c);
@@ -201,6 +201,7 @@ function gmLuaPaso(dt) {
 function gmaPaso(dt) {
   const R = GMA.R, t = TIEMPO.t; R.cuadro = (R.cuadro || 0) + 1;
   if (typeof gmnbPaso === 'function') { try { gmnbPaso(dt); } catch (e) { gmaErr('nextbot: ' + ((e && e.message) || e)); } }
+  if (typeof gmanPaso === 'function') { try { gmanPaso(dt); } catch (e) { gmaErr('animación: ' + ((e && e.message) || e)); } }   // (las entidades animadas: gmod_anim.js)
   try { gmaArmasSuelo(); } catch (e) {}
   { const pj = GMA.jug && GMA.jug.punch; if (pj) { const k = Math.max(0, 1 - dt * 9); pj.p *= k; pj.y *= k; pj.r *= k; } }   // (el golpe de la vista vuelve a cero)
   // timers (uno por cuadro como mucho cada uno; 0 repeticiones = para siempre)

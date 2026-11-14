@@ -63,8 +63,11 @@ function hudArma() {
   $('muni').textContent = D.car ? `${ARM.balas[n]} | ∞` : '';
   const b = $('barra'); b.innerHTML = '';
   ARM.lista.forEach((x, k) => { const d = document.createElement('div'); d.className = 'ra' + (k === ARM.i ? ' sel' : ''); d.innerHTML = `<img src="${icA(DEF_ARMAS[x], x)}">${esc(DEF_ARMAS[x].nom || x)}`; d.onclick = () => { elegirArma(k); }; b.appendChild(d); });
+  if (ARM.calla) return;   // (la cambió el Lua de un mod —Player:SelectWeapon—: como en GMod, sin la barra de armas)
   b.classList.remove('oc'); ARM.barraT = 2.5; $('arribaDe').style.visibility = 'hidden';
 }
+// elegir un arma sin la barra ni el cartel (SelectWeapon de un mod: BSMod cambia de arma al empezar y al terminar la ejecución)
+function elegirArmaCallado(n) { if (!ARM.lista.includes(n)) ARM.lista.push(n); const i = ARM.lista.indexOf(n); ARM.calla = true; try { elegirArma(i); } finally { ARM.calla = false; } }
 // ---------------- de dónde sale el tiro ----------------
 // Lo que dispara el jugador (balas, perdigones, el cohete, la flecha, los golpes, la pistola física, la de gravedad y la
 // Tool Gun) sale de sus ojos y va hacia donde apunta él, como en GMod (GetShootPos y GetAimVector), no de la cámara de la
@@ -113,7 +116,7 @@ function impactoBala(o, d, D, dan) {
     const b = h.body; b.wake && b.wake();
     if (b.dynamic) b.applyVel(vscale(d, Math.min(8, dan * 0.6 / Math.max(1, b.mass * 0.05))), vsub(h.p, b.pos), 1);
     if (b.obj) danarObjeto(b.obj, dan, h.p, d);
-    if (b.persona) danarPersona(b.persona, dan, h.p, d, b);
+    if (b.persona) danarPersona(b.persona, dan, h.p, d, b, 'jug');
     if (b.verity) verEmpujon(b.verity, vscale(d, Math.min(9, 2 + dan * 0.25)), true); // (a Verity el tiro la empuja)
   }
 }
@@ -175,7 +178,7 @@ function golpeAplicar(D, h0) {
     // (la palanca empuja como en HL2: un cajón de 50 kg sale a ~1,4 m/s, algo liviano bastante más)
     if (b.dynamic) b.applyVel(vscale(f, D.empuje ? Math.min(D.empuje, b.mass * 7) : Math.min(10, D.dan * 4 / Math.max(1, b.mass * 0.2))), vsub(h.p, b.pos), 1);
     if (b.obj) danarObjeto(b.obj, D.dan, h.p, f);
-    if (b.persona) danarPersona(b.persona, D.dan, h.p, f, b);
+    if (b.persona) danarPersona(b.persona, D.dan, h.p, f, b, 'jug');
   }
 }
 function recargar() {
@@ -376,13 +379,13 @@ function armasPaso(dt) {
   if (ARM.golpeT > 0) { ARM.golpeT -= dt; if (ARM.golpeT <= 0) golpeAplicar(ARM.golpeD); }
   const n = ARM.lista[ARM.i], D = DEF_ARMAS[n];
   // (las que tienen animación de quieto, como la palanca, vuelven a ella cuando termina la otra)
-  if (ARM.v && D.quieto && ARM.v.clip && !ARM.v.loop && ARM.v.t >= ARM.v.clip.d) {
+  if (ARM.v && D.quieto && ARM.v.clip && !ARM.v.loop && !ARM.v.mantener && ARM.v.t >= ARM.v.clip.d) {
     if (D.tras && ARM.v.clip === DATA.anPorNombre[D.fuego]) vistaTocar(ARM.v, D.tras); else vistaTocar(ARM.v, D.quieto, { loop: true });   // (la escopeta: después del tiro, la corredera)
   }
   // (el celular en la compu: clic para usarlo con el mouse)
   if (D.tipo === 'celu' && !ENT.tactil && ENT.bloqueado && ENT.disparo && !CELM.foco && !UI.abierto) { ENT.disparo = false; celmFoco(true); }
   // (tirado como muñeco o en cuatro patas no se usan armas; en el creador el clic elige y pone)
-  if (!UI.abierto && JUG.vivo && !JUG.vehiculo && !NAT.rag && !NAT.scp && !(CREA.on && creadorPaso())) {
+  if (!UI.abierto && JUG.vivo && !JUG.vehiculo && !JUG.bloqueado && !NAT.rag && !NAT.scp && !(CREA.on && creadorPaso())) {
     if (D.tipo === 'fisica') {
       // en el celular un toque agarra y otro suelta (no hay que mantener); con el mouse, mantener como siempre
       const flanco = ENT.disparo && !ARM.fisAnt; ARM.fisAnt = ENT.disparo;

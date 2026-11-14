@@ -8,6 +8,8 @@ function icoSrc(v) { if (typeof v === 'string' && ICO_DATA.test(v)) return v; re
 function icoHTML(v, cl) { const s = icoSrc(v); return s ? `<img class="ico${cl ? ' ' + cl : ''}" src="${s}" alt="" draggable="false">` : ''; }
 // dibujos de 24×24 con trazo (o relleno donde hace falta)
 const GLIFOS = {
+  pie: '<path d="M8 2.5v8.5c0 1.5-.6 2.6-1.8 3.6l-1.7 1.4C3.3 17 3 18.3 3.6 19.4c.5.9 1.4 1.3 2.4 1.3h11.8c1.2 0 2.2-1 2.2-2.2 0-1.3-1-2.3-2.3-2.4l-3.4-.4c-1.4-.2-2.3-1.4-2.3-2.8V2.5z"/><path d="M8 6h4.2"/>',
+  calavera: '<path d="M12 2.8c-4.6 0-8 3.2-8 7.6 0 2.5 1.1 4.3 3 5.5v2.6c0 .9.7 1.6 1.6 1.6h6.8c.9 0 1.6-.7 1.6-1.6v-2.6c1.9-1.2 3-3 3-5.5 0-4.4-3.4-7.6-8-7.6z"/><circle cx="8.9" cy="11" r="1.9"/><circle cx="15.1" cy="11" r="1.9"/><path d="M12 13.5l-1 2h2zM10 20.1v-2.3M14 20.1v-2.3"/>',
   // (los de las acciones de las teclas de los mods: acciones.js)
   lupa: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M8 10.5h5M10.5 8v5"/>',
   linterna: '<rect x="2.5" y="10" width="8.5" height="4" rx="1"/><path d="M11 10l4.5-3v10L11 14z"/><path d="M15.5 7v10"/><path d="M18 9.2l3.5-1.4M18.5 12H22M18 14.8l3.5 1.4"/>',

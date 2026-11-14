@@ -236,6 +236,14 @@ function npcCerebro(P, dt) {
   if (b && b.held) { P.pos.copy(b.pos); P.vel.copy(b.vel); P.suelo = false; I.llevado = true; P.emote = null; npcGloboPaso(P); return; }
   if (I.llevado) { I.llevado = false; P.vel.copy(b.vel); b.frozen = true; b.vel.set(0, 0, 0); b.ang.set(0, 0, 0); b.q.set(0, 0, 0, 1); if (P.vel.len() > 9) { npcTumbar(P, P.vel.clone(), 0); return; } }
   if (b) { b.noRay = b.noPhys = false; b.noJug = !!(P.jntFin && TIEMPO.t < P.jntFin); }
+  // (congelado por el Lua de un mod —NPC:SetCondition(COND_NPC_FREEZE): BSMod deja quieto al que se puede ejecutar y al que se
+  // está ejecutando—: no piensa, no camina ni gira; sólo cae al piso si está en el aire)
+  if (P.gmCongelado) {
+    P.vel.x = 0; P.vel.z = 0; if (P.emote && P.emote !== 'Patada') P.emote = null; I.golpe = null;
+    const g = GRAV * MUNDO.gravedad; if (!P.suelo) P.vel.y -= g * dt; else if (P.vel.y < 0) P.vel.y = -0.5;
+    npcMover(P, dt); if (b) { b.pos.set(P.pos.x, P.pos.y, P.pos.z); b.q.set(0, 0, 0, 1); b.vel.set(0, 0, 0); b.updateWorld(); }
+    npcGloboPaso(P); return;
+  }
   // a quién: el hostil, al más cercano (o al que le pegó); el que defiende sigue a su protegido y pelea con lo que lo amenaza
   const def = a.modo === 'defender', ven = a.hostil ? npcVenganza(P) : null;
   const obj = ven || npcObjetivo(P), d = obj ? Math.hypot(obj.pos.x - P.pos.x, obj.pos.z - P.pos.z) : 1e9, hacia = obj ? v3(obj.pos.x - P.pos.x, 0, obj.pos.z - P.pos.z).norm() : null;
@@ -442,7 +450,7 @@ function npcGloboPaso(P) {
 // ---------------- la red: el dueño manda a sus NPC; los demás los ven y les pegan ----------------
 function npcRedMandar() {
   const l = NPC.lista.map((P) => [P.npcId, P.skinQuiere || P.skin, r3(P.pos.x), r3(P.pos.y), r3(P.pos.z), Math.round(P.yaw * 100) / 100, r3(P.vel.x), r3(P.vel.y), r3(P.vel.z),
-    (P.suelo ? 1 : 0) | (P.rag ? 2 : 0) | (P.vivo === false ? 4 : 0) | (P.act.hostil ? 8 : 0) | (P.act.modo === 'defender' ? 16 : 0), P.emote || '',
+    (P.suelo ? 1 : 0) | (P.rag ? 2 : 0) | (P.vivo === false ? 4 : 0) | (P.act.hostil ? 8 : 0) | (P.act.modo === 'defender' ? 16 : 0) | (P.gmOculto ? 32 : 0), P.emote || '',
     P.arma || '', Math.min(9, P.ia.tirosRed || 0), P.ia.tirosRed && P.ia.miraRed ? [r3(P.ia.miraRed.x), r3(P.ia.miraRed.y), r3(P.ia.miraRed.z)] : 0]);
   for (const P of NPC.lista) P.ia.tirosRed = 0;   // (los tiros desde el último envío: los demás los ven salir)
   publicar('a', { k: 'npcs', l });
@@ -463,7 +471,7 @@ function npcRecibir(d) {
       }
       E.meta.set(num(x[2], -1e4, 1e4, 0), num(x[3], -1e4, 1e4, 0), num(x[4], -1e4, 1e4, 0)); E.yawM = num(x[5], -1e3, 1e3, 0);
       E.vel.set(num(x[6], -80, 80, 0), num(x[7], -80, 80, 0), num(x[8], -80, 80, 0)); E.f = x[9] | 0; E.t = TIEMPO.t;
-      E.P.npcRem.hostil = !!(E.f & 8); E.P.npcRem.bueno = !!(E.f & 16);
+      E.P.npcRem.hostil = !!(E.f & 8); E.P.npcRem.bueno = !!(E.f & 16); E.P.gmOculto = !!(E.f & 32);   // (32: escondido por el Lua de un mod de su dueño —SetNoDraw: la víctima de una ejecución de BSMod—)
       E.P.arma = NPC_ARMAS.includes(x[11]) ? x[11] : null;
       if (E.P.arma && NPC_TIRO[E.P.arma] && (x[12] | 0) > 0 && Array.isArray(x[13])) { E.tiros = Math.min(12, (E.tiros || 0) + (x[12] | 0)); E.mira = v3(num(x[13][0], -1e4, 1e4, 0), num(x[13][1], -1e4, 1e4, 0), num(x[13][2], -1e4, 1e4, 0)); }
       const em = typeof x[10] === 'string' && emoValido(x[10]) ? x[10] : null;

@@ -41,7 +41,7 @@ function jugadorCabeParado() {
 }
 function jugadorAparecer() {
   const s = MUNDO.spawns[(Math.random() * MUNDO.spawns.length) | 0] || v3(0, 5, 0);
-  JUG.pos.set(s.x, s.y + 1.2, s.z); JUG.vel.set(0, 0, 0); JUG.vida = JUG.vidaMax || 100; JUG.vivo = true; JUG.vehiculo = null;
+  JUG.pos.set(s.x, s.y + 1.2, s.z); JUG.vel.set(0, 0, 0); JUG.vida = JUG.vidaMax || 100; JUG.vivo = true; JUG.vehiculo = null; JUG.bloqueado = false;
   if (s.yaw !== undefined) JUG.yaw = s.yaw; // puntos de aparición de un mapa de la comunidad (con su dirección)
   // (apoyado en el piso de una: la aparición de los mapas del Workshop está unos centímetros arriba, y si el modo de
   // juego congela al aparecer —la pre-ronda de Prop Hunt— quedaba flotando 0,7 m en el aire)
@@ -110,6 +110,8 @@ function jugadorPaso(dt, ent) {
   const qy = Quat.axis(0, 1, 0, J.yaw);
   if (!J.vivo) { J.muertoT -= dt; return; }
   if (J.vehiculo) return;
+  // (Player:Lock del Lua —la ejecución de BSMod—: quieto donde lo pusieron, sin caer ni chocar; lo mueve el Lua)
+  if (J.bloqueado) { J.vel.set(0, 0, 0); return; }
   // jugando una maquinita: quieto en su lugar, pegado al panel (la física lo correría: el cuerpo tiene 0,45 m de radio)
   if (J.maqFijo) { if (UI.abierto === 'maqv' && MAQ.j) { J.pos.copy(J.maqFijo); J.vel.set(0, 0, 0); J.suelo = true; return; } J.maqFijo = null; }
   // (congelado por el Lua —Player:Freeze, la pre-ronda de los modos de Fretta—: no camina ni salta, pero cae al piso)

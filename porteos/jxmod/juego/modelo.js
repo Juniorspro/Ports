@@ -76,6 +76,8 @@ class Modelo {
       }
       if (this.resK > 0) { const e = this.resK; extra = Object.assign({}, extra || {}, { rim: [0.25 * e, 0.75 * e, 2.4 * e] }); }
     }
+    // (halo.Add de un mod de GMod: un brillo de su color en el borde mientras lo pida —gmod_anim.js—)
+    if (this.haloC && TIEMPO.t - (this.haloT || -9) < 0.2 && !(extra && extra.rim)) { const c = this.haloC; extra = Object.assign({}, extra || {}, { rim: [c[0] * 2.2 + 0.1, c[1] * 2.2 + 0.1, c[2] * 2.2 + 0.1] }); }
     // lejos: la versión simplificada de las mallas con piel (lods, de herramientas/lod_skins.py: mismos huesos) y, si
     // se pidió, sin sombra
     const A = this.A, lb = this.lodBajo; R.encNs = !!this.sinSombra;

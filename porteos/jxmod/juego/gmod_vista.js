@@ -250,7 +250,7 @@ function gmaVistaDibujar() {
   // (sin vista: si es que no tiene —FA:S, con un ViewModel que no existe—, los ganchos del Lua igual corren; si todavía se
   // está leyendo del disco, no: el Lua de la vista —el SWEP Construction Kit de M9K— espera sus huesos)
   const v = gmvDeArma(w); if (!v) return w.vista === null && gmvVistaLua(w);
-  if (ARM.v !== v) { ARM.v = v; v.t = 0; v.clip = null; if (v.sacar) vistaTocar(v, v.sacar); else if (v.quieto) vistaTocar(v, v.quieto, { loop: true }); }
+  if (ARM.v !== v) gmvVistaPoner(v);
   // (el Lua dibuja su propia vista —gmvDibujarCS en el cuadro anterior—: la de siempre no se dibuja, pero sigue para el Lua)
   if (w.vmPropioT && TIEMPO.t - w.vmPropioT < 0.5) return true;
   // (Player:DrawViewModel(false) —las miras telescópicas de M9K, CW, FA:S...— o SWEP:ShouldDrawViewModel() falso: con la
@@ -305,7 +305,16 @@ function gmvActividad(v, act) {
   return vistaTocar(v, L[(Math.random() * L.length) | 0], { loop: /IDLE/.test(nom) });
 }
 // la entidad ViewModel de Lua cuando la vista es del addon: huesos, enganches y secuencias
-function gmvVista() { const n = typeof ARM !== 'undefined' ? ARM.lista[ARM.i] : null, D = n && DEF_ARMAS[n]; return D && D.tipo === 'gmswep' && ARM.v && ARM.v.gm ? ARM.v : null; }
+// (la del arma que se tiene en la mano: su Deploy corre antes de que se dibuje y ahí muchas eligen su secuencia —BSMod pone
+// fist_draw—; antes eso le llegaba a la vista del arma anterior y después se ponía la de sacar del juego, que al terminar
+// volvía a la de quieto: los puños de BSMod, cuya secuencia de quieto es el cuerpo entero fuera de la pantalla, no se veían)
+function gmvVista() {
+  const n = typeof ARM !== 'undefined' ? ARM.lista[ARM.i] : null, D = n && DEF_ARMAS[n]; if (!D || D.tipo !== 'gmswep') return null;
+  const w = GMA.armasJug && GMA.armasJug.get(D.gm), v = w && w.vista !== undefined ? w.vista : w ? gmvDeArma(w) : null;
+  if (v && ARM.v !== v) gmvVistaPoner(v);
+  return ARM.v && ARM.v.gm ? ARM.v : null;
+}
+function gmvVistaPoner(v) { ARM.v = v; v.t = 0; v.clip = null; if (v.sacar) vistaTocar(v, v.sacar); else if (v.quieto) vistaTocar(v, v.quieto, { loop: true }); }
 function gmvHuesoMundo(v, i) { v.md.actualizar(); return v.md.W[1 + i]; }
 if (typeof module !== 'undefined') module.exports = { gmvConstruir, gmvDeArma, gmaVistaDibujar, gmvActividad, gmvVista };
 // los métodos de la entidad ViewModel (y SequenceDuration del arma) cuando la vista es la del addon
@@ -357,7 +366,7 @@ function gmvApi() {
   soloVm('SelectWeightedSequence', (v, e, act) => { for (const [k, L] of v.actos) if (gmvActNum(k) === act) return v.sec.indexOf(L[0]); return -1; });
   soloVm('SelectWeightedSequenceSeeded', (v, e, act) => { for (const [k, L] of v.actos) if (gmvActNum(k) === act) return v.sec.indexOf(L[0]); return -1; });   // (la TFA Base)
   // (la secuencia por número o por nombre, como en GMod: FA:S 2.0 y otras bases ponen las animaciones por nombre)
-  const tocar = (v, i) => { if (typeof i === 'string') { const s = i.toLowerCase(); i = v.M.secuencias.findIndex((q) => q.n.toLowerCase() === s); if (i < 0) return; } const n = v.sec[i | 0]; if (n) vistaTocar(v, n, { loop: DATA.anPorNombre[n].loop }); };
+  const tocar = (v, i) => { if (typeof i === 'string') { const s = i.toLowerCase(); i = v.M.secuencias.findIndex((q) => q.n.toLowerCase() === s); if (i < 0) return; } const n = v.sec[i | 0]; if (n) vistaTocar(v, n, { loop: DATA.anPorNombre[n].loop, mantener: true }); };   // (al terminar queda en su último cuadro, como en GMod: no vuelve sola a la de quieto)
   soloVm('SendViewModelMatchingSequence', (v, e, i) => { tocar(v, i); return true; }); soloVm('ResetSequence', (v, e, i) => { tocar(v, i); return true; }); soloVm('SetSequence', (v, e, i) => { tocar(v, i); return true; });
   soloVm('SetPlaybackRate', (v, e, r) => { v.vel = Math.max(0.01, +r || 1); return true; }); soloVm('GetPlaybackRate', (v) => v.vel || 1);
   soloVm('GetCycle', (v) => (v.clip && v.clip.d ? Math.min(1, v.t / v.clip.d) : 0)); soloVm('SetCycle', (v, e, c) => { if (v.clip) v.t = Math.max(0, Math.min(1, +c || 0)) * v.clip.d; return true; });
@@ -464,9 +473,13 @@ function gmvPmTieneManos(m) {
   return !!(a && a !== GMV_MANOS_DEF && gmvRutaMdl(a.model) !== GMV_MANOS_DEF.model && gmExiste(gmvRutaMdl(a.model)));
 }
 // el modelo del jugador como lo ve el Lua (Player:GetModel): el del addon que tiene puesto; los del juego, Kleiner
+// (los personajes del juego no son .mdl: uno propio, «models/jxmod/<skin>.mdl», que se dibuja con su malla —gmod_anim.js—. Antes
+// era Kleiner, y lo que se arma con el modelo del jugador —el cuerpo de una ejecución de BSMod, las piernas de la patada— salía
+// con la cara de Kleiner)
 function gmvModeloJugador() {
   const P = typeof JUG !== 'undefined' ? JUG.cuerpo : null, r = P && P.gmpRuta ? String(P.gmpRuta) : '';
-  return r && !/^jxpj\//.test(r) ? r : 'models/player/kleiner.mdl';
+  if (r && !/^jxpj\//.test(r)) return r;
+  return P && typeof gmanModeloPersona === 'function' ? gmanModeloPersona(P) : 'models/player/kleiner.mdl';
 }
 // las manos del jugador de ahora: { model, skin, body, tinte (el personaje del juego o importado del que sale el color), k }
 // (se recalcula si cambia el cuerpo o un addon registra modelos o manos: GMA.pmV)

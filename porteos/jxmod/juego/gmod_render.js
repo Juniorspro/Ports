@@ -345,6 +345,9 @@ function gmaPrefabCS(ruta) {
 const _gmM = new Float32Array(16);
 function gmrModelo(e) {
   const ruta = e.modelo; if (!ruta) return;
+  if (typeof gmanInvisible === 'function' && gmanInvisible(e)) return;   // (SetMaterial("null"): no se ve)
+  if (typeof gmanAnimada === 'function' && gmanAnimada(e) && gmanDibujar(e)) return;   // (con su secuencia o pegada a otra con bonemerge: gmod_anim.js)
+  if (typeof gmanEsperando === 'function' && gmanEsperando(e)) return;   // (y si su modelo todavía no llegó, nada: no la caja de reemplazo)
   let md = e.mdCS;
   if (!md || md.ruta !== ruta) { const pf = gmaPrefabCS(ruta); if (!pf) { e.mdCS = null; return; } const k = DATA.pfPorNombre[pf]; if (!k) return; md = e.mdCS = new Modelo(DATA.pf[k]); md.ruta = ruta; }
   const p = e.rOrigen ? vG(e.rOrigen) : gmaEntPos(e), q = e.rAng ? angQuat(e.rAng) : entQ(e), s = +e.escala || 1;   // (SetRenderOrigin/SetRenderAngles: el modelo de mundo de FA:S en la mano)
@@ -371,7 +374,7 @@ function gmrTinte(e) {
 // Entity:DrawModel(): la entidad que se está dibujando muestra su modelo; las demás (sin cuerpo) se dibujan acá
 function gmrDrawModel(e) {
   if (!(e instanceof LEnt) || !GR.enPasada) return;
-  if (e.o && !e.o.borrado) { if (e === GR.entAct) { GR.dm = true; e.o.md.color = gmrTinte(e); } else if (GR.dmOtros) { GR.dmOtros.add(e); e.o.md.color = gmrTinte(e); } return; }
+  if (e.o && !e.o.borrado) { if (e === GR.entAct) { GR.dm = true; e.o.md.color = gmrTinte(e); } else if (GR.dmOtros) { GR.dmOtros.add(e); e.o.md.color = gmrTinte(e); } if (typeof gmanAnimada === 'function' && gmanAnimada(e)) e.anDib = TIEMPO.t; return; }
   if (e.tipo === 'vm' || e === GMA.jug || e === GR.armaMundo) { GR.dm = true; return; }
   if (e.cs && GR.lista === 'vista' && typeof gmvDibujarCS === 'function' && gmvDibujarCS(e)) return;   // (la vista que dibuja el Lua: FA:S, CW 2.0)
   gmrModelo(e);
@@ -387,6 +390,8 @@ function gmrAntes() {
   try {
     const flags = 1;
     gmaHook('PreDrawOpaqueRenderables', 'C', false, false);
+    // (halo.Add: lo que los addons resaltan —BSMod, de azul, al que se puede ejecutar—, con un brillo del color en el borde)
+    if (GMA.hooks.has('PreDrawHalos')) { GR.halos = TIEMPO.t; gmaHook('PreDrawHalos', 'C'); }
     // las entidades de los addons: su Draw (si no llama DrawModel, el modelo no se ve)
     const b = GMA.clases.get('base_anim') || GMA.clases.get('base_entity'), bt = b && (b.C || b.S), d0 = bt && buscarEnClase(bt, 'Draw'), d1 = bt && buscarEnClase(bt, 'DrawTranslucent');
     for (const e of GMA.ents.values()) {
@@ -408,11 +413,12 @@ function gmrAntes() {
       const rg = buscarEnClase(c, 'RenderGroup'), trans = rg === 8 || rg === 9, op = rg !== 8;
       const fo = op ? buscarEnClase(c, 'Draw') : null, ft = trans ? buscarEnClase(c, 'DrawTranslucent') : null;
       const propio = (fo && fo !== d0) || (ft && ft !== d1 && ft !== d0);
-      if (!propio) { if (e.o) { e.o.md.oculto = false; e.o.md.color = gmrTinte(e); if (e.nb && typeof gmnbDibujar === 'function') gmnbDibujar(e); } else gmrModelo(e); continue; }
+      if (!propio) { if (e.o) { e.o.md.oculto = false; e.o.md.color = gmrTinte(e); if (e.nb && typeof gmnbDibujar === 'function') gmnbDibujar(e); else if (gmanAnimada(e) || gmanInvisible(e)) gmanDibujar(e); } else gmrModelo(e); continue; }
       GR.entAct = e; GR.dm = false; GR.mat = null; GR.ignZ = false; GR.mod = [1, 1, 1]; GR.blend = 1;
       if (fo) gmLlamar(fo, 'C', e, flags);
       if (ft) gmLlamar(ft, 'C', e, flags);
       if (e.o) e.o.md.oculto = !GR.dm;
+      if (e.o && GR.dm && (e.anDib === TIEMPO.t || gmanInvisible(e))) gmanDibujar(e);   // (su modelo animado —gmod_anim.js— o, con un material que no se ve, nada)
       if (e.nb && typeof gmnbDibujar === 'function') gmnbDibujar(e);
       GR.d2 && gmrTerminar3D2D();
     }

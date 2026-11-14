@@ -180,6 +180,9 @@ function ubicarPersona(P) {
 }
 function dibujarPersona(P) {
   if (!P.visible) return;
+  // (escondida por el Lua de un mod: Entity:SetNoDraw en un NPC, o el jugador con un material que no se ve —SetMaterial("null"),
+  // lo que hace BSMod mientras su modelo hace la ejecución—; tampoco da sombra)
+  if (P.gmOculto || (P === JUG.cuerpo && typeof GMA !== 'undefined' && GMA.jug && typeof gmanInvisible === 'function' && gmanInvisible(GMA.jug))) return;
   P.cDib = PERS_N; // (lo que se lleva puesto, como la radio en la espalda, usa los huesos de este cuadro)
   // pateando en primera persona se ve el cuerpo: la cabeza (y el gorro) achicados a nada, que taparían la cámara
   const sinCabeza = cuerpoEnPrimera(P) && !(P === JUG.cuerpo && (JUG.emo3K || 0) > 0.3);   // (un emote de piso se ve en tercera: con cabeza)
@@ -544,14 +547,18 @@ function ragdollPaso(P) {
 }
 function ragdollFin(P) { if (!P.rag) return; for (const [, e] of P.rag.cuerpos) removeBody(e.b); P.rag = null; P.md.fijo = null; P.md.sucio = true; }
 // ---------------- daño ----------------
-function danarPersona(P, dan, pos, d) {
+function danarPersona(P, dan, pos, d, b, de) {
   if (P === JUG.cuerpo) { danarJugador(dan, pos); return; }
+  // (un NPC con el Lua de los mods andando: antes, EntityTakeDamage —gmod_api.js—; de: 'jug' si lo hizo el jugador)
+  if (P.npc && !P.npcRem && P.vivo !== false && typeof gmaGanchoDanoPersona === 'function') { const r = gmaGanchoDanoPersona(P, dan, pos, de); if (r === null) return; dan = r; }
   if (P.muneco) return;   // (un muñeco de trapo: el golpe sólo lo empuja, como un prop_ragdoll de GMod)
   const vivia = P.vivo !== false;
   if (vivia) humAccion(P, 'golpe');
   if (P.npc && P.vivo) {
     P.vida -= dan;
-    if (P.vida <= 0) { P.vivo = false; P.emote = null; ragdoll(P, vscale(d.clone().norm(), Math.min(12, dan * 0.3)), pos); P.muertoT = 15; }
+    if (P.vida <= 0) { P.vivo = false; P.emote = null; ragdoll(P, vscale(d.clone().norm(), Math.min(12, dan * 0.3)), pos); P.muertoT = 15;
+      // (el muñeco también es del Lua: CreateClientsideRagdoll / CreateEntityRagdoll, como en GMod; gmod_anim.js)
+      if (typeof gmanMuneco === 'function' && typeof GMA !== 'undefined' && GMA.entPorObj) { const e = GMA.entPorObj.get(P); if (e) { try { gmanMuneco(P, e); } catch (x) {} } } }
     else if (dan >= 40 && !P.rag && typeof npcTumbar === 'function') npcTumbar(P, vscale(d.clone().norm(), Math.min(10, dan * 0.15)), dan);   // (un golpe fuerte lo tira)
   }
   if (P.npcRem && typeof npcGolpeRed === 'function') npcGolpeRed(P, dan, d);   // (el NPC de otro: el golpe le llega a su dueño)
