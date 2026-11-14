@@ -2284,6 +2284,11 @@ la 3.2: quien ya tiene la 3.2 actualiza encima; quien sigue en la 3.1 tiene que 
   `nextbots_red` 25/25, `nextbots_ia` 9/9 (la 3.2: 7/9), `gmod_carpeta` 32/32, `mods_habilitar` 9/9,
   `tienda_panel` 24/24, `celulares` 9/9, `armas_gmod` 8/8, `gmod_mira_recarga` 7/7, `codigo_tragado` 0 y la página
   con código 9/9.
+  La muestra nueva de armas (94) con todo junto: 66/94 andan en todo; arma por arma igual que la medición del agente
+  de armas salvo dos. `tfa_cf_glock_gspirit` «no apunta» también en el commit de armas solo (dd6fa50): su «anda» fue una
+  corrida con suerte, sigue pendiente. `bo3iii_brawlers_gl` no se veía con C_Arms: su vista trae brazos de referencia
+  con `$no_draw` para animar las manos del jugador y `gmvTraeBrazos` los contaba como brazos propios; ahora cuentan
+  sólo los vértices que se dibujan (va en la próxima actualización: la 3.3 publicada no lo tiene).
 
 ## JXMod 3.2: lo del Discord (Pill Packs, botones y skins de GOLDEN, personajes fáciles, app, mapas y mods)
 

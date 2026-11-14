@@ -501,7 +501,16 @@ function gmvManosListas(s) {
 function gmvTraeBrazos(M) {
   const V = M.v; if (!V || !V.n) return false;
   const ih = new Uint8Array(M.huesos.length); M.huesos.forEach((h, i) => { if (/finger|forearm|upperarm|clavicle/i.test(h.n)) ih[i] = 1; });
-  let n = 0; for (let k = 0; k < V.n; k++) if (ih[V.hb[k * 3]] && V.w[k * 3] > 0.5 && ++n >= 100) return true;
+  // (sólo cuentan los vértices que se dibujan: hay vistas con brazos de referencia invisibles —materiales con $no_draw, como
+  // los Brawlers de BO3— para animar las manos del jugador; contarlos las dejaba sin manos y no se veía nada)
+  const ve = new Uint8Array(V.n), piel = (M.pieles && M.pieles[0]) || [];
+  for (const m of M.mallas || []) {
+    if (m.modelo !== 0) continue;
+    const ti = piel[m.mat] !== undefined ? piel[m.mat] : m.mat, tex = (M.texturas && (M.texturas[ti] || M.texturas[m.mat])) || 'error';
+    const mat = gmMaterial(tex, M.carpetas || []); if (mat && mat.vmt && mat.vmt.nodraw) continue;
+    for (const v of m.tris) ve[v] = 1;
+  }
+  let n = 0; for (let k = 0; k < V.n; k++) if (ve[k] && ih[V.hb[k * 3]] && V.w[k * 3] > 0.5 && ++n >= 100) return true;
   return false;
 }
 // las manos pegadas a la vista (el bonemerge de Source): cada hueso de las manos con el mismo nombre que uno de la vista va
