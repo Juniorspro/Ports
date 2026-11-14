@@ -7,7 +7,7 @@
 // (subiendo escalones y cayendo) y resbalando a lo largo de lo que no puede pasar, como en GMod.
 // StartActivity / SetSequence ponen la secuencia del modelo por su actividad (ACT_RUN, ACT_WALK, ACT_IDLE...) o por su
 // nombre, y el modelo se dibuja animado (gmod_pm.js: los huesos del .mdl cuadro a cuadro).
-const GMNB = { mtLoco: null, mtPath: null, actNum: null, sysDesc: 0, sysUlt: 0 };
+const GMNB = { mtLoco: null, mtPath: null, actNum: null, sysDesc: 0, sysUlt: 0, ambito: 0 };
 // SysTime para el Lua, sin lo que tardan los caminos de acá. Los nextbots de la base de Sanic —Obunga, Walter, Smiley, Doge,
 // Shaq: los más bajados— miden con SysTime cuánto tarda Path:Compute y, si pasa de 5 ms, no vuelven a buscar camino por
 // 5 s («workaround for the navmesh pathing bug»). En GMod el camino sale de la malla de navegación en una fracción de
@@ -399,8 +399,20 @@ function gmnbDef(e) {
 // cada cuadro: la corrutina, la locomoción y el cuerpo
 function gmnbPaso(dt) {
   if (typeof gmAniReintentar === 'function') gmAniReintentar();   // (los .ani que se pidieron y todavía no llegaban)
+  gmnbRedPaso(dt);   // (multijugador: los míos a los demás, los de los demás acá)
   for (const e of GMA.ents.values()) {
-    if (!e.nb || !e.vivo) continue;
+    if (!e.nb || !e.vivo || e.nbRem) continue;
+    // (y los clips de jugador de los mapas del Workshop no lo frenan ni son piso para él: en Source el playerclip frena sólo
+    // a los jugadores. Desde la 3.2 esas brochas chocan —gmod_bsp.js— y en los mapas que las usan los nextbots quedaban
+    // trabados contra paredes invisibles; igual que con las balas: MUNDO.bala)
+    const b0 = MUNDO.bala; GMNB.ambito++; MUNDO.bala = true; try { gmnbPaso1(e, dt); } finally { GMNB.ambito--; MUNDO.bala = b0; }
+  }
+}
+// (lo de un nextbot en un cuadro; mientras corre su Lua, los demás jugadores de la sala existen para él: gmnbRemLista)
+function gmnbPaso1(e, dt) {
+  // (el modelo que se estaba bajando no llegó en 25 s: la caja, como antes —gmaRehacer—)
+  if (e.nbEspera && !e.o && TIEMPO.t - e.nbEspera > 25) { e.nbSinEspera = true; gmaRehacer(e); }
+  {
     // (la secuencia pedida antes de que llegaran el modelo o sus animaciones: se pide otra vez cuando hay algo nuevo)
     const d = gmnbDef(e);
     if (d) {
@@ -414,7 +426,7 @@ function gmnbPaso(dt) {
       if (!e.nbSec && !e.nbPide && d.M.secuencias.length) gmnbSecuencia(e, { idx: 0 });
     }
     metodo(e, 'BehaveUpdate', 'S', dt);
-    if (!e.vivo) continue;
+    if (!e.vivo) return;
     gmnbMover(e, dt);
     metodo(e, 'BodyUpdate', 'S');
     if (e.nbSec) { const S = e.nbSec, c0 = S.dur > 0 ? S.t / S.dur : 1; S.t += dt * (e.nbRate ?? 1); gmnbEventos(e, S, c0, S.dur > 0 ? S.t / S.dur : 1); }   // (paso 0: quieta, como en GMod)
@@ -452,7 +464,11 @@ function gmnbMover(e, dt) {
     const b = r.body, ent = b ? (b.persona && typeof gmaEntPersona === 'function' ? gmaEntPersona(b.persona) : b.obj && typeof entDeObj === 'function' ? entDeObj(b.obj) : null) : null;
     if (ent instanceof LEnt && ent !== e) gmnbToca(e, L, ent);
     const nx = r.n.x, nz = r.n.z, nl = Math.hypot(nx, nz);
-    if ((b && (b.persona || (b.obj && b.obj.gmEnt && b.obj.gmEnt.nb))) || nl < 0.3) { v.x = 0; v.z = 0; hv = 0; break; }
+    // (contra una persona —otro jugador, un NPC— o un nextbot: hasta tocarla, casco con casco, y ahí se para. Antes frenaba
+    // apenas el rayo la veía, a su ancho más lo que avanza en un cuadro: a 16 m/s y 20 cuadros por segundo, 1,7 m antes; el
+    // golpe de Doro —55 pulgadas, 1,4 m— no llegaba a los otros jugadores, que tienen cuerpo. El de uno mismo no tiene)
+    if (b && (b.persona || (b.obj && b.obj.gmEnt && b.obj.gmEnt.nb))) { const paso = hv * dt, k = paso > 1e-6 ? Math.max(0, Math.min(1, (r.t - R) / paso)) : 0; v.x *= k; v.z *= k; hv *= k; break; }
+    if (nl < 0.3) { v.x = 0; v.z = 0; hv = 0; break; }
     const vn = (v.x * nx + v.z * nz) / nl; if (vn >= 0) break;
     v.x -= (nx / nl) * vn; v.z -= (nz / nl) * vn; hv = Math.hypot(v.x, v.z);
     if (k === 2) { v.x = 0; v.z = 0; hv = 0; }
@@ -511,4 +527,273 @@ function gmnbDibujar(e) {
   md.color = e.o.md.color; md.sucio = true; md.encolar(); e.o.md.oculto = true;
   return true;
 }
-if (typeof module !== 'undefined') module.exports = { gmnbLoco, gmnbPath, gmnbApi, gmnbPaso, gmnbEs, gmnbDibujar };
+// ---------------- multijugador: los demás ven tus nextbots, y tus nextbots los persiguen y los matan ----------------
+// Cada jugador corre el Lua de sus nextbots, como el servidor de GMod los suyos. Antes los demás no los veían bien —los de
+// imagen no se veían; los 3D quedaban quietos en la pose de referencia y saltaban cada 8 s, con el mundo de su dueño— y no
+// los perseguían ni los mataban: para el Lua no había otro jugador que uno mismo. Ahora:
+//  - el dueño manda 10 veces por segundo los suyos (clase, addon, modelo, dónde están, para dónde miran, la secuencia y su
+//    momento, la escala, la piel y, si es una imagen, cuál y de qué tamaño); los demás los ven moverse y animarse: con su
+//    propio Lua del lado del cliente si tienen el addon (la imagen, la música de persecución), y si no, con el modelo o la
+//    imagen del addon, que se baja de visita (sólo sus archivos, sin su Lua, como el modelo de jugador de otro);
+//  - mientras corre el Lua de un nextbot (gmnbPaso, su Think, su Initialize), los demás jugadores de la sala existen para él
+//    —player.GetAll, ents.FindInSphere, ents.GetAll…— como jugadores de Lua con lo que hace falta para cazarlos: dónde están,
+//    si viven, su vida, su nombre. Lo demás de un jugador, sobre otro, no hace nada (un SetPos o un SetModel de otro jugador
+//    no mueve ni cambia al de uno). Fuera del Lua de los nextbots no se ven: los modos de juego siguen como estaban;
+//  - lo que el nextbot les pega les llega (con el empujón); lo que uno le pega al de otro le llega a su dueño.
+const GMNB_RED = { t: 0, rem: new Map(), jug: new Map(), habia: false, m: null };
+const gmnbRedOn = () => typeof RED !== 'undefined' && !!RED.on;
+const gmnbR3 = (x) => Math.round((+x || 0) * 1000) / 1000;
+// (con el Lua de cero —se sacó o deshabilitó un mod—, lo de antes no va más)
+function gmnbRedGen() { if (GMNB_RED.gen !== GMA.gen) { GMNB_RED.gen = GMA.gen; GMNB_RED.jug.clear(); GMNB_RED.rem.clear(); GMNB_RED.m = null; } }
+// los jugadores de la sala como jugadores de Lua (sin entrar en GMA.ents: sólo los ve el Lua de los nextbots)
+function gmnbRemJugadores(on) {
+  gmnbRedGen(); const M = GMNB_RED.jug;
+  if (!on) { if (M.size) { for (const e of M.values()) e.vivo = false; M.clear(); } return; }
+  for (const R2 of RED.remotos.values()) if (!M.has(R2.id)) gmnbJugRem(R2.id);
+  for (const [id, e] of M) { const R2 = RED.remotos.get(id); if (!R2) { e.vivo = false; M.delete(id); } else { e.remoto = R2; e.P = R2.P; } }
+}
+function gmnbJugRem(id) {
+  gmnbRedGen(); let e = GMNB_RED.jug.get(id); if (e) return e;
+  const R2 = typeof RED !== 'undefined' && RED.remotos.get(id); if (!R2 || !GMA.R) return null;
+  e = new LEnt('player', 'jug'); GMA.ents.delete(e.id); e.remoto = R2; e.P = R2.P; e.nRem = GMNB_RED.jug.size + 2; GMNB_RED.jug.set(id, e);
+  // (como un jugador que entra: DrGBase arma ahí su relación con él)
+  GMNB.ambito++; try { gmaHook('OnEntityCreated', 'S', e); } finally { GMNB.ambito--; }
+  return e;
+}
+// los que se agregan a las listas del Lua mientras corre el de un nextbot
+function gmnbRemLista() {
+  if (!GMNB.ambito || !GMNB_RED.jug.size) return [];
+  const L = []; for (const e of GMNB_RED.jug.values()) if (e.vivo && e.P && e.P.visible !== false && !e.P.escena) L.push(e);
+  return L;
+}
+// la vida de otro jugador: la que manda él y, por un momento después de un golpe de acá, la que le dejó ese golpe (si
+// no, el nextbot no ve que lo lastimó y sigue pegándole o no busca otro)
+function gmnbRemVida(e) {
+  const R2 = e.remoto, hp = R2 && Number.isFinite(R2.hp) ? R2.hp : 100;
+  if (!R2 || !(R2.f & 4)) return 0;
+  return e.danoT && TIEMPO.t - e.danoT < 2 ? Math.max(0, Math.min(hp, e.hpEst)) : hp;
+}
+// los métodos de otro jugador en el Lua (los demás no hacen nada)
+function gmnbRemMetodos() {
+  if (GMNB_RED.m) return GMNB_RED.m;
+  const V = GMA.V, Vr = GMA.Vr, A = GMA.A, E = GMA.metas.Entity, M = new Map(), R2 = (e) => e.remoto;
+  const pies = (e) => gmaEntPos(e), ojo = (e) => vadd(pies(e), v3(0, (R2(e).f & 2 ? 28 : 64) * GS, 0)), yaw = (e) => (e.P ? e.P.yaw || 0 : 0);
+  const caja = (e) => [new LVec(-16, -16, 0), new LVec(16, 16, R2(e).f & 2 ? 36 : 72)];
+  const vec = (v) => { v.__mt = GMA.mtVec; return v; };
+  const nom = (e) => String(R2(e).nombre || 'Player'), hsh = (e) => { let h = 7; for (const c of String(R2(e).id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 1e8; };
+  Object.entries({
+    IsValid: (e) => !!(e.vivo && RED.remotos.has(R2(e).id)), IsPlayer: () => true, IsNPC: () => false, IsNextBot: () => false, IsBot: () => false, IsWorld: () => false, IsWeapon: () => false, IsVehicle: () => false, IsRagdoll: () => false,
+    Alive: (e) => gmnbRemVida(e) > 0, Health: (e) => Math.round(gmnbRemVida(e)), GetMaxHealth: () => 100, Armor: () => 0, GetMaxArmor: () => 100,
+    GetPos: (e) => V(pies(e)), EyePos: (e) => V(ojo(e)), GetShootPos: (e) => V(ojo(e)), WorldSpaceCenter: (e) => V(vadd(pies(e), v3(0, 36 * GS, 0))),
+    GetAngles: (e) => A(quatAng(Quat.axis(0, 1, 0, yaw(e)))), EyeAngles: (e) => A(new LAng(0, quatAng(Quat.axis(0, 1, 0, yaw(e))).y, 0)), GetAimVector: (e) => GMA.Vd(Quat.axis(0, 1, 0, yaw(e)).rot(v3(0, 0, 1))),
+    GetForward: (e) => GMA.Vd(Quat.axis(0, 1, 0, yaw(e)).rot(v3(0, 0, 1))), GetVelocity: (e) => Vr(R2(e).vel || v3()), GetAbsVelocity: (e) => Vr(R2(e).vel || v3()),
+    OBBMins: (e) => vec(caja(e)[0]), OBBMaxs: (e) => vec(caja(e)[1]), OBBCenter: (e) => GMA.nv(0, 0, caja(e)[1].z / 2), GetCollisionBounds: (e) => { const [a, b] = caja(e); return [vec(a), vec(b)]; },
+    GetHull: () => [vec(new LVec(-16, -16, 0)), vec(new LVec(16, 16, 72))], GetHullDuck: () => [vec(new LVec(-16, -16, 0)), vec(new LVec(16, 16, 36))], BoundingRadius: () => 41,
+    LocalToWorld: (e, v) => V(pies(e).add(Quat.axis(0, 1, 0, yaw(e)).rot(vGr(v instanceof LVec ? v : new LVec())))), WorldToLocal: (e, v) => Vr(Quat.axis(0, 1, 0, yaw(e)).conj().rot(vsub(vG(v instanceof LVec ? v : new LVec()), pies(e)))),
+    NearestPoint: (e, p) => { if (!(p instanceof LVec)) return V(pies(e)); const q = vSr(vsub(vG(p), pies(e))), [a, b] = caja(e); return V(vadd(pies(e), vGr(new LVec(Math.max(a.x, Math.min(b.x, q.x)), Math.max(a.y, Math.min(b.y, q.y)), Math.max(a.z, Math.min(b.z, q.z)))))); },
+    Nick: nom, Name: nom, GetName: nom, SteamID: (e) => 'STEAM_0:1:' + hsh(e), SteamID64: (e) => '7656119' + String(8e9 + hsh(e)), UniqueID: (e) => hsh(e), AccountID: (e) => hsh(e), UserID: (e) => e.nRem, EntIndex: (e) => e.nRem,
+    GetClass: () => 'player', Team: () => 1001, GetModel: () => 'models/player/kleiner.mdl', GetModelScale: () => 1, GetSkin: () => 0, GetTable: (e) => e.tabla,
+    OnGround: (e) => !!(R2(e).f & 1), IsOnGround: (e) => !!(R2(e).f & 1), Crouching: (e) => !!(R2(e).f & 2), InVehicle: (e) => !!R2(e).veh, GetVehicle: () => NULL_ENT, GetActiveWeapon: () => NULL_ENT, GetWeapons: () => new LuaTable(),
+    WaterLevel: () => 0, GetMoveType: () => 2, GetObserverMode: () => 0, GetNoTarget: () => false, IsFlagSet: () => false, GetFlags: (e) => (R2(e).f & 1 ? 1 : 0) | (R2(e).f & 2 ? 2 : 0), KeyDown: () => false, IsAdmin: () => false, IsSuperAdmin: () => false,
+    IsListenServerHost: () => false, IsFrozen: () => false, Ping: () => 50, Frags: () => 0, Deaths: () => 0, GetRunSpeed: () => 400, GetWalkSpeed: () => 200, GetCreationID: (e) => e.id, MapCreationID: () => -1,
+    // (lo que en GMod mira si hay algo en el medio)
+    Visible: (e, o) => { if (!(o instanceof LEnt)) return false; const a = ojo(e), b = vadd(gmaEntPos(o), v3(0, 0.6, 0)), d = vsub(b, a), l = d.len(); const h = l > 1e-3 ? raycast(a, vscale(d, 1 / l), l, R2(e).b) : null; return !h || h.t > l - 0.4; },
+    IsLineOfSightClear: (e, x) => { const b = x instanceof LEnt ? vadd(gmaEntPos(x), v3(0, 0.6, 0)) : x instanceof LVec ? vG(x) : null; if (!b) return false; const a = ojo(e), d = vsub(b, a), l = d.len(); return !(l > 1e-3 && raycast(a, vscale(d, 1 / l), l, R2(e).b)); },
+    // (el daño y el empujón le llegan a él: gmnbRemDanar)
+    TakeDamage: (e, d, at, inf) => gmaDanar(e, +d || 0, at, inf), TakeDamageInfo: (e, di) => gmaDanar(e, (di && di.dan) || 0, di && di.at, di && di.inf, di),
+    // (matarlo o empujarlo, sólo desde el Lua de un nextbot: lo de uno a otro jugador va con PvP, por gmnbRemDanar)
+    Kill: (e) => { if (GMNB.ambito) gmnbRemDanar(e, { dan: 1e6, at: NULL_ENT, inf: NULL_ENT }, true); }, KillSilent: (e) => { if (GMNB.ambito) gmnbRemDanar(e, { dan: 1e6, at: NULL_ENT, inf: NULL_ENT }, true); },
+    SetVelocity: (e, v) => { if (GMNB.ambito && v instanceof LVec) gmnbRemEmpujar(e, vGr(v)); },
+  }).forEach(([k, f]) => M.set(k, f));
+  // (de los de Entity, los que sólo leen o suenan: con dónde está él)
+  for (const k of ['EmitSound', 'StopSound', 'GetRight', 'GetUp', 'GetNWBool', 'GetNWInt', 'GetNWFloat', 'GetNWString', 'GetNWEntity', 'GetNWVector', 'GetNWAngle', 'GetNW2Bool', 'GetNW2Int', 'GetNW2Float', 'GetNW2String', 'GetNW2Entity', 'GetNW2Vector', 'GetNW2Angle', 'GetNetworkedBool', 'GetNetworkedInt', 'GetNetworkedString', 'GetNetworkedEntity', 'CallOnRemove', 'RemoveCallOnRemove', 'GetBoneCount', 'LookupBone', 'GetAttachment', 'LookupAttachment']) { const f = E.get(k); if (typeof f === 'function' && !M.has(k)) M.set(k, f); }
+  M.set('GetBonePosition', (e) => [V(vadd(pies(e), v3(0, 1.2, 0))), A(new LAng(0, 0, 0))]);
+  return (GMNB_RED.m = M);
+}
+const _gmnbNada = () => undefined, _gmnbNo = () => false, _gmnbNulo = () => NULL_ENT;
+// el __index de otro jugador (gmod_api.js: EM): lo suyo; de los métodos del motor, los de gmnbRemMetodos y, los demás, uno
+// que no hace nada (un SetPos o un StripWeapons de otro no le toca nada al de uno; un GetWeapon da NULL, como sin el arma);
+// lo que los addons les agregan a los jugadores —FindMetaTable("Player").X = function…— corre igual: es su Lua, con él
+function gmnbRemIndice(e, k) {
+  const T0 = GMA.ctx === 'C' ? e.tablaC || e.tabla : e.tabla; const v = T0.get(k); if (v !== undefined) return v;
+  if (typeof k !== 'string') return undefined;
+  const f = gmnbRemMetodos().get(k); if (f) return f;
+  const nat = GMNB_RED.nativos, pm = GMA.metas.Player.get(k), em = GMA.metas.Entity.get(k);
+  if (nat && (nat.P.has(k) || nat.E.has(k))) return /^(Is|Has|Can|Should)/.test(k) ? _gmnbNo : /^Get(Weapon|ActiveWeapon|Vehicle|GroundEntity|ObserverTarget|RagdollEntity|Hands|ViewModel|Owner|Parent|Driver|Enemy)$/.test(k) ? _gmnbNulo : _gmnbNada;
+  if (typeof pm === 'function') return pm;
+  if (typeof em === 'function') return em;
+  return undefined;
+}
+// (los métodos del motor, antes de que corra el Lua de los addons: lo que se agregue después es de ellos)
+function gmnbNativos() { if (GMA.metas) GMNB_RED.nativos = { P: new Set(GMA.metas.Player.claves()), E: new Set(GMA.metas.Entity.claves()) }; }
+// el Lua le pegó a otro jugador: si fue un nextbot (o su Lua), le llega como golpe de nextbot —también sin PvP, como en
+// GMod, donde los NPC matan a todos—; si no (uno mismo, su arma, una entidad de uno), como siempre: sólo con PvP
+function gmnbRemDanar(e, di, siempre) {
+  const R2 = e.remoto, dan = Math.max(0, +di.dan || 0); if (!R2 || !(dan > 0) || !gmnbRedOn()) return;
+  const at = di.at, inf = di.inf, mio = !siempre && !GMNB.ambito && !(at instanceof LEnt && at.nb) && !(inf instanceof LEnt && inf.nb);
+  const de = at instanceof LEnt && at.vivo && at.tipo !== 'null' ? gmaEntPos(at) : inf instanceof LEnt && inf.vivo && inf.tipo !== 'null' ? gmaEntPos(inf) : null, dir = de ? vsub(gmaEntPos(e), de) : v3(0, 0, 1); dir.y = 0; if (dir.lenSq() < 1e-6) dir.set(0, 0, 1); dir.norm();
+  if (mio) { if (typeof redDano === 'function' && R2.P) redDano(R2.P, dan, dir); return; }
+  e.hpEst = Math.max(0, (e.danoT && TIEMPO.t - e.danoT < 2 ? e.hpEst : gmnbRemVida(e)) - dan); e.danoT = TIEMPO.t;
+  publicar('a', { k: 'gnbd', to: R2.id, d: Math.round(Math.min(dan, 1e6)), v: [gmnbR3(dir.x), gmnbR3(dir.y), gmnbR3(dir.z)], c: at instanceof LEnt ? String(at.claseNom || at.clase).slice(0, 40) : '' });
+}
+function gmnbRemEmpujar(e, v) {
+  const R2 = e.remoto; if (!R2 || !gmnbRedOn()) return; const l = v.len(); if (!(l > 0.05)) return; if (l > 40) v.scale(40 / l);
+  publicar('a', { k: 'gnbv', to: R2.id, v: [gmnbR3(v.x), gmnbR3(v.y), gmnbR3(v.z)] });
+}
+// ---- el dueño: manda los suyos ----
+function gmnbRedPaso(dt) {
+  const on = gmnbRedOn();
+  gmnbRemJugadores(on);
+  if (!on) { for (const [k, X] of [...GMNB_RED.rem]) gmnbTitereQuitar(k, X); GMNB_RED.habia = false; return; }
+  gmnbTiteresPaso();
+  if ((GMNB_RED.t -= dt) > 0) return; GMNB_RED.t = 0.1;
+  const l = [], R3 = gmnbR3;
+  for (const e of GMA.ents.values()) {
+    if (!e.nb || !e.vivo || e.nbRem || !e.creado || l.length >= 24) continue;
+    const c = GMA.clases.get(e.clase), w = c && c.addon && c.addon.id, wid = /^\d{3,12}$/.test(String(w)) ? String(w) : '';
+    const p = gmaEntPos(e), y = quatAng(entQ(e)).y, S = e.nbSec, pv = e.poseVals || {}, sp = e.nbSpr && TIEMPO.t - e.nbSpr.t < 1 ? e.nbSpr : null;
+    l.push([e.id, String(e.clase).slice(0, 64), wid, String(e.modelo || '').slice(0, 160), R3(p.x), R3(p.y), R3(p.z), Math.round(y * 10) / 10, S ? S.i : -1, S ? R3(S.t) : 0, R3(e.nbRate ?? 1),
+      R3(gmnbEscala(e)), +e.skin || 0, R3(pv.move_x), R3(pv.move_y), sp ? [String(sp.mat).slice(0, 120), R3(sp.dz), R3(sp.w), R3(sp.h)] : 0, e.noDraw ? 1 : 0]);
+  }
+  if (l.length || GMNB_RED.habia) publicar('a', { k: 'gnb', t: Math.round(TIEMPO.t * 1000) / 1000, l });   // (con la hora de mi juego: los demás lo dibujan entre dos muestras)
+  GMNB_RED.habia = l.length > 0;
+}
+// ---- lo que llega ----
+function gmnbRedRecibir(d) {
+  if (!d || typeof d.k !== 'string' || typeof d.i !== 'string') return;
+  if (d.k === 'gnb') { if (Array.isArray(d.l)) gmnbTiteres(d.i, d.l, num(d.t, 0, 1e9, 0)); return; }
+  if (d.to !== RED.ID) return;
+  const vec = (a, m) => (Array.isArray(a) ? v3(num(a[0], -m, m, 0), num(a[1], -m, m, 0), num(a[2], -m, m, 0)) : null);
+  if (d.k === 'gnbd') {
+    // (el nextbot de otro me pegó)
+    if (!JUG.vivo || (typeof SALA !== 'undefined' && SALA && SALA.nb === 0)) return;
+    const dan = num(d.d, 0, 1e6, 0), dir = vec(d.v, 1); if (!(dan > 0)) return;
+    danarJugador(dan, null);
+    if (dir && JUG.vivo) JUG.vel.addS(dir, Math.min(6, dan * 0.05));
+  } else if (d.k === 'gnbv') {
+    const v = vec(d.v, 40); if (v && JUG.vivo && !JUG.vehiculo) JUG.vel.add(v);
+  } else if (d.k === 'gnbg') {
+    // (le pegaron a uno de mis nextbots: se lo pega el otro jugador, como si estuviera acá)
+    const e = GMA.ents.get(d.n | 0); if (!e || !e.nb || e.nbRem || !e.vivo) return;
+    const at = gmnbJugRem(d.i) || NULL_ENT; GMNB.ambito++; try { gmaDanar(e, num(d.d, 0, 1e5, 0), at, at); } finally { GMNB.ambito--; }
+  }
+}
+// ---- los de los demás: títeres ----
+function gmnbTiteres(de, l, rt) {
+  if (!GMA.R) gmaIniciar();
+  if (!GMA.activo) GMA.activo = true;   // (sin addons propios el Lua no corría: los de los demás igual se ven)
+  gmnbRedGen(); const vivos = new Set(), ahora = performance.now() / 1000;
+  for (const x of l.slice(0, 24)) {
+    if (!Array.isArray(x) || x.length < 12) continue;
+    const key = de + '/' + (x[0] | 0); vivos.add(key);
+    let X = GMNB_RED.rem.get(key);
+    const clase = String(x[1] || '').slice(0, 64), modelo = String(x[3] || '').toLowerCase().replace(/\\/g, '/').slice(0, 160);
+    if (X && (X.clase !== clase || X.modelo !== modelo)) { gmnbTitereQuitar(key, X); X = null; }
+    if (!X) { X = gmnbTitere(de, key, clase, String(x[2] || ''), modelo); if (!X) continue; }
+    X.t = TIEMPO.t; X.esc = num(x[11], 0.01, 100, 1); X.skin = x[12] | 0; X.mx = num(x[13], -2, 2, 0); X.my = num(x[14], -2, 2, 0);
+    X.spr = Array.isArray(x[15]) && typeof x[15][0] === 'string' ? x[15] : null; X.oculto = x[16] === 1;
+    // (la muestra, con la hora del juego del dueño: se lo dibuja un poco atrás, entre dos muestras, como a los demás
+    // jugadores —remotoMuestra—; así va parejo aunque los mensajes lleguen a destiempo)
+    const m = { rt, p: v3(num(x[4], -1e5, 1e5, 0), num(x[5], -1e5, 1e5, 0), num(x[6], -1e5, 1e5, 0)), yaw: num(x[7], -1e4, 1e4, 0), sec: x[8] | 0, ciclo: num(x[9], 0, 1e6, 0), rate: num(x[10], -20, 20, 1), lleg: ahora };
+    const L = X.mm, u = L[L.length - 1];
+    if (u && rt <= u.rt) { if (rt < u.rt - 2) { L.length = 0; X.rr = undefined; X.H.length = 0; } else continue; }   // (repetida o vieja; muy atrás: recargó)
+    const H = X.H; H.push([rt, ahora]); while (H.length > 2 && ahora - H[0][1] > 2.5) H.shift();
+    const sH = H[H.length - 1][1] - H[0][1]; X.rit = sH > 0.5 ? clamp((H[H.length - 1][0] - H[0][0]) / sH, 0.05, 1.5) : 1;
+    if (u) { const dR = rt - u.rt, dA = (ahora - u.lleg) * (X.rit < 0.8 ? X.rit : 1); if (dR < 0.5) X.int = X.int ? X.int + (dR - X.int) * 0.15 : dR; if (dR < 2) X.jit = (X.jit || 0) + (Math.abs(dA - dR) - (X.jit || 0)) * 0.15; }
+    if (u && vsub(m.p, u.p).len() > 12) { L.length = 0; X.rr = undefined; }   // (un salto grande —un SetPos—: va de una)
+    L.push(m); if (L.length > 16) L.shift();
+    // (cuánto atrás: lo que tardan en llegar dos seguidas y lo que varía, como a los jugadores —con menos atraso hay que
+    // adivinar más y en cada giro se lo veía hasta 3 m corrido—; sin la siguiente, sigue con su velocidad hasta 0,2 s)
+    const D = clamp((X.int || 0.1) * 1.15 + 2.5 * (X.jit || 0), 0.1, 0.5);
+    if (X.rr === undefined || L.length === 1) { X.rr = rt - D; X.rrErr = 0; X.mmT = ahora; }
+    else { X.rrErr = rt - X.rr - D; if (Math.abs(X.rrErr) > 0.75) { X.rr = rt - D; X.rrErr = 0; } }
+  }
+  for (const [k, X] of [...GMNB_RED.rem]) if (X.de === de && !vivos.has(k)) gmnbTitereQuitar(k, X);
+}
+function gmnbTitere(de, key, clase, wid, modelo) {
+  if (!clase) return null;
+  const c = GMA.clases.get(clase), conClase = !!(c && (c.C || c.S));
+  const e = new LEnt(conClase ? clase : 'gmnb_remoto', 'ent'); e.claseNom = clase;
+  const X = { de, key, clase, wid, modelo, e, mm: [], H: [], pos: v3(), t: TIEMPO.t, esc: 1, skin: 0, mx: 0, my: 0, spr: null, oculto: false, conClase };
+  e.nbRem = X; e.nb = true; e.creado = true; e.dtListo = true; e.mov = 0; e.modelo = modelo;
+  GMNB_RED.rem.set(key, X);
+  if (conClase) {
+    // (con el addon: lo suyo del lado del cliente —NetworkVars e Initialize—, como lo que ve un jugador en GMod)
+    GMNB.ambito++; try { if (c.S) metodo(e, 'SetupDataTables', 'S'); if (c.C && c.C !== c.S) metodo(e, 'Initialize', 'C'); } catch (x) {} finally { GMNB.ambito--; }
+  }
+  if (modelo) gmaRehacer(e);
+  // (sin el addon: de visita, sólo sus archivos —el modelo, la imagen—; al llegar se arma)
+  // (y lo que se dibujó antes de que llegara —la imagen, que quedó en blanco— se vuelve a cargar: gmlLlegaron)
+  if (/^\d{3,12}$/.test(wid) && typeof gmVisita === 'function' && !GMOD.addons.has(wid)) gmVisita(wid).then((A) => { if (!A) return; try { if (typeof gmlLlegaron === 'function') gmlLlegaron([...A.G.archivos.keys()]); } catch (x) {} if (e.vivo && e.modelo) { e.nbDefDe = null; gmaRehacer(e); } });
+  return X;
+}
+function gmnbTitereQuitar(key, X) {
+  GMNB_RED.rem.delete(key); const e = X.e; if (!e.vivo) return; e.vivo = false;
+  const c = GMA.clases.get(e.clase); if (X.conClase && c && c.C && c.C !== c.S && c.C.get('OnRemove')) { try { metodo(e, 'OnRemove', 'C'); } catch (x) {} }
+  if (e.o) { GMA.entPorObj.delete(e.o); if (!e.o.borrado) borrarObjeto(e.o, true); e.o = null; }
+  GMA.ents.delete(e.id);
+}
+// cada cuadro: donde estaba en el juego de su dueño un momento atrás (entre las dos muestras de ese momento; sin la que
+// sigue, con su velocidad hasta 0,2 s), mirando para donde miraba y en ese momento de su animación
+function gmnbTiteresPaso() {
+  const ahora = performance.now() / 1000;
+  for (const [key, X] of [...GMNB_RED.rem]) {
+    const e = X.e, L = X.mm;
+    if (!e.vivo || TIEMPO.t - X.t > 3 || !RED.remotos.has(X.de)) { gmnbTitereQuitar(key, X); continue; }
+    if (!L.length) continue;
+    const dtr = clamp(ahora - (X.mmT || ahora), 0, 0.5); X.mmT = ahora;
+    X.ritS = (X.ritS || 1) + (((X.rit || 1) < 0.8 ? X.rit : 1) - (X.ritS || 1)) * Math.min(1, dtr * 1.5);
+    const adv = dtr * X.ritS * (1 + clamp((X.rrErr || 0) * 0.6, -0.6, 0.25));
+    X.rr = Math.min(X.rr + adv, L[L.length - 1].rt + 0.2); X.rrErr = (X.rrErr || 0) - (adv - dtr * X.ritS);
+    while (L.length > 2 && L[1].rt <= X.rr) L.shift();
+    const a = L[0], b = L[1], rr = X.rr; let s = a, yaw = a.yaw;
+    if (!b || rr >= b.rt) {
+      const u = b || a, w = b ? a : null, ex = clamp(rr - u.rt, 0, 0.2);
+      if (w && u.rt > w.rt) { const k = ex / (u.rt - w.rt); X.pos.set(u.p.x + (u.p.x - w.p.x) * k, u.p.y + (u.p.y - w.p.y) * k, u.p.z + (u.p.z - w.p.z) * k); } else X.pos.copy(u.p);
+      s = u; yaw = u.yaw;
+    } else if (rr <= a.rt) X.pos.copy(a.p);
+    else {
+      const f = (rr - a.rt) / (b.rt - a.rt); X.pos.set(a.p.x + (b.p.x - a.p.x) * f, a.p.y + (b.p.y - a.p.y) * f, a.p.z + (b.p.z - a.p.z) * f);
+      yaw = a.yaw + ((((b.yaw - a.yaw) % 360) + 540) % 360 - 180) * f;
+    }
+    const q = angQuat(new LAng(0, yaw, 0));
+    e.escala = X.esc; e.skin = X.skin; e.noDraw = X.oculto;
+    if (e.o) {
+      const bd = e.o.b; bd.q.copy(q); gmaOrigenPon(e.o, X.pos, q); bd.vel.set(0, 0, 0); bd.ang.set(0, 0, 0); bd.frozen = true; bd.noJug = true; bd.noGrab = true; if (bd.updateWorld) bd.updateWorld();
+      e.o.remoto = true; e.o.key = 'gnb:' + key;   // (no es mío: no va en mi mundo)
+    } else { e.pos.copy(X.pos); e.q.copy(q); }
+    // (la secuencia de ese momento y por dónde iba: la de la muestra, adelantada con su paso)
+    const d = s.sec >= 0 ? gmnbDef(e) : null;
+    if (d && d.M.secuencias[s.sec]) {
+      if (!e.nbSec || e.nbSec.i !== s.sec) gmnbSecuencia(e, { idx: s.sec });
+      if (e.nbSec) e.nbSec.t = s.ciclo + Math.max(0, rr - s.rt) * s.rate;
+      const pv = e.poseVals || (e.poseVals = {}); pv.move_x = X.mx; pv.move_y = X.my;
+    }
+  }
+}
+// el dibujo de uno de otro sin su addon (gmod_render.js): su modelo animado o su imagen, mirando a los ojos como la dibujan
+// los de la base de Sanic (inclinada un tercio hacia arriba)
+function gmnbRemDibujar(e) {
+  const X = e.nbRem; if (!X || e.noDraw) { if (e.o) e.o.md.oculto = true; return; }
+  if (e.o) { e.o.md.oculto = false; e.o.md.color = null; if (gmnbDef(e)) gmnbDibujar(e); return; }
+  if (!X.spr) return;
+  const [mat, dz, w, h] = X.spr, rq = GMA.R && GMA.R.G.get('render'), dq = rq && rq.get('DrawQuadEasy'); if (typeof dq !== 'function') return;
+  const p = vadd(gmaEntPos(e), v3(0, (+dz || 0) * GS, 0)), n = vsub(CAM.pos, p), nl = n.len() || 1, hz = Math.hypot(n.x, n.z) || 1, pit = Math.acos(Math.max(-1, Math.min(1, hz / nl))) / 3;
+  const nn = v3((n.x / hz) * Math.cos(pit), Math.sin(pit), (n.z / hz) * Math.cos(pit));
+  // (hasta que llega su textura —del addon de visita, unos segundos— no se dibuja: si no, era un cuadrado blanco)
+  const m = gmaMaterial(String(mat)); if (!m.ok) return; GR.mat = m; GR.entAct = e;
+  dq(GMA.V(p), GMA.Vd(nn), +w || 64, +h || 64, undefined, 180);
+}
+// (lo que dibuja uno mío que es una imagen: el material y el tamaño, para los que no tienen su addon. Desde gmod_render.js)
+function gmnbAnotarImagen(e, P, w, h) {
+  if (!e || !e.nb || e.nbRem || !GR.mat || !GR.mat.n) return;
+  const dz = (P.y - gmaEntPos(e).y) / GS, x = e.nbSpr;
+  if (x && x.t === TIEMPO.t && x.w * x.h >= w * h) return;   // (la más grande del cuadro)
+  e.nbSpr = { mat: GR.mat.n, dz, w, h, t: TIEMPO.t };
+}
+// (uno de otro al que le pego: le llega a su dueño, que es el que lo mueve)
+function gmnbTitereGolpe(e, di) {
+  const X = e.nbRem; if (!X || !gmnbRedOn()) return;
+  publicar('a', { k: 'gnbg', to: X.de, n: +X.key.split('/')[1] | 0, d: Math.round(Math.min(1e5, Math.max(0, +di.dan || 0))) });
+}
+if (typeof module !== 'undefined') module.exports = { gmnbLoco, gmnbPath, gmnbApi, gmnbPaso, gmnbEs, gmnbDibujar, gmnbRedRecibir, gmnbRemIndice, gmnbRemLista, gmnbJugRem, gmnbRemDanar };

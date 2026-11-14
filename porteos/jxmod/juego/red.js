@@ -364,7 +364,7 @@ function redPaso(dt) {
     const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits() | nocheBits() | linternaBits();
     const kE = (typeof pillSkin === 'function' && pillSkin()) || J.skinRol || J.skinMod || PREFS.skin;   // (transformado: su personaje, pillpacks.js)
     const e = { n: PREFS.nombre, k: kE, kw: redSkinWid(kE), h: PREFS.gorro, ga: PREFS.gorroAj || 0, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
-      e: JUG.cuerpo && JUG.cuerpo.emote || 0, mu: typeof emuRed === 'function' ? emuRed() : 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0, vr: verRedEstado() };
+      e: JUG.cuerpo && JUG.cuerpo.emote || 0, hp: Math.max(0, Math.round(JUG.vida)), mu: typeof emuRed === 'function' ? emuRed() : 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0, vr: verRedEstado() };
     { const pl = typeof pillRed === 'function' ? pillRed() : 0; if (pl) e.pl = pl; }   // (Pill Packs: en qué está transformado)
     if (RED.antes && RED.lugar && t - RED.lugar.t0 < 20) e.an = RED.antes;   // (volví con otro número: el de antes, para que borren su fantasma)
     // (tu ID de Social, si entraste con Google: así los de la sala te agregan de amigo sin escribirlo)
@@ -383,7 +383,7 @@ function redPaso(dt) {
   }
   if (RED.wSucio || t - RED.ultW > 8) {
     RED.wSucio = false; RED.ultW = t;
-    const o = OBJS.filter((x) => !x.remoto).slice(-300).map((x) => [x.id, x.nombre, r3(x.b.pos.x), r3(x.b.pos.y), r3(x.b.pos.z), r4(x.b.q.x), r4(x.b.q.y), r4(x.b.q.z), r4(x.b.q.w), x.b.frozen ? 1 : 0, maqAlMundo(x)]);   // (el último: el juego de la maquinita)
+    const o = OBJS.filter((x) => !x.remoto && !(x.gmEnt && x.gmEnt.nb)).slice(-300).map((x) => [x.id, x.nombre, r3(x.b.pos.x), r3(x.b.pos.y), r3(x.b.pos.z), r4(x.b.q.x), r4(x.b.q.y), r4(x.b.q.z), r4(x.b.q.w), x.b.frozen ? 1 : 0, maqAlMundo(x)]);   // (el último: el juego de la maquinita)
     publicar('w/' + RED.ID, { o, e: entidadesMias(), md: [...SMOD.ids] }, true);
   }
   redEstadoUI();
@@ -487,7 +487,7 @@ function recibirEstado(d) {
   if (Array.isArray(d.p)) { R2.meta.set(num(d.p[0], -1e4, 1e4, 0), num(d.p[1], -1e4, 1e4, 0), num(d.p[2], -1e4, 1e4, 0)); if (nuevo || TIEMPO.t - R2.t > 2 || R2.pos.distTo(R2.meta) > 15) R2.pos.copy(R2.meta); }   // (un salto grande, como cruzar una puerta portal, va de una: si no, se lo veía volar por el mapa)
   if (Array.isArray(d.v)) R2.vel.set(num(d.v[0], -80, 80, 0), num(d.v[1], -80, 80, 0), num(d.v[2], -80, 80, 0));
   remotoMuestra(R2, d);
-  R2.yawM = num(d.y, -1e3, 1e3, 0); R2.P.mira = num(d.t, -2, 2, 0); R2.f = d.f | 0; R2.t = TIEMPO.t;
+  R2.yawM = num(d.y, -1e3, 1e3, 0); R2.P.mira = num(d.t, -2, 2, 0); R2.f = d.f | 0; R2.t = TIEMPO.t; R2.hp = num(d.hp, 0, 1e5, 100);
   // (el nombre pasa por la censura sólo si cambió: llega 10 veces por segundo de cada jugador)
   if (R2.nCrudo !== d.n) { R2.nCrudo = d.n; R2.nombre = censurar(limpio(d.n)); }
   etiquetaRemota(R2); R2.sp = /^\d{8}$/.test(d.sp || '') ? d.sp : null;
@@ -722,6 +722,7 @@ function recibirHecho(d) {
   } else if (d.k === 'turbo') { turboRed(d);
   } else if (d.k === 'echar') { celEchadoRed(d);
   } else if (typeof d.k === 'string' && d.k.startsWith('npc')) { npcRecibir(d);
+  } else if (typeof d.k === 'string' && d.k.startsWith('gnb')) { if (typeof gmnbRedRecibir === 'function') gmnbRedRecibir(d);   // (los nextbots de GMod de otro y lo que le hacen a uno: gmod_nextbot.js)
   } else if (d.k === 'catap' || d.k === 'omega' || d.k === 'omegab') { artRed(d);
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);
   } else if (d.k === 'cae') { if (typeof eventoRed === 'function') eventoRed(d);   // (lo que cae de la grieta: lo decidió el que reparte)

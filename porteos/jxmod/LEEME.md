@@ -2924,3 +2924,51 @@ fuego tiran balas y suenan), apunta y recarga si tiene mira y cargador, y sin er
   lo negro o blanco puro que queda es del arma (el Shrekzooka es negro, el pochoclo y la Portal Gun blancos, las bolas
   de metal del bowcaster de Chewbacca). Sin probar en un celular de verdad. Fotos de cada arma (1ª, 3ª y disparo) y del
   panel GMod antes y después, fuera del repo.
+
+## Del Discord (Gumball): nextbots que en la 3.2 «no se mueven si no son de DrGBase», «no matan» y «te ignoran»
+
+Medido con 26 nextbots del Workshop (la base de Sanic: Sanic, Obunga, Walter, Smiley, Doge, Shaq y 8 copias más; 3D
+clásicos: SCP-096, SCP-049, SCP-106, Witch, Terminator, Boderman; DrGBase con 4 packs; Animals de VJ Base), cada uno
+solo, puesto desde el menú y con el jugador 44 m atrás, en la 3.1, la 3.2 y ahora (`pruebas/nextbots_tanda.mjs`; con
+`CPU=4`, el procesador 4 veces más lento, como un celular). Los .gma de la prueba, en `/tmp/claude-0/gma_prueba/`.
+- **No mataban**: en la 3.2 el comentario de `SysTime` quedó en el medio de una línea de `gmod_api.js` y se tragó
+  `FrameTime`, `RealFrameTime`, `FrameNumber` y `VGUIFrameTime`. El Sanic original usa `FrameTime` al pegarle a un
+  jugador: te alcanzaba y se quedaba al lado sin matarte, con un error de Lua en cada golpe (VJ Base y el Terminator
+  también los usan). Ahora están de vuelta: mata a los 3,5 s (3.1: 3,4 s; 3.2: nunca; igual con `CPU=4`). Los otros 25
+  andan igual que en la 3.1 (las 13 copias de la base de Sanic a 16,5 m/s, como en GMod, matan a los 2,9–3,6 s).
+- **En multijugador no se movían, no mataban y te ignoraban** (ya pasaba en la 3.1, pero es como se juega con amigos):
+  los de imagen no se veían, los 3D quedaban quietos en la pose de referencia y saltaban cada 8 s con el mundo de su
+  dueño, y para su Lua no había más jugador que el dueño. Ahora (`gmod_nextbot.js`, sección multijugador):
+  - el dueño manda los suyos 10 veces por segundo, con la hora de su juego, y los demás los ven moverse y animarse,
+    dibujados un poco atrás entre dos muestras, como a los jugadores: con el Lua del addon si lo tienen (la imagen, la
+    música de persecución) y si no, con el modelo o la imagen del addon bajados de visita. Nada de copias quietas;
+  - mientras corre el Lua de un nextbot, los demás jugadores existen para él (`player.GetAll`, `ents.FindInSphere`,
+    `ents.GetAll`…) con dónde están, si viven, su vida y su nombre; lo demás de un jugador, sobre otro, no hace nada
+    (un `SetPos` o un `SetModel` de otro no toca al de uno) y fuera del Lua de los nextbots no se ven (los modos de
+    juego siguen igual). Lo que les pega un nextbot les llega con el empujón, también sin PvP (como los NPC en GMod);
+    lo de uno a otro jugador sigue yendo con PvP; lo que uno le pega al nextbot de otro le llega a su dueño. Los timers
+    que crea el Lua de un nextbot corren igual (el golpe de DrGBase se resuelve en uno), y un nextbot llega hasta tocar
+    a una persona (antes frenaba a su ancho más lo que avanza en un cuadro, ~1,7 m: el golpe de Doro, de 1,4 m, no
+    alcanzaba a los otros jugadores, que tienen cuerpo; uno mismo no tiene);
+  - `pruebas/nextbots_red.mjs` (Ana y Beto en FlatGrass, sin PvP): Beto ve el Walter, el SCP-049 y Doro (DrGBase) de
+    Ana sin sus addons y con el addon, sobre el camino que hacen en el juego de Ana (82–100 % de las muestras a ≤ 1 m;
+    0,04–0,3 m de diferencia media; 0,2–0,65 s de atraso, como los jugadores), animados, y lo matan (Walter a los
+    2–4 s, Doro a los 2 s, el SCP-049, que camina a 3,4 m/s, a los 24 s de juego). La imagen de uno sin su addon no
+    se dibuja hasta que llega su textura (antes, un cuadrado blanco un par de segundos).
+- **«Errores de modelos»**: los nextbots con modelos de HL2 (el zombie y la hormiga de DrGBase, el G-Man, el zombie del
+  SCP-049) salían como una caja de madera mientras su modelo bajaba de Steam (5 a 30 s; desde la 3.2 el Lua de un
+  addon corre a los 12 s aunque no haya llegado todo). Ahora no se ven hasta que llega (si a los 25 s no llegó, la caja,
+  como antes). En la red, el de otro tampoco sale como caja mientras se baja su addon.
+- **Los clips de jugador de los mapas del Workshop** (desde la 3.2 chocan) frenaban también a los nextbots, que en
+  Source pasan: ahora los ignoran, como las balas.
+- **Herencia de clases en cualquier orden**: una clase que se registra antes que su base (el Terminator corre
+  `terminator_nextbot/` antes que `terminator_nextbot_base/`) quedaba sin base o con la de mentira de `baseclass.Get`;
+  ahora se enlaza cuando la base llega, `base_entity` tiene de base a sí misma (como en GMod) y lo registrado en un
+  `timer.Simple` queda en su addon: los 15 Terminator aparecen en el menú (antes ninguno). Su IA, muy atada a la malla
+  de navegación de GMod, igual tira errores y no camina: falta.
+- Sin cambios entre versiones (no son de la 3.2): el SCP-096 y la Witch esperan a que los mires o los molestes; el
+  SCP-106 camina a 1 m/s; Cartoon Cat y Bridge Worm (DrGBase) te alcanzan y no pegan; el SCP-096:SL tira un error de
+  su Lua (línea 504); el cocodrilo de VJ Base sale con el cuerpo del Hero.
+- Pruebas de antes: `nextbots_ia.mjs` 8/9 (la 3.2 en la misma máquina, 7/9; en las dos falla la velocidad del zombie
+  de DrGBase, medida mientras pega); `nextbots_drg.mjs` 4/6, igual en la 3.1, la 3.2 y ahora (sus
+  esperas de 8 y 12 s son de reloj y con la máquina cargada no alcanzan); `gmod_nextbot_muerte.mjs` igual que la 3.2.
