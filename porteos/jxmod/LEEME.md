@@ -3083,6 +3083,13 @@ en todo `juego/`: 9 en la 3.2, 0 ahora.
 - Además: la cámara de las de CoD4 miraba al piso (`WorldToLocalAngles` de la vista), `Angle:Mul`, `game.GetAmmoMax`,
   `GetLaggedMovementValue` (The Flash), `STUDIO_*` (ARC9), ConVars sin distinguir mayúsculas (ARC9),
   `GetManipulateBone*` (Spider-Man), `NULL` ya no es igual al mundo (Slappers), `GetBoneName` sin huesos.
+- **Las TFA bajaban el arma solas** (visto después, en la foto de la ACR): `game.GetGlobalState` no existía (la
+  biblioteca da nil a lo que falta) y `GLOBAL_ON` tampoco, así que `GetGlobalState("friendly_encounter") == GLOBAL_ON`
+  daba nil == nil, verdadero: la TFA Base creía estar en un «encuentro amistoso» y al segundo de no disparar ponía
+  el arma en la pose de seguro (bajada, cruzada y pegada a la cámara), para siempre. Medido quieto y sin correr a 0,5,
+  2, 5 y 10 s de equiparla, en 5 armas TFA (ACR, G3A3, Big Glock, Acid Gat, Glock G-Spirit): antes el progreso de seguro
+  llegaba a 1 en 1-2 s y la vista quedaba corrida 5-13 cm; ahora queda en 0 y la vista a menos de 0,5 cm de la normal
+  (sólo el balanceo). Ahora están `GLOBAL_OFF/ON/DEAD` y `game.Get/SetGlobalState` (sin poner: GLOBAL_OFF).
 
 Con la misma prueba en las tres versiones (y las que fallan, repetidas solas en las tres; «anda» = todo lo de arriba):
 
