@@ -92,9 +92,11 @@ if (s) await s.b.close();
 // ---- los criterios ----
 const anims = (r) => (r.medida && r.medida.anims ? Object.values(r.medida.anims) : []);
 const mx = (r, k) => Math.max(0, ...anims(r).map((a) => a[k]));
-// (una vista v_ trae sus brazos —la v_pistol de prueba, el guantelete de Thanos que del lado del cliente usa la v_pistol—:
-// no lleva manos; las demás son c_ y tienen que llevar las del personaje)
-const esV = (r) => !!(r.vista && /(^|\/)v_[^/]*$/.test(r.vista.ruta || ''));
+// (las vistas que traen sus brazos a la vista —la v_pistol de HL2: la usan la v_ de prueba y el guantelete de Thanos del lado
+// del cliente— no llevan manos; las demás tienen que llevar las del personaje, aunque se llamen v_ —el Cat Gun y el
+// karambit son v_ sin brazos—)
+const CON_BRAZOS = new Set(['models/weapons/v_pistol.mdl']);
+const esV = (r) => !!(r.vista && CON_BRAZOS.has(r.vista.ruta || ''));
 const conManos = res.filter((r) => !esV(r));
 ok('1. las armas c_ tienen manos (y son las del personaje)', conManos.every((r) => r.vista && r.vista.manos && r.vista.manos === r.esperadas), conManos.filter((r) => !(r.vista && r.vista.manos === r.esperadas)).map((r) => [r.pm, r.clase, r.vista && r.vista.manos, r.esperadas, r.fallo]));
 ok('2. huesos ≤ 0,01 u y ≤ 0,1°, piel ≤ 0,05 cm contra Source, en todos los cuadros', conManos.every((r) => anims(r).length && mx(r, 'huesoErr') <= 0.01 && mx(r, 'huesoGrados') <= 0.1 && mx(r, 'verticeErrCm') <= 0.05),
