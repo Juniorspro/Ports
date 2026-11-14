@@ -115,6 +115,7 @@ function jugadorPaso(dt, ent) {
   // (congelado por el Lua —Player:Freeze, la pre-ronda de los modos de Fretta—: no camina ni salta, pero cae al piso)
   if (J.congelado) { ent = { x: 0, y: 0, saltar: false, agachar: false, correr: false }; J.vel.x = 0; J.vel.z = 0; }
   if (natMover(dt, ent)) return; // volar, muñeco o SCP (mods)
+  if (typeof gmaMovLuaTomado === 'function' && gmaMovLuaTomado()) return;   // (un arma de un mod de GMod lo mueve desde su Move: gmod_cargar.js)
   if (aguaJugador(dt, ent)) return; // nadando (agua.js); vadeando, más lento
   // deseo de movimiento en el plano
   const f = qy.rot(v3(0, 0, 1)), rgt = qy.rot(v3(-1, 0, 0));

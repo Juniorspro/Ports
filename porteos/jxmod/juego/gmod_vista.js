@@ -84,8 +84,11 @@ function gmvMallas(Mx, nodo, etiqueta, arb, pv, C, flip) {
 function gmvConstruir(ruta, flip, fovVm, clase, manos, aparte) {
   const k = ruta + '|' + (flip ? 1 : 0) + '|' + fovVm + '|' + (manos || '') + (aparte ? '|' + aparte : '');
   if (GMV.cache.has(k)) return GMV.cache.get(k);
+  if (gmvEnCamino(ruta) || (manos && gmvEnCamino(manos))) return null;   // (todavía llegan sus piezas: sin anotarla como «sin vista»)
   GMV.cache.set(k, null);
-  let M; try { M = gmLeerModelo(ruta); } catch (e) { if (e.pendiente) return null; try { M = GMF.mdl(gmArchivo(ruta)); M.mallas = []; } catch (e2) { gmErr('vista ' + ruta, e); return null; } }   // (sin .vvd/.vtx: sólo huesos y animaciones; si se están leyendo del disco, se vuelve a armar cuando llegan)
+  // (si su geometría se está leyendo del disco no queda anotada como «sin vista»: se vuelve a probar en el cuadro siguiente.
+  // Antes quedaba sin vista para siempre si la lectura terminaba sin avisar —el guantelete de Thanos no se veía—)
+  let M; try { M = gmLeerModelo(ruta); } catch (e) { if (e.pendiente) { GMV.cache.delete(k); return null; } try { M = GMF.mdl(gmArchivo(ruta)); M.mallas = []; } catch (e2) { gmErr('vista ' + ruta, e); return null; } }   // (sin .vvd/.vtx: sólo huesos y animaciones; si se están leyendo del disco, se vuelve a armar cuando llegan)
   const H = M.huesos, nb = H.length, id = 'gmv' + ++GMV.n;
   // ejes: Source (x adelante, y izquierda, z arriba) → la vista del juego (x izquierda, y arriba, z adelante), en las
   // unidades de debajo del WalkSway (que está escalado 0,3); ViewModelFlip espeja el eje x
@@ -155,16 +158,23 @@ function gmvConstruir(ruta, flip, fovVm, clase, manos, aparte) {
   GMV.cache.set(k, v);
   return v;
 }
+// ¿el .mdl, el .vvd o el .vtx de un modelo existen pero todavía no llegaron (de la biblioteca de GMod/HL2 o del disco)? (y se
+// piden). La biblioteca manda primero el .mdl y después sus piezas: con el .mdl solo la vista no se podía armar y quedaba
+// «sin vista» para siempre —el v_pistol que muchas armas heredan de weapon_base—
+function gmvEnCamino(ruta) { const b = ruta.slice(0, -4); return [ruta, b + '.vvd', b + '.dx90.vtx'].some((x) => gmExiste(x) && !gmArchivo(x)); }
 // la vista del arma del addon que tiene el jugador
 function gmvDeArma(w) {
   if (w.vista !== undefined) return w.vista;
   const c = claseTabla(w.clase, 'C') || claseTabla(w.clase, 'S'), ruta = String((c && buscarEnClase(c, 'ViewModel')) || '').toLowerCase().replace(/\\/g, '/');
   w.vista = null;
-  if (!ruta || !gmArchivo(ruta)) return null;
+  // (un modelo que existe pero todavía no llegó —de la biblioteca de GMod/HL2, como el v_pistol que heredan de weapon_base,
+  // o del disco—: se vuelve a probar en el cuadro siguiente. Antes quedaba «sin vista» para siempre y, desde la 3.2, el Lua
+  // de la vista corría sin huesos: el guantelete de Thanos no se veía y tiraba «table index is nil» en cada cuadro)
+  if (!ruta || !gmArchivo(ruta)) { if (ruta && gmExiste(ruta)) w.vista = undefined; return null; }
   const manos = c && R_T(buscarEnClase(c, 'UseHands')) && gmArchivo('models/weapons/c_arms_citizen.mdl') ? 'models/weapons/c_arms_citizen.mdl' : null;   // (las manos del jugador, las de ciudadano)
   const v = gmvConstruir(ruta, !!(c && buscarEnClase(c, 'ViewModelFlip')), +(c && buscarEnClase(c, 'ViewModelFOV')) || 62, w.clase, manos);
   // (su geometría o la de las manos se está leyendo del disco: se vuelve a probar en los cuadros siguientes)
-  if (!v) { if (typeof gmModeloFaltan === 'function' && (GMPZ.mdl.size || gmModeloFaltan(ruta).length || (manos && gmModeloFaltan(manos).length))) w.vista = undefined; return null; }
+  if (!v) { if (typeof gmModeloFaltan === 'function' && (GMPZ.mdl.size || gmModeloFaltan(ruta).length || (manos && gmModeloFaltan(manos).length) || gmvEnCamino(ruta) || (manos && gmvEnCamino(manos)))) w.vista = undefined; return null; }
   w.vista = v;
   const D = DEF_ARMAS['gm:' + w.clase]; if (D) { D.quieto = v.quieto; D.fuego = v.fuego; D.recarga = v.recarga; D.sacar = v.sacar; }
   return v;
@@ -185,6 +195,11 @@ function gmvCS(e) {
   const w0 = GMA.swep, vmArma = w0 && typeof w0.vm === 'string' ? w0.vm.toLowerCase().replace(/\\/g, '/').replace(/^(?!models\/)/, 'models/') : '';
   // (si todavía no es el arma en la mano —CW 2.0 lo crea en su Initialize—, se vuelve a mirar en un segundo)
   if (!GMV_RE_VISTA.test(ruta) && ruta !== vmArma) { e.gmvCSprox = TIEMPO.t + 1; return null; }
+  // (y que el arma lo tenga como suyo, en un campo de su tabla —FA:S: self.Wep y self.Nade; CW 2.0: self.CW_VM—: las piezas
+  // del SWEP Construction Kit también son ClientsideModel, a veces con un c_ o v_ —SciFi Weapons de Darken217 pone un c_357
+  // achicado como pieza—, pero van adentro de VElements; tomarlas por la vista escondía el arma de verdad y las dibujaba
+  // enteras y animadas)
+  if (!gmvCSDelArma(w0, e)) { e.gmvCSprox = TIEMPO.t + 1; return null; }
   // (su modelo puede estar todavía en camino —la biblioteca o el disco—: se vuelve a probar cada segundo)
   if (!gmArchivo(ruta)) { e.gmvCSprox = TIEMPO.t + 1; return null; }
   const w = GMA.swep, c = w && (claseTabla(w.clase, 'C') || claseTabla(w.clase, 'S'));
@@ -194,6 +209,11 @@ function gmvCS(e) {
   if (!v) { e.gmvCSprox = TIEMPO.t + 1; return null; }
   if (!v.quieto && !v.sacar && !v.fuego) return null;
   return (e.gmvCS = v);
+}
+function gmvCSDelArma(w, e) {
+  if (!w) return false;
+  for (const t of [w.tablaC, w.tabla]) if (t && t.claves) for (const k of t.claves()) if (t.get(k) === e) return true;
+  return false;
 }
 // DrawModel de ese modelo en la pasada de la vista: ubicado donde lo puso el Lua, con la pose de su secuencia
 function gmvDibujarCS(e) {
@@ -302,6 +322,11 @@ function gmvApi() {
   // CalcView = ángulos − (vm:GetAngles() − enganche.Ang) y la cámara se sumaba a sí misma en cada cuadro y salía girando
   const raiz = (v) => ejes({ fx: 1 }, v.md.raiz);
   soloVm('GetPos', (v) => pos(raiz(v).P)); soloVm('GetAngles', (v) => ang(raiz(v)));
+  // (y los ángulos de un enganche respecto de la vista: las armas de CoD4 le suman a la cámara el del enganche «camera»;
+  // contra la entidad sin ubicar daba el ángulo del mundo y la cámara quedaba mirando al piso)
+  const angL = (a) => { a.__mt = GMA.mtAng; return a; };
+  soloVm('WorldToLocalAngles', (v, e, a) => (a instanceof LAng ? angL(quatAng(new Quat().mulTo(angQuat(ang(raiz(v))).conj(), angQuat(a)))) : undefined));
+  soloVm('LocalToWorldAngles', (v, e, a) => (a instanceof LAng ? angL(quatAng(new Quat().mulTo(angQuat(ang(raiz(v))), angQuat(a)))) : undefined));
   soloVm('GetForward', (v) => pos(raiz(v).F)); soloVm('GetUp', (v) => pos(raiz(v).U)); soloVm('GetRight', (v) => { const L = raiz(v).L; return pos(new LVec(-L.x, -L.y, -L.z)); });
   soloVm('LookupSequence', (v, e, n) => { const s = String(n).toLowerCase(), i = v.M.secuencias.findIndex((q) => q.n.toLowerCase() === s); return [i, i >= 0 && v.sec[i] ? DATA.anPorNombre[v.sec[i]].d : 0]; });
   soloVm('GetSequence', (v) => Math.max(0, v.sec.findIndex((n) => n && DATA.anPorNombre[n] === v.clip)));

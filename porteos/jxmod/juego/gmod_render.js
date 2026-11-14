@@ -347,8 +347,21 @@ function gmrModelo(e) {
   let md = e.mdCS;
   if (!md || md.ruta !== ruta) { const pf = gmaPrefabCS(ruta); if (!pf) { e.mdCS = null; return; } const k = DATA.pfPorNombre[pf]; if (!k) return; md = e.mdCS = new Modelo(DATA.pf[k]); md.ruta = ruta; }
   const p = e.rOrigen ? vG(e.rOrigen) : gmaEntPos(e), q = e.rAng ? angQuat(e.rAng) : entQ(e), s = +e.escala || 1;   // (SetRenderOrigin/SetRenderAngles: el modelo de mundo de FA:S en la mano)
-  m4trs([p.x, p.y, p.z], [q.x, q.y, q.z, q.w], [s, s, s], md.raiz); md.sucio = true;
+  if (e.matriz && e.matriz.m) { m4trs([p.x, p.y, p.z], [q.x, q.y, q.z, q.w], [s, s, s], _gmT); m4mul(_gmT, gmrMatrizJuego(e.matriz.m, _gmX), md.raiz); }
+  else m4trs([p.x, p.y, p.z], [q.x, q.y, q.z, q.w], [s, s, s], md.raiz);
+  md.sucio = true;
   md.color = gmrTinte(e); md.encolar();
+}
+// Entity:EnableMatrix("RenderMultiply", m): la matriz se aplica al modelo en su propio espacio, antes de ubicarlo. El SWEP
+// Construction Kit —con el que están hechas la mayoría de las armas «custom»— achica, estira y corre así cada pieza de
+// sus armas (VElements/WElements: matrix:Scale(v.size)); antes se guardaba y no se usaba, y las piezas salían en su
+// tamaño original: en las de Darken217 (SciFi Weapons) un revólver entero y cajas gigantes tapaban toda la pantalla.
+// (de Source —Z arriba, pulgadas, filas— al juego —Y arriba, metros, columnas—: el eje i del juego es el S[i] de Source)
+const _gmT = new Float32Array(16), _gmX = new Float32Array(16), GMR_EJE = [1, 2, 0];
+function gmrMatrizJuego(M, o) {
+  for (let j = 0; j < 3; j++) { for (let i = 0; i < 3; i++) o[j * 4 + i] = M[GMR_EJE[i] * 4 + GMR_EJE[j]]; o[j * 4 + 3] = 0; }
+  for (let i = 0; i < 3; i++) o[12 + i] = M[GMR_EJE[i] * 4 + 3] * GS;
+  o[15] = 1; return o;
 }
 function gmrTinte(e) {
   const c = e.color || [255, 255, 255, 255], m = GR.mod, a = (c[3] ?? 255) / 255 * GR.blend;

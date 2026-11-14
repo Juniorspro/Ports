@@ -712,11 +712,17 @@ function gmSonido(ruta) {
 // (lo que en el Workshop serían los "Required items": muchos addons viejos lo dicen sólo en la descripción; acá se
 // reconoce en su Lua: SWEP.Base/ENT.Base de una base conocida que el addon no trae, o una librería global conocida)
 const GM_BASES = { fas2_base: '180507408', fas2_base_shotgun: '180507408', bobs_gun_base: '144982052', bobs_scoped_base: '144982052', bobs_shotty_base: '144982052', wac_hc_base: '953396297', wac_pl_base: '953396297', wac_hc_base_c: '953396297',
-  tfa_gun_base: '415143062', tfa_bash_base: '415143062', tfa_melee_base: '415143062', tfa_nade_base: '415143062', tfa_shotty_base: '415143062', tfa_scoped_base: '415143062', cw_base: '349050451', cw_grenade_base: '349050451', arccw_base: '2131057232', arc9_base: '2910505837', mg_base: '2459720887', weapon_cs_base2: '' };
+  // (la TFA Base de ahora: la vieja —415143062— ya no está en el Workshop, y los packs de TFA que la pedían se quedaban sin
+  // base: sus armas no aparecían o no disparaban)
+  tfa_gun_base: '2840031720', tfa_bash_base: '2840031720', tfa_melee_base: '2840031720', tfa_nade_base: '2840031720', tfa_shotty_base: '2840031720', tfa_scoped_base: '2840031720', tfa_knife_base: '2840031720', tfa_bow_base: '2840031720', tfa_sword_advanced_base: '2840031720',
+  cw_base: '349050451', cw_grenade_base: '349050451', arccw_base: '2131057232', arccw_base_melee: '2131057232', arccw_base_nade: '2131057232', arc9_base: '2910505837', arc9_base_nade: '2910505837', mg_base: '2459720887', weapon_cs_base2: '' };
 // (bases viejas que el Workshop todavía pide como "Required item" y que ya reemplaza otra: la de los aviones WAC original
 // —104990330— trae los mismos archivos que la actual y, con las dos, la cámara de WAC tiraba error)
 const GM_EQUIV = { '104990330': '953396297' };
-const GM_GLOBALES = [[/\bcreateManagedCModel\b|\bFAS2_/, '180507408'], [/\bwac\.(aircraft|pod|hook|keyboard)\b/, '953396297'], [/\bTFA\.\w+/, '415143062'], [/\bCustomizableWeaponry\b/, '349050451'], [/\bArcCW\b/, '2131057232'], [/\bARC9\b/, '2910505837'], [/\bsimfphys\b/, '771487490']];
+// (y las que ya no existen en el Workshop: se pide la que la reemplaza. Los packs viejos de TFA tienen la TFA Base vieja
+// —415143062, borrada— como "Required item"; antes se intentaba bajar, fallaba, y el pack quedaba sin base)
+const GM_REEMPLAZO = { '415143062': '2840031720' };
+const GM_GLOBALES = [[/\bcreateManagedCModel\b|\bFAS2_/, '180507408'], [/\bwac\.(aircraft|pod|hook|keyboard)\b/, '953396297'], [/\bTFA\.\w+/, '2840031720'], [/\bCustomizableWeaponry\b/, '349050451'], [/\bArcCW\b/, '2131057232'], [/\bARC9\b/, '2910505837'], [/\bsimfphys\b/, '771487490']];
 function gmDependencias(A) {
   const propias = new Set(), usadas = new Set(), out = new Set(), td = new TextDecoder('latin1');
   for (const r of A.lua) { const m = /^lua\/(weapons|entities)\/([^/]+?)(\.lua|\/)/.exec(r); if (m) propias.add(m[2].toLowerCase()); }
@@ -951,9 +957,12 @@ async function gmRequeridos(wid) {
   if (typeof gmApiHay === 'function' && (await gmApiHay())) {
     try { const r = await pedir(TIENDA_URL + 'gmod/requiere/' + wid, 8000); if (r.ok) return ((await r.json()).ids || []).map(String).filter((x) => /^\d{3,12}$/.test(x)); } catch (e) {}
   }
-  if (typeof GM_LECTOR === 'undefined') return [];
-  const h = await (await pedir(GM_LECTOR + 'https://steamcommunity.com/sharedfiles/filedetails/?id=' + wid, 8000)).text(), i = h.indexOf('Required items');
-  if (i < 0) return [];
+  // (si nadie contestó bien —la tienda con Steam en su tope, 429, y el lector caído— no se sabe: null, y no [] que quedaba
+  // anotado para siempre como «no pide nada»; así se vuelve a preguntar la próxima vez y el pack no queda sin su base)
+  if (typeof GM_LECTOR === 'undefined') return null;
+  const r = await pedir(GM_LECTOR + 'https://steamcommunity.com/sharedfiles/filedetails/?id=' + wid, 8000); if (!r.ok) return null;
+  const h = await r.text(), i = h.indexOf('Required items');
+  if (i < 0) return /Steam Workshop|Subscribe|filedetails/i.test(h) ? [] : null;
   let t = h.slice(i, i + 4000); const f = t.search(/Created by|\nDescription\n/); if (f > 0) t = t.slice(0, f);
   return [...new Set([...t.matchAll(/filedetails\/\?id=(\d{3,12})/g)].map((m) => m[1]))].filter((x) => x !== String(wid)).slice(0, 20);
 }
@@ -995,7 +1004,7 @@ async function gmInstalar(wid, meta, bytes, prog) {
   // se vuelve a cargar el Lua en orden, como las dependencias del Workshop; hasta dos niveles)
   const req = await reqP;
   if (Array.isArray(req) && /^\d+$/.test(wid)) GMOD.req.set(wid, req);
-  const deps0 = new Set([...gmDependencias(A), ...(req || [])]), deps = [...deps0].filter((d) => d !== wid && !GMOD.addons.has(d) && !(GM_EQUIV[d] && (GMOD.addons.has(GM_EQUIV[d]) || deps0.has(GM_EQUIV[d]))));
+  const deps0 = new Set([...gmDependencias(A), ...(req || [])].map((d) => GM_REEMPLAZO[d] || d)), deps = [...deps0].filter((d) => d !== wid && !GMOD.addons.has(d) && !(GM_EQUIV[d] && (GMOD.addons.has(GM_EQUIV[d]) || deps0.has(GM_EQUIV[d]))));
   if (deps.length && prof < 2 && !sinDeps) {
     A.deps = []; A.depsGrandes = [];
     // (con tope de peso: un modo de juego pedía 150 + 117 MB de contenido y el navegador se quedaba sin memoria; lo que no

@@ -2924,3 +2924,196 @@ fuego tiran balas y suenan), apunta y recarga si tiene mira y cargador, y sin er
   lo negro o blanco puro que queda es del arma (el Shrekzooka es negro, el pochoclo y la Portal Gun blancos, las bolas
   de metal del bowcaster de Chewbacca). Sin probar en un celular de verdad. Fotos de cada arma (1ª, 3ª y disparo) y del
   panel GMod antes y después, fuera del repo.
+
+## Del Discord (Gumball, después de la 3.2): «ya hay muchas armas custom que no se pueden usar»
+
+(`gmod_api.js`, `gmod_cargar.js`, `gmod_vista.js`, `gmod_render.js`, `gmod_lua.js`, `gmod_prelude.js`, `gmod.js`,
+`jugador.js`, `controles.js`; pruebas `sweps_tanda.mjs` —ahora también `MUESTRA=2`—, y nuevas `sweps_mover.mjs`,
+`codigo_tragado.mjs` y `dbg_arma.mjs`.) Muestra: las 34 armas de la 3.2 y 84 addons más (94 armas): sueltas «custom»
+(AWP Asiimov, Dragon Deagle...), packs chicos, memes (Maxwell, Dear Sister, Shoop Da Whoop, ASDF), armas blancas (CS:GO
+Knives, Huntsman, Karambit, hacha, motosierras), lanzadores, superpoderes (Sonic, Shadow, Superman, Spider-Man, One
+Piece, Gojo, Jason, Sentry) y bases poco comunes (SciFi de Darken217, Melee Arts 2, MH Battle Pack, PWB, GDCW, Doom 3,
+Serious Sam, ARC9, ArcCW y TFA de terceros, Simple Weapons, MW Base), bajados como el juego (SteamPipe por la tienda o
+directo de Steam) con sus «Required items». Por arma: sale en el menú, se equipa, se ve en 1ª (sin tapar la pantalla: >
+50 % es piezas fuera de escala) y en 3ª, dispara o golpea (las armas blancas, y las que no hacen nada al piso, contra
+una caja quieta delante), apunta y recarga si corresponde, sin errores de Lua ni de JS.
+
+**Regresión de la 3.2, la causa más común:** al juntar las ramas, el comentario de `SysTime` (nextbots) quedó en la
+misma línea que `FrameTime`, `RealFrameTime`, `FrameNumber` y `VGUIFrameTime` y se los comió: no existían. Toda arma que
+suaviza algo con `FrameTime()` tiraba «attempt to call 'FrameTime' (a nil value)» en cada cuadro: 46 de las 127 armas en
+la 3.2 (FA:S, TFA, ArcCW, CW 2.0, ARC9, sables, Portal Gun, Sonic, Doom 3, SciFi, Superman, Gojo...). Las otras de la
+3.2: la herencia de subtablas copiaba la metatabla de los `Color` (un ciclo: el `table.FullCopy` del SWEP Construction
+Kit se iba a «stack overflow»: Dubstep Gun); una vista que todavía no llegaba de la biblioteca quedaba «sin vista» para
+siempre y el Lua de la vista corría sin huesos («table index is nil» y no se veía: guantelete de Thanos); y un
+`ClientsideModel` con un c_/v_ se tomaba por la vista propia aunque fuera una pieza del kit. El mismo descuido de
+comentario venía de antes: `Player:Give`, `HasWeapon`, `StripWeapon`, `Entity:SetKeyValue`/`Input`,
+`PhysObj:IsMotionEnabled` no existían desde la 2.9 y `w.creado` de las armas desde la 3.2. `codigo_tragado.mjs` lo busca
+en todo `juego/`: 9 en la 3.2, 0 ahora.
+
+**Lo que nunca anduvo y más armas arregla:**
+- **Piezas gigantes** (`EnableMatrix`): el SWEP Construction Kit —con el que se hacen casi todas las armas custom—
+  achica cada pieza con `matrix:Scale(v.size)`; se guardaba y no se aplicaba (Maxwell, SciFi, MH Battle Pack, CoD4:
+  piezas enteras tapando la pantalla).
+- **Cuchillos que no cortan** (`Entity:DispatchTraceAttack`): los CS:GO Knives (1,7 millones de suscriptos), el Karambit
+  y otras armas blancas pegan así. También el empujón del daño (`DamageForce`) en lo que tiene física.
+- **Superpoderes**: el `CMoveData` aplica `SetVelocity`, `SetOrigin`, ángulos y velocidades (un `Move` que devuelve true
+  mueve al jugador en lugar de la física), `Player:GetMoveType` dice WALK (decía VPHYSICS: Sonic, Shadow, Green Lantern
+  y One Piece no hacían nada), `SetMoveType(NOCLIP)` vuela y la velocidad hacia arriba despega del piso (Iron Man).
+- **Bases que no llegan**: la TFA Base vieja (415143062) ya no está en el Workshop y los packs que la pedían se quedaban
+  sin base: ahora se pide la nueva (2840031720). Si la tienda no puede leer los «Required items» (Steam da 429), ya no
+  queda anotado «no pide nada» para siempre.
+- **Finales de línea del Mac viejo** (`\r` solo): el primer `--` se comía el resto del archivo (TFA CrossFire G-Spirit
+  sin armas en el menú; efectos de explosión de M9K y GDCW). 6 de los 118 addons tienen archivos así.
+- Además: la cámara de las de CoD4 miraba al piso (`WorldToLocalAngles` de la vista), `Angle:Mul`, `game.GetAmmoMax`,
+  `GetLaggedMovementValue` (The Flash), `STUDIO_*` (ARC9), ConVars sin distinguir mayúsculas (ARC9),
+  `GetManipulateBone*` (Spider-Man), `NULL` ya no es igual al mundo (Slappers), `GetBoneName` sin huesos.
+
+Con la misma prueba en las tres versiones (y las que fallan, repetidas solas en las tres; «anda» = todo lo de arriba):
+
+| Tanda de la 3.2 (34 armas de 30 addons) | 3.1 | 3.2 | ahora |
+|---|---|---|---|
+| sale en el menú | 34/34 | 34/34 | 34/34 |
+| se equipa | 34/34 | 34/34 | 34/34 |
+| se ve en 1ª | 33/34 | 29/34 | 34/34 |
+| se ve en 3ª | 34/34 | 34/34 | 34/34 |
+| dispara / golpea | 25/34 | 32/34 | 32/34 |
+| apunta (si tiene mira) | 25/34 | 25/34 | 34/34 |
+| recarga (si tiene cargador) | 29/34 | 26/34 | 34/34 |
+| sin errores de Lua ni JS | 27/34 | 20/34 | 34/34 |
+| **anda en todo** | 21/34 | 19/34 | 32/34 |
+
+| Muestra nueva (84 addons) | 3.1 | 3.2 | ahora |
+|---|---|---|---|
+| sale en el menú | 93/95 | 93/95 | 94/95 |
+| se equipa | 93/95 | 93/95 | 94/95 |
+| se ve en 1ª | 72/95 | 70/95 | 78/95 |
+| se ve en 3ª | 93/95 | 93/95 | 94/95 |
+| dispara / golpea | 71/95 | 80/95 | 81/95 |
+| apunta (si tiene mira) | 77/95 | 77/95 | 90/95 |
+| recarga (si tiene cargador) | 87/95 | 78/95 | 92/95 |
+| sin errores de Lua ni JS | 75/95 | 57/95 | 89/95 |
+| **anda en todo** | 49/95 | 37/95 | 68/95 |
+
+Sumando las dos tandas: **3.1: 70/129, 3.2: 56/129, ahora: 100/129**. Ninguna arma sale peor que en la 3.1 salvo
+variaciones de la prueba (el revólver dorado largo suena una de cada dos veces también en la 3.1: el sonido llega
+tarde). Por arma (sólo las que no andan en las tres; «…» = hay más motivos):
+
+| Arma | 3.1 | 3.2 | ahora |
+|---|---|---|---|
+| weapon_clusternuke | anda | error FrameTime | anda |
+| tfa_acr | no dispara, no apunta… | no apunta, no recarga… | anda |
+| tfa_g3a3 | no dispara, no apunta… | no apunta, no recarga… | anda |
+| weapon_lightsaber | no dispara | error FrameTime | anda |
+| infinitygauntlet | no golpea | no se ve, no golpea… | no golpea |
+| m9k_damascus | no golpea | no golpea | no golpea |
+| tfa_dax_big_glock | sin balas, no apunta… | no apunta, no recarga… | anda |
+| fas2_deagle | no se ve, no apunta… | no se ve, no apunta… | anda |
+| fas2_famas | no apunta, no recarga | no se ve, no apunta… | anda |
+| weapon_752_bowcaster | anda | error FrameTime | anda |
+| arccw_ak47 | sin balas, no apunta… | no apunta, no recarga… | anda |
+| arccw_minimi | sin balas, no apunta… | no apunta, no recarga… | anda |
+| weapon_portalgun | anda | error FrameTime | anda |
+| cw_ak74 | sin balas, no apunta… | no se ve, no apunta… | anda |
+| cw_frag_grenade | no apunta | no se ve, no apunta… | anda |
+| weapon_ak47_beast | error weapon_cf_base.lua:245 | anda | anda |
+| slappers | no se ve… | no se ve… | no se ve |
+| rchainsaw | error bloodstream.lua:21 | anda | anda |
+| spiderman's_swep | anda | error FrameTime | anda |
+| pokeball_admin | textura que falta… | textura que falta… | textura que falta… |
+| dearsister | no apunta | no apunta | no apunta |
+| weapon_aimbot_ar2 | anda | no se ve | anda |
+| spartan_kick | no se ve, no golpea | no se ve, no golpea | no se ve, no golpea |
+| weapon_hl1_357 | sin sonido | sin sonido, no recarga… | anda |
+| tfa_acidgat | sin balas, no apunta… | no apunta, no recarga… | anda |
+| tfa_staff_ice | sin balas, no apunta… | no apunta, no recarga… | tapa la pantalla… |
+| weapon_cod4_beretta | tapa la pantalla | tapa la pantalla… | anda |
+| halo_swep_assaultrifle | no apunta | no apunta | no apunta |
+| halo_swep_magnum | no apunta | no apunta | no apunta |
+| meleearts_axe_beardeda | anda | error FrameTime | anda |
+| weapon_llamas | no se ve | no se ve | no se ve, no dispara |
+| tfa_ins2_remington_m87 | no dispara, no apunta… | no apunta, no recarga… | sin sonido… |
+| weapon_doom3_bfg | anda | error FrameTime | anda |
+| weapon_bsmod_punch | no se ve | no se ve | no se ve |
+| arccw_mw2_aa12 | sin balas, no apunta… | no apunta, no recarga… | anda |
+| arccw_mw2_m9 | sin balas, no apunta… | no apunta, no recarga… | anda |
+| weapon_long_golden_rev | anda | sin sonido | sin sonido |
+| weapon_empty_hands | no se ve | no se ve | no se ve, no dispara |
+| mg_gamma3 | no se ve… | no se ve, no dispara… | no se ve… |
+| gdcw_cod4m21 | sin balas | sin balas | sin balas |
+| acid_sprayer_minds | tapa la pantalla | anda | anda |
+| grapplinghook_minds | tapa la pantalla | tapa la pantalla | anda |
+| weapon_cat | tapa la pantalla | tapa la pantalla | anda |
+| weapon_dubstepgun_clas | anda | error: stack overflow | anda |
+| cw_kk_hk416 | no se ve, sin balas… | no se ve, no apunta… | no se ve |
+| cw_fiveseven | sin balas, no apunta… | no se ve, no apunta… | anda |
+| cw_mp7_official | sin balas, no apunta… | no se ve, no apunta… | anda |
+| supermanswep | anda | error FrameTime | anda |
+| bo3iii_brawlers_gl | anda | error FrameTime | anda |
+| arc9_fc4_1887 | no dispara, no apunta… | no apunta, no recarga… | error sh_physbullet.lua:269 |
+| sentryswep | anda | error FrameTime | anda |
+| weapon_spiderman_webs | anda | error FrameTime | anda |
+| Green Lantern Ring SWE | no sale en el menú | no sale en el menú | no sale en el menú |
+| gnmg_357 | anda | no recarga, error FrameTime | anda |
+| arccw_hl_pistol | sin balas, no apunta… | no apunta, no recarga… | anda |
+| tfa_css_vanillaplus_aw | sin balas, no apunta… | sin sonido, no apunta… | sin sonido |
+| weapon_spiderman_web | no se ve… | no recarga, error FrameTime | no se ve, no recarga |
+| weapon_chainsaw_sr | tapa la pantalla | tapa la pantalla | tapa la pantalla |
+| weapon_vsa_ak47 | anda | error FrameTime | anda |
+| weapon_modern_sonic | no se ve, no dispara | error FrameTime | no se ve, no dispara |
+| weapon_shadow_hedgehog | no se ve | no se ve, no dispara… | no se ve, no dispara |
+| weapon_gojo_limitless | anda | no se ve, error FrameTime | anda |
+| weapon_pompyhammer | no se ve | no se ve | no se ve |
+| weapon_friday_jason | error shared.lua:181 | error FrameTime | anda |
+| agonizer | no dispara, no recarga… | no recarga… | no dispara, no recarga… |
+| [TFA] CrossFire оружей | no sale en el menú | no sale en el menú | — |
+| tfa_cf_glock_gspirit | — | — | anda |
+| huntcam | tapa la pantalla, no golpea… | tapa la pantalla, no golpea… | tapa la pantalla, no golpea… |
+| sfw_acidrain | tapa la pantalla | tapa la pantalla… | anda |
+| sfw_lapis | tapa la pantalla | tapa la pantalla… | anda |
+| weapon_ss2_autoshotgun | anda | error FrameTime | anda |
+| csgo_bayonet | no golpea | no golpea | anda |
+| csgo_flip_bluesteel | no golpea | no golpea | anda |
+| tfsr_blackflash | error tfsr_core.lua:16 | error tfsr_core.lua:16 | anda |
+| cw_extrema_ratio_offic | sin balas, no apunta | no se ve, sin balas… | sin balas |
+| csgo_karambit | no golpea | no golpea | anda |
+| doom_weapon_bfg9000 | no se ve | no se ve | no se ve |
+
+Superpoderes (`sweps_mover.mjs`, 1,5 s con cada botón; el jugador camina a 6 m/s y corre a 8,1):
+
+| Arma (botón) | 3.1 | 3.2 | ahora |
+|---|---|---|---|
+| Sonic (Shift) | 8,1 m/s | 8,1 m/s, error FrameTime | 62 m/s (el Lua lo mueve) |
+| Shadow (Shift; saltar) | 8,1 m/s; 1,1 m | 8,1 m/s, error FrameTime | 76 m/s; 2,8 m de alto |
+| Sentry (Shift) | 12 m/s | 12 m/s, error FrameTime | 368 m/s |
+| Iron Man (secundario) | 19 m/s a ras del piso | 19 m/s a ras del piso | 19 m/s y sube 14 m |
+| Jason | no lo mueve | error FrameNumber | el Lua lo mueve (59 cambios en 6 s) |
+
+Prop Hunt (`gmod_modos.mjs`, 10/10): los cazadores ahora aparecen con sus armas (palanca, escopeta, SMG: `Player:Give`
+andaba adentro de un comentario); en la 3.2, sólo las manos. `gmod_mira_recarga.mjs` 7/7 (M9K). Repetir: los .gma de la
+muestra están en `/tmp/claude-0/gma_armas/` (`<id>/<id>.gma`, con `deps.json`); servir esa carpeta como `gma/` al lado
+del HTML y `MUESTRA=2 node sweps_tanda.mjs URL_HTML URL/gma CARPETA` (sin `MUESTRA`, la de la 3.2). Fotos (3.1 / 3.2 /
+ahora) fuera del repo.
+
+Pendiente (y por qué):
+- **Sólo dañan a jugadores y NPC** (machete de M9K, Huntsman) o el primario usa una gema (guantelete de Thanos): la caja
+  de la prueba no cuenta, «no golpea» en las tres por diseño.
+- **No se ven en 1ª**: las que usan las manos del modelo de jugador (`c_arms`: Slappers, BSMod Punch, Empty Hands —sin
+  vista a propósito—, la MW Base, que además pide `mw_utils.DealWithFullUpdate`) son del trabajo de las c_arms; Sonic y
+  Shadow se juegan en 3ª persona (su ataque busca un blanco; lo suyo, correr y saltar, anda); la patada espartana
+  muestra la pierna sólo al patear; Doom BFG 9000, el martillo de Psychopomp, la HK416 de CW 2.0 y Spider-Man Web
+  Swinging: sin investigar.
+- **Huntsman**: la base «clout» multiplica la escala de los huesos de los padres (un arreglo para un error viejo de
+  GMod) y el brazo queda gigante alrededor de la cámara (100 % de la pantalla, en las tres). La motosierra de Ellis trae
+  una vista de cuerpo entero (78 %).
+- **TFA con tabla de eventos** (Remington M870 de INS2, AWP Vanilla+, el bastón de hielo de CoD Zombies): «No such event
+  with edict»: el cliente ve el `event_table_built` del servidor (lo que el servidor deja en el arma se ve del lado del
+  cliente, para las miras de M9K) y no arma su propia tabla; sin sonido de disparo por eso.
+- **ARC9 (Far Cry 4)**: con su ConVar encontrada ahora usa balas físicas y el cliente recibe la bala sin posición
+  (`sh_physbullet.lua:269`); dispara, apunta y recarga igual.
+- Dear Sister y Halo «no apuntan» (traen `IronSightsPos` pero apuntan de otra forma, sin investigar); la Pokébola tiene
+  una textura que falta (4,6 %); la M21 de GDCW no tira balas de `FireBullets` (sin investigar); Simple Weapons tira
+  error en `sh_hooks.lua:74`; las armas del anillo de Green Lantern no son `Spawnable` (se dan con su entidad); la MW
+  Base pesa 1 GB y, como cualquier «Required item» de más de 200 MB, hay que instalarla aparte desde la tienda (lo
+  avisa).
+- La prueba toma el cuchillo Extrema Ratio de CW 2.0 por arma de fuego («sin balas»).
+
