@@ -2252,6 +2252,35 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.4: menú principal nuevo y BSMod (ejecuciones)
+
+Un pedido del dueño y uno del Discord (el detalle y los números de cada parte están en sus secciones, más abajo). Misma
+firma que la 3.2 y la 3.3: quien tiene una de esas actualiza encima; quien sigue en la 3.1 tiene que desinstalarla
+antes.
+
+- **Menú principal nuevo** (el dueño: «una interfaz nueva así… mejores botones con diseño»): tu personaje en el centro
+  sobre un escenario con la foto del mapa elegido, tarjetas con dibujo (Workshop, Emotes, Multijugador con «+» para
+  crear server, el Evento de la grieta), perfil arriba a la izquierda, iconos arriba a la derecha y un JUGAR grande bajo
+  el pulgar. Ocho cosas pasan de 2 o 3 toques a 1 y todo lo de antes sigue alcanzable. Teclado y mando. `menu_nuevo`
+  77/77 en 7 pantallas y 14 idiomas.
+- **BSMod** (Noobsaibot0777: «el bsmod me gusta mucho pq tiene ejecuciones»): puño y patada en 1ª, las 6 ejecuciones
+  contra el Hero, el zombi y el combine de HL2 y nextbots de DrGBase (de frente), con el Hero o con un modelo de jugador
+  de GMod; en el celular un botón Ejecutar que aparece sólo cuando hay a quién; en multijugador los demás la ven y bajan
+  BSMod de visita. Esqueleto contra GMod ≤ 0,09 u en 31/31 ejecuciones. El pack más usado que le agrega ejecuciones
+  (Ultimate Dropkick Killmove) 8/8. Todo es motor general (entidades animadas, bonemerge, `halo`, muñecos con
+  `CreateEntityRagdoll`), no algo hecho para BSMod.
+- **Brawlers de BO3** con C_Arms: se ven otra vez (lo del final de la 3.3: los brazos de referencia con `$no_draw`).
+- **Al juntar las partes**: un comentario nuevo de BSMod (`Lock`/`UnLock`) quedó en el medio de una línea de
+  `gmod_api.js` y se tragó `Player:DrawViewModel` y `Player:DrawWorldModel`: cualquier arma que las llame habría tirado
+  error. Lo encontró `pruebas/codigo_tragado.mjs` antes de publicar; arreglado (vuelve a 0).
+- **Pruebas sobre el juego con todo junto** (tres tandas a la vez en 4 núcleos): `menu_nuevo` 77/77, `menu_principal`
+  4/4, `menu_30` 7/7, `social` 42/42, `bsmod` 56/58 (las dos que fallaron —una ejecución de costado que salió de frente
+  y la de red que no bajó BSMod en 120 s— pasan solas: 2/2 y 4/4), armas de la tanda de la 3.2 32/34 y la muestra de 94
+  armas 67/94 (arma por arma igual que la 3.3 salvo la Brawlers, que ahora anda), `manos_c` (repetida aparte), `armas_gmod` 8/8,
+  `gmod_mira_recarga` 7/7, `nextbots_red` 25/25, `nextbots_ia` 8/9 en la tanda y 9/9 sola (el Cartoon Cat no rodeó la
+  pared con la máquina cargada), `nextbots_tanda` igual que la 3.3, `gmod_carpeta` 32/32, `mods_habilitar` 9/9,
+  `tienda_panel` 24/24, `celulares` 9/9, `codigo_tragado` 0.
+
 ## JXMod 3.3: lo del Discord después de la 3.2 (nextbots, armas custom, C_Arms, carpeta de mods y el S10e)
 
 Cinco mensajes del Discord (el detalle y los números de cada parte están en sus secciones, más abajo). Misma firma que
@@ -2328,7 +2357,7 @@ El paquete (mallas, texturas, sonidos, videos, fotos de fondo) vive fuera del re
 rearma desde lo publicado en `web/` con el código de la página de iPhone:
 
 ```
-node herramientas/recuperar_web.mjs ../../web R889-Y5UG https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/ PLANO
+node herramientas/recuperar_web.mjs ../../web TU-CODIGO https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/ PLANO
 python3 -I herramientas/recuperar_paquete.py PLANO ../../web PAQUETE
 ```
 
