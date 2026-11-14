@@ -136,6 +136,10 @@ redistribuyen).
 | Catálogo del Workshop (nombres, fotos, tamaños, direcciones de archivo) | Steam Workshop, armado con `herramientas/gmod_catalogo.mjs` | `web/rb/gm_cat.*.bin` | datos públicos de Steam; cada addon es de su autor |
 | Lectura de la página del Workshop sin puente propio | servicio público r.jina.ai (Jina AI Reader) | se usa en vivo, no se copia | servicio de terceros |
 | Lista de celulares (modelo → código, chip, RAM) y puntaje de GPU por chip | armada a partir de datos públicos: lista de aparatos compatibles de Google Play (`supported_devices.csv`), fichas de GSMArena y sitios de las marcas; puntajes GFXBench Manhattan 3.0 de Notebookcheck | `juego/celulares.js` | datos públicos (sólo nombres, códigos y números) |
+| Entidades animadas, bonemerge, personajes del juego como modelo y muñecos para el Lua (`gmod_anim.js`) | hecho acá según la wiki de GMod (CBaseAnimating, EF_BONEMERGE, CreateClientsideRagdoll) | `juego/gmod_anim.js` | propio |
+| Addon de prueba: BSMod (puño, patada y ejecuciones; de AnOldLady, portado por RandomPerson189) | rip: Steam Workshop 2106330193, bajado como .gma a `/tmp/claude-0/gma_armas/` (fuera del repo); `pruebas/bsmod_ref.py` lee sus .mdl para la referencia | `pruebas/bsmod.mjs` | de sus autores; no se redistribuye |
+| Addon de prueba: [BSMod] Ultimate Dropkick Killmove (ejecuciones con patada voladora para BSMod, de Pix) | rip: Steam Workshop 2561288661, bajado como .gma con el juego (SteamPipe) fuera del repo; `pruebas/bsmod_ref.py` lee sus .mdl para la referencia | `pruebas/bsmod.mjs` (parte I) | de su autor; no se redistribuye |
+| Modelos de prueba de las víctimas: zombi y combine de HL2 (biblioteca de GMod), el zombi de ejemplo de DrGBase (`npc_drg_zombie`, Workshop 1560118657) y un modelo de jugador (Workshop 139247091) | rip: biblioteca de GMod de `web/rb/gm_lib.*` y Steam Workshop, fuera del repo | `pruebas/bsmod.mjs` | de sus autores; no se redistribuyen |
 
 ## Pill Packs (`juego/pillpacks.js`, `juego/pill_gmod.js`)
 

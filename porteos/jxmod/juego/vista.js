@@ -37,7 +37,7 @@ function vistaArma(nombreNodo, clave) {
 }
 function vistaTocar(v, nombreClip, opt) {
   const c = DATA.anPorNombre[nombreClip]; if (!c) return 0;
-  v.clip = c; v.t = 0; v.vel = (opt && opt.vel) || 1; v.loop = !!(opt && opt.loop);
+  v.clip = c; v.t = 0; v.vel = (opt && opt.vel) || 1; v.loop = !!(opt && opt.loop); v.mantener = !!(opt && opt.mantener);
   return c.d / v.vel;
 }
 function vistaAplicar(v, dt) {

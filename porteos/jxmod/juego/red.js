@@ -362,7 +362,7 @@ function redPaso(dt) {
   // (recién entrado, hasta que se revisó que el lugar donde aparecí está libre —redLugarRevisar, 1,5 s— no mando dónde
   // estoy: si no, al que estaba parado ahí lo empujaba mi cuerpo; así el que llega es el que se corre)
   if (t - RED.ultE > 0.1 && !(RED.lugar && RED.lugar.conectado && !RED.lugar.mando)) {
-    const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits() | nocheBits() | linternaBits();
+    const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits() | nocheBits() | linternaBits() | (typeof gmanJugInvisible === 'function' && gmanJugInvisible() ? 256 : 0);   // (256: no se ve —también si el Lua le puso un material invisible: la ejecución de BSMod, que lo dibuja con otro modelo—)
     const kE = (typeof pillSkin === 'function' && pillSkin()) || J.skinRol || J.skinMod || PREFS.skin;   // (transformado: su personaje, pillpacks.js)
     const e = { n: PREFS.nombre, k: kE, kw: redSkinWid(kE), h: PREFS.gorro, ga: PREFS.gorroAj || 0, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
       e: JUG.cuerpo && JUG.cuerpo.emote || 0, hp: Math.max(0, Math.round(JUG.vida)), mu: typeof emuRed === 'function' ? emuRed() : 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0, vr: verRedEstado() };
@@ -600,7 +600,7 @@ function remotoPaso(R2, dt) {
   if (rag && !P.rag) { P.vel.copy(R2.vel); P.cuad = null; P.inclin = null; ragdoll(P, null); } else if (!rag && P.rag) ragdollFin(P);
   natRemoto(R2, dt);
   // espectador (en la noche de la pizzería): no se ve, no choca y no tiene nombre arriba
-  const esp = !!(R2.f & 256); P.visible = !esp;
+  const esp = !!(R2.f & 256); P.visible = !esp && !(typeof gmanRemInvisible === 'function' && gmanRemInvisible(R2.id));   // (o escondido por el Lua de un mod suyo: gmod_anim.js)
   // la cápsula a la medida del personaje (1,8 m en el de siempre; los pies quedan en el mismo lugar)
   const tk = P.tam || 1; if (R2.b.capK !== tk) { const r = Math.min(0.4, 0.9 * tk); R2.b.shape = capsuleShape(r, Math.max(0.01, 0.9 * tk - r)); R2.b.capK = tk; }
   R2.b.pos.set(P.pos.x, P.pos.y - 0.9 + 0.9 * tk, P.pos.z); R2.b.updateWorld(); R2.b.noRay = rag || esp; R2.b.noPhys = rag || esp; R2.b.noJug = rag || esp || !!P.escena || !!(P.jntFin && TIEMPO.t < P.jntFin) || TIEMPO.t - (R2.nace || 0) < 3; // tirado: sólo el muñeco choca (y se puede agarrar); recién llegado (3 s), no empuja a nadie: si apareció encima de otro, se corre él (redLugarRevisar)
@@ -723,6 +723,7 @@ function recibirHecho(d) {
   } else if (d.k === 'turbo') { turboRed(d);
   } else if (d.k === 'echar') { celEchadoRed(d);
   } else if (typeof d.k === 'string' && d.k.startsWith('npc')) { npcRecibir(d);
+  } else if (d.k === 'gan') { if (typeof gmanRedRecibir === 'function') gmanRedRecibir(d);   // (las entidades animadas de los mods de otro: gmod_anim.js)
   } else if (typeof d.k === 'string' && d.k.startsWith('gnb')) { if (typeof gmnbRedRecibir === 'function') gmnbRedRecibir(d);   // (los nextbots de GMod de otro y lo que le hacen a uno: gmod_nextbot.js)
   } else if (d.k === 'catap' || d.k === 'omega' || d.k === 'omegab') { artRed(d);
   } else if (d.k === 'animq' || d.k === 'anim') { emoRed(d);

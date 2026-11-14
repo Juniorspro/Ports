@@ -3475,3 +3475,122 @@ cuesta más que el menú anterior en el procesador emulado (ver la tabla); los P
 adentro de una partida, desde el menú de spawn); no hay renglón de chat o sala abajo a la izquierda como en la captura
 (en el menú no hay número de sala y los chats necesitan la cuenta: están a un toque, con lo sin leer en su globito; ahí
 va la versión). Fotos, fuera del repo.
+
+## Del Discord (Noobsaibot0777): «Hagan el bsmod compatible... tiene ejecuciones»
+
+BSMod (Workshop 2106330193) trae un puño (`weapon_bsmod_punch`), una patada (`bsmod_kick`, que se ata a una tecla) y las
+ejecuciones: le pegás a un NPC hasta que le queda poca vida (≤ 25), queda quieto y resaltado de azul, y si le apuntás y
+apretás la tecla, el jugador y el NPC hacen una animación juntos (de frente, de atrás, de costado o saltando) y el NPC
+termina muerto en el piso. En la 3.3 el puño no se veía en 1ª persona, la patada no estaba en ningún botón y las
+ejecuciones nunca arrancaban. Lo que le faltaba al motor, todo general (como GMod, nada hecho para BSMod):
+
+- **Entidades animadas** (`juego/gmod_anim.js`, nuevo): lo de `CBaseAnimating` —`SetSequence`, `ResetSequence`,
+  `SetCycle`, `SetPlaybackRate`, `FrameAdvance`, `SetAutomaticFrameAdvance`, `SequenceDuration`, `LookupSequence`,
+  `GetSequenceName/Activity/List`...—, los huesos (`LookupBone`, `GetBonePosition`, `GetBoneMatrix`, `GetBoneCount`...),
+  los enganches (`LookupAttachment`, `GetAttachment`) y los efectos (`AddEffects`, `IsEffectActive`). Sirven también
+  los .mdl de sólo esqueleto (los de animaciones de BSMod no traen malla). Antes un `ents.Create` con un .mdl quedaba
+  en su pose de referencia y `GetAttachment` daba nil.
+- **Bonemerge** (`EF_BONEMERGE` + `SetParent`): el modelo hijo toma los huesos del padre por nombre, como en Source. Así
+  pone BSMod el cuerpo del jugador y el de la víctima sobre las dos animaciones.
+- **Los personajes del juego como modelo de GMod**: `GetModel` de un personaje del juego (Hero, Goku, los NPC...) daba
+  Kleiner o nada; ahora da `models/jxmod/<skin>.mdl`, un modelo propio con el esqueleto de Valve que se dibuja con
+  la malla del personaje: con bonemerge, las articulaciones van donde las de Valve y cada hueso se estira lo que haga
+  falta, como hace GMod con un modelo de otras medidas. La mano llega a la cabeza del otro igual que en GMod (el Hero
+  mide 2 m y con sus medidas la cabeza le quedaba 17 cm más arriba que la de la animación).
+- **Jugador**: `Lock`/`UnLock` (sin moverse, sin teclas ni disparo), `SetMaterial("null")` lo esconde (también para los
+  demás en red), `SelectWeapon` acepta las armas del juego sin el cartel de arma nueva y `GetActiveWeapon` da el arma
+  del juego que tenés en la mano (era NULL: al terminar la ejecución BSMod te dejaba con un arma vacía). `GetPos` del
+  jugador y de los NPC del juego va en los pies, como en GMod (el jugador daba 45 cm arriba y los NPC el centro, a 1 m:
+  la ejecución quedaba en el aire), y `EyePos`/`EyeAngles` de los NPC miran para donde miran.
+- **NPC del juego**: `SetCondition(67/68)` (congelar y descongelar: el que se puede ejecutar no se mueve),
+  `HasCondition`, `ClearCondition`, `SetNPCState`; `SetNoDraw` lo esconde; `SetHealth` cambia su vida.
+- **Daño**: todo daño a un NPC del juego (balas, golpes, la patada y las armas del juego) pasa por `EntityTakeDamage`,
+  como en GMod. Las balas de los SWEP no pasaban, y BSMod nunca se enteraba de que el NPC tenía poca vida.
+- **`halo.Add`** (el resaltado azul) con `PreDrawHalos`: un brillo del color en el borde del modelo.
+- **Muñeco**: cuando muere un NPC del juego corre `CreateEntityRagdoll` (o `CreateClientsideRagdoll`, según
+  `ai_serverragdolls`, como en GMod) con un `prop_ragdoll` cuyos `PhysObj` llevan los nombres de Valve; BSMod lo deja
+  en la última pose de la animación y lo empuja. Después de cada pose se vuelven a anclar las uniones (con las de antes
+  la física tiraba para juntarlas: la cadera saltaba 18 cm en un cuadro y el muñeco se iba 1,3 m). Los cuerpos sin
+  hueso en el modelo (el zombi de HL2 no tiene cabeza de Valve: es el headcrab) no se le dan al Lua, como en GMod, y
+  siguen al antepasado que sí está, también en la velocidad con que lo lanzan (antes BSMod los ponía en el origen de la
+  entidad: la cabeza quedaba a 3 m).
+- **El puño en 1ª**: las secuencias que el Lua pone en la vista (`SendViewModelMatchingSequence`) quedan en su último
+  cuadro como en GMod; antes volvían a la de quieto, que en BSMod es el cuerpo entero fuera de la pantalla, y las manos
+  desaparecían. El `Deploy` pone su secuencia en la vista del arma nueva (le llegaba a la anterior).
+- **Botones y teclas**: los comandos que el mod pide atar a una tecla (`bind <tecla> bsmod_kick`, en su menú) o que son
+  de apretar y soltar (`+comando`) ahora son habilidades del mod, con botón en el celu y tecla en la compu; acciones
+  nuevas Patada (G en la compu) y Ejecutar (la E de usar, sólo cuando hay a quién). El botón de Ejecutar aparece sólo
+  mientras le apuntás a alguien resaltado a menos de 100 unidades (como el cartel de usar); al montar el mod, en la
+  compu, un aviso dice qué teclas son. 14 idiomas.
+- **En red**: cada 0,1 s se mandan las entidades animadas del Lua (modelo, posición, secuencia, cuadro y a quién van
+  pegadas) y los demás las ven como títeres, con 0,15 s de colchón; el jugador y el NPC escondidos tampoco se ven allá.
+  Quien no tiene el mod lo baja de visita (los .mdl de las animaciones) y mientras tanto no se dibuja nada en su lugar.
+
+Medido con `pruebas/bsmod.mjs` (y `pruebas/bsmod_ref.py`, que lee las dos animaciones de cada ejecución del .mdl de
+BSMod y las pone donde las pone BSMod, para comparar cuadro a cuadro):
+
+| | 3.3 | ahora |
+|---|---|---|
+| Puño en 1ª, al pegar / en guardia (pantalla que cambia) | 0 % | 10,9 % / 26,1 % |
+| Puño: vida que le saca a un NPC; golpes a una caja | — | 14; 2 |
+| Patada: botón (celu) o tecla (compu) | no | sí (G) |
+| Patada: pierna en 1ª (mitad de abajo de la pantalla); vida a un NPC; caja | — | 4,7 %; 15; le pega |
+| NPC con ≤ 25 de vida: ejecutable, quieto y resaltado de azul | nunca | sí (0 cm en 1 s) |
+| Botón o E de Ejecutar: sólo apuntándole | — | sí (oculto si no hay a quién) |
+| Ejecuciones de BSMod que arrancan y terminan (31 casos) | 0 | 31/31 |
+| Jugador libre y víctima muerta, contra los tiempos de GMod | — | 0,004–0,025 s tarde |
+| Esqueletos de las dos animaciones contra GMod, cuadro a cuadro | — | ≤ 0,09 u (2 mm) |
+| Lo dibujado (Hero o modelo de GMod) contra su esqueleto | — | 0,0 cm |
+| Golpe mano–cabeza y pie más bajo, contra GMod | — | ±0,2 u y ±1,4 cm |
+| Salto de un hueso entre cuadros, más que en GMod | — | ≤ 1,4 cm |
+| Cámara contra los ojos de la animación | — | 0,0 cm |
+| Muñeco al ponerlo contra la última pose (cadera, pecho, cabeza) | — | 0,0 cm |
+| Al terminar: jugador libre, en el piso, con su arma, sin restos | — | 31/31 |
+
+Las 6 ejecuciones (de frente 1 y 2, de atrás, de costado izquierdo y derecho, y en el aire) contra el Hero, el zombi
+y el combine de HL2 y el zombi de DrGBase (un nextbot: sólo las de frente, porque te persigue mirándote y BSMod no
+lo congela, igual que en GMod), con el Hero y con un modelo de jugador de GMod (Workshop 139247091). Hero contra Hero:
+
+| | libre a, s (GMod) | muere a, s (GMod) | esqueleto, u | mano–cabeza, u (GMod) | pie más bajo, cm (GMod) | salto |
+|---|---|---|---|---|---|---|
+| De frente 1 | 1,37 (1,37) | 1,24 (1,23) | 0,02 | 4,2 (4,2) | 2,5 (2,5) | 1,0 cm |
+| De frente 2 | 1,84 (1,83) | 1,8 (1,79) | 0,04 | 5,1 (5,1) | -30,2 (-31,6) | 0,2 cm |
+| De atrás | 1,68 (1,68) | 1,57 (1,57) | 0,02 | 4,7 (4,8) | 10,8 (10,8) | 0,1 cm |
+| Costado izquierdo | 1,81 (1,81) | 1,57 (1,57) | 0,06 | 2,2 (2,2) | 7,4 (7,5) | 0,2 cm |
+| Costado derecho | 1,57 (1,57) | 1,57 (1,57) | 0,09 | 9,5 (9,6) | -10 (-10,1) | 0,1 cm |
+| En el aire | 1,58 (1,57) | 1,58 (1,57) | 0,02 | 37,2 (37,2) | -6,6 (-6,6) | 0,2 cm |
+
+También anda **[BSMod] Ultimate Dropkick Killmove** (Workshop 2561288661, el pack de ejecuciones más usado: unos 329
+mil): usa el gancho `CustomKillMoves` de BSMod con sus propios .mdl; sus cuatro patadas voladoras (de frente, de atrás
+y de costado) contra el Hero y el combine, 8/8, con el esqueleto a 0,02 u de GMod en cada cuadro, los tiempos a
+≤ 0,02 s y el muñeco saliendo volando como lo lanza su Lua (7–8 m/s). En el celular (873×393 emulado) los botones de
+patada y ejecución se fijan solos al montar BSMod, el de ejecutar está oculto hasta que le apuntás a alguien resaltado
+y tocarlo la hace. En red (dos páginas con un broker local), el otro jugador baja BSMod de visita en 1 s y ve la
+ejecución con los dos animados (los huesos se mueven hasta 1,4 m), sin el jugador ni el NPC quietos encima; después,
+el muñeco.
+Fotos (cámara del jugador, de costado, de atrás y de cerca, en 6 momentos de cada ejecución) y hojas de contacto, fuera
+del repo. Repetir: servir `/tmp/claude-0/gma_armas/` (BSMod), `/tmp/claude-0/gma_carms/` (el modelo de jugador) y
+`/tmp/claude-0/gma_prueba/` (DrGBase) al lado del HTML como `ga/`, `gc/` y `gma/`, y
+`node pruebas/bsmod.mjs URL_HTML URL/ga URL/gc URL/gma CARPETA` (`DROPKICK=URL DROPKICK_GMA=RUTA` para el Dropkick;
+`SOLO`, `VICTIMAS`, `JUGADORES` y `SIN_FOTOS` para achicarla).
+
+Pruebas de antes, con este armado: `sweps_tanda.mjs` 32/34 (las mismas dos de siempre), `armas_gmod.mjs` 8/8,
+`gmod_mira_recarga.mjs` 7/7, `manos_c.mjs` 6/6, `pill_gmod.mjs` 45/45 y `nextbots_tanda.mjs` igual que antes (el
+zombi de DrGBase y el Sanic, lado a lado con la versión anterior: los mismos números). En la segunda tanda de
+`sweps_tanda.mjs` el puño de BSMod sigue «no se ve en 1ª»: esa prueba mira el arma quieta, y quieto, como en GMod, el
+puño queda bajo el borde de la vista (−25,5° con ±20,9° de campo); al pegar y en guardia se ve (tabla de arriba).
+
+Pendiente (y por qué):
+- **La del hunter** (`hunter`, el MiniStrider de HL2): en el juego no hay hunters (BSMod la elige por sus huesos).
+- **BSMod KillMoves Expanded** (Workshop 2418024168): llama a `Entity:DetectedRailing`, que no está en el BSMod del
+  Workshop (en GMod también daría error); no se probó. Las de headcrabs y strider necesitan esos NPC.
+- **La patada vista por los demás** (en 3ª persona o en red): BSMod la anima con su `boneanimlib`
+  (`ManipulateBoneAngles` sobre el cuerpo del jugador), que acá todavía no mueve huesos; en 1ª persona se ve.
+- **Lo que trae BSMod así**: en la de frente 2 los pies de la víctima quedan 31,6 cm bajo el piso (sus datos; igual en
+  GMod); el primer cuadro de la de costado derecho tiene un pie 1 m corrido y los dedos saltan hasta 56 cm por cuadro.
+- **El Hero estirado**: como el bonemerge de GMod con un modelo de otras medidas, para que los golpes caigan en el mismo
+  lugar los huesos se estiran o se acortan (el Hero mide 2 m; los modelos de GMod, 1,8 m).
+- **Muñecos del cliente**: con `ai_serverragdolls 0` corre `CreateClientsideRagdoll` y BSMod, como en GMod, no pone el
+  cuerpo 0 (la cadera); acá el valor de fábrica es 1 (los muñecos de los NPC del juego quedan y se ven en red).
+- La patada no mueve una caja (le pega y le hace daño): la fuerza de las balas del Lua queda chica para un prop pesado.
+- Sin probar en un celular de verdad (emulado 873×393); la red, con dos páginas y un broker local.

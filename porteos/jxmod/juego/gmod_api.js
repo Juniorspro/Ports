@@ -102,8 +102,12 @@ const entValida = (e) => e instanceof LEnt && e.vivo && (e.tipo !== 'ent' || !e.
 // origen; antes se usaba el centro, y LocalToWorld, los asientos y las piezas quedaban hasta medio metro corridos)
 const gmaOrigen = (o) => (o.c ? vsub(o.b.pos, o.b.q.rot(o.c)) : o.b.pos.clone());
 const gmaOrigenPon = (o, p, q) => { o.b.pos.copy(p); if (o.c) o.b.pos.add((q || o.b.q).rot(o.c)); };
-const gmaEntPos = (e) => (e.tipo === 'jug' ? (e === GMA.jug ? JUG.pos.clone().add(v3(0, -JUG.medio, 0)) : e.remoto && e.P ? e.P.pos.clone().add(v3(0, -(JUG.medio || 0.9), 0)) : e.P ? e.P.pos.clone() : v3()) : e.P ? e.P.pos.clone() : e.o ? gmaOrigen(e.o) : e === GMA.swep && gmaArmaW(e) ? v3(gmaArmaW(e)[12], gmaArmaW(e)[13], gmaArmaW(e)[14]) : e.pos.clone());
-const entQ = (e) => (e.tipo === 'jug' ? Quat.axis(0, 1, 0, e === GMA.jug ? JUG.yaw : e.P ? e.P.yaw || 0 : 0) : e.o ? e.o.b.q.clone() : e === GMA.swep && gmaArmaW(e) ? m4quat(gmaArmaW(e)) : e.q.clone());
+// (el jugador y las personas: en los pies, como en GMod —el origen de un jugador o un NPC está en el piso—. Antes el jugador daba 45 cm
+// arriba del piso y los NPC del juego el centro del cuerpo, a 1 m: lo que se ponía en su GetPos —las ejecuciones de BSMod—
+// quedaba en el aire)
+const gmaPiesPersona = (P) => (P.rag ? P.pos.clone() : P.pos.clone().add(v3(0, -0.95, 0)));   // (la cápsula de una persona: los pies 0,95 m abajo del centro, como la del jugador)
+const gmaEntPos = (e) => (e.tipo === 'jug' ? (e === GMA.jug ? JUG.pos.clone().add(v3(0, -(JUG.medio + JUG.radio), 0)) : e.P ? gmaPiesPersona(e.P) : v3()) : e.P ? gmaPiesPersona(e.P) : e.o ? gmaOrigen(e.o) : e === GMA.swep && gmaArmaW(e) ? v3(gmaArmaW(e)[12], gmaArmaW(e)[13], gmaArmaW(e)[14]) : e.pos.clone());
+const entQ = (e) => (e.tipo === 'jug' || e.P ? Quat.axis(0, 1, 0, e === GMA.jug ? JUG.yaw : e.P ? e.P.yaw || 0 : 0) : e.o ? e.o.b.q.clone() : e === GMA.swep && gmaArmaW(e) ? m4quat(gmaArmaW(e)) : e.q.clone());
 // el arma que el jugador tiene en la mano: donde se dibuja (su modelo de mundo en la mano) o, si no se dibuja, la mano o
 // adelante de los ojos (gmhArmaSinModelo). Antes quedaba donde se creó, en 0,0,0: en 3ª persona la trazadora de la
 // Nyan Gun salía de ahí
@@ -280,6 +284,7 @@ function gmaIniciar() {
   });
   G.mt = GM;
   gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, num);
+  if (typeof gmanApi === 'function') gmanApi(R, G);   // (secuencias, huesos, enganches y bonemerge de cualquier entidad: gmod_anim.js)
   gmaApiLibs(R, G, def, tabla, lib, num);
   if (typeof gmmApi === 'function') gmmApi(R, G, PLY_M, def, tabla, num);
   if (typeof gmhApi === 'function') gmhApi(R, G);
@@ -313,9 +318,9 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   const yo = () => GMA.jug;
   E('IsValid', (e) => entValida(e)); E('EntIndex', (e) => (e.tipo === 'jug' ? 1 : e.id)); E('GetClass', (e) => e.claseNom || e.clase);
   E('GetPos', (e) => V(gmaEntPos(e)));
-  E('SetPos', (e, v) => { if (!(v instanceof LVec)) return; const p = vG(v); if (e === yo()) { JUG.pos.copy(p).add(v3(0, JUG.medio, 0)); JUG.vel.set(0, 0, 0); } else if (e.o) { gmaOrigenPon(e.o, p); e.o.b.wake(); e.o.b.updateWorld(); } else e.pos.copy(p); if (e.padre || e.soldadoA) gmaPadreFijar(e, 'pos'); });
+  E('SetPos', (e, v) => { if (!(v instanceof LVec)) return; const p = vG(v); if (e === yo()) { JUG.pos.copy(p).add(v3(0, JUG.medio + JUG.radio, 0)); JUG.vel.set(0, 0, 0); } else if (e.P && !e.remoto) { if (!e.P.rag) { e.P.pos.copy(p).add(v3(0, 0.95, 0)); if (e.P.vel) e.P.vel.set(0, 0, 0); if (e.P.npcB) { e.P.npcB.pos.copy(e.P.pos); e.P.npcB.updateWorld(); } } } else if (e.o) { gmaOrigenPon(e.o, p); e.o.b.wake(); e.o.b.updateWorld(); } else e.pos.copy(p); if (e.padre || e.soldadoA) gmaPadreFijar(e, 'pos'); });
   E('GetAngles', (e) => A(e === yo() ? new LAng(0, quatAng(Quat.axis(0, 1, 0, JUG.yaw)).y, 0) : quatAng(entQ(e))));
-  E('SetAngles', (e, a) => { if (!(a instanceof LAng)) return; const q = angQuat(a); if (e === yo()) { JUG.yaw = Math.atan2(q.rot(v3(0, 0, 1)).x, q.rot(v3(0, 0, 1)).z); } else if (e.o) { const org = gmaOrigen(e.o); e.o.b.q.copy(q); gmaOrigenPon(e.o, org); e.o.b.wake(); e.o.b.updateWorld(); } else e.q.copy(q); if (e.padre || e.soldadoA) gmaPadreFijar(e, 'ang'); });
+  E('SetAngles', (e, a) => { if (!(a instanceof LAng)) return; const q = angQuat(a); if (e === yo()) { JUG.yaw = Math.atan2(q.rot(v3(0, 0, 1)).x, q.rot(v3(0, 0, 1)).z); } else if (e.P && !e.remoto) { const f = q.rot(v3(0, 0, 1)); e.P.yaw = Math.atan2(f.x, f.z); } else if (e.o) { const org = gmaOrigen(e.o); e.o.b.q.copy(q); gmaOrigenPon(e.o, org); e.o.b.wake(); e.o.b.updateWorld(); } else e.q.copy(q); if (e.padre || e.soldadoA) gmaPadreFijar(e, 'ang'); });
   E('GetVelocity', (e) => Vr(e === yo() ? JUG.vel : e.o ? e.o.b.vel : v3()));
   E('SetVelocity', (e, v) => { const g = vGr(v); if (e === yo()) gmaVelJugador(g, false); else if (e.o) { e.o.b.vel.copy(g); e.o.b.wake(); } });
   const dirE = (e, k) => { const a = e === yo() ? dirAng(dS(CAM.fwd)) : quatAng(entQ(e)), m = angMat(a); const v = k === 0 ? m[0] : k === 1 ? m[1].map((x) => -x) : m[2]; return GMA.nv(v[0], v[1], v[2]); };
@@ -332,7 +337,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('GetCollisionBounds', (e) => { const [a, b] = caja(e); a.__mt = b.__mt = GMA.mtVec; return [a, b]; });
   // (una lista de modelos, como el ENT.Model = {"..."} de VJ Base: uno de ellos; antes quedaba «[object object]»)
   E('SetModel', (e, m) => { if (m instanceof LuaTable) m = m.get(1 + Math.floor(Math.random() * Math.max(1, m.a.length))) || m.get(1); e.modelo = String(m || '').toLowerCase().replace(/\\/g, '/'); if (e.creado && e.vivo && (e.o || GMA.iniciando === e)) gmaRehacer(e); });
-  E('GetModel', (e) => e.modelo); E('Spawn', (e) => gmaSpawn(e)); E('Activate', () => {}); E('Remove', (e) => gmaQuitar(e));
+  E('GetModel', (e) => (e.P && !e.modelo && typeof gmanModeloPersona === 'function' ? gmanModeloPersona(e.P) : e.modelo)); E('Spawn', (e) => gmaSpawn(e)); E('Activate', () => {}); E('Remove', (e) => gmaQuitar(e));
   E('SetColor', (e, c) => { if (c instanceof LuaTable) e.color = ['r', 'g', 'b', 'a'].map((k) => c.get(k) ?? 255); }); E('GetColor', (e) => GMA.color(...e.color));
   E('SetMaterial', (e, m) => { e.material = m; }); E('GetMaterial', (e) => e.material || '');
   // (los materiales del modelo, en orden: la TFA Base los recorre para ponerles los suyos a las piezas de sus armas)
@@ -342,7 +347,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   // (la lista de grupos del modelo: uno solo, el cuerpo, con su única variante; SetIK, sin cinemática inversa que apagar)
   E('GetBodyGroups', () => { const t = new LuaTable(), g = new LuaTable(), sm = new LuaTable(); sm.set(0, ''); g.set('id', 0); g.set('name', 'studio'); g.set('num', 1); g.set('submodels', sm); t.set(1, g); return t; });
   E('GetBodygroupCount', () => 1); E('GetBodygroupName', () => 'studio'); E('FindBodygroupByName', () => -1); E('SetIK', () => {});
-  E('SetNoDraw', (e, b) => { e.noDraw = !!b; if (e.o) e.o.gmOculto = !!b; }); E('GetNoDraw', (e) => !!e.noDraw);
+  E('SetNoDraw', (e, b) => { e.noDraw = !!b; if (e.o) e.o.gmOculto = !!b; if (e.P && !e.remoto) e.P.gmOculto = !!b; }); E('GetNoDraw', (e) => !!e.noDraw);
   for (const n of ['DrawShadow', 'SetRenderMode', 'SetRenderFX', 'DrawModel', 'SetModelScale', 'SetUseType', 'SetTrigger', 'SetLagCompensated', 'SetPredictable', 'AddEffects', 'RemoveEffects', 'AddFlags', 'RemoveFlags', 'SetSolidFlags', 'SetSequence', 'ResetSequence', 'SetPlaybackRate', 'SetCycle', 'FrameAdvance', 'SetPoseParameter', 'ManipulateBoneAngles', 'ManipulateBonePosition', 'ManipulateBoneScale', 'SetupBones', 'InvalidateBoneCache', 'SetAnimation', 'SetLocalVelocity', 'SetFriction', 'SetElasticity', 'StartMotionController', 'StopMotionController', 'SetSubMaterial', 'CallOnRemove', 'DeleteOnRemove', 'SetShouldServerRagdoll', 'SetSpawnEffect', 'SetBloodColor', 'AddCallback', 'SetHitboxSet', 'EnableCustomCollisions', 'CollisionRulesChanged', 'RemoveAllDecals', 'SetSaveValue', 'MarkShadowAsDirty', 'CreateShadow', 'DestroyShadow', 'SetRenderBounds', 'SetRenderBoundsWS', 'SetRenderOrigin', 'SetRenderAngles', 'SetLOD', 'UseClientSideAnimation', 'SetAutomaticFrameAdvance', 'SetLocalAngularVelocity', 'SetMoveCollide', 'Input', 'TakePhysicsDamage', 'SetCreator', 'PhysWake', 'StopParticles']) E(n, () => {});
   E('DrawModel', (e) => gmrDrawModel(e));
   // dónde se dibuja (los portales, las armas del mundo en la mano): si nadie lo puso, donde está la entidad
@@ -372,7 +377,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('GetSequenceGroundSpeed', (e) => { const c = e.clase ? claseTabla(e.clase, GMA.ctx) : null, w = c ? buscarEnClase(c, 'WalkSpeed') : undefined; return typeof w === 'number' && w > 0 ? w : 100; }); E('GetPoseParameterName', () => ''); E('LookupPoseParameter', () => -1); E('GetPoseParameterRange', () => [0, 1]);
   E('GetPhysicsObject', (e) => { const f = e.fis || (e.fis = { e, __mt: GMA.mtPhy }); return f; }); E('GetPhysicsObjectCount', (e) => (e.o ? 1 : 0)); E('GetPhysicsObjectNum', (e) => ENT_M.get('GetPhysicsObject')(e));
   E('EmitSound', (e, s, nivel, tono, vol, canal) => gmsnEmitir(e, s, nivel, tono, vol, canal)); E('StopSound', (e, s) => gmsnParar(e, s));   // (gmod_sonidos.js: guiones de GMod, bucles, canales)
-  E('Health', (e) => (e === yo() ? Math.max(0, Math.round(JUG.vida)) : e.P ? (e.P.vivo === false || (e.P.rag && e.P.npc && !(e.P.vida > 0)) ? 0 : typeof e.P.vida === 'number' ? Math.max(0, Math.round(e.P.vida)) : e.vida) : e.vida)); E('SetHealth', (e, h) => { if (e === yo()) JUG.vida = num(h, 100); else e.vida = num(h, 100); });
+  E('Health', (e) => (e === yo() ? Math.max(0, Math.round(JUG.vida)) : e.P ? (e.P.vivo === false || (e.P.rag && e.P.npc && !(e.P.vida > 0)) ? 0 : typeof e.P.vida === 'number' ? Math.max(0, Math.round(e.P.vida)) : e.vida) : e.vida)); E('SetHealth', (e, h) => { if (e === yo()) JUG.vida = num(h, 100); else if (e.P && e.P.npc && e.P.vivo !== false) e.P.vida = num(h, 100); else e.vida = num(h, 100); });   // (un NPC del juego: su vida de verdad, la que bajan los golpes)
   E('GetMaxHealth', (e) => (e === yo() ? 100 : e.vidaMax)); E('SetMaxHealth', (e, h) => { e.vidaMax = num(h, 100); });
   E('TakeDamage', (e, d, at, inf) => gmaDanar(e, num(d, 0), at, inf)); E('TakeDamageInfo', (e, di) => { gmaDanar(e, di && di.dan || 0, di && di.at, di && di.inf, di); gmaEmpujarDano(e, di); });
   // (el golpe de un arma cuerpo a cuerpo que tocó algo con su traza: los cuchillos de CS:GO —uno de los addons de armas más
@@ -399,7 +404,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('GetBrushPlane', () => undefined); E('GetFlags', () => 0); E('IsFlagSet', () => false); E('GetEffects', () => 0); E('IsEffectActive', () => false); E('GetRenderMode', () => 0); E('GetMoveCollide', () => 0);
   E('GetNetworkOrigin', (e) => V(gmaEntPos(e))); E('GetLocalPos', (e) => (e.padre && e.padreOff ? Vr(e.padreOff) : V(gmaEntPos(e)))); E('SetLocalPos', (e, v) => { if (e.padre && v instanceof LVec) { e.padreOff = vGr(v); gmaHijoMover(e); } else ENT_M.get('SetPos')(e, v); });
   E('GetLocalAngles', (e) => (e.padre && e.padreQ ? A(quatAng(e.padreQ)) : ENT_M.get('GetAngles')(e))); E('SetLocalAngles', (e, a) => { if (e.padre && a instanceof LAng) { e.padreQ = angQuat(a); gmaHijoMover(e); } else ENT_M.get('SetAngles')(e, a); });
-  E('EyePos', (e) => V(e === yo() ? gmaOjo() : gmaEntPos(e))); E('EyeAngles', (e) => A(e === yo() ? dirAng(dS(gmaApunta())) : quatAng(entQ(e))));
+  E('EyePos', (e) => V(e === yo() ? gmaOjo() : e.P && !e.P.rag ? vadd(gmaEntPos(e), v3(0, 1.62 * (e.P.tam || 1), 0)) : gmaEntPos(e))); E('EyeAngles', (e) => A(e === yo() ? dirAng(dS(gmaApunta())) : quatAng(entQ(e))));
   E('GetGravity', () => 1); E('SetGravity', () => {}); E('GetElasticity', () => 1); E('GetFriction', () => 1);
   // NW y DT (lo de la red: acá se guarda en la entidad y se comparte entre los dos lados)
   for (const t of ['Int', 'Float', 'Bool', 'String', 'Entity', 'Vector', 'Angle', 'Var', '2Int', '2Float', '2Bool', '2String', '2Entity', '2Vector', '2Angle', '2Var']) {
@@ -429,8 +434,8 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   P('UniqueID', () => 1); P('AccountID', () => 1); P('UserID', () => 1); P('IsBot', () => false); P('Ping', () => 0); P('Frags', () => 0); P('Deaths', () => 0); P('Team', () => 1); P('SetTeam', () => {}); P('GetUserGroup', () => 'superadmin');
   P('IsAdmin', () => true); P('IsSuperAdmin', () => true); P('IsUserGroup', (p, g) => g === 'superadmin' || g === 'admin' || g === 'user'); P('IsListenServerHost', () => true); P('IsFullyAuthenticated', () => true);
   P('Alive', () => !!JUG.vivo); P('Armor', () => GMA.armor || 0); P('SetArmor', (p, a) => { GMA.armor = num(a, 0); }); P('Kill', () => { if (typeof morirJugador === 'function') morirJugador(); }); P('KillSilent', () => { if (typeof morirJugador === 'function') morirJugador(); });
-  P('GetActiveWeapon', () => gmaFantasma() || GMA.swep || NULL_ENT); P('SetDSP', () => {}); P('Give', (p, c) => (p === GMA.jug ? gmaDarArma(String(c), true) : NULL_ENT)); P('StripWeapon', (p, c) => gmaQuitarArma(String(c))); P('StripWeapons', () => {}); P('HasWeapon', (p, c) => !!(GMA.armasJug && GMA.armasJug.has(String(c))) || !!(gmaFantasma() && gmaFantasma().clase === String(c)));   // (los efectos de sonido de Source —eco, sordera— no están)
-  P('GetWeapon', (p, c) => (GMA.armasJug && GMA.armasJug.get(String(c))) || (gmaFantasma() && gmaFantasma().clase === String(c) ? gmaFantasma() : null) || NULL_ENT); P('GetWeapons', () => R.tab([...(GMA.armasJug || new Map()).values()])); P('SelectWeapon', (p, c) => { const w = GMA.armasJug && GMA.armasJug.get(String(c)); if (w) darArma('gm:' + c); }); P('SetActiveWeapon', () => {});
+  P('GetActiveWeapon', () => gmaFantasma() || GMA.swep || gmaArmaJuego() || NULL_ENT); P('SetDSP', () => {}); P('Give', (p, c) => (p === GMA.jug ? gmaDarArma(String(c), true) : NULL_ENT)); P('StripWeapon', (p, c) => gmaQuitarArma(String(c))); P('StripWeapons', () => {}); P('HasWeapon', (p, c) => !!(GMA.armasJug && GMA.armasJug.has(String(c))) || !!(gmaFantasma() && gmaFantasma().clase === String(c)));   // (los efectos de sonido de Source —eco, sordera— no están)
+  P('GetWeapon', (p, c) => (GMA.armasJug && GMA.armasJug.get(String(c))) || (gmaFantasma() && gmaFantasma().clase === String(c) ? gmaFantasma() : null) || NULL_ENT); P('GetWeapons', () => R.tab([...(GMA.armasJug || new Map()).values()])); P('SelectWeapon', (p, c) => { if (c instanceof LEnt) c = c.clase; const w = GMA.armasJug && GMA.armasJug.get(String(c)); if (w) { if (DEF_ARMAS['gm:' + c]) elegirArmaCallado('gm:' + c); } else { const n = HL2_ARMAS[String(c)] || (typeof c === 'string' && c.startsWith('jx_') ? c.slice(3) : null); if (n && ARM.lista.includes(n)) elegirArmaCallado(n); } }); P('SetActiveWeapon', () => {});
   // (la velocidad «retrasada» del jugador: The Flash y otros la multiplican por la velocidad; sin ella, error en cada cuadro)
   P('GetLaggedMovementValue', () => GMA.lagMov ?? 1); P('SetLaggedMovementValue', (p, v) => { GMA.lagMov = num(v, 1); });
   P('GetAmmoCount', () => 999); P('GiveAmmo', () => {}); P('RemoveAmmo', () => {}); P('SetAmmo', () => {}); P('StripAmmo', () => {});
@@ -451,7 +456,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   P('GetViewPunchAngles', (p) => { const q = punch(p); return A(new LAng(q.p, q.y, q.r)); }); P('GetPunchAngle', (p) => { const q = punch(p); return A(new LAng(q.p, q.y, q.r)); }); P('GetViewPunchVelocity', () => A(new LAng()));
   P('GetViewModel', () => GMA.vmEnt || (GMA.vmEnt = new LEnt('viewmodel', 'vm'))); P('GetHands', () => NULL_ENT); P('SetupHands', () => {}); P('ConCommand', (p, c) => gmaConsola2(String(c))); P('SendLua', () => {}); P('GetInfo', (p, k) => { const c = GMA.cvars.get(k); return c ? String(c.v) : ''; }); P('GetInfoNum', (p, k, d) => { const c = GMA.cvars.get(k); return c ? num(c.v, d) : d; });
   P('SetModel', () => {}); P('GetModel', () => gmvModeloJugador()); P('SetPlayerColor', () => {}); P('GetPlayerColor', () => GMA.nv(0.24, 0.34, 0.41)); P('SetWeaponColor', () => {}); P('GetWeaponColor', () => GMA.nv(0.3, 1.8, 2.1));
-  P('GetObserverMode', () => 0); P('Spectate', () => {}); P('UnSpectate', () => {}); P('Freeze', (p, b) => { JUG.congelado = !!b; }); P('IsFrozen', () => !!JUG.congelado); P('Lock', () => {}); P('UnLock', () => {}); P('DrawViewModel', (p, b) => { const w = GMA.swep; if (w) w.vmApagada = b === false; }); P('DrawWorldModel', () => {});
+  P('GetObserverMode', () => 0); P('Spectate', () => {}); P('UnSpectate', () => {}); P('Freeze', (p, b) => { JUG.congelado = !!b; }); P('IsFrozen', () => !!JUG.congelado); P('Lock', () => { JUG.bloqueado = true; }); P('UnLock', () => { JUG.bloqueado = false; });   // (Lock: ni se mueve, ni gira, ni dispara, hasta UnLock —las ejecuciones de BSMod—) P('DrawViewModel', (p, b) => { const w = GMA.swep; if (w) w.vmApagada = b === false; }); P('DrawWorldModel', () => {});
   P('AddFrags', () => {}); P('AddDeaths', () => {}); P('SetFrags', () => {}); P('SetDeaths', () => {}); P('GetFOV', () => CAM.fov || 75); P('SetFOV', (p, f) => { if (p !== GMA.jug) return; const x = num(f, 0); GMA.fovLua = x > 0 ? Math.max(1, Math.min(170, x)) : 0; GMA.fovArma = x > 0 ? GMA.swep : null; }); P('GetHull', () => [GMA.nv(-16, -16, 0), GMA.nv(16, 16, 72)]); P('IPAddress', () => 'loopback'); P('TimeConnected', () => TIEMPO.t);   // (el zoom de las miras: gmaFovLua, gmod_vista.js)
   P('LastHitGroup', () => 0); P('GetRagdollEntity', () => NULL_ENT); P('GetEyeTraceNoCursor', () => gmaTraza(CAM.pos, CAM.fwd, 32768 * GS, null)); P('IsTyping', () => false); P('IsSpeaking', () => false); P('IsMuted', () => false); P('SetNoTarget', () => {}); P('GodEnable', () => {}); P('GodDisable', () => {}); P('HasGodMode', () => !!JUEGO.dios);
   // ---- armas (SWEP) ----
@@ -472,7 +477,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   W('SetDeploySpeed', () => {}); W('IsScripted', () => true); W('Clip1Max', () => 0); W('HasAmmo', (w) => (w.clip1 ?? 1) > 0); W('LastShootTime', (w) => w.ultTiro || 0); W('SetLastShootTime', (w) => { w.ultTiro = TIEMPO.t; }); W('IsWeaponVisible', () => true); W('GetWeaponViewModel', (w) => w.vm || ''); W('GetWeaponWorldModel', (w) => w.wm || '');
   // ---- física ----
   const MP = (GMA.mtPhy = new LuaTable()); MP.set('__index', PHY_M); MP.set('__tostring', (f) => 'PhysObject [' + (f.e ? f.e.id : 0) + ']');
-  const bo = (f) => (f.e && f.e.o ? f.e.o.b : null);
+  const bo = (f) => (f.rb ? f.rb.b || null : f.e && f.e.o ? f.e.o.b : null);   // (rb: un cuerpo de un muñeco del juego, gmod_anim.js)
   F('IsValid', (f) => !!bo(f)); F('Wake', (f) => { const b = bo(f); if (b) b.wake(); }); F('Sleep', () => {}); F('IsAsleep', (f) => !!(bo(f) && bo(f).sleep));
   F('EnableMotion', (f, s) => { const b = bo(f); if (!b) return; if (R.T(s) && f.e && (f.e.fijoNS || gmaPadreDe(f.e))) return; b.frozen = !R.T(s); if (R.T(s)) b.wake(); }); F('IsMotionEnabled', (f) => !!(bo(f) && !bo(f).frozen)); F('IsMoveable', (f) => !!(bo(f) && !bo(f).frozen));   // (lo pegado o no sólido sigue quieto)
   F('EnableGravity', (f, s) => { const b = bo(f); if (b) b.sinGrav = !R.T(s); }); F('IsGravityEnabled', (f) => !(bo(f) && bo(f).sinGrav)); F('EnableCollisions', () => {}); F('EnableDrag', () => {});
@@ -551,6 +556,11 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
     else { el.style.opacity = '0'; void el.offsetWidth; ir(a, f); if (!(fl2 & 8)) el._t = setTimeout(() => ir(0, 0.3), (f + h) * 1000); }
   });
   // NPC
+  // (COND_NPC_FREEZE / COND_NPC_UNFREEZE: el NPC del juego se queda quieto, sin pensar ni caminar —BSMod congela así al que se
+  // puede ejecutar y durante la ejecución—; el estado de la IA queda anotado)
+  if (NPC_M) { NPC_M.set('SetCondition', (n, c) => { c = +c | 0; if (c === 67 || c === 68) { n.congelado = c === 67; if (n.P) n.P.gmCongelado = c === 67; } (n.conds || (n.conds = new Set())).add(c); if (c === 68) n.conds.delete(67); else if (c === 67) n.conds.delete(68); });
+    NPC_M.set('HasCondition', (n, c) => !!(n.conds && n.conds.has(+c | 0))); NPC_M.set('ClearCondition', (n, c) => { c = +c | 0; if (n.conds) n.conds.delete(c); if (c === 67) { n.congelado = false; if (n.P) n.P.gmCongelado = false; } });
+    NPC_M.set('SetNPCState', (n, s) => { n.npcEstado = +s | 0; }); NPC_M.set('GetNPCState', (n) => (n.npcEstado ?? (n.P && n.P.vivo === false ? 7 : 1))); }
   if (NPC_M) { solo(NPC_M, 'SetSchedule', () => {}); solo(NPC_M, 'GetEnemy', (n) => n.enemigo || NULL_ENT); solo(NPC_M, 'SetEnemy', (n, t) => { n.enemigo = t instanceof LEnt ? t : null; }); solo(NPC_M, 'ClearEnemyMemory', (n) => { n.enemigo = null; }); }
 
 }
@@ -561,6 +571,9 @@ const HL2_ARMAS = { weapon_crowbar: 'Crowbar', weapon_physgun: 'PhysicsGun', gmo
 function gmaPrefabDeModelo(ruta) {
   if (!ruta) return null;
   ruta = ruta.toLowerCase().replace(/\\/g, '/'); if (!ruta.startsWith('models/')) ruta = 'models/' + ruta;
+  // (el de un personaje del juego —models/jxmod/<skin>.mdl, gmod_anim.js—: se dibuja con su malla, sin objeto. Antes era una
+  // caja escondida que en red les aparecía a los demás debajo de la ejecución de BSMod)
+  if (/^models\/jxmod\/[^/]+\.mdl$/.test(ruta)) return null;
   if (gmArchivo(ruta)) return gmPrefab('gm:' + ruta) ? 'gm:' + ruta : null;
   // (un modelo de HL2/GMod que no viene en el addon: el prop del juego con ese nombre, si hay; si no, una caja)
   const base = ruta.replace(/^.*\//, '').replace(/\.mdl$/, '');
@@ -727,7 +740,7 @@ function gmaSpawn(e) {
   if (!e.o || e.oModelo !== e.modelo) gmaRehacer(e);
   if (e.nb) { if (e.o) { e.o.b.frozen = true; e.o.b.noGrab = false; } GMNB.ambito++; try { metodo(e, 'BehaveStart', 'S'); } finally { GMNB.ambito--; } }
   const c = GMA.clases.get(e.clase); if (c && c.C && c.C !== c.S) metodo(e, 'Initialize', 'C');
-  gmaHook('OnEntityCreated', 'S', e);
+  gmaHook('OnEntityCreated', 'S', e); gmaHook('OnEntityCreated', 'C', e);   // (en GMod corre en los dos lados: BSMod arma ahí la cámara de la ejecución)
 }
 function gmaQuitar(e) {
   if (e instanceof LEnt && e.nbRem) { gmnbTitereQuitar(e.nbRem.key, e.nbRem); return; }   // (el nextbot de otro jugador: sólo se deja de ver)
@@ -757,7 +770,7 @@ function gmaDanar(e, dan, at, inf, di) {
   if (e.remoto) { gmnbRemDanar(e, di); return; }   // (otro jugador de la sala: le llega a él)
   // (un NPC del juego: el golpe le llega a su persona —vida, caída, muerte—, desde donde está el que pega. Antes no le
   // pasaba nada: los nextbots les pegaban a los NPC sin hacerles daño)
-  if (e.P && e.tipo === 'npc' && typeof danarPersona === 'function') { const a = di.at instanceof LEnt && di.at.vivo ? gmaEntPos(di.at) : null, d = a ? vsub(e.P.pos, a) : v3(0, 0, 1); d.y = 0; if (d.lenSq() < 1e-6) d.set(0, 0, 1); danarPersona(e.P, +di.dan || 0, e.P.pos.clone(), d); return; }
+  if (e.P && e.tipo === 'npc' && typeof danarPersona === 'function') { const a = di.at instanceof LEnt && di.at.vivo ? gmaEntPos(di.at) : null, d = a ? vsub(e.P.pos, a) : v3(0, 0, 1); d.y = 0; if (d.lenSq() < 1e-6) d.set(0, 0, 1); const p0 = GMA.danandoP; GMA.danandoP = e.P; try { danarPersona(e.P, +di.dan || 0, e.P.pos.clone(), d); } finally { GMA.danandoP = p0; } return; }
   if (claseTabla(e.clase, 'S')) { metodo(e, 'OnTakeDamage', 'S', di); return; }
   if (e.o) danarObjeto(e.o, di.dan, e.o.b.pos.clone(), v3(0, 1, 0));
 }
@@ -805,7 +818,7 @@ function gmaTraza(o, d, max, ignorar, hPre) {
   const ent = h && h.body ? (h.body.obj ? entDeObj(h.body.obj) : h.body.persona ? gmaEntPersona(h.body.persona) : GMA.mundo) : h ? GMA.mundo : NULL_ENT;
   t.set('Hit', !!h); t.set('HitPos', GMA.V(fin)); t.set('HitNormal', GMA.Vd(h ? h.n : vscale(d, -1))); t.set('Normal', GMA.Vd(d)); t.set('StartPos', GMA.V(o));
   t.set('Fraction', h ? h.t / max : 1); t.set('Entity', ent); t.set('HitWorld', !!(h && !h.body)); t.set('HitNonWorld', !!(h && h.body)); t.set('HitSky', false); t.set('HitNoDraw', false);
-  t.set('MatType', 67); t.set('PhysicsBone', 0); t.set('HitBox', 0); t.set('HitGroup', 0); t.set('SurfaceProps', 0); t.set('StartSolid', false); t.set('AllSolid', false); t.set('FractionLeftSolid', 0); t.set('HitTexture', '**studio**'); t.set('Contents', h ? 1 : 0);   // (CONTENTS_SOLID si tocó algo)
+  t.set('MatType', ent instanceof LEnt && (ent.tipo === 'npc' || ent.tipo === 'jug' || ent.nb || ent.ragP) ? 70 : 67);   /* (MAT_FLESH en una persona, un NPC o un nextbot: la patada de BSMod suena a cuerpo) */ t.set('PhysicsBone', 0); t.set('HitBox', 0); t.set('HitGroup', 0); t.set('SurfaceProps', 0); t.set('StartSolid', false); t.set('AllSolid', false); t.set('FractionLeftSolid', 0); t.set('HitTexture', '**studio**'); t.set('Contents', h ? 1 : 0);   // (CONTENTS_SOLID si tocó algo)
   return t;
 }
 // la entidad de Lua de una persona que tocó una traza: el cuerpo del jugador (también su muñeco al morir) es el jugador;
@@ -880,6 +893,16 @@ function gmaTrazadora(n, a, b, ent) {
   d.d.set('Start', GMA.V(a)); d.d.set('Origin', GMA.V(b)); d.d.set('Entity', ent || NULL_ENT); d.d.set('Attachment', 1); d.d.set('Scale', 5000); d.d.set('Flags', 0); d.d.set('Normal', GMA.Vd(vsub(b, a).norm()));
   gmaEfecto(n, d);
 }
+// el daño a un NPC del juego que no viene del Lua (las armas del juego, la patada, los otros NPC): también pasa por EntityTakeDamage,
+// como todo daño en GMod —BSMod marca ahí a los que se pueden ejecutar; un modo de juego cambia el daño—. Devuelve el daño
+// (cambiado por el Lua) o null si un hook lo anuló. de: 'jug' si lo hizo el jugador
+function gmaGanchoDanoPersona(P, dan, pos, de) {
+  if (!GMA.R || !GMA.activo || GMA.danandoP === P || !(GMA.hooks.has('EntityTakeDamage') || (GMA.modo && GMA.modo.S && GMA.modo.S.get('EntityTakeDamage')))) return dan;
+  const e = gmaEntPersona(P); if (!(e instanceof LEnt) || e.tipo !== 'npc') return dan;
+  const at = de === 'jug' ? GMA.jug : de instanceof LEnt ? de : NULL_ENT, di = gmaDmgInfo(dan, at, at, pos ? GMA.V(pos) : null);
+  const p0 = GMA.danandoP; GMA.danandoP = P; try { const r = gmaHook('EntityTakeDamage', 'S', e, di); if (r[0] === true) return null; } finally { GMA.danandoP = p0; }
+  return Math.max(0, +di.dan || 0);
+}
 function gmaDanoBala(h, d, di, fuerza) {
   const b = h.body; if (!b) return;
   if (b.wake) b.wake();
@@ -887,12 +910,14 @@ function gmaDanoBala(h, d, di, fuerza) {
   const e = b.obj ? GMA.entPorObj.get(b.obj) : null;
   if (e && claseTabla(e.clase, 'S') && !GMA.danando) { GMA.danando = true; try { gmaDanar(e, di.dan, di.at, di.inf, di); } finally { GMA.danando = false; } return; }
   if (b.obj) danarObjeto(b.obj, di.dan, h.p, d);
-  if (b.persona) danarPersona(b.persona, di.dan, h.p, d, b);
+  // (un NPC del juego: como entidad de Lua, con EntityTakeDamage —en GMod pasa por ahí todo daño; BSMod marca así al que se puede
+  // ejecutar y antes nunca se enteraba de los golpes de las armas de los mods—)
+  if (b.persona) { const pe = typeof gmaEntPersona === 'function' && b.persona.npc ? gmaEntPersona(b.persona) : null; if (pe instanceof LEnt && pe.tipo === 'npc' && !GMA.danando) { GMA.danando = true; try { gmaDanar(pe, di.dan, di.at, di.inf, di); } finally { GMA.danando = false; } } else danarPersona(b.persona, di.dan, h.p, d, b); }
   if (b.verity && typeof verEmpujon === 'function') verEmpujon(b.verity, vscale(d, Math.min(9, 2 + di.dan * 0.25)), true);
 }
 const IN = { ATTACK: 1, JUMP: 2, DUCK: 4, FORWARD: 8, BACK: 16, USE: 32, LEFT: 128, RIGHT: 256, MOVELEFT: 512, MOVERIGHT: 1024, ATTACK2: 2048, RELOAD: 8192, SPEED: 131072, WALK: 262144, ZOOM: 524288 };
 function gmaTeclas() {
-  let k = 0; if (typeof ENT === 'undefined') return 0; const t = ENT.teclas || new Set();
+  let k = 0; if (typeof ENT === 'undefined' || (typeof JUG !== 'undefined' && JUG.bloqueado)) return 0; const t = ENT.teclas || new Set();   // (Player:Lock: ninguna tecla)
   if (ENT.disparo) k |= IN.ATTACK; if (ENT.disparo2) k |= IN.ATTACK2; if (ENT.saltar || t.has('Space')) k |= IN.JUMP; if (ENT.agachar || t.has('ControlLeft')) k |= IN.DUCK;
   if (t.has('KeyW') || ENT.y > 0.3) k |= IN.FORWARD; if (t.has('KeyS') || ENT.y < -0.3) k |= IN.BACK; if (t.has('KeyA') || ENT.x < -0.3) k |= IN.MOVELEFT; if (t.has('KeyD') || ENT.x > 0.3) k |= IN.MOVERIGHT;
   // (los botones de la pantalla también cuentan mientras el dedo está encima: hay armas que miran KeyDown(IN_RELOAD) en su
@@ -909,7 +934,7 @@ const GMA_KEYJS = (() => { const t = []; for (let i = 0; i <= 9; i++) t[1 + i] =
   for (let i = 1; i <= 12; i++) t[91 + i] = 'F' + i; return t; })();
 const GMA_JSKEY = new Map(GMA_KEYJS.map((c, n) => [c, n]).filter((x) => x[0]));
 function gmaBotones() {
-  const s = new Set(); if (typeof ENT === 'undefined' || (typeof UI !== 'undefined' && UI.abierto)) return s;
+  const s = new Set(); if (typeof ENT === 'undefined' || (typeof UI !== 'undefined' && UI.abierto) || (typeof JUG !== 'undefined' && JUG.bloqueado)) return s;
   const pon = (c) => { const n = GMA_JSKEY.get(c); if (n) s.add(n); };
   for (const c of ENT.teclas || []) pon(c);
   if (typeof CTL !== 'undefined') { for (const c of CTL.teclasMod) pon(c); if (CTL.raton) s.add(CTL.raton); }
@@ -1018,6 +1043,15 @@ function gmaSiempreAlternar(id, on) {
   try { localStorage.setItem(GMA_SIEMPRE_NO, JSON.stringify([...S])); } catch (e) {}
   return on;
 }
+// el arma del juego que se tiene en la mano, como entidad de Lua (GetActiveWeapon): la clase de HL2 que le corresponde
+// (weapon_fists, weapon_pistol...) o «jx_<nombre>». Antes daba NULL y lo que la guarda para devolverla después —BSMod
+// la cambia por la de la ejecución y al terminar hace SelectWeapon de la que había— dejaba al jugador con un arma vacía
+function gmaArmaJuego() {
+  if (typeof ARM === 'undefined') return null; const n = ARM.lista[ARM.i], D = n && DEF_ARMAS[n]; if (!D || D.tipo === 'gmswep' || String(n).startsWith('gm:')) return null;
+  const M = GMA.armasJuego || (GMA.armasJuego = new Map()); let w = M.get(n);
+  if (!w) { const cl = Object.keys(HL2_ARMAS).find((k) => HL2_ARMAS[k] === n) || 'jx_' + n; w = new LEnt(cl, 'arma'); GMA.ents.delete(w.id); w.dueño = GMA.jug; w.creado = true; w.juego = n; w.clip1 = -1; M.set(n, w); }
+  return w;
+}
 // armas de los addons: se dan como un arma más del juego (tipo 'gmswep')
 // (Player:Give —dado: true—: como en GMod, queda en el inventario sin cambiar el arma que se tiene en la mano, salvo que no
 // haya ninguna; desde el menú se da y se elige)
@@ -1088,7 +1122,7 @@ function gmaSwepPaso() {
   // (Holster también en el cliente, como en GMod con varios jugadores: ahí los mods sacan lo que dibujaban; Extended
   // Flashlight apaga su luz. Sin esto quedaba prendida donde estaba al cambiar de arma)
   if (w !== GMA.swep) { const o = GMA.swep; if (o && o.vivo) { metodo(o, 'Holster', 'S'); const c = GMA.armas.get(o.clase); if (c && c.C && c.C !== c.S) metodo(o, 'Holster', 'C'); } if (GMA.fovArma && GMA.fovArma === o) { GMA.fovLua = 0; GMA.fovArma = null; } GMA.swep = w; if (w) { metodo(w, 'Deploy', 'S'); w.vmMd = null; } }   // (el zoom que puso el arma que se guarda se va con ella)
-  if (!w || UI.abierto || !JUG.vivo) { if (w) w.prevP = false; return; }
+  if (!w || UI.abierto || !JUG.vivo || JUG.bloqueado) { if (w) w.prevP = false; return; }   // (Player:Lock: no dispara)
   // (KeyPressed/KeyReleased del arma, contra las teclas que vio en su último Think: con un menú abierto o muerto el Think
   // no corre, y lo que se soltó en ese rato —correr, la guardia de los puños de M9K, la mira— quedaba apretado para ella)
   const tecFrame = GMA.tecAnt; if (w.tecW !== undefined) GMA.tecAnt = w.tecW;
@@ -1316,7 +1350,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
 // las variables del motor de Source y de GMod que existen siempre (con su valor de fábrica)
 const GMA_CVARS_MOTOR = { sv_gravity: '600', sv_cheats: '0', sv_allowcslua: '0', host_timescale: '1', phys_timescale: '1', skill: '1', developer: '0', deathmatch: '1', coop: '0', maxplayers: '8', hostname: 'JXMod',
   sv_defaultdeployspeed: '4', sv_friction: '8', sv_accelerate: '10', sv_airaccelerate: '10', sv_maxvelocity: '3500', sv_noclipspeed: '5', sv_stepsize: '18', sv_footsteps: '1', mp_falldamage: '0', mp_friendlyfire: '0', mp_flashlight: '1',
-  ai_disabled: '0', ai_ignoreplayers: '0', ai_serverragdolls: '0', gmod_physiterations: '4', gmod_maxammo: '9999', gmod_suit: '0', gmod_language: 'en', gmod_toolmode: '', gmod_drawhelp: '1', gmod_drawtooleffects: '1', gmod_mcore_test: '0',
+  ai_disabled: '0', ai_ignoreplayers: '0', ai_serverragdolls: '1' /* (los muñecos de los NPC acá son del servidor: gmod_anim.js) */, gmod_physiterations: '4', gmod_maxammo: '9999', gmod_suit: '0', gmod_language: 'en', gmod_toolmode: '', gmod_drawhelp: '1', gmod_drawtooleffects: '1', gmod_mcore_test: '0',
   sbox_godmode: '0', sbox_noclip: '1', sbox_playershurtplayers: '1', sbox_weapons: '1', sbox_bonemanip_npc: '1', sbox_bonemanip_player: '0', sbox_bonemanip_misc: '0', sbox_persist: '', sbox_maxprops: '150', sbox_maxragdolls: '10', sbox_maxvehicles: '4',
   sbox_maxeffects: '200', sbox_maxballoons: '100', sbox_maxcameras: '10', sbox_maxnpcs: '10', sbox_maxsents: '100', sbox_maxdynamite: '10', sbox_maxlamps: '3', sbox_maxlights: '5', sbox_maxwheels: '50', sbox_maxthrusters: '50', sbox_maxhoverballs: '50',
   sbox_maxbuttons: '50', sbox_maxemitters: '20', sbox_maxconstraints: '2000', sbox_maxropeconstraints: '1000', cl_drawhud: '1', cl_interp: '0.1', cl_showfps: '0', fov_desired: '75', viewmodel_fov: '54', sensitivity: '3', volume: '1', cl_playermodel: 'kleiner',
@@ -1558,7 +1592,7 @@ function gmaMtArchivo() {
 // ---------------- lo que queda: registros (entidades, armas, efectos), listas, archivos, varios ----------------
 function gmaApiResto(R, G, def, lib, num, tabla) {
   const L = (n) => G.get(n);
-  if (typeof gmrApi === 'function') gmrApi(R, G, def, lib, num); if (typeof gmvApi === 'function') gmvApi(); if (typeof gmnbApi === 'function') gmnbApi();
+  if (typeof gmrApi === 'function') gmrApi(R, G, def, lib, num); if (typeof gmvApi === 'function') gmvApi(); if (typeof gmnbApi === 'function') gmnbApi(); if (typeof gmanRagApi === 'function') gmanRagApi();
   def(L('scripted_ents'), 'Register', (t, n) => gmaRegistrar('ent', String(n), t)); def(L('scripted_ents'), 'Get', (n) => claseTabla(String(n), GMA.ctx)); def(L('scripted_ents'), 'GetStored', (n) => { const c = GMA.clases.get(String(n)); return c ? tabla({ t: c.S || c.C }) : undefined; });
   def(L('scripted_ents'), 'GetList', () => { const t = new LuaTable(); for (const [n, c] of GMA.clases) t.set(n, tabla({ t: c.S || c.C })); return t; }); def(L('scripted_ents'), 'GetType', (n) => { const c = claseTabla(String(n), 'S'); return c && c.get('Type'); }); def(L('scripted_ents'), 'Alias', () => {}); def(L('scripted_ents'), 'GetSpawnable', () => new LuaTable()); def(L('scripted_ents'), 'IsBasedOn', (a, b) => a === b);
   def(L('weapons'), 'Register', (t, n) => gmaRegistrar('arma', String(n), t)); def(L('weapons'), 'Get', (n) => claseTabla(String(n), GMA.ctx)); def(L('weapons'), 'GetStored', (n) => claseTabla(String(n), GMA.ctx)); def(L('weapons'), 'GetList', () => R.tab([...GMA.armas.values()].map((c) => c.S || c.C))); def(L('weapons'), 'IsBasedOn', (a, b) => a === b);
@@ -1625,6 +1659,7 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
   const VAC = (o) => { const t = new LuaTable(); const m = new LuaTable(); m.set('__index', (x, k) => (typeof k !== 'string' ? undefined : /^(Is|Has|Can|Should|Supports)[A-Z]/.test(k) ? () => false : /^Get/.test(k) ? () => 0 : () => {})); t.mt = m; return t; };
   for (const n of ['render', 'cam', 'mesh', 'killicon', 'resource', 'spawnmenu', 'presets', 'undo', 'cleanup', 'duplicator', 'constraint', 'properties', 'achievements', 'navmesh', 'steamworks', 'search', 'menubar', 'widgets', 'halo', 'frame_blend', 'drive', 'construct', 'numpad', 'matproxy', 'motionsensor', 'controlpanel', 'serverlist', 'video']) { const t = L(n); const v = VAC(); t.mt = v.mt; }
   def(L('render'), 'GetScreenEffectTexture', () => gmaMaterial('rt')); def(L('render'), 'GetRenderTarget', () => gmaMaterial('rt')); def(L('render'), 'GetLightColor', () => GMA.nv(1, 1, 1)); def(L('render'), 'GetAmbientLightColor', () => GMA.nv(0.5, 0.5, 0.5)); def(L('render'), 'GetDXLevel', () => (typeof gmrtSM3 === 'function' && !gmrtSM3() ? 90 : 95)); def(L('render'), 'SupportsHDR', () => true); def(L('render'), 'GetViewSetup', () => tabla({ origin: GMA.V(CAM.pos), angles: GMA.A(dirAng(dS(CAM.fwd))), fov: CAM.fov || 75 }));
+  def(L('halo'), 'Add', (t, c) => { if (typeof gmanHalo === 'function') gmanHalo(t, c); }); def(L('halo'), 'RenderedEntity', () => NULL_ENT);   // (gmod_anim.js)
   def(L('undo'), 'Create', () => {}); def(L('constraint'), 'Weld', (a, b) => gmaSoldar(a, b)); def(L('constraint'), 'NoCollide', () => [NULL_ENT]); def(L('constraint'), 'Axis', (a, b) => gmaSoldar(a, b)); def(L('constraint'), 'Rope', () => [NULL_ENT]); def(L('constraint'), 'Find', () => undefined); def(L('constraint'), 'FindConstraints', () => new LuaTable()); def(L('constraint'), 'RemoveAll', (e) => gmaDesoldar(e)); def(L('constraint'), 'GetAllConstrainedEntities', (e) => { const t = new LuaTable(); if (e instanceof LEnt) { t.set(e, e); if (e.soldadoA) t.set(e.soldadoA, e.soldadoA); if (GMA.hijos) for (const h of GMA.hijos) if (h.soldadoA === e) t.set(h, h); } return t; });
   def(L('duplicator'), 'CopyEntTable', () => new LuaTable()); def(L('duplicator'), 'GenericDuplicatorFunction', () => NULL_ENT);
   // ---- lo que faltaba y devolvía algo que el addon usa (api_falta.mjs) ----

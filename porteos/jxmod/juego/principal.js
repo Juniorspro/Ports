@@ -227,7 +227,7 @@ function empezarPartida(mapa) {
     rbAsegurarTodos(falta, (n, t) => { if (C && C.set && t) C.set(0.05 + 0.85 * n / t, T('ld.bajando') + ' ' + (n / 1048576).toFixed(1) + ' / ' + (t / 1048576).toFixed(1) + ' MB'); }).then(sigue, () => sigue(false));
     return;
   }
-  natFin(); if (typeof pillFin === 'function') pillFin(true); entidadesLimpiar(); JUG.skinRol = null; JUG.vidaMax = 0; JUG.colorRol = null; JUG.noclip = false; JUG.congelado = false;
+  natFin(); if (typeof pillFin === 'function') pillFin(true); entidadesLimpiar(); JUG.skinRol = null; JUG.vidaMax = 0; JUG.colorRol = null; JUG.noclip = false; JUG.congelado = false; JUG.bloqueado = false;
   for (const o of OBJS.slice()) borrarObjeto(o);
   PH.bodies.length = 0; PH.joints.length = 0; PROY.length = 0; PART.l.length = 0;
   if (typeof nukeLimpiar === 'function') nukeLimpiar();   // (una nuclear del mundo de antes no sigue en éste: nucleares.js)

@@ -798,3 +798,10 @@ Object.assign(IDI3, {
   'pt.mapa': ['Mapa', 'Map', 'Mapa', 'Peta', 'Peta', 'Mapa', 'マップ', 'แผนที่', 'Harita', 'الخريطة', 'Карта', 'Мапа', 'Carte', 'Karte'],
   'pt.cambiar': ['tocá para cambiar', 'tap to change', 'toque para trocar', 'ketuk untuk mengganti', 'ketik untuk menukar', 'pindutin para palitan', 'タップで変更', 'แตะเพื่อเปลี่ยน', 'değiştirmek için dokun', 'انقر للتغيير', 'нажми, чтобы сменить', 'натисни, щоб змінити', 'touche pour changer', 'tippen zum Ändern'],
 });
+
+// (BSMod y parecidos: las habilidades de comando —la patada y la ejecución—, gmod_panel.js y acciones.js)
+Object.assign(IDI3, {
+  'acc.ejecutar': ['Ejecutar', 'Execute', 'Executar', 'Eksekusi', 'Hukum', 'Tapusin', '処刑', 'ปิดฉาก', 'İnfaz', 'إجهاز', 'Добить', 'Добити', 'Exécuter', 'Erledigen'],
+  'acc.patada': ['Patada', 'Kick', 'Chute', 'Tendang', 'Tendang', 'Sipa', 'キック', 'เตะ', 'Tekme', 'ركلة', 'Пинок', 'Копняк', 'Coup de pied', 'Tritt'],
+  'gmb.cmdResaltado': ['si está resaltado', 'when highlighted', 'se estiver destacado', 'jika disorot', 'jika diserlahkan', 'kapag naka-highlight', 'ハイライト時', 'เมื่อมีไฮไลต์', 'vurgulanınca', 'عند تمييزه', 'когда подсвечен', 'коли підсвічений', 'quand il est en surbrillance', 'wenn hervorgehoben'],
+});

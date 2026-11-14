@@ -192,7 +192,7 @@ function gmMontar(id, G, meta) {
   // GMod—, no en el que termina de llegar su contenido: un pack de TFA corría antes que la TFA Base)
   const prep = Promise.all([typeof gmlPreparar === 'function' ? gmlPreparar(A).catch(() => {}) : null, gmfRegistrar(A).catch(() => {})]);
   const turno = GMOD.turnoLua || Promise.resolve();
-  A.listo = Promise.race([prep, new Promise((r) => setTimeout(r, GM_PREP_MS))]).then(() => turno).then(() => { if (GMOD.addons.get(id) === A && typeof gmLuaMontar === 'function') { if (gmBusquedaNueva(A)) gmRecargarLuaPronto(); else gmLuaMontar(A); } gmMenu(); if (GMOD.addons.get(id) === A && typeof gmbAutoFijar === 'function') try { gmbAutoFijar(A); } catch (e) {} });
+  A.listo = Promise.race([prep, new Promise((r) => setTimeout(r, GM_PREP_MS))]).then(() => turno).then(() => { if (GMOD.addons.get(id) === A && typeof gmLuaMontar === 'function') { if (gmBusquedaNueva(A)) gmRecargarLuaPronto(); else gmLuaMontar(A); } gmMenu(); if (GMOD.addons.get(id) === A && typeof gmbAutoFijar === 'function') { try { gmbAutoFijar(A); } catch (e) {} try { if (typeof gmbAvisoTeclas === 'function') gmbAvisoTeclas(A); } catch (e) {} } });
   GMOD.turnoLua = A.listo.catch(() => {});
   return A;
 }
