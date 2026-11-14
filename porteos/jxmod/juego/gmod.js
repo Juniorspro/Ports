@@ -111,7 +111,8 @@ const gmArchivo = (r) => {
 const gmExiste = (r) => GMOD.arch.has(r) || GMPZ.idx.has(r) || (typeof GML !== 'undefined' && (GML.datos.has(r) || gmlTiene(r)));
 
 // ---------------- montar ----------------
-// G: lo que devuelve GMF.gma. id: el del Workshop (o 'local:<nombre>')
+// G: lo que devuelve GMF.gma. id: el del Workshop (o 'local:<huella>' si se importó, 'carpeta:<k>/<carpeta>' si es de la
+// carpeta de mods)
 // ---------------- las fuentes de letra de los addons (resource/fonts/*.ttf|otf) ----------------
 // GMod busca la fuente de surface.CreateFont por su nombre de familia (el de adentro del archivo, no el del archivo) y el
 // «size» es el alto de la celda (lo de arriba más lo de abajo de la fuente, como CreateFont de Windows), no el em de CSS:
@@ -1053,7 +1054,8 @@ function gmVisita(wid, op) {
   pr.then((A) => { if (!A) setTimeout(() => { if (GMVIS.pedidos.get(wid) === pr) GMVIS.pedidos.delete(wid); }, 20000); });
   GMVIS.pedidos.set(wid, pr); return pr;
 }
-function gmQuitar(wid) { wid = String(wid); gmDesmontar(wid); if (PREFS.gmod) { delete PREFS.gmod[wid]; guardarPrefs(); } gmCacheBorrar(wid); }
+// (uno de la carpeta de mods —gmod_carpeta.js— queda anotado como quitado: no vuelve en la próxima lectura de la carpeta)
+function gmQuitar(wid) { wid = String(wid); if (typeof gmkQuitado === 'function') gmkQuitado(wid); gmDesmontar(wid); if (PREFS.gmod) { delete PREFS.gmod[wid]; guardarPrefs(); } gmCacheBorrar(wid); }
 // Habilitado o deshabilitado, como en el menú de addons de GMod (Discord: «opciones para habilitar/deshabilitar y
 // habilitar/deshabilitar todos los mods»). Deshabilitado sigue instalado y guardado, pero no se monta: ni su Lua, ni sus
 // armas, entidades, NPCs, modelos o mapas. Se aplica al toque, también jugando. Si un server donde estoy lo pide, sigue
@@ -1147,4 +1149,6 @@ async function gmArrancar(otraVez) {
   if (reintentar.length) setTimeout(() => { GMDB.db = null; gmArrancar(true); }, 15000);
   // (y lo que quedó a medio bajar la última vez: un rato después, para no sumarle trabajo al arranque en el celular)
   if (!otraVez && typeof gmcReanudar === 'function') setTimeout(gmcReanudar, 3000);
+  // (y la carpeta de mods se vuelve a leer sola, si se puede sin preguntar: sólo se copia lo nuevo o lo que cambió)
+  if (!otraVez && typeof gmkArranque === 'function') setTimeout(gmkArranque, 1500);
 }
