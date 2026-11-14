@@ -460,7 +460,7 @@ function pjmInstalados() {
   return gmpLista().map((r) => {
     const A = [...GMOD.addons.values()].find((a) => a.G && a.G.archivos && a.G.archivos.has(r)), c = A && PJM.cat && PJM.cat.porId.get(String(A.id)), pg = A && PREFS.gmod && PREFS.gmod[A.id];
     const auto = typeof gmarTipo === 'function' && gmarTipo(r) === 'auto';
-    return { r, n: (nom.get(r) || r.replace(/^.*\//, '').replace(/\.mdl$/, '').replace(/_/g, ' ')) + (auto ? ' · ' + T('pjm.auto') : ''), img: (A && A.meta && A.meta.img) || (pg && pg.img) || (c && c.img) || '', addon: A ? A.nombre : '' };
+    return { r, n: (nom.get(r) || r.replace(/^.*\//, '').replace(/\.mdl$/, '').replace(/_/g, ' ')) + (auto ? ' · ' + T('pjm.auto') : ''), img: (A && A.meta && A.meta.img) || (pg && pg.img) || (c && c.img) || '', addon: A ? A.nombre : '', manos: typeof gmvPmTieneManos === 'function' && gmvPmTieneManos(r) };
   });
 }
 function pjmBuscar() {
@@ -478,7 +478,8 @@ function pjmListasHTML() {
   const q = PJM.q.toLowerCase().trim(), I = pjmInstalados().filter((p) => !q || (p.n + ' ' + p.addon).toLowerCase().includes(q));
   const celda = (dat, n, img, sub, o) => (typeof pjTarjeta === 'function' ? pjTarjeta(`data-pjm="${esc(dat)}"`, n, img, Object.assign({ sub }, o))
     : `<button class="pjCelda" data-pjm="${esc(dat)}"><b dir="auto">${esc(n)}</b></button>`);
-  const tuyos = I.map((p) => { const sel = PREFS.skin === 'gmpm:' + p.r; return celda('sel:gmpm:' + p.r, p.n, p.img, p.addon, { sel, acc: sel ? glifo('si') + esc(T('pj.enUso')) : esc(T('pj.equipar')), accCls: sel ? 'pjAccOk' : 'pjAccEq' }); }).join('');
+  // (los que traen sus propias manos para las armas c_ lo dicen: gmod_vista.js)
+  const tuyos = I.map((p) => { const sel = PREFS.skin === 'gmpm:' + p.r; return celda('sel:gmpm:' + p.r, p.n, p.img, p.addon + (p.manos ? ' · ' + T('pjm.manos') : ''), { sel, acc: sel ? glifo('si') + esc(T('pj.enUso')) : esc(T('pj.equipar')), accCls: sel ? 'pjAccOk' : 'pjAccEq' }); }).join('');
   const ws = PJM.ws === null ? '<p class="pjmVacio">…</p>' : PJM.ws.map((x) => { const baja = PJM.bajando.has(String(x.id));
     return celda('inst:' + x.id, x.t, x.img, baja ? T('pjm.bajando') : x.mb + ' MB', { acc: baja ? esc(T('pjm.bajando')) + '…' : glifo('bajar') + esc(T('pjm.instalar')), accCls: baja ? 'pjAccVa' : 'pjAccSi' }); }).join('') || `<p class="pjmVacio">${esc(T('pjm.sinRes'))}</p>`;
   // (Importar personaje, pjimportar.js: los importados van primero, con la misma tarjeta)

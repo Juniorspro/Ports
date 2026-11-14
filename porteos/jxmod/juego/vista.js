@@ -72,6 +72,8 @@ function vistaAplicar(v, dt) {
   }
   // los hijos visibles dependen de los activos
   for (let i = 0; i < md.A.length; i++) { const x = md.A[i]; md.ver[i] = md.act[i] && (x.pa < 0 || md.act[x.pa]) && x.m !== undefined && x.m >= 0 && x.mt && !x.mroff && !md.ocultoLod[i] ? 1 : 0; }
+  // (las manos de GMod pegadas a la vista de un addon: sus huesos procedurales siguen a la mano de este cuadro, gmod_vista.js)
+  if (v.proc) gmvProcAplicar(v);
   md.sucio = true;
 }
 // ubica el arma delante de la cámara (con un vaivén al caminar)

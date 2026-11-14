@@ -25,6 +25,8 @@ const IDI3 = {
   'pz.limpio': ['Listo: mapa limpio', 'Done: map cleared', 'Pronto: mapa limpo', 'Selesai: peta bersih', 'Siap: peta bersih', 'Tapos: malinis na ang mapa', '完了：マップを片付けました', 'เรียบร้อย: ล้างแผนที่แล้ว', 'Tamam: harita temiz', 'تم: الخريطة نظيفة', 'Готово: карта очищена', 'Готово: мапу очищено', 'Fait : carte nettoyée', 'Fertig: Karte leer'],
   'pz.salir': ['Salir al menú', 'Quit to menu', 'Sair para o menu', 'Keluar ke menu', 'Keluar ke menu', 'Lumabas sa menu', 'メニューに戻る', 'ออกไปเมนู', 'Menüye çık', 'الخروج إلى القائمة', 'Выйти в меню', 'Вийти в меню', 'Quitter vers le menu', 'Zum Menü'],
   'pz.cargar': ['Cargar', 'Load', 'Carregar', 'Muat', 'Muat', 'I-load', '読み込む', 'โหลด', 'Yükle', 'تحميل', 'Загрузить', 'Завантажити', 'Charger', 'Laden'],
+  // (las tarjetas de los modelos de jugador que traen sus propias manos para las armas c_: gmod_pm.js)
+  'pjm.manos': ['manos propias', 'own hands', 'mãos próprias', 'tangan sendiri', 'tangan sendiri', 'sariling kamay', '専用の手', 'มือของตัวเอง', 'kendi elleri', 'يدان خاصة', 'свои руки', 'власні руки', 'mains propres', 'eigene Hände'],
   // ---- menú MOD por categorías ----
   'mm.juego': ['Personaje y jugabilidad', 'Character & gameplay', 'Personagem e jogabilidade', 'Karakter & gameplay', 'Watak & permainan', 'Karakter at gameplay', 'キャラとゲーム性', 'ตัวละครและการเล่น', 'Karakter ve oynanış', 'الشخصية واللعب', 'Персонаж и геймплей', 'Персонаж і геймплей', 'Personnage et gameplay', 'Figur & Gameplay'],
   'mm.assets': ['Assets y props', 'Assets & props', 'Assets e props', 'Aset & properti', 'Aset & prop', 'Assets at props', 'アセットと小道具', 'แอสเซ็ตและพร็อพ', 'Varlıklar ve eşyalar', 'العناصر والأغراض', 'Ассеты и пропы', 'Ассети та пропи', 'Assets et objets', 'Assets & Props'],
