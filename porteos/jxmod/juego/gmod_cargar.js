@@ -184,11 +184,12 @@ function gmaPaso(dt) {
     if (T.pausa || t < T.t) continue;
     T.t = t + T.d;
     if (T.r > 0 && --T.r === 0) GMA.timers.delete(id);
-    gmLlamar(T.f, T.ctx);
+    const a0 = GMA.addonTimer; GMA.addonTimer = T.a && GMOD.addons.get(T.a.id) === T.a ? T.a : null; if (T.nb) GMNB.ambito++;   // (con su addon y, si es de un nextbot, como él: gmod_api.js, timer.Create)
+    try { gmLlamar(T.f, T.ctx); } finally { GMA.addonTimer = a0; if (T.nb) GMNB.ambito--; }
   }
   if (GMA.tSimples.length) {
     const L = GMA.tSimples; GMA.tSimples = []; const quedan = [];
-    for (const x of L) { if (t < x.t) { quedan.push(x); continue; } if (x.js) { try { x.f(); } catch (e) { gmaErr(String(e)); } } else gmLlamar(x.f, x.ctx, ...(x.args || [])); }
+    for (const x of L) { if (t < x.t) { quedan.push(x); continue; } if (x.js) { try { x.f(); } catch (e) { gmaErr(String(e)); } } else { const a0 = GMA.addonTimer; GMA.addonTimer = x.a && GMOD.addons.get(x.a.id) === x.a ? x.a : null; if (x.nb) GMNB.ambito++; try { gmLlamar(x.f, x.ctx, ...(x.args || [])); } finally { GMA.addonTimer = a0; if (x.nb) GMNB.ambito--; } } }
     GMA.tSimples = quedan.concat(GMA.tSimples);
   }
   // mensajes de red (en una partida sola: del server al cliente y al revés en el mismo cuadro)
@@ -246,7 +247,8 @@ function gmaPaso(dt) {
     if (!e.vivo || !e.creado || e.tipo !== 'ent') continue;
     if (e.o && e.o.borrado) { gmaQuitar(e); continue; }
     const c = GMA.clases.get(e.clase); if (!c) continue;
-    if (t >= (e.proxS || 0)) { e.prox = undefined; const r = metodo(e, 'Think', 'S'); e.proxS = r[0] === true ? (e.prox ?? t) : t + 0.2; }
+    // (el de un nextbot, con los demás jugadores a la vista; el nextbot de otro jugador —gmod_nextbot.js— sólo tiene el del cliente)
+    if (!e.nbRem && t >= (e.proxS || 0)) { e.prox = undefined; if (e.nb) GMNB.ambito++; try { const r = metodo(e, 'Think', 'S'); e.proxS = r[0] === true ? (e.prox ?? t) : t + 0.2; } finally { if (e.nb) GMNB.ambito--; } }
     if (c.C && c.C !== c.S) {
       if (salto > 1 && (cam + (e.id | 0)) % salto) { const p = e.o ? e.o.b.pos : e.pos; if (p && (p.x - CAM.pos.x) ** 2 + (p.y - CAM.pos.y) ** 2 + (p.z - CAM.pos.z) ** 2 > 625) continue; }
       metodo(e, 'Think', 'C');

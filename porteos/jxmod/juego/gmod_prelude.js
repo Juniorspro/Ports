@@ -540,7 +540,9 @@ do
   function SWEP:CalcView(p, pos, ang, fov) return pos, ang, fov end
   weapons.Register(SWEP, "weapon_base")
 
-  local ENT = { Type = "anim", Base = nil, ClassName = "base_entity", PrintName = "", Author = "", Contact = "", Purpose = "", Instructions = "", Spawnable = false, AdminOnly = false, RenderGroup = RENDERGROUP_OPAQUE, AutomaticFrameAdvance = false }
+  -- (la raíz tiene de base a sí misma, como en GMod: el Terminator sube por las Base con scripted_ents.GetStored hasta la
+  -- que se nombra a sí misma; con Base = nil llegaba a GetStored(nil) y su Initialize fallaba)
+  local ENT = { Type = "anim", Base = "base_entity", ClassName = "base_entity", PrintName = "", Author = "", Contact = "", Purpose = "", Instructions = "", Spawnable = false, AdminOnly = false, RenderGroup = RENDERGROUP_OPAQUE, AutomaticFrameAdvance = false }
   function ENT:Initialize() end
   function ENT:Think() end
   function ENT:OnRemove() end

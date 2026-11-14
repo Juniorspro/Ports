@@ -270,9 +270,10 @@ function gmrApi(R, G, def, lib, num) {
   def(render, 'StartBeam', () => { GR.beam = []; });
   def(render, 'AddBeam', (p, w, t, c) => { const P = V(p); if (!P || !GR.beam) return; GR.beam.push({ p: P, w: num(w, 1) * GS, t: num(t, 0), c: gmrCol(c, gmrMat(GR.mat)) }); });
   def(render, 'EndBeam', () => { if (GR.beam) gmrTira(GR.beam); GR.beam = null; });
-  def(render, 'DrawSprite', (p, w, h, c) => { const P = V(p); if (!P) return; const x = vscale(CAM.der, num(w, 8) * GS / 2), y = vscale(CAM.arr, num(h, 8) * GS / 2), col = gmrCol(c, gmrMat(GR.mat));
+  // (lo que dibuja un nextbot que es una imagen, para los demás jugadores que no tienen su addon: gmnbAnotarImagen)
+  def(render, 'DrawSprite', (p, w, h, c) => { const P = V(p); if (!P) return; if (GR.entAct && GR.entAct.nb) gmnbAnotarImagen(GR.entAct, P, num(w, 8), num(h, 8)); const x = vscale(CAM.der, num(w, 8) * GS / 2), y = vscale(CAM.arr, num(h, 8) * GS / 2), col = gmrCol(c, gmrMat(GR.mat));
     gmrQuad(vadd(vsub(P, x), y), vadd(vadd(P, x), y), vsub(vadd(P, x), y), vsub(vsub(P, x), y), col); });
-  def(render, 'DrawQuadEasy', (p, n, w, h, c, rot) => { const P = V(p); if (!P || !(n instanceof LVec)) return; const a = dirAng(n); a.r = 180 - num(rot, 0); const [, Rt, U] = gmrEjes(a);
+  def(render, 'DrawQuadEasy', (p, n, w, h, c, rot) => { const P = V(p); if (!P || !(n instanceof LVec)) return; if (GR.entAct && GR.entAct.nb) gmnbAnotarImagen(GR.entAct, P, num(w, 8), num(h, 8)); const a = dirAng(n); a.r = 180 - num(rot, 0); const [, Rt, U] = gmrEjes(a);
     // (GMod: el ángulo de la normal con el giro; con giro 0 la imagen queda dada vuelta, y los addons ponen 180 para verla
     // derecha, como el Walter, que se dibuja así y en GMod se ve parado)
     const r = vscale(Rt, num(w, 8) * GS / 2), u = vscale(U, num(h, 8) * GS / 2), col = gmrCol(c, gmrMat(GR.mat));
@@ -379,7 +380,7 @@ function gmrAntes() {
       if (e.tipo !== 'ent' || !e.vivo) continue;
       if (e.estela) continue;
       const c = claseTabla(e.clase, 'C');
-      if (!c || !GMA.clases.has(e.clase)) { if (e.cs && !e.noDraw) { GR.entAct = e; gmrModelo(e); } continue; }
+      if (!c || !GMA.clases.has(e.clase)) { if (e.nbRem) { GR.entAct = e; gmnbRemDibujar(e); } else if (e.cs && !e.noDraw) { GR.entAct = e; gmrModelo(e); } continue; }   // (el nextbot de otro jugador sin su addon: gmod_nextbot.js)
       if (e.noDraw) { if (e.o) e.o.md.oculto = true; continue; }
       // RenderOverride (de la clase o puesto en la entidad): en GMod reemplaza al dibujo de siempre. Los nextbots de la
       // plantilla clásica (Doge, Obunga, Sanic.png, Shaq…) dibujan su cara sólo ahí: sin esto eran invisibles

@@ -100,8 +100,8 @@ const entValida = (e) => e instanceof LEnt && e.vivo && (e.tipo !== 'ent' || !e.
 // origen; antes se usaba el centro, y LocalToWorld, los asientos y las piezas quedaban hasta medio metro corridos)
 const gmaOrigen = (o) => (o.c ? vsub(o.b.pos, o.b.q.rot(o.c)) : o.b.pos.clone());
 const gmaOrigenPon = (o, p, q) => { o.b.pos.copy(p); if (o.c) o.b.pos.add((q || o.b.q).rot(o.c)); };
-const gmaEntPos = (e) => (e.tipo === 'jug' ? (e === GMA.jug ? JUG.pos.clone().add(v3(0, -JUG.medio, 0)) : e.P ? e.P.pos.clone() : v3()) : e.P ? e.P.pos.clone() : e.o ? gmaOrigen(e.o) : e === GMA.swep && gmaArmaW(e) ? v3(gmaArmaW(e)[12], gmaArmaW(e)[13], gmaArmaW(e)[14]) : e.pos.clone());
-const entQ = (e) => (e.tipo === 'jug' ? Quat.axis(0, 1, 0, e === GMA.jug ? JUG.yaw : 0) : e.o ? e.o.b.q.clone() : e === GMA.swep && gmaArmaW(e) ? m4quat(gmaArmaW(e)) : e.q.clone());
+const gmaEntPos = (e) => (e.tipo === 'jug' ? (e === GMA.jug ? JUG.pos.clone().add(v3(0, -JUG.medio, 0)) : e.remoto && e.P ? e.P.pos.clone().add(v3(0, -(JUG.medio || 0.9), 0)) : e.P ? e.P.pos.clone() : v3()) : e.P ? e.P.pos.clone() : e.o ? gmaOrigen(e.o) : e === GMA.swep && gmaArmaW(e) ? v3(gmaArmaW(e)[12], gmaArmaW(e)[13], gmaArmaW(e)[14]) : e.pos.clone());
+const entQ = (e) => (e.tipo === 'jug' ? Quat.axis(0, 1, 0, e === GMA.jug ? JUG.yaw : e.P ? e.P.yaw || 0 : 0) : e.o ? e.o.b.q.clone() : e === GMA.swep && gmaArmaW(e) ? m4quat(gmaArmaW(e)) : e.q.clone());
 // el arma que el jugador tiene en la mano: donde se dibuja (su modelo de mundo en la mano) o, si no se dibuja, la mano o
 // adelante de los ojos (gmhArmaSinModelo). Antes quedaba donde se creó, en 0,0,0: en 3ª persona la trazadora de la
 // Nyan Gun salía de ahí
@@ -224,6 +224,7 @@ function gmaIniciar() {
   GMA.metas = { Entity: ENT_M, Player: PLY_M, Weapon: WEP_M, NPC: NPC_M, Vehicle: VEH_M, PhysObj: PHY_M, Vector: VI, Angle: AI };
   for (const [n, t] of Object.entries(GMA.metas)) { t.set('MetaName', n); if (n !== 'Vector' && n !== 'Angle' && n !== 'Entity') { const m = new LuaTable(); m.set('__index', ENT_M); t.mt = m; } }
   EM.set('__index', (e, k) => {
+    if (e.remoto) return gmnbRemIndice(e, k);   // (otro jugador de la sala, para los nextbots: gmod_nextbot.js)
     const T0 = GMA.ctx === 'C' ? e.tablaC || e.tabla : e.tabla;
     let v = T0.get(k); if (v !== undefined) return v;
     // (un arma, del lado del cliente: lo que su Think del servidor dejó y el cliente no tiene. En GMod con varios jugadores
@@ -252,7 +253,7 @@ function gmaIniciar() {
   });
   EM.set('__newindex', (e, k, v) => gmaTablaDe(e).set(k, v));
   EM.set('__eq', (a, b) => a === b || (a instanceof LEnt && b instanceof LEnt && a.id === b.id));
-  EM.set('__tostring', (e) => (e.tipo === 'null' ? '[NULL Entity]' : e.tipo === 'jug' ? 'Player [1][' + (PREFS.nombre || 'Player') + ']' : 'Entity [' + e.id + '][' + e.clase + ']'));
+  EM.set('__tostring', (e) => (e.tipo === 'null' ? '[NULL Entity]' : e.remoto ? 'Player [' + e.nRem + '][' + (e.remoto.nombre || 'Player') + ']' : e.tipo === 'jug' ? 'Player [1][' + (PREFS.nombre || 'Player') + ']' : 'Entity [' + e.id + '][' + e.clase + ']'));
   EM.set('__concat', (a, b) => R.tostr(a) + R.tostr(b));
   def(G, 'NULL', NULL_ENT); NULL_ENT.__mt = EM;
   // un método del motor que todavía no está: no rompe el addon (devuelve nada, o false si pregunta Is/Has/Can) y queda anotado
@@ -285,6 +286,7 @@ function gmaIniciar() {
   gmaTipos(R, G, def);
   // el prelude en Lua (extensiones de string/table/math, weapon_base...)
   try { luaCompilar(GMA_PRELUDE, 'gmod/prelude.lua', R)(); } catch (e) { gmaErr('prelude: ' + R.msgErr(e)); }
+  if (typeof gmnbNativos === 'function') gmnbNativos();
   G.set('SERVER', true); G.set('CLIENT', false);
   R.ovS = new LuaTable(); R.ovC = new LuaTable(); R.ov = R.ovS;   // (desde acá, las globales nuevas de los addons van al lado que corre)
   return R;
@@ -557,6 +559,15 @@ function gmaRehacer(e) {
   // las piezas de las armas del SWEP Construction Kit quedaban tirados en el piso y la vista de FA:S no se dibujaba)
   if (e.cs) { e.mdCS = null; if (e.o) { GMA.entPorObj.delete(e.o); if (!e.o.borrado) borrarObjeto(e.o); e.o = null; } return; }
   e.nbDefDe = null;   // (el modelo animado de un nextbot se vuelve a armar: puede haber llegado su geometría)
+  // (un nextbot cuyo modelo todavía se está bajando —los de HL2 que usan DrGBase y muchos SNPC: el zombie, la hormiga león,
+  // el G-Man, de Steam—: sin cuerpo hasta que llega —gmlLlegaron lo rehace— en vez de la caja de madera, que se veía como un
+  // «error de modelo» durante 5 a 30 s según la red; si a los 25 s no llegó, la caja, como antes. El de otro jugador cuyo
+  // addon se está bajando de visita, igual: nunca la caja)
+  if (e.nb && e.modelo && (e.nbRem || (!e.nbSinEspera && typeof gmlTiene === 'function'))) {
+    let r = String(e.modelo).toLowerCase().replace(/\\/g, '/'); if (!r.startsWith('models/')) r = 'models/' + r;
+    if (!gmArchivo(r) && (e.nbRem || gmlTiene(r))) { if (typeof gmlPedir === 'function') gmlPedir(r); e.nbEspera = e.nbEspera || TIEMPO.t; if (e.o) { e.pos.copy(gmaOrigen(e.o)); e.q.copy(e.o.b.q); GMA.entPorObj.delete(e.o); borrarObjeto(e.o); e.o = null; } return; }
+  }
+  e.nbEspera = 0;
   const pf = gmaPrefabDeModelo(e.modelo);
   const pos = e.o ? gmaOrigen(e.o) : e.pos.clone(), q = e.o ? e.o.b.q.clone() : e.q.clone(), vel = e.o ? e.o.b.vel.clone() : null;
   if (e.o) { GMA.entPorObj.delete(e.o); borrarObjeto(e.o); e.o = null; }
@@ -689,18 +700,21 @@ function gmaHijosPaso() {
 function gmaPreparar(e) { if (e.dtListo || !e.vivo) return; e.dtListo = true; if (claseTabla(e.clase, 'S')) metodo(e, 'SetupDataTables', 'S'); }
 function gmaSpawn(e) {
   if (e.creado || !e.vivo) return; e.creado = true; gmaPreparar(e);
-  if (typeof gmnbEs === 'function' && gmnbEs(e)) { e.nb = true; e.mov = 0; }   // (un nextbot: lo mueve su locomoción)
+  // (un nextbot: lo mueve su locomoción. Su self.loco va también en su tabla, como en GMod: el Terminator lo saca de
+  // self:GetTable() —myTbl.loco— y sin eso su Initialize fallaba)
+  if (typeof gmnbEs === 'function' && gmnbEs(e)) { e.nb = true; e.mov = 0; if (e.tabla.get('loco') === undefined) e.tabla.set('loco', gmnbLoco(e)); }
   // (el cuerpo se arma ya en Initialize, al poner el modelo o PhysicsInit, como en GMod: ahí mismo el addon le pone la
   // masa, la gravedad o lo suelda —las ruedas y el rotor de WAC— y antes no había cuerpo todavía)
-  const ini0 = GMA.iniciando; GMA.iniciando = e;
-  try { metodo(e, 'Initialize', 'S'); } finally { GMA.iniciando = ini0; }
+  const ini0 = GMA.iniciando; GMA.iniciando = e; if (e.nb) GMNB.ambito++;   // (los demás jugadores existen para su Lua: gmnbRemLista)
+  try { metodo(e, 'Initialize', 'S'); } finally { GMA.iniciando = ini0; if (e.nb) GMNB.ambito--; }
   if (!e.vivo) return;
   if (!e.o || e.oModelo !== e.modelo) gmaRehacer(e);
-  if (e.nb) { if (e.o) { e.o.b.frozen = true; e.o.b.noGrab = false; } metodo(e, 'BehaveStart', 'S'); }
+  if (e.nb) { if (e.o) { e.o.b.frozen = true; e.o.b.noGrab = false; } GMNB.ambito++; try { metodo(e, 'BehaveStart', 'S'); } finally { GMNB.ambito--; } }
   const c = GMA.clases.get(e.clase); if (c && c.C && c.C !== c.S) metodo(e, 'Initialize', 'C');
   gmaHook('OnEntityCreated', 'S', e);
 }
 function gmaQuitar(e) {
+  if (e instanceof LEnt && e.nbRem) { gmnbTitereQuitar(e.nbRem.key, e.nbRem); return; }   // (el nextbot de otro jugador: sólo se deja de ver)
   if (!(e instanceof LEnt) || !e.vivo || e.tipo === 'jug') return; e.vivo = false;
   metodo(e, 'OnRemove', 'S'); const c = GMA.clases.get(e.clase); if (c && c.C && c.C.get('OnRemove')) metodo(e, 'OnRemove', 'C');
   gmaHook('EntityRemoved', 'S', e);
@@ -721,8 +735,10 @@ function gmaDmgInfo(dan, at, inf, pos) { return { dan, at: at || NULL_ENT, inf: 
 function gmaDanar(e, dan, at, inf, di) {
   if (!(e instanceof LEnt)) return;
   di = di || gmaDmgInfo(dan, at, inf);
+  if (e.nbRem) { gmnbTitereGolpe(e, di); return; }   // (el nextbot de otro: se lo hace su dueño)
   const r = gmaHook('EntityTakeDamage', 'S', e, di); if (r[0] === true) return;
   if (e === GMA.jug) { danarJugador(di.dan); return; }
+  if (e.remoto) { gmnbRemDanar(e, di); return; }   // (otro jugador de la sala: le llega a él)
   // (un NPC del juego: el golpe le llega a su persona —vida, caída, muerte—, desde donde está el que pega. Antes no le
   // pasaba nada: los nextbots les pegaban a los NPC sin hacerles daño)
   if (e.P && e.tipo === 'npc' && typeof danarPersona === 'function') { const a = di.at instanceof LEnt && di.at.vivo ? gmaEntPos(di.at) : null, d = a ? vsub(e.P.pos, a) : v3(0, 0, 1); d.y = 0; if (d.lenSq() < 1e-6) d.set(0, 0, 1); danarPersona(e.P, +di.dan || 0, e.P.pos.clone(), d); return; }
@@ -769,6 +785,7 @@ function gmaTraza(o, d, max, ignorar, hPre) {
 function gmaPuntosAparicion() { if (GMA.aparicionesLua) GMA.aparicionesLua(); }
 function gmaEntPersona(P) {
   if (P === JUG.cuerpo || P.esJugador) return GMA.jug;
+  if (P.remoto && typeof gmnbJugRem === 'function') { const r = gmnbJugRem(P.remoto); if (r) return r; }
   if (P.borrado) return NULL_ENT;
   let e = GMA.entPorObj.get(P); if (!e) { e = new LEnt(P.muneco ? 'prop_ragdoll' : (P.gmNpc && P.gmNpc.cls) || 'npc_citizen', P.muneco ? 'ent' : 'npc'); e.P = P; if (P.muneco) e.modelo = P.gmNpc ? P.gmNpc.key : ''; GMA.entPorObj.set(P, e); }
   return e;
@@ -1081,7 +1098,10 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   // ---- globales ----
   def(G, 'IsValid', (x) => { if (x === undefined || x === null || x === false) return false; if (x instanceof LEnt) return entValida(x); const f = R.T(x) && typeof x === 'object' ? (() => { try { return R.ix(x, 'IsValid'); } catch (e) { return undefined; } })() : undefined; return typeof f === 'function' ? R.T(R.c(f, 'IsValid', x)[0]) : !(x instanceof LuaTable); });   // (como en GMod: una tabla común sin IsValid no es válida)
   def(G, 'LocalPlayer', () => GMA.jug); def(G, 'Entity', (i) => (i === 1 ? GMA.jug : i === 0 ? GMA.mundo : GMA.ents.get(i) || NULL_ENT));
-  def(G, 'CurTime', () => TIEMPO.t); def(G, 'UnPredictedCurTime', () => TIEMPO.t); def(G, 'RealTime', () => performance.now() / 1000); def(G, 'SysTime', () => (typeof gmnbSysTime === 'function' ? gmnbSysTime() : performance.now() / 1000));   // (sin lo que tardan los caminos de los nextbots: gmod_nextbot.js) def(G, 'FrameTime', () => TIEMPO.dt || 1 / 60); def(G, 'RealFrameTime', () => TIEMPO.dt || 1 / 60); def(G, 'FrameNumber', () => R.cuadro || 0); def(G, 'VGUIFrameTime', () => performance.now() / 1000);
+  def(G, 'CurTime', () => TIEMPO.t); def(G, 'UnPredictedCurTime', () => TIEMPO.t); def(G, 'RealTime', () => performance.now() / 1000); def(G, 'SysTime', () => (typeof gmnbSysTime === 'function' ? gmnbSysTime() : performance.now() / 1000)); def(G, 'FrameTime', () => TIEMPO.dt || 1 / 60); def(G, 'RealFrameTime', () => TIEMPO.dt || 1 / 60); def(G, 'FrameNumber', () => R.cuadro || 0); def(G, 'VGUIFrameTime', () => performance.now() / 1000);
+  // (SysTime sin lo que tardan los caminos de los nextbots: gmod_nextbot.js. En la 3.2 ese comentario quedó en el medio de
+  // la línea y se tragó FrameTime, RealFrameTime, FrameNumber y VGUIFrameTime: el Sanic original —que usa FrameTime al
+  // pegarle a un jugador— no mataba nunca, y los addons que miden el cuadro con eso tiraban error)
   def(G, 'ScrW', () => VW()); def(G, 'ScrH', () => VH()); def(G, 'EyePos', () => V(CAM.pos)); def(G, 'EyeAngles', () => A(dirAng(dS(CAM.fwd)))); def(G, 'EyeVector', () => GMA.Vd(CAM.fwd));
   def(G, 'Sound', (s) => s); def(G, 'Model', (s) => s); def(G, 'AddCSLuaFile', () => {}); def(G, 'IsFirstTimePredicted', () => true); def(G, 'SoundDuration', () => 1); def(G, 'GetHostName', () => (typeof SALA !== 'undefined' && SALA ? SALA.n : 'JXMod'));
   def(G, 'include', (r) => gmaIncluir(String(r))); def(G, 'IncludeCS', (r) => gmaIncluir(String(r)));
@@ -1125,7 +1145,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
     GMA.pp = { add: [g('addr', 0), g('addg', 0), g('addb', 0)], bri: g('brightness', 0), con: g('contrast', 1), col: g('colour', 1), mul: [g('mulr', 0), g('mulg', 0), g('mulb', 0)] }; }); def(G, 'DrawMotionBlur', () => {}); def(G, 'DrawSharpen', () => {}); def(G, 'DrawSobel', () => {}); def(G, 'DrawToyTown', () => {}); def(G, 'DrawSunbeams', () => {}); if (G.get('DrawMaterialOverlay') === undefined) def(G, 'DrawMaterialOverlay', () => {}); def(G, 'DrawTexturize', () => {});
   def(G, 'Format', (...a) => R.c(R.G.get('string').get('format'), 'format', ...a));
   // (list.Set de NPC y de vehículos: lo que cada addon agrega al menú de GMod; gmod_spawn.js lo pone en el mundo)
-  def(G, '__gmLista', (n, k, v) => { n = String(n); if ((n !== 'NPC' && n !== 'Vehicles') || !(v instanceof LuaTable)) return; const A = GMA.addonActual; if (!A) return; const L = (A.listas = A.listas || {}); (L[n] = L[n] || new Map()).set(String(k), v); });
+  def(G, '__gmLista', (n, k, v) => { n = String(n); if ((n !== 'NPC' && n !== 'Vehicles') || !(v instanceof LuaTable)) return; const A = GMA.addonActual || GMA.addonTimer; if (!A) return; const L = (A.listas = A.listas || {}); (L[n] = L[n] || new Map()).set(String(k), v); });   // (o el del timer que corre ahora: timer.Simple)
   def(G, 'GetViewEntity', () => (GMA.jug && GMA.jug.vistaEnt && entValida(GMA.jug.vistaEnt) ? GMA.jug.vistaEnt : GMA.jug)); def(G, 'IsMounted', () => false); def(G, 'GetMap', () => (typeof MUNDO !== 'undefined' ? MUNDO.nombre : 'gm_flatgrass'));
   // ---- ents, player, game ----
   const ents = lib('ents'), player = lib('player'), game = lib('game'), engine = lib('engine');
@@ -1149,14 +1169,14 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   // (y los NPC del juego —los del menú de NPCs, los de clase del motor como npc_citizen—, como entidades de Lua: así los
   // nextbots que cazan NPCs —DrGBase con sus facciones— los ven, los persiguen y los pueden matar, como en GMod)
   const npcsJuego = () => { if (typeof NPC === 'undefined' || !NPC.lista) return; for (const P of NPC.lista) if (P && P.npc && !P.borrado && !P.muneco && P.vivo !== false) gmaEntPersona(P); };
-  const todos = () => { for (const o of OBJS) entDeObj(o); apariciones(); npcsJuego(); return [...GMA.ents.values()].filter((e) => e.vivo && e.tipo !== 'vm' && (e.tipo !== 'ent' || !e.o || !e.o.borrado)); };
+  const todos = () => { for (const o of OBJS) entDeObj(o); apariciones(); npcsJuego(); const L = [...GMA.ents.values()].filter((e) => e.vivo && e.tipo !== 'vm' && (e.tipo !== 'ent' || !e.o || !e.o.borrado)); return GMNB.ambito ? L.concat(gmnbRemLista()) : L; };
   const patron = (c) => new RegExp('^' + String(c).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$', 'i');
   def(ents, 'GetAll', () => R.tab([GMA.jug, ...todos()])); def(ents, 'GetCount', () => todos().length + 1); def(ents, 'GetByIndex', (i) => G.get('Entity')(i)); def(ents, 'Iterator', () => { const L = [GMA.jug, ...todos()]; let i = 0; return [() => (i < L.length ? [++i, L[i - 1]] : undefined), undefined, 0]; });
   def(ents, 'FindByClass', (c) => { const re = patron(c); return R.tab([GMA.jug, ...todos()].filter((e) => re.test(e.clase))); }); def(ents, 'FindByModel', (m) => R.tab(todos().filter((e) => e.modelo === String(m).toLowerCase()))); def(ents, 'FindByName', () => new LuaTable()); def(ents, 'FindByClassAndParent', () => new LuaTable());
   const enEsfera = (c, r) => [GMA.jug, ...todos()].filter((e) => gmaEntPos(e).distTo(vG(c)) <= r * GS);
   def(ents, 'FindInSphere', (c, r) => R.tab(enEsfera(c, num(r, 0)))); def(ents, 'FindInCone', (c, d, r) => R.tab(enEsfera(c, num(r, 0)))); def(ents, 'FindAlongRay', () => new LuaTable());
   def(ents, 'FindInBox', (a, b) => { const lo = [Math.min(a.x, b.x), Math.min(a.y, b.y), Math.min(a.z, b.z)], hi = [Math.max(a.x, b.x), Math.max(a.y, b.y), Math.max(a.z, b.z)]; return R.tab([GMA.jug, ...todos()].filter((e) => { const p = vS(gmaEntPos(e)); return p.x >= lo[0] && p.x <= hi[0] && p.y >= lo[1] && p.y <= hi[1] && p.z >= lo[2] && p.z <= hi[2]; })); });
-  def(player, 'GetAll', () => R.tab([GMA.jug])); def(player, 'GetHumans', () => R.tab([GMA.jug])); def(player, 'GetBots', () => new LuaTable()); def(player, 'GetCount', () => 1); def(player, 'GetByID', (i) => (i === 1 ? GMA.jug : NULL_ENT)); def(player, 'GetBySteamID', () => GMA.jug); def(player, 'GetBySteamID64', () => GMA.jug); def(player, 'Iterator', () => { let i = 0; return [() => (i++ === 0 ? [1, GMA.jug] : undefined), undefined, 0]; });
+  def(player, 'GetAll', () => R.tab([GMA.jug, ...gmnbRemLista()])); def(player, 'GetHumans', () => R.tab([GMA.jug, ...gmnbRemLista()])); def(player, 'GetBots', () => new LuaTable()); def(player, 'GetCount', () => 1 + gmnbRemLista().length); def(player, 'GetByID', (i) => (i === 1 ? GMA.jug : NULL_ENT)); def(player, 'GetBySteamID', () => GMA.jug); def(player, 'GetBySteamID64', () => GMA.jug); def(player, 'Iterator', () => { const L = [GMA.jug, ...gmnbRemLista()]; let i = 0; return [() => (i < L.length ? [++i, L[i - 1]] : undefined), undefined, 0]; });
   def(game, 'SinglePlayer', () => !(typeof RED !== 'undefined' && RED.on)); def(game, 'MaxPlayers', () => 16); def(game, 'GetMap', () => (typeof MUNDO !== 'undefined' ? MUNDO.nombre : 'gm_flatgrass')); def(game, 'GetWorld', () => GMA.mundo); def(game, 'IsDedicated', () => false);
   def(game, 'ConsoleCommand', (c) => gmaConsola2(String(c))); for (const n of ['AddParticles', 'AddDecal', 'AddAmmoType', 'CleanUpMap', 'SetTimeScale', 'BuildAmmoTypes', 'MountGMA', 'LoadNextMap', 'KickID']) def(game, n, () => {}); def(game, 'GetTimeScale', () => 1); def(game, 'GetAmmoID', () => 1); def(game, 'GetAmmoName', () => 'Pistol'); def(game, 'GetSkillLevel', () => 2); def(game, 'GetIPAddress', () => 'loopback');
   def(engine, 'ActiveGamemode', () => 'sandbox'); def(engine, 'TickInterval', () => 1 / 60); def(engine, 'GetGames', () => new LuaTable()); def(engine, 'GetAddons', () => R.tab([...GMOD.addons.values()].map((a) => tabla({ title: a.nombre, wsid: a.id, mounted: true, downloaded: true })))); def(engine, 'IsPlayingDemo', () => false); def(engine, 'IsRecordingDemo', () => false); def(engine, 'LightStyle', () => {}); def(engine, 'GetGamemodes', () => new LuaTable()); def(engine, 'TickCount', () => R.cuadro || 0);
@@ -1185,8 +1205,13 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   def(G, 'LocalToWorld', util.get('LocalToWorld')); def(G, 'WorldToLocal', (p, a, op, oa) => { const q = angQuat(oa).conj(); return [GMA.Vr(q.rot(vsub(vG(p), vG(op)))), A(quatAng(new Quat().mulTo(q, angQuat(a))))]; });
   // ---- timer y hook (cada función, con el lado en que se registró) ----
   const timer = lib('timer'), TK = (id) => ctxReg() + ':' + String(id);
-  def(timer, 'Create', (id, d, r, f) => { GMA.timers.set(TK(id), { d: num(d, 0), r: num(r, 1), f, t: TIEMPO.t + num(d, 0), ctx: ctxReg(), pausa: false }); return true; });
-  def(timer, 'Simple', (d, f) => { if (typeof f === 'function' || f instanceof LuaTable) GMA.tSimples.push({ t: TIEMPO.t + num(d, 0), f, ctx: ctxReg() }); });
+  // (con el addon que lo creó —GMA.addonTimer mientras corre—: lo que registra al correr —list.Set("NPC"...) en un
+  // timer.Simple(0), como el Terminator, que así hereda la categoría de su base— queda en ese addon y aparece en el menú;
+  // antes no aparecía ninguno de sus NPCs)
+  // (y si lo creó el Lua de un nextbot, corre como él, con los demás jugadores a la vista —gmnbRemLista—: el golpe de
+  // DrGBase se resuelve en un timer)
+  def(timer, 'Create', (id, d, r, f) => { GMA.timers.set(TK(id), { d: num(d, 0), r: num(r, 1), f, t: TIEMPO.t + num(d, 0), ctx: ctxReg(), pausa: false, a: GMA.addonActual || null, nb: GMNB.ambito > 0 }); return true; });
+  def(timer, 'Simple', (d, f) => { if (typeof f === 'function' || f instanceof LuaTable) GMA.tSimples.push({ t: TIEMPO.t + num(d, 0), f, ctx: ctxReg(), a: GMA.addonActual || null, nb: GMNB.ambito > 0 }); });
   def(timer, 'Remove', (id) => { GMA.timers.delete(TK(id)); }); def(timer, 'Destroy', (id) => { GMA.timers.delete(TK(id)); }); def(timer, 'Exists', (id) => GMA.timers.has(TK(id))); def(timer, 'IsTimer', (id) => GMA.timers.has(TK(id)));
   def(timer, 'Adjust', (id, d, r, f) => { const T = GMA.timers.get(TK(id)); if (!T) return false; T.d = num(d, T.d); if (r !== undefined) T.r = num(r, T.r); if (f) T.f = f; T.t = TIEMPO.t + T.d; return true; });
   def(timer, 'Start', (id) => { const T = GMA.timers.get(TK(id)); if (T) { T.t = TIEMPO.t + T.d; T.pausa = false; } return !!T; }); def(timer, 'Stop', (id) => { const T = GMA.timers.get(TK(id)); if (T) T.pausa = true; return !!T; });
@@ -1501,7 +1526,8 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
   def(L('scripted_ents'), 'GetList', () => { const t = new LuaTable(); for (const [n, c] of GMA.clases) t.set(n, tabla({ t: c.S || c.C })); return t; }); def(L('scripted_ents'), 'GetType', (n) => { const c = claseTabla(String(n), 'S'); return c && c.get('Type'); }); def(L('scripted_ents'), 'Alias', () => {}); def(L('scripted_ents'), 'GetSpawnable', () => new LuaTable()); def(L('scripted_ents'), 'IsBasedOn', (a, b) => a === b);
   def(L('weapons'), 'Register', (t, n) => gmaRegistrar('arma', String(n), t)); def(L('weapons'), 'Get', (n) => claseTabla(String(n), GMA.ctx)); def(L('weapons'), 'GetStored', (n) => claseTabla(String(n), GMA.ctx)); def(L('weapons'), 'GetList', () => R.tab([...GMA.armas.values()].map((c) => c.S || c.C))); def(L('weapons'), 'IsBasedOn', (a, b) => a === b);
   def(L('effects'), 'Register', (t, n) => { if (t instanceof LuaTable) GMA.efectos.set(String(n).toLowerCase(), t); }); def(L('effects'), 'Create', () => {}); def(L('effects'), 'BeamRingPoint', () => {}); def(L('effects'), 'Bubbles', () => {}); def(L('effects'), 'BubbleTrail', () => {});
-  def(L('baseclass'), 'Get', (n) => { n = String(n); for (const v of ['ENT', 'SWEP']) { const t = G.get(v); if (t instanceof LuaTable && GMA.cargandoClase === v) t.set('Base', n); } const c = claseTabla(n, GMA.ctx); if (c) return c; GMA.bases = GMA.bases || new Map(); if (!GMA.bases.has(n)) GMA.bases.set(n, new LuaTable()); return GMA.bases.get(n); }); def(L('baseclass'), 'Set', (n, t) => { (GMA.bases || (GMA.bases = new Map())).set(String(n), t); });
+  // (baseclass.Get de una base que todavía no se registró: una de mentira —phBase— hasta que llegue, gmaRegistrar)
+  def(L('baseclass'), 'Get', (n) => { n = String(n); for (const v of ['ENT', 'SWEP']) { const t = G.get(v); if (t instanceof LuaTable && GMA.cargandoClase === v) t.set('Base', n); } const c = claseTabla(n, GMA.ctx); if (c) return c; GMA.bases = GMA.bases || new Map(); if (!GMA.bases.has(n)) { const x = new LuaTable(); x.phBase = true; GMA.bases.set(n, x); } return GMA.bases.get(n); }); def(L('baseclass'), 'Set', (n, t) => { (GMA.bases || (GMA.bases = new Map())).set(String(n), t); });
   // archivos: sólo lo de los addons montados (para leer) y una carpeta data/ en el navegador (para escribir)
   const file = L('file'), dataK = (p) => 'gmdata:' + String(p).toLowerCase();
   // (en GMod la ruta "LUA" son las carpetas lua/ y también gamemodes/: Fretta busca así las clases de jugador de Prop Hunt
@@ -1585,10 +1611,18 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
 // registrar una clase (de ents/weapons.Register o de las carpetas lua/entities, lua/weapons)
 function gmaRegistrar(tipo, nombre, t) {
   if (!(t instanceof LuaTable) || !nombre) return;
-  const ph = GMA.bases && GMA.bases.get(nombre); if (ph && ph !== t) { for (const k of t.claves()) if (ph.get(k) === undefined) ph.set(k, t.get(k)); if (!ph.mt && t.mt) ph.mt = t.mt; }
+  const ph = GMA.bases && GMA.bases.get(nombre); if (ph && ph !== t) { for (const k of t.claves()) if (ph.get(k) === undefined) ph.set(k, t.get(k)); }
   const M = tipo === 'arma' ? GMA.armas : GMA.clases; let c = M.get(nombre); if (!c) M.set(nombre, (c = { S: null, C: null, addon: GMA.addonActual || null }));
   t.set('ClassName', nombre); t.set('ThisClass', nombre); c[GMA.ctx] = t;
   gmaEnlazarBase(t, tipo);
+  // (las que la tienen de base y se registraron antes, sin ella: en GMod la herencia se resuelve al crear la entidad, así que
+  // el orden no importa. El Terminator corre lua/entities/terminator_nextbot/ antes que terminator_nextbot_base/ —el «/» va
+  // antes que el «_»— y quedaba sin base: sin loco, sin Type "nextbot", y no aparecía)
+  // (o que quedaron con la base de mentira de baseclass.Get —un DEFINE_BASECLASS antes de que la base exista—: con ésa no
+  // llegaban a lo que la base hereda, como el Type "nextbot" de base_nextbot)
+  for (const x of M.values()) { const h = x[GMA.ctx]; if (!(h instanceof LuaTable) || h === t || h.get('Base') !== nombre) continue; const bc = h.get('BaseClass'); if (!(bc instanceof LuaTable) || (ph && ph.phBase && bc === ph)) { if (bc === ph) h.set('BaseClass', undefined); gmaEnlazarBase(h, tipo); } }
+  // (y la de mentira, para el que la guardó en un local: lo que no tiene lo busca en la de verdad, con lo que ésta hereda)
+  if (ph && ph.phBase && ph !== t) { const m = new LuaTable(); m.set('__index', t); ph.mt = m; }
 }
 function gmaEnlazarBase(t, tipo) {
   const b = t.get('Base') || (tipo === 'arma' ? 'weapon_base' : 'base_anim');
