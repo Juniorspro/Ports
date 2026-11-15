@@ -289,6 +289,8 @@ html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(
 #rbInicio.oc,#rbInicio .oc{display:none}
 .rbBg{position:absolute;inset:0;background:#1a1d24 center/cover;opacity:0;transition:opacity 1.8s;animation:rbKen 26s linear infinite alternate}
 .rbBg.on{opacity:1}
+/* (el video de la escena, encima de su foto —que es su primer cuadro—: se muestra cuando ya tiene ese cuadro, fondovideo.js) */
+.rbBg>.rbVid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;pointer-events:none}.rbBg>.rbVid.ve{opacity:1}
 @keyframes rbKen{from{transform:scale(1.02)}to{transform:scale(1.13) translateX(-1.6%)}}
 .rbSombra{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.5),rgba(0,0,0,.12) 40%,rgba(0,0,0,0) 60%),linear-gradient(0deg,rgba(0,0,0,.35),rgba(0,0,0,0) 22%)}
 .rbLogo{position:absolute;inset-inline-start:3.2%;top:calc(var(--vh)*4.2);height:clamp(40px,calc(var(--vh)*18.5),150px);max-width:60%;object-fit:contain;object-position:left}

@@ -2,6 +2,10 @@
 // lo importante va a la derecha). carga: la pantalla de carga de cada mapa (el nombre del archivo es el del mapa).
 // cam.o: [adelante, lado] desde la aparición, en el rumbo de la grieta; cam.grieta: dónde queda la grieta en la pantalla.
 // props/gente/caidas: [nombre, adelante, lado, ...] en metros desde la cámara (lado > 0: a la derecha).
+// video (las del menú: los fondos animados, video.mjs): L (la vuelta, en s), cam (la elipse de la cámara: lado, frente y alto
+// en metros, y a cuántos metros mira: foco), caidas ([cosa, adelante, lado, salida en s dentro de la vuelta, explosión]: lo que
+// explota va a más de 10 m de lo que queda en el piso) y corren ([skin, [adelante, lado] desde, hasta, salida, velocidad]: de un
+// borde de la pantalla al otro, fuera de cuadro al empezar y al terminar). La gente con vel de la foto no va (acá corren de verdad).
 const PI = Math.PI;
 export const ESCENAS = [
   // ---------------- menú ----------------
@@ -10,27 +14,45 @@ export const ESCENAS = [
     props: [['tree14A', 26, -9, 0.3], ['tree14B', 40, 24, 1.1], ['tree14A', 72, -30, 0], ['tree14B', 88, 40, 0.5], ['AW119', 36, 13, 2.4],
       ['police_car_v4', 17, 11, 2.0], ['question_block', 12, 10, 0.4], ['CajaMadera', 13.5, 12.5, 0.3], ['Roca', 52, -15, 0.7]],
     gente: [['SpecialForcesM', 13, 0.5, PI - 0.35, { vel: 7.5 }], ['Hero', 6.5, 3.2, 0.15, { mira: -0.6 }]],
-    caidas: [['Sedan', 46, 18, 0.78], ['CajaMadera', 62, 34, 0.6], ['Barril', 31, 21, 0.9], ['BarrilExplosivo', 36, 5, 1.12, 1.6], ['Heladera', 56, -3, 1.9]] },
+    caidas: [['Sedan', 46, 18, 0.78], ['CajaMadera', 62, 34, 0.6], ['Barril', 31, 21, 0.9], ['BarrilExplosivo', 36, 5, 1.12, 1.6], ['Heladera', 56, -3, 1.9]],
+    video: { L: 10, cam: { lado: 1.2, frente: 0.8, alto: 0.1, foco: 30 },
+      caidas: [['Sedan', 46, 18, 0.0, 1.6], ['BarrilExplosivo', 36, 5, 2.0, 1.4], ['CajaMadera', 62, 34, 4.0], ['Barril', 31, 21, 6.0], ['Heladera', 56, -3, 8.0]],
+      corren: [['SpecialForcesM', [10, 16], [7.5, -12], 2.5, 6.5]] } },
   { nombre: 'm2_RB_Ciudad', tipo: 'menu', mapa: 'RB_Ciudad', hora: 16.4, semilla: 12, cam: { o: [-22, 0], alto: 1.4, grieta: [0.70, 0.30], fov: 60 },
     props: [['police_car_v6', 15, 7, 1.2], ['Cono', 11, 5.5, 0], ['Cono', 12.2, 7, 0.5], ['Barier', 17, 12, 0.2]],
     gente: [['Business', 11, 0.5, PI - 0.2, { vel: 7.5 }], ['Jean', 7, 3.5, 0.2, { mira: -0.6 }]],
-    caidas: [['Sofa', 50, 14, 0.78], ['Contenedor', 70, 30, 0.6], ['Garrafa', 30, 10, 1.12, 1.3], ['Lavarropas', 40, 22, 0.9], ['CajaMadera', 36, -2, 1.6]] },
+    caidas: [['Sofa', 50, 14, 0.78], ['Contenedor', 70, 30, 0.6], ['Garrafa', 30, 10, 1.12, 1.3], ['Lavarropas', 40, 22, 0.9], ['CajaMadera', 36, -2, 1.6]],
+    video: { L: 10, cam: { lado: 1.2, frente: 0.8, alto: 0.08, foco: 30 },
+      caidas: [['Garrafa', 30, 10, 1.0, 1.3], ['Sofa', 50, 14, 3.0], ['Contenedor', 70, 30, 5.0], ['Lavarropas', 40, 22, 7.0], ['CajaMadera', 36, -2, 9.0]],
+      corren: [['Business', [9.5, 13], [7.5, -10], 3.5, 6.5]] } },
   { nombre: 'm3_RB_Isla', tipo: 'menu', mapa: 'RB_Isla', hora: 12.5, semilla: 13, cam: { o: [80, 30], alto: 1.6, grieta: [0.72, 0.20], fov: 60 },
     props: [['Barril', 9, 7.5, 0.2]],
     gente: [['Ninja', 9, 0, PI - 0.4, { vel: 7.5 }], ['Pirata', 5, 2.2, 0.2, { mira: -0.6 }]],
-    caidas: [['Barril', 20, 9, 0.85], ['Neumatico', 28, 18, 0.65], ['BarrilExplosivo', 26, 13, 1.12, 1.6], ['Roca', 30, 3, 0.75], ['Sandia', 12, -2, 1.7]] },
+    caidas: [['Barril', 20, 9, 0.85], ['Neumatico', 28, 18, 0.65], ['BarrilExplosivo', 26, 13, 1.12, 1.6], ['Roca', 30, 3, 0.75], ['Sandia', 12, -2, 1.7]],
+    video: { L: 10, cam: { lado: 1.0, frente: 0.7, alto: 0.08, foco: 26 },
+      caidas: [['BarrilExplosivo', 30, 16, 0.5, 1.4], ['Lavarropas', 14, -4, 2.5], ['CajaMadera', 18, 2, 4.5], ['Garrafa', 22, 22, 6.5, 1.2], ['Roca', 30, 3, 8.5]],
+      corren: [['Ninja', [8, -9], [10, 9], 3.0, 6.5]] } },
   { nombre: 'm4_RB_Desierto', tipo: 'menu', mapa: 'RB_Desierto', hora: 17.0, semilla: 14, cam: { alto: 1.6, grieta: [0.70, 0.30], fov: 58 },
     props: [['Derby5', 20, 9, 2.5], ['Roca', 30, -8, 0.4], ['Palmera', 46, 22, 0]],
     gente: [['Soldier', 12, 1.5, PI - 0.4, { vel: 7.5 }], ['Engineer', 7, 3, 0.2, { mira: -0.6 }]],
-    caidas: [['Contenedor', 55, 26, 0.6], ['Sedan', 42, 12, 1.12, 2.2], ['Heladera', 70, 4, 0.75], ['Neumatico', 25, 18, 0.9], ['Arcade', 48, 34, 1.8]] },
+    caidas: [['Contenedor', 55, 26, 0.6], ['Sedan', 42, 12, 1.12, 2.2], ['Heladera', 70, 4, 0.75], ['Neumatico', 25, 18, 0.9], ['Arcade', 48, 34, 1.8]],
+    video: { L: 10, cam: { lado: 1.2, frente: 0.8, alto: 0.08, foco: 30 },
+      caidas: [['Sedan', 42, 12, 0.5, 1.6], ['Neumatico', 25, 18, 2.5], ['Contenedor', 55, 26, 4.5], ['Heladera', 70, 4, 6.5], ['Arcade', 48, 34, 8.5]],
+      corren: [['Soldier', [11, 14], [9, -11], 3.0, 6.5]] } },
   { nombre: 'm5_City', tipo: 'menu', mapa: 'City', hora: 21.3, semilla: 15, cam: { alto: 1.6, grieta: [0.70, 0.30], fov: 58 },
     props: [['police_car_v5', 14, 7, 2.2], ['police_car_v7', 22, -1, 0.6], ['Cono', 10, 4, 0], ['Cono', 11, 5.5, 0.3], ['TrafficLight', 10, -3, 1.6], ['LightPole', 26, 10, 0]],
     gente: [['Swat', 8, 3, 0.1, { mira: -0.45, arma: 'Akm' }], ['Military', 14, 0.5, PI - 0.3, { vel: 7.5 }]],
-    caidas: [['BarrilExplosivo', 30, 12, 1.12, 1.6], ['CajaMadera', 45, 8, 0.8], ['Lavarropas', 60, 26, 0.6], ['Barril', 25, 20, 0.9], ['Sofa', 50, -6, 1.7]] },
+    caidas: [['BarrilExplosivo', 30, 12, 1.12, 1.6], ['CajaMadera', 45, 8, 0.8], ['Lavarropas', 60, 26, 0.6], ['Barril', 25, 20, 0.9], ['Sofa', 50, -6, 1.7]],
+    video: { L: 10, cam: { lado: 1.0, frente: 0.7, alto: 0.08, foco: 28 },
+      caidas: [['BarrilExplosivo', 30, 12, 1.0, 1.5], ['CajaMadera', 45, 8, 3.0], ['Lavarropas', 60, 26, 5.0], ['Barril', 22, 24, 7.0], ['Sofa', 50, -6, 9.0]],
+      corren: [['Military', [6.5, 9], [5.5, -8], 3.0, 6.0]] } },
   { nombre: 'm6_Desert', tipo: 'menu', mapa: 'Desert', hora: 9.8, semilla: 16, cam: { o: [25, -5], alto: 1.6, grieta: [0.70, 0.30], fov: 58 },
     props: [['Gyrocopter', 30, 16, 2.8], ['Derby6', 18, 9, 1.1]],
     gente: [['Prisoner01', 12, 1, PI - 0.6, { vel: 7.5 }], ['PilotFemale', 7, 3, 0.4, { mira: -0.6 }]],
-    caidas: [['Sedan', 40, 11, 1.12, 2.2], ['Heladera', 55, 22, 0.7], ['Barril', 45, 30, 0.85], ['CajaMadera', 70, 36, 0.55], ['Neumatico', 32, -3, 1.9]] },
+    caidas: [['Sedan', 40, 11, 1.12, 2.2], ['Heladera', 55, 22, 0.7], ['Barril', 45, 30, 0.85], ['CajaMadera', 70, 36, 0.55], ['Neumatico', 32, -3, 1.9]],
+    video: { L: 10, cam: { lado: 1.2, frente: 0.8, alto: 0.08, foco: 30 },
+      caidas: [['Sedan', 40, 11, 0.5, 1.6], ['Heladera', 55, 22, 2.5], ['Barril', 45, 30, 4.5], ['CajaMadera', 70, 36, 6.5], ['Neumatico', 32, -3, 8.5]],
+      corren: [['Prisoner01', [11.5, 13], [9.5, -11], 3.0, 6.5]] } },
   // ---------------- pantalla de carga (una por mapa; arriba a la izquierda va el título y arriba a la derecha el consejo:
   // la grieta, al medio) ----------------
   { nombre: 'c0_rb_flatgrass', tipo: 'carga', mapa: 'FlatGrass', hora: 11.4, semilla: 21, primera: { arma: 'PhysicsGun' }, cam: { alto: 1.6, grieta: [0.56, 0.22], fov: 62 },

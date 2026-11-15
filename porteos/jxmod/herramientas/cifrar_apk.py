@@ -18,7 +18,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 MAGIA = b'JXENC1\x00\x00'          # 8 bytes: marca de archivo cifrado (lo de más va: iv de 16 + cifrado)
 ETIQUETA = b'JXMOD-ANDROID-WWW-v1'  # separa esta llave de cualquier otro uso del certificado
-# los archivos del APK que se cifran (están dentro de assets/www/)
+# los archivos del APK que se cifran (están dentro de assets/www/; además, los fondos animados de fondos/: cifrar_www)
 CIFRAR = ('index.html', 'pk.bin')
 
 
@@ -63,6 +63,12 @@ def cifrar_www(dir_www, key):
     for n in CIFRAR:
         r = os.path.join(dir_www, n)
         if os.path.isfile(r): hechos.append((n, cifrar_archivo(r, key)))
+    # los fondos animados del menú (fondos/*.mp4, de armar.py): también van cifrados; Web.java los descifra al servirlos
+    # (Cifrado.abrir mira la marca) y por LAN da su largo (el del asset menos los 24 bytes de la cabecera)
+    fd = os.path.join(dir_www, 'fondos')
+    if os.path.isdir(fd):
+        for f in sorted(os.listdir(fd)):
+            if f.endswith('.mp4'): hechos.append(('fondos/' + f, cifrar_archivo(os.path.join(fd, f), key)))
     return hechos
 
 

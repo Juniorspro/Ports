@@ -966,7 +966,10 @@ public class Web extends Activity {
         // index.html y pk.bin van cifrados en el APK: al servirlos por LAN se descifran, así que el largo del archivo ya no
         // vale (el descifrado cambia el tamaño); para el resto, el largo del asset sirve de Content-Length
         boolean cif = "www/index.html".equals(p) || "www/pk.bin".equals(p);
-        if (!cif) try (android.content.res.AssetFileDescriptor fd = getAssets().openFd(p)) { largo = fd.getLength(); } catch (IOException e) { /* comprimido en el APK: sin largo */ }
+        // (los fondos animados —fondos/*.mp4— también van cifrados, en modo contador: el largo es el del asset menos la cabecera
+        // de 24 bytes —la marca y el iv—, como lo deja Cifrado.abrir)
+        int cab = p.startsWith("www/fondos/") ? 24 : 0;
+        if (!cif) try (android.content.res.AssetFileDescriptor fd = getAssets().openFd(p)) { largo = fd.getLength() - cab; } catch (IOException e) { /* comprimido en el APK: sin largo */ }
         try { return new Lan.Archivo(Cifrado.abrir(getAssets().open(p), Cifrado.clave(getApplicationContext())), largo); } catch (IOException e) { return null; }
     };
     private static String ipsJson() {

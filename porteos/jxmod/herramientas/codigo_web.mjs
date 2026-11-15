@@ -3,7 +3,8 @@
 //  - el código del juego (el gzip de #jsgz) va cifrado con una clave al azar (AES-GCM) en juego.bin;
 //  - esa clave va guardada una vez por código, cifrada con lo que sale del código (PBKDF2-SHA256, 150 000 vueltas);
 //  - la página pide el código, lo recuerda en ese aparato y la próxima vez abre sola (también sin internet);
-//  - el paquete (pk.bin: modelos, texturas, sonidos) también va cifrado (AES-CTR, se descifra a medida que baja);
+//  - el paquete (pk.bin: modelos, texturas, sonidos) también va cifrado (AES-CTR, se descifra a medida que baja), y los fondos
+//    animados del menú (fondos/*.mp4), cada uno con AES-GCM (los descifra el juego al bajarlos);
 //  - sólo abre en su lugar (--lugar, la carpeta de la página en internet): lo que sale del código depende también de la
 //    dirección, así que una copia de los archivos en otro lado (otra página, otra carpeta, el HTML bajado a la compu) no
 //    abre ni con un código bueno.
@@ -50,6 +51,15 @@ const PKB = path.join(D, 'pk.bin'); if (!fs.existsSync(PKB)) { console.error('fa
 const Kp = crypto.createHash('sha256').update(K).update('jxmod-paquete').digest(), pn = crypto.randomBytes(8);
 const cP = crypto.createCipheriv('aes-256-ctr', Kp, Buffer.concat([pn, Buffer.alloc(8)])); const pk = fs.readFileSync(PKB);
 fs.writeFileSync(PKB, Buffer.concat([cP.update(pk), cP.final()]));
+// (los fondos animados del menú —fondos/*.mp4, de armar.py—: cada uno con AES-GCM y una clave que sale de la del juego; el juego
+// los descifra al bajarlos —juego/fondovideo.js— con lo que le deja la página)
+const FD = path.join(D, 'fondos'), Kf = crypto.createHash('sha256').update(K).update('jxmod-fondos').digest(); let nF = 0, tF = 0;
+if (fs.existsSync(FD)) for (const f of fs.readdirSync(FD).filter((x) => x.endsWith('.mp4'))) {
+  const r = path.join(FD, f), b = fs.readFileSync(r);
+  if (b.subarray(4, 8).toString('latin1') !== 'ftyp') { console.error('fondos/' + f + ' no es un MP4 (¿ya cifrado?): volver a armar el juego primero'); process.exit(1); }
+  const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', Kf, iv), o = Buffer.concat([iv, c.update(b), c.final(), c.getAuthTag()]);
+  fs.unlinkSync(r); fs.writeFileSync(r, o); nF++; tF += o.length;   // (archivo nuevo: puede ser un enlace duro de otro armado)
+}
 
 // 3. la clave del juego, una vez por código
 const sal = crypto.randomBytes(16), C = {};
@@ -195,12 +205,20 @@ const PUERTA = `<script>
       hecho = hasta; return hecho;
     };
   }
+  // los fondos animados (fondos/*.mp4): cada uno con AES-GCM (iv de 12 + cifrado + etiqueta); el juego los descifra con esto
+  // al bajarlos (juego/fondovideo.js lo toma una vez y lo borra de la página)
+  async function fondos(k) {
+    const m = new Uint8Array(k.length + 12); m.set(k); m.set(new TextEncoder().encode('jxmod-fondos'), k.length);
+    if (!S) { const kf = JS.sha(m); return async (d) => JS.ctr(kf, d); }
+    const kf = await S.importKey('raw', await S.digest('SHA-256', m), 'AES-GCM', false, ['decrypt']);
+    return async (d) => new Uint8Array(await S.decrypt({ name: 'AES-GCM', iv: d.slice(0, 12) }, kf, d.slice(12)));
+  }
   async function abrir(k) {
     const r = await fetch('juego.bin?v=' + CL.v); if (!r.ok) throw new Error('red');
     const d = new Uint8Array(await r.arrayBuffer()); let g;
     if (!S) g = JS.ctr(k, d);
     else { const kj = await S.importKey('raw', k, 'AES-GCM', false, ['decrypt']); g = new Uint8Array(await S.decrypt({ name: 'AES-GCM', iv: d.slice(0, 12) }, kj, d.slice(12))); }
-    window.jxCodigoPaq = await paquete(k);
+    window.jxCodigoPaq = await paquete(k); window.jxCodigoFondo = await fondos(k);
     return g;
   }
   const leer = () => { try { return localStorage.getItem('jx_codigo') || ''; } catch (e) { return ''; } };
@@ -281,5 +299,5 @@ const ACT = `<script>
 </script>`;
 html = html.slice(0, i0) + PUERTA + ACT + A + html.slice(i1);
 fs.writeFileSync(IDX, html);
-console.log('ok', codigos.length, 'códigos ·', LUGARES.length === 1 ? 'en ' + LUGARES[0] : LUGARES.length + ' lugares', '· pk.bin cifrado', (pk.length / 1048576).toFixed(1), 'MB · juego.bin', (bin.length / 1048576).toFixed(2), 'MB · index.html', (Buffer.byteLength(html) / 1048576).toFixed(2), 'MB · versión', V);
+console.log('ok', codigos.length, 'códigos ·', LUGARES.length === 1 ? 'en ' + LUGARES[0] : LUGARES.length + ' lugares', '· pk.bin cifrado', (pk.length / 1048576).toFixed(1), 'MB · fondos animados cifrados', nF, (tF / 1048576).toFixed(2), 'MB · juego.bin', (bin.length / 1048576).toFixed(2), 'MB · index.html', (Buffer.byteLength(html) / 1048576).toFixed(2), 'MB · versión', V);
 if (MOSTRAR) for (const { c, n } of codigos) console.log('  ' + c + (n ? '  (' + n + ')' : ''));

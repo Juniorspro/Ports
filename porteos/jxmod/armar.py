@@ -4,7 +4,7 @@ import re, os, sys, json, base64, gzip
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PK, OUT = sys.argv[1], sys.argv[2]
 ORDEN = ['nucleo', 'ios', 'cajanegra', 'tiendared', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'cielos', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'agua', 'sonidos', 'armas', 'patadas',
-         'vehiculos', 'herramientas', 'personas', 'humano', 'emotes', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'armaaj', 'hud', 'menu', 'idiomas', 'formato', 'idiomas3', 'ruleta', 'iconos', 'acciones', 'modapi', 'voz', 'geo', 'entidades', 'maquinitas', 'memes', 'celular', 'celumano', 'artefactos', 'nucleares', 'nuclear_vol', 'gfxauto', 'gmod_formatos', 'gmod', 'gmod_pipe', 'gmod_lib', 'gmod_steam', 'gmod_bsp', 'puertas', 'mapaio', 'portales', 'cielo3d', 'gmod_modos', 'gmod_lua', 'gmod_prelude', 'gmod_api', 'gmod_sonidos', 'gmod_cargar', 'gmod_render', 'gmod_dx9', 'gmod_rt', 'gmod_vista', 'gmod_pm', 'gmod_autorig', 'pjimportar', 'gmod_spawn', 'gmod_nextbot', 'gmod_anim', 'gmod_tienda', 'gmod_cola', 'gmod_carpeta', 'gmod_panel', 'gmod_server', 'celulares', 'npc', 'censura', 'cuenta', 'social', 'gorros', 'juntos', 'pantalla', 'nativos', 'ciclope', 'verity', 'veritycrea', 'animedit', 'creador', 'smods', 'modmenu', 'noche', 'linterna', 'tutorial', 'inicio', 'milogo', 'iconosapp', 'iconoapp', 'emomusica', 'rbmenus', 'clasico', 'paneles', 'deposito', 'lan', 'camlibre', 'controles', 'hudorden', 'banco', 'evento', 'identidad', 'pillpacks', 'pill_gmod', 'principal']
+         'vehiculos', 'herramientas', 'personas', 'humano', 'emotes', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'armaaj', 'hud', 'menu', 'idiomas', 'formato', 'idiomas3', 'ruleta', 'iconos', 'acciones', 'modapi', 'voz', 'geo', 'entidades', 'maquinitas', 'memes', 'celular', 'celumano', 'artefactos', 'nucleares', 'nuclear_vol', 'gfxauto', 'gmod_formatos', 'gmod', 'gmod_pipe', 'gmod_lib', 'gmod_steam', 'gmod_bsp', 'puertas', 'mapaio', 'portales', 'cielo3d', 'gmod_modos', 'gmod_lua', 'gmod_prelude', 'gmod_api', 'gmod_sonidos', 'gmod_cargar', 'gmod_render', 'gmod_dx9', 'gmod_rt', 'gmod_vista', 'gmod_pm', 'gmod_autorig', 'pjimportar', 'gmod_spawn', 'gmod_nextbot', 'gmod_anim', 'gmod_tienda', 'gmod_cola', 'gmod_carpeta', 'gmod_panel', 'gmod_server', 'celulares', 'npc', 'censura', 'cuenta', 'social', 'gorros', 'juntos', 'pantalla', 'nativos', 'ciclope', 'verity', 'veritycrea', 'animedit', 'creador', 'smods', 'modmenu', 'noche', 'linterna', 'tutorial', 'inicio', 'milogo', 'iconosapp', 'iconoapp', 'emomusica', 'rbmenus', 'clasico', 'fondovideo', 'paneles', 'deposito', 'lan', 'camlibre', 'controles', 'hudorden', 'banco', 'evento', 'identidad', 'pillpacks', 'pill_gmod', 'principal']
 # (el modo grabación —grabar.js— va justo antes del bucle del juego: usa la HUD, la pausa, el sonido y las voces)
 ORDEN.insert(ORDEN.index('principal'), 'grabar')
 # el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")
@@ -123,6 +123,31 @@ fondos = sorted(os.listdir(FD)) if os.path.isdir(FD) else []
 ICD = os.path.join(AQUI, 'juego', 'iconos')
 js = js.replace('/*ICONOSRB*/', ','.join(f"{f[:-4]}:'data:image/svg+xml;base64," + base64.b64encode(open(os.path.join(ICD, f), 'rb').read()).decode() + "'" for f in sorted(os.listdir(ICD)) if f.endswith('.svg')))
 js = js.replace('/*FONDOSRB*/', ','.join("'" + img64(os.path.join(FD, f)) + "'" for f in fondos))
+# los fondos animados (los videos de esas escenas, fuera del repo: herramientas/fondos/video.mjs y bucle.py): PAQUETE/fondos_video/
+# con el mismo nombre que su foto (la foto es su primer cuadro). No van adentro del HTML ni del paquete: al lado del juego, en
+# fondos/<nombre>.<huella>.mp4 (el juego los baja cuando el menú ya se puede tocar: no atrasan el arranque ni ocupan memoria en
+# la partida). La web con código los cifra (codigo_web.mjs), el service worker los guarda (web_app.py) y el APK los lleva
+# cifrados (cifrar_apk.py). Lo de armados anteriores se borra (si no, el APK y la web llevarían videos viejos)
+import hashlib, shutil
+FVD = os.path.join(PK, 'fondos_video')
+vids = sorted(f for f in os.listdir(FVD) if f.endswith('.mp4')) if os.path.isdir(FVD) else []
+FONDOS_VID = []
+if vids:
+    FVS = os.path.join(os.path.dirname(os.path.abspath(OUT)), 'fondos'); os.makedirs(FVS, exist_ok=True)
+    por_nombre = {v[:-4]: v for v in vids}
+    for i, f in enumerate(fondos):
+        v = por_nombre.get(os.path.splitext(f)[0]) or (vids[i] if len(vids) == len(fondos) else None)
+        if not v: FONDOS_VID.append(None); continue
+        b = open(os.path.join(FVD, v), 'rb').read(); nom = v[:-4] + '.' + hashlib.sha256(b).hexdigest()[:10] + '.mp4'; ruta = os.path.join(FVS, nom)
+        if not (os.path.isfile(ruta) and open(ruta, 'rb').read() == b):
+            if os.path.lexists(ruta): os.unlink(ruta)   # (desenlaza: puede ser un enlace duro de otro armado)
+            open(ruta, 'wb').write(b)
+        FONDOS_VID.append(['fondos/' + nom, len(b)])
+    usados = {x[0][7:] for x in FONDOS_VID if x}
+    for f in os.listdir(FVS):
+        if f not in usados: os.unlink(os.path.join(FVS, f))
+    print('fondos animados', sum(1 for x in FONDOS_VID if x), round(sum(x[1] for x in FONDOS_VID if x) / 1e6, 2), 'MB en', FVS)
+js = js.replace('/*FONDOSVIDEO*/', ','.join(json.dumps(x) if x else 'null' for x in FONDOS_VID))
 # PK_BIN=1 (la app de Android): el paquete va como archivo binario aparte (pk.bin, al lado del HTML) en vez de base64
 # dentro del HTML: ~28 MB menos de texto que el teléfono tiene que leer y guardar al arrancar
 PK_BIN = bool(os.environ.get('PK_BIN'))

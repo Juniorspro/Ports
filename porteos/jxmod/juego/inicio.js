@@ -136,9 +136,18 @@ function inicioEncajar() { if (RB.home === 'clasico') clEncajar(); else depEncaj
 function nombrePoner(v) { PREFS.nombre = limpioNombre(v); guardarPrefs(); const nick = nodo('Main/MainMenu/UpPanel/NickNameInputField'); if (nick && nick.inp) nick.inp.value = PREFS.nombre; }
 function inicioFondoPasar() {
   const capas = RB.el.querySelectorAll('.rbBg'), lista = FONDOS_RB.length ? FONDOS_RB : MAPAS.map((m) => icono(MAPA_ICONO[m]));
-  const sig = capas[RB.fondo % 2 ? 0 : 1], act = capas[RB.fondo % 2];
-  sig.style.backgroundImage = `url(${lista[RB.fondo % lista.length]})`; sig.classList.add('on'); act.classList.remove('on'); RB.fondo++;
+  const sig = capas[RB.fondo % 2 ? 0 : 1], act = capas[RB.fondo % 2], k = RB.fondo % lista.length;
+  sig.style.backgroundImage = `url(${lista[k]})`; sig.classList.add('on'); act.classList.remove('on'); RB.fondo++; RB.fondoT = 0;
+  if (typeof fvPasar === 'function') fvPasar(sig, act, k);   // (en el clásico, el video de la escena encima de su foto: fondovideo.js)
   if (RB.fondo > 1 && RB.home === 'clasico' && typeof clBrasas === 'function') clBrasas();   // (en el clásico, al cambiar la escena suben unas brasas)
+}
+// la escena de fondo pasa a la siguiente después de 9 s a la vista (no cuenta el tiempo en una partida ni, con el video, el
+// que estuvo tapada por un panel o en segundo plano; en el clásico sin movimiento —«menos movimiento» o Patata— no pasa). Con
+// el video corriendo, cuando el video llega a su punto (fondovideo.js: a 2 s de su final)
+function inicioFondoReloj() {
+  if (RB.el.classList.contains('oc') || (RB.home === 'clasico' && clNivel() === 'quieto') || (typeof fvRetener === 'function' && fvRetener())) return;
+  if (typeof fvToca === 'function' && fvToca() !== null) return;
+  if (++RB.fondoT >= 9) inicioFondoPasar();
 }
 function inicioPanel(p) {
   RB.panel = p; const P = RB.el.querySelector('.rbPan');
@@ -589,7 +598,7 @@ function inicioMostrar(si) {
     menuMostrar(true); if (!RB.el) inicioCrear(); else if (RB.home !== menuInicio()) menuHomeArmar();
     idiomaAplicar(PREFS.lang); inicioLista(); inicioPanel(PREFS.bienvenida ? null : 'bienvenida');
     // (en el clásico sin movimiento —«menos movimiento» del aparato o Gráficos Patata— la escena queda quieta: no pasa a la otra)
-    if (!RB.reloj) { inicioFondoPasar(); RB.reloj = setInterval(() => { if (!RB.el.classList.contains('oc') && !(RB.home === 'clasico' && clNivel() === 'quieto')) inicioFondoPasar(); }, 9000); }
+    if (!RB.reloj) { inicioFondoPasar(); RB.reloj = setInterval(inicioFondoReloj, 1000); }
   }
   if (RB.el) RB.el.classList.toggle('oc', !si);
   if (si) { menuHomeMostrar(!RB.panel); requestAnimationFrame(() => { inicioEncajar(); tiEncajar(); }); }

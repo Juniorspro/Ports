@@ -1,6 +1,6 @@
 # Paso 2 de la recuperación (el 1 es herramientas/recuperar_web.mjs). Probado: el pk.bin y los 61 paquetes de rb salen idénticos.
-# Rearma la carpeta del paquete (d.json.gz, m.bin.gz, t/, a/, i/, v/, carga/, fondos/) desde lo publicado:
-# pk.bin descifrado + idx.json + juego.js (de descifrar.mjs), web/rb/*.rbp y el index.html publicado.
+# Rearma la carpeta del paquete (d.json.gz, m.bin.gz, t/, a/, i/, v/, carga/, fondos/, fondos_video/) desde lo publicado:
+# pk.bin descifrado + idx.json + juego.js + fondos/ (de recuperar_web.mjs), web/rb/*.rbp y el index.html publicado.
 # Deshace lo que hacen armar.py (filtrar_indices) y herramientas/remotos.py (partir): las mallas de cada paquete aparte
 # vuelven al bloque (al final), sin las marcas 'k' ni 'rbp'. Uso: python3 -I reconstruir.py PLANO WEB SALIDA
 import sys, os, json, gzip, struct, re, base64, io
@@ -62,6 +62,16 @@ for n, (nom, uri) in enumerate(re.findall(r"\['([^']*)','(data:image/[a-z]+;base
 js = open(os.path.join(PL, 'juego.js'), encoding='utf-8').read(); SEP = '\n/*@@JUEGO@@*/\n'; k = js.index(SEP)
 open(os.path.join(OUT, 'mqtt.min.js'), 'w', encoding='utf-8').write(js[:k])
 m = re.search(r"const FONDOS_RB = \[(.*?)\];", js[k:], re.S)
+# 4) los fondos animados del menú (fondos/*.mp4 de recuperar_web.mjs, ya planos) a fondos_video/, con el nombre de antes (sin la
+# huella) y cada foto con el nombre de su video (armar.py los junta por nombre: la foto es el primer cuadro de su video)
+fv = re.search(r"const FONDOS_VIDEO = \[(.*?)\];", js[k:], re.S)
+FV = [re.sub(r'\.[0-9a-f]{10}\.mp4$', '', os.path.basename(x)) for x in re.findall(r'"(fondos/[^"]+\.mp4)"', fv.group(1) if fv else '')]
+if FV:
+    os.makedirs(os.path.join(OUT, 'fondos_video'), exist_ok=True)
+    for f in sorted(os.listdir(os.path.join(PL, 'fondos'))):
+        nom = re.sub(r'\.[0-9a-f]{10}\.mp4$', '', f)
+        open(os.path.join(OUT, 'fondos_video', nom + '.mp4'), 'wb').write(open(os.path.join(PL, 'fondos', f), 'rb').read())
 for n, uri in enumerate(re.findall(r"'(data:image/[a-z]+;base64,[^']+)'", m.group(1) if m else '')):
-    Image.open(io.BytesIO(base64.b64decode(uri.split(',', 1)[1]))).save(os.path.join(OUT, 'fondos', '%02d.png' % n))
-print('ok mallas', len(ms), 'bloque', round(len(MB) / 1e6, 1), 'MB · texturas', len(TX), '· sonidos', len(AU), '· carga', len(os.listdir(os.path.join(OUT, 'carga'))), '· fondos', len(os.listdir(os.path.join(OUT, 'fondos'))))
+    Image.open(io.BytesIO(base64.b64decode(uri.split(',', 1)[1]))).save(os.path.join(OUT, 'fondos', (FV[n] if n < len(FV) else '%02d' % n) + '.png'))
+print('ok mallas', len(ms), 'bloque', round(len(MB) / 1e6, 1), 'MB · texturas', len(TX), '· sonidos', len(AU), '· carga', len(os.listdir(os.path.join(OUT, 'carga'))), '· fondos', len(os.listdir(os.path.join(OUT, 'fondos'))),
+      '· fondos animados', len(os.listdir(os.path.join(OUT, 'fondos_video'))) if FV else 0)

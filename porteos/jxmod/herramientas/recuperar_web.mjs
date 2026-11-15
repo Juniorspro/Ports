@@ -1,6 +1,6 @@
 // Si se pierde el paquete del juego (estaba fuera del repo): node herramientas/recuperar_web.mjs web CÓDIGO URL_DE_LA_CARPETA SALIDA
 // Descifra la web publicada (web/index.html + juego.bin + pk.bin) con un código: deja juego.js (el JS del juego, plano),
-// pk.bin (el paquete plano) e idx.json (el índice del paquete, del HTML).
+// pk.bin (el paquete plano), idx.json (el índice del paquete, del HTML) y fondos/ (los fondos animados del menú, planos).
 import fs from 'fs'; import crypto from 'crypto'; import zlib from 'zlib';
 const [, , W, COD, LUGAR, OUT] = process.argv;
 const html = fs.readFileSync(W + '/index.html', 'utf8');
@@ -20,4 +20,13 @@ const Kp = crypto.createHash('sha256').update(K).update('jxmod-paquete').digest(
 const cP = crypto.createDecipheriv('aes-256-ctr', Kp, Buffer.concat([Buffer.from(CL.pn, 'base64'), Buffer.alloc(8)]));
 fs.writeFileSync(OUT + '/pk.bin', Buffer.concat([cP.update(fs.readFileSync(W + '/pk.bin')), cP.final()]));
 const ix = html.match(/\{"d":\[\d+,\d+\][^<]*?\]\}/); if (ix) fs.writeFileSync(OUT + '/idx.json', ix[0]);
-console.log('ok K', K.length, 'juego.js', fs.statSync(OUT + '/juego.js').size, 'pk.bin', fs.statSync(OUT + '/pk.bin').size, 'idx', !!ix);
+// (los fondos animados del menú, fondos/*.mp4: cada uno con AES-GCM y la clave que sale de la del juego; quedan en SALIDA/fondos/)
+const Kf = crypto.createHash('sha256').update(K).update('jxmod-fondos').digest(); let nF = 0;
+if (fs.existsSync(W + '/fondos')) {
+  fs.mkdirSync(OUT + '/fondos', { recursive: true });
+  for (const f of fs.readdirSync(W + '/fondos').filter((x) => x.endsWith('.mp4'))) {
+    const b = fs.readFileSync(W + '/fondos/' + f), d = crypto.createDecipheriv('aes-256-gcm', Kf, b.subarray(0, 12)); d.setAuthTag(b.subarray(b.length - 16));
+    fs.writeFileSync(OUT + '/fondos/' + f, Buffer.concat([d.update(b.subarray(12, b.length - 16)), d.final()])); nF++;
+  }
+}
+console.log('ok K', K.length, 'juego.js', fs.statSync(OUT + '/juego.js').size, 'pk.bin', fs.statSync(OUT + '/pk.bin').size, 'idx', !!ix, 'fondos animados', nF);
