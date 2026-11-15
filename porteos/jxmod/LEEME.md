@@ -2252,7 +2252,30 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
-## Menú principal «Tu depósito» (lo eligió el dueño; reemplaza la portada de la 3.4; todavía sin publicar)
+## JXMod 3.5: menú principal nuevo, «Tu depósito»
+
+Un pedido del dueño (el detalle y los números están en la sección «Tu depósito», más abajo). Misma firma que la 3.2, la
+3.3 y la 3.4: quien tiene una de esas actualiza encima; quien sigue en la 3.1 tiene que desinstalarla antes.
+
+- **Menú principal nuevo, «Tu depósito»**: la portada de la 3.4 «se veía muy Free Fire». Se probaron tres conceptos
+  propios (el mundo como menú, cajas que se agarran con la pistola de física y un plano de constructor) y el dueño pidió
+  combinarlos y que fuera menos confuso. Quedó tu terreno con la luz de la hora real, tu personaje con la pistola de
+  física, 7 cajas fijas en tres pilas («Vos», «Crear», «Jugar con otros») con su nombre y un dato a la vista, y un solo
+  JUGAR verde. Al tocar una caja el haz la trae y se abre su panel. 12 cosas para tocar en la primera pantalla (la 3.4
+  tenía 25); teclado, mando y una vista Lista.
+- **Motor**: tinte por entidad (el barril violeta de la grieta), la grieta del cielo sin el borde de su cuadrado y una
+  pausa del dibujo: con el menú quieto se dibujan 0 cuadros. Con el procesador 4× más lento, el menú quieto pasa de
+  34–72 ms de JS por segundo (3.4) a 7,6–8,1, y de 28 cuadros de GPU por segundo a 0.
+- **Pruebas sobre el juego con todo junto** (dos tandas a la vez): `deposito` 99/100 (la que falló, Enter en la Lista,
+  esperó 10 s el panel de la tienda con la máquina cargada; sola 2/2 veces bien), `menu_principal` 4/4, `menu_30` 7/7,
+  `social` 42/42, `tienda_panel` 24/24, `celulares` 9/9, `gmod_carpeta` 32/32, `bsmod` F y G 7/7, armas de la tanda de
+  la 3.2 32/34 (las mismas dos de siempre), `armas_gmod` 8/8, `gmod_mira_recarga` 7/7, `nextbots_red` 25/25, `manos_c`
+  6/6, `codigo_tragado` 0.
+- **Pendiente**: la primera tarea larga después de poder tocar (armar la escena y compilar lo que se dibuja) va de 362 a
+  1434 ms contra 54–163 ms de la 3.4; el heap sube entre 1 y 23 MB; los paneles se abren del tamaño de siempre, no al
+  costado de la caja. Sin celular de verdad: todo emulado.
+
+## Menú principal «Tu depósito» (lo eligió el dueño; reemplaza la portada de la 3.4; publicado en la 3.5)
 
 La portada de la 3.4 se parecía demasiado al lobby de otro juego de tiros y a los jugadores no les gustó. Se hicieron
 tres conceptos propios (tu terreno, la pila de cajas y el plano), el dueño pidió combinarlos y que fuera menos confuso, y
