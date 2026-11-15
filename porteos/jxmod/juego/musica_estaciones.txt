@@ -1,0 +1,376 @@
+# Las estaciones de la música del menú (juego/musica.js): 10 estaciones de 35 canciones cada una, en bucle y mezcladas.
+# Una canción por renglón: Artista — Título — id del video de YouTube (https://www.youtube.com/watch?v=ID).
+# Casual es Kevin MacLeod (incompetech.com, CC BY 4.0): además de YouTube, sus MP3 van en Opus en el paquete aparte
+# a_musica (herramientas/musica/casual.py) y suenan sin internet. Las demás suenan sólo por YouTube (nada se baja).
+# Se revisan todas con: python3 -I herramientas/musica/verificar.py (oEmbed y el reproductor insertado; informe en
+# herramientas/musica/informe.txt).
+
+== casual
+Kevin MacLeod — Monkeys Spinning Monkeys — 2eZVbrO6Z1M
+Kevin MacLeod — Sneaky Snitch — QrqjLoPbnyY
+Kevin MacLeod — Fluffing a Duck — XhCARou6mRI
+Kevin MacLeod — Investigations — 7_t7gQ8Olgk
+Kevin MacLeod — Local Forecast - Elevator — 5IyL1l34PIs
+Kevin MacLeod — Scheming Weasel (faster version) — y4zXHvaQ7Ng
+Kevin MacLeod — Wallpaper — wNjJiZk7H28
+Kevin MacLeod — Carefree — sMcWOaJFuw0
+Kevin MacLeod — Pixel Peeker Polka - faster — XosfAzrpjWQ
+Kevin MacLeod — Merry Go — f5Tatbs1WxY
+Kevin MacLeod — Hyperfun — BHv4n0EmCKw
+Kevin MacLeod — Cipher — UiHkZTeXrcA
+Kevin MacLeod — Sneaky Adventure — py2IOtV7lFU
+Kevin MacLeod — Amazing Plan — pIH3pBcoQ4s
+Kevin MacLeod — Thatched Villagers — _Mcn4OyNAg4
+Kevin MacLeod — Hidden Agenda — tOKqIfwuXIc
+Kevin MacLeod — Funkorama — dmIO-dT5BFw
+Kevin MacLeod — Life of Riley — npqWuio3Llg
+Kevin MacLeod — Easy Lemon — Pod-f-VUyLE
+Kevin MacLeod — Cut and Run — X173xm_ygr4
+Kevin MacLeod — Run Amok — mOXginnvZ4A
+Kevin MacLeod — The Builder — G6G3gB7DksA
+Kevin MacLeod — Spazzmatica Polka — ISg6GARmPMA
+Kevin MacLeod — Happy Happy Game Show — kSetQroJe-U
+Kevin MacLeod — Pamgaea — yJEPTk7FLmk
+Kevin MacLeod — Itty Bitty 8 Bit — 41HJ40roGDY
+Kevin MacLeod — Blip Stream — 9np9KK4ccuA
+Kevin MacLeod — Quirky Dog — oUdZOgWD0DU
+Kevin MacLeod — Volatile Reaction — 2pXa5jzaOBg
+Kevin MacLeod — Marty Gots a Plan — RhRNWAbeBpE
+Kevin MacLeod — Rollin at 5 — tBEoJqyeGHE
+Kevin MacLeod — Mining by Moonlight — bAYKt6yW23M
+Kevin MacLeod — Kool Kats — YqsARS39qqE
+Kevin MacLeod — Bossa Antigua — A25zUqFEJr4
+Kevin MacLeod — Airport Lounge — f7D5xpdAyjE
+
+== westside
+Ice Cube — It Was A Good Day — X3HaZBlt7TA
+Ice Cube — Check Yo Self (Remix) (ft. Das EFX) — IjrfcW_2txU
+Ice Cube — You Can Do It (ft. Mack 10, Ms. Toi) — xnKWh10rA4M
+50 Cent — In Da Club — L9rJ0vwBisE
+50 Cent — Candy Shop (ft. Olivia) — knnHXzGWqYk
+50 Cent — 21 Questions (ft. Nate Dogg) — 9RLPAIabrDM
+50 Cent — P.I.M.P. — ci9rlUhwvZI
+50 Cent — Many Men (Wish Death) — 7CVGDPqnZj8
+Dr. Dre — Still D.R.E. (ft. Snoop Dogg) — u8iMde8kVho
+Dr. Dre — The Next Episode (ft. Snoop Dogg, Kurupt, Nate Dogg) — A8V0-gLxeB0
+Dr. Dre — Forgot About Dre (ft. Eminem) — asIx3aiNxnw
+Dr. Dre — Nuthin' But A "G" Thang (ft. Snoop Dogg) — 8GliyDgAGQI
+Dr. Dre — I Need A Doctor (ft. Eminem, Skylar Grey) — rXc_XMKkt7Y
+Snoop Dogg — Gin And Juice — fWCZse1iwE0
+Snoop Dogg — Drop It Like It's Hot (ft. Pharrell) — RaCodgL9cvk
+Snoop Dogg — Who Am I (What's My Name)? — 2soGJXQAQec
+Snoop Dogg & Wiz Khalifa — Young, Wild & Free (ft. Bruno Mars) — Wa5B22KAkEk
+2Pac — California Love (ft. Dr. Dre) — RVuLwqdOPlo
+2Pac — Changes — IYAXM9klOCE
+2Pac — Hit 'Em Up (ft. Outlawz) — Sva8MJxkVJE
+2Pac — All Eyez On Me — H1HdZFgR-aA
+2Pac — Ambitionz Az A Ridah — 77nB_9uIcN4
+2Pac — Dear Mama — yBYkb6Vb0G4
+Eminem — Lose Yourself — xFYQQPAOz7Y
+Eminem — Without Me — pyb13N80DZQ
+Eminem — The Real Slim Shady — EgF_gOY_AX0
+Eminem — 'Till I Collapse — ytQ5CYE1VZw
+Coolio — Gangsta's Paradise (ft. L.V.) — SQCSxqScSVQ
+Warren G — Regulate (ft. Nate Dogg) — GdYpxVQ1BZs
+The Game — Hate It Or Love It (ft. 50 Cent) — JY0Ag0fMxz8
+The Game — How We Do (ft. 50 Cent) — _mWkdqGcH7k
+Xzibit — X — T3nrwUOzmIE
+Eazy-E — Boyz-N-The-Hood — PIU07K_28ck
+N.W.A — Straight Outta Compton — kIJeJK0iZDE
+Kendrick Lamar — HUMBLE. — ZZxHN6hpoeQ
+
+== ncs
+Alan Walker — Fade — vg95MYlTb3c
+Alan Walker — Spectre — p7nIEJ1vpFM
+Alan Walker — Force — lqYQXIt4SpA
+Elektronomia — Sky High — TW9d8vYrVFQ
+Elektronomia — Energy — fzNMd3Tu1Zw
+Elektronomia — Limitless — cNcy3J4x62M
+Janji — Heroes Tonight (feat. Johnning) — 3nQNiWdeH2Q
+DEAF KEV — Invincible — J2X5mJ3HDYE
+Different Heaven & EH!DE — My Heart — jK2aIUmmdP4
+Different Heaven — Nekozilla — 6FNHe3kf8_s
+Cartoon, Jéja — On & On (feat. Daniel Levi) — K4DyBUG242c
+Cartoon, Jéja — Why We Lose (feat. Coleman Trapp) — zyXmsVwZqX4
+Tobu — Candyland — IhchfhxvPKI
+Tobu — Hope — Y1Z3Q3O7IRE
+Tobu & Itro — Sunburst — 1-0-4HqyvXE
+Itro & Tobu — Cloud 9 — 1KqQQHpQc8w
+Jim Yosef — Firefly — x_OwcYTNbHs
+Jim Yosef — Link — 9iHM6X6uUH8
+Lost Sky — Fearless pt.II (feat. Chris Linton) — S19UcWdOA-I
+Lost Sky — Dreams pt. II (feat. Sara Skinner) — L7kF4MXXCoA
+Disfigure — Blank — p7ZsBPK656s
+Spektrem — Shine — n4tK7LYFxI0
+Warriyo — Mortals (feat. Laura Brehm) — yJg-Y5byMMw
+Electro-Light — Symbolism — __CRWE-L45k
+Syn Cole — Feel Good — q1ULJ92aldE
+Unknown Brain — Superhero (feat. Chris Linton) — LHvYrn3FAgI
+Unknown Brain — Why Do I? (feat. Bri Tolani) — tcHJodG5hX8
+Robin Hustin x TobiMorrow — Light It Up (feat. Jex) — bdE_SyHad90
+Jo Cohen & Sex Whales — We Are — C6IaUMAg3Dc
+Diviners — Savannah (feat. Philly K) — u1I9ITfzqFs
+Ship Wrek & Zookeepers — Ark — 8xlDwukxjnA
+Egzod & Maestro Chives — Royalty (ft. Neoni) — C5fLxtJH2Qs
+Culture Code — Make Me Move (feat. Karra) — vBGiFtb8Rpw
+NIVIRO — The Ghost — lTEzfj8IAR0
+K-391 — Earth — dOo2jWb73JY
+
+== phonk
+Kordhell — Murder In My Mind — w-sQRS-Lc9k
+Kordhell — Live Another Day — 7pmUQJ5KAlU
+Kordhell — Killers From The Northside — DK6IRG4CAbw
+Kordhell — Scopin — VXaq77GiyEo
+PlayaPhonk — PHONKY TOWN — yJHi_Mii4lY
+Dxrk ダーク — RAVE — PTZgxW_3LIQ
+INTERWORLD — METAMORPHOSIS — NS9z2QHcZdY
+INTERWORLD — RAPTURE — i5zR6toPVQ8
+DVRST — Close Eyes — ao4RCon11eY
+DVRST — Dream Space — dSPiDFZmAnQ
+Ghostface Playa — Why Not — Hh5jEQraXaw
+MoonDeity — NEON BLADE — Mu965dWgMMQ
+MoonDeity — WAKE UP! — tKvEnZSoqas
+Kaito Shoma — Scary Garry — z9nHtotESH4
+Hensonn — Sahara — pIZ0QRWK0zg
+Hensonn — Flare — G9CVOSRkxUs
+Freddie Dredd — Limbo — glkSGJU-yLw
+Freddie Dredd — Cha Cha — 7VGS1biCJDE
+Freddie Dredd — GTG — fslK9YTkcc0
+NCTS — NEXT! — igs149KCTgA
+VØJ, Narvent — Memory Reboot — mSMLdxRubPo
+Narvent — Fainted — dJWFUBAUM0E
+ZWE1HVNDXR, yatashigang — LOVELY BASTARDS — _G0zUqdDdoo
+g3ox_em — GigaChad Theme (Phonk House Version) — OVh0bMNSFss
+Eternxlkz — SLAY! — qlzcHe_gusE
+Eternxlkz — BRODYAGA FUNK — szJn6ayPv-4
+LXNGVX — Montagem Mysterious Game — dJM5DN1mMls
+ONIMXRU, SMITHMANE — SHADOW — jqbSVBS1x0w
+MXZI — MONTAGEM TOMADA — EYaP4h6njtI
+SXMPRA — COWBELL WARRIOR! — FHWgDichnMo
+KSLV Noh — Override — NS8DPG62Fto
+Night Lovell — Polozhenie — pVjdMQ_iAh0
+Bibi Babydoll, DJ Brunin XM — Automotivo Bibi Fogosa — PgF29M69QXg
+sma$her, MC DA$ILVA — BAILA LENTO — uzHgK4kgZSk
+Teriyaki Boyz — Tokyo Drift (Fast & Furious) — aAiAu3-rNEg
+
+== lofi
+Nujabes — Feather (feat. Cise Starr & Akin) — hQ5x8pHoIPA
+Nujabes — Aruarian Dance — HkZ8BitJhvc
+Nujabes — Luv(sic) Part 3 (feat. Shing02) — mc_xD6aGV5w
+Nujabes — Reflection Eternal — 2wK27xW4OFI
+Nujabes — Counting Stars — IXa0kLOKfwQ
+Nujabes — Lady Brown (feat. Cise Starr) — R5dphZnPb9A
+Nujabes — Shiki no Uta (feat. MINMI) — GDCblg3XAOQ
+DJ Okawari — Flower Dance — AULG4MoYxQk
+Jinsang — affection — 6jGPypPNEg4
+idealism — controlla — 3_eD_QOTv-U
+idealism — snowfall — o2k1OckoOso
+kudasaibeats — the girl i haven't met — XDpoBc8t6gE
+Tomppabeats — Monday Loop — c8kVMGWDO4w
+potsu — i'm closing my eyes (feat. shiloh) — Bw6wugjLYU0
+Powfu — death bed (coffee for your head) (feat. beabadoobee) — hNqdxGsbQsA
+LAKEY INSPIRED — Better Days — RXLzvo6kvVQ
+LAKEY INSPIRED — Chill Day — 3HjG1Y4QpVA
+Joakim Karud — Dreams — p56gqDhUYbU
+Joakim Karud — Canals — jxpEdiB6U88
+saib. — West Lake — wbysDvxmgd0
+saib. — Sakura Trees — GmOlqcVj7Lk
+Kina — Can We Kiss Forever? (feat. Adriana Proenza) — B_GIjw6-VLM
+Kina — get you the moon (feat. Snow) — P-QutKCENEs
+In Love With A Ghost — we've never met but can we have a coffee or something — 0XZJ5mD6nSU
+FKJ — Ylang Ylang — EfgAd6iHApE
+Tom Misch — Beautiful Escape (feat. Zak Abel) — 4QLYXPto0w4
+L'Indécis — Soulful — 7ZguAEoNpZw
+Lofi Girl — Snowman — 1P5BSm_oFJg
+J Dilla — Don't Cry — NHn-G_YpQB0
+Mounika. — Cut My Hair (feat. Cavetown) — rbhpjuEAz8M
+Aso — Seasons — Xo3ez6LThQ4
+Bonobo — Kerala — S0Q4gqBUs7c
+Tycho — Awake — VZBrZV3nHAA
+Nightmares on Wax — You Wish — TwDOa-lvizM
+Emancipator — Soon It Will Be Cold Enough to Build Fires — QRgPIbSX1mg
+
+== rock
+Queen — Bohemian Rhapsody — fJ9rUzIMcZQ
+Queen — Don't Stop Me Now — HgzGwKwLmgM
+Queen — We Will Rock You — -tJYN-eG1zk
+AC/DC — Back In Black — zjx0D1Ivy-Q
+AC/DC — Highway to Hell — qKggnBh2Mdw
+AC/DC — Thunderstruck — VcByktP-mdE
+Guns N' Roses — Sweet Child O' Mine — D2gWc5Sw75w
+Guns N' Roses — Welcome To The Jungle — _20nkqX8rps
+Nirvana — Smells Like Teen Spirit — JyGNABrosb8
+Bon Jovi — It's My Life — rcq_mlS1DAU
+Bon Jovi — Livin' On A Prayer — 2ognf_oRQWM
+Linkin Park — In The End — eVTXPUF4Oz4
+Linkin Park — Numb — kXYiU_JCYtU
+The Killers — Mr. Brightside — yVLRhZiZ5Wc
+Green Day — Boulevard Of Broken Dreams — Soa3gO7tL-c
+Green Day — American Idiot — Ee_uujKuJMI
+Red Hot Chili Peppers — Can't Stop — 8DyziWtkfBw
+Red Hot Chili Peppers — Californication — YlUKcNNmywk
+The White Stripes — Seven Nation Army — 0J2QdDbelmY
+Foo Fighters — The Pretender — m4OnAwaDVTE
+Survivor — Eye Of The Tiger — H2ew6ayIQYw
+Europe — The Final Countdown — fBMtQDUAjno
+Deep Purple — Smoke On The Water — Q2FzZSBD5LE
+Metallica — Enter Sandman — CD-E-LDc384
+KISS — I Was Made For Lovin' You — UpEQPNboFFM
+Aerosmith — Dream On — 54BCLYNkFKg
+Evanescence — Bring Me To Life — JixFMKqQU5w
+System Of A Down — Chop Suey! — 27G-wokE3TQ
+Arctic Monkeys — Do I Wanna Know? — bpOSxM0rNPM
+My Chemical Romance — Welcome To The Black Parade — RRKJiM9Njr8
+blink-182 — All The Small Things — G6TxoU_RjjQ
+Oasis — Wonderwall — 6hzrDeceEKc
+The Rolling Stones — Paint It, Black — Er5S7Jq4V2c
+Soda Stereo — De Música Ligera (en vivo) — -XIeMp4zQC4
+Enanitos Verdes — Lamento Boliviano — hReAuaAuJOE
+
+== latino
+Daddy Yankee — Gasolina — CCF1_jI8Prk
+Daddy Yankee — Rompe — AX9WpXYSlW8
+Daddy Yankee — Limbo — jlFeOzXvI7g
+Daddy Yankee — Lo Que Pasó, Pasó — 8MpVPbN3_eE
+Daddy Yankee — Con Calma (ft. Snow) — DiItGE3eAyQ
+Don Omar — Danza Kuduro (ft. Lucenzo) — YPlZ-nJewRE
+Don Omar — Dile — zODmu06pqvg
+Don Omar — Salió El Sol — Poj-wkGgFpM
+Don Omar — Pobre Diabla — JR9UC9l2WW4
+Wisin & Yandel — Rakata — xk-26ENyaXk
+Wisin & Yandel — Abusadora — 98LvKxivi7s
+Tego Calderón — Pa' Que Retozen — QtaNx_lQbLA
+Ivy Queen — Quiero Bailar — ykj61GLeVz4
+Calle 13 — Atrévete-te-te — gcOknZbStOY
+Zion & Lennox — Yo Voy (ft. Daddy Yankee) — _yIRcn2EDVQ
+Luis Fonsi — Despacito (ft. Daddy Yankee) — 2bHBUs-k3ac
+Nicky Jam & Enrique Iglesias — El Perdón — hXI8RQYC36Q
+Nicky Jam — Travesuras — OxxggwHFj7M
+Héctor & Tito — Baila Morena — yBDJjR5WF1E
+Los Palmeras — Bombón Asesino — UeFC_9oGqWg
+Damas Gratis — Se Te Ve La Tanga — jKgCg4cAVcw
+Los Pibes Chorros — Llegamos Los Pibes Chorros — Qpr5pWLlQmc
+Gilda — No Me Arrepiento De Este Amor — 8iUkmnLc1ec
+Rodrigo — La Mano De Dios — vmVtgmgLPzw
+Rodrigo — Lo Mejor Del Amor (en vivo) — qjZpTzFIcSw
+Los Ángeles Azules — Cómo Te Voy A Olvidar (ft. Kinky) — MP_CeJ6OqLw
+Los Ángeles Azules — Nunca Es Suficiente (ft. Natalia Lafourcade) — k76BgIb89-s
+Grupo Néctar — El Arbolito — E-Z6HiG0Eww
+Ráfaga — Mentirosa — jsCr8nw0YAY
+Antonio Ríos — Nunca Me Faltes — JAIp5fPqlcE
+Los Wachiturros — Tírate Un Paso — gZKYxtDHymc
+Amar Azul — Yo Me Enamoré — MOXcXy3fxAQ
+Rombai — Noche Loca (ft. Márama) — 3RDSrFCy-Wk
+La Sonora Dinamita — Que Nadie Sepa Mi Sufrir — GJDzHdzX8j0
+Celso Piña — Cumbia Sobre El Río — k0jjy2sUjQ0
+
+== synthwave
+Kavinsky — Nightcall — MV_3Dpw-BRY
+Kavinsky — Odd Look (ft. The Weeknd) — OSW2zeM3yLU
+Kavinsky — Protovision — 41_svUt5_e0
+Kavinsky — Testarossa Autodrive — ErQNRwH-Hmk
+The Midnight — Sunset — URma_gu1aNE
+The Midnight — Days Of Thunder — UiSB2Fbw9gs
+FM-84 — Running In The Night (feat. Ollie Wride) — TvZskcqdYcE
+Timecop1983 — On the Run — _Ci0Kgdpgsw
+GUNSHIP — Tech Noir — -nC5TBv3sfU
+GUNSHIP — Dark All Day (feat. Tim Cappello & Indiana) — 60ruvzfXQoE
+GUNSHIP — Fly For Your Life — Jv1ZN8c4_Gs
+Perturbator — Future Club — RY66fdMt4vc
+Perturbator — Humans Are Such Easy Prey — Y8DekFFCE5c
+Carpenter Brut — Turbo Killer — er416Ad3R1g
+Carpenter Brut — Roller Mobster — qFfybn_W8Ak
+Lazerhawk — Overdrive — x1NAhlVRaZ4
+College & Electric Youth — A Real Hero — -DSVDcw6iW8
+Electric Youth — Runaway — zvnCO9lAMEo
+Power Glove — Blood Dragon Theme — MEtdyn2QEzA
+Miami Nights 1984 — Accelerated — rDBbaGCCIhk
+The Weeknd — Blinding Lights — o6ytLPKscrU
+Daft Punk — Derezzed — F4eccPBFEjE
+Jan Hammer — Crockett's Theme — T7c6wL5UFl4
+Harold Faltermeyer — Axel F — Qx2gvHjNhQ0
+HOME — Resonance — xs9_uU18Bt4
+HOME — We're Finally Landing — zR6fECxF44I
+M.O.O.N. — Crystals — AVblOqZBlJw
+M.O.O.N. — Hydrogen — SNE2oCZH_4k
+Jasper Byrne — Miami — ksctj-OTpEY
+Desire — Under Your Spell — 9K7rmxjk5RQ
+Chromatics — Tick Of The Clock — vWD7k6TrJ-g
+Dance With The Dead — Andromeda — q3lpoGABH6A
+Michael Oakley — Turn Back Time — k4lt3DO2Xt4
+Dynatron — Pulse Power — Ak1-qLbHHCM
+Com Truise — Propagation — QIdnJhuiQo8
+
+== epica
+Two Steps From Hell — Heart of Courage — P1DH8LraXDA
+Two Steps From Hell — Victory — hKRUPYrAQoE
+Two Steps From Hell — Protectors of the Earth — x5Q_TSNk-p4
+Two Steps From Hell — Archangel — mLUguXpUIb0
+Two Steps From Hell — Star Sky — pICAha0nsb0
+Two Steps From Hell — Strength of a Thousand Men — jIxas0a-KgM
+Two Steps From Hell — El Dorado — qiB98Wbsdlo
+Two Steps From Hell — Black Blade — HPe4G9BiIc4
+Two Steps From Hell — Freedom Fighters — YP1QHVNHMAE
+Two Steps From Hell — Blackheart — vbttZVTSJRU
+Two Steps From Hell — Impossible (feat. Merethe Soltvedt) — 6qTghUgMOeY
+Two Steps From Hell — Never Back Down — uZTkg8GGEOo
+Two Steps From Hell — To Glory — abjE9Qx0O60
+Audiomachine — Breath and Life — 6db9hrzGhH4
+Audiomachine — Guardians at the Gate — zTXfTX00oJg
+Audiomachine — Akkadian Empire — gou1xZSWchc
+Thomas Bergersen — Final Frontier — BAzCf0ascW8
+Thomas Bergersen — Cry — YY2Kb-85tMQ
+Thomas Bergersen — Immortal — o65GSQPRhhw
+E.S. Posthumus — Unstoppable — VoaUYcwEpSw
+E.S. Posthumus — Nara — HhBHSvxi25k
+Globus — Preliator — VoF9HUvYPKs
+Immediate Music — Lacrimosa — bHPYOcgde98
+Ivan Torrent — Before I Leave This World — 1zlIPDbpX0I
+Really Slow Motion — Deadwood — T8BI2fKzdys
+Hans Zimmer — Time (Inception) — RxabLA7UQ9k
+Hans Zimmer & Lisa Gerrard — Now We Are Free (Gladiator) — mQQKZ5cgybU
+Hans Zimmer — Cornfield Chase (Interstellar) — JuSsvM8B4Jc
+Hans Zimmer — No Time for Caution (Interstellar) — m3zvVGJrTP8
+Klaus Badelt — He's a Pirate (Piratas del Caribe) — 4HFMEM-cPG8
+Ramin Djawadi — Game of Thrones (Main Title) — eCemS3f-LDU
+Steve Jablonsky — Arrival to Earth (Transformers) — 0_FHPJIhNBw
+Jeremy Soule — Dragonborn (Skyrim) — UsnRQJxanVM
+Howard Shore — Concerning Hobbits (El Señor de los Anillos) — LQed7aE9YHQ
+Carl Orff — O Fortuna (Carmina Burana) — GXFSK0ogeg4
+
+== internet
+Rick Astley — Never Gonna Give You Up — dQw4w9WgXcQ
+Darude — Sandstorm — y6120QOlsfU
+Smash Mouth — All Star — TiV2iSLfU0g
+a-ha — Take On Me — djV11Xbc914
+Haddaway — What Is Love — HEXWRTEbj1I
+Eiffel 65 — Blue (Da Ba Dee) — zA52uNzx7Y4
+Crazy Frog — Axel F — k85mRPqvMbE
+PSY — Gangnam Style — 9bZkp7q19f0
+Baauer — Harlem Shake — qV0LHCHf-pE
+O-Zone — Dragostea Din Tei (Numa Numa) — YnopHCL1Jk8
+Ylvis — The Fox (What Does The Fox Say?) — PWtQK95CNMQ
+Rebecca Black — Friday — 4nlV6uA1Cw4
+LMFAO — Party Rock Anthem (ft. Lauren Bennett, GoonRock) — BHzBNSYtuFw
+Eduard Khil — Trololo — 0q6yphdZhUA
+Bag Raiders — Shooting Stars — BAdLRRbzOv4
+Vicetone & Tony Igy — Astronomia (Coffin Dance) — iLBBRuVDOo4
+Tay Zonday — Chocolate Rain — EwTZ2xpQwpA
+Caramella Girls — Caramelldansen — 6-8E4Nirh9s
+Noisestorm — Crab Rave — cE0wfjsybIQ
+Toby Fox — Megalovania — KK3KXAECte4
+Aaron Smith — Dancin (Krono Remix) (ft. Luvli) — 6Nb-prB-4P0
+Daler Mehndi — Tunak Tunak Tun — eZ2PtEx9-ls
+Alstroemeria Records — Bad Apple!! (feat. nomico) — ThHvx5a9IYA
+Boney M. — Rasputin — yiYOHK1F4cg
+Max Coveri — Running in the 90s — NNaJxMutEIE
+Dave Rodgers — Deja Vu — UT7O7FyUbxA
+Manuel — Gas Gas Gas — atuFSv2bLa8
+Andrew Gold — Spooky Scary Skeletons — v45YO1zepHg
+Loituma — Ievan Polkka — hqthspSKZV8
+El Chombo — Dame Tu Cosita (ft. Cutty Ranks) — FzG4uDgje3M
+PIKOTARO — PPAP (Pen-Pineapple-Apple-Pen) — 0E00Zuayv9Q
+SunStroke Project & Olia Tira — Run Away (Epic Sax Guy) — ECyeUYsU14E
+Bryant Oden — The Duck Song — MtN1YnoL46Q
+Toto — Africa — U1LB_OerHCE
+daniwell — Nyan Cat (feat. Momone Momo) — FPXrLLDae2U

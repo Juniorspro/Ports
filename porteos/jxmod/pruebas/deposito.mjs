@@ -42,7 +42,8 @@ async function abrir(nom, w, h, movil, o = {}) {
   await ctx.addInitScript((P) => { try { if (!localStorage.getItem('jx_prefs')) localStorage.setItem('jx_prefs', JSON.stringify(P)); } catch (e) {} }, PREFS0(o.lang));
   if (o.antes) await ctx.addInitScript(o.antes);
   const p = await ctx.newPage(); p.on('pageerror', (e) => errJS.push(nom + ': ' + e.message.slice(0, 200)));
-  p.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|net::ERR|WebSocket|mqtt|ERR_NAME/i.test(m.text())) errJS.push(nom + ' consola: ' + m.text().slice(0, 200)); });
+  // (lo que escribe en su consola el reproductor de YouTube —la música del menú: musica.js— no es del juego)
+  p.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|net::ERR|WebSocket|mqtt|ERR_NAME/i.test(m.text()) && !/youtube(-nocookie)?\.com|ytimg\.com|googlevideo\.com/.test((m.location() || {}).url || '')) errJS.push(nom + ' consola: ' + m.text().slice(0, 200)); });
   if (o.ins) { const cdp = await ctx.newCDPSession(p); await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { left: o.ins, right: 0, top: 0, bottom: 0 } }); }
   const ev = (s) => p.evaluate((x) => window.__ev(x), s);
   await p.goto((o.url || HTML) + '?test' + (o.q || '')); await p.waitForFunction(() => window.__listo, null, { timeout: 240000 });
@@ -63,7 +64,7 @@ const MEDIR = `(() => {
   const rr = (e) => { if (!rot) { const q = e.getBoundingClientRect(); return { x0: q.left, y0: q.top, x1: q.right, y1: q.bottom }; } const r = depRect(e); return { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h }; };
   const vis = (e) => e.offsetWidth > 0 && e.offsetHeight > 0 && !e.closest('.oc') && getComputedStyle(e).visibility !== 'hidden';
   const nom = (e) => (e.dataset.rb || e.id || e.className.baseVal || e.className || e.tagName);
-  const toc = [...H0.querySelectorAll('button, input, [data-rb]')].filter(vis).filter((e) => !e.parentElement.closest('button')).map((e) => ({ k: nom(e), ...rr(e) }));
+  const toc = [...H0.querySelectorAll('button, input, [data-rb]')].filter(vis).filter((e) => !e.parentElement.closest('button')).map((e) => ({ k: nom(e), mus: !!e.closest('.musChip'), ...rr(e) }));
   const cajas = DP_K.map((k) => { const e = H0.querySelector('.dpC_' + k), c = e.querySelector('.dpChapa'); return { k, ...rr(e), ch: rr(c), cara: DEP.cara[k], sale: c.classList.contains('dpSale'),
     fP: parseFloat(getComputedStyle(c.querySelector('.dpChP')).fontSize), fD: parseFloat(getComputedStyle(c.querySelector('.dpChD')).fontSize),
     t: c.querySelector('.dpChP').textContent.replace(/[\\u00ad\\u200b]/g, '') + ' / ' + c.querySelector('.dpChD').textContent, d3: DEP.cajas[k].o.b.pos.distTo(DEP.cajas[k].L.p) + (1 - Math.abs(DEP.cajas[k].o.b.q.x * DEP.cajas[k].L.q.x + DEP.cajas[k].o.b.q.y * DEP.cajas[k].L.q.y + DEP.cajas[k].o.b.q.z * DEP.cajas[k].L.q.z + DEP.cajas[k].o.b.q.w * DEP.cajas[k].L.q.w)) }; });
@@ -83,7 +84,9 @@ const MEDIR = `(() => {
 })()`;
 function revisar(M, ins = 0) {
   const pr = [], pisa = (a, b2) => Math.min(a.x1, b2.x1) - Math.max(a.x0, b2.x0) > 0.5 && Math.min(a.y1, b2.y1) - Math.max(a.y0, b2.y0) > 0.5;
-  if (M.toc.length > 12) pr.push(`${M.toc.length} cosas para tocar (más de 12)`);
+  // (la placa de la música —juego/musica.js, pedida después por el dueño— no cuenta entre las 12; sí se mide que no pise nada
+  // y su tamaño; el resto, en pruebas/musica.mjs)
+  const propias = M.toc.filter((e) => !e.mus).length; if (propias > 12) pr.push(`${propias} cosas para tocar (más de 12)`);
   for (const e of M.toc) {
     if (Math.min(e.x1 - e.x0, e.y1 - e.y0) < 43.5) pr.push(`${e.k} chico ${Math.round(e.x1 - e.x0)}×${Math.round(e.y1 - e.y0)}`);
     // (la muesca es de la pantalla, a la izquierda, en cualquier idioma)

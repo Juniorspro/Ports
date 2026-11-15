@@ -10,7 +10,7 @@ CORE_ESC = {'FlatGrass', 'Desert', 'DesertV2', 'Mars', 'Space'}   # (mapas chico
 CORE_SKIN = {'Hero'}
 # prefabs que van en un paquete propio (prefijo del nombre → grupo): se bajan al ponerlos o al abrir su sección
 PF_APARTE = {'NK_': 'p_nuk'}
-SON_APARTE = {'NK_': 'p_nuk', 'MM_': 'a_memes', 'fn_': 'm_RB_Pizzeria'}
+SON_APARTE = {'NK_': 'p_nuk', 'MM_': 'a_memes', 'fn_': 'm_RB_Pizzeria', 'mu_': 'a_musica'}   # (mu_: la música de Casual, juego/musica.js)
 # los que además van en otro paquete chico (los Pill Packs, juego/pillpacks.js: transformado en un animatrónico suenan el
 # grito, la risa, los pasos... sin bajar los 5 MB de la pizzería; la pizzería sigue trayendo los suyos)
 SON_TAMBIEN = {'a_pill': ('fn_grito', 'fn_risa', 'fn_paso1', 'fn_paso2', 'fn_paso3', 'fn_cajita', 'fn_estatica', 'fn_ollas', 'fn_foxycorre')}

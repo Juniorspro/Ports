@@ -343,6 +343,7 @@ function abrirAjustes(desde) {
   miPintar();
   if (typeof icappConectar === 'function') icappConectar();   // (el ícono de la app: iconoapp.js)
   if (typeof milogoConectar === 'function') milogoConectar();   // (tu logo en el juego: milogo.js)
+  if (typeof musAjustes === 'function') musAjustes(c);   // (la pestaña Música: musica.js)
   $('aG').value = PREFS.gfx; $('aSo').value = String(PREFS.sombras); $('aPo').value = PREFS.post; $('aTq').value = PREFS.texQ;
   $('aFov').value = fovBase();
   $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI; $('aDin').checked = PREFS.resDin !== false;
