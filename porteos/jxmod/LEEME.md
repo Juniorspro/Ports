@@ -2252,6 +2252,32 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.7: paneles nuevos con animaciones, fondos animados, música en el menú y La grieta fija
+
+Pedidos del dueño después de la 3.6 (con capturas de su celular): «aún siguen blancas estas partes, y en otras muy pero muy
+junto y simple, sin decoración o animaciones; me gustaría animaciones de verdad en los botones», «que los fondos sean
+animados de verdad», música en el menú y que el evento no se pueda apagar. Misma firma que la 3.2 a la 3.6: quien tiene una
+de esas actualiza encima; quien sigue en la 3.1 tiene que desinstalarla antes.
+
+- **Paneles del inicio con el lenguaje del clásico** (`juego/paneles.css` y `juego/paneles.js`, nuevos; un solo sistema
+  de estilo para todos): Empezar partida, Multijugador (Crear server, LAN, la clave), Social (Chats, Amigos, Buscar
+  jugador, Perfil), Mods y mapas (Mods, Mapas, Emotes, GMod, Crear un mod), Crear un mapa, Personajes, Ajustes, La grieta,
+  la bienvenida y los carteles. Nada blanco: negro con grano, rasgaduras, cinta, rayas de peligro, marcas de esquina, el
+  número de cada sección y la letra condensada en los títulos. Lo mismo de antes en el mismo orden; los formularios con
+  campos de ~44 px para que en 873×402 se vea lo mismo que en la 3.6. **Animaciones** (todas terminan; con «menos
+  movimiento» o Patata, ninguna): el panel entra rasgándose de izquierda a derecha con un borde amarillo dentado (< 0,5 s;
+  los botones se pueden tocar desde el primer cuadro), el contenido en cascada, la marca de la pestaña elegida que se
+  desliza, un sello al elegir mapa, el golpe y el barrido de luz en los botones, la entrada al server. Ajustes acomoda 6 o
+  más pestañas (con la de Música: en el celular chico pasa a dos columnas de íconos con texto). Prueba:
+  `pruebas/paneles_inicio.mjs`.
+- **Fondos animados** (`juego/fondovideo.js`; sección «Fondos animados del menú clásico», más abajo): las 6 escenas en
+  video, renderizadas con el motor del juego y en bucle de 10 s sin que se note el empalme (4,85 MB las 6, H.264).
+- **Música en el menú** (`juego/musica.js`; sección «Música en el menú», abajo): Ajustes → Música, 10 estaciones de 35
+  canciones, Casual sin internet, «Mi música» y «Sin música».
+- **La grieta no se apaga**: sin interruptor en Ajustes, en su panel ni en el depósito; a quien la tenía apagada se le
+  vuelve a prender (`principal.js`).
+- **Pruebas sobre el juego con todo junto**: PRUEBAS_37
+
 ## Música en el menú (Ajustes → Música): 10 estaciones de 35 canciones, Casual sin internet y «Mi música»
 
 El dueño: «Agregá música al menú: por ejemplo solamente reproduciendo de fondo música de YouTube en vez de estar

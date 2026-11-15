@@ -99,7 +99,10 @@ if (corre(1)) {
 
 // ======================= 0. YouTube de verdad: el iframe carga y la API contesta =======================
 if (corre(0)) {
-  const A = await abrir('real', { real: true });
+  // (una estación de YouTube: Casual suena del paquete a_musica cuando el armado lo trae, sin reproductor de YouTube; y un
+  // toque en el fondo, como el jugador en la web)
+  const A = await abrir('real', { real: true, auto: true, prefs: { musEst: 'westside' } });
+  await menuListo(A); await A.p.mouse.click(Math.round(873 * 0.8), Math.round(402 * 0.45));
   const ok = await esperar(A, `!!MUS.ytListo`, 30000);
   const r = await A.ev(`({ listo: !!MUS.ytListo, src: (document.querySelector('#musMini iframe') || {}).src || '' })`);
   caso('0 · con YouTube de verdad el reproductor carga y contesta (onReady/initialDelivery)', ok && /youtube-nocookie\.com\/embed\/[\w-]{11}\?/.test(r.src) && /enablejsapi=1/.test(r.src), r);
