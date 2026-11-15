@@ -218,6 +218,7 @@ function cerrarPaneles() {
   if (typeof RUL !== 'undefined') { RUL.asignar = -1; if (RUL.abierto) rulCerrar(); }   // (la ruleta de emotes)
   for (const id of ['spawn', 'pausa', 'ajustes', 'emotes']) $(id).classList.add('oc');
   { const pj = $('pjJuego'); if (pj) pj.classList.add('oc'); }
+  if (typeof grabPanelCerrar === 'function') grabPanelCerrar(false);   // (las opciones del modo grabación: grabar.js)
   // (Personajes abierto desde la pausa: el panel del inicio arriba de la partida; la tecla de pausa lo cierra y se vuelve a jugar)
   if (typeof RB !== 'undefined' && RB.desdeJuego === 'pausa' && typeof rbVisible === 'function' && rbVisible()) { RB.desdeJuego = false; inicioMostrar(false); if (typeof menuMostrar === 'function') menuMostrar(false); }
   if (typeof EMU !== 'undefined' && EMU.ed && typeof emuCerrar === 'function') emuCerrar();   // (el panel de la música de un emote)

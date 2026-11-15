@@ -15,6 +15,9 @@ function audioIniciar() {
   try { AUD.ctx = AUD.mono ? new C({ sampleRate: 22050, latencyHint: 'interactive' }) : new C(); } catch (e) { try { AUD.ctx = new C(); } catch (x) { return; } }
   const c = AUD.ctx;
   AUD.master = c.createGain(); AUD.master.gain.value = PREFS.vol / 100; AUD.master.connect(c.destination);
+  // (las voces del chat salen por su lado, con el mismo volumen —audioPaso lo copia—: así el modo grabación graba el juego
+  // sin las voces de los demás, salvo que se pidan; grabar.js)
+  AUD.voz = c.createGain(); AUD.voz.gain.value = AUD.master.gain.value; AUD.voz.connect(c.destination);
   // eco: respuesta al impulso inventada (ruido que se apaga), estéreo
   try {
     const n = Math.floor(c.sampleRate * 2.2), ir = c.createBuffer(2, n, c.sampleRate);
@@ -114,6 +117,7 @@ function buclesFin() { for (const [k, L] of AUD.loops) { if (!L.vivo) { try { L.
 // cada cuadro: el oído en la cámara y cuánto eco según el lugar (techo y paredes cerca = adentro)
 function audioPaso(dt) {
   if (!AUD.ctx) return;
+  if (AUD.voz && AUD.voz.gain.value !== AUD.master.gain.value) AUD.voz.gain.value = AUD.master.gain.value;
   const L = AUD.ctx.listener, f = CAM.fwd, u = CAM.q.rot(v3(0, 1, 0));
   if (L.positionX) { L.positionX.value = CAM.pos.x; L.positionY.value = CAM.pos.y; L.positionZ.value = CAM.pos.z; L.forwardX.value = f.x; L.forwardY.value = f.y; L.forwardZ.value = f.z; L.upX.value = u.x; L.upY.value = u.y; L.upZ.value = u.z; }
   else { L.setPosition(CAM.pos.x, CAM.pos.y, CAM.pos.z); L.setOrientation(f.x, f.y, f.z, u.x, u.y, u.z); }
@@ -151,7 +155,14 @@ function fondoCallar() {
   const M = new Set(document.querySelectorAll('audio,video')); if (typeof EST !== 'undefined') for (const S of EST.son.values()) M.add(S.a);
   FONDO.media = []; for (const m of M) if (!m.paused && !(m.srcObject && m.muted)) { FONDO.media.push(m); try { m.pause(); } catch (e) {} }
   FONDO.yt = fondoYT(); for (const f of FONDO.yt) fondoYTcmd(f, 'pauseVideo');
-  FONDO.mic = []; if (typeof VOZ !== 'undefined' && VOZ.stream) for (const t of VOZ.stream.getAudioTracks()) if (t.enabled) { t.enabled = false; FONDO.mic.push(t); }
+  // (en Android el micrófono se suelta del todo, no sólo se calla: mientras está abierto, Chromium pone toda la app en modo
+  // llamada y lo que empieza a sonar sale como voz de llamada, que el grabador de pantalla del celular no puede grabar —el
+  // sonido del juego se arma de nuevo al volver—; vozMicSoltar, voz.js. En la compu sólo se calla)
+  FONDO.mic = [];
+  if (typeof VOZ !== 'undefined' && VOZ.stream) {
+    if (typeof vozMicSoltarEnFondo === 'function' && vozMicSoltarEnFondo()) FONDO.micSuelto = vozMicSoltar();
+    else for (const t of VOZ.stream.getAudioTracks()) if (t.enabled) { t.enabled = false; FONDO.mic.push(t); }
+  }
   try { if ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel(); } catch (e) {}
   if (typeof OIDO !== 'undefined' && OIDO.r && typeof oidoParar === 'function') oidoParar();
   FONDO.maq = !!(typeof MAQ !== 'undefined' && MAQ.ifr); if (FONDO.maq) try { MAQ.ifr.contentWindow.postMessage({ rbMaqFondo: 1 }, '*'); } catch (e) {}
@@ -166,6 +177,7 @@ function fondoSeguir() {
   if (typeof YT !== 'undefined') YT.vol = -1;
   if (typeof EST !== 'undefined') for (const S of EST.son.values()) if (!S.listo && S.espera) S.espera = performance.now() + 9000;   // (una que se estaba conectando no se da por mala)
   for (const t of FONDO.mic) if (t.readyState === 'live') t.enabled = true; FONDO.mic = [];
+  if (FONDO.micSuelto) { FONDO.micSuelto = false; if (typeof vozMicVolver === 'function') vozMicVolver(); }   // (primero el sonido del juego, después el micrófono)
   if (FONDO.maq && typeof MAQ !== 'undefined' && MAQ.ifr) try { MAQ.ifr.contentWindow.postMessage({ rbMaqFondo: 0 }, '*'); } catch (e) {}
   FONDO.maq = false;
 }

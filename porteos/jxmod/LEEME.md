@@ -3840,3 +3840,146 @@ Pendiente (y por qué):
   cuerpo 0 (la cadera); acá el valor de fábrica es 1 (los muñecos de los NPC del juego quedan y se ven en red).
 - La patada no mueve una caja (le pega y le hace daño): la fuerza de las balas del Lua queda chica para un prop pesado.
 - Sin probar en un celular de verdad (emulado 873×393); la red, con dos páginas y un broker local.
+
+## Del Discord (Chillguy49603): el sonido interno al grabar, y el modo grabación
+
+Chillguy grababa con el grabador de pantalla del celular: los primeros dos o tres videos tenían el sonido del juego y
+después «dejó de funcionar y ya no me graba el sonido interno del juego». El dueño: «Agregaré un modo grabación donde
+puedes elegir grabar pantalla desde el juego sin gastar rendimiento». Son dos partes.
+
+### 1. Modo grabación (`juego/grabar.js`)
+
+- **Dónde**: Pausa → **● Grabar** (en el pie, al lado de Cargar) abre las opciones; **Empezar a grabar** cierra la pausa y
+  se juega grabando. También el botón **● REC** de la pantalla (con los del sistema, arriba a la izquierda; se esconde en
+  las opciones) y **F9** en la compu. Mientras graba, arriba al medio, un **punto rojo con el tiempo**: un toque termina y
+  guarda. En la pausa, el mismo botón dice **Terminar · 0:42**.
+- **Qué graba**: el lienzo del juego, sin la HUD (los botones son HTML: meterlos sería dibujar la página entera en cada
+  cuadro, y el navegador no tiene una forma barata —ni en la vista web de Android—; no se ofrece), más el video del susto
+  de la pizzería, que va encima. El **sonido sale del mismo AudioContext**: la salida general (`AUD.master`) va también a
+  un `MediaStreamAudioDestinationNode`, sin pasar por el sistema. **Micrófono** y **voces del chat** son opciones,
+  apagadas de fábrica: las voces ahora salen por su propio nodo (`AUD.voz`, mismo volumen) y su eco se apaga mientras se
+  graba sin ellas (medido: −65 dB en el video sin voces —la cola del eco de antes de empezar—; −5 dB con voces). Quedan
+  afuera los YouTube (radio, tele, música de los emotes: son de otro sitio), la voz del sistema de
+  Verity y las maquinitas (iframes aislados, con su propio sonido).
+- **Opciones**: calidad 720p, 1080p o «Pantalla» (el tamaño del lienzo); el número es el lado corto y el otro sigue la
+  forma de la pantalla (720p en 873×402 ≈ 1564×720, como el grabador del celular); 30 o 60 cuadros; bitrate según los
+  puntos por segundo, como recomienda YouTube (720p30 ≈ 5 Mbps de video + 128 kbps de sonido, ~39 MB por minuto; 1080p60 hasta 16 Mbps). **De
+  fábrica: 720p a 30**: el codificador del celular la hace sin esfuerzo y es la mitad de cuadros que 60 para copiar y
+  codificar. Si el codificador del aparato no puede con el tamaño (WebCodecs lo dice), se achica a lo que entre en
+  1920×1080 o 1280×720 y se avisa.
+- **Formato**: MP4 (H.264 + AAC) si `MediaRecorder.isTypeSupported` lo acepta (la vista web y Chrome de Android, Windows,
+  Mac, Safari); si no, WebM (VP8 + Opus; Chrome de Linux no tiene codificador AAC). Al empezar se avisa cuál quedó.
+  Chrome deja el WebM sin duración (los reproductores muestran --:-- y no dejan adelantar) y el MP4 en fragmentos sin la
+  duración total: al primer pedazo se le hace lugar (Duration en la Info del WebM; `mehd` en el MP4, que cuenta sus datos
+  desde cada `moof` y por eso no se rompe al correrlo) y al terminar se escribe el número (también `mvhd`, `tkhd` y `mdhd`,
+  que lee la galería de Android).
+- **Por qué un lienzo aparte** y no `captureStream` del lienzo del juego: el lienzo cambia de tamaño (la resolución
+  dinámica, girar el celular) y con H.264 en MP4 Chrome deja el video roto después del primer cambio (probado: los
+  cuadros nuevos no se decodifican); con un lienzo del tamaño del video, siempre igual.
+- **Pausa**: **se pausa junto con el juego** —con la pausa abierta y lo que se abre desde ella (Ajustes, Personaje), con el
+  menú de inicio arriba de la partida y con la app en segundo plano— y sigue con los demás menús (props, emotes, chat),
+  porque el mundo sigue andando. Así el video no tiene ratos quietos con un menú que no se ve, y la duración es la de lo
+  grabado. Salir al menú grabando guarda lo grabado.
+- **Guardar**: en la compu, una descarga `JXMod_AAAA-MM-DD_HH-MM-SS.webm` (o `.mp4`), con **Compartir** si el navegador
+  sabe compartir archivos. En la app, **en la galería, Movies/JXMod**, escrito **mientras se graba**: la página manda un
+  pedazo cada medio segundo en base64 (`JXNativo.grabEmpezar / grabEscribir / grabParche / grabFin`; un blob no se puede
+  bajar con DownloadListener) y `Grabador.java` lo escribe en orden en otro hilo, directo al archivo; la llamada sólo
+  encola, y si se atrasa más de 8 MB la página espera. En Android 10 o más va por MediaStore (pendiente hasta que termina:
+  la galería no lo muestra a medias); en el 7, 8 y 9, como archivo en Movies/JXMod con `WRITE_EXTERNAL_STORAGE`
+  (maxSdkVersion 28; si no lo dan, en la carpeta de la app). Al terminar, el aviso dice dónde quedó, con **Compartir**
+  (el menú del sistema) y **Ver** (la galería). Si la vista web se cae grabando, lo grabado hasta ahí queda.
+
+### 2. El sonido interno con el grabador del celular
+
+Android deja que otra app (el grabador de pantalla) grabe lo que suena en la app si la app lo permite
+(`allowAudioPlaybackCapture`, que con targetSdk 35 ya era sí) y si **sale como sonido común** (USAGE_MEDIA, GAME o
+UNKNOWN). Lo que sale como **voz de llamada** (USAGE_VOICE_COMMUNICATION) no lo deja grabar nunca. La causa probable, en
+el código de Chromium (la vista web):
+
+- `media/audio/android/audio_manager_android.cc`: al abrir un micrófono con efectos (cancelación de eco: el chat de voz lo
+  pide así, `voz.js`) pone **toda la app en modo llamada** (`MODE_IN_COMMUNICATION`, por `AudioManagerAndroid.java`) y
+  **cada salida de sonido que arma mientras tanto** usa `AAUDIO_USAGE_VOICE_COMMUNICATION` (o `SL_ANDROID_STREAM_VOICE`).
+  La salida queda así aunque después se apague el micrófono, hasta que se vuelva a armar.
+- La del juego (el AudioContext) se arma al empezar y **otra vez cada vez que vuelve de segundo plano** después de más de
+  5 s (el juego lo suspende al irse, `audio.js`, y Chromium cierra la salida quieta a los 5 s: `kStreamCloseDelaySeconds`).
+  Y el micrófono del chat **seguía abierto en segundo plano** (sólo se callaba). Con el chat de voz prendido: los primeros
+  videos andan (la salida es de antes del micrófono) y la primera vez que se va a la galería a mirar uno y vuelve, la
+  salida nueva sale como llamada: desde ahí ningún video tiene el sonido del juego. Encaja con «dos o tres videos y de
+  repente no».
+- Otras cosas que pueden pesar y dependen del celular o del grabador: algunos grabadores (Samsung, Xiaomi) cortan el
+  sonido interno mientras el teléfono está en modo llamada aunque el juego salga como sonido común; los que graban «sólo
+  el micrófono» no toman el sonido interno; y en algunos aparatos la salida de baja latencia por MMAP (la que pide la
+  vista web para el sonido de un juego) puede no grabarse si se armó antes de empezar a grabar (sin confirmar: no hay un
+  celular para probarlo). Eso no se puede cambiar desde la app.
+
+Lo que se arregló:
+
+- **El micrófono se suelta en segundo plano en Android** (`voz.js`: `vozMicSoltar` / `vozMicVolver`): al irse se cierra del
+  todo (el modo llamada se va) y al volver se abre recién cuando el sonido del juego ya arrancó otra vez como sonido común;
+  la voz sigue por las mismas conexiones con la pista nueva (`replaceTrack`). En la compu se sigue callando como antes.
+- **Manifiesto**: `android:allowAudioPlaybackCapture="true"` escrito (y `setAllowedCapturePolicy(ALLOW_CAPTURE_BY_ALL)` en
+  Android 10+), `DETECT_SCREEN_RECORDING` y `WRITE_EXTERNAL_STORAGE` (maxSdkVersion 28). Verificado con
+  `aapt2 dump xmltree` y `aapt dump badging` sobre el APK armado.
+- **Saber cómo está**: `JXNativo.audioEstado()` da el modo de audio, la política de captura y el uso de lo que suena; las
+  opciones de grabar lo dicen en la app («Grabador del celular: ahora puede grabar el sonido del juego» o por qué no). En
+  **Android 15** la app se entera cuando el grabador del sistema empieza a grabarla (`addScreenRecordingCallback`) y, si
+  el modo llamada no lo deja, el juego avisa qué hacer.
+- El modo grabación no depende de nada de esto: graba desde el AudioContext.
+
+Para verificarlo en un celular de verdad (no se pudo acá): con el chat de voz prendido, `adb shell dumpsys audio` muestra
+el modo (`mode: MODE_IN_COMMUNICATION` mientras el micrófono está abierto) y en «players» el `usage` de cada salida de
+`com.jxmod.app`: si la causa es ésta, con la 3.5, después de ir a la galería y volver, la del juego tendría que aparecer
+como `USAGE_VOICE_COMMUNICATION`, y con esto, al volver, como `USAGE_MEDIA` (o GAME). `adb shell dumpsys media.aaudio` muestra si usa MMAP.
+
+### Pruebas
+
+- `pruebas/grabar.mjs` (con ffprobe y ffmpeg; FASES=… para algunas partes): el archivo (duración en la cabecera = lo
+  grabado ±0,3 s sin la pausa ni el segundo plano, resolución, cuadros), el sonido en dB (disparo, explosión y música con
+  señal; silencio digital donde no sonó nada), sonido contra destello, el costo, el celular (873×402), la app simulada
+  (Grabador.java de verdad detrás de un JXNativo de prueba), MP4, el micrófono del chat en segundo plano y las voces.
+  **22/22 + 2/2** (en una máquina compartida con otras pruebas: espera a que baje la carga antes de medir tiempos):
+  - archivo de 720p30: WebM 1566×720 (VP8 + Opus 48 kHz), duración de la cabecera 9,546 s = lo grabado, con 1,5 s de pausa
+    y 1,5 s en segundo plano que no cuentan (reloj de la prueba 12,4 s); 30 por segundo con el juego a 43,6 → 29,7 en el
+    video (un cuadro sí y otro no); 60 por segundo → 49,3 con el juego a 50 (cada cuadro); 1080p → 1920×1080 en 640×360.
+  - sonido (dBFS, RMS): silencio −120 (digital) antes y después; disparo −7,8, explosión −6,2, música −24,8.
+  - sonido contra destello: −20, +20 y −5 ms (pantalla a 30); en el de 720p30 +24, +19 y +6 ms.
+  - MP4 (H.264 + Opus, porque este Chromium no tiene AAC): `mehd` = 5,023 s = lo grabado y se decodifica entero.
+  - celular 873×402: botón ● REC 47×47, «Grabar» en la pausa 101×44, botones de las opciones ≥ 44 (11), indicador 96×44
+    arriba al medio, aviso de guardado arriba; ninguno pisa un control. También en la compu, en ruso, filipino, árabe,
+    alemán, en 640×360 y con el celular parado (capturas aparte): nada se corta.
+  - costo (abajo).
+- `apk/pruebas/unido/PruebaGrabador.java` (también en `correr.sh`), **6/6**: 50 MB por pedazos de 1 MB con Java limitado a
+  24 MB → `Movies/JXMod/…` igual byte por byte (SHA-256) en 562 ms (89 MB/s en esta máquina; un celular, varias veces
+  menos y sobra: 720p30 son 0,7 MB/s), lo vivo en Java después de cada recolección ≤ 9,5 MB, la cola ≤ 3 MB; un minuto de
+  720p30 (38 MB) llegando a su ritmo: guardado 43 ms después del último pedazo y cada llamada de la página ≤ 3,2 ms (sólo
+  encola); el parche en su lugar; el base64 igual que `java.util.Base64` (1200 casos); un disco lleno avisa.
+- El APK de prueba (3.5-prueba, armado con `correr.sh`, que no va a `jxmod/JXMod.apk`): `aapt2 dump xmltree` muestra
+  `allowAudioPlaybackCapture=true`, `WRITE_EXTERNAL_STORAGE` con `maxSdkVersion=28` y `DETECT_SCREEN_RECORDING`; el dex
+  llama a `AudioManager.setAllowedCapturePolicy`, `WindowManager.addScreenRecordingCallback` y
+  `MediaStore.Video.Media.getContentUri`.
+- Las que ya había y tocan sonido, HUD o pausa: `fondo_callado` 5/5, `sonidos` 11/11 (una vez 10/11 por el piso de
+  gm_construct, que no tiene que ver: la segunda, 11/11), `sonidos_accion` 7/7, `hud_celu` 7/7, `menus_x` 6/6,
+  `botones_golden` 13/13, `voz` (la voz llega: nivel 125), `voz_hud` 11/13, `capas_menus` 9/10 y `controles` 8/9. Lo que
+  falla falla igual en la 3.5 sin esto (`voz_hud` 10/13 y `controles` 8/9 con la máquina cargada; `capas_menus` 1 espera
+  que la versión de antes tenga un error viejo). `hud_orden` no se corrió: le falta el addon 3780178294.
+
+**Costo** (`pruebas/grabar.mjs`, parte 4): procesador ×4 (CDP), 873×402 con DPR 2 (lienzo 1222×563), 3 vueltas alternadas
+de 6 s, diferencia contra no grabar:
+
+| | cuadros del juego | ms de JS del cuadro | ms de JS propio de grabar |
+|---|---|---|---|
+| Bajo, 720p30 (de fábrica) | 11,3 → 3,7 | 5,11 → 6,66 | 1,39 |
+| Bajo, 1080p60 | 11,3 → 3,2 | 5,11 → 9,42 | 2,08 |
+| Bajo, pantalla 30 | 11,3 → 5,4 | 5,11 → 6,67 | 0,82 |
+| Medio, 720p30 | 4,5 → 1,9 | 5,13 → 6,54 | 1,47 |
+| Medio, 1080p60 | 4,5 → 1,5 | 5,13 → 10,54 | 2,21 |
+| Medio, pantalla 30 | 4,5 → 3,1 | 5,13 → 8,43 | 0,85 |
+
+Acá todo es por software: SwiftShader dibuja y VP8 codifica en los mismos 4 núcleos (y había otras pruebas corriendo,
+carga 7 a 11), así que los cuadros caen mucho más que en un celular, que codifica H.264 con el hardware. Lo que sí vale
+igual: el JS propio de grabar es copiar el cuadro y mirar la pausa (≈1,4 ms con el procesador ×4; sin
+frenarlo, +0,1 a 0,2 ms por cuadro en otras corridas), 30 cuadros cuestan menos que 60 y 720p menos que 1080p; por eso de fábrica 720p a 30. No se baja nada solo al
+grabar (lo único que no sale en el video son los botones, que no cuestan).
+- Sin probar en un celular de verdad (no hay emulador ni celular acá): MediaStore y el permiso de Android 7-9,
+  Compartir/Ver, el aviso de Android 15, si la vista web del celular elige MP4 con AAC, el costo con el codificador por
+  hardware y el sonido interno con el grabador del sistema (cómo verificarlo, arriba).

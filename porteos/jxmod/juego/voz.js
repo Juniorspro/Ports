@@ -4,10 +4,11 @@
 const VOZ = { on: false, stream: null, sal: new Map(), ent: new Map(), tRev: 0, quien: new Map() };
 const VOZ_ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
 const VOZ_CERCA = 70, VOZ_LEJOS = 90, VOZ_MAX = 10;
+const VOZ_MIC = { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
 // (el botón del micrófono está en modmenu.js, arriba con los demás)
 async function vozActivar() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { aviso('Este navegador no deja usar el micrófono', 3); return; }
-  try { VOZ.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+  try { VOZ.stream = await navigator.mediaDevices.getUserMedia(VOZ_MIC); }
   catch (e) { aviso('Sin permiso para el micrófono', 3); return; }
   VOZ.on = true; vozBotonPoner(true); aviso('Micrófono prendido', 2);
   vozMiNivelIniciar();
@@ -17,6 +18,35 @@ function vozApagar() {
   for (const [id] of VOZ.sal) vozCerrarSal(id);
   if ($('vozBt')) $('vozBt').classList.remove('on');
   vozMiNivelIniciar(); vozHablaFin('yo');
+}
+// ---- el micrófono en segundo plano (Android) ----
+// (Discord, Chillguy: el grabador de pantalla del celular «dejó de grabar el sonido interno del juego».) Con un micrófono
+// abierto con cancelación de eco, Chromium —la vista web de la app y Chrome— pone toda la app en modo llamada
+// (MODE_IN_COMMUNICATION) y cada salida de sonido que arma mientras tanto sale como voz de llamada
+// (USAGE_VOICE_COMMUNICATION), que Android nunca deja grabar a otra app; esa salida queda así aunque después se apague el
+// micrófono. La del juego se arma de nuevo al volver de segundo plano (el AudioContext se suspende): por eso en Android, al
+// irse, el micrófono se suelta del todo (el modo llamada se va) y al volver se abre recién cuando el sonido del juego ya
+// arrancó como sonido normal; las conexiones de la voz siguen, con la pista nueva.
+const vozMicSoltarEnFondo = () => !!window.__vozSoltar || /Android/i.test(navigator.userAgent || '');
+function vozMicSoltar() {
+  if (!VOZ.stream) return false;
+  VOZ.stream.getTracks().forEach((t) => t.stop()); VOZ.stream = null; vozMiNivelIniciar();
+  return VOZ.on;
+}
+async function vozMicVolver() {
+  if (!VOZ.on || VOZ.stream || VOZ.volviendo) return;
+  VOZ.volviendo = true;
+  try {
+    const c = AUD.ctx; if (c && c.state !== 'running') { try { await c.resume(); } catch (e) {} }
+    await new Promise((ok) => setTimeout(ok, 400));
+    if (!VOZ.on || VOZ.stream) return;
+    if (FONDO.oculto) { FONDO.micSuelto = true; return; }   // (se fue otra vez: vuelve a probar la próxima)
+    let st; try { st = await navigator.mediaDevices.getUserMedia(VOZ_MIC); } catch (e) { vozApagar(); aviso('Sin permiso para el micrófono', 3); return; }
+    if (!VOZ.on || FONDO.oculto) { st.getTracks().forEach((t) => t.stop()); if (VOZ.on) FONDO.micSuelto = true; return; }
+    VOZ.stream = st; const tr = st.getAudioTracks()[0];
+    for (const C of VOZ.sal.values()) for (const s of C.pc.getSenders()) if (!s.track || s.track.kind === 'audio') s.replaceTrack(tr).catch(() => {});
+    vozMiNivelIniciar();
+  } finally { VOZ.volviendo = false; }
 }
 // el nivel de mi micrófono (para mostrarme en el panel de quién habla mientras mando voz): un analizador suelto, sin salida
 function vozMiNivelIniciar() {
@@ -71,6 +101,7 @@ function vozRecibir(id, C, st) {
   C.el = document.createElement('audio'); C.el.muted = true; C.el.srcObject = st; C.el.play().catch(() => {}); C.el.style.display = 'none'; document.body.appendChild(C.el);
   const c = AUD.ctx; C.src = c.createMediaStreamSource(st);
   C.F = fuente3D(CAM.pos, PREFS.vocesMudas ? 0 : 1.6); C.src.connect(C.F.g); C.F.p.panningModel = 'HRTF'; C.F.p.refDistance = 2; C.F.p.rolloffFactor = 1.3;
+  if (AUD.voz) { C.F.p.disconnect(); C.F.p.connect(AUD.voz); }   // (por su lado: el modo grabación no las graba si no se pide)
   // (21 ms de señal por cuadro: con 5 ms se perdían sílabas entre cuadro y cuadro)
   C.an = c.createAnalyser(); C.an.fftSize = 1024; C.src.connect(C.an); C.nivel = new Uint8Array(C.an.fftSize);
 }
@@ -185,7 +216,8 @@ function vozHudUbicar() {
     Object.assign(s, { left: 'auto', right: '12px', top: Math.round(y + 16) + 'px', width: 'auto', maxWidth: '240px' }); VOZH.ancho = 0; P.classList.remove('compacto'); return;
   }
   const rs = [...document.querySelectorAll('#hud .bt, #hud .bt-t, #hud .redondo, #hud #redEst')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
-  const est = $('redEst'), re = est && est.getBoundingClientRect(), y0 = Math.round(Math.max(20, re && re.height ? re.bottom + 4 : 20)), alto = 34;
+  const est = $('redEst'), re = est && est.getBoundingClientRect(), gi = $('grabInd'), rg = gi && !gi.classList.contains('oc') && gi.getBoundingClientRect();   // (y el punto rojo de grabar.js)
+  const y0 = Math.round(Math.max(20, re && re.height ? re.bottom + 4 : 20, rg && rg.height ? rg.bottom + 4 : 0)), alto = 34;
   let L = 8, R = W - 8;
   for (const r of rs) { if (r.bottom < y0 || r.top > y0 + alto) continue; const c = (r.left + r.right) / 2; if (c < W / 2) L = Math.max(L, r.right + 8); else R = Math.min(R, r.left - 8); }
   VOZH.ancho = Math.max(40, Math.round(R - L));

@@ -14,6 +14,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
 import android.webkit.ConsoleMessage;
 import android.provider.DocumentsContract;
@@ -46,6 +47,7 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -67,7 +69,7 @@ public class Web extends Activity {
     static String iconoAlias(String id) { return "com.jxmod.app.Icono" + Character.toUpperCase(id.charAt(0)) + id.substring(1); }
     static final String HOST = "appassets.androidplatform.net";
     static final String INICIO = "https://" + HOST + "/index.html";
-    static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13, PEDIR_CARPETA = 14;
+    static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13, PEDIR_CARPETA = 14, PEDIR_ESCRIBIR = 15;
 
     private FrameLayout raiz;
     private WebView web;
@@ -139,6 +141,7 @@ public class Web extends Activity {
         }
         setContentView(raiz);
         pantallaCompleta();
+        sonidoGrabable();
         crearWeb(INICIO);
     }
 
@@ -364,6 +367,7 @@ public class Web extends Activity {
             if (v != web) return true;
             registrar("el proceso que dibuja se cerró: " + (d != null && d.didCrash() ? "falló (crash)" : "el sistema lo cerró (memoria)"));
             caidas++;
+            grabCerrarTodas();   // (lo que se estaba grabando queda en la galería hasta donde llegó)
             raiz.removeView(v);
             v.destroy();
             web = null;
@@ -420,6 +424,7 @@ public class Web extends Activity {
             if (ok) permPend.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE}); else permPend.deny();
             permPend = null;
         }
+        if (req == PEDIR_ESCRIBIR && web != null) web.evaluateJavascript("window.__jxGrabPermiso&&window.__jxGrabPermiso(" + ok + ")", null);
     }
 
     @Override protected void onActivityResult(int req, int res, Intent data) {
@@ -611,6 +616,27 @@ public class Web extends Activity {
         @JavascriptInterface public void carpetaOlvidar() { Web.this.carpetaSoltar(); }
         /** Crea la carpeta «nombre» adentro de la elegida (si no está), con un LEEME: "ok", "ya" o "mal". */
         @JavascriptInterface public String carpetaCrear(String nombre, String leeme) { return Web.this.carpetaCrearDir(nombre, leeme); }
+        // ---- el modo grabación (grabar.js): el video va a la galería por pedazos mientras se graba (ver grabEmpezar) ----
+        /** 1: la app sabe guardar las grabaciones del juego en la galería (Movies/JXMod), por pedazos. */
+        @JavascriptInterface public int grabar() { return 1; }
+        /** Abre el archivo: {"ok":true,"id":1,"ruta":"Movies/JXMod/…"}; en Android 7-9, la primera vez, {"permiso":true}
+         *  (pide el permiso y avisa con window.__jxGrabPermiso: se vuelve a llamar); si no, {"ok":false,"error":"…"}. */
+        @JavascriptInterface public String grabEmpezar(String nombre, String mime) { return Web.this.grabEmpezar(nombre, mime); }
+        /** Un pedazo (base64), en orden. Devuelve los bytes que esperan escribirse (la página espera si pasan de 8 MB), o -1. */
+        @JavascriptInterface public int grabEscribir(int id, String b64) { Grabacion g = grabDe(id); return g == null ? -1 : (int) Math.min(Integer.MAX_VALUE, g.g.escribir(b64)); }
+        @JavascriptInterface public int grabPendiente(int id) { Grabacion g = grabDe(id); return g == null ? -1 : (int) Math.min(Integer.MAX_VALUE, g.g.pendiente()); }
+        /** Unos bytes en una posición (la duración en la cabecera, al final). */
+        @JavascriptInterface public boolean grabParche(int id, double pos, String b64) { Grabacion g = grabDe(id); return g != null && g.g.parche((long) pos, b64); }
+        /** Termina: escribe lo que queda, lo publica en la galería y avisa con window.__jxGrabListo({ok, ruta, uri, mime, galeria}). */
+        @JavascriptInterface public void grabFin(int id) { Web.this.grabFin(id, true); }
+        @JavascriptInterface public void grabCancelar(int id) { Web.this.grabFin(id, false); }
+        /** Compartir o ver una grabación (sólo las que guardó la app: su content://). */
+        @JavascriptInterface public void grabCompartir(String uri, String mime) { runOnUiThread(() -> grabAbrir(uri, mime, true)); }
+        @JavascriptInterface public void grabVer(String uri, String mime) { runOnUiThread(() -> grabAbrir(uri, mime, false)); }
+        /** El sonido para el grabador de pantalla del celular: {"sdk","modo" (0 normal, 2 llamada, 3 en comunicación),
+         *  "captura" (la política de la app, Android 10+: 1 = cualquiera puede grabarlo), "usos" (lo que suena ahora:
+         *  1 media, 2 voz de llamada, 14 juego)}. Ver sonidoGrabable. */
+        @JavascriptInterface public String audioEstado() { return Web.this.audioEstado(); }
         @JavascriptInterface public int ramMB() {
             try { android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE); android.app.ActivityManager.MemoryInfo mi = new android.app.ActivityManager.MemoryInfo(); am.getMemoryInfo(mi); return (int) (mi.totalMem >> 20); } catch (Throwable e) { return 0; }
         }
@@ -774,6 +800,152 @@ public class Web extends Activity {
         }
     }
 
+    // ---- el modo grabación (grabar.js): las grabaciones del juego, a la galería ----
+    // La página graba el lienzo y el sonido del juego (MediaRecorder) y, mientras graba, manda el video por pedazos en
+    // base64; acá cada pedazo se escribe en otro hilo (Grabador.java) directo al archivo de la galería: Movies/JXMod con
+    // MediaStore en Android 10 o más (pendiente hasta que termina, así la galería no lo muestra a medias) y como archivo en
+    // Movies/JXMod en Android 7, 8 y 9 (con el permiso de escribir; sin él, en la carpeta de la app). Un blob de la página no
+    // se puede bajar con DownloadListener, y pasar el video entero de una vez lo tendría todo en memoria dos veces.
+    static final class Grabacion { Grabador g; Uri uri; File file; String nombre, mime, ruta; boolean galeria; }
+    private final HashMap<Integer, Grabacion> grabs = new HashMap<>();
+    private final java.util.Set<String> grabHechas = java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
+    private int grabN;
+    private volatile boolean grabPermisoPedido;
+    private Grabacion grabDe(int id) { synchronized (grabs) { return grabs.get(id); } }
+    private String grabEmpezar(String nombre, String mime) {
+        String m = "video/mp4".equals(mime) ? "video/mp4" : "video/webm", ext = m.equals("video/mp4") ? ".mp4" : ".webm";
+        String n = nombre == null ? "" : nombre.replaceAll("[^A-Za-z0-9_.-]", "_");
+        if (n.length() > 80) n = n.substring(0, 80);
+        if (!n.endsWith(ext)) n = (n.isEmpty() ? "JXMod" : n.replaceAll("\\.[A-Za-z0-9]*$", "")) + ext;
+        Grabacion g = new Grabacion(); g.nombre = n; g.mime = m;
+        ParcelFileDescriptor pfd = null; RandomAccessFile raf = null;
+        try {
+            if (Build.VERSION.SDK_INT >= 29) {
+                ContentValues cv = new ContentValues();
+                cv.put(MediaStore.MediaColumns.DISPLAY_NAME, n);
+                cv.put(MediaStore.MediaColumns.MIME_TYPE, m);
+                cv.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/JXMod");
+                cv.put(MediaStore.MediaColumns.IS_PENDING, 1);
+                g.uri = getContentResolver().insert(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), cv);
+                if (g.uri == null) return "{\"ok\":false,\"error\":\"galería\"}";
+                pfd = getContentResolver().openFileDescriptor(g.uri, "rw");
+                if (pfd == null) throw new IOException("sin archivo");
+                FileOutputStream fo = new FileOutputStream(pfd.getFileDescriptor());
+                g.g = new Grabador(Grabador.canal(fo.getChannel(), fo, pfd));
+                g.galeria = true; g.ruta = Environment.DIRECTORY_MOVIES + "/JXMod/" + n;
+            } else {
+                boolean permiso = checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+                if (!permiso && !grabPermisoPedido) {
+                    grabPermisoPedido = true;
+                    runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, PEDIR_ESCRIBIR));
+                    return "{\"ok\":false,\"permiso\":true}";
+                }
+                File dir = permiso ? new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "JXMod")
+                                   : new File(getExternalFilesDir(Environment.DIRECTORY_MOVIES), "JXMod");
+                if (!dir.isDirectory() && !dir.mkdirs()) return "{\"ok\":false,\"error\":\"carpeta\"}";
+                g.file = new File(dir, n);
+                raf = new RandomAccessFile(g.file, "rw"); raf.setLength(0);
+                g.g = new Grabador(Grabador.canal(raf.getChannel(), raf));
+                g.galeria = permiso; g.ruta = permiso ? Environment.DIRECTORY_MOVIES + "/JXMod/" + n : g.file.getAbsolutePath();
+            }
+        } catch (Exception e) {
+            try { if (pfd != null) pfd.close(); } catch (Exception x) { /* nada */ }
+            try { if (raf != null) raf.close(); } catch (Exception x) { /* nada */ }
+            try { if (g.uri != null) getContentResolver().delete(g.uri, null, null); } catch (Exception x) { /* nada */ }
+            return "{\"ok\":false,\"error\":" + Carpeta.texto(String.valueOf(e.getMessage())) + "}";
+        }
+        int id;
+        synchronized (grabs) { id = ++grabN; grabs.put(id, g); }
+        return "{\"ok\":true,\"id\":" + id + ",\"ruta\":" + Carpeta.texto(g.ruta) + ",\"galeria\":" + g.galeria + "}";
+    }
+    /** Termina (guardar) o tira (no) una grabación; al final avisa a la página (window.__jxGrabListo). */
+    private void grabFin(int id, final boolean guardar) {
+        final Grabacion g; synchronized (grabs) { g = grabs.remove(id); }
+        if (g == null) { grabAvisar("{\"ok\":false}"); return; }
+        Grabador.Listo l = (ok, bytes, error) -> grabAvisar(grabPublicar(g, guardar && ok && bytes > 0, error));
+        if (guardar) g.g.terminar(l); else g.g.cancelar(l);
+    }
+    /** (en el hilo del grabador, con el archivo ya cerrado) a la galería, o se borra si no sirve. Devuelve el JSON para la página. */
+    private String grabPublicar(final Grabacion g, boolean bien, String error) {
+        String uri = "";
+        try {
+            if (g.uri != null) {
+                if (bien) {
+                    ContentValues cv = new ContentValues(); cv.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                    getContentResolver().update(g.uri, cv, null, null); uri = g.uri.toString();
+                } else getContentResolver().delete(g.uri, null, null);
+            } else if (g.file != null) {
+                if (!bien) g.file.delete();
+                else if (g.galeria) {
+                    // (Android 7-9: que el sistema lo vea —la galería— y dé un content:// para compartirlo)
+                    final java.util.concurrent.CountDownLatch c = new java.util.concurrent.CountDownLatch(1); final String[] u = { "" };
+                    android.media.MediaScannerConnection.scanFile(getApplicationContext(), new String[]{ g.file.getAbsolutePath() }, new String[]{ g.mime },
+                        (p, x) -> { if (x != null) u[0] = x.toString(); c.countDown(); });
+                    c.await(6, java.util.concurrent.TimeUnit.SECONDS); uri = u[0];
+                }
+            }
+        } catch (Exception e) { if (error == null) error = String.valueOf(e.getMessage()); bien = bien && g.file != null; }
+        if (!uri.isEmpty()) grabHechas.add(uri);
+        return "{\"ok\":" + bien + ",\"nombre\":" + Carpeta.texto(g.nombre) + ",\"ruta\":" + Carpeta.texto(g.ruta) + ",\"uri\":" + Carpeta.texto(uri)
+            + ",\"mime\":" + Carpeta.texto(g.mime) + ",\"galeria\":" + g.galeria + (error != null ? ",\"error\":" + Carpeta.texto(error) : "") + "}";
+    }
+    private void grabAvisar(final String json) {
+        runOnUiThread(() -> { if (web != null) web.evaluateJavascript("window.__jxGrabListo&&window.__jxGrabListo(" + Carpeta.texto(json) + ")", null); });
+    }
+    /** Compartir (el menú del sistema: WhatsApp, YouTube, Drive…) o ver (la galería) una grabación guardada por la app. */
+    private void grabAbrir(String u, String mime, boolean compartir) {
+        if (u == null || !grabHechas.contains(u)) return;
+        String m = "video/mp4".equals(mime) || "video/webm".equals(mime) ? mime : "video/*";
+        try {
+            Intent i;
+            if (compartir) { i = new Intent(Intent.ACTION_SEND); i.setType(m); i.putExtra(Intent.EXTRA_STREAM, Uri.parse(u)); i = Intent.createChooser(i, null); }
+            else { i = new Intent(Intent.ACTION_VIEW); i.setDataAndType(Uri.parse(u), m); }
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(i);
+        } catch (Exception e) { aviso("No se pudo abrir"); }
+    }
+    /** Si la página se cierra grabando (se rearma la vista, la app se cierra): lo grabado hasta ahí queda en la galería. */
+    private void grabCerrarTodas() {
+        List<Integer> ids; synchronized (grabs) { ids = new ArrayList<>(grabs.keySet()); }
+        for (int id : ids) grabFin(id, true);
+    }
+
+    // ---- el sonido del juego, para el grabador de pantalla del celular ----
+    // (Discord, Chillguy: «dejó de grabar el sonido interno del juego».) Android deja que otra app (el grabador de pantalla)
+    // grabe lo que suena en la app si la app lo permite —allowAudioPlaybackCapture en el manifiesto, y acá la política de
+    // captura, explícita— y si sale como sonido común (USAGE_MEDIA o GAME). Lo que sale como voz de llamada
+    // (USAGE_VOICE_COMMUNICATION) no lo deja grabar nunca: es lo que pasa en la vista web mientras el micrófono del chat de
+    // voz está abierto (Chromium pone toda la app en modo llamada, MODE_IN_COMMUNICATION) y queda así en cada sonido que
+    // empieza mientras tanto. El juego suelta el micrófono en segundo plano (voz.js) para que eso no quede pegado; audioEstado
+    // dice cómo está ahora, y en Android 15 la app avisa al juego cuando el grabador del sistema empieza a grabarla.
+    private java.util.function.Consumer<Integer> grabSistemaCb;
+    private void sonidoGrabable() {
+        if (Build.VERSION.SDK_INT >= 29) {
+            try { ((android.media.AudioManager) getSystemService(AUDIO_SERVICE)).setAllowedCapturePolicy(android.media.AudioAttributes.ALLOW_CAPTURE_BY_ALL); }
+            catch (Throwable e) { /* nada */ }
+        }
+        if (Build.VERSION.SDK_INT >= 35) {
+            try {
+                grabSistemaCb = (st) -> runOnUiThread(() -> { if (web != null) web.evaluateJavascript("window.__jxGrabSistema&&window.__jxGrabSistema("
+                    + (st != null && st == WindowManager.SCREEN_RECORDING_STATE_VISIBLE ? 1 : 0) + ")", null); });
+                getWindowManager().addScreenRecordingCallback(getMainExecutor(), grabSistemaCb);
+            } catch (Throwable e) { grabSistemaCb = null; }
+        }
+    }
+    private String audioEstado() {
+        try {
+            android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+            StringBuilder b = new StringBuilder("{\"sdk\":").append(Build.VERSION.SDK_INT).append(",\"modo\":").append(am.getMode());
+            if (Build.VERSION.SDK_INT >= 29) b.append(",\"captura\":").append(am.getAllowedCapturePolicy());
+            if (Build.VERSION.SDK_INT >= 26) {
+                b.append(",\"usos\":["); int n = 0;
+                for (android.media.AudioPlaybackConfiguration c : am.getActivePlaybackConfigurations()) { if (n++ > 0) b.append(','); b.append(c.getAudioAttributes().getUsage()); }
+                b.append(']');
+            }
+            return b.append('}').toString();
+        } catch (Throwable e) { return "{}"; }
+    }
+
     // Atrás = la tecla Escape del juego (cierra el panel abierto o pone la pausa); tres veces seguidas, sale
     @SuppressWarnings("deprecation")
     @Override public void onBackPressed() {
@@ -871,6 +1043,7 @@ public class Web extends Activity {
     }
     private void recuperar(String motivo) {
         registrar(motivo);
+        grabCerrarTodas();
         long t = SystemClock.uptimeMillis();
         colgadas = t - colgadaT < 5 * 60000 ? colgadas + 1 : 1; colgadaT = t;
         latidoT = 0;
@@ -910,6 +1083,8 @@ public class Web extends Activity {
     }
 
     @Override protected void onDestroy() {
+        grabCerrarTodas();
+        if (grabSistemaCb != null && Build.VERSION.SDK_INT >= 35) { try { getWindowManager().removeScreenRecordingCallback(grabSistemaCb); } catch (Throwable e) { /* nada */ } }
         lanParar(); lanBuscar(false); synchronized (this) { if (lanPuente != null) { lanPuente.parar(); lanPuente = null; } }
         if (web != null) { raiz.removeView(web); web.destroy(); web = null; }
         super.onDestroy();

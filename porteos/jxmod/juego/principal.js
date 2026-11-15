@@ -415,6 +415,7 @@ function cuadro(ahora) {
   aguaPaso(dt); sonidosPaso(dt); if (typeof emuPaso === 'function') emuPaso(dt); patadasPaso(dt); artPaso(dt); npcPaso(dt); bocinaPaso(); juntosPaso(); nukePaso(dt);
   if (typeof GRT !== 'undefined') GRT.enDibujo = true; try { dibujar(); } finally { if (typeof GRT !== 'undefined') GRT.enDibujo = false; }
   celmCuadro(); if (typeof gmaHUDPaso === 'function') gmaHUDPaso(); if (typeof gmrtFinCuadro === 'function') gmrtFinCuadro();
+  if (typeof grabCuadro === 'function') grabCuadro();   // (el modo grabación copia el cuadro recién dibujado: grabar.js)
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso(); if (typeof clibDevolver === 'function') clibDevolver();
   // fps y resolución automática

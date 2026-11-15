@@ -8,6 +8,9 @@ B=${B:-/tmp/claude-0/jx_build/unido}
 rm -rf "$B" && mkdir -p "$B/puro"
 javac --release 8 -Xlint:-options -d "$B/puro" "$APK/unido/src/com/jxmod/app/EleccionMotor.java" "$AQUI/PruebaEleccion.java"
 java -cp "$B/puro" PruebaEleccion
+# (el puente de guardado del modo grabación: 50 MB por pedazos con la memoria de Java en 24 MB, a Movies/JXMod)
+javac --release 8 -Xlint:-options -nowarn -d "$B/puro" "$APK/web/src/com/jxmod/app/Grabador.java" "$AQUI/PruebaGrabador.java"
+java -Xmx24m -cp "$B/puro" PruebaGrabador "$B/grabador" | grep -E "FALLA|RESUMEN"
 A=${A:-/tmp/claude-0/jx_unido/activos}; WWW=${WWW:-/tmp/claude-0/jx_web/activos/www}
 # (el juego web se arma de nuevo con el código de ahora: si no, el APK puede llevar uno viejo)
 if [ -z "${SIN_ARMAR_WEB:-}" ] && [ -f /tmp/claude-0/hyp_rb/armar.sh ]; then
