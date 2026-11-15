@@ -2252,6 +2252,167 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## Menú principal clásico otra vez (el de la 3.3, mejorado) y «Menú de inicio: Clásico / Depósito»
+
+En el Discord los jugadores extrañan el menú de la 3.3 («es como un fortnite sandbox y es raro acostumbrarse a esto luego
+de venir de un menú simple pero no complejo de entender»). El dueño: «Mejor mejorá el viejo nomás, el minimalista negro,
+etc. Agregá detalles, rasgaduras, muchas cosas para que se vea mejor, agregá animaciones». Y ninten: «que se puedan poner
+distintos menús de inicio». Quedó así: el de fábrica vuelve a ser el clásico (`juego/clasico.js`, nuevo), mejorado, y «Tu
+depósito» (`juego/deposito.js`, sin cambios de diseño) se elige en Ajustes.
+
+**Qué se conserva** (lo que la gente ya conoce, comparado contra el armado de 27f401f): arriba a la izquierda el logo JXM;
+debajo, las 8 opciones en barras negras, en los mismos tres grupos y el mismo orden (Empezar partida nueva, Buscar partida
+multijugador y Social; Mods y mapas, Crear un mapa, Personajes y Opciones; Salir), con la elegida en amarillo; abajo la barra
+con los mods activos, el idioma, tu nombre, Discord y TikTok, y la versión abajo a la derecha. De fondo, el mundo vivo de la
+3.3: las 6 escenas del juego con la grieta y sus explosiones (`FONDOS_RB`, del paquete), que cambian cada 9 s y se agrandan
+despacio. Lo que hace cada opción, lo de siempre.
+
+**Lo nuevo, el detalle** (todo procedural, sin archivos de arte: nada nuevo en `CREDITOS.md`):
+- **Rasgaduras**: la punta de cada barra rota (máscaras SVG hechas en `clasico.js` con una semilla fija, en 4 variantes, con
+  mellas chicas arriba y abajo), lo mismo en las placas de abajo; el logo con la esquina de abajo rota y una mella arriba.
+- **Grano y raspones**: una textura de ruido de 160 px (puntitos claros y oscuros casi transparentes y rayas finas en
+  diagonal), hecha una sola vez en un canvas, en un rato libre después de que el menú se puede tocar (abajo); cada barra la
+  usa corrida a otro lugar. Sobre las
+  escenas, el mismo grano muy suave y una viñeta.
+- **Cinta y desgaste**: un pedazo de cinta de papel pegado en la esquina del logo y, debajo, una línea amarilla gastada (con
+  huecos). Íconos chicos al lado de cada opción (los glifos del juego, al 62 %).
+- **La elegida**: «Empezar partida nueva» en amarillo; con el mouse encima o el foco (teclado o mando), la amarilla pasa a
+  esa y Empezar guarda su borde amarillo.
+- **La grieta** (el evento, con su interruptor) arriba a la derecha: abre el panel de la 3.5 (qué es y el interruptor) y
+  muestra si está prendida. **Actualizar** al lado de la versión: en la app siempre (`JXNativo.buscarActualizacion`); en la
+  web sólo cuando aparece el botón de `codigo_web.mjs` (con una marca roja). **La cuenta de Google** al lado de tu nombre
+  (`.cuChip`: «Iniciar sesión con Google», o tu foto y tu nombre; en el celular sólo la «G»).
+
+**Animaciones** (todas terminan; ninguna obliga a componer cuadros sin parar):
+- La entrada: las barras se rasgan de izquierda a derecha una tras otra (55 ms entre una y otra, 0,46 s cada una), el logo
+  aparece con un glitch, la línea amarilla se estira, la cinta se pega y la barra de abajo sube; termina antes de 1 s. Se anima
+  la placa: la barra que se toca está entera desde el primer momento. Al aparecer el menú (al cargar, al volver de una
+  partida o de un panel, al cambiar de menú).
+- Al pasar a ser la elegida, un barrido de luz cruza la barra (0,62 s); al tocar, un golpe corto (0,2 s).
+- El logo, un glitch cada 11 a 19 s (0,42 s: dos tajadas corridas y teñidas y la placa que parpadea).
+- Las brasas: cuando cambia la escena de fondo suben unas chispas (a lo sumo 30, 2,6 s) y se borran de la página.
+- El agrandado del fondo de la 3.3 (de 1,02 a 1,13 en 26 s, ida y vuelta) va de a saltos de menos de medio píxel que da
+  `clKenPaso`: 6 por segundo en vez de 60, a la vista es igual. Primero lo hice con `steps(156)` en la animación de CSS, pero
+  el navegador igual recalculaba el estilo en cada cuadro (57 veces por segundo); con el paso propio y la capa aparte
+  (`will-change`), 24 (lo que queda es el cambio de escena cada 9 s y sus brasas).
+- **El grano, cuando el aparato está libre**: hecho en un lienzo de la placa, ponerle los puntos y pasarlo a PNG tardaba
+  830 ms con el procesador 4× más lento y atrasaba la salida de la pantalla de carga 0,9 s (medido con una traza: de «listo» a
+  que se va la carga, 970 ms contra 70 en la 3.3); en un lienzo de memoria (`willReadFrequently`) y en `requestIdleCallback`
+  después de que el menú se puede tocar, 2,3 ms y 61 ms.
+- Con «menos movimiento» del aparato o Gráficos Patata: nada se mueve (ni la entrada, ni el barrido, ni el golpe, ni el
+  glitch, ni las brasas, ni el fondo, que además queda en una escena). Con Bajos: la entrada más corta, sin glitch ni brasas,
+  el fondo a 2 saltos por segundo.
+- **El lienzo del juego en pausa** (`dibujoPausar`, principal.js; `menuPausa` lo revisa en cada vuelta): el fondo del clásico
+  son las escenas y el lienzo queda tapado (en la 3.3 se borraba igual 30 veces por segundo, sin verse). Con un panel que
+  muestra tu personaje en 3D (Personajes, el Perfil de Social, Importar personaje) se dibuja como siempre.
+
+**El celular apaisado** (360 a 412 px de alto): el logo, las 8 opciones con 44 px para tocar cada una y la barra de abajo no
+entran uno arriba del otro (hacen falta unos 510 px). Primero probé poner el logo y la barra al costado de la lista (todo de
+44 px), pero cambiaba la disposición que la gente conoce; quedó como en la 3.3, apretado: el logo un poco más chico (12,5 %
+del alto en vez de 15 %), menos margen, las placas de abajo de 32 px a la vista y 44 para tocar (un pseudo-elemento invisible
+se estira hacia el borde), y las opciones con todo el alto que queda. Lo que se ve y lo que se toca van separados: las barras
+son contiguas (entre placas se ve el hueco de la 3.3) y en los bordes de los grupos cada una toma la mitad del espacio entre
+grupos, sin pisar a la vecina. Queda:
+
+| Pantalla | 3.3 (lo que se veía era lo que se tocaba) | Ahora: a la vista / para tocar | Dónde: la columna y el y de cada opción (3.3 → ahora) |
+|---|---|---|---|
+| 873×402 (el del dueño) | 27,4 | **32,7 / 34,3 a 41,3** | columna igual (±0 px); 82…307 → 66…318 |
+| 915×412 | 28,1 | **33,6 / 35,2 a 43,7** | ±0 px; 84…315 → 68…326 |
+| 800×368 | 25,1 | **29,3 / 30,9 a 37,9** | ±0 px; 75…281 → 61…288 |
+| 640×360 | 24,6 | **28,5 / 30,1 a 37,1** | ±0 px; 74…275 → 60…281 |
+| celular parado (el juego lo gira) | 27 | **33 / 34 a 41** | ±0 px; 101…320 → 67…318 |
+| tablet 1180×820 | 54,6 | 55,7 / 60,7 a 80,2 | ±0 px; 205…652 → 207…655 |
+| compu 1280×720 | 47,8 | 48,7 / 53,1 a 71,1 | ±0 px; 181…573 → 184…575 |
+| compu 1920×1080 | 73,7 | 73,8 / 80,2 a 106,2 | ±0 px; 222…827 → 226…817 |
+
+(«para tocar» va de la opción del medio de un grupo —la más chica— a la primera o Salir, que suman el aire de arriba o de
+abajo.) En la tablet y la compu todo se toca con 44 px o más; en los celulares apaisados las opciones no llegan a 44 (el
+resto sí: las placas de abajo, La grieta y la cuenta, 44 para tocar).
+
+**El selector** (pedido de ninten): Ajustes → Gráficos → «Menú de inicio: Clásico / Depósito» (dos placas, la elegida en
+amarillo; sólo desde el menú principal). En el depósito, además, su hoja de Ajustes trae «Menú clásico». Se guarda en las
+preferencias (`PREFS.menuInicio`; sin elegir, el clásico) y el cambio es inmediato, sin reiniciar: `inicio.js`
+(`menuHomeArmar`) desarma el otro entero —`depDestruir`: la escena (las cajas, el farol, la plaza y tu personaje fuera del
+mundo, y el mapa de Pradera vaciado con `mundoVaciar`, mundo.js, que el clásico no dibuja), la página, los oyentes de la
+ventana (con una señal de `AbortController`), el observador, los relojes, el mando y la pausa del dibujo; `clDestruir`, lo
+mismo del clásico— y arma el elegido de cero. Las dos páginas nunca están juntas (el `#rbNombre` es uno solo).
+
+**Teclado y mando** (en la 3.3 el teclado no andaba porque el juego se quedaba con el Tab): las flechas recorren la lista
+(arriba y abajo de a una, dando la vuelta) y van a lo más cercano a los costados; Tab y Mayús+Tab, en orden y sin que el
+juego lo tome; Enter elige; Esc, en un panel, vuelve. El mando: la cruceta o la palanca, A elige y B vuelve (un solo lazo,
+aunque llegue otro «gamepadconnected»).
+
+**Medido** (`pruebas/menu_clasico.mjs URL [URL_33] [URL_35] [FOTOS]`, SwiftShader; SOLO=1,2… para partes):
+- **Fidelidad** (8 pantallas, contra la 3.3): las 8 opciones en el mismo orden y los mismos grupos, en la misma columna:
+  0 px de diferencia en todas (pide ±8).
+- **Pantallas** (873×402 y 915×412 con 40 px de muesca, 640×360, 800×368, el celular parado, tablet, 1280×720 y 1920×1080):
+  8/8 con el compromiso de la tabla (lo que se toca, medido también tocando: `elementFromPoint` en los bordes de lo que se
+  toca da el mismo botón), adentro de la pantalla y de la muesca, sin pisarse, nada cortado, letra de 14 px o más, y el
+  contraste medido en la imagen sobre las 6 escenas (las explosiones, lo más claro): el peor 5,74 (640×360), en los demás de
+  6,01 a 7,08 (pide 4,5).
+- **Idiomas**: los 14 en 873×402 (con muesca) y 640×360: nada se sale, se corta ni se pisa; el árabe, espejado (la lista a la
+  derecha, la versión a la izquierda, las rasgaduras y el barrido del otro lado).
+- **Animaciones**: 6/6. A los 3 s de la entrada no corre nada en el menú ni en el fondo (el agrandado, 6,0 saltos por
+  segundo); el barrido, el golpe, el glitch y las brasas terminan solos (las brasas se borran); con «menos movimiento» y con
+  Patata, ninguna animación y 0 saltos; con Bajos, sin glitch ni brasas y 2 saltos por segundo. **Cuadros que compone la placa** por
+  segundo con el menú quieto (873×402 a 2×, 9 s, 3 s después de la entrada, promedio de 2): **15,6 contra 59,0 de la 3.3**
+  (lo que queda: los 6 saltos del fondo y el cambio de escena cada 9 s); con «menos movimiento», 0.
+- **Selector**: 3/3. Clásico → depósito → clásico 3 veces tocando de verdad (Opciones → Depósito → Listo; en el depósito,
+  Ajustes → Menú clásico): sin errores, los mismos 114 elementos en el menú, los mismos oyentes de la ventana, sin cajas,
+  personajes ni mapa (0, 0, ninguno), la pausa como corresponde; cada menú igual que recién arrancado (el clásico, 0,006 % de
+  los puntos distintos; el depósito, sus chapas y botones 0,001 % y cada caja y la cámara en el mismo lugar); el heap de 17,1
+  a 20,5 MB en las 3 vueltas (+3,4; pide ≤ 5 MB); y la elección queda al recargar.
+- **Teclado y mando**, **la cuenta de Google** (44 px para tocar, abre su cartel), **Actualizar** (app y web) y **La grieta**
+  (el interruptor se guarda y el menú lo muestra): 5/5. Sin errores de JS.
+
+**Rendimiento** (`menu_clasico.mjs` parte 5: procesador 4× más lento, 873×402 a 2×, el menú quieto 3 s después de la
+entrada, promedio de 3 corridas alternadas de cada versión; el heap, después de juntar la basura; «hasta poder tocar», desde
+que arranca la página hasta que la opción principal se ve, la pantalla de carga se fue y el hilo contesta):
+
+| Gráficos | | JS ms/s | hilo ms/s | heap MB | hasta poder tocar |
+|---|---|---|---|---|---|
+| bajos | 3.3 | 37,0 | 140,2 | 16,5 | 8857 ms |
+| | 3.5 (depósito) | 9,5 | 38,5 | 26,7 | 8816 ms |
+| | **clásico** | **13,1** (−65 %) | **76,7** (−45 %) | **17,1** (+3,9 %) | **9270 ms** (+4,7 %) |
+| medios | 3.3 | 28,8 | 101,3 | 16,5 | 8533 ms |
+| | 3.5 (depósito) | 7,9 | 30,8 | 26,7 | 8745 ms |
+| | **clásico** | **10,5** (−64 %) | **92,0** (−9 %) | **17,1** (+3,8 %) | **8842 ms** (+3,6 %) |
+| altos | 3.3 | 31,8 | 106,5 | 16,5 | 8508 ms |
+| | 3.5 (depósito) | 9,2 | 32,0 | 26,7 | 8771 ms |
+| | **clásico** | **11,6** (−64 %) | **92,1** (−14 %) | **17,1** (+3,7 %) | **8871 ms** (+4,3 %) |
+
+Pide no pasar del 10 % arriba de la 3.3 en ninguna: lo más, el tiempo hasta poder tocar, +4,7 %. El JS baja a un tercio (el
+lienzo en pausa: la 3.3 lo borraba 30 veces por segundo sin que se viera). Contra el depósito, el clásico gasta más hilo
+(77 a 92 contra 31 a 39 ms por segundo): el cambio de escena cada 9 s (el fundido de 1,8 s y las brasas) obliga al navegador
+a recalcular el estilo en cada cuadro mientras dura —medido sin el cambio de escena, 60 ms/s—; el depósito quieto no tiene
+nada que se mueva. Y usa 9,6 MB menos de heap (no carga ningún mapa).
+
+**Pruebas que cambiaron** (con la misma exigencia; las que miden el menú ahora miden los dos):
+- `menu_clasico.mjs` (nueva): lo de arriba.
+- `deposito.mjs`: el depósito se elige en las preferencias (`menuInicio: 'deposito'`); lo demás, igual.
+- `menu_principal.mjs`: mide los dos menús (MENU=clasico o deposito para uno). El clásico, con lo de la 3.3 (nada se pisa con
+  8 px de aire, todo entero, las 8 opciones, letra ≥ 14 px y, en la compu, la letra del diseño de la 3.3 —4,3 % del alto— y
+  sin deslizar); el depósito, con lo de la 3.5. El tamaño de lo que se toca lo mide `menu_clasico.mjs`.
+- `menu_30.mjs`: los dos menús. El clásico, con lo de la 3.3 salvo los adornos: en la 3.3 pedía «ni degradados ni
+  animaciones salvo el fondo»; el dueño ahora pidió rasgaduras, detalle y animaciones, así que pide lo de la 3.5 (sin filtros
+  ni desenfoques quietos, sin animaciones sin fin, sin sombras borrosas, placas sin bordes redondeados y los degradados sólo
+  en las capas de diseño: el grano, la cinta, el barrido y las brasas). La versión, de 14 px o más (antes 12).
+- `social.mjs`: Social en la lista del clásico (como en la 3.3), con su globito; con MENU=deposito, lo de la 3.5. Volver del
+  Perfil con internet lento deja el menú de antes (el clásico con su lista).
+- `icono_app.mjs`: Ajustes se abre con Opciones (en el depósito, con el engranaje).
+
+**Corridas** sobre el armado final, en dos tandas a la vez: `menu_principal` 7/7, `menu_30` 15/15, `social` 42/42 (y con
+MENU=deposito 42/42), `tienda_panel` 24/24, `celulares` 9/9, `identidad` 12/12, `botones_golden` 12/12,
+`personajes_golden` 12/12, `cuenta_google` 22/22, `tutorial` 22/22, `fondos_30` 6/6, `capas_menus` 9/9, `menus_jx` 6/6,
+`menus_x` 6/6, `logo_propio` 5/5, `icono_app` 5/5, `gmod_carpeta` 32/32 (la página en 127.0.0.1) y `menu_clasico` 24/24
+(las partes 1–4 y 6–8; la 6a, otra vez sola: la foto de la prueba no frenaba el agrandado nuevo del fondo); solas, la parte
+5 de `menu_clasico` (4/4) y `deposito` 100/100 (con el depósito elegido; en la 3.5, 99/100). `codigo_tragado`: 0.
+
+**Pendiente**: no se probó en un celular de verdad (emulado, con SwiftShader). En los celulares apaisados las opciones no
+llegan a 44 px para tocar (ver la tabla): es el compromiso para que el logo quede arriba de la lista como en la 3.3. El
+selector no va en la barra de abajo del clásico: en el celular ya no entra nada más (la barra se compacta para que entren
+los mods, el idioma, el nombre y las redes en 640 px). Fotos, fuera del repo.
+
 ## JXMod 3.5: menú principal nuevo, «Tu depósito»
 
 Un pedido del dueño (el detalle y los números están en la sección «Tu depósito», más abajo). Misma firma que la 3.2, la

@@ -137,6 +137,11 @@ function cargarMapa(nombre) {
   }
   if (typeof gmaOrigenMapa === 'function') gmaOrigenMapa(nombre);   // (el cero de Source del mapa, para el Lua de GMod)
 }
+// el mundo vacío, como al arrancar (sin mapa): lo pide el menú del depósito al irse, si se elige el clásico —que no dibuja el
+// mundo— para que el mapa no siga ocupando memoria (deposito.js, depDesarmar). La partida carga el suyo con cargarMapa
+function mundoVaciar() {
+  Object.assign(MUNDO, { nombre: '', modelos: [], cajas: [], grilla: new Map(), aristasCel: new Map(), sub: new Map(), triCuerpo: [], spawns: [], luces: [], T: null, TN: null, nt: 0, ntMapa: 0, triSup: null, triClip: null, cielo3d: null });
+}
 // el cielo «painted» de GMod (gm_construct, gm_flatgrass y muchos mapas del Workshop): un degradé celeste que se aclara hasta
 // casi blanco en el horizonte; arriba y abajo, celeste parejo. Medido de sus caras (256 × 256, cada fila de un solo color
 // ±8): 17 colores del borde de arriba de una cara del costado hasta el medio; la mitad de abajo es igual, al revés. Se arma

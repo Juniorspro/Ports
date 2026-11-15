@@ -33,7 +33,8 @@ const errJS = [];
 const SOLO = (process.env.SOLO || '').split(',').filter(Boolean), corre = (n) => !SOLO.length || SOLO.includes(String(n));
 const IDIOMAS = ['es', 'en', 'pt', 'id', 'ms', 'fil', 'ja', 'th', 'tr', 'ar', 'ru', 'uk', 'fr', 'de'];
 const VERDE = 'rgb(34, 197, 94)';
-const PREFS0 = (lang) => ({ bienvenida: true, tutVisto: true, nombre: 'NijulaX', nombreOk: true, lang: lang || 'es', mapa: 'Desert' });
+// (el depósito ya no es el menú de fábrica —lo es el clásico, clasico.js—: se elige en las preferencias, como en Ajustes → Menú de inicio)
+const PREFS0 = (lang) => ({ bienvenida: true, tutVisto: true, nombre: 'NijulaX', nombreOk: true, lang: lang || 'es', mapa: 'Desert', menuInicio: 'deposito' });
 // abrir el juego en una pantalla. o: { lang, ins (muesca a la izquierda), antes (otro script), q, franja, dpr, google, url }
 async function abrir(nom, w, h, movil, o = {}) {
   const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: o.dpr || 1, isMobile: movil, hasTouch: movil, locale: 'es-AR' });

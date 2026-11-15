@@ -73,9 +73,10 @@ const RED_SOCIAL = [['Discord', 'https://discord.gg/bsdThEjje', '<svg viewBox="0
 function abrirRed(u) { try { if (window.JXNativo && JXNativo.abrir) { JXNativo.abrir(u); return; } } catch (e) {} window.open(u, '_blank', 'noopener'); }
 function inicioCrear() {
   const el = document.createElement('div'); el.id = 'rbInicio'; el.className = 'oc';
-  // (el menú del depósito —deposito.js— va arriba del fondo de escenas, que queda para los paneles cuando la escena no está)
-  el.innerHTML = `<div class="rbBg"></div><div class="rbBg"></div><div class="rbSombra"></div><div class="dpHome oc"></div><div class="rbPan oc"></div>`;
-  document.body.appendChild(el); RB.el = el; depCrear(el.querySelector('.dpHome'));
+  // (el fondo de escenas —el mundo vivo de la 3.3— y, arriba, la página del menú elegido: el clásico —clasico.js— o el del
+  // depósito —deposito.js—, que tapa el fondo con su escena 3D; menuHomeArmar)
+  el.innerHTML = `<div class="rbBg"></div><div class="rbBg"></div><div class="rbSombra"></div><div class="rbPan oc"></div>`;
+  document.body.appendChild(el); RB.el = el; menuHomeArmar();
   el.addEventListener('click', (e) => { const b = e.target.closest('[data-rb]'); if (!b || b.tagName === 'SELECT' || b.tagName === 'INPUT') return; audioIniciar(); inicioAccion(b.dataset.rb, b, e); });
   el.addEventListener('change', (e) => {
     const t = e.target;
@@ -98,26 +99,52 @@ function inicioCrear() {
   overlay('NicknamePanel', false); PREFS.nombreOk = true; guardarPrefs();
   rbArrastre();
 }
-// el menú principal (deposito.js): la escena con las cajas, el perfil, Amigos, Ajustes, el mapa y JUGAR. (Antes, la 3.0: una
-// lista de texto como la de GMod y botoncitos abajo; la 3.4, la portada con tu personaje en un escenario)
+// ---------- el menú principal: el clásico o el depósito (Ajustes → Menú de inicio) ----------
+// El de fábrica es el clásico (clasico.js: el de la 3.3, la lista en barras negras, mejorado); el depósito (deposito.js:
+// la escena con las cajas, de la 3.5) se elige en Ajustes. Se guarda en las preferencias (PREFS.menuInicio) y el cambio es
+// inmediato: la página del otro se desarma entera —con su escena, sus oyentes y la pausa del dibujo— y se arma la elegida.
+const menuInicio = () => (PREFS.menuInicio === 'deposito' ? 'deposito' : 'clasico');
+function menuHomeArmar() {
+  const quiero = menuInicio(), P = RB.el.querySelector('.rbPan');
+  if (quiero === 'clasico') { if (DEP.el) depDestruir(); if (!CL.el) { const h = document.createElement('div'); h.className = 'clHome oc'; RB.el.insertBefore(h, P); clCrear(h); } }
+  else { if (CL.el) clDestruir(); if (!DEP.el) { const h = document.createElement('div'); h.className = 'dpHome oc'; RB.el.insertBefore(h, P); depCrear(h); } }
+  RB.home = quiero;
+}
+function menuHomeMostrar(on) { if (RB.home === 'clasico') clMostrar(on); else depMostrar(on); }
+// (la pausa del dibujo, que el bucle revisa en cada vuelta: principal.js)
+function menuPausa() { if (!RB.el) return; if (RB.home === 'clasico') clPausa(); else depPausa(); }
+function menuInicioPoner(k) {
+  k = k === 'deposito' ? 'deposito' : 'clasico';
+  if (PREFS.menuInicio !== k) { PREFS.menuInicio = k; guardarPrefs(); }
+  if (!RB.el || RB.home === k) return;
+  // (en una partida sólo se guarda: el menú se arma al volver —inicioMostrar—)
+  if (JUEGO.estado !== 'principal') return;
+  const ve = rbVisible();
+  menuHomeMostrar(false); if (RB.home === 'deposito') depSalir();
+  menuHomeArmar(); inicioLista();
+  if (ve) { menuHomeMostrar(!RB.panel); requestAnimationFrame(() => inicioEncajar()); }
+}
+// el menú principal: el clásico (clasico.js: el logo, la lista de opciones y la barra de abajo, como en la 3.3) o el depósito
+// (deposito.js: la escena con las cajas, el perfil, Amigos, Ajustes, el mapa y JUGAR)
 function inicioLista() {
   RB.el.dir = PREFS.lang === 'ar' ? 'rtl' : 'ltr';
-  depDibujar();
+  if (RB.home === 'clasico') clDibujar(); else depDibujar();
   if (typeof socGlobito === 'function') socGlobito();   // (lo nuevo de lo social: mensajes y solicitudes)
 }
-// (que todo entre en la pantalla: deposito.js)
-function inicioEncajar() { depEncajar(); }
+// (que todo entre en la pantalla)
+function inicioEncajar() { if (RB.home === 'clasico') clEncajar(); else depEncajar(); }
 function nombrePoner(v) { PREFS.nombre = limpioNombre(v); guardarPrefs(); const nick = nodo('Main/MainMenu/UpPanel/NickNameInputField'); if (nick && nick.inp) nick.inp.value = PREFS.nombre; }
 function inicioFondoPasar() {
   const capas = RB.el.querySelectorAll('.rbBg'), lista = FONDOS_RB.length ? FONDOS_RB : MAPAS.map((m) => icono(MAPA_ICONO[m]));
   const sig = capas[RB.fondo % 2 ? 0 : 1], act = capas[RB.fondo % 2];
   sig.style.backgroundImage = `url(${lista[RB.fondo % lista.length]})`; sig.classList.add('on'); act.classList.remove('on'); RB.fondo++;
+  if (RB.fondo > 1 && RB.home === 'clasico' && typeof clBrasas === 'function') clBrasas();   // (en el clásico, al cambiar la escena suben unas brasas)
 }
 function inicioPanel(p) {
   RB.panel = p; const P = RB.el.querySelector('.rbPan');
-  // (sin panel, el menú del depósito; con un panel, el panel encima de la escena —con la caja agarrada—, o el fondo de
-  // escenas de siempre mientras la escena no está)
-  depMostrar(!p);
+  // (sin panel, el menú; con un panel, el panel encima del fondo de escenas —en el depósito, encima de la escena, con la caja
+  // agarrada, o el fondo de siempre mientras la escena no está—)
+  menuHomeMostrar(!p);
   // (crear un mod y publicar una construcción se abren desde la tienda: llevan su mismo estilo)
   P.classList.toggle('oc', !p); P.className = 'rbPan' + (p ? ' rbPan_' + p + (p === 'pubmod' || p === 'pubmapa' ? ' rbPan_tienda tiForm' : '') : ' oc');
   // (el personaje en 3D sólo en la portada y en Personajes: en el resto, el fondo de siempre)
@@ -488,7 +515,9 @@ function mapaDelForm() {
 }
 function inicioAccion(k, b) {
   const [a, v] = k.split(/:(.*)/s);
-  if (depAccion(a, v, b)) return; // (lo propio del menú: JUGAR, las cajas, las hojas del perfil y de Ajustes y la Lista: deposito.js)
+  if (a === 'menuIni') return menuInicioPoner(v);   // (el menú de inicio: el clásico o el depósito)
+  if (clAccion(a, v, b)) return; // (lo propio del clásico: La grieta y Actualizar: clasico.js)
+  if (depAccion(a, v, b)) return; // (lo propio del depósito: JUGAR, las cajas, las hojas del perfil y de Ajustes y la Lista: deposito.js)
   if (rbMenusAccion(a, v)) return; // (multijugador, crear server y personajes: rbmenus.js)
   if (typeof gmTiendaAccion === 'function' && gmTiendaAccion(a, v)) return; // (la pestaña GMod de la tienda: gmod_tienda.js)
   const marcar = () => b.classList.toggle('sel');
@@ -552,11 +581,14 @@ function inicioAccion(k, b) {
 // muestra el inicio arriba del menú real (que queda armado abajo); la primera vez, la bienvenida
 function inicioMostrar(si) {
   if (si) {
-    menuMostrar(true); if (!RB.el) inicioCrear(); idiomaAplicar(PREFS.lang); inicioLista(); inicioPanel(PREFS.bienvenida ? null : 'bienvenida');
-    if (!RB.reloj) { inicioFondoPasar(); RB.reloj = setInterval(() => { if (!RB.el.classList.contains('oc')) inicioFondoPasar(); }, 9000); }
+    menuMostrar(true); if (!RB.el) inicioCrear(); else if (RB.home !== menuInicio()) menuHomeArmar();
+    idiomaAplicar(PREFS.lang); inicioLista(); inicioPanel(PREFS.bienvenida ? null : 'bienvenida');
+    // (en el clásico sin movimiento —«menos movimiento» del aparato o Gráficos Patata— la escena queda quieta: no pasa a la otra)
+    if (!RB.reloj) { inicioFondoPasar(); RB.reloj = setInterval(() => { if (!RB.el.classList.contains('oc') && !(RB.home === 'clasico' && clNivel() === 'quieto')) inicioFondoPasar(); }, 9000); }
   }
   if (RB.el) RB.el.classList.toggle('oc', !si);
-  if (si) { depMostrar(!RB.panel); requestAnimationFrame(() => { inicioEncajar(); tiEncajar(); }); } else { depMostrar(false); depSalir(); }
+  if (si) { menuHomeMostrar(!RB.panel); requestAnimationFrame(() => { inicioEncajar(); tiEncajar(); }); }
+  else { menuHomeMostrar(false); if (RB.home === 'deposito') depSalir(); if (typeof dibujoPausar === 'function') dibujoPausar(false); }
   // (en la partida, con el menú abierto la HUD táctil no se ve: si no, se asoma por las partes transparentes del menú)
   document.body.classList.toggle('rbAbierto', !!si);
   if (!si && RB.el) { RB.el.classList.remove('rb3d'); menuLobby(false); MENU.caja = null; }

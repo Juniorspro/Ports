@@ -363,7 +363,8 @@ function cuadro(ahora) {
   if (cuadroSalta(ahora, JUEGO.estado === 'juego')) return;
   // (en el menú, la pausa se revisa en cada vuelta: un panel que tapa el mundo —el de Personajes tiene su escenario— la saca
   // aunque se haya abierto por otro camino que las cajas)
-  if (JUEGO.estado === 'principal' && typeof depPausa === 'function') depPausa();
+  // (el clásico —clasico.js— la pide siempre: su fondo son las escenas, el lienzo queda tapado; salvo con tu personaje en 3D)
+  if (JUEGO.estado === 'principal' && typeof menuPausa === 'function') menuPausa();
   if (dibujoEnPausa(ahora)) { TIEMPO.ult = ahora / 1000; return; }   // (en pausa: ni simula ni dibuja; el lienzo, como quedó)
   const t = ahora / 1000, dt = Math.min(0.1, Math.max(0, t - (TIEMPO.ult || t))) * (JUEGO.estado === 'juego' ? MODS.tiempo || 1 : 1); TIEMPO.ult = t; TIEMPO.dt = dt; TIEMPO.t += dt;
   const t0 = performance.now();
