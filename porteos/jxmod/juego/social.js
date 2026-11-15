@@ -32,8 +32,8 @@ function socIniciar() {
   // (cada 60 s: antes cada 30, y el latido de todos los jugadores juntos llenaba el tope de pedidos por día de la tienda)
   SOC.latir = latir; setTimeout(latir, 4000); setInterval(latir, 60000);
 }
-// (en la portada: las solicitudes en Amigos y los mensajes sin leer en Chats, portada.js)
-function socGlobito() { if (typeof depGlobos === 'function') depGlobos(); }
+// (en el menú clásico, en «Social» —clasico.js—; en el depósito, en Amigos —deposito.js—: las solicitudes y lo sin leer)
+function socGlobito() { if (typeof clGlobos === 'function') clGlobos(); if (typeof depGlobos === 'function') depGlobos(); }
 
 // ---- el panel ----
 function panelSocial(P) {

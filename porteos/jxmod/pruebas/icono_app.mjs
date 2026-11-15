@@ -27,8 +27,9 @@ async function abrir(ctxOpc, nativo) {
   await ev(`PREFS.bienvenida = true; PREFS.tutVisto = true; idiomaAplicar('es'); guardarPrefs(); inicioMostrar(true); 1`);
   return { ctx, p, ev };
 }
-// (en el menú del depósito, Ajustes es el engranaje: abre su hoja, y Gráficos abre los ajustes)
-const abrirAjustes = (ev) => ev(`(() => { const g = document.querySelector('#rbInicio [data-rb=dpAjustes]'); if (g) g.click(); const b = document.querySelector('#rbInicio [data-rb="dpAj:g"]'); if (b) b.click(); return 1; })()`);
+// (en el menú clásico —el de fábrica— Opciones abre los ajustes, como en la 3.3; en el del depósito, Ajustes es el engranaje:
+// abre su hoja, y Gráficos abre los ajustes)
+const abrirAjustes = (ev) => ev(`(() => { const o = document.querySelector('#rbInicio .clIt[data-rb=opciones]'); if (o) { o.click(); return 1; } const g = document.querySelector('#rbInicio [data-rb=dpAjustes]'); if (g) g.click(); const b = document.querySelector('#rbInicio [data-rb="dpAj:g"]'); if (b) b.click(); return 1; })()`);
 const verSeccion = (ev) => ev(`(() => { const t = document.querySelector('[data-aj=l]'); if (t) t.click(); const g = document.querySelector('.icGrilla'); return { hay: !!g, tiles: g ? [...g.querySelectorAll('.icTile')].map((x) => [x.dataset.ic, x.textContent.trim(), !!x.querySelector('img'), x.classList.contains('sel')]) : [] }; })()`);
 // --- Android (la app) ---
 let A = await abrir({ viewport: { width: 873, height: 393 }, isMobile: true, hasTouch: true }, true);

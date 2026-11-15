@@ -310,6 +310,7 @@ function abrirAjustes(desde) {
   <div class="ajCuerpo"><nav class="ajTabs"><button data-aj="g" class="sel">${glifo('ajustes')}<span>${esc(Lc('Graphics', 'Gráficos'))}</span></button><button data-aj="r">${glifo('video')}<span>${esc(Lc('Rendering', 'Renderizado'))}</span></button><button data-aj="c">${glifo('volumen')}<span>${esc(Lc('ControlsAudio', 'Controles y audio'))}</span></button>${typeof icappSeccion === 'function' ? `<button data-aj="l">${glifo('estrella')}<span>${esc(T('ic.titulo'))}</span></button>` : ''}${typeof gmkPintar === 'function' ? `<button data-aj="m">${glifo('carpeta')}<span>${esc(T('gmk.titulo'))}</span></button>` : ''}</nav>
   <div class="ajSecs">
   <section data-ajs="g"><h4>${esc(Lc('Graphics', 'Gráficos'))}</h4>
+    ${desde === 'principal' && typeof menuInicioPoner === 'function' ? fila(esc(T('cl.menu')), `<span class="ajSeg" role="radiogroup" aria-label="${esc(T('cl.menu'))}">${['clasico', 'deposito'].map((k) => `<button type="button" role="radio" data-mi="${k}">${esc(T('cl.' + k))}</button>`).join('')}</span>`) : ''}
     ${fila(esc(Lc('GraphicsQuality', 'Calidad gráfica')), sel('aG', [['auto', 'Automático'], ['patata', 'Patata (muy bajo)'], ['bajo', 'Bajo'], ['medio', 'Medio'], ['alto', 'Alto'], ['ultra', 'Ultra (realista)']]))}
     ${fila(esc(Lc('Shadow', 'Sombras')), sel('aSo', [['auto', 'Según gráficos'], ['0', 'No'], ['1', 'Bajas'], ['2', 'Medias'], ['3', 'Altas (suaves)']]))}
     ${fila(esc(Lc('PostProcessing', 'Postprocesado')), sel('aPo', [['auto', 'Según gráficos'], ['si', 'Sí'], ['no', 'No']]))}
@@ -336,6 +337,10 @@ function abrirAjustes(desde) {
   // (la carpeta de mods —gmod_carpeta.js— se dibuja al abrir su pestaña y se va actualizando mientras está a la vista)
   c.querySelector('.ajTabs').onclick = (e) => { const b = e.target.closest('[data-aj]'); if (!b) return; for (const x of c.querySelectorAll('[data-aj]')) x.classList.toggle('sel', x === b); for (const x of c.querySelectorAll('[data-ajs]')) x.classList.toggle('oc', x.dataset.ajs !== b.dataset.aj); if (b.dataset.aj === 'm' && typeof gmkPintar === 'function') gmkPintar(c.querySelector('.gmkCont'), 'aj'); };
   $('aM').value = motorAct;
+  // (el menú de inicio, el clásico o el depósito: se cambia en el momento, sin «Listo» —clasico.js e inicio.js—)
+  const miPintar = () => { for (const x of c.querySelectorAll('[data-mi]')) { const si = x.dataset.mi === menuInicio(); x.classList.toggle('sel', si); x.setAttribute('aria-checked', si ? 'true' : 'false'); } };
+  for (const x of c.querySelectorAll('[data-mi]')) x.onclick = () => { menuInicioPoner(x.dataset.mi); miPintar(); };
+  miPintar();
   if (typeof icappConectar === 'function') icappConectar();   // (el ícono de la app: iconoapp.js)
   if (typeof milogoConectar === 'function') milogoConectar();   // (tu logo en el juego: milogo.js)
   $('aG').value = PREFS.gfx; $('aSo').value = String(PREFS.sombras); $('aPo').value = PREFS.post; $('aTq').value = PREFS.texQ;

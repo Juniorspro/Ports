@@ -1,4 +1,6 @@
 // ---------------- JXMod: el menú principal «Tu depósito» ----------------
+// (Después de la 3.5 es el otro menú de inicio: el de fábrica volvió a ser el clásico —clasico.js— y éste se elige en Ajustes →
+// Gráficos → Menú de inicio; inicio.js lo arma con depCrear y lo desarma entero con depDestruir al elegir el clásico)
 // El concepto que eligió el dueño después de tres maquetas (tu terreno + la pila de cajas + el plano), combinado y menos
 // confuso. Reemplaza la portada de la 3.4 (que se parecía demasiado al lobby de otro juego). Es una escena 3D de verdad,
 // con el motor del juego: el pasto de Pradera, de fondo la torre JX y, a la izquierda, tu personaje en tercera persona con
@@ -55,22 +57,58 @@ function depCrear(home) {
   DEP.el = home;
   home.innerHTML = `<div class="dpCajas"></div><div class="dpUI"></div><i class="dpSonda" aria-hidden="true"></i>`;
   DEP.cajasEl = home.querySelector('.dpCajas'); DEP.ui = home.querySelector('.dpUI');
+  // (los oyentes de la ventana van con una señal: al pasar al menú clásico —Ajustes → Menú de inicio— se van todos juntos,
+  // con el observador, el reloj de la hora y el aviso del paquete de tu personaje: depDestruir)
+  DEP.ac = new AbortController(); const sig = { signal: DEP.ac.signal }, cap = Object.assign({ capture: true }, sig);
   // (la caja se toca en cualquier parte, con la chapa; el mouse encima la resalta en la escena)
   DEP.cajasEl.addEventListener('pointerover', (e) => { const b = e.target.closest('.dpCaja'); depResaltar(b ? b.dataset.k : null, 'sobre'); });
   DEP.cajasEl.addEventListener('pointerleave', () => depResaltar(null, 'sobre'));
   home.addEventListener('focusin', (e) => { const b = e.target.closest && e.target.closest('.dpCaja'); depResaltar(b ? b.dataset.k : null, 'foco'); });
   home.addEventListener('focusout', () => setTimeout(() => { const a = document.activeElement, b = a && a.closest && a.closest('.dpCaja'); depResaltar(b ? b.dataset.k : null, 'foco'); }, 0));
-  addEventListener('keydown', depTecla, true);
-  addEventListener('pointerdown', () => { DEP.tecla = false; }, true);
-  addEventListener('resize', () => { if (depVisible()) setTimeout(depEncajar, 60); if (DEP.listo) dibujoDespertar(); });
-  try { document.fonts.addEventListener('loadingdone', () => { if (depVisible()) depEncajar(true); }); } catch (e) {}
-  addEventListener('gamepadconnected', () => { DEP.pad.on = true; depMandoPaso(); });
+  addEventListener('keydown', depTecla, cap);
+  addEventListener('pointerdown', () => { DEP.tecla = false; }, cap);
+  addEventListener('resize', () => { if (depVisible()) setTimeout(depEncajar, 60); if (DEP.listo) dibujoDespertar(); }, sig);
+  try { document.fonts.addEventListener('loadingdone', () => { if (depVisible()) depEncajar(true); }, sig); } catch (e) {}
+  addEventListener('gamepadconnected', () => { DEP.pad.on = true; depMandoPaso(); }, sig);
   // (Actualizar de la web —herramientas/codigo_web.mjs— pone su botón en el body cuando hay una versión nueva)
   try { DEP.obs = new MutationObserver(() => { if (depVisible()) depActualizarVer(); }); DEP.obs.observe(document.body, { childList: true }); } catch (e) {}
   // la hora: cada minuto se mira si cambió la franja (mañana, tarde, atardecer, noche); si cambió, otra luz y un cuadro
-  setInterval(() => { if (DEP.listo && depFranja()[0] !== DEP.franja) { depHora(); dibujoDespertar(); } }, 60000);
+  DEP.reloj60 = setInterval(() => { if (DEP.listo && depFranja()[0] !== DEP.franja) { depHora(); dibujoDespertar(); } }, 60000);
   // (llegó el paquete de tu personaje: se rehace con el de verdad)
-  if (typeof RBP !== 'undefined') RBP.alListo.push((k) => { if (DEP.pj && DEP.pj.skinQuiere && k === 's_' + DEP.pj.skinQuiere) { depPersonaje(); dibujoDespertar(); } });
+  DEP.alListo = (k) => { if (DEP.pj && DEP.pj.skinQuiere && k === 's_' + DEP.pj.skinQuiere) { depPersonaje(); dibujoDespertar(); } };
+  if (typeof RBP !== 'undefined') RBP.alListo.push(DEP.alListo);
+}
+// Al elegir el menú clásico (Ajustes → Menú de inicio), sin restos del depósito: la escena (las cajas, el farol y tu
+// personaje fuera del mundo, y el mundo de Pradera vaciado: el clásico no lo dibuja), la página, los oyentes, el observador,
+// los relojes, el mando y la pausa del dibujo. Volver a elegirlo lo arma de cero (depCrear y la escena, como al arrancar).
+function depDestruir() {
+  if (!DEP.el) return;
+  if (DEP.hoja) depHoja(null); if (DEP.lista) depListaCerrar();
+  depSalir(); depDesarmar();
+  try { DEP.ac.abort(); } catch (e) {} try { if (DEP.obs) DEP.obs.disconnect(); } catch (e) {}
+  clearInterval(DEP.reloj60); clearTimeout(DEP.tEnc); clearTimeout(DEP.tArmar);
+  if (typeof RBP !== 'undefined' && DEP.alListo) { const i = RBP.alListo.indexOf(DEP.alListo); if (i >= 0) RBP.alListo.splice(i, 1); }
+  DEP.pad.on = false; DEP.el.remove();
+  if (RB.el) RB.el.classList.remove('dpOn', 'dpFondo', 'dpListo', 'dpAgarra', 'dpEntra', 'dpHojaOn', 'dpListaOn');
+  delete RB.el.dataset.franja;
+  Object.assign(DEP, { el: null, ui: null, cajasEl: null, ac: null, obs: null, alListo: null, hoja: null, abrio: null, lista: false, foco: null, sobre: null, firmaEnc: '', enc: null, camRef: null, cara: null });
+}
+// (la escena fuera: lo del menú sale del mundo y el mapa se vacía —el clásico no dibuja el mundo, que así no ocupa memoria—)
+function depDesarmar() {
+  DEP.listo = false; DEP.armando = false; DEP.anim = null; DEP.tenida = null;
+  if (DEP.pj) { try { borrarPersona(DEP.pj); } catch (e) {} }
+  DEP.cajas = {}; DEP.farol = null; DEP.pj = null; EVT.enMenu = false;
+  if (JUEGO.estado !== 'principal') return;
+  // (lo mismo que deja depArmar antes de armar: todo lo del mundo del menú fuera —las cajas, el farol, la plaza JX—)
+  try {
+    if (typeof natFin === 'function') natFin(); if (typeof pillFin === 'function') pillFin(true); entidadesLimpiar();
+    for (const o of OBJS.slice()) borrarObjeto(o, true);
+    PH.bodies.length = 0; PH.joints.length = 0; PROY.length = 0; PART.l.length = 0;
+    if (typeof nukeLimpiar === 'function') nukeLimpiar(); if (typeof LUCES_T !== 'undefined') LUCES_T.length = 0;
+    if (typeof personasLimpiar === 'function') personasLimpiar();
+    if (MENU.lobby) { menuLobby(false); MENU.caja = null; }
+    mundoVaciar();
+  } catch (e) { console.warn('depósito', e); }
 }
 // lo que dice cada caja: [la palabra (puede ir en dos renglones), el dato]
 function depDatos() {
@@ -112,6 +150,7 @@ function depDibujar() {
       <div class="dpGrilla dpFuerte"><button data-rb="dpAj:g">${glifo('ajustes')}<span>${esc(T('dp.graficos'))}</span></button><button data-rb="dpAj:s">${glifo('volumen')}<span>${esc(T('dp.sonido'))}</span></button><button data-rb="dpAj:c">${glifo('mano')}<span>${esc(T('dp.controles'))}</span></button></div>
       <h3>${esc(T('dp.mas'))}</h3>
       <div class="dpGrilla"><button data-rb="idioma">${glifo('mundo')}<span dir="auto">${esc(I[0])}</span></button>${typeof tutAbrir === 'function' ? `<button data-rb="dpTut">${glifo('libro')}<span>${esc(T('pt.tutorial'))}</span></button>` : ''}<button data-rb="dpLista">${glifo('lista')}<span>${esc(T('dp.lista'))}</span></button>
+        <button data-rb="menuIni:clasico" title="${esc(T('cl.menu'))}">${glifo('girar')}<span>${esc(T('m.clasico'))}</span></button>
         <button class="dpRed" data-rb="red" data-url="${esc(red('Discord')[1])}" title="Discord">${red('Discord')[2]}<span>Discord</span></button><button class="dpRed" data-rb="red" data-url="${esc(red('TikTok')[1])}" title="TikTok">${red('TikTok')[2]}<span>TikTok</span></button>
         <button class="dpAct oc" data-rb="dpAct">${glifo('bajar')}<span>${esc(T('pt.actualizar'))}</span></button><button class="dpSalir" data-rb="salir">${glifo('salir')}<span>${esc(T('m.salir'))}</span></button></div></div>
     <div class="dpLista oc" role="dialog" aria-label="${esc(T('dp.lista'))}"></div>`;
@@ -731,7 +770,7 @@ function depAccion(a, v, b) {
     case 'dpAct': depActualizar(); return true;
     case 'dpLista': depListaAbrir(); return true;
     case 'dpL': depListaElegir(v); return true;
-    case 'dpEvSw': PREFS.evento = PREFS.evento === false; guardarPrefs(); depEventoPintar(); depDatosPintar(); if (DEP.listo) dibujoDespertar(); return true;
+    case 'dpEvSw': PREFS.evento = PREFS.evento === false; guardarPrefs(); depEventoPintar(); depDatosPintar(); if (typeof clEventoPintar === 'function') clEventoPintar(); if (DEP.listo) dibujoDespertar(); return true;
   }
   return false;
 }

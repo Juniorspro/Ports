@@ -1845,6 +1845,166 @@ html.rot #rbInicio .dpHome{--sl:0px;--sr:0px;--st:0px;--sb:0px}
 .rbPan_evento .dpEvSw i::after{content:'';position:absolute;top:3px;inset-inline-start:3px;width:18px;height:18px;border-radius:50%;background:#fff}
 .rbPan_evento .dpEvSw.on i{background:#8b4dff}.rbPan_evento .dpEvSw.on i::after{inset-inline-start:21px}
 .rbPan_evento .dpEvSw:focus-visible{outline:none;box-shadow:inset 0 0 0 1.5px #c49bff,0 0 0 3px #3d8bff}
+/* ---- el menú principal clásico (juego/clasico.js): el de la 3.3 —el logo, la lista en barras negras con la elegida en
+   amarillo, la barra de abajo y la versión, sobre las escenas del juego— con detalle: el borde de la punta de cada barra
+   roto (máscaras SVG hechas en clasico.js), grano y raspones (una textura de ruido de 160 px, hecha una vez en un canvas),
+   una cinta sobre el logo y su esquina rota, la línea amarilla gastada e íconos chicos. Las animaciones terminan solas: la
+   entrada, el barrido de luz de la elegida, el golpe al tocar, el glitch del logo (cada 11 a 19 s) y las brasas (al cambiar
+   la escena). Las medidas que dependen de la pantalla (--clF, --clP...) y los lugares los pone clasico.js. Lo tocable mide
+   44 px o más, salvo las opciones en el celular apaisado: ahí, lo que entra con el logo arriba (de 30 a 44; clEncajar) ---- */
+#rbInicio .clHome{position:absolute;inset:0;--clF:17px;--clP:44px;--clS:6px;--clIn:2px;--clChH:44px;--clChF:14px;--clLh:60px;--clM:20px;
+  --clPl:rgba(12,13,15,.86);--clPl2:rgba(32,33,37,.95);-webkit-tap-highlight-color:transparent}
+#rbInicio .clHome.oc{display:none}
+#rbInicio.clOn[dir=rtl] .rbSombra{background:linear-gradient(270deg,rgba(0,0,0,.42),rgba(0,0,0,0) 50%)}
+/* (el fondo se agranda como en la 3.3 —rbKen, 26 s— pero de a saltos de menos de medio píxel que da clasico.js —clKenPaso—:
+   6 por segundo; en Bajos, 2; sin movimiento, quieto) */
+#rbInicio.clOn .rbBg{animation:none;will-change:transform}
+#rbInicio.clOn.clQuieto .rbBg{transform:scale(1.02)!important}
+#rbInicio .clSonda{position:absolute;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+html.rot #rbInicio .clSonda{padding:0}
+#rbInicio .clHome :where(button){font-family:inherit;border:0;margin:0;padding:0;background:none;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#rbInicio .clHome :is(button,input):focus{outline:none}
+#rbInicio .clHome button::-moz-focus-inner{border:0}
+/* el grano sobre las escenas (quieto) y una viñeta suave */
+#rbInicio .clGrano{position:absolute;inset:0;pointer-events:none;opacity:.2;background:var(--clGrano,none) 0 0/160px 160px,radial-gradient(ellipse at 62% 42%,rgba(0,0,0,0) 52%,rgba(0,0,0,.32) 100%)}
+#rbInicio .clBrasas{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+#rbInicio .clBrasas i{position:absolute;width:var(--s);height:var(--s);border-radius:50%;opacity:0;
+  background:radial-gradient(circle,#fff4cf 0,#ffbb55 34%,rgba(255,112,32,.55) 58%,rgba(255,80,20,0) 72%);animation:clBrasa var(--d) cubic-bezier(.3,.6,.4,1) var(--dl) both}
+@keyframes clBrasa{0%{opacity:0;transform:translate(0,0)}14%{opacity:.95}70%{opacity:.65}100%{opacity:0;transform:translate(var(--dx),calc(var(--h)*-1))}}
+/* ---- el logo: la placa con la esquina de abajo rota, una cinta arriba y la línea amarilla gastada debajo ---- */
+#rbInicio .clLogo{position:absolute;pointer-events:none}
+#rbInicio .clHome .clLogo img{position:absolute;inset:0;width:100%;height:100%;margin:0;max-width:none;object-fit:contain;object-position:left;
+  -webkit-mask:var(--clRasgaLogo) 0 0/100% 100% no-repeat;mask:var(--clRasgaLogo) 0 0/100% 100% no-repeat}
+#rbInicio .clHome .clLogo .clLogoG{opacity:0;visibility:hidden}
+#rbInicio .clCinta{position:absolute;left:1.2%;top:3%;width:19%;height:25%;transform:rotate(-12deg);opacity:.92;
+  background:var(--clGrano,none) 13px 29px/120px 120px,linear-gradient(180deg,rgba(236,225,190,.86),rgba(214,200,160,.82));
+  -webkit-mask:var(--clCintaM) 0 0/100% 100% no-repeat;mask:var(--clCintaM) 0 0/100% 100% no-repeat}
+#rbInicio .clAcento{position:absolute;pointer-events:none;background:var(--jxA);transform-origin:0 50%;
+  -webkit-mask:var(--clLineaM) 0 0/100% 100% no-repeat;mask:var(--clLineaM) 0 0/100% 100% no-repeat}
+#rbInicio[dir=rtl] .clAcento{transform-origin:100% 50%}
+/* ---- la lista: barras contiguas (lo que se toca es la barra entera, con el espacio de arriba y de abajo) ---- */
+#rbInicio .clLista{position:absolute;display:flex;flex-direction:column;align-items:stretch;width:max-content}
+#rbInicio .clSep{display:block;flex:none;height:var(--clS)}
+#rbInicio .clIt{position:relative;display:block;flex:none;height:var(--clP);text-align:start;touch-action:manipulation}
+/* (lo que se toca más allá de la barra: en los bordes de los grupos, la mitad del espacio entre grupos; la primera, el aire de
+   arriba; Salir, hasta la barra de abajo. Las placas de abajo, 44 px para tocar aunque se vean más bajas en el celular) */
+#rbInicio .clIt::before{content:'';position:absolute;left:0;right:0;top:calc(-1*var(--hT,0px));bottom:calc(-1*var(--hB,0px))}
+#rbInicio .clChip::before{content:'';position:absolute;left:0;right:0;top:calc(-1*var(--clChUp,0px));bottom:calc(-1*var(--clChDn,0px))}
+#rbInicio .clCuerpo{position:relative;display:flex;align-items:center;gap:calc(var(--clF)*.5);box-sizing:border-box;height:calc(100% - 2*var(--clIn));margin:var(--clIn) 0;
+  padding-block:0;padding-inline:calc(var(--clF)*.55) calc(var(--clF)*.95 + 14px);border-inline-start:calc(var(--clF)*.2) solid transparent;overflow:hidden;
+  background:var(--clGrano,none) var(--gx,0) var(--gy,0)/160px 160px,var(--clPl);color:var(--jxT);font:500 var(--clF)/1.1 var(--jxF);text-transform:uppercase;letter-spacing:.02em;white-space:nowrap;
+  transition:background-color .14s,color .14s,border-color .14s;
+  -webkit-mask:linear-gradient(#000 0 0) 0 0/calc(100% - 47px) 100% no-repeat,var(--r) 100% 0/48px 100% no-repeat;mask:linear-gradient(#000 0 0) 0 0/calc(100% - 47px) 100% no-repeat,var(--r) 100% 0/48px 100% no-repeat}
+#rbInicio[dir=rtl] .clCuerpo{-webkit-mask-position:100% 0,0 0;mask-position:100% 0,0 0}
+#rbInicio[dir=rtl] .clHome *{letter-spacing:0!important}
+#rbInicio .clIco{width:1em;height:1em;opacity:.62;stroke-width:2.3}
+#rbInicio .clTx{display:block}
+#rbInicio .clCuerpo .soBadge{margin-inline-start:.2em;font-size:max(11px,calc(var(--clF)*.62));line-height:1.45}
+/* la elegida, en amarillo: «Empezar partida nueva» o la del mouse o el foco (y la principal guarda su borde amarillo) */
+#rbInicio .clIt.clPri .clCuerpo,#rbInicio .clIt.clSel .clCuerpo{background-color:var(--jxA);color:#121212;font-weight:600}
+#rbInicio .clIt.clPri .clIco,#rbInicio .clIt.clSel .clIco{opacity:.9}
+#rbInicio .clLista.clHay .clIt.clPri:not(.clSel) .clCuerpo{background-color:var(--clPl);color:var(--jxT);font-weight:500;border-inline-start-color:var(--jxA)}
+#rbInicio .clLista.clHay .clIt.clPri:not(.clSel) .clIco{opacity:.62}
+#rbInicio .clIt:focus-visible .clCuerpo{box-shadow:inset 0 0 0 2px #121212,inset 0 0 0 4px rgba(255,255,255,.55)}
+/* el barrido de luz (una vez, al pasar a ser la elegida) */
+#rbInicio .clBrillo{position:absolute;top:-10%;bottom:-10%;left:0;width:34%;pointer-events:none;opacity:0;transform:translateX(-120%) skewX(-18deg);
+  background:linear-gradient(90deg,rgba(255,255,255,0) 0,rgba(255,255,255,.1) 34%,rgba(255,255,255,.5) 47%,rgba(255,252,240,.95) 50%,rgba(255,255,255,.12) 58%,rgba(255,255,255,0) 100%)}
+#rbInicio .clIt.clSel .clBrillo{animation:clBarre .62s cubic-bezier(.45,.15,.3,1) both}
+#rbInicio[dir=rtl] .clBrillo{left:auto;right:0;transform:translateX(120%) skewX(18deg)}
+#rbInicio[dir=rtl] .clIt.clSel .clBrillo{animation-name:clBarreR}
+@keyframes clBarre{0%{opacity:1;transform:translateX(-120%) skewX(-18deg)}100%{opacity:1;transform:translateX(320%) skewX(-18deg)}}
+@keyframes clBarreR{0%{opacity:1;transform:translateX(120%) skewX(18deg)}100%{opacity:1;transform:translateX(-320%) skewX(18deg)}}
+/* el golpe al tocar */
+#rbInicio .clIt.clGolpe .clCuerpo{animation:clGolpe .2s ease-out}
+#rbInicio .clChip.clGolpe{animation:clGolpe .2s ease-out}
+@keyframes clGolpe{0%{transform:none}35%{transform:translateX(4px) scale(.965);filter:brightness(1.22)}100%{transform:none;filter:none}}
+#rbInicio[dir=rtl] .clIt.clGolpe .clCuerpo,#rbInicio[dir=rtl] .clChip.clGolpe{animation-name:clGolpeR}
+@keyframes clGolpeR{0%{transform:none}35%{transform:translateX(-4px) scale(.965);filter:brightness(1.22)}100%{transform:none;filter:none}}
+/* ---- abajo: la barra (los mods, el idioma, tu nombre y la cuenta, las redes) y la versión con Actualizar; arriba, La grieta ---- */
+#rbInicio .clAbajo,#rbInicio .clVerG,#rbInicio .clArriba{position:absolute;display:flex;align-items:center;gap:calc(var(--clChH)*.1)}
+#rbInicio .clHome.clEnvuelve .clAbajo{flex-wrap:wrap-reverse;row-gap:6px}
+/* (la placa de cada botón va en su ::after, con la punta rota: la máscara no deja tocar fuera de la placa, y lo que se toca
+   —el botón y su ::before— tiene que poder pasarse de lo que se ve) */
+#rbInicio .clChip{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;gap:calc(var(--clChF)*.5);box-sizing:border-box;height:var(--clChH);min-width:max(44px,var(--clChH));
+  padding-block:0;padding-inline:calc(var(--clChF)*.85) calc(var(--clChF)*.85 + 5px);flex:none;background:none;color:var(--jxT);font:500 var(--clChF)/1 var(--jxF);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;transition:color .14s}
+#rbInicio .clChip::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--clGrano,none) 37px 11px/160px 160px,var(--clPl);transition:background-color .14s,box-shadow .14s;
+  -webkit-mask:linear-gradient(#000 0 0) 0 0/calc(100% - 23px) 100% no-repeat,var(--clRasgaChip) 100% 0/24px 100% no-repeat;mask:linear-gradient(#000 0 0) 0 0/calc(100% - 23px) 100% no-repeat,var(--clRasgaChip) 100% 0/24px 100% no-repeat}
+#rbInicio[dir=rtl] .clChip::after{-webkit-mask-position:100% 0,0 0;mask-position:100% 0,0 0}
+#rbInicio .clChip .gli{width:1.22em;height:1.22em;flex:none}
+#rbInicio .clChip:hover::after,#rbInicio .clChip:focus-visible::after,#rbInicio .clChip:focus-within::after{background-color:var(--clPl2);box-shadow:inset 0 -3px 0 var(--jxA)}
+#rbInicio .clChip:focus-visible{outline:2px solid var(--jxA);outline-offset:-2px}
+#rbInicio .clChip:active{color:#121212}#rbInicio .clChip:active::after{background-color:var(--jxA)}
+#rbInicio .clChip.clRed{padding:0;width:max(44px,var(--clChH))}
+#rbInicio .clChip.clRed svg{width:1.3em;height:1.3em}
+#rbInicio .clChip.clRed:active svg path{fill:#121212}
+#rbInicio .clMods .clChC{display:none}
+#rbInicio .clHome.clCompacto .clMods .clChL{display:none}#rbInicio .clHome.clCompacto .clMods .clChC{display:block}
+#rbInicio .clPerfil{display:flex;align-items:center;flex:none}
+#rbInicio .clCuenta{display:flex}
+#rbInicio .clCuenta .cuChip{padding-inline:calc(var(--clChF)*.7);gap:.5em;border-inline-end:1px solid rgba(239,237,231,.14)}#rbInicio .clCuenta .cuChip::after{-webkit-mask:none;mask:none}
+#rbInicio .clCuenta .cuChip .cuG{width:1.3em;height:1.3em}
+#rbInicio .clCuenta .cuFoto{width:calc(var(--clChH)*.62);height:calc(var(--clChH)*.62);border-radius:50%;object-fit:cover}
+#rbInicio .clHome.clCompacto .clCuT{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#rbInicio .clNom{cursor:text}
+#rbInicio .clNom input{box-sizing:border-box;width:calc(var(--clChF)*6.4);height:100%;margin:0;padding:0;border:0;outline:0;background:transparent;color:inherit;font:500 var(--clChF)/1 var(--jxF);letter-spacing:.03em;text-transform:none}
+#rbInicio .clNom input::placeholder{color:rgba(239,237,231,.6)}
+#rbInicio .clHome.clCompacto .clNom input{width:calc(var(--clChF)*4.6)}
+#rbInicio .clHome.clCompacto .clAbajo{gap:3px}
+#rbInicio .clHome.clCompacto .clChip{padding-inline:calc(var(--clChF)*.55) calc(var(--clChF)*.55 + 5px);gap:calc(var(--clChF)*.4)}
+#rbInicio .clHome.clCompacto .clChip.clRed{padding:0}
+#rbInicio .clHome.clMuyCompacto .clIdi span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+#rbInicio .clHome.clMuyCompacto .clIdi{padding:0;width:max(44px,var(--clChH))}
+#rbInicio .clHome.clMuyCompacto .clNom input{width:calc(var(--clChF)*4.2)}
+#rbInicio .clVer{display:flex;align-items:center;gap:.6em;box-sizing:border-box;height:var(--clChH);padding:0 calc(var(--clChF)*.9);flex:none;
+  background:var(--clGrano,none) 71px 3px/160px 160px,var(--clPl);color:var(--jxT);font:500 var(--clChF)/1 var(--jxF);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;direction:ltr}
+#rbInicio .clVer b{color:var(--jxA);font-weight:600}#rbInicio .clVer i{font-style:normal;color:rgba(239,237,231,.68)}
+#rbInicio .clAct{color:var(--jxA)}
+#rbInicio .clAct.clHay::after{content:'';position:absolute;top:7px;inset-inline-end:9px;width:8px;height:8px;border-radius:50%;background:#e53935}
+#rbInicio .clEvt .gli{color:#c39dff}
+#rbInicio .clEvt .clEvtE{font-weight:600;color:rgba(239,237,231,.72)}
+#rbInicio .clEvt.clEvtOn .clEvtE{color:#d9c2ff}
+#rbInicio .clHome.clEvtCorto .clEvtE{display:none}
+#rbInicio .clHome.clEvtCorto .clEvt::after{content:'';flex:none;width:8px;height:8px;border-radius:50%;background:rgba(239,237,231,.45)}
+#rbInicio .clHome.clEvtCorto .clEvt.clEvtOn::after{background:#c39dff;box-shadow:0 0 6px #a070ff}
+/* ---- la entrada (al aparecer el menú): las barras se rasgan de izquierda a derecha, una tras otra; el logo aparece con un
+   glitch, la línea se estira, la cinta se pega y abajo sube la barra. Termina en menos de 1 s. (Se anima la placa: la barra
+   que se toca está entera desde el primer momento) ---- */
+#rbInicio .clHome.clEntra .clIt .clCuerpo{animation:clEntra .46s cubic-bezier(.2,.8,.2,1) calc(70ms + var(--i)*55ms) both}
+#rbInicio[dir=rtl] .clHome.clEntra .clIt .clCuerpo{animation-name:clEntraR}
+@keyframes clEntra{0%{opacity:.25;transform:translateX(-18px);clip-path:polygon(0 0,0 0,-5% 22%,3% 47%,-4% 71%,1% 100%,0 100%)}55%{opacity:1}
+  100%{opacity:1;transform:none;clip-path:polygon(0 0,106% 0,101% 22%,109% 47%,102% 71%,107% 100%,0 100%)}}
+@keyframes clEntraR{0%{opacity:.25;transform:translateX(18px);clip-path:polygon(100% 0,100% 0,105% 22%,97% 47%,104% 71%,99% 100%,100% 100%)}55%{opacity:1}
+  100%{opacity:1;transform:none;clip-path:polygon(100% 0,-6% 0,-1% 22%,-9% 47%,-2% 71%,-7% 100%,100% 100%)}}
+#rbInicio .clHome.clEntra .clLogoI{animation:clLogoIn .5s linear both}
+@keyframes clLogoIn{0%{opacity:0;transform:translateX(-8px)}18%{opacity:.9;transform:translateX(4px)}28%{opacity:.2}42%{opacity:1;transform:translateX(-2px)}58%,100%{opacity:1;transform:none}}
+#rbInicio .clHome.clEntra .clAcento{animation:clLinea .55s cubic-bezier(.2,.8,.2,1) .28s both}
+@keyframes clLinea{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+#rbInicio .clHome.clEntra .clCinta{animation:clCinta .32s cubic-bezier(.3,1.4,.5,1) .55s both}
+@keyframes clCinta{from{opacity:0;transform:rotate(-12deg) scale(1.35)}to{opacity:.92;transform:rotate(-12deg) scale(1)}}
+#rbInicio .clHome.clEntra :is(.clAbajo,.clVerG){animation:clSube .42s cubic-bezier(.2,.8,.2,1) .42s both}
+#rbInicio .clHome.clEntra .clArriba{animation:clBaja .42s cubic-bezier(.2,.8,.2,1) .5s both}
+@keyframes clSube{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes clBaja{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+/* (Gráficos bajos: la entrada más corta, sin el logo ni la cinta animados) */
+#rbInicio.clBajo .clHome.clEntra .clIt .clCuerpo{animation-duration:.3s;animation-delay:calc(var(--i)*30ms)}
+#rbInicio.clBajo .clHome.clEntra :is(.clLogoI,.clCinta,.clAcento){animation:none}
+/* ---- el glitch del logo: dos tajadas corridas y teñidas y la placa que parpadea, 0,42 s ---- */
+#rbInicio .clLogo.clGlitch .clLogoG{visibility:visible}
+#rbInicio .clLogo.clGlitch .clLogoG1{animation:clGl1 .42s steps(1,end) both;filter:sepia(1) saturate(6) hue-rotate(-12deg)}
+#rbInicio .clLogo.clGlitch .clLogoG2{animation:clGl2 .42s steps(1,end) both;filter:sepia(1) saturate(4) hue-rotate(150deg)}
+#rbInicio .clLogo.clGlitch .clLogoI{animation:clGl0 .42s steps(1,end) both}
+@keyframes clGl0{0%{opacity:1;transform:none}12%{opacity:.55;transform:translateX(2px)}24%{opacity:1;transform:none}48%{opacity:.8;transform:translateX(-1px)}60%,100%{opacity:1;transform:none}}
+@keyframes clGl1{0%{opacity:.9;clip-path:inset(20% 0 60% 0);transform:translateX(-7px)}20%{opacity:.85;clip-path:inset(56% 0 24% 0);transform:translateX(6px)}40%{opacity:.8;clip-path:inset(34% 0 50% 0);transform:translateX(-4px)}60%,100%{opacity:0;clip-path:inset(0);transform:none}}
+@keyframes clGl2{0%{opacity:0}10%{opacity:.75;clip-path:inset(64% 0 14% 0);transform:translateX(5px)}30%{opacity:.7;clip-path:inset(12% 0 72% 0);transform:translateX(-6px)}50%{opacity:.6;clip-path:inset(44% 0 38% 0);transform:translateX(3px)}62%,100%{opacity:0;clip-path:inset(0);transform:none}}
+/* (sin movimiento: ni la entrada, ni el barrido, ni el golpe, ni el glitch, ni las brasas, ni el fondo que se agranda) */
+#rbInicio.clQuieto .clHome *,#rbInicio.clQuieto .clHome{animation:none!important;transition:none!important}
+#rbInicio.clQuieto .clBrillo,#rbInicio.clQuieto .clBrasas{display:none}
+@media (prefers-reduced-motion:reduce){#rbInicio .clHome *,#rbInicio .clHome{animation:none!important;transition:none!important}#rbInicio .clBrillo,#rbInicio .clBrasas{display:none}#rbInicio.clOn .rbBg{animation:none;transform:scale(1.02)}}
+/* (el selector del menú de inicio en Ajustes → Gráficos: dos placas, la elegida en amarillo) */
+#ajustesCaja .ajSeg{display:flex;gap:4px;flex:none}
+#ajustesCaja .ajSeg button{min-height:44px;min-width:92px;padding:0 14px;border:1px solid var(--jxLin,rgba(255,255,255,.15));border-radius:0;background:#0b0c0d;color:var(--jxT,#eee);font:500 14px/1 var(--jxF,Roboto,Arial,sans-serif);text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
+#ajustesCaja .ajSeg button.sel{background:var(--jxA,#f2b31b);border-color:var(--jxA,#f2b31b);color:#121212}
+#ajustesCaja .ajSeg button:focus-visible{outline:2px solid var(--jxA,#f2b31b);outline-offset:2px}
 </style></head>
 <body>
 <canvas id="cv"></canvas>

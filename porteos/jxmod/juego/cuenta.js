@@ -174,7 +174,9 @@ function cuAplicarPerfil(s) {
 
 // ---- interfaz: el chip del menú, el cartel para entrar y el de los addons ----
 function cuentaPintar() {
-  // (en el menú principal, adentro de la hoja del perfil; en el botón del perfil, la «G» si hay sesión: deposito.js)
+  // (en el menú clásico, al lado de tu nombre en la barra de abajo: clasico.js)
+  if (typeof clCuentaPintar === 'function' && clCuentaPintar()) return;
+  // (en el depósito, adentro de la hoja del perfil; en el botón del perfil, la «G» si hay sesión: deposito.js)
   const A = typeof RB !== 'undefined' && RB.el && RB.el.querySelector('.dpCuenta'); if (!A) return;
   const marca = () => { if (typeof depCuentaMarca === 'function') depCuentaMarca(); };
   let b = A.querySelector('.cuChip'); if (!cuRequerida() && !cuDentro()) { if (b) b.remove(); A.classList.remove('ptCuOn'); marca(); return; }

@@ -54,8 +54,11 @@ async function ruteo(ctx) {
   });
 }
 const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio'] });
+// (el menú principal: el clásico, el de fábrica —clasico.js—; con MENU=deposito, el del depósito —deposito.js—)
+const MENU = process.env.MENU === 'deposito' ? 'deposito' : 'clasico';
 async function aparato(S, celu) {
   const ctx = await b.newContext(celu ? { viewport: { width: 873, height: 393 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 720 } }); await ruteo(ctx);
+  if (MENU === 'deposito') await ctx.addInitScript(() => { try { const P = JSON.parse(localStorage.getItem('jx_prefs') || '{}'); if (!P.menuInicio) { P.menuInicio = 'deposito'; localStorage.setItem('jx_prefs', JSON.stringify(P)); } } catch (e) {} });
   await ctx.addInitScript((s) => { try { if (!localStorage.getItem('jx_cuenta')) localStorage.setItem('jx_cuenta', JSON.stringify(s)); } catch (e) {} }, S);
   const p = await ctx.newPage(), err = []; p.on('pageerror', (e) => err.push(e.message.slice(0, 200))); p.on('console', (m) => { if (m.type() === 'error' && !/WebSocket|net::|ERR_|404|favicon/.test(m.text())) err.push('consola: ' + m.text().slice(0, 200)); });
   await p.goto(HTML); await p.waitForFunction(() => window.__listo, null, { timeout: 180000 });
@@ -77,10 +80,13 @@ const desborde = (A) => A.ev(`(() => { const P = document.querySelector('.rbPan_
 
 const A = await aparato(SA, false), B = await aparato(SB, true);
 // ---- el menú: Social y su globito ----
-// (el depósito —deposito.js— tiene Social en un ícono de arriba: Amigos, con Chats como pestaña adentro; su globito suma las
-// solicitudes y lo sin leer. En la portada 3.4 eran dos íconos, Amigos y Chats)
-const menu = await A.ev(`(() => { const a = DEP.ui.querySelector('.dpAmigos'); return { hay: !!a, txt: a && a.getAttribute('aria-label'), ok: !!a && a.getAttribute('aria-label') === T('dp.amigosChats'), dlg: !!document.querySelector('#cuDlg:not(.oc)') }; })()`);
-await A.ev(`inicioAccion('dpSoc'); 1`); await A.p.waitForTimeout(500);
+// (el clásico tiene «Social» en la lista, como en la 3.3; el depósito —deposito.js— lo tiene en un ícono de arriba: Amigos;
+// en los dos, con Chats como pestaña adentro y el globito que suma las solicitudes y lo sin leer. En la portada 3.4 eran dos
+// íconos, Amigos y Chats)
+const menu = MENU === 'clasico'
+  ? await A.ev(`(() => { const a = CL.lista.querySelector('.clIt[data-k=social]'); return { hay: !!a, txt: a && a.textContent.trim(), ok: !!a && a.textContent.trim() === T('m.social'), dlg: !!document.querySelector('#cuDlg:not(.oc)') }; })()`)
+  : await A.ev(`(() => { const a = DEP.ui.querySelector('.dpAmigos'); return { hay: !!a, txt: a && a.getAttribute('aria-label'), ok: !!a && a.getAttribute('aria-label') === T('dp.amigosChats'), dlg: !!document.querySelector('#cuDlg:not(.oc)') }; })()`);
+await A.ev(MENU === 'clasico' ? `CL.lista.querySelector('.clIt[data-k=social]').click(); 1` : `inicioAccion('dpSoc'); 1`); await A.p.waitForTimeout(500);
 menu.chats = await A.ev(`RB.panel === 'social' && !!document.querySelector('.rbPan [data-rb="soc:tab|chats"]') && !!document.querySelector('.rbPan [data-rb="soc:tab|amigos"]')`);
 await A.ev(`inicioAccion('volver'); 1`); await A.p.waitForTimeout(300);
 ok('el menú principal tiene Social (Amigos, con Chats adentro) y con sesión no pide entrar', menu.hay && menu.ok && menu.chats && !menu.dlg, menu);
@@ -112,8 +118,8 @@ await A.p.screenshot({ path: 'social_buscar_pc.png' });
 ok('Buscar (compu): nada desbordado', !(await desborde(A)).length, await desborde(A));
 // ---- Beto: globito y aceptar ----
 await B.ev(`SOC.latir(); 1`); await esperar(B.p, `SOC.badge >= 1`);
-const glo = await B.ev(`(() => { const e = DEP.ui.querySelector('.dpAmigos .soBadge'); return e ? e.textContent : null; })()`);
-ok('a Beto le aparece el globito en «Amigos» con la solicitud', glo === '1', glo);
+const glo = await B.ev(MENU === 'clasico' ? `(() => { const e = CL.lista.querySelector('.clIt[data-k=social] .soBadge'); return e ? e.textContent : null; })()` : `(() => { const e = DEP.ui.querySelector('.dpAmigos .soBadge'); return e ? e.textContent : null; })()`);
+ok(`a Beto le aparece el globito en «${MENU === 'clasico' ? 'Social' : 'Amigos'}» con la solicitud`, glo === '1', glo);
 await B.ev(`inicioAccion('social'); 1`); await B.p.waitForTimeout(600); await tab(B, 'amigos');
 await esperar(B.p, `!!document.querySelector('[data-rb="soc:sub|sol"]')`); await clic(B, '[data-rb="soc:sub|sol"]'); await esperar(B.p, `!!document.querySelector('[data-rb="soc:amigo|aceptar|${PA}"]')`);
 await B.p.screenshot({ path: 'social_solicitudes_celu.png' });
@@ -213,10 +219,10 @@ ok('desbloquear la saca de «Bloqueados» (y vuelve a aparecer al buscar)', !(aw
 await A.ev(`inicioPanel(null); 1`); await A.p.waitForTimeout(300); LENTO = 1800;
 await A.ev(`SOC.tab = 'perfil'; SOC.yo = null; inicioPanel('social'); 1`); await A.p.waitForTimeout(250);
 await clic(A, '.rbPan_social [data-rb=volver]'); await A.p.waitForTimeout(2600); LENTO = 0;
-// (el depósito tiene su propia escena: tiene que quedar ésa —el mundo con las cajas—, no el personaje del Perfil con el
-// fondo crema)
-const lento = await A.ev(`({ rb3d: RB.el.classList.contains('rb3d'), lobby: !!MENU.lobby, caja: !!MENU.caja, panel: RB.panel || null, deposito: depVisible() && depMundoVisible() })`);
-ok('con internet lento, entrar al Perfil y volver enseguida deja el menú como estaba (el depósito con su escena, sin el fondo crema del Perfil)', !lento.rb3d && !lento.lobby && !lento.caja && !lento.panel && lento.deposito, lento);
+// (tiene que quedar el menú de antes —el clásico con su lista, o el depósito con su escena—, no el personaje del Perfil con
+// el fondo crema)
+const lento = await A.ev(`({ rb3d: RB.el.classList.contains('rb3d'), lobby: !!MENU.lobby, caja: !!MENU.caja, panel: RB.panel || null, menu: RB.home === 'clasico' ? clVisible() && !!CL.lista.querySelector('.clIt') : depVisible() && depMundoVisible() })`);
+ok(`con internet lento, entrar al Perfil y volver enseguida deja el menú como estaba (${MENU === 'clasico' ? 'el clásico con su lista' : 'el depósito con su escena'}, sin el fondo crema del Perfil)`, !lento.rb3d && !lento.lobby && !lento.caja && !lento.panel && lento.menu, lento);
 await A.p.screenshot({ path: 'social_volver_lento.png' });
 // ---- sin sesión / sin configurar ----
 const sin = await llamar('/api/social/yo'), sinConf = await llamar('/api/social/yo', { headers: { Authorization: 'Bearer ' + SA.token } }, { DB });
