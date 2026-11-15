@@ -21,6 +21,9 @@ try { Object.assign(PREFS, JSON.parse(localStorage.getItem('jx_prefs') || '{}'))
 // (desde la 2.9 el motor de siempre es WebGL 2: a los que tenían guardado el WebGL 1 de antes —que era el de entrada— se
 // los pasa una vez; si en el aparato no arranca, iniciar vuelve solo a WebGL 1)
 if (PREFS.motorV !== 2) { if (PREFS.motor === 'webgl1') PREFS.motor = 'webgl2'; PREFS.motorV = 2; }
+// (La grieta —el evento— es parte del juego y no se apaga: hasta la 3.6 tenía un interruptor en Ajustes y en su panel;
+// al que la había apagado se le vuelve a prender. PREFS.evento = false queda sólo para las pruebas)
+if (PREFS.evento === false) delete PREFS.evento;
 if (Q.get('gfx')) PREFS.gfx = Q.get('gfx');
 function guardarPrefs() { try { localStorage.setItem('jx_prefs', JSON.stringify(PREFS)); } catch (e) {} }
 const GFX = { escala: 0.7, lejos: 350, texMax: 256, lod: 1, sub: 8, part: 0.8, aniso: 0, auto: true, luz: 0, sombra: 0 };

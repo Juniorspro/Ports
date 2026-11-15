@@ -201,7 +201,7 @@ function gmTiendaDibujar() {
       const meta = (x.subs ? `<i>${glifo('gente')} ${gmCifra(x.subs)}</i>` : x.autor && !/^\d{10,}$/.test(x.autor) ? `<i>${esc(x.autor)}</i>` : '') + (ins ? '' : x.dir ? `<i class="tiChip">${glifo('bajar')} ${esc(T('ti.directa'))}</i>` : x.dir === false ? '<i class="tiChip">.gma</i>' : '');
       return tiTarjeta({ id, img: img(x), nombre: x.t, meta: meta || '&nbsp;', btn, cls: `${ins ? 'inst' : ''}${ins && !on ? ' off' : ''}` });
     };
-    const fin = S.cargando ? `<div class="rbVacio">${esc(T('cargando'))}</div>` : S.error ? `<div class="rbVacio">${esc(T('gm.puente'))}</div>` : !S.items.length ? `<div class="rbVacio">${esc(T(S.gmDir && S.vista === 'explorar' && S.vistosGM ? 'gm.ningunoDir' : 'sinRes'))}</div>` : '';
+    const fin = S.cargando ? (typeof pnEsqueletos === 'function' ? pnEsqueletos(T('cargando'), 8) : `<div class="rbVacio">${esc(T('cargando'))}</div>`) : S.error ? `<div class="rbVacio">${esc(T('gm.puente'))}</div>` : !S.items.length ? `<div class="rbVacio">${esc(T(S.gmDir && S.vista === 'explorar' && S.vistosGM ? 'gm.ningunoDir' : 'sinRes'))}</div>` : '';
     G.innerHTML = S.items.map(tile).join('') + fin;
   }
   const cu = RB.el.querySelector('.tiCuantos'); if (cu) cu.textContent = S.total ? `${gmCifra(S.total)} ${T('gmb.addons')}` : '';

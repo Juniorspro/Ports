@@ -6,7 +6,7 @@
 //    nueva, Multijugador y Social; Mods y mapas, Crear un mapa, Personajes y Opciones; Salir), la elegida en amarillo;
 //  · abajo, la barra con los mods activos, el idioma, tu nombre (con la cuenta de Google, si la hay), Discord y TikTok;
 //  · abajo a la derecha la versión (con Actualizar al lado, en la app o si la web avisa de una nueva) y arriba a la
-//    derecha La grieta (el evento, con su interruptor);
+//    derecha La grieta (el evento: qué es y su estado; no se apaga);
 //  · de fondo, el mundo vivo de la 3.3: las escenas del juego con la grieta que pasan solas (inicio.js, .rbBg).
 // Lo nuevo es el detalle: barras con el borde de la punta roto, raspones y grano (una textura de ruido hecha una sola vez en
 // un canvas), una cinta sobre el logo, una línea amarilla gastada, íconos chicos, y animaciones que terminan: la entrada
@@ -86,7 +86,7 @@ function clTexturas() {
         g.strokeStyle = cl ? `rgba(0,0,0,${0.12 + r2() * 0.1})` : `rgba(255,255,255,${0.05 + r2() * 0.06})`; g.lineWidth = 0.5 + r2() * 0.8;
         for (const [ox, oy] of [[0, 0], [-N, 0], [N, 0], [0, -N], [0, N]]) { g.beginPath(); g.moveTo(x + ox, y + oy); g.lineTo(x + ox + Math.cos(a) * L, y + oy + Math.sin(a) * L); g.stroke(); }
       }
-      c.toBlob((b) => { if (!b) return; T0.grano = URL.createObjectURL(b); if (CL.el) CL.el.style.setProperty('--clGrano', `url(${T0.grano})`); });
+      c.toBlob((b) => { if (!b) return; T0.grano = URL.createObjectURL(b); if (CL.el) CL.el.style.setProperty('--clGrano', `url(${T0.grano})`); if (typeof pnGranoPoner === 'function') pnGranoPoner(T0.grano); });
     } catch (e) {}
   };
   // (cuando el aparato está libre, después de que el menú se puede tocar: la placa se ve igual sin el grano un momento)
@@ -161,7 +161,7 @@ function clDibujar() {
   const inp = CL.abajo.querySelector('#rbNombre'); inp.value = PREFS.nombre || ''; inp.placeholder = T('b.nombre');
   inp.oninput = () => nombrePoner(inp.value);
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); });
-  // arriba a la derecha, La grieta (el evento): abre su panel, con qué es y el interruptor
+  // arriba a la derecha, La grieta (el evento): abre su panel, con qué es (no se apaga: ya no tiene interruptor)
   CL.arriba.innerHTML = `<button class="clChip clEvt" data-rb="clEvento">${glifo('rayo')}<span class="clEvtN">${esc(T('dp.grieta'))}</span><b class="clEvtE"></b></button>`;
   // la versión (y el día del armado); a su lado, Actualizar
   CL.verG.innerHTML = `<button class="clChip clAct oc" data-rb="clAct">${glifo('bajar')}<span>${esc(T('pt.actualizar'))}</span></button>

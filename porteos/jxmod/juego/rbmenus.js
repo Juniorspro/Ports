@@ -19,10 +19,12 @@ function panelMulti(P) {
   // (sin sesión de Google, con las cuentas encendidas: el cartel para entrar en vez de la lista)
   if (typeof cuentaFaltaPara === 'function' && cuentaFaltaPara()) { cuPanelMulti(P); return; }
   if (typeof listaConectar === 'function') listaConectar();
-  P.innerHTML = `<div class="rbPanCab">${glifo('gente')} ${esc(T('m.multi'))}<small class="mpCuenta"></small><span class="rbEsp"></span>
-      <button class="rbBtnGris rbChico" data-rb="lan">${glifo('wifi')} ${esc(T('lan.boton'))}</button>
+  // (cuántos jugadores y servers hay va en la barra, al lado del buscador: arriba, en el celular, no entraba con el título y
+  // los dos botones)
+  P.innerHTML = `<div class="rbPanCab">${glifo('gente')} ${esc(T('m.multi'))}<span class="rbEsp"></span>
+      <button class="rbBtnGris rbChico" data-rb="lan" title="${esc(T('lan.boton'))}">${glifo('wifi')} ${esc(T('lan.boton'))}</button>
       <button class="rbBtnG rbChico" data-rb="mcrear">${glifo('mas')} ${esc(T('mp.crear'))}</button></div>
-    <div class="rbBarra"><input id="mpBuscar" type="search" placeholder="${esc(T('mp.buscar'))}" value="${esc(RBM.q)}"><span class="mpEst"></span>
+    <div class="rbBarra"><input id="mpBuscar" type="search" placeholder="${esc(T('mp.buscar'))}" value="${esc(RBM.q)}"><span class="mpEst"></span><small class="mpCuenta"></small>
       <button class="rbBtnGris rbChico" data-rb="mpRef" title="${esc(T('mp.ref'))}">${glifo('girar')}</button></div>
     <div class="mpLista" id="mpLista"></div>
     <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span>

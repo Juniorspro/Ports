@@ -192,7 +192,9 @@ if (corre(3)) {
     ['Workshop (addons de GMod)', ['.dpC_ws'], `RB.panel === 'tienda' && RB.t.tab === 'gmod'`, 2, 1],
     ['Mods y mapas (la tienda)', ['.dpC_mods'], `RB.panel === 'tienda' && RB.t.tab === 'mod'`, 1, 1],
     ['Multijugador', ['.dpC_multi'], `RB.panel === 'multi'`, 1, 1],
-    ['La grieta (el evento, con su interruptor)', ['.dpC_evento'], `RB.panel === 'evento' && !!document.querySelector('.rbPan_evento .dpEvSw')`, 3, 1],
+    // (desde la 3.6 la grieta no se apaga: su panel dice qué es y «Activo», sin interruptor; en la 3.3 eran 3 toques hasta su
+    // interruptor de Ajustes → Renderizado)
+    ['La grieta (el evento: qué es y su estado, sin interruptor)', ['.dpC_evento'], `RB.panel === 'evento' && !!document.querySelector('.rbPan_evento .dpEvEst.on') && !document.querySelector('.rbPan_evento :is(input, [role=switch], [data-rb]:not([data-rb=volver]))')`, 3, 1],
     ['Perfil (nombre, personaje y cuenta)', ['.dpPerfil'], `!!DEP.hoja && DEP.hoja.classList.contains('dpHojaPerfil') && !!document.getElementById('rbNombre')`, 1, 1],
     ['Amigos (y solicitudes)', ['.dpAmigos'], `RB.panel === 'social'`, 2, 1],
     ['Ajustes', ['.dpAj'], `!!DEP.hoja && DEP.hoja.classList.contains('dpHojaAj')`, 1, 1],

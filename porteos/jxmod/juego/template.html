@@ -1834,17 +1834,14 @@ html.rot #rbInicio .dpHome{--sl:0px;--sr:0px;--st:0px;--sb:0px}
 #rbInicio .dpLpie{display:flex;flex-wrap:wrap;gap:calc(4px*var(--u)) calc(16px*var(--u));margin-top:calc(4px*var(--u));font-size:calc(14px*var(--u));font-weight:600;color:var(--gris)}
 #rbInicio .dpLpie kbd{font:700 13px Roboto,Arial,sans-serif;background:var(--tinta);color:#fff;border-radius:5px;padding:1px 6px}
 @media (max-width:700px){#rbInicio .dpLcols{grid-template-columns:repeat(2,minmax(0,1fr))}}
-/* ---- el panel del evento (el barril): qué es y el interruptor ---- */
+/* ---- el panel del evento (el barril): qué es y su estado (no se apaga) ---- */
 .rbPan.rbPan_evento{top:calc(var(--vh)*12);bottom:calc(var(--vh)*12);left:max(4%,calc(50% - 300px));right:max(4%,calc(50% - 300px));background:#1d1430;color:#f1ebff}
 .rbPan_evento .rbPanCab{background:transparent;border-bottom:1px solid rgba(196,155,255,.35);color:#fff}.rbPan_evento .rbPanCab small{color:#cdbdf0}.rbPan_evento .rbPanCab .gli{width:1.2em;height:1.2em;fill:none;stroke:#c49bff;stroke-width:2}
 .rbPan_evento .dpEvCuerpo{display:flex;gap:16px;align-items:center;padding:14px 18px;overflow:auto}
 .rbPan_evento .dpEvFoto{width:34%;min-width:120px;aspect-ratio:4/3;border-radius:8px;background:center/cover #2b1150;flex:none}
 .rbPan_evento .dpEvTxt p{margin:0 0 14px;font-size:15px;line-height:1.4}
-.rbPan_evento .dpEvSw{display:flex;align-items:center;gap:10px;min-height:48px;padding:0 14px;border:0;border-radius:10px;background:#2b1150;color:#fff;font:700 15px Roboto,Arial,sans-serif;cursor:pointer;box-shadow:inset 0 0 0 1.5px #c49bff}
-.rbPan_evento .dpEvSw i{position:relative;width:42px;height:24px;border-radius:12px;background:#4b3d63;flex:none}
-.rbPan_evento .dpEvSw i::after{content:'';position:absolute;top:3px;inset-inline-start:3px;width:18px;height:18px;border-radius:50%;background:#fff}
-.rbPan_evento .dpEvSw.on i{background:#8b4dff}.rbPan_evento .dpEvSw.on i::after{inset-inline-start:21px}
-.rbPan_evento .dpEvSw:focus-visible{outline:none;box-shadow:inset 0 0 0 1.5px #c49bff,0 0 0 3px #3d8bff}
+.rbPan_evento .dpEvEst{display:inline-flex;align-items:center;gap:10px;margin:0;min-height:40px;padding:0 14px;border-radius:10px;background:#2b1150;color:#fff;font:700 15px Roboto,Arial,sans-serif;box-shadow:inset 0 0 0 1.5px #c49bff}
+.rbPan_evento .dpEvEst i{width:10px;height:10px;border-radius:50%;background:#4b3d63;flex:none}.rbPan_evento .dpEvEst.on i{background:#c49bff;box-shadow:0 0 8px #a070ff}
 /* ---- el menú principal clásico (juego/clasico.js): el de la 3.3 —el logo, la lista en barras negras con la elegida en
    amarillo, la barra de abajo y la versión, sobre las escenas del juego— con detalle: el borde de la punta de cada barra
    roto (máscaras SVG hechas en clasico.js), grano y raspones (una textura de ruido de 160 px, hecha una vez en un canvas),
@@ -2005,6 +2002,7 @@ html.rot #rbInicio .clSonda{padding:0}
 #ajustesCaja .ajSeg button{min-height:44px;min-width:92px;padding:0 14px;border:1px solid var(--jxLin,rgba(255,255,255,.15));border-radius:0;background:#0b0c0d;color:var(--jxT,#eee);font:500 14px/1 var(--jxF,Roboto,Arial,sans-serif);text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
 #ajustesCaja .ajSeg button.sel{background:var(--jxA,#f2b31b);border-color:var(--jxA,#f2b31b);color:#121212}
 #ajustesCaja .ajSeg button:focus-visible{outline:2px solid var(--jxA,#f2b31b);outline-offset:2px}
+/*PANELESCSS*/
 </style></head>
 <body>
 <canvas id="cv"></canvas>

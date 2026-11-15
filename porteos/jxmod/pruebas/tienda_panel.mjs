@@ -99,7 +99,11 @@ async function correr(celu, tam, lang) {
   const abrirT = async (tab, vista = 'explorar', antes = '') => { await ev(`(() => { ${antes} RB.t.tab = '${tab}'; RB.t.vista = '${vista}'; RB.t.ficha = null; RB.t.sel = null; RB.t.q = ''; RB.t.etq = ''; inicioPanel('tienda'); return 1; })()`); await esp(700); };
   // (un clic de verdad en el medio de lo que se elige; con el celular parado el juego está girado y Playwright lo resuelve igual)
   const clic = async (sel) => { await p.click(sel); await esp(250); };
-  const medir = () => ev(MEDIR);
+  // (3.7: los paneles tienen animaciones —la entrada, la cascada, el golpe de la pestaña elegida— que corren con transform y
+  // terminan antes de 1,2 s; se mide lo que queda, no un cuadro del medio: se espera a que terminen las de adentro del menú,
+  // salvo el brillo de los esqueletos, que no mueve nada)
+  const quieto = () => p.waitForFunction(() => !document.getAnimations().some((a) => a.playState === 'running' && a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest('#rbInicio') && !a.effect.target.closest('.pnEsq')), null, { timeout: 4000 }).catch(() => {});
+  const medir = async () => { await quieto(); return ev(MEDIR); };
   const caja = [], anota = async (n) => { const m = await medir(); m.n = n; caja.push(m); return m; };
   const soloEntra = !!tam || !!lang;   // (las otras pantallas y los otros idiomas: sólo cómo entra)
 

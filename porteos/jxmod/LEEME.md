@@ -2315,8 +2315,8 @@ despacio. Lo que hace cada opción, lo de siempre.
   huecos). Íconos chicos al lado de cada opción (los glifos del juego, al 62 %).
 - **La elegida**: «Empezar partida nueva» en amarillo; con el mouse encima o el foco (teclado o mando), la amarilla pasa a
   esa y Empezar guarda su borde amarillo.
-- **La grieta** (el evento, con su interruptor) arriba a la derecha: abre el panel de la 3.5 (qué es y el interruptor) y
-  muestra si está prendida. **Actualizar** al lado de la versión: en la app siempre (`JXNativo.buscarActualizacion`); en la
+- **La grieta** (el evento) arriba a la derecha: abre el panel de la 3.5 (qué es; desde la 3.7 sin interruptor: no se
+  apaga, abajo en «Los paneles del menú con el estilo del clásico») y muestra que está activa. **Actualizar** al lado de la versión: en la app siempre (`JXNativo.buscarActualizacion`); en la
   web sólo cuando aparece el botón de `codigo_web.mjs` (con una marca roja). **La cuenta de Google** al lado de tu nombre
   (`.cuChip`: «Iniciar sesión con Google», o tu foto y tu nombre; en el celular sólo la «G»).
 
@@ -2511,8 +2511,8 @@ verdad: `juego/deposito.js` reemplaza a `juego/portada.js` (borrado) y los panel
   hacia la cámara mientras tu personaje gira a apuntarle (0,55 s, con un reloj que avanza con los cuadros: en un aparato
   lento va más despacio pero no salta); ahí se abre el panel de siempre de esa sección (Workshop: los addons de GMod;
   Mods y mapas: la tienda; Crear mapa; Personajes; Emotes; Multijugador, con Crear server adentro). El barril abre un
-  panel chico con qué es el evento y su interruptor. Al volver del panel («Volver»), la caja vuelve a su lugar. Con
-  «menos movimiento» pedido por el aparato, sin viajes ni caídas.
+  panel chico con qué es el evento (hasta la 3.6, con su interruptor; desde la 3.7 no se apaga). Al volver del panel
+  («Volver»), la caja vuelve a su lugar. Con «menos movimiento» pedido por el aparato, sin viajes ni caídas.
 - **La hora del aparato**: mañana, tarde, atardecer o noche (se mira cada minuto). De noche se prenden el farol, el cartel
   JX (alumbra la torre), una luz suave sobre tu personaje y el barril, que brilla violeta (de día, con el borde violeta).
   La grieta del cielo se ve de día y de noche, arriba a la derecha.
@@ -2538,7 +2538,7 @@ verdad: `juego/deposito.js` reemplaza a `juego/portada.js` (borrado) y los panel
 | Mapa y modo (Empezar partida nueva) | 1 | 1 | 1 |
 | Emotes · Workshop de GMod | 2 | 1 | 1 |
 | Personajes · Crear mapa · Mods y mapas · Multijugador | 1 | 1 | 1 |
-| La grieta (el evento, con su interruptor) | 3 | 1 | 1 |
+| La grieta (el evento; hasta la 3.6 con su interruptor) | 3 | 1 | 1 |
 | Perfil (nombre, personaje y cuenta) · Ajustes | 1 | 1 | 1 |
 | Amigos y solicitudes | 2 | 1 | 1 |
 | Crear server | 2 | 1 | 2 |

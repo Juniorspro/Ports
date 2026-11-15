@@ -21,7 +21,7 @@
 //     arrancado y la elección queda al recargar;
 //  7. teclado y mando: flechas, Tab (el juego no se queda con él), Enter y Esc; la cruceta, A y B;
 //  8. lo de la 3.4 y la 3.5 que sigue: la cuenta de Google al lado de tu nombre, Actualizar (en la app y en la web) y La
-//     grieta con su interruptor;
+//     grieta (desde la 3.6 sin interruptor: no se apaga, y la que estaba apagada de antes vuelve prendida);
 //  9. sin errores de JS.
 // uso: node menu_clasico.mjs URL_HTML [URL_33] [URL_35] [CARPETA_FOTOS]   (SOLO=1,2: sólo esas partes; CORRIDAS=2)
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
@@ -459,19 +459,34 @@ if (corre(8)) {
   const vNat = await N.ev(`!CL.verG.querySelector('.clAct').classList.contains('oc')`); await N.p.tap('.clAct').catch(() => {}); await N.p.waitForTimeout(300); const busco = await N.ev('window.__busco || 0');
   await N.ctx.close();
   const Wb = await abrir('actualizar web', 873, 402, true); await clListo(Wb.p);
+  const T0on = await Wb.ev(`T('pt.on')`);
   const antes = await Wb.ev(`!CL.verG.querySelector('.clAct').classList.contains('oc')`);
   await Wb.ev(`(() => { const b = document.createElement('button'); b.id = 'jxAct'; b.textContent = 'Actualizar'; b.onclick = () => { window.__web = 1; }; document.body.appendChild(b); return 1; })()`); await Wb.p.waitForTimeout(300);
   const despues = await Wb.ev(`({ ve: !CL.verG.querySelector('.clAct').classList.contains('oc'), globo: CL.verG.querySelector('.clAct').classList.contains('clHay'), webOculto: getComputedStyle(document.getElementById('jxAct')).display === 'none' })`);
   await Wb.p.tap('.clAct').catch(() => {}); await Wb.p.waitForTimeout(300); const web = await Wb.ev('window.__web || 0');
   await Wb.p.screenshot({ path: D + 'actualizar_web.png' });
   caso('8b. Actualizar: en la app a la vista y busca (JXNativo.buscarActualizacion); en la web sólo con versión nueva, con su marca, y toca el botón de la web', vNat && busco === 1 && !antes && despues.ve && despues.globo && despues.webOculto && web === 1, { vNat, busco, antes, despues, web });
-  // La grieta: su panel con el interruptor, y el estado en el menú
-  const e0 = await Wb.ev(`CL.arriba.querySelector('.clEvtE').textContent`);
-  await Wb.p.tap('.clEvt'); await Wb.p.waitForTimeout(400); const pan = await Wb.ev(`RB.panel === 'evento' && !!document.querySelector('.rbPan_evento .dpEvSw')`);
-  await Wb.p.tap('.rbPan_evento .dpEvSw'); await Wb.p.waitForTimeout(200); const pref = await Wb.ev('PREFS.evento');
-  await Wb.p.tap('.rbPan_evento [data-rb=volver]'); await Wb.p.waitForTimeout(500); const e1 = await Wb.ev(`({ t: CL.arriba.querySelector('.clEvtE').textContent, on: CL.arriba.querySelector('.clEvt').classList.contains('clEvtOn'), ve: clVisible() })`);
-  caso('8c. La grieta: abre su panel con el interruptor; apagarla se guarda y el menú lo muestra', pan && pref === false && e1.ve && !e1.on && e1.t !== e0, { e0, pan, pref, e1 });
+  // La grieta (desde la 3.6 no se apaga: es parte del juego): su panel dice qué es y su estado —«Activo»—, sin nada que la
+  // apague (ni interruptor ni casilla: lo único que se toca es «Volver»), y Ajustes tampoco tiene con qué apagarla
+  const e0 = await Wb.ev(`({ t: CL.arriba.querySelector('.clEvtE').textContent, on: CL.arriba.querySelector('.clEvt').classList.contains('clEvtOn') })`);
+  await Wb.p.tap('.clEvt'); await Wb.p.waitForTimeout(400);
+  const pan = await Wb.ev(`(() => { const P = document.querySelector('.rbPan_evento'); if (RB.panel !== 'evento' || !P) return null; const est = P.querySelector('.dpEvEst');
+    return { est: !!est && est.classList.contains('on') && est.textContent.includes(T('pt.on')), toca: [...P.querySelectorAll('button, input, select, [role=switch], [role=checkbox], [data-rb]')].map((e) => e.dataset.rb || e.tagName) }; })()`);
+  await Wb.p.tap('.rbPan_evento [data-rb=volver]'); await Wb.p.waitForTimeout(500);
+  await Wb.p.tap('.clIt[data-k=opciones]'); await Wb.p.waitForTimeout(500);
+  const aj = await Wb.ev(`(() => { const A = document.getElementById('ajustes'); if (!A || A.classList.contains('oc')) return null; const tx = [...A.querySelectorAll('label, .ajSw, .ajFila')].map((e) => e.textContent);
+    return { aEv: !!document.getElementById('aEv'), grieta: tx.filter((t) => /grieta|evento|rift|event/i.test(t)).length }; })()`);
+  await Wb.ev(`(() => { const b = document.getElementById('aOk'); if (b) b.click(); return 1; })()`); await Wb.p.waitForTimeout(500);
+  const e1 = await Wb.ev(`({ on: CL.arriba.querySelector('.clEvt').classList.contains('clEvtOn'), ve: clVisible(), activo: evtActivo() })`);
+  caso('8c. La grieta no se apaga: su panel dice qué es y «Activo» sin interruptor (sólo «Volver» se toca), Ajustes no tiene con qué apagarla y el menú la muestra prendida',
+    e0.on && e0.t === T0on && pan && pan.est && pan.toca.length === 1 && pan.toca[0] === 'volver' && aj && !aj.aEv && !aj.grieta && e1.ve && e1.on && e1.activo, { e0, pan, aj, e1 });
   await Wb.ctx.close();
+  // (al que la tenía apagada de antes —jx_prefs con evento: false, de cuando había interruptor— se le vuelve a prender al
+  // cargar, y lo que se guarda después ya no la apaga)
+  const V = await abrir('grieta apagada de antes', 873, 402, true, { prefs: { evento: false }, antes: `try { window.__evAntes = JSON.parse(localStorage.getItem('jx_prefs')).evento; } catch (e) {}` }); await clListo(V.p);
+  const vie = await V.ev(`(() => { const antes = window.__evAntes; guardarPrefs(); return { antes, pref: PREFS.evento, activo: evtActivo(), guardado: JSON.parse(localStorage.getItem('jx_prefs')).evento, chip: CL.arriba.querySelector('.clEvt').classList.contains('clEvtOn') }; })()`);
+  caso('8d. La grieta apagada de antes (jx_prefs con evento: false) vuelve prendida al cargar y ya no se guarda apagada', vie.antes === false && vie.pref !== false && vie.activo && vie.guardado !== false && vie.chip, vie);
+  await V.ctx.close();
 }
 
 caso('9. sin errores de JS', !errJS.length, errJS.slice(0, 8));

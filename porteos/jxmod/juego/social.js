@@ -39,12 +39,13 @@ function socGlobito() { if (typeof clGlobos === 'function') clGlobos(); if (type
 function panelSocial(P) {
   clearInterval(SOC.tPoll); SOC.tPoll = 0;
   const tabs = [['chats', 'so.chats', 'chat'], ['amigos', 'so.amigos', 'gente'], ['buscar', 'so.buscarT', 'buscar'], ['perfil', 'so.perfil', 'persona']];
-  const cab = `<div class="rbPanCab">${glifo('gente')} ${esc(T('m.social'))}<span class="rbTabs">${tabs.map(([k, t, g]) => `<button class="rbTab${SOC.tab === k ? ' sel' : ''}" data-rb="soc:tab|${k}">${glifo(g)} ${esc(T(t))}${k === 'amigos' && SOC.sol ? ` <em class="soBadge">${SOC.sol}</em>` : ''}</button>`).join('')}</span></div>`;
+  const cab = `<div class="rbPanCab">${glifo('gente')} ${esc(T('m.social'))}<span class="rbTabs">${tabs.map(([k, t, g]) => `<button class="rbTab${SOC.tab === k ? ' sel' : ''}" data-rb="soc:tab|${k}" title="${esc(T(t))}">${glifo(g)} ${esc(T(t))}${k === 'amigos' && SOC.sol ? ` <em class="soBadge">${SOC.sol}</em>` : ''}</button>`).join('')}</span></div>`;
   const pie = `<div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><small class="soPie"></small></div>`;
   if (!cuRequerida()) { P.innerHTML = cab + `<div class="cuPanel"><p>${esc(T('so.noConfig'))}</p></div>` + pie; return; }
   if (!cuDentro()) { P.innerHTML = cab + `<div class="cuPanel"><p>${esc(T('so.paraSocial'))}</p><button class="cuGoogle" data-rb="soc:entrar">${CU_G}<span>${esc(T('cu.entrar'))}</span></button></div>` + pie; return; }
   socIniciar();
-  P.innerHTML = cab + `<div class="soCuerpo"><div class="soIzq"></div><div class="soDer"></div></div>` + pie;
+  // (mientras llega lo de la tienda, filas de esqueleto: paneles.js)
+  P.innerHTML = cab + `<div class="soCuerpo"><div class="soIzq">${typeof pnEsqueletos === 'function' ? '<div class="pnEsq pnEsqF" aria-hidden="true"><i></i><b></b></div>'.repeat(3) : ''}</div><div class="soDer"></div></div>` + pie;
   P.querySelector('.soCuerpo').addEventListener('keydown', (e) => e.stopPropagation());
   socDibujar(true);
 }
@@ -67,8 +68,10 @@ async function socPoll() {
   try { if (SOC.chat) await socChatCargar(false); if (SOC.pollN % 3 === 0) { SOC.chats = (await socApi('chats')).chats; const I = socP() && socP().querySelector('.soIzq'); if (I) socListaChats(I); } } catch (e) {}
 }
 // -- perfil --
+// (el fondo de tu personaje: el primero, el grafito de los paneles —3.7—; «Cambiar fondo» pasa al siguiente y queda guardado)
+const SOC_FONDOS = [[0.118, 0.122, 0.137], [0.945, 0.925, 0.875], [0.62, 0.78, 0.92], [0.78, 0.7, 0.92], [0.18, 0.2, 0.25], [0.8, 0.9, 0.78]];
 function socPerfil(I, D) {
-  const y = SOC.yo || {};
+  const y = SOC.yo || {}; LOBBY_LUZ.fondo = SOC_FONDOS[(PREFS.fondoPj || 0) % SOC_FONDOS.length];
   I.innerHTML = `<div class="soCard soYo">${socAvatar(PREFS.skin, y.online !== false, true)}<div><div class="soNom"><input class="soNomIn" maxlength="24" value="${esc(y.nombre || PREFS.nombre)}" spellcheck="false"> ${glifo('lapiz')}</div>
       <div class="soEst ${SOC.estado === 'off' ? '' : 'on'}">${esc(SOC.estado === 'off' ? T('so.desc') : T('so.enLinea'))}</div><div class="soId">ID: <b>${esc(y.pid || '…')}</b> <button class="rbBtnGris rbChico" data-rb="soc:copiar|${esc(y.pid || '')}">${glifo('copiar')} ${esc(T('so.copiar'))}</button></div></div></div>
     <div class="soCard"><div class="soSub">${esc(T('so.buscarId'))}</div><div class="soFila"><input class="soBusIn" inputmode="numeric" maxlength="8" placeholder="${esc(T('so.escribeId'))}"><button class="rbBtnG" data-rb="soc:buscarDesde">${esc(T('so.buscarBtn'))}</button></div></div>
@@ -166,7 +169,7 @@ function socConversacion(D) {
   if (!c) { D.innerHTML = `<div class="soVista soVacia"><span class="soTag">${esc(T('so.chats'))}</span><p>${esc(T('so.elegiChat'))}</p></div>`; return; }
   const sub = c.tipo === 'dm' ? (c.otro && c.otro.online ? T('so.enLinea') : socHace(c.otro && c.otro.visto)) : T('so.miembrosN').replace('{n}', c.miembros).replace('{e}', c.enLinea || 0);
   D.innerHTML = `<div class="soConv"><div class="soConvCab">${c.tipo === 'dm' && c.otro ? socAvatar(c.otro.skin, c.otro.online) : `<span class="soAv soGrupo">${glifo('gente')}</span>`}<span><b>${esc(c.nombre)}</b><small class="${c.tipo === 'dm' && c.otro && c.otro.online ? 'on' : ''}">${esc(sub)}</small></span><span class="rbEsp"></span>
-      ${c.tipo === 'grupo' ? `<button class="rbBtnGris rbChico" data-rb="soc:miembros">${glifo('gente')} ${esc(T('so.miembros'))}</button>` : ''}<button class="rbBtnG rbChico" data-rb="soc:${c.tipo === 'grupo' ? 'agregarGrupo' : 'invitarChat'}">${glifo('mas')} ${esc(T('so.invitar'))}</button></div>
+      ${c.tipo === 'grupo' ? `<button class="rbBtnGris rbChico" data-rb="soc:miembros" aria-label="${esc(T('so.miembros'))}" title="${esc(T('so.miembros'))}">${glifo('gente')} ${esc(T('so.miembros'))}</button>` : ''}<button class="rbBtnG rbChico" data-rb="soc:${c.tipo === 'grupo' ? 'agregarGrupo' : 'invitarChat'}" aria-label="${esc(T('so.invitar'))}" title="${esc(T('so.invitar'))}">${glifo('mas')} ${esc(T('so.invitar'))}</button></div>
     <div class="soMsgs"></div><div class="soEsc"></div>
     <div class="soEnviar"><button class="rbBtnGris rbChico" data-rb="soc:invitarChat" title="${esc(T('so.invitarPartida'))}">${glifo('mas')}</button><input class="soMsgIn" maxlength="500" placeholder="${esc(T('so.escribir'))}" dir="auto"><button class="rbBtnG rbChico" data-rb="soc:enviar">${glifo('enviar')}</button></div></div>`;
   const inp = D.querySelector('.soMsgIn'); let tEsc = 0;
@@ -197,7 +200,8 @@ function socMsgsDibujar() {
     if (m.tipo === 'sis') return sep + `<div class="soSis">${m.datos && m.datos.k ? esc(T('so.sis_' + m.datos.k).replace('{n}', m.texto || '?')) : socTexto(m.texto)}</div>`;
     const hora = `<small>${esc(socT(m.fecha))}${m.mio ? ` <i class="${m.id <= SOC.lei ? 'leido' : ''}">✓✓</i>` : ''}</small>`;
     const cuerpo = m.tipo === 'inv' && m.datos ? `<div class="soInv"><b>${esc(T('so.invPartida'))}</b><small>${esc(mapaNomSeguro(m.datos.m))}${m.datos.mods ? ' · ' + m.datos.mods + ' mods' : ''} · ${esc(m.datos.n)}</small>${m.mio ? '' : `<button class="rbBtnG rbChico" data-rb="soc:unirse|${m.id}">${esc(T('so.entrar'))}</button>`}</div>` : socTexto(m.texto);
-    return sep + `<div class="soMsg${m.mio ? ' mio' : ''}">${!m.mio ? socAvatar(m.de.skin) : ''}<div class="soBur">${grupo && !m.mio ? `<b class="soDe" style="color:hsl(${[...(m.de.pid || '')].reduce((a, c) => a + c.charCodeAt(0) * 37, 0) % 360},55%,40%)">${esc(m.de.nombre)}</b>` : ''}${cuerpo}${hora}</div></div>`;
+    // (en un grupo, el nombre del que escribe: el color sale de su id, claro —77 %— para que hasta el azul se lea sobre la burbuja)
+    return sep + `<div class="soMsg${m.mio ? ' mio' : ''}">${!m.mio ? socAvatar(m.de.skin) : ''}<div class="soBur">${grupo && !m.mio ? `<b class="soDe" style="color:hsl(${[...(m.de.pid || '')].reduce((a, c) => a + c.charCodeAt(0) * 37, 0) % 360},65%,77%)">${esc(m.de.nombre)}</b>` : ''}${cuerpo}${hora}</div></div>`;
   }).join('');
   const E = P.querySelector('.soEsc'); if (E) E.textContent = SOC.esc.length ? T('so.escribiendo').replace('{n}', SOC.esc.join(', ')) : '';
   if (abajo || !SOC.vistoAbajo) { M.scrollTop = M.scrollHeight; SOC.vistoAbajo = true; }
@@ -217,7 +221,7 @@ async function socAccion(v) {
         socApi('perfil', { method: 'POST', body: { estado: b } }).catch(() => { SOC.estado = antes; socEstadoPintar(); cuAviso(T('so.error')); });
         return;
       }
-      case 'fondo': { const L = [[0.945, 0.925, 0.875], [0.62, 0.78, 0.92], [0.78, 0.7, 0.92], [0.18, 0.2, 0.25], [0.8, 0.9, 0.78]]; PREFS.fondoPj = ((PREFS.fondoPj || 0) + 1) % L.length; LOBBY_LUZ.fondo = L[PREFS.fondoPj]; guardarPrefs(); return; }
+      case 'fondo': { PREFS.fondoPj = ((PREFS.fondoPj || 0) + 1) % SOC_FONDOS.length; LOBBY_LUZ.fondo = SOC_FONDOS[PREFS.fondoPj]; guardarPrefs(); return; }
       case 'buscarDesde': { const i = P && P.querySelector('.soBusIn'); SOC.q = i ? i.value.replace(/\D/g, '') : ''; SOC.tab = 'buscar'; inicioPanel('social'); return socAccion('buscar'); }
       case 'buscarId': SOC.q = b; // (sigue)
       case 'buscar': {

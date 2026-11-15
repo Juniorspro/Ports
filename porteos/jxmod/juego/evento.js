@@ -517,8 +517,3 @@ function evtSonido(tipo, pos) {
 }
 // (pruebas y el menú: forzar una caída ya)
 function eventoForzar(n) { EVT.prox = TIEMPO.t + 100; return eventoLanzar(clamp(n | 0 || 1, 1, 6)); }
-Object.assign(IDI3, {
-  'aj.evento': ['Evento 3.0: la grieta y lo que cae del cielo', 'Event 3.0: the rift and things falling from the sky', 'Evento 3.0: a fenda e o que cai do céu', 'Event 3.0: retakan dan benda jatuh dari langit',
-    'Acara 3.0: rekahan dan benda jatuh dari langit', 'Event 3.0: ang lamat at mga nahuhulog mula sa langit', 'イベント3.0：空の裂け目と落ちてくる物', 'อีเวนต์ 3.0: รอยแยกและของที่ตกจากฟ้า', 'Etkinlik 3.0: yarık ve gökten düşenler',
-    'حدث 3.0: الصدع وما يسقط من السماء', 'Событие 3.0: разлом и то, что падает с неба', 'Подія 3.0: розлом і те, що падає з неба', 'Événement 3.0 : la faille et ce qui tombe du ciel', 'Event 3.0: der Riss und was vom Himmel fällt'],
-});

@@ -142,6 +142,7 @@ function inicioFondoPasar() {
 }
 function inicioPanel(p) {
   RB.panel = p; const P = RB.el.querySelector('.rbPan');
+  if (typeof pnPanel === 'function') pnPanel(p, P);   // (la entrada, la cascada y las marcas del panel: paneles.js)
   // (sin panel, el menú; con un panel, el panel encima del fondo de escenas —en el depósito, encima de la escena, con la caja
   // agarrada, o el fondo de siempre mientras la escena no está—)
   menuHomeMostrar(!p);
@@ -204,7 +205,7 @@ function panelNueva(P) {
     <div class="rbCats">${cats.map(([k, l]) => `<button class="rbCat${k === cat[0] ? ' sel' : ''}" data-rb="cat:${k}">${esc(T('c.' + k))}<em>${l.length}</em></button>`).join('')}</div>
     <div class="rbPanCuerpo"><div class="nvHero"><div class="nvFoto" style="background-image:url(${esc(foto)})"></div><div class="nvInfo"><small>${esc(T('c.' + grupo))}</small><b dir="auto">${esc(sel)}</b><span dir="auto">${esc(quien)}</span></div></div>
     <div class="rbGrid" data-nv="${cat[0]}">${cat[1].map(tarjeta).join('') || `<div class="rbVacio">${esc(T('sinRes'))} · <a data-rb="tienda:mapa">${esc(T('m.tienda'))}</a></div>`}</div></div>
-    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button>
+    <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver" title="${esc(T('volver'))}">${glifo('atras')} <span>${esc(T('volver'))}</span></button>
       <label class="rbCampo">${esc(T('hora'))} <select id="rbHora">${['normal', 'dia', 'tarde', 'noche', 'ciclo'].map((k) => `<option value="${k}"${RB.hora === k ? ' selected' : ''}>${esc(T('h.' + k))}</option>`).join('')}</select></label>
       ${modos.length ? `<label class="rbCampo">${esc(T('gm.modo'))} <select id="rbModoJ">${[['auto', T('gm.modoAuto')], ['sandbox', 'Sandbox'], ...modos.map((M) => [M.n, M.titulo])].map(([k, l]) => `<option value="${esc(k)}"${GMM.elegido === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>` : ''}
       <button class="rbBtnGris nvMods" data-rb="tienda" data-n="${nm || ''}" title="${esc(nm ? `${nm} ${T(nm === 1 ? 'modAct1' : 'modsAct')}` : T('sinMods'))}">${icoHTML('ico:mod')} <span>${nm ? `${nm} ${esc(T(nm === 1 ? 'modAct1' : 'modsAct'))}` : esc(T('sinMods'))}</span></button>
@@ -217,7 +218,9 @@ function panelNueva(P) {
 // elegido)— hasta que entra. Medido con offsetTop (con el juego girado, getBoundingClientRect da la pantalla girada)
 function nvEncajar() {
   const pie = RB.el && !RB.el.classList.contains('oc') && RB.el.querySelector('.rbPan_nueva .rbPanPie'); if (!pie) return;
-  const pasos = ['nvC1', 'nvC2', 'nvC3']; pie.classList.remove(...pasos);
+  // (3.7: y si todavía no entra —el celular chico con los modos de GMod, con la letra de los paneles nuevos—, nvC4: «Volver»
+  // sólo con la flecha, su nombre en title)
+  const pasos = ['nvC1', 'nvC2', 'nvC3', 'nvC4']; pie.classList.remove(...pasos);
   const dos = () => { const h = [...pie.children].filter((e) => e.offsetHeight && !e.classList.contains('rbEsp')); const t0 = Math.min(...h.map((e) => e.offsetTop)), b0 = Math.min(...h.map((e) => e.offsetTop + e.offsetHeight)); return h.some((e) => e.offsetTop >= b0 - 1 && e.offsetTop > t0 + 4); };
   for (const c of pasos) { if (!dos()) break; pie.classList.add(c); }
   // (en el último paso el selector queda angosto: «Automático (el del mapa)» pasa a «Automático», que entra entero)
@@ -318,7 +321,8 @@ function tiEncajar() {
     const sobra = () => el.scrollWidth > el.clientWidth + 1 || (sub && sub.scrollWidth > sub.clientWidth + 1);
     for (const c of cls) { if (!sobra()) break; el.classList.add(c); }
   };
-  const cab = P.querySelector('.tiCab'); pasos(cab, ['tiC1', 'tiC2', 'tiC3', 'tiC4'], cab && cab.querySelector('.tiTabs'));
+  // (3.7: antes que nada, «Subir archivo» sin la línea chica de los archivos —tiC0—: así queda el título)
+  const cab = P.querySelector('.tiCab'); pasos(cab, ['tiC0', 'tiC1', 'tiC2', 'tiC3', 'tiC4'], cab && cab.querySelector('.tiTabs'));
   pasos(P.querySelector('.rbPanPie'), ['tiP1', 'tiP2', 'tiP3', 'tiP4', 'tiP5']);
 }
 addEventListener('resize', () => setTimeout(() => { if (RB.panel === 'tienda') tiEncajar(); }, 80));
@@ -358,7 +362,8 @@ function tiendaDibujar() {
   const q = S.q.toLowerCase(), mio = (m) => !!(m.creado || PUBLICADOS[m.id]);
   const mios = esMapa ? Object.values(INST.mapas).filter((m) => mio(m) && (!q || (nombreDe(m) + ' ' + m.autor + ' ' + descDe(m)).toLowerCase().includes(q)) && (!S.etq || (m.etiquetas || []).includes(S.etq))).sort(porNombre) : [];
   const resto = esMapa ? S.items.filter((x) => !mios.some((m) => m.id === x.id)) : S.items;
-  const fin = S.cargando ? `<div class="rbVacio">${esc(T('cargando'))}</div>` : S.error ? `<div class="rbVacio">${esc(T('errRed'))}</div>` : !resto.length && (!esMapa || q || S.etq) ? `<div class="rbVacio">${esc(T('sinRes'))}</div>` : '';
+  // (mientras carga: «Cargando…» y unas tarjetas de esqueleto —paneles.js—)
+  const fin = S.cargando ? (typeof pnEsqueletos === 'function' ? pnEsqueletos(T('cargando'), 4) : `<div class="rbVacio">${esc(T('cargando'))}</div>`) : S.error ? `<div class="rbVacio">${esc(T('errRed'))}</div>` : !resto.length && (!esMapa || q || S.etq) ? `<div class="rbVacio">${esc(T('sinRes'))}</div>` : '';
   const it = S.ficha && (S.items.find((x) => x.id === S.ficha) || mios.find((x) => x.id === S.ficha));
   G.classList.toggle('rbFichaModo', !!it); tiFichaModo(!!it);
   if (it) {

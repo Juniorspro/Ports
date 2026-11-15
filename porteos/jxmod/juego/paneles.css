@@ -1,0 +1,627 @@
+/* ==== 3.7: los paneles del inicio con el lenguaje del menú clásico (juego/paneles.js; armar.py lo pone al final del
+   <style>). Todo lo que se abre desde el menú —Empezar partida nueva, Multijugador (Crear server, LAN), Social, Mods y
+   mapas (GMod, Crear un mod, publicar), Crear un mapa, Personajes, Ajustes, La grieta, la bienvenida— y los carteles chicos
+   (la cuenta de Google, preguntar, la clave de un server, los avisos): placas negras con grano, la punta rota, cinta, rayas
+   de peligro finas, marcas de esquina, el número de la sección en un sello amarillo, sombras duras (sin desenfoque), la
+   letra condensada en mayúsculas para la interfaz y Roboto para lo que escribe la gente. Un solo sistema: las variables de
+   abajo (--pn…) y unas pocas piezas (la placa, la cabecera, el pie, el botón principal y el de al lado, la pestaña, el
+   campo, la tarjeta, el sello); lo viejo de cada panel (--ti…, --jx…) apunta a ellas. Los degradados sólo en las capas de
+   diseño (los ::before y ::after: las rayas, las esquinas, la cinta; nunca en una placa con texto). Lo tocable, 44 px o más;
+   la letra, 14 px o más; el contraste, 4,5 o más (los grises sobre las placas, 5 o más). ==== */
+:root{--pnPl:rgba(10,11,13,.965);--pnPl1:#131417;--pnPl2:#1b1c20;--pnPl3:#25262b;--pnPl4:#303137;--pnPozo:#08090a;
+  --pnLin:rgba(239,237,231,.12);--pnLin2:rgba(239,237,231,.24);--pnT:#efede7;--pnT2:#bdbab3;--pnT3:#a29f98;--pnA:#f2b31b;--pnA2:#ffc531;--pnNe:#121212;
+  --pnVe:#6fd68f;--pnRo:#ff7a6e;--pnVi:#c39dff;--pnF:'JX Oswald','Roboto Condensed',sans-serif-condensed,'Arial Narrow',Roboto,Arial,sans-serif;--pnFr:Roboto,Arial,sans-serif;
+  --pnSaL:env(safe-area-inset-left,0px);--pnSaR:env(safe-area-inset-right,0px);--pnSaT:env(safe-area-inset-top,0px);--pnSaB:env(safe-area-inset-bottom,0px);
+  --pnU:clamp(6px,calc(var(--vh)*1.6),14px);--pnH:clamp(44px,calc(var(--vh)*9.5),54px);--pnFt:clamp(15px,calc(var(--vh)*3.5),19px);--pnFs:clamp(14px,calc(var(--vh)*3),16px);--pnFg:clamp(21px,calc(var(--vh)*5.4),34px);
+  --pnRayas:repeating-linear-gradient(-45deg,var(--pnA) 0 5px,rgba(0,0,0,0) 5px 10px);
+  /* (la punta rota: 12 px de borde roto a la derecha; con la máscara, lo que se toca sigue siendo el rectángulo) */
+  --pnPunta:linear-gradient(#000 0 0) 0 0/calc(100% - 11px) 100% no-repeat,var(--pnRasga,linear-gradient(#000 0 0)) 100% 0/12px 100% no-repeat;
+  --pnPuntaR:linear-gradient(#000 0 0) 100% 0/calc(100% - 11px) 100% no-repeat,var(--pnRasgaR,linear-gradient(#000 0 0)) 0 0/12px 100% no-repeat;
+  --pnPuntaG:linear-gradient(#000 0 0) 0 0/calc(100% - 21px) 100% no-repeat,var(--pnRasgaG,linear-gradient(#000 0 0)) 100% 0/22px 100% no-repeat;
+  --pnPuntaGR:linear-gradient(#000 0 0) 100% 0/calc(100% - 21px) 100% no-repeat,var(--pnRasgaGR,linear-gradient(#000 0 0)) 0 0/22px 100% no-repeat}
+html.rot{--pnSaL:0px;--pnSaR:0px;--pnSaT:0px;--pnSaB:0px}
+/* (lo de cada panel, de antes, con las piezas de ahora: Mods y mapas, Personajes y la carpeta usan --ti…; Nueva y Ajustes, --jx…) */
+#rbInicio .rbPan,#ajustesCaja{--tiF:var(--pnFt);--tiFs:var(--pnFs);--tiH:var(--pnH);--tiHb:max(40px,calc(var(--pnH) - 6px));--tiR:0px;--tiG:var(--pnU);
+  --tiPl:var(--pnPl2);--tiPl2:var(--pnPl3);--tiCaja:var(--pnPl1);--tiBo:var(--pnLin);--tiBo2:var(--pnLin2);--tiVe:var(--pnVe);--tiT:var(--pnT2);
+  --jxT2:var(--pnT2);--jxT3:var(--pnT3);--jxPl:var(--pnPl2);--jxPl2:var(--pnPl3);--jxPl3:var(--pnPl4);--jxLin:var(--pnLin);--jxRo:var(--pnRo)}
+
+/* ============ la placa del panel: el marco, el grano, la sombra dura, la cinta y las marcas de esquina ============ */
+#rbInicio .rbPan{top:max(var(--pnM),calc(var(--pnSaT) + 6px));bottom:max(var(--pnM),calc(var(--pnSaB) + 6px));left:max(var(--pnM),calc(var(--pnSaL) + 8px));right:max(var(--pnM),calc(var(--pnSaR) + 8px));
+  --pnM:clamp(8px,calc(var(--vh)*3.2),34px);width:auto;max-width:none;
+  background:var(--pnGrano,none) 0 0/160px 160px,var(--pnPl);color:var(--pnT);border:1px solid var(--pnLin);border-radius:0;box-shadow:6px 7px 0 rgba(0,0,0,.5);color-scheme:dark;
+  font:400 var(--pnFt)/1.35 var(--pnFr);isolation:isolate;container:pn/inline-size}
+#rbInicio .rbPan::after{content:'';position:absolute;z-index:6;inset:0;pointer-events:none;opacity:.75;
+  background:linear-gradient(var(--pnT),var(--pnT)) 0 100%/18px 2px,linear-gradient(var(--pnT),var(--pnT)) 0 100%/2px 18px,linear-gradient(var(--pnT),var(--pnT)) 100% 100%/18px 2px,linear-gradient(var(--pnT),var(--pnT)) 100% 100%/2px 18px,linear-gradient(var(--pnA),var(--pnA)) 100% 0/2px 18px;background-repeat:no-repeat}
+/* (el número de la sección, el del menú) */
+#rbInicio .rbPan_nueva{--pnNum:'01'}#rbInicio :is(.rbPan_multi,.rbPan_mcrear,.rbPan_lan){--pnNum:'02'}#rbInicio .rbPan_social{--pnNum:'03'}
+#rbInicio :is(.rbPan_tienda,.rbPan_pubmod,.rbPan_pubmapa){--pnNum:'04'}#rbInicio .rbPan_crear{--pnNum:'05'}#rbInicio .rbPan_personajes{--pnNum:'06'}#rbInicio .rbPan_evento{--pnNum:'!'}
+/* (los de lo transparente: Personajes y el Perfil de Social dejan ver a tu personaje en 3D; la placa la ponen sus partes) */
+#rbInicio .rbPan.pjV2,#rbInicio .rbPan.soP3d{background:transparent;box-shadow:none;border-color:transparent}
+#rbInicio .rbPan.soP3d::after,#rbInicio .rbPan.pjV2::after{display:none}
+
+/* ============ la cabecera: el sello con el número, el título condensado y las rayas de peligro ============ */
+#rbInicio .rbPan .rbPanCab{position:relative;z-index:1;flex:none;display:flex;align-items:center;flex-wrap:nowrap;gap:var(--pnU);min-height:calc(var(--pnH) + 6px);padding:0 calc(var(--pnU)*1.5) 0 0;margin:0;
+  background:var(--pnPozo);border:0;border-bottom:1px solid var(--pnLin);color:var(--pnT);font:600 var(--pnFg)/1.05 var(--pnF);text-transform:uppercase;letter-spacing:.035em;white-space:nowrap}
+#rbInicio .rbPan .rbPanCab::before{content:var(--pnNum,'');flex:none;align-self:stretch;display:flex;align-items:center;justify-content:center;width:auto;min-width:calc(var(--pnFg)*1.5);padding:0 calc(var(--pnFg)*.42) 0 calc(var(--pnFg)*.28);
+  background:var(--pnCintaImg,none) -5px -4px/calc(var(--pnFg)*1.7) calc(var(--pnFg)*.85) no-repeat,var(--pnA);color:var(--pnNe);font:700 calc(var(--pnFg)*.78)/1 var(--pnF);letter-spacing:.02em;-webkit-mask:var(--pnPunta);mask:var(--pnPunta)}
+#rbInicio[dir=rtl] .rbPan .rbPanCab::before{-webkit-mask:var(--pnPuntaR);mask:var(--pnPuntaR);padding:0 calc(var(--pnFg)*.28) 0 calc(var(--pnFg)*.42)}
+#rbInicio .rbPan .rbPanCab::after{content:'';position:absolute;inset-inline-end:0;bottom:0;width:min(34%,240px);height:3px;background:var(--pnRayas);opacity:.75;pointer-events:none}
+#rbInicio .rbPan .rbPanCab>.gli{width:1.05em;height:1.05em;color:var(--pnA);stroke-width:2.4}
+#rbInicio .rbPan .rbPanCab>small{display:inline-block;min-width:0;margin-inline-start:.2em;overflow:hidden;text-overflow:ellipsis;color:var(--pnT2);font:500 var(--pnFs)/1.2 var(--pnF);letter-spacing:.08em;text-transform:uppercase}
+#rbInicio .rbPan .rbPanCab>.rbEsp{flex:1 1 0;min-width:0}
+
+/* ============ el pie: Volver a la izquierda, lo principal a la derecha; arriba, una línea con rayas ============ */
+#rbInicio .rbPan .rbPanPie{position:relative;flex:none;display:flex;align-items:center;flex-wrap:nowrap;gap:var(--pnU);padding:calc(var(--pnU)*.75) calc(var(--pnU)*1.5);background:var(--pnPozo);border:0;border-top:1px solid var(--pnLin)}
+#rbInicio .rbPan .rbPanPie::before{content:'';position:absolute;inset-inline-start:24px;top:auto;bottom:0;width:min(22%,160px);height:3px;background:var(--pnRayas);opacity:.5;pointer-events:none}
+#rbInicio .rbPan .rbPanPie>.rbEsp{flex:1 1 0;min-width:0}
+
+/* ============ los botones: el principal (placa amarilla con la punta rota) y el de al lado (placa oscura) ============ */
+#rbInicio .rbPan :is(.rbBtnG,.rbBtnGris),#ajustesCaja .ajBtn,:is(#cuDlg,#cfDlg) .cuBtn,#rbInicio .mpModalC .rbBtnG{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:.5em;box-sizing:border-box;min-height:var(--pnH);margin:0;
+  padding:0 calc(var(--pnFt)*1.15 + 6px) 0 calc(var(--pnFt)*1.05);border:0;border-radius:0;box-shadow:none;text-decoration:none;text-shadow:none;white-space:nowrap;cursor:pointer;
+  font:500 var(--pnFt)/1.1 var(--pnF);text-transform:uppercase;letter-spacing:.05em;-webkit-mask:var(--pnPunta);mask:var(--pnPunta);transition:background-color .14s,color .14s,box-shadow .14s}
+#rbInicio[dir=rtl] .rbPan :is(.rbBtnG,.rbBtnGris),#rbInicio[dir=rtl] .mpModalC .rbBtnG{-webkit-mask:var(--pnPuntaR);mask:var(--pnPuntaR);padding:0 calc(var(--pnFt)*1.05) 0 calc(var(--pnFt)*1.15 + 6px)}
+#rbInicio .rbPan .rbBtnG,#ajustesCaja .ajBtn:not(.gris),:is(#cuDlg,#cfDlg) .cuBtn:not(.gris):not(.rojo),#rbInicio .mpModalC .rbBtnG{background:var(--pnA);color:var(--pnNe);font-weight:600;--pnTinta:rgba(0,0,0,.2)}
+@media (hover:hover){#rbInicio .rbPan .rbBtnG:hover,#ajustesCaja .ajBtn:not(.gris):hover,:is(#cuDlg,#cfDlg) .cuBtn:not(.gris):not(.rojo):hover,#rbInicio .mpModalC .rbBtnG:hover{background:var(--pnA2)}}
+#rbInicio .rbPan .rbBtnGris,#ajustesCaja .ajBtn.gris,:is(#cuDlg,#cfDlg) .cuBtn.gris{background:var(--pnPl3);color:var(--pnT);box-shadow:inset 0 0 0 1px var(--pnLin2)}
+@media (hover:hover){#rbInicio .rbPan .rbBtnGris:hover,#ajustesCaja .ajBtn.gris:hover,:is(#cuDlg,#cfDlg) .cuBtn.gris:hover{background:var(--pnPl4);box-shadow:inset 0 0 0 1px var(--pnLin2),inset 0 -3px 0 var(--pnA)}}
+:is(#cuDlg,#cfDlg) .cuBtn.rojo{background:#b8322a;color:#fff}
+/* (lo que deshabilita o borra —«Deshabilitar todo», «Borrar»—: el contorno rojo de siempre, que no se toque de casualidad) */
+#rbInicio .rbPan :is(.rbHabNo:not([disabled]),.tiRojo){border:1px solid rgba(255,122,110,.6);box-shadow:none}
+@media (hover:hover){#rbInicio .rbPan :is(.rbHabNo:not([disabled]),.tiRojo):hover{border-color:rgba(255,122,110,.9);box-shadow:inset 0 -3px 0 var(--pnRo)}}
+#rbInicio .rbPan :is(.rbBtnG,.rbBtnGris) .gli,#ajustesCaja .ajBtn .gli,#rbInicio .rbPan :is(.rbBtnG,.rbBtnGris) .ico{width:1.15em;height:1.15em;flex:none;vertical-align:0}
+#rbInicio .rbPan .rbBtnG .gli{stroke-width:2.7}
+#rbInicio .rbPan .rbBtnGris.sel{color:var(--pnA);box-shadow:inset 0 0 0 1px var(--pnA)}
+#rbInicio .rbPan :is(.rbBtnG,.rbBtnGris)[disabled],#rbInicio .rbPan .rbPanPie button[disabled]{opacity:.42;cursor:default}
+#rbInicio .rbPan .rbChico{min-height:var(--pnH);padding-inline:calc(var(--pnFt)*.85) calc(var(--pnFt)*.85 + 6px);font-size:var(--pnFs)}
+#rbInicio .rbPan .rbPanPie .rbBtnG{min-height:calc(var(--pnH) + 2px);padding-inline:calc(var(--pnFt)*1.5) calc(var(--pnFt)*1.5 + 10px);font-size:calc(var(--pnFt)*1.1);-webkit-mask:var(--pnPuntaG);mask:var(--pnPuntaG)}
+#rbInicio[dir=rtl] .rbPan .rbPanPie .rbBtnG{-webkit-mask:var(--pnPuntaGR);mask:var(--pnPuntaGR);padding-inline:calc(var(--pnFt)*1.5) calc(var(--pnFt)*1.5 + 10px)}
+#rbInicio .rbPan [data-rb]:focus-visible,#ajustesCaja button:focus-visible,:is(#cuDlg,#cfDlg) button:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--pnNe),inset 0 0 0 4px var(--pnA)}
+#rbInicio .rbPan .rbBtnG:focus-visible{box-shadow:inset 0 0 0 2px var(--pnNe),inset 0 0 0 4px #fff}
+#rbInicio .rbPan .rbVacio{color:var(--pnT2);font:500 var(--pnFt)/1.4 var(--pnFr)}#rbInicio .rbPan .rbVacio a{color:var(--pnA)}
+
+/* ============ las pestañas (arriba), los grupos (Nueva partida), las categorías (al costado) y los segmentos ============ */
+/* (placas oscuras con la punta rota, la elegida amarilla; la marca —.pnMarca, paneles.js— se desliza de una a otra) */
+#rbInicio .rbPan .rbTabs{position:relative;isolation:isolate;display:flex;gap:4px;margin:0;margin-inline-start:var(--pnU);align-self:stretch;align-items:center}
+#rbInicio .rbPan :is(.rbTab,.rbCat){position:relative;flex:none;display:inline-flex;align-items:center;justify-content:flex-start;gap:.5em;box-sizing:border-box;min-height:var(--pnH);height:auto;margin:0;padding:0 calc(var(--pnFt)*1.05 + 6px) 0 calc(var(--pnFt)*.85);
+  background:var(--pnPl2);color:var(--pnT2);border:0;border-radius:0;box-shadow:none;font:500 var(--pnFt)/1 var(--pnF);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;cursor:pointer;
+  -webkit-mask:var(--pnPunta);mask:var(--pnPunta);transition:background-color .14s,color .14s}
+#rbInicio[dir=rtl] .rbPan :is(.rbTab,.rbCat){-webkit-mask:var(--pnPuntaR);mask:var(--pnPuntaR);padding:0 calc(var(--pnFt)*.85) 0 calc(var(--pnFt)*1.05 + 6px)}
+@media (hover:hover){#rbInicio .rbPan :is(.rbTab,.rbCat):hover{background:var(--pnPl3);color:var(--pnT)}}
+#rbInicio .rbPan :is(.rbTab,.rbCat).sel{background:var(--pnA);color:var(--pnNe);font-weight:600;--pnTinta:rgba(0,0,0,.2)}
+#rbInicio .rbPan :is(.rbTab,.rbCat) :is(.gli,.ico,.rbGmIco){width:1.25em;height:1.25em;flex:none;border-radius:0;vertical-align:0}
+#rbInicio .rbPan .rbCat em,#rbInicio .rbPan .rbTab em:not(.soBadge){font-style:normal;opacity:1;color:var(--pnT3);font-size:max(14px,.88em)}
+#rbInicio .rbPan .rbCat.sel em{color:#3a2d06}
+/* (la marca: una barra amarilla abajo de la elegida —al costado, en las listas— que se desliza; quieta, se funde con la placa) */
+#rbInicio .pnMarca,#ajustesCaja .pnMarca{position:absolute;z-index:3;left:0;top:0;pointer-events:none;background:var(--pnA);transform-origin:0 0}
+#rbInicio .pnMarcaH,#ajustesCaja .pnMarcaH{top:auto;bottom:0;height:4px;width:0}
+#rbInicio .pnMarcaV,#ajustesCaja .pnMarcaV{width:4px;height:0}
+#rbInicio[dir=rtl] .pnMarcaV{left:auto;right:0}
+/* (los segmentos: Explorar / Instalados, Libre / PvP, los de Social) */
+#rbInicio .rbPan .rbSeg{position:relative;isolation:isolate;flex:none;display:flex;gap:2px;height:auto;padding:0;margin:0;background:var(--pnPozo);border:0;border-radius:0;box-shadow:inset 0 0 0 1px var(--pnLin);overflow:hidden}
+#rbInicio .rbPan .rbSeg button{position:relative;flex:1 1 auto;display:flex;align-items:center;justify-content:center;gap:.4em;box-sizing:border-box;min-height:var(--pnH);height:auto;margin:0;padding:0 calc(var(--pnFt)*.9);background:transparent;border:0;border-radius:0;
+  color:var(--pnT2);font:500 var(--pnFt)/1.1 var(--pnF);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;cursor:pointer;transition:background-color .14s,color .14s}
+@media (hover:hover){#rbInicio .rbPan .rbSeg button:hover{background:var(--pnPl3);color:var(--pnT)}}
+#rbInicio .rbPan .rbSeg button.sel{background:var(--pnA);color:var(--pnNe);font-weight:600;border:0;--pnTinta:rgba(0,0,0,.2)}
+#rbInicio .rbPan .rbSeg .pnMarcaH{bottom:0}
+
+/* ============ los campos: el pozo oscuro, el filo amarillo con el foco ============ */
+#rbInicio .rbPan :is(input:not([type]),input[type=text],input[type=search],input[type=password],textarea,select):not(.soNomIn),#rbInicio .mpModalC input,#ajustesCaja .ajF select{box-sizing:border-box;min-height:var(--pnH);margin:0;padding:0 .8em;
+  background:var(--pnPozo);color:var(--pnT);border:0;border-radius:0;box-shadow:inset 0 0 0 1px var(--pnLin2);outline:0;font:500 var(--pnFt)/1.2 var(--pnFr);transition:box-shadow .14s}
+#rbInicio .rbPan textarea{padding:.6em .8em;line-height:1.4}
+#rbInicio .rbPan textarea.rbCodigo{font:500 max(14px,calc(var(--vh)*2.7))/1.45 ui-monospace,Menlo,Consolas,monospace!important;background:var(--pnPozo);color:#d8dee9}
+#rbInicio .rbPan :is(input,textarea,select):focus,#rbInicio .mpModalC input:focus,#ajustesCaja .ajF select:focus{box-shadow:inset 0 0 0 1px var(--pnLin2),inset 0 -3px 0 var(--pnA);background-color:var(--pnPl1)}
+#rbInicio .rbPan ::placeholder,#rbInicio .mpModalC ::placeholder{color:var(--pnT3);opacity:1}
+#rbInicio .rbPan select:not(#__),#ajustesCaja .ajF select{-webkit-appearance:none;appearance:none;padding-inline-end:2.2em;
+  background:var(--pnPozo) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6' fill='none' stroke='%23f2b31b' stroke-width='2.6' stroke-linecap='square'/%3E%3C/svg%3E") no-repeat right .7em center/1em;
+  font:500 var(--pnFt)/1.1 var(--pnF);text-transform:uppercase;letter-spacing:.04em}
+#rbInicio[dir=rtl] .rbPan select{background-position:left .7em center}
+#rbInicio .rbPan select option,#ajustesCaja select option{background:var(--pnPl2);color:var(--pnT);text-transform:none}
+#rbInicio .rbPan :is(.rbCampo,.rbSub,.rbRango),#rbInicio .rbPan .rbForm .rbCampo{color:var(--pnT2);font:500 var(--pnFs)/1.2 var(--pnF);text-transform:uppercase;letter-spacing:.08em}
+#rbInicio .rbPan .rbSub{color:var(--pnA);margin:0}
+#rbInicio .rbPan input[type=range],#ajustesCaja input[type=range]{accent-color:var(--pnA)}
+/* (la casilla: el tilde se dibuja con un golpe; el interruptor: la perilla se corre con un rebote) */
+#rbInicio .rbPan .rbChk{position:relative;display:inline-flex;align-items:center;gap:.65em;box-sizing:border-box;min-height:var(--pnH);margin:0;padding:0 1em 0 .8em;background:var(--pnPl2);color:var(--pnT2);border:0;border-radius:0;box-shadow:inset 0 0 0 1px var(--pnLin);
+  font:500 var(--pnFt)/1.1 var(--pnF);text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
+#rbInicio .rbPan .rbChk:not(.tiInter) em{position:relative;flex:none;width:1.3em;height:1.3em;box-sizing:border-box;background:var(--pnPozo);border:2px solid var(--pnT3);border-radius:0;transition:background-color .14s,border-color .14s}
+#rbInicio .rbPan .rbChk:not(.tiInter) em::after{content:'';position:absolute;left:30%;top:6%;width:30%;height:58%;border:solid var(--pnNe);border-width:0 .2em .2em 0;transform:rotate(45deg) scale(0);transform-origin:60% 70%;transition:transform .24s cubic-bezier(.3,1.8,.5,1)}
+#rbInicio .rbPan .rbChk.on{background:var(--pnPl3);color:var(--pnT);box-shadow:inset 0 0 0 1px rgba(242,179,27,.6)}
+#rbInicio .rbPan .rbChk.on:not(.tiInter) em{background:var(--pnA);border-color:var(--pnA)}#rbInicio .rbPan .rbChk.on:not(.tiInter) em::after{transform:rotate(45deg) scale(1)}
+#ajustesCaja .ajSw i,#rbInicio .rbPan .tiInter em,.gmkAuto i{position:relative;overflow:hidden;border-radius:0!important;background:var(--pnPl4)!important}
+#ajustesCaja .ajSw i::before,#rbInicio .rbPan .tiInter em::before,.gmkAuto i::before{content:'';position:absolute;inset:0;background:var(--pnA);opacity:0;transition:opacity .16s}
+#ajustesCaja .ajSw input:checked+i::before,#rbInicio .rbPan .tiInter.on em::before,.gmkAuto input:checked+i::before{opacity:1}
+#ajustesCaja .ajSw i::after,#rbInicio .rbPan .tiInter em::after,.gmkAuto i::after{z-index:1;left:3px!important;inset-inline-start:3px!important;border-radius:0!important;background:var(--pnT)!important;transition:transform .26s cubic-bezier(.3,1.6,.5,1),background-color .16s!important}
+#ajustesCaja .ajSw input:checked+i::after{transform:translateX(16px);background:var(--pnNe)!important}
+#rbInicio .rbPan .tiInter.on em::after,.gmkAuto input:checked+i::after{transform:translateX(1.06em)!important;background:var(--pnNe)!important}
+#rbInicio[dir=rtl] .rbPan .tiInter em::after{left:auto!important;right:3px}
+#rbInicio[dir=rtl] .rbPan .tiInter.on em::after{transform:translateX(-1.06em)!important}
+
+/* ============ las tarjetas: placa con grano, sombra dura, la esquina cortada (::after) y el marco gastado de la foto ============ */
+#rbInicio .rbPan :is(.rbMapaG,.tiCard,.pjCard,.mpSala,.soCard,.lanSec,.tiFicha,.gmkFila,.gmkCaja){position:relative;box-sizing:border-box;border-radius:0;
+  background:var(--pnGrano,none) 37px 11px/160px 160px,var(--pnPl2);border:1px solid var(--pnLin);box-shadow:4px 4px 0 rgba(0,0,0,.5);color:var(--pnT);transition:background-color .14s,border-color .14s,transform .16s cubic-bezier(.3,.7,.3,1)}
+#rbInicio .rbPan :is(.rbMapaG,.tiCard,.pjCard)::after{content:'';position:absolute;z-index:2;top:-1px;inset-inline-end:-1px;width:13px;height:13px;pointer-events:none;
+  background:linear-gradient(225deg,var(--pnPozo) 0 48%,var(--pnLin2) 48% 56%,rgba(0,0,0,0) 56%)}
+#rbInicio[dir=rtl] .rbPan :is(.rbMapaG,.tiCard,.pjCard)::after{background:linear-gradient(135deg,var(--pnPozo) 0 48%,var(--pnLin2) 48% 56%,rgba(0,0,0,0) 56%)}
+@media (hover:hover){#rbInicio .rbPan :is(.rbMapaG,.tiCard,.pjCard,.mpSala,.soIt):hover{background-color:var(--pnPl3);border-color:var(--pnLin2);transform:translateY(-3px)}}
+#rbInicio .rbPan :is(.rbMapaG,.tiCard,.pjCard).sel,#rbInicio .rbPan .tiCard.on{border-color:var(--pnA)}
+/* (las fotos: el marco gastado —un borde oscuro adentro y el grano encima, más fuerte en las esquinas—) */
+#rbInicio .rbPan :is(.rbFoto,.mpFoto,.nvFoto,.pjFoto,.rbFichaIco,.dpEvFoto){position:relative;border-radius:0!important;box-shadow:none}
+#rbInicio .rbPan :is(.rbFoto,.mpFoto,.nvFoto,.pjFoto,.dpEvFoto)::before{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;box-shadow:inset 0 0 0 2px rgba(0,0,0,.55),inset 0 0 0 3px rgba(239,237,231,.08);
+  background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 60%,rgba(0,0,0,.38) 100%)}
+/* (los títulos de sección: el número, el filo amarillo y una raya que sigue) */
+#rbInicio .rbPan :is(.rbSecc,.soSec,.soSub,.pjmTit,.tiLadoTit),#ajustesCaja .ajSecs h4{font:500 var(--pnFs)/1.2 var(--pnF);letter-spacing:.12em;text-transform:uppercase}
+#rbInicio .rbPan .rbTiendaG{counter-reset:pnSec}
+#rbInicio .rbPan .rbSecc{position:relative;display:flex;align-items:center;gap:.6em;margin:calc(var(--pnU)*.9) 0 calc(var(--pnU)*.1);padding:.15em 0;padding-inline-start:.6em;border:0;border-inline-start:4px solid var(--pnA);color:var(--pnT);counter-increment:pnSec}
+#rbInicio .rbPan .rbSecc::before{content:counter(pnSec,decimal-leading-zero);order:-1;color:var(--pnA);font-weight:600;letter-spacing:.06em}
+#rbInicio .rbPan .rbSecc::after{content:'';flex:1 1 0;min-width:16px;height:4px;margin-inline-start:.3em;background:var(--pnRayas);opacity:.32}
+#rbInicio .rbPan .rbSecc em{padding:.1em .55em;background:var(--pnPl3);border-radius:0;color:var(--pnT);font-style:normal;letter-spacing:.04em}
+/* (los sellos: «Oficial», «Tuyo», «Vista previa», «Amigo»… en letra de molde, con un borde y apenas torcidos) */
+#rbInicio .rbPan :is(.mpInfo b em,.soTag,.rbOf,.tiChip){display:inline-block;padding:.12em .5em;border:1.5px solid currentColor;border-radius:0;background:transparent;color:var(--pnA);font:600 var(--pnFs)/1.15 var(--pnF);letter-spacing:.1em;text-transform:uppercase;transform:rotate(-2deg)}
+#rbInicio .rbPan .mpInfo b em.mpOf{color:var(--pnT2)}
+
+/* ============ el rasgón de la entrada y lo que acompaña (paneles.js agrega .pnEntra y el rasgón; todo termina en < 1 s) ============ */
+#rbInicio .pnRasgon{position:absolute;z-index:8;top:-2px;bottom:-2px;left:-70px;width:calc(100% + 140px);pointer-events:none;animation:pnRasgon .46s cubic-bezier(.55,.05,.3,1) both}
+/* (el filo amarillo: la misma forma rota, 6 px más adelante, debajo del cuerpo oscuro: queda una hebra amarilla en el borde) */
+#rbInicio .pnRasgon::before{content:'';position:absolute;top:0;bottom:0;left:-6px;width:60px;background:var(--pnA);-webkit-mask:var(--pnRasgonM,none) 0 0/60px 100% no-repeat;mask:var(--pnRasgonM,none) 0 0/60px 100% no-repeat}
+#rbInicio .pnRasgon::after{content:'';position:absolute;inset:0;background:var(--pnGrano,none) 0 0/160px 160px,var(--pnPozo);
+  -webkit-mask:var(--pnRasgonM,linear-gradient(#000 0 0)) 0 0/60px 100% no-repeat,linear-gradient(#000 0 0) 59px 0/calc(100% - 59px) 100% no-repeat;mask:var(--pnRasgonM,linear-gradient(#000 0 0)) 0 0/60px 100% no-repeat,linear-gradient(#000 0 0) 59px 0/calc(100% - 59px) 100% no-repeat}
+#rbInicio[dir=rtl] .pnRasgon{left:auto;right:-70px;animation-name:pnRasgonR}
+#rbInicio[dir=rtl] .pnRasgon::before{left:auto;right:-6px;-webkit-mask-image:var(--pnRasgonMR,none);mask-image:var(--pnRasgonMR,none)}
+#rbInicio[dir=rtl] .pnRasgon::after{-webkit-mask:var(--pnRasgonMR,linear-gradient(#000 0 0)) 100% 0/60px 100% no-repeat,linear-gradient(#000 0 0) 0 0/calc(100% - 59px) 100% no-repeat;mask:var(--pnRasgonMR,linear-gradient(#000 0 0)) 100% 0/60px 100% no-repeat,linear-gradient(#000 0 0) 0 0/calc(100% - 59px) 100% no-repeat}
+@keyframes pnRasgon{from{transform:translateX(0)}to{transform:translateX(105%)}}
+@keyframes pnRasgonR{from{transform:translateX(0)}to{transform:translateX(-105%)}}
+#rbInicio .rbPan.pnEntra{animation:pnPanelIn .2s ease-out both}
+@keyframes pnPanelIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#rbInicio .rbPan.pnEntra .rbPanCab::before{animation:pnSello .34s cubic-bezier(.3,1.5,.5,1) .12s both}
+@keyframes pnSello{from{opacity:0;transform:scale(1.7) rotate(-14deg)}60%{opacity:1}to{opacity:1;transform:none}}
+#rbInicio .rbPan.pnEntra .rbPanCab::after{animation:pnRaya .4s cubic-bezier(.2,.8,.2,1) .26s both}
+#rbInicio .rbPan.pnEntra .rbPanPie::before{animation:pnRaya .4s cubic-bezier(.2,.8,.2,1) .4s both}
+@keyframes pnRaya{from{transform:scaleX(0)}to{transform:none}}
+#rbInicio .rbPan.pnEntra .rbPanCab::after{transform-origin:100% 50%}#rbInicio .rbPan.pnEntra .rbPanPie::before{transform-origin:0 50%}
+#rbInicio .rbPan.pnEntra::after{animation:pnAparece .35s ease-out .32s both}
+@keyframes pnAparece{from{opacity:0}to{opacity:.6}}
+#rbInicio .rbPan.pnEntra>.rbPanPie{animation:pnSubePie .36s cubic-bezier(.2,.8,.2,1) .18s both}
+@keyframes pnSubePie{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+/* (la cascada: lo que aparece baja un poco, uno tras otro —--pnK lo pone paneles.js—) */
+.pnSube{animation:pnSube .3s cubic-bezier(.2,.8,.2,1) calc(40ms + var(--pnK,0)*24ms) both}
+@keyframes pnSube{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* (los números que suben: lo que se ve es una copia encima del texto de verdad) */
+.pnCuenta{position:relative;-webkit-text-fill-color:transparent}
+.pnCuenta::after{content:attr(data-pn);position:absolute;inset:0;display:inherit;align-items:inherit;justify-content:inherit;padding:inherit;text-align:inherit;white-space:nowrap;-webkit-text-fill-color:currentColor;pointer-events:none}
+/* (la tinta, el barrido de luz, la brecha y el sello: van adentro de lo tocado, recortados a su forma) */
+.pnFx{position:absolute;inset:0;z-index:4;overflow:hidden;pointer-events:none;border-radius:inherit}
+.pnFx>i{position:absolute;display:block}
+.pnTinta>i{background:var(--pnTinta,rgba(242,179,27,.34));-webkit-mask:var(--pnManchaM,none) center/100% 100% no-repeat;mask:var(--pnManchaM,none) center/100% 100% no-repeat}
+.pnLuz>i{left:0;top:-10%;bottom:-10%;width:38%;opacity:0;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.08) 34%,rgba(255,255,255,.42) 48%,rgba(255,252,240,.7) 50%,rgba(255,255,255,.1) 58%,rgba(255,255,255,0))}
+[dir=rtl] .pnLuz>i{left:auto;right:0}
+.pnBrecha>i{inset:0;transform-origin:0 50%;background:var(--pnRayas);opacity:0}
+[dir=rtl] .pnBrecha>i{transform-origin:100% 50%}
+.pnSello{overflow:visible}.pnSello>i{inset:-4px;box-shadow:inset 0 0 0 3px var(--pnA),0 0 0 2px var(--pnA);opacity:0}
+/* (los esqueletos: mientras carga una lista; el brillo pasa 4 veces y queda quieto) */
+#rbInicio .rbPan .pnEsqT{grid-column:1/-1;padding:calc(var(--pnU)*.6) 0 0;text-align:start;color:var(--pnT2);font:500 var(--pnFs)/1.2 var(--pnF);letter-spacing:.1em;text-transform:uppercase}
+#rbInicio .rbPan .pnEsq{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:8px;min-height:calc(var(--pnH)*3.2);padding:10px;background:var(--pnPl1);border:1px solid var(--pnLin);box-sizing:border-box}
+#rbInicio .rbPan .pnEsq>i{flex:1;background:var(--pnPl3)}#rbInicio .rbPan .pnEsq>b{height:14px;width:70%;background:var(--pnPl3)}#rbInicio .rbPan .pnEsq>s{height:calc(var(--pnH) - 8px);background:var(--pnPl3);text-decoration:none}
+#rbInicio .rbPan .pnEsq::after{content:'';position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(100deg,rgba(255,255,255,0) 20%,rgba(255,255,255,.07) 50%,rgba(255,255,255,0) 80%);animation:pnEsq 1.05s ease-in-out 4}
+@keyframes pnEsq{to{transform:translateX(100%)}}
+
+/* ============ cada panel (lo que tiene propio; lo demás sale de las piezas de arriba) ============ */
+/* -- las grillas de mapas (Empezar partida, Crear un mapa, Crear server): la foto en 16:9, el nombre en la placa; el elegido,
+   la placa amarilla con el tilde -- */
+#rbInicio .rbPan .rbGrid{gap:calc(var(--pnU)*1.1);padding:calc(var(--pnU)*1.3) calc(var(--pnU)*1.5) calc(var(--pnU)*1.6)}
+#rbInicio .rbPan .rbMapaG{display:flex;flex-direction:column;min-width:0;padding:0;margin:0;text-align:start;overflow:visible;outline:0;cursor:pointer}
+#rbInicio .rbPan .rbMapaG .rbFoto{aspect-ratio:16/9;background-color:var(--pnPl1)}
+#rbInicio .rbPan .rbMapaG>b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin:0;padding:.42em .5em .48em;color:var(--pnT);font:500 var(--pnFs)/1.2 var(--pnF);text-transform:uppercase;letter-spacing:.04em;overflow-wrap:anywhere}
+#rbInicio .rbPan .rbMapaG>small{display:block;margin:-.3em 0 0;padding:0 .75em .55em;color:var(--pnT2);font:400 var(--pnFs)/1.3 var(--pnFr);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#rbInicio .rbPan .rbMapaG.sel{background:var(--pnA);border-color:var(--pnA)}
+#rbInicio .rbPan .rbMapaG.sel>b{color:var(--pnNe);font-weight:600}#rbInicio .rbPan .rbMapaG.sel>small,#rbInicio .rbPan .rbMapaG.sel .rbOf{color:#3a2d06}
+#rbInicio .rbPan .rbMapaG.sel .rbFoto::after{content:'✓';position:absolute;z-index:2;inset-inline-start:6px;top:6px;display:flex;align-items:center;justify-content:center;width:26px;height:26px;background:var(--pnA);color:var(--pnNe);font:700 16px/1 var(--pnFr);box-shadow:2px 2px 0 rgba(0,0,0,.5)}
+#rbInicio .rbPan .rbMapaG .rbOf{transform:none;padding:0;border:0;font-size:1em}
+/* -- Empezar partida nueva: los grupos como pestañas, el elegido en grande (la foto con su marco, el grupo y el nombre) -- */
+#rbInicio .rbPan_nueva .rbCats{position:relative;isolation:isolate;flex:none;display:flex;flex-direction:row;gap:4px;width:auto;min-width:0;padding:calc(var(--pnU)*.8) calc(var(--pnU)*1.5) calc(var(--pnU)*.6);background:transparent;border:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+#rbInicio .rbPan_nueva .rbCats::-webkit-scrollbar{display:none}
+#rbInicio .rbPan_nueva .rbCats .pnMarcaH{bottom:calc(var(--pnU)*.6)}
+#rbInicio .rbPan_nueva .rbPanCab>small{display:none}
+#rbInicio .rbPan_nueva .rbPanCuerpo{gap:0;border-top:1px solid var(--pnLin)}
+#rbInicio .rbPan_nueva .nvHero{position:relative;border-inline-end:1px solid var(--pnLin);background:var(--pnPozo)}
+#rbInicio .rbPan_nueva .nvFoto{margin:calc(var(--pnU)*1.2) calc(var(--pnU)*1.2) 0;box-shadow:4px 4px 0 rgba(0,0,0,.6);outline:1px solid var(--pnLin2)}
+#rbInicio .rbPan_nueva .nvInfo{position:relative;background:transparent;padding:calc(var(--pnU)*1.1) calc(var(--pnU)*1.5) calc(var(--pnU)*1.2)}
+#rbInicio .rbPan_nueva .nvInfo small{font:500 var(--pnFs)/1 var(--pnF);letter-spacing:.16em;color:var(--pnA)}
+#rbInicio .rbPan_nueva .nvInfo b{font:600 clamp(22px,calc(var(--vh)*6.4),50px)/1.2 var(--pnF);padding-bottom:.14em}
+#rbInicio .rbPan_nueva .nvInfo span{font:400 var(--pnFs)/1.35 var(--pnFr);color:var(--pnT2)}
+#rbInicio .rbPan :is(.rbCampo){display:flex;align-items:center;gap:.6em;white-space:nowrap}
+#rbInicio .rbPan .rbModo{color:var(--pnT3);font:500 var(--pnFs)/1 var(--pnF);text-transform:uppercase;letter-spacing:.1em;white-space:nowrap}
+#rbInicio .rbPan_nueva .nvMods .ico{width:1.3em;height:1.3em}
+#rbInicio .rbPan_nueva .rbPanPie{flex-wrap:wrap;row-gap:4px}   /* (nvEncajar, inicio.js, lo achica por pasos hasta que entra en un renglón) */
+/* (sus pasos, con la fuerza de las piezas: nvC3 sin «Hora» ni «Modo» y los desplegables más angostos; nvC4 «Volver» sólo con
+   la flecha y los mods más angostos) */
+#rbInicio .rbPan_nueva .rbPanPie.nvC3 .rbCampo{font-size:0;gap:0}
+#rbInicio .rbPan_nueva .rbPanPie.nvC3 select:not(#__){max-width:calc(var(--vh)*34);padding-inline-start:.6em;font-size:var(--pnFs)}
+#rbInicio .rbPan_nueva .rbPanPie.nvC4 [data-rb=volver]{width:var(--pnH);padding:0;gap:0;justify-content:center;flex:none}
+#rbInicio .rbPan_nueva .rbPanPie.nvC4 [data-rb=volver] span{display:none}#rbInicio .rbPan_nueva .rbPanPie.nvC4 [data-rb=volver] .gli{width:20px;height:20px}
+#rbInicio .rbPan_nueva .rbPanPie.nvC4 .nvMods{padding-inline:.75em}
+/* -- Crear un mapa -- */
+#rbInicio .rbPan_crear .rbCrear{padding:calc(var(--pnU)*1.3) calc(var(--pnU)*1.5);gap:calc(var(--pnU)*1.1)}
+#rbInicio .rbPan_crear .rbCrear .rbGrid{padding:0}
+#rbInicio .rbPan .rbAyudaC{margin:0;color:var(--pnT2);font:400 var(--pnFs)/1.4 var(--pnFr)}
+/* -- Multijugador: la barra (buscar, cuántos hay, actualizar) y la lista de servers en filas con la foto del mapa -- */
+#rbInicio .rbPan .rbBarra{flex:none;display:flex;flex-wrap:nowrap;align-items:center;gap:var(--pnU);padding:calc(var(--pnU)*1.1) calc(var(--pnU)*1.5) calc(var(--pnU)*.5);background:transparent;border:0}
+#rbInicio .rbPan .rbBarra>input{flex:1 1 auto;min-width:0}
+#rbInicio .rbPan :is(.mpEst,.mpCuenta){flex:none;color:var(--pnT2);font:500 var(--pnFs)/1.2 var(--pnF);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+#rbInicio .rbPan .mpEst{color:var(--pnA)}#rbInicio .rbPan .mpEst:empty{display:none}
+#rbInicio .rbPan .mpCuenta:not(:empty)::before{content:'';display:inline-block;width:.55em;height:.55em;margin-inline-end:.5em;background:var(--pnVe);vertical-align:.08em}
+#rbInicio .rbPan .mpLista{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:calc(var(--pnU)*.9);padding:calc(var(--pnU)*.8) calc(var(--pnU)*1.5) calc(var(--pnU)*1.5);scrollbar-width:thin;scrollbar-color:var(--pnPl4) transparent}
+#rbInicio .rbPan .mpSala{flex:none;display:flex;align-items:center;gap:calc(var(--pnU)*1.2);min-height:calc(var(--pnH) + 18px);padding:7px calc(var(--pnU)*1.1) 7px 7px}
+#rbInicio .rbPan .mpSala.conGente{border-inline-start:5px solid var(--pnA)}
+#rbInicio .rbPan .mpSala.mia{background-color:#221e12}
+#rbInicio .rbPan .mpFoto{flex:none;width:calc(var(--pnH)*1.5);height:calc(var(--pnH) + 2px);background-color:var(--pnPl1)}
+#rbInicio .rbPan .mpInfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+#rbInicio .rbPan .mpInfo b{display:flex;align-items:center;gap:.5em;min-width:0;padding:3px 2px;margin:-3px -2px;color:var(--pnT);font:600 var(--pnFt)/1.2 var(--pnFr);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#rbInicio .rbPan .mpInfo small{color:var(--pnT2);font:400 var(--pnFs)/1.25 var(--pnFr);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#rbInicio .rbPan .mpGente{color:var(--pnA);font:500 var(--pnFs)/1.25 var(--pnFr);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#rbInicio .rbPan .mpN{flex:none;display:flex;align-items:center;gap:.35em;min-width:2.6em;color:var(--pnT);font:600 var(--pnFt)/1 var(--pnF)}
+#rbInicio .rbPan .mpN .gli{color:var(--pnT3)}#rbInicio .rbPan .conGente .mpN .gli{color:var(--pnVe)}
+#rbInicio .rbPan .mpCand{flex:none;color:var(--pnT2);font-size:var(--pnFt)}
+#rbInicio .rbPan .mpSala .rbBtnG{flex:none}
+/* -- Crear server y los formularios: dos columnas, los campos con su nombre arriba -- */
+#rbInicio .rbPan .rbForm{gap:calc(var(--pnU)*2.2);padding:calc(var(--pnU)*1.3) calc(var(--pnU)*1.6);scrollbar-width:thin;scrollbar-color:var(--pnPl4) transparent}
+#rbInicio .rbPan .rbForm .rbCol{gap:calc(var(--pnU)*1.1)}
+#rbInicio .rbPan .rbForm .rbCampo{flex-direction:column;align-items:stretch;gap:.45em;white-space:normal}
+#rbInicio .rbPan .rbForm .rbFila{gap:var(--pnU)}
+#rbInicio .rbPan .rbRango{display:grid;grid-template-columns:minmax(6em,35%) 1fr 4em;align-items:center;gap:var(--pnU);min-height:var(--pnH)}
+#rbInicio .rbPan .rbRango output{color:var(--pnA);font:600 var(--pnFt)/1 var(--pnF);text-align:end}
+#rbInicio .rbPan .rbForm .rbGrid{padding:0}
+#rbInicio .rbPan .rbGrid.rbGridChica{grid-template-columns:repeat(auto-fill,minmax(max(118px,calc(var(--vh)*22)),1fr))}
+#rbInicio .rbPan_mcrear .rbSeg{align-self:flex-start}
+/* -- LAN: las dos partes como tarjetas -- */
+#rbInicio .rbPan .lanCuerpo{gap:calc(var(--pnU)*1.4);padding:calc(var(--pnU)*1.4) calc(var(--pnU)*1.6)}
+#rbInicio .rbPan .lanSec{gap:var(--pnU);padding:calc(var(--pnU)*1.2) calc(var(--pnU)*1.4)}
+#rbInicio .rbPan .lanSec>b{display:flex;align-items:center;gap:.5em;color:var(--pnT);font:600 var(--pnFt)/1.15 var(--pnF);text-transform:uppercase;letter-spacing:.05em}
+#rbInicio .rbPan .lanSec>b .gli{color:var(--pnA);width:1.2em;height:1.2em}
+#rbInicio .rbPan .lanSec p{color:var(--pnT2);font:400 var(--pnFs)/1.4 var(--pnFr)}#rbInicio .rbPan .lanIp{color:var(--pnA)!important}
+#rbInicio .rbPan .lanFila{gap:var(--pnU)}#rbInicio .rbPan #lanIp{flex:1 1 140px;min-width:0}
+#rbInicio .rbPan .lanMapa{color:var(--pnT);font:500 var(--pnFt)/1.2 var(--pnF);text-transform:uppercase}
+#rbInicio .rbPan .lanLista{padding:0;gap:var(--pnU)}
+/* -- Social -- */
+#rbInicio .rbPan_social .rbPanCab{flex-wrap:nowrap}
+/* (sus pestañas: si no entran —un idioma largo, el celular chico— se angostan y el texto pasa a dos renglones, sin perder el
+   texto; y nunca llegan a la marca de la esquina) */
+#rbInicio .rbPan_social .rbPanCab .rbTabs{flex:0 1 auto;margin-inline-end:14px}
+#rbInicio .rbPan_social .rbPanCab .rbTab{flex:0 1 auto;white-space:normal;line-height:1.08;text-align:start}
+#rbInicio .rbPan .soCuerpo{gap:calc(var(--pnU)*1.4);padding:calc(var(--pnU)*1.3) calc(var(--pnU)*1.5);font:400 var(--pnFt)/1.35 var(--pnFr)}
+#rbInicio .rbPan .soIzq{flex-basis:40%}
+#rbInicio .rbPan .soConvCab{flex-wrap:nowrap}#rbInicio .rbPan .soConvCab>span:nth-child(2){flex:1 1 auto;min-width:0}#rbInicio .rbPan .soConvCab .rbChico{padding-inline:calc(var(--pnFs)*.7) calc(var(--pnFs)*.7 + 6px)}
+#rbInicio .rbPan .soIzq{gap:var(--pnU);scrollbar-width:thin;scrollbar-color:var(--pnPl4) transparent}
+#rbInicio .rbPan .soLista{gap:calc(var(--pnU)*.7)}
+#rbInicio .rbPan .soFila{gap:var(--pnU)}
+#rbInicio .rbPan .soCard{padding:calc(var(--pnU)*1.1) calc(var(--pnU)*1.3)}
+#rbInicio .rbPan .soIt{position:relative;display:flex;align-items:center;gap:var(--pnU);box-sizing:border-box;min-height:calc(var(--pnH) + 10px);padding:5px calc(var(--pnU)*1.1) 5px 6px;background:var(--pnPl2);border:1px solid var(--pnLin);border-radius:0;color:var(--pnT);cursor:pointer;transition:background-color .14s,border-color .14s,transform .16s}
+#rbInicio .rbPan .soIt.sel{background:#221e12;border-color:var(--pnA);box-shadow:inset 4px 0 0 var(--pnA)}
+#rbInicio .rbPan :is(.soIt b,.soConvCab b,.soResI b){color:var(--pnT);font-weight:600}
+#rbInicio .rbPan :is(.soIt small,.soConvCab small,.soResI small){color:var(--pnT2);font-size:var(--pnFs)}
+#rbInicio .rbPan :is(.soIt small.on,.soConvCab small.on,.soResI small.on){color:var(--pnVe)}
+#rbInicio .rbPan .soHora{color:var(--pnT3);font-size:var(--pnFs)}
+#rbInicio .rbPan .soAv{width:calc(var(--pnH) - 2px);height:calc(var(--pnH) - 2px);min-width:0;min-height:0;border-radius:0;background:var(--pnPl3);color:var(--pnT2);box-shadow:2px 2px 0 rgba(0,0,0,.5)}
+#rbInicio .rbPan .soAv img{border-radius:0;background:var(--pnPl4)}
+#rbInicio .rbPan .soAv i{width:32%;height:32%;border-radius:0;background:var(--pnT3);border:2px solid var(--pnPl2)}#rbInicio .rbPan .soAv i.on{background:var(--pnVe)}
+#rbInicio .rbPan .soAv.g{width:calc(var(--pnH)*1.7);height:calc(var(--pnH)*1.7)}
+#rbInicio .rbPan .soVista .soAv.g{border:0;outline:2px solid var(--pnA);outline-offset:3px}
+#rbInicio .rbPan .soBadge,.soBadge{background:#c62828;border-radius:0;font:700 14px/19px var(--pnFr);min-width:19px;padding:0 5px}
+#rbInicio .rbPan .soSub{margin:2px 0 0;color:var(--pnA)}
+#rbInicio .rbPan .soSec{margin:6px 0 0;color:var(--pnT2)}#rbInicio .rbPan .soSec.on{color:var(--pnVe)}
+#rbInicio .rbPan .soVacio{color:var(--pnT2);font-size:var(--pnFs)}
+#rbInicio .rbPan .soOk{color:var(--pnVe);font:600 var(--pnFs)/1.2 var(--pnF);text-transform:uppercase;letter-spacing:.06em}
+#rbInicio .rbPan .soReloj{color:var(--pnT3)}
+#rbInicio .rbPan .soX{display:flex;align-items:center;justify-content:center;width:var(--pnH);height:var(--pnH);padding:0;color:var(--pnT2);font-size:18px}
+#rbInicio .rbPan .soNom{color:var(--pnT3)}
+#rbInicio .rbPan .soNomIn{min-height:44px;padding:2px 6px;background:transparent;border:0;box-shadow:inset 0 -1px 0 var(--pnLin2);border-radius:0;color:var(--pnT);font:600 calc(var(--pnFt)*1.3)/1.1 var(--pnF);text-transform:uppercase;letter-spacing:.03em}
+#rbInicio .rbPan .soNomIn:focus{box-shadow:inset 0 -3px 0 var(--pnA)}
+#rbInicio .rbPan .soEst{color:var(--pnT3)}#rbInicio .rbPan .soEst.on{color:var(--pnVe)}#rbInicio .rbPan .soEst::before{border-radius:0}
+#rbInicio .rbPan .soId{color:var(--pnT2)}#rbInicio .rbPan .soId b{color:var(--pnA)}
+/* (la tarjeta de la derecha: el perfil de alguien) */
+#rbInicio .rbPan .soVista{position:relative;gap:calc(var(--pnU)*.8);padding:calc(var(--pnU)*4) calc(var(--pnU)*1.4) calc(var(--pnU)*1.4);border-radius:0;
+  background:var(--pnGrano,none) 0 0/160px 160px,var(--pnPl1);border:1px solid var(--pnLin);box-shadow:4px 4px 0 rgba(0,0,0,.5);color:var(--pnT)}
+#rbInicio .rbPan .soVista::before{content:'';position:absolute;left:0;right:0;top:0;height:6px;background:var(--pnRayas);opacity:.7;pointer-events:none}
+#rbInicio .rbPan .soVista.violeta::before{background:repeating-linear-gradient(-45deg,var(--pnVi) 0 5px,rgba(0,0,0,0) 5px 10px)}
+#rbInicio .rbPan .soVista.violeta .soTag{color:var(--pnVi)}
+#rbInicio .rbPan .soVista.soVacia{background:var(--pnPl1);border:1px dashed var(--pnLin2);color:var(--pnT2);box-shadow:none}
+#rbInicio .rbPan .soVista.soVacia p{color:var(--pnT2);font-size:var(--pnFs)}
+#rbInicio .rbPan .soTag{position:absolute;top:calc(var(--pnU)*1.1 + 5px);inset-inline-start:calc(var(--pnU)*1.1)}
+#rbInicio .rbPan .soVista h3{margin:2px 0 0;color:var(--pnT);font:600 var(--pnFg)/1.1 var(--pnF);text-transform:uppercase;letter-spacing:.03em}
+#rbInicio .rbPan .soVista small{color:var(--pnT2);opacity:1;font-size:var(--pnFs)}
+#rbInicio .rbPan .soEstB{padding:.25em .8em;background:var(--pnPozo);border-radius:0;color:var(--pnT2);font:500 var(--pnFs)/1.2 var(--pnF);text-transform:uppercase;letter-spacing:.06em}
+#rbInicio .rbPan .soEstB.on{color:var(--pnVe)}#rbInicio .rbPan .soEstB::before{border-radius:0}
+#rbInicio .rbPan .soVista:not(.soVacia){justify-content:flex-start}
+#rbInicio .rbPan .soAcc{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:var(--pnU);width:min(100%,420px)}
+#rbInicio .rbPan .soAcc .soBtnB{flex:1 1 9em}
+#rbInicio .rbPan .soAcc2{flex:1 1 100%;justify-content:center}
+/* (en una pantalla baja —el celular acostado—: la foto a la izquierda y el nombre, el estado y el ID al lado; abajo, los botones) */
+html.pnBaja #rbInicio .rbPan:not(.soP3d) .soVista:not(.soVacia){display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:calc(var(--pnU)*1.6);row-gap:4px;align-content:start;align-items:center;justify-items:start;text-align:start;padding-top:calc(var(--pnU)*5.2)}html.pnBaja #rbInicio .rbPan:not(.soP3d) .soVista:not(.soVacia)>.soAv{grid-column:1;grid-row:1/4;width:calc(var(--pnH)*1.35);height:calc(var(--pnH)*1.35)}html.pnBaja #rbInicio .rbPan:not(.soP3d) .soVista:not(.soVacia)>:is(h3,html.pnBaja .soEstB,html.pnBaja small){grid-column:2;max-width:100%}html.pnBaja #rbInicio .rbPan:not(.soP3d) .soVista:not(.soVacia)>.soAcc{grid-column:1/-1;width:100%;margin-top:var(--pnU)}
+/* (el chat angosto —el celular—: los botones de arriba, sólo con el ícono) */
+#rbInicio .rbPan .soDer{container-type:inline-size}
+@container (max-width:400px){#rbInicio .rbPan .soConvCab{flex-wrap:nowrap}#rbInicio .rbPan .soConvCab .rbChico{width:var(--pnH);padding:0;font-size:0;gap:0}#rbInicio .rbPan .soConvCab .rbChico .gli{width:20px;height:20px}#rbInicio .rbPan .soConvCab>span:nth-child(2){flex:1 1 auto}}
+#rbInicio .rbPan .soBtnB{position:relative;display:flex;align-items:center;justify-content:center;gap:.5em;min-height:var(--pnH);padding:0 1.2em;border:0;border-radius:0;box-shadow:inset 0 0 0 1px var(--pnLin2);background:var(--pnPl3);color:var(--pnT);
+  font:500 var(--pnFt)/1.1 var(--pnF);text-transform:uppercase;letter-spacing:.05em;cursor:pointer;-webkit-mask:var(--pnPunta);mask:var(--pnPunta)}
+#rbInicio .rbPan .soAcc .soBtnB:first-child{background:var(--pnA);color:var(--pnNe);font-weight:600;box-shadow:none;--pnTinta:rgba(0,0,0,.2)}
+@media (hover:hover){#rbInicio .rbPan .soBtnB:hover{background:var(--pnPl4)}}@media (hover:hover){#rbInicio .rbPan .soAcc .soBtnB:first-child:hover{background:var(--pnA2)}}
+#rbInicio .rbPan .soAcc2{gap:var(--pnU)}
+/* (el chat) */
+#rbInicio .rbPan .soConv{background:var(--pnPl1);border:1px solid var(--pnLin);border-radius:0;box-shadow:4px 4px 0 rgba(0,0,0,.5)}
+#rbInicio .rbPan .soConvCab{gap:var(--pnU);padding:6px calc(var(--pnU)*1.1);border-bottom:1px solid var(--pnLin);background:var(--pnPozo)}
+#rbInicio .rbPan .soMsgs{gap:calc(var(--pnU)*.8);padding:calc(var(--pnU)*1.1) calc(var(--pnU)*1.3);background:var(--pnPozo)}
+#rbInicio .rbPan .soMsg .soAv{width:calc(var(--pnH)*.8);height:calc(var(--pnH)*.8)}
+#rbInicio .rbPan .soBur{position:relative;background:var(--pnPl3);border:0;border-radius:0;color:var(--pnT);padding:.45em .8em .4em;box-shadow:3px 3px 0 rgba(0,0,0,.5)}
+#rbInicio .rbPan .soMsg.mio .soBur{background:var(--pnA);color:var(--pnNe)}
+#rbInicio .rbPan .soBur small{color:var(--pnT3);font-size:14px}#rbInicio .rbPan .mio .soBur small{color:#3d2f07}
+#rbInicio .rbPan .soBur i.leido{color:#0b4f7a}
+#rbInicio .rbPan .soDia{position:sticky;top:0;z-index:2;align-self:stretch;display:flex;align-items:center;gap:10px;margin:0 calc(var(--pnU)*-1.3);padding:5px calc(var(--pnU)*1.3);background:var(--pnPozo);border-radius:0;color:var(--pnT2);font:500 14px/1.3 var(--pnF);letter-spacing:.1em;text-transform:uppercase}
+#rbInicio .rbPan .soDia::before,#rbInicio .rbPan .soDia::after{content:"";flex:1 1 0;height:1px;background:var(--pnLin2)}
+#rbInicio .rbPan .soSis{color:var(--pnT3);font-size:var(--pnFs)}#rbInicio .rbPan .soDe{font-size:var(--pnFs)}
+#rbInicio .rbPan .soInv{border-radius:0;background:var(--pnPl2);border-inline-start:4px solid var(--pnA);color:var(--pnT)}
+#rbInicio .rbPan .soInv small{color:var(--pnT2)!important}#rbInicio .rbPan .mio .soInv{background:rgba(0,0,0,.12);border-color:var(--pnNe);color:var(--pnNe)}#rbInicio .rbPan .mio .soInv small{color:#3d2f07!important}
+#rbInicio .rbPan .soEsc{background:var(--pnPozo);color:var(--pnT3)}
+#rbInicio .rbPan .soEnviar{gap:var(--pnU);padding:var(--pnU);border-top:1px solid var(--pnLin);background:var(--pnPozo)}
+/* (Social sin sesión o sin cuentas: el cartel para entrar) */
+#rbInicio .rbPan .cuPanel p{color:var(--pnT);font:400 var(--pnFt)/1.45 var(--pnFr)}
+/* (el Perfil: tu personaje en 3D a la derecha, la columna de la izquierda en su placa) */
+#rbInicio .rbPan.soP3d .soIzq{padding:var(--pnU);background:var(--pnGrano,none) 0 0/160px 160px,var(--pnPl);border:1px solid var(--pnLin);border-radius:0;box-shadow:6px 7px 0 rgba(0,0,0,.5)}
+#rbInicio .rbPan.soP3d .soVista{background:transparent;border:2px dashed var(--pnLin2);box-shadow:none}
+#rbInicio .rbPan.soP3d .soVista::before{display:none}
+#rbInicio .rbPan.soP3d .rbPanPie{background:var(--pnPozo);border-top:1px solid var(--pnLin)}
+#rbInicio .rbPan.soP3d .pnRasgon{display:none}
+/* -- Mods y mapas (y GMod, la carpeta y los formularios) -- */
+#rbInicio .rbPan_tienda{font:400 var(--pnFt)/1.3 var(--pnFr)}
+#rbInicio .rbPan_tienda .tiCab{gap:var(--pnU);padding:0 calc(var(--pnU)*1.3) 0 0}
+#rbInicio .rbPan_tienda .tiTit{font:600 var(--pnFg)/1.05 var(--pnF);text-transform:uppercase;letter-spacing:.035em}
+#rbInicio .rbPan_tienda .tiCab.tiC1::before{display:none}
+#rbInicio .rbPan_tienda .tiCab.tiC1{padding-inline-start:calc(var(--pnU)*1.2)}
+#rbInicio .rbPan_tienda .tiTabs{margin:0;padding:3px 0}
+#rbInicio .rbPan .tiLado{padding:calc(var(--pnU)*1.1) calc(var(--pnU)*.9);background:var(--pnPozo);border-inline-end:1px solid var(--pnLin)}
+#rbInicio .rbPan .tiLadoTit{padding:0 .3em calc(var(--pnU)*.7);color:var(--pnA)}
+#rbInicio .rbPan .tiCats{position:relative;isolation:isolate;gap:3px}
+#rbInicio .rbPan .tiCat{position:relative;min-height:var(--pnH);padding:0 .9em 0 .8em;background:transparent;border-radius:0;color:var(--pnT2);font:500 var(--pnFt)/1.15 var(--pnF);text-transform:uppercase;letter-spacing:.05em;-webkit-mask:var(--pnPunta);mask:var(--pnPunta)}
+#rbInicio[dir=rtl] .rbPan .tiCat{-webkit-mask:var(--pnPuntaR);mask:var(--pnPuntaR)}
+@media (hover:hover){#rbInicio .rbPan .tiCat:hover{background:var(--pnPl3);color:var(--pnT)}}
+#rbInicio .rbPan .tiCat.sel{background:var(--pnA);color:var(--pnNe);font-weight:600;--pnTinta:rgba(0,0,0,.2)}
+#rbInicio .rbPan .tiInter{border-radius:0;font:500 var(--pnFs)/1.2 var(--pnF);text-transform:uppercase;letter-spacing:.05em}
+#rbInicio .rbPan .tiBus{background:var(--pnPozo);border:0;border-radius:0;box-shadow:inset 0 0 0 1px var(--pnLin2);height:var(--pnH)}
+#rbInicio .rbPan .tiBus:focus-within{box-shadow:inset 0 0 0 1px var(--pnLin2),inset 0 -3px 0 var(--pnA);outline:0}
+#rbInicio .rbPan .tiBus .gli{color:var(--pnA)}
+#rbInicio .rbPan .tiBus input[type=search]{min-height:0;height:100%;padding:0;background:none!important;box-shadow:none!important}
+#rbInicio .rbPan_tienda .rbBarra{padding:calc(var(--pnU)*1.1) calc(var(--pnU)*1.4) calc(var(--pnU)*.8)}
+#rbInicio .rbPan_tienda .tiDesliza{padding:calc(var(--pnU)*.3) calc(var(--pnU)*1.4) calc(var(--pnU)*1.6)}
+#rbInicio .rbPan .rbTiendaG{gap:calc(var(--pnU)*1.1)}
+#rbInicio .rbPan .tiCard{gap:calc(var(--pnU)*.5);padding:calc(var(--pnU)*.6)}
+#rbInicio .rbPan .tiCard .rbTileIco{border-radius:0;background:var(--pnPl1)}
+#rbInicio .rbPan .tiCard .rbTileIco img{border-radius:0}
+#rbInicio .rbPan .tiCard .rbTileIco img.ico{border-radius:16%}
+#rbInicio .rbPan .tiCard>b{font:600 var(--pnFt)/1.25 var(--pnFr)}
+#rbInicio .rbPan .tiMeta{font-size:var(--pnFs);color:var(--pnT2)}
+#rbInicio .rbPan .tiChip{transform:none}
+#rbInicio .rbPan .tiBtn{border-radius:0;padding:0 .35em;font:500 var(--pnFs)/1 var(--pnF);text-transform:uppercase;letter-spacing:.04em;min-height:max(40px,calc(var(--pnH) - 6px))}
+#rbInicio .rbPan .tiBtn>span{line-height:1.3}
+#rbInicio .rbPan .tiBtn_si{background:var(--pnA);border:0;color:var(--pnNe);font-weight:600;--pnTinta:rgba(0,0,0,.2)}@media (hover:hover){#rbInicio .rbPan .tiBtn_si:hover{background:var(--pnA2)}}
+#rbInicio .rbPan .tiBtn_ok{background:rgba(111,214,143,.08);border:1px solid rgba(111,214,143,.55);color:var(--pnVe)}
+#rbInicio .rbPan .tiBtn_va{background:var(--pnPl1);border:1px solid var(--pnLin2)}
+#rbInicio .rbPan .tiNuevo{border-radius:0;border:2px dashed var(--pnLin2)}#rbInicio .rbPan .tiNuevo i{border-radius:0;transform:rotate(45deg)}#rbInicio .rbPan .tiNuevo i .gli{transform:rotate(-45deg)}
+#rbInicio .rbPan .tiNuevo b{font:600 var(--pnFt)/1.2 var(--pnF);text-transform:uppercase;letter-spacing:.05em}
+#rbInicio .rbPan .gmPMnota,#rbInicio .rbPan :is(.gmkAviso,.gmkHecho,.gmkAyuda,.gmkVa,.gmkEst,.gmkSoltar,.rbEtqsC i,.rbFichaIncl,.gmAviso,.gmProg){border-radius:0}
+#rbInicio .rbPan .tiFicha{padding:calc(var(--pnU)*1.4)}
+#rbInicio .rbPan .rbFichaInfo h3{font:600 calc(var(--pnFg)*1.05)/1.1 var(--pnF);text-transform:uppercase;letter-spacing:.03em}
+#rbInicio .rbPan .rbFichaInfo small{font-size:var(--pnFs)}#rbInicio .rbPan .rbFichaInfo p{font-size:var(--pnFt)}
+#rbInicio .rbPan .rbFichaIco{background:var(--pnPl1);border:1px solid var(--pnLin2)}
+#rbInicio .rbPan .rbEtqsC i{border-radius:0;font:500 var(--pnFs)/1.2 var(--pnF);text-transform:uppercase;letter-spacing:.06em}
+#rbInicio .rbPan .rbPanPie .rbTotal{color:var(--pnT2);font:500 var(--pnFs)/1 var(--pnF);letter-spacing:.08em}
+#rbInicio .rbPan .rbIconos button{border-radius:0}
+#rbInicio .rbPan .rbEtq{min-height:var(--pnH)!important;border-radius:0!important;font:500 var(--pnFs)/1 var(--pnF)!important;text-transform:uppercase;letter-spacing:.06em}
+#rbInicio .rbPan .rbChk:not(.tiInter) em{border-radius:0}
+#rbInicio .rbPan .gmkFila{border-radius:0}#rbInicio .rbPan .tiLink{min-height:var(--pnH);border-radius:0;font:500 var(--pnFs)/1 var(--pnF);text-transform:uppercase;letter-spacing:.05em}
+#ajustesCaja .gmk{--tiF:15px;--tiFs:14px;--tiH:44px;--tiHb:44px}#ajustesCaja .gmk :is(.ajBtn,.gmkMini){min-height:44px;font-size:14px}#ajustesCaja .gmk :is(summary,li,.gmkRes,.gmkNota,span){font-size:max(14px,1em)}#rbInicio .rbPan .gmkFila>img{border-radius:0}
+#rbInicio .rbPan.tiForm .rbPanPie{flex-wrap:wrap;row-gap:6px}
+#rbInicio .rbPan.tiForm .rbPanCab{min-height:calc(var(--pnH) + 6px);padding:0 calc(var(--pnU)*1.5) 0 0;font:600 var(--pnFg)/1.05 var(--pnF)}
+/* -- Personajes: las zonas con la placa; el escenario, el hueco para tu personaje en 3D -- */
+#rbInicio .rbPan.pjV2>:is(.pjCab,.pjIzq){background:var(--pnGrano,none) 0 0/160px 160px,var(--pnPl)}
+#rbInicio .rbPan.pjV2>.pjCab{background:var(--pnPozo)}
+#rbInicio .rbPan.pjV2>.rbPanPie{background:var(--pnPozo)!important}
+#rbInicio .rbPan.pjV2>.pjEscena{border-inline-start:1px solid var(--pnLin)}
+#rbInicio .rbPan.pjV2 .pjBus{border-radius:0}
+#rbInicio .rbPan .pjGrid{counter-reset:pnSec;gap:var(--pnU)}
+#rbInicio .rbPan .pjCard{gap:calc(var(--pnU)*.45);padding:calc(var(--pnU)*.5)}
+#rbInicio .rbPan .pjCard .pjFoto{border-radius:0}
+#rbInicio .rbPan .pjCard>b{font:600 var(--pnFs)/1.2 var(--pnFr)}#rbInicio .rbPan .pjCard>small{font-size:var(--pnFs)}
+#rbInicio .rbPan .pjCard.sel{background-color:#221e12;box-shadow:inset 0 0 0 1px var(--pnA),4px 4px 0 rgba(0,0,0,.5)}
+#rbInicio .rbPan .pjCard .pjOk{border-radius:0;box-shadow:2px 2px 0 rgba(0,0,0,.5)}
+#rbInicio .rbPan .pjCard .pjAcc{border-radius:0;font:500 var(--pnFs)/1.1 var(--pnF);text-transform:uppercase;letter-spacing:0;min-height:max(36px,calc(var(--pnH) - 10px));white-space:normal;text-align:center;padding:2px}
+#rbInicio .rbPan .pjEscInfo b{border-inline-start-width:5px}
+#rbInicio .rbPan .pjGira{border-radius:0;font:500 var(--pnFs)/1.15 var(--pnF);text-transform:uppercase;letter-spacing:.06em;background:rgba(8,9,10,.8);white-space:normal;width:max-content;max-width:calc(100% - 16px);box-sizing:border-box;text-align:center}
+#rbInicio .rbPan .gorroAj{font-size:var(--pnFs)}#rbInicio .rbPan :is(.gaSub,.gaTit){font-size:var(--pnFs)!important}#rbInicio .rbPan .gaF{font-size:var(--pnFs)}#rbInicio .rbPan .gaCol button{border-radius:0}
+#rbInicio .rbPan .pjCuenta{color:var(--pnT2);font:500 var(--pnFs)/1 var(--pnF);letter-spacing:.08em;text-transform:uppercase}
+/* -- la bienvenida (idioma y nombre) -- */
+#rbInicio .rbPan.rbPan_bienvenida{left:max(calc(50% - 480px),calc(var(--pnSaL) + 8px),var(--pnM));right:max(calc(50% - 480px),calc(var(--pnSaR) + 8px),var(--pnM))}
+#rbInicio .rbPan .rbBienv{gap:calc(var(--pnU)*1.1);padding:calc(var(--pnU)*1.6) calc(var(--pnU)*2)}
+#rbInicio .rbPan .rbBienvLogo{background:var(--pnPozo);border-radius:0;box-shadow:4px 4px 0 rgba(0,0,0,.6)}
+#rbInicio .rbPan .rbBienv h2{color:var(--pnT);font:600 var(--pnFg)/1.1 var(--pnF);text-transform:uppercase;letter-spacing:.04em}
+#rbInicio .rbPan .rbBienv .rbSub{color:var(--pnA)}
+#rbInicio .rbPan .rbIdiomas{gap:6px}
+#rbInicio .rbPan .rbIdi{min-height:var(--pnH);background:var(--pnPl2);border:1px solid var(--pnLin);border-radius:0;color:var(--pnT);font:500 var(--pnFt)/1.15 var(--pnFr)}
+@media (hover:hover){#rbInicio .rbPan .rbIdi:hover{background:var(--pnPl3)}}
+#rbInicio .rbPan .rbIdi.sel{background:var(--pnA);border-color:var(--pnA);color:var(--pnNe);box-shadow:none;--pnTinta:rgba(0,0,0,.2)}
+#rbInicio .rbPan .rbIdi i.lcod{padding:.1em .35em;background:var(--pnPozo);color:var(--pnA);font:600 var(--pnFs)/1.1 var(--pnF)}
+#rbInicio .rbPan .rbIdi.sel i.lcod{background:var(--pnNe)}
+#rbInicio .rbPan .rbNomB{color:var(--pnT2)}#rbInicio .rbPan .rbNomB input{width:min(60vw,320px)}
+#rbInicio .rbPan .rbBienv{flex-direction:row;flex-wrap:wrap;justify-content:center;align-content:center;align-items:center}
+#rbInicio .rbPan .rbBienv>:is(.rbBienvLogo,h2,.rbSub,.rbIdiomas){flex:0 0 auto;max-width:100%}#rbInicio .rbPan .rbBienv>:is(h2,.rbSub,.rbIdiomas){flex-basis:100%;text-align:center}
+#rbInicio .rbPan .rbBienv>.rbNomB{flex:0 1 auto;margin-inline-end:var(--pnU)}
+html.pnBaja #rbInicio .rbPan .rbBienvLogo{height:max(34px,calc(var(--vh)*9))}html.pnBaja #rbInicio .rbPan .rbBienv{gap:calc(var(--pnU)*.8);padding:var(--pnU) calc(var(--pnU)*1.6)}
+/* -- La grieta (el evento): el violeta del evento con las mismas piezas -- */
+#rbInicio .rbPan.rbPan_evento{top:max(calc(var(--vh)*10),calc(var(--pnSaT) + 6px));bottom:max(calc(var(--vh)*10),calc(var(--pnSaB) + 6px));left:max(calc(50% - 330px),calc(var(--pnSaL) + 8px),var(--pnM));right:max(calc(50% - 330px),calc(var(--pnSaR) + 8px),var(--pnM));--pnA:#c39dff;--pnA2:#d4b6ff}
+#rbInicio .rbPan_evento .rbPanCab>.gli{color:var(--pnVi);fill:none;stroke:var(--pnVi)}
+#rbInicio .rbPan_evento .dpEvCuerpo{gap:calc(var(--pnU)*1.6);padding:calc(var(--pnU)*1.4) calc(var(--pnU)*1.8)}
+#rbInicio .rbPan_evento .dpEvFoto{border-radius:0}
+#rbInicio .rbPan_evento .dpEvTxt p{color:var(--pnT);font:400 var(--pnFt)/1.45 var(--pnFr)}
+/* (su estado: no se apaga —es parte del juego—, así que no es un interruptor sino un sello violeta, quieto, que no se toca;
+   entra con el golpe del sello del número, un poco después) */
+#rbInicio .rbPan_evento .dpEvTxt .dpEvEst{display:inline-flex;align-items:center;gap:.6em;margin:0;min-height:0;padding:.35em .85em;border:2px solid var(--pnVi);border-radius:0;background:rgba(195,157,255,.08);box-shadow:none;color:var(--pnT);font:600 var(--pnFt)/1.1 var(--pnF);letter-spacing:.08em;text-transform:uppercase;rotate:-2deg}
+#rbInicio .rbPan_evento .dpEvTxt .dpEvEst i{width:.55em;height:.55em;border-radius:0;background:var(--pnT3);transform:rotate(45deg)}
+#rbInicio .rbPan_evento .dpEvTxt .dpEvEst.on i{background:var(--pnVi);box-shadow:0 0 0 3px rgba(195,157,255,.25)}
+#rbInicio .rbPan_evento .dpEvTxt .dpEvEst b{color:var(--pnVi)}
+#rbInicio .rbPan_evento.pnEntra .dpEvTxt .dpEvEst{animation:pnSello .34s cubic-bezier(.3,1.5,.5,1) .3s both}
+html.pnBajo #rbInicio .rbPan_evento.pnEntra .dpEvTxt .dpEvEst{animation:none}
+
+/* ============ Ajustes (se abre desde Opciones y desde la pausa): la misma placa y las pestañas al costado ============ */
+#ajustesCaja{position:relative;isolation:isolate;overflow:visible!important;background:var(--pnGrano,none) 0 0/160px 160px,var(--pnPl)!important;border:1px solid var(--pnLin)!important;border-radius:0!important;box-shadow:6px 7px 0 rgba(0,0,0,.5)!important;
+  width:min(780px,calc(var(--vw)*94));font-family:var(--pnFr)}
+#ajustesCaja::before{content:'';position:absolute;z-index:6;right:-12px;top:-8px;width:84px;height:26px;transform:rotate(8deg);pointer-events:none;opacity:.9;
+  background:var(--pnGrano,none) 13px 29px/120px 120px,linear-gradient(180deg,rgba(236,225,190,.88),rgba(214,200,160,.84));-webkit-mask:var(--pnCintaM,none) 0 0/100% 100% no-repeat;mask:var(--pnCintaM,none) 0 0/100% 100% no-repeat}
+#ajustesCaja .ajCuerpo{overflow:hidden}
+#ajustesCaja .ajCab{position:relative;min-height:calc(var(--pnH) + 6px);padding:0 14px 0 0;background:var(--pnPozo);border-bottom:1px solid var(--pnLin)}
+#ajustesCaja .ajCab::before{content:var(--pnNumAj,'');width:auto;min-width:12px;padding:0 .45em 0 .3em;display:flex;align-items:center;background:var(--pnA);color:var(--pnNe);font:700 calc(var(--pnFg)*.78)/1 var(--pnF);-webkit-mask:var(--pnPunta);mask:var(--pnPunta)}
+#ajustes.pnMenu{--pnNumAj:'07'}
+#ajustesCaja .ajCab::after{content:'';position:absolute;inset-inline-end:0;bottom:0;width:min(34%,220px);height:3px;background:var(--pnRayas);opacity:.75;pointer-events:none}
+#ajustesCaja .ajCab h3{font:600 var(--pnFg)/1 var(--pnF);letter-spacing:.035em}
+#ajustesCaja .ajCelu{max-width:55%;padding:.3em .7em;border-radius:0;background:var(--pnPl2);color:var(--pnT2);font:500 14px/1.2 var(--pnF);letter-spacing:.06em}
+#ajustesCaja .ajTabs{position:relative;isolation:isolate;gap:3px;padding:8px 6px;background:var(--pnPozo);border-inline-end:1px solid var(--pnLin)}
+#ajustesCaja .ajTabs button{flex-direction:row;justify-content:flex-start;gap:.55em;width:auto;min-width:0;min-height:var(--pnH);padding:0 1em 0 .75em;border-radius:0;color:var(--pnT2);text-align:start;
+  font:500 15px/1.05 var(--pnF);text-transform:uppercase;letter-spacing:.04em;-webkit-mask:var(--pnPunta);mask:var(--pnPunta)}
+#ajustesCaja .ajTabs button span{max-width:9em}
+#ajustesCaja .ajTabs button .gli{width:20px;height:20px;flex:none}
+@media (hover:hover){#ajustesCaja .ajTabs button:hover{background:var(--pnPl3);color:var(--pnT)}}
+#ajustesCaja .ajTabs button.sel{background:var(--pnA);color:var(--pnNe);box-shadow:none;font-weight:600;--pnTinta:rgba(0,0,0,.2)}
+#ajustesCaja .ajSecs{padding:12px 14px}
+#ajustesCaja .ajSecs section{padding:12px 14px;margin-bottom:12px;background:var(--pnGrano,none) 37px 11px/160px 160px,var(--pnPl2);border:1px solid var(--pnLin);border-radius:0;box-shadow:4px 4px 0 rgba(0,0,0,.45)}
+#ajustesCaja .ajSecs h4{position:relative;display:flex;align-items:center;gap:.6em;margin:0 0 10px;color:var(--pnA)}
+#ajustesCaja .ajSecs h4::after{content:'';flex:1 1 0;height:4px;background:var(--pnRayas);opacity:.3}
+#ajustesCaja .ajF{gap:12px;min-height:var(--pnH);font:400 15px/1.3 var(--pnFr);color:var(--pnT)}
+#ajustesCaja .ajF small{font-size:14px;color:var(--pnT3)}
+#ajustesCaja .ajF select{min-height:44px;min-width:46%;font-size:15px}
+#ajustesCaja .ajR b{font:600 15px/1 var(--pnF);color:var(--pnA);min-width:52px}
+#ajustesCaja .ajSw i{width:40px;height:22px}#ajustesCaja .ajSw i::after{top:3px;width:16px;height:16px}
+#ajustesCaja .ajPie{padding:8px 14px;background:var(--pnPozo);border-top:1px solid var(--pnLin)}
+#ajustesCaja .ajBtn{min-height:var(--pnH);padding:0 28px 0 22px;font-size:17px}
+#ajustesCaja .ajBtn.gris{min-height:44px;margin-top:8px;font-size:15px}
+#ajustesCaja .ajSeg button{min-height:var(--pnH);-webkit-mask:var(--pnPunta);mask:var(--pnPunta);padding:0 20px 0 14px;font-size:15px}
+#ajustesCaja .ajSeg{position:relative;isolation:isolate}
+html.pnBaja #ajustesCaja .ajTabs button{min-height:44px;font-size:14px;padding:0 .9em 0 .6em}html.pnBaja #ajustesCaja .ajTabs button .gli{width:18px;height:18px}
+/* (más pestañas de las que entran —la de Música, la 6.ª, y hasta 7—: pnAjEncajar, paneles.js, pone ajT1, filas de 40 px, o ajT2,
+   dos columnas con el ícono arriba y el nombre abajo —sin mayúsculas, para que «Renderizado» entre en una celda—; en ajT2 la
+   elegida se ve por el amarillo y la marca no va) */
+:root #ajustesCaja .ajTabs.ajT1{gap:2px;padding-block:4px}
+:root #ajustesCaja .ajTabs.ajT1 button{min-height:40px}
+:root #ajustesCaja .ajTabs.ajT2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(56px,auto);align-content:start;gap:3px;padding:4px}
+:root #ajustesCaja .ajTabs.ajT2 button{flex-direction:column;justify-content:center;align-items:center;gap:4px;min-height:56px;padding:5px 3px;text-align:center;font-size:14px;letter-spacing:0;text-transform:none}
+:root #ajustesCaja .ajTabs.ajT2 button span{max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.05}
+:root #ajustesCaja .ajTabs.ajT2 .pnMarca{display:none}
+
+/* ============ los carteles chicos: la cuenta, preguntar, la clave de un server y los avisos ============ */
+:is(#cuDlg,#cfDlg){background:rgba(0,0,0,.6)}
+:is(#cuDlg,#cfDlg) .cuCaja,#rbInicio .mpModalC{position:relative;isolation:isolate;overflow:visible;max-width:440px;padding:24px 22px 18px;background:var(--pnGrano,none) 0 0/160px 160px,var(--pnPl);color:var(--pnT);border:1px solid var(--pnLin);border-radius:0;box-shadow:6px 7px 0 rgba(0,0,0,.55);text-align:center;font-family:var(--pnFr)}
+:is(#cuDlg,#cfDlg) .cuCaja::before,#rbInicio .mpModalC::before{content:'';position:absolute;left:0;right:0;top:0;height:6px;background:var(--pnRayas);opacity:.8;pointer-events:none}
+:is(#cuDlg,#cfDlg) .cuCaja::after,#rbInicio .mpModalC::after{content:'';position:absolute;z-index:2;left:-12px;top:-10px;width:78px;height:24px;transform:rotate(-10deg);pointer-events:none;opacity:.9;
+  background:var(--pnGrano,none) 13px 29px/120px 120px,linear-gradient(180deg,rgba(236,225,190,.88),rgba(214,200,160,.84));-webkit-mask:var(--pnCintaM,none) 0 0/100% 100% no-repeat;mask:var(--pnCintaM,none) 0 0/100% 100% no-repeat}
+/* (en árabe la cruz de cerrar queda a la izquierda: la cinta va del otro lado) */
+#rbInicio[dir=rtl] .mpModalC::after{left:auto;right:-12px;rotate:20deg}
+:is(#cuDlg,#cfDlg) .cuCaja h3,#rbInicio .mpModalC>b{margin:0 0 8px;color:var(--pnT);font:600 22px/1.1 var(--pnF);text-transform:uppercase;letter-spacing:.04em}
+:is(#cuDlg,#cfDlg) .cuCaja p{margin:6px 0 14px;color:var(--pnT2);font-size:15px;line-height:1.5}
+#rbInicio .mpModalC{width:min(420px,88vw);text-align:start;gap:12px}
+#rbInicio .mpModalC small{color:var(--pnT2);font:500 15px/1.3 var(--pnFr)}
+#rbInicio .mpModalC input{font:600 18px/1 var(--pnFr);letter-spacing:.12em}
+#rbInicio .mpModalB{justify-content:flex-end}
+#rbInicio .mpX{top:12px;inset-inline-end:10px;width:44px;height:44px;border:0;border-radius:0;background:var(--pnPl3);color:var(--pnT);box-shadow:inset 0 0 0 1px var(--pnLin2)}
+@media (hover:hover){#rbInicio .mpX:hover{background:var(--pnPl4)}}
+#rbInicio .mpModal{background:rgba(0,0,0,.6)}
+:is(#cuDlg,#cfDlg) .cuBotones{gap:10px;margin-top:16px}
+:is(#cuDlg,#cfDlg) .cuBtn{min-width:120px}
+/* (el botón de Google, en su versión oscura —la de sus pautas—) */
+:is(#cuDlg,#cfDlg,#rbInicio) .cuGoogle{display:inline-flex;align-items:center;gap:12px;min-height:48px;padding:0 20px;background:#131314;color:#e3e3e3;border:1px solid #8e918f;border-radius:4px;font:500 15px/1 var(--pnFr);cursor:pointer;box-shadow:3px 3px 0 rgba(0,0,0,.5)}
+@media (hover:hover){:is(#cuDlg,#cfDlg,#rbInicio) .cuGoogle:hover{background:#1f1f20}}
+:is(#cuDlg,#cfDlg) .cuGira{border-radius:0;border-color:var(--pnA);border-top-color:transparent}
+#cfDlg .soIt{background:var(--pnPl2);border-color:var(--pnLin);border-radius:0}#cfDlg .soBusIn{background:var(--pnPozo);border-radius:0}
+/* (el aviso de abajo: una placa con el filo amarillo que sube) */
+#rbInicio .rbAviso{bottom:max(calc(var(--vh)*13),calc(var(--pnSaB) + 70px));padding:.7em 1.2em .7em 1em;background:var(--pnGrano,none) 0 0/160px 160px,rgba(10,11,13,.97);border:1px solid var(--pnLin);border-inline-start:6px solid var(--pnA);border-radius:0;
+  box-shadow:5px 5px 0 rgba(0,0,0,.55);color:var(--pnT);font:500 var(--pnFt)/1.25 var(--pnF);text-transform:uppercase;letter-spacing:.05em;transform:translate(-50%,14px) rotate(-1.5deg);transition:opacity .2s,transform .28s cubic-bezier(.3,1.5,.5,1)}
+#rbInicio .rbAviso.ve{transform:translate(-50%,0) rotate(0deg)}
+/* (la entrada de Ajustes y de los carteles: el golpe de un sello, 0,3 s) */
+#ajustes:not(.oc) #ajustesCaja,#cuDlg:not(.oc) .cuCaja,#cfDlg:not(.oc) .cuCaja,#rbInicio .mpModal.ve .mpModalC{animation:pnCartel .3s cubic-bezier(.3,1.35,.5,1) both}
+@keyframes pnCartel{from{opacity:0;transform:scale(1.06) rotate(-1.2deg)}55%{opacity:1}to{opacity:1;transform:none}}
+#ajustes:not(.oc) #ajustesCaja .ajCab::before{animation:pnSello .34s cubic-bezier(.3,1.5,.5,1) .12s both}
+#ajustes:not(.oc) #ajustesCaja::before{animation:pnCintaA .3s cubic-bezier(.3,1.4,.5,1) .26s both}
+@keyframes pnCintaA{from{opacity:0;transform:rotate(8deg) scale(1.4)}to{opacity:.9;transform:rotate(8deg) scale(1)}}
+:is(#cuDlg,#cfDlg):not(.oc) .cuCaja::after,#rbInicio .mpModal.ve .mpModalC::after{animation:pnCintaB .3s cubic-bezier(.3,1.4,.5,1) .26s both}
+@keyframes pnCintaB{from{opacity:0;transform:rotate(-10deg) scale(1.4)}to{opacity:.9;transform:rotate(-10deg) scale(1)}}
+html.pnBajo #ajustes:not(.oc) #ajustesCaja,html.pnBajo :is(#cuDlg,#cfDlg):not(.oc) .cuCaja,html.pnBajo #rbInicio .mpModal.ve .mpModalC{animation:pnFundido .14s ease-out both}
+html.pnBajo #ajustes:not(.oc) #ajustesCaja .ajCab::before,html.pnBajo #ajustes:not(.oc) #ajustesCaja::before,html.pnBajo :is(#cuDlg,#cfDlg):not(.oc) .cuCaja::after,html.pnBajo #rbInicio .mpModal.ve .mpModalC::after{animation:none}
+@keyframes pnFundido{from{opacity:0}to{opacity:1}}
+
+
+/* ============ lo de 873×402 que tiene que verse como en la 3.6 (lo que se veía ahí, se sigue viendo) ============ */
+/* (Mods y mapas, sus formularios y Personajes: el compromiso de la 3.1 —40 px para tocar en el celular, tienda_panel.mjs—, con
+   la letra de 14 en lo de arriba y el pie: así entran el título, las pestañas con su nombre, «Subir archivo» y el total) */
+#rbInicio .rbPan.rbPan_tienda{--pnH:clamp(40px,calc(var(--vh)*9.5),54px)}
+#rbInicio .rbPan_tienda .tiCab :is(.rbTab,.rbBtnG,.rbBtnGris),#rbInicio .rbPan_tienda .rbPanPie :is(.rbBtnG,.rbBtnGris){font-size:var(--pnFs);letter-spacing:.02em;gap:.35em;padding-inline:calc(var(--pnFs)*.5) calc(var(--pnFs)*.5 + 7px)}
+#rbInicio[dir=rtl] .rbPan_tienda .tiCab :is(.rbTab,.rbBtnG,.rbBtnGris),#rbInicio[dir=rtl] .rbPan_tienda .rbPanPie :is(.rbBtnG,.rbBtnGris){padding-inline:calc(var(--pnFs)*.5) calc(var(--pnFs)*.5 + 7px)}
+#rbInicio .rbPan_tienda .rbPanPie .rbBtnG.tiNueva{font-size:var(--pnFt);padding-inline:calc(var(--pnFs)*1.1) calc(var(--pnFs)*1.1 + 12px)}
+#rbInicio .rbPan_tienda .tiCab::before{min-width:calc(var(--pnFg)*1.2);padding:0 calc(var(--pnFg)*.3) 0 calc(var(--pnFg)*.16)}
+#rbInicio .rbPan_tienda .tiCab{gap:5px;padding-inline-end:6px}#rbInicio .rbPan_tienda .tiCab .tiTabs{gap:3px}#rbInicio .rbPan_tienda .tiCab .rbTab :is(.gli,.ico,.rbGmIco){width:1.15em;height:1.15em}
+#rbInicio .rbPan_tienda .tiTit{font-size:min(var(--pnFg),19px);margin-inline-end:0;letter-spacing:.02em}
+#rbInicio .rbPan_tienda .tiCab.tiC0 .tiSubir small{display:none}
+#rbInicio .rbPan_tienda .tiSubir b{text-transform:uppercase;font-weight:500}
+#rbInicio .rbPan_tienda .tiSubir small{font:400 var(--pnFs)/1.1 var(--pnFr);text-transform:none;letter-spacing:0;color:var(--pnT2)}
+#rbInicio .rbPan_tienda .tiChip{font:500 var(--pnFs)/1.15 var(--pnFr);text-transform:none;letter-spacing:0;padding:.05em .4em;border-width:1px}
+#rbInicio .rbPan_tienda .tiMeta{gap:.4em}
+#rbInicio .rbPan.pjV2 .pjCab{gap:6px}#rbInicio .rbPan.pjV2 .pjCab .rbTabs{gap:3px;margin-inline-start:6px}
+/* (Ajustes: filas y desplegables de 40 px —el de la 3.0, la 3.6 tenía 34— y la caja hasta los bordes del celular: entran las
+   seis de Gráficos, como en la 3.6) */
+html.pnBaja #ajustesCaja{--pnH:40px;max-height:calc(var(--vh)*100 - 12px)!important}html.pnBaja #ajustesCaja .ajCab{min-height:46px}html.pnBaja #ajustesCaja .ajSecs{padding:6px 10px}html.pnBaja #ajustesCaja .ajSecs section{padding:6px 12px 8px;margin-bottom:8px}html.pnBaja #ajustesCaja .ajSecs h4{margin:2px 0 4px}html.pnBaja #ajustesCaja .ajF{min-height:40px;gap:10px}html.pnBaja #ajustesCaja .ajF select{min-height:40px;margin:0}html.pnBaja #ajustesCaja .ajPie{padding:4px 12px}html.pnBaja #ajustesCaja .ajSeg button{min-height:40px}
+/* (Personajes: el número va arriba del escenario, con el nombre del elegido —arriba entran las tres pestañas con su nombre y el
+   buscador entero—; el escenario un poco más angosto en el celular: entran seis caras por fila, como en la 3.6) */
+#rbInicio .rbPan.pjV2 .pjCab::before{display:none}#rbInicio .rbPan.pjV2 .pjCab{padding-inline-start:var(--pnU)}
+#rbInicio .rbPan.pjV2 .pjEscInfo::before{content:var(--pnNum,'');align-self:flex-start;margin-bottom:6px;padding:.22em .62em .22em .4em;background:var(--pnCintaImg,none) -5px -4px/calc(var(--pnFg)*1.5) calc(var(--pnFg)*.75) no-repeat,var(--pnA);color:var(--pnNe);font:700 calc(var(--pnFg)*.7)/1 var(--pnF);-webkit-mask:var(--pnPunta);mask:var(--pnPunta)}
+html.pnBaja #rbInicio .rbPan.rbPan_personajes.pjV2{--pjEscW:clamp(190px,30%,420px)}
+#rbInicio .rbPan.pjV2 .pjBus{flex:1 1 190px;min-width:168px}
+/* (los campos: si la ayuda no entra —el celular chico—, termina en «…») */
+#rbInicio .rbPan input{text-overflow:ellipsis}
+#rbInicio .rbPan .soCard .rbSeg{flex-wrap:wrap}#rbInicio .rbPan .soCard .rbSeg button{flex:1 1 auto}
+#rbInicio .rbPan .rbAyuda{white-space:normal;overflow-wrap:anywhere;font-size:var(--pnFs)}
+html.pnBaja #rbInicio .rbPan .pjCard .pjAcc .gli{display:none}
+#rbInicio .rbPan_tienda .tiMeta{flex-wrap:wrap;row-gap:3px;white-space:normal;overflow:visible}
+/* (los formularios —Crear un mod, Publicar, Crear server—: el rótulo pegado a su campo; el aire, entre los grupos) */
+#rbInicio .rbPan .rbForm .rbCampo{gap:3px;line-height:1.1}
+#rbInicio .rbPan .rbForm .rbCol{gap:calc(var(--pnU)*.9)}
+html.pnBaja #rbInicio .rbPan .rbForm textarea{height:calc(var(--pnH)*1.6);min-height:0}html.pnBaja #rbInicio .rbPan .rbForm textarea.rbCodigo{height:calc(var(--pnH)*2.6)}
+/* (Crear server: la columna de los datos en renglones que se llenan —el nombre y la clave lado a lado; el modo, las casillas
+   y los deslizadores siguiendo—, así en 873×402 se ve todo como en la 3.6, con 44 px para tocar) */
+#rbInicio .rbPan_mcrear .rbForm>.rbCol:first-child{flex-direction:row;flex-wrap:wrap;align-content:flex-start;gap:6px 8px}
+#rbInicio .rbPan_mcrear .rbForm>.rbCol:first-child>.rbCampo{flex:1 1 47%;min-width:9em}
+#rbInicio .rbPan_mcrear .rbForm>.rbCol:first-child>.rbSub{flex:none;align-self:center;margin-inline-end:2px}
+#rbInicio .rbPan_mcrear .rbForm>.rbCol:first-child>.rbFila{display:contents}
+#rbInicio .rbPan_mcrear .rbForm>.rbCol:first-child>.rbRango{flex:1 1 40%;min-width:13em;grid-template-columns:auto minmax(3em,1fr) 3em}
+#rbInicio .rbPan_mcrear .rbChk{padding:0 .8em 0 .6em}
+/* (Social: en Buscar, el resultado más bajo —la foto chica, el ID al lado del estado— para que se vea también la última
+   búsqueda; la vista previa de alguien que no es tu amigo, centrada; el Perfil, con su estado a la vista) */
+#rbInicio .rbPan .soRes{gap:var(--pnU)}
+#rbInicio .rbPan .soRes .soAv{width:calc(var(--pnH)*1.15);height:calc(var(--pnH)*1.15)}
+#rbInicio .rbPan .soResI{flex-direction:row;flex-wrap:wrap;column-gap:.6em}#rbInicio .rbPan .soResI b{flex:1 1 100%}
+#rbInicio .rbPan .soIt{min-height:calc(var(--pnH) + 4px)}
+html.pnBaja #rbInicio .rbPan .soCuerpo{padding-block:6px}html.pnBaja #rbInicio .rbPan .soIzq{gap:5px}html.pnBaja #rbInicio .rbPan .soCard{padding:6px 10px}html.pnBaja #rbInicio .rbPan:not(.soP3d) .soVista.violeta{display:flex;justify-content:center}html.pnBaja /* (el Perfil en el celular: tu personaje ya está en 3D a la derecha,html.pnBaja así que la foto chica se va; el estado,html.pnBaja el ID y Copiar en
+     un renglón; las tres tarjetas a la vista,html.pnBaja como en la 3.6) */
+  #rbInicio .rbPan.soP3d .soYo>.soAv{display:none}html.pnBaja #rbInicio .rbPan.soP3d .soIzq{gap:4px;padding:4px;flex-basis:48%}html.pnBaja #rbInicio .rbPan.soP3d .soCard{padding:4px 8px}html.pnBaja #rbInicio .rbPan.soP3d .soId b{font-size:var(--pnFs)}html.pnBaja #rbInicio .rbPan.soP3d .soId .rbChico{padding-inline:10px 16px}html.pnBaja #rbInicio .rbPan.soP3d .soYo>div{display:flex;flex-wrap:wrap;align-items:center;column-gap:10px}html.pnBaja #rbInicio .rbPan.soP3d .soYo .soNom{flex:1 1 100%}html.pnBaja #rbInicio .rbPan.soP3d .soYo :is(.soEst,html.pnBaja .soId){margin:0;flex:none}html.pnBaja #rbInicio .rbPan.soP3d .soId{flex-wrap:nowrap;gap:6px}html.pnBaja #rbInicio .rbPan.soP3d .soSub{line-height:1.1;margin:0 0 2px}html.pnBaja #rbInicio .rbPan .soYo .soNomIn{min-height:44px}html.pnBaja #rbInicio .rbPan .soId{margin-top:0}
+/* (con el celular parado el juego está girado y apaisado: la regla de la 3.6 que apilaba Social en una columna —miraba el
+   ancho del aparato— no va) */
+html.rot #rbInicio .rbPan .soCuerpo{flex-direction:row;overflow:visible}html.rot #rbInicio .rbPan .soIzq{flex:0 0 40%;max-height:none}html.rot #rbInicio .rbPan.soP3d .soIzq{flex-basis:48%}html.rot #rbInicio .rbPan .soDer{flex:1 1 0;min-height:0}
+/* ============ lo angosto (el celular chico, 640 px): por lo que mide el panel ============ */
+/* (la barra de la tienda: si la búsqueda no tiene lugar para leerse —un idioma largo—, «Explorar / Instalados» baja a otra fila,
+   como en la 3.6) */
+@container pn (max-width:820px){#rbInicio .rbPan_tienda #rbOrden{max-width:32%}#rbInicio .rbPan_tienda .rbSeg button{padding:0 .6em;font-size:var(--pnFs)}#rbInicio .rbPan_tienda .tiBus{flex:1 1 150px;min-width:150px}#rbInicio .rbPan_tienda .rbBarra{flex-wrap:wrap}}
+@container pn (max-width:700px){
+  #rbInicio .rbPan .rbPanCab{font-size:min(var(--pnFg),19px)}#rbInicio .rbPan .rbPanCab>:is(button,label){flex:none}
+  #rbInicio .rbPan_multi .rbPanCab [data-rb=lan]{width:var(--pnH);padding:0;font-size:0;gap:0}#rbInicio .rbPan_multi .rbPanCab [data-rb=lan] .gli{width:22px;height:22px}
+  #rbInicio .rbPan_social .rbPanCab{font-size:0}#rbInicio .rbPan_social .rbPanCab>.gli{display:none}#rbInicio .rbPan_social .rbTab{padding:0 calc(var(--pnFt)*.7 + 6px) 0 calc(var(--pnFt)*.6);font-size:var(--pnFs);text-wrap:balance}#rbInicio .rbPan_social .rbTabs{gap:3px}
+  #rbInicio .rbPan.pjV2 .pjCab::before{display:none}#rbInicio .rbPan.pjV2 .pjCab{padding-inline-start:var(--pnU)}
+}
+/* ============ cuánto se mueve: «menos movimiento» o Patata, nada; Bajos, lo mínimo ============ */
+html.pnBajo #rbInicio .pnRasgon,html.pnBajo .pnFx{display:none}
+html.pnBajo #rbInicio .rbPan.pnEntra :is(.rbPanCab,.rbPanPie)::before,html.pnBajo #rbInicio .rbPan.pnEntra :is(.rbPanCab,.rbPanPie)::after,html.pnBajo #rbInicio .rbPan.pnEntra>.rbPanPie,html.pnBajo #rbInicio .rbPan.pnEntra::before,html.pnBajo #rbInicio .rbPan.pnEntra::after{animation:none}
+html.pnBajo #rbInicio .rbPan.pnEntra{animation-duration:.14s}
+html.pnBajo .pnEsq::after{animation:none!important;display:none}
+html.pnQuieto :is(#rbInicio .rbPan,#ajustes,#cuDlg,#cfDlg,#rbInicio .mpModal,#rbInicio .rbAviso),html.pnQuieto :is(#rbInicio .rbPan,#ajustes,#cuDlg,#cfDlg,#rbInicio .mpModal,#rbInicio .rbAviso) *,
+html.pnQuieto :is(#rbInicio .rbPan,#ajustes,#cuDlg,#cfDlg,#rbInicio .mpModal) ::before,html.pnQuieto :is(#rbInicio .rbPan,#ajustes,#cuDlg,#cfDlg,#rbInicio .mpModal) ::after{animation:none!important;transition:none!important}
+html.pnQuieto .pnRasgon,html.pnQuieto .pnFx,html.pnQuieto .pnMarca{display:none!important}
+@media (prefers-reduced-motion:reduce){#rbInicio .rbPan,#rbInicio .rbPan *,#rbInicio .rbPan ::before,#rbInicio .rbPan ::after,#ajustes *,#cuDlg *,#cfDlg *,#rbInicio .mpModal *{animation:none!important;transition:none!important}.pnRasgon,.pnFx,.pnMarca{display:none!important}}

@@ -757,7 +757,7 @@ function depMarcarVistoSec(k) { if (depVistoSec(k)) return; PREFS.ptVisto = Obje
 function depAccion(a, v, b) {
   // (lo que se elige adentro de una hoja la cierra)
   if (DEP.hoja && b && DEP.hoja.contains(b)) depHoja(null);
-  if (DEP.lista && b && DEP.ui.querySelector('.dpLista').contains(b) && a !== 'dpEvSw') depListaCerrar();
+  if (DEP.lista && b && DEP.ui.querySelector('.dpLista').contains(b)) depListaCerrar();
   switch (a) {
     case 'jugar': inicioAccion('empezar'); return true;
     case 'dp': if (!depAgarrar(v)) { if (!DEP.listo) depAbrir(v); } return true;
@@ -770,21 +770,20 @@ function depAccion(a, v, b) {
     case 'dpAct': depActualizar(); return true;
     case 'dpLista': depListaAbrir(); return true;
     case 'dpL': depListaElegir(v); return true;
-    case 'dpEvSw': PREFS.evento = PREFS.evento === false; guardarPrefs(); depEventoPintar(); depDatosPintar(); if (typeof clEventoPintar === 'function') clEventoPintar(); if (DEP.listo) dibujoDespertar(); return true;
   }
   return false;
 }
-// el panel del evento (el barril): qué es y el interruptor (lo mismo que Ajustes → Renderizado)
+// el panel del evento (el barril): qué es y su estado (no se apaga: es parte del juego; ya no tiene interruptor)
 function panelEvento(P) {
   P.innerHTML = `<div class="rbPanCab">${glifo('rayo')} ${esc(T('dp.grieta').replace(/[\u00ad\u200b]/g, ''))}<small>${esc(T('pt.evento'))}</small></div>
     <div class="rbPanCuerpo dpEvCuerpo">${FONDOS_RB[4] ? `<div class="dpEvFoto" style="background-image:url(${FONDOS_RB[4]})"></div>` : ''}<div class="dpEvTxt"><p>${esc(T('dp.eventoTxt'))}</p>
-      <button class="dpEvSw" data-rb="dpEvSw" role="switch" aria-checked="false"><span>${esc(T('aj.evento'))}</span><i></i><b></b></button></div></div>
+      <p class="dpEvEst"><i aria-hidden="true"></i><span>${esc(T('dp.grieta'))}</span><b></b></p></div></div>
     <div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span></div>`;
   depEventoPintar();
 }
 function depEventoPintar() {
   const on = PREFS.evento !== false;
-  for (const b of document.querySelectorAll('#rbInicio .dpEvSw')) { b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); const t = b.querySelector('b'); if (t) t.textContent = T(on ? 'pt.on' : 'pt.off'); }
+  for (const b of document.querySelectorAll('#rbInicio .dpEvEst')) { b.classList.toggle('on', on); const t = b.querySelector('b'); if (t) t.textContent = T(on ? 'pt.on' : 'pt.off'); }
 }
 
 // ======================= las hojas (el perfil y los ajustes) =======================

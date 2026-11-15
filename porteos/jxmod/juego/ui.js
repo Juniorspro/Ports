@@ -322,7 +322,7 @@ function abrirAjustes(desde) {
     ${sw('aDin', 'Resolución dinámica <small>(baja la resolución antes que los efectos para mantener los cuadros)</small>')}
     ${fila('Distancia', rango('aD', 100, 1200, 50, 'aDv'))}
     ${fila(esc(T('aj.fov')), rango('aFov', FOV_MIN, FOV_MAX, 1, 'aFovv'))}
-    ${sw('aC', 'Contorno <small>(resaltar lo que apuntás)</small>')}${sw('aF', 'Mostrar FPS')}${sw('aU', esc(Lc('HideUI', 'Ocultar UI')))}${sw('aEv', esc(T('aj.evento')))}</section>
+    ${sw('aC', 'Contorno <small>(resaltar lo que apuntás)</small>')}${sw('aF', 'Mostrar FPS')}${sw('aU', esc(Lc('HideUI', 'Ocultar UI')))}</section>
   <section data-ajs="c" class="oc"><h4>${esc(Lc('ControlsAudio', 'Controles y audio'))}</h4>
     ${fila(esc(Lc('Sensitivity', 'Sensibilidad')), rango('aS', 2, 40, 1))}
     ${fila('Volumen', rango('aV', 0, 100, 5))}
@@ -349,7 +349,6 @@ function abrirAjustes(desde) {
   if ($('aH')) $('aH').value = PREFS.hud || 80;
   $('aEmoR').checked = PREFS.emoRuleta !== false;
   $('aVozH').checked = PREFS.vozHud !== false;
-  $('aEv').checked = PREFS.evento !== false;
   const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; $('aFovv').textContent = $('aFov').value + '°'; if ($('aH')) $('aHv').textContent = $('aH').value + '%'; };
   act();
   $('aG').onchange = () => { PREFS.gfx = $('aG').value; const p = PERFILES[PREFS.gfx]; if (p) { PREFS.res = p.res; PREFS.lejos = p.lejos; $('aR').value = p.res; $('aD').value = p.lejos; } act(); };
@@ -372,7 +371,6 @@ function abrirAjustes(desde) {
     if ($('aH')) PREFS.hud = +$('aH').value;
     PREFS.emoRuleta = $('aEmoR').checked;
     PREFS.vozHud = $('aVozH').checked; if (typeof vozHudAjuste === 'function') vozHudAjuste();   // (quién habla: voz.js)
-    PREFS.evento = $('aEv').checked;
     const motorNuevo = $('aM').value; PREFS.motor = motorNuevo;
     guardarPrefs();
     // cambiar de motor necesita empezar de nuevo (el contexto de WebGL no se puede cambiar)
