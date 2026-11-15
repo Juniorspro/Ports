@@ -21,11 +21,17 @@
   // el tiempo: parado (lo avanza el motor) o andando solo (para cargar un mapa)
   F.parar = () => { window.requestAnimationFrame = () => 0; F.T = (TIEMPO.ult || performance.now() / 1000) * 1000; };
   F.andar = () => { window.requestAnimationFrame = F.rafOrig; TIEMPO.ult = performance.now() / 1000; F.rafOrig.call(window, cuadro); };
-  // (sin dibujar, la gente de la escena igual se anima: el juego anima a cada uno al dibujarlo)
+  // (sin dibujar, la gente de la escena igual se anima: el juego anima a cada uno al dibujarlo; P.ritmo, en el video: la que
+  // mira repite su reposo un número entero de veces por vuelta)
   F.paso = (dt, conDibujo) => {
     F.T += dt * 1000; F.saltar = !conDibujo; if (JUG.cuerpo) JUG.cuerpo.visible = false;
     try { cuadro(F.T); } finally { F.saltar = false; }
-    if (!conDibujo && dt > 0) for (const P of F.gente) if (!P.borrado) animarPersona(P, dt);
+    if (!conDibujo && dt > 0) for (const P of F.gente) if (!P.borrado) animarPersona(P, dt * (P.ritmo || 1));
+    // (la textura de las nubes se pinta de a franjas entre un cuadro y otro, con requestAnimationFrame —cielos.js,
+    // cieloCTPedir—: con el tiempo parado ese pedido nunca llegaba y las nubes quedaban como al cargar el mapa, a otra hora
+    // y quietas —en la de noche, nubes blancas de día—. Acá se pinta la franja después de cada cuadro dibujado; en el video,
+    // entera en cada cuadro —F.videoCuadro—: de a franjas, las del cuadro 300 no eran las del 0)
+    if (conDibujo && typeof CIELO !== 'undefined' && CIELO.ctPend) { CIELO.ctPend = false; if (!F.vid) try { cieloCTPaso(false); } catch (e) {} }
   };
   F.avanzar = (s) => { const n = Math.max(0, Math.round(s * 60)); for (let i = 0; i < n; i++) F.paso(1 / 60, false); return n; };
   const hal = (i, b) => { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; };
@@ -81,7 +87,9 @@
   };
   // el azar de la escena, con semilla (la misma escena sale igual cada vez)
   F.rndOrig = F.rndOrig || Math.random;
-  F.semilla = (k) => { let s = (k | 0) >>> 0; Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+  // (el estado va en F.rs: las pasadas de dibujo del video lo guardan y lo devuelven, así lo que se dibuja no cambia lo que
+  // pasa después)
+  F.semilla = (k) => { F.rs = (k | 0) >>> 0; Math.random = () => { F.rs = (F.rs + 0x6D2B79F5) >>> 0; let t = F.rs; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
   F.sinSemilla = () => { Math.random = F.rndOrig; };
   // la escena: S = { hora, semilla, cam: { p | [adelante, lado] desde la aparición, alto, grieta: [sx, sy] | yaw/pitch, fov },
   // props: [[nombre, adelante, lado, giro]], gente: [[skin, adelante, lado, giro, { vel, mira, arma }]],
@@ -90,6 +98,8 @@
   F.armar = (S) => {
     // (la hora primero, y la grieta se vuelve a ubicar con el sol de esa hora, como si se entrara al mapa a esa hora)
     DIA.ciclo = false; DIA.hora = S.hora !== undefined ? S.hora : 12; DIA.aplicada = -1; diaAplicar(); GFX.part = S.part || 3.5;
+    // (y las nubes, pintadas enteras de nuevo con la luz de esa hora: si no, quedaban las del mapa recién cargado)
+    if (typeof cieloCTPaso === 'function' && typeof CIELO !== 'undefined') { CIELO.ctPend = false; try { cieloCTPaso(true); } catch (e) {} }
     if (typeof eventoIniciar === 'function') eventoIniciar();
     F.limpiar(); F.faltan = []; F.semilla(S.semilla || 1);
     const c = S.cam || {}, fov = c.fov || 60;
@@ -147,6 +157,169 @@
     const sol = R.sol ? { az: +(Math.atan2(R.sol.x, R.sol.z) * 180 / Math.PI).toFixed(0), el: +(Math.asin(clamp(R.sol.y, -1, 1)) * 180 / Math.PI).toFixed(0), camAz: +(F.yaw * 180 / Math.PI).toFixed(0) } : null;
     return { grieta: EVT.grieta ? r3(F.enPantalla(EVT.dir)) : null, caidas, vivos, gente, props, sol, hora: DIA.hora };
   };
-  F.limpiar = () => { for (const o of F.objs) if (!o.borrado) borrarObjeto(o, true); F.objs.length = 0; for (const P of F.gente) borrarPersona(P); F.gente.length = 0; if (typeof EVT !== 'undefined') { for (const c of EVT.cola) c.vis = null; EVT.cola.length = 0; for (const o of EVT.vivos) if (o && !o.borrado && OBJS.includes(o)) borrarObjeto(o, true); EVT.vivos.length = 0; EVT.prox = 1e12; } };
+  F.limpiar = () => { F.vid = null; for (const o of F.objs) if (!o.borrado) borrarObjeto(o, true); F.objs.length = 0; for (const P of F.gente) borrarPersona(P); F.gente.length = 0; if (typeof EVT !== 'undefined') { for (const c of EVT.cola) c.vis = null; EVT.cola.length = 0; for (const o of EVT.vivos) if (o && !o.borrado && OBJS.includes(o)) borrarObjeto(o, true); EVT.vivos.length = 0; EVT.prox = 1e12; } };
+
+  // ======================= los fondos animados (video.mjs) =======================
+  // La misma escena de la foto, en movimiento y periódica: lo que pasa en una vuelta de L segundos vuelve a pasar igual en la
+  // siguiente, así el último cuadro empalma con el primero.
+  //  · la cámara recorre una elipse chica (de costado y adelante-atrás) mirando siempre al mismo punto, a «foco» metros: lo
+  //    de cerca se corre contra lo de lejos y la grieta, que está en el infinito, casi no se mueve;
+  //  · lo que cae sale de la grieta a su hora dentro de la vuelta (cada lanzamiento hace latir la grieta); lo que explota se
+  //    consume en la explosión y lo que no, queda en el piso hasta que vuelve a caer el mismo en la vuelta siguiente: en el
+  //    golpe (con el polvo y el fuego) el de la vuelta anterior se saca y queda el nuevo;
+  //  · el azar (las chispas, el humo, cómo gira lo que cae) arranca con la misma semilla en cada vuelta;
+  //  · la gente que mira repite su reposo un número entero de veces por vuelta (P.ritmo); la que corre cruza la pantalla de un
+  //    borde al otro y, fuera de cuadro, vuelve a empezar con la animación desde cero;
+  //  · nadie se lastima ni se rompe nada (las explosiones sólo empujan lo que cayó).
+  // Lo que no es periódico por sí solo (las nubes, el agua y el pulso que corre por las vetas de la grieta dependen del reloj del
+  // juego) lo empalma un fundido corto entre el final de la vuelta y su principio (bucle.py).
+  F.vid = null;
+  const dO = danarObjeto, dP = danarPersona, dJ = danarJugador;
+  danarObjeto = function () { if (F.vid) return; return dO.apply(this, arguments); };
+  danarPersona = function () { if (F.vid) return; return dP.apply(this, arguments); };
+  danarJugador = function () { if (F.vid) return; return dJ.apply(this, arguments); };
+  // (en el golpe de lo que no explota: el de la vuelta anterior se va y queda el nuevo; se anota cuánto se había movido)
+  const pega = evtPega;
+  evtPega = function (c) {
+    const V = F.vid;
+    if (V && c.ranura !== undefined) {
+      const o = V.yace[c.ranura];
+      if (o) { V.cambios.push({ n: c.nombre, t: +V.t.toFixed(3), d: o.borrado ? -1 : +o.b.pos.distTo(c.suelo).toFixed(2) }); if (!o.borrado && OBJS.includes(o)) borrarObjeto(o, true); const i = EVT.vivos.indexOf(o); if (i >= 0) EVT.vivos.splice(i, 1); }
+      V.yace[c.ranura] = null;
+    }
+    pega(c);
+    // (rueda menos que en el juego —el envión y el giro, al 35 %—: queda a menos de un metro de donde pegó, y en la vuelta
+    // siguiente el que se saca está adentro del polvo del golpe)
+    if (V && c.ranura !== undefined && c.o) { V.yace[c.ranura] = c.o; const b = c.o.b; b.vel.x *= 0.35; b.vel.z *= 0.35; b.ang.scale(0.35); }
+  };
+  // (las nubes y el cielo van con el reloj del juego —se corren con el viento, se forman y se deshacen— y en 10 s cambian mucho:
+  // el cielo del cuadro 300 contra el del 0 daba 18 niveles de diferencia y el fundido del empalme se veía como un cielo doble.
+  // En el video su reloj va y vuelve —el del juego más L/2π·sen(2πt/L)—: en el medio van a la velocidad del juego, se frenan
+  // y vuelven, y a los L segundos el cielo es exactamente el del principio)
+  const tCielo = () => F.vid.Tc0 + F.vid.L / 6.283185307179586 * Math.sin(6.283185307179586 * F.vid.t / F.vid.L);
+  const conCielo = (f) => function () { if (!F.vid) return f.apply(this, arguments); const t = TIEMPO.t; TIEMPO.t = tCielo(); try { return f.apply(this, arguments); } finally { TIEMPO.t = t; } };
+  cieloCTUniformes = conCielo(cieloCTUniformes); cieloUniformes = conCielo(cieloUniformes);
+  // (cada lanzamiento hace latir la grieta: en el juego, de golpe —pasa cada 2 a 4 minutos—; acá, cada 2 s, de golpe era un
+  // fogonazo de todo el cielo —y de la luz— cada 2 s, el cuadro siguiente 12 niveles más claro. En el video el latido sube en
+  // 0,35 s y baja como en el juego)
+  const recibe = evtRecibir;
+  evtRecibir = function () { const V = F.vid, p0 = EVT.pulso; const r = recibe.apply(this, arguments); if (V) { V.pulsoMeta = Math.max(V.pulsoMeta || 0, EVT.pulso); EVT.pulso = p0; } return r; };
+  // S.video = { L, fps, cam: { lado, frente, alto, foco }, caidas: [[nombre, adelante, lado, salida (s), explosión]],
+  //   corren: [[skin, [adelante, lado] desde, [adelante, lado] hasta, salida (s), velocidad]] }
+  F.armarVideo = (S) => {
+    const V0 = S.video, L = V0.L || 10, fps = V0.fps || 30;
+    // la escena de la foto, sin lo que cae ni los que corren en el lugar (acá corren de verdad)
+    const quietos = (S.gente || []).filter((g) => !(g[4] && g[4].vel));
+    const arm = F.armar(Object.assign({}, S, { caidas: [], gente: quietos }));
+    GFX.tope = 0; if (typeof EVT !== 'undefined') EVT.prox = 1e12;
+    const cp = F.cp.clone(), yaw = F.yaw, pitch = arm.pitch, q = Quat.euler(yaw, pitch), fw = q.rot(v3(0, 0, 1));
+    const fh = v3(Math.sin(yaw), 0, Math.cos(yaw)), dr = v3(-Math.cos(yaw), 0, Math.sin(yaw));
+    const en = (a, b) => [cp.x + fh.x * a + dr.x * b, cp.z + fh.z * a + dr.z * b], alto = cp.y + 30;
+    const C = Object.assign({ lado: 1.2, frente: 0.8, alto: 0.1, foco: 30 }, V0.cam || {});
+    const V = { L, fps, t: 0, ciclo: -1, cp, yaw, pitch, fw, fh, dr, C, foco: vadd(cp, vscale(fw, C.foco)), semilla: (S.semilla || 1) * 7919 + 13, caidas: [], corren: [], yace: [], cambios: [], huellas: [], lanz: 0 };
+    // lo que cae: de la grieta (como en la foto: desde un punto en su dirección a 1,7 veces la distancia a la que cae) al piso
+    for (const [n, a, b, s, ex] of V0.caidas || []) {
+      const [x, z] = en(a, b), y = F.piso(x, z, alto); if (y === null) { F.faltan.push('piso:' + n); continue; }
+      const K = clamp(Math.hypot(a, b) * (S.desdeK || 1.7), 55, 200), u = (Math.random() - 0.5) * 2 * (S.abre || 0.04) * K, w = (Math.random() - 0.5) * 2 * (S.abre || 0.04) * K;
+      const d = vadd(vadd(cp, vscale(EVT.dir, K)), vadd(vscale(EVT.e1, u), vscale(EVT.e2, w)));
+      const T = clamp(Math.sqrt(2 * Math.max(5, d.y - y) / 16) * 0.92, 1.4, 3.6);
+      V.caidas.push({ n, x, y, z, d, T, s: ((s % L) + L) % L, ex: ex || 0, k: V.caidas.length });
+    }
+    // los que corren: de un borde al otro, por el piso, a su velocidad (la animación del juego pisa sin patinar)
+    for (const [sk, de, a2, s, vel] of V0.corren || []) {
+      const [x0, z0] = en(de[0], de[1]), [x1, z1] = en(a2[0], a2[1]);
+      const P = F.persona(sk, x0, z0, Math.atan2(x1 - x0, z1 - z0), { desde: alto }); if (!P) { F.faltan.push('corre:' + sk); continue; }
+      const dist = Math.hypot(x1 - x0, z1 - z0), v = vel || 6.5;
+      V.corren.push({ P, x0, z0, x1, z1, dur: dist / v, v, s: ((s % L) + L) % L, dentro: false });
+    }
+    // la que mira: su reposo entra un número entero de veces en la vuelta (P.ritmo: unos % más rápido o más lento)
+    const G = typeof humGm === 'function' ? humGm() : null;
+    V.ritmos = [];
+    for (const P of F.gente) {
+      if (V.corren.some((c) => c.P === P) || !P.hum) continue;
+      const cl = G && G.idle ? G.idle : (humClipNombre('Pose', 'IdleLookAround_loop') || humClipNombre('Pose', 'Idle01'));
+      const D = cl && cl.d > 0.2 ? cl.d : 0; if (!D) continue;
+      const k = Math.max(1, Math.round(L / D)); P.ritmo = k * D / L; V.ritmos.push([P.skin, +D.toFixed(3), k, +P.ritmo.toFixed(4)]);
+    }
+    V.Tc0 = TIEMPO.t; V.pulsoMeta = 0;
+    F.vid = V; F.videoCam(0);
+    // (las nubes enteras de nuevo, ya con el reloj del cielo del video)
+    if (typeof cieloCTPaso === 'function' && typeof CIELO !== 'undefined') { CIELO.ctPend = false; try { cieloCTPaso(true); } catch (e) {} }
+    return Object.assign(arm, { L, fps, caidas: V.caidas.map((c) => [c.n, +c.T.toFixed(2), c.s, c.ex, +Math.hypot(c.x - cp.x, c.z - cp.z).toFixed(1)]), corren: V.corren.map((c) => [c.P.skin, +c.dur.toFixed(2), c.s]), ritmos: V.ritmos, faltan: F.faltan });
+  };
+  // la cámara en el tiempo t: la elipse (de costado lado·sen, adelante-atrás frente·cos, un poco arriba y abajo al doble de
+  // ritmo) mirando al foco
+  F.videoCam = (t) => {
+    const V = F.vid, C = V.C, th = 6.283185307179586 * t / V.L;
+    const p = vadd(V.cp, vadd(vscale(V.dr, C.lado * Math.sin(th)), vadd(vscale(V.fh, -C.frente * Math.cos(th)), v3(0, C.alto * Math.sin(2 * th), 0))));
+    const d = vsub(V.foco, p).norm();
+    F.camara([p.x, p.y, p.z], Math.atan2(d.x, d.z), -Math.asin(clamp(d.y, -1, 1)));
+    return p;
+  };
+  // los que corren, en el tiempo t: cruzando o, fuera de cuadro, esperando (al salir de nuevo, la animación desde cero)
+  const corrPoner = (c, t) => {
+    const V = F.vid, u = ((t - c.s) % V.L + V.L) % V.L, P = c.P;
+    if (u < c.dur) {
+      if (!c.dentro) { c.dentro = true; const H = P.hum; if (H) { H.t = 0; H.fase = 0; H.cadera = 0; H.atras = false; H.aire = 0; H.mov = 0; } P.t = 0; P.fase = 0; P.ik = null; P.pieCorr = 0; P.dtJunto = 0; }
+      const f = u / c.dur, x = c.x0 + (c.x1 - c.x0) * f, z = c.z0 + (c.z1 - c.z0) * f, y = F.piso(x, z, P.pos.y + 4);
+      P.pos.set(x, (y === null ? P.pos.y - 0.96 : y) + 0.96, z); P.vel.set((c.x1 - c.x0) / c.dur, 0, (c.z1 - c.z0) / c.dur); P.visible = true; P.suelo = true;
+    } else { c.dentro = false; P.vel.set(0, 0, 0); P.visible = false; P.pos.set(c.x0, P.pos.y, c.z0); }
+  };
+  // avanzar el video dt segundos (los pasos de 1/240 s: video.mjs): primero lo que toca lanzar en este tramo (con la demora
+  // justa dentro del paso), la vuelta nueva con su semilla, la cámara y los que corren; después el juego
+  F.videoPaso = (dt) => {
+    const V = F.vid, t0 = V.t, t1 = t0 + dt, ci = Math.floor(t0 / V.L + 1e-9);
+    // (la vuelta nueva: su semilla, y la huella de cómo empieza —lo que yace en el piso y cuánto humo y fuego hay— para ver que
+    // una vuelta empieza igual que la anterior)
+    if (ci !== V.ciclo) {
+      V.ciclo = ci;
+      V.huellas.push({ c: ci, yace: V.yace.map((o) => (o && !o.borrado ? [o.b.pos.x, o.b.pos.y, o.b.pos.z].map((x) => +x.toFixed(3)) : null)), part: PART.l.length, cola: EVT.cola.length });
+    }
+    // (y cada paso, su propia semilla según dónde cae en la vuelta: con una sola por vuelta, una chispa de más que quedó de la
+    // anterior corría todos los números al azar que venían después y la vuelta salía distinta —lo que yace, a 25 cm—)
+    F.semilla(V.semilla + Math.round((t0 - ci * V.L) * 240) * 2654435761);
+    for (const c of V.caidas) {
+      const tl = ci * V.L + c.s;
+      for (const tt of [tl, tl + V.L]) if (tt >= t0 - 1e-9 && tt < t1 - 1e-9) {
+        evtRecibir([[c.n, c.x, c.y, c.z, c.d.x, c.d.y, c.d.z, Math.max(0, tt - t0), c.T, c.ex]], true);
+        EVT.cola[EVT.cola.length - 1].ranura = c.k; V.lanz++;
+      }
+    }
+    F.videoCam(t1);
+    for (const c of V.corren) corrPoner(c, t1);
+    if (typeof TIEMPO !== 'undefined') TIEMPO.lento = 0;
+    // (el latido de la grieta sube de a poco: 1 en 0,35 s; después baja solo, como en el juego —eventoPaso—)
+    if (V.pulsoMeta) { EVT.pulso = Math.min(V.pulsoMeta, EVT.pulso + dt / 0.35); if (EVT.pulso >= V.pulsoMeta - 1e-9) V.pulsoMeta = 0; }
+    F.paso(dt, false); V.t = t1;
+  };
+  // un cuadro del video: nT instantes dentro de medio cuadro (obturador de 180°: lo que va rápido queda corrido como en una
+  // cámara de verdad), nP/nT pasadas corridas una fracción de píxel en cada uno (puntos de Halton), todo promediado en
+  // números con coma; después, el resto del cuadro sin dibujar. Devuelve los píxeles RGB (de arriba abajo) en base64.
+  // (cada pasada dibuja con el reloj corrido un millonésimo de segundo: con 0, la gente y la IK de los pies avanzan 1/60 s por
+  // pasada —el «|| 0.016» de personas.js—)
+  // (y después se le devuelve ese millonésimo al reloj, así la vuelta siguiente cae en el mismo instante que ésta)
+  F.pasada = () => { const s = F.rs; F.paso(1e-6, true); F.rs = s; F.T -= 1e-3; TIEMPO.t -= 1e-6; TIEMPO.ult -= 1e-6; TIEMPO.acc = Math.max(0, TIEMPO.acc - 1e-6); };
+  F.videoCuadro = (nP, nT) => {
+    const V = F.vid, W = R.cv.width, H = R.cv.height, gl = R.gl, paso = 1 / (V.fps * 8), n3 = W * H * 3;
+    if (!V.acc || V.acc.length !== n3) { V.acc = new Float32Array(n3); V.px = new Uint8Array(W * H * 4); V.u8 = new Uint8Array(n3); }
+    const A = V.acc, px = V.px; A.fill(0);
+    if (typeof cieloCTPaso === 'function') { CIELO.ctPend = false; try { cieloCTPaso(true); } catch (e) {} }
+    nT = Math.max(1, Math.min(4, nT | 0)); nP = Math.max(nT, nP | 0); const porT = Math.round(nP / nT); let i = 0;
+    for (let k = 0; k < nT; k++) {
+      if (k > 0) for (let s = 0; s < 4 / nT; s++) F.videoPaso(paso);
+      for (let j = 0; j < porT; j++, i++) {
+        F.jx = nP > 1 ? hal(i + 1, 2) - 0.5 : 0; F.jy = nP > 1 ? hal(i + 1, 3) - 0.5 : 0;
+        F.pasada();
+        gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        for (let y = 0; y < H; y++) { let o = (H - 1 - y) * W * 3, s = y * W * 4; for (let x = 0; x < W; x++, s += 4) { A[o++] += px[s]; A[o++] += px[s + 1]; A[o++] += px[s + 2]; } }
+      }
+    }
+    F.jx = F.jy = 0;
+    const u8 = V.u8, kk = 1 / i; for (let j = 0; j < n3; j++) u8[j] = A[j] * kk + 0.5;
+    // (el resto del cuadro: hasta 8 pasos de 1/240 s por cuadro)
+    const hechos = Math.round((nT - 1) * 4 / nT); for (let s = hechos; s < 8; s++) F.videoPaso(paso);
+    let b = ''; for (let j = 0; j < n3; j += 0x8000) b += String.fromCharCode.apply(null, u8.subarray(j, Math.min(n3, j + 0x8000)));
+    return btoa(b);
+  };
   return 'ok';
 })();

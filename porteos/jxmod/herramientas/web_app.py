@@ -34,11 +34,18 @@ h = hashlib.sha256()
 # (con la página con código, el juego cifrado —juego.bin, de herramientas/codigo_web.mjs— también se guarda)
 CIF = ['juego.bin'] if os.path.isfile(os.path.join(D, 'juego.bin')) and 'jxCodigoJuego = async' in open(os.path.join(D, 'index.html'), encoding='utf-8').read() else []
 for f in ['index.html', 'pk.bin'] + CIF: h.update(open(os.path.join(D, f), 'rb').read())
+# (los fondos animados del menú —fondos/*.mp4, de armar.py; cifrados en la web con código— no se bajan al instalar —no le
+# quitan internet al primer arranque, y con Patata o «menos movimiento» ni se bajan—: se guardan con la versión cuando el juego
+# los pide, y el juego, con el menú ya andando, los pide de a uno —juego/fondovideo.js—. Sus nombres van en el juego, así que
+# cambian con él)
+FD = os.path.join(D, 'fondos')
+FONDOS = sorted('fondos/' + f for f in os.listdir(FD) if f.endswith('.mp4')) if os.path.isdir(FD) else []
 V = h.hexdigest()[:12]
 basicos = ['index.html', 'pk.bin'] + CIF + ['manifest.webmanifest'] + ['app/' + n for n in iconos]
 SW = '''// JXMod sin internet (lo arma herramientas/web_app.py: no editar acá). Versión ''' + V + '''
 // - el juego (index.html y pk.bin) y los íconos se guardan al instalar; si hay una versión nueva, el navegador baja este
 //   archivo distinto, guarda la nueva y borra la vieja;
+// - los fondos animados del menú (fondos/) se guardan con la versión cuando el juego los pide (con el menú ya andando);
 // - lo que el juego baja de al lado (rb/: mapas, personajes, sonidos; emotes/) se guarda la primera vez que se usa;
 // - todo lo demás (la tienda, Steam, la sala en línea) va por internet como siempre.
 const V = 'jxmod-''' + V + '''', REC = 'jxmod-recursos', BASICOS = ''' + json.dumps(basicos) + ''';
@@ -53,11 +60,15 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(caches.open(V).then((c) => c.match(k).then((r) => r || fetch(q))));
     return;
   }
+  if (rel !== null && rel.startsWith('fondos/')) {
+    e.respondWith(caches.open(V).then((c) => c.match(rel).then((r) => r || fetch(q).then((x) => { if (x.ok) c.put(rel, x.clone()).catch(() => {}); return x; }))));
+    return;
+  }
   if (/\\/web\\/(rb|emotes)\\//.test(u)) {
     e.respondWith(caches.open(REC).then((c) => c.match(q).then((r) => r || fetch(q).then((x) => { if (x.ok && (x.type === 'basic' || x.type === 'cors')) c.put(q, x.clone()).catch(() => {}); return x; }))));
   }
 });
 '''
 open(os.path.join(D, 'sw.js'), 'w', encoding='utf-8').write(SW)
-print('ok', D, 'versión', V, 'íconos', len(iconos), '· con código' if CIF else '· sin código')
+print('ok', D, 'versión', V, 'íconos', len(iconos), '· fondos animados', len(FONDOS), '· con código' if CIF else '· sin código')
 

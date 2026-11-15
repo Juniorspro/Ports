@@ -2450,6 +2450,74 @@ llegan a 44 px para tocar (ver la tabla): es el compromiso para que el logo qued
 selector no va en la barra de abajo del clásico: en el celular ya no entra nada más (la barra se compacta para que entren
 los mods, el idioma, el nombre y las redes en 640 px). Fotos, fuera del repo.
 
+## Fondos animados del menú clásico (renders del juego en video)
+
+El dueño: «que los fondos ahora sean animados de verdad: renders que se reproducen detrás del juego, pero de manera fluida,
+tirando a video quizás, pero a la vez render para no gastar tanto». Detrás del menú clásico, las 6 escenas de la 3.6 (la
+grieta, lo que cae prendido fuego, las explosiones, la gente) ahora se mueven: son videos sacados con el motor del juego,
+cuadro por cuadro, en bucle sin que se note el empalme, y codificados en H.264, que el celular decodifica con su hardware.
+
+**Por qué video y no la escena en 3D en vivo**: dibujar el fondo en vivo es correr el juego entero detrás del menú (la
+física, las partículas, la gente, la grieta y el dibujo de cada cuadro). Medido en las mismas condiciones (procesador 4× más
+lento, 873×402 a 2×, Gráficos medios, en el Chromium de prueba sin placa), la escena de Pradera en vivo, con la grieta y lo
+que cae, llega a 1,2 cuadros por segundo (cada cuadro, unos 0,8 s de máquina: 52 ms del hilo principal y lo demás, dibujar);
+con el video, el menú compone 16 a 25 cuadros por segundo con la misma máquina (en un celular, 30). En el celular, además,
+la escena en vivo es la placa dibujando en 3D 30 o 60 veces por segundo (lo que calienta y gasta batería); el video lo
+decodifica un circuito aparte y la placa sólo lo pega detrás del menú. Además, el render puede ser de mejor calidad que la que el celular da en vivo: Ultra, suavizado ×4, el
+movimiento rápido corrido como con el obturador de una cámara.
+
+**Las escenas** (`herramientas/fondos/`: `video.mjs`, `bucle.py` y `foto_motor.js`; el detalle, en su LEEME): el mismo
+encuadre de las fotos (lo importante a la derecha: el menú tapa el tercio izquierdo), en Ultra, 10 s cada una, periódicas:
+- la cámara da una vuelta chica (una elipse de 1 a 1,2 m de costado y 0,7 a 0,8 m adelante y atrás, mirando siempre al mismo
+  punto, a 26–30 m): lo de cerca se corre contra lo de lejos y la grieta, en el infinito, casi no se mueve;
+- 5 cosas caen de la grieta por vuelta, una cada 2 s, con su estela de fuego y humo, y cada lanzamiento hace latir la grieta;
+  1 o 2 explotan al pegar (un barril, la garrafa o el auto) y las otras quedan ardiendo en el piso;
+- la que mira la grieta respira y mira (su reposo, 2 veces por vuelta) y alguien cruza corriendo de un borde al otro;
+- las nubes se mueven (antes estaban quietas y, en 4 de las 6 fotos, ni estaban: abajo);
+- el empalme: lo que cae, la gente, la cámara y el cielo son periódicos (la vuelta 2 y la 3 dan lo mismo, medido); el pulso
+  de las vetas de la grieta, que va con el reloj del juego, se funde en el primer segundo.
+
+**En el juego** (`juego/fondovideo.js`, nuevo; en `inicio.js` y `clasico.js`, poco):
+- cada capa del fondo (`.rbBg`) tiene su `<video>` (muted, playsinline, loop) encima de la foto; **la foto es el primer cuadro
+  del video**, ya decodificado (`bucle.py`): mientras el video carga se ve la foto y, cuando está, se muestra parado en ese
+  cuadro y recién ahí arranca, así no salta. El primero se pide cuando el menú ya se puede tocar y el aparato está libre
+  (1,2 s después, con `requestIdleCallback`);
+- la escena pasa a la siguiente cuando su video llega a los 8 s (sin video, a los 9 s a la vista, como antes), con el
+  fundido de 1,8 s y las brasas de siempre: el fundido termina antes de los 10 s del bucle, así que en el uso normal el
+  video nunca vuelve a empezar a la vista. El que se va se suelta entero al terminar el fundido (sin fuente: el navegador
+  libera el decodificador): **un solo video decodificando**, dos sólo durante el fundido;
+- **en pausa cuando no se ve**: con un panel encima y con la página en segundo plano (`visibilitychange`); mientras, la
+  escena no cambia. **En la partida se suelta todo** (los videos y los blobs); al volver al menú, vuelve;
+- la capa ya no se agranda (el video tiene su cámara): queda en 1,02, como sin movimiento;
+- **sin video**: con «menos movimiento» del aparato o Gráficos Patata, las fotos quietas de siempre; con **Bajos**, las fotos
+  con su agrandado de 2 saltos por segundo (abajo, por qué); con el ahorro de datos del navegador, las fotos. Ninguno de esos
+  baja un solo video. Si un video no está (sin internet la primera vez) queda la foto y se vuelve a probar a los 30 s; si el
+  aparato no lo puede decodificar, se deja de intentar y vuelve el agrandado (sin salto: arranca en 1,02).
+
+**Dónde van** (`armar.py`, de `PAQUETE/fondos_video/`): no adentro del HTML ni del paquete (no atrasan el arranque ni ocupan
+memoria en la partida): al lado del juego, en `fondos/<escena>.<huella>.mp4`. El juego los baja con `fetch` y los pasa a un
+blob (guarda a lo sumo el de la escena, la anterior y la siguiente).
+- **web con código** (`codigo_web.mjs`): cifrados, cada uno con AES-GCM y una clave que sale de la del juego; la página le
+  deja al juego el que los descifra (con `crypto.subtle` o, sin él, con el AES en JS) y el juego lo toma una vez y lo borra.
+  `web/fondos/` no tiene ningún MP4 a la vista;
+- **sin internet** (`web_app.py`): el service worker los guarda con la versión cuando el juego los pide, y el juego, con el
+  menú ya andando, los pide de a uno (uno cada 2,5 s), así quedan los 6 guardados aunque no se hayan visto. No se bajan al
+  instalar: no le quitan internet al primer arranque, y con Patata o «menos movimiento» ni se bajan;
+- **APK** (`cifrar_apk.py`): en `assets/www/fondos/`, cifrados como `index.html` y `pk.bin` (y sin comprimir); `Web.java` los
+  descifra al servirlos (ya lo hacía con todo archivo con la marca) y, por la red local, da su largo (el del archivo menos los
+  24 bytes de la cabecera);
+- **la recuperación** (`recuperar_web.mjs` y `recuperar_paquete.py`): los descifra y los deja en `PAQUETE/fondos_video/` con
+  su nombre, y cada foto con el nombre de su video.
+
+**Las nubes de las fotos**: la textura de las nubes (`cielos.js`) se pinta de a franjas entre cuadro y cuadro, con
+`requestAnimationFrame`; el motor de las fotos para el tiempo anulando `requestAnimationFrame`, así que las nubes quedaban como
+se habían pintado al cargar el mapa: a otra hora y quietas. En las fotos de la 3.6 eso dejó sin nubes Ciudad, Desierto, City y
+Desert (la textura vacía) y, en el primer render de City de noche, nubes blancas de día. Ahora el motor pinta la textura entera
+con la hora de la escena: las nubes son las del juego a esa hora (en City de noche, oscuras, y la grieta las alumbra de azul)
+y se mueven.
+
+PESOS_MEDIDO_PRUEBAS_PENDIENTE
+
 ## JXMod 3.5: menú principal nuevo, «Tu depósito»
 
 Un pedido del dueño (el detalle y los números están en la sección «Tu depósito», más abajo). Misma firma que la 3.2, la
@@ -2773,10 +2841,12 @@ node herramientas/recuperar_web.mjs ../../web TU-CODIGO https://raw.githack.com/
 python3 -I herramientas/recuperar_paquete.py PLANO ../../web PAQUETE
 ```
 
-El primero descifra `juego.bin` y `pk.bin`; el segundo junta los paquetes de `web/rb`, deshace el filtro de los índices
-y saca las fotos de la pantalla de carga y del inicio y la biblioteca de la sala (`PAQUETE/mqtt.min.js`, para
+El primero descifra `juego.bin`, `pk.bin` y los fondos animados del menú (`web/fondos/*.mp4`); el segundo junta los
+paquetes de `web/rb`, deshace el filtro de los índices y saca las fotos de la pantalla de carga y del inicio, los fondos
+animados (`PAQUETE/fondos_video/`, con su nombre de antes) y la biblioteca de la sala (`PAQUETE/mqtt.min.js`, para
 `MQTT_JS`). Probado: armando de nuevo con ese paquete, el `pk.bin` y los 61 paquetes de `web/rb` salen idénticos byte
-a byte. Las fotos de fondo vuelven en PNG (salieron de las WebP publicadas). La firma del APK no se puede recuperar así:
+a byte, y los 6 videos también (los mismos bytes y el mismo nombre). Las fotos de fondo vuelven en PNG (salieron de las
+WebP publicadas). La firma del APK no se puede recuperar así:
 tiene que guardarse como secreto del entorno.
 
 ## JXMod 3.1: Pill Packs, Mods y mapas nuevo, la pizzería del Workshop, FOV, niebla y la pierna en el piso

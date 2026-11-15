@@ -8,10 +8,11 @@
 //     muesca) y sin pisarse; nada cortado; el texto de 14 px o más; el contraste medido en la imagen (con el texto
 //     escondido) sobre las 6 escenas del fondo —las explosiones de la grieta, sus momentos más claros— ≥ 4,5;
 //  3. los 14 idiomas en 873×402 (con muesca) y 640×360: nada se sale, se corta ni se pisa; el árabe, espejado;
-//  4. animaciones: la entrada termina (nada corriendo en el menú a los 3 s); los cuadros que compone la placa por segundo con
-//     el menú quieto (3 s después de la entrada) no pasan los de la 3.3 (con URL_33); con «menos movimiento» y con Gráficos
-//     Patata, ninguna animación (ni la entrada, ni el barrido, ni el glitch, ni el fondo que se agranda); con Bajos, sin el
-//     glitch ni las brasas;
+//  4. animaciones: la entrada termina (nada corriendo en el menú a los 3 s); el fondo es el video de la escena (corre al
+//     tiempo del reloj y la capa no se agranda: el video ya tiene su cámara; fondovideo.js y pruebas/fondos_video.mjs); los
+//     cuadros que compone la placa por segundo con el menú quieto (3 s después de la entrada) no pasan los de la 3.3 (con
+//     URL_33); con «menos movimiento» y con Gráficos Patata, ninguna animación (ni la entrada, ni el barrido, ni el glitch, ni
+//     el fondo); con Bajos, sin el glitch ni las brasas, y la foto que se agranda de a 2 saltos por segundo;
 //  5. rendimiento (con URL_33 y URL_35): con el procesador 4× más lento, en Gráficos bajos, medios y altos, corridas
 //     alternadas: ms de JS y del hilo principal por segundo, el heap y el tiempo hasta poder tocar; el clásico, a lo sumo un
 //     10 % arriba de la 3.3 en cada uno;
@@ -56,8 +57,8 @@ const esperar = async (p, js, ms = 8000) => { try { await p.waitForFunction((x) 
 // (el clásico a la vista, la entrada terminada)
 const clListo = (p, ms = 20000) => esperar(p, `RB.home === 'clasico' && clVisible() && !CL.el.classList.contains('clEntra')`, ms);
 // el fondo quieto en una escena (sin el cambio cada 9 s ni el agrandado): para comparar fotos y medir el contraste
-// (y sin el agrandado que da clKenPaso)
-const FONDO = (i) => `(() => { clearInterval(RB.reloj); RB.reloj = 1; if (typeof CL !== 'undefined' && CL.tKen) clearInterval(CL.tKen); const c = RB.el.querySelectorAll('.rbBg'); c[0].style.backgroundImage = 'url(' + FONDOS_RB[${i}] + ')'; c[0].classList.add('on'); c[1].classList.remove('on');
+// (y sin el agrandado que da clKenPaso, ni el video de la escena encima de la foto —fondovideo.js—: la foto es su primer cuadro)
+const FONDO = (i) => `(() => { clearInterval(RB.reloj); RB.reloj = 1; if (typeof CL !== 'undefined' && CL.tKen) clearInterval(CL.tKen); if (typeof FV !== 'undefined') { FV.roto = true; fvApagar(); } const c = RB.el.querySelectorAll('.rbBg'); c[0].style.backgroundImage = 'url(' + FONDOS_RB[${i}] + ')'; c[0].classList.add('on'); c[1].classList.remove('on');
   for (const x of c) { x.style.transition = 'none'; x.style.animation = 'none'; x.style.transform = 'scale(1.02)'; } return FONDOS_RB.length; })()`;
 // ---------------- las medidas (en px del juego: con el juego girado, en las de la página girada) ----------------
 const MEDIR = `(() => {
@@ -235,13 +236,15 @@ async function cuadrosGPU(url, quien, o = {}) {
   return { porSeg: +(comp / s).toFixed(2), corren };
 }
 if (corre(4)) {
-  // a. la entrada termina: nada corre en el menú a los 3 s de la entrada (el fondo de la 3.3 sí, de a saltos)
+  // a. la entrada termina: nada corre en el menú a los 3 s de la entrada; el fondo es el video de la escena (antes, la foto que
+  // se agrandaba de a saltos: con el video la capa queda quieta y lo que se mueve es el video)
   const A = await abrir('animaciones', 873, 402, true, { ins: 40 }); await clListo(A.p); await A.p.waitForTimeout(3000);
   const c = await A.ev(CORREN), entradas = await A.ev('CL.entradas');
-  // (el fondo de la 3.3 se sigue agrandando, de a saltos que da clKenPaso: se cuentan en 3 s)
-  const k0 = await A.ev('[CL.kenPasos || 0, RB.el.querySelector(".rbBg.on").style.transform]'); await A.p.waitForTimeout(3000); const k1 = await A.ev('[CL.kenPasos || 0, RB.el.querySelector(".rbBg.on").style.transform]');
-  const saltos = (k1[0] - k0[0]) / 3;
-  caso(`4a. la entrada termina: a los 3 s nada corre en el menú (${c.menu.length}) ni en el fondo; el fondo de la 3.3 se agranda de a saltos (${saltos.toFixed(1)} por segundo)`, entradas >= 1 && !c.menu.length && !c.fondo.length && saltos > 3 && saltos <= 6.5 && k0[1] !== k1[1], { c, saltos, k0, k1 });
+  // (en 3 s: los saltos del agrandado —ninguno— y cuánto avanzó el video; sin que cambie la escena mientras se mide)
+  const K = '[CL.kenPasos || 0, RB.el.querySelector(".rbBg.on").style.transform, (RB.el.querySelector(".rbBg.on video.ve") || { currentTime: -9 }).currentTime]';
+  await A.ev('(clearInterval(RB.reloj), RB.reloj = 1, typeof FV !== "undefined" && clearTimeout(FV.tPasar), 1)'); const k0 = await A.ev(K); await A.p.waitForTimeout(3000); const k1 = await A.ev(K);
+  const saltos = (k1[0] - k0[0]) / 3, avanzo = k1[2] - k0[2] + (k1[2] < k0[2] ? 10 : 0);
+  caso(`4a. la entrada termina: a los 3 s nada corre en el menú (${c.menu.length}) ni en el fondo; el fondo es el video (avanzó ${avanzo.toFixed(2)} s en 3 s) y la capa no se agranda (${saltos.toFixed(1)} saltos por segundo)`, entradas >= 1 && !c.menu.length && !c.fondo.length && saltos === 0 && k0[1] === k1[1] && k0[2] >= 0 && avanzo >= 2.5 && avanzo <= 3.5, { c, saltos, avanzo, k0, k1 });
   // el barrido y el golpe terminan (el fondo quieto: sin el cambio de escena, que también trae brasas)
   // (sin el glitch solo del logo —cada 11 a 19 s—: si cae en la ventana de 0,9 s se mezcla con el barrido; el glitch se prueba a mano)
   await A.ev(FONDO(0)); await A.ev('clearTimeout(CL.tGl); 1'); await A.p.waitForTimeout(3000);
@@ -345,7 +348,7 @@ async function oyentes(ctx, p) {
   await cdp.detach(); return Object.fromEntries(Object.entries(r).sort());
 }
 async function heap(ctx, p) { const cdp = await ctx.newCDPSession(p); await cdp.send('HeapProfiler.enable'); for (let i = 0; i < 3; i++) await cdp.send('HeapProfiler.collectGarbage'); const { usedSize } = await cdp.send('Runtime.getHeapUsage'); await cdp.detach(); return usedSize / 1048576; }
-const ESTADO = `({ home: RB.home, cl: document.querySelectorAll('.clHome, .clIt, .clChip').length, dp: document.querySelectorAll('.dpHome, .dpCaja, .dpHoja, .dpChapa').length, rb: RB.el.querySelectorAll('*:not(.clBrasas *)').length, brasas: document.querySelectorAll('.clBrasas *').length,
+const ESTADO = `({ home: RB.home, cl: document.querySelectorAll('.clHome, .clIt, .clChip').length, dp: document.querySelectorAll('.dpHome, .dpCaja, .dpHoja, .dpChapa').length, rb: RB.el.querySelectorAll('*:not(.clBrasas *):not(.rbVid)').length, brasas: document.querySelectorAll('.clBrasas *').length,
   objs: OBJS.length, pers: PERS.length, mundo: MUNDO.nombre, enMenu: !!EVT.enMenu, pausa: PAUSA.on, clases: RB.el.className, depListo: !!DEP.listo, rbp: RBP.alListo.length, lobby: !!MENU.lobby })`;
 // la foto de un menú para comparar: el fondo quieto y lo animado terminado
 async function foto(A, cual) {

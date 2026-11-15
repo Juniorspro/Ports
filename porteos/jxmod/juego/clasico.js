@@ -7,13 +7,15 @@
 //  · abajo, la barra con los mods activos, el idioma, tu nombre (con la cuenta de Google, si la hay), Discord y TikTok;
 //  · abajo a la derecha la versión (con Actualizar al lado, en la app o si la web avisa de una nueva) y arriba a la
 //    derecha La grieta (el evento, con su interruptor);
-//  · de fondo, el mundo vivo de la 3.3: las escenas del juego con la grieta que pasan solas (inicio.js, .rbBg).
+//  · de fondo, el mundo vivo de la 3.3: las escenas del juego con la grieta que pasan solas (inicio.js, .rbBg), ahora en
+//    video (fondovideo.js: renders del juego en bucle; con poco movimiento o Bajos, las fotos).
 // Lo nuevo es el detalle: barras con el borde de la punta roto, raspones y grano (una textura de ruido hecha una sola vez en
 // un canvas), una cinta sobre el logo, una línea amarilla gastada, íconos chicos, y animaciones que terminan: la entrada
 // (las barras se rasgan de izquierda a derecha, una tras otra), un barrido de luz al pasar o al tomar el foco, un golpe
 // corto al tocar, el logo con un glitch cada tanto, y brasas que suben cuando cambia la escena. Con «menos movimiento»
-// (prefers-reduced-motion) o Gráficos Patata, nada se mueve; en Bajos, menos. El fondo se agranda despacio (como en la 3.3) pero de a saltos
-// invisibles —6 por segundo, menos de medio píxel cada uno— así la placa compone 6 cuadros por segundo en vez de 60.
+// (prefers-reduced-motion) o Gráficos Patata, nada se mueve; en Bajos, menos. Con la foto de fondo (Bajos, o si el video no
+// anda), se agranda despacio (como en la 3.3) pero de a saltos invisibles —6 por segundo, menos de medio píxel cada uno— así la
+// placa compone 6 cuadros por segundo en vez de 60; con el video, la capa queda quieta (el video ya tiene su cámara).
 // En un celular apaisado no entran el logo, las 8 opciones de 44 px y la barra de abajo uno arriba del otro: ahí va igual que
 // en la 3.3, apretado (el logo un poco más chico, lo que se toca más grande que lo que se ve). Ver pruebas/menu_clasico.mjs.
 const CL = { el: null, lista: null, abajo: null, arriba: null, verG: null, logo: null, acento: null, brasas: null, ac: null, obs: null, modo: '', sel: null,
@@ -136,7 +138,9 @@ function clDestruir() {
   clMostrar(false);
   try { CL.ac.abort(); } catch (e) {} try { if (CL.obs) CL.obs.disconnect(); } catch (e) {}
   clearTimeout(CL.tGl); clearTimeout(CL.tGlF); clearTimeout(CL.tEnc); clearTimeout(CL.tBr); clearTimeout(CL.tEntra); clearInterval(CL.tKen);
+  if (typeof fvApagar === 'function') fvApagar();
   for (const b of RB.el.querySelectorAll('.rbBg')) b.style.transform = '';
+  CL.ken = ''; CL.kenT0 = null;
   CL.pad.on = false; CL.pad.corre = false; CL.el.remove();
   if (RB.el) RB.el.classList.remove('clOn', 'clQuieto', 'clBajo');
   Object.assign(CL, { el: null, lista: null, abajo: null, arriba: null, verG: null, logo: null, acento: null, brasas: null, ac: null, obs: null, modo: '', sel: null, firma: '' });
@@ -296,12 +300,12 @@ function clMostrar(on) {
   on = !!on; const antes = clVisible();
   CL.el.classList.toggle('oc', !on);
   const nv = (CL.nivel = clNivel()); RB.el.classList.toggle('clQuieto', nv === 'quieto'); RB.el.classList.toggle('clBajo', nv === 'bajo');
-  if (!on) { clearTimeout(CL.tGl); clElegir(null); clPausa(); return; }
+  if (!on) { clearTimeout(CL.tGl); clElegir(null); clPausa(); if (typeof fvActualizar === 'function') fvActualizar(true); return; }
   clElegir(null); clEncajar(true); clActualizarVer(); clEventoPintar();
   // la entrada: las barras se rasgan una tras otra, el logo aparece con un glitch, la barra de abajo sube (sólo al aparecer:
   // al cargar, al volver de una partida o de un panel, al cambiar de menú)
   if (!antes) clEntrada();
-  clGlitchLuego(); clPausa();
+  clGlitchLuego(); clPausa(); if (typeof fvActualizar === 'function') fvActualizar(true);
 }
 function clEntrada() {
   if (!CL.el) return;
@@ -315,10 +319,14 @@ function clEntrada() {
 // a saltos: 6 por segundo —menos de medio píxel cada uno en un celular—, 2 con Gráficos bajos y ninguno sin movimiento. Con
 // una animación de CSS el navegador recalculaba el estilo en cada cuadro (60 por segundo) aunque la placa sólo cambiara 6
 // veces; así, sólo cuando cambia (la capa va aparte —will-change—: mover no la vuelve a pintar)
+// (con el fondo en video —fondovideo.js— la cámara ya se mueve adentro del video: la capa queda quieta en 1,02, como sin
+// movimiento; si el video deja de andar, el agrandado vuelve desde 1,02, sin salto)
 function clKenPaso() {
   if (!CL.el || !RB.el || RB.el.classList.contains('oc') || CL.nivel === 'quieto') return;
+  if (typeof fvActivo === 'function' && fvActivo()) { if (CL.ken !== 'video') { CL.ken = 'video'; CL.kenT0 = null; for (const b of RB.el.querySelectorAll('.rbBg')) b.style.transform = 'scale(1.02)'; } return; }
+  if (CL.kenT0 == null) CL.kenT0 = performance.now();
   CL.kenN = (CL.kenN || 0) + 1; if (CL.nivel === 'bajo' && CL.kenN % 3) return;
-  const t = (performance.now() / 1000) % 52, f = t < 26 ? t / 26 : 2 - t / 26, v = `scale(${(1.02 + 0.11 * f).toFixed(4)}) translateX(${(-1.6 * f).toFixed(3)}%)`;
+  const t = ((performance.now() - CL.kenT0) / 1000) % 52, f = t < 26 ? t / 26 : 2 - t / 26, v = `scale(${(1.02 + 0.11 * f).toFixed(4)}) translateX(${(-1.6 * f).toFixed(3)}%)`;
   if (v === CL.ken) return; CL.ken = v; CL.kenPasos = (CL.kenPasos || 0) + 1;
   for (const b of RB.el.querySelectorAll('.rbBg')) b.style.transform = v;
 }
@@ -363,6 +371,8 @@ function clPausa() {
   if (CL.el) { const nv = clNivel(); if (nv !== CL.nivel) { CL.nivel = nv; RB.el.classList.toggle('clQuieto', nv === 'quieto'); RB.el.classList.toggle('clBajo', nv === 'bajo'); if (nv !== 'pleno') clearTimeout(CL.tGl); else if (clVisible()) clGlitchLuego(); } }
   const tres = !!MENU.lobby || (RB.el && RB.el.classList.contains('rb3d')) || (typeof PJI !== 'undefined' && PJI.vista3d);
   dibujoPausar(JUEGO.estado === 'principal' && !!CL.el && rbVisible() && !tres);
+  // (el fondo en video: corre sólo si se ve —fondovideo.js—)
+  if (typeof fvActualizar === 'function') fvActualizar();
 }
 
 // ======================= acciones (las llama inicioAccion primero) =======================
