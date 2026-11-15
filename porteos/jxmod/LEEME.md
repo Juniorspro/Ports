@@ -2252,6 +2252,265 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## Música en el menú (Ajustes → Música): 10 estaciones de 35 canciones, Casual sin internet y «Mi música»
+
+El dueño: «Agregá música al menú: por ejemplo solamente reproduciendo de fondo música de YouTube en vez de estar
+descargando música. Que en Ajustes → Música haya 10 opciones para elegir… Cada opción debe tener 35 canciones en loop… La
+predeterminada es la opción Casual, con canciones como las de Kevin MacLeod». Después: que Casual ande sin internet
+(guardada y muy comprimida; sólo lo que se puede repartir) y una opción «Mi música» con archivos propios.
+
+**Cómo funciona** (`juego/musica.js`, nuevo; en `ORDEN` después de `deposito`):
+
+- **Las 10 estaciones** y sus 350 canciones están en `juego/musica_estaciones.txt` («Artista — Título — id de YouTube»,
+  una por renglón); `armar.py` las mete en el juego (`MUS_DATOS`, con `herramientas/musica/estaciones.py`). Casual (la de
+  fábrica, Kevin MacLeod), West Side, Electrónica NCS, Phonk, Lo-fi / Chill, Rock, Latino, Synthwave / Retro, Épica y
+  Clásicos de internet; además **Mi música** y **Sin música** (no cuentan entre las 10). Cada una con su color, su ícono y
+  tres artistas de ejemplo.
+- **Suenan por el reproductor de YouTube incrustado** (el de la radio y la música de los emotes: `emuIframe`,
+  `youtube-nocookie.com/embed/…?enablejsapi=1`, comandos por `postMessage`, eventos con `listening`), escondido (200×113,
+  transparente, detrás de todo, sin toques) y **uno solo**: de canción en canción se le pide la siguiente con
+  `loadVideoById`, no se arma de nuevo. Nada se baja de YouTube.
+- **En bucle y mezcladas**: cada estación tiene su orden al azar, que no repite hasta pasar por las 35; la vuelta nueva no
+  empieza con la última. Se recuerda **por dónde iba cada estación** (la canción y el segundo; `localStorage.jx_musica`).
+- **Suena en el menú** (el clásico y el depósito, también con los paneles y Ajustes abiertos). El reproductor se arma
+  1,2 s después de que el menú se puede tocar (o con el primer toque, si es antes): la entrada del menú va igual de
+  fluida. **Al empezar una partida** se apaga con un fundido de 1 s (empieza en cuanto se abre la pantalla de carga) y se
+  saca el reproductor: jugando no gasta memoria ni datos. **Al volver al menú** sigue la misma canción desde el segundo
+  en que iba.
+- **Se calla** en segundo plano (`FONDO`: la página oculta, el `__jxFondo` de la app) y mientras suena otra música de
+  YouTube del juego: el editor de la música de los emotes (`EMU.ed`, se puede abrir desde el depósito), su reproductor y la
+  radio o la tele (éstos sólo en la partida). Al volver, sigue.
+- **El toque**: en la web el navegador no deja sonar sin uno: empieza con el primero (en el mismo toque); la placa dice
+  «Tocá la pantalla para escuchar». En la app de Android (`JXNativo`, `setMediaPlaybackRequiresUserGesture(false)`)
+  suena sola.
+- **El volumen**: el general (`PREFS.vol`; mientras se mueve en Ajustes, el de la barra, sin esperar a «Listo») por el de
+  la música (`PREFS.musVol`, 60 % de fábrica).
+- **Si algo falla**: un video que YouTube no deja poner (error 2, 5, 100, 101, 150, 153, o que 15 s después de pedirlo no
+  arranca) se anota en el registro (`cnAnotar('musica', …)` y la consola) y salta a la siguiente; 6 seguidos (sin internet,
+  YouTube que no contesta) o un reproductor que no contesta en 20 s: silencio por un minuto, sin avisos. Sin internet
+  (`navigator.onLine`) YouTube ni se intenta.
+
+**Casual sin internet.** Kevin MacLeod publica su música con licencia Creative Commons Atribución 4.0: se puede
+repartir con crédito. Sus 35 temas, bajados de su sitio (incompetech.com, MP3 de 320 kbps; nada de YouTube), van en Opus
+en un **paquete aparte** como los de `rb/` (`a_musica.HASH.rbp`, 25,98 MB): `herramientas/musica/casual.py PAQUETE`
+escribe `PAQUETE/a/mu_*.bin` y `remotos.py` los separa (`SON_APARTE['mu_']`). El juego lo baja solo, en segundo plano,
+cuando el aparato está libre después de que el menú se puede tocar (si la estación es Casual, hay internet y el aparato no
+pide ahorrar datos; si no, con «Guardar ahora» en la pestaña), con `rbBajar` (al lado del juego o de GitHub; en la app,
+de internet), con el avance a la vista en la pestaña. Cada canción queda suelta en la caché del navegador
+(`jx-musica-1`; el paquete entero se borra de las otras cachés) y se pide que el navegador no la borre
+(`navigator.storage.persist`): en la memoria está sólo la que suena. Mientras no está, Casual suena por YouTube; cuando
+está, desde la siguiente canción suena del archivo con un `<audio>` (mismo volumen, mismas pausas, mismo fundido), también
+sin internet. Sin caché (http que no es localhost) las canciones quedan en la memoria mientras dura la página. El
+crédito, en la pestaña Música y en `CREDITOS.md` (los 35, con su ISRC).
+
+- **Opus a cuántos kbps** (las 35, 99,5 min; «VBR acotado»; error medio en bandas de Bark audibles —a menos de 45 dB de la
+  más fuerte del cuadro— contra el MP3 de 320, en 6 temas de muestra):
+
+  | Opus | peso de las 35 | kbps de verdad | error (dB) | error en agudos, ≥ 6,4 kHz (dB) |
+  |---|---|---|---|---|
+  | 24 kbps | 20,0 MB | 26,8 | 1,55 | 2,18 |
+  | **32 kbps** (el elegido) | **26,0 MB** | 34,8 | 1,45 | 2,05 |
+  | 40 kbps | 32,0 MB | 42,8 | 1,25 | 1,80 |
+  | 48 kbps | 38,0 MB | 50,9 | 1,11 | 1,62 |
+
+  De 24 a 32, +6 MB por −0,10 dB; de 32 a 48, +12 MB por −0,34 dB. Para música de fondo en el parlante de un celular, 32 es
+  donde deja de notarse el «metálico» de los agudos de 24 sin pagar el doble que 48.
+- La recuperación de la web (`recuperar_web.mjs` + `recuperar_paquete.py`) devuelve también la música: `recuperar_paquete.py`
+  junta los sonidos de todos los paquetes de `web/rb` (`a/mu_*.bin`) y, armando de nuevo, `a_musica` sale igual byte a byte
+  (ver abajo). El paquete aparte no va cifrado (como los demás de `rb/`): la música de Kevin MacLeod se puede repartir.
+- **Para publicar**: el paquete con la música es `/tmp/claude-0/pk37m` (copia de `pk32` con los 35 `a/mu_*.bin`; los MP3
+  originales en `/tmp/claude-0/musica_casual/mp3`). Armando con `pk32` el juego anda igual, sin Casual sin internet.
+
+**Mi música.** En la pestaña, «Agregar música» (`<input type="file" accept="audio/*,…" multiple>`; en la app, el selector
+de archivos de siempre) guarda los archivos en el aparato (IndexedDB `jxmod-musica`, como los mods) y suenan en bucle
+mezclados, sin internet, con el mismo volumen y las mismas pausas. Se ven con su tamaño y se sacan de a uno; hasta 300 MB
+(si no entra, avisa). No se suben a ningún lado ni los escuchan los demás.
+
+**Ajustes → Música** (la pestaña la agrega `musica.js` con una línea en `abrirAjustes` de `ui.js` —`musAjustes(c)`—, con
+las clases de Ajustes): lo que suena (título, artista, la estación y de dónde sale) con anterior y siguiente; el volumen de
+la música; las 12 tarjetas (las 10, Mi música y Sin música; la elegida, marcada con su color); Mi música; el estado de
+Casual sin internet y el crédito. Cambiar de estación cambia la música en el momento y queda guardado (`PREFS.musEst`).
+
+**En el menú**, una placa chica con lo que suena (el ícono y el nombre de la estación, de su color, y la canción) y ⏭: la
+placa abre la pestaña Música; ⏭ pasa a la siguiente. Se pone desde `musica.js`, sin tocar `clasico.js` ni `deposito.js`:
+en el clásico, con la misma placa negra rasgada de los botones de abajo (`.clChip`), arriba de la versión y de su lado; en
+el depósito, arriba, entre la versión y Amigos (o al lado de tu perfil). Se miden los rectángulos de todo lo del menú y se
+elige el primer lugar donde entra sin pisar nada (también las cajas del depósito). Lo que dice se elige para que entre
+entero —nada se corta—: la estación y la canción con su artista; si no entra, sin el artista; después sólo la canción (la
+estación queda en el color de su ícono); después sólo la estación; y si nada entra, sólo los dos íconos (lo que suena va
+siempre en su descripción para el lector de pantalla). Con «Sin música» no está. Si se abre Ajustes desde la placa, va
+directo a la pestaña Música y la columna de pestañas se corre hasta que se vea entera (en 873×402 no entran las 6).
+
+**Las canciones** (`herramientas/musica/`): `buscar.py` las busca (la página de resultados de YouTube) y elige el video
+—que sea la canción y no una hora seguida, lenta, en vivo, un cover o un remix; de las subidas oficiales: «Provided to
+YouTube» (Topic), el canal del artista, VEVO, NoCopyrightSounds; y la más vista— y `verificar.py` las vuelve a verificar
+y escribe `informe.txt`: oEmbed (200 = existe y se puede insertar) **y** el reproductor insertado
+(`youtube-nocookie.com/embed/ID` con página de origen, como el juego: «OK»). Hace falta lo segundo: muchos videos de VEVO
+(Dr. Dre, 50 Cent, Eminem, LMFAO, Toto…) dan 200 en oEmbed pero «Video unavailable» insertados (en el juego, error 150);
+para ésos va otra subida que sí se puede (el «Topic» oficial cuando hay). Las de West Side, NCS, Rock, Latino y las
+demás las revisé una por una (título, canal, largo); las de Kevin MacLeod son el video oficial que da su catálogo
+(`pieces.json` de incompetech) o, si no tiene, el de «Kevin MacLeod Archive». Resultado: **350 de 350 con oEmbed 200 y el
+reproductor insertado «OK», 350 distintas, 35 por estación**; 5 avisos revisados a mano (el artista no aparece en el
+título ni el canal, pero es la canción: «KSLV - Override», el tema de Blood Dragon en Ubisoft Music, Dragonborn con letra,
+el PV de Bad Apple!! y The Duck Song en la subida original). Las restricciones por país o edad no se ven desde acá: el
+juego salta solo.
+
+**Las 10 estaciones** (en `juego/musica_estaciones.txt`, con el id de cada video):
+
+- **Casual** (de fábrica; Kevin MacLeod, todas): Monkeys Spinning Monkeys · Sneaky Snitch · Fluffing a Duck ·
+  Investigations · Local Forecast - Elevator · Scheming Weasel (faster version) · Wallpaper · Carefree · Pixel Peeker
+  Polka - faster · Merry Go · Hyperfun · Cipher · Sneaky Adventure · Amazing Plan · Thatched Villagers · Hidden Agenda ·
+  Funkorama · Life of Riley · Easy Lemon · Cut and Run · Run Amok · The Builder · Spazzmatica Polka · Happy Happy Game
+  Show · Pamgaea · Itty Bitty 8 Bit · Blip Stream · Quirky Dog · Volatile Reaction · Marty Gots a Plan · Rollin at 5 ·
+  Mining by Moonlight · Kool Kats · Bossa Antigua · Airport Lounge.
+- **West Side**: Ice Cube — It Was A Good Day · Ice Cube — Check Yo Self (Remix) (ft. Das EFX) · Ice Cube — You Can Do
+  It (ft. Mack 10, Ms. Toi) · 50 Cent — In Da Club · 50 Cent — Candy Shop (ft. Olivia) · 50 Cent — 21 Questions (ft.
+  Nate Dogg) · 50 Cent — P.I.M.P. · 50 Cent — Many Men (Wish Death) · Dr. Dre — Still D.R.E. (ft. Snoop Dogg) · Dr. Dre
+  — The Next Episode (ft. Snoop Dogg, Kurupt, Nate Dogg) · Dr. Dre — Forgot About Dre (ft. Eminem) · Dr. Dre — Nuthin'
+  But A "G" Thang (ft. Snoop Dogg) · Dr. Dre — I Need A Doctor (ft. Eminem, Skylar Grey) · Snoop Dogg — Gin And Juice ·
+  Snoop Dogg — Drop It Like It's Hot (ft. Pharrell) · Snoop Dogg — Who Am I (What's My Name)? · Snoop Dogg & Wiz Khalifa
+  — Young, Wild & Free (ft. Bruno Mars) · 2Pac — California Love (ft. Dr. Dre) · 2Pac — Changes · 2Pac — Hit 'Em Up (ft.
+  Outlawz) · 2Pac — All Eyez On Me · 2Pac — Ambitionz Az A Ridah · 2Pac — Dear Mama · Eminem — Lose Yourself · Eminem —
+  Without Me · Eminem — The Real Slim Shady · Eminem — 'Till I Collapse · Coolio — Gangsta's Paradise (ft. L.V.) ·
+  Warren G — Regulate (ft. Nate Dogg) · The Game — Hate It Or Love It (ft. 50 Cent) · The Game — How We Do (ft. 50 Cent)
+  · Xzibit — X · Eazy-E — Boyz-N-The-Hood · N.W.A — Straight Outta Compton · Kendrick Lamar — HUMBLE..
+- **Electrónica NCS**: Alan Walker — Fade · Alan Walker — Spectre · Alan Walker — Force · Elektronomia — Sky High ·
+  Elektronomia — Energy · Elektronomia — Limitless · Janji — Heroes Tonight (feat. Johnning) · DEAF KEV — Invincible ·
+  Different Heaven & EH!DE — My Heart · Different Heaven — Nekozilla · Cartoon, Jéja — On & On (feat. Daniel Levi) ·
+  Cartoon, Jéja — Why We Lose (feat. Coleman Trapp) · Tobu — Candyland · Tobu — Hope · Tobu & Itro — Sunburst · Itro &
+  Tobu — Cloud 9 · Jim Yosef — Firefly · Jim Yosef — Link · Lost Sky — Fearless pt.II (feat. Chris Linton) · Lost Sky —
+  Dreams pt. II (feat. Sara Skinner) · Disfigure — Blank · Spektrem — Shine · Warriyo — Mortals (feat. Laura Brehm) ·
+  Electro-Light — Symbolism · Syn Cole — Feel Good · Unknown Brain — Superhero (feat. Chris Linton) · Unknown Brain —
+  Why Do I? (feat. Bri Tolani) · Robin Hustin x TobiMorrow — Light It Up (feat. Jex) · Jo Cohen & Sex Whales — We Are ·
+  Diviners — Savannah (feat. Philly K) · Ship Wrek & Zookeepers — Ark · Egzod & Maestro Chives — Royalty (ft. Neoni) ·
+  Culture Code — Make Me Move (feat. Karra) · NIVIRO — The Ghost · K-391 — Earth.
+- **Phonk**: Kordhell — Murder In My Mind · Kordhell — Live Another Day · Kordhell — Killers From The Northside ·
+  Kordhell — Scopin · PlayaPhonk — PHONKY TOWN · Dxrk ダーク — RAVE · INTERWORLD — METAMORPHOSIS · INTERWORLD — RAPTURE ·
+  DVRST — Close Eyes · DVRST — Dream Space · Ghostface Playa — Why Not · MoonDeity — NEON BLADE · MoonDeity — WAKE UP! ·
+  Kaito Shoma — Scary Garry · Hensonn — Sahara · Hensonn — Flare · Freddie Dredd — Limbo · Freddie Dredd — Cha Cha ·
+  Freddie Dredd — GTG · NCTS — NEXT! · VØJ, Narvent — Memory Reboot · Narvent — Fainted · ZWE1HVNDXR, yatashigang —
+  LOVELY BASTARDS · g3ox_em — GigaChad Theme (Phonk House Version) · Eternxlkz — SLAY! · Eternxlkz — BRODYAGA FUNK ·
+  LXNGVX — Montagem Mysterious Game · ONIMXRU, SMITHMANE — SHADOW · MXZI — MONTAGEM TOMADA · SXMPRA — COWBELL WARRIOR! ·
+  KSLV Noh — Override · Night Lovell — Polozhenie · Bibi Babydoll, DJ Brunin XM — Automotivo Bibi Fogosa · sma$her, MC
+  DA$ILVA — BAILA LENTO · Teriyaki Boyz — Tokyo Drift (Fast & Furious).
+- **Lo-fi / Chill**: Nujabes — Feather (feat. Cise Starr & Akin) · Nujabes — Aruarian Dance · Nujabes — Luv(sic) Part 3
+  (feat. Shing02) · Nujabes — Reflection Eternal · Nujabes — Counting Stars · Nujabes — Lady Brown (feat. Cise Starr) ·
+  Nujabes — Shiki no Uta (feat. MINMI) · DJ Okawari — Flower Dance · Jinsang — affection · idealism — controlla ·
+  idealism — snowfall · kudasaibeats — the girl i haven't met · Tomppabeats — Monday Loop · potsu — i'm closing my eyes
+  (feat. shiloh) · Powfu — death bed (coffee for your head) (feat. beabadoobee) · LAKEY INSPIRED — Better Days · LAKEY
+  INSPIRED — Chill Day · Joakim Karud — Dreams · Joakim Karud — Canals · saib. — West Lake · saib. — Sakura Trees · Kina
+  — Can We Kiss Forever? (feat. Adriana Proenza) · Kina — get you the moon (feat. Snow) · In Love With A Ghost — we've
+  never met but can we have a coffee or something · FKJ — Ylang Ylang · Tom Misch — Beautiful Escape (feat. Zak Abel) ·
+  L'Indécis — Soulful · Lofi Girl — Snowman · J Dilla — Don't Cry · Mounika. — Cut My Hair (feat. Cavetown) · Aso —
+  Seasons · Bonobo — Kerala · Tycho — Awake · Nightmares on Wax — You Wish · Emancipator — Soon It Will Be Cold Enough
+  to Build Fires.
+- **Rock**: Queen — Bohemian Rhapsody · Queen — Don't Stop Me Now · Queen — We Will Rock You · AC/DC — Back In Black ·
+  AC/DC — Highway to Hell · AC/DC — Thunderstruck · Guns N' Roses — Sweet Child O' Mine · Guns N' Roses — Welcome To The
+  Jungle · Nirvana — Smells Like Teen Spirit · Bon Jovi — It's My Life · Bon Jovi — Livin' On A Prayer · Linkin Park —
+  In The End · Linkin Park — Numb · The Killers — Mr. Brightside · Green Day — Boulevard Of Broken Dreams · Green Day —
+  American Idiot · Red Hot Chili Peppers — Can't Stop · Red Hot Chili Peppers — Californication · The White Stripes —
+  Seven Nation Army · Foo Fighters — The Pretender · Survivor — Eye Of The Tiger · Europe — The Final Countdown · Deep
+  Purple — Smoke On The Water · Metallica — Enter Sandman · KISS — I Was Made For Lovin' You · Aerosmith — Dream On ·
+  Evanescence — Bring Me To Life · System Of A Down — Chop Suey! · Arctic Monkeys — Do I Wanna Know? · My Chemical
+  Romance — Welcome To The Black Parade · blink-182 — All The Small Things · Oasis — Wonderwall · The Rolling Stones —
+  Paint It, Black · Soda Stereo — De Música Ligera (en vivo) · Enanitos Verdes — Lamento Boliviano.
+- **Latino**: Daddy Yankee — Gasolina · Daddy Yankee — Rompe · Daddy Yankee — Limbo · Daddy Yankee — Lo Que Pasó, Pasó ·
+  Daddy Yankee — Con Calma (ft. Snow) · Don Omar — Danza Kuduro (ft. Lucenzo) · Don Omar — Dile · Don Omar — Salió El
+  Sol · Don Omar — Pobre Diabla · Wisin & Yandel — Rakata · Wisin & Yandel — Abusadora · Tego Calderón — Pa' Que Retozen
+  · Ivy Queen — Quiero Bailar · Calle 13 — Atrévete-te-te · Zion & Lennox — Yo Voy (ft. Daddy Yankee) · Luis Fonsi —
+  Despacito (ft. Daddy Yankee) · Nicky Jam & Enrique Iglesias — El Perdón · Nicky Jam — Travesuras · Héctor & Tito —
+  Baila Morena · Los Palmeras — Bombón Asesino · Damas Gratis — Se Te Ve La Tanga · Los Pibes Chorros — Llegamos Los
+  Pibes Chorros · Gilda — No Me Arrepiento De Este Amor · Rodrigo — La Mano De Dios · Rodrigo — Lo Mejor Del Amor (en
+  vivo) · Los Ángeles Azules — Cómo Te Voy A Olvidar (ft. Kinky) · Los Ángeles Azules — Nunca Es Suficiente (ft. Natalia
+  Lafourcade) · Grupo Néctar — El Arbolito · Ráfaga — Mentirosa · Antonio Ríos — Nunca Me Faltes · Los Wachiturros —
+  Tírate Un Paso · Amar Azul — Yo Me Enamoré · Rombai — Noche Loca (ft. Márama) · La Sonora Dinamita — Que Nadie Sepa Mi
+  Sufrir · Celso Piña — Cumbia Sobre El Río.
+- **Synthwave / Retro**: Kavinsky — Nightcall · Kavinsky — Odd Look (ft. The Weeknd) · Kavinsky — Protovision · Kavinsky
+  — Testarossa Autodrive · The Midnight — Sunset · The Midnight — Days Of Thunder · FM-84 — Running In The Night (feat.
+  Ollie Wride) · Timecop1983 — On the Run · GUNSHIP — Tech Noir · GUNSHIP — Dark All Day (feat. Tim Cappello & Indiana)
+  · GUNSHIP — Fly For Your Life · Perturbator — Future Club · Perturbator — Humans Are Such Easy Prey · Carpenter Brut —
+  Turbo Killer · Carpenter Brut — Roller Mobster · Lazerhawk — Overdrive · College & Electric Youth — A Real Hero ·
+  Electric Youth — Runaway · Power Glove — Blood Dragon Theme · Miami Nights 1984 — Accelerated · The Weeknd — Blinding
+  Lights · Daft Punk — Derezzed · Jan Hammer — Crockett's Theme · Harold Faltermeyer — Axel F · HOME — Resonance · HOME
+  — We're Finally Landing · M.O.O.N. — Crystals · M.O.O.N. — Hydrogen · Jasper Byrne — Miami · Desire — Under Your Spell
+  · Chromatics — Tick Of The Clock · Dance With The Dead — Andromeda · Michael Oakley — Turn Back Time · Dynatron —
+  Pulse Power · Com Truise — Propagation.
+- **Épica**: Two Steps From Hell — Heart of Courage · Two Steps From Hell — Victory · Two Steps From Hell — Protectors
+  of the Earth · Two Steps From Hell — Archangel · Two Steps From Hell — Star Sky · Two Steps From Hell — Strength of a
+  Thousand Men · Two Steps From Hell — El Dorado · Two Steps From Hell — Black Blade · Two Steps From Hell — Freedom
+  Fighters · Two Steps From Hell — Blackheart · Two Steps From Hell — Impossible (feat. Merethe Soltvedt) · Two Steps
+  From Hell — Never Back Down · Two Steps From Hell — To Glory · Audiomachine — Breath and Life · Audiomachine —
+  Guardians at the Gate · Audiomachine — Akkadian Empire · Thomas Bergersen — Final Frontier · Thomas Bergersen — Cry ·
+  Thomas Bergersen — Immortal · E.S. Posthumus — Unstoppable · E.S. Posthumus — Nara · Globus — Preliator · Immediate
+  Music — Lacrimosa · Ivan Torrent — Before I Leave This World · Really Slow Motion — Deadwood · Hans Zimmer — Time
+  (Inception) · Hans Zimmer & Lisa Gerrard — Now We Are Free (Gladiator) · Hans Zimmer — Cornfield Chase (Interstellar)
+  · Hans Zimmer — No Time for Caution (Interstellar) · Klaus Badelt — He's a Pirate (Piratas del Caribe) · Ramin Djawadi
+  — Game of Thrones (Main Title) · Steve Jablonsky — Arrival to Earth (Transformers) · Jeremy Soule — Dragonborn
+  (Skyrim) · Howard Shore — Concerning Hobbits (El Señor de los Anillos) · Carl Orff — O Fortuna (Carmina Burana).
+- **Clásicos de internet**: Rick Astley — Never Gonna Give You Up · Darude — Sandstorm · Smash Mouth — All Star · a-ha —
+  Take On Me · Haddaway — What Is Love · Eiffel 65 — Blue (Da Ba Dee) · Crazy Frog — Axel F · PSY — Gangnam Style ·
+  Baauer — Harlem Shake · O-Zone — Dragostea Din Tei (Numa Numa) · Ylvis — The Fox (What Does The Fox Say?) · Rebecca
+  Black — Friday · LMFAO — Party Rock Anthem (ft. Lauren Bennett, GoonRock) · Eduard Khil — Trololo · Bag Raiders —
+  Shooting Stars · Vicetone & Tony Igy — Astronomia (Coffin Dance) · Tay Zonday — Chocolate Rain · Caramella Girls —
+  Caramelldansen · Noisestorm — Crab Rave · Toby Fox — Megalovania · Aaron Smith — Dancin (Krono Remix) (ft. Luvli) ·
+  Daler Mehndi — Tunak Tunak Tun · Alstroemeria Records — Bad Apple!! (feat. nomico) · Boney M. — Rasputin · Max Coveri
+  — Running in the 90s · Dave Rodgers — Deja Vu · Manuel — Gas Gas Gas · Andrew Gold — Spooky Scary Skeletons · Loituma
+  — Ievan Polkka · El Chombo — Dame Tu Cosita (ft. Cutty Ranks) · PIKOTARO — PPAP (Pen-Pineapple-Apple-Pen) · SunStroke
+  Project & Olia Tira — Run Away (Epic Sax Guy) · Bryant Oden — The Duck Song · Toto — Africa · daniwell — Nyan Cat
+  (feat. Momone Momo).
+
+**Números** (Chromium sin placa; el procesador 4× más lento como celular flojo, 873×402 a 2×, Gráficos bajos):
+
+- **Hasta poder tocar el menú**, contra la 3.6 (5 corridas alternadas, la máquina compartida con otras pruebas: ±2 s
+  entre corridas): la 3.6 18 401 ms de mediana (18 415 de promedio), ahora 18 082 (17 850): −1,7 % en la mediana. No
+  demora: el módulo sólo agrega ~20 KB de código y el reproductor se arma 1,2 s después de que el menú se puede tocar.
+- **El costo en el menú** (2 corridas de cada uno, 8 s quieto en el menú clásico; ms por segundo del hilo principal y del JS
+  de la página; el procesador y la memoria de todos los procesos del navegador, que en la compu ponen el reproductor de
+  YouTube en un proceso aparte —en Android va en el mismo—):
+
+  | | sin música | YouTube (armado; desde acá no reproduce) | Casual del archivo (Opus, sonando) |
+  |---|---|---|---|
+  | JS de la página (ms/s) | 15,0 | 27,5 | 24,4 |
+  | hilo principal (ms/s) | 59,6 | 89,7 | 92,3 |
+  | heap de JS (MB) | 17,3 | 17,5 | 17,4 |
+  | procesador, todos los procesos (%) | 72,9 | 71,0 | 71,0 |
+  | memoria, todos los procesos (RSS, MB) | 1 405 | 1 619 (+214) | 1 478 (+73) |
+  | lo que baja el reproductor de YouTube al armarse | — | 1,15 MB (una vez; después, de la caché) | — |
+
+  El heap no cambia (el archivo que suena está en la caché y en el reproductor del navegador, no en el JS). El hilo
+  principal, +30 ms/s con el procesador 4× más lento (≈ 7 ms/s en uno normal): los mensajes del reproductor y el paso de
+  la música; la placa ahora se vuelve a encajar cada 5 s y no cada 1 (salvo los primeros 8 s y al cambiar el tamaño). Lo que
+  más pesa de YouTube es la memoria (+214 MB en la compu, su proceso); el archivo, +73 MB (el decodificador de audio).
+- **Datos**: Casual del archivo, 0 por minuto (el paquete, 26,0 MB, una sola vez; en el localhost bajó en 3,9 s; con
+  10 Mbit/s son ~21 s, con 4 Mbit/s ~52 s, y mientras tanto suena por YouTube). Por YouTube no se pudo medir desde acá (no
+  reproduce): con los formatos que usa para un reproductor chico (audio Opus de ~130-160 kbit/s y video de 144p, ~80-110)
+  son ~1,6-2 MB por minuto (~100-120 MB por hora), más ~1,2 MB del reproductor la primera vez. Jugando, 0: no hay
+  reproductor.
+- **El fundido** al empezar una partida: el volumen baja de a pasos de 50 ms durante 1 s de reloj (48 → 46, 41, 38, 34, 31…
+  medidos en el reproductor) y el reproductor se saca al terminar; si la carga ocupa el procesador en el medio, el último
+  paso llega cuando se libera (en la prueba, 2,0 s en total con la carga del mapa en el medio).
+- **Las 350**: `verificar.py` las revisó todas de nuevo en 509 s: 350 de 350 con oEmbed 200 y el reproductor insertado
+  «OK», 350 distintas, 35 por estación, 0 fallas, 5 avisos revisados a mano (`herramientas/musica/informe.txt`).
+
+**Pruebas** (`pruebas/musica.mjs URL [URL_CON_PAQUETE] [FOTOS]`; `BASE=URL_3.6 SOLO=15` para el costo). YouTube no reproduce
+desde este entorno (contesta «Este contenido no está disponible»; con un video de verdad se prueba que el iframe carga y
+su API contesta): para lo que necesita que suene, un reproductor simulado que contesta los mismos mensajes. Partes: los
+datos; el arranque sin toque y con toque; el volumen; estaciones, siguiente/anterior y la memoria de cada estación; el
+error 150 y 6 seguidos; Sin música; la partida (fundido) y la vuelta; segundo plano y el editor de los emotes; la app;
+Casual sin internet (bajada, caché, `setOffline`, la página nueva sin internet); Mi música (3 archivos de ffmpeg: suenan,
+sin internet, quedan al recargar, se saca uno, el tope); la placa en el clásico y el depósito en 5 pantallas y los 14
+idiomas (adentro, sin pisar nada, ≥ 44 px, letra ≥ 14 px, contraste ≥ 4,5 de las 12 estaciones sobre lo peor: la placa
+encima de algo blanco); la pestaña en 3 pantallas y los 14 idiomas; sin errores de JS.
+
+RESULTADOS_PRUEBAS
+
+**Pendiente**: sin celular de verdad (todo emulado) y sin poder escuchar YouTube desde acá: el sonido real por YouTube, los
+datos por minuto medidos (no estimados) y qué videos tienen restricción por país en Argentina no están probados. En iPhone
+(Safari) el reproductor de YouTube de otro sitio puede pedir un toque adentro de él y el `<audio>` no deja cambiar el
+volumen por código: ahí la música puede no arrancar sola con el primer toque y el volumen de la música no se aplica (el
+de la radio tiene un cartel «tocá» para eso; la música del menú no lo tiene). La placa del clásico no entra en el
+recorrido con el teclado ni el mando (Tab recorre la lista de `clasico.js`); se llega a la pestaña desde Opciones.
+
 ## JXMod 3.6: vuelve el menú clásico (mejorado), el selector de menú y el modo grabación
 
 Lo del Discord después de la 3.5 (el detalle y los números, en las secciones «Menú principal clásico otra vez» —abajo— y

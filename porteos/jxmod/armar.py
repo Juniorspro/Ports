@@ -7,6 +7,8 @@ ORDEN = ['nucleo', 'ios', 'cajanegra', 'tiendared', 'gl', 'sombras', 'post', 'da
          'vehiculos', 'herramientas', 'personas', 'humano', 'emotes', 'red', 'dia', 'anfitrion', 'marcas', 'entrada', 'ui', 'armaaj', 'hud', 'menu', 'idiomas', 'formato', 'idiomas3', 'ruleta', 'iconos', 'acciones', 'modapi', 'voz', 'geo', 'entidades', 'maquinitas', 'memes', 'celular', 'celumano', 'artefactos', 'nucleares', 'nuclear_vol', 'gfxauto', 'gmod_formatos', 'gmod', 'gmod_pipe', 'gmod_lib', 'gmod_steam', 'gmod_bsp', 'puertas', 'mapaio', 'portales', 'cielo3d', 'gmod_modos', 'gmod_lua', 'gmod_prelude', 'gmod_api', 'gmod_sonidos', 'gmod_cargar', 'gmod_render', 'gmod_dx9', 'gmod_rt', 'gmod_vista', 'gmod_pm', 'gmod_autorig', 'pjimportar', 'gmod_spawn', 'gmod_nextbot', 'gmod_anim', 'gmod_tienda', 'gmod_cola', 'gmod_carpeta', 'gmod_panel', 'gmod_server', 'celulares', 'npc', 'censura', 'cuenta', 'social', 'gorros', 'juntos', 'pantalla', 'nativos', 'ciclope', 'verity', 'veritycrea', 'animedit', 'creador', 'smods', 'modmenu', 'noche', 'linterna', 'tutorial', 'inicio', 'milogo', 'iconosapp', 'iconoapp', 'emomusica', 'rbmenus', 'clasico', 'fondovideo', 'paneles', 'deposito', 'lan', 'camlibre', 'controles', 'hudorden', 'banco', 'evento', 'identidad', 'pillpacks', 'pill_gmod', 'principal']
 # (el modo grabación —grabar.js— va justo antes del bucle del juego: usa la HUD, la pausa, el sonido y las voces)
 ORDEN.insert(ORDEN.index('principal'), 'grabar')
+# (la música del menú —musica.js— después de los dos menús: les pone la placa de lo que suena; usa el reproductor de los emotes)
+ORDEN.insert(ORDEN.index('deposito') + 1, 'musica')
 # el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")
 FORMATO = re.sub(r'(?m)^export ', '', open(os.path.join(AQUI, 'tienda', 'formato.js'), encoding='utf-8').read())
 leer = lambda n: FORMATO if n == 'formato' else open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read()
@@ -20,6 +22,12 @@ def _guia():
 _leer0 = leer
 leer = lambda n: _leer0(n).replace('const GUIA_DISENO = null;', _guia(), 1) if n == 'hudorden' else _leer0(n)
 js = '(() => {\n"use strict";\n' + '\n'.join(leer(n) for n in ORDEN) + '\n})();'
+# las estaciones de la música del menú (juego/musica_estaciones.txt: «== clave» y «artista — título — id de YouTube»); las
+# de Casual llevan además el nombre de su archivo en el paquete aparte a_musica (herramientas/musica/casual.py)
+def _musica():
+    sys.path.insert(0, os.path.join(AQUI, 'herramientas', 'musica')); import estaciones
+    return json.dumps(estaciones.para_juego(os.path.join(AQUI, 'juego', 'musica_estaciones.txt')), ensure_ascii=False, separators=(',', ':'))
+js = js.replace('const MUS_DATOS = /*MUSICA*/null;', 'const MUS_DATOS = ' + _musica() + ';', 1)
 # la fecha del armado (se ve en el inicio: así se sabe qué versión abrió el navegador)
 import datetime
 js = js.replace('__ARMADO__', datetime.datetime.now(datetime.timezone.utc).strftime('%d/%m/%Y %H:%M UTC'))

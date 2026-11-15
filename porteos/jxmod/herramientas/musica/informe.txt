@@ -1,0 +1,364 @@
+Música del menú: verificación de las canciones (herramientas/musica/verificar.py)
+Fecha: 15/11/2026 18:08 UTC · 350 canciones en 10 estaciones · 350 distintas · 509 s
+Por estación: casual 35, westside 35, ncs 35, phonk 35, lofi 35, rock 35, latino 35, synthwave 35, epica 35, internet 35
+oEmbed 200 y reproductor insertado «OK»: 350 de 350
+Fallas: 0
+Avisos (no son fallas): 5
+  · phonk · KSLV Noh — Override (NS8DPG62Fto): el artista no aparece en «KSLV - Override» / «KSLV»
+  · synthwave · Power Glove — Blood Dragon Theme (MEtdyn2QEzA): el artista no aparece en «Far Cry 3: Blood Dragon OST - Blood Dragon Theme (Track 02)» / «Ubisoft Music»
+  · epica · Jeremy Soule — Dragonborn (Skyrim) (UsnRQJxanVM): el artista no aparece en «Skyrim: The Song of the Dragonborn (with lyrics)» / «No Time To Grind»
+  · internet · Alstroemeria Records — Bad Apple!! (feat. nomico) (ThHvx5a9IYA): el artista no aparece en «[HD|60FPS] Bad Apple!! [Shadow Art PV]» / «YoshiFan (avrilloosing)»
+  · internet · Bryant Oden — The Duck Song (MtN1YnoL46Q): el artista no aparece en «The Duck Song» / «forrestfire101»
+
+Columnas: estación, id, ✔/✘, código de oEmbed, estado del reproductor insertado, la canción, y el título, el canal y el largo en YouTube.
+
+casual    2eZVbrO6Z1M ✔ 200 OK                         | Kevin MacLeod — Monkeys Spinning Monkeys | YouTube: «Monkeys Spinning Monkeys» · Kevin MacLeod · 2:07
+casual    QrqjLoPbnyY ✔ 200 OK                         | Kevin MacLeod — Sneaky Snitch | YouTube: «Kevin MacLeod: Sneaky Snitch» · Kevin MacLeod Archive · 2:23
+casual    XhCARou6mRI ✔ 200 OK                         | Kevin MacLeod — Fluffing a Duck | YouTube: «Kevin Macleod: Fluffing a Duck» · Kevin MacLeod Archive · 1:11
+casual    7_t7gQ8Olgk ✔ 200 OK                         | Kevin MacLeod — Investigations | YouTube: «Kevin MacLeod: Investigations» · Kevin MacLeod Archive · 1:36
+casual    5IyL1l34PIs ✔ 200 OK                         | Kevin MacLeod — Local Forecast - Elevator | YouTube: «Kevin MacLeod: Local Forecast - Elevator» · Kevin MacLeod Archive · 3:12
+casual    y4zXHvaQ7Ng ✔ 200 OK                         | Kevin MacLeod — Scheming Weasel (faster version) | YouTube: «Kevin MacLeod: Scheming Weasel (faster version)» · Kevin MacLeod Archive · 1:36
+casual    wNjJiZk7H28 ✔ 200 OK                         | Kevin MacLeod — Wallpaper | YouTube: «Kevin MacLeod: Wallpaper» · Kevin MacLeod Archive · 3:45
+casual    sMcWOaJFuw0 ✔ 200 OK                         | Kevin MacLeod — Carefree | YouTube: «Carefree» · Kevin MacLeod · 3:26
+casual    XosfAzrpjWQ ✔ 200 OK                         | Kevin MacLeod — Pixel Peeker Polka - faster | YouTube: «Kevin MacLeod: Pixel Peeker Polka - faster» · Kevin MacLeod Archive · 3:26
+casual    f5Tatbs1WxY ✔ 200 OK                         | Kevin MacLeod — Merry Go | YouTube: «Kevin MacLeod: Merry Go» · Kevin MacLeod Archive · 2:03
+casual    BHv4n0EmCKw ✔ 200 OK                         | Kevin MacLeod — Hyperfun | YouTube: «Hyperfun» · Kevin MacLeod · 3:54
+casual    UiHkZTeXrcA ✔ 200 OK                         | Kevin MacLeod — Cipher | YouTube: «Kevin MacLeod: Cipher» · Kevin MacLeod Archive · 3:56
+casual    py2IOtV7lFU ✔ 200 OK                         | Kevin MacLeod — Sneaky Adventure | YouTube: «Kevin MacLeod: Sneaky Adventure» · Kevin MacLeod Archive · 1:16
+casual    pIH3pBcoQ4s ✔ 200 OK                         | Kevin MacLeod — Amazing Plan | YouTube: «Kevin MacLeod - Amazing Plan (Official Audio)» · Kevin MacLeod · 1:34
+casual    _Mcn4OyNAg4 ✔ 200 OK                         | Kevin MacLeod — Thatched Villagers | YouTube: «Kevin MacLeod: Thatched Villagers» · Kevin MacLeod Archive · 4:07
+casual    tOKqIfwuXIc ✔ 200 OK                         | Kevin MacLeod — Hidden Agenda | YouTube: «Hidden Agenda» · Kevin MacLeod · 2:15
+casual    dmIO-dT5BFw ✔ 200 OK                         | Kevin MacLeod — Funkorama | YouTube: «Kevin MacLeod: Funkorama» · Kevin MacLeod Archive · 3:23
+casual    npqWuio3Llg ✔ 200 OK                         | Kevin MacLeod — Life of Riley | YouTube: «Life of Riley» · Kevin MacLeod · 3:56
+casual    Pod-f-VUyLE ✔ 200 OK                         | Kevin MacLeod — Easy Lemon | YouTube: «Easy Lemon» · Kevin MacLeod · 1:57
+casual    X173xm_ygr4 ✔ 200 OK                         | Kevin MacLeod — Cut and Run | YouTube: «Kevin MacLeod: Cut and Run» · Kevin MacLeod Archive · 3:38
+casual    mOXginnvZ4A ✔ 200 OK                         | Kevin MacLeod — Run Amok | YouTube: «Kevin MacLeod: Run Amok» · Kevin MacLeod Archive · 1:49
+casual    G6G3gB7DksA ✔ 200 OK                         | Kevin MacLeod — The Builder | YouTube: «The Builder» · Kevin MacLeod · 1:58
+casual    ISg6GARmPMA ✔ 200 OK                         | Kevin MacLeod — Spazzmatica Polka | YouTube: «Kevin MacLeod: Spazzmatica Polka» · Kevin MacLeod Archive · 1:41
+casual    kSetQroJe-U ✔ 200 OK                         | Kevin MacLeod — Happy Happy Game Show | YouTube: «Kevin MacLeod [Official] - Happy Happy Game Show - incompetech.com» · Kevin MacLeod · 3:15
+casual    yJEPTk7FLmk ✔ 200 OK                         | Kevin MacLeod — Pamgaea | YouTube: «Pamgaea by Kevin MacLeod» · Kevin MacLeod · 2:49
+casual    41HJ40roGDY ✔ 200 OK                         | Kevin MacLeod — Itty Bitty 8 Bit | YouTube: «Kevin MacLeod: Itty Bitty 8 Bit» · Kevin MacLeod Archive · 3:16
+casual    9np9KK4ccuA ✔ 200 OK                         | Kevin MacLeod — Blip Stream | YouTube: «Kevin MacLeod [Official] - Blip Stream - incompetech.com» · Kevin MacLeod · 4:45
+casual    oUdZOgWD0DU ✔ 200 OK                         | Kevin MacLeod — Quirky Dog | YouTube: «Quirky Dog» · Kevin MacLeod · 2:29
+casual    2pXa5jzaOBg ✔ 200 OK                         | Kevin MacLeod — Volatile Reaction | YouTube: «Volatile Reaction» · Kevin MacLeod · 2:44
+casual    RhRNWAbeBpE ✔ 200 OK                         | Kevin MacLeod — Marty Gots a Plan | YouTube: «Marty Gots a Plan» · Kevin MacLeod · 2:47
+casual    tBEoJqyeGHE ✔ 200 OK                         | Kevin MacLeod — Rollin at 5 | YouTube: «Rollin at 5 (Acoustic)» · Kevin MacLeod · 2:07
+casual    bAYKt6yW23M ✔ 200 OK                         | Kevin MacLeod — Mining by Moonlight | YouTube: «Mining by Moonlight» · Kevin MacLeod · 3:16
+casual    YqsARS39qqE ✔ 200 OK                         | Kevin MacLeod — Kool Kats | YouTube: «Kevin MacLeod: Kool Kats» · Kevin MacLeod Archive · 3:23
+casual    A25zUqFEJr4 ✔ 200 OK                         | Kevin MacLeod — Bossa Antigua | YouTube: «Bossa Antigua» · Kevin MacLeod · 4:43
+casual    f7D5xpdAyjE ✔ 200 OK                         | Kevin MacLeod — Airport Lounge | YouTube: «Kevin MacLeod: Airport Lounge» · Kevin MacLeod Archive · 5:10
+westside  X3HaZBlt7TA ✔ 200 OK                         | Ice Cube — It Was A Good Day | YouTube: «Ice Cube - It Was A Good Day (Remastered)» · Vevo Music Group · 4:21
+westside  IjrfcW_2txU ✔ 200 OK                         | Ice Cube — Check Yo Self (Remix) (ft. Das EFX) | YouTube: «IceCube - Check Yo Self (Remix) *UnCuT*» · IceCubeVEVO · 5:28
+westside  xnKWh10rA4M ✔ 200 OK                         | Ice Cube — You Can Do It (ft. Mack 10, Ms. Toi) | YouTube: «Ice Cube - You Can Do It (Uncensored)» · Sir Wienstein · 4:20
+westside  L9rJ0vwBisE ✔ 200 OK                         | 50 Cent — In Da Club | YouTube: «50 Cent - In Da Club (HQ)» · Wu Sound · 3:17
+westside  knnHXzGWqYk ✔ 200 OK                         | 50 Cent — Candy Shop (ft. Olivia) | YouTube: «50 Cent  -  Candy Shop (Explicit)» · Spencer j · 3:30
+westside  9RLPAIabrDM ✔ 200 OK                         | 50 Cent — 21 Questions (ft. Nate Dogg) | YouTube: «50 Cent - 21 Questions feat. Nate Dogg (HQ)» · Wu Sound · 3:48
+westside  ci9rlUhwvZI ✔ 200 OK                         | 50 Cent — P.I.M.P. | YouTube: «50 Cent - P.I.M.P» · frank westside · 4:12
+westside  7CVGDPqnZj8 ✔ 200 OK                         | 50 Cent — Many Men (Wish Death) | YouTube: «50 Cent - Many men (wish death)» · Rap Tv · 4:10
+westside  u8iMde8kVho ✔ 200 OK                         | Dr. Dre — Still D.R.E. (ft. Snoop Dogg) | YouTube: «Dr. Dre - Still D.R.E. (feat. Snoop Dogg)» · 90s HipHop - Topic · 4:32
+westside  A8V0-gLxeB0 ✔ 200 OK                         | Dr. Dre — The Next Episode (ft. Snoop Dogg, Kurupt, Nate Dogg) | YouTube: «Dr. Dre - The Next Episode (feat. Snoop Dogg, Nate Dogg & Kurupt)» · 90s HipHop - Topic · 2:43
+westside  asIx3aiNxnw ✔ 200 OK                         | Dr. Dre — Forgot About Dre (ft. Eminem) | YouTube: «Dr. Dre - Forgot About Dre  (feat. Eminem)» · 90s HipHop - Topic · 3:43
+westside  8GliyDgAGQI ✔ 200 OK                         | Dr. Dre — Nuthin' But A "G" Thang (ft. Snoop Dogg) | YouTube: «Dr Dre - Nuthin' But A "G" Thang [Official Music Video]» · Dr. Dre · 4:45
+westside  rXc_XMKkt7Y ✔ 200 OK                         | Dr. Dre — I Need A Doctor (ft. Eminem, Skylar Grey) | YouTube: «Dr Dre-I Need A Doctor ft Eminem & Skylar Grey(Audio)» · VoomZoomOfficial · 4:44
+westside  fWCZse1iwE0 ✔ 200 OK                         | Snoop Dogg — Gin And Juice | YouTube: «Snoop Dogg - Gin And Juice» · SnoopDoggVEVO · 4:25
+westside  RaCodgL9cvk ✔ 200 OK                         | Snoop Dogg — Drop It Like It's Hot (ft. Pharrell) | YouTube: «Drop It Like It's Hot by Snoop Dogg ft. Pharrell | Interscope» · Interscope Records · 4:35
+westside  2soGJXQAQec ✔ 200 OK                         | Snoop Dogg — Who Am I (What's My Name)? | YouTube: «Snoop Dogg - Who Am I (What's My Name)?» · SnoopDoggVEVO · 4:35
+westside  Wa5B22KAkEk ✔ 200 OK                         | Snoop Dogg & Wiz Khalifa — Young, Wild & Free (ft. Bruno Mars) | YouTube: «Snoop Dogg & Wiz Khalifa - Young, Wild and Free ft. Bruno Mars [Official Video]» · Wiz Khalifa · 4:18
+westside  RVuLwqdOPlo ✔ 200 OK                         | 2Pac — California Love (ft. Dr. Dre) | YouTube: «2Pac - California Love (Lyrics) ft. Dr. Dre» · 7clouds Rap · 4:44
+westside  IYAXM9klOCE ✔ 200 OK                         | 2Pac — Changes | YouTube: «2Pac   Changes Explicit» · Nenad Maksimovic · 4:31
+westside  Sva8MJxkVJE ✔ 200 OK                         | 2Pac — Hit 'Em Up (ft. Outlawz) | YouTube: «2Pac - Hit 'em Up (feat. Outlawz)» · 90s HipHop - Topic · 5:13
+westside  H1HdZFgR-aA ✔ 200 OK                         | 2Pac — All Eyez On Me | YouTube: «2Pac - All Eyez On Me» · Seven Hip-Hop · 5:08
+westside  77nB_9uIcN4 ✔ 200 OK                         | 2Pac — Ambitionz Az A Ridah | YouTube: «2Pac - Ambitionz Az a Ridah» · Seven Hip-Hop · 4:39
+westside  yBYkb6Vb0G4 ✔ 200 OK                         | 2Pac — Dear Mama | YouTube: «2Pac - Dear Mama» · Robbie D · 4:41
+westside  xFYQQPAOz7Y ✔ 200 OK                         | Eminem — Lose Yourself | YouTube: «Eminem - Lose Yourself» · EminemMusic · 5:28
+westside  pyb13N80DZQ ✔ 200 OK                         | Eminem — Without Me | YouTube: «Eminem - Without Me (Audio)» · YOUMUSIC · 4:52
+westside  EgF_gOY_AX0 ✔ 200 OK                         | Eminem — The Real Slim Shady | YouTube: «Eminem - The Real Slim Shady» · The Real G Music TV · 4:45
+westside  ytQ5CYE1VZw ✔ 200 OK                         | Eminem — 'Till I Collapse | YouTube: «Eminem - Till I Collapse [HD]» · msvogue23 · 4:59
+westside  SQCSxqScSVQ ✔ 200 OK                         | Coolio — Gangsta's Paradise (ft. L.V.) | YouTube: «Coolio - Gangsta's Paradise (feat. L.V.) [Official 4K Music Video]» · CoolioVEVO · 4:16
+westside  GdYpxVQ1BZs ✔ 200 OK                         | Warren G — Regulate (ft. Nate Dogg) | YouTube: «Warren G - Regulate (Explicit Music Video) ft. Nate Dogg» · Well Good Records · 4:10
+westside  JY0Ag0fMxz8 ✔ 200 OK                         | The Game — Hate It Or Love It (ft. 50 Cent) | YouTube: «The Game Hate it or Love it feat 50 Cent» · Artur · 3:27
+westside  _mWkdqGcH7k ✔ 200 OK                         | The Game — How We Do (ft. 50 Cent) | YouTube: «The Game - How We Do (Official Audio)» · 4000 CUTS · 3:56
+westside  T3nrwUOzmIE ✔ 200 OK                         | Xzibit — X | YouTube: «Xzibit - X» · Capitol Hill Handyman · 4:23
+westside  PIU07K_28ck ✔ 200 OK                         | Eazy-E — Boyz-N-The-Hood | YouTube: «Eazy E - Boyz-n-the-Hood (Music Video)» · TheHipHopSyko · 6:31
+westside  kIJeJK0iZDE ✔ 200 OK                         | N.W.A — Straight Outta Compton | YouTube: «01. N.W.A - Straight Outta Compton» · O'Shea Jackson · 4:20
+westside  ZZxHN6hpoeQ ✔ 200 OK                         | Kendrick Lamar — HUMBLE. | YouTube: «HUMBLE - Kendrick Lamar (DAMN)» · Kendrick Lamar Spotlight · 2:58
+ncs       vg95MYlTb3c ✔ 200 OK                         | Alan Walker — Fade | YouTube: «Alan Walker - Fade» · Alan Walker · 4:24
+ncs       p7nIEJ1vpFM ✔ 200 OK                         | Alan Walker — Spectre | YouTube: «Alan Walker - Spectre» · Alan Walker · 3:52
+ncs       lqYQXIt4SpA ✔ 200 OK                         | Alan Walker — Force | YouTube: «Alan Walker - Force» · Alan Walker · 4:00
+ncs       TW9d8vYrVFQ ✔ 200 OK                         | Elektronomia — Sky High | YouTube: «Elektronomia - Sky High | Progressive House | NCS - Copyright Free Music» · NoCopyrightSounds · 3:58
+ncs       fzNMd3Tu1Zw ✔ 200 OK                         | Elektronomia — Energy | YouTube: «Elektronomia - Energy | Progressive House | NCS - Copyright Free Music» · NoCopyrightSounds · 3:18
+ncs       cNcy3J4x62M ✔ 200 OK                         | Elektronomia — Limitless | YouTube: «Elektronomia - Limitless | Progressive House | NCS - Copyright Free Music» · NoCopyrightSounds · 4:04
+ncs       3nQNiWdeH2Q ✔ 200 OK                         | Janji — Heroes Tonight (feat. Johnning) | YouTube: «Janji - Heroes Tonight (feat. Johnning) | Progressive House | NCS - Copyright Free Music» · NoCopyrightSounds · 3:29
+ncs       J2X5mJ3HDYE ✔ 200 OK                         | DEAF KEV — Invincible | YouTube: «DEAF KEV - Invincible | Glitch Hop | NCS - Copyright Free Music» · NoCopyrightSounds · 4:34
+ncs       jK2aIUmmdP4 ✔ 200 OK                         | Different Heaven & EH!DE — My Heart | YouTube: «Different Heaven & EH!DE - My Heart | Drumstep | NCS - Copyright Free Music» · NoCopyrightSounds · 4:28
+ncs       6FNHe3kf8_s ✔ 200 OK                         | Different Heaven — Nekozilla | YouTube: «Different Heaven - Nekozilla | Electro | NCS - Copyright Free Music» · NoCopyrightSounds · 2:46
+ncs       K4DyBUG242c ✔ 200 OK                         | Cartoon, Jéja — On & On (feat. Daniel Levi) | YouTube: «Cartoon, Jéja - On & On (feat. Daniel Levi) | Electronic Pop | NCS - Copyright Free Music» · NoCopyrightSounds · 3:28
+ncs       zyXmsVwZqX4 ✔ 200 OK                         | Cartoon, Jéja — Why We Lose (feat. Coleman Trapp) | YouTube: «Cartoon, Jéja - Why We Lose (feat. Coleman Trapp) | DnB | NCS - Copyright Free Music» · NoCopyrightSounds · 3:34
+ncs       IhchfhxvPKI ✔ 200 OK                         | Tobu — Candyland | YouTube: «Tobu - Candyland» · Tobu · 3:19
+ncs       Y1Z3Q3O7IRE ✔ 200 OK                         | Tobu — Hope | YouTube: «Tobu - Hope (Original Mix)» · Tobu · 4:49
+ncs       1-0-4HqyvXE ✔ 200 OK                         | Tobu & Itro — Sunburst | YouTube: «Tobu & Itro - Sunburst» · Tobu · 3:10
+ncs       1KqQQHpQc8w ✔ 200 OK                         | Itro & Tobu — Cloud 9 | YouTube: «Tobu & Itro  - Cloud 9» · Tobu · 4:39
+ncs       x_OwcYTNbHs ✔ 200 OK                         | Jim Yosef — Firefly | YouTube: «Jim Yosef - Firefly | Progressive House | NCS - Copyright Free Music» · NoCopyrightSounds · 4:17
+ncs       9iHM6X6uUH8 ✔ 200 OK                         | Jim Yosef — Link | YouTube: «Jim Yosef - Link | House | NCS - Copyright Free Music» · NoCopyrightSounds · 3:45
+ncs       S19UcWdOA-I ✔ 200 OK                         | Lost Sky — Fearless pt.II (feat. Chris Linton) | YouTube: «Lost Sky - Fearless pt.II (feat. Chris Linton) | Trap | NCS - Copyright Free Music» · NoCopyrightSounds · 3:14
+ncs       L7kF4MXXCoA ✔ 200 OK                         | Lost Sky — Dreams pt. II (feat. Sara Skinner) | YouTube: «Lost Sky - Dreams pt. II (feat. Sara Skinner) | Trap | NCS - Copyright Free Music» · NoCopyrightSounds · 3:35
+ncs       p7ZsBPK656s ✔ 200 OK                         | Disfigure — Blank | YouTube: «Disfigure - Blank | Melodic Dubstep | NCS - Copyright Free Music» · NoCopyrightSounds · 3:30
+ncs       n4tK7LYFxI0 ✔ 200 OK                         | Spektrem — Shine | YouTube: «Spektrem - Shine | Progressive House | NCS - Copyright Free Music» · NoCopyrightSounds · 4:20
+ncs       yJg-Y5byMMw ✔ 200 OK                         | Warriyo — Mortals (feat. Laura Brehm) | YouTube: «Warriyo - Mortals (feat. Laura Brehm) | Future Trap | NCS - Copyright Free Music» · NoCopyrightSounds · 3:50
+ncs       __CRWE-L45k ✔ 200 OK                         | Electro-Light — Symbolism | YouTube: «Electro-Light - Symbolism | Trap | NCS - Copyright Free Music» · NoCopyrightSounds · 4:52
+ncs       q1ULJ92aldE ✔ 200 OK                         | Syn Cole — Feel Good | YouTube: «Syn Cole - Feel Good | Future House | NCS - Copyright Free Music» · NoCopyrightSounds · 3:02
+ncs       LHvYrn3FAgI ✔ 200 OK                         | Unknown Brain — Superhero (feat. Chris Linton) | YouTube: «Unknown Brain - Superhero (feat. Chris Linton) | Trap | NCS - Copyright Free Music» · NoCopyrightSounds · 3:02
+ncs       tcHJodG5hX8 ✔ 200 OK                         | Unknown Brain — Why Do I? (feat. Bri Tolani) | YouTube: «Unknown Brain - Why Do I? (feat. Bri Tolani) | Trap | NCS - Copyright Free Music» · NoCopyrightSounds · 3:43
+ncs       bdE_SyHad90 ✔ 200 OK                         | Robin Hustin x TobiMorrow — Light It Up (feat. Jex) | YouTube: «Robin Hustin x TobiMorrow - Light It Up (feat. Jex) | Future Bounce | NCS - Copyright Free Music» · NoCopyrightSounds · 3:05
+ncs       C6IaUMAg3Dc ✔ 200 OK                         | Jo Cohen & Sex Whales — We Are | YouTube: «Jo Cohen & Sex Whales - We Are | Future Bass | NCS - Copyright Free Music» · NoCopyrightSounds · 3:57
+ncs       u1I9ITfzqFs ✔ 200 OK                         | Diviners — Savannah (feat. Philly K) | YouTube: «Diviners - Savannah (feat. Philly K) | Tropical House | NCS - Copyright Free Music» · NoCopyrightSounds · 3:24
+ncs       8xlDwukxjnA ✔ 200 OK                         | Ship Wrek & Zookeepers — Ark | YouTube: «Ship Wrek & Zookeepers - Ark | Future Bass | NCS - Copyright Free Music» · NoCopyrightSounds · 2:59
+ncs       C5fLxtJH2Qs ✔ 200 OK                         | Egzod & Maestro Chives — Royalty (ft. Neoni) | YouTube: «Egzod & Maestro Chives - Royalty (ft. Neoni) | Trap | NCS - Copyright Free Music» · NoCopyrightSounds · 3:44
+ncs       vBGiFtb8Rpw ✔ 200 OK                         | Culture Code — Make Me Move (feat. Karra) | YouTube: «Culture Code - Make Me Move (feat. Karra) | Dance Pop | NCS - Copyright Free Music» · NoCopyrightSounds · 3:16
+ncs       lTEzfj8IAR0 ✔ 200 OK                         | NIVIRO — The Ghost | YouTube: «NIVIRO - The Ghost | House | NCS - Copyright Free Music» · NoCopyrightSounds · 3:25
+ncs       dOo2jWb73JY ✔ 200 OK                         | K-391 — Earth | YouTube: «K-391 - Earth | Drumstep | NCS - Copyright Free Music» · NoCopyrightSounds · 3:54
+phonk     w-sQRS-Lc9k ✔ 200 OK                         | Kordhell — Murder In My Mind | YouTube: «KORDHELL - MURDER IN MY MIND» · KORDHELL · 2:25
+phonk     7pmUQJ5KAlU ✔ 200 OK                         | Kordhell — Live Another Day | YouTube: «Kordhell - Live Another Day» · KORDHELL · 2:14
+phonk     DK6IRG4CAbw ✔ 200 OK                         | Kordhell — Killers From The Northside | YouTube: «KORDHELL - KILLERS FROM THE NORTHSIDE» · KORDHELL · 3:08
+phonk     VXaq77GiyEo ✔ 200 OK                         | Kordhell — Scopin | YouTube: «KORDHELL - SCOPIN» · KORDHELL · 1:42
+phonk     yJHi_Mii4lY ✔ 200 OK                         | PlayaPhonk — PHONKY TOWN | YouTube: «PlayaPhonk - PHONKY TOWN (Official Audio)» · PlayaPhonk · 2:22
+phonk     PTZgxW_3LIQ ✔ 200 OK                         | Dxrk ダーク — RAVE | YouTube: «Dxrk ダーク - RAVE (Official Audio)» · Dxrk ダーク · 2:50
+phonk     NS9z2QHcZdY ✔ 200 OK                         | INTERWORLD — METAMORPHOSIS | YouTube: «INTERWORLD - METAMORPHOSIS» · Chill Nation · 2:23
+phonk     i5zR6toPVQ8 ✔ 200 OK                         | INTERWORLD — RAPTURE | YouTube: «INTERWORLD - RAPTURE (PHONK)» · The Vibe Guide · 2:46
+phonk     ao4RCon11eY ✔ 200 OK                         | DVRST — Close Eyes | YouTube: «DVRST - Close Eyes» · DVRST · 2:13
+phonk     dSPiDFZmAnQ ✔ 200 OK                         | DVRST — Dream Space | YouTube: «DVRST - Dream Space» · DVRST · 2:52
+phonk     Hh5jEQraXaw ✔ 200 OK                         | Ghostface Playa — Why Not | YouTube: «Ghostface Playa - Why Not» · Ghostface Playa · 2:49
+phonk     Mu965dWgMMQ ✔ 200 OK                         | MoonDeity — NEON BLADE | YouTube: «NEON BLADE» · MoonDeity · 4:26
+phonk     tKvEnZSoqas ✔ 200 OK                         | MoonDeity — WAKE UP! | YouTube: «WAKE UP!» · MoonDeity · 2:19
+phonk     z9nHtotESH4 ✔ 200 OK                         | Kaito Shoma — Scary Garry | YouTube: «Kaito Shoma - Scary Garry» · Kaito Shoma · 1:40
+phonk     pIZ0QRWK0zg ✔ 200 OK                         | Hensonn — Sahara | YouTube: «Hensonn-Sahara» · Hensonn · 2:52
+phonk     G9CVOSRkxUs ✔ 200 OK                         | Hensonn — Flare | YouTube: «Hensonn-Flare» · Hensonn · 2:32
+phonk     glkSGJU-yLw ✔ 200 OK                         | Freddie Dredd — Limbo | YouTube: «Freddie Dredd - Limbo (Official Lyric Video)» · Freddie Dredd · 2:47
+phonk     7VGS1biCJDE ✔ 200 OK                         | Freddie Dredd — Cha Cha | YouTube: «Freddie Dredd - Cha Cha (Official Video)» · Lazy Eye · 3:29
+phonk     fslK9YTkcc0 ✔ 200 OK                         | Freddie Dredd — GTG | YouTube: «Freddie Dredd - GTG (Official Music Video)» · Freddie Dredd · 1:36
+phonk     igs149KCTgA ✔ 200 OK                         | NCTS — NEXT! | YouTube: «NCTS - NEXT!» · TheGoodVibe · 1:44
+phonk     mSMLdxRubPo ✔ 200 OK                         | VØJ, Narvent — Memory Reboot | YouTube: «VØJ, Narvent - Memory Reboot» · Chill Nation · 3:37
+phonk     dJWFUBAUM0E ✔ 200 OK                         | Narvent — Fainted | YouTube: «Narvent - Fainted (4K Music Video)» · Narvent · 4:11
+phonk     _G0zUqdDdoo ✔ 200 OK                         | ZWE1HVNDXR, yatashigang — LOVELY BASTARDS | YouTube: «ZWE1HVNDXR, yatashigang - LOVELY BASTARDS» · ZWE1HVNDXR · 1:57
+phonk     OVh0bMNSFss ✔ 200 OK                         | g3ox_em — GigaChad Theme (Phonk House Version) | YouTube: «g3ox_em - GigaChad Theme (Phonk House Version)» · g3ox_em · 2:27
+phonk     qlzcHe_gusE ✔ 200 OK                         | Eternxlkz — SLAY! | YouTube: «Eternxlkz - SLAY! (Official Audio)» · Eternxlkz · 1:48
+phonk     szJn6ayPv-4 ✔ 200 OK                         | Eternxlkz — BRODYAGA FUNK | YouTube: «Eternxlkz - BRODYAGA FUNK (Official Audio)» · Eternxlkz · 2:16
+phonk     dJM5DN1mMls ✔ 200 OK                         | LXNGVX — Montagem Mysterious Game | YouTube: «LXNGVX - Montagem Mysterious Game (Official Music)» · LXNGVX · 1:44
+phonk     jqbSVBS1x0w ✔ 200 OK                         | ONIMXRU, SMITHMANE — SHADOW | YouTube: «ONIMXRU x SMITHMANE "SHADOW"» · PHONK DOMAIN · 2:43
+phonk     EYaP4h6njtI ✔ 200 OK                         | MXZI — MONTAGEM TOMADA | YouTube: «MONTAGEM TOMADA (Official Visualiser)» · MXZI · 1:12
+phonk     FHWgDichnMo ✔ 200 OK                         | SXMPRA — COWBELL WARRIOR! | YouTube: «SXMPRA - COWBELL WARRIOR! (prod. SXMPRA)» · ＴＲＡＳＨ 新 ドラゴン · 2:30
+phonk     NS8DPG62Fto ✔ 200 OK                         | KSLV Noh — Override | YouTube: «KSLV - Override» · KSLV · 1:55
+phonk     pVjdMQ_iAh0 ✔ 200 OK                         | Night Lovell — Polozhenie | YouTube: «Night Lovell - Polozhenie» · GANGSTER GANG · 2:41
+phonk     PgF29M69QXg ✔ 200 OK                         | Bibi Babydoll, DJ Brunin XM — Automotivo Bibi Fogosa | YouTube: «Bibi Babydoll e DJ Brunin XM - Automotivo Bibi Fogosa (Clipe Oficial)» · Love Funk · 2:31
+phonk     uzHgK4kgZSk ✔ 200 OK                         | sma$her, MC DA$ILVA — BAILA LENTO | YouTube: «sma$her & MC DA$ILVA - BAILA LENTO 💫 BRAZILIAN FUNK PHONK» · Mid9PHONK · 1:25
+phonk     aAiAu3-rNEg ✔ 200 OK                         | Teriyaki Boyz — Tokyo Drift (Fast & Furious) | YouTube: «Teriyaki Boyz - Tokyo Drift [AUDIO]» · TokyoDriftVEVO · 4:18
+lofi      hQ5x8pHoIPA ✔ 200 OK                         | Nujabes — Feather (feat. Cise Starr & Akin) | YouTube: «Nujabes - Feather (feat. Cise Starr & Akin from CYNE) [Official Audio]» · Nujabes · 2:56
+lofi      HkZ8BitJhvc ✔ 200 OK                         | Nujabes — Aruarian Dance | YouTube: «Nujabes - Aruarian Dance (Samurai Champloo OST) . Track 03» · DIVAZ · 4:11
+lofi      mc_xD6aGV5w ✔ 200 OK                         | Nujabes — Luv(sic) Part 3 (feat. Shing02) | YouTube: «Nujabes - Luv(sic) Part 3 feat.Shing02 [Official Audio]» · Nujabes · 6:11
+lofi      2wK27xW4OFI ✔ 200 OK                         | Nujabes — Reflection Eternal | YouTube: «Nujabes - reflection eternal [Official Audio]» · Nujabes · 4:18
+lofi      IXa0kLOKfwQ ✔ 200 OK                         | Nujabes — Counting Stars | YouTube: «Nujabes  - Counting Stars  [Official Audio]» · Nujabes · 4:08
+lofi      R5dphZnPb9A ✔ 200 OK                         | Nujabes — Lady Brown (feat. Cise Starr) | YouTube: «Nujabes - Lady Brown (feat. Cise Starr from CYNE) [Official Audio]» · Nujabes · 3:20
+lofi      GDCblg3XAOQ ✔ 200 OK                         | Nujabes — Shiki no Uta (feat. MINMI) | YouTube: «Nujabes - Shiki No Uta (feat. MINMI)» · Uni Ears · 5:01
+lofi      AULG4MoYxQk ✔ 200 OK                         | DJ Okawari — Flower Dance | YouTube: «DJ Okawari - Flower Dance - 2010» · Bob42jh · 4:24
+lofi      6jGPypPNEg4 ✔ 200 OK                         | Jinsang — affection | YouTube: «jinsang - affection.» · 1171dominoV2 · 2:01
+lofi      3_eD_QOTv-U ✔ 200 OK                         | idealism — controlla | YouTube: «Idealism - Controlla» · Ikigai · 1:47
+lofi      o2k1OckoOso ✔ 200 OK                         | idealism — snowfall | YouTube: «Idealism - Snowfall» · SOUNDISSTYLE · 2:57
+lofi      XDpoBc8t6gE ✔ 200 OK                         | kudasaibeats — the girl i haven't met | YouTube: «kudasaibeats - the girl i haven't met» · Ikigai · 3:16
+lofi      c8kVMGWDO4w ✔ 200 OK                         | Tomppabeats — Monday Loop | YouTube: «Tomppabeats - Monday Loop» · AnimeVibe · 1:04
+lofi      Bw6wugjLYU0 ✔ 200 OK                         | potsu — i'm closing my eyes (feat. shiloh) | YouTube: «potsu - im closing my eyes (feat. shiloh) / Jocelyn Flores» · College Music · 1:59
+lofi      hNqdxGsbQsA ✔ 200 OK                         | Powfu — death bed (coffee for your head) (feat. beabadoobee) | YouTube: «Powfu - death bed (feat. Beabadoobee)» · Powfu · 2:54
+lofi      RXLzvo6kvVQ ✔ 200 OK                         | LAKEY INSPIRED — Better Days | YouTube: «LAKEY INSPIRED - Better Days» · LAKEY INSPIRED · 3:28
+lofi      3HjG1Y4QpVA ✔ 200 OK                         | LAKEY INSPIRED — Chill Day | YouTube: «LAKEY INSPIRED - Chill Day» · LAKEY INSPIRED · 3:06
+lofi      p56gqDhUYbU ✔ 200 OK                         | Joakim Karud — Dreams | YouTube: «Joakim Karud - Dreams» · Lofi Hub Records · 3:11
+lofi      jxpEdiB6U88 ✔ 200 OK                         | Joakim Karud — Canals | YouTube: «Joakim Karud - Canals» · jamutka3 · 2:35
+lofi      wbysDvxmgd0 ✔ 200 OK                         | saib. — West Lake | YouTube: «saib. - West Lake» · Chillhop Music · 4:19
+lofi      GmOlqcVj7Lk ✔ 200 OK                         | saib. — Sakura Trees | YouTube: «saib. - Sakura Trees» · Axian · 1:42
+lofi      B_GIjw6-VLM ✔ 200 OK                         | Kina — Can We Kiss Forever? (feat. Adriana Proenza) | YouTube: «Kina - Can We Kiss Forever? (feat. Adriana Proenza)» · Kina · 3:11
+lofi      P-QutKCENEs ✔ 200 OK                         | Kina — get you the moon (feat. Snow) | YouTube: «Kina - get you the moon (feat. Snow)» · Kina · 3:00
+lofi      0XZJ5mD6nSU ✔ 200 OK                         | In Love With A Ghost — we've never met but can we have a coffee or something | YouTube: «in love with a ghost | we've never met but, can we have a coffee or something?» · In Love With A Ghost (InLoveWithAGhost) · 3:19
+lofi      EfgAd6iHApE ✔ 200 OK                         | FKJ — Ylang Ylang | YouTube: «FKJ - Ylang Ylang» · Fkj · 3:34
+lofi      4QLYXPto0w4 ✔ 200 OK                         | Tom Misch — Beautiful Escape (feat. Zak Abel) | YouTube: «Tom Misch - Beautiful Escape (feat. Zak Abel) [Official Audio]» · Tom Misch · 4:37
+lofi      7ZguAEoNpZw ✔ 200 OK                         | L'Indécis — Soulful | YouTube: «L'indécis - Soulful» · Chillhop Music · 3:41
+lofi      1P5BSm_oFJg ✔ 200 OK                         | Lofi Girl — Snowman | YouTube: «Lofi Girl - Snowman (Music Video)» · Lofi Girl · 3:16
+lofi      NHn-G_YpQB0 ✔ 200 OK                         | J Dilla — Don't Cry | YouTube: «J Dilla - Don't Cry» · Stones Throw · 2:00
+lofi      rbhpjuEAz8M ✔ 200 OK                         | Mounika. — Cut My Hair (feat. Cavetown) | YouTube: «Mounika. feat Cavetown - Cut My Hair» · Mounika. · 2:08
+lofi      Xo3ez6LThQ4 ✔ 200 OK                         | Aso — Seasons | YouTube: «Aso - Seasons» · MrSuicideSheep · 4:17
+lofi      S0Q4gqBUs7c ✔ 200 OK                         | Bonobo — Kerala | YouTube: «Bonobo - Kerala (Official Audio)» · Bonobo · 4:04
+lofi      VZBrZV3nHAA ✔ 200 OK                         | Tycho — Awake | YouTube: «Tycho - Awake» · Ghostly International · 4:44
+lofi      TwDOa-lvizM ✔ 200 OK                         | Nightmares on Wax — You Wish | YouTube: «Nightmares on Wax - You Wish» · NightmaresonWaxVEVO · 3:31
+lofi      QRgPIbSX1mg ✔ 200 OK                         | Emancipator — Soon It Will Be Cold Enough to Build Fires | YouTube: «Emancipator - Soon It will Be Cold Enough to Build Fires» · pops4beats · 3:37
+rock      fJ9rUzIMcZQ ✔ 200 OK                         | Queen — Bohemian Rhapsody | YouTube: «Queen – Bohemian Rhapsody (Official Video Remastered)» · Queen Official · 6:00
+rock      HgzGwKwLmgM ✔ 200 OK                         | Queen — Don't Stop Me Now | YouTube: «Queen - Don't Stop Me Now (Official Video Remastered 4K)» · Queen Official · 3:35
+rock      -tJYN-eG1zk ✔ 200 OK                         | Queen — We Will Rock You | YouTube: «Queen - We Will Rock You (Official Video)» · Queen Official · 2:15
+rock      zjx0D1Ivy-Q ✔ 200 OK                         | AC/DC — Back In Black | YouTube: «AC/DC - Back In Black» · mike blickerz · 4:17
+rock      qKggnBh2Mdw ✔ 200 OK                         | AC/DC — Highway to Hell | YouTube: «AC/DC - Highway to Hell» · Stephen McElvain · 3:29
+rock      VcByktP-mdE ✔ 200 OK                         | AC/DC — Thunderstruck | YouTube: «ACDC - Thunderstruck» · steve van der staaij · 5:01
+rock      D2gWc5Sw75w ✔ 200 OK                         | Guns N' Roses — Sweet Child O' Mine | YouTube: «Guns N' Roses - Sweet Child O' Mine» · Rock And Metal Tv · 5:55
+rock      _20nkqX8rps ✔ 200 OK                         | Guns N' Roses — Welcome To The Jungle | YouTube: «Guns N' Roses - Welcome to the Jungle (Lossless)» · Caner Mehtap · 4:34
+rock      JyGNABrosb8 ✔ 200 OK                         | Nirvana — Smells Like Teen Spirit | YouTube: «Nirvana - Smells Like Teen Spirit [Nevermind] [HQ Sound]» · Lucatone18 · 5:02
+rock      rcq_mlS1DAU ✔ 200 OK                         | Bon Jovi — It's My Life | YouTube: «Bon Jovi - It's My Life HD HQ AUDIO» · iUploadCoz iLove · 3:48
+rock      2ognf_oRQWM ✔ 200 OK                         | Bon Jovi — Livin' On A Prayer | YouTube: «Bon Jovi - Livin' On A Prayer» · RockHype · 4:23
+rock      eVTXPUF4Oz4 ✔ 200 OK                         | Linkin Park — In The End | YouTube: «In The End [Official HD Music Video] - Linkin Park» · Linkin Park · 3:39
+rock      kXYiU_JCYtU ✔ 200 OK                         | Linkin Park — Numb | YouTube: «Numb (Official Music Video) [4K UPGRADE] – Linkin Park» · Linkin Park · 3:08
+rock      yVLRhZiZ5Wc ✔ 200 OK                         | The Killers — Mr. Brightside | YouTube: «The Killers  - Mr  Brightside - 4K UHD! (official music video Upscaled to 4K)» · Rock Preservation Society · 3:48
+rock      Soa3gO7tL-c ✔ 200 OK                         | Green Day — Boulevard Of Broken Dreams | YouTube: «Green Day - Boulevard Of Broken Dreams [Official Music Video] [4K Upgrade]» · Green Day · 4:48
+rock      Ee_uujKuJMI ✔ 200 OK                         | Green Day — American Idiot | YouTube: «Green Day - American Idiot [Official Music Video] [4K Upgrade]» · Green Day · 3:02
+rock      8DyziWtkfBw ✔ 200 OK                         | Red Hot Chili Peppers — Can't Stop | YouTube: «Red Hot Chili Peppers - Can't Stop [Official Music Video]» · Red Hot Chili Peppers · 4:38
+rock      YlUKcNNmywk ✔ 200 OK                         | Red Hot Chili Peppers — Californication | YouTube: «Red Hot Chili Peppers - Californication (Official Music Video) [HD UPGRADE]» · Red Hot Chili Peppers · 5:22
+rock      0J2QdDbelmY ✔ 200 OK                         | The White Stripes — Seven Nation Army | YouTube: «The White Stripes - Seven Nation Army (Official Music Video)» · The White Stripes · 3:59
+rock      m4OnAwaDVTE ✔ 200 OK                         | Foo Fighters — The Pretender | YouTube: «Foo Fighters - The Pretender» · Foo Fighters · 4:29
+rock      H2ew6ayIQYw ✔ 200 OK                         | Survivor — Eye Of The Tiger | YouTube: «Survivor - Eye Of The Tiger (Vocal Intro).wmv» · TheTarekmounir · 5:06
+rock      fBMtQDUAjno ✔ 200 OK                         | Europe — The Final Countdown | YouTube: «Europe - Final Countdown (HQ)» · benandersonscfc · 5:07
+rock      Q2FzZSBD5LE ✔ 200 OK                         | Deep Purple — Smoke On The Water | YouTube: «Deep Purple - Smoke On the Water (Official Music Video)» · Deep Purple Official · 6:15
+rock      CD-E-LDc384 ✔ 200 OK                         | Metallica — Enter Sandman | YouTube: «Metallica: Enter Sandman (Official Music Video)» · Metallica · 5:31
+rock      UpEQPNboFFM ✔ 200 OK                         | KISS — I Was Made For Lovin' You | YouTube: «KISS - I was made for loving you ; sub esp» · GONTIEL · 4:33
+rock      54BCLYNkFKg ✔ 200 OK                         | Aerosmith — Dream On | YouTube: «Dream On Aerosmith Official Music Video» · METALinYOURface1 · 4:52
+rock      JixFMKqQU5w ✔ 200 OK                         | Evanescence — Bring Me To Life | YouTube: «Evanescence - Bring Me To Life (Remastered 2023) - Official Visualizer» · Evanescence · 3:57
+rock      27G-wokE3TQ ✔ 200 OK                         | System Of A Down — Chop Suey! | YouTube: «System Of A Down - Chop Suey» · blackheartedsoab · 3:31
+rock      bpOSxM0rNPM ✔ 200 OK                         | Arctic Monkeys — Do I Wanna Know? | YouTube: «Arctic Monkeys - Do I Wanna Know? (Official Video)» · Official Arctic Monkeys · 4:26
+rock      RRKJiM9Njr8 ✔ 200 OK                         | My Chemical Romance — Welcome To The Black Parade | YouTube: «My Chemical Romance - Welcome To The Black Parade [Official Music Video] [HD]» · My Chemical Romance · 5:15
+rock      G6TxoU_RjjQ ✔ 200 OK                         | blink-182 — All The Small Things | YouTube: «blink-182 - All The Small Things» · blink182VEVO · 2:47
+rock      6hzrDeceEKc ✔ 200 OK                         | Oasis — Wonderwall | YouTube: «Oasis - Wonderwall (Official Video)» · Oasis · 4:40
+rock      Er5S7Jq4V2c ✔ 200 OK                         | The Rolling Stones — Paint It, Black | YouTube: «The Rolling Stones - Paint It, Black (आधिकारिक हिंदी लिरिक वीडियो)» · ABKCOVEVO · 3:47
+rock      -XIeMp4zQC4 ✔ 200 OK                         | Soda Stereo — De Música Ligera (en vivo) | YouTube: «SODA STEREO - De musica ligera en vivo» · sodastereoficial · 4:25
+rock      hReAuaAuJOE ✔ 200 OK                         | Enanitos Verdes — Lamento Boliviano | YouTube: «Los Enanitos Verdes - Lamento Boliviano» · EnanitosVerdesVEVO · 3:45
+latino    CCF1_jI8Prk ✔ 200 OK                         | Daddy Yankee — Gasolina | YouTube: «Daddy Yankee - Gasolina (Video Oficial)» · Daddy Yankee · 4:14
+latino    AX9WpXYSlW8 ✔ 200 OK                         | Daddy Yankee — Rompe | YouTube: «Daddy Yankee - Rompe (Vídeo) [Clásico Reggaetonero]» · Clásico Reggaetonero · 3:15
+latino    jlFeOzXvI7g ✔ 200 OK                         | Daddy Yankee — Limbo | YouTube: «Daddy Yankee - Limbo (Audio Oficial)» · Daddy Yankee · 3:45
+latino    8MpVPbN3_eE ✔ 200 OK                         | Daddy Yankee — Lo Que Pasó, Pasó | YouTube: «Daddy Yankee | 08. Lo que Pasó Pasó - Barrio Fino (Bonus Track Version) (Audio Oficial)» · Daddy Yankee · 3:31
+latino    DiItGE3eAyQ ✔ 200 OK                         | Daddy Yankee — Con Calma (ft. Snow) | YouTube: «Daddy Yankee & Snow - Con Calma (Video Oficial)» · Daddy Yankee · 3:31
+latino    YPlZ-nJewRE ✔ 200 OK                         | Don Omar — Danza Kuduro (ft. Lucenzo) | YouTube: «Fast Five - Don Omar Ft. Lucenzo - Danza Kuduro.mp4» · Wonderland · 3:28
+latino    zODmu06pqvg ✔ 200 OK                         | Don Omar — Dile | YouTube: «Don Omar | Dile (Video Oficial )» · Don Omar · 3:56
+latino    Poj-wkGgFpM ✔ 200 OK                         | Don Omar — Salió El Sol | YouTube: «Don Omar — Salió El Sol [Letra]» · armxndo · 5:36
+latino    JR9UC9l2WW4 ✔ 200 OK                         | Don Omar — Pobre Diabla | YouTube: «Don Omar | Pobre Diabla (Video Oficial) ❌» · Don Omar · 4:54
+latino    xk-26ENyaXk ✔ 200 OK                         | Wisin & Yandel — Rakata | YouTube: «Rakata - Wisin y Yandel» · Angel Estrada · 5:00
+latino    98LvKxivi7s ✔ 200 OK                         | Wisin & Yandel — Abusadora | YouTube: «Wisin & Yandel - Abusadora» · Wisin & Yandel Fans · 3:01
+latino    QtaNx_lQbLA ✔ 200 OK                         | Tego Calderón — Pa' Que Retozen | YouTube: «Pa' Que Retozen - Tego Calderon» · Latin Soundwaves · 2:39
+latino    ykj61GLeVz4 ✔ 200 OK                         | Ivy Queen — Quiero Bailar | YouTube: «Ivy Queen - Yo Quiero Bailar     ORIGINAL  [!!!]» · parodiamix · 3:11
+latino    gcOknZbStOY ✔ 200 OK                         | Calle 13 — Atrévete-te-te | YouTube: «Calle 13 - Atrévete-te-te» · calle13official · 3:54
+latino    _yIRcn2EDVQ ✔ 200 OK                         | Zion & Lennox — Yo Voy (ft. Daddy Yankee) | YouTube: «Yo Voy a Ti - Zion y Lennox Ft. Daddy Yankee (Motivando la Yal) [Audio]» · Zion & Lennox · 3:52
+latino    2bHBUs-k3ac ✔ 200 OK                         | Luis Fonsi — Despacito (ft. Daddy Yankee) | YouTube: «Luis Fonsi Despacito ft. Daddy Yankee (audio)» · Luis Fonsi · 3:49
+latino    hXI8RQYC36Q ✔ 200 OK                         | Nicky Jam & Enrique Iglesias — El Perdón | YouTube: «21. El Perdón - Nicky Jam y Enrique Iglesias  (Official Music Video YTMAs)» · NickyJamTV · 3:47
+latino    OxxggwHFj7M ✔ 200 OK                         | Nicky Jam — Travesuras | YouTube: «Travesuras - Nicky Jam | Video Oficial» · NickyJamTV · 4:35
+latino    yBDJjR5WF1E ✔ 200 OK                         | Héctor & Tito — Baila Morena | YouTube: «Baila Morena - Hector & Tito ft  Don Omar» · Hector & Tito · 2:55
+latino    UeFC_9oGqWg ✔ 200 OK                         | Los Palmeras — Bombón Asesino | YouTube: «LOS PALMERAS BOMBON ASESINO» · Anonimus Musik · 3:25
+latino    jKgCg4cAVcw ✔ 200 OK                         | Damas Gratis — Se Te Ve La Tanga | YouTube: «Damas Gratis - Laura se te ve la tanga │ Video Clip Oficial» · TropicalisimaTV · 4:22
+latino    Qpr5pWLlQmc ✔ 200 OK                         | Los Pibes Chorros — Llegamos Los Pibes Chorros | YouTube: «Los Pibes Chorros - Llegamos los pibes chorros │ Video Lyric» · Los Pibes Chorros · 3:47
+latino    8iUkmnLc1ec ✔ 200 OK                         | Gilda — No Me Arrepiento De Este Amor | YouTube: «Gilda - No me Arrepiento de este Amor (Video Oficial)» · CumbiaTube · 3:43
+latino    vmVtgmgLPzw ✔ 200 OK                         | Rodrigo — La Mano De Dios | YouTube: «Rodrigo Bueno - La mano de Dios │ HOMENAJE DIEGO MARADONA 2021» · Rodrigo Bueno El Potro - Oficial · 5:45
+latino    qjZpTzFIcSw ✔ 200 OK                         | Rodrigo — Lo Mejor Del Amor (en vivo) | YouTube: «El Potro Rodrigo Bueno - Lo mejor del amor - Recital CM Vivo 2000» · Rodrigo Bueno El Potro - Oficial · 4:37
+latino    MP_CeJ6OqLw ✔ 200 OK                         | Los Ángeles Azules — Cómo Te Voy A Olvidar (ft. Kinky) | YouTube: «Los Ángeles Azules - Cómo Te Voy a Olvidar ft. Kinky» · LosAngelesAzulesVEVO · 4:32
+latino    k76BgIb89-s ✔ 200 OK                         | Los Ángeles Azules — Nunca Es Suficiente (ft. Natalia Lafourcade) | YouTube: «Los Ángeles Azules - Nunca Es Suficiente ft. Natalia Lafourcade (Live)» · LosAngelesAzulesVEVO · 4:47
+latino    E-Z6HiG0Eww ✔ 200 OK                         | Grupo Néctar — El Arbolito | YouTube: «Grupo Nectar - El Arbolito» · Grupo Nectar · 3:31
+latino    jsCr8nw0YAY ✔ 200 OK                         | Ráfaga — Mentirosa | YouTube: «Ráfaga - Mentirosa | Lyrics Video Oficial» · Grupo Rafaga · 3:16
+latino    JAIp5fPqlcE ✔ 200 OK                         | Antonio Ríos — Nunca Me Faltes | YouTube: «Antonio Rios - Nunca Me Faltes Argentina (Videoclip Oficial)» · Antonio Rios · 5:13
+latino    gZKYxtDHymc ✔ 200 OK                         | Los Wachiturros — Tírate Un Paso | YouTube: «Los Wachiturros - Tírate Un Paso (Video Oficial)» · Los Wachiturros · 3:06
+latino    MOXcXy3fxAQ ✔ 200 OK                         | Amar Azul — Yo Me Enamoré | YouTube: «Amar Azul - Yo Me Enamoré» · loskumbieros · 3:08
+latino    3RDSrFCy-Wk ✔ 200 OK                         | Rombai — Noche Loca (ft. Márama) | YouTube: «Rombai Ft Marama - Noche Loca (Video Oficial)» · Montevideo Music Group · 3:32
+latino    GJDzHdzX8j0 ✔ 200 OK                         | La Sonora Dinamita — Que Nadie Sepa Mi Sufrir | YouTube: «Que nadie sepa mi sufrir - Sonora Dinamita de Lucho Argaín y Elsa López en la Z» · La Sonora Dinamita · 4:07
+latino    k0jjy2sUjQ0 ✔ 200 OK                         | Celso Piña — Cumbia Sobre El Río | YouTube: «Celso Piña - Cumbia Sobre El Río (Video con Letra)» · Warner Music México · 5:43
+synthwave MV_3Dpw-BRY ✔ 200 OK                         | Kavinsky — Nightcall | YouTube: «Kavinsky - Nightcall (Drive Original Movie Soundtrack) (Official Audio)» · Record Makers · 4:17
+synthwave OSW2zeM3yLU ✔ 200 OK                         | Kavinsky — Odd Look (ft. The Weeknd) | YouTube: «Kavinsky - Odd Look (ft. The Weeknd) (Official Audio)» · Record Makers · 4:13
+synthwave 41_svUt5_e0 ✔ 200 OK                         | Kavinsky — Protovision | YouTube: «Kavinsky - Protovision» · KavinskyVEVO · 3:08
+synthwave ErQNRwH-Hmk ✔ 200 OK                         | Kavinsky — Testarossa Autodrive | YouTube: «Kavinsky - Testarossa Autodrive (Official Video)» · Record Makers · 2:07
+synthwave URma_gu1aNE ✔ 200 OK                         | The Midnight — Sunset | YouTube: «The Midnight - Sunset (Official Audio)» · The Midnight · 5:27
+synthwave UiSB2Fbw9gs ✔ 200 OK                         | The Midnight — Days Of Thunder | YouTube: «The Midnight - Days of Thunder» · The Midnight · 5:13
+synthwave TvZskcqdYcE ✔ 200 OK                         | FM-84 — Running In The Night (feat. Ollie Wride) | YouTube: «FM-84 - Running In The Night (feat. Ollie Wride) - [OFFICIAL MUSIC VIDEO]» · NewRetroWave · 4:32
+synthwave _Ci0Kgdpgsw ✔ 200 OK                         | Timecop1983 — On the Run | YouTube: «Timecop1983 - On the Run» · Timecop1983 · 5:01
+synthwave -nC5TBv3sfU ✔ 200 OK                         | GUNSHIP — Tech Noir | YouTube: «GUNSHIP - Tech Noir [Official Music Video]» · GUNSHIPMUSIC · 5:19
+synthwave 60ruvzfXQoE ✔ 200 OK                         | GUNSHIP — Dark All Day (feat. Tim Cappello & Indiana) | YouTube: «GUNSHIP - Dark All Day (feat. Tim Cappello and Indiana) [Official Music Video]» · GUNSHIPMUSIC · 5:42
+synthwave Jv1ZN8c4_Gs ✔ 200 OK                         | GUNSHIP — Fly For Your Life | YouTube: «GUNSHIP - Fly For Your Life [Official Music Video]» · GUNSHIPMUSIC · 4:49
+synthwave RY66fdMt4vc ✔ 200 OK                         | Perturbator — Future Club | YouTube: «Perturbator - "Future Club" [Dangerous Days Premiere - 2014]» · BlooodMusic · 4:50
+synthwave Y8DekFFCE5c ✔ 200 OK                         | Perturbator — Humans Are Such Easy Prey | YouTube: «Perturbator - "Humans Are Such Easy Prey" ["Dangerous Days" Official]» · BlooodMusic · 4:23
+synthwave er416Ad3R1g ✔ 200 OK                         | Carpenter Brut — Turbo Killer | YouTube: «† Carpenter Brut † TURBO KILLER † Directed by Seth Ickerman † Official Video †» · Carpenter Brut · 4:15
+synthwave qFfybn_W8Ak ✔ 200 OK                         | Carpenter Brut — Roller Mobster | YouTube: «Carpenter Brut - Roller Mobster» · Carpenter Brut · 3:37
+synthwave x1NAhlVRaZ4 ✔ 200 OK                         | Lazerhawk — Overdrive | YouTube: «Lazerhawk - Overdrive» · neros77 · 4:35
+synthwave -DSVDcw6iW8 ✔ 200 OK                         | College & Electric Youth — A Real Hero | YouTube: «College & Electric Youth - A Real Hero (Drive Original Movie Soundtrack)» · Valerie Records · 4:28
+synthwave zvnCO9lAMEo ✔ 200 OK                         | Electric Youth — Runaway | YouTube: «Electric Youth - “Runaway" (Official Video)» · ElectricYouthVEVO · 5:03
+synthwave MEtdyn2QEzA ✔ 200 OK                         | Power Glove — Blood Dragon Theme | YouTube: «Far Cry 3: Blood Dragon OST - Blood Dragon Theme (Track 02)» · Ubisoft Music · 3:06
+synthwave rDBbaGCCIhk ✔ 200 OK                         | Miami Nights 1984 — Accelerated | YouTube: «Miami Nights 1984 - Accelerated» · NewRetroWave · 3:55
+synthwave o6ytLPKscrU ✔ 200 OK                         | The Weeknd — Blinding Lights | YouTube: «The Weeknd - Blinding Lights (Official Lyric Video)» · The Weeknd · 3:24
+synthwave F4eccPBFEjE ✔ 200 OK                         | Daft Punk — Derezzed | YouTube: «Daft Punk- Derezzed (OFFICIAL TRACK)(FULL SONG)(HQ)(2010)TRON SOUNDTRACK» · Raulieee · 4:11
+synthwave T7c6wL5UFl4 ✔ 200 OK                         | Jan Hammer — Crockett's Theme | YouTube: «Jan Hammer - Crockett's Theme (Miami Vice)  [OFFICIAL VIDEO]» · Jan Hammer · 3:29
+synthwave Qx2gvHjNhQ0 ✔ 200 OK                         | Harold Faltermeyer — Axel F | YouTube: «Harold Faltermeyer - Axel F (1984) Beverly Hills﻿ Cop - Soundtrack» · DiscoBar80 · 3:00
+synthwave xs9_uU18Bt4 ✔ 200 OK                         | HOME — Resonance | YouTube: «Home - Resonance (Remastered) (Official Audio)» · HomeMusicVEVO · 3:33
+synthwave zR6fECxF44I ✔ 200 OK                         | HOME — We're Finally Landing | YouTube: «Home - We're Finally Landing» · Doomed · 4:33
+synthwave AVblOqZBlJw ✔ 200 OK                         | M.O.O.N. — Crystals | YouTube: «M.O.O.N. - 'Crystals' [Hotline Miami Soundtrack]» · S G · 4:50
+synthwave SNE2oCZH_4k ✔ 200 OK                         | M.O.O.N. — Hydrogen | YouTube: «M.O.O.N. - 'Hydrogen' [Hotline Miami Soundtrack]» · S G · 4:51
+synthwave ksctj-OTpEY ✔ 200 OK                         | Jasper Byrne — Miami | YouTube: «Jasper Byrne - Miami» · tropicavintage · 3:20
+synthwave 9K7rmxjk5RQ ✔ 200 OK                         | Desire — Under Your Spell | YouTube: «Desire - Under Your Spell» · The Prismer · 5:00
+synthwave vWD7k6TrJ-g ✔ 200 OK                         | Chromatics — Tick Of The Clock | YouTube: «Chromatics - Tick Of The Clock» · Hey Shmoley! · 4:49
+synthwave q3lpoGABH6A ✔ 200 OK                         | Dance With The Dead — Andromeda | YouTube: «DANCE WITH THE DEAD - Andromeda» · dancewiththedead · 5:01
+synthwave k4lt3DO2Xt4 ✔ 200 OK                         | Michael Oakley — Turn Back Time | YouTube: «Michael Oakley - Turn Back Time (Official Music Video)» · Michael Oakley · 5:18
+synthwave Ak1-qLbHHCM ✔ 200 OK                         | Dynatron — Pulse Power | YouTube: «Dynatron - Pulse Power» · Aphasia Records · 6:00
+synthwave QIdnJhuiQo8 ✔ 200 OK                         | Com Truise — Propagation | YouTube: «Com Truise - Propagation» · Ghostly International · 4:12
+epica     P1DH8LraXDA ✔ 200 OK                         | Two Steps From Hell — Heart of Courage | YouTube: «Two Steps From Hell - Heart of Courage» · Two Steps From Hell · 1:59
+epica     hKRUPYrAQoE ✔ 200 OK                         | Two Steps From Hell — Victory | YouTube: «Two Steps From Hell - Victory» · Two Steps From Hell · 5:29
+epica     x5Q_TSNk-p4 ✔ 200 OK                         | Two Steps From Hell — Protectors of the Earth | YouTube: «Two Steps From Hell - Protectors of the Earth (Invincible)» · Two Steps From Hell · 2:52
+epica     mLUguXpUIb0 ✔ 200 OK                         | Two Steps From Hell — Archangel | YouTube: «Two Steps From Hell - Archangel (Voice)(Choir) (Archangel)» · Two Steps From Hell · 2:37
+epica     pICAha0nsb0 ✔ 200 OK                         | Two Steps From Hell — Star Sky | YouTube: «Two Steps From Hell - Star Sky» · Two Steps From Hell · 5:35
+epica     jIxas0a-KgM ✔ 200 OK                         | Two Steps From Hell — Strength of a Thousand Men | YouTube: «Two Steps From Hell - Strength of a Thousand Men (Archangel)» · Two Steps From Hell · 2:20
+epica     qiB98Wbsdlo ✔ 200 OK                         | Two Steps From Hell — El Dorado | YouTube: «Two Steps From Hell - El Dorado (SkyWorld)» · Two Steps From Hell · 4:21
+epica     HPe4G9BiIc4 ✔ 200 OK                         | Two Steps From Hell — Black Blade | YouTube: «Two Steps From Hell - Black Blade (Invincible)» · Two Steps From Hell · 3:06
+epica     YP1QHVNHMAE ✔ 200 OK                         | Two Steps From Hell — Freedom Fighters | YouTube: «Two Steps From Hell - Freedom Fighters (Invincible)» · Two Steps From Hell · 2:30
+epica     vbttZVTSJRU ✔ 200 OK                         | Two Steps From Hell — Blackheart | YouTube: «Two Steps From Hell - Blackheart (SkyWorld)» · Two Steps From Hell · 4:33
+epica     6qTghUgMOeY ✔ 200 OK                         | Two Steps From Hell — Impossible (feat. Merethe Soltvedt) | YouTube: «Two Steps From Hell - Impossible (feat. Merethe Soltvedt)» · Two Steps From Hell · 8:55
+epica     uZTkg8GGEOo ✔ 200 OK                         | Two Steps From Hell — Never Back Down | YouTube: «Two Steps From Hell - Never Back Down» · Two Steps From Hell · 3:00
+epica     abjE9Qx0O60 ✔ 200 OK                         | Two Steps From Hell — To Glory | YouTube: «Two Steps From Hell - To Glory (Invincible)» · Two Steps From Hell · 4:36
+epica     6db9hrzGhH4 ✔ 200 OK                         | Audiomachine — Breath and Life | YouTube: «Audiomachine - Breath and Life» · Audiomachine · 1:48
+epica     zTXfTX00oJg ✔ 200 OK                         | Audiomachine — Guardians at the Gate | YouTube: «Audiomachine - Guardians at the Gate» · Audiomachine · 2:09
+epica     gou1xZSWchc ✔ 200 OK                         | Audiomachine — Akkadian Empire | YouTube: «Audiomachine - Akkadian Empire» · Audiomachine · 1:22
+epica     BAzCf0ascW8 ✔ 200 OK                         | Thomas Bergersen — Final Frontier | YouTube: «Thomas Bergersen - Final Frontier (Interstellar Trailer #3 Music)» · Two Steps From Hell · 4:45
+epica     YY2Kb-85tMQ ✔ 200 OK                         | Thomas Bergersen — Cry | YouTube: «Thomas Bergersen - Cry (Sun)» · Two Steps From Hell · 4:09
+epica     o65GSQPRhhw ✔ 200 OK                         | Thomas Bergersen — Immortal | YouTube: «Thomas Bergersen - Immortal» · Two Steps From Hell · 4:08
+epica     VoaUYcwEpSw ✔ 200 OK                         | E.S. Posthumus — Unstoppable | YouTube: «E.S. Posthumus - Unstoppable (single)» · jjhahnjj · 3:08
+epica     HhBHSvxi25k ✔ 200 OK                         | E.S. Posthumus — Nara | YouTube: «Nara» · OfficialESPosthumus · 4:51
+epica     VoF9HUvYPKs ✔ 200 OK                         | Globus — Preliator | YouTube: «March of the Templars (legenda em latim) - *Globus - Preliator*» · Blood Blade · 3:43
+epica     bHPYOcgde98 ✔ 200 OK                         | Immediate Music — Lacrimosa | YouTube: «'Lacrimosa (Choir)' - Immediate Music» · adhardehadres · 2:17
+epica     1zlIPDbpX0I ✔ 200 OK                         | Ivan Torrent — Before I Leave This World | YouTube: «Ivan Torrent - Before I Leave This World» · Ivan Torrent · 2:50
+epica     T8BI2fKzdys ✔ 200 OK                         | Really Slow Motion — Deadwood | YouTube: «Really Slow Motion - Deadwood (Epic Dark Rock Action)» · Really Slow Motion · 3:14
+epica     RxabLA7UQ9k ✔ 200 OK                         | Hans Zimmer — Time (Inception) | YouTube: «Hans Zimmer - Time (Inception)» · Crisyta · 4:35
+epica     mQQKZ5cgybU ✔ 200 OK                         | Hans Zimmer & Lisa Gerrard — Now We Are Free (Gladiator) | YouTube: «Gladiator • Now We Are Free • Hans Zimmer & Lisa Gerrard» · HD Film Tributes · 4:19
+epica     JuSsvM8B4Jc ✔ 200 OK                         | Hans Zimmer — Cornfield Chase (Interstellar) | YouTube: «Interstellar Official Soundtrack | Cornfield Chase – Hans Zimmer | WaterTower» · WaterTower Music · 2:07
+epica     m3zvVGJrTP8 ✔ 200 OK                         | Hans Zimmer — No Time for Caution (Interstellar) | YouTube: «Hans Zimmer - No Time For Caution (Interstellar Soundtrack)(Docking)(Interstellar OST)» · 711TAC · 4:01
+epica     4HFMEM-cPG8 ✔ 200 OK                         | Klaus Badelt — He's a Pirate (Piratas del Caribe) | YouTube: «Pirates of the Caribbean - "He's a pirate" (Hans Zimmer & Klaus Badelt)» · MusicsSawyer17 · 1:24
+epica     eCemS3f-LDU ✔ 200 OK                         | Ramin Djawadi — Game of Thrones (Main Title) | YouTube: «Game of Thrones S8 Official Soundtrack | Main Title - Ramin Djawadi | WaterTower» · WaterTower Music · 1:52
+epica     0_FHPJIhNBw ✔ 200 OK                         | Steve Jablonsky — Arrival to Earth (Transformers) | YouTube: «Steve Jablonsky - Arrival To Earth (Official Audio)» · RHINO · 5:27
+epica     UsnRQJxanVM ✔ 200 OK                         | Jeremy Soule — Dragonborn (Skyrim) | YouTube: «Skyrim: The Song of the Dragonborn (with lyrics)» · No Time To Grind · 3:57
+epica     LQed7aE9YHQ ✔ 200 OK                         | Howard Shore — Concerning Hobbits (El Señor de los Anillos) | YouTube: «Concerning Hobbits (Howard Shore) - Music Video - Lord of the Rings» · Fitzcarraldo · 2:51
+epica     GXFSK0ogeg4 ✔ 200 OK                         | Carl Orff — O Fortuna (Carmina Burana) | YouTube: «Carl Orff - O Fortuna ~ Carmina Burana» · Beatriz · 5:22
+internet  dQw4w9WgXcQ ✔ 200 OK                         | Rick Astley — Never Gonna Give You Up | YouTube: «Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)» · Rick Astley · 3:34
+internet  y6120QOlsfU ✔ 200 OK                         | Darude — Sandstorm | YouTube: «Darude - Sandstorm» · Darude · 3:53
+internet  TiV2iSLfU0g ✔ 200 OK                         | Smash Mouth — All Star | YouTube: «Smash Mouth - All Star (Lyrics)» · TikTokHymn · 3:20
+internet  djV11Xbc914 ✔ 200 OK                         | a-ha — Take On Me | YouTube: «a-ha - Take On Me (Official Video) [4K]» · a-ha · 4:04
+internet  HEXWRTEbj1I ✔ 200 OK                         | Haddaway — What Is Love | YouTube: «Haddaway - What Is Love (Official 4K Video)» · DECADR · 4:01
+internet  zA52uNzx7Y4 ✔ 200 OK                         | Eiffel 65 — Blue (Da Ba Dee) | YouTube: «Eiffel 65 - Blue (Da Ba Dee)» · malawolf85 · 4:46
+internet  k85mRPqvMbE ✔ 200 OK                         | Crazy Frog — Axel F | YouTube: «Crazy Frog - Axel F (Official Video)» · Crazy Frog · 2:52
+internet  9bZkp7q19f0 ✔ 200 OK                         | PSY — Gangnam Style | YouTube: «PSY - GANGNAM STYLE(강남스타일) M/V» · officialpsy · 4:13
+internet  qV0LHCHf-pE ✔ 200 OK                         | Baauer — Harlem Shake | YouTube: «Baauer - Harlem Shake [Official Audio]» · Mad Decent · 3:17
+internet  YnopHCL1Jk8 ✔ 200 OK                         | O-Zone — Dragostea Din Tei (Numa Numa) | YouTube: «O-Zone - Dragostea Din Tei [Official Video]» · Time Records · 4:46
+internet  PWtQK95CNMQ ✔ 200 OK                         | Ylvis — The Fox (What Does The Fox Say?) | YouTube: «Ylvis - The Fox (What Does The Fox Say ?) (Audio)» · OfficalYlvis VEVO · 3:27
+internet  4nlV6uA1Cw4 ✔ 200 OK                         | Rebecca Black — Friday | YouTube: «Rebecca Black - Friday (Audio)» · RebeccaBlackkVEVO · 3:44
+internet  BHzBNSYtuFw ✔ 200 OK                         | LMFAO — Party Rock Anthem (ft. Lauren Bennett, GoonRock) | YouTube: «LMFAO - Party Rock Anthem (Lyrics) ft. Lauren Bennett, GoonRock» · Aura Serenity · 4:21
+internet  0q6yphdZhUA ✔ 200 OK                         | Eduard Khil — Trololo | YouTube: «Eduard Khil - Trololo Song [HD]» · GoldenApple✔ · 2:46
+internet  BAdLRRbzOv4 ✔ 200 OK                         | Bag Raiders — Shooting Stars | YouTube: «Bag Raiders – Shooting Stars (Official HD Music Video)» · Bag Raiders · 3:47
+internet  iLBBRuVDOo4 ✔ 200 OK                         | Vicetone & Tony Igy — Astronomia (Coffin Dance) | YouTube: «Vicetone & Tony Igy - Astronomia» · Vicetone · 3:19
+internet  EwTZ2xpQwpA ✔ 200 OK                         | Tay Zonday — Chocolate Rain | YouTube: «"Chocolate Rain" Original Song by Tay Zonday» · TayZonday · 4:53
+internet  6-8E4Nirh9s ✔ 200 OK                         | Caramella Girls — Caramelldansen | YouTube: «Caramella Girls - Caramelldansen HD Version (Swedish Original) Official» · Caramella Girls · 2:56
+internet  cE0wfjsybIQ ✔ 200 OK                         | Noisestorm — Crab Rave | YouTube: «Noisestorm - Crab Rave (Official Music Video)» · Noisestorm · 3:13
+internet  KK3KXAECte4 ✔ 200 OK                         | Toby Fox — Megalovania | YouTube: «100. MEGALOVANIA (UNDERTALE Soundtrack) - Toby Fox» · Toby Fox · 2:41
+internet  6Nb-prB-4P0 ✔ 200 OK                         | Aaron Smith — Dancin (Krono Remix) (ft. Luvli) | YouTube: «Aaron Smith - Dancin - Krono Remix (Official Video) ft. Luvli» · AaronSmithVEVO · 4:04
+internet  eZ2PtEx9-ls ✔ 200 OK                         | Daler Mehndi — Tunak Tunak Tun | YouTube: «Tunak Tunak Tun | Daler Mehndi | Full Video | Superhit Punjabi Song» · Daler Mehndi · 4:17
+internet  ThHvx5a9IYA ✔ 200 OK                         | Alstroemeria Records — Bad Apple!! (feat. nomico) | YouTube: «[HD|60FPS] Bad Apple!! [Shadow Art PV]» · YoshiFan (avrilloosing) · 3:40
+internet  yiYOHK1F4cg ✔ 200 OK                         | Boney M. — Rasputin | YouTube: «Boney M. - Rasputin (Disco In The Snow, 09.04.1979)» · BoneyMVEVO · 3:54
+internet  NNaJxMutEIE ✔ 200 OK                         | Max Coveri — Running in the 90s | YouTube: «MAX COVERI / RUNNING IN THE "90S"【頭文字D/INITIAL D】» · avex · 4:52
+internet  UT7O7FyUbxA ✔ 200 OK                         | Dave Rodgers — Deja Vu | YouTube: «DAVE RODGERS / DEJA VU 【頭文字D/INITIAL D】» · avex · 4:26
+internet  atuFSv2bLa8 ✔ 200 OK                         | Manuel — Gas Gas Gas | YouTube: «Manuel - Gas Gas Gas» · musoforlyf · 4:32
+internet  v45YO1zepHg ✔ 200 OK                         | Andrew Gold — Spooky Scary Skeletons | YouTube: «Andrew Gold - Spooky Scary Skeletons (Official Audio)» · Andrew Gold · 2:10
+internet  hqthspSKZV8 ✔ 200 OK                         | Loituma — Ievan Polkka | YouTube: «Loituma "Ievan polkka"» · kantelar · 2:45
+internet  FzG4uDgje3M ✔ 200 OK                         | El Chombo — Dame Tu Cosita (ft. Cutty Ranks) | YouTube: «El Chombo, Dancing Green Alien - Dame Tu Cosita feat. Cutty Ranks (Official Video)» · Ultra Records · 2:33
+internet  0E00Zuayv9Q ✔ 200 OK                         | PIKOTARO — PPAP (Pen-Pineapple-Apple-Pen) | YouTube: «PPAP（Pen-Pineapple-Apple-Pen Official）ペンパイナッポーアッポーペン／PIKOTARO(ピコ太郎)» · PIKOTAROピコ太郎OFFICIAL CHANNEL · 1:09
+internet  ECyeUYsU14E ✔ 200 OK                         | SunStroke Project & Olia Tira — Run Away (Epic Sax Guy) | YouTube: «SunStroke Project & Olia Tira - Run Away - 🇲🇩 Moldova - Official Music Video - Eurovision 2010» · Eurovision Song Contest · 3:02
+internet  MtN1YnoL46Q ✔ 200 OK                         | Bryant Oden — The Duck Song | YouTube: «The Duck Song» · forrestfire101 · 3:12
+internet  U1LB_OerHCE ✔ 200 OK                         | Toto — Africa | YouTube: «Toto - Africa (Lyrics)» · 7clouds · 4:55
+internet  FPXrLLDae2U ✔ 200 OK                         | daniwell — Nyan Cat (feat. Momone Momo) | YouTube: «Nyan Cat - daniwell feat. Momone Momo» · daniwell · 5:19

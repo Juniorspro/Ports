@@ -46,7 +46,8 @@ async function abrir(nom, w, h, movil, o = {}) {
   if (o.antes) await ctx.addInitScript(o.antes);
   const p = await ctx.newPage(); const mios = [];
   p.on('pageerror', (e) => { const t = nom + ': ' + e.message.slice(0, 200); errJS.push(t); mios.push(t); });
-  p.on('console', (m) => { if (m.type() === 'error' && !FUERA.test(m.text())) { const t = nom + ' consola: ' + m.text().slice(0, 200); errJS.push(t); mios.push(t); } });
+  // (lo que escribe en su consola el reproductor de YouTube —la música del menú: musica.js— no es del juego)
+  p.on('console', (m) => { if (m.type() === 'error' && !FUERA.test(m.text()) && !/youtube(-nocookie)?\.com|ytimg\.com|googlevideo\.com/.test((m.location() || {}).url || '')) { const t = nom + ' consola: ' + m.text().slice(0, 200); errJS.push(t); mios.push(t); } });
   if (o.ins) { const cdp = await ctx.newCDPSession(p); await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { left: o.ins, right: 0, top: 0, bottom: 0 } }); }
   const ev = (s) => p.evaluate((x) => window.__ev(x), s);
   await p.goto((o.url || HTML) + '?test' + (o.q || '')); await p.waitForFunction(() => window.__listo, null, { timeout: 240000 });
@@ -352,6 +353,11 @@ const ESTADO = `({ home: RB.home, cl: document.querySelectorAll('.clHome, .clIt,
   objs: OBJS.length, pers: PERS.length, mundo: MUNDO.nombre, enMenu: !!EVT.enMenu, pausa: PAUSA.on, clases: RB.el.className, depListo: !!DEP.listo, rbp: RBP.alListo.length, lobby: !!MENU.lobby })`;
 // la foto de un menú para comparar: el fondo quieto y lo animado terminado
 async function foto(A, cual) {
+  // (la placa de la música —musica.js— dice la canción que suena, que cambia: no entra en la comparación)
+  await A.ev(`(() => { if (!document.getElementById('sinMusica')) { const s = document.createElement('style'); s.id = 'sinMusica'; s.textContent = '#rbInicio .musChip{visibility:hidden!important}'; document.head.appendChild(s); } return 1; })()`);
+  try { return await foto0(A, cual); } finally { await A.ev(`(() => { const s = document.getElementById('sinMusica'); if (s) s.remove(); return 1; })()`); }
+}
+async function foto0(A, cual) {
   // (en el depósito, la capa de la página —las chapas, los botones—: la escena 3D se compara por el lugar de cada caja y la
   // cámara; el cielo, las nubes y la grieta se mueven con el reloj y una foto de ahora nunca es igual a una de antes)
   if (cual === 'deposito') { await A.ev(`R.cv.style.visibility = 'hidden', 1`); await A.p.mouse.move(2, 2); await A.p.waitForTimeout(400); const f = (await A.p.screenshot()).toString('base64'); await A.ev(`R.cv.style.visibility = '', 1`); return f; }

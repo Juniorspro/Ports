@@ -43,7 +43,7 @@ const MEDIR_CL = `(() => {
   const bt = [...el.querySelectorAll('button, input')].filter(vis).filter((e) => !e.parentElement.closest('button')).map((e) => ({ k: e.dataset.rb || e.id, ...r(e) }));
   for (let i = 0; i < bt.length; i++) for (let j = i + 1; j < bt.length; j++) if (pisa(bt[i], bt[j], -1)) probs.push(bt[i].k + ' × ' + bt[j].k);
   const chicos = bt.filter((e) => Math.min(e.x1 - e.x0, e.y1 - e.y0) < 43.5).map((e) => e.k + ' ' + Math.round(e.x1 - e.x0) + '×' + Math.round(e.y1 - e.y0));
-  const letras = [...el.querySelectorAll('.clTx, .clChip span, .clChip input, .clVer span, .clVer b, .clVer i, .clEvt span, .clEvt b')].filter(vis).map((e) => ({ t: (e.textContent || e.value).trim(), f: parseFloat(getComputedStyle(e).fontSize) }));
+  const letras = [...el.querySelectorAll('.clTx, .clChip span, .clChip input, .clVer span, .clVer b, .clVer i, .clEvt span, .clEvt b')].filter(vis).map((e) => ({ t: (e.textContent || e.value || '').trim(), f: parseFloat(getComputedStyle(e).fontSize) }));
   const desliza = /auto|scroll/.test(getComputedStyle(el.querySelector('.clLista')).overflowY);
   return { W: innerWidth, H: innerHeight, probs, chicos, n: items.length, fMin: Math.min(...letras.map((x) => x.f)), chicas: letras.filter((x) => x.f < 14), fItem: items[0].f, fDiseno: +(VH() * 0.043).toFixed(2), desliza, modo: CL.modo,
     aireArriba: +(items[0].y0 - logo.y1).toFixed(1), aireAbajo: +(Math.min(...chips.map((c) => c.y0)) - items[items.length - 1].y1).toFixed(1) };
@@ -58,7 +58,7 @@ const MEDIR_DP = `(() => {
     const pisa = (a, b, m) => a.x0 < b.x1 + m && b.x0 < a.x1 + m && a.y0 < b.y1 + m && b.y0 < a.y1 + m;
     const probs = [], K = Object.keys(B);
     for (let i = 0; i < K.length; i++) for (let j = i + 1; j < K.length; j++) if (pisa(B[K[i]], B[K[j]], 8)) probs.push(K[i] + ' × ' + K[j]);
-    const bt = [...U.querySelectorAll('button')].filter(vis).map((e) => ({ k: e.dataset.rb, ...r(e) }));
+    const bt = [...U.querySelectorAll('button')].filter(vis).map((e) => ({ k: e.dataset.rb || e.className, mus: !!e.closest('.musChip'), ...r(e) }));
     for (let i = 0; i < bt.length; i++) for (let j = i + 1; j < bt.length; j++) if (pisa(bt[i], bt[j], -1)) probs.push(bt[i].k + ' × ' + bt[j].k);
     for (const e of bt) if (e.x0 < 0 || e.y0 < 0 || e.x1 > innerWidth || e.y1 > innerHeight) probs.push(e.k + ' afuera');
     const letras = [...U.querySelectorAll('.dpChP, .dpChD, .dpJugar b, .dpMapaN, .dpNom')].filter(vis).map((e) => ({ t: (e.textContent || e.value).trim(), f: parseFloat(getComputedStyle(e).fontSize) }));
@@ -68,7 +68,8 @@ const MEDIR_DP = `(() => {
     const tam = cj.map((c) => px(c, '.dpChP')), dat = cj.map((c) => px(c, '.dpChD')), cara = Math.min(...cj.map((c) => Math.min(+c.dataset.fw, +c.dataset.fh)));
     if (Math.max(...tam) - Math.min(...tam) > 0.05 || Math.max(...dat) - Math.min(...dat) > 0.05) pasos.push('letras distintas: ' + tam.join('/') + ' · ' + dat.join('/'));
     if (Math.min(...tam) < 0.1 * cara) pasos.push('palabra chica: ' + Math.min(...tam) + ' px con la cara de ' + cara.toFixed(0));
-    return { W: innerWidth, H: innerHeight, probs, fMin: Math.min(...letras.map((x) => x.f)), chicas: letras.filter((x) => x.f < 14), pasos, n: bt.length, letra: [Math.min(...tam), Math.min(...dat), +cara.toFixed(0)] };
+    // (la placa de la música —musica.js— no cuenta entre las 12: tiene su propia prueba, pruebas/musica.mjs)
+    return { W: innerWidth, H: innerHeight, probs, fMin: Math.min(...letras.map((x) => x.f)), chicas: letras.filter((x) => x.f < 14), pasos, n: bt.filter((x) => !x.mus).length, letra: [Math.min(...tam), Math.min(...dat), +cara.toFixed(0)] };
 })()`;
 for (const MENU of MENUS) {
   const M = {};

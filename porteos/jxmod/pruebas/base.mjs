@@ -9,7 +9,8 @@ export async function abrir(html, celu, extra, antes) {
   // las pruebas de la cuenta y de Social ponen su propia tienda falsa encima, que gana por ser la última)
   await ctx.route('**/api/cuenta/config', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"google":false}' }));
   const p = await ctx.newPage(); const err = [];
-  p.on('pageerror', (e) => err.push(e.message.slice(0, 200))); p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') err.push(m.type() + ': ' + m.text().slice(0, 200)); });
+  // (lo que escribe en su consola el reproductor de YouTube —la radio, la tele, la música del menú: musica.js— no es del juego)
+  p.on('pageerror', (e) => err.push(e.message.slice(0, 200))); p.on('console', (m) => { if ((m.type() === 'error' || m.type() === 'warning') && !/youtube(-nocookie)?\.com|ytimg\.com|googlevideo\.com/.test((m.location() || {}).url || '')) err.push(m.type() + ': ' + m.text().slice(0, 200)); });
   if (antes) await antes(p);
   await p.goto(/^https?:/.test(html) ? html : 'file://' + html);
   await p.waitForFunction(() => window.__listo, null, { timeout: 180000 });

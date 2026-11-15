@@ -3,6 +3,58 @@
 RezoBox es `uso: sin fines de lucro` (ver `CLAUDE.md`). Lo extraído de otros juegos y addons no está en el repo: los
 scripts de `herramientas/` lo leen de afuera y va sólo dentro del HTML armado.
 
+## Música del menú (`juego/musica.js`, Ajustes → Música)
+
+La estación **Casual** (la de fábrica) suena sin internet desde el paquete aparte `a_musica` (`herramientas/musica/casual.py`:
+los MP3 de 320 kbps de https://incompetech.com/music/royalty-free/, pasados a Opus de 32 kbps; nada sale de YouTube). Todos
+los temas son de Kevin MacLeod, con licencia **Creative Commons Atribución 4.0** (https://creativecommons.org/licenses/by/4.0/):
+«*Título* Kevin MacLeod (incompetech.com). Licensed under Creative Commons: By Attribution 4.0 License». El crédito también
+está en la pestaña Música. Mientras el paquete no está guardado, Casual suena por YouTube (los videos de su canal oficial o de
+«Kevin MacLeod Archive»).
+
+| Tema | Autor / origen | Dónde | Licencia |
+|---|---|---|---|
+| «Monkeys Spinning Monkeys» (2:05) | Kevin MacLeod (incompetech.com), ISRC USUAN1400011 | `mu_monkeys_spinning_monkeys` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Sneaky Snitch» (2:17) | Kevin MacLeod (incompetech.com), ISRC USUAN1100772 | `mu_sneaky_snitch` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Fluffing a Duck» (1:07) | Kevin MacLeod (incompetech.com), ISRC USUAN1100768 | `mu_fluffing_a_duck` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Investigations» (1:34) | Kevin MacLeod (incompetech.com), ISRC USUAN1100646 | `mu_investigations` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Local Forecast - Elevator» (3:09) | Kevin MacLeod (incompetech.com), ISRC USUAN1300012 | `mu_local_forecast_elevator` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Scheming Weasel (faster version)» (1:29) | Kevin MacLeod (incompetech.com), ISRC USUAN1100085 | `mu_scheming_weasel_faster_version` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Wallpaper» (3:40) | Kevin MacLeod (incompetech.com), ISRC USUAN1100843 | `mu_wallpaper` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Carefree» (3:25) | Kevin MacLeod (incompetech.com), ISRC USUAN1400037 | `mu_carefree` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Pixel Peeker Polka - faster» (3:22) | Kevin MacLeod (incompetech.com), ISRC USUAN1100833 | `mu_pixel_peeker_polka_faster` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Merry Go» (2:00) | Kevin MacLeod (incompetech.com), ISRC USUAN1100731 | `mu_merry_go` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Hyperfun» (3:53) | Kevin MacLeod (incompetech.com), ISRC USUAN1400038 | `mu_hyperfun` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Cipher» (3:51) | Kevin MacLeod (incompetech.com), ISRC USUAN1100844 | `mu_cipher` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Sneaky Adventure» (1:13) | Kevin MacLeod (incompetech.com), ISRC USUAN1100644 | `mu_sneaky_adventure` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Amazing Plan» (1:27) | Kevin MacLeod (incompetech.com), ISRC USUAN1100737 | `mu_amazing_plan` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Thatched Villagers» (4:05) | Kevin MacLeod (incompetech.com), ISRC USUAN1100720 | `mu_thatched_villagers` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Hidden Agenda» (2:15) | Kevin MacLeod (incompetech.com), ISRC USUAN1200102 | `mu_hidden_agenda` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Funkorama» (3:21) | Kevin MacLeod (incompetech.com), ISRC USUAN1100474 | `mu_funkorama` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Life of Riley» (3:55) | Kevin MacLeod (incompetech.com), ISRC USUAN1400054 | `mu_life_of_riley` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Easy Lemon» (2:06) | Kevin MacLeod (incompetech.com), ISRC USUAN1200076 | `mu_easy_lemon` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Cut and Run» (3:35) | Kevin MacLeod (incompetech.com), ISRC USUAN1100851 | `mu_cut_and_run` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Run Amok» (1:47) | Kevin MacLeod (incompetech.com), ISRC USUAN1400024 | `mu_run_amok` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «The Builder» (1:58) | Kevin MacLeod (incompetech.com), ISRC USUAN1400016 | `mu_the_builder` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Spazzmatica Polka» (1:36) | Kevin MacLeod (incompetech.com), ISRC USUAN1100721 | `mu_spazzmatica_polka` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Happy Happy Game Show» (2:39) | Kevin MacLeod (incompetech.com), ISRC USUAN1600006 | `mu_happy_happy_game_show` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Pamgaea» (2:49) | Kevin MacLeod (incompetech.com), ISRC USUAN1300036 | `mu_pamgaea` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Itty Bitty 8 Bit» (3:14) | Kevin MacLeod (incompetech.com), ISRC USUAN1100764 | `mu_itty_bitty_8_bit` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Blip Stream» (4:45) | Kevin MacLeod (incompetech.com), ISRC USUAN1500056 | `mu_blip_stream` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Quirky Dog» (2:29) | Kevin MacLeod (incompetech.com), ISRC USUAN1500053 | `mu_quirky_dog` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Volatile Reaction» (2:45) | Kevin MacLeod (incompetech.com), ISRC USUAN1400039 | `mu_volatile_reaction` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Marty Gots a Plan» (2:48) | Kevin MacLeod (incompetech.com), ISRC USUAN1500015 | `mu_marty_gots_a_plan` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Rollin at 5» (2:11) | Kevin MacLeod (incompetech.com), ISRC USUAN1400029 | `mu_rollin_at_5` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Mining by Moonlight» (3:24) | Kevin MacLeod (incompetech.com), ISRC USUAN1200089 | `mu_mining_by_moonlight` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Kool Kats» (3:21) | Kevin MacLeod (incompetech.com), ISRC USUAN1100601 | `mu_kool_kats` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Bossa Antigua» (4:43) | Kevin MacLeod (incompetech.com), ISRC USUAN1700069 | `mu_bossa_antigua` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+| «Airport Lounge» (5:08) | Kevin MacLeod (incompetech.com), ISRC USUAN1100806 | `mu_airport_lounge` en el paquete aparte `a_musica` | Creative Commons Atribución 4.0 (CC BY 4.0) |
+
+Las otras nueve estaciones (West Side, Electrónica NCS, Phonk, Lo-fi / Chill, Rock, Latino, Synthwave / Retro, Épica y
+Clásicos de internet) **no se bajan ni van en el juego**: suenan sólo por el reproductor de YouTube insertado, como la
+radio, desde los videos de la lista (`juego/musica_estaciones.txt`; las subidas oficiales cuando se pueden insertar). Cada
+tema es de su autor. «Mi música» son archivos del jugador que quedan sólo en su aparato.
+
 ## Letra del menú principal (3.0)
 
 | Asset | Autor / origen | Dónde | Licencia |
