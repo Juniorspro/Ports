@@ -2252,6 +2252,197 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## Menú principal «Tu depósito» (lo eligió el dueño; reemplaza la portada de la 3.4; todavía sin publicar)
+
+La portada de la 3.4 se parecía demasiado al lobby de otro juego de tiros y a los jugadores no les gustó. Se hicieron
+tres conceptos propios (tu terreno, la pila de cajas y el plano), el dueño pidió combinarlos y que fuera menos confuso, y
+aprobó el combinado, «Tu depósito» (maquetas y capturas, fuera del repo). Acá está armado en el juego, con el motor de
+verdad: `juego/deposito.js` reemplaza a `juego/portada.js` (borrado) y los paneles de cada sección son los de siempre.
+
+**Qué hay.**
+- **Una escena 3D de verdad** (la de Pradera, `FlatGrass`): el pasto, de fondo la torre JX de la plaza (identidad.js) y,
+  a la izquierda, tu personaje con la pistola de física, en tercera persona; un farol entre él y las cajas. Sin NPC: uno
+  bailando obliga a dibujar todo el tiempo (medido abajo). La cámara es fija para cada tamaño de pantalla
+  (`depEncuadre`): mira derecho a la torre y se ubica para que las cajas entren entre la barra de arriba (con 10 px de
+  aire para los rótulos) y la fila de JUGAR, con la cara de cada caja de 96 px o más (la palabra más larga entra entera
+  a 14 px) y sin pasar del 18 % del alto en la compu. En el celular chico (640×360) a lo alto no entra: ahí la cara baja
+  hasta 84 px (queda en 88) y la palabra larga se corta por su guion, antes que pisar la barra o JUGAR. Si a lo ancho no
+  entra todo, tu personaje se acerca a la pila (de 2,75 a 2,3 m) y, si igual no, queda cortado a la izquierda (las
+  cajas, siempre enteras). Cada pila mira a la cámara de esa pantalla (si no, en una angosta la caja de atrás quedaba de
+  costado y con la chapa un 10 % más chica). En árabe la escena se espeja alrededor de la torre.
+- **Siete cajas en lugar fijo, en tres pilas que miran a la cámara**: «VOS» (Emotes arriba, Personajes abajo), «CREAR»
+  (Crear mapa arriba, un poco corrida hacia afuera para que la torre se vea al lado; Workshop y Mods y mapas abajo) y
+  «JUGAR CON OTROS» (Multijugador y el barril violeta de La grieta). Cada una lleva una **chapa atornillada** de HTML
+  encima de su cara (nítida, traducida y quieta: la cámara no se mueve), con el ícono, la palabra y un dato de verdad
+  (cuántos emotes y personajes hay, «Nuevo» o los addons de GMod, los mods activos, los mapas tuyos, la gente en línea o
+  «sin red», el evento prendido o apagado). La chapa ocupa del 55 al 70 % de la cara (la del barril, que no es una caja,
+  ~42 %, como la etiqueta de un barril) y deja ver la madera; la palabra primero va entera, achicándose hasta 14 px; si
+  no entra, se corta con guion donde lleva el guion blando (o, en japonés y tailandés, donde va el espacio de ancho
+  cero) y la chapa se agranda hasta el 70 %. Las seis cajas llevan **una sola letra** (la que entra en la chapa con la
+  palabra más larga; el dato, a lo sumo el 90 % de ella: en la compu 19 y 17 px, antes de esto iban de 19 a 26 px según
+  la palabra) y las chapas de cada fila quedan a la misma altura. En el celular chico la del barril va sin el ícono (no
+  entra a lo alto). Se toca cualquier parte de la caja o de la chapa. Los rótulos de las pilas son chicos, con una línea
+  fina, y la de «CREAR» arranca después de la torre.
+- **La entrada**: la primera vez (o cuando hay más emotes, personajes o mods que la última vez, sólo esas cajas) caen con
+  la física del juego, con un poco de giro, y cuando apoyan se acomodan en un cuarto de segundo a su lugar exacto (0 px de
+  diferencia entre cargas). JUGAR y la barra de arriba se tocan desde el primer momento.
+- **Al tocar una caja**, el haz de la pistola de física (líneas celestes desde la boca del arma) la agarra y la trae
+  hacia la cámara mientras tu personaje gira a apuntarle (0,55 s, con un reloj que avanza con los cuadros: en un aparato
+  lento va más despacio pero no salta); ahí se abre el panel de siempre de esa sección (Workshop: los addons de GMod;
+  Mods y mapas: la tienda; Crear mapa; Personajes; Emotes; Multijugador, con Crear server adentro). El barril abre un
+  panel chico con qué es el evento y su interruptor. Al volver del panel («Volver»), la caja vuelve a su lugar. Con
+  «menos movimiento» pedido por el aparato, sin viajes ni caídas.
+- **La hora del aparato**: mañana, tarde, atardecer o noche (se mira cada minuto). De noche se prenden el farol, el cartel
+  JX (alumbra la torre), una luz suave sobre tu personaje y el barril, que brilla violeta (de día, con el borde violeta).
+  La grieta del cielo se ve de día y de noche, arriba a la derecha.
+- **Arriba**: a la izquierda el perfil (tu personaje, tu nombre y la «G» si hay sesión) abre su hoja (el nombre —el mismo
+  `#rbNombre`—, Personajes y el botón de la cuenta de Google); a la derecha **Amigos** (el panel Social, con Chats como
+  pestaña; el globito suma las solicitudes y lo sin leer) y el **engranaje**, que abre una hoja con Ajustes arriba
+  (Gráficos, Sonido y Controles) y, abajo, Idioma, Tutorial, Lista, Discord, TikTok, Actualizar (en la app,
+  `JXNativo.buscarActualizacion`; en la web sólo si apareció el botón de `codigo_web.mjs`, y entonces el engranaje lleva
+  el globito) y Salir. Al medio, chicos, el logo (el tuyo, si elegiste uno) y la versión con el día del armado.
+- **Abajo**: a la izquierda, la ayuda de la primera vez («Tocá una caja para abrirla»; con mouse, «Hacé clic…»), que se
+  va con el primer toque y no vuelve; a la derecha el mapa y el modo (abre Empezar partida nueva) y **JUGAR**, verde (lo
+  único de ese color) y con poco más del doble del área de la caja más grande: entra directo al mapa elegido.
+- **La Lista** (Ajustes → Lista): todo en cuatro grupos (Jugar, Crear y bajar, Vos, En vivo y más), con el foco a la
+  vista. Con las flechas, Tab, Enter y Esc, o con un mando (cruceta o palanca, A y B), se recorre la Lista y también las
+  cajas y los botones del menú directamente (sin foco, la primera flecha va a JUGAR).
+- 12 cosas para tocar en la primera pantalla: el perfil, Amigos, Ajustes, las 7 cajas, el mapa y JUGAR.
+
+**Toques** (contados tocando de verdad en `pruebas/deposito.mjs`; 3.3 → portada 3.4 → depósito):
+
+| Qué | 3.3 | 3.4 | Ahora |
+|---|---|---|---|
+| JUGAR (el mapa elegido) | 2 | 1 | 1 |
+| Mapa y modo (Empezar partida nueva) | 1 | 1 | 1 |
+| Emotes · Workshop de GMod | 2 | 1 | 1 |
+| Personajes · Crear mapa · Mods y mapas · Multijugador | 1 | 1 | 1 |
+| La grieta (el evento, con su interruptor) | 3 | 1 | 1 |
+| Perfil (nombre, personaje y cuenta) · Ajustes | 1 | 1 | 1 |
+| Amigos y solicitudes | 2 | 1 | 1 |
+| Crear server | 2 | 1 | 2 |
+| Chats | 1 | 1 | 2 |
+| Idioma · Gráficos · Discord · TikTok · Salir | 1 | 1 | 2 |
+| Tutorial | 3 | 1 | 2 |
+| Actualizar (en la app) | — | 1 | 2 |
+| Lista (teclado y mando) | — | — | 2 |
+
+Lo que pasa de 1 a 2 toques (crear server, Chats, idioma, gráficos, tutorial, redes, actualizar y salir) es lo que el
+dueño pidió mover a segundo plano para que la primera pantalla tenga 12 cosas y no 25 (la 3.4).
+
+**En el motor** (sirve para todo el juego, no sólo para el menú):
+- **Tinte por entidad** (`Modelo.tinte`, `gl.js`): un color por objeto que pinta el brillo de la textura de ese color sin
+  perder el dibujo (`uTi` en el shader; `uTi.a` cuánto). El barril de la grieta es el `BarrilExplosivo` del juego,
+  violeta así, sin CSS encima.
+- **La grieta del cielo sin borde** (`evento.js`): todo se apaga suave desde 1,2 hasta el borde del cuadrado donde se
+  dibuja (lo que se ve de la grieta llega a 1,0). Antes el fondo oscuro y el resplandor ancho no eran cero en el borde
+  y, sin HDR, la curva de salida los levantaba (0,002 de color pasaba a 0,056): desde la cámara del menú se veía el
+  corte recto. Ahora con y sin la grieta la imagen es igual en el borde (0/255 en 114 puntos, de día y de noche). Se ve
+  también en el menú (`EVT.enMenu`), y el tamaño vuelve al de siempre al entrar a un mapa.
+- **Pausar el dibujo** (`principal.js`: `dibujoPausar`, `dibujoDespertar`, `dibujoEnPausa`): una pantalla quieta pide no
+  dibujar; el bucle sigue (el latido de la app) pero no simula ni dibuja y el lienzo se queda con el último cuadro (el
+  navegador no lo vuelve a componer). `dibujoDespertar()` dibuja un cuadro más; con un cambio de tamaño, siempre. En el
+  menú: quieto, sin cuadros; un cuadro al cambiar el foco o el mouse encima de una caja (se resalta con el borde azul), la
+  hora o el tamaño; sin pausa mientras caen, viaja una caja o gira tu personaje. Lo que antes sólo se veía dibujando
+  seguido ahora despierta el dibujo: una textura que termina de llegar (`gl.js`), el paquete de tu personaje, y las nubes,
+  que se pintan de a franjas, se rehacen enteras al cambiar la hora (si no, quedaban mitad de día y mitad de noche). En el
+  menú la pausa se revisa en cada vuelta del bucle: un panel que tapa el mundo (Personajes, con su escenario) la saca
+  aunque se abra por otro camino que las cajas (lo encontró `personajes_golden`: el escenario quedaba vacío).
+- El mundo se dibuja en el menú (`depCamara`, `depMundoVisible`, `depPaso` en `principal.js`); con el panel de
+  Personajes, su escenario de siempre. La escena se arma cuando la pantalla de carga se va (con Personajes abierto, al
+  cerrarlo: si no, borraba su escenario) y en dos tareas (el mapa; las cajas, tu personaje y la luz), así no atrasa el
+  primer toque.
+
+**Medido** (`pruebas/deposito.mjs URL [URL_34] [URL_33] [FOTOS]`, SwiftShader):
+- **Pantallas** (873×402 y 915×412 con 40 px de muesca a la izquierda, 640×360, 800×368, el celular parado 402×873 que el
+  juego gira, tablet 1180×820, compu 1280×720 y 1920×1080): 33/33. En las 8, las 7 cajas con su texto de 14 px o más,
+  la chapa del 55 al 70 % de la cara (el barril, del 35 al 50 %), cada caja exacta en su lugar del 3D, JUGAR con 2,10 a
+  2,19 veces el área de la caja más grande y el único verde, 12 cosas para tocar de 44 px o más, adentro de la pantalla
+  (y de la muesca) y sin pisarse; el contraste del texto medido en la imagen (con el texto escondido), de 7,66 el peor de
+  día y de noche (6,1 en el celular parado de día; pide 4,5); y en 5 cargas de cero cada caja y su chapa en el mismo
+  lugar: 0 px de diferencia.
+- **Idiomas**: 28/28 (los 14 en 873×402 y en 640×360): nada se sale, se corta ni se pisa; el árabe, espejado con la
+  escena.
+- **Toques**: 26/26. Las 22 cosas de la tabla (con Gráficos) se alcanzan tocando de verdad, con esos toques; además
+  Actualizar en la web (sólo con versión nueva, con el globito en el engranaje), el nombre en la hoja del perfil, la
+  cuenta de Google en esa hoja y, al salir de una partida, el depósito armado otra vez (las cajas en su lugar y el
+  dibujo en pausa).
+- **Teclado y mando**: 4/4. Con las flechas, de JUGAR a Multijugador, el barril, Amigos, las cajas de abajo y el perfil;
+  Enter abre; la hoja de Ajustes toma el foco y Esc la cierra; la Lista con el foco a la vista; la cruceta va a las
+  cajas, A abre y B vuelve; y JUGAR, una caja, un ícono, el mapa y el perfil cambian con el mouse encima, apretados y
+  con el foco.
+- **Entrada, agarre y ayuda**: 4/4. Caen con la física del juego y terminan exactamente en su lugar (0 m), con
+  JUGAR tocable mientras; con un cambio de tamaño en el medio (girar el celular), lo más que se mueve una caja en un
+  cuadro es 0,45 m, lo que cae (antes de arreglarlo, una saltaba 4,75 m: `depLugares` dejaba en el origen a las que
+  caían); el haz (13 líneas) agarra Workshop, la trae, se abre su panel y vuelve exacta; la ayuda se ve hasta el primer
+  toque y no vuelve.
+- **Motor**: 5/5. Quieto, 0 cuadros en 3 s; 1 al cambiar el foco, 2 el tamaño y 1 la hora; con el panel de Personajes
+  (abierto sin la caja) 52 cuadros en 1 s y al volver, 0 otra vez; la grieta, 0/255 de diferencia en el borde de su
+  cuadrado en 114 puntos, de día y de noche (en el centro, 83 y 248: se ve); el barril, tono 269° y saturación 0,67
+  (violeta).
+- Sin errores de JS.
+
+**Rendimiento** (procesador 4× más lento, 873×402 a 2×, el menú quieto, el promedio de 2 corridas alternadas de cada
+versión; el menú dibuja a lo sumo 30 cuadros por segundo, en las tres):
+
+| Gráficos | | JS ms/s | hilo ms/s | JS ms/cuadro | cuadros de la GPU/s | 3D dibujado/s | heap MB | hasta poder tocar |
+|---|---|---|---|---|---|---|---|---|
+| bajos | 3.3 | 29,7 | 105,0 | 0,50 | 55,5 | 30,0 | 20,0 | 8071 ms |
+| | 3.4 (portada) | 34,0 | 62,8 | 0,57 | 0,9 | 1 | 21,8 | 8605 ms |
+| | **depósito** | **7,6** | **30,2** | **0,13** | **0** | **0** | 45,3 | **8261 ms** |
+| medios | 3.3 | 27,7 | 98,6 | 0,46 | 55,4 | 29,9 | 20,4 | 7580 ms |
+| | 3.4 (portada) | 72,5 | 132,6 | 1,21 | 27,8 | 30,0 | 20,9 | 8133 ms |
+| | **depósito** | **8,1** | **32,6** | **0,14** | **0** | **0** | 39,3 | **8131 ms** |
+| altos | 3.3 | 28,6 | 96,3 | 0,48 | 55,3 | 30,0 | 20,7 | 7842 ms |
+| | 3.4 (portada) | 68,9 | 114,7 | 1,15 | 27,8 | 30,0 | 28,3 | 8133 ms |
+| | **depósito** | **7,7** | **29,0** | **0,13** | **0** | **0** | 29,7 | **7763 ms** |
+
+Quieto, el depósito no dibuja nada: la GPU no compone ningún cuadro (0 por segundo, contra 0,9 a 27,8 de la portada) y
+el JS cuesta de 4,5 a 9 veces menos que en la 3.4 y el hilo principal, de 2 a 4 veces menos (lo que queda es el latido
+del bucle: 60 vueltas por segundo que no simulan ni dibujan). Hasta poder tocar, igual o mejor que la 3.4 (−4 %, 0 % y
+−5 %; pide no empeorar más del 10 %). Lo que cuesta más: el **heap**, 1 a 23 MB más que la portada (el mapa de Pradera,
+la física de las cajas y tu personaje en el mundo; el número salta según cuándo pasa el recolector), y la **tarea más
+larga después de poder tocar**: 362 a 1434 ms (con el procesador 4× más lento), contra 54 a 163 en la 3.4 —es armar la
+escena y compilar lo que se dibuja la primera vez; ya está partida en dos tareas y queda para después: compilar los
+shaders de a poco—. Un **NPC bailando** (medido sin la pausa, Gráficos medios: 31,5 ms de JS por segundo, casi 4 veces
+lo del depósito quieto, y 52,2 del hilo, porque obliga a dibujar todo el tiempo) no se puso.
+
+**Pruebas que cambiaron** (con la misma exigencia, sobre el depósito):
+- `deposito.mjs` (nueva): las 8 partes de arriba. Lo que se toca, de 44 px o más (en `menu_nuevo` eran 40).
+- `menu_nuevo.mjs`: **retirada** (medía la portada, que ya no está). Lo que medía —los toques contados, los tamaños y lo
+  que se pisa en 7 pantallas con la muesca, los 14 idiomas, el contraste medido en la imagen, el teclado y el mando, los
+  estados con el mouse encima, apretado y con el foco, y el rendimiento contra la versión anterior— lo mide
+  `deposito.mjs` sobre el depósito, con las mismas cotas o más.
+- `menu_principal.mjs`: los bloques ahora son los del depósito (arriba, las cajas con sus rótulos, la ayuda y JUGAR) con
+  los mismos 8 px de aire; tienen que estar las 12 cosas para tocar (antes, 20 o más); en la compu, ningún paso para
+  achicar: ninguna palabra cortada, ninguna chapa agrandada ni sin ícono, una sola letra en las seis cajas y de al menos
+  0,1 de la cara (antes, los pasos de la portada). Encontró los rótulos de las pilas encima de la barra de arriba o a
+  menos de 8 px en los tres celulares (arreglado en `depEncuadre`) y, en la compu, chapas con la letra achicada (iban de
+  19 a 26 px según la palabra; arreglado: una sola letra).
+- `menu_30.mjs`: la versión, arriba al medio; las chapas de cada fila a la misma altura (±2 px; antes, las tarjetas del
+  mismo ancho; encontró 6 px en la compu, arreglado); el hueco de tu personaje ≥ 15 % del ancho, como antes, y las cajas
+  ≤ 60 % del alto (en vez de las tarjetas ≤ 40 %); la ayuda de la primera vez puede ir en dos renglones (no es un botón);
+  Volver → el depósito. Sigue pidiendo que ninguna palabra quede partida en cualquier lado: con la cara de 88 px del
+  celular chico, el barril lo hacía por el alto (ahora va sin el ícono).
+- `social.mjs`: Amigos es un solo ícono con Chats como pestaña adentro (en la 3.4, dos); el globito, el de Amigos; al
+  volver del Perfil con internet lento queda el depósito con su escena.
+- `tienda.mjs`: Mods y mapas se abre tocando su caja y el mapa con el chip de abajo; sin cuentas, como las demás pruebas
+  (el cartel de la cuenta tapaba la bienvenida: pasaba igual en la 3.4). Después falla en el mismo paso y de la misma
+  manera que en la 3.4 (después de instalar Súper salto, Instalados muestra 0 tarjetas y no está `act:salto`): no es del
+  menú.
+- `icono_app.mjs`: Ajustes es el engranaje (su hoja → Gráficos).
+- Todas sobre el armado final, en dos tandas a la vez: con cambios, `menu_principal` 4/4, `menu_30` 7/7, `social` 42/42 e
+  `icono_app` 5/5; sin cambios, `celulares` 9/9, `identidad` 12/12, `botones_golden` 12/12, `personajes_golden` 12/12
+  (encontró el escenario de Personajes vacío: arreglado, ver «Pausar el dibujo»), `cuenta_google` 22/22, `tutorial`
+  22/22, `fondos_30` 6/6, `capas_menus` 9/9, `menus_jx` 6/6, `menus_x` 6/6, `logo_propio` 5/5, `tienda_panel` 24/24,
+  `gmod_carpeta` 32/32 (la página en 127.0.0.1) y `bsmod` parte F 4/4. `codigo_tragado`: 0.
+
+Pendiente: no se probó en un celular de verdad (emulado, con SwiftShader). Los paneles se abren del mismo tamaño que en la
+3.4 (en el celular no entran al costado de la caja agarrada, como en la maqueta: la caja se ve en el margen y «Volver»
+hace de «Soltar»). La tarea larga después de poder tocar (hasta 1,4 s con el procesador 4× más lento) y el heap (hasta
+23 MB más), en la tabla de arriba. En la tablet (1180×820) sobra cielo arriba de las pilas: lo que manda ahí es el ancho.
+Fotos, fuera del repo.
+
 ## JXMod 3.4: menú principal nuevo y BSMod (ejecuciones)
 
 Un pedido del dueño y uno del Discord (el detalle y los números de cada parte están en sus secciones, más abajo). Misma
@@ -3358,6 +3549,9 @@ propias de HL2 siguen con su brazo v_ (traje HEV); sin el color de jugador (Play
 `Player:GetHands()` sigue sin entidad. Sin probar en un celular de verdad (emulado 873×393). Fotos, fuera del repo.
 
 ## Portada nueva del menú principal (pedido del dueño: «una interfaz nueva así… mejores botones con diseño»)
+
+(Reemplazada por «Tu depósito»: ver «Menú principal «Tu depósito»», más arriba. `juego/portada.js` y
+`pruebas/menu_nuevo.mjs` ya no están; lo que sigue queda como historia.)
 
 El dueño mandó una captura de la pantalla principal de otro juego de tiros de celular y pidió «hagamos una interfaz
 nueva así, vos ordenás y diseñás mejores botones con diseño en los botones». De la captura se tomó **sólo la

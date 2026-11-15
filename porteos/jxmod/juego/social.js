@@ -33,7 +33,7 @@ function socIniciar() {
   SOC.latir = latir; setTimeout(latir, 4000); setInterval(latir, 60000);
 }
 // (en la portada: las solicitudes en Amigos y los mensajes sin leer en Chats, portada.js)
-function socGlobito() { if (typeof ptdGlobos === 'function') ptdGlobos(); }
+function socGlobito() { if (typeof depGlobos === 'function') depGlobos(); }
 
 // ---- el panel ----
 function panelSocial(P) {

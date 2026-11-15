@@ -32,7 +32,7 @@ function m4trs(p, r, s, out) {
   m[12] = p[0]; m[13] = p[1]; m[14] = p[2]; m[15] = 1; return m;
 }
 const m4pt = (m, x, y, z, o) => o.set(m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]);
-const RIM_NO = new Float32Array(3);
+const RIM_NO = new Float32Array(3); const TI_NO = new Float32Array(4);
 const m4esc = (m) => Math.max(Math.hypot(m[0], m[1], m[2]), Math.hypot(m[4], m[5], m[6]), Math.hypot(m[8], m[9], m[10]));
 const srgb = (c) => Math.pow(c, 2.2);
 const srgb3 = (a) => [srgb(a[0]), srgb(a[1]), srgb(a[2])];
@@ -121,7 +121,7 @@ uniform sampler2D uT1, uT2, uT3; uniform vec4 uS1; uniform vec2 uS3;
 #ifdef MEZ
 uniform sampler2D uT1; in float vMz;
 #endif
-uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uRim, uNieD; uniform float uCorte;
+uniform vec4 uC, uTi; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uRim, uNieD; uniform float uCorte;
 #if LUZ >= 1
 uniform vec3 uMat;
 #endif
@@ -348,6 +348,9 @@ void main(){
   vec4 t = texture(uT, vU);
 #endif
   t *= uC;
+  // el tinte de una entidad (un color por objeto, Modelo.tinte: el barril violeta del menú, deposito.js): el brillo de la
+  // textura pintado de ese color, sin perder el dibujo (las letras y el desgaste); uTi.a, cuánto (0: como viene)
+  if (uTi.a > 0.0) t.rgb = mix(t.rgb, vec3(dot(t.rgb, vec3(0.299, 0.587, 0.114))) * uTi.rgb, uTi.a);
 #ifdef CUT
   if (t.a < uCorte) discard;
 #endif
@@ -984,6 +987,8 @@ function texDecodificar(i, t) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
     if (R.aniso && GFX.aniso) gl.texParameterf(gl.TEXTURE_2D, R.aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(GFX.aniso, R.anisoMax || 16));
     t.gl = tx; t.va = false; img.close && img.close();
+    // (con el dibujo en pausa —el menú quieto, principal.js—, la textura que llega se ve: un cuadro más; si no, quedaba el gris)
+    if (typeof dibujoDespertar === 'function') dibujoDespertar();
   }).catch((e) => { clearTimeout(tope); fallo(e); });
 }
 // memoria baja (GFX.memBaja): las texturas del paquete que no se dibujan hace 30 s se sacan de la placa; si se las vuelve a
@@ -1260,6 +1265,7 @@ function dibujarPedido(p, P) {
   if (cv.uC !== c) { cv.uC = c; gl.uniform4f(u.uC, c[0], c[1], c[2], c[3]); }
   if (u.uEm) uniV(u, 'uEm', p.x && p.x.em ? p.x.em : mt.lampara && R.lucesMapa ? EM_LAMPARA : mt.em, 3);
   if (u.uRim) uniV(u, 'uRim', p.x && p.x.rim ? p.x.rim : RIM_NO, 3);
+  if (u.uTi) uniV(u, 'uTi', p.x && p.x.ti ? p.x.ti : TI_NO, 4);   // (el tinte de la entidad, si tiene: Modelo.tinte)
   if (u.uCorte && cv.uCorte !== 0.5) { cv.uCorte = 0.5; gl.uniform1f(u.uCorte, 0.5); }
   if (u.uMat) uniV(u, 'uMat', mt.pbr, 3);
   if (mt.agua) aguaUniformes(p, u);

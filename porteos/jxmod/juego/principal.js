@@ -184,7 +184,12 @@ const CAM = { pos: v3(), q: new Quat(), qVista: new Quat(), fwd: v3(0, 0, 1), de
 const FOV_MIN = 50, FOV_MAX = 110;
 const fovBase = () => clamp(Math.round(+PREFS.fov) || 70, FOV_MIN, FOV_MAX);
 function camaraActualizar(dt) {
-  if (JUEGO.estado === 'principal' && typeof lobbyCamara === 'function') { lobbyCamara(CAM); CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); return; }
+  if (JUEGO.estado === 'principal' && typeof lobbyCamara === 'function') {
+    // (el menú principal con la escena del depósito: su cámara fija, encuadrada para la pantalla —deposito.js—; si no, la
+    // del lobby, para el personaje de Personajes)
+    if (typeof depCamara === 'function' && depCamara(CAM)) { CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); CAM.fwd.copy(CAM.q.rot(v3(0, 0, 1))); CAM.der.copy(CAM.qVista.rot(v3(1, 0, 0))); CAM.arr.copy(CAM.qVista.rot(v3(0, 1, 0))); return; }
+    lobbyCamara(CAM); CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); return;
+  }
   jugadorCamara(CAM);
   if (typeof clibCamara === 'function') clibCamara(CAM, dt);   // (cámara libre: volando o como en Roblox)
   if (JUEGO.estado === 'juego') cicCamara(CAM); // (Cíclope: la cinemática y la cámara de la definitiva)
@@ -321,6 +326,19 @@ function atenderPulsos() {
   ENT.pulsos.length = 0;
 }
 // ---------------- el cuadro ----------------
+// ---------------- pausar el dibujo ----------------
+// Una pantalla que muestra una escena quieta (el menú principal, el depósito: deposito.js) pide que no se dibuje: el bucle
+// sigue andando (el latido para la app, el reloj), pero no simula ni dibuja nada, y el lienzo se queda con el último cuadro
+// (el navegador no lo vuelve a componer: la placa descansa). dibujoPausar(true) la pide; dibujoDespertar() dibuja un cuadro
+// más (lo que cambió: un toque, el foco, la hora, el tamaño de la pantalla) y dibujoDespertar(ms), todos los cuadros de esos
+// milisegundos (una animación); dibujoPausar(false) la saca. Un cambio de tamaño del lienzo (que lo borra) siempre dibuja.
+const PAUSA = { on: false, uno: false, hasta: 0, saltados: 0, dibujados: 0 };
+function dibujoPausar(on) { on = !!on; if (on && !PAUSA.on) PAUSA.uno = true; PAUSA.on = on; }   // (al entrar en pausa, un cuadro más: el que queda)
+function dibujoDespertar(ms) { if (ms > 0) PAUSA.hasta = Math.max(PAUSA.hasta, performance.now() + ms); else PAUSA.uno = true; }
+function dibujoEnPausa(ahora) {
+  if (!PAUSA.on || PAUSA.uno || (R.cv && R.redim) || ahora < PAUSA.hasta || R.perdido) { if (PAUSA.on) PAUSA.dibujados++; PAUSA.uno = false; return false; }
+  PAUSA.saltados++; return true;
+}
 // ¿este llamado se saltea? (sólo con un tope puesto, GFX.tope en cuadros por segundo: hoy ninguna calidad lo usa)
 function cuadroSalta(ahora, jugando) {
   const di = ahora - (TIEMPO.rafUlt || ahora); TIEMPO.rafUlt = ahora; if (di > 1) TIEMPO.rafMs = Math.min(di, (TIEMPO.rafMs || di) * 1.001);
@@ -343,6 +361,10 @@ function cuadro(ahora) {
   // la frecuencia de la pantalla (el intervalo más corto entre llamadas, que se olvida de a poco; la usa la resolución
   // dinámica) y, si hubiera un tope, un cuadro sí y otro no, parejo
   if (cuadroSalta(ahora, JUEGO.estado === 'juego')) return;
+  // (en el menú, la pausa se revisa en cada vuelta: un panel que tapa el mundo —el de Personajes tiene su escenario— la saca
+  // aunque se haya abierto por otro camino que las cajas)
+  if (JUEGO.estado === 'principal' && typeof depPausa === 'function') depPausa();
+  if (dibujoEnPausa(ahora)) { TIEMPO.ult = ahora / 1000; return; }   // (en pausa: ni simula ni dibuja; el lienzo, como quedó)
   const t = ahora / 1000, dt = Math.min(0.1, Math.max(0, t - (TIEMPO.ult || t))) * (JUEGO.estado === 'juego' ? MODS.tiempo || 1 : 1); TIEMPO.ult = t; TIEMPO.dt = dt; TIEMPO.t += dt;
   const t0 = performance.now();
   if (R.perdido) return;   // (sin contexto de WebGL: nada que dibujar hasta que vuelva)
@@ -387,6 +409,7 @@ function cuadro(ahora) {
     if (typeof eventoPaso === 'function') eventoPaso(dt);   // (el evento 3.0: la grieta y lo que cae de ella)
     if (typeof pillPaso === 'function') pillPaso(dt);   // (Pill Packs: transformado en un personaje)
   }
+  if (JUEGO.estado === 'principal' && typeof depPaso === 'function') depPaso(dt);   // (el menú del depósito: las cajas, el haz y la luz)
   efectosPaso(dt);
   camaraActualizar(dt);
   aguaPaso(dt); sonidosPaso(dt); if (typeof emuPaso === 'function') emuPaso(dt); patadasPaso(dt); artPaso(dt); npcPaso(dt); bocinaPaso(); juntosPaso(); nukePaso(dt);
@@ -447,9 +470,7 @@ function dibujarMenu() {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   // (con el escenario de Personajes —el concepto de GOLDEN— el fondo es oscuro, como el panel; la luz del personaje es la misma)
   const C = MENU.caja && MENU.caja.isConnected ? LOBBY_LUZ.fondoEsc : F;
-  // (en la portada —portada.js— el lienzo se borra transparente: atrás está el escenario, con la pantalla gigante y las luces)
-  const vacio = typeof PTD !== 'undefined' && MENU.caja && MENU.caja === PTD.esc && MENU.caja.isConnected; R.alfaLibre = !!vacio;
-  gl.viewport(0, 0, W, H); gl.clearColor(vacio ? 0 : C[0], vacio ? 0 : C[1], vacio ? 0 : C[2], vacio ? 0 : 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.viewport(0, 0, W, H); gl.clearColor(C[0], C[1], C[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   if (!MENU.lobby) return;
   const g = { sol: R.sol.clone(), solCol: R.solCol, ambS: R.ambS, ambG: R.ambG, niebla: R.niebla, lin: R.lin, expo: R.expo };
   R.sol.copy(LOBBY_LUZ.sol); R.solCol = LOBBY_LUZ.solCol; R.ambS = LOBBY_LUZ.amb; R.ambG = LOBBY_LUZ.amb; R.niebla = { c: F, a: 900, b: 1000 };
@@ -466,8 +487,9 @@ const DIB = { ms: {} };   // tiempos de cada parte (para medir)
 function dibujar() {
   const gl = R.gl, W = R.cv.width, H = R.cv.height;
   R.alfaLibre = false;
-  if (JUEGO.estado === 'principal' && typeof dibujarMenu === 'function' && MENU.el) {
-    if (typeof ptdSaltarCuadro === 'function' && ptdSaltarCuadro()) return;   // (la portada en los celulares flojos: el personaje quieto, portada.js)
+  // (el menú principal: con la escena del depósito lista, el mundo de verdad con su cámara fija —deposito.js—; si no —el
+  // escenario de Personajes, o mientras se arma—, el lobby)
+  if (JUEGO.estado === 'principal' && typeof dibujarMenu === 'function' && MENU.el && !(typeof depMundoVisible === 'function' && depMundoVisible())) {
     dibujarMenu(); pantFinCuadro(false); R.alfaLibre = false; return;
   }
   // (en la pausa, Perfil y Personajes muestran tu personaje en 3D como en el menú: se dibuja el lobby con su cámara, sin

@@ -3,6 +3,8 @@ import { createRequire as _cr } from 'module'; const { chromium } = _cr(import.m
 const [, , html, dir, modo] = process.argv;
 const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--mute-audio'] });
 const ctx = await b.newContext(modo === 'celu' ? { viewport: { width: 393, height: 873 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 720 } });
+// (como en las demás pruebas: sin cuentas, si no el cartel de la cuenta tapa la bienvenida —pasaba igual en la 3.4—)
+await ctx.route('**/api/cuenta/config', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"google":false}' }));
 const p = await ctx.newPage(); const err = [];
 p.on('pageerror', (e) => err.push(e.message.slice(0, 160))); p.on('console', (m) => { if (m.type() === 'error' && !/mqtt|WebSocket/i.test(m.text())) err.push(m.text().slice(0, 160)); });
 p.on('dialog', (d) => d.accept()); p.on('requestfailed', (r) => { if (!/mqtt|wss/.test(r.url())) err.push('FALLO ' + r.url().slice(0, 90)); });
@@ -17,8 +19,10 @@ await foto('1_bienvenida');
 await toca('[data-rb="lang:ja"]'); console.log('título en japonés:', await p.evaluate(() => document.querySelector('.rbBienv h2').textContent));
 await foto('2_japones');
 await toca('[data-rb="lang:es"]'); await p.fill('#rbNombreB', 'Probador'); await toca('[data-rb=bienvOK]');
-console.log('menú:', await p.evaluate(() => [...document.querySelectorAll('.ptHome button')].map((e) => (e.textContent.trim() || e.title)).filter(Boolean).join(' | ')));
-await toca('[data-rb=tienda]', 2500); await foto('3_tienda');
+console.log('menú:', await p.evaluate(() => [...document.querySelectorAll('.dpHome button')].map((e) => (e.getAttribute('aria-label') || e.textContent.trim() || e.title)).filter(Boolean).join(' | ')));
+// (en el depósito, Mods y mapas es una caja: el haz la trae y se abre la tienda)
+await p.waitForFunction(() => window.__ev('DEP.listo && !DEP.anim'), null, { timeout: 60000 }).catch(() => {});
+await toca('.dpC_mods', 4000); await foto('3_tienda');
 // los oficiales no vienen puestos: se instalan desde la tienda (Súper salto queda prendido); en Instalados se apaga
 console.log('para instalar:', await p.evaluate(() => document.querySelectorAll('[data-rb^="instalar:"]').length));
 await toca('[data-rb="instalar:salto"]');
@@ -35,12 +39,12 @@ const pub = await ev('JSON.stringify(Object.keys(PUBLICADOS))'); console.log('pu
 await toca('[data-rb="vista:explorar"]', 2500); console.log('en la tienda:', await p.evaluate(() => [...document.querySelectorAll('.rbCard b')].map((e) => e.textContent).join(', ')));
 await foto('7_explorar');
 // construir algo, guardarlo y publicarlo como mapa
-await toca('[data-rb=volver]'); await toca('[data-rb=nueva]'); await toca('[data-rb="mapa:FlatGrass"]'); await toca('[data-rb=empezar]', 4000);
+await toca('[data-rb=volver]', 1500); await toca('.dpMapa'); await toca('[data-rb="mapa:FlatGrass"]'); await toca('[data-rb=empezar]', 4000);
 await ev(`(() => { const o = JUG.pos; for (const [n, d, l] of [['Barrel', 5, 0], ['Barrel', 5, 1.2], ['Cone', 6, -1], ['Sedan', 9, 2]]) { const x = crearObjeto(n, v3(o.x + Math.sin(JUG.yaw) * d + Math.cos(JUG.yaw) * l, o.y + 1, o.z + Math.cos(JUG.yaw) * d - Math.sin(JUG.yaw) * l), Quat.euler(JUG.yaw, 0)); if (x) x.dueno = 'yo'; } })()`);
 await p.waitForTimeout(1500); await ev('guardarConstruccion()'); await p.waitForTimeout(1200);
 console.log('foto guardada:', await ev("(localStorage.getItem('rb_foto_FlatGrass') || '').length"));
-await ev('irMenuPrincipal()'); await p.waitForTimeout(800);
-await toca('[data-rb=tienda]', 1200); await toca('[data-rb="tab:mapa"]', 1500); await toca('[data-rb=pubmapa]');
+await ev('irMenuPrincipal()'); await p.waitForFunction(() => window.__ev('DEP.listo && !DEP.anim'), null, { timeout: 60000 }).catch(() => {});
+await toca('.dpC_mods', 4000); await toca('[data-rb="tab:mapa"]', 1500); await toca('[data-rb=pubmapa]');
 await p.fill('#paNom', 'Mi patio de prueba'); await p.fill('#paDesc', 'Barriles, un cono y un auto'); await toca('[data-rb="paetq:construccion"]');
 await foto('8_pub_mapa');
 await toca('[data-rb=papub]', 3000);

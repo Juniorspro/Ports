@@ -102,7 +102,7 @@ function listaSalas() {
 }
 // la lista se dibuja en el inicio: en el panel de multijugador y en la tarjeta de quién juega ahora (rbmenus.js)
 // (las cuentas van en el título del panel Multijugador —mpDibujar— y en la tarjeta de la portada: portada.js)
-function listaContadores() { if (typeof ptdEnLinea === 'function') ptdEnLinea(); }
+function listaContadores() { if (typeof depDatosPintar === 'function') depDatosPintar(); }   // (la gente en línea, en la caja de Multijugador: deposito.js)
 function listaDibujar() {
   listaContadores();
   if (typeof RB === 'undefined' || RB.panel !== 'multi') return;

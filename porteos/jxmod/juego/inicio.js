@@ -73,9 +73,9 @@ const RED_SOCIAL = [['Discord', 'https://discord.gg/bsdThEjje', '<svg viewBox="0
 function abrirRed(u) { try { if (window.JXNativo && JXNativo.abrir) { JXNativo.abrir(u); return; } } catch (e) {} window.open(u, '_blank', 'noopener'); }
 function inicioCrear() {
   const el = document.createElement('div'); el.id = 'rbInicio'; el.className = 'oc';
-  // (la portada —portada.js— va arriba del fondo de escenas, que queda para los paneles)
-  el.innerHTML = `<div class="rbBg"></div><div class="rbBg"></div><div class="rbSombra"></div><div class="ptHome oc"></div><div class="rbPan oc"></div>`;
-  document.body.appendChild(el); RB.el = el; ptdCrear(el.querySelector('.ptHome'));
+  // (el menú del depósito —deposito.js— va arriba del fondo de escenas, que queda para los paneles cuando la escena no está)
+  el.innerHTML = `<div class="rbBg"></div><div class="rbBg"></div><div class="rbSombra"></div><div class="dpHome oc"></div><div class="rbPan oc"></div>`;
+  document.body.appendChild(el); RB.el = el; depCrear(el.querySelector('.dpHome'));
   el.addEventListener('click', (e) => { const b = e.target.closest('[data-rb]'); if (!b || b.tagName === 'SELECT' || b.tagName === 'INPUT') return; audioIniciar(); inicioAccion(b.dataset.rb, b, e); });
   el.addEventListener('change', (e) => {
     const t = e.target;
@@ -98,15 +98,15 @@ function inicioCrear() {
   overlay('NicknamePanel', false); PREFS.nombreOk = true; guardarPrefs();
   rbArrastre();
 }
-// la portada (portada.js): tu personaje en el escenario, el perfil, las tarjetas, las pestañas y JUGAR. (Antes, la 3.0:
-// una lista de texto como la de GMod y botoncitos abajo)
+// el menú principal (deposito.js): la escena con las cajas, el perfil, Amigos, Ajustes, el mapa y JUGAR. (Antes, la 3.0: una
+// lista de texto como la de GMod y botoncitos abajo; la 3.4, la portada con tu personaje en un escenario)
 function inicioLista() {
   RB.el.dir = PREFS.lang === 'ar' ? 'rtl' : 'ltr';
-  ptdDibujar();
+  depDibujar();
   if (typeof socGlobito === 'function') socGlobito();   // (lo nuevo de lo social: mensajes y solicitudes)
 }
-// (que todo entre en la pantalla: portada.js)
-function inicioEncajar() { ptdEncajar(); }
+// (que todo entre en la pantalla: deposito.js)
+function inicioEncajar() { depEncajar(); }
 function nombrePoner(v) { PREFS.nombre = limpioNombre(v); guardarPrefs(); const nick = nodo('Main/MainMenu/UpPanel/NickNameInputField'); if (nick && nick.inp) nick.inp.value = PREFS.nombre; }
 function inicioFondoPasar() {
   const capas = RB.el.querySelectorAll('.rbBg'), lista = FONDOS_RB.length ? FONDOS_RB : MAPAS.map((m) => icono(MAPA_ICONO[m]));
@@ -115,8 +115,9 @@ function inicioFondoPasar() {
 }
 function inicioPanel(p) {
   RB.panel = p; const P = RB.el.querySelector('.rbPan');
-  // (sin panel, la portada con tu personaje en el escenario; con un panel, el fondo de escenas de siempre)
-  ptdMostrar(!p);
+  // (sin panel, el menú del depósito; con un panel, el panel encima de la escena —con la caja agarrada—, o el fondo de
+  // escenas de siempre mientras la escena no está)
+  depMostrar(!p);
   // (crear un mod y publicar una construcción se abren desde la tienda: llevan su mismo estilo)
   P.classList.toggle('oc', !p); P.className = 'rbPan' + (p ? ' rbPan_' + p + (p === 'pubmod' || p === 'pubmapa' ? ' rbPan_tienda tiForm' : '') : ' oc');
   // (el personaje en 3D sólo en la portada y en Personajes: en el resto, el fondo de siempre)
@@ -134,6 +135,7 @@ function inicioPanel(p) {
   if (p === 'pubmod') return panelPubMod(P);
   if (p === 'pubmapa') return panelPubMapa(P);
   if (p === 'crear') return panelCrear(P);
+  if (p === 'evento') return panelEvento(P);   // (el barril de la grieta: qué es y su interruptor, deposito.js)
 }
 // ---------- crear un mapa: elegir el mapa base (o seguir uno guardado) y entrar al modo creador ----------
 function panelCrear(P) {
@@ -486,7 +488,7 @@ function mapaDelForm() {
 }
 function inicioAccion(k, b) {
   const [a, v] = k.split(/:(.*)/s);
-  if (ptdAccion(a, v)) return; // (lo propio de la portada: Jugar, las tarjetas y los contadores: portada.js)
+  if (depAccion(a, v, b)) return; // (lo propio del menú: JUGAR, las cajas, las hojas del perfil y de Ajustes y la Lista: deposito.js)
   if (rbMenusAccion(a, v)) return; // (multijugador, crear server y personajes: rbmenus.js)
   if (typeof gmTiendaAccion === 'function' && gmTiendaAccion(a, v)) return; // (la pestaña GMod de la tienda: gmod_tienda.js)
   const marcar = () => b.classList.toggle('sel');
@@ -554,7 +556,7 @@ function inicioMostrar(si) {
     if (!RB.reloj) { inicioFondoPasar(); RB.reloj = setInterval(() => { if (!RB.el.classList.contains('oc')) inicioFondoPasar(); }, 9000); }
   }
   if (RB.el) RB.el.classList.toggle('oc', !si);
-  if (si) { ptdMostrar(!RB.panel); requestAnimationFrame(() => { inicioEncajar(); tiEncajar(); }); } else ptdMostrar(false);
+  if (si) { depMostrar(!RB.panel); requestAnimationFrame(() => { inicioEncajar(); tiEncajar(); }); } else { depMostrar(false); depSalir(); }
   // (en la partida, con el menú abierto la HUD táctil no se ve: si no, se asoma por las partes transparentes del menú)
   document.body.classList.toggle('rbAbierto', !!si);
   if (!si && RB.el) { RB.el.classList.remove('rb3d'); menuLobby(false); MENU.caja = null; }

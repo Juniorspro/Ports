@@ -37,6 +37,12 @@ const GLIFOS = {
   reloj: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   copiar: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/>',
   mas: '<path d="M12 5v14M5 12h14"/>',
+  // (los de las cajas y las hojas del menú del depósito: deposito.js)
+  baile: '<circle cx="13" cy="4.5" r="2"/><path d="M13 7l-1 6 3 3 1 5M12 13l-3.5 2-2 4M12 9l4-1 2-3M12 9.5 8 8 6 5"/>',
+  mods: '<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4z"/><path d="M16.5 13v7M13 16.5h7"/>',
+  lista: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.6" cy="6" r="1.2" fill="currentColor"/><circle cx="3.6" cy="12" r="1.2" fill="currentColor"/><circle cx="3.6" cy="18" r="1.2" fill="currentColor"/>',
+  libro: '<path d="M4 4.5h6.5c1 0 1.5.6 1.5 1.5v14c0-1-.6-1.5-1.5-1.5H4zM20 4.5h-6.5c-1 0-1.5.6-1.5 1.5v14c0-1 .6-1.5 1.5-1.5H20z"/>',
+  servidor: '<rect x="4" y="4" width="16" height="7" rx="1.5"/><rect x="4" y="13" width="16" height="7" rx="1.5"/><circle cx="8" cy="7.5" r=".9" fill="currentColor"/><circle cx="8" cy="16.5" r=".9" fill="currentColor"/>',
   pin: '<path d="M9 3h6M10 3v6l-3 4h10l-3-4V3M12 13v8"/>',
   candado: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/>',

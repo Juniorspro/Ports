@@ -166,10 +166,14 @@ void main(){
   vec3 col = colV * v * 1.6 * puls + vec3(0.22, 0.6, 1.4) * T.g * 0.8 * puls + vec3(0.08, 0.16, 0.85) * T.b * 0.85 * puls + vec3(1.2, 1.9, 2.6) * nucleo * puls;
   col = col * uBri + vec3(0.03, 0.012, 0.11) * fondo;
   float alfa = clamp(fondo * uFondo + T.g * 0.25, 0.0, 0.92);
+  // el borde del cuadrado: todo se apaga suave antes de llegar a él (en el borde el fondo oscuro y el resplandor ancho
+  // todavía no eran cero y, sin HDR, la curva de abajo los levanta —0,002 de color pasaba a 0,056—: con la cámara del menú,
+  // deposito.js, se veía el corte recto contra el cielo). Lo que se ve de la grieta llega a 1,0; desde 1,2 se apaga
+  float borde = 1.0 - smoothstep(uS * 0.62, uS * 0.97, length(vQ));
 #if SALIDA == 2
-  o = vec4(col, alfa);
+  o = vec4(col, alfa) * borde;
 #else
-  o = vec4(pow(1.0 - exp(-col * uExpo), vec3(0.4545)), alfa);
+  o = vec4(pow(1.0 - exp(-col * uExpo), vec3(0.4545)), alfa) * borde;
 #endif
 }`;
 // las líneas de la fractura: con ancho en píxeles (nítidas a cualquier distancia), dos pasadas (resplandor y núcleo
@@ -246,7 +250,8 @@ function evtLineasArmar() {
 }
 // ---------------- dibujar la grieta (después del cielo, antes de lo transparente) ----------------
 function eventoCieloDibujar() {
-  if (!EVT.grieta || !evtActivo() || JUEGO.estado !== 'juego' || MUNDO.nombre !== EVT.mapa) return;
+  // (también en el menú principal, con la escena del depósito: EVT.enMenu, deposito.js)
+  if (!EVT.grieta || !evtActivo() || (JUEGO.estado !== 'juego' && !EVT.enMenu) || MUNDO.nombre !== EVT.mapa) return;
   // (detrás de la vista: nada; el cuadrado abarca unos ±35° alrededor de la grieta)
   if (vdot(CAM.fwd, EVT.dir) < -0.25) return;
   const t0 = performance.now(), gl = R.gl;

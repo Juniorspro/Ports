@@ -68,6 +68,9 @@ class Modelo {
     if (this.oculto) return;
     this.actualizar();
     let extra = this.color ? { c: this.color } : this.extra || null;
+    // (el tinte de la entidad, un color por objeto —en el shader, uTi: el brillo de la textura pintado de ese color—; el
+    // barril violeta de la grieta en el menú, deposito.js)
+    if (this.tinte) extra = extra ? Object.assign({}, extra, { ti: this.tinte }) : { ti: this.tinte };
     // resaltado de lo que se apunta: fijo, entra y sale suave y aguanta un momento (sin titilar si el rayo falla un cuadro)
     if (this.resaltar !== undefined) {
       if (this.resT !== TIEMPO.t) { // una vez por cuadro (el modelo se dibuja también para las sombras)
