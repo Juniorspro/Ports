@@ -2252,6 +2252,43 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.6: vuelve el menú clásico (mejorado), el selector de menú y el modo grabación
+
+Lo del Discord después de la 3.5 (el detalle y los números, en las secciones «Menú principal clásico otra vez» —abajo— y
+«Del Discord (Chillguy49603)»). Misma firma que la 3.2 a la 3.5: quien tiene una de esas actualiza encima; quien sigue en
+la 3.1 tiene que desinstalarla antes. El APK pide dos permisos más (abajo).
+
+- **Menú clásico otra vez, mejorado** (los jugadores extrañaban el de la 3.3; el dueño: «mejorá el viejo nomás, el
+  minimalista negro, agregá detalles, rasgaduras… animaciones»): la misma lista en el mismo lugar (0 px de diferencia), con
+  rasgaduras, grano, cinta y desgaste, y animaciones que terminan solas (la entrada rasgada, el barrido de luz, el golpe al
+  tocar, el glitch del logo y las brasas). Con el menú quieto la placa compone 15,6 cuadros por segundo contra 59 de la
+  3.3, y el JS baja a un tercio; hasta poder tocar, como mucho +4,7 %.
+- **Menú de inicio a elección** (ninten): Ajustes → Gráficos → «Clásico / Depósito», sin reiniciar; de fábrica, el clásico.
+- **Modo grabación** (Chillguy49603; el dueño lo había prometido): Pausa → ● Grabar, el botón ● REC o F9. Graba el juego
+  con su sonido (del mismo AudioContext, no del sistema) y lo guarda en la galería (Movies/JXMod) mientras graba; 720p o
+  1080p, 30 o 60; micrófono y voces del chat, a elección.
+- **El sonido interno con el grabador del celular**: el micrófono del chat de voz dejaba la app en modo llamada y Android no
+  deja grabar ese sonido. Ahora se suelta en segundo plano y la captura del sonido de la app queda permitida por escrito.
+- **Permisos nuevos del APK**: `WRITE_EXTERNAL_STORAGE` sólo hasta Android 9 (para guardar en Movies/JXMod sin MediaStore) y
+  `DETECT_SCREEN_RECORDING` (Android 15: saber cuándo el grabador del sistema empieza a grabar); `aapt` muestra además
+  `READ_EXTERNAL_STORAGE`, que Android da por incluido con el de escribir (no está en el manifiesto). Ninguno se pide en una
+  ventana salvo el primero, hasta Android 9, al empezar la primera grabación (si no lo dan, el video queda en la carpeta
+  de la app).
+- **Pruebas sobre el juego con todo junto** (dos tandas a la vez): `menu_clasico` 21/22, `deposito` 99/100, `menu_principal`
+  7/7, `menu_30` 15/15, `social` 42/42, `tienda_panel` 24/24, `celulares` 9/9, `gmod_carpeta` 32/32, `grabar` 23/23,
+  `sonidos` 11/11, `sonidos_accion` 7/7, `fondo_callado` 5/5, `hud_celu` 7/7, `armas_gmod` 8/8, `nextbots_red` 25/25,
+  `manos_c` 6/6 y la tanda de armas de la 3.2 31/34. Lo que falló, otra vez solo: `deposito` 100/100 (Enter en la Lista,
+  con la máquina cargada, como en la 3.5); `menu_clasico` parte 4, 6/6 dos veces (la 4b no fallaba por el menú: el glitch
+  solo del logo —cada 11 a 19 s— caía en la ventana de 0,9 s en que la prueba mira que el barrido terminó; ahora la prueba
+  lo apaga mientras mide); las armas, 31/34 otra vez: las dos de siempre (m9k_damascus e infinitygauntlet, «no golpea») y
+  cw_frag_grenade «no apunta», que **falla igual en la 3.5**: sola, alternando 3 y 3, la 3.5 0/3 y la 3.6 1/3 (en la tanda
+  de la 3.5 había pasado): depende de la vuelta, no de esto. `codigo_web` 9/9 (después del arreglo de abajo, en «Del
+  Discord (Chillguy49603)»), el APK: la elección del motor 5/5 y `PruebaGrabador` 6/6, y la recuperación desde la web con
+  código da el mismo `pk.bin` y los 61 paquetes aparte iguales. `codigo_tragado`: 0.
+- **Pendiente**: sin celular de verdad (todo emulado): la galería en Android 7 a 9, Compartir y Ver, el aviso de Android
+  15, el MP4 con AAC y el costo del codificador del aparato, y el grabador del sistema con el sonido interno. La mira de
+  cw_frag_grenade, que a veces no se prende (igual en la 3.5), sin investigar.
+
 ## Menú principal clásico otra vez (el de la 3.3, mejorado) y «Menú de inicio: Clásico / Depósito»
 
 En el Discord los jugadores extrañan el menú de la 3.3 («es como un fortnite sandbox y es raro acostumbrarse a esto luego
@@ -4144,3 +4181,11 @@ grabar (lo único que no sale en el video son los botones, que no cuestan).
 - Sin probar en un celular de verdad (no hay emulador ni celular acá): MediaStore y el permiso de Android 7-9,
   Compartir/Ver, el aviso de Android 15, si la vista web del celular elige MP4 con AAC, el costo con el codificador por
   hardware y el sonido interno con el grabador del sistema (cómo verificarlo, arriba).
+
+**Arreglado antes de publicar** (lo encontró `pruebas/codigo_web.mjs` sobre el armado de la 3.6, 4/9): en la web con código
+el juego se descifra con la página ya cargada (`document.readyState` = «complete»), así que `grabIniciar` corría en el
+mismo momento en que se arma el código, antes de que existan `PREFS` (principal.js, más abajo en el armado) y los textos
+de grabar: «Cannot access 'PREFS' before initialization» y el juego no arrancaba (en el armado de prueba no pasaba,
+porque ahí la página todavía está cargando y espera a DOMContentLoaded). Ahora, con la página cargada, va en un
+`setTimeout(…, 0)`, después del armado. Con eso `codigo_web` 9/9, y en la web con código el juego dice 3.6, arranca con
+el clásico y tiene «● Grabar» en la pausa y el ● REC.

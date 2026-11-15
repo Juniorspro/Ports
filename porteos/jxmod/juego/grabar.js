@@ -593,7 +593,9 @@ body.tactil #pausa .pzSalir,body.tactil #pausa .pzChico{height:44px}
 }
 // (al cargar: el botón de la pausa y el de la HUD; los textos se ponen al abrir la pausa, en el idioma de ese momento)
 function grabIniciar() { grabPausaPoner(); grabBotonHud(); }
-if (document.readyState === 'loading') addEventListener('DOMContentLoaded', grabIniciar); else grabIniciar();
+// (en la web con código y en la app el juego se descifra con la página ya cargada: sin esperar, esto correría en medio del
+// armado, antes de que existan PREFS —principal.js, más abajo— y los textos de acá abajo; se deja para después)
+if (document.readyState === 'loading') addEventListener('DOMContentLoaded', grabIniciar); else setTimeout(grabIniciar, 0);
 
 Object.assign(IDI3, {
   'gr.grabar': ['Grabar', 'Record', 'Gravar', 'Rekam', 'Rakam', 'I-record', '録画', 'บันทึก', 'Kaydet', 'تسجيل', 'Запись', 'Запис', 'Enregistrer', 'Aufnehmen'],

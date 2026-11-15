@@ -243,7 +243,8 @@ if (corre(4)) {
   const saltos = (k1[0] - k0[0]) / 3;
   caso(`4a. la entrada termina: a los 3 s nada corre en el menú (${c.menu.length}) ni en el fondo; el fondo de la 3.3 se agranda de a saltos (${saltos.toFixed(1)} por segundo)`, entradas >= 1 && !c.menu.length && !c.fondo.length && saltos > 3 && saltos <= 6.5 && k0[1] !== k1[1], { c, saltos, k0, k1 });
   // el barrido y el golpe terminan (el fondo quieto: sin el cambio de escena, que también trae brasas)
-  await A.ev(FONDO(0)); await A.p.waitForTimeout(3000);
+  // (sin el glitch solo del logo —cada 11 a 19 s—: si cae en la ventana de 0,9 s se mezcla con el barrido; el glitch se prueba a mano)
+  await A.ev(FONDO(0)); await A.ev('clearTimeout(CL.tGl); 1'); await A.p.waitForTimeout(3000);
   await A.ev(`clElegir('crear'); CL.lista.querySelector('[data-k=crear]').classList.add('clGolpe'); 1`); await A.p.waitForTimeout(100);
   const c1 = await A.ev(CORREN); await A.p.waitForTimeout(900); const c2 = await A.ev(CORREN);
   await A.ev(`clGlitch(); 1`); await A.p.waitForTimeout(80); const g1 = await A.ev(CORREN); await A.p.waitForTimeout(700); const g2 = await A.ev(CORREN);
