@@ -2252,6 +2252,31 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.9 (en preparación): la Physics Gun de JXMod y el tráiler
+
+- **La Physics Gun de JXMod** (`juego/armasjx.js`): es la de GMod con sus brazos y sus animaciones, modificada. Tiene el
+  cuerpo azul acero y lo celeste sigue brillando. Las manos quedan como estaban (`Modelo.tintes`: un tinte por material).
+  - Se le sacaron las garras grandes y sus brazos con una copia de la malla sin esas piezas (`ajxMallaSin`, `Modelo.mCambio`).
+    Cada pieza es lo que está conectado por triángulos o por vértices en el mismo lugar, y se saca si su hueso principal es
+    Prong_A, Prong_B, Doodad_4 o Doodad_1. Achicar los huesos dejaba puntas estiradas; esto no.
+  - Se le agregó un emisor en la boca (un aro de grafito, un aro celeste y un núcleo que late) y tres garras nuevas que se
+    abren al agarrar.
+  - Arriba lleva una aleta con el logo de JXMod a los dos lados (`ajxLogo`: la textura sale del logo del juego).
+  - El modelo en la mano del personaje y el ícono usan el mismo azul.
+  - El rayo tiene cuerpo: un tubo celeste que brilla (`ajxMundoDibujar`). La línea de 1 píxel casi no se veía en 1080p.
+  - Las de GMod y Half-Life tal cual quedan en el mod de la comunidad «Armas clásicas», que viene instalado y apagado.
+    La primera versión, una Physics Gun hecha entera en código, se descartó porque no gustó en primera persona.
+- Arreglo: `fisicaPaso` con un cuadro de tiempo 0 dejaba el giro en infinito y el objeto agarrado en NaN (desaparecía).
+- **El tráiler** (`pruebas/trailer.mjs` + `pruebas/trailer_escenas.mjs`): 45 s a 60 cuadros por segundo en 1920 × 1080,
+  con 14 escenas y títulos con la letra del juego.
+  - El juego se graba cuadro por cuadro con el tiempo fijo, en calidad Alta al 67 % (`RES=`). En este procesador sin placa
+    de video cada cuadro tarda de 0,4 a 1 s. Para las tomas de cine, `DBG.sinVista` saca el arma de la cámara, y una escena
+    puede pedir cámara lenta (`ritmo`).
+  - Música: Kevin MacLeod, «Volatile Reaction» (incompetech.com, CC BY 4.0, el crédito va en el cierre). Arranca en su
+    segundo 17,82 para que el drop caiga en el 12,00, la primera explosión (medido: el golpe arranca en 12,0 s). Se
+    normalizó a −14 LUFS (salió −13,8).
+  - Se armó con ffmpeg en dos versiones: 1080p60 (63 MB) y 720p60 de 9,6 MB para Discord.
+
 ## JXMod 3.8.2: «You Know How We Do It» en West Side
 
 - Faltaba «You Know How We Do It» de Ice Cube en la radio West Side de la música del menú (`juego/musica_estaciones.txt`).

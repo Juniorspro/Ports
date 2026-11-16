@@ -100,6 +100,7 @@ function ajxPieza(nom) {
   if (nom === 'esfera') ajxEsfera(B, V(0, 0, 0), 1, 14);
   else if (nom === 'anillo') ajxToro(B, V(0, 0, 0), V(0, 0, 1), 1, 0.16, 32, 10);   // (alrededor de z)
   else if (nom === 'aro') ajxToro(B, V(0, 0, 0), V(0, 0, 1), 1, 0.07, 36, 8);
+  else if (nom === 'tubo') ajxCil(B, V(0, 0, 0), V(0, 0, 1), 1, 1, 8, false, 0);   // (de z=0 a z=1, radio 1)
   else if (nom === 'barra') ajxCaja(B, V(0, 0, 0.5), [0.5, 0.5, 0.5], null, 0.18);   // (de z=0 a z=1)
   else if (nom === 'placa') { const n = V(0, 0, 1); [[-0.5, -0.5, 0, 0], [0.5, -0.5, 1, 0], [0.5, 0.5, 1, 1], [-0.5, 0.5, 0, 1]].forEach(([x, y, u, v]) => ajxVert(B, V(x, y, 0), n, u, v)); ajxTri(B, 0, 1, 2); ajxTri(B, 0, 2, 3); }
   return (AJX_PIEZAS[nom] = mallaPropia(B));
@@ -226,6 +227,19 @@ function ajxFisicaPiezas(v, md, h) {
     const n = vscale(S, sg), lg = (al[2] - al[1]) * 0.86, cx = P(o, al[0], (al[1] + al[2]) / 2, sg * (al[4] / 2 + 0.003)), X = vcross(U, n).norm();
     ajxPoner('placa', lm, cx, vscale(X, L * lg), vscale(U, L * lg / 4), n);
   }
+}
+// el rayo de la Physics Gun de JXMod con cuerpo: un tubo celeste que brilla, por los puntos del rayo (se encola con el mundo,
+// antes de armar la cola; el de una línea sola casi no se veía en pantallas grandes)
+function ajxMundoDibujar() {
+  if (!ARM.agarre || JUEGO.estado !== 'juego' || !ajxDeArma(ARM.lista[ARM.i]) || typeof rayoFisicaPuntos !== 'function') return;
+  const L = rayoFisicaPuntos(); if (!L) return;
+  const M = ajxMats(), up = v3(0, 1, 0), t = TIEMPO.t; R.encNs = true;   // (sin sombra)
+  for (let i = 1; i < L.length; i++) {
+    const a = L[i - 1], d = vsub(L[i], a), n = d.len(); if (n < 1e-4) continue;
+    const r = 0.012 * (1 + 0.25 * Math.sin(t * 18 - i * 0.9)), [x, y, z] = ajxEjes(d, up);
+    ajxPoner('tubo', M.azul, a, vscale(x, r), vscale(y, r), vscale(z, n * 1.02));
+  }
+  R.encNs = false;
 }
 // en la mano del personaje: el modelo de GMod con el mismo color
 function ajxGmMundo(md, nombre) { const jx = ajxDeArma(nombre), C = jx && AJX_ARMAS[jx]; md.tinte = C ? C.mundo : null; }

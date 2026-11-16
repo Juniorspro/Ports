@@ -289,7 +289,7 @@ function danarJugador(dan, de) {
 // ---------------- pistola física ----------------
 function fisicaPaso(dt) {
   const A = ARM.agarre;
-  if (!A) return;
+  if (!A || !(dt > 0)) return;   // (un cuadro sin tiempo —dt 0— dejaba la velocidad de giro en infinito y el objeto en NaN)
   const b = A.b;
   if (!PH.bodies.includes(b)) { ARM.agarre = null; return; }
   const meta = vadd(miraOjo(), vscale(miraDir(), A.dist));   // (adelante de los ojos del personaje, no de la cámara libre)
@@ -425,6 +425,7 @@ function armasPaso(dt) {
   if (ARM.v) vistaAplicar(ARM.v, dt);
 }
 function dibujarVista() {
+  if (DBG.sinVista) return false;   // (las tomas de cine del tráiler: sin el arma en la cámara)
   if ((!ARM.v && !celmEnMano() && !((DEF_ARMAS[ARM.lista[ARM.i]] || {}).tipo === 'gmswep' && !(DEF_ARMAS[ARM.lista[ARM.i]] || {}).nodo)) || JUG.tercera || HCAM.ver || !JUG.vivo || JUG.vehiculo || ARM.zoom || CIC.vic || CIC.camOn || EDA.on || NOC.cam !== null || NOC.susto) return false;
   if (JUG.cuerpo && JUG.cuerpo.emote && JUG.cuerpo.emote !== 'Patada') return false;   // (haciendo un emote en primera persona se ve el cuerpo, sin el arma en la mano de la cámara)
   if (celmEnMano()) return celmVistaDibujar();   // (el celular: la mano que lo sostiene, celumano.js)
@@ -439,14 +440,15 @@ function vistaPuntaMundo() {
   v.md.actualizar(); const W = v.md.W[v.mz]; return v3(W[12], W[13], W[14]);
 }
 function dibujarRayoFisica() {
-  const A = ARM.agarre; if (!A) return;
-  // (de la boca del arma: con la cámara libre o en tercera persona, la del arma en la mano del personaje)
-  const o = miraOjo(), f = miraDir(), p0 = bocaArma(f) || vadd(o, v3(0, -0.2, 0)), p1 = vadd(A.b.pos, A.b.q.rot(A.rl));
-  const n = 16, c = typeof ajxDeArma === 'function' && ajxDeArma(ARM.lista[ARM.i]) ? [1, 0.72, 0.18, 0.95] : [0.35, 0.78, 1, 0.95];   // (ámbar, el de JXMod; celeste con las clásicas, como el de GMod)
-  let prev = p0;
+  const L = rayoFisicaPuntos(); if (!L) return;
+  for (let i = 1; i < L.length; i++) linea(L[i - 1], L[i], [0.35, 0.78, 1, 0.95]);   // (celeste, como el de GMod)
+}
+// los puntos del rayo: una curva de la boca del arma a donde se agarró (con la cámara libre o en tercera persona, de la
+// boca del arma en la mano del personaje). La de JXMod además le pone cuerpo: un tubo celeste que brilla (armasjx.js)
+function rayoFisicaPuntos() {
+  const A = ARM.agarre; if (!A || !A.b) return null;
+  const o = miraOjo(), f = miraDir(), p0 = bocaArma(f) || vadd(o, v3(0, -0.2, 0)), p1 = vadd(A.b.pos, A.b.q.rot(A.rl)), n = 16, L = [p0];
   const mid = vadd(o, vscale(f, A.dist * 0.5));
-  for (let i = 1; i <= n; i++) {
-    const t = i / n, a = vadd(vscale(p0, (1 - t) * (1 - t)), vadd(vscale(mid, 2 * t * (1 - t)), vscale(p1, t * t)));
-    linea(prev, a, c); prev = a;
-  }
+  for (let i = 1; i <= n; i++) { const t = i / n; L.push(vadd(vscale(p0, (1 - t) * (1 - t)), vadd(vscale(mid, 2 * t * (1 - t)), vscale(p1, t * t)))); }
+  return L;
 }

@@ -529,6 +529,7 @@ function dibujar() {
   if (typeof dibujarPersonas === 'function') dibujarPersonas();
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();
+  if (typeof ajxMundoDibujar === 'function') ajxMundoDibujar();   // (el rayo con cuerpo de la Physics Gun de JXMod, armasjx.js)
   if (JUEGO.estado === 'juego') { cicDibujar(); verDibujar(); nocheDibujar(); }
   dibujarProyectiles();
   lucesJuntar(); lucesPreparar(); espPreparar();
