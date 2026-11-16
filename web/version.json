@@ -1,8 +1,8 @@
 {
- "codigo": 3700,
- "version": "3.7",
+ "codigo": 3701,
+ "version": "3.7.1",
  "apk": "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXMod.apk",
  "web": "https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/index.html",
- "notas_es": "JXMod 3.7 — Si tenés de la 3.2 a la 3.6, se instala encima. Si seguís en la 3.1, desinstalala antes (cambió la firma). Novedades: todos los paneles del menú con el estilo del clásico (negro, rasgaduras, amarillo), más aire y animaciones nuevas en botones, pestañas y tarjetas; fondos animados de verdad detrás del menú (renders del juego en video, livianos); música en el menú: Ajustes → Música con 10 estaciones de 35 canciones (Casual de Kevin MacLeod de fábrica y sin internet, West Side, Electrónica NCS, Phonk, Lo-fi, Rock, Latino, Synthwave, Épica y Clásicos de internet), «Mi música» con tus archivos y «Sin música»; La grieta ya no se puede apagar.",
- "notas_en": "JXMod 3.7 — If you have 3.2 to 3.6, it installs on top. If you are still on 3.1, uninstall it first (the signature changed). New: every menu panel in the classic style (black, torn edges, yellow), more space and new animations on buttons, tabs and cards; real animated backgrounds behind the menu (in-game renders as light video loops); menu music: Settings → Music with 10 stations of 35 songs each (Casual by Kevin MacLeod by default and offline, West Side, NCS Electronic, Phonk, Lo-fi, Rock, Latin, Synthwave, Epic and Internet classics), \"My music\" with your own files and \"No music\"; the Rift event can no longer be turned off."
+ "notas_es": "JXMod 3.7.1 — Si tenés de la 3.2 a la 3.7, se instala encima. Si seguís en la 3.1, desinstalala antes (cambió la firma). Arreglos: los personajes ya no quedan jorobados (todas las skins y las importadas: la cabeza y el torso derechos); en Mods y mapas, tocar «Instalar» ya no deforma las tarjetas; el fondo animado se pausa con Ajustes abierto (gasta menos batería); la pantalla de carga ya no ofrece Verity, que está apagada.",
+ "notas_en": "JXMod 3.7.1 — If you have 3.2 to 3.7, it installs on top. If you are still on 3.1, uninstall it first (the signature changed). Fixes: characters no longer stand hunched (every skin and imported ones: straight head and torso); in Mods & maps, tapping \"Install\" no longer warps the cards; the animated background pauses while Settings is open (less battery); the loading screen no longer suggests Verity, which is turned off."
 }

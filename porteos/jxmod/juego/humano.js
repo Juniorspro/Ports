@@ -413,4 +413,38 @@ function animarHumano(P, dt) {
     // deslizándose: la columna entera se inclina hacia donde va (sobre el eje horizontal que cruza el movimiento)
     if (fl) { P.md.sucio = true; _hFlEje.set(H.flZ, 0, -H.flX); girarMundo(P, 'Hips', _hFlEje, fl); }
   }
+  humPostura(P, H, dt);
+}
+// la postura derecha (Discord, 3.7: «todo enjorobado», en todas las skins y en las importadas con el rig automático, que usan
+// el esqueleto del Hero): las posturas de quieto y de caminar —las de los jugadores de GMod— dejan el torso 16° adelante (de la
+// cadera al cuello) y la cabeza 33° más (del cuello a la cabeza). Se mide cada cuadro sobre el cuerpo ya animado y se
+// endereza sólo lo que pasa de una postura natural (torso 5°, cabeza 15°), repartido en la columna y el cuello. Parado o
+// caminando; corriendo, a medias (correr va inclinado); agachado, en un emote, sentado, nadando o en el aire, nada. Entra y
+// sale suave
+const HUM_POST = { torso: 5 * Math.PI / 180, cabeza: 15 * Math.PI / 180, max: 28 * Math.PI / 180 };
+const _hpR = v3(0, 0, 0), _hpF = v3(0, 0, 0), _hpT = v3(0, 0, 0);
+function humPosturaLean(md, a, b) {
+  const A = md.W[a], B = md.W[b]; _hpT.set(B[12] - A[12], B[13] - A[13], B[14] - A[14]);
+  return Math.atan2(_hpT.x * _hpF.x + _hpT.y * _hpF.y + _hpT.z * _hpF.z, _hpT.y);
+}
+function humPostura(P, H, dt) {
+  const h = P.D.h, md = P.md;
+  if (h.Hips === undefined || h.Spine === undefined || h.Neck === undefined || h.Head === undefined || h.LeftArm === undefined || h.RightArm === undefined) return;
+  const sp = Math.hypot(P.vel.x, P.vel.z), quiere = P.suelo !== false && !P.emote && !P.sentado && !P.agachado && !P.flota && !(P.nadoK > 0.3) && !P.rag && !P.muerto ? (sp > 4 ? 0.5 : 1) : 0;
+  H.posK = (H.posK || 0) + (quiere - (H.posK || 0)) * Math.min(1, dt * 6); const k = H.posK; if (k < 0.01) return;
+  // (humAplicar pone la pose nueva sin marcar el modelo: sin esto se medía sobre las matrices del cuadro anterior —que ya
+  // traían la corrección— y se sumaba cuadro a cuadro)
+  md.sucio = true; md.actualizar();
+  // (el frente del cuerpo: de los hombros —a la derecha del personaje— y la vertical)
+  const L = md.W[h.LeftArm], R = md.W[h.RightArm]; _hpR.set(R[12] - L[12], 0, R[14] - L[14]); const n = Math.hypot(_hpR.x, _hpR.z); if (n < 1e-4) return;
+  _hpR.x /= n; _hpR.z /= n; _hpF.set(_hpR.z, 0, -_hpR.x);   // (adelante: medido —la cabeza va adelante del cuello—)
+  const tor = humPosturaLean(md, h.Hips, h.Neck);
+  const dT = Math.min(HUM_POST.max, Math.max(0, tor - HUM_POST.torso)) * k;
+  if (dT > 1e-3) for (const [nom, f] of [['Spine', 0.4], ['Spine1', 0.3], ['Spine2', 0.3]]) girarMundo(P, nom, _hpR, dT * f);
+  md.actualizar();
+  const cab = humPosturaLean(md, h.Neck, h.Head);
+  const dC = Math.min(HUM_POST.max, Math.max(0, cab - HUM_POST.cabeza)) * k;
+  // (el cuello lleva la cabeza atrás —girar la cabeza sólo cambia adónde mira—; la cara queda como venía, sin mirar arriba)
+  if (dC > 1e-3) { girarMundo(P, 'Neck', _hpR, dC); girarMundo(P, 'Head', _hpR, -dC * 0.5); }
+  if (H.postMedir) { md.actualizar(); H.post = [tor, cab, dT, dC, humPosturaLean(md, h.Hips, h.Neck), humPosturaLean(md, h.Neck, h.Head)]; }   // (las pruebas)
 }

@@ -2252,6 +2252,29 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.7.1: lo del Discord después de la 3.7
+
+- **«Todo enjorobado»** (Santa Claus, en todas las skins y en las importadas con el rig automático): la postura de quieto y
+  de caminar —la de los jugadores de GMod— deja la cabeza 36° adelante del cuello (40° Goku). `humPostura` (humano.js) mide
+  cada cuadro, sobre el cuerpo ya animado, el torso (cadera → cuello) y la cabeza (cuello → cabeza) respecto del frente del
+  cuerpo (de los hombros) y endereza sólo lo que pasa de una postura natural (torso 5°, cabeza 15°): la columna repartida
+  en Spine/Spine1/Spine2 y el cuello lleva la cabeza atrás (la cabeza devuelve la mitad, para que la cara no mire arriba).
+  Parado o caminando entero; corriendo, a medias; agachado, en un emote, sentado, nadando o en el aire, nada; entra y sale
+  suave. Medido en el menú: el Hero y los zombis de 5°/36° a 5°/15°, Goku de 8°/40° a 6°/15°. Los de GMod y los importados
+  siguen al esqueleto del Hero: la misma corrección. (De paso: humAplicar no marca el modelo; sin `md.sucio` la medida salía
+  de las matrices del cuadro anterior y se sumaba.) `armas_gmod` 8/8 y `personajes_golden` 12/12 con esto.
+- **La interfaz de Mods «se bugea»** (GOLDEN, con video): al apoyar el dedo en «Instalar», la tinta del toque (paneles.js)
+  quedaba adentro del botón y la regla del ícono de los botones (`<i>`) le ganaba: dejaba de flotar y estiraba el botón a
+  419 px (las otras tarjetas perdían el suyo). Reproducido en 780×360 —el celular de GOLDEN— con un toque de verdad (CDP); con
+  `!important` en lo que la deja afuera del armado, el botón queda en 40 px.
+- **Verity no aparece** (Gxbrielx): está apagada (`VER_APAGADA`, pedido del dueño), pero la pantalla de carga seguía
+  diciendo «Decí "Hey Verity"…»: ese consejo ya no sale. Los mods se prenden y apagan bien desde el menú MOD (probado: Goku
+  pone la skin, la velocidad y el salto y los saca).
+- **El fondo en video seguía detrás de Ajustes** (ver la 3.7): ya en esta versión.
+- **Nextbots** (Gumball): `nextbots_red` 25/25 (persiguen y matan) y 4 de los 2D del Workshop se ven (3807 a 7407 puntos
+  cambian), persiguen y matan (Quandale, en 3,4 s) en el emulador; los que «con screamer no matan» y el NPC de Bon que es
+  una caja necesitan el link del addon para reproducirlos.
+
 ## JXMod 3.7: paneles nuevos con animaciones, fondos animados, música en el menú y La grieta fija
 
 Pedidos del dueño después de la 3.6 (con capturas de su celular): «aún siguen blancas estas partes, y en otras muy pero muy

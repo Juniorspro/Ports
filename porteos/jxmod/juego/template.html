@@ -2177,6 +2177,9 @@ html.rot #rbInicio .clSonda{padding:0}
   try { P = JSON.parse(localStorage.getItem('jx_prefs') || '{}') || {}; } catch (e) {}
   try { l = P.lang || String((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase().split('-')[0]; } catch (e) {}
   if (l === 'tl') l = 'fil'; if (!TX[l]) l = 'en';
+  // (Verity está apagada —VER_APAGADA, verity.js—: su consejo, el primero de la lista en los 14 idiomas, no se muestra; si
+  // vuelve, se saca esta línea)
+  TX[l][12] = TX[l][12].filter(function (t) { return t.indexOf('Verity') < 0; });
   var X = TX[l], W = window.__carga = { p: 0, paso: 'abrir', t0: Date.now(), t: Date.now(), err: '', listo: false, ayuda: false, lang: l, X: X };
   var $ = function (i) { return document.getElementById(i); };
   var nom = function (k) { var i = PASOS.indexOf(k); return k === 'descarga' ? X[13][5] : i >= 0 ? X[i] : k; };

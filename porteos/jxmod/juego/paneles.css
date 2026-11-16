@@ -188,8 +188,11 @@ html.rot{--pnSaL:0px;--pnSaR:0px;--pnSaT:0px;--pnSaB:0px}
 .pnCuenta{position:relative;-webkit-text-fill-color:transparent}
 .pnCuenta::after{content:attr(data-pn);position:absolute;inset:0;display:inherit;align-items:inherit;justify-content:inherit;padding:inherit;text-align:inherit;white-space:nowrap;-webkit-text-fill-color:currentColor;pointer-events:none}
 /* (la tinta, el barrido de luz, la brecha y el sello: van adentro de lo tocado, recortados a su forma) */
-.pnFx{position:absolute;inset:0;z-index:4;overflow:hidden;pointer-events:none;border-radius:inherit}
-.pnFx>i{position:absolute;display:block}
+/* (con !important: el efecto va adentro de botones que tienen reglas propias para sus <span> e <i> —el ícono—; en la 3.7, al
+   tocar «Instalar» en Mods, la regla del ícono le ganaba, la mancha dejaba de flotar y estiraba el botón a 419 px —video de
+   GOLDEN—. Nada de acá puede cambiar el tamaño de lo tocado) */
+.pnFx{position:absolute!important;inset:0!important;top:0!important;left:0!important;right:0!important;bottom:0!important;width:auto!important;height:auto!important;margin:0!important;padding:0!important;display:block!important;z-index:4;overflow:hidden!important;pointer-events:none!important;border-radius:inherit;contain:strict}
+.pnFx>i{position:absolute!important;display:block!important;margin:0!important;padding:0!important;flex:none!important}
 .pnTinta>i{background:var(--pnTinta,rgba(242,179,27,.34));-webkit-mask:var(--pnManchaM,none) center/100% 100% no-repeat;mask:var(--pnManchaM,none) center/100% 100% no-repeat}
 .pnLuz>i{left:0;top:-10%;bottom:-10%;width:38%;opacity:0;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.08) 34%,rgba(255,255,255,.42) 48%,rgba(255,252,240,.7) 50%,rgba(255,255,255,.1) 58%,rgba(255,255,255,0))}
 [dir=rtl] .pnLuz>i{left:auto;right:0}
