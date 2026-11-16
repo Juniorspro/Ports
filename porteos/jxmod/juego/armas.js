@@ -428,14 +428,13 @@ function dibujarVista() {
   if ((!ARM.v && !celmEnMano() && !((DEF_ARMAS[ARM.lista[ARM.i]] || {}).tipo === 'gmswep' && !(DEF_ARMAS[ARM.lista[ARM.i]] || {}).nodo)) || JUG.tercera || HCAM.ver || !JUG.vivo || JUG.vehiculo || ARM.zoom || CIC.vic || CIC.camOn || EDA.on || NOC.cam !== null || NOC.susto) return false;
   if (JUG.cuerpo && JUG.cuerpo.emote && JUG.cuerpo.emote !== 'Patada') return false;   // (haciendo un emote en primera persona se ve el cuerpo, sin el arma en la mano de la cámara)
   if (celmEnMano()) return celmVistaDibujar();   // (el celular: la mano que lo sostiene, celumano.js)
-  { const jx = typeof ajxDeArma === 'function' && ajxDeArma(ARM.lista[ARM.i]); if (jx) return ajxVistaDibujar(jx); }   // (las armas propias de JXMod: armasjx.js)
   { const D = DEF_ARMAS[ARM.lista[ARM.i]] || {}; if (D.tipo === 'gmswep' && !D.nodo) return typeof gmaVistaDibujar === 'function' && gmaVistaDibujar(); }   // (un arma de un addon de GMod con su propio ViewModel)
-  vistaUbicar(ARM.v, CAM.pos, CAM.q, ARM.sway); ARM.v.md.encolar();
+  vistaUbicar(ARM.v, CAM.pos, CAM.q, ARM.sway);
+  if (!(typeof ajxGmVista === 'function' && ajxGmVista(ARM.v, ARM.lista[ARM.i]))) ARM.v.md.encolar();   // (las de JXMod: la de GMod pintada, sin y con piezas, armasjx.js)
   return true;
 }
 // punta del arma en el mundo (para trazas y el rayo de la pistola física)
 function vistaPuntaMundo() {
-  if (typeof ajxDeArma === 'function' && ajxDeArma(ARM.lista[ARM.i]) && !JUG.tercera) return ajxBocaMundo();
   const v = ARM.v; if (!v || v.mz < 0 || JUG.tercera) return null;
   v.md.actualizar(); const W = v.md.W[v.mz]; return v3(W[12], W[13], W[14]);
 }

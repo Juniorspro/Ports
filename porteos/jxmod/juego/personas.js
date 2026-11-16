@@ -220,7 +220,6 @@ function dibujarPersona(P) {
   // el arma en la mano derecha (los modelos de tercera persona del juego, con su lugar en la mano)
   if (P.arma && !P.rag && !P.sentado && !P.emote && !P.cuad && !P.cicManos && !(P.gmp && P.gmp.propio)) {   // (un modelo de GMod sin mano de Valve no tiene dónde llevarla)
     if (P.arma === 'Celular') celmDibujar3p(P);
-    else if (typeof ajxDibujar3p === 'function' && ajxDibujar3p(P)) { /* (las armas propias de JXMod: armasjx.js) */ }
     else if (!armaGmDibujar(P) && !(typeof gmhArmaMundo === 'function' && gmhArmaMundo(P))) {   // (las de HL2 / las de los addons, con su modelo de mundo)
       const A = arma3p(P, P.arma), hi = P.D.h.RightHand;
       if (A && hi !== undefined) { P.md.actualizar(); m4mul(P.md.W[hi], A.W, _mb); armaGmp(P, _mb); A.md.ponerRaiz(_mb); A.md.encolar(); }
@@ -466,12 +465,6 @@ function dedosCalcular(D, tipo, A) {
 }
 // cada cuadro, con un arma de GMod en la mano: los dedos cerrados como en GMod
 function agarreGm(P) {
-  // (las propias de JXMod: la mano cerrada como en una pistola, sin el mango de GMod)
-  if (P.arma && !P.emote && !P.sentado && typeof ajxDeArma === 'function' && ajxDeArma(P.arma)) {
-    const c = P.D.dedosJx || (P.D.dedosJx = {}); if (c.pistol === undefined) c.pistol = dedosCalcular(P.D, 'pistol', null);
-    const L = c.pistol; if (L) { for (const x of L) { const r = P.md.r[x[0]]; r[0] = x[1]; r[1] = x[2]; r[2] = x[3]; r[3] = x[4]; } P.md.sucio = true; }
-    return;
-  }
   const A = P.arma && !P.emote && !P.sentado && DATA.gm && DATA.gm.armas[P.arma]; if (!A) return;
   const c = P.D.dedosGm || (P.D.dedosGm = {}); if (c[P.arma] === undefined) c[P.arma] = dedosCalcular(P.D, A.tipo, A);   // (por arma: cada mango es distinto)
   const L = c[P.arma]; if (!L) return;
@@ -496,6 +489,7 @@ function armaGmDibujar(P) {
   if (!A.Gm) A.Gm = Float32Array.from(A.G);
   m4mul(_mfG, A.Gm, _mgG); armaGmp(P, _mgG);
   const c = P.armasGm || (P.armasGm = {}), md = c[P.arma] || (c[P.arma] = new Modelo([{ n: P.arma, p: [0, 0, 0], r: [0, 0, 0, 1], s: [1, 1, 1], pa: -1, m: A.m, mt: A.mt }]));
+  if (typeof ajxGmMundo === 'function') ajxGmMundo(md, P.arma);   // (la de JXMod: pintada, armasjx.js)
   md.ponerRaiz(_mgG); md.encolar(); return true;
 }
 const ARMA_3P = { Pistol: 'pistol', Revolver: 'revolver', Smg: 'smg', Akm: 'Akm', Sniper: 'sniper', Shotgun: 'Shotgun', RPG: 'RocketLauncher', Crossbow: 'crossbow', Bat: 'bat', GravityGun: 'GravityGun', PhysicsGun: 'PhysicGun', ToolBaton: 'ToolBaton' };

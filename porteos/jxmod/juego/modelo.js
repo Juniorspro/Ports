@@ -84,12 +84,15 @@ class Modelo {
     // lejos: la versión simplificada de las mallas con piel (lods, de herramientas/lod_skins.py: mismos huesos) y, si
     // se pidió, sin sombra
     const A = this.A, lb = this.lodBajo; R.encNs = !!this.sinSombra;
+    // (un tinte por material de la malla —el arma de un color y las manos de otro—: las armas de JXMod, armasjx.js)
+    const tm = this.tintes, ex = tm ? tm.map((c) => (c ? Object.assign({}, extra || {}, { ti: c }) : extra)) : null, E = (k) => (ex && k < ex.length ? ex[k] : extra);
     for (let i = 0; i < A.length; i++) {
       if (!this.ver[i]) continue;
       const x = A[i];
-      if (x.bo) { const pz = this.pieles.find((q) => q.i === i), lo = lb && DATA.ms[x.m].lods; for (let k = 0; k < x.mt.length; k++) encolar(lo ? lo[0] : x.m, k, x.mt[k], IDM, pz.h, extra); continue; }
-      if (x.sb) { for (let k = 0; k < x.mt.length; k++) encolar(x.m, x.sb[0] + k, x.mt[k], IDM, null, extra); continue; }
-      for (let k = 0; k < x.mt.length; k++) encolar(x.m, k, x.mt[k], this.W[i], null, extra);
+      const xm = this.mCambio && this.mCambio[i] !== undefined ? this.mCambio[i] : x.m;   // (otra malla para ese nodo: la misma sin algunas piezas, armasjx.js)
+      if (x.bo) { const pz = this.pieles.find((q) => q.i === i), lo = lb && xm === x.m && DATA.ms[x.m].lods; for (let k = 0; k < x.mt.length; k++) encolar(lo ? lo[0] : xm, k, x.mt[k], IDM, pz.h, E(k)); continue; }
+      if (x.sb) { for (let k = 0; k < x.mt.length; k++) encolar(xm, x.sb[0] + k, x.mt[k], IDM, null, E(k)); continue; }
+      for (let k = 0; k < x.mt.length; k++) encolar(xm, k, x.mt[k], this.W[i], null, E(k));
     }
     R.encNs = false;
   }

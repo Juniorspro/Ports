@@ -1,11 +1,12 @@
 // ---------------------------------------------------------------------------------------------------------
-// las armas propias de JXMod (3.9): pedido del dueño, «el juego ahora sí debe ser único». La Physics Gun, la Gravity Gun,
-// la Tool Gun y la palanca se ven con modelos hechos acá, en código (nada de Half-Life ni de GMod), con el amarillo y
-// negro de JXMod. Por dentro siguen siendo las mismas armas (los mismos nombres y lo que hacen): las partidas guardadas,
-// los servers y los addons andan igual. Las de GMod y Half-Life quedan en el mod de la comunidad «Armas clásicas», que
-// viene instalado: prendido, se ven ésas.
-// Los modelos: piezas (cajas biseladas, cilindros, anillos, esferas) armadas en metros, con el origen donde va la mano
-// derecha (+z adelante, por donde sale el rayo; +y arriba; +x a la derecha), una malla por material.
+// las armas de JXMod (3.9): pedido del dueño, «el juego ahora sí debe ser único». Primero se hizo una Physics Gun entera
+// en código y al dueño no le gustó en primera persona («está horrible: modificá la de Half-Life quitando y agregando
+// cosas»): queda la de GMod con sus brazos y sus animaciones, pero pintada de amarillo JXMod (las manos con guantes
+// oscuros), sin sus garras y con piezas propias en sus huesos (el núcleo y su anillo en la boca, garras nuevas que siguen
+// la animación, luces en los tubos). Por dentro es la misma arma (el mismo nombre y lo que hace): las partidas, los
+// servers y los addons andan igual. Las de GMod y Half-Life tal cual quedan en el mod de la comunidad «Armas clásicas»,
+// que viene instalado y apagado: prendido, se ven ésas.
+// Las piezas que se agregan: cajas biseladas, cilindros, anillos y esferas, de tamaño 1 (se escalan al ponerlas).
 // ---------------------------------------------------------------------------------------------------------
 const AJX = { modelos: {}, mats: null, t: 0 };
 
@@ -83,275 +84,164 @@ function ajxMats() {
     brillo: matPropio('ajxBrillo', [1, 0.72, 0.18], { pbr: [0.3, 0, 0.04], em: [5.5, 3.4, 0.6] }),   // (lo que brilla: ámbar)
     brilloSuave: matPropio('ajxBrilloS', [1, 0.6, 0.15], { pbr: [0.4, 0, 0.04], em: [1.6, 0.9, 0.15] }),
     vidrio: matPropio('ajxVidrio', [0.05, 0.06, 0.07], { pbr: [0.06, 0.3, 0.06] }),
+    azul: matPropio('ajxAzul', [0.35, 0.85, 1], { pbr: [0.3, 0, 0.04], em: [0.9, 3.6, 5.2] }),   // (lo que brilla: el celeste de la Physics Gun)
+    azulSuave: matPropio('ajxAzulS', [0.3, 0.8, 1], { pbr: [0.35, 0, 0.04], em: [0.25, 1.3, 2] }),
+    grafito: matPropio('ajxGrafito', [0.075, 0.08, 0.09], { pbr: [0.34, 0.75, 0.05] }),
   };
   return AJX.mats;
 }
 
-// ---------------- la Physics Gun de JXMod («el Manipulador») ----------------
-// Cuerpo amarillo con el lomo negro, la batería atrás con su anillo de luz, tres bobinas de cobre en el caño, dos garras
-// arriba y abajo de la boca y el núcleo ámbar en la punta; el mango y el puño de adelante de goma. ~56 cm de largo.
-function ajxModeloFisica() {
-  const p = {}, B = (k) => p[k] || (p[k] = ajxNuevo()), V = v3;
-  // el cuerpo: una caja larga amarilla con el lomo y la panza negros
-  ajxCaja(B('amarillo'), V(0, 0.072, 0.115), [0.034, 0.042, 0.19], null, 0.009);
-  ajxCaja(B('negro'), V(0, 0.118, 0.1), [0.026, 0.008, 0.165], null, 0.004);                 // el lomo
-  for (let i = 0; i < 6; i++) ajxCaja(B('metal'), V(0, 0.128, 0.0 + i * 0.035), [0.018, 0.003, 0.008], null, 0.0015);   // las aletas del lomo
-  ajxCaja(B('negro'), V(0, 0.031, 0.14), [0.03, 0.006, 0.15], null, 0.003);                   // la panza
-  // los costados: una franja negra con rayas amarillas en diagonal (la cinta de peligro) y la pantallita
-  for (const sx of [-1, 1]) {
-    ajxCaja(B('negro'), V(sx * 0.0345, 0.072, 0.175), [0.002, 0.014, 0.075], null, 0.001);
-    for (let i = 0; i < 6; i++) ajxCaja(B('amarillo'), V(sx * 0.0362, 0.072, 0.115 + i * 0.024), [0.0015, 0.0125, 0.004], ajxQ(0.6, 0, 0), 0.0005);
-    ajxCaja(B('vidrio'), V(sx * 0.035, 0.075, 0.035), [0.002, 0.016, 0.026], null, 0.002);
-    ajxCaja(B('brilloSuave'), V(sx * 0.0366, 0.075, 0.035), [0.0007, 0.011, 0.02], null, 0.0004);
-  }
-  // atrás: la batería, una caja negra con la tapa amarilla y dos luces chicas de carga (de atrás no parece una boca)
-  ajxCaja(B('negro'), V(0, 0.07, -0.098), [0.03, 0.036, 0.03], null, 0.007);
-  ajxCaja(B('amarillo'), V(0, 0.07, -0.13), [0.026, 0.032, 0.004], null, 0.003);
-  ajxCaja(B('metal'), V(0, 0.07, -0.136), [0.016, 0.02, 0.003], null, 0.002);
-  for (const sy of [-1, 1]) ajxCaja(B('brilloSuave'), V(0.0315, 0.07 + sy * 0.014, -0.098), [0.0012, 0.006, 0.012], null, 0.0006);
-  // adelante: el caño de metal con tres bobinas de cobre (cada una con su línea de luz)
-  ajxCil(B('metal'), V(0, 0.07, 0.29), V(0, 0.07, 0.43), 0.022, 0.02, 24, false);
-  for (let i = 0; i < 3; i++) { const z = 0.315 + i * 0.035; ajxToro(B('cobre'), V(0, 0.07, z), V(0, 0, 1), 0.026, 0.0075, 28, 10); ajxToro(B('brilloSuave'), V(0, 0.07, z + 0.012), V(0, 0, 1), 0.023, 0.0016, 24, 6); }
-  // las garras: arriba y abajo de la boca, salen del cuerpo y se cierran hacia el núcleo
-  for (const sy of [-1, 1]) {
-    ajxCaja(B('amarillo'), V(0, 0.07 + sy * 0.042, 0.33), [0.012, 0.006, 0.05], ajxQ(sy * 0.12, 0, 0), 0.003);
-    ajxCaja(B('negro'), V(0, 0.07 + sy * 0.034, 0.405), [0.01, 0.005, 0.035], ajxQ(sy * 0.42, 0, 0), 0.003);
-    ajxCaja(B('acero'), V(0, 0.07 + sy * 0.02, 0.437), [0.008, 0.004, 0.012], ajxQ(sy * 0.9, 0, 0), 0.002);
-  }
-  // el núcleo: una esfera ámbar en la boca, adentro de un aro de acero
-  ajxEsfera(B('brillo'), V(0, 0.07, 0.445), 0.014, 14);
-  ajxToro(B('acero'), V(0, 0.07, 0.432), V(0, 0, 1), 0.021, 0.0035, 28, 8);
-  // el mango (inclinado 14° hacia atrás, de goma con tres ranuras), el gatillo y su guardamonte
-  const qm = ajxQ(0.24, 0, 0);
-  ajxCaja(B('goma'), V(0, -0.025, -0.012), [0.017, 0.058, 0.024], qm, 0.008);
-  for (let i = 0; i < 3; i++) ajxCaja(B('negro'), vadd(V(0, -0.025, -0.012), qm.rot(V(0, 0.03 - i * 0.026, 0.024))), [0.0175, 0.0035, 0.003], qm, 0.0015);
-  ajxCaja(B('amarillo'), vadd(V(0, -0.025, -0.012), qm.rot(V(0, -0.06, 0))), [0.019, 0.006, 0.028], qm, 0.004);   // la base del mango
-  ajxCaja(B('metal'), V(0, 0.012, 0.028), [0.005, 0.014, 0.004], ajxQ(0.35, 0, 0), 0.002);            // el gatillo
-  ajxCaja(B('negro'), V(0, -0.006, 0.042), [0.006, 0.003, 0.03], null, 0.0015);                     // el guardamonte
-  ajxCaja(B('negro'), V(0, 0.01, 0.07), [0.006, 0.018, 0.003], null, 0.0015);
-  // abajo, adelante: el emisor de la panza (una lente ámbar en su soporte)
-  ajxCaja(B('negro'), V(0, 0.018, 0.25), [0.014, 0.01, 0.03], null, 0.004);
-  ajxCil(B('brilloSuave'), V(0, 0.008, 0.25), V(0, 0.005, 0.25), 0.008, 0.008, 16, true);
-  return { partes: p, boca: V(0, 0.07, 0.46), mano: { p: V(0, -0.01, -0.012), eje: qm.rot(V(0, 1, 0)) }, gatillo: V(0, 0.002, 0.034), manoI: null, luz: [1, 0.72, 0.18] };
-}
-const AJX_DISENOS = { fisica: ajxModeloFisica };
-// las mallas de un modelo (se arman una vez y quedan en la placa)
-function ajxModelo(nom) {
-  let m = AJX.modelos[nom]; if (m && m.partes.every((x) => R.mallas[x.malla])) return m;
-  const D = AJX_DISENOS[nom](), M = ajxMats(), partes = [];
-  for (const k in D.partes) { const B = D.partes[k]; if (!B.I.length) continue; const id = mallaPropia(B); if (id >= 0) partes.push({ malla: id, mat: M[k], tris: B.I.length / 3 }); }
-  return (AJX.modelos[nom] = Object.assign({}, D, { partes, cpu: D.partes }));
-}
-function ajxDibujarModelo(m, M) { for (const x of m.partes) encolar(x.malla, 0, x.mat, M, null, null); }
 
-// ---------------- en la mano, en primera persona ----------------
-// dónde va respecto de la cámara (en metros: a la derecha, abajo y adelante) y cuánto se gira hacia el centro
-const AJX_VISTA = { fisica: { p: [-0.17, -0.18, 0.5], giro: [0.01, 0.13, -0.05] } };   // (en el espacio de la cámara la derecha de la pantalla es -x)
-// ¿se ven las propias? (con el mod de la comunidad «Armas clásicas» prendido, las de GMod)
+// ---------------- las piezas que se agregan (mallas de tamaño 1, una vez) ----------------
+const AJX_PIEZAS = {};
+function ajxPieza(nom) {
+  const x = AJX_PIEZAS[nom]; if (x && R.mallas[x]) return x;
+  const B = ajxNuevo(), V = v3;
+  if (nom === 'esfera') ajxEsfera(B, V(0, 0, 0), 1, 14);
+  else if (nom === 'anillo') ajxToro(B, V(0, 0, 0), V(0, 0, 1), 1, 0.16, 32, 10);   // (alrededor de z)
+  else if (nom === 'aro') ajxToro(B, V(0, 0, 0), V(0, 0, 1), 1, 0.07, 36, 8);
+  else if (nom === 'barra') ajxCaja(B, V(0, 0, 0.5), [0.5, 0.5, 0.5], null, 0.18);   // (de z=0 a z=1)
+  else if (nom === 'placa') { const n = V(0, 0, 1); [[-0.5, -0.5, 0, 0], [0.5, -0.5, 1, 0], [0.5, 0.5, 1, 1], [-0.5, 0.5, 0, 1]].forEach(([x, y, u, v]) => ajxVert(B, V(x, y, 0), n, u, v)); ajxTri(B, 0, 1, 2); ajxTri(B, 0, 2, 3); }
+  return (AJX_PIEZAS[nom] = mallaPropia(B));
+}
+// poner una pieza: su centro y sus tres ejes (con el tamaño)
+function ajxPoner(pieza, mat, c, X, Y, Z) { const id = ajxPieza(pieza); if (mat === null || mat === undefined) return; encolar(id, 0, mat, Float32Array.from([X.x, X.y, X.z, 0, Y.x, Y.y, Y.z, 0, Z.x, Z.y, Z.z, 0, c.x, c.y, c.z, 1]), null, null); }
+function ajxEjes(z, u) { z = z.clone().norm(); let y = vsub(u, vscale(z, vdot(u, z))); if (y.len() < 1e-5) y = ajxBase(z)[1]; y.norm(); return [vcross(y, z).norm(), y, z]; }
+// una barra de a a b (su z) con ancho w y alto h (el alto hacia u)
+function ajxEntre(pieza, mat, a, b, w, h, u) { const d = vsub(b, a), L = d.len(); if (L < 1e-5) return; const [x, y, z] = ajxEjes(d, u); ajxPoner(pieza, mat, a, vscale(x, w), vscale(y, h), vscale(z, L)); }
+// centrada en c, de radio r, su z hacia z
+function ajxEn(pieza, mat, c, r, z, u) { const [x, y, zz] = ajxEjes(z, u); ajxPoner(pieza, mat, c, vscale(x, r), vscale(y, r), vscale(zz, r)); }
+
+// ---------------- la marca: el logo de JXMod, celeste, para pegar en el arma ----------------
+// (del logo del juego: las letras claras se quedan —con sus siluetas de adentro— y lo oscuro se recorta)
+function ajxLogo() {
+  const k = TX_PROPIA + 7900;
+  if (AJX.logoMat !== undefined && R.tex[k]) return AJX.logoMat;
+  if (AJX.logoCv) {   // (la textura se perdió: de nuevo, del lienzo que ya está)
+    const gl = R.gl, tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, AJX.logoCv); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    R.tex[k] = { gl: tx };
+    if (AJX.logoMat === undefined) { const id = matPropio('ajxLogo', [1, 1, 1], { pbr: [0.3, 0, 0.04] }), m = R.mats[id]; m.tex = k; m.cut = true; m.unlit = true; m.claveBase = ',CUT,UNLIT,'; m.claveGam = ',CUT,UNLIT'; AJX.logoMat = id; }
+    return AJX.logoMat;
+  }
+  if (AJX.logoPide) return null; AJX.logoPide = true;
+  const im = new Image(), el = document.querySelector('#carga .dLogo img'), src = window.__logoOrig || (el && el.src);
+  if (!src) return null;
+  im.onload = () => {
+    try {
+      const W = 512, H = 128, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+      // (adentro de la chapa del logo: las letras; centradas, con su proporción)
+      const sx = im.naturalWidth * 0.035, sy = im.naturalHeight * 0.1, sw = im.naturalWidth * 0.93, sh = im.naturalHeight * 0.8, h = H * 0.86, w = Math.min(W * 0.96, h * sw / sh);
+      g.drawImage(im, sx, sy, sw, sh, (W - w) / 2, (H - h) / 2, w, h);
+      const d = g.getImageData(0, 0, W, H), p = d.data;
+      for (let i = 0; i < p.length; i += 4) { const l = (0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]) / 255 * (p[i + 3] / 255); const a = Math.max(0, Math.min(1, (l - 0.5) * 6)); p[i] = 200; p[i + 1] = 246; p[i + 2] = 255; p[i + 3] = a * 255; }
+      g.putImageData(d, 0, 0); AJX.logoCv = cv;
+    } catch (e) { AJX.logoCv = null; }
+  };
+  im.src = src; return null;
+}
+
+// ---------------- qué arma se modifica y cómo ----------------
+// tintes: por material de la malla (el arma azul acero —lo celeste sigue brillando— y las manos como están); quitar: las
+// piezas de esos huesos; mundo: el tinte del modelo de la mano del personaje y del ícono
+const AJX_ARMAS = {
+  fisica: { tintes: [[0.48, 0.72, 1.15, 0.62]], quitar: ['Prong_A', 'Prong_B', 'Doodad_4', 'Doodad_1'], mundo: [0.48, 0.72, 1.15, 0.62] },
+};
+// ¿se ven las de JXMod? (con el mod de la comunidad «Armas clásicas» prendido, las de GMod tal cual)
 const ajxActivas = () => !(typeof MODS !== 'undefined' && MODS.armasClasicas);
 const ajxDeArma = (n) => { const D = typeof DEF_ARMAS !== 'undefined' && DEF_ARMAS[n]; return D && D.jx && ajxActivas() ? D.jx : null; };
-// la inversa de una matriz de giro y lugar (sin escala): el giro transpuesto y el lugar al revés
-function ajxInvRigida(m, o) {
-  o[0] = m[0]; o[1] = m[4]; o[2] = m[8]; o[3] = 0; o[4] = m[1]; o[5] = m[5]; o[6] = m[9]; o[7] = 0; o[8] = m[2]; o[9] = m[6]; o[10] = m[10]; o[11] = 0;
-  o[12] = -(m[0] * m[12] + m[1] * m[13] + m[2] * m[14]); o[13] = -(m[4] * m[12] + m[5] * m[13] + m[6] * m[14]); o[14] = -(m[8] * m[12] + m[9] * m[13] + m[10] * m[14]); o[15] = 1; return o;
+// una copia de una malla con piel sin algunas piezas: las piezas sueltas (lo conectado, por sus triángulos y por los vértices
+// en el mismo lugar) cuyo hueso principal es uno de los que se quitan. Sin achicar huesos: así no quedan puntas estiradas
+function ajxMallaSin(mi, bo, A, nombres) {
+  const clave = mi + ':' + nombres.join(','), T = AJX.sin || (AJX.sin = {}); if (T[clave] !== undefined && R.mallas[T[clave]]) return T[clave];
+  const m = mallaGL(mi), mc = m && mallaCPU(mi); if (!m || !mc || m.d.sk === undefined) return mi;
+  const d = m.d, BIN = binDe(d), dv = new DataView(BIN.buffer, BIN.byteOffset), nv = d.v, P = mc.P, quita = new Uint8Array(nv);
+  for (let k = 0; k < nv; k++) { const q = d.sk + k * 8; let jb = 0, wb = -1; for (let j = 0; j < 4; j++) if (BIN[q + 4 + j] > wb) { wb = BIN[q + 4 + j]; jb = BIN[q + j]; } const bi = bo[jb]; quita[k] = bi >= 0 && A[bi] && nombres.includes(A[bi].n) ? 1 : 0; }
+  const par = new Int32Array(nv); for (let k = 0; k < nv; k++) par[k] = k;
+  const raiz = (a) => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; }, une = (a, b) => { a = raiz(a); b = raiz(b); if (a !== b) par[a] = b; };
+  const pos = new Map(); for (let k = 0; k < nv; k++) { const c = Math.round(P[k * 3] * 1e4) + ',' + Math.round(P[k * 3 + 1] * 1e4) + ',' + Math.round(P[k * 3 + 2] * 1e4), o = pos.get(c); if (o === undefined) pos.set(c, k); else une(k, o); }
+  const ix = (q) => (d.i32 ? dv.getUint32(d.i + q * 4, true) : dv.getUint16(d.i + q * 2, true));
+  for (const [s0, sn] of d.sub) for (let q = s0; q < s0 + sn; q += 3) { une(ix(q), ix(q + 1)); une(ix(q + 1), ix(q + 2)); }
+  const n = new Map(); for (let k = 0; k < nv; k++) { const r = raiz(k), c = n.get(r) || [0, 0]; c[0]++; c[1] += quita[k]; n.set(r, c); }
+  const fuera = (k) => { const c = n.get(raiz(k)); return c[1] * 2 > c[0]; };
+  const I = [], sub = [];
+  for (const [s0, sn] of d.sub) { const i0 = I.length; for (let q = s0; q < s0 + sn; q += 3) { const a = ix(q); if (!fuera(a)) I.push(a, ix(q + 1), ix(q + 2)); } sub.push([i0, I.length - i0]); }
+  const gl = R.gl, vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, m.vb);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.UNSIGNED_SHORT, true, 14, 0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.BYTE, true, 14, 6);
+  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, R.gl1 ? gl.UNSIGNED_SHORT : gl.HALF_FLOAT, false, 14, 10);
+  if (m.sb) { gl.bindBuffer(gl.ARRAY_BUFFER, m.sb); gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 4, gl.UNSIGNED_BYTE, false, 8, 0); gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 4, gl.UNSIGNED_BYTE, true, 8, 4); }
+  const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, d.i32 ? new Uint32Array(I) : new Uint16Array(I), gl.STATIC_DRAW);
+  gl.bindVertexArray(null); R.vaoAct = null;
+  const id = ID_PROPIO + GEO.malla++;
+  R.mallas[id] = Object.assign({}, m, { vao, ib, d: Object.assign({}, d, { sub }), cpuS: undefined, sinDe: mi });
+  AJX.quitados = (d.sub.reduce((a, s) => a + s[1], 0) - I.length) / 3;
+  return (T[clave] = id);
 }
-const _ajM = new Float32Array(16), _ajA = new Float32Array(16), _ajB = new Float32Array(16), _ajC = new Float32Array(16), _ajD = new Float32Array(16), _ajE = new Float32Array(16), _ajF = new Float32Array(16);
-function ajxVistaDibujar(nom) {
-  const m = ajxModelo(nom), C = AJX_VISTA[nom] || AJX_VISTA.fisica, t = TIEMPO.t;
-  if (AJX.ult !== nom) { AJX.ult = nom; AJX.sacarT = t; ajxSonidos(); }
-  // sacarla: sube desde abajo girando (0,45 s); sostener algo: tiembla apenas y el núcleo late
-  const ks = clamp((t - (AJX.sacarT || -9)) / 0.45, 0, 1), es = 1 - Math.pow(1 - ks, 3);
-  const sost = typeof ARM !== 'undefined' && !!ARM.agarre, vib = sost ? 0.0012 : 0;
-  const sw = (typeof ARM !== 'undefined' && ARM.sway) || {}, k = 0.3;
-  const px = C.p[0] - (sw.x || 0) * k + Math.sin(t * 41) * vib, py = C.p[1] + (sw.y || 0) * k - (1 - es) * 0.28 + Math.sin(t * 37) * vib, pz = C.p[2] + (sw.z || 0) * k - (1 - es) * 0.06;
-  const q = Quat.euler(C.giro[1] + (sw.qy || 0) * 0.6, C.giro[0] + (1 - es) * 0.9 + (sw.qx || 0) * 0.6, C.giro[2] + (1 - es) * -0.4);
-  const cf = AJX.camFija, cq = cf ? cf.q : CAM.q, cp = cf ? cf.p : CAM.pos;   // (camFija: las pruebas miran la mano de costado)
-  m4trs([cp.x, cp.y, cp.z], [cq.x, cq.y, cq.z, cq.w], [1, 1, 1], _ajA);
-  if (typeof armaAjAplicar === 'function') armaAjAplicar(_ajA, typeof ARM !== 'undefined' ? ARM.apK || 0 : 0);   // (cómo la agarra cada uno: armaaj.js)
-  // (el movimiento —sacarla, el balanceo— respecto del lugar de siempre: lo mismo para el arma y para las manos)
-  const q0 = Quat.euler(C.giro[1], C.giro[0], C.giro[2]);
-  m4trs([C.p[0], C.p[1], C.p[2]], [q0.x, q0.y, q0.z, q0.w], [1, 1, 1], _ajC); ajxInvRigida(_ajC, _ajD);
-  m4trs([px, py, pz], [q.x, q.y, q.z, q.w], [1, 1, 1], _ajB); m4mul(_ajB, _ajD, _ajE);   // (la base de siempre → la de ahora)
-  m4mul(_ajA, _ajE, _ajF);   // (cámara × movimiento)
-  m4mul(_ajF, _ajC, _ajM);
-  ajxDibujarModelo(m, _ajM);
-  ajxManosDibujar(nom, m, _ajF);
-  AJX.vistaM = _ajM; AJX.vistaMod = m; AJX.vistaT = t;
+// la vista (primera persona) de un arma de GMod modificada: en lugar de md.encolar(); false si no es de las nuestras
+function ajxGmVista(v, nombre) {
+  const md = v && v.md; if (!md) return false;
+  const jx = ajxDeArma(nombre), C = jx && AJX_ARMAS[jx];
+  if (!v.ajx) { v.ajx = { h: {}, abre: 0 }; md.A.forEach((n, i) => { if (v.ajx.h[n.n] === undefined) v.ajx.h[n.n] = i; }); }
+  const h = v.ajx.h;
+  if (!C) { md.tintes = null; md.mCambio = null; return false; }   // (con las clásicas: tal cual)
+  // quitar: algunos fierros (las garras grandes y sus brazos), con la malla sin esas piezas
+  if (C.quitar.length) { const c = md.mCambio || (md.mCambio = {}); md.A.forEach((x, i) => { if (x.bo && x.m !== undefined && x.m >= 0) c[i] = ajxMallaSin(x.m, x.bo, md.A, C.quitar); }); }
+  if (AJX.vistaPrueba) AJX.vistaPrueba(md, h);   // (las pruebas: verla de otro lado)
+  md.tintes = C.tintes; md.encolar();
+  if (AJX.sinPiezas || h.Base === undefined || h.Muzzle === undefined) return true;   // (las pruebas: sin lo agregado)
+  ajxFisicaPiezas(v, md, h);
   return true;
 }
-// la boca del arma en el mundo (para el rayo), si se dibujó en este cuadro
-function ajxBocaMundo() {
-  const M = AJX.vistaM, m = AJX.vistaMod; if (!M || !m || AJX.vistaT !== TIEMPO.t) return null;
-  const b = m.boca; return v3(M[0] * b.x + M[4] * b.y + M[8] * b.z + M[12], M[1] * b.x + M[5] * b.y + M[9] * b.z + M[13], M[2] * b.x + M[6] * b.y + M[10] * b.z + M[14]);
+// lo que se agrega a la Physics Gun, en el marco de su hueso Base (u: arriba, f: adelante, s: al costado que se ve; en
+// unidades de L, del Base a la boca): el emisor nuevo, tres garras que se abren al agarrar y la aleta con la marca
+function ajxFisicaPiezas(v, md, h) {
+  const M = ajxMats(), t = TIEMPO.t, W = md.W, B = W[h.Base], o = v3(B[12], B[13], B[14]);
+  const U = v3(B[0], B[1], B[2]).norm(), F = v3(B[4], B[5], B[6]).norm(), S = v3(B[8], B[9], B[10]).norm();
+  const boca = v3(W[h.Muzzle][12], W[h.Muzzle][13], W[h.Muzzle][14]), L = boca.distTo(o);
+  const P = (c, u, f, s) => v3(c.x + (U.x * u + F.x * f + S.x * s) * L, c.y + (U.y * u + F.y * f + S.y * s) * L, c.z + (U.z * u + F.z * f + S.z * s) * L);
+  const dt = Math.min(0.1, TIEMPO.dt || 0.016), meta = ARM.agarre ? 1 : 0; v.ajx.abre += (meta - v.ajx.abre) * Math.min(1, dt * 9); const k = v.ajx.abre;
+  // el emisor: un aro grueso de grafito, un aro celeste y el núcleo que late (más fuerte agarrando)
+  const late = 1 + 0.12 * Math.sin(t * 7) + 0.3 * k;
+  ajxEn('anillo', M.grafito, P(boca, 0, 0.0, 0), L * 0.27, F, U);
+  ajxEn('aro', M.azul, P(boca, 0, 0.07, 0), L * 0.2, F, U);
+  ajxEn('esfera', M.azul, P(boca, 0, 0.1, 0), L * 0.085 * late, F, U);
+  // las garras: tres, alrededor de la boca (una arriba y dos abajo a los costados), con la punta celeste
+  for (let g = 0; g < 3; g++) {
+    const an = g * 2.0944, R1 = v3(U.x * Math.cos(an) + S.x * Math.sin(an), U.y * Math.cos(an) + S.y * Math.sin(an), U.z * Math.cos(an) + S.z * Math.sin(an));
+    const at = (f, r) => v3(boca.x + (F.x * f + R1.x * r) * L, boca.y + (F.y * f + R1.y * r) * L, boca.z + (F.z * f + R1.z * r) * L);
+    const a = at(-0.16, 0.26), b = at(0.2, 0.38 + 0.08 * k), c = at(0.46, 0.24 + 0.14 * k), d = at(0.55, 0.19 + 0.13 * k);
+    ajxEntre('barra', M.grafito, a, b, L * 0.1, L * 0.07, R1);
+    ajxEntre('barra', M.metal, b, c, L * 0.085, L * 0.06, R1);
+    ajxEntre('barra', M.azul, c, d, L * 0.06, L * 0.045, R1);
+  }
+  // la aleta de arriba, con el logo de JXMod a los dos lados y una línea celeste en el borde
+  const al = AJX.aleta || [0.27, -0.2, 0.62, 0.18, 0.08];   // (alto del centro, de dónde a dónde, alto, grosor)
+  ajxEntre('barra', M.grafito, P(o, al[0], al[1], 0), P(o, al[0], al[2], 0), L * al[4], L * al[3], U);
+  ajxEntre('barra', M.azulSuave, P(o, al[0] + al[3] / 2, al[1] + 0.05, 0), P(o, al[0] + al[3] / 2, al[2] - 0.05, 0), L * al[4] * 0.55, L * 0.02, U);
+  const lm = ajxLogo();
+  if (lm) for (const sg of [1, -1]) {
+    const n = vscale(S, sg), lg = (al[2] - al[1]) * 0.86, cx = P(o, al[0], (al[1] + al[2]) / 2, sg * (al[4] / 2 + 0.003)), X = vcross(U, n).norm();
+    ajxPoner('placa', lm, cx, vscale(X, L * lg), vscale(U, L * lg / 4), n);
+  }
 }
-// en el mundo: lo que se pidió mostrar suelto (AJX.vitrina: [{ nom, M }]), para las pruebas, el tráiler y los íconos
-function ajxMundoDibujar() { if (AJX.vitrina) for (const x of AJX.vitrina) ajxDibujarModelo(ajxModelo(x.nom), x.M); }
+// en la mano del personaje: el modelo de GMod con el mismo color
+function ajxGmMundo(md, nombre) { const jx = ajxDeArma(nombre), C = jx && AJX_ARMAS[jx]; md.tinte = C ? C.mundo : null; }
 
-// ---------------- las manos: las de la vista «Hands» agarrando el arma (cinemática inversa, como el celular) ----------------
-// La derecha rodea el mango (los nudillos por el filo de adelante, la palma contra el costado derecho, los dedos por
-// adelante y el pulgar del otro lado) con el índice en el gatillo; la izquierda, el puño de adelante. Se resuelve con la
-// cámara en el origen y el arma en su lugar de siempre (una vez por arma y tamaño de pantalla); cada cuadro sólo se mueve.
-const AJX_MANOS = { v: null, sol: {}, esc: 0 };
-function ajxManosVista() {
-  if (AJX_MANOS.v) return AJX_MANOS.v;
-  const v = vistaArma('Hands', 'ajx'); if (!v) return null;
-  const md = v.md; v.h = {}; md.A.forEach((n, i) => { v.h[n.n] = i; });
-  v.base = { p: md.p.map((x) => x.slice()), r: md.r.map((x) => x.slice()), s: md.s.map((x) => x.slice()) };
-  return (AJX_MANOS.v = v);
-}
-const ajxPunto = (M, p) => v3(M[0] * p.x + M[4] * p.y + M[8] * p.z + M[12], M[1] * p.x + M[5] * p.y + M[9] * p.z + M[13], M[2] * p.x + M[6] * p.y + M[10] * p.z + M[14]);
-const ajxDir = (M, d) => v3(M[0] * d.x + M[4] * d.y + M[8] * d.z, M[1] * d.x + M[5] * d.y + M[9] * d.z, M[2] * d.x + M[6] * d.y + M[10] * d.z).norm();
-const _ajO = new Float32Array(16);
-// el brazo de un lado (L: 'Right' o 'Left') con la mano en (fT: de la muñeca a los nudillos, sT: del meñique al índice) y
-// los nudillos del mayor en k; el hombro atrás, abajo y hacia su lado; el codo hacia afuera y abajo
-function ajxBrazo(md, h, L, fT, sT, k, lado) {
-  const hand = h[L + 'Hand'], sh = h[L + 'Arm'], el = h[L + 'ForeArm'], m1 = h[L + 'HandMiddle1'], i1 = h[L + 'HandIndex1'], p1 = h[L + 'HandPinky1'];
-  if ([hand, sh, el, m1, i1, p1].some((x) => x === undefined)) return false;
-  const f0 = vsub(celmPos(md, m1), celmPos(md, hand)).norm(), s0r = vsub(celmPos(md, i1), celmPos(md, p1)).norm();
-  const n0 = vcross(s0r, f0).norm(), s0 = vcross(f0, n0).norm();
-  const Qb = qBase(f0, s0, vcross(f0, s0)), Qt = qBase(fT, sT, vcross(fT, sT)), qd = Qt.clone().mul(Qb.conj()).norm();
-  const qHand = qd.clone().mul(celmQMundo(md, hand)).norm();
-  const largoPalma = celmPos(md, m1).distTo(celmPos(md, hand)), wrist = vsub(k, vscale(fT, largoPalma));
-  const a = celmPos(md, sh).distTo(celmPos(md, el)), b = celmPos(md, el).distTo(celmPos(md, hand));
-  const dirHombro = v3(-0.42 * lado, -0.5, -0.75).norm(), hombro = vadd(wrist, vscale(dirHombro, (a + b) * 0.88));
-  if (L === 'Right') { const dh = vsub(hombro, celmPos(md, sh)); md.raiz[12] += dh.x; md.raiz[13] += dh.y; md.raiz[14] += dh.z; md.sucio = true; md.actualizar(); }
-  const S = celmPos(md, sh), dW = vsub(wrist, S), dist = Math.min(dW.len(), (a + b) * 0.999), dn = dW.clone().norm();
-  const polo = v3(-0.75 * lado, -0.65, 0).norm(), cosA = clamp((a * a + dist * dist - b * b) / (2 * a * dist), -1, 1), alto = a * Math.sqrt(1 - cosA * cosA);
-  const lat = vsub(polo, vscale(dn, vdot(polo, dn))).norm(), codo = vadd(S, vadd(vscale(dn, a * cosA), vscale(lat, alto)));
-  celmGirar(md, sh, celmDesde(vsub(celmPos(md, el), S).norm(), vsub(codo, S).norm()));
-  celmGirar(md, el, celmDesde(vsub(celmPos(md, hand), celmPos(md, el)).norm(), vsub(wrist, celmPos(md, el)).norm()));
-  celmPonerQ(md, hand, qHand);
-  return true;
-}
-// los dedos de un lado alrededor de un mango (eje: punto c y dirección g; radio r): cada dedo, juntos y casi paralelos,
-// se dobla (las tres falanges) hasta que sus articulaciones quedan a r + su grosor del eje; el índice, si hay gatillo,
-// hasta que la punta lo toca; el pulgar apunta a pul (un punto del otro costado)
-function ajxDedos(md, h, L, fT, sT, c, g, r, gat, pul) {
-  const nT = vcross(fT, sT).norm(), GROSOR = { Index: 0.0085, Middle: 0.0088, Ring: 0.0082, Pinky: 0.0072 }, ABRE = { Index: 0.06, Middle: 0, Ring: -0.06, Pinky: -0.13 };
-  const aEje = (p) => { const d = vsub(p, c); return vsub(d, vscale(g, vdot(d, g))).len(); };
-  // (los dedos juntos, casi paralelos al mayor, como en el celular: en reposo vienen abiertos en abanico)
-  for (const D of CELM_DEDOS) {
-    const a1 = h[L + 'Hand' + D + '1'], a2 = h[L + 'Hand' + D + '2']; if (a1 === undefined || a2 === undefined) continue;
-    const dir = vsub(celmPos(md, a2), celmPos(md, a1)), dp = vsub(dir, vscale(nT, vdot(dir, nT))).norm();
-    celmGirar(md, a1, celmDesde(dp, Quat.axis(nT.x, nT.y, nT.z, ABRE[D] * (L === 'Right' ? 1 : -1)).rot(fT)));
-  }
-  // (hacia dónde se cierra: el giro chico que acerca la punta del mayor al eje del mango)
-  let eje = sT.clone();
-  { const j = [1, 2, 3].map((x) => h[L + 'HandMiddle' + x]), tip = h[L + 'HandMiddle4'];
-    if (!j.some((x) => x === undefined)) { const r0 = j.map((x) => md.r[x].slice()), punta = () => celmPos(md, tip !== undefined ? tip : j[2]), d0 = aEje(punta());
-      for (let x = 0; x < 3; x++) celmGirar(md, j[x], Quat.axis(eje.x, eje.y, eje.z, 0.3));
-      if (aEje(punta()) > d0) eje = vscale(eje, -1);
-      for (let x = 0; x < 3; x++) md.r[j[x]] = r0[x].slice(); md.sucio = true; md.actualizar(); } }
-  for (const D of CELM_DEDOS) {
-    const j = [1, 2, 3].map((x) => h[L + 'Hand' + D + x]), tip = h[L + 'Hand' + D + '4']; if (j.some((x) => x === undefined)) continue;
-    const r0 = j.map((x) => md.r[x].slice()), pts = [j[1], j[2]].concat(tip !== undefined ? [tip] : []), conGat = D === 'Index' && gat;
-    let mejor = 0, err = 1e9;
-    for (let ang = 0; ang <= 2.6; ang += 0.03) {
-      for (let x = 0; x < 3; x++) md.r[j[x]] = r0[x].slice();
-      md.sucio = true; md.actualizar();
-      for (let x = 0; x < 3; x++) celmGirar(md, j[x], Quat.axis(eje.x, eje.y, eje.z, ang * [0.45, 1, 0.75][x]));
-      let e = 0;
-      if (conGat) { const pt = celmPos(md, tip !== undefined ? tip : j[2]); e = pt.distTo(gat) ** 2; }
-      else for (const x of pts) { const d = aEje(celmPos(md, x)) - (r + GROSOR[D]); e += d < 0 ? 6 * d * d : d * d; }   // (adentro del mango cuesta más)
-      if (e < err) { err = e; mejor = ang; }
-    }
-    for (let x = 0; x < 3; x++) md.r[j[x]] = r0[x].slice();
-    md.sucio = true; md.actualizar();
-    for (let x = 0; x < 3; x++) celmGirar(md, j[x], Quat.axis(eje.x, eje.y, eje.z, mejor * [0.45, 1, 0.75][x]));
-  }
-  const t1 = h[L + 'HandThumb1'], t4 = h[L + 'HandThumb4'] !== undefined ? h[L + 'HandThumb4'] : h[L + 'HandThumb3'];
-  if (t1 !== undefined && t4 !== undefined && pul) { const b1 = celmPos(md, t1); celmGirar(md, t1, celmDesde(vsub(celmPos(md, t4), b1).norm(), vsub(pul, b1).norm())); }
-}
-function ajxManosResolver(nom, m, Mb) {
-  const v = ajxManosVista(); if (!v) return null;
-  const md = v.md, h = v.h;
-  for (let i = 0; i < md.p.length; i++) { md.p[i] = v.base.p[i].slice(); md.r[i] = v.base.r[i].slice(); md.s[i] = v.base.s[i].slice(); }
-  for (let i = 0; i < md.act.length; i++) md.act[i] = 1;
-  vistaUbicar(v, v3(), new Quat(), { x: 0, y: 0, z: 0, qx: 0, qy: 0 }); md.actualizar();
-  if (!AJX_MANOS.esc) { const Lm = celmPos(md, h.RightHand).distTo(celmPos(md, h.RightHandMiddle4)) || 0.05; AJX_MANOS.esc = 0.3 * 0.185 / Lm; }
-  const e = AJX_MANOS.esc; m4trs([0, 0, 0], [0, 0, 0, 1], [e, e, e], md.raiz); md.sucio = true; md.actualizar();
-  // el arma en el espacio de la cámara: adelante F, arriba U, su costado derecho Rd (el local -x)
-  const F = ajxDir(Mb, v3(0, 0, 1)), Rd = ajxDir(Mb, v3(-1, 0, 0));
-  // la derecha: el eje del mango, los nudillos en el filo de adelante-derecha, la muñeca atrás-derecha
-  const gD = ajxDir(Mb, m.mano.eje), cD = ajxPunto(Mb, m.mano.p), adel = vsub(F, vscale(gD, vdot(F, gD))).norm();
-  const sD = gD.clone(), fD0 = vadd(vscale(Rd, -0.95), vscale(adel, 0.3)), fD = vsub(fD0, vscale(sD, vdot(fD0, sD))).norm();
-  const kD = vadd(cD, vadd(vscale(Rd, 0.016), vadd(vscale(adel, 0.022), vscale(sD, 0.004))));
-  ajxBrazo(md, h, 'Right', fD, sD, kD, 1);
-  ajxDedos(md, h, 'Right', fD, sD, cD, gD, 0.02, m.gatillo ? ajxPunto(Mb, m.gatillo) : null, vadd(cD, vadd(vscale(Rd, -0.026), vadd(vscale(sD, 0.03), vscale(adel, -0.005)))));
-  // la izquierda: el puño de adelante (si tiene), desde el costado izquierdo
-  const il = md.A.findIndex((n) => n.n === 'low_poly_hand_l_update');
-  if (m.manoI) {
-    const gI = ajxDir(Mb, m.manoI.eje || v3(0, 1, 0)), cI = ajxPunto(Mb, m.manoI.p), adI = vsub(F, vscale(gI, vdot(F, gI))).norm();
-    const sI = gI.clone(), fI0 = vadd(vscale(Rd, 0.95), vscale(adI, 0.3)), fI = vsub(fI0, vscale(sI, vdot(fI0, sI))).norm();
-    const kI = vadd(cI, vadd(vscale(Rd, -0.016), vadd(vscale(adI, 0.02), vscale(sI, 0.004))));
-    ajxBrazo(md, h, 'Left', fI, sI, kI, -1);
-    ajxDedos(md, h, 'Left', fI, sI, cI, gI, 0.017, null, vadd(cI, vadd(vscale(Rd, 0.024), vscale(sI, 0.025))));
-  } else if (il >= 0) md.act[il] = 0;
-  md.sucio = true; md.actualizar();
-  return { r: md.r.map((x) => x.slice()), raiz: Float32Array.from(md.raiz), act: Array.from(md.act) };
-}
-function ajxManosDibujar(nom, m, Mmov) {
-  const v = ajxManosVista(); if (!v) return;
-  const md = v.md, clave = nom + '|' + VW() + 'x' + VH();
-  let S = AJX_MANOS.sol[clave];
-  if (!S) { const C = AJX_VISTA[nom] || AJX_VISTA.fisica, q0 = Quat.euler(C.giro[1], C.giro[0], C.giro[2]), Mb = new Float32Array(16); m4trs(C.p, [q0.x, q0.y, q0.z, q0.w], [1, 1, 1], Mb); S = AJX_MANOS.sol[clave] = ajxManosResolver(nom, m, Mb); if (!S) return; }
-  for (let i = 0; i < md.r.length; i++) md.r[i] = S.r[i].slice();
-  for (let i = 0; i < md.act.length; i++) md.act[i] = S.act[i];
-  m4mul(Mmov, S.raiz, md.raiz); md.sucio = true; md.encolar();
-}
-
-// ---------------- en la mano del personaje (tercera persona, y lo que ven los demás) ----------------
-// El marco de la mano (manoMarco, personas.js: x de la muñeca a los nudillos, y la normal de la palma, z de costado) y el
-// mango en la palma: adelante del arma hacia los nudillos (un poco hacia abajo), arriba del arma hacia el índice, el
-// costado izquierdo del arma contra la palma. Escalada con el tamaño de la mano, como las de GMod.
-const _aj3F = new Float32Array(16), _aj3G = new Float32Array(16), _aj3M = new Float32Array(16);
-// (la pose de pistola, en el marco de la mano: las columnas son a dónde van la izquierda, el arriba y el adelante del
-// arma, y dónde va su origen —el mango—; medida sobre la mano del Hero)
-const AJX_3P = { fisica: { X: [-0.034, -0.996, -0.082], Y: [0.107, 0.078, -0.991], Z: [0.994, -0.042, 0.104], o: [0.042, -0.024, -0.045] } };
-function ajxDibujar3p(P) {
-  const nom = ajxDeArma(P.arma); if (!nom) return false;
-  const m = ajxModelo(nom), C = AJX_3P[nom] || AJX_3P.fisica;
-  P.md.actualizar(); const L = manoMarco(P.md.W, huesosMixamo(P.D), 'Right', _aj3F); if (!L) return false;
-  const k = clamp(L / ((DATA.gm && DATA.gm.manoR && DATA.gm.manoR.L) || 0.0993), 0.3, 2.6);
-  const X = C.X, Y = C.Y, Z = C.Z;
-  _aj3G.set([X[0] * k, X[1] * k, X[2] * k, 0, Y[0] * k, Y[1] * k, Y[2] * k, 0, Z[0] * k, Z[1] * k, Z[2] * k, 0, C.o[0] * k, C.o[1] * k, C.o[2] * k, 1]);
-  m4mul(_aj3F, _aj3G, _aj3M); if (typeof armaGmp === 'function') armaGmp(P, _aj3M);
-  ajxDibujarModelo(m, _aj3M);
-  return true;
-}
-
-// ---------------- el ícono (la barra de armas y el menú): el mismo modelo, dibujado en 2D ----------------
-// Los triángulos de cada pieza proyectados de costado (un poco de arriba y de adelante), del más lejano al más cercano,
-// con la luz de arriba a la izquierda; lo que brilla, sin sombra. Sin archivos: sale del modelo.
-const AJX_COLOR = { amarillo: [242, 170, 30], negro: [26, 27, 31], metal: [86, 90, 98], acero: [170, 174, 182], goma: [16, 16, 18], cobre: [190, 105, 52], brillo: [255, 214, 120], brilloSuave: [255, 186, 80], vidrio: [30, 34, 40] };
-const AJX_EMITE = new Set(['brillo', 'brilloSuave']);
-function ajxIcono(nom, W, H) {
-  W = W || 256; H = H || 128;
-  const D = AJX_DISENOS[nom](), tris = [], yaw = -1.25, pit = 0.32, cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pit), sp = Math.sin(pit);
-  // (girar: primero de costado —yaw— y después un poco desde arriba —pit—; luz fija en la vista)
-  const vista = (x, y, z) => { const x1 = x * cy + z * sy, z1 = -x * sy + z * cy, y1 = y * cp - z1 * sp, z2 = y * sp + z1 * cp; return [x1, y1, z2]; };
-  const luz = (() => { const l = [-0.45, 0.75, -0.5], n = Math.hypot(...l); return l.map((x) => x / n); })();
-  for (const k in D.partes) {
-    const B = D.partes[k], c = AJX_COLOR[k] || [128, 128, 128], em = AJX_EMITE.has(k);
-    for (let t = 0; t < B.I.length; t += 3) {
-      const v = [0, 1, 2].map((j) => { const i = B.I[t + j] * 3; return vista(B.P[i], B.P[i + 1], B.P[i + 2]); });
-      const ux = v[1][0] - v[0][0], uy = v[1][1] - v[0][1], uz = v[1][2] - v[0][2], wx = v[2][0] - v[0][0], wy = v[2][1] - v[0][1], wz = v[2][2] - v[0][2];
-      let nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx; const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
-      if (nz > 0) continue;   // (de espaldas: no se ve)
-      const d = Math.max(0, -(nx * luz[0] + ny * luz[1] + nz * luz[2])), f = em ? 1 : 0.38 + 0.72 * d;
-      tris.push({ v, z: (v[0][2] + v[1][2] + v[2][2]) / 3, col: c.map((x) => Math.min(255, Math.round(x * f))) });
-    }
-  }
-  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const T of tris) for (const p of T.v) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
-  const esc = Math.min(W * 0.9 / (x1 - x0), H * 0.86 / (y1 - y0)), ox = W / 2 - (x0 + x1) / 2 * esc, oy = H / 2 + (y0 + y1) / 2 * esc;
-  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
-  tris.sort((a, b) => b.z - a.z);
-  g.lineJoin = 'round';
-  for (const T of tris) {
-    g.beginPath(); g.moveTo(ox + T.v[0][0] * esc, oy - T.v[0][1] * esc); g.lineTo(ox + T.v[1][0] * esc, oy - T.v[1][1] * esc); g.lineTo(ox + T.v[2][0] * esc, oy - T.v[2][1] * esc); g.closePath();
-    const c = 'rgb(' + T.col.join(',') + ')'; g.fillStyle = c; g.strokeStyle = c; g.lineWidth = 0.6; g.fill(); g.stroke();
-  }
-  return cv.toDataURL('image/png');
+// ---------------- el ícono: el de GMod con el color del arma (para la barra y el menú) ----------------
+function ajxIconoTenido(src, tinte, listo) {
+  const im = new Image(); im.crossOrigin = 'anonymous';
+  im.onload = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height), p = d.data, a = tinte[3];
+      for (let i = 0; i < p.length; i += 4) { const l = (0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]) * 1.15; p[i] += (Math.min(255, l * tinte[0]) - p[i]) * a; p[i + 1] += (Math.min(255, l * tinte[1]) - p[i + 1]) * a; p[i + 2] += (Math.min(255, l * tinte[2]) - p[i + 2]) * a; }
+      g.putImageData(d, 0, 0); listo(c.toDataURL('image/png'));
+    } catch (e) { listo(null); }
+  };
+  im.onerror = () => listo(null); im.src = src;
 }
 // ---------------- los sonidos: hechos acá (síntesis), sin los de Half-Life ni GMod ----------------
 // El zumbido de sostener (un segundo que se repite sin corte: dos tonos con un leve batido y un ronroneo), el de sacarla
@@ -374,8 +264,13 @@ function ajxAplicar() {
     if (D.icClasico === undefined) D.icClasico = D.ic;
     const S = AJX_SON[D.jx] || {}; if (!D.sonClasico) { D.sonClasico = {}; for (const k in S) D.sonClasico[k] = D[k]; }
     for (const k in S) D[k] = ajxActivas() ? S[k] : D.sonClasico[k];
-    if (ajxActivas()) { if (!AJX.iconos) AJX.iconos = {}; D.ic = AJX.iconos[D.jx] || (AJX.iconos[D.jx] = (() => { try { return ajxIcono(D.jx); } catch (e) { return D.icClasico; } })()); }
-    else D.ic = D.icClasico;
+    if (ajxActivas()) {
+      if (!AJX.iconos) AJX.iconos = {};
+      if (AJX.iconos[D.jx]) D.ic = AJX.iconos[D.jx];
+      else if (!AJX.iconoPide && AJX_ARMAS[D.jx] && AJX_ARMAS[D.jx].mundo && typeof DATA !== 'undefined' && DATA && DATA.ico && icono(D.icClasico)) {
+        AJX.iconoPide = true; ajxIconoTenido(icono(D.icClasico), AJX_ARMAS[D.jx].mundo, (u) => { AJX.iconoPide = false; if (!u) return; AJX.iconos[D.jx] = u; if (ajxActivas()) { D.ic = u; if (typeof hudArma === 'function' && ARM.lista.length && JUEGO.estado === 'juego') hudArma(); } });
+      }
+    } else D.ic = D.icClasico;
   }
 }
 setTimeout(ajxAplicar, 0);
