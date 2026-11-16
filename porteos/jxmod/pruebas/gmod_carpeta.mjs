@@ -223,6 +223,8 @@ if (FASE('B')) {
 const W = await contexto(false, false, async (ctx) => {
   await ctx.route('**/carpeta_web/**', (r) => { const rel = decodeURIComponent(new URL(r.request().url()).pathname.replace(/^\/carpeta_web\//, '')); return r.fulfill({ status: 200, body: fs.readFileSync(path.join(CARP, rel)) }); });
   await ctx.addInitScript(() => {
+    // (sólo en la página del juego: desde la 3.7 hay iframes de YouTube —la música del menú— donde no hay navigator.storage)
+    if (window !== window.top || !navigator.storage || !navigator.storage.getDirectory) return;
     window.showDirectoryPicker = async () => (await navigator.storage.getDirectory()).getDirectoryHandle('JXMOD');
     // (Chrome for Testing se cierra entero al sacar de IndexedDB una carpeta guardada —el Chrome de verdad no—: en la base
     // queda una marca y al leerla se devuelve la carpeta de OPFS, como devolvería el navegador la guardada)
@@ -337,7 +339,7 @@ const tabsE = await E.ev(`[...document.querySelectorAll('#ajustesCaja .ajTabs bu
 let tocoE = true; try { await E.p.click('#ajustesCaja [data-aj=m]', { timeout: 40000 }); } catch (e) { tocoE = false; }
 await E.p.waitForTimeout(500); await cap(E.p, 'e4_celu_ajustes');
 const ajE = await E.ev(`({ visible: !document.querySelector('[data-ajs=m]').classList.contains('oc'), filas: document.querySelectorAll('#ajustesCaja .gmkFila').length, sale: [...document.querySelectorAll('#ajustesCaja .gmk button')].filter((x) => x.scrollWidth > x.clientWidth + 1).length })`);
-C('E3. celular, jugando: en Ajustes las 5 pestañas se pueden tocar (también «Carpeta de mods», que quedaba debajo del pie) y su lista entra', tocoE && tabsE.length === 5 && tabsE.every((x) => x[1]) && ajE.visible && ajE.filas >= 7 && !ajE.sale, { toco: tocoE, tabs: tabsE, ...ajE });
+C(`E3. celular, jugando: en Ajustes las ${tabsE.length} pestañas (desde la 3.7 también Música) se pueden tocar (también «Carpeta de mods», que quedaba debajo del pie) y su lista entra`, tocoE && tabsE.length >= 5 && tabsE.some((x) => x[0] === 'm') && tabsE.every((x) => x[1]) && ajE.visible && ajE.filas >= 7 && !ajE.sale, { toco: tocoE, tabs: tabsE, ...ajE });
 await E.ctx.close();
 
 }

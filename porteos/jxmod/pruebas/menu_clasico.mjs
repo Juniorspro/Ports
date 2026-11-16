@@ -82,7 +82,9 @@ const MEDIR = `(() => {
   for (const e of H0.querySelectorAll('*')) {
     if (!vis(e)) continue;
     const t = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim() || (e.tagName === 'INPUT' ? e.value : ''); if (!t) continue;
-    let corta = false; for (let c = e, i = 0; i < 3 && c && c !== H0; i++, c = c.parentElement) { const cc = getComputedStyle(c);
+    // (la placa de la música —3.7, musica.js— recorta a propósito con «…» el título largo; la mide pruebas/musica.mjs, parte 12,
+    // con su marca musCorta: acá no cuenta como cortado)
+    let corta = false; if (!e.closest('.musChip')) for (let c = e, i = 0; i < 3 && c && c !== H0; i++, c = c.parentElement) { const cc = getComputedStyle(c);
       if (/hidden|clip/.test(cc.overflowX) && c.scrollWidth > c.clientWidth + 1) corta = true; if (/hidden|clip/.test(cc.overflowY) && c.scrollHeight > c.clientHeight + 2) corta = true; }
     const bt = e.closest('button, .clChip, .clVer'), R0 = rr(e), RB0 = bt && bt !== e ? rr(bt) : null;
     if (RB0 && (R0.x0 < RB0.x0 - 1.5 || R0.x1 > RB0.x1 + 1.5 || R0.y0 < RB0.y0 - 1.5 || R0.y1 > RB0.y1 + 1.5)) corta = true;

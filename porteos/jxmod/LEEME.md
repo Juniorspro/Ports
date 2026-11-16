@@ -2276,7 +2276,28 @@ de esas actualiza encima; quien sigue en la 3.1 tiene que desinstalarla antes.
   canciones, Casual sin internet, «Mi música» y «Sin música».
 - **La grieta no se apaga**: sin interruptor en Ajustes, en su panel ni en el depósito; a quien la tenía apagada se le
   vuelve a prender (`principal.js`).
-- **Pruebas sobre el juego con todo junto**: PRUEBAS_37
+- **«Tocá para entrar» en la web**: el navegador no deja sonar nada hasta que la persona toca la página (un toque hecho por
+  el juego no cuenta). Si todavía no hubo ninguno —el código de la web o saltear la intro cuentan—, la carga termina con un
+  botón «Tocá para entrar» (14 idiomas) y ese toque habilita el sonido: el menú aparece con la música sonando
+  (`template.html`, `W.fin`; la música lo ve con `navigator.userActivation`). En la app de Android suena sola, sin botón.
+- **Arreglado al juntar**: el fondo en video seguía corriendo detrás de Ajustes (la placa componía 30 cuadros por segundo;
+  en la 3.6, 0): ahora se pausa con cualquier cartel encima (`CL_ENCIMA`), 0 otra vez.
+- **Pruebas sobre el juego con todo junto** (de a una): `musica` 59/59 (las partes 2 a 9 con un armado sin el paquete de
+  Casual, para el reproductor de YouTube simulado; la 0 con YouTube de verdad, con una estación de YouTube), `paneles_inicio`
+  partes 1 (8 pantallas, 32 paneles: nada blanco, ≥ 44 px, letra ≥ 14, nada cortado, contraste el peor 6,4), 2 (idiomas:
+  alemán, ruso, árabe, filipino, francés y ucraniano, los de palabras más largas y el espejado), 3 (animaciones: entran y
+  terminan; nada con «menos movimiento» y Patata), 4a (con el panel quieto 0 cuadros por segundo, como la 3.6; Personajes
+  50, igual que la 3.6) y 5 (desde el depósito), `fondos_video` 15/15, `menu_clasico` 24/24, `deposito` 37/37 (partes 1,
+  2, 3, 6 y 7), `social` 42/42, `tienda_panel` 24/24, `celulares` 9/9, `gmod_carpeta` (las fases que tocan Ajustes) 10/10,
+  `menu_principal` 7/7, `menu_30` 15/15, `sonidos` 11/11, `fondo_callado` 5/5; `codigo_web` 9/9; el APK: la elección del
+  motor 5/5 y `PruebaGrabador` 6/6; la recuperación desde la web con código da el mismo `pk.bin`, los 62 paquetes aparte
+  (con la música) y los 6 videos iguales. Pruebas adaptadas: `menu_clasico` (la placa de la música recorta a propósito),
+  `gmod_carpeta` (6 pestañas en Ajustes; su script de prueba sólo en la página del juego, no en el iframe de YouTube) y
+  `musica` (espera la animación del cartel antes de medir). `codigo_tragado`: 0.
+- **Pendiente**: abrir un panel tarda más que en la 3.6 con el procesador 4× más lento (una corrida): Empezar partida 227
+  contra 143 ms, Mods 285 contra 188, Crear un mapa 95 contra 50, Personajes 536 contra 443; el JS es casi el mismo
+  (`tiEncajar` 107 contra 93 ms): lo demás es dibujar las rasgaduras, el grano y las máscaras. Sin celular de verdad: el
+  sonido real por YouTube, los videos con el decodificador del aparato, «Mi música» con el selector de Android.
 
 ## Música en el menú (Ajustes → Música): 10 estaciones de 35 canciones, Casual sin internet y «Mi música»
 

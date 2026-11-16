@@ -326,6 +326,8 @@ function musToque() {
 function musIniciar() {
   if (MUS.iniciado) return; MUS.iniciado = true;
   MUS.nativo = !!(window.JXNativo);
+  // (si ya hubo un toque —«Tocá para entrar» de la carga, el código de la web, saltear la intro—, el navegador ya deja sonar)
+  try { if (navigator.userActivation && navigator.userActivation.hasBeenActive) MUS.toque = true; } catch (e) {}
   addEventListener('pointerdown', musToque, true); addEventListener('keydown', musToque, true);
   addEventListener('pagehide', () => musRecordar());
   addEventListener('online', () => { MUS.esperaHasta = 0; MUS.errSeg = 0; });

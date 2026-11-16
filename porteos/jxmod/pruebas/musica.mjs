@@ -383,6 +383,8 @@ if (corre(13)) {
     const malos = [];
     for (const l of IDIOMAS) {
       await A.ev(`idiomaAplicar('${l}'); inicioLista(); cerrarPaneles(); musAbrirTab(); 1`); await A.p.waitForTimeout(500);
+      // (desde la 3.7 el cartel entra con una animación —se agranda un poco y gira—: se mide cuando terminó)
+      await A.ev(`Promise.all(document.getElementById('ajustesCaja').getAnimations({ subtree: true }).map((a) => a.finished.catch(() => 0))).then(() => 1)`);
       const m = await A.ev(`(() => {
         const S = document.querySelector('#ajustesCaja [data-ajs=mu]'); if (!S || S.classList.contains('oc')) return { falta: true };
         const tar = [...S.querySelectorAll('.musTarj')], bts = [...S.querySelectorAll('button, .musMiaAgr, input[type=range]')].filter((x) => x.offsetWidth && !x.closest('.oc'));

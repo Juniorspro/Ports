@@ -820,6 +820,12 @@ body.conPant{background:transparent}
 .dLogo img{height:1em;width:auto;max-width:88vw;object-fit:contain;object-position:left;display:block;filter:drop-shadow(0 .03em .06em rgba(0,0,0,.35))}
 #carga{position:fixed;inset:0;z-index:11;overflow:hidden;color:#fff;font:14px Roboto,Arial,sans-serif;background:#07080c;transition:opacity .5s}
 #carga.salir{opacity:0;pointer-events:none}
+/* (la web no deja sonar hasta el primer toque: si no hubo ninguno, la carga termina pidiéndolo; ver W.fin) */
+#cgToca{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);z-index:3;min-height:52px;padding:0 30px;display:flex;align-items:center;gap:12px;font:600 22px/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#14110a;background:#f2b51e;clip-path:polygon(0 0,100% 0,98.5% 22%,100% 46%,98.8% 70%,100% 100%,0 100%,1.4% 64%,0 34%);cursor:pointer;white-space:nowrap;animation:cgToca 1.6s ease-in-out infinite}
+#cgToca:before{content:'';width:0;height:0;border-left:13px solid #14110a;border-top:9px solid transparent;border-bottom:9px solid transparent}
+@keyframes cgToca{0%,100%{opacity:1}50%{opacity:.72}}
+#carga.toca .cgGira{display:none}
+@media (prefers-reduced-motion:reduce){#cgToca{animation:none}}
 /* fondo: capturas del juego que pasan despacio (como los fondos de un server mientras entrás); al 35 % de alto y con poco
    zoom: en un celular de 20:9 la foto pierde 1/5 de su alto, y centrada (zoom 1,1 y subiendo) la grieta quedaba cortada arriba */
 #carga .cgFondo{position:absolute;inset:0;background:#07080c 50% 35%/cover no-repeat;opacity:0;transition:opacity 1.4s ease}
@@ -2249,6 +2255,19 @@ html.rot #rbInicio .clSonda{padding:0}
     // (la intro se ve entera —se saltea tocando—; como el juego ya está, la carga ya no se va a mostrar: se esconde abajo
     // de la intro y cuando ella termina se va todo junto al menú)
     var I = window.__intro; if (I && !I.fin) { I.cb = function () { W.fin(cb); }; $('carga').classList.add('introDirecto'); return; }
+    // (en la web el navegador no deja que nada suene —la música del menú, los sonidos— hasta que la persona toca la página, y
+    // un toque hecho por el juego no cuenta: si todavía no tocó nada —el código, saltear la intro—, la carga termina con
+    // «Tocá para entrar» y ese toque habilita el sonido, así el menú aparece sonando. En la app de Android suena sola; en las
+    // pruebas (?test) no se espera)
+    var UA = navigator.userActivation;
+    if (!W.tocaOk && !window.JXNativo && UA && !UA.hasBeenActive && !/[?&]test\b/.test(location.search)) {
+      W.tocaOk = true; W.listo = true; clearInterval(tTip); W.set(1, 'listo'); ocultar();
+      var TOCA = { es: 'Tocá para entrar', en: 'Tap to enter', pt: 'Toque para entrar', id: 'Ketuk untuk masuk', ms: 'Ketik untuk masuk', fil: 'I-tap para pumasok', ja: 'タップしてスタート', th: 'แตะเพื่อเข้าเกม', tr: 'Girmek için dokun', ar: 'اضغط للدخول', ru: 'Нажми, чтобы войти', uk: 'Торкнися, щоб увійти', fr: 'Touche pour entrer', de: 'Tippen zum Starten' };
+      var d = document.createElement('div'); d.id = 'cgToca'; d.setAttribute('role', 'button'); d.textContent = TOCA[l] || TOCA.en; $('carga').appendChild(d); $('carga').classList.add('toca');
+      var ir = function () { removeEventListener('pointerdown', ir, true); removeEventListener('keydown', ir, true); d.remove(); $('carga').classList.remove('toca'); W.fin(cb); };
+      addEventListener('pointerdown', ir, true); addEventListener('keydown', ir, true);
+      return;
+    }
     W.listo = true; clearInterval(tTip); W.set(1, 'listo'); W.log('listo'); ocultar();
     var c = $('carga'); c.classList.add('fin');
     // (la carga se deja ver al menos 1,2 s; si no se llegó a ver —el juego cargó durante la intro—, se va enseguida)

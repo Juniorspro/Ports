@@ -31,7 +31,9 @@ const fvAhorroDatos = () => { try { return !!(navigator.connection && navigator.
 // (el video va en el clásico con todo el movimiento —Medios, Altos y Ultra—; si no, las fotos)
 const fvActivo = () => FONDOS_VIDEO.length > 0 && !FV.roto && RB.home === 'clasico' && !!CL.el && clNivel() === 'pleno' && !fvAhorroDatos() && fvSoporta();
 // (y corre sólo cuando se ve: el clásico a la vista, sin panel, en el menú principal y con la página al frente)
-const fvSeVe = () => fvActivo() && clVisible() && !RB.panel && JUEGO.estado === 'principal' && !document.hidden && !RB.el.classList.contains('rb3d');
+// (tampoco con un cartel encima que tapa el menú —Ajustes, la cuenta, el tutorial, la carga…: CL_ENCIMA, clasico.js—, como el
+// lienzo del clásico en la 3.6: con Ajustes abierto la placa compone 0 cuadros por segundo)
+const fvSeVe = () => fvActivo() && clVisible() && !RB.panel && JUEGO.estado === 'principal' && !document.hidden && !RB.el.classList.contains('rb3d') && !document.querySelector(CL_ENCIMA);
 // (mientras el video está activo pero tapado, la escena de fondo no cambia: inicio.js)
 const fvRetener = () => fvActivo() && !fvSeVe();
 // (se carga sólo en el menú principal a la vista: no en una partida)
