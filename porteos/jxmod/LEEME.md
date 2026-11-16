@@ -2252,6 +2252,14 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.8.2: «You Know How We Do It» en West Side
+
+- Faltaba «You Know How We Do It» de Ice Cube en la radio West Side de la música del menú (`juego/musica_estaciones.txt`).
+  El video oficial (IceCubeVEVO, rzRqEWJYwX4) no deja reproducirse insertado (`yt.insertado`: UNPLAYABLE; en el juego,
+  error 150): va el oficial con letra del mismo canal (FXTh4XLm2VE, 3:53), que sí (OK). Para que sigan siendo 35 sale
+  «'Till I Collapse» (Eminem es de Detroit). Las 10 estaciones: 35 cada una, 350 sin repetidas. En este contenedor YouTube
+  no reproduce ningún video (tampoco los que ya andaban), así que no se pudo oír acá: vale el chequeo de insertado.
+
 ## JXMod 3.8.1: lo del Discord después de la 3.8
 
 - **«Editar controles» y «Editar arma en la mano» con la interfaz nueva** (GOLDEN: «tienen una interfaz muy antigua»;

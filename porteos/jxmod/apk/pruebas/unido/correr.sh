@@ -19,6 +19,6 @@ fi
 # (el JS va comprimido: se mira que el armado sea más nuevo que todo el código del juego)
 [ -z "$(find "$APK/../juego" -newer "$WWW/index.html" -name '*.js')" ] || { echo "el juego web de $WWW es más viejo que el código"; exit 1; }
 rm -rf "$A" && mkdir -p "$A" && cp -al "$WWW" "$A/www"
-python3 -I "$APK/armar_apk.py" "${SALIDA:-$B/JXMod.apk}" --version-name "${VERSION:-prueba}" --src "$APK/web/src" --src "$APK/unido/src" \
+python3 -I "$APK/armar_apk.py" "${SALIDA:-$B/JXMod.apk}" --version-name "${VERSION:-prueba}" ${VCODE:+--version-code "$VCODE"} --src "$APK/web/src" --src "$APK/unido/src" \
   --manifiesto "$APK/unido/AndroidManifest.xml" --activos "$A" 2>&1 | grep -v "^Picked up"
 unzip -l "${SALIDA:-$B/JXMod.apk}" | grep -E "classes.dex|assets/www/|lib/" | head -6
