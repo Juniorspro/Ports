@@ -6,7 +6,7 @@
 // de PC al juego. Los juegos corren aislados: un iframe sandbox sin permiso de mismo origen (no leen nada del juego ni
 // del navegador); un puente chico adentro recibe las teclas y le da al juego un localStorage de mentira.
 // En la sala, el gabinete dice qué juego tiene y quien lo puso le pasa el HTML (comprimido, de a pedazos) al que lo quiera.
-const MAQ = { lib: [], libOk: false, obj: null, j: null, vista: null, ifr: null, apretadas: new Set(), sala: new Map(), partes: new Map(), esperas: new Map(), tapas: new Map(), tab: 'inc', eco: [], com: null };
+const MAQ = { subs: [], lib: [], libOk: false, obj: null, j: null, vista: null, ifr: null, apretadas: new Set(), sala: new Map(), partes: new Map(), esperas: new Map(), tapas: new Map(), fotos: new Map(), fotoDe: new Map(), tab: 'inc', eco: [], com: null };
 // teclas de PC para cada botón, según el juego
 const MAQ_CTRL = {
   flechas: { arr: 'ArrowUp', aba: 'ArrowDown', izq: 'ArrowLeft', der: 'ArrowRight', A: ' ', B: 'z', X: 'x', Y: 'c', start: 'Enter', select: 'Shift' },
@@ -19,14 +19,18 @@ const maqCode = (k) => (k === ' ' ? 'Space' : k === 'Shift' ? 'ShiftLeft' : k.le
 const MAQ_PUENTE = `<script>(function(){var KC={ArrowLeft:37,ArrowUp:38,ArrowRight:39,ArrowDown:40,' ':32,Enter:13,Escape:27,Shift:16,Tab:9};
 function mem(){var d={};return{getItem:function(k){return k in d?d[k]:null},setItem:function(k,v){d[k]=String(v)},removeItem:function(k){delete d[k]},clear:function(){d={}},key:function(i){return Object.keys(d)[i]||null},get length(){return Object.keys(d).length}}}
 ['localStorage','sessionStorage'].forEach(function(n){try{window[n].getItem('x')}catch(e){try{Object.defineProperty(window,n,{value:mem(),configurable:true})}catch(x){}}});
-addEventListener('message',function(e){var m=e.data;if(!m||m.rbMaq!==1)return;var k=m.key,n=KC[k]||(k.length===1?k.toUpperCase().charCodeAt(0):0);
+var AJ={on:0,c:null,st:null};function ajF(){var c=AJ.c;if(!AJ.on||!c)return;c.style.removeProperty('transform');var w=c.offsetWidth||c.width,h=c.offsetHeight||c.height,s=Math.min(innerWidth/w,innerHeight/h);c.style.setProperty('transform','translate(-50%,-50%) scale('+s+')','important')}
+function aj(on){AJ.on=on;var cs=document.getElementsByTagName('canvas'),b=null,ba=0;for(var i=0;i<cs.length;i++){var a=cs[i].width*cs[i].height;if(a>ba){ba=a;b=cs[i]}}if(AJ.c&&AJ.c!==b)AJ.c.classList.remove('rbAj');AJ.c=b;
+if(!AJ.st){AJ.st=document.createElement('style');AJ.st.textContent='html.rbAj,html.rbAj body{overflow:hidden!important;background:#000!important}canvas.rbAj{position:fixed!important;left:50%!important;top:50%!important;margin:0!important;transform-origin:50% 50%!important}';(document.head||document.documentElement).appendChild(AJ.st)}
+document.documentElement.classList.toggle('rbAj',!!on);if(b){b.classList.toggle('rbAj',!!on);if(on)ajF();else b.style.removeProperty('transform')}}addEventListener('resize',ajF);
+addEventListener('message',function(e){var m=e.data;if(!m||m.rbMaq!==1)return;if(m.t==='ajustar'){aj(m.on);return}if(m.t==='ritmo'){CAP.pide=Math.max(15,+m.ms||1000);return}var k=m.key,n=KC[k]||(k.length===1?k.toUpperCase().charCodeAt(0):0);
 var ev=new KeyboardEvent(m.t,{key:k,code:m.code,bubbles:true,cancelable:true});try{Object.defineProperty(ev,'keyCode',{get:function(){return n}});Object.defineProperty(ev,'which',{get:function(){return n}})}catch(x){}
 var a=document.activeElement,t=a&&a!==document.body?a:(document.querySelector('canvas')||document.body||document);t.dispatchEvent(ev);
 try{parent.postMessage({rbMaqOk:m.t+':'+k},'*')}catch(x){}});
-var CAP={t:0,c:null,g:null};function cap(){var n=performance.now();if(n-CAP.t<120)return;CAP.t=n;var cs=document.getElementsByTagName('canvas'),b=null,ba=0;
+var CAP={t:0,v:null,vg:null,c:0,pide:1000,i:1000};function cap(){var n=performance.now();CAP.i=Math.max(CAP.pide,Math.min(2000,CAP.c*10));if(n-CAP.t<CAP.i)return;CAP.t=n;var cs=document.getElementsByTagName('canvas'),b=null,ba=0;
 for(var i=0;i<cs.length;i++){var c=cs[i],a=c.width*c.height;if(a>ba&&c.width>15&&c.height>15){ba=a;b=c}}if(!b)return;
-if(!CAP.c){CAP.c=document.createElement('canvas');CAP.c.width=256;CAP.c.height=192;CAP.g=CAP.c.getContext('2d',{willReadFrequently:true})}var g=CAP.g,s=Math.min(256/b.width,192/b.height),w=b.width*s,h=b.height*s;
-g.fillStyle='#000';g.fillRect(0,0,256,192);try{g.imageSmoothingEnabled=b.width>256;g.drawImage(b,(256-w)/2,(192-h)/2,w,h);var d=g.getImageData(0,0,256,192).data.buffer;parent.postMessage({rbMaqPix:d},'*',[d])}catch(e){}}
+var ar=b.width/b.height,W=Math.min(320,b.width),H=Math.max(1,Math.round(W/ar));if(!CAP.v||CAP.v.width!==W||CAP.v.height!==H){CAP.v=document.createElement('canvas');CAP.v.width=W;CAP.v.height=H;CAP.vg=CAP.v.getContext('2d',{willReadFrequently:true})}
+try{CAP.vg.imageSmoothingEnabled=b.width>W;CAP.vg.drawImage(b,0,0,W,H);var px=CAP.vg.getImageData(0,0,W,H).data.buffer;parent.postMessage({rbMaqPx:px,w:W,h:H,a:ar,c:CAP.c,i:CAP.i},'*',[px])}catch(e){}var c=performance.now()-n;CAP.c=CAP.c?CAP.c*0.7+c*0.3:c}
 var RAF=window.requestAnimationFrame;window.requestAnimationFrame=function(f){return RAF.call(window,function(t){f(t);cap()})};setInterval(cap,250);
 var AC=window.AudioContext||window.webkitAudioContext,ACS=[],CALL=[];if(AC){var W=function(a){var c=a===undefined?new AC():new AC(a);ACS.push(c);return c};W.prototype=AC.prototype;try{window.AudioContext=W;window.webkitAudioContext=W}catch(x){}}
 addEventListener('message',function(e){var m=e.data;if(!m||m.rbMaqFondo===undefined)return;if(m.rbMaqFondo){CALL=[];ACS.forEach(function(c){if(c.state==='running'){CALL.push(c);c.suspend()}});[].forEach.call(document.querySelectorAll('audio,video'),function(v){if(!v.paused){CALL.push(v);v.pause()}})}
@@ -83,8 +87,9 @@ function maqDB() {
   if (MAQ.db) return MAQ.db;
   return (MAQ.db = new Promise((ok) => {
     try {
-      const r = indexedDB.open('rezobox-juegos', 1);
-      r.onupgradeneeded = () => r.result.createObjectStore('j', { keyPath: 'id' });
+      // (2: los HTML pesados van aparte, en «h»: la lista lee sólo nombre, autor y foto, no 80 MB de juegos)
+      const r = indexedDB.open('rezobox-juegos', 2);
+      r.onupgradeneeded = () => { const db = r.result; if (!db.objectStoreNames.contains('j')) db.createObjectStore('j', { keyPath: 'id' }); if (!db.objectStoreNames.contains('h')) db.createObjectStore('h'); };
       r.onsuccess = () => ok(r.result); r.onerror = () => ok(null);
     } catch (e) { ok(null); }
   }));
@@ -93,20 +98,36 @@ async function maqMios() {
   const db = await maqDB(); if (!db) return MAQ.memoria || [];
   return new Promise((ok) => { try { const r = db.transaction('j').objectStore('j').getAll(); r.onsuccess = () => ok(r.result || []); r.onerror = () => ok([]); } catch (e) { ok([]); } });
 }
+// (un juego de más de 256 mil letras se guarda partido: los datos en «j» con hg = su tamaño, y el HTML en «h»; uno que
+// llega sin html pero con hg —el de la lista— sólo cambia sus datos)
 async function maqGuardar(j) {
   const db = await maqDB();
   if (!db) { MAQ.memoria = (MAQ.memoria || []).filter((x) => x.id !== j.id).concat([j]); return true; }   // (sin IndexedDB: hasta recargar)
-  return new Promise((ok) => { try { const t = db.transaction('j', 'readwrite'); t.objectStore('j').put(j); t.oncomplete = () => ok(true); t.onerror = () => ok(false); } catch (e) { ok(false); } });
+  return new Promise((ok) => {
+    try {
+      const t = db.transaction(['j', 'h'], 'readwrite');
+      if (typeof j.html === 'string' && j.html.length > 262144) { const l = { ...j, hg: j.html.length }; delete l.html; t.objectStore('h').put(j.html, j.id); t.objectStore('j').put(l); }
+      else { t.objectStore('j').put(j); if (typeof j.html === 'string') t.objectStore('h').delete(j.id); }
+      t.oncomplete = () => ok(true); t.onerror = () => ok(false); t.onabort = () => ok(false);
+    } catch (e) { ok(false); }
+  });
+}
+// uno tuyo: sólo los datos (ligero) o completo, con su HTML
+async function maqMio(id, completo) {
+  const db = await maqDB(); if (!db) return (MAQ.memoria || []).find((x) => x.id === id) || null;
+  const get = (st, k) => new Promise((ok) => { try { const r = db.transaction(st).objectStore(st).get(k); r.onsuccess = () => ok(r.result || null); r.onerror = () => ok(null); } catch (e) { ok(null); } });
+  const j = await get('j', id); if (!j || !completo || j.html || !j.hg) return j;
+  const h = await get('h', id); return typeof h === 'string' ? { ...j, html: h } : null;
 }
 async function maqBorrarMio(id) {
   const db = await maqDB(); if (!db) { MAQ.memoria = (MAQ.memoria || []).filter((x) => x.id !== id); return; }
-  return new Promise((ok) => { try { const t = db.transaction('j', 'readwrite'); t.objectStore('j').delete(id); t.oncomplete = () => ok(); t.onerror = () => ok(); } catch (e) { ok(); } });
+  return new Promise((ok) => { try { const t = db.transaction(['j', 'h'], 'readwrite'); t.objectStore('j').delete(id); t.objectStore('h').delete(id); t.oncomplete = () => ok(); t.onerror = () => ok(); } catch (e) { ok(); } });
 }
 // un juego por su id (incluido, tuyo, de la sala o de la comunidad), o null
 async function maqBuscar(id) {
   const inc = MAQ_INCLUIDOS.find((x) => x.id === id); if (inc) return inc;
   if (MAQ.sala.has(id)) return MAQ.sala.get(id);
-  return (await maqMios()).find((x) => x.id === id) || null;
+  return maqMio(id, true);
 }
 // importar: un .html (texto) o una dirección; el id sale del contenido (el mismo juego, el mismo id en todos lados)
 async function maqHuella(s) {
@@ -115,9 +136,11 @@ async function maqHuella(s) {
 }
 async function maqImportarTexto(nombre, html, ctrl) {
   if (typeof html !== 'string' || html.length < 20) return null;
-  if (html.length > 3e6) { aviso(T('maq.grande'), 3); return null; }
+  if (html.length > MAQ_MAX) { aviso(T('maq.grande'), 3); return null; }
   const j = { id: 'u:' + (await maqHuella(html)), nombre: (nombre || 'Juego').replace(/\.html?$/i, '').slice(0, 40), autor: PREFS.nombre || '', ctrl: MAQ_CTRL[ctrl] !== undefined ? ctrl : 'flechas', html, fecha: Date.now() };
-  await maqGuardar(j); return j;
+  // (si ya estaba, se queda con su foto)
+  const ya = await maqMio(j.id); if (ya && ya.foto) j.foto = ya.foto;
+  return (await maqGuardar(j)) ? j : null;
 }
 async function maqImportarUrl(url, ctrl) {
   if (!/^https:\/\/[^\s]+$/i.test(url || '')) return null;
@@ -127,9 +150,137 @@ async function maqImportarUrl(url, ctrl) {
   await maqGuardar(j); return j;
 }
 
+// ---------------- subir: varios a la vez, pesados, .zip y carpetas (3.8) ----------------
+// Pedido del dueño: «poder cargar pesados y varios a la vez, con un apartado de subiendo, y que corra cualquier HTML». Cada
+// archivo (o carpeta) es un trabajo con su avance en la pestaña «Subiendo»: se lee (con el avance de la lectura), se arma
+// y se guarda en el aparato (IndexedDB). Un .zip o una carpeta: se busca el HTML principal (index.html o el primero, el
+// menos hondo) y todo lo demás va adentro: lo que el HTML nombra (scripts, estilos, imágenes, sonidos) se reemplaza por
+// su contenido, lo de adentro de los .css también, y lo que el juego pide después por su cuenta (fetch, XHR, una imagen o
+// un sonido que arma su código) lo contesta un mapa de archivos con un puente chico (MAQ_FS). Así anda un juego de varios
+// archivos sin servidor, en el iframe aislado de siempre.
+const MAQ_MAX = 80e6;
+const MAQ_MIME = { js: 'text/javascript', mjs: 'text/javascript', css: 'text/css', json: 'application/json', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', ico: 'image/x-icon',
+  mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav', m4a: 'audio/mp4', mp4: 'video/mp4', webm: 'video/webm', woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf', wasm: 'application/wasm', txt: 'text/plain', xml: 'application/xml', atlas: 'text/plain', fnt: 'text/plain', glsl: 'text/plain' };
+const MAQ_FS = `<script>(function(){var F=window.__rbFS;if(!F)return;function res(u){try{u=typeof u==='string'?u:String(u&&u.url||u);if(/^(data|blob|https?|about):/i.test(u))return null;u=u.split('#')[0].split('?')[0].replace(/^(\\.\\/)+/,'').replace(/^\\//,'');try{u=decodeURIComponent(u)}catch(e){}
+var k=u;while(k.indexOf('../')===0)k=k.slice(3);return F[u]||F[k]||null}catch(e){return null}}
+var f0=window.fetch;if(f0)window.fetch=function(i,o){var d=res(typeof i==='string'?i:i&&i.url);return f0.call(this,d||i,o)};
+var X=XMLHttpRequest.prototype,op=X.open;X.open=function(m,u){var d=res(u);if(d)arguments[1]=d;return op.apply(this,arguments)};
+[[window.HTMLImageElement,'src'],[window.HTMLMediaElement,'src'],[window.HTMLSourceElement,'src'],[window.HTMLScriptElement,'src'],[window.HTMLLinkElement,'href']].forEach(function(x){if(!x[0])return;var P=x[0].prototype,dd=Object.getOwnPropertyDescriptor(P,x[1]);if(!dd||!dd.set)return;
+Object.defineProperty(P,x[1],{configurable:true,enumerable:dd.enumerable,get:dd.get,set:function(v){var d=res(v);dd.set.call(this,d||v)}})});
+var sa=Element.prototype.setAttribute;Element.prototype.setAttribute=function(k,v){if((k==='src'||k==='href')&&typeof v==='string'){var d=res(v);if(d)v=d}return sa.call(this,k,v)};})();<\/script>`;
+const maqExt = (n) => (String(n).toLowerCase().match(/\.([a-z0-9]+)$/) || [])[1] || '';
+const maqMB = (n) => (n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + ' MB');
+// lee un archivo con su avance
+function maqLeer(f, cada) {
+  return new Promise((ok, mal) => { const r = new FileReader(); r.onprogress = (e) => cada && cada(e.loaded); r.onload = () => ok(new Uint8Array(r.result)); r.onerror = () => mal(r.error); r.readAsArrayBuffer(f); });
+}
+// un .zip: el índice del final y cada archivo (guardado tal cual o con deflate, que abre el navegador)
+async function maqZip(u8) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength); let e = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+  if (e < 0) throw new Error('zip');
+  const n = dv.getUint16(e + 10, true); let o = dv.getUint32(e + 16, true); const out = {}, td = new TextDecoder();
+  for (let k = 0; k < n; k++) {
+    if (dv.getUint32(o, true) !== 0x02014b50) break;
+    const met = dv.getUint16(o + 10, true), cs = dv.getUint32(o + 20, true), nl = dv.getUint16(o + 28, true), xl = dv.getUint16(o + 30, true), cl = dv.getUint16(o + 32, true), lo = dv.getUint32(o + 42, true);
+    const nom = td.decode(u8.subarray(o + 46, o + 46 + nl)); o += 46 + nl + xl + cl;
+    if (nom.endsWith('/') || /(^|\/)(__MACOSX|\.DS_Store)/.test(nom)) continue;
+    const d0 = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true), raw = u8.subarray(d0, d0 + cs);
+    if (met === 0) out[nom] = raw;
+    else if (met === 8) {
+      if (typeof DecompressionStream === 'undefined') throw new Error('deflate');
+      out[nom] = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    }
+  }
+  return out;
+}
+const maqB64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const maqDataUrl = (nom, u8) => 'data:' + (MAQ_MIME[maqExt(nom)] || 'application/octet-stream') + ';base64,' + maqB64(u8);
+// los archivos de un juego (ruta → bytes) en un solo HTML
+function maqPaquete(A) {
+  const rutas = Object.keys(A); const htmls = rutas.filter((r) => /\.html?$/i.test(r)).sort((a, b) => a.split('/').length - b.split('/').length || (/(^|\/)index\.html?$/i.test(b) ? 1 : 0) - (/(^|\/)index\.html?$/i.test(a) ? 1 : 0));
+  const prin = htmls.find((r) => /(^|\/)index\.html?$/i.test(r) && r.split('/').length === htmls[0].split('/').length) || htmls[0]; if (!prin) throw new Error('html');
+  const base = prin.includes('/') ? prin.slice(0, prin.lastIndexOf('/') + 1) : '', td = new TextDecoder();
+  const rel = (desde, r) => { if (/^(data|blob|https?|mailto|javascript|about):/i.test(r) || r.startsWith('#') || r.startsWith('//')) return null; const p = (r.startsWith('/') ? base + r.slice(1) : desde + r).split('#')[0].split('?')[0]; const s2 = []; for (const x of p.split('/')) { if (x === '..') s2.pop(); else if (x !== '.' && x !== '') s2.push(x); } let k = s2.join('/'); try { k = decodeURIComponent(k); } catch (e) {} return A[k] ? k : null; };
+  const urls = {}; const url = (k) => urls[k] || (urls[k] = maqDataUrl(k, A[k]));
+  // (lo de adentro de un .css: sus url(...) y @import, contra su carpeta)
+  const css = (k) => { const d = k.includes('/') ? k.slice(0, k.lastIndexOf('/') + 1) : ''; return td.decode(A[k]).replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (m, q, r) => { const x = rel(d, r.trim()); return x ? `url("${url(x)}")` : m; }).replace(/@import\s+(['"])([^'"]+)\1/g, (m, q, r) => { const x = rel(d, r); return x ? `@import "data:text/css;base64,${maqB64(new TextEncoder().encode(css(x)))}"` : m; }); };
+  for (const k of rutas) if (maqExt(k) === 'css') urls[k] = 'data:text/css;base64,' + maqB64(new TextEncoder().encode(css(k)));
+  let h = td.decode(A[prin]);
+  h = h.replace(/(\s(?:src|href|poster|data-src)\s*=\s*)(["'])([^"']+)\2/gi, (m, at, q, r) => { const x = rel(base, r); return x && !/\.html?$/i.test(x) ? at + q + url(x) + q : m; });
+  h = h.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (m, q, r) => { const x = rel(base, r); return x ? `url("${url(x)}")` : m; });
+  // (el mapa para lo que el juego pide después: las rutas como las escribe él, contra la carpeta del HTML principal)
+  const F = {}; for (const k of rutas) { if (k === prin || /\.html?$/i.test(k)) continue; const c = k.startsWith(base) ? k.slice(base.length) : k; F[c] = url(k); }
+  const fs = `<script>window.__rbFS=${JSON.stringify(F).replace(/</g, '\\u003c')};<\/script>` + MAQ_FS;
+  h = /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, (m) => m + fs) : fs + h;
+  return { html: h, nombre: (prin.includes('/') ? prin.split('/').slice(-2, -1)[0] : '') || prin.replace(/\.html?$/i, ''), n: rutas.length };
+}
+// los trabajos: [archivos] cada uno (un .html, un .zip o una carpeta entera)
+async function maqSubir(grupos, ctrl, carpeta) {
+  const nuevos = grupos.map((L) => ({ id: Math.random().toString(36).slice(2, 9), nombre: carpeta ? (L[0].webkitRelativePath || L[0].name).split('/')[0] : L[0].name, tam: L.reduce((a, f) => a + f.size, 0), lei: 0, estado: 'espera', det: '', L }));
+  MAQ.subs.push(...nuevos); MAQ.tab = 'sub'; maqPanelDibujar();
+  // (de a uno: varios pesados a la vez ocuparían la memoria del celular todos juntos)
+  for (const J of nuevos) {
+    try {
+      if (J.tam > MAQ_MAX * 1.5) throw new Error(T('maq.grande'));
+      J.estado = 'lee'; maqSubPintar();
+      const A = {}; let leido = 0;
+      for (const f of J.L) { const u8 = await maqLeer(f, (n) => { J.lei = leido + n; maqSubPintar(); }); leido += f.size; J.lei = leido;
+        if (carpeta) { const r = (f.webkitRelativePath || f.name).split('/').slice(1).join('/') || f.name; A[r] = u8; } else A[f.name] = u8; }
+      J.estado = 'arma'; maqSubPintar();
+      let html, nombre = J.nombre.replace(/\.(html?|zip)$/i, '');
+      const solo = Object.keys(A); 
+      if (solo.length === 1 && /\.html?$/i.test(solo[0])) html = new TextDecoder().decode(A[solo[0]]);
+      else { const Z = solo.length === 1 && maqExt(solo[0]) === 'zip' ? await maqZip(A[solo[0]]) : A; const P = maqPaquete(Z); html = P.html; J.det = P.n + ' ' + T('maq.archivos'); }
+      if (html.length > MAQ_MAX) throw new Error(T('maq.grande') + ' · ' + maqMB(html.length));
+      J.estado = 'guarda'; maqSubPintar();
+      const j = await maqImportarTexto(nombre, html, ctrl); if (!j) throw new Error(T('maq.noAnda'));
+      J.estado = 'listo'; J.jid = j.id; J.det = maqMB(html.length) + (J.det ? ' · ' + J.det : '');
+    } catch (e) { J.estado = 'mal'; J.det = String(e && e.message === 'zip' ? T('maq.noZip') : e && e.message === 'deflate' ? T('maq.noZip') : e && e.message === 'html' ? T('maq.sinHtml') : (e && e.message) || e).slice(0, 120); }
+    J.L = null; maqSubPintar();
+  }
+  if (MAQ.tab === 'sub') maqPanelDibujar();
+}
+function maqSubDibujar(p) {
+  p.querySelector('.mqLista').innerHTML = MAQ.subs.slice().reverse().map((J) => `<div class="mqSub" data-sub="${J.id}"><b dir="auto"></b><small></small><i><u></u></i></div>`).join('');
+  maqSubPintar();
+}
+function maqSubPintar() {
+  const p = $('maqPan'); if (!p || p.classList.contains('oc')) return;
+  // (el contador de la pestaña: los que faltan)
+  const t = p.querySelector('[data-mq="tab:sub"]'); if (!t) { maqPanelDibujar(); return; }
+  const n = MAQ.subs.filter((x) => x.estado !== 'listo' && x.estado !== 'mal').length; let c = t.querySelector('.mqN');
+  if (n && !c) { c = document.createElement('span'); c.className = 'mqN'; t.appendChild(c); } if (c) { if (n) c.textContent = n; else c.remove(); }
+  if (MAQ.tab !== 'sub') return;
+  for (const J of MAQ.subs) {
+    const e = p.querySelector(`[data-sub="${J.id}"]`); if (!e) continue;
+    const pct = J.estado === 'listo' ? 1 : J.tam ? Math.min(1, J.lei / J.tam) * (J.estado === 'lee' ? 0.85 : 0.95) : 0;
+    e.className = 'mqSub' + (J.estado === 'listo' ? ' ok' : J.estado === 'mal' ? ' mal' : '');
+    e.querySelector('b').textContent = J.nombre;
+    e.querySelector('small').textContent = J.estado === 'mal' ? J.det : T('maq.s_' + J.estado) + ' · ' + (J.estado === 'listo' ? J.det : maqMB(J.lei) + ' / ' + maqMB(J.tam));
+    e.querySelector('u').style.width = (pct * 100).toFixed(1) + '%';
+  }
+}
+// la foto de un juego tuyo (para la lista, la pantalla del gabinete y la comunidad): 320 × 240, recortada al centro
+async function maqFotoPoner(id, f) {
+  const j = await maqMio(id); if (!j) return;
+  try {
+    const bm = await createImageBitmap(f), c = document.createElement('canvas'); c.width = 320; c.height = 240; const g = c.getContext('2d');
+    const s = Math.max(320 / bm.width, 240 / bm.height), w = bm.width * s, h = bm.height * s; g.drawImage(bm, (320 - w) / 2, (240 - h) / 2, w, h); bm.close();
+    let q = 0.85, u = c.toDataURL('image/jpeg', q); while (u.length > 110000 && q > 0.3) u = c.toDataURL('image/jpeg', (q -= 0.1));   // (la comunidad acepta fotos de hasta 120 000)
+    j.foto = u; await maqGuardar(j); MAQ.fotoDe.set(j.id, u); const ss = MAQ.sala.get(j.id); if (ss) ss.foto = u; maqTapaOlvidar(j.id); maqPanelDibujar(); aviso(T('maq.fotoOk'), 2);
+  } catch (e) { aviso(T('maq.noFoto'), 3); }
+}
+
 // ---------------- la tapa (el cartel del juego: en la lista y en la pantalla del gabinete) ----------------
 function maqTapaCanvas(j) {
   const cv = document.createElement('canvas'); cv.width = 256; cv.height = 192; const g = cv.getContext('2d');
+  // (con foto: la foto; se carga una vez y, cuando está, se rehace la textura del gabinete)
+  if (j.foto) {
+    let im = MAQ.fotos.get(j.foto);
+    if (!im) { im = new Image(); MAQ.fotos.set(j.foto, im); if (MAQ.fotos.size > 48) MAQ.fotos.delete(MAQ.fotos.keys().next().value); im.onload = () => maqTapaOlvidar(j.id); im.src = j.foto; }
+    if (im.complete && im.naturalWidth) { g.drawImage(im, 0, 0, 256, 192); return cv; }
+  }
   let h = 0; for (const ch of j.nombre || '') h = (h * 31 + ch.charCodeAt(0)) % 360;
   const gr = g.createLinearGradient(0, 0, 256, 192); gr.addColorStop(0, `hsl(${h},70%,22%)`); gr.addColorStop(1, `hsl(${(h + 60) % 360},80%,8%)`);
   g.fillStyle = gr; g.fillRect(0, 0, 256, 192);
@@ -140,6 +291,16 @@ function maqTapaCanvas(j) {
   g.font = '12px monospace'; g.fillStyle = '#ffe066'; g.fillText(j.id && j.id.startsWith('rb:') ? 'REZOBOX ARCADE' : (j.autor || '').slice(0, 22).toUpperCase(), 128, 104);
   return cv;
 }
+// (lo que se sabe del juego de un gabinete para su tapa: la foto, si es mío, de la sala o de la comunidad; se busca una vez)
+function maqTapaDatos(m) {
+  let f = MAQ.fotoDe.get(m.g);
+  if (f === undefined) {
+    const s = MAQ.sala.get(m.g); f = (s && s.foto) || ''; MAQ.fotoDe.set(m.g, f);
+    if (!f && /^u:/.test(m.g)) maqMio(m.g).then((x) => { if (x && x.foto) { MAQ.fotoDe.set(m.g, x.foto); maqTapaOlvidar(m.g); } });
+  }
+  return { id: m.g, nombre: m.n, autor: '', foto: f || undefined };
+}
+function maqTapaOlvidar(id) { const t = MAQ.tapas.get(id); if (t && R.tex[t.k]) { R.gl.deleteTexture(R.tex[t.k].gl); delete R.tex[t.k]; } }
 // la textura de la tapa para la pantalla del gabinete (una por juego; se rehace si se perdieron las texturas)
 function maqTapaMat(j) {
   let t = MAQ.tapas.get(j.id);
@@ -158,14 +319,30 @@ function maqTapaMat(j) {
 // El puente de adentro del juego copia su lienzo (8 veces por segundo, en 256 × 192) y lo manda acá; se dibuja en la
 // pantalla 3D del gabinete. A la sala va una foto chica (160 × 120, JPEG) 4 veces por segundo, sólo si hay alguien cerca.
 // Los demás la ven en ese gabinete y ven al que juega parado adelante, con las manos en la palanca y los botones.
-const MAQV = { lienzo: new Map(), envT: 0, enviando: false, n: 0, chico: null };
+const MAQV = { lienzo: new Map(), envT: 0, enviando: false, n: 0, chico: null, S: 384, ult: new Map() };
 function maqVivo(clave) {
   let e = MAQV.lienzo.get(clave);
   // (lienzo en memoria, no en la GPU: se sube a la textura del juego sin compartir recursos entre contextos)
-  if (!e) { const cv = document.createElement('canvas'); cv.width = 256; cv.height = 192; e = { cv, g: cv.getContext('2d', { willReadFrequently: true }), k: TX_PROPIA + 7600 + ++MAQV.n, mat: null, t: 0, sucio: false, de: null }; MAQV.lienzo.set(clave, e); }
+  // (cuadrado, como la tapa: con uno de 256 × 192 la placa lo dibujaba chico en una esquina del vidrio —Discord, 3.7: «que la
+  // pantalla sí lo cubra bien»—; el vidrio es 4:3 y el cuadro se estira a él: lo de adentro va encajado en un 4:3)
+  // (en memoria, no en la GPU —willReadFrequently—: subirlo desde un lienzo de la placa a la textura del juego compartía
+  // recursos entre los dos contextos y el del juego se perdía)
+  if (!e) { const cv = document.createElement('canvas'); cv.width = cv.height = MAQV.S; e = { cv, g: cv.getContext('2d', { willReadFrequently: true }), k: TX_PROPIA + 7600 + ++MAQV.n, mat: null, t: 0, sucio: false, de: null }; MAQV.lienzo.set(clave, e); }
   return e;
 }
-function maqVivoPoner(clave, img, de) { const e = maqVivo(clave); try { if (img instanceof ImageData) e.g.putImageData(img, 0, 0); else e.g.drawImage(img, 0, 0, 256, 192); } catch (x) { return; } e.t = performance.now(); e.sucio = true; e.de = de; }
+// (ar: ancho/alto del juego; se encaja en el 4:3 del vidrio, sin deformarlo, y lo que sobra queda negro)
+function maqVivoPoner(clave, img, de, ar) {
+  const e = maqVivo(clave), S = MAQV.S, g = e.g;
+  try {
+    if (img instanceof ImageData) { const t = MAQV.tmp || (MAQV.tmp = document.createElement('canvas')); if (t.width !== img.width || t.height !== img.height) { t.width = img.width; t.height = img.height; t.g = null; } (t.g || (t.g = t.getContext('2d', { willReadFrequently: true }))).putImageData(img, 0, 0); img = t; }
+    ar = ar || (img.width / img.height) || 4 / 3;
+    // (en el lienzo cuadrado cada eje va de 0 a S; en el vidrio, el ancho vale 4 y el alto 3)
+    let w = S, h = S; if (ar > 4 / 3) h = S * (4 / 3) / ar; else w = S * ar / (4 / 3);
+    g.fillStyle = '#000'; if (w < S || h < S) g.fillRect(0, 0, S, S);
+    g.imageSmoothingEnabled = true; g.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+  } catch (x) { return; }
+  e.t = performance.now(); e.sucio = true; e.de = de;
+}
 // la textura (se sube cuando llega un cuadro nuevo; sin mipmaps: 256 × 192 no es potencia de dos)
 function maqVivoMat(e) {
   const gl = R.gl; let t = R.tex[e.k];
@@ -175,24 +352,36 @@ function maqVivoMat(e) {
   return e.mat;
 }
 // un cuadro del juego que estoy jugando: a mi gabinete y (a veces) a la sala
-function maqVivoCuadro(buf) {
-  const o = MAQ.obj; if (!o || !MAQ.j || !(buf instanceof ArrayBuffer) || buf.byteLength !== 256 * 192 * 4) return;
-  const clave = claveObj(o); maqVivoPoner(clave, new ImageData(new Uint8ClampedArray(buf), 256, 192), RED.ID);
+function maqVivoCuadro(buf, ar) {
+  const o = MAQ.obj; if (!o || !MAQ.j) { if (buf && buf.close) buf.close(); return; }
+  const clave = claveObj(o);
+  if (buf instanceof ImageData) maqVivoPoner(clave, buf, RED.ID, ar);
+  else if (buf instanceof ArrayBuffer && buf.byteLength === 256 * 192 * 4) maqVivoPoner(clave, new ImageData(new Uint8ClampedArray(buf), 256, 192), RED.ID, 4 / 3);
+  else return;
   MAQV.cuadros = (MAQV.cuadros || 0) + 1;
-  const ahora = performance.now(); if (!RED.on || MAQV.enviando || ahora - MAQV.envT < 250) return;
-  // (sólo si alguien de la sala está cerca del gabinete)
-  let cerca = false; for (const R2 of RED.remotos.values()) if (R2.P && R2.P.pos && R2.P.pos.distTo(o.b.pos) < 60) { cerca = true; break; }
-  if (!cerca && !MAQV.siempre) return;
+  // (cada cuánto copia el juego su lienzo: con alguien de la sala cerca, 15 por segundo —lo que va por la red—; solo, 1 —la
+  // pantalla del gabinete queda tapada por el juego—. La copia espera a que la placa termine el cuadro: el puente además la
+  // espacia solo si le sale cara —10 veces lo que tarda—, así nunca le come más de un 10 % al juego)
+  let cerca = !!MAQV.siempre; if (!cerca && RED.on) for (const R2 of RED.remotos.values()) if (R2.P && R2.P.pos && R2.P.pos.distTo(o.b.pos) < 60) { cerca = true; break; }
+  const ritmo = cerca ? 66 : 1000; if (ritmo !== MAQV.ritmo && MAQ.ifr) { MAQV.ritmo = ritmo; try { MAQ.ifr.contentWindow.postMessage({ rbMaq: 1, t: 'ritmo', ms: ritmo }, '*'); } catch (e) {} }
+  // (a la sala: 15 por segundo —antes 4— en WebP de 192 × 144 —antes JPEG de 160 × 120—, cada uno apenas sale del juego:
+  // los demás lo ven fluido y sin cola; si la codificación de uno no terminó, el siguiente se salta)
+  const ahora = performance.now(); if (!RED.on || MAQV.enviando || ahora - MAQV.envT < 66) return;
+  if (!cerca) return;   // (sólo si alguien de la sala está cerca del gabinete)
   MAQV.envT = ahora; MAQV.enviando = true;
-  const c = MAQV.chico || (MAQV.chico = Object.assign(document.createElement('canvas'), { width: 160, height: 120 }));
-  (c.ctx || (c.ctx = c.getContext('2d', { willReadFrequently: true }))).drawImage(maqVivo(clave).cv, 0, 0, 160, 120);
-  c.toBlob((b) => { if (!b) { MAQV.enviando = false; return; } const fr = new FileReader(); fr.onload = () => { MAQV.enviando = false; const f = String(fr.result).split(',')[1] || ''; if (f && f.length < 60000) { publicar('a', { k: 'maqv', o: clave, f }); MAQV.enviados = (MAQV.enviados || 0) + 1; MAQV.bytes = f.length; } }; fr.readAsDataURL(b); }, 'image/jpeg', 0.5);
+  const c = MAQV.chico || (MAQV.chico = Object.assign(document.createElement('canvas'), { width: 192, height: 144 }));
+  (c.ctx || (c.ctx = c.getContext('2d', { willReadFrequently: true }))).drawImage(maqVivo(clave).cv, 0, 0, 192, 144);   // (el cuadrado vuelve a 4:3)
+  c.toBlob((b) => { if (!b) { MAQV.enviando = false; return; } const w = b.type === 'image/webp', fr = new FileReader(); fr.onload = () => { MAQV.enviando = false; const f = String(fr.result).split(',')[1] || ''; if (f && f.length < 60000) { MAQV.sec = (MAQV.sec || 0) + 1; publicar('a', w ? { k: 'maqv', o: clave, f, t: 'w', s: MAQV.sec } : { k: 'maqv', o: clave, f, s: MAQV.sec }); MAQV.enviados = (MAQV.enviados || 0) + 1; MAQV.bytes = f.length; } }; fr.readAsDataURL(b); }, 'image/webp', 0.5);
 }
 // el de otro: la foto a su gabinete, y él queda jugando ahí
 async function maqVivoRed(d) {
   if (typeof d.o !== 'string' || typeof d.f !== 'string' || d.f.length > 60000) return;
   // (sin foto: un juego sin lienzo; igual se ve que está jugando)
-  if (d.f) try { const b = await (await fetch('data:image/jpeg;base64,' + d.f)).blob(), bm = await createImageBitmap(b); maqVivoPoner(d.o, bm, d.i); bm.close(); } catch (x) { return; }
+  // (s: el número de cuadro; uno que termina de abrirse después de uno más nuevo no lo pisa)
+  // (si el otro recargó, su cuenta vuelve a 1: lo de hace más de 3 s ya no vale)
+  const k = d.i + '|' + d.o, s = +d.s || 0, viejo = () => { const u = MAQV.ult.get(k); return s && u && performance.now() - u.t < 3000 && s <= u.s; };
+  if (viejo()) return;
+  if (d.f) try { const b = await (await fetch('data:image/' + (d.t === 'w' ? 'webp' : 'jpeg') + ';base64,' + d.f)).blob(), bm = await createImageBitmap(b); if (viejo()) { bm.close(); return; } if (s) MAQV.ult.set(k, { s, t: performance.now() }); maqVivoPoner(d.o, bm, d.i, 4 / 3); bm.close(); } catch (x) { return; }
   const R2 = RED.remotos.get(d.i); if (R2 && R2.P) R2.P.maqJ = { o: d.o, t: performance.now() };
 }
 // la pantalla de cada gabinete con juego: un cartel sobre el vidrio (inclinado como él: 24° hacia atrás)
@@ -205,7 +394,7 @@ function maqDibujar() {
   }
   for (const o of OBJS) {
     if (o.nombre !== 'Arcade' || !o.maq || !R.gl) continue;
-    const j = MAQ_INCLUIDOS.find((x) => x.id === o.maq.g) || { id: o.maq.g, nombre: o.maq.n, autor: '' };
+    const j = MAQ_INCLUIDOS.find((x) => x.id === o.maq.g) || maqTapaDatos(o.maq);
     const b = o.b, p = vadd(b.pos, b.q.rot(vsub(v3(MAQ_PANT.c[0], MAQ_PANT.c[1], MAQ_PANT.c[2]), o.c)));
     if (p.distTo(CAM.pos) > 40) continue;
     const e = MAQV.lienzo.get(claveObj(o)), vivo = e && performance.now() - e.t < 2500;
@@ -224,16 +413,19 @@ function maqPanel() {
   p = document.createElement('div'); p.id = 'maqPan'; p.className = 'panel oc';
   p.innerHTML = `<div class="caja maqCaja"><h3>${glifo('dado')} <span class="mqTit"></span><button class="boton chico mqX" data-mq="cerrar">${glifo('no')}</button></h3>
     <div class="mqTabs"></div><div class="mqLista"></div>
-    <div class="mqImp"><label class="boton">${glifo('subir')} <span class="mqTImp"></span><input type="file" accept=".html,.htm,text/html" hidden></label>
+    <div class="mqImp"><label class="boton">${glifo('subir')} <span class="mqTImp"></span><input type="file" class="mqArch" accept=".html,.htm,.zip,text/html,application/zip,application/x-zip-compressed" multiple hidden></label>
+      <label class="boton gris mqCarpL">${glifo('carpeta')} <span class="mqTCarp"></span><input type="file" class="mqCarp" webkitdirectory multiple hidden></label>
+      <input type="file" class="mqFoto" accept="image/*" hidden>
       <input class="mqUrl" maxlength="400" spellcheck="false" placeholder="https://..."><button class="boton chico" data-mq="url">${glifo('adelante')}</button>
       <select class="mqCtrl"></select></div><div class="mqNota"></div></div>`;
   document.body.appendChild(p);
   p.addEventListener('click', (e) => { const b = e.target.closest('[data-mq]'); if (b) maqAccion(b.dataset.mq); });
-  p.querySelector('input[type=file]').addEventListener('change', async (e) => {
-    const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
-    if (f.size > 3e6) { aviso(T('maq.grande'), 3); return; }
-    const j = await maqImportarTexto(f.name, await f.text(), p.querySelector('.mqCtrl').value); if (j) { MAQ.tab = 'mios'; maqPanelDibujar(); aviso(j.nombre, 2); }
-  });
+  // (3.8: varios a la vez, pesados, .zip y carpetas, con su avance en «Subiendo»)
+  p.querySelector('.mqArch').addEventListener('change', (e) => { const L = [...(e.target.files || [])]; e.target.value = ''; if (L.length) maqSubir(L.map((f) => [f]), p.querySelector('.mqCtrl').value); });
+  p.querySelector('.mqCarp').addEventListener('change', (e) => { const L = [...(e.target.files || [])]; e.target.value = ''; if (L.length) maqSubir([L], p.querySelector('.mqCtrl').value, true); });
+  p.querySelector('.mqFoto').addEventListener('change', async (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f && MAQ.fotoPara) await maqFotoPoner(MAQ.fotoPara, f); });
+  // (elegir una carpeta no existe en el celular —la vista web de Android no lo deja—: ahí, el .zip)
+  if (!('webkitdirectory' in document.createElement('input')) || matchMedia('(pointer: coarse)').matches) p.querySelector('.mqCarpL').style.display = 'none';
   p.querySelector('.mqUrl').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') maqAccion('url'); });
   return p;
 }
@@ -243,7 +435,10 @@ async function maqPanelDibujar() {
   const p = maqPanel(), n = (MAQ.dib = (MAQ.dib || 0) + 1);
   p.querySelector('.mqTit').textContent = T('maq.lib'); p.querySelector('.mqTImp').textContent = T('maq.importar');
   const sel = p.querySelector('.mqCtrl'); if (!sel.options.length) for (const k of Object.keys(MAQ_CTRL)) sel.add(new Option(T('maq.c_' + k), k));
-  p.querySelector('.mqTabs').innerHTML = ['inc', 'mios', 'sala', 'com'].map((k) => `<button class="${MAQ.tab === k ? 'sel' : ''}" data-mq="tab:${k}">${esc(T('maq.t_' + k))}</button>`).join('');
+  p.querySelector('.mqTCarp').textContent = T('maq.carpeta');
+  const subiendo = MAQ.subs.filter((x) => x.estado !== 'listo' && x.estado !== 'mal').length;
+  p.querySelector('.mqTabs').innerHTML = ['inc', 'mios', 'sala', 'com'].concat(MAQ.subs.length ? ['sub'] : []).map((k) => `<button class="${MAQ.tab === k ? 'sel' : ''}" data-mq="tab:${k}">${esc(T('maq.t_' + k))}${k === 'sub' && subiendo ? `<span class="mqN">${subiendo}</span>` : ''}</button>`).join('');
+  if (MAQ.tab === 'sub') { maqSubDibujar(p); return; }
   let L = [];
   if (MAQ.tab === 'inc') L = MAQ_INCLUIDOS;
   else if (MAQ.tab === 'mios') L = (await maqMios()).sort((a, b) => (b.fecha || 0) - (a.fecha || 0));
@@ -251,8 +446,8 @@ async function maqPanelDibujar() {
   else if (MAQ.tab === 'com') L = await maqComunidad();
   if (n !== MAQ.dib) return;
   const mio = MAQ.tab === 'mios';
-  p.querySelector('.mqLista').innerHTML = L.length ? L.map((j) => `<div class="mqIt" data-id="${esc(j.id)}"><img src="${j.foto || maqTapaCanvas(j).toDataURL('image/jpeg', 0.8)}"><div class="mqNom"><b dir="auto">${esc(j.nombre)}</b><span dir="auto">${esc(j.autor || '')}</span></div>
-    <button class="boton" data-mq="jugar:${esc(j.id)}">${glifo('jugar')} ${esc(T('maq.jugar'))}</button>${mio ? `<button class="boton chico" data-mq="pub:${esc(j.id)}" title="${esc(T('maq.publicar'))}">${glifo('subir')}</button><button class="boton chico" data-mq="borrar:${esc(j.id)}" title="${esc(T('maq.borrar'))}">${glifo('basura')}</button>` : ''}</div>`).join('')
+  p.querySelector('.mqLista').innerHTML = L.length ? L.map((j) => `<div class="mqIt" data-id="${esc(j.id)}"><img src="${j.foto || maqTapaCanvas(j).toDataURL('image/jpeg', 0.8)}"><div class="mqNom"><b dir="auto">${esc(j.nombre)}</b><span dir="auto">${esc(j.autor || '')}${mio && !j.url ? `<em>${maqMB(j.hg || (j.html || '').length || 0)}</em>` : ''}</span></div>
+    <div class="mqBot"><button class="boton" data-mq="jugar:${esc(j.id)}">${glifo('jugar')} ${esc(T('maq.jugar'))}</button>${mio ? `<button class="boton chico" data-mq="foto:${esc(j.id)}" title="${esc(T('maq.foto'))}" aria-label="${esc(T('maq.foto'))}">${glifo('camara')}</button><button class="boton chico" data-mq="pub:${esc(j.id)}" title="${esc(T('maq.publicar'))}">${glifo('subir')}</button><button class="boton chico" data-mq="borrar:${esc(j.id)}" title="${esc(T('maq.borrar'))}">${glifo('basura')}</button>` : ''}</div></div>`).join('')
     : `<div class="spVacio">${esc(T(MAQ.tab === 'com' && MAQ.comErr ? 'maq.noTienda' : 'maq.vacia'))}</div>`;
 }
 async function maqAccion(a) {
@@ -262,6 +457,7 @@ async function maqAccion(a) {
   if (a.startsWith('jugar:')) { const id = a.slice(6), j = MAQ.tab === 'com' ? await maqDeTienda(id) : await maqBuscar(id); if (j) maqElegir(j); else maqJugarId(id, null); return; }
   if (a.startsWith('borrar:')) { await maqBorrarMio(a.slice(7)); maqPanelDibujar(); return; }
   if (a.startsWith('pub:')) { const j = await maqBuscar(a.slice(4)); if (j) maqPublicar(j); }
+  if (a.startsWith('foto:')) { MAQ.fotoPara = a.slice(5); maqPanel().querySelector('.mqFoto').click(); }
 }
 // poner un juego en el gabinete (y avisarle a la sala) y jugarlo
 function maqElegir(j) {
@@ -276,6 +472,7 @@ async function maqJugarId(id, info) {
   let j = await maqBuscar(id);
   if (!j && id.startsWith('t:')) j = await maqDeTienda(id.slice(2));
   if (!j && RED.on) { aviso(T('maq.bajando'), 4); j = await maqPedir(id, info && info.de); }
+  if (j && j.grande) { aviso(T('maq.pesadoSala').replace('{n}', j.grande), 6); return; }
   if (!j) { aviso(T('maq.noHay'), 3); MAQ.tab = 'inc'; maqPanelAbrir(); return; }
   maqVistaAbrir(j);
 }
@@ -285,12 +482,14 @@ function maqVista() {
   let v = $('maqVista'); if (v) return v;
   v = document.createElement('div'); v.id = 'maqVista'; v.className = 'oc';
   const bt = (k, t, cl) => `<button class="mqB ${cl || ''}" data-b="${k}">${t}</button>`;
-  v.innerHTML = `<div class="mqMarco"><div class="mqBarra"><span class="mqJN" dir="auto"></span><select class="mqCtrlV"></select><button class="mqSalir" data-mqv="lib">${glifo('caja')}</button><button class="mqSalir" data-mqv="salir">${glifo('no')}</button></div><div class="mqHueco"></div></div>
+  v.innerHTML = `<div class="mqMarco"><div class="mqBarra"><span class="mqJN" dir="auto"></span><select class="mqCtrlV"></select><button class="mqSalir mqAj" data-mqv="aj">${glifo('ajustar')}</button><button class="mqSalir" data-mqv="lib">${glifo('caja')}</button><button class="mqSalir" data-mqv="salir">${glifo('no')}</button></div><div class="mqHueco"></div></div>
     <div class="mqIzq"><div class="mqPalanca"><div class="mqBola"></div></div><div class="mqCruz">${bt('arr', glifo('subir'), 'cA')}${bt('izq', glifo('atras'), 'cI')}${bt('der', glifo('adelante'), 'cD')}${bt('aba', glifo('bajar'), 'cB')}</div></div>
     <div class="mqDer">${bt('Y', 'Y', 'bY')}${bt('X', 'X', 'bX')}${bt('B', 'B', 'bB')}${bt('A', 'A', 'bA')}</div>
     <div class="mqMed">${bt('select', 'SELECT', 'chico')}${bt('start', 'START', 'chico')}</div>`;
   document.body.appendChild(v);
   v.querySelector('[data-mqv=salir]').addEventListener('click', maqVistaCerrar);
+  // (ajustar: el lienzo de un juego de tamaño fijo, agrandado al centro hasta llenar la pantalla; se recuerda por juego)
+  v.querySelector('[data-mqv=aj]').addEventListener('click', () => { if (!MAQ.j) return; const A = (PREFS.maqAj = PREFS.maqAj || {}); if (A[MAQ.j.id]) delete A[MAQ.j.id]; else A[MAQ.j.id] = 1; guardarPrefs(); maqAjustar(); });
   v.querySelector('[data-mqv=lib]').addEventListener('click', () => { maqVistaCerrar(); MAQ.tab = 'inc'; maqPanelAbrir(); });   // (cambiar el juego del gabinete)
   const sel = v.querySelector('.mqCtrlV'); for (const k of Object.keys(MAQ_CTRL)) sel.add(new Option(T('maq.c_' + k), k));
   sel.addEventListener('change', () => { maqSoltarTodo(); MAQ.ctrl = sel.value; v.classList.toggle('mqSinCtrl', !MAQ_CTRL[MAQ.ctrl]); if (MAQ.j && MAQ.j.id.startsWith('u:')) { MAQ.j.ctrl = sel.value; maqGuardar(MAQ.j); } });
@@ -317,13 +516,17 @@ function maqVista() {
   addEventListener('message', (e) => {
     if (!MAQ.ifr || e.source !== MAQ.ifr.contentWindow || !e.data) return;
     if (typeof e.data.rbMaqOk === 'string') { MAQ.eco.push(e.data.rbMaqOk); if (MAQ.eco.length > 50) MAQ.eco.shift(); }
-    if (e.data.rbMaqPix) maqVivoCuadro(e.data.rbMaqPix);   // (la pantalla en vivo: los píxeles del juego)
+    // (3.8: cada cuadro del juego, hasta 60 por segundo, hasta 320 de ancho con su proporción —antes 8 por segundo en 256 ×
+    // 192—. Píxeles en memoria y no una imagen de la placa: una ImageBitmap del iframe, al cerrarlo, se llevaba el contexto)
+    if (e.data.a > 0) { const ar = Math.min(2.4, Math.max(0.5, +e.data.a)); if (Math.abs(ar - (MAQ.ar || 0)) > 0.01) { MAQ.ar = ar; maqVista().style.setProperty('--mqAr', ar.toFixed(4)); } }
+    if (e.data.rbMaqPx instanceof ArrayBuffer) { MAQV.copiaMs = +e.data.c || 0; MAQV.copiaCada = +e.data.i || 0; const w = e.data.w | 0, h = e.data.h | 0; if (w > 0 && h > 0 && w <= 400 && h <= 400 && e.data.rbMaqPx.byteLength === w * h * 4) maqVivoCuadro(new ImageData(new Uint8ClampedArray(e.data.rbMaqPx), w, h), w / h); }
   });
   return v;
 }
 function maqVistaAbrir(j) {
   const v = maqVista(); maqVistaQuitarJuego();
   MAQ.j = j; MAQ.ctrl = MAQ_CTRL[j.ctrl] !== undefined ? j.ctrl : 'flechas'; MAQ.eco.length = 0;
+  MAQ.ar = 0; v.style.removeProperty('--mqAr'); MAQV.ritmo = 0;   // (4:3 hasta que llegue el primer cuadro del juego nuevo)
   v.querySelector('.mqJN').textContent = j.nombre; v.querySelector('.mqCtrlV').value = MAQ.ctrl; v.classList.toggle('mqSinCtrl', !MAQ_CTRL[MAQ.ctrl]);
   const f = document.createElement('iframe'); f.className = 'mqJuego'; f.setAttribute('allow', 'autoplay; fullscreen; gamepad');
   // (aislado: sin "allow-same-origin" no lee el almacenamiento ni la página del juego; una dirección de otro sitio sí
@@ -334,8 +537,13 @@ function maqVistaAbrir(j) {
   v.querySelector('.mqHueco').appendChild(f); MAQ.ifr = f;
   v.classList.remove('oc'); document.body.classList.add('maqOn'); UI.abierto = 'maqv'; soltarPuntero();
   maqPararseAdelante();
-  f.addEventListener('load', () => { try { f.contentWindow.focus(); } catch (e) {} f.focus(); });
+  f.addEventListener('load', () => { try { f.contentWindow.focus(); } catch (e) {} f.focus(); maqAjustar(); setTimeout(() => { if (MAQ.ifr === f) maqAjustar(); }, 1500); });
+  maqAjustar();
   if (typeof sonar === 'function') sonar('Click', null, 0.5);
+}
+function maqAjustar() {
+  const on = !!(MAQ.j && PREFS.maqAj && PREFS.maqAj[MAQ.j.id]), b = $('maqVista') && $('maqVista').querySelector('.mqAj'); if (b) { b.classList.toggle('sel', on); b.title = T('maq.ajustar'); b.setAttribute('aria-label', T('maq.ajustar')); }
+  if (MAQ.ifr) try { MAQ.ifr.contentWindow.postMessage({ rbMaq: 1, t: 'ajustar', on }, '*'); } catch (e) {}
 }
 function maqVistaQuitarJuego() { maqSoltarTodo(); if (MAQ.ifr) { MAQ.ifr.remove(); MAQ.ifr = null; } }
 function maqVistaCerrar() {
@@ -359,6 +567,9 @@ function maqPararseAdelante() {
 const MAQ_PANEL = { izq: [-0.13, 0.04, 0.46], der: [0.12, 0.03, 0.46] };   // (en el gabinete, mirándolo de frente: +x a la derecha del que juega, y desde el centro, z hacia adelante)
 function maqBrazos(P) {
   const J = P.maqJ, o = J && (typeof J.o === 'string' ? buscarObjeto(J.o) : J.o); if (!o || !o.b) { P.maqJ = null; return; }
+  // (a los lejanos se los anima uno de cada tantos cuadros: en los otros la pose es la misma, que ya tiene la inclinación y
+  // los brazos; volver a inclinarla la doblaba cada vez más —las manos quedaban a 30-40 cm del panel—)
+  if (P.animN !== undefined && P.maqAnimN === P.animN) return; P.maqAnimN = P.animN;
   const md = P.md, h = P.D.h, b = o.b, up = v3(0, 1, 0);
   // inclinado hacia el gabinete, como se juega una maquinita: lo justo para que los brazos lleguen al panel (los altos se
   // inclinan más). Se reparte entre dos vértebras y se calcula una vez por personaje y gabinete
@@ -410,7 +621,7 @@ function maqDeMundo(o, x) { if (Array.isArray(x) && typeof x[0] === 'string' && 
 const maqAlMundo = (o) => (o.maq ? [o.maq.g, o.maq.n, o.maq.c, o.maq.de || RED.ID] : 0);
 // el HTML de a pedazos (comprimido si el navegador sabe): 24 mil letras por mensaje, 8 por segundo
 async function maqPedazos(j) {
-  const txt = JSON.stringify({ n: j.nombre, a: j.autor || '', c: j.ctrl, h: j.html || '', u: j.url || '' });
+  const txt = JSON.stringify({ n: j.nombre, a: j.autor || '', c: j.ctrl, h: j.html || '', u: j.url || '', f: j.foto || '' });
   let d = null, z = 0;
   if (typeof CompressionStream === 'function') { try { const b = new Uint8Array(await new Response(new Blob([txt]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer()); let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); d = btoa(s); z = 1; } catch (e) {} }
   if (!d) d = txt;
@@ -420,6 +631,8 @@ async function maqPedazos(j) {
 async function maqMandar(j, para) {
   if (!RED.on || MAQ.mandando === j.id) return; MAQ.mandando = j.id;
   const { P, z } = await maqPedazos(j);
+  // (hasta 400 pedazos: unos 7 MB comprimido, casi un minuto; uno más pesado no entra por la sala: se avisa al que lo pidió)
+  if (P.length > 400) { publicar('a', { k: 'maqg', g: j.id, para, mb: maqMB(P.length * 18000) }); MAQ.mandando = null; return; }
   // (x: el número de pedazo; "i" no, que la red lo usa para el que manda)
   for (let x = 0; x < P.length; x++) { publicar('a', { k: 'maqd', g: j.id, para, x, n: P.length, z, d: P[x] }); await new Promise((ok) => setTimeout(ok, 125)); }
   MAQ.mandando = null;
@@ -439,15 +652,16 @@ async function maqRed(d) {
   }
   if (d.k === 'maqp' && typeof d.g === 'string') {   // alguien quiere un juego: lo manda quien lo puso (o, si ése no está, el primero que lo tenga)
     if (d.a && d.a !== RED.ID && RED.remotos.has(d.a)) return;
-    const j = MAQ.sala.get(d.g) || (await maqMios()).find((x) => x.id === d.g); if (!j) return;
+    const j = MAQ.sala.get(d.g) || (await maqMio(d.g, true)); if (!j) return;
     if (!d.a || d.a !== RED.ID) await new Promise((ok) => setTimeout(ok, Math.random() * 1500));
     if (MAQ.partes.has(d.g) && MAQ.partes.get(d.g).ajeno) return;   // (ya lo está mandando otro)
     maqMandar(j, d.i); return;
   }
+  if (d.k === 'maqg' && typeof d.g === 'string' && d.para === RED.ID) { const w = MAQ.esperas.get(d.g); if (w) { MAQ.esperas.delete(d.g); w.fin({ grande: String(d.mb || '').slice(0, 12) }); } return; }
   if (d.k === 'maqd' && typeof d.g === 'string' && typeof d.d === 'string') {
-    const n = d.n | 0, i = d.x | 0; if (n < 1 || n > 200 || i < 0 || i >= n) return;
+    const n = d.n | 0, i = d.x | 0; if (n < 1 || n > 400 || i < 0 || i >= n) return;
     let e = MAQ.partes.get(d.g); if (!e || e.n !== n) { e = { n, z: d.z ? 1 : 0, p: new Array(n), llegaron: 0, ajeno: d.i !== RED.ID }; MAQ.partes.set(d.g, e); }
-    if (e.p[i] === undefined) { e.p[i] = d.d; e.llegaron++; }
+    if (e.p[i] === undefined) { e.p[i] = d.d; e.llegaron++; if (n > 40 && e.llegaron % 40 === 0 && MAQ.esperas.has(d.g)) aviso(T('maq.bajando') + ' ' + Math.round(100 * e.llegaron / n) + ' %', 3); }
     if (e.llegaron < n) return;
     MAQ.partes.delete(d.g);
     let txt = e.p.join('');
@@ -456,6 +670,7 @@ async function maqRed(d) {
       const x = JSON.parse(txt); if (!x || typeof x.n !== 'string') return;
       const j = { id: d.g, nombre: x.n.slice(0, 40), autor: String(x.a || '').slice(0, 24), ctrl: MAQ_CTRL[x.c] !== undefined ? x.c : 'flechas' };
       if (typeof x.u === 'string' && /^https:\/\//.test(x.u)) j.url = x.u; else j.html = String(x.h || '');
+      if (typeof x.f === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(x.f) && x.f.length <= 120000) { j.foto = x.f; MAQ.fotoDe.set(d.g, x.f); maqTapaOlvidar(d.g); }
       MAQ.sala.set(d.g, j);
       const w = MAQ.esperas.get(d.g); if (w) { MAQ.esperas.delete(d.g); w.fin(j); }
     } catch (x) {}
@@ -477,12 +692,15 @@ async function maqDeTienda(id) {
   try {
     const v = validarRB(await (await fetch(TIENDA_URL + 'item/' + id)).json());
     if (typeof v !== 'object' || v.formato !== 'rezobox-juego') return null;
-    const j = { id: 't:' + id, nombre: v.nombre, autor: v.autor, ctrl: v.ctrl, html: v.html }; MAQ.sala.set(j.id, j); return j;
+    const j = { id: 't:' + id, nombre: v.nombre, autor: v.autor, ctrl: v.ctrl, html: v.html }; if (typeof v.foto === 'string' && /^data:image\//.test(v.foto)) j.foto = v.foto;
+    MAQ.sala.set(j.id, j); MAQ.fotoDe.delete(j.id); maqTapaOlvidar(j.id); return j;
   } catch (e) { return null; }
 }
 async function maqPublicar(j) {
   if (!j.html) { aviso(T('maq.noTienda'), 3); return; }
-  const foto = maqTapaCanvas(j).toDataURL('image/jpeg', 0.75);
+  // (la comunidad guarda juegos de hasta 1,8 MB: uno más pesado se juega en el aparato y en la sala, pero no se publica)
+  if (j.html.length > 1800000) { aviso(T('maq.pesadoTienda').replace('{n}', maqMB(j.html.length)), 6); return; }
+  const foto = j.foto && j.foto.length <= 115000 ? j.foto : maqTapaCanvas(j).toDataURL('image/jpeg', 0.75);
   try {
     const r = await (await fetch(TIENDA_URL + 'publicar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ formato: 'rezobox-juego', nombre: j.nombre, autor: PREFS.nombre || 'Anónimo', descripcion: '', etiquetas: ['diversion'], foto, ctrl: j.ctrl, html: j.html }) })).json();
     if (r && r.id) aviso(T('maq.publicado'), 3); else aviso(T('maq.noTienda') + (r && r.error ? ' (' + r.error + ')' : ''), 4);

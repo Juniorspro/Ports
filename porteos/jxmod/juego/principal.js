@@ -347,7 +347,8 @@ function cuadroSalta(ahora, jugando) {
   const di = ahora - (TIEMPO.rafUlt || ahora); TIEMPO.rafUlt = ahora; if (di > 1) TIEMPO.rafMs = Math.min(di, (TIEMPO.rafMs || di) * 1.001);
   // (en el menú principal y con la pausa abierta, a 30 cuadros: no hace falta más y el celular no se calienta ni gasta batería
   // mientras elegís; en partida, sin tope)
-  const menu = !GFX.tope && (!TEST || window.__menu30) && (JUEGO.estado !== 'juego' || (typeof UI !== 'undefined' && UI.abierto === 'pausa'));
+  // (jugando en una maquinita —maquinitas.js—, el mundo de atrás también a 30: la placa queda para el juego de la maquinita)
+  const menu = !GFX.tope && (!TEST || window.__menu30) && (JUEGO.estado !== 'juego' || (typeof UI !== 'undefined' && (UI.abierto === 'pausa' || UI.abierto === 'maqv')));
   const tope = GFX.tope || (menu ? 30 : 0);
   if (!tope) { TIEMPO.ultDib = ahora; return false; }   // (sin tope: se dibuja cada vez que la pantalla lo pide)
   const meta = 1000 / tope, dm = TIEMPO.rafMs || meta;

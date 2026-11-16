@@ -20,17 +20,20 @@ const j = await ev(`(async () => {
   await new Promise((r) => setTimeout(r, 2000)); const fps = MAQV.cuadros / ((performance.now() - t0) / 1000);
   const e = MAQV.lienzo.get(claveObj(o)), px = e.g.getImageData(0, 0, 256, 192).data; let suma = 0, cols = new Set(); for (let i = 0; i < px.length; i += 4 * 37) { suma += px[i] + px[i + 1] + px[i + 2]; cols.add((px[i] >> 4) + ',' + (px[i + 1] >> 4) + ',' + (px[i + 2] >> 4)); }
   const fr = o.b.q.rot(v3(0, 0, 1)), dJ = vsub(JUG.pos, o.b.pos); dJ.y = 0; const mira = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw));
-  return { ui: UI.abierto, fps: +fps.toFixed(1), fresca: performance.now() - e.t < 500, colores: cols.size, brillo: Math.round(suma / (px.length / (4 * 37))), adelante: +vdot(dJ, fr).toFixed(2), costado: +Math.abs(vdot(dJ, o.b.q.rot(v3(1, 0, 0)))).toFixed(2), mira: +vdot(mira, vscale(fr, -1)).toFixed(2), clave: claveObj(o) };
+  return { ui: UI.abierto, fps: +fps.toFixed(1), fresca: performance.now() - e.t < 2200, colores: cols.size, brillo: Math.round(suma / (px.length / (4 * 37))), adelante: +vdot(dJ, fr).toFixed(2), costado: +Math.abs(vdot(dJ, o.b.q.rot(v3(1, 0, 0)))).toFixed(2), mira: +vdot(mira, vscale(fr, -1)).toFixed(2), clave: claveObj(o) };
 })()`);
-ok('jugando: el juego se ve en vivo en la pantalla del gabinete (≥ 5 cuadros por segundo, una imagen con colores, no negra)', j.ui === 'maqv' && j.fps >= 5 && j.fresca && j.colores >= 3 && j.brillo > 10, j);
+ok('jugando: el juego se ve en vivo en la pantalla del gabinete (solo: 1 cuadro por segundo —queda tapada por el juego—; una imagen con colores, no negra)', j.ui === 'maqv' && j.fps >= 0.4 && j.fresca && j.colores >= 3 && j.brillo > 10, j);
 ok('el que juega queda parado adelante del gabinete, pegado al panel (0,75-1 m, centrado) y mirándolo', j.adelante > 0.75 && j.adelante < 1 && j.costado < 0.2 && j.mira > 0.95, j);
 // la sala: con alguien cerca se mandan las fotos
 const red = await ev(`(async () => { const env = []; const p0 = publicar; window.publicar = publicar = (s, d) => env.push(JSON.parse(JSON.stringify(d))); RED.on = true; RED.ID = RED.ID || 'yo1';
   recibirEstado({ i: 'ana', n: 'Ana', k: 'Hero', h: 'HatEmpty', p: [JUG.pos.x + 3, JUG.pos.y, JUG.pos.z], v: [0, 0, 0], y: 0, t: 0, f: 5, a: null, e: 0 });
-  await new Promise((r) => setTimeout(r, 2000)); const v = env.filter((x) => x.k === 'maqv' && x.f); window.__env = env;   // (el publicador simulado queda hasta el final: con la red prendida y sin conexión el juego sale de la sala)
-  return { n: v.length, max: Math.max(0, ...v.map((x) => x.f.length)), o: v[0] && v[0].o }; })()`);
-ok('a la sala: hasta 4 fotos por segundo (≥ 3 en 2 s con el juego a 6 cuadros/s de esta prueba; ≤ 8) chicas (≤ 12 mil letras), con alguien cerca', red.n >= 3 && red.n <= 8 && red.max <= 12000, red);
-await ev(`maqVistaCerrar(); JUG.tercera = true; 1`);
+  MAQV.cuadros = 0; await new Promise((r) => setTimeout(r, 4000)); const v = env.filter((x) => x.k === 'maqv' && x.f); window.__env = env;   // (el publicador simulado queda hasta el final: con la red prendida y sin conexión el juego sale de la sala)
+  const s = v.map((x) => x.s); return { n: v.length, max: Math.max(0, ...v.map((x) => x.f.length)), media: Math.round(v.reduce((a, x) => a + x.f.length, 0) / Math.max(1, v.length)), seguidos: s.every((x, i) => !i || x === s[i - 1] + 1), cps: +(MAQV.cuadros / 4).toFixed(1), copiaMs: +(MAQV.copiaMs || 0).toFixed(1), cada: Math.round(MAQV.copiaCada || 0), o: v[0] && v[0].o }; })()`);
+// (3.8: hasta 15 por segundo, uno por cada cuadro nuevo del juego —en esta prueba el juego va a pocos cuadros por segundo—,
+// numerados para que el que recibe no muestre uno viejo arriba de uno nuevo)
+ok('a la sala: hasta 15 fotos por segundo (≤ 62 en 4 s; menos si copiar le sale caro al juego), numeradas en orden, chicas (≤ 20 mil letras), con alguien cerca', red.n >= 3 && red.n <= 62 && red.max <= 20000 && red.seguidos, red);
+// (yo me corro 3 m al costado: si no, quedo parado donde va Ana y la empujo —se alejaba hasta 2 m del gabinete—)
+await ev(`maqVistaCerrar(); JUG.tercera = true; JUG.maqFijo = null; const o = window.__o, lado = o.b.q.rot(v3(1, 0, 0)); JUG.pos.set(JUG.pos.x + lado.x * 3, JUG.pos.y, JUG.pos.z + lado.z * 3); 1`);
 await p.waitForTimeout(3500);
 // el de otra persona: llega su pantalla y ella juega en el gabinete
 const otro = await ev(`(async () => {
@@ -43,18 +46,22 @@ const otro = await ev(`(async () => {
   const est = () => recibirEstado({ i: 'ana', n: 'Ana', k: 'Hero', h: 'HatEmpty', p: [L.p.x, L.p.y, L.p.z], v: [0, 0, 0], y: L.yaw, t: 0, f: 5, a: null, e: 0 });
   est(); window.__est = setInterval(est, 400); await new Promise((r) => setTimeout(r, 1200));
   const R2 = RED.remotos.get('ana');
-  for (let k = 0; k < 6; k++) { await maqVivoRed({ k: 'maqv', i: 'ana', o: clave, f }); await new Promise((r) => setTimeout(r, 250)); }
+  for (let k = 0; k < 6; k++) { await maqVivoRed({ k: 'maqv', i: 'ana', o: clave, f, s: 10 + k }); await new Promise((r) => setTimeout(r, 250)); }
+  // (uno viejo —el 3— que llega después: no se muestra)
+  const c2 = document.createElement('canvas'); c2.width = 160; c2.height = 120; const g2 = c2.getContext('2d'); g2.fillStyle = '#0f0'; g2.fillRect(0, 0, 160, 120);
+  await maqVivoRed({ k: 'maqv', i: 'ana', o: clave, f: c2.toDataURL('image/jpeg', 0.6).split(',')[1], s: 3 });
   const e = MAQV.lienzo.get(clave), px = e.g.getImageData(20, 96, 1, 1).data;
   // las manos de Ana en el panel
   const P = R2.P, md = P.md; md.actualizar(); const pos = (n) => { const W = md.W[P.D.h[n]]; return v3(W[12], W[13], W[14]); };
   const meta = (L) => vadd(o.b.pos, o.b.q.rot(v3(L[0], L[1] + 0.04, L[2] + 0.06)));
-  const dDer = pos('RightHand').distTo(meta(MAQ_PANEL.der)), dIzq = pos('LeftHand').distTo(meta(MAQ_PANEL.izq));
+  // (en 8 momentos distintos, el peor: a los lejanos se los anima uno de cada tantos cuadros y el error aparecía entre medio)
+  let dDer = 0, dIzq = 0; for (let k = 0; k < 8; k++) { await new Promise((r) => setTimeout(r, 70 + k * 13)); md.actualizar(); dDer = Math.max(dDer, pos('RightHand').distTo(meta(MAQ_PANEL.der))); dIzq = Math.max(dIzq, pos('LeftHand').distTo(meta(MAQ_PANEL.izq))); }
   return { nueva: e.t > vieja, rojo: px[0] > 150 && px[1] < 90, juega: !!(P.maqJ && P.maqJ.o === clave), dDer: +dDer.toFixed(3), dIzq: +dIzq.toFixed(3) };
 })()`);
 // foto desde el costado, mirando la pantalla del gabinete
 await ev(`(() => { const o = window.__o, lado = o.b.q.rot(v3(1, 0, 0)), fr = o.b.q.rot(v3(0, 0, 1)); DBG.cam = { p: vadd(o.b.pos, vadd(vscale(lado, 1.7), vadd(vscale(fr, 1.6), v3(0, 0.75, 0)))), q: null }; const d = vsub(vadd(o.b.pos, v3(0, 0.25, 0.3)), DBG.cam.p).norm(); DBG.cam.q = Quat.euler(Math.atan2(d.x, d.z), -Math.asin(d.y), 0); return 1; })()`);
 await p.waitForTimeout(600); await p.screenshot({ path: D + 'maq_vivo_otro.png' });
-ok('la de otro: su pantalla se ve en el gabinete y ella juega con las manos en la palanca y los botones (≤ 12 cm)', otro.nueva && otro.rojo && otro.juega && otro.dDer <= 0.12 && otro.dIzq <= 0.12, otro);
+ok('la de otro: su pantalla se ve en el gabinete (uno viejo que llega tarde no la pisa) y ella juega con las manos en la palanca y los botones (≤ 12 cm, el peor de 8 momentos)', otro.nueva && otro.rojo && otro.juega && otro.dDer <= 0.12 && otro.dIzq <= 0.12, otro);
 // deja de jugar: a los 3 s vuelve la tapa y suelta los controles
 await p.waitForTimeout(3500);
 const fin = await ev(`(() => { const o = window.__o, e = MAQV.lienzo.get(claveObj(o)), R2 = RED.remotos.get('ana'); clearInterval(window.__est); return { ana: !!R2, tapa: performance.now() - e.t > 2500, suelta: !!R2 && !R2.P.maqJ }; })()`);

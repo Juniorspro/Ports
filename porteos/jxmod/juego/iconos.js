@@ -90,6 +90,7 @@ const GLIFOS = {
   mas3: '<circle cx="5" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="19" cy="12" r="1.7" fill="currentColor"/>',
   codigo: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5"/>',
   mundo: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.6 3.6 5.4 3.6 8.5s-1 5.9-3.6 8.5c-2.6-2.6-3.6-5.4-3.6-8.5s1-5.9 3.6-8.5z"/>',
+  ajustar: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/>',
   video: '<rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor"/>',
 };
 function glifo(n, cl) { return `<svg class="gli${cl ? ' ' + cl : ''}" viewBox="0 0 24 24" aria-hidden="true">${GLIFOS[n] || ''}</svg>`; }

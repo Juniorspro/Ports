@@ -2252,6 +2252,60 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.8: la carga al entrar a una partida y las maquinitas renovadas
+
+Pedidos del dueño después de la 3.7.1: la pantalla de carga de GOLDEN (captura del Discord) «a nuestro estilo», y en las
+maquinitas (el prop Arcade): «arreglar y mejorar la interfaz», «que la pantalla sí lo cubra bien», «que vaya a 60 fps lo
+que hagamos y los otros lo vean sin retrasos», «que puedas ponerle una foto para publicarlo en la comunidad», «poder cargar
+pesados y varios a la vez, con un apartado de subiendo» y «que corra cualquier HTML». Misma firma que la 3.2 a la 3.7.1.
+
+- **La carga al entrar a una partida** (idea de GOLDEN, con el lenguaje del menú clásico; `W.partida`/`W.pasoP` en
+  template.html, `entrarConCarga` en rbmenus.js): a la izquierda el nombre del mapa o del server en grande (la última palabra
+  en amarillo) y los 4 pasos de verdad —conectar (con los ms o «Un jugador»), descargar el contenido (los MB o «Ya está en
+  el aparato»), cargar el mapa (con sus segundos) y listo—, cada uno con su círculo (número, girando o ✓); a la derecha la
+  foto del mapa con marcas de esquina y el cartel «Un jugador»/«Multijugador»; abajo el paso de ahora, la barra en
+  segmentos y el porcentaje grande. En un server con mods que faltan, los pasos vuelven a «Descargando contenido» mientras
+  bajan («Mods 2/2 · 45 %») y «Entrar sin esperar» va debajo de los pasos (antes tapaba la barra y la firma). 14 idiomas.
+  `server_mods_carga` 4/4, `intro_carga`, `logo_propio` 5/5, `menu_clasico` 15/15.
+- **Subir varios juegos a la vez, pesados, .zip y carpetas** (`maqSubir` en maquinitas.js): el botón acepta varios .html y
+  .zip juntos, y en la compu una carpeta entera. Cada uno es una fila en la pestaña nueva **«Subiendo»** (con el contador
+  de los que faltan): leyendo → armando → guardando, con su barra en segmentos y los MB; al final «Listo · 29 MB · 10
+  archivos» o el motivo en rojo («No se pudo abrir el .zip», «No hay ningún .html adentro», «falta lugar»); uno roto no
+  traba a los demás. Hasta 80 MB por juego (antes 3). Probado: 5 a la vez con uno de 30 MB en 1,3 s.
+- **Que corra cualquier HTML**: un .zip o una carpeta se arma en un solo HTML: se busca el principal (index.html, el menos
+  hondo; otro .html adentro no lo confunde), lo que nombra —scripts, estilos, imágenes, sonidos, fuentes, `url()` y
+  `@import` de los .css— va adentro, y lo que el juego pide después por su cuenta (fetch, XHR, `new Image().src`, un audio,
+  `setAttribute('src')`) lo contesta un mapa de archivos con un puente chico (`MAQ_FS`), con rutas relativas, con `./`,
+  `/`, `?v=2` o `#`. Sin servidor y en el iframe aislado de siempre. Prueba: un juego de 10 archivos (js, css con
+  `@import` y `url()`, 3 PNG, JSON por fetch, texto por XHR, imagen armada por código): todo carga.
+- **Los pesados no llenan la memoria**: la biblioteca pasa a la versión 2 de la base del aparato (IndexedDB): un juego de
+  más de 256 mil letras guarda su HTML aparte, y la lista lee sólo nombre, autor, foto y tamaño (antes cargaba todos los
+  HTML cada vez que se abría). Una biblioteca de la 3.7 pasa sola sin perder nada (probado).
+- **La foto de tapa**: en «Mis juegos» cada uno tiene el botón de la cámara: la foto se recorta al centro a 320 × 240
+  (JPEG, < 110 000 letras: lo que acepta la comunidad), se ve en la lista, en la pantalla del gabinete (también en el de los
+  demás: viaja con el juego por la sala y viene con los de la comunidad) y es la que se publica. Volver a subir el mismo
+  juego no la borra.
+- **La comunidad**: publicar uno de más de 1,8 MB avisa claro («Pesa 29 MB: la comunidad acepta hasta 1,8 MB. Igual se
+  juega en tu aparato y en la sala»): el límite es del servidor (`tienda/formato.js`, en Cloudflare D1); para subirlo hace
+  falta cambiar el servidor y volver a publicarlo (lo tiene que hacer el dueño). Por la sala van hasta ~7 MB comprimidos
+  (antes ~3,6), con el avance «Bajando 40 %»; uno más grande avisa al que lo pide.
+- **La interfaz de las maquinitas**: tarjetas nuevas (foto grande, nombre, autor y tamaño, y abajo Jugar, foto, publicar
+  y borrar; antes los botones se salían de la tarjeta y el nombre no se veía), la pantalla del juego toma la forma del
+  juego (16:9, 4:3… antes siempre 4:3) y el botón nuevo **«Ajustar a la pantalla»**: un juego de lienzo fijo (640 × 360
+  quedaba chico en una esquina) se agranda al centro hasta llenarla; se recuerda por juego.
+- **La pantalla del gabinete y la sala**: los cuadros del juego llegan en 320 de ancho con su forma y la pantalla del
+  gabinete los muestra enteros (antes, una textura de 256 × 192 que en WebGL 1 quedaba chica en una esquina). A la sala van
+  hasta 15 por segundo (antes 4) en WebP de 192 × 144 (~2 mil letras cada uno), numerados: uno que llega tarde no pisa a
+  uno nuevo. **Para que el juego vaya a 60**: copiar el lienzo espera a que la placa termine el cuadro, así que el puente
+  mide cuánto tarda y la espacia a 10 veces eso (nunca más del 10 % del juego); solo, 1 copia por segundo (la pantalla del
+  gabinete queda tapada por el juego); y mientras se juega, el mundo de atrás va a 30 cuadros (como el menú) para dejarle
+  la placa al juego. Medido en el navegador de prueba (sin placa de verdad, la copia tarda 85 ms): 8,5 % solo y 10 % con
+  alguien cerca; en un celular la copia debería tardar 1-5 ms y llegar a los 15 por segundo.
+- **Las manos del que juega en otro gabinete** (arreglo): a los jugadores lejanos se los anima uno de cada tantos cuadros,
+  y la inclinación hacia el gabinete se volvía a sumar en los cuadros sin pose nueva: el torso se doblaba de más y las
+  manos quedaban a 30-90 cm del panel. Ahora va una vez por pose: 0 cm en los 8 momentos medidos (3 corridas).
+- Pruebas: `maq_subir` 22/22 (nueva), `maq_vivo` 6/6 (3 corridas), `maquinitas` 13/13, `menus_x` 6/6.
+
 ## JXMod 3.7.1: lo del Discord después de la 3.7
 
 - **«Todo enjorobado»** (Santa Claus, en todas las skins y en las importadas con el rig automático): la postura de quieto y

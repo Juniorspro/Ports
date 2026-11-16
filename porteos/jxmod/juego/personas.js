@@ -94,6 +94,7 @@ function aplicarGiros(P) {
 }
 // el cuerpo según lo que hace
 function animarPersona(P, dt) {
+  P.animN = (P.animN || 0) + 1;   // (cuántas poses nuevas: lo que se suma encima de la pose —maqBrazos— va una vez por pose)
   if (P.cuad) { natCuadPose(P, dt); return; } // SCP en cuatro patas (mod)
   if (P.hum) {
     if (P.emote) P.emoteT += dt;

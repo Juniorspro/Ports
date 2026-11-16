@@ -222,46 +222,63 @@ async function entrarConCarga(titulo, mapa, jugar, red) {
   const C = window.__carga;
   if ((TEST && !window.__cargaPrueba) || !C || !C.abrir) { jugar(); return; }
   C.abrir(titulo, FONDO_MAPA[mapa] || '', mapaArchivoNom(mapa));
-  if (red) { C.set(0.15, T('ld.info')); await cuadroLibre(); C.log(T('ld.info'), titulo); }
+  // (3.7.1, idea de GOLDEN: los pasos a la vista con su estado, la foto del mapa en un marco y el porcentaje grande —
+  // template.html, W.partida—; el nombre en dos tonos: la última palabra en amarillo)
+  const nomT = String(titulo || mapaNom(mapa) || '').trim(), corte = nomT.lastIndexOf(' ');
+  const P = (i, e, d) => { if (C.pasoP) C.pasoP(i, e, d); };
+  if (C.partida) C.partida({ tit: corte > 0 ? [nomT.slice(0, corte), nomT.slice(corte + 1)] : [nomT], lab: T('ld.cargandoP'), modo: T(red ? 'ld.p.online' : 'ld.p.solo'),
+    mapa: mapaArchivoNom(mapa), mapaT: T('ld.p.mapaT'), espera: T('ld.p.espera'), pasos: [T(red ? 'ld.p.conectar' : 'ld.p.preparar'), T('ld.p.contenido'), T('ld.p.mapa'), T('ld.p.listo')] });
+  P(0, 'ahora');
+  if (red) { const t0 = performance.now(); C.set(0.15, T('ld.info')); await cuadroLibre(); C.log(T('ld.info'), titulo); P(0, 'hecho', T('ld.p.conectado') + ' · ' + Math.round(performance.now() - t0) + ' ms'); }
+  else P(0, 'hecho', T('ld.p.solo'));
+  P(1, 'ahora');
   // (lo que viene en paquetes aparte: el mapa, el personaje; la primera vez se baja, después sale de la caché)
   const falta = rbParaPartida(mapa, JUG.skinRol || JUG.skinMod || PREFS.skin);
   if (falta.length) {
     const t0 = performance.now(); let mb = 0; C.set(0.2, T('ld.bajando'));
-    await rbAsegurarTodos(falta, (n, t) => { mb = t; if (t) C.set(0.2 + 0.15 * n / t, T('ld.bajando') + ' ' + (n / 1048576).toFixed(1) + ' / ' + (t / 1048576).toFixed(1) + ' MB'); });
+    await rbAsegurarTodos(falta, (n, t) => { mb = t; if (t) { const mbs = (n / 1048576).toFixed(1) + ' / ' + (t / 1048576).toFixed(1) + ' MB'; C.set(0.2 + 0.15 * n / t, T('ld.bajando') + ' ' + mbs); P(1, 'ahora', mbs); } });
     C.log(T('ld.bajando'), (mb / 1048576).toFixed(1) + ' MB · ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s');
-  }
-  C.set(0.35, T('ld.mapa')); await cuadroLibre(); await cuadroLibre();
+    P(1, 'hecho', (mb / 1048576).toFixed(1) + ' MB · ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s');
+  } else P(1, 'hecho', T('ld.p.cache'));
+  P(2, 'ahora'); C.set(0.35, T('ld.mapa')); await cuadroLibre(); await cuadroLibre();
   const t = performance.now();
   // (un mapa del Workshop se arma recién ahora y puede tardar: la carga queda abierta, con su avance, hasta que arranca)
   try { const r = jugar(); if (r && typeof r.then === 'function') await r.catch((e) => console.error(e)); } catch (e) { console.error(e); }
   C.log(T('ld.mapa'), mapaNom(mapa) + ' · ' + ((performance.now() - t) / 1000).toFixed(2) + ' s');
+  P(2, 'hecho', mapaNom(mapa) + ' · ' + ((performance.now() - t) / 1000).toFixed(1) + ' s'); P(3, 'ahora');
   if (red) {
     C.set(0.75, T('ld.cliente')); const t0 = Date.now();
     while (SALA && !RED.on && Date.now() - t0 < 4000) await new Promise((ok) => setTimeout(ok, 120));
     C.log(T('ld.cliente'), RED.on ? 'ok' : '-');
     // (los mods del server que no tengo: se bajan acá, antes de entrar —pedido: «al unirte a un server con mods que no
     // tenés primero debas descargarlos en la pantalla de carga y después entrar»—)
-    if (RED.on && typeof gmsEntrar === 'function') await cargaModsServer(C);
+    if (RED.on && typeof gmsEntrar === 'function') await cargaModsServer(C, P);
   }
+  P(3, 'hecho', '');
   C.fin();
 }
 // la fase de los mods del server en la pantalla de carga: espera la lista (hasta 5 s), baja y monta los que faltan con
 // el avance de cada uno («2/5 · Viewfinder 45 %»); «Entrar sin esperar» deja que sigan bajando ya jugando
-async function cargaModsServer(C) {
+async function cargaModsServer(C, P) {
+  P = P || (() => {});
   if (gmsClave() && gmsClave() !== GMS.sala) gmsEntrar();
   C.set(0.8, T('ld.modsSrv')); await gmsEsperarLista(5000);
   const pend = gmsPendientes(); if (!pend.length) { C.log(T('ld.modsSrv'), '0'); return; }
+  // (los pasos: vuelve a «Descargando contenido» —lo que pasa de verdad— y «Listo» espera)
+  P(3, ''); P(1, 'ahora');
   const t0 = performance.now(), cg = $('carga'); let saltar = false;
-  const bt = document.createElement('button'); bt.id = 'cargaSaltar'; bt.textContent = T('ld.saltar'); bt.onclick = () => { saltar = true; }; if (cg) cg.appendChild(bt);
+  const bt = document.createElement('button'); bt.id = 'cargaSaltar'; bt.textContent = T('ld.saltar'); bt.onclick = () => { saltar = true; }; if (cg) (cg.classList.contains('partida') && cg.querySelector('.cgPIzq') || cg).appendChild(bt);   // (en la de partida, debajo de los pasos)
   const pr = gmsMontarTodos(); let fin = false; pr.finally(() => { fin = true; });
   try {
     while (!fin && !saltar) {
       await new Promise((ok) => setTimeout(ok, 200));
       const g = GMS.prog; if (!g) continue;
       C.set(0.8 + 0.18 * (g.i + (g.p || 0)) / g.n, T('ld.modsSrv') + ' ' + (g.i + 1) + '/' + g.n + ' · ' + g.nom + ' ' + Math.round((g.p || 0) * 100) + ' %');
+      P(1, 'ahora', 'Mods ' + (g.i + 1) + '/' + g.n + ' · ' + Math.round((g.p || 0) * 100) + ' %');
     }
   } finally { bt.remove(); }
   const ok = pend.filter((it) => GMOD.addons.has(it.id)).length;
+  P(1, 'hecho', 'Mods ' + ok + '/' + pend.length + ' · ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s'); P(3, 'ahora');
   C.log(T('ld.modsSrv'), ok + '/' + pend.length + ' · ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s' + (saltar ? ' · ' + T('ld.saltar') : ''));
 }
 

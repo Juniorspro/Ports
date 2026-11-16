@@ -1,8 +1,8 @@
 {
- "codigo": 3701,
- "version": "3.7.1",
+ "codigo": 3800,
+ "version": "3.8",
  "apk": "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXMod.apk",
  "web": "https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/index.html",
- "notas_es": "JXMod 3.7.1 — Si tenés de la 3.2 a la 3.7, se instala encima. Si seguís en la 3.1, desinstalala antes (cambió la firma). Arreglos: los personajes ya no quedan jorobados (todas las skins y las importadas: la cabeza y el torso derechos); en Mods y mapas, tocar «Instalar» ya no deforma las tarjetas; el fondo animado se pausa con Ajustes abierto (gasta menos batería); la pantalla de carga ya no ofrece Verity, que está apagada.",
- "notas_en": "JXMod 3.7.1 — If you have 3.2 to 3.7, it installs on top. If you are still on 3.1, uninstall it first (the signature changed). Fixes: characters no longer stand hunched (every skin and imported ones: straight head and torso); in Mods & maps, tapping \"Install\" no longer warps the cards; the animated background pauses while Settings is open (less battery); the loading screen no longer suggests Verity, which is turned off."
+ "notas_es": "JXMod 3.8 — Si tenés de la 3.2 a la 3.7.1, se instala encima. Si seguís en la 3.1, desinstalala antes (cambió la firma). Nuevo: la pantalla de carga al entrar a una partida (nombre en grande, los 4 pasos, la foto del mapa y la barra). Maquinitas: subí varios juegos a la vez, pesados (hasta 80 MB), en .zip o una carpeta, con la pestaña «Subiendo»; corren juegos de varios archivos; ponele una foto de tapa a tus juegos (se ve en el gabinete y se publica); botón «Ajustar a la pantalla»; los demás ven tu juego más fluido (hasta 15 cuadros por segundo) y el mundo de atrás le deja la placa al juego. Arreglo: las manos del que juega en otro gabinete quedan en la palanca y los botones.",
+ "notas_en": "JXMod 3.8 — If you have 3.2 to 3.7.1, it installs on top. If you are still on 3.1, uninstall it first (the signature changed). New: a loading screen when joining a match (big name, the 4 steps, the map photo and the bar). Arcades: upload several games at once, heavy ones (up to 80 MB), as .zip or a folder, with an \"Uploading\" tab; multi-file games run; give your games a cover photo (shown on the cabinet and published); \"Fit to screen\" button; others see your game smoother (up to 15 frames per second) and the world behind leaves the GPU to the game. Fix: the hands of someone playing another cabinet stay on the stick and buttons."
 }

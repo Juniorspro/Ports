@@ -396,6 +396,8 @@ html.rot body{position:fixed;left:0;top:0;transform-origin:0 0;transform:rotate(
 .gmcF span{opacity:.8;font-weight:400;white-space:nowrap}
 .gmcF button{flex:none;background:#fff2;border:0;color:#fff;border-radius:6px;width:26px;height:22px;cursor:pointer;font:inherit}
 #cargaSaltar{position:absolute;right:max(16px,2vw);bottom:max(16px,3vh);z-index:5;background:#ffffff1f;color:#fff;border:1px solid #fff5;border-radius:8px;padding:9px 16px;font:600 14px system-ui,sans-serif;cursor:pointer}
+/* (en la carga de partida va en la columna de los pasos, debajo, como los botones del clásico: sin tapar la barra, la foto ni la firma) */
+#carga.partida #cargaSaltar{position:static;align-self:flex-start;margin-top:clamp(2px,calc(var(--vh,1vh)*1),10px);border-radius:0;background:#f2b31b;color:#14110a;border:0;padding:10px 18px;font:600 15px/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.08em;text-transform:uppercase;box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .gmcF button.gmcR{width:auto;padding:0 9px;background:#3a8dde;font-weight:600}
 .rbTileBaja{position:absolute;left:0;bottom:0;height:4px;background:#2f86de;transition:width .2s}
 /* la cuenta de Google: el chip del menú, el cartel para entrar y el de espera */
@@ -867,6 +869,45 @@ body.conPant{background:transparent}
 #cargaAyuda button,#cargaErr button{margin:12px 5px 0;padding:10px 16px;border:0;border-radius:8px;background:linear-gradient(#ff8f2e,#e9640f);color:#fff;font:800 14px Roboto,Arial,sans-serif;cursor:pointer}
 #cargaAyuda button.gris,#cargaErr button.gris{background:#2c3247}
 /* (bajo y angosto los pone el giro, con la medida girada: las media queries miran la del aparato parado) */
+/* la carga al entrar a una partida (idea de GOLDEN en el Discord, al estilo del menú clásico): a la izquierda el nombre en
+   dos tonos y los pasos con su estado; a la derecha la foto del mapa en un marco con esquinas, el modo y el porcentaje
+   grande; abajo el paso de ahora y la barra en segmentos. La pone W.partida (rbmenus.js, entrarConCarga) */
+#carga .cgP,#carga .cgPLab{display:none}
+#carga.partida .cgTipC,#carga.partida .cgTit,#carga.partida .cgCons,#carga.partida .cgPct{display:none}
+#carga.partida .cgSombra{background:linear-gradient(90deg,rgba(5,6,10,.94) 0%,rgba(5,6,10,.86) 38%,rgba(5,6,10,.72) 60%,rgba(5,6,10,.86) 100%),linear-gradient(0deg,rgba(5,6,10,.9),transparent 30%)}
+#carga.partida .cgFondo.kb{animation:none}
+#carga.partida .dLogo{font-size:clamp(34px,8vmin,64px)}
+#carga.partida .cgPLab{display:block;margin-top:6px;font:600 clamp(11px,1.9vmin,14px)/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#cfd3dc;padding-bottom:6px;border-bottom:2px solid #f2b31b;white-space:nowrap}
+#carga.partida .cgP{display:grid;grid-template-columns:minmax(0,42fr) minmax(0,58fr);gap:clamp(14px,calc(var(--vw,1vw)*4),48px);position:absolute;left:clamp(16px,calc(var(--vw,1vw)*3),40px);right:clamp(16px,calc(var(--vw,1vw)*3),40px);top:clamp(70px,calc(var(--vh,1vh)*19),150px);bottom:clamp(74px,calc(var(--vh,1vh)*15),120px);animation:cgEntra .5s ease both}
+#carga .cgPIzq{min-width:0;display:flex;flex-direction:column;justify-content:flex-start;gap:clamp(8px,calc(var(--vh,1vh)*2.4),20px)}
+#carga .cgPTit{font:600 clamp(26px,calc(var(--vh,1vh)*9),66px)/.95 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;text-transform:uppercase;letter-spacing:.01em;transform:skewX(-7deg);transform-origin:0 100%;text-shadow:0 3px 0 rgba(0,0,0,.55)}
+#carga .cgPTit span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#carga .cgPTit span+span{color:#f2b31b}
+#carga .cgPasos{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:clamp(2px,calc(var(--vh,1vh)*.9),8px)}
+#carga .cgPasos li{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:10px;padding:clamp(3px,calc(var(--vh,1vh)*.8),7px) 10px;border:1px solid transparent;color:#8d93a1;transition:color .25s,border-color .25s,background .25s}
+#carga .cgPasos li i{grid-row:span 2;width:20px;height:20px;box-sizing:border-box;border-radius:50%;border:2px solid #4a4f5c;display:flex;align-items:center;justify-content:center;font:700 11px/1 'Roboto Condensed',Arial,sans-serif;font-style:normal;color:#8d93a1}
+#carga .cgPasos li b{font:600 clamp(12px,calc(var(--vh,1vh)*3.2),16px)/1.1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#carga .cgPasos li small{font:11px/1.25 Consolas,'DejaVu Sans Mono',Menlo,monospace;color:#6f7686;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:ltr;unicode-bidi:isolate;text-align:start}
+#carga .cgPasos li.hecho{color:#e8eaee}#carga .cgPasos li.hecho i{background:#f2b31b;border-color:#f2b31b;color:#14110a}#carga .cgPasos li.hecho small{color:#8fd18b}
+#carga .cgPasos li.ahora{color:#fff;border-color:#f2b31b;background:rgba(242,179,27,.08)}#carga .cgPasos li.ahora i{border-color:#f2b31b;border-top-color:transparent;animation:cgGira .9s linear infinite;color:transparent}#carga .cgPasos li.ahora small{color:#f2b31b}
+#carga .cgPDer{min-width:0;min-height:0;display:flex;flex-direction:column;gap:8px;justify-content:flex-start}#carga .cgPInfo{flex:none}
+#carga .cgPFoto{position:relative;width:100%;flex:1 1 0;min-height:0;max-height:calc(var(--vh,1vh)*52);background:#11131a 50% 40%/cover no-repeat;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+#carga .cgPFoto:before,#carga .cgPFoto:after,#carga .cgPFoto>u:before,#carga .cgPFoto>u:after{content:'';position:absolute;width:18px;height:18px;border:0 solid #f2b31b}
+#carga .cgPFoto:before{left:-6px;top:-6px;border-left-width:2px;border-top-width:2px}#carga .cgPFoto:after{right:-6px;bottom:-6px;border-right-width:2px;border-bottom-width:2px}
+#carga .cgPFoto>u{position:absolute;inset:0;text-decoration:none}#carga .cgPFoto>u:before{right:-6px;top:-6px;border-right-width:2px;border-top-width:2px}#carga .cgPFoto>u:after{left:-6px;bottom:-6px;border-left-width:2px;border-bottom-width:2px}
+#carga .cgPModo{position:absolute;right:8px;top:8px;display:flex;align-items:center;gap:6px;padding:4px 9px;background:rgba(5,6,10,.82);font:600 11px/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#e8eaee}
+#carga .cgPModo:before{content:'';width:7px;height:7px;border-radius:50%;background:#5fd36b}
+#carga .cgPInfo{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+#carga .cgPMapa{min-width:0;font:11px/1.2 Consolas,'DejaVu Sans Mono',Menlo,monospace;color:#d6dbe6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:ltr}#carga .cgPMapa em{font:600 11px 'JX Oswald','Roboto Condensed',sans-serif;font-style:normal;letter-spacing:.14em;color:#f2b31b;margin-right:6px;text-transform:uppercase}
+#carga .cgPPct{flex:none;font:600 clamp(30px,calc(var(--vh,1vh)*10),78px)/.9 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;color:#f2b31b;font-variant-numeric:tabular-nums;direction:ltr}#carga .cgPPct small{font-size:.42em;margin-left:2px}
+#carga.partida .cgEst{font:600 clamp(16px,calc(var(--vh,1vh)*4.6),26px)/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.06em;text-transform:uppercase}
+#carga.partida .cgBarra{height:10px;background:rgba(255,255,255,.1);-webkit-mask:repeating-linear-gradient(90deg,#000 0 14px,transparent 14px 18px);mask:repeating-linear-gradient(90deg,#000 0 14px,transparent 14px 18px)}
+#carga.partida .cgBarra i{transition:width .35s ease}
+#carga.partida .cgPie span:first-child{color:rgba(255,255,255,.62)}
+#carga.partida.bajo .cgP{top:clamp(86px,calc(var(--vh,1vh)*23),104px);bottom:clamp(70px,calc(var(--vh,1vh)*18),84px)}#carga.partida.bajo .dLogo{font-size:clamp(30px,7vmin,44px)}#carga.partida.bajo .cgModo{margin-top:4px}
+#carga.partida.bajo .cgPTit{font-size:clamp(22px,calc(var(--vh,1vh)*7.5),34px)}#carga.partida.bajo .cgPasos li{padding:2px 8px}#carga.partida.bajo .cgPPct{font-size:clamp(26px,calc(var(--vh,1vh)*8.5),40px)}
+#carga.partida.bajo .cgPasos li small{display:none}#carga.partida.bajo .cgPasos li i{grid-row:auto}
+#carga.partida.angosto .cgP{grid-template-columns:1fr}#carga.partida.angosto .cgPDer{display:none}
+@media (prefers-reduced-motion:reduce){#carga.partida .cgP,#carga .cgPasos li.ahora i{animation:none}}
 #carga.bajo .cgTipC{display:none}#carga.bajo .cgCons{font-size:11px;line-height:1.45;bottom:64px}#carga.bajo .cgModo{margin-top:6px}
 #carga.angosto .cgTipC{display:none}#carga.angosto .cgCons{width:auto;right:16px}
 /* la intro de JXStudios, encima de la pantalla de carga hasta que termina (o se toca). Si el juego ya había cargado, la
@@ -1038,6 +1079,54 @@ body.maqOn #hud,body.maqOn #tactil,body.maqOn #mira,body.maqOn #usarTxt,body.maq
 .mqDer .mqB{border-radius:50%;font-size:18px}.mqDer .bY{grid-area:1/2;background:#c9a400}.mqDer .bX{grid-area:2/1;background:#1f63c9}.mqDer .bB{grid-area:2/3;background:#c92a2a}.mqDer .bA{grid-area:3/2;background:#2f9e44}
 .mqMed{left:50%;transform:translateX(-50%);bottom:calc(var(--vh)*2);display:flex;gap:10px}.mqMed .mqB{border-radius:20px;padding:6px 14px;font-size:11px;letter-spacing:1px}
 body:not(.tactil) .mqIzq,body:not(.tactil) .mqDer,body:not(.tactil) .mqMed,#maqVista.mqSinCtrl .mqIzq,#maqVista.mqSinCtrl .mqDer{display:none}
+/* 3.8: las maquinitas con el estilo del menú clásico (negro, amarillo, rasgado) y la pantalla del juego lo más grande que
+   entra: en el celular, entre los controles; en la compu, casi toda la pantalla. La proporción la da el juego (--mqAr) */
+#maqPan .maqCaja{background:#0d0e12;border:1px solid #2a2d36;border-radius:0;box-shadow:0 18px 40px rgba(0,0,0,.6);padding:14px 16px;color:#e8eaee;clip-path:polygon(0 0,100% 0,100% 100%,0 100%,0 62%,.6% 60%,0 58%)}
+#maqPan .maqCaja h3{font:600 clamp(18px,3.2vmin,24px)/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;text-transform:uppercase;letter-spacing:.04em;margin:0 0 10px;padding-bottom:10px;border-bottom:2px solid #f2b31b}
+#maqPan .maqCaja h3 .gli{color:#f2b31b}
+#maqPan .mqX{background:#1c1e25;border:1px solid #3a3e4a;border-radius:0;min-width:40px;min-height:40px;color:#fff}
+#maqPan .mqTabs{gap:6px;margin:0 0 10px}#maqPan .mqTabs button{background:#1a1c22;color:#c8ccd6;border:1px solid #2c2f39;border-radius:0;min-height:40px;padding:0 14px;font:600 14px/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.06em;text-transform:uppercase}
+#maqPan .mqTabs button.sel{background:#f2b31b;border-color:#f2b31b;color:#14110a}
+#maqPan .mqTabs button .mqN{display:inline-block;min-width:18px;margin-inline-start:6px;padding:2px 5px;background:#e23b3b;color:#fff;font:700 11px/1.2 Roboto,Arial,sans-serif}
+#maqPan .mqLista{gap:10px;max-height:calc(var(--vh)*50)}
+#maqPan .mqLista{grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))}
+#maqPan .mqIt{display:grid;grid-template-columns:112px minmax(0,1fr);grid-template-rows:1fr auto;gap:6px 12px;align-items:start;background:#15171d;border:1px solid #2a2d36;border-radius:0;padding:8px;position:relative;transition:border-color .15s,background .15s}
+#maqPan .mqIt:hover{border-color:#f2b31b;background:#191b22}
+#maqPan .mqIt img{grid-row:1/3;width:112px;height:84px;border-radius:0;border:1px solid #3a3e4a;background:#000}
+#maqPan .mqIt .mqNom{padding-top:2px}
+#maqPan .mqBot{display:flex;gap:6px;align-self:end;min-width:0}#maqPan .mqBot .boton:first-child{flex:1 1 auto;min-width:0;justify-content:center}
+#maqPan .mqNom b{font:600 15px/1.2 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.03em;text-transform:uppercase}#maqPan .mqNom span{color:#9aa0ad}#maqPan .mqNom em{font:11px Consolas,"DejaVu Sans Mono",monospace;color:#f2b31b;margin-inline-start:8px;font-style:normal}
+#maqPan .mqIt .boton{background:#f2b31b;color:#14110a;border:0;border-radius:0;min-height:40px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;font:600 14px/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.06em;text-transform:uppercase}
+#maqPan .mqIt .boton.chico{background:#1c1e25;color:#fff;border:1px solid #3a3e4a;min-width:40px}
+#maqPan .mqImp{gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed #333744}
+#maqPan .mqImp label.boton{background:#f2b31b;color:#14110a;border-radius:0;min-height:44px;font:600 15px/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.06em;text-transform:uppercase}
+#maqPan .mqImp label.boton.gris{background:#1c1e25;color:#fff;border:1px solid #3a3e4a}
+#maqPan .mqImp .mqUrl,#maqPan .mqImp select{background:#07080b;border:1px solid #2c2f39;border-radius:0;min-height:44px;color:#fff}
+#maqPan .mqImp [data-mq=url]{background:#1c1e25;border:1px solid #3a3e4a;border-radius:0;min-width:44px;min-height:44px}
+#maqPan .mqNota{margin-top:8px;color:#9aa0ad;font-size:13px}
+/* lo que se está subiendo: uno por fila, con su barra */
+#maqPan .mqSub{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;background:#15171d;border:1px solid #2a2d36;padding:10px;grid-column:1/-1}
+#maqPan .mqSub b{font:600 14px/1.2 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#maqPan .mqSub small{color:#9aa0ad;font:12px Consolas,'DejaVu Sans Mono',monospace;white-space:nowrap}
+#maqPan .mqSub i{grid-column:1/-1;height:8px;background:rgba(255,255,255,.1);-webkit-mask:repeating-linear-gradient(90deg,#000 0 12px,transparent 12px 15px);mask:repeating-linear-gradient(90deg,#000 0 12px,transparent 12px 15px)}
+#maqPan .mqSub i u{display:block;height:100%;width:0;background:#f2b31b;transition:width .2s}
+#maqPan .mqSub.ok i u{background:#5fd36b}#maqPan .mqSub.mal i u{background:#e23b3b;width:100%!important}#maqPan .mqSub.mal small{color:#ff8a8a;white-space:normal}
+/* jugar: la pantalla grande */
+#maqVista{background:radial-gradient(120% 100% at 50% 45%,rgba(5,6,10,.35),rgba(5,6,10,.85))}
+#maqVista .mqMarco{top:calc(var(--vh)*2);background:#0d0e12;border:0;border-radius:0;box-shadow:0 0 0 1px #2a2d36,0 18px 40px rgba(0,0,0,.6);padding:6px;
+  width:min(calc(var(--vw)*96),calc((var(--vh)*96 - 46px)*var(--mqAr,1.3333)));max-width:none}
+body.tactil #maqVista .mqMarco{width:min(calc(var(--vw)*100 - 2*min(calc(var(--vh)*34),190px)),calc((var(--vh)*96 - 46px)*var(--mqAr,1.3333)))}
+#maqVista .mqMarco:before{content:'';position:absolute;left:-1px;right:-1px;top:-3px;height:3px;background:#f2b31b}
+#maqVista .mqHueco{aspect-ratio:var(--mqAr,1.3333);border-radius:0}
+#maqVista .mqBarra{gap:6px;padding:0 0 6px}#maqVista .mqJN{color:#f2b31b;font:600 16px/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.06em;text-transform:uppercase;text-shadow:none}
+#maqVista .mqSalir{background:#1c1e25;border:1px solid #3a3e4a;border-radius:0;width:40px;height:34px}#maqVista .mqSalir.sel{background:#f2b31b;border-color:#f2b31b;color:#14110a}
+#maqVista .mqCtrlV{background:#07080b;border:1px solid #2c2f39;border-radius:0;color:#fff;min-height:34px}
+#maqVista .mqB{background:rgba(20,22,28,.86);border:1px solid #3a3e4a;border-radius:0}
+#maqVista .mqB.ap{background:#f2b31b;border-color:#f2b31b;color:#14110a}
+#maqVista .mqPalanca{background:radial-gradient(#1a1c22,#0d0e12);border:2px solid #3a3e4a}
+#maqVista .mqBola{background:radial-gradient(circle at 35% 35%,#ffd66b,#c98a00)}
+#maqVista .mqDer .mqB{border-radius:50%;border:2px solid rgba(255,255,255,.18)}
+#maqVista .mqMed .mqB{border-radius:0;font:600 12px/1 'JX Oswald','Roboto Condensed','Arial Narrow',sans-serif;letter-spacing:.12em}
 #edaPan{position:fixed;inset:0;z-index:6;pointer-events:none;font:12px Roboto,Arial,sans-serif;color:#eef}
 #edaPan .edaVista{position:absolute;inset:0;pointer-events:auto;touch-action:none;cursor:grab}
 #edaPan .edaPuntos{position:absolute;left:0;top:0;pointer-events:none}
@@ -2077,7 +2166,8 @@ html.rot #rbInicio .clSonda{padding:0}
 <input id="chatIn" class="oc" maxlength="120">
 <div id="carga"><div class="cgFondo"></div><div class="cgFondo"></div><div class="cgSombra"></div>
   <div class="cgArriba"><div><div class="dLogo"><img src="data:image/webp;base64,/*LOGODR*/" alt="JXMod" draggable="false"></div><div class="cgModo"><span>Sandbox</span><span id="cargaVer">v/*VERSION*/</span></div><div class="cgTit" id="cargaTit"></div></div>
-    <div class="cgTipC"><small id="cargaTipT"></small><p class="cgTip" id="cargaTip"></p></div></div>
+    <div class="cgTipC"><small id="cargaTipT"></small><p class="cgTip" id="cargaTip"></p></div><div class="cgPLab" id="cargaPLab"></div></div>
+  <div class="cgP" id="cargaP"><div class="cgPIzq"><div class="cgPTit" id="cargaPTit"></div><ol class="cgPasos" id="cargaPasos"></ol></div><div class="cgPDer"><div class="cgPFoto" id="cargaPFoto"><u></u><span class="cgPModo" id="cargaPModo"></span></div><div class="cgPInfo"><span class="cgPMapa" id="cargaPMapa"></span><b class="cgPPct" id="cargaPPct">0<small>%</small></b></div></div></div>
   <div class="cgCons" id="cargaCons"></div>
   <div class="cgAbajo"><div class="cgFila"><div class="cgEst"><i class="cgGira"></i><span id="cargaPaso"></span><bdi id="cargaMB"></bdi></div><b class="cgPct" id="cargaPct">0%</b></div>
     <div class="cgBarra"><i id="cargaB"></i></div><div class="cgPie"><span id="cargaMapa"></span><span>JXSTUDIOS</span></div></div>
@@ -2189,11 +2279,13 @@ html.rot #rbInicio .clSonda{padding:0}
   function pintar() {
     var b = $('cargaB'), s = $('cargaPaso'), n = $('cargaPct');
     if (b) b.style.width = (W.p * 100).toFixed(1) + '%'; if (n) n.textContent = Math.round(W.p * 100) + '%';
+    var pp = $('cargaPPct'); if (pp && W.enPartida) pp.firstChild.nodeValue = Math.round(W.p * 100);
     if (s) s.textContent = nom(W.paso) + (W.paso === 'listo' ? '' : '...'); var m = $('cargaMB'); if (m) m.textContent = W.paso === 'descarga' && W.mb ? W.mb : '';
   }
   // la consola: cada paso terminado con su tiempo y lo que cargó (números reales del juego)
   function linea(h) {
     var c = $('cargaCons'), d = document.createElement('div'); if (!c) return; d.innerHTML = h; c.appendChild(d);
+    if (W.enPartida) { var mp = $('cargaMapa'); if (mp) mp.textContent = d.textContent; }   // (en la carga de una partida, abajo: la última línea)
     while (c.children.length > 7) c.removeChild(c.firstChild);
   }
   var seg = function () { return '<i>[' + ('     ' + ((Date.now() - W.t0) / 1000).toFixed(2)).slice(-6) + 's]</i> '; };
@@ -2248,11 +2340,30 @@ html.rot #rbInicio .clSonda{padding:0}
     var c = $('carga'), k = $('cargaCons'), t = $('cargaTit'), i = -1, j;
     clearTimeout(W.tFin); clearTimeout(W.tOc);   // (un cierre anterior todavía en camino no la esconde: se vuelve a abrir enseguida)
     W.mapa = mapa || ''; W.listo = false; W.ayuda = false; W.p = 0; W.paso = ''; W.err = ''; W.mb = ''; W.t0 = W.t = Date.now(); ocultar();
-    c.classList.remove('oc', 'salir', 'fin', 'fallo', 'introDirecto'); if (k) k.innerHTML = ''; if (t) t.textContent = titulo || '';
+    c.classList.remove('oc', 'salir', 'fin', 'fallo', 'introDirecto', 'partida'); W.enPartida = false; if (k) k.innerHTML = ''; if (t) t.textContent = titulo || '';
     linea(seg() + esc(titulo || ''));
     for (j = 0; j < FON.length; j++) if (FON[j][0] === fondoNom) i = j;
     clearInterval(tF); if (i >= 0) iF = i; fondo(true); if (i < 0) tF = setInterval(fondo, 6500);
     clearInterval(tTip); tip(); tTip = setInterval(tip, 6500); pintar();
+  };
+  // la carga de una partida (rbmenus.js, entrarConCarga): o = { tit: [blanco, amarillo], lab, modo, mapa, pasos: [nombres] }
+  W.partida = function (o) {
+    var c = $('carga'); W.enPartida = true; c.classList.add('partida');
+    var T2 = $('cargaPTit'); T2.innerHTML = ''; (o.tit || []).forEach(function (t) { if (!t) return; var s2 = document.createElement('span'); s2.textContent = t; s2.dir = 'auto'; T2.appendChild(s2); });
+    $('cargaPLab').textContent = o.lab || ''; $('cargaPModo').textContent = o.modo || '';
+    $('cargaPMapa').innerHTML = '<em>' + esc(o.mapaT || '') + '</em>' + esc(o.mapa || '');
+    var L = $('cargaPasos'); L.innerHTML = '';
+    (o.pasos || []).forEach(function (t, i) { var li = document.createElement('li'); li.innerHTML = '<i>' + (i + 1) + '</i><b dir="auto"></b><small></small>'; li.querySelector('b').textContent = t; li.querySelector('small').textContent = o.espera || ''; L.appendChild(li); });
+    // (la foto del marco: la del mapa, la misma del fondo; un mapa sin foto propia —del Workshop— lleva la que esté de fondo)
+    var f = document.querySelector('#carga .cgFondo.ve'); $('cargaPFoto').style.backgroundImage = f ? f.style.backgroundImage : '';
+    // (la barra arranca vacía de una vez: venía llena del arranque y bajaba hasta 0)
+    var bb = $('cargaB'); if (bb) { bb.style.transition = 'none'; bb.style.width = '0'; void bb.offsetWidth; bb.style.transition = ''; }
+    pintar();
+  };
+  W.pasoP = function (i, est, det) {
+    var li = document.querySelectorAll('#cargaPasos li')[i]; if (!li) return;
+    li.className = est || ''; if (det !== undefined || est === 'ahora') li.querySelector('small').textContent = det || '';
+    li.querySelector('i').textContent = est === 'hecho' ? '✓' : est === 'ahora' ? '' : String(i + 1);
   };
   W.fin = function (cb) {
     // (la intro se ve entera —se saltea tocando—; como el juego ya está, la carga ya no se va a mostrar: se esconde abajo
@@ -2276,7 +2387,7 @@ html.rot #rbInicio .clSonda{padding:0}
     // (la carga se deja ver al menos 1,2 s; si no se llegó a ver —el juego cargó durante la intro—, se va enseguida)
     var espera = /[?&]test\b/.test(location.search) || c.classList.contains('introDirecto') ? 0 : Math.max(0, 1200 - (Date.now() - W.t0));
     clearTimeout(W.tFin); clearTimeout(W.tOc);
-    W.tFin = setTimeout(function () { clearInterval(tF); if (cb) try { cb(); } catch (e) {} c.classList.add('salir'); W.tOc = setTimeout(function () { c.classList.add('oc'); }, 520); }, espera);
+    W.tFin = setTimeout(function () { clearInterval(tF); if (cb) try { cb(); } catch (e) {} c.classList.add('salir'); W.tOc = setTimeout(function () { c.classList.add('oc'); c.classList.remove('partida'); W.enPartida = false; }, 520); }, espera);
   };
   pintar();
 })();
