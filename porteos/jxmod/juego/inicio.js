@@ -94,6 +94,15 @@ function inicioCrear() {
   if (!INST.of) { INST.of = {}; for (const m of OFICIALES) if (PREFS.mods[m.id]) INST.of[m.id] = true; guardarLS('rb_instalados', INST); }
   // (el celular ahora es un mod: viene instalado y prendido una vez; después cada uno lo apaga si quiere)
   if (!PREFS.celuMod) { PREFS.celuMod = 1; INST.of.celular = true; PREFS.mods.celular = true; guardarLS('rb_instalados', INST); guardarPrefs(); }
+  // (3.9: las armas de GMod y Half-Life 2 dejan de ser las oficiales —ahora las propias, armasjx.js— y quedan como un mod de
+  // la comunidad que viene instalado, apagado: prendido, se ven ésas. Una vez; después cada uno lo borra o lo prende)
+  if (!PREFS.clasicasMod) {
+    PREFS.clasicasMod = 1; INST.mods = INST.mods || {};
+    const m = validarRB({ formato: 'rezobox-mod', id: 'armasclasicas', nombre: 'Armas clásicas (GMod / Half-Life 2)', autor: 'Comunidad', icono: 'ico:balas', etiquetas: ['armas'],
+      descripcion: 'Las Physics Gun, Gravity Gun, Tool Gun y la palanca de Garry\'s Mod y Half-Life 2, como estaban antes. Prendelo para usarlas en vez de las de JXMod.', efectos: { armasClasicas: true } });
+    if (m && typeof m === 'object') { INST.mods.armasclasicas = Object.assign(m, { id: 'armasclasicas', preinstalado: true }); guardarLS('rb_instalados', INST); }
+    guardarPrefs();
+  }
   if (!PREFS.lang) PREFS.lang = { SP: 'es', EN: 'en', PO: 'pt', ID: 'id', RU: 'ru', UA: 'uk' }[PREFS.bienvenida ? PREFS.idioma : ''] || idiomaDelAparato();
   RB.mapa = mapaValido(PREFS.mapa) ? PREFS.mapa : 'FlatGrass';
   overlay('NicknamePanel', false); PREFS.nombreOk = true; guardarPrefs();
@@ -619,7 +628,7 @@ function aparecerDelante(lista) {
 }
 // los mods y el mapa de la comunidad: se llama al empezar la partida (con el mapa cargado, el jugador puesto y sus armas)
 function aplicarMods() {
-  const E = { gravedad: 1, velocidad: 1, salto: 1, tiempo: 1, explosion: 1, municionInfinita: false, invencible: false, skin: null, hora: null, armas: [], aparecer: [] };
+  const E = { gravedad: 1, velocidad: 1, salto: 1, tiempo: 1, explosion: 1, municionInfinita: false, invencible: false, armasClasicas: false, skin: null, hora: null, armas: [], aparecer: [] };
   if (!RB.base) RB.base = { v: JUG.vel_max, s: JUG.salto };
   // modo creador: sin mods (volás libre, sin morir y con munición) y con lo que había en el mapa que se edita
   smReiniciar();

@@ -45,7 +45,7 @@ const modsCatalogo = () => (typeof SALA !== 'undefined' && SALA ? smTodos() : mo
 // dos clases de mods: los que cambian tu personaje o cómo se juega (se prenden y apagan en el menú MOD) y los assets,
 // que ponen cosas (radio, piano, pantalla, props): ésos están siempre a mano en el menú de props, sección Mods
 const NAT_ASSET = ['piano', 'radio', 'pantalla'];
-const modCambiaJuego = (m) => { const e = m.efectos || {}; return ['gravedad', 'velocidad', 'salto', 'tiempo', 'explosion'].some((k) => e[k] !== undefined && e[k] !== 1) || e.municionInfinita || e.invencible || !!e.skin || e.hora != null || (e.armas || []).length > 0; };
+const modCambiaJuego = (m) => { const e = m.efectos || {}; return ['gravedad', 'velocidad', 'salto', 'tiempo', 'explosion'].some((k) => e[k] !== undefined && e[k] !== 1) || e.armasClasicas || e.municionInfinita || e.invencible || !!e.skin || e.hora != null || (e.armas || []).length > 0; };
 const modTipo = (m) => m.tipo || (m.nativo ? (NAT_ASSET.includes(m.nativo) ? 'asset' : 'juego') : !m.codigo && (m.efectos.aparecer || []).length && !modCambiaJuego(m) ? 'asset' : 'juego');
 const modsAssets = () => modsCatalogo().filter((m) => modTipo(m) === 'asset');
 const modsActivosAhora = () => { const f = modsFuente(); return modsCatalogo().filter((m) => f[m.id] && modTipo(m) !== 'asset'); };
@@ -53,11 +53,11 @@ const modFuerza = (id) => { const v = PREFS.modFuerza && PREFS.modFuerza[id]; re
 const conFuerza = (v, f) => (v > 0 ? Math.pow(v, f) : 1 + (v - 1) * f);
 const modAjustable = (m) => { const e = m.efectos || {}; return ['gravedad', 'velocidad', 'salto', 'tiempo', 'explosion'].some((k) => e[k] !== undefined && e[k] !== 1); };
 function smEfectos(act) {
-  const E = { gravedad: 1, velocidad: 1, salto: 1, tiempo: 1, explosion: 1, municionInfinita: false, invencible: false, skin: null, hora: null, armas: [], aparecer: [] };
+  const E = { gravedad: 1, velocidad: 1, salto: 1, tiempo: 1, explosion: 1, municionInfinita: false, invencible: false, armasClasicas: false, skin: null, hora: null, armas: [], aparecer: [] };
   for (const m of act) {
     const e = m.efectos, f = modFuerza(m.id);
     E.gravedad *= conFuerza(e.gravedad, f); E.velocidad *= conFuerza(e.velocidad, f); E.salto *= conFuerza(e.salto, f); E.explosion *= conFuerza(e.explosion, f); E.tiempo *= conFuerza(e.tiempo, f);
-    E.municionInfinita = E.municionInfinita || e.municionInfinita; E.invencible = E.invencible || e.invencible;
+    E.municionInfinita = E.municionInfinita || e.municionInfinita; E.invencible = E.invencible || e.invencible; E.armasClasicas = E.armasClasicas || !!e.armasClasicas;
     if (e.skin) E.skin = e.skin; if (e.hora != null) E.hora = e.hora; E.armas.push(...e.armas);
   }
   return E;
@@ -88,6 +88,7 @@ function smAplicar(primera) {
   // (y el código del mapa de la comunidad, si jugás uno solo)
   const cods = [...act.filter((m) => m.codigo), ...(RB.codMapa || [])], cod = cods.map((m) => m.id).sort().join(',');
   if (cod !== SMOD.cod) { SMOD.cod = cod; modapiCargar(cods); }
+  if (typeof ajxAplicar === 'function') { ajxAplicar(); if (typeof hudArma === 'function' && ARM.lista.length) hudArma(); }   // (las armas clásicas de GMod/HL2 o las propias: armasjx.js)
   RED.wSucio = true; // los demás ven qué mods usás (en tu etiqueta)
   if (typeof MODM !== 'undefined' && MODM.boton) modMenuBoton(); // (el número de activos y la lista del menú MOD)
 }

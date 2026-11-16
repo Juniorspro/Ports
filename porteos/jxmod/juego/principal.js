@@ -529,6 +529,7 @@ function dibujar() {
   if (typeof dibujarPersonas === 'function') dibujarPersonas();
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();
+  if (typeof ajxMundoDibujar === 'function') ajxMundoDibujar();   // (las armas propias sueltas en el mundo: la vitrina de las pruebas y del tráiler, armasjx.js)
   if (JUEGO.estado === 'juego') { cicDibujar(); verDibujar(); nocheDibujar(); }
   dibujarProyectiles();
   lucesJuntar(); lucesPreparar(); espPreparar();

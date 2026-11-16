@@ -63,7 +63,7 @@ export function validarRB(d) {
     const e = d.efectos || {};
     const ef = {
       gravedad: rbNum(e.gravedad, -50, 100, 1), velocidad: rbNum(e.velocidad, 0, 100, 1), salto: rbNum(e.salto, 0, 100, 1), tiempo: rbNum(e.tiempo, 0.05, 4, 1),
-      explosion: rbNum(e.explosion, 0, 100, 1), municionInfinita: !!e.municionInfinita, invencible: !!e.invencible,
+      explosion: rbNum(e.explosion, 0, 100, 1), municionInfinita: !!e.municionInfinita, invencible: !!e.invencible, armasClasicas: !!e.armasClasicas,
       skin: typeof e.skin === 'string' && /^[A-Za-z0-9_]{1,24}$/.test(e.skin) ? e.skin : null,
       hora: e.hora == null || e.hora === '' ? null : rbNum(e.hora, 0, 24, 12),
       armas: rbNombres(e.armas, 50),

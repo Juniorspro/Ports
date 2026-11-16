@@ -6,7 +6,8 @@ import { abrir } from './base.mjs';
 const HTML = process.argv[2], D = (process.argv[3] || '.') + '/', MAPA = process.argv[4] || 'RB_Flatgrass';
 const { b, p, err, ev } = await abrir(HTML);
 const R = []; const ok = (n, c, d) => { R.push(!!c); console.log((c ? 'OK   ' : 'FALLA') + ' ' + n + (d !== undefined ? ' · ' + JSON.stringify(d) : '')); };
-await ev(`PREFS.bienvenida = true; GFX.auto = false; PREFS.gfx = 'alto'; aplicarGfx(); inicioMostrar(false); empezarPartida('${MAPA}'); DIA.hora = 13; DIA.aplicada = -1; 1`);
+// (3.9: las de GMod y HL2 son el mod de la comunidad «Armas clásicas», que viene instalado y apagado: acá se prende)
+await ev(`PREFS.bienvenida = true; GFX.auto = false; PREFS.gfx = 'alto'; aplicarGfx(); PREFS.mods = PREFS.mods || {}; PREFS.mods.armasclasicas = true; inicioMostrar(false); empezarPartida('${MAPA}'); DIA.hora = 13; DIA.aplicada = -1; 1`);
 await p.waitForTimeout(4000);
 const juego = async (s) => { const t0 = await ev(`TIEMPO.t`); for (let i = 0; i < 400 && (await ev(`TIEMPO.t`)) < t0 + s; i++) await p.waitForTimeout(60); };
 const foto = (n) => p.screenshot({ path: D + 'gm_' + n + '.jpg', type: 'jpeg', quality: 85 });

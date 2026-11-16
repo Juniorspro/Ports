@@ -22,7 +22,7 @@ const DEF_ARMAS = {
   // "sujeta" mientras tiene algo agarrado, y sus sonidos)
   GravityGun: { nodo: 'GM_GravGun', ic: 'W_GravGun', fuego: 'GG_fire', sacar: 'GG_draw', quieto: 'GG_idle', sujeta: 'GG_hold', sS: 'GG_Open', sF: ['GG_Launch1', 'GG_Launch2', 'GG_Launch3', 'GG_Launch4'],
     sAgarra: 'GG_Pickup', sSuelta: 'GG_Drop', sVacio: 'GG_Dry', sSosten: 'GG_Hold', car: 0, cad: 0.5, tipo: 'grav', prop: 'GravityGun' },
-  PhysicsGun: { nodo: 'GM_PhysGun', ic: 'W_PhysGun', sacar: 'PG_draw', quieto: 'PG_idle', sujeta: 'PG_hold', sS: 'genericReadyNew_1', sSuelta: 'PG_Off', sSosten: 'PG_Hold', car: 0, cad: 0.1, tipo: 'fisica' },
+  PhysicsGun: { jx: 'fisica', nodo: 'GM_PhysGun', ic: 'W_PhysGun', sacar: 'PG_draw', quieto: 'PG_idle', sujeta: 'PG_hold', sS: 'genericReadyNew_1', sSuelta: 'PG_Off', sSosten: 'PG_Hold', car: 0, cad: 0.1, tipo: 'fisica' },
   ToolBaton: { nodo: 'GM_ToolGun', ic: 'W_ToolGun', fuego: 'TG_fire', sacar: 'TG_draw', quieto: 'TG_idle', sS: 'genericReadyNew_1', sF: ['TG_Fire1', 'TG_Fire2'], car: 0, cad: 0.35, tipo: 'tool' },
   Camera: { nodo: 'Camera', ic: 'Camera', sS: 'Click', car: 0, cad: 0.6, tipo: 'foto' },
 };
@@ -428,12 +428,14 @@ function dibujarVista() {
   if ((!ARM.v && !celmEnMano() && !((DEF_ARMAS[ARM.lista[ARM.i]] || {}).tipo === 'gmswep' && !(DEF_ARMAS[ARM.lista[ARM.i]] || {}).nodo)) || JUG.tercera || HCAM.ver || !JUG.vivo || JUG.vehiculo || ARM.zoom || CIC.vic || CIC.camOn || EDA.on || NOC.cam !== null || NOC.susto) return false;
   if (JUG.cuerpo && JUG.cuerpo.emote && JUG.cuerpo.emote !== 'Patada') return false;   // (haciendo un emote en primera persona se ve el cuerpo, sin el arma en la mano de la cámara)
   if (celmEnMano()) return celmVistaDibujar();   // (el celular: la mano que lo sostiene, celumano.js)
+  { const jx = typeof ajxDeArma === 'function' && ajxDeArma(ARM.lista[ARM.i]); if (jx) return ajxVistaDibujar(jx); }   // (las armas propias de JXMod: armasjx.js)
   { const D = DEF_ARMAS[ARM.lista[ARM.i]] || {}; if (D.tipo === 'gmswep' && !D.nodo) return typeof gmaVistaDibujar === 'function' && gmaVistaDibujar(); }   // (un arma de un addon de GMod con su propio ViewModel)
   vistaUbicar(ARM.v, CAM.pos, CAM.q, ARM.sway); ARM.v.md.encolar();
   return true;
 }
 // punta del arma en el mundo (para trazas y el rayo de la pistola física)
 function vistaPuntaMundo() {
+  if (typeof ajxDeArma === 'function' && ajxDeArma(ARM.lista[ARM.i]) && !JUG.tercera) return ajxBocaMundo();
   const v = ARM.v; if (!v || v.mz < 0 || JUG.tercera) return null;
   v.md.actualizar(); const W = v.md.W[v.mz]; return v3(W[12], W[13], W[14]);
 }
@@ -441,7 +443,7 @@ function dibujarRayoFisica() {
   const A = ARM.agarre; if (!A) return;
   // (de la boca del arma: con la cámara libre o en tercera persona, la del arma en la mano del personaje)
   const o = miraOjo(), f = miraDir(), p0 = bocaArma(f) || vadd(o, v3(0, -0.2, 0)), p1 = vadd(A.b.pos, A.b.q.rot(A.rl));
-  const n = 16, c = [0.35, 0.78, 1, 0.95];   // (celeste, como el de la Physics Gun de GMod)
+  const n = 16, c = typeof ajxDeArma === 'function' && ajxDeArma(ARM.lista[ARM.i]) ? [1, 0.72, 0.18, 0.95] : [0.35, 0.78, 1, 0.95];   // (ámbar, el de JXMod; celeste con las clásicas, como el de GMod)
   let prev = p0;
   const mid = vadd(o, vscale(f, A.dist * 0.5));
   for (let i = 1; i <= n; i++) {
