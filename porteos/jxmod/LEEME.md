@@ -2252,6 +2252,38 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.8.1: lo del Discord después de la 3.8
+
+- **«Editar controles» y «Editar arma en la mano» con la interfaz nueva** (GOLDEN: «tienen una interfaz muy antigua»;
+  controles.js, armaaj.js y paneles.css). Controles: la cabecera con la X, las pestañas con ícono y la marca amarilla, las
+  acciones del teclado en tarjetas de dos columnas (en el celu se ven 8 enteras; antes una lista de 46 % del alto que
+  dejaba ver 2), la tecla en su casilla, la que espera tu tecla en amarillo latiendo y a la vista, y la lista que no vuelve
+  arriba al elegir; las barras de tamaño nuevas (relleno amarillo y perilla cuadrada: `input.pnR`, paneles.js `pnRango`);
+  la tienda de controles con buscador e íconos. La barra del editor de botones: sin el hueco que dejaba el tamaño cuando
+  no hay uno elegido («Tocá un botón para moverlo»). Arma en la mano: la cabecera con el arma en amarillo, las barras que
+  rellenan desde el cero hacia el valor, «Por defecto» y «Listo». Los dos entran con su animación y tienen el golpe y la
+  tinta de los paneles nuevos (nada con «menos movimiento» o Patata). De paso: cerrar los paneles (la pausa) dejaba
+  Controles en pantalla.
+- **Mapa sin aparición: caías al vacío** (Ferrari F40): un mapa sin lugar de aparición se probaba sólo en el punto 0,0.
+  Ahora (`mundoSpawnsValidar`, mundo.js) sirven las apariciones con piso abajo; si ninguna sirve, se buscan pisos en una
+  grilla de 32 × 32 sobre todo el mapa y se elige, con lugar para pararse, el más cercano al centro (o a la aparición que
+  traía) y a la altura del suelo más común, primero los que están adentro del mapa —con el cielo encima—: la cara de
+  arriba de la caja del cielo (el techo del mundo, a 254 m en gm_construct y 660 m en FlatGrass) no cuenta. Probado en
+  FlatGrass y gm_construct sin apariciones: parado en el pasto.
+- **La tele de YouTube grabada salía negra con rayas** (Chillguy): la tele se ve porque el juego deja un hueco y el
+  reproductor está detrás; la grabación copia sólo el juego, y en el hueco quedaban los cuadros anteriores sumados. Ahora
+  cada cuadro del video empieza en negro y en el hueco va la tapa del video con la perspectiva de la tele (`pantTapaEn`,
+  pantalla.js); lo que pasa por delante la sigue tapando. YouTube no deja copiar su video (es de otro sitio): en el video
+  se ve la tapa, no el video que corre.
+- **Multijugador más liviano** (Galaxy A15: «0 fps»): con 8 jugadores simulados (el procesador 4 veces más lento, sin la
+  placa) el cuadro pasa de 4,8 ms solo a 5,4 ms en la sala, así que 8 jugadores no explican 0 fps; falta saber qué pasaba
+  (cuántos, qué server, si se trabó al entrar alguien). Arreglado lo que salió en el perfil: la postura de la 3.7.1
+  rehacía el esqueleto hasta 7 veces por persona y cuadro (ahora como mucho 2, con exactamente el mismo resultado: 0 mm
+  de diferencia) y no se calcula para los que se ven chiquitos; los pasos de los demás, como mucho 10 por segundo y hasta
+  22 m (antes 30).
+- Pruebas: `discord_381` 14/14 (nueva), `personajes_golden` 12/12, `juntos` 7/7, `armas_gmod` 8/8, `menus_x` 6/6,
+  `grabar` 10/10 (fases 1 y 2).
+
 ## JXMod 3.8: la carga al entrar a una partida y las maquinitas renovadas
 
 Pedidos del dueño después de la 3.7.1: la pantalla de carga de GOLDEN (captura del Discord) «a nuestro estilo», y en las

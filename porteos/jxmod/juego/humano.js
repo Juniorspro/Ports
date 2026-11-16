@@ -427,11 +427,22 @@ function humPosturaLean(md, a, b) {
   const A = md.W[a], B = md.W[b]; _hpT.set(B[12] - A[12], B[13] - A[13], B[14] - A[14]);
   return Math.atan2(_hpT.x * _hpF.x + _hpT.y * _hpF.y + _hpT.z * _hpF.z, _hpT.y);
 }
+// girar un hueso alrededor de un eje del mundo con las matrices que ya están, sin rehacer el esqueleto (girarMundo lo rehace
+// antes de cada giro). Vale para varios huesos de una cadena alrededor del MISMO eje —la columna, o el cuello y la cabeza—:
+// esos giros conmutan, así que da exactamente lo mismo que uno por uno. 3.8.1: la postura rehacía el esqueleto 7 veces
+// por persona y por cuadro (en una sala de 9, lo más caro del cuadro después de dibujar); ahora 2
+function humGirarYa(P, i, eje, ang) {
+  if (i === undefined) return; const md = P.md, pa = P.D.sub[i].pa; if (pa === undefined || pa < 0) return;
+  const qW = Quat.axis(eje.x, eje.y, eje.z, ang).mul(m4quat(md.W[i]));
+  const ql = m4quat(md.W[pa]).conj().mul(qW).norm(), r = md.r[i]; r[0] = ql.x; r[1] = ql.y; r[2] = ql.z; r[3] = ql.w; md.sucio = true;
+}
 function humPostura(P, H, dt) {
   const h = P.D.h, md = P.md;
   if (h.Hips === undefined || h.Spine === undefined || h.Neck === undefined || h.Head === undefined || h.LeftArm === undefined || h.RightArm === undefined) return;
   const sp = Math.hypot(P.vel.x, P.vel.z), quiere = P.suelo !== false && !P.emote && !P.sentado && !P.agachado && !P.flota && !(P.nadoK > 0.3) && !P.rag && !P.muerto ? (sp > 4 ? 0.5 : 1) : 0;
   H.posK = (H.posK || 0) + (quiere - (H.posK || 0)) * Math.min(1, dt * 6); const k = H.posK; if (k < 0.01) return;
+  // (3.8.1: los que se ven chiquitos —menos del 15 % del alto de la pantalla— no: no se nota y en una sala costaba)
+  if (P.lejos && !H.postMedir) return;
   // (humAplicar pone la pose nueva sin marcar el modelo: sin esto se medía sobre las matrices del cuadro anterior —que ya
   // traían la corrección— y se sumaba cuadro a cuadro)
   md.sucio = true; md.actualizar();
@@ -440,11 +451,11 @@ function humPostura(P, H, dt) {
   _hpR.x /= n; _hpR.z /= n; _hpF.set(_hpR.z, 0, -_hpR.x);   // (adelante: medido —la cabeza va adelante del cuello—)
   const tor = humPosturaLean(md, h.Hips, h.Neck);
   const dT = Math.min(HUM_POST.max, Math.max(0, tor - HUM_POST.torso)) * k;
-  if (dT > 1e-3) for (const [nom, f] of [['Spine', 0.4], ['Spine1', 0.3], ['Spine2', 0.3]]) girarMundo(P, nom, _hpR, dT * f);
+  if (dT > 1e-3) for (const [nom, f] of [['Spine', 0.4], ['Spine1', 0.3], ['Spine2', 0.3]]) humGirarYa(P, h[nom], _hpR, dT * f);
   md.actualizar();
   const cab = humPosturaLean(md, h.Neck, h.Head);
   const dC = Math.min(HUM_POST.max, Math.max(0, cab - HUM_POST.cabeza)) * k;
   // (el cuello lleva la cabeza atrás —girar la cabeza sólo cambia adónde mira—; la cara queda como venía, sin mirar arriba)
-  if (dC > 1e-3) { girarMundo(P, 'Neck', _hpR, dC); girarMundo(P, 'Head', _hpR, -dC * 0.5); }
+  if (dC > 1e-3) { humGirarYa(P, h.Neck, _hpR, dC); humGirarYa(P, h.Head, _hpR, -dC * 0.5); }
   if (H.postMedir) { md.actualizar(); H.post = [tor, cab, dT, dC, humPosturaLean(md, h.Hips, h.Neck), humPosturaLean(md, h.Neck, h.Head)]; }   // (las pruebas)
 }

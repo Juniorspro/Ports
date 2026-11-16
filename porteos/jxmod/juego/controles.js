@@ -37,30 +37,45 @@ function ctlAbrir(desde) {
   let p = $('ctlPanel');
   if (!p) { p = document.createElement('div'); p.id = 'ctlPanel'; p.className = 'panel oc'; p.innerHTML = '<div class="caja" id="ctlCaja"></div>'; document.body.appendChild(p); }
   $('ajustes').classList.add('oc'); p.classList.remove('oc'); UI.abierto = 'ajustes';
-  ctlDibujar();
+  if (typeof pnIniciar === 'function') { pnIniciar(); pnNivelPoner(); }   // (el golpe y la tinta de los paneles nuevos)
+  CTL.abre = true; ctlDibujar();
 }
 function ctlCerrar() { const p = $('ctlPanel'); if (p) p.classList.add('oc'); CTL.capturando = null; abrirAjustes(CTL.desde); }
 function ctlDibujar(tab) {
   CTL.tab = tab || CTL.tab || (ENT.tactil || COARSE ? 'tactil' : 'teclas');
   const c = $('ctlCaja'); if (!c) return;
-  const pest = (k, t) => `<button class="boton ctlTab${CTL.tab === k ? ' sel' : ''}" data-ctl="tab:${k}">${esc(T(t))}</button>`;
+  // (3.8.1, pedido de GOLDEN: «tiene una interfaz muy antigua»; ahora con el lenguaje de los paneles nuevos —paneles.css—)
+  const pest = (k, t, g) => `<button class="boton ctlTab${CTL.tab === k ? ' sel' : ''}" data-ctl="tab:${k}">${glifo(g)}<span>${esc(T(t))}</span></button>`;
+  const rango = (id, min, max, v, txt) => `<label class="fila ctlRango"><span>${esc(txt)}</span><input type="range" class="pnR" id="${id}" min="${min}" max="${max}" step="5" value="${v}"><b id="${id}V">${v}%</b></label>`;
   let cuerpo = '';
   if (CTL.tab === 'teclas') {
-    cuerpo = `<div class="ctlLista">${CTL_ACC.map(([a]) => `<div class="fila ctlFila"><span>${esc(T('ctl.a.' + a))}</span><button class="boton ctlTecla${CTL.capturando === a ? ' esperando' : ''}" data-ctl="tecla:${a}">${CTL.capturando === a ? esc(T('ctl.aprieta')) : esc(ctlNomTecla(ctlTeclaDe(a)))}</button></div>`).join('')}</div>
-      <div class="fila"><button class="boton" data-ctl="teclasFab">${esc(T('ctl.fabrica'))}</button></div>`;
+    cuerpo = `<div class="ctlLista ctlTeclas">${CTL_ACC.map(([a]) => `<div class="fila ctlFila"><span>${esc(T('ctl.a.' + a))}</span><button class="boton ctlTecla${CTL.capturando === a ? ' esperando' : ''}" data-ctl="tecla:${a}">${CTL.capturando === a ? esc(T('ctl.aprieta')) : esc(ctlNomTecla(ctlTeclaDe(a)))}</button></div>`).join('')}</div>
+      <div class="fila ctlPie"><button class="boton gris" data-ctl="teclasFab">${glifo('girar')}<span>${esc(T('ctl.fabrica'))}</span></button></div>`;
   } else if (CTL.tab === 'tactil') {
-    cuerpo = `<p class="ctlAyuda">${esc(T('ctl.ayudaTac'))}</p>
-      <div class="fila"><button class="boton" data-ctl="editar">${esc(T('ctl.editar'))}</button></div>
-      <div class="fila">${esc(T('aj.hud'))} <input type="range" id="ctlTam" min="50" max="160" step="5" value="${+PREFS.hud || 80}"><span id="ctlTamV">${+PREFS.hud || 80}%</span></div>
-      <div class="fila">${esc(T('ctl.palanca'))} <input type="range" id="ctlPal" min="60" max="160" step="5" value="${Math.round((+PREFS.palTam || 1) * 100)}"><span id="ctlPalV">${Math.round((+PREFS.palTam || 1) * 100)}%</span></div>
-      <div class="fila"><button class="boton" data-ctl="hudFab">${esc(T('ctl.fabrica'))}</button></div>${ctlNuevaHTML()}`;
+    cuerpo = `<div class="ctlEditar"><p class="ctlAyuda">${esc(T('ctl.ayudaTac'))}</p><button class="boton" data-ctl="editar">${glifo('mano')}<span>${esc(T('ctl.editar'))}</span></button></div>
+      ${rango('ctlTam', 50, 160, +PREFS.hud || 80, T('aj.hud'))}
+      ${rango('ctlPal', 60, 160, Math.round((+PREFS.palTam || 1) * 100), T('ctl.palanca'))}
+      <div class="fila ctlPie"><button class="boton gris" data-ctl="hudFab">${glifo('girar')}<span>${esc(T('ctl.fabrica'))}</span></button></div>${ctlNuevaHTML()}`;
   } else {
-    cuerpo = `<div class="fila"><input id="ctlNom" maxlength="40" placeholder="${esc(T('ctl.nombre'))}"><button class="boton" data-ctl="publicar">${esc(T('ctl.publicar'))}</button></div>
-      <div class="fila"><input id="ctlBus" type="search" maxlength="40" placeholder="${esc(T('buscar'))}" value="${esc(CTL.q || '')}"></div>
+    cuerpo = `<div class="fila ctlPub"><input id="ctlNom" maxlength="40" placeholder="${esc(T('ctl.nombre'))}"><button class="boton" data-ctl="publicar">${glifo('subir')}<span>${esc(T('ctl.publicar'))}</span></button></div>
+      <div class="fila ctlBusF">${glifo('buscar')}<input id="ctlBus" type="search" maxlength="40" placeholder="${esc(T('buscar'))}" value="${esc(CTL.q || '')}"></div>
       <div id="ctlTiendaL" class="ctlLista"><p class="ctlAyuda">${esc(T('cargando'))}</p></div>`;
   }
-  c.innerHTML = `<h3>${esc(T('ctl.titulo'))}</h3><div class="fila ctlTabs">${pest('teclas', 'ctl.teclado')}${pest('tactil', 'ctl.pantalla')}${pest('tienda', 'ctl.tienda')}</div>${cuerpo}
-    <button class="boton" data-ctl="cerrar">${esc(T('ctl.listo'))}</button>`;
+  const cu0 = c.querySelector('.ctlCuerpo'), sc = cu0 && CTL.ultTab === CTL.tab && !CTL.abre ? cu0.scrollTop : 0;
+  c.innerHTML = `<div class="ctlCab"><h3>${glifo('ajustes')}<span>${esc(T('ctl.titulo'))}</span></h3><button class="ctlX" data-ctl="cerrar" aria-label="${esc(T('ctl.listo'))}">${glifo('no')}</button></div>
+    <div class="fila ctlTabs">${pest('teclas', 'ctl.teclado', 'codigo')}${pest('tactil', 'ctl.pantalla', 'mano')}${pest('tienda', 'ctl.tienda', 'mundo')}</div><div class="ctlCuerpo">${cuerpo}</div>
+    <button class="boton ctlListo" data-ctl="cerrar">${glifo('si')}<span>${esc(T('ctl.listo'))}</span></button>`;
+  for (const r of c.querySelectorAll('input.pnR')) pnRango(r);
+  // (al redibujar —elegir una tecla— la lista se queda donde estaba, y la que espera tu tecla se ve entera)
+  const cu = c.querySelector('.ctlCuerpo'); if (cu && sc) cu.scrollTop = sc;
+  const es = c.querySelector('.esperando'); if (es) es.closest('.ctlFila').scrollIntoView({ block: 'nearest' });
+  // (al abrir, la caja entra; al abrir o cambiar de pestaña, las filas bajan en cascada —no cada vez que se redibuja, como al
+  // elegir una tecla—)
+  if (CTL.abre || CTL.ultTab !== CTL.tab) {
+    c.classList.remove('ctlEntra', 'ctlAbre'); void c.offsetWidth; c.classList.add('ctlEntra'); if (CTL.abre) c.classList.add('ctlAbre');
+    clearTimeout(CTL.tEntra); CTL.tEntra = setTimeout(() => c.classList.remove('ctlEntra', 'ctlAbre'), 1000);
+  }
+  CTL.abre = false; CTL.ultTab = CTL.tab;
   c.onclick = (e) => { const b = e.target.closest('[data-ctl]'); if (b) ctlAccion(b.dataset.ctl); };
   const tam = $('ctlTam'); if (tam) tam.oninput = () => { PREFS.hud = +tam.value; $('ctlTamV').textContent = tam.value + '%'; hudDisponer(); guardarPrefs(); };
   const pal = $('ctlPal'); if (pal) pal.oninput = () => { PREFS.palTam = +pal.value / 100; $('ctlPalV').textContent = pal.value + '%'; hudDisponer(); guardarPrefs(); };
@@ -103,7 +118,7 @@ function ctlEditar() {
   let o = $('ctlEd');
   if (!o) {
     o = document.createElement('div'); o.id = 'ctlEd';
-    o.innerHTML = `<div class="ctlBarra"><button class="boton" data-ce="modo"></button><span class="ctlTamBox">${esc(T('ctl.tam'))} <input type="range" id="ctlSelTam" min="40" max="260" step="5"></span>
+    o.innerHTML = `<div class="ctlBarra"><button class="boton" data-ce="modo"></button><span class="ctlTamBox"><span class="ctlTamTx"></span><input type="range" class="pnR" id="ctlSelTam" min="40" max="260" step="5"></span>
       <button class="boton" data-ce="ordenar">${esc(T('hud.ordenar'))}</button><button class="boton ctlIA" data-ce="ordenarIA">${esc(T('hud.ordenarIA'))}</button>
       <button class="boton" data-ce="fab">${esc(T('ctl.fabrica'))}</button><button class="boton" data-ce="cancelar">${esc(T('ctl.cancelar'))}</button><button class="boton ctlGuardar" data-ce="guardar">${esc(T('ctl.guardar'))}</button></div>`;
     document.body.appendChild(o);
@@ -127,8 +142,9 @@ function ctlMostrar() {
   for (let i = 0; i < 4; i++) { const e = $('bmod' + i); if (e && !e._ctl) e.innerHTML = '<b class="ctlLetra larga">MOD</b>'; }   // (dónde van los botones que agregan las armas de los mods)
   const b = document.querySelector('#ctlEd [data-ce=modo]'); if (b) b.textContent = T(CTL.modo === 'veh' ? 'ctl.enVeh' : 'ctl.aPie');
   const r = CTL.sel && HUD_TACTIL.find((x) => x[0] === CTL.sel), tb = document.querySelector('.ctlTamBox');
-  if (tb) tb.style.visibility = r ? '' : 'hidden';
-  if (r) $('ctlSelTam').value = Math.round(ctlPosDe(r)[2] / r[5] * 100);
+  // (sin uno elegido, en el lugar del tamaño va qué hacer: antes quedaba un hueco)
+  if (tb) { tb.classList.toggle('sinSel', !r); tb.querySelector('.ctlTamTx').textContent = T(r ? 'ctl.tam' : 'ctl.tocaBoton'); }
+  if (r) { $('ctlSelTam').value = Math.round(ctlPosDe(r)[2] / r[5] * 100); if (typeof pnRango === 'function') pnRango($('ctlSelTam')); }
   hudDisponer();
 }
 const ctlPosDe = (r) => { const o = ctlPosiciones()[r[0]]; return o && o.length === 3 ? o : (typeof HUD !== 'undefined' && HUD.ef && HUD.ef[r[0]]) || [r[3], r[4], r[5]]; };
@@ -198,7 +214,7 @@ async function ctlTiendaCargar() {
     const r = await fetch(TIENDA_URL + 'controles?q=' + encodeURIComponent(CTL.q || '')); if (!r.ok) throw new Error(r.status);
     const it = (await r.json()).items || [];
     if (!$('ctlTiendaL')) return;
-    L.innerHTML = it.length ? it.map((x) => `<div class="fila ctlFila"><span><b dir="auto">${esc(x.nombre)}</b> <small>${esc(x.autor || '')} · ${x.usos | 0} ${esc(T('ctl.usos'))}</small></span><button class="boton" data-ctl="usar:${esc(x.id)}">${esc(T('ctl.usar'))}</button></div>`).join('') : `<p class="ctlAyuda">${esc(T('sinRes'))}</p>`;
+    L.innerHTML = it.length ? it.map((x) => `<div class="fila ctlFila ctlTi"><span><b dir="auto">${esc(x.nombre)}</b> <small>${esc(x.autor || '')} · ${x.usos | 0} ${esc(T('ctl.usos'))}</small></span><button class="boton" data-ctl="usar:${esc(x.id)}">${glifo('bajar')}<span>${esc(T('ctl.usar'))}</span></button></div>`).join('') : `<p class="ctlAyuda">${esc(T('sinRes'))}</p>`;
   } catch (e) { L.innerHTML = `<p class="ctlAyuda">${esc(T('ctl.sinTienda'))}</p>`; }
 }
 async function ctlUsarDeTienda(id) {

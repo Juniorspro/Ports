@@ -17,9 +17,10 @@ function armaAjAplicar(M, k) {
 function armaAjPanel() {
   let p = document.getElementById('armaAjPan'); if (p) return p;
   p = document.createElement('div'); p.id = 'armaAjPan'; p.className = 'oc';
-  const fila = (k) => `<label class="aaFila"><span data-aat="${k}"></span><input type="range" data-aa="${k}" min="-1" max="1" step="0.02" value="0"><b data-aav="${k}"></b></label>`;
-  p.innerHTML = `<div class="aaCab"><b class="aaTit"></b><button class="emuX" data-aab="listo" aria-label="x">×</button></div>${['z', 'x', 'y', 'g'].map(fila).join('')}
-    <div class="aaBot"><button class="boton" data-aab="cero"></button><button class="boton azul" data-aab="listo"></button></div>`;
+  // (3.8.1, pedido de GOLDEN: «tiene una interfaz muy antigua»; ahora con el lenguaje de los paneles nuevos —paneles.css—)
+  const fila = (k) => `<label class="aaFila"><span data-aat="${k}"></span><input type="range" class="pnR" data-aa="${k}" min="-1" max="1" step="0.02" value="0"><b data-aav="${k}"></b></label>`;
+  p.innerHTML = `<div class="aaCab">${glifo('pistola')}<b class="aaTit"></b><em class="aaArma"></em><button class="aaX" data-aab="listo" aria-label="x">${glifo('no')}</button></div><div class="aaFilas">${['z', 'x', 'y', 'g'].map(fila).join('')}</div>
+    <div class="aaBot"><button class="boton gris" data-aab="cero">${glifo('girar')}<span class="aaCero"></span></button><button class="boton" data-aab="listo">${glifo('si')}<span class="aaListo"></span></button></div>`;
   document.body.appendChild(p);
   p.addEventListener('pointerdown', (ev) => ev.stopPropagation()); p.addEventListener('touchstart', (ev) => ev.stopPropagation(), { passive: true });
   p.oninput = (ev) => {
@@ -36,18 +37,19 @@ function armaAjPanel() {
 }
 function armaAjPintar() {
   const p = document.getElementById('armaAjPan'); if (!p) return; const n = ARM.lista[ARM.i], a = (PREFS.armaAj && PREFS.armaAj[n]) || {};
-  p.querySelector('.aaTit').textContent = T('aa.titulo') + ' · ' + (typeof nombreArma === 'function' ? nombreArma(n) : n);
+  p.querySelector('.aaTit').textContent = T('aa.titulo'); p.querySelector('.aaArma').textContent = typeof nombreArma === 'function' ? nombreArma(n) : n;
   for (const k of ['z', 'x', 'y', 'g']) {
-    const v = +a[k] || 0; p.querySelector(`[data-aa="${k}"]`).value = String(v / ARMAJ_LIM[k]);
+    const v = +a[k] || 0, r = p.querySelector(`[data-aa="${k}"]`); r.value = String(v / ARMAJ_LIM[k]); pnRango(r, true);
     p.querySelector(`[data-aat="${k}"]`).textContent = T('aa.' + k);
     p.querySelector(`[data-aav="${k}"]`).textContent = k === 'g' ? Math.round(v) + '°' : (v >= 0 ? '+' : '') + Math.round(v * 100) + ' cm';
   }
-  p.querySelector('[data-aab="cero"]').textContent = T('aa.cero'); p.querySelectorAll('[data-aab="listo"]')[1].textContent = T('aa.listo');
+  p.querySelector('.aaCero').textContent = T('aa.cero'); p.querySelector('.aaListo').textContent = T('aa.listo');
 }
 function armaAjAbrir() {
   const n = ARM.lista[ARM.i];
   if (!ARM.v || JUG.tercera || !n) { aviso(T('aa.sinArma'), 2.5); return; }
   if (typeof cerrarPaneles === 'function') cerrarPaneles();
+  if (typeof pnIniciar === 'function') { pnIniciar(); pnNivelPoner(); }
   armaAjPanel().classList.remove('oc'); armaAjPintar(); UI.abierto = 'armaAj'; document.body.classList.add('armaAjOn');
   if (typeof soltarPuntero === 'function') soltarPuntero();
 }

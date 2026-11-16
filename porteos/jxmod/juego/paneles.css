@@ -628,3 +628,109 @@ html.pnQuieto :is(#rbInicio .rbPan,#ajustes,#cuDlg,#cfDlg,#rbInicio .mpModal,#rb
 html.pnQuieto :is(#rbInicio .rbPan,#ajustes,#cuDlg,#cfDlg,#rbInicio .mpModal) ::before,html.pnQuieto :is(#rbInicio .rbPan,#ajustes,#cuDlg,#cfDlg,#rbInicio .mpModal) ::after{animation:none!important;transition:none!important}
 html.pnQuieto .pnRasgon,html.pnQuieto .pnFx,html.pnQuieto .pnMarca{display:none!important}
 @media (prefers-reduced-motion:reduce){#rbInicio .rbPan,#rbInicio .rbPan *,#rbInicio .rbPan ::before,#rbInicio .rbPan ::after,#ajustes *,#cuDlg *,#cfDlg *,#rbInicio .mpModal *{animation:none!important;transition:none!important}.pnRasgon,.pnFx,.pnMarca{display:none!important}}
+
+/* ======================= Editar controles y el arma en la mano (3.8.1; GOLDEN: «tienen una interfaz muy antigua») ======================= */
+/* las barras: la pista oscura con el relleno amarillo (desde el cero si va de menos a más: pnRango, paneles.js) y la perilla cuadrada */
+input[type=range].pnR{-webkit-appearance:none;appearance:none;background:transparent;height:30px;margin:0;min-width:0;cursor:pointer;touch-action:pan-y;accent-color:var(--pnA)}
+input[type=range].pnR::-webkit-slider-runnable-track{height:6px;background:linear-gradient(90deg,transparent var(--a,0%),var(--pnA) var(--a,0%),var(--pnA) var(--b,50%),transparent var(--b,50%)),var(--pnPl4);box-shadow:inset 0 0 0 1px var(--pnLin)}
+input[type=range].pnR::-moz-range-track{height:6px;background:linear-gradient(90deg,transparent var(--a,0%),var(--pnA) var(--a,0%),var(--pnA) var(--b,50%),transparent var(--b,50%)),var(--pnPl4)}
+input[type=range].pnR::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:24px;margin-top:-9px;background:var(--pnT);border:0;border-radius:0;box-shadow:0 0 0 2px var(--pnNe),3px 3px 0 rgba(0,0,0,.5);transition:transform .12s,background-color .12s}
+input[type=range].pnR::-moz-range-thumb{width:16px;height:24px;border:0;border-radius:0;background:var(--pnT);box-shadow:0 0 0 2px var(--pnNe)}
+input[type=range].pnR:active::-webkit-slider-thumb{transform:scaleY(1.15);background:var(--pnA)}
+input[type=range].pnR:focus{outline:none}input[type=range].pnR:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 2px var(--pnNe),0 0 0 4px var(--pnA)}
+
+/* Editar controles (Ajustes → Controles: controles.js) */
+#ctlPanel{background:rgba(0,0,0,.55)}
+#ctlPanel .caja{position:relative;box-sizing:border-box;width:min(780px,calc(var(--vw)*94));max-width:none;max-height:calc(var(--vh)*94);min-width:0;padding:0;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--pnGrano,none) 0 0/160px 160px,var(--pnPl);color:var(--pnT);border:1px solid var(--pnLin);border-radius:0;box-shadow:6px 7px 0 rgba(0,0,0,.5);color-scheme:dark;font:var(--pnFs)/1.3 var(--pnFr)}
+#ctlPanel .caja.ctlAbre{animation:pnPanelIn .26s cubic-bezier(.2,.8,.3,1) both}
+#ctlPanel .ctlCab{position:relative;flex:none;display:flex;align-items:stretch;background:var(--pnPozo);border-bottom:1px solid var(--pnLin)}
+#ctlPanel .ctlCab::before{content:'';flex:none;width:8px;background:var(--pnA)}
+#ctlPanel .ctlCab::after{content:'';position:absolute;inset-inline-end:calc(var(--pnH) + 4px);bottom:0;width:min(30%,200px);height:3px;background:var(--pnRayas);opacity:.75;pointer-events:none}
+#ctlPanel .ctlCab h3{flex:1;min-width:0;display:flex;align-items:center;gap:.4em;margin:0;padding:0 14px;min-height:calc(var(--pnH) + 2px);font:600 var(--pnFg)/1 var(--pnF);letter-spacing:.035em;text-transform:uppercase;white-space:nowrap}
+#ctlPanel .ctlCab h3 .gli{width:.8em;height:.8em;flex:none;color:var(--pnA)}
+#ctlPanel .ctlX{flex:none;width:calc(var(--pnH) + 4px);margin:0;padding:0;border:0;border-inline-start:1px solid var(--pnLin);background:transparent;color:var(--pnT);display:flex;align-items:center;justify-content:center;cursor:pointer}
+#ctlPanel .ctlX .gli{width:22px;height:22px}
+@media (hover:hover){#ctlPanel .ctlX:hover{background:var(--pnRo);color:var(--pnNe)}}
+#ctlPanel .fila.ctlTabs{flex:none;display:flex;flex-wrap:nowrap;gap:0;margin:0;padding:0 8px;border-bottom:1px solid var(--pnLin);overflow-x:auto;scrollbar-width:none}
+#ctlPanel .fila.ctlTabs::-webkit-scrollbar{display:none}
+#ctlPanel .ctlTabs .boton.ctlTab{display:inline-flex!important;width:auto!important;flex:none;align-items:center;gap:.45em;margin:0;padding:0 16px;min-height:var(--pnH);background:transparent;color:var(--pnT2);border-radius:0;box-shadow:inset 0 -3px 0 transparent;
+  font:500 var(--pnFt)/1 var(--pnF);letter-spacing:.06em;text-transform:uppercase;transition:color .15s,box-shadow .22s,background-color .15s;--pnTinta:rgba(242,179,27,.3)}
+#ctlPanel .ctlTabs .boton.ctlTab .gli{width:1.05em;height:1.05em;flex:none}
+#ctlPanel .ctlTabs .boton.ctlTab.sel{color:var(--pnT);background:rgba(242,179,27,.07);box-shadow:inset 0 -4px 0 var(--pnA)}
+#ctlPanel .ctlTabs .boton.ctlTab.sel .gli{color:var(--pnA)}
+@media (hover:hover){#ctlPanel .ctlTabs .boton.ctlTab:not(.sel):hover{color:var(--pnT);background:var(--pnPl2)}}
+#ctlPanel .ctlCuerpo{flex:1 1 auto;min-height:0;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;overscroll-behavior:contain}
+#ctlPanel .boton{display:inline-flex;align-items:center;justify-content:center;gap:.5em;box-sizing:border-box;width:auto;margin:0;min-height:calc(var(--pnH) - 6px);padding:0 16px;border:0;border-radius:0;
+  background:var(--pnA);color:var(--pnNe);font:600 var(--pnFt)/1 var(--pnF);letter-spacing:.06em;text-transform:uppercase;box-shadow:3px 3px 0 rgba(0,0,0,.45);--pnTinta:rgba(0,0,0,.2)}
+#ctlPanel .boton .gli{width:1.1em;height:1.1em;flex:none}
+#ctlPanel .boton.gris{background:var(--pnPl3);color:var(--pnT);box-shadow:inset 0 0 0 1px var(--pnLin2);--pnTinta:rgba(242,179,27,.3)}
+@media (hover:hover){#ctlPanel .boton:not(.gris):not(.ctlTab):not(.ctlTecla):hover{background:var(--pnA2)}#ctlPanel .boton.gris:hover{background:var(--pnPl4);box-shadow:inset 0 0 0 1px var(--pnLin2),inset 0 -3px 0 var(--pnA)}}
+#ctlPanel .ctlLista{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:6px}
+#ctlPanel .fila.ctlFila{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0;padding:4px 4px 4px 12px;background:var(--pnPl1);border:1px solid var(--pnLin);border-inline-start:3px solid var(--pnPl4);color:var(--pnT);font:var(--pnFs)/1.25 var(--pnFr);transition:border-color .18s,background-color .18s}
+#ctlPanel .ctlFila>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+@media (hover:hover){#ctlPanel .fila.ctlFila:hover{border-inline-start-color:var(--pnA);background:var(--pnPl2)}}
+#ctlPanel .ctlFila .boton.ctlTecla{flex:none;min-width:100px;min-height:clamp(34px,calc(var(--vh)*9),40px);padding:0 12px;background:var(--pnPozo);color:var(--pnA);box-shadow:inset 0 0 0 1px var(--pnLin2),inset 0 -3px 0 var(--pnPl4);font:700 var(--pnFt)/1 Consolas,'DejaVu Sans Mono',Menlo,monospace;letter-spacing:0;text-transform:none;--pnTinta:rgba(242,179,27,.3)}
+@media (hover:hover){#ctlPanel .ctlFila .boton.ctlTecla:hover{box-shadow:inset 0 0 0 1px var(--pnA),inset 0 -3px 0 var(--pnA)}}
+#ctlPanel .ctlFila .boton.ctlTecla.esperando{background:var(--pnA)!important;color:var(--pnNe);font-family:var(--pnF);text-transform:uppercase;letter-spacing:.05em;animation:ctlLate .9s ease-in-out infinite}
+#ctlPanel .fila.ctlFila:has(.esperando){border-inline-start-color:var(--pnA);background:rgba(242,179,27,.08)}
+@keyframes ctlLate{50%{box-shadow:0 0 0 5px rgba(242,179,27,.28)}}
+#ctlPanel .ctlTi>span{display:flex;flex-direction:column;gap:3px}#ctlPanel .ctlTi b{font:600 var(--pnFt)/1.1 var(--pnF);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ctlPanel .ctlTi small{color:var(--pnT3);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ctlPanel .ctlAyuda{margin:0;color:var(--pnT2);font-size:calc(var(--pnFs) - 1px);line-height:1.35}
+#ctlPanel .ctlEditar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;background:var(--pnPl1);border:1px solid var(--pnLin);border-inline-start:3px solid var(--pnA)}
+#ctlPanel .ctlEditar .ctlAyuda{flex:1 1 260px}
+#ctlPanel .fila.ctlRango{display:grid;grid-template-columns:minmax(0,max-content) minmax(80px,1fr) 58px;align-items:center;gap:14px;margin:0;padding:4px 12px;background:var(--pnPl1);border:1px solid var(--pnLin);
+  color:var(--pnT2);font:500 var(--pnFs)/1.2 var(--pnF);letter-spacing:.05em;text-transform:uppercase}
+#ctlPanel .ctlRango input.pnR{width:100%}#ctlPanel .ctlRango b{text-align:end;font:700 14px Consolas,'DejaVu Sans Mono',Menlo,monospace;color:var(--pnA)}
+#ctlPanel .fila.ctlPie,#ctlPanel .fila.ctlPub,#ctlPanel .fila.ctlBusF{display:flex;align-items:center;gap:8px;margin:0}
+#ctlPanel :is(#ctlNom,#ctlBus){flex:1;min-width:0;box-sizing:border-box;min-height:calc(var(--pnH) - 6px);margin:0;padding:0 .8em;background:var(--pnPozo);color:var(--pnT);border:0;border-radius:0;box-shadow:inset 0 0 0 1px var(--pnLin2);font:var(--pnFs) var(--pnFr)}
+#ctlPanel :is(#ctlNom,#ctlBus):focus{outline:none;box-shadow:inset 0 0 0 1px var(--pnLin2),inset 0 -3px 0 var(--pnA)}
+#ctlPanel .ctlBusF{position:relative}#ctlPanel .ctlBusF>.gli{position:absolute;inset-inline-start:11px;width:18px;height:18px;color:var(--pnT3);pointer-events:none}#ctlPanel .ctlBusF #ctlBus{padding-inline-start:38px}
+#ctlPanel .ctlNueva{border-radius:0;margin:0}#ctlPanel .ctlNueva .boton{min-height:40px}
+#ctlPanel .boton.ctlListo{flex:none;align-self:stretch;margin:0 14px 12px;min-height:var(--pnH)}
+/* (la cascada: al abrir o cambiar de pestaña, uno tras otro; con «menos movimiento» o Patata, nada) */
+#ctlPanel .caja.ctlEntra :is(.ctlCuerpo>*,.ctlLista>*){animation:pnSube .3s cubic-bezier(.2,.8,.3,1) both}
+#ctlPanel .caja.ctlEntra .ctlCuerpo>:nth-child(2),#ctlPanel .caja.ctlEntra .ctlLista>:nth-child(2){animation-delay:25ms}
+#ctlPanel .caja.ctlEntra .ctlCuerpo>:nth-child(3),#ctlPanel .caja.ctlEntra .ctlLista>:nth-child(3){animation-delay:50ms}
+#ctlPanel .caja.ctlEntra .ctlCuerpo>:nth-child(4),#ctlPanel .caja.ctlEntra .ctlLista>:nth-child(4){animation-delay:75ms}
+#ctlPanel .caja.ctlEntra .ctlCuerpo>:nth-child(5),#ctlPanel .caja.ctlEntra .ctlLista>:nth-child(5){animation-delay:100ms}
+#ctlPanel .caja.ctlEntra .ctlLista>:nth-child(6){animation-delay:125ms}#ctlPanel .caja.ctlEntra .ctlLista>:nth-child(7){animation-delay:150ms}
+#ctlPanel .caja.ctlEntra .ctlLista>:nth-child(8){animation-delay:175ms}#ctlPanel .caja.ctlEntra .ctlLista>:nth-child(n+9){animation-delay:200ms}
+html.pnQuieto #ctlPanel .caja,html.pnQuieto #ctlPanel .caja *,html.pnBajo #ctlPanel .caja.ctlEntra *{animation:none!important}
+
+/* el editor de los botones (Editar botones): la barra de arriba */
+#ctlEd .ctlBarra{gap:6px;padding:6px;border-radius:0;background:var(--pnGrano,none) 0 0/160px 160px,var(--pnPl);border:1px solid var(--pnLin);box-shadow:4px 5px 0 rgba(0,0,0,.5);color:var(--pnT2);font:500 13px/1 var(--pnF);letter-spacing:.05em;text-transform:uppercase}
+#ctlEd .ctlBarra .boton{display:inline-flex;align-items:center;min-height:38px;margin:0;padding:0 12px;border:0;border-radius:0;background:var(--pnPl3);color:var(--pnT);box-shadow:inset 0 0 0 1px var(--pnLin2);font:600 14px/1 var(--pnF);letter-spacing:.06em;text-transform:uppercase;--pnTinta:rgba(242,179,27,.3)}
+#ctlEd .ctlBarra .boton.ctlGuardar{background:var(--pnA)!important;color:var(--pnNe);box-shadow:3px 3px 0 rgba(0,0,0,.45);--pnTinta:rgba(0,0,0,.2)}
+#ctlEd .ctlBarra .boton.ctlIA{background:var(--pnPl3);color:var(--pnVi);box-shadow:inset 0 0 0 1px var(--pnVi)}
+#ctlEd .ctlTamBox{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:0 10px;background:var(--pnPozo);box-shadow:inset 0 0 0 1px var(--pnLin)}#ctlEd .ctlTamBox input{width:150px}
+#ctlEd .ctlTamBox.sinSel input{display:none}#ctlEd .ctlTamBox.sinSel{color:var(--pnA)}
+body.ctlEdit .ctlSel{outline:3px solid var(--pnA)!important;box-shadow:0 0 0 6px rgba(242,179,27,.3)!important}
+
+/* el arma en la mano (armaaj.js): abajo, para ver el arma mientras se mueve */
+#armaAjPan{box-sizing:border-box;width:min(540px,calc(var(--vw)*94));padding:0;overflow:hidden;background:var(--pnGrano,none) 0 0/160px 160px,var(--pnPl);border:1px solid var(--pnLin);border-radius:0;box-shadow:6px 7px 0 rgba(0,0,0,.5);color:var(--pnT);color-scheme:dark}
+#armaAjPan:not(.oc){animation:aaSube .28s cubic-bezier(.2,.8,.3,1) both}
+@keyframes aaSube{from{opacity:0;transform:translate(-50%,16px)}to{opacity:1;transform:translateX(-50%)}}
+html.pnQuieto #armaAjPan{animation:none}
+#armaAjPan .aaCab{position:relative;display:flex;align-items:center;gap:8px;margin:0;padding:0 0 0 14px;min-height:clamp(38px,calc(var(--vh)*10.5),46px);background:var(--pnPozo);border-bottom:1px solid var(--pnLin)}
+#armaAjPan .aaCab::before{content:'';position:absolute;inset-inline-start:0;top:0;bottom:0;width:6px;background:var(--pnA)}
+#armaAjPan .aaCab>.gli{flex:none;width:22px;height:22px;color:var(--pnA)}
+#armaAjPan .aaCab b{flex:none;font:600 clamp(16px,calc(var(--vh)*4.6),21px)/1 var(--pnF);letter-spacing:.04em;text-transform:uppercase}
+#armaAjPan .aaCab em{flex:1;min-width:0;font:500 clamp(14px,calc(var(--vh)*3.8),17px)/1 var(--pnF);font-style:normal;color:var(--pnA);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#armaAjPan .aaCab em::before{content:'· ';color:var(--pnT3)}
+#armaAjPan .aaX{flex:none;align-self:stretch;width:clamp(40px,calc(var(--vh)*11),48px);margin:0;padding:0;border:0;border-inline-start:1px solid var(--pnLin);background:transparent;color:var(--pnT);display:flex;align-items:center;justify-content:center;cursor:pointer}
+#armaAjPan .aaX .gli{width:20px;height:20px}
+@media (hover:hover){#armaAjPan .aaX:hover{background:var(--pnRo);color:var(--pnNe)}}
+#armaAjPan .aaFilas{padding:4px 14px 0}
+#armaAjPan .aaFila{display:grid;grid-template-columns:clamp(70px,22%,112px) minmax(0,1fr) 64px;align-items:center;gap:12px;margin:0;min-height:clamp(30px,calc(var(--vh)*8.6),40px)}
+#armaAjPan .aaFila+.aaFila{border-top:1px solid var(--pnLin)}
+#armaAjPan .aaFila span{width:auto;color:var(--pnT2);font:500 clamp(13px,calc(var(--vh)*3.5),15px)/1 var(--pnF);letter-spacing:.06em;text-transform:uppercase}
+#armaAjPan .aaFila input.pnR{width:100%}
+#armaAjPan .aaFila b{width:auto;text-align:end;font:700 14px Consolas,'DejaVu Sans Mono',Menlo,monospace;color:var(--pnA)}
+#armaAjPan .aaBot{display:flex;gap:8px;padding:8px 14px 12px}
+#armaAjPan .aaBot .boton{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:.5em;width:auto;margin:0;min-height:clamp(38px,calc(var(--vh)*10.5),46px);padding:0 12px;border:0;border-radius:0;
+  background:var(--pnA);color:var(--pnNe);font:600 clamp(14px,calc(var(--vh)*4),17px)/1 var(--pnF);letter-spacing:.06em;text-transform:uppercase;box-shadow:3px 3px 0 rgba(0,0,0,.45);--pnTinta:rgba(0,0,0,.2)}
+#armaAjPan .aaBot .boton.gris{background:var(--pnPl3);color:var(--pnT);box-shadow:inset 0 0 0 1px var(--pnLin2);--pnTinta:rgba(242,179,27,.3)}
+#armaAjPan .aaBot .boton .gli{width:1.1em;height:1.1em;flex:none}
+@media (hover:hover){#armaAjPan .aaBot .boton:not(.gris):hover{background:var(--pnA2)}#armaAjPan .aaBot .boton.gris:hover{background:var(--pnPl4)}}

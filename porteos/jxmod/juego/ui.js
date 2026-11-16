@@ -223,6 +223,7 @@ function cerrarPaneles() {
   if (typeof RB !== 'undefined' && RB.desdeJuego === 'pausa' && typeof rbVisible === 'function' && rbVisible()) { RB.desdeJuego = false; inicioMostrar(false); if (typeof menuMostrar === 'function') menuMostrar(false); }
   if (typeof EMU !== 'undefined' && EMU.ed && typeof emuCerrar === 'function') emuCerrar();   // (el panel de la música de un emote)
   { const p = $('armaAjPan'); if (p && !p.classList.contains('oc') && typeof armaAjCerrar === 'function') armaAjCerrar(); }
+  { const p = $('ctlPanel'); if (p) p.classList.add('oc'); if (typeof CTL !== 'undefined') CTL.capturando = null; }   // (Controles: antes quedaba en pantalla)
   for (const id of ['radioPan', 'creaPan', 'rolPan', 'smPan', 'verPan', 'verTuto', 'verTerm', 'verCrea', 'emuPan']) { const p = $(id); if (p) p.classList.add('oc'); } if (typeof RADIO !== 'undefined') RADIO.e = null; if (typeof SMOD !== 'undefined') SMOD.abierto = false;
   $('chatIn').classList.add('oc');
   if (typeof memePanCerrar === 'function') memePanCerrar();

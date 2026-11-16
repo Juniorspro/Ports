@@ -128,6 +128,32 @@ function pantMatriz(an, al, P) {
   const m = [a / an, d / an, 0, g / an, b / al, ee / al, 0, h / al, 0, 0, 1, 0, x0, y0, 0, 1];
   return m.every(Number.isFinite) ? 'matrix3d(' + m.map((v) => +v.toFixed(6)).join(',') + ')' : null;
 }
+const pantUlt = { pp: null, cw: 1, ch: 1 };
+// la tapa del video dibujada en un lienzo 2D sobre los cuatro puntos de la pantalla (con su perspectiva: una grilla de
+// triángulos, cada uno con su transformación). La usa la grabación: el video de YouTube no se puede copiar —es de otro
+// sitio— y en el video grabado quedaba el hueco negro, con rayas de los cuadros anteriores (Chillguy en el Discord)
+function pantTapaEn(g, im, Q, N) {
+  const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = Q, dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3, dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3, den = dx1 * dy2 - dx2 * dy1;
+  if (Math.abs(den) < 1e-9) return false;
+  const gg = (dx3 * dy2 - dx2 * dy3) / den, hh = (dx1 * dy3 - dx3 * dy1) / den, a = x1 - x0 + gg * x1, b = x3 - x0 + hh * x3, d = y1 - y0 + gg * y1, e = y3 - y0 + hh * y3;
+  const M = (u, v) => { const w = gg * u + hh * v + 1; return [(a * u + b * v + x0) / w, (d * u + e * v + y0) / w]; };
+  const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height; if (!iw || !ih) return false;
+  // (un triángulo de la imagen —s— a uno de la pantalla —t—: recortado a t, apenas agrandado para que no queden costuras)
+  const tri = (s0, s1, s2, t0, t1, t2) => {
+    const cx = (t0[0] + t1[0] + t2[0]) / 3, cy = (t0[1] + t1[1] + t2[1]) / 3, ex = (p) => { const dx = p[0] - cx, dy = p[1] - cy, l = Math.hypot(dx, dy) || 1; return [p[0] + dx / l * 0.6, p[1] + dy / l * 0.6]; };
+    const u0 = ex(t0), u1 = ex(t1), u2 = ex(t2);
+    const sd = (s1[0] - s0[0]) * (s2[1] - s0[1]) - (s2[0] - s0[0]) * (s1[1] - s0[1]); if (Math.abs(sd) < 1e-9) return;
+    const ma = ((t1[0] - t0[0]) * (s2[1] - s0[1]) - (t2[0] - t0[0]) * (s1[1] - s0[1])) / sd, mc = ((t2[0] - t0[0]) * (s1[0] - s0[0]) - (t1[0] - t0[0]) * (s2[0] - s0[0])) / sd;
+    const mb = ((t1[1] - t0[1]) * (s2[1] - s0[1]) - (t2[1] - t0[1]) * (s1[1] - s0[1])) / sd, md = ((t2[1] - t0[1]) * (s1[0] - s0[0]) - (t1[1] - t0[1]) * (s2[0] - s0[0])) / sd;
+    g.save(); g.beginPath(); g.moveTo(u0[0], u0[1]); g.lineTo(u1[0], u1[1]); g.lineTo(u2[0], u2[1]); g.closePath(); g.clip();
+    g.transform(ma, mb, mc, md, t0[0] - ma * s0[0] - mc * s0[1], t0[1] - mb * s0[0] - md * s0[1]); g.drawImage(im, 0, 0); g.restore();
+  };
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const u0 = i / N, u1 = (i + 1) / N, v0 = j / N, v1 = (j + 1) / N, s = (u, v) => [u * iw, v * ih];
+    tri(s(u0, v0), s(u1, v0), s(u1, v1), M(u0, v0), M(u1, v0), M(u1, v1)); tri(s(u0, v0), s(u1, v1), s(u0, v1), M(u0, v0), M(u1, v1), M(u0, v1));
+  }
+  return true;
+}
 // alfa 1 en todo lo dibujado (las mezclas de partículas lo bajan) y el hueco de la pantalla que suena, si se ve
 function pantFinCuadro(usaPost) {
   const gl = R.gl, W = R.cv.width, H = R.cv.height;
@@ -138,7 +164,7 @@ function pantFinCuadro(usaPost) {
   let vis = false;
   if (ok) {
     const P = pantEsquinas(e), n = e.b.q.rot(v3(0, 0, -1)), cw = R.cv.clientWidth || W, ch = R.cv.clientHeight || H;
-    const frente = vdot(vsub(CAM.pos, P[0]), n) > 0.02, pp = frente ? pantProyectar(P, R.vpMundo, cw, ch) : null;
+    const frente = vdot(vsub(CAM.pos, P[0]), n) > 0.02, pp = frente ? pantProyectar(P, R.vpMundo, cw, ch) : null; pantUlt.pp = pp; pantUlt.cw = cw; pantUlt.ch = ch;
     if (pp) {
       const area = Math.abs((pp[0][0] - pp[2][0]) * (pp[1][1] - pp[3][1]) - (pp[1][0] - pp[3][0]) * (pp[0][1] - pp[2][1])) / 2;
       const mx = pantMatriz(960, 540, pp);
@@ -150,6 +176,8 @@ function pantFinCuadro(usaPost) {
     }
   }
   if (vis !== TELE.vis) { TELE.vis = vis; if (YT.caja) YT.caja.classList.toggle('pantVe', vis); }
+  // (dónde quedó el hueco en la pantalla —en px de la página—: la grabación pone ahí la tapa del video, grabar.js)
+  TELE.pp = vis ? pantUlt.pp : null; TELE.ppW = pantUlt.cw; TELE.ppH = pantUlt.ch;
   // (la profundidad de la pantalla ya no sirve hasta el cuadro que viene, que la borra: en WebGL 2 no se guarda)
   descartar(gl.DEPTH);
 }

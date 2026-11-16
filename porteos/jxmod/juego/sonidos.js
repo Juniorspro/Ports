@@ -25,7 +25,11 @@ function sonPiso(pos, conCuerpos) {
   const tri = h.stat ? h.stat.tri : h.tri;
   return tri !== undefined && tri >= 0 && MUNDO.triSup && tri < MUNDO.triSup.length ? MUNDO.triSup[tri] : 0;
 }
+// (3.8.1: los pasos de los demás, como mucho 10 por segundo entre todos —el resto ya se tapa entre sí—: cada uno arma su
+// cadena de sonido 3D y mira si hay una pared en el medio; en una sala llena, con todos corriendo, eran 25 por segundo)
+const SON_PASOS = { t: 0, n: 0 };
 function sonPaso(P, yo, pos, vol) {
+  if (!yo) { const t = performance.now(); if (t - SON_PASOS.t > 1000) { SON_PASOS.t = t; SON_PASOS.n = 0; } if (++SON_PASOS.n > 10) return; }
   const k = sonPiso(pos, yo), n = 'PS_' + SUP[k] + (1 + ((Math.random() * 4) | 0));
   sonar(n, yo ? null : v3(pos.x, pos.y - 0.9, pos.z), vol * (yo ? 0.62 : 0.75), 0.94 + Math.random() * 0.12);   // (los propios, que se oigan bien)
 }
@@ -34,7 +38,7 @@ function sonPasos(dt) {
     const yo = P === JUG.cuerpo;
     if (P.rag || P.flota || P.sentado || P.cuad || P.visible === false) { P.pasoD = 0; P.pasoAire = 0; continue; }
     const pos = yo ? JUG.pos : P.pos, vel = yo ? JUG.vel : P.vel;
-    if (!yo && pos.distTo(CAM.pos) > 30) continue;
+    if (!yo && pos.distTo(CAM.pos) > 22) continue;   // (más lejos no se oyen: a 22 m un paso suena al 11 %)
     const agua = yo ? JUG.nada || (JUG.hondo || 0) > 0.25 : !!aguaNadaPersona(P);   // (en el agua suenan los pasos del agua: agua.js)
     const suelo = !agua && (yo ? JUG.suelo && !JUG.vehiculo && !JUG.noclip && JUG.vivo : P.suelo);
     // al caer: un paso fuerte (más cuanto más rápido venía)

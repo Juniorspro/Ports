@@ -335,8 +335,16 @@ function grabCuadro() {
 function grabDibujar() {
   const g = GRAB.g, cv = R.cv; if (!g || !cv) return;
   const W = GRAB.W, H = GRAB.H, k = Math.min(W / cv.width, H / cv.height), w = cv.width * k, h = cv.height * k;
-  if (Math.abs(w - W) > 1 || Math.abs(h - H) > 1) { g.fillStyle = '#000'; g.fillRect(0, 0, W, H); }
-  g.drawImage(cv, (W - w) / 2, (H - h) / 2, w, h);
+  // (siempre de negro primero: donde el juego deja un hueco —la tele de YouTube— el cuadro de antes quedaba debajo y se
+  // sumaban: salía negro con rayas. Ahí va la tapa del video: el video de YouTube es de otro sitio y no se puede copiar;
+  // lo que pasa por delante de la tele la sigue tapando, porque el juego va encima)
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  const ox = (W - w) / 2, oy = (H - h) / 2;
+  if (typeof TELE !== 'undefined' && TELE.pp && YT.vid) {
+    const t = pantTapa(YT.vid), kx = w / (TELE.ppW || cv.width), ky = h / (TELE.ppH || cv.height);
+    if (t && t.im) { try { GRAB.tapas = (GRAB.tapas || 0) + (pantTapaEn(g, t.im, TELE.pp.map(([x, y]) => [ox + x * kx, oy + y * ky]), 5) ? 1 : 0); } catch (e) {} }
+  }
+  g.drawImage(cv, ox, oy, w, h);
   // (el susto de la pizzería es un video encima del juego: también va)
   if (typeof NOC !== 'undefined' && NOC.susto && NOC.ui && NOC.ui.video && !NOC.susto.tres && !NOC.susto.est) {
     const v = NOC.ui.video; if (v.readyState >= 2 && v.videoWidth) { const kv = Math.max(W / v.videoWidth, H / v.videoHeight); g.drawImage(v, (W - v.videoWidth * kv) / 2, (H - v.videoHeight * kv) / 2, v.videoWidth * kv, v.videoHeight * kv); }

@@ -22,7 +22,7 @@
 // en el momento y la animación acompaña. Ver pruebas/paneles_inicio.mjs.
 const PN = { ok: false, p: null, clave: '', serie: 0, armado: 0, vistos: null, contados: null, marcas: {}, sels: {}, nivel: 'pleno', obs: null, obsAj: null, tEntra: 0, sobre: null, entradas: 0, cuentas: 0, ro: null, tAy: 0, cv: null };
 // lo que se toca (con golpe y tinta) y dónde
-const PN_RAIZ = '#rbInicio .rbPan, #ajustes, #cuDlg, #cfDlg, #rbInicio .mpModal';
+const PN_RAIZ = '#rbInicio .rbPan, #ajustes, #cuDlg, #cfDlg, #rbInicio .mpModal, #ctlPanel, #armaAjPan, #ctlEd .ctlBarra';
 const PN_TOCA = 'button, [data-rb]:not(select):not(input), .tiCard, label.rbBtnGris, label.rbBtnG, label.ajSw, .rbMapaG, .soIt';
 // las listas que bajan en cascada al abrir: las del contenido (otra vez al cambiar de pestaña, categoría o vista) y las del
 // marco —las pestañas, las categorías, el pie—, que bajan sólo al abrir el panel (al cambiar de pestaña quedan quietas)
@@ -380,3 +380,11 @@ function pnAyudas() {
 function pnEsqueletos(txt, n) {
   return `<div class="rbVacio pnEsqT" role="status">${esc(txt)}</div>` + '<div class="pnEsq" aria-hidden="true"><i></i><b></b><s></s></div>'.repeat(n || 4);
 }
+// ---- las barras (input range con la clase pnR, paneles.css): el relleno amarillo hasta el valor —desde el cero si la
+// barra va de menos a más, como las del arma en la mano— ----
+function pnRango(r) {
+  const mn = +r.min || 0, mx = r.max === '' ? 100 : +r.max, k = (x) => Math.max(0, Math.min(100, (x - mn) / ((mx - mn) || 1) * 100));
+  const z = mn < 0 && mx > 0 ? k(0) : 0, v = k(+r.value);
+  r.style.setProperty('--a', Math.min(z, v).toFixed(2) + '%'); r.style.setProperty('--b', Math.max(z, v).toFixed(2) + '%');
+}
+addEventListener('input', (e) => { const r = e.target; if (r && r.classList && r.classList.contains('pnR')) pnRango(r); }, true);

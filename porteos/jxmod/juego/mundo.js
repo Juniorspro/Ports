@@ -131,11 +131,60 @@ function cargarMapa(nombre) {
   if (typeof diaGuardarBase === 'function') diaGuardarBase();
   if (typeof marcasLimpiar === 'function') marcasLimpiar();
   PH.gscale = MUNDO.gravedad;
-  if (!MUNDO.spawns.length) {
-    const h = mundoRayo(v3(0, hi.y + 5, 0), v3(0, -1, 0), 1e4);
-    MUNDO.spawns.push(v3(0, h ? hi.y + 5 - h.t + 1 : 2, 0));
-  }
+  mundoSpawnsValidar(lo, hi);
   if (typeof gmaOrigenMapa === 'function') gmaOrigenMapa(nombre);   // (el cero de Source del mapa, para el Lua de GMod)
+}
+// ---- dónde aparecer: sobre un piso de verdad ----
+// Un mapa del Workshop sin aparición —o con la aparición en el aire, sobre el vacío— hacía aparecer en el aire y caer para
+// siempre (Ferrari F40 en el Discord: «no tiene spawn y caés al vacío»; antes se probaba sólo el punto 0,0). Ahora sirven
+// las apariciones con piso abajo (a menos de 40 m); si ninguna sirve, se busca un piso en una grilla sobre todo el mapa,
+// del más cercano al centro (o a la aparición que traía) hacia afuera, con lugar para pararse (2,2 m libres arriba)
+function mundoPisoEn(x, y0, z, hasta) {
+  let y = y0;
+  for (let k = 0; k < 12 && hasta > 0; k++) {   // (un techo o una pared que el rayo toca primero se atraviesa: sigue abajo)
+    const h = mundoRayo(v3(x, y, z), v3(0, -1, 0), hasta); if (!h) return null;
+    if (h.n.y > 0.65) return y - h.t;
+    y -= h.t + 0.05; hasta -= h.t + 0.05;
+  }
+  return null;
+}
+// todos los pisos de una columna, de arriba abajo (hasta 16)
+function mundoPisosEn(x, y0, z, hasta) {
+  const L = []; let y = y0;
+  for (let k = 0; k < 40 && hasta > 0 && L.length < 16; k++) {
+    const h = mundoRayo(v3(x, y, z), v3(0, -1, 0), hasta); if (!h) break;
+    if (h.n.y > 0.65) L.push(y - h.t);
+    y -= h.t + 0.05; hasta -= h.t + 0.05;
+  }
+  return L;
+}
+function mundoSpawnsValidar(lo, hi) {
+  MUNDO.spawnBuscado = false; const antes = MUNDO.spawns.slice(), ok = antes.filter((s) => mundoPisoEn(s.x, s.y + 1, s.z, 40) !== null);
+  MUNDO.spawnsMalos = antes.length - ok.length;
+  if (ok.length) { MUNDO.spawns = ok; return; }
+  MUNDO.spawns = [];
+  if (!(hi.y > lo.y)) { MUNDO.spawns.push(v3(0, 2, 0)); return; }
+  // (los pisos de una grilla de 32 × 32 sobre todo el mapa; el de más arriba de una columna puede ser el techo del mundo
+  // —la cara de arriba de la caja del cielo—: ahí no se aparece. Se elige, entre los que tienen lugar para pararse, el más
+  // cercano al centro —o a la aparición que traía— y a la altura del suelo más común del mapa; primero los que tienen algo
+  // arriba —adentro del mapa, bajo su cielo—)
+  const N = 32, cx = antes[0] ? antes[0].x : (lo.x + hi.x) / 2, cz = antes[0] ? antes[0].z : (lo.z + hi.z) / 2, C = [], hist = new Map();
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const x = lo.x + (hi.x - lo.x) * (i + 0.5) / N, z = lo.z + (hi.z - lo.z) * (j + 0.5) / N;
+    for (const y of mundoPisosEn(x, hi.y + 2, z, hi.y - lo.y + 4)) {
+      if (y > hi.y - 0.5) continue;   // (el techo del mundo)
+      if (mundoRayo(v3(x, y + 0.1, z), v3(0, 1, 0), 2.2)) continue;   // (sin lugar para pararse)
+      const k = Math.round(y); hist.set(k, (hist.get(k) || 0) + 1);
+      C.push({ x, y, z, dentro: !!mundoRayo(v3(x, y + 2.3, z), v3(0, 1, 0), hi.y - y + 4) });
+    }
+  }
+  if (!C.length) { MUNDO.spawns.push(v3(0, 2, 0)); return; }
+  let ry = 0, mx = -1; for (const [k, n] of hist) if (n > mx) { mx = n; ry = k; }   // (la altura de la aparición mala no sirve: estaba en el aire)
+  const D = Math.max(1, Math.hypot(hi.x - lo.x, hi.z - lo.z)), nota = (c) => Math.hypot(c.x - cx, c.z - cz) / D + Math.abs(c.y - ry) / 8;
+  const L = C.some((c) => c.dentro) ? C.filter((c) => c.dentro) : C; let m = L[0];
+  for (const c of L) if (nota(c) < nota(m)) m = c;
+  const v = v3(m.x, m.y + 0.1, m.z); if (antes[0] && antes[0].yaw !== undefined) v.yaw = antes[0].yaw;
+  MUNDO.spawns.push(v); MUNDO.spawnBuscado = true; MUNDO.spawnRef = ry;
 }
 // el mundo vacío, como al arrancar (sin mapa): lo pide el menú del depósito al irse, si se elige el clásico —que no dibuja el
 // mundo— para que el mapa no siga ocupando memoria (deposito.js, depDesarmar). La partida carga el suyo con cargarMapa
