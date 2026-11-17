@@ -22,7 +22,17 @@ function aguaCaja(v) {
 function aguaMapa(lista) {
   AGUA.vols.length = 0; AGUA.gotas.length = 0; AGUA.bajo = false; AGUA.camVol = null;
   for (const c of AGUA.charcos) aguaCharcoLiberar(c); AGUA.charcos.length = 0;
-  for (const a of lista || []) aguaVolumen({ cx: (a.lo[0] + a.hi[0]) / 2, cz: (a.lo[2] + a.hi[2]) / 2, hx: (a.hi[0] - a.lo[0]) / 2, hz: (a.hi[2] - a.lo[2]) / 2, y0: a.lo[1], y1: a.hi[1], mapa: true });
+  for (const a of lista || []) { const v = aguaVolumen({ cx: (a.lo[0] + a.hi[0]) / 2, cz: (a.lo[2] + a.hi[2]) / 2, hx: (a.hi[0] - a.lo[0]) / 2, hz: (a.hi[2] - a.lo[2]) / 2, y0: a.lo[1], y1: a.hi[1], mapa: true }); v.ola = v.hx * v.hz * 4 > 400 && v.y1 - v.y0 > 0.6 ? 0.13 : 0; }
+}
+// (3.9, Discord —Gato—: «más física al agua») las olas: en el agua grande de los mapas (más de 20 × 20 m y hondo) la
+// superficie sube y baja hasta 13 cm, dos ondas que se cruzan y avanzan: lo que flota se mece, sube y baja y se inclina
+// (cada punto del empuje ve su altura). La superficie dibujada queda quieta (su textura ya se mueve): son pocos centímetros
+const aguaOla = (v, x, z) => (v.ola ? v.ola * (Math.sin(x * 0.33 + AGUA.t * 1.15) * 0.6 + Math.sin(z * 0.27 - AGUA.t * 0.85 + 1.3) * 0.4) : 0);
+// las ondas: un anillo plano que se abre y se apaga en la superficie (donde algo cae, se mueve o nada; como la onda de
+// una explosión en el piso, efectos.js)
+function aguaOnda(x, y, z, tam, a) {
+  if ((GFX.part || 1) < 0.25) return; const q = particula(v3(x, y + 0.025, z), v3(), 1.3, tam, [0.9, 0.96, 1, a], 'humo', 3.5);
+  if (q) { q.tile = 3; q.modo = 2; q.suave = 1; q.calor = 0; q.fr = 0; q.grav = 0; q.dr = 0; }
 }
 const aguaPisa = (v, x, z) => {
   if (x < v.ax0 || x > v.ax1 || z < v.az0 || z > v.az1) return false;
@@ -148,7 +158,7 @@ function aguaCuerpos(dt) {
     const a = b.aabb; let toca = null;
     for (const v of AGUA.vols) {
       if (v.rec && v.rec.b === b) continue;
-      if (v.y1 <= v.y0 + 0.002 || a.y0 > v.y1 || a.y1 < v.y0 - 0.05 || a.x1 < v.ax0 || a.x0 > v.ax1 || a.z1 < v.az0 || a.z0 > v.az1) continue;
+      if (v.y1 <= v.y0 + 0.002 || a.y0 > v.y1 + (v.ola || 0) || a.y1 < v.y0 - 0.05 || a.x1 < v.ax0 || a.x0 > v.ax1 || a.z1 < v.az0 || a.z0 > v.az1) continue;
       toca = v; break;
     }
     const antes = b.aguaK || 0;
@@ -160,9 +170,9 @@ function aguaCuerpos(dt) {
     let fx = 0, fy = 0, fz = 0, tx = 0, ty = 0, tz = 0, sub = 0;
     for (const pl of S.pts) {
       const r = q.rotTo(pl, _a1), x = b.pos.x + r.x, y = b.pos.y + r.y, z = b.pos.z + r.z;
-      const v = y < toca.y1 + S.cel * 0.5 && aguaPisa(toca, x, z) ? toca : aguaEn(x, y - S.cel * 0.5, z, S.cel * 0.5, rec ? rec.vol : null);
+      const v = y < toca.y1 + (toca.ola || 0) + S.cel * 0.5 && aguaPisa(toca, x, z) ? toca : aguaEn(x, y - S.cel * 0.5, z, S.cel * 0.5, rec ? rec.vol : null);
       if (!v) continue;
-      let f = clamp((v.y1 - y) / S.cel + 0.5, 0, 1);   // (la celda del punto, sumergida en parte: sin saltos en la superficie)
+      let f = clamp((v.y1 + aguaOla(v, x, z) - y) / S.cel + 0.5, 0, 1);   // (con la ola de ese punto)   // (la celda del punto, sumergida en parte: sin saltos en la superficie)
       if (rec && y < rec.vol.y1 && aguaPisa(rec.vol, x, z)) f = 0;   // (adentro del recipiente, con su agua: no desplaza)
       if (f <= 0) continue;
       sub += f;
@@ -180,6 +190,8 @@ function aguaCuerpos(dt) {
     const am = Math.exp(-dt * 2.2 * b.aguaK), aa = Math.exp(-dt * (1.2 + 2.5 * b.aguaK)); b.vel.y *= am; b.ang.x *= aa; b.ang.y *= aa; b.ang.z *= aa;
     // al entrar con velocidad, salpica (más cuanto más pesado y más rápido)
     if (antes === 0 && b.vel.y < -1.6) aguaSalpicar(v3(b.pos.x, toca.y1, b.pos.z), clamp(-b.vel.y * Math.sqrt(m) / 45, 0.12, 1));
+    // (moviéndose en la superficie deja ondas detrás, más seguidas cuanto más rápido)
+    else if (b.aguaK < 0.97) { const vh = Math.hypot(b.vel.x, b.vel.z); if (vh > 0.6 && TIEMPO.t - (b.ondaT || 0) > 0.55 / Math.min(3, vh)) { b.ondaT = TIEMPO.t; aguaOnda(b.pos.x, toca.y1 + aguaOla(toca, b.pos.x, b.pos.z), b.pos.z, clamp(Math.sqrt(S.V) * 0.6, 0.2, 1.2), 0.32); } }
   }
 }
 
@@ -335,6 +347,7 @@ function aguaSalpicar(p, k) {
     particula(p, _a1.set(Math.cos(a) * r * 2.4 * k, 1.8 + 4.5 * k * Math.random(), Math.sin(a) * r * 2.4 * k), 0.5 + 0.5 * Math.random(), 0.04 + 0.09 * k * Math.random(), [0.85, 0.93, 1, 0.75], 'gota', 0.2);
   }
   particula(p, _a1.set(0, 0.25, 0), 0.7, 0.3 + 0.9 * k, [0.95, 0.98, 1, 0.45], 'humo', 1.6);   // (espuma)
+  aguaOnda(p.x, p.y, p.z, 0.35 + 0.8 * k, 0.5); aguaOnda(p.x, p.y, p.z, 0.2 + 0.5 * k, 0.4);   // (y las ondas que se abren)
   sonar('AG_Salpica' + (1 + ((Math.random() * 3) | 0)), p, 0.3 + 0.7 * k, 0.9 + Math.random() * 0.25);
 }
 // cada cuadro: la cámara (¿bajo el agua?), los sonidos (el lago cerca, debajo del agua, brazadas, chorros), gotas y charcos
@@ -359,6 +372,12 @@ function aguaPaso(dt) {
     const vh = Math.hypot(J.vel.x, J.vel.z) + (J.nada ? Math.abs(J.vel.y) * 0.5 : 0);
     J.brazaT = (J.brazaT || 0) - dt * Math.min(2.6, 0.6 + vh / 2);
     if (vh > 0.5 && J.brazaT <= 0) { J.brazaT = 1; sonar('AG_Paso' + (1 + ((Math.random() * 8) | 0)), J.pos, J.nada ? 0.4 : 0.3, 0.95 + Math.random() * 0.1); }
+  }
+  // las ondas de los que caminan o nadan en el agua (vos y los demás: personajes y NPC), cada tanto mientras se mueven
+  for (const P of PERS) {
+    if (!P.visible || !P.pos || P.lejos) continue; const vh = Math.hypot(P.vel.x, P.vel.z); if (vh < 0.4 || TIEMPO.t - (P.ondaT || 0) < 0.6 / Math.min(2.5, vh)) continue;
+    const w = aguaEn(P.pos.x, P.pos.y - 0.5, P.pos.z, 0); if (!w || P.pos.y - 0.95 > w.y1 || P.pos.y + 0.6 < w.y1) continue;
+    P.ondaT = TIEMPO.t; aguaOnda(P.pos.x, w.y1, P.pos.z, 0.45, 0.3);
   }
   // el chorro de cada recipiente que se vuelca
   for (const w of AGUA.vols) if (w.rec && w.rec.rec.chorroT > 0) { const R = w.rec.rec; R.chorroT -= dt; bucle('chorro' + w.rec.id, 'AG_Chorro', R.boca, clamp(R.sale / Math.max(dt, 1e-3) / 20, 0.15, 0.8)); }

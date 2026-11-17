@@ -277,7 +277,7 @@ while puestos < 70:
     if y < 2 or abs(x) < 20 and abs(z) < 20: continue
     esc.append(poner('Palmera' if rng.random() < 0.55 else 'Roca', (x, y - 0.1, z), rng.uniform(0, 6.28), rng.uniform(0.8, 1.6) if rng.random() < 0.6 else rng.uniform(2, 4))); puestos += 1
 for k in range(4): esc.append(poner('Banco', (8 + k * 2.5, altura(H, g, 8 + k * 2.5, 8) - 0.05, 8), math.pi))
-ambiente('RB_Colinas', cielo('Colinas', [0.2, 0.5, 0.95], [0.8, 0.88, 0.96], [0.5, 0.58, 0.68], [1.0, 0.84, 0.66]), ((0.8, 0.87, 0.95), 220, 480))
+ambiente('RB_Colinas', cielo('Colinas', [0.2, 0.5, 0.95], [0.8, 0.88, 0.96], [0.5, 0.58, 0.68], [1.0, 0.84, 0.66]), ((0.8, 0.87, 0.95), 220, 480), agua=[{'lo': [-400, -25, -400], 'hi': [400, 0.3, 400]}])   # (el lago: para nadar y que floten las cosas)
 d['esc']['RB_Colinas'] = esc
 
 # ---------- Isla: una isla en el mar, con playa, palmeras y un muelle de cajas ----------
@@ -295,7 +295,7 @@ for k in range(60):
     esc.append(poner('Palmera', (x, y - 0.1, z), rng.uniform(0, 6.28), rng.uniform(0.9, 1.5)))
 for k in range(8): esc.append(poner('Roca', (rng.uniform(-120, 120), 0.2, rng.uniform(-120, 120)), rng.uniform(0, 6), rng.uniform(1.5, 3)))
 esc.append(poner('CamaElastica', (10, altura(H, g, 10, 70), 70), 0)); esc.append(poner('Pelota', (6, altura(H, g, 6, 70) + 0.5, 70), 0))
-ambiente('RB_Isla', cielo('Isla', [0.16, 0.5, 0.98], [0.78, 0.9, 0.98], [0.42, 0.6, 0.74], [1.0, 0.88, 0.7]), ((0.78, 0.88, 0.96), 240, 520))
+ambiente('RB_Isla', cielo('Isla', [0.16, 0.5, 0.98], [0.78, 0.9, 0.98], [0.42, 0.6, 0.74], [1.0, 0.88, 0.7]), ((0.78, 0.88, 0.96), 240, 520), agua=[{'lo': [-450, -40, -450], 'hi': [450, 0.4, 450]}])   # (el mar)
 d['esc']['RB_Isla'] = esc
 
 # ---------- Ciudad: manzanas de 100 m, calles de 12 m con veredas, edificios, plaza y parque ----------
@@ -381,7 +381,7 @@ for k in range(18):
 for k in range(14):
     a = rng.uniform(0, 6.28); r = rng.uniform(52, 70); x, z = -120 + math.cos(a) * r, 80 + math.sin(a) * r * 0.9
     esc.append(poner('Palmera', (x, altura(H, g, x, z) - 0.1, z), rng.uniform(0, 6), rng.uniform(1.0, 1.5)))
-ambiente('RB_Desierto', cielo('Desierto', [0.3, 0.55, 0.9], [0.96, 0.88, 0.74], [0.8, 0.68, 0.52], [1.0, 0.82, 0.6]), ((0.94, 0.86, 0.72), 260, 560))
+ambiente('RB_Desierto', cielo('Desierto', [0.3, 0.55, 0.9], [0.96, 0.88, 0.74], [0.8, 0.68, 0.52], [1.0, 0.82, 0.6]), ((0.94, 0.86, 0.72), 260, 560), agua=[{'lo': [-170, -14, 30], 'hi': [-70, -1.5, 130]}])   # (el oasis)
 d['esc']['RB_Desierto'] = esc
 
 # ---------- Luna: cráteres, polvo gris, gravedad baja, cielo negro ----------

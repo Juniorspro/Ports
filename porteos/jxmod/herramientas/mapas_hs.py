@@ -290,7 +290,11 @@ for k in range(48):   # (pilas de contenedores de 12 × 2,5 × 2,6)
 mpt, mmpt = pto.guardar('HS_BaseV2_Puerto')
 esc += [fijo('Puerto', mpt, mmpt), choques('HS_Choques2', cs)]
 mapa('BaseV2', esc)
-amb('BaseV2', cielo('HS_BaseV2', [0.26, 0.5, 0.86], [0.84, 0.88, 0.92], [0.58, 0.62, 0.66], [1.0, 0.88, 0.74]), ((0.8, 0.84, 0.88), 300, 680))
+amb('BaseV2', cielo('HS_BaseV2', [0.26, 0.5, 0.86], [0.84, 0.88, 0.92], [0.58, 0.62, 0.66], [1.0, 0.88, 0.74]), ((0.8, 0.84, 0.88), 300, 680), agua=[{'lo': [300, -12, -520], 'hi': [560, PISO - 1.6, 520]}])   # (la bahía del puerto: se nada)
+# (los mapas propios de mapas_rb.py que tienen agua dibujada no tenían su volumen: no se nadaba ni flotaba nada; ahora sí
+# —también en mapas_rb.py, para la próxima vez que se arme desde ahí—)
+for k, w in (('RB_Colinas', [{'lo': [-400, -25, -400], 'hi': [400, 0.3, 400]}]), ('RB_Isla', [{'lo': [-450, -40, -450], 'hi': [450, 0.4, 450]}]), ('RB_Desierto', [{'lo': [-170, -14, 30], 'hi': [-70, -1.5, 130]}])):
+    if k in d['aj'] and not d['aj'][k].get('agua'): d['aj'][k]['agua'] = w
 
 # ================= Mars: suelo rojo con cráteres, rocas y una base con cúpulas =================
 L = 1100; mMa = mat('MA_Suelo', T['marte'], L / 7); mMr = mat('MA_Roca', T['marte_roca'], L / 12)
