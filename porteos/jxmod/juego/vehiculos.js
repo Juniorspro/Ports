@@ -299,7 +299,7 @@ function salirVehiculo() {
   if (V && V.tipo !== 'asiento') sonar('Engine_Off', b.pos, 0.6);
   if (typeof redSubir === 'function') redSubir(null, 0);
 }
-function vehiculoRoto(o) { const V = o.veh; V.roto = true; explosion(o.b.pos.clone(), 5, 60); o.color = null; o.md.color = [0.25, 0.23, 0.22, 1]; }
+function vehiculoRoto(o) { const V = o.veh; V.roto = true; explosion(o.b.pos.clone(), 5, 60); o.color = null; o.md.color = [0.25, 0.23, 0.22, 1]; if (typeof desRoto === 'function') desRoto(o); }   // (se infla, saltan ruedas y queda ardiendo: destruccion.js)
 // cámara dentro del vehículo: tercera persona que sigue (o primera persona en el asiento)
 function vehiculoCamara(o, out) {
   const V = o.veh, b = o.b, J = JUG;

@@ -178,29 +178,43 @@ function efectoImpacto(p, n, tipo) {
   }
   particula(vadd(p, vscale(n, 0.05)), vscale(n, 0.4), 0.7, 0.12, tipo === 'cuerpo' ? [0.6, 0.55, 0.5, 0.5] : [0.75, 0.7, 0.62, 0.55], 'humo');
 }
-// explosión (RPG, granadas, barriles, env_explosion, los addons): destello, bola de fuego que sale rápido, frena y se
-// enfría, humo iluminado por el fuego que sube y se abre, chispas que caen y rebotan; en Bajo y más, la onda en el piso
-// y el polvo que corre por el suelo; en Medio y más, escombros con estela de humo; en Alto y más, brasas que flotan.
+// explosión (RPG, granadas, barriles, env_explosion, los addons): destello corto (sin quemar la pantalla) con un núcleo
+// caliente, la onda de choque (un anillo que se abre muy rápido), bola de fuego que sale rápido, frena y se enfría, humo
+// iluminado por el fuego que sube y se abre y, detrás, la columna que sigue subiendo; chispas que caen y rebotan; en Bajo
+// y más, la onda en el piso, el polvo que corre por el suelo, la quemadura y fuego que queda ardiendo un rato
+// (destruccion.js); en Medio y más, escombros con estela de humo; en Alto y más, brasas que flotan.
 // esc: tamaño (1 = una granada de HL2)
 function efectoExplosion(p, esc) {
   esc = esc > 0 ? Math.min(6, esc) : 1;
   const q = GFX.part || 0.5, n = (x) => Math.max(1, Math.round(x * q)), az = (a, b) => a + Math.random() * (b - a);
-  const y0 = typeof pisoBajo === 'function' ? pisoBajo(v3(p.x, p.y + 0.5, p.z), 6 * esc) : null, enPiso = y0 !== null && p.y - y0 < 2.5 * esc, piso = y0 ?? p.y - 1;
+  const hp = typeof mundoRayo === 'function' ? mundoRayo(v3(p.x, p.y + 0.5, p.z), v3(0, -1, 0), 6 * esc + 0.5) : null;
+  const y0 = hp ? p.y + 0.5 - hp.t : typeof pisoBajo === 'function' ? pisoBajo(v3(p.x, p.y + 0.5, p.z), 6 * esc) : null, enPiso = y0 !== null && p.y - y0 < 2.5 * esc, piso = y0 ?? p.y - 1;
+  const nPiso = hp && hp.n && hp.n.y > 0.5 ? hp.n : v3(0, 1, 0);
   const dir = () => { const d = v3(az(-1, 1), az(enPiso ? -0.15 : -1, 1), az(-1, 1)); return d.len() < 0.05 ? v3(0, 1, 0) : d.norm(); };
   let x;
-  // destello (un instante) y su luz
-  x = particula(p, v3(), 0.14, 4.5 * esc, [1, 0.93, 0.78, 1], 'fog', 0.7);
+  // destello (un instante: chico, para que no blanquee la pantalla de cerca) y el núcleo caliente que dura un poco más
+  x = particula(p, v3(), 0.11, 3 * esc, [1, 0.93, 0.78, 1], 'fog', 0.9);
+  x = particula(p, v3(), 0.24, 1.5 * esc, [1, 0.82, 0.5, 1], 'fuego', 1.6); if (x) { x.rampa = 1; x.suave = 1; }
+  // la onda de choque: un anillo claro que se abre en un cuarto de segundo
+  x = particula(p, v3(), 0.26, 0.7 * esc, [1, 0.96, 0.88, 0.32], 'fog', 10); if (x) { x.tile = 3; x.suave = 1; x.dr = 0; }
   for (let i = 0, m = n(24); i < m; i++) { const d = dir(); x = particula(vadd(p, vscale(d, az(0, 0.45) * esc)), vadd(vscale(d, az(3, 10.5) * esc), v3(0, az(0.5, 2.2), 0)), az(0.45, 1), az(0.65, 1.3) * esc, [1, 1, 1, 1], 'fuego', 1.7); if (x) { x.fr = 4.2; x.rampa = 1; x.suave = 1; x.suelo = piso; } }
   // (el humo: gris oscuro iluminado por el cielo, sube como columna y se abre; no tapa toda la pantalla)
   for (let i = 0, m = n(16); i < m; i++) { const d = dir(); x = particula(vadd(p, vscale(d, az(0.2, 0.8) * esc)), vadd(vscale(d, az(1.2, 4) * esc), v3(0, az(1.8, 3.6), 0)), az(3, 6) * (q >= 0.8 ? 1 : 0.7), az(0.8, 1.35) * esc, [0.3, 0.29, 0.28, 0.72], 'humo', 1.9); if (x) { x.fr = 1.5; x.calor = 0.85; x.suave = 1; x.t = -az(0.03, 0.28); x.grav = -0.2; x.suelo = piso; } }
+  // (la columna: bocanadas que salen después de la bola de fuego y siguen subiendo, más oscuras arriba)
+  for (let i = 0, m = n(9); i < m; i++) { x = particula(vadd(p, v3(az(-0.35, 0.35) * esc, az(0, 0.8) * esc, az(-0.35, 0.35) * esc)), v3(az(-0.4, 0.4), az(3, 5.5) * Math.sqrt(esc), az(-0.4, 0.4)), az(4, 7) * (q >= 0.8 ? 1 : 0.7), az(0.7, 1.1) * esc, [0.22, 0.21, 0.2, 0.62], 'humo', 2.6); if (x) { x.t = -az(0.12, 0.9); x.fr = 0.55; x.calor = 0.6; x.grav = -0.1; x.suave = 1; } }
   for (let i = 0, m = n(28); i < m; i++) { x = particula(p, vscale(dir(), az(8, 22) * Math.sqrt(esc)), az(0.5, 1.4), 0.032 * Math.sqrt(esc), [1, 0.78, 0.4, 1], 'chispa', 0); if (x) { x.fr = 0.7; x.piso = piso + 0.02; } }
   if (enPiso && q >= 0.5) {
     x = particula(v3(p.x, piso + 0.07, p.z), v3(), 0.5, 1.2 * esc, [0.78, 0.68, 0.55, 0.5], 'humo', 8); if (x) { x.tile = 3; x.modo = 2; x.suave = 1; x.calor = 0.12; x.fr = 0; x.grav = 0; x.dr = 0; }
     for (let i = 0, m = n(14); i < m; i++) { const u = Math.random() * 6.2832, d = v3(Math.cos(u), 0, Math.sin(u)); x = particula(vadd(v3(p.x, piso + 0.35 * esc, p.z), vscale(d, 0.8 * esc)), vscale(d, az(5, 11) * esc), az(1.6, 3), az(0.55, 1) * esc, [0.55, 0.48, 0.4, 0.5], 'humo', 2.4); if (x) { x.fr = 2.6; x.grav = -0.02; x.suave = 1; x.t = -az(0, 0.08); x.suelo = piso; } }
+    if (typeof desQuemadura === 'function') desQuemadura(v3(p.x, piso, p.z), nPiso, Math.min(esc, 2.5));
+    if (typeof desFuego === 'function') desFuego(v3(p.x, piso, p.z), Math.min(esc, 2.5));
   }
-  if (q >= 0.8) for (let i = 0, m = n(10); i < m; i++) { const d = dir(); d.y = Math.abs(d.y) + 0.4; x = particula(p, vscale(d.norm(), az(7, 15) * Math.sqrt(esc)), az(1.2, 2.2), az(0.05, 0.11) * esc, [0.07, 0.06, 0.05, 1], 'gota', 0); if (x) { x.piso = piso + 0.03; x.estela = 0.16 * esc; x.tile = 1; x.dr = az(-6, 6); } }
-  if (q >= 1) for (let i = 0, m = n(16); i < m; i++) { x = particula(vadd(p, vscale(dir(), az(0.3, 1.5) * esc)), v3(az(-1, 1), az(0.5, 2), az(-1, 1)), az(2, 4), 0.025, [1, 0.55, 0.15, 1], 'chispa', 0); if (x) { x.grav = -0.03; x.fr = 1.2; x.modo = 0; x.t = -az(0.2, 0.8); } }
-  luzTemporal(vadd(p, v3(0, 1, 0)), 24 * esc, [46, 26, 9], 0.8);
+  // (escombros: pedazos oscuros que vuelan, caen y rebotan; los grandes con estela de humo)
+  if (q >= 0.5) for (let i = 0, m = n(q >= 0.8 ? 16 : 8); i < m; i++) { const d = dir(); d.y = Math.abs(d.y) + 0.4; const g = i % 3 === 0; x = particula(p, vscale(d.norm(), az(7, 16) * Math.sqrt(esc)), az(1.2, 2.4), (g ? az(0.07, 0.12) : az(0.03, 0.06)) * esc, [0.07, 0.06, 0.05, 1], 'gota', 0); if (x) { x.piso = piso + 0.03; if (g && q >= 0.8) x.estela = 0.16 * esc; x.tile = 1; x.dr = az(-6, 6); x.fr = 0.25; } }
+  // (brasas que flotan y se apagan despacio)
+  if (q >= 0.8) for (let i = 0, m = n(22); i < m; i++) { x = particula(vadd(p, vscale(dir(), az(0.3, 1.6) * esc)), v3(az(-1.2, 1.2), az(0.6, 2.6), az(-1.2, 1.2)), az(2, 4.5), az(0.02, 0.035), [1, 0.55, 0.15, 1], 'chispa', 0); if (x) { x.grav = -0.03; x.fr = 1.2; x.modo = 0; x.t = -az(0.15, 0.9); } }
+  // (la luz: fuerte un instante y la del fuego que se apaga despacio; menos que antes, sin lavar todo de blanco)
+  luzTemporal(vadd(p, v3(0, 1, 0)), 22 * esc, [34, 19, 7], 0.6);
   luzTemporal(vadd(p, v3(0, 0.6, 0)), 9 * esc, [7, 3, 1], 2.2);
   const dj = CAM.pos.distTo(p); CAM.temblor = Math.max(CAM.temblor || 0, clamp(1.3 - dj / (28 * esc), 0, 1));
 }

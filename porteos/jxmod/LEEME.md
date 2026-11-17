@@ -2252,6 +2252,59 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## Destrucción de autos y explosiones nuevas (sin publicar)
+
+- **Los autos se abollan de verdad** (`destruccion.js`, pedido del dueño: «físicas a los autos tipo de destrucción»):
+  - Con cada choque fuerte (`PH.hits`, que ahora trae la normal y el punto en el marco de cada cuerpo), la chapa se hunde
+    donde pegó y para el lado del golpe. Cuánto depende de la velocidad y de la masa del otro: una lata no abolla, otro
+    auto sí.
+  - Se hunde más en el punto del golpe y menos hacia adentro y de costado, con arrugas (ruido) y algo de corrimiento
+    lateral. Las normales se rehacen con los triángulos, mezcladas con las originales según cuánto se hundió cada vértice.
+  - Cada auto golpeado lleva una copia de los vértices sólo de los nodos que tocó el golpe (`md.mCambio`). Se sube a la
+    placa una vez por golpe, nunca en cada cuadro.
+  - Tope de 10 autos abollados a la vez: los más viejos vuelven a su malla. Al borrar un auto se sueltan sus búferes.
+- **Lo que sale del golpe:**
+  - chispas, pedazos de chapa (gris y del color del auto) y polvo;
+  - desde 40 km/h, vidrios que caen y brillan;
+  - el sonido: golpe sordo, chapa que se arruga y vidrios. Está sintetizado en el juego (sin archivos), en 9 variantes
+    que se arman en los ratos libres del navegador apenas hay un vehículo.
+- **Daño y ruedas:**
+  - El choque resta vida al auto (sólo el dueño, como las balas): (v−7)^1,5·3. A 100 km/h contra una pared quedan
+    unos 130 de 400.
+  - En los choques fuertes se suelta la rueda que está cerca del golpe: sale rodando la del auto, con su malla y su
+    tamaño, sobre un cilindro de la física. Dura 40 s, hasta 8 a la vez.
+- **Humo y fuego:**
+  - Con menos del 60 % de vida, el motor echa humo (más oscuro y más seguido cuanto más dañado).
+  - Con menos del 25 %, prende fuego, con luz que titila.
+  - Al explotar, la carrocería se infla desde adentro, saltan una o dos ruedas y arde 24 s; después humea 36 s más.
+  - Una explosión cerca hunde el lado que da a la explosión.
+- **Explosiones** (`efectoExplosion`):
+  - destello más chico (ya no blanquea la pantalla de cerca), con un núcleo caliente y una onda de choque;
+  - la columna de humo que sigue subiendo detrás de la bola de fuego;
+  - más escombros con estela y más brasas;
+  - en el piso, una quemadura (tiras de `marcaTramo` que se borran solas) y fuego que queda ardiendo 4 a 10 s, con su
+    humo y su luz (`DES.fuegos`, hasta 6);
+  - la luz, un poco menos fuerte.
+- **Medido** (`pruebas/destruccion.mjs`, 16/16):
+
+  | Prueba | Resultado |
+  |---|---|
+  | Sedan a 100 km/h | La trompa se hunde 50,6 cm hacia atrás (dirección media −z 1,00). La cola queda en 0 cm. 0 normales rotas. Se suelta 1 rueda y queda humeando. |
+  | Sedan a 40 km/h | Se hunde 11,5 cm y no pierde ruedas. |
+  | Derby a 100 km/h | Se hunde 44,6 cm (la malla viene ×2,67). |
+  | Patrullero a 100 km/h | Se hunde 46,9 cm (la malla viene en centímetros). |
+  | Explosión al costado | Se hunde el lado de la explosión (0,87 del lado). |
+  | Explosión del auto | Se infla y arde. |
+  | Al borrar el auto | Se sueltan las 4 copias. |
+  | Costo por golpe | El primero, con la copia de la malla, 8,9 ms. Los otros autos, 1,9 a 7,4 ms. |
+  | Costo por cuadro | En Bajo, con 3 autos ardiendo y 3 fuegos en el piso: 0,09 ms en promedio y 1,2 ms como máximo, con 224 partículas de un tope de 300. |
+  | Física con paso fijo (`vehiculos.js`, `fisica_choques.js`) | Idéntica a la versión anterior, número por número. |
+  | Explosiones (`explosion_vista.mjs`) | Mismo costo de dibujo: 0,14 ms por cuadro en Medio. |
+  | `red_barril.mjs` | 6/6 |
+
+  En `autos.mjs`, «derecho sin volante» falla igual en la versión anterior: mide con el reloj real y en swiftshader
+  va a 4 o 5 cuadros por segundo.
+
 ## JXMod 3.9.1: los botones de los mods
 
 - Publicada con el paquete pk39. Pruebas: web con código 9/9; APK 6/6, versionCode 26111713, misma firma.

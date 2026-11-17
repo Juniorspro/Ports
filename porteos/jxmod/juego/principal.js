@@ -208,6 +208,7 @@ function camaraActualizar(dt) {
   // (con un mod de velocidad, la vista se abre al correr rápido)
   // (o el zoom que pidió el Lua de un addon con Player:SetFOV: gmaFovLua, gmod_vista.js)
   const vh = Math.hypot(JUG.vel.x, JUG.vel.z), z = ARM.zoom ? 18 : (typeof gmaFovLua === 'function' && gmaFovLua()) || (fovBase() + ((MODS.velocidad || 1) > 1.15 && !JUG.vehiculo ? clamp((vh - 7) * 0.8, 0, 14) : 0)) * (1 - 0.27 * (ARM.apK || 0)); CAM.fov += (z - CAM.fov) * Math.min(1, dt * (Math.abs(z - CAM.fov) > 10 ? 12 : 4));
+  if (DBG.fov) CAM.fov = DBG.fov;   // (DBG.fov: el campo fijo, cuadro a cuadro —un video: el zoom de vértigo—)
 }
 // ---------------- partidas ----------------
 const DESHACER = [];
@@ -402,6 +403,7 @@ function cuadro(ahora) {
     if (typeof personasPaso === 'function') personasPaso(paso);
   }
   if (n === 3) TIEMPO.acc = 0;
+  if (typeof desPaso === 'function') desPaso(dt);   // (los choques de este cuadro: abolladuras, chispas, humo y fuego de los autos —destruccion.js—)
   if (typeof gmLuaPaso === 'function') gmLuaPaso(dt);   // (el Lua de los addons de GMod: timers, hooks, entidades, armas)
   if (JUEGO.estado === 'juego') {
     armasPaso(dt);
@@ -525,7 +527,7 @@ function dibujar() {
   const t0 = performance.now();
   R.fase = 'mundo'; dibujarMundo(); R.fase = '';
   if (typeof gmrAntes === 'function') gmrAntes();   // (el Lua de los addons dibuja: sus primitivas y qué modelos se ven)
-  dibujarObjetos(); aguaEncolar(); maqDibujar(); artDibujar(); if (typeof eventoEncolar === 'function') eventoEncolar();
+  dibujarObjetos(); if (typeof desDibujar === 'function') desDibujar(); aguaEncolar(); maqDibujar(); artDibujar(); if (typeof eventoEncolar === 'function') eventoEncolar();
   if (typeof dibujarPersonas === 'function') dibujarPersonas();
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();

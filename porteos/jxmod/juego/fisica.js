@@ -636,7 +636,7 @@ function solveContactPos(c, h) {
   const n = c.n, sep = (pA.x - pB.x) * n.x + (pA.y - pB.y) * n.y + (pA.z - pB.z) * n.z;
   if (sep >= 0) { c.active = false; return; }
   c.active = true;
-  if (!c.hit && c.vnPre < -2.2) { c.hit = true; if (PH.time - A.lastHit > 0.12) { A.lastHit = PH.time; PH.hits.push({ b: A, o: B, v: -c.vnPre, p: pA.clone() }); } }
+  if (!c.hit && c.vnPre < -2.2) { c.hit = true; if (PH.time - A.lastHit > 0.12) { A.lastHit = PH.time; PH.hits.push({ b: A, o: B, v: -c.vnPre, p: pA.clone(), n: n.clone(), ra: c.rA.clone(), rb: rB ? c.rB.clone() : null }); } }
   const wA = A.wAt(rA, n), wB = rB ? B.wAt(rB, n) : 0, w = wA + wB; if (w < 1e-9) return;
   // (lo que ya estaba metido al empezar el cuadro sale despacio, a MAXDEP; lo que se metió en este mismo cuadro sale
   // entero: con pocos subpasos, en el celular, una caja tirada a 80 m/s se metía 70 cm en un subpaso, salía a 4 m/s y si

@@ -250,6 +250,7 @@ function explosion(p, radio, dan) {
     // (en multijugador cada objeto lo daña sólo su dueño, cuando le llega la explosión: si no, la copia del barril del otro
     // explotaba acá también y mandaba su explosión, y en la pantalla del dueño explotaba dos veces)
     if (b.obj && b.obj !== explosion.fuente && !b.obj.remoto) danarObjeto(b.obj, dan * k, b.pos, d);
+    if (b.obj && b.obj.veh && !explosion.sinFx && typeof desExplosion === 'function') desExplosion(b.obj, p, k, radio);   // (la chapa se hunde del lado de la explosión)
     if (b.persona && !explosion.remota) danarPersona(b.persona, dan * k, b.pos, d, b);
   }
   const dj = JUG.pos.distTo(p);
