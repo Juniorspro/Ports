@@ -2252,7 +2252,7 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
-## JXMod 3.9 (en preparación): la Physics Gun de JXMod y el tráiler
+## JXMod 3.9: la Physics Gun de JXMod y el tráiler
 
 - **La Physics Gun de JXMod** (`juego/armasjx.js`): es la de GMod con sus brazos y sus animaciones, modificada. Tiene el
   cuerpo azul acero y lo celeste sigue brillando. Las manos quedan como estaban (`Modelo.tintes`: un tinte por material).
@@ -2316,6 +2316,14 @@ al tope del celu (512 px):
   - En `npc.mjs`, «la Physics Gun lo levanta» fallaba igual en la 3.8.2: esperaba 0,9 s reales. Ahora espera tiempo del
     juego.
 - Costo por cuadro (`perfil_cuadro.mjs`, gm_construct, Alto): 2,14 ms en la 3.8.2 contra 2,22 ms ahora, dentro del ruido.
+- Al publicar:
+  - `mapas_hs.py` sólo copiaba `t`, `i`, `a` y `fondos` del paquete: la build salía sin los fondos de la pantalla de carga,
+    sin fondos animados y sin videos. Ahora copia todo, con vínculos.
+  - Los 4 fondos de carga que eran capturas de los mapas viejos (FlatGrass, City, Desert y Mars) se rehicieron con los
+    nuevos (`CARGA=1 pruebas/fotos_mapas_hs.mjs`).
+  - Los fondos animados del menú grabados en la City y el Desert viejos se sacaron: quedan 4.
+- Publicada con el paquete pk39 (`mapas_hs.py` sobre pk37). Pruebas: web con código 9/9; APK 6/6, versionCode
+  26111702, misma firma. `version.json` 3900, `VERSION_PROPIA` 3900.
 
 ## JXMod 3.8.2: «You Know How We Do It» en West Side
 

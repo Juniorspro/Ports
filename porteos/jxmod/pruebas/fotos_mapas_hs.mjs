@@ -1,6 +1,7 @@
 // las fotos del menú de los 8 mapas propios (los que reemplazan a los de Hyper Sandbox): una toma linda de cada uno, en
 // calidad Alta, de 400 × 225, a herramientas/fotos_mapas_hs/<mapa>.webp (después herramientas/mapas_hs.py las mete en el
-// paquete con el nombre de las de antes). Uso: node pruebas/fotos_mapas_hs.mjs URL_HTML [mapa,mapa...]
+// paquete con el nombre de las de antes). Uso: node pruebas/fotos_mapas_hs.mjs URL_HTML [mapa,mapa...]; con CARGA=1, las de
+// la pantalla de carga (herramientas/fotos_mapas_hs/carga, 1280 × 720)
 import { abrir } from './base.mjs';
 import fs from 'fs'; import path from 'path'; import { fileURLToPath } from 'url';
 const AQUI = path.dirname(fileURLToPath(import.meta.url)), D = path.join(AQUI, '..', 'herramientas', 'fotos_mapas_hs'); fs.mkdirSync(D, { recursive: true });
@@ -20,7 +21,9 @@ for (const m of (process.argv[3] || Object.keys(TOMAS).join(',')).split(',')) {
     const pp = v3(${c}), dd = vsub(v3(${a}), pp).norm(); DBG.cam = { p: pp, q: Quat.euler(Math.atan2(dd.x, dd.z), -Math.asin(clamp(dd.y, -1, 1)), 0) }; return 1; })()`);
   await p.waitForTimeout(3500);
   const png = await p.screenshot({ type: 'png' });
-  fs.writeFileSync(path.join(D, m + '.png'), png); console.log('foto', m);
+  if (process.env.CARGA) { fs.mkdirSync(path.join(D, 'carga'), { recursive: true }); fs.writeFileSync(path.join(D, 'carga', m + '.png'), png); }   // (CARGA=1: también el fondo de la pantalla de carga, 1280 × 720)
+  else fs.writeFileSync(path.join(D, m + '.png'), png);
+  console.log('foto', m);
   await ev(`DBG.cam = null; DBG.sinVista = false; 1`);
 }
 await b.close();

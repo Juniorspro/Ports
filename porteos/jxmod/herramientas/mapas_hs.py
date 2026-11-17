@@ -9,15 +9,15 @@ import sys, os, json, gzip, math, numpy as np
 from PIL import Image, ImageDraw
 PK0, PK1 = sys.argv[1:3]
 os.makedirs(PK1, exist_ok=True)
-for sub in ('t', 'i', 'a', 'fondos'):
-    os.makedirs(os.path.join(PK1, sub), exist_ok=True)
-    if not os.path.isdir(os.path.join(PK0, sub)): continue
-    for f in os.listdir(os.path.join(PK0, sub)):
-        dst = os.path.join(PK1, sub, f)
-        if not os.path.exists(dst): os.link(os.path.join(PK0, sub, f), dst)
-for f in os.listdir(PK0):   # (lo demás del paquete, tal cual)
-    s, dst = os.path.join(PK0, f), os.path.join(PK1, f)
-    if os.path.isfile(s) and f not in ('d.json.gz', 'm.bin.gz') and not os.path.exists(dst): os.link(s, dst)
+# (todo lo del paquete, con vínculos —no ocupa lugar—: texturas, íconos, sonidos, fondos, los fondos de la pantalla de
+# carga, los videos; antes sólo t, i, a y fondos, y la build salía sin fondos de carga, sin fondos animados ni videos)
+for raiz, dirs, archs in os.walk(PK0):
+    rel = os.path.relpath(raiz, PK0); os.makedirs(os.path.join(PK1, rel), exist_ok=True)
+    for f in archs:
+        if rel == '.' and f in ('d.json.gz', 'm.bin.gz'): continue
+        dst = os.path.join(PK1, rel, f)
+        if not os.path.exists(dst): os.link(os.path.join(raiz, f), dst)
+for sub in ('t', 'i', 'a', 'fondos'): os.makedirs(os.path.join(PK1, sub), exist_ok=True)
 d = json.load(gzip.open(PK0 + '/d.json.gz')); BIN = bytearray(gzip.decompress(open(PK0 + '/m.bin.gz', 'rb').read()))
 def agregar(b):
     while len(BIN) % 4: BIN.append(0)
@@ -372,6 +372,17 @@ for k, ic in ICONO.items():
     dst = os.path.join(PK1, 'i', st + '.webp')
     if os.path.exists(dst): os.remove(dst)   # (es un vínculo al paquete de origen: no se escribe encima)
     open(dst, 'wb').write(open(f, 'rb').read())
+# (la pantalla de carga: los fondos que eran capturas de los mapas viejos, con los nuevos —fotos_mapas_hs/carga, 1280 × 720—;
+# los fondos animados del menú grabados en la City y el Desert viejos se sacan: quedan los otros)
+CARGA = {'FlatGrass': '00_rb_flatgrass.png', 'City': '05_rb_city.png', 'Desert': '06_rb_desert.png', 'Mars': '08_rb_mars.png'}
+for k, n in CARGA.items():
+    f, dst = os.path.join(FOTOS, 'carga', k + '.jpg'), os.path.join(PK1, 'carga', n)
+    if not os.path.exists(f) or not os.path.isdir(os.path.join(PK1, 'carga')): continue
+    if os.path.exists(dst): os.remove(dst)
+    Image.open(f).convert('RGB').save(dst, 'PNG', optimize=True)
+for n in ('5_City.mp4', '6_Desert.mp4'):
+    f = os.path.join(PK1, 'fondos_video', n)
+    if os.path.exists(f): os.remove(f)   # (el vínculo de este paquete; el de origen queda)
 # ---------------- sacar lo de Hyper Sandbox que ya no usa nadie ----------------
 # (las mallas y las texturas que sólo usaban los mapas viejos: las mallas se vacían —sus bytes a cero, que comprimidos no
 # pesan— y las texturas quedan de 4 × 4. Los cielos viejos se dejan: los mapas de GMod copian el del FlatGrass)
