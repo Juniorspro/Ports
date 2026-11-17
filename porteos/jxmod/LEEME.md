@@ -2252,7 +2252,10 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
-## JXMod 3.9.1 (en preparación): los botones de los mods
+## JXMod 3.9.1: los botones de los mods
+
+- Publicada con el paquete pk39. Pruebas: web con código 9/9; APK 6/6, versionCode 26111713, misma firma.
+  `version.json` 3901, `VERSION_PROPIA` 3901.
 
 - **Las teclas de los mods** (pedido del dueño: «es feo tener en azul arriba y abajo vacío, hay muchos botones que no andan»):
   - Las fijadas (`bgmb0`–`5`) van abajo a la derecha, junto al disparo y a las teclas del arma (`HUD_V2.abHab`). Antes
