@@ -175,7 +175,7 @@ function ubicarPersona(P) {
     // volando (mod): el cuerpo inclinado con el pivote en la cadera
     const q = Quat.axis(0, 1, 0, P.yaw).mul(P.inclin), d = q.rot(v3(0, -(P.tam || 1), 0));
     m4trs([P.pos.x + d.x, P.pos.y + d.y, P.pos.z + d.z], [q.x, q.y, q.z, q.w], [1, 1, 1], P.md.raiz);
-  } else m4trs([P.pos.x, y, P.pos.z], [0, Math.sin(P.yaw / 2), 0, Math.cos(P.yaw / 2)], [1, 1, 1], P.md.raiz);
+  } else { const e = P.escVis || 1; m4trs([P.pos.x, y, P.pos.z], [0, Math.sin(P.yaw / 2), 0, Math.cos(P.yaw / 2)], [e, e, e], P.md.raiz); }   // (escVis: más chico o más grande sólo a la vista —un video—)
   P.md.sucio = true;
   P.bajar = 0; P.subir = 0;
 }
