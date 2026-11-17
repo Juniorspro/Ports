@@ -217,6 +217,7 @@ function dibujarPersona(P) {
       P.gorroMd.ponerRaiz(_mb); P.gorroMd.encolar();
     }
   }
+  if (typeof accDibujar === 'function' && !P.cicManos && !sinCabeza) accDibujar(P);   // (el accesorio importado para la cabeza, accesorios.js)
   // el arma en la mano derecha (los modelos de tercera persona del juego, con su lugar en la mano)
   if (P.arma && !P.rag && !P.sentado && !P.emote && !P.cuad && !P.cicManos && !(P.gmp && P.gmp.propio)) {   // (un modelo de GMod sin mano de Valve no tiene dónde llevarla)
     if (P.arma === 'Celular') celmDibujar3p(P);

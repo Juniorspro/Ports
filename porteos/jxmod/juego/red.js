@@ -364,7 +364,7 @@ function redPaso(dt) {
   if (t - RED.ultE > 0.1 && !(RED.lugar && RED.lugar.conectado && !RED.lugar.mando)) {
     const J = JUG, f = (J.suelo ? 1 : 0) | (ENT.agachar ? 2 : 0) | (J.vivo ? 4 : 0) | (J.vehiculo ? 8 : 0) | natBits() | nocheBits() | linternaBits() | (typeof gmanJugInvisible === 'function' && gmanJugInvisible() ? 256 : 0);   // (256: no se ve —también si el Lua le puso un material invisible: la ejecución de BSMod, que lo dibuja con otro modelo—)
     const kE = (typeof pillSkin === 'function' && pillSkin()) || J.skinRol || J.skinMod || PREFS.skin;   // (transformado: su personaje, pillpacks.js)
-    const e = { n: PREFS.nombre, k: kE, kw: redSkinWid(kE), h: PREFS.gorro, ga: PREFS.gorroAj || 0, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
+    const e = { n: PREFS.nombre, k: kE, kw: redSkinWid(kE), h: PREFS.gorro, ga: PREFS.gorroAj || 0, ac: PREFS.acc || 0, u: NAT.scp ? [r3(NAT.up.x), r3(NAT.up.y), r3(NAT.up.z)] : 0, c: J.colorRol || 0, p: [r3(J.pos.x), r3(J.pos.y), r3(J.pos.z)], y: r3(J.yaw), t: r3(J.pitch), v: [r3(J.vel.x), r3(J.vel.y), r3(J.vel.z)], f, a: ARM.lista[ARM.i],
       e: JUG.cuerpo && JUG.cuerpo.emote || 0, hp: Math.max(0, Math.round(JUG.vida)), mu: typeof emuRed === 'function' ? emuRed() : 0, w: J.vehiculo ? [claveObj(J.vehiculo), J.asiento] : 0, vr: verRedEstado() };
     { const pl = typeof pillRed === 'function' ? pillRed() : 0; if (pl) e.pl = pl; }   // (Pill Packs: en qué está transformado)
     if (RED.antes && RED.lugar && t - RED.lugar.t0 < 20) e.an = RED.antes;   // (volví con otro número: el de antes, para que borren su fantasma)
@@ -472,6 +472,7 @@ function recibirEstado(d) {
   const { real, skin } = redSkinDe(d), gorro = DATA.hats.includes(d.h) ? d.h : 'HatEmpty';
   if (R2) R2.skinReal = real;
   if (R2 && R2.P) R2.P.gorroAj = typeof gorroAjLimpio === 'function' ? gorroAjLimpio(d.ga) : null;
+  if (R2 && R2.P) R2.P.accAj = typeof accLimpio === 'function' ? accLimpio(d.ac) : null;   // (su accesorio importado, accesorios.js)
   if (R2 && (R2.skin !== skin || R2.gorro !== gorro)) {
     // cambió de personaje (o de gorro): sólo se rehace el cuerpo; sus objetos y entidades siguen
     borrarPersona(R2.P); const P = crearPersona(skin, gorro, { nombre: censurar(limpio(d.n)) }); P.remoto = d.i; R2.P = P; R2.b.persona = P; R2.skin = skin; R2.gorro = gorro;
@@ -717,6 +718,7 @@ function recibirHecho(d) {
   } else if (d.k === 'maq' || d.k === 'maqp' || d.k === 'maqd') { maqRed(d);
   } else if (d.k === 'meme' || d.k === 'memed') { memeRed(d);
   } else if (d.k === 'pjq' || d.k === 'pjd') { if (typeof pjiRed === 'function') pjiRed(d);   // (personajes importados: pedido y pedazos)
+  } else if (d.k === 'acq' || d.k === 'acd') { if (typeof accRed === 'function') accRed(d);   // (accesorios importados para la cabeza)
   } else if (d.k === 'chatcorr' && typeof d.id === 'string' && typeof d.t === 'string') { chatCambiar(d.id.slice(0, 12), censurar(limpio(d.t, 120)), d.i);
   } else if (d.k === 'jnt' || d.k === 'jntP' || d.k === 'jntS') { juntosRed(d);
   } else if (d.k === 'bocina') { bocinaRed(d);

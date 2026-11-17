@@ -149,7 +149,7 @@ function pjListaDibujar(P) {
     // (al buscar sólo cambia la grilla: la personalización queda como está, con lo que se estaba tocando)
     const g = izq.querySelector('.pjGridHat');
     if (g && izq.querySelector('.gorroAj')) g.outerHTML = grilla;
-    else { izq.innerHTML = `<div class="pjGorros">${grilla}${gorroAjHTML()}</div>`; gorroAjMontar(P); }
+    else { izq.innerHTML = `<div class="pjGorros">${grilla}${gorroAjHTML()}${typeof accHTML === 'function' ? accHTML() : ''}</div>`; gorroAjMontar(P); if (typeof accMontar === 'function') accMontar(P, () => inicioPanel('personajes')); }
   } else izq.innerHTML = grilla;
   const c = P.querySelector('.pjCuenta'); if (c) c.textContent = hat ? '' : `${L.length} ${T('pj.skins').toLowerCase()}`;
 }
