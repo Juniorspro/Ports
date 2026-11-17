@@ -86,6 +86,9 @@ function ajxMats() {
     vidrio: matPropio('ajxVidrio', [0.05, 0.06, 0.07], { pbr: [0.06, 0.3, 0.06] }),
     azul: matPropio('ajxAzul', [0.35, 0.85, 1], { pbr: [0.3, 0, 0.04], em: [0.9, 3.6, 5.2] }),   // (lo que brilla: el celeste de la Physics Gun)
     azulSuave: matPropio('ajxAzulS', [0.3, 0.8, 1], { pbr: [0.35, 0, 0.04], em: [0.25, 1.3, 2] }),
+    naranja: matPropio('ajxNaranja', [1, 0.55, 0.12], { pbr: [0.3, 0, 0.04], em: [5.2, 2.4, 0.35] }),   // (lo que brilla en la Gravity Gun)
+    naranjaSuave: matPropio('ajxNaranjaS', [1, 0.55, 0.15], { pbr: [0.35, 0, 0.04], em: [1.8, 0.8, 0.12] }),
+    amarilloSuave: matPropio('ajxAmarilloS', [1, 0.74, 0.16], { pbr: [0.35, 0, 0.04], em: [2.2, 1.45, 0.2] }),
     grafito: matPropio('ajxGrafito', [0.075, 0.08, 0.09], { pbr: [0.34, 0.75, 0.05] }),
   };
   return AJX.mats;
@@ -146,8 +149,17 @@ function ajxLogo() {
 // ---------------- qué arma se modifica y cómo ----------------
 // tintes: por material de la malla (el arma azul acero —lo celeste sigue brillando— y las manos como están); quitar: las
 // piezas de esos huesos; mundo: el tinte del modelo de la mano del personaje y del ícono
+// piezas: lo que se agrega (garras: el emisor, tres garras y la aleta con la marca —de la Physics Gun y la Gravity Gun, con
+// su color de brillo—; tool: la marca al costado y una línea que brilla; palanca: bandas de agarre)
 const AJX_ARMAS = {
-  fisica: { tintes: [[0.48, 0.72, 1.15, 0.62]], quitar: ['Prong_A', 'Prong_B', 'Doodad_4', 'Doodad_1'], mundo: [0.48, 0.72, 1.15, 0.62] },
+  fisica: { tintes: [[0.48, 0.72, 1.15, 0.62]], quitar: ['Prong_A', 'Prong_B', 'Doodad_4', 'Doodad_1'], mundo: [0.48, 0.72, 1.15, 0.62], piezas: 'garras', brillo: 'azul' },
+  // (la Gravity Gun: su naranja es lo de ella; el cuerpo, grafito tibio)
+  gravedad: { tintes: [[0.86, 0.74, 0.62, 0.5]], quitar: ['Prong_A', 'Prong_B', 'Doodad_4', 'Doodad_1'], mundo: [0.86, 0.74, 0.62, 0.5], piezas: 'garras', brillo: 'naranja' },
+  // (la Tool Gun: amarilla de JXMod con lo de abajo grafito; la pantalla y la mano, como están)
+  // (las texturas oscuras: el tinte pasa de 1 para que el amarillo se vea —el shader pinta el brillo de la textura—)
+  tool: { tintes: [[2.5, 1.8, 0.3, 0.8], null, [0.5, 0.52, 0.56, 0.6], [0.5, 0.52, 0.56, 0.6], null], quitar: [], mundo: [2.2, 1.6, 0.3, 0.7], piezas: 'tool' },
+  // (la palanca: amarilla, la cabeza grafito, con bandas negras donde se agarra)
+  palanca: { tintes: [[3.1, 2.2, 0.35, 0.9], null, [0.6, 0.62, 0.66, 0.6]], quitar: [], mundo: [2.6, 1.9, 0.3, 0.8], piezas: 'palanca' },
 };
 // ¿se ven las de JXMod? (con el mod de la comunidad «Armas clásicas» prendido, las de GMod tal cual)
 const ajxActivas = () => !(typeof MODS !== 'undefined' && MODS.armasClasicas);
@@ -192,23 +204,25 @@ function ajxGmVista(v, nombre) {
   if (C.quitar.length) { const c = md.mCambio || (md.mCambio = {}); md.A.forEach((x, i) => { if (x.bo && x.m !== undefined && x.m >= 0) c[i] = ajxMallaSin(x.m, x.bo, md.A, C.quitar); }); }
   if (AJX.vistaPrueba) AJX.vistaPrueba(md, h);   // (las pruebas: verla de otro lado)
   md.tintes = C.tintes; md.encolar();
-  if (AJX.sinPiezas || h.Base === undefined || h.Muzzle === undefined) return true;   // (las pruebas: sin lo agregado)
-  ajxFisicaPiezas(v, md, h);
+  if (AJX.sinPiezas) return true;   // (las pruebas: sin lo agregado)
+  if (C.piezas === 'garras' && h.Base !== undefined && h.Muzzle !== undefined) ajxFisicaPiezas(v, md, h, C);
+  else if (C.piezas === 'tool' && h.Python !== undefined) ajxToolPiezas(md, h);
+  else if (C.piezas === 'palanca' && h['ValveBiped.HandControlRotR'] !== undefined) ajxPalancaPiezas(md, h);
   return true;
 }
 // lo que se agrega a la Physics Gun, en el marco de su hueso Base (u: arriba, f: adelante, s: al costado que se ve; en
 // unidades de L, del Base a la boca): el emisor nuevo, tres garras que se abren al agarrar y la aleta con la marca
-function ajxFisicaPiezas(v, md, h) {
-  const M = ajxMats(), t = TIEMPO.t, W = md.W, B = W[h.Base], o = v3(B[12], B[13], B[14]);
+function ajxFisicaPiezas(v, md, h, C) {
+  const M = ajxMats(), t = TIEMPO.t, W = md.W, B = W[h.Base], o = v3(B[12], B[13], B[14]), BR = M[(C && C.brillo) || 'azul'], BS = M[((C && C.brillo) || 'azul') + 'Suave'];
   const U = v3(B[0], B[1], B[2]).norm(), F = v3(B[4], B[5], B[6]).norm(), S = v3(B[8], B[9], B[10]).norm();
   const boca = v3(W[h.Muzzle][12], W[h.Muzzle][13], W[h.Muzzle][14]), L = boca.distTo(o);
   const P = (c, u, f, s) => v3(c.x + (U.x * u + F.x * f + S.x * s) * L, c.y + (U.y * u + F.y * f + S.y * s) * L, c.z + (U.z * u + F.z * f + S.z * s) * L);
   const dt = Math.min(0.1, TIEMPO.dt || 0.016), meta = ARM.agarre ? 1 : 0; v.ajx.abre += (meta - v.ajx.abre) * Math.min(1, dt * 9); const k = v.ajx.abre;
   // el emisor: un aro grueso de grafito, un aro celeste y el núcleo que late (más fuerte agarrando)
-  const late = 1 + 0.12 * Math.sin(t * 7) + 0.3 * k;
+  const late = 1 + 0.12 * Math.sin(t * 7) + 0.3 * k + (ARM.grav ? 0.3 : 0);
   ajxEn('anillo', M.grafito, P(boca, 0, 0.0, 0), L * 0.27, F, U);
-  ajxEn('aro', M.azul, P(boca, 0, 0.07, 0), L * 0.2, F, U);
-  ajxEn('esfera', M.azul, P(boca, 0, 0.1, 0), L * 0.085 * late, F, U);
+  ajxEn('aro', BR, P(boca, 0, 0.07, 0), L * 0.2, F, U);
+  ajxEn('esfera', BR, P(boca, 0, 0.1, 0), L * 0.085 * late, F, U);
   // las garras: tres, alrededor de la boca (una arriba y dos abajo a los costados), con la punta celeste
   for (let g = 0; g < 3; g++) {
     const an = g * 2.0944, R1 = v3(U.x * Math.cos(an) + S.x * Math.sin(an), U.y * Math.cos(an) + S.y * Math.sin(an), U.z * Math.cos(an) + S.z * Math.sin(an));
@@ -216,12 +230,12 @@ function ajxFisicaPiezas(v, md, h) {
     const a = at(-0.16, 0.26), b = at(0.2, 0.38 + 0.08 * k), c = at(0.46, 0.24 + 0.14 * k), d = at(0.55, 0.19 + 0.13 * k);
     ajxEntre('barra', M.grafito, a, b, L * 0.1, L * 0.07, R1);
     ajxEntre('barra', M.metal, b, c, L * 0.085, L * 0.06, R1);
-    ajxEntre('barra', M.azul, c, d, L * 0.06, L * 0.045, R1);
+    ajxEntre('barra', BR, c, d, L * 0.06, L * 0.045, R1);
   }
   // la aleta de arriba, con el logo de JXMod a los dos lados y una línea celeste en el borde
   const al = AJX.aleta || [0.27, -0.2, 0.62, 0.18, 0.08];   // (alto del centro, de dónde a dónde, alto, grosor)
   ajxEntre('barra', M.grafito, P(o, al[0], al[1], 0), P(o, al[0], al[2], 0), L * al[4], L * al[3], U);
-  ajxEntre('barra', M.azulSuave, P(o, al[0] + al[3] / 2, al[1] + 0.05, 0), P(o, al[0] + al[3] / 2, al[2] - 0.05, 0), L * al[4] * 0.55, L * 0.02, U);
+  ajxEntre('barra', BS, P(o, al[0] + al[3] / 2, al[1] + 0.05, 0), P(o, al[0] + al[3] / 2, al[2] - 0.05, 0), L * al[4] * 0.55, L * 0.02, U);
   const lm = ajxLogo();
   if (lm) for (const sg of [1, -1]) {
     const n = vscale(S, sg), lg = (al[2] - al[1]) * 0.86, cx = P(o, al[0], (al[1] + al[2]) / 2, sg * (al[4] / 2 + 0.003)), X = vcross(U, n).norm();
@@ -240,6 +254,25 @@ function ajxMundoDibujar() {
     ajxPoner('tubo', M.azul, a, vscale(x, r), vscale(y, r), vscale(z, n * 1.02));
   }
   R.encNs = false;
+}
+// el marco de un hueso (sus ejes normalizados) y un punto en él, en metros
+function ajxMarco(W, i) { const B = W[i]; return { o: v3(B[12], B[13], B[14]), U: v3(B[0], B[1], B[2]).norm(), F: v3(B[4], B[5], B[6]).norm(), S: v3(B[8], B[9], B[10]).norm() }; }
+const ajxEnMarco = (m, u, f, s) => v3(m.o.x + m.U.x * u + m.F.x * f + m.S.x * s, m.o.y + m.U.y * u + m.F.y * f + m.S.y * s, m.o.z + m.U.z * u + m.F.z * f + m.S.z * s);
+// la Tool Gun: el logo de JXMod al costado que se ve y una línea amarilla que brilla arriba (en el marco del hueso Python:
+// U arriba, F adelante, S el costado de la cámara)
+function ajxToolPiezas(md, h) {
+  const M = ajxMats(), m = ajxMarco(md.W, h.Python), T = AJX.toolLugar || [-0.03, 0.035, 0.0545, 0.15];
+  for (const sg of [1, -1]) ajxEntre('barra', M.amarilloSuave, ajxEnMarco(m, T[0] - 0.035, T[1] - 0.09, sg * T[2]), ajxEnMarco(m, T[0] - 0.035, T[1] + 0.1, sg * T[2]), 0.006, 0.006, m.S);   // (debajo del logo)
+  const lm = ajxLogo(); if (!lm) return;
+  for (const sg of [1, -1]) { const n = vscale(m.S, sg), X = vcross(m.U, n).norm(); ajxPoner('placa', lm, ajxEnMarco(m, T[0], T[1], sg * T[2]), vscale(X, T[3]), vscale(m.U, T[3] / 4), n); }
+}
+// la palanca: dos bandas negras donde se agarra y una amarilla que brilla (en el marco de HandControlRotR: el caño va por F)
+function ajxPalancaPiezas(md, h) {
+  const M = ajxMats(), m = ajxMarco(md.W, h['ValveBiped.HandControlRotR']), c = AJX.palancaEje || [-0.127, 0.108, 0.0215];
+  for (const [f, mt, r, L] of [[-0.3, M.negro, 1.12, 0.06], [-0.4, M.negro, 1.12, 0.06], [-0.48, M.amarilloSuave, 1.06, 0.018]]) {
+    const a = ajxEnMarco(m, c[0], f, c[1]), [x, y] = ajxEjes(m.F, m.U), R0 = c[2] * r;
+    ajxPoner('tubo', mt, a, vscale(x, R0), vscale(y, R0), vscale(m.F, L));
+  }
 }
 // en la mano del personaje: el modelo de GMod con el mismo color
 function ajxGmMundo(md, nombre) { const jx = ajxDeArma(nombre), C = jx && AJX_ARMAS[jx]; md.tinte = C ? C.mundo : null; }
@@ -281,8 +314,8 @@ function ajxAplicar() {
     if (ajxActivas()) {
       if (!AJX.iconos) AJX.iconos = {};
       if (AJX.iconos[D.jx]) D.ic = AJX.iconos[D.jx];
-      else if (!AJX.iconoPide && AJX_ARMAS[D.jx] && AJX_ARMAS[D.jx].mundo && typeof DATA !== 'undefined' && DATA && DATA.ico && icono(D.icClasico)) {
-        AJX.iconoPide = true; ajxIconoTenido(icono(D.icClasico), AJX_ARMAS[D.jx].mundo, (u) => { AJX.iconoPide = false; if (!u) return; AJX.iconos[D.jx] = u; if (ajxActivas()) { D.ic = u; if (typeof hudArma === 'function' && ARM.lista.length && JUEGO.estado === 'juego') hudArma(); } });
+      else if (!(AJX.iconoPide || (AJX.iconoPide = {}))[D.jx] && AJX_ARMAS[D.jx] && AJX_ARMAS[D.jx].mundo && typeof DATA !== 'undefined' && DATA && DATA.ico && icono(D.icClasico)) {
+        AJX.iconoPide[D.jx] = true; ajxIconoTenido(icono(D.icClasico), AJX_ARMAS[D.jx].mundo, (u) => { AJX.iconoPide[D.jx] = false; if (!u) return; AJX.iconos[D.jx] = u; if (ajxActivas()) { D.ic = u; if (typeof hudArma === 'function' && ARM.lista.length && JUEGO.estado === 'juego') hudArma(); } });
       }
     } else D.ic = D.icClasico;
   }

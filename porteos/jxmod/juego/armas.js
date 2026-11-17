@@ -16,14 +16,14 @@ const DEF_ARMAS = {
   Hands: { nodo: 'Hands', ic: 'Hands', fuego: 'Punch', fuego2: 'Hook', sacar: 'Draw', sF: 'Arm_Swing_edited', car: 0, cad: 0.45, dan: 15, tipo: 'golpe', alcance: 2.0 },
   // la palanca de Half-Life 2 / Garry's Mod (herramientas/gmod.py): el brazo con el guante del traje HEV, sus animaciones
   // (sacar, quieto, tres golpes que pegan y dos al aire) y sus sonidos; alcance y ritmo como en HL2 (75 unidades, 0,4 s)
-  Crowbar: { nodo: 'Crowbar', ic: 'W_Crowbar', fuego: 'CB_miss1', pega: ['CB_hit1', 'CB_hit2', 'CB_hit3'], falla: ['CB_miss1', 'CB_miss2'], sacar: 'CB_draw', quieto: 'CB_idle',
+  Crowbar: { jx: 'palanca', nodo: 'Crowbar', ic: 'W_Crowbar', fuego: 'CB_miss1', pega: ['CB_hit1', 'CB_hit2', 'CB_hit3'], falla: ['CB_miss1', 'CB_miss2'], sacar: 'CB_draw', quieto: 'CB_idle',
     sF: 'CB_Swing', sImp: ['CB_Impact1', 'CB_Impact2'], sCarne: ['CB_Flesh1', 'CB_Flesh2', 'CB_Flesh3', 'CB_Flesh4', 'CB_Flesh5'], car: 0, cad: 0.4, dan: 25, empuje: 70, tipo: 'golpe', alcance: 1.95, prop: 'Crowbar' },
   // (la Gravity Gun de HL2 y la Physics Gun y la Tool Gun de GMod, de herramientas/gmod.py: vista con sus animaciones,
   // "sujeta" mientras tiene algo agarrado, y sus sonidos)
-  GravityGun: { nodo: 'GM_GravGun', ic: 'W_GravGun', fuego: 'GG_fire', sacar: 'GG_draw', quieto: 'GG_idle', sujeta: 'GG_hold', sS: 'GG_Open', sF: ['GG_Launch1', 'GG_Launch2', 'GG_Launch3', 'GG_Launch4'],
+  GravityGun: { jx: 'gravedad', nodo: 'GM_GravGun', ic: 'W_GravGun', fuego: 'GG_fire', sacar: 'GG_draw', quieto: 'GG_idle', sujeta: 'GG_hold', sS: 'GG_Open', sF: ['GG_Launch1', 'GG_Launch2', 'GG_Launch3', 'GG_Launch4'],
     sAgarra: 'GG_Pickup', sSuelta: 'GG_Drop', sVacio: 'GG_Dry', sSosten: 'GG_Hold', car: 0, cad: 0.5, tipo: 'grav', prop: 'GravityGun' },
   PhysicsGun: { jx: 'fisica', nodo: 'GM_PhysGun', ic: 'W_PhysGun', sacar: 'PG_draw', quieto: 'PG_idle', sujeta: 'PG_hold', sS: 'genericReadyNew_1', sSuelta: 'PG_Off', sSosten: 'PG_Hold', car: 0, cad: 0.1, tipo: 'fisica' },
-  ToolBaton: { nodo: 'GM_ToolGun', ic: 'W_ToolGun', fuego: 'TG_fire', sacar: 'TG_draw', quieto: 'TG_idle', sS: 'genericReadyNew_1', sF: ['TG_Fire1', 'TG_Fire2'], car: 0, cad: 0.35, tipo: 'tool' },
+  ToolBaton: { jx: 'tool', nodo: 'GM_ToolGun', ic: 'W_ToolGun', fuego: 'TG_fire', sacar: 'TG_draw', quieto: 'TG_idle', sS: 'genericReadyNew_1', sF: ['TG_Fire1', 'TG_Fire2'], car: 0, cad: 0.35, tipo: 'tool' },
   Camera: { nodo: 'Camera', ic: 'Camera', sS: 'Click', car: 0, cad: 0.6, tipo: 'foto' },
 };
 const ARM = { lista: ['RPG', 'Pistol', 'Camera', 'Hands', 'Crowbar', 'ToolBaton', 'PhysicsGun'], i: 6, balas: {}, t: 0, ocup: 0, recargando: 0, v: null, sway: { x: 0, y: 0, z: 0, qx: 0, qy: 0 }, bob: 0,
