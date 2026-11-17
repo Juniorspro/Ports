@@ -568,7 +568,7 @@ function dibujar() {
   itemsLimpiar();
   // el arma en la mano, encima de todo (en una franja de profundidad propia)
   if (JUEGO.estado === 'juego') {
-    const P2 = M4.persp(60 * Math.PI / 180, asp, 0.01, 20); m4mul(P2, V, R.vp); R.fr = frustum(R.vp); R.marca++;
+    const P2 = M4.persp((DBG.fovVista || 60) * Math.PI / 180, asp, 0.01, 20); m4mul(P2, V, R.vp); R.fr = frustum(R.vp); R.marca++;   // (DBG.fovVista: otro campo para el arma —un video vertical—)
     R.fase = 'vista';
     if (dibujarVista()) { if (typeof gmrVistaArma === 'function') gmrVistaArma(); gl.depthRange(0, 0.04); armarCola(); dibujarOpacos(); dibujarTransparentes(); if (typeof gmrDibujar === 'function') gmrDibujar('vista'); gl.depthRange(0, 1); }
     R.fase = ''; itemsLimpiar();
