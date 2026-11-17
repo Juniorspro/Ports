@@ -2275,6 +2275,24 @@ al tope del celu (512 px):
     - `pruebas/gmod_panel.mjs` 18/18;
     - `pruebas/hud_orden.mjs` actualizada al lugar nuevo; acá no corre, porque falta el addon Viewfinder.
 
+- **25 mods probados** sobre la build con todo esto (pedido del dueño: «verificá que funcionen unos 25»):
+  - Armas: `sweps_tanda.mjs` con 19 addons (Spider-Man, Superman, The Flash, Sonic Unleashed, BSMod Punch, Lightsabers,
+    Melon Launcher, Bark Fart, Haax Gun, Batarang, Ruby Rose, Sentry/Void, C4, antorcha de Minecraft, CS:S —2 armas—,
+    Illuminati Gun, Brawler, Death Note, Gura Gura). Andan 17 de 20 armas, y las 3 «fallas» son como en GMod: Sonic pone
+    su cámara en tercera persona; el puño de BSMod queda abajo de la vista hasta pegar; el primario de la antorcha sólo
+    actúa sobre algo adelante (el secundario la clava en el piso: probado).
+  - Nextbots/NPC: `nextbots_tanda.mjs` con 6 (Obunga, Quandale, The Wok, Doge, Walter, Saul Goodman). Los 6 se ven, te
+    alcanzan en 2,7–3,2 s a la velocidad que pide su Lua (16,5 m/s) y matan en 3–3,5 s. 0 errores de Lua y de JS.
+  - Botones: `pruebas/teclas_mods.mjs` 20/20 (los 19 de armas en un celular, más la antorcha). Salen 14 botones en 5
+    armas, y todos le entregan su tecla al mod. 4 quedan ocultos porque su mod no los lee nunca.
+  - Lo que encontró y se arregló:
+    - Las teclas de un botón de mod no pasaban a su `IN_`, salvo la E. Ahora la R del botón es `IN_RELOAD`, Shift
+      `IN_SPEED`, Alt `IN_WALK`, Espacio `IN_JUMP` y Ctrl `IN_DUCK`, como las del teclado (`gmaTeclas`).
+    - Los botones del mouse (M3, M4, M5) de un mod que los escucha por `PlayerButtonDown` se ocultaban de más (Sentry
+      tiene ahí sus tres habilidades).
+  - Algunas teclas el mod las usa sólo en su momento: ▲▼ de la Lightsaber eligen poderes después de la F; la G de Sonic
+    es la transformación en Super Sonic.
+
 ## JXMod 3.9: la Physics Gun de JXMod y el tráiler
 
 - **La Physics Gun de JXMod** (`juego/armasjx.js`): es la de GMod con sus brazos y sus animaciones, modificada. Tiene el

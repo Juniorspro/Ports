@@ -549,7 +549,7 @@ function gmbContextoPaso() {
   if (hay && typeof CTL !== 'undefined' && CTL.modArma && performance.now() - (GMB.armaVivoT || 0) > 500) { GMB.armaVivoT = performance.now();
     for (let i = 0; i < 4; i++) { const e = $('bmod' + i), b = e && e._ctl; if (!b) continue;
       const k = b.bind ? 'bind:' + b.bind : /^IN_/.test(b.id) ? 'in:' + b.id.slice(3) : b.tecla ? 'key:' + b.tecla : b.raton ? null : null;
-      const vivo = b.raton ? !!(GMA.teclasVis && GMA.teclasVis.has(b.raton)) : !k || gmbVivo(k); e.classList.toggle('oc', !vivo); } }
+      const vivo = b.raton ? !!(GMA.teclasVis && GMA.teclasVis.has(b.raton)) || gmbHook('PlayerButtonDown') || gmbHook('PlayerButtonUp') : !k || gmbVivo(k); e.classList.toggle('oc', !vivo); } }   // (los del mouse —M3, M4, M5— también por PlayerButtonDown: Sentry)
 }
 const gmbContextoListo = () => typeof gmanApuntaResaltada === 'function' && !(typeof JUG !== 'undefined' && (JUG.bloqueado || !JUG.vivo || JUG.vehiculo)) && gmanApuntaResaltada(100);
 // las habilidades de comando en la compu: la de una acción con algo adelante, en la tecla de usar (cuando hay a quién: si no,

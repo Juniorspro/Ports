@@ -917,7 +917,10 @@ function gmaDanoBala(h, d, di, fuerza) {
 }
 const IN = { ATTACK: 1, JUMP: 2, DUCK: 4, FORWARD: 8, BACK: 16, USE: 32, LEFT: 128, RIGHT: 256, MOVELEFT: 512, MOVERIGHT: 1024, ATTACK2: 2048, RELOAD: 8192, SPEED: 131072, WALK: 262144, ZOOM: 524288 };
 function gmaTeclas() {
-  let k = 0; if (typeof ENT === 'undefined' || (typeof JUG !== 'undefined' && JUG.bloqueado)) return 0; const t = ENT.teclas || new Set();   // (Player:Lock: ninguna tecla)
+  let k = 0; if (typeof ENT === 'undefined' || (typeof JUG !== 'undefined' && JUG.bloqueado)) return 0; let t = ENT.teclas || new Set();   // (Player:Lock: ninguna tecla)
+  // (las teclas que aprietan los botones de los mods en la pantalla cuentan igual que las del teclado: la R de un botón es
+  // IN_RELOAD, Shift es IN_SPEED, Alt IN_WALK, Espacio IN_JUMP y Ctrl IN_DUCK; antes sólo la E —IN_USE— pasaba)
+  if (typeof CTL !== 'undefined' && CTL.teclasMod.size) t = new Set([...t, ...CTL.teclasMod]);
   if (ENT.disparo) k |= IN.ATTACK; if (ENT.disparo2) k |= IN.ATTACK2; if (ENT.saltar || t.has('Space')) k |= IN.JUMP; if (ENT.agachar || t.has('ControlLeft')) k |= IN.DUCK;
   if (t.has('KeyW') || ENT.y > 0.3) k |= IN.FORWARD; if (t.has('KeyS') || ENT.y < -0.3) k |= IN.BACK; if (t.has('KeyA') || ENT.x < -0.3) k |= IN.MOVELEFT; if (t.has('KeyD') || ENT.x > 0.3) k |= IN.MOVERIGHT;
   // (los botones de la pantalla también cuentan mientras el dedo está encima: hay armas que miran KeyDown(IN_RELOAD) en su
