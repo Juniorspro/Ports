@@ -2277,6 +2277,46 @@ al tope del celu (512 px):
     normalizó a −14 LUFS (salió −13,8).
   - Se armó con ffmpeg en dos versiones: 1080p60 (63 MB) y 720p60 de 9,6 MB para Discord.
 
+### 3.9: los mapas, las otras armas, accesorios y agua
+
+- **Los 8 mapas de Hyper Sandbox, propios** (`herramientas/mapas_hs.py`, sobre el paquete de la 3.8: `python3 -I
+  herramientas/mapas_hs.py pk37 pk39`; la 3.9 se arma con ese paquete). Son Desert, DesertV2, FlatGrass, City, Base, BaseV2,
+  Mars y Space, con el mismo nombre, así que partidas, salas, mods y menús siguen andando. El piso donde se aparece queda a
+  0,53 m y la aparición, en el centro (en Space, al lado de la torre). Todo es nuestro:
+  - Desert: médanos, una ruta, una estación de servicio y rocas grandes.
+  - DesertV2: un cañón entre mesetas.
+  - FlatGrass: pasto parejo de 1,5 km.
+  - City: 6 × 6 manzanas con rascacielos en el centro y una plaza.
+  - Base: muro, torres, hangares de chapa, torre de control, pista y helipuerto. El terreno baja debajo del hormigón para
+    que no titile.
+  - BaseV2: la base grande con un puerto de contenedores y la bahía, donde se puede nadar.
+  - Mars: cráteres, rocas y una base con cúpulas.
+  - Space: una estación con cubierta octogonal, puentes, plataformas, un anillo y asteroides.
+  - Las mallas y texturas que sólo usaban los mapas viejos salen del paquete: 64 mallas (3,2 MB) y 30 texturas.
+  - Las fotos del menú son nuevas (`pruebas/fotos_mapas_hs.mjs` → `herramientas/fotos_mapas_hs`).
+  - Prueba: `pruebas/mapas_caminar.mjs`, 8/8 (se aparece parado; corriendo en 4 direcciones no se cae ni se traba).
+- **Gravity Gun, Tool Gun y palanca de JXMod**, con el mismo sistema que la Physics Gun (`AJX_ARMAS`):
+  - La Gravity Gun, en su naranja.
+  - La Tool Gun, amarilla con el logo.
+  - La palanca, amarilla con bandas de agarre.
+  - Sobre texturas oscuras, el tinte pasa de 1. Cada arma pide su ícono.
+- **Accesorios importados para la cabeza** (`juego/accesorios.js`; Discord, thisgood_boom2):
+  - En Personajes → Gorros se importa un GLB, GLTF, OBJ o el .zip de Sketchfab. Se lee con el lector de Importar personaje
+    y queda pegado al hueso de la cabeza, con barras para el tamaño, los corrimientos y tres giros.
+  - Se guarda en IndexedDB. En la sala viaja de a pedazos (`acq`/`acd`, como `pjq`/`pjd`).
+  - Prueba: `pruebas/accesorios.mjs` con `pruebas/casco.glb`.
+- **Agua** (Discord, Gato: «más física al agua»):
+  - Olas en el agua grande de los mapas: ±13 cm, y lo que flota se mece.
+  - Ondas en la superficie al caer algo, al moverse lo que flota y al caminar o nadar.
+  - El lago de Colinas, el mar de Isla, el oasis del Desierto y el puerto de BaseV2 no tenían volumen de agua: no se nadaba
+    ni flotaba nada. Ahora sí.
+- Pruebas corridas sobre la build con todo esto:
+  - Menú principal 7/7, menús 6/6, NPC 15/15, Discord 3.8.1 14/14.
+  - Maquinitas 22/22, armas de HL2 9/9, armas de GMod 8/8, mapas 8/8.
+  - En `npc.mjs`, «la Physics Gun lo levanta» fallaba igual en la 3.8.2: esperaba 0,9 s reales. Ahora espera tiempo del
+    juego.
+- Costo por cuadro (`perfil_cuadro.mjs`, gm_construct, Alto): 2,14 ms en la 3.8.2 contra 2,22 ms ahora, dentro del ruido.
+
 ## JXMod 3.8.2: «You Know How We Do It» en West Side
 
 - Faltaba «You Know How We Do It» de Ice Cube en la radio West Side de la música del menú (`juego/musica_estaciones.txt`).
