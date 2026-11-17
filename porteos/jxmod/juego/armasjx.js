@@ -199,9 +199,10 @@ function ajxGmVista(v, nombre) {
   const jx = ajxDeArma(nombre), C = jx && AJX_ARMAS[jx];
   if (!v.ajx) { v.ajx = { h: {}, abre: 0 }; md.A.forEach((n, i) => { if (v.ajx.h[n.n] === undefined) v.ajx.h[n.n] = i; }); }
   const h = v.ajx.h;
-  if (!C) { md.tintes = null; md.mCambio = null; return false; }   // (con las clásicas: tal cual)
+  if (!C) { md.tintes = null; md.mCambio = null; v.ajx.qc = null; return false; }   // (con las clásicas: tal cual)
   // quitar: algunos fierros (las garras grandes y sus brazos), con la malla sin esas piezas
-  if (C.quitar.length) { const c = md.mCambio || (md.mCambio = {}); md.A.forEach((x, i) => { if (x.bo && x.m !== undefined && x.m >= 0) c[i] = ajxMallaSin(x.m, x.bo, md.A, C.quitar); }); }
+  if (C.quitar.length && v.ajx.qc !== C.quitar) { const c = (md.mCambio = {}); let listo = true; md.A.forEach((x, i) => { if (x.bo && x.m !== undefined && x.m >= 0) { c[i] = ajxMallaSin(x.m, x.bo, md.A, C.quitar); if (c[i] === x.m) listo = false; } }); if (listo) v.ajx.qc = C.quitar; }   // (una vez: la copia sin esas piezas queda)
+  else if (!C.quitar.length) md.mCambio = null;
   if (AJX.vistaPrueba) AJX.vistaPrueba(md, h);   // (las pruebas: verla de otro lado)
   md.tintes = C.tintes; md.encolar();
   if (AJX.sinPiezas) return true;   // (las pruebas: sin lo agregado)

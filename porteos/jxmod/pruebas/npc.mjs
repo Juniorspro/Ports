@@ -62,7 +62,7 @@ await ev(`elegirArma(${gi}); 1`); await p.waitForTimeout(400);
 await ev(`(() => { const P = NPC.lista[0]; const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)); P.pos.set(JUG.pos.x + f.x * 3, JUG.pos.y, JUG.pos.z + f.z * 3); P.npcB.pos.copy(P.pos); P.npcB.updateWorld(); JUG.pitch = 0.05; return 1; })()`);
 await p.waitForTimeout(300);
 await ev(`ENT.disparo = true; agarrarFisica(); 1`); await p.waitForTimeout(100);
-await ev(`JUG.pitch = -0.5; 1`); await p.waitForTimeout(900);
+{ const tg = await ev(`JUG.pitch = -0.5; TIEMPO.t`); await p.waitForFunction((t) => window.__ev(`TIEMPO.t - ${t} > 1.4`), tg, { timeout: 60000 }); }   // (en tiempo del juego: con pocos cuadros por segundo 0,9 s reales no alcanzaban para subirlo)
 // (un NPC vivo agarrado se vuelve muñeco de trapo, npcAgarrarRag: la pistola sostiene la parte más cercana del muñeco)
 const gr = await ev(`(() => { const P = NPC.lista[0], A = ARM.agarre, cs = P.rag ? [...P.rag.cuerpos.values()].map((e) => e.b) : [];
   const held = !!A && (A.b === P.npcB || cs.includes(A.b)), cad = P.rag && P.rag.cuerpos.get(P.D.h.Hips), yc = cad ? cad.b.pos.y : P.pos.y;

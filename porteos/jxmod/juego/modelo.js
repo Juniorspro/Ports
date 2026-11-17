@@ -85,7 +85,9 @@ class Modelo {
     // se pidió, sin sombra
     const A = this.A, lb = this.lodBajo; R.encNs = !!this.sinSombra;
     // (un tinte por material de la malla —el arma de un color y las manos de otro—: las armas de JXMod, armasjx.js)
-    const tm = this.tintes, ex = tm ? tm.map((c) => (c ? Object.assign({}, extra || {}, { ti: c }) : extra)) : null, E = (k) => (ex && k < ex.length ? ex[k] : extra);
+    // (se arma una vez y se reusa mientras no cambien los tintes ni lo demás: sin objetos nuevos en cada cuadro)
+    const tm = this.tintes; if (tm && (this._exT !== tm || this._exE !== extra)) { this._exT = tm; this._exE = extra; this._ex = tm.map((c) => (c ? Object.assign({}, extra || {}, { ti: c }) : extra)); }
+    const ex = tm ? this._ex : null, E = (k) => (ex && k < ex.length ? ex[k] : extra);
     for (let i = 0; i < A.length; i++) {
       if (!this.ver[i]) continue;
       const x = A[i];
