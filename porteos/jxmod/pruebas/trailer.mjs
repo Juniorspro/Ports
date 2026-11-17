@@ -6,10 +6,11 @@
 // (ritmo: la escena puede pedir cámara lenta —el tiempo del juego avanza menos por cuadro—)
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
 import fs from 'fs';
-import { ESCENAS, FPS } from './trailer_escenas.mjs';
+// (ESC=archivo.mjs: otras escenas —un corto vertical—; VW, VH, DPR: el tamaño de la pantalla; las escenas pueden traer su CSS)
+const { ESCENAS, FPS, CSS: CSSX } = await import(process.env.ESC ? 'file://' + fs.realpathSync(process.env.ESC) : './trailer_escenas.mjs');
 const [, , HTML, D = '/tmp/claude-0/trailer/fr', LISTA = '', CADA = '1'] = process.argv; fs.mkdirSync(D, { recursive: true });
 const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', '--mute-audio'] });
-const ctx = await b.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 });
+const ctx = await b.newContext({ viewport: { width: +process.env.VW || 1280, height: +process.env.VH || 720 }, deviceScaleFactor: +process.env.DPR || 1.5 });
 await ctx.route('**/api/cuenta/config', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"google":false}' }));
 const p = await ctx.newPage(); const err = [];
 p.on('pageerror', (e) => err.push(e.message.slice(0, 200)));
@@ -40,6 +41,7 @@ await ev(`(() => { PREFS.bienvenida = true; PREFS.tutVisto = true; GFX.auto = fa
   const o = document.createElement('div'); o.id = 'trOver'; document.body.appendChild(o);
   window.__rafO = window.__rafO || requestAnimationFrame;
   return 1; })()`);
+if (CSSX) await ev(`(() => { const st = document.createElement('style'); st.textContent = ${JSON.stringify(CSSX)}; document.head.appendChild(st); return 1; })()`);
 // el reloj del tráiler: el juego quieto (sin su bucle) y un cuadro por paso
 const congelar = () => ev(`(() => { window.requestAnimationFrame = () => 0; window.__T = window.__T || performance.now(); return 1; })()`);
 const soltar = () => ev(`(() => { window.requestAnimationFrame = window.__rafO; window.__rafO(cuadro); return 1; })()`);
