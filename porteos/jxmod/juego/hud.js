@@ -118,6 +118,9 @@ const HUD_V2 = {
   ab: { '#bsaltar': [-90, 90, 136, 54], '#bagachar': [-228, 74, 104, 48], '#bdisparo': [-235, 262, 176, 64], '#bdisp2': [-74, 300, 104, 48],
     '#bpatada': [-344, 100, 92, 42], '#brecargar': [-410, 282, 96, 44], '#brotar': [-410, 282, 96, 44], '#bvolver': [-452, 170, 86, 38],
     '#blejos': [-170, 402, 84, 38], '#bcerca': [-302, 404, 84, 38], '#bmod0': [-170, 404, 90, 40], '#bmod1': [-300, 404, 90, 40], '#bmod2': [-450, 400, 90, 40], '#bmod3': [-540, 290, 90, 40] },
+  // (3.9) las teclas fijadas de los mods: abajo a la derecha, en los lugares libres alrededor del disparo y de las teclas del
+  // arma (antes arriba a la izquierda, azules: «es feo tener en azul arriba y abajo vacío»), las que se ven primero
+  abHab: [[-74, 430, 84, 40], [-170, 522, 84, 40], [-300, 522, 84, 40], [-430, 522, 84, 40], [-560, 400, 84, 40], [-560, 522, 84, 40]],
 };
 // qué disposición usa el jugador: la 2 (la nueva) salvo que haya guardado botones movidos o agrandados antes de que existiera ésta
 // (PREFS.hudPos sin «_v: 2» y con posiciones propias): esos quedan exactamente como estaban, con los de fábrica de antes
@@ -133,12 +136,16 @@ function hudV2Pos(W, H, k, f, sa, ver, orden) {
   // ---- la columna de la derecha: arriba y abajo, cada uno con su escala; si no entran los dos, se achican lo justo ----
   const esc = (T) => { let q = k; for (const sel in T) q = Math.max(q, T[sel][3] * fz / T[sel][2]); return q; };
   const tope = (T) => Math.max(...Object.values(T).map((v) => v[1] + v[2] / 2));
-  let kd = esc(HUD_V2.ad), kab = esc(HUD_V2.ab);
-  const q = Math.min(1, (H - sa.t - sa.b - 6) / (tope(HUD_V2.ad) * kd + tope(HUD_V2.ab) * kab)); kd *= q; kab *= q;
-  for (const sel in HUD_V2.ad) { const [dx, dy, S] = HUD_V2.ad[sel]; out[sel] = [W - sa.r + dx * kd, sa.t + dy * kd, S * kd]; }
-  for (const sel in HUD_V2.ab) { const [dx, dy, S] = HUD_V2.ab[sel]; out[sel] = [W - sa.r + dx * kab, H - sa.b - dy * kab, S * kab]; }
-  // ---- arriba a la izquierda: columnas por grupo (en unidades; después se pasan a px con la escala ka) ----
   const L = typeof hudZonasListas === 'function' ? hudZonasListas(orden) : { sis: [], crear: [], hab: [] };
+  // (las teclas de los mods: abajo a la derecha, con los otros de acción; sólo las que se ven cuentan para el tamaño del grupo)
+  const habV = (L.hab || []).filter(ver), habO = (L.hab || []).filter((q) => !ver(q)), TAB = Object.assign({}, HUD_V2.ab); L.hab = [];
+  habV.forEach((sel, i) => { if (HUD_V2.abHab[i]) TAB[sel] = HUD_V2.abHab[i]; });
+  let kd = esc(HUD_V2.ad), kab = esc(TAB);
+  const q = Math.min(1, (H - sa.t - sa.b - 6) / (tope(HUD_V2.ad) * kd + tope(TAB) * kab)); kd *= q; kab *= q;
+  for (const sel in HUD_V2.ad) { const [dx, dy, S] = HUD_V2.ad[sel]; out[sel] = [W - sa.r + dx * kd, sa.t + dy * kd, S * kd]; }
+  for (const sel in TAB) { const [dx, dy, S] = TAB[sel]; out[sel] = [W - sa.r + dx * kab, H - sa.b - dy * kab, S * kab]; }
+  habO.forEach((sel, j) => { const [dx, dy, S] = HUD_V2.abHab[Math.min(HUD_V2.abHab.length - 1, habV.length + j)]; out[sel] = [W - sa.r + dx * kab, H - sa.b - dy * kab, S * kab]; });   // (las que no se ven, ya en su lugar)
+  // ---- arriba a la izquierda: columnas por grupo (en unidades; después se pasan a px con la escala ka) ----
   const armar = (R) => { const o = {}; let x = Z.m, der = 0;
     for (const z of ['sis', 'crear', 'hab']) {
       // (los que no se ven también tienen lugar, después de los que se ven: cuando aparece uno —el micrófono al entrar a una

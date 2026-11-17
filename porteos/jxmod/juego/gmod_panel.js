@@ -494,9 +494,25 @@ function gmbFijar(k) {
   try { localStorage.setItem(GMB_LS, JSON.stringify(GMB.fijos)); } catch (e) {}
   gmbFijosDibujar();
 }
+// ¿anda? lo que el mod escucha mientras se juega: la tecla la pregunta su Lua (input.IsKeyDown, o tiene un PlayerButtonDown),
+// el bit IN_ lo mira (KeyDown) o tiene un KeyPress, el bind lo toma un PlayerBindPress (o lo hace el juego) y el comando
+// está registrado. Lo que el Lua no pregunta nunca no hace nada: antes quedaban botones que no andaban
+const gmbHook = (ev) => !!(typeof GMA !== 'undefined' && GMA.hooks && GMA.hooks.get(ev) && GMA.hooks.get(ev).size > 0);
+function gmbVivo(k) {
+  if (typeof GMA === 'undefined' || !GMA.activo) return true;   // (sin el Lua andando no se sabe: se deja)
+  const [tipo, ...r] = String(k).split(':'), d = r.join(':');
+  if (tipo === 'key') { const n = typeof GMA_JSKEY !== 'undefined' && GMA_JSKEY.get(d); return !!n && (!!(GMA.teclasVis && GMA.teclasVis.has(n)) || gmbHook('PlayerButtonDown') || gmbHook('PlayerButtonUp')); }
+  if (tipo === 'in') return !!((GMA.inVis || 0) & (GMB_IN[d] || 0)) || gmbHook('KeyPress') || gmbHook('KeyRelease');
+  if (tipo === 'bind') return gmbHook('PlayerBindPress') || /^(slot[1-9]|\+reload|\+use|\+menu|noclip|impulse 100)$/.test(d);
+  if (tipo === 'cmd') return !!(GMA.cmds && (GMA.cmds.has(d) || GMA.cmds.has(d.replace(/^\+/, ''))));
+  return true;
+}
+// las teclas de un mod que hacen lo mismo que un botón de fábrica (por lo que hacen: acciones.js): ese botón también las
+// aprieta (gmaBotones) y no se repite un botón aparte
+const GMB_DE_FABRICA = { recargar: 'brecargar', usar: 'busar', linterna: 'blinterna', apuntar: 'bdisp2', zoom: 'bdisp2', patada: 'bpatada' };
 function gmbFijosDibujar() {
   const t = $('tactil'); if (!t) return;
-  const hay = JUEGO.estado === 'juego';
+  const hay = JUEGO.estado === 'juego'; GMB.enlaces = [];
   for (let i = 0; i < 6; i++) {
     let d = $('bgmb' + i);
     if (!d) {
@@ -507,7 +523,10 @@ function gmbFijosDibujar() {
       // (arriba a la izquierda, en su propia fila debajo del sistema y de los menús de crear: hudorden.js)
       if (typeof HUD_TACTIL !== 'undefined') { HUD_TACTIL.push(['#bgmb' + i, 0, 1, 72 + 96 * i, -264, 76, 32]); }
     }
-    const f = hay ? GMB.fijos[i] : null; d._f = f || null; d.classList.toggle('oc', !f);
+    const f = hay ? GMB.fijos[i] : null; d._f = f || null;
+    const acc0 = f && typeof gmbAccDe === 'function' ? gmbAccDe(f.k) : null, fab = f && /^key:/.test(f.k) && acc0 && GMB_DE_FABRICA[acc0.id];
+    d._fab = fab && document.getElementById(fab) ? fab : null; if (d._fab) GMB.enlaces.push({ id: d._fab, code: f.k.slice(4) });
+    d.classList.toggle('oc', !f || !!d._fab || d._muerto === true);
     if (f) { const acc = typeof accBotonHTML === 'function' ? gmbAccDe(f.k) : null; d.classList.toggle('accBt', !!acc); d.innerHTML = acc ? accBotonHTML(acc, f.t) : `<b class="ctlLetra${String(f.t).length > 2 ? ' larga' : ''}">${esc(String(f.t).slice(0, 6))}</b>`; d.title = acc ? accNombre(acc) + ' (' + f.t + ')' : String(f.t); }
   }
 }
@@ -518,11 +537,19 @@ function gmbContextoPaso() {
   const hay = typeof JUEGO !== 'undefined' && JUEGO.estado === 'juego' && !UI.abierto;
   for (let i = 0; i < 6; i++) {
     const d = $('bgmb' + i); if (!d || !d._f) continue;
-    if (d._accK !== d._f.k) { d._accK = d._f.k; d._acc = gmbAccDe(d._f.k); }
+    if (d._accK !== d._f.k) { d._accK = d._f.k; d._acc = gmbAccDe(d._f.k); d._muerto = undefined; d._vivoT = 0; }
+    // (los que el mod no escucha no se ven; aparecen cuando el Lua los empieza a preguntar —un arma, un vehículo—)
+    const ahora = performance.now();
+    if (hay && ahora - (d._vivoT || 0) > 500) { d._vivoT = ahora; const m = !gmbVivo(d._f.k); if (m !== d._muerto) { d._muerto = m; if (!d._fab && !(d._acc && ACC_CONTEXTO.has(d._acc.id))) d.classList.toggle('oc', m); } }
     if (!d._acc || !ACC_CONTEXTO.has(d._acc.id)) continue;
     const v = hay && gmbContextoListo(); d.classList.toggle('oc', !v); d.classList.toggle('accListo', v);
   }
   GMB.contexto = hay && gmbContextoListo();
+  // (lo mismo con los botones de las teclas del arma de un mod en la mano: controles.js)
+  if (hay && typeof CTL !== 'undefined' && CTL.modArma && performance.now() - (GMB.armaVivoT || 0) > 500) { GMB.armaVivoT = performance.now();
+    for (let i = 0; i < 4; i++) { const e = $('bmod' + i), b = e && e._ctl; if (!b) continue;
+      const k = b.bind ? 'bind:' + b.bind : /^IN_/.test(b.id) ? 'in:' + b.id.slice(3) : b.tecla ? 'key:' + b.tecla : b.raton ? null : null;
+      const vivo = b.raton ? !!(GMA.teclasVis && GMA.teclasVis.has(b.raton)) : !k || gmbVivo(k); e.classList.toggle('oc', !vivo); } }
 }
 const gmbContextoListo = () => typeof gmanApuntaResaltada === 'function' && !(typeof JUG !== 'undefined' && (JUG.bloqueado || !JUG.vivo || JUG.vehiculo)) && gmanApuntaResaltada(100);
 // las habilidades de comando en la compu: la de una acción con algo adelante, en la tecla de usar (cuando hay a quién: si no,

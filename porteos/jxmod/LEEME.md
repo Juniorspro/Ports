@@ -2252,6 +2252,29 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## JXMod 3.9.1 (en preparación): los botones de los mods
+
+- **Las teclas de los mods** (pedido del dueño: «es feo tener en azul arriba y abajo vacío, hay muchos botones que no andan»):
+  - Las fijadas (`bgmb0`–`5`) van abajo a la derecha, junto al disparo y a las teclas del arma (`HUD_V2.abHab`). Antes
+    iban arriba a la izquierda, en azul. Tienen el estilo de los botones de siempre, con el ícono y el nombre de lo que
+    hacen. La disposición vieja (la de quien había movido botones) queda como estaba.
+  - Sólo se ven las que el mod escucha mientras se juega (`gmbVivo`):
+    - una tecla, si su Lua la pregunta (`input.IsKeyDown`/`IsButtonDown`/`WasKeyPressed`, anotadas en `GMA.teclasVis`)
+      o si tiene un `PlayerButtonDown`;
+    - un `IN_`, si lo mira (`GMA.inVis`) o si tiene un `KeyPress`;
+    - un bind, si hay un `PlayerBindPress` o si lo hace el juego;
+    - un comando, si está registrado.
+
+    Las demás no hacían nada y no se ven; aparecen cuando el Lua las empieza a leer. Lo mismo con las teclas del arma de un
+    mod (`bmod0`–`3`).
+  - La tecla de un mod que hace lo mismo que un botón de fábrica (recargar, usar, linterna, apuntar, zoom, patada) no tiene
+    botón aparte: ese botón también la aprieta (`GMB.enlaces` en `gmaBotones`).
+  - Pruebas:
+    - `pruebas/botones_mods.mjs` 6/6 (celular apaisado con la Lightsaber y M9K: abajo a la derecha, sin azul, sin pisarse,
+      sólo las que andan, y la de la linterna va en su botón);
+    - `pruebas/gmod_panel.mjs` 18/18;
+    - `pruebas/hud_orden.mjs` actualizada al lugar nuevo; acá no corre, porque falta el addon Viewfinder.
+
 ## JXMod 3.9: la Physics Gun de JXMod y el tráiler
 
 - **La Physics Gun de JXMod** (`juego/armasjx.js`): es la de GMod con sus brazos y sus animaciones, modificada. Tiene el

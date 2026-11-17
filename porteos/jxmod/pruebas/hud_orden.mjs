@@ -2,8 +2,9 @@
 // de Gemini que reordene esto automáticamente»). En un celular emulado, con el Viewfinder (6 teclas fijadas):
 //  (desde «Mejores botones», de GOLDEN: en la disposición nueva —«Mejores botones», hud.js— los grupos son columnas: la del sistema en la esquina, la de
 //  crear al lado y las teclas; «fila» acá es cada grupo, en el orden de arriba abajo y de izquierda a derecha)
-//  1. arriba a la izquierda, tres grupos separados: sistema (pausa primera), crear (props, MOD, GMod) y las teclas del mod,
-//     éstas con ícono, nombre y una placa que las agrupa; sin dos teclas que hagan lo mismo;
+//  1. arriba a la izquierda, dos grupos separados: sistema (pausa primera) y crear (props, MOD, GMod); las teclas del mod
+//     (desde la 3.9) abajo a la derecha, junto al disparo, con ícono, nombre y una placa que las agrupa; sin dos teclas que
+//     hagan lo mismo;
 //  2. en tres pantallas (teléfono 873×393, teléfono chico 640×360, tablet 1180×820): ningún botón (ni su nombre) se pisa
 //     con otro, todos adentro de la pantalla, y los de las filas, parejos y sin huecos;
 //  3. «Ordenar»: con lo que más se usó, cada fila queda con lo más usado a la izquierda (la pausa sigue primera);
@@ -44,13 +45,14 @@ const medir = () => ev(`(() => {
   const placa = !!pr && habR.every((r) => r.left >= pr.left - 1 && r.right <= pr.right + 1 && r.top >= pr.top - 1 && r.bottom <= pr.bottom + 1);
   const nombres = [...document.querySelectorAll(HUD_ZONAS.hab.l.join(','))].filter(vis).map((e) => (e.querySelector('.accTxt') || {}).textContent || '');
   const tam = L.filter((x) => !x.de).map((x) => Math.min(x.x1 - x.x0, x.y1 - x.y0));
-  return { W, H, n: L.length, pisa: pisa.slice(0, 8), fuera, filas: Object.fromEntries(Object.entries(filas).map(([k, F]) => [k, F.map((f) => f.id)])), parejo: Object.values(filas).every(parejo),
+  // (3.9: las teclas de los mods van abajo a la derecha, junto al disparo —pedido del dueño—: ahí no son una grilla pareja)
+  return { W, H, n: L.length, pisa: pisa.slice(0, 8), fuera, filas: Object.fromEntries(Object.entries(filas).map(([k, F]) => [k, F.map((f) => f.id)])), parejo: parejo(filas.sis) && parejo(filas.crear), habDer: habR.every((r) => r.left > W * 0.5),
     sepFilas: filas.sis.length && filas.crear.length && filas.hab.length ? [+(filas.crear[0].y - filas.sis[0].y).toFixed(1), +(filas.hab[0].y - filas.crear[0].y).toFixed(1)] : null,
     placa, nombres, repetidos: nombres.length - new Set(nombres).size, tamMin: +Math.min(...tam).toFixed(1) };
 })()`);
 const m1 = await medir();
 await p.screenshot({ path: D + 'hud_orden_telefono.png' });
-const okFilas = (m) => m.filas.sis[0] === 'pausa' && m.filas.crear.length >= 3 && m.filas.hab.length >= 3 && m.parejo && m.placa && m.repetidos === 0 && m.nombres.every(Boolean);
+const okFilas = (m) => m.filas.sis[0] === 'pausa' && m.filas.crear.length >= 3 && m.filas.hab.length >= 3 && m.parejo && m.habDer && m.placa && m.repetidos === 0 && m.nombres.every(Boolean);
 caso('1. tres filas (sistema con la pausa primera, crear, teclas del mod con nombre y placa), sin teclas repetidas', okFilas(m1), m1);
 const vistas = [m1];
 for (const [w, h] of [[640, 360], [1180, 820]]) { await p.setViewportSize({ width: w, height: h }); await p.waitForTimeout(700); vistas.push(await medir()); }
