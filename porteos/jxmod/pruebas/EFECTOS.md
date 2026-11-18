@@ -1,0 +1,148 @@
+# Catálogo de efectos de los cortos (TikTok, 9:16)
+
+Lo que se usó en cada corto, cómo se hace y dónde está, para reusarlo. Los cortos se graban con `trailer.mjs`. Cada
+uno es un módulo de escenas (`corto_*.mjs`) que exporta `FPS`, `ESCENAS` y `CSS`. El montaje (voz, música, efectos,
+plantillas) se hace con ffmpeg en scripts aparte.
+
+Cortos hasta ahora:
+
+| Corto | Módulo |
+|---|---|
+| «Lo tomé literal» | `corto_literal.mjs` |
+| «POV: le diste admin a tu amigo» | `corto_admin.mjs` |
+| La heladera y la pelota | `corto_heladera.mjs` |
+| Chocar a 100 = caer 13 pisos | `corto_choque.mjs` |
+
+## Cómo se graba
+
+```
+ESC=pruebas/corto_X.mjs VW=540 VH=960 DPR=2 RES=100 node pruebas/trailer.mjs URL CARPETA [escenas] [cada]
+```
+
+- **Salida:** 1080×1920, un cuadro por paso del juego (el reloj del juego avanza 1/30 s por cuadro, no en tiempo
+  real). Cuesta 1,1 a 1,8 s por cuadro en swiftshader.
+- **Tandas:** se graba por escenas, en tandas de menos de 10 min.
+- **Prueba rápida:** `VW=270 VH=480 DPR=1` y `cada` = 2 o 3.
+- **`DESDE` / `HASTA`:** sólo se guardan los cuadros de esa parte, pero la escena corre entera (igual física).
+- **Toma limpia** (para la pantalla dividida o la miniatura): un módulo que reexporta las escenas con
+  `#trOver{display:none}` y `#hud{display:none}`.
+- **Escena:**
+  - `t0` y `t1` (segundos del video); `mapa`; `espera` (ms reales después de `preparar`); `antes` (cuadros que corren
+    sin grabarse).
+  - `preparar` (antes de la espera) y `listo` (después de la espera).
+  - `cada`, `cam` y `titulos`, en cada cuadro.
+  - `ritmo`: velocidad del juego en ese cuadro (cámara lenta, congelado).
+- **Trampas conocidas:**
+  - En `cada` no declarar `const i` ni hacer `return`.
+  - Los números dentro de un texto anidado en `${CINE('…')}` no se interpolan: van escritos.
+  - Contra una pared, el piso se mide con `CO.Pw` (2 m adelante): `CO.P` pega en el techo del edificio.
+  - `P.escena` de un NPC es un objeto de los emotes de a dos: con `true` el NPC deja de dibujarse.
+
+## Cámara
+
+| Efecto | Cómo | Corto |
+|---|---|---|
+| Cámara fija de cine | `CINE(p, mira, giro)` → `DBG.cam`; `DBG.sinVista` saca el arma de la vista | todos |
+| Zoom de vértigo (dolly zoom) | `DBG.fov = 2·atan(ancho/2 / d)` mientras la cámara se aleja (d de 7 a 22 m): el auto queda del mismo tamaño y el fondo se estira | choque 2,9–5,6 |
+| Grúa | la cámara sube a la par del auto colgado (39 m) | choque 17,4–20 |
+| Cámara que cae con el objeto | altura = la del auto + 1,3 m hasta el piso | choque 20–23,4 |
+| Cámara que acompaña | posición fija en x, z que sigue al auto, hasta un punto de corte | choque (pared, Pepe) |
+| Cámara que persigue un muñeco de trapo | sigue la cadera (`rag.cuerpos.get(Hips)`) con retraso (lerp 0,07–0,14) | choque (final de Pepe) |
+| Giro alrededor | `sin(k)` en x y avance en z después del golpe | choque (caída) |
+| Repetición | la misma escena desde otro ángulo (arriba de la pared) a 0,33 de velocidad, con «● REPETICIÓN» que titila | choque 13,8–17,4 |
+| Cámara lenta / congelado | `ritmo`: 0,25–0,33 en el golpe; 0,004 = cuadro congelado 0,6 s | heladera, choque |
+| Temblor | `TRH.temblor(t, t0, fuerza)` en la posición de la cámara | todos |
+| Golpe en el cuadro | `CO.lienzo(escala, giro, dx, dy)`: transform CSS del canvas (zoom + sacudón) | todos |
+| Tercera persona del jugador | `JUG.tercera = true` + `DBG.cam`: el que explica se ve entero, con la palanca | heladera, choque |
+| Primera persona | la cámara del jugador, con `DBG.fovVista` para el arma | literal v2 |
+
+## Texto
+
+| Efecto | Cómo | Corto |
+|---|---|---|
+| Subtítulos de a una palabra | `CO.cap(t)`: blancos con borde negro, cada palabra entra con un rebote; tiempos por sílabas de la frase (`PAL`) y emoji por palabra (`ESP`) | todos |
+| Texto pintado en el mundo | `CO.texto3D(id, html, 4 puntos, t0, t1, 'pintado')`: homografía (eliminación de Gauss) → `matrix3d`; en paredes («100 KM/H», «USÁ EL CINTURÓN») y en el piso («¿EXAGERADO?») | choque |
+| Cartel parado en el aire | `texto3D` con `ey = arriba`, de frente a la cámara (ojo: si `ex` apunta al revés sale espejado) | choque (100 KM/H 💥) |
+| Regla de pisos | `CO.regla`: SVG con una marca por piso proyectada al mundo (`clipDe`) y el número; el último en rojo | choque |
+| Velocímetro | `CO.velocimetro`: SVG con aguja que lee la velocidad real del cuerpo; después de soltar muestra la máxima (si no, baja a 9 un cuadro en el golpe) | choque |
+| Chat del juego | `CO.chat`: las últimas 4 líneas, 7,5 s cada una, con «ding» de Discord en el montaje | todos |
+| Avisos de muerte (killfeed) | `CO.kill`: «🧱 Pared ➜ 💀 Pepe» arriba a la derecha | admin, choque |
+| Globo de un NPC | `npcDecir(P, 'estoy bien 👍')` (en el `#hud`) | choque |
+| Sticker que rebota | `CO.sticker` (también la tarjeta final «PEPE VOLVERÁ 💀» y «+ Seguir») | todos |
+| Texto de arriba fijo | `CO.top()` («ESTO TE PUEDE SALVAR LA VIDA 🚗») | heladera, choque |
+
+## Composición (en el montaje)
+
+| Efecto | Cómo | Corto |
+|---|---|---|
+| Plantillas de pantalla verde | `chromakey=0x05BA06:0.13:0.07`, recortadas de la cabeza a donde termina el cuerpo (medido: la última fila que no es verde) y apoyadas en el borde de abajo | admin, choque |
+| El de la tarjeta detrás de una mesa del juego | PNG con alfa por cuadro (numpy, `tarjeta_png.py`): sin el verde, la cabeza reconstruida, color ajustado, la sombra aparte; la mesa del juego tapa la parte de abajo | heladera |
+| Pantalla dividida | `dividir6.mjs`: Chromium compone dos tomas limpias (pared arriba, caída abajo) con la línea blanca, etiquetas, el «=» que salta, destello y temblor; los dos golpes sincronizados (fuente = golpe + (t − 28,9)·0,55) | choque 27,5–31,5 |
+| Rebobinado VHS | `vhs6.py`: los cuadros del golpe al revés y al doble, colores corridos, franjas desplazadas, barra de tracking, líneas de barrido, ruido y «◀◀ REBOBINANDO» | choque 2,6–2,9 |
+| Aberración en los golpes | `rgbashift=rh=-9:bh=9` 0,22 s en cada golpe | todos |
+| Temblor del cuadro entero | `crop` con x, y que oscilan y se apagan | heladera |
+| Desenfoque de movimiento | `tmix`, sólo dentro de un movimiento continuo (nunca a través de un corte) | literal |
+
+## Juego (lo que el motor ya hace y luce en video)
+
+- **Destrucción de autos** (`destruccion.js`):
+  - abolladuras reales, chispas, vidrios y pedazos;
+  - ruedas que se sueltan y ruedan;
+  - humo con menos del 60 % de vida y fuego con menos del 25 %;
+  - el auto que explota, se infla y arde.
+  - Para un auto «ya chocado» en una escena: `desAbollar(o, trompa, adentro, 0,46, 1,4)` y `o.veh.vida` (130 humea,
+    70 arde).
+- **Explosiones:** destello, onda, bola de fuego, columna de humo, escombros, brasas, quemadura y fuego en el piso.
+- **Muñeco de trapo:** `npcTumbar(P, velocidad)`. Con `P.ia.ragT = 1e9` no se levanta. `CO.seguirRag(P)` lleva
+  `P.pos` a la cadera; si no, lejos de donde apareció no se dibuja.
+- **NPC llevado por un auto:** cada cuadro, `P.pos` en el techo medido en la malla (`vehCols(V).cortes(x, z)`) y la
+  cápsula sin choques (`npcB.noPhys`). Corre en el lugar: queda gracioso.
+- **Velocidad de verdad:** `o.b.damp = -0.02` saca el roce del aire. Así, 39,33 m de caída dan 99,47 km/h.
+
+## Sonido
+
+- **Voz:** Loquendo «Jorge» (athanshock), una línea por archivo. Las pausas se miden con `silencedetect` para cortar
+  una línea en dos.
+- **Música:** Kevin MacLeod (incompetech):
+  - «Local Forecast – Elevator»: el dato;
+  - «Fluffing a Duck»: Pepe;
+  - «Monkeys Spinning Monkeys»: admin;
+  - «Sneaky Snitch»: heladera.
+  - Siempre con `sidechaincompress` bajo la voz y cortes en los momentos de suspenso.
+- **Choques del juego:** `son6/` (sacados con `son_juego.mjs` del mismo `desSonido` del juego): fuerte, golpe y
+  vidrio, 3 variantes. En cámara lenta, con `asetrate` más grave.
+- **Memes (MyInstants):**
+  - de golpe: vine boom (y bass boost), metal pipe, bonk;
+  - de paso: fast whoosh y transition whoosh (al revés para el rebobinado), record scratch;
+  - reacciones: the rock eyebrow, auuugh, sad violin;
+  - avisos: anime pop, iPhone ding, Discord notification, cash register;
+  - otros: crickets, oh no no no, Windows XP error.
+- **Final:** `alimiter` + `loudnorm I=-14 TP=-1.5`.
+
+## Plantillas de pantalla verde (`memes_gs/`, 576×1024)
+
+| Plantilla | Qué es | Dónde termina el cuerpo | Corto |
+|---|---|---|---|
+| `tarjeta` | El que golpea la mesa con la tarjeta | — | admin, heladera |
+| `seguro` | «¿Seguro?», el de remera que inclina la cabeza | 932 | choque |
+| `chocado` | Sorprendido, remera «JUST SAY YES» | 816 | choque |
+| `enserio` | Con auriculares, «¿en serio?» | 878 | choque |
+| `bean` | — | — | admin |
+| `como` | — | — | sin usar |
+| `gira` | — | — | sin usar |
+| `tunegocio` | — | — | sin usar |
+| `tanbueno` | — | — | sin usar |
+| `nopuedomas` | — | — | sin usar |
+| `laptop` | — | — | sin usar |
+
+## Miniaturas
+
+`mini.cjs` saca la captura en Chromium de un HTML de 1080×1920: tomas limpias + texto blanco con borde negro +
+elementos (círculo rojo, flecha, «=»).
+
+## Pepe
+
+A Pepe siempre le pasa algo al final (se repite en todos los videos):
+
+- **Choque:** va corriendo arriba del techo del auto a 100 y se estampa contra la pared.
+- **Final del choque:** «estoy bien 👍», explota el auto y lo vuela (cierra con «PEPE VOLVERÁ 💀»).

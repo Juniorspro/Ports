@@ -9,6 +9,7 @@ import fs from 'fs';
 // (ESC=archivo.mjs: otras escenas —un corto vertical—; VW, VH, DPR: el tamaño de la pantalla; las escenas pueden traer su CSS)
 const { ESCENAS, FPS, CSS: CSSX } = await import(process.env.ESC ? 'file://' + fs.realpathSync(process.env.ESC) : './trailer_escenas.mjs');
 const [, , HTML, D = '/tmp/claude-0/trailer/fr', LISTA = '', CADA = '1'] = process.argv; fs.mkdirSync(D, { recursive: true });
+const DESDE = +(process.env.DESDE || -1e9), HASTA = +(process.env.HASTA || 1e9);
 const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', '--mute-audio'] });
 const ctx = await b.newContext({ viewport: { width: +process.env.VW || 1280, height: +process.env.VH || 720 }, deviceScaleFactor: +process.env.DPR || 1.5 });
 await ctx.route('**/api/cuenta/config', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"google":false}' }));
@@ -70,7 +71,7 @@ for (const nom of elegidas) {
       cuadro(window.__T);
       { ${E.titulos || ''}; }
       return 1; })()`);
-    if (k % +CADA !== 0) continue;
+    if (k % +CADA !== 0 || t < DESDE || t >= HASTA) continue;   // (DESDE/HASTA: sólo esa parte —la escena corre entera igual—)
     await p.screenshot({ path: `${D}/${String(n).padStart(5, '0')}.jpg`, type: 'jpeg', quality: 92, timeout: 180000 });
     hechos++;
   }
