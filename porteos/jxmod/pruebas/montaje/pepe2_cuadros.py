@@ -124,9 +124,15 @@ CARA_F = dict(n=3150, ojos=((240, 150), (300, 190)), boca=(285, 285), alto=230) 
 CARA_L = dict(n=2304, ojos=((308, 236), (338, 234)), boca=(322, 272), alto=100)   # Lucas, el búho (f6)
 CARA_9 = dict(n=2964, ojos=((255, 80), (290, 85)), boca=(270, 130), alto=120)     # Pepe antes del golpe (f9)
 CARA_12 = dict(n=3630, ojos=((300, 105), (330, 105)), boca=(315, 150), alto=120)  # el último apagón (f12)
+CARA_N10 = dict(n=3162, ojos=((300, 197), (372, 235)), boca=(312, 398), alto=240)  # Pepe en el pasto, mirando la cámara (f10 nueva)
+# (las tomas de la huida se grabaron de nuevo afuera: las caras de los sustos que ya estaban marcadas salen de los cuadros
+# viejos, guardados en caras/viejo_NNNNN.jpg)
+CARAS = os.environ.get('CARAS') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'caras')
 _cache = {}
 def susto(c, u):
-    if c['n'] not in _cache: _cache[c['n']] = carga(c['n'])
+    if c['n'] not in _cache:
+        v = os.path.join(CARAS, f"viejo_{c['n']:05d}.jpg")
+        _cache[c['n']] = np.asarray(Image.open(v).convert('RGB'), dtype=np.float32) if c is not CARA_N10 and os.path.exists(v) else carga(c['n'])
     return deformar(_cache[c['n']], c['ojos'], c['boca'], c['alto'], rng, u)
 
 PLAN = {}
@@ -167,7 +173,7 @@ pon(T(83.0), T(83.05), lambda n: arcoiris(susto(CARA_L, 0.2), 0.6, rng))
 pon(T(98.95), T(99.27), lambda n: susto(CARA_9, (n - T(98.95)) / FPS))
 pon(T(99.4), T(99.9), lambda n: desgarro(carga(n), 0.9 - (n - T(99.4)) / FPS, rng))
 # f10 · la mirada: dos parpadeos de la cara deformada en rojo
-for a in (105.9, 107.2): pon(T(a), T(a) + 2, lambda n: susto(CARA_F, 0.4))
+for a in (105.9, 107.2): pon(T(a), T(a) + 2, lambda n: susto(CARA_N10, 0.4))
 # f12 · en un apagón, los ojos; al final, la cara en rojo
 pon(T(117.75), T(117.85), lambda n: ojos(rng, n))
 pon(T(120.9), T(121.3), lambda n: susto(CARA_12, (n - T(120.9)) / FPS))

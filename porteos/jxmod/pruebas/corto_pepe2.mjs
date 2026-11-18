@@ -2,11 +2,12 @@
 // trae el Viewfinder y los ayudantes): Lucas, el que filmaba, desapareció; nico lo va a buscar de noche adentro del
 // edificio de gm_construct (una galería techada de 40 m —x de -19 a 21, z ≈ 28,5— y un salón hasta z 35,7; el piso de
 // adentro a -3,66: pisoBajo da el techo). Instructivo «Lección 6: si un amigo no vuelve», el corte, la grabación de nico
-// (Pepe a contraluz al fondo del pasillo, Lucas mirando la pared que gira la cabeza como un búho, la huida, Pepe alto que
-// le corta el paso, la cámara que alguien levanta del piso, los tres cada vez más cerca cuando la luz parpadea) y
+// (Pepe a contraluz al fondo del pasillo, Lucas mirando la pared que gira la cabeza como un búho, la huida: sale corriendo
+// por la puerta al campo de pasto, Lucas lo persigue corriendo de espaldas, y en el medio del campo Pepe alto le corta el
+// paso; la cámara que Pepe levanta del pasto, nico tirado donde cayó, los tres cada vez más cerca cuando la luz parpadea) y
 // «Lección 7: todos vuelven», donde a Pepe lo atropellan (como siempre).
 // Las deformaciones son de verdad, en el modelo: cuello y cabeza estirados, brazos largos, la cabeza girada sobre el
-// cuello, temblor (CO.pose, en poseExtra); y los que se acercan lo hacen a saltos, cuadro por cuadro (CO.saltos).
+// cuello, temblor (CO.pose, en poseExtra); y los que persiguen corren o caminan con la animación (CO.mueve).
 // uso: ESC=pruebas/corto_pepe2.mjs VW=720 VH=540 DPR=1 RES=100 node pruebas/trailer.mjs URL_HTML CARPETA escena[,escena]
 // (el .gma del Viewfinder va en /ah/3780178294.gma del mismo servidor; ED9='{"en":[x, y, z, yaw]}' con lo que f9 imprime)
 import { BASE } from './corto_pepe.mjs';
@@ -51,8 +52,6 @@ const COMUN2 = COMUN + `
   CO.cabeza = (P, arriba) => { const i = P.D.h.Head, W = i !== undefined && P.md.W && P.md.W[i]; return W ? v3(W[12], W[13] + (arriba ?? 0.1), W[14]) : v3(P.pos.x, P.pos.y + 0.95, P.pos.z); };
   // (una luz que sigue a alguien: se renueva cada cuadro —luzTemporal se apaga sola—)
   CO.sigue = (id, p, r, c) => { const M = window.__LS || (window.__LS = {}); let L = M[id]; if (!L || !LUCES_T.includes(L)) { L = { p: p.clone(), r, c, t: 1, dur: 1 }; LUCES_T.push(L); M[id] = L; } L.p.copy(p); L.t = 1; L.r = r; L.c = c; };
-  // (el que se acerca a saltos: la posición avanza de golpe cada 'paso' segundos —cuadro por cuadro, como stop motion—)
-  CO.saltos = (t, t0, t1, a, b, paso) => { const k = Math.max(0, Math.min(1, (Math.floor((t - t0) / paso) * paso) / (t1 - t0))); return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]; };
   // la pintura nueva en la pared de afuera (la de la parte 1, más «1.049» tachado y la flecha «ADENTRO»)
   window.PINTADO2 = () => {
     TX.pared('1.047', 'JXP', CO.Pw(1.6, 26.0, 4.55), v3(0, 0, -1), 0.2, [120, 8, 8], 245);
@@ -64,6 +63,41 @@ const COMUN2 = COMUN + `
 const RES = { dia: 11, noche: 1.5 };
 // la puerta del edificio (x 1,5, z 26); la galería: z 28,5
 const DX = 1.5, GZ = 28.5;
+// el camino de la huida: del salón a la puerta, afuera y al campo abierto (al sur del edificio, todo pasto)
+const RUTA = [[3.8, 31.8], [1.6, 27.4], [1.5, 25.0], [2.2, 19.5], [5.0, 9.0], [9.5, -7.0], [11.6, -14.5]];
+// la huida (f7–f13): nico corre de verdad (~6 m/s, la cámara en la mano con el rebote de cada paso) y los que lo persiguen
+// corren o caminan con la animación (la posición y la velocidad las pone el guion; la IA queda en 'guion', que no hace nada)
+const HUIDA = `
+  window.RUTA = ${JSON.stringify(RUTA)};
+  // (la lámpara infrarroja al mínimo y menos ganancia: si no, el pasto que ilumina queda blanco y sin textura)
+  window.LAMPARA = () => vfCmd('RunConsoleCommand("ffcam_lamp_brightness","0.2") RunConsoleCommand("ffcam_nv_brightness","0.85")');
+  // (el piso de verdad: adentro del edificio, el de la galería —pisoBajo da el techo—; afuera, el pasto)
+  CO.piso = (x, z) => (z > 25.8 ? -3.66 : CO.g(x, z));
+  CO.camino = (pts) => { const L = [0]; for (let j = 1; j < pts.length; j++) L.push(L[j - 1] + Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1])); return { pts, L, total: L[L.length - 1] }; };
+  CO.en = (C, s) => { s = Math.max(0, Math.min(C.total, s)); let j = 1; while (j < C.L.length - 1 && C.L[j] < s) j++; const a = C.pts[j - 1], b = C.pts[j], k = (s - C.L[j - 1]) / Math.max(1e-6, C.L[j] - C.L[j - 1]); return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, Math.atan2(b[0] - a[0], b[1] - a[1])]; };
+  // (cuánto avanzó el que arranca en t0 hasta v, con tau segundos de aceleración)
+  CO.dist = (t, t0, v, tau) => { const u = Math.max(0, t - t0); return v * (u - tau * (1 - Math.exp(-u / tau))); };
+  // (dónde frena nico en el campo —s87 + 4,96 m— y dónde queda después de retroceder 1,8 m: lo comparten f8 a f13)
+  CO.geo = () => { const C = CO.camino(RUTA), s87 = CO.dist(87.0, 79.9, 6.2, 0.45), q87 = CO.en(C, s87), par = CO.en(C, s87 + 6.2 * 1.6 / 2), yw = par[2];
+    return { s87, q87, parada: [par[0], par[1]], yw, s1: [par[0] - Math.sin(yw) * 1.8, par[1] - Math.cos(yw) * 1.8] }; };
+  // (un NPC por donde dice el guion: la posición, el yaw del cuerpo y la velocidad —la animación de caminar o correr sale de ella—)
+  CO.mueve = (P, x, z, yaw, vx, vz) => { if (!P || P.rag) return; P.act.modo = 'guion'; P.pos.set(x, CO.piso(x, z) + 0.95, z); P.vel.set(vx, 0, vz); P.suelo = true; P.yaw = yaw; };
+  // (la cámara de nico: en la mano, a la altura del pecho; corriendo, el rebote de cada paso —1,6 + 0,3·v pasos por segundo—,
+  // el vaivén de costado cada dos pasos y el temblor de la mano; quieto, la respiración agitada)
+  CO.camCorre = (x, z, yaw, pitch, v) => {
+    const fp = 1.6 + 0.3 * v, a = Math.min(1, v / 6.2); CO.fase = (CO.fase || 0) + 2 * Math.PI * fp / 30; const f = CO.fase, tt = TIEMPO.t, r = 1 - a;
+    const h = 1.45 + a * 0.045 * Math.cos(f) + r * 0.014 * Math.sin(tt * 2 * Math.PI * 0.85) + 0.004 * Math.sin(tt * 9.1), lado = a * 0.035 * Math.sin(f / 2);
+    const p = v3(x + Math.cos(yaw) * lado, CO.piso(x, z) + h, z - Math.sin(yaw) * lado);
+    const yw = yaw + a * 0.03 * Math.sin(f / 2 + 0.6) + 0.012 * Math.sin(tt * 7.3) + 0.008 * Math.sin(tt * 12.9);
+    const pt = pitch + a * 0.035 * Math.sin(f + 1.0) + r * 0.012 * Math.sin(tt * 2 * Math.PI * 0.85 + 1) + 0.01 * Math.sin(tt * 8.7);
+    HZ.cam(p, vadd(p, v3(Math.sin(yw) * Math.cos(pt), -Math.sin(pt), Math.cos(yw) * Math.cos(pt))), a * 0.05 * Math.sin(f / 2 + 0.3) + 0.015 * Math.sin(tt * 5.3), 0);
+    JUG.pos.set(x, CO.piso(x, z) + 0.97, z); JUG.vel.set(0, 0, 0); JUG.yaw = yw; JUG.pitch = pt;
+    // (la lámpara del mod apunta desde FFCam.CameraOrigin, que sale de su CalcView: con la cámara del guion no se
+    // actualiza y la luz quedaba atrás, donde empezó la toma. Se le pasa la cámara de verdad en cada cuadro)
+    const o = aG(p); vfCmd('FFCam.CameraOrigin = Vector(' + o[0].toFixed(1) + ',' + o[1].toFixed(1) + ',' + o[2].toFixed(1) + ') FFCam.CameraAngles = Angle(' + (pt * 57.2958).toFixed(2) + ',' + (yw * 57.2958).toFixed(2) + ',0)');
+  };
+`;
+export const BASE2 = { VF2, COMUN2, HUIDA, RELOJ, DX, GZ };
 export const ESCENAS = {
   // ---- 0. CINTA 3: PLAY y la evidencia ----
   intro: {
@@ -213,58 +247,90 @@ export const ESCENAS = {
       JUG.yaw = CO.gira(JUG.yaw, CO.mira(CO.PI(4.0, 35.0, 0.6))[0] + (t >= 78.8 ? 2.6 * HZ.k(t, 78.8, 79.6) : 0), 0.2); JUG.pitch = 0.0 - 0.4 * HZ.k(t, 76.6, 78.3);
       HZ.dano(t < 78.3 ? 0.55 : 0.85); TX.enviar();`,
   },
-  // ---- 12. corre por la galería; mira atrás: Lucas lo sigue a saltos, con la cabeza al revés; Pepe atrás ----
+  // ---- 12. sale corriendo: por la galería, la puerta y al campo abierto; mira atrás: Lucas corre de espaldas, con la cara
+  // —el búho— hacia él; Pepe sale por la puerta. La cámara la lleva en la mano: el rebote de cada paso ----
   f7: {
     t0: 80.0, t1: 87.0, mapa: 'RB_Construct', espera: 6000, antes: 40,
-    preparar: COMUN2 + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.7); LEJOS(); CO.yoI(-2.5, ${GZ}, -Math.PI / 2, 0.06);
-      const lu = CO.pI('Hero', -0.5, ${GZ}, -Math.PI / 2), pe = CO.pI('Engineer', 4.5, ${GZ}, -Math.PI / 2); pe.escVis = 1.3;
-      CO.pose(lu, { k: 0.9, giro: Math.PI, tiembla: 0.6, lado: 0.6 }); CO.pose(pe, { k: 0.5, brazos: 1.45, tiembla: 0.4 }); window.__A = { lu, pe }; return 1;`,
+    preparar: COMUN2 + HUIDA + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.7); LEJOS(); LAMPARA(); const o = CO.auto(-2.0, 22, 0, 0); CO.chocado(o, 70); CO.yoI(3.8, 31.8, -2.68, 0.1);
+      const lu = CO.pI('Hero', 4.0, 34.4, Math.PI), pe = CO.pI('Engineer', 7.0, 28.5, -Math.PI / 2); pe.escVis = 1.3;
+      CO.pose(lu, { k: 0.9, giro: Math.PI, tiembla: 0.6, lado: 0.6 }); CO.pose(pe, { k: 0.5, brazos: 1.45, tiembla: 0.4 });
+      window.__A = { o, lu, pe, C: CO.camino(RUTA), CL: CO.camino([[4.0, 34.4]].concat(RUTA)), CP: CO.camino([[7.0, 28.5], [1.5, 27.2], [1.5, 25.0], [2.0, 20.0]]) }; return 1;`,
     listo: RELOJ,
-    cada: `const t = __tr.t, A = window.__A; TX.sinOSD = false; HZ.lampara(0); HZ.nv(true); HZ.dano(0.7 + 0.1 * HZ.k(t, 80, 87));
-      const x = JUG.pos.x;
-      const lp = CO.saltos(t, 80.0, 86.5, [-0.5, ${GZ}], [x + 2.6, ${GZ}], 0.28), pp = CO.saltos(t, 80.0, 86.5, [4.5, ${GZ}], [x + 6.0, ${GZ}], 0.33);
-      const lx = t < 82.6 ? Math.min(lp[0], A.lu.pos.x) : Math.min(x + 3.0, A.lu.pos.x), px = t < 82.6 ? Math.min(pp[0], A.pe.pos.x) : Math.min(x + 5.2, A.pe.pos.x);
-      CO.fijoI(A.lu, lx, ${GZ}); CO.fijoI(A.pe, px, ${GZ}); A.lu.yaw = Math.PI / 2; A.pe.yaw = Math.PI / 2;
-      CO.sigue('lu', v3(lx - 0.7, -2.4, ${GZ} - 0.2), 2.6, [3.4, 3.4, 3.4]); CO.sigue('pe', v3(px - 0.8, -1.9, ${GZ}), 2.8, [2.6, 2.6, 2.6]);
-      const ir = -Math.PI / 2;
-      if (t < 83.0 || t >= 84.1) { ENT.y = __tr.i >= 0 ? 0.55 : 0; JUG.yaw = CO.gira(JUG.yaw, ir, 0.22); JUG.pitch = 0.08; }
-      else { ENT.y = 0.3; JUG.yaw = CO.gira(JUG.yaw, ir + Math.PI, 0.3); JUG.pitch = 0.04; }
-      if (t > 86.95) window.__dbg = { fin: [+JUG.pos.x.toFixed(2), +JUG.pos.z.toFixed(2)] }; TX.enviar();`,
+    cada: `const t = __tr.t, A = window.__A; TX.sinOSD = false; HZ.nv(true); HZ.dano(0.7 + 0.1 * HZ.k(t, 80, 87)); ENT.y = 0;
+      // nico: 6,2 m/s (arranca en 0,45 s); mira 2,5 m adelante en el camino; de 83,0 a 84,1 mira para atrás sin dejar de correr
+      const s = CO.dist(t, 79.9, 6.2, 0.45), v = 6.2 * (1 - Math.exp(-Math.max(0, t - 79.9) / 0.45)), q = CO.en(A.C, s), q2 = CO.en(A.C, s + 2.5);
+      const ir = Math.atan2(q2[0] - q[0], q2[1] - q[1]), atras = t >= 83.0 && t < 84.1; if (A.yw === undefined) A.yw = ir;
+      A.yw = CO.gira(A.yw, atras ? ir + Math.PI - 0.22 : ir, atras ? 0.32 : 0.16);
+      CO.camCorre(q[0], q[1], A.yw, atras ? 0.02 : 0.06, v);
+      // (la lámpara infrarroja la prende al salir: adentro, con las paredes al lado, quedaba todo blanco)
+      if (q[1] < 24.6) A.lamp = 1; HZ.lampara(A.lamp ? 1 : 0);
+      // Lucas: corre de espaldas a 5,6 m/s por el mismo camino (el cuerpo mira para atrás; la cara, dada vuelta, a nico)
+      const sl = CO.dist(t, 80.3, 5.6, 0.3), ql = CO.en(A.CL, sl), vl = 5.6 * (1 - Math.exp(-Math.max(0, t - 80.3) / 0.3));
+      CO.mueve(A.lu, ql[0], ql[1], ql[2] + Math.PI, Math.sin(ql[2]) * vl, Math.cos(ql[2]) * vl);
+      CO.sigue('lu', v3(ql[0] + Math.sin(ql[2]) * 0.9, CO.piso(ql[0], ql[1]) + 2.2, ql[1] + Math.cos(ql[2]) * 0.9), 2.4, [1.2, 1.2, 1.2]);
+      // Pepe: camina (pasos largos, 2 m/s) por la galería hasta la puerta y sale
+      const sp = 2.0 * Math.max(0, t - 79.5), qp = CO.en(A.CP, sp);
+      CO.mueve(A.pe, qp[0], qp[1], qp[2], Math.sin(qp[2]) * 2.0, Math.cos(qp[2]) * 2.0);
+      CO.sigue('pe', v3(qp[0] + Math.sin(qp[2]) * 1.0, CO.piso(qp[0], qp[1]) + 2.2, qp[1] + Math.cos(qp[2]) * 1.0), 3.0, [2.6, 2.6, 2.6]);
+      if (t > 86.95) window.__dbg = { fin: [+q[0].toFixed(2), +q[1].toFixed(2), +s.toFixed(2)], lucas: [+ql[0].toFixed(2), +ql[1].toFixed(2)] }; TX.enviar();`,
   },
-  // ---- 13. el fondo: Pepe alto en la salida le corta el paso; atrás, Lucas. «No. No, no, no» ----
+  // ---- 13. el campo: frena sin aire; atrás no hay nadie; adelante, Pepe parado en el medio del pasto. «No. No, no, no».
+  // Retrocede; se da vuelta para huir: Lucas pegado atrás. Vuelve a mirar: Pepe más cerca ----
   f8: {
     t0: 87.0, t1: 94.0, mapa: 'RB_Construct', espera: 6000, antes: 40,
-    preparar: COMUN2 + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.8); LEJOS(); CO.yoI(-12.5, ${GZ}, -Math.PI / 2, 0.06);
-      const pe = CO.pI('Engineer', -17.6, ${GZ}, Math.PI / 2), lu = CO.pI('Hero', -8.0, ${GZ}, -Math.PI / 2); pe.escVis = 1.3;
-      CO.pose(pe, { k: 0.55, brazos: 1.5, tiembla: 0.4 }); CO.pose(lu, { k: 0.9, giro: Math.PI, tiembla: 0.6, lado: 0.6 });
-      luzTemporal(v3(-17.0, -1.3, ${GZ}), 3.0, [4.2, 4.2, 4.2], 30); window.__A = { pe, lu }; return 1;`,
+    preparar: COMUN2 + HUIDA + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.8); LEJOS(); LAMPARA(); const G = CO.geo(); CO.yo(G.q87[0], G.q87[1], G.yw, 0.06);
+      const pe = CO.pj('Engineer', 40, -40, 0), lu = CO.pj('Hero', 44, -40, 0); pe.escVis = 1.3;
+      CO.pose(pe, { k: 0.55, brazos: 1.5, tiembla: 0.4 }); CO.pose(lu, { k: 0.55, giro: Math.PI, tiembla: 0.6, lado: 0.4 });
+      window.__A = { G, pe, lu, C: CO.camino(RUTA) }; return 1;`,
     listo: RELOJ,
-    cada: `const t = __tr.t, A = window.__A; TX.sinOSD = false; HZ.lampara(0); HZ.nv(true); HZ.dano(0.8);
-      CO.fijoI(A.pe, -17.6, ${GZ}); A.pe.yaw = Math.PI / 2;
-      const lp = CO.saltos(t, 89.4, 93.8, [-8.0, ${GZ}], [JUG.pos.x + 2.0, ${GZ}], 0.3); const lx = Math.max(lp[0], JUG.pos.x + 1.9); CO.fijoI(A.lu, lx, ${GZ}); A.lu.yaw = Math.PI / 2; CO.sigue('lu', v3(lx - 0.7, -2.4, ${GZ} - 0.2), 2.6, [3.4, 3.4, 3.4]);
-      ENT.y = t < 88.0 && __tr.i >= 0 ? 0.3 : 0;
-      if (t < 89.6) { JUG.yaw = CO.gira(JUG.yaw, -Math.PI / 2, 0.1); JUG.pitch = 0.0; } else if (t < 92.4) { JUG.yaw = CO.gira(JUG.yaw, Math.PI / 2, 0.16); JUG.pitch = 0.0; } else { JUG.yaw = CO.gira(JUG.yaw, -Math.PI / 2, 0.25); JUG.pitch = -0.05; }
-      if (t > 93.95) window.__dbg = { fin: [+JUG.pos.x.toFixed(2), +JUG.pos.z.toFixed(2)] }; TX.enviar();`,
+    cada: `const t = __tr.t, A = window.__A, G = A.G, fx = Math.sin(G.yw), fz = Math.cos(G.yw); TX.sinOSD = false; HZ.lampara(1); HZ.nv(true); HZ.dano(0.8); ENT.y = 0;
+      // (frena: de 6,2 m/s a 0 en 1,6 s; de 90,0 a 92,2 retrocede 1,8 m despacio)
+      const u = Math.min(1.6, Math.max(0, t - 87.0)), s = G.s87 + 6.2 * u - 6.2 * u * u / 3.2, v = 6.2 * Math.max(0, 1 - u / 1.6), q = CO.en(A.C, s);
+      const rb = 1.8 * HZ.k(t, 90.0, 92.2), x = q[0] - fx * rb, z = q[1] - fz * rb;
+      // adónde mira: adelante; atrás (88,7–89,5: nadie); adelante (Pepe); atrás de golpe (92,2: Lucas); adelante (92,75: Pepe más cerca)
+      let meta = G.yw, kk = 0.16, pm = 0.06;
+      if (t >= 88.7 && t < 89.5) { meta = G.yw + Math.PI - 0.3; kk = 0.13; pm = 0.04; }
+      else if (t >= 89.5 && t < 92.2) { kk = 0.3; pm = -0.16; }
+      else if (t >= 92.2 && t < 92.75) { meta = G.yw + Math.PI + 0.2; kk = 0.38; pm = -0.1; }
+      else if (t >= 92.75) { kk = 0.4; pm = -0.27; }
+      if (A.yw === undefined) A.yw = G.yw; A.yw = CO.gira(A.yw, meta, kk); A.pt = A.pt === undefined ? pm : A.pt + (pm - A.pt) * 0.15;
+      CO.camCorre(x, z, A.yw + (t >= 90 ? Math.sin(t * 17) * 0.006 : 0), A.pt, v + (rb > 0 && rb < 1.8 ? 0.8 : 0));
+      // Pepe aparece (mientras mira atrás) a 5 m adelante; a las 92,7 —mientras mira a Lucas— ya está a 2,8 m
+      const S1x = G.q87[0] + 0, d1 = t < 92.5 ? 5.0 + 0 : 2.8 - 1.8;
+      const bx = t < 92.5 ? q[0] : G.s1[0], bz = t < 92.5 ? q[1] : G.s1[1], dpe = t < 92.5 ? 5.0 : 2.8;
+      if (t >= 89.0) { const px = (t < 92.5 ? G.parada[0] : G.s1[0]) + fx * dpe, pz = (t < 92.5 ? G.parada[1] : G.s1[1]) + fz * dpe; CO.mueve(A.pe, px, pz, G.yw + Math.PI, 0, 0); CO.sigue('pe', v3(px - fx * 0.9, CO.piso(px, pz) + 2.2, pz - fz * 0.9), 3.0, [2.0, 2.0, 2.0]); }
+      else { CO.mueve(A.pe, 40, -40, 0, 0, 0); CO.sigue('pe', v3(40, 0, -40), 1, [0, 0, 0]); }
+      // Lucas: atrás, pegado, cuando se da vuelta para huir
+      if (t >= 91.9) { const lx = G.s1[0] - fx * 3.2 + fz * 0.5, lz = G.s1[1] - fz * 3.2 - fx * 0.5; CO.mueve(A.lu, lx, lz, G.yw + Math.PI, 0, 0); CO.sigue('lu', v3(lx + fx * 0.7, CO.piso(lx, lz) + 1.9, lz + fz * 0.7), 1.1, [1.6, 1.6, 1.6]); }
+      else { CO.mueve(A.lu, 44, -40, 0, 0, 0); CO.sigue('lu', v3(44, 0, -40), 1, [0, 0, 0]); }
+      if (t > 93.95) window.__dbg = { fin: [+x.toFixed(2), +z.toFixed(2)], s1: G.s1 }; TX.enviar();`,
   },
-  // ---- 14. Pepe se acerca a saltos, cada vez más deformado; el screamer; el golpe y la cámara al piso ----
+  // ---- 14. Pepe camina hacia él, despacio, cada vez más deformado; el screamer; el golpe y la cámara al pasto ----
   f9: {
     t0: 94.0, t1: 101.0, mapa: 'RB_Construct', espera: 6000, antes: 40,
-    preparar: COMUN2 + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.82); LEJOS(); CO.yoI(-13.4, ${GZ}, -Math.PI / 2, 0.0);
-      const pe = CO.pI('Engineer', -17.6, ${GZ}, Math.PI / 2), lu = CO.pI('Hero', -11.5, ${GZ}, -Math.PI / 2); pe.escVis = 1.3;
+    preparar: COMUN2 + HUIDA + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.82); LEJOS(); LAMPARA(); const G = CO.geo(); CO.yo(G.s1[0], G.s1[1], G.yw, -0.27);
+      const fx = Math.sin(G.yw), fz = Math.cos(G.yw);
+      const pe = CO.pj('Engineer', G.s1[0] + fx * 2.8, G.s1[1] + fz * 2.8, G.yw + Math.PI), lu = CO.pj('Hero', G.s1[0] - fx * 2.0, G.s1[1] - fz * 2.0, G.yw + Math.PI); pe.escVis = 1.3;
       CO.pose(pe, { k: 0.55, brazos: 1.5, tiembla: 0.4 }); CO.pose(lu, { k: 0.9, giro: Math.PI, tiembla: 0.6, lado: 0.6 });
-      luzTemporal(v3(-17.0, -1.3, ${GZ}), 3.0, [4.2, 4.2, 4.2], 30); window.__A = { pe, lu, golpe: 1e9 }; return 1;`,
+      window.__A = { G, pe, lu, golpe: 1e9 }; return 1;`,
     listo: RELOJ,
-    cada: `const t = __tr.t, A = window.__A; TX.sinOSD = false; HZ.lampara(0); HZ.nv(true);
-      CO.fijoI(A.lu, -11.5, ${GZ}); A.lu.yaw = Math.PI / 2;
-      const pp = CO.saltos(t, 94.4, 98.6, [-17.6, ${GZ}], [-14.25, ${GZ}], 0.35); CO.fijoI(A.pe, pp[0], ${GZ}); A.pe.yaw = Math.PI / 2;
+    cada: `const t = __tr.t, A = window.__A, G = A.G, fx = Math.sin(G.yw), fz = Math.cos(G.yw); TX.sinOSD = false; HZ.lampara(t < 99.3 ? 1 : 0); HZ.nv(true); ENT.y = 0;
+      CO.mueve(A.lu, G.s1[0] - fx * 2.0, G.s1[1] - fz * 2.0, G.yw + Math.PI, 0, 0);
+      // (camina de 2,8 a 0,85 m entre 94,3 y 98,6: 0,45 m/s, con la animación de caminar; después se queda)
+      const kp = Math.min(1, Math.max(0, (t - 94.3) / 4.3)), dp = 2.8 - 1.95 * kp, vp = kp > 0 && kp < 1 ? 1.95 / 4.3 : 0;
+      const px = G.s1[0] + fx * dp, pz = G.s1[1] + fz * dp; CO.mueve(A.pe, px, pz, G.yw + Math.PI, -fx * vp, -fz * vp);
       CO.pose(A.pe, { k: 0.55 + 0.45 * HZ.k(t, 96.5, 98.8), brazos: 1.5, tiembla: 0.4 + 0.5 * HZ.k(t, 97, 99) });
-      if (t >= 98.6 && !A.luz) { A.luz = 1; luzTemporal(v3(-13.9, -1.6, ${GZ}), 2.4, [5.5, 5.5, 5.5], 1.0); }
-      ENT.y = 0;
-      if (t < 99.3) { CO.yoI(-13.4, ${GZ}); JUG.yaw = -Math.PI / 2 + Math.sin(t * 9) * 0.01 * HZ.k(t, 96, 99); JUG.pitch = -0.05 - 0.22 * HZ.k(t, 96.5, 98.8); }
-      if (t >= 99.3 && A.golpe > 1e8) { A.golpe = t; A.yw = JUG.yaw; A.e0 = vadd(JUG.pos, v3(0, 0.66, 0)); window.__dbg = { en: [+JUG.pos.x.toFixed(3), +JUG.pos.y.toFixed(3), +JUG.pos.z.toFixed(3), +A.yw.toFixed(4)] }; }
+      CO.sigue('pe', v3(px - fx * 0.8, CO.piso(px, pz) + 2.2, pz - fz * 0.8), 2.6, [1.2, 1.2, 1.2]);
+      if (t >= 98.6 && !A.luz) { A.luz = 1; luzTemporal(v3(px - fx * 0.5, CO.piso(px, pz) + 2.1, pz - fz * 0.5), 2.4, [5.5, 5.5, 5.5], 1.0); }
+      // (la cámara: quieta en la mano que tiembla; sube para mirarle la cara a medida que se acerca)
+      const ca = CO.caraAlta(A.pe), y0 = CO.piso(G.s1[0], G.s1[1]) + 1.45, pm = -Math.atan2(ca.y - y0, Math.max(0.3, dp)) * 0.85;
+      A.pt = A.pt === undefined ? pm : A.pt + (pm - A.pt) * 0.12;
+      if (t < 99.3) CO.camCorre(G.s1[0], G.s1[1], G.yw + Math.sin(t * 9) * 0.012 * HZ.k(t, 96, 99), A.pt, 0);
+      if (t >= 99.3 && A.golpe > 1e8) { A.golpe = t; A.yw = G.yw; A.e0 = v3(G.s1[0], y0, G.s1[1]); window.__dbg = { en: [+G.s1[0].toFixed(3), +(y0 - 0.66).toFixed(3), +G.s1[1].toFixed(3), +G.yw.toFixed(4)] }; }
       if (t >= A.golpe) {
         const u = Math.min(1, (t - A.golpe) / 0.55), b = u < 1 ? 0 : Math.max(0, Math.sin((t - A.golpe - 0.55) * 18) * Math.exp(-(t - A.golpe - 0.55) * 7)) * 0.07;
-        const f = v3(Math.sin(A.yw), 0, Math.cos(A.yw)), p = v3(A.e0.x - f.x * 0.5 * u, A.e0.y + (-3.66 + 0.13 - A.e0.y) * u * u + b, A.e0.z - f.z * 0.5 * u);
+        const f = v3(Math.sin(A.yw), 0, Math.cos(A.yw)), suelo = CO.piso(A.e0.x - f.x * 0.5, A.e0.z - f.z * 0.5) + 0.13;
+        const p = v3(A.e0.x - f.x * 0.5 * u, A.e0.y + (suelo - A.e0.y) * u * u + b, A.e0.z - f.z * 0.5 * u);
         const m = vadd(p, v3(Math.sin(A.yw + 0.35 - u * 0.5), -0.25 + u * 0.28, Math.cos(A.yw + 0.35 - u * 0.5)));
         HZ.cam(p, m, u * Math.PI / 2 * 1.05 - b * 3, 0);
       }
@@ -272,79 +338,95 @@ export const ESCENAS = {
       HZ.dano(t >= 99.3 && t < 100.0 ? 1 : 0.82 + 0.1 * HZ.k(t, 96, 99)); TX.enviar();`,
     titulos: `const t = __tr.t; if (t >= 99.45) { const e = CO.kf || (CO.kf = (() => { const d = document.createElement('div'); d.className = 'kf'; d.innerHTML = '<b>Pepe</b> <span style="color:#ff6a1a">&#9670;</span> <i>nico</i>'; $('trOver').appendChild(d); return d; })()); e.style.opacity = Math.min(1, (t - 99.45) / 0.15).toFixed(2); }`,
   },
-  // ---- 15. en el piso, de costado: los pies; alguien levanta la cámara: es Pepe, que se mira en ella ----
+  // ---- 15. en el pasto, de costado: los pies; alguien levanta la cámara: es Pepe, que se mira en ella ----
   f10: {
     t0: 101.0, t1: 108.0, mapa: 'RB_Construct', espera: 6000, antes: 40,
-    preparar: COMUN2 + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.85); LEJOS(); const E = ${process.env.ED9 || 'null'} || { en: [-13.4, -2.69, ${GZ}, -Math.PI / 2] };
-      CO.yoI(E.en[0], E.en[2], E.en[3], 0); const f = v3(Math.sin(E.en[3]), 0, Math.cos(E.en[3]));
-      const pe = CO.pI('Engineer', E.en[0] + f.x * 0.85, E.en[2] + f.z * 0.85, 0), lu = CO.pI('Hero', E.en[0] - f.x * 1.6 + 0.5, E.en[2] - f.z * 1.6 + 0.4, 0); pe.escVis = 1.3;
+    preparar: COMUN2 + HUIDA + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.85); LEJOS(); const G = CO.geo(), E = ${process.env.ED9 || 'null'} || { en: [G.s1[0], CO.piso(G.s1[0], G.s1[1]) + 0.79, G.s1[1], G.yw] };
+      CO.yo(E.en[0], E.en[2], E.en[3], 0); const f = v3(Math.sin(E.en[3]), 0, Math.cos(E.en[3]));
+      const pe = CO.pj('Engineer', E.en[0] + f.x * 0.85, E.en[2] + f.z * 0.85, 0), lu = CO.pj('Hero', E.en[0] - f.x * 1.6 + 0.5, E.en[2] - f.z * 1.6 + 0.4, 0); pe.escVis = 1.3;
       CO.pose(pe, { k: 1.0, brazos: 1.5, tiembla: 0.5 }); CO.pose(lu, { k: 0.9, giro: Math.PI, tiembla: 0.6, lado: 0.6 });
       window.__A = { E, f, pe, lu, pp: [E.en[0] + f.x * 0.85, E.en[2] + f.z * 0.85] }; return 1;`,
     listo: RELOJ,
     cada: `const t = __tr.t, A = window.__A, E = A.E, f = A.f, yw = E.en[3]; TX.sinOSD = false; HZ.lampara(0); HZ.nv(true);
-      CO.fijoI(A.lu, E.en[0] - f.x * 1.6 + 0.5, E.en[2] - f.z * 1.6 + 0.4); A.lu.yaw = yw;
-      const e0 = v3(E.en[0], E.en[1] + 0.66, E.en[2]), piso = v3(e0.x - f.x * 0.5, -3.66 + 0.13, e0.z - f.z * 0.5);
-      // (Pepe se acerca a la cámara caída y la levanta: sube del piso a la altura de su cara, se endereza y gira hacia él)
-      const pk = Math.min(1, Math.max(0, (t - 103.4) / 1.6)), sk = pk * pk * (3 - 2 * pk);
-      CO.fijoI(A.pe, A.pp[0] - f.x * 0.55 * HZ.k(t, 102.0, 103.2), A.pp[1] - f.z * 0.55 * HZ.k(t, 102.0, 103.2)); A.pe.yaw = CO.yaw(A.pe.pos, piso);   // (mira la cámara caída; la cámara sube hasta sus ojos)
+      CO.mueve(A.lu, E.en[0] - f.x * 1.6 + 0.5, E.en[2] - f.z * 1.6 + 0.4, yw, 0, 0);
+      const e0 = v3(E.en[0], E.en[1] + 0.66, E.en[2]), piso = v3(e0.x - f.x * 0.5, CO.piso(e0.x - f.x * 0.5, e0.z - f.z * 0.5) + 0.13, e0.z - f.z * 0.5);
+      // (Pepe da dos pasos hasta la cámara caída —con la animación de caminar— y la levanta: sube del pasto a la altura de su
+      // cara, se endereza y gira hacia él)
+      const pk = Math.min(1, Math.max(0, (t - 103.4) / 1.6)), sk = pk * pk * (3 - 2 * pk), ka = Math.min(1, Math.max(0, (t - 102.0) / 1.2)), va = ka > 0 && ka < 1 ? 0.55 / 1.2 : 0;
+      const ppx = A.pp[0] - f.x * 0.55 * ka, ppz = A.pp[1] - f.z * 0.55 * ka; CO.mueve(A.pe, ppx, ppz, CO.yaw(v3(ppx, 0, ppz), piso), -f.x * va, -f.z * va);
       // (termina enfrente de sus ojos, a medio metro, a la misma altura: del lado de donde estaba la cámara caída)
       const cara = CO.caraAlta(A.pe), hz = v3(piso.x - A.pe.pos.x, 0, piso.z - A.pe.pos.z).norm(), fin = vadd(cara, v3(hz.x * 0.55, -0.03, hz.z * 0.55));
       const p = v3(piso.x + (fin.x - piso.x) * sk, piso.y + (fin.y - piso.y) * sk + Math.sin(t * 13) * 0.004 * sk, piso.z + (fin.z - piso.z) * sk);
       const m0 = vadd(piso, v3(Math.sin(yw - 0.15), 0.03, Math.cos(yw - 0.15))), m = vadd(p, vadd(vscale(vsub(m0, piso).norm(), 1 - sk), vscale(vsub(cara, p).norm(), sk)));
       HZ.cam(p, m, Math.PI / 2 * 1.05 * (1 - sk) + Math.sin(t * 5) * 0.05 * sk, 0);
       if (t >= 105.0 && !A.luz) { A.luz = 1; luzTemporal(vadd(p, v3(0, 0.1, 0)), 1.6, [4.0, 4.0, 4.0], 3.5); }
+      // (en el pasto, afuera, no se veían los pies que se acercan: una luz baja entre la cámara y Pepe)
+      CO.sigue('pies', v3((piso.x + A.pe.pos.x) / 2, piso.y + 0.7, (piso.z + A.pe.pos.z) / 2), 2.4, t < 104.6 ? [1.5, 1.5, 1.5] : [0, 0, 0]);
       HZ.dano(0.85); TX.enviar();`,
   },
-  // ---- 16. la cámara en la mano de Pepe: vuelve por la galería al salón; nico en el piso; Lucas parado al lado ----
+  // ---- 16. la cámara en la mano de Pepe: da la vuelta, despacio, alrededor de nico tirado en el pasto (donde cayó); Lucas
+  // parado al lado. Al final la da vuelta y se mira a sí mismo ----
   f11: {
     t0: 108.0, t1: 115.0, mapa: 'RB_Construct', espera: 6000, antes: 40,
-    preparar: COMUN2 + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.85); LEJOS(); CO.yoI(3.0, 31.5, 0, 0);
-      const ni = CO.pI('Astronauta', 3.2, 33.6, 0), lu = CO.pI('Hero', 4.4, 33.0, -Math.PI / 2); CO.pose(lu, { k: 0.9, giro: Math.PI, tiembla: 0.6, lado: 0.6 });
-      const pe = CO.pI('Engineer', -6, ${GZ}, Math.PI / 2); pe.escVis = 1.3; CO.pose(pe, { k: 1.0, brazos: 1.5, tiembla: 0.5 });
-      luzTemporal(v3(3.6, -1.8, 32.6), 3.0, [2.6, 2.6, 2.6], 30); window.__A = { ni, lu, pe }; return 1;`,
+    preparar: COMUN2 + HUIDA + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.85); LEJOS(); const G = CO.geo(), E = ${process.env.ED9 || 'null'} || { en: [G.s1[0], CO.piso(G.s1[0], G.s1[1]) + 0.79, G.s1[1], G.yw] };
+      const f = v3(Math.sin(E.en[3]), 0, Math.cos(E.en[3])), sd = v3(f.z, 0, -f.x); CO.yo(E.en[0] - f.x * 8, E.en[2] - f.z * 8, E.en[3], 0);
+      const ni = CO.pj('Astronauta', E.en[0], E.en[2], E.en[3]), lu = CO.pj('Hero', E.en[0] - f.x * 0.5 - sd.x * 1.1, E.en[2] - f.z * 0.5 - sd.z * 1.1, 0);
+      CO.pose(lu, { k: 0.9, tiembla: 0.6, lado: 0.6 });
+      const pe = CO.pj('Engineer', E.en[0] + f.x * 1.3, E.en[2] + f.z * 1.3, E.en[3] + Math.PI); pe.escVis = 1.3; CO.pose(pe, { k: 1.0, brazos: 1.5, tiembla: 0.5 });
+      window.__A = { E, f, sd, ni, lu, pe }; return 1;`,
     listo: RELOJ,
-    cada: `const t = __tr.t, A = window.__A; TX.sinOSD = false; HZ.lampara(0); HZ.nv(true); HZ.dano(0.85);
-      if (__tr.i === 0 && !A.tumbo) { A.tumbo = 1; CO.tumbar(A.ni, v3(0.3, -1, 0.2)); }
-      CO.fijoI(A.lu, 4.4, 33.0); A.lu.yaw = -Math.PI / 2;
-      // (la cámara la lleva Pepe: camina por la galería hacia el salón, con el bamboleo de un brazo largo; mira a nico en el
-      // piso; al final se da vuelta y se mira a sí mismo)
-      const k = HZ.k(t, 108.0, 111.6), p = v3(-5.0 + k * 7.6, -2.0 + Math.sin(t * 6.3) * 0.03, ${GZ} + k * 2.2);
-      const meta = t < 111.0 ? v3(p.x + 3, -2.2, p.z + 0.6) : v3(3.2, -3.4, 33.6), mira = t < 113.4 ? meta : null;
-      if (mira) HZ.cam(p, vadd(p, vscale(vsub(mira, p).norm(), 1)), Math.sin(t * 3.1) * 0.06, 0);
-      CO.fijoI(A.pe, p.x - 0.5, p.z - 0.2);
-      if (t >= 113.4) { const cara = CO.caraAlta(A.pe), c = vadd(cara, v3(0.52, -0.02, 0.1)); A.pe.yaw = CO.yaw(A.pe.pos, c); HZ.cam(c, cara, Math.sin(t * 4) * 0.08, 0); if (!A.luz) { A.luz = 1; luzTemporal(vadd(c, v3(0, 0.1, 0)), 1.6, [4.0, 4.0, 4.0], 2); } }
+    cada: `const t = __tr.t, A = window.__A, E = A.E, f = A.f, sd = A.sd; TX.sinOSD = false; HZ.lampara(0); HZ.nv(true); HZ.dano(0.85);
+      // (nico cae para atrás —como cayó con el golpe— en la previa: cuando empieza la toma ya está quieto en el pasto)
+      if (!A.tumbo) { A.tumbo = 1; CO.tumbar(A.ni, v3(-f.x * 2, -1, -f.z * 2)); }
+      const cx = E.en[0] - f.x * 0.7, cz = E.en[2] - f.z * 0.7, cy = CO.piso(cx, cz) + 0.25;   // (el cuerpo)
+      const lx = E.en[0] - f.x * 0.5 - sd.x * 1.1, lz = E.en[2] - f.z * 0.5 - sd.z * 1.1; CO.mueve(A.lu, lx, lz, CO.yaw(v3(lx, 0, lz), v3(cx, 0, cz)), 0, 0);
+      CO.sigue('cu', v3(cx + sd.x * 0.3, cy + 1.6, cz + sd.z * 0.3), 3.0, [2.2, 2.2, 2.2]);
+      // (Pepe camina despacio —0,45 m/s— en un arco alrededor del cuerpo, a 1,4 m, con la cámara en la mano apuntándolo)
+      const a0 = 0, a1 = 1.5, ka = Math.min(1, Math.max(0, (t - 108.4) / 4.4)), ang = a0 + (a1 - a0) * ka, va = ka > 0 && ka < 1 ? (a1 - a0) * 1.4 / 4.4 : 0;
+      const rx = f.x * Math.cos(ang) + sd.x * Math.sin(ang), rz = f.z * Math.cos(ang) + sd.z * Math.sin(ang), tx = -f.x * Math.sin(ang) + sd.x * Math.cos(ang), tz = -f.z * Math.sin(ang) + sd.z * Math.cos(ang);
+      const px = cx + rx * 1.4, pz = cz + rz * 1.4; CO.mueve(A.pe, px, pz, Math.atan2(-rx, -rz), tx * va, tz * va);
+      const fp = 1.75, ph = (t - 108.4) * fp * Math.PI * 2, bob = va > 0 ? 0.022 * Math.cos(ph) : 0;
+      const p = v3(px - rx * 0.45 + tx * 0.25, CO.piso(px, pz) + 1.5 + bob + Math.sin(t * 3.1) * 0.01, pz - rz * 0.45 + tz * 0.25);
+      if (t < 113.4) HZ.cam(p, v3(cx, cy, cz), Math.sin(t * 3.1) * 0.06 + (va > 0 ? 0.03 * Math.sin(ph / 2) : 0), 0);
+      if (t >= 113.4) { const cara = CO.caraAlta(A.pe), c = vadd(cara, v3(-rx * 0.52, -0.02, -rz * 0.52)); A.pe.yaw = CO.yaw(A.pe.pos, c); HZ.cam(c, cara, Math.sin(t * 4) * 0.08, 0); if (!A.luz) { A.luz = 1; luzTemporal(vadd(c, v3(0, 0.1, 0)), 1.6, [4.0, 4.0, 4.0], 2); } }
       TX.enviar();`,
   },
-  // ---- 17. la cámara apoyada: los tres frente a ella; la luz parpadea y cada vez están más cerca ----
+  // ---- 17. la cámara tirada en el pasto, donde cayó nico, mirando para arriba: los tres —nico también— enfrente; la luz
+  // parpadea y cada vez están más cerca ----
   f12: {
     t0: 115.0, t1: 122.0, mapa: 'RB_Construct', espera: 6000, antes: 40,
-    preparar: COMUN2 + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.88); CO.yoI(${DX} + 1.0, 27.4, 0, 0);
-      const pe = CO.pI('Engineer', ${DX} + 1.0, 33.4, Math.PI), lu = CO.pI('Hero', ${DX} - 0.2, 33.6, Math.PI), ni = CO.pI('Astronauta', ${DX} + 2.2, 33.6, Math.PI); pe.escVis = 1.3;
+    preparar: COMUN2 + HUIDA + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.88); const G = CO.geo(), E = ${process.env.ED9 || 'null'} || { en: [G.s1[0], CO.piso(G.s1[0], G.s1[1]) + 0.79, G.s1[1], G.yw] };
+      const g = v3(-Math.sin(E.en[3]), 0, -Math.cos(E.en[3])), sd = v3(g.z, 0, -g.x), K = v3(E.en[0], 0, E.en[2]);
+      const pe = CO.pj('Engineer', K.x + g.x * 6, K.z + g.z * 6, 0), lu = CO.pj('Hero', K.x + g.x * 6.15 - sd.x * 0.75, K.z + g.z * 6.15 - sd.z * 0.75, 0), ni = CO.pj('Astronauta', K.x + g.x * 6.15 + sd.x * 0.75, K.z + g.z * 6.15 + sd.z * 0.75, 0); pe.escVis = 1.3;
       CO.pose(pe, { k: 0.8, brazos: 1.5, tiembla: 0.5 }); CO.pose(lu, { k: 0.6, tiembla: 0.6, lado: -0.7 }); CO.pose(ni, { k: 0.5, tiembla: 0.6, lado: 0.8 });
-      window.__A = { pe, lu, ni }; return 1;`,
+      window.__A = { pe, lu, ni, g, sd, K }; return 1;`,
     listo: RELOJ,
-    cada: `const t = __tr.t, A = window.__A; TX.sinOSD = false; HZ.lampara(0);
-      // (cuatro apagones; cuando vuelve la luz, los tres están más cerca: 6, 4, 2,6 y 1,1 m)
-      const cortes = [116.3, 117.7, 119.1, 120.5], dist = [6.0, 4.0, 2.6, 1.1], fase = cortes.filter((c) => t >= c + 0.35).length, oscuro = cortes.some((c) => t >= c && t < c + 0.35);
-      HZ.nv(!oscuro); const z = 27.4 + dist[Math.min(3, Math.max(0, fase - 0)) ] ;
-      CO.fijoI(A.pe, ${DX} + 1.0, z); CO.fijoI(A.lu, ${DX} + 0.25, z + 0.15); CO.fijoI(A.ni, ${DX} + 1.75, z + 0.15);
-      for (const P of [A.pe, A.lu, A.ni]) P.yaw = Math.PI;
-      CO.sigue('g', v3(${DX} + 1.0, -2.0, z - 0.9), 3.0, oscuro ? [0, 0, 0] : [1.3, 1.3, 1.3]);
-      DBG.cam = null; CO.yoI(${DX} + 1.0, 27.4, 0, fase >= 3 ? -0.22 : -0.04); ENT.y = 0;
+    cada: `const t = __tr.t, A = window.__A, g = A.g, sd = A.sd, K = A.K; TX.sinOSD = false; HZ.lampara(0);
+      // (cuatro apagones; cuando vuelve la luz, los tres están más cerca: 6, 4,2, 3 y 2,4 m)
+      const cortes = [116.3, 117.7, 119.1, 120.5], dist = [6.0, 4.2, 3.0, 2.4], fase = cortes.filter((c) => t >= c + 0.35).length, oscuro = cortes.some((c) => t >= c && t < c + 0.35);
+      HZ.nv(!oscuro); const d = dist[Math.min(3, fase)], yy = Math.atan2(-g.x, -g.z);
+      CO.mueve(A.pe, K.x + g.x * d, K.z + g.z * d, yy, 0, 0); CO.mueve(A.lu, K.x + g.x * (d + 0.15) - sd.x * 0.75, K.z + g.z * (d + 0.15) - sd.z * 0.75, yy, 0, 0); CO.mueve(A.ni, K.x + g.x * (d + 0.15) + sd.x * 0.75, K.z + g.z * (d + 0.15) + sd.z * 0.75, yy, 0, 0);
+      CO.sigue('g', v3(K.x + g.x * (d - 0.9), CO.piso(K.x, K.z) + 1.8, K.z + g.z * (d - 0.9)), 3.0, oscuro ? [0, 0, 0] : [1.4, 1.4, 1.4]);
+      // (la cámara, en el pasto: a 18 cm, torcida y mirando para arriba; el que la dejó ahí —el jugador— queda atrás)
+      const p = v3(K.x, CO.piso(K.x, K.z) + 0.18, K.z), pt = 0.45, dd = v3(g.x * Math.cos(pt), Math.sin(pt), g.z * Math.cos(pt));
+      HZ.cam(p, vadd(p, dd), 0.09, 0); CO.yo(K.x - g.x * 0.6, K.z - g.z * 0.6, Math.atan2(g.x, g.z), -0.3); ENT.y = 0;
       if (oscuro) TX.r(0, 0, 1, 1, [0, 0, 0]);
       HZ.dano(0.88); TX.enviar();`,
   },
-  // ---- 18. la batería se muere ----
+  // ---- 18. la batería se muere (la misma cámara en el pasto; los tres a 2,4 m) ----
   f13: {
     t0: 122.0, t1: 128.0, mapa: 'RB_Construct', espera: 6000, antes: 40,
-    preparar: COMUN2 + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.9); CO.yoI(${DX} + 1.0, 27.4, 0, -0.22);
-      const pe = CO.pI('Engineer', ${DX} + 1.0, 28.5, Math.PI), lu = CO.pI('Hero', ${DX} + 0.25, 28.65, Math.PI), ni = CO.pI('Astronauta', ${DX} + 1.75, 28.65, Math.PI); pe.escVis = 1.3;
+    preparar: COMUN2 + HUIDA + `DIA.hora = 1.5;` + VF2 + `HZ.dano(0.9); const G = CO.geo(), E = ${process.env.ED9 || 'null'} || { en: [G.s1[0], CO.piso(G.s1[0], G.s1[1]) + 0.79, G.s1[1], G.yw] };
+      const g = v3(-Math.sin(E.en[3]), 0, -Math.cos(E.en[3])), sd = v3(g.z, 0, -g.x), K = v3(E.en[0], 0, E.en[2]), d = 2.4;
+      const pe = CO.pj('Engineer', K.x + g.x * d, K.z + g.z * d, 0), lu = CO.pj('Hero', K.x + g.x * (d + 0.15) - sd.x * 0.75, K.z + g.z * (d + 0.15) - sd.z * 0.75, 0), ni = CO.pj('Astronauta', K.x + g.x * (d + 0.15) + sd.x * 0.75, K.z + g.z * (d + 0.15) + sd.z * 0.75, 0); pe.escVis = 1.3;
       CO.pose(pe, { k: 1.0, brazos: 1.5, tiembla: 0.7 }); CO.pose(lu, { k: 0.8, tiembla: 0.7, lado: -0.7 }); CO.pose(ni, { k: 0.7, tiembla: 0.7, lado: 0.8 });
-      window.__A = { pe, lu, ni }; return 1;`,
+      window.__A = { pe, lu, ni, g, sd, K, d }; return 1;`,
     listo: RELOJ,
-    cada: `const t = __tr.t, A = window.__A; TX.sinOSD = false; HZ.lampara(0); HZ.nv(true);
-      CO.fijoI(A.pe, ${DX} + 1.0, 28.5); CO.fijoI(A.lu, ${DX} + 0.25, 28.65); CO.fijoI(A.ni, ${DX} + 1.75, 28.65); for (const P of [A.pe, A.lu, A.ni]) P.yaw = Math.PI;
-      DBG.cam = null; CO.yoI(${DX} + 1.0, 27.4, 0, -0.22); CO.sigue('g', v3(${DX} + 1.0, -2.0, 27.9), 2.2, [1.3, 1.3, 1.3]);
+    cada: `const t = __tr.t, A = window.__A, g = A.g, sd = A.sd, K = A.K, d = A.d, yy = Math.atan2(-g.x, -g.z); TX.sinOSD = false; HZ.lampara(0); HZ.nv(true);
+      CO.mueve(A.pe, K.x + g.x * d, K.z + g.z * d, yy, 0, 0); CO.mueve(A.lu, K.x + g.x * (d + 0.15) - sd.x * 0.75, K.z + g.z * (d + 0.15) - sd.z * 0.75, yy, 0, 0); CO.mueve(A.ni, K.x + g.x * (d + 0.15) + sd.x * 0.75, K.z + g.z * (d + 0.15) + sd.z * 0.75, yy, 0, 0);
+      CO.sigue('g', v3(K.x + g.x * (d - 0.9), CO.piso(K.x, K.z) + 1.8, K.z + g.z * (d - 0.9)), 2.6, [1.4, 1.4, 1.4]);
+      const p = v3(K.x, CO.piso(K.x, K.z) + 0.18, K.z), pt = 0.45, dd = v3(g.x * Math.cos(pt), Math.sin(pt), g.z * Math.cos(pt));
+      HZ.cam(p, vadd(p, dd), 0.09, 0); CO.yo(K.x - g.x * 0.6, K.z - g.z * 0.6, Math.atan2(g.x, g.z), -0.3); ENT.y = 0;
       if (__tr.i === 0) vfCmd('FFCam.SetBattery(0.03)');
       HZ.dano(t < 124.0 ? 0.9 : 0.9 + 0.1 * HZ.k(t, 124.0, 125.2));
       if (t >= 125.3 && t < 126.8) { TX.r(0, 0, 1, 1, [16, 34, 168]); TX.t('SIN SEÑAL', 'JXV40', 0.5, 0.5, [255, 255, 255], 255, 1, 1); }

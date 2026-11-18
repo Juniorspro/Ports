@@ -235,7 +235,6 @@ ESC=pruebas/corto_pepe.mjs VW=720 VH=540 DPR=1 RES=100 node pruebas/trailer.mjs 
 - **`CO.pose(P, o)`**, la deformación entera en el modelo: cuello y cabeza estirados (k), la cabeza torcida de
   costado (`lado`), girada sobre el cuello (`giro`: π es el búho; en tres tirones), echada para atrás (`pitch`),
   brazos largos (`brazos`) y temblor.
-- **`CO.saltos(t, t0, t1, a, b, paso)`:** el que se acerca lo hace a saltos, cuadro por cuadro, como stop-motion.
 - **`CO.sigue(id, p, r, c)`:** luz que sigue a un NPC lejos u oscuro (se agrega a `LUCES_T` y se renueva cada
   cuadro); sin eso, de noche al fondo del pasillo no se ve nada.
 - **`CO.caraAlta(P)`:** la cara de un NPC estirado calculada (cadera + 1,38 con `escVis` 1,3): `md.W` queda viejo
@@ -249,3 +248,26 @@ ESC=pruebas/corto_pepe.mjs VW=720 VH=540 DPR=1 RES=100 node pruebas/trailer.mjs 
   `atempo`) y 152 sonidos en total.
 - **Lo que dice la voz tiene que seguir la historia:** «Nadie se va de este servidor» (Pepe deformado) y «Pepe ya no
   está solo» (antes de la lección final).
+- **La instructora también en robot** (las lecciones 6 y 7): la misma cadena que la voz robot de la parte 1 (`afftfilt`
+  con la fase en cero, 0,45 limpia + 1,0 robot, `acrusher`) y después el temblor de cinta. Queda 6,5 dB más baja: se
+  sube para que la mezcla no cambie. La envolvente del habla queda 95 % igual a la limpia: se entiende.
+
+### La huida, con realismo (f7 a f13)
+- **Corre de verdad y hacia lo abierto:** sale del salón por la puerta al campo de pasto del sur (`RUTA`, 48 m) a 6,2 m/s.
+  La cámara es la del guion (`CO.camCorre`): en la mano, a 1,45 m, con un rebote por paso (1,6 + 0,3·v pasos por
+  segundo), el vaivén de costado cada dos pasos y el temblor de la mano; quieto, la respiración agitada. Mira para atrás
+  sin dejar de correr (la posición sigue el camino; antes caminaba hacia el que lo perseguía).
+- **Los que persiguen corren con la animación:** `CO.mueve(P, x, z, yaw, vx, vz)` pone la posición y la velocidad, y
+  la IA queda en el modo `'guion'` (no hace nada), así la velocidad llega a la animación: corre, camina o corre de
+  espaldas (Lucas, con la cara dada vuelta hacia nico) según la velocidad y para dónde mira el cuerpo. Nada de
+  stop-motion: a saltos parecía que el video tenía lag.
+- **Continuidad:** cada toma empieza donde terminó la anterior (`CO.geo()`: dónde frena, dónde retrocede; f9 imprime
+  dónde cae y f10 a f13 pasan ahí mismo, con nico tirado en el pasto donde cayó). Nada vuelve al salón.
+- **La lámpara del Viewfinder con la cámara del guion:** el mod la apunta desde `FFCam.CameraOrigin`, que sale de su
+  `CalcView`; con `DBG.cam` no se actualiza y la luz quedaba donde empezó la toma (el pasto se oscurecía mientras
+  corría). Se le pasan `FFCam.CameraOrigin` y `FFCam.CameraAngles` en cada cuadro. Modo 1 (infrarrojo) con
+  `ffcam_lamp_brightness 0.2` y `ffcam_nv_brightness 0.85`: si no, el pasto que ilumina queda blanco sin textura. Se
+  prende al salir: adentro, con las paredes al lado, quema todo.
+- **La ropa blanca** (Lucas) con la lámpara a 2 m queda blanca entera: a 3 m o más.
+- **Disco:** cada video son ~400 MB de cuadros. Con el disco lleno Chromium falla con «Failed to fetch» o «Execution
+  context was destroyed»: borrar los cuadros de los videos ya entregados.

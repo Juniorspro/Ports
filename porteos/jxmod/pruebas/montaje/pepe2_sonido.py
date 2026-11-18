@@ -2,7 +2,7 @@
 # MacLeod, «Local Forecast - Elevator») con temblor de cinta, los sonidos del propio Viewfinder (viento, zoom) y un
 # siseo de cinta de fondo. Dos pasadas de loudnorm con mucho rango (los sustos tienen que pegar).
 # uso: python3 -I sonido.py SALIDA.wav
-import sys, subprocess, json, re
+import sys, math, subprocess, json, re
 S = '/tmp/claude-0/-home-user-Ports/eeadafdf-53e8-5696-a49a-cc5a848c1abe/scratchpad/ah'
 V, M, G, F = S + '/voz2/', S + '/mi/s/', '/tmp/claude-0/pk39/a/', S + '/vfx/sound/ffcam/'
 OUT = sys.argv[1]; DUR = 150.0
@@ -46,23 +46,43 @@ s(M + 'horror-heartbeats.mp3', 73.0, 0.45, 0, 28.0, 'afade=t=in:d=2', loop=True)
 s(M + 'loud-bone-crack.mp3', 75.0, 1.0); s(M + 'bone-crack.mp3', 75.7, 0.9); s(M + 'loud-bone-crack.mp3', 76.35, 1.0)
 s(M + 'metal-door-creak-high-quality.mp3', 76.7, 0.55, 0, 1.28, 'asetrate=30870,aresample=44100')
 s(M + 'horror-scream-high-quality.mp3', 78.35, 1.0); s(M + 'fast-whoosh.mp3', 78.8, 0.5)
-# la huida
-s(M + 'running-footsteps-sound-effect-hd.mp3', 80.0, 0.55, 0, 7.0, loop=True)
+# la huida: corre de verdad (6,2 m/s). Los pasos de nico salen de la cadencia de la cámara (1,6 + 0,3·v pasos por
+# segundo): baldosa hasta que sale al pasto (~83,2 s), después pasto; frena en el campo (87,0–88,6)
+def _pasos(t0, t1, vel):
+    t, f, L = t0, 0.0, []
+    while t < t1:
+        f += (1.6 + 0.3 * vel(t)) / FPS_A; t += 1 / FPS_A
+        if f >= 1: f -= 1; L.append(t)
+    return L
+FPS_A = 300
+_v = lambda t: 6.2 * (1 - math.exp(-max(0, t - 79.9) / 0.45)) if t < 87.0 else 6.2 * max(0, 1 - (t - 87.0) / 1.6)
+for i, tp in enumerate(_pasos(79.95, 88.6, _v)):
+    if _v(tp) < 0.8: continue
+    if tp < 83.2: s(M + 'concrete-footstep.mp3', tp, 0.5 if i % 2 else 0.42, fx='atempo=1.3')
+    else: s(M + 'gorilla-tag-footstep-concrete.mp3', tp, (0.34 if i % 2 else 0.28) * min(1, _v(tp) / 3), fx='lowpass=f=1500,highpass=f=90')
+s(M + 'footsteps-on-grass.mp3', 83.2, 0.3, 0.5, 5.4, 'atempo=1.8,afade=t=in:d=0.2,afade=t=out:st=4.6:d=0.8')
 s(M + 'man-heavily-breathing.mp3', 79.0, 0.5, 0, 22.0, 'atempo=1.35', loop=True)
+# afuera: el viento del campo (el del propio Viewfinder)
+s(F + 'wind.wav', 81.3, 0.2, 0, 46.7, 'afade=t=in:d=0.8,afade=t=out:st=45.9:d=0.8', loop=True)
 s(M + 'horror-sting-3.mp3', 83.0, 0.5)
+# el campo: atrás no hay nadie; adelante, Pepe; «No. No, no, no»; retrocede; Lucas atrás; Pepe más cerca
+s(M + 'horror-stinger.mp3', 89.55, 0.45, 0, 1.6, 'afade=t=out:st=1.2:d=0.4')
 s(V + 'p_n7.wav', 90.0, 1.2)
-for k in range(15): s(M + 'concrete-footstep.mp3', 89.4 + k * 0.3, 0.32, fx='asetrate=35280,aresample=44100')
-for k in range(12): s(M + 'gorilla-tag-footstep-concrete.mp3', 94.4 + k * 0.35, 0.5, fx='asetrate=30870,aresample=44100')
+for tp in (90.35, 91.05, 91.75): s(M + 'gorilla-tag-footstep-concrete.mp3', tp, 0.22, fx='lowpass=f=1300,highpass=f=90')
+s(M + 'horror-sting-3.mp3', 92.25, 0.6); s(M + 'scary-whisper.mp3', 92.3, 1.2, 0, 0.6)
+s(M + 'horror-game-stinger-boom.mp3', 92.8, 0.5, 0, 1.2)
+# Pepe camina hacia él (0,45 m/s: un paso cada 0,575 s), pesado, en el pasto
+for k in range(8): s(M + 'gorilla-tag-footstep-concrete.mp3', 94.45 + k * 0.575, 0.5, fx='asetrate=30870,aresample=44100,lowpass=f=1600')
 s(V + 'p_n8.wav', 98.5, 1.2)
 s(M + 'five-nights-at-freddys-full-scream-sound_2.mp3', 98.95, 1.0, 0.0, 0.33)
 s(M + 'bone-crack.mp3', 99.3, 1.0); s(M + 'cinematic-thud.mp3', 99.3, 0.9); s(M + '395325__ihitokage__body-falling-on-the-ground-2_01.mp3', 99.65, 0.8)
 s(M + 'ear-ringing.mp3', 99.4, 1.3, 0, 4.0, 'afade=t=out:st=2.5:d=1.5')
 # la cámara levantada: pasos, la mano en la cámara (foley del Viewfinder), «te toca»
-s(M + 'concrete-footstep.mp3', 101.9, 0.45); s(M + 'concrete-footstep.mp3', 102.6, 0.45)
+for tp in (102.1, 102.7): s(M + 'gorilla-tag-footstep-concrete.mp3', tp, 0.5, fx='asetrate=30870,aresample=44100,lowpass=f=1600')
 s(F + 'foley1.wav', 103.4, 0.8); s(F + 'foleylong2.wav', 103.8, 0.7)
 s(V + 'p_j9.wav', 106.3, 1.2)
 for a in (105.9, 107.2): s(M + 'horror-sting-3.mp3', a, 0.45, 0, 0.4)
-for k in range(6): s(M + 'concrete-footstep.mp3', 108.0 + k * 0.6, 0.35)
+for k in range(8): s(M + 'gorilla-tag-footstep-concrete.mp3', 108.55 + k * 0.57, 0.4, fx='asetrate=30870,aresample=44100,lowpass=f=1600')
 s(M + 'fnaf-1-music-box.mp3', 110.5, 0.25, 0, 4.5, 'areverse,asetrate=37485,aresample=44100,aecho=0.8:0.6:150:0.4')
 # los apagones: el clic de la luz y el parpadeo
 for c in (116.3, 117.7, 119.1, 120.5):
