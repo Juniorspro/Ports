@@ -149,6 +149,8 @@ A Pepe siempre le pasa algo al final (se repite en todos los videos):
 - **Final del choque:** «estoy bien 👍», explota el auto y lo vuela (cierra con «PEPE VOLVERÁ 💀»).
 - **La venganza de Pepe:** Pepe vuelve (1.047 muertes) y se venga del que filma; al final le cae la heladera otra vez
   («PRUEBA Nº 1.049») y aparece otro Pepe atrás. Cierra con «TE TOCA».
+- **La venganza de Pepe 2 (cinta 3):** en la «Lección 7: todos vuelven» lo atropella un auto de costado; tres
+  segundos después está parado otra vez en el mismo lugar.
 
 ## Analog horror (4:3, «La venganza de Pepe»)
 
@@ -223,3 +225,27 @@ ESC=pruebas/corto_pepe.mjs VW=720 VH=540 DPR=1 RES=100 node pruebas/trailer.mjs 
 - **Cuidado:** `loud-static.mp3` viene roto (picos ×108 al decodificar), así que va `televison-static.mp3`. Cada
   sonido lleva `asoftclip=type=hard` antes de mezclar.
 - **Final:** loudnorm en dos pasadas (I -15, LRA 20, para que los gritos peguen) + `alimiter`.
+
+### Parte 2 («CINTA 3», `corto_pepe2.mjs`)
+- **Adentro del edificio de gm_construct:** galería techada de 40 m (x de -19 a 21, z ≈ 28,5) y un salón hasta
+  z 35,7. El piso de adentro está a -3,66 y `pisoBajo` devuelve el techo (1,63): el jugador va con `CO.yoI` y los NPC
+  con `CO.fijoI`, que también les fija la altura (si no, alguno se cae por el piso).
+- **Trae todo de la parte 1** (`BASE = { VF, COMUN, RELOJ }` exportado de `corto_pepe.mjs`); sólo cambia la fecha
+  (21.11.1998 02:58).
+- **`CO.pose(P, o)`**, la deformación entera en el modelo: cuello y cabeza estirados (k), la cabeza torcida de
+  costado (`lado`), girada sobre el cuello (`giro`: π es el búho; en tres tirones), echada para atrás (`pitch`),
+  brazos largos (`brazos`) y temblor.
+- **`CO.saltos(t, t0, t1, a, b, paso)`:** el que se acerca lo hace a saltos, cuadro por cuadro, como stop-motion.
+- **`CO.sigue(id, p, r, c)`:** luz que sigue a un NPC lejos u oscuro (se agrega a `LUCES_T` y se renueva cada
+  cuadro); sin eso, de noche al fondo del pasillo no se ve nada.
+- **`CO.caraAlta(P)`:** la cara de un NPC estirado calculada (cadera + 1,38 con `escVis` 1,3): `md.W` queda viejo
+  cuando el NPC no se dibuja, así que la cámara que «levanta» Pepe mira desde ahí.
+- **Apagones** que lo dejan cada vez más cerca, la batería que se acaba y «SIN SEÑAL».
+- **El auto de costado:** el auto que viene de lejos se cae fuera del mapa; se lo pone de costado
+  (`Quat.axis(0, 1, 0, π/2)`) con la altura fija y se lo empuja.
+- **Montaje** (`montaje/pepe2_cuadros.py`, `montaje/pepe2_sonido.py`): las mismas deformaciones de píxeles con la
+  boca en una zona suavizada (smoothstep), las caras de cada screamer marcadas a mano (ojos, boca, alto), y en el
+  sonido el «Carefree» al revés, código Morse real («TE TOCA», pitidos grabados: punto 55 ms, raya estirada con
+  `atempo`) y 152 sonidos en total.
+- **Lo que dice la voz tiene que seguir la historia:** «Nadie se va de este servidor» (Pepe deformado) y «Pepe ya no
+  está solo» (antes de la lección final).

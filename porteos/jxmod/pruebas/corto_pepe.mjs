@@ -150,6 +150,8 @@ const COMUN = `
 `;
 const RELOJ = `window.__pnO = window.__pnO || performance.now.bind(performance); window.__T = Math.max(window.__T || 0, window.__pnO()); performance.now = () => window.__T;`;
 // el campo de las pruebas (gm_construct): Pepe parado en PX, PZ; la pared del edificio en z = 26
+// (lo que comparte la parte 2 —corto_pepe2.mjs—: el Viewfinder, los ayudantes y el reloj)
+export const BASE = { VF, COMUN, RELOJ };
 const PX = 0.0, PZ = 4.0;
 export const ESCENAS = {
   // ---- 0. la cinta: PLAY en la pantalla azul y los datos de la grabación ----
