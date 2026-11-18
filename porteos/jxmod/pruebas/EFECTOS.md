@@ -12,6 +12,7 @@ Cortos hasta ahora:
 | «POV: le diste admin a tu amigo» | `corto_admin.mjs` |
 | La heladera y la pelota | `corto_heladera.mjs` |
 | Chocar a 100 = caer 13 pisos | `corto_choque.mjs` |
+| «La venganza de Pepe» (analog horror, 4:3, 2:30) | `corto_pepe.mjs` (+ `montaje/pepe_cuadros.py`, `montaje/pepe_sonido.py`) |
 
 ## Cómo se graba
 
@@ -146,3 +147,64 @@ A Pepe siempre le pasa algo al final (se repite en todos los videos):
 
 - **Choque:** va corriendo arriba del techo del auto a 100 y se estampa contra la pared.
 - **Final del choque:** «estoy bien 👍», explota el auto y lo vuela (cierra con «PEPE VOLVERÁ 💀»).
+- **La venganza de Pepe:** Pepe vuelve (1.047 muertes) y se venga del que filma; al final le cae la heladera otra vez
+  («PRUEBA Nº 1.049») y aparece otro Pepe atrás. Cierra con «TE TOCA».
+
+## Analog horror (4:3, «La venganza de Pepe»)
+
+### Cómo se grabó
+```
+ESC=pruebas/corto_pepe.mjs VW=720 VH=540 DPR=1 RES=100 node pruebas/trailer.mjs URL CARPETA escena
+```
+- **El VHS es el del mod Viewfinder** (Found Footage & Camcorder SWEP, Workshop 3780178294), montado dentro de la
+  escena (`gmInstalar`) y con la cámara en la mano. Ajustes por consola (`vfCmd`, Lua del cliente):
+  - `ffcam_vhs_aspect 2`: 4:3;
+  - `ffcam_vhs_format 1`: VHS gastado;
+  - `ffcam_vhs_signal_profile 2`: el shader compatible (0,8 s por cuadro contra 4,5 s del de alta fidelidad, y casi
+    igual en cinta);
+  - `ffcam_osd_font 2`: VCR OSD Mono;
+  - la fecha propia (18.11.1998 03:12) con `ffcam_vhs_osd_realtime 0`;
+  - `ffcam_tape_damage` de 0,3 a 1 según el miedo.
+- **Visión nocturna y lámpara:** `FFCam.SetNightVision(true, true)` y `FFCam.SetLampMode(0/1/2)` se mandan con la
+  cámara ya en la mano (en la previa y al empezar a grabar); antes no hacen nada. Para ver lejos:
+  `ffcam_lamp_range 2.6` y `ffcam_nv_brightness 1.05`.
+- **Zoom de verdad:** el gatillo (`ENT.disparo`) mueve el zoom del mod; el motor aplica el `view.fov` de su
+  `CalcView` (arreglado para esto). El indicador «x1.0 … x5.0» sale en el OSD.
+- **Títulos, contador, alerta, «PLAY»:** van dibujados dentro del OSD del mod (`FFCam.DrawViewfinder` envuelto), así
+  pasan por la cinta como el REC. Son operaciones `r` (rectángulo) y `t` (texto) en fracciones del cuadro (`TX`).
+  Las placas a pantalla llena ponen la cámara mirando el pasto de cerca (cuesta poco dibujar).
+- **Pintado en la pared:** `cam.Start3D2D` en `PostDrawOpaqueRenderables` («1.047», «PEPE SIEMPRE VUELVE»). Va
+  arriba de las puertas: el humo negro del auto lo tapa en visión nocturna.
+- **Velocidad:** de noche, ~2 s por cuadro con tres navegadores a la vez (0,43 s por cuadro efectivo). Por eso las
+  tomas son de ≤ 7,6 s y los cortes entre tomas se tapan con desgarros de cinta. Los NPC tardan ~1,5 s en
+  materializarse (salen blancos): previa de 75 cuadros o tapar los primeros.
+- **Pepe:** su posición es la cadera (0,95 m sobre el piso), así que la cara está a cadera + 0,66 m. Se fija en x, z
+  cada cuadro (`CO.fijo`), así la IA no lo mueve. Las caras de cerca se iluminan con `luzTemporal` (el infrarrojo
+  sale adelante del lente).
+
+### Efectos de imagen (`montaje/pepe_cuadros.py`)
+- **Screamer rojo** (`deformar`): recorte a la cara; ojos agrandados y negros con un punto blanco; la boca y la
+  mandíbula estiradas ×2,3, abiertas, negras y con borde pálido; bordes rasgados; rojo con contraste y viñeta. Dura
+  6–19 cuadros y lleva 1–2 cuadros invertidos.
+- **Desgarro** (`desgarro`): franjas corridas, canales separados, ruido, rayas blancas y la imagen que rueda. Se
+  usa en todos los cortes, con intensidad 0,35 → 1 → 0,3.
+- **Quemado arcoíris** (`arcoiris`): sobreexpuesto, canales muy corridos, líneas estiradas.
+- **Estática**, **negro con franja que rueda**, y **negro con ojos** (`ojos`: 3 cuadros subliminales).
+
+### Sonido (`montaje/pepe_sonido.py`)
+- **Sólo grabaciones reales** (MyInstants): gritos (FNAF, jump scare), estática de TV, la VHS que carga, glitches,
+  respiración, latidos, susurros, «tape stop», choque, golpe de cuerpo, hueso, stingers, zumbido de oído y el EAS real.
+  Del EAS: 2 ráfagas + 0,9 s del tono antes de la voz, y las ráfagas de cierre al final. También el viento y el
+  motor del zoom del propio Viewfinder.
+- **Patrón de los sustos (medido en 7 videos):** casi silencio (-37 a -40 dB) y de golpe +21 a +36 dB.
+- **Voces** (athanshock), todas medidas:
+  - alerta: Jorge, 2 semitonos más grave y lento, con eco de transmisión, 93 Hz (las de referencia: 100–117 Hz,
+    casi monótonas);
+  - instructivo: Soledad, con temblor de cinta (vibrato 0,55 Hz + 6,2 Hz);
+  - el que filma: Diego, con el micrófono de la cámara (banda 300–3600 Hz);
+  - mensaje escondido: «me acuerdo de todos ustedes», al revés y grave.
+- **Sincronía:** se recorta el silencio inicial de cada efecto (el comienzo es la primera muestra al 12 % del
+  máximo); los golpes caen a ±20 ms del cuadro.
+- **Cuidado:** `loud-static.mp3` viene roto (picos ×108 al decodificar), así que va `televison-static.mp3`. Cada
+  sonido lleva `asoftclip=type=hard` antes de mezclar.
+- **Final:** loudnorm en dos pasadas (I -15, LRA 20, para que los gritos peguen) + `alimiter`.

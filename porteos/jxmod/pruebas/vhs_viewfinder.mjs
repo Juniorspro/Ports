@@ -7,6 +7,7 @@
 //  3. el OSD de la cámara (texto que el mod dibuja en 2D) entra en la cinta: la capa 2D se vuelca a la pantalla antes de que
 //     el mod la copie, y el texto sale con la fuente propia del mod (resource/fonts), medida como en GMod;
 //  4. sin errores de JS ni de WebGL (y sin «could not open the VHS config»: file.Open escribe en data/); captura antes/después.
+//  5. el zoom de la cámara: el CalcView del mod devuelve view.fov y la imagen se acerca de verdad (y vuelve).
 // uso: node vhs_viewfinder.mjs URL_HTML URL_CARPETA_GMA [CARPETA_CAPTURAS]
 import { abrir } from './base.mjs';
 import fs from 'fs';
@@ -47,6 +48,16 @@ tot++; if (caso('2. con la cámara la imagen cambia (aspecto de video: menos det
 tot++; if (caso('3. el OSD entra en la cinta y usa la fuente del mod', st.volcados > 0 && !!(st.fuente && st.fuente.cargada), { volcados: st.volcados, fuente: st.fuente })) bien++;
 const err = errJS.filter((e) => !/Failed to load resource|net::ERR|404|CORS|Access to fetch|WebSocket|willReadFrequently/i.test(e));
 tot++; if (caso('4. sin errores de JS ni de WebGL; la configuración del mod se guarda', !err.length && st.glErr === 0 && st.config.guardo > 0 && JSON.stringify(st.config.leido) === JSON.stringify([-7, 1.5, 'hola', true]), { err: err.slice(0, 5), glErr: st.glErr, lua: st.errLua, config: st.config })) bien++;
+// 5. el zoom de la cámara (el CalcView del mod devuelve view.fov): con el gatillo apretado la imagen se acerca de verdad —el
+//    campo de la cámara sigue al zoom del mod—, y con el secundario vuelve. (Se espera por cuadros: el motor del zoom avanza
+//    con FrameTime y el navegador de pruebas dibuja lento)
+const zoom = () => ev(`(() => { const cx = GMA.ctx; GMA.ctx = 'C'; gmaLado('C'); try { GMA.R.G.get('RunString')('file.Write("jx_zoom.txt", tostring(FFCam and FFCam.ZoomFactor or 0))', 'prueba'); } finally { GMA.ctx = cx; gmaLado(cx); } return { zoom: +(+localStorage.getItem('gmdata:jx_zoom.txt') || 0).toFixed(2), fov: +CAM.fov.toFixed(2), base: +(CAM.fovB || 0).toFixed(2) }; })()`);
+const cuadros = async (n) => { const c0 = await ev('R.cuadro || 0'); await p.waitForFunction((x) => window.__ev('R.cuadro || 0') >= x, c0 + n, { timeout: 120000, polling: 200 }); };
+const hasta = async (ok) => { let z = await zoom(); for (let i = 0; i < 40 && !ok(z); i++) { await cuadros(3); z = await zoom(); } return z; };
+const z0 = await zoom(); await ev('ENT.tactil = true; ENT.disparo = true; 1');
+const z1 = await hasta((z) => z.zoom > 2.5); await ev('ENT.disparo = false; ENT.disparo2 = true; 1');
+const z2 = await hasta((z) => z.zoom > 0 && z.zoom < 1.2); await ev('ENT.disparo2 = false; 1');
+tot++; if (caso('5. el zoom del mod acerca la imagen (view.fov del CalcView) y vuelve', z1.zoom > 2 && z1.fov < z0.fov / 1.8 && z2.fov > z1.fov * 1.8, { antes: z0, zoom: z1, despues: z2 })) bien++;
 console.log('RESUMEN ' + bien + '/' + tot);
 await b.close();
 process.exit(bien === tot ? 0 : 1);

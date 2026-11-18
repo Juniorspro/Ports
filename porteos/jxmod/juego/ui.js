@@ -362,7 +362,7 @@ function abrirAjustes(desde) {
   $('aBanco').onclick = () => { const g = $('aG').value; bancoEmpezar(g === 'auto' ? 'alto' : g); };
   // el campo de visión se ve al moverlo (detrás del panel) y queda guardado al soltarlo; sin la mira ni el zoom de un addon
   // puestos, la cámara salta derecho al nuevo (si no, vuelve a él al sacarlos)
-  $('aFov').oninput = () => { act(); PREFS.fov = +$('aFov').value; if (!ARM.zoom && !(typeof gmaFovLua === 'function' && gmaFovLua())) CAM.fov = fovBase() * (1 - 0.27 * (ARM.apK || 0)); };
+  $('aFov').oninput = () => { act(); PREFS.fov = +$('aFov').value; if (!ARM.zoom && !(typeof gmaFovLua === 'function' && gmaFovLua())) CAM.fov = CAM.fovB = fovBase() * (1 - 0.27 * (ARM.apK || 0)); };
   $('aFov').onchange = () => { PREFS.fov = +$('aFov').value; guardarPrefs(); };
   // el tamaño de los controles se ve al moverlo
   if ($('aH')) $('aH').oninput = () => { act(); PREFS.hud = +$('aH').value; hudDisponer(); };

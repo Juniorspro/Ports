@@ -1805,7 +1805,7 @@ function gmaLuces(comun) {
       if (!t.vivo || !t.listo || !(t.brillo > 0)) continue;
       const [f] = angMat(t.ang), d = dG({ x: f[0], y: f[1], z: f[2] }), k = (LUZ_GMOD * Math.min(t.brillo, 8)) / 255;
       const radio = Math.max(2, Math.min(60, t.lejos * GS)), cono = Math.cos(Math.min(170, Math.max(t.fovH, t.fovV)) * RAD / 2);
-      luzEspecial(vG(t.pos), radio, [t.col[0] * k, t.col[1] * k, t.col[2] * k], d, cono, 8);
+      luzEspecial(vG(t.pos), radio, [t.col[0] * k, t.col[1] * k, t.col[2] * k], d, cono, 8, false, null, (1 - cono) * 0.75);   // (borde suave, como su textura)
     }
   }
   if (comun && GMA.dls && GMA.dls.size) {

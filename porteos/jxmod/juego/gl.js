@@ -453,7 +453,7 @@ void main(){
     float d = sqrt(d2); L /= d;
     // (cae suave para que un pasillo se vea a 10-15 m, y un poco envolvente: el piso se ve aunque le llegue de costado)
     float at = pow(1.0 - d / r, 1.2) / (1.0 + 0.012 * d2);
-    if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + 0.08, dot(-L, uED[i].xyz));
+    if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + (uEC[i].w > 0.0 ? uEC[i].w : 0.08), dot(-L, uED[i].xyz));
 #ifdef ESPSH
     if (i == uESmI && at > 0.0) at *= espSombra(vW, ng, d);
 #endif
@@ -497,7 +497,7 @@ void main(){
     if (d2 > r * r) continue;
     float d = sqrt(d2); L /= d;
     float at = pow(1.0 - d / r, 1.2) / (1.0 + 0.012 * d2);
-    if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + 0.08, dot(-L, uED[i].xyz));
+    if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + (uEC[i].w > 0.0 ? uEC[i].w : 0.08), dot(-L, uED[i].xyz));
 #ifdef ESPSH
     if (i == uESmI && at > 0.0) at *= espSombra(vW, n, d);
 #endif
@@ -520,7 +520,7 @@ void main(){
     if (d2 > r * r) continue;
     float d = sqrt(d2); L /= d;
     float at = pow(1.0 - d / r, 1.2) / (1.0 + 0.012 * d2);
-    if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + 0.08, dot(-L, uED[i].xyz));
+    if (uED[i].w > -1.0) at *= smoothstep(uED[i].w, uED[i].w + (uEC[i].w > 0.0 ? uEC[i].w : 0.08), dot(-L, uED[i].xyz));
 #ifdef ESPSH
     if (i == uESmI && at > 0.0) at *= espSombra(vW, n, d);
 #endif
@@ -1522,7 +1522,9 @@ function lucesPreparar() {
 const ESP_P = new Float32Array(16), ESP_C = new Float32Array(16), ESP_D = new Float32Array(16), ESP_PV = new Float32Array(16);
 // (pv: de dónde alumbra al arma en la mano, si no es p: la linterna sin mapa de sombra sale de los ojos —linterna.js— y el
 // arma sigue alumbrada como antes)
-function luzEspecial(p, radio, col, dir, cono, prioridad, sombra, pv) { R.esp.push({ p, r: radio, c: col, d: dir || null, k: cono === undefined ? -2 : cono, q: prioridad || 0, sh: !!sombra, pv: pv || null }); }
+// (suave: el ancho del borde del cono, en coseno —0: el de siempre, 0,08—; los conos de los mods de GMod lo traen ancho,
+// porque su textura —effects/flashlight001— se apaga de a poco hasta el borde)
+function luzEspecial(p, radio, col, dir, cono, prioridad, sombra, pv, suave) { R.esp.push({ p, r: radio, c: col, d: dir || null, k: cono === undefined ? -2 : cono, q: prioridad || 0, sh: !!sombra, pv: pv || null, s: suave || 0 }); }
 function espPreparar() {
   const L = R.esp, cp = R.camPos;
   if (L.length > 4) L.sort((a, b) => b.q - a.q || a.p.distTo(cp) - b.p.distTo(cp));
@@ -1531,7 +1533,7 @@ function espPreparar() {
   for (let i = 0; i < R.nEsp; i++) {
     const l = L[i], o = i * 4;
     ESP_P[o] = l.p.x; ESP_P[o + 1] = l.p.y; ESP_P[o + 2] = l.p.z; ESP_P[o + 3] = l.r;
-    ESP_C[o] = l.c[0]; ESP_C[o + 1] = l.c[1]; ESP_C[o + 2] = l.c[2]; ESP_C[o + 3] = 0;
+    ESP_C[o] = l.c[0]; ESP_C[o + 1] = l.c[1]; ESP_C[o + 2] = l.c[2]; ESP_C[o + 3] = l.s || 0;
     if (l.d) { ESP_D[o] = l.d.x; ESP_D[o + 1] = l.d.y; ESP_D[o + 2] = l.d.z; ESP_D[o + 3] = l.k; } else { ESP_D[o] = 0; ESP_D[o + 1] = -1; ESP_D[o + 2] = 0; ESP_D[o + 3] = -2; }
   }
   for (let i = 0; i < R.nEsp; i++) { const v = L[i].pv; if (!v) continue; if (!R.espPV) { ESP_PV.set(ESP_P); R.espPV = true; } ESP_PV[i * 4] = v.x; ESP_PV[i * 4 + 1] = v.y; ESP_PV[i * 4 + 2] = v.z; }

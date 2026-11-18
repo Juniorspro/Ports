@@ -752,14 +752,15 @@ function gmaVistaLua(C) {
   if (!hayH && !armaPropia && !modoPropio) return fin();
   const ojo = JUG.ojoPos || C.pos, fwd = C.q.rot(v3(0, 0, 1)), o = GMA.V ? GMA.V(ojo) : vS(ojo), a = dirAng(dS(fwd)); o.__mt = GMA.mtVec; a.__mt = GMA.mtAng;
   const cp = (v) => { const x = new LVec(v.x, v.y, v.z); x.__mt = GMA.mtVec; return x; }, ca = (v) => { const x = new LAng(v.p, v.y, v.r); x.__mt = GMA.mtAng; return x; };
-  const fov = C.fov || 75;
+  const fov = C.fovB || C.fov || 75;
   let vista = null;
   GMA.ultErr = false;
   if (hayH) { const r = gmaHook0('CalcView', 'C', GMA.jug, cp(o), ca(a), fov, 3, 30000); if (r[0] instanceof LuaTable) vista = r[0]; }
   if (!vista && modoPropio) { const r = gmLlamar(gf, 'C', M.C, GMA.jug, cp(o), ca(a), fov, 3, 30000); if (r[0] instanceof LuaTable) vista = r[0]; }
   if (!vista && armaPropia) { const r = gmLlamar(wf, 'C', w, GMA.jug, cp(o), ca(a), fov); if (r.length) { vista = new LuaTable(); if (r[0] instanceof LVec) vista.set('origin', r[0]); if (r[1] instanceof LAng) vista.set('angles', r[1]); } }
   if (!vista) return fin();
-  const vo = vista.get('origin'), va = vista.get('angles'), ter = R_T(vista.get('drawviewer'));
+  const vo = vista.get('origin'), va = vista.get('angles'), ter = R_T(vista.get('drawviewer')), vf = vista.get('fov');
+  GMA.vlFov = typeof vf === 'number' && vf > 1 && Math.abs(vf - fov) > 0.01 ? vf / fov : 0;   // (view.fov: el zoom que pide el addon; principal.js lo aplica)
   // (la tercera persona que pide: el cuerpo se ve y el arma de primera persona no; al dejar de pedirla, como estaba)
   if (ter) { if (GMA.vlTer === undefined) { GMA.vlTer = !!JUG.tercera; JUG.tercera = true; } } else fin();
   if (vo instanceof LVec && Math.hypot(vo.x - o.x, vo.y - o.y, vo.z - o.z) > 0.5) C.pos.copy(vG(vo));

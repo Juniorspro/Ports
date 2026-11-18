@@ -200,6 +200,7 @@ function camaraActualizar(dt) {
   if (EDA.on) edaCamara(CAM); // (editor de animaciones: alrededor del muñeco o la cámara grabada)
   if (DBG.cam) { CAM.pos.copy(DBG.cam.p); CAM.q.copy(DBG.cam.q); } // (pruebas: mirar desde otro lado)
   else if (typeof herCamaraVista === 'function') herCamaraVista();   // (la herramienta Cámara: mirando por una)
+  if (typeof GMA !== 'undefined') GMA.vlFov = 0;
   if (!DBG.cam && !EDA.on && !(typeof CLIB !== 'undefined' && CLIB.modo) && typeof gmaVistaLua === 'function') gmaVistaLua(CAM);   // (CalcView de los addons de GMod)
   if (CAM.temblor > 0) { CAM.temblor = Math.max(0, CAM.temblor - dt * 1.5); const k = CAM.temblor * 0.03; CAM.q.mul(Quat.euler((Math.random() - 0.5) * k, (Math.random() - 0.5) * k)); }
   CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA);
@@ -207,7 +208,10 @@ function camaraActualizar(dt) {
   CAM.der.copy(CAM.qVista.rot(v3(1, 0, 0))); CAM.arr.copy(CAM.qVista.rot(v3(0, 1, 0)));
   // (con un mod de velocidad, la vista se abre al correr rápido)
   // (o el zoom que pidió el Lua de un addon con Player:SetFOV: gmaFovLua, gmod_vista.js)
-  const vh = Math.hypot(JUG.vel.x, JUG.vel.z), z = ARM.zoom ? 18 : (typeof gmaFovLua === 'function' && gmaFovLua()) || (fovBase() + ((MODS.velocidad || 1) > 1.15 && !JUG.vehiculo ? clamp((vh - 7) * 0.8, 0, 14) : 0)) * (1 - 0.27 * (ARM.apK || 0)); CAM.fov += (z - CAM.fov) * Math.min(1, dt * (Math.abs(z - CAM.fov) > 10 ? 12 : 4));
+  const vh = Math.hypot(JUG.vel.x, JUG.vel.z), z = ARM.zoom ? 18 : (typeof gmaFovLua === 'function' && gmaFovLua()) || (fovBase() + ((MODS.velocidad || 1) > 1.15 && !JUG.vehiculo ? clamp((vh - 7) * 0.8, 0, 14) : 0)) * (1 - 0.27 * (ARM.apK || 0)); const fb = CAM.fovB || CAM.fov; CAM.fovB = fb + (z - fb) * Math.min(1, dt * (Math.abs(z - fb) > 10 ? 12 : 4));
+  // (el campo que devolvió el CalcView de un addon —view.fov: el zoom de una cámara o unos prismáticos—, como proporción
+  // del que se le pasó; gmaVistaLua, gmod_vista.js)
+  CAM.fov = CAM.fovB * (!DBG.cam && typeof GMA !== 'undefined' && GMA.vlFov > 0 ? Math.max(0.02, Math.min(3, GMA.vlFov)) : 1);
   if (DBG.fov) CAM.fov = DBG.fov;   // (DBG.fov: el campo fijo, cuadro a cuadro —un video: el zoom de vértigo—)
 }
 // ---------------- partidas ----------------
@@ -224,7 +228,7 @@ function empezarPartida(mapa) {
     return gbspPreparar(mapa, (p, t) => { if (C && C.set) C.set(p0 + (0.95 - p0) * p, t); }).then(() => { cerrar(); empezarPartida(mapa); }).catch((e) => { gmErr && gmErr('mapa ' + mapa, e); cerrar(); aviso(T('gm.mapaMal'), 4); empezarPartida('FlatGrass'); });
   }
   if (!DATA.esc[mapa]) mapa = 'FlatGrass';
-  CAM.fov = fovBase();   // (la partida empieza con el campo de visión elegido, sin acercarse desde el de antes)
+  CAM.fov = CAM.fovB = fovBase();   // (la partida empieza con el campo de visión elegido, sin acercarse desde el de antes)
   // (el mapa, el personaje y lo que necesiten en paquetes aparte: se bajan antes, con lo que va en la pantalla de carga)
   const falta = rbParaPartida(mapa, JUG.skinRol || JUG.skinMod || PREFS.skin);
   // (con la pantalla de carga abierta mientras baja: antes quedaba la pantalla en blanco hasta que llegaba; si no se pudo
