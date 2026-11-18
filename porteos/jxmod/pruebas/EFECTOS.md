@@ -183,9 +183,18 @@ ESC=pruebas/corto_pepe.mjs VW=720 VH=540 DPR=1 RES=100 node pruebas/trailer.mjs 
   sale adelante del lente).
 
 ### Efectos de imagen (`montaje/pepe_cuadros.py`)
-- **Screamer rojo** (`deformar`): recorte a la cara; ojos agrandados y negros con un punto blanco; la boca y la
-  mandíbula estiradas ×2,3, abiertas, negras y con borde pálido; bordes rasgados; rojo con contraste y viñeta. Dura
-  6–19 cuadros y lleva 1–2 cuadros invertidos.
+- **Pepe deformado en 3D** (`CO.deformar(P, k)`, en el juego, con la luz y la cinta de la escena): en `poseExtra`,
+  después de la animación, el cuello ×(1 + 1,45k) de alto y más fino, la cabeza ×(1 + 0,85k) de alto y más angosta,
+  torcida de costado (eje X local del hueso `Head`; el Z la tira para atrás) y con un temblor. El modelo no tiene
+  mandíbula: la boca se hace en el montaje. Va gradual en las tomas (k de 0 a 1) y entero en los sustos; con la
+  cabeza más alta, la cámara tiene que mirar un poco más arriba.
+- **Screamer rojo** (`deformar`): sólo con los píxeles reales de la cara, nada dibujado encima:
+  - los ojos se agrandan y se «derriten» hacia abajo;
+  - la abertura de los labios se estira hasta ser una boca larga;
+  - la cara se retuerce alrededor de la nariz;
+  - lo estirado se oscurece (queda hueco).
+
+  Después, rojo con contraste y viñeta. Dura 6–19 cuadros y lleva 1–2 cuadros invertidos.
 - **Desgarro** (`desgarro`): franjas corridas, canales separados, ruido, rayas blancas y la imagen que rueda. Se
   usa en todos los cortes, con intensidad 0,35 → 1 → 0,3.
 - **Quemado arcoíris** (`arcoiris`): sobreexpuesto, canales muy corridos, líneas estiradas.
@@ -202,7 +211,13 @@ ESC=pruebas/corto_pepe.mjs VW=720 VH=540 DPR=1 RES=100 node pruebas/trailer.mjs 
     casi monótonas);
   - instructivo: Soledad, con temblor de cinta (vibrato 0,55 Hz + 6,2 Hz);
   - el que filma: Diego, con el micrófono de la cámara (banda 300–3600 Hz);
-  - mensaje escondido: «me acuerdo de todos ustedes», al revés y grave.
+  - mensaje escondido: «me acuerdo de todos ustedes», al revés y grave;
+  - voz robot que se entiende: `afftfilt` con la fase en cero (ventana de 2048, solapamiento 0,78: un zumbido parejo
+    de ~98 Hz) mezclado con la voz limpia (0,45 limpia + 1,0 robot) y `acrusher` suave. La envolvente del habla
+    queda 98 % igual a la limpia.
+- **Música en reversa:** «Local Forecast» al revés, más lenta (×0,82), gastada (`acrusher`, vibrato, eco). Va en el
+  corte, bajo «Pepe está contando», lejos (filtrada) cuando aparecen los Pepes, cuando el instructivo del final se da
+  vuelta y antes de «TE TOCA».
 - **Sincronía:** se recorta el silencio inicial de cada efecto (el comienzo es la primera muestra al 12 % del
   máximo); los golpes caen a ±20 ms del cuadro.
 - **Cuidado:** `loud-static.mp3` viene roto (picos ×108 al decodificar), así que va `televison-static.mp3`. Cada

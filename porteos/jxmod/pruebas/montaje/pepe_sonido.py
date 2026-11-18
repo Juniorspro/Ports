@@ -42,7 +42,8 @@ s(M + 'creepy-and-unsettling-soundd.mp3', 39.9, 0.45, 0, 1.5, 'afade=t=out:st=1.
 # ---- la alerta: dos ráfagas y el tono de atención del EAS real; la voz; las ráfagas de cierre ----
 s(M + 'u-s-eas-system-full.mp3', 41.4, 0.42, 0.73, 2.6)
 s(M + 'u-s-eas-system-full.mp3', 44.1, 0.42, 6.1, 0.9, 'afade=t=out:st=0.75:d=0.15')
-for k, t in (('e1', 45.1), ('e2', 50.4), ('e3', 54.55), ('e4', 57.7), ('e5', 59.6), ('e6', 61.6), ('e7', 64.3), ('e8', 66.6), ('e9', 69.1)): s(V + f'p_{k}.wav', t, 1.05)
+# (la voz de la alerta, robot: la fase en cero —un zumbido parejo de ~98 Hz— mezclada con la voz limpia, que se entienda)
+for k, t in (('e1', 45.1), ('e2', 50.4), ('e3', 54.55), ('e4', 57.7), ('e5', 59.6), ('e6', 61.6), ('e7', 64.3), ('e8', 66.6), ('e9', 69.1)): s(V + f'r_{k}.wav', t, 1.0)
 s(M + 'red-eyed-barry-ambience.mp3', 45.0, 0.22, 0, 25.9, 'afade=t=in:d=1.5', loop=True)
 s(M + 'scary-whisper.mp3', 67.42, 1.5)
 s(M + 'horror-game-stinger-boom.mp3', 68.78, 0.85, 0, 2.0)
@@ -73,7 +74,7 @@ s(M + 'ghostly-sound.mp3', 126.3, 0.6)
 s(M + 'power-off-1.mp3', 130.6, 0.8); s(M + 'tv-static-01.mp3', 131.6, 0.45, 0, 0.4)
 # ---- el instructivo otra vez (la música más grave y más gastada) y la heladera ----
 s(M + 'vhs-tape.mp3', 131.95, 0.45, 0, 1.2)
-s(G + 'mu_local_forecast_elevator.bin', 132.0, 0.28, 40.0, 15.3, 'asetrate=38808,aresample=44100,' + CINTA + ',vibrato=f=0.3:d=0.12')
+s(G + 'mu_local_forecast_elevator.bin', 132.0, 0.28, 40.0, 13.4, 'asetrate=38808,aresample=44100,' + CINTA + ',vibrato=f=0.3:d=0.12')
 for k, t in (('f1', 132.7), ('f2', 137.6), ('f3', 143.8)): s(V + f'p_{k}.wav', t, 1.0, fx=('asetrate=41895,aresample=44100' if k == 'f3' else ''))
 s(M + 'crash-metal-shatter.mp3', 143.0, 1.2); s(M + '395325__ihitokage__body-falling-on-the-ground-2_01.mp3', 143.15, 0.6); s(M + 'cinematic-thud.mp3', 143.08, 0.6)
 s(M + 'glitch-sound-effect_FugN82U.mp3', 145.4, 0.35, 0, 0.25)
@@ -81,6 +82,14 @@ s(M + 'ghostly-sound.mp3', 146.25, 0.7)
 s(M + 'tape-stop.mp3', 147.25, 0.8)
 s(M + 'scary-whisper.mp3', 149.45, 1.5, 0, 0.35)
 s(M + 'jumpscare-sound-fnaf-4.mp3', 149.75, 1.0, 0.0, 0.25)
+# la música al revés, más lenta y gastada (musica_reves.wav): en el corte, bajo «Pepe está contando», lejos en la
+# grabación cuando aparecen los Pepes, cuando el instructivo del final se da vuelta y antes de «TE TOCA»
+RV = S + '/musica_reves.wav'
+s(RV, 38.0, 0.5, 5.0, 3.4, 'afade=t=in:d=0.4,afade=t=out:st=3.0:d=0.4')
+s(RV, 66.4, 0.3, 20.0, 2.6, 'afade=t=in:d=1.5')
+s(RV, 104.4, 0.22, 30.0, 7.0, 'lowpass=f=1500,aecho=0.8:0.7:180:0.4,afade=t=in:d=2')
+s(RV, 145.4, 0.42, 40.0, 1.85)
+s(RV, 149.4, 0.5, 50.0, 0.35, 'afade=t=in:d=0.3')
 # el siseo de la cinta, todo el video
 s(M + 'vhs-noise.mp3', 0.0, 3.0, 0, DUR, loop=True)
 

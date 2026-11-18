@@ -79,6 +79,28 @@ const COMUN = `
     // (la mirada del que filma hacia un punto: yaw y pitch —negativo es hacia arriba—)
     mira(p) { const o = vadd(JUG.pos, v3(0, 0.66, 0)), d = vsub(p, o); return [Math.atan2(d.x, d.z), -Math.atan2(d.y, Math.hypot(d.x, d.z))]; },
     gira(y, meta, k) { let d = meta - y; d = Math.atan2(Math.sin(d), Math.cos(d)); return y + d * k; },
+    // (Pepe deformado de verdad, en 3D: el cuello más largo, la cabeza más alta y angosta, inclinada y temblando. Va en
+    // poseExtra, después de la animación de cada cuadro; k de 0 —normal— a 1. El cuello pasa su escala a la cabeza: se
+    // compensa para que la cabeza tenga la suya)
+    deformar(P, k) {
+      if (!P) return; P.defK = k;
+      if (P.poseExtra) return;
+      P.poseExtra = (Q) => {
+        const md = Q.md, h = Q.D.h.Head, n = Q.D.h.Neck; if (h === undefined || n === undefined) return;
+        const sN = md.s[n], sH = md.s[h], k = Math.max(0, Q.defK || 0);
+        if (!Q.defS0) Q.defS0 = { n: sN.slice(), h: sH.slice() };
+        const nx = 1 - 0.3 * k, ny = 1 + 1.45 * k;
+        sN[0] = Q.defS0.n[0] * nx; sN[1] = Q.defS0.n[1] * ny; sN[2] = Q.defS0.n[2] * nx;
+        sH[0] = Q.defS0.h[0] * (1 - 0.16 * k) / nx; sH[1] = Q.defS0.h[1] * (1 + 0.85 * k) / ny; sH[2] = Q.defS0.h[2] * (1 + 0.05 * k) / nx;
+        if (k > 0.001) {
+          const tt = TIEMPO.t, j = k * k * (Math.sin(tt * 37) * 0.05 + Math.sin(tt * 23 + 1) * 0.04);
+          const r = md.r[h], q = new Quat(r[0], r[1], r[2], r[3]).mul(Quat.axis(1, 0, 0, 0.72 * k + j)).mul(Quat.axis(0, 0, 1, -0.14 * k + j * 0.6)).norm();   // (X: de costado; Z: adelante/atrás)
+          r[0] = q.x; r[1] = q.y; r[2] = q.z; r[3] = q.w;
+          const rn = md.r[n], qn = new Quat(rn[0], rn[1], rn[2], rn[3]).mul(Quat.axis(1, 0, 0, -0.25 * k)).mul(Quat.axis(0, 0, 1, -0.1 * k)).norm(); rn[0] = qn.x; rn[1] = qn.y; rn[2] = qn.z; rn[3] = qn.w;
+        }
+        md.sucio = true;
+      };
+    },
     barril() { return DATA.pfPorNombre['BarrilExplosivo'] ? 'BarrilExplosivo' : null; },
   };
   window.LEJOS = () => vfCmd('RunConsoleCommand("ffcam_lamp_range","2.6") RunConsoleCommand("ffcam_nv_brightness","1.05")');
@@ -200,6 +222,7 @@ export const ESCENAS = {
         // (Pepe vuelve, parado, sin saludar; el zoom lento hasta su cara; a los 36 s mira a cámara de golpe)
         const c = CO.P(${PX} + 0.4, ${PZ} - 7.5, 1.55), fov = 60 - 53 * HZ.k(t, 33.6, 37.4);
         if (t >= 36.0) A.pe.yaw = CO.yaw(A.pe.pos, c);
+        CO.deformar(A.pe, t < 36.4 ? 0 : 0.8 * HZ.k(t, 36.4, 37.35));
         HZ.tripode(c, CO.P(${PX}, ${PZ}, 0.95 + 0.74 * HZ.k(t, 33.6, 37.0)), 0, fov);
         HZ.dano(t < 36.4 ? 0.3 : 0.3 + 0.7 * HZ.k(t, 36.4, 38.0));
         HZ.contador('1.047', t < 36.4 ? 1 : Math.floor(t * 9) % 2); HZ.marca(t < 36.4 ? 1 : 0.4);
@@ -238,7 +261,7 @@ export const ESCENAS = {
       if (t < 57.5) {
         // (el acercamiento lento a la cara —la cadera del NPC + 0,66 m—, de frente)
         const k = HZ.k(t, 54.4, 57.5), f = A.pe.pos, c = v3(f.x + 0.12 - k * 0.1, f.y + 0.68, f.z - 3.2 + k * 2.6);
-        A.pe.yaw = CO.yaw(f, c); HZ.lampara(2); HZ.tripode(c, v3(f.x, f.y + 0.66, f.z), 0, 50); if (!A.luz) { A.luz = 1; luzTemporal(v3(f.x + 0.1, f.y + 0.9, f.z - 0.9), 2.4, [4.4, 4.4, 4.4], 3.2); }
+        A.pe.yaw = CO.yaw(f, c); CO.deformar(A.pe, 0.45 * HZ.k(t, 55.0, 57.4)); HZ.lampara(2); HZ.tripode(c, v3(f.x, f.y + 0.66, f.z), 0, 50); if (!A.luz) { A.luz = 1; luzTemporal(v3(f.x + 0.1, f.y + 0.9, f.z - 0.9), 2.4, [4.4, 4.4, 4.4], 3.2); }
         HZ.alerta(t, ['NO LO MIRE A LOS OJOS'], false, true);
       } else { HZ.lampara(0); HZ.tarjeta(); HZ.alerta(t, ['NO LO SPAWNEE'], false); }
       TX.enviar();`,
@@ -310,12 +333,12 @@ export const ESCENAS = {
     listo: RELOJ,
     cada: `const t = __tr.t, A = window.__A; TX.sinOSD = false; HZ.lampara(0); HZ.nv(true); HZ.dano(0.5 + 0.2 * HZ.k(t, 100.6, 104.4));
       // (en la previa el zoom entra, así arranca adentro como terminó la toma anterior)
-      ENT.disparo = __tr.i < 0; ENT.disparo2 = __tr.i >= 0 && t >= 98.1 && t < 100.0;
+      ENT.disparo = __tr.i < 0; ENT.disparo2 = __tr.i >= 0 && t >= 98.1 && t < 100.6;
       const auto = CO.P(0.5, 22.9, 0);
       if (t >= 100.6) { if (!A.y0) A.y0 = JUG.yaw; const meta = CO.yaw(JUG.pos, auto) - 0.12; JUG.yaw = t < 100.85 ? CO.gira(A.y0, meta, HZ.k(t, 100.6, 100.85)) : CO.gira(JUG.yaw, meta, 0.1); }
       if (t >= 100.6 && !A.pe) A.pe = CO.pepe(0.5, 22.9, 0);
-      if (A.pe) { const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)); if (t >= 101.05 && t < 101.6) { CO.fijo(A.pe, JUG.pos.x + f.x * 0.62, JUG.pos.z + f.z * 0.62); if (!A.luz) { A.luz = 1; luzTemporal(vadd(JUG.pos, v3(f.x * 0.25, 0.75, f.z * 0.25)), 2.6, [7, 7, 7], 0.55); } } else CO.fijo(A.pe, 0.5, 22.9); A.pe.yaw = CO.yaw(A.pe.pos, JUG.pos); }
-      JUG.pitch = t < 100.6 ? 0.06 : 0.02; ENT.y = t >= 101.6 && t < 103.4 ? -0.3 : 0;
+      if (A.pe) { const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)); CO.deformar(A.pe, t >= 101.05 && t < 101.6 ? 0.8 : 0.3); if (t >= 101.05 && t < 101.6) { CO.fijo(A.pe, JUG.pos.x + f.x * 1.0, JUG.pos.z + f.z * 1.0); if (!A.luz) { A.luz = 1; luzTemporal(vadd(JUG.pos, v3(f.x * 0.35, 1.0, f.z * 0.35)), 2.8, [7, 7, 7], 0.55); } } else CO.fijo(A.pe, 0.5, 22.9); A.pe.yaw = CO.yaw(A.pe.pos, JUG.pos); }
+      JUG.pitch = t < 100.6 ? 0.06 : t >= 100.95 && t < 101.6 ? -0.3 : 0.02; ENT.y = t >= 101.6 && t < 103.4 ? -0.3 : 0;
       if (t > 104.35) window.__dbg = { fin: [+JUG.pos.x.toFixed(2), +JUG.pos.z.toFixed(2), +JUG.yaw.toFixed(3)] }; PINTADO(); TX.enviar();`,
   },
   // 8f. «no, no, no»: otro Pepe a la izquierda, otro a la derecha; se da vuelta y corre
@@ -358,7 +381,7 @@ export const ESCENAS = {
       else {
         ENT.y = 0;
         if (!A.frente) { A.yw = JUG.yaw; const f = v3(Math.sin(A.yw), 0, Math.cos(A.yw)); A.fp = [JUG.pos.x + f.x * 1.15, JUG.pos.z + f.z * 1.15]; A.frente = CO.pepe(A.fp[0], A.fp[1], 0); A.e0 = vadd(JUG.pos, v3(0, 0.66, 0)); window.__dbg = { en: [+JUG.pos.x.toFixed(3), +JUG.pos.y.toFixed(3), +JUG.pos.z.toFixed(3), +A.yw.toFixed(4)], pepe: A.fp }; }
-        CO.fijo(A.frente, A.fp[0], A.fp[1]); A.frente.yaw = CO.yaw(A.frente.pos, A.e0); if (!A.luz) { A.luz = 1; const f = v3(Math.sin(A.yw), 0, Math.cos(A.yw)); luzTemporal(vadd(A.e0, v3(f.x * 0.3, 0.1, f.z * 0.3)), 2.4, [5.5, 5.5, 5.5], 1.05); }
+        CO.fijo(A.frente, A.fp[0], A.fp[1]); A.frente.yaw = CO.yaw(A.frente.pos, A.e0); CO.deformar(A.frente, 0.35 + 0.65 * HZ.k(t, 119.6, 120.4)); if (!A.luz) { A.luz = 1; const f = v3(Math.sin(A.yw), 0, Math.cos(A.yw)); luzTemporal(vadd(A.e0, v3(f.x * 0.3, 0.1, f.z * 0.3)), 2.4, [5.5, 5.5, 5.5], 1.05); }
         if (t < 120.5) JUG.pitch = 0.08 - 0.14 * HZ.k(t, 119.6, 120.3);
         if (t >= 120.5 && A.golpe > 1e8) A.golpe = t;
         if (t >= A.golpe) {
@@ -420,7 +443,7 @@ export const ESCENAS = {
       // (el polvo del golpe se disipa en menos de un segundo: que se vea a Pepe aplastado y al que vuelve)
       if (A.tg < 1e8 && t > A.tg + 0.35 && !A.sinPolvo) { A.sinPolvo = 1; for (const q of PART.l) if (q.tipo === 'humo') q.vida = Math.min(q.vida, q.t + 0.6); }
       if (t >= 146.3 && !A.vuelve) { A.vuelve = CO.pepe(${PX} + 1.5, ${PZ} + 2.6, 0); }
-      if (A.vuelve) A.vuelve.yaw = CO.yaw(A.vuelve.pos, CO.P(${PX} + 0.1, ${PZ} - 4.6, 0));
+      if (A.vuelve) { A.vuelve.yaw = CO.yaw(A.vuelve.pos, CO.P(${PX} + 0.1, ${PZ} - 4.6, 0)); CO.deformar(A.vuelve, 0.65); }
       if (t < 147.5) {
         const s = t > A.tg && t < A.tg + 0.5 ? (1 - (t - A.tg) / 0.5) * 0.06 : 0;
         HZ.tripode(CO.P(${PX} + 0.1 + Math.sin(t * 70) * s, ${PZ} - 4.6, 1.42 + Math.cos(t * 60) * s), CO.P(${PX}, ${PZ}, 1.0), 0, 58);

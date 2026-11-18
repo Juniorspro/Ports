@@ -75,61 +75,52 @@ def ojos(r, fase=0.0):
     return desgarro(o, 0.12, r)
 
 def deformar(a, ojos_, boca, alto, r, u):
-    """la cara de Pepe deformada y congelada en rojo: se acerca a la cara, los ojos se agrandan y quedan negros, la boca
-    se estira hacia abajo, abierta y negra; todo en rojo con mucho contraste"""
+    """la cara de Pepe deformada con sus propios píxeles (nada dibujado encima): se acerca a la cara, los ojos se agrandan y
+    se derriten hacia abajo, la abertura de los labios se estira hasta ser una boca larga, la cara se tuerce; lo que se
+    estira se oscurece (queda hueco) y todo pasa a rojo con mucho contraste. u: el tiempo del susto (la deformación late)"""
     (ex1, ey1), (ex2, ey2) = ojos_; mx, my = boca
-    cx, cy = (ex1 + ex2) / 2, (ey1 + ey2) / 2 + alto * 0.12
-    # recorte alrededor de la cara (la cara ocupa ~70 % del alto), con un pulso de zoom
-    esc = (alto * 1.55) / H * (1 - 0.05 * math.sin(u * 23))
+    cx, cy = (ex1 + ex2) / 2, (ey1 + ey2) / 2 + alto * 0.18
+    late = 0.85 + 0.15 * math.sin(u * 19)
+    esc = (alto * 1.5) / H * (1 - 0.05 * math.sin(u * 23))
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
-    sx = cx + (xx - W / 2) * esc + r.normal(0, 1.2); sy = cy + (yy - H / 2) * esc + r.normal(0, 1.2)
-    # ojos más grandes (lo de cerca del centro del ojo sale de más cerca: se agranda)
-    re = alto * 0.16
+    sx = cx + (xx - W / 2) * esc + float(r.normal(0, 1.0)); sy = cy + (yy - H / 2) * esc + float(r.normal(0, 1.0))
+    est = np.zeros((H, W), np.float32)   # (cuánto se estiró cada punto: para ahuecarlo)
+    # la cara apenas retorcida alrededor de la nariz
+    dx, dy = sx - cx, sy - cy; d = np.sqrt(dx * dx + dy * dy); R = alto * 0.9
+    th = 0.32 * late * np.clip(1 - d / R, 0, 1) ** 2
+    c_, s_ = np.cos(th), np.sin(th); sx, sy = cx + dx * c_ - dy * s_, cy + dx * s_ + dy * c_
+    re = alto * 0.11
     for ex, ey in ((ex1, ey1), (ex2, ey2)):
+        # los ojos más grandes (lo de cerca del centro sale de más cerca)
         dx, dy = sx - ex, sy - ey; d = np.sqrt(dx * dx + dy * dy) + 1e-3
-        f = np.where(d < re, (d / re) ** 0.55, 1.0)
+        f = np.where(d < re * 1.6, (d / (re * 1.6)) ** (0.55 / late), 1.0); est += (1 - f) * 0.9
         sx = ex + dx * f; sy = ey + dy * f
-    # la boca y la mandíbula estiradas hacia abajo (×2,3), con caída suave a los costados
-    mw = alto * 0.34
-    gx = np.exp(-((sx - mx) / mw) ** 2)
-    abajo = np.clip((sy - my) / (alto * 1.2), 0, 1)
-    sy = np.where(sy > my - alto * 0.05, sy - (sy - my) * 0.56 * gx * (1 - abajo * 0.5), sy)
+        # y derretidos hacia abajo: debajo del ojo se repite el ojo, cada vez más estirado
+        gx = np.exp(-((sx - ex) / (re * 1.1)) ** 2); baja = np.clip((sy - ey) / (alto * 0.45), 0, 1)
+        k = gx * np.where(sy > ey, 1 - baja * 0.35, 0) * 0.62 * late
+        sy = sy - (sy - ey) * k; est += k * 0.8
+    # la boca: la abertura de los labios estirada hacia abajo y a lo ancho (la línea oscura se vuelve una boca abierta)
+    mw = alto * 0.2; gx = np.exp(-((sx - mx) / mw) ** 2)
+    zona = (sy > my - alto * 0.03) & (sy < my + alto * 0.95)
+    k = np.where(zona, gx * (1 - np.clip((sy - my) / (alto * 0.95), 0, 1) * 0.4), 0) * 0.7 * late
+    sy = np.where(zona, sy - (sy - my) * k, sy); sx = sx - (sx - mx) * k * 0.35; est += k * 1.1
     xi = np.clip(sx, 0, W - 1).astype(np.int32); yi = np.clip(sy, 0, H - 1).astype(np.int32)
     o = a[yi, xi]
-    # pintar: los ojos negros (con un puntito blanco) y la boca abierta y negra, en el espacio de la salida
-    im = Image.fromarray(np.clip(o, 0, 255).astype(np.uint8)); d = ImageDraw.Draw(im)
-    def aSal(px, py):
-        return ((px - cx) / esc + W / 2, (py - cy) / esc + H / 2)
-    def manchon(X, Y, ax, ay, jit, col, sesgo=0.0):
-        # (una elipse con el borde irregular: rasgada, no de dibujo animado; ay hacia abajo puede ser más largo)
-        pts = []
-        for k in range(40):
-            th = 2 * math.pi * k / 40; j = 1 + jit * math.sin(k * 2.7 + 1.3) * math.cos(k * 1.9) + jit * 0.5 * float(r.normal(0, 0.35))
-            yy_ = math.sin(th); pts.append((X + ax * math.cos(th) * j, Y + ay * yy_ * j * (1 + sesgo * max(0, yy_))))
-        d.polygon(pts, fill=col)
-    for ex, ey in ((ex1, ey1), (ex2, ey2)):
-        X, Y = aSal(ex, ey); rr = re / esc * 0.62
-        manchon(X, Y + rr * 0.1, rr * 1.15, rr * 1.0, 0.12, (0, 0, 0), 0.5)
-        d.ellipse([X - rr * 0.13 + 2, Y - rr * 0.13, X + rr * 0.13 + 2, Y + rr * 0.13], fill=(255, 255, 255))
-    X, Y = aSal(mx, my); bw, bh = alto * 0.15 / esc, alto * 0.62 / esc
-    cy_ = Y + bh * 0.4
-    manchon(X, cy_, bw + 6, bh * 0.62 + 6, 0.1, (225, 205, 195), 0.25)   # (el borde pálido: labios y dientes)
-    manchon(X, cy_, bw, bh * 0.6, 0.14, (0, 0, 0), 0.25)
-    im = im.filter(ImageFilter.GaussianBlur(0.8))
-    o = np.asarray(im, dtype=np.float32)
-    # rojo con contraste, viñeta, líneas y ruido
-    L = lum(o) / 255.0; L = L / max(0.25, float(np.percentile(L, 97))); L = np.clip((L ** 0.85 - 0.45) * 1.9 + 0.45, 0, 1)   # (normalizado: la cara oscura del atardecer también se ve)
+    # rojo con contraste (lo estirado, más oscuro: hueco), viñeta, líneas y ruido
+    L = lum(o) / 255.0; L = L / max(0.25, float(np.percentile(L, 97)))
+    L = L * np.clip(1 - 0.55 * est, 0.05, 1)
+    L = np.clip((L ** 0.9 - 0.42) * 2.1 + 0.42, 0, 1)
     v = 1 - 0.55 * (((xx - W / 2) / (W / 2)) ** 2 + ((yy - H / 2) / (H / 2)) ** 2)
-    R = 255 * L * np.clip(v, 0.15, 1) * 1.22
-    o = np.stack([R, R * 0.09, R * 0.07], -1)
+    Rr = 255 * L * np.clip(v, 0.15, 1) * 1.22
+    o = np.stack([Rr, Rr * 0.09, Rr * 0.07], -1)
     o[::2] *= 0.82
     o += r.normal(0, 16, o.shape).astype(np.float32)
     return o
 
 # ---------------- las caras (medidas en los cuadros: ojos izq./der., boca, alto de la cabeza) ----------------
-CARA_T = dict(n=1121, ojos=((297, 229), (343, 229)), boca=(318, 289), alto=124)    # el zoom del instructivo
-CARA_P = dict(n=3044, ojos=((60, 181), (125, 184)), boca=(90, 270), alto=178)      # pegado al lente
-CARA_G = dict(n=3590, ojos=((248, 228), (285, 228)), boca=(267, 279), alto=110)    # antes del golpe
+CARA_T = dict(n=1108, ojos=((311, 205), (339, 202)), boca=(322, 257), alto=150)   # el zoom del instructivo (cabeza alargada)
+CARA_P = dict(n=3040, ojos=((242, 305), (268, 302)), boca=(247, 362), alto=118)   # pegado al lente
+CARA_G = dict(n=3600, ojos=((387, 206), (409, 204)), boca=(394, 246), alto=112)   # antes del golpe
 _cache = {}
 def susto(c, u):
     if c['n'] not in _cache: _cache[c['n']] = carga(c['n'])
