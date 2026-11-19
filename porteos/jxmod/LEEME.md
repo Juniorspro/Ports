@@ -2252,7 +2252,11 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
-## Lo del Discord después de la 3.9.1 (sin publicar)
+## JXMod 3.9.2: lo del Discord después de la 3.9.1
+
+- Publicada con el paquete pk39e (`mapas_hs.py` sobre pk37, con el terreno RTIN y los props por zona). Pruebas: web con
+  código 9/9; APK 6/6, versionCode 26111901, misma firma, con el servicio de grabación de pantalla y sus permisos.
+  `version.json` 3902, `VERSION_PROPIA` 3902. Paquetes de mapas nuevos: Base, BaseV2 y City (los demás van en `pk.bin`).
 
 - **Más lageado desde la última versión** (Gxbrielx; celulares del canal: Unisoc T310 de 3 GB, Helio P22T, Galaxy A03 Core de
   2 GB a 45 fps). Medido con `pruebas/perfil_cuadro.mjs` (nuevo: `MAPA=` y `SOLO_MAPA=1`, el mapa sin props ni personajes),
