@@ -1,0 +1,49 @@
+{
+ "codigo": 3903,
+ "version": "3.9.3",
+ "apkMin": 3903,
+ "archivos": [
+  {
+   "n": "index.html",
+   "h": "bb1fedbb267594da325fb0e7d709ac163242af1c2ccdb5b44f71f1873f378849",
+   "t": 4561805,
+   "u": "ota/index.html.bb1fedbb267594da.jxo",
+   "mac": "2d1e0924706e28ff65a42077b90945075e3fc3b2d265513e6c8fea67ad0ea7b7"
+  },
+  {
+   "n": "pk.bin",
+   "h": "4fb6b29211844ee514cdd51195154bc2a4680b94a1cc0a98d150bca03b9d8c65",
+   "t": 21939802,
+   "u": "ota/pk.bin.4fb6b29211844ee5.jxo",
+   "mac": "2bb68ebbc8c8933ea316d9191c9b2d1f3bb21331e4bcfb229f08da139b07a294"
+  },
+  {
+   "n": "fondos/1_FlatGrass.047907b878.mp4",
+   "h": "047907b8780196df7447d65f27a6b069162a95266552086ab83c0d9e87f6baf2",
+   "t": 898516,
+   "u": "ota/fondos_1_FlatGrass.047907b878.mp4.047907b8780196df.jxo",
+   "mac": "0f0939a97e9c8937645bfe577e013f179ea07b64f41cbe2367c6041cbf938657"
+  },
+  {
+   "n": "fondos/2_RB_Ciudad.940d7d6211.mp4",
+   "h": "940d7d6211e9df12cca3365926430e7baea2c0d4421c7bd100403ed7f621d61f",
+   "t": 1035009,
+   "u": "ota/fondos_2_RB_Ciudad.940d7d6211.mp4.940d7d6211e9df12.jxo",
+   "mac": "71ac8a383877cb4fd52a94a7c38baefaf26d97920bbadca3a97a15e940f5af8e"
+  },
+  {
+   "n": "fondos/3_RB_Isla.4d69c4a3ba.mp4",
+   "h": "4d69c4a3ba7f110cd59af0c1e2dc84fc1ef3ce8fe3c5987f74e314c707d08059",
+   "t": 821148,
+   "u": "ota/fondos_3_RB_Isla.4d69c4a3ba.mp4.4d69c4a3ba7f110c.jxo",
+   "mac": "fc87fd7872de312ec6a38d9f739443b1252df67470874f311d84818eebe04d20"
+  },
+  {
+   "n": "fondos/4_RB_Desierto.2f405d2370.mp4",
+   "h": "2f405d2370a71656fb76b2a0855024e2a2fa2b5eefb616a9009982985dcf3913",
+   "t": 663066,
+   "u": "ota/fondos_4_RB_Desierto.2f405d2370.mp4.2f405d2370a71656.jxo",
+   "mac": "2926826b397b7fd42b3638076076634d8f67f932f4cf7a11a57b243d71d4d52b"
+  }
+ ]
+}

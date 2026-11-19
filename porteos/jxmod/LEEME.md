@@ -4913,7 +4913,13 @@ porque ahí la página todavía está cargando y espera a DOMContentLoaded). Aho
 `setTimeout(…, 0)`, después del armado. Con eso `codigo_web` 9/9, y en la web con código el juego dice 3.6, arranca con
 el clásico y tiene «● Grabar» en la pausa y el ● REC.
 
-## JXMod 3.9.3 (sin publicar): actualizaciones por partes y los celulares flojos del Discord
+## JXMod 3.9.3: actualizaciones por partes y los celulares flojos del Discord
+
+- Publicada con el paquete pk39e. Pruebas: web con código 9/9; APK 6/6, versionCode 26111904, misma firma, con
+  `assets/www/ota_base.json` (las huellas coinciden con lo que lleva). `version.json` 3903 con `"ota": {"apkMin": 3903}`,
+  `VERSION_PROPIA` 3903. `web/ota/`: las 6 partes de la 3.9.3 (index.html 4,6 MB, pk.bin 21,9 MB, 4 fondos); comprobadas
+  con la llave de la firma oficial (HMAC bien y descifradas iguales). Quien instale este APK ya no tiene nada que bajar; la
+  próxima versión, por partes.
 
 - **Actualizaciones por partes** (el dueño: «que las actualizaciones sean megas, no todo el juego, y se instalen
   automáticamente: tocás descargar y el juego se pone en modo actualizando, sin instalar nada encima ni bajar el juego de
