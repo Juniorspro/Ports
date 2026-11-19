@@ -237,7 +237,12 @@ function jugadorMoverChocar(dt, tramo) {
   }
 }
 const _ojoT = v3(0, 0, 0), _ojoArr = v3(0, 1, 0), _ojoAdelante = [0, 0.2, 0.35, 0.5];
-// ubica la cámara (primera o tercera persona) y devuelve su posición y rotación
+// el botón de la cámara: 1ª persona → 3ª → de frente (2ª: la cámara adelante, mirándote; Discord, Rampa) → 1ª
+function camaraSiguiente() {
+  if (!JUG.tercera) { JUG.tercera = true; JUG.frente = false; } else if (!JUG.frente) JUG.frente = true; else { JUG.tercera = false; JUG.frente = false; }
+  if (typeof aviso === 'function') aviso(T(!JUG.tercera ? 'cam.primera' : JUG.frente ? 'cam.frente' : 'cam.tercera'), 1.2);
+}
+// ubica la cámara (primera, tercera persona o de frente) y devuelve su posición y rotación
 function jugadorCamara(out) {
   const J = JUG;
   if (J.vehiculo) return vehiculoCamara(J.vehiculo, out);
@@ -290,7 +295,14 @@ function jugadorCamara(out) {
   J.q.copy(Quat.euler(J.yaw, J.pitch, Math.sin(ph) * 0.006 * bob));
   J.adelante.copy(J.q.rot(v3(0, 0, 1)));
   out.q.copy(J.q);
-  if (J.tercera || !J.vivo) {
+  if (J.tercera && J.frente && J.vivo) {
+    // (de frente: la cámara adelante, a la altura de los ojos y mirándote, como un celular en modo selfie. Caminar para
+    // adelante es ir hacia la cámara; mirar arriba y abajo la sube y la baja alrededor de la cara)
+    const L0 = 2.6 * clamp(0.45 + 0.55 * J.tam, 0.6, 1), dir = Quat.euler(J.yaw, -J.pitch * 0.6, 0).rot(v3(0, 0, 1));
+    const h = mundoRayo(J.ojoPos, dir, L0 + 0.3), L = h ? Math.max(0.3, h.t - 0.3) : L0;
+    out.pos.copy(J.ojoPos).addS(dir, L);
+    out.q.copy(Quat.euler(J.yaw + Math.PI, J.pitch * 0.6, 0));
+  } else if (J.tercera || !J.vivo) {
     const atras = vscale(J.adelante, -3.1 * clamp(0.45 + 0.55 * J.tam, 0.6, 1)), d = atras.len(), dir = vscale(atras, 1 / d);   // (más cerca de los bajitos)
     const h = mundoRayo(J.ojoPos, dir, d + 0.3), L = h ? Math.max(0.3, h.t - 0.3) : d;
     out.pos.copy(J.ojoPos).addS(dir, L);

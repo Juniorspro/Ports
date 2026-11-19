@@ -26,6 +26,65 @@ def agregar(b):
 _src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mapas_rb.py'), encoding='utf-8').read()
 exec(_src[_src.index('# ---------------- materiales ----------------'):_src.index('rng = np.random.default_rng(42)')], globals())
 rng = np.random.default_rng(39)
+# ---------------- terreno simplificado (RTIN) ----------------
+# La grilla entera de 128 × 128 son 32 768 triángulos dibujados siempre (el terreno nunca queda fuera de la vista): en la 3.9
+# los mapas pasaron de 200-2 800 triángulos a 32 000-125 000 y en un celular flojo se notó (Discord: «me va mucho más
+# lageado»). Con RTIN (la triangulación de Martini: una grilla de 2^k + 1 puntos, partida en triángulos rectángulos que se
+# parten en dos sólo donde la altura se aparta más de EPS de la recta entre sus puntas) el piso plano queda en pocos
+# triángulos grandes y los médanos, lomas y cráteres conservan su forma. No deja grietas: un triángulo y su vecino siempre
+# se parten juntos. Las normales y las UV son las de la grilla entera (se ve igual de suave) y la altura para poner cosas
+# encima (altura(H, g, x, z)) sigue siendo la de la grilla entera.
+EPS_TERRENO = float(os.environ.get('EPS_TERRENO', '0.12'))
+def rtin_triangulos(H, eps):
+    size = H.shape[0]; tile = size - 1
+    ntri = tile * tile * 2 - 2; npad = ntri - tile * tile
+    coords = np.zeros((ntri, 4), np.int32)
+    for i in range(ntri):
+        k = i + 2; ax = ay = bx = by = cx = cy = 0
+        if k & 1: bx = by = cx = tile
+        else: ax = ay = cy = tile
+        while (k >> 1) > 1:
+            k >>= 1; mx = (ax + bx) >> 1; my = (ay + by) >> 1
+            if k & 1: bx, by, ax, ay = ax, ay, cx, cy
+            else: ax, ay, bx, by = bx, by, cx, cy
+            cx, cy = mx, my
+        coords[i] = (ax, ay, bx, by)
+    err = np.zeros(size * size)
+    for i in range(ntri - 1, -1, -1):
+        ax, ay, bx, by = coords[i]; mx = (ax + bx) >> 1; my = (ay + by) >> 1; cx = mx + my - ay; cy = my + ax - mx
+        m = my * size + mx; e = abs((H[ay, ax] + H[by, bx]) / 2 - H[my, mx])
+        if i < npad: e = max(e, err[((ay + cy) >> 1) * size + ((ax + cx) >> 1)], err[((by + cy) >> 1) * size + ((bx + cx) >> 1)])
+        if e > err[m]: err[m] = e
+    T = []
+    def partir(ax, ay, bx, by, cx, cy):
+        pila = [(ax, ay, bx, by, cx, cy)]
+        while pila:
+            ax, ay, bx, by, cx, cy = pila.pop(); mx = (ax + bx) >> 1; my = (ay + by) >> 1
+            if abs(ax - cx) + abs(ay - cy) > 1 and err[my * size + mx] > eps:
+                pila.append((cx, cy, ax, ay, mx, my)); pila.append((bx, by, cx, cy, mx, my))
+            else: T.append((ay * size + ax, by * size + bx, cy * size + cx))
+    partir(0, 0, tile, tile, tile, 0); partir(tile, tile, 0, 0, 0, tile)
+    return T
+def terreno(nombre, L, n, h, elegir, rep=None, eps=None):
+    eps = EPS_TERRENO if eps is None else eps
+    g = np.linspace(-L / 2, L / 2, n + 1); X, Z = np.meshgrid(g, g); H = h(X, Z)
+    dx = (np.roll(H, -1, 1) - np.roll(H, 1, 1)) / (2 * L / n); dz = (np.roll(H, -1, 0) - np.roll(H, 1, 0)) / (2 * L / n)
+    dx[:, 0] = dx[:, 1]; dx[:, -1] = dx[:, -2]; dz[0] = dz[1]; dz[-1] = dz[-2]
+    Nn = np.stack([-dx, np.ones_like(H), -dz], -1); Nn /= np.linalg.norm(Nn, axis=-1, keepdims=True)
+    V = np.stack([X, H, Z], -1).reshape(-1, 3); Nn = Nn.reshape(-1, 3)
+    j, i = np.mgrid[0:n + 1, 0:n + 1]; U = np.stack([i / n, j / n], -1).reshape(-1, 2)  # (exactas en medio flotante: n es potencia de 2)
+    T = rtin_triangulos(H, eps)
+    usados = sorted({v for t in T for v in t}); nuevo = {v: k for k, v in enumerate(usados)}
+    porMat = {}
+    for t in T:
+        a, b, c = t
+        # (de frente para arriba: la misma vuelta que la grilla entera —(a, c, b) con c una fila más abajo da la normal hacia +Y—)
+        if np.cross(V[b] - V[a], V[c] - V[a])[1] < 0: b, c = c, b
+        hm = (V[a, 1] + V[b, 1] + V[c, 1]) / 3; ny = (Nn[a, 1] + Nn[b, 1] + Nn[c, 1]) / 3
+        porMat.setdefault(elegir(hm, ny), []).extend((nuevo[a], nuevo[b], nuevo[c]))
+    u = np.array(usados); mi, mats = malla_bin(nombre, V[u], Nn[u], U[u], porMat)
+    print('terreno', nombre, len(T), 'triángulos (la grilla entera: %d)' % (2 * n * n))
+    return mi, mats, H, g
 HS = ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space']
 VIEJOS = {k: d['esc'][k] for k in HS}; CIELOS_VIEJOS = {d['aj'][k].get('sky') for k in HS if d['aj'].get(k)}
 TX = {t['n']: i for i, t in enumerate(d['tx'])}
@@ -128,7 +187,78 @@ def altura(H, g, x, z):
     i = int(np.clip(np.searchsorted(g, x), 1, len(g) - 1)); j = int(np.clip(np.searchsorted(g, z), 1, len(g) - 1)); return float(H[j, i])
 def amb(nombre, sky, niebla, **x): ambiente(nombre, sky, niebla, **x)
 listos = []
-def mapa(nombre, esc): d['esc'][nombre] = esc; listos.append(nombre)
+# ---------------- props fijos juntados por zona (lotes) ----------------
+# Cada prop puesto con poner() era un objeto aparte: en la 3.9 el Desert tenía 28 rocas sueltas y la City 67 semáforos, faroles,
+# palmeras y bancos, y cada uno cuesta su dibujo y su JavaScript en cada cuadro (en el Desert el dibujo pasó de 0,81 a
+# 1,79 ms por cuadro en la compu, ×12 en un celular). Ahora la parte visible de todos los de una zona va en una sola malla
+# (por material) y cada prop queda sólo con sus choques: chocan y suenan igual (el material sigue en el nodo, para los pasos).
+LOTE, LOTE_CELDA = [], {'v': 350.0}
+def _q_m(q):
+    x, y, z, w = q
+    return np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)], [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)], [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+def _trs(x):
+    M = np.eye(4); M[:3, :3] = _q_m(x['r']) * np.array(x['s'], float)[None, :]; M[:3, 3] = x['p']; return M
+def _malla_leer(mi):
+    m = d['ms'][mi]; assert 'k' not in m and 'sk' not in m, m['n']
+    v = m['v']; vb = np.frombuffer(bytes(BIN[m['o']:m['o'] + v * 14]), np.uint8).reshape(v, 14)
+    P = np.array(m['mn']) + vb[:, 0:6].copy().view('<u2').astype(float) / 65535 * np.array(m['sc'])
+    N = vb[:, 6:9].copy().view(np.int8).astype(float) / 127; U = vb[:, 10:14].copy().view('<f2').astype(float)
+    n = max(s0 + sn for s0, sn in m['sub']); tam = 4 if m['i32'] else 2
+    I = np.frombuffer(bytes(BIN[m['i']:m['i'] + n * tam]), '<u4' if m['i32'] else '<u2').astype(np.int64)
+    return P, N, U, I, m['sub']
+_poner_suelto = poner
+def poner(nombre, p, yaw=0.0, esc=1.0):
+    arb = _poner_suelto(nombre, p, yaw, esc)
+    W = [None] * len(arb)
+    for i, x in enumerate(arb):
+        W[i] = _trs(x) if x['pa'] < 0 else W[x['pa']] @ _trs(x)
+        if isinstance(x.get('m'), int) and x['m'] >= 0 and x.get('mt') and not x.get('bo') and not x.get('off'):
+            LOTE.append((x['m'], list(x['mt']), W[i].copy())); del x['m']; x.pop('rid', None)
+    return arb
+# (los props lejos de la aparición —rocas a 140-470 m— no necesitan sus 2 600 triángulos: se simplifican juntando los vértices
+# por celdas de una grilla —como el LOD de los addons, gmLodGen en juego/gmod.js—; cada celda queda en su vértice más cercano
+# al promedio, así la silueta se conserva)
+LEJOS_SIMPLE = 90.0
+def _simplificar(P, N, U, I, sub, g=12):
+    mn = P.min(0); tam = max(float((P.max(0) - mn).max()), 1e-6)
+    c = np.minimum(((P - mn) / tam * g).astype(np.int64), g - 1); clave = (c[:, 0] * g + c[:, 1]) * g + c[:, 2]
+    u, grupo = np.unique(clave, return_inverse=True); prom = np.zeros((len(u), 3)); np.add.at(prom, grupo, P); prom /= np.bincount(grupo)[:, None]
+    dist = np.linalg.norm(P - prom[grupo], axis=1); orden = np.lexsort((dist, grupo)); rep = np.empty(len(u), np.int64)
+    primero = np.ones(len(orden), bool); primero[1:] = grupo[orden][1:] != grupo[orden][:-1]; rep[grupo[orden][primero]] = orden[primero]
+    rmap = rep[grupo]; nuevos = []; usados = set()
+    for s0, sn in sub:
+        t = rmap[I[s0:s0 + sn]].reshape(-1, 3); t = t[(t[:, 0] != t[:, 1]) & (t[:, 1] != t[:, 2]) & (t[:, 0] != t[:, 2])]
+        nuevos.append(t); usados.update(t.ravel().tolist())
+    us = np.array(sorted(usados)); re = -np.ones(len(P), np.int64); re[us] = np.arange(len(us))
+    I2, sub2, k = [], [], 0
+    for t in nuevos: I2.append(re[t].ravel()); sub2.append((k, t.size)); k += t.size
+    return P[us], N[us], U[us], np.concatenate(I2) if I2 else np.zeros(0, np.int64), sub2
+def lotes_cerrar(nombre):
+    celdas = {}
+    for mi, mt, W in LOTE: celdas.setdefault((int(W[0, 3] // LOTE_CELDA['v']), int(W[2, 3] // LOTE_CELDA['v'])), []).append((mi, mt, W))
+    out = []
+    for (cx, cz), L in sorted(celdas.items()):
+        Vs, Ns, Us, porMat, base = [], [], [], {}, 0
+        for mi, mt, W in L:
+            P, N, U, I, sub = _malla_leer(mi)
+            if math.hypot(W[0, 3], W[2, 3]) > LEJOS_SIMPLE and sum(x[1] for x in sub) > 1500 * 3: P, N, U, I, sub = _simplificar(P, N, U, I, sub)
+            Pw = P @ W[:3, :3].T + W[:3, 3]; R3 = W[:3, :3] / np.linalg.norm(W[:3, :3], axis=0)[None, :]; Nw = N @ R3.T
+            Nw /= np.maximum(np.linalg.norm(Nw, axis=1, keepdims=True), 1e-6)
+            espejo = np.linalg.det(W[:3, :3]) < 0
+            for k, (s0, sn) in enumerate(sub):
+                if k >= len(mt): continue
+                tri = I[s0:s0 + sn].reshape(-1, 3)
+                if espejo: tri = tri[:, [0, 2, 1]]
+                porMat.setdefault(mt[k], []).extend((tri + base).ravel().tolist())
+            Vs.append(Pw); Ns.append(Nw); Us.append(U); base += len(P)
+        mi2, mats = malla_bin('HS_%s_Lote_%d_%d' % (nombre, cx, cz), np.concatenate(Vs), np.concatenate(Ns), np.concatenate(Us), porMat)
+        out.append(fijo('Lote_%d_%d' % (cx, cz), mi2, mats))
+    print('lotes', nombre, len(LOTE), 'props en', len(out), 'mallas,', sum(sum(x[1] for x in d['ms'][o[0]['m']]['sub']) // 3 for o in out), 'triángulos'); LOTE.clear()
+    return out
+def mapa(nombre, esc):
+    LOTE_CELDA['v'] = 200.0 if nombre == 'City' else 350.0
+    if LOTE: esc.extend(lotes_cerrar(nombre))
+    d['esc'][nombre] = esc; listos.append(nombre)
 
 # ================= FlatGrass: pasto parejo de 1,5 km, lomas suaves en el borde =================
 L = 1500; mP = mat('FG_Pasto', T['pasto'], L / 6); mR = mat('FG_Roca', T['roca'], L / 12)

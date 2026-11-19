@@ -2252,6 +2252,62 @@ al tope del celu (512 px):
 - Pruebas: `pruebas/uv_mediump.mjs` (compilación + celu emulado), `pruebas/uv_medir.py` (franjas por mapa),
   `pruebas/uv_f2h_bsp.py` (UV rotas por mapa) y `pruebas/uv_f2h.mjs` (gmF2H).
 
+## Lo del Discord después de la 3.9.1 (sin publicar)
+
+- **Más lageado desde la última versión** (Gxbrielx; celulares del canal: Unisoc T310 de 3 GB, Helio P22T, Galaxy A03 Core de
+  2 GB a 45 fps). Medido con `pruebas/perfil_cuadro.mjs` (nuevo: `MAPA=` y `SOLO_MAPA=1`, el mapa sin props ni personajes),
+  de a uno y servido por http:
+  - el JavaScript del mapa casi no cambió entre la 3.8.2 y la 3.9 (Desert 0,67 → 0,73 ms por cuadro, City 0,76 → 0,83);
+  - lo que creció es lo que procesa la placa: los 8 mapas nuevos (`mapas_hs.py`) traían el terreno en una grilla entera de
+    128 × 128 (32 768 triángulos, también donde es plano: FlatGrass es plano en 520 m) y cada roca, semáforo, farol,
+    palmera y banco suelto (rocas de 2 620 triángulos; en Desert 28, en Mars 35, en Space 40; en City 67 props de
+    2 900-4 600). FlatGrass pasó de 200 triángulos a 32 768; Desert de 2 786 a 106 260.
+  - **Terreno con RTIN** (`terreno` en `mapas_hs.py`): la triangulación de Martini sobre la grilla de 129 puntos parte un
+    triángulo sólo donde la altura se aparta más de 12 cm; no deja grietas, las normales y las UV son las de la grilla entera
+    y la altura para poner cosas sigue siendo la de la grilla. Terrenos de 9 000-25 000 triángulos.
+  - **Props juntados por zona** (`poner` → `lotes_cerrar`): la parte visible de todos los de una zona (350 m; 200 m en City)
+    va en una malla por material; cada prop queda con sus choques y su material (para los pasos). Los que están a más de
+    90 m de la aparición se simplifican juntando vértices por celdas (como el LOD de los addons): una roca lejana, ~1 000
+    triángulos. Desert: 28 rocas → 9 mallas; City: 67 props → 10.
+  - Resultado, el mapa solo en Medio (triángulos y dibujos por cuadro): FlatGrass 39 440 → 16 854; Desert 60 532 → 57 636
+    en 39 → 35 dibujos (lo que más se ve de cerca sigue entero); Mars 66 825 → 46 604 (41 → 33); Space 38 513 → 24 682;
+    DesertV2 73 869 → 48 144; BaseV2 43 450 → 24 936. Se ve igual (fotos comparadas de Desert, Mars y City) y el paquete
+    comprimido crece 1 MB. `mapas_caminar.mjs` 8/8.
+  - Antes de tocar nada se comprobó que `mapas_hs.py` arma el paquete publicado byte por byte (d.json y m.bin iguales).
+- **La pantalla no ocupa todo el celular** (GOLDEN): la app achicaba toda la vista del ancho del recorte de la cámara
+  (`setPadding` en Web.java) y quedaba una franja negra. Ahora la imagen ocupa la pantalla entera y la app le pasa el
+  recorte al juego (`JXNativo.margenes()` y `jxMargenes()`, en px de CSS); cada `env(safe-area-inset-*)` del juego (48, en
+  hud.js, paneles.css, noche.js, ios.js y el HTML) pasa a `max(env(...), var(--jxSa...))`: así se corren sólo los botones y
+  los paneles, también donde el WebView no da `env()`. Probado: con 40 px de recorte la imagen sigue de 873 px de ancho y
+  los botones de la izquierda se corren 40 px.
+- **La tele congelada en la cara del video** (Chillguy): la tele que suena es el reproductor de YouTube detrás del juego;
+  si no arranca solo y además no contesta (no manda ningún mensaje), se quedaba en la tapa. Ahora, con la tele a la vista y
+  8 s sin arrancar, pasa adelante igual para tocar el play en la misma tele, y vuelve atrás 3 s después del toque.
+  `tele_toque.mjs` 4/4. En este contenedor YouTube no reproduce: el caso real hay que verlo en un celular.
+- **La grabación no graba YouTube ni la tele, y anda mal** (el dueño): YouTube es otro sitio y ninguna página puede grabar
+  su imagen ni su sonido. En la app (Android 10+) hay una segunda opción, **«Pantalla del celular (con YouTube y la tele)»**:
+  `GrabaPantalla.java`, un servicio en primer plano (tipo mediaProjection, como pide Android 14+) que graba la pantalla con
+  una pantalla virtual directo al codificador H.264 del aparato y el sonido de la app con AudioPlaybackCapture → AAC, en un
+  MP4 que se escribe en la galería (Movies/JXMod). No copia el lienzo en la página: no le cuesta cuadros al juego. Android
+  pregunta antes de empezar y pide el micrófono si falta (lo exige para grabar el sonido propio; sin él, video sin sonido).
+  Graba también los botones. Compila con el SDK 35; falta probarlo en un celular. La grabación de siempre («El juego (sin
+  botones)») queda igual: `grabar.mjs` 24/24.
+- **Cámara de frente** (Rampa: «cámara de segunda persona, para verte de frente»): el botón de la cámara pasa por 1ª →
+  3ª → de frente → 1ª (`camaraSiguiente`, jugador.js). De frente, la cámara va adelante a la altura de los ojos y mirándote;
+  caminar para adelante es ir hacia ella.
+- **Archivos del aparato en la radio y en la tele** (34Bits): botón «Archivo del aparato» en el panel. Suena por el sonido del
+  juego como una emisora (en 3D, desde la radio o la tele) y en la tele el video es una textura de la pantalla, así que sale
+  en la grabación del juego (YouTube no). No viaja por la red: en la sala los demás no lo oyen.
+- **Personajes importados como NPC o muñeco** (34Bits: «añadir modelos glb y obj y hacerlos npc, ragdoll o personaje»): el
+  importador ya leía GLB, GLTF, VRM y OBJ y los armaba como personaje; ahora en la pestaña de NPCs hay «Tus personajes
+  importados», cada uno como NPC y como muñeco de trapo (cae con sus huesos, se agarra y no se levanta).
+- **Nester (mapa procedural) sin aparición** (Ferrari F40): sus salas las arma la lógica del mapa mientras se camina
+  (`point_template` y `env_entity_maker`, que el juego todavía no hace), así que al cargar no hay piso. Queda pendiente.
+- Pendiente de antes (igual en la 3.9.1): con 6 teclas de mods fijadas, en pantallas de 640 × 360 a 873 × 393 algunos
+  botones quedan de 39-42 px (`hud_celu.mjs`).
+- Pruebas: `pruebas/discord_39x.mjs` 6/6 (recorte, cámara de frente, video del aparato en la tele —suena y tiene textura—,
+  la grabación con la tele, los importados en el menú).
+
 ## Destrucción de autos y explosiones nuevas (sin publicar)
 
 - **Los autos se abollan de verdad** (`destruccion.js`, pedido del dueño: «físicas a los autos tipo de destrucción»):

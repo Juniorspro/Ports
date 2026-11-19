@@ -51,8 +51,11 @@ ENT_TIPO.pantalla = {
     dibujarCaja(w(0, yI - M.h / 2 - M.b / 2, 0), [M.w + 2 * M.b, M.b, M.prof], q, mM);
     for (const sx of [-1, 1]) dibujarCaja(w(sx * (M.w / 2 + M.b / 2), yI, 0), [M.b, M.h, M.prof], q, mM);
     dibujarCaja(w(0, yI, M.prof / 2 - 0.006), [M.w, M.h, 0.012], q, mM);
+    // un video del aparato (radio/tele con archivo, entidades.js): su imagen es una textura que se renueva con cada cuadro del video
+    const vl = !hueco && typeof esLocal === 'function' && esLocal(e.vid) ? pantVideoLocal(e) : null;
+    if (vl !== null) dibujarCaja(w(0, yI, fz + 0.012), [M.w, M.h, 0.004], q, vl);
     // el vidrio: apagado, o la tapa del video si tiene uno puesto y no es la que se ve ahora
-    if (!hueco) {
+    else if (!hueco) {
       const tp = e.vid ? pantTapa(e.vid) : null;
       if (tp && tp.mat !== null) dibujarCaja(w(0, yI, fz + 0.012), [M.w, M.h, 0.004], q, tp.mat);
       else dibujarCaja(w(0, yI, fz + 0.012), [M.w, M.h, 0.004], q, mV, e.vid ? { em: [0.02, 0.03, 0.06] } : null);
@@ -68,6 +71,23 @@ ENT_TIPO.pantalla = {
   usar(e) { if (e.dueno !== 'yo') { aviso(T('ra.deOtro'), 2); return true; } radioAbrir(e); return true; },
 };
 ENT_INFO.pantalla = ['pantalla', { v: '', vol: 1, r: 60, w: 2 }];
+// la imagen de un video del aparato en la tele: el <video> que suena (EST, entidades.js) subido a una textura cuando hay un
+// cuadro nuevo (una vez por cuadro del juego como mucho); el material es sin luz, como la tapa. null si no hay imagen todavía
+function pantVideoLocal(e) {
+  const S = EST.son.get(e), v = S && S.a; if (!v || v.tagName !== 'VIDEO' || v.readyState < 2 || !v.videoWidth) return null;
+  const gl = R.gl; let t = S.tex;
+  if (!t || !R.tex[t.k]) { t = S.tex = { k: TX_PROPIA + 7000 + (TELE.nVid = (TELE.nVid || 0) + 1), mat: null, ct: -1, cuadro: -1 }; const tx = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tx);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); R.tex[t.k] = { gl: tx }; R.texAct = null; }
+  if (t.mat === null) { t.mat = matPropio('pantVid' + t.k, [1, 1, 1], { pbr: [0.3, 0, 0.04] }); const m = R.mats[t.mat]; m.tex = t.k; m.unlit = true; m.claveBase = ',,UNLIT,'; m.claveGam = ',,UNLIT'; }
+  if (t.ct !== v.currentTime && t.cuadro !== R.cuadro) {
+    t.ct = v.currentTime; t.cuadro = R.cuadro;
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, R.tex[t.k].gl); R.texAct = null; gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, v); } catch (x) {}
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  }
+  return t.mat;
+}
 // la tapa del video (miniatura de YouTube, sin luz: como una imagen encendida) para las pantallas que no son la que suena
 function pantTapa(vid) {
   let t = TELE.tapas.get(vid);

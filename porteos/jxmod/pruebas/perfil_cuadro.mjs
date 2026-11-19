@@ -2,7 +2,8 @@
 // la vuelta) en la calidad pedida y con la resolución fija; de cada cuadro: el JavaScript (total y por parte) y lo que se
 // le manda a la GPU (pasadas con su tamaño, dibujos, triángulos, pasadas de pantalla completa, shaders usados, subidas de
 // texturas). Los shaders de fragmentos usados se guardan en CARPETA para revisarlos.
-// uso: node perfil_cuadro.mjs URL_HTML [calidad=alto] [CARPETA=/tmp/claude-0/perfil] [segundos=8]
+// uso: node perfil_cuadro.mjs URL_HTML [calidad=alto] [CARPETA=/tmp/claude-0/perfil] [segundos=8]   (MAPA=City: otro mapa;
+// SOLO_MAPA=1: sin los props ni los personajes, para comparar lo que cuesta el mapa solo)
 // VACIO=1: mientras se mide, los dibujos no llegan a la GPU de prueba (SwiftShader dibuja con el procesador y taparía el
 // JavaScript): se cuenta lo que se le pide a la GPU, pero el tiempo es sólo el del juego. FRENO=N: el procesador N veces
 // más lento (el de un celular: un Cortex-A53 a 1,4 GHz —Snapdragon 425, MT6739, Unisoc SC9832E— es unas 12 veces más
@@ -81,11 +82,11 @@ const { b, p, ev } = await abrir(HTML, true, null, async (pg) => { if (process.e
 // (VISTA=ANCHOxALTO: el tamaño de la página; con la densidad 2 de base.mjs, 480x240 son 960×480 píxeles. SOMBRAS=0-3)
 if (process.env.VISTA) { const [vw, vh] = process.env.VISTA.split('x').map(Number); await p.setViewportSize({ width: vw, height: vh }); await p.waitForTimeout(500); }
 const FRENO = +(process.env.FRENO || 1), cdp = FRENO > 1 ? await p.context().newCDPSession(p) : null;
-await ev(`PREFS.bienvenida = true; PREFS.tutVisto = true; GFX.auto = false; PREFS.gfx = ${JSON.stringify(CAL)}; PREFS.sombras = ${JSON.stringify(process.env.SOMBRAS || 'auto')}; PREFS.resDin = false; const p = PERFILES[PREFS.gfx]; PREFS.res = p.res; PREFS.lejos = p.lejos; aplicarGfx(); inicioMostrar(false); empezarPartida('RB_Construct'); 1`);
+await ev(`PREFS.bienvenida = true; PREFS.tutVisto = true; GFX.auto = false; PREFS.gfx = ${JSON.stringify(CAL)}; PREFS.sombras = ${JSON.stringify(process.env.SOMBRAS || 'auto')}; PREFS.resDin = false; const p = PERFILES[PREFS.gfx]; PREFS.res = p.res; PREFS.lejos = p.lejos; aplicarGfx(); inicioMostrar(false); empezarPartida(${JSON.stringify(process.env.MAPA || 'RB_Construct')}); 1`);
 await p.waitForFunction(() => window.__ev(`JUEGO.estado === 'juego' && !!JUG.suelo`), null, { timeout: 120000 }); await p.waitForTimeout(2500);
 // (POS=x,y,z: el mismo lugar en todas las corridas —la aparición es al azar— para comparar versiones)
 if (process.env.POS) { await ev(`(() => { JUG.pos.set(${process.env.POS}); JUG.vel.set(0, 0, 0); return 1; })()`); await p.waitForTimeout(1500); }
-await ev(`(() => { cerrarPaneles(); JUG.yaw = 0; JUG.pitch = 0.1; for (let k = 0; k < 6; k++) spawnDelante(['Crate', 'Barrel', 'Crate'][k % 3], {});
+await ev(`(() => { cerrarPaneles(); JUG.yaw = 0; JUG.pitch = 0.1; if (${!!process.env.SOLO_MAPA}) { DIA.hora = 13; DIA.ciclo = false; diaAplicar && diaAplicar(); return 1; } for (let k = 0; k < 6; k++) spawnDelante(['Crate', 'Barrel', 'Crate'][k % 3], {});
   const f = CAM.fwd; for (let k = 0; k < 6; k++) { const d = 4 + k * 2.5, a = (k % 2 ? 1 : -1) * (0.2 + k * 0.05); npcCrear(['Hero', 'Soldier'][k % 2], v3(JUG.pos.x + (f.x * Math.cos(a) - f.z * Math.sin(a)) * d, JUG.pos.y - 0.9, JUG.pos.z + (f.x * Math.sin(a) + f.z * Math.cos(a)) * d), 0, { modo: 'pasear', vel: 1.4, vida: 100 }); }
   DIA.hora = 13; DIA.ciclo = false; diaAplicar && diaAplicar(); return 1; })()`);
 await p.waitForTimeout(3000);

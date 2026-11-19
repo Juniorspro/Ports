@@ -156,7 +156,7 @@ async function ytRevisar(id, tit) {
 }
 // para la radio/tele: si el video es de otro y no se revisó, se revisa; si queda vetado, no suena acá
 function ytPermitido(e) {
-  const id = e.vid; if (!id || esEst(id)) return true;
+  const id = e.vid; if (!id || esEst(id) || (typeof esLocal === 'function' && esLocal(id))) return true;
   if (e.ytChk !== id) {
     e.ytChk = id; const tit = e.tit;
     if (ytMalo(tit)) { YTF.ok.set(id, false); e.vetado = id; return false; }

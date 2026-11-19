@@ -84,10 +84,20 @@ function hudIniciar() {
 }
 // el tamaño de los controles en el celular (Ajustes: 60 a 120 %; de entrada 80 %, el del JXMod quedaba grande)
 const hudTam = () => Math.min(1.2, Math.max(0.6, (+PREFS.hud || 80) / 100));
+// el recorte de la cámara que pasa la app de Android (Discord, GOLDEN: «la pantalla del juego no se ajusta a la del celular»).
+// Antes la app achicaba toda la vista para no tapar los botones y quedaba una franja negra del lado de la cámara; ahora la
+// imagen ocupa la pantalla entera y sólo los botones y los paneles se corren (el WebView no siempre da env(safe-area-inset-*):
+// las variables --jxSaL/R/T/B, en px de CSS, van con max() junto a cada env())
+function jxMargenes(m) {
+  if (!Array.isArray(m)) return; const r = document.documentElement.style;
+  ['L', 'T', 'R', 'B'].forEach((k, i) => r.setProperty('--jxSa' + k, Math.max(0, Math.min(120, +m[i] || 0)) + 'px'));
+  if (typeof hudDisponer === 'function' && $('hud')) setTimeout(hudDisponer, 30);
+}
+try { if (typeof JXNativo !== 'undefined' && JXNativo.margenes) jxMargenes(JSON.parse(JXNativo.margenes())); } catch (e) { }
 // el área segura del aparato (la isla o el agujero de la cámara, las puntas redondeadas, la barra de gestos): lo que pide
 // el sistema con env(safe-area-inset-*); con la pantalla girada por el juego no se usa (sería de otro lado)
 function hudSegura() {
-  let e = $('hudSA'); if (!e) { e = document.createElement('div'); e.id = 'hudSA'; e.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)'; document.body.appendChild(e); }
+  let e = $('hudSA'); if (!e) { e = document.createElement('div'); e.id = 'hudSA'; e.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:max(env(safe-area-inset-top,0px),var(--jxSaT,0px)) max(env(safe-area-inset-right,0px),var(--jxSaR,0px)) max(env(safe-area-inset-bottom,0px),var(--jxSaB,0px)) max(env(safe-area-inset-left,0px),var(--jxSaL,0px))'; document.body.appendChild(e); }
   const c = getComputedStyle(e), n = (x) => Math.min(80, parseFloat(x) || 0);
   return { l: n(c.paddingLeft), r: n(c.paddingRight), t: n(c.paddingTop), b: n(c.paddingBottom) };
 }

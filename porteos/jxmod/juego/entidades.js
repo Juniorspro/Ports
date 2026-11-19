@@ -401,6 +401,25 @@ function entidadesDe(id) { for (const e of ENTS.lista.slice()) if (e.dueno === i
 // y apagado detrás de paredes. Suenan las tres radios más cercanas a la vez. El sonido de YouTube no se puede pasar por
 // el juego: el video suena desde su reproductor, que queda escondido; su volumen sigue a la distancia y a las paredes.
 const esEst = (v) => typeof v === 'string' && /^rb:[0-9a-f-]{36}$/.test(v);
+// ---------------- archivos del aparato en la radio y en la tele (Discord, 34Bits: «archivos locales de audio como música
+// para la radio y para la tele también un archivo local de video») ----------------
+// e.vid es "lf:" + un número; el archivo queda en este aparato (un blob: no viaja por la red: en la sala los demás no lo
+// tienen y no oyen nada). Suena por el sonido del juego como una emisora (en 3D, desde la radio o la tele) y en la tele el
+// video es una textura de la pantalla, dibujada por el juego: por eso, a diferencia de YouTube, sale en la grabación.
+const LOCALF = { n: 0, m: new Map() };
+const esLocal = (v) => typeof v === 'string' && /^lf:\d+$/.test(v);
+const localDe = (v) => (esLocal(v) ? LOCALF.m.get(+v.slice(3)) : null);
+function localElegir(e) {
+  if (!e || e.dueno !== 'yo') return;
+  const i = document.createElement('input'); i.type = 'file'; i.accept = e.t === 'pantalla' ? 'video/*,audio/*' : 'audio/*,video/*';
+  i.style.cssText = 'position:fixed;left:-99px;top:0;width:1px;height:1px;opacity:0'; document.body.appendChild(i);
+  i.onchange = () => {
+    const f = i.files && i.files[0]; i.remove(); if (!f) return;
+    const id = ++LOCALF.n; LOCALF.m.set(id, { url: URL.createObjectURL(f), nombre: f.name, video: /^video\//.test(f.type) || /\.(mp4|webm|mkv|mov|m4v|3gp)$/i.test(f.name) });
+    e.lista = []; audioIniciar(); radioPoner(e, 'lf:' + id, 0, f.name.replace(/\.[^.]+$/, '').slice(0, 100), true);
+  };
+  i.click();
+}
 const fuenteRadio = (v) => (esEst(v) ? v : ytId(v));
 const EST = { son: new Map(), url: new Map(), t: 0, max: 3 };
 // la dirección del audio de la emisora; si no es https (o no deja pasarlo por el sonido del juego) va por la tienda
@@ -412,7 +431,11 @@ function estUrl(id) {
 }
 function estSonar(e) {
   const c = AUD.ctx; if (!c) return null;
-  const a = new Audio(); a.crossOrigin = 'anonymous'; a.preload = 'auto';
+  const L = localDe(e.vid); if (esLocal(e.vid) && !L) return null;
+  // (un video del aparato en la tele: un <video> en la página, detrás de todo —fuera de la página o transparente, algunos
+  // navegadores no lo decodifican—, que la tele dibuja como textura)
+  const a = L && L.video ? document.createElement('video') : new Audio(); if (!L) a.crossOrigin = 'anonymous'; a.preload = 'auto';
+  if (L) { a.loop = true; if (a.tagName === 'VIDEO') { a.playsInline = true; a.setAttribute('playsinline', ''); a.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;z-index:-2;pointer-events:none'; document.body.appendChild(a); } }
   const S = { e, vid: e.vid, a, src: null, F: null, an: null, nivel: new Uint8Array(64), prox: false, listo: false, tOcl: 0, tap: false, reint: 2, fin: 0, espera: 0 }; // (espera: hora límite para que arranque)
   try { S.src = c.createMediaElementSource(a); } catch (x) { return null; }
   S.F = fuente3D(entPos(e), 0); S.F.p.panningModel = 'HRTF'; S.F.p.rolloffFactor = 0;
@@ -421,19 +444,21 @@ function estSonar(e) {
   S.an = c.createAnalyser(); S.an.fftSize = 64; S.src.connect(S.an);
   a.onerror = () => estFallo(S); a.onplaying = () => { S.listo = true; S.espera = 0; };
   a.onended = () => { if (S.fin++ < 3) { a.load(); a.play().catch(() => {}); } else estFallo(S); }; // (una emisora que se corta, se vuelve a conectar)
+  if (L) { S.local = true; S.espera = 0; a.src = L.url; a.play().catch(() => {}); return S; }
   const id = e.vid.slice(3);
   estUrl(id).then((u) => { if (EST.son.get(e) !== S) return; S.prox = !u; S.espera = performance.now() + 9000; a.src = u || TIENDA_URL + 'radio/play/' + id; a.play().catch(() => {}); });
   return S;
 }
 function estFallo(S) {
   if (EST.son.get(S.e) !== S) return;
+  if (S.local) { const e = S.e; estParar(e); e.estMala = S.vid; if (e.dueno === 'yo') aviso(T('ra.no'), 2.5); return; }
   if (!S.prox) { S.prox = true; S.listo = false; S.espera = performance.now() + 9000; S.a.src = TIENDA_URL + 'radio/play/' + S.vid.slice(3); S.a.play().catch(() => {}); return; }
   const e = S.e; estParar(e); e.estMala = S.vid; // (esa emisora no se vuelve a probar en esta radio)
   if (e.dueno === 'yo') radioSiguiente(e, true);
 }
 function estParar(e) {
   const S = EST.son.get(e); if (!S) return; EST.son.delete(e); e.nivel = 0;
-  try { S.a.onerror = S.a.onended = null; S.a.pause(); S.a.removeAttribute('src'); S.a.load(); } catch (x) {}
+  try { S.a.onerror = S.a.onended = null; S.a.pause(); S.a.removeAttribute('src'); S.a.load(); if (S.a.parentNode) S.a.remove(); } catch (x) {}
   try { S.src.disconnect(); S.an.disconnect(); S.C.fin(); S.F.g.disconnect(); S.F.f.disconnect(); S.F.p.disconnect(); if (S.F.r) S.F.r.disconnect(); } catch (x) {}
 }
 // el ruido de la radio (siseo con chasquidos sueltos), uno solo para todas
@@ -479,7 +504,7 @@ function estPaso(dt) {
   }
   EST.t -= dt; if (EST.t > 0) return; EST.t = 0.5;
   if (!AUD.ctx || JUEGO.estado !== 'juego') { for (const e of [...EST.son.keys()]) estParar(e); return; }
-  const cerca = ENTS.lista.filter((e) => esEst(e.vid) && e.estMala !== e.vid).map((e) => [e, entPos(e).distTo(CAM.pos), clamp(+e.prm.r || 40, 4, 400)])
+  const cerca = ENTS.lista.filter((e) => (esEst(e.vid) || (esLocal(e.vid) && localDe(e.vid))) && e.estMala !== e.vid).map((e) => [e, entPos(e).distTo(CAM.pos), clamp(+e.prm.r || 40, 4, 400)])
     .filter(([e, d, r]) => d < r || (EST.son.has(e) && d < r + 6)).sort((a, b) => a[1] - b[1]).slice(0, EST.max).map((x) => x[0]);
   for (const e of [...EST.son.keys()]) if (!cerca.includes(e)) estParar(e);
   for (const e of cerca) if (!EST.son.has(e)) { const S = estSonar(e); if (S) EST.son.set(e, S); }
@@ -517,7 +542,7 @@ function ytCargar(e) {
   f.src = `https://www.youtube-nocookie.com/embed/${e.vid}?autoplay=1&enablejsapi=1&playsinline=1&controls=0&rel=0&modestbranding=1&start=${s}` + (/^https?:/.test(location.origin) ? '&origin=' + encodeURIComponent(location.origin) : '');
   f.onload = () => { if (YT.ifr !== f) return; YT.listo = true; try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'rb' }), '*'); } catch (x) {} YT.vol = -1; ytVolumen(true); };
   f.tabIndex = -1; c.querySelector('.ytV').appendChild(f); YT.ifr = f; c.classList.remove('oc');
-  YT.est = -1; YT.cargaT = Date.now(); YT.cur = s; YT.curT = Date.now(); YT.dur = 0; YT.listo = false; YT.listoT = 0; YT.intentos = 0; YT.bloq = false;
+  YT.est = -1; YT.cargaT = Date.now(); YT.cur = s; YT.curT = Date.now(); YT.dur = 0; YT.listo = false; YT.listoT = 0; YT.intentos = 0; YT.bloq = false; YT.sinApi = false; YT.tocadoT = 0;
   // en una pantalla el video se ve: va detrás del juego, donde el juego deja el hueco
   // (la perspectiva de una tele de antes no queda puesta en el de la radio: con el cartel de «tocá» se veía chiquito y torcido)
   const pant = e.t === 'pantalla'; c.classList.toggle('pant', pant); document.body.classList.toggle('conPant', pant); c.style.transform = ''; TELE.css = '';
@@ -536,7 +561,7 @@ function ytPaso(dt) {
   // 4 m más cerca: en el borde del alcance, o parado entre dos radios, el reproductor se rearmaba a cada paso, y cada vez
   // son ~2,5 MB de código de YouTube que el celular vuelve a leer y a guardar en memoria)
   if (JUEGO.estado === 'juego') for (const e of ENTS.lista) {
-    if (!e.vid || esEst(e.vid) || !ytPermitido(e)) continue;
+    if (!e.vid || esEst(e.vid) || esLocal(e.vid) || !ytPermitido(e)) continue;
     const d = entPos(e).distTo(CAM.pos), r = clamp(+e.prm.r || 40, 4, 400), ya = e === YT.fuente && e.vid === YT.vid && YT.ifr, dd = ya ? d - 4 : d;
     if ((d < r || (ya && d < r + 6)) && dd < bd) { bd = dd; best = e; }
   }
@@ -561,9 +586,16 @@ function ytSeguir(e) {
   // video —ytToque—; si arranca o carga, se esconde. Un reproductor que todavía está cargando —celular lento— no cuenta)
   if (YT.est === 1 || YT.est === 3) ytToque(false);
   else if (YT.listoT && (YT.est === -1 || YT.est === 5) && (YT.bloq || (YT.intentos >= 2 && ahora - YT.listoT > 5000))) ytToque(true);
+  // (la tele a la vista que se quedó en la tapa del video —Discord, Chillguy: «la pantalla se congeló mostrando sólo la cara»—
+  // y el reproductor ni contesta: a los 8 s pasa adelante igual, para tocar el play en la misma tele. Cuando se lo toca —el
+  // foco se va al video— y el reproductor sigue sin contestar, vuelve atrás a los 3 s: ya arrancó)
+  else if (e.t === 'pantalla' && TELE.vis && !YT.listoT && !YT.toque && !YT.sinApi && ahora - YT.cargaT > 8000) { YT.sinApi = true; ytToque(true); }
+  if (YT.toque && YT.tocadoT && !YT.listoT && ahora - YT.tocadoT > 3000) { YT.tocadoT = 0; ytToque(false); }
   const esp = ahoraS() - (e.t0 || ahoraS()), va = YT.cur + (YT.est === 1 ? (ahora - YT.curT) / 1000 : 0);
   if (YT.est === 1 && YT.dur > 0 && esp > 0 && esp < YT.dur - 3 && Math.abs(va - esp) > 6 && ahora - YT.seekT > 8000) { ytCmd('seekTo', [esp, true]); YT.seekT = ahora; }
 }
+// (un toque en el video de YouTube: el foco de la página se va a su iframe)
+addEventListener('blur', () => { setTimeout(() => { if (YT.toque && YT.ifr && document.activeElement === YT.ifr) YT.tocadoT = Date.now(); }, 0); });
 addEventListener('message', (ev) => {
   if (!YT.ifr || ev.source !== YT.ifr.contentWindow || !/youtube/.test(ev.origin)) return;
   let d; try { d = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data; } catch (x) { return; }
@@ -595,7 +627,7 @@ function radioPoner(e, vid, s, tit, mio) {
   if (vid === (e.vid || '') && Math.abs((ahoraS() - (e.t0 || 0)) - s) < 4 && !mio) return;
   const antes = e.vid; e.vid = vid || null; e.t0 = ahoraS() - (s || 0); e.tit = tit || ''; e.prm.v = e.vid || '';
   if (e.vid !== antes) { e.estMala = null; estParar(e); }
-  if (YT.fuente === e) { if (!vid || esEst(vid)) ytQuitar(); else ytCargar(e); }
+  if (YT.fuente === e) { if (!vid || esEst(vid) || esLocal(vid)) ytQuitar(); else ytCargar(e); }
   if (mio) entidadRed('radio', e);   // (la escucha se cuenta en Radio Browser al pedir la dirección: estUrl)
   if (RADIO.e === e) radioDibujar();
 }
@@ -706,7 +738,7 @@ function radioCrearPanel() {
   const p = document.createElement('div'); p.id = 'radioPan'; p.className = 'panel oc';
   p.innerHTML = `<div class="caja radioCaja"><h3>${icoHTML('ico:radio')} <span class="raTit"></span></h3>
     <div class="raTabs"><button data-ra="modo:est">${glifo('mundo')} <span class="raTEst"></span></button><button data-ra="modo:yt">${glifo('video')} YouTube</button></div>
-    <div class="radioBus"><input id="radioQ" maxlength="80" spellcheck="false"><button class="boton chico" data-ra="buscar">${glifo('buscar')}</button></div>
+    <div class="radioBus"><input id="radioQ" maxlength="80" spellcheck="false"><button class="boton chico" data-ra="buscar">${glifo('buscar')}</button><button class="boton chico raArch" data-ra="archivo"></button></div>
     <div class="raGen"></div><div class="raNota"></div><div class="raTam"></div><div id="radioAhora"></div><div id="radioRes"></div>
     <div class="fila raVol">${glifo('volumen')} <input type="range" id="radioVol" min="0" max="100"></div>
     <div class="radioPie"><button class="boton chico" data-ra="espalda"></button><button class="boton chico gris" data-ra="parar"></button><button class="boton chico gris" data-ra="cerrar"></button></div></div>`;
@@ -717,6 +749,7 @@ function radioCrearPanel() {
     if (a === 'buscar') radioBuscar($('radioQ').value, '');
     else if (a === 'gen') { $('radioQ').value = ''; radioBuscar('', v); }
     else if (a === 'modo') radioModo(v);
+    else if (a === 'archivo') localElegir(e);
     else if (a === 'cerrar') radioCerrar();
     else if (a === 'parar') radioPoner(e, '', 0, '', true);
     else if (a === 'espalda') radioEspalda(e, !e.prm.ll);
@@ -749,7 +782,8 @@ function radioAbrir(e) {
   if (pant && RADIO.modo !== 'yt') radioModo('yt');
   p.querySelector('[data-ra=parar]').innerHTML = glifo('parar') + ' ' + esc(T('apagar')); p.querySelector('[data-ra=cerrar]').innerHTML = glifo('no') + ' ' + esc(T('cerrar'));
   $('radioVol').value = Math.round(100 * clamp(+e.prm.vol || 1, 0, 1));
-  const m = e.vid && !esEst(e.vid) ? 'yt' : RADIO.modo; if (m !== RADIO.modo) radioModo(m); else { $('radioQ').placeholder = T(m === 'yt' ? 'ytBuscar' : 'ra.buscar'); $('radioQ').value = RADIO.q; }
+  const m = e.vid && !esEst(e.vid) && !esLocal(e.vid) ? 'yt' : RADIO.modo;
+  { const b = p.querySelector('[data-ra=archivo]'); b.innerHTML = glifo('carpeta') + ' ' + esc(T('ra.archivo')); b.style.display = e.dueno === 'yo' ? '' : 'none'; } if (m !== RADIO.modo) radioModo(m); else { $('radioQ').placeholder = T(m === 'yt' ? 'ytBuscar' : 'ra.buscar'); $('radioQ').value = RADIO.q; }
   radioDibujar(); if (!RADIO.res.length && !RADIO.cargando) radioBuscar(RADIO.modo === 'yt' ? 'música para jugar' : '', '');
   if (!ENT.tactil) setTimeout(() => $('radioQ').focus(), 50);
 }
@@ -783,7 +817,7 @@ function radioDibujar() {
   p.querySelector('[data-ra=espalda]').innerHTML = glifo('espalda') + ' ' + esc(T(e.prm.ll ? 'ra.soltar' : 'ra.espalda'));
   p.querySelector('[data-ra=espalda]').style.display = e.dueno === 'yo' && e.t === 'radio' ? '' : 'none';
   p.querySelector('.raTam').innerHTML = e.t === 'pantalla' && e.dueno === 'yo' ? `<span>${esc(T('pant.tam'))}</span>` + PANT_TAM.map((w) => `<button class="${Math.abs(w - (+e.prm.w || 2)) < 0.01 ? 'sel' : ''}" data-ra="tam:${w}">${w.toLocaleString(document.documentElement.lang || undefined)} m</button>`).join('') : '';
-  $('radioAhora').innerHTML = e.vid ? `<div class="radioYa">${glifo(esEst(e.vid) ? 'musica' : 'video')} <b dir="auto">${esc(sinEmoji(e.tit) || e.vid)}</b></div>` : '';
+  $('radioAhora').innerHTML = e.vid ? `<div class="radioYa">${glifo(esEst(e.vid) || (esLocal(e.vid) && !(localDe(e.vid) || {}).video) ? 'musica' : 'video')} <b dir="auto">${esc(sinEmoji(e.tit) || e.vid)}</b></div>` : '';
   const sel = (x) => (yt ? x.id : 'rb:' + x.id) === e.vid;
   R0.innerHTML = RADIO.cargando ? `<div class="radioVacio">${esc(T('cargando'))}</div>` : !RADIO.res.length ? `<div class="radioVacio">${esc(T(RADIO.bloq ? 'yt.bloq' : RADIO.sat ? 'tienda.sat' : RADIO.err ? 'errRed' : 'sinRes'))}</div>`
     : RADIO.res.map((x, i) => yt

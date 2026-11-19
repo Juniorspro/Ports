@@ -56,6 +56,9 @@ function spawnNpcsTab() {
   for (const c of [...cats.keys()].sort((x, y) => x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' }))) subs.push({ n: c, it: cats.get(c) });
   const pms = typeof gmpLista === 'function' ? gmpLista() : [];
   if (pms.length) subs.push({ n: T('sp.npcModelos'), it: pms.map((r) => 'gmnpcm:' + r) });
+  // (los personajes importados —GLB, GLTF, VRM, OBJ: Importar personaje, pjimportar.js— como NPC o como muñeco de trapo;
+  // Discord, 34Bits: «que se pueda añadir modelos glb y obj y hacerlos NPC, ragdoll o personaje»)
+  if (typeof PJI !== 'undefined' && PJI.lista && PJI.lista.length) subs.push({ n: T('sp.npcImport'), it: PJI.lista.flatMap((m) => ['pjnpc:' + m.id, 'pjrag:' + m.id]) });
   C.sub = subs;
 }
 function spawnTabs() {
@@ -115,7 +118,7 @@ function spawnDibujar() {
 // las categorías de una pestaña (en Props, la sección Mods primero) y sus nombres
 function spawnSubs(C) { return C.n === 'Props' ? [{ n: 'Mods', mods: true, it: modsAssets().map((m) => m.id) }, ...C.sub] : C.sub; }
 function spawnCatNom(s) { if (s.mods) return T('mm.mods'); if (s.rb) { const t = T('pc.' + s.n); return t === 'pc.' + s.n ? s.n : t; } return s.n; }
-function propNom(it) { if (/^npc:/.test(it)) return skinNom(it.slice(4)); if (/^gm:/.test(it)) return gmNombre(it); if (/^gmnpcm:/.test(it)) return gmNombre('gm:' + it.slice(7)) + ' (NPC)'; if (/^gmrag:/.test(it)) return gmNombre('gm:' + it.slice(6)) + ' (' + T('gm.muneco') + ')'; if (/^gmpm:/.test(it)) return gmNombre('gm:' + it.slice(5)); if (/^gmnpc:/.test(it)) return gmListaNombre('NPC', it.slice(6)); if (/^gmveh:/.test(it)) return gmListaNombre('Vehicles', it.slice(6)); if (/^gm(ent|swep):/.test(it) && typeof gmaNomClase === 'function') return gmaNomClase(it); if (/^NK_/.test(it) && typeof nukeNom === 'function') return nukeNom(it); const k = 'pr.' + it, t = T(k); return t === k ? it : t; }
+function propNom(it) { if (/^npc:/.test(it)) return skinNom(it.slice(4)); if (/^pj(npc|rag):/.test(it)) { const m = typeof PJI !== 'undefined' && PJI.lista.find((x) => x.id === it.slice(6)); return (m ? m.n : it.slice(6)) + ' (' + (/^pjnpc:/.test(it) ? 'NPC' : T('gm.muneco')) + ')'; } if (/^gm:/.test(it)) return gmNombre(it); if (/^gmnpcm:/.test(it)) return gmNombre('gm:' + it.slice(7)) + ' (NPC)'; if (/^gmrag:/.test(it)) return gmNombre('gm:' + it.slice(6)) + ' (' + T('gm.muneco') + ')'; if (/^gmpm:/.test(it)) return gmNombre('gm:' + it.slice(5)); if (/^gmnpc:/.test(it)) return gmListaNombre('NPC', it.slice(6)); if (/^gmveh:/.test(it)) return gmListaNombre('Vehicles', it.slice(6)); if (/^gm(ent|swep):/.test(it) && typeof gmaNomClase === 'function') return gmaNomClase(it); if (/^NK_/.test(it) && typeof nukeNom === 'function') return nukeNom(it); const k = 'pr.' + it, t = T(k); return t === k ? it : t; }
 // la grilla: la categoría elegida o lo que coincide con la búsqueda en toda la pestaña
 function spawnGrilla(C, subs) {
   const gr = $('grilla'); gr.innerHTML = ''; const q = (UI.q || '').trim().toLowerCase();
@@ -131,6 +134,7 @@ function spawnGrilla(C, subs) {
     else {
       const ico = C.n === 'Weapons' ? 'W_' + it : it === 'Box2' ? 'Box2_2' : it;
       if (/^npc:/.test(it)) d.innerHTML = `<img src="${retrato(it.slice(4))}" loading="lazy"><span>${esc(propNom(it))}</span>`;   // (un personaje del juego como NPC)
+      else if (/^pj(npc|rag):/.test(it)) { const m = typeof PJI !== 'undefined' && PJI.lista.find((x) => x.id === it.slice(6)); d.innerHTML = `<img src="${m && m.img ? esc(m.img) : RETRATO_SIL}" loading="lazy"><span>${esc(propNom(it))}</span>`; }   // (un personaje importado)
       else if (/^gm:/.test(it)) d.innerHTML = `<img src="${gmIcono(it)}" data-gm="${esc(it)}" loading="lazy"><span>${esc(propNom(it))}</span>`;
       else if (/^gm(npc|veh):/.test(it)) { const v = gmLista(/^gmnpc/.test(it) ? 'NPC' : 'Vehicles', it.replace(/^gm(npc|veh):/, '')), m = v && v.get('Model'), g = typeof m === 'string' && gmArchivo(m.toLowerCase().replace(/\\/g, '/')) ? 'gm:' + m.toLowerCase().replace(/\\/g, '/') : null; d.innerHTML = `<img src="${g ? gmIcono(g) : GM_ICO}"${g ? ` data-gm="${esc(g)}"` : ''} loading="lazy"><span>${esc(propNom(it))}</span>`; }
       else if (/^gmrag:/.test(it)) { const g = 'gm:' + it.slice(6); d.innerHTML = `<img src="${gmIcono(g)}" data-gm="${esc(g)}" loading="lazy"><span>${esc(propNom(it))}</span>`; }   // (un personaje de un addon como muñeco de trapo)
@@ -163,6 +167,7 @@ function spawnElegir(tab, nombre) {
   if (typeof censPermite === 'function' && !censPermite(nombre)) return;   // (en un server oficial, nada de un mod censurado)
   if (typeof gmModeloEsperar === 'function' && gmModeloEsperar(nombre, () => spawnElegir(tab, nombre))) return;   // (un modelo de addon que se está leyendo del disco: se pone al llegar)
   if (/^gmrag:/.test(nombre) || (/^gm:/.test(nombre) && typeof gmEsMuneco === 'function' && gmEsMuneco(nombre.slice(3)))) { const r = nombre.replace(/^gm(rag)?:/, ''); if (JUEGO.estado === 'juego' && gmragModelo(r)) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }   // (un muñeco de trapo con huesos, como los prop_ragdoll de GMod)
+  if (/^pj(npc|rag):/.test(nombre)) { const sk = typeof pjiSkin === 'function' ? pjiSkin(nombre.slice(6)) : ''; if (JUEGO.estado === 'juego' && sk && spawnNpc(sk, /^pjrag:/.test(nombre))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }
   if (/^npc:/.test(nombre)) { if (JUEGO.estado === 'juego' && spawnNpc(nombre.slice(4))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}${UI.puestos > 1 ? ' (' + UI.puestos + ')' : ''}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }
   if (/^gmnpcm:/.test(nombre)) { if (JUEGO.estado === 'juego' && gmnpcModelo(nombre.slice(7))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }   // (un modelo de personaje como NPC)
   if (/^gmnpc:/.test(nombre)) { if (JUEGO.estado === 'juego' && gmnpcCrear(nombre.slice(6))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }   // (un NPC de un addon)
@@ -177,7 +182,8 @@ function spawnElegir(tab, nombre) {
 }
 // un personaje del juego como NPC donde apunta el jugador (o 4 m adelante), mirándolo, con la actitud elegida en la
 // herramienta de NPC (si no, la de siempre)
-function spawnNpc(skin) {
+// (muneco: como muñeco de trapo —cae con sus huesos, se agarra y no se levanta, como un prop_ragdoll de GMod—)
+function spawnNpc(skin, muneco) {
   if (!reglaSala('npc:' + skin) || typeof npcCrear !== 'function') return false;
   if (NPC.lista.length >= NPC.max) { aviso(T('npc.max') + ' (' + NPC.max + ')', 2); return false; }   // (el mismo tope que la herramienta de NPC)
   const d = CAM.fwd, h = raycast(CAM.pos, d, 40, JUG.vehiculo ? JUG.vehiculo.b : null);
@@ -185,7 +191,11 @@ function spawnNpc(skin) {
   if (h && h.n && h.n.y < 0.5) { p = vadd(p, vscale(h.n, 0.45)); const g = mundoRayo(vadd(p, v3(0, 0.5, 0)), v3(0, -1, 0), 50); if (g) p.y += 0.5 - g.t; }   // (contra una pared: al pie, un poco afuera)
   else if (!h) { const g = mundoRayo(p, v3(0, -1, 0), 50); if (g) p.y -= g.t; }
   const yaw = Math.atan2(CAM.pos.x - p.x, CAM.pos.z - p.z);
-  rbAsegurar(rbDeSkin(skin)).then(() => { const Q = npcCrear(skin, p, yaw, Object.assign({}, NPC.act || {}, { de: (typeof RED !== 'undefined' && RED.ID) || 'yo' })); if (Q && typeof efectoChispas === 'function') efectoChispas(p); });
+  rbAsegurar(rbDeSkin(skin)).then(() => {
+    const Q = npcCrear(skin, muneco ? v3(p.x, p.y + 0.15, p.z) : p, yaw, muneco ? { modo: 'quieto', vida: 100, de: (typeof RED !== 'undefined' && RED.ID) || 'yo' } : Object.assign({}, NPC.act || {}, { de: (typeof RED !== 'undefined' && RED.ID) || 'yo' }));
+    if (Q && muneco) { Q.muneco = true; if (typeof npcTumbar === 'function') npcTumbar(Q, v3(0, 0, 0)); if (Q.ia) Q.ia.ragT = 1e9; }
+    if (Q && typeof efectoChispas === 'function') efectoChispas(p);
+  });
   return true;
 }
 // crea la cosa donde apunta el jugador (o 4 m adelante), mirándolo

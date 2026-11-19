@@ -69,7 +69,10 @@ public class Web extends Activity {
     static String iconoAlias(String id) { return "com.jxmod.app.Icono" + Character.toUpperCase(id.charAt(0)) + id.substring(1); }
     static final String HOST = "appassets.androidplatform.net";
     static final String INICIO = "https://" + HOST + "/index.html";
-    static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13, PEDIR_CARPETA = 14, PEDIR_ESCRIBIR = 15;
+    static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13, PEDIR_CARPETA = 14, PEDIR_ESCRIBIR = 15, PEDIR_PANTALLA = 16, PEDIR_MIC_PANT = 17;
+    // (la grabación «pantalla del celular»: GrabaPantalla.java; lo que pidió la página hasta que el usuario deja grabar)
+    private static volatile Web yo;
+    private String pantNombre = "JXMod.mp4"; private int pantAlto = 720, pantFps = 30;
 
     private FrameLayout raiz;
     private WebView web;
@@ -113,6 +116,7 @@ public class Web extends Activity {
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
+        yo = this;
         // (todavía no pasó por onResume: lo guardado es cómo terminó la vez anterior)
         synchronized (Web.class) {
             try {
@@ -131,11 +135,15 @@ public class Web extends Activity {
         raiz = new FrameLayout(this);
         raiz.setBackgroundColor(0xFF000000);
         if (Build.VERSION.SDK_INT >= 28) {
-            // (los botones del juego no quedan debajo del recorte de la cámara)
+            // (la imagen del juego ocupa la pantalla entera, también al lado del recorte de la cámara; antes se achicaba toda
+            // la vista y quedaba una franja negra —Discord, GOLDEN—. Lo que tapa el recorte se le pasa al juego, en px de CSS,
+            // y sólo los botones y los paneles se corren: hud.js, jxMargenes)
             raiz.setOnApplyWindowInsetsListener((v, ins) -> {
                 DisplayCutout dc = ins.getDisplayCutout();
-                if (dc != null) v.setPadding(dc.getSafeInsetLeft(), dc.getSafeInsetTop(), dc.getSafeInsetRight(), dc.getSafeInsetBottom());
-                else v.setPadding(0, 0, 0, 0);
+                float den = getResources().getDisplayMetrics().density;
+                v.setPadding(0, 0, 0, 0);
+                margenes = dc == null ? "[0,0,0,0]" : "[" + Math.round(dc.getSafeInsetLeft() / den) + "," + Math.round(dc.getSafeInsetTop() / den) + "," + Math.round(dc.getSafeInsetRight() / den) + "," + Math.round(dc.getSafeInsetBottom() / den) + "]";
+                if (web != null) web.evaluateJavascript("window.jxMargenes&&jxMargenes(" + margenes + ")", null);
                 return ins;
             });
         }
@@ -172,6 +180,7 @@ public class Web extends Activity {
     // la hay, ofrece bajar el APK nuevo desde el navegador. La URL del APK es FIJA acá (no se toma del json): aunque alguien
     // cambie el json, la app sólo abre el APK oficial. Subir VERSION_PROPIA y el "codigo" de version.json en cada release.
     private static final int VERSION_PROPIA = 3901;
+    private volatile String margenes = "[0,0,0,0]";
     private static final String URL_VERSION = "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/version.json";
     private static final String URL_APK = "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXMod.apk";
 
@@ -425,10 +434,18 @@ public class Web extends Activity {
             permPend = null;
         }
         if (req == PEDIR_ESCRIBIR && web != null) web.evaluateJavascript("window.__jxGrabPermiso&&window.__jxGrabPermiso(" + ok + ")", null);
+        // (sin el permiso del micrófono la pantalla se graba igual, sin sonido)
+        if (req == PEDIR_MIC_PANT) pantPedirProyeccion();
     }
 
     @Override protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        if (req == PEDIR_PANTALLA) {
+            if (res != RESULT_OK || data == null) { pantAviso("no", ""); return; }
+            Intent i = new Intent(this, GrabaPantalla.class).putExtra("rc", res).putExtra("datos", data).putExtra("alto", pantAlto).putExtra("fps", pantFps).putExtra("nombre", pantNombre);
+            try { if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i); } catch (Throwable e) { pantAviso("error", String.valueOf(e)); }
+            return;
+        }
         if (req == PEDIR_ARCHIVO) {
             if (elegirCb == null) return;
             Uri[] r = null;
@@ -575,6 +592,22 @@ public class Web extends Activity {
         @JavascriptInterface public void buscarActualizacion() { Web.this.buscarActualizacion(true); }
         /** La versión propia (número) para que el juego sepa si mostrar su botón "Actualizar". */
         @JavascriptInterface public int versionCodigo() { return VERSION_PROPIA; }
+        // ---- la grabación «pantalla del celular» (con YouTube, la tele y los botones): GrabaPantalla.java ----
+        /** 1: se puede (Android 10 o más nuevo: el sonido propio sólo se puede grabar desde el 10). */
+        @JavascriptInterface public int pantPuede() { return Build.VERSION.SDK_INT >= 29 ? 1 : 0; }
+        @JavascriptInterface public int pantGrabando() { return GrabaPantalla.grabando ? 1 : 0; }
+        /** Pide el micrófono si falta (Android lo exige para grabar el sonido propio) y después el permiso de captura. */
+        @JavascriptInterface public void pantGrabar(final String nombre, final int alto, final int fps) {
+            runOnUiThread(() -> {
+                if (GrabaPantalla.grabando || Build.VERSION.SDK_INT < 29) return;
+                pantNombre = nombre == null || nombre.isEmpty() ? "JXMod.mp4" : nombre; pantAlto = alto; pantFps = fps;
+                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, PEDIR_MIC_PANT);
+                else pantPedirProyeccion();
+            });
+        }
+        @JavascriptInterface public void pantParar() { runOnUiThread(() -> { if (GrabaPantalla.grabando) startService(new Intent(Web.this, GrabaPantalla.class).setAction(GrabaPantalla.PARAR)); }); }
+        // (lo que tapa el recorte de la cámara: izquierda, arriba, derecha, abajo, en px de CSS)
+        @JavascriptInterface public String margenes() { return margenes; }
         /** Abre un enlace (redes de JXStudios) en su app o en el navegador. */
         @JavascriptInterface public void abrir(final String url) {
             if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return;
@@ -1085,7 +1118,21 @@ public class Web extends Activity {
         vidaGuardar(true);
     }
 
+    private void pantPedirProyeccion() {
+        try {
+            android.media.projection.MediaProjectionManager m = (android.media.projection.MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+            startActivityForResult(m.createScreenCaptureIntent(), PEDIR_PANTALLA);
+        } catch (Throwable e) { pantAviso("error", String.valueOf(e)); }
+    }
+    /** Lo que pasa con la grabación de pantalla, a la página: "on", "no" (no dejó), "error", "fin" (con la dirección). */
+    static void pantAviso(final String est, final String info) {
+        final Web w = yo; if (w == null) return;
+        if ("fin".equals(est) && info != null) w.grabHechas.add(info);   // (Compartir y Ver sólo abren lo que grabó la app)
+        w.runOnUiThread(() -> { if (w.web != null) w.web.evaluateJavascript("window.__jxPant&&window.__jxPant(" + org.json.JSONObject.quote(est) + "," + org.json.JSONObject.quote(info == null ? "" : info) + ")", null); });
+    }
+
     @Override protected void onDestroy() {
+        if (yo == this) yo = null;
         grabCerrarTodas();
         if (grabSistemaCb != null && Build.VERSION.SDK_INT >= 35) { try { getWindowManager().removeScreenRecordingCallback(grabSistemaCb); } catch (Throwable e) { /* nada */ } }
         lanParar(); lanBuscar(false); synchronized (this) { if (lanPuente != null) { lanPuente.parar(); lanPuente = null; } }

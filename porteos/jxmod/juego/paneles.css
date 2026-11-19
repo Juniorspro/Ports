@@ -11,7 +11,7 @@
 :root{--pnPl:rgba(10,11,13,.965);--pnPl1:#131417;--pnPl2:#1b1c20;--pnPl3:#25262b;--pnPl4:#303137;--pnPozo:#08090a;
   --pnLin:rgba(239,237,231,.12);--pnLin2:rgba(239,237,231,.24);--pnT:#efede7;--pnT2:#bdbab3;--pnT3:#a29f98;--pnA:#f2b31b;--pnA2:#ffc531;--pnNe:#121212;
   --pnVe:#6fd68f;--pnRo:#ff7a6e;--pnVi:#c39dff;--pnF:'JX Oswald','Roboto Condensed',sans-serif-condensed,'Arial Narrow',Roboto,Arial,sans-serif;--pnFr:Roboto,Arial,sans-serif;
-  --pnSaL:env(safe-area-inset-left,0px);--pnSaR:env(safe-area-inset-right,0px);--pnSaT:env(safe-area-inset-top,0px);--pnSaB:env(safe-area-inset-bottom,0px);
+  --pnSaL:max(env(safe-area-inset-left,0px),var(--jxSaL,0px));--pnSaR:max(env(safe-area-inset-right,0px),var(--jxSaR,0px));--pnSaT:max(env(safe-area-inset-top,0px),var(--jxSaT,0px));--pnSaB:max(env(safe-area-inset-bottom,0px),var(--jxSaB,0px));
   --pnU:clamp(6px,calc(var(--vh)*1.6),14px);--pnH:clamp(44px,calc(var(--vh)*9.5),54px);--pnFt:clamp(15px,calc(var(--vh)*3.5),19px);--pnFs:clamp(14px,calc(var(--vh)*3),16px);--pnFg:clamp(21px,calc(var(--vh)*5.4),34px);
   --pnRayas:repeating-linear-gradient(-45deg,var(--pnA) 0 5px,rgba(0,0,0,0) 5px 10px);
   /* (la punta rota: 12 px de borde roto a la derecha; con la máscara, lo que se toca sigue siendo el rectángulo) */

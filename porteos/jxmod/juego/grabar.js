@@ -41,8 +41,35 @@ function grabOp() {
   if (!['720', '1080', 'pant'].includes(o.cal)) o.cal = '720';
   if (o.fps !== 60) o.fps = 30;
   o.mic = !!o.mic; o.voces = !!o.voces; if (o.hud === undefined) o.hud = true; o.hud = !!o.hud;
+  if (o.modo !== 'cel') o.modo = 'juego';
   return o;
 }
+// ---------------- «pantalla del celular» (sólo en la app, Android 10+): la graba el sistema, con YouTube y la tele ----------------
+// El dueño, en el Discord: «no graba el audio de YouTube y tampoco lo que se ve en la tele, y muy mal optimizado». YouTube es
+// otro sitio: ninguna página puede grabar su imagen ni su sonido. En la app, la captura de pantalla de Android (GrabaPantalla.java)
+// graba todo lo que se ve —también los botones— y todo lo que suena en la app, con el codificador del aparato, sin copiar
+// el lienzo en la página: no le quita cuadros al juego. Android pregunta antes de empezar (y el micrófono, si falta).
+const grabCelPuede = () => { try { return typeof JXNativo !== 'undefined' && typeof JXNativo.pantPuede === 'function' && JXNativo.pantPuede() === 1; } catch (e) { return false; } };
+function grabCelEmpezar(o) {
+  GRAB.arrancando = true; GRAB.cel = true; grabIndicador();
+  const alto = o.cal === '1080' ? 1080 : o.cal === '720' ? 720 : 4320;
+  try { JXNativo.pantGrabar(grabNombre('mp4'), alto, o.fps); } catch (e) { GRAB.arrancando = false; GRAB.cel = false; grabIndicador(); aviso(T('gr.error'), 3); return false; }
+  // (si Android no contesta —se cerró el cartel de otra forma—, no queda «arrancando» para siempre)
+  clearTimeout(GRAB.celT); GRAB.celT = setTimeout(() => { if (GRAB.arrancando && GRAB.cel && !GRAB.on) { GRAB.arrancando = false; GRAB.cel = false; grabIndicador(); } }, 60000);
+  return true;
+}
+window.__jxPant = (est, info) => {
+  if (est === 'on') {
+    clearTimeout(GRAB.celT);
+    Object.assign(GRAB, { on: true, arrancando: false, cel: true, pausa: false, activo: 0, tAct: performance.now(), cuadros: 0, bytes: 0, error: '' });
+    grabIndicador(); grabBotones(); aviso(T(info === 'sinAudio' ? 'gr.celSinAudio' : 'gr.celEmpieza'), 3);
+  } else if (est === 'no') { clearTimeout(GRAB.celT); Object.assign(GRAB, { on: false, arrancando: false, cel: false }); grabIndicador(); grabBotones(); aviso(T('gr.celNo'), 3); }
+  else if (est === 'fin' || est === 'error') {
+    clearTimeout(GRAB.celT); grabActivoSumar(performance.now()); const ms = Math.round(GRAB.activo);
+    Object.assign(GRAB, { on: false, arrancando: false, cel: false }); grabIndicador(); grabBotones();
+    grabAvisoFin(est === 'fin' ? { ok: true, ms, uri: info, mime: 'video/mp4', nombre: 'JXMod' } : { ok: false, error: info });
+  }
+};
 // el tamaño del video: el lado corto pedido y el otro con la forma de la pantalla (como el grabador del celular: «720p» en
 // un celular de 20:9 da 1600×720); números pares, que piden los codificadores
 function grabTam(cal) {
@@ -200,6 +227,7 @@ async function grabDestApp(nombre, tipo) {
 // ---------------- empezar y terminar ----------------
 async function grabEmpezar() {
   if (GRAB.on || GRAB.arrancando || JUEGO.estado !== 'juego' || !R.cv) return false;
+  { const o = grabOp(); if (o.modo === 'cel' && grabCelPuede()) return grabCelEmpezar(o); }
   const tipo = grabTipo(); if (!tipo) { aviso(T('gr.noSoporta'), 3); return false; }
   GRAB.arrancando = true;
   try {
@@ -251,6 +279,7 @@ function grabPedazo(blob) {
   }).catch((e) => { console.warn('grabar', e); GRAB.error = GRAB.error || 'guardar'; if (GRAB.on) grabParar(); });   // (no se pudo guardar: no sigue grabando de gusto)
 }
 function grabParar() {
+  if (GRAB.cel) { if (GRAB.on) try { JXNativo.pantParar(); } catch (e) {} return; }   // (la termina la app y avisa: __jxPant)
   if (!GRAB.on) return;
   GRAB.on = false; grabActivoSumar(performance.now());
   try { if (GRAB.rec && GRAB.rec.state !== 'inactive') GRAB.rec.stop(); else grabCerrar(); } catch (e) { grabCerrar(); }
@@ -315,6 +344,7 @@ function grabCuadro() {
   if (!GRAB.on) return;
   if (JUEGO.estado !== 'juego') { grabParar(); return; }   // (salió al menú: se guarda lo grabado)
   const ahora = performance.now();
+  if (GRAB.cel) { grabIndicadorTiempo(ahora); return; }
   grabRevisarPausa(ahora);
   if (GRAB.pausa) { grabIndicadorTiempo(ahora); return; }
   if (GRAB.inicio) {
@@ -360,7 +390,7 @@ function grabEnPausa() {
   return false;
 }
 function grabRevisarPausa(ahora) {
-  if (!GRAB.on || GRAB.inicio || !GRAB.rec) return;
+  if (!GRAB.on || GRAB.inicio || !GRAB.rec || GRAB.cel) return;
   ahora = ahora || performance.now();
   const p = grabEnPausa(); if (p === GRAB.pausa) return;
   GRAB.pausa = p;
@@ -451,6 +481,7 @@ function grabPanel() {
   P = document.createElement('div'); P.id = 'grabPan'; P.className = 'panel oc';
   P.innerHTML = `<div class="caja grCaja" role="dialog" aria-modal="true">
   <div class="grCab"><span class="grTit"><i>${glifo('rec')}</i><b data-t="gr.titulo"></b></span><button class="grX mmX" type="button" data-a="x">${glifo('no')}</button></div>
+  <div class="grFila grModo"><span data-t="gr.que"></span><div class="grSeg" data-o="modo"><button type="button" data-v="juego" data-t="gr.modoJuego"></button><button type="button" data-v="cel" data-t="gr.modoCel"></button></div></div>
   <div class="grFila"><span data-t="gr.calidad"></span><div class="grSeg" data-o="cal"><button type="button" data-v="720">720p</button><button type="button" data-v="1080">1080p</button><button type="button" data-v="pant"></button></div>
     <div class="grSeg" data-o="fps"><button type="button" data-v="30">30</button><button type="button" data-v="60">60</button></div><small class="grFps">fps</small></div>
   <div class="grFila"><span data-t="gr.sonido"></span><div class="grSeg grChk"><button type="button" class="sel fijo" aria-pressed="true" data-t="gr.juego"></button><button type="button" data-o="mic" data-t="gr.mic"></button><button type="button" data-o="voces" data-t="gr.voces"></button></div></div>
@@ -464,7 +495,7 @@ function grabPanel() {
     if (b.dataset.a === 'x') { grabPanelCerrar(true); return; }
     if (b.dataset.a === 'ir') { grabPanelCerrar(false); cerrarPaneles(); grabEmpezar(); return; }
     const seg = b.parentElement;
-    if (seg.dataset.o === 'cal') o.cal = b.dataset.v; else if (seg.dataset.o === 'fps') o.fps = +b.dataset.v;
+    if (seg.dataset.o === 'cal') o.cal = b.dataset.v; else if (seg.dataset.o === 'fps') o.fps = +b.dataset.v; else if (seg.dataset.o === 'modo') o.modo = b.dataset.v;
     else if (b.dataset.o) o[b.dataset.o] = !o[b.dataset.o]; else return;
     guardarPrefs(); grabPanelPintar(); grabBotones();
   });
@@ -478,11 +509,14 @@ function grabPanelPintar() {
   const pant = P.querySelector('[data-v=pant]'), [pw, ph] = grabTam('pant'), nb = document.createElement('bdi'); nb.textContent = Math.min(pw, ph) + 'p'; pant.textContent = T('gr.pantalla') + ' '; pant.appendChild(nb);
   for (const b of P.querySelectorAll('[data-o=cal] button')) { const s = b.dataset.v === o.cal; b.classList.toggle('sel', s); b.setAttribute('aria-pressed', s); }
   for (const b of P.querySelectorAll('[data-o=fps] button')) { const s = +b.dataset.v === o.fps; b.classList.toggle('sel', s); b.setAttribute('aria-pressed', s); }
+  const cel = grabCelPuede(); P.querySelector('.grModo').classList.toggle('oc', !cel);
+  for (const b of P.querySelectorAll('[data-o=modo] button')) { const s = b.dataset.v === (cel ? o.modo : 'juego'); b.classList.toggle('sel', s); b.setAttribute('aria-pressed', s); }
   for (const k of ['mic', 'voces', 'hud']) { const b = P.querySelector(`button[data-o=${k}]`); b.classList.toggle('sel', o[k]); b.setAttribute('aria-pressed', o[k]); }
   P.querySelector('button[data-o=hud]').textContent = T('gr.hud');
   const [W, H] = grabTam(o.cal), bits = grabBits(W, H, o.fps), mb = Math.round((bits + GRAB_AUDIO) * 60 / 8 / 1e6);
   const I = P.querySelectorAll('.grInfo');
   I[0].textContent = tipo ? `${tipo[2]} · ${W}×${H} · ${o.fps} fps · ${T('gr.porMin').replace('{n}', mb)} · ${T(grabApp() ? 'gr.dondeApp' : 'gr.dondeWeb').replace('{n}', '')}. ${T('gr.sinHud')}` + (AUD.master && !AUD.master.gain.value ? ' ' + T('gr.volCero') : '') : T('gr.noSoporta');
+  if (cel && o.modo === 'cel') I[0].textContent = T('gr.celInfo');
   // (en la app: si el grabador del celular puede grabar el sonido del juego ahora —ver grabSistema—)
   const s = grabSistema(); I[1].classList.toggle('oc', !s); if (s) { I[1].textContent = s.txt; I[1].classList.toggle('no', !s.ok); }
   P.querySelector('.grIr').disabled = !tipo;
@@ -606,6 +640,13 @@ function grabIniciar() { grabPausaPoner(); grabBotonHud(); }
 if (document.readyState === 'loading') addEventListener('DOMContentLoaded', grabIniciar); else setTimeout(grabIniciar, 0);
 
 Object.assign(IDI3, {
+  'gr.que': ['Qué graba', 'What to record', 'O que grava', 'Yang direkam', 'Apa dirakam', 'Ire-record', '録画するもの', 'บันทึกอะไร', 'Ne kaydedilir', 'ماذا يُسجَّل', 'Что записывать', 'Що записувати', 'Quoi enregistrer', 'Was aufnehmen'],
+  'gr.modoJuego': ['El juego (sin botones)', 'The game (no buttons)', 'O jogo (sem botões)', 'Game (tanpa tombol)', 'Permainan (tanpa butang)', 'Ang laro (walang button)', 'ゲーム (ボタンなし)', 'เกม (ไม่มีปุ่ม)', 'Oyun (düğmesiz)', 'اللعبة (بدون أزرار)', 'Игра (без кнопок)', 'Гра (без кнопок)', 'Le jeu (sans boutons)', 'Das Spiel (ohne Tasten)'],
+  'gr.modoCel': ['Pantalla del celular (con YouTube y la tele)', 'Phone screen (with YouTube and the TV)', 'Tela do celular (com YouTube e a TV)', 'Layar HP (dengan YouTube dan TV)', 'Skrin telefon (dengan YouTube dan TV)', 'Screen ng phone (may YouTube at TV)', 'スマホ画面 (YouTube とテレビも)', 'หน้าจอมือถือ (มี YouTube และทีวี)', 'Telefon ekranı (YouTube ve TV ile)', 'شاشة الهاتف (مع يوتيوب والتلفاز)', 'Экран телефона (с YouTube и ТВ)', 'Екран телефона (з YouTube і ТБ)', 'Écran du téléphone (avec YouTube et la télé)', 'Handybildschirm (mit YouTube und TV)'],
+  'gr.celInfo': ['La graba Android: todo lo que se ve (también YouTube, la tele y los botones) y todo lo que suena en el juego, sin sacarle cuadros. Antes de empezar te pregunta. Queda en la galería (Movies/JXMod).', 'Android records it: everything on screen (YouTube, the TV and the buttons too) and everything the game plays, without costing frames. It asks before starting. Saved to the gallery (Movies/JXMod).', 'O Android grava: tudo o que aparece (também YouTube, a TV e os botões) e tudo o que toca no jogo, sem perder quadros. Ele pergunta antes de começar. Fica na galeria (Movies/JXMod).', 'Android yang merekam: semua di layar (juga YouTube, TV, dan tombol) dan semua suara game, tanpa mengurangi frame. Ditanya dulu sebelum mulai. Tersimpan di galeri (Movies/JXMod).', 'Android merakamnya: semua di skrin (juga YouTube, TV dan butang) dan semua bunyi permainan, tanpa mengurangkan bingkai. Ditanya dahulu. Disimpan dalam galeri (Movies/JXMod).', 'Ang Android ang magre-record: lahat ng nasa screen (pati YouTube, TV at mga button) at lahat ng tunog ng laro, nang hindi bumabagal. Magtatanong muna. Nasa gallery (Movies/JXMod).', 'Android が録画します: 画面のすべて (YouTube、テレビ、ボタンも) とゲームの音すべてを、フレームを落とさずに。開始前に確認されます。ギャラリー (Movies/JXMod) に保存。', 'Android จะบันทึก: ทุกอย่างบนจอ (รวม YouTube ทีวี และปุ่ม) และเสียงทั้งหมดของเกม โดยไม่ลดเฟรม จะถามก่อนเริ่ม บันทึกในแกลเลอรี (Movies/JXMod)', 'Android kaydeder: ekrandaki her şey (YouTube, TV ve düğmeler dahil) ve oyunun tüm sesi, kare kaybı olmadan. Başlamadan önce sorar. Galeriye kaydedilir (Movies/JXMod).', 'يسجّلها أندرويد: كل ما على الشاشة (ويوتيوب والتلفاز والأزرار) وكل أصوات اللعبة، بلا فقدان إطارات. يسأل قبل البدء. تُحفظ في المعرض (Movies/JXMod).', 'Записывает Android: всё на экране (и YouTube, и ТВ, и кнопки) и весь звук игры, без потери кадров. Перед началом спросит. Сохраняется в галерею (Movies/JXMod).', 'Записує Android: усе на екрані (і YouTube, і ТБ, і кнопки) та весь звук гри, без втрати кадрів. Перед початком запитає. Зберігається в галерею (Movies/JXMod).', 'Android l’enregistre : tout l’écran (YouTube, la télé et les boutons aussi) et tout le son du jeu, sans perdre d’images. Il demande avant de commencer. Dans la galerie (Movies/JXMod).', 'Android nimmt auf: alles auf dem Bildschirm (auch YouTube, TV und Tasten) und den ganzen Spielton, ohne Bilder zu verlieren. Vorher wird gefragt. In der Galerie (Movies/JXMod).'],
+  'gr.celEmpieza': ['Grabando la pantalla, con YouTube y la tele', 'Recording the screen, with YouTube and the TV', 'Gravando a tela, com YouTube e a TV', 'Merekam layar, dengan YouTube dan TV', 'Merakam skrin, dengan YouTube dan TV', 'Nire-record ang screen, may YouTube at TV', '画面を録画中 (YouTube とテレビも)', 'กำลังบันทึกหน้าจอ มี YouTube และทีวี', 'Ekran kaydediliyor, YouTube ve TV ile', 'جارٍ تسجيل الشاشة مع يوتيوب والتلفاز', 'Запись экрана с YouTube и ТВ', 'Запис екрана з YouTube і ТБ', 'Enregistrement de l’écran, avec YouTube et la télé', 'Bildschirmaufnahme mit YouTube und TV'],
+  'gr.celSinAudio': ['Grabando la pantalla sin sonido (falta el permiso del micrófono: Android lo pide para grabar el sonido del juego)', 'Recording the screen without sound (the microphone permission is missing: Android needs it to record the game sound)', 'Gravando a tela sem som (falta a permissão do microfone: o Android pede para gravar o som do jogo)', 'Merekam layar tanpa suara (izin mikrofon belum ada: Android memerlukannya untuk merekam suara game)', 'Merakam skrin tanpa bunyi (tiada kebenaran mikrofon: Android memerlukannya untuk bunyi permainan)', 'Nire-record ang screen nang walang tunog (walang pahintulot sa mikropono: kailangan ito ng Android)', '音なしで録画中 (マイクの許可がありません: ゲーム音の録音に Android が必要とします)', 'บันทึกหน้าจอแบบไม่มีเสียง (ไม่มีสิทธิ์ไมค์: Android ต้องใช้เพื่อบันทึกเสียงเกม)', 'Ekran sessiz kaydediliyor (mikrofon izni yok: Android oyun sesi için ister)', 'تسجيل الشاشة بلا صوت (لا يوجد إذن الميكروفون: يحتاجه أندرويد لتسجيل صوت اللعبة)', 'Запись экрана без звука (нет разрешения на микрофон: оно нужно Android для звука игры)', 'Запис екрана без звуку (немає дозволу на мікрофон: він потрібен Android для звуку гри)', 'Enregistrement sans son (permission du micro manquante : Android la demande pour le son du jeu)', 'Aufnahme ohne Ton (Mikrofonerlaubnis fehlt: Android braucht sie für den Spielton)'],
+  'gr.celNo': ['No se grabó: Android no dio permiso', 'Not recorded: Android did not allow it', 'Não gravou: o Android não permitiu', 'Tidak direkam: Android tidak mengizinkan', 'Tidak dirakam: Android tidak membenarkan', 'Hindi na-record: hindi pinayagan ng Android', '録画されませんでした: Android が許可しませんでした', 'ไม่ได้บันทึก: Android ไม่อนุญาต', 'Kaydedilmedi: Android izin vermedi', 'لم يُسجَّل: لم يسمح أندرويد', 'Не записано: Android не разрешил', 'Не записано: Android не дозволив', 'Pas enregistré : Android ne l’a pas autorisé', 'Nicht aufgenommen: Android hat es nicht erlaubt'],
   'gr.grabar': ['Grabar', 'Record', 'Gravar', 'Rekam', 'Rakam', 'I-record', '録画', 'บันทึก', 'Kaydet', 'تسجيل', 'Запись', 'Запис', 'Enregistrer', 'Aufnehmen'],
   'gr.titulo': ['Grabar video', 'Record video', 'Gravar vídeo', 'Rekam video', 'Rakam video', 'Mag-record ng video', '動画を録画', 'บันทึกวิดีโอ', 'Video kaydet', 'تسجيل فيديو', 'Запись видео', 'Запис відео', 'Enregistrer une vidéo', 'Video aufnehmen'],
   'gr.terminar': ['Terminar', 'Stop', 'Parar', 'Berhenti', 'Berhenti', 'Ihinto', '停止', 'หยุด', 'Durdur', 'إيقاف', 'Стоп', 'Стоп', 'Arrêter', 'Stopp'],
