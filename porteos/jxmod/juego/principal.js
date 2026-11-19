@@ -96,6 +96,7 @@ function aplicarGfx(ahorro) {
   GFX.nombre = PERFILES[nom] ? nom : 'medio';
   GFX.auto = PREFS.gfx === 'auto';
   GFX.escala = (PREFS.gfx === 'auto' ? p.res : PREFS.res) / 100; GFX.escalaMax = GFX.escala; if (ahorro && esc0) GFX.escala = Math.min(esc0, GFX.escalaMax);
+  if (!ahorro) TIEMPO.patPrueba = null;   // (la prueba de bajar Patata de 45 %: con la resolución de vuelta entera, no vale)
   GFX.lejos = PREFS.gfx === 'auto' ? p.lejos : PREFS.lejos;
   GFX.texMax = p.texMax; GFX.lod = p.lod; GFX.lodPx = p.lodPx || 1; GFX.sub = p.sub; GFX.part = p.part; GFX.aniso = p.aniso;
   for (const k of ['luz', 'sombra', 'smTam', 'sDist', 'pcf', 'pcss', 'nluz', 'hdr', 'ao', 'bloom', 'rayos', 'fxaa', 'nubes', 'det', 'refl', 'espSh']) GFX[k] = p[k] || 0;
@@ -161,6 +162,30 @@ function gfxAhorroPaso(ms, metaF, piso) {
   if (A > 0 && !GFX.ahorroFijo && GFX.escala >= GFX.escalaMax - 1e-3 && TIEMPO.fps > metaF * 0.97 && TIEMPO.t - (TIEMPO.ahoT || 0) > 20) {
     if (++TIEMPO.ahoB >= 5) { TIEMPO.ahoB = 0; GFX.ahorro = A - 1; TIEMPO.ahoT = TIEMPO.ahoV = TIEMPO.t; aplicarGfx(true); }
   } else TIEMPO.ahoB = 0;
+}
+// el contador de cuadros. Tocándolo, el detallado (para los reportes del Discord: con una captura se sabe si frena el
+// procesador —el JavaScript del cuadro tarda casi lo que dura el cuadro— o la placa —tarda bastante menos—, en qué calidad,
+// resolución y modo lento anda y qué placa y aparato son)
+function fpsPlaca() {
+  if (R.placaNom !== undefined) return R.placaNom;
+  let g = ''; try { const d = R.gl.getExtension('WEBGL_debug_renderer_info'); g = String(d ? R.gl.getParameter(d.UNMASKED_RENDERER_WEBGL) : R.gl.getParameter(R.gl.RENDERER)); } catch (e) {}
+  // (sin el envoltorio de ANGLE: «ANGLE (ARM, Mali-G52, OpenGL ES 3.2)» → «Mali-G52»)
+  const m = /^ANGLE \(([^,]*),\s*([^,]*?)(?:\s*\(0x[0-9a-f]+\))?\s*(?:,|\))/i.exec(g); if (m) g = m[2];
+  if (/swiftshader/i.test(g)) g = 'SwiftShader';
+  return (R.placaNom = g.replace(/\s*Direct3D.*$|\s*OpenGL.*$/i, '').slice(0, 40));
+}
+function fpsTexto(ms) {
+  if (!PREFS.fps) return '';
+  const f = Math.round(TIEMPO.fps); if (!PREFS.fpsDet) return f + ' fps';
+  const d = typeof CELU !== 'undefined' && CELU.det, ap = d ? d.nom || d.soc || '' : '';
+  return f + ' fps · JS ' + (+ms || 0).toFixed(1) + ' ms · ' + (GFX.auto ? 'Auto ' : '') + GFX.nombre + ' ' + Math.round(GFX.escala * 100) + '% ' + R.cv.width + '×' + R.cv.height + (TIEMPO.lento ? ' · lento ' + TIEMPO.lento : '') +
+    '\n' + fpsPlaca() + (R.gl1 ? ' · WebGL 1' : '') + (ap ? ' · ' + ap : '') + (navigator.deviceMemory ? ' · ' + navigator.deviceMemory + ' GB' : '') + (navigator.hardwareConcurrency ? ' · ' + navigator.hardwareConcurrency + ' núcleos' : '');
+}
+function fpsIniciar() {
+  const e = $('fps'); if (!e || e.__fps) return; e.__fps = true;
+  if (Q.has('fpsdet')) PREFS.fpsDet = true;
+  e.classList.toggle('det', !!PREFS.fpsDet);
+  e.addEventListener('click', (ev) => { ev.stopPropagation(); PREFS.fpsDet = !PREFS.fpsDet; guardarPrefs(); e.classList.toggle('det', !!PREFS.fpsDet); e.textContent = fpsTexto(TIEMPO.msProm || 0); });
 }
 // Cambiar el tamaño del lienzo lo borra: hecho después de dibujar un cuadro, el navegador mostraba ese cuadro vacío (un
 // titileo negro, en el celular cada vez que la resolución dinámica subía o bajaba). Ahora se pide y se hace al empezar
@@ -444,11 +469,13 @@ function cuadro(ahora) {
     // procesador y siempre parecería un celu lento)
     if (JUEGO.estado === 'juego' && (!navigator.webdriver || window.__lentoPrueba)) {
       // (sólo si no llega a la meta de cuadros: si ya llega, no hace falta resignar nada)
-      const L = TIEMPO.lento || 0, meta = Math.min(GFX.fps || 60, 1000 / Math.max(4, TIEMPO.rafMs || 16.7) + 2);
-      if (L < 2 && TIEMPO.fps < meta * 0.95 && ms > (L ? 16 : 9)) { if (++TIEMPO.lentoS >= 2) { TIEMPO.lento = L + 1; TIEMPO.lentoS = 0; } } else TIEMPO.lentoS = 0;
-      if (L > 0 && ms < (L >= 2 ? 10 : 5.5)) { if (++TIEMPO.lentoB >= 4) { TIEMPO.lento = L - 1; TIEMPO.lentoB = 0; } } else TIEMPO.lentoB = 0;
+      // (con un procesador de núcleos chicos —TIEMPO.cpuChico— arranca en 1 y los umbrales son más bajos: ahí el resto del
+      // cuadro —el navegador pasándole los dibujos a la placa, el recolector— también es lento y 6 ms de JavaScript ya es mucho)
+      const L = TIEMPO.lento || 0, meta = Math.min(GFX.fps || 60, 1000 / Math.max(4, TIEMPO.rafMs || 16.7) + 2), ch = !!TIEMPO.cpuChico;
+      if (L < 2 && TIEMPO.fps < meta * 0.95 && ms > (L ? (ch ? 11 : 16) : (ch ? 6 : 9))) { if (++TIEMPO.lentoS >= 2) { TIEMPO.lento = L + 1; TIEMPO.lentoS = 0; } } else TIEMPO.lentoS = 0;
+      if (L > 0 && ms < (L >= 2 ? (ch ? 6 : 10) : (ch ? 3 : 5.5))) { if (++TIEMPO.lentoB >= 4) { TIEMPO.lento = L - 1; TIEMPO.lentoB = 0; } } else TIEMPO.lentoB = 0;
     }
-    $('fps').textContent = PREFS.fps ? `${Math.round(TIEMPO.fps)} fps` : '';
+    $('fps').textContent = fpsTexto(ms);
     // resolución dinámica en todas las calidades (también las elegidas a mano), con la meta de la calidad (120 o 60): si no llega baja la
     // resolución interna antes que los efectos, y la vuelve a subir cuando sobra; en automático, además, si con la
     // resolución mínima igual no alcanza baja una calidad entera
@@ -459,7 +486,17 @@ function cuadro(ahora) {
       // (la meta: la de la calidad, sin pasar lo que da la pantalla —un celu de 60 Hz no puede dar 120—)
       const metaF = Math.min(GFX.fps || 60, 1000 / Math.max(4, TIEMPO.rafMs || 16.7) + 2);
       TIEMPO.sobra = TIEMPO.fps > metaF * 0.97 && ms < 550 / metaF ? (TIEMPO.sobra || 0) + 1 : 0; const quieto = TIEMPO.t - (TIEMPO.resT || -99) > 3;
-      if (TIEMPO.fps < metaF * 0.92 && GFX.escala > piso) { GFX.escala = Math.max(piso, GFX.escala - 0.08); redimensionar(); TIEMPO.bajos = 0; TIEMPO.resT = TIEMPO.t; TIEMPO.sobra = 0; }
+      // (Patata ya arranca en 45 %, debajo del piso de siempre. Si igual no llega y no es el procesador —el JavaScript del
+      // cuadro tarda menos de la mitad del cuadro: frena la placa, como una PowerVR GE8300 o una Mali-T720—, puede bajar
+      // hasta 34 %, de a un paso; 3 s después se mira si sirvió —5 % más de cuadros— y si no, vuelve y no lo prueba más en la
+      // sesión: si lo que frena es otra cosa —el navegador pasándole los dibujos a la placa— sólo quedaría borroso)
+      let pisoR = piso; const pat = GFX.auto && GFX.nombre === 'patata', PP = TIEMPO.patPrueba;
+      if (pat && PP && TIEMPO.t - PP.t > 3) { if (TIEMPO.fps < PP.fps * 1.05) { GFX.escala = PP.desde; redimensionar(); TIEMPO.patInutil = true; TIEMPO.resT = TIEMPO.t; } TIEMPO.patPrueba = null; }
+      else if (pat && !PP && !TIEMPO.patInutil && ms < 500 / Math.max(1, TIEMPO.fps)) pisoR = 0.34;
+      if (TIEMPO.fps < metaF * 0.92 && GFX.escala > pisoR && !(pat && TIEMPO.patPrueba)) {
+        if (pat && GFX.escala <= piso) TIEMPO.patPrueba = { desde: GFX.escala, fps: TIEMPO.fps, t: TIEMPO.t };
+        GFX.escala = Math.max(pisoR, GFX.escala - 0.08); redimensionar(); TIEMPO.bajos = 0; TIEMPO.resT = TIEMPO.t; TIEMPO.sobra = 0;
+      }
       else if (TIEMPO.sobra >= 2 && quieto && GFX.escala < GFX.escalaMax) { GFX.escala = Math.min(GFX.escalaMax, GFX.escala + 0.04); redimensionar(); TIEMPO.resT = TIEMPO.t; TIEMPO.sobra = 0; }
       if (!GFX.auto && GFX.luz >= 2) gfxAhorroPaso(ms, metaF, piso);
     }
@@ -655,11 +692,13 @@ async function iniciar() {
     // (entre paso y paso, un respiro para que la barra se dibuje)
     const respiro = () => new Promise((ok) => setTimeout(ok, 0));
     paso('gráficos', 0.78, 'graficos'); await respiro(); try { await celuDetectar(); } catch (e) {} if (typeof gfxAutoUnaVez === 'function') gfxAutoUnaVez(); GFX.base = perfilInicial();
+    // (procesador de núcleos chicos —celulares.js—: lo que no se nota, menos seguido desde el primer cuadro: TIEMPO.lento)
+    TIEMPO.cpuChico = typeof celuCpuChico === 'function' && celuCpuChico(); if (TIEMPO.cpuChico && (!navigator.webdriver || window.__lentoPrueba)) TIEMPO.lento = 1;
     if (CIERRE.n > 0) { const i = PERF_ORDEN.indexOf(GFX.base); GFX.base = PERF_ORDEN[Math.max(0, (i < 0 ? 2 : i) - CIERRE.n)]; if (CIERRE.nuevo && PREFS.gfx === 'auto') setTimeout(() => aviso(T('gfx.cierre'), 5), 2500); }
     aplicarGfx();
     paso('efectos', 0.84, 'graficos'); await respiro(); efectosIniciar(); marcasIniciar();
     CG.log('graficos', Math.round(GFX.escala * 100) + '% · ' + GFX.lejos + ' m');
-    paso('interfaz', 0.9, 'menus'); await respiro(); if (typeof cuentaIniciar === 'function') cuentaIniciar(); if (typeof gorrosNuevos === 'function') gorrosNuevos(); uiIniciar(); entradaIniciar();
+    paso('interfaz', 0.9, 'menus'); await respiro(); if (typeof cuentaIniciar === 'function') cuentaIniciar(); if (typeof gorrosNuevos === 'function') gorrosNuevos(); uiIniciar(); entradaIniciar(); fpsIniciar();
     paso('menú', 0.95, 'menus'); await respiro(); menuIniciar(); pantallaIniciar(); armasHL2();
     paso('primer cuadro', 0.98, 'menus');
     if (Q.get('mapa')) empezarPartida(Q.get('mapa'));

@@ -220,7 +220,7 @@ def main():
         gensrc = os.path.join(tmp, 'gensrc', *PAQUETE.split('.'))
         os.makedirs(gensrc)
         with open(os.path.join(gensrc, 'Llave.java'), 'w', encoding='utf-8') as f:
-            f.write(cifrar_apk.generar_llave_java(PAQUETE, secreto, cif_sha))
+            f.write(cifrar_apk.generar_llave_java(PAQUETE, secreto, cif_sha, cifrar_apk.secreto_ota(cks, cclave)))
         srcs = srcs + [os.path.join(tmp, 'gensrc')]
         # sólo para las pruebas (JXMOD_CIF_DUMP=archivo): guardar la llave para poder descifrar y verificar el APK sin un
         # teléfono. En un armado normal esta variable no está y el secreto nunca sale del .dex.
@@ -275,6 +275,10 @@ def main():
                '--min-sdk-version', MIN_SDK, '--target-sdk-version', TARGET_SDK, '--version-code', a.version_code,
                '--version-name', a.version_name]
         activos = activos_con_mapas(tmp, a.mapas, a.activos)
+        # (las huellas de lo que trae el APK, en claro: la app baja sólo lo que una actualización cambió —Ota.java—)
+        if activos and os.path.isdir(os.path.join(activos, 'www')):
+            import json as _json
+            with open(os.path.join(activos, 'www', cifrar_apk.BASE_OTA), 'w', encoding='utf-8') as f: _json.dump(cifrar_apk.huellas_www(os.path.join(activos, 'www')), f)
         if cifrar and activos:
             hechos = cifrar_apk.cifrar_www(os.path.join(activos, 'www'), cif_key)
             if hechos: print('APK cifrado:', ', '.join('%s %.1f MB' % (n, s / 1e6) for n, s in hechos))

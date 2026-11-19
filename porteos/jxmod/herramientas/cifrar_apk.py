@@ -72,12 +72,60 @@ def cifrar_www(dir_www, key):
     return hechos
 
 
+# ---- las actualizaciones por partes (herramientas/ota.py, Ota.java) ----
+# Las actualizaciones bajan sólo los archivos que cambiaron (index.html con el juego, pk.bin, los fondos) y la app los sirve
+# antes que los suyos. Van cifrados con otra llave, la de las actualizaciones, que tiene que ser la MISMA en todos los APK
+# (el de hoy tiene que poder abrir lo que se publique mañana): sale de la firma + un secreto FIJO que vive fuera del repo,
+# sale de la firma (su almacén y su clave): dura lo mismo que ella. Si se perdiera la firma, igual habría que reinstalar. Cada archivo lleva además su HMAC-SHA256: la app
+# no instala nada que no venga de quien tiene el secreto (nadie puede colar una actualización trucha).
+ETIQUETA_OTA = b'JXMOD-ANDROID-OTA-v1'
+ETIQUETA_MAC = b'JXMOD-ANDROID-OTA-MAC-v1'
+BASE_OTA = 'ota_base.json'   # en assets/www: las huellas de lo que trae el APK, para bajar sólo lo que cambió
+
+
+def secreto_ota(ks=None, clave=None):
+    """El secreto fijo de las actualizaciones (32 bytes): sale del almacén de la firma y de su clave, que ya se guardan
+    (fuera del repo, y como secretos del entorno: JXMOD_FIRMA_JKS_B64 y JXMOD_FIRMA_CLAVE), así dura lo mismo que la firma
+    sin otro archivo que cuidar. `clave` es lo que da armar_apk.firma(): 'env:VARIABLE' o 'file:ruta'. Nunca se muestra.
+    (JXMOD_OTA_SECRETO, en hexa, lo reemplaza: para las pruebas)"""
+    h = os.environ.get('JXMOD_OTA_SECRETO', '').strip()
+    if h: return bytes.fromhex(h)
+    if not ks or not clave: raise SystemExit('secreto de las actualizaciones: falta la firma')
+    pw = os.environ.get(clave[4:], '') if clave.startswith('env:') else open(clave[5:], encoding='utf-8').read().strip()
+    with open(ks, 'rb') as f: alm = f.read()
+    return hashlib.sha256(b'JXMOD-OTA-SECRETO-v1' + pw.encode('utf-8') + hashlib.sha256(alm).digest()).digest()
+
+
+def clave_ota(cert_sha, s):
+    return hashlib.sha256(ETIQUETA_OTA + cert_sha + s).digest()
+
+
+def clave_mac(cert_sha, s):
+    return hashlib.sha256(ETIQUETA_MAC + cert_sha + s).digest()
+
+
+def archivos_www(dir_www):
+    """Los archivos del juego que trae el APK y que una actualización puede cambiar (rutas relativas, ordenadas)."""
+    L = [n for n in CIFRAR if os.path.isfile(os.path.join(dir_www, n))]
+    fd = os.path.join(dir_www, 'fondos')
+    if os.path.isdir(fd): L += ['fondos/' + f for f in sorted(os.listdir(fd)) if f.endswith('.mp4')]
+    return L
+
+
+def huellas_www(dir_www):
+    """SHA-256 de cada archivo, en claro (antes de cifrar): lo que se compara para saber qué cambió."""
+    out = {}
+    for n in archivos_www(dir_www):
+        with open(os.path.join(dir_www, n), 'rb') as f: out[n] = hashlib.sha256(f.read()).hexdigest()
+    return out
+
+
 # ---- el secreto, partido y enmascarado en Llave.java (que se compila al .dex) ----
 def _java_bytes(b):
     return '{' + ','.join(str(x if x < 128 else x - 256) for x in b) + '}'
 
 
-def generar_llave_java(paquete, secreto, cert_sha):
+def generar_llave_java(paquete, secreto, cert_sha, secreto_ota=None):
     """El texto de Llave.java: rearma el secreto de a pedazos enmascarados, y guarda la huella de firma esperada (para
     avisar «copia no oficial» con cara linda en vez de una pantalla en blanco). No es inviolable: es para que no salte a
     la vista ni con `strings`."""
@@ -89,6 +137,11 @@ def generar_llave_java(paquete, secreto, cert_sha):
     for i in range(4):
         cuerpo.append('    private static final byte[] P%d = %s;' % (i, _java_bytes(enmasc[i])))
         cuerpo.append('    private static final byte[] M%d = %s;' % (i, _java_bytes(mascaras[i])))
+    so = secreto_ota if secreto_ota is not None else bytes(32)
+    mo = [_s.token_bytes(8) for _ in range(4)]
+    for i in range(4):
+        cuerpo.append('    private static final byte[] Q%d = %s;' % (i, _java_bytes(bytes(a ^ b for a, b in zip(so[i * 8:i * 8 + 8], mo[i])))))
+        cuerpo.append('    private static final byte[] N%d = %s;' % (i, _java_bytes(mo[i])))
     arma = '\n'.join(cuerpo)
     return '''package %s;
 // Generado por herramientas/cifrar_apk.py en cada armado — NO editar a mano (cambia en cada build).
@@ -101,6 +154,13 @@ final class Llave {
     static byte[] secreto() {
         byte[] s = new byte[32];
         byte[][] p = {P0, P1, P2, P3}, m = {M0, M1, M2, M3};
+        for (int i = 0; i < 4; i++) for (int j = 0; j < 8; j++) s[i * 8 + j] = (byte) (p[i][j] ^ m[i][j]);
+        return s;
+    }
+    // el secreto FIJO de las actualizaciones por partes (el mismo en todos los APK: Ota.java)
+    static byte[] secretoOta() {
+        byte[] s = new byte[32];
+        byte[][] p = {Q0, Q1, Q2, Q3}, m = {N0, N1, N2, N3};
         for (int i = 0; i < 4; i++) for (int j = 0; j < 8; j++) s[i * 8 + j] = (byte) (p[i][j] ^ m[i][j]);
         return s;
     }

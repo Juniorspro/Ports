@@ -43,7 +43,11 @@ const cicMia = () => CIC.ults.get('yo') || null;
 
 // ---------------- cada cuadro ----------------
 function cicPaso(dt) {
-  const hay = cicHay(), b = cicBoton();
+  const hay = cicHay();
+  // (sin el mod y sin nada suyo andando —casi siempre—: la página ya quedó como tiene que estar, no se vuelve a escribir en
+  // cada cuadro; en un celu con procesador chico cada escritura al botón y a las capas, aunque no cambie, cuesta)
+  if (!hay && CIC.calmo && !CIC.ults.size && !CIC.vic && !CIC.rayos.length && !CIC.apretado && !CIC.son && !CIC.camOn) { CIC.espera = Math.max(0, CIC.espera - dt); CIC.tLaser -= dt; return; }
+  const b = cicBoton();
   b.style.display = hay ? '' : 'none';
   if (hay && !CIC.ayudo) { CIC.ayudo = true; aviso(T('cic.ayuda'), 3.5); }
   if (!hay) { if (cicMia()) cicTerminar(cicMia()); CIC.apretado = false; CIC.ayudo = false; }
@@ -71,6 +75,7 @@ function cicPaso(dt) {
   if (!CIC.vic) CIC.ciego = Math.max(0, CIC.ciego - dt * 0.9);
   cicCapas();
   document.body.classList.toggle('cicCine', CIC.camOn === 'cine' || !!CIC.vic);
+  CIC.calmo = !hay && !CIC.ults.size && !CIC.vic && !CIC.rayos.length && !CIC.rojo && !CIC.ciego && !CIC.apretado && !CIC.son;
 }
 // las capas de color de la pantalla: el tinte rojo de todo y el rojo del que recibe el rayo
 function cicCapas() {

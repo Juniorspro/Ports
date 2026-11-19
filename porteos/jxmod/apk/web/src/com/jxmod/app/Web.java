@@ -117,6 +117,8 @@ public class Web extends Activity {
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         yo = this;
+        // (una actualización por partes más vieja que este APK ya no sirve: se borra —Ota.java—)
+        try { Ota.limpiarSiViejo(this, VERSION_PROPIA); } catch (Exception e) { /* nada */ }
         // (todavía no pasó por onResume: lo guardado es cómo terminó la vez anterior)
         synchronized (Web.class) {
             try {
@@ -186,7 +188,7 @@ public class Web extends Activity {
 
     private void buscarActualizacion(final boolean avisarSiNoHay) {
         new Thread(() -> {
-            int nueva = 0; String ver = "", notas = "";
+            int nueva = 0; String ver = "", notas = ""; int apkMin = Integer.MAX_VALUE;
             HttpURLConnection c = null;
             try {
                 c = (HttpURLConnection) new URL(URL_VERSION).openConnection();
@@ -201,13 +203,21 @@ public class Web extends Activity {
                     ver = j.optString("version", "");
                     String L = java.util.Locale.getDefault().getLanguage();
                     notas = j.optString("notas_" + L, j.optString("notas_es", ""));
+                    org.json.JSONObject o = j.optJSONObject("ota"); if (o != null) apkMin = o.optInt("apkMin", Integer.MAX_VALUE);
                 }
             } catch (Exception e) { /* sin internet o json raro: no molestar */ }
             finally { if (c != null) try { c.disconnect(); } catch (Exception x) { /* nada */ } }
-            final boolean hay = nueva > VERSION_PROPIA; final String fv = ver, fn = notas;
+            final boolean hay = nueva > Math.max(VERSION_PROPIA, Ota.codigoInstalado(this)); final String fv = ver, fn = notas;
+            // (por partes: si este APK alcanza —lo que cambió es sólo el juego, no lo que está en Java— y ota.json es de esa versión)
+            Ota.Plan plan = null;
+            if (hay && VERSION_PROPIA >= apkMin) {
+                try { org.json.JSONObject man = Ota.manifiesto(); if (man.optInt("codigo") >= nueva) plan = Ota.planear(this, man); } catch (Exception e) { plan = null; }
+            }
+            final Ota.Plan fp = plan;
             runOnUiThread(() -> {
                 if (isFinishing()) return;
-                if (hay) dialogoActualizar(fv, fn);
+                if (hay && fp != null) dialogoOta(fv, fn, fp);
+                else if (hay) dialogoActualizar(fv, fn);
                 else if (avisarSiNoHay) Toast.makeText(this, "Ya tenés la última versión", Toast.LENGTH_SHORT).show();
             });
         }).start();
@@ -225,6 +235,56 @@ public class Web extends Activity {
             })
             .setNegativeButton(en ? "Later" : "Después", null)
             .show();
+    }
+
+    // ---- la actualización por partes: el diálogo y el modo «actualizando» (Ota.java) ----
+    private static String mb(long b) { return String.format(java.util.Locale.ROOT, "%.1f MB", b / 1048576.0).replace('.', ','); }
+    private void dialogoOta(String ver, String notas, final Ota.Plan p) {
+        boolean en = "en".equals(java.util.Locale.getDefault().getLanguage());
+        String msg = (ver != null && !ver.isEmpty() ? (en ? "Version " : "Versión ") + ver : "") + (en ? " · download: " : " · descarga: ") + mb(p.bytes)
+                   + (notas != null && !notas.isEmpty() ? "\n\n" + notas : "");
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(en ? "Update available" : "Hay una actualización")
+            .setMessage(msg.trim())
+            .setPositiveButton(en ? "Update now" : "Actualizar ahora", (d, w) -> otaInstalar(p))
+            .setNegativeButton(en ? "Later" : "Después", null)
+            .show();
+    }
+    private android.widget.LinearLayout otaPanel; private android.widget.ProgressBar otaBarra; private android.widget.TextView otaTxt;
+    private void otaInstalar(final Ota.Plan p) {
+        final boolean en = "en".equals(java.util.Locale.getDefault().getLanguage());
+        if (otaPanel == null) {
+            otaPanel = new android.widget.LinearLayout(this); otaPanel.setOrientation(android.widget.LinearLayout.VERTICAL); otaPanel.setGravity(android.view.Gravity.CENTER);
+            otaPanel.setBackgroundColor(0xF20B0C10); otaPanel.setClickable(true); otaPanel.setFocusable(true);   // (tapa el juego y no deja tocar nada mientras tanto)
+            int pad = (int) (32 * getResources().getDisplayMetrics().density); otaPanel.setPadding(pad, pad, pad, pad);
+            android.widget.TextView t = new android.widget.TextView(this); t.setTextColor(0xFFFFFFFF); t.setTextSize(22); t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            t.setText((en ? "Updating JXMod " : "Actualizando JXMod ") + p.version); t.setGravity(android.view.Gravity.CENTER);
+            otaBarra = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); otaBarra.setMax(1000);
+            otaTxt = new android.widget.TextView(this); otaTxt.setTextColor(0xFFB8BCC6); otaTxt.setTextSize(14); otaTxt.setGravity(android.view.Gravity.CENTER);
+            otaPanel.addView(t); otaPanel.addView(otaBarra, new android.widget.LinearLayout.LayoutParams((int) (360 * getResources().getDisplayMetrics().density), -2)); otaPanel.addView(otaTxt);
+        }
+        if (otaPanel.getParent() == null) raiz.addView(otaPanel, new FrameLayout.LayoutParams(-1, -1));
+        otaPanel.bringToFront(); otaBarra.setProgress(0); otaTxt.setText("0 / " + mb(p.bytes));
+        if (web != null) { web.onPause(); web.evaluateJavascript(CALLAR, null); }   // (el juego queda quieto y callado mientras se actualiza)
+        new Thread(() -> {
+            String err = null;
+            try { Ota.instalar(this, p, (h, t) -> runOnUiThread(() -> { otaBarra.setProgress(t > 0 ? (int) (1000 * h / t) : 1000); otaTxt.setText(mb(h) + " / " + mb(t)); })); }
+            catch (Exception e) { err = e.getMessage() == null ? e.toString() : e.getMessage(); }
+            final String fe = err;
+            runOnUiThread(() -> {
+                if (fe == null) {
+                    otaBarra.setProgress(1000); otaTxt.setText(en ? "Done! Opening the new version…" : "¡Listo! Abriendo la versión nueva…");
+                    // (el juego vuelve a abrir con lo nuevo: sin instalar nada ni bajar el juego entero)
+                    raiz.postDelayed(() -> { if (web != null) { web.onResume(); web.evaluateJavascript(SEGUIR, null); web.clearCache(false); web.loadUrl(INICIO); } raiz.postDelayed(() -> raiz.removeView(otaPanel), 1500); }, 700);
+                } else {
+                    raiz.removeView(otaPanel); if (web != null) { web.onResume(); web.evaluateJavascript(SEGUIR, null); }
+                    new android.app.AlertDialog.Builder(this).setTitle(en ? "Update failed" : "No se pudo actualizar").setMessage(fe)
+                        .setPositiveButton(en ? "Retry" : "Reintentar", (d, w) -> otaInstalar(p))
+                        .setNeutralButton(en ? "Download APK" : "Bajar el APK", (d, w) -> { try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(URL_APK))); } catch (Exception x) { aviso("No se pudo abrir"); } })
+                        .setNegativeButton(en ? "Later" : "Después", null).show();
+                }
+            });
+        }, "JXOta").start();
     }
 
     private void crearWeb(String url) {
@@ -328,7 +388,9 @@ public class Web extends Activity {
         if (!p.contains("..")) {
             try {
                 // los activos cifrados (index.html, pk.bin) se descifran al vuelo; los demás pasan igual (Cifrado.abrir)
-                InputStream in = Cifrado.abrir(getAssets().open("www" + p), Cifrado.clave(this));
+                // (lo que dejó una actualización por partes va antes que lo del APK —Ota.java—, con su llave)
+                java.io.File fo = Ota.archivo(this, p.substring(1));
+                InputStream in = fo != null ? Cifrado.abrir(new java.io.FileInputStream(fo), Ota.clave(this)) : Cifrado.abrir(getAssets().open("www" + p), Cifrado.clave(this));
                 String m = tipo(p);
                 return new WebResourceResponse(m, m.startsWith("text/") || m.endsWith("javascript") || m.endsWith("json") ? "utf-8" : null, 200, "OK", cab, in);
             } catch (IOException e) { /* no está en la app: 404 y el juego lo busca en internet */ }
@@ -591,7 +653,7 @@ public class Web extends Activity {
         /** Buscar una versión nueva del APK: si la hay, un diálogo con "Descargar"; si no, un aviso. Lo llama el menú del juego. */
         @JavascriptInterface public void buscarActualizacion() { Web.this.buscarActualizacion(true); }
         /** La versión propia (número) para que el juego sepa si mostrar su botón "Actualizar". */
-        @JavascriptInterface public int versionCodigo() { return VERSION_PROPIA; }
+        @JavascriptInterface public int versionCodigo() { return Math.max(VERSION_PROPIA, Ota.codigoInstalado(Web.this)); }
         // ---- la grabación «pantalla del celular» (con YouTube, la tele y los botones): GrabaPantalla.java ----
         /** 1: se puede (Android 10 o más nuevo: el sonido propio sólo se puede grabar desde el 10). */
         @JavascriptInterface public int pantPuede() { return Build.VERSION.SDK_INT >= 29 ? 1 : 0; }
@@ -1003,6 +1065,8 @@ public class Web extends Activity {
         // de 24 bytes —la marca y el iv—, como lo deja Cifrado.abrir)
         int cab = p.startsWith("www/fondos/") ? 24 : 0;
         if (!cif) try (android.content.res.AssetFileDescriptor fd = getAssets().openFd(p)) { largo = fd.getLength() - cab; } catch (IOException e) { /* comprimido en el APK: sin largo */ }
+        java.io.File fo = Ota.archivo(getApplicationContext(), ruta);   // (lo de una actualización por partes, si hay)
+        if (fo != null) try { return new Lan.Archivo(Cifrado.abrir(new java.io.FileInputStream(fo), Ota.clave(getApplicationContext())), fo.length() - 24); } catch (IOException e) { return null; }
         try { return new Lan.Archivo(Cifrado.abrir(getAssets().open(p), Cifrado.clave(getApplicationContext())), largo); } catch (IOException e) { return null; }
     };
     private static String ipsJson() {

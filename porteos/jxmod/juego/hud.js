@@ -63,7 +63,10 @@ const HUD = { k: 0, w: 0, h: 0, arma: '', veh: null, usar: null, tac: null, n: '
 // cuáles botones hay y se ven (no cuántos: si aparece uno y se va otro a la vez, la cuenta no cambia y el nuevo quedaba
 // sin ubicar, en la esquina, encima de pausa)
 // (y los escondidos con «oc»: las filas de arriba a la izquierda van sin huecos)
-const hudFirma = () => HUD_TACTIL.map((r) => { const e = document.querySelector(r[0]); return e && e.style.display !== 'none' && !e.classList.contains('oc') ? 1 : 0; }).join('');
+// (cada botón se busca una vez y se guarda mientras siga en la página: hudFirma va cada 3 cuadros y eran ~40 búsquedas)
+const HUD_EL = new Map();
+const hudEl = (q) => { let e = HUD_EL.get(q); if (!e || !e.isConnected) { e = document.querySelector(q); if (e) HUD_EL.set(q, e); else HUD_EL.delete(q); } return e; };
+const hudFirma = () => { let f = ''; for (const r of HUD_TACTIL) { const e = hudEl(r[0]); f += e && e.style.display !== 'none' && !e.classList.contains('oc') ? '1' : '0'; } return f; };
 function hudIniciar() {
   const t = $('tactil'); if (!t) return;
   // botones que agrega esta versión: borrar lo que apuntás y los del auto

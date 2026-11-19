@@ -4912,3 +4912,54 @@ de grabar: «Cannot access 'PREFS' before initialization» y el juego no arranca
 porque ahí la página todavía está cargando y espera a DOMContentLoaded). Ahora, con la página cargada, va en un
 `setTimeout(…, 0)`, después del armado. Con eso `codigo_web` 9/9, y en la web con código el juego dice 3.6, arranca con
 el clásico y tiene «● Grabar» en la pausa y el ● REC.
+
+## JXMod 3.9.3 (sin publicar): actualizaciones por partes y los celulares flojos del Discord
+
+- **Actualizaciones por partes** (el dueño: «que las actualizaciones sean megas, no todo el juego, y se instalen
+  automáticamente: tocás descargar y el juego se pone en modo actualizando, sin instalar nada encima ni bajar el juego de
+  nuevo»):
+  - Qué baja: los archivos del juego que van adentro del APK (`index.html` con el código, `pk.bin` con modelos y texturas,
+    `fondos/*.mp4`) se publican en `web/ota/` con `herramientas/ota.py`. La app compara la huella SHA-256 de cada uno con la
+    de lo que ya tiene (`assets/www/ota_base.json`, que arma `armar_apk.py`, o lo de una actualización anterior) y baja sólo
+    lo distinto. Una versión que cambia sólo el código: `index.html`, 4,6 MB (el APK entero son 32 MB); si además cambia el
+    paquete del juego, `pk.bin` (21,9 MB).
+  - Cómo se instala: en el aviso de versión nueva, «Actualizar ahora (x MB)». La app pasa a una pantalla propia
+    «Actualizando JXMod x» con la barra y los MB, sin salir ni instalar nada; al terminar recarga el juego ya nuevo
+    (`Ota.java`, `otaInstalar` en `Web.java`). Seguro ante un corte: baja todo a `files/ota/nuevo` y recién después lo pasa;
+    mientras pasa, la app sirve lo del APK (viejo pero entero). Si falla: Reintentar / Bajar el APK / Después.
+  - Seguridad: cada archivo va cifrado (AES-256-CTR) y con su HMAC-SHA256. Las llaves salen de la firma del APK y de un
+    secreto derivado del keystore oficial (`cifrar_apk.secreto_ota`; en `Llave.java`, generado al armar, partido y
+    enmascarado): sin el keystore nadie puede publicar una actualización que la app acepte, y la app baja sólo de la
+    dirección fija del repo.
+  - Lo que no se actualiza así: lo que está en Java (la app misma: `Web.java`, la grabación de pantalla). `ota.json` dice el
+    APK mínimo (`apkMin`); si el instalado es más viejo, sale el aviso de siempre para bajar el APK. Al instalar un APK más
+    nuevo que la actualización, ésta se borra.
+  - Hace falta instalar una vez el APK 3.9.3 (el primero que sabe hacerlo); desde ahí las versiones van por partes.
+  - Publicar: la web en claro (PK_BIN=1) → `python3 -I herramientas/ota.py WWW web/ota --codigo N --version X --apk-min M`
+    → en `version.json`, `"ota": {"apkMin": M}`.
+  - Prueba: `apk/pruebas/unido/ota.sh` 3/3 (Python cifra y firma, Java comprueba el HMAC, descifra igual y detecta un byte
+    tocado; con el secreto de prueba y con el derivado de un keystore) y una actualización hecha con otro secreto no pasa.
+- **Los celulares del Discord** (Konka Indus N15 —Unisoc T310, 3 GB—, Galaxy Tab A7 Lite —Helio P22T—, Galaxy A03 Core
+  —SC9863A, 2 GB, «máximo 45 fps»—, tablets Fire de Amazon, S10e):
+  - Medido en Patata con el procesador 10 veces más lento (`perfil_cuadro.mjs`, VACIO=1 FRENO=10): 9-11 ms de JavaScript
+    por cuadro en Desert con 6 personajes, 32 dibujos, 50 000 triángulos y 0,28 Mpx. La interfaz HTML no pesa: 0,03
+    recálculos de estilo por cuadro (`pruebas/perfil_dom.mjs`, nuevo: estilos, acomodos y qué elementos se tocan por
+    cuadro). Lo más caro son los huesos de los personajes (`modelo.js`) y armar los dibujos.
+  - Base de celulares: no estaban la Tab A7 Lite (SM-T220/T225/T227U), el Konka ni las Fire (KFxxWI): se los tomaba sólo
+    por la placa. Ahora van con su chip y su memoria (chips nuevos: T310, Helio P22T, MT8163, MT8168, MT8183, MT8186,
+    MT8127). A03 Core, Tab A7 Lite, Konka, Fire 7 y Fire HD 8 → Patata; Fire HD 10 (2021) → Bajo; S10e → Alto.
+  - Procesador chico (`celuCpuChico`: chips de sólo Cortex-A53/A55; sin el chip, una placa con puntaje < 20, o 4 núcleos o
+    menos, o 2 GB o menos): el juego arranca con el modo lento (lo de lejos, menos seguido) desde el primer cuadro en vez
+    de esperar a trabarse 2 s, y con umbrales más bajos (nivel 1 desde 6 ms de JavaScript por cuadro, nivel 2 desde 11).
+  - Patata cuando frena la placa: puede bajar de 45 % hasta 34 % de a un paso, sólo si el JavaScript tarda menos de la
+    mitad del cuadro; 3 s después mira si sirvió (5 % más de cuadros) y si no, vuelve y no lo prueba más en la sesión. En
+    esta compu (donde la placa la hace el procesador): 45 % (786 × 354) 38,8 fps → 34 % (594 × 267) 46,4 fps, +20 %.
+  - Contador de FPS detallado: tocando el contador, dos renglones: «52 fps · JS 0.4 ms · Auto patata 34% 594×267 · lento 1»
+    y la placa, el aparato, los GB y los núcleos. Con una captura desde cada celular se sabe si frena el procesador (el
+    JavaScript tarda casi lo que dura un cuadro: 16,7 ms a 60) o la placa (tarda mucho menos). `?fpsdet` lo prende.
+  - Menos trabajo por cuadro: Cíclope sin el mod ya no escribe en la página; los botones de la HUD se buscan una vez.
+  - Pruebas: `pruebas/patata_res.mjs` 9/9 (los 5 aparatos, la bajada de Patata y su vuelta, el contador); `celulares.mjs`
+    9/9; `discord_39x.mjs` 6/6 (necesita un `prueba_video.mp4` de 640 de ancho al lado del HTML); `gfx_auto.mjs` 8/10 (las
+    2 fallas —el menú a 30 cuadros y las partículas— salen igual con la 3.9.2 publicada); `codigo_tragado.mjs` bien.
+  - Lo que falta: medir en los celulares de verdad. Con capturas del contador detallado desde esos celulares se ve qué
+    frena en cada uno.
