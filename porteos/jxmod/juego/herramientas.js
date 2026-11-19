@@ -89,6 +89,7 @@ function herramientasPaso(dt) {
   else { const r = raycast(CAM.pos, CAM.fwd, 4.5, null); if (r && r.body && r.body.ent) txt = 'E: ' + T('ent.' + r.body.ent.t); else if (r && r.body && r.body.obj) { const o = r.body.obj; if (o.veh) txt = 'E: subir'; else if (o.nombre === 'Arcade') txt = 'E: ' + T('maq.jugar') + (o.maq ? ' · ' + o.maq.n : ''); else if (o.art) txt = artPista(o); else if (o.nk) txt = (o.nkArm ? T('nk.armada').replace('{0}', Math.max(0, Math.ceil(o.nkArm.t))) : 'E: ' + T('nk.armar')) + ' · ' + nukeFicha(o.nk); else if (o.tipo === 'arma') txt = 'E: agarrar ' + o.nombre; else if (o.logica && (o.logica.tipo === 'Button' || o.logica.tipo === 'PasswordPanel')) txt = 'E: usar'; } }
   if (!txt && !enTool) txt = nocheApunta(); // (los botones de la oficina de la pizzería)
   if (!txt && !enTool && typeof puertaApunta === 'function') txt = puertaApunta();   // (una puerta del mapa)
+  if (typeof EV3 !== 'undefined' && EV3.fase) txt = ev3ApuntaTxt() || '';   // (el evento de los 300: sus papeles, botones y cajas)
   if (herramientasPaso.txt !== txt) { herramientasPaso.txt = txt; $('usarTxt').textContent = txt; }
   const arma = ARM.lista[ARM.i];
   if (PREFS.contorno !== false && !UI.abierto && (arma === 'PhysicsGun' || arma === 'ToolBaton' || arma === 'GravityGun')) {

@@ -622,6 +622,7 @@ function dibujarPersonas() {
   const F = R.fr, cp = R.camPos, ty = Math.tan((CAM.fov || 70) * Math.PI / 360), dSom = (GFX.sombra || 0) >= 2 ? 35 : 22;
   const umbral = GFX.nombre === 'patata' ? 9 : GFX.nombre === 'bajo' ? 0.3 : GFX.lod === 0 && (GFX.sombra || 0) >= 3 ? 0.12 : 0.2;
   for (const P of PERS) {
+    if (P.ev3Oculto) continue;   // (el evento de los 300: Pepe en el techo, que aparece y desaparece)
     const yo = P === JUG.cuerpo;
     if (yo) { const ver = JUG.tercera || !!HCAM.ver || !JUG.vivo || (JUG.vehiculo && !JUG.fpVeh) || P.cicManos || cuerpoEnPrimera(P); if (!ver) { personaCalentar(P); continue; } }
     // (el Lua de un addon lo hizo invisible —SetNoDraw o color con alfa 0, como la utilería de Prop Hunt, que esconde al

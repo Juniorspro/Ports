@@ -3,10 +3,12 @@
 import re, os, sys, json, base64, gzip
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PK, OUT = sys.argv[1], sys.argv[2]
-ORDEN = ['nucleo', 'ios', 'cajanegra', 'tiendared', 'gl', 'sombras', 'post', 'datos', 'modelo', 'fisica', 'cielos', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'agua', 'sonidos', 'armas', 'patadas',
+ORDEN = ['nucleo', 'ios', 'cajanegra', 'tiendared', 'gl', 'sombras', 'post', 'vhs', 'datos', 'modelo', 'fisica', 'cielos', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'agua', 'sonidos', 'armas', 'patadas',
          'vehiculos', 'herramientas', 'personas', 'humano', 'emotes', 'red', 'dia', 'anfitrion', 'marcas', 'destruccion', 'entrada', 'ui', 'armaaj', 'hud', 'menu', 'idiomas', 'formato', 'idiomas3', 'ruleta', 'iconos', 'acciones', 'modapi', 'voz', 'geo', 'entidades', 'maquinitas', 'memes', 'celular', 'celumano', 'armasjx', 'artefactos', 'nucleares', 'nuclear_vol', 'gfxauto', 'gmod_formatos', 'gmod', 'gmod_pipe', 'gmod_lib', 'gmod_steam', 'gmod_bsp', 'puertas', 'mapaio', 'portales', 'cielo3d', 'gmod_modos', 'gmod_lua', 'gmod_prelude', 'gmod_api', 'gmod_sonidos', 'gmod_cargar', 'gmod_render', 'gmod_dx9', 'gmod_rt', 'gmod_vista', 'gmod_pm', 'gmod_autorig', 'pjimportar', 'accesorios', 'gmod_spawn', 'gmod_nextbot', 'gmod_anim', 'gmod_tienda', 'gmod_cola', 'gmod_carpeta', 'gmod_panel', 'gmod_server', 'celulares', 'npc', 'censura', 'cuenta', 'social', 'gorros', 'juntos', 'pantalla', 'nativos', 'ciclope', 'verity', 'veritycrea', 'animedit', 'creador', 'smods', 'modmenu', 'noche', 'linterna', 'tutorial', 'inicio', 'milogo', 'iconosapp', 'iconoapp', 'emomusica', 'rbmenus', 'clasico', 'fondovideo', 'paneles', 'deposito', 'lan', 'camlibre', 'controles', 'hudorden', 'banco', 'evento', 'identidad', 'pillpacks', 'pill_gmod', 'principal']
 # (el modo grabación —grabar.js— va justo antes del bucle del juego: usa la HUD, la pausa, el sonido y las voces)
 ORDEN.insert(ORDEN.index('principal'), 'grabar')
+# (el evento de los 300 miembros: sus voces, el núcleo, la cinta del principio y las misiones; antes del bucle)
+for _n in ['ev300_son', 'ev300', 'ev300_intro', 'ev300_mis']: ORDEN.insert(ORDEN.index('principal'), _n)
 # (la música del menú —musica.js— después de los dos menús: les pone la placa de lo que suena; usa el reproductor de los emotes)
 ORDEN.insert(ORDEN.index('deposito') + 1, 'musica')
 # el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")

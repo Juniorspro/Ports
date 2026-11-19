@@ -4969,3 +4969,52 @@ el clásico y tiene «● Grabar» en la pausa y el ● REC.
     2 fallas —el menú a 30 cuadros y las partículas— salen igual con la 3.9.2 publicada); `codigo_tragado.mjs` bien.
   - Lo que falta: medir en los celulares de verdad. Con capturas del contador detallado desde esos celulares se ve qué
     frena en cada uno.
+
+## El evento de los 300 miembros (sin publicar)
+
+Pedido del dueño, de agradecimiento por los 300 miembros del Discord. Al actualizar arranca solo (una vez por aparato; lo
+hecho queda guardado en `jx_ev300` y si se cierra el juego sigue donde estaba). `juego/vhs.js`, `juego/ev300.js` (el
+núcleo), `ev300_intro.js` (la cinta), `ev300_mis.js` (las misiones, el final y el epílogo), `ev300_son.js` (las voces).
+
+- **VHS a pantalla completa** (`vhs.js`): una pasada al final del cuadro que copia la imagen y la vuelve a dibujar como
+  cinta —luminancia un poco borrosa, el color corrido y manchado (YIQ), temblor de líneas, la banda de tracking que baja, el
+  ruido de las cabezas abajo, nieve, líneas de barrido, viñeta— y, para el evento, «bajo el agua», el rojo de un golpe, el
+  blanco, el negro y el sacudón. No es el del Viewfinder (ése es 4:3, viene en un addon aparte y en un celu tarda casi un
+  segundo por cuadro): es del ancho de la pantalla como el juego y cuesta una pasada. Arriba, PLAY ▶, la hora que corre, la
+  fecha y los sellos, con la letra VCR OSD Mono.
+- **La cinta (≈34 s, en el motor)**: un cuarto de hormigón con 15 cámaras con trípode apuntando a la silla (los lentes
+  brillan rojo), dos monitores con estática y una lamparita que titila. Tu personaje sentado y atado: las manos detrás del
+  respaldo (cada brazo se gira hacia donde tiene que ir, calculado en el mundo), sogas en el pecho, la cintura y los
+  tobillos; la cámara en los ojos, el cuello gira 75° a cada lado. Pepe habla (el Loquendo robot: «¿Me escuchás? Soy yo.
+  Pepe.», «Mil cuarenta y siete...», el auto, el piso trece, la heladera, el barril, «Mirá las cámaras. Trescientos te están
+  mirando.», «Ahora te toca a vos.»). Tres recuerdos en primera persona, de día y bajo el agua (la imagen ondula y el sonido
+  llega apagado): palancazos, una patada y el tiro al barril que explota al lado de Pepe. Se apaga la luz, se abre la puerta
+  y entra la entidad (Pepe deformado, oscuro, más alto, con un bate): camina hasta la silla, la cabeza va sola hacia ella y te
+  pega. Negro, STOP ■.
+- **gm_construct de noche**: te despertás frente a la puerta del 1.047 (el número de muertes de Pepe, pintado arriba con
+  «PEPE SIEMPRE VUELVE»; al lado, el auto chocado contra la pared). La puerta tiene cadenas y un candado con 10 sellos. Sólo
+  lo justo: caminar, mirar, saltar, agacharse, usar/agarrar y la linterna (primera persona, sin props, celular, armas ni
+  cámaras; la pausa tiene la lista de lo que falta, reiniciar la misión y, si se reinició 3 veces, saltearla). Los 10
+  acertijos: **las cajas** (10 cajas marcadas al cuadrado rojo con el contador 0/10 arriba; con truco: apiladas, flotando en
+  la pileta, detrás de un alambrado que se pasa agachado, en el techo, arriba del auto), **los fusibles** (tres baterías a la
+  caja de la pared: se prende el poste), **el código** (cuatro papeles con un número cada uno: 1047), **la radio**
+  (sintonizar 104.7: habla Pepe), **las luces** (repetir la secuencia, 3 rondas), **las palancas** (la posición está pintada
+  adentro del salón y sólo se ve con la linterna), **lo que camina** (sacar el sello del salón oscuro sin que te vea: si te
+  ve, te corre y te saca), **la llave** (en el fondo de la pileta), **la campana** (subir saltando por las plataformas hasta
+  el techo) y **el registro** (tocar las cosas con las que murió Pepe en el orden del papel que está en el auto). Hay papeles
+  por todo el mapa que se leen con usar.
+- **El bug**: dos tabiques adentro del salón dejan la puerta como única entrada; si alguien igual se mete al cuarto sin los
+  10 sellos, lo saca y se reinicia la última misión que hizo.
+- **El final**: con los 10 se caen las cadenas y se abre la puerta. Adentro, Pepe de espaldas mirando la pared con las 1.047
+  rayitas. «Pedir perdón» → «¿Perdón?» → se da vuelta deformándose → screamer (la cara pegada a la pantalla, grito) → el juego
+  se reinicia y vuelve el menú de siempre. La próxima vez que se entra a gm_construct: de noche, sólo caminar, Pepe aparece
+  un rato en el techo, «ÉL VOLVERÁ» y se cierra el juego (en la app, `JXNativo.salir()`; en la web, al menú). Desde ahí,
+  todo normal.
+- **Rendimiento** (Patata, el procesador frenado 10 veces, sin contar la placa): el JavaScript del cuadro de 5 a 8,5 ms
+  con el evento; 74 dibujos por cuadro frente a 49 (cada misión se dibuja sólo de cerca, las cajitas fijas van juntas en una
+  malla, Pepe y lo que camina sólo se animan cuando hace falta, los props lejos no se dibujan). Las luces son «luces
+  especiales» (las de la pizzería): andan en todas las calidades.
+- **Pruebas**: `pruebas/evento300.mjs` 46/46 por partes (intro 11, misiones 21, bug 4, final 10). `?ev300` lo fuerza en las
+  pruebas (en ellas no arranca solo); `?sinev300` lo saltea.
+- Arreglos de paso: el tinte de un personaje ahora llega a los modelos de GMod (`gmod_pm.js`); en PC, al soltar el mouse
+  durante el evento se abre su pausa (o nada, en la cinta).

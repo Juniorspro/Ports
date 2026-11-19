@@ -225,3 +225,13 @@ cabezona, con vestido y con tapado— se arman de su malla base con un script de
 
 El motor nativo con V8 (linkedom 0.18.15 de Andrea Giammarchi, licencia ISC, y Javet 6.0.3 de Sam Cao con el V8 de
 Google, Apache-2.0 y BSD-3) salió de la app y del repositorio en la 2.9: el APK ya no las lleva.
+
+## El evento de los 300 (`juego/vhs.js`, `juego/ev300*.js`)
+
+- Letra **VCR OSD Mono** (Riciery Leal), la de lo escrito arriba de la cinta (PLAY ▶, la hora, la fecha, los sellos): rip:
+  recursos del addon Viewfinder — Found Footage & Camcorder SWEP (Workshop 3780178294), `resource/fonts/ffcam_vcrosdmono.ttf`,
+  recortada a los caracteres que se usan (WOFF2, 16 KB) y puesta adentro de `template.html`.
+- Las voces de Pepe: la voz «jorge» de athanshock.com (la del Loquendo de los videos de Pepe) con el filtro de robot
+  (`herramientas/ev300_voz.py`); van en MP3 adentro de `juego/ev300_son.js`.
+- Lo demás (el efecto VHS, el cuarto, las sogas, los sonidos de estática, latido, zumbido, cadenas, campana y el grito del
+  screamer) está hecho en el juego.

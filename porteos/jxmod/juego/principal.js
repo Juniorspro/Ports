@@ -223,6 +223,7 @@ function camaraActualizar(dt) {
   if (JUEGO.estado === 'juego') cicCamara(CAM); // (Cíclope: la cinemática y la cámara de la definitiva)
   if (JUEGO.estado === 'juego') nocheCamara(CAM, dt); // (la pizzería: mirando una cámara de seguridad)
   if (EDA.on) edaCamara(CAM); // (editor de animaciones: alrededor del muñeco o la cámara grabada)
+  if (JUEGO.estado === 'juego' && typeof ev3Camara === 'function') ev3Camara(CAM);   // (el evento de los 300: la silla, el final)
   if (DBG.cam) { CAM.pos.copy(DBG.cam.p); CAM.q.copy(DBG.cam.q); } // (pruebas: mirar desde otro lado)
   else if (typeof herCamaraVista === 'function') herCamaraVista();   // (la herramienta Cámara: mirando por una)
   if (typeof GMA !== 'undefined') GMA.vlFov = 0;
@@ -285,6 +286,7 @@ function empezarPartida(mapa) {
   if (typeof redEntrar === 'function') redEntrar(mapa);
   aviso(typeof mapaNom === 'function' ? mapaNom(mapa) : mapa, 2.5);
   if (typeof MENU !== 'undefined' && MENU.cargarGuardado) { MENU.cargarGuardado = false; cargarConstruccion(); }
+  if (typeof ev3EnPartida === 'function') ev3EnPartida(mapa);   // (después del evento de los 300: el epílogo en gm_construct)
 }
 function irMenuPrincipal() {
   modapiDescargar(); natFin(); if (typeof pillFin === 'function') pillFin(true); entidadesLimpiar(); creadorSalir(); rolCerrar();
@@ -325,6 +327,7 @@ function cargarConstruccion() {
 function atenderPulsos() {
   for (const k of ENT.pulsos) {
     if (JUEGO.estado !== 'juego') continue;
+    if (typeof ev3Pulso === 'function' && ev3Pulso(k)) continue;   // (el evento de los 300: sólo lo justo, ev300.js)
     if (UI.abierto === 'eda') { if (k === 'pausa') edaAccion('salir'); continue; } // (en el editor de animaciones, sólo salir)
     // (lo de la noche en la pizzería que tapa la pantalla no se cierra con Esc: se abre la pausa encima; las cámaras sí se bajan)
     if (k === 'pausa') { if (UI.abierto === 'fncam') nocheTablet(); else if (UI.abierto && !/^fn/.test(UI.abierto)) cerrarPaneles(); else abrirPausa(); continue; }
@@ -435,6 +438,7 @@ function cuadro(ahora) {
   if (typeof desPaso === 'function') desPaso(dt);   // (los choques de este cuadro: abolladuras, chispas, humo y fuego de los autos —destruccion.js—)
   if (typeof gmLuaPaso === 'function') gmLuaPaso(dt);   // (el Lua de los addons de GMod: timers, hooks, entidades, armas)
   if (JUEGO.estado === 'juego') {
+    if (typeof ev3Paso === 'function') ev3Paso(dt);   // (el evento de los 300: antes de las armas, que no se usan)
     armasPaso(dt);
     if (!JUG.vivo && JUG.muertoT <= 0 && !(typeof gmmManejaMuerte === 'function' && gmmManejaMuerte())) { jugadorAparecer(); if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo(); }
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
@@ -573,7 +577,7 @@ function dibujar() {
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();
   if (typeof ajxMundoDibujar === 'function') ajxMundoDibujar();   // (el rayo con cuerpo de la Physics Gun de JXMod, armasjx.js)
-  if (JUEGO.estado === 'juego') { cicDibujar(); verDibujar(); nocheDibujar(); }
+  if (JUEGO.estado === 'juego') { cicDibujar(); verDibujar(); nocheDibujar(); if (typeof ev3Dibujar === 'function') ev3Dibujar(); }
   dibujarProyectiles();
   lucesJuntar(); lucesPreparar(); espPreparar();
   if (JUEGO.estado === 'juego' && R.sombraOn) {
@@ -609,8 +613,8 @@ function dibujar() {
   dibujarEfectos(); nukeDibujar();
   dibujarRayoFisica(); dibujarTrazas(); dibujarLineas();
   itemsLimpiar();
-  // el arma en la mano, encima de todo (en una franja de profundidad propia)
-  if (JUEGO.estado === 'juego') {
+  // el arma en la mano, encima de todo (en una franja de profundidad propia; en el evento de los 300, nada en la mano)
+  if (JUEGO.estado === 'juego' && !(typeof EV3 !== 'undefined' && EV3.sinVista)) {
     const P2 = M4.persp((DBG.fovVista || 60) * Math.PI / 180, asp, 0.01, 20); m4mul(P2, V, R.vp); R.fr = frustum(R.vp); R.marca++;   // (DBG.fovVista: otro campo para el arma —un video vertical—)
     R.fase = 'vista';
     if (dibujarVista()) { if (typeof gmrVistaArma === 'function') gmrVistaArma(); gl.depthRange(0, 0.04); armarCola(); dibujarOpacos(); dibujarTransparentes(); if (typeof gmrDibujar === 'function') gmrDibujar('vista'); gl.depthRange(0, 1); }
@@ -619,6 +623,7 @@ function dibujar() {
   const t3 = performance.now();
   if (usaPost) postTerminar();
   if (nieAntes) R.niebla = nieAntes;
+  if (VHS.on) vhsPasada();   // (la cinta del evento de los 300: vhs.js)
   pantFinCuadro(usaPost); // (alfa 1 en toda la imagen y el hueco de la pantalla de video)
   DIB.ms.juntar = t1 - t0; DIB.ms.sombras = t2 - t1; DIB.ms.escena = t3 - t2; DIB.ms.post = performance.now() - t3;
   if (JUEGO.foto > 0) { JUEGO.foto--; if (JUEGO.foto === 0) { if (JUEGO.fotoCb) { JUEGO.fotoCb(); JUEGO.fotoCb = null; } else fotoGuardar(); } }
@@ -702,7 +707,7 @@ async function iniciar() {
     paso('menú', 0.95, 'menus'); await respiro(); menuIniciar(); pantallaIniciar(); armasHL2();
     paso('primer cuadro', 0.98, 'menus');
     if (Q.get('mapa')) empezarPartida(Q.get('mapa'));
-    else { JUEGO.estado = 'principal'; inicioMostrar(true); }
+    else if (!(typeof ev3Arranque === 'function' && ev3Arranque())) { JUEGO.estado = 'principal'; inicioMostrar(true); }   // (o el evento de los 300, si falta)
     cuadro(performance.now());
     CG.log('menus', R.cv.width + '×' + R.cv.height);
   } catch (e) { console.error(e); falloInicio(e); return; }
@@ -721,5 +726,5 @@ async function iniciar() {
   // listo: la pantalla de carga se va sola (aunque algo de la pantalla falle, se va igual)
   CG.fin(() => { PANT.enIntro = false; try { pantallaRevisar(); } catch (e) { console.warn(e); } });
 }
-document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && JUEGO.estado === 'juego' && !UI.abierto && !ENT.tactil && !TEST) abrirPausa(); });
+document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && JUEGO.estado === 'juego' && !UI.abierto && !ENT.tactil && !TEST) { if (typeof EV3 !== 'undefined' && EV3.fase) { if (EV3.fase === 'puzles') ev3PausaAbrir(); return; } abrirPausa(); } });   // (en el evento de los 300, su pausa; en la cinta, nada)
 iniciar();
