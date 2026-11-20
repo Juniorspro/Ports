@@ -5118,3 +5118,32 @@ menú del juego, donde la gente publica con imágenes y videos, y de ahí vos sa
   entrar y Claude la aprueba, ve quién juega y los errores; bug con foto y video desde el menú; la app responde y el juego
   lo muestra; Claude lo baja; idea con foto; aviso, cielo, cinemática, quitar e ir; firma falsa y celular dado de baja no
   pueden). `menu_clasico.mjs` 23/23, `discord_39x.mjs` 6/6, `pepe_vuelve.mjs` 13/13.
+
+## Lo del panel después de la 3.9.6 (sin publicar)
+
+Los primeros posts de «Bugs y sugerencias» (de un mismo jugador, 3.9.6, app en el celu, Ultra):
+- **Bug: «en el mapa A24 BACKROOMS no tiene luz la tienda y hay un edificio gigante»** (Workshop 3761466972,
+  `gm_brmovie_complete`, 815 MB). Reproducido con el mapa de verdad (instalado con el juego, como un jugador):
+  - *La tienda a oscuras*: el mapa tiene 1.677 luces y 191 con nombre (las que se prenden y apagan); Source hornea lo de
+    cada luz con nombre en otra capa de luz de la cara («estilo» 32 en adelante; 2.767 caras con capas de más) y el lector
+    usaba sólo la primera. Ahora suma todas las capas prendidas al empezar —menos las de luces marcadas «apagada al
+    empezar»— (`gmod_bsp.js`: `lmApagado`, `offs` por rectángulo, `gbspAtlasLuz`; con bump, 4 bloques por capa). La
+    mueblería pasó de negra a iluminada por sus tubos.
+  - *El edificio gigante*: era la maqueta del cielo 3D. 127 de sus 148 props tienen `modelscale` 0.0625 (1/16: agrandados
+    ×16 se ven de su tamaño) y el lector ignoraba la escala de las entidades: una locomotora salía de 255 m encima del
+    estacionamiento. Ahora `gbspEscala(modelscale)` en los props de entidades y la escala en el cielo 3D, en lo pegado a
+    puertas y trenes, en las puertas de modelo y en los choques de los props (los estáticos tampoco la usaban para chocar).
+    En el resto del mapa, más de 1.100 props tenían escalas propias (0,7 a 2). Los `prop_physics` sueltos con escala
+    distinta de 1 (14 de 800 en este mapa) siguen de tamaño normal.
+  - Probado además con «Furnishings | A Backrooms Map» (3842117964): carga y se ve bien.
+- **Sugerencia: compatibilidad con el mod «Door Bust»** («Door Bust!», 2907252293: correr contra una puerta la rompe).
+  No andaba por cuatro cosas: los rayos no tocaban las puertas de los mapas (`mundoRayo` devolvía la caja de la puerta y
+  `raycast` la tiraba: salía «mundo»; tampoco las balas la tocaban como puerta), las puertas no eran entidades de Lua,
+  faltaban `GetInternalVariable`, `GetSpawnFlags`, `HasSpawnFlags`, `SetKeyValue` de verdad, `GetStepSize` y
+  `render.GetSurfaceColor`, y `GetRunSpeed` decía 400 cuando corriendo se va a 319 (el addon pide el 80 %). Ahora
+  (`fisica.js`, `gmod_api.js`, `puertas.js`): la traza que toca una puerta devuelve su entidad (`prop_door_rotating`,
+  `func_door_rotating`, `func_door`) con su estado (`m_eDoorState`, `m_toggle_state`, `m_bLocked` —la bandera 2048
+  «empieza trabada»—, `speed`, `opendir`), y `Fire` le llega (Open, Close, Toggle, OpenAwayFrom, SetSpeed, Lock,
+  Unlock). Probado en A24 con una puerta de verdad: caminando contra ella sigue cerrada; corriendo (Shift, o la palanca
+  al tope en el celu) se abre de golpe a velocidad 500 para el otro lado. Sirve para cualquier addon que trate con
+  puertas.

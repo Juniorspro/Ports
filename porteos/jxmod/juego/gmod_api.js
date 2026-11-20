@@ -394,6 +394,8 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   // (un nextbot: lo que dice su locomoción; DrGBase lo creía en el aire y se quedaba saltando quieto)
   const enSuelo = (e) => (e === yo() ? !!JUG.suelo : e.nb && typeof gmnbLoco === 'function' ? !!gmnbLoco(e).st.suelo : !!(e.o && e.o.b.sleep)); GMA.enSuelo = enSuelo; E('IsOnGround', enSuelo); E('GetGroundEntity', () => GMA.mundo); E('WaterLevel', () => 0); E('IsOnFire', (e) => !!e.fuego);
   E('Ignite', (e, t) => { e.fuego = TIEMPO.t + num(t, 5); }); E('Extinguish', (e) => { e.fuego = 0; }); E('IsInWorld', () => true); E('Visible', () => true); E('IsDormant', () => false);
+  E('GetInternalVariable', (e, k) => gmaVarInterna(e, String(k))); E('GetSpawnFlags', (e) => gmaBanderas(e)); E('HasSpawnFlags', (e, f) => (gmaBanderas(e) & (num(f, 0) | 0)) !== 0);
+  E('SetKeyValue', (e, k, v) => { k = String(k); if (!e.kv) e.kv = new Map(); e.kv.set(k, v); if (k === 'spawnflags') e.sf = +v | 0; else if (k === 'opendir') e.opendir = +v || 0; });
   E('Fire', (e, inp, val, dem) => { GMA.tSimples.push({ t: TIEMPO.t + Math.max(0, +dem || 0), f: () => { if (e.vivo !== false) gmaEntrada(e, String(inp || ''), val); }, ctx: 'S', js: true }); }); E('Input', (e, inp, a, c, val) => gmaEntrada(e, String(inp || ''), val)); E('SetKeyValue', (e, k, v) => { (e.kv || (e.kv = new Map())).set(k, v); }); E('GetKeyValues', (e) => tabla(Object.fromEntries(e.kv || [])));   // (como en GMod: va a la cola, en tiempo del juego; con demora 0, al cuadro siguiente)
   E('GetTable', (e) => { const T = gmaTablaDe(e); if (!T.mt) { const m = new LuaTable(); m.set('__index', (t, k) => { if (k === 'dt') return gmaDT(e); if (k === 'Entity' || k === 'Weapon') return e; if (k === 'Owner') return e.dueño || NULL_ENT; const c = e.tipo === 'efecto' ? e.efecto : claseTabla(e.clase, GMA.ctx); const v = c ? buscarEnClase(c, k) : undefined; if (v !== undefined) return v; const f = GMA.mtEnt.get('__index')(e, k); return typeof f === 'function' ? (s, ...x) => f(s === t ? e : s, ...x) : f; }); T.mt = m; } return T; }); E('SetTable', (e, t) => { if (t instanceof LuaTable) { if (GMA.ctx === 'C') e.tablaC = t; else e.tabla = t; } }); E('SetVar', (e, k, v) => gmaTablaDe(e).set(k, v)); E('GetVar', (e, k, d) => gmaTablaDe(e).get(k) ?? d);
   E('GetBoneCount', () => 0); E('GetBoneName', () => '__INVALIDBONE__'); E('LookupBone', () => undefined); E('GetBonePosition', (e) => [V(gmaEntPos(e)), A(quatAng(entQ(e)))]); E('GetBoneMatrix', () => undefined);   // (sin huesos: el nombre que da GMod a un hueso que no existe; nil rompía el SWEP Construction Kit —«table index is nil»—)
@@ -445,7 +447,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   P('KeyDown', (p, k) => gmaTecla(k)); P('KeyPressed', (p, k) => gmaTecla(k) && !(GMA.tecAnt & k)); P('KeyReleased', (p, k) => !gmaTecla(k) && !!(GMA.tecAnt & k)); P('KeyDownLast', (p, k) => !!(GMA.tecAnt & k));
   P('ChatPrint', (p, s) => { if (typeof chatMostrar === 'function') chatMostrar('', String(s), null, 'sis'); else aviso(String(s), 3); }); P('PrintMessage', (p, t, s) => { if (t === 4) aviso(String(s), 3); else P_chat(String(s)); });
   const P_chat = (s) => { if (typeof chatMostrar === 'function') chatMostrar('', s, null, 'sis'); };
-  P('SetWalkSpeed', (p, v) => { GMA.walk = num(v, 200); JUG.vel_max = GMA.walk * GS * 1.0; }); P('GetWalkSpeed', () => GMA.walk || 200); P('SetRunSpeed', (p, v) => { GMA.run = num(v, 400); }); P('GetRunSpeed', () => GMA.run || 400);
+  P('SetWalkSpeed', (p, v) => { GMA.walk = num(v, 200); JUG.vel_max = GMA.walk * GS * 1.0; }); P('GetWalkSpeed', () => GMA.walk || 200); P('SetRunSpeed', (p, v) => { GMA.run = num(v, 400); }); P('GetStepSize', () => GMA.escalon || 18); P('SetStepSize', (p, v) => { GMA.escalon = num(v, 18); }); P('GetRunSpeed', () => GMA.run || Math.round((JUG.vel_max || 6) * 1.35 / GS));   /* (la de verdad al correr —×1,35 de la de caminar, jugador.js—: con 400 fijo, Door Bust! pedía el 80 % y corriendo no se llegaba) */
   P('SetJumpPower', (p, v) => { GMA.jump = num(v, 200); JUG.salto = 1.1 * (GMA.jump / 200); }); P('GetJumpPower', () => GMA.jump || 200); P('SetMaxSpeed', () => {}); P('SetCrouchedWalkSpeed', () => {}); P('SetDuckSpeed', () => {});
   P('GetAllowWeaponsInVehicle', () => false); P('SetAllowWeaponsInVehicle', () => {});
   P('InVehicle', () => !!JUG.vehiculo); P('GetVehicle', () => (JUG.vehiculo ? (GMA.asiento && GMA.asiento.vivo ? GMA.asiento : entDeObj(JUG.vehiculo)) : NULL_ENT)); P('Crouching', () => !!JUG.agachado); P('IsSprinting', () => !!(ENT && ENT.correr));
@@ -815,10 +817,10 @@ function gmaUsarObj(o) {
 }
 function gmaTraza(o, d, max, ignorar, hPre) {
   const h = hPre !== undefined ? hPre || null : raycast(o, d, max, ignorar || null), t = new LuaTable(), fin = h ? vadd(o, vscale(d, h.t)) : vadd(o, vscale(d, max));
-  const ent = h && h.body ? (h.body.obj ? entDeObj(h.body.obj) : h.body.persona ? gmaEntPersona(h.body.persona) : GMA.mundo) : h ? GMA.mundo : NULL_ENT;
+  const ent = h && h.body ? (h.body.obj ? entDeObj(h.body.obj) : h.body.persona ? gmaEntPersona(h.body.persona) : h.body.puerta && !h.body.tren ? gmaEntPuerta(h.body.puerta) : GMA.mundo) : h ? GMA.mundo : NULL_ENT;
   t.set('Hit', !!h); t.set('HitPos', GMA.V(fin)); t.set('HitNormal', GMA.Vd(h ? h.n : vscale(d, -1))); t.set('Normal', GMA.Vd(d)); t.set('StartPos', GMA.V(o));
   t.set('Fraction', h ? h.t / max : 1); t.set('Entity', ent); t.set('HitWorld', !!(h && !h.body)); t.set('HitNonWorld', !!(h && h.body)); t.set('HitSky', false); t.set('HitNoDraw', false);
-  t.set('MatType', ent instanceof LEnt && (ent.tipo === 'npc' || ent.tipo === 'jug' || ent.nb || ent.ragP) ? 70 : 67);   /* (MAT_FLESH en una persona, un NPC o un nextbot: la patada de BSMod suena a cuerpo) */ t.set('PhysicsBone', 0); t.set('HitBox', 0); t.set('HitGroup', 0); t.set('SurfaceProps', 0); t.set('StartSolid', false); t.set('AllSolid', false); t.set('FractionLeftSolid', 0); t.set('HitTexture', '**studio**'); t.set('Contents', h ? 1 : 0);   // (CONTENTS_SOLID si tocó algo)
+  t.set('MatType', ent instanceof LEnt && (ent.tipo === 'npc' || ent.tipo === 'jug' || ent.nb || ent.ragP) ? 70 : 67);   /* (MAT_FLESH en una persona, un NPC o un nextbot: la patada de BSMod suena a cuerpo) */ t.set('PhysicsBone', 0); t.set('HitBox', 0); t.set('HitGroup', 0); t.set('SurfaceProps', h && h.body && h.body.puerta ? (h.body.snd === 'metal' ? 2 : 1) : 0); t.set('StartSolid', false); t.set('AllSolid', false); t.set('FractionLeftSolid', 0); t.set('HitTexture', '**studio**'); t.set('Contents', h ? 1 : 0);   // (CONTENTS_SOLID si tocó algo)
   return t;
 }
 // la entidad de Lua de una persona que tocó una traza: el cuerpo del jugador (también su muñeco al morir) es el jugador;
@@ -826,6 +828,42 @@ function gmaTraza(o, d, max, ignorar, hPre) {
 // era siempre un npc_citizen nuevo en el origen del mapa, con 100 de vida para siempre: los nextbots que te mataban se
 // quedaban quietos ahí, persiguiendo a ese fantasma (tu cuerpo ya borrado), aunque reaparecieras
 function gmaPuntosAparicion() { if (GMA.aparicionesLua) GMA.aparicionesLua(); }
+// una puerta del mapa (puertas.js) como entidad de Lua: en GMod las puertas son entidades y las trazas las tocan. Con su
+// clase (prop_door_rotating, func_door_rotating, func_door), su estado (GetInternalVariable), sus banderas y lo que entiende
+// por Fire (Open, Close, Toggle, OpenAwayFrom, SetSpeed, Lock, Unlock): lo que usan addons como Door Bust! (romper puertas
+// corriendo). Antes una traza que tocaba una puerta devolvía el mundo
+function gmaEntPuerta(D) {
+  let e = GMA.entPorObj.get(D);
+  if (!e) { e = new LEnt(D.P.cl || 'func_door', 'ent'); e.puerta = D; e.pos = D.b ? D.b.pos : D.piv; e.q = D.b ? D.b.q : D.q0; e.kv = new Map(); GMA.entPorObj.set(D, e); }
+  return e;
+}
+function gmaVarInterna(e, k) {
+  const D = e.puerta;
+  if (D) {
+    const abierta = D.meta >= 0.5, quieta = D.k === D.meta;
+    switch (k) {
+      case 'm_eDoorState': return quieta ? (abierta ? 2 : 0) : (abierta ? 1 : 3);   // (prop_door_rotating: cerrada, abriéndose, abierta, cerrándose)
+      case 'm_toggle_state': return quieta ? (abierta ? 0 : 1) : (abierta ? 2 : 3);   // (func_door: arriba —abierta—, abajo —cerrada—, subiendo, bajando)
+      case 'm_bLocked': return D.bloq !== undefined ? !!D.bloq : !!((D.P.sf || 0) & 2048);   // (2048: «empieza trabada»)
+      case 'speed': return D.velBust || D.P.vel || 100;
+      case 'opendir': return e.opendir || 0;
+      case 'distance': case 'm_flDistance': return Math.abs(D.P.dist || 0);
+    }
+  }
+  return e.kv ? e.kv.get(k) : undefined;
+}
+const gmaBanderas = (e) => (e.sf !== undefined ? e.sf : e.puerta ? e.puerta.P.sf || 0 : +((e.kv && e.kv.get('spawnflags')) || 0) | 0);
+function gmaPuertaEntrada(e, i, val) {
+  const D = e.puerta; if (!D || typeof puertaAlternar !== 'function') return;
+  if (i === 'setspeed') { const v = +val; D.velBust = v > 0 ? v : 0; return; }
+  if (i === 'lock') { D.bloq = true; return; }
+  if (i === 'unlock') { D.bloq = false; return; }
+  if (D.bloq !== undefined ? D.bloq : (D.P.sf || 0) & 2048) return;
+  // (OpenAwayFrom: para el lado contrario al jugador, que es como abre siempre puertaAlternar)
+  if (i === 'open' || i === 'openawayfrom') { if (D.meta < 0.5) puertaAlternar(D, true); }
+  else if (i === 'close') { if (D.meta >= 0.5) puertaAlternar(D, false); }
+  else if (i === 'toggle') puertaAlternar(D);
+}
 function gmaEntPersona(P) {
   if (P === JUG.cuerpo || P.esJugador) return GMA.jug;
   if (P.remoto && typeof gmnbJugRem === 'function') { const r = gmnbJugRem(P.remoto); if (r) return r; }
@@ -879,6 +917,7 @@ function gmaBalas0(e, b) {
 // las entradas de las entidades del motor (Fire/Input): las que usan los addons
 function gmaEntrada(e, inp, val) {
   if (!(e instanceof LEnt) || !e.vivo) return;
+  if (e.puerta) { gmaPuertaEntrada(e, inp.toLowerCase(), val); return; }
   const i = inp.toLowerCase(), kv = (k) => (e.kv ? e.kv.get(k) ?? e.kv.get(k.toLowerCase()) : undefined), p = gmaEntPos(e);
   if (i === 'kill' || i === 'killhierarchy') { gmaQuitar(e); return; }
   if (e.clase === 'env_explosion' && i === 'explode') { const mag = +kv('iMagnitude'); const m = Number.isFinite(mag) ? mag : 100, r = (+kv('iRadiusOverride') || m * 2.5) * GS; if (m > 0) explosion(p, Math.max(0.5, r), m); else { efectoExplosion(p); sonar('GrenadeExplode', p, 1.2); } if (!(+kv('spawnflags') & 2)) gmaQuitar(e); return; }
@@ -1275,7 +1314,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   def(util, 'CRC', (s) => { let c = -1; for (const ch of String(s)) { c ^= ch.charCodeAt(0); for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1; } return String((c ^ -1) >>> 0); });
   def(util, 'KeyValuesToTable', (s) => { const r = GMF.kv(String(s)); return r ? gmaALua(r.k) : new LuaTable(); }); def(util, 'TableToKeyValues', () => ''); def(util, 'Compress', (s) => s); def(util, 'Decompress', (s) => s);
   def(util, 'DistanceToLine', (a, b, p) => { const A0 = [a.x, a.y, a.z], B0 = [b.x, b.y, b.z], P0 = [p.x, p.y, p.z], d = B0.map((v, i) => v - A0[i]), L2 = d.reduce((s, v) => s + v * v, 0) || 1, t = Math.max(0, Math.min(1, P0.reduce((s, v, i) => s + (v - A0[i]) * d[i], 0) / L2)), c = A0.map((v, i) => v + d[i] * t); return [Math.hypot(...P0.map((v, i) => v - c[i])), GMA.nv(...c), t]; });
-  def(util, 'SteamIDTo64', () => '76561197960265728'); def(util, 'SteamIDFrom64', () => 'STEAM_0:0:1'); def(util, 'NetworkStringToID', () => 1); def(util, 'NetworkIDToString', () => ''); def(util, 'GetSurfaceIndex', () => 0); def(util, 'GetSurfaceData', () => undefined); def(util, 'GetSurfacePropName', () => 'default');
+  def(util, 'SteamIDTo64', () => '76561197960265728'); def(util, 'SteamIDFrom64', () => 'STEAM_0:0:1'); def(util, 'NetworkStringToID', () => 1); def(util, 'NetworkIDToString', () => ''); def(util, 'GetSurfaceIndex', () => 0); def(util, 'GetSurfaceData', () => undefined); def(util, 'GetSurfacePropName', (i) => ['default', 'wood', 'metal'][num(i, 0)] || 'default');
   def(util, 'TimerCycle', () => 0); def(util, 'RelativePathToFull', (p) => p); def(util, 'GetModelInfo', (m) => {   // (cuántas pieles trae: el menú de bloques del Minecraft SWEP las recorre; del encabezado del .mdl)
     const t = new LuaTable(); let r = String(m || '').toLowerCase().replace(/\\/g, '/'); if (!r.startsWith('models/')) r = 'models/' + r;
     const b = gmArchivo(r); let n = 1; if (b && b.length > 232) { n = new DataView(b.buffer, b.byteOffset, b.byteLength).getInt32(224, true); if (!(n >= 1 && n < 256)) n = 1; }
@@ -1666,7 +1705,7 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
   // (lo que pregunta Is/Has/Can/Should devuelve false: antes daba 0, que en Lua es verdadero, y un addon creía que sí)
   const VAC = (o) => { const t = new LuaTable(); const m = new LuaTable(); m.set('__index', (x, k) => (typeof k !== 'string' ? undefined : /^(Is|Has|Can|Should|Supports)[A-Z]/.test(k) ? () => false : /^Get/.test(k) ? () => 0 : () => {})); t.mt = m; return t; };
   for (const n of ['render', 'cam', 'mesh', 'killicon', 'resource', 'spawnmenu', 'presets', 'undo', 'cleanup', 'duplicator', 'constraint', 'properties', 'achievements', 'navmesh', 'steamworks', 'search', 'menubar', 'widgets', 'halo', 'frame_blend', 'drive', 'construct', 'numpad', 'matproxy', 'motionsensor', 'controlpanel', 'serverlist', 'video']) { const t = L(n); const v = VAC(); t.mt = v.mt; }
-  def(L('render'), 'GetScreenEffectTexture', () => gmaMaterial('rt')); def(L('render'), 'GetRenderTarget', () => gmaMaterial('rt')); def(L('render'), 'GetLightColor', () => GMA.nv(1, 1, 1)); def(L('render'), 'GetAmbientLightColor', () => GMA.nv(0.5, 0.5, 0.5)); def(L('render'), 'GetDXLevel', () => (typeof gmrtSM3 === 'function' && !gmrtSM3() ? 90 : 95)); def(L('render'), 'SupportsHDR', () => true); def(L('render'), 'GetViewSetup', () => tabla({ origin: GMA.V(CAM.pos), angles: GMA.A(dirAng(dS(CAM.fwd))), fov: CAM.fov || 75 }));
+  def(L('render'), 'GetScreenEffectTexture', () => gmaMaterial('rt')); def(L('render'), 'GetRenderTarget', () => gmaMaterial('rt')); def(L('render'), 'GetLightColor', () => GMA.nv(1, 1, 1)); def(L('render'), 'GetSurfaceColor', () => GMA.nv(0.55, 0.5, 0.45));   /* (el color de la superficie entre dos puntos: uno medio, como un piso gastado; el polvo de Door Bust! lo usa) */ def(L('render'), 'GetAmbientLightColor', () => GMA.nv(0.5, 0.5, 0.5)); def(L('render'), 'GetDXLevel', () => (typeof gmrtSM3 === 'function' && !gmrtSM3() ? 90 : 95)); def(L('render'), 'SupportsHDR', () => true); def(L('render'), 'GetViewSetup', () => tabla({ origin: GMA.V(CAM.pos), angles: GMA.A(dirAng(dS(CAM.fwd))), fov: CAM.fov || 75 }));
   def(L('halo'), 'Add', (t, c) => { if (typeof gmanHalo === 'function') gmanHalo(t, c); }); def(L('halo'), 'RenderedEntity', () => NULL_ENT);   // (gmod_anim.js)
   def(L('undo'), 'Create', () => {}); def(L('constraint'), 'Weld', (a, b) => gmaSoldar(a, b)); def(L('constraint'), 'NoCollide', () => [NULL_ENT]); def(L('constraint'), 'Axis', (a, b) => gmaSoldar(a, b)); def(L('constraint'), 'Rope', () => [NULL_ENT]); def(L('constraint'), 'Find', () => undefined); def(L('constraint'), 'FindConstraints', () => new LuaTable()); def(L('constraint'), 'RemoveAll', (e) => gmaDesoldar(e)); def(L('constraint'), 'GetAllConstrainedEntities', (e) => { const t = new LuaTable(); if (e instanceof LEnt) { t.set(e, e); if (e.soldadoA) t.set(e.soldadoA, e.soldadoA); if (GMA.hijos) for (const h of GMA.hijos) if (h.soldadoA === e) t.set(h, h); } return t; });
   def(L('duplicator'), 'CopyEntTable', () => new LuaTable()); def(L('duplicator'), 'GenericDuplicatorFunction', () => NULL_ENT);

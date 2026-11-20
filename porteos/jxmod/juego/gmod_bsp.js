@@ -5,7 +5,7 @@
 // invisibles (en Source son paredes); el agua (se nada); los props estáticos y los prop_dynamic (con su .phy como cascos
 // fijos) y los prop_physics (sueltos); las apariciones; el sol, la luz ambiente, la niebla y el color del cielo (de las
 // seis caras de su caja). Materiales y texturas: los del addon, los empaquetados en el .bsp (pakfile) y los de HL2/GMod
-// (biblioteca o Steam). Sin lightmaps: la luz es la del motor.
+// (biblioteca o Steam). La luz horneada (lightmaps), con todas las capas prendidas al empezar.
 const GBSP = { mapas: new Map(), cache: new Map() };
 const GBSP_CELDA = 64;   // (m: cada pedazo de mundo es una malla aparte, con su propia caja y precisión)
 // (flags de texinfo de Source)
@@ -107,7 +107,7 @@ function gbspPuertaDe(e, cl, o) {
   if (cl === 'func_tracktrain' || cl === 'func_tanktrain') return gbspTrenDe(e, cl);
   if (!/^(func_door|func_door_rotating|func_movelinear|prop_door_rotating)$/.test(cl)) return null;
   const sf = +e.spawnflags || 0, giro = cl !== 'func_door' && cl !== 'func_movelinear';
-  const P = { cl, giro, vel: +e.speed || 100, espera: e.wait !== undefined ? +e.wait : e.returndelay !== undefined ? +e.returndelay : cl === 'prop_door_rotating' ? -1 : 4,
+  const P = { cl, giro, sf, vel: +e.speed || 100, espera: e.wait !== undefined ? +e.wait : e.returndelay !== undefined ? +e.returndelay : cl === 'prop_door_rotating' ? -1 : 4,
     toca: cl === 'func_door' ? !!(sf & 1024) : false, usa: true, pasa: cl !== 'prop_door_rotating' && !!(sf & 8), nombre: e.targetname || '', esclavo: e.slavename || '', abierta: cl === 'prop_door_rotating' ? +e.spawnpos === 1 : !!(sf & 1), silencio: !!(sf & 4096), unaVia: !!(sf & 16) || +e.opendir === 1 || +e.opendir === 2, sentido: +e.opendir === 2 ? -1 : 1 };
   if (cl !== 'prop_door_rotating' && sf & 32) P.espera = -1;
   if (giro) {
@@ -219,8 +219,14 @@ async function gbspPreparar(clave, prog) {
   // la luz horneada (lightmaps): la de rango normal y, si el mapa sólo trae la HDR, ésa (mismo formato: RGB + exponente)
   let lit = L(8); if (!lit.length) lit = L(53);
   const conLM = lit.length > 0 && !Q.get('sinLM'), lmR = [], lmPor = new Map();
-  // cada cara con luz: un rectángulo de luxels en el atlas (las que comparten datos, el mismo)
-  const lmRect = (lo, w, h, bump) => { let r = lmPor.get(lo); if (r === undefined) { r = lmR.length; lmR.push({ lo, w, h, bump }); lmPor.set(lo, r); } return r; };
+  // (cada cara trae hasta 4 capas de luz, una por «estilo»: la 0 es la luz fija; las 1–31, las que titilan; las 32 en
+  // adelante, las luces con nombre, que se prenden y apagan. Se suman las prendidas al empezar: todas menos las de las
+  // luces marcadas «apagada al empezar». Antes se usaba sólo la primera capa y lo que alumbran las luces con nombre —en
+  // A24 Backrooms, los tubos de la mueblería— quedaba a oscuras)
+  const lmApagado = new Set(ents.filter((e) => /^light/.test(e.classname || '') && ((+e.spawnflags || 0) & 1) && +e.style > 0).map((e) => +e.style));
+  // cada cara con luz: un rectángulo de luxels en el atlas (las que comparten datos, el mismo); offs: dónde empieza cada
+  // capa prendida
+  const lmRect = (lo, w, h, bump, offs) => { let r = lmPor.get(lo); if (r === undefined) { r = lmR.length; lmR.push({ lo, w, h, bump, offs }); lmPor.set(lo, r); } return r; };
   const DV = (u) => new DataView(u.buffer, u.byteOffset, u.byteLength);
   const dPl = DV(pl), dTd = DV(td), dVt = DV(vt), dTi = DV(ti), dFc = DV(fc), dEd = DV(ed), dSe = DV(se), dMo = DV(mo), dDi = DV(di), dDvs = DV(dvs), dSt = DV(st);
   // los nombres de las texturas
@@ -320,7 +326,10 @@ async function gbspPreparar(clave, prog) {
         const lo = dFc.getInt32(o + 20, true), sty = fc[o + 16], m0 = dFc.getInt32(o + 28, true), m1 = dFc.getInt32(o + 32, true), w = dFc.getInt32(o + 36, true) + 1, h = dFc.getInt32(o + 40, true) + 1;
         const lv = [8, 9, 10, 11, 12, 13, 14, 15].map((k) => dTi.getFloat32(tix * 72 + k * 4, true));
         if (lo >= 0 && sty !== 255 && !(fl & 0x400) && w > 0 && h > 0 && w <= 512 && h <= 512 && lo + w * h * 4 <= lit.length) {
-          const r = lmRect(lo, w, h, !!(fl & 0x800));
+          // (cada capa: w×h luxels, 4 veces si la cara tiene bump —la plana y las tres direcciones—, una detrás de otra)
+          const bump = !!(fl & 0x800), blk = w * h * 4 * (bump ? 4 : 1), offs = [];
+          for (let k = 0; k < 4; k++) { const s = fc[o + 16 + k]; if (s === 255) break; if (!lmApagado.has(s) && lo + k * blk + w * h * 4 <= lit.length) offs.push(lo + k * blk); }
+          const r = lmRect(lo, w, h, bump, offs);
           lmDe = (q) => [r, Math.max(0, Math.min(w - 1, lv[0] * q[0] + lv[1] * q[1] + lv[2] * q[2] + lv[3] - m0)), Math.max(0, Math.min(h - 1, lv[4] * q[0] + lv[5] * q[1] + lv[6] * q[2] + lv[7] - m1))];
         } else { const r = fl & 0x1 ? -2 : -1; lmDe = () => [r, 0, 0]; }
       }
@@ -440,34 +449,33 @@ async function gbspPreparar(clave, prog) {
   const cascos = [], fisicos = [];
   for (const pr of props) {
     const nom = gmPrefab('gm:' + pr.modelo); if (!nom) continue;
-    const pf = DATA.pf[DATA.pfPorNombre[nom]][0], pos = gbspG(...pr.o), q = gbspAngQ(pr.a);
-    if (enCielo(pr.o)) { cielo3.push([{ n: nom, p: pos, r: [q.x, q.y, q.z, q.w], s: [1, 1, 1], pa: -1, m: pf.m, mt: pf.mt }]); continue; }   // (la maqueta del cielo 3D)
+    const pf = DATA.pf[DATA.pfPorNombre[nom]][0], pos = gbspG(...pr.o), q = gbspAngQ(pr.a), es = pr.esc || 1;
+    if (enCielo(pr.o)) { cielo3.push([{ n: nom, p: pos, r: [q.x, q.y, q.z, q.w], s: [es, es, es], pa: -1, m: pf.m, mt: pf.mt }]); continue; }   // (la maqueta del cielo 3D)
     if (pr.fisico) { fisicos.push({ nom, p: pos, q: [q.x, q.y, q.z, q.w] }); continue; }
     const arbP = pr.padre && !pr.puerta ? ptaArbPorNombre.get(pr.padre) : null;
     if (arbP) {
       // (en el espacio de la puerta: su eje es el origen y, si es de modelo, su giro)
       const R = arbP[0], q0 = new Quat(R.r[0], R.r[1], R.r[2], R.r[3]), qi = q0.clone().conj(), lp = qi.rot(v3(pos[0] - R.p[0], pos[1] - R.p[1], pos[2] - R.p[2])), lq = qi.clone().mul(q);
-      arbP.push({ n: nom, p: [lp.x, lp.y, lp.z], r: [lq.x, lq.y, lq.z, lq.w], s: [1, 1, 1], pa: 0, m: pf.m, mt: pf.mt });
+      arbP.push({ n: nom, p: [lp.x, lp.y, lp.z], r: [lq.x, lq.y, lq.z, lq.w], s: [es, es, es], pa: 0, m: pf.m, mt: pf.mt });
       if (pr.solido && R.puerta.tren) {
         // (pegado a un tren —la cabina del ascensor—: cada pieza de su .phy es un casco aparte que se mueve con él; juntas en un
         // solo casco serían un bloque macizo y no se podría entrar)
-        const H = R.puerta.cascos; for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const pts = [], n = d.hp.length / 3; for (let t = 0; t < n && pts.length < 600; t++) { const k = t * 3, v = lq.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); pts.push(+(v.x + lp.x).toFixed(3), +(v.y + lp.y).toFixed(3), +(v.z + lp.z).toFixed(3)); } if (pts.length >= 12) H.push(pts); }
-      } else if (pr.solido) { const C = R.puerta.casco, n0 = C.length; for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const n = d.hp.length / 3, paso = Math.max(1, n / 120); for (let t = 0; t < n && C.length < 1500; t += paso) { const k = Math.floor(t) * 3, v = lq.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); C.push(+(v.x + lp.x).toFixed(3), +(v.y + lp.y).toFixed(3), +(v.z + lp.z).toFixed(3)); } }
+        const H = R.puerta.cascos; for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const pts = [], n = d.hp.length / 3; for (let t = 0; t < n && pts.length < 600; t++) { const k = t * 3, v = lq.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); pts.push(+(v.x * es + lp.x).toFixed(3), +(v.y * es + lp.y).toFixed(3), +(v.z * es + lp.z).toFixed(3)); } if (pts.length >= 12) H.push(pts); }
+      } else if (pr.solido) { const C = R.puerta.casco, n0 = C.length; for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const n = d.hp.length / 3, paso = Math.max(1, n / 120); for (let t = 0; t < n && C.length < 1500; t += paso) { const k = Math.floor(t) * 3, v = lq.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); C.push(+(v.x * es + lp.x).toFixed(3), +(v.y * es + lp.y).toFixed(3), +(v.z * es + lp.z).toFixed(3)); } }
         // (sin .phy: la caja de su malla)
-        const dm = C.length === n0 && pf.m !== undefined && DATA.ms[pf.m]; if (dm && dm.mn) for (let i = 0; i < 8; i++) { const v = lq.rot(v3(dm.mn[0] + (i & 1 ? dm.sc[0] : 0), dm.mn[1] + (i & 2 ? dm.sc[1] : 0), dm.mn[2] + (i & 4 ? dm.sc[2] : 0))); C.push(+(v.x + lp.x).toFixed(3), +(v.y + lp.y).toFixed(3), +(v.z + lp.z).toFixed(3)); } }
+        const dm = C.length === n0 && pf.m !== undefined && DATA.ms[pf.m]; if (dm && dm.mn) for (let i = 0; i < 8; i++) { const v = lq.rot(v3(dm.mn[0] + (i & 1 ? dm.sc[0] : 0), dm.mn[1] + (i & 2 ? dm.sc[1] : 0), dm.mn[2] + (i & 4 ? dm.sc[2] : 0))); C.push(+(v.x * es + lp.x).toFixed(3), +(v.y * es + lp.y).toFixed(3), +(v.z * es + lp.z).toFixed(3)); } }
       continue;
     }
     if (pr.puerta) {
       // (su choque: los cascos de su .phy en el espacio del modelo; puertas.js los gira con la puerta)
-      const casco = []; for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; for (let k = 0; k < d.hp.length && casco.length < 900; k += 3) casco.push(+(d.mn[0] + d.hp[k] / 65535 * d.sc[0]).toFixed(3), +(d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1]).toFixed(3), +(d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2]).toFixed(3)); }
-      arbs.push([{ n: 'gbsp_puerta_p' + (nPuerta++), p: pos, r: [q.x, q.y, q.z, q.w], s: [1, 1, 1], pa: -1, m: pf.m, mt: pf.mt, puerta: Object.assign({}, pr.puerta, { casco, solida: true }) }]);
+      const casco = []; for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; for (let k = 0; k < d.hp.length && casco.length < 900; k += 3) casco.push(+((d.mn[0] + d.hp[k] / 65535 * d.sc[0]) * es).toFixed(3), +((d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1]) * es).toFixed(3), +((d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2]) * es).toFixed(3)); }
+      arbs.push([{ n: 'gbsp_puerta_p' + (nPuerta++), p: pos, r: [q.x, q.y, q.z, q.w], s: [es, es, es], pa: -1, m: pf.m, mt: pf.mt, puerta: Object.assign({}, pr.puerta, { casco, solida: true }) }]);
       continue;
     }
-    const es = pr.esc || 1;
     arbs.push([{ n: nom, p: pos, r: [q.x, q.y, q.z, q.w], s: [es, es, es], pa: -1, m: pf.m, mt: pf.mt }]);
     if (!pr.solido) continue;
     // (choque: sus cascos del .phy, ya puestos en su lugar)
-    for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const pts = []; for (let k = 0; k < d.hp.length; k += 3) { const v = q.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); pts.push(v.x + pos[0], v.y + pos[1], v.z + pos[2]); } if (pts.length >= 12) cascos.push(pts); }
+    for (const c of pf.col || []) { const d = DATA.ms[c.m]; if (!d || !d.hp) continue; const pts = []; for (let k = 0; k < d.hp.length; k += 3) { const v = q.rot(v3(d.mn[0] + d.hp[k] / 65535 * d.sc[0], d.mn[1] + d.hp[k + 1] / 65535 * d.sc[1], d.mn[2] + d.hp[k + 2] / 65535 * d.sc[2])); pts.push(v.x * es + pos[0], v.y * es + pos[1], v.z * es + pos[2]); } if (pts.length >= 12) cascos.push(pts); }
   }
   for (const arb of ptaArbs) {
     const P = arb[0].puerta;
@@ -671,7 +679,7 @@ function gbspAtlasLuz(lit, R, tope) {
       const r = R[i], [x0, y0] = pos[i], ww = S[i][0] - 2, hh = S[i][1] - 2;
       for (let b = 0; b < hh; b++) for (let a = 0; a < ww; a++) {
         const c = [0, 0, 0]; let n = 0;
-        for (let yy = b * f; yy < Math.min(r.h, b * f + f); yy++) for (let xx = a * f; xx < Math.min(r.w, a * f + f); xx++) { const l = lin(r.lo + (yy * r.w + xx) * 4); c[0] += l[0]; c[1] += l[1]; c[2] += l[2]; n++; }
+        for (let yy = b * f; yy < Math.min(r.h, b * f + f); yy++) for (let xx = a * f; xx < Math.min(r.w, a * f + f); xx++) { const q = (yy * r.w + xx) * 4; for (const of of r.offs || [r.lo]) { const l = lin(of + q); c[0] += l[0]; c[1] += l[1]; c[2] += l[2]; } n++; }
         if (n) { c[0] /= n; c[1] /= n; c[2] /= n; suma[0] += c[0]; suma[1] += c[1]; suma[2] += c[2]; cuenta++; }
         pon(x0 + 1 + a, y0 + 1 + b, [enc(c[0]), enc(c[1]), enc(c[2])]);
       }
@@ -699,6 +707,9 @@ function gbspUVcorr(uvs) {
   for (const u of uvs) { u[0] -= du; u[1] = 1 - (u[1] - dv); }
 }
 // los props del mapa: los estáticos (game lump "sprp") y los de entidades (prop_dynamic fijos, prop_physics sueltos)
+// (la escala de un prop de entidad —modelscale de GMod—: en el cielo 3D casi siempre 1/16, para que agrandado se vea de su
+// tamaño; antes se ignoraba y en A24 Backrooms una locomotora del cielo salía de 255 m —«un edificio gigante»—)
+const gbspEscala = (x) => { const v = +x; return v > 0.001 && v < 100 ? v : 1; };
 function gbspProps(B, ents) {
   const out = [], gl = B.lump(35);
   try {
@@ -724,7 +735,7 @@ function gbspProps(B, ents) {
   for (const e of ents) {
     if (!/^prop_(dynamic|dynamic_override|physics|physics_multiplayer|physics_override|static|door_rotating)$/.test(e.classname || '') || !/\.mdl$/i.test(e.model || '') || !e.origin) continue;
     const puerta = e.classname === 'prop_door_rotating' ? gbspPuertaDe(e, e.classname, e.origin.split(/\s+/).map(Number)) : null;
-    out.push({ modelo: e.model.toLowerCase().replace(/\\/g, '/'), o: e.origin.split(/\s+/).map(Number), a: e.angles || '0 0 0', solido: e.solid !== '0', fisico: /^prop_physics/.test(e.classname), puerta, padre: String(e.parentname || '').toLowerCase() });
+    out.push({ esc: gbspEscala(e.modelscale), modelo: e.model.toLowerCase().replace(/\\/g, '/'), o: e.origin.split(/\s+/).map(Number), a: e.angles || '0 0 0', solido: e.solid !== '0', fisico: /^prop_physics/.test(e.classname), puerta, padre: String(e.parentname || '').toLowerCase() });
   }
   return out.slice(0, 4000);
 }

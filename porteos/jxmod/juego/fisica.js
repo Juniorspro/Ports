@@ -747,7 +747,10 @@ function rayForma(b, o, d, L) {
 // el rayo contra todo: devuelve { t, n, p, body (o null), stat (caja estática o null) }
 function raycast(o, d, tmax, ignore) {
   let best = null;
-  const g = mundoRayo(o, d, tmax); if (g) best = { t: g.t, n: g.n, body: null, stat: g, ground: true };
+  // (lo fijo del mapa: si es una puerta de un mapa de GMod —puertas.js—, el cuerpo de la puerta; antes salía como «mundo» y
+  // las trazas de Lua no la encontraban: Door Bust! no rompía nada)
+  const g = mundoRayo(o, d, tmax), pu = g && g.caja && g.caja.puerta && !g.caja.tren && !(ignore && (ignore === g.caja || (ignore.has && ignore.has(g.caja)))) ? g.caja : null;
+  if (g) best = { t: g.t, n: g.n, body: pu, stat: g, ground: !pu };
   const lim = () => (best ? best.t : tmax);
   for (const b of PH.bodies) {
     if (b.noRay || (ignore && (ignore === b || (ignore.has && ignore.has(b))))) continue;

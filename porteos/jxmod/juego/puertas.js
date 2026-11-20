@@ -102,7 +102,8 @@ function puertasPaso(dt) {
       continue;
     }
     if (D.k !== D.meta) {
-      const P = D.P, vel = P.giro ? Math.max(20, P.vel) / Math.max(1, Math.abs(P.dist)) : Math.max(0.3, P.velM || 2.5) / Math.max(0.05, D.recorrido), k0 = D.k;
+      // (con SetSpeed —Door Bust! la pone a 500 un momento—, esa velocidad)
+      const P = D.P, vel = P.giro ? Math.max(20, D.velBust || P.vel) / Math.max(1, Math.abs(P.dist)) : Math.max(0.3, D.velBust ? D.velBust * GM_S : P.velM || 2.5) / Math.max(0.05, D.recorrido), k0 = D.k;
       D.k += Math.sign(D.meta - D.k) * Math.min(Math.abs(D.meta - D.k), dt * vel);
       puertaPoner(D);
       // (cerrándose sobre alguien: vuelve a abrirse, como las de Source)
