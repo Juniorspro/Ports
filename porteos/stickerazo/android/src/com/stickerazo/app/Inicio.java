@@ -84,6 +84,7 @@ public final class Inicio extends Activity {
         raiz.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(raiz);
         bordes(getWindow(), raiz);
+        escucharAtras();
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -384,10 +385,25 @@ public final class Inicio extends Activity {
     private void js(String codigo) { if (web != null) web.evaluateJavascript(codigo, null); }
 
     // ---- atrás: primero la página (cierra la hoja, vuelve de pantalla); en el inicio, sale ----
-    @Override public void onBackPressed() {
+    //  (Android 13+: el gesto de atrás llega por OnBackInvokedCallback —en Android 16, con targetSdk 36, onBackPressed ya
+    //  no se llama—; antes, por onBackPressed. Si la página no lo usa, la app pasa al fondo, como hace Android 12+)
+    @Override public void onBackPressed() { atras(); }
+
+    private void atras() {
+        if (web == null) { salir(); return; }
         web.evaluateJavascript("window.__szAtras ? window.__szAtras() : false", new ValueCallback<String>() {
-            @Override public void onReceiveValue(String v) { if (!"true".equals(v)) Inicio.super.onBackPressed(); }
+            @Override public void onReceiveValue(String v) { if (!"true".equals(v)) salir(); }
         });
+    }
+
+    private void salir() {
+        if (Build.VERSION.SDK_INT >= 33) moveTaskToBack(true); else super.onBackPressed();
+    }
+
+    private void escucharAtras() {
+        if (Build.VERSION.SDK_INT < 33) return;
+        getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+            new android.window.OnBackInvokedCallback() { @Override public void onBackInvoked() { atras(); } });
     }
 
     @Override protected void onPause() { super.onPause(); if (web != null) web.onPause(); }

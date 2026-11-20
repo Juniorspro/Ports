@@ -395,6 +395,8 @@ h2 small { color: var(--suave); }
 /* hojas */
 .hoja { background: linear-gradient(180deg, #16161e, #0c0c11); box-shadow: 0 -1px 0 rgba(255, 62, 138, .45), 0 -18px 50px -20px rgba(155, 92, 255, .45); }
 .modal { background: rgba(0, 0, 0, .72); backdrop-filter: blur(4px); }
+/* (las hojas que se usan mirando el sticker —animar, borde—: sin oscurecer ni desenfocar lo de atrás) */
+.modal.claro { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .aviso { background: #fff; box-shadow: 0 10px 30px -6px rgba(255, 62, 138, .55); }
 .esqCab, .esqGrilla, .esqPie, .avG.esq { background: linear-gradient(90deg, #15151c 25%, #23232e 50%, #15151c 75%); background-size: 300% 100%; }
 /* la portada de Crear: un collage de stickers */

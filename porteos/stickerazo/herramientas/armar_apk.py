@@ -1,9 +1,11 @@
 # Arma el APK de Stickerazo sin Gradle: la página (web/ → assets/www) + javac → d8 → aapt2 → zipalign → apksigner,
 # y lo revisa (firmas v1+v2+v3, badging, clases del dex, el manifiesto compilado con el proveedor de WhatsApp).
-# Uso: python3 -I herramientas/armar_apk.py [SALIDA.apk] [--version-name 0.1] [--version-code N]
-#   versionCode por defecto: fecha y hora UTC (AAMMDDHH). Necesita web/terceros (herramientas/bajar.sh).
-# Herramientas: STICKERAZO_SDK o el SDK de JXMod (/tmp/claude-0/android_dl/sdk: android-15/{aapt2, zipalign,
-#   lib/d8.jar, lib/apksigner.jar, lib64/} y android-35/android.jar), y un JDK.
+# Uso: python3 -I herramientas/armar_apk.py [SALIDA.apk] [--version-name 0.1] [--version-code N] [--aab SALIDA.aab]
+#   versionCode por defecto: AAMMDD y el cuarto de hora UTC del día (00-95), así cada armado es mayor que el anterior.
+#   --aab: además, el paquete para Google Play (Android App Bundle), firmado con la misma llave (la «de subida»).
+#   Necesita web/terceros (herramientas/bajar.sh).
+# Herramientas: STICKERAZO_SDK o el SDK de JXMod (/tmp/claude-0/android_dl/sdk: android-16 o android-15/{aapt2, zipalign,
+#   lib/d8.jar, lib/apksigner.jar, lib64/}, android-36/android.jar y, para --aab, bundletool.jar), y un JDK.
 # Firma (FUERA del repo): $STICKERAZO_FIRMA_DIR/stickerazo.jks (por defecto /root/.stickerazo/firma), alias stickerazo;
 #   la clave en $STICKERAZO_FIRMA_CLAVE o en clave.txt al lado (chmod 600). Si el almacén no existe y está
 #   $STICKERAZO_FIRMA_JKS_B64 (el almacén en base64, secreto del entorno) se escribe de ahí; si no, se crea uno nuevo
@@ -13,7 +15,8 @@ import argparse, datetime, os, re, secrets, shutil, struct, subprocess, sys, tem
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ANDROID, WEB = os.path.join(RAIZ, 'android'), os.path.join(RAIZ, 'web')
 PAQUETE, PRINCIPAL, ETIQUETA = 'com.stickerazo.app', 'com.stickerazo.app.Inicio', 'Stickerazo'
-MIN_SDK, TARGET_SDK = 24, 35
+# (Google Play pide targetSdk 36 —Android 16— para apps nuevas y actualizaciones desde el 31/8/2026)
+MIN_SDK, TARGET_SDK = 24, 36
 # (el APK más viejo que puede usar la página de ahora: subirlo cuando la página use algo nuevo del puente con Java)
 OTA_APK_MIN = 0
 NO_COMPRIMIR = ['png', 'webp', 'jpg', 'jpeg']
@@ -34,11 +37,12 @@ def correr(cmd, que, entorno=None):
 
 def herramientas():
     sdk = os.environ.get('STICKERAZO_SDK', '/tmp/claude-0/android_dl/sdk')
-    bt = os.environ.get('ANDROID_BUILD_TOOLS') or os.path.join(sdk, 'android-15')
+    bt = os.environ.get('ANDROID_BUILD_TOOLS') or next((os.path.join(sdk, x) for x in ('android-16', 'android-15') if os.path.isdir(os.path.join(sdk, x))), os.path.join(sdk, 'android-16'))
     h = {'aapt2': os.path.join(bt, 'aapt2'), 'zipalign': os.path.join(bt, 'zipalign'), 'd8': os.path.join(bt, 'lib', 'd8.jar'),
          'apksigner': os.path.join(bt, 'lib', 'apksigner.jar'),
-         'android': os.environ.get('ANDROID_JAR') or os.path.join(sdk, 'android-35', 'android.jar')}
-    falta = [k + ': ' + v for k, v in h.items() if not os.path.isfile(v)]
+         'android': os.environ.get('ANDROID_JAR') or os.path.join(sdk, 'android-%d' % TARGET_SDK, 'android.jar')}
+    h['bundletool'] = os.environ.get('BUNDLETOOL') or os.path.join(sdk, 'bundletool.jar')
+    falta = [k + ': ' + v for k, v in h.items() if k != 'bundletool' and not os.path.isfile(v)]
     for p in ('java', 'javac', 'keytool'):
         if not shutil.which(p): falta.append(p + ' (JDK)')
     if falta: fallar('faltan herramientas:\n  ' + '\n  '.join(falta))
@@ -113,10 +117,13 @@ def main():
     ap = argparse.ArgumentParser(description='Arma el APK de Stickerazo')
     ap.add_argument('salida', nargs='?', default='/tmp/claude-0/stickerazo/Stickerazo.apk')
     ap.add_argument('--version-name', default='0.1')
-    ap.add_argument('--version-code', type=int, default=int(datetime.datetime.now(datetime.timezone.utc).strftime('%y%m%d%H')))
+    ahora = datetime.datetime.now(datetime.timezone.utc)
+    ap.add_argument('--version-code', type=int, default=int(ahora.strftime('%y%m%d')) * 100 + (ahora.hour * 60 + ahora.minute) // 15)
+    ap.add_argument('--aab', help='también el Android App Bundle para Google Play')
     ap.add_argument('--conservar', action='store_true', help='no borrar la carpeta temporal')
     a = ap.parse_args()
     h = herramientas()
+    if a.aab and not os.path.isfile(h['bundletool']): fallar('falta bundletool.jar (para --aab):', h['bundletool'])
     tmp = tempfile.mkdtemp(prefix='stickerazo_apk_')
     try:
         # 1) javac (Java 8, contra android.jar)
@@ -144,9 +151,10 @@ def main():
         rz = os.path.join(tmp, 'res.zip')
         correr([h['aapt2'], 'compile', '--dir', os.path.join(ANDROID, 'res'), '-o', rz], 'aapt2 compile')
         base = os.path.join(tmp, 'base.apk')
+        act = activos(tmp)
         cmd = [h['aapt2'], 'link', '-o', base, '--manifest', os.path.join(ANDROID, 'AndroidManifest.xml'), '-I', h['android'],
                '--min-sdk-version', MIN_SDK, '--target-sdk-version', TARGET_SDK, '--version-code', a.version_code,
-               '--version-name', a.version_name, '-A', activos(tmp)]
+               '--version-name', a.version_name, '-A', act]
         for e in NO_COMPRIMIR: cmd += ['-0', e]
         av = correr(cmd + [rz], 'aapt2 link').strip()
         if av: print('aapt2:', av)
@@ -200,9 +208,68 @@ def main():
               % (metodos, len(definidas), len(fuentes), sum(1 for n in nombres if n.startswith('assets/www/'))))
         print('  permisos: %s' % ', '.join(p.rsplit('.', 1)[-1] for p in permisos))
         print('  firma v1+v2+v3 ok  SHA-256 %s' % (sha and sha.group(1)[:16] + '…'))
+        if a.aab: armar_aab(h, a, tmp, rz, act, dex, ks, clave, b, nombres)
     finally:
         if a.conservar: print('temporales en', tmp)
         else: shutil.rmtree(tmp, ignore_errors=True)
+
+
+def armar_aab(h, a, tmp, rz, act, dex, ks, clave, badging_apk, nombres_apk):
+    """El paquete para Google Play: los mismos recursos, página y dex en formato «proto», armado con bundletool y
+    firmado con jarsigner (la llave de subida). Se revisa: bundletool validate y el APK universal que sale de él tiene que
+    decir lo mismo que el APK (paquete, versiones, permisos, página)."""
+    bt = ['java', '-jar', h['bundletool']]
+    proto = os.path.join(tmp, 'proto.apk')
+    correr([h['aapt2'], 'link', '--proto-format', '-o', proto, '--manifest', os.path.join(ANDROID, 'AndroidManifest.xml'), '-I', h['android'],
+            '--min-sdk-version', MIN_SDK, '--target-sdk-version', TARGET_SDK, '--version-code', a.version_code,
+            '--version-name', a.version_name, '-A', act, rz], 'aapt2 link --proto-format')
+    modulo = os.path.join(tmp, 'base.zip')
+    with zipfile.ZipFile(proto) as zin, zipfile.ZipFile(modulo, 'w', zipfile.ZIP_DEFLATED) as zout:
+        for n in zin.namelist():
+            if n == 'AndroidManifest.xml': d = 'manifest/AndroidManifest.xml'
+            elif n == 'resources.pb' or n.startswith('res/') or n.startswith('assets/'): d = n
+            else: fallar('aab: no sé dónde va', n)
+            zout.writestr(d, zin.read(n))
+        zout.write(dex, 'dex/classes.dex')
+    # (las imágenes ya vienen comprimidas: se guardan tal cual, como en el APK)
+    conf = os.path.join(tmp, 'BundleConfig.json')
+    with open(conf, 'w') as f:
+        import json as _json
+        _json.dump({'compression': {'uncompressedGlob': ['**/*.' + e for e in NO_COMPRIMIR]}}, f)
+    crudo = os.path.join(tmp, 'crudo.aab')
+    correr(bt + ['build-bundle', '--modules=' + modulo, '--output=' + crudo, '--config=' + conf], 'bundletool build-bundle')
+    # firma (jarsigner, como pide Play para el AAB)
+    tipo, valor = clave.split(':', 1)
+    pw = ['-storepass:env', valor] if tipo == 'env' else ['-storepass:file', valor]
+    final = os.path.join(tmp, 'Stickerazo.aab')
+    shutil.copyfile(crudo, final)
+    correr(['jarsigner', '-keystore', ks, '-sigalg', 'SHA256withRSA', '-digestalg', 'SHA-256'] + pw + [final, 'stickerazo'], 'jarsigner')
+    v = correr(['jarsigner', '-verify', '-certs', final], 'jarsigner -verify')
+    if 'jar verified.' not in v: fallar('aab: la firma no verifica\n' + v[-2000:])
+    correr(bt + ['validate', '--bundle=' + final], 'bundletool validate')
+    # el APK universal que armaría Play, firmado con la misma llave, tiene que ser igual al nuestro
+    kp = os.path.join(tmp, 'kp.txt')
+    fd = os.open(kp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w') as f: f.write(os.environ[valor] if tipo == 'env' else open(valor).read().strip())
+    apks = os.path.join(tmp, 'u.apks')
+    try:
+        correr(bt + ['build-apks', '--bundle=' + final, '--output=' + apks, '--mode=universal', '--ks=' + ks, '--ks-key-alias=stickerazo',
+                     '--ks-pass=file:' + kp], 'bundletool build-apks')
+    finally:
+        os.remove(kp)
+    with zipfile.ZipFile(apks) as z:
+        uni = os.path.join(tmp, 'universal.apk')
+        with open(uni, 'wb') as f: f.write(z.read('universal.apk'))
+    b = correr([h['aapt2'], 'dump', 'badging', uni], 'aapt2 dump badging (universal)')
+    clave_badging = lambda t: sorted(x for x in t.splitlines() if re.match(r"(package|sdkVersion|minSdkVersion|targetSdkVersion|uses-permission|application-label|launchable-activity):", x))
+    if clave_badging(b) != clave_badging(badging_apk): fallar('aab: el APK universal no coincide con el APK\n' + '\n'.join(sorted(set(clave_badging(b)) ^ set(clave_badging(badging_apk)))))
+    with zipfile.ZipFile(uni) as z: un = set(z.namelist())
+    falta = sorted(n for n in nombres_apk if n.startswith('assets/') and n not in un)
+    if falta: fallar('aab: al APK universal le faltan', falta[:10])
+    os.makedirs(os.path.dirname(os.path.abspath(a.aab)), exist_ok=True)
+    shutil.copyfile(final, a.aab)
+    print('AAB:', os.path.abspath(a.aab))
+    print('  %.2f MB  |  bundletool validate ok  |  firma (jarsigner) ok  |  el APK universal coincide con el APK' % (os.path.getsize(a.aab) / 1048576))
 
 
 if __name__ == '__main__':

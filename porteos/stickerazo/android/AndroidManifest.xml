@@ -20,7 +20,8 @@
         android:theme="@style/Tema"
         android:allowBackup="true"
         android:supportsRtl="false"
-        android:hardwareAccelerated="true">
+        android:hardwareAccelerated="true"
+        android:enableOnBackInvokedCallback="true">
 
         <activity
             android:name=".Inicio"

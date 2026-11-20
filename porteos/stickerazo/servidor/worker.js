@@ -76,7 +76,10 @@ async function borrarArchivos(env, pack) {
 // ---- límites (para que nadie llene todo de una) ----
 async function limite(env, clave, max, segundos) {
   const ahora = Date.now(), r = await env.DB.prepare('SELECT n, hasta FROM limites WHERE clave = ?').bind(clave).first();
-  if (!r || r.hasta < ahora) { await env.DB.prepare('INSERT OR REPLACE INTO limites (clave, n, hasta) VALUES (?, 1, ?)').bind(clave, ahora + segundos * 1000).run(); return true; }
+  if (!r || r.hasta < ahora) {
+    if (Math.random() < 0.02) await env.DB.prepare('DELETE FROM limites WHERE hasta < ?').bind(ahora).run();   // (los vencidos)
+    await env.DB.prepare('INSERT OR REPLACE INTO limites (clave, n, hasta) VALUES (?, 1, ?)').bind(clave, ahora + segundos * 1000).run(); return true;
+  }
   if (r.n >= max) return false;
   await env.DB.prepare('UPDATE limites SET n = n + 1 WHERE clave = ?').bind(clave).run();
   return true;
@@ -135,7 +138,8 @@ export default {
 
 async function api(req, env, u, r, metodo) {
   const yo = await quien(req, env), cuerpo = async () => { try { return await req.json(); } catch (e) { return {}; } };
-  const ip = req.headers.get('CF-Connecting-IP') || 'local';
+  // (la conexión sólo para los límites: se guarda su huella, no la IP, y se borra cuando vence)
+  const ip = (await sha('sz-limite:' + (req.headers.get('CF-Connecting-IP') || 'local'))).slice(0, 24);
   let m;
   // ---- cuenta ----
   if (r === 'registro' && metodo === 'POST') {
@@ -404,9 +408,11 @@ async function compartir(env, id, u) {
 const PRIVACIDAD = `<h1>Privacidad</h1><p class="p">Stickerazo · última actualización: noviembre de 2026</p>
 <p><b>Tus fotos no salen de tu celular.</b> El recorte, los textos y las animaciones se hacen en el teléfono. Sólo se sube a nuestro servidor lo que vos publicás en la comunidad: los stickers terminados de ese pack, su nombre, etiquetas y emojis.</p>
 <p><b>Tu cuenta</b> es un @usuario que elegís, una bio y un emoji de avatar. No pedimos email, teléfono ni nombre real. El celular guarda una llave para entrar; nosotros guardamos sólo su huella.</p>
+<p><b>Para frenar abusos</b> (muchas cuentas o descargas seguidas desde la misma conexión) usamos por unas horas una huella de tu conexión, no tu IP, y se borra sola. No usamos tu ubicación.</p>
 <p><b>Lo que hacés en la comunidad</b> (me gusta, a quién seguís, descargas, denuncias y bloqueos) se guarda para que la comunidad funcione. Lo que publicás lo puede ver cualquiera.</p>
 <p><b>Borrar todo:</b> desde la app, en Perfil → Borrar mi cuenta, se borran tu cuenta, tus packs publicados, tus me gusta y a quién seguís. No queda nada.</p>
-<p>No vendemos tus datos. Si algún día la app muestra publicidad, lo vamos a avisar acá antes.</p>`;
+<p>Los datos viajan cifrados (HTTPS). Los guarda Cloudflare, el servicio donde corre el servidor; no se los damos a nadie más. No vendemos tus datos. Si algún día la app muestra publicidad, lo vamos a avisar acá antes.</p>
+<p>Stickerazo no está afiliada a WhatsApp ni a Meta. Tenés que tener 13 años o más para usar la comunidad.</p>`;
 const TERMINOS = `<h1>Términos de la comunidad</h1><p>Publicá stickers tuyos o que tengas derecho a compartir. No se puede publicar: contenido sexual, odio o discriminación, violencia, acoso, datos de otras personas, ni fotos de alguien que no quiere aparecer. Los packs con 3 denuncias se ocultan hasta que los revisemos, y las cuentas que no respetan esto se bloquean. Tenés que tener 13 años o más.</p>`;
 const BORRAR = `<h1>Borrar tu cuenta</h1><p>Abrí Stickerazo → Perfil → <b>Borrar mi cuenta</b>. Se borran al instante tu cuenta, tus packs publicados, tus me gusta y a quién seguís. Los stickers que tenés guardados en el celular quedan en tu celular.</p>`;
 const ADMIN = pagina('Moderación · Stickerazo', `<h1>Moderación</h1><input id="k" type="password" placeholder="Clave" style="width:100%;padding:12px;border-radius:12px;border:0"><button class="b" id="v" style="width:100%;border:0">Ver denunciados</button><div id="l"></div>
