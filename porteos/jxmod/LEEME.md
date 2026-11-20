@@ -4970,7 +4970,15 @@ el clásico y tiene «● Grabar» en la pausa y el ● REC.
   - Lo que falta: medir en los celulares de verdad. Con capturas del contador detallado desde esos celulares se ve qué
     frena en cada uno.
 
-## El evento de los 300 miembros (sin publicar)
+## JXMod 3.9.4: el evento de los 300 miembros
+
+- Publicada con el paquete pk39e. APK 3.9.4 (versionCode 26112000, misma firma, prueba 6/6 —la 1b, la memoria del
+  grabador, dio 17,6 MB contra el tope de 16 en la primera corrida y pasó en la segunda; el grabador no cambió desde la
+  3.9.3—), con `ota_base.json` que coincide con lo que lleva. `version.json` 3904 con `"ota": {"apkMin": 3903}`,
+  `VERSION_PROPIA` 3904. `web/ota/`: la 3.9.4 por partes; para quien tiene la 3.9.3 sólo cambia `index.html` (5,0 MB),
+  lo demás es igual. Las 6 partes, comprobadas con la llave de la firma oficial (HMAC bien y descifradas iguales).
+- Web con código: pide el código, no arranca sin él ni está en claro, uno inventado no entra, sin errores de JS. La
+  prueba completa con un código de verdad (`pruebas/codigo_web.mjs`) no se corrió esta vez.
 
 Pedido del dueño, de agradecimiento por los 300 miembros del Discord. Al actualizar arranca solo (una vez por aparato; lo
 hecho queda guardado en `jx_ev300` y si se cierra el juego sigue donde estaba). `juego/vhs.js`, `juego/ev300.js` (el

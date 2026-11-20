@@ -1,14 +1,14 @@
 {
- "codigo": 3903,
- "version": "3.9.3",
+ "codigo": 3904,
+ "version": "3.9.4",
  "apkMin": 3903,
  "archivos": [
   {
    "n": "index.html",
-   "h": "bb1fedbb267594da325fb0e7d709ac163242af1c2ccdb5b44f71f1873f378849",
-   "t": 4561805,
-   "u": "ota/index.html.bb1fedbb267594da.jxo",
-   "mac": "2d1e0924706e28ff65a42077b90945075e3fc3b2d265513e6c8fea67ad0ea7b7"
+   "h": "038ab0ba543e38d0dc7161bc5b3c3e49e1978b68756790f0b1b58dbfb61ae09d",
+   "t": 4988662,
+   "u": "ota/index.html.038ab0ba543e38d0.jxo",
+   "mac": "32ab696db580322aa7d6e968e258c5a48a41d4132f10fbd75ab650697950b668"
   },
   {
    "n": "pk.bin",
