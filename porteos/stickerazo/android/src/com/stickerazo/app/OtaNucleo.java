@@ -24,7 +24,8 @@ import java.util.regex.Pattern;
  *  arrancar se borran las viejas.</li></ul> */
 public final class OtaNucleo {
     private static final Charset UTF8 = Charset.forName("UTF-8");
-    private static final Pattern RUTA = Pattern.compile("[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*\\.[a-z0-9]{1,5}");
+    // (cada parte empieza con letra, número o «_»; puede tener puntos adentro, como «APACHE-2.0.txt»; nunca «..»)
+    private static final Pattern RUTA = Pattern.compile("[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_][A-Za-z0-9_.-]*)*\\.[A-Za-z0-9]{1,5}");
     public static final long MAX_ARCHIVO = 8L * 1024 * 1024;
 
     public interface Bajador { byte[] bajar(String ruta) throws IOException; }

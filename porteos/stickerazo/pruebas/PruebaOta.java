@@ -26,7 +26,7 @@ public class PruebaOta {
     static byte[] readAll(InputStream in) throws Exception { java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream(); byte[] t = new byte[8192]; for (int n; (n = in.read(t)) > 0; ) b.write(t, 0, n); return b.toByteArray(); }
     static Map<String, String> huellas(File web) throws Exception {
         Map<String, String> m = new HashMap<String, String>();
-        for (String r : new String[] { "app.js", "estilo.css", "fuentes/Letra.ttf", "nuevo.js" }) { File f = new File(web, r); if (f.isFile()) m.put(r, OtaNucleo.sha(Files.readAllBytes(f.toPath()))); }
+        for (String r : new String[] { "app.js", "estilo.css", "fuentes/Letra.ttf", "fuentes/APACHE-2.0.txt", "nuevo.js" }) { File f = new File(web, r); if (f.isFile()) m.put(r, OtaNucleo.sha(Files.readAllBytes(f.toPath()))); }
         return m;
     }
 
@@ -34,11 +34,11 @@ public class PruebaOta {
         File dir = new File(a[0]); OtaNucleo.limpiar(dir); dir.mkdirs(); String otaPy = a[1];
         File apk = new File(dir, "apk"), srv = new File(dir, "servidor"), raiz = new File(dir, "ota");
         // lo que trae el APK (versión 1)
-        escribir(new File(apk, "app.js"), "console.log('v1')"); escribir(new File(apk, "estilo.css"), "body{}"); escribir(new File(apk, "fuentes/Letra.ttf"), "LETRA");
+        escribir(new File(apk, "app.js"), "console.log('v1')"); escribir(new File(apk, "estilo.css"), "body{}"); escribir(new File(apk, "fuentes/Letra.ttf"), "LETRA"); escribir(new File(apk, "fuentes/APACHE-2.0.txt"), "licencia");
         Map<String, String> base = huellas(apk);
         String[] lin = py(dir, otaPy, apk.getPath(), "--publica").split("\n"); PublicKey pub = OtaNucleo.llavePublica(lin[lin.length - 1]);
         // en GitHub: cambió app.js y hay uno nuevo
-        escribir(new File(srv, "app.js"), "console.log('v2')"); escribir(new File(srv, "estilo.css"), "body{}"); escribir(new File(srv, "fuentes/Letra.ttf"), "LETRA"); escribir(new File(srv, "nuevo.js"), "nuevo");
+        escribir(new File(srv, "app.js"), "console.log('v2')"); escribir(new File(srv, "estilo.css"), "body{}"); escribir(new File(srv, "fuentes/Letra.ttf"), "LETRA"); escribir(new File(srv, "nuevo.js"), "nuevo"); escribir(new File(srv, "fuentes/APACHE-2.0.txt"), "licencia");
         escribir(new File(srv, "terceros/modelo.tflite"), "PESADO"); escribir(new File(srv, "_prueba.html"), "x");
         py(dir, otaPy, srv.getPath());
         byte[] ota2 = Files.readAllBytes(new File(srv, "ota.json").toPath());
@@ -46,10 +46,10 @@ public class PruebaOta {
         final File[] desde = { srv };
         OtaNucleo.Bajador b = new OtaNucleo.Bajador() { public byte[] bajar(String r) throws java.io.IOException { bajadas.incrementAndGet(); return Files.readAllBytes(new File(desde[0], r).toPath()); } };
         java.util.Map<?, ?> d2 = OtaNucleo.leer(ota2, pub);
-        ok(d2 != null && ((Map<?, ?>) d2.get("archivos")).size() == 4 && !((Map<?, ?>) d2.get("archivos")).containsKey("terceros/modelo.tflite"), "la firma de ota.py (Python) se verifica en Java; 4 archivos (sin terceros/ ni los de prueba)");
+        ok(d2 != null && ((Map<?, ?>) d2.get("archivos")).size() == 5 && ((Map<?, ?>) d2.get("archivos")).containsKey("fuentes/APACHE-2.0.txt") && !((Map<?, ?>) d2.get("archivos")).containsKey("terceros/modelo.tflite"), "la firma de ota.py (Python) se verifica en Java; 5 archivos (con «APACHE-2.0.txt»; sin terceros/ ni los de prueba)");
         int n = OtaNucleo.aplicar(raiz, ota2, pub, base, 0, 100, b);
         File act = OtaNucleo.actual(raiz);
-        ok(n == 2 && bajadas.get() == 2, "baja sólo lo que cambió: " + n + " de 4 (app.js y nuevo.js)");
+        ok(n == 2 && bajadas.get() == 2, "baja sólo lo que cambió: " + n + " de 5 (app.js y nuevo.js)");
         ok(act != null && new String(Files.readAllBytes(OtaNucleo.archivo(act, "app.js").toPath()), U8).equals("console.log('v2')") && OtaNucleo.archivo(act, "estilo.css") == null && OtaNucleo.archivo(act, "nuevo.js") != null,
            "se usa app.js nuevo; estilo.css (igual) sale del APK");
         ok(OtaNucleo.aplicar(raiz, ota2, pub, base, 0, 100, b) == -1, "la misma versión otra vez: nada");
@@ -71,7 +71,7 @@ public class PruebaOta {
         ok(OtaNucleo.leer(tocado.getBytes(U8), pub) == null, "los datos tocados después de firmar: firma inválida");
         Thread.sleep(1100); escribir(new File(srv, "app.js"), "console.log('v4')"); py(dir, otaPy, srv.getPath(), "--apk-min", "500");
         ok(OtaNucleo.aplicar(raiz, Files.readAllBytes(new File(srv, "ota.json").toPath()), pub, base, 0, 100, b) == -1 && OtaNucleo.actual(raiz).equals(act3), "una versión que pide un APK más nuevo: no se aplica (hay que actualizar la app)");
-        ok(!OtaNucleo.rutaValida("../x.js") && !OtaNucleo.rutaValida("a/../../x.js") && !OtaNucleo.rutaValida("/x.js") && OtaNucleo.rutaValida("fuentes/Letra.ttf"), "rutas con «..» o desde la raíz: no");
+        ok(!OtaNucleo.rutaValida("../x.js") && !OtaNucleo.rutaValida("a/../../x.js") && !OtaNucleo.rutaValida("/x.js") && !OtaNucleo.rutaValida(".oculto.js") && !OtaNucleo.rutaValida("a/./x.js") && OtaNucleo.rutaValida("fuentes/Letra.ttf") && OtaNucleo.rutaValida("fuentes/APACHE-2.0.txt"), "rutas con «..», «.», ocultas o desde la raíz: no; con puntos adentro del nombre: sí");
         System.out.println("RESUMEN: " + bien + " bien, " + fallas + " fallas");
         if (fallas > 0) System.exit(1);
     }
