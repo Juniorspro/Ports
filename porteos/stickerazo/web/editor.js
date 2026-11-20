@@ -4,7 +4,7 @@
 export const LADO = 512, MARGEN = 16, MAX_BYTES = 100 * 1024, MAX_ANIMADO = 500 * 1024;
 export const FUENTES = [
   { id: 'LuckiestGuy', nombre: 'Luckiest Guy' }, { id: 'Bangers', nombre: 'Bangers' }, { id: 'Anton', nombre: 'Anton' },
-  { id: 'PermanentMarker', nombre: 'Permanent Marker' }, { id: 'Pacifico', nombre: 'Pacifico' },
+  { id: 'PermanentMarker', nombre: 'Permanent Marker' }, { id: 'Pacifico', nombre: 'Pacifico' }, { id: 'ComicNeue', nombre: 'Comic xD' },
 ];
 export const COLORES = ['#ffffff', '#111111', '#ffd23f', '#ff3e8a', '#3ec7ff', '#4cd964', '#ff7a1a', '#9b5cff'];
 export async function cargarFuentes(base) {
@@ -217,7 +217,7 @@ export class Sticker {
   // ---- el proyecto (para volver a editarlo): todo menos las imágenes, que van aparte ----
   aProyecto() {
     const imgs = [], capas = this.capas.map((c) => {
-      const { src, ...resto } = c;
+      const { src, src0, ...resto } = c;   // (src0: la foto sin los efectos xD, sólo mientras se edita)
       if (c.tipo === 'img') { let i = imgs.indexOf(src); if (i < 0) { imgs.push(src); i = imgs.length - 1; } return { ...resto, img: i }; }
       return resto;
     });
@@ -232,6 +232,50 @@ export class Sticker {
 
 // ---- exportar ----
 export const aBlob = (c, tipo, q) => new Promise((ok) => c.toBlob(ok, tipo, q));
+
+// ---- los efectos «xD»: cada uno devuelve una foto nueva (la de antes no se toca); lo transparente sigue transparente ----
+// ojo de pez: agranda lo del medio, como un celu pegado a la cara (k < 1: más fuerte)
+export function ojoDePez(c, cx = 0.5, cy = 0.42, r = 0.58, k = 0.42) {
+  const w = c.width, h = c.height, src = c.getContext('2d').getImageData(0, 0, w, h).data, o = lienzo(w, h), og = o.getContext('2d'), out = og.createImageData(w, h), d = out.data;
+  const x0 = cx * w, y0 = cy * h, R = r * Math.min(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = x - x0, dy = y - y0, dist = Math.hypot(dx, dy); let sx = x, sy = y;
+    if (dist < R) { const f = Math.pow(dist / R + 1e-6, 1 - k); sx = x0 + dx * f; sy = y0 + dy * f; }
+    const i = (y * w + x) * 4, j = (Math.min(h - 1, Math.max(0, Math.round(sy))) * w + Math.min(w - 1, Math.max(0, Math.round(sx)))) * 4;
+    d[i] = src[j]; d[i + 1] = src[j + 1]; d[i + 2] = src[j + 2]; d[i + 3] = src[j + 3];
+  }
+  og.putImageData(out, 0, 0); return o;
+}
+// más ancha o más alta
+export function deformar(c, fx, fy) { const o = lienzo(c.width * fx, c.height * fy), g = o.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, o.width, o.height); return o; }
+// la mitad izquierda, repetida en espejo
+export function espejo(c) {
+  const o = lienzo(c.width, c.height), g = o.getContext('2d'), m = Math.floor(c.width / 2);
+  g.drawImage(c, 0, 0, m, c.height, 0, 0, m, c.height);
+  g.save(); g.translate(c.width, 0); g.scale(-1, 1); g.drawImage(c, 0, 0, m, c.height, 0, 0, m, c.height); g.restore(); return o;
+}
+// pasar por JPEG feo (y achicar) sin perder lo transparente
+async function aplastarCalidad(c, chico, q) {
+  const t = lienzo(Math.max(8, c.width * chico), Math.max(8, c.height * chico)), tg = t.getContext('2d'); tg.fillStyle = '#808080'; tg.fillRect(0, 0, t.width, t.height); tg.drawImage(c, 0, 0, t.width, t.height);
+  const b = await aBlob(t, 'image/jpeg', q), bmp = await createImageBitmap(b), o = lienzo(c.width, c.height), g = o.getContext('2d');
+  g.imageSmoothingEnabled = chico > 0.3; g.drawImage(bmp, 0, 0, o.width, o.height);
+  g.globalCompositeOperation = 'destination-in'; g.drawImage(c, 0, 0); return o;
+}
+// quemada: colores pasados, contraste y calidad de JPEG feo
+export async function quemar(c) {
+  const t = lienzo(c.width, c.height), g = t.getContext('2d'); g.filter = 'saturate(2.4) contrast(1.45) brightness(1.05)'; g.drawImage(c, 0, 0); g.filter = 'none';
+  return aplastarCalidad(t, 0.6, 0.12);
+}
+// trucha: como una foto reenviada mil veces
+export function trucha(c) { return aplastarCalidad(c, 0.2, 0.3); }
+// los anteojos negros pixelados de los memes (dibujados acá): una capa más, para mover y poner donde quieras
+export function lentesXD() {
+  const p = 24, o = lienzo(14 * p, 3 * p), g = o.getContext('2d'); g.fillStyle = '#000';
+  const negros = [...Array(14).keys()].map((i) => [i, 0]).concat([1, 2, 3, 4, 5, 8, 9, 10, 11, 12].map((i) => [i, 1]), [2, 3, 4, 9, 10, 11].map((i) => [i, 2]));
+  for (const [i, j] of negros) g.fillRect(i * p, j * p, p, p);
+  g.fillStyle = '#fff'; for (const [i, j] of [[2, 1], [9, 1]]) g.fillRect(i * p, j * p, p, p);
+  return o;
+}
 // el WebP de 512×512 de 100 KB como mucho (bajando la calidad de a poco si hace falta)
 export async function exportarWebP(c) {
   for (const q of [0.92, 0.85, 0.78, 0.7, 0.6, 0.5, 0.4, 0.3]) {

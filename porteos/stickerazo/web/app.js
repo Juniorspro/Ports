@@ -1,6 +1,6 @@
 // Stickerazo: las pantallas y lo que hace cada botón.
 //  Inicio → (foto) → Recortá → Decorá → Guardar en un pack → el pack (de 3 a 30 stickers) → Agregar a WhatsApp.
-import { LADO, MARGEN, FUENTES, COLORES, ANIMACIONES, ANIM, cargarFuentes, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob } from './editor.js';
+import { LADO, MARGEN, FUENTES, COLORES, ANIMACIONES, ANIM, cargarFuentes, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob, ojoDePez, deformar, espejo, quemar, trucha, lentesXD } from './editor.js';
 import * as P from './puente.js';
 import { LISTOS, armarListo, emojisListo, prepararListo } from './listos.js';
 import * as C from './comunidad.js';
@@ -476,6 +476,7 @@ $('#vEditor .barra').onclick = (ev) => {
   else if (k === 'emoji') abrirEmoji();
   else if (k === 'borde') abrirBorde();
   else if (k === 'animar') abrirAnimar();
+  else if (k === 'xd') abrirXD();
   else if (k === 'frente') { s.alFrente(); pedirE(true); }
   else if (k === 'borrar') { s.borrarSel(); pedirE(true); }
 };
@@ -537,6 +538,39 @@ function abrirEmoji() {
     const b = ev.target.closest('button'); if (!b) return; cerrarModal();
     const n = E.st.capas.filter((c) => c.tipo === 'emoji').length, c = E.st.agregarEmoji(b.dataset.v), [x, y] = LUGARES_EMOJI[n % 4];
     c.x = x; c.y = y; c.rot = x > LADO / 2 ? -0.15 : 0.15; pedirE(true);
+  };
+}
+// ---- «xD»: arruinar la foto a propósito (ojo de pez, aplastar, quemar…), como los memes que circulan ----
+const EFECTOS_XD = [
+  ['ojo', '🐟', 'Ojo de pez'], ['ancho', '↔️', 'Aplastar'], ['alto', '↕️', 'Estirar'], ['quemar', '🔥', 'Quemar'],
+  ['trucha', '📉', 'Calidad trucha'], ['espejo', '🪞', 'Espejo'], ['lentes', '😎', 'Lentes'], ['sin', '↩️', 'Sin efectos'],
+];
+function abrirXD() {
+  const s = E.st, foto = () => { const c = s.capas[s.sel]; return c && c.tipo === 'img' && !c.lentes ? c : [...s.capas].reverse().find((x) => x.tipo === 'img' && !x.lentes); };
+  const m = modal(`<div class="hoja hojaXD"><div class="etq" style="margin-top:0">Modo xD <small>· a la foto ${foto() ? '' : '(primero poné una)'}</small></div>
+    <div class="gridXD">${EFECTOS_XD.map(([k, ico, n]) => `<button class="opXD" data-k="${k}"><span>${ico}</span>${n}</button>`).join('')}</div>
+    <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
+  let ocupado = false;
+  m.onclick = async (ev) => {
+    const b = ev.target.closest('button'); if (!b || ocupado) return; if (b.dataset.x) return cerrarModal();
+    const k = b.dataset.k;
+    if (k === 'lentes') { const l = s.agregarImagen(lentesXD()); l.lentes = true; l.esc = 190 / l.src.width; l.y = LADO * 0.36; vibrar(10); pedirE(true); aviso('Movelos a los ojos 😎'); return; }
+    const c = foto(); if (!c) return aviso('Primero poné una foto');
+    ocupado = true; b.classList.add('girando');
+    try {
+      if (k === 'sin') { if (c.src0) { c.esc *= Math.sqrt((c.src.width * c.src.height) / (c.src0.width * c.src0.height)); c.src = c.src0; delete c.src0; } }
+      else {
+        c.src0 = c.src0 || c.src;
+        if (k === 'ojo') c.src = ojoDePez(c.src);
+        else if (k === 'ancho') { c.src = deformar(c.src, 1.45, 1); c.esc /= Math.sqrt(1.45); }
+        else if (k === 'alto') { c.src = deformar(c.src, 1, 1.45); c.esc /= Math.sqrt(1.45); }
+        else if (k === 'quemar') c.src = await quemar(c.src);
+        else if (k === 'trucha') c.src = await trucha(c.src);
+        else if (k === 'espejo') c.src = espejo(c.src);
+      }
+      vibrar(12); pedirE(true);
+    } catch (e) { console.error(e); aviso('No se pudo'); }
+    finally { ocupado = false; b.classList.remove('girando'); }
   };
 }
 function abrirBorde() {
@@ -741,7 +775,7 @@ async function buscar(q) {
   C.buscarComunidad(q, $('#resCom'));
   const n = norm(q).trim(), res = $('#resBuscar'), lis = $('#listos');
   if (!n) { res.innerHTML = ''; lis.innerHTML = LISTOS.map((pk) => htmlListo(pk)).join(''); return llenarPrevias(lis); }
-  const dice = (d) => norm([d.texto, d.arriba, d.abajo].filter(Boolean).join(' ').replace(/\n/g, ' ')).includes(n) || (d.emoji && q.trim() === d.emoji);
+  const dice = (d) => norm(String(d.texto || '').replace(/[\n|]/g, ' ')).includes(n) || (d.emoji && q.trim() === d.emoji);
   const listos = LISTOS.map((pk) => ({ pk, idx: pk.stickers.map((d, i) => (dice(d) ? i : -1)).filter((i) => i >= 0), todo: norm(pk.nombre + ' ' + pk.desc + ' ' + pk.tags).includes(n) })).filter((x) => x.todo || x.idx.length);
   const packs = E.packs = await P.leerPacks(), mios = [];
   for (const p of packs) for (const st of p.stickers) {

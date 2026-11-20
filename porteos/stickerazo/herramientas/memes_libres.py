@@ -1,6 +1,6 @@
 # Memes con fotos de verdad pero libres para uso comercial: sólo CC0 o dominio público (Openverse: Flickr, Wikimedia…),
-# sin personas (animales, comida, cosas). Se bajan, se eligen a mano mirando las hojas de contacto, se recortan (rembg,
-# sólo como herramienta acá: no va en la app) y el texto del meme lo pone la app (se puede cambiar en el editor).
+# sin personas (animales, comida, cosas). Se bajan, se eligen a mano mirando las hojas de contacto, se encuadran (rembg,
+# sólo como herramienta acá: no va en la app), se «arruinan» a propósito (estilo xD) y el texto lo pone la app.
 # Cada foto queda anotada (título, autor, licencia, enlace) en web/memes/FUENTES.txt.
 # uso:
 #   python3 -I herramientas/memes_libres.py buscar          → /tmp/claude-0/sz_libres/candidatos.json
@@ -94,13 +94,83 @@ def vistas():
 
 # (centro x, centro y, lado como fracción del lado corto) de las que no se encuadran solas
 RECORTES = {'morfi_01': (0.43, 0.42, 0.78)}
+TIRA = 120   # (alto de la franja blanca de los memes «tira», en los 512 de la imagen)
+
+
+# ---- los efectos «xD» (sobre la foto de 512×512) ----
+def ojo_de_pez(im, cx=.5, cy=.5, r=.55, k=.45):
+    """agranda lo del medio (como un celu pegado a la cara): adentro del radio toma de más cerca del centro"""
+    import numpy as np
+    from PIL import Image
+    from scipy.ndimage import map_coordinates
+    a = np.asarray(im).astype(np.float32); h, w = a.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32); dx, dy = xx - cx * w, yy - cy * h
+    d = np.sqrt(dx * dx + dy * dy); R0 = r * min(w, h); t = np.clip(d / R0, 0, 1)
+    f = np.where(d < R0, np.power(t + 1e-6, 1 - k), 1.0)
+    out = np.stack([map_coordinates(a[..., c], [cy * h + dy * f, cx * w + dx * f], order=1, mode='reflect') for c in range(3)], -1)
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
+
+
+def deformar(im, fx, fy):
+    """más ancha (fx > 1) o más alta (fy > 1), y otra vez al cuadrado del medio (lo que falta, con la misma foto borrosa)"""
+    from PIL import Image, ImageFilter
+    w, h = int(512 * fx), int(512 * fy); im2 = im.resize((w, h), Image.LANCZOS)
+    if w < 512 or h < 512:
+        fondo = im.filter(ImageFilter.GaussianBlur(18)); fondo.paste(im2, ((512 - w) // 2, (512 - h) // 2)); return fondo
+    return im2.crop(((w - 512) // 2, (h - 512) // 2, (w - 512) // 2 + 512, (h - 512) // 2 + 512))
+
+
+def quemar(im, fuerte=1.0):
+    import io
+    from PIL import Image, ImageEnhance
+    im = ImageEnhance.Sharpness(ImageEnhance.Contrast(ImageEnhance.Color(im).enhance(1 + 1.3 * fuerte)).enhance(1 + .45 * fuerte)).enhance(1 + 2.5 * fuerte)
+    for q in (16, 12):
+        b = io.BytesIO(); im.resize((300, 300)).save(b, 'JPEG', quality=q); im = Image.open(b).convert('RGB').resize((512, 512), Image.BICUBIC)
+    return im
+
+
+def trucha(im, lado=120):
+    """calidad de foto reenviada mil veces"""
+    import io
+    from PIL import Image
+    b = io.BytesIO(); im.resize((lado, lado), Image.BILINEAR).save(b, 'JPEG', quality=24); return Image.open(b).convert('RGB').resize((512, 512), Image.BILINEAR)
+
+
+def espejo(im):
+    from PIL import Image
+    a = im.copy(); a.paste(a.crop((0, 0, 256, 512)).transpose(Image.FLIP_LEFT_RIGHT), (256, 0)); return a
+
+
+def lentes(im, x, y, ancho):
+    """anteojos negros pixelados (dibujados acá, los de siempre de los memes)"""
+    from PIL import ImageDraw
+    d = ImageDraw.Draw(im); p = ancho / 14
+    negros = [(i, 0) for i in range(14)] + [(i, 1) for i in (1, 2, 3, 4, 5, 8, 9, 10, 11, 12)] + [(i, 2) for i in (2, 3, 4, 9, 10, 11)]
+    for i, j in negros: d.rectangle((x + i * p, y + j * p, x + (i + 1) * p - 1, y + (j + 1) * p - 1), fill='black')
+    for i, j in ((2, 1), (9, 1)): d.rectangle((x + i * p, y + j * p, x + (i + 1) * p - 1, y + (j + 1) * p - 1), fill='white')
+    return im
+
+
+def aplicar(im, efecto, cara):
+    """cara: (cx, cy, r) en fracciones, dónde está la cara (para el ojo de pez)"""
+    for e in efecto.split('+'):
+        if e == 'ojo': im = ojo_de_pez(im, *cara, k=.42)
+        elif e == 'ojoq': im = quemar(ojo_de_pez(im, *cara, k=.42), .7)
+        elif e == 'aplastar': im = deformar(im, 1.45, 1.0)
+        elif e == 'ancho': im = deformar(im, 1.6, .85)
+        elif e == 'estirar': im = deformar(im, .85, 1.55)
+        elif e == 'quemar': im = quemar(im, 1.0)
+        elif e == 'trucha': im = trucha(im)
+        elif e == 'espejo': im = espejo(im)
+        elif e.startswith('lentes:'): im = lentes(im, *[float(v) for v in e[7:].split(',')])
+        elif e != 'nada': raise ValueError('efecto desconocido: ' + e)
+    return im
 
 
 def armar():
-    """baja en grande las elegidas (memes_lista.py), las encuadra en el bicho (con la máscara de rembg), les da color de
-    meme y las deja en web/memes/<pack>_<n>.webp (512, puntas redondeadas, borde blanco); escribe web/memes.js y
-    web/memes/FUENTES.txt. Se puede cortar y volver a correr: sigue donde quedó."""
-    import io
+    """baja en grande las elegidas (memes_lista.py), las encuadra en el bicho (con la máscara de rembg), les aplica su
+    efecto «xD» y las deja en web/memes/<pack>_<n>.webp (512, puntas redondeadas, borde blanco; las «tira» con la franja
+    blanca arriba); escribe web/memes.js y web/memes/FUENTES.txt. Se puede cortar y volver a correr: sigue donde quedó."""
     from PIL import Image, ImageDraw, ImageEnhance
     from rembg import remove, new_session
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -113,7 +183,7 @@ def armar():
     packs, fuentes, total = [], [], 0
     for pid, nom, desc, pais, tags, ms in PACKS:
         sts = []
-        for j, (k, ar, ab, em, xd) in enumerate(ms):
+        for j, (k, texto, em, efecto, estilo) in enumerate(ms):
             nombre = '%s_%02d' % (pid, j + 1); o = os.path.join(dest, nombre + '.webp'); c = todos[k]
             if not os.path.isfile(o):
                 if time.time() - T0 > 540: faltan += 1; continue
@@ -134,28 +204,32 @@ def armar():
                     x0, y0, x1, y1 = [v * esc for v in caja]
                     lado = int(min(min(W, H), max(0.5 * min(W, H), 1.12 * max(x1 - x0, y1 - y0))))
                     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2 - 0.06 * (y1 - y0)
-                else: cx, cy = W / 2, H / 2
+                else: x0, y0, x1, y1 = 0, 0, W, H; cx, cy = W / 2, H / 2
                 x = int(min(max(0, cx - lado / 2), W - lado)); y = int(min(max(0, cy - lado / 2), H - lado))
                 im = im.crop((x, y, x + lado, y + lado)).resize((512, 512), Image.LANCZOS)
-                im = ImageEnhance.Contrast(ImageEnhance.Color(im).enhance(1.7 if xd else 1.18)).enhance(1.25 if xd else 1.05)
-                if xd:   # (la calidad trucha a propósito)
-                    im = ImageEnhance.Sharpness(im).enhance(2.2); b = io.BytesIO(); im.resize((256, 256)).save(b, 'JPEG', quality=18)
-                    im = Image.open(b).convert('RGB').resize((512, 512), Image.NEAREST)
-                else: im = ImageEnhance.Sharpness(im).enhance(1.25)
+                # la cara, en fracciones del cuadrado: arriba del bicho (un tercio de su alto), centrada
+                bw, bh = (x1 - x0) / lado, (y1 - y0) / lado
+                cara = (min(.8, max(.2, ((x0 + x1) / 2 - x) / lado)), min(.75, max(.25, (y0 - y) / lado + .34 * bh)), min(.62, max(.34, .5 * max(bw, bh))))
+                im = ImageEnhance.Sharpness(ImageEnhance.Color(im).enhance(1.15)).enhance(1.2)
+                im = aplicar(im, efecto, cara)
+                if estilo == 'tira':   # (la franja blanca arriba; la letra la pone la app)
+                    nuevo = Image.new('RGB', (512, 512), 'white'); nuevo.paste(im.resize((512, 512 - TIRA), Image.LANCZOS), (0, TIRA)); im = nuevo
                 st = Image.new('RGBA', (512, 512), (0, 0, 0, 0)); st.paste((255, 255, 255, 255), (0, 0), borde); st.paste(im, (0, 0), redondo)
                 for q in (80, 72, 64, 56):
                     st.save(o, 'WEBP', quality=q, method=6)
                     if os.path.getsize(o) <= 80 * 1024: break
             total += os.path.getsize(o)
-            sts.append({'img': 'memes/%s.webp' % nombre, 'arriba': ar, 'abajo': ab, 'emoji': em})
+            sts.append({'img': 'memes/%s.webp' % nombre, 'texto': texto, 'emoji': em, 'estilo': estilo})
             fuentes.append('%s.webp — «%s» de %s (%s, vía %s) %s' % (nombre, (c['titulo'] or 'sin título').strip(), c['autor'] or 'autor desconocido', c['licencia'].upper(), c['fuente'], c['pagina']))
         if len(sts) >= 3: packs.append({'id': 'm_' + pid, 'nombre': nom, 'desc': desc, 'pais': pais, 'tags': tags, 'meme': True, 'stickers': sts})
     with open(os.path.join(dest, 'FUENTES.txt'), 'w', encoding='utf-8') as f:
         f.write('Fotos de los memes de Stickerazo: todas CC0 o de dominio público (encontradas con Openverse), recortadas,\n'
-                'retocadas y con texto agregado por nosotros. Archivo — «título» de autor (licencia, vía sitio) página original.\n\n')
+                'retocadas («xD»: ojo de pez, aplastadas, quemadas…) y con texto agregado por nosotros.\n'
+                'Archivo — «título» de autor (licencia, vía sitio) página original.\n\n')
         f.write('\n'.join(fuentes) + '\n')
     with open(os.path.join(RAIZ, 'web', 'memes.js'), 'w', encoding='utf-8') as f:
         f.write('// generado por herramientas/memes_libres.py: los packs de memes (fotos libres; el texto lo pone la app)\n')
+        f.write('export const TIRA = %d;   // (alto de la franja blanca de los memes «tira», de 512)\n' % TIRA)
         f.write('export const MEMES = ' + json.dumps(packs, ensure_ascii=False, separators=(',', ':')) + ';\n')
     n = sum(len(p['stickers']) for p in packs)
     print('memes: %d en %d packs (%.1f MB)%s' % (n, len(packs), total / 1048576, (' · faltan %d: volver a correr' % faltan) if faltan else ''))

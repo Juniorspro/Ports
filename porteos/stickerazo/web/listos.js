@@ -1,7 +1,7 @@
 // Packs listos: frases nuestras, de acá, con nuestras letras y emojis, y los memes (fotos libres, web/memes.js). Se arman
 // en el celular con el mismo editor, así que cualquiera se puede cambiar (otra palabra, otro color) antes de guardarlo.
 import { Sticker, LADO, lienzo } from './editor.js';
-import { MEMES } from './memes.js';
+import { MEMES, TIRA } from './memes.js';
 
 const T = (texto, fuente, color, contorno, extra = {}) => ({ texto, fuente, color, contorno, ...extra });
 const AM = '#ffd23f', RO = '#ff3e8a', CE = '#3ec7ff', VE = '#4cd964', NA = '#ff7a1a', VI = '#9b5cff', BL = '#ffffff', NE = '#111111';
@@ -111,23 +111,30 @@ export function prepararListo(pk) {
   }));
 }
 // (un texto largo de meme va en dos renglones, cortado en el espacio más cercano a la mitad)
-function partir(t) {
-  if ([...t].length <= 15 || !t.includes(' ')) return t;
+function partir(t, max = 15) {
+  if ([...t].length <= max || !t.includes(' ')) return t;
   const m = t.length / 2; let mejor = -1;
   for (let i = 0; i < t.length; i++) if (t[i] === ' ' && (mejor < 0 || Math.abs(i - m) < Math.abs(mejor - m))) mejor = i;
   return t.slice(0, mejor) + '\n' + t.slice(mejor + 1);
 }
-// un meme: la foto y el texto de meme arriba y/o abajo (blanco con borde negro), adentro de la foto
+// un meme: la foto (ya «arruinada» a propósito) y su texto, según el estilo:
+//  impact: mayúscula blanca con borde negro, abajo («arriba|abajo» para los dos) · comic: minúscula blanca con borde negro,
+//  abajo · tira: letra negra en la franja blanca de arriba (la franja viene en la foto)
 function armarMeme(d) {
   const s = new Sticker(), foto = FOTOS.get(d.img);
   if (foto && !(foto instanceof Promise)) s.agregarImagen(foto);
-  const lado = LADO - 2 * (16 + 4), arriba = (LADO - lado) / 2, abajo = arriba + lado;
-  for (const [txt, enAlto] of [[d.arriba, true], [d.abajo, false]]) {
-    if (!txt) continue;
-    const t = s.agregarTexto({ texto: partir(txt), fuente: 'Anton', color: '#ffffff', contorno: '#111111' });
-    t.tam = 64; const m = s.medidas(t); t.esc = Math.min(1, (lado - 34) / m.w); t.x = LADO / 2;
-    const alto = (m.h * t.esc) / 2; t.y = enAlto ? arriba + 20 + alto : abajo - 8 - alto;   // (arriba, más aire: los acentos y los «¿¡»)
-  }
+  const lado = LADO - 2 * (16 + 4), arriba = (LADO - lado) / 2, abajo = arriba + lado, k = lado / 512;
+  const poner = (txt, donde) => {
+    const tira = d.estilo === 'tira' && donde === 'arriba', comic = d.estilo !== 'impact';
+    const t = s.agregarTexto({ texto: partir(txt, tira ? 26 : comic ? 14 : 15), fuente: comic ? 'ComicNeue' : 'Anton', color: tira ? '#111111' : '#ffffff', contorno: tira ? '' : '#111111' });
+    t.tam = tira ? 52 : comic ? 70 : 64; const m = s.medidas(t), anchoMax = lado - (tira ? 24 : 34), altoMax = tira ? (TIRA - 10) * k : lado * 0.4;
+    t.esc = Math.min(1, anchoMax / m.w, altoMax / m.h); t.x = LADO / 2;
+    const alto = (m.h * t.esc) / 2;
+    t.y = tira ? arriba + (TIRA * k) / 2 + 2 : donde === 'arriba' ? arriba + 20 + alto : abajo - 10 - alto;
+  };
+  const [a, b] = String(d.texto || '').split('|');
+  if ((d.estilo === 'impact' || d.estilo === 'tira') && b !== undefined) { if (a) poner(a, 'arriba'); if (b) poner(b, 'abajo'); }
+  else if (d.texto) poner(d.texto.replace('|', ' '), d.estilo === 'tira' ? 'arriba' : 'abajo');
   s.sel = -1;
   return s;
 }

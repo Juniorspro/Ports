@@ -12,7 +12,8 @@ Todo lo de esta lista permite uso comercial. Lo que no está acá es propio.
 | Bangers (The Bangers Project Authors) | texto de los stickers | SIL OFL 1.1 (`web/fuentes/OFL.txt`) | Google Fonts |
 | Anton (The Anton Project Authors) | texto de los stickers | SIL OFL 1.1 | Google Fonts |
 | Pacifico (The Pacifico Project Authors) | texto de los stickers | SIL OFL 1.1 | Google Fonts |
-| 184 fotos de animales y comida (`web/memes/*.webp`) | los packs de memes | CC0 o dominio público (cada una, con autor y enlace, en `web/memes/FUENTES.txt`) | Openverse (Flickr, Wikimedia, rawpixel, StockSnap…), elegidas a mano: sin personas, sin texto, sin personajes ni marcas |
+| Comic Neue (The Comic Neue Project Authors, Craig Rozynski) | la letra «Comic xD» de los memes | SIL OFL 1.1 | Google Fonts (github.com/google/fonts) |
+| 184 fotos de animales y comida (`web/memes/*.webp`), deformadas a propósito (estilo «xD») | los packs de memes | CC0 o dominio público (cada una, con autor y enlace, en `web/memes/FUENTES.txt`) | Openverse (Flickr, Wikimedia, rawpixel, StockSnap…), elegidas a mano: sin personas, sin texto, sin personajes ni marcas |
 
 MediaPipe y los modelos no se guardan en el repo: los baja `herramientas/bajar.sh` (comprueba sus huellas con
 `herramientas/huellas.txt`). Las fuentes OFL se pueden usar, incluir y vender con la app; no se pueden vender solas.

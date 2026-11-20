@@ -85,6 +85,18 @@ await p.click('#rModos [data-m="auto"]'); await p.waitForFunction(() => !window.
 // al editor
 await p.click('#rSig'); await p.waitForFunction(() => window.__sz.E.vista === 'vEditor');
 await foto('editor_foto');
+// modo xD: arruinar la foto a propósito y volver atrás
+const antesXD = await E(() => { const c = window.__sz.E.st.capas.find((x) => x.tipo === 'img'); return { w: c.src.width, h: c.src.height }; });
+await p.click('#vEditor [data-e="xd"]'); await p.waitForSelector('#modal .gridXD');
+for (const k of ['ojo', 'ancho', 'quemar', 'trucha', 'espejo']) { await p.click(`#modal .opXD[data-k="${k}"]`); await p.waitForFunction(() => !document.querySelector('#modal .opXD.girando')); }
+const xd = await E(() => { const c = window.__sz.E.st.capas.find((x) => x.tipo === 'img'); return { w: c.src.width, h: c.src.height, tiene0: !!c.src0 }; });
+await p.click('#modal .opXD[data-k="lentes"]'); await foto('modo_xd');
+const nLentes = await E(() => window.__sz.E.st.capas.filter((x) => x.lentes).length);
+await p.click('#modal .opXD[data-k="sin"]'); await espera(100);
+const vueltaXD = await E(() => { const c = window.__sz.E.st.capas.find((x) => x.tipo === 'img' && !x.lentes); return { w: c.src.width, h: c.src.height, tiene0: !!c.src0 }; });
+ok(xd.tiene0 && Math.abs(xd.w / xd.h - (1.45 * antesXD.w) / antesXD.h) < 0.05 && nLentes === 1 && vueltaXD.w === antesXD.w && vueltaXD.h === antesXD.h && !vueltaXD.tiene0,
+  `modo xD: ojo de pez, aplastar (${antesXD.w}×${antesXD.h} → ${xd.w}×${xd.h}), quemar, trucha, espejo y lentes; «Sin efectos» vuelve a la foto`);
+await E(() => { const s = window.__sz.E.st; s.capas = s.capas.filter((x) => !x.lentes); s.sel = -1; }); await p.click('#modal [data-x="1"]');
 await p.click('#vEditor [data-e="texto"]'); await p.fill('#tTx', 'CUANDO COMPILA\nDE UNA'); await p.click('#tF [data-v="LuckiestGuy"]'); await p.click('#tC [data-v="#ffd23f"]');
 await foto('hoja_texto'); await p.click('#modal [data-x="1"]');
 const tx = await E(() => { const c = window.__sz.E.st.capas.find((c) => c.tipo === 'texto'); return { x: c.x, y: c.y }; });
@@ -175,7 +187,7 @@ ok(opciones.length === 1 && opciones[0] === 'nuevo', 'un animado no se ofrece pa
 await foto('guardar_animado');
 t0 = Date.now(); await p.click('#modal [data-x="1"]'); await p.waitForFunction(() => window.__sz.E.vista === 'vPack' && document.querySelector('#modal').classList.contains('oc'), null, { timeout: 60000 });
 const pa = await packDe(); ok(pa.animado === true && pa.stickers.length === 1 && pa.nombre === 'Mis animados', `pack animado nuevo «${pa.nombre}» con 1 sticker (armado en ${Date.now() - t0} ms)`);
-ok(await p.isVisible('#pCompletar') && /2 variaciones/.test(await p.textContent('#pCompletar')), 'con 1 sticker ofrece «Completar con 2 variaciones»');
+ok(await p.waitForFunction(() => { const b = document.querySelector('#pCompletar'); return b && !b.classList.contains('oc') && /2 variaciones/.test(b.textContent); }, null, { timeout: 8000 }).then(() => true, () => false), 'con 1 sticker ofrece «Completar con 2 variaciones»');
 t0 = Date.now(); await p.click('#pCompletar'); await p.waitForFunction(() => { const E = window.__sz.E, x = E.packs.find((y) => y.id === E.packId); return x && x.stickers.length === 3 && document.querySelector('#modal').classList.contains('oc'); }, null, { timeout: 120000 });
 const pc = await packDe(); ok(pc.stickers.length === 3 && !(await p.isVisible('#pCompletar')) && !(await p.isDisabled('#pWhats')), `completar: 3 stickers en ${Date.now() - t0} ms, ya se puede agregar a WhatsApp`);
 const anims = pc.stickers.map((x) => x.proyecto.capas.map((c) => c.anim || '-').join('+')).join(' | ');
