@@ -367,6 +367,19 @@ function gmrMatrizJuego(M, o) {
   for (let i = 0; i < 3; i++) o[12 + i] = M[GMR_EJE[i] * 4 + 3] * GS;
   o[15] = 1; return o;
 }
+// la misma matriz en un modelo animado (nextbots y entidades con secuencia): G = R·M·R⁻¹ —R, la raíz: lugar, giro y escala
+// pareja— lleva cada hueso ya ubicado a donde lo deja la matriz. Sólo para dibujar: los huesos que lee el Lua (ojos,
+// enganches) quedan sin ella, como en GMod, donde la matriz se pone del lado del cliente. El Pumpkin Rabbit de The
+// Mysterious House (DrGBase) se agranda ×10 así —su modelo mide 13 unidades—: antes salía de 33 cm («se hizo enano»)
+const _gmG = new Float32Array(16), _gmI = new Float32Array(16);
+function gmrMatrizHuesos(e, R) {
+  if (!e.matriz || !e.matriz.m) return null;
+  const s2 = R[0] * R[0] + R[1] * R[1] + R[2] * R[2] || 1;
+  for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) _gmI[j * 4 + i] = R[i * 4 + j] / s2;
+  for (let i = 0; i < 3; i++) _gmI[12 + i] = -(_gmI[i] * R[12] + _gmI[4 + i] * R[13] + _gmI[8 + i] * R[14]);
+  _gmI[3] = _gmI[7] = _gmI[11] = 0; _gmI[15] = 1;
+  m4mul(R, gmrMatrizJuego(e.matriz.m, _gmX), _gmT); return m4mul(_gmT, _gmI, _gmG);
+}
 function gmrTinte(e) {
   const c = e.color || [255, 255, 255, 255], m = GR.mod, a = (c[3] ?? 255) / 255 * GR.blend;
   return c[0] === 255 && c[1] === 255 && c[2] === 255 && a >= 0.999 && m[0] === 1 && m[1] === 1 && m[2] === 1 ? null : [c[0] / 255 * m[0], c[1] / 255 * m[1], c[2] / 255 * m[2], a];

@@ -369,6 +369,8 @@ function gmanDibujar(e) {
   if (e.o) e.o.md.oculto = true;
   let md = e.anMd; if (!md || md.A !== gp.arb) { md = e.anMd = new Modelo(gp.arb); md.fijo = gp.arb.map(() => null); e.anW = Array.from({ length: d.nb + 1 }, () => new Float32Array(16)); }
   const W = e.anW; for (let i = 0; i <= d.nb; i++) { W[i].set(H.W[i]); md.fijo[i] = W[i]; }
+  // (con su matriz de EnableMatrix("RenderMultiply"): sólo en la copia que se dibuja —gmrMatrizHuesos—)
+  const G = gmrMatrizHuesos(e, H.W[0]); if (G) for (let i = 0; i <= d.nb; i++) m4mul(G, W[i], W[i]);
   const hc = d.porNombre.get('valvebiped.bip01_head1');
   if (hc !== undefined) { if (!d.cabeza) d.cabeza = gmanRama([-1, ...d.padres.map((p) => (p >= 0 ? 1 + p : 0))], 1 + hc); gmanSinCabeza(W, 1 + hc, d.cabeza); }
   md.color = gmrTinte(e); md.sinSombra = !!e.sinSombra; md.haloC = e.haloC; md.haloT = e.haloT; md.sucio = true; md.encolar();

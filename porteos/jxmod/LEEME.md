@@ -5190,3 +5190,24 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
   internet; lo guardado roto; con otro paquete lo baja y lo comprueba; un HTML más nuevo; sin errores). La web con código
   con las marcas: pide el código, uno inventado no entra, sin errores.
 
+## Lo del panel después de la 3.9.7 (sin publicar)
+
+- **Bug: «Pumkin rabbit nextbot — se hizo enano xdddd»** (3.9.6, app en el celu, Ultra, en `gm_mallparking`; con video):
+  es el de DrGBase «The Mysterious House: Pumpkin Rabbit NEXTBOT» (3537414574, 155 mil suscriptos; su modelo viene en
+  «[PILL PACK] Pumpkin Rabbit», 3532749231, que el juego no baja solo por el tope de peso). En el video el conejo
+  aparece de lejos como un puntito, de cerca (con la cámara de su animación de matar) se ve grande y después queda
+  parado como un animatrónico naranja chiquito.
+  - La causa: su modelo mide 13 unidades (33 cm: lo dicen las cajas de sus secuencias y sus hitboxes; el 80 de la
+    cabecera lo puso el autor) y su `CustomInitialize` lo agranda ×10 con `self:EnableMatrix("RenderMultiply", mat)`
+    (sólo del lado del cliente). El juego guardaba esa matriz y la usaba en los modelos quietos (`gmrModelo`: las piezas
+    de las armas del SWEP Construction Kit), pero no en los animados: salía de 33 cm. El sin máscara (su «evolución»,
+    cuando le bajan toda la vida) hace lo mismo.
+  - Ahora también en los animados (`gmod_render.js`: `gmrMatrizHuesos`; `gmod_nextbot.js`: la raíz de `gmnbDibujar`;
+    `gmod_anim.js`: la copia que dibuja `gmanDibujar`), sólo para dibujar: los huesos que lee el Lua (ojos, enganches,
+    `GetBonePosition`) quedan sin ella, como en GMod, donde la matriz es del cliente y la IA no la ve.
+  - Medido con los addons de verdad: el conejo pasó de 0,32 a 3,23 m (×10,00) y el sin máscara de 0,30 a 3,02 m, con los
+    pies en el piso; la cabeza que lee el Lua, igual (11,3 unidades) con y sin la matriz. Los niveles de detalle no
+    tenían que ver (con la malla entera salía igual de chico). Prueba: `pruebas/nextbot_matriz.mjs` 5/5 (baja los addons
+    como un jugador, ~1 GB la primera vez). DrGBase, Cartoon Cat, Doro y SCP-049 (los de `nextbots_ia.mjs`) no usan
+    `EnableMatrix`: para ellos no cambia nada. `pepe_vuelve` 13/13, `codigo_tragado` bien.
+

@@ -510,6 +510,8 @@ function gmnbDibujar(e) {
   // (con su escala de modelo —SetModelScale, la ENT.ModelScale de DrGBase—: GMod dibuja los huesos y la malla escalados
   // desde los pies; antes se ignoraba y los que la usan salían de su tamaño sin escalar)
   const org = gmaOrigen(e.o), es = gmnbEscala(e); m4trs([org.x, org.y, org.z], [e.o.b.q.x, e.o.b.q.y, e.o.b.q.z, e.o.b.q.w], [es, es, es], W[0]); md.fijo[0] = W[0];
+  // (y con su matriz de EnableMatrix("RenderMultiply"), en el espacio del modelo: gmrMatrizHuesos)
+  if (e.matriz && e.matriz.m) m4mul(W[0], gmrMatrizJuego(e.matriz.m, _gmX), W[0]);
   let pa = null, pb = null, w = 0;
   // (en una mezcla, la celda según los parámetros de pose; los que no se pusieron valen 0, como en Source. Antes, sin ninguno
   // puesto, la primera celda: en los de modelo de jugador, correr en diagonal para atrás)
