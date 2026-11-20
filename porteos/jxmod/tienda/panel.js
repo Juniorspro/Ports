@@ -291,9 +291,14 @@ export async function panelRutas(req, env, url, r, ip, json, cuentaUsuario, cuen
   }
   if (req.method === 'POST' && r === '/api/panel/post') {
     const u = await usuario(); if (!u) return json({ error: 'sin sesión', cuenta: true }, 401);
-    const hora = await env.DB.prepare('SELECT COUNT(*) AS n FROM pn_posts WHERE autor = ?1 AND creado > ?2').bind(u.id, ahora - HORA).first();
-    if (hora && hora.n >= 6) return json({ error: 'publicaste mucho: esperá un rato' }, 429);
+    // (para que no se sature: una cada 3 minutos, 4 por hora y 10 por día; y no el mismo título dos veces)
+    const ESPERA = 3 * MIN, h = await env.DB.prepare('SELECT MAX(creado) AS t, SUM(CASE WHEN creado > ?2 THEN 1 ELSE 0 END) AS hora, COUNT(*) AS dia FROM pn_posts WHERE autor = ?1 AND creado > ?3').bind(u.id, ahora - HORA, ahora - DIA).first();
+    if (h && h.t && ahora - h.t < ESPERA) { const seg = Math.ceil((ESPERA - (ahora - h.t)) / 1000); return json({ error: `esperá ${Math.ceil(seg / 60)} min para publicar otra (así no se satura). Mientras, dale ♥ a las que ya están.`, espera: seg }, 429); }
+    if (h && h.hora >= 4) return json({ error: 'publicaste mucho esta hora: esperá un rato', espera: 900 }, 429);
+    if (h && h.dia >= 10) return json({ error: 'llegaste al máximo de hoy: seguí mañana', espera: 3600 }, 429);
     const d = await req.json().catch(() => ({}));
+    const igual = await env.DB.prepare('SELECT id FROM pn_posts WHERE autor = ?1 AND lower(titulo) = lower(?2) AND creado > ?3').bind(u.id, linea(d.titulo, 90), ahora - 7 * DIA).first();
+    if (igual) return json({ error: 'ya publicaste eso: está en la lista (si querés, sumale algo con otra publicación más adelante)' }, 409);
     const res = await postNuevo(env, d, u.id, u.nombre || d.nombre, ip, false); return json(res, res.error ? 400 : 200);
   }
   if (req.method === 'POST' && r === '/api/panel/media') {

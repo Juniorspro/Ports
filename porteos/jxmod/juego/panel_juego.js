@@ -304,6 +304,10 @@ function ordPaso(dt) { for (const uid of [...ORD.guiones.keys()]) ordGancho(uid,
 const BUG = { tipo: 'bug', orden: 'nuevo', posts: [], p: 0, cargando: false, mas: true, ver: null, form: null, subiendo: '', votos: {}, error: '' };
 const bugApi = (r, o) => ((TEST || navigator.webdriver) && Q.get('panel') ? fetch(Q.get('panel') + r, o) : typeof cuApi === 'function' ? cuApi('panel/' + r, o) : fetch(TIENDA_URL + 'panel/' + r, o));
 const bugMedia = (id) => ordBase() + 'media/' + id;
+// (un pedazo del texto, cortado en una palabra entera y con «…»)
+const bugCorto = (t, n) => { t = String(t || '').replace(/\s+/g, ' ').trim(); if (t.length <= n) return t; const c = t.slice(0, n), i = c.lastIndexOf(' '); return (i > n * 0.6 ? c.slice(0, i) : c).replace(/[\s,.;:]+$/, '') + '…'; };
+// (para que no se sature: el servidor deja una cada 3 minutos; acá se avisa antes de subir las fotos)
+const BUG_ESPERA = 3 * 60e3;
 const BUG_EST = { nuevo: '#9aa3b2', visto: '#5fa8ff', en_curso: '#ffb84d', hecho: '#5fd36a', no: '#ff6b6b' };
 function panelBugs(P) {
   const tabs = [['bug', 'bg.bugs', 'bicho'], ['sug', 'bg.sugs', 'foco']];
@@ -332,7 +336,7 @@ function panelBugs(P) {
     const L = BUG.posts;
     cuerpo = `<div class="rbPanCuerpo bgLista"><div class="bgOrden"><button class="${BUG.orden === 'nuevo' ? 'sel' : ''}" data-rb="bg:orden|nuevo">${esc(T('bg.nuevos'))}</button><button class="${BUG.orden === 'pop' ? 'sel' : ''}" data-rb="bg:orden|pop">${esc(T('bg.populares'))}</button></div>
       ${L.length ? L.map((p) => { const m = p.media[0]; return `<div class="bgItem" data-rb="bg:ver|${p.id}">${m ? (m.mime.startsWith('video/') ? `<div class="bgMin bgVid">${glifo('video')}</div>` : `<img class="bgMin" src="${esc(bugMedia(m.id))}" alt="" loading="lazy">`) : `<div class="bgMin">${glifo(p.tipo === 'bug' ? 'bicho' : 'foco')}</div>`}
-        <div class="bgDatos"><b>${esc(p.titulo)}</b><small>${esc(p.texto.slice(0, 120))}</small><span><i class="bgEst" style="--c:${BUG_EST[p.estado] || '#999'}">${esc(T('bg.e.' + p.estado))}</i> ♥ ${p.likes}${p.media.length ? ' · ' + glifo('camara') + ' ' + p.media.length : ''}${p.respuesta ? ' · ' + glifo('chat') + ' ' + esc(p.resp_de || '') : ''}</span></div></div>`; }).join('')
+        <div class="bgDatos"><b>${esc(p.titulo)}</b><small>${esc(bugCorto(p.texto, 140))}</small><span><i class="bgEst" style="--c:${BUG_EST[p.estado] || '#999'}">${esc(T('bg.e.' + p.estado))}</i> ♥ ${p.likes}${p.media.length ? ' · ' + glifo('camara') + ' ' + p.media.length : ''}${p.respuesta ? ' · ' + glifo('chat') + ' ' + esc(p.resp_de || '') : ''}</span></div></div>`; }).join('')
         : `<p class="rbAyudaC">${esc(BUG.cargando ? T('cargando') : BUG.error || T(BUG.tipo === 'bug' ? 'bg.vacioBug' : 'bg.vacioSug'))}</p>`}
       ${L.length && BUG.mas ? `<button class="rbBtnGris bgMas" data-rb="bg:mas">${esc(T('bg.mas'))}</button>` : ''}</div>`;
     pie = `<div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><button class="rbBtnG" data-rb="bg:nuevo">${glifo('mas')} ${esc(T(BUG.tipo === 'bug' ? 'bg.contarBug' : 'bg.contarSug'))}</button></div>`;
@@ -387,6 +391,8 @@ async function bugPublicar() {
   const F = BUG.form; if (!F || BUG.subiendo) return;
   if (String(F.titulo).trim().length < 3) { BUG.error = T('bg.faltaTit'); inicioPanel('bugs'); return; }
   if (typeof cuentaPedir === 'function' && !cuentaPedir('bugs', () => bugPublicar())) return;
+  let ult = 0; try { ult = +localStorage.getItem('jx_bug_ult') || 0; } catch (e) { /* sin lugar */ }
+  if (Date.now() - ult < BUG_ESPERA) { BUG.error = T('bg.espera').replace('%s', Math.ceil((BUG_ESPERA - (Date.now() - ult)) / 60e3)); inicioPanel('bugs'); return; }
   BUG.error = '';
   try {
     const media = [];
@@ -396,8 +402,10 @@ async function bugPublicar() {
     const r = await bugApi('post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo: F.tipo, titulo: F.titulo, texto: F.texto, media, version: typeof JX_VERSION !== 'undefined' ? JX_VERSION : '', lugar, nombre: PREFS.nombre || '' }) });
     const d = await r.json().catch(() => ({}));
     if (r.status === 401 && d.cuenta && typeof cuDialogo === 'function') { BUG.subiendo = ''; cuDialogo('bugs', () => bugPublicar()); inicioPanel('bugs'); return; }
+    if (r.status === 429 && d.espera) try { localStorage.setItem('jx_bug_ult', String(Date.now() - BUG_ESPERA + d.espera * 1000)); } catch (e) { /* sin lugar */ }
     if (!r.ok || !d.id) throw new Error(d.error || ('error ' + r.status));
     for (const a of F.archivos) URL.revokeObjectURL(a.url);
+    try { localStorage.setItem('jx_bug_ult', String(Date.now())); } catch (e) { /* sin lugar */ }
     BUG.tipo = F.tipo; BUG.form = null; BUG.subiendo = ''; BUG.posts = []; BUG.orden = 'nuevo'; BUG.listo = false;
     if (typeof menuAviso === 'function') menuAviso(T('bg.gracias')); bugCargar(true);
   } catch (e) { BUG.subiendo = ''; BUG.error = String(e && e.message || e); inicioPanel('bugs'); }
@@ -448,7 +456,7 @@ Object.assign(IDI3, {
   'bg.sinRed': ['No se pudo cargar (¿sin internet?)', "Couldn't load (offline?)", 'Não carregou (sem internet?)'],
   'bg.faltaTit': ['Poné un título', 'Add a title', 'Coloque um título'], 'bg.soloImgVid': ['Sólo imágenes o videos', 'Images or videos only', 'Só imagens ou vídeos'],
   'bg.muyGrande': ['Muy grande (los videos, hasta 24 MB)', 'Too big (videos up to 24 MB)', 'Muito grande (vídeos até 24 MB)'],
-  'bg.gracias': ['¡Publicado! Gracias', 'Posted! Thanks', 'Publicado! Obrigado'], 'bg.denunciado': ['Denunciado', 'Reported', 'Denunciado'],
+  'bg.gracias': ['¡Publicado! Gracias', 'Posted! Thanks', 'Publicado! Obrigado'], 'bg.espera': ['Esperá %s min para publicar otra (así no se satura). Mientras, dale ♥ a las que ya están.', 'Wait %s min before posting again. Meanwhile, ♥ the ones already there.', 'Espere %s min para publicar outra. Enquanto isso, dê ♥ nas que já estão.'], 'bg.denunciado': ['Denunciado', 'Reported', 'Denunciado'],
   'bg.anonimo': ['Anónimo', 'Anonymous', 'Anônimo'], 'bg.respDe': ['Respuesta de %s', 'Reply from %s', 'Resposta de %s'],
   'bg.e.nuevo': ['Nuevo', 'New', 'Novo'], 'bg.e.visto': ['Visto', 'Seen', 'Visto'], 'bg.e.en_curso': ['Arreglándose', 'In progress', 'Em andamento'], 'bg.e.hecho': ['Hecho', 'Done', 'Feito'], 'bg.e.no': ['No va', "Won't do", 'Não vai'],
   'ord.teLlevan': ['Te llevan a %s', 'Taking you to %s', 'Levando você para %s'],

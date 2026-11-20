@@ -169,6 +169,9 @@ body.pvGrita #hud,body.pvGrita #tactil,body.pvGrita #arribaIz,body.pvGrita #mira
 #ordCine .ordX{top:max(10px,var(--jxSaT,0px));right:max(12px,var(--jxSaR,0px));width:44px;height:44px;font-size:30px;background:rgba(0,0,0,.4);border-radius:50%}
 .ordToca{position:absolute;width:96px;height:96px;border-radius:50%;border:3px solid #fff;background:rgba(0,0,0,.5);color:#fff;font-size:40px;cursor:pointer}
 .rbPan_bugs .rbPanCuerpo{flex-direction:column;overflow:auto;padding:var(--pnU,10px) calc(var(--pnU,10px)*1.4);gap:var(--pnU,10px)}
+/* (en las listas que se desplazan, nada se achica para entrar: con la letra grande del celu, la lista se desplaza en vez de pisarse) */
+.rbPan_bugs .rbPanCuerpo>*,.soLista>*,.rbCats>*,.crRoles>*,.rbCrear>*,.emuEd>*,#edaPan .edaLado>*{flex-shrink:0}
+.bgDatos{flex:1}.bgDatos b,.bgDatos small{overflow-wrap:anywhere}
 .bgOrden{display:flex;gap:6px}.bgOrden button,.bgTipo{font:700 var(--pnFs,14px) var(--pnF,Roboto,Arial,sans-serif);text-transform:uppercase;letter-spacing:.03em;background:var(--pnPl3,#ddd);border:1px solid var(--pnLin2,#bbb);color:var(--pnT2,#333);padding:0 14px;min-height:40px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .bgOrden button.sel,.bgTipo.sel{background:var(--pnA,#2c7ccc);border-color:var(--pnA,#1d5a96);color:var(--pnNe,#fff)}.bgTipo .gli{width:1.2em;height:1.2em}
 .bgItem{display:flex;gap:calc(var(--pnU,10px)*1.2);align-items:center;background:var(--pnPl2,#fff);border:1px solid var(--pnLin,#d2d2d2);box-shadow:4px 4px 0 rgba(0,0,0,.5);color:var(--pnT,#222);padding:var(--pnU,8px);cursor:pointer;min-height:44px;transition:border-color .14s}
