@@ -1,0 +1,116 @@
+// El servidor de la comunidad, punta a punta (el Worker de verdad sobre SQLite): cuentas, publicar (y lo que no se
+// puede publicar), feed, me gusta, seguir, descargas, buscar, tendencias, denuncias (3 → se oculta), bloquear,
+// actualizar, moderación, borrar la cuenta, CORS y las páginas. Usa los archivos de /tmp/claude-0/sz_fix (Pillow).
+import fs from 'fs'; import { arrancar } from './servidor_local.mjs';
+const FIX = '/tmp/claude-0/sz_fix/', PUERTO = 8991, B = `http://127.0.0.1:${PUERTO}`;
+const { srv } = await arrancar(PUERTO, 'clave-admin');
+let fallas = 0, bien = 0; const ok = (c, t) => { console.log((c ? 'OK    ' : 'FALLA ') + t); c ? bien++ : fallas++; };
+const api = async (ruta, o = {}, tok) => { const h = { ...(o.headers || {}) }; if (tok) h.Authorization = 'Bearer ' + tok; if (o.json) { h['Content-Type'] = 'application/json'; o.body = JSON.stringify(o.json); } const r = await fetch(B + ruta, { ...o, headers: h }); let j = null; try { j = await r.clone().json(); } catch (e) {} return { st: r.status, j, r }; };
+const archivo = (n, como) => new File([fs.readFileSync(FIX + n)], como || n);
+function formPack(meta, archivos) { const f = new FormData(); f.set('meta', JSON.stringify(meta)); for (const [como, n] of archivos) f.set(como, archivo(n, como)); return f; }
+const quietos = { nombre: 'Mis primeros 🧉', tags: ['#Mate', 'jaja', 'Fútbol'], textos: 'un mate y arranco', animado: false, bandeja: 'bandeja.png', stickers: [{ archivo: 's1.webp', emojis: ['🧉'] }, { archivo: 's2.webp', emojis: ['😂', '🔥'] }, { archivo: 's3.webp', emojis: [] }] };
+const archQ = [['s1.webp', 'q1.webp'], ['s2.webp', 'q2.webp'], ['s3.webp', 'q3.webp'], ['bandeja.png', 'bandeja.png']];
+
+// ---- cuentas ----
+for (const n of ['ab', 'Admin', 'puto123', 'stickerazo_oficial', 'nazi.ok', '.punto', 'con espacio']) { const r = await api('/api/registro', { method: 'POST', json: { nombre: n } }); if (r.st !== 400) ok(false, `nombre «${n}» rechazado (dio ${r.st})`); }
+ok(true, 'nombres rechazados: corto, mayúsculas que dan «admin», insulto, reservado, odio, punto al principio, espacio');
+const ra = await api('/api/registro', { method: 'POST', json: { nombre: '@JuanCito' } }), A = ra.j && ra.j.token, idA = ra.j && ra.j.usuario.id;
+ok(ra.st === 201 && A && ra.j.usuario.nombre === 'juancito' && ra.j.usuario.avatar.e, `registro: @${ra.j && ra.j.usuario.nombre} con avatar ${ra.j && ra.j.usuario.avatar.e}`);
+ok((await api('/api/registro', { method: 'POST', json: { nombre: 'juancito' } })).st === 409, 'el mismo @ dos veces: no');
+const rb = await api('/api/registro', { method: 'POST', json: { nombre: 'maria.sol' } }), Bt = rb.j.token, idB = rb.j.usuario.id;
+const rc = await api('/api/registro', { method: 'POST', json: { nombre: 'el_tano' } }), C = rc.j.token, idC = rc.j.usuario.id;
+ok((await api('/api/yo', {}, A)).j.usuario.nombre === 'juancito' && (await api('/api/yo', {}, A.replace(/.$/, 'x'))).st === 401, 'con la llave entra; con una llave cambiada, no');
+const pt = await api('/api/yo', { method: 'PATCH', json: { bio: 'Hago stickers del grupo 🧉', avatar: { e: '🤠', c: '#3ec7ff' } } }, A);
+ok(pt.j.usuario.bio === 'Hago stickers del grupo 🧉' && pt.j.usuario.avatar.e === '🤠', 'editar bio y avatar');
+ok((await api('/api/yo', { method: 'PATCH', json: { bio: 'mirá mis n u d e s' } }, A)).st === 400 && (await api('/api/yo', { method: 'PATCH', json: { bio: 'p0rn0 gratis' } }, A)).st === 400, 'bio con palabras prohibidas (aunque estén separadas o con números): no');
+ok((await api('/api/yo', { method: 'PATCH', json: { bio: 'Yo controlo el asado. Saludos de Nazir y del Tano' } }, A)).st === 200, 'sin falsos positivos: «controlo», «Nazir»');
+await api('/api/yo', { method: 'PATCH', json: { bio: 'Hago stickers del grupo 🧉' } }, A);
+
+// ---- publicar ----
+ok((await api('/api/packs', { method: 'POST', body: formPack(quietos, archQ) })).st === 401, 'publicar sin cuenta: no');
+const malos = [
+  [{ ...quietos, stickers: quietos.stickers.slice(0, 2) }, archQ, 'de 3 a 30'], [quietos, [['s1.webp', 'chico.webp'], ...archQ.slice(1)], '512'],
+  [quietos, [['s1.webp', 'a1.webp'], ...archQ.slice(1)], 'quietos'], [quietos, archQ.slice(0, 3), 'ícono'], [{ ...quietos, nombre: 'pack porno' }, archQ, 'palabras'],
+  [{ ...quietos, stickers: [...quietos.stickers.slice(0, 2), { archivo: '../x.webp' }] }, archQ, 'raro'],
+];
+for (const [meta, arch, que] of malos) { const r = await api('/api/packs', { method: 'POST', body: formPack(meta, arch) }, A); ok(r.st === 400 && r.j.error, `no se publica (${que}): «${r.j && r.j.error}»`); }
+const p1 = await api('/api/packs', { method: 'POST', body: formPack(quietos, archQ) }, A), id1 = p1.j.pack.id;
+ok(p1.st === 201 && p1.j.pack.n === 3 && p1.j.pack.tags.join(',') === 'mate,jaja,futbol' && p1.j.pack.autor.nombre === 'juancito', `publicado «${p1.j.pack.nombre}» (${id1}), etiquetas ${p1.j.pack.tags.join(' ')}`);
+const animado = { ...quietos, nombre: 'Animados del grupo', tags: ['jaja'], animado: true };
+const p2 = await api('/api/packs', { method: 'POST', body: formPack(animado, [['s1.webp', 'a1.webp'], ['s2.webp', 'a2.webp'], ['s3.webp', 'a3.webp'], ['bandeja.png', 'bandeja.png']]) }, A), id2 = p2.j.pack.id;
+ok(p2.st === 201 && p2.j.pack.animado, 'pack animado publicado (todos animados)');
+const p3 = await api('/api/packs', { method: 'POST', body: formPack({ ...quietos, nombre: 'Los del Tano', tags: ['asado'], textos: 'que asadito' }, archQ) }, C), id3 = p3.j.pack.id;
+
+// ---- ver: el pack, los archivos, la página para compartir ----
+const d1 = await api('/api/packs/' + id1);
+ok(d1.j.pack.stickers.length === 3 && d1.j.pack.stickers[2].emojis[0] === '😂', 'el pack, con sus stickers (sin emojis → 😂)');
+const mr = await fetch(`${B}/m/${id1}/s1.webp?v=1`), mb = new Uint8Array(await mr.arrayBuffer());
+ok(mr.status === 200 && mr.headers.get('content-type') === 'image/webp' && Buffer.compare(Buffer.from(mb), fs.readFileSync(FIX + 'q1.webp')) === 0 && mr.headers.get('access-control-allow-origin') === '*', `el sticker se baja igual que se subió (${mb.length} bytes, image/webp, CORS)`);
+ok((await fetch(`${B}/m/${id1}/..%2Fx.webp`)).status === 404 && (await fetch(`${B}/m/${id1}/nada.webp`)).status === 404, 'archivos raros o que no están: 404');
+const pg = await (await fetch(`${B}/p/${id1}`)).text();
+ok(/og:image/.test(pg) && pg.includes(`intent://pack/${id1}#Intent;scheme=stickerazo;package=com.stickerazo.app`) && pg.includes('@juancito'), 'la página para compartir: vista previa (og), botón que abre la app, autor');
+
+// ---- feed, me gusta, seguir, descargas ----
+const fn = await api('/api/feed?modo=nuevos', {}, Bt);
+ok(fn.j.packs.length === 3 && fn.j.packs[0].id === id3, `feed «Nuevos»: ${fn.j.packs.length} packs, el más nuevo primero`);
+const l1 = await api(`/api/packs/${id1}/like`, { method: 'POST' }, Bt), l2 = await api(`/api/packs/${id1}/like`, { method: 'POST' }, Bt);
+ok(l1.j.likes === 1 && l2.j.likes === 1, 'me gusta: 1 (dos veces el mismo no suma)');
+await api(`/api/packs/${id1}/like`, { method: 'POST' }, C);
+ok((await api(`/api/packs/${id1}/like`, { method: 'DELETE' }, C)).j.likes === 1, 'sacar el me gusta: vuelve a 1');
+await api(`/api/packs/${id2}/descarga`, { method: 'POST' }, Bt); await api(`/api/packs/${id2}/descarga`, { method: 'POST' }, Bt); await api(`/api/packs/${id2}/descarga`, { method: 'POST' }, C);
+const fv = await api('/api/feed?modo=para-vos', {}, Bt);
+ok(fv.j.packs.map((p) => p.id).indexOf(id1) < fv.j.packs.map((p) => p.id).indexOf(id3) && fv.j.packs.find((p) => p.id === id1).yaLike === true && fv.j.packs.find((p) => p.id === id2).descargas === 2,
+  `feed «Para vos»: el que gusta va antes que el más nuevo; marca tu me gusta; descargas 2 (repetida no cuenta)`);
+ok((await api('/api/feed?modo=siguiendo')).j.necesitaCuenta && (await api('/api/feed?modo=siguiendo', {}, Bt)).j.packs.length === 0, '«Siguiendo»: sin cuenta pide entrar; sin seguir a nadie, vacío');
+const sg = await api(`/api/usuarios/${idA}/seguir`, { method: 'POST' }, Bt);
+ok(sg.j.sigo && sg.j.seguidores === 1 && (await api('/api/feed?modo=siguiendo', {}, Bt)).j.packs.length === 2, 'seguir a @juancito: 1 seguidor; en «Siguiendo» aparecen sus 2 packs');
+ok((await api(`/api/usuarios/${idB}/seguir`, { method: 'POST' }, Bt)).st === 400, 'seguirse a uno mismo: no');
+const pf = await api('/api/usuarios/juancito', {}, Bt);
+ok(pf.j.usuario.packs === 2 && pf.j.usuario.likes === 1 && pf.j.usuario.descargas === 2 && pf.j.sigo && pf.j.packs.length === 2, `perfil: ${pf.j.usuario.packs} packs, ${pf.j.usuario.likes} me gusta, ${pf.j.usuario.descargas} descargas, lo sigo`);
+
+// ---- buscar y tendencias ----
+const bq = async (q) => (await api('/api/buscar?q=' + encodeURIComponent(q), {}, Bt)).j;
+ok((await bq('MATE')).packs.some((p) => p.id === id1) && (await bq('#asado')).packs[0].id === id3 && (await bq('futbol')).packs.length >= 1 && (await bq('🔥')).packs.length >= 1,
+  'buscar: «MATE» (texto), «#asado» (etiqueta), «futbol» (sin tilde), «🔥» (emoji)');
+ok((await bq('@juan')).usuarios[0].nombre === 'juancito' && (await bq('nada que ver')).packs.length === 0, 'buscar gente por @; lo que no está, vacío');
+const td = (await api('/api/tendencias')).j.tags;
+ok(td[0] === 'jaja' && td.includes('mate'), `tendencias: ${td.join(' ')}`);
+
+// ---- actualizar ----
+const up = await api('/api/packs/' + id1, { method: 'PUT', body: formPack({ ...quietos, nombre: 'Mis primeros (v2)' }, archQ) }, A);
+ok(up.st === 200 && up.j.pack.v === 2 && up.j.pack.nombre === 'Mis primeros (v2)' && up.j.pack.likes === 1, 'actualizar: versión 2, mismo id, los me gusta quedan');
+ok((await api('/api/packs/' + id1, { method: 'PUT', body: formPack(quietos, archQ) }, Bt)).st === 403, 'actualizar un pack ajeno: no');
+
+// ---- bloquear y denunciar ----
+await api(`/api/usuarios/${idC}/bloquear`, { method: 'POST' }, Bt);
+ok(!(await api('/api/feed?modo=nuevos', {}, Bt)).j.packs.some((p) => p.id === id3) && (await api('/api/feed?modo=nuevos')).j.packs.some((p) => p.id === id3), 'bloquear a @el_tano: no lo veo más (los demás sí)');
+const rD = await api('/api/registro', { method: 'POST', json: { nombre: 'pepe_argento' } }), D = rD.j.token;
+for (const t of [Bt, C]) await api(`/api/packs/${id2}/reportar`, { method: 'POST', json: { motivo: 'ofensivo' } }, t);
+ok((await api('/api/packs/' + id2)).st === 200, 'con 2 denuncias sigue visible');
+const rp = await api(`/api/packs/${id2}/reportar`, { method: 'POST', json: { motivo: 'sexual' } }, D);
+ok(rp.j.oculto && (await api('/api/packs/' + id2)).st === 404 && (await fetch(`${B}/m/${id2}/s1.webp?v=1`)).status === 404 && !(await api('/api/feed?modo=nuevos')).j.packs.some((p) => p.id === id2), 'con 3 denuncias se oculta: no está en el feed, ni el pack ni sus archivos');
+
+// ---- moderación ----
+ok((await api('/api/admin/reportados')).st === 403 && (await api('/api/admin/reportados', { headers: { 'X-Admin': 'otra' } })).st === 403, 'moderación sin la clave: no');
+const ad = await api('/api/admin/reportados', { headers: { 'X-Admin': 'clave-admin' } }), rep = ad.j.packs.find((p) => p.id === id2);
+ok(rep && rep.oculto && rep.reportes === 3 && rep.motivos.length === 2, `moderación: el pack denunciado (3 denuncias: ${rep && rep.motivos.map((m) => m.motivo + ' ' + m.n).join(', ')})`);
+ok((await fetch(`${B}/m/${id2}/s1.webp?v=1`, { headers: { 'X-Admin': 'clave-admin' } })).status === 200, 'la moderación ve las imágenes del oculto');
+await api('/api/admin/packs/' + id2, { method: 'POST', json: { accion: 'mostrar' }, headers: { 'X-Admin': 'clave-admin' } });
+ok((await api('/api/packs/' + id2)).st === 200, 'moderación «Mostrar»: vuelve a verse');
+await api('/api/admin/usuarios/' + idC, { method: 'POST', json: { bloqueado: 1 }, headers: { 'X-Admin': 'clave-admin' } });
+ok((await api('/api/yo', {}, C)).st === 401 && (await api('/api/usuarios/el_tano')).st === 404 && !(await api('/api/feed?modo=nuevos')).j.packs.some((p) => p.id === id3), 'cuenta bloqueada por moderación: no entra, no se ve su perfil ni sus packs');
+
+// ---- borrar la cuenta ----
+const antes = (await api('/api/usuarios/juancito')).j.usuario.seguidores;
+const del = await api('/api/yo', { method: 'DELETE' }, Bt);
+ok(del.j.ok && (await api('/api/usuarios/maria.sol')).st === 404 && (await api('/api/usuarios/juancito')).j.usuario.seguidores === antes - 1 && (await api('/api/packs/' + id1)).j.pack.likes === 0,
+  'borrar la cuenta de @maria.sol: no existe más, @juancito pierde el seguidor y su pack el me gusta');
+const del2 = await api('/api/yo', { method: 'DELETE' }, A);
+ok(del2.j.ok && (await api('/api/packs/' + id1)).st === 404 && (await fetch(`${B}/m/${id1}/s1.webp?v=2`)).status === 404, 'borrar la cuenta de @juancito: se van sus packs y sus archivos');
+
+// ---- CORS y páginas ----
+const op = await fetch(B + '/api/feed', { method: 'OPTIONS' });
+ok(op.status === 204 && /Authorization/.test(op.headers.get('access-control-allow-headers')), 'CORS: la app (otro origen) puede llamar con su llave');
+for (const p of ['/privacidad', '/terminos', '/borrar-cuenta', '/admin']) { const r = await fetch(B + p); if (r.status !== 200) ok(false, p + ' ' + r.status); }
+ok(/no salen de tu celular/.test(await (await fetch(B + '/privacidad')).text()), 'páginas: privacidad, términos, borrar cuenta y moderación');
+console.log(`RESUMEN: ${bien} bien, ${fallas} fallas`); srv.close(); process.exit(fallas ? 1 : 0);

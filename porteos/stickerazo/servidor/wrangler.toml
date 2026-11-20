@@ -1,0 +1,19 @@
+# Stickerazo: el servidor de la comunidad (perfiles, packs publicados, me gusta, seguir, denuncias).
+# Se despliega solo: conectar en Cloudflare (Workers & Pages → Crear → Importar un repositorio) este repo, la rama
+# claude/ports-continuation-dm754a y la carpeta porteos/stickerazo/servidor. La base D1 se crea sola al desplegar
+# (sin database_id: Cloudflare la crea la primera vez) y el servidor arma sus tablas solo.
+# Opcional, como secreto en Cloudflare: ADMIN_CLAVE (para /admin, la moderación).
+name = "stickerazo"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+workers_dev = true
+keep_vars = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "stickerazo"
+
+# Cuando haya muchos packs: un balde R2 para los archivos (si está, se usa; si no, van en la base).
+# [[r2_buckets]]
+# binding = "MEDIA"
+# bucket_name = "stickerazo-media"
