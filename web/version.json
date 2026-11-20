@@ -1,10 +1,10 @@
 {
- "codigo": 3907,
- "version": "3.9.7",
+ "codigo": 3908,
+ "version": "3.9.8",
  "apk": "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXMod.apk",
  "web": "https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/index.html",
- "notas_es": "JXMod 3.9.7 — Si tenés de la 3.9.3 en adelante, se actualiza sola por partes adentro del juego. Si tenés de la 3.2 a la 3.9.2, se instala encima. Si seguís en la 3.1, desinstalala antes (cambió la firma). Arreglos de lo que mandaron a «Bugs y sugerencias»: mapas del Workshop que quedaban a oscuras (como A24 Backrooms) ahora tienen sus luces, los edificios del fondo ya no aparecen gigantes, y las puertas de mods como Door Bust se abren corriendo.",
- "notas_en": "JXMod 3.9.7 — If you have 3.9.3 or later, it updates itself in parts inside the game. If you have 3.2 to 3.9.2, it installs on top. If you are still on 3.1, uninstall it first (the signature changed). Fixes from «Bugs & ideas»: Workshop maps that were left dark (like A24 Backrooms) now have their lights, background buildings no longer show up giant, and doors from mods like Door Bust open when you run into them.",
+ "notas_es": "JXMod 3.9.8 — Si tenés de la 3.9.3 en adelante, se actualiza sola por partes adentro del juego. Si tenés de la 3.2 a la 3.9.2, se instala encima. Si seguís en la 3.1, desinstalala antes (cambió la firma). Arreglo de lo que mandaron a «Bugs y sugerencias»: los nextbots que se agrandan solos (como el Pumpkin Rabbit de The Mysterious House) ya no salen enanos.",
+ "notas_en": "JXMod 3.9.8 — If you have 3.9.3 or later, it updates itself in parts inside the game. If you have 3.2 to 3.9.2, it installs on top. If you are still on 3.1, uninstall it first (the signature changed). Fix from «Bugs & ideas»: nextbots that scale themselves up (like The Mysterious House's Pumpkin Rabbit) no longer show up tiny.",
  "ota": {
   "apkMin": 3903
  }

@@ -5157,7 +5157,7 @@ Los primeros posts de «Bugs y sugerencias» (de un mismo jugador, 3.9.6, app en
   al tope en el celu) se abre de golpe a velocidad 500 para el otro lado. Sirve para cualquier addon que trate con
   puertas.
 
-## El HTML suelto que se actualiza solo (sin publicar: entra con la próxima versión)
+## El HTML suelto que se actualiza solo (desde la 3.9.8)
 
 Pedido del dueño (después de recibir el juego en un solo HTML): «que en el HTML se actualice solo también, saliendo y
 entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
@@ -5190,7 +5190,16 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
   internet; lo guardado roto; con otro paquete lo baja y lo comprueba; un HTML más nuevo; sin errores). La web con código
   con las marcas: pide el código, uno inventado no entra, sin errores.
 
-## Lo del panel después de la 3.9.7 (sin publicar)
+## JXMod 3.9.8: los nextbots que se agrandan con su matriz (Pumpkin Rabbit) y el HTML suelto que se actualiza solo
+
+- Publicada con el paquete pk39e. APK 3.9.8 (versionCode 26112007, misma firma, prueba 6/6) con `ota_base.json` que
+  coincide; `version.json` 3908 con `"ota": {"apkMin": 3903}`; `web/ota/` 3.9.8 (para la 3.9.3 en adelante cambia sólo
+  `index.html`, 5,0 MB), comprobada con la llave de la firma oficial (HMAC bien y descifradas iguales). Web con código:
+  pide el código, no arranca sin él, uno inventado no entra, sin errores; la app admin abre con el service worker del juego.
+- Primera con `web/suelto.json` (`codigo_web.mjs --suelto`): los HTML sueltos con el cargador (el 3.9.7 que se le pasó
+  al dueño) la bajan solos —1,5 MB de página y 2,5 MB de juego; el paquete es el mismo— y la ponen al volver a entrar.
+  Probado antes de publicar con la clave de verdad: un HTML 3.9.7 contra esta web la bajó (sin `pk.bin`), al volver a
+  entrar abrió la 3.9.8 sin pedir código y entró a un mapa.
 
 - **Bug: «Pumkin rabbit nextbot — se hizo enano xdddd»** (3.9.6, app en el celu, Ultra, en `gm_mallparking`; con video):
   es el de DrGBase «The Mysterious House: Pumpkin Rabbit NEXTBOT» (3537414574, 155 mil suscriptos; su modelo viene en

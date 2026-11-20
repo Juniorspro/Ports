@@ -1,14 +1,14 @@
 {
- "codigo": 3907,
- "version": "3.9.7",
+ "codigo": 3908,
+ "version": "3.9.8",
  "apkMin": 3903,
  "archivos": [
   {
    "n": "index.html",
-   "h": "3ca29f445c5c5bb00d77d06ddd3e1ffe66f6399fd1bc0a0ffdfd636d30e7e27e",
-   "t": 5020994,
-   "u": "ota/index.html.3ca29f445c5c5bb0.jxo",
-   "mac": "b37cd8af478a50c67448ed115b563099dd2cd94618ed434d2cccfe8fab2e49e3"
+   "h": "eb9da59230d3311f77f60e88ba3a6a892621fe52bcdc2ad4c6d6c74a6d5e2cca",
+   "t": 5021626,
+   "u": "ota/index.html.eb9da59230d3311f.jxo",
+   "mac": "c072dbda8e40251cd212111069b657aed9257caa6961a27fe7bad69ee573dac4"
   },
   {
    "n": "pk.bin",
