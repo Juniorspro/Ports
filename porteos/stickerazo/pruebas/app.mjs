@@ -9,7 +9,9 @@ const require = createRequire('/home/user/Ports/porteos/jxmod/pruebas/x.mjs'); c
 const [, , FOTOS, SAL = '/tmp/claude-0/sz_app'] = process.argv; fs.mkdirSync(SAL, { recursive: true }); for (const f of fs.readdirSync(SAL)) if (f.endsWith('.png')) fs.unlinkSync(path.join(SAL, f));
 const WEB = new URL('../web/', import.meta.url).pathname;
 const TIPOS = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.tflite': 'application/octet-stream', '.ttf': 'font/ttf', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
-const APP = process.env.MODO === 'app', PUERTO = APP ? 8984 : 8982;
+const APP = process.env.MODO === 'app', PUERTO = APP ? 8984 : 8982, PUERTO_COM = APP ? 8993 : 8992;
+// (la comunidad: el servidor de verdad sobre SQLite, en la compu)
+const { arrancar } = await import('./servidor_local.mjs'); const com = await arrancar(PUERTO_COM);
 let srv, java;
 if (APP) {
   // el «celular»: el Almacen de verdad, con una carpeta de datos vacía
@@ -26,6 +28,7 @@ const ctx = await b.newContext({ viewport: { width: 393, height: 852 }, deviceSc
 const p = await ctx.newPage(); const err = []; const aPropósito = (u) => u.includes('..%2F'); // (el intento de colar «..» de la prueba: tiene que dar 404)
 p.on('pageerror', (e) => err.push(e.message)); p.on('console', (m) => { if (m.type() === 'error' && !/^INFO:/.test(m.text()) && !(APP && /status of 404/.test(m.text()) && aPropósito(m.location().url || ''))) err.push('consola: ' + m.text().slice(0, 300) + ' ' + (m.location().url || '')); }); p.on('requestfailed', (q) => { if (!aPropósito(q.url())) err.push('falló ' + q.url()); }); p.on('response', (q) => { if (q.status() >= 400 && !aPropósito(q.url())) err.push(q.status() + ' ' + q.url()); });
 const cdp = await ctx.newCDPSession(p);
+await p.addInitScript((u) => { window.SZ_API = u; }, `http://127.0.0.1:${PUERTO_COM}`);
 // window.SZN como el de la app (Puente.java): sincrónico, con los mismos nombres y lo mismo que devuelve
 if (APP) await p.addInitScript(() => {
   const llamar = (m, a) => { const x = new XMLHttpRequest(); x.open('POST', '/szn/' + m, false); x.send(JSON.stringify(a)); if (x.status !== 200) throw new Error('SZN.' + m + ': ' + x.status); return JSON.parse(x.responseText); };
@@ -56,7 +59,9 @@ async function guardar(emoji) {
 await p.goto(`http://127.0.0.1:${PUERTO}/index.html`); await p.waitForFunction(() => window.__sz && document.fonts.status === 'loaded');
 await E(() => new Promise((r) => { const q = indexedDB.deleteDatabase('stickerazo'); q.onsuccess = q.onerror = q.onblocked = r; }));
 await p.reload(); await p.waitForFunction(() => window.__sz);
-await foto('inicio_vacio');
+await p.waitForSelector('#feedLista .vacio'); await foto('inicio_vacio');
+ok(await p.isVisible('#tabFeed') && /tranqui/.test(await p.textContent('#feedLista')), 'arranca en el feed de la comunidad (vacío: «Está todo muy tranqui»)');
+await p.click('#tabs [data-t="Crear"]');
 
 // ---------- 1: una persona (recorte automático), pincel y tocar ----------
 let t0 = Date.now(); await elegirFoto('#bCrear', 'grace_hopper.jpg'); await listoRecorte();
@@ -203,7 +208,7 @@ await espera(600); await foto('pack_animado_4');
 
 // ---------- 8: pack express (5 fotos de una) ----------
 await p.click('.volver:visible'); await p.waitForFunction(() => window.__sz.E.vista === 'vInicio');
-await p.waitForSelector('#tabMios .packItem', { timeout: 5000 }).catch(() => {}); ok(await p.isVisible('#tabMios .packItem'), 'volver de un pack lleva a la pestaña «Mis packs»'); await p.click('#tabs [data-t="Crear"]');
+await p.waitForSelector('#tabMios .packItem', { timeout: 5000 }).catch(() => {}); ok(await p.isVisible('#tabMios .packItem'), 'volver de un pack lleva a la pestaña «Mis packs»'); await p.click('#tabs [data-t="Crear"]'); await p.waitForSelector('#bExpress', { state: 'visible' });
 const [fc4] = await Promise.all([p.waitForEvent('filechooser'), p.click('#bExpress')]);
 ok(fc4.isMultiple(), 'Pack express: el selector deja elegir varias');
 t0 = Date.now(); await fc4.setFiles(['cat.jpg', 'burger.jpg', 'pointing_up.jpg', 'thumb_up.jpg', 'portrait.jpg'].map((f) => path.join(FOTOS, f)));
@@ -298,8 +303,8 @@ await p.click('#pGrilla .st[data-n="1"]'); await p.waitForSelector('#modal .stGr
 ok((await E(() => window.__szAtras())) === true && !(await E(() => !document.querySelector('#modal').classList.contains('oc'))), 'atrás cierra la hoja');
 ok((await E(() => window.__szAtras())) === true && (await E(() => window.__sz.E.vista)) === 'vInicio', 'atrás desde el pack vuelve al inicio');
 await p.waitForSelector('.packItem .tira img'); await foto('inicio_pack');
-ok((await E(() => window.__szAtras())) === true && (await E(() => window.__sz.E.tab)) === 'Crear', 'atrás en «Mis packs» vuelve a «Crear»');
-ok((await E(() => window.__szAtras())) === false, 'atrás en «Crear»: sale de la app'); await foto('inicio_crear');
+ok((await E(() => window.__szAtras())) === true && (await E(() => window.__sz.E.tab)) === 'Feed', 'atrás en «Mis packs» vuelve al feed');
+ok((await E(() => window.__szAtras())) === false, 'atrás en el feed: sale de la app'); await p.click('#tabs [data-t="Crear"]'); await foto('inicio_crear');
 console.log('errores de la página:', JSON.stringify(err)); if (err.length) fallas++;
 console.log(fallas ? `${fallas} FALLAS` : 'TODO BIEN');
-await b.close(); if (srv) srv.close(); if (java) java.kill(); process.exit(fallas ? 1 : 0);
+await b.close(); if (srv) srv.close(); if (java) java.kill(); com.srv.close(); process.exit(fallas ? 1 : 0);

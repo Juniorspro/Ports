@@ -52,6 +52,9 @@ public final class Inicio extends Activity {
     private boolean varias;
     private String respWa;
     private int nFoto;
+    /** un enlace stickerazo://pack/ID que abrió la app y la página todavía no tomó */
+    private String enlace;
+    private boolean paginaLista;
 
     @Override protected void onCreate(Bundle guardado) {
         super.onCreate(guardado);
@@ -77,8 +80,27 @@ public final class Inicio extends Activity {
         web.setWebChromeClient(new Cromo());
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) WebView.setWebContentsDebuggingEnabled(true);
         limpiarFotos();
+        enlace = rutaDe(getIntent());
         web.loadUrl(ORIGEN + "/index.html");
     }
+
+    // ---- los enlaces stickerazo://pack/ID ----
+    private static String rutaDe(Intent i) {
+        Uri u = i != null ? i.getData() : null;
+        if (u == null || !"stickerazo".equals(u.getScheme()) || u.getHost() == null) return null;
+        String r = u.getHost() + (u.getPath() == null ? "" : u.getPath());
+        return r.matches("pack/[a-z0-9]{10}") ? r : null;
+    }
+    @Override protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        setIntent(i);
+        String r = rutaDe(i);
+        if (r == null) return;
+        if (paginaLista) js("window.__szAbrir && window.__szAbrir(" + JSONObject.quote(r) + ")");
+        else enlace = r;
+    }
+    /** la página lo pide al arrancar (una sola vez) */
+    String tomarEnlace() { String r = enlace; enlace = null; return r; }
 
     /** de borde a borde (obligatorio desde Android 15): la página va entre las barras del sistema y arriba del teclado */
     private static void bordes(Window w, View raiz) {
@@ -142,6 +164,8 @@ public final class Inicio extends Activity {
             }
             try { return respuesta(tipo(p), getAssets().open("www" + p), false); } catch (IOException e) { return noHay(); }
         }
+
+        @Override public void onPageFinished(WebView v, String url) { paginaLista = true; }
 
         // los enlaces de afuera se abren en el navegador
         @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest q) {

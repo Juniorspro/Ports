@@ -37,4 +37,11 @@ final class Puente {
     }
 
     @JavascriptInterface public String version() { return app.version(); }
+    @JavascriptInterface public String enlaceInicial() {
+        final String[] r = new String[1];
+        final java.util.concurrent.CountDownLatch l = new java.util.concurrent.CountDownLatch(1);
+        app.runOnUiThread(new Runnable() { @Override public void run() { r[0] = app.tomarEnlace(); l.countDown(); } });
+        try { l.await(2, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { /* nada */ }
+        return r[0];
+    }
 }

@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Stickerazo. Sin permisos de fotos ni de cámara: la galería es el selector de Android y la cámara es la app de
-     cámara del teléfono (le prestamos una dirección para que guarde la foto). INTERNET: para la página no hace falta
-     (sale de la app), queda para los anuncios. -->
+     cámara del teléfono (le prestamos una dirección para que guarde la foto). INTERNET: la comunidad (feed, publicar,
+     perfiles); la página sale de la app. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.stickerazo.app">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- (la vibracioncita al tocar: me gusta, publicar…) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- (Android 11+: para ver si está WhatsApp y preguntarle si ya tiene un pack) -->
     <queries>
@@ -29,6 +31,13 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- los enlaces de la página para compartir un pack: stickerazo://pack/ID -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="stickerazo" android:host="pack" />
             </intent-filter>
         </activity>
 
