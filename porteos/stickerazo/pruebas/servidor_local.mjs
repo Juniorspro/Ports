@@ -3,8 +3,8 @@ import http from 'http'; import { d1 } from './d1_falsa.mjs';
 const M = await import(new URL('../servidor/worker.js', import.meta.url)), W = M.default;
 // (SZ_BASE=/sz: como adentro del Worker de JXMod, con las tablas «sz_»; el resto de las rutas da 404 como si fueran de JXMod)
 const BASE = process.env.SZ_BASE || '';
-export function arrancar(puerto, admin = 'clave-admin') {
-  const env = { DB: d1(), ADMIN_CLAVE: admin };
+export function arrancar(puerto, admin = 'clave-admin', extra = {}) {
+  const env = { DB: d1(), ADMIN_CLAVE: admin, ...extra };
   const srv = http.createServer(async (q, r) => {
     const partes = []; for await (const c of q) partes.push(c);
     const h = new Headers(); for (const [k, v] of Object.entries(q.headers)) if (typeof v === 'string') h.set(k, v);

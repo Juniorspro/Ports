@@ -3,7 +3,7 @@
 // actualizar, moderación, borrar la cuenta, CORS y las páginas. Usa los archivos de /tmp/claude-0/sz_fix (Pillow).
 import fs from 'fs'; import { arrancar } from './servidor_local.mjs';
 const FIX = '/tmp/claude-0/sz_fix/', PUERTO = 8991, B = `http://127.0.0.1:${PUERTO}${process.env.SZ_BASE || ''}`;
-const { srv, env: ENV } = await arrancar(PUERTO, 'clave-admin');
+const { srv, env: ENV } = await arrancar(PUERTO, 'clave-admin', { SZ_EVENTO_META: '5' });   // (el evento del termo, con 5 cuentas en vez de 20)
 let fallas = 0, bien = 0; const ok = (c, t) => { console.log((c ? 'OK    ' : 'FALLA ') + t); c ? bien++ : fallas++; };
 const api = async (ruta, o = {}, tok) => { const h = { ...(o.headers || {}) }; if (tok) h.Authorization = 'Bearer ' + tok; if (o.json) { h['Content-Type'] = 'application/json'; o.body = JSON.stringify(o.json); } const r = await fetch(B + ruta, { ...o, headers: h }); let j = null; try { j = await r.clone().json(); } catch (e) {} return { st: r.status, j, r }; };
 const archivo = (n, como) => new File([fs.readFileSync(FIX + n)], como || n);
@@ -81,6 +81,34 @@ const up = await api('/api/packs/' + id1, { method: 'PUT', body: formPack({ ...q
 ok(up.st === 200 && up.j.pack.v === 2 && up.j.pack.nombre === 'Mis primeros (v2)' && up.j.pack.likes === 1, 'actualizar: versión 2, mismo id, los me gusta quedan');
 ok((await api('/api/packs/' + id1, { method: 'PUT', body: formPack(quietos, archQ) }, Bt)).st === 403, 'actualizar un pack ajeno: no');
 
+// ---- ocultar un pack mío (sin borrarlo) ----
+{
+  const pv = await api(`/api/packs/${id1}/privado`, { method: 'POST', json: { privado: true } }, A);
+  const enNuevos = (await api('/api/feed?modo=nuevos')).j.packs.some((p) => p.id === id1);
+  const paraOtros = (await api('/api/usuarios/juancito')).j.packs.some((p) => p.id === id1), paraMi = (await api('/api/usuarios/juancito', {}, A)).j.packs.find((p) => p.id === id1);
+  ok(pv.st === 200 && !enNuevos && !paraOtros && paraMi && paraMi.privado && (await api(`/api/packs/${id1}/privado`, { method: 'POST', json: { privado: true } }, Bt)).st === 403,
+    'ocultar un pack mío: sale del feed y de mi perfil para los demás, yo lo sigo viendo (marcado); otro no lo puede ocultar');
+  await api(`/api/packs/${id1}/privado`, { method: 'POST', json: { privado: false } }, A);
+  ok((await api('/api/feed?modo=nuevos')).j.packs.some((p) => p.id === id1), 'mostrarlo otra vez: vuelve al feed');
+}
+// ---- el evento del termo (acá la meta es 5 cuentas) ----
+{
+  const e0 = (await api('/api/evento')).j;
+  ok(e0.meta === 5 && e0.cuentas >= 1 && e0.cuentas < 5 && !e0.sorteado && !e0.elegidos.length, `evento: ${e0.cuentas} de ${e0.meta} cuentas con stickers, todavía sin sorteo`);
+  const nuevas = [];
+  for (let k = 0; k < 5; k++) {
+    const r = await api('/api/registro', { method: 'POST', json: { nombre: 'termo' + k }, headers: { 'CF-Connecting-IP': '10.0.0.' + k } });
+    await api('/api/packs', { method: 'POST', body: formPack({ ...quietos, nombre: 'Pack del termo ' + k }, archQ) }, r.j.token); nuevas.push(r.j);
+  }
+  const e1 = (await api('/api/evento')).j, e2 = (await api('/api/evento')).j;
+  ok(e1.sorteado && e1.elegidos.length === 5 && e1.elegidos.every((x) => x.autor.nombre && x.pack.sticker) && new Set(e1.elegidos.map((x) => x.autor.id)).size === 5,
+    `al llegar a ${e1.cuentas} cuentas el termo eligió 5: ${e1.elegidos.map((x) => '@' + x.autor.nombre).join(' ')}`);
+  ok(JSON.stringify(e2.elegidos.map((x) => x.autor.id)) === JSON.stringify(e1.elegidos.map((x) => x.autor.id)), 'el sorteo queda fijo (no se vuelve a sortear)');
+  const f = (await api('/api/feed')).j.packs, ids = e1.elegidos.map((x) => x.pack.id);
+  ok(f.slice(0, 5).every((p) => p.termo && ids.includes(p.id)), 'a los que recién llegan, «Para vos» les muestra primero los 5 del termo');
+  const perfilElegido = (await api('/api/usuarios/' + e1.elegidos[0].autor.nombre)).j;
+  ok(perfilElegido.usuario.insignias.includes('termo'), `@${e1.elegidos[0].autor.nombre} tiene la insignia del termo en su perfil`);
+}
 // ---- bloquear y denunciar ----
 await api(`/api/usuarios/${idC}/bloquear`, { method: 'POST' }, Bt);
 ok(!(await api('/api/feed?modo=nuevos', {}, Bt)).j.packs.some((p) => p.id === id3) && (await api('/api/feed?modo=nuevos')).j.packs.some((p) => p.id === id3), 'bloquear a @el_tano: no lo veo más (los demás sí)');

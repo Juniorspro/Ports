@@ -20,14 +20,17 @@ const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS reportes (usuario TEXT NOT NULL, pack TEXT NOT NULL, motivo TEXT NOT NULL, creado INTEGER NOT NULL, PRIMARY KEY (usuario, pack))`,
   `CREATE TABLE IF NOT EXISTS bloqueos (usuario TEXT NOT NULL, bloqueado TEXT NOT NULL, PRIMARY KEY (usuario, bloqueado))`,
   `CREATE TABLE IF NOT EXISTS limites (clave TEXT PRIMARY KEY, n INTEGER NOT NULL, hasta INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS evento (id TEXT PRIMARY KEY, datos TEXT NOT NULL, creado INTEGER NOT NULL)`,
 ];
-const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites';
-const RE_TABLA = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|TABLE IF NOT EXISTS|ON)\\s+(${TABLAS})\\b`, 'g'), RE_INDICE = /\bINDEX IF NOT EXISTS (\w+)/g;
+// (columnas que llegaron después: si ya están, el ALTER falla y no pasa nada)
+const COLUMNAS_NUEVAS = ['ALTER TABLE packs ADD COLUMN privado INTEGER NOT NULL DEFAULT 0'];
+const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento';
+const RE_TABLA = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|ALTER TABLE|TABLE IF NOT EXISTS|ON)\\s+(${TABLAS})\\b`, 'g'), RE_INDICE = /\bINDEX IF NOT EXISTS (\w+)/g;
 export const conPrefijo = (sql, pre) => sql.replace(RE_TABLA, `$1 ${pre}$2`).replace(RE_INDICE, `INDEX IF NOT EXISTS ${pre}$1`);
 // la base de JXMod, vista con las tablas de Stickerazo («sz_usuarios», «sz_packs»…)
 function basePrefijada(db, pre) { return { prepare: (q) => db.prepare(conPrefijo(q, pre)), batch: (l) => db.batch(l), exec: (q) => db.exec(conPrefijo(q, pre)) }; }
 let listo = null;
-const preparar = (env) => (listo ||= env.DB.batch(ESQUEMA.map((s) => env.DB.prepare(s))).catch((e) => { listo = null; throw e; }));
+const preparar = (env) => (listo ||= env.DB.batch(ESQUEMA.map((s) => env.DB.prepare(s))).then(async () => { for (const q of COLUMNAS_NUEVAS) { try { await env.DB.prepare(q).run(); } catch (e) { /* ya estaba */ } } }).catch((e) => { listo = null; throw e; }));
 
 // ---- ayudas ----
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Admin', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
@@ -108,10 +111,12 @@ function resumen(p) {
   const a = JSON.parse(p.archivos);
   return {
     id: p.id, nombre: p.nombre, tags: p.tags ? p.tags.split(' ') : [], animado: !!p.animado, n: a.length, muestra: a.slice(0, 6).map((x) => x.archivo), bandeja: p.bandeja, v: p.v,
-    likes: p.likes, descargas: p.descargas, creado: p.creado, autor: { id: p.autor, nombre: p.a_nombre, avatar: avatarDe({ avatar: p.a_avatar }) },
+    likes: p.likes, descargas: p.descargas, creado: p.creado, privado: !!p.privado, autor: { id: p.autor, nombre: p.a_nombre, avatar: avatarDe({ avatar: p.a_avatar }) },
   };
 }
-const CON_AUTOR = 'SELECT p.*, u.nombre AS a_nombre, u.avatar AS a_avatar FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.oculto = 0 AND u.bloqueado = 0';
+const TODOS_DE = 'SELECT p.*, u.nombre AS a_nombre, u.avatar AS a_avatar FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.oculto = 0 AND u.bloqueado = 0';
+// (lo público: sin lo que su dueño ocultó)
+const CON_AUTOR = TODOS_DE + ' AND p.privado = 0';
 async function marcarLikes(env, yo, packs) {
   if (!yo || !packs.length) return packs;
   const { results } = await env.DB.prepare(`SELECT pack FROM likes WHERE usuario = ? AND pack IN (${packs.map(() => '?').join(',')})`).bind(yo.id, ...packs.map((p) => p.id)).all();
@@ -206,7 +211,14 @@ async function api(req, env, u, r, metodo) {
       const punt = (p) => (p.likes * 3 + p.descargas * 2 + 2) / Math.pow((ahora - p.creado) / 3600000 + 3, 1.25);
       filas = todos.sort((a, b) => punt(b) - punt(a)).slice(desde, desde + N + 1);
     }
-    const packs = await marcarLikes(env, yo, filas.slice(0, N).map(resumen));
+    let packs = await marcarLikes(env, yo, filas.slice(0, N).map(resumen));
+    if (modo === 'para-vos' && desde === 0 && (!yo || Date.now() - yo.creado < 7 * 86400000)) {
+      const ev = await sorteo(env);
+      if (ev) {
+        const ids = ev.elegidos.map((x) => x.pack), dest = ids.length ? (await env.DB.prepare(`${CON_AUTOR} AND p.id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all()).results.map((p) => ({ ...resumen(p), termo: true })) : [];
+        packs = [...(await marcarLikes(env, yo, dest)), ...packs.filter((p) => !ids.includes(p.id))];
+      }
+    }
     return json({ packs, sigue: filas.length > N ? desde + N : null });
   }
   if (r === 'tendencias' && metodo === 'GET') {
@@ -244,6 +256,16 @@ async function api(req, env, u, r, metodo) {
       return json({ pack: out });
     }
   }
+  // (ocultar o volver a mostrar un pack mío en la comunidad, sin borrarlo)
+  if ((m = /^packs\/([a-z0-9]{10})\/privado$/.exec(r)) && metodo === 'POST') {
+    const p = await env.DB.prepare('SELECT autor FROM packs WHERE id = ?').bind(m[1]).first();
+    if (!yo || !p || p.autor !== yo.id) return error('Ese pack no es tuyo', 403);
+    const { privado } = await cuerpo();
+    await env.DB.prepare('UPDATE packs SET privado = ? WHERE id = ?').bind(privado ? 1 : 0, m[1]).run();
+    return json({ ok: true, privado: !!privado });
+  }
+  // ---- el evento del termo: cuando 20 cuentas publicaron stickers, el termo elige 5 (para siempre) ----
+  if (r === 'evento' && metodo === 'GET') return json(await evento(env));
   if ((m = /^packs\/([a-z0-9]{10})\/(like|descarga|reportar)$/.exec(r))) {
     const [, id, que] = m, p = await env.DB.prepare('SELECT id, autor, oculto FROM packs WHERE id = ?').bind(id).first();
     if (!p || p.oculto) return error('Ese pack ya no está', 404);
@@ -278,9 +300,10 @@ async function api(req, env, u, r, metodo) {
   if ((m = /^usuarios\/([a-z0-9_.]{3,20})$/.exec(r)) && metodo === 'GET') {
     const usr = await env.DB.prepare('SELECT * FROM usuarios WHERE nombre = ? AND bloqueado = 0').bind(m[1]).first();
     if (!usr) return error('No encontré a @' + m[1], 404);
-    const packs = (await env.DB.prepare(`${CON_AUTOR} AND p.autor = ? ORDER BY p.creado DESC LIMIT 60`).bind(usr.id).all()).results.map(resumen);
-    const tot = await env.DB.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(descargas), 0) AS d, COALESCE(SUM(likes), 0) AS l FROM packs WHERE autor = ? AND oculto = 0').bind(usr.id).first();
-    const out = { usuario: { ...publico(usr), packs: tot.n, descargas: tot.d, likes: tot.l }, packs: await marcarLikes(env, yo, packs) };
+    const propio = !!yo && yo.id === usr.id, packs = (await env.DB.prepare(`${propio ? TODOS_DE : CON_AUTOR} AND p.autor = ? ORDER BY p.creado DESC LIMIT 60`).bind(usr.id).all()).results.map(resumen);
+    const tot = await env.DB.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(descargas), 0) AS d, COALESCE(SUM(likes), 0) AS l FROM packs WHERE autor = ? AND oculto = 0 AND privado = 0').bind(usr.id).first();
+    const ev = await sorteo(env), elegido = !!ev && ev.elegidos.some((x) => x.usuario === usr.id);
+    const out = { usuario: { ...publico(usr), packs: tot.n, descargas: tot.d, likes: tot.l, insignias: elegido ? ['termo'] : [] }, packs: await marcarLikes(env, yo, packs) };
     if (yo) { out.sigo = !!(await env.DB.prepare('SELECT 1 FROM sigue WHERE usuario = ? AND sigue_a = ?').bind(yo.id, usr.id).first()); out.bloqueado = !!(await env.DB.prepare('SELECT 1 FROM bloqueos WHERE usuario = ? AND bloqueado = ?').bind(yo.id, usr.id).first()); out.soyYo = yo.id === usr.id; }
     return json(out);
   }
@@ -331,6 +354,31 @@ async function api(req, env, u, r, metodo) {
   return error('No existe', 404);
 }
 
+// ---- el evento del termo ----
+// cuentas que cuentan: con al menos un pack público. Al llegar a META (20) se sortean 5 con números al azar de verdad y
+// queda guardado (INSERT OR IGNORE: si dos lo sortean a la vez, gana el primero). De cada elegido va su pack más querido.
+const metaEvento = (env) => Math.max(5, +(env.SZ_EVENTO_META || 20));
+async function sorteo(env) { const f = await env.DB.prepare("SELECT datos FROM evento WHERE id = 'termo1'").first(); return f ? JSON.parse(f.datos) : null; }
+async function evento(env) {
+  const META = metaEvento(env);
+  const { results: autores } = await env.DB.prepare(`SELECT p.autor AS id, MAX(p.likes * 3 + p.descargas * 2) AS punt FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.oculto = 0 AND p.privado = 0 AND u.bloqueado = 0 GROUP BY p.autor`).all();
+  let ev = await sorteo(env);
+  if (!ev && autores.length >= META) {
+    const bolsa = autores.map((a) => a.id), elegidos = [];
+    while (elegidos.length < 5 && bolsa.length) { const r = crypto.getRandomValues(new Uint32Array(1))[0] % bolsa.length; elegidos.push(bolsa.splice(r, 1)[0]); }
+    const datos = { elegidos: [], cuentas: autores.length, sorteado: Date.now() };
+    for (const u of elegidos) { const p = await env.DB.prepare(`${CON_AUTOR} AND p.autor = ? ORDER BY (p.likes * 3 + p.descargas * 2) DESC, p.creado DESC LIMIT 1`).bind(u).first(); if (p) datos.elegidos.push({ usuario: u, pack: p.id }); }
+    await env.DB.prepare("INSERT OR IGNORE INTO evento (id, datos, creado) VALUES ('termo1', ?, ?)").bind(JSON.stringify(datos), Date.now()).run();
+    ev = await sorteo(env);
+  }
+  // (lo que se muestra: el pack y su sticker de cada elegido, como están hoy)
+  const elegidos = [];
+  if (ev) for (const x of ev.elegidos) {
+    const p = await env.DB.prepare(`${CON_AUTOR} AND p.id = ?`).bind(x.pack).first() || await env.DB.prepare(`${CON_AUTOR} AND p.autor = ? ORDER BY p.creado DESC LIMIT 1`).bind(x.usuario).first();
+    if (p) { const r = resumen(p); elegidos.push({ autor: r.autor, pack: { id: r.id, nombre: r.nombre, v: r.v, sticker: r.muestra[0], bandeja: r.bandeja } }); }
+  }
+  return { meta: META, cuentas: ev ? Math.max(ev.cuentas, autores.length) : autores.length, sorteado: ev ? ev.sorteado : null, elegidos };
+}
 async function borrarPack(env, id) {
   await borrarArchivos(env, id);
   await env.DB.batch(['DELETE FROM likes WHERE pack = ?', 'DELETE FROM reportes WHERE pack = ?', 'DELETE FROM descargas WHERE pack = ?', 'DELETE FROM packs WHERE id = ?'].map((s) => env.DB.prepare(s).bind(id)));
