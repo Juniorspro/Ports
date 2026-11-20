@@ -18,6 +18,8 @@ python -I herramientas/decodmb.py DATOS 1c5bd90faf82ca84b994ebfa0604f479 1 > CRU
 python -I herramientas/empaquetar.py SALIDA CRUDOS PAQUETE
 # 2) el HTML
 MQTT_JS=ruta/mqtt.min.js python3 -I armar.py PAQUETE JXMod.html
+# (el HTML suelto que se pasa, que se actualiza solo desde la web: SUELTO=1, sin PK_BIN ni APP_WEB; ver «El HTML suelto
+#  que se actualiza solo»)
 ```
 
 - **Definitive RezoBox** (nuestra versión, antes JXMod): el logo es la R de Rezona + "definitive rezobox"
@@ -5154,3 +5156,37 @@ Los primeros posts de «Bugs y sugerencias» (de un mismo jugador, 3.9.6, app en
   Unlock). Probado en A24 con una puerta de verdad: caminando contra ella sigue cerrada; corriendo (Shift, o la palanca
   al tope en el celu) se abre de golpe a velocidad 500 para el otro lado. Sirve para cualquier addon que trate con
   puertas.
+
+## El HTML suelto que se actualiza solo (sin publicar: entra con la próxima versión)
+
+Pedido del dueño (después de recibir el juego en un solo HTML): «que en el HTML se actualice solo también, saliendo y
+entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
+
+- **Qué es**: el mismo HTML de un solo archivo de siempre (el juego entero adentro, anda sin internet) con un cargador
+  chico que va primero en la página (`juego/suelto.js`; `armar.py` con `SUELTO=1`, sin `PK_BIN` ni `APP_WEB`).
+- **Mientras se juega** (a los 20 s de abrir, cada media hora y al volver a la página): mira `web/version.json` en el repo
+  (raw.githack, si no raw.githubusercontent). Si hay una versión más nueva, baja lo de la web con código: `index.html`
+  (1,5 MB) y `juego.bin` (2,5 MB), y `pk.bin` (21 MB) **sólo si cambió el paquete**. Lo abre con la clave de esa versión,
+  que `web/suelto.json` trae cifrada con la del HTML suelto, comprueba las huellas de todo, lo guarda en el navegador
+  (IndexedDB) y avisa arriba: «JXMod 3.9.8 ya se bajó: se pone sola la próxima vez que entres» con «Ponerla ahora».
+- **Al abrir**: si hay guardada una versión más nueva que la de adentro, el juego de adentro no arranca (el resto de la
+  página queda como texto sin ejecutarse: `<plaintext>`) y se abre la guardada en la misma página (`document.open`): su
+  página de la web sin el pedido del código ni lo de la app web instalable (van entre marcas `<!--jxPuerta-->` y
+  `<!--jxAppWeb-->`, que ponen `codigo_web.mjs` y `armar.py`), con el juego ya abierto y el paquete de adentro (o el
+  bajado). Avisa «Ya tenés JXMod 3.9.8». Si algo falla, recarga con la de adentro y la vuelve a bajar. Un HTML más
+  nuevo que lo guardado arranca el suyo y borra lo guardado.
+- **La clave**: sale del secreto de la firma del APK (`herramientas/suelto.py`, como la de los eventos en vivo): no se
+  guarda en ningún lado ni se muestra. Con el HTML suelto se pueden abrir las versiones nuevas de la web (como con un
+  código); para cortarlo, cambiar la etiqueta de `suelto.py` (los HTML viejos dejan de actualizarse).
+- **Publicar** (desde la próxima versión): `codigo_web.mjs` con `--suelto` (y `JX_COD`, como siempre) deja
+  `web/suelto.json`: `JX_COD=3908 node herramientas/codigo_web.mjs CARPETA --suelto`. Sin eso, los HTML sueltos no ven
+  la versión nueva (siguen con la suya).
+- Hace falta el HTML nuevo una vez (el que se le pasó antes de esto no trae el cargador). El de la 3.9.7 con el cargador,
+  abierto desde el disco contra el repo publicado: arranca y dice «al día».
+- Desde el disco (Chrome) andan localStorage, IndexedDB y el cifrado del navegador; los fondos animados del menú no (se
+  ven las fotos), igual que antes. Si el navegador no deja guardar, sigue el de adentro sin actualizar.
+- Prueba: `pruebas/html_suelto.mjs` 14/14 (el HTML 3.9.7 con clave de prueba contra una web 3.9.8 local: baja sin el
+  paquete y avisa; «Ponerla ahora»; al volver a entrar, la 3.9.8 sin pedir código y entra a un mapa; «Ya tenés»; sin
+  internet; lo guardado roto; con otro paquete lo baja y lo comprueba; un HTML más nuevo; sin errores). La web con código
+  con las marcas: pide el código, uno inventado no entra, sin errores.
+

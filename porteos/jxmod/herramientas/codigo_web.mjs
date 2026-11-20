@@ -16,6 +16,9 @@ import fs from 'fs'; import path from 'path'; import crypto from 'crypto';
 const args = process.argv.slice(2); const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
 const D = path.resolve(args[0] || '.'); const ARCH = opt('--codigos', '/root/.jxmod/codigos.txt');
 const NUEVOS = +opt('--nuevos', 0) || 0; const MOSTRAR = args.includes('--mostrar');
+// --suelto: además web/suelto.json, para el HTML suelto que se actualiza solo (juego/suelto.js): la clave de esta versión
+// cifrada con la del HTML suelto (herramientas/suelto.py) y las huellas de lo que tiene que bajar
+const SUELTO = args.includes('--suelto');
 const ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // (sin 0/O, 1/I/L: que no se confundan al tipearlos)
 const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const IT = 150000;
@@ -50,6 +53,7 @@ const V = crypto.createHash('sha256').update(bin).digest('hex').slice(0, 12);
 const PKB = path.join(D, 'pk.bin'); if (!fs.existsSync(PKB)) { console.error('falta pk.bin (armar con PK_BIN=1)'); process.exit(1); }
 const Kp = crypto.createHash('sha256').update(K).update('jxmod-paquete').digest(), pn = crypto.randomBytes(8);
 const cP = crypto.createCipheriv('aes-256-ctr', Kp, Buffer.concat([pn, Buffer.alloc(8)])); const pk = fs.readFileSync(PKB);
+const pkh = crypto.createHash('sha256').update(pk).digest('hex');
 fs.writeFileSync(PKB, Buffer.concat([cP.update(pk), cP.final()]));
 // (los fondos animados del menú —fondos/*.mp4, de armar.py—: cada uno con AES-GCM y una clave que sale de la del juego; el juego
 // los descifra al bajarlos —juego/fondovideo.js— con lo que le deja la página)
@@ -297,7 +301,18 @@ const ACT = `<script>
   setInterval(ver,1800000);
 })();
 </script>`;
-html = html.slice(0, i0) + PUERTA + ACT + A + html.slice(i1);
+// (entre marcas: el HTML suelto, que abre esta página con el juego ya abierto, saca el pedido del código y el botón)
+html = html.slice(0, i0) + '<!--jxPuerta-->' + PUERTA + ACT + '<!--/jxPuerta-->' + A + html.slice(i1);
 fs.writeFileSync(IDX, html);
+if (SUELTO) {
+  if (!process.env.JX_COD) { console.error('--suelto necesita JX_COD (el código de la versión, el de version.json)'); process.exit(1); }
+  const { execFileSync } = await import('child_process');
+  const kw = Buffer.from(execFileSync('python3', ['-I', path.join(path.dirname(new URL(import.meta.url).pathname), 'suelto.py'), '--para-codigo-web'], { stdio: ['ignore', 'pipe', 'inherit'] }).toString().trim(), 'hex');
+  if (kw.length !== 32) { console.error('no salió la clave del HTML suelto'); process.exit(1); }
+  const iv = crypto.randomBytes(12), ci = crypto.createCipheriv('aes-256-gcm', kw, iv), k = Buffer.concat([iv, ci.update(K), ci.final(), ci.getAuthTag()]);
+  const S = { cod: COD, v: V, sh: crypto.createHash('sha256').update(Buffer.from(html, 'utf8')).digest('hex').slice(0, 16), pkh, pkn: pk.length, pn: pn.toString('base64'), k: k.toString('base64') };
+  fs.writeFileSync(path.join(D, 'suelto.json'), JSON.stringify(S));
+  console.log('ok suelto.json · versión', COD, '· para el HTML suelto: index.html', (Buffer.byteLength(html) / 1048576).toFixed(1), 'MB + juego.bin', (bin.length / 1048576).toFixed(1), 'MB (+ pk.bin', (pk.length / 1048576).toFixed(1), 'MB si cambió el paquete)');
+}
 console.log('ok', codigos.length, 'códigos ·', LUGARES.length === 1 ? 'en ' + LUGARES[0] : LUGARES.length + ' lugares', '· pk.bin cifrado', (pk.length / 1048576).toFixed(1), 'MB · fondos animados cifrados', nF, (tF / 1048576).toFixed(2), 'MB · juego.bin', (bin.length / 1048576).toFixed(2), 'MB · index.html', (Buffer.byteLength(html) / 1048576).toFixed(2), 'MB · versión', V);
 if (MOSTRAR) for (const { c, n } of codigos) console.log('  ' + c + (n ? '  (' + n + ')' : ''));

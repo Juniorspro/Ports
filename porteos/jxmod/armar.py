@@ -215,7 +215,23 @@ if os.environ.get('APP_WEB'):
            '<link rel="icon" type="image/png" sizes="192x192" href="app/icono-192.png">\n'
            "<script>window.JX_APPWEB = 1; if ('serviceWorker' in navigator && window.isSecureContext) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>")
     assert '<title>JXMod</title>' in html
-    html = html.replace('<title>JXMod</title>', '<title>JXMod</title>\n' + cab, 1)
+    html = html.replace('<title>JXMod</title>', '<title>JXMod</title>\n<!--jxAppWeb-->' + cab + '<!--/jxAppWeb-->', 1)
+# SUELTO=1 (el HTML de un solo archivo, sin PK_BIN ni APP_WEB): se actualiza solo desde la web (juego/suelto.js, que va
+# primero en la página: decide antes que nada si arranca el juego de adentro o una versión más nueva ya bajada)
+if os.environ.get('SUELTO'):
+    assert not PK_BIN and not os.environ.get('APP_WEB'), 'SUELTO=1 es el HTML de un solo archivo (sin PK_BIN ni APP_WEB)'
+    import hashlib
+    sys.path.insert(0, os.path.join(AQUI, 'herramientas')); import suelto
+    _v = re.search(r"const JX_VERSION = '(\d+)\.(\d+)\.(\d+)';", js)
+    _cfg = {'cod': int(os.environ.get('JX_COD') or (int(_v[1]) * 1000 + int(_v[2]) * 100 + int(_v[3]))), 'ver': '.'.join(_v.groups()),
+            'pkh': os.environ.get('SUELTO_PKH_PRUEBA') or hashlib.sha256(bytes(blob)).hexdigest(), 'pkn': len(blob),
+            'kw': base64.b64encode(suelto.clave()).decode(),
+            'bases': (os.environ.get('SUELTO_BASES') or 'https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/ https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/').split()}
+    _carg = open(os.path.join(AQUI, 'juego', 'suelto.js'), encoding='utf-8').read()
+    assert '/*SUELTO*/null' in _carg and '</script' not in _carg.lower()
+    assert html.count('<meta charset="utf-8">') >= 1
+    html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<script>\n' + _carg.replace('/*SUELTO*/null', json.dumps(_cfg), 1) + '\n</script>', 1)
+    print('HTML suelto: se actualiza solo desde', _cfg['bases'][0], '· versión', _cfg['cod'])
 html = html.replace('/*PKIDX*/', json.dumps(idx, separators=(',', ':'))).replace('<!--PK-->', pks)
 assert '<script>\n/*JS*/\n</script>' in html
 html = html.replace('<script>\n/*JS*/\n</script>', bloque)
