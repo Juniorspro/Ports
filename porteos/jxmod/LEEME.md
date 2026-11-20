@@ -5199,7 +5199,14 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
 - Primera con `web/suelto.json` (`codigo_web.mjs --suelto`): los HTML sueltos con el cargador (el 3.9.7 que se le pasó
   al dueño) la bajan solos —1,5 MB de página y 2,5 MB de juego; el paquete es el mismo— y la ponen al volver a entrar.
   Probado antes de publicar con la clave de verdad: un HTML 3.9.7 contra esta web la bajó (sin `pk.bin`), al volver a
-  entrar abrió la 3.9.8 sin pedir código y entró a un mapa.
+  entrar abrió la 3.9.8 sin pedir código y entró a un mapa. **Ya publicada, con el mismo HTML que tiene el dueño, desde
+  el disco y contra el repo**: bajó `version.json`, `suelto.json`, `juego.bin` e `index.html` (4 MB, sin el paquete),
+  avisó, y al volver a entrar arrancó la 3.9.8 y entró a un mapa, sin errores.
+- Lo que se vio: raw.githack tardó ~2 min en dar la 3.9.8 de `version.json` y `suelto.json`, y un rato más el
+  `index.html` nuevo (seguía con el de la 3.9.7 aunque `juego.bin` ya era el nuevo). El cargador no guardó nada (la
+  huella no coincidía) y lo vuelve a intentar solo (cada media hora o al volver a la página). Desde ahora, en los HTML
+  que se armen, un archivo cuya huella no coincide se pide al lugar siguiente (raw.githubusercontent, que estaba al
+  día): `traer(rel, tipo, comprobar)` en `juego/suelto.js`. `html_suelto.mjs` 15/15 (con un primer lugar «atrasado»).
 
 - **Bug: «Pumkin rabbit nextbot — se hizo enano xdddd»** (3.9.6, app en el celu, Ultra, en `gm_mallparking`; con video):
   es el de DrGBase «The Mysterious House: Pumpkin Rabbit NEXTBOT» (3537414574, 155 mil suscriptos; su modelo viene en

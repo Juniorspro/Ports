@@ -102,16 +102,23 @@
   // ---- 2. mientras se juega: buscar la versión nueva y bajarla
   var b64 = function (s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); };
   var hex = async function (u) { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', u)), function (x) { return x.toString(16).padStart(2, '0'); }).join(''); };
-  async function traer(rel, tipo) {
+  // (cada archivo se comprueba con su huella; si en un lugar no coincide —el caché de raw.githack a veces sigue unos minutos
+  // con el anterior: pasó con el index.html de la 3.9.8 mientras version.json y juego.bin ya eran los nuevos— se pide al
+  // siguiente. comprobar devuelve lo que sirve o nada)
+  async function traer(rel, tipo, comprobar) {
     var err = null;
     for (var i = 0; i < C.bases.length; i++) {
       try {
         E.pedidos++;
         var r = await fetch(C.bases[i] + rel, { cache: 'no-store' });
-        if (r.ok) return tipo === 'json' ? await r.json() : new Uint8Array(await r.arrayBuffer());
-        err = new Error(rel + ' ' + r.status);
+        if (!r.ok) { err = new Error(rel + ' ' + r.status); continue; }
+        var x = tipo === 'json' ? await r.json() : new Uint8Array(await r.arrayBuffer());
+        if (!comprobar) return x;
+        var y = await comprobar(x); if (y) return y;
+        err = new Error(rel + ' distinto');
       } catch (e) { err = e; }
     }
+    if (comprobar) return null;
     throw err;
   }
   async function aes(k, d) {
@@ -135,20 +142,22 @@
       if (m && m.listo && m.cod >= j.codigo) { cartel('lista', m.ver); return (E.estado = 'lista'); }
       if (!(window.crypto && crypto.subtle && window.indexedDB)) return (E.estado = 'sin lugar para guardarla');
       E.estado = 'bajando ' + j.version;
-      var s = await traer('suelto.json?t=' + Date.now(), 'json');
-      if (!s || s.cod !== j.codigo) return (E.estado = 'todavía no está entera');   // (el caché todavía tiene la anterior)
+      var s = await traer('suelto.json?t=' + Date.now(), 'json', function (x) { return x && x.cod === j.codigo ? x : null; });
+      if (!s) return (E.estado = 'todavía no está entera');   // (el caché todavía tiene la anterior)
       var K = await aes(b64(C.kw), b64(s.k));
-      var bin = await traer('juego.bin?v=' + s.v, 'bin'); if ((await hex(bin)).slice(0, 12) !== s.v) return (E.estado = 'juego.bin distinto');
+      var bin = await traer('juego.bin?v=' + s.v, 'bin', async function (u) { return (await hex(u)).slice(0, 12) === s.v ? u : null; });
+      if (!bin) return (E.estado = 'juego.bin distinto');
       var gz = await aes(K, bin); bin = null;
-      var sh = await traer('index.html?v=' + s.v, 'bin'); if ((await hex(sh)).slice(0, 16) !== s.sh) return (E.estado = 'index.html distinto');
+      var sh = await traer('index.html?v=' + s.v, 'bin', async function (u) { return (await hex(u)).slice(0, 16) === s.sh ? u : null; });
+      if (!sh) return (E.estado = 'index.html distinto');
       var shell = new TextDecoder().decode(sh); sh = null;
       var pk = null, guardar = { v: { cod: s.cod, ver: j.version, shell: shell, gz: gz, pkh: s.pkh } };
       if (s.pkh === C.pkh) guardar.pk = undefined;   // (el paquete es el de adentro)
       else {
         var p = await idbLeer('pk').catch(function () { return null; });
         if (!(p && p.pkh === s.pkh)) {
-          pk = await paquete(K, s.pn, await traer('pk.bin?v=' + s.v, 'bin'));
-          if (await hex(pk) !== s.pkh) return (E.estado = 'pk.bin distinto');
+          pk = await traer('pk.bin?v=' + s.v, 'bin', async function (u) { var d = await paquete(K, s.pn, u); return (await hex(d)) === s.pkh ? d : null; });
+          if (!pk) return (E.estado = 'pk.bin distinto');
           guardar.pk = { pkh: s.pkh, u8: pk };
         }
       }

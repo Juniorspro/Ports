@@ -1,13 +1,15 @@
 // El HTML suelto que se actualiza solo (juego/suelto.js), abierto desde el disco como lo abre un jugador:
-//  1. abre el juego de adentro (3.9.7) y, buscando, baja la 3.9.8 de la web (sin el paquete: es el mismo) y avisa;
-//     «Ponerla ahora» la pone en el momento;
+//  1. abre el juego de adentro (3.9.7) y, buscando, baja la 3.9.8 de la web (sin el paquete: es el mismo) y avisa; el
+//     primer lugar está «atrasado» (como el caché de raw.githack: su index.html es el anterior) y ese archivo lo pide al
+//     segundo; «Ponerla ahora» la pone en el momento;
 //  2. al salir y volver a entrar arranca la 3.9.8 (sin el pedido del código), entra a un mapa y vuelve a buscar (al día);
 //  3. sin internet, la 3.9.8 guardada arranca igual;
 //  4. si lo guardado se rompió, recarga con la de adentro y la vuelve a bajar;
 //  5. si el paquete cambió (A2), lo baja, lo comprueba y la 3.9.8 arranca con él;
 //  6. un HTML más nuevo que lo guardado (A3, 3909) arranca el suyo y borra lo guardado; sin errores de JS.
 // Se arma así (clave de prueba, la web en http://localhost:8961/web/; ver LEEME, «El HTML suelto que se actualiza solo»):
-//   JX_SUELTO_PRUEBA=1 SUELTO=1 SUELTO_BASES=http://localhost:8961/web/ python3 -I armar.py PAQUETE CARPETA/A.html
+//   JX_SUELTO_PRUEBA=1 SUELTO=1 SUELTO_BASES="http://localhost:8961/atrasado/ http://localhost:8961/web/" \
+//     python3 -I armar.py PAQUETE CARPETA/A.html   (atrasado/: lo de web/ pero con un index.html distinto; lo arma esta prueba)
 //   (A2: además SUELTO_PKH_PRUEBA=otro; A3: además JX_COD=3909)
 //   la web: JX_VERSION 3.9.8, PK_BIN=1 APP_WEB=1 armar.py → CARPETA/web/index.html; JX_SUELTO_PRUEBA=1 JX_COD=3908
 //   codigo_web.mjs CARPETA/web --lugar http://localhost:8961/web/ --suelto; web_app.py; version.json {"codigo":3908,...}
@@ -19,7 +21,10 @@ let ok = 0, mal = 0; const chk = (c, m, x) => { if (c) ok++; else mal++; console
 // la web, con CORS (el HTML abierto desde el disco pide desde «null»), anotando lo que se pide
 const pedidos = [];
 const srv = http.createServer((req, res) => {
-  const u = new URL(req.url, 'http://x'), f = path.join(D, decodeURIComponent(u.pathname)); pedidos.push(u.pathname);
+  const u = new URL(req.url, 'http://x'); pedidos.push(u.pathname);
+  // (atrasado/: como un caché que todavía tiene el index.html anterior; lo demás, lo de web/)
+  if (u.pathname === '/atrasado/index.html') { res.writeHead(200, { 'Access-Control-Allow-Origin': '*' }); return res.end(fs.readFileSync(path.join(D, 'web/index.html'), 'utf8') + '\n<!-- anterior -->'); }
+  const f = path.join(D, decodeURIComponent(u.pathname.replace(/^\/atrasado\//, '/web/')));
   if (!f.startsWith(D) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404, { 'Access-Control-Allow-Origin': '*' }); return res.end('no'); }
   res.writeHead(200, { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' }); fs.createReadStream(f).pipe(res);
 }).listen(8961);
@@ -59,8 +64,9 @@ let e = await estado(p);
 chk(e.usar === false && e.ver === '3.9.7' && !e.meta, '1. abre el juego de adentro (3.9.7)', e);
 pedidos.length = 0;
 const r1 = await buscarHasta(p, 'lista');
-const pid = pedidos.map((x) => x.replace('/web/', ''));
+const pid = pedidos.map((x) => x.replace(/^\/(web|atrasado)\//, ''));
 chk(r1 === 'lista' && ['version.json', 'suelto.json', 'juego.bin', 'index.html'].every((x) => pid.includes(x)) && !pid.includes('pk.bin'), '1. baja la 3.9.8: index.html y juego.bin, sin el paquete (es el mismo)', { r1, pedidos: [...new Set(pid)] });
+chk(pedidos.includes('/atrasado/index.html') && pedidos.includes('/web/index.html') && !pedidos.includes('/web/juego.bin'), '1. el index.html atrasado del primer lugar no sirve y lo pide al segundo (juego.bin, del primero)', [...new Set(pedidos)]);
 e = await estado(p);
 const cartel = await p.evaluate(() => { const c = document.getElementById('jxSuelto'); return c ? c.textContent : null; });
 chk(e.meta && e.meta.cod === 3908 && e.meta.listo && /3\.9\.8 ya se bajó/.test(cartel || ''), '1. queda lista y avisa', { meta: e.meta, cartel });
