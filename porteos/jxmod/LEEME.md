@@ -5119,7 +5119,14 @@ menú del juego, donde la gente publica con imágenes y videos, y de ahí vos sa
   lo muestra; Claude lo baja; idea con foto; aviso, cielo, cinemática, quitar e ir; firma falsa y celular dado de baja no
   pueden). `menu_clasico.mjs` 23/23, `discord_39x.mjs` 6/6, `pepe_vuelve.mjs` 13/13.
 
-## Lo del panel después de la 3.9.6 (sin publicar)
+## JXMod 3.9.7: lo del panel después de la 3.9.6 (luz y escala de los mapas del Workshop, Door Bust)
+
+- Publicada con el paquete pk39e. APK 3.9.7 (versionCode 26112006, misma firma, prueba 6/6) con `ota_base.json` que
+  coincide; `version.json` 3907 con `"ota": {"apkMin": 3903}`; `web/ota/` 3.9.7 (para la 3.9.3 en adelante cambia sólo
+  `index.html`, 5,0 MB), comprobada con la llave de la firma oficial (HMAC bien y descifradas iguales). Web con código:
+  pide el código, no arranca sin él, uno inventado no entra, sin errores; la app admin abre con el service worker del juego.
+- Al dueño se le pasó además el juego en un solo HTML (34 MB, sin `PK_BIN`: el paquete adentro en base64; los mapas y
+  personajes aparte los baja del repo): abierto desde el disco arranca, dice 3.9.7 y entra a los mapas.
 
 Los primeros posts de «Bugs y sugerencias» (de un mismo jugador, 3.9.6, app en el celu, Ultra):
 - **Bug: «en el mapa A24 BACKROOMS no tiene luz la tienda y hay un edificio gigante»** (Workshop 3761466972,

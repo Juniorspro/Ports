@@ -1,14 +1,14 @@
 {
- "codigo": 3906,
- "version": "3.9.6",
+ "codigo": 3907,
+ "version": "3.9.7",
  "apkMin": 3903,
  "archivos": [
   {
    "n": "index.html",
-   "h": "321ff93b04aa19b713acc7b9c21a71b33515aab3866f4e73295aeea4ba5e1971",
-   "t": 5018790,
-   "u": "ota/index.html.321ff93b04aa19b7.jxo",
-   "mac": "eafdd59ddd1bc8c522ce9a17406a90f4c6a12f2b083a63864421a47451a2f9e1"
+   "h": "3ca29f445c5c5bb00d77d06ddd3e1ffe66f6399fd1bc0a0ffdfd636d30e7e27e",
+   "t": 5020994,
+   "u": "ota/index.html.3ca29f445c5c5bb0.jxo",
+   "mac": "b37cd8af478a50c67448ed115b563099dd2cd94618ed434d2cccfe8fab2e49e3"
   },
   {
    "n": "pk.bin",
