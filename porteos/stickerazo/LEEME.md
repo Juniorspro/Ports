@@ -26,6 +26,44 @@ casi todo pago, mucha publicidad, cobros de suscripciones). Lo nuestro:
   por palabra o por emoji en los listos y en los tuyos.
 - Sin cuenta, sin marca de agua, y las fotos no salen del celular.
 
+## La comunidad (como una red social)
+
+- **Inicio** es el feed: «Para vos» (lo que más gusta y se baja, pesado por lo nuevo), «Recién salidos» y «Seguidos».
+  Tarjetas que entran animadas, **doble toque = me gusta** (con un corazón que explota), tirar para abajo actualiza y
+  baja más al llegar al final.
+- **Pack publicado**: seguir al autor, me gusta, **Agregar a WhatsApp** (se baja a Mis packs y se agrega), compartir
+  (manda el enlace `/p/ID`, una página con la vista previa y un botón que abre la app: `stickerazo://pack/ID`),
+  denunciar y bloquear.
+- **Perfil**: tu @ (sin email: el celular guarda una llave), avatar de emoji y color, bio, packs, seguidores,
+  descargas y me gusta; editar; **borrar la cuenta** (como pide Google Play).
+- **Publicar** desde cualquier pack tuyo (con etiquetas sugeridas), y **actualizarlo** si lo cambiás. Sólo se suben
+  los stickers terminados: las fotos quedan en el celular.
+- **Buscar**: «Lo más picante» (etiquetas en tendencia), gente por @ y packs por lo que dicen, etiqueta o emoji.
+- Moderación: nombres y textos filtrados (odio, sexual; sin falsos positivos como «controlo»), límites por persona,
+  **3 denuncias ocultan un pack** hasta revisarlo, y `/admin` para revisar (con la clave `ADMIN_CLAVE`).
+- Sin conexión la app anda igual (muestra los packs listos mientras tanto).
+
+### El servidor (`servidor/`, Cloudflare Worker + D1)
+
+`worker.js` hace todo: cuentas, packs (revisa cada WebP y el ícono como WhatsApp), feed, me gusta, seguir, buscar,
+tendencias, denuncias, moderación y las páginas `/privacidad`, `/terminos`, `/borrar-cuenta`, `/admin` y `/p/ID`.
+Los archivos van en la misma base (o en R2 si se agrega el balde `MEDIA`).
+
+**Ponerlo en marcha (una sola vez):** en Cloudflare → Workers & Pages → Crear → Importar un repositorio → este repo,
+rama `claude/ports-continuation-dm754a`, carpeta `porteos/stickerazo/servidor`. La base D1 se crea sola al desplegar
+y el servidor arma sus tablas. Después, cada push lo actualiza. Opcional: el secreto `ADMIN_CLAVE` (para `/admin`).
+La app lo busca en `https://stickerazo.<tu subdominio>.workers.dev` (`web/comunidad.js`, `API`).
+
+## Bien argento
+
+- **Fileteado**: un estilo de letra propio (dorado con contorno oscuro, volutas a los costados con su flor y su hoja,
+  una flor arriba y una guarda abajo), al estilo del filete porteño.
+- **12 packs listos** (78 stickers, todos editables): Respuestas al toque, Mate y facturas, Animados que hablan, Laburo
+  y lunes, Fútbol con amigos, Asado del domingo, El grupo de la familia, Amor y chamuyo, Calor frío y humedad, Bondi
+  y llegadas tarde, Vamos Argentina (sin escudos ni marcas) y Fileteado porteño.
+- La app habla como hablamos («Para vos», «Recién salidos», «Está todo muy tranqui», «¡Joya!»), y «Hecho en
+  Argentina 🇦🇷».
+
 ## Cómo está hecho
 
 La interfaz es una página web (`web/`) que en el celular corre dentro de la app de Android (`android/`).
@@ -112,7 +150,15 @@ pack y revisa cada archivo (tamaño, peso, transparencia, margen, emojis). Neces
 `grace_hopper.jpg`, `YellowLabradorLooking_new.jpg` y `burger.jpg` (fotos de muestra de TensorFlow/MediaPipe; no van
 en el repo ni en la app).
 
-Última corrida: navegador 96 de 96, como la app 100 de 100, Java 23 de 23, 0 errores en la página; APK de 25,5 MB.
+Última corrida: navegador y «como la app» completas, Java 23 de 23, servidor 45 de 45, comunidad (dos personas)
+30 de 30, 0 errores en las páginas; APK de 25,5 MB.
+
+- `servidor_api.mjs` (45): el servidor de verdad sobre SQLite (`d1_falsa.mjs`): nombres rechazados, publicar y lo que
+  no se puede publicar, feed, me gusta, seguir, descargas, buscar, tendencias, actualizar, bloquear, 3 denuncias,
+  moderación, borrar la cuenta, CORS y las páginas.
+- `social.mjs` (30): dos personas en dos celulares (toques de verdad): entrar, publicar con confeti, verlo en el feed,
+  doble toque, seguir, bajar, buscar, el enlace que abre la app, denunciar, bloquear, editar el perfil, borrar la cuenta
+  y sin conexión.
 Además de lo de antes, la prueba edita un sticker guardado, anima uno, completa un pack animado, hace Solo cara y un
 Cabezón con bamboleo y globo, un Pack express de 5 fotos, busca por palabra y por emoji, y agrega un pack listo.
 Un animado tarda de 1,5 a 7 s en armarse (los de 2,4 s bajan a 10 u 8 cuadros por segundo para no bajar de calidad 0,6). Recorte de una persona en 1,3 s (con la carga de los modelos),

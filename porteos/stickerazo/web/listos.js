@@ -45,13 +45,62 @@ export const LISTOS = [
       T('OFFSIDE', 'Anton', RO, BL, { emoji: '🚩' }), T('DALE\nCAMPEÓN', 'Bangers', BL, NE, { emoji: '🏆' }), T('¿Y EL\nPENAL?', 'PermanentMarker', NA, NE, { emoji: '😤' }),
     ],
   },
+  {
+    id: 'asado', nombre: 'Asado del domingo', desc: 'Para el grupo del asado', tags: 'asado parrilla domingo vino chori amigos',
+    stickers: [
+      T('¿QUIÉN\nPRENDE\nEL FUEGO?', 'LuckiestGuy', NA, NE, { emoji: '🔥' }), T('UN APLAUSO\nPARA EL\nASADOR', 'Bangers', AM, NE, { emoji: '👏' }), T('YO LLEVO\nEL VINO', 'Pacifico', RO, BL, { emoji: '🍷' }),
+      T('VACÍO\nY CHORI', 'Anton', BL, NE, { emoji: '🥩' }), T('¿Y LA\nENSALADA?', 'LuckiestGuy', VE, NE, { emoji: '🥗' }), T('JUGOSITO,\nPOR FAVOR', 'PermanentMarker', RO, BL, { emoji: '😋' }),
+    ],
+  },
+  {
+    id: 'familia', nombre: 'El grupo de la familia', desc: 'Para la tía, la abuela y los primos', tags: 'familia abuela mama tia primos grupo',
+    stickers: [
+      T('¿YA\nCOMISTE?', 'LuckiestGuy', AM, NE, { emoji: '🍝' }), T('ABRIGATE', 'Bangers', CE, NE, { emoji: '🧣' }), T('AVISÁ\nCUANDO\nLLEGÁS', 'Anton', BL, NE, { emoji: '📲' }),
+      T('¿QUIÉN TRAE\nEL POSTRE?', 'Pacifico', RO, BL, { emoji: '🍰' }), T('MANDÁ\nFOTO', 'LuckiestGuy', VE, NE, { emoji: '📸' }), T('BENDICIONES', 'PermanentMarker', AM, NE, { emoji: '🙏' }),
+    ],
+  },
+  {
+    id: 'chamuyo', nombre: 'Amor y chamuyo', desc: 'Para el crush y la pareja', tags: 'amor chamuyo crush pareja novia novio',
+    stickers: [
+      T('¿VENÍS\nSEGUIDO?', 'Pacifico', RO, BL, { emoji: '😏' }), T('SOS UN\nSOLCITO', 'LuckiestGuy', AM, NE, { emoji: '☀️' }), T('TE BANCO', 'Bangers', RO, NE, { emoji: '💪' }),
+      T('MI VIDA', 'Pacifico', RO, BL, { emoji: '❤️' }), T('¿UN MATE\nJUNTOS?', 'LuckiestGuy', VE, NE, { emoji: '🧉' }), T('EXTRAÑO', 'Anton', VI, NE, { emoji: '🥺' }),
+    ],
+  },
+  {
+    id: 'clima', nombre: 'Calor, frío y humedad', desc: 'Para quejarse del tiempo', tags: 'calor frio humedad lluvia tormenta clima',
+    stickers: [
+      T('¡QUÉ\nCALOR!', 'LuckiestGuy', NA, NE, { emoji: '🥵' }), T('LA HUMEDAD,\nLOCO', 'Bangers', CE, NE, { emoji: '💦' }), T('SE VIENE\nLA TORMENTA', 'Anton', BL, NE, { emoji: '⛈️' }),
+      T('HACE UN\nFRÍO…', 'LuckiestGuy', CE, NE, { emoji: '🥶' }), T('¿LLEVO\nPARAGUAS?', 'PermanentMarker', AM, NE, { emoji: '☂️' }), T('40 GRADOS\nA LA SOMBRA', 'Bangers', RO, NE, { emoji: '☀️' }),
+    ],
+  },
+  {
+    id: 'bondi', nombre: 'Bondi y llegadas tarde', desc: 'Para avisar (que llegás tarde)', tags: 'bondi colectivo subte transito tarde llegando',
+    stickers: [
+      T('ESTOY\nLLEGANDO', 'LuckiestGuy', AM, NE, { emoji: '🏃' }), T('ME DEJÓ\nEL BONDI', 'Bangers', RO, NE, { emoji: '🚌' }), T('YA SALGO', 'Anton', VE, NE, { emoji: '🚪' }),
+      T('¡QUÉ\nTRÁNSITO!', 'LuckiestGuy', NA, NE, { emoji: '🚗' }), T('CINCO\nMINUTOS', 'PermanentMarker', BL, NE, { emoji: '⏱️' }), T('¿DÓNDE\nESTÁS?', 'Pacifico', CE, BL, { emoji: '📍' }),
+    ],
+  },
+  {
+    id: 'seleccion', nombre: 'Vamos Argentina', desc: 'Para los partidos de la Selección', tags: 'argentina seleccion futbol mundial partido gol',
+    stickers: [
+      T('¡VAMOS\nARGENTINA!', 'LuckiestGuy', CE, NE, { emoji: '🇦🇷' }), T('¡QUÉ\nPARTIDAZO!', 'Bangers', AM, NE, { emoji: '⚽' }), T('SUFRÍ\nCOMO LOCO', 'Anton', BL, NE, { emoji: '😰' }),
+      T('¡DALE QUE\nSE PUEDE!', 'LuckiestGuy', CE, NE, { emoji: '💪' }), T('CAMPEONES', 'Bangers', AM, NE, { emoji: '🏆' }), T('¡GOLAZO!', 'LuckiestGuy', CE, NE, { emoji: '🔥' }),
+    ],
+  },
+  {
+    id: 'filete', nombre: 'Fileteado porteño', desc: 'Frases de colectivo, con filete', tags: 'filete fileteado porteno frases colectivo argentina',
+    stickers: [
+      T('MI\nVIEJA', 'LuckiestGuy', AM, NE, { filete: true }), T('EL QUE\nAVISA NO\nTRAICIONA', 'LuckiestGuy', AM, NE, { filete: true }), T('DIOS ME\nLA BENDIGA', 'LuckiestGuy', AM, NE, { filete: true }),
+      T('TODO\nTIENE SU\nHORA', 'LuckiestGuy', AM, NE, { filete: true }), T('LA VIDA\nES UNA\nSOLA', 'LuckiestGuy', AM, NE, { filete: true }), T('DE LA\nCUNA A LA\nTUMBA', 'LuckiestGuy', AM, NE, { filete: true }),
+    ],
+  },
 ];
 
 // un sticker listo, armado: el texto al medio, grande, y el emoji arriba a la derecha, un poco torcido
 export function armarListo(d, n = 0) {
-  const s = new Sticker(), t = s.agregarTexto({ texto: d.texto, fuente: d.fuente, color: d.color, contorno: d.contorno, globo: d.globo });
+  const s = new Sticker(), t = s.agregarTexto({ texto: d.texto, fuente: d.fuente, color: d.color, contorno: d.contorno, globo: d.globo, filete: d.filete });
   const largo = Math.max(...d.texto.split('\n').map((l) => [...l].length));
-  t.tam = largo <= 4 ? 150 : largo <= 7 ? 120 : 96; s.ajustarTexto(t, true); t.y = LADO / 2 + 36; t.rot = (n % 2 ? 1 : -1) * 0.05;
+  t.tam = d.filete ? 120 : largo <= 4 ? 150 : largo <= 7 ? 120 : 96; s.ajustarTexto(t, true); t.y = LADO / 2 + (d.emoji ? 36 : 0); t.rot = (n % 2 ? 1 : -1) * (d.filete ? 0.02 : 0.05);
   if (d.anim) t.anim = d.anim;
   if (d.emoji) { const e = s.agregarEmoji(d.emoji); e.tam = 150; e.x = LADO - 140; e.y = 140; e.rot = n % 2 ? -0.18 : 0.14; if (d.anim && d.anim !== 'aparecer') e.anim = d.anim === 'temblor' ? 'temblor' : 'bamboleo'; }
   s.encajar(); s.sel = -1;

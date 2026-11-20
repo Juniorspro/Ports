@@ -52,7 +52,7 @@ ok(/Publicado ✓/.test(await A.p.textContent('#pPublicar')), 'de vuelta en el p
 // ---------- @maria.sol: lo ve en el feed, me gusta con doble toque, lo abre, sigue, baja, busca ----------
 const B = await celular('B');
 await B.p.waitForSelector('#feedLista .tf .tfGrilla img'); await B.foto('feed');
-ok((await B.p.locator('#feedLista .tf').count()) === 1 && /@juancito/.test(await B.p.textContent('#feedLista .tf')), 'feed «Para vos»: el pack de @juancito');
+ok((await B.p.locator('#feedLista .tf:not(.esq)').count()) === 1 && /@juancito/.test(await B.p.textContent('#feedLista .tf:not(.esq)')), 'feed «Para vos»: el pack de @juancito');
 await B.toque('#feedLista .tfGrilla', 2); await espera(300);
 ok((await B.E(() => window.__sz.E.tab)) === 'Perfil', 'me gusta sin cuenta: te lleva a elegir tu @');
 await B.p.fill('#regNombre', 'maria.sol'); await B.p.click('#regEntrar'); await B.p.waitForSelector('#tabPerfil .arroba');
@@ -74,14 +74,14 @@ await B.p.click('#puCont .autor'); await B.p.waitForSelector('#usCont .arroba');
 ok(/@juancito/.test(await B.p.textContent('#usCont .arroba')) && (await B.p.textContent('#usCont .segN')) === '1' && (await B.p.locator('#usCont .tf').count()) === 1, 'el perfil de @juancito: 1 seguidor y su pack');
 await B.p.click('#vUsuario .volver'); await B.p.click('#vPublico .volver'); await B.p.waitForFunction(() => window.__sz.E.vista === 'vInicio');
 ok((await B.E(() => window.__sz.E.tab)) === 'Feed', 'volver, volver: de nuevo en el feed');
-await B.p.click('#feedSeg [data-m="siguiendo"]'); await B.p.waitForSelector('#feedLista .tf'); ok((await B.p.locator('#feedLista .tf').count()) === 1, '«Seguidos»: el pack de @juancito');
+await B.p.click('#feedSeg [data-m="siguiendo"]'); await B.p.waitForSelector('#feedLista .tf:not(.esq)'); ok((await B.p.locator('#feedLista .tf:not(.esq)').count()) === 1, '«Seguidos»: el pack de @juancito');
 await B.p.click('#tabs [data-t="Mios"]'); await B.p.waitForSelector('#packs .packItem');
 ok(/@juancito/.test(await B.p.textContent('#packs')), 'en Mis packs, con la insignia @juancito');
 await B.p.click('#tabs [data-t="Listos"]'); await B.p.waitForSelector('#resCom .tendencias .chip');
 const tend = await B.E(() => [...document.querySelectorAll('#resCom .tendencias .chip')].map((b) => b.dataset.tag));
 ok(tend.includes('respuestas'), `Buscar: «Lo más picante» con las etiquetas de la comunidad (${tend.slice(0, 5).join(' ')}…)`);
-await B.p.fill('#qBuscar', 'de una'); await B.p.waitForSelector('#resCom .tf', { timeout: 10000 }); await B.foto('buscar_comunidad');
-ok((await B.p.locator('#resCom .tf').count()) === 1, 'buscar «de una» (lo que dice un sticker): encuentra el pack en la comunidad');
+await B.p.fill('#qBuscar', 'de una'); await B.p.waitForSelector('#resCom .tf:not(.esq)', { timeout: 10000 }); await B.foto('buscar_comunidad');
+ok((await B.p.locator('#resCom .tf:not(.esq)').count()) === 1, 'buscar «de una» (lo que dice un sticker): encuentra el pack en la comunidad');
 await B.p.fill('#qBuscar', '@juan'); await B.p.waitForSelector('#resCom .persona'); ok(/juancito/.test(await B.p.textContent('#resCom .persona')), 'buscar «@juan»: aparece @juancito');
 
 // ---------- un tercero, sin la app abierta en el pack: el enlace ----------
@@ -98,8 +98,8 @@ await B.p.waitForFunction(() => /revisar/.test(document.querySelector('#aviso').
 ok(true, 'denunciar: «Gracias. Lo vamos a revisar»');
 await B.p.click('#puMenu'); await B.p.click('#modal [data-x="bloquear"]'); await B.p.click('#modal [data-x="1"]');
 await B.p.waitForFunction(() => /Bloqueaste/.test(document.querySelector('#aviso').textContent));
-await B.p.click('#tabs [data-t="Feed"]'); await B.p.click('#feedSeg [data-m="para-vos"]'); await espera(800);
-ok((await B.p.locator('#feedLista .tf').count()) === 0, 'bloquear a @juancito: su pack no aparece más en el feed');
+await B.p.click('#tabs [data-t="Feed"]'); await B.p.click('#feedSeg [data-m="para-vos"]'); await B.p.waitForFunction(() => !document.querySelector('#feedLista .esq'), null, { timeout: 10000 }); await espera(300);
+ok((await B.p.locator('#feedLista .tf:not(.esq)').count()) === 0, 'bloquear a @juancito: su pack no aparece más en el feed');
 
 // ---------- @juancito: sus números, editar perfil, borrar la cuenta ----------
 await A.p.click('#vPack .volver'); await A.p.click('#tabs [data-t="Perfil"]'); await A.p.waitForSelector('#tabPerfil .stats');

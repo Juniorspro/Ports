@@ -481,20 +481,20 @@ $('#vEditor .barra').onclick = (ev) => {
 };
 const contornoCss = (c) => Array.from({ length: 16 }, (_, k) => { const a = (k / 16) * Math.PI * 2; return `${(Math.cos(a) * 2.5).toFixed(1)}px ${(Math.sin(a) * 2.5).toFixed(1)}px 0 ${c}`; }).join(',');
 function abrirTexto(capa) {
-  const t = capa ? { texto: capa.texto, fuente: capa.fuente, color: capa.color, contorno: capa.contorno || '', globo: !!capa.globo } : { texto: '', fuente: E.ultFuente, color: E.ultColor, contorno: E.ultContorno, globo: false };
+  const t = capa ? { texto: capa.texto, fuente: capa.fuente, color: capa.color, contorno: capa.contorno || '', globo: !!capa.globo, filete: !!capa.filete } : { texto: '', fuente: E.ultFuente, color: E.ultColor, contorno: E.ultContorno, globo: false, filete: false };
   const m = modal(`<div class="hoja"><h3>${capa ? 'Cambiar el texto' : 'Agregar texto'}</h3>
     <textarea id="tTx" rows="2" maxlength="80" placeholder="Escribí acá" autocomplete="off" autocapitalize="sentences"></textarea>
     <div class="etq">Ideas</div><div class="ideas" id="tI">${FRASES.map((f) => `<button data-v="${h(f)}">${h(f)}</button>`).join('')}</div>
-    <div class="etq">Estilo</div><div class="chips" id="tE"><button class="chip" data-v="">Letras</button><button class="chip" data-v="globo">💬 Globo</button></div>
+    <div class="etq">Estilo</div><div class="chips" id="tE"><button class="chip" data-v="">Letras</button><button class="chip" data-v="globo">💬 Globo</button><button class="chip" data-v="filete">🌀 Filete</button></div>
     <div class="etq">Letra</div><div class="chips" id="tF">${FUENTES.map((f) => `<button class="chip" data-v="${f.id}" style="font-family:'${f.id}'">${f.nombre}</button>`).join('')}</div>
     <div class="etq">Color</div><div class="colores" id="tC">${COLORES.map((c) => `<button class="color" data-v="${c}" style="background:${c}" aria-label="Color ${c}"></button>`).join('')}</div>
     <div class="etq">Contorno</div><div class="chips" id="tB">${[['#111111', 'Negro'], ['#ffffff', 'Blanco'], ['', 'Sin contorno']].map(([v, n]) => `<button class="chip" data-v="${v}">${n}</button>`).join('')}</div>
     <div class="botones"><button class="sec" data-x="0">Cancelar</button><button class="pri" data-x="1">Listo</button></div></div>`);
   const tx = $('#tTx', m); tx.value = t.texto;
   const marcar = (sel, v) => { for (const b of $(sel, m).children) b.classList.toggle('act', b.dataset.v === v); };
-  const vista = () => { tx.style.fontFamily = `'${t.fuente}', sans-serif`; tx.style.color = t.color; tx.style.textShadow = t.contorno ? contornoCss(t.contorno) : 'none'; tx.style.background = t.globo ? '#ffffff' : ''; marcar('#tF', t.fuente); marcar('#tC', t.color); marcar('#tB', t.contorno); marcar('#tE', t.globo ? 'globo' : ''); };
+  const vista = () => { tx.style.fontFamily = `'${t.fuente}', sans-serif`; tx.style.color = t.color; tx.style.textShadow = t.contorno ? contornoCss(t.contorno) : 'none'; tx.style.background = t.globo ? '#ffffff' : ''; marcar('#tF', t.fuente); marcar('#tC', t.color); marcar('#tB', t.contorno); marcar('#tE', t.globo ? 'globo' : t.filete ? 'filete' : ''); if (t.filete) { tx.style.color = '#ffc93a'; tx.style.textShadow = contornoCss('#3b0d0a'); } };
   $('#tI', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { tx.value = b.dataset.v; tx.focus(); } };
-  $('#tE', m).onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; t.globo = b.dataset.v === 'globo'; if (t.globo) { t.color = '#111111'; t.contorno = ''; } vista(); };
+  $('#tE', m).onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; t.globo = b.dataset.v === 'globo'; t.filete = b.dataset.v === 'filete'; if (t.globo) { t.color = '#111111'; t.contorno = ''; } vista(); };
   const elegir = (sel, k) => { $(sel, m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { t[k] = b.dataset.v; vista(); } }; };
   elegir('#tF', 'fuente'); elegir('#tC', 'color'); elegir('#tB', 'contorno');
   m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
@@ -674,11 +674,11 @@ function previa(pk, i) {
   if (!previas.has(k)) { const c = armarListo(pk.stickers[i], i).componer(0), t = lienzo(192, 192), g = t.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, 192, 192); previas.set(k, t.toDataURL('image/webp', 0.85)); }
   return previas.get(k);
 }
-let turnoPrevias = 0;
+// (cada lista lleva su cuenta: abrir una hoja no frena las miniaturas de la lista de atrás)
 async function llenarPrevias(raiz) {
-  const mio = ++turnoPrevias;
+  const mio = (raiz._turno = (raiz._turno || 0) + 1);
   for (const im of raiz.querySelectorAll('img[data-l]')) {
-    if (mio !== turnoPrevias) return;
+    if (raiz._turno !== mio || !im.isConnected) return;
     const [id, i] = im.dataset.l.split(':'), pk = LISTOS.find((x) => x.id === id); im.src = previa(pk, +i); im.removeAttribute('data-l');
     await new Promise((ok) => setTimeout(ok, 0));
   }

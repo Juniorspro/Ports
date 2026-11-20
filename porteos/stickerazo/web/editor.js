@@ -49,6 +49,38 @@ function globo(g, w, h) {
   g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 6; g.strokeStyle = '#111111'; g.lineJoin = 'round'; g.stroke();
 }
 
+// el fileteado (dibujo nuestro, al estilo del filete porteño): a cada lado del texto, una voluta que sale y se enrosca,
+// con su hoja y su flor; colores de filete (rojo, verde, dorado, celeste) con contorno negro y un brillo blanco
+const ROJO_F = '#e8352b', VERDE_F = '#2f9e4a', CELESTE_F = '#3aa8e0';
+function voluta(g, x0, h, k, col) {
+  // (k: tamaño; la espiral se enrosca hacia arriba, afuera del texto)
+  const R0 = 38 * k, cx = x0 + 54 * k, cy = -12 * k, pts = [];
+  for (let i = 0; i <= 60; i++) { const t = i / 60, th = Math.PI * (0.95 + 2.3 * t), r = R0 * (1 - 0.78 * t); pts.push([cx + Math.cos(th) * r, cy + Math.sin(th) * r]); }
+  const camino = () => { g.beginPath(); g.moveTo(x0, h * 0.18); g.quadraticCurveTo(x0 + 8 * k, cy + R0 * 0.2, pts[0][0], pts[0][1]); for (const [x, y] of pts) g.lineTo(x, y); };
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  camino(); g.strokeStyle = '#111'; g.lineWidth = 19 * k; g.stroke();
+  camino(); g.strokeStyle = col; g.lineWidth = 12 * k; g.stroke();
+  camino(); g.strokeStyle = 'rgba(255,255,255,0.75)'; g.lineWidth = 2.8 * k; g.stroke();
+  // la hoja (de acanto, simplificada) y la flor
+  g.save(); g.translate(x0 + 20 * k, h * 0.22 + 4 * k); g.rotate(0.45); g.scale(1.45, 1.45);
+  g.beginPath(); g.moveTo(0, 0); g.bezierCurveTo(14 * k, -16 * k, 34 * k, -8 * k, 40 * k, 6 * k); g.bezierCurveTo(26 * k, 2 * k, 12 * k, 10 * k, 0, 0); g.closePath();
+  g.fillStyle = VERDE_F; g.fill(); g.lineWidth = 3.5 * k; g.strokeStyle = '#111'; g.stroke();
+  g.beginPath(); g.moveTo(4 * k, 1 * k); g.quadraticCurveTo(20 * k, -4 * k, 36 * k, 4 * k); g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 1.6 * k; g.stroke(); g.restore();
+  for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; g.beginPath(); g.arc(cx + Math.cos(a) * 8.5 * k, cy + Math.sin(a) * 8.5 * k, 6 * k, 0, Math.PI * 2); g.fillStyle = '#ffd23f'; g.fill(); g.lineWidth = 2 * k; g.strokeStyle = '#111'; g.stroke(); }
+  g.beginPath(); g.arc(cx, cy, 4.5 * k, 0, Math.PI * 2); g.fillStyle = ROJO_F; g.fill();
+}
+const ORN = 118; // (lo que agrega el fileteado a cada lado, en tamaño 96)
+// arriba, una flor de filete; abajo, una guarda que ondula (así el cartel no queda tan finito)
+function guarda(g, w, y, k) {
+  const camino = () => { g.beginPath(); g.moveTo(-w / 2, y); const n = 4, p = w / n; for (let i = 0; i < n; i++) g.quadraticCurveTo(-w / 2 + p * (i + 0.5), y + (i % 2 ? -14 : 14) * k, -w / 2 + p * (i + 1), y); };
+  g.lineCap = 'round'; camino(); g.strokeStyle = '#111'; g.lineWidth = 17 * k; g.stroke(); camino(); g.strokeStyle = CELESTE_F; g.lineWidth = 10 * k; g.stroke(); camino(); g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 1.8 * k; g.stroke();
+  for (const sx of [-1, 1]) { g.beginPath(); g.arc((sx * w) / 2, y, 9 * k, 0, Math.PI * 2); g.fillStyle = ROJO_F; g.fill(); g.lineWidth = 3 * k; g.strokeStyle = '#111'; g.stroke(); }
+}
+function flor(g, y, k) {
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; g.save(); g.translate(0, y); g.rotate(a); g.beginPath(); g.ellipse(0, -14 * k, 8 * k, 13 * k, 0, 0, Math.PI * 2); g.fillStyle = i % 2 ? ROJO_F : '#ffd23f'; g.fill(); g.lineWidth = 3 * k; g.strokeStyle = '#111'; g.stroke(); g.restore(); }
+  g.beginPath(); g.arc(0, y, 8 * k, 0, Math.PI * 2); g.fillStyle = VERDE_F; g.fill(); g.lineWidth = 3 * k; g.strokeStyle = '#111'; g.stroke();
+}
+
 export class Sticker {
   constructor() { this.capas = []; this.borde = 12; this.colorBorde = '#ffffff'; this.sombra = true; this.sel = -1; }
   // ---- capas ----
@@ -58,8 +90,8 @@ export class Sticker {
     this.capas.push({ tipo: 'img', src, x: LADO / 2, y: LADO / 2, esc, rot: 0 }); this.sel = this.capas.length - 1; return this.capas[this.sel];
   }
   agregarTexto(o) {
-    const c = { tipo: 'texto', texto: o.texto || 'Texto', fuente: o.fuente || 'LuckiestGuy', color: o.color || '#ffffff', contorno: o.contorno === undefined ? '#111111' : o.contorno, globo: !!o.globo, tam: 96, x: LADO / 2, y: LADO / 2, esc: 1, rot: 0 };
-    if (c.globo) { c.color = '#111111'; c.contorno = ''; }
+    const c = { tipo: 'texto', texto: o.texto || 'Texto', fuente: o.fuente || 'LuckiestGuy', color: o.color || '#ffffff', contorno: o.contorno === undefined ? '#111111' : o.contorno, globo: !!o.globo, filete: !!o.filete, tam: 96, x: LADO / 2, y: LADO / 2, esc: 1, rot: 0 };
+    if (c.globo) { c.color = '#111111'; c.contorno = ''; c.filete = false; }
     this.ajustarTexto(c, !this.capas.length);
     this.capas.push(c); this.sel = this.capas.length - 1; return c;
   }
@@ -81,7 +113,8 @@ export class Sticker {
     g.font = fuente; const lineas = c.tipo === 'emoji' ? [c.ch] : String(c.texto).split('\n');
     let w = Math.max(...lineas.map((l) => g.measureText(l).width)) + (c.tipo === 'texto' ? c.tam * 0.3 : 0), h = lineas.length * c.tam * 1.08 + c.tam * 0.18;
     if (c.globo) { w += 52 + 6; h += 28 + 34 + 6; }
-    return { w, h, fuente, lineas };
+    const tw = w; if (c.filete) { w += 2 * ORN * (c.tam / 96); h += 24 * (c.tam / 96) + 2 * 40 * (c.tam / 96); }
+    return { w, h, fuente, lineas, tw };
   }
   // ---- animación ----
   animado() { return this.capas.some((c) => c.anim && ANIM[c.anim]); }
@@ -106,14 +139,22 @@ export class Sticker {
       g.font = md.fuente; g.textAlign = 'center'; g.textBaseline = 'middle';
       const alto = c.tam * 1.08, y0 = -((md.lineas.length - 1) * alto) / 2 - (c.globo ? 17 : 0);
       if (c.globo) { g.save(); g.translate(0, -17); globo(g, md.w - 58, md.h - 68); g.restore(); }
+      if (c.filete) {
+        // (las volutas, una de cada lado; los colores van cambiando según el texto)
+        const k = c.tam / 96, x0 = md.tw / 2 - 4 * k, hh = md.h - 24 * k - 80 * k, n = [...String(c.texto)].length, alto2 = (md.lineas.length * c.tam * 1.08) / 2;
+        g.save(); voluta(g, x0, hh, k, [ROJO_F, CELESTE_F, VERDE_F][n % 3]); g.scale(-1, 1); voluta(g, x0, hh, k, [CELESTE_F, ROJO_F, VERDE_F][n % 3]); g.restore();
+        flor(g, -alto2 - 16 * k, k); guarda(g, md.tw * 0.86, alto2 + 14 * k, k);
+      }
       let quedan = m.letras === undefined ? Infinity : Math.round(m.letras * md.lineas.reduce((n, l) => n + [...l].length, 0));
-      const color = c.tipo === 'texto' && m.tono ? `hsl(${m.tono}, 95%, 60%)` : c.color;
+      let color = c.tipo === 'texto' && m.tono ? `hsl(${m.tono}, 95%, 60%)` : c.color;
+      if (c.filete && !m.tono) { const gr = g.createLinearGradient(0, -c.tam * 0.5, 0, c.tam * 0.5); gr.addColorStop(0, '#fff3b0'); gr.addColorStop(0.45, '#ffc93a'); gr.addColorStop(1, '#d97a10'); color = gr; }
       md.lineas.forEach((l, i) => {
         const ch = [...l], ver = ch.slice(0, Math.max(0, quedan)).join(''); quedan -= ch.length; if (!ver) return;
         // (letra por letra: el renglón se escribe desde su lugar final, no corrido al centro)
         const x = ver.length < l.length ? -g.measureText(l).width / 2 + g.measureText(ver).width / 2 : 0;
-        if (c.tipo === 'texto' && c.contorno) { g.lineJoin = 'round'; g.miterLimit = 2; g.lineWidth = c.tam * 0.2; g.strokeStyle = c.contorno; g.strokeText(ver, x, y0 + i * alto); }
+        if (c.tipo === 'texto' && (c.contorno || c.filete)) { g.lineJoin = 'round'; g.miterLimit = 2; g.lineWidth = c.tam * (c.filete ? 0.24 : 0.2); g.strokeStyle = c.filete ? '#3b0d0a' : c.contorno; g.strokeText(ver, x, y0 + i * alto); }
         g.fillStyle = c.tipo === 'texto' ? color : '#000'; g.fillText(ver, x, y0 + i * alto);
+        if (c.filete) { g.save(); g.globalCompositeOperation = 'source-atop'; g.lineWidth = c.tam * 0.03; g.strokeStyle = 'rgba(255,255,255,0.85)'; g.strokeText(ver, x - c.tam * 0.02, y0 + i * alto - c.tam * 0.035); g.restore(); }
       });
     }
     g.restore();
