@@ -84,6 +84,8 @@ function ev3Base() {
 }
 // todo lo que puso el evento fuera del mundo
 function ev3Limpiar() {
+  // (una pregunta de Pepe que quedó en el aire)
+  if (typeof EV3I !== 'undefined' && EV3I.preg) { EV3I.preg = null; if (EV3.ui) EV3.ui.preg.classList.add('oc'); if (UI.abierto === 'ev3preg') UI.abierto = null; }
   for (const o of EV3.objs) if (OBJS.includes(o)) borrarObjeto(o, true);
   for (const P of EV3.pers) { if (P.npc) npcQuitar(P); else if (PERS.includes(P)) borrarPersona(P); }
   for (const b of EV3.fijas) if (typeof cajaQuitar === 'function') cajaQuitar(b);
@@ -100,7 +102,7 @@ function ev3Terminar() {
 // ---------------- cada cuadro (principal.js: antes de las armas) ----------------
 function ev3Paso(dt) {
   if (!EV3.fase) return;
-  EV3.t += dt;
+  if (!(EV3.fase === 'intro' && EV3I.preg)) EV3.t += dt;   // (con una pregunta de Pepe en el aire, la cinta espera)
   // (las armas no se usan: el disparo es tirar lo que se lleva en la mano)
   const disp = ENT.disparo; ENT.disparo = ENT.disparo2 = false;
   if (EV3.lleva) { if (disp && !EV3.llevaFlanco) ev3Soltar(true); }
@@ -282,6 +284,7 @@ function ev3Ui() {
     nota: mk('ev3Nota', 'oc', '<div class="ev3Papel"><div class="ev3PapelTxt"></div></div><div class="ev3Cierra"></div>'),
     pausa: mk('ev3Pausa', 'oc', '<div class="ev3Caja"><b class="ev3Tit"></b><div class="ev3Lista"></div><div class="ev3Bts"></div></div>'),
     tecla: mk('ev3Tecla', 'oc', '<div class="ev3Caja"><div class="ev3Pant">----</div><div class="ev3Teclas"></div><div class="ev3Cierra"></div></div>'),
+    preg: mk('ev3Preg', 'oc', '<div class="ev3PregTxt"></div><div class="ev3PregOps"></div>'),
     radio: mk('ev3Radio', 'oc', '<div class="ev3Caja"><div class="ev3Dial"><b class="ev3Frec">88.0</b><small>FM</small></div><input type="range" min="880" max="1080" step="1" value="880" class="ev3Perilla"><div class="ev3Cierra"></div></div>'),
   };
   U.cinta.querySelector('.ev3Toca').textContent = T('ev3.toca');
@@ -431,6 +434,25 @@ Object.assign(IDI3, {
   'ev3.o.admin': ['la computadora (ADMIN)', 'the computer (ADMIN)', 'o computador (ADMIN)'],
   'ev3.o.13': ['el cartel del 13', 'the 13 sign', 'a placa do 13'],
   'ev3.o.pared': ['la pared', 'the wall', 'a parede'],
+  // el interrogatorio (ev300_intro.js): lo que pregunta Pepe, las respuestas y lo que contesta
+  'ev3.q.p1': ['¿Te acordás cuántas veces me mataste?', 'Do you remember how many times you killed me?', 'Você lembra quantas vezes me matou?'],
+  'ev3.q.p2': ['¿Sabés dónde estás?', 'Do you know where you are?', 'Você sabe onde está?'],
+  'ev3.q.p3': ['¿Te divertías?', 'Were you having fun?', 'Você se divertia?'],
+  'ev3.q.p4': ['¿Cuál te gustó más?', 'Which one did you like best?', 'Qual você gostou mais?'],
+  'ev3.q.p5': ['¿Me vas a pedir perdón?', 'Are you going to say sorry?', 'Você vai me pedir perdão?'],
+  'ev3.q.nose': ['No sé', "I don't know", 'Não sei'],
+  'ev3.q.ninguna': ['Ninguna', 'None', 'Nenhuma'],
+  'ev3.q.si': ['Sí', 'Yes', 'Sim'],
+  'ev3.q.no': ['No', 'No', 'Não'],
+  'ev3.r.rExacto': ['Exacto. Cada una.', 'Exactly. Every single one.', 'Exato. Cada uma.'],
+  'ev3.r.rMeAcuerdo': ['Yo sí me acuerdo. De todas.', 'I do remember. Every one.', 'Eu lembro. De todas.'],
+  'ev3.r.rMentiroso': ['Mentiroso.', 'Liar.', 'Mentiroso.'],
+  'ev3.r.rSincero': ['Por lo menos sos sincero.', 'At least you are honest.', 'Pelo menos você é sincero.'],
+  'ev3.r.rCinta': ['Estás adentro de la cinta. Igual que yo.', 'You are inside the tape. Just like me.', 'Você está dentro da fita. Igual a mim.'],
+  'ev3.r.rTodavia': ['Todavía no. Primero vas a jugar.', 'Not yet. First you are going to play.', 'Ainda não. Primeiro você vai jogar.'],
+  'ev3.r.rYaLoVas': ['Ya lo vas a hacer.', 'You will.', 'Você vai.'],
+  'ev3.r.rTodas': ['A mí me dolieron todas.', 'They all hurt me.', 'Todas doeram em mim.'],
+  'ev3.r.rSilencio': ['¿No me vas a contestar?', "You're not going to answer me?", 'Não vai me responder?'],
   'ev3.o.sedan': ['el auto', 'the car', 'o carro'],
   'ev3.o.heladera': ['la heladera', 'the fridge', 'a geladeira'],
   'ev3.o.barril': ['el barril', 'the barrel', 'o barril'],

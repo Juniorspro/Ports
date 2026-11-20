@@ -4991,6 +4991,15 @@ núcleo), `ev300_intro.js` (la cinta), `ev300_mis.js` (las misiones, el final y 
   llega apagado): palancazos, una patada y el tiro al barril que explota al lado de Pepe. Se apaga la luz, se abre la puerta
   y entra la entidad (Pepe deformado, oscuro, más alto, con un bate): camina hasta la silla, la cabeza va sola hacia ella y te
   pega. Negro, STOP ■.
+- **El interrogatorio**: a veces Pepe pregunta. En tres huecos de la cinta (después de «Soy yo. Pepe.», de «te reías» y de
+  «Trescientos te están mirando») se sortea una pregunta en cada partida (75 %, 75 % y 60 %; siempre al menos una: en 4.000
+  partidas, 21 % una, 45 % dos y 34 % tres): «¿Te acordás cuántas veces me mataste?» (1.047 / No sé / Ninguna), «¿Sabés
+  dónde estás?», «¿Te divertías?», «¿Cuál te gustó más?» (el auto, la heladera, el barril) y «¿Me vas a pedir perdón?». La
+  cinta se queda esperando (las cámaras titilan juntas, el grave sube, el corazón sigue): la pregunta escrita abajo como
+  subtítulo y las respuestas para tocar (en la compu, también 1, 2 y 3). Pepe contesta con su voz según lo elegido («Exacto.
+  Cada una.», «Yo sí me acuerdo. De todas.», «Estás adentro de la cinta. Igual que yo.», «Todavía no. Primero vas a
+  jugar.»...); la mentira es «Mentiroso.» con un golpe rojo y sacudón, y si en 8 s no contestás, «¿No me vas a contestar?».
+  Lo contestado queda en `jx_ev300.resp`. Las 14 voces nuevas, del mismo Loquendo (29 en total, 370 kB).
 - **gm_construct de noche**: te despertás frente a la puerta del 1.047 (el número de muertes de Pepe, pintado arriba con
   «PEPE SIEMPRE VUELVE»; al lado, el auto chocado contra la pared). La puerta tiene cadenas y un candado con 10 sellos. Sólo
   lo justo: caminar, mirar, saltar, agacharse, usar/agarrar y la linterna (primera persona, sin props, celular, armas ni
@@ -5014,7 +5023,8 @@ núcleo), `ev300_intro.js` (la cinta), `ev300_mis.js` (las misiones, el final y 
   con el evento; 74 dibujos por cuadro frente a 49 (cada misión se dibuja sólo de cerca, las cajitas fijas van juntas en una
   malla, Pepe y lo que camina sólo se animan cuando hace falta, los props lejos no se dibujan). Las luces son «luces
   especiales» (las de la pizzería): andan en todas las calidades.
-- **Pruebas**: `pruebas/evento300.mjs` 46/46 por partes (intro 11, misiones 21, bug 4, final 10). `?ev300` lo fuerza en las
+- **Pruebas**: `pruebas/evento300.mjs` 56/56 por partes (intro 11 —sin preguntas—, preguntas 10, misiones 21, bug 4,
+  final 10). `?ev300` lo fuerza en las
   pruebas (en ellas no arranca solo); `?sinev300` lo saltea.
 - Arreglos de paso: el tinte de un personaje ahora llega a los modelos de GMod (`gmod_pm.js`); en PC, al soltar el mouse
   durante el evento se abre su pausa (o nada, en la cinta).

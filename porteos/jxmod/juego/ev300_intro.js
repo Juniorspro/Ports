@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------------------------------------
-// El evento de los 300 (ev300.js): la cinta del principio, ~34 s, en el motor y en VHS. Un cuarto de hormigón armado acá
-// (una malla con piso, techo y cuatro paredes, la de enfrente con la puerta) lleno de cámaras con trípode que te
-// apuntan, todas con la luz de REC, y dos monitores con estática; vos, atado a una silla (tu personaje sentado, con las
-// manos atrás y sogas en el pecho, la cintura y los tobillos); la cámara en los ojos y el cuello que gira lo que puede.
-// Pepe habla (el Loquendo robot, ev300_son.js) y en el medio, tres recuerdos de lo que le hicimos —de día, en primera
+// El evento de los 300 (ev300.js): la cinta del principio, ~34 s (más lo que tarden las preguntas de Pepe), en el motor
+// y en VHS. Un cuarto de hormigón armado acá (una malla con piso, techo y cuatro paredes, la de enfrente con la puerta)
+// lleno de cámaras con trípode que te apuntan, todas con la luz de REC, y dos monitores con estática; vos, atado a una
+// silla (tu personaje sentado, con las manos atrás y sogas en el pecho, la cintura y los tobillos); la cámara en los ojos
+// y el cuello que gira lo que puede. Pepe habla (el Loquendo robot, ev300_son.js) y en el medio, tres recuerdos de lo que le hicimos —de día, en primera
 // persona y «bajo el agua» (la imagen ondula y el sonido llega apagado)—: palancazos, una patada y el barril que
 // explota a su lado. Al final se apaga la luz, se abre la puerta y entra la entidad (Pepe deformado, oscuro, con un bate):
 // camina hasta la silla y te pega. Negro.
@@ -17,8 +17,67 @@ const EV3I_GUION = [
   [25.4, 'v:i6'], [29.0, 'apagon'], [29.7, 'puerta'], [30.1, 'v:i7'], [31.5, 'swing'], [32.2, 'golpe'], [34.2, 'fin'],
 ];
 const EV3I_FB_DUR = 1.6;
+// ---------------- el interrogatorio: a veces Pepe pregunta ----------------
+// En tres huecos de la cinta (después de «Soy yo. Pepe.», de «te reías» y de «trescientos te están mirando») puede caer una
+// pregunta: se sortea en cada partida (cada hueco con su chance; al menos una). La cinta se queda esperando: Pepe pregunta,
+// aparecen las respuestas (tocándolas, o 1, 2 y 3 en la compu) y contesta según lo que elegiste; si en 8 s no contestás,
+// «¿No me vas a contestar?». Cada respuesta: [texto (clave o tal cual), lo que dice Pepe].
+const EV3I_PREGS = {
+  p1: [['1.047', 'rExacto'], ['ev3.q.nose', 'rMeAcuerdo'], ['ev3.q.ninguna', 'rMentiroso']],
+  p2: [['ev3.q.si', 'rMentiroso'], ['ev3.q.no', 'rCinta']],
+  p3: [['ev3.q.si', 'rSincero'], ['ev3.q.no', 'rMentiroso']],
+  p4: [['ev3.o.sedan', 'rTodas'], ['ev3.o.heladera', 'rTodas'], ['ev3.o.barril', 'rTodas']],
+  p5: [['ev3.q.si', 'rTodavia'], ['ev3.q.no', 'rYaLoVas']],
+};
+const EV3I_HUECOS = [[5.25, ['p1', 'p2'], 0.75], [25.3, ['p3', 'p4'], 0.75], [28.9, ['p5'], 0.6]];
+const EV3I_ESPERA = 8;
+function ev3PregSortear() {
+  // (las pruebas eligen: window.__ev3Preguntas = ['p1', 'p3'] o [] para ninguna)
+  const forz = window.__ev3Preguntas;
+  if (Array.isArray(forz)) return EV3I_HUECOS.map(([t, pool]) => [t, pool.find((k) => forz.includes(k))]).filter((x) => x[1]);
+  let L = EV3I_HUECOS.filter((h) => Math.random() < h[2]).map(([t, pool]) => [t, pool[(Math.random() * pool.length) | 0]]);
+  if (!L.length) { const h = EV3I_HUECOS[1]; L = [[h[0], h[1][(Math.random() * h[1].length) | 0]]]; }
+  return L;
+}
+function ev3PregEmpezar(k) {
+  const ops = EV3I_PREGS[k]; if (!ops) return;
+  const G = EV3I.preg = { k, t: 0, fase: 'pregunta', dq: (typeof EV3_VOZ !== 'undefined' && EV3_VOZ.dur[k]) || 2, resp: null };
+  ev3Voz(k, 1.1);
+  const U = ev3Ui(), T0 = U.preg.querySelector('.ev3PregTxt'), O = U.preg.querySelector('.ev3PregOps');
+  T0.textContent = T('ev3.q.' + k); O.innerHTML = '';
+  ops.forEach(([txt, r], i) => { const b = document.createElement('button'); b.innerHTML = '<i>' + (i + 1) + '</i>'; const s = /^ev3\./.test(txt) ? T(txt) : txt; b.appendChild(document.createTextNode(s.charAt(0).toUpperCase() + s.slice(1))); b.onclick = (e) => { e.stopPropagation(); ev3PregResponder(i); }; O.appendChild(b); });
+  U.preg.classList.remove('oc', 'resp'); U.preg.classList.add('sale'); UI.abierto = 'ev3preg'; soltarPuntero();
+}
+function ev3PregResponder(i) {
+  const G = EV3I.preg; if (!G || G.fase !== 'pregunta') return;
+  const U = ev3Ui(); if (UI.abierto === 'ev3preg') UI.abierto = null;
+  const r = i < 0 ? 'rSilencio' : EV3I_PREGS[G.k][i][1];
+  // (lo que contesta queda escrito abajo mientras habla; los botones se van y el mouse vuelve a mirar)
+  U.preg.classList.remove('sale'); U.preg.classList.add('resp'); U.preg.querySelector('.ev3PregTxt').textContent = T('ev3.r.' + r); U.preg.querySelector('.ev3PregOps').innerHTML = '';
+  if (i >= 0 && !ENT.tactil && R.cv.requestPointerLock) try { R.cv.requestPointerLock(); } catch (e) {}
+  G.resp = i; G.fase = 'reaccion'; G.t = 0; G.fin = ((typeof EV3_VOZ !== 'undefined' && EV3_VOZ.dur[r]) || 1.5) + 0.7;
+  (EV3.est.resp || (EV3.est.resp = {}))[G.k] = i; ev3Guardar();
+  ev3Voz(r, 1.15, r === 'rMentiroso' || r === 'rSilencio' ? 0.9 : 1);
+  // (la mentira y el silencio: la cinta se golpea, rojo y el corazón)
+  if (r === 'rMentiroso' || r === 'rSilencio') { G.golpe = true; ev3Son('golpe', 0, 0.55); EV3I.latT = 0; }
+  else { ev3Son('tono', 180, 0.25); }
+  VHS.dano = 0.95;
+}
+function ev3PregPaso(dt) {
+  const G = EV3I.preg; if (!G) return; G.t += dt;
+  if (G.fase === 'pregunta' && G.t > G.dq + EV3I_ESPERA) ev3PregResponder(-1);
+  if (G.fase === 'reaccion') {
+    if (G.golpe) { const k = clamp(1 - G.t / 0.6, 0, 1); VHS.rojo = 0.55 * k; VHS.sacudon = 0.7 * k; }
+    VHS.dano = 0.35 + 0.6 * clamp(1 - G.t / 0.8, 0, 1);
+    if (G.t > G.fin) { EV3I.preg = null; VHS.rojo = 0; VHS.sacudon = 0; ev3Ui().preg.classList.add('oc'); }
+  }
+}
+// (en la compu: 1, 2 y 3)
+addEventListener('keydown', (e) => { const G = EV3I.preg; if (!G || G.fase !== 'pregunta') return; const n = +e.key; if (n >= 1 && n <= EV3I_PREGS[G.k].length) { e.preventDefault(); ev3PregResponder(n - 1); } });
 function ev3IntroArmar() {
-  ev3Limpiar(); EV3.hora0 = performance.now(); EV3I.golpeado = false; EV3I.fb = null; EV3I.paso = 0; EV3I.cuerpoOk = false; EV3I.calib = null;
+  ev3Limpiar(); EV3.hora0 = performance.now(); EV3I.golpeado = false; EV3I.fb = null; EV3I.paso = 0; EV3I.cuerpoOk = false; EV3I.calib = null; EV3I.tr = 0; EV3I.preg = null;
+  // (el guion de esta partida: el de siempre más las preguntas que tocaron)
+  EV3I.guion = EV3I_GUION.concat(ev3PregSortear().map(([t, k]) => [t, 'preg:' + k])).sort((a, b) => a[0] - b[0]); EV3I.preguntas = EV3I.guion.filter((x) => /^preg:/.test(x[1])).map((x) => x[1].slice(5));
   document.body.classList.add('ev3Quieto'); VHS.negro = 1; VHS.dano = 0.6;
   vhsTexto('I', 'PLAY ▶'); vhsTexto('D', 'SP'); vhsTexto('AD', 'NOV. 19 1998');
   const x = EV3I_LUGAR[0], z = EV3I_LUGAR[1], y = ev3Piso(x, z); EV3I.C = v3(x, y, z);
@@ -155,13 +214,15 @@ function ev3IntroPaso(dt) {
       if (++k.n >= 4) { const hc = ev3Hueso(P, 'Hips'); if (hc && isFinite(hc.x) && hc.distTo(k.p0) < 3) { P.pos.copy(vadd(k.p0, vsub(v3(C.x, C.y + 0.5, C.z - 0.44), hc))); EV3I.cuerpoOk = true; EV3I.pFijo = P.pos.clone(); } else if (k.n > 30) { EV3I.cuerpoOk = true; EV3I.pFijo = k.p0.clone(); } }
     } else P.pos.copy(EV3I.pFijo);
   }
-  // el guion
-  while (EV3I.paso < EV3I_GUION.length && t >= EV3I_GUION[EV3I.paso][0]) { ev3IntroAccion(EV3I_GUION[EV3I.paso][1]); EV3I.paso++; }
+  // el guion (con una pregunta en el aire, la cinta espera: EV3.t no avanza —ev3Paso—)
+  EV3I.tr += dt; ev3PregPaso(dt);
+  const Gn = EV3I.guion || EV3I_GUION;
+  while (!EV3I.preg && EV3I.paso < Gn.length && t >= Gn[EV3I.paso][0]) { ev3IntroAccion(Gn[EV3I.paso][1]); EV3I.paso++; }
   // la imagen: entra de a poco; la cinta gastada al principio
   if (t < 3) { VHS.negro = clamp(1 - (t - 0.8) / 1.6, 0, 1); VHS.dano = 0.6 - 0.25 * clamp(t / 3, 0, 1); }
   // el latido (más rápido al final) y el grave que sube
   EV3I.latT = (EV3I.latT || 0) - dt; if (EV3I.latT <= 0 && t > 1 && !EV3I.golpeado) { EV3I.latT = t > 28 ? 0.55 : t > 20 ? 0.75 : 0.95; ev3Son('latido', 0, 0.55); }
-  ev3Bucle('grave', 'grave', clamp((t - 1) / 20, 0, 1) * 0.5 + (t > 29 ? 0.3 : 0));
+  ev3Bucle('grave', 'grave', clamp((t - 1) / 20, 0, 1) * 0.5 + (t > 29 ? 0.3 : 0) + (EV3I.preg ? 0.25 : 0));
   // los recuerdos
   const F = EV3I.fb;
   if (F) {
@@ -190,6 +251,7 @@ function ev3IntroAccion(a) {
   const C = EV3I.C;
   if (a.startsWith('v:')) { ev3Voz(a.slice(2), 1); return; }
   if (a.startsWith('fb:')) { ev3FbEmpezar(+a.slice(3)); return; }
+  if (a.startsWith('preg:')) { ev3PregEmpezar(a.slice(5)); return; }
   if (a === 'apagon') { EV3I.apagado = true; ev3Son('electrico', 0, 0.6); return; }
   if (a === 'puerta') {
     EV3I.apagado = false; EV3I.rojo = true; EV3I.puertaT = EV3.t; ev3Son('chirrido', 0, 1);
@@ -279,7 +341,7 @@ function ev3IntroCamara(Cm) {
   let ojo = h && isFinite(h.x) && h.distTo(C) < 4 ? vadd(h, v3(0, 0.07, 0)) : v3(C.x, C.y + 1.18, C.z - 0.4);
   ojo = vadd(ojo, vscale(Quat.euler(JUG.yaw, 0).rot(v3(0, 0, 1)), 0.07));
   // (respirando: un vaivén chico; más agitado al final)
-  const t = EV3.t, ag = t > 28 ? 2.2 : 1;
+  const t = EV3I.tr || 0, ag = EV3.t > 28 || (EV3I.preg && EV3I.preg.golpe) ? 2.2 : 1;
   Cm.pos.copy(vadd(ojo, v3(0, Math.sin(t * 1.7 * ag) * 0.006 * ag, 0)));
   Cm.q.copy(Quat.euler(JUG.yaw + Math.sin(t * 0.7) * 0.01, JUG.pitch + Math.sin(t * 1.7 * ag) * 0.008 * ag));
   return true;
@@ -287,13 +349,13 @@ function ev3IntroCamara(Cm) {
 // ---------------- lo dibujado a mano: el cuarto, las sogas, las luces de REC, la lamparita, la estática ----------------
 function ev3IntroDibujar() {
   if (EV3I.malla >= 0 && R.mallas[EV3I.malla]) encolar(EV3I.malla, 0, EV3I.mat, IDM, null, null);
-  const t = EV3.t, C = EV3I.C;
+  const t = EV3I.tr || 0, tg = EV3.t, C = EV3I.C;
   // la lamparita colgando del techo, con su cable
   const bp = v3(C.x, C.y + 2.35, C.z - 0.1);
   dibujarCaja(vadd(bp, v3(0, 0.29, 0)), [0.012, 0.55, 0.012], null, EV3I.matCable);
   if (!EV3I.apagado) dibujarCaja(bp, [0.07, 0.1, 0.07], null, EV3I.matBulbo);
   // la luz de REC de cada cámara (titila; al final, todas juntas)
-  const juntas = t > 25.4 && t < 29;
+  const juntas = (tg > 25.4 && tg < 29) || !!EV3I.preg;
   for (const c of EV3I.cams) {
     if (!c || !OBJS.includes(c.o)) continue;
     const on = juntas ? Math.floor(t * 2) % 2 === 0 : Math.floor((t + c.fase) * 1.25) % 2 === 0; if (!on) continue;
@@ -324,10 +386,10 @@ function ev3Sogas(P) {
   if (la && ra) { const c = vscale(vadd(la, ra), 0.5); anillo(vadd(c, v3(0, 0.1, 0)), 0.15, 0.08, 10, 0.016); }
 }
 function ev3IntroLuces() {
-  const C = EV3I.C; if (!C) return; const t = EV3.t;
+  const C = EV3I.C; if (!C) return; const t = EV3I.tr || 0, tg = EV3.t;
   if (EV3I.fb) return;   // (de día: el sol)
   // la lamparita: titila, y de golpe baja
-  let f = 1; const r = Math.sin(t * 23.1) * Math.sin(t * 7.3); if (r > 0.86) f = 0.25; if (t > 26 && Math.random() < 0.08) f = 0.1;
+  let f = 1; const r = Math.sin(t * 23.1) * Math.sin(t * 7.3); if (r > 0.86) f = 0.25; if ((tg > 26 || (EV3I.preg && EV3I.preg.golpe)) && Math.random() < 0.08) f = 0.1;
   if (!EV3I.apagado) luzEspecial(v3(C.x, C.y + 2.25, C.z - 0.1), 7.5, [3.6 * f, 3.1 * f, 2.3 * f], null, -2, 9);
   // los monitores: un poco de azul
   luzEspecial(v3(C.x + 1.9, C.y + 1.25, C.z + 1.1), 3.2, [0.5, 0.6, 0.75].map((x) => x * (0.7 + 0.3 * Math.random())), null, -2, 6);

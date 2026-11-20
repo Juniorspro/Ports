@@ -24,6 +24,21 @@ LINEAS = {
     # el final y el epílogo
     'f1': '¿Perdón?',
     'e1': 'Pepe siempre vuelve.',
+    # el interrogatorio (en la cinta, a veces): las preguntas y lo que contesta según lo que elegiste
+    'p1': '¿Te acordás cuántas veces me mataste?',
+    'p2': '¿Sabés dónde estás?',
+    'p3': '¿Te divertías?',
+    'p4': '¿Cuál te gustó más?',
+    'p5': '¿Me vas a pedir perdón?',
+    'rExacto': 'Exacto. Cada una.',
+    'rMeAcuerdo': 'Yo sí me acuerdo. De todas.',
+    'rMentiroso': 'Mentiroso.',
+    'rSincero': 'Por lo menos sos sincero.',
+    'rCinta': 'Estás adentro de la cinta. Igual que yo.',
+    'rTodavia': 'Todavía no. Primero vas a jugar.',
+    'rYaLoVas': 'Ya lo vas a hacer.',
+    'rTodas': 'A mí me dolieron todas.',
+    'rSilencio': '¿No me vas a contestar?',
 }
 # (cuánto más grave y cuánto robot: los susurros de los sellos, más bajos y más robot)
 GRAVE = {'f1': 0.82, 'e1': 0.86}

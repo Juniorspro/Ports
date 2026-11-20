@@ -3,6 +3,10 @@
 //              (las manos detrás del respaldo), las cámaras apuntando a la silla, las 15 voces de Pepe decodificadas,
 //              los tres recuerdos bajo el agua, la entidad que entra y pega; después gm_construct de noche con los sellos
 //              en 0/10 y guardado en «puzles». Fotos en CARPETA.
+//              (Sin preguntas de Pepe: las prueba «preguntas».)
+//   preguntas  el interrogatorio: tres preguntas forzadas (cada hueco); la cinta espera mientras pregunta, una se
+//              contesta tocando, otra con el teclado (la mentira: rojo y sacudón) y la tercera no se contesta (a los
+//              8 s, «¿No me vas a contestar?»); lo contestado queda guardado. Y el sorteo: siempre al menos una.
 //   misiones   las 10 misiones resueltas como un jugador (pararse, apuntar y usar; agarrar y llevar las cajas y las
 //              baterías; el teclado, la radio, las luces, las palancas —lo pintado sólo con la linterna—, el sigilo —si
 //              te ve te saca—, la llave en el fondo de la pileta, la torre —las plataformas se pueden saltar— y el
@@ -28,12 +32,12 @@ const esperar = (p, js, ms) => p.waitForFunction((s) => window.__ev(s), js, { ti
 
 // ================= la intro =================
 if (partes.includes('intro')) {
-  const { b, p, ev, err } = await abrir(HTML + (HTML.includes('?') ? '&' : '?') + 'ev300', true, null, conEstado(null));
+  const { b, p, ev, err } = await abrir(HTML + (HTML.includes('?') ? '&' : '?') + 'ev300', true, null, async (pg) => { await conEstado(null)(pg); await pg.addInitScript(() => { window.__ev3Preguntas = []; }); });
   await esperar(p, `typeof EV3 !== 'undefined' && EV3.fase === 'intro' && EV3.t > 3`, 120000);
-  const a = await ev(`({ vhs: VHS.on, osd: VHS.osd && !VHS.osd.classList.contains('oc'), play: VHS.osdTxt.I, cams: EV3I.cams.filter(Boolean).length, sentado: !!(EV3I.yo && EV3I.yo.sentado && EV3I.cuerpoOk), voces: Object.keys(EV3.aud.buf).length, clase: document.body.classList.contains('ev3Quieto'), tactil: getComputedStyle($('tactil')).display })`);
+  const a = await ev(`({ vhs: VHS.on, osd: VHS.osd && !VHS.osd.classList.contains('oc'), play: VHS.osdTxt.I, cams: EV3I.cams.filter(Boolean).length, sentado: !!(EV3I.yo && EV3I.yo.sentado && EV3I.cuerpoOk), voces: Object.keys(EV3.aud.buf).length, vocesTodas: Object.keys(EV3_VOZ.dur).length, clase: document.body.classList.contains('ev3Quieto'), tactil: getComputedStyle($('tactil')).display })`);
   chk(a.vhs && a.osd && a.play === 'PLAY ▶', 'la cinta: VHS a pantalla completa con «PLAY ▶»', a);
   chk(a.cams >= 12 && a.sentado, 'el cuarto: cámaras apuntando y el cuerpo sentado en la silla', { cams: a.cams, sentado: a.sentado });
-  chk(a.voces === 15, 'las 15 voces de Pepe decodificadas', a.voces);
+  chk(a.voces === a.vocesTodas && a.voces >= 29, 'las voces de Pepe decodificadas (las 15 de la cinta y las 14 del interrogatorio)', a.voces);
   chk(a.clase && a.tactil === 'none', 'atado: sin botones', a.tactil);
   // (las manos detrás del respaldo: más atrás que la cadera; el cuello deja girar 75° y no más)
   const m = await ev(`(() => { const P = EV3I.yo, h = ev3Hueso(P, 'Hips'), l = ev3Hueso(P, 'LeftHand'), r = ev3Hueso(P, 'RightHand'); JUG.yaw = 2.5; return { atras: +(h.z - Math.max(l.z, r.z)).toFixed(2) }; })()`);
@@ -57,6 +61,50 @@ if (partes.includes('intro')) {
   chk(d.fase === 'puzles' && d.guardado === 'puzles' && d.mapa === 'RB_Construct' && d.noche < 5 && d.dist < 1, 'después: gm_construct de noche, frente al 1.047, guardado', d);
   chk(/0\/10/.test(d.sellos) && d.arma === 'Hands' && d.vista, 'los sellos en 0/10, sin armas en la mano', d);
   await p.screenshot({ path: D + '/despertar.jpg', quality: 80 });
+  chk(!err.filter((e) => !/WebSocket connection|broker\./.test(e)).length, 'sin errores de JS', err.slice(0, 4));
+  await b.close();
+}
+
+// ================= el interrogatorio =================
+if (partes.includes('preguntas')) {
+  const { b, p, ev, err } = await abrir(HTML + (HTML.includes('?') ? '&' : '?') + 'ev300', true, null, async (pg) => { await conEstado(null)(pg); await pg.addInitScript(() => { window.__ev3Preguntas = ['p1', 'p3', 'p5']; }); });
+  await esperar(p, `typeof EV3 !== 'undefined' && EV3.fase === 'intro' && EV3.t > 1`, 120000);
+  await ev(`idiomaAplicar('es'); 1`);   // (en castellano: las fotos y los textos que compara)
+  // el sorteo (sin forzar): 4000 partidas
+  const s = await ev(`(() => { const f = window.__ev3Preguntas; delete window.__ev3Preguntas; const c = {}, n = [0, 0, 0, 0]; for (let i = 0; i < 4000; i++) { const L = ev3PregSortear(); n[L.length]++; for (const [, k] of L) c[k] = (c[k] || 0) + 1; } window.__ev3Preguntas = f; return { cuantas: n, cada: c }; })()`);
+  chk(s.cuantas[0] === 0 && s.cuantas[1] > 0 && s.cuantas[3] > 0 && ['p1', 'p2', 'p3', 'p4', 'p5'].every((k) => s.cada[k] > 300), 'el sorteo: siempre al menos una pregunta, a veces una, a veces tres, y salen las cinco', s);
+  const g = await ev(`EV3I.preguntas.join()`); chk(g === 'p1,p3,p5', 'forzadas: una en cada hueco', g);
+  await ev(AYUDA); await ev(`JUG.yaw = -0.35; JUG.pitch = 0.05; 1`);
+  // 1) «¿Te acordás cuántas veces me mataste?»: la cinta espera; se contesta tocando «1.047»
+  await esperar(p, `EV3I.preg && EV3I.preg.k === 'p1' && EV3I.preg.t > 1.2`, 30000);
+  const t1 = await ev(`EV3.t`); await p.waitForTimeout(1500);
+  const q1 = await ev(`({ t: EV3.t, txt: document.querySelector('#ev3Preg .ev3PregTxt').textContent, bts: [...document.querySelectorAll('#ev3Preg button')].map((x) => x.textContent), vis: !$('ev3Preg').classList.contains('oc'), ui: UI.abierto, voz: EV3.aud.buf.p1 ? 1 : 0 })`);
+  chk(q1.t === t1 && q1.t < 5.4, 'la cinta espera mientras Pepe pregunta', { antes: t1, despues: q1.t });
+  chk(q1.vis && q1.txt === '¿Te acordás cuántas veces me mataste?' && q1.bts.join('|') === '11.047|2No sé|3Ninguna' && q1.ui === 'ev3preg', 'la pregunta escrita y las tres respuestas', q1);
+  await p.screenshot({ path: D + '/preg_p1.jpg', quality: 80 });
+  await p.click('#ev3Preg button >> nth=0');
+  const r1 = await ev(`({ fase: EV3I.preg && EV3I.preg.fase, txt: document.querySelector('#ev3Preg .ev3PregTxt').textContent, bts: document.querySelectorAll('#ev3Preg button').length, ui: UI.abierto })`);
+  chk(r1.fase === 'reaccion' && r1.txt === 'Exacto. Cada una.' && !r1.bts && !r1.ui, 'tocando «1.047»: «Exacto. Cada una.»', r1);
+  await p.waitForTimeout(700); await p.screenshot({ path: D + '/preg_p1_resp.jpg', quality: 80 });
+  await esperar(p, `!EV3I.preg && EV3.t > 5.7`, 15000);
+  const c1 = await ev(`({ oc: $('ev3Preg').classList.contains('oc'), paso: EV3I.paso })`);
+  chk(c1.oc, 'después la cinta sigue (y se borra lo escrito)', c1);
+  // 2) «¿Te divertías?»: con el teclado, «No» → «Mentiroso.», en rojo y con sacudón
+  await esperar(p, `EV3I.preg && EV3I.preg.k === 'p3' && EV3I.preg.t > 1.1`, 60000);
+  await p.keyboard.press('2'); await p.waitForTimeout(120);
+  const r3 = await ev(`({ fase: EV3I.preg && EV3I.preg.fase, txt: document.querySelector('#ev3Preg .ev3PregTxt').textContent, rojo: +VHS.rojo.toFixed(2), sac: +VHS.sacudon.toFixed(2) })`);
+  chk(r3.fase === 'reaccion' && r3.txt === 'Mentiroso.' && r3.rojo > 0.2 && r3.sac > 0.2, 'con el teclado («2», no): «Mentiroso.», rojo y sacudón', r3);
+  await p.screenshot({ path: D + '/preg_mentiroso.jpg', quality: 80 });
+  // 3) «¿Me vas a pedir perdón?»: sin contestar, a los 8 s
+  await esperar(p, `EV3I.preg && EV3I.preg.k === 'p5'`, 60000);
+  await p.waitForTimeout(600); await p.screenshot({ path: D + '/preg_p5.jpg', quality: 80 });
+  await esperar(p, `EV3I.preg && EV3I.preg.fase === 'reaccion'`, 15000);
+  const r5 = await ev(`({ t: +EV3I.preg.t.toFixed(1), txt: document.querySelector('#ev3Preg .ev3PregTxt').textContent, resp: EV3.est.resp })`);
+  chk(r5.txt === '¿No me vas a contestar?', 'sin contestar: «¿No me vas a contestar?»', r5);
+  // y la cinta termina igual: la entidad, el golpe y gm_construct
+  await esperar(p, `EV3.fase === 'puzles' && EV3.despierta > 1`, 60000);
+  const f = await ev(`({ fase: EV3.fase, resp: JSON.parse(localStorage.getItem('jx_ev300')).resp, ui: UI.abierto, oc: $('ev3Preg').classList.contains('oc') })`);
+  chk(f.fase === 'puzles' && f.resp && f.resp.p1 === 0 && f.resp.p3 === 1 && f.resp.p5 === -1 && !f.ui && f.oc, 'la cinta termina igual y lo contestado queda guardado', f);
   chk(!err.filter((e) => !/WebSocket connection|broker\./.test(e)).length, 'sin errores de JS', err.slice(0, 4));
   await b.close();
 }
