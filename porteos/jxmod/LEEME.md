@@ -5036,3 +5036,37 @@ núcleo), `ev300_intro.js` (la cinta), `ev300_mis.js` (las misiones, el final y 
   pruebas (en ellas no arranca solo); `?sinev300` lo saltea.
 - Arreglos de paso: el tinte de un personaje ahora llega a los modelos de GMod (`gmod_pm.js`); en PC, al soltar el mouse
   durante el evento se abre su pausa (o nada, en la cinta).
+
+## JXMod 3.9.5: el evento terminó, Pepe vuelve y los eventos en vivo
+
+- **El evento de los 300, apagado** (el dueño: «los últimos 2 no son posibles —las palancas y el que camina adentro—,
+  devolvé todo a la normalidad»): `EV3_ACTIVO = false` en `ev300.js`. No arranca más, ni a quien lo dejó por la mitad
+  (lo guardado queda, pero no se usa); gm_construct es el de siempre. El código queda: con `?ev300` sigue andando para
+  las pruebas.
+- **Pepe vuelve** (`juego/pepe_vuelve.js`; el dueño: «que Pepe aparezca de la nada un 26 % en tu mundo y te siga y te
+  hable y te dé un screamer»): al entrar a cualquier mapa, 26 % de que en algún momento (entre los 45 s y los 3 min 20 s
+  jugando; con un menú abierto o muerto el reloj no corre) aparezca atrás tuyo a 14–18 m, oscuro y un poco deformado, con
+  un chasquido de estática y la imagen en cinta un instante. Te sigue (1,2 → 2,3 → 3,5 m/s; si te alejás más de 38 m
+  —en auto, corriendo— reaparece atrás tuyo a 10–13 m; atraviesa paredes y sube escalones) y te habla con la voz de
+  Loquendo, que sale de donde está él (sonido 3D) con subtítulo: «¿Me escuchás? Soy yo. Pepe.» y dos de «Te estoy
+  mirando.», «Pepe siempre vuelve.», «¿No me vas a contestar?», «¿Me vas a pedir perdón?», «A mí me dolieron todas.». Cerca,
+  la imagen se vuelve VHS, sube el grave y se oye el corazón. Cuando te alcanza (o a los 32 s, poniéndose delante tuyo)
+  termina lo que estaba diciendo, «Ahora te toca a vos.» y el screamer del final del evento: la cara iluminada de frente
+  a medio metro, en el medio de la pantalla, sin botones ni arma, grito, rojo, blanco y negro. Después se va y todo sigue;
+  no vuelve en ese mapa. Sólo lo ve el que lo tiene (no va por la red). `?pepe` lo fuerza a los 4 s (`?pepe=10`, a los 10).
+- **Eventos en vivo** (`juego/vivo.js`, `herramientas/vivo.py`; el dueño: «que para eventos próximos no sea necesario
+  actualizar, que puedan ser en vivo y vos puedas modificar en vivo»): el juego baja `web/vivo/vivo.json` al abrir, al
+  entrar a un mapa y cada 4 minutos (GitHub lo guarda 5 min en caché: un cambio llega en ≤ 10 min, sin actualizar ni
+  recargar). Si cambió, baja el guion del evento y lo corre adentro del juego, con acceso a todo. Cada guion va firmado
+  (ECDSA P-256 sobre la versión, el vencimiento y el SHA-256 del guion); el juego trae la llave pública (`VIVO_PUB`) y no
+  corre nada sin firma buena (tocado, otra firma, vencido: nada). La privada sale del secreto de la firma del APK (fuera
+  del repo) y nunca se muestra. Si un gancho del guion falla, el evento se apaga solo y se anota en la caja negra. El
+  último bueno queda guardado (se vuelve a comprobar al abrir): anda sin internet. Para la 3.9.3 y la 3.9.4 llega con la
+  actualización por partes. Uso:
+  - escribir el guion (el cuerpo de una función que devuelve sus ganchos, todos opcionales):
+    `return { nombre: 'navidad', empezar() {}, alEntrar(mapa) {}, paso(dt) {}, fin() {} };`
+  - `python3 -I herramientas/vivo.py publicar guion.js [--hasta 2026-12-26T00:00]` (sin zona: hora de Argentina), commit y
+    push. `vivo.py apagar` lo saca; `vivo.py ver` comprueba lo publicado.
+  - Publicado con la 3.9.5: sin evento (`vivo.py apagar`), firma comprobada.
+- Pruebas: `pruebas/pepe_vuelve.mjs` 13/13, `pruebas/vivo.mjs` 11/11 (guiones firmados de verdad en una carpeta local),
+  `evento300.mjs` intro 11/11 con `?ev300`, `discord_39x.mjs` 6/6.

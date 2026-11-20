@@ -137,6 +137,9 @@ body.ev3 #usarTxt{font-family:VCR,'Courier New',monospace;letter-spacing:.04em;t
 #ev3Cinta::after{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 4px)}
 #ev3Cinta .ev3Num{font-size:clamp(14px,3vh,26px);opacity:.75}#ev3Cinta .ev3Toca{font-size:clamp(13px,2.7vh,22px);opacity:.85;animation:ev3Parpadeo 1.1s steps(2) infinite;padding:0 6vw;text-align:center}
 @keyframes ev3Parpadeo{50%{opacity:.15}}
+/* Pepe vuelve (pepe_vuelve.js): lo que dice, abajo al medio con la letra de la cinta; en el screamer, la pantalla entera para él */
+body.pvGrita #hud,body.pvGrita #tactil,body.pvGrita #arribaIz,body.pvGrita #mira,body.pvGrita #usarTxt,body.pvGrita #fps,body.pvGrita #aviso{visibility:hidden!important}
+#pvSub{position:fixed;left:0;right:0;bottom:max(20vh,calc(var(--jxSaB,0px) + 16vh));z-index:41;text-align:center;pointer-events:none;padding:0 6vw;font:400 clamp(16px,4vh,34px)/1.25 VCR,'Courier New',monospace;color:#ffd9d4;text-shadow:2px 0 rgba(255,40,40,.6),-2px 0 rgba(40,220,255,.45),0 0 8px #000,0 2px 4px #000}
 /* el interrogatorio: la pregunta de Pepe abajo, como un subtítulo de la cinta, y las respuestas para tocar (arriba de la hora y la fecha) */
 #ev3Preg{position:fixed;left:0;right:0;bottom:max(14vh,calc(var(--jxSaB,0px) + 12vh));z-index:40;display:flex;flex-direction:column;align-items:center;gap:2.6vh;pointer-events:none;padding:0 max(5vw,calc(var(--jxSaL,0px) + 3vw));font:400 clamp(18px,4.6vh,40px)/1.2 VCR,'Courier New',monospace;color:#f4f4f4;text-shadow:2px 0 rgba(255,40,40,.55),-2px 0 rgba(40,220,255,.45),0 0 8px #000,0 2px 4px #000}
 #ev3Preg .ev3PregTxt{text-align:center;background:rgba(0,0,0,.42);padding:.2em .55em}#ev3Preg:not(.resp) .ev3PregTxt::after{content:'_';animation:ev3Parpadeo 1.1s steps(2) infinite}

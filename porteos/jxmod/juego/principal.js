@@ -287,8 +287,11 @@ function empezarPartida(mapa) {
   aviso(typeof mapaNom === 'function' ? mapaNom(mapa) : mapa, 2.5);
   if (typeof MENU !== 'undefined' && MENU.cargarGuardado) { MENU.cargarGuardado = false; cargarConstruccion(); }
   if (typeof ev3EnPartida === 'function') ev3EnPartida(mapa);   // (después del evento de los 300: el epílogo en gm_construct)
+  if (typeof pvEnPartida === 'function') pvEnPartida(mapa);   // (Pepe vuelve: se sortea si esta vez viene)
+  if (typeof vivoEnPartida === 'function') vivoEnPartida(mapa);   // (el evento en vivo: al entrar a un mapa)
 }
 function irMenuPrincipal() {
+  if (typeof pvTerminar === 'function') { pvTerminar(); PV.cuando = -1; }
   modapiDescargar(); natFin(); if (typeof pillFin === 'function') pillFin(true); entidadesLimpiar(); creadorSalir(); rolCerrar();
   if (typeof nukeLimpiar === 'function') nukeLimpiar();   // (sin destello, radiación ni soplido encima del menú)
   if (typeof redLugarGuardar === 'function' && typeof RED !== 'undefined' && RED.cli) redLugarGuardar();   // (dónde estaba, por si vuelve al mismo server: red.js)
@@ -439,6 +442,8 @@ function cuadro(ahora) {
   if (typeof gmLuaPaso === 'function') gmLuaPaso(dt);   // (el Lua de los addons de GMod: timers, hooks, entidades, armas)
   if (JUEGO.estado === 'juego') {
     if (typeof ev3Paso === 'function') ev3Paso(dt);   // (el evento de los 300: antes de las armas, que no se usan)
+    if (typeof pvPaso === 'function') pvPaso(dt);   // (Pepe vuelve: a veces aparece, te sigue y el screamer)
+    if (typeof vivoPaso === 'function') vivoPaso(dt);   // (el evento en vivo, si hay)
     armasPaso(dt);
     if (!JUG.vivo && JUG.muertoT <= 0 && !(typeof gmmManejaMuerte === 'function' && gmmManejaMuerte())) { jugadorAparecer(); if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo(); }
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
@@ -706,6 +711,7 @@ async function iniciar() {
     paso('interfaz', 0.9, 'menus'); await respiro(); if (typeof cuentaIniciar === 'function') cuentaIniciar(); if (typeof gorrosNuevos === 'function') gorrosNuevos(); uiIniciar(); entradaIniciar(); fpsIniciar();
     paso('menú', 0.95, 'menus'); await respiro(); menuIniciar(); pantallaIniciar(); armasHL2();
     paso('primer cuadro', 0.98, 'menus');
+    if (typeof vivoArranque === 'function') vivoArranque();   // (los eventos en vivo: el guardado y a buscar si hay uno nuevo)
     if (Q.get('mapa')) empezarPartida(Q.get('mapa'));
     else if (!(typeof ev3Arranque === 'function' && ev3Arranque())) { JUEGO.estado = 'principal'; inicioMostrar(true); }   // (o el evento de los 300, si falta)
     cuadro(performance.now());

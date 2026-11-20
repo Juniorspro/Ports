@@ -16,6 +16,9 @@
 // ?ev300 lo fuerza en las pruebas (con ?test no arranca solo); ?sinev300 lo saltea.
 // ---------------------------------------------------------------------------------------------------------
 const EV3_CLAVE = 'jx_ev300', EV3_MAPA = 'RB_Construct';
+// (terminado en la 3.9.5: el dueño lo apagó —dos misiones no se podían hacer— y todo vuelve a la normalidad; queda Pepe,
+// que a veces aparece: pepe_vuelve.js. Con ?ev300 sigue andando para las pruebas)
+const EV3_ACTIVO = false;
 const EV3 = {
   fase: null, t: 0, est: { fase: 'nuevo', hechas: [], ultima: null, reinicios: {} },
   sinVista: false, armado: null, objs: [], pers: [], fijas: [], mallas: [], puntos: [], carteles: [], lleva: null, llevaFlanco: false,
@@ -30,6 +33,7 @@ function ev3Guardar() { try { localStorage.setItem(EV3_CLAVE, JSON.stringify(Obj
 // al arrancar el juego (principal.js, iniciar): si el evento está pendiente, arranca él en vez del menú
 function ev3Arranque() {
   ev3Leer();
+  if (!EV3_ACTIVO && !Q.has('ev300')) return false;
   // (en las pruebas automáticas —?test o el navegador manejado por un programa— sólo si lo piden: ?ev300)
   if (Q.has('sinev300') || ((TEST || navigator.webdriver) && !Q.has('ev300'))) return false;
   const f = EV3.est.fase;
@@ -39,7 +43,7 @@ function ev3Arranque() {
 }
 // al entrar a un mapa (principal.js, empezarPartida): después del screamer, gm_construct guarda el epílogo
 function ev3EnPartida(mapa) {
-  if (EV3.fase) return;
+  if (EV3.fase || (!EV3_ACTIVO && !Q.has('ev300'))) return;
   if (EV3.est.fase === 'despues' && mapa === EV3_MAPA && !((TEST || navigator.webdriver) && !Q.has('ev300'))) ev3Empezar('epilogo');
 }
 // ---------------- empezar y terminar ----------------

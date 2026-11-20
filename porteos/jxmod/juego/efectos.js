@@ -149,7 +149,7 @@ const EF = { fog: 0 }, TRAZAS = [], LUCES_T = [];
 // luces que duran un rato (explosiones, chispazos) y las de cada cuadro (fogonazo, lámparas, faros)
 function luzTemporal(p, r, c, dur) { LUCES_T.push({ p: p.clone(), r, c, t: dur, dur }); }
 function lucesJuntar() {
-  R.luces.length = 0; R.esp.length = 0; nocheLucesEsp(); linternaLuces(); if (typeof ev3Luces === 'function') ev3Luces();
+  R.luces.length = 0; R.esp.length = 0; nocheLucesEsp(); linternaLuces(); if (typeof ev3Luces === 'function') ev3Luces(); if (typeof pvLuces === 'function') pvLuces();
   if (typeof gmaLuces === 'function') gmaLuces(false);   // (las linternas de los mods de GMod: gmod_api.js)
   if (!(GFX.nluz > 0) || GFX.luz < 2) return;
   if (typeof gmaLuces === 'function') gmaLuces(true);
