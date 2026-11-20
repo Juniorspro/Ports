@@ -8,7 +8,7 @@ Lo de terceros está en [LICENCIAS.md](LICENCIAS.md).
 
 ## Cómo está hecho
 
-La interfaz es una página web (`web/`) que en el celular corre dentro de la app de Android (`android/`, por hacer).
+La interfaz es una página web (`web/`) que en el celular corre dentro de la app de Android (`android/`).
 Lo que necesita el celular (guardar los packs donde WhatsApp los lee, el botón «Agregar a WhatsApp») lo pide por un
 puente (`window.SZN`); en el navegador, para probar, usa IndexedDB.
 
@@ -21,6 +21,22 @@ puente (`window.SZN`); en el navegador, para probar, usa IndexedDB.
 | `web/puente.js` | guardar/leer packs y archivos, y hablar con WhatsApp (app de Android o navegador) |
 | `web/fuentes/` | las 5 letras para los textos (Apache-2.0 y OFL) |
 | `web/terceros/` | MediaPipe y los modelos: **no van en el repo**, los baja `herramientas/bajar.sh` |
+
+### La app de Android (`android/`, paquete `com.stickerazo.app`, Android 7 en adelante)
+
+| Archivo | Qué hace |
+|---|---|
+| `Inicio.java` | la WebView con la página (servida en `https://appassets.androidplatform.net`, el dominio que Android reserva para esto), de borde a borde, el botón atrás, elegir foto (selector de fotos de Android, sin permisos) o sacarla (la app de cámara del teléfono) |
+| `Imagen.java` | la foto elegida, derecha, achicada a 1600 px y en JPEG (o PNG si tiene transparencia): así abre también HEIC |
+| `Puente.java` | `window.SZN`: leer y guardar packs y archivos, agregar a WhatsApp, saber si ya está, compartir |
+| `Almacen.java`, `Json.java` | **Java puro** (se prueba sin teléfono): `packs.json` y `packs/<id>/<archivo>` en la memoria de la app, nombres validados (sin «..»), escritura que nunca deja un archivo a medias, y las filas que se le dan a WhatsApp |
+| `Stickers.java` | el proveedor que lee WhatsApp (`metadata`, `stickers/<id>`, `stickers_asset/<id>/<archivo>`), sólo para WhatsApp (permiso `com.whatsapp.sticker.READ`) |
+| `WhatsApp.java` | el pedido `ENABLE_STICKER_PACK` (WhatsApp normal y Business) y la pregunta «¿ya lo tenés?» |
+| `Fotos.java` | las fotos de paso (la de la cámara y las convertidas), privadas |
+
+Sin permisos de fotos ni de cámara; sólo `INTERNET` (para los anuncios de más adelante: la página y las fotos no usan
+la red). El ícono lo dibuja `herramientas/icono.mjs` (adaptativo, redondo, monocromo y el de 512 para Play Store en
+`marca/`).
 
 ### El recorte automático
 
@@ -50,14 +66,21 @@ son un pincel (con lupa, porque el dedo tapa lo que pinta), **Entera** usa la fo
 La lista de packs es un JSON; cada archivo va en `<id del pack>/<archivo>`. La app de Android los guarda en su
 memoria y un `ContentProvider` se los da a WhatsApp.
 
-## Probarlo
+## Probarlo y armarlo
 
 ```sh
 sh herramientas/bajar.sh                          # MediaPipe y los modelos (comprueba las huellas)
-cd pruebas
-node recorte.mjs CARPETA_DE_FOTOS                 # el recorte con fotos de verdad → hojas en /tmp/claude-0/sz_recorte
-node app.mjs CARPETA_DE_FOTOS                     # la app entera en un celular simulado → capturas en /tmp/claude-0/sz_app
+pruebas/correr.sh CARPETA_DE_FOTOS                # todo: Java puro, navegador, «como la app» y el APK
+python3 -I herramientas/armar_apk.py [SALIDA.apk] [--version-name 0.1]   # sólo el APK
+node pruebas/recorte.mjs CARPETA_DE_FOTOS         # el recorte con fotos de verdad → hojas en /tmp/claude-0/sz_recorte
 ```
+
+- `PruebaAlmacen.java` (21): JSON con emojis y mal formado, 18 nombres peligrosos rechazados, límites, packs mal
+  formados que se saltean, las filas de WhatsApp, y 400 escrituras con 4000 lecturas a la vez sin ver nunca un archivo
+  a medias.
+- `MODO=app node app.mjs` (32): la misma prueba de abajo pero como en el celular: la página llama a `window.SZN`
+  sincrónico (como la WebView) y del otro lado está el `Almacen` de verdad (`ServidorPrueba.java`, que también contesta
+  lo que contestaría `Stickers.java`); al final revisa las columnas, el ícono y los 4 WebP tal como los leería WhatsApp.
 
 `app.mjs` usa toques de verdad (no clicks): recorta una persona y un perro, borra con el dedo, deshace, toca para
 sumar y sacar, arrastra un texto, agranda y gira con dos dedos, hace un sticker de sólo texto, guarda 4 stickers en un
@@ -65,12 +88,19 @@ pack y revisa cada archivo (tamaño, peso, transparencia, margen, emojis). Neces
 `grace_hopper.jpg`, `YellowLabradorLooking_new.jpg` y `burger.jpg` (fotos de muestra de TensorFlow/MediaPipe; no van
 en el repo ni en la app).
 
-Última corrida: 27 de 27 bien, 0 errores en la página. Recorte de una persona en 1,3 s (con la carga de los modelos),
+Última corrida: navegador 27 de 27, como la app 32 de 32, Java 21 de 21, 0 errores en la página; APK de 25,4 MB. Recorte de una persona en 1,3 s (con la carga de los modelos),
 el perro en 0,8 s. Los stickers pesan entre 26 y 60 KB.
+
+## La firma
+
+El APK se firma con `/root/.stickerazo/firma/stickerazo.jks` (alias `stickerazo`, clave en `clave.txt` al lado), **fuera
+del repo**. Si no está, el armado crea una nueva. Las versiones nuevas sólo se instalan encima si tienen la misma firma:
+para que dure entre sesiones hay que guardarla como secretos del entorno (`STICKERAZO_FIRMA_JKS_B64` y
+`STICKERAZO_FIRMA_CLAVE`). En Google Play esta firma es la «de subida» (Play firma la app con la suya): si se perdiera,
+se cambia desde la consola de Play.
 
 ## Falta
 
-1. **App de Android**: WebView con el puente `SZN`, elegir foto y cámara, `ContentProvider` con el contrato de
-   WhatsApp, el botón «Agregar a WhatsApp» (intent `ENABLE_STICKER_PACK`) y saber si ya está agregado. Firma propia,
-   guardada **fuera del repo**.
-2. Marca (ícono), packs listos con frases nuestras, ficha de Play Store y política de privacidad.
+1. Probarlo en un celular de verdad (lo que no se puede acá: la WebView, el selector de fotos, la cámara y el pedido a
+   WhatsApp).
+2. Packs listos con frases nuestras, ficha de Play Store (con el paquete AAB) y política de privacidad.

@@ -581,6 +581,8 @@ $('#pWhats').onclick = async () => {
 $('#pCompartir').onclick = async () => { if (await P.compartir('Mirá los stickers que hago con Stickerazo 😎 Hacé los tuyos:', ENLACE)) { if (!P.esApp && !navigator.share) aviso('Copié el enlace'); } };
 
 // ---- arranque ----
+// (en la app, Java ya deja el lugar de las barras del sistema y del teclado: acá no se suma otra vez)
+if (P.esApp) { document.documentElement.style.setProperty('--arriba', '0px'); document.documentElement.style.setProperty('--abajo', '0px'); }
 iconos();
 cargarFuentes('./').then(() => pedirE(true));
 const alCambiarTam = () => { if (E.vista === 'vRecorte') pedirR(); else if (E.vista === 'vEditor') pedirE(); };

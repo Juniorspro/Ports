@@ -1,20 +1,41 @@
 // La app entera en un celular simulado (toques de verdad por CDP): crear stickers de fotos y de texto, recortar con el
 // dedo, decorar con gestos, guardar en un pack y revisar que cada archivo sea lo que pide WhatsApp
 // (512×512, WebP ≤ 100 KB, fondo transparente; ícono 96×96 PNG ≤ 50 KB; 1 a 3 emojis por sticker).
-// uso: node app.mjs CARPETA_FOTOS [SALIDA=/tmp/claude-0/sz_app]
-import { createRequire } from 'module'; import fs from 'fs'; import path from 'path'; import http from 'http';
+// MODO=app: como en el celular: la página le habla por window.SZN (sincrónico, como la WebView) al Java de verdad
+// (Almacen, en pruebas/ServidorPrueba.java) y al final se revisa lo que le contestaría el proveedor a WhatsApp.
+// uso: [MODO=app] node app.mjs CARPETA_FOTOS [SALIDA=/tmp/claude-0/sz_app]
+import { createRequire } from 'module'; import fs from 'fs'; import path from 'path'; import http from 'http'; import { execFileSync, spawn } from 'child_process';
 const require = createRequire('/home/user/Ports/porteos/jxmod/pruebas/x.mjs'); const { chromium } = require('playwright');
 const [, , FOTOS, SAL = '/tmp/claude-0/sz_app'] = process.argv; fs.mkdirSync(SAL, { recursive: true }); for (const f of fs.readdirSync(SAL)) if (f.endsWith('.png')) fs.unlinkSync(path.join(SAL, f));
 const WEB = new URL('../web/', import.meta.url).pathname;
 const TIPOS = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.tflite': 'application/octet-stream', '.ttf': 'font/ttf', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
-const srv = http.createServer((q, r) => { const f = path.join(WEB, decodeURIComponent(new URL(q.url, 'http://x').pathname)); if (!f.startsWith(WEB) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'Content-Type': TIPOS[path.extname(f)] || 'application/octet-stream' }); fs.createReadStream(f).pipe(r); }).listen(8982);
+const APP = process.env.MODO === 'app', PUERTO = APP ? 8984 : 8982;
+let srv, java;
+if (APP) {
+  // el «celular»: el Almacen de verdad, con una carpeta de datos vacía
+  const RAIZ = new URL('..', import.meta.url).pathname, CL = '/tmp/claude-0/sz_java/srv', DATOS = '/tmp/claude-0/sz_java/datos_app';
+  fs.rmSync(DATOS, { recursive: true, force: true }); fs.mkdirSync(CL, { recursive: true });
+  execFileSync('javac', ['--release', '8', '-Xlint:-options', '-encoding', 'UTF-8', '-d', CL, ...['Json', 'Almacen'].map((c) => `${RAIZ}android/src/com/stickerazo/app/${c}.java`), `${RAIZ}pruebas/ServidorPrueba.java`], { stdio: 'pipe' });
+  java = spawn('java', ['-cp', CL, 'com.stickerazo.app.ServidorPrueba', String(PUERTO), WEB, DATOS], { stdio: ['ignore', 'pipe', 'inherit'] });
+  await new Promise((ok) => java.stdout.on('data', (d) => { if (/listo/.test(d)) ok(); }));
+} else srv = http.createServer((q, r) => { const f = path.join(WEB, decodeURIComponent(new URL(q.url, 'http://x').pathname)); if (!f.startsWith(WEB) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'Content-Type': TIPOS[path.extname(f)] || 'application/octet-stream' }); fs.createReadStream(f).pipe(r); }).listen(PUERTO);
 
 let fallas = 0; const ok = (c, txt) => { console.log((c ? 'OK   ' : 'FALLA') + ' ' + txt); if (!c) fallas++; };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const ctx = await b.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-const p = await ctx.newPage(); const err = [];
-p.on('pageerror', (e) => err.push(e.message)); p.on('console', (m) => { if (m.type() === 'error' && !/^INFO:/.test(m.text())) err.push('consola: ' + m.text().slice(0, 300)); }); p.on('requestfailed', (q) => err.push('falló ' + q.url())); p.on('response', (q) => { if (q.status() >= 400) err.push(q.status() + ' ' + q.url()); });
+const p = await ctx.newPage(); const err = []; const aPropósito = (u) => u.includes('..%2F'); // (el intento de colar «..» de la prueba: tiene que dar 404)
+p.on('pageerror', (e) => err.push(e.message)); p.on('console', (m) => { if (m.type() === 'error' && !/^INFO:/.test(m.text()) && !(APP && /status of 404/.test(m.text()) && aPropósito(m.location().url || ''))) err.push('consola: ' + m.text().slice(0, 300) + ' ' + (m.location().url || '')); }); p.on('requestfailed', (q) => { if (!aPropósito(q.url())) err.push('falló ' + q.url()); }); p.on('response', (q) => { if (q.status() >= 400 && !aPropósito(q.url())) err.push(q.status() + ' ' + q.url()); });
 const cdp = await ctx.newCDPSession(p);
+// window.SZN como el de la app (Puente.java): sincrónico, con los mismos nombres y lo mismo que devuelve
+if (APP) await p.addInitScript(() => {
+  const llamar = (m, a) => { const x = new XMLHttpRequest(); x.open('POST', '/szn/' + m, false); x.send(JSON.stringify(a)); if (x.status !== 200) throw new Error('SZN.' + m + ': ' + x.status); return JSON.parse(x.responseText); };
+  window.SZN = {
+    leerPacks: () => llamar('leerPacks', []), guardarPacks: (j) => llamar('guardarPacks', [j]), guardarArchivo: (pk, n, b64) => llamar('guardarArchivo', [pk, n, b64]),
+    borrarArchivo: (pk, n) => llamar('borrarArchivo', [pk, n]), borrarPack: (pk) => llamar('borrarPack', [pk]),
+    agregarAWhatsApp: (id, nombre, resp) => { llamar('agregar', [id, nombre]); setTimeout(() => window.__szResponder(resp, 'ok'), 40); },
+    estaEnWhatsApp: (id) => llamar('estaEnWhatsApp', [id]), hayWhatsApp: () => true, compartir: () => true, version: () => 'prueba',
+  };
+});
 const toque = (tipo, pts) => cdp.send('Input.dispatchTouchEvent', { type: tipo, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 let nFoto = 0; const foto = async (nombre) => { await espera(260); await p.screenshot({ path: path.join(SAL, `${String(++nFoto).padStart(2, '0')}_${nombre}.png`) }); };
@@ -32,7 +53,7 @@ async function guardar(emoji) {
   await p.click('#modal [data-x="1"]'); await p.waitForFunction(() => window.__sz.E.vista === 'vPack' && document.querySelector('#pGrilla').children.length > 0);
 }
 
-await p.goto('http://localhost:8982/index.html'); await p.waitForFunction(() => window.__sz && document.fonts.status === 'loaded');
+await p.goto(`http://127.0.0.1:${PUERTO}/index.html`); await p.waitForFunction(() => window.__sz && document.fonts.status === 'loaded');
 await E(() => new Promise((r) => { const q = indexedDB.deleteDatabase('stickerazo'); q.onsuccess = q.onerror = q.onblocked = r; }));
 await p.reload(); await p.waitForFunction(() => window.__sz);
 await foto('inicio_vacio');
@@ -108,13 +129,29 @@ await p.click('#vEditor [data-e="texto"]'); await p.fill('#tTx', 'HOY NO\nME CUI
 await guardar('🍕');
 await foto('pack_4');
 ok(!(await p.isDisabled('#pWhats')), 'con 4 stickers «Agregar a WhatsApp» está prendido');
-await p.click('#pWhats'); await p.waitForSelector('#modal .hoja'); ok(/app/.test(await p.textContent('#modal')), 'en el navegador explica que se agrega desde la app'); await p.click('#modal [data-x="1"]');
+if (APP) {
+  ok(await E(() => window.__sz && (window.SZN && true)), 'la página usa el puente de la app (window.SZN)');
+  await p.click('#pWhats'); await p.waitForFunction(() => /Ya está/.test(document.querySelector('#pWhats').textContent), null, { timeout: 5000 }).catch(() => {});
+  ok(/Ya está en WhatsApp/.test(await p.textContent('#pWhats')), 'después de agregarlo, el botón dice «Ya está en WhatsApp»'); await foto('pack_agregado');
+} else { await p.click('#pWhats'); await p.waitForSelector('#modal .hoja'); ok(/app/.test(await p.textContent('#modal')), 'en el navegador explica que se agrega desde la app'); await p.click('#modal [data-x="1"]'); }
 
 // ---------- los archivos ----------
-const r = await E(async () => {
-  const d = await new Promise((ok) => { const q = indexedDB.open('stickerazo', 1); q.onsuccess = () => ok(q.result); });
-  const leer = (st) => new Promise((ok) => { const t = d.transaction(st), s = t.objectStore(st), ks = s.getAllKeys(), vs = s.getAll(); t.oncomplete = () => ok(ks.result.map((k, i) => [k, vs.result[i]])); });
-  const packs = (await leer('datos')).find(([k]) => k === 'packs')[1], arch = await leer('archivos'), out = [];
+const r = await E(async (APP) => {
+  let packs, arch, wa = null;
+  if (APP) {
+    // lo que lee WhatsApp del proveedor: la fila del pack, las de los stickers y cada archivo
+    const j = async (u) => (await fetch(u)).json(), meta = await j('/whatsapp/metadata'), fp = meta.filas[0], id = fp[0], st = await j('/whatsapp/stickers/' + id);
+    const una = await j('/whatsapp/metadata/' + id), nada = await j('/whatsapp/stickers/noexiste');
+    const traer = async (n) => [id + '/' + n, await (await fetch(`/whatsapp/stickers_asset/${id}/${n}`)).blob()];
+    arch = [await traer(fp[3]), ...(await Promise.all(st.filas.map((f) => traer(f[0]))))];
+    packs = meta.filas.map((f) => ({ id: f[0], nombre: f[1], v: +f[10], stickers: f[0] === id ? st.filas.map((x) => ({ archivo: x[0], emojis: x[1].split(',') })) : [] }));
+    wa = { columnas: meta.columnas, fila: fp, una: una.filas.length, colSt: st.columnas, nada: nada.filas.length, mal: (await fetch(`/whatsapp/stickers_asset/${id}/..%2Fpacks.json`)).status };
+  } else {
+    const d = await new Promise((ok) => { const q = indexedDB.open('stickerazo', 1); q.onsuccess = () => ok(q.result); });
+    const leer = (st) => new Promise((ok) => { const t = d.transaction(st), s = t.objectStore(st), ks = s.getAllKeys(), vs = s.getAll(); t.oncomplete = () => ok(ks.result.map((k, i) => [k, vs.result[i]])); });
+    packs = (await leer('datos')).find(([k]) => k === 'packs')[1]; arch = await leer('archivos');
+  }
+  const out = [];
   const hoja = document.createElement('canvas'); hoja.width = 4 * 260; hoja.height = Math.ceil(arch.length / 4) * 260; const g = hoja.getContext('2d'); let i = 0;
   for (const [k, bl] of arch) {
     const bmp = await createImageBitmap(bl), c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; const q = c.getContext('2d'); q.drawImage(bmp, 0, 0);
@@ -124,10 +161,18 @@ const r = await E(async () => {
     const x0 = (i % 4) * 260, y0 = Math.floor(i / 4) * 260; for (let y = 0; y < 256; y += 16) for (let x = 0; x < 256; x += 16) { g.fillStyle = ((x + y) / 16) % 2 ? '#c8c8c8' : '#eeeeee'; g.fillRect(x0 + x, y0 + y, 16, 16); }
     g.drawImage(bmp, x0 + (256 - Math.min(256, bmp.width)) / 2, y0 + (256 - Math.min(256, bmp.height)) / 2, Math.min(256, bmp.width), Math.min(256, bmp.height)); i++;
   }
-  return { packs, out, hoja: hoja.toDataURL('image/png') };
-});
+  return { packs, out, wa, hoja: hoja.toDataURL('image/png') };
+}, APP);
 fs.writeFileSync(path.join(SAL, 'stickers.png'), Buffer.from(r.hoja.split(',')[1], 'base64'));
 const pk = r.packs[0]; ok(r.packs.length === 1 && pk.stickers.length === 4, `1 pack con ${pk.stickers.length} stickers («${pk.nombre}», v${pk.v})`);
+if (APP) {
+  const c = r.wa.columnas, f = r.wa.fila, col = (n) => f[c.indexOf(n)];
+  ok(c.length === 13 && c[0] === 'sticker_pack_identifier' && c[10] === 'image_data_version' && r.wa.colSt.join(',') === 'sticker_file_name,sticker_emoji,sticker_accessibility_text', 'WhatsApp: las columnas del contrato (13 del pack, 3 de cada sticker)');
+  ok(/^[A-Za-z0-9_.\- ]{1,128}$/.test(col('sticker_pack_identifier')) && col('sticker_pack_name') === pk.nombre && col('sticker_pack_publisher') === 'Stickerazo' && /\.png$/.test(col('sticker_pack_icon')),
+    `WhatsApp: id «${col('sticker_pack_identifier')}», nombre «${col('sticker_pack_name')}», autor «${col('sticker_pack_publisher')}», ícono ${col('sticker_pack_icon')}`);
+  ok(+col('image_data_version') >= 4 && col('animated_sticker_pack') === 0 && col('whatsapp_will_not_cache_stickers') === 0 && /play\.google\.com/.test(col('android_play_store_link')), `WhatsApp: versión de las imágenes ${col('image_data_version')}, sin animación, con enlace a la tienda`);
+  ok(r.wa.una === 1 && r.wa.nada === 0 && r.wa.mal === 404, 'WhatsApp: metadata/<id> da 1 fila; un pack que no está, 0; un nombre con «..», 404');
+}
 for (const s of pk.stickers) ok(s.emojis.length >= 1 && s.emojis.length <= 3, `${s.archivo}: emojis ${s.emojis.join(' ')}`);
 for (const a of r.out) {
   if (/bandeja/.test(a.k)) ok(a.tipo === 'image/png' && a.w === 96 && a.h === 96 && a.kb <= 50, `${a.k}: ${a.tipo} ${a.w}×${a.h} ${a.kb} KB`);
@@ -141,4 +186,4 @@ await p.waitForSelector('.packItem .tira img'); await foto('inicio_pack');
 ok((await E(() => window.__szAtras())) === false, 'atrás en el inicio: sale de la app');
 console.log('errores de la página:', JSON.stringify(err)); if (err.length) fallas++;
 console.log(fallas ? `${fallas} FALLAS` : 'TODO BIEN');
-await b.close(); srv.close(); process.exit(fallas ? 1 : 0);
+await b.close(); if (srv) srv.close(); if (java) java.kill(); process.exit(fallas ? 1 : 0);

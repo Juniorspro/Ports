@@ -1,5 +1,6 @@
 // El puente con el celular. En la app de Android (window.SZN, Java: Puente) los packs y sus archivos quedan en la memoria
-// de la app, donde WhatsApp los lee (el ContentProvider). En el navegador (para probar), en IndexedDB.
+// de la app, donde WhatsApp los lee (el ContentProvider), y la app los sirve en <origen>/archivos/<pack>/<archivo>.
+// En el navegador (para probar), en IndexedDB.
 // Todo es asíncrono para que las dos formas se usen igual.
 const N = typeof window !== 'undefined' && window.SZN ? window.SZN : null;
 export const esApp = !!N;
@@ -25,7 +26,7 @@ export async function leerPacks() {
   return (await idb('datos', 'readonly', (s) => s.get('packs'))) || [];
 }
 export async function guardarPacks(packs) {
-  if (N) return N.guardarPacks(JSON.stringify(packs));
+  if (N) { if (!N.guardarPacks(JSON.stringify(packs))) throw new Error('no se pudo guardar la lista'); return; }
   return idb('datos', 'readwrite', (s) => s.put(packs, 'packs'));
 }
 export async function guardarArchivo(pack, nombre, blob) {
@@ -45,7 +46,7 @@ export async function borrarPack(pack) {
 }
 // la dirección para mostrar un archivo (v: para que no quede la vieja guardada)
 export async function urlDe(pack, nombre, v) {
-  if (N) return 'https://app.stickerazo/archivos/' + encodeURIComponent(pack) + '/' + encodeURIComponent(nombre) + '?v=' + (v || 0);
+  if (N) return location.origin + '/archivos/' + encodeURIComponent(pack) + '/' + encodeURIComponent(nombre) + '?v=' + (v || 0);
   const k = pack + '/' + nombre; if (urls.has(k)) return urls.get(k);
   const b = await idb('archivos', 'readonly', (s) => s.get(k)); if (!b) return '';
   const u = URL.createObjectURL(b); urls.set(k, u); return u;

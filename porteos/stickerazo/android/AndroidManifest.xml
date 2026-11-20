@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stickerazo. Sin permisos de fotos ni de cámara: la galería es el selector de Android y la cámara es la app de
+     cámara del teléfono (le prestamos una dirección para que guarde la foto). INTERNET: para la página no hace falta
+     (sale de la app), queda para los anuncios. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.stickerazo.app">
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- (Android 11+: para ver si está WhatsApp y preguntarle si ya tiene un pack) -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+    </queries>
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/Tema"
+        android:allowBackup="true"
+        android:supportsRtl="false"
+        android:hardwareAccelerated="true">
+
+        <activity
+            android:name=".Inicio"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|fontScale">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- lo que lee WhatsApp (sólo WhatsApp: su permiso) -->
+        <provider
+            android:name=".Stickers"
+            android:authorities="com.stickerazo.app.stickers"
+            android:enabled="true"
+            android:exported="true"
+            android:readPermission="com.whatsapp.sticker.READ" />
+
+        <!-- las fotos de paso (la de la cámara y las convertidas): no es pública -->
+        <provider
+            android:name=".Fotos"
+            android:authorities="com.stickerazo.app.fotos"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+</manifest>
