@@ -219,7 +219,7 @@ await espera(400); await foto('pack_express');
 
 // ---------- 9: packs listos (nuestros, editables) y buscar ----------
 await p.click('.volver:visible'); await p.click('#tabs [data-t="Listos"]');
-await p.waitForFunction(() => document.querySelectorAll('#listos .listo').length === 12 && !document.querySelector('#listos img[data-l]'), null, { timeout: 30000 });
+await p.waitForFunction(() => document.querySelectorAll('#listos .listo').length >= 31 && !document.querySelector('#listos img[data-l]'), null, { timeout: 30000 });
 await foto('packs_listos');
 const buscarQ = async (q) => { await p.fill('#qBuscar', q); await espera(450); return E(() => ({ mios: document.querySelectorAll('#resBuscar .st').length, listos: [...document.querySelectorAll('#listos .listo .packCab > b:first-child')].map((b) => b.textContent), nada: !!document.querySelector('.nada2') })); };
 const b1 = await buscarQ('mate'); ok(b1.listos.includes('Mate y facturas'), `buscar «mate»: ${b1.listos.join(', ')}`);

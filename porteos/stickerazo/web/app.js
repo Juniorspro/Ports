@@ -2,7 +2,7 @@
 //  Inicio → (foto) → Recortá → Decorá → Guardar en un pack → el pack (de 3 a 30 stickers) → Agregar a WhatsApp.
 import { LADO, MARGEN, FUENTES, COLORES, ANIMACIONES, ANIM, cargarFuentes, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob } from './editor.js';
 import * as P from './puente.js';
-import { LISTOS, armarListo, emojisListo } from './listos.js';
+import { LISTOS, armarListo, emojisListo, prepararListo } from './listos.js';
 import * as C from './comunidad.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -679,14 +679,16 @@ async function llenarPrevias(raiz) {
   const mio = (raiz._turno = (raiz._turno || 0) + 1);
   for (const im of raiz.querySelectorAll('img[data-l]')) {
     if (raiz._turno !== mio || !im.isConnected) return;
-    const [id, i] = im.dataset.l.split(':'), pk = LISTOS.find((x) => x.id === id); im.src = previa(pk, +i); im.removeAttribute('data-l');
+    const [id, i] = im.dataset.l.split(':'), pk = LISTOS.find((x) => x.id === id);
+    if (pk.meme) { await prepararListo(pk); if (raiz._turno !== mio || !im.isConnected) return; }
+    im.src = previa(pk, +i); im.removeAttribute('data-l');
     await new Promise((ok) => setTimeout(ok, 0));
   }
 }
 const imgListo = (pk, i) => `<img data-l="${pk.id}:${i}" alt="">`;
 function carruselListos(c) {
   if (c && !c.children.length) {
-    c.innerHTML = LISTOS.map((pk) => `<button class="tarjeta" data-l="${pk.id}">${pk.animado ? '<b class="insignia">Animado</b>' : ''}<div class="mosaico">${[0, 1, 2, 3].map((i) => imgListo(pk, i)).join('')}</div><b>${h(pk.nombre)}</b><small>${pk.stickers.length} stickers</small></button>`).join('');
+    c.innerHTML = LISTOS.map((pk) => `<button class="tarjeta" data-l="${pk.id}">${pk.animado ? '<b class="insignia">Animado</b>' : ''}<div class="mosaico">${[0, 1, 2, 3].filter((i) => i < pk.stickers.length).map((i) => imgListo(pk, i)).join('')}</div><b>${h(pk.nombre)}</b><small>${pk.stickers.length} stickers</small></button>`).join('');
     llenarPrevias(c);
   }
 }
@@ -709,9 +711,9 @@ function hojaListo(pk) {
     <div class="hojaGrilla">${pk.stickers.map((_, i) => `<button data-i="${i}">${imgListo(pk, i)}</button>`).join('')}</div>
     <div class="botones"><button class="sec" data-x="0">Cerrar</button><button class="pri" data-x="1">Agregar el pack</button></div></div>`);
   llenarPrevias(m);
-  $('.hojaGrilla', m).onclick = (ev) => {
+  $('.hojaGrilla', m).onclick = async (ev) => {
     const b = ev.target.closest('button'); if (!b) return; const i = +b.dataset.i; cerrarModal();
-    E.st = armarListo(pk.stickers[i], i); E.editando = null; E.desdeRecorte = false; E.origen = 'vInicio'; ir('vEditor'); aviso('Cambiale lo que quieras y guardalo');
+    await prepararListo(pk); E.st = armarListo(pk.stickers[i], i); E.editando = null; E.desdeRecorte = false; E.origen = 'vInicio'; ir('vEditor'); aviso('Cambiale lo que quieras y guardalo');
   };
   m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
   m.querySelector('[data-x="1"]').onclick = () => agregarListo(pk);
@@ -720,6 +722,7 @@ async function agregarListo(pk) {
   const m = modal(`<div class="hoja"><h3>${h(pk.nombre)}</h3><div class="progreso"><div class="rueda"></div><b id="lT">Armando…</b>${pk.animado ? '<span>Los animados tardan unos segundos cada uno</span>' : ''}</div></div>`); m.onclick = null;
   let pack = null;
   try {
+    await prepararListo(pk);
     for (let i = 0; i < pk.stickers.length; i++) {
       $('#lT', m).textContent = `Armando ${i + 1} de ${pk.stickers.length}…`;
       pack = await guardarSticker(armarListo(pk.stickers[i], i), pack ? pack.id : 'nuevo', pk.nombre, emojisListo(pk.stickers[i]));
@@ -738,7 +741,7 @@ async function buscar(q) {
   C.buscarComunidad(q, $('#resCom'));
   const n = norm(q).trim(), res = $('#resBuscar'), lis = $('#listos');
   if (!n) { res.innerHTML = ''; lis.innerHTML = LISTOS.map((pk) => htmlListo(pk)).join(''); return llenarPrevias(lis); }
-  const dice = (d) => norm(d.texto.replace(/\n/g, ' ')).includes(n) || (d.emoji && q.trim() === d.emoji);
+  const dice = (d) => norm([d.texto, d.arriba, d.abajo].filter(Boolean).join(' ').replace(/\n/g, ' ')).includes(n) || (d.emoji && q.trim() === d.emoji);
   const listos = LISTOS.map((pk) => ({ pk, idx: pk.stickers.map((d, i) => (dice(d) ? i : -1)).filter((i) => i >= 0), todo: norm(pk.nombre + ' ' + pk.desc + ' ' + pk.tags).includes(n) })).filter((x) => x.todo || x.idx.length);
   const packs = E.packs = await P.leerPacks(), mios = [];
   for (const p of packs) for (const st of p.stickers) {

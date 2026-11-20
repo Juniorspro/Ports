@@ -1,6 +1,7 @@
-// Packs listos: frases nuestras, de acá, con nuestras letras y emojis. No son imágenes: se arman en el celular con el
-// mismo editor, así que cualquiera se puede cambiar (otra palabra, otro color) antes de guardarlo.
-import { Sticker, LADO } from './editor.js';
+// Packs listos: frases nuestras, de acá, con nuestras letras y emojis, y los memes (fotos libres, web/memes.js). Se arman
+// en el celular con el mismo editor, así que cualquiera se puede cambiar (otra palabra, otro color) antes de guardarlo.
+import { Sticker, LADO, lienzo } from './editor.js';
+import { MEMES } from './memes.js';
 
 const T = (texto, fuente, color, contorno, extra = {}) => ({ texto, fuente, color, contorno, ...extra });
 const AM = '#ffd23f', RO = '#ff3e8a', CE = '#3ec7ff', VE = '#4cd964', NA = '#ff7a1a', VI = '#9b5cff', BL = '#ffffff', NE = '#111111';
@@ -96,8 +97,44 @@ export const LISTOS = [
   },
 ];
 
+// los memes van primero (como en el inicio de las apps de stickers)
+LISTOS.unshift(...MEMES);
+
+// las fotos de los memes, ya cargadas (como lienzo: el editor y el guardado trabajan con lienzos)
+const FOTOS = new Map();
+export function prepararListo(pk) {
+  if (!pk || !pk.meme) return Promise.resolve();
+  return Promise.all(pk.stickers.map((d) => {
+    if (FOTOS.has(d.img)) return FOTOS.get(d.img);
+    const p = new Promise((ok) => { const im = new Image(); im.onload = () => { const c = lienzo(im.naturalWidth, im.naturalHeight); c.getContext('2d').drawImage(im, 0, 0); FOTOS.set(d.img, c); ok(c); }; im.onerror = () => { FOTOS.delete(d.img); ok(null); }; im.src = d.img; });
+    FOTOS.set(d.img, p); return p;
+  }));
+}
+// (un texto largo de meme va en dos renglones, cortado en el espacio más cercano a la mitad)
+function partir(t) {
+  if ([...t].length <= 15 || !t.includes(' ')) return t;
+  const m = t.length / 2; let mejor = -1;
+  for (let i = 0; i < t.length; i++) if (t[i] === ' ' && (mejor < 0 || Math.abs(i - m) < Math.abs(mejor - m))) mejor = i;
+  return t.slice(0, mejor) + '\n' + t.slice(mejor + 1);
+}
+// un meme: la foto y el texto de meme arriba y/o abajo (blanco con borde negro), adentro de la foto
+function armarMeme(d) {
+  const s = new Sticker(), foto = FOTOS.get(d.img);
+  if (foto && !(foto instanceof Promise)) s.agregarImagen(foto);
+  const lado = LADO - 2 * (16 + 4), arriba = (LADO - lado) / 2, abajo = arriba + lado;
+  for (const [txt, enAlto] of [[d.arriba, true], [d.abajo, false]]) {
+    if (!txt) continue;
+    const t = s.agregarTexto({ texto: partir(txt), fuente: 'Anton', color: '#ffffff', contorno: '#111111' });
+    t.tam = 64; const m = s.medidas(t); t.esc = Math.min(1, (lado - 34) / m.w); t.x = LADO / 2;
+    const alto = (m.h * t.esc) / 2; t.y = enAlto ? arriba + 20 + alto : abajo - 8 - alto;   // (arriba, más aire: los acentos y los «¿¡»)
+  }
+  s.sel = -1;
+  return s;
+}
+
 // un sticker listo, armado: el texto al medio, grande, y el emoji arriba a la derecha, un poco torcido
 export function armarListo(d, n = 0) {
+  if (d.img) return armarMeme(d);
   const s = new Sticker(), t = s.agregarTexto({ texto: d.texto, fuente: d.fuente, color: d.color, contorno: d.contorno, globo: d.globo, filete: d.filete });
   const largo = Math.max(...d.texto.split('\n').map((l) => [...l].length));
   t.tam = d.filete ? 120 : largo <= 4 ? 150 : largo <= 7 ? 120 : 96; s.ajustarTexto(t, true); t.y = LADO / 2 + (d.emoji ? 36 : 0); t.rot = (n % 2 ? 1 : -1) * (d.filete ? 0.02 : 0.05);
