@@ -534,3 +534,5 @@ h2 small { color: var(--suave); }
 @media (prefers-reduced-motion: reduce) { .bvTira { transition: none; } .bvCollage img, .bvBanner, .bvApp::before { animation: none; transform: none; } }
 .bvPag h2::before, .bvPag h2::after, .perfilTop h2::before, .perfilTop h2::after { display: none; }
 .ajustes .emo { font-style: normal; display: grid; place-items: center; }
+.bvCollage { margin-bottom: 30px; }
+.bvCollage img:nth-child(6) { --y: 92px; } .bvCollage img:nth-child(7) { --y: 98px; }
