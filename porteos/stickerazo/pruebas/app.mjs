@@ -59,9 +59,14 @@ async function guardar(emoji) {
 await p.goto(`http://127.0.0.1:${PUERTO}/index.html`); await p.waitForFunction(() => window.__sz && document.fonts.status === 'loaded');
 await E(() => new Promise((r) => { const q = indexedDB.deleteDatabase('stickerazo'); q.onsuccess = q.onerror = q.onblocked = r; }));
 await p.reload(); await p.waitForFunction(() => window.__sz);
+// la bienvenida (la primera vez): tres pantallas, elegir el país y entra
+await p.waitForSelector('#bienvenidaApp'); await espera(900); await foto('bienvenida');
+await p.click('#bvSig'); await espera(700); await foto('bienvenida_xd'); await p.click('#bvSig'); await espera(700); await foto('bienvenida_pais');
+await p.click('#bienvenidaApp [data-p="ar"]'); await p.waitForFunction(() => !document.querySelector('#bienvenidaApp'), null, { timeout: 8000 });
+ok(await E(() => localStorage.sz_pais === 'ar' && localStorage.sz_bienvenida === '1' && document.querySelector('#paisCard').classList.contains('oc')), 'bienvenida: tres pantallas animadas, elige Argentina y entra (no vuelve a preguntar el país)');
 await p.waitForSelector('#feedLista .vacio'); await foto('inicio_vacio');
 ok(await p.isVisible('#tabFeed') && /tranqui/.test(await p.textContent('#feedLista')), 'arranca en el feed de la comunidad (vacío: «Está todo muy tranqui»)');
-await p.click('#tabs [data-t="Crear"]');
+await p.click('#tabs [data-t="Crear"]'); await p.waitForSelector('#bCrear', { state: 'visible' });
 
 // ---------- 1: una persona (recorte automático), pincel y tocar ----------
 let t0 = Date.now(); await elegirFoto('#bCrear', 'grace_hopper.jpg'); await listoRecorte();

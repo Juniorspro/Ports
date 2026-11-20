@@ -93,7 +93,7 @@ async function quien(req, env) {
   if (!u || u.clave !== (await sha(m[2])) || u.bloqueado) return null;
   return u;
 }
-const avatarDe = (u) => { try { const a = JSON.parse(u.avatar || '{}'); return { e: a.e || '😎', c: a.c || '#ff3e8a' }; } catch (e) { return { e: '😎', c: '#ff3e8a' }; } };
+const avatarDe = (u) => { try { const a = JSON.parse(u.avatar || '{}'); return { e: a.e || '😎', c: a.c || '#ff3e8a', p: Number.isInteger(a.p) ? a.p : 0 }; } catch (e) { return { e: '😎', c: '#ff3e8a', p: 0 }; } };
 const publico = (u) => ({ id: u.id, nombre: u.nombre, bio: u.bio, avatar: avatarDe(u), seguidores: u.seguidores, siguiendo: u.siguiendo, creado: u.creado });
 
 // ---- un pack, para mostrar ----
@@ -157,7 +157,7 @@ async function api(req, env, u, r, metodo) {
     if (!yo) return error('Entrá con tu cuenta', 401);
     const d = await cuerpo(), sets = [], vals = [];
     if (d.bio !== undefined) { const bio = String(d.bio).trim().slice(0, 120); if (textoProhibido(bio)) return error('Esa bio no se puede'); sets.push('bio = ?'); vals.push(bio); }
-    if (d.avatar) { const e = String(d.avatar.e || '').slice(0, 8), c = /^#[0-9a-f]{6}$/i.test(d.avatar.c || '') ? d.avatar.c : '#ff3e8a'; sets.push('avatar = ?'); vals.push(JSON.stringify({ e: e || '😎', c })); }
+    if (d.avatar) { const e = String(d.avatar.e || '').slice(0, 8), c = /^#[0-9a-f]{6}$/i.test(d.avatar.c || '') ? d.avatar.c : '#ff3e8a'; const pp = Number.isInteger(d.avatar.p) && d.avatar.p >= 0 && d.avatar.p < 12 ? d.avatar.p : 0; sets.push('avatar = ?'); vals.push(JSON.stringify({ e: e || '😎', c, p: pp })); }
     if (d.nombre !== undefined && d.nombre !== yo.nombre) {
       const n = String(d.nombre).trim().toLowerCase().replace(/^@/, ''), mal = nombreInvalido(n); if (mal) return error(mal);
       if (!(await limite(env, 'nom:' + yo.id, 3, 86400))) return error('Ya te cambiaste el nombre muchas veces hoy', 429);

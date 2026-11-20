@@ -614,7 +614,7 @@ function abrirXD() {
         else if (k === 'espejo') c.src = espejo(c.src);
       }
       vibrar(12); pedirE(true);
-    } catch (e) { console.error(e); aviso('No se pudo'); }
+    } catch (e) { console.error(e); aviso('Uh, no salió. Probá otra vez'); }
     finally { ocupado = false; b.classList.remove('girando'); }
   };
 }
@@ -674,7 +674,7 @@ $('#eGuardar').onclick = async () => {
       const pk = await guardarSticker(s, destino === 'cambiar' ? ed.packId : destino, nombre, emojis.slice(), destino === 'cambiar' ? ed.archivo : null);
       cerrarModal(); E.st = null; E.desdeRecorte = false; E.foto = null; E.editando = null; E.packId = pk.id;
       ir('vPack'); aviso(destino === 'cambiar' ? '¡Cambiado!' : '¡Guardado!');
-    } catch (e) { console.error(e); cerrarModal(); aviso(String(e.message || e).includes('pesa') ? 'El sticker quedó muy pesado' : 'No se pudo guardar: ' + (e.message || e)); }
+    } catch (e) { console.error(e); cerrarModal(); aviso(String(e.message || e).includes('pesa') ? 'El sticker quedó muy pesado' : 'Uh, no se guardó: ' + (e.message || e)); }
   };
   marcar();
 };
@@ -788,6 +788,18 @@ function pintarTopInicio() {
 }
 $('#irBuscar').onclick = () => liquido(() => { pestaña('Listos'); setTimeout(() => $('#qBuscar').focus(), 60); });
 $('#historias').onclick = (ev) => { const b = ev.target.closest('.hist'); if (!b) return; vibrar(6); const pk = LISTOS.find((x) => x.id === b.dataset.l); if (pk) { b.classList.add('visto'); hojaListo(pk); } };
+function paisActual() { return PAISES.find((x) => x[0] === miPais()) || null; }
+function ponerPais(k) {
+  try { localStorage.setItem('sz_pais', k); } catch (e) { /* sin guardar: igual se ordena ahora */ }
+  ordenarPorPais(); $('#historias').innerHTML = ''; $('#carrusel').innerHTML = ''; $('#paisCard').classList.add('oc');
+  const n = PAISES.find((x) => x[0] === k); aviso(`¡Listo! Primero los de ${n ? n[2] : 'tu país'} ${n ? n[1] : ''}`);
+}
+// (cambiar el país desde el perfil)
+function elegirPais(despues) {
+  const m = modal(`<div class="hoja"><h3>¿De dónde sos?</h3><p>Te muestro primero los memes de tu país.</p><div class="paisCard sinFondo"><div class="banderas">${PAISES.map(([k, f, n]) => `<button data-p="${k}" class="${k === miPais() ? 'act' : ''}"><span>${f}</span><small>${n}</small></button>`).join('')}</div></div>
+    <div class="botones"><button class="sec" data-x="0">Cerrar</button></div></div>`);
+  m.onclick = (ev) => { const b = ev.target.closest('[data-p]'); if (b) { vibrar(12); cerrarModal(); ponerPais(b.dataset.p); if (despues) despues(); return; } if (ev.target.closest('[data-x]')) cerrarModal(); };
+}
 $('#paisCard').onclick = (ev) => {
   const b = ev.target.closest('[data-p]'); if (!b) return;
   try { localStorage.setItem('sz_pais', b.dataset.p); } catch (e) { /* sin guardar: igual se ordena ahora */ }
@@ -858,7 +870,7 @@ async function agregarListo(pk) {
     }
   } catch (e) { console.error(e); }
   cerrarModal();
-  if (!pack) return aviso('No se pudo agregar');
+  if (!pack) return aviso('Uh, no se pudo agregar. Probá de nuevo');
   E.packId = pack.id; ir('vPack'); aviso('¡Listo! Ya está en Mis packs');
 }
 // ---- buscar: en los packs listos y en tus stickers (por lo que dicen o por emoji) ----
@@ -1006,7 +1018,7 @@ $('#pMenu').onclick = () => {
       k.querySelector('[data-x="1"]').onclick = async () => { const v = inp.value.trim(); cerrarModal(); if (v) { await cambiarPack((p) => { p.nombre = v; }); pintarPack(); } };
     } else if (await confirmar(`¿Borrar «${packActual().nombre}» con todos sus stickers?`, 'Borrar')) {
       const id = E.packId, packs = (await P.leerPacks()).filter((p) => p.id !== id);
-      await P.borrarPack(id); await P.guardarPacks(packs); E.packs = packs; E.packId = null; ir('vInicio'); aviso('Pack borrado');
+      await P.borrarPack(id); await P.guardarPacks(packs); E.packs = packs; E.packId = null; ir('vInicio'); aviso('Chau pack 👋');
     }
   };
 };
@@ -1040,7 +1052,7 @@ function confeti() {
   requestAnimationFrame(paso);
 }
 // (lo que usa la comunidad de acá)
-C.iniciar({ $, h, modal, cerrarModal, aviso, ir, iconos, E, confirmar, vibrar, confeti, pestaña, carruselListos, norm, buscarTag, pintarPack: () => pintarPack(), atras });
+C.iniciar({ $, h, modal, cerrarModal, aviso, ir, iconos, E, confirmar, vibrar, confeti, pestaña, carruselListos, norm, buscarTag, pintarPack: () => pintarPack(), atras, paisActual, elegirPais });
 // ---- versión nueva (se bajó sola): avisar cuando no está creando ----
 let otaPendiente = null;
 window.__szOta = (v) => { otaPendiente = v; mostrarOta(); };
@@ -1063,6 +1075,32 @@ cargarFuentes('./').then(() => pedirE(true));
 const alCambiarTam = () => { if (E.vista === 'vRecorte') pedirR(); else if (E.vista === 'vEditor') pedirE(); };
 window.addEventListener('resize', alCambiarTam); if (window.ResizeObserver) { const ro = new ResizeObserver(alCambiarTam); ro.observe(RV.c); ro.observe(EV.c); }
 pintarInicio();
+// ---- la bienvenida (la primera vez): tres pantallas animadas y el país; después entra con el líquido ----
+function bienvenidaVista() { try { return !!localStorage.getItem('sz_bienvenida'); } catch (e) { return true; } }
+function mostrarBienvenida() {
+  const fotos = [], M = LISTOS.filter((x) => x.meme); for (let i = 0; i < 7 && M.length; i++) { const pk = M[(i * 5) % M.length]; fotos.push(pk.stickers[i % pk.stickers.length].img); }
+  const b = document.createElement('div'); b.id = 'bienvenidaApp'; b.className = 'bvApp';
+  b.innerHTML = `<button class="bvSaltar" id="bvSaltar">Saltear</button><div class="bvTira" id="bvTira">
+    <section class="bvPag"><div class="bvCollage">${fotos.map((f, i) => `<img src="${f}" alt="" style="--i:${i}">`).join('')}</div>
+      <h2>Stickers con <em>onda</em>, al toque</h2><p>Con una foto, un texto o un meme. Para tu WhatsApp, gratis y sin marca de agua.</p></section>
+    <section class="bvPag"><div class="bvBanner" style="--fondo:url('banners/xd.webp')"><span class="bvXD">xD</span></div>
+      <h2>Arruiná tus fotos <em>a propósito</em></h2><p>Ojo de pez, quemada, calidad trucha… como los memes que circulan por el grupo.</p></section>
+    <section class="bvPag"><div class="bvBanner chico" style="--fondo:url('banners/latam.webp')"></div><h2>¿De dónde <em>sos</em>?</h2><p>Así te muestro primero los memes de tu país.</p>
+      <div class="paisCard sinFondo"><div class="banderas">${PAISES.map(([k, f, n]) => `<button data-p="${k}"><span>${f}</span><small>${n}</small></button>`).join('')}</div></div></section></div>
+    <div class="bvPie"><div class="bvPuntos">${[0, 1, 2].map((i) => `<i class="${i ? '' : 'act'}"></i>`).join('')}</div><button class="grande" id="bvSig">Dale</button></div>`;
+  document.body.appendChild(b);
+  let pag = 0; const tira = b.querySelector('#bvTira'), sig = b.querySelector('#bvSig');
+  const irA = (k, quieto = false) => { pag = k; tira.style.transform = `translateX(${-100 * k}%)`; [...b.querySelectorAll('.bvPuntos i')].forEach((p, i) => p.classList.toggle('act', i === k)); [...tira.children].forEach((p, i) => p.classList.toggle('activa', i === k)); sig.classList.toggle('oc', k === 2); if (!quieto) vibrar(6); };
+  const cerrar = () => { try { localStorage.setItem('sz_bienvenida', '1'); } catch (e) { /* igual se cierra */ } liquido(() => { b.remove(); pintarTopInicio(); }, { x: innerWidth / 2, y: innerHeight - 60 }); };
+  sig.onclick = () => irA(Math.min(2, pag + 1));
+  b.querySelector('#bvSaltar').onclick = cerrar;
+  b.querySelector('.banderas').onclick = (ev) => { const k = ev.target.closest('[data-p]'); if (!k) return; confeti(); ponerPais(k.dataset.p); setTimeout(cerrar, 350); };
+  // (deslizar con el dedo también cambia de pantalla)
+  let x0 = null; tira.addEventListener('touchstart', (ev) => { x0 = ev.touches[0].clientX; }, { passive: true });
+  tira.addEventListener('touchend', (ev) => { if (x0 == null) return; const d = ev.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(d) > 50) irA(Math.max(0, Math.min(2, pag + (d < 0 ? 1 : -1)))); });
+  irA(0, true);
+}
+if (!bienvenidaVista()) mostrarBienvenida();
 if (P.esApp && window.SZN.enlaceInicial) { const e = window.SZN.enlaceInicial(); if (e) window.__szAbrir(e); }
 setTimeout(() => recorte().catch(() => {}), 1200); // (los modelos, de fondo, para que el primer recorte salga enseguida)
 window.__sz = { LIQ, liquido, E, ir, atras, abrirFoto, recorte, aviso, pestaña, C };

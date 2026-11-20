@@ -193,12 +193,31 @@ async function seguir(boton) {
 }
 
 // ================= PERFILES =================
+// las portadas: degradés y los banners del inicio (el número viaja con el avatar)
+export const PORTADAS = ['linear-gradient(135deg,#ff3e8a,#ff8a1a)', 'linear-gradient(135deg,#7c4dff,#ff3e8a)', 'linear-gradient(135deg,#00c9a7,#3ec7ff)',
+  'linear-gradient(135deg,#ffd23f,#ff7a1a)', 'linear-gradient(135deg,#1d1b2b,#3a2c6b)', "url('banners/xd.webp') center/cover", "url('banners/latam.webp') center/cover", "url('banners/pack.webp') center/cover"];
+const portadaDe = (u) => PORTADAS[(u.avatar && u.avatar.p) || 0] || PORTADAS[0];
 function perfilHTML(d, propio) {
-  const u = d.usuario;
-  return `<div class="heroe"><span class="avG" style="background:${X.h(u.avatar.c)}">${X.h(u.avatar.e)}</span><h2 class="arroba">@${X.h(u.nombre)}</h2>${u.bio ? `<p class="bio">${X.h(u.bio)}</p>` : ''}
-    <div class="stats"><span><b>${num(u.packs)}</b>packs</span><span><b class="segN">${num(u.seguidores)}</b>seguidores</span><span><b>${num(u.descargas)}</b>descargas</span><span><b>${num(u.likes)}</b>me gusta</span></div>
-    ${propio ? '<button class="sec ancho" data-editar="1"><i data-i="lapiz"></i>Editar perfil</button>' : d.soyYo ? '' : `<button class="seguir grande2${d.sigo ? ' si' : ''}" data-seguir="${u.id}">${d.sigo ? 'Siguiendo' : 'Seguir'}</button>`}</div>
-    <h2>${propio ? 'Tus packs publicados' : 'Packs'}</h2><div class="feedLista">${d.packs.length ? d.packs.map((p, i) => tarjeta(p, i)).join('') : `<div class="vacio"><span>${propio ? 'Todavía no publicaste nada. Abrí un pack tuyo y tocá «Publicar».' : 'Todavía no publicó nada.'}</span></div>`}</div>`;
+  const u = d.usuario, botones = propio ? '<button class="pBoton" data-editar="1"><i data-i="lapiz"></i>Editar perfil</button>'
+    : d.soyYo ? '' : `<button class="seguir pBoton${d.sigo ? ' si' : ''}" data-seguir="${u.id}">${d.sigo ? 'Siguiendo' : 'Seguir'}</button>`;
+  return `<div class="perfilTop"><div class="portadaP" style="background:${portadaDe(u)}"><i class="brilloP"></i></div>
+    <div class="perfilFila"><span class="avG" style="background:${X.h(u.avatar.c)}">${X.h(u.avatar.e)}</span><div class="pBotones">${botones}<button class="pBoton ico2" data-compartir-u="${X.h(u.nombre)}" aria-label="Compartir perfil"><i data-i="compartir"></i></button></div></div>
+    <h2 class="arroba">@${X.h(u.nombre)}</h2>${u.bio ? `<p class="bio">${X.h(u.bio)}</p>` : propio ? '<p class="bio vacia">Tocá «Editar perfil» y contá algo de vos</p>' : ''}
+    <div class="stats"><span><b>${num(u.packs)}</b>packs</span><span><b class="segN">${num(u.seguidores)}</b>seguidores</span><span><b>${num(u.descargas)}</b>descargas</span><span><b>${num(u.likes)}</b>me gusta</span></div></div>
+    ${propio ? '<div class="seg perfilSeg"><button data-pt="pub" class="act">Publicados</button><button data-pt="bajados">Bajados</button></div>' : '<h2>Packs</h2>'}
+    <div class="feedLista" id="${propio ? 'perfilLista' : 'usLista'}">${listaPublicados(d, propio)}</div>`;
+}
+const listaPublicados = (d, propio) => d.packs.length ? d.packs.map((p, i) => tarjeta(p, i)).join('') : `<div class="vacio"><span>${propio ? 'Todavía no publicaste nada. Abrí un pack tuyo y tocá «Publicar en la comunidad».' : 'Todavía no publicó nada.'}</span></div>`;
+// (los packs que bajaste de la comunidad: están en tu celular)
+async function listaBajados() {
+  const packs = (X.E.packs = await P.leerPacks()).filter((p) => p.origen);
+  if (!packs.length) return '<div class="vacio"><span>Todavía no bajaste ningún pack de la comunidad. Mirá el inicio y tocá uno que te guste.</span></div>';
+  const tiras = await Promise.all(packs.map((p) => Promise.all(p.stickers.slice(0, 4).map((s) => P.urlDe(p.id, s.archivo, p.v)))));
+  return packs.map((p, i) => `<button class="packItem" data-mio="${X.h(p.id)}"><span class="tira">${tiras[i].map((u) => `<img src="${u}" alt="">`).join('')}</span><span class="pnom"><b>${X.h(p.nombre)}</b><small>${p.stickers.length} stickers · de ${X.h(p.autor || '')}</small></span></button>`).join('');
+}
+async function compartirPerfil(nombre) {
+  X.vibrar(8);
+  if (await P.compartir(`Seguime en Stickerazo: @${nombre} 🔥 Hago stickers y memes para WhatsApp`, API + '/')) { if (!P.esApp && !navigator.share) X.aviso('Copié el enlace'); }
 }
 export async function abrirUsuario(nombre) {
   if (cuenta() && cuenta().nombre === nombre) return X.pestaña('Perfil');
@@ -232,7 +251,8 @@ export async function pintarPerfil() {
   c.innerHTML = '<div class="heroe"><span class="avG esq"></span></div>';
   try {
     const d = await api('/api/usuarios/' + encodeURIComponent(yo.nombre)); X.E.miPerfil = d;
-    c.innerHTML = perfilHTML(d, true) + `<div class="lista ajustes"><a class="opc" href="${API}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${API}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
+    const pais = X.paisActual();
+    c.innerHTML = perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="pais"><i class="emo">${pais ? pais[1] : '🌎'}</i><span>Mi país: ${pais ? pais[2] : 'elegir'}</span></button><a class="opc" href="${API}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${API}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
       <button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
     X.iconos(c);
   } catch (e) {
@@ -244,25 +264,37 @@ function editarPerfil() {
   const d = X.E.miPerfil; if (!d) return; const u = d.usuario, sel = { ...u.avatar };
   const EMOJIS = ['😎', '🧉', '🤠', '😜', '🥳', '🤩', '😺', '🐶', '🦊', '🐸', '👽', '🤖', '💀', '🔥', '⚽', '🎸', '🍕', '🌈', '🦄', '🐧'];
   const COLS = ['#ff3e8a', '#ffd23f', '#3ec7ff', '#4cd964', '#ff7a1a', '#9b5cff', '#2c2840', '#74acdf'];
-  const m = X.modal(`<div class="hoja"><h3>Tu perfil</h3><div class="prevAv"><span class="avG" id="epAv" style="background:${sel.c}">${sel.e}</span></div>
+  sel.p = sel.p || 0;
+  const m = X.modal(`<div class="hoja"><h3>Tu perfil</h3><div class="prevAv" id="epPrev" style="background:${PORTADAS[sel.p]}"><span class="avG" id="epAv" style="background:${sel.c}">${sel.e}</span></div>
     <div class="etq">Emoji</div><div class="emojis" id="epE">${EMOJIS.map((e) => `<button data-v="${e}">${e}</button>`).join('')}</div>
     <div class="etq">Color</div><div class="colores" id="epC">${COLS.map((c) => `<button class="color" data-v="${c}" style="background:${c}"></button>`).join('')}</div>
+    <div class="etq">Portada</div><div class="portadas" id="epP">${PORTADAS.map((f, i) => `<button data-v="${i}" style="background:${f}" aria-label="Portada ${i + 1}"></button>`).join('')}</div>
     <div class="etq">Bio</div><input id="epBio" class="campo" maxlength="120" placeholder="Contá algo de vos (opcional)">
     <div class="botones"><button class="sec" data-x="0">Cancelar</button><button class="pri" data-x="1">Guardar</button></div></div>`);
   X.$('#epBio', m).value = u.bio || '';
-  const marcar = () => { X.$('#epAv', m).textContent = sel.e; X.$('#epAv', m).style.background = sel.c; for (const b of X.$('#epE', m).children) b.classList.toggle('act', b.dataset.v === sel.e); for (const b of X.$('#epC', m).children) b.classList.toggle('act', b.dataset.v === sel.c); };
+  const marcar = () => { X.$('#epAv', m).textContent = sel.e; X.$('#epAv', m).style.background = sel.c; X.$('#epPrev', m).style.background = PORTADAS[sel.p]; for (const b of X.$('#epE', m).children) b.classList.toggle('act', b.dataset.v === sel.e); for (const b of X.$('#epC', m).children) b.classList.toggle('act', b.dataset.v === sel.c); for (const b of X.$('#epP', m).children) b.classList.toggle('act', +b.dataset.v === sel.p); };
+  X.$('#epP', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { sel.p = +b.dataset.v; marcar(); } };
   X.$('#epE', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { sel.e = b.dataset.v; marcar(); } };
   X.$('#epC', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { sel.c = b.dataset.v; marcar(); } };
   m.querySelector('[data-x="0"]').onclick = () => X.cerrarModal();
   m.querySelector('[data-x="1"]').onclick = async () => {
-    try { await api('/api/yo', { method: 'PATCH', json: { bio: X.$('#epBio', m).value, avatar: sel } }); X.cerrarModal(); X.aviso('¡Joya! Perfil actualizado'); pintarPerfil(); } catch (e) { X.aviso(e.message); }
+    try { await api('/api/yo', { method: 'PATCH', json: { bio: X.$('#epBio', m).value, avatar: sel } }); X.cerrarModal(); X.aviso('¡Joya! Quedó tu perfil'); pintarPerfil(); } catch (e) { X.aviso(e.message); }
   };
   marcar();
 }
 async function alTocarPerfil(ev) {
   const t = ev.target;
   if (t.closest('[data-editar]')) return editarPerfil();
+  const cu = t.closest('[data-compartir-u]'); if (cu) return compartirPerfil(cu.dataset.compartirU);
+  const pt = t.closest('[data-pt]');
+  if (pt) {
+    for (const b of pt.parentElement.children) b.classList.toggle('act', b === pt); X.vibrar(6);
+    const l = X.$('#perfilLista'); l.classList.remove('aparece'); void l.offsetWidth; l.classList.add('aparece');
+    l.innerHTML = pt.dataset.pt === 'pub' ? listaPublicados(X.E.miPerfil, true) : await listaBajados(); X.iconos(l); return;
+  }
+  const mio = t.closest('[data-mio]'); if (mio) { X.E.packId = mio.dataset.mio; return X.ir('vPack'); }
   const x = t.closest('[data-x]');
+  if (x && x.dataset.x === 'pais') return X.elegirPais(() => pintarPerfil());
   if (x && x.dataset.x === 'salir') {
     if (await X.confirmar('¿Salir? Sin tu llave no vas a poder volver a esta cuenta desde otro celular.', 'Salir')) { guardarCuenta(null); pintarPerfil(); }
     return;
@@ -346,7 +378,7 @@ export function iniciar(ctx) {
   X.$('#feedSeg').onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; F.modo = b.dataset.m; for (const x of X.$('#feedSeg').children) x.classList.toggle('act', x === b); X.vibrar(6); cargarFeed(true); };
   X.$('#feedLista').onclick = alTocarFeed;
   X.$('#puCont').onclick = (ev) => { const s = ev.target.closest('[data-seguir]'); if (s) return seguir(s); const t = ev.target.closest('[data-tag]'); if (t) return X.buscarTag(t.dataset.tag); alTocarFeed(ev); };
-  X.$('#usCont').onclick = (ev) => { const s = ev.target.closest('[data-seguir]'); if (s) return seguir(s); alTocarFeed(ev); };
+  X.$('#usCont').onclick = (ev) => { const s = ev.target.closest('[data-seguir]'); if (s) return seguir(s); const cu = ev.target.closest('[data-compartir-u]'); if (cu) return compartirPerfil(cu.dataset.compartirU); alTocarFeed(ev); };
   X.$('#tabPerfil').onclick = alTocarPerfil;
   X.$('#puWhats').onclick = agregarPublico;
   X.$('#puLike').onclick = async () => { if (!actual) return; const b = X.$('#puLike'); if (!cuenta()) return pedirCuenta('Para dar me gusta, elegí tu @'); const si = !actual.yaLike; actual.yaLike = si; pintarLike(); if (si) corazon(X.$('#puCont'), null, 160); X.vibrar(si ? 15 : 8); try { const r = await api(`/api/packs/${actual.id}/like`, { method: si ? 'POST' : 'DELETE' }); actual.likes = r.likes; } catch (e) { actual.yaLike = !si; pintarLike(); X.aviso(e.message); } };

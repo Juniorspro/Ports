@@ -16,7 +16,7 @@ const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 let nFoto = 0;
 async function celular(nombre, api = API) {
   const ctx = await b.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }), p = await ctx.newPage();
-  await p.addInitScript((u) => { window.SZ_API = u; }, api);
+  await p.addInitScript((u) => { window.SZ_API = u; try { localStorage.setItem('sz_bienvenida', '1'); } catch (e) { /* nada */ } }, api);
   p.on('pageerror', (e) => errores.push(nombre + ': ' + e.message));
   p.on('console', (m) => { if (m.type() === 'error' && !/^INFO:|ERR_CONNECTION_REFUSED|Failed to load resource/.test(m.text())) errores.push(nombre + ' consola: ' + m.text().slice(0, 200)); });
   p.on('response', (q) => { if (q.status() >= 400) errores.push(`${nombre}: ${q.status()} ${q.url()}`); });

@@ -18,7 +18,7 @@ const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 
 async function celular(nombre, cuenta) {
   const ctx = await b.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true }), p = await ctx.newPage();
-  await p.addInitScript((u) => { window.SZ_API = u; }, API);
+  await p.addInitScript((u) => { window.SZ_API = u; try { localStorage.setItem('sz_bienvenida', '1'); localStorage.setItem('sz_pais', 'ar'); } catch (e) { /* nada */ } }, API);
   p.on('pageerror', (e) => errores.push(nombre + ': ' + e.message));
   p.on('console', (m) => { if (m.type() === 'error' && !/^INFO:/.test(m.text())) errores.push(nombre + ' consola: ' + m.text().slice(0, 200)); });
   await p.goto(`${W}/index.html`); await p.waitForFunction(() => window.__sz && document.fonts.status === 'loaded');

@@ -54,6 +54,20 @@ rama `claude/ports-continuation-dm754a`, carpeta `porteos/stickerazo/servidor`. 
 y el servidor arma sus tablas. Después, cada push lo actualiza. Opcional: el secreto `ADMIN_CLAVE` (para `/admin`).
 La app lo busca en `https://stickerazo.<tu subdominio>.workers.dev` (`web/comunidad.js`, `API`).
 
+## Memes «xD», el inicio y la bienvenida
+
+- **184 memes en 19 packs** (Argentina y México, Chile, Perú, Colombia, Venezuela, Uruguay), con fotos libres (CC0 o
+  dominio público, cada una anotada en `web/memes/FUENTES.txt`) arruinadas a propósito: ojo de pez, aplastadas,
+  quemadas, calidad trucha, espejo, lentes pixelados. El texto lo dibuja la app (Comic xD, IMPACT o la franja blanca), así
+  que se puede cambiar. Se arman con `herramientas/memes_libres.py` a partir de `herramientas/memes_lista.py`.
+- **Modo xD en el editor**: los mismos efectos para las fotos de cada uno, lentes que se mueven y «Sin efectos».
+- **Inicio tipo red social**: buscador, «¿De dónde sos?» (los packs de tu país primero), historias con anillo de colores y
+  banners que pasan solos (hechos con IA, sin texto: las letras las pone la app).
+- **Transición líquida**: bolas de color que salen del dedo, tapan la pantalla y se escurren (respeta «menos movimiento»).
+- **Bienvenida** la primera vez: tres pantallas animadas y el país.
+- **Perfil**: portada (degradés o los banners), avatar encima, editar, compartir, «Publicados» y «Bajados», y el país en
+  los ajustes.
+
 ## Bien argento
 
 - **Fileteado**: un estilo de letra propio (dorado con contorno oscuro, volutas a los costados con su flor y su hoja,
