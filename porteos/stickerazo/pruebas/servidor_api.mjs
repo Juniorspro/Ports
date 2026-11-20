@@ -2,8 +2,8 @@
 // puede publicar), feed, me gusta, seguir, descargas, buscar, tendencias, denuncias (3 → se oculta), bloquear,
 // actualizar, moderación, borrar la cuenta, CORS y las páginas. Usa los archivos de /tmp/claude-0/sz_fix (Pillow).
 import fs from 'fs'; import { arrancar } from './servidor_local.mjs';
-const FIX = '/tmp/claude-0/sz_fix/', PUERTO = 8991, B = `http://127.0.0.1:${PUERTO}`;
-const { srv } = await arrancar(PUERTO, 'clave-admin');
+const FIX = '/tmp/claude-0/sz_fix/', PUERTO = 8991, B = `http://127.0.0.1:${PUERTO}${process.env.SZ_BASE || ''}`;
+const { srv, env: ENV } = await arrancar(PUERTO, 'clave-admin');
 let fallas = 0, bien = 0; const ok = (c, t) => { console.log((c ? 'OK    ' : 'FALLA ') + t); c ? bien++ : fallas++; };
 const api = async (ruta, o = {}, tok) => { const h = { ...(o.headers || {}) }; if (tok) h.Authorization = 'Bearer ' + tok; if (o.json) { h['Content-Type'] = 'application/json'; o.body = JSON.stringify(o.json); } const r = await fetch(B + ruta, { ...o, headers: h }); let j = null; try { j = await r.clone().json(); } catch (e) {} return { st: r.status, j, r }; };
 const archivo = (n, como) => new File([fs.readFileSync(FIX + n)], como || n);
@@ -113,4 +113,6 @@ const op = await fetch(B + '/api/feed', { method: 'OPTIONS' });
 ok(op.status === 204 && /Authorization/.test(op.headers.get('access-control-allow-headers')), 'CORS: la app (otro origen) puede llamar con su llave');
 for (const p of ['/privacidad', '/terminos', '/borrar-cuenta', '/admin']) { const r = await fetch(B + p); if (r.status !== 200) ok(false, p + ' ' + r.status); }
 ok(/no salen de tu celular/.test(await (await fetch(B + '/privacidad')).text()), 'páginas: privacidad, términos, borrar cuenta y moderación');
+// adentro del Worker de JXMod: todas las tablas con «sz_» (no se toca ninguna de JXMod)
+if (process.env.SZ_BASE) { const t = (await ENV.DB.prepare("SELECT name FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%'").all()).results.map((x) => x.name); ok(t.length >= 9 && t.every((n) => n.startsWith('sz_')), `con SZ_BASE=${process.env.SZ_BASE}: ${t.length} tablas e índices, todos «sz_» (${t.slice(0, 4).join(', ')}…)`); }
 console.log(`RESUMEN: ${bien} bien, ${fallas} fallas`); srv.close(); process.exit(fallas ? 1 : 0);

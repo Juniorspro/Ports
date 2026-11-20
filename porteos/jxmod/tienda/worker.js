@@ -18,6 +18,8 @@ import { cuentaRutas, cuentaActiva, cuentaUsuario } from './cuenta.js';
 import { socialRutas } from './social.js';
 import { legalRutas } from './legal.js';
 import { panelRutas } from './panel.js';
+// la comunidad de Stickerazo (la otra app del repo) vive acá, en /sz, con sus propias tablas «sz_»
+import { stickerazoRutas } from '../../stickerazo/servidor/worker.js';
 // (los correos de JXMod salen por el SMTP de Gmail: correo.js necesita la conexión TCP de los Workers, que sólo existe acá)
 import { connect } from 'cloudflare:sockets';
 import { correoConector } from './correo.js';
@@ -375,6 +377,7 @@ async function ctlRutas(req, env, url, r, ip) {
 
 export default {
   async fetch(req, env, ctx) {
+    { const p = new URL(req.url).pathname; if (p === '/sz' || p.startsWith('/sz/')) return stickerazoRutas(req, env, ctx, '/sz'); }
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
     const url = new URL(req.url), r = url.pathname.replace(/\/+$/, '');
     const ip = await huella((req.headers.get('CF-Connecting-IP') || '') + (env.SAL || 'rezobox'));

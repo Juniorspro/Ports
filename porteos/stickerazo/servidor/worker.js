@@ -4,6 +4,8 @@
 // descargas, denunciar y bloquear (con 3 denuncias el pack se oculta hasta que se revise), moderación en /admin
 // (secreto ADMIN_CLAVE), la página para compartir un pack (/p/ID) y las de privacidad y términos.
 // Los archivos van en la base (D1) o, si está el balde R2 «MEDIA», ahí.
+// Anda solo (su propio Worker) o adentro del de JXMod: stickerazoRutas(req, env, ctx, '/sz') atiende lo que empieza con /sz
+// y usa sus tablas con «sz_» adelante, para no pisar las de JXMod (que también tiene «usuarios»).
 
 const TIENDA = 'https://play.google.com/store/apps/details?id=com.stickerazo.app';
 const ESQUEMA = [
@@ -19,6 +21,11 @@ const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS bloqueos (usuario TEXT NOT NULL, bloqueado TEXT NOT NULL, PRIMARY KEY (usuario, bloqueado))`,
   `CREATE TABLE IF NOT EXISTS limites (clave TEXT PRIMARY KEY, n INTEGER NOT NULL, hasta INTEGER NOT NULL)`,
 ];
+const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites';
+const RE_TABLA = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|TABLE IF NOT EXISTS|ON)\\s+(${TABLAS})\\b`, 'g'), RE_INDICE = /\bINDEX IF NOT EXISTS (\w+)/g;
+export const conPrefijo = (sql, pre) => sql.replace(RE_TABLA, `$1 ${pre}$2`).replace(RE_INDICE, `INDEX IF NOT EXISTS ${pre}$1`);
+// la base de JXMod, vista con las tablas de Stickerazo («sz_usuarios», «sz_packs»…)
+function basePrefijada(db, pre) { return { prepare: (q) => db.prepare(conPrefijo(q, pre)), batch: (l) => db.batch(l), exec: (q) => db.exec(conPrefijo(q, pre)) }; }
 let listo = null;
 const preparar = (env) => (listo ||= env.DB.batch(ESQUEMA.map((s) => env.DB.prepare(s))).catch((e) => { listo = null; throw e; }));
 
@@ -114,9 +121,12 @@ async function marcarLikes(env, yo, packs) {
 const sinBloqueados = (yo) => (yo ? ' AND p.autor NOT IN (SELECT bloqueado FROM bloqueos WHERE usuario = ?)' : '');
 
 // ================= rutas =================
-export default {
-  async fetch(req, env, ctx) {
-    const u = new URL(req.url), ruta = u.pathname, metodo = req.method;
+export default { fetch: (req, env, ctx) => manejar(req, env, ctx, '') };
+// (adentro del Worker de JXMod)
+export function stickerazoRutas(req, env, ctx, base) { return manejar(req, { ...env, DB: basePrefijada(env.DB, 'sz_') }, ctx, base); }
+async function manejar(req, env, ctx, base) {
+  {
+    const u = new URL(req.url), ruta = u.pathname.slice(base.length) || '/', metodo = req.method, origen = u.origin + base;
     if (metodo === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     try {
       if (ruta === '/' || ruta === '') return html(pagina('Stickerazo', '<h1>Stickerazo</h1><p>Hacé stickers para WhatsApp con tus fotos y compartilos con la comunidad.</p>' + botonTienda()));
@@ -125,16 +135,16 @@ export default {
       if (ruta === '/borrar-cuenta') return html(pagina('Borrar tu cuenta · Stickerazo', BORRAR));
       await preparar(env);
       if (ruta.startsWith('/m/')) return media(req, env, ctx, ruta);
-      if (ruta.startsWith('/p/')) return compartir(env, ruta.slice(3), u);
-      if (ruta === '/admin') return html(ADMIN);
+      if (ruta.startsWith('/p/')) return compartir(env, ruta.slice(3), origen);
+      if (ruta === '/admin') return html(paginaAdmin(base));
       if (!ruta.startsWith('/api/')) return html(pagina('No está', '<h1>No está</h1>'), 404);
       return await api(req, env, u, ruta.slice(5), metodo);
     } catch (e) {
       console.error(e);
       return error('Se nos complicó algo. Probá de nuevo en un rato.', 500);
     }
-  },
-};
+  }
+}
 
 async function api(req, env, u, r, metodo) {
   const yo = await quien(req, env), cuerpo = async () => { try { return await req.json(); } catch (e) { return {}; } };
@@ -394,11 +404,11 @@ function pagina(titulo, cuerpo, cabeza = '') {
 .b{display:block;text-align:center;margin:14px 0;padding:15px;border-radius:999px;background:#ffd23f;color:#1c1503;font-weight:800;text-decoration:none}.s{background:#25d366;color:#04260f}
 .g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.g img{width:100%;aspect-ratio:1;object-fit:contain;background:#201d2c;border-radius:16px}.p{color:#a7a2bb}</style></head><body><main>${cuerpo}</main></body></html>`;
 }
-async function compartir(env, id, u) {
+async function compartir(env, id, origen) {
   if (!/^[a-z0-9]{10}$/.test(id)) return html(pagina('No está', '<h1>Ese pack no está</h1>' + botonTienda()), 404);
   const p = await env.DB.prepare(`${CON_AUTOR} AND p.id = ?`).bind(id).first();
   if (!p) return html(pagina('No está', '<h1>Ese pack ya no está</h1>' + botonTienda()), 404);
-  const r = resumen(p), m = (a) => `${u.origin}/m/${p.id}/${a}?v=${p.v}`, todos = JSON.parse(p.archivos);
+  const r = resumen(p), m = (a) => `${origen}/m/${p.id}/${a}?v=${p.v}`, todos = JSON.parse(p.archivos);
   const abrir = `intent://pack/${p.id}#Intent;scheme=stickerazo;package=com.stickerazo.app;S.browser_fallback_url=${encodeURIComponent(TIENDA)};end`;
   const cabeza = `<meta property="og:title" content="${esc(r.nombre)} · Stickerazo"><meta property="og:description" content="${r.n} stickers de @${esc(r.autor.nombre)} para WhatsApp"><meta property="og:image" content="${m(p.bandeja)}">`;
   return html(pagina(`${r.nombre} · Stickerazo`, `<p class="p">Pack de @${esc(r.autor.nombre)} · ${r.n} stickers${r.animado ? ' animados' : ''}</p><h1>${esc(r.nombre)}</h1>
@@ -415,11 +425,11 @@ const PRIVACIDAD = `<h1>Privacidad</h1><p class="p">Stickerazo · última actual
 <p>Stickerazo no está afiliada a WhatsApp ni a Meta. Tenés que tener 13 años o más para usar la comunidad.</p>`;
 const TERMINOS = `<h1>Términos de la comunidad</h1><p>Publicá stickers tuyos o que tengas derecho a compartir. No se puede publicar: contenido sexual, odio o discriminación, violencia, acoso, datos de otras personas, ni fotos de alguien que no quiere aparecer. Los packs con 3 denuncias se ocultan hasta que los revisemos, y las cuentas que no respetan esto se bloquean. Tenés que tener 13 años o más.</p>`;
 const BORRAR = `<h1>Borrar tu cuenta</h1><p>Abrí Stickerazo → Perfil → <b>Borrar mi cuenta</b>. Se borran al instante tu cuenta, tus packs publicados, tus me gusta y a quién seguís. Los stickers que tenés guardados en el celular quedan en tu celular.</p>`;
-const ADMIN = pagina('Moderación · Stickerazo', `<h1>Moderación</h1><input id="k" type="password" placeholder="Clave" style="width:100%;padding:12px;border-radius:12px;border:0"><button class="b" id="v" style="width:100%;border:0">Ver denunciados</button><div id="l"></div>
+const paginaAdmin = (base) => pagina('Moderación · Stickerazo', `<h1>Moderación</h1><input id="k" type="password" placeholder="Clave" style="width:100%;padding:12px;border-radius:12px;border:0"><button class="b" id="v" style="width:100%;border:0">Ver denunciados</button><div id="l"></div>
 <script>const k=document.getElementById('k'),l=document.getElementById('l');k.value=localStorage.k||'';
-const api=(r,o={})=>fetch('/api/admin/'+r,{...o,headers:{'X-Admin':k.value,'Content-Type':'application/json'}}).then(x=>x.json());
+const api=(r,o={})=>fetch('${base}/api/admin/'+r,{...o,headers:{'X-Admin':k.value,'Content-Type':'application/json'}}).then(x=>x.json());
 async function ver(){localStorage.k=k.value;const d=await api('reportados');if(d.error){l.textContent=d.error;return}
 l.innerHTML=d.packs.map(p=>'<div style="background:#201d2c;border-radius:16px;padding:12px;margin:12px 0"><b>'+p.nombre+'</b> de @'+p.autor.nombre+' · '+p.reportes+' denuncias ('+p.motivos.map(m=>m.motivo+' '+m.n).join(', ')+')'+(p.oculto?' · OCULTO':'')+
-'<div class="g">'+p.muestra.map(a=>'<img data-s="/m/'+p.id+'/'+a+'?v='+p.v+'">').join('')+'</div><button data-a="mostrar" data-p="'+p.id+'">Mostrar</button> <button data-a="ocultar" data-p="'+p.id+'">Ocultar</button> <button data-a="borrar" data-p="'+p.id+'">Borrar</button> <button data-u="'+p.autor.id+'">Bloquear a @'+p.autor.nombre+'</button></div>').join('')||'Nada denunciado 🙌';
+'<div class="g">'+p.muestra.map(a=>'<img data-s="${base}/m/'+p.id+'/'+a+'?v='+p.v+'">').join('')+'</div><button data-a="mostrar" data-p="'+p.id+'">Mostrar</button> <button data-a="ocultar" data-p="'+p.id+'">Ocultar</button> <button data-a="borrar" data-p="'+p.id+'">Borrar</button> <button data-u="'+p.autor.id+'">Bloquear a @'+p.autor.nombre+'</button></div>').join('')||'Nada denunciado 🙌';
 for(const i of l.querySelectorAll('img[data-s]'))fetch(i.dataset.s,{headers:{'X-Admin':k.value}}).then(r=>r.blob()).then(b=>i.src=URL.createObjectURL(b))}
 document.getElementById('v').onclick=ver;l.onclick=async e=>{const b=e.target;if(b.dataset.p){await api('packs/'+b.dataset.p,{method:'POST',body:JSON.stringify({accion:b.dataset.a})});ver()}if(b.dataset.u){await api('usuarios/'+b.dataset.u,{method:'POST',body:JSON.stringify({bloqueado:1})});ver()}};</script>`);
