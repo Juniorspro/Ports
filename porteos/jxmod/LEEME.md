@@ -5071,7 +5071,14 @@ núcleo), `ev300_intro.js` (la cinta), `ev300_mis.js` (las misiones, el final y 
 - Pruebas: `pruebas/pepe_vuelve.mjs` 13/13, `pruebas/vivo.mjs` 11/11 (guiones firmados de verdad en una carpeta local),
   `evento300.mjs` intro 11/11 con `?ev300`, `discord_39x.mjs` 6/6.
 
-## El panel: la app admin, Bugs y sugerencias, y las órdenes en vivo (sin publicar en el juego)
+## JXMod 3.9.6: el panel (la app admin), Bugs y sugerencias, y las órdenes en vivo
+
+- Publicada con el paquete pk39e. APK 3.9.6 (versionCode 26112004, misma firma, prueba 6/6) con `ota_base.json` que
+  coincide; `version.json` 3906 con `"ota": {"apkMin": 3903}`; `web/ota/` 3.9.6 (para la 3.9.3 en adelante cambia sólo
+  `index.html`, 5,0 MB), comprobada con la llave de la firma oficial. Web con código: pide el código, no arranca sin él,
+  uno inventado no entra, sin errores. El service worker de la web ya no responde las páginas de `panel/` con el juego
+  guardado (`web_app.py`): con el juego instalado en el navegador, la app admin abre igual (probado).
+- El celular del dueño quedó aprobado en el panel («Celular del dueño»).
 
 El dueño: «una app admin para ver todo de todo y dejar ideas de eventos y capturas de bugs, y que vos puedas revisar todo
 lo publicado y arreglar; mini llamados a todos los que juegan; eventos sin actualizar donde a todos se los lleva a un mapa
