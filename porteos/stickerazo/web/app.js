@@ -3,6 +3,7 @@
 import { LADO, MARGEN, FUENTES, COLORES, ANIMACIONES, ANIM, cargarFuentes, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob, ojoDePez, deformar, espejo, quemar, trucha, lentesXD } from './editor.js';
 import * as P from './puente.js';
 import { LISTOS, armarListo, emojisListo, prepararListo } from './listos.js';
+import { LISTA_PAISES, elegirPaisMapa } from './mapa_pais.js';
 import * as C from './comunidad.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -19,48 +20,51 @@ const lim = (v, a, b) => Math.max(a, Math.min(b, v));
 const h = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const lienzo = (w, hh) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(hh)); return c; };
 
-// ---- íconos (dibujados acá, 24×24, trazo) ----
+// ---- íconos propios (dibujados acá, 24×24): trazo grueso y redondo, y una «mancha» de color corrida un poquito, como
+// un sticker mal pegado (la clase r). En la barra de abajo la mancha se prende cuando la pestaña está elegida ----
+const RI = (d) => `<path class="r" d="${d}"/>`;
 const ICONOS = {
-  mas: '<path d="M12 5v14M5 12h14"/>',
-  atras: '<path d="M15 5l-7 7 7 7"/>',
-  sig: '<path d="M9 5l7 7-7 7"/>',
-  texto: '<path d="M5 7V5h14v2M12 5v14M9 19h6"/>',
-  camara: '<path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/>',
-  galeria: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/>',
+  mas: RI('M12 3.6c5 0 8.4 3.5 8.4 8.4s-3.4 8.4-8.4 8.4S3.6 17 3.6 12 7 3.6 12 3.6z') + '<path d="M12 7v10M7 12h10"/>',
+  atras: '<path d="M14.5 5.5L8 12l6.5 6.5"/>',
+  sig: '<path d="M9.5 5.5L16 12l-6.5 6.5"/>',
+  texto: RI('M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z') + '<path d="M7 8V6.5h10V8M12 6.5v11M9.5 17.5h5"/>',
+  camara: RI('M4.5 8.5h2.8l1.9-2.6h5.6l1.9 2.6h2.8a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18v-8a1.5 1.5 0 0 1 1.5-1.5z') + '<path d="M4.5 8.5h2.8l1.9-2.6h5.6l1.9 2.6h2.8a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18v-8a1.5 1.5 0 0 1 1.5-1.5z"/><circle cx="12" cy="13.6" r="3.3"/>',
+  galeria: RI('M3.5 7.5a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3z') + '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M4 16.5l4.6-4.6 3.6 3.6 2.6-2.6 4.7 4.7"/><circle cx="15.8" cy="8.8" r="1.4" fill="currentColor"/>',
   punto: '<circle cx="12" cy="12" r="3" fill="currentColor"/>',
   puntoG: '<circle cx="12" cy="12" r="8" fill="currentColor"/>',
-  magia: '<path d="M4 20L15 9"/><path d="M13.5 7.5l3 3"/><path d="M18 3v4M16 5h4M20 12v3M18.5 13.5h3M9 3v2M8 4h2"/>',
-  dedo: '<circle cx="12" cy="12" r="2.5" fill="currentColor"/><circle cx="12" cy="12" r="7"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22"/>',
-  goma: '<path d="M8.5 19.5h11"/><path d="M5 15.5l9.5-9.5a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 19.5H8.5z"/><path d="M9.5 11l4 4"/>',
-  pincel: '<path d="M4 20l1.2-4.2L16 5l3 3L8.2 18.8z"/><path d="M14 7l3 3"/>',
-  foto: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/>',
-  deshacer: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
-  cara: '<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.2 4.2 0 0 0 7 0"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/>',
-  borde: '<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><rect x="8" y="8" width="8" height="8" rx="2" fill="currentColor"/>',
-  frente: '<rect x="3" y="3" width="11" height="11" rx="2"/><rect x="10" y="10" width="11" height="11" rx="2" fill="currentColor"/>',
-  tacho: '<path d="M4 7h16M9.5 7V4.5h5V7M6 7l1 13h10l1-13M10 11v5.5M14 11v5.5"/>',
-  puntos: '<circle cx="12" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="19" r="1.6" fill="currentColor"/>',
-  whats: '<path d="M12 3a9 9 0 0 0-7.7 13.6L3 21l4.5-1.2A9 9 0 1 0 12 3z"/><path d="M12 8.5v7M8.5 12h7"/>',
-  compartir: '<circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1"/>',
-  lapiz: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
-  casa: '<path d="M4 11.5L12 4.5l8 7"/><path d="M6 10v9.5h4.5v-5h3v5H18V10"/>',
-  persona: '<circle cx="12" cy="8.5" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
-  corazon: '<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z"/>',
-  bajar: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>',
-  nube: '<path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.5 9.6 4.5 4.5 0 0 0 7 18.5z"/><path d="M12 16v-5.5M9.5 13l2.5-2.5 2.5 2.5"/>',
-  bandera: '<path d="M5 21V4M5 4.5h11l-2 4 2 4H5"/>',
-  bloquear: '<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
-  candado: '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
-  ok: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
-  lupa: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
-  estrella: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"/>',
-  carpeta: '<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="2"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="2"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="2"/><rect x="13" y="13" width="7.5" height="7.5" rx="2"/>',
-  anim: '<path d="M13 5.5a6.5 6.5 0 1 1 0 13"/><circle cx="13" cy="12" r="3.2" fill="currentColor"/><path d="M2.5 8.5h5M1.5 12h6M2.5 15.5h5"/>',
-  copias: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/><path d="M14 11v6M11 14h6"/>',
+  magia: RI('M15 4.5l1.1 2.4 2.4 1.1-2.4 1.1L15 11.5l-1.1-2.4-2.4-1.1 2.4-1.1z') + '<path d="M4.5 19.5L13 11"/><path d="M15 4.5l1.1 2.4 2.4 1.1-2.4 1.1L15 11.5l-1.1-2.4-2.4-1.1 2.4-1.1z"/><path d="M19 14.5v3M17.5 16h3M7.5 4v2.4M6.3 5.2h2.4"/>',
+  dedo: RI('M12 5a7 7 0 1 1 0 14 7 7 0 0 1 0-14z') + '<circle cx="12" cy="12" r="2.4" fill="currentColor"/><circle cx="12" cy="12" r="6.6"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2"/>',
+  goma: RI('M5.2 15.3l9.3-9.3a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 19.5H8.6z') + '<path d="M8.5 19.5h11"/><path d="M5.2 15.3l9.3-9.3a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 19.5H8.6z"/><path d="M9.6 11l3.9 3.9"/>',
+  pincel: RI('M4.5 19.5l1.2-4.4L16 4.8l3.2 3.2L8.9 18.3z') + '<path d="M4.5 19.5l1.2-4.4L16 4.8l3.2 3.2L8.9 18.3z"/><path d="M13.9 6.9l3.2 3.2"/>',
+  foto: RI('M3.5 7.5a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3z') + '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M4 16.5l4.6-4.6 3.6 3.6 2.6-2.6 4.7 4.7"/>',
+  deshacer: '<path d="M9 14.5L4.5 10 9 5.5"/><path d="M4.5 10h10a5 5 0 0 1 0 10H11"/>',
+  cara: RI('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z') + '<circle cx="12" cy="12" r="8.5"/><path d="M8.3 14.2c.9 1.5 2.2 2.3 3.7 2.3s2.8-.8 3.7-2.3"/><circle cx="9" cy="10" r="1.1" fill="currentColor"/><circle cx="15" cy="10" r="1.1" fill="currentColor"/>',
+  borde: RI('M4 9a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z') + '<rect x="4" y="4" width="16" height="16" rx="5" stroke-dasharray="3 2.6"/><path d="M9.5 12.5l1.8 1.8 3.3-3.6"/>',
+  frente: RI('M10 12a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z') + '<rect x="3" y="3" width="11" height="11" rx="2.5"/><rect x="10" y="10" width="11" height="11" rx="2.5"/>',
+  tacho: RI('M6.6 7.5h10.8l-.9 11.1a2 2 0 0 1-2 1.9H9.5a2 2 0 0 1-2-1.9z') + '<path d="M4.5 7.5h15M9.6 7.5V5.4c0-.5.4-.9.9-.9h3c.5 0 .9.4.9.9v2.1"/><path d="M6.6 7.5l.9 11.1a2 2 0 0 0 2 1.9h5a2 2 0 0 0 2-1.9l.9-11.1"/><path d="M10.4 11.2v5.3M13.6 11.2v5.3"/>',
+  puntos: '<circle cx="12" cy="5.5" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="18.5" r="1.8" fill="currentColor"/>',
+  whats: RI('M12 4a8 8 0 0 1 0 16c-1.4 0-2.7-.3-3.8-.9L4 20l1-4A8 8 0 0 1 12 4z') + '<path d="M12 4a8 8 0 0 1 0 16c-1.4 0-2.7-.3-3.8-.9L4 20l1-4A8 8 0 0 1 12 4z"/><path d="M12 8.6v6.8M8.6 12h6.8"/>',
+  compartir: RI('M5.5 12.5h13v5a2.5 2.5 0 0 1-2.5 2.5H8a2.5 2.5 0 0 1-2.5-2.5z') + '<path d="M12 14.5V4.5M8.3 8.2L12 4.5l3.7 3.7"/><path d="M5.5 12.5v5A2.5 2.5 0 0 0 8 20h8a2.5 2.5 0 0 0 2.5-2.5v-5"/>',
+  lapiz: RI('M15 5l4 4-9.6 9.6-4.9.9.9-4.9z') + '<path d="M15 5l4 4-9.6 9.6-4.9.9.9-4.9z"/><path d="M12.8 7.2l4 4"/>',
+  casa: RI('M6.5 10.5L12 6l5.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19z') + '<path d="M4 11.4L12 5l8 6.4"/><path d="M6.5 10v8.8A1.7 1.7 0 0 0 8.2 20.5h7.6a1.7 1.7 0 0 0 1.7-1.7V10"/><path d="M12 17.9s-2.4-1.5-2.4-3.1a1.2 1.2 0 0 1 2.4-.5 1.2 1.2 0 0 1 2.4.5c0 1.6-2.4 3.1-2.4 3.1z" fill="currentColor" stroke-width="1"/>',
+  persona: RI('M12 4.6a3.7 3.7 0 1 1 0 7.4 3.7 3.7 0 0 1 0-7.4zM5 19.8c.9-3.6 3.6-5.6 7-5.6s6.1 2 7 5.6z') + '<circle cx="12" cy="8.3" r="3.7"/><path d="M5 19.8c.9-3.6 3.6-5.6 7-5.6s6.1 2 7 5.6"/>',
+  corazon: RI('M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z') + '<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z"/>',
+  bajar: RI('M5.5 14.5h13v3a2.5 2.5 0 0 1-2.5 2.5H8a2.5 2.5 0 0 1-2.5-2.5z') + '<path d="M12 4.5v10M8.3 10.8l3.7 3.7 3.7-3.7"/><path d="M5.5 14.5v3A2.5 2.5 0 0 0 8 20h8a2.5 2.5 0 0 0 2.5-2.5v-3"/>',
+  nube: RI('M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.5 9.6 4.5 4.5 0 0 0 7 18.5z') + '<path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.5 9.6 4.5 4.5 0 0 0 7 18.5z"/><path d="M12 16v-5.5M9.6 12.9l2.4-2.4 2.4 2.4"/>',
+  bandera: RI('M5.5 4.5h11l-2 4 2 4h-11z') + '<path d="M5.5 21V4M5.5 4.5h11l-2 4 2 4h-11"/>',
+  bloquear: RI('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z') + '<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
+  candado: RI('M5 12.5a2.5 2.5 0 0 1 2.5-2.5h9a2.5 2.5 0 0 1 2.5 2.5V18a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 18z') + '<rect x="5" y="10" width="14" height="10.5" rx="2.5"/><path d="M8 10V8a4 4 0 0 1 8 0v2"/><circle cx="12" cy="15.2" r="1.3" fill="currentColor"/>',
+  ok: '<path d="M5.5 12.5l4.2 4.2L18.5 7.5"/>',
+  lupa: RI('M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13z') + '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.4 15.4l4.6 4.6"/><path d="M8 8.6a3 3 0 0 1 2.5-1.4" stroke-width="1.6"/>',
+  estrella: RI('M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z') + '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"/>',
+  carpeta: RI('M4.5 9.5a2.5 2.5 0 0 1 2.5-2.5h8a2.5 2.5 0 0 1 2.5 2.5v6.2l-4 4H7a2.5 2.5 0 0 1-2.5-2.5z') + '<path d="M8 4.5h8.5A3 3 0 0 1 19.5 7.5V15"/><path d="M4.5 9.5A2.5 2.5 0 0 1 7 7h8a2.5 2.5 0 0 1 2.5 2.5v6.2l-4 4H7a2.5 2.5 0 0 1-2.5-2.5z"/><path d="M17.5 15.7h-2.3a1.7 1.7 0 0 0-1.7 1.7v2.3"/>',
+  anim: RI('M13 5.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13z') + '<path d="M13 5.5a6.5 6.5 0 1 1 0 13"/><circle cx="13" cy="12" r="3" fill="currentColor"/><path d="M2.5 8.5h5M1.5 12h6M2.5 15.5h5"/>',
+  copias: RI('M8 10.5A2.5 2.5 0 0 1 10.5 8h7A2.5 2.5 0 0 1 20 10.5v7a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 8 17.5z') + '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/><path d="M14 11v6M11 14h6"/>',
+  mundo: RI('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z') + '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/>',
 };
 function iconos(raiz = document) {
   for (const i of raiz.querySelectorAll('i[data-i]:not([data-hecho])')) {
-    i.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONOS[i.dataset.i] || ''}</svg>`;
+    i.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONOS[i.dataset.i] || ''}</svg>`;
     i.dataset.hecho = '1';
   }
 }
@@ -83,7 +87,8 @@ function aviso(texto, ms = 2800) {
   a.style.bottom = Math.round(window.innerHeight - arriba + 12) + 'px'; a.textContent = texto; a.classList.remove('oc'); clearTimeout(tAviso); tAviso = setTimeout(() => a.classList.add('oc'), ms); }
 function modal(html, opc = {}) {
   const m = $('#modal'); m.innerHTML = html; m.className = 'modal' + (opc.claro ? ' claro' : ''); iconos(m); $('#aviso').classList.add('oc');
-  m.onclick = (ev) => { if (ev.target === m) cerrarModal(); };
+  // (el «click» de soltar el dedo que la abrió no la cierra: la hoja todavía está subiendo)
+  const abierta = performance.now(); m.onclick = (ev) => { if (ev.target === m && performance.now() - abierta > 450) cerrarModal(); };
   E.alCerrar = opc.alCerrar || null;
   if (opc.claro) { const cont = $('#' + E.vista + ' .lienzoCont'), hj = $('.hoja', m); if (cont) { const libre = window.innerHeight - cont.getBoundingClientRect().bottom; cont.style.marginBottom = Math.max(0, hj.offsetHeight - libre + 10) + 'px'; } }
   return m;
@@ -747,7 +752,7 @@ $('#tabs').onclick = (ev) => { const b = ev.target.closest('button'); if (!b) re
 function pintarInicio() { pestaña(E.tab); pintarTopInicio(); }
 
 // ---- arriba del feed: buscar, «¿de dónde sos?», historias (packs en círculos) y banners que pasan solos ----
-const PAISES = [['ar', '🇦🇷', 'Argentina'], ['mx', '🇲🇽', 'México'], ['cl', '🇨🇱', 'Chile'], ['co', '🇨🇴', 'Colombia'], ['pe', '🇵🇪', 'Perú'], ['uy', '🇺🇾', 'Uruguay'], ['ve', '🇻🇪', 'Venezuela'], ['py', '🇵🇾', 'Paraguay']];
+const PAISES = LISTA_PAISES.map((p) => [p.k, p.f, p.n]);
 const miPais = () => { try { return localStorage.getItem('sz_pais') || ''; } catch (e) { return ''; } };
 // (los packs de tu país primero; después los memes y los de Argentina)
 function ordenarPorPais() {
@@ -782,7 +787,7 @@ function pintarTopInicio() {
   }
   const pc = $('#paisCard');
   if (!miPais()) {
-    pc.innerHTML = `<b>¿De dónde sos?</b><small>Así te muestro primero los memes de tu país</small><div class="banderas">${PAISES.map(([k, f, n]) => `<button data-p="${k}" aria-label="${n}"><span>${f}</span><small>${n}</small></button>`).join('')}</div>`;
+    pc.innerHTML = `<i data-i="mundo"></i><span><b>¿De dónde sos?</b><small>Elegí tu país y te muestro primero sus memes</small></span><i data-i="sig"></i>`; iconos(pc);
     pc.classList.remove('oc');
   }
 }
@@ -792,21 +797,14 @@ function paisActual() { return PAISES.find((x) => x[0] === miPais()) || null; }
 function ponerPais(k) {
   try { localStorage.setItem('sz_pais', k); } catch (e) { /* sin guardar: igual se ordena ahora */ }
   ordenarPorPais(); $('#historias').innerHTML = ''; $('#carrusel').innerHTML = ''; $('#paisCard').classList.add('oc');
-  const n = PAISES.find((x) => x[0] === k); aviso(`¡Listo! Primero los de ${n ? n[2] : 'tu país'} ${n ? n[1] : ''}`);
+  const n = PAISES.find((x) => x[0] === k), hay = LISTOS.some((x) => x.pais === k);
+  aviso(k === 'otro' ? '¡Listo! Bienvenido/a 🌎' : hay ? `¡Listo! Primero los de ${n[2]} ${n[1]}` : `¡Bienvenido/a desde ${n ? n[2] + ' ' + n[1] : 'tu país'}!`);
 }
-// (cambiar el país desde el perfil)
+// (elegir o cambiar el país: el mapa a pantalla completa)
 function elegirPais(despues) {
-  const m = modal(`<div class="hoja"><h3>¿De dónde sos?</h3><p>Te muestro primero los memes de tu país.</p><div class="paisCard sinFondo"><div class="banderas">${PAISES.map(([k, f, n]) => `<button data-p="${k}" class="${k === miPais() ? 'act' : ''}"><span>${f}</span><small>${n}</small></button>`).join('')}</div></div>
-    <div class="botones"><button class="sec" data-x="0">Cerrar</button></div></div>`);
-  m.onclick = (ev) => { const b = ev.target.closest('[data-p]'); if (b) { vibrar(12); cerrarModal(); ponerPais(b.dataset.p); if (despues) despues(); return; } if (ev.target.closest('[data-x]')) cerrarModal(); };
+  elegirPaisMapa({ inicial: miPais() || 'ar', vibrar, cerrar: () => {}, listo: (k) => { confeti(); ponerPais(k); if (despues) despues(); } });
 }
-$('#paisCard').onclick = (ev) => {
-  const b = ev.target.closest('[data-p]'); if (!b) return;
-  try { localStorage.setItem('sz_pais', b.dataset.p); } catch (e) { /* sin guardar: igual se ordena ahora */ }
-  vibrar(15); confeti(); ordenarPorPais(); const n = PAISES.find((x) => x[0] === b.dataset.p);
-  $('#paisCard').classList.add('chau'); setTimeout(() => { $('#paisCard').classList.add('oc'); $('#historias').innerHTML = ''; $('#carrusel').innerHTML = ''; pintarTopInicio(); }, 380);
-  aviso(`¡Listo! Primero los de ${n ? n[2] : 'tu país'} ${n ? n[1] : ''}`);
-};
+$('#paisCard').onclick = () => { vibrar(8); elegirPais(() => pintarTopInicio()); };
 
 // ---- packs listos: las vistas previas se arman de a una (sin trabar la pantalla) y quedan guardadas ----
 const previas = new Map();
@@ -1083,24 +1081,56 @@ function mostrarBienvenida() {
   b.innerHTML = `<button class="bvSaltar" id="bvSaltar">Saltear</button><div class="bvTira" id="bvTira">
     <section class="bvPag"><div class="bvCollage">${fotos.map((f, i) => `<img src="${f}" alt="" style="--i:${i}">`).join('')}</div>
       <h2>Stickers con <em>onda</em>, al toque</h2><p>Con una foto, un texto o un meme. Para tu WhatsApp, gratis y sin marca de agua.</p></section>
-    <section class="bvPag"><div class="bvBanner" style="--fondo:url('banners/xd.webp')"><span class="bvXD">xD</span></div>
+    <section class="bvPag"><div class="bvBanner" style="--fondo:url('banners/xd.webp')"></div><span class="bvXD">xD</span>
       <h2>Arruiná tus fotos <em>a propósito</em></h2><p>Ojo de pez, quemada, calidad trucha… como los memes que circulan por el grupo.</p></section>
-    <section class="bvPag"><div class="bvBanner chico" style="--fondo:url('banners/latam.webp')"></div><h2>¿De dónde <em>sos</em>?</h2><p>Así te muestro primero los memes de tu país.</p>
-      <div class="paisCard sinFondo"><div class="banderas">${PAISES.map(([k, f, n]) => `<button data-p="${k}"><span>${f}</span><small>${n}</small></button>`).join('')}</div></div></section></div>
+</div>
     <div class="bvPie"><div class="bvPuntos">${[0, 1, 2].map((i) => `<i class="${i ? '' : 'act'}"></i>`).join('')}</div><button class="grande" id="bvSig">Dale</button></div>`;
   document.body.appendChild(b);
   let pag = 0; const tira = b.querySelector('#bvTira'), sig = b.querySelector('#bvSig');
-  const irA = (k, quieto = false) => { pag = k; tira.style.transform = `translateX(${-100 * k}%)`; [...b.querySelectorAll('.bvPuntos i')].forEach((p, i) => p.classList.toggle('act', i === k)); [...tira.children].forEach((p, i) => p.classList.toggle('activa', i === k)); sig.classList.toggle('oc', k === 2); if (!quieto) vibrar(6); };
+  const irA = (k, quieto = false) => { pag = k; tira.style.transform = `translateX(${-100 * k}%)`; [...b.querySelectorAll('.bvPuntos i')].forEach((p, i) => p.classList.toggle('act', i === k)); [...tira.children].forEach((p, i) => p.classList.toggle('activa', i === k)); if (!quieto) vibrar(6); };
   const cerrar = () => { try { localStorage.setItem('sz_bienvenida', '1'); } catch (e) { /* igual se cierra */ } liquido(() => { b.remove(); pintarTopInicio(); }, { x: innerWidth / 2, y: innerHeight - 60 }); };
-  sig.onclick = () => irA(Math.min(2, pag + 1));
+  // (después de las dos pantallas, el mapa: «¿De dónde sos?»)
+  const alMapa = () => { b.querySelectorAll('.bvPuntos i').forEach((p, i) => p.classList.toggle('act', i === 2)); elegirPaisMapa({ inicial: miPais() || 'ar', vibrar, listo: (k) => { confeti(); ponerPais(k); setTimeout(cerrar, 250); } }); };
+  sig.onclick = () => (pag < 1 ? irA(pag + 1) : alMapa());
   b.querySelector('#bvSaltar').onclick = cerrar;
-  b.querySelector('.banderas').onclick = (ev) => { const k = ev.target.closest('[data-p]'); if (!k) return; confeti(); ponerPais(k.dataset.p); setTimeout(cerrar, 350); };
   // (deslizar con el dedo también cambia de pantalla)
   let x0 = null; tira.addEventListener('touchstart', (ev) => { x0 = ev.touches[0].clientX; }, { passive: true });
-  tira.addEventListener('touchend', (ev) => { if (x0 == null) return; const d = ev.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(d) > 50) irA(Math.max(0, Math.min(2, pag + (d < 0 ? 1 : -1)))); });
+  tira.addEventListener('touchend', (ev) => { if (x0 == null) return; const d = ev.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(d) > 50) { if (d < 0 && pag === 1) alMapa(); else irA(Math.max(0, Math.min(1, pag + (d < 0 ? 1 : -1)))); } });
   irA(0, true);
 }
 if (!bienvenidaVista()) mostrarBienvenida();
+
+// ---- «pop»: lo que aparece en las listas entra rebotando, de a uno (hasta 14 por tanda) ----
+const LISTAS_POP = '.feedLista, .listos, .packs, .grilla, #pGrilla, .hojaGrilla, .carrusel, .historias, .lista, .stats, .emojis, .gridXD, .chips, .tira, #puCont .puGrilla';
+const obsPop = new MutationObserver((cambios) => {
+  const tandas = new Map();
+  for (const c of cambios) for (const n of c.addedNodes) {
+    if (n.nodeType !== 1 || !n.parentElement || !n.parentElement.matches(LISTAS_POP) || n.classList.contains('esq')) continue;
+    const k = tandas.get(n.parentElement) || 0; tandas.set(n.parentElement, k + 1);
+    if (k < 14) { n.style.setProperty('--n', k); n.classList.add('pop'); n.addEventListener('animationend', () => n.classList.remove('pop'), { once: true }); }
+  }
+});
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) obsPop.observe(document.body, { childList: true, subtree: true });
+
+// ---- vidrio líquido: el brillo sigue al dedo ----
+const VIDRIO = '.tabs, .sec, .buscarFalso, .pBoton, .seg, .paisCard, .chip';
+document.addEventListener('pointerdown', (ev) => {
+  const v = ev.target.closest(VIDRIO); if (!v) return;
+  const r = v.getBoundingClientRect(); v.classList.add('vl', 'brilla'); v.style.setProperty('--mx', ev.clientX - r.left + 'px'); v.style.setProperty('--my', ev.clientY - r.top + 'px');
+  const fin = () => { v.classList.remove('brilla'); removeEventListener('pointerup', fin); removeEventListener('pointercancel', fin); };
+  addEventListener('pointerup', fin); addEventListener('pointercancel', fin);
+}, true);
+document.addEventListener('pointermove', (ev) => { const v = ev.target.closest && ev.target.closest('.vl.brilla'); if (!v) return; const r = v.getBoundingClientRect(); v.style.setProperty('--mx', ev.clientX - r.left + 'px'); v.style.setProperty('--my', ev.clientY - r.top + 'px'); }, { passive: true });
+
+// ---- la burbuja de la pestaña elegida se desliza (y se estira un toque) ----
+const indicador = document.createElement('i'); indicador.className = 'indicador'; $('#tabs').prepend(indicador);
+function moverIndicador() {
+  const b = $('#tabs button.act:not(.centro)'); if (!b) { indicador.style.opacity = 0; return; }
+  const r = b.getBoundingClientRect(), rt = $('#tabs').getBoundingClientRect(), w = Math.min(70, r.width - 4);
+  indicador.style.opacity = 1; indicador.style.width = w + 'px'; indicador.style.left = r.left - rt.left + (r.width - w) / 2 + 'px';
+}
+new MutationObserver(moverIndicador).observe($('#tabs'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+addEventListener('resize', moverIndicador); setTimeout(moverIndicador, 50);
 if (P.esApp && window.SZN.enlaceInicial) { const e = window.SZN.enlaceInicial(); if (e) window.__szAbrir(e); }
 setTimeout(() => recorte().catch(() => {}), 1200); // (los modelos, de fondo, para que el primer recorte salga enseguida)
 window.__sz = { LIQ, liquido, E, ir, atras, abrirFoto, recorte, aviso, pestaña, C };

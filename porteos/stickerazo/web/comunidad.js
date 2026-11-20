@@ -1,7 +1,7 @@
 // La comunidad: el feed (Para vos, Recién salidos, Seguidos), los packs publicados, los perfiles, publicar tus packs y
 // bajar los de otros. Habla con el servidor (servidor/worker.js). Sin conexión, la app sigue andando igual.
 import * as P from './puente.js';
-export const API = (typeof window !== 'undefined' && window.SZ_API) || 'https://stickerazo.holasoyjuniors365.workers.dev';
+export const API = (typeof window !== 'undefined' && window.SZ_API) || 'https://rezobox-tienda.holasoyjuniors365.workers.dev/sz';
 let X = null; // lo que presta app.js (pantallas, hojas, avisos…)
 const MOTIVOS = [['ofensivo', 'Es ofensivo o discrimina'], ['sexual', 'Contenido sexual'], ['violencia', 'Violencia'], ['spam', 'Spam o engaño'], ['otro', 'Otra cosa']];
 const ETIQUETAS = ['jaja', 'mate', 'futbol', 'asado', 'amor', 'laburo', 'memes', 'familia', 'amigos', 'animados', 'argentina', 'perros', 'gatos', 'facultad'];

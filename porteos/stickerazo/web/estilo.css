@@ -536,3 +536,101 @@ h2 small { color: var(--suave); }
 .ajustes .emo { font-style: normal; display: grid; place-items: center; }
 .bvCollage { margin-bottom: 30px; }
 .bvCollage img:nth-child(6) { --y: 92px; } .bvCollage img:nth-child(7) { --y: 98px; }
+
+/* ---- «¿De dónde sos?»: el mapa a pantalla completa ---- */
+.mapaPais { position: fixed; inset: 0; z-index: 8600; background: radial-gradient(120% 70% at 50% 40%, #1a1030 0%, #07060b 70%); overflow: hidden; opacity: 0; transition: opacity .35s; }
+.mapaPais.entra { opacity: 1; } .mapaPais.chau { opacity: 0; transform: scale(1.04); transition: opacity .4s, transform .4s; }
+.mapaPais canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mpArriba { position: absolute; left: 0; right: 0; top: 0; padding: calc(var(--arriba, 0px) + 34px) 22px 60px; text-align: center; background: linear-gradient(#07060bf2 30%, #07060b00); }
+.mpArriba h2 { margin: 0; font: 400 34px/1 'LuckiestGuy', sans-serif; color: #fff; text-shadow: 0 6px 24px #ff3e8a88; animation: popEntra .6s .1s both; }
+.mpArriba h2::before { display: none; }
+.mpArriba p { margin: 8px 0 0; color: #d8d2ea; font-size: 15px; animation: popEntra .6s .2s both; }
+.mpCerrar { position: absolute; top: calc(var(--arriba, 0px) + 12px); right: 12px; width: 40px; height: 40px; border-radius: 50%; color: #fff; font-size: 18px; }
+.mpAbajo { position: absolute; left: 0; right: 0; bottom: 0; padding: 70px 0 calc(var(--abajo, 0px) + 18px); background: linear-gradient(#07060b00, #07060be8 45%); display: flex; flex-direction: column; gap: 14px; }
+.mpTira { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 8px calc(50% - 44px) 4px; }
+.mpTira::-webkit-scrollbar { display: none; }
+.mpTira button { flex: none; width: 88px; scroll-snap-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px 9px; border-radius: 22px; color: #d8d2ea;
+  transition: transform .45s cubic-bezier(.34, 1.56, .64, 1), background .3s, color .3s; transform: scale(.86); }
+.mpTira button span { font-size: 34px; line-height: 1; } .mpTira button small { font: 700 11.5px/1.15 system-ui, sans-serif; text-align: center; }
+.mpTira button.act { transform: scale(1.08); color: #fff; }
+.mpListo { margin: 0 20px; width: auto; }
+.mapaPais .vidrio, .mpTira button.act { background: rgba(255, 255, 255, .1); backdrop-filter: blur(14px) saturate(1.6); -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .35); }
+
+/* ================= más natural: pop, vidrio líquido, íconos propios, banners abiertos ================= */
+/* los íconos: la mancha de color corrida (la pestaña elegida la prende) */
+i[data-i] .r { fill: currentColor; stroke: none; opacity: .18; transform: translate(1.3px, 1.4px); transition: opacity .3s, fill .3s; }
+.tabs button.act i[data-i] .r { opacity: .95; fill: #ff3e8a; }
+.tabs button.act { color: #fff; }
+.tabs button.act::after { display: none; }
+.tabs button.act i { animation: popIco .5s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes popIco { 0% { transform: scale(.7) rotate(-8deg); } 60% { transform: scale(1.18) rotate(4deg); } 100% { transform: scale(1.06); } }
+
+/* «pop»: todo lo que se toca rebota; lo que aparece entra rebotando, de a uno */
+button, .tf, .listo, .packItem, .hist, .tarjeta, .opc, .chip { transition: transform .5s cubic-bezier(.34, 1.56, .64, 1); }
+button:active, .opc:active, .chip:active { transform: scale(.92); transition-duration: .09s; }
+.pop { animation: popEntra .55s calc(var(--n, 0) * 45ms) both cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes popEntra { 0% { opacity: 0; transform: scale(.7) translateY(14px); } 70% { opacity: 1; transform: scale(1.03); } 100% { opacity: 1; transform: none; } }
+.aviso { animation: avisoPop .5s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes avisoPop { 0% { opacity: 0; transform: translate(-50%, 24px) scale(.7); } 100% { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+.hoja { animation: hojaSube .5s cubic-bezier(.3, 1.35, .5, 1); }
+@keyframes hojaSube { from { transform: translateY(70%); } to { transform: none; } }
+
+/* vidrio líquido: la barra de abajo, los botones secundarios, el buscador, los chips y la franja del país */
+.tabs, .sec, .buscarFalso, .pBoton, .seg, .paisCard, .chip, .bvSaltar, .mpCerrar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .11), rgba(255, 255, 255, .04)) !important;
+  backdrop-filter: blur(20px) saturate(1.8); -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, .14) !important; border-image: none !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 -1px 0 rgba(0, 0, 0, .25), 0 8px 24px -10px rgba(0, 0, 0, .6); }
+.sec, .buscarFalso, .pBoton, .chip, .paisCard, .tabs { position: relative; }
+.seg { backdrop-filter: blur(24px) saturate(1.8); }
+.chip.act { border-color: rgba(255, 210, 63, .7) !important; color: #ffd23f; }
+/* el brillo que sigue al dedo */
+.vl::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .3s;
+  background: radial-gradient(120px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, .22), transparent 60%); }
+.vl:active::before, .vl.brilla::before { opacity: 1; }
+.tabs { border-radius: 26px 26px 0 0; border-bottom: 0 !important; }
+.tabs .indicador { position: absolute; top: 5px; height: 50px; width: 64px; border-radius: 18px; pointer-events: none; z-index: 0;
+  background: radial-gradient(60% 80% at 50% 0%, rgba(255, 62, 138, .35), transparent 70%), rgba(255, 255, 255, .08); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);
+  transition: left .55s cubic-bezier(.34, 1.4, .64, 1), width .55s cubic-bezier(.34, 1.4, .64, 1); }
+.tabs button { z-index: 1; }
+
+/* los banners del inicio: abiertos, de borde a borde, que se funden con el fondo */
+.banners { margin: 2px -16px 10px; }
+.bTira { border-radius: 0; }
+.banner { aspect-ratio: 1.75; border-radius: 0; background: transparent; }
+.banner::before { -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 72%, transparent 100%), linear-gradient(90deg, transparent, #000 30%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 18%, #000 72%, transparent 100%); }
+.banner::after { background: linear-gradient(90deg, #000e 0%, #0009 36%, #0000 62%); -webkit-mask-image: linear-gradient(180deg, transparent, #000 20%, #000 75%, transparent); mask-image: linear-gradient(180deg, transparent, #000 20%, #000 75%, transparent); }
+.bTxt { left: 20px; width: 60%; }
+.bTxt b { font-size: 25px; }
+.bPuntos { right: 20px; bottom: 22px; }
+
+/* la bienvenida: el banner del modo xD abierto, de borde a borde */
+.bvPag { position: relative; }
+.bvBanner { width: calc(100% + 48px); max-width: none; margin: -30px -24px 0; aspect-ratio: 1; border-radius: 0; box-shadow: none; animation: bvRespira 6s ease-in-out infinite;
+  -webkit-mask-image: radial-gradient(75% 70% at 50% 45%, #000 45%, transparent 100%); mask-image: radial-gradient(75% 70% at 50% 45%, #000 45%, transparent 100%); }
+@keyframes bvRespira { 50% { transform: scale(1.06) rotate(-1deg); } }
+.bvXD { position: relative; display: block; margin-top: -86px; left: auto; bottom: auto; font-size: 76px; z-index: 2; animation: popEntra .7s .4s both cubic-bezier(.34, 1.56, .64, 1); }
+
+/* la franja «¿De dónde sos?» del inicio */
+.paisCard { flex-direction: row; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 20px; text-align: left; }
+.paisCard > i:first-child { width: 34px; height: 34px; color: #ffd23f; flex: none; animation: girarMundo 8s linear infinite; }
+@keyframes girarMundo { to { transform: rotate(360deg); } }
+.paisCard > span { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.paisCard > span b { font: 400 18px/1.05 'LuckiestGuy', sans-serif; } .paisCard > span small { color: var(--suave); font-size: 12.5px; }
+
+/* el perfil: la portada se funde con el fondo (sin bordes) */
+.portadaP { border-radius: 0; -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); height: 160px; }
+.perfilFila { margin-top: -62px; }
+
+/* decoración: grano de papel y garabatos en los títulos (no tan liso) */
+body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9500; opacity: .035; will-change: transform;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.contenido > h2::after { content: ''; display: inline-block; width: 26px; height: 18px; margin-left: 8px; vertical-align: middle; opacity: .9;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 18' fill='none' stroke='%23ffd23f' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M4 9l3-6M10 12l6-9M20 14l3-4'/%3E%3C/svg%3E") no-repeat center / contain;
+  animation: garabato 2.4s ease-in-out infinite; }
+@keyframes garabato { 50% { transform: rotate(-12deg) scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .pop, .tabs button.act i, .bvBanner, .paisCard > i:first-child, .contenido > h2::after { animation: none !important; } }
+
+.barra button { white-space: nowrap; font-size: 11.5px; min-width: 0; }

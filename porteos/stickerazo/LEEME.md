@@ -45,6 +45,12 @@ casi todo pago, mucha publicidad, cobros de suscripciones). Lo nuestro:
 
 ### El servidor (`servidor/`, Cloudflare Worker + D1)
 
+**Dónde corre ahora:** adentro del Worker de JXMod (`porteos/jxmod/tienda`), en
+`https://rezobox-tienda.holasoyjuniors365.workers.dev/sz`, y se publica solo con cada push (Workers Builds), como JXMod.
+Usa sus propias tablas con `sz_` adelante en la misma base, así no toca las de JXMod. El mismo `servidor/worker.js`
+también anda como Worker propio (su `wrangler.toml`), por si un día se quiere separar: se cambia la dirección en
+`web/comunidad.js` (API) y en `Almacen.POLITICA`.
+
 `worker.js` hace todo: cuentas, packs (revisa cada WebP y el ícono como WhatsApp), feed, me gusta, seguir, buscar,
 tendencias, denuncias, moderación y las páginas `/privacidad`, `/terminos`, `/borrar-cuenta`, `/admin` y `/p/ID`.
 Los archivos van en la misma base (o en R2 si se agrega el balde `MEDIA`).

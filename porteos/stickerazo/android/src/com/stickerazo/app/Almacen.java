@@ -25,7 +25,7 @@ public final class Almacen {
     /** un sticker pesa 100 KB como mucho (animado: 500 KB), el ícono 50 KB y las imágenes del proyecto 480 KB; con margen */
     public static final int MAX_ARCHIVO = 512 * 1024, MAX_LISTA = 4 * 1024 * 1024;
     /** lo que WhatsApp muestra del pack: dónde bajar la app y la política de privacidad (cuando esté publicada) */
-    public static final String TIENDA = "https://play.google.com/store/apps/details?id=com.stickerazo.app", POLITICA = "https://stickerazo.holasoyjuniors365.workers.dev/privacidad";
+    public static final String TIENDA = "https://play.google.com/store/apps/details?id=com.stickerazo.app", POLITICA = "https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/privacidad";
     private static final Object CERROJO = new Object();
     private final File carpeta, lista;
 

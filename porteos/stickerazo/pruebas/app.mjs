@@ -61,9 +61,10 @@ await E(() => new Promise((r) => { const q = indexedDB.deleteDatabase('stickeraz
 await p.reload(); await p.waitForFunction(() => window.__sz);
 // la bienvenida (la primera vez): tres pantallas, elegir el país y entra
 await p.waitForSelector('#bienvenidaApp'); await espera(900); await foto('bienvenida');
-await p.click('#bvSig'); await espera(700); await foto('bienvenida_xd'); await p.click('#bvSig'); await espera(700); await foto('bienvenida_pais');
-await p.click('#bienvenidaApp [data-p="ar"]'); await p.waitForFunction(() => !document.querySelector('#bienvenidaApp'), null, { timeout: 8000 });
-ok(await E(() => localStorage.sz_pais === 'ar' && localStorage.sz_bienvenida === '1' && document.querySelector('#paisCard').classList.contains('oc')), 'bienvenida: tres pantallas animadas, elige Argentina y entra (no vuelve a preguntar el país)');
+await p.click('#bvSig'); await espera(700); await foto('bienvenida_xd'); await p.click('#bvSig'); await p.waitForSelector('.mapaPais.entra'); await espera(1500); await foto('bienvenida_mapa');
+await p.click('.mpTira [data-p="es"]'); await espera(1200); ok(/España/.test(await p.textContent('.mpListo')), 'el mapa: tocar una bandera la elige («Soy de España»)');
+await p.click('.mpTira [data-p="ar"]'); await espera(900); await p.click('.mpListo'); await p.waitForFunction(() => !document.querySelector('#bienvenidaApp') && !document.querySelector('.mapaPais'), null, { timeout: 8000 });
+ok(await E(() => localStorage.sz_pais === 'ar' && localStorage.sz_bienvenida === '1' && document.querySelector('#paisCard').classList.contains('oc')), 'bienvenida: dos pantallas y el mapa a pantalla completa, elige Argentina y entra (no vuelve a preguntar el país)');
 await p.waitForSelector('#feedLista .vacio'); await foto('inicio_vacio');
 ok(await p.isVisible('#tabFeed') && /tranqui/.test(await p.textContent('#feedLista')), 'arranca en el feed de la comunidad (vacío: «Está todo muy tranqui»)');
 await p.click('#tabs [data-t="Crear"]'); await p.waitForSelector('#bCrear', { state: 'visible' });
