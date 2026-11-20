@@ -135,7 +135,7 @@ function depDibujar() {
     + Object.entries(DP_PILAS).map(([p, P]) => `<div class="dpGrupo dpG_${p}" aria-hidden="true"><i></i><span>${esc(T(P.t))}</span></div>`).join('');
   const pc = T(COARSE ? 'dp.ayuda' : 'dp.ayudaPC');
   DEP.ui.innerHTML = `<button class="dpPerfil" data-rb="dpPerfil" aria-haspopup="dialog" aria-expanded="false" ${lbl(T('so.perfil'))}><span class="dpAvatar"><img src="${esc(retrato(PREFS.skin))}" alt="" draggable="false"></span><b class="dpNom" dir="auto"></b><span class="dpG"></span></button>
-    <div class="dpDer"><button class="dpIco dpAmigos" data-rb="dpSoc" ${lbl(T('dp.amigosChats'))}>${glifo('gente')}</button><button class="dpIco dpAj" data-rb="dpAjustes" aria-haspopup="dialog" aria-expanded="false" ${lbl(T('pz.ajustes'))}>${glifo('ajustes')}</button></div>
+    <div class="dpDer"><button class="dpIco dpBugs" data-rb="bugs" ${lbl(T('m.bugs'))}>${glifo('bicho')}</button><button class="dpIco dpAmigos" data-rb="dpSoc" ${lbl(T('dp.amigosChats'))}>${glifo('gente')}</button><button class="dpIco dpAj" data-rb="dpAjustes" aria-haspopup="dialog" aria-expanded="false" ${lbl(T('pz.ajustes'))}>${glifo('ajustes')}</button></div>
     <div class="dpAyuda${DEP.ayuda ? '' : ' oc'}" aria-hidden="true">${glifo('mano')}<span>${esc(pc)}</span></div>
     <div class="dpVer" title="JXMod ${esc(VERSION_RB)} · ${esc(ARMADO_RB)}"><img class="rbLogo dpLogo" alt="" src="${LOGO_RB}" draggable="false"><span dir="ltr">JXMod <b>${esc(VERSION_RB)}</b> ${esc(ARMADO_RB.split(' ')[0])}</span></div>
     <button class="dpMapa" data-rb="nueva"><span class="dpMapaT"><b class="dpMapaN" dir="auto"></b><small class="dpMapaS" dir="auto"></small></span><svg class="gli dpMapaF" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>

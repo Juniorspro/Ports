@@ -166,7 +166,7 @@ function clDibujar() {
   inp.oninput = () => nombrePoner(inp.value);
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); });
   // arriba a la derecha, La grieta (el evento): abre su panel, con qué es (no se apaga: ya no tiene interruptor)
-  CL.arriba.innerHTML = `<button class="clChip clEvt" data-rb="clEvento">${glifo('rayo')}<span class="clEvtN">${esc(T('dp.grieta'))}</span><b class="clEvtE"></b></button>`;
+  CL.arriba.innerHTML = `<button class="clChip clBugs" data-rb="bugs" ${lbl(T('m.bugs'))}>${glifo('bicho')}<span>${esc(T('bg.bugs'))}</span></button><button class="clChip clEvt" data-rb="clEvento">${glifo('rayo')}<span class="clEvtN">${esc(T('dp.grieta'))}</span><b class="clEvtE"></b></button>`;
   // la versión (y el día del armado); a su lado, Actualizar
   CL.verG.innerHTML = `<button class="clChip clAct oc" data-rb="clAct">${glifo('bajar')}<span>${esc(T('pt.actualizar'))}</span></button>
     <div class="clVer" title="JXMod ${esc(VERSION_RB)} · ${esc(ARMADO_RB)}" dir="ltr"><span>JXMod</span> <b>${esc(VERSION_RB)}</b> <i>${esc(ARMADO_RB.split(' ')[0])}</i></div>`;

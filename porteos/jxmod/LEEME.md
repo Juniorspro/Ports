@@ -5070,3 +5070,44 @@ núcleo), `ev300_intro.js` (la cinta), `ev300_mis.js` (las misiones, el final y 
   - Publicado con la 3.9.5: sin evento (`vivo.py apagar`), firma comprobada.
 - Pruebas: `pruebas/pepe_vuelve.mjs` 13/13, `pruebas/vivo.mjs` 11/11 (guiones firmados de verdad en una carpeta local),
   `evento300.mjs` intro 11/11 con `?ev300`, `discord_39x.mjs` 6/6.
+
+## El panel: la app admin, Bugs y sugerencias, y las órdenes en vivo (sin publicar en el juego)
+
+El dueño: «una app admin para ver todo de todo y dejar ideas de eventos y capturas de bugs, y que vos puedas revisar todo
+lo publicado y arreglar; mini llamados a todos los que juegan; eventos sin actualizar donde a todos se los lleva a un mapa
+sin pedirles permiso; una pantalla en el cielo, avisos o cinemáticas que se bajan de fondo» y «Bugs y sugerencias en el
+menú del juego, donde la gente publica con imágenes y videos, y de ahí vos sacás todo».
+
+- **Servidor** (`tienda/panel.js`, enchufado en `worker.js`; tablas `pn_*` en la misma D1, se crean solas): los posts
+  (bugs y sugerencias de la gente; ideas, bugs y notas privadas del dueño), las imágenes y videos (en partes de 1,5 MB
+  dentro de D1, hasta 24 MB cada uno, 120 MB por día por persona), los votos y denuncias (3 lo ocultan), la presencia (cada
+  juego abierto cada 25 s: un id de aparato al azar, el nombre que puso, la versión, app o web, celu o PC, mapa y server),
+  los errores de JS de los juegos (sin repetir, contados) y las órdenes. Lo del dueño y de Claude va por
+  `POST /api/panel/admin` con el pedido firmado (ECDSA P-256, vale 5 minutos).
+- **Quién puede**: Claude, con la llave de los eventos en vivo (`herramientas/vivo.py`, sale del secreto de la firma del
+  APK; nunca se muestra). Cada celular del dueño genera su propia llave en la app (no se puede sacar del celular), pide
+  entrar y Claude lo aprueba firmando su certificado (`panel.py aprobar`); se puede dar de baja (`panel.py baja`). Las
+  órdenes van firmadas por quien las da y el juego comprueba la firma él mismo: ni el servidor puede inventar una.
+- **La app admin** (`web/panel/index.html`, se instala como app desde el navegador del celular; en el repo:
+  `https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/panel/index.html`): Todo (jugando ahora con
+  nombre, mapa, versión y aparato; hoy, semana, nuevos; versiones; lo publicado: versión, actualización por partes, evento
+  en vivo; órdenes puestas con «Quitar»), Bugs (los de la gente con fotos y videos: estado, respuesta, ocultar, borrar),
+  Ideas (lo que le deja a Claude, con fotos y videos), Llamados (aviso arriba, pantalla en el cielo con imagen o video,
+  cinemática que se sube desde el celular y arranca en todos a la vez, llevar a todos a un mapa —juntos al server
+  oficial—, guion) y Errores (de los juegos, con «arreglado»).
+- **Claude** (`herramientas/panel.py`): `estado`, `posts`, `bajar ID` (con las imágenes y videos a una carpeta),
+  `responder ID --texto … --estado …`, `errores`, `admins`, `aprobar`, `baja`, `orden aviso|cielo|cine|ir|guion|quitar`.
+- **El juego** (`juego/panel_juego.js`): el «acá estoy» cada 25 s, los errores, y las órdenes (cada una una vez por aparato,
+  aunque se cierre y se abra el juego mientras dura; los que entran mientras dura también la reciben): el aviso arriba, la
+  pantalla del cielo (a 60 m adelante y 24 m arriba, siempre de frente; el video a 15 cuadros), la cinemática (se baja
+  apenas llega la orden y arranca a la hora en todos; si llegaste tarde, desde donde va; el juego bajito; se puede cerrar
+  a los 8 s), ir a un mapa (cartel «Te llevan a …» y a los 2,5 s se va, sin preguntar; juntos al server oficial si dice) y
+  el guion (como los de los eventos en vivo). **Bugs y sugerencias** en el menú (clásico: «Bugs» arriba a la derecha, al
+  lado de La grieta; depósito: el ícono del bicho): la lista (nuevos o más votados, con estado y respuesta), el detalle
+  (fotos y videos que se reproducen, me gusta, denunciar) y publicar (bug o sugerencia, título, texto y hasta 4 fotos o
+  videos; las fotos se achican a 1600 px; la versión, el mapa y el aparato van solos; con la cuenta de Google si están
+  encendidas).
+- **Pruebas**: `pruebas/panel.mjs` 17/17 con `pruebas/panel_servidor.mjs` (las mismas rutas con SQLite: la app pide
+  entrar y Claude la aprueba, ve quién juega y los errores; bug con foto y video desde el menú; la app responde y el juego
+  lo muestra; Claude lo baja; idea con foto; aviso, cielo, cinemática, quitar e ir; firma falsa y celular dado de baja no
+  pueden). `menu_clasico.mjs` 23/23, `discord_39x.mjs` 6/6, `pepe_vuelve.mjs` 13/13.

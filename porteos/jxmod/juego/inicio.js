@@ -181,7 +181,8 @@ function inicioPanel(p) {
   if (p === 'pubmod') return panelPubMod(P);
   if (p === 'pubmapa') return panelPubMapa(P);
   if (p === 'crear') return panelCrear(P);
-  if (p === 'evento') return panelEvento(P);   // (el barril de la grieta: qué es y su interruptor, deposito.js)
+  if (p === 'evento') return panelEvento(P);
+  if (p === 'bugs' && typeof panelBugs === 'function') return panelBugs(P);   // (Bugs y sugerencias: panel_juego.js)   // (el barril de la grieta: qué es y su interruptor, deposito.js)
 }
 // ---------- crear un mapa: elegir el mapa base (o seguir uno guardado) y entrar al modo creador ----------
 function panelCrear(P) {
@@ -539,6 +540,8 @@ function mapaDelForm() {
 function inicioAccion(k, b) {
   const [a, v] = k.split(/:(.*)/s);
   if (a === 'menuIni') return menuInicioPoner(v);   // (el menú de inicio: el clásico o el depósito)
+  if (a === 'bugs') { if (typeof BUG !== 'undefined') { BUG.listo = false; BUG.ver = null; } return inicioPanel('bugs'); }   // (Bugs y sugerencias: panel_juego.js)
+  if (a === 'bg') { if (typeof bugsAccion === 'function') bugsAccion(v, b); return; }
   if (clAccion(a, v, b)) return; // (lo propio del clásico: La grieta y Actualizar: clasico.js)
   if (depAccion(a, v, b)) return; // (lo propio del depósito: JUGAR, las cajas, las hojas del perfil y de Ajustes y la Lista: deposito.js)
   if (rbMenusAccion(a, v)) return; // (multijugador, crear server y personajes: rbmenus.js)

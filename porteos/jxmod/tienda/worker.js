@@ -17,6 +17,7 @@ import { steampipeAcceso, steampipeDeposito, servidoresCDN, CDN_HOST } from './s
 import { cuentaRutas, cuentaActiva, cuentaUsuario } from './cuenta.js';
 import { socialRutas } from './social.js';
 import { legalRutas } from './legal.js';
+import { panelRutas } from './panel.js';
 import { validarRB as validar, ETIQUETAS_RB as ETIQUETAS, MAPAS_BASE_RB, verityMensajes, verityRespuesta, VERITY_VOCES, VERITY_GEMINI, VERITY_GEMINI_VOCES, verityAGemini, verityStream, verityLeerSSE, verityVozGemini, verityWav, verityCrearMensajes, verityCreacion, VERITY_GEMINI_CREA, VERITY_CLAVES, verityAbierto, verityTextoAbierto } from './formato.js';
 const texto = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 
@@ -380,6 +381,8 @@ export default {
       const rc = await cuentaRutas(req, env, url, r, ip, json); if (rc) return rc;
       // lo social (social.js): perfil con ID, amigos, chats y grupos, invitaciones a partida
       const rs = await socialRutas(req, env, url, r, json, cuentaUsuario); if (rs) return rs;
+      // el panel (panel.js): bugs y sugerencias del menú, quién juega, los errores y las órdenes del dueño (la app admin)
+      const rp = await panelRutas(req, env, url, r, ip, json, cuentaUsuario, cuentaActiva); if (rp) return rp;
       if (req.method === 'GET' && r === '/api/lista') {
         const tipo = ['mapa', 'anim', 'juego'].includes(url.searchParams.get('tipo')) ? url.searchParams.get('tipo') : 'mod', q = texto(url.searchParams.get('q'), 40), etq = url.searchParams.get('etq') || '';
         const orden = { nuevo: 'fecha DESC', desc: 'descargas DESC, fecha DESC', pop: '(likes * 3 + descargas) DESC, fecha DESC' }[url.searchParams.get('orden')] || '(likes * 3 + descargas) DESC, fecha DESC';

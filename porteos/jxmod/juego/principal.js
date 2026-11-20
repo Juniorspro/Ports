@@ -289,6 +289,7 @@ function empezarPartida(mapa) {
   if (typeof ev3EnPartida === 'function') ev3EnPartida(mapa);   // (después del evento de los 300: el epílogo en gm_construct)
   if (typeof pvEnPartida === 'function') pvEnPartida(mapa);   // (Pepe vuelve: se sortea si esta vez viene)
   if (typeof vivoEnPartida === 'function') vivoEnPartida(mapa);   // (el evento en vivo: al entrar a un mapa)
+  if (typeof ordEnPartida === 'function') ordEnPartida(mapa);   // (el panel: el lugar al que te mandaron, la pantalla del cielo)
 }
 function irMenuPrincipal() {
   if (typeof pvTerminar === 'function') { pvTerminar(); PV.cuando = -1; }
@@ -444,6 +445,7 @@ function cuadro(ahora) {
     if (typeof ev3Paso === 'function') ev3Paso(dt);   // (el evento de los 300: antes de las armas, que no se usan)
     if (typeof pvPaso === 'function') pvPaso(dt);   // (Pepe vuelve: a veces aparece, te sigue y el screamer)
     if (typeof vivoPaso === 'function') vivoPaso(dt);   // (el evento en vivo, si hay)
+    if (typeof ordPaso === 'function') ordPaso(dt);   // (los guiones que mandó el panel)
     armasPaso(dt);
     if (!JUG.vivo && JUG.muertoT <= 0 && !(typeof gmmManejaMuerte === 'function' && gmmManejaMuerte())) { jugadorAparecer(); if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo(); }
     if (typeof herramientasPaso === 'function') herramientasPaso(dt);
@@ -582,7 +584,7 @@ function dibujar() {
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();
   if (typeof ajxMundoDibujar === 'function') ajxMundoDibujar();   // (el rayo con cuerpo de la Physics Gun de JXMod, armasjx.js)
-  if (JUEGO.estado === 'juego') { cicDibujar(); verDibujar(); nocheDibujar(); if (typeof ev3Dibujar === 'function') ev3Dibujar(); }
+  if (JUEGO.estado === 'juego') { cicDibujar(); verDibujar(); nocheDibujar(); if (typeof ev3Dibujar === 'function') ev3Dibujar(); if (typeof ordDibujar === 'function') ordDibujar(); }
   dibujarProyectiles();
   lucesJuntar(); lucesPreparar(); espPreparar();
   if (JUEGO.estado === 'juego' && R.sombraOn) {
@@ -712,6 +714,7 @@ async function iniciar() {
     paso('menú', 0.95, 'menus'); await respiro(); menuIniciar(); pantallaIniciar(); armasHL2();
     paso('primer cuadro', 0.98, 'menus');
     if (typeof vivoArranque === 'function') vivoArranque();   // (los eventos en vivo: el guardado y a buscar si hay uno nuevo)
+    if (typeof ordArranque === 'function') ordArranque();   // (el panel: «acá estoy» cada 25 s y las órdenes del dueño —panel_juego.js—)
     if (Q.get('mapa')) empezarPartida(Q.get('mapa'));
     else if (!(typeof ev3Arranque === 'function' && ev3Arranque())) { JUEGO.estado = 'principal'; inicioMostrar(true); }   // (o el evento de los 300, si falta)
     cuadro(performance.now());

@@ -215,7 +215,7 @@ function cuDialogo(motivo, siguiente) {
   else if (cuDentro()) h = `<h3>${CU.u && CU.u.foto ? `<img class="cuFoto grande" src="${esc(CU.u.foto)}" alt="" referrerpolicy="no-referrer">` : ''} ${esc((CU.u && CU.u.nombre) || T('cu.cuenta'))}</h3>
       <p>${esc(T('cu.sinc'))}${CU.ult ? ' · ' + new Date(CU.ult).toLocaleTimeString() : ''}</p>
       <div class="cuBotones"><button class="cuBtn gris" data-cu="no">${esc(T('volver'))}</button><button class="cuBtn rojo" data-cu="salir">${esc(T('cu.salir'))}</button></div>`;
-  else h = `<h3>${esc(T('cu.cuenta'))}</h3><p>${esc(T(CU.motivo === 'multi' ? 'cu.paraMulti' : CU.motivo === 'guardar' ? 'cu.paraGuardar' : 'cu.para'))}</p>
+  else h = `<h3>${esc(T('cu.cuenta'))}</h3><p>${esc(T(CU.motivo === 'multi' ? 'cu.paraMulti' : CU.motivo === 'guardar' ? 'cu.paraGuardar' : CU.motivo === 'bugs' ? 'cu.paraBugs' : 'cu.para'))}</p>
       <button class="cuGoogle" data-cu="entrar">${CU_G}<span>${esc(T('cu.entrar'))}</span></button>
       <div class="cuBotones"><button class="cuBtn gris" data-cu="no">${esc(T('cu.ahoraNo'))}</button></div>`;
   D.innerHTML = `<div class="cuCaja" dir="${PREFS.lang === 'ar' ? 'rtl' : 'ltr'}">${h}</div>`; D.className = '';

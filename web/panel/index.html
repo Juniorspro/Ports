@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>JXMod Admin</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../app/icono-192.png">
+<link rel="apple-touch-icon" href="../app/icono-180.png">
+<style>
+/* JXMod Admin (porteos/jxmod/tienda/panel.js): todo de todo del juego, desde el celular del dueño */
+:root{--bg:#0b0d12;--pan:#141821;--pan2:#1c2230;--borde:#2a3142;--tx:#eef1f6;--tx2:#9aa4b6;--ac:#ffd34d;--az:#4ea3ff;--ok:#5fd36a;--mal:#ff6b6b;--na:#ffb84d;--r:12px;color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+body{padding:calc(env(safe-area-inset-top) + 0px) 0 calc(72px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:12px 16px;background:rgba(11,13,18,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--borde)}
+header img{width:30px;height:30px;border-radius:8px}header h1{font-size:17px;margin:0;flex:1}header h1 small{display:block;font-size:12px;color:var(--tx2);font-weight:400}
+.vivo{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}.vivo.no{background:var(--mal);box-shadow:none}
+main{padding:12px 16px;max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--pan);border:1px solid var(--borde);border-radius:var(--r);padding:14px}.card h2{font-size:14px;margin:0 0 10px;color:var(--tx2);font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:8px}
+.nums{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.num{background:var(--pan2);border-radius:10px;padding:10px 8px;text-align:center}.num b{display:block;font-size:24px;font-variant-numeric:tabular-nums}.num span{font-size:11px;color:var(--tx2)}
+.num.grande b{color:var(--ok)}
+.fila{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--borde)}.fila:first-of-type{border-top:0}.fila .dato{flex:1;min-width:0}.fila .dato b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fila .dato small{color:var(--tx2)}
+.chip{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:2px 8px;background:var(--pan2);color:var(--tx2)}
+.e-nuevo{background:#3a4152;color:#cfd6e4}.e-visto{background:#173a63;color:#9cc8ff}.e-en_curso{background:#5a3d0f;color:#ffcf85}.e-hecho{background:#174a24;color:#8ff09a}.e-no{background:#5a1b1b;color:#ffadad}
+button,.btn{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px 14px;min-height:44px;background:var(--pan2);color:var(--tx);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+button.pri{background:var(--ac);color:#1a1405}button.az{background:var(--az);color:#06121f}button.rojo{background:#4a1c1c;color:#ffb3b3}button:disabled{opacity:.5}
+input,textarea,select{font:inherit;color:var(--tx);background:var(--pan2);border:1px solid var(--borde);border-radius:10px;padding:11px 12px;width:100%;min-height:44px}textarea{resize:vertical;min-height:90px}
+label.campo{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--tx2)}.form{display:flex;flex-direction:column;gap:12px}
+.seg{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}.seg button{flex:none;border-radius:20px;min-height:38px;padding:7px 14px;background:var(--pan2);color:var(--tx2)}.seg button.sel{background:var(--az);color:#06121f}
+.post{display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--borde);cursor:pointer}.post:first-child{border-top:0}.post .min{flex:none;width:64px;height:64px;border-radius:10px;background:var(--pan2);object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:26px}
+.post .dato{flex:1;min-width:0}.post .dato b{display:block}.post .dato p{margin:2px 0 4px;color:var(--tx2);font-size:13px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.gal{display:flex;flex-direction:column;gap:8px}.gal img,.gal video{width:100%;border-radius:10px;background:#000;max-height:70vh;object-fit:contain}
+.resp{background:#10233a;border-left:3px solid var(--az);border-radius:8px;padding:8px 12px;margin-top:8px}.resp b{color:var(--az);font-size:13px}
+.adj{display:flex;gap:8px;flex-wrap:wrap}.mini{position:relative;width:76px;height:76px;border-radius:10px;overflow:hidden;background:#000}.mini img,.mini video{width:100%;height:100%;object-fit:cover}.mini button{position:absolute;top:3px;right:3px;min-height:0;width:26px;height:26px;padding:0;border-radius:50%;background:rgba(0,0,0,.7)}
+.sumar{width:76px;height:76px;border:2px dashed var(--borde);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;line-height:1.2;text-align:center;color:var(--tx2);cursor:pointer}.sumar span{font-size:24px}.sumar input{display:none}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:6;display:grid;grid-template-columns:repeat(5,1fr);background:rgba(17,20,28,.96);backdrop-filter:blur(8px);border-top:1px solid var(--borde);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+nav button{flex-direction:column;gap:2px;background:none;color:var(--tx2);font-size:11px;font-weight:600;min-height:56px;padding:4px 0;position:relative}nav button i{font-style:normal;font-size:21px;line-height:1}nav button.sel{color:var(--ac)}
+nav button .badge{position:absolute;top:4px;right:calc(50% - 22px);background:var(--mal);color:#fff;border-radius:10px;font-size:10px;padding:0 5px;min-width:16px}
+.vacio{color:var(--tx2);text-align:center;padding:18px 0}.err{color:var(--mal)}.ok{color:var(--ok)}.peq{font-size:12px;color:var(--tx2)}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#222a3a;border:1px solid var(--borde);color:#fff;padding:10px 16px;border-radius:10px;z-index:9;font-weight:600;max-width:90vw}
+.codigo{font:700 34px/1.2 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.12em;color:var(--ac);text-align:center;padding:10px 0}
+.acciones{display:flex;gap:8px;flex-wrap:wrap}.acciones>*{flex:1 1 auto}
+pre{white-space:pre-wrap;word-break:break-word;font-size:12px;color:#ffc9c9;margin:4px 0 0}
+.oc{display:none!important}
+</style>
+</head>
+<body>
+<header><img src="../app/icono-192.png" alt=""><h1>JXMod Admin<small id="sub">…</small></h1><i class="vivo no" id="luz" title="conexión"></i></header>
+<main id="main"></main>
+<nav id="nav" class="oc">
+  <button data-tab="inicio" class="sel"><i>📊</i>Todo</button>
+  <button data-tab="posts"><i>🐞</i>Bugs<span class="badge oc" id="bNuevos"></span></button>
+  <button data-tab="ideas"><i>💡</i>Ideas</button>
+  <button data-tab="llamados"><i>📣</i>Llamados</button>
+  <button data-tab="errores"><i>⚠️</i>Errores<span class="badge oc" id="bErr"></span></button>
+</nav>
+<script>
+'use strict';
+// ---------------------------------------------------------------------------------------------------------------------
+// La app admin de JXMod. Cada celular tiene su propia llave (ECDSA P-256, generada acá y guardada en el celular, que no se
+// puede sacar); pide entrar, Claude la aprueba (herramientas/panel.py aprobar) y desde ahí todo pedido va firmado. Ver
+// porteos/jxmod/tienda/panel.js. Sin internet no hace nada.
+// ---------------------------------------------------------------------------------------------------------------------
+const Q = new URLSearchParams(location.search);
+const API = Q.get('api') || 'https://rezobox-tienda.holasoyjuniors365.workers.dev/api/';
+const REPO = 'https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/';
+const MAPAS = ['FlatGrass', 'Desert', 'DesertV2', 'City', 'Base', 'BaseV2', 'Mars', 'Space', 'RB_Llanura', 'RB_Colinas', 'RB_Isla', 'RB_Ciudad', 'RB_Desierto', 'RB_Luna', 'RB_Pizzeria', 'RB_Construct', 'RB_Flatgrass'];
+const enc = new TextEncoder();
+const $ = (s, el) => (el || document).querySelector(s), $$ = (s, el) => [...(el || document).querySelectorAll(s)];
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 32768) s += String.fromCharCode.apply(null, u8.subarray(i, i + 32768)); return btoa(s); };
+const hace = (t) => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 60 ? Math.round(s) + ' s' : s < 3600 ? Math.round(s / 60) + ' min' : s < 86400 ? Math.round(s / 3600) + ' h' : Math.round(s / 86400) + ' d'; };
+const fecha = (t) => new Date(t).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const EST = { nuevo: 'Nuevo', visto: 'Visto', en_curso: 'En curso', hecho: 'Hecho', no: 'No va' };
+const TIPO = { bug: '🐞 Bug', sug: '💡 Sugerencia', idea: '✨ Idea', nota: '📝 Nota' };
+const A = { tab: 'inicio', llave: null, cert: null, estado: null, posts: [], filtro: { tipo: 'bug', estado: '' }, ver: null, ideas: [], idea: { tipo: 'idea', titulo: '', texto: '', archivos: [] }, orden: { tipo: 'aviso' }, ordenes: [], errores: [], t: 0 };
+function toast(m, mal) { const d = document.createElement('div'); d.className = 'toast' + (mal ? ' err' : ''); d.textContent = m; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
+
+// ---------------- la llave del celular (IndexedDB: la privada no se puede exportar) ----------------
+function idb() { return new Promise((ok, mal) => { const r = indexedDB.open('jxpanel', 1); r.onupgradeneeded = () => r.result.createObjectStore('k'); r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error); }); }
+async function idbGet(k) { const d = await idb(); return new Promise((ok) => { const r = d.transaction('k').objectStore('k').get(k); r.onsuccess = () => ok(r.result); r.onerror = () => ok(null); }); }
+async function idbSet(k, v) { const d = await idb(); return new Promise((ok, mal) => { const t = d.transaction('k', 'readwrite'); t.objectStore('k').put(v, k); t.oncomplete = ok; t.onerror = () => mal(t.error); }); }
+async function llave() {
+  if (A.llave) return A.llave;
+  let L = await idbGet('llave');
+  if (!L) {
+    const par = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify']);
+    const pub = b64(new Uint8Array(await crypto.subtle.exportKey('spki', par.publicKey)));
+    L = { priv: par.privateKey, pub }; await idbSet('llave', L);
+  }
+  return (A.llave = L);
+}
+async function firmar(txt) { const L = await llave(); return b64(new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, L.priv, enc.encode(txt)))); }
+async function codigoDe(pub) { const h = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(pub))); return [...h].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 8); }
+
+// ---------------- hablar con el panel ----------------
+async function adm(op, datos) {
+  const q = JSON.stringify(Object.assign({}, datos || {}, { op, t: Date.now() }));
+  const r = await fetch(API + 'panel/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q, cert: A.cert, firma: await firmar('JXPANEL1\n' + q) }) });
+  const d = await r.json().catch(() => ({ error: 'respuesta rara' }));
+  $('#luz').classList.toggle('no', !r.ok);
+  if (r.status === 403) { toast('Sin permiso: ¿te dieron de baja?', true); }
+  if (!r.ok) throw new Error(d.error || ('error ' + r.status));
+  return d;
+}
+async function orden(tipo, datos, segundos) {
+  const a = JSON.stringify({ uid: [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join(''), tipo, datos, t: Date.now(), hasta: Date.now() + segundos * 1000 });
+  return adm('orden', { a, f: await firmar('JXORDEN1\n' + a) });
+}
+// (fotos y videos: las imágenes a 1600 px en JPEG; en partes de 1 MB dentro del pedido firmado)
+async function achicar(f) {
+  const bm = await createImageBitmap(f), k = Math.min(1, 1600 / Math.max(bm.width, bm.height)), cv = document.createElement('canvas');
+  cv.width = Math.round(bm.width * k); cv.height = Math.round(bm.height * k); cv.getContext('2d').drawImage(bm, 0, 0, cv.width, cv.height);
+  return { b: await new Promise((ok) => cv.toBlob(ok, 'image/jpeg', 0.84)), mime: 'image/jpeg', w: cv.width, h: cv.height };
+}
+async function subir(f, aviso) {
+  let b = f, mime = f.type, w = 0, h = 0;
+  if (/^image\//.test(mime) && mime !== 'image/gif') ({ b, mime, w, h } = await achicar(f));
+  if (!/^(image\/(jpeg|png|webp|gif)|video\/(mp4|webm|quicktime))$/.test(mime)) throw new Error('Sólo imágenes o videos (mp4, webm, mov)');
+  const u = new Uint8Array(await b.arrayBuffer()); if (u.length > 24 * 1048576) throw new Error('Muy grande: hasta 24 MB');
+  const P = 1048576, n = Math.max(1, Math.ceil(u.length / P)); let id = '';
+  for (let i = 0; i < n; i++) { if (aviso) aviso(Math.round((i / n) * 100)); const d = await adm('media_parte', { id, parte: i, partes: n, mime, tam: u.length, datos: b64(u.subarray(i * P, (i + 1) * P)) }); id = d.id; }
+  return { id, mime, w, h };
+}
+const mediaUrl = (id) => API + 'panel/media/' + id;
+
+// ---------------- entrar (la primera vez en este celular) ----------------
+async function entrar() {
+  A.cert = JSON.parse(localStorage.getItem('jxp_cert') || 'null');
+  const L = await llave();
+  if (A.cert && A.cert.pub === L.pub) return iniciar();
+  const cod = await codigoDe(L.pub);
+  $('#sub').textContent = 'Este celular no está aprobado todavía';
+  $('#main').innerHTML = `<div class="card form"><h2>🔑 Entrar al panel</h2>
+    <p>Cada celular tiene su propia llave, que no sale de acá. Pedí acceso y decile a Claude el código de abajo para que lo apruebe.</p>
+    <label class="campo">Nombre de este celular<input id="nom" maxlength="30" value="${esc(localStorage.getItem('jxp_nom') || 'Celular del dueño')}"></label>
+    <button class="pri" id="pedir">Pedir acceso</button><div id="esp" class="oc"><div class="codigo">${cod}</div>
+    <p class="peq" style="text-align:center">Decile a Claude: «aprobá el panel ${cod}». Esta pantalla se actualiza sola.</p></div></div>`;
+  const esperar = async () => {
+    try { const d = await (await fetch(API + 'panel/cert?pub=' + encodeURIComponent(L.pub))).json(); if (d.estado === 'ok' && d.cert && d.cert.pub === L.pub) { A.cert = d.cert; localStorage.setItem('jxp_cert', JSON.stringify(d.cert)); toast('¡Aprobado!'); return iniciar(); } } catch (e) {}
+    A.tEspera = setTimeout(esperar, 4000);
+  };
+  $('#pedir').onclick = async () => {
+    const nom = $('#nom').value.trim() || 'Celular'; localStorage.setItem('jxp_nom', nom);
+    try { const r = await fetch(API + 'panel/solicitud', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pub: L.pub, nombre: nom }) }); if (!r.ok) throw new Error((await r.json()).error); localStorage.setItem('jxp_pedido', '1'); $('#esp').classList.remove('oc'); $('#pedir').disabled = true; clearTimeout(A.tEspera); esperar(); }
+    catch (e) { toast('No se pudo: ' + e.message, true); }
+  };
+  if (localStorage.getItem('jxp_pedido')) { $('#esp').classList.remove('oc'); esperar(); }
+}
+function iniciar() {
+  clearTimeout(A.tEspera); $('#nav').classList.remove('oc'); $('#sub').textContent = A.cert.nombre;
+  $$('#nav button').forEach((b) => (b.onclick = () => irA(b.dataset.tab)));
+  irA(location.hash.slice(1) || 'inicio');
+  setInterval(() => { if (!document.hidden && A.tab === 'inicio') cargarEstado(); }, 15000);
+}
+function irA(t) {
+  A.tab = t; location.hash = t; A.ver = null; $$('#nav button').forEach((b) => b.classList.toggle('sel', b.dataset.tab === t)); window.scrollTo(0, 0);
+  ({ inicio: verInicio, posts: verPosts, ideas: verIdeas, llamados: verLlamados, errores: verErrores })[t]();
+}
+
+// ---------------- Todo: quién juega, cuántos, versiones, lo publicado, órdenes vigentes ----------------
+async function cargarEstado() {
+  try { A.estado = await adm('estado'); if (A.tab === 'inicio') pintarInicio(); badges(); } catch (e) { if (A.tab === 'inicio') $('#main').innerHTML = `<div class="card err">${esc(e.message)}</div>`; }
+}
+function badges() {
+  const E = A.estado; if (!E) return; const nuevos = E.posts.filter((p) => p.estado === 'nuevo' && (p.tipo === 'bug' || p.tipo === 'sug')).reduce((s, p) => s + p.n, 0);
+  $('#bNuevos').textContent = nuevos; $('#bNuevos').classList.toggle('oc', !nuevos);
+  $('#bErr').textContent = E.errores.n || ''; $('#bErr').classList.toggle('oc', !E.errores.n);
+}
+function verInicio() { $('#main').innerHTML = '<div class="vacio">Cargando…</div>'; cargarEstado(); cargarPublicado(); }
+async function cargarPublicado() {
+  try {
+    const [v, o, vv] = await Promise.all(['web/version.json', 'web/ota/ota.json', 'web/vivo/vivo.json'].map((p) => fetch(REPO + p + '?t=' + Date.now()).then((r) => r.json()).catch(() => null)));
+    A.pub = { v, o, vv }; if (A.tab === 'inicio' && A.estado) pintarInicio();
+  } catch (e) {}
+}
+function pintarInicio() {
+  const E = A.estado, P = A.pub || {};
+  const jug = E.jugando.map((j) => `<div class="fila"><div class="dato"><b>${esc(j.nombre || 'sin nombre')} <span class="chip">${esc(j.version)}</span></b><small>${esc(j.mapa)}${j.sala ? ' · server ' + esc(j.sala) : ''} · ${esc(j.plat)}</small></div><small class="peq">hace ${hace(j.visto)}</small></div>`).join('');
+  const ver = E.versiones.map((x) => `<span class="chip">${esc(x.version || '?')}: ${x.n}</span>`).join(' ');
+  const ords = E.ordenes.filter((o) => o.tipo !== 'quitar').map((o) => { const a = JSON.parse(o.a); return `<div class="fila"><div class="dato"><b>${esc(o.tipo)} · ${esc((a.datos && (a.datos.titulo || a.datos.mapa || a.datos.url)) || '')}</b><small>de ${esc(o.de)} · hasta ${fecha(o.hasta)}</small></div><button class="rojo" data-quitar="${esc(a.uid)}">Quitar</button></div>`; }).join('');
+  const posts = {}; for (const x of E.posts) posts[x.tipo] = (posts[x.tipo] || 0) + x.n;
+  $('#main').innerHTML = `<div class="card"><h2>🟢 Jugando ahora</h2><div class="nums"><div class="num grande"><b>${E.jugando.length}</b><span>ahora</span></div><div class="num"><b>${E.hoy}</b><span>hoy</span></div><div class="num"><b>${E.semana}</b><span>semana</span></div><div class="num"><b>${E.nuevos}</b><span>nuevos hoy</span></div></div>
+      ${jug || '<div class="vacio">Nadie jugando en este momento</div>'}</div>
+    <div class="card"><h2>📦 Publicado</h2>
+      <div class="fila"><div class="dato"><b>Versión ${esc(P.v ? P.v.version : '…')}</b><small>${P.o ? 'Actualización por partes ' + esc(P.o.version) + ' · APK mínimo ' + P.o.apkMin : ''}</small></div></div>
+      <div class="fila"><div class="dato"><b>Evento en vivo: ${P.vv ? (P.vv.js ? esc(P.vv.js) : 'ninguno') : '…'}</b><small>${P.vv && P.vv.hasta ? 'hasta ' + fecha(P.vv.hasta) : ''}</small></div></div>
+      <div class="fila"><div class="dato"><b>Versiones de los que juegan (7 días)</b><small>${ver || '—'}</small></div></div></div>
+    <div class="card"><h2>🐞 Publicaciones</h2><div class="nums"><div class="num"><b>${posts.bug || 0}</b><span>bugs</span></div><div class="num"><b>${posts.sug || 0}</b><span>sugerencias</span></div><div class="num"><b>${posts.idea || 0}</b><span>tus ideas</span></div><div class="num"><b>${E.errores.n || 0}</b><span>errores</span></div></div></div>
+    <div class="card"><h2>📣 Órdenes puestas</h2>${ords || '<div class="vacio">Ninguna</div>'}</div>
+    <p class="peq" style="text-align:center">Firmado como ${esc(E.de)} · ${new Date(E.ahora).toLocaleTimeString('es-AR')}</p>`;
+  $$('[data-quitar]').forEach((b) => (b.onclick = () => quitarOrden(b.dataset.quitar)));
+}
+async function quitarOrden(uid) { try { await orden('quitar', { uid }, 3600); toast('Quitada'); cargarEstado(); } catch (e) { toast(e.message, true); } }
+
+// ---------------- Bugs y sugerencias de la gente ----------------
+async function verPosts() {
+  const F = A.filtro;
+  $('#main').innerHTML = `<div class="seg" id="segT">${['bug', 'sug'].map((t) => `<button data-t="${t}" class="${F.tipo === t ? 'sel' : ''}">${TIPO[t]}</button>`).join('')}</div>
+    <div class="seg" id="segE"><button data-e="" class="${!F.estado ? 'sel' : ''}">Todos</button>${Object.entries(EST).map(([k, v]) => `<button data-e="${k}" class="${F.estado === k ? 'sel' : ''}">${v}</button>`).join('')}</div>
+    <div class="card" id="lista"><div class="vacio">Cargando…</div></div>`;
+  $$('#segT button').forEach((b) => (b.onclick = () => { F.tipo = b.dataset.t; verPosts(); }));
+  $$('#segE button').forEach((b) => (b.onclick = () => { F.estado = b.dataset.e; verPosts(); }));
+  try { A.posts = (await adm('posts', { tipo: F.tipo, estado: F.estado || undefined, ocultos: true })).posts; } catch (e) { $('#lista').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  pintarLista($('#lista'), A.posts, verPost);
+}
+function pintarLista(el, L, alTocar) {
+  el.innerHTML = L.length ? L.map((p) => { const m = p.media[0]; return `<div class="post" data-id="${p.id}">${m ? (m.mime.startsWith('video/') ? '<div class="min">🎬</div>' : `<img class="min" src="${esc(mediaUrl(m.id))}" alt="" loading="lazy">`) : `<div class="min">${TIPO[p.tipo].split(' ')[0]}</div>`}
+    <div class="dato"><b>${esc(p.titulo)}</b><p>${esc(p.texto)}</p><span class="chip e-${p.estado}">${EST[p.estado]}</span> <span class="peq">♥ ${p.likes} · ${esc(p.nombre || 'anónimo')} · ${hace(p.creado)}${p.media.length ? ' · 📎' + p.media.length : ''}${p.oculto ? ' · <b class="err">oculto</b>' : ''}${p.denuncias ? ' · ⚑' + p.denuncias : ''}${p.respuesta ? ' · 💬' : ''}</span></div></div>`; }).join('') : '<div class="vacio">Nada por acá</div>';
+  $$('.post', el).forEach((d) => (d.onclick = () => alTocar(L.find((p) => p.id === d.dataset.id))));
+}
+function verPost(p) {
+  A.ver = p; window.scrollTo(0, 0);
+  $('#main').innerHTML = `<button id="atras">← Volver</button><div class="card"><span class="chip">${TIPO[p.tipo]}</span> <span class="chip e-${p.estado}">${EST[p.estado]}</span>${p.oculto ? ' <span class="chip e-no">oculto</span>' : ''}
+      <h2 style="text-transform:none;color:var(--tx);font-size:19px;margin:10px 0 4px">${esc(p.titulo)}</h2><p class="peq">${esc(p.nombre || 'anónimo')} · ${fecha(p.creado)} · ${esc(p.version || '')} · ${esc(p.lugar || '')} · ♥ ${p.likes}${p.denuncias ? ' · ⚑ ' + p.denuncias : ''}</p>
+      <p style="white-space:pre-line">${esc(p.texto)}</p><div class="gal">${p.media.map((m) => (m.mime.startsWith('video/') ? `<video src="${esc(mediaUrl(m.id))}" controls playsinline preload="metadata"></video>` : `<img src="${esc(mediaUrl(m.id))}" alt="">`)).join('')}</div>
+      ${p.respuesta ? `<div class="resp"><b>💬 ${esc(p.resp_de || '')}</b><div style="white-space:pre-line">${esc(p.respuesta)}</div></div>` : ''}</div>
+    <div class="card form"><h2>Responder</h2><div class="seg" id="segEst">${Object.entries(EST).map(([k, v]) => `<button data-e="${k}" class="${p.estado === k ? 'sel' : ''}">${v}</button>`).join('')}</div>
+      <textarea id="resp" placeholder="Respuesta (la ve todo el mundo en el juego)">${esc(p.respuesta || '')}</textarea>
+      <div class="acciones"><button class="pri" id="guardar">Guardar</button><button id="ocultar">${p.oculto ? 'Mostrar' : 'Ocultar'}</button><button class="rojo" id="borrar">Borrar</button></div></div>`;
+  let est = p.estado;
+  $('#atras').onclick = () => (A.tab === 'ideas' ? verIdeas() : verPosts());
+  $$('#segEst button').forEach((b) => (b.onclick = () => { est = b.dataset.e; $$('#segEst button').forEach((x) => x.classList.toggle('sel', x === b)); }));
+  $('#guardar').onclick = async () => { try { await adm('post_cambiar', { id: p.id, estado: est, respuesta: $('#resp').value }); p.estado = est; p.respuesta = $('#resp').value; p.resp_de = A.cert.nombre; toast('Guardado'); verPost(p); } catch (e) { toast(e.message, true); } };
+  $('#ocultar').onclick = async () => { try { await adm('post_cambiar', { id: p.id, oculto: !p.oculto }); p.oculto = p.oculto ? 0 : 1; toast(p.oculto ? 'Oculto' : 'Visible'); verPost(p); } catch (e) { toast(e.message, true); } };
+  $('#borrar').onclick = async () => { if (!confirm('¿Borrar para siempre «' + p.titulo + '»?')) return; try { await adm('post_borrar', { id: p.id }); toast('Borrado'); A.tab === 'ideas' ? verIdeas() : verPosts(); } catch (e) { toast(e.message, true); } };
+}
+
+// ---------------- Ideas: lo que le dejás a Claude (eventos, bugs con capturas, notas) ----------------
+async function verIdeas() {
+  const I = A.idea;
+  $('#main').innerHTML = `<div class="card form"><h2>✨ Para Claude</h2><div class="seg" id="segI">${['idea', 'bug', 'nota'].map((t) => `<button data-t="${t}" class="${I.tipo === t ? 'sel' : ''}">${TIPO[t]}</button>`).join('')}</div>
+      <input id="iTit" maxlength="90" placeholder="${I.tipo === 'idea' ? 'Idea de evento, mapa, arma…' : I.tipo === 'bug' ? 'Qué está mal' : 'Título'}" value="${esc(I.titulo)}">
+      <textarea id="iTx" maxlength="4000" placeholder="Contalo con todo el detalle que quieras">${esc(I.texto)}</textarea>
+      <div class="adj" id="adj"></div><p id="iEst" class="peq"></p><button class="pri" id="iPub">Guardar para Claude</button></div>
+    <div class="card"><h2>Lo que dejaste</h2><div id="ilista"><div class="vacio">Cargando…</div></div></div>`;
+  $$('#segI button').forEach((b) => (b.onclick = () => { I.tipo = b.dataset.t; I.titulo = $('#iTit').value; I.texto = $('#iTx').value; verIdeas(); }));
+  $('#iTit').oninput = (e) => (I.titulo = e.target.value); $('#iTx').oninput = (e) => (I.texto = e.target.value);
+  pintarAdj();
+  $('#iPub').onclick = publicarIdea;
+  try { const d = await Promise.all(['idea', 'bug', 'nota'].map((t) => adm('posts', { tipo: t, ocultos: true }))); A.ideas = d.flatMap((x) => x.posts).filter((p) => p.privado).sort((a, b) => b.creado - a.creado); pintarLista($('#ilista'), A.ideas, verPost); }
+  catch (e) { $('#ilista').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+}
+function pintarAdj() {
+  const I = A.idea, el = $('#adj'); if (!el) return;
+  el.innerHTML = I.archivos.map((a, i) => `<div class="mini">${a.f.type.startsWith('video/') ? `<video src="${a.url}" muted></video>` : `<img src="${a.url}" alt="">`}<button data-i="${i}">×</button></div>`).join('') + (I.archivos.length < 6 ? '<label class="sumar"><span>📷</span>Fotos / videos<input type="file" accept="image/*,video/*" multiple id="iArch"></label>' : '');
+  $$('.mini button', el).forEach((b) => (b.onclick = () => { const a = I.archivos.splice(+b.dataset.i, 1)[0]; URL.revokeObjectURL(a.url); pintarAdj(); }));
+  const inp = $('#iArch'); if (inp) inp.onchange = () => { for (const f of [...inp.files].slice(0, 6 - I.archivos.length)) I.archivos.push({ f, url: URL.createObjectURL(f) }); pintarAdj(); };
+}
+async function publicarIdea() {
+  const I = A.idea; if (I.titulo.trim().length < 3) return toast('Poné un título', true);
+  const b = $('#iPub'), st = $('#iEst'); b.disabled = true;
+  try {
+    const media = [];
+    for (let i = 0; i < I.archivos.length; i++) media.push(await subir(I.archivos[i].f, (pc) => (st.textContent = `Subiendo ${i + 1} de ${I.archivos.length}… ${pc}%`)));
+    st.textContent = 'Guardando…'; await adm('post', { tipo: I.tipo, titulo: I.titulo, texto: I.texto, media, version: 'admin', lugar: 'app admin' });
+    for (const a of I.archivos) URL.revokeObjectURL(a.url); A.idea = { tipo: I.tipo, titulo: '', texto: '', archivos: [] }; toast('Guardado: Claude lo va a ver'); verIdeas();
+  } catch (e) { st.textContent = ''; toast(e.message, true); b.disabled = false; }
+}
+
+// ---------------- Llamados: avisos, pantalla en el cielo, cinemática, llevar a todos a un mapa ----------------
+const TIPOS_ORDEN = { aviso: '📢 Aviso arriba', cielo: '🖥️ Pantalla en el cielo', cine: '🎬 Cinemática', ir: '🧲 Llevar a todos', guion: '🧩 Guion' };
+async function verLlamados() {
+  const O = A.orden, t = O.tipo;
+  const campos = {
+    aviso: `<input id="oTit" maxlength="80" placeholder="Título"><textarea id="oTx" maxlength="600" placeholder="Mensaje para todos los que juegan"></textarea><label class="campo">Cuánto dura (los que entren en ese rato también lo ven)<select id="oDura"><option value="300">5 minutos</option><option value="1800">30 minutos</option><option value="7200">2 horas</option><option value="86400">1 día</option></select></label>`,
+    cielo: `<input id="oTit" maxlength="40" placeholder="Título (grande)"><textarea id="oTx" maxlength="300" placeholder="Texto"></textarea><div class="adj" id="oAdj"></div><label class="campo">Cuánto dura<select id="oDura"><option value="600">10 minutos</option><option value="1800">30 minutos</option><option value="7200">2 horas</option></select></label>`,
+    cine: `<div class="adj" id="oAdj"></div><input id="oUrl" placeholder="…o la dirección del video (del repo)"><label class="campo">Empieza en (todos a la vez; mientras, se baja)<select id="oEn"><option value="30">30 segundos</option><option value="60">1 minuto</option><option value="180">3 minutos</option><option value="0">Ya</option></select></label><label class="campo">Los que entren hasta<select id="oDura"><option value="900">15 minutos</option><option value="3600">1 hora</option></select></label>`,
+    ir: `<label class="campo">Mapa<select id="oMapa">${MAPAS.map((m) => `<option>${m}</option>`).join('')}</select></label><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="oJuntos" checked style="width:auto;min-height:0"> Todos juntos en el server oficial del mapa</label><textarea id="oTx" maxlength="300" placeholder="Por qué (sale en el cartel)"></textarea><label class="campo">Los que entren durante<select id="oDura"><option value="600">10 minutos</option><option value="1800">30 minutos</option><option value="3600">1 hora</option><option value="10800">3 horas</option></select></label>`,
+    guion: `<p class="peq">Para eventos armados por Claude. El guion corre en todos los juegos.</p><textarea id="oJs" placeholder="return { empezar() {}, paso(dt) {}, fin() {} };" style="font-family:monospace;min-height:160px"></textarea><label class="campo">Dura<select id="oDura"><option value="1800">30 minutos</option><option value="7200">2 horas</option><option value="86400">1 día</option></select></label>`,
+  }[t];
+  $('#main').innerHTML = `<div class="seg" id="segO">${Object.entries(TIPOS_ORDEN).map(([k, v]) => `<button data-t="${k}" class="${t === k ? 'sel' : ''}">${v}</button>`).join('')}</div>
+    <div class="card form"><h2>${TIPOS_ORDEN[t]}</h2>${campos}<p id="oEst" class="peq"></p><button class="pri" id="oMandar">Mandar a todos</button></div>
+    <div class="card"><h2>Últimas órdenes</h2><div id="olista"><div class="vacio">Cargando…</div></div></div>`;
+  $$('#segO button').forEach((b) => (b.onclick = () => { A.orden = { tipo: b.dataset.t }; verLlamados(); }));
+  O.archivo = null;
+  const adj = $('#oAdj'); if (adj) { const pintar = () => { adj.innerHTML = O.archivo ? `<div class="mini">${O.archivo.type.startsWith('video/') ? `<video src="${O.url}" muted></video>` : `<img src="${O.url}" alt="">`}<button>×</button></div>` : `<label class="sumar"><span>${t === 'cine' ? '🎬' : '🖼️'}</span>${t === 'cine' ? 'Video' : 'Imagen o video'}<input type="file" accept="${t === 'cine' ? 'video/*' : 'image/*,video/*'}"></label>`; const i = $('input', adj); if (i) i.onchange = () => { O.archivo = i.files[0]; O.url = URL.createObjectURL(O.archivo); pintar(); }; const x = $('.mini button', adj); if (x) x.onclick = () => { O.archivo = null; pintar(); }; }; pintar(); }
+  $('#oMandar').onclick = mandarOrden;
+  try { A.ordenes = (await adm('ordenes')).ordenes; } catch (e) { $('#olista').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  $('#olista').innerHTML = A.ordenes.length ? A.ordenes.map((o) => { const a = JSON.parse(o.a), vig = o.hasta > Date.now(); return `<div class="fila"><div class="dato"><b>${esc(TIPOS_ORDEN[o.tipo] || o.tipo)} ${esc((a.datos && (a.datos.titulo || a.datos.mapa)) || '')}</b><small>${esc(o.de)} · ${fecha(o.creada)} · ${vig ? 'hasta ' + fecha(o.hasta) : 'terminó'}</small></div>${vig && o.tipo !== 'quitar' ? `<button class="rojo" data-quitar="${esc(a.uid)}">Quitar</button>` : ''}</div>`; }).join('') : '<div class="vacio">Todavía ninguna</div>';
+  $$('[data-quitar]').forEach((b) => (b.onclick = async () => { await quitarOrden(b.dataset.quitar); verLlamados(); }));
+}
+async function mandarOrden() {
+  const O = A.orden, t = O.tipo, v = (id) => ($('#' + id) ? $('#' + id).value.trim() : ''), st = $('#oEst'), b = $('#oMandar'), dura = +v('oDura') || 600;
+  try {
+    b.disabled = true; let datos;
+    if (t === 'aviso') { if (!v('oTit') && !v('oTx')) throw new Error('Escribí algo'); datos = { titulo: v('oTit'), texto: v('oTx') }; }
+    else if (t === 'cielo') { datos = { titulo: v('oTit'), texto: v('oTx') }; if (O.archivo) { const m = await subir(O.archivo, (p) => (st.textContent = 'Subiendo… ' + p + '%')); datos[m.mime.startsWith('video/') ? 'video' : 'img'] = mediaUrl(m.id); } if (!datos.titulo && !datos.texto && !datos.img && !datos.video) throw new Error('Poné algo para mostrar'); }
+    else if (t === 'cine') { let url = v('oUrl'); if (O.archivo) url = mediaUrl((await subir(O.archivo, (p) => (st.textContent = 'Subiendo… ' + p + '%'))).id); if (!url) throw new Error('Elegí un video'); const en = +v('oEn') || 0; datos = { url, cuando: en ? Date.now() + en * 1000 : 0 }; }
+    else if (t === 'ir') { datos = { mapa: v('oMapa'), juntos: $('#oJuntos').checked, texto: v('oTx') }; if (!confirm('¿Llevar a TODOS los que juegan a ' + datos.mapa + '?')) throw new Error('Cancelado'); }
+    else if (t === 'guion') { if (!v('oJs')) throw new Error('Falta el guion'); if (!confirm('¿Correr este guion en todos los juegos?')) throw new Error('Cancelado'); datos = { js: $('#oJs').value }; }
+    st.textContent = 'Mandando…'; await orden(t, datos, dura);
+    toast('Mandado: les llega en menos de 30 s'); A.orden = { tipo: t }; verLlamados();
+  } catch (e) { st.textContent = ''; b.disabled = false; if (e.message !== 'Cancelado') toast(e.message, true); }
+}
+
+// ---------------- Errores de los juegos ----------------
+async function verErrores() {
+  $('#main').innerHTML = '<div class="card" id="elista"><div class="vacio">Cargando…</div></div>';
+  try { A.errores = (await adm('errores')).errores; } catch (e) { $('#elista').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  $('#elista').innerHTML = '<h2>⚠️ Errores de JS de los juegos</h2>' + (A.errores.length ? A.errores.map((x) => `<div class="fila"><div class="dato"><b>×${x.n} · ${esc(x.version)} ${x.estado === 'hecho' ? '<span class="chip e-hecho">arreglado</span>' : ''}</b><small>${fecha(x.primero)} → ${hace(x.ultimo)}</small><pre>${esc(x.msg)}</pre></div>${x.estado !== 'hecho' ? `<button data-h="${x.h}">✓</button>` : ''}</div>`).join('') : '<div class="vacio">Sin errores 🎉</div>');
+  $$('[data-h]').forEach((b) => (b.onclick = async () => { try { await adm('error_estado', { h: b.dataset.h, estado: 'hecho' }); verErrores(); } catch (e) { toast(e.message, true); } }));
+}
+
+if (!window.crypto || !crypto.subtle || !window.indexedDB) $('#main').innerHTML = '<div class="card err">Este navegador no sirve para el panel (hace falta https y un navegador actual).</div>';
+else entrar().catch((e) => ($('#main').innerHTML = `<div class="card err">${esc(e.message)}</div>`));
+</script>
+</body>
+</html>
