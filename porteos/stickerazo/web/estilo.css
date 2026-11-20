@@ -334,3 +334,79 @@ button:active:not(:disabled) { transform: scale(.95); }
 
 .bienvenida { grid-template-columns: minmax(0, 1fr); }
 .bienvenida .burbujas { justify-self: center; }
+
+/* ================= tema nuevo: negro de verdad, con color y brillo ================= */
+:root {
+  --fondo: #000000; --panel: #101015; --panel2: #1a1a22; --linea: #2a2a36; --texto: #ffffff; --suave: #a3a0b8;
+  --vidrio: rgba(20, 20, 28, 0.72); --borde: rgba(255, 255, 255, 0.08);
+  --dg1: linear-gradient(135deg, #ff3e8a, #ff7a1a); --dg2: linear-gradient(135deg, #ffd23f, #ff9f1c); --dg3: linear-gradient(135deg, #3ec7ff, #9b5cff);
+  --borde-dg: linear-gradient(135deg, rgba(255, 62, 138, .55), rgba(155, 92, 255, .35) 45%, rgba(62, 199, 255, .45));
+}
+html, body { background: #000; }
+/* manchas de luz detrás (aurora) */
+#app::before { content: ''; position: absolute; inset: -20% -30% auto; height: 420px; z-index: 0; pointer-events: none;
+  background: radial-gradient(closest-side at 22% 45%, rgba(255, 62, 138, .30), transparent), radial-gradient(closest-side at 78% 35%, rgba(155, 92, 255, .28), transparent), radial-gradient(closest-side at 55% 80%, rgba(62, 199, 255, .18), transparent);
+  filter: blur(18px); animation: aurora 14s ease-in-out infinite alternate; }
+@keyframes aurora { to { transform: translate(-6%, 4%) scale(1.08) rotate(4deg); } }
+.vista { z-index: 1; }
+.vista:not(#vInicio) { background: #000; }
+/* tarjetas: borde en degradé y sombra con color */
+.packItem, .listo, .tf, .tarjeta, .sec, .opc, .express, .vacio, .stats span, .persona, .buscar, .seg, .alerta {
+  border: 1px solid transparent !important;
+  background: linear-gradient(var(--panel), var(--panel)) padding-box, var(--borde-dg) border-box !important; }
+.tf { box-shadow: 0 14px 40px -18px hsla(var(--tono, 330), 90%, 60%, .55); }
+.tfGrilla { background: radial-gradient(120% 90% at 50% 0%, hsla(var(--tono, 330), 90%, 60%, .22), #0a0a0e 70%) !important; }
+.grilla .st, .tira span, .hojaGrilla button, .tarjeta .mosaico img, .tarjeta .mosaico span { background: radial-gradient(circle at 50% 30%, #1c1c26, #0b0b10) !important; }
+.vacio { border-style: solid !important; }
+/* títulos de sección con cinta */
+h2 { color: #fff; display: inline-block; position: relative; padding: 2px 8px 0; margin-left: 2px; }
+h2::before { content: ''; position: absolute; inset: 40% -2px -2px; background: var(--dg1); opacity: .55; border-radius: 4px; transform: rotate(-1.5deg); z-index: -1; }
+h2 small { color: var(--suave); }
+/* logo más grande y con stickers alrededor */
+.cabInicio { position: relative; }
+.logo { font-size: 50px; filter: drop-shadow(0 8px 18px rgba(255, 62, 138, .35)); }
+.logo span { color: #ff3e8a; }
+.logo b { color: #ffd23f; }
+.cabInicio::before, .cabInicio::after { position: absolute; font-size: 26px; top: 26px; animation: flota 3.2s ease-in-out infinite; filter: drop-shadow(0 4px 8px #000a); }
+.cabInicio::before { content: '🧉'; left: 18px; }
+.cabInicio::after { content: '🔥'; right: 18px; animation-delay: -1.6s; }
+.cabInicio.chica::before, .cabInicio.chica::after { top: 16px; font-size: 20px; }
+/* botones */
+.pri { background: var(--dg2); box-shadow: 0 6px 18px -6px rgba(255, 190, 40, .7), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.grande { position: relative; overflow: hidden; background: var(--dg1); box-shadow: 0 16px 36px -10px rgba(255, 62, 138, .65); }
+.grande::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .35) 50%, transparent 65%); transform: translateX(-120%); animation: brilloBtn 3.5s ease-in-out infinite; }
+@keyframes brilloBtn { 60%, 100% { transform: translateX(120%); } }
+.sec { color: #fff; }
+.chip { background: var(--panel2); border: 2px solid transparent; }
+.chip.act { background: linear-gradient(var(--panel2), var(--panel2)) padding-box, var(--dg2) border-box; color: #ffd23f; }
+.seguir { background: var(--dg2); box-shadow: 0 6px 16px -6px rgba(255, 190, 40, .7); }
+.seguir.si { background: var(--panel2); box-shadow: none; }
+.whats { background: linear-gradient(135deg, #2bd86a, #12b552); box-shadow: 0 12px 28px -10px rgba(37, 211, 102, .7); }
+/* avatares con anillo (como las historias) */
+.av, .avM { box-shadow: 0 0 0 2px #000, 0 0 0 4px transparent; position: relative; }
+.tf .av, .persona .avM, .puAutor .av { outline: 2.5px solid transparent; background-clip: padding-box; box-shadow: 0 0 0 2px #000, 0 0 0 4.5px #ff3e8a, 0 0 14px rgba(255, 62, 138, .55); }
+.avG { box-shadow: 0 0 0 4px #000, 0 0 0 8px #ff3e8a, 0 0 40px rgba(255, 62, 138, .5), inset 0 -6px 0 #0003; }
+/* barra de abajo de vidrio, el + que brilla */
+.tabs { background: rgba(8, 8, 12, .78); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); border-top: 1px solid transparent; border-image: var(--borde-dg) 1; }
+.tabs .centro span { background: var(--dg1); box-shadow: 0 10px 26px -4px rgba(255, 62, 138, .8), 0 0 0 5px #000; animation: latePlus 2.8s ease-in-out infinite; }
+@keyframes latePlus { 50% { box-shadow: 0 10px 34px 0 rgba(255, 62, 138, .95), 0 0 0 5px #000; } }
+.tabs button.act { color: #ffd23f; }
+.tabs button.act::after { background: var(--dg2); box-shadow: 0 0 10px rgba(255, 210, 63, .8); }
+/* hojas */
+.hoja { background: linear-gradient(180deg, #16161e, #0c0c11); box-shadow: 0 -1px 0 rgba(255, 62, 138, .45), 0 -18px 50px -20px rgba(155, 92, 255, .45); }
+.modal { background: rgba(0, 0, 0, .72); backdrop-filter: blur(4px); }
+.aviso { background: #fff; box-shadow: 0 10px 30px -6px rgba(255, 62, 138, .55); }
+.esqCab, .esqGrilla, .esqPie, .avG.esq { background: linear-gradient(90deg, #15151c 25%, #23232e 50%, #15151c 75%); background-size: 300% 100%; }
+/* la portada de Crear: un collage de stickers */
+.portada { position: relative; height: 196px; margin: 0 0 12px; }
+.portada img { position: absolute; width: 108px; height: 108px; object-fit: contain; filter: drop-shadow(0 10px 14px rgba(0, 0, 0, .7)); animation: flota 4s ease-in-out infinite; }
+.portada img:nth-child(1) { left: 1%; top: 34px; transform: rotate(-12deg); }
+.portada img:nth-child(2) { left: 31%; top: 0; width: 128px; height: 128px; animation-delay: -1s; }
+.portada img:nth-child(3) { right: 1%; top: 40px; transform: rotate(10deg); animation-delay: -2s; }
+.portada img:nth-child(4) { left: 23%; top: 96px; width: 66px; height: 66px; transform: rotate(8deg); animation-delay: -3s; }
+.portada img:nth-child(5) { right: 25%; top: 100px; width: 62px; height: 62px; transform: rotate(-6deg); animation-delay: -1.5s; }
+.portada .saludo { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font: 400 21px/1 'LuckiestGuy', sans-serif; color: #fff; letter-spacing: .4px; text-shadow: 0 3px 0 #000, 0 0 18px rgba(255, 62, 138, .7); z-index: 1; }
+/* las barras de herramientas (recortar, decorar) */
+.barra { background: rgba(8, 8, 12, .7); border-top: 1px solid var(--borde); }
+.barra button.act { background: linear-gradient(var(--panel2), var(--panel2)) padding-box, var(--dg2) border-box; border: 1px solid transparent; }
+.modos button.act { background: linear-gradient(var(--panel2), var(--panel2)) padding-box, var(--dg2) border-box; }

@@ -114,7 +114,7 @@ function ir(v, volviendo) {
   for (const s of document.querySelectorAll('.vista')) s.classList.toggle('oc', s.id !== v);
   const s = $('#' + v); s.classList.remove('entra', 'vuelve'); void s.offsetWidth; s.classList.add(volviendo ? 'vuelve' : 'entra');
   E.vista = v;
-  if (v === 'vRecorte' || v === 'vEditor') $('#aviso').classList.add('oc');
+  if (v === 'vRecorte' || v === 'vEditor') $('#aviso').classList.add('oc'); else setTimeout(mostrarOta, 400);
   if (v === 'vInicio') pintarInicio();
   else if (v === 'vRecorte') { marcarHerr(); pedirR(); }
   else if (v === 'vEditor') { pedirE(true); animarVista(); }
@@ -690,7 +690,14 @@ function carruselListos(c) {
     llenarPrevias(c);
   }
 }
-function pintarCarrusel() { carruselListos($('#carrusel')); }
+function pintarCarrusel() { carruselListos($('#carrusel')); pintarPortada(); }
+// la portada de Crear: cinco stickers de los packs listos, torcidos y flotando
+function pintarPortada() {
+  const c = $('#portada'); if (c.querySelector('img')) return;
+  const elegidos = [['respuestas', 0], ['mate', 0], ['animados', 0], ['filete', 0], ['asado', 0]];
+  c.insertAdjacentHTML('afterbegin', elegidos.map(([id, i]) => `<img data-l="${id}:${i}" alt="">`).join(''));
+  llenarPrevias(c);
+}
 document.addEventListener('click', (ev) => { const b = ev.target.closest('.carrusel [data-l]'); if (b) hojaListo(LISTOS.find((x) => x.id === b.dataset.l)); });
 function htmlListo(pk, solo) {
   const idx = solo || pk.stickers.map((_, i) => i);
@@ -902,6 +909,17 @@ function confeti() {
 }
 // (lo que usa la comunidad de acá)
 C.iniciar({ $, h, modal, cerrarModal, aviso, ir, iconos, E, confirmar, vibrar, confeti, pestaña, carruselListos, norm, buscarTag, pintarPack: () => pintarPack(), atras });
+// ---- versión nueva (se bajó sola): avisar cuando no está creando ----
+let otaPendiente = null;
+window.__szOta = (v) => { otaPendiente = v; mostrarOta(); };
+function mostrarOta() {
+  if (!otaPendiente || hayModal() || E.vista === 'vRecorte' || E.vista === 'vEditor') return;
+  otaPendiente = null;
+  const m = modal(`<div class="hoja centro"><div class="grandote">✨</div><h3>¡Stickerazo nuevo!</h3><p>Ya se bajó la versión nueva. Abrila ahora o se abre sola la próxima vez que entres.</p>
+    <div class="botones"><button class="sec" data-x="0">Después</button><button class="pri" data-x="1">Abrir ahora</button></div></div>`);
+  m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
+  m.querySelector('[data-x="1"]').onclick = () => { cerrarModal(); if (window.SZN && window.SZN.reiniciar) window.SZN.reiniciar(); else location.reload(); };
+}
 // los enlaces «stickerazo://pack/ID» (de la página para compartir) abren el pack
 window.__szAbrir = (ruta) => { const m = /pack\/([a-z0-9]{10})/.exec(String(ruta || '')); if (m) C.abrirPublico(m[1]); };
 

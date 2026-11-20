@@ -14,6 +14,8 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ANDROID, WEB = os.path.join(RAIZ, 'android'), os.path.join(RAIZ, 'web')
 PAQUETE, PRINCIPAL, ETIQUETA = 'com.stickerazo.app', 'com.stickerazo.app.Inicio', 'Stickerazo'
 MIN_SDK, TARGET_SDK = 24, 35
+# (el APK más viejo que puede usar la página de ahora: subirlo cuando la página use algo nuevo del puente con Java)
+OTA_APK_MIN = 0
 NO_COMPRIMIR = ['png', 'webp', 'jpg', 'jpeg']
 
 
@@ -96,6 +98,14 @@ def activos(tmp):
         if not os.path.isfile(os.path.join(WEB, f)): fallar('falta web/' + f + ': correr herramientas/bajar.sh')
     dest = os.path.join(tmp, 'assets', 'www')
     shutil.copytree(WEB, dest, ignore=lambda d, fs: [f for f in fs if f.startswith('_') or f.startswith('.')])
+    # (las actualizaciones solas: se firma la página de ahora —web/ota.json, va en el commit— y el APK lleva sus huellas
+    # y la llave pública para revisar las que vengan)
+    import json as _json
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import ota
+    datos = ota.generar(OTA_APK_MIN)
+    with open(os.path.join(tmp, 'assets', 'ota_base.json'), 'w', encoding='utf-8') as f: _json.dump({'v': datos['v'], 'archivos': ota.archivos(WEB)}, f)
+    with open(os.path.join(tmp, 'assets', 'ota_pub.txt'), 'w') as f: f.write(ota.publica_b64())
+    print('página: versión %d (%d archivos que se actualizan solos)' % (datos['v'], len(datos['archivos'])))
     return os.path.join(tmp, 'assets')
 
 

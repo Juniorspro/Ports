@@ -28,7 +28,14 @@ import android.widget.FrameLayout;
 
 import org.json.JSONObject;
 
+import android.os.Handler;
+import android.os.Looper;
+
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.PublicKey;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -55,6 +62,17 @@ public final class Inicio extends Activity {
     /** un enlace stickerazo://pack/ID que abrió la app y la página todavía no tomó */
     private String enlace;
     private boolean paginaLista;
+    // ---- las actualizaciones solas (OtaNucleo): de dónde se bajan, la llave y lo que trae el APK ----
+    private static final String[] FUENTES_OTA = {
+        "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/porteos/stickerazo/web/",
+        "https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/porteos/stickerazo/web/",
+    };
+    private File otaRaiz, otaEnUso;
+    private PublicKey otaPub;
+    private Map<String, String> otaBase = new HashMap<String, String>();
+    private long otaVApk;
+    private final Handler reloj = new Handler(Looper.getMainLooper());
+    private volatile boolean buscandoOta;
 
     @Override protected void onCreate(Bundle guardado) {
         super.onCreate(guardado);
@@ -81,7 +99,67 @@ public final class Inicio extends Activity {
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) WebView.setWebContentsDebuggingEnabled(true);
         limpiarFotos();
         enlace = rutaDe(getIntent());
+        prepararOta();
         web.loadUrl(ORIGEN + "/index.html");
+        reloj.postDelayed(new Runnable() { @Override public void run() { buscarOta(); } }, 4000);
+    }
+
+    // ---- las actualizaciones solas ----
+    private byte[] leerAsset(String n) throws IOException {
+        InputStream in = getAssets().open(n);
+        try { ByteArrayOutputStream b = new ByteArrayOutputStream(); byte[] t = new byte[16384]; for (int k; (k = in.read(t)) > 0; ) b.write(t, 0, k); return b.toByteArray(); } finally { in.close(); }
+    }
+    private void prepararOta() {
+        otaRaiz = new File(getFilesDir(), "ota"); otaRaiz.mkdirs();
+        try {
+            otaPub = OtaNucleo.llavePublica(new String(leerAsset("ota_pub.txt"), "UTF-8").trim());
+            byte[] b = leerAsset("ota_base.json"); otaBase = OtaNucleo.base(b); otaVApk = OtaNucleo.versionBase(b);
+        } catch (Exception e) { otaPub = null; return; }
+        OtaNucleo.limpiar(otaRaiz);
+        File a = OtaNucleo.actual(otaRaiz);
+        // (si el APK es más nuevo que la última actualización bajada, ésa ya no sirve)
+        if (a != null && OtaNucleo.versionDe(a, otaPub) <= otaVApk) { OtaNucleo.borrar(otaRaiz); otaRaiz.mkdirs(); a = null; }
+        otaEnUso = a;
+    }
+    long versionWeb() { return otaEnUso != null ? OtaNucleo.versionDe(otaEnUso, otaPub) : otaVApk; }
+    private long codigoApk() {
+        try { android.content.pm.PackageInfo i = getPackageManager().getPackageInfo(getPackageName(), 0); return Build.VERSION.SDK_INT >= 28 ? i.getLongVersionCode() : i.versionCode; } catch (Exception e) { return 0; }
+    }
+    private static byte[] bajarDe(String url) {
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            c.setConnectTimeout(10000); c.setReadTimeout(30000); c.setRequestProperty("Cache-Control", "no-cache");
+            if (c.getResponseCode() != 200) return null;
+            InputStream in = c.getInputStream();
+            try { ByteArrayOutputStream b = new ByteArrayOutputStream(); byte[] t = new byte[16384]; for (int k; (k = in.read(t)) > 0; ) { b.write(t, 0, k); if (b.size() > OtaNucleo.MAX_ARCHIVO) return null; } return b.toByteArray(); } finally { in.close(); }
+        } catch (IOException e) { return null; }
+    }
+    private static byte[] bajarOta(String ruta) { for (String f : FUENTES_OTA) { byte[] d = bajarDe(f + ruta); if (d != null) return d; } return null; }
+    /** busca una versión nueva (al abrir y cada 6 horas; si falló la bajada, de nuevo a los 10 minutos) */
+    private void buscarOta() {
+        if (otaPub == null || buscandoOta) return;
+        buscandoOta = true;
+        new Thread(new Runnable() {
+            @Override public void run() {
+                int r = -2;
+                try {
+                    byte[] ota = bajarOta("ota.json?t=" + System.currentTimeMillis());
+                    if (ota != null) r = OtaNucleo.aplicar(otaRaiz, ota, otaPub, otaBase, otaVApk, codigoApk(), new OtaNucleo.Bajador() {
+                        @Override public byte[] bajar(String ruta) { return bajarOta(ruta); }
+                    });
+                    if (r >= 0) { final long v = OtaNucleo.version(OtaNucleo.leer(ota, otaPub)); Log.i(TAG, "versión nueva lista: " + v + " (" + r + " archivos)"); runOnUiThread(new Runnable() { @Override public void run() { js("window.__szOta && window.__szOta(" + v + ")"); } }); }
+                } catch (Exception e) { Log.w(TAG, "actualización", e); }
+                buscandoOta = false;
+                final long espera = r == -2 ? 10 * 60000L : 6 * 3600000L;
+                reloj.postDelayed(new Runnable() { @Override public void run() { if (!isFinishing()) buscarOta(); } }, espera);
+            }
+        }, "ota").start();
+    }
+    /** la página pidió usar la versión nueva ya */
+    void reiniciarPagina() {
+        File a = OtaNucleo.actual(otaRaiz);
+        if (a != null && OtaNucleo.versionDe(a, otaPub) > otaVApk) otaEnUso = a;
+        paginaLista = false; web.reload();
     }
 
     // ---- los enlaces stickerazo://pack/ID ----
@@ -156,6 +234,9 @@ public final class Inicio extends Activity {
             String p = u.getPath();
             if (p == null || p.isEmpty() || p.equals("/")) p = "/index.html";
             if (p.contains("..")) return noHay();
+            // (la versión nueva de la página, si se bajó una; si no, la del APK)
+            File ota = otaEnUso != null ? OtaNucleo.archivo(otaEnUso, p.substring(1)) : null;
+            if (ota != null) { try { return respuesta(tipo(p), new FileInputStream(ota), false); } catch (IOException e) { /* la del APK */ } }
             if (p.startsWith("/archivos/")) {
                 List<String> s = u.getPathSegments();
                 File f = s.size() == 3 ? almacen.archivo(s.get(1), s.get(2)) : null;
@@ -313,6 +394,7 @@ public final class Inicio extends Activity {
     @Override protected void onResume() { super.onResume(); if (web != null) web.onResume(); }
 
     @Override protected void onDestroy() {
+        reloj.removeCallbacksAndMessages(null);
         if (web != null) { web.destroy(); web = null; }
         super.onDestroy();
     }

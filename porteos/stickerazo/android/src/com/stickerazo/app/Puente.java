@@ -37,6 +37,10 @@ final class Puente {
     }
 
     @JavascriptInterface public String version() { return app.version(); }
+    /** la versión de la página (la del APK o la última actualización que se está usando) */
+    @JavascriptInterface public String versionWeb() { return String.valueOf(app.versionWeb()); }
+    /** usar ya la versión nueva (vuelve a abrir la página) */
+    @JavascriptInterface public void reiniciar() { app.runOnUiThread(new Runnable() { @Override public void run() { app.reiniciarPagina(); } }); }
     @JavascriptInterface public String enlaceInicial() {
         final String[] r = new String[1];
         final java.util.concurrent.CountDownLatch l = new java.util.concurrent.CountDownLatch(1);

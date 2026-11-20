@@ -164,6 +164,22 @@ Cabezón con bamboleo y globo, un Pack express de 5 fotos, busca por palabra y p
 Un animado tarda de 1,5 a 7 s en armarse (los de 2,4 s bajan a 10 u 8 cuadros por segundo para no bajar de calidad 0,6). Recorte de una persona en 1,3 s (con la carga de los modelos),
 el perro en 0,8 s. Los stickers pesan entre 26 y 60 KB.
 
+## Se actualiza sola (como JXMod)
+
+La app trae la página adentro, pero al abrirla (y cada 6 horas) se fija en GitHub si hay una versión nueva
+(`web/ota.json`, en esta rama). Baja **sólo los archivos que cambiaron**, revisa cada uno con su huella (sha256) y la
+lista entera con una **firma** (ECDSA P-256) cuya llave no está en el repo: si alguien tocara el repo, la app no le hace
+caso. Arma la versión nueva en su carpeta, avisa «¡Stickerazo nuevo!» (abrirla ahora o la próxima vez) y la página
+abierta sigue con la suya hasta entonces (nada se mezcla). MediaPipe y los modelos vienen en el APK y no se bajan.
+
+- **Publicar una versión nueva de la página:** `python3 -I herramientas/ota.py` (o armar el APK, que lo hace solo) y
+  subir `web/` (commit y push). Si la página empieza a usar algo nuevo del puente con Java, subir `OTA_APK_MIN` en
+  `armar_apk.py` (los celulares con un APK más viejo no la toman y siguen con la suya).
+- Prueba: `PruebaOta.java` (11): firma de Python revisada en Java, baja sólo lo que cambió, un archivo o una firma
+  tocados no hacen nada, nada de «..», APK viejo no.
+- La llave de las actualizaciones: `/root/.stickerazo/firma/ota.pem` (o el secreto `STICKERAZO_OTA_PEM_B64`). Sin ella
+  no se pueden firmar versiones nuevas: los celulares seguirían con la última.
+
 ## La firma
 
 El APK se firma con `/root/.stickerazo/firma/stickerazo.jks` (alias `stickerazo`, clave en `clave.txt` al lado), **fuera

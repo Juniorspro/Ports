@@ -34,7 +34,8 @@ const F = { modo: 'para-vos', desde: 0, cargando: false, fin: false, cache: new 
 const esqueletos = (n) => Array.from({ length: n }, () => '<div class="tf esq"><div class="esqCab"></div><div class="esqGrilla"></div><div class="esqPie"></div></div>').join('');
 function tarjeta(p, i) {
   F.cache.set(p.id, p);
-  return `<article class="tf" data-id="${p.id}" style="--i:${i % 8}">
+  const tono = [...p.id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 0);
+  return `<article class="tf" data-id="${p.id}" style="--i:${i % 8};--tono:${tono}">
     <header><button class="autor" data-u="${X.h(p.autor.nombre)}">${avatar(p.autor.avatar)}<span><b>@${X.h(p.autor.nombre)}</b><small>${hace(p.creado)}</small></span></button>${p.animado ? '<b class="insignia">Animado</b>' : ''}</header>
     <div class="tfGrilla" data-abrir="${p.id}">${p.muestra.slice(0, 6).map((a) => `<img loading="lazy" src="${media(p, a)}" alt="">`).join('')}</div>
     <div class="tfPie"><div class="tfNom"><b>${X.h(p.nombre)}</b><small>${p.n} stickers${p.tags.length ? ' · ' + p.tags.slice(0, 3).map((t) => '#' + X.h(t)).join(' ') : ''}</small></div>
