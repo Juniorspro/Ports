@@ -22,7 +22,7 @@ public final class Almacen {
     private static final Charset UTF8 = Charset.forName("UTF-8");
     private static final Pattern ID = Pattern.compile("[A-Za-z0-9_-]{1,64}");
     private static final Pattern ARCHIVO = Pattern.compile("[A-Za-z0-9_-]{1,60}\\.(webp|png)");
-    /** un sticker pesa 100 KB como mucho y el ícono 50 KB; con margen */
+    /** un sticker pesa 100 KB como mucho (animado: 500 KB), el ícono 50 KB y las imágenes del proyecto 480 KB; con margen */
     public static final int MAX_ARCHIVO = 512 * 1024, MAX_LISTA = 4 * 1024 * 1024;
     /** lo que WhatsApp muestra del pack: dónde bajar la app y la política de privacidad (cuando esté publicada) */
     public static final String TIENDA = "https://play.google.com/store/apps/details?id=com.stickerazo.app", POLITICA = "";
@@ -85,6 +85,8 @@ public final class Almacen {
     public static final class Pack {
         public String id, nombre, autor, bandeja;
         public long v;
+        /** WhatsApp no mezcla: un pack es todo animado o todo quieto */
+        public boolean animado;
         public final List<Sticker> stickers = new ArrayList<Sticker>();
     }
 
@@ -107,6 +109,7 @@ public final class Almacen {
             p.autor = texto(m.get("autor"));
             p.bandeja = texto(m.get("bandeja"));
             p.v = m.get("v") instanceof Double ? ((Double) m.get("v")).longValue() : 0;
+            p.animado = Boolean.TRUE.equals(m.get("animado"));
             if (!idValido(p.id) || p.nombre == null || p.nombre.trim().isEmpty()) continue;
             if (!archivoValido(p.bandeja)) p.bandeja = null;
             if (m.get("stickers") instanceof List) for (Object y : (List<?>) m.get("stickers")) {
@@ -141,7 +144,7 @@ public final class Almacen {
     public static Object[] filaPack(Pack p, String enlaceTienda, String politica) {
         return new Object[] {
             p.id, corto(p.nombre, 128), corto(p.autor == null || p.autor.trim().isEmpty() ? "Stickerazo" : p.autor, 128), p.bandeja == null ? "" : p.bandeja,
-            enlaceTienda, "", "", "", politica, "", String.valueOf(p.v), 0, 0,
+            enlaceTienda, "", "", "", politica, "", String.valueOf(p.v), 0, p.animado ? 1 : 0,
         };
     }
 

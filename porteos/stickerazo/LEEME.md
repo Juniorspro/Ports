@@ -6,6 +6,26 @@ ningún lado), le ponés texto y emojis, y armás packs de 3 a 30 stickers que s
 Es un proyecto **comercial** (anuncios y Premium más adelante): todo es propio o con licencia que permite venderlo.
 Lo de terceros está en [LICENCIAS.md](LICENCIAS.md).
 
+## Lo que tiene (y las otras apps no)
+
+Miramos Sticker.ly y las demás (feed de packs, recorte con IA, texto, animados sólo a partir de un video; las quejas:
+casi todo pago, mucha publicidad, cobros de suscripciones). Lo nuestro:
+
+- **Animar cualquier sticker de un toque**, sin video: Latido, Temblor, Rebote, Giro, Flotar, Bamboleo, Pum, Escribir
+  (letra por letra), Parpadeo y Arcoíris, cada capa por su lado. Sale un WebP animado de 512×512 y ≤ 500 KB (el
+  navegador no sabe hacerlos: `webpAnimado` arma el formato con cada cuadro recortado a lo que tiene dibujado).
+- **Solo la cara** (pelo, cara y lo que tenga puesto en la cabeza) y **Cabezón**: la cabeza aparte, 1,5 veces más
+  grande y apoyada en el cuello, lista para «Bamboleo».
+- **Pack express**: hasta 30 fotos de una; las recorta todas y arma el pack.
+- **Completar a 3**: WhatsApp pide 3 stickers; si tenés 1 o 2, hace variaciones (espejado, otro color, otra animación).
+- **Todo se vuelve a editar**: cada sticker guarda su proyecto (capas e imágenes); al cambiarlo, el pack sube de versión
+  y WhatsApp lo vuelve a leer.
+- **Emojis automáticos** según lo que dice («jaja» → 😂, «mate» → 🧉, «milanesa» → 🍕), para que WhatsApp lo sugiera.
+- **Frases listas** de acá y **globo de diálogo**.
+- **Packs listos editables** (`web/listos.js`, contenido nuestro: 5 packs, 36 stickers, uno animado) y **búsqueda**
+  por palabra o por emoji en los listos y en los tuyos.
+- Sin cuenta, sin marca de agua, y las fotos no salen del celular.
+
 ## Cómo está hecho
 
 La interfaz es una página web (`web/`) que en el celular corre dentro de la app de Android (`android/`).
@@ -16,8 +36,9 @@ puente (`window.SZN`); en el navegador, para probar, usa IndexedDB.
 |---|---|
 | `web/index.html`, `web/estilo.css` | las 4 pantallas: Inicio, Recortá, Decorá y el pack (tema oscuro, amarillo y rosa) |
 | `web/app.js` | lo que hace cada botón: recorte con el dedo (tocar, borrar, recuperar, con lupa), editor con gestos (arrastrar, pinza de dos dedos, manija), guardar en packs |
-| `web/recorte.js` | separa lo importante del fondo con MediaPipe: personas solas (modelo «selfie multiclase») y cualquier cosa tocándola («magic touch») |
-| `web/editor.js` | el sticker: capas (foto, textos, emojis) en 512×512, el borde blanco con sombra, «que entre todo», exportar a WebP ≤ 100 KB y el ícono 96×96 |
+| `web/recorte.js` | separa lo importante del fondo con MediaPipe: personas solas (modelo «selfie multiclase», que además da la cabeza: pelo + cara + accesorios) y cualquier cosa tocándola («magic touch») |
+| `web/editor.js` | el sticker: capas (foto, textos, emojis, globo) en 512×512, las animaciones, el borde con sombra, «que entre todo», el proyecto para volver a editar, WebP ≤ 100 KB, WebP animado ≤ 500 KB y el ícono 96×96 |
+| `web/listos.js` | los packs listos (frases nuestras), que se arman en el celular con el mismo editor |
 | `web/puente.js` | guardar/leer packs y archivos, y hablar con WhatsApp (app de Android o navegador) |
 | `web/fuentes/` | las 5 letras para los textos (Apache-2.0 y OFL) |
 | `web/terceros/` | MediaPipe y los modelos: **no van en el repo**, los baja `herramientas/bajar.sh` |
@@ -52,7 +73,10 @@ son un pincel (con lupa, porque el dedo tapa lo que pinta), **Entera** usa la fo
 
 - Sticker: 512×512, WebP, **100 KB como mucho**, fondo transparente, con margen (16 px) para que no se corte.
   Si algo toca el borde, al guardar aparece «Que entre todo».
-- Ícono del pack (bandeja): 96×96, PNG, 50 KB como mucho.
+- Animado: 512×512, WebP, **500 KB como mucho**, 10 s como mucho, cada cuadro de 8 ms o más; el primer cuadro es el
+  sticker quieto (todas las animaciones arrancan en reposo). Un pack es **todo animado o todo quieto**
+  (`animated_sticker_pack`).
+- Ícono del pack (bandeja): 96×96, PNG, 50 KB como mucho (también en los animados).
 - Pack: de **3 a 30** stickers; cada sticker con **1 a 3 emojis** (WhatsApp los usa para sugerirlo).
 - Cada vez que cambia un pack sube su versión (`v`): WhatsApp lo vuelve a leer.
 
@@ -88,7 +112,10 @@ pack y revisa cada archivo (tamaño, peso, transparencia, margen, emojis). Neces
 `grace_hopper.jpg`, `YellowLabradorLooking_new.jpg` y `burger.jpg` (fotos de muestra de TensorFlow/MediaPipe; no van
 en el repo ni en la app).
 
-Última corrida: navegador 27 de 27, como la app 32 de 32, Java 21 de 21, 0 errores en la página; APK de 25,4 MB. Recorte de una persona en 1,3 s (con la carga de los modelos),
+Última corrida: navegador 96 de 96, como la app 100 de 100, Java 23 de 23, 0 errores en la página; APK de 25,5 MB.
+Además de lo de antes, la prueba edita un sticker guardado, anima uno, completa un pack animado, hace Solo cara y un
+Cabezón con bamboleo y globo, un Pack express de 5 fotos, busca por palabra y por emoji, y agrega un pack listo.
+Un animado tarda de 1,5 a 7 s en armarse (los de 2,4 s bajan a 10 u 8 cuadros por segundo para no bajar de calidad 0,6). Recorte de una persona en 1,3 s (con la carga de los modelos),
 el perro en 0,8 s. Los stickers pesan entre 26 y 60 KB.
 
 ## La firma

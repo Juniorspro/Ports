@@ -74,6 +74,9 @@ public class PruebaAlmacen {
         // ---- lo que recibe WhatsApp ----
         Object[] f = Almacen.filaPack(p, "https://play.google.com/store/apps/details?id=com.stickerazo.app", "");
         ok(f.length == Almacen.COLUMNAS_PACK.length && f.length == 13, "fila del pack: 13 columnas como el ejemplo de WhatsApp");
+        Almacen.Pack an = new Almacen.Pack(); an.id = "pa"; an.nombre = "Animados"; an.animado = true;
+        ok(Integer.valueOf(1).equals(Almacen.filaPack(an, "", "")[12]) && Integer.valueOf(0).equals(f[12]), "pack animado: animated_sticker_pack 1 (y 0 en el quieto)");
+        ok(al.guardarPacks("[{\"id\":\"pa\",\"nombre\":\"A\",\"animado\":true,\"stickers\":[]}]") && al.packs().get(0).animado && al.guardarPacks(lista), "«animado» se lee de la lista");
         ok("p1".equals(f[0]) && "Mis stickers 🧉".equals(f[1]) && "Stickerazo".equals(f[2]) && "bandeja.png".equals(f[3]) && "4".equals(f[10])
            && Integer.valueOf(0).equals(f[11]) && Integer.valueOf(0).equals(f[12]), "fila del pack: id, nombre, autor, ícono, versión «4», sin animación");
         Object[] fs = Almacen.filaSticker(p.stickers.get(1));

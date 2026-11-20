@@ -1,13 +1,17 @@
 // Stickerazo: las pantallas y lo que hace cada botón.
 //  Inicio → (foto) → Recortá → Decorá → Guardar en un pack → el pack (de 3 a 30 stickers) → Agregar a WhatsApp.
-import { LADO, MARGEN, FUENTES, COLORES, cargarFuentes, recortarImagen, Sticker, exportarWebP, exportarBandeja } from './editor.js';
+import { LADO, MARGEN, FUENTES, COLORES, ANIMACIONES, ANIM, cargarFuentes, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob } from './editor.js';
 import * as P from './puente.js';
+import { LISTOS, armarListo, emojisListo } from './listos.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const MAX_ST = 30, MIN_ST = 3, MAX_FOTO = 1280;
 export const ENLACE = 'https://play.google.com/store/apps/details?id=com.stickerazo.app';
 const EMOJIS = ['😂', '🤣', '😭', '😍', '🥰', '😘', '😎', '🤔', '🙄', '😴', '🤯', '😡', '🥺', '😱', '🤡', '💀', '👍', '👎', '👏', '🙏', '💪', '🤝', '✌️', '👌',
   '❤️', '💔', '🔥', '✨', '💯', '🎉', '🥳', '⚽', '🏆', '🍕', '🍺', '🧉', '☕', '🐶', '🐱', '💩', '👀', '🙈', '😅', '🤪', '😬', '🤨', '😤', '💤'];
+// ideas para el texto (frases nuestras, de acá)
+const FRASES = ['DE UNA', 'NI AHÍ', 'QUÉ HACÉS', 'RE QUE SÍ', 'ME MATASTE', 'TODO BIEN', '¿POSTA?', 'NAAA', 'FUA', '¿Y MI MILANESA?', 'HOY NO ME CUIDO', 'ESTOY EN ESO',
+  'MAÑANA ARRANCO', 'BANCAME UN TOQUE', 'UN MATE Y ARRANCO', 'NO PASA NADA', 'QUÉ CAPO', 'SE PUDRIÓ TODO', 'ME VOY A DORMIR', 'LA VERDAD QUE NO', 'JAJAJA', 'AGUANTE EL MATE'];
 const AYUDA = { tocar: 'Tocá algo para sumarlo o sacarlo', borrar: 'Pasá el dedo por lo que sobra', recuperar: 'Pasá el dedo por lo que falta' };
 const capturar = (el, id) => { try { el.setPointerCapture(id); } catch (e) { /* (puntero que ya no está) */ } };
 const lim = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -39,6 +43,11 @@ const ICONOS = {
   compartir: '<circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1"/>',
   lapiz: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   ok: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  lupa: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+  estrella: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"/>',
+  carpeta: '<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="2"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="2"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="2"/><rect x="13" y="13" width="7.5" height="7.5" rx="2"/>',
+  anim: '<path d="M13 5.5a6.5 6.5 0 1 1 0 13"/><circle cx="13" cy="12" r="3.2" fill="currentColor"/><path d="M2.5 8.5h5M1.5 12h6M2.5 15.5h5"/>',
+  copias: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/><path d="M14 11v6M11 14h6"/>',
 };
 function iconos(raiz = document) {
   for (const i of raiz.querySelectorAll('i[data-i]:not([data-hecho])')) {
@@ -51,7 +60,7 @@ function iconos(raiz = document) {
 const E = {
   vista: 'vInicio', origen: 'vInicio', packs: [], packId: null,
   foto: null, W: 0, H: 0, mascara: null, corte: null, sil: null, deshacer: [], herr: 'tocar', sucio: false, ocupado: false,
-  st: null, desdeRecorte: false, compuesto: null, ultFuente: 'LuckiestGuy', ultColor: '#ffffff', ultContorno: '#111111',
+  st: null, desdeRecorte: false, compuesto: null, editando: null, modo: 'auto', cabeza: null, mascaraAuto: null, tab: 'Crear', ultFuente: 'LuckiestGuy', ultColor: '#ffffff', ultContorno: '#111111',
 };
 // el recorte (los modelos pesan: se cargan una vez, de fondo)
 let R = null;
@@ -64,7 +73,7 @@ function aviso(texto, ms = 2800) {
   const a = $('#aviso'), piso = $(`#${E.vista} .pie, #${E.vista} .barra`), arriba = piso ? piso.getBoundingClientRect().top : window.innerHeight - 16;
   a.style.bottom = Math.round(window.innerHeight - arriba + 12) + 'px'; a.textContent = texto; a.classList.remove('oc'); clearTimeout(tAviso); tAviso = setTimeout(() => a.classList.add('oc'), ms); }
 function modal(html, opc = {}) {
-  const m = $('#modal'); m.innerHTML = html; m.className = 'modal' + (opc.claro ? ' claro' : ''); iconos(m);
+  const m = $('#modal'); m.innerHTML = html; m.className = 'modal' + (opc.claro ? ' claro' : ''); iconos(m); $('#aviso').classList.add('oc');
   m.onclick = (ev) => { if (ev.target === m) cerrarModal(); };
   E.alCerrar = opc.alCerrar || null;
   if (opc.claro) { const cont = $('#' + E.vista + ' .lienzoCont'), hj = $('.hoja', m); if (cont) { const libre = window.innerHeight - cont.getBoundingClientRect().bottom; cont.style.marginBottom = Math.max(0, hj.offsetHeight - libre + 10) + 'px'; } }
@@ -99,7 +108,7 @@ function ir(v) {
   if (v === 'vRecorte' || v === 'vEditor') $('#aviso').classList.add('oc');
   if (v === 'vInicio') pintarInicio();
   else if (v === 'vRecorte') { marcarHerr(); pedirR(); }
-  else if (v === 'vEditor') pedirE(true);
+  else if (v === 'vEditor') { pedirE(true); animarVista(); }
   else if (v === 'vPack') pintarPack();
 }
 async function atras() {
@@ -110,10 +119,11 @@ async function atras() {
     if (E.desdeRecorte) return ir('vRecorte');
     if (E.st && E.st.capas.length && !(await confirmar('¿Tirar este sticker?', 'Tirar'))) return;
     E.st = null; ir(E.origen);
-  } else if (E.vista === 'vPack') ir('vInicio');
+  } else if (E.vista === 'vPack') { E.tab = 'Mios'; ir('vInicio'); }
+  else if (E.vista === 'vInicio' && E.tab !== 'Crear') pestaña('Crear');
 }
 // el botón «atrás» del celular (Java pregunta: true = lo manejó la app; false = salir)
-window.__szAtras = () => { const maneja = hayModal() || E.vista !== 'vInicio'; atras(); return maneja; };
+window.__szAtras = () => { const maneja = hayModal() || E.vista !== 'vInicio' || E.tab !== 'Crear'; atras(); return maneja; };
 for (const b of document.querySelectorAll('.volver')) b.onclick = () => atras();
 
 // ---- crear: galería, cámara o sólo texto ----
@@ -127,6 +137,32 @@ function crear(como, origen) {
 $('#bCrear').onclick = () => crear('galeria', 'vInicio');
 $('#bCamara').onclick = () => crear('camara', 'vInicio');
 $('#bTexto').onclick = () => crear('texto', 'vInicio');
+$('#bExpress').onclick = () => { const i = $('#archivoVarios'); i.value = ''; i.click(); };
+$('#archivoVarios').addEventListener('change', (ev) => { const fs = [...(ev.target.files || [])].slice(0, MAX_ST); if (fs.length) packExpress(fs); });
+// muchas fotos de una: cada una recortada sola, con borde, a un pack nuevo (y editables después, como cualquier otro)
+async function packExpress(files) {
+  const m = modal(`<div class="hoja"><h3>Pack express</h3><div class="progreso"><div class="rueda"></div><b id="xT">Preparando…</b><span>Todo en tu celular: las fotos no salen de acá</span></div><div class="tiraX" id="xL"></div></div>`); m.onclick = null;
+  let pack = null, hechos = 0;
+  const packs = await P.leerPacks(), nombre = 'Pack express' + (packs.some((p) => /^Pack express/.test(p.nombre)) ? ' ' + (packs.filter((p) => /^Pack express/.test(p.nombre)).length + 1) : '');
+  try {
+    const rec = await recorte();
+    for (let i = 0; i < files.length; i++) {
+      $('#xT', m).textContent = `Recortando ${i + 1} de ${files.length}…`;
+      try {
+        const foto = await cargarImagen(files[i]), W = foto.width, H = foto.height, r = await rec.recortarSolo(foto);
+        const t = lienzo(W, H), g = t.getContext('2d', { willReadFrequently: true }); g.drawImage(aCanvas(r), 0, 0, W, H);
+        const d = g.getImageData(0, 0, W, H).data, a = new Uint8Array(W * H); let n = 0; for (let j = 0; j < a.length; j++) { a[j] = d[j * 4 + 3]; if (a[j] > 128) n++; }
+        let cut = n > a.length * 0.01 ? recortarImagen(foto, a, W, H) : null; if (!cut) cut = foto;
+        const s = new Sticker(); s.agregarImagen(achicar(cut)); if (s.seSale() > 30) s.encajar();
+        pack = await guardarSticker(s, pack ? pack.id : 'nuevo', nombre, [r.como === 'persona' ? '😎' : '😂']); hechos++;
+        const im = new Image(); im.src = s.componer().toDataURL(); $('#xL', m).appendChild(im);
+      } catch (e) { console.error(e); }
+    }
+  } catch (e) { console.error(e); }
+  cerrarModal();
+  if (!pack) return aviso('No pude armar el pack');
+  E.packId = pack.id; ir('vPack'); aviso(hechos < files.length ? `Pack listo: ${hechos} de ${files.length} fotos` : `¡Pack listo! ${hechos} sticker${hechos === 1 ? '' : 's'}`);
+}
 function menuNuevo(origen) {
   const m = modal(`<div class="hoja"><h3>Otro sticker</h3><div class="lista">
     <button class="opc" data-x="galeria"><i data-i="galeria"></i><span>Elegir una foto</span></button>
@@ -135,17 +171,21 @@ function menuNuevo(origen) {
   m.querySelector('.lista').onclick = (ev) => { const b = ev.target.closest('button'); if (b) { cerrarModal(); crear(b.dataset.x, origen); } };
 }
 
-async function abrirFoto(f) {
+// una foto del celular → un lienzo de 1280 px como mucho (derecho: el navegador respeta la orientación de la cámara)
+async function cargarImagen(f) {
   let img;
   try { img = await createImageBitmap(f); } catch (e) {
-    try { img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = URL.createObjectURL(f); }); } catch (e2) { return aviso('No pude abrir esa imagen'); }
+    img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = URL.createObjectURL(f); });
   }
   const w0 = img.width || img.naturalWidth, h0 = img.height || img.naturalHeight, k = Math.min(1, MAX_FOTO / Math.max(w0, h0));
-  const W = Math.max(1, Math.round(w0 * k)), H = Math.max(1, Math.round(h0 * k));
-  const foto = lienzo(W, H), g = foto.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, W, H);
+  const foto = lienzo(Math.max(1, Math.round(w0 * k)), Math.max(1, Math.round(h0 * k))), g = foto.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, foto.width, foto.height);
   if (img.close) img.close();
-  const mascara = lienzo(W, H); mascara.getContext('2d', { willReadFrequently: true });
-  Object.assign(E, { foto, W, H, mascara, corte: lienzo(W, H), sil: lienzo(W, H), deshacer: [], herr: 'tocar', st: null, desdeRecorte: false, sucio: true });
+  return foto;
+}
+async function abrirFoto(f) {
+  let foto; try { foto = await cargarImagen(f); } catch (e) { return aviso('No pude abrir esa imagen'); }
+  const W = foto.width, H = foto.height, mascara = lienzo(W, H); mascara.getContext('2d', { willReadFrequently: true });
+  Object.assign(E, { foto, W, H, mascara, corte: lienzo(W, H), sil: lienzo(W, H), deshacer: [], herr: 'tocar', st: null, desdeRecorte: false, editando: null, sucio: true, modo: 'auto', cabeza: null, mascaraAuto: null });
   ayudaR('Buscando qué recortar…'); ir('vRecorte'); await auto(false);
 }
 
@@ -227,6 +267,7 @@ async function auto(conDeshacer = true) {
     const m = await recorte(), r = await m.recortarSolo(E.foto);
     if (conDeshacer) guardarDeshacer();
     const g = mctx(); g.clearRect(0, 0, E.W, E.H); g.imageSmoothingQuality = 'high'; g.drawImage(aCanvas(r), 0, 0, E.W, E.H);
+    E.cabeza = r.cabeza || null; E.mascaraAuto = alfa(); E.modo = 'auto';
     E.sucio = true; E.herr = 'tocar'; marcarHerr(); pedirR();
     ayudaR(cuanto() < 0.003 ? 'No encontré qué recortar: tocá lo que querés' : r.como === 'persona' ? '¡Listo! Si falta o sobra algo, tocalo' : 'Recorté lo del medio · tocá algo para sumarlo');
   } catch (e) { console.error(e); ayudaR('No pude recortar solo: tocá lo que querés'); }
@@ -264,24 +305,59 @@ RV.c.addEventListener('pointermove', (ev) => {
 for (const t of ['pointerup', 'pointercancel']) RV.c.addEventListener(t, (ev) => { if (RV.trazo && RV.trazo.id === ev.pointerId) { RV.trazo = null; RV.lupa = null; pedirR(); } });
 RV.c.addEventListener('pointerleave', () => { RV.cursor = null; pedirR(); });
 $('#rPincel').addEventListener('input', () => { RV.cursor = { sx: RV.c.width / 2, sy: RV.c.height / 2 }; pedirR(); });
+// los modos: automático, sólo la cara, cabezón (la cabeza grande y aparte, para animarla) o la foto entera
+function alfaDeCanvas(c) { const t = lienzo(E.W, E.H), g = t.getContext('2d', { willReadFrequently: true }); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, E.W, E.H); const d = g.getImageData(0, 0, E.W, E.H).data, a = new Uint8Array(E.W * E.H); for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3]; return a; }
+$('#rModos').onclick = async (ev) => {
+  const b = ev.target.closest('button'); if (!b || E.ocupado) return; const m = b.dataset.m;
+  if (m === 'auto') { await auto(true); return marcarModo(); }
+  if (m === 'entera') { guardarDeshacer(); const g = mctx(); g.fillStyle = '#fff'; g.fillRect(0, 0, E.W, E.H); E.sucio = true; pedirR(); E.modo = 'entera'; ayudaR('La foto entera · Borrar saca lo que sobra'); return marcarModo(); }
+  if (!E.cabeza) return aviso('No encontré una cara en esta foto');
+  guardarDeshacer();
+  if (m === 'cara') { ponerAlfa(alfaDeCanvas(aCanvas(E.cabeza))); ayudaR('Solo la cara · si falta pelo, Recuperar'); }
+  else { if (E.mascaraAuto) ponerAlfa(E.mascaraAuto); ayudaR('Cabezón: la cabeza va grande y aparte'); }
+  E.modo = m; marcarModo();
+};
+function marcarModo() { for (const b of $('#rModos').children) b.classList.toggle('act', b.dataset.m === E.modo); }
 function marcarHerr() {
   for (const b of $('#rHerr').children) b.classList.toggle('act', b.dataset.h === E.herr);
-  $('#rHerr [data-h="deshacer"]').disabled = !E.deshacer.length;
+  $('#rHerr [data-h="deshacer"]').disabled = !E.deshacer.length; marcarModo();
   $('#rPincelCont').classList.toggle('oc', E.herr === 'tocar');
 }
 $('#rHerr').onclick = (ev) => {
   const b = ev.target.closest('button'); if (!b || E.ocupado) return; const k = b.dataset.h;
-  if (k === 'auto') auto(true);
-  else if (k === 'entera') { guardarDeshacer(); const g = mctx(); g.fillStyle = '#fff'; g.fillRect(0, 0, E.W, E.H); E.sucio = true; pedirR(); ayudaR('La foto entera · Borrar saca lo que sobra'); }
-  else if (k === 'deshacer') deshacer();
+  if (k === 'deshacer') deshacer();
   else { E.herr = k; marcarHerr(); ayudaR(AYUDA[k]); pedirR(); }
 };
+// el cabezón: el cuerpo y la cabeza en dos capas; la cabeza 1,5 veces más grande, apoyada en el cuello
+function armarCabezon() {
+  const a = alfa(), cab = alfaDeCanvas(aCanvas(E.cabeza)), N = a.length, ca = new Uint8Array(N), cu = new Uint8Array(N);
+  for (let i = 0; i < N; i++) { ca[i] = Math.min(a[i], cab[i]); cu[i] = Math.round((a[i] * (255 - cab[i])) / 255); }
+  const cH = recortarImagen(E.foto, ca, E.W, E.H), cB = recortarImagen(E.foto, cu, E.W, E.H);
+  if (!cH || !cB || cH.width * cH.height < 400) return null;
+  const F = 1.5, s = E.st && E.desdeRecorte ? E.st : new Sticker();
+  s.capas = s.capas.filter((c) => !c.recorte && !c.cabeza);
+  const cuello = { x: cH.origen.x + cH.width / 2, y: cH.origen.y + cH.height };
+  const x0 = Math.min(cB.origen.x, cuello.x - (cH.width * F) / 2), x1 = Math.max(cB.origen.x + cB.width, cuello.x + (cH.width * F) / 2);
+  const y0 = Math.min(cB.origen.y, cuello.y - cH.height * F), y1 = Math.max(cB.origen.y + cB.height, cuello.y);
+  const k = (LADO - 2 * (MARGEN + s.borde + 3)) / Math.max(x1 - x0, y1 - y0), mx = (x0 + x1) / 2, my = (y0 + y1) / 2, aSt = (x, y) => [LADO / 2 + (x - mx) * k, LADO / 2 + (y - my) * k];
+  const [bx, by] = aSt(cB.origen.x + cB.width / 2, cB.origen.y + cB.height / 2), [hx, hy] = aSt(cuello.x, cuello.y - (cH.height * F) / 2);
+  const cuerpo = { tipo: 'img', src: achicar(cB), x: bx, y: by, rot: 0, recorte: true }, cabeza = { tipo: 'img', src: achicar(cH), x: hx, y: hy, rot: 0, cabeza: true };
+  cuerpo.esc = (k * cB.width) / cuerpo.src.width; cabeza.esc = (k * F * cH.width) / cabeza.src.width;
+  s.capas.unshift(cuerpo, cabeza); s.sel = 1;
+  return s;
+}
+const achicar = (c, max = 1024) => { const k = Math.min(1, max / Math.max(c.width, c.height)); if (k >= 1) return c; const x = lienzo(c.width * k, c.height * k), g = x.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, x.width, x.height); return x; };
 $('#rSig').onclick = () => {
   if (E.ocupado) return;
+  if (E.modo === 'cabezon' && E.cabeza) {
+    const s = armarCabezon(); if (!s) return aviso('No pude separar la cabeza: probá con Auto');
+    E.st = s; E.desdeRecorte = true; ir('vEditor'); aviso('Probá Animar → Bamboleo: mueve la cabeza 🎎', 4000); return;
+  }
   const cut = recortarImagen(E.foto, alfa(), E.W, E.H);
   if (!cut || cut.width * cut.height < 100) return aviso('No quedó nada recortado: tocá lo que querés');
   let src = cut; const k = Math.min(1, 1024 / Math.max(cut.width, cut.height));
   if (k < 1) { src = lienzo(cut.width * k, cut.height * k); const g = src.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(cut, 0, 0, src.width, src.height); }
+  if (E.st && E.desdeRecorte) E.st.capas = E.st.capas.filter((c) => !c.cabeza);
   const viejo = E.desdeRecorte && E.st && E.st.capas.find((c) => c.recorte);
   if (viejo) { viejo.esc *= viejo.src.width / src.width; viejo.src = src; } // (volvió a recortar: queda en el mismo lugar y del mismo ancho)
   else { if (!E.st || !E.desdeRecorte) E.st = new Sticker(); const c = E.st.agregarImagen(src); c.recorte = true; E.st.capas.unshift(E.st.capas.pop()); E.st.sel = 0; }
@@ -290,6 +366,13 @@ $('#rSig').onclick = () => {
 
 // ================= DECORÁ =================
 const EV = { c: $('#eLienzo'), esc: 1, ox: 0, oy: 0, d: 1, raf: 0, p: new Map(), gesto: null, ult: { t: 0, i: -1 }, manija: null };
+const tAhora = (s) => { const D = s.duracion(); return ((performance.now() / 1000) % D) / D; };
+// mientras haya algo animado, la vista se mueve (unos 20 cuadros por segundo)
+let relojAnim = 0;
+function animarVista() {
+  if (relojAnim) return;
+  relojAnim = setInterval(() => { if (E.vista !== 'vEditor' || !E.st || !E.st.animado()) { clearInterval(relojAnim); relojAnim = 0; return; } if (!hayModal() || $('#modal').classList.contains('claro')) pedirE(true); }, 50);
+}
 function pedirE(recomponer) { if (recomponer) E.compuesto = null; if (!EV.raf) EV.raf = requestAnimationFrame(() => { EV.raf = 0; pintarE(); }); }
 function pintarE() {
   if (E.vista !== 'vEditor' || !E.st) return;
@@ -298,7 +381,7 @@ function pintarE() {
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, hh);
   g.save(); camino(g, ox, oy, lado, lado, 20 * d); g.clip(); damero(g, ox, oy, lado, lado, 14 * d); g.restore();
   g.save(); g.setLineDash([5 * d, 7 * d]); g.lineWidth = d; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.strokeRect(ox + MARGEN * esc, oy + MARGEN * esc, (LADO - 2 * MARGEN) * esc, (LADO - 2 * MARGEN) * esc); g.restore();
-  if (!E.compuesto) E.compuesto = s.componer();
+  if (!E.compuesto) E.compuesto = s.componer(s.animado() ? tAhora(s) : 0);
   g.drawImage(E.compuesto, ox, oy, lado, lado);
   EV.manija = null;
   const c = s.capas[s.sel];
@@ -381,21 +464,26 @@ $('#vEditor .barra').onclick = (ev) => {
   if (k === 'texto') abrirTexto(null);
   else if (k === 'emoji') abrirEmoji();
   else if (k === 'borde') abrirBorde();
+  else if (k === 'animar') abrirAnimar();
   else if (k === 'frente') { s.alFrente(); pedirE(true); }
   else if (k === 'borrar') { s.borrarSel(); pedirE(true); }
 };
 const contornoCss = (c) => Array.from({ length: 16 }, (_, k) => { const a = (k / 16) * Math.PI * 2; return `${(Math.cos(a) * 2.5).toFixed(1)}px ${(Math.sin(a) * 2.5).toFixed(1)}px 0 ${c}`; }).join(',');
 function abrirTexto(capa) {
-  const t = capa ? { texto: capa.texto, fuente: capa.fuente, color: capa.color, contorno: capa.contorno || '' } : { texto: '', fuente: E.ultFuente, color: E.ultColor, contorno: E.ultContorno };
+  const t = capa ? { texto: capa.texto, fuente: capa.fuente, color: capa.color, contorno: capa.contorno || '', globo: !!capa.globo } : { texto: '', fuente: E.ultFuente, color: E.ultColor, contorno: E.ultContorno, globo: false };
   const m = modal(`<div class="hoja"><h3>${capa ? 'Cambiar el texto' : 'Agregar texto'}</h3>
     <textarea id="tTx" rows="2" maxlength="80" placeholder="Escribí acá" autocomplete="off" autocapitalize="sentences"></textarea>
+    <div class="etq">Ideas</div><div class="ideas" id="tI">${FRASES.map((f) => `<button data-v="${h(f)}">${h(f)}</button>`).join('')}</div>
+    <div class="etq">Estilo</div><div class="chips" id="tE"><button class="chip" data-v="">Letras</button><button class="chip" data-v="globo">💬 Globo</button></div>
     <div class="etq">Letra</div><div class="chips" id="tF">${FUENTES.map((f) => `<button class="chip" data-v="${f.id}" style="font-family:'${f.id}'">${f.nombre}</button>`).join('')}</div>
     <div class="etq">Color</div><div class="colores" id="tC">${COLORES.map((c) => `<button class="color" data-v="${c}" style="background:${c}" aria-label="Color ${c}"></button>`).join('')}</div>
     <div class="etq">Contorno</div><div class="chips" id="tB">${[['#111111', 'Negro'], ['#ffffff', 'Blanco'], ['', 'Sin contorno']].map(([v, n]) => `<button class="chip" data-v="${v}">${n}</button>`).join('')}</div>
     <div class="botones"><button class="sec" data-x="0">Cancelar</button><button class="pri" data-x="1">Listo</button></div></div>`);
   const tx = $('#tTx', m); tx.value = t.texto;
   const marcar = (sel, v) => { for (const b of $(sel, m).children) b.classList.toggle('act', b.dataset.v === v); };
-  const vista = () => { tx.style.fontFamily = `'${t.fuente}', sans-serif`; tx.style.color = t.color; tx.style.textShadow = t.contorno ? contornoCss(t.contorno) : 'none'; marcar('#tF', t.fuente); marcar('#tC', t.color); marcar('#tB', t.contorno); };
+  const vista = () => { tx.style.fontFamily = `'${t.fuente}', sans-serif`; tx.style.color = t.color; tx.style.textShadow = t.contorno ? contornoCss(t.contorno) : 'none'; tx.style.background = t.globo ? '#ffffff' : ''; marcar('#tF', t.fuente); marcar('#tC', t.color); marcar('#tB', t.contorno); marcar('#tE', t.globo ? 'globo' : ''); };
+  $('#tI', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { tx.value = b.dataset.v; tx.focus(); } };
+  $('#tE', m).onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; t.globo = b.dataset.v === 'globo'; if (t.globo) { t.color = '#111111'; t.contorno = ''; } vista(); };
   const elegir = (sel, k) => { $(sel, m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { t[k] = b.dataset.v; vista(); } }; };
   elegir('#tF', 'fuente'); elegir('#tC', 'color'); elegir('#tB', 'contorno');
   m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
@@ -407,9 +495,29 @@ function abrirTexto(capa) {
       Object.assign(capa, t); const md = s.medidas(capa), maxW = LADO - 2 * (MARGEN + s.borde) - 8;
       if (md.w * capa.esc > maxW) capa.esc = maxW / md.w; s.sel = s.capas.indexOf(capa);
     } else s.agregarTexto(t);
+    if (t.globo) { E.ultColor = '#ffffff'; E.ultContorno = '#111111'; } // (el globo no se contagia al próximo texto)
     pedirE(true);
   };
   vista(); setTimeout(() => tx.focus(), 80);
+}
+function abrirAnimar() {
+  const s = E.st, c = s.capas[s.sel], objetivo = c ? [c] : s.capas;
+  if (!objetivo.length) return aviso('Agregá algo primero');
+  const hayTexto = objetivo.some((x) => x.tipo === 'texto');
+  const que = c ? (c.tipo === 'texto' ? 'el texto' : c.tipo === 'emoji' ? 'el emoji' : 'la foto') : 'todo';
+  const m = modal(`<div class="hoja"><div class="etq" style="margin-top:0">Animar ${que}</div>
+    <div class="anims" id="aL"><button class="anim" data-v=""><span>⏸️</span>Quieto</button>${ANIMACIONES.map((a) => `<button class="anim" data-v="${a.id}"${a.soloTexto && !hayTexto ? ' disabled' : ''}><span>${a.ico}</span>${a.nombre}</button>`).join('')}</div>
+    <p class="nota">${c ? 'Para animar otra cosa distinto, tocala en el sticker.' : 'Para animar una sola cosa, tocala primero.'} Los animados van en packs animados: WhatsApp no los mezcla con los quietos.</p>
+    <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
+  const marcar = () => { const a = objetivo.find((x) => x.tipo === 'texto' || !ANIM[x.anim]?.soloTexto) || objetivo[0]; for (const b of $('#aL', m).children) b.classList.toggle('act', b.dataset.v === (a.anim || '')); };
+  m.onclick = (ev) => {
+    const b = ev.target.closest('button'); if (!b) return;
+    if (b.dataset.x) return cerrarModal();
+    const v = b.dataset.v;
+    for (const x of objetivo) { if (!v) delete x.anim; else if (!ANIM[v].soloTexto || x.tipo === 'texto') x.anim = v; }
+    marcar(); pedirE(true); animarVista();
+  };
+  marcar();
 }
 const LUGARES_EMOJI = [[392, 128], [120, 128], [392, 384], [120, 384]];
 function abrirEmoji() {
@@ -445,48 +553,184 @@ $('#eGuardar').onclick = async () => {
   const s = E.st; if (!s) return;
   if (!s.capas.length) return aviso('Agregale algo primero');
   s.sel = -1; pedirE(true);
-  let comp = s.componer(); const sale = s.seSale() > 30, packs = packsOrden(E.packs = await P.leerPacks()), libres = packs.filter((p) => p.stickers.length < MAX_ST);
-  let destino = (libres.find((p) => p.id === E.packId) || libres[0] || { id: 'nuevo' }).id;
-  const emojis = s.capas.filter((c) => c.tipo === 'emoji').map((c) => c.ch).filter((e, i, a) => a.indexOf(e) === i).slice(0, 3);
-  if (!emojis.length) emojis.push('😂');
+  const animado = s.animado(), ed = E.editando;
+  let comp = s.componer(); const sale = s.seSale() > 30, packs = packsOrden(E.packs = await P.leerPacks());
+  const libres = packs.filter((p) => p.stickers.length < MAX_ST && !!p.animado === animado);
+  const edPack = ed && packs.find((p) => p.id === ed.packId), mismoTipo = edPack && !!edPack.animado === animado;
+  let destino = mismoTipo ? 'cambiar' : (libres.find((p) => p.id === E.packId) || libres[0] || { id: 'nuevo' }).id;
+  const viejo = mismoTipo && edPack.stickers.find((x) => x.archivo === ed.archivo);
+  const emojis = viejo ? viejo.emojis.slice() : sugerirEmojis(s);
   const urls = await Promise.all(libres.map((p) => (p.bandeja ? P.urlDe(p.id, p.bandeja, p.v) : '')));
-  const m = modal(`<div class="hoja"><h3>Guardar sticker</h3>
-    <div class="vistaPrevia"><img id="gImg" src="${comp.toDataURL()}" alt=""><p>Elegí el pack y 1 a 3 emojis: WhatsApp los usa para sugerirte el sticker cuando escribís.</p></div>
+  const tipo = animado ? 'animado' : 'quieto';
+  const m = modal(`<div class="hoja"><h3>${ed ? 'Guardar los cambios' : 'Guardar sticker'}</h3>
+    <div class="vistaPrevia"><span class="prevCaja"><img id="gImg" src="${comp.toDataURL()}" alt="">${animado ? '<b class="insignia">Animado</b>' : ''}</span><p>Elegí el pack y 1 a 3 emojis: WhatsApp los usa para sugerirte el sticker cuando escribís.</p></div>
     ${sale ? '<div class="alerta" id="gSale"><span>Hay partes que tocan el borde y quedan cortadas</span><button class="chip" id="gEnc">Que entre todo</button></div>' : ''}
-    ${libres.length ? `<div class="etq">Pack</div><div class="lista" id="gP">${libres.map((p, i) => `<button class="opc" data-v="${h(p.id)}">${urls[i] ? `<img src="${urls[i]}" alt="">` : '<i data-i="galeria"></i>'}<span>${h(p.nombre)}</span><small>${p.stickers.length}/${MAX_ST}</small></button>`).join('')}
-      <button class="opc" data-v="nuevo"><i data-i="mas"></i><span>Pack nuevo</span></button></div>` : ''}
-    <div id="gNC"><div class="etq">${libres.length ? 'Nombre del pack nuevo' : 'Nombre del pack'}</div><input id="gN" class="campo" maxlength="40" placeholder="Nombre del pack" value="${h(packs.length ? 'Mis stickers ' + (packs.length + 1) : 'Mis stickers')}"></div>
+    ${ed && !mismoTipo ? `<p class="nota">Ahora está ${tipo} y su pack no: va como sticker nuevo en un pack ${animado ? 'animado' : 'de quietos'}.</p>` : ''}
+    <div class="etq">Pack${animado ? ' animado' : ''}</div><div class="lista" id="gP">${mismoTipo ? `<button class="opc" data-v="cambiar"><i data-i="lapiz"></i><span>Cambiar el de «${h(edPack.nombre)}»</span></button>` : ''}${libres.map((p, i) => `<button class="opc" data-v="${h(p.id)}">${urls[i] ? `<img src="${urls[i]}" alt="">` : '<i data-i="galeria"></i>'}<span>${mismoTipo && p.id === edPack.id ? 'Otro más en ' : ''}${h(p.nombre)}</span><small>${p.stickers.length}/${MAX_ST}</small></button>`).join('')}
+      <button class="opc" data-v="nuevo"><i data-i="mas"></i><span>Pack ${animado ? 'animado ' : ''}nuevo</span></button></div>
+    <div id="gNC"><div class="etq">Nombre del pack nuevo</div><input id="gN" class="campo" maxlength="40" placeholder="Nombre del pack" value="${h(animado ? 'Mis animados' + (packs.some((p) => p.animado) ? ' ' + (packs.filter((p) => p.animado).length + 1) : '') : packs.length ? 'Mis stickers ' + (packs.length + 1) : 'Mis stickers')}"></div>
     <div class="etq">Emojis</div>${htmlEmojis(emojis)}
     <div class="botones"><button class="sec" data-x="0">Cancelar</button><button class="pri" data-x="1">Guardar</button></div></div>`);
-  const marcar = () => { if ($('#gP', m)) for (const b of $('#gP', m).children) b.classList.toggle('act', b.dataset.v === destino); $('#gNC', m).classList.toggle('oc', destino !== 'nuevo'); m.querySelector('[data-x="1"]').disabled = !emojis.length; };
-  if ($('#gP', m)) $('#gP', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { destino = b.dataset.v; marcar(); if (destino === 'nuevo') $('#gN', m).focus(); } };
+  const marcar = () => { for (const b of $('#gP', m).children) b.classList.toggle('act', b.dataset.v === destino); $('#gNC', m).classList.toggle('oc', destino !== 'nuevo'); m.querySelector('[data-x="1"]').disabled = !emojis.length; };
+  $('#gP', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { destino = b.dataset.v; marcar(); if (destino === 'nuevo') $('#gN', m).focus(); } };
   manejarEmojis($('.emojis', m), emojis, marcar);
   if (sale) $('#gEnc', m).onclick = () => { s.encajar(); comp = s.componer(); $('#gImg', m).src = comp.toDataURL(); $('#gSale', m).remove(); pedirE(true); };
   m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
-  m.querySelector('[data-x="1"]').onclick = async (ev) => {
-    ev.target.disabled = true;
-    const nombre = $('#gN', m).value.trim() || 'Mis stickers';
-    try { await guardarSticker(comp, destino, nombre, emojis.slice()); } catch (e) { console.error(e); aviso(String(e.message || e).includes('pesa') ? 'El sticker quedó muy pesado' : 'No se pudo guardar: ' + (e.message || e)); ev.target.disabled = false; }
+  m.querySelector('[data-x="1"]').onclick = async () => {
+    const nombre = $('#gN', m).value.trim() || (animado ? 'Mis animados' : 'Mis stickers');
+    $('.hoja', m).innerHTML = `<div class="progreso"><div class="rueda"></div><b>${animado ? 'Armando la animación…' : 'Guardando…'}</b>${animado ? '<span>Tarda unos segundos</span>' : ''}</div>`;
+    m.onclick = null;
+    try {
+      const pk = await guardarSticker(s, destino === 'cambiar' ? ed.packId : destino, nombre, emojis.slice(), destino === 'cambiar' ? ed.archivo : null);
+      cerrarModal(); E.st = null; E.desdeRecorte = false; E.foto = null; E.editando = null; E.packId = pk.id;
+      ir('vPack'); aviso(destino === 'cambiar' ? '¡Cambiado!' : '¡Guardado!');
+    } catch (e) { console.error(e); cerrarModal(); aviso(String(e.message || e).includes('pesa') ? 'El sticker quedó muy pesado' : 'No se pudo guardar: ' + (e.message || e)); }
   };
   marcar();
 };
-async function guardarSticker(comp, destino, nombre, emojis) {
-  const { blob } = await exportarWebP(comp), packs = await P.leerPacks();
+// las imágenes del proyecto (para volver a editarlo): WebP con transparencia, de 900 px como mucho y menos de 480 KB
+async function fuenteWebP(c) {
+  const k = Math.min(1, 900 / Math.max(c.width, c.height)); let x = c;
+  if (k < 1) { x = lienzo(c.width * k, c.height * k); const g = x.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, x.width, x.height); }
+  for (const q of [0.9, 0.8, 0.7, 0.55]) { const b = await aBlob(x, 'image/webp', q); if (b && b.size <= 480 * 1024) return b; }
+  throw new Error('la foto pesa demasiado');
+}
+// guarda el sticker (nuevo, o en lugar de `reemplazar`) con su proyecto; devuelve el pack
+async function guardarSticker(st, destino, nombre, emojis, reemplazar) {
+  const animado = st.animado(), r = animado ? await exportarAnimado(st) : await exportarWebP(st.componer()), packs = await P.leerPacks();
   let pack = packs.find((p) => p.id === destino);
-  if (!pack) { pack = { id: 'p' + Date.now().toString(36), nombre, autor: 'Stickerazo', stickers: [], bandeja: '', v: 0, n: 0, creado: Date.now() }; packs.push(pack); }
-  if (pack.stickers.length >= MAX_ST) throw new Error('ese pack ya tiene 30 stickers');
-  pack.n = (pack.n || 0) + 1; const archivo = `s${pack.n}.webp`;
-  await P.guardarArchivo(pack.id, archivo, blob);
-  if (!pack.bandeja) { const b = await exportarBandeja(comp); pack.bandeja = b.type === 'image/png' ? 'bandeja.png' : 'bandeja.webp'; await P.guardarArchivo(pack.id, pack.bandeja, b); }
-  pack.stickers.push({ archivo, emojis }); pack.v = (pack.v || 0) + 1; pack.mod = Date.now();
+  if (!pack) { pack = { id: 'p' + Date.now().toString(36), nombre, autor: 'Stickerazo', animado, stickers: [], bandeja: '', v: 0, n: 0, creado: Date.now() }; packs.push(pack); }
+  if (!!pack.animado !== animado) throw new Error(animado ? 'ese pack es de stickers quietos' : 'ese pack es animado');
+  const viejo = reemplazar ? pack.stickers.find((x) => x.archivo === reemplazar) : null;
+  if (!viejo && pack.stickers.length >= MAX_ST) throw new Error('ese pack ya tiene 30 stickers');
+  let archivo = reemplazar;
+  if (!viejo) { pack.n = (pack.n || 0) + 1; archivo = `s${pack.n}.webp`; }
+  await P.guardarArchivo(pack.id, archivo, r.blob);
+  // el proyecto: las imágenes aparte (s3_i0.webp…), lo demás en la lista
+  const { proyecto, imgs } = st.aProyecto(), base = archivo.replace(/\.webp$/, ''), fuentes = [];
+  if (viejo && viejo.proyecto) for (const f of viejo.proyecto.fuentes || []) await P.borrarArchivo(pack.id, f);
+  for (let i = 0; i < imgs.length; i++) { const f = `${base}_i${i}.webp`; await P.guardarArchivo(pack.id, f, await fuenteWebP(imgs[i])); fuentes.push(f); }
+  if (!pack.bandeja) { const b = await exportarBandeja(st.componer(0)); pack.bandeja = b.type === 'image/png' ? 'bandeja.png' : 'bandeja.webp'; await P.guardarArchivo(pack.id, pack.bandeja, b); }
+  const entrada = { archivo, emojis, proyecto: { ...proyecto, fuentes } };
+  if (viejo) Object.assign(viejo, entrada); else pack.stickers.push(entrada);
+  pack.v = (pack.v || 0) + 1; pack.mod = Date.now();
   await P.guardarPacks(packs); E.packs = packs;
-  cerrarModal(); E.st = null; E.desdeRecorte = false; E.foto = null; E.packId = pack.id;
-  ir('vPack');
-  aviso('¡Guardado!');
+  return pack;
+}
+// volver a abrir un sticker guardado en el editor
+async function editarSticker(pack, st) {
+  const pr = st.proyecto; if (!pr) return aviso('Este sticker es de antes: no se puede editar');
+  const imgs = await Promise.all((pr.fuentes || []).map(async (f) => { const bl = await P.blobDe(pack.id, f); if (!bl) return null; const bmp = await createImageBitmap(bl), c = lienzo(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0); return c; }));
+  E.st = Sticker.deProyecto(pr, imgs); E.st.sel = -1; E.editando = { packId: pack.id, archivo: st.archivo }; E.desdeRecorte = false; E.origen = 'vPack';
+  ir('vEditor');
+}
+// los emojis que van con el sticker: los que tiene adentro, y los del texto (palabras que se usan mucho)
+// (palabras enteras, con acentos: «sí» sí, «casi» no)
+const palabra = (alts) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${alts})(?![\\p{L}\\p{N}])`, 'iu');
+const PALABRAS = [
+  [palabra('ja(?:ja)+j?|jsjs\\w*|xd+|lol|me muero de risa'), '😂'], [palabra('amor|te quiero|tkm|te amo|beso+s?'), '❤️'], [palabra('mate|matecito|matear'), '🧉'],
+  [palabra('no+|ni ahí|ni ahi|nunca|jamás'), '🙅'], [palabra('s[ií]+|de una|dale|obvio|ok|joya|listo'), '👍'], [palabra('hola|buen d[ií]a|buenas'), '👋'],
+  [palabra('chau|me voy|nos vemos'), '👋'], [palabra('gracias|grax'), '🙏'], [palabra('fiesta|birra|cerveza|fernet'), '🍻'],
+  [palabra('hambre|milanesa|asado|pizza|empanadas?|comida'), '🍕'], [palabra('f[uú]tbol|gol+|campe[oó]n(?:es)?'), '⚽'], [palabra('sueño|dormir|siesta'), '😴'],
+  [palabra('llor[oa]r?|triste'), '😭'], [palabra('enojad[oa]|bronca|calentit[oa]'), '😡'], [palabra('crack|genio|[ií]dol[oa]?|fuego'), '🔥'],
+  [palabra('plata|guita|sueldo'), '💸'], [palabra('laburo|trabajo|oficina'), '💼'], [palabra('perr[oa]|guau|perrit[oa]'), '🐶'], [palabra('gat[oa]|miau'), '🐱'],
+  [palabra('feliz|cumple(?:años)?'), '🥳'], [palabra('me mor[ií]|muerto|muerta'), '💀'], [/\?\s*$|¿/, '🤔'],
+];
+function sugerirEmojis(s) {
+  const out = s.capas.filter((c) => c.tipo === 'emoji').map((c) => c.ch), texto = s.capas.filter((c) => c.tipo === 'texto').map((c) => c.texto).join(' ');
+  for (const [re, e] of PALABRAS) if (re.test(texto)) out.push(e);
+  const r = out.filter((e, i, a) => a.indexOf(e) === i).slice(0, 3);
+  return r.length ? r : ['😂'];
 }
 
-// ================= INICIO =================
-async function pintarInicio() {
+// ================= INICIO: pestañas =================
+function pestaña(t) {
+  E.tab = t;
+  for (const k of ['Crear', 'Listos', 'Mios']) $('#tab' + k).classList.toggle('oc', k !== t);
+  for (const b of $('#tabs').children) b.classList.toggle('act', b.dataset.t === t);
+  if (t === 'Crear') pintarCarrusel(); else if (t === 'Listos') buscar($('#qBuscar').value); else pintarMios();
+}
+$('#tabs').onclick = (ev) => { const b = ev.target.closest('button'); if (b) pestaña(b.dataset.t); };
+function pintarInicio() { pestaña(E.tab); }
+
+// ---- packs listos: las vistas previas se arman de a una (sin trabar la pantalla) y quedan guardadas ----
+const previas = new Map();
+function previa(pk, i) {
+  const k = pk.id + ':' + i;
+  if (!previas.has(k)) { const c = armarListo(pk.stickers[i], i).componer(0), t = lienzo(192, 192), g = t.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, 192, 192); previas.set(k, t.toDataURL('image/webp', 0.85)); }
+  return previas.get(k);
+}
+let turnoPrevias = 0;
+async function llenarPrevias(raiz) {
+  const mio = ++turnoPrevias;
+  for (const im of raiz.querySelectorAll('img[data-l]')) {
+    if (mio !== turnoPrevias) return;
+    const [id, i] = im.dataset.l.split(':'), pk = LISTOS.find((x) => x.id === id); im.src = previa(pk, +i); im.removeAttribute('data-l');
+    await new Promise((ok) => setTimeout(ok, 0));
+  }
+}
+const imgListo = (pk, i) => `<img data-l="${pk.id}:${i}" alt="">`;
+function pintarCarrusel() {
+  const c = $('#carrusel');
+  if (!c.children.length) {
+    c.innerHTML = LISTOS.map((pk) => `<button class="tarjeta" data-l="${pk.id}">${pk.animado ? '<b class="insignia">Animado</b>' : ''}<div class="mosaico">${[0, 1, 2, 3].map((i) => imgListo(pk, i)).join('')}</div><b>${h(pk.nombre)}</b><small>${pk.stickers.length} stickers</small></button>`).join('');
+    llenarPrevias(c);
+  }
+}
+$('#carrusel').onclick = (ev) => { const b = ev.target.closest('[data-l]'); if (b) hojaListo(LISTOS.find((x) => x.id === b.dataset.l)); };
+function htmlListo(pk, solo) {
+  const idx = solo || pk.stickers.map((_, i) => i);
+  return `<button class="listo" data-l="${pk.id}"><div class="packCab"><b>${h(pk.nombre)}</b>${pk.animado ? '<b class="insignia">Animado</b>' : ''}<small>${pk.stickers.length} stickers</small></div><p>${h(pk.desc)}</p><div class="tira">${idx.slice(0, 5).map((i) => `<span>${imgListo(pk, i)}</span>`).join('')}</div></button>`;
+}
+$('#listos').onclick = (ev) => { const b = ev.target.closest('.listo'); if (b) hojaListo(LISTOS.find((x) => x.id === b.dataset.l)); };
+function hojaListo(pk) {
+  const m = modal(`<div class="hoja"><h3>${h(pk.nombre)} ${pk.animado ? '<b class="insignia">Animado</b>' : ''}</h3><p>${h(pk.desc)}. Tocá uno para cambiarle lo que quieras antes de guardarlo.</p>
+    <div class="hojaGrilla">${pk.stickers.map((_, i) => `<button data-i="${i}">${imgListo(pk, i)}</button>`).join('')}</div>
+    <div class="botones"><button class="sec" data-x="0">Cerrar</button><button class="pri" data-x="1">Agregar el pack</button></div></div>`);
+  llenarPrevias(m);
+  $('.hojaGrilla', m).onclick = (ev) => {
+    const b = ev.target.closest('button'); if (!b) return; const i = +b.dataset.i; cerrarModal();
+    E.st = armarListo(pk.stickers[i], i); E.editando = null; E.desdeRecorte = false; E.origen = 'vInicio'; ir('vEditor'); aviso('Cambiale lo que quieras y guardalo');
+  };
+  m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
+  m.querySelector('[data-x="1"]').onclick = () => agregarListo(pk);
+}
+async function agregarListo(pk) {
+  const m = modal(`<div class="hoja"><h3>${h(pk.nombre)}</h3><div class="progreso"><div class="rueda"></div><b id="lT">Armando…</b>${pk.animado ? '<span>Los animados tardan unos segundos cada uno</span>' : ''}</div></div>`); m.onclick = null;
+  let pack = null;
+  try {
+    for (let i = 0; i < pk.stickers.length; i++) {
+      $('#lT', m).textContent = `Armando ${i + 1} de ${pk.stickers.length}…`;
+      pack = await guardarSticker(armarListo(pk.stickers[i], i), pack ? pack.id : 'nuevo', pk.nombre, emojisListo(pk.stickers[i]));
+    }
+  } catch (e) { console.error(e); }
+  cerrarModal();
+  if (!pack) return aviso('No se pudo agregar');
+  E.packId = pack.id; ir('vPack'); aviso('¡Listo! Ya está en Mis packs');
+}
+// ---- buscar: en los packs listos y en tus stickers (por lo que dicen o por emoji) ----
+const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+let tBuscar = 0;
+$('#qBuscar').addEventListener('input', () => { clearTimeout(tBuscar); tBuscar = setTimeout(() => buscar($('#qBuscar').value), 180); });
+async function buscar(q) {
+  const n = norm(q).trim(), res = $('#resBuscar'), lis = $('#listos');
+  if (!n) { res.innerHTML = ''; lis.innerHTML = LISTOS.map((pk) => htmlListo(pk)).join(''); return llenarPrevias(lis); }
+  const dice = (d) => norm(d.texto.replace(/\n/g, ' ')).includes(n) || (d.emoji && q.trim() === d.emoji);
+  const listos = LISTOS.map((pk) => ({ pk, idx: pk.stickers.map((d, i) => (dice(d) ? i : -1)).filter((i) => i >= 0), todo: norm(pk.nombre + ' ' + pk.desc + ' ' + pk.tags).includes(n) })).filter((x) => x.todo || x.idx.length);
+  const packs = E.packs = await P.leerPacks(), mios = [];
+  for (const p of packs) for (const st of p.stickers) {
+    const textos = st.proyecto ? st.proyecto.capas.filter((c) => c.tipo === 'texto').map((c) => c.texto).join(' ') : '';
+    if (norm(textos + ' ' + p.nombre).includes(n) || st.emojis.includes(q.trim())) mios.push({ p, st });
+  }
+  const urls = await Promise.all(mios.slice(0, 24).map((x) => P.urlDe(x.p.id, x.st.archivo, x.p.v)));
+  res.innerHTML = `<div class="res">${mios.length ? `<h3>En tus packs (${mios.length})</h3><div class="grilla">${mios.slice(0, 24).map((x, i) => `<button class="st" data-p="${h(x.p.id)}"><img src="${urls[i]}" alt=""></button>`).join('')}</div>` : ''}
+    ${listos.length ? '<h3>Packs listos</h3>' : ''}${!mios.length && !listos.length ? `<p class="nada2">No encontré nada con «${h(q.trim())}». Probá con otra palabra o un emoji.</p>` : ''}</div>`;
+  lis.innerHTML = listos.map((x) => htmlListo(x.pk, x.todo ? null : x.idx)).join(''); llenarPrevias(lis);
+}
+$('#resBuscar').onclick = (ev) => { const b = ev.target.closest('[data-p]'); if (b) { E.packId = b.dataset.p; ir('vPack'); } };
+
+// ================= MIS PACKS =================
+async function pintarMios() {
   const packs = packsOrden(E.packs = await P.leerPacks()), cont = $('#packs');
   if (!packs.length) {
     cont.innerHTML = '<div class="vacio"><div class="vacioIco"><i data-i="magia"></i></div><b>Todavía no hiciste ningún pack</b><span>Elegí una foto: Stickerazo la recorta solo y en un minuto tenés tu primer sticker.</span></div>';
@@ -495,7 +739,7 @@ async function pintarInicio() {
   const tiras = await Promise.all(packs.map((p) => Promise.all(p.stickers.slice(0, 5).map((s) => P.urlDe(p.id, s.archivo, p.v)))));
   cont.innerHTML = packs.map((p, i) => {
     const n = p.stickers.length, celdas = Array.from({ length: 5 }, (_, k) => (k === 4 && n > 5 ? `<span class="masN">+${n - 4}</span>` : tiras[i][k] ? `<span><img src="${tiras[i][k]}" alt=""></span>` : '<span class="nada"></span>')).join('');
-    return `<button class="packItem" data-p="${h(p.id)}"><div class="packCab"><b>${h(p.nombre)}</b><small class="${n < MIN_ST ? 'falta' : ''}">${n} sticker${n === 1 ? '' : 's'}${n < MIN_ST ? ` · faltan ${MIN_ST - n}` : ''}</small></div><div class="tira">${celdas}</div></button>`;
+    return `<button class="packItem" data-p="${h(p.id)}"><div class="packCab"><b>${h(p.nombre)}</b>${p.animado ? '<b class="insignia">Animado</b>' : ''}<small class="${n < MIN_ST ? 'falta' : ''}">${n} sticker${n === 1 ? '' : 's'}${n < MIN_ST ? ` · faltan ${MIN_ST - n}` : ''}</small></div><div class="tira">${celdas}</div></button>`;
   }).join('');
 }
 $('#packs').onclick = (ev) => { const b = ev.target.closest('.packItem'); if (b) { E.packId = b.dataset.p; ir('vPack'); } };
@@ -505,11 +749,13 @@ const packActual = () => E.packs.find((p) => p.id === E.packId);
 async function pintarPack() {
   E.packs = await P.leerPacks(); const pack = packActual(); if (!pack) return ir('vInicio');
   $('#pNombre').textContent = pack.nombre; const n = pack.stickers.length;
+  $('#pTipo').classList.toggle('oc', !pack.animado);
   const urls = await Promise.all(pack.stickers.map((s) => P.urlDe(pack.id, s.archivo, pack.v)));
   $('#pGrilla').innerHTML = pack.stickers.map((s, i) => `<button class="st" data-n="${i}"><img src="${urls[i]}" alt="Sticker ${i + 1}"></button>`).join('') +
     (n < MAX_ST ? '<button class="st nuevo" data-nuevo="1" aria-label="Otro sticker"><i data-i="mas"></i></button>' : '');
   iconos($('#pGrilla'));
   $('#pFalta').textContent = n < MIN_ST ? `${MIN_ST - n === 1 ? 'Te falta 1 sticker' : `Te faltan ${MIN_ST - n} stickers`} para pasarlo a WhatsApp (pide 3 como mínimo)` : `${n} de ${MAX_ST} stickers`;
+  const bc = $('#pCompletar'); bc.classList.toggle('oc', !(n >= 1 && n < MIN_ST)); $('span', bc).textContent = `Completar con ${MIN_ST - n} variaci${MIN_ST - n === 1 ? 'ón' : 'ones'}`;
   const bw = $('#pWhats'), ya = n >= MIN_ST && (await P.estaEnWhatsApp(pack.id));
   bw.disabled = n < MIN_ST; bw.classList.toggle('ya', ya); $('span', bw).textContent = ya ? 'Ya está en WhatsApp' : 'Agregar a WhatsApp';
   $('#pMas').disabled = n >= MAX_ST;
@@ -520,16 +766,19 @@ async function cambiarPack(f) {
 }
 $('#pGrilla').onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; if (b.dataset.nuevo) return menuNuevo('vPack'); hojaSticker(+b.dataset.n); };
 $('#pMas').onclick = () => menuNuevo('vPack');
+$('#pCompletar').onclick = () => completar();
 async function hojaSticker(i) {
   const pack = packActual(), s = pack && pack.stickers[i]; if (!s) return;
   const url = await P.urlDe(pack.id, s.archivo, pack.v);
   const m = modal(`<div class="hoja"><div class="stGrande"><img src="${url}" alt=""></div><div class="stEmojis">${s.emojis.join(' ')}</div><div class="lista">
+    ${s.proyecto ? '<button class="opc" data-x="editar"><i data-i="lapiz"></i><span>Editarlo</span></button>' : ''}
     <button class="opc" data-x="emojis"><i data-i="cara"></i><span>Cambiar los emojis</span></button>
     <button class="opc" data-x="icono"><i data-i="galeria"></i><span>Usarlo de ícono del pack</span></button>
     <button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar el sticker</span></button></div></div>`);
   $('.lista', m).onclick = async (ev) => {
     const b = ev.target.closest('button'); if (!b) return; const x = b.dataset.x;
     if (x === 'emojis') return elegirEmojisDe(i);
+    if (x === 'editar') { cerrarModal(); return editarSticker(pack, s); }
     if (x === 'icono') {
       cerrarModal();
       const bl = await P.blobDe(pack.id, s.archivo), bmp = await createImageBitmap(bl), c = lienzo(LADO, LADO); c.getContext('2d').drawImage(bmp, 0, 0, LADO, LADO);
@@ -539,10 +788,44 @@ async function hojaSticker(i) {
     }
     if (x === 'borrar') {
       if (!(await confirmar('¿Borrar este sticker?', 'Borrar'))) return;
-      await cambiarPack(async (p) => { const k = p.stickers.findIndex((z) => z.archivo === s.archivo); if (k >= 0) p.stickers.splice(k, 1); await P.borrarArchivo(p.id, s.archivo); });
+      await cambiarPack(async (p) => { const k = p.stickers.findIndex((z) => z.archivo === s.archivo); if (k >= 0) p.stickers.splice(k, 1); await P.borrarArchivo(p.id, s.archivo); for (const f of (s.proyecto && s.proyecto.fuentes) || []) await P.borrarArchivo(p.id, f); });
       pintarPack();
     }
   };
+}
+// «te faltan 2»: variaciones del último sticker (espejado y de otro color; con otra animación o con un ¡JAJAJA!)
+async function completar() {
+  const pack = packActual(); if (!pack || !pack.stickers.length) return;
+  const falta = MIN_ST - pack.stickers.length; if (falta <= 0) return;
+  const ult = pack.stickers[pack.stickers.length - 1];
+  modal('<div class="hoja"><div class="progreso"><div class="rueda"></div><b>Haciendo las variaciones…</b></div></div>'); $('#modal').onclick = null;
+  try {
+    let base;
+    if (ult.proyecto) {
+      const imgs = await Promise.all((ult.proyecto.fuentes || []).map(async (f) => { const bl = await P.blobDe(pack.id, f); if (!bl) return null; const bmp = await createImageBitmap(bl), c = lienzo(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0); return c; }));
+      base = () => Sticker.deProyecto(ult.proyecto, imgs);
+    } else {
+      const bmp = await createImageBitmap(await P.blobDe(pack.id, ult.archivo)), c = lienzo(LADO, LADO); c.getContext('2d').drawImage(bmp, 0, 0, LADO, LADO);
+      base = () => { const s = new Sticker(); s.borde = 0; s.sombra = false; const k = s.agregarImagen(c); k.esc = 1; if (pack.animado) k.anim = 'latido'; return s; };
+    }
+    const variantes = [
+      (s) => { espejar(s); s.colorBorde = '#ffd23f'; if (!s.borde) s.borde = 8; },
+      (s) => {
+        if (pack.animado) { for (const c of s.capas) if (c.anim) c.anim = c.anim === 'temblor' ? 'rebote' : 'temblor'; }
+        else if (!s.capas.some((c) => c.tipo === 'texto')) { const t = s.agregarTexto({ texto: 'JAJAJA', fuente: 'LuckiestGuy', color: '#ffd23f' }); t.rot = -0.06; }
+        else { const e = s.agregarEmoji('😂'); e.x = 400; e.y = 118; }
+        s.colorBorde = '#3ec7ff'; if (!s.borde) s.borde = 8; s.encajar();
+      },
+    ];
+    for (let k = 0; k < falta; k++) { const s = base(); variantes[k % variantes.length](s); await guardarSticker(s, pack.id, pack.nombre, ult.emojis.slice()); }
+    cerrarModal(); aviso(`¡Listo! ${falta === 1 ? 'Una variación' : falta + ' variaciones'} más`); pintarPack();
+  } catch (e) { console.error(e); cerrarModal(); aviso('No pude hacer las variaciones'); }
+}
+function espejar(s) {
+  for (const c of s.capas) {
+    c.x = LADO - c.x; c.rot = -c.rot;
+    if (c.tipo === 'img') { const m = lienzo(c.src.width, c.src.height), g = m.getContext('2d'); g.translate(m.width, 0); g.scale(-1, 1); g.drawImage(c.src, 0, 0); c.src = m; }
+  }
 }
 function elegirEmojisDe(i) {
   const pack = packActual(), sel = pack.stickers[i].emojis.slice();

@@ -33,6 +33,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,7 @@ public final class Inicio extends Activity {
     private WebView web;
     private Almacen almacen;
     private ValueCallback<Uri[]> pendiente;
+    private boolean varias;
     private String respWa;
     private int nFoto;
 
@@ -162,7 +164,8 @@ public final class Inicio extends Activity {
         @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
             if (pendiente != null) pendiente.onReceiveValue(null);
             pendiente = cb;
-            if ((p.isCaptureEnabled() && abrirCamara()) || abrirGaleria()) return true;
+            varias = p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE;
+            if ((!varias && p.isCaptureEnabled() && abrirCamara()) || abrirGaleria()) return true;
             pendiente = null;
             cb.onReceiveValue(null);
             return true;
@@ -185,11 +188,13 @@ public final class Inicio extends Activity {
         if (selector) {
             Intent i = new Intent(MediaStore.ACTION_PICK_IMAGES);
             i.setType("image/*");
+            if (varias) i.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, Math.min(30, MediaStore.getPickImagesMaxLimit()));
             try { startActivityForResult(i, PEDIR_FOTO); return true; } catch (ActivityNotFoundException e) { /* el otro */ }
         }
         Intent i = new Intent(Intent.ACTION_GET_CONTENT);
         i.setType("image/*");
         i.addCategory(Intent.CATEGORY_OPENABLE);
+        if (varias) i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         try { startActivityForResult(i, PEDIR_FOTO); return true; } catch (ActivityNotFoundException e) { return false; }
     }
 
@@ -215,25 +220,30 @@ public final class Inicio extends Activity {
         final ValueCallback<Uri[]> cb = pendiente;
         pendiente = null;
         if (cb == null) return;
-        Uri origen = null;
-        if (resultado == RESULT_OK) origen = pedido == PEDIR_CAMARA ? Fotos.uri("camara.jpg") : datos != null ? datos.getData() : null;
-        if (origen == null) { cb.onReceiveValue(null); return; }
-        final Uri o = origen;
-        final String base = "foto_" + (++nFoto);
+        final List<Uri> origenes = new ArrayList<Uri>();
+        if (resultado == RESULT_OK) {
+            if (pedido == PEDIR_CAMARA) origenes.add(Fotos.uri("camara.jpg"));
+            else if (datos != null && datos.getClipData() != null) for (int k = 0; k < datos.getClipData().getItemCount() && origenes.size() < 30; k++) origenes.add(datos.getClipData().getItemAt(k).getUri());
+            else if (datos != null && datos.getData() != null) origenes.add(datos.getData());
+        }
+        if (origenes.isEmpty()) { cb.onReceiveValue(null); return; }
         new Thread(new Runnable() {
             @Override public void run() {
-                Uri listo = null;
-                try { listo = Fotos.uri(Imagen.preparar(getContentResolver(), o, Fotos.carpeta(Inicio.this), base)); }
-                catch (Exception | OutOfMemoryError e) { Log.w(TAG, "no se pudo preparar la foto", e); }
-                final Uri[] r = listo != null ? new Uri[] { listo } : null;
+                final List<Uri> listas = new ArrayList<Uri>();
+                for (Uri o : origenes) {
+                    try { listas.add(Fotos.uri(Imagen.preparar(getContentResolver(), o, Fotos.carpeta(Inicio.this), "foto_" + (++nFoto)))); }
+                    catch (Exception | OutOfMemoryError e) { Log.w(TAG, "no se pudo preparar la foto", e); }
+                }
+                final Uri[] r = listas.isEmpty() ? null : listas.toArray(new Uri[0]);
+                final int mal = origenes.size() - listas.size();
                 runOnUiThread(new Runnable() {
                     @Override public void run() {
                         cb.onReceiveValue(r);
-                        if (r == null) js("window.__sz && window.__sz.aviso('No pude abrir esa imagen')");
+                        if (mal > 0) js("window.__sz && window.__sz.aviso(" + JSONObject.quote(mal == 1 ? "No pude abrir una imagen" : "No pude abrir " + mal + " imágenes") + ")");
                     }
                 });
             }
-        }, "foto").start();
+        }, "fotos").start();
     }
 
     // ---- WhatsApp y compartir (los pide el puente, en el hilo de la pantalla) ----

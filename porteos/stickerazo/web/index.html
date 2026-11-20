@@ -13,25 +13,40 @@
   <!-- inicio: crear y los packs -->
   <section id="vInicio" class="vista">
     <header class="cab cabInicio"><div class="logo"><span>Sticker</span><b>azo</b></div></header>
-    <div class="contenido">
+    <div class="contenido" id="tabCrear">
       <button id="bCrear" class="grande"><i data-i="mas"></i>Crear sticker</button>
       <div class="dos"><button id="bTexto" class="sec"><i data-i="texto"></i>Sólo texto</button><button id="bCamara" class="sec"><i data-i="camara"></i>Sacar foto</button></div>
-      <h2>Mis packs</h2>
+      <button id="bExpress" class="express"><span class="rayo">⚡</span><span><b>Pack express</b><small>Elegí hasta 30 fotos: te armo el pack entero</small></span></button>
+      <h2>Packs listos <small>· se pueden cambiar</small></h2>
+      <div id="carrusel" class="carrusel"></div>
+      <div class="ventajas"><span>🔒 Las fotos no salen de tu celular</span><span>🚫 Sin marca de agua</span><span>✏️ Todo se puede volver a editar</span></div>
+    </div>
+    <div class="contenido oc" id="tabListos">
+      <div class="buscar"><i data-i="lupa"></i><input id="qBuscar" type="search" placeholder="Buscá: mate, jaja, fútbol, 😂…" autocomplete="off" enterkeyhint="search"></div>
+      <div id="resBuscar"></div>
+      <div id="listos" class="listos"></div>
+    </div>
+    <div class="contenido oc" id="tabMios">
+      <h2 style="margin-top:8px">Mis packs</h2>
       <div id="packs" class="packs"></div>
     </div>
+    <nav class="tabs" id="tabs">
+      <button data-t="Crear"><i data-i="mas"></i>Crear</button><button data-t="Listos"><i data-i="estrella"></i>Packs listos</button><button data-t="Mios"><i data-i="carpeta"></i>Mis packs</button>
+    </nav>
   </section>
   <!-- recortar la foto -->
   <section id="vRecorte" class="vista oc">
     <header class="cab"><button class="ico volver" aria-label="Volver"><i data-i="atras"></i></button><h1>Recortá</h1><button id="rSig" class="pri">Siguiente</button></header>
     <div class="lienzoCont" id="rCont"><canvas id="rLienzo"></canvas><div id="rGira" class="gira oc"><div class="rueda"></div><span>Recortando…</span></div></div>
+    <div class="modos" id="rModos">
+      <button data-m="auto"><span>✨</span>Auto</button><button data-m="cara"><span>🙂</span>Solo cara</button><button data-m="cabezon"><span>🎈</span>Cabezón</button><button data-m="entera"><span>🖼️</span>Entera</button>
+    </div>
     <p id="rAyuda" class="ayuda"></p>
     <div class="pincel oc" id="rPincelCont"><i data-i="punto"></i><input type="range" id="rPincel" min="6" max="70" value="26" aria-label="Tamaño del pincel"><i data-i="puntoG"></i></div>
     <nav class="barra" id="rHerr">
-      <button data-h="auto"><i data-i="magia"></i>Auto</button>
       <button data-h="tocar"><i data-i="dedo"></i>Tocar</button>
       <button data-h="borrar"><i data-i="goma"></i>Borrar</button>
       <button data-h="recuperar"><i data-i="pincel"></i>Recuperar</button>
-      <button data-h="entera"><i data-i="foto"></i>Entera</button>
       <button data-h="deshacer"><i data-i="deshacer"></i>Deshacer</button>
     </nav>
   </section>
@@ -43,6 +58,7 @@
     <nav class="barra">
       <button data-e="texto"><i data-i="texto"></i>Texto</button>
       <button data-e="emoji"><i data-i="cara"></i>Emoji</button>
+      <button data-e="animar"><i data-i="anim"></i>Animar</button>
       <button data-e="borde"><i data-i="borde"></i>Borde</button>
       <button data-e="frente"><i data-i="frente"></i>Al frente</button>
       <button data-e="borrar"><i data-i="tacho"></i>Sacar</button>
@@ -50,10 +66,11 @@
   </section>
   <!-- un pack -->
   <section id="vPack" class="vista oc">
-    <header class="cab"><button class="ico volver" aria-label="Volver"><i data-i="atras"></i></button><h1 id="pNombre">Pack</h1><button class="ico" id="pMenu" aria-label="Opciones del pack"><i data-i="puntos"></i></button></header>
+    <header class="cab"><button class="ico volver" aria-label="Volver"><i data-i="atras"></i></button><h1 id="pNombre">Pack</h1><b id="pTipo" class="insignia oc">Animado</b><button class="ico" id="pMenu" aria-label="Opciones del pack"><i data-i="puntos"></i></button></header>
     <div class="contenido">
       <div id="pGrilla" class="grilla"></div>
       <p id="pFalta" class="ayuda"></p>
+      <button id="pCompletar" class="completar oc"><i data-i="copias"></i><span>Completar</span></button>
     </div>
     <footer class="pie">
       <button id="pWhats" class="whats"><i data-i="whats"></i><span>Agregar a WhatsApp</span></button>
@@ -65,6 +82,7 @@
 <div id="aviso" class="aviso oc" role="status"></div>
 <input type="file" id="archivo" accept="image/*" hidden>
 <input type="file" id="archivoCam" accept="image/*" capture="environment" hidden>
+<input type="file" id="archivoVarios" accept="image/*" multiple hidden>
 <script type="module" src="app.js"></script>
 </body>
 </html>
