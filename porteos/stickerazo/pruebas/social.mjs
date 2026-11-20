@@ -22,7 +22,7 @@ async function celular(nombre, api = API) {
   p.on('response', (q) => { if (q.status() >= 400) errores.push(`${nombre}: ${q.status()} ${q.url()}`); });
   const cdp = await ctx.newCDPSession(p);
   await p.goto(`http://127.0.0.1:${PW}/index.html`); await p.waitForFunction(() => window.__sz && document.fonts.status === 'loaded');
-  const toque = async (sel, veces = 1) => { const bb = await p.locator(sel).first().boundingBox(), x = bb.x + bb.width / 2, y = bb.y + bb.height / 2; for (let i = 0; i < veces; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] }); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await espera(90); } };
+  const toque = async (sel, veces = 1) => { await p.locator(sel).first().scrollIntoViewIfNeeded(); const bb = await p.locator(sel).first().boundingBox(), x = bb.x + bb.width / 2, y = bb.y + bb.height / 2; for (let i = 0; i < veces; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] }); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await espera(90); } };
   const foto = async (n) => { await espera(350); await p.screenshot({ path: path.join(SAL, `${String(++nFoto).padStart(2, '0')}_${n}.png`) }); };
   return { p, ctx, toque, foto, E: (f, a) => p.evaluate(f, a) };
 }
@@ -40,8 +40,8 @@ ok(/Publicar en la comunidad/.test(await A.p.textContent('#pPublicar')), 'en un 
 await A.p.click('#pPublicar'); await A.p.waitForSelector('#pbT'); await A.foto('publicar');
 const tagsSug = await A.E(() => [...document.querySelectorAll('#pbT .chip')].map((b) => b.dataset.v + (b.classList.contains('act') ? '*' : '')));
 await A.p.fill('#pbOtra', 'Respuestas!'); await A.p.press('#pbOtra', 'Enter');
-await A.p.click('#modal [data-x="1"]'); await A.p.waitForSelector('#modal .grandote', { timeout: 30000 }); await A.foto('publicado');
-ok(await A.p.isVisible('canvas.confeti'), `publicado con confeti (etiquetas sugeridas: ${tagsSug.join(' ')})`);
+await A.p.click('#modal [data-x="1"]'); await A.p.waitForSelector('#modal .grandote', { timeout: 30000 }); const huboConfeti = await A.p.isVisible('canvas.confeti'); await A.foto('publicado');
+ok(huboConfeti, `publicado con confeti (etiquetas sugeridas: ${tagsSug.join(' ')})`);
 const loc = await A.E(() => { const E = window.__sz.E, p = E.packs.find((x) => x.id === E.packId); return p.publicado; });
 await A.p.click('#modal [data-x="ver"]'); await A.p.waitForSelector('#puCont .puGrilla .st img'); await A.foto('pack_publico');
 const pub = (await srvApi('/api/packs/' + loc.id)).pack;
@@ -115,7 +115,7 @@ ok((await fetch(`${API}/api/packs/${loc.id}`)).status === 404 && !(await A.E(() 
 const D = await celular('D', 'http://127.0.0.1:9');
 await D.p.waitForSelector('#feedLista .vacio'); await D.p.waitForFunction(() => document.querySelectorAll('#feedListos img[src^="data:"]').length >= 4, null, { timeout: 15000 });
 ok(/Sin conexión/.test(await D.p.textContent('#feedLista')), 'sin conexión: lo dice, y mientras tanto muestra los packs listos'); await D.foto('sin_conexion');
-await D.p.click('#tabs [data-t="Crear"]'); ok(await D.p.isVisible('#bCrear'), 'sin conexión se puede crear igual');
+await D.p.click('#tabs [data-t="Crear"]'); ok(await D.p.waitForSelector('#bCrear', { state: 'visible', timeout: 5000 }).then(() => true, () => false), 'sin conexión se puede crear igual');
 
 console.log('errores de las páginas:', JSON.stringify(errores.filter((e) => !/127\.0\.0\.1:9\//.test(e) && !/\/packs\/[a-z0-9]{10}$/.test(e))));
 console.log(`RESUMEN: ${bien} bien, ${fallas} fallas`);

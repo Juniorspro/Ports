@@ -110,7 +110,52 @@ function manejarEmojis(cont, sel, alCambiar) {
 }
 
 // ---- vistas ----
+// ================= LA TRANSICIÓN LÍQUIDA: bolas de color que salen del dedo, se juntan como líquido y se escurren =================
+const LIQ = { c: $('#liquido'), corriendo: false };
+let ultimoToque = { x: innerWidth / 2, y: innerHeight * 0.85 };
+document.addEventListener('pointerdown', (ev) => { ultimoToque = { x: ev.clientX, y: ev.clientY }; }, true);
+const quieto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// (los colores de la marca, de arriba a abajo: rosa → naranja → violeta)
+const PALETA = (() => { const p = new Uint8ClampedArray(256 * 3), cs = [[255, 62, 138], [255, 138, 26], [255, 210, 63], [124, 77, 255], [255, 62, 138]];
+  for (let i = 0; i < 256; i++) { const t = (i / 255) * (cs.length - 1), k = Math.min(cs.length - 2, Math.floor(t)), f = t - k; for (let j = 0; j < 3; j++) p[i * 3 + j] = cs[k][j] + (cs[k + 1][j] - cs[k][j]) * f; } return p; })();
+// cambio(): se llama con la pantalla tapada. soloSalida: ya arranca tapada (para lo que cambia al toque) y se escurre
+function liquido(cambio, desde = ultimoToque, soloSalida = false) {
+  const c = LIQ.c;
+  if (quieto || !c || LIQ.corriendo) { if (cambio) cambio(); return; }
+  LIQ.corriendo = true;
+  const ES = 4, W = Math.ceil(innerWidth / ES), H = Math.ceil(innerHeight / ES); c.width = W; c.height = H; c.classList.remove('oc');
+  const g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data, R = 0.55 * Math.hypot(W, H);
+  const x0 = desde.x / ES, y0 = desde.y / ES, N = 14;
+  const bolas = Array.from({ length: N }, (_, i) => { const a = (i / N) * Math.PI * 2 + Math.random() * 0.6, dist = (0.25 + Math.random() * 0.45) * Math.hypot(W, H);
+    return { tx: Math.min(W, Math.max(0, x0 + Math.cos(a) * dist)), ty: Math.min(H, Math.max(0, y0 + Math.sin(a) * dist)), r: R * (0.16 + Math.random() * 0.3), cae: 0.3 + Math.random() * 0.9, demora: Math.random() * 0.35 }; });
+  const T1 = soloSalida ? 0 : 360, T2 = 520, t0 = performance.now(), suave = (t) => 1 - Math.pow(1 - t, 3);
+  let cambiado = false;
+  const cuadro = (ahora) => {
+    const t = ahora - t0, entra = T1 ? Math.min(1, t / T1) : 1, sale = t < T1 ? 0 : Math.min(1, (t - T1) / T2);
+    if (!cambiado && entra >= 1) { cambiado = true; if (cambio) cambio(); }
+    // (las bolas salen del dedo y crecen; al final del tapado se llena todo; al destapar se escurren hacia abajo)
+    const pe = suave(entra), ps = suave(sale), relleno = sale > 0 ? Math.max(0, 1 - ps * 4) * 1.4 : Math.pow(Math.max(0, (pe - 0.8) / 0.2), 2) * 1.4;
+    const B = bolas.map((b) => {
+      const pb = suave(Math.max(0, Math.min(1, (entra - b.demora) / (1 - b.demora)))), qb = Math.max(0, Math.min(1, (sale - b.demora * 0.6) / (1 - b.demora * 0.6)));
+      const x = x0 + (b.tx - x0) * pb, y = y0 + (b.ty - y0) * pb + Math.pow(qb, 1.6) * H * b.cae, r = b.r * (0.1 + 0.9 * pb) * Math.pow(1 - qb, 0.7);
+      return [x, y, r * r];
+    });
+    const corre = Math.floor(t / 6);
+    for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i += 4) {
+      let f = relleno; for (let k = 0; k < N; k++) { const dx = x - B[k][0], dy = y - B[k][1]; f += B[k][2] / (dx * dx + dy * dy + 1); }
+      if (f < 0.8) { d[i + 3] = 0; continue; }
+      const p = ((((y + x * 0.35 + corre) / H) * 200) & 255) * 3, luz = Math.min(40, (f - 1) * 6);
+      d[i] = PALETA[p] + luz; d[i + 1] = PALETA[p + 1] + luz; d[i + 2] = PALETA[p + 2] + luz; d[i + 3] = Math.min(255, (f - 0.8) * 900);
+    }
+    g.putImageData(img, 0, 0);
+    if (sale < 1) requestAnimationFrame(cuadro); else { c.classList.add('oc'); LIQ.corriendo = false; }
+  };
+  if (soloSalida) { cambiado = true; if (cambio) cambio(); }
+  cuadro(performance.now()); requestAnimationFrame(cuadro);
+}
+
 function ir(v, volviendo) {
+  if (!volviendo && E.vista && E.vista !== v && LIQ.c && !LIQ.corriendo && document.visibilityState === 'visible') liquido(null, ultimoToque, true);
   for (const s of document.querySelectorAll('.vista')) s.classList.toggle('oc', s.id !== v);
   const s = $('#' + v); s.classList.remove('entra', 'vuelve'); void s.offsetWidth; s.classList.add(volviendo ? 'vuelve' : 'entra');
   E.vista = v;
@@ -698,8 +743,58 @@ function pestaña(t) {
   if (t === 'Feed') { if (Date.now() - feedCargado > 120000 || !$('#feedLista').children.length) { feedCargado = Date.now(); C.cargarFeed(true); } }
   else if (t === 'Crear') pintarCarrusel(); else if (t === 'Listos') buscar($('#qBuscar').value); else if (t === 'Perfil') C.pintarPerfil(); else pintarMios();
 }
-$('#tabs').onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; vibrar(6); if (b.dataset.t === E.tab && b.dataset.t === 'Feed') { $('#tabFeed').scrollTo({ top: 0, behavior: 'smooth' }); feedCargado = Date.now(); return C.cargarFeed(true); } pestaña(b.dataset.t); };
-function pintarInicio() { pestaña(E.tab); }
+$('#tabs').onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; vibrar(6); if (b.dataset.t === E.tab && b.dataset.t === 'Feed') { $('#tabFeed').scrollTo({ top: 0, behavior: 'smooth' }); feedCargado = Date.now(); return C.cargarFeed(true); } liquido(() => pestaña(b.dataset.t), { x: ev.clientX || ultimoToque.x, y: ev.clientY || ultimoToque.y }); };
+function pintarInicio() { pestaña(E.tab); pintarTopInicio(); }
+
+// ---- arriba del feed: buscar, «¿de dónde sos?», historias (packs en círculos) y banners que pasan solos ----
+const PAISES = [['ar', '🇦🇷', 'Argentina'], ['mx', '🇲🇽', 'México'], ['cl', '🇨🇱', 'Chile'], ['co', '🇨🇴', 'Colombia'], ['pe', '🇵🇪', 'Perú'], ['uy', '🇺🇾', 'Uruguay'], ['ve', '🇻🇪', 'Venezuela'], ['py', '🇵🇾', 'Paraguay']];
+const miPais = () => { try { return localStorage.getItem('sz_pais') || ''; } catch (e) { return ''; } };
+// (los packs de tu país primero; después los memes y los de Argentina)
+function ordenarPorPais() {
+  const p = miPais() || 'ar', pos = new Map(LISTOS.map((x, i) => [x.id, i]));
+  const peso = (x) => (x.pais === p ? 0 : x.meme && x.pais === 'ar' ? 1 : !x.pais || x.pais === 'ar' ? 2 : 3);
+  LISTOS.sort((a, b) => peso(a) - peso(b) || pos.get(a.id) - pos.get(b.id));
+}
+ordenarPorPais();
+const BANNERS = [
+  { img: 'banners/xd.webp', t: 'Modo <em>xD</em>', s: 'Ojo de pez, quemado, calidad trucha… arruiná tus fotos a propósito', b: 'Probalo', a: () => $('#bCrear').click() },
+  { img: 'banners/latam.webp', t: 'Memes de <em>toda Latinoamérica</em>', s: 'Argentina, México, Chile, Perú, Colombia, Venezuela, Uruguay', b: 'Ver packs', a: () => liquido(() => pestaña('Listos')) },
+  { img: 'banners/pack.webp', t: 'Tu pack en <em>un minuto</em>', s: 'Elegís hasta 30 fotos y te lo armo entero', b: 'Armar', a: () => $('#bExpress').click() },
+];
+let relojBanner = 0;
+function pintarTopInicio() {
+  const hi = $('#historias');
+  if (!hi.children.length) {
+    const corto = (n) => n.replace(/^(Los |Las |El |La )/, '').split(/ y | de /)[0];
+    hi.innerHTML = LISTOS.slice(0, 16).map((pk) => `<button class="hist" data-l="${pk.id}"><span class="anillo${pk.meme ? ' xd' : ''}">${imgListo(pk, 0)}</span><small>${h(corto(pk.nombre))}</small></button>`).join('');
+    llenarPrevias(hi);
+  }
+  const bn = $('#banners');
+  if (!bn.children.length) {
+    bn.innerHTML = `<div class="bTira">${BANNERS.map((b, i) => `<button class="banner" data-i="${i}" style="--fondo:url('${b.img}')"><span class="bTxt"><b>${b.t}</b><small>${h(b.s)}</small><span class="bBoton">${b.b} →</span></span></button>`).join('')}</div><div class="bPuntos">${BANNERS.map((_, i) => `<i class="${i ? '' : 'act'}"></i>`).join('')}</div>`;
+    const tira = $('.bTira', bn), puntos = [...bn.querySelectorAll('.bPuntos i')];
+    const actual = () => Math.round(tira.scrollLeft / Math.max(1, tira.clientWidth));
+    tira.addEventListener('scroll', () => { const k = actual(); puntos.forEach((p, i) => p.classList.toggle('act', i === k)); for (const [i, b] of [...tira.children].entries()) b.classList.toggle('visto', i === k); }, { passive: true });
+    tira.children[0].classList.add('visto');
+    clearInterval(relojBanner);
+    relojBanner = setInterval(() => { if (E.vista !== 'vInicio' || E.tab !== 'Feed' || document.hidden) return; const k = (actual() + 1) % BANNERS.length; tira.scrollTo({ left: k * tira.clientWidth, behavior: 'smooth' }); }, 4500);
+    bn.onclick = (ev) => { const b = ev.target.closest('.banner'); if (b) { vibrar(8); BANNERS[+b.dataset.i].a(); } };
+  }
+  const pc = $('#paisCard');
+  if (!miPais()) {
+    pc.innerHTML = `<b>¿De dónde sos?</b><small>Así te muestro primero los memes de tu país</small><div class="banderas">${PAISES.map(([k, f, n]) => `<button data-p="${k}" aria-label="${n}"><span>${f}</span><small>${n}</small></button>`).join('')}</div>`;
+    pc.classList.remove('oc');
+  }
+}
+$('#irBuscar').onclick = () => liquido(() => { pestaña('Listos'); setTimeout(() => $('#qBuscar').focus(), 60); });
+$('#historias').onclick = (ev) => { const b = ev.target.closest('.hist'); if (!b) return; vibrar(6); const pk = LISTOS.find((x) => x.id === b.dataset.l); if (pk) { b.classList.add('visto'); hojaListo(pk); } };
+$('#paisCard').onclick = (ev) => {
+  const b = ev.target.closest('[data-p]'); if (!b) return;
+  try { localStorage.setItem('sz_pais', b.dataset.p); } catch (e) { /* sin guardar: igual se ordena ahora */ }
+  vibrar(15); confeti(); ordenarPorPais(); const n = PAISES.find((x) => x[0] === b.dataset.p);
+  $('#paisCard').classList.add('chau'); setTimeout(() => { $('#paisCard').classList.add('oc'); $('#historias').innerHTML = ''; $('#carrusel').innerHTML = ''; pintarTopInicio(); }, 380);
+  aviso(`¡Listo! Primero los de ${n ? n[2] : 'tu país'} ${n ? n[1] : ''}`);
+};
 
 // ---- packs listos: las vistas previas se arman de a una (sin trabar la pantalla) y quedan guardadas ----
 const previas = new Map();
@@ -970,4 +1065,4 @@ window.addEventListener('resize', alCambiarTam); if (window.ResizeObserver) { co
 pintarInicio();
 if (P.esApp && window.SZN.enlaceInicial) { const e = window.SZN.enlaceInicial(); if (e) window.__szAbrir(e); }
 setTimeout(() => recorte().catch(() => {}), 1200); // (los modelos, de fondo, para que el primer recorte salga enseguida)
-window.__sz = { E, ir, atras, abrirFoto, recorte, aviso, pestaña, C };
+window.__sz = { LIQ, liquido, E, ir, atras, abrirFoto, recorte, aviso, pestaña, C };
