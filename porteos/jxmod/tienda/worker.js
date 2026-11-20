@@ -18,6 +18,10 @@ import { cuentaRutas, cuentaActiva, cuentaUsuario } from './cuenta.js';
 import { socialRutas } from './social.js';
 import { legalRutas } from './legal.js';
 import { panelRutas } from './panel.js';
+// (los correos de JXMod salen por el SMTP de Gmail: correo.js necesita la conexión TCP de los Workers, que sólo existe acá)
+import { connect } from 'cloudflare:sockets';
+import { correoConector } from './correo.js';
+correoConector(connect);
 import { validarRB as validar, ETIQUETAS_RB as ETIQUETAS, MAPAS_BASE_RB, verityMensajes, verityRespuesta, VERITY_VOCES, VERITY_GEMINI, VERITY_GEMINI_VOCES, verityAGemini, verityStream, verityLeerSSE, verityVozGemini, verityWav, verityCrearMensajes, verityCreacion, VERITY_GEMINI_CREA, VERITY_CLAVES, verityAbierto, verityTextoAbierto } from './formato.js';
 const texto = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 

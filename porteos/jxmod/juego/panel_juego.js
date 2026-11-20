@@ -15,6 +15,10 @@
 //      quitar  saca una orden que sigue puesta
 //  · Bugs y sugerencias (el menú): la gente publica con texto, imágenes y videos; se ven todos, se votan y se denuncian;
 //    el dueño y Claude contestan y les ponen estado.
+//  · Avisos (las notificaciones que manda el dueño o Claude desde el panel): llegan con «hola», salen en un cartel arriba
+//    y quedan en la lista de Avisos del menú (con un globito con las que no se vieron). Con el juego en otra pestaña y
+//    el permiso del navegador, también una notificación del sistema; en la web instalable, «Avisarme en este aparato»
+//    anota el navegador para el push y le llegan con el juego cerrado (el service worker: herramientas/web_app.py).
 // En las pruebas automáticas no se conecta, salvo con ?panel=URL_DEL_PANEL (y ?panelCada=segundos).
 // ---------------------------------------------------------------------------------------------------------
 const ORD = { on: false, d: '', u: 0, hechas: [], activas: new Map(), err: [], errVistos: new Set(), claves: new Map(), cielo: null, cine: null, irPos: null, guiones: new Map(), cola: [], reloj: 0 };
@@ -24,6 +28,7 @@ const ordBase = () => ((TEST || navigator.webdriver) && Q.get('panel')) || (type
 const ordUrlBien = (u) => typeof u === 'string' && (/^https:\/\/(raw\.githubusercontent\.com|raw\.githack\.com|rawcdn\.githack\.com)\/Juniorspro\/Ports\//.test(u) || u.startsWith(ordBase() + 'media/') || ((TEST || navigator.webdriver) && /^http:\/\/localhost:\d+\//.test(u)));
 // ---------------- arrancar y avisar que estamos ----------------
 function ordArranque() {
+  notCargar();
   if (ORD.on || !ordPuede()) return; ORD.on = true;
   try { ORD.d = localStorage.getItem('jx_aparato') || ''; } catch (e) {}
   if (!/^[a-z0-9]{16}$/.test(ORD.d)) { ORD.d = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join(''); try { localStorage.setItem('jx_aparato', ORD.d); } catch (e) {} }
@@ -34,6 +39,8 @@ function ordArranque() {
   ordHola();
   const cada = Math.max(1, +(((TEST || navigator.webdriver) && Q.get('panelCada')) || 25)) * 1000;
   setInterval(() => { if (!document.hidden) ordHola(); }, cada);
+  // (con el juego en otra pestaña y permiso para avisar: cada 2 minutos se fijan los avisos nuevos, sin decir «acá estoy»)
+  setInterval(() => { if (document.hidden && 'Notification' in window && Notification.permission === 'granted') notTraer(); }, Math.max(cada, 120000));
   setInterval(ordReloj, 1000);
 }
 function ordErr(msg) {
@@ -45,9 +52,11 @@ async function ordHola() {
   try {
     const mapa = JUEGO.estado === 'juego' && typeof MUNDO !== 'undefined' ? MUNDO.nombre : 'menú';
     const b = { d: ORD.d, n: PREFS.nombre || '', v: typeof JX_VERSION !== 'undefined' ? JX_VERSION : '', pl: (window.JXNativo ? 'app' : 'web') + (typeof COARSE !== 'undefined' && COARSE ? ' celu' : ' pc'), m: mapa, s: typeof SALA !== 'undefined' && SALA ? String(SALA.id || '') : '', u: ORD.u, e: ORD.err.splice(0, 3) };
+    b.nd = NOT.nd;
     const r = await fetch(ordBase() + 'hola', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
     if (!r.ok) return; const d = await r.json();
     for (const o of d.ordenes || []) { ORD.u = Math.max(ORD.u, +o.id || 0); if (await ordFirmaBien(o)) ordCorrer(o); else console.warn('panel: orden con firma mala'); }
+    notNuevas(d.notis);
   } catch (e) { /* sin internet: la próxima */ } finally { ORD.hablando = false; }
 }
 // ---------------- las firmas ----------------
@@ -109,6 +118,70 @@ function ordAviso(uid, d, hasta) {
 }
 function ordSonido() {
   try { const c = AUD.ctx; if (!c) return; const t = c.currentTime; for (const [f, a] of [[660, 0], [880, 0.12]]) { const o = c.createOscillator(), g = c.createGain(); o.type = 'triangle'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t + a); g.gain.exponentialRampToValueAtTime(0.18 * (PREFS.vol / 100), t + a + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + a + 0.35); o.connect(g); g.connect(c.destination); o.start(t + a); o.stop(t + a + 0.4); } } catch (e) {}
+}
+// ---------------- los avisos (notificaciones del panel) ----------------
+const NOT = { L: [], nd: 0 };
+function notCargar() { try { const o = JSON.parse(localStorage.getItem('jx_notis') || 'null'); if (o) { NOT.L = Array.isArray(o.L) ? o.L : []; NOT.nd = +o.nd || 0; } } catch (e) {} notGlobo(); }
+function notGuardar() { try { localStorage.setItem('jx_notis', JSON.stringify({ L: NOT.L.slice(0, 30), nd: NOT.nd })); } catch (e) {} }
+// (el globito de los botones de Avisos: lo dibuja el CSS con la cuenta de acá, así sale también en los botones que se arman después)
+function notGlobo() { const n = NOT.L.filter((x) => !x.v).length, r = document.documentElement; r.style.setProperty('--avN', '"' + (n > 9 ? '9+' : n) + '"'); r.classList.toggle('avHay', n > 0); }
+function notNuevas(lista) {
+  const nuevas = (Array.isArray(lista) ? lista : []).filter((n) => n && typeof n.id === 'string' && !NOT.L.some((x) => x.id === n.id));
+  for (const n of nuevas) { NOT.L.push({ id: n.id, t: String(n.titulo || '').slice(0, 80), x: String(n.texto || '').slice(0, 1000), l: /^https:\/\//.test(n.link || '') ? String(n.link) : '', c: +n.creado || Date.now(), v: 0 }); NOT.nd = Math.max(NOT.nd, +n.creado || 0); }
+  if (!nuevas.length) return;
+  NOT.L.sort((a, b) => b.c - a.c); NOT.L = NOT.L.slice(0, 30); notGuardar(); notGlobo();
+  if (notApp() && typeof JXNativo.avisosVisto === 'function') { try { JXNativo.avisosVisto(String(NOT.nd)); } catch (e) {} }   // (la app no repite lo que ya salió acá)
+  // (el cartel, de la más nueva si llegaron varias juntas: la primera vez que se abre el juego, por ejemplo)
+  const n = nuevas.reduce((a, b) => ((+b.creado || 0) > (+a.creado || 0) ? b : a));
+  ordAviso('noti:' + n.id, { titulo: n.titulo, texto: n.texto, seg: 12 }, Date.now() + 12000);
+  if (document.hidden && 'Notification' in window && Notification.permission === 'granted') { try { new Notification(String(n.titulo || 'JXMod'), { body: String(n.texto || ''), tag: 'jx-' + n.id }); } catch (e) {} }
+  if (typeof RB !== 'undefined' && RB.panel === 'avisos' && typeof inicioPanel === 'function') inicioPanel('avisos');
+}
+async function notTraer() { try { const r = await fetch(ordBase() + 'notis?desde=' + NOT.nd); if (r.ok) notNuevas((await r.json()).notis); } catch (e) {} }
+// qué se puede hacer para que avise: push (la web instalable, con service worker), con el juego abierto (Notification), nada (la app)
+const notPushPuede = () => !!(window.JX_APPWEB && window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window);
+// (la app de Android desde la 3.9.9 avisa con la app cerrada —Avisos.java—; las anteriores no tienen cómo)
+const notApp = () => !!(window.JXNativo && typeof JXNativo.avisosEstado === 'function');
+function notEstado() {
+  if (notApp()) { let e = 'pedir'; try { e = JXNativo.avisosEstado(); } catch (x) {} return e === 'activo' ? 'push' : e === 'bloq' ? 'bloq' : 'pedir'; }
+  if (!('Notification' in window)) return 'no';
+  if (Notification.permission === 'denied') return 'bloq';
+  if (Notification.permission === 'granted') return notPushPuede() ? (localStorage.getItem('jx_push') ? 'push' : 'pedir') : 'abierto';
+  return 'pedir';
+}
+const notB64 = (s) => { s = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return Uint8Array.from(atob(s), (c) => c.charCodeAt(0)); };
+async function notActivar() {
+  if (notApp()) {   // (la app: programa la tarea de Android y pide el permiso de notificaciones; contesta con __jxAvisos)
+    window.__jxAvisos = () => { if (typeof RB !== 'undefined' && RB.panel === 'avisos') inicioPanel('avisos'); };
+    try { JXNativo.avisosActivar(String(NOT.nd || 0)); } catch (e) {}
+    setTimeout(() => window.__jxAvisos(), 600); return;
+  }
+  try { if ((await Notification.requestPermission()) !== 'granted') return inicioPanel('avisos'); } catch (e) { return; }
+  if (notPushPuede()) {
+    try {
+      const reg = await navigator.serviceWorker.ready, k = await (await fetch(ordBase() + 'push/clave')).json();
+      const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: notB64(k.clave) }));
+      const r = await fetch(ordBase() + 'push/alta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) });
+      if (r.ok) localStorage.setItem('jx_push', sub.endpoint);
+      // (el service worker trae el texto del aviso de este panel)
+      try { const c = await caches.open('jx-conf'); await c.put('panel', new Response(ordBase())); } catch (e) {}
+    } catch (e) { console.warn('avisos: no se pudo anotar el push: ' + (e && e.message)); }
+  }
+  inicioPanel('avisos');
+}
+function panelAvisos(P) {
+  const L = NOT.L, nuevos = new Set(L.filter((x) => !x.v).map((x) => x.id)), est = notEstado();
+  for (const x of L) x.v = 1; notGuardar(); notGlobo();
+  const fecha = (c) => { const d = new Date(c); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); };
+  const cuerpo = `<div class="rbPanCuerpo avLista">${L.length ? L.map((x, i) => `<div class="avItem${nuevos.has(x.id) ? ' nuevo' : ''}"><div class="avCab"><b>${esc(x.t)}</b><small>${esc(fecha(x.c))}</small></div>${x.x ? `<p>${esc(x.x)}</p>` : ''}${x.l ? `<button class="rbBtnGris rbChico" data-rb="av:abrir|${i}">${glifo('adelante')} ${esc(T('av.abrir'))}</button>` : ''}</div>`).join('') : `<p class="rbAyudaC">${esc(T('av.vacio'))}</p>`}
+    ${est === 'push' ? `<p class="rbAyudaC avEst">${esc(T('av.activoPush'))}</p>` : est === 'abierto' ? `<p class="rbAyudaC avEst">${esc(T('av.activoAbierto'))}</p>` : est === 'bloq' ? `<p class="rbAyudaC avEst">${esc(T('av.bloqueadas'))}</p>` : ''}</div>`;
+  P.innerHTML = `<div class="rbPanCab">${glifo('campana')} ${esc(T('av.titulo'))}</div>` + cuerpo +
+    `<div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span>${est === 'pedir' ? `<button class="rbBtnG" data-rb="av:activar">${glifo('campana')} ${esc(T('av.activar'))}</button>` : ''}</div>`;
+}
+function avisosAccion(v) {
+  const [a, x] = String(v || '').split('|');
+  if (a === 'activar') return notActivar();
+  if (a === 'abrir') { const n = NOT.L[+x]; if (!n || !n.l) return; try { if (window.JXNativo && JXNativo.abrir) { JXNativo.abrir(n.l); return; } } catch (e) {} window.open(n.l, '_blank', 'noopener'); }
 }
 // ---------------- la pantalla del cielo ----------------
 function ordCielo(uid, d, hasta) {
@@ -351,6 +424,13 @@ async function bugsAccion(v, b) {
   }
 }
 Object.assign(IDI3, {
+  'av.titulo': ['Avisos', 'News', 'Avisos', 'Pemberitahuan', 'Notis', 'Mga abiso', 'お知らせ', 'ประกาศ', 'Duyurular', 'الإشعارات', 'Новости', 'Новини', 'Annonces', 'Neuigkeiten'],
+  'av.vacio': ['No hay avisos por ahora.', 'No news for now.', 'Nenhum aviso por enquanto.', 'Belum ada pemberitahuan.', 'Tiada notis buat masa ini.', 'Wala pang abiso.', 'お知らせはまだありません。', 'ยังไม่มีประกาศ', 'Şimdilik duyuru yok.', 'لا توجد إشعارات حاليًا.', 'Пока новостей нет.', 'Поки що новин немає.', 'Aucune annonce pour le moment.', 'Noch keine Neuigkeiten.'],
+  'av.abrir': ['Abrir', 'Open', 'Abrir', 'Buka', 'Buka', 'Buksan', '開く', 'เปิด', 'Aç', 'فتح', 'Открыть', 'Відкрити', 'Ouvrir', 'Öffnen'],
+  'av.activar': ['Avisarme en este aparato', 'Notify me on this device', 'Me avisar neste aparelho', 'Beri tahu saya di perangkat ini', 'Maklumkan saya di peranti ini', 'Abisuhan ako sa device na ito', 'この端末で通知を受け取る', 'แจ้งเตือนฉันบนอุปกรณ์นี้', 'Bu cihazda bana bildir', 'نبّهني على هذا الجهاز', 'Уведомлять на этом устройстве', 'Сповіщати на цьому пристрої', "M'avertir sur cet appareil", 'Auf diesem Gerät benachrichtigen'],
+  'av.activoPush': ['Te avisamos en este aparato aunque el juego esté cerrado.', 'We notify you on this device even when the game is closed.', 'Avisamos neste aparelho mesmo com o jogo fechado.', 'Kami beri tahu di perangkat ini meski game ditutup.', 'Kami maklumkan di peranti ini walaupun permainan ditutup.', 'Aabisuhan ka namin sa device na ito kahit sarado ang laro.', 'ゲームを閉じていてもこの端末に通知します。', 'เราจะแจ้งเตือนบนอุปกรณ์นี้แม้ปิดเกมอยู่', 'Oyun kapalıyken bile bu cihazda bildiririz.', 'سننبّهك على هذا الجهاز حتى لو كانت اللعبة مغلقة.', 'Мы уведомим на этом устройстве, даже если игра закрыта.', 'Ми сповістимо на цьому пристрої, навіть якщо гра закрита.', 'On te prévient sur cet appareil même quand le jeu est fermé.', 'Wir benachrichtigen dich auf diesem Gerät, auch wenn das Spiel geschlossen ist.'],
+  'av.activoAbierto': ['Te avisamos con el juego abierto, aunque estés en otra pestaña.', 'We notify you while the game is open, even in another tab.', 'Avisamos com o jogo aberto, mesmo em outra aba.', 'Kami beri tahu selama game terbuka, meski di tab lain.', 'Kami maklumkan semasa permainan dibuka, walaupun di tab lain.', 'Aabisuhan ka namin habang bukas ang laro, kahit nasa ibang tab ka.', 'ゲームを開いている間は、別のタブにいても通知します。', 'เราจะแจ้งเตือนขณะเปิดเกม แม้อยู่ในแท็บอื่น', 'Oyun açıkken, başka sekmede olsan bile bildiririz.', 'سننبّهك ما دامت اللعبة مفتوحة، حتى في تبويب آخر.', 'Уведомим, пока игра открыта, даже в другой вкладке.', 'Сповістимо, поки гра відкрита, навіть в іншій вкладці.', 'On te prévient tant que le jeu est ouvert, même dans un autre onglet.', 'Wir benachrichtigen dich, solange das Spiel offen ist, auch in einem anderen Tab.'],
+  'av.bloqueadas': ['Las notificaciones están bloqueadas: activalas en los ajustes del navegador para este sitio.', 'Notifications are blocked: allow them in the browser settings for this site.', 'As notificações estão bloqueadas: ative-as nas configurações do navegador para este site.', 'Notifikasi diblokir: izinkan di pengaturan browser untuk situs ini.', 'Pemberitahuan disekat: benarkan dalam tetapan pelayar untuk laman ini.', 'Naka-block ang notifications: payagan sa settings ng browser para sa site na ito.', '通知がブロックされています。ブラウザのサイト設定で許可してください。', 'การแจ้งเตือนถูกบล็อก เปิดได้ในการตั้งค่าเบราว์เซอร์ของเว็บนี้', 'Bildirimler engelli: tarayıcı ayarlarından bu site için izin ver.', 'الإشعارات محظورة: فعّلها من إعدادات المتصفح لهذا الموقع.', 'Уведомления заблокированы: разрешите их в настройках браузера для этого сайта.', 'Сповіщення заблоковано: дозвольте їх у налаштуваннях браузера для цього сайту.', 'Les notifications sont bloquées : autorise-les dans les réglages du navigateur pour ce site.', 'Benachrichtigungen sind blockiert: erlaube sie in den Browser-Einstellungen für diese Seite.'],
   'm.bugs': ['Bugs y sugerencias', 'Bugs & ideas', 'Bugs e sugestões'],
   'bg.bugs': ['Bugs', 'Bugs', 'Bugs'], 'bg.sugs': ['Sugerencias', 'Suggestions', 'Sugestões'],
   'bg.unBug': ['Un bug', 'A bug', 'Um bug'], 'bg.unaSug': ['Una sugerencia', 'A suggestion', 'Uma sugestão'],
@@ -372,5 +452,5 @@ Object.assign(IDI3, {
   'bg.anonimo': ['Anónimo', 'Anonymous', 'Anônimo'], 'bg.respDe': ['Respuesta de %s', 'Reply from %s', 'Resposta de %s'],
   'bg.e.nuevo': ['Nuevo', 'New', 'Novo'], 'bg.e.visto': ['Visto', 'Seen', 'Visto'], 'bg.e.en_curso': ['Arreglándose', 'In progress', 'Em andamento'], 'bg.e.hecho': ['Hecho', 'Done', 'Feito'], 'bg.e.no': ['No va', "Won't do", 'Não vai'],
   'ord.teLlevan': ['Te llevan a %s', 'Taking you to %s', 'Levando você para %s'],
-  'cu.paraBugs': ['Para publicar bugs y sugerencias, entrá con tu cuenta de Google.', 'Sign in with Google to post bugs and suggestions.', 'Entre com sua conta Google para publicar bugs e sugestões.'],
+  'cu.paraBugs': ['Para publicar bugs y sugerencias, iniciá sesión.', 'Sign in to post bugs and suggestions.', 'Entre na sua conta para publicar bugs e sugestões.'],
 });

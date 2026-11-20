@@ -3,6 +3,7 @@
 // retenida en la sala) y queda guardado en la tienda. Otro pedido que rechazan no se activa.
 // uso: node gmod_votar.mjs URL_HTML [CARPETA_FOTOS]   (broker MQTT local, como red2.mjs; SIN_PUENTE=1: sin el worker ni el
 // puente público, todo con el catálogo y el servidor de archivos de Steam)
+import './cf_sockets.mjs';
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
 import http from 'http';
 const S = process.env.BROKER_DIR || '/tmp/claude-0/-home-user-Ports/eeadafdf-53e8-5696-a49a-cc5a848c1abe/scratchpad';

@@ -24,6 +24,7 @@
 //  5. los dos menús de inicio: desde «Tu depósito» se abren los mismos paneles, con su entrada y la misma placa;
 //  6. sin errores de JS.
 // uso: node paneles_inicio.mjs URL_HTML [URL_36] [CARPETA_FOTOS]   (SOLO=1,2…: sólo esas partes; CORRIDAS=3)
+import './cf_sockets.mjs';
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
 import { DatabaseSync } from 'node:sqlite'; import { readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs'; import { tmpdir } from 'os';
 const [, , HTML, U36 = '', DIR = ''] = process.argv, D = DIR ? DIR.replace(/\/$/, '') + '/' : '';

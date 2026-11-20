@@ -3,6 +3,7 @@
 // addon (no el damero), casco de choque de su .phy y masa; caen y quedan apoyados en el piso; queda en la caché (otra vez
 // sin bajar nada); sin errores.
 // uso: node gmod_addon.mjs URL_HTML [CARPETA_FOTOS] [ID_WORKSHOP]
+import './cf_sockets.mjs';
 import { abrir } from './base.mjs';
 const D = (process.argv[3] || '.') + '/', WID = process.argv[4] || '108024198';
 // (PUENTE_LOCAL=1: el puente /api/gmod/* de la tienda corre acá con el código del worker, por si el desplegado o el público no andan)

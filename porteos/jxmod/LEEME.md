@@ -5227,3 +5227,52 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     como un jugador, ~1 GB la primera vez). DrGBase, Cartoon Cat, Doro y SCP-049 (los de `nextbots_ia.mjs`) no usan
     `EnableMatrix`: para ellos no cambia nada. `pepe_vuelve` 13/13, `codigo_tragado` bien.
 
+## Registro con Gmail (sin Google) y notificaciones (servidor andando; el juego, sin publicar)
+
+Pedido del dueño: «registro sin Google, solamente por Gmail, y poder mandar notificaciones al juego y al HTML, o emails».
+
+### Los correos: por Gmail, sin otro servicio (`tienda/correo.js`)
+- Los manda una cuenta de Gmail del juego por su servidor SMTP (smtp.gmail.com:465, TLS, con la conexión TCP de los
+  Workers: `cloudflare:sockets`, que pone `worker.js`). Hace falta una **contraseña de aplicación** de esa cuenta
+  (Google → Seguridad → Verificación en 2 pasos prendida → Contraseñas de aplicaciones) y dos variables del worker en
+  Cloudflare (Workers & Pages → rezobox-tienda → Settings → Variables and Secrets): `GMAIL_USUARIO` (la dirección) y
+  `GMAIL_CLAVE` (la contraseña de aplicación, como **secreto**). No van al repo; con `keep_vars` no se borran al
+  desplegar. Sin ellas, todo lo de correo queda apagado (el registro con Gmail no aparece y la app admin lo dice).
+- Gmail deja unos 500 por día desde una cuenta común: el tope es 450 (`CORREO_DIA`), contado en la tabla `conf`.
+- Prueba: `pruebas/correo_smtp.mjs` 6/6 (contra un SMTP de mentira con TLS: usuario y contraseña, una tanda en una
+  conexión, acentos en UTF-8, línea con un punto solo, una dirección rechazada, contraseña mala, direcciones de Gmail).
+
+### Entrar con la dirección de Gmail (`tienda/cuenta.js`, `juego/cuenta.js`)
+- En el cartel de la cuenta, «Entrar con tu Gmail» (con Google prendido, los dos botones con «o»; el chip y los paneles
+  dicen «Iniciar sesión» y ahí se elige). Se escribe la dirección (sólo @gmail.com; la cuenta es la de la dirección sin
+  puntos ni +algo, como Gmail), llega un código de 6 números (vale 10 minutos, 5 intentos; 4 pedidos por hora por
+  dirección y 8 por lugar), y con el código y el nombre se entra. Opcional: «Quiero recibir novedades y eventos por
+  correo» (también se cambia desde el cartel de la cuenta); cada correo de novedades trae el enlace de baja firmado
+  (`/api/cuenta/baja`). Textos en los 14 idiomas; los de «para qué la cuenta» ya no nombran a Google.
+- Prueba: `pruebas/cuenta_gmail.mjs` 11/11 (worker real en Node con D1 en memoria y los correos en una lista).
+  `cuenta_google.mjs` 22/22 y `social.mjs` 42/42 siguen igual.
+
+### Notificaciones (`tienda/panel.js`, `juego/panel_juego.js`, la app admin, `panel.py`, el service worker, la app)
+- El dueño (app admin → «Notis») o Claude (`panel.py noti --titulo T --texto T [--url L] [--dias 7] [--push]
+  [--correo]`, `notis`, `noti-quitar ID`) crean una notificación con título, texto, enlace y cuánto dura, y eligen por dónde:
+  - **En el juego**: llega con «hola» (≤ 25 s; en la prueba, 2,4 s): un cartel arriba y la lista **Avisos** del menú
+    (botón con campana en los dos menús, con un globito rojo con las que no se vieron). Con el juego en otra pestaña y
+    permiso, también notificación del sistema (cada 2 minutos se fija, sin contar como «jugando»).
+  - **Push del navegador** con el juego cerrado (la web instalada): «Avisarme en este aparato» en Avisos pide permiso y
+    anota el navegador. Las llaves VAPID las crea el worker la primera vez (tabla `conf`); el aviso va sin contenido y el
+    service worker (`web_app.py`) trae el texto de `/api/panel/push/ultima` y lo muestra; al tocarlo abre el enlace o el
+    juego. Sólo a los servicios de push de los navegadores; se mandan de a 40 por pedido (el admin repite).
+  - **En la app de Android** (desde el APK que salga con esto; las anteriores no tienen cómo): `Avisos.java`, una tarea
+    del sistema cada hora con internet (sigue después de reiniciar el celular) que muestra los avisos nuevos como
+    notificación de Android y al tocarla abre el juego; con el juego abierto no avisa ahí. Se prende con el mismo botón
+    (pide el permiso de notificaciones de Android 13+). Necesita instalar ese APK: lo que está en Java no viaja en las
+    actualizaciones por partes.
+  - **Correo** a las cuentas que aceptaron novedades (de a 25 por pedido, con el tope del día).
+  - El HTML suelto: el cartel, la lista y la notificación del sistema con el juego abierto (desde el disco no hay service
+    worker, así que con el HTML cerrado no).
+- Prueba: `pruebas/notis.mjs` 10/10 (worker real, web instalable servida acá, servicio de push de mentira que comprueba la
+  firma VAPID, entrega del push al service worker por CDP, correos, otra pestaña, quitar, y la app simulada). `panel.mjs`
+  17/17. `menu_clasico.mjs`: en la tanda completa la parte 7 (teclado) falló una vez; sola y con las partes 6-8 pasa
+  (el Tab ahora pasa por «Avisos»).
+- Las pruebas que cargan `worker.js` en Node importan antes `pruebas/cf_sockets.mjs` (un `cloudflare:sockets` de mentira).
+

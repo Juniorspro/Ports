@@ -2,6 +2,7 @@
 // ve en primera persona; entidades de un addon (HBOMBS) puestas con su SpawnFunction, que piensan y caen; la HUD; lo que
 // cuesta por cuadro; y la tienda GMod (pestaña nueva) con resultados reales del Workshop por el puente de la tienda.
 // uso: node gmod_lua.mjs URL_HTML [CARPETA_FOTOS]   (los .gma se sirven desde URL_HTML/../gma/ID.gma)
+import './cf_sockets.mjs';
 import { abrir } from './base.mjs';
 const D = (process.argv[3] || '.') + '/', URL0 = process.argv[2], BASE = URL0.replace(/[^/]*$/, '');
 // (el puente /api/gmod/* de la tienda corre acá mismo con el código del worker, contra Steam de verdad)

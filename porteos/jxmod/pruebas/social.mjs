@@ -6,6 +6,7 @@
 // tres; la invitación a partida con «Entrar»; bloquear (ya no se escriben ni se encuentran) y desbloquear; y que cada
 // pestaña entre en la pantalla de la compu y del celu sin desbordarse.
 // uso: node social.mjs URL_HTML
+import './cf_sockets.mjs';
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
 import { DatabaseSync } from 'node:sqlite'; import { readFileSync } from 'fs';
 const [, , HTML] = process.argv;

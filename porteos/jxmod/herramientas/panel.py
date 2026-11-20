@@ -19,6 +19,10 @@
 #   orden guion --js ARCHIVO [--dura 3600]
 #   orden quitar --uid UID
 #   ordenes
+#   noti --titulo T --texto T [--url LINK] [--dias 7] [--push] [--correo] [--sin-juego]
+#                                             una notificación: en el juego (Avisos), y si se pide, push del navegador
+#                                             y correo a los que aceptaron novedades (las tandas se mandan acá mismo)
+#   notis · noti-quitar ID
 import argparse, base64, hashlib, importlib.util, json, os, sys, time, urllib.request, uuid
 AQUI = os.path.dirname(os.path.abspath(__file__))
 API = 'https://rezobox-tienda.holasoyjuniors365.workers.dev/api/'
@@ -71,7 +75,8 @@ def ver(o): print(json.dumps(o, ensure_ascii=False, indent=1))
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--api', default=API); ap.add_argument('cosa'); ap.add_argument('args', nargs='*')
     for k in ['tipo', 'estado', 'dir', 'texto', 'nombre', 'titulo', 'img', 'video', 'url', 'mapa', 'pos', 'js', 'uid']: ap.add_argument('--' + k)
-    for k in ['ocultos', 'ocultar', 'mostrar', 'juntos']: ap.add_argument('--' + k, action='store_true')
+    for k in ['ocultos', 'ocultar', 'mostrar', 'juntos', 'push', 'correo', 'sin-juego']: ap.add_argument('--' + k, action='store_true')
+    ap.add_argument('--dias', type=float)
     ap.add_argument('--dura', type=float); ap.add_argument('--en', type=float, default=0)
     a = ap.parse_args(); api = a.api if a.api.endswith('/') else a.api + '/'
     if a.cosa == 'estado': return ver(admin(api, 'estado'))
@@ -119,6 +124,28 @@ def main():
         elif t == 'quitar': r = orden(api, 'quitar', {'uid': a.uid}, 3600)
         else: return print('¿qué orden?')
         ver(r[0]); return print('uid', r[1])
+    if a.cosa == 'noti':
+        d = admin(api, 'noti', titulo=a.titulo or '', texto=a.texto or '', link=a.url or '', dias=a.dias or 7, juego=not a.sin_juego, push=a.push, correo=a.correo)
+        if not d.get('id'): return ver(d)
+        print('noti', d['id'])
+        for op, k in (('noti_push', 'push'), ('noti_correo', 'correo')):
+            if not getattr(a, k): continue
+            desde, tot = '', {}
+            while True:
+                r = admin(api, op, id=d['id'], desde=desde)
+                for x in ('enviados', 'borrados', 'fallas', 'mal'): tot[x] = tot.get(x, 0) + (r.get(x) or 0)
+                if r.get('error'): tot['error'] = r['error']
+                if r.get('errores'): tot['errores'] = r['errores']
+                if not r.get('sigue') or r.get('error'): break
+                desde = r['sigue']
+            print(k, json.dumps(tot, ensure_ascii=False))
+        return
+    if a.cosa == 'notis':
+        d = admin(api, 'notis')
+        print('push: %s aparatos · correo: %s cuentas%s' % (d.get('pushSuscriptos'), d.get('correoSuscriptos'), (' · quedan %s hoy' % d.get('correoQuedanHoy')) if d.get('correo') else ' · (correo sin configurar)'))
+        for n in d.get('notis', []): print('%s · %s · %s → %s · %s%s%s · %s · %s' % (n['id'], n['de'], time.strftime('%d/%m %H:%M', time.localtime(n['creado'] / 1000)), time.strftime('%d/%m', time.localtime(n['vence'] / 1000)), 'J' if n['juego'] else '-', 'P' if n['push'] else '-', 'C' if n['correo'] else '-', json.dumps(n['stats']), n['titulo']))
+        return
+    if a.cosa == 'noti-quitar': return ver(admin(api, 'noti_quitar', id=a.args[0]))
     print('¿qué cosa?')
 
 

@@ -8,11 +8,16 @@
 //     actualiza el usuario y una sesión, que queda esperando 10 minutos atada a e
 //  4. el juego pregunta cada segundo y medio en /api/cuenta/listo con v: si SHA256(v) = e se lleva la sesión, una sola vez
 //     (ver la dirección de la página no alcanza para llevársela)
+// Sin Google, con la dirección de Gmail (POST /api/cuenta/correo/pedir y /entrar): se manda un código de 6 números a esa
+// dirección (correo.js, por el Gmail del juego); vale 10 minutos y 5 intentos, y con él se crea o se abre la cuenta de esa
+// dirección (la canónica: sin puntos ni +algo). Quien quiere, recibe novedades por correo (avisos = 1; cada correo trae
+// el enlace para darse de baja: /api/cuenta/baja).
 // La sesión es un token al azar de 32 bytes del que acá sólo se guarda la huella; dura 90 días y se renueva al usarse.
 // Del usuario se guarda lo mínimo: el id de Google (sub), el nombre y la foto. Sin GOOGLE_CLIENT_ID todo esto queda
 // apagado (config dice google: false) y el juego no pide iniciar sesión.
 // El progreso: claves sueltas (construcciones, noches, datos de mods...) con su fecha; al subir gana la más nueva de cada
 // una, así dos aparatos de la misma cuenta no se pisan. Topes: 512 KB por clave y 4 MB por cuenta.
+import { correoActivo, correoMandar, gmailNormal, correoCupo, claveServidor, hmacHex } from './correo.js';
 const DIA = 86400e3, SESION_DIAS = 90, MAX_CLAVE = 512 * 1024, MAX_CUENTA = 4 * 1024 * 1024;
 const enc = new TextEncoder();
 const hex = (u8) => [...u8].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -30,7 +35,11 @@ async function tablas(env) {
     env.DB.prepare('CREATE INDEX IF NOT EXISTS i_ses_usuario ON sesiones(usuario)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS entradas (e TEXT PRIMARY KEY, token TEXT, usuario TEXT, vence INTEGER, ip TEXT)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS progreso (usuario TEXT, k TEXT, v TEXT, fecha INTEGER, PRIMARY KEY (usuario, k))'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS correo_codigos (canon TEXT PRIMARY KEY, h TEXT, vence INTEGER, intentos INTEGER)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS correo_pedidos (ip TEXT, canon TEXT, t INTEGER)'),
   ]);
+  // (las columnas de la cuenta por correo, en una base que ya existía)
+  for (const c of ['correo TEXT', 'avisos INTEGER DEFAULT 0']) { try { await env.DB.prepare('ALTER TABLE usuarios ADD COLUMN ' + c).run(); } catch (e) {} }
   tablasListas = true;
 }
 
@@ -62,13 +71,13 @@ async function verificarGoogle(jwt, env, nonce) {
 async function sesionDe(req, env) {
   const m = /^Bearer ([a-f0-9]{64})$/.exec(req.headers.get('Authorization') || ''); if (!m) return null;
   await tablas(env);
-  const h = await sha('s' + m[1]), s = await env.DB.prepare('SELECT s.usuario, s.vence, u.nombre, u.foto FROM sesiones s JOIN usuarios u ON u.id = s.usuario WHERE s.h = ?1').bind(h).first();
+  const h = await sha('s' + m[1]), s = await env.DB.prepare('SELECT s.usuario, s.vence, u.nombre, u.foto, u.correo, u.avisos FROM sesiones s JOIN usuarios u ON u.id = s.usuario WHERE s.h = ?1').bind(h).first();
   if (!s || s.vence < Date.now()) return null;
   // (se renueva al usarse, como mucho una vez por día)
   if (s.vence - Date.now() < (SESION_DIAS - 1) * DIA) await env.DB.batch([env.DB.prepare('UPDATE sesiones SET vence = ?2 WHERE h = ?1').bind(h, Date.now() + SESION_DIAS * DIA), env.DB.prepare('UPDATE usuarios SET visto = ?2 WHERE id = ?1').bind(s.usuario, Date.now())]);
-  return { id: s.usuario, nombre: s.nombre, foto: s.foto };
+  return { id: s.usuario, nombre: s.nombre, foto: s.foto, correo: s.correo || '', avisos: !!s.avisos };
 }
-export const cuentaActiva = (env) => !!(env && env.GOOGLE_CLIENT_ID);
+export const cuentaActiva = (env) => !!(env && (env.GOOGLE_CLIENT_ID || correoActivo(env)));
 // para otras rutas (crear un server): el usuario de la sesión, o null
 export async function cuentaUsuario(req, env) { try { return cuentaActiva(env) ? await sesionDe(req, env) : null; } catch (e) { return null; } }
 
@@ -122,10 +131,11 @@ var s=document.createElement('script');s.src='https://accounts.google.com/gsi/cl
 // ---- las rutas (/api/cuenta/...): devuelve la respuesta, o null si no es de acá ----
 export async function cuentaRutas(req, env, url, r, ip, json) {
   if (!r.startsWith('/api/cuenta')) return null;
-  if (r === '/api/cuenta/config') return json({ google: cuentaActiva(env) });
+  if (r === '/api/cuenta/config') return json({ google: !!env.GOOGLE_CLIENT_ID, correo: correoActivo(env) });
   if (!cuentaActiva(env)) return json({ error: 'sin configurar', google: false }, 503);
   await tablas(env);
   const L = Object.keys(TX), ahora = Date.now();
+  if (r.startsWith('/api/cuenta/correo/') || r === '/api/cuenta/baja') { const rc = await correoRutas(req, env, url, r, ip, json, ahora); if (rc) return rc; }
   if (req.method === 'GET' && r === '/api/cuenta/entrar') {
     const e = String(url.searchParams.get('e') || '').toLowerCase(), l = L.includes(url.searchParams.get('l')) ? url.searchParams.get('l') : 'en';
     if (!/^[a-f0-9]{64}$/.test(e)) return new Response('bad request', { status: 400 });
@@ -164,6 +174,11 @@ export async function cuentaRutas(req, env, url, r, ip, json) {
   const yo = await sesionDe(req, env);
   if (!yo) return json({ error: 'sin sesión' }, 401);
   if (req.method === 'GET' && r === '/api/cuenta/yo') return json({ usuario: yo });
+  if (req.method === 'POST' && r === '/api/cuenta/avisos') {   // (las novedades por correo: sí o no)
+    const b = await req.json().catch(() => ({}));
+    await env.DB.prepare('UPDATE usuarios SET avisos = ?2 WHERE id = ?1').bind(yo.id, b.si ? 1 : 0).run();
+    return json({ ok: true, avisos: !!b.si });
+  }
   if (req.method === 'POST' && r === '/api/cuenta/salir') {
     const m = /^Bearer ([a-f0-9]{64})$/.exec(req.headers.get('Authorization') || '');
     if (m) await env.DB.prepare('DELETE FROM sesiones WHERE h = ?1').bind(await sha('s' + m[1])).run();
@@ -197,4 +212,65 @@ export async function cuentaRutas(req, env, url, r, ip, json) {
     return json({ ok: true, guardadas: gano.length, masNuevas: perdio, ahora });
   }
   return json({ error: 'no existe' }, 404);
+}
+
+// ---- la cuenta con la dirección de Gmail (sin Google) ----
+const CODIGO_MIN = 10, CODIGO_INTENTOS = 5;
+const TXC = {
+  es: ['Tu código de JXMod: {c}', 'Hola,\n\nTu código para entrar a JXMod es: {c}\n\nVale {m} minutos. Si no lo pediste vos, ignorá este correo: sin el código nadie entra.\n\n— JXMod'],
+  en: ['Your JXMod code: {c}', 'Hi,\n\nYour code to sign in to JXMod is: {c}\n\nIt is valid for {m} minutes. If you did not ask for it, ignore this email: nobody gets in without the code.\n\n— JXMod'],
+  pt: ['Seu código do JXMod: {c}', 'Olá,\n\nSeu código para entrar no JXMod é: {c}\n\nVale {m} minutos. Se não foi você que pediu, ignore este e-mail: sem o código ninguém entra.\n\n— JXMod'],
+};
+export const bajaEnlace = async (env, base, id) => base + 'cuenta/baja?u=' + id + '&k=' + (await hmacHex(await claveServidor(env, 'baja'), 'baja:' + id)).slice(0, 32);
+async function correoRutas(req, env, url, r, ip, json, ahora) {
+  if (req.method === 'GET' && r === '/api/cuenta/baja') {
+    const id = String(url.searchParams.get('u') || ''), k = String(url.searchParams.get('k') || '');
+    const bien = /^[a-f0-9]{24}$/.test(id) && k === (await hmacHex(await claveServidor(env, 'baja'), 'baja:' + id)).slice(0, 32);
+    if (bien) await env.DB.prepare('UPDATE usuarios SET avisos = 0 WHERE id = ?1').bind(id).run();
+    return new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JXMod</title><body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#101217;color:#eef0f4;font:17px system-ui,sans-serif;text-align:center;padding:16px">${bien ? 'Listo: no te mandamos más novedades por correo. · Done: no more news by email.' : 'Enlace inválido. · Invalid link.'}</body>`, { status: bien ? 200 : 400, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
+  }
+  if (!correoActivo(env)) return json({ error: 'sin correo' }, 503);
+  if (req.method === 'POST' && r === '/api/cuenta/correo/pedir') {
+    const b = await req.json().catch(() => ({})), g = gmailNormal(b.correo);
+    if (!g) return json({ error: 'gmail', mal: 'gmail' }, 400);
+    // (topes: 8 por hora desde un lugar, 4 por hora a una dirección; y el de Gmail por día)
+    const porIp = await env.DB.prepare('SELECT COUNT(*) AS n FROM correo_pedidos WHERE ip = ?1 AND t > ?2').bind(ip, ahora - 3600e3).first();
+    const porDir = await env.DB.prepare('SELECT COUNT(*) AS n FROM correo_pedidos WHERE canon = ?1 AND t > ?2').bind(g.canon, ahora - 3600e3).first();
+    if ((porIp && porIp.n >= 8) || (porDir && porDir.n >= 4)) return json({ error: 'muchos', mal: 'muchos' }, 429);
+    if ((await correoCupo(env)) <= 0) return json({ error: 'cupo', mal: 'cupo' }, 503);
+    const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000, c = String(n).padStart(6, '0');
+    const X = TXC[b.l] || (String(b.l || '').startsWith('es') ? TXC.es : TXC.en);
+    const r0 = await correoMandar(env, [{ para: g.dir, asunto: X[0].replace('{c}', c), texto: X[1].replace('{c}', c).replace('{m}', CODIGO_MIN) }]).catch((e) => ({ ok: 0, mal: [{ error: String(e.message || e) }] }));
+    if (!r0.ok) { console.log('correo: no salió el código', JSON.stringify(r0.mal).slice(0, 300)); return json({ error: 'no salió', mal: 'envio' }, 502); }
+    await correoCupo(env, 1);
+    await env.DB.batch([
+      env.DB.prepare('INSERT OR REPLACE INTO correo_codigos (canon, h, vence, intentos) VALUES (?1, ?2, ?3, 0)').bind(g.canon, await sha('c' + g.canon + c), ahora + CODIGO_MIN * 60e3),
+      env.DB.prepare('INSERT INTO correo_pedidos (ip, canon, t) VALUES (?1, ?2, ?3)').bind(ip, g.canon, ahora),
+      env.DB.prepare('DELETE FROM correo_pedidos WHERE t < ?1').bind(ahora - DIA),
+      env.DB.prepare('DELETE FROM correo_codigos WHERE vence < ?1').bind(ahora - DIA),
+    ]);
+    return json({ ok: true, dir: g.dir, minutos: CODIGO_MIN });
+  }
+  if (req.method === 'POST' && r === '/api/cuenta/correo/entrar') {
+    const b = await req.json().catch(() => ({})), g = gmailNormal(b.correo), c = String(b.codigo || '').replace(/\D/g, '');
+    if (!g || c.length !== 6) return json({ error: 'datos', mal: 'datos' }, 400);
+    const x = await env.DB.prepare('SELECT h, vence, intentos FROM correo_codigos WHERE canon = ?1').bind(g.canon).first();
+    if (!x || x.vence < ahora) return json({ error: 'vencido', mal: 'vencido' }, 410);
+    if (x.intentos >= CODIGO_INTENTOS) return json({ error: 'muchos', mal: 'muchos' }, 429);
+    if (x.h !== (await sha('c' + g.canon + c))) {
+      await env.DB.prepare('UPDATE correo_codigos SET intentos = intentos + 1 WHERE canon = ?1').bind(g.canon).run();
+      return json({ error: 'código', mal: 'codigo', quedan: CODIGO_INTENTOS - x.intentos - 1 }, 401);
+    }
+    await env.DB.prepare('DELETE FROM correo_codigos WHERE canon = ?1').bind(g.canon).run();
+    const sub = 'correo:' + g.canon, nombre = limpiar(b.nombre, 40) || g.dir.split('@')[0].slice(0, 40);
+    const u = await env.DB.prepare('SELECT id, nombre, foto FROM usuarios WHERE sub = ?1').bind(sub).first();
+    const id = u ? u.id : azarHex(12);
+    if (u) await env.DB.prepare('UPDATE usuarios SET correo = ?2, visto = ?3' + (b.avisos !== undefined ? ', avisos = ?4' : '') + ' WHERE id = ?1').bind(...[id, g.dir, ahora].concat(b.avisos !== undefined ? [b.avisos ? 1 : 0] : [])).run();
+    else await env.DB.prepare('INSERT INTO usuarios (id, sub, nombre, foto, creado, visto, correo, avisos) VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ?7)').bind(id, sub, nombre, '', ahora, g.dir, b.avisos ? 1 : 0).run();
+    const token = azarHex(32);
+    await env.DB.prepare('INSERT INTO sesiones (h, usuario, creada, vence) VALUES (?1, ?2, ?3, ?4)').bind(await sha('s' + token), id, ahora, ahora + SESION_DIAS * DIA).run();
+    const f = await env.DB.prepare('SELECT id, nombre, foto, correo, avisos FROM usuarios WHERE id = ?1').bind(id).first();
+    return json({ token, usuario: { id: f.id, nombre: f.nombre, foto: f.foto || '', correo: f.correo, avisos: !!f.avisos }, nueva: !u });
+  }
+  return null;
 }

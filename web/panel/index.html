@@ -28,7 +28,7 @@ main{padding:12px 16px;max-width:760px;margin:0 auto;display:flex;flex-direction
 button,.btn{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px 14px;min-height:44px;background:var(--pan2);color:var(--tx);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 button.pri{background:var(--ac);color:#1a1405}button.az{background:var(--az);color:#06121f}button.rojo{background:#4a1c1c;color:#ffb3b3}button:disabled{opacity:.5}
 input,textarea,select{font:inherit;color:var(--tx);background:var(--pan2);border:1px solid var(--borde);border-radius:10px;padding:11px 12px;width:100%;min-height:44px}textarea{resize:vertical;min-height:90px}
-label.campo{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--tx2)}.form{display:flex;flex-direction:column;gap:12px}
+label.campo{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--tx2)}label.chk{display:flex;gap:10px;align-items:center;font-size:14px}label.chk input{width:20px;height:20px;min-height:0;flex:none;accent-color:var(--ac)}.form{display:flex;flex-direction:column;gap:12px}
 .seg{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}.seg button{flex:none;border-radius:20px;min-height:38px;padding:7px 14px;background:var(--pan2);color:var(--tx2)}.seg button.sel{background:var(--az);color:#06121f}
 .post{display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--borde);cursor:pointer}.post:first-child{border-top:0}.post .min{flex:none;width:64px;height:64px;border-radius:10px;background:var(--pan2);object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:26px}
 .post .dato{flex:1;min-width:0}.post .dato b{display:block}.post .dato p{margin:2px 0 4px;color:var(--tx2);font-size:13px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -36,7 +36,7 @@ label.campo{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(
 .resp{background:#10233a;border-left:3px solid var(--az);border-radius:8px;padding:8px 12px;margin-top:8px}.resp b{color:var(--az);font-size:13px}
 .adj{display:flex;gap:8px;flex-wrap:wrap}.mini{position:relative;width:76px;height:76px;border-radius:10px;overflow:hidden;background:#000}.mini img,.mini video{width:100%;height:100%;object-fit:cover}.mini button{position:absolute;top:3px;right:3px;min-height:0;width:26px;height:26px;padding:0;border-radius:50%;background:rgba(0,0,0,.7)}
 .sumar{width:76px;height:76px;border:2px dashed var(--borde);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;line-height:1.2;text-align:center;color:var(--tx2);cursor:pointer}.sumar span{font-size:24px}.sumar input{display:none}
-nav{position:fixed;left:0;right:0;bottom:0;z-index:6;display:grid;grid-template-columns:repeat(5,1fr);background:rgba(17,20,28,.96);backdrop-filter:blur(8px);border-top:1px solid var(--borde);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:6;display:grid;grid-template-columns:repeat(6,1fr);background:rgba(17,20,28,.96);backdrop-filter:blur(8px);border-top:1px solid var(--borde);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
 nav button{flex-direction:column;gap:2px;background:none;color:var(--tx2);font-size:11px;font-weight:600;min-height:56px;padding:4px 0;position:relative}nav button i{font-style:normal;font-size:21px;line-height:1}nav button.sel{color:var(--ac)}
 nav button .badge{position:absolute;top:4px;right:calc(50% - 22px);background:var(--mal);color:#fff;border-radius:10px;font-size:10px;padding:0 5px;min-width:16px}
 .vacio{color:var(--tx2);text-align:center;padding:18px 0}.err{color:var(--mal)}.ok{color:var(--ok)}.peq{font-size:12px;color:var(--tx2)}
@@ -55,6 +55,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:12px;color:#ffc9c9;marg
   <button data-tab="posts"><i>🐞</i>Bugs<span class="badge oc" id="bNuevos"></span></button>
   <button data-tab="ideas"><i>💡</i>Ideas</button>
   <button data-tab="llamados"><i>📣</i>Llamados</button>
+  <button data-tab="notis"><i>🔔</i>Notis</button>
   <button data-tab="errores"><i>⚠️</i>Errores<span class="badge oc" id="bErr"></span></button>
 </nav>
 <script>
@@ -158,7 +159,7 @@ function iniciar() {
 }
 function irA(t) {
   A.tab = t; location.hash = t; A.ver = null; $$('#nav button').forEach((b) => b.classList.toggle('sel', b.dataset.tab === t)); window.scrollTo(0, 0);
-  ({ inicio: verInicio, posts: verPosts, ideas: verIdeas, llamados: verLlamados, errores: verErrores })[t]();
+  ({ inicio: verInicio, posts: verPosts, ideas: verIdeas, llamados: verLlamados, notis: verNotis, errores: verErrores })[t]();
 }
 
 // ---------------- Todo: quién juega, cuántos, versiones, lo publicado, órdenes vigentes ----------------
@@ -295,6 +296,47 @@ async function mandarOrden() {
     st.textContent = 'Mandando…'; await orden(t, datos, dura);
     toast('Mandado: les llega en menos de 30 s'); A.orden = { tipo: t }; verLlamados();
   } catch (e) { st.textContent = ''; b.disabled = false; if (e.message !== 'Cancelado') toast(e.message, true); }
+}
+
+// ---------------- Notificaciones: al juego (Avisos), al navegador (push) y por correo ----------------
+async function verNotis() {
+  $('#main').innerHTML = `<div class="card form"><h2>Nueva notificación</h2>
+    <input id="nTit" maxlength="80" placeholder="Título"><textarea id="nTx" maxlength="1000" placeholder="Mensaje"></textarea>
+    <input id="nLink" maxlength="300" placeholder="Enlace (opcional, https://…)">
+    <label class="campo">Cuánto dura en el juego<select id="nDias"><option value="1">1 día</option><option value="3">3 días</option><option value="7" selected>1 semana</option><option value="30">1 mes</option></select></label>
+    <label class="chk"><input type="checkbox" id="nJuego" checked><span>En el juego: cartel y Avisos <span class="peq">(y en la app 3.9.9 o más nueva, aviso de Android aunque esté cerrada)</span></span></label>
+    <label class="chk"><input type="checkbox" id="nPush" checked><span>Notificación del navegador con el juego cerrado (la web instalada) · <span class="peq" id="nPushN">…</span></span></label>
+    <label class="chk"><input type="checkbox" id="nCorreo"><span>Correo a los que aceptaron novedades · <span class="peq" id="nCorreoN">…</span></span></label>
+    <p id="nEst" class="peq"></p><button class="pri" id="nMandar">Mandar</button></div>
+    <div class="card"><h2>Mandadas</h2><div id="nLista"><div class="vacio">Cargando…</div></div></div>`;
+  $('#nMandar').onclick = mandarNoti;
+  let d; try { d = await adm('notis'); } catch (e) { $('#nLista').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  A.notis = d;
+  $('#nPushN').textContent = d.pushSuscriptos + ' aparatos';
+  $('#nCorreoN').textContent = d.correo ? d.correoSuscriptos + ' cuentas · quedan ' + d.correoQuedanHoy + ' hoy' : 'el correo no está configurado';
+  if (!d.correo) { $('#nCorreo').disabled = true; }
+  $('#nLista').innerHTML = d.notis.length ? d.notis.map((n) => { const vig = n.vence > Date.now(), s = n.stats || {};
+    return `<div class="fila"><div class="dato"><b>${esc(n.titulo)}</b><span class="peq">${new Date(n.creado).toLocaleString()} · ${esc(n.de)} · ${[n.juego ? 'juego' : '', n.push ? 'push ' + (s.push || 0) : '', n.correo ? 'correo ' + (s.correo || 0) + (s.correoMal ? ' (' + s.correoMal + ' mal)' : '') : ''].filter(Boolean).join(' · ')}${vig ? '' : ' · vencida'}</span></div>${vig ? `<button class="rojo" data-nq="${esc(n.id)}">Quitar</button>` : ''}</div>`; }).join('') : '<div class="vacio">Todavía ninguna</div>';
+  $$('[data-nq]').forEach((b) => (b.onclick = async () => { try { await adm('noti_quitar', { id: b.dataset.nq }); toast('Quitada'); verNotis(); } catch (e) { toast(e.message, true); } }));
+}
+async function mandarNoti() {
+  const v = (id) => $('#' + id).value.trim(), st = $('#nEst'), b = $('#nMandar');
+  const q = { titulo: v('nTit'), texto: v('nTx'), link: v('nLink'), dias: +v('nDias') || 7, juego: $('#nJuego').checked, push: $('#nPush').checked, correo: $('#nCorreo').checked };
+  if (!q.titulo) return toast('Poné un título', true);
+  if (q.link && !/^https:\/\//.test(q.link)) return toast('El enlace tiene que empezar con https://', true);
+  if (!q.juego && !q.push && !q.correo) return toast('Elegí por dónde mandarla', true);
+  if (q.correo && !confirm('¿Mandar también por correo a ' + ((A.notis && A.notis.correoSuscriptos) || 0) + ' cuentas?')) return;
+  b.disabled = true;
+  try {
+    const { id } = await adm('noti', q); let txt = 'Creada';
+    // (push y correo van de a tandas: se repite mientras el servidor diga que sigue)
+    for (const [op, k, nom] of [['noti_push', 'push', 'push'], ['noti_correo', 'correo', 'correos']]) {
+      if (!q[k]) continue; let desde = '', n = 0, mal = 0;
+      for (;;) { st.textContent = 'Mandando ' + nom + '… ' + n; const r = await adm(op, { id, desde }); n += r.enviados || 0; mal += (r.mal || 0) + (r.fallas || 0); if (r.error) { toast(r.error, true); break; } if (!r.sigue) break; desde = r.sigue; }
+      txt += ' · ' + nom + ': ' + n + (mal ? ' (' + mal + ' fallaron)' : '');
+    }
+    st.textContent = ''; toast(txt); verNotis();
+  } catch (e) { st.textContent = ''; b.disabled = false; toast(e.message, true); }
 }
 
 // ---------------- Errores de los juegos ----------------

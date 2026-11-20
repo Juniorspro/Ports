@@ -182,6 +182,7 @@ function inicioPanel(p) {
   if (p === 'pubmapa') return panelPubMapa(P);
   if (p === 'crear') return panelCrear(P);
   if (p === 'evento') return panelEvento(P);
+  if (p === 'avisos' && typeof panelAvisos === 'function') return panelAvisos(P);   // (los avisos del panel: panel_juego.js)
   if (p === 'bugs' && typeof panelBugs === 'function') return panelBugs(P);   // (Bugs y sugerencias: panel_juego.js)   // (el barril de la grieta: qué es y su interruptor, deposito.js)
 }
 // ---------- crear un mapa: elegir el mapa base (o seguir uno guardado) y entrar al modo creador ----------
@@ -540,6 +541,8 @@ function mapaDelForm() {
 function inicioAccion(k, b) {
   const [a, v] = k.split(/:(.*)/s);
   if (a === 'menuIni') return menuInicioPoner(v);   // (el menú de inicio: el clásico o el depósito)
+  if (a === 'avisos') return inicioPanel('avisos');
+  if (a === 'av') { if (typeof avisosAccion === 'function') avisosAccion(v, b); return; }
   if (a === 'bugs') { if (typeof BUG !== 'undefined') { BUG.listo = false; BUG.ver = null; } return inicioPanel('bugs'); }   // (Bugs y sugerencias: panel_juego.js)
   if (a === 'bg') { if (typeof bugsAccion === 'function') bugsAccion(v, b); return; }
   if (clAccion(a, v, b)) return; // (lo propio del clásico: La grieta y Actualizar: clasico.js)

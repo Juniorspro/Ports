@@ -3,6 +3,7 @@
 // sección IA del panel con el tutorial. La tienda se atiende con worker.js de verdad (TIENDA_SIM: carpeta con el token,
 // la cuenta de Cloudflare y la clave de Gemini en "gemini"; el código del dueño en "verity_codigo").
 // uso: TIENDA_SIM=... node verity_gemini.mjs JXMod.html carpeta
+import './cf_sockets.mjs';
 import { abrir } from './base.mjs';
 import fs from 'fs';
 const HTML = process.argv[2], D = (process.argv[3] || '.') + '/', SIM = process.env.TIENDA_SIM;

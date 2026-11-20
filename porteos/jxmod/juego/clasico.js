@@ -166,7 +166,7 @@ function clDibujar() {
   inp.oninput = () => nombrePoner(inp.value);
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); });
   // arriba a la derecha, La grieta (el evento): abre su panel, con qué es (no se apaga: ya no tiene interruptor)
-  CL.arriba.innerHTML = `<button class="clChip clBugs" data-rb="bugs" ${lbl(T('m.bugs'))}>${glifo('bicho')}<span>${esc(T('bg.bugs'))}</span></button><button class="clChip clEvt" data-rb="clEvento">${glifo('rayo')}<span class="clEvtN">${esc(T('dp.grieta'))}</span><b class="clEvtE"></b></button>`;
+  CL.arriba.innerHTML = `<button class="clChip clAvisos" data-rb="avisos" ${lbl(T('av.titulo'))}>${glifo('campana')}<span>${esc(T('av.titulo'))}</span><i class="avGlobo"></i></button><button class="clChip clBugs" data-rb="bugs" ${lbl(T('m.bugs'))}>${glifo('bicho')}<span>${esc(T('bg.bugs'))}</span></button><button class="clChip clEvt" data-rb="clEvento">${glifo('rayo')}<span class="clEvtN">${esc(T('dp.grieta'))}</span><b class="clEvtE"></b></button>`;
   // la versión (y el día del armado); a su lado, Actualizar
   CL.verG.innerHTML = `<button class="clChip clAct oc" data-rb="clAct">${glifo('bajar')}<span>${esc(T('pt.actualizar'))}</span></button>
     <div class="clVer" title="JXMod ${esc(VERSION_RB)} · ${esc(ARMADO_RB)}" dir="ltr"><span>JXMod</span> <b>${esc(VERSION_RB)}</b> <i>${esc(ARMADO_RB.split(' ')[0])}</i></div>`;
@@ -193,9 +193,9 @@ function clCuentaPintar() {
   let b = A.querySelector('.cuChip');
   if (!cuRequerida() && !cuDentro()) { if (b) b.remove(); A.parentElement.classList.remove('clConCu'); clEncajar(true); return true; }
   if (!b) { b = document.createElement('button'); b.className = 'clChip cuChip'; b.dataset.rb = 'cuenta'; A.appendChild(b); }
-  const t = cuDentro() ? (CU.u && CU.u.nombre) || T('cu.cuenta') : T('cu.entrar');
+  const t = cuDentro() ? (CU.u && CU.u.nombre) || T('cu.cuenta') : T(cuHayGmail() ? 'cu.iniciar' : 'cu.entrar');
   b.title = t; b.setAttribute('aria-label', t); A.parentElement.classList.add('clConCu');
-  b.innerHTML = cuDentro() ? `${CU.u && CU.u.foto ? `<img class="cuFoto" src="${esc(CU.u.foto)}" alt="" referrerpolicy="no-referrer">` : CU_G}<span class="clCuT">${esc(t)}</span>` : `${CU_G}<span class="clCuT">${esc(t)}</span>`;
+  b.innerHTML = cuDentro() ? `${CU.u && CU.u.foto ? `<img class="cuFoto" src="${esc(CU.u.foto)}" alt="" referrerpolicy="no-referrer">` : CU.u && CU.u.correo ? CU_M : CU_G}<span class="clCuT">${esc(t)}</span>` : `${cuHayGmail() ? glifo('persona') : CU_G}<span class="clCuT">${esc(t)}</span>`;
   clEncajar(true); return true;
 }
 function clActualizarVer() {

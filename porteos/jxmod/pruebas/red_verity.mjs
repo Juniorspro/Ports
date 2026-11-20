@@ -4,6 +4,7 @@
 // cayendo). Al irse el que la maneja, el otro la sigue manejando desde donde estaba. La tienda se atiende con
 // worker.js de verdad (TIENDA_SIM = carpeta con el token y la cuenta de Cloudflare).
 // uso: BROKER_DIR=carpeta-con-mc/broker TIENDA_SIM=... node red_verity.mjs JXMod.html carpeta
+import './cf_sockets.mjs';
 import { createRequire } from 'module'; import http from 'http'; import fs from 'fs';
 const { chromium } = createRequire(import.meta.url)('playwright');
 const S = process.env.BROKER_DIR || '.', req = createRequire(S + '/mc/broker/package.json');

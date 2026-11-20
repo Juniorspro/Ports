@@ -69,7 +69,7 @@ public class Web extends Activity {
     static String iconoAlias(String id) { return "com.jxmod.app.Icono" + Character.toUpperCase(id.charAt(0)) + id.substring(1); }
     static final String HOST = "appassets.androidplatform.net";
     static final String INICIO = "https://" + HOST + "/index.html";
-    static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13, PEDIR_CARPETA = 14, PEDIR_ESCRIBIR = 15, PEDIR_PANTALLA = 16, PEDIR_MIC_PANT = 17;
+    static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13, PEDIR_CARPETA = 14, PEDIR_ESCRIBIR = 15, PEDIR_PANTALLA = 16, PEDIR_MIC_PANT = 17, PEDIR_AVISOS = 18;
     // (la grabación «pantalla del celular»: GrabaPantalla.java; lo que pidió la página hasta que el usuario deja grabar)
     private static volatile Web yo;
     private String pantNombre = "JXMod.mp4"; private int pantAlto = 720, pantFps = 30;
@@ -496,6 +496,7 @@ public class Web extends Activity {
             permPend = null;
         }
         if (req == PEDIR_ESCRIBIR && web != null) web.evaluateJavascript("window.__jxGrabPermiso&&window.__jxGrabPermiso(" + ok + ")", null);
+        if (req == PEDIR_AVISOS && web != null) web.evaluateJavascript("window.__jxAvisos&&window.__jxAvisos(" + ok + ")", null);
         // (sin el permiso del micrófono la pantalla se graba igual, sin sonido)
         if (req == PEDIR_MIC_PANT) pantPedirProyeccion();
     }
@@ -671,6 +672,20 @@ public class Web extends Activity {
         // (lo que tapa el recorte de la cámara: izquierda, arriba, derecha, abajo, en px de CSS)
         @JavascriptInterface public String margenes() { return margenes; }
         /** Abre un enlace (redes de JXStudios) en su app o en el navegador. */
+        // los avisos del panel con la app cerrada (Avisos.java): «activo», «pedir» o «bloq» (Android no deja preguntar más)
+        @JavascriptInterface public String avisosEstado() {
+            if (!Avisos.programado(Web.this)) return "pedir";
+            if (Avisos.puedeAvisar(Web.this)) return "activo";
+            return getSharedPreferences(Avisos.PREF, 0).getBoolean("pedido", false) && Build.VERSION.SDK_INT >= 33 && !shouldShowRequestPermissionRationale("android.permission.POST_NOTIFICATIONS") ? "bloq" : "pedir";
+        }
+        @JavascriptInterface public void avisosActivar(final String nd) {
+            try { Avisos.visto(Web.this, Long.parseLong(nd)); } catch (Exception e) { /* nada */ }
+            runOnUiThread(() -> {
+                Avisos.programar(Web.this);
+                if (!Avisos.puedeAvisar(Web.this)) { getSharedPreferences(Avisos.PREF, 0).edit().putBoolean("pedido", true).apply(); requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, PEDIR_AVISOS); }
+            });
+        }
+        @JavascriptInterface public void avisosVisto(final String nd) { try { Avisos.visto(Web.this, Long.parseLong(nd)); } catch (Exception e) { /* nada */ } }
         @JavascriptInterface public void abrir(final String url) {
             if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) return;
             runOnUiThread(() -> { try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception e) { aviso("No se pudo abrir"); } });
@@ -1167,14 +1182,14 @@ public class Web extends Activity {
     }
 
     @Override protected void onPause() {
-        adelante = false; h.removeCallbacks(vigilar);
+        adelante = false; h.removeCallbacks(vigilar); Avisos.juegoAbierto = false;
         vidaGuardar(false);
         super.onPause();
         if (web != null) { try { web.evaluateJavascript(CALLAR, null); } catch (Throwable e) { /* nada */ } web.onPause(); web.pauseTimers(); }
     }
 
     @Override protected void onResume() {
-        super.onResume();
+        super.onResume(); Avisos.juegoAbierto = true;
         if (web != null) { web.onResume(); web.resumeTimers(); try { web.evaluateJavascript(SEGUIR, null); } catch (Throwable e) { /* nada */ } }
         pantallaCompleta();
         // (al volver adelante, se espera el primer latido de nuevo antes de vigilar)

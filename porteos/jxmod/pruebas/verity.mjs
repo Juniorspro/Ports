@@ -6,6 +6,7 @@
 // duerme si se cansa), sus animaciones (rodar, rebotar, saltar...), y el oído: con un reconocedor de voz de mentira, sólo
 // reacciona a "hey/che Verity". En el celular, además, que el botón SM no tape a pausa. Capturas en la carpeta.
 // uso: node verity.mjs JXMod.html carpeta [celu]
+import './cf_sockets.mjs';
 import { abrir } from './base.mjs';
 import fs from 'fs';
 const HTML = process.argv[2], D = (process.argv[3] || '.') + '/', celu = process.argv[4] === 'celu';

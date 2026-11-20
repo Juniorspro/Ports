@@ -42,7 +42,7 @@ function panelSocial(P) {
   const cab = `<div class="rbPanCab">${glifo('gente')} ${esc(T('m.social'))}<span class="rbTabs">${tabs.map(([k, t, g]) => `<button class="rbTab${SOC.tab === k ? ' sel' : ''}" data-rb="soc:tab|${k}" title="${esc(T(t))}">${glifo(g)} ${esc(T(t))}${k === 'amigos' && SOC.sol ? ` <em class="soBadge">${SOC.sol}</em>` : ''}</button>`).join('')}</span></div>`;
   const pie = `<div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span><small class="soPie"></small></div>`;
   if (!cuRequerida()) { P.innerHTML = cab + `<div class="cuPanel"><p>${esc(T('so.noConfig'))}</p></div>` + pie; return; }
-  if (!cuDentro()) { P.innerHTML = cab + `<div class="cuPanel"><p>${esc(T('so.paraSocial'))}</p><button class="cuGoogle" data-rb="soc:entrar">${CU_G}<span>${esc(T('cu.entrar'))}</span></button></div>` + pie; return; }
+  if (!cuDentro()) { P.innerHTML = cab + `<div class="cuPanel"><p>${esc(T('so.paraSocial'))}</p>${cuBotonEntrar('soc:entrar')}</div>` + pie; return; }
   socIniciar();
   // (mientras llega lo de la tienda, filas de esqueleto: paneles.js)
   P.innerHTML = cab + `<div class="soCuerpo"><div class="soIzq">${typeof pnEsqueletos === 'function' ? '<div class="pnEsq pnEsqF" aria-hidden="true"><i></i><b></b></div>'.repeat(3) : ''}</div><div class="soDer"></div></div>` + pie;

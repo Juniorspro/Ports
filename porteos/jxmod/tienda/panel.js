@@ -8,6 +8,11 @@
 //    POST /api/panel/voto/ID {k: 'like'|'denuncia'}
 //  · POST /api/panel/hola: cada juego abierto avisa cada 25 s qué versión, en qué mapa y server está (con un id de aparato
 //    al azar y el nombre que puso; nada más), manda sus errores de JS (sin repetir) y se lleva las órdenes que haya.
+//  · Notificaciones (las manda el dueño o Claude): le llegan al juego en «hola» (cartel y la lista de Avisos del menú),
+//    al navegador con el juego cerrado (push de la web: el juego se anota en POST /api/panel/push/alta con la llave
+//    pública de GET /api/panel/push/clave; el aviso va sin contenido y el service worker trae el texto de
+//    GET /api/panel/push/ultima) y por correo a las cuentas que aceptaron novedades (correo.js, por Gmail). Las llaves
+//    VAPID del push las crea el worker la primera vez y quedan en la base. GET /api/panel/notis: las vigentes.
 // Lo del dueño (la app admin, web/panel) y de Claude (herramientas/panel.py): POST /api/panel/admin {q, cert, firma}.
 //  · q es el pedido en JSON con su hora (vale 5 minutos) y firma es ECDSA P-256 sobre «JXPANEL1\n» + q.
 //  · Claude firma con la llave de los eventos en vivo (VIVO_PUB, la misma de vivo.js; la privada no está acá).
@@ -16,6 +21,8 @@
 //    lleva (GET /api/panel/cert). Un certificado se puede dar de baja.
 //  · Las órdenes a los juegos (aviso arriba, pantalla en el cielo, cinemática, ir a un mapa, guion) van firmadas por
 //    quien las da; el juego comprueba esa firma él mismo (panel_juego.js): ni este servidor puede inventar una.
+import { correoActivo, correoMandar, correoCupo } from './correo.js';
+import { bajaEnlace } from './cuenta.js';
 const VIVO_PUB = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEiUteKCCZn1+v7no/VloHzEYu1X0Cwqglqy7JmwI9NiiX6O1GGtOVfXqPST8OxETNBf7PUMqUBzTgEvh2uZkvAg==';
 const MIN = 60e3, HORA = 3600e3, DIA = 86400e3;
 const PARTE = 1572864, MEDIA_MAX = 24 * 1048576, MEDIA_DIA = 120 * 1048576, MIMES = /^(image\/(jpeg|png|webp|gif)|video\/(mp4|webm|quicktime))$/;
@@ -42,6 +49,9 @@ async function tablas(env) {
     env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_errores (h TEXT PRIMARY KEY, msg TEXT, version TEXT, n INTEGER, aparatos INTEGER, primero INTEGER, ultimo INTEGER, estado TEXT)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_ordenes (id INTEGER PRIMARY KEY AUTOINCREMENT, a TEXT, f TEXT, c TEXT, tipo TEXT, de TEXT, creada INTEGER, hasta INTEGER)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_admins (pub TEXT PRIMARY KEY, nombre TEXT, cert TEXT, estado TEXT, pedido INTEGER, desde INTEGER, ip TEXT)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_notis (id TEXT PRIMARY KEY, titulo TEXT, texto TEXT, link TEXT, de TEXT, creado INTEGER, vence INTEGER, juego INTEGER, push INTEGER, correo INTEGER, stats TEXT)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_push (endpoint TEXT PRIMARY KEY, creado INTEGER, visto INTEGER, ip TEXT)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS conf (k TEXT PRIMARY KEY, v TEXT)'),
   ]);
   listas = true;
 }
@@ -87,8 +97,42 @@ async function postNuevo(env, d, autor, nombre, ip, privado) {
   return { id };
 }
 
+// ---------------- las notificaciones ----------------
+const b64u = (u8) => { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+// (sólo los servicios de push de los navegadores: el worker no le manda nada a cualquier dirección)
+const PUSH_OK = /^https:\/\/(fcm\.googleapis\.com|android\.googleapis\.com|updates\.push\.services\.mozilla\.com|[a-z0-9-]+\.notify\.windows\.com|web\.push\.apple\.com|[a-z0-9.-]+\.push\.apple\.com)\//;
+const pushBien = (env, e) => typeof e === 'string' && e.length < 900 && (PUSH_OK.test(e) || (env.PUSH_PRUEBA && e.startsWith(env.PUSH_PRUEBA)));
+let VAPID = null;
+async function vapid(env) {
+  if (VAPID) return VAPID;
+  let f = await env.DB.prepare("SELECT v FROM conf WHERE k = 'vapid'").first();
+  if (!f) {
+    const par = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const pub = b64u(new Uint8Array(await crypto.subtle.exportKey('raw', par.publicKey))), jwk = await crypto.subtle.exportKey('jwk', par.privateKey);
+    await env.DB.prepare("INSERT OR IGNORE INTO conf (k, v) VALUES ('vapid', ?1)").bind(JSON.stringify({ pub, jwk })).run();
+    f = await env.DB.prepare("SELECT v FROM conf WHERE k = 'vapid'").first();
+  }
+  const o = JSON.parse(f.v);
+  VAPID = { pub: o.pub, clave: await crypto.subtle.importKey('jwk', o.jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']) };
+  return VAPID;
+}
+// un aviso de push sin contenido (el service worker trae el texto): con la firma VAPID (ES256)
+async function pushUno(env, V, endpoint) {
+  const u = new URL(endpoint), t = Math.floor(Date.now() / 1000);
+  const h = b64u(enc.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' }))), c = b64u(enc.encode(JSON.stringify({ aud: u.origin, exp: t + 12 * 3600, sub: env.GMAIL_USUARIO ? 'mailto:' + env.GMAIL_USUARIO : 'https://github.com/Juniorspro/Ports' })));
+  const f = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, V.clave, enc.encode(h + '.' + c)));
+  try { const r = await fetch(endpoint, { method: 'POST', headers: { TTL: '86400', Urgency: 'normal', Authorization: 'vapid t=' + h + '.' + c + '.' + b64u(f) + ', k=' + V.pub } }); return r.status; } catch (e) { return 0; }
+}
+const notiPublica = (f) => ({ id: f.id, titulo: f.titulo, texto: f.texto, link: f.link || '', creado: f.creado });
+async function notiStats(env, id, k, n) {
+  const f = await env.DB.prepare('SELECT stats FROM pn_notis WHERE id = ?1').bind(id).first(); if (!f) return;
+  let s = {}; try { s = JSON.parse(f.stats || '{}') || {}; } catch (e) {}
+  s[k] = (s[k] || 0) + n; await env.DB.prepare('UPDATE pn_notis SET stats = ?2 WHERE id = ?1').bind(id, JSON.stringify(s)).run();
+}
+async function suscriptosCorreo(env) { try { const f = await env.DB.prepare('SELECT COUNT(*) AS n FROM usuarios WHERE avisos = 1 AND correo IS NOT NULL').first(); return f ? f.n : 0; } catch (e) { return 0; } }
+
 // ---------------- lo que manda el admin (o Claude) ----------------
-async function admin(env, Q, ip, json) {
+async function admin(env, Q, ip, json, url) {
   const { de, q } = Q, op = q.op, ahora = Date.now();
   if (op === 'estado') {
     const jugando = await env.DB.prepare('SELECT d, nombre, version, plat, mapa, sala, visto, primero FROM pn_presencia WHERE visto > ?1 ORDER BY visto DESC LIMIT 300').bind(ahora - 2 * MIN).all();
@@ -149,6 +193,48 @@ async function admin(env, Q, ip, json) {
     return json({ ok: true, id: r.meta && r.meta.last_row_id });
   }
   if (op === 'ordenes') { const f = await env.DB.prepare('SELECT id, a, tipo, de, creada, hasta FROM pn_ordenes ORDER BY id DESC LIMIT 60').all(); return json({ ordenes: f.results }); }
+  // las notificaciones: crear, ver, quitar y mandarlas por push y por correo (de a tandas: el admin repite con «sigue»)
+  if (op === 'noti') {
+    const titulo = linea(q.titulo, 80), texto = limpio(q.texto, 1000), link = /^https:\/\/[^\s<>"]{3,300}$/.test(String(q.link || '')) ? String(q.link) : '';
+    if (titulo.length < 2) return json({ error: 'falta el título' }, 400);
+    const dias = Math.max(1, Math.min(30, +q.dias || 7)), id = azar(8);
+    await env.DB.prepare('INSERT INTO pn_notis (id, titulo, texto, link, de, creado, vence, juego, push, correo, stats) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)')
+      .bind(id, titulo, texto, link, de, ahora, ahora + dias * DIA, q.juego === false ? 0 : 1, q.push ? 1 : 0, q.correo ? 1 : 0, '{}').run();
+    return json({ ok: true, id });
+  }
+  if (op === 'notis') {
+    const f = await env.DB.prepare('SELECT * FROM pn_notis ORDER BY creado DESC LIMIT 30').all();
+    const push = await env.DB.prepare('SELECT COUNT(*) AS n FROM pn_push').first();
+    return json({ notis: f.results.map((x) => ({ ...notiPublica(x), de: x.de, vence: x.vence, juego: !!x.juego, push: !!x.push, correo: !!x.correo, stats: JSON.parse(x.stats || '{}') })),
+      pushSuscriptos: push ? push.n : 0, correoSuscriptos: await suscriptosCorreo(env), correo: correoActivo(env), correoQuedanHoy: correoActivo(env) ? await correoCupo(env) : 0 });
+  }
+  if (op === 'noti_quitar') { await env.DB.prepare('UPDATE pn_notis SET vence = ?2 WHERE id = ?1').bind(String(q.id), ahora).run(); return json({ ok: true }); }
+  if (op === 'noti_push') {
+    const n = await env.DB.prepare('SELECT id FROM pn_notis WHERE id = ?1').bind(String(q.id)).first(); if (!n) return json({ error: 'no existe' }, 404);
+    const V = await vapid(env), L = await env.DB.prepare('SELECT endpoint FROM pn_push WHERE endpoint > ?1 ORDER BY endpoint LIMIT 40').bind(String(q.desde || '')).all();
+    let enviados = 0, borrados = 0, fallas = 0;
+    for (const x of L.results) {
+      const st = await pushUno(env, V, x.endpoint);
+      if (st >= 200 && st < 300) enviados++; else if (st === 404 || st === 410) { borrados++; await env.DB.prepare('DELETE FROM pn_push WHERE endpoint = ?1').bind(x.endpoint).run(); } else fallas++;
+    }
+    await notiStats(env, n.id, 'push', enviados);
+    return json({ ok: true, enviados, borrados, fallas, sigue: L.results.length === 40 ? L.results[39].endpoint : null });
+  }
+  if (op === 'noti_correo') {
+    if (!correoActivo(env)) return json({ error: 'el correo no está configurado (GMAIL_USUARIO y GMAIL_CLAVE en el worker)' }, 503);
+    const n = await env.DB.prepare('SELECT * FROM pn_notis WHERE id = ?1').bind(String(q.id)).first(); if (!n) return json({ error: 'no existe' }, 404);
+    const cupo = await correoCupo(env); if (cupo <= 0) return json({ ok: true, enviados: 0, mal: 0, sigue: String(q.desde || ''), cupo: 0, error: 'se llegó al tope de correos de hoy: seguí mañana' });
+    let L; try { L = await env.DB.prepare('SELECT id, correo FROM usuarios WHERE avisos = 1 AND correo IS NOT NULL AND id > ?1 ORDER BY id LIMIT ?2').bind(String(q.desde || ''), Math.min(25, cupo)).all(); } catch (e) { L = { results: [] }; }
+    const base = url.origin + '/api/', M = [];
+    for (const u of L.results) {
+      const baja = await bajaEnlace(env, base, u.id);
+      M.push({ para: u.correo, asunto: n.titulo, baja, texto: n.texto + (n.link ? '\n\n' + n.link : '') + '\n\n— JXMod\n\nPara no recibir más novedades / to stop these emails: ' + baja });
+    }
+    const r = M.length ? await correoMandar(env, M).catch((e) => ({ ok: 0, mal: M.map((m) => ({ para: m.para, error: String(e.message || e) })) })) : { ok: 0, mal: [] };
+    if (r.ok) { await correoCupo(env, r.ok); await notiStats(env, n.id, 'correo', r.ok); }
+    if (r.mal.length) await notiStats(env, n.id, 'correoMal', r.mal.length);
+    return json({ ok: true, enviados: r.ok, mal: r.mal.length, errores: r.mal.slice(0, 3), sigue: L.results.length && L.results.length === Math.min(25, cupo) ? L.results[L.results.length - 1].id : null });
+  }
   // (sólo Claude: aprobar o dar de baja los celulares del dueño)
   if (op === 'admins') { const f = await env.DB.prepare('SELECT pub, nombre, estado, pedido, desde FROM pn_admins ORDER BY pedido DESC LIMIT 50').all(); return json({ admins: f.results }); }
   if (op === 'aprobar' && de === 'claude') {
@@ -241,7 +327,27 @@ export async function panelRutas(req, env, url, r, ip, json, cuentaUsuario, cuen
     // las órdenes vigentes que este juego todavía no tiene (las más nuevas que la última que vio)
     const desde = Math.max(0, +b.u || 0);
     const o = await env.DB.prepare('SELECT id, a, f, c FROM pn_ordenes WHERE hasta > ?1 AND id > ?2 ORDER BY id ASC LIMIT 20').bind(ahora, desde).all();
-    return json({ ahora, ordenes: o.results });
+    // y las notificaciones vigentes más nuevas que la última que vio (nd: su fecha)
+    const nt = await env.DB.prepare('SELECT * FROM pn_notis WHERE juego = 1 AND vence > ?1 AND creado > ?2 ORDER BY creado ASC LIMIT 10').bind(ahora, Math.max(0, +b.nd || 0)).all();
+    return json({ ahora, ordenes: o.results, notis: nt.results.map(notiPublica) });
+  }
+  if (req.method === 'GET' && r === '/api/panel/notis') {
+    const f = await env.DB.prepare('SELECT * FROM pn_notis WHERE juego = 1 AND vence > ?1 AND creado > ?2 ORDER BY creado DESC LIMIT 20').bind(ahora, Math.max(0, +url.searchParams.get('desde') || 0)).all();
+    return json({ ahora, notis: f.results.map(notiPublica) });
+  }
+  if (req.method === 'GET' && r === '/api/panel/push/clave') return json({ clave: (await vapid(env)).pub });
+  if (req.method === 'GET' && r === '/api/panel/push/ultima') {
+    const f = await env.DB.prepare('SELECT * FROM pn_notis WHERE push = 1 AND vence > ?1 ORDER BY creado DESC LIMIT 1').bind(ahora).first();
+    return json({ noti: f ? notiPublica(f) : null });
+  }
+  if (req.method === 'POST' && (r === '/api/panel/push/alta' || r === '/api/panel/push/baja')) {
+    const b = await req.json().catch(() => ({})), e = String(b.endpoint || '');
+    if (!pushBien(env, e)) return json({ error: 'endpoint' }, 400);
+    if (r.endsWith('baja')) { await env.DB.prepare('DELETE FROM pn_push WHERE endpoint = ?1').bind(e).run(); return json({ ok: true }); }
+    const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM pn_push WHERE ip = ?1 AND creado > ?2').bind(ip, ahora - DIA).first();
+    if (n && n.n >= 20) return json({ error: 'muchos' }, 429);
+    await env.DB.prepare('INSERT INTO pn_push (endpoint, creado, visto, ip) VALUES (?1, ?2, ?2, ?3) ON CONFLICT(endpoint) DO UPDATE SET visto = ?2').bind(e, ahora, ip).run();
+    return json({ ok: true });
   }
   if (req.method === 'POST' && r === '/api/panel/solicitud') {
     const b = await req.json().catch(() => ({})), pub = String(b.pub || '');
@@ -259,7 +365,7 @@ export async function panelRutas(req, env, url, r, ip, json, cuentaUsuario, cuen
   if (req.method === 'POST' && r === '/api/panel/admin') {
     const b = await req.json().catch(() => null), Q = await quien(env, b);
     if (!Q) return json({ error: 'sin permiso' }, 403);
-    return admin(env, Q, ip, json);
+    return admin(env, Q, ip, json, url);
   }
   return json({ error: 'no existe' }, 404);
 }

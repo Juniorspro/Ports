@@ -6,6 +6,7 @@
 // el progreso que pasa a otro aparato (y los addons que faltan, a la cola); el más nuevo gana; cerrar sesión; crear un
 // server pide sesión; y sin GOOGLE_CLIENT_ID todo queda como antes.
 // uso: node cuenta_google.mjs URL_HTML [URL_CARPETA_GMA]
+import './cf_sockets.mjs';
 import { createRequire } from 'module'; const require = createRequire(import.meta.url); const { chromium } = require('playwright');
 import { DatabaseSync } from 'node:sqlite'; import { readFileSync } from 'fs';
 const [, , HTML, CARP] = process.argv;

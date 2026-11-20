@@ -5,6 +5,7 @@
 // el editor de animaciones y en el creador de mapas; (C) la tienda (worker.js de verdad, TIENDA_SIM) crea con Gemini en
 // un server premium y con Workers AI fuera de ellos.
 // uso: [GEMINI=archivo] [TIENDA_SIM=carpeta] node verity_crea.mjs JXMod.html carpeta
+import './cf_sockets.mjs';
 import { abrir } from './base.mjs';
 import fs from 'fs';
 const HTML = process.argv[2], D = (process.argv[3] || '.') + '/', G = process.env.GEMINI ? fs.readFileSync(process.env.GEMINI, 'utf8').trim() : '', SIM = process.env.TIENDA_SIM;
