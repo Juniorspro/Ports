@@ -8,6 +8,7 @@
 // y usa sus tablas con «sz_» adelante, para no pisar las de JXMod (que también tiene «usuarios»).
 
 // (todavía no está en las tiendas: el botón «Bajá Stickerazo» lleva a nuestra página, que tiene el APK y, cuando estén, las tiendas)
+import { verificarGoogle, paginaGoogle, googleObligatorio, huellaGoogle, sha256 } from './google.js';
 const bajar = (origen) => `${origen}/#bajar`;
 // ---- lo que sale del repo (GitHub): las actualizaciones de la app (web/), la página web (sitio/) y el APK (descargas/) ----
 // Así la app y la página no dependen del nombre de la rama: si cambia, se cambia SZ_RAMA en Cloudflare y listo.
@@ -43,10 +44,15 @@ const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS bloqueos (usuario TEXT NOT NULL, bloqueado TEXT NOT NULL, PRIMARY KEY (usuario, bloqueado))`,
   `CREATE TABLE IF NOT EXISTS limites (clave TEXT PRIMARY KEY, n INTEGER NOT NULL, hasta INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS evento (id TEXT PRIMARY KEY, datos TEXT NOT NULL, creado INTEGER NOT NULL)`,
+  // (entrar con Google: la entrada que espera a la app —e = SHA256 del verificador— o el ticket para elegir el @)
+  `CREATE TABLE IF NOT EXISTS entradas (e TEXT PRIMARY KEY, google TEXT NOT NULL, usuario TEXT, vence INTEGER NOT NULL)`,
+  // (lo que llega por el formulario de contacto)
+  `CREATE TABLE IF NOT EXISTS contacto (id TEXT PRIMARY KEY, motivo TEXT NOT NULL, texto TEXT NOT NULL, mail TEXT NOT NULL DEFAULT '', creado INTEGER NOT NULL)`,
 ];
 // (columnas que llegaron después: si ya están, el ALTER falla y no pasa nada)
-const COLUMNAS_NUEVAS = ['ALTER TABLE packs ADD COLUMN privado INTEGER NOT NULL DEFAULT 0'];
-const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento';
+const COLUMNAS_NUEVAS = ['ALTER TABLE packs ADD COLUMN privado INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE usuarios ADD COLUMN google TEXT',
+  'CREATE UNIQUE INDEX IF NOT EXISTS i_usuarios_google ON usuarios(google)'];
+const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto';
 const RE_TABLA = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|ALTER TABLE|TABLE IF NOT EXISTS|ON)\\s+(${TABLAS})\\b`, 'g'), RE_INDICE = /\bINDEX IF NOT EXISTS (\w+)/g;
 export const conPrefijo = (sql, pre) => sql.replace(RE_TABLA, `$1 ${pre}$2`).replace(RE_INDICE, `INDEX IF NOT EXISTS ${pre}$1`);
 // la base de JXMod, vista con las tablas de Stickerazo («sz_usuarios», «sz_packs»…)
@@ -103,6 +109,22 @@ async function guardarArchivo(env, pack, nombre, tipo, datos) {
 async function borrarArchivos(env, pack) {
   if (env.MEDIA) { const { results } = await env.DB.prepare('SELECT nombre FROM archivos WHERE pack = ?').bind(pack).all(); for (const r of results) await env.MEDIA.delete(`${pack}/${r.nombre}`); }
   await env.DB.prepare('DELETE FROM archivos WHERE pack = ?').bind(pack).run();
+}
+
+// ---- borrar una cuenta y todo lo suyo (desde la app, o desde la web con Google) ----
+async function borrarCuenta(env, idCuenta) {
+  const yo = { id: idCuenta };
+    const { results } = await env.DB.prepare('SELECT id FROM packs WHERE autor = ?').bind(yo.id).all();
+    for (const p of results) await borrarPack(env, p.id);
+    await env.DB.prepare('DELETE FROM archivos WHERE pack = ?').bind('u_' + yo.id).run();   // (su foto y su portada)
+    const sig = await env.DB.prepare('SELECT sigue_a FROM sigue WHERE usuario = ?').bind(yo.id).all(), seg = await env.DB.prepare('SELECT usuario FROM sigue WHERE sigue_a = ?').bind(yo.id).all();
+    const ops = [...sig.results.map((x) => env.DB.prepare('UPDATE usuarios SET seguidores = MAX(0, seguidores - 1) WHERE id = ?').bind(x.sigue_a)), ...seg.results.map((x) => env.DB.prepare('UPDATE usuarios SET siguiendo = MAX(0, siguiendo - 1) WHERE id = ?').bind(x.usuario))];
+    const { results: mg } = await env.DB.prepare('SELECT pack FROM likes WHERE usuario = ?').bind(yo.id).all();
+    for (const x of mg) ops.push(env.DB.prepare('UPDATE packs SET likes = MAX(0, likes - 1) WHERE id = ?').bind(x.pack));
+    for (const s of ['DELETE FROM likes WHERE usuario = ?', 'DELETE FROM sigue WHERE usuario = ? OR sigue_a = ?', 'DELETE FROM reportes WHERE usuario = ?', 'DELETE FROM bloqueos WHERE usuario = ? OR bloqueado = ?', 'DELETE FROM descargas WHERE usuario = ?', 'DELETE FROM usuarios WHERE id = ?'])
+      ops.push(env.DB.prepare(s).bind(...Array((s.match(/\?/g) || []).length).fill(yo.id)));
+    await env.DB.batch(ops);
+  await env.DB.prepare('DELETE FROM entradas WHERE usuario = ?').bind(idCuenta).run();
 }
 
 // ---- límites (para que nadie llene todo de una) ----
@@ -172,16 +194,24 @@ async function manejar(req, env, ctx, base) {
       if (ruta.startsWith('/web/')) return delRepo(env, 'web/' + ruta.slice(5));
       if (ruta === '/app.json') return delRepo(env, 'descargas/app.json');
       if (ruta === '/descargar' || ruta === '/Stickerazo.apk') return delRepo(env, 'descargas/Stickerazo.apk', true);
-      if (ruta === '/privacidad') return html(pagina('Privacidad · Stickerazo', PRIVACIDAD));
-      if (ruta === '/terminos') return html(pagina('Términos · Stickerazo', TERMINOS));
-      if (ruta === '/borrar-cuenta') return html(pagina('Borrar tu cuenta · Stickerazo', BORRAR));
+      // las páginas legales y el contacto (sitio/*.html del repo; si GitHub no contesta, las cortitas de acá)
+      const LEGALES = { '/privacidad': ['Privacidad', PRIVACIDAD], '/terminos': ['Términos', TERMINOS], '/borrar-cuenta': ['Borrar tu cuenta', BORRAR], '/contacto': ['Contacto', CONTACTO] };
+      if (LEGALES[ruta]) { const r = await delRepo(env, 'sitio' + ruta + '.html'); return r.ok ? r : html(pagina(LEGALES[ruta][0] + ' · Stickerazo', LEGALES[ruta][1])); }
+      // entrar con Google (la abre la app en el navegador) y borrar la cuenta desde la web, con Google
+      const servidor = u.origin + base;
+      if (ruta === '/entrar' || ruta === '/borrar') {
+        if (!googleObligatorio(env)) return html(pagina('Stickerazo', '<h1>Entrar con Google todavía no está prendido</h1>'), 503);
+        const e = u.searchParams.get('e') || '';
+        if (ruta === '/entrar' && !/^[a-f0-9]{64}$/.test(e)) return html(pagina('Stickerazo', '<h1>Abrí este enlace desde la app</h1><p class="p">Tocá «Entrar con Google» en Stickerazo.</p>'), 400);
+        return paginaGoogle(env, { modo: ruta === '/entrar' ? 'entrar' : 'borrar', e: ruta === '/entrar' ? e : '', apiBase: servidor + '/api', origen: servidor });
+      }
       await preparar(env);
       if (ruta.startsWith('/m/')) return media(req, env, ctx, ruta);
       if (ruta.startsWith('/u/')) return imagenPerfil(req, env, ctx, ruta);
       if (ruta.startsWith('/p/')) return compartir(env, ruta.slice(3), origen);
       if (ruta === '/admin') return html(paginaAdmin(base));
       if (!ruta.startsWith('/api/')) return html(pagina('No está', '<h1>No está</h1>'), 404);
-      return await api(req, env, u, ruta.slice(5), metodo);
+      return await api(req, env, u, ruta.slice(5), metodo, servidor);
     } catch (e) {
       console.error(e);
       return error('Se nos complicó algo. Probá de nuevo en un rato.', 500);
@@ -189,23 +219,91 @@ async function manejar(req, env, ctx, base) {
   }
 }
 
-async function api(req, env, u, r, metodo) {
+async function api(req, env, u, r, metodo, servidor) {
   const yo = await quien(req, env), cuerpo = async () => { try { return await req.json(); } catch (e) { return {}; } };
   // (la conexión sólo para los límites: se guarda su huella, no la IP, y se borra cuando vence)
   const ip = (await sha('sz-limite:' + (req.headers.get('CF-Connecting-IP') || 'local'))).slice(0, 24);
   let m;
+  // ---- entrar con Google (google.js) ----
+  if (r === 'config' && metodo === 'GET') return json({ google: googleObligatorio(env), entrar: servidor + '/entrar' });
+  // (con Google prendido, sin cuenta de Google no se escribe nada: sólo vincularla o borrar la cuenta)
+  if (googleObligatorio(env) && yo && !yo.google && metodo !== 'GET' && r !== 'google/listo' && !(r === 'yo' && metodo === 'DELETE'))
+    return json({ error: 'Conectá tu cuenta de Google para seguir', google: true }, 403);
+  if (r === 'google' && metodo === 'POST') {
+    // (la página del navegador: el ID token de Google con e como nonce → la entrada espera a la app 10 minutos)
+    if (!googleObligatorio(env)) return error('Entrar con Google no está prendido', 503);
+    if (!(await limite(env, 'google:' + ip, 30, 3600))) return error('Probá en un rato', 429);
+    const { credencial, e } = await cuerpo();
+    if (!/^[a-f0-9]{64}$/.test(String(e || ''))) return error('Abrí la página desde la app');
+    const g = await verificarGoogle(credencial, env, { nonce: e });
+    if (!g) return error('Google no confirmó tu cuenta. Probá de nuevo desde la app.', 401);
+    const h = await huellaGoogle(g.sub), us = await env.DB.prepare('SELECT id, nombre, bloqueado FROM usuarios WHERE google = ?').bind(h).first();
+    if (us && us.bloqueado) return error('Esta cuenta está bloqueada', 403);
+    await env.DB.prepare('INSERT OR REPLACE INTO entradas (e, google, usuario, vence) VALUES (?, ?, ?, ?)').bind(e, h, us ? us.id : null, Date.now() + 600e3).run();
+    if (Math.random() < 0.1) await env.DB.prepare('DELETE FROM entradas WHERE vence < ?').bind(Date.now()).run();
+    return json({ ok: true, nombre: us ? us.nombre : null });
+  }
+  if (r === 'google/listo' && metodo === 'POST') {
+    // (la app, con su verificador: se lleva la sesión una sola vez; si la cuenta de Google es nueva, un ticket para el @)
+    const { v } = await cuerpo();
+    if (!/^[a-f0-9]{64}$/.test(String(v || ''))) return error('Falta el verificador');
+    const e = await sha256(v), ent = await env.DB.prepare('SELECT * FROM entradas WHERE e = ? AND vence > ?').bind(e, Date.now()).first();
+    if (!ent) return json({ esperando: true });
+    await env.DB.prepare('DELETE FROM entradas WHERE e = ?').bind(e).run();
+    let id = ent.usuario;
+    // (la cuenta vieja de esta app, sólo con @: se le vincula esta cuenta de Google)
+    if (!id && yo && !yo.google) { await env.DB.prepare('UPDATE usuarios SET google = ? WHERE id = ?').bind(ent.google, yo.id).run(); id = yo.id; }
+    if (!id) {
+      const ticket = b64u(crypto.getRandomValues(new Uint8Array(24)));
+      await env.DB.prepare('INSERT INTO entradas (e, google, usuario, vence) VALUES (?, ?, NULL, ?)').bind('t:' + (await sha256(ticket)), ent.google, Date.now() + 1800e3).run();
+      return json({ nuevo: true, ticket });
+    }
+    const llave = b64u(crypto.getRandomValues(new Uint8Array(24)));
+    await env.DB.prepare('UPDATE usuarios SET clave = ? WHERE id = ?').bind(await sha(llave), id).run();
+    return json({ token: `${id}.${llave}`, usuario: { ...publico(await env.DB.prepare('SELECT * FROM usuarios WHERE id = ?').bind(id).first()), conGoogle: true } });
+  }
+  if (r === 'google/borrar' && metodo === 'POST') {
+    // (borrar la cuenta desde la web: con un ID token de Google de los últimos 10 minutos)
+    if (!googleObligatorio(env)) return error('Entrar con Google no está prendido', 503);
+    if (!(await limite(env, 'gborrar:' + ip, 10, 3600))) return error('Probá en un rato', 429);
+    const { credencial } = await cuerpo(), g = await verificarGoogle(credencial, env, { recien: 600 });
+    if (!g) return error('Google no confirmó tu cuenta. Probá de nuevo.', 401);
+    const us = await env.DB.prepare('SELECT id, nombre FROM usuarios WHERE google = ?').bind(await huellaGoogle(g.sub)).first();
+    if (!us) return error('Esa cuenta de Google no tiene una cuenta de Stickerazo', 404);
+    await borrarCuenta(env, us.id);
+    return json({ ok: true, nombre: us.nombre });
+  }
+  // ---- contacto (el formulario de la página) ----
+  if (r === 'contacto' && metodo === 'POST') {
+    const d = await cuerpo(), motivo = ['consulta', 'privacidad', 'borrar', 'derechos', 'denuncia', 'otro'].includes(d.motivo) ? d.motivo : 'otro';
+    const texto = String(d.texto || '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 3000), mail = String(d.mail || '').trim().slice(0, 120);
+    if (texto.length < 10) return error('Contanos un poco más (al menos 10 letras)');
+    if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return error('Ese mail no parece bien escrito');
+    if (!(await limite(env, 'contacto:' + ip, 5, 86400))) return error('Ya mandaste varios mensajes hoy. Probá mañana.', 429);
+    await env.DB.prepare('INSERT INTO contacto (id, motivo, texto, mail, creado) VALUES (?, ?, ?, ?, ?)').bind(nuevoId(), motivo, texto, mail, Date.now()).run();
+    // (los mensajes se guardan un año como mucho)
+    if (Math.random() < 0.05) await env.DB.prepare('DELETE FROM contacto WHERE creado < ?').bind(Date.now() - 365 * 86400e3).run();
+    return json({ ok: true }, 201);
+  }
   // ---- cuenta ----
   if (r === 'registro' && metodo === 'POST') {
-    const { nombre: n0 } = await cuerpo(), nombre = String(n0 || '').trim().toLowerCase().replace(/^@/, ''), mal = nombreInvalido(nombre);
+    const { nombre: n0, ticket } = await cuerpo(), nombre = String(n0 || '').trim().toLowerCase().replace(/^@/, ''), mal = nombreInvalido(nombre);
+    // (con Google prendido, la cuenta nueva sale sólo del ticket que dio «entrar con Google»)
+    let tk = null;
+    if (googleObligatorio(env)) {
+      tk = /^[A-Za-z0-9_-]{20,64}$/.test(String(ticket || '')) ? await env.DB.prepare('SELECT * FROM entradas WHERE e = ? AND vence > ?').bind('t:' + (await sha256(ticket)), Date.now()).first() : null;
+      if (!tk) return json({ error: 'Entrá con tu cuenta de Google', google: true }, 401);
+    }
     if (mal) return error(mal);
     if (!(await limite(env, 'reg:' + ip, 5, 86400))) return error('Hiciste muchas cuentas hoy. Probá mañana.', 429);
     if (await env.DB.prepare('SELECT 1 FROM usuarios WHERE nombre = ?').bind(nombre).first()) return error('Ese @ ya lo tiene alguien', 409);
     const id = nuevoId(), llave = b64u(crypto.getRandomValues(new Uint8Array(24))), avatar = JSON.stringify({ e: ['😎', '🧉', '🤠', '😜', '🥳', '🤩', '😺', '🐶'][Math.floor(Math.random() * 8)], c: ['#ff3e8a', '#ffd23f', '#3ec7ff', '#4cd964', '#ff7a1a', '#9b5cff'][Math.floor(Math.random() * 6)] });
-    await env.DB.prepare('INSERT INTO usuarios (id, nombre, clave, avatar, creado) VALUES (?, ?, ?, ?, ?)').bind(id, nombre, await sha(llave), avatar, Date.now()).run();
+    await env.DB.prepare('INSERT INTO usuarios (id, nombre, clave, avatar, creado, google) VALUES (?, ?, ?, ?, ?, ?)').bind(id, nombre, await sha(llave), avatar, Date.now(), tk ? tk.google : null).run();
+    if (tk) await env.DB.prepare('DELETE FROM entradas WHERE e = ?').bind(tk.e).run();
     const usr = await env.DB.prepare('SELECT * FROM usuarios WHERE id = ?').bind(id).first();
-    return json({ token: `${id}.${llave}`, usuario: publico(usr) }, 201);
+    return json({ token: `${id}.${llave}`, usuario: { ...publico(usr), conGoogle: !!usr.google } }, 201);
   }
-  if (r === 'yo' && metodo === 'GET') { if (!yo) return error('Entrá con tu cuenta', 401); return json({ usuario: publico(yo) }); }
+  if (r === 'yo' && metodo === 'GET') { if (!yo) return error('Entrá con tu cuenta', 401); return json({ usuario: { ...publico(yo), conGoogle: !!yo.google }, google: googleObligatorio(env) }); }
   if (r === 'yo' && metodo === 'PATCH') {
     if (!yo) return error('Entrá con tu cuenta', 401);
     const d = await cuerpo(), sets = [], vals = [];
@@ -238,16 +336,7 @@ async function api(req, env, u, r, metodo) {
   if (r === 'yo' && metodo === 'DELETE') {
     // (borrar la cuenta y todo lo suyo, como pide Google Play)
     if (!yo) return error('Entrá con tu cuenta', 401);
-    const { results } = await env.DB.prepare('SELECT id FROM packs WHERE autor = ?').bind(yo.id).all();
-    for (const p of results) await borrarPack(env, p.id);
-    await env.DB.prepare('DELETE FROM archivos WHERE pack = ?').bind('u_' + yo.id).run();   // (su foto y su portada)
-    const sig = await env.DB.prepare('SELECT sigue_a FROM sigue WHERE usuario = ?').bind(yo.id).all(), seg = await env.DB.prepare('SELECT usuario FROM sigue WHERE sigue_a = ?').bind(yo.id).all();
-    const ops = [...sig.results.map((x) => env.DB.prepare('UPDATE usuarios SET seguidores = MAX(0, seguidores - 1) WHERE id = ?').bind(x.sigue_a)), ...seg.results.map((x) => env.DB.prepare('UPDATE usuarios SET siguiendo = MAX(0, siguiendo - 1) WHERE id = ?').bind(x.usuario))];
-    const { results: mg } = await env.DB.prepare('SELECT pack FROM likes WHERE usuario = ?').bind(yo.id).all();
-    for (const x of mg) ops.push(env.DB.prepare('UPDATE packs SET likes = MAX(0, likes - 1) WHERE id = ?').bind(x.pack));
-    for (const s of ['DELETE FROM likes WHERE usuario = ?', 'DELETE FROM sigue WHERE usuario = ? OR sigue_a = ?', 'DELETE FROM reportes WHERE usuario = ?', 'DELETE FROM bloqueos WHERE usuario = ? OR bloqueado = ?', 'DELETE FROM descargas WHERE usuario = ?', 'DELETE FROM usuarios WHERE id = ?'])
-      ops.push(env.DB.prepare(s).bind(...Array((s.match(/\?/g) || []).length).fill(yo.id)));
-    await env.DB.batch(ops);
+    await borrarCuenta(env, yo.id);
     return json({ ok: true });
   }
   // ---- feed, tendencias, buscar ----
@@ -409,6 +498,8 @@ async function api(req, env, u, r, metodo) {
       else if (accion === 'ocultar') await env.DB.prepare('UPDATE packs SET oculto = 1 WHERE id = ?').bind(m[1]).run();
       return json({ ok: true });
     }
+    if (r === 'admin/contacto' && metodo === 'GET') return json({ mensajes: (await env.DB.prepare('SELECT * FROM contacto ORDER BY creado DESC LIMIT 100').all()).results });
+    if ((m = /^admin\/contacto\/([a-z0-9]{10})$/.exec(r)) && metodo === 'DELETE') { await env.DB.prepare('DELETE FROM contacto WHERE id = ?').bind(m[1]).run(); return json({ ok: true }); }
     if ((m = /^admin\/usuarios\/([a-z0-9]{10})$/.exec(r)) && metodo === 'POST') {
       const { bloqueado } = await cuerpo();
       await env.DB.prepare('UPDATE usuarios SET bloqueado = ? WHERE id = ?').bind(bloqueado ? 1 : 0, m[1]).run();
@@ -536,22 +627,20 @@ async function compartir(env, id, origen) {
     <a class="b s" href="${abrir}">Abrir en Stickerazo y agregar a WhatsApp</a><div class="g">${todos.map((a) => `<img src="${m(a.archivo)}" alt="">`).join('')}</div>
     <p class="p">¿No tenés la app? Es gratis, sin marca de agua y las fotos no salen de tu celular.</p>${botonTienda(origen)}`, cabeza));
 }
-const PRIVACIDAD = `<h1>Privacidad</h1><p class="p">Stickerazo · última actualización: 21 de noviembre de 2026</p>
-<p><b>Tus fotos no salen de tu celular.</b> El recorte, los textos y las animaciones se hacen en el teléfono. Sólo se sube a nuestro servidor lo que vos publicás en la comunidad: los stickers terminados de ese pack, su nombre, etiquetas y emojis.</p>
-<p><b>Tu cuenta</b> es un @usuario que elegís, una bio, un emoji de avatar y, si querés, una foto de perfil y una portada que elegís de tu galería. La foto y la portada se guardan en nuestro servidor y las puede ver cualquiera que entre a tu perfil; las podés sacar cuando quieras desde Editar perfil. No pedimos email, teléfono ni nombre real. El celular guarda una llave para entrar; nosotros guardamos sólo su huella.</p>
-<p><b>Para frenar abusos</b> (muchas cuentas o descargas seguidas desde la misma conexión) usamos por unas horas una huella de tu conexión, no tu IP, y se borra sola. No usamos tu ubicación.</p>
-<p><b>Lo que hacés en la comunidad</b> (me gusta, a quién seguís, descargas, denuncias y bloqueos) se guarda para que la comunidad funcione. Lo que publicás lo puede ver cualquiera.</p>
-<p><b>Borrar todo:</b> desde la app, en Perfil → Borrar mi cuenta, se borran tu cuenta, tus packs publicados, tus me gusta y a quién seguís. No queda nada.</p>
-<p><b>Actualizaciones:</b> la app baja sola las versiones nuevas desde nuestro servidor y desde GitHub, donde está publicado su código. Para eso no se manda ningún dato tuyo.</p>
-<p>Los datos viajan cifrados (HTTPS). Los guarda Cloudflare, el servicio donde corre el servidor; no se los damos a nadie más. No vendemos tus datos. Si algún día la app muestra publicidad, lo vamos a avisar acá antes.</p>
-<p>Stickerazo no está afiliada a WhatsApp ni a Meta. Tenés que tener 13 años o más para usar la comunidad.</p>`;
-const TERMINOS = `<h1>Términos de la comunidad</h1><p>Publicá stickers tuyos o que tengas derecho a compartir. No se puede publicar: contenido sexual, odio o discriminación, violencia, acoso, datos de otras personas, ni fotos de alguien que no quiere aparecer. Los packs con 3 denuncias se ocultan hasta que los revisemos, y las cuentas que no respetan esto se bloquean. Tenés que tener 13 años o más.</p>`;
-const BORRAR = `<h1>Borrar tu cuenta</h1><p>Abrí Stickerazo → Perfil → <b>Borrar mi cuenta</b>. Se borran al instante tu cuenta, tus packs publicados, tus me gusta y a quién seguís. Los stickers que tenés guardados en el celular quedan en tu celular.</p>`;
-const paginaAdmin = (base) => pagina('Moderación · Stickerazo', `<h1>Moderación</h1><input id="k" type="password" placeholder="Clave" style="width:100%;padding:12px;border-radius:12px;border:0"><button class="b" id="v" style="width:100%;border:0">Ver denunciados</button><div id="l"></div>
+const PRIVACIDAD = `<h1>Privacidad</h1><p class="p">Stickerazo · versión corta (la completa no cargó: recargá en un rato)</p>
+<p><b>Tus fotos no salen de tu celular.</b> Sólo sube lo que publicás en la comunidad. Entrás con Google: de tu cuenta de Google guardamos sólo una huella de su identificador, no tu mail ni tu nombre. Tu @, tu bio, tu avatar, tu foto y tu portada (si las ponés) y tus packs publicados los ve cualquiera.</p>
+<p>No vendemos datos, no hay publicidad ni rastreo. Los datos viajan cifrados y los guarda Cloudflare. Borrás todo al instante desde la app (Perfil → Borrar mi cuenta) o desde <a href="borrar-cuenta">esta página</a>. Para tus derechos, escribinos desde <a href="contacto">contacto</a>.</p>`;
+const TERMINOS = `<h1>Términos y reglas</h1><p class="p">Versión corta (la completa no cargó: recargá en un rato)</p><p>Lo que publicás es tuyo y nos das permiso para mostrarlo en la comunidad. No se puede publicar contenido sexual, odio o discriminación, violencia, acoso, datos de otras personas, ni fotos de alguien que no quiere aparecer. Los packs con 3 denuncias se ocultan hasta que los revisemos, y las cuentas que no respetan esto se bloquean. Tenés que tener 13 años o más. La app es gratis y se ofrece tal como está, sin afectar tus derechos como consumidor. Rige la ley argentina.</p>`;
+const BORRAR = `<h1>Borrar tu cuenta</h1><p>Abrí Stickerazo → Perfil → <b>Borrar mi cuenta</b>. Se borran al instante tu cuenta, tus packs publicados, tus me gusta y a quién seguís. Los stickers que tenés guardados en el celular quedan en tu celular.</p><p>Sin la app: <a href="borrar">entrá con tu cuenta de Google y borrala desde acá</a>.</p>`;
+const CONTACTO = `<h1>Contacto</h1><p>Escribinos desde la app (Perfil → Ajustes) o volvé en un rato: el formulario no cargó.</p>`;
+const paginaAdmin = (base) => pagina('Moderación · Stickerazo', `<h1>Moderación</h1><input id="k" type="password" placeholder="Clave" style="width:100%;padding:12px;border-radius:12px;border:0"><button class="b" id="v" style="width:100%;border:0">Ver denunciados</button><button class="b" id="vm" style="width:100%;border:0">Ver mensajes de contacto</button><div id="l"></div>
 <script>const k=document.getElementById('k'),l=document.getElementById('l');k.value=localStorage.k||'';
 const api=(r,o={})=>fetch('${base}/api/admin/'+r,{...o,headers:{'X-Admin':k.value,'Content-Type':'application/json'}}).then(x=>x.json());
 async function ver(){localStorage.k=k.value;const d=await api('reportados');if(d.error){l.textContent=d.error;return}
 l.innerHTML=d.packs.map(p=>'<div style="background:#201d2c;border-radius:16px;padding:12px;margin:12px 0"><b>'+p.nombre+'</b> de @'+p.autor.nombre+' · '+p.reportes+' denuncias ('+p.motivos.map(m=>m.motivo+' '+m.n).join(', ')+')'+(p.oculto?' · OCULTO':'')+
 '<div class="g">'+p.muestra.map(a=>'<img data-s="${base}/m/'+p.id+'/'+a+'?v='+p.v+'">').join('')+'</div><button data-a="mostrar" data-p="'+p.id+'">Mostrar</button> <button data-a="ocultar" data-p="'+p.id+'">Ocultar</button> <button data-a="borrar" data-p="'+p.id+'">Borrar</button> <button data-u="'+p.autor.id+'">Bloquear a @'+p.autor.nombre+'</button></div>').join('')||'Nada denunciado 🙌';
 for(const i of l.querySelectorAll('img[data-s]'))fetch(i.dataset.s,{headers:{'X-Admin':k.value}}).then(r=>r.blob()).then(b=>i.src=URL.createObjectURL(b))}
-document.getElementById('v').onclick=ver;l.onclick=async e=>{const b=e.target;if(b.dataset.p){await api('packs/'+b.dataset.p,{method:'POST',body:JSON.stringify({accion:b.dataset.a})});ver()}if(b.dataset.u){await api('usuarios/'+b.dataset.u,{method:'POST',body:JSON.stringify({bloqueado:1})});ver()}};</script>`);
+async function mensajes(){localStorage.k=k.value;const d=await api('contacto');if(d.error){l.textContent=d.error;return}
+const t=(x)=>String(x).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+l.innerHTML=d.mensajes.map(m=>'<div style="background:#201d2c;border-radius:16px;padding:12px;margin:12px 0"><b>'+t(m.motivo)+'</b> · '+new Date(m.creado).toLocaleString()+(m.mail?' · '+t(m.mail):'')+'<p style="white-space:pre-wrap">'+t(m.texto)+'</p><button data-m="'+m.id+'">Borrar</button></div>').join('')||'Sin mensajes 🙌'}
+document.getElementById('v').onclick=ver;document.getElementById('vm').onclick=mensajes;l.onclick=async e=>{const b=e.target;if(b.dataset.m){await api('contacto/'+b.dataset.m,{method:'DELETE'});mensajes();return}if(b.dataset.p){await api('packs/'+b.dataset.p,{method:'POST',body:JSON.stringify({accion:b.dataset.a})});ver()}if(b.dataset.u){await api('usuarios/'+b.dataset.u,{method:'POST',body:JSON.stringify({bloqueado:1})});ver()}};</script>`);

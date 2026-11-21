@@ -1,0 +1,76 @@
+/* Las páginas de texto de Stickerazo (privacidad, términos, borrar la cuenta, contacto): el mismo estilo que la portada */
+@font-face { font-family: L; src: url(fuentes/LuckiestGuy.ttf) format('truetype'); font-display: swap; }
+:root {
+  color-scheme: dark;
+  --fondo: #0b0910; --tinta: #f6f3fc; --suave: #bdb6cf; --linea: rgba(255, 255, 255, .1); --vidrio: rgba(255, 255, 255, .055);
+  --rosa: #ff3e8a; --amarillo: #ffd23f; --verde: #5fe39a;
+  --anillo: 3px 0 0 #fff, -3px 0 0 #fff, 0 3px 0 #fff, 0 -3px 0 #fff, 2.1px 2.1px 0 #fff, -2.1px 2.1px 0 #fff, 2.1px -2.1px 0 #fff, -2.1px -2.1px 0 #fff;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--fondo); color: var(--tinta); font: 17px/1.65 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; overflow-x: hidden; }
+body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(60vmax 34vmax at 0% 0%, rgba(255, 62, 138, .22), transparent 70%), radial-gradient(50vmax 30vmax at 100% 30%, rgba(124, 77, 255, .18), transparent 70%), radial-gradient(60vmax 30vmax at 50% 110%, rgba(255, 178, 26, .12), transparent 70%); }
+a { color: var(--amarillo); text-underline-offset: 3px; }
+.envoltura { width: min(1080px, 100% - 32px); margin: 0 auto; }
+/* arriba */
+.barra { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); background: rgba(11, 9, 16, .7); border-bottom: 1px solid var(--linea); }
+.barra .envoltura { display: flex; align-items: center; gap: 14px; height: 62px; }
+.logo { font: 400 24px/1 L; text-decoration: none; white-space: nowrap; transform: rotate(-3deg); text-shadow: var(--anillo), 0 6px 14px rgba(255, 62, 138, .45); padding-top: 4px; }
+.logo span { color: var(--rosa); } .logo b { font-weight: 400; color: #f5a800; }
+.barra nav { margin-left: auto; display: flex; gap: 2px; }
+.barra nav a { color: var(--suave); text-decoration: none; font-weight: 650; font-size: 15px; padding: 8px 12px; border-radius: 99px; }
+.barra nav a:hover, .barra nav a[aria-current] { color: var(--tinta); background: var(--vidrio); }
+.boton { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border: 0; cursor: pointer; text-decoration: none; font: 800 16px/1 system-ui, sans-serif; border-radius: 99px; padding: 14px 22px; color: #fff; background: linear-gradient(135deg, var(--rosa), #ff7a1a); box-shadow: 0 10px 30px rgba(255, 62, 138, .35); }
+.boton.sec { background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); color: var(--tinta); }
+.barra .boton { padding: 10px 16px; font-size: 14.5px; }
+@media (max-width: 760px) { .barra nav { display: none; } .barra .boton { margin-left: auto; } }
+/* el documento */
+.cabeza { padding: 44px 0 0; } .cabeza .fecha { margin-bottom: 0; }
+.cabeza + .doc { padding-top: 26px; }
+@media (max-width: 900px) { .cabeza { padding-top: 28px; } .cabeza + .doc { padding-top: 18px; } }
+.doc { display: grid; grid-template-columns: 250px 1fr; gap: 44px; padding: 44px 0 70px; align-items: start; }
+.doc > * { min-width: 0; }   /* (que las tablas anchas se deslicen solas y no estiren la página) */
+.doc > aside { position: sticky; top: 86px; }
+.indice { padding: 18px 18px 14px; border-radius: 22px; background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); font-size: 14.5px; }
+.indice b { display: block; font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--suave); margin-bottom: 8px; }
+.indice ol { margin: 0; padding-left: 20px; } .indice li { margin: 5px 0; } .indice a { color: var(--tinta); text-decoration: none; opacity: .86; } .indice a:hover { opacity: 1; color: var(--amarillo); }
+@media (max-width: 900px) { .doc { grid-template-columns: 1fr; gap: 22px; padding-top: 28px; } .doc > aside { position: static; } .indice ol { columns: 2; column-gap: 26px; } }
+@media (max-width: 520px) { .indice ol { columns: 1; } }
+h1 { font: 400 clamp(40px, 6vw, 64px)/1.02 L; margin: 0 0 10px; transform: rotate(-1.5deg); transform-origin: left; text-shadow: 0 10px 40px rgba(255, 62, 138, .3); }
+h1 em, h2 em { font-style: normal; color: var(--amarillo); }
+.fecha { color: var(--suave); font-size: 14.5px; margin: 0 0 24px; }
+h2 { font: 800 clamp(22px, 2.6vw, 27px)/1.25 system-ui, sans-serif; margin: 46px 0 12px; scroll-margin-top: 84px; display: flex; gap: 12px; align-items: baseline; }
+h2 .n { font: 400 20px/1 L; color: #1b0c12; background: var(--amarillo); border-radius: 10px; padding: 7px 9px 4px; flex: none; transform: rotate(-4deg); }
+h3 { font-size: 18.5px; margin: 24px 0 6px; }
+p, li { color: #e3ddef; } p { margin: 0 0 14px; } ul, ol { padding-left: 22px; } li { margin: 6px 0; }
+strong { color: #fff; }
+.resumen { border-radius: 26px; padding: 24px 24px 12px; margin: 8px 0 10px; background: linear-gradient(150deg, rgba(255, 62, 138, .16), rgba(124, 77, 255, .14)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); }
+.resumen h2 { margin-top: 0; } .resumen ul { list-style: none; padding: 0; } .resumen li { padding-left: 32px; position: relative; } .resumen li::before { content: attr(data-e); position: absolute; left: 0; top: 0; }
+.aviso { border-left: 4px solid var(--amarillo); background: rgba(255, 210, 63, .08); padding: 14px 18px; border-radius: 0 16px 16px 0; margin: 16px 0; }
+.legal { font-size: 15px; color: var(--suave); border: 1px dashed rgba(255, 255, 255, .2); border-radius: 16px; padding: 14px 18px; }
+.tabla { overflow-x: auto; margin: 14px 0 18px; border-radius: 18px; box-shadow: inset 0 0 0 1px var(--linea); }
+table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 620px; }
+th, td { text-align: left; vertical-align: top; padding: 12px 14px; border-bottom: 1px solid var(--linea); }
+th { font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--suave); background: rgba(255, 255, 255, .04); }
+tr:last-child td { border-bottom: 0; } td:first-child { font-weight: 700; color: #fff; }
+.chip { display: inline-block; font-size: 12.5px; font-weight: 800; padding: 2px 9px; border-radius: 99px; background: rgba(95, 227, 154, .15); color: var(--verde); white-space: nowrap; }
+.chip.op { background: rgba(255, 210, 63, .14); color: var(--amarillo); }
+/* formularios (contacto) */
+.tarjeta { border-radius: 26px; padding: 26px; background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); }
+label { display: block; font-weight: 750; margin: 16px 0 6px; } label small { font-weight: 500; color: var(--suave); }
+input, select, textarea { width: 100%; font: inherit; color: var(--tinta); background: rgba(0, 0, 0, .35); border: 1px solid rgba(255, 255, 255, .16); border-radius: 14px; padding: 13px 14px; outline: none; }
+input:focus, select:focus, textarea:focus { border-color: var(--rosa); box-shadow: 0 0 0 3px rgba(255, 62, 138, .25); }
+textarea { min-height: 150px; resize: vertical; }
+.estado { min-height: 1.5em; margin-top: 12px; font-weight: 700; } .estado.ok { color: var(--verde); } .estado.mal { color: #ff8a8a; }
+.pasos { list-style: none; padding: 0; counter-reset: p; display: grid; gap: 10px; }
+.pasos li { counter-increment: p; position: relative; padding: 16px 18px 16px 62px; border-radius: 18px; background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); margin: 0; }
+.pasos li::before { content: counter(p); position: absolute; left: 16px; top: 14px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 400 18px/1 L; color: #1b0c12; background: var(--amarillo); padding-top: 3px; }
+/* abajo */
+footer { padding: 40px 0 56px; border-top: 1px solid var(--linea); color: var(--suave); font-size: 15px; }
+footer .envoltura { display: flex; flex-wrap: wrap; gap: 14px 26px; align-items: center; }
+footer nav { display: flex; flex-wrap: wrap; gap: 6px 18px; } footer nav a { color: var(--suave); }
+footer .fin { width: 100%; font-size: 13.5px; opacity: .85; margin: 0; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+article > :first-child { margin-top: 0; }

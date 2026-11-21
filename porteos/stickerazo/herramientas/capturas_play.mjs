@@ -104,7 +104,8 @@ crudas.pack = await L.cruda('pack');
 // figuritas para el gráfico de 1024×500 (los stickers listos, en PNG con transparencia)
 const figus = await L.E(async () => {
   const { LISTOS, armarListo } = await import('/listos.js');
-  const elegir = [['respuestas', 0], ['mate', 0], ['futbol', 0], ['chamuyo', 0], ['filete', 0], ['respuestas', 1]];
+  // (los 6 primeros van al gráfico de la tienda; todos, a la página web)
+  const elegir = [['respuestas', 0], ['mate', 0], ['futbol', 0], ['chamuyo', 0], ['filete', 0], ['respuestas', 1], ['laburo', 0], ['asado', 0], ['familia', 0], ['clima', 0], ['bondi', 0], ['seleccion', 0], ['mate', 1], ['futbol', 1]];
   return elegir.map(([id, i]) => {
     // (recortado a lo que tiene dibujo: el sticker de 512 tiene mucho aire)
     const d = LISTOS.find((x) => x.id === id), c = armarListo(d.stickers[i], i).componer(0), a = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
@@ -156,7 +157,7 @@ await arm.setContent(`<!doctype html><html><head><style>${FUENTE}
   .der div{display:flex;align-items:center;justify-content:center}
   .der img{max-width:150px;max-height:170px;filter:drop-shadow(0 10px 14px rgba(0,0,0,.6))}
 </style></head><body><div class="izq"><div class="logo"><span>Sticker</span><b>azo</b></div><div class="lema">Tus stickers, al toque 🔥</div></div>
-<div class="der">${figus.map((s, k) => `<div style="transform:translateY(${[0, 18, -6, 10, -14, 6][k]}px) rotate(${[-8, 6, -4, 7, -6, 9][k]}deg)"><img src="${s}"></div>`).join('')}</div></body></html>`);
+<div class="der">${figus.slice(0, 6).map((s, k) => `<div style="transform:translateY(${[0, 18, -6, 10, -14, 6][k]}px) rotate(${[-8, 6, -4, 7, -6, 9][k]}deg)"><img src="${s}"></div>`).join('')}</div></body></html>`);
 await arm.evaluate(() => document.fonts.ready); await espera(150);
 const fuera = await arm.evaluate(() => [...document.querySelectorAll('.logo,.lema,.der img')].filter((e) => { const r = e.getBoundingClientRect(); return r.left < 8 || r.top < 8 || r.right > 1016 || r.bottom > 492; }).length);
 if (fuera) { console.log('gráfico: hay', fuera, 'cosas pegadas al borde'); process.exitCode = 1; }

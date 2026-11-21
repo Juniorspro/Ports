@@ -1135,7 +1135,10 @@ window.__szApkEstado = (estado, d) => {
 };
 setTimeout(revisarApk, 6000);
 // los enlaces «stickerazo://pack/ID» (de la página para compartir) abren el pack
-window.__szAbrir = (ruta) => { const m = /pack\/([a-z0-9]{10})/.exec(String(ruta || '')); if (m) C.abrirPublico(m[1]); };
+window.__szAbrir = (ruta) => { if (/pack\/entrar/.test(String(ruta || ''))) return C.revisarEntrada(); const m = /pack\/([a-z0-9]{10})/.exec(String(ruta || '')); if (m) C.abrirPublico(m[1]); };
+// (volvió de Google al celular: que pregunte ya si entró; y si la app se reinició en el medio, que siga esperando)
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') C.revisarEntrada(); });
+setTimeout(() => C.revisarEntrada(), 1500);
 
 // ---- arranque ----
 // (en la app, Java ya deja el lugar de las barras del sistema y del teclado: acá no se suma otra vez)

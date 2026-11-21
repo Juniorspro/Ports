@@ -796,3 +796,18 @@ html[data-tema="claro"] .bTxt b em { color: #e8590c; }
 .actApk .estApk { min-height: 1.3em; font-weight: 700; color: var(--suave, #b9b3cc); margin: 4px 0 0; }
 .actApk .estApk:empty { display: none; }
 html[data-tema="claro"] .actApk .barraApk { background: rgba(0, 0, 0, .08); }
+/* entrar con Google */
+.botonG { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; max-width: 340px; margin: 18px auto 8px; padding: 15px 20px; border: 0; border-radius: 99px; background: #fff; color: #1f1f1f; font: 700 17px/1 system-ui, -apple-system, Roboto, sans-serif; box-shadow: 0 10px 30px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(0, 0, 0, .08); cursor: pointer; }
+.botonG svg { width: 24px; height: 24px; }
+.botonG:active { transform: scale(.97); }
+.esperaG { position: relative; width: 92px; height: 92px; margin: 10px auto 6px; display: grid; place-items: center; }
+.esperaG svg { width: 44px; height: 44px; }
+.esperaG .ruedaG { position: absolute; inset: 0; border-radius: 50%; border: 4px solid rgba(255, 255, 255, .12); border-top-color: #ff3e8a; border-right-color: #ffb21a; animation: girarG 1s linear infinite; }
+@keyframes girarG { to { transform: rotate(360deg); } }
+.bienvenida .sec + .sec { margin-left: 6px; }
+.tarjG { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; margin: 0 0 14px; padding: 14px 16px; border: 0; border-radius: 20px; color: inherit; background: linear-gradient(135deg, rgba(66, 133, 244, .22), rgba(52, 168, 83, .18)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14); cursor: pointer; }
+.tarjG svg { width: 34px; height: 34px; flex: none; background: #fff; border-radius: 50%; padding: 6px; }
+.tarjG span { display: flex; flex-direction: column; gap: 2px; } .tarjG small { opacity: .8; font-size: 13px; line-height: 1.35; }
+.pideG .grandote svg { width: 58px; height: 58px; background: #fff; border-radius: 50%; padding: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .3); }
+html[data-tema="claro"] .tarjG { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); }
+@media (prefers-reduced-motion: reduce) { .esperaG .ruedaG { animation: none; } }

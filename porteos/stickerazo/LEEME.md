@@ -244,6 +244,28 @@ servidor. Ahí van también los packs compartidos (`/p/ID`), las reglas y la pri
 del servidor o, si no contesta, de GitHub. Desplegar el proxy (sólo si cambia): `wrangler pages deploy` en `sitio_pages/`. Las capturas salen de `herramientas/capturas_play.mjs`, el mismo que
 arma las de las tiendas. Rutas: `/sz/` (la página), `/sz/a/…`, `/sz/descargar` (el APK), `/sz/app.json`, `/sz/web/…`.
 
+## Entrar con Google (obligatorio para la comunidad)
+
+`servidor/google.js`, como en JXMod: la app arma un verificador `v`, abre en el navegador `<servidor>/entrar?e=SHA256(v)`
+(Google no deja entrar adentro de una WebView), la página muestra el botón de Google y manda el ID token a
+`POST /api/google` (se revisan la firma con las claves de Google, el emisor, la audiencia, el vencimiento y el nonce);
+la app pregunta en `POST /api/google/listo` con `v` y se lleva la sesión una sola vez. Cuenta nueva: un ticket para
+elegir el @ (`POST /api/registro {nombre, ticket}`). Cuenta vieja (sólo @): al entrar con Google se le vincula, y hasta
+entonces no puede escribir nada (403 `{google: true}`: la app muestra la hoja «Conectá tu cuenta de Google»). De Google se
+guarda sólo una huella del id (`usuarios.google`). Borrar la cuenta desde la web: `<servidor>/borrar` (con Google).
+El cliente de Google es `SZ_GOOGLE_CLIENT_ID` o, si no está, el de JXMod (`GOOGLE_CLIENT_ID`); la página para entrar
+tiene que estar en un origen autorizado de ese cliente (hoy, el del servidor). Sin cliente, vale el @ solo (las pruebas
+viejas). Pruebas: `google.mjs` (25: tokens falsos, nonce, ticket, vincular, exigir, borrar, contacto) y `google_app.mjs`
+(8, en la app: botón, esperar, elegir @, cuenta vieja).
+
+## Privacidad, términos y contacto
+
+`sitio/privacidad.html`, `terminos.html`, `borrar-cuenta.html` y `contacto.html` (con `sitio/a/legal.css`): completas,
+con lo que hace el código de verdad (qué se guarda, cuánto, con quién, permisos, derechos y la leyenda de la Ley 25.326).
+El servidor las sirve en `/privacidad`, `/terminos`, `/borrar-cuenta` y `/contacto` (y quedan las cortitas de respaldo).
+El formulario de contacto manda a `POST /api/contacto` (5 por día por conexión; se borran al año) y los mensajes se ven
+en `/admin` («Ver mensajes de contacto»).
+
 ## Las tiendas
 
 Todo en [`tiendas/LEEME.md`](tiendas/LEEME.md) (cuál conviene, cuánto cuesta, paso a paso) y

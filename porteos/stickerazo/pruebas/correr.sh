@@ -12,5 +12,6 @@ echo "== APK nuevo (bajada)"; rm -rf "$B/apk" && java -Dstdout.encoding=UTF-8 -c
 echo "== navegador";     (cd "$AQUI" && node app.mjs "$FOTOS" | grep -E "FALLA|TODO|errores")
 echo "== como la app";   (cd "$AQUI" && MODO=app node app.mjs "$FOTOS" /tmp/claude-0/sz_app_android 2>&1 | grep -v "Picked up" | grep -E "FALLA|TODO|errores")
 echo "== servidor";    (cd "$AQUI" && node servidor_api.mjs 2>&1 | grep -E "FALLA|RESUMEN")
+echo "== entrar con Google"; (cd "$AQUI" && node google.mjs 2>&1 | grep -E "FALLA|RESUMEN" && node google_app.mjs 2>&1 | grep -E "FALLA|RESUMEN")
 echo "== comunidad";   (cd "$AQUI" && node social.mjs 2>&1 | grep -E "FALLA|RESUMEN|errores")
 echo "== APK";           python3 -I "$RAIZ/herramientas/armar_apk.py" "${SALIDA:-/tmp/claude-0/stickerazo/Stickerazo.apk}" 2>&1 | grep -v "^Picked up"

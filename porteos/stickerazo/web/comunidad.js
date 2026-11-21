@@ -23,7 +23,7 @@ export async function api(ruta, o = {}) {
   catch (e) { const er = new Error('Uh, no hay conexión. Probá de nuevo en un toque.'); er.red = true; throw er; }
   finally { clearTimeout(t); }
   let j = {}; try { j = await r.json(); } catch (e) { /* sin cuerpo */ }
-  if (!r.ok) { const er = new Error(j.error || 'Algo salió mal'); er.st = r.status; throw er; }
+  if (!r.ok) { const er = new Error(j.error || 'Algo salió mal'); er.st = r.status; er.google = !!j.google; if (j.google && r.status === 403 && X) setTimeout(() => pedirGoogle(), 50); throw er; }
   return j;
 }
 export const media = (pk, a) => `${API}/m/${pk.id}/${encodeURIComponent(a)}?v=${pk.v}`;
@@ -252,34 +252,126 @@ export async function abrirUsuario(nombre) {
   catch (e) { c.innerHTML = sinConexion(e).replace(/<h2>[\s\S]*$/, ''); }
 }
 
+// ---- entrar: con Google (obligatorio cuando el servidor lo tiene prendido) ----
+//  La app arma un verificador v, abre en el navegador <servidor>/entrar?e=SHA256(v) (Google no deja entrar adentro de la
+//  app) y le pregunta al servidor cada segundo y medio si ya está; si la cuenta de Google es nueva, elige su @.
+let CFG = null;
+export async function configServidor() {
+  if (CFG) return CFG;
+  try { CFG = await api('/api/config', { tiempo: 8000 }); } catch (e) { return { google: false }; }
+  return CFG;
+}
+const ENTRANDO = 'sz_entrando';
+const campoArroba = () => `<div class="arrobaCampo"><span>@</span><input id="regNombre" maxlength="20" placeholder="como te dicen" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+      <p class="nota" id="regNota">De 3 a 20 letras minúsculas, números, punto o guion bajo.</p>`;
+const notaLegal = () => `<p class="nota">Al entrar aceptás los <a href="${SITIO}/terminos" data-ext="1">términos y las reglas de la comunidad</a> y la <a href="${SITIO}/privacidad" data-ext="1">política de privacidad</a>. Tenés que tener 13 años o más.</p>
+      <p class="hecho">Hecho en Argentina 🇦🇷</p>`;
+const LOGO_G = '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
+function activarArroba(c, crear) {
+  const inp = X.$('#regNombre', c), nota = X.$('#regNota', c);
+  inp.oninput = () => { inp.value = inp.value.toLowerCase().replace(/[^a-z0-9_.]/g, ''); const okk = /^[a-z0-9_.]{3,20}$/.test(inp.value) && !/^[._]|[._]$|\.\./.test(inp.value); nota.classList.toggle('mal', !okk && inp.value.length > 0); nota.textContent = !inp.value ? 'De 3 a 20 letras minúsculas, números, punto o guion bajo.' : okk ? `Vas a ser @${inp.value}` : 'Sólo minúsculas, números, punto o guion bajo (de 3 a 20).'; };
+  X.$('#regEntrar', c).onclick = async () => {
+    const b = X.$('#regEntrar', c); b.disabled = true;
+    try { const r = await crear(inp.value); entro(r); }
+    catch (e) { nota.textContent = e.message; nota.classList.add('mal'); b.disabled = false; }
+  };
+}
+function entro(r) {
+  guardarCuenta({ token: r.token, id: r.usuario.id, nombre: r.usuario.nombre, google: !!r.usuario.conGoogle });
+  try { localStorage.removeItem(ENTRANDO); } catch (e) { /* nada */ }
+  X.confeti(); X.vibrar(20); X.aviso(`¡Bienvenido/a, @${r.usuario.nombre}!`); pintarPerfil();
+}
+const hexDe = (u8) => [...u8].map((b) => b.toString(16).padStart(2, '0')).join('');
+let sondeo = null;
+/** abre Google en el navegador y espera (vincular: la cuenta vieja de este celular se queda con esta cuenta de Google) */
+export async function entrarConGoogle() {
+  const cfg = await configServidor(); if (!cfg.google) return;
+  const v = hexDe(crypto.getRandomValues(new Uint8Array(32))), e = hexDe(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v))));
+  try { localStorage.setItem(ENTRANDO, JSON.stringify({ v, desde: Date.now() })); } catch (er) { /* nada */ }
+  window.__szEntrando = e;   // (para las pruebas)
+  const url = `${cfg.entrar}?e=${e}`;
+  if (P.esApp) location.href = url; else window.open(url, '_blank', 'noopener');
+  esperarGoogle();
+}
+function entrandoAhora() { try { const x = JSON.parse(localStorage.getItem(ENTRANDO) || 'null'); return x && Date.now() - x.desde < 10 * 60e3 ? x : null; } catch (e) { return null; } }
+/** pregunta cada segundo y medio si ya entró (hasta 10 minutos) */
+export function esperarGoogle() {
+  const x = entrandoAhora(); if (!x) return;
+  if (X.E.vista !== 'vInicio' || !X.$('#tabPerfil') || X.$('#tabPerfil').classList.contains('oc')) X.pestaña('Perfil');
+  pintarEsperando();
+  clearInterval(sondeo);
+  const preguntar = async () => {
+    const y = entrandoAhora(); if (!y) { clearInterval(sondeo); pintarPerfil(); return; }
+    let r; try { r = await api('/api/google/listo', { method: 'POST', json: { v: y.v }, tiempo: 8000 }); } catch (e) { return; }
+    if (r.esperando) return;
+    clearInterval(sondeo); try { localStorage.removeItem(ENTRANDO); } catch (e) { /* nada */ }
+    if (r.token) return entro(r);
+    if (r.nuevo) return pintarElegirArroba(r.ticket);
+  };
+  sondeo = setInterval(preguntar, 1500); preguntar();
+}
+export const revisarEntrada = () => { if (entrandoAhora()) esperarGoogle(); };
+function pintarEsperando() {
+  const c = X.$('#tabPerfil');
+  c.innerHTML = `<div class="bienvenida"><div class="esperaG"><span class="ruedaG"></span>${LOGO_G}</div><h2 class="titulo2">Terminá en Google</h2>
+    <p>Se abrió el navegador para que elijas tu cuenta. Cuando termines volvé acá: la app entra sola.</p>
+    <button class="sec" id="gOtraVez">Abrir Google de nuevo</button> <button class="sec" id="gCancelar">Cancelar</button></div>`;
+  X.$('#gOtraVez', c).onclick = () => entrarConGoogle();
+  X.$('#gCancelar', c).onclick = () => { clearInterval(sondeo); try { localStorage.removeItem(ENTRANDO); } catch (e) { /* nada */ } pintarPerfil(); };
+}
+function pintarElegirArroba(ticket) {
+  const c = X.$('#tabPerfil');
+  c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span>🎉</span><span>🧉</span><span>😎</span></div><h2 class="titulo2">¡Ya casi! Elegí tu @</h2>
+      <p>Es tu nombre en la comunidad. Lo ve todo el mundo, así que nada de datos tuyos.</p>
+      ${campoArroba()}<button class="grande" id="regEntrar"><i data-i="ok"></i>Listo</button>${notaLegal()}</div>`;
+  X.iconos(c);
+  activarArroba(c, (nombre) => api('/api/registro', { method: 'POST', json: { nombre, ticket } }));
+  X.$('#regNombre', c).focus();
+}
+function pintarEntrarGoogle(c) {
+  if (entrandoAhora()) return esperarGoogle();
+  c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span>🧉</span><span>😂</span><span>🔥</span><span>⚽</span></div><h2 class="titulo2">Sumate a la comunidad</h2>
+      <p>Publicá tus packs, seguí a los que más te copen y bajate los mejores stickers. Entrás con tu cuenta de Google: no ves ni un formulario.</p>
+      <button class="botonG" id="gEntrar">${LOGO_G}<span>Entrar con Google</span></button>
+      <p class="nota">De Google sólo usamos un número para reconocerte: no guardamos tu mail, tu nombre ni tu foto de Google.</p>
+      ${notaLegal()}</div>`;
+  X.$('#gEntrar', c).onclick = () => { X.vibrar(10); entrarConGoogle(); };
+}
+/** la cuenta vieja (sólo @) tiene que conectar Google para seguir */
+export function pedirGoogle() {
+  if (document.querySelector('#modal .pideG')) return;
+  const m = X.modal(`<div class="hoja centro pideG"><div class="grandote">${LOGO_G}</div><h3>Conectá tu cuenta de Google</h3>
+    <p>Desde ahora la comunidad se usa con Google: así nadie se hace pasar por vos y no perdés tu cuenta si cambiás de celular. Tu @, tus packs y tus seguidores quedan igual.</p>
+    <div class="botones"><button class="sec" data-x="0">Ahora no</button><button class="pri" data-x="1">Conectar Google</button></div></div>`);
+  m.querySelector('[data-x="0"]').onclick = () => X.cerrarModal();
+  m.querySelector('[data-x="1"]').onclick = () => { X.cerrarModal(); entrarConGoogle(); };
+}
+
 // ---- mi perfil (o elegir mi @) ----
 export async function pintarPerfil() {
   const c = X.$('#tabPerfil'), yo = cuenta();
   if (!yo) {
+    const cfg = await configServidor();
+    if (cfg.google) return pintarEntrarGoogle(c);
     c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span>🧉</span><span>😂</span><span>🔥</span><span>⚽</span></div><h2 class="titulo2">Sumate a la comunidad</h2>
       <p>Publicá tus packs, seguí a los que más te copen y bajate los mejores stickers del país. Sin email y sin vueltas.</p>
-      <div class="arrobaCampo"><span>@</span><input id="regNombre" maxlength="20" placeholder="como te dicen" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
-      <p class="nota" id="regNota">De 3 a 20 letras minúsculas, números, punto o guion bajo.</p>
+      ${campoArroba()}
       <button class="grande" id="regEntrar"><i data-i="ok"></i>Entrar</button>
-      <p class="nota">Al entrar aceptás las <a href="${SITIO}/terminos" data-ext="1">reglas de la comunidad</a> y la <a href="${SITIO}/privacidad" data-ext="1">privacidad</a>. Tenés que tener 13 años o más.</p>
-      <p class="hecho">Hecho en Argentina 🇦🇷</p></div>`;
+      ${notaLegal()}</div>`;
     X.iconos(c);
-    const inp = X.$('#regNombre'), nota = X.$('#regNota');
-    inp.oninput = () => { inp.value = inp.value.toLowerCase().replace(/[^a-z0-9_.]/g, ''); const okk = /^[a-z0-9_.]{3,20}$/.test(inp.value) && !/^[._]|[._]$|\.\./.test(inp.value); nota.classList.toggle('mal', !okk && inp.value.length > 0); nota.textContent = !inp.value ? 'De 3 a 20 letras minúsculas, números, punto o guion bajo.' : okk ? `Vas a ser @${inp.value}` : 'De 3 a 20 letras minúsculas, números, punto o guion bajo.'; };
-    X.$('#regEntrar').onclick = async () => {
-      const b = X.$('#regEntrar'); b.disabled = true;
-      try { const r = await api('/api/registro', { method: 'POST', json: { nombre: inp.value } }); guardarCuenta({ token: r.token, id: r.usuario.id, nombre: r.usuario.nombre }); X.confeti(); X.vibrar(20); X.aviso(`¡Bienvenido/a, @${r.usuario.nombre}!`); pintarPerfil(); }
-      catch (e) { nota.textContent = e.message; nota.classList.add('mal'); b.disabled = false; }
-    };
+    activarArroba(c, (nombre) => api('/api/registro', { method: 'POST', json: { nombre } }));
     return;
   }
   c.innerHTML = '<div class="heroe"><span class="avG esq"></span></div>';
   try {
     const d = await api('/api/usuarios/' + encodeURIComponent(yo.nombre)); X.E.miPerfil = d;
+    // (¿tiene Google? si el servidor lo pide y no, el aviso para conectarlo)
+    let sinGoogle = false;
+    if (!yo.google) { try { const y = await api('/api/yo'); if (y.usuario.conGoogle) guardarCuenta({ ...yo, google: true }); else sinGoogle = !!y.google; } catch (e) { /* sin conexión: después */ } }
     const pais = X.paisActual();
-    c.innerHTML = perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="tema"><i class="emo">${{ oscuro: '🌙', claro: '☀️', auto: '📱' }[X.temaActual()]}</i><span>Modo: ${{ oscuro: 'oscuro', claro: 'claro', auto: 'como el celular' }[X.temaActual()]}</span></button><button class="opc" data-x="musica"><i class="emo">🎵</i><span>Música de mi país</span></button><button class="opc" data-x="pais"><i class="emo">${pais ? pais[1] : '🌎'}</i><span>Mi país: ${pais ? pais[2] : 'elegir'}</span></button><a class="opc" href="${SITIO}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${SITIO}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
-      <button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
-    X.iconos(c); contar(c);
+    c.innerHTML = (sinGoogle ? `<button class="tarjG" id="tarjG">${LOGO_G}<span><b>Conectá tu cuenta de Google</b><small>La comunidad ahora se usa con Google. Tu @ y tus packs quedan igual.</small></span></button>` : '') + perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="tema"><i class="emo">${{ oscuro: '🌙', claro: '☀️', auto: '📱' }[X.temaActual()]}</i><span>Modo: ${{ oscuro: 'oscuro', claro: 'claro', auto: 'como el celular' }[X.temaActual()]}</span></button><button class="opc" data-x="musica"><i class="emo">🎵</i><span>Música de mi país</span></button><button class="opc" data-x="pais"><i class="emo">${pais ? pais[1] : '🌎'}</i><span>Mi país: ${pais ? pais[2] : 'elegir'}</span></button><a class="opc" href="${SITIO}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${SITIO}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
+      <a class="opc" href="${SITIO}/contacto" data-ext="1"><i class="emo">💬</i><span>Escribinos</span></a><button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
+    X.iconos(c); contar(c); if (sinGoogle) X.$('#tarjG', c).onclick = () => entrarConGoogle();
   } catch (e) {
     if (e.st === 404 || e.st === 401) { guardarCuenta(null); return pintarPerfil(); }
     c.innerHTML = sinConexion(e).replace(/<h2>[\s\S]*$/, '');

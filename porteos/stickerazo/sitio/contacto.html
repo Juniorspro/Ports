@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Contacto · Stickerazo</title>
+<meta name="description" content="Escribinos: consultas, privacidad, borrar tu cuenta, derechos de autor o denuncias.">
+<meta name="theme-color" content="#0b0910">
+<link rel="icon" href="a/favicon.png" type="image/png">
+<link rel="stylesheet" href="a/legal.css">
+</head>
+<body>
+<header class="barra"><div class="envoltura">
+  <a class="logo" href="./" aria-label="Stickerazo, inicio"><span>Sticker</span><b>azo</b></a>
+  <nav aria-label="Páginas"><a href="./">Inicio</a><a href="privacidad">Privacidad</a><a href="terminos">Términos</a><a href="contacto" aria-current="page">Contacto</a></nav>
+  <a class="boton" href="./#bajar">Bajar gratis</a>
+</div></header>
+
+<div class="envoltura cabeza">
+<h1>Escribi<em>nos</em></h1>
+<p class="fecha">Lo leemos todo. Respondemos en unos días, y dentro de los plazos de la ley si es por tus datos.</p>
+</div>
+<main class="envoltura doc">
+<aside><nav class="indice" aria-label="Antes de escribir"><b>Antes de escribir</b><ol>
+  <li><a href="borrar-cuenta">Borrar tu cuenta</a> se hace solo, al instante.</li>
+  <li>Para denunciar un pack o un perfil, usá su menú en la app: es más rápido.</li>
+  <li>Lo que preguntás seguido está en <a href="./#preguntas">las preguntas</a>.</li>
+</ol></nav></aside>
+
+<article>
+
+<form class="tarjeta" id="f" novalidate>
+  <label for="motivo">¿Sobre qué es?</label>
+  <select id="motivo" name="motivo">
+    <option value="consulta">Una consulta o una idea</option>
+    <option value="privacidad">Privacidad y mis datos</option>
+    <option value="borrar">Borrar mi cuenta</option>
+    <option value="derechos">Derechos de autor o marcas</option>
+    <option value="denuncia">Denunciar algo grave</option>
+    <option value="otro">Otra cosa</option>
+  </select>
+  <label for="texto">Tu mensaje</label>
+  <textarea id="texto" name="texto" maxlength="3000" placeholder="Contanos qué pasó. Si es sobre un pack o un perfil, pegá su enlace o su @." required></textarea>
+  <label for="mail">Tu mail <small>(opcional, sólo si querés que te respondamos)</small></label>
+  <input id="mail" name="mail" type="email" maxlength="120" placeholder="nombre@ejemplo.com" autocomplete="email">
+  <p style="margin:16px 0 0;font-size:14.5px;color:var(--suave)">Usamos lo que nos mandes sólo para responderte, y lo borramos a los 12 meses como mucho. Más en la <a href="privacidad">política de privacidad</a>.</p>
+  <p style="margin-top:18px"><button class="boton" type="submit" id="enviar">Mandar</button></p>
+  <p class="estado" id="estado" role="status" aria-live="polite"></p>
+</form>
+</article>
+</main>
+
+<footer><div class="envoltura">
+  <a class="logo" href="./"><span>Sticker</span><b>azo</b></a>
+  <nav aria-label="Legales"><a href="privacidad">Privacidad</a><a href="terminos">Términos</a><a href="borrar-cuenta">Borrar tu cuenta</a><a href="contacto">Contacto</a></nav>
+  <p class="fin">Hecho en Argentina 🧉 · Stickerazo no está afiliada a WhatsApp, Meta ni Google.</p>
+</div></footer>
+<script>
+// (lo manda al servidor de la comunidad; si esta página está en el mismo servidor, ahí mismo)
+const SERVIDOR = location.pathname.startsWith('/sz/') ? location.origin + '/sz' : 'https://rezobox-tienda.holasoyjuniors365.workers.dev/sz';
+const f = document.getElementById('f'), est = document.getElementById('estado'), boton = document.getElementById('enviar');
+const elegido = new URLSearchParams(location.search).get('motivo'); if (elegido) f.motivo.value = elegido;
+f.onsubmit = async (ev) => {
+  ev.preventDefault();
+  const texto = f.texto.value.trim();
+  if (texto.length < 10) { est.textContent = 'Contanos un poco más (al menos 10 letras).'; est.className = 'estado mal'; f.texto.focus(); return; }
+  boton.disabled = true; est.textContent = 'Mandando…'; est.className = 'estado';
+  try {
+    const r = await fetch(SERVIDOR + '/api/contacto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: f.motivo.value, texto, mail: f.mail.value.trim() }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'No se pudo mandar. Probá de nuevo en un rato.');
+    f.reset(); est.textContent = '¡Gracias! Ya nos llegó tu mensaje 🙌'; est.className = 'estado ok';
+  } catch (e) { est.textContent = e.message; est.className = 'estado mal'; }
+  boton.disabled = false;
+};
+</script>
+</body>
+</html>
