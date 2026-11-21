@@ -4,7 +4,8 @@ import { abrirTermo } from './termo.js';
 import * as P from './puente.js';
 import { sincronizar, iniciarNube, estadoNube, programar } from './nube.js';
 import { elegirCancion, tocarCancionPerfil, pararCancionPerfil, cancionSonando } from './musica.js';
-import { cargarSocial, clickSocial, botonAmistad, iniciarRed, novedades } from './red.js';
+import { botonAmistad, iniciarRed } from './red.js';
+export { tabSocial, tabChat } from './red.js';
 export const API = (typeof window !== 'undefined' && window.SZ_API) || 'https://rezobox-tienda.holasoyjuniors365.workers.dev/sz';
 // (lo que ve la gente —packs compartidos, reglas, privacidad— va por la dirección propia, que muestra lo mismo que el servidor)
 export const SITIO = (typeof window !== 'undefined' && (window.SZ_SITIO || window.SZ_API)) || 'https://stickerazo.pages.dev';
@@ -69,7 +70,6 @@ const noInteresa = () => { try { return new Set(JSON.parse(localStorage.getItem(
 function marcarNoInteresa(id) { const s = noInteresa(); s.add(id); try { localStorage.setItem('sz_noint', JSON.stringify([...s].slice(-500))); } catch (e) { /* nada */ } }
 export async function cargarFeed(reiniciar) {
   const lista = X.$('#feedLista');
-  if (F.modo === 'social') return cargarSocial(lista, reiniciar);   // (las publicaciones de la gente: red.js)
   if (reiniciar) { F.desde = 0; F.fin = false; lista.innerHTML = esqueletos(3); F.turno = (F.turno || 0) + 1; }
   if (F.cargando && !reiniciar) return; if (F.fin) return;
   const turno = F.turno; F.cargando = true;
@@ -103,7 +103,6 @@ async function darLike(id, boton, forzar) {
 let toqueGrilla = null;
 async function alTocarFeed(ev) {
   const t = ev.target;
-  if (F.modo === 'social' && t.closest('[data-so],[data-sf]')) return clickSocial(ev, X.$('#feedLista'));
   const like = t.closest('[data-like]'); if (like) return darLike(like.dataset.like, like);
   const comp = t.closest('[data-compartir]'); if (comp) return compartirPack(F.cache.get(comp.dataset.compartir));
   const au = t.closest('[data-u]'); if (au) return abrirUsuario(au.dataset.u);

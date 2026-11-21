@@ -1,7 +1,7 @@
 # Arma el APK de Stickerazo sin Gradle: la página (web/ → assets/www) + javac → d8 → aapt2 → zipalign → apksigner,
 # y lo revisa (firmas v1+v2+v3, badging, clases del dex, el manifiesto compilado con el proveedor de WhatsApp).
 # Uso: python3 -I herramientas/armar_apk.py [SALIDA.apk] [--version-name 0.1] [--version-code N] [--aab SALIDA.aab]
-#        [--canal web|play|galaxy|huawei|uptodown] [--publicar]
+#        [--canal web|play|galaxy|huawei|uptodown|apkpure] [--publicar]
 #   --canal: de dónde se baja (va en assets/canal.txt). «web» (el de nuestra página, por defecto) se actualiza solo: baja
 #   el APK nuevo y lo instala (permiso REQUEST_INSTALL_PACKAGES). Los de las tiendas NO tienen ese permiso (las tiendas no
 #   lo dejan): para un APK nuevo abren su tienda. Con --aab el canal es «play».
@@ -26,7 +26,7 @@ MIN_SDK, TARGET_SDK = 24, 36
 # (el APK más viejo que puede usar la página de ahora: subirlo cuando la página use algo nuevo del puente con Java)
 OTA_APK_MIN = 0
 NO_COMPRIMIR = ['png', 'webp', 'jpg', 'jpeg']
-CANALES = ('web', 'play', 'galaxy', 'huawei', 'uptodown')
+CANALES = ('web', 'play', 'galaxy', 'huawei', 'uptodown', 'apkpure')
 # (sólo el de la web: instalar el APK nuevo él mismo y, desde Android 14, sin preguntar las veces siguientes)
 PERMISOS_WEB = ['android.permission.REQUEST_INSTALL_PACKAGES', 'android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION']
 DESCARGAS = os.path.join(RAIZ, 'descargas')

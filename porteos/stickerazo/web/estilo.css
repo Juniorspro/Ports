@@ -699,35 +699,29 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
 .muIt b { font-size: 13.5px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } .muIt small { color: var(--suave); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .muPlay { font-style: normal; width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(135deg, #ff3e8a, #ff8a1a); font-size: 13px; }
 .muNada { color: var(--suave); text-align: center; padding: 30px 0; }
-/* el reproductor flotante (YouTube, a la vista: 200×200): un tocadiscos con el video de tapa y el disco que sale y gira */
-.radioFlota { position: fixed; right: 8px; bottom: calc(var(--abajo, 0px) + 96px); z-index: 8400; width: 200px; animation: popEntra .5s cubic-bezier(.34, 1.56, .64, 1) both; transition: left .35s cubic-bezier(.34, 1.4, .64, 1); }
-.radioFlota.min { display: none; }
-.rfCaja { position: relative; z-index: 1; border-radius: 20px; overflow: hidden; background: linear-gradient(180deg, #1c1828, #0e0d14); box-shadow: 0 16px 40px #000c, 0 0 0 1px #ffffff1f; transition: box-shadow .3s; }
-.radioFlota.moviendo { transition: none; } .radioFlota.moviendo .rfCaja { box-shadow: 0 24px 60px #000, 0 0 0 2px #ff3e8a; }
-.rfVinilo { position: absolute; left: 50%; top: 0; z-index: 0; width: 148px; height: 148px; margin-left: -74px; border-radius: 50%; transform: translateY(14px);
-  transition: transform .7s cubic-bezier(.3, 1.35, .5, 1); box-shadow: 0 8px 22px #000a; }
-.radioFlota.sonando .rfVinilo { transform: translateY(-62px); }
-.rfVinilo, .rdVinilo { display: block; }
+/* la música, en la esquina de abajo: la X arriba, el video de YouTube (a la vista mientras suena: 200×200, lo pide YouTube)
+   y el disco que asoma por la izquierda, girando, con la pausa en el medio. En pausa el video se esconde y queda el disco */
+.radioFlota { position: fixed; right: 10px; bottom: calc(var(--abajo, 0px) + 92px); z-index: 8400; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; animation: popEntra .5s cubic-bezier(.34, 1.56, .64, 1) both; }
+.radioFlota.chau { animation: none; transition: transform .25s, opacity .25s; transform: scale(.6); opacity: 0; }
+.rfX { width: 32px; height: 32px; border-radius: 50%; background: rgba(20, 18, 28, .92); color: #fff; box-shadow: 0 4px 14px #000a, 0 0 0 1px #ffffff26; }
+.rfCuerpo { position: relative; display: flex; align-items: flex-end; }
+.rfCaja { position: relative; z-index: 1; width: 200px; height: 200px; border-radius: 14px; overflow: hidden; background: #000; box-shadow: 0 16px 40px #000c, 0 0 0 1px #ffffff1f; transition: width .35s cubic-bezier(.3, 1.2, .5, 1), height .35s cubic-bezier(.3, 1.2, .5, 1), opacity .25s; }
+.rfVideo, .radioFlota iframe { display: block; width: 200px; height: 200px; border: 0; background: #000; }
+.rfDisco { position: relative; z-index: 0; flex: none; width: 84px; height: 84px; margin: 0 -22px 10px 0; padding: 0; border-radius: 50%; box-shadow: 0 10px 26px #000b, 0 0 0 2px #ffffff22; transition: margin .35s cubic-bezier(.3, 1.2, .5, 1); }
+.rfVinilo { position: absolute; inset: 0; display: block; border-radius: 50%; overflow: hidden; }
 .rfGira { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle, #0000 0 33%, #0c0c0f 33.5% 35%, #0000 35.5%), repeating-radial-gradient(circle, #121214 0 1.6px, #1e1e22 1.6px 3.2px);
   animation: girarMundo 2.6s linear infinite; animation-play-state: paused; }
 .radioFlota.sonando .rfGira { animation-play-state: running; }
 .rfTapa { position: absolute; left: 33%; top: 33%; width: 34%; height: 34%; border-radius: 50%; object-fit: cover; background: linear-gradient(135deg, #ff3e8a, #ff8a1a); }
+.rfDisco .rfTapa { left: 22%; top: 22%; width: 56%; height: 56%; }
 .rfTapa:not([src]) { visibility: hidden; }
 .rfGira::after { content: ''; position: absolute; left: 50%; top: 50%; width: 7%; height: 7%; margin: -3.5% 0 0 -3.5%; border-radius: 50%; background: #0e0d14; box-shadow: 0 0 0 1px #ffffff30; }
 .rfBrillo { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: conic-gradient(from 20deg, #0000 0 12%, #ffffff1c 17%, #0000 24% 62%, #ffffff14 67%, #0000 74%); }
-.rfBarra { display: flex; align-items: center; gap: 5px; padding: 6px 6px 6px 8px; cursor: grab; touch-action: none; }
-.rfAgarre { width: 6px; height: 22px; flex: none; border-radius: 3px; background: repeating-linear-gradient(#ffffff55 0 2px, #0000 2px 5px); }
-.rfTxt { flex: 1; min-width: 0; display: flex; flex-direction: column; } .rfTxt b { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .rfTxt small { font-size: 10.5px; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.radioFlota.sonando .rfTxt b { color: #ffd23f; }
-.rfBarra button { width: 27px; height: 27px; flex: none; border-radius: 50%; background: #ffffff14; color: #fff; font-size: 12px; }
-.rfVideo, .radioFlota iframe { display: block; width: 200px; height: 200px; border: 0; background: #000; }
-/* achicado: el disquito con la portada, abajo a la izquierda (en pausa: se toca y vuelve) */
-.radioDisco { position: fixed; left: 10px; bottom: calc(var(--abajo, 0px) + 92px); z-index: 8400; width: 62px; height: 62px; border-radius: 50%; padding: 0;
-  box-shadow: 0 10px 26px #000b, 0 0 0 2px #ffffff26; transform: scale(.4) rotate(-90deg); opacity: 0; transition: transform .45s cubic-bezier(.34, 1.56, .64, 1), opacity .25s; }
-.radioDisco.entra { transform: none; opacity: 1; }
-.rdVinilo { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; }
-.rdPlay { position: absolute; right: -3px; bottom: -3px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 10px; color: #fff;
-  background: linear-gradient(135deg, #ff3e8a, #ff8a1a); box-shadow: 0 2px 8px #0008; animation: rdLate 1.6s ease-in-out infinite; }
+.rfBoton { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: linear-gradient(135deg, #ff3e8a, #ff8a1a); box-shadow: 0 3px 10px #0009; }
+.rfBoton i[data-i] { width: 16px; height: 16px; }
+.radioFlota.min .rfCaja { width: 0; height: 0; opacity: 0; box-shadow: none; }
+.radioFlota.min .rfDisco { margin: 0; }
+.radioFlota.min .rfBoton { animation: rdLate 1.6s ease-in-out infinite; }
 @keyframes rdLate { 50% { transform: scale(1.18); } }
 /* el botón de la música en el inicio */
 .botonMusica { position: absolute; right: 12px; top: calc(var(--arriba, 0px) + 10px); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 19px; z-index: 3; }
@@ -896,8 +890,6 @@ html[data-tema="claro"] .letrasEl { background: rgba(40, 20, 60, .28); }
 html[data-tema="claro"] .leIt, html[data-tema="claro"] .leX { background: #f3edf9; }
 html[data-tema="claro"] .leIt.act { color: #b8860b; border-color: #e0a800; }
 html[data-tema="claro"] .tVista { background: repeating-conic-gradient(#0000000a 0 25%, #0000 0 50%) 0 0 / 16px 16px, #ece6f5; }
-.rdVinilo .rfTapa { left: 22%; top: 22%; width: 56%; height: 56%; }
-.rdVinilo .rfGira::after { width: 9%; height: 9%; margin: -4.5% 0 0 -4.5%; }
 
 /* ---- Premium y donaciones ---- */
 .opcPremium { background: linear-gradient(100deg, rgba(255, 210, 63, .16), rgba(255, 62, 138, .12)) !important; box-shadow: inset 0 0 0 1px rgba(255, 210, 63, .35); }
@@ -1000,9 +992,8 @@ html[data-tema="claro"] .formaOp, html[data-tema="claro"] .capaF { background: #
 .ventajas span { display: flex; align-items: center; gap: 10px; } .ventajas i[data-i] { width: 20px; height: 20px; color: var(--ama); }
 .botonMusica i[data-i] { width: 22px; height: 22px; }
 .chip i[data-i] { width: 17px; height: 17px; margin-right: 5px; vertical-align: -3px; }
-.leX, .mpCerrar, .rfX, .rfSig, .rfMin { display: grid; place-items: center; }
-.leX i[data-i], .mpCerrar i[data-i], .rfX i[data-i], .rfSig i[data-i], .rfMin i[data-i] { width: 20px; height: 20px; }
-.rfSig .r { opacity: .9; }
+.leX, .mpCerrar, .rfX { display: grid; place-items: center; }
+.leX i[data-i], .mpCerrar i[data-i], .rfX i[data-i] { width: 18px; height: 18px; }
 .insignia i[data-i], .chipInsignia i[data-i] { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
 .insignia .r, .chipInsignia .r { opacity: .4; }
 .miniPrem { color: #ffc93a; width: 14px !important; height: 14px !important; vertical-align: -2px; }
@@ -1084,7 +1075,6 @@ html[data-tema="claro"] .avPegas button { background: #0000000a; }
 .epCancion span { display: grid; min-width: 0; flex: 1; } .epCancion span b, .epCancion span small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cancionEl .muNada { padding: 18px 6px; }
 @keyframes girar { to { transform: rotate(360deg); } }
-.rdPlay svg { width: 12px; height: 12px; }
 /* ---- celulares flojos (html.liviano, app.js): sin desenfoques de fondo ni brillos que se mueven siempre; lo que gira
    mientras suena o carga queda (indica algo) ---- */
 html.liviano *, html.liviano *::before, html.liviano *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
@@ -1099,10 +1089,6 @@ html.liviano .pegaUI canvas, html.liviano .pegaOp canvas { filter: drop-shadow(0
 html.liviano .barraHerr { -webkit-mask-image: none; mask-image: none; }
 
 /* ---- la zona social y el chat (red.js) ---- */
-.botonChat { position: absolute; right: 58px; top: calc(var(--arriba, 0px) + 10px); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; z-index: 3; }
-.cabInicio.chica .botonChat { top: calc(var(--arriba, 0px) + 6px); }
-.botonChat i[data-i] { width: 22px; height: 22px; }
-.badge { position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: #ff3e8a; color: #fff; font: 800 11px/18px system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 2px #14121c; }
 #feedSeg button { font-size: 13.5px; }
 .soCab { display: grid; gap: 10px; margin: 4px 0 12px; }
 .soNuevo { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-radius: 18px; background: var(--panel); border: 1px solid var(--linea); color: var(--suave); font-weight: 700; text-align: left; }
@@ -1153,3 +1139,21 @@ html.liviano .barraHerr { -webkit-mask-image: none; mask-image: none; }
 .cvPie .campo { flex: 1; margin: 0; -webkit-user-select: text; user-select: text; }
 .cvMandar { background: var(--ama); color: #1c1503; }
 html[data-tema="claro"] .soPost, html[data-tema="claro"] .soNuevo { background: #fff; }
+
+/* la barra de abajo con 7 lugares (Inicio, Buscar, Comunidad, +, Chat, Packs, Perfil): cada uno toma lo que necesita su
+   nombre y el resto se reparte; el número de mensajes nuevos va arriba del globito del Chat */
+.tabs { padding-left: 2px; padding-right: 2px; }
+.tabs button { flex: 1 1 0; min-width: 0; font-size: 10.5px; letter-spacing: -.1px; white-space: nowrap; }
+/* (los seis lugares miden lo mismo, así el «+» queda justo en el medio; «Comunidad» puede asomar un poco a los lados) */
+.tabs button:not(.centro) { padding-left: 0; padding-right: 0; overflow: visible; }
+.tabs .centro { flex: 0 0 64px; }
+.tabs button i[data-i] { width: 23px; height: 23px; }
+.tabs .badge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: #ff3e8a; color: #fff; font: 800 10px/17px system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 2px #0b0a10; }
+.tabs .badge.oc { display: none; }
+.tabTit { margin: 8px 0 10px; }
+@media (max-width: 400px) { .tabs .centro { flex-basis: 60px; } .tabs .centro span { width: 48px; height: 48px; margin-top: -22px; border-radius: 17px; } .tabs .centro span i { width: 26px; height: 26px; } }
+@media (max-width: 370px) { .tabs button { font-size: 10px; letter-spacing: -.25px; } }
+@media (max-width: 340px) { .tabs button { font-size: 9px; letter-spacing: -.3px; } .tabs button i[data-i] { width: 21px; height: 21px; } }
+/* («Comunidad» es el nombre más largo: su lugar es un poco más ancho y lo pagan Inicio y Buscar, así los tres de la
+   izquierda suman lo mismo que los tres de la derecha y el «+» sigue en el medio) */
+.tabs [data-t="Feed"], .tabs [data-t="Listos"] { flex-grow: .88; } .tabs [data-t="Social"] { flex-grow: 1.24; }

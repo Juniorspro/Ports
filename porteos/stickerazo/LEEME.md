@@ -39,7 +39,8 @@ casi todo pago, mucha publicidad, cobros de suscripciones). Lo nuestro:
 
 ## La comunidad (como una red social)
 
-- **Inicio** es el feed: «Para vos» (lo que más gusta y se baja, pesado por lo nuevo), «Nuevos», «Seguidos» y «Social».
+- **La barra de abajo**: Inicio, Buscar, Comunidad, el «+» (crear) en el medio, Chat, Packs y Perfil.
+- **Inicio** es el feed: «Para vos» (lo que más gusta y se baja, pesado por lo nuevo), «Nuevos» y «Seguidos».
   Tarjetas que entran animadas, **doble toque = me gusta** (con un corazón que explota), tirar para abajo actualiza y
   baja más al llegar al final.
 - **Pack publicado**: seguir al autor, me gusta, **Agregar a WhatsApp** (se baja a Mis packs y se agrega), compartir
@@ -54,13 +55,13 @@ casi todo pago, mucha publicidad, cobros de suscripciones). Lo nuestro:
 - Moderación: nombres y textos filtrados (odio, sexual; sin falsos positivos como «controlo»), límites por persona,
   **3 denuncias ocultan un pack** hasta revisarlo, y `/admin` para revisar (con la clave `ADMIN_CLAVE`).
 - Sin conexión la app anda igual (muestra los packs listos mientras tanto).
-- **Social** (la cuarta pestaña del feed): publicaciones con texto, fotos, stickers (tuyos o pegatinas) y videos cortos.
+- **Comunidad** (en la barra de abajo): publicaciones con texto, fotos, stickers (tuyos o pegatinas) y videos cortos.
   El video se convierte **en el celular** a WebP animado (4 s, 8 cuadros por segundo, 360 px, sin sonido), así el
   servidor sólo guarda imágenes que revisa como las de los packs. «Todos» o «Amigos», me gusta, borrar lo tuyo y
   denunciar (3 denuncias la ocultan). Hasta 12 publicaciones por día y 4 imágenes por publicación.
 - **Amigos**: «Agregar amigo» en el perfil de alguien manda un pedido; cuando el otro acepta, son amigos. Bloquear
   corta la amistad.
-- **Chat** (el globito de arriba): sólo entre amigos. Texto filtrado como el resto, pegatinas, stickers de tus packs o
+- **Chat** (en la barra de abajo, con un numerito de mensajes nuevos): sólo entre amigos. Texto filtrado como el resto, pegatinas, stickers de tus packs o
   uno tuyo (se sube aparte con una clave al azar), «visto», avisos de mensajes nuevos con un numerito, y mantener
   apretado un mensaje del otro para denunciarlo. Se actualiza cada 3,5 s mientras está abierto (sin servidor de
   tiempo real, para que siga siendo gratis). Borrar la cuenta borra sus publicaciones, amistades y conversaciones.
@@ -103,11 +104,12 @@ La app lo busca en `https://stickerazo.<tu subdominio>.workers.dev` (`web/comuni
   una sola vez (`/api/evento`). Sus stickers giran pegados a un termo 3D (hecho con IA, mostrado con Three.js; si no hay
   WebGL, uno de CSS) y a los que recién bajan la app se los recomendamos primero en «Para vos». Tienen la insignia del termo.
 - **Ocultar** un pack propio de la comunidad sin borrarlo, **sacarlo** del servidor, y **«No me interesa»** para los ajenos.
-- **Música de tu país**: géneros de cada país y un buscador; suena en el reproductor oficial de YouTube, flotando y movible,
-  como un tocadiscos: el video es la tapa y el vinilo, con la portada, sale por arriba y gira mientras suena. Con ▾ se
-  achica a un disquito abajo que no molesta; achicado queda **en pausa** y al tocarlo sigue, porque YouTube no permite
-  que suene con el reproductor escondido o de menos de 200×200 (si lo hiciéramos, cortan el acceso y las tiendas
-  rechazan la app). Música sonando de fondo con el disco chico sólo se puede con canciones propias o con licencia.
+- **Música de tu país**: géneros de cada país y un buscador. Suena en la esquina de abajo: un disco que gira con la
+  portada, una **X** arriba para cerrarla y el disco mismo como botón de **pausa** (sin título, sin arrastrar, sin más
+  botones). Mientras suena, al lado del disco se ve el reproductor oficial de YouTube de 200×200, porque YouTube no
+  permite que suene escondido o más chico (si lo hiciéramos, cortan el acceso y las tiendas rechazan la app; nada se
+  pone encima del video). En pausa el video se esconde y queda sólo el disco quieto: al tocarlo sigue. Música sonando
+  de fondo sin el video sólo se puede con canciones propias o con licencia. Prueba: `pruebas/musica_disco.mjs`.
 - **Modo claro, oscuro o como el celular**, con un círculo que se abre desde el dedo al cambiarlo.
 - **Perfil animado**: sus stickers flotando en la portada, un anillo de colores que gira y los números que suben.
 - **Foto y portada propias**: se eligen de la galería, se recortan al centro en el celu (foto 400×400, portada

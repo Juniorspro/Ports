@@ -24,30 +24,32 @@ async function celu(c, nombre) {
 }
 const A = await celu(ra, 'ana'), B = await celu(rb, 'beto');
 // ---- @ana publica con una foto ----
-await A.p.click('#feedSeg [data-m="social"]'); await A.p.waitForSelector('.soNuevo'); await espera(400);
-await A.p.click('.soNuevo'); await A.p.waitForSelector('#poTxt'); await A.p.fill('#poTxt', '¡Mi primera publicación en Stickerazo!');
+await A.p.click('#tabs [data-t="Social"]'); await A.p.waitForSelector('#socialLista .soNuevo'); await espera(400);
+await A.p.click('#socialLista .soNuevo'); await A.p.waitForSelector('#poTxt'); await A.p.fill('#poTxt', '¡Mi primera publicación en Stickerazo!');
 const [fc] = await Promise.all([A.p.waitForEvent('filechooser'), A.p.click('[data-po="foto"]')]); await fc.setFiles('/tmp/claude-0/sz_fotos/burger.jpg');
 await A.p.waitForSelector('#poMedia .poIt'); await A.foto('publicar');
 await A.p.click('.hojaPost [data-x="1"]'); await A.p.waitForSelector('.soPost .soMedia img'); await espera(600);
 ok(/primera publicación/.test(await A.p.textContent('.soPost .soTxt')), '@ana publicó: aparece arriba de todo, con la foto'); await A.foto('social');
 // ---- @beto la ve, le da me gusta y le pide amistad ----
-await B.p.click('#feedSeg [data-m="social"]'); await B.p.waitForSelector('.soPost'); await espera(400);
+await B.p.click('#tabs [data-t="Social"]'); await B.p.waitForSelector('#socialLista .soPost'); await espera(400);
 await B.p.click('.soPost .soLike'); await espera(500);
-ok((await B.p.textContent('.soPost .soLike span')) === '1' && await B.p.evaluate(() => document.querySelector('.soPost .soLike').classList.contains('si')), '@beto la ve en «Social» y le da me gusta'); await B.foto('social_like');
+ok((await B.p.textContent('.soPost .soLike span')) === '1' && await B.p.evaluate(() => document.querySelector('.soPost .soLike').classList.contains('si')), '@beto la ve en la pestaña Comunidad y le da me gusta'); await B.foto('social_like');
 await B.p.click('.soPost .autor'); await B.p.waitForSelector('#vUsuario [data-amistad]'); await espera(400); await B.foto('perfil_ana');
 await B.p.click('#vUsuario [data-amistad]'); await espera(500);
 ok((await B.p.getAttribute('#vUsuario [data-amistad]', 'data-amistad')) === 'enviado', 'en el perfil de @ana: «Agregar amigo» → «Pedido enviado»');
 // ---- @ana: el aviso en el botón del chat, acepta ----
 await A.p.reload(); await A.p.waitForFunction(() => window.__sz); await espera(2000); await A.p.evaluate(() => { for (const x of document.querySelectorAll('.musicaEl')) x.remove(); });
-ok(await A.p.evaluate(() => { const b = document.querySelector('#botonChat .badge'); return b && !b.classList.contains('oc') && b.textContent === '1'; }), '@ana tiene un aviso en el botón del chat (el pedido)');
-await A.p.click('#botonChat'); await A.p.waitForSelector('[data-acepta]'); await espera(300); await A.foto('chat_pedido');
+ok(await A.p.evaluate(() => { const b = document.querySelector('#tabs [data-t="Chat"] .badge'); return b && !b.classList.contains('oc') && b.textContent === '1'; }), '@ana tiene un aviso en el botón «Chat» de abajo (el pedido)');
+await A.p.click('#tabs [data-t="Chat"]'); await A.p.waitForSelector('[data-acepta]'); await espera(300); await A.foto('chat_pedido');
 await A.p.click('[data-acepta]'); await A.p.waitForSelector('[data-chat]'); await espera(300);
 ok(await A.p.isVisible('[data-chat]'), 'acepta: ahora @beto está en sus chats'); await A.foto('chat_lista');
 // ---- chatean ----
 await A.p.click('[data-chat]'); await A.p.waitForSelector('#cvTxt'); await A.p.fill('#cvTxt', '¡Hola Beto! ¿Todo bien?'); await A.p.press('#cvTxt', 'Enter'); await A.p.waitForSelector('.cvMsg.mio');
 ok(/Hola Beto/.test(await A.p.textContent('.cvMsg.mio')), '@ana le escribe');
-await B.p.evaluate(() => window.__sz.ir('vInicio', true)); await B.p.click('#botonChat'); await B.p.waitForSelector('[data-chat]'); await espera(300);
+await B.p.evaluate(() => window.__sz.ir('vInicio', true)); await B.p.click('#tabs [data-t="Chat"]'); await B.p.waitForSelector('[data-chat]'); await espera(300);
 ok(/1/.test(await B.p.textContent('[data-chat] .chSinLeer').catch(() => '')), '@beto ve el chat con 1 sin leer');
+await B.p.click('[data-chat]'); await B.p.waitForSelector('#cvTxt'); await B.p.click('#vConv .volver'); await espera(400);
+ok(await B.p.evaluate(() => window.__sz.E.vista === 'vInicio' && window.__sz.E.tab === 'Chat' && !document.querySelector('#tabChat').classList.contains('oc')), 'volver desde una conversación: a la pestaña Chat');
 await B.p.click('[data-chat]'); await B.p.waitForSelector('.cvMsg:not(.mio)'); ok(/Hola Beto/.test(await B.p.textContent('.cvMsg:not(.mio)')), '@beto lee el mensaje');
 await B.p.click('#cvSt'); await B.p.waitForSelector('.hojaPega button[data-pega="risa"]'); await espera(300); await B.foto('stickers_chat');
 await B.p.click('.hojaPega button[data-pega="risa"]'); await B.p.waitForSelector('.cvMsg.mio .cvPega canvas'); await B.foto('conversacion');

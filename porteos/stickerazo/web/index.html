@@ -13,7 +13,7 @@
 <div id="app">
   <!-- inicio: crear y los packs -->
   <section id="vInicio" class="vista">
-    <header class="cab cabInicio"><div class="logo"><span>Sticker</span><b>azo</b></div><button class="botonChat" id="botonChat" aria-label="Chat"><i data-i="globo"></i><b class="badge oc"></b></button><button class="botonMusica" id="botonMusica" aria-label="Música"><i data-i="musica"></i></button></header>
+    <header class="cab cabInicio"><div class="logo"><span>Sticker</span><b>azo</b></div><button class="botonMusica" id="botonMusica" aria-label="Música"><i data-i="musica"></i></button></header>
     <div class="contenido" id="tabFeed">
       <div id="tirar" class="tirar"><div class="rueda"></div></div>
       <button class="buscarFalso" id="irBuscar"><i data-i="lupa"></i><span>Buscá memes, packs, emojis…</span></button>
@@ -21,7 +21,7 @@
       <button class="eventoCard oc" id="eventoCard"></button>
       <div class="historias" id="historias"></div>
       <div class="banners" id="banners"></div>
-      <div class="seg" id="feedSeg"><button data-m="para-vos" class="act">Para vos</button><button data-m="nuevos">Nuevos</button><button data-m="siguiendo">Seguidos</button><button data-m="social">Social</button></div>
+      <div class="seg" id="feedSeg"><button data-m="para-vos" class="act">Para vos</button><button data-m="nuevos">Nuevos</button><button data-m="siguiendo">Seguidos</button></div>
       <div id="feedLista" class="feedLista"></div>
     </div>
     <div class="contenido oc" id="tabCrear">
@@ -43,9 +43,17 @@
       <h2 style="margin-top:8px">Mis packs</h2>
       <div id="packs" class="packs"></div>
     </div>
+    <div class="contenido oc" id="tabSocial">
+      <h2 class="tabTit">Comunidad</h2>
+      <div id="socialLista" class="feedLista"></div>
+    </div>
+    <div class="contenido oc" id="tabChat">
+      <h2 class="tabTit">Chat</h2>
+      <div id="chCont"></div>
+    </div>
     <div class="contenido oc" id="tabPerfil"></div>
     <nav class="tabs" id="tabs">
-      <button data-t="Feed"><i data-i="casa"></i>Inicio</button><button data-t="Listos"><i data-i="lupa"></i>Buscar</button><button data-t="Crear" class="centro" aria-label="Crear"><span><i data-i="mas"></i></span></button><button data-t="Mios"><i data-i="carpeta"></i>Mis packs</button><button data-t="Perfil"><i data-i="persona"></i>Perfil</button>
+      <button data-t="Feed"><i data-i="casa"></i>Inicio</button><button data-t="Listos"><i data-i="lupa"></i>Buscar</button><button data-t="Social"><i data-i="gente"></i>Comunidad</button><button data-t="Crear" class="centro" aria-label="Crear"><span><i data-i="mas"></i></span></button><button data-t="Chat"><i data-i="globo"></i>Chat<b class="badge oc"></b></button><button data-t="Mios"><i data-i="carpeta"></i>Packs</button><button data-t="Perfil"><i data-i="persona"></i>Perfil</button>
     </nav>
   </section>
   <!-- recortar la foto -->
@@ -113,11 +121,7 @@
     </footer>
   </section>
   <!-- un perfil -->
-  <!-- el chat: tus chats y los pedidos de amistad; y una conversación (red.js) -->
-  <section id="vChat" class="vista oc">
-    <header class="cab"><button class="ico volver" aria-label="Volver"><i data-i="atras"></i></button><h1>Chat</h1></header>
-    <div class="contenido" id="chCont"></div>
-  </section>
+  <!-- una conversación del chat (la lista de chats es la pestaña «Chat»: red.js) -->
   <section id="vConv" class="vista oc">
     <header class="cab"><button class="ico volver" aria-label="Volver"><i data-i="atras"></i></button><span class="cvAv" id="cvAv"></span><h1 id="cvNombre" class="cvNombre"></h1><button class="ico" id="cvMenu" aria-label="Más"><i data-i="puntos"></i></button></header>
     <div class="cvLista" id="cvLista"></div>

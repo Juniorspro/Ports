@@ -1,6 +1,6 @@
 // Las imágenes de la ficha de Google Play, sacadas de la app de verdad (la página, el servidor de la comunidad sobre
 // SQLite y cinco cuentas de ejemplo que publican packs listos: nada de fotos de nadie):
-//   capturas/1…6.png  1080×1920, la pantalla en un celular con un título arriba
+//   capturas/1…8.png  1080×1920, la pantalla en un celular con un título arriba (las 8 que van a la tienda)
 //   grafico.png       1024×500, el «gráfico de funciones» (arriba de todo en la ficha)
 //   icono.png         512×512 con canal alfa (el ícono de la tienda)
 //   y las pantallas sueltas (sin marco) en sitio/a/capturas/*.webp, para la página web
@@ -21,7 +21,8 @@ const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 
 async function celular(nombre, cuenta) {
   const ctx = await b.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true }), p = await ctx.newPage();
-  await p.addInitScript((u) => { window.SZ_API = u; try { localStorage.setItem('sz_bienvenida', '1'); localStorage.setItem('sz_pais', 'ar'); } catch (e) { /* nada */ } }, API);
+  await p.addInitScript(() => { window.seVe = (i) => { const r = i.getBoundingClientRect(); return r.width > 0 && r.top < innerHeight && r.bottom > 0 && r.left < innerWidth && r.right > 0; }; });
+  await p.addInitScript((u) => { window.SZ_API = u; try { localStorage.setItem('sz_bienvenida', '1'); localStorage.setItem('sz_pais', 'ar'); localStorage.setItem('sz_oferta_vista', String(Date.now())); } catch (e) { /* nada */ } }, API);
   p.on('pageerror', (e) => errores.push(nombre + ': ' + e.message));
   p.on('console', (m) => { if (m.type() === 'error' && !/^INFO:/.test(m.text())) errores.push(nombre + ' consola: ' + m.text().slice(0, 200)); });
   await p.goto(`${W}/index.html`); await p.waitForFunction(() => window.__sz && document.fonts.status === 'loaded');
@@ -57,19 +58,38 @@ console.log('comunidad de ejemplo:', gente.map((g) => '@' + g.nombre).join(' '))
 {
   const g = gente[1], sube = (que, f) => fetch(`${API}/api/yo/${que}`, { method: 'PUT', headers: { 'Content-Type': 'image/webp', Authorization: 'Bearer ' + g.token }, body: fs.readFileSync(f) });
   for (const [que, f] of [['foto', WEB + 'memes/gatos_04.webp'], ['portada', WEB + 'banners/latam.webp']]) { const r = await sube(que, f); if (!r.ok) { console.log('no se pudo subir la', que, r.status); process.exitCode = 1; } }
-  await fetch(`${API}/api/yo`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + g.token }, body: JSON.stringify({ bio: 'Mate, facturas y stickers 🧉 Rosario' }) });
+  await fetch(`${API}/api/yo`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + g.token }, body: JSON.stringify({ bio: 'Mate, facturas y stickers · Rosario' }) });
   // (y los otros cuatro la siguen)
   const idUsuario = (await (await fetch(`${API}/api/usuarios/${g.nombre}`)).json()).usuario.id;
   for (const o of gente) if (o !== g) await fetch(`${API}/api/usuarios/${idUsuario}/seguir`, { method: 'POST', headers: { Authorization: 'Bearer ' + o.token } });
+}
+
+// ---- «Comunidad» y «Chat» de ejemplo: tres publicaciones (un sticker del pack de @tano.gol, una foto de los memes —de
+// dominio público— y un texto), algunos me gusta, y una charla entre @la.flaca y @tano.gol con texto y pegatinas ----
+{
+  const conToken = (g, metodo, ruta, cuerpo) => fetch(`${API}${ruta}`, { method: metodo, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + g.token }, body: cuerpo ? JSON.stringify(cuerpo) : undefined })
+    .then(async (r) => { if (!r.ok) { console.log(metodo, ruta, r.status, (await r.text()).slice(0, 120)); process.exitCode = 1; return null; } return r.json(); });
+  const [flaca, tano, mili] = [gente[1], gente[2], gente[3]], idDe = async (g) => (await (await fetch(`${API}/api/usuarios/${g.nombre}`)).json()).usuario.id;
+  const pk = await (await fetch(`${API}/api/packs/${tano.id}`)).json(), uno = (pk.pack || pk).stickers[0];
+  const st = Buffer.from(await (await fetch(typeof uno === 'string' ? uno : uno.url || `${API}/m/${tano.id}/${uno.archivo}`)).arrayBuffer()).toString('base64');
+  await conToken(mili, 'POST', '/api/social/posts', { texto: '¿Quién se suma a hacer el pack del grupo de la facu? Tengo fotos de todos', media: [] });
+  await conToken(flaca, 'POST', '/api/social/posts', { texto: 'Sábado de mate y facturas. Ya tengo sticker para el grupo de la familia', media: [{ tipo: 'img', datos: fs.readFileSync(WEB + 'memes/morfi_03.webp').toString('base64') }] });
+  const pt = await conToken(tano, 'POST', '/api/social/posts', { texto: '¡Qué partido el de anoche! Hice el pack en dos minutos', media: [{ tipo: 'st', datos: st }] });
+  if (pt) for (const g of [gente[0], flaca, mili, gente[4]]) await conToken(g, 'POST', `/api/social/posts/${pt.post.id}/like`);
+  const idFlaca = await idDe(flaca), idTano = await idDe(tano);
+  await conToken(tano, 'POST', `/api/amigos/${idFlaca}`); await conToken(flaca, 'POST', `/api/amigos/${idTano}`);
+  for (const [g, para, m] of [[tano, idFlaca, { texto: '¿Viste el pack de fútbol que subí?' }], [flaca, idTano, { texto: '¡Sí! El de la atajada está buenísimo' }], [tano, idFlaca, { st: { tipo: 'pega', id: 'g_jaja' } }],
+    [flaca, idTano, { texto: 'Mañana armamos uno del grupo de la facu' }], [flaca, idTano, { st: { tipo: 'pega', id: 'mate' } }], [tano, idFlaca, { texto: 'De una, llevo las fotos' }]]) { await conToken(g, 'POST', `/api/chat/${para}`, m); await espera(60); }
+  console.log('comunidad y chat de ejemplo: 3 publicaciones y 6 mensajes');
 }
 
 // ---- las pantallas ----
 const crudas = {};
 const V = await celular('V');   // (sin cuenta: el servidor deja 5 cuentas por día por conexión)
 await V.p.click('#tabs [data-t="Feed"]'); await V.p.waitForSelector('#feedLista .tf:not(.esq) .tfGrilla img');
-await V.p.waitForFunction(() => [...document.querySelectorAll('#feedLista .tf:not(.esq) img')].slice(0, 12).every((i) => i.complete && i.naturalWidth > 0));
+await V.p.waitForFunction(() => [...document.querySelectorAll('#feedLista .tf:not(.esq) img')].filter(seVe).every((i) => !i.dataset.l && i.complete && i.naturalWidth > 0));   // (las que se ven: las de más abajo cargan al bajar)
 await espera(1500); crudas.feed = await V.cruda('feed');   // (que terminen de aparecer las tarjetas)
-await V.p.click('#tabs [data-t="Crear"]'); await V.p.waitForFunction(() => [...document.querySelectorAll('#portada img, #carrusel img')].every((i) => i.complete && i.naturalWidth > 0));
+await V.p.click('#tabs [data-t="Crear"]'); await V.p.waitForFunction(() => [...document.querySelectorAll('#portada img, #carrusel img')].filter(seVe).every((i) => !i.dataset.l && i.complete && i.naturalWidth > 0));
 crudas.crear = await V.cruda('crear');
 // un sticker de sólo texto, con filete
 await V.p.click('#bTexto'); await V.p.waitForSelector('#tTx'); await V.p.fill('#tTx', '¡QUÉ\nGENIO!');
@@ -81,23 +101,30 @@ await V.ctx.close();
 // el perfil de @la.flaca (con su cuenta) y el termo del evento, ya sorteado
 {
   const F = await (async () => { const ctx = await b.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true }), p = await ctx.newPage();
-    await p.addInitScript(([u, c]) => { window.SZ_API = u; localStorage.setItem('sz_bienvenida', '1'); localStorage.setItem('sz_pais', 'ar'); localStorage.setItem('sz_cuenta', c); }, [API, gente[1].cuenta]);
+    await p.addInitScript(() => { window.seVe = (i) => { const r = i.getBoundingClientRect(); return r.width > 0 && r.top < innerHeight && r.bottom > 0 && r.left < innerWidth && r.right > 0; }; });
+    await p.addInitScript(([u, c]) => { window.SZ_API = u; localStorage.setItem('sz_bienvenida', '1'); localStorage.setItem('sz_pais', 'ar'); localStorage.setItem('sz_oferta_vista', String(Date.now())); localStorage.setItem('sz_cuenta', c); }, [API, gente[1].cuenta]);
     p.on('pageerror', (e) => errores.push('F: ' + e.message));
     await p.goto(`${W}/index.html`); await p.waitForFunction(() => window.__sz && document.fonts.status === 'loaded');
     return { p, ctx, cruda: async (n) => { await espera(500); const f = `${CRUDAS}/${n}.png`; await p.screenshot({ path: f }); return f; } }; })();
   await F.p.click('#tabs [data-t="Perfil"]'); await F.p.waitForSelector('#tabPerfil .arroba');
-  await F.p.waitForFunction(() => [...document.querySelectorAll('#tabPerfil img')].every((i) => i.complete && i.naturalWidth > 0)); await espera(1800);
+  await F.p.waitForFunction(() => [...document.querySelectorAll('#tabPerfil img')].filter(seVe).every((i) => !i.dataset.l && i.complete && i.naturalWidth > 0)); await espera(1800);
   crudas.perfil = await F.cruda('perfil');
   await F.p.click('#tabs [data-t="Feed"]'); await F.p.waitForSelector('#eventoCard:not(.oc)'); await espera(800);
-  await F.p.waitForFunction(() => [...document.querySelectorAll('#tabFeed img, #historias img')].slice(0, 12).every((i) => i.complete && i.naturalWidth > 0));
+  await F.p.waitForFunction(() => [...document.querySelectorAll('#tabFeed img, #historias img')].slice(0, 12).filter(seVe).every((i) => !i.dataset.l && i.complete && i.naturalWidth > 0));
   crudas.inicio = await F.cruda('inicio');
+  await F.p.click('#tabs [data-t="Social"]'); await F.p.waitForSelector('#socialLista .soPost .soMedia img');
+  await F.p.waitForFunction(() => [...document.querySelectorAll('#socialLista img')].filter(seVe).every((i) => !i.dataset.l && i.complete && i.naturalWidth > 0)); await espera(900);
+  crudas.social = await F.cruda('social');
+  await F.p.click('#tabs [data-t="Chat"]'); await F.p.waitForSelector('[data-chat]'); await F.p.click('[data-chat]'); await F.p.waitForSelector('.cvMsg .cvPega canvas'); await espera(900);
+  crudas.chat = await F.cruda('chat');
+  await F.p.evaluate(() => window.__sz.atras()); await F.p.click('#tabs [data-t="Feed"]'); await F.p.waitForSelector('#eventoCard:not(.oc)'); await espera(600);
   await F.p.click('#eventoCard'); await F.p.waitForSelector('.termoEv'); await espera(3500);
   crudas.termo = await F.cruda('termo');
   await F.ctx.close();
 }
 // los packs listos y uno agregado, listo para WhatsApp
 const L = await celular('L');
-await L.p.click('#tabs [data-t="Listos"]'); await L.p.waitForFunction(() => [...document.querySelectorAll('#listos img')].slice(0, 15).every((i) => i.complete && i.naturalWidth > 0));
+await L.p.click('#tabs [data-t="Listos"]'); await L.p.waitForFunction(() => [...document.querySelectorAll('#listos img')].slice(0, 15).filter(seVe).every((i) => !i.dataset.l && i.complete && i.naturalWidth > 0));
 await L.E(() => document.querySelector('#tabListos').scrollTo(0, 0)); crudas.listos = await L.cruda('listos');
 await agregarListo(L, 'respuestas'); await sinAviso(L);
 crudas.pack = await L.cruda('pack');
@@ -120,13 +147,13 @@ await L.ctx.close();
 // ---- el armado: la pantalla en un celular, con su título ----
 const TEXTOS = [
   ['crear', 'Stickers<br><em>al toque</em>', 'Con una foto, un texto o la cámara. Sin vueltas.'],
-  ['editor', 'Letras con<br><em>mucha onda</em>', 'Filete, globitos, emojis y 5 tipografías para decir lo que quieras.'],
+  ['editor', 'Un editor<br><em>de verdad</em>', 'Capas, formas, neón, más de 70 pegatinas y más de 150 letras.'],
   ['animar', 'Que se<br><em>muevan</em>', '10 animaciones de un toque: latido, temblor, rebote…'],
-  ['feed', 'La comunidad<br><em>más argenta</em>', 'Seguí, dale me gusta y bajate los mejores packs.'],
+  ['social', 'Una comunidad<br><em>para compartir</em>', 'Publicá fotos, stickers y videos cortos.'],
+  ['chat', 'Chateá con<br><em>tus amigos</em>', 'Mandate stickers y pegatinas. Sólo te escriben tus amigos.'],
+  ['feed', 'Los mejores<br><em>packs</em>', 'Seguí, dale me gusta y bajate los que más te copen.'],
   ['pack', 'Del celu<br><em>al grupo</em>', 'Armás el pack y con un toque lo sumás a WhatsApp.'],
-  ['listos', 'Packs<br><em>listos</em>', 'Mate, fútbol, asado, laburo… para usar o cambiar.'],
-  ['perfil', 'Tu perfil,<br><em>tu onda</em>', 'Tu foto, tu portada y tus packs. Seguí a quien quieras.'],
-  ['termo', 'El termo de<br><em>los elegidos</em>', 'Publicá tu pack: el termo elige 5 y los recomendamos a todos.'],
+  ['perfil', 'Tu perfil,<br><em>tu onda</em>', 'Tu foto, tu portada, tus packs y tu canción.'],
 ];
 const FONDO = `background:#000;background-image:radial-gradient(60% 38% at 12% 8%,rgba(255,62,138,.55),transparent 70%),radial-gradient(50% 32% at 95% 18%,rgba(255,210,63,.32),transparent 70%),radial-gradient(75% 45% at 50% 105%,rgba(124,77,255,.5),transparent 70%)`;
 const FUENTE = `@font-face{font-family:L;src:url(${W}/fuentes/LuckiestGuy.ttf)}`;
@@ -156,7 +183,7 @@ await arm.setContent(`<!doctype html><html><head><style>${FUENTE}
   .der{position:absolute;left:478px;top:28px;width:520px;height:444px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr;gap:10px}
   .der div{display:flex;align-items:center;justify-content:center}
   .der img{max-width:150px;max-height:170px;filter:drop-shadow(0 10px 14px rgba(0,0,0,.6))}
-</style></head><body><div class="izq"><div class="logo"><span>Sticker</span><b>azo</b></div><div class="lema">Tus stickers, al toque 🔥</div></div>
+</style></head><body><div class="izq"><div class="logo"><span>Sticker</span><b>azo</b></div><div class="lema">Tus stickers, al toque</div></div>
 <div class="der">${figus.slice(0, 6).map((s, k) => `<div style="transform:translateY(${[0, 18, -6, 10, -14, 6][k]}px) rotate(${[-8, 6, -4, 7, -6, 9][k]}deg)"><img src="${s}"></div>`).join('')}</div></body></html>`);
 await arm.evaluate(() => document.fonts.ready); await espera(150);
 const fuera = await arm.evaluate(() => [...document.querySelectorAll('.logo,.lema,.der img')].filter((e) => { const r = e.getBoundingClientRect(); return r.left < 8 || r.top < 8 || r.right > 1016 || r.bottom > 492; }).length);

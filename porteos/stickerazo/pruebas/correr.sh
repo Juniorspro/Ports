@@ -11,6 +11,7 @@ echo "== actualizaciones solas"; rm -rf "$B/ota" && java -Dstdout.encoding=UTF-8
 echo "== APK nuevo (bajada)"; rm -rf "$B/apk" && java -Dstdout.encoding=UTF-8 -cp "$B/clases" PruebaApkBajada "$B/apk" 2>&1 | grep -E "FALLA|RESUMEN"
 echo "== editor pro";    (cd "$AQUI" && node editor_pro.mjs 2>&1 | grep -E "FALLA|RESUMEN" && node editor_kf.mjs 2>&1 | grep -E "FALLA|RESUMEN" && node editor_pega.mjs 2>&1 | grep -E "FALLA|RESUMEN")
 echo "== perfil (canción y avatar)"; (cd "$AQUI" && node perfil_cancion.mjs 2>&1 | grep -E "FALLA|RESUMEN")
+echo "== la música (el disco de la esquina)"; (cd "$AQUI" && node musica_disco.mjs 2>&1 | grep -E "FALLA|RESUMEN")
 echo "== celular flojo"; (cd "$AQUI" && node liviano.mjs 2>&1 | grep -E "FALLA|RESUMEN")
 echo "== navegador";     (cd "$AQUI" && node app.mjs "$FOTOS" | grep -E "FALLA|TODO|errores")
 echo "== como la app";   (cd "$AQUI" && MODO=app node app.mjs "$FOTOS" /tmp/claude-0/sz_app_android 2>&1 | grep -v "Picked up" | grep -E "FALLA|TODO|errores")

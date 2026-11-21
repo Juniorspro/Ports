@@ -1,7 +1,7 @@
 // La zona social (publicaciones y amigos) y el chat, del lado de la app (el servidor: servidor/social.js).
-// - En el inicio, «Social»: lo que publica la gente (o sólo tus amigos), con me gusta y denuncias; «¿Qué contás?» abre
-//   para publicar texto con hasta 4 fotos, stickers tuyos o videos cortos (sin sonido: se vuelven un sticker animado).
-// - El botón del chat (arriba, con los no leídos): tus chats y los pedidos de amistad. Sólo se chatea con amigos, con
+// - La pestaña «Comunidad» (abajo): lo que publica la gente (o sólo tus amigos), con me gusta y denuncias; «¿Qué contás?»
+//   abre para publicar texto con hasta 4 fotos, stickers tuyos o videos cortos (sin sonido: se vuelven un sticker animado).
+// - La pestaña «Chat» (abajo, con los no leídos): tus chats y los pedidos de amistad. Sólo se chatea con amigos, con
 //   texto, pegatinas o tus stickers. Los mensajes de otro se denuncian con un toque largo.
 import { api, cuenta, API, avatarHTML, hace, pedirCuenta } from './comunidad.js';
 import * as P from './puente.js';
@@ -151,10 +151,20 @@ async function tocarAmistad(b) {
   } catch (e) { X.aviso(e.message); }
 }
 
+// la pestaña «Comunidad»: se carga la primera vez y, al volver, si pasaron 2 minutos
+export function tabSocial() {
+  const L = X.$('#socialLista'); if (!L.children.length || Date.now() - (S.t || 0) > 120000) { S.t = Date.now(); cargarSocial(L, true); }
+}
+
 // ================= CHAT =================
-export async function abrirChat() {
-  if (!cuenta()) return pedirCuenta('Entrá para chatear con tus amigos');
-  X.ir('vChat'); pintarChat();
+// (la pestaña «Chat»; sin cuenta, la invitación a entrar ahí mismo)
+export function tabChat() {
+  if (!cuenta()) { const c = X.$('#chCont'); c.innerHTML = vacio('ojitos', 'Entrá para chatear', 'Con tu cuenta sumás amigos y les mandás stickers.').replace(/<\/div>$/, '<button class="pri" data-ir-perfil="1">Entrar</button></div>'); X.iconos(c); return; }
+  pintarChat();
+}
+export function abrirChat() {
+  if (X.E.vista !== 'vInicio') X.ir('vInicio', true);
+  X.pestaña('Chat');
 }
 const filaPersona = (u, extra, attrs) => `<div class="chFila" ${attrs}>${avatarHTML(u.avatar)}<span class="chTxt"><b>@${X.h(u.nombre)}</b>${extra}</span></div>`;
 async function pintarChat() {
@@ -171,7 +181,7 @@ async function pintarChat() {
 let C_CHATS = [];
 document.addEventListener('click', async (ev) => {
   const am = ev.target.closest('[data-amistad]'); if (am) return tocarAmistad(am);
-  if (ev.target.closest('#botonChat')) { X.vibrar(8); return abrirChat(); }
+  if (ev.target.closest('#chCont [data-ir-perfil], #socialLista [data-ir-perfil]')) return X.pestaña('Perfil');
   const ac = ev.target.closest('[data-acepta],[data-rechaza]');
   if (ac) { const id = ac.dataset.acepta || ac.dataset.rechaza; try { await api(`/api/amigos/${id}`, { method: ac.dataset.acepta ? 'POST' : 'DELETE' }); X.aviso(ac.dataset.acepta ? '¡Ahora son amigos!' : 'Rechazado'); } catch (e) { X.aviso(e.message); } return pintarChat(); }
   const ch = ev.target.closest('[data-chat]'); if (ch) { const x = C_CHATS.find((y) => y.id === ch.dataset.chat); return abrirConv(x || { id: ch.dataset.chat, nombre: ch.dataset.nombre, avatar: {} }); }
@@ -231,14 +241,14 @@ function menuConv() {
     const a = ev.target.closest('[data-a]'); if (!a) { if (ev.target.closest('[data-x]') || ev.target === m) X.cerrarModal(); return; }
     X.cerrarModal();
     if (a.dataset.a === 'perfil') return X.abrirUsuario(u.nombre);
-    if (a.dataset.a === 'quitar') { if (!(await X.confirmar(`¿Dejar de ser amigo de @${u.nombre}? Ya no van a poder chatear.`, 'Dejar'))) return; try { await api(`/api/amigos/${u.id}`, { method: 'DELETE' }); X.aviso('Listo'); X.ir('vChat', true); pintarChat(); } catch (e) { X.aviso(e.message); } return; }
+    if (a.dataset.a === 'quitar') { if (!(await X.confirmar(`¿Dejar de ser amigo de @${u.nombre}? Ya no van a poder chatear.`, 'Dejar'))) return; try { await api(`/api/amigos/${u.id}`, { method: 'DELETE' }); X.aviso('Listo'); abrirChat(); } catch (e) { X.aviso(e.message); } return; }
     if (!(await X.confirmar(`¿Bloquear a @${u.nombre}? No te va a poder escribir ni ver tus publicaciones.`, 'Bloquear'))) return;
-    try { await api(`/api/usuarios/${u.id}/bloquear`, { method: 'POST' }); X.aviso(`Bloqueaste a @${u.nombre}`); X.ir('vChat', true); pintarChat(); } catch (e) { X.aviso(e.message); }
+    try { await api(`/api/usuarios/${u.id}/bloquear`, { method: 'POST' }); X.aviso(`Bloqueaste a @${u.nombre}`); abrirChat(); } catch (e) { X.aviso(e.message); }
   };
 }
 // ---- los no leídos y los pedidos, en el botón de arriba (cada 30 s con la app a la vista) ----
 export async function novedades() {
-  const b = document.querySelector('#botonChat .badge'); if (!b) return;
+  const b = document.querySelector('#tabs [data-t="Chat"] .badge'); if (!b) return;
   if (!cuenta()) { b.classList.add('oc'); return; }
   try { const r = await api('/api/chat/novedades'), n = (r.mensajes || 0) + (r.pedidos || 0); b.textContent = n > 9 ? '9+' : String(n); b.classList.toggle('oc', !n); } catch (e) { /* sin conexión */ }
 }
@@ -252,6 +262,10 @@ export function iniciarRed(x) {
   let largo = 0; const lista = X.$('#cvLista');
   lista.addEventListener('pointerdown', (ev) => { const mm = ev.target.closest('.cvMsg:not(.mio)'); if (!mm) return; clearTimeout(largo); largo = setTimeout(() => { X.vibrar(15); denunciar('¿Por qué denunciás este mensaje?', `/api/chat/mensaje/${mm.dataset.msg}/reportar`); }, 550); });
   for (const e of ['pointerup', 'pointercancel', 'pointerleave']) lista.addEventListener(e, () => clearTimeout(largo));
+  // (la pestaña «Comunidad»: sus toques —publicar, me gusta, el menú, el perfil del autor— y más al llegar abajo)
+  const so = X.$('#socialLista'), tso = X.$('#tabSocial');
+  so.addEventListener('click', async (ev) => { if (await clickSocial(ev, so)) return; const au = ev.target.closest('[data-u]'); if (au && X.abrirUsuario) X.abrirUsuario(au.dataset.u); });
+  tso.addEventListener('scroll', () => { if (tso.scrollTop + tso.clientHeight > tso.scrollHeight - 600) cargarSocial(so, false); }, { passive: true });
   novedades(); setInterval(() => { if (!document.hidden) novedades(); }, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) novedades(); });
 }

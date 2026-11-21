@@ -109,7 +109,9 @@ const recorte = () => (R ||= import('./recorte.js').then(async (m) => { await m.
 let tAviso = 0;
 function aviso(texto, ms = 2800) {
   // justo arriba de los botones de abajo de la pantalla (que no tape lo que se acaba de hacer)
-  const a = $('#aviso'), piso = (hayModal() && $('#modal .hoja')) || $(`#${E.vista} .pie, #${E.vista} .barra, #${E.vista} .tabs`), arriba = piso ? piso.getBoundingClientRect().top : window.innerHeight - 16;
+  const a = $('#aviso'), piso = (hayModal() && $('#modal .hoja')) || $(`#${E.vista} .pie, #${E.vista} .barra, #${E.vista} .tabs`), rf = document.querySelector('.radioFlota');
+  // (y arriba de la música de la esquina, que no tape el video de YouTube ni quede tapado)
+  const arriba = Math.min(piso ? piso.getBoundingClientRect().top : window.innerHeight - 16, rf ? rf.getBoundingClientRect().top : Infinity);
   a.style.bottom = Math.round(window.innerHeight - arriba + 12) + 'px'; a.textContent = texto; a.classList.remove('oc'); clearTimeout(tAviso); tAviso = setTimeout(() => a.classList.add('oc'), ms); }
 function modal(html, opc = {}) {
   const m = $('#modal'); m.innerHTML = html; m.className = 'modal' + (opc.claro ? ' claro' : ''); iconos(m); $('#aviso').classList.add('oc');
@@ -215,8 +217,7 @@ async function atras() {
   } else if (E.vista === 'vPack') { if (E.origenPack) { const o = E.origenPack; E.origenPack = null; return ir(o, true); } E.tab = 'Mios'; ir('vInicio', true); }
   else if (E.vista === 'vPublico') ir(E.origenPublico && E.origenPublico !== 'vPublico' ? E.origenPublico : 'vInicio', true);
   else if (E.vista === 'vUsuario') ir(E.origenUsuario && E.origenUsuario !== 'vUsuario' ? E.origenUsuario : 'vInicio', true);
-  else if (E.vista === 'vConv') ir('vChat', true);
-  else if (E.vista === 'vChat') ir('vInicio', true);
+  else if (E.vista === 'vConv') { ir('vInicio', true); pestaña('Chat'); }
   else if (E.vista === 'vInicio' && E.tab !== 'Feed') pestaña('Feed');
 }
 // el botón «atrás» del celular (Java pregunta: true = lo manejó la app; false = salir)
@@ -1363,11 +1364,11 @@ let feedCargado = 0;
 function pestaña(t) {
   if (t !== E.tab) C.pararCancionPerfil();
   const antes = E.tab; E.tab = t;
-  for (const k of ['Feed', 'Crear', 'Listos', 'Mios', 'Perfil']) { const el = $('#tab' + k); el.classList.toggle('oc', k !== t); if (k === t && antes !== t) { el.classList.remove('aparece'); void el.offsetWidth; el.classList.add('aparece'); } }
+  for (const k of ['Feed', 'Crear', 'Listos', 'Social', 'Chat', 'Mios', 'Perfil']) { const el = $('#tab' + k); el.classList.toggle('oc', k !== t); if (k === t && antes !== t) { el.classList.remove('aparece'); void el.offsetWidth; el.classList.add('aparece'); } }
   for (const b of $('#tabs').children) b.classList.toggle('act', b.dataset.t === t);
   $('#vInicio .cabInicio').classList.toggle('chica', t !== 'Crear');
   if (t === 'Feed') { if (Date.now() - feedCargado > 120000 || !$('#feedLista').children.length) { feedCargado = Date.now(); C.cargarFeed(true); } }
-  else if (t === 'Crear') pintarCarrusel(); else if (t === 'Listos') buscar($('#qBuscar').value); else if (t === 'Perfil') C.pintarPerfil(); else pintarMios();
+  else if (t === 'Crear') pintarCarrusel(); else if (t === 'Listos') buscar($('#qBuscar').value); else if (t === 'Social') C.tabSocial(); else if (t === 'Chat') C.tabChat(); else if (t === 'Perfil') C.pintarPerfil(); else pintarMios();
 }
 $('#tabs').onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; vibrar(6); if (b.dataset.t === E.tab && b.dataset.t === 'Feed') { $('#tabFeed').scrollTo({ top: 0, behavior: 'smooth' }); feedCargado = Date.now(); return C.cargarFeed(true); } pestaña(b.dataset.t); };   // (sin agua: va sólo en los momentos importantes)
 function pintarInicio() { pestaña(E.tab); pintarTopInicio(); }

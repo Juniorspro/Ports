@@ -1,6 +1,6 @@
 # Subir Stickerazo a las tiendas (las gratis primero)
 
-Las cuentas de las tiendas y de AdMob piden **18 años o más** (Google Play, AdMob y el vendedor comercial de Samsung).
+Las cuentas de algunas tiendas y de AdMob piden **18 años o más** (Google Play, AdMob y el vendedor comercial de Samsung).
 Si sos menor, las abre a su nombre tu mamá, tu papá o quien sea tu tutor: la cuenta es de esa persona y los pagos de
 AdMob van a su nombre. Vos podés seguir haciendo la app y manejar la ficha con ella. No mientas la edad: si lo
 descubren, cierran la cuenta y se pierde lo cobrado. Yo no puedo crear cuentas. Todo lo demás ya está listo: los textos
@@ -11,6 +11,7 @@ en [`ficha.md`](ficha.md), las imágenes en `marca/play/` y un APK para cada tie
 | Tienda | Cuánto cuesta | Qué te piden | Qué subís |
 |---|---|---|---|
 | **Nuestra página** | Gratis | Nada | Ya está: **stickerazo.pages.dev** (el APK de `descargas/`) |
+| **APKPure** | Gratis | Una cuenta de APKPure y otra en su consola para desarrolladores | `Stickerazo-0.8-apkpure.apk` |
 | **Uptodown** | Gratis | Una cuenta en su portal para desarrolladores | `Stickerazo-0.7-uptodown.apk` |
 | **Galaxy Store** (Samsung) | Gratis, pero con trámite | Cuenta Samsung, «vendedor comercial» y un número **D-U-N-S** (lo piden para toda app de Android, aunque sea gratis) | el APK de Galaxy |
 | **AppGallery** (Huawei) | Gratis | Cuenta Huawei y verificar tu identidad (foto del documento de los dos lados) | `Stickerazo-0.7-huawei.apk` |
@@ -43,11 +44,25 @@ Para armarlos (las llaves quedan fuera del repo):
 
 ```
 python3 -I herramientas/armar_apk.py SALIDA.apk --version-name 0.7 --canal web --publicar   # el de la página
-python3 -I herramientas/armar_apk.py SALIDA.apk --version-name 0.7 --canal galaxy           # galaxy, huawei o uptodown
+python3 -I herramientas/armar_apk.py SALIDA.apk --version-name 0.7 --canal galaxy           # galaxy, huawei, uptodown o apkpure
 python3 -I herramientas/armar_apk.py SALIDA.apk --version-name 0.7 --aab SALIDA.aab          # Google Play
 ```
 
 ## Paso a paso
+
+### APKPure
+Gratis, y lo revisan en uno o dos días. Pide APK o XAPK de hasta 2 GB.
+1. Creá una cuenta en apkpure.com y después entrá a **developer.apkpure.com** → «Register now». Pide nombre de
+   desarrollador (por ejemplo «Stickerazo»), mail y sitio web (`https://stickerazo.pages.dev`), y un código que te
+   mandan por mail. Si en algún paso te pide ser mayor de edad, la cuenta la abre tu papá a su nombre, como la de PayPal.
+2. «Add application» → nombre **Stickerazo: hacé tus stickers** y paquete **com.stickerazo.app**.
+3. Completá la ficha con `ficha.md`: descripción corta, larga, categoría (Comunicación), etiquetas y la política de
+   privacidad (`https://stickerazo.pages.dev/privacidad`). Imágenes: el ícono `marca/play/icono.png` (512×512), la
+   portada `marca/play/grafico.png` (1024×500) y las 8 capturas de `marca/play/capturas/`.
+4. «Manage versions» → «Select files» → `Stickerazo-0.8-apkpure.apk`. Saca solo el ícono, la versión y el paquete.
+5. «Submit for review». Cuando la aprueban, queda publicada.
+6. Las versiones nuevas: el APK nuevo con el mismo paquete y la misma firma, en «Manage versions». La página de adentro
+   se actualiza sola igual, sin pasar por APKPure.
 
 ### Uptodown (el más fácil)
 1. Entrá al portal para desarrolladores de Uptodown y creá la cuenta.
