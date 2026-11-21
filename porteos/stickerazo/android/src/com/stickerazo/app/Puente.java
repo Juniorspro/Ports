@@ -37,6 +37,10 @@ final class Puente {
     }
 
     @JavascriptInterface public String version() { return app.version(); }
+    // (el APK nuevo: el número de este, de dónde se bajó —web o una tienda— y «Actualizar»)
+    @JavascriptInterface public String codigoApk() { return String.valueOf(app.codigoApk()); }
+    @JavascriptInterface public String canal() { return Actualizador.canal(app); }
+    @JavascriptInterface public void actualizarApp() { app.runOnUiThread(new Runnable() { @Override public void run() { app.actualizarApp(); } }); }
     /** la versión de la página (la del APK o la última actualización que se está usando) */
     @JavascriptInterface public String versionWeb() { return String.valueOf(app.versionWeb()); }
     /** usar ya la versión nueva (vuelve a abrir la página) */

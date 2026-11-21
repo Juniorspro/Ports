@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Stickerazo · Stickers para WhatsApp con tus fotos</title>
+<meta name="description" content="Hacé stickers para WhatsApp con tus fotos: se recortan solos, les ponés letras con onda y los animás de un toque. Gratis, sin marca de agua y tus fotos no salen del celu.">
+<meta name="theme-color" content="#0b0910">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Stickerazo · Tus stickers, al toque">
+<meta property="og:description" content="Stickers para WhatsApp con tus fotos, memes y una comunidad para compartirlos. Gratis.">
+<meta property="og:image" content="https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/a/compartir.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="a/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="a/icono_180.png">
+<link rel="preload" href="a/fuentes/LuckiestGuy.ttf" as="font" type="font/ttf" crossorigin>
+<style>
+@font-face { font-family: L; src: url(a/fuentes/LuckiestGuy.ttf) format('truetype'); font-display: swap; }
+:root {
+  color-scheme: dark;
+  --fondo: #0b0910; --tinta: #f6f3fc; --suave: #b8b1cb; --linea: rgba(255, 255, 255, .1);
+  --rosa: #ff3e8a; --ambar: #ffb21a; --amarillo: #ffd23f; --violeta: #7c4dff; --verde: #3ddc84;
+  --vidrio: rgba(255, 255, 255, .055); --radio: 26px; --ancho: 1120px;
+  --anillo: 3px 0 0 #fff, -3px 0 0 #fff, 0 3px 0 #fff, 0 -3px 0 #fff, 2.1px 2.1px 0 #fff, -2.1px 2.1px 0 #fff, 2.1px -2.1px 0 #fff, -2.1px -2.1px 0 #fff;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--fondo); color: var(--tinta); font: 17px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+}
+/* (lo que sobresale a propósito —stickers, celulares de costado, la cinta— no ensancha la página) */
+main { overflow-x: clip; }
+/* el fondo: manchas de color que se mueven despacito, como en la app */
+body::before {
+  content: ''; position: fixed; inset: -20vmax; z-index: -2; pointer-events: none;
+  background: radial-gradient(40vmax 30vmax at 12% 10%, rgba(255, 62, 138, .32), transparent 70%),
+              radial-gradient(34vmax 26vmax at 92% 16%, rgba(255, 178, 26, .2), transparent 70%),
+              radial-gradient(50vmax 36vmax at 50% 108%, rgba(124, 77, 255, .3), transparent 70%);
+  animation: manchas 26s ease-in-out infinite alternate;
+}
+body::after { /* un granito para que no quede plano */
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+@keyframes manchas { to { transform: translate3d(3vmax, -2vmax, 0) rotate(6deg); } }
+a { color: var(--amarillo); }
+img { max-width: 100%; }
+.envoltura { width: min(var(--ancho), 100% - 32px); margin: 0 auto; }
+
+/* ---- arriba ---- */
+.barra { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); background: rgba(11, 9, 16, .62); border-bottom: 1px solid var(--linea); }
+.barra .envoltura { display: flex; align-items: center; gap: 14px; height: 64px; }
+.logo { font: 400 25px/1 L; letter-spacing: .5px; text-decoration: none; white-space: nowrap; transform: rotate(-3deg); text-shadow: var(--anillo), 0 6px 14px rgba(255, 62, 138, .45); padding-top: 4px; }
+.logo span { color: var(--rosa); } .logo b { font-weight: 400; color: #f5a800; }
+.barra nav { margin-left: auto; display: flex; gap: 4px; }
+.barra nav a { color: var(--suave); text-decoration: none; font-weight: 650; font-size: 15px; padding: 8px 12px; border-radius: 99px; }
+.barra nav a:hover { color: var(--tinta); background: var(--vidrio); }
+.boton { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border: 0; cursor: pointer; text-decoration: none; font-weight: 800; border-radius: 99px; transition: transform .15s, box-shadow .2s; }
+.boton:active { transform: scale(.96); }
+.boton.pri { color: #fff; background: linear-gradient(135deg, var(--rosa), #ff7a1a); box-shadow: 0 10px 30px rgba(255, 62, 138, .38), inset 0 1px 0 rgba(255, 255, 255, .35); }
+.boton.pri:hover { box-shadow: 0 14px 40px rgba(255, 62, 138, .55), inset 0 1px 0 rgba(255, 255, 255, .35); }
+.boton.sec { color: var(--tinta); background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); }
+.barra .boton { padding: 10px 18px; font-size: 15px; }
+@media (max-width: 720px) { .barra nav { display: none; } .barra .boton { margin-left: auto; } }
+
+/* ---- la portada ---- */
+.heroe { position: relative; padding: 56px 0 40px; }
+.heroe .envoltura { display: grid; grid-template-columns: 1.05fr 1fr; align-items: center; gap: 28px; }
+h1, h2 { font-family: L; font-weight: 400; letter-spacing: .3px; line-height: 1.02; margin: 0; }
+h1 { font-size: clamp(46px, 6.6vw, 84px); transform: rotate(-2deg); transform-origin: left; text-shadow: 0 10px 40px rgba(255, 62, 138, .35); }
+h1 em, h2 em { font-style: normal; color: var(--amarillo); }
+.bajada { font-size: clamp(18px, 2vw, 21px); color: #e4def3; max-width: 34em; margin: 22px 0 28px; text-wrap: pretty; }
+.acciones { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.acciones .boton { padding: 17px 26px; font-size: 18px; }
+.boton svg { width: 22px; height: 22px; flex: none; }
+.dato { margin-top: 14px; color: var(--suave); font-size: 14.5px; }
+.dato b { color: var(--tinta); }
+.vidriera { position: relative; height: 600px; }
+.tel { position: absolute; aspect-ratio: 393 / 852; padding: 7px; border-radius: 40px; background: linear-gradient(150deg, #4c4664, #15131d 42%, #2b2739); box-shadow: 0 40px 80px rgba(0, 0, 0, .65), 0 0 0 1px rgba(255, 255, 255, .07) inset; }
+.tel img { display: block; width: 100%; height: 100%; border-radius: 33px; }
+.vidriera .t1 { width: 262px; left: 50%; top: 10px; transform: translateX(-50%); z-index: 3; animation: flota 7s ease-in-out infinite; }
+.vidriera .t2 { width: 214px; left: 2%; top: 92px; transform: rotate(-9deg); z-index: 2; filter: brightness(.82); animation: flota2 8s ease-in-out infinite; }
+.vidriera .t3 { width: 214px; right: 2%; top: 92px; transform: rotate(9deg); z-index: 2; filter: brightness(.82); animation: flota3 9s ease-in-out infinite; }
+@keyframes flota { 50% { transform: translateX(-50%) translateY(-10px); } }
+@keyframes flota2 { 50% { transform: rotate(-7deg) translateY(8px); } }
+@keyframes flota3 { 50% { transform: rotate(11deg) translateY(-8px); } }
+.st { position: absolute; z-index: 4; width: 120px; filter: drop-shadow(0 12px 16px rgba(0, 0, 0, .55)); animation: bailar 5s ease-in-out infinite; pointer-events: none; }
+@keyframes bailar { 0%, 100% { transform: rotate(var(--r, -8deg)) translateY(0); } 50% { transform: rotate(calc(var(--r, -8deg) * -1)) translateY(-12px); } }
+.vidriera .s1 { left: -4%; top: 6px; --r: -10deg; }
+.vidriera .s2 { right: -6%; top: 30px; --r: 8deg; width: 132px; animation-delay: -1.5s; }
+.vidriera .s3 { left: 4%; bottom: 8px; --r: 6deg; width: 112px; animation-delay: -3s; }
+.vidriera .s4 { right: 0; bottom: 30px; --r: -7deg; animation-delay: -2.2s; }
+@media (max-width: 900px) {
+  .heroe { padding-top: 34px; }
+  .heroe .envoltura { grid-template-columns: 1fr; }
+  .vidriera { height: 470px; margin-top: 8px; }
+  .vidriera .t1 { width: 206px; } .vidriera .t2, .vidriera .t3 { width: 168px; top: 70px; }
+  .st { width: 92px; } .vidriera .s2 { width: 100px; } .vidriera .s3 { width: 86px; }
+}
+@media (max-width: 420px) { .vidriera .t2 { left: -6%; } .vidriera .t3 { right: -6%; } .acciones .boton { width: 100%; } }
+
+/* ---- la cinta de stickers ---- */
+.cinta { overflow: hidden; padding: 18px 0; transform: rotate(-2deg); margin: 14px -2vw; background: linear-gradient(90deg, var(--rosa), #ff7a1a, var(--amarillo)); box-shadow: 0 16px 40px rgba(255, 62, 138, .25); }
+.cinta div { display: flex; gap: 34px; width: max-content; animation: correr 40s linear infinite; font: 400 26px/1 L; color: #1b0c12; white-space: nowrap; }
+.cinta span { display: inline-flex; align-items: center; gap: 34px; }
+@keyframes correr { to { transform: translateX(-50%); } }
+
+/* ---- lo que hace ---- */
+section { padding: 72px 0; }
+.titulo { text-align: center; margin-bottom: 44px; }
+h2 { font-size: clamp(36px, 4.8vw, 58px); transform: rotate(-1.5deg); }
+.titulo p { color: var(--suave); max-width: 36em; margin: 14px auto 0; text-wrap: balance; }
+.fila { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin: 0 auto 84px; max-width: 980px; }
+.fila:nth-child(even) .foto { order: 2; }
+.fila .foto { position: relative; height: 520px; }
+.fila .foto .tel { width: 236px; left: 50%; top: 0; transform: translateX(-50%) rotate(var(--g, -3deg)); }
+.fila .foto .tel.chico { width: 180px; left: auto; right: 4%; top: 120px; transform: rotate(8deg); z-index: 2; }
+.fila .foto .tel.chico ~ .tel, .fila .foto .tel:has(~ .chico) { left: 38%; }
+.fila .foto::before { content: ''; position: absolute; inset: 12% 12%; border-radius: 50%; background: radial-gradient(closest-side, var(--brillo, rgba(255, 62, 138, .35)), transparent); filter: blur(10px); z-index: -1; }
+.fila h3 { font: 400 clamp(30px, 3.4vw, 42px)/1.05 L; margin: 0 0 14px; }
+.fila h3 em { font-style: normal; color: var(--amarillo); }
+.fila p { color: #ddd6ee; margin: 0 0 12px; text-wrap: pretty; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.chips span { font-size: 14px; font-weight: 700; padding: 7px 12px; border-radius: 99px; background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); }
+@media (max-width: 800px) {
+  .fila { grid-template-columns: 1fr; gap: 18px; margin-bottom: 64px; }
+  .fila:nth-child(even) .foto { order: 0; }
+  .fila .foto { height: 440px; }
+  .fila .foto .tel { width: 200px; } .fila .foto .tel.chico { width: 150px; right: 2%; top: 110px; }
+}
+
+/* ---- el termo ---- */
+.termo { position: relative; border-radius: 36px; padding: 44px 40px; overflow: hidden; display: grid; grid-template-columns: 1.1fr 1fr; gap: 30px; align-items: center;
+  background: radial-gradient(70% 90% at 85% 50%, rgba(61, 220, 132, .3), transparent 70%), linear-gradient(160deg, #10241a, #0b0f0d 60%); box-shadow: inset 0 0 0 1px rgba(125, 255, 178, .2), 0 30px 80px rgba(0, 0, 0, .4); }
+.termo .chip { display: inline-block; font-weight: 800; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: #ffd23f; margin-bottom: 10px; }
+.termo h3 { font: 400 clamp(34px, 4vw, 52px)/1.02 L; margin: 0 0 16px; } .termo h3 em { font-style: normal; color: #7dffb2; }
+.termo p { color: #d4eadb; margin: 0 0 12px; }
+.termo .foto { position: relative; height: 460px; }
+.termo .tel { width: 214px; left: 50%; transform: translateX(-50%) rotate(4deg); top: 0; }
+@media (max-width: 800px) { .termo { grid-template-columns: 1fr; padding: 32px 22px; } .termo .foto { height: 400px; } .termo .tel { width: 186px; } }
+
+/* ---- y además ---- */
+.grilla { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.tarjeta { padding: 24px 22px; border-radius: var(--radio); background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); transition: transform .2s, background .2s; }
+.tarjeta:hover { transform: translateY(-4px); background: rgba(255, 255, 255, .08); }
+.tarjeta .emo { font-size: 34px; line-height: 1; display: block; margin-bottom: 12px; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .4)); }
+.tarjeta h4 { margin: 0 0 6px; font-size: 19px; }
+.tarjeta p { margin: 0; color: var(--suave); font-size: 15.5px; }
+@media (max-width: 860px) { .grilla { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 540px) { .grilla { grid-template-columns: 1fr; } }
+
+/* ---- bajar ---- */
+.bajar { border-radius: 36px; padding: 48px 40px; text-align: center; background: radial-gradient(80% 120% at 50% 0%, rgba(255, 62, 138, .35), transparent 70%), linear-gradient(180deg, #1d1426, #120d18); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09); }
+.bajar .icono { width: 96px; height: 96px; border-radius: 24px; box-shadow: 0 16px 40px rgba(255, 62, 138, .45); margin-bottom: 14px; }
+.bajar .boton.pri { padding: 19px 34px; font-size: 20px; margin: 22px 0 10px; }
+.pasos { list-style: none; padding: 0; margin: 34px auto 0; max-width: 860px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; text-align: left; counter-reset: p; }
+.pasos li { counter-increment: p; position: relative; padding: 22px 20px 20px 66px; border-radius: 22px; background: rgba(0, 0, 0, .25); box-shadow: inset 0 0 0 1px var(--linea); color: #ddd6ee; font-size: 15.5px; }
+.pasos li::before { content: counter(p); position: absolute; left: 18px; top: 18px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font: 400 20px/1 L; color: #1b0c12; background: var(--amarillo); padding-top: 3px; }
+.pasos b { color: var(--tinta); }
+.tiendas { margin-top: 30px; color: var(--suave); font-size: 15px; }
+.tiendas span { display: inline-block; margin: 6px 4px 0; padding: 7px 13px; border-radius: 99px; background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); color: var(--tinta); font-weight: 700; font-size: 14px; }
+@media (max-width: 760px) { .bajar { padding: 36px 20px; } .pasos { grid-template-columns: 1fr; } }
+
+/* ---- preguntas ---- */
+.preguntas { max-width: 780px; margin: 0 auto; }
+details { border-radius: 20px; background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); margin-bottom: 10px; }
+summary { cursor: pointer; list-style: none; padding: 18px 54px 18px 22px; font-weight: 750; position: relative; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: '+'; position: absolute; right: 22px; top: 50%; transform: translateY(-50%); font: 400 26px/1 L; color: var(--amarillo); transition: transform .2s; }
+details[open] summary::after { transform: translateY(-50%) rotate(45deg); }
+details p { margin: 0; padding: 0 22px 18px; color: #d6cfe7; }
+
+/* ---- abajo ---- */
+footer { padding: 46px 0 60px; border-top: 1px solid var(--linea); color: var(--suave); font-size: 15px; }
+footer .envoltura { display: flex; flex-wrap: wrap; gap: 18px 26px; align-items: center; }
+footer nav { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+footer nav a { color: var(--suave); }
+footer .fin { width: 100%; font-size: 13.5px; opacity: .8; }
+
+/* ---- que aparezcan al bajar ---- */
+.aparece { opacity: 0; transform: translateY(26px); transition: opacity .7s ease, transform .7s cubic-bezier(.2, .8, .2, 1); }
+.aparece.visto { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .aparece { opacity: 1; transform: none; }
+}
+</style>
+</head>
+<body>
+<header class="barra">
+  <div class="envoltura">
+    <a class="logo" href="#" aria-label="Stickerazo, inicio"><span>Sticker</span><b>azo</b></a>
+    <nav aria-label="Secciones"><a href="#que-hace">Qué hace</a><a href="#bajar">Instalar</a><a href="#preguntas">Preguntas</a></nav>
+    <a class="boton pri" href="#bajar">Bajar gratis</a>
+  </div>
+</header>
+
+<main>
+  <div class="heroe">
+    <div class="envoltura">
+      <div>
+        <h1>Tus fotos,<br><em>hechas stickers</em></h1>
+        <p class="bajada">Elegís una foto y se recorta sola. Le ponés letras con onda, la hacés mover y la mandás a WhatsApp. Gratis, sin marca de agua y sin que tus fotos salgan del celu.</p>
+        <div class="acciones">
+          <a class="boton pri" href="https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/descargar" data-bajar>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg>
+            Bajar para Android
+          </a>
+          <a class="boton sec" href="#bajar">Cómo se instala</a>
+        </div>
+        <p class="dato" id="dato">Gratis · Android 7 o más nuevo</p>
+      </div>
+      <div class="vidriera" aria-hidden="true">
+        <div class="tel t2"><img src="a/capturas/perfil.webp" alt="" width="590" height="1278" fetchpriority="low"></div>
+        <div class="tel t3"><img src="a/capturas/termo.webp" alt="" width="590" height="1278" fetchpriority="low"></div>
+        <div class="tel t1"><img src="a/capturas/inicio.webp" alt="" width="590" height="1278"></div>
+        <img class="st s1" src="a/st/1.webp" alt="">
+        <img class="st s2" src="a/st/2.webp" alt="">
+        <img class="st s3" src="a/st/5.webp" alt="">
+        <img class="st s4" src="a/st/3.webp" alt="">
+      </div>
+    </div>
+  </div>
+
+  <div class="cinta" aria-hidden="true"><div>
+    <span>🧉 Un mate y arranco</span><span>😂 Jajaja</span><span>⚽ ¡Goool!</span><span>🔥 De una</span><span>🙄 Ni ahí</span><span>🥟 ¿Empanadas?</span><span>💃 Cumbia</span><span>😎 Todo bien</span>
+    <span>🧉 Un mate y arranco</span><span>😂 Jajaja</span><span>⚽ ¡Goool!</span><span>🔥 De una</span><span>🙄 Ni ahí</span><span>🥟 ¿Empanadas?</span><span>💃 Cumbia</span><span>😎 Todo bien</span>
+  </div></div>
+
+  <section id="que-hace">
+    <div class="envoltura">
+      <div class="titulo aparece"><h2>Todo lo que <em>hace</em></h2><p>Pensada para el grupo de la familia, el de los pibes y el del laburo. Sin cuentas raras ni vueltas.</p></div>
+
+      <div class="fila aparece">
+        <div class="foto"><div class="tel"><img src="a/capturas/crear.webp" alt="La pantalla de crear: sticker con una foto, sólo texto o sacar una foto" width="590" height="1278" loading="lazy"></div></div>
+        <div>
+          <h3>Una foto,<br><em>un sticker</em></h3>
+          <p>Elegís una foto y la app recorta a la persona, la mascota o la comida. Si querés afinar, lo retocás con el dedo.</p>
+          <p>El recorte lo hace tu celular, sin internet. Tus fotos no se suben a ningún lado.</p>
+          <div class="chips"><span>✂️ Recorte solo</span><span>🤳 Con la cámara</span><span>⚡ Pack express: hasta 30 fotos de una</span></div>
+        </div>
+      </div>
+
+      <div class="fila aparece" style="--brillo: rgba(255, 210, 63, .3)">
+        <div class="foto"><div class="tel" style="--g: -5deg"><img src="a/capturas/editor.webp" alt="El editor con un texto en estilo fileteado" width="590" height="1278" loading="lazy"></div><div class="tel chico"><img src="a/capturas/animar.webp" alt="Las animaciones: latido, temblor, rebote y más" width="590" height="1278" loading="lazy"></div></div>
+        <div>
+          <h3>Letras con onda<br><em>y que se muevan</em></h3>
+          <p>Globitos, fileteado, emojis y varias tipografías para decir lo que quieras. Doble toque y cambiás el texto.</p>
+          <p>Diez animaciones de un toque: latido, temblor, rebote, giro, arcoíris… y el modo <b>xD</b> para deformar fotos a propósito.</p>
+          <div class="chips"><span>💬 Globitos</span><span>🌸 Fileteado</span><span>💓 10 animaciones</span><span>😵 Modo xD</span></div>
+        </div>
+      </div>
+
+      <div class="fila aparece" style="--brillo: rgba(124, 77, 255, .35)">
+        <div class="foto"><div class="tel"><img src="a/capturas/listos.webp" alt="Packs listos y búsqueda por etiquetas" width="590" height="1278" loading="lazy"></div></div>
+        <div>
+          <h3>Packs listos<br><em>y memes</em></h3>
+          <p>Mate, fútbol, asado, laburo y más de 180 memes con fotos libres de toda Latinoamérica. Los usás así o los cambiás a tu gusto.</p>
+          <p>Lo armás, tocás <b>Agregar a WhatsApp</b> y ya lo tenés en el teclado.</p>
+          <div class="chips"><span>🇦🇷 🇲🇽 🇨🇴 🇨🇱 🇵🇪 🇺🇾 y más</span><span>🔎 Buscás por emoji o palabra</span></div>
+        </div>
+      </div>
+
+      <div class="fila aparece" style="--brillo: rgba(62, 199, 255, .3)">
+        <div class="foto"><div class="tel" style="--g: -4deg"><img src="a/capturas/feed.webp" alt="La comunidad: packs para vos, recién salidos y de los que seguís" width="590" height="1278" loading="lazy"></div><div class="tel chico"><img src="a/capturas/perfil.webp" alt="Un perfil con foto, portada y sus packs" width="590" height="1278" loading="lazy"></div></div>
+        <div>
+          <h3>Una comunidad<br><em>para compartir</em></h3>
+          <p>Publicá tus packs, seguí a quien quieras, dale me gusta y bajate los mejores. Tu perfil con tu foto, tu portada y tus stickers.</p>
+          <p>Para entrar sólo elegís un @. No te pedimos mail ni teléfono.</p>
+          <div class="chips"><span>❤️ Me gusta</span><span>👥 Seguir</span><span>🖼️ Foto y portada</span><span>🚩 Denunciar y bloquear</span></div>
+        </div>
+      </div>
+
+      <div class="termo aparece">
+        <div>
+          <span class="chip">Primer evento</span>
+          <h3>El termo de<br><em>los elegidos</em></h3>
+          <p>Cuando 20 cuentas publiquen sus packs, el termo elige 5 al azar. Sus stickers giran en un termo 3D y se los recomendamos a todos los que bajan la app.</p>
+          <p>¿Querés estar? Hacé tu pack y publicalo.</p>
+        </div>
+        <div class="foto"><div class="tel"><img src="a/capturas/termo.webp" alt="El termo 3D con los cinco elegidos" width="590" height="1278" loading="lazy"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="envoltura">
+      <div class="titulo aparece"><h2>Y <em>además</em></h2></div>
+      <div class="grilla">
+        <div class="tarjeta aparece"><span class="emo">🎵</span><h4>Música de tu país</h4><p>Cumbia, cuarteto, reggaetón, rock nacional… con el reproductor de YouTube mientras hacés stickers.</p></div>
+        <div class="tarjeta aparece"><span class="emo">🌗</span><h4>Modo claro u oscuro</h4><p>Como te guste, o que siga al celular.</p></div>
+        <div class="tarjeta aparece"><span class="emo">🔒</span><h4>Tus fotos, en tu celu</h4><p>Sólo se sube lo que vos publicás en la comunidad.</p></div>
+        <div class="tarjeta aparece"><span class="emo">🚫</span><h4>Sin marca de agua</h4><p>Tus stickers salen limpios, sin logos encima.</p></div>
+        <div class="tarjeta aparece"><span class="emo">⚡</span><h4>Se actualiza sola</h4><p>Las novedades llegan solas al abrirla. No tenés que bajar nada de nuevo.</p></div>
+        <div class="tarjeta aparece"><span class="emo">🌎</span><h4>Para toda Latinoamérica</h4><p>Más de 20 países, con sus palabras y sus memes.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="bajar">
+    <div class="envoltura">
+      <div class="bajar aparece">
+        <img class="icono" src="a/icono.webp" alt="" width="96" height="96">
+        <h2>Bajala <em>gratis</em></h2>
+        <a class="boton pri" href="https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/descargar" data-bajar>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg>
+          Bajar Stickerazo
+        </a>
+        <p class="dato" id="dato2">Para Android 7 o más nuevo</p>
+        <ol class="pasos">
+          <li><b>Tocá «Bajar».</b> Se baja el archivo <b>Stickerazo.apk</b>.</li>
+          <li><b>Abrilo.</b> Si Android te pide permiso, tocá <b>Configuración</b> y activá <b>Permitir de esta fuente</b>.</li>
+          <li><b>Tocá «Instalar».</b> Listo. Desde ahí se actualiza sola.</li>
+        </ol>
+        <p class="tiendas">Muy pronto también en<br><span>Galaxy Store</span><span>AppGallery</span><span>Uptodown</span><span>Google Play</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="preguntas">
+    <div class="envoltura">
+      <div class="titulo aparece"><h2>Preguntas</h2></div>
+      <div class="preguntas aparece">
+        <details><summary>¿Es gratis?</summary><p>Sí. Hacer stickers, usar los packs listos y la comunidad no cuesta nada.</p></details>
+        <details><summary>¿Mis fotos se suben a algún lado?</summary><p>No. El recorte, las letras y las animaciones se hacen en tu celular. Sólo se sube lo que vos publiques en la comunidad (los stickers terminados) y, si querés, tu foto de perfil y tu portada.</p></details>
+        <details><summary>¿Por qué Android me avisa cuando la instalo?</summary><p>Porque no viene de una tienda. Es normal con cualquier app que se baja de una página. Stickerazo está firmada siempre con la misma llave, así que cada versión nueva se instala encima de la anterior y nadie puede hacerse pasar por ella.</p></details>
+        <details><summary>¿Cómo se actualiza?</summary><p>Sola. Cada vez que la abrís se fija si hay algo nuevo y lo baja en segundo plano. Si alguna vez hace falta una versión entera nueva, te avisa adentro de la app y se instala desde ahí.</p></details>
+        <details><summary>¿Necesito una cuenta?</summary><p>Para hacer stickers, no. Para publicar y seguir gente, sólo elegís un @. No te pedimos mail, teléfono ni tu nombre real.</p></details>
+        <details><summary>¿Anda en iPhone?</summary><p>Por ahora no: es sólo para Android.</p></details>
+        <details><summary>¿Cómo borro mi cuenta?</summary><p>En la app: Perfil → Borrar mi cuenta. Se borra todo al instante. Más info en <a href="https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/borrar-cuenta">esta página</a>.</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="envoltura">
+    <a class="logo" href="#"><span>Sticker</span><b>azo</b></a>
+    <nav aria-label="Legales">
+      <a href="https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/privacidad">Privacidad</a>
+      <a href="https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/terminos">Reglas de la comunidad</a>
+      <a href="https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/borrar-cuenta">Borrar tu cuenta</a>
+    </nav>
+    <p class="fin">Hecho en Argentina 🧉 · Stickerazo no está afiliada a WhatsApp ni a Meta.</p>
+  </div>
+</footer>
+
+<script>
+// la versión y el tamaño del APK de ahora (si no contesta, queda el texto de siempre)
+fetch('https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/app.json', { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).then((a) => {
+  if (!a || !a.n) return;
+  const mb = Math.round(a.n / 1048576);
+  document.getElementById('dato').innerHTML = `Gratis · versión <b>${a.nombre}</b> · ${mb} MB · Android 7 o más nuevo`;
+  document.getElementById('dato2').textContent = `Versión ${a.nombre} · ${mb} MB · Android 7 o más nuevo`;
+}).catch(() => {});
+// lo que aparece al bajar
+const io = 'IntersectionObserver' in window ? new IntersectionObserver((es) => { for (const e of es) if (e.isIntersecting) { e.target.classList.add('visto'); io.unobserve(e.target); } }, { rootMargin: '0px 0px -8% 0px' }) : null;
+for (const el of document.querySelectorAll('.aparece')) io ? io.observe(el) : el.classList.add('visto');
+</script>
+</body>
+</html>

@@ -7,7 +7,29 @@
 // Anda solo (su propio Worker) o adentro del de JXMod: stickerazoRutas(req, env, ctx, '/sz') atiende lo que empieza con /sz
 // y usa sus tablas con «sz_» adelante, para no pisar las de JXMod (que también tiene «usuarios»).
 
-const TIENDA = 'https://play.google.com/store/apps/details?id=com.stickerazo.app';
+// (todavía no está en las tiendas: el botón «Bajá Stickerazo» lleva a nuestra página, que tiene el APK y, cuando estén, las tiendas)
+const bajar = (origen) => `${origen}/#bajar`;
+// ---- lo que sale del repo (GitHub): las actualizaciones de la app (web/), la página web (sitio/) y el APK (descargas/) ----
+// Así la app y la página no dependen del nombre de la rama: si cambia, se cambia SZ_RAMA en Cloudflare y listo.
+const REPO = 'https://raw.githubusercontent.com/Juniorspro/Ports/', RAMA = 'claude/ports-continuation-dm754a';
+const TIPOS = { html: 'text/html; charset=utf-8', css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', mjs: 'text/javascript; charset=utf-8',
+  json: 'application/json; charset=utf-8', txt: 'text/plain; charset=utf-8', webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  svg: 'image/svg+xml', ico: 'image/x-icon', ttf: 'font/ttf', woff2: 'font/woff2', glb: 'model/gltf-binary', wasm: 'application/wasm',
+  tflite: 'application/octet-stream', mp4: 'video/mp4', webm: 'video/webm', apk: 'application/vnd.android.package-archive' };
+async function delRepo(env, ruta, descarga = false) {
+  const no = (st) => new Response(st === 404 ? 'No está' : 'No se pudo traer. Probá de nuevo en un rato.', { status: st, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
+  // (sólo nombres comunes: nada de «..», ni ocultos, ni lo de prueba que empieza con «_»)
+  if (!/^(?:[A-Za-z0-9][A-Za-z0-9._-]*\/)*[A-Za-z0-9][A-Za-z0-9._-]*$/.test(ruta) || ruta.includes('..')) return no(404);
+  const tipo = TIPOS[ruta.split('.').pop().toLowerCase()]; if (!tipo) return no(404);
+  const corto = /(^|\/)(ota|app)\.json$|\.html$/.test(ruta), seg = corto ? 60 : 300;
+  let r = null;
+  try { r = await fetch(`${env.SZ_REPO || REPO}${env.SZ_RAMA || RAMA}/porteos/stickerazo/${ruta}`, { cf: { cacheTtl: seg, cacheEverything: true }, ...(descarga ? {} : { signal: AbortSignal.timeout(15000) }) }); } catch (e) { r = null; }
+  if (!r || !r.ok) return no(r && r.status === 404 ? 404 : 502);
+  const h = { 'Content-Type': tipo, 'Cache-Control': `public, max-age=${seg}`, 'X-Content-Type-Options': 'nosniff', ...CORS }, n = r.headers.get('Content-Length');
+  if (n) h['Content-Length'] = n;
+  if (descarga) h['Content-Disposition'] = 'attachment; filename="Stickerazo.apk"';
+  return new Response(r.body, { status: 200, headers: h });
+}
 const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS usuarios (id TEXT PRIMARY KEY, nombre TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, bio TEXT NOT NULL DEFAULT '', avatar TEXT NOT NULL DEFAULT '', creado INTEGER NOT NULL, bloqueado INTEGER NOT NULL DEFAULT 0, seguidores INTEGER NOT NULL DEFAULT 0, siguiendo INTEGER NOT NULL DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS packs (id TEXT PRIMARY KEY, autor TEXT NOT NULL, nombre TEXT NOT NULL, tags TEXT NOT NULL DEFAULT '', busqueda TEXT NOT NULL DEFAULT '', animado INTEGER NOT NULL DEFAULT 0, archivos TEXT NOT NULL, bandeja TEXT NOT NULL, v INTEGER NOT NULL DEFAULT 1, creado INTEGER NOT NULL, likes INTEGER NOT NULL DEFAULT 0, descargas INTEGER NOT NULL DEFAULT 0, reportes INTEGER NOT NULL DEFAULT 0, oculto INTEGER NOT NULL DEFAULT 0)`,
@@ -137,7 +159,17 @@ async function manejar(req, env, ctx, base) {
     const u = new URL(req.url), ruta = u.pathname.slice(base.length) || '/', metodo = req.method, origen = u.origin + base;
     if (metodo === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     try {
-      if (ruta === '/' || ruta === '') return html(pagina('Stickerazo', '<h1>Stickerazo</h1><p>Hacé stickers para WhatsApp con tus fotos y compartilos con la comunidad.</p>' + botonTienda()));
+      // la página web (sitio/index.html del repo; si GitHub no contesta, una cortita)
+      if (base && u.pathname === base) return Response.redirect(u.origin + base + '/' + u.search, 302);
+      if (ruta === '/' || ruta === '') {
+        const r = await delRepo(env, 'sitio/index.html');
+        return r.ok ? r : html(pagina('Stickerazo', '<h1>Stickerazo</h1><p>Hacé stickers para WhatsApp con tus fotos y compartilos con la comunidad.</p><a class="b" href="descargar">Bajar para Android</a>'));
+      }
+      if (ruta.startsWith('/a/')) return delRepo(env, 'sitio/a/' + ruta.slice(3));
+      // las actualizaciones de la app (lo mismo que web/ en el repo) y el APK de ahora con sus datos
+      if (ruta.startsWith('/web/')) return delRepo(env, 'web/' + ruta.slice(5));
+      if (ruta === '/app.json') return delRepo(env, 'descargas/app.json');
+      if (ruta === '/descargar' || ruta === '/Stickerazo.apk') return delRepo(env, 'descargas/Stickerazo.apk', true);
       if (ruta === '/privacidad') return html(pagina('Privacidad · Stickerazo', PRIVACIDAD));
       if (ruta === '/terminos') return html(pagina('Términos · Stickerazo', TERMINOS));
       if (ruta === '/borrar-cuenta') return html(pagina('Borrar tu cuenta · Stickerazo', BORRAR));
@@ -484,7 +516,7 @@ async function media(req, env, ctx, ruta) {
 }
 
 // ---- páginas ----
-const botonTienda = () => `<a class="b" href="${TIENDA}">Bajá Stickerazo</a>`;
+const botonTienda = (origen) => `<a class="b" href="${bajar(origen)}">Bajá Stickerazo</a>`;
 function pagina(titulo, cuerpo, cabeza = '') {
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(titulo)}</title>${cabeza}
 <style>body{margin:0;background:#14121c;color:#f5f3fb;font:16px/1.5 system-ui,sans-serif}main{max-width:640px;margin:0 auto;padding:24px 18px 48px}h1{font-size:28px;margin:8px 0}a{color:#ffd23f}
@@ -492,22 +524,23 @@ function pagina(titulo, cuerpo, cabeza = '') {
 .g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.g img{width:100%;aspect-ratio:1;object-fit:contain;background:#201d2c;border-radius:16px}.p{color:#a7a2bb}</style></head><body><main>${cuerpo}</main></body></html>`;
 }
 async function compartir(env, id, origen) {
-  if (!/^[a-z0-9]{10}$/.test(id)) return html(pagina('No está', '<h1>Ese pack no está</h1>' + botonTienda()), 404);
+  if (!/^[a-z0-9]{10}$/.test(id)) return html(pagina('No está', '<h1>Ese pack no está</h1>' + botonTienda(origen)), 404);
   const p = await env.DB.prepare(`${CON_AUTOR} AND p.id = ?`).bind(id).first();
-  if (!p) return html(pagina('No está', '<h1>Ese pack ya no está</h1>' + botonTienda()), 404);
+  if (!p) return html(pagina('No está', '<h1>Ese pack ya no está</h1>' + botonTienda(origen)), 404);
   const r = resumen(p), m = (a) => `${origen}/m/${p.id}/${a}?v=${p.v}`, todos = JSON.parse(p.archivos);
-  const abrir = `intent://pack/${p.id}#Intent;scheme=stickerazo;package=com.stickerazo.app;S.browser_fallback_url=${encodeURIComponent(TIENDA)};end`;
+  const abrir = `intent://pack/${p.id}#Intent;scheme=stickerazo;package=com.stickerazo.app;S.browser_fallback_url=${encodeURIComponent(bajar(origen))};end`;
   const cabeza = `<meta property="og:title" content="${esc(r.nombre)} · Stickerazo"><meta property="og:description" content="${r.n} stickers de @${esc(r.autor.nombre)} para WhatsApp"><meta property="og:image" content="${m(p.bandeja)}">`;
   return html(pagina(`${r.nombre} · Stickerazo`, `<p class="p">Pack de @${esc(r.autor.nombre)} · ${r.n} stickers${r.animado ? ' animados' : ''}</p><h1>${esc(r.nombre)}</h1>
     <a class="b s" href="${abrir}">Abrir en Stickerazo y agregar a WhatsApp</a><div class="g">${todos.map((a) => `<img src="${m(a.archivo)}" alt="">`).join('')}</div>
-    <p class="p">¿No tenés la app? Es gratis, sin marca de agua y las fotos no salen de tu celular.</p>${botonTienda()}`, cabeza));
+    <p class="p">¿No tenés la app? Es gratis, sin marca de agua y las fotos no salen de tu celular.</p>${botonTienda(origen)}`, cabeza));
 }
-const PRIVACIDAD = `<h1>Privacidad</h1><p class="p">Stickerazo · última actualización: noviembre de 2026</p>
+const PRIVACIDAD = `<h1>Privacidad</h1><p class="p">Stickerazo · última actualización: 21 de noviembre de 2026</p>
 <p><b>Tus fotos no salen de tu celular.</b> El recorte, los textos y las animaciones se hacen en el teléfono. Sólo se sube a nuestro servidor lo que vos publicás en la comunidad: los stickers terminados de ese pack, su nombre, etiquetas y emojis.</p>
-<p><b>Tu cuenta</b> es un @usuario que elegís, una bio y un emoji de avatar. No pedimos email, teléfono ni nombre real. El celular guarda una llave para entrar; nosotros guardamos sólo su huella.</p>
+<p><b>Tu cuenta</b> es un @usuario que elegís, una bio, un emoji de avatar y, si querés, una foto de perfil y una portada que elegís de tu galería. La foto y la portada se guardan en nuestro servidor y las puede ver cualquiera que entre a tu perfil; las podés sacar cuando quieras desde Editar perfil. No pedimos email, teléfono ni nombre real. El celular guarda una llave para entrar; nosotros guardamos sólo su huella.</p>
 <p><b>Para frenar abusos</b> (muchas cuentas o descargas seguidas desde la misma conexión) usamos por unas horas una huella de tu conexión, no tu IP, y se borra sola. No usamos tu ubicación.</p>
 <p><b>Lo que hacés en la comunidad</b> (me gusta, a quién seguís, descargas, denuncias y bloqueos) se guarda para que la comunidad funcione. Lo que publicás lo puede ver cualquiera.</p>
 <p><b>Borrar todo:</b> desde la app, en Perfil → Borrar mi cuenta, se borran tu cuenta, tus packs publicados, tus me gusta y a quién seguís. No queda nada.</p>
+<p><b>Actualizaciones:</b> la app baja sola las versiones nuevas desde nuestro servidor y desde GitHub, donde está publicado su código. Para eso no se manda ningún dato tuyo.</p>
 <p>Los datos viajan cifrados (HTTPS). Los guarda Cloudflare, el servicio donde corre el servidor; no se los damos a nadie más. No vendemos tus datos. Si algún día la app muestra publicidad, lo vamos a avisar acá antes.</p>
 <p>Stickerazo no está afiliada a WhatsApp ni a Meta. Tenés que tener 13 años o más para usar la comunidad.</p>`;
 const TERMINOS = `<h1>Términos de la comunidad</h1><p>Publicá stickers tuyos o que tengas derecho a compartir. No se puede publicar: contenido sexual, odio o discriminación, violencia, acoso, datos de otras personas, ni fotos de alguien que no quiere aparecer. Los packs con 3 denuncias se ocultan hasta que los revisemos, y las cuentas que no respetan esto se bloquean. Tenés que tener 13 años o más.</p>`;

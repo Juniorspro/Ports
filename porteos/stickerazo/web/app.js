@@ -165,7 +165,7 @@ function ir(v, volviendo) {
   for (const s of document.querySelectorAll('.vista')) s.classList.toggle('oc', s.id !== v);
   const s = $('#' + v); s.classList.remove('entra', 'vuelve'); void s.offsetWidth; s.classList.add(volviendo ? 'vuelve' : 'entra');
   E.vista = v;
-  if (v === 'vRecorte' || v === 'vEditor') $('#aviso').classList.add('oc'); else setTimeout(mostrarOta, 400);
+  if (v === 'vRecorte' || v === 'vEditor') $('#aviso').classList.add('oc'); else { setTimeout(mostrarOta, 400); setTimeout(mostrarApk, 900); }
   if (v === 'vInicio') pintarInicio();
   else if (v === 'vRecorte') { marcarHerr(); pedirR(); }
   else if (v === 'vEditor') { pedirE(true); animarVista(); }
@@ -1085,6 +1085,55 @@ function mostrarOta() {
   m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
   m.querySelector('[data-x="1"]').onclick = () => { cerrarModal(); if (window.SZN && window.SZN.reiniciar) window.SZN.reiniciar(); else location.reload(); };
 }
+// ---- APK nuevo: sólo cuando cambió algo de Java (la página se actualiza sola; el APK, no). Lo dice /app.json ----
+//  Del APK de la página (canal «web»): se baja y se instala desde acá. Los APK viejos (0.6, sin «Actualizar» en el
+//  puente): se baja de la página y se instala encima. Los de las tiendas no avisan: los actualiza su tienda, que además
+//  puede tardar días en aprobar una versión (avisar antes confundiría).
+const nombreMayor = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); if (x.some(isNaN) || y.some(isNaN)) return false; for (let i = 0; i < Math.max(x.length, y.length); i++) { const p = x[i] || 0, q = y[i] || 0; if (p !== q) return p > q; } return false; };
+let apkInfo = null, apkMostrado = false;
+const bajarDeLaPagina = () => { cerrarModal(); location.href = `${C.API}/descargar`; };
+async function revisarApk() {
+  const S = window.SZN; if (!S || !S.version) return;
+  if (S.canal && S.canal() !== 'web') return;
+  try {
+    const r = await fetch(`${C.API}/app.json`, { cache: 'no-store' }); if (!r.ok) return;
+    const a = await r.json(), nueva = S.codigoApk ? +a.v > +S.codigoApk() : nombreMayor(a.nombre, S.version());
+    if (!nueva) return;
+    // (una vez por día, no cada vez que la abre)
+    let antes = 0; try { antes = +localStorage.getItem('sz_apk_' + a.v) || 0; } catch (e) { /* nada */ }
+    if (Date.now() - antes < 20 * 3600e3) return;
+    apkInfo = a; mostrarApk();
+  } catch (e) { /* sin internet: la próxima vez */ }
+}
+function mostrarApk() {
+  if (!apkInfo || apkMostrado || hayModal() || E.vista === 'vRecorte' || E.vista === 'vEditor') return;
+  apkMostrado = true; try { localStorage.setItem('sz_apk_' + apkInfo.v, String(Date.now())); } catch (e) { /* nada */ }
+  const S = window.SZN, canal = S.canal ? S.canal() : 'viejo', mb = Math.round(apkInfo.n / 1048576);
+  const tienda = { play: 'Google Play', galaxy: 'Galaxy Store', huawei: 'AppGallery', uptodown: 'Uptodown' }[canal];
+  const texto = tienda ? `Ya está en ${tienda}. Tocá «Actualizar» y se abre ahí.`
+    : canal === 'web' ? `Pesa ${mb} MB. Se baja y se instala desde acá. Tus stickers y tu cuenta quedan como están.`
+      : `Pesa ${mb} MB. Se baja de nuestra página: abrila y tocá «Instalar». Tus stickers y tu cuenta quedan como están.`;
+  const m = modal(`<div class="hoja centro actApk"><div class="grandote">🚀</div><h3>Llegó Stickerazo ${h(apkInfo.nombre)}</h3><p>${texto}</p>
+    <div class="barraApk oc"><i></i></div><p class="estApk"></p>
+    <div class="botones"><button class="sec" data-x="0">Después</button><button class="pri" data-x="1">Actualizar</button></div></div>`);
+  m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
+  m.querySelector('[data-x="1"]').onclick = (ev) => { if (S.actualizarApp) { ev.currentTarget.disabled = true; S.actualizarApp(); } else bajarDeLaPagina(); };
+}
+// (lo que va pasando en Java: permiso, bajando N %, instalando, la ventanita de Android, listo o error)
+window.__szApkEstado = (estado, d) => {
+  const TX = { permiso: 'Activá «Permitir de esta fuente» y volvé: sigue sola.', sinpermiso: 'Sin ese permiso no se puede instalar desde acá. Bajala de la página.',
+    bajando: `Bajando… ${d}%`, instalando: 'Instalando…', confirmar: 'Tocá «Actualizar» en la ventanita de Android.', listo: '¡Listo! Abrí Stickerazo de nuevo.',
+    cancelado: 'La cancelaste. Podés actualizar cuando quieras.', aldia: 'Ya tenés la última 👌', error: d || 'No se pudo.', tienda: '' };
+  const m = document.querySelector('#modal .actApk');
+  if (!m) { if (estado === 'error' || estado === 'sinpermiso' || estado === 'aldia') aviso(TX[estado]); return; }
+  const est = m.querySelector('.estApk'), barra = m.querySelector('.barraApk'), boton = m.querySelector('[data-x="1"]');
+  est.textContent = TX[estado] ?? '';
+  barra.classList.toggle('oc', estado !== 'bajando'); barra.firstElementChild.style.width = (+d || 0) + '%';
+  boton.disabled = ['bajando', 'instalando', 'confirmar', 'permiso'].includes(estado);
+  if (estado === 'error' || estado === 'sinpermiso') { boton.textContent = 'Bajar de la página'; boton.onclick = bajarDeLaPagina; }
+  if (estado === 'tienda' || estado === 'aldia') setTimeout(cerrarModal, estado === 'aldia' ? 1200 : 0);
+};
+setTimeout(revisarApk, 6000);
 // los enlaces «stickerazo://pack/ID» (de la página para compartir) abren el pack
 window.__szAbrir = (ruta) => { const m = /pack\/([a-z0-9]{10})/.exec(String(ruta || '')); if (m) C.abrirPublico(m[1]); };
 

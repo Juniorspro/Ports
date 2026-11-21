@@ -200,8 +200,9 @@ el perro en 0,8 s. Los stickers pesan entre 26 y 60 KB.
 
 ## Se actualiza sola (como JXMod)
 
-La app trae la página adentro, pero al abrirla (y cada 6 horas) se fija en GitHub si hay una versión nueva
-(`web/ota.json`, en esta rama). Baja **sólo los archivos que cambiaron**, revisa cada uno con su huella (sha256) y la
+La app trae la página adentro, pero al abrirla (y cada 6 horas) se fija si hay una versión nueva (`web/ota.json`).
+Primero le pregunta a nuestro servidor (`/sz/web/…`, que lo trae del repo: si la rama cambia de nombre se cambia
+`SZ_RAMA` en Cloudflare y listo, sin APK nuevo) y, si no contesta, a GitHub directo. Baja **sólo los archivos que cambiaron**, revisa cada uno con su huella (sha256) y la
 lista entera con una **firma** (ECDSA P-256) cuya llave no está en el repo: si alguien tocara el repo, la app no le hace
 caso. Arma la versión nueva en su carpeta, avisa «¡Stickerazo nuevo!» (abrirla ahora o la próxima vez) y la página
 abierta sigue con la suya hasta entonces (nada se mezcla). MediaPipe y los modelos vienen en el APK y no se bajan.
@@ -213,6 +214,35 @@ abierta sigue con la suya hasta entonces (nada se mezcla). MediaPipe y los model
   tocados no hacen nada, nada de «..», APK viejo no.
 - La llave de las actualizaciones: `/root/.stickerazo/firma/ota.pem` (o el secreto `STICKERAZO_OTA_PEM_B64`). Sin ella
   no se pueden firmar versiones nuevas: los celulares seguirían con la última.
+
+### El APK nuevo (cuando cambia algo de Java)
+
+La página se actualiza sola; el APK sólo hace falta cuando cambia la parte de Android, que es raro. Para eso:
+
+- `descargas/Stickerazo.apk` y `descargas/app.json` (versión, tamaño, huella) son el APK de la página. Se publican con
+  `armar_apk.py … --canal web --publicar`, que además vuelve a firmar `ota.json` con la huella del APK.
+- La app (canal «web») ve en `/sz/app.json` que hay uno nuevo, avisa «Llegó Stickerazo 0.x» y, con «Actualizar», lo baja
+  (`ApkBajada`: sólo acepta el archivo con el tamaño y la huella firmados en `ota.json`) y lo instala con el instalador de
+  Android (`Actualizador`, PackageInstaller). La primera vez Android pide el permiso de «instalar apps desconocidas» y
+  confirmar; desde Android 12 las siguientes pueden entrar sin preguntar.
+- Los 0.6 (sin «Actualizar» en el puente) también ven el aviso, porque llega con la página: el botón los manda a bajarlo de
+  la página.
+- Los de las tiendas (`--canal galaxy|huawei|uptodown|play`) no tienen el permiso de instalar y no avisan: los actualiza
+  su tienda. Todos los APK de una versión se arman con el mismo `--version-code`.
+- Pruebas: `PruebaApkBajada.java` (7: el bueno entra; cambiado, cortado o de más, no; si una fuente falla, prueba la
+  siguiente) y el aviso en el navegador con un puente de mentira (web bajando y con error, 0.6, al día, Galaxy).
+
+## La página web
+
+`sitio/index.html` y `sitio/a/` (capturas de la app de verdad, los stickers del gráfico, el ícono y la letra del logo).
+La sirve el servidor en `/sz/` (la trae del repo, como las actualizaciones) y también anda sola en Cloudflare Pages:
+la descarga y los legales apuntan al servidor. Las capturas salen de `herramientas/capturas_play.mjs`, el mismo que
+arma las de las tiendas. Rutas: `/sz/` (la página), `/sz/a/…`, `/sz/descargar` (el APK), `/sz/app.json`, `/sz/web/…`.
+
+## Las tiendas
+
+Todo en [`tiendas/LEEME.md`](tiendas/LEEME.md) (cuál conviene, cuánto cuesta, paso a paso) y
+[`tiendas/ficha.md`](tiendas/ficha.md) (los textos y las respuestas de los formularios).
 
 ## La firma
 
@@ -226,4 +256,6 @@ se cambia desde la consola de Play.
 
 1. Probarlo en un celular de verdad (lo que no se puede acá: la WebView, el selector de fotos, la cámara y el pedido a
    WhatsApp).
-2. Packs listos con frases nuestras, ficha de Play Store (con el paquete AAB) y política de privacidad.
+2. Abrir las cuentas de las tiendas (a nombre del dueño): ver `tiendas/LEEME.md`.
+3. Probar en un celular de verdad la instalación del APK nuevo desde adentro de la app (el permiso, la ventanita de
+   Android y que se instale encima sin perder nada).

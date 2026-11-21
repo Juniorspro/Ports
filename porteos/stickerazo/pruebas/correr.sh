@@ -5,9 +5,10 @@
 set -euo pipefail
 AQUI="$(cd "$(dirname "$0")" && pwd)"; RAIZ="$(cd "$AQUI/.." && pwd)"; FOTOS="${1:?falta la carpeta de fotos}"
 B=/tmp/claude-0/sz_java; mkdir -p "$B/clases"
-javac --release 8 -Xlint:-options -encoding UTF-8 -d "$B/clases" "$RAIZ"/android/src/com/stickerazo/app/{Json,Almacen,OtaNucleo}.java "$AQUI/PruebaAlmacen.java" "$AQUI/PruebaOta.java" 2>&1 | grep -v "Picked up" || true
+javac --release 8 -Xlint:-options -encoding UTF-8 -d "$B/clases" "$RAIZ"/android/src/com/stickerazo/app/{Json,Almacen,OtaNucleo,ApkBajada}.java "$AQUI/PruebaAlmacen.java" "$AQUI/PruebaOta.java" "$AQUI/PruebaApkBajada.java" 2>&1 | grep -v "Picked up" || true
 rm -rf "$B/datos" && java -Dstdout.encoding=UTF-8 -cp "$B/clases" PruebaAlmacen "$B/datos" 2>&1 | grep -E "FALLA|RESUMEN"
 echo "== actualizaciones solas"; rm -rf "$B/ota" && java -Dstdout.encoding=UTF-8 -cp "$B/clases" PruebaOta "$B/ota" "$RAIZ/herramientas/ota.py" 2>&1 | grep -E "FALLA|RESUMEN"
+echo "== APK nuevo (bajada)"; rm -rf "$B/apk" && java -Dstdout.encoding=UTF-8 -cp "$B/clases" PruebaApkBajada "$B/apk" 2>&1 | grep -E "FALLA|RESUMEN"
 echo "== navegador";     (cd "$AQUI" && node app.mjs "$FOTOS" | grep -E "FALLA|TODO|errores")
 echo "== como la app";   (cd "$AQUI" && MODO=app node app.mjs "$FOTOS" /tmp/claude-0/sz_app_android 2>&1 | grep -v "Picked up" | grep -E "FALLA|TODO|errores")
 echo "== servidor";    (cd "$AQUI" && node servidor_api.mjs 2>&1 | grep -E "FALLA|RESUMEN")

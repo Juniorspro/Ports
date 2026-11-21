@@ -790,3 +790,9 @@ html[data-tema="claro"] .bTxt b em { color: #e8590c; }
 .prevAv { min-height: 150px; background-size: cover !important; background-position: center !important; }
 .portadas .subirP.conImg { justify-content: flex-end; align-items: flex-end; padding: 3px; font-size: 13px; text-shadow: 0 1px 3px #000; }
 .portadas .subirP.conImg small { display: none; }
+/* APK nuevo: la barrita de lo que va bajando */
+.actApk .barraApk { height: 10px; border-radius: 99px; background: rgba(255, 255, 255, .1); overflow: hidden; margin: 10px 0 2px; }
+.actApk .barraApk i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #ff3e8a, #ffb02e); transition: width .25s; }
+.actApk .estApk { min-height: 1.3em; font-weight: 700; color: var(--suave, #b9b3cc); margin: 4px 0 0; }
+.actApk .estApk:empty { display: none; }
+html[data-tema="claro"] .actApk .barraApk { background: rgba(0, 0, 0, .08); }

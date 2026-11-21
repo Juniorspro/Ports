@@ -64,6 +64,8 @@ public final class Inicio extends Activity {
     private boolean paginaLista;
     // ---- las actualizaciones solas (OtaNucleo): de dónde se bajan, la llave y lo que trae el APK ----
     private static final String[] FUENTES_OTA = {
+        // (primero nuestro servidor, que lo trae del repo: si la rama cambia de nombre se arregla allá, sin APK nuevo)
+        Actualizador.SITIO + "web/",
         "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/porteos/stickerazo/web/",
         "https://raw.githack.com/Juniorspro/Ports/claude/ports-continuation-dm754a/porteos/stickerazo/web/",
     };
@@ -105,6 +107,9 @@ public final class Inicio extends Activity {
         prepararOta();
         web.loadUrl(ORIGEN + "/index.html");
         reloj.postDelayed(new Runnable() { @Override public void run() { buscarOta(); } }, 4000);
+        // (lo que quedó de una actualización del APK, y escuchar cómo termina la próxima)
+        new File(getCacheDir(), "actualizacion.apk").delete();
+        receptorApk = Actualizador.escuchar(this, new Actualizador.Resultado() { @Override public void en(String e, String d) { estadoApk(e, d); } });
     }
 
     // ---- las actualizaciones solas ----
@@ -125,7 +130,43 @@ public final class Inicio extends Activity {
         otaEnUso = a;
     }
     long versionWeb() { return otaEnUso != null ? OtaNucleo.versionDe(otaEnUso, otaPub) : otaVApk; }
-    private long codigoApk() {
+    // ---- el APK nuevo (Actualizador): sólo cuando cambia algo de Java ----
+    private volatile Map<?, ?> apkNueva;
+    private volatile boolean bajandoApk, pidiendoPermiso;
+    private android.content.BroadcastReceiver receptorApk;
+    private static long numero(Object o) { return o instanceof Number ? ((Number) o).longValue() : 0; }
+    private void estadoApk(final String e, final String d) {
+        runOnUiThread(new Runnable() { @Override public void run() { js("window.__szApkEstado && window.__szApkEstado(" + JSONObject.quote(e) + "," + JSONObject.quote(d) + ")"); } });
+    }
+    /** la página tocó «Actualizar»: de la web, se baja y se instala acá; de una tienda, se abre la tienda */
+    void actualizarApp() {
+        if (!Actualizador.desdeLaWeb(this)) { Actualizador.abrirTienda(this); estadoApk("tienda", ""); return; }
+        if (bajandoApk) return;
+        if (!Actualizador.permisoParaInstalar(this)) { pidiendoPermiso = true; estadoApk("permiso", ""); return; }
+        bajandoApk = true;
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    Map<?, ?> a = apkNueva;
+                    if (a == null && otaPub != null) {
+                        byte[] ota = bajarOta("ota.json?t=" + System.currentTimeMillis());
+                        Map<?, ?> d = ota != null ? OtaNucleo.leer(ota, otaPub) : null; Object x = d != null ? d.get("apk") : null;
+                        if (x instanceof Map) a = (Map<?, ?>) x;
+                    }
+                    if (a == null || numero(a.get("v")) <= codigoApk()) { estadoApk("aldia", ""); return; }
+                    File f = new File(getCacheDir(), "actualizacion.apk");
+                    boolean ok = ApkBajada.bajar(Actualizador.FUENTES_APK, f, numero(a.get("n")), String.valueOf(a.get("h")), new ApkBajada.Avance() {
+                        @Override public void en(int p) { estadoApk("bajando", String.valueOf(p)); }
+                    });
+                    if (!ok) { estadoApk("error", "No se pudo bajar. Probá con wifi o en un rato."); return; }
+                    estadoApk("instalando", "");
+                    Actualizador.instalar(Inicio.this, f);
+                } catch (Exception e) { Log.w(TAG, "actualizar la app", e); estadoApk("error", "No se pudo instalar. Bajala de la página."); }
+                finally { bajandoApk = false; }
+            }
+        }, "apk").start();
+    }
+    long codigoApk() {
         try { android.content.pm.PackageInfo i = getPackageManager().getPackageInfo(getPackageName(), 0); return Build.VERSION.SDK_INT >= 28 ? i.getLongVersionCode() : i.versionCode; } catch (Exception e) { return 0; }
     }
     private static byte[] bajarDe(String url) {
@@ -147,6 +188,7 @@ public final class Inicio extends Activity {
                 int r = -2;
                 try {
                     byte[] ota = bajarOta("ota.json?t=" + System.currentTimeMillis());
+                    if (ota != null) { Map<?, ?> d = OtaNucleo.leer(ota, otaPub); Object x = d != null ? d.get("apk") : null; if (x instanceof Map && numero(((Map<?, ?>) x).get("v")) > codigoApk()) apkNueva = (Map<?, ?>) x; }
                     if (ota != null) r = OtaNucleo.aplicar(otaRaiz, ota, otaPub, otaBase, otaVApk, codigoApk(), new OtaNucleo.Bajador() {
                         @Override public byte[] bajar(String ruta) { return bajarOta(ruta); }
                     });
@@ -409,10 +451,15 @@ public final class Inicio extends Activity {
     }
 
     @Override protected void onPause() { super.onPause(); if (web != null) web.onPause(); }
-    @Override protected void onResume() { super.onResume(); if (web != null) web.onResume(); }
+    @Override protected void onResume() {
+        super.onResume(); if (web != null) web.onResume();
+        // (volvió del ajuste de «instalar apps desconocidas»)
+        if (pidiendoPermiso) { pidiendoPermiso = false; if (Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls()) actualizarApp(); else estadoApk("sinpermiso", ""); }
+    }
 
     @Override protected void onDestroy() {
         reloj.removeCallbacksAndMessages(null);
+        if (receptorApk != null) { try { unregisterReceiver(receptorApk); } catch (IllegalArgumentException e) { /* ya no estaba */ } }
         if (web != null) { web.destroy(); web = null; }
         super.onDestroy();
     }

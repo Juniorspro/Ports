@@ -25,7 +25,7 @@ if (APP) {
 let fallas = 0; const ok = (c, txt) => { console.log((c ? 'OK   ' : 'FALLA') + ' ' + txt); if (!c) fallas++; };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const ctx = await b.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-const p = await ctx.newPage(); const err = []; const aPropósito = (u) => u.includes('..%2F') || u.includes('/api/yt');   // (la búsqueda de música es del servidor de JXMod: acá no está) // (el intento de colar «..» de la prueba: tiene que dar 404)
+const p = await ctx.newPage(); const err = []; const aPropósito = (u) => u.includes('..%2F') || u.includes('/api/yt') || /\/app\.json$/.test(u);   // (y /app.json: sin APK publicado todavía da 404, y está bien)   // (la búsqueda de música es del servidor de JXMod: acá no está) // (el intento de colar «..» de la prueba: tiene que dar 404)
 p.on('pageerror', (e) => err.push(e.message)); p.on('console', (m) => { if (m.type() === 'error' && !/^INFO:/.test(m.text()) && !(/status of 404/.test(m.text()) && (APP ? aPropósito(m.location().url || '') : (m.location().url || '').includes('/api/yt')))) err.push('consola: ' + m.text().slice(0, 300) + ' ' + (m.location().url || '')); }); p.on('requestfailed', (q) => { if (!aPropósito(q.url())) err.push('falló ' + q.url()); }); p.on('response', (q) => { if (q.status() >= 400 && !aPropósito(q.url())) err.push(q.status() + ' ' + q.url()); });
 const cdp = await ctx.newCDPSession(p);
 await p.addInitScript((u) => { window.SZ_API = u; }, `http://127.0.0.1:${PUERTO_COM}`);

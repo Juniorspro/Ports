@@ -1,7 +1,7 @@
 // El servidor de la comunidad, punta a punta (el Worker de verdad sobre SQLite): cuentas, publicar (y lo que no se
 // puede publicar), feed, me gusta, seguir, descargas, buscar, tendencias, denuncias (3 → se oculta), bloquear,
 // actualizar, moderación, borrar la cuenta, CORS y las páginas. Usa los archivos de /tmp/claude-0/sz_fix (Pillow).
-import fs from 'fs'; import { arrancar } from './servidor_local.mjs';
+import fs from 'fs'; import crypto from 'crypto'; import { arrancar } from './servidor_local.mjs';
 const FIX = '/tmp/claude-0/sz_fix/', PUERTO = 8991, B = `http://127.0.0.1:${PUERTO}${process.env.SZ_BASE || ''}`;
 const { srv, env: ENV } = await arrancar(PUERTO, 'clave-admin', { SZ_EVENTO_META: '5' });   // (el evento del termo, con 5 cuentas en vez de 20)
 let fallas = 0, bien = 0; const ok = (c, t) => { console.log((c ? 'OK    ' : 'FALLA ') + t); c ? bien++ : fallas++; };
@@ -163,6 +163,31 @@ ok(del.j.ok && (await api('/api/usuarios/maria.sol')).st === 404 && (await api('
 const del2 = await api('/api/yo', { method: 'DELETE' }, A);
 ok(del2.j.ok && (await api('/api/packs/' + id1)).st === 404 && (await fetch(`${B}/m/${id1}/s1.webp?v=2`)).status === 404, 'borrar la cuenta de @juancito: se van sus packs y sus archivos');
 
+// ---- lo que sale del repo: las actualizaciones (/web/…), la página web (/) y el APK (/app.json, /descargar) ----
+{
+  const ota = await fetch(B + '/web/ota.json'), local = fs.readFileSync(new URL('../web/ota.json', import.meta.url), 'utf8');
+  ok(ota.status === 200 && /application\/json/.test(ota.headers.get('content-type')) && (await ota.text()) === local && ota.headers.get('access-control-allow-origin') === '*',
+    'actualizaciones: /web/ota.json es el del repo, para la app (desde cualquier origen)');
+  const js = await fetch(B + '/web/app.js'); ok(js.status === 200 && /javascript/.test(js.headers.get('content-type')) && (await js.text()).length > 1000, '…y los archivos de la página (/web/app.js)');
+  const st = []; for (const m of ['/web/%2e%2e/servidor/worker.js', '/web/_prueba.js', '/web/.git/config', '/web/terceros/../../servidor/worker.js', '/web/app.exe', '/web/no_existe.js', '/a/../../servidor/worker.js']) st.push((await fetch(B + m)).status);
+  ok(st.every((x) => x === 404), `nada de afuera de web/ y sitio/a/, ni ocultos, ni de prueba, ni tipos raros (${st.join(' ')})`);
+  const raiz = await fetch(B + '/'), t = await raiz.text();
+  ok(raiz.status === 200 && /text\/html/.test(raiz.headers.get('content-type')) && /Stickerazo/.test(t), 'la página web en /');
+  if (process.env.SZ_BASE) { const r = await fetch(`http://127.0.0.1:${PUERTO}${process.env.SZ_BASE}`, { redirect: 'manual' }); ok(r.status === 302 && r.headers.get('location').endsWith(process.env.SZ_BASE + '/'), `${process.env.SZ_BASE} lleva a ${process.env.SZ_BASE}/ (así andan las imágenes de la página)`); }
+  const desc = new URL('../descargas/', import.meta.url);
+  if (fs.existsSync(new URL('app.json', desc))) {
+    const info = JSON.parse(fs.readFileSync(new URL('app.json', desc), 'utf8')), aj = await (await fetch(B + '/app.json')).json();
+    const d = await fetch(B + '/descargar'), bytes = Buffer.from(await d.arrayBuffer());
+    ok(aj.v === info.v && d.status === 200 && d.headers.get('content-type') === 'application/vnd.android.package-archive' && /attachment/.test(d.headers.get('content-disposition')) && bytes.length === info.n && crypto.createHash('sha256').update(bytes).digest('hex') === info.h,
+      `el APK de la página: /app.json (${info.nombre}) y /descargar (${(info.n / 1048576).toFixed(1)} MB, la huella coincide)`);
+    const firmado = JSON.parse(JSON.parse(local).datos).apk;
+    ok(firmado && firmado.h === info.h && firmado.v === info.v, 'ota.json (firmado) trae la huella de ese APK: la app lo revisa antes de instalarlo');
+  }
+  // si GitHub no contesta: la página cortita y las actualizaciones dicen «después»
+  const antes = ENV.SZ_REPO; ENV.SZ_REPO = 'http://127.0.0.1:1/';
+  const caida = await fetch(B + '/'), o2 = await fetch(B + '/web/ota.json'); ENV.SZ_REPO = antes;
+  ok(caida.status === 200 && /descargar/.test(await caida.text()) && o2.status === 502, 'sin GitHub: igual hay una página con el botón para bajar, y la app reintenta las actualizaciones más tarde');
+}
 // ---- CORS y páginas ----
 const op = await fetch(B + '/api/feed', { method: 'OPTIONS' });
 ok(op.status === 204 && /Authorization/.test(op.headers.get('access-control-allow-headers')), 'CORS: la app (otro origen) puede llamar con su llave');

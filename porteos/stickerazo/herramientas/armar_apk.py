@@ -1,6 +1,12 @@
 # Arma el APK de Stickerazo sin Gradle: la página (web/ → assets/www) + javac → d8 → aapt2 → zipalign → apksigner,
 # y lo revisa (firmas v1+v2+v3, badging, clases del dex, el manifiesto compilado con el proveedor de WhatsApp).
 # Uso: python3 -I herramientas/armar_apk.py [SALIDA.apk] [--version-name 0.1] [--version-code N] [--aab SALIDA.aab]
+#        [--canal web|play|galaxy|huawei|uptodown] [--publicar]
+#   --canal: de dónde se baja (va en assets/canal.txt). «web» (el de nuestra página, por defecto) se actualiza solo: baja
+#   el APK nuevo y lo instala (permiso REQUEST_INSTALL_PACKAGES). Los de las tiendas NO tienen ese permiso (las tiendas no
+#   lo dejan): para un APK nuevo abren su tienda. Con --aab el canal es «play».
+#   --publicar (sólo canal web): copia el APK a descargas/Stickerazo.apk (lo que baja la página y la app), escribe
+#   descargas/app.json (versión, nombre, tamaño, huella) y vuelve a firmar web/ota.json con esos datos.
 #   versionCode por defecto: AAMMDD y el cuarto de hora UTC del día (00-95), así cada armado es mayor que el anterior.
 #   --aab: además, el paquete para Google Play (Android App Bundle), firmado con la misma llave (la «de subida»).
 #   Necesita web/terceros (herramientas/bajar.sh).
@@ -20,6 +26,23 @@ MIN_SDK, TARGET_SDK = 24, 36
 # (el APK más viejo que puede usar la página de ahora: subirlo cuando la página use algo nuevo del puente con Java)
 OTA_APK_MIN = 0
 NO_COMPRIMIR = ['png', 'webp', 'jpg', 'jpeg']
+CANALES = ('web', 'play', 'galaxy', 'huawei', 'uptodown')
+# (sólo el de la web: instalar el APK nuevo él mismo y, desde Android 14, sin preguntar las veces siguientes)
+PERMISOS_WEB = ['android.permission.REQUEST_INSTALL_PACKAGES', 'android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION']
+DESCARGAS = os.path.join(RAIZ, 'descargas')
+
+
+def manifiesto(tmp, canal):
+    """el AndroidManifest.xml de este canal (el de la web suma los permisos para actualizarse solo)"""
+    with open(os.path.join(ANDROID, 'AndroidManifest.xml'), encoding='utf-8') as f: m = f.read()
+    if canal == 'web':
+        extra = ''.join('    <uses-permission android:name="%s" />\n' % p for p in PERMISOS_WEB)
+        ancla = '    <uses-permission android:name="android.permission.VIBRATE" />\n'
+        if ancla not in m: fallar('manifiesto: no encuentro dónde poner los permisos de actualizar')
+        m = m.replace(ancla, ancla + extra)
+    d = os.path.join(tmp, 'manifiesto'); os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, 'AndroidManifest.xml'), 'w', encoding='utf-8') as f: f.write(m)
+    return os.path.join(d, 'AndroidManifest.xml')
 
 
 def fallar(*m):
@@ -95,7 +118,7 @@ def leer_dex(b):
     return metodos, {tipo(struct.unpack_from('<I', b, off_cls + 32 * k)[0]) for k in range(n_cls)}
 
 
-def activos(tmp):
+def activos(tmp, canal='web'):
     """web/ → assets/www (sin lo de prueba: archivos que empiezan con «_»). Falla si faltan MediaPipe o los modelos."""
     for f in ('terceros/mediapipe/vision_bundle.mjs', 'terceros/mediapipe/vision_wasm_internal.wasm', 'terceros/mediapipe/vision_wasm_internal.js',
               'terceros/modelos/selfie_multiclass_256x256.tflite', 'terceros/modelos/magic_touch.tflite'):
@@ -109,7 +132,8 @@ def activos(tmp):
     datos = ota.generar(OTA_APK_MIN)
     with open(os.path.join(tmp, 'assets', 'ota_base.json'), 'w', encoding='utf-8') as f: _json.dump({'v': datos['v'], 'archivos': ota.archivos(WEB)}, f)
     with open(os.path.join(tmp, 'assets', 'ota_pub.txt'), 'w') as f: f.write(ota.publica_b64())
-    print('página: versión %d (%d archivos que se actualizan solos)' % (datos['v'], len(datos['archivos'])))
+    with open(os.path.join(tmp, 'assets', 'canal.txt'), 'w') as f: f.write(canal)
+    print('página: versión %d (%d archivos que se actualizan solos)  |  canal: %s' % (datos['v'], len(datos['archivos']), canal))
     return os.path.join(tmp, 'assets')
 
 
@@ -121,7 +145,12 @@ def main():
     ap.add_argument('--version-code', type=int, default=int(ahora.strftime('%y%m%d')) * 100 + (ahora.hour * 60 + ahora.minute) // 15)
     ap.add_argument('--aab', help='también el Android App Bundle para Google Play')
     ap.add_argument('--conservar', action='store_true', help='no borrar la carpeta temporal')
+    ap.add_argument('--canal', choices=CANALES, help='de dónde se baja (por defecto «web»; con --aab, «play»)')
+    ap.add_argument('--publicar', action='store_true', help='(canal web) dejarlo en descargas/ para la página y las actualizaciones')
     a = ap.parse_args()
+    a.canal = a.canal or ('play' if a.aab else 'web')
+    if a.aab and a.canal != 'play': fallar('el AAB es para Google Play: --canal play (o sin --canal)')
+    if a.publicar and a.canal != 'web': fallar('--publicar es para el APK de la página (canal web)')
     h = herramientas()
     if a.aab and not os.path.isfile(h['bundletool']): fallar('falta bundletool.jar (para --aab):', h['bundletool'])
     tmp = tempfile.mkdtemp(prefix='stickerazo_apk_')
@@ -151,8 +180,9 @@ def main():
         rz = os.path.join(tmp, 'res.zip')
         correr([h['aapt2'], 'compile', '--dir', os.path.join(ANDROID, 'res'), '-o', rz], 'aapt2 compile')
         base = os.path.join(tmp, 'base.apk')
-        act = activos(tmp)
-        cmd = [h['aapt2'], 'link', '-o', base, '--manifest', os.path.join(ANDROID, 'AndroidManifest.xml'), '-I', h['android'],
+        act = activos(tmp, a.canal)
+        a.manifiesto = manifiesto(tmp, a.canal)
+        cmd = [h['aapt2'], 'link', '-o', base, '--manifest', a.manifiesto, '-I', h['android'],
                '--min-sdk-version', MIN_SDK, '--target-sdk-version', TARGET_SDK, '--version-code', a.version_code,
                '--version-name', a.version_name, '-A', act]
         for e in NO_COMPRIMIR: cmd += ['-0', e]
@@ -192,9 +222,14 @@ def main():
         for patron, que in ((r':authorities\(0x01010018\)="com\.stickerazo\.app\.stickers"', 'autoridad'), (r':exported\(0x01010010\)=(true|\(type 0x12\)0xffffffff)', 'público'),
                             (r':readPermission\(0x01010007\)="com\.whatsapp\.sticker\.READ"', 'permiso de WhatsApp')):
             if not re.search(patron, p0): fallar('manifiesto: al proveedor de WhatsApp le falta', que, '\n' + p0[:1500])
+        # los permisos de actualizarse solo: sólo en el de la web (Play y las otras tiendas no lo aceptan)
+        for perm in PERMISOS_WEB:
+            if (("uses-permission: name='%s'" % perm) in b) != (a.canal == 'web'): fallar('permiso', perm, 'en el canal', a.canal)
         for paquete in ('com.whatsapp', 'com.whatsapp.w4b'):
             if paquete not in xt.split('E: application')[0]: fallar('manifiesto: falta <queries>', paquete)
         with zipfile.ZipFile(final) as z: nombres = z.namelist()
+        with zipfile.ZipFile(final) as z:
+            if z.read('assets/canal.txt').decode() != a.canal: fallar('canal.txt no dice', a.canal)
         for f in ('assets/www/index.html', 'assets/www/app.js', 'assets/www/terceros/modelos/magic_touch.tflite', 'assets/www/fuentes/LuckiestGuy.ttf',
                   'res/mipmap-xxxhdpi-v4/ic_launcher.png'):
             if f not in nombres: fallar('falta en el APK:', f)
@@ -209,9 +244,26 @@ def main():
         print('  permisos: %s' % ', '.join(p.rsplit('.', 1)[-1] for p in permisos))
         print('  firma v1+v2+v3 ok  SHA-256 %s' % (sha and sha.group(1)[:16] + '…'))
         if a.aab: armar_aab(h, a, tmp, rz, act, dex, ks, clave, b, nombres)
+        if a.publicar: publicar(a)
     finally:
         if a.conservar: print('temporales en', tmp)
         else: shutil.rmtree(tmp, ignore_errors=True)
+
+
+def publicar(a):
+    """el APK de la página: descargas/Stickerazo.apk + descargas/app.json, y ota.json firmado otra vez con esos datos"""
+    import hashlib, json as _json
+    os.makedirs(DESCARGAS, exist_ok=True)
+    destino = os.path.join(DESCARGAS, 'Stickerazo.apk')
+    shutil.copyfile(a.salida, destino)
+    with open(destino, 'rb') as f: d = f.read()
+    info = {'v': a.version_code, 'nombre': a.version_name, 'n': len(d), 'h': hashlib.sha256(d).hexdigest(), 'minSdk': MIN_SDK,
+            'fecha': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d')}
+    with open(os.path.join(DESCARGAS, 'app.json'), 'w', encoding='utf-8') as f: _json.dump(info, f, ensure_ascii=False, indent=1)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import ota
+    o = ota.generar(OTA_APK_MIN)
+    if o.get('apk', {}).get('h') != info['h']: fallar('ota.json no quedó con la huella del APK')
+    print('publicado: descargas/Stickerazo.apk  %s (%d)  %.2f MB  |  ota.json versión %d con los datos del APK' % (info['nombre'], info['v'], info['n'] / 1048576, o['v']))
 
 
 def armar_aab(h, a, tmp, rz, act, dex, ks, clave, badging_apk, nombres_apk):
@@ -220,7 +272,7 @@ def armar_aab(h, a, tmp, rz, act, dex, ks, clave, badging_apk, nombres_apk):
     decir lo mismo que el APK (paquete, versiones, permisos, página)."""
     bt = ['java', '-jar', h['bundletool']]
     proto = os.path.join(tmp, 'proto.apk')
-    correr([h['aapt2'], 'link', '--proto-format', '-o', proto, '--manifest', os.path.join(ANDROID, 'AndroidManifest.xml'), '-I', h['android'],
+    correr([h['aapt2'], 'link', '--proto-format', '-o', proto, '--manifest', a.manifiesto, '-I', h['android'],
             '--min-sdk-version', MIN_SDK, '--target-sdk-version', TARGET_SDK, '--version-code', a.version_code,
             '--version-name', a.version_name, '-A', act, rz], 'aapt2 link --proto-format')
     modulo = os.path.join(tmp, 'base.zip')

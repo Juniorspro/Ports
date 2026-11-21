@@ -1,6 +1,7 @@
 # Las actualizaciones solas de Stickerazo (como en JXMod): arma web/ota.json con la versión, el versionCode mínimo del
 # APK y la huella (sha256) de cada archivo de web/ (menos terceros/: MediaPipe y los modelos vienen en el APK), firmado
-# con ECDSA P-256. La app lo baja de GitHub, revisa la firma con la llave pública que trae adentro y baja sólo lo que
+# con ECDSA P-256; si hay descargas/app.json, también la versión y la huella del APK de la página. La app lo baja de
+# nuestro servidor (/sz/web/, que lo trae de GitHub) o de GitHub, revisa la firma con la llave pública que trae adentro y baja sólo lo que
 # cambió. Publicar una versión nueva de la página = correr esto y subir web/ (commit y push).
 # Llave privada FUERA del repo: $STICKERAZO_FIRMA_DIR/ota.pem (por defecto /root/.stickerazo/firma); si no está y está
 # $STICKERAZO_OTA_PEM_B64 (secreto del entorno), se escribe de ahí; si no, se crea una nueva. Nunca se muestra.
@@ -48,11 +49,16 @@ def generar(apk_min=0, web=WEB):
     """escribe web/ota.json firmado y devuelve los datos"""
     k = llave()
     datos = {'v': int(datetime.datetime.now(datetime.timezone.utc).strftime('%y%m%d%H%M')), 'apkMin': apk_min, 'archivos': archivos(web)}
+    # (el APK que se baja de nuestra página: versión y huella firmadas, así la app sabe que hay uno nuevo y lo revisa antes de instalarlo)
+    apk = os.path.join(os.path.dirname(os.path.abspath(web)), 'descargas', 'app.json')
+    if os.path.isfile(apk):
+        with open(apk, encoding='utf-8') as i: a = json.load(i)
+        datos['apk'] = {k: a[k] for k in ('v', 'nombre', 'h', 'n') if k in a}
     viejo = os.path.join(web, 'ota.json')
     if os.path.isfile(viejo):
         try:
             ant = json.loads(json.load(open(viejo, encoding='utf-8'))['datos'])
-            if ant.get('archivos') == datos['archivos'] and ant.get('apkMin') == apk_min: return ant   # (nada cambió: queda la misma versión)
+            if ant.get('archivos') == datos['archivos'] and ant.get('apkMin') == apk_min and ant.get('apk') == datos.get('apk'): return ant   # (nada cambió: queda la misma versión)
             datos['v'] = max(datos['v'], ant.get('v', 0) + 1)
         except Exception: pass
     d = json.dumps(datos, separators=(',', ':'), ensure_ascii=False, sort_keys=True)

@@ -3,16 +3,19 @@
 //   capturas/1…6.png  1080×1920, la pantalla en un celular con un título arriba
 //   grafico.png       1024×500, el «gráfico de funciones» (arriba de todo en la ficha)
 //   icono.png         512×512 con canal alfa (el ícono de la tienda)
-// uso: node herramientas/capturas_play.mjs [SALIDA=marca/play]
+//   y las pantallas sueltas (sin marco) en sitio/a/capturas/*.webp, para la página web
+// uso: node herramientas/capturas_play.mjs [SALIDA=marca/play] [SITIO=sitio/a/capturas]
 import { createRequire } from 'module'; import fs from 'fs'; import path from 'path'; import http from 'http';
 const require = createRequire('/home/user/Ports/porteos/jxmod/pruebas/x.mjs'); const { chromium } = require('playwright');
 const RAIZ = new URL('..', import.meta.url).pathname, WEB = RAIZ + 'web/', SAL = path.resolve(process.argv[2] || RAIZ + 'marca/play');
+const SITIO = path.resolve(process.argv[3] || RAIZ + 'sitio/a/capturas'); fs.mkdirSync(SITIO, { recursive: true });
 const CRUDAS = '/tmp/claude-0/sz_play_crudas';
 for (const d of [SAL, SAL + '/capturas', CRUDAS]) fs.mkdirSync(d, { recursive: true });
 const PW = 8997, PC = 8998, API = `http://127.0.0.1:${PC}`, W = `http://127.0.0.1:${PW}`;
-const TIPOS = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.ttf': 'font/ttf', '.png': 'image/png', '.webp': 'image/webp' };
+const TIPOS = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.ttf': 'font/ttf', '.png': 'image/png', '.webp': 'image/webp', '.glb': 'model/gltf-binary' };
 const web = http.createServer((q, r) => { const f = path.join(WEB, decodeURIComponent(new URL(q.url, 'http://x').pathname)); if (!f.startsWith(WEB) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'Content-Type': TIPOS[path.extname(f)] || 'application/octet-stream', 'Access-Control-Allow-Origin': '*' }); fs.createReadStream(f).pipe(r); }).listen(PW);
-const { arrancar } = await import(RAIZ + 'pruebas/servidor_local.mjs'); const { srv } = await arrancar(PC);
+// (el evento del termo con meta 5: así las cinco cuentas de ejemplo ya salen sorteadas y el termo gira con sus stickers)
+const { arrancar } = await import(RAIZ + 'pruebas/servidor_local.mjs'); const { srv } = await arrancar(PC, 'clave-admin', { SZ_EVENTO_META: '5' });
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }); const errores = [];
 
@@ -43,20 +46,29 @@ for (const [nombre, listo] of SEMILLA) {
   await agregarListo(c, listo);
   await c.p.click('#pPublicar'); await c.p.waitForSelector('#pbT'); await c.p.click('#modal [data-x="1"]'); await c.p.waitForSelector('#modal .grandote', { timeout: 60000 });
   const id = await c.E(() => { const E = window.__sz.E; return E.packs.find((x) => x.id === E.packId).publicado.id; });
-  gente.push({ nombre, id, token: await c.E(() => JSON.parse(localStorage.sz_cuenta).token) });
+  gente.push({ nombre, id, token: await c.E(() => JSON.parse(localStorage.sz_cuenta).token), cuenta: await c.E(() => localStorage.sz_cuenta) });
   await c.ctx.close(); await espera(150);
 }
 // (más me gusta a los primeros: así «Para vos» arranca con las respuestas)
 for (const [i, g] of gente.entries()) for (const otro of gente.slice(0, gente.length - i)) if (otro !== g)
   await fetch(`${API}/api/packs/${otro.id}/like`, { method: 'POST', headers: { Authorization: 'Bearer ' + g.token } });
 console.log('comunidad de ejemplo:', gente.map((g) => '@' + g.nombre).join(' '));
+// @la.flaca con foto y portada propias (una foto de los memes, de dominio público, y un banner nuestro) y una bio
+{
+  const g = gente[1], sube = (que, f) => fetch(`${API}/api/yo/${que}`, { method: 'PUT', headers: { 'Content-Type': 'image/webp', Authorization: 'Bearer ' + g.token }, body: fs.readFileSync(f) });
+  for (const [que, f] of [['foto', WEB + 'memes/gatos_04.webp'], ['portada', WEB + 'banners/latam.webp']]) { const r = await sube(que, f); if (!r.ok) { console.log('no se pudo subir la', que, r.status); process.exitCode = 1; } }
+  await fetch(`${API}/api/yo`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + g.token }, body: JSON.stringify({ bio: 'Mate, facturas y stickers 🧉 Rosario' }) });
+  // (y los otros cuatro la siguen)
+  const idUsuario = (await (await fetch(`${API}/api/usuarios/${g.nombre}`)).json()).usuario.id;
+  for (const o of gente) if (o !== g) await fetch(`${API}/api/usuarios/${idUsuario}/seguir`, { method: 'POST', headers: { Authorization: 'Bearer ' + o.token } });
+}
 
 // ---- las pantallas ----
 const crudas = {};
 const V = await celular('V');   // (sin cuenta: el servidor deja 5 cuentas por día por conexión)
 await V.p.click('#tabs [data-t="Feed"]'); await V.p.waitForSelector('#feedLista .tf:not(.esq) .tfGrilla img');
 await V.p.waitForFunction(() => [...document.querySelectorAll('#feedLista .tf:not(.esq) img')].slice(0, 12).every((i) => i.complete && i.naturalWidth > 0));
-crudas.feed = await V.cruda('feed');
+await espera(1500); crudas.feed = await V.cruda('feed');   // (que terminen de aparecer las tarjetas)
 await V.p.click('#tabs [data-t="Crear"]'); await V.p.waitForFunction(() => [...document.querySelectorAll('#portada img, #carrusel img')].every((i) => i.complete && i.naturalWidth > 0));
 crudas.crear = await V.cruda('crear');
 // un sticker de sólo texto, con filete
@@ -66,6 +78,23 @@ const sinAviso = (c) => c.p.waitForFunction(() => document.querySelector('#aviso
 await sinAviso(V); crudas.editor = await V.cruda('editor');
 await V.p.click('#vEditor [data-e="animar"]'); await V.p.click('#aL [data-v="latido"]'); crudas.animar = await V.cruda('animar');
 await V.ctx.close();
+// el perfil de @la.flaca (con su cuenta) y el termo del evento, ya sorteado
+{
+  const F = await (async () => { const ctx = await b.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true }), p = await ctx.newPage();
+    await p.addInitScript(([u, c]) => { window.SZ_API = u; localStorage.setItem('sz_bienvenida', '1'); localStorage.setItem('sz_pais', 'ar'); localStorage.setItem('sz_cuenta', c); }, [API, gente[1].cuenta]);
+    p.on('pageerror', (e) => errores.push('F: ' + e.message));
+    await p.goto(`${W}/index.html`); await p.waitForFunction(() => window.__sz && document.fonts.status === 'loaded');
+    return { p, ctx, cruda: async (n) => { await espera(500); const f = `${CRUDAS}/${n}.png`; await p.screenshot({ path: f }); return f; } }; })();
+  await F.p.click('#tabs [data-t="Perfil"]'); await F.p.waitForSelector('#tabPerfil .arroba');
+  await F.p.waitForFunction(() => [...document.querySelectorAll('#tabPerfil img')].every((i) => i.complete && i.naturalWidth > 0)); await espera(1800);
+  crudas.perfil = await F.cruda('perfil');
+  await F.p.click('#tabs [data-t="Feed"]'); await F.p.waitForSelector('#eventoCard:not(.oc)'); await espera(800);
+  await F.p.waitForFunction(() => [...document.querySelectorAll('#tabFeed img, #historias img')].slice(0, 12).every((i) => i.complete && i.naturalWidth > 0));
+  crudas.inicio = await F.cruda('inicio');
+  await F.p.click('#eventoCard'); await F.p.waitForSelector('.termoEv'); await espera(3500);
+  crudas.termo = await F.cruda('termo');
+  await F.ctx.close();
+}
 // los packs listos y uno agregado, listo para WhatsApp
 const L = await celular('L');
 await L.p.click('#tabs [data-t="Listos"]'); await L.p.waitForFunction(() => [...document.querySelectorAll('#listos img')].slice(0, 15).every((i) => i.complete && i.naturalWidth > 0));
@@ -95,6 +124,8 @@ const TEXTOS = [
   ['feed', 'La comunidad<br><em>más argenta</em>', 'Seguí, dale me gusta y bajate los mejores packs.'],
   ['pack', 'Del celu<br><em>al grupo</em>', 'Armás el pack y con un toque lo sumás a WhatsApp.'],
   ['listos', 'Packs<br><em>listos</em>', 'Mate, fútbol, asado, laburo… para usar o cambiar.'],
+  ['perfil', 'Tu perfil,<br><em>tu onda</em>', 'Tu foto, tu portada y tus packs. Seguí a quien quieras.'],
+  ['termo', 'El termo de<br><em>los elegidos</em>', 'Publicá tu pack: el termo elige 5 y los recomendamos a todos.'],
 ];
 const FONDO = `background:#000;background-image:radial-gradient(60% 38% at 12% 8%,rgba(255,62,138,.55),transparent 70%),radial-gradient(50% 32% at 95% 18%,rgba(255,210,63,.32),transparent 70%),radial-gradient(75% 45% at 50% 105%,rgba(124,77,255,.5),transparent 70%)`;
 const FUENTE = `@font-face{font-family:L;src:url(${W}/fuentes/LuckiestGuy.ttf)}`;
@@ -118,7 +149,7 @@ const anillo = (r, c) => Array.from({ length: 16 }, (_, k) => `${(r * Math.cos(k
 await arm.setContent(`<!doctype html><html><head><style>${FUENTE}
   body{margin:0;width:1024px;height:500px;overflow:hidden;${FONDO};font-family:system-ui,'DejaVu Sans',sans-serif;position:relative}
   .izq{position:absolute;left:0;top:0;width:470px;height:500px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px}
-  .logo{font:400 84px/1 L;white-space:nowrap;transform:rotate(-5deg);text-shadow:${anillo(6, '#fff')},0 14px 26px rgba(255,62,138,.55)}
+  .logo{font:400 74px/1 L;white-space:nowrap;transform:rotate(-5deg);text-shadow:${anillo(6, '#fff')},0 14px 26px rgba(255,62,138,.55)}
   .logo span{color:#ff3e8a}.logo b{font-weight:400;color:#f5a800}
   .lema{font-size:34px;font-weight:800;color:#fff;transform:rotate(-3deg);text-shadow:0 4px 14px #000}
   .der{position:absolute;left:478px;top:28px;width:520px;height:444px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr;gap:10px}
@@ -135,6 +166,21 @@ await arm.setViewportSize({ width: 512, height: 512 });
 await arm.setContent(`<html><body style="margin:0;background:transparent"><img src="${dataUrl(RAIZ + 'marca/icono_512.png')}" style="display:block;width:512px;height:512px"></body></html>`);
 await arm.screenshot({ path: `${SAL}/icono.png`, omitBackground: true });
 
+// las pantallas sueltas para la página web: 590×1278 en WebP
+for (const [clave, f] of Object.entries(crudas)) {
+  await arm.setViewportSize({ width: 590, height: 1278 });
+  await arm.setContent(`<html><body style="margin:0"><img src="${dataUrl(f)}" style="display:block;width:590px;height:1278px"></body></html>`);
+  const png = `${CRUDAS}/_${clave}.png`; await arm.screenshot({ path: png });
+  const webp = await arm.evaluate(async (u) => { const i = new Image(); i.src = u; await i.decode(); const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; c.getContext('2d').drawImage(i, 0, 0); return c.toDataURL('image/webp', 0.82); }, dataUrl(png));
+  fs.writeFileSync(`${SITIO}/${clave}.webp`, Buffer.from(webp.split(',')[1], 'base64'));
+}
+// (y los seis stickers del gráfico, sueltos, para decorar la página)
+fs.mkdirSync(SITIO + '/../st', { recursive: true });
+for (const [k, u] of figus.entries()) {
+  const webp = await arm.evaluate(async (u) => { const i = new Image(); i.src = u; await i.decode(); const e = Math.min(1, 360 / Math.max(i.width, i.height)), c = document.createElement('canvas'); c.width = Math.round(i.width * e); c.height = Math.round(i.height * e); c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); return c.toDataURL('image/webp', 0.85); }, u);
+  fs.writeFileSync(`${SITIO}/../st/${k + 1}.webp`, Buffer.from(webp.split(',')[1], 'base64'));
+}
+console.log('para la página:', fs.readdirSync(SITIO).map((x) => x + ' ' + Math.round(fs.statSync(`${SITIO}/${x}`).size / 1024) + ' KB').join(', '));
 await b.close(); web.close(); srv.close();
 if (errores.length) { console.log('errores:', errores); process.exitCode = 1; }
 for (const f of [...fs.readdirSync(SAL + '/capturas').map((x) => 'capturas/' + x), 'grafico.png', 'icono.png']) console.log(f, Math.round(fs.statSync(`${SAL}/${f}`).size / 1024) + ' KB');

@@ -18,6 +18,7 @@ Todo lo de esta lista permite uso comercial. Lo que no está acá es propio.
 | Natural Earth 1:110m (tierra y países) → `web/mapa.js` | el mapa de puntos de «¿De dónde sos?» | dominio público | naturalearthdata.com (vía github.com/nvkelso/natural-earth-vector), procesado con `herramientas/mapa.py` |
 | 3 banners del inicio (`web/banners/*.webp`) | los carteles que pasan solos en el inicio | propios: generados con IA para Stickerazo (Higgsfield, Seedream 5.5), sin texto ni marcas | hechos para esta app |
 | 184 fotos de animales y comida (`web/memes/*.webp`), deformadas a propósito (estilo «xD») | los packs de memes | CC0 o dominio público (cada una, con autor y enlace, en `web/memes/FUENTES.txt`) | Openverse (Flickr, Wikimedia, rawpixel, StockSnap…), elegidas a mano: sin personas, sin texto, sin personajes ni marcas |
+| La página web (`sitio/`) | presentar la app | propia; la letra del logo es Luckiest Guy (Apache-2.0, copia en `sitio/a/fuentes/` con su licencia) y las capturas y stickers son de la app | hecha para Stickerazo |
 
 MediaPipe y los modelos no se guardan en el repo: los baja `herramientas/bajar.sh` (comprueba sus huellas con
 `herramientas/huellas.txt`). Las fuentes OFL se pueden usar, incluir y vender con la app; no se pueden vender solas.
