@@ -1,7 +1,10 @@
 # Subir Stickerazo a las tiendas (las gratis primero)
 
-Las cuentas tienen que estar **a tu nombre**: piden tu documento o datos tuyos, y yo no puedo crear cuentas. Todo lo
-demás ya está listo: los textos en [`ficha.md`](ficha.md), las imágenes en `marca/play/` y un APK para cada tienda.
+Las cuentas de las tiendas y de AdMob piden **18 años o más** (Google Play, AdMob y el vendedor comercial de Samsung).
+Si sos menor, las abre a su nombre tu mamá, tu papá o quien sea tu tutor: la cuenta es de esa persona y los pagos de
+AdMob van a su nombre. Vos podés seguir haciendo la app y manejar la ficha con ella. No mientas la edad: si lo
+descubren, cierran la cuenta y se pierde lo cobrado. Yo no puedo crear cuentas. Todo lo demás ya está listo: los textos
+en [`ficha.md`](ficha.md), las imágenes en `marca/play/` y un APK para cada tienda.
 
 ## Cuál conviene
 
