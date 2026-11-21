@@ -66,15 +66,21 @@
   </section>
   <!-- decorar: mover, texto, emojis, borde -->
   <section id="vEditor" class="vista oc">
-    <header class="cab"><button class="ico volver" aria-label="Volver"><i data-i="atras"></i></button><h1>Decorá</h1><button id="eGuardar" class="pri">Guardar</button></header>
+    <header class="cab"><button class="ico volver" aria-label="Volver"><i data-i="atras"></i></button><h1>Decorá</h1><button class="ico hist" id="eDeshacer" aria-label="Deshacer" disabled><i data-i="deshacer"></i></button><button class="ico hist" id="eRehacer" aria-label="Rehacer" disabled><i data-i="rehacer"></i></button><button id="eGuardar" class="pri">Guardar</button></header>
     <div class="lienzoCont"><canvas id="eLienzo"></canvas></div>
     <p class="ayuda" id="eAyuda">Arrastrá para mover · con dos dedos agrandás y girás</p>
-    <nav class="barra">
+    <nav class="barra barraHerr" id="eBarra">
       <button data-e="texto"><i data-i="texto"></i>Texto</button>
       <button data-e="emoji"><i data-i="cara"></i>Emoji</button>
+      <button data-e="dibujar"><i data-i="dibujo"></i>Dibujar</button>
       <button data-e="animar"><i data-i="anim"></i>Animar</button>
-      <button data-e="borde"><i data-i="borde"></i>Borde</button>
       <button data-e="xd"><i class="icoXD">xD</i>xD</button>
+      <button data-e="forma"><i data-i="forma"></i>Forma</button>
+      <button data-e="fondo"><i data-i="fondo"></i>Fondo</button>
+      <button data-e="neon"><i data-i="neon"></i>Neón</button>
+      <button data-e="borde"><i data-i="borde"></i>Borde</button>
+      <button data-e="capas"><i data-i="capas"></i>Capas</button>
+      <button data-e="alinear"><i data-i="alinear"></i>Alinear</button>
       <button data-e="ajustes"><i data-i="ajustes"></i>Ajustes</button>
       <button data-e="borrar"><i data-i="tacho"></i>Sacar</button>
     </nav>

@@ -924,3 +924,44 @@ html[data-tema="claro"] .tVista { background: repeating-conic-gradient(#0000000a
 .anilloAv.dorado::before { background: conic-gradient(#fff3b0, #ffc93a, #b8730a, #ffe680, #ffd23f, #a86508, #fff3b0); filter: drop-shadow(0 0 8px rgba(255, 200, 60, .65)); }
 .anilloAv.dorado::after { content: ''; position: absolute; inset: -9px; border-radius: inherit; z-index: -1; background: conic-gradient(from 0deg, #0000 0 80%, rgba(255, 255, 255, .95) 88%, #0000 96%); animation: girarMundo 2.2s linear infinite; mix-blend-mode: screen; }
 html[data-tema="claro"] .prBen, html[data-tema="claro"] .prPrecios span { background: #f3edf9; }
+
+/* ---- editor pro: deshacer/rehacer arriba, la barra de herramientas que se desliza y las hojas nuevas ---- */
+.cab .hist { width: 40px; height: 40px; }
+.cab .hist:disabled { opacity: .3; }
+.cab .hist svg { width: 24px; height: 24px; }
+.barraHerr { overflow-x: auto; justify-content: flex-start; scrollbar-width: none; scroll-snap-type: x proximity; -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent); mask-image: linear-gradient(90deg, #000 86%, transparent); }
+.barraHerr::-webkit-scrollbar { display: none; }
+.barraHerr button { flex: 0 0 62px; scroll-snap-align: start; }
+.barraHerr button:disabled { opacity: .35; }
+.opXD b { font-weight: 700; font-size: 12px; }
+.opXD.act { border-color: var(--ama); background: #ffd23f22; color: var(--ama); }
+.opXD:disabled { opacity: .35; }
+.formas { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.formaOp { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border-radius: 14px; border: 1px solid #ffffff1a; background: #ffffff08; }
+.formaOp canvas { width: 40px; height: 40px; }
+.formaOp small { font-size: 11px; font-weight: 700; color: var(--suave); }
+.formaOp.act { border-color: var(--ama); background: #ffd23f1c; }
+.formaOp.act small { color: var(--ama); }
+.chip.deg { background: var(--deg) padding-box, var(--deg) border-box; color: #fff; text-shadow: 0 1px 2px #0009; font-size: 13px; padding: 7px 12px; }
+.chip.deg.act { border-color: #fff !important; color: #fff; }
+.color.neonC { box-shadow: 0 0 0 2px var(--linea), 0 0 12px 2px var(--n); }
+.color.neonC.act { box-shadow: 0 0 0 3px #fff, 0 0 16px 4px var(--n); }
+.color.sinC, .color.goma { background: var(--panel2); color: var(--suave); display: grid; place-items: center; font-weight: 800; }
+.color.goma svg { width: 22px; height: 22px; }
+.hojaDib .fila { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.hojaDib .fila input { flex: 1; }
+.etqChica { font-size: 13px; font-weight: 700; color: var(--suave); }
+.gotaG { display: inline-block; border-radius: 50%; border: 2px solid #fff6; flex: none; }
+.botones .sec svg { width: 18px; height: 18px; vertical-align: -3px; margin-right: 4px; }
+.capasL { display: flex; flex-direction: column; gap: 6px; max-height: 38vh; overflow-y: auto; }
+.capaF { display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 14px; background: #ffffff08; border: 1px solid #ffffff14; }
+.capaF.act { border-color: var(--ama); background: #ffd23f14; }
+.capaF.oculta canvas, .capaF.oculta span { opacity: .4; }
+.capaF canvas { width: 44px; height: 44px; flex: none; border-radius: 10px; background: repeating-conic-gradient(#ffffff10 0 25%, transparent 0 50%) 0 0 / 12px 12px; }
+.capaF span { flex: 1; min-width: 0; font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.capaF button { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--suave); }
+.capaF button svg { width: 19px; height: 19px; }
+.capaF button.on { color: var(--ama); }
+.capaF button:disabled { opacity: .25; }
+.capaF button:active:not(:disabled) { background: var(--panel2); }
+html[data-tema="claro"] .formaOp, html[data-tema="claro"] .capaF { background: #0000000a; border-color: #00000014; }

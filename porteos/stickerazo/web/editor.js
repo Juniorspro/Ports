@@ -16,6 +16,28 @@ export const FILTROS = { normal: '', bn: 'grayscale(1)', sepia: 'sepia(.85)', vi
   frio: 'hue-rotate(-10deg) saturate(1.15) brightness(1.03)', calido: 'sepia(.22) saturate(1.35) hue-rotate(-6deg)', vivido: 'saturate(1.65) contrast(1.15)', fantasma: 'grayscale(.6) brightness(1.25) contrast(.85)' };
 export const filtroCss = (f) => !f ? '' : [FILTROS[f.preset] || '', f.b && f.b !== 1 ? `brightness(${f.b})` : '', f.c && f.c !== 1 ? `contrast(${f.c})` : '', f.s !== undefined && f.s !== 1 ? `saturate(${f.s})` : ''].filter(Boolean).join(' ');
 const ARCO = 3.2;   // (radio del arco, en tamaños de letra)
+// ---- formas: para recortar una foto (Forma) y para las figuras de fondo (Fondo); centradas en 0,0, de w×h ----
+export const FORMAS = [['circulo', 'Círculo'], ['redondeado', 'Redondeado'], ['corazon', 'Corazón'], ['estrella', 'Estrella'], ['nube', 'Nube'],
+  ['explosion', 'Explosión'], ['hexagono', 'Hexágono'], ['gota', 'Gota'], ['globo', 'Globo']];
+export function formaCamino(g, k, w, h) {
+  const W = w / 2, H = h / 2, P = (x, y) => [x * W, y * H], mv = (x, y) => g.moveTo(...P(x, y)), ln = (x, y) => g.lineTo(...P(x, y));
+  const bz = (a, b, c, d, e, f) => g.bezierCurveTo(...P(a, b), ...P(c, d), ...P(e, f));
+  const redondo = (x0, y0, x1, y1, r) => { const rx = r / W, ry = r / H; mv(x0 + rx, y0); ln(x1 - rx, y0); bz(x1 - rx * 0.45, y0, x1, y0 + ry * 0.45, x1, y0 + ry); ln(x1, y1 - ry); bz(x1, y1 - ry * 0.45, x1 - rx * 0.45, y1, x1 - rx, y1);
+    ln(x0 + rx, y1); bz(x0 + rx * 0.45, y1, x0, y1 - ry * 0.45, x0, y1 - ry); ln(x0, y0 + ry); bz(x0, y0 + ry * 0.45, x0 + rx * 0.45, y0, x0 + rx, y0); };
+  const puntas = (n, adentro, giro = -Math.PI / 2, mueca = 0) => { for (let i = 0; i < n * 2; i++) { const a = giro + (i * Math.PI) / n, r = i % 2 ? adentro + mueca * Math.sin(i * 2.3) : 1; (i ? ln : mv)(Math.cos(a) * r, Math.sin(a) * r); } };
+  g.beginPath();
+  if (k === 'circulo') g.ellipse(0, 0, W, H, 0, 0, TAU);
+  else if (k === 'redondeado') redondo(-1, -1, 1, 1, Math.min(W, H) * 0.3);
+  else if (k === 'corazon') { mv(0, 0.95); bz(-0.2, 0.78, -1, 0.3, -1, -0.32); bz(-1, -0.84, -0.42, -1.08, 0, -0.56); bz(0.42, -1.08, 1, -0.84, 1, -0.32); bz(1, 0.3, 0.2, 0.78, 0, 0.95); }
+  else if (k === 'estrella') puntas(5, 0.46);
+  else if (k === 'explosion') puntas(12, 0.64, -Math.PI / 2, 0.06);
+  else if (k === 'hexagono') { for (let i = 0; i < 6; i++) { const a = (i * Math.PI) / 3; (i ? ln : mv)(Math.cos(a), Math.sin(a)); } }
+  else if (k === 'gota') { mv(0, -1); bz(0.2, -0.62, 0.86, -0.12, 0.86, 0.36); bz(0.86, 0.75, 0.46, 1, 0, 1); bz(-0.46, 1, -0.86, 0.75, -0.86, 0.36); bz(-0.86, -0.12, -0.2, -0.62, 0, -1); }
+  else if (k === 'nube') { for (const [x, y, rx, ry] of [[-0.5, 0.18, 0.5, 0.46], [0.08, -0.22, 0.56, 0.6], [0.56, 0.16, 0.44, 0.42], [0.02, 0.4, 0.7, 0.42]]) { const [cx, cy] = P(x, y); g.moveTo(cx + rx * W, cy); g.ellipse(cx, cy, rx * W, ry * H, 0, 0, TAU); } }
+  else if (k === 'globo') { redondo(-1, -1, 1, 0.62, Math.min(W, H) * 0.34); mv(-0.5, 0.5); ln(-0.62, 1); ln(-0.12, 0.6); }
+  else g.rect(-W, -H, w, h);
+  g.closePath();
+}
 // ---- las «más letras» (web/fuentes_extra.json): se bajan del servidor recién cuando se eligen y quedan guardadas en el celu ----
 let EXTRA = null, BASE_FUENTES = '';
 const cargadas = new Map();
@@ -147,6 +169,7 @@ export class Sticker {
   // tamaño de la capa sin su escala ni giro (con el globo, si tiene)
   medidas(c) {
     if (c.tipo === 'img') return { w: c.src.width, h: c.src.height };
+    if (c.tipo === 'figura') return { w: c.w, h: c.h };
     const g = Sticker._g || (Sticker._g = lienzo(4, 4).getContext('2d'));
     const fuente = c.tipo === 'emoji' ? `${c.tam}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif` : `${c.tam}px "${c.fuente}", sans-serif`;
     g.font = fuente; const lineas = c.tipo === 'emoji' ? [c.ch] : String(c.texto).split('\n');
@@ -167,6 +190,7 @@ export class Sticker {
     const vueltas = Math.max(1, Math.round(this.duracion() / a.dur)); return a.f((t * vueltas) % 1);
   }
   dibujarCapa(g, c, t = 0) {
+    if (c.oculto) return;
     const m = this.mov(c, t) || {}, md = this.medidas(c);
     g.save(); g.translate(c.x + (m.dx || 0), c.y + (m.dy || 0)); g.rotate(c.rot);
     // (el bamboleo gira desde abajo, como un muñeco; el rebote se aplasta contra el piso)
@@ -179,8 +203,15 @@ export class Sticker {
     g.globalAlpha = (m.alfa === undefined ? 1 : m.alfa) * (c.alfa === undefined ? 1 : c.alfa);
     const filtro = [c.tipo === 'img' ? filtroCss(c.filtro) : '', m.tono && c.tipo !== 'texto' ? `hue-rotate(${m.tono}deg) saturate(1.4)` : ''].filter(Boolean).join(' ');
     if (filtro) g.filter = filtro;
-    if (c.tipo === 'img') g.drawImage(c.src, -c.src.width / 2, -c.src.height / 2);
-    else {
+    if (c.tipo === 'img') {
+      const w = c.src.width, hh = c.src.height;
+      if (c.forma) { g.save(); formaCamino(g, c.forma, w, hh); g.clip(); g.drawImage(c.src, -w / 2, -hh / 2); g.restore(); } else g.drawImage(c.src, -w / 2, -hh / 2);
+    } else if (c.tipo === 'figura') {
+      // (una figura de fondo: círculo, estrella, explosión…, lisa o en degradé, con su trazo si tiene)
+      formaCamino(g, c.fig, c.w, c.h); let col = c.color;
+      if (c.degrade && DEGRADES[c.degrade]) { const st = DEGRADES[c.degrade], gr = g.createLinearGradient(0, -c.h / 2, 0, c.h / 2); st.forEach((x, k) => gr.addColorStop(k / (st.length - 1), x)); col = gr; }
+      g.fillStyle = col; g.fill(); if (c.trazo) { g.lineJoin = 'round'; g.lineWidth = Math.min(c.w, c.h) * 0.045; g.strokeStyle = c.trazo; g.stroke(); }
+    } else {
       g.font = md.fuente; g.textAlign = 'center'; g.textBaseline = 'middle';
       const alto = c.tam * 1.08, y0 = -((md.lineas.length - 1) * alto) / 2 - (c.globo ? 17 : 0);
       if (c.globo) { g.save(); g.translate(0, -17); globo(g, md.w - 58, md.h - 68); g.restore(); }
@@ -236,9 +267,18 @@ export class Sticker {
   }
   // ---- el dibujo entero en el momento t: las capas, y alrededor el borde de sticker (dilatando la silueta) y una sombra ----
   componer(t = 0) {
-    const base = lienzo(LADO, LADO), g = base.getContext('2d');
-    for (const c of this.capas) this.dibujarCapa(g, c, t);
-    if (!this.borde && !this.sombra) return base;
+    const base = lienzo(LADO, LADO), g = base.getContext('2d'); let brillo = null;
+    for (const c of this.capas) {
+      if (c.oculto) continue;
+      // (Neón: el borde de sticker sigue la forma de verdad —el brillo no lo agranda— y el brillo va encima del borde, alrededor)
+      if (c.neon) {
+        const tmp = lienzo(LADO, LADO); this.dibujarCapa(tmp.getContext('2d'), c, t);
+        const b = (brillo ||= lienzo(LADO, LADO)).getContext('2d'); b.save(); b.shadowColor = c.neon; b.shadowOffsetX = LADO * 2;
+        for (const r of [10, 22, 40]) { b.shadowBlur = r; b.drawImage(tmp, -LADO * 2, 0); } b.restore();
+        g.drawImage(tmp, 0, 0);
+      } else this.dibujarCapa(g, c, t);
+    }
+    if (!this.borde && !this.sombra && !brillo) return base;
     const out = lienzo(LADO, LADO), o = out.getContext('2d');
     if (this.borde > 0) {
       const sil = lienzo(LADO, LADO), s = sil.getContext('2d'); s.drawImage(base, 0, 0); s.globalCompositeOperation = 'source-in'; s.fillStyle = this.colorBorde; s.fillRect(0, 0, LADO, LADO);
@@ -248,13 +288,15 @@ export class Sticker {
       if (this.sombra) { o.save(); o.shadowColor = 'rgba(0,0,0,0.38)'; o.shadowBlur = 10; o.shadowOffsetY = 4; o.drawImage(ani, 0, 0); o.restore(); }
       else o.drawImage(ani, 0, 0);
     } else if (this.sombra) { o.save(); o.shadowColor = 'rgba(0,0,0,0.38)'; o.shadowBlur = 10; o.shadowOffsetY = 4; o.drawImage(base, 0, 0); o.restore(); }
+    if (brillo) { o.drawImage(brillo, 0, 0); o.drawImage(brillo, 0, 0); }   // (encima del borde: el color se ve como un tubo de neón alrededor)
     o.drawImage(base, 0, 0);
     return out;
   }
   // ¿qué capa hay en (x, y)? la de más arriba
   tocada(x, y) {
     for (let i = this.capas.length - 1; i >= 0; i--) {
-      const c = this.capas[i], m = this.medidas(c), dx = x - c.x, dy = y - c.y, cs = Math.cos(-c.rot), sn = Math.sin(-c.rot);
+      const c = this.capas[i]; if (c.oculto || c.bloq) continue;
+      const m = this.medidas(c), dx = x - c.x, dy = y - c.y, cs = Math.cos(-c.rot), sn = Math.sin(-c.rot);
       const lx = (dx * cs - dy * sn) / c.esc, ly = (dx * sn + dy * cs) / c.esc, pad = 18 / c.esc;
       if (Math.abs(lx) <= m.w / 2 + pad && Math.abs(ly) <= m.h / 2 + pad) return i;
     }
@@ -292,7 +334,7 @@ export class Sticker {
   // ---- el proyecto (para volver a editarlo): todo menos las imágenes, que van aparte ----
   aProyecto() {
     const imgs = [], capas = this.capas.map((c) => {
-      const { src, src0, ...resto } = c;   // (src0: la foto sin los efectos xD, sólo mientras se edita)
+      const { src, src0, xd, ...resto } = c;   // (src0 y xd: la foto sin los efectos xD y cuáles tiene, sólo mientras se edita)
       if (c.tipo === 'img') { let i = imgs.indexOf(src); if (i < 0) { imgs.push(src); i = imgs.length - 1; } return { ...resto, img: i }; }
       return resto;
     });

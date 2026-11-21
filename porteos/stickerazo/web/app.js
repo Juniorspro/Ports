@@ -1,6 +1,6 @@
 // Stickerazo: las pantallas y lo que hace cada botón.
 //  Inicio → (foto) → Recortá → Decorá → Guardar en un pack → el pack (de 3 a 30 stickers) → Agregar a WhatsApp.
-import { LADO, MARGEN, FUENTES, COLORES, DEGRADES, FILTROS, ANIMACIONES, ANIM, cargarFuentes, cargarFuente, cargarFuentesDe, fuentesExtra, servidorFuentes, nombreFuente, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob, ojoDePez, deformar, espejo, quemar, trucha, lentesXD } from './editor.js';
+import { LADO, MARGEN, FUENTES, COLORES, DEGRADES, FILTROS, ANIMACIONES, ANIM, cargarFuentes, cargarFuente, cargarFuentesDe, fuentesExtra, servidorFuentes, nombreFuente, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob, ojoDePez, deformar, espejo, quemar, trucha, lentesXD, FORMAS, formaCamino } from './editor.js';
 import * as P from './puente.js';
 import { LISTOS, armarListo, emojisListo, prepararListo } from './listos.js';
 import { LISTA_PAISES, elegirPaisMapa } from './mapa_pais.js';
@@ -39,6 +39,17 @@ const ICONOS = {
   pincel: RI('M4.5 19.5l1.2-4.4L16 4.8l3.2 3.2L8.9 18.3z') + '<path d="M4.5 19.5l1.2-4.4L16 4.8l3.2 3.2L8.9 18.3z"/><path d="M13.9 6.9l3.2 3.2"/>',
   foto: RI('M3.5 7.5a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3z') + '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M4 16.5l4.6-4.6 3.6 3.6 2.6-2.6 4.7 4.7"/>',
   deshacer: '<path d="M9 14.5L4.5 10 9 5.5"/><path d="M4.5 10h10a5 5 0 0 1 0 10H11"/>',
+  rehacer: '<path d="M15 14.5L19.5 10 15 5.5"/><path d="M19.5 10h-10a5 5 0 0 0 0 10H13"/>',
+  capas: RI('M12 4l8.5 4.5L12 13 3.5 8.5z') + '<path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/><path d="M3.5 16.5L12 21l8.5-4.5"/>',
+  alinear: RI('M5 6.5h14v4.5H5zM7.5 13.5h9V18h-9z') + '<path d="M12 3v18"/><rect x="5" y="6.5" width="14" height="4.5" rx="1.5"/><rect x="7.5" y="13.5" width="9" height="4.5" rx="1.5"/>',
+  forma: RI('M12 19s-6-3.7-6-8.1A3.4 3.4 0 0 1 12 8.9a3.4 3.4 0 0 1 6 2c0 4.4-6 8.1-6 8.1z') + '<path d="M12 19s-6-3.7-6-8.1A3.4 3.4 0 0 1 12 8.9a3.4 3.4 0 0 1 6 2c0 4.4-6 8.1-6 8.1z"/><rect x="3" y="3" width="18" height="18" rx="4" stroke-dasharray="3 2.6"/>',
+  fondo: RI('M12 2.8l1.9 3.5 3.8-1.3-.8 3.9 3.6 1.7-2.9 2.6 2.2 3.3-4 .3-.6 4-3.2-2.4-3.2 2.4-.6-4-4-.3 2.2-3.3-2.9-2.6 3.6-1.7-.8-3.9 3.8 1.3z') + '<path d="M12 2.8l1.9 3.5 3.8-1.3-.8 3.9 3.6 1.7-2.9 2.6 2.2 3.3-4 .3-.6 4-3.2-2.4-3.2 2.4-.6-4-4-.3 2.2-3.3-2.9-2.6 3.6-1.7-.8-3.9 3.8 1.3z"/>',
+  neon: RI('M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z') + '<path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/><path d="M9.5 18.5h5M10.5 21h3"/>',
+  dibujo: RI('M14.5 4.5l5 5-8.2 8.2a3 3 0 0 1-2.1.9H6v-3.2a3 3 0 0 1 .9-2.1z') + '<path d="M14.5 4.5l5 5-8.2 8.2a3 3 0 0 1-2.1.9H6v-3.2a3 3 0 0 1 .9-2.1z"/><path d="M12.5 6.5l5 5"/><path d="M3 21.5c2.6 0 3.2-1.4 3.2-2.9"/>',
+  ojo: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  ojoNo: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" opacity=".45"/><path d="M4.5 19.5l15-15"/>',
+  subir: '<path d="M12 19V5M6.5 10.5L12 5l5.5 5.5"/>',
+  bajarC: '<path d="M12 5v14M6.5 13.5L12 19l5.5-5.5"/>',
   cara: RI('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z') + '<circle cx="12" cy="12" r="8.5"/><path d="M8.3 14.2c.9 1.5 2.2 2.3 3.7 2.3s2.8-.8 3.7-2.3"/><circle cx="9" cy="10" r="1.1" fill="currentColor"/><circle cx="15" cy="10" r="1.1" fill="currentColor"/>',
   borde: RI('M4 9a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z') + '<rect x="4" y="4" width="16" height="16" rx="5" stroke-dasharray="3 2.6"/><path d="M9.5 12.5l1.8 1.8 3.3-3.6"/>',
   ajustes: RI('M5 6a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z') + '<path d="M4 7.5h8.5M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="15" cy="7.5" r="2.4"/><circle cx="9" cy="16.5" r="2.4"/>',
@@ -85,7 +96,7 @@ const recorte = () => (R ||= import('./recorte.js').then(async (m) => { await m.
 let tAviso = 0;
 function aviso(texto, ms = 2800) {
   // justo arriba de los botones de abajo de la pantalla (que no tape lo que se acaba de hacer)
-  const a = $('#aviso'), piso = $(`#${E.vista} .pie, #${E.vista} .barra, #${E.vista} .tabs`), arriba = piso ? piso.getBoundingClientRect().top : window.innerHeight - 16;
+  const a = $('#aviso'), piso = (hayModal() && $('#modal .hoja')) || $(`#${E.vista} .pie, #${E.vista} .barra, #${E.vista} .tabs`), arriba = piso ? piso.getBoundingClientRect().top : window.innerHeight - 16;
   a.style.bottom = Math.round(window.innerHeight - arriba + 12) + 'px'; a.textContent = texto; a.classList.remove('oc'); clearTimeout(tAviso); tAviso = setTimeout(() => a.classList.add('oc'), ms); }
 function modal(html, opc = {}) {
   const m = $('#modal'); m.innerHTML = html; m.className = 'modal' + (opc.claro ? ' claro' : ''); iconos(m); $('#aviso').classList.add('oc');
@@ -170,7 +181,7 @@ function ir(v, volviendo) {
   if (v === 'vRecorte' || v === 'vEditor') $('#aviso').classList.add('oc'); else { setTimeout(mostrarOta, 400); setTimeout(mostrarApk, 900); }
   if (v === 'vInicio') pintarInicio();
   else if (v === 'vRecorte') { marcarHerr(); pedirR(); }
-  else if (v === 'vEditor') { pedirE(true); animarVista(); }
+  else if (v === 'vEditor') { histReset(); pedirE(true); animarVista(); }
   else if (v === 'vPack') pintarPack();
 }
 async function atras() {
@@ -435,9 +446,9 @@ const tAhora = (s) => { const D = s.duracion(); return ((performance.now() / 100
 let relojAnim = 0;
 function animarVista() {
   if (relojAnim) return;
-  relojAnim = setInterval(() => { if (E.vista !== 'vEditor' || !E.st || !E.st.animado()) { clearInterval(relojAnim); relojAnim = 0; return; } if (!hayModal() || $('#modal').classList.contains('claro')) pedirE(true); }, 50);
+  relojAnim = setInterval(() => { if (E.vista !== 'vEditor' || !E.st || !E.st.animado()) { clearInterval(relojAnim); relojAnim = 0; return; } if (!hayModal() || $('#modal').classList.contains('claro')) pedirE('reloj'); }, 50);
 }
-function pedirE(recomponer) { if (recomponer) E.compuesto = null; if (!EV.raf) EV.raf = requestAnimationFrame(() => { EV.raf = 0; pintarE(); }); }
+function pedirE(recomponer) { if (recomponer) { E.compuesto = null; if (recomponer !== 'reloj') histProgramar(); } if (!EV.raf) EV.raf = requestAnimationFrame(() => { EV.raf = 0; pintarE(); }); }
 function pintarE() {
   if (E.vista !== 'vEditor' || !E.st) return;
   const { w, h: hh, d } = medir(EV.c), g = EV.c.getContext('2d'), lado = Math.max(10, Math.min(w, hh) - 8 * d), esc = lado / LADO, ox = (w - lado) / 2, oy = (hh - lado) / 2, s = E.st;
@@ -447,6 +458,7 @@ function pintarE() {
   g.save(); g.setLineDash([5 * d, 7 * d]); g.lineWidth = d; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.strokeRect(ox + MARGEN * esc, oy + MARGEN * esc, (LADO - 2 * MARGEN) * esc, (LADO - 2 * MARGEN) * esc); g.restore();
   if (!E.compuesto) E.compuesto = s.componer(s.animado() ? tAhora(s) : 0);
   g.drawImage(E.compuesto, ox, oy, lado, lado);
+  if (E.dib) { g.drawImage(E.dib.c, ox, oy, lado, lado); marcarEditor(); return; }   // (dibujando: lo que va quedando, sin la selección)
   EV.manija = null;
   const c = s.capas[s.sel];
   if (c) {
@@ -468,6 +480,8 @@ function pintarE() {
 function marcarEditor() {
   const s = E.st, c = s && s.capas[s.sel];
   for (const k of ['ajustes', 'borrar']) $(`#vEditor [data-e="${k}"]`).disabled = !c;
+  $('#vEditor [data-e="forma"]').disabled = !s || !s.capas.some((x) => x.tipo === 'img' && !x.lentes && !x.dibujo);
+  for (const b of document.querySelectorAll('#vEditor .hist')) b.classList.toggle('oc', !!E.dib);
   $('#eAyuda').textContent = !s || !s.capas.length ? 'Sumale un texto o un emoji' : !c ? 'Tocá algo para moverlo' : c.tipo === 'texto' ? 'Tocá dos veces el texto para cambiarlo' : 'Arrastrá para mover · la manija agranda y gira';
 }
 function enSt(ev) {
@@ -485,6 +499,7 @@ function empezarPinza() {
 }
 EV.c.addEventListener('pointerdown', (ev) => {
   const s = E.st; if (!s) return;
+  if (E.dib) { capturar(EV.c, ev.pointerId); dibTrazo(enSt(ev), true); return; }
   capturar(EV.c, ev.pointerId); const p = enSt(ev); EV.p.set(ev.pointerId, p);
   if (EV.p.size === 2) { empezarPinza(); pedirE(); return; }
   if (EV.p.size > 2) return;
@@ -499,6 +514,7 @@ EV.c.addEventListener('pointerdown', (ev) => {
   pedirE();
 });
 EV.c.addEventListener('pointermove', (ev) => {
+  if (E.dib) { if (E.dib.trazo) dibTrazo(enSt(ev), false); return; }
   if (!EV.p.has(ev.pointerId)) return;
   const p = enSt(ev); EV.p.set(ev.pointerId, p); const G = EV.gesto; if (!G) return; const c = G.c;
   if (G.tipo === 'mover') { c.x = lim(p.x - G.dx, 0, LADO); c.y = lim(p.y - G.dy, 0, LADO); }
@@ -511,6 +527,7 @@ EV.c.addEventListener('pointermove', (ev) => {
   pedirE(true);
 });
 function soltar(ev) {
+  if (E.dib) { E.dib.trazo = null; return; }
   if (!EV.p.delete(ev.pointerId)) return;
   if (EV.p.size === 1 && EV.gesto && EV.gesto.tipo === 'pinza') { const p = [...EV.p.values()][0], c = EV.gesto.c; EV.gesto = { tipo: 'mover', c, dx: p.x - c.x, dy: p.y - c.y }; }
   else if (!EV.p.size) EV.gesto = null;
@@ -531,6 +548,12 @@ $('#vEditor .barra').onclick = (ev) => {
   else if (k === 'animar') abrirAnimar();
   else if (k === 'xd') abrirXD();
   else if (k === 'ajustes') abrirAjustes();
+  else if (k === 'dibujar') abrirDibujo();
+  else if (k === 'forma') abrirForma();
+  else if (k === 'fondo') abrirFondo();
+  else if (k === 'neon') abrirNeon();
+  else if (k === 'capas') abrirCapas();
+  else if (k === 'alinear') abrirAlinear();
   else if (k === 'borrar') { s.borrarSel(); pedirE(true); }
 };
 const contornoCss = (c) => Array.from({ length: 16 }, (_, k) => { const a = (k / 16) * Math.PI * 2; return `${(Math.cos(a) * 2.5).toFixed(1)}px ${(Math.sin(a) * 2.5).toFixed(1)}px 0 ${c}`; }).join(',');
@@ -772,38 +795,255 @@ function abrirEmoji() {
     c.x = x; c.y = y; c.rot = x > LADO / 2 ? -0.15 : 0.15; pedirE(true);
   };
 }
-// ---- «xD»: arruinar la foto a propósito (ojo de pez, aplastar, quemar…), como los memes que circulan ----
+// ---- «xD»: arruinar la foto a propósito (ojo de pez, aplastar, quemar…), como los memes que circulan. Cada efecto se pone y
+// se saca de a uno (la foto se rehace desde la original con los que quedan); los lentes son una capa que se pone y se saca ----
 const EFECTOS_XD = [
   ['ojo', '🐟', 'Ojo de pez'], ['ancho', '↔️', 'Aplastar'], ['alto', '↕️', 'Estirar'], ['quemar', '🔥', 'Quemar'],
-  ['trucha', '📉', 'Calidad trucha'], ['espejo', '🪞', 'Espejo'], ['lentes', '😎', 'Lentes'], ['sin', '↩️', 'Sin efectos'],
+  ['trucha', '📉', 'Calidad trucha'], ['espejo', '🪞', 'Espejo'], ['lentes', '😎', 'Lentes'], ['sin', '↩️', 'Sacar todo'],
 ];
+async function aplicarXD(c, lista) {
+  const base = c.src0 || c.src, ant = c.src; let x = base;
+  for (const k of lista) {
+    if (k === 'ojo') x = ojoDePez(x); else if (k === 'ancho') x = deformar(x, 1.45, 1); else if (k === 'alto') x = deformar(x, 1, 1.45);
+    else if (k === 'quemar') x = await quemar(x); else if (k === 'trucha') x = await trucha(x); else if (k === 'espejo') x = espejo(x);
+  }
+  c.esc *= Math.sqrt((ant.width * ant.height) / (x.width * x.height));   // (el mismo tamaño a la vista)
+  if (lista.length) { c.src0 = base; c.src = x; c.xd = lista.slice(); } else { c.src = base; delete c.src0; delete c.xd; }
+}
 function abrirXD() {
-  const s = E.st, foto = () => { const c = s.capas[s.sel]; return c && c.tipo === 'img' && !c.lentes ? c : [...s.capas].reverse().find((x) => x.tipo === 'img' && !x.lentes); };
-  const m = modal(`<div class="hoja hojaXD"><div class="etq" style="margin-top:0">Modo xD <small>· a la foto ${foto() ? '' : '(primero poné una)'}</small></div>
-    <div class="gridXD">${EFECTOS_XD.map(([k, ico, n]) => `<button class="opXD" data-k="${k}"><span>${ico}</span>${n}</button>`).join('')}</div>
+  const s = E.st, foto = () => { const c = s.capas[s.sel]; return c && c.tipo === 'img' && !c.lentes && !c.dibujo ? c : [...s.capas].reverse().find((x) => x.tipo === 'img' && !x.lentes && !x.dibujo); };
+  const m = modal(`<div class="hoja hojaXD"><div class="etq" style="margin-top:0">Modo xD <small>· tocá de nuevo para sacar ${foto() ? '' : '(primero poné una foto)'}</small></div>
+    <div class="gridXD">${EFECTOS_XD.map(([k, ico, n]) => `<button class="opXD" data-k="${k}"><span>${ico}</span><b>${n}</b></button>`).join('')}</div>
     <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
+  const marcar = () => {
+    const c = foto(), l = (c && c.xd) || [], lentes = s.capas.some((x) => x.lentes);
+    for (const b of m.querySelectorAll('.opXD')) { const k = b.dataset.k, on = k === 'lentes' ? lentes : l.includes(k); b.classList.toggle('act', on); if (k === 'lentes') b.querySelector('b').textContent = lentes ? 'Sacar lentes' : 'Lentes'; if (k === 'sin') b.disabled = !l.length && !lentes; }
+  };
   let ocupado = false;
   m.onclick = async (ev) => {
     const b = ev.target.closest('button'); if (!b || ocupado) return; if (b.dataset.x) return cerrarModal();
     const k = b.dataset.k;
-    if (k === 'lentes') { const l = s.agregarImagen(lentesXD()); l.lentes = true; l.esc = 190 / l.src.width; l.y = LADO * 0.36; vibrar(10); pedirE(true); aviso('Movelos a los ojos 😎'); return; }
-    const c = foto(); if (!c) return aviso('Primero poné una foto');
+    if (k === 'lentes') {
+      const i = s.capas.findIndex((x) => x.lentes);
+      if (i >= 0) { s.capas.splice(i, 1); s.sel = -1; aviso('Lentes afuera'); }
+      else { const l = s.agregarImagen(lentesXD()); l.lentes = true; l.esc = 190 / l.src.width; l.y = LADO * 0.36; aviso('Movelos a los ojos 😎'); }
+      vibrar(10); marcar(); pedirE(true); return;
+    }
+    const c = foto();
+    if (k === 'sin') { s.capas = s.capas.filter((x) => !x.lentes); s.sel = -1; }
+    if (!c) { marcar(); pedirE(true); return k === 'sin' ? null : aviso('Primero poné una foto'); }
     ocupado = true; b.classList.add('girando');
     try {
-      if (k === 'sin') { if (c.src0) { c.esc *= Math.sqrt((c.src.width * c.src.height) / (c.src0.width * c.src0.height)); c.src = c.src0; delete c.src0; } }
-      else {
-        c.src0 = c.src0 || c.src;
-        if (k === 'ojo') c.src = ojoDePez(c.src);
-        else if (k === 'ancho') { c.src = deformar(c.src, 1.45, 1); c.esc /= Math.sqrt(1.45); }
-        else if (k === 'alto') { c.src = deformar(c.src, 1, 1.45); c.esc /= Math.sqrt(1.45); }
-        else if (k === 'quemar') c.src = await quemar(c.src);
-        else if (k === 'trucha') c.src = await trucha(c.src);
-        else if (k === 'espejo') c.src = espejo(c.src);
-      }
+      const l = c.xd || [];
+      await aplicarXD(c, k === 'sin' ? [] : l.includes(k) ? l.filter((x) => x !== k) : [...l, k]);
       vibrar(12); pedirE(true);
     } catch (e) { console.error(e); aviso('Uh, no salió. Probá otra vez'); }
-    finally { ocupado = false; b.classList.remove('girando'); }
+    finally { ocupado = false; b.classList.remove('girando'); marcar(); }
   };
+  marcar();
+}
+// ---- deshacer y rehacer (arriba): cada cambio que se ve queda en la historia; se guarda cuando dejás de tocar ----
+const HIST = { pila: [], i: -1, st: null, t: 0 };
+const IDS_IMG = new WeakMap(); let sigImg = 1;
+const idImg = (o) => { let k = IDS_IMG.get(o); if (!k) { k = sigImg++; IDS_IMG.set(o, k); } return k; };
+const copiarCapa = (c) => { const o = {}; for (const [k, v] of Object.entries(c)) o[k] = Array.isArray(v) ? v.map((x) => (x && typeof x === 'object' ? { ...x } : x)) : v && typeof v === 'object' && !('width' in v) ? { ...v } : v; return o; };
+function fotoHist(s) {
+  const capas = s.capas.map(copiarCapa), extra = { borde: s.borde, colorBorde: s.colorBorde, sombra: s.sombra, efecto: s.efecto || '', kfDur: s.kfDur || 0 };
+  const firma = JSON.stringify([extra, capas], (k, v) => (v && typeof v === 'object' && !Array.isArray(v) && 'width' in v && 'height' in v ? '#' + idImg(v) : v));
+  return { capas, extra, firma };
+}
+function histReset() { if (HIST.st === E.st) return; HIST.st = E.st; HIST.pila = E.st ? [fotoHist(E.st)] : []; HIST.i = HIST.pila.length - 1; marcarHist(); }
+function histProgramar() { clearTimeout(HIST.t); HIST.t = setTimeout(() => (EV.p.size || E.dib ? histProgramar() : histTomar()), 380); }
+function histTomar() {
+  clearTimeout(HIST.t); const s = E.st; if (!s || HIST.st !== s) return;
+  const f = fotoHist(s); if (HIST.pila[HIST.i] && HIST.pila[HIST.i].firma === f.firma) return;
+  HIST.pila.splice(HIST.i + 1); HIST.pila.push(f); if (HIST.pila.length > 60) HIST.pila.shift(); HIST.i = HIST.pila.length - 1; marcarHist();
+}
+function histIr(d) {
+  if (E.dib || !E.st) return; histTomar();
+  const i = HIST.i + d; if (i < 0 || i >= HIST.pila.length) return;
+  if (hayModal()) cerrarModal();   // (las hojas abiertas apuntan a las capas de antes)
+  HIST.i = i; const f = HIST.pila[i], s = E.st;
+  s.capas = f.capas.map(copiarCapa); Object.assign(s, f.extra); if (!s.efecto) delete s.efecto; if (!s.kfDur) delete s.kfDur;
+  if (s.sel >= s.capas.length) s.sel = -1;
+  vibrar(8); marcarHist(); E.compuesto = null; pedirE(); animarVista();
+}
+function marcarHist() { const a = $('#eDeshacer'), b = $('#eRehacer'); if (a) a.disabled = HIST.i <= 0; if (b) b.disabled = HIST.i >= HIST.pila.length - 1; }
+$('#eDeshacer').onclick = () => histIr(-1);
+$('#eRehacer').onclick = () => histIr(1);
+document.addEventListener('keydown', (ev) => {
+  if (E.vista !== 'vEditor' || !(ev.ctrlKey || ev.metaKey) || /^(INPUT|TEXTAREA)$/.test((document.activeElement || {}).tagName || '')) return;
+  const k = ev.key.toLowerCase(); if (k === 'z') { ev.preventDefault(); histIr(ev.shiftKey ? 1 : -1); } else if (k === 'y') { ev.preventDefault(); histIr(1); }
+});
+// ---- dibujar a mano: sobre el sticker, con color y grosor; al terminar queda como una capa más (se mueve, se anima…) ----
+function abrirDibujo() {
+  const s = E.st; if (s.sel >= 0) s.sel = -1;
+  E.dib = { c: lienzo(LADO, LADO), color: E.ultColor === '#ffffff' ? '#ff3e8a' : E.ultColor, gros: 14, trazos: [], trazo: null, goma: false };
+  const D = E.dib, pinta = () => { const g = D.c.getContext('2d'); g.clearRect(0, 0, LADO, LADO); for (const t of D.trazos) dibPintar(g, t); pedirE(); };
+  D.pintarTodo = pinta;
+  const m = modal(`<div class="hoja hojaDib"><div class="etq" style="margin-top:0">Dibujar <small>· con el dedo sobre el sticker</small></div>
+    <div class="colores" id="dC">${COLORES.slice(0, 12).map((c) => `<button class="color" data-v="${c}" style="background:${c}" aria-label="Color ${c}"></button>`).join('')}<button class="color goma" data-v="goma" aria-label="Goma"><i data-i="goma"></i></button></div>
+    <div class="fila"><span class="etqChica">Grosor</span><input type="range" id="dG" min="4" max="48" value="${D.gros}" aria-label="Grosor"><b id="dGv" class="gotaG"></b></div>
+    <div class="botones"><button class="sec" id="dDes"><i data-i="deshacer"></i>Trazo</button><button class="sec" data-x="0">Cancelar</button><button class="pri" data-x="1">Listo</button></div></div>`,
+  { claro: true, alCerrar: () => { E.dib = null; pedirE(true); } });
+  const marcar = () => { for (const b of $('#dC', m).children) b.classList.toggle('act', D.goma ? b.dataset.v === 'goma' : b.dataset.v === D.color); const g = $('#dGv', m); g.style.width = g.style.height = Math.max(6, D.gros * 0.6) + 'px'; g.style.background = D.goma ? 'transparent' : D.color; $('#dDes', m).disabled = !D.trazos.length; };
+  $('#dC', m).onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; if (b.dataset.v === 'goma') D.goma = true; else { D.goma = false; D.color = b.dataset.v; } marcar(); };
+  $('#dG', m).oninput = (ev) => { D.gros = +ev.target.value; marcar(); };
+  $('#dDes', m).onclick = () => { D.trazos.pop(); pinta(); marcar(); };
+  D.marcar = marcar;
+  m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
+  m.querySelector('[data-x="1"]').onclick = () => {
+    const caja = cajaAlfa(D.c); E.dib = null;
+    if (caja) {
+      const pad = 2, w = caja.x1 - caja.x0 + pad * 2, hh = caja.y1 - caja.y0 + pad * 2, src = lienzo(w, hh);
+      src.getContext('2d').drawImage(D.c, -caja.x0 + pad, -caja.y0 + pad);
+      s.capas.push({ tipo: 'img', src, x: caja.x0 - pad + w / 2, y: caja.y0 - pad + hh / 2, esc: 1, rot: 0, dibujo: true }); s.sel = s.capas.length - 1;
+    }
+    cerrarModal(); pedirE(true);
+  };
+  marcar(); pedirE();
+}
+function dibPintar(g, t) {
+  g.save(); g.lineCap = g.lineJoin = 'round'; g.lineWidth = t.gros; g.strokeStyle = t.color;
+  if (t.goma) g.globalCompositeOperation = 'destination-out';
+  g.beginPath(); g.moveTo(t.p[0].x, t.p[0].y); if (t.p.length === 1) g.lineTo(t.p[0].x + 0.01, t.p[0].y);
+  for (let i = 1; i < t.p.length - 1; i++) { const a = t.p[i], b = t.p[i + 1]; g.quadraticCurveTo(a.x, a.y, (a.x + b.x) / 2, (a.y + b.y) / 2); }
+  if (t.p.length > 1) { const z = t.p[t.p.length - 1]; g.lineTo(z.x, z.y); }
+  g.stroke(); g.restore();
+}
+function dibTrazo(p, empieza) {
+  const D = E.dib; if (!D) return;
+  if (empieza) { D.trazo = { p: [p], color: D.color, gros: D.gros, goma: D.goma }; D.trazos.push(D.trazo); }
+  else { const u = D.trazo.p[D.trazo.p.length - 1]; if (Math.hypot(p.x - u.x, p.y - u.y) < 1.5) return; D.trazo.p.push(p); }
+  D.pintarTodo(); if (D.marcar) D.marcar();
+}
+function cajaAlfa(c) {
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+  for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return x1 < 0 ? null : { x0, y0, x1: x1 + 1, y1: y1 + 1 };
+}
+// ---- dibujitos de las formas (para elegir) ----
+function htmlFormas(sel, sin) {
+  return `<div class="formas">${sin ? `<button class="formaOp${!sel ? ' act' : ''}" data-v=""><canvas width="56" height="56" data-f=""></canvas><small>${sin}</small></button>` : ''}${FORMAS.map(([k, n]) => `<button class="formaOp${sel === k ? ' act' : ''}" data-v="${k}"><canvas width="56" height="56" data-f="${k}"></canvas><small>${n}</small></button>`).join('')}</div>`;
+}
+function pintarFormas(raiz, color) {
+  for (const cv of raiz.querySelectorAll('canvas[data-f]')) {
+    const g = cv.getContext('2d'), k = cv.dataset.f; g.clearRect(0, 0, 56, 56); g.save(); g.translate(28, 28);
+    if (!k) { g.strokeStyle = '#8d86a3'; g.lineWidth = 3; g.setLineDash([5, 4]); g.strokeRect(-19, -19, 38, 38); }
+    else { formaCamino(g, k, 40, 40); g.fillStyle = color || '#ffd23f'; g.fill(); }
+    g.restore();
+  }
+}
+// ---- Forma: la foto recortada con forma de corazón, estrella, círculo… ----
+function abrirForma() {
+  const s = E.st, foto = () => { const c = s.capas[s.sel]; return c && c.tipo === 'img' && !c.lentes && !c.dibujo ? c : [...s.capas].reverse().find((x) => x.tipo === 'img' && !x.lentes && !x.dibujo); };
+  const c = foto(); if (!c) return aviso('Primero poné una foto');
+  const m = modal(`<div class="hoja"><div class="etq" style="margin-top:0">Forma de la foto</div>${htmlFormas(c.forma || '', 'Sin forma')}
+    <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
+  pintarFormas(m, '#ff3e8a');
+  m.onclick = (ev) => {
+    const b = ev.target.closest('button'); if (!b) return; if (b.dataset.x) return cerrarModal();
+    if (b.dataset.v === undefined) return; if (b.dataset.v) c.forma = b.dataset.v; else delete c.forma;
+    for (const x of m.querySelectorAll('.formaOp')) x.classList.toggle('act', x === b); vibrar(8); pedirE(true);
+  };
+}
+// ---- Fondo: una figura atrás de todo (círculo, explosión, nube…), de un color o en degradé ----
+const NOMBRES_DEG2 = { atardecer: 'Atardecer', neon: 'Neón', oro: 'Oro', pasto: 'Pasto', fuego: 'Fuego', hielo: 'Hielo', arcoiris: 'Arcoíris' };
+function abrirFondo() {
+  const s = E.st; let c = s.capas[s.sel] && s.capas[s.sel].tipo === 'figura' ? s.capas[s.sel] : null;
+  const m = modal(`<div class="hoja"><div class="etq" style="margin-top:0">Fondo <small>· una figura atrás de todo</small></div>${htmlFormas(c ? c.fig : '', c ? 'Sacar' : '')}
+    <div class="etq">Color</div><div class="colores" id="fC">${COLORES.map((x) => `<button class="color" data-v="${x}" style="background:${x}" aria-label="Color ${x}"></button>`).join('')}</div>
+    <div class="chips" id="fD">${Object.keys(DEGRADES).map((k) => `<button class="chip deg" data-d="${k}" style="--deg:linear-gradient(90deg, ${DEGRADES[k].join(', ')})">${NOMBRES_DEG2[k] || k}</button>`).join('')}</div>
+    <div class="botones"><button class="sec" id="fT">Con trazo</button><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
+  const marcar = () => {
+    pintarFormas(m, c ? (c.degrade ? DEGRADES[c.degrade][0] : c.color) : '#ffd23f');
+    for (const b of m.querySelectorAll('.formaOp')) b.classList.toggle('act', !!c && b.dataset.v === c.fig);
+    for (const b of $('#fC', m).children) b.classList.toggle('act', !!c && !c.degrade && b.dataset.v === c.color);
+    for (const b of $('#fD', m).children) b.classList.toggle('act', !!c && b.dataset.d === c.degrade);
+    $('#fT', m).classList.toggle('act', !!c && !!c.trazo); $('#fT', m).disabled = !c;
+  };
+  m.onclick = (ev) => {
+    const b = ev.target.closest('button'); if (!b) return; if (b.dataset.x) return cerrarModal();
+    if (b.classList.contains('formaOp')) {
+      const k = b.dataset.v;
+      if (!k) { if (c) { s.capas.splice(s.capas.indexOf(c), 1); c = null; s.sel = -1; } }
+      else if (c) c.fig = k;
+      else { c = { tipo: 'figura', fig: k, color: '#ffd23f', w: 420, h: 420, x: LADO / 2, y: LADO / 2, esc: 1, rot: 0 }; s.capas.unshift(c); s.sel = 0; }
+    } else if (!c) return aviso('Elegí una figura');
+    else if (b.dataset.v) { c.color = b.dataset.v; delete c.degrade; }
+    else if (b.dataset.d) c.degrade = b.dataset.d;
+    else if (b.id === 'fT') { if (c.trazo) delete c.trazo; else c.trazo = c.color === '#111111' ? '#ffffff' : '#111111'; }
+    vibrar(8); marcar(); pedirE(true);
+  };
+  marcar();
+}
+// ---- Neón: un brillo de color alrededor de lo elegido (o de todo) ----
+const NEONES = ['#3ec7ff', '#ff3e8a', '#ffd23f', '#4cd964', '#b45cff', '#ffffff', '#ff2d2d'];
+function abrirNeon() {
+  const s = E.st, c = s.capas[s.sel], obj = c ? [c] : s.capas;
+  if (!obj.length) return aviso('Agregá algo primero');
+  const m = modal(`<div class="hoja"><div class="etq" style="margin-top:0">Neón <small>· ${c ? 'a lo elegido' : 'a todo'}</small></div>
+    <div class="colores" id="nC"><button class="color sinC" data-v="" aria-label="Sin neón">✕</button>${NEONES.map((x) => `<button class="color neonC" data-v="${x}" style="background:${x};--n:${x}" aria-label="Neón ${x}"></button>`).join('')}</div>
+    <p class="nota">${c ? 'Para ponérselo a todo, tocá afuera del sticker antes.' : 'Para uno solo, tocalo primero.'}</p>
+    <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
+  const marcar = () => { const v = obj[0].neon || ''; for (const b of $('#nC', m).children) b.classList.toggle('act', b.dataset.v === v); };
+  m.onclick = (ev) => {
+    const b = ev.target.closest('button'); if (!b) return; if (b.dataset.x) return cerrarModal(); if (b.dataset.v === undefined) return;
+    for (const x of obj) { if (b.dataset.v) x.neon = b.dataset.v; else delete x.neon; }
+    vibrar(8); marcar(); pedirE(true);
+  };
+  marcar();
+}
+// ---- Capas: qué va adelante, esconder, trabar (que no se mueva sin querer), duplicar y sacar ----
+const nombreCapa = (c) => c.tipo === 'texto' ? `«${String(c.texto).split('\n')[0].slice(0, 18)}»` : c.tipo === 'emoji' ? `Emoji ${c.ch}` : c.tipo === 'figura' ? `Fondo · ${(FORMAS.find((f) => f[0] === c.fig) || [0, 'figura'])[1]}` : c.lentes ? 'Lentes' : c.dibujo ? 'Dibujo' : c.pega ? 'Pegatina' : 'Foto';
+function abrirCapas() {
+  const s = E.st; if (!s.capas.length) return aviso('Todavía no hay nada');
+  const m = modal(`<div class="hoja hojaCapas"><div class="etq" style="margin-top:0">Capas <small>· la de arriba va adelante</small></div><div class="capasL" id="cL"></div>
+    <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
+  const pintar = () => {
+    const L = $('#cL', m), n = s.capas.length;
+    L.innerHTML = s.capas.map((c, i) => [c, i]).reverse().map(([c, i]) => `<div class="capaF${i === s.sel ? ' act' : ''}${c.oculto ? ' oculta' : ''}" data-i="${i}"><canvas width="88" height="88"></canvas><span>${h(nombreCapa(c))}</span>
+      <button data-a="ver" aria-label="${c.oculto ? 'Mostrar' : 'Esconder'}"><i data-i="${c.oculto ? 'ojoNo' : 'ojo'}"></i></button><button data-a="bloq" class="${c.bloq ? 'on' : ''}" aria-label="${c.bloq ? 'Destrabar' : 'Trabar'}"><i data-i="candado"></i></button>
+      <button data-a="sub" aria-label="Adelante"${i === n - 1 ? ' disabled' : ''}><i data-i="subir"></i></button><button data-a="baj" aria-label="Atrás"${i === 0 ? ' disabled' : ''}><i data-i="bajarC"></i></button>
+      <button data-a="dup" aria-label="Duplicar"><i data-i="copias"></i></button><button data-a="borrar" aria-label="Sacar"><i data-i="tacho"></i></button></div>`).join('');
+    iconos(L);
+    for (const f of L.querySelectorAll('.capaF')) {
+      const c = s.capas[+f.dataset.i], cv = f.querySelector('canvas'), g = cv.getContext('2d'), md = s.medidas(c), k = 72 / Math.max(md.w, md.h, 1);
+      g.save(); g.translate(44, 44); s.dibujarCapa(g, { ...c, x: 0, y: 0, rot: 0, esc: k, anim: undefined, kf: undefined, oculto: false }, 0); g.restore();
+    }
+  };
+  m.onclick = (ev) => {
+    const b = ev.target.closest('button'), f = ev.target.closest('.capaF');
+    if (b && b.dataset.x) return cerrarModal(); if (!f) return;
+    const i = +f.dataset.i, c = s.capas[i], a = b && b.dataset.a;
+    if (!a) s.sel = c.oculto ? -1 : i;
+    else if (a === 'ver') { c.oculto = !c.oculto; if (!c.oculto) delete c.oculto; if (s.sel === i) s.sel = -1; }
+    else if (a === 'bloq') { c.bloq = !c.bloq; if (!c.bloq) delete c.bloq; if (s.sel === i) s.sel = -1; }
+    else if (a === 'sub' || a === 'baj') { const j = a === 'sub' ? i + 1 : i - 1; [s.capas[i], s.capas[j]] = [s.capas[j], s.capas[i]]; if (s.sel === i) s.sel = j; else if (s.sel === j) s.sel = i; }
+    else if (a === 'dup') { const d = copiarCapa(c); d.x = Math.min(LADO, c.x + 26); d.y = Math.min(LADO, c.y + 26); delete d.bloq; s.capas.splice(i + 1, 0, d); s.sel = i + 1; }
+    else if (a === 'borrar') { s.capas.splice(i, 1); s.sel = -1; if (!s.capas.length) { pedirE(true); return cerrarModal(); } }
+    vibrar(8); pintar(); pedirE(true);
+  };
+  pintar();
+}
+// ---- Alinear: centrar, enderezar, adelante o atrás, y que entre todo ----
+function abrirAlinear() {
+  const s = E.st; if (!s.capas.length) return aviso('Todavía no hay nada');
+  const OPS = [['h', '⇔', 'Centrar'], ['v', '⇕', 'Al medio'], ['c', '⊕', 'Centro'], ['r', '⟳', 'Derecho'], ['f', '⬆', 'Adelante'], ['a', '⬇', 'Atrás'], ['e', '⤢', 'Que entre todo']];
+  const m = modal(`<div class="hoja"><div class="etq" style="margin-top:0">Alinear <small id="alQ"></small></div><div class="gridXD">${OPS.map(([k, ico, n]) => `<button class="opXD" data-k="${k}"><span>${ico}</span><b>${n}</b></button>`).join('')}</div>
+    <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
+  const marcar = () => { const c = s.capas[s.sel]; $('#alQ', m).textContent = c ? '· ' + nombreCapa(c) : '· tocá algo (o «Que entre todo»)'; for (const b of m.querySelectorAll('.opXD')) b.disabled = !c && b.dataset.k !== 'e'; };
+  m.onclick = (ev) => {
+    const b = ev.target.closest('button'); if (!b) return; if (b.dataset.x) return cerrarModal();
+    const k = b.dataset.k, c = s.capas[s.sel];
+    if (k === 'e') { s.encajar(); }
+    else if (!c) return;
+    else if (k === 'h') c.x = LADO / 2; else if (k === 'v') c.y = LADO / 2; else if (k === 'c') { c.x = LADO / 2; c.y = LADO / 2; } else if (k === 'r') c.rot = 0;
+    else if (k === 'f') s.alFrente();
+    else if (k === 'a') { const i = s.sel, x = s.capas.splice(i, 1)[0]; s.capas.unshift(x); s.sel = 0; }
+    vibrar(8); marcar(); pedirE(true);
+  };
+  marcar();
 }
 function abrirBorde() {
   const s = E.st;
