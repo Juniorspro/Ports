@@ -250,6 +250,8 @@ async function gbspPreparar(clave, prog) {
   // los materiales del mapa (el de cada textura, una vez)
   // (los materiales de agua de Source no traen textura base: van con el agua del motor, la que refleja y se ve de abajo)
   let aguaMi = -1; const aguaMat = () => { if (aguaMi < 0) { aguaMi = DATA.mt.findIndex((x) => x && x.n === 'GM_agua'); if (aguaMi < 0) { aguaMi = DATA.mt.length; DATA.mt.push({ n: 'GM_agua', t: gmTexBlanca(), ts: [1, 1], to: [0, 0], cc: { _Color: [0.22, 0.36, 0.42, 0.72] }, c: [0.22, 0.36, 0.42, 0.72], f: {}, gm: 1, sh: 'Legacy Shaders/Transparent/Diffuse' }); } } return { mi: aguaMi }; };
+  // (y la segunda textura de los terrenos de dos —WorldVertexTransition—: mat2De)
+  const mats2 = new Map(), mat2De = (i) => { let m = mats2.get(i); if (m === undefined) { try { m = gmMaterial(texNom[i], [''], true); } catch (e) { m = null; } mats2.set(i, m); } return m; };
   const mats = new Map(), matDe = (i) => { let m = mats.get(i); if (m === undefined) { try { m = gmMaterial(texNom[i], ['']); if (m && m.vmt && /water/i.test(m.vmt.shader || '')) m = aguaMat(); } catch (e) { m = null; } mats.set(i, m); } return m; };
   const nVt = (vt.length / 12) | 0, vx = (i) => [dVt.getFloat32(i * 12, true), dVt.getFloat32(i * 12 + 4, true), dVt.getFloat32(i * 12 + 8, true)];
   // los pedazos: por celda de 64 m, por material (para dibujar) y aparte los triángulos de choque
@@ -338,12 +340,12 @@ async function gbspPreparar(clave, prog) {
         const q = dix * 176, sp = [dDi.getFloat32(q, true), dDi.getFloat32(q + 4, true), dDi.getFloat32(q + 8, true)], v0 = dDi.getInt32(q + 12, true), pw = dDi.getInt32(q + 20, true), n = (1 << pw) + 1;
         let i0 = 0, dm = 1e18; poly.forEach((p, i) => { const d = (p[0] - sp[0]) ** 2 + (p[1] - sp[1]) ** 2 + (p[2] - sp[2]) ** 2; if (d < dm) { dm = d; i0 = i; } });
         const c = [0, 1, 2, 3].map((k) => poly[(i0 + k) % 4]), lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-        const pts = [], uvs = [], lmv = [];
+        const pts = [], uvs = [], lmv = [], alfa = [];
         for (let i = 0; i < n; i++) {
           const a = lerp(c[0], c[1], i / (n - 1)), b = lerp(c[3], c[2], i / (n - 1));
           for (let j = 0; j < n; j++) {
             const base = lerp(a, b, j / (n - 1)), w = (v0 + i * n + j) * 20; let pp = base;
-            if (w + 20 <= dvs.length) { const d = dDvs.getFloat32(w + 12, true); pp = [base[0] + dDvs.getFloat32(w, true) * d, base[1] + dDvs.getFloat32(w + 4, true) * d, base[2] + dDvs.getFloat32(w + 8, true) * d]; }
+            if (w + 20 <= dvs.length) { const d = dDvs.getFloat32(w + 12, true); pp = [base[0] + dDvs.getFloat32(w, true) * d, base[1] + dDvs.getFloat32(w + 4, true) * d, base[2] + dDvs.getFloat32(w + 8, true) * d]; alfa.push(dDvs.getFloat32(w + 16, true) / 255); } else alfa.push(0);
             pts.push(gbspG(...tr(pp))); uvs.push(uvDe(base)); if (lmDe) lmv.push(lmDe(base));   // (la luz de la grilla, sobre la cara de base)
           }
         }
@@ -359,7 +361,30 @@ async function gbspPreparar(clave, prog) {
         }
         for (const v of nrm) { const l = Math.hypot(v[0], v[1], v[2]) || 1; v[0] /= l; v[1] /= l; v[2] /= l; }
         gbspUVcorr(uvs);
-        ponerCara(pts, nrm, uvs, tris, mi, dibuja, chocaC, esAgua, lmDe ? lmv : null, esCielo);
+        // (un terreno de dos texturas —WorldVertexTransition: roca y nieve en gm_boreas, pasto y tierra—: cada vértice dice
+        // cuánto se ve la segunda (su «alpha», 0 a 255). Cada triángulo va con la que más pesa en sus tres vértices. Antes
+        // iba todo con la primera: gm_boreas salía entero de roca, sin la nieve)
+        const m2 = dibuja && mi >= 0 ? mat2De(tdi) : null;
+        if (m2 && alfa.some((a) => a > 0.01)) {
+          // (los triángulos del borde se cortan justo por donde la mezcla vale 0,5 —«marching triangles»—: el borde entre la
+          // roca y la nieve sigue la línea de Source en vez de hacer escalones de triángulo)
+          const t1 = [], t2 = [], hi = (k) => alfa[k] >= 0.5;
+          const medio = (i, j) => { const t = Math.max(0, Math.min(1, (0.5 - alfa[i]) / ((alfa[j] - alfa[i]) || 1e-6))), L = (x, y) => x + (y - x) * t;
+            const pi = pts[i], pj = pts[j], ni = nrm[i], nj = nrm[j], nx = L(ni[0], nj[0]), ny = L(ni[1], nj[1]), nz = L(ni[2], nj[2]), nl = Math.hypot(nx, ny, nz) || 1;
+            pts.push([L(pi[0], pj[0]), L(pi[1], pj[1]), L(pi[2], pj[2])]); nrm.push([nx / nl, ny / nl, nz / nl]); uvs.push([L(uvs[i][0], uvs[j][0]), L(uvs[i][1], uvs[j][1])]);
+            if (lmDe) { const a = lmv[i], b2 = lmv[j]; lmv.push([a[0], L(a[1], b2[1]), L(a[2], b2[2])]); }
+            alfa.push(0.5); return pts.length - 1; };
+          for (const t of tris) {
+            const h = t.map(hi), n2 = h.filter(Boolean).length;
+            if (n2 === 0) { t1.push(t); continue; } if (n2 === 3) { t2.push(t); continue; }
+            const k = n2 === 1 ? h.indexOf(true) : h.indexOf(false), sv = t[k], o1 = t[(k + 1) % 3], o2 = t[(k + 2) % 3];
+            const p1 = medio(sv, o1), p2 = medio(sv, o2), solo = h[k] ? t2 : t1, resto = h[k] ? t1 : t2;
+            solo.push([sv, p1, p2]); resto.push([p1, o1, o2], [p1, o2, p2]);
+          }
+          if (t1.length) ponerCara(pts, nrm, uvs, t1, mi, true, false, esAgua, lmDe ? lmv : null, esCielo);
+          if (t2.length) ponerCara(pts, nrm, uvs, t2, m2.mi, true, false, esAgua, lmDe ? lmv : null, esCielo);
+          if (chocaC) ponerCara(pts, null, null, tris, -1, false, true, esAgua, null, esCielo);
+        } else ponerCara(pts, nrm, uvs, tris, mi, dibuja, chocaC, esAgua, lmDe ? lmv : null, esCielo);
         continue;
       }
       const pts = poly.map((p) => gbspG(...tr(p))), uvs = poly.map(uvDe), nrm = pts.map(() => nG), tris = [];

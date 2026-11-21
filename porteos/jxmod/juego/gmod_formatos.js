@@ -175,7 +175,7 @@ GMF.vmt = function (bytes, buscar) {
     const de = (x) => { const v = String(x).replace(/[\[\]{}]/g, ' ').trim().split(/\s+/).map(Number); return v.length >= 2 && v.every(Number.isFinite) ? [Math.sign(v[0]) || 1, Math.sign(v[1]) || 1] : null; };
     if (sv !== undefined) return de(sv); const bt = k.$basetexturetransform && /scale\s+(\S+)\s+(\S+)/i.exec(String(k.$basetexturetransform)); return bt ? de(bt[1] + ' ' + bt[2]) : null; })();
   return {
-    shader: m.shader, base: ruta(k.$basetexture), bump: ruta(k.$bumpmap), detalle: ruta(k.$detail), tinte: ruta(k.$refracttinttexture), espejo,
+    shader: m.shader, base: ruta(k.$basetexture), base2: ruta(k.$basetexture2), bump: ruta(k.$bumpmap), detalle: ruta(k.$detail), tinte: ruta(k.$refracttinttexture), espejo,
     trans: num(k.$translucent, 0) !== 0 || num(k.$alpha, 1) < 1, alfa: num(k.$alpha, 1), corte: num(k.$alphatest, 0) !== 0, umbral: num(k.$alphatestreference, 0.5),
     suma: num(k.$additive, 0) !== 0, dosLados: num(k.$nocull, 0) !== 0, brilla: num(k.$selfillum, 0) !== 0,
     sinLuz: /unlit|sprite|spritecard/.test(m.shader), color: vec(k.$color2) || vec(k.$color), env: !!k.$envmap, phong: num(k.$phong, 0) !== 0,

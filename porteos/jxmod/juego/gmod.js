@@ -372,13 +372,17 @@ function gmVmtRuta(tex, carpetas) {
   for (const c of carpetas.length ? carpetas : ['']) { const r = (c ? c.replace(/\/?$/, '/') : '') + tex; if (gmArchivo('materials/' + r + '.vmt')) return r; }
   return null;
 }
-function gmMaterial(tex, carpetas) {
-  const k = tex + '|' + carpetas.join(','); if (GMOD.mats.has(k)) return GMOD.mats.get(k);
+// (seg: la segunda textura de un material de dos —$basetexture2 de WorldVertexTransition, los terrenos que mezclan roca y
+// nieve o pasto y tierra—; si el material no tiene, null)
+function gmMaterial(tex, carpetas, seg) {
+  const k = tex + '|' + carpetas.join(',') + (seg ? '|2' : ''); if (GMOD.mats.has(k)) return GMOD.mats.get(k);
   const rv = gmVmtRuta(tex, carpetas);
   let v = null;
   if (rv) try { v = GMF.vmt(gmArchivo('materials/' + rv + '.vmt'), (p) => gmArchivo('materials/' + p.replace(/\.vmt$/, '') + '.vmt')); } catch (e) { gmErr('vmt ' + rv, e); }
+  if (seg && !(v && v.base2)) { GMOD.mats.set(k, null); return null; }
   let ti;
-  if (v && v.base) ti = gmTextura(v.base);
+  if (seg) ti = gmTextura(v.base2);
+  else if (v && v.base) ti = gmTextura(v.base);
   else if (v) ti = gmTexBlanca();
   else { ti = -1; for (const c of carpetas.length ? carpetas : ['']) { const r = (c ? c.replace(/\/?$/, '/') : '') + tex; if (gmExiste('materials/' + r + '.vtf')) { ti = gmTextura(r); break; } } if (ti < 0) { ti = gmTexDelJuego((carpetas[0] || '') + tex); if (ti < 0) ti = gmTexFaltante(); } }
   const color = v && v.color ? [v.color[0], v.color[1], v.color[2], 1] : [1, 1, 1, 1];
@@ -389,7 +393,7 @@ function gmMaterial(tex, carpetas) {
     if (v.suma) modo = 'add'; else if (v.sinLuz && modo === 'op') modo = 'unlit';
     if (v.shader === 'refract' && !v.base) { modo = 'blend'; color[3] = 0.3; }   // (vidrio que refracta: se ve a través)
   }
-  const mi = DATA.mt.length, m = { n: 'GMA_' + tex, t: ti, ts: [1, 1], to: [0, 0], tt: { _MainTex: [ti, 1, 1, 0, 0] }, cc: { _Color: color }, c: color, f: {}, gm: 1 };
+  const mi = DATA.mt.length, m = { n: 'GMA_' + tex + (seg ? '#2' : ''), t: ti, ts: [1, 1], to: [0, 0], tt: { _MainTex: [ti, 1, 1, 0, 0] }, cc: { _Color: color }, c: color, f: {}, gm: 1 };
   if (modo === 'cut') { m.sh = 'Standard'; m.f = { _Mode: 1, _Glossiness: v && v.phong ? 0.35 : 0.15, _Metallic: 0 }; }
   else if (modo === 'blend') m.sh = 'Legacy Shaders/Transparent/Diffuse';
   else if (modo === 'add') m.sh = 'Particles/Additive';
