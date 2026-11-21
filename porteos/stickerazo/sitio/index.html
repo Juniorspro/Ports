@@ -9,7 +9,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Stickerazo · Tus stickers, al toque">
 <meta property="og:description" content="Stickers para WhatsApp con tus fotos, memes y una comunidad para compartirlos. Gratis.">
-<meta property="og:image" content="https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/a/compartir.jpg">
+<meta property="og:image" content="https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/porteos/stickerazo/sitio/a/compartir.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="a/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="a/icono_180.png">
@@ -203,7 +203,7 @@ footer .fin { width: 100%; font-size: 13.5px; opacity: .8; }
         <h1>Tus fotos,<br><em>hechas stickers</em></h1>
         <p class="bajada">Elegís una foto y se recorta sola. Le ponés letras con onda, la hacés mover y la mandás a WhatsApp. Gratis, sin marca de agua y sin que tus fotos salgan del celu.</p>
         <div class="acciones">
-          <a class="boton pri" href="https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/descargar" data-bajar>
+          <a class="boton pri" href="https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/porteos/stickerazo/descargas/Stickerazo.apk" data-bajar>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg>
             Bajar para Android
           </a>
@@ -303,7 +303,7 @@ footer .fin { width: 100%; font-size: 13.5px; opacity: .8; }
       <div class="bajar aparece">
         <img class="icono" src="a/icono.webp" alt="" width="96" height="96">
         <h2>Bajala <em>gratis</em></h2>
-        <a class="boton pri" href="https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/descargar" data-bajar>
+        <a class="boton pri" href="https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/porteos/stickerazo/descargas/Stickerazo.apk" data-bajar>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg>
           Bajar Stickerazo
         </a>
@@ -347,8 +347,14 @@ footer .fin { width: 100%; font-size: 13.5px; opacity: .8; }
 </footer>
 
 <script>
-// la versión y el tamaño del APK de ahora (si no contesta, queda el texto de siempre)
-fetch('https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/app.json', { cache: 'no-store' }).then((r) => r.ok ? r.json() : null).then((a) => {
+// la versión y el tamaño del APK de ahora. Primero nuestro servidor (y si contesta, la descarga va por él); si no, GitHub.
+// (así la página anda sola —por ejemplo en Cloudflare Pages— aunque el servidor no esté)
+const SERVIDOR = 'https://rezobox-tienda.holasoyjuniors365.workers.dev/sz', REPO = 'https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/porteos/stickerazo';
+const pedir = (u) => fetch(u, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+pedir(SERVIDOR + '/app.json').then((a) => {
+  if (a && a.n) { for (const el of document.querySelectorAll('[data-bajar]')) el.href = SERVIDOR + '/descargar'; return a; }
+  return pedir(REPO + '/descargas/app.json');
+}).then((a) => {
   if (!a || !a.n) return;
   const mb = Math.round(a.n / 1048576);
   document.getElementById('dato').innerHTML = `Gratis · versión <b>${a.nombre}</b> · ${mb} MB · Android 7 o más nuevo`;
