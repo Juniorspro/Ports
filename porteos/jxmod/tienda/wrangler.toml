@@ -10,6 +10,8 @@ keep_vars = true
 # sesión para el multijugador, el progreso y lo social; sin él, todo anda como antes
 [vars]
 GOOGLE_CLIENT_ID = "586582296574-f3ghv0j0pvd93bhrs0vasequ4qejo2g1.apps.googleusercontent.com"
+# Stickerazo (/sz): el mismo cliente (su origen está autorizado). Con esto entrar con Google es obligatorio para la comunidad
+SZ_GOOGLE_CLIENT_ID = "586582296574-f3ghv0j0pvd93bhrs0vasequ4qejo2g1.apps.googleusercontent.com"
 
 [[d1_databases]]
 binding = "DB"
