@@ -5227,7 +5227,18 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     como un jugador, ~1 GB la primera vez). DrGBase, Cartoon Cat, Doro y SCP-049 (los de `nextbots_ia.mjs`) no usan
     `EnableMatrix`: para ellos no cambia nada. `pepe_vuelve` 13/13, `codigo_tragado` bien.
 
-## Registro con Gmail (sin Google) y notificaciones (servidor andando; el juego, sin publicar)
+## JXMod 3.9.9: «Bugs y sugerencias» sin pisarse con letra grande, Avisos y entrar con Gmail
+
+- Publicada con el paquete pk39e. APK 3.9.9 (versionCode 26112101, misma firma, prueba 6/6) con `ota_base.json` que
+  coincide; `version.json` 3909 con `"ota": {"apkMin": 3903}`; `web/ota/` 3.9.9 (para la 3.9.3 en adelante cambia sólo
+  `index.html`, 5,0 MB; `ota.sh` 3/3). Web con código: pide el código, el juego no queda en claro, sin errores;
+  `suelto.json` 3909 para los HTML sueltos (1,5 MB de página + 2,5 MB de juego).
+- El arreglo de la lista (lo mandó el dueño con capturas: las publicaciones se pisaban con la letra grande del celu): las
+  filas crecen con su contenido y la lista se desplaza. Medido en el armado de la 3.9.9 contra los posts de verdad:
+  6 filas, 0 superpuestas y todo adentro de su tarjeta, con letra normal y con letra grande.
+- Entran también el registro con Gmail y las notificaciones (abajo), que estaban sin publicar.
+
+## Registro con Gmail (sin Google) y notificaciones (publicado en la 3.9.9)
 
 Pedido del dueño: «registro sin Google, solamente por Gmail, y poder mandar notificaciones al juego y al HTML, o emails».
 
