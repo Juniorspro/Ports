@@ -253,9 +253,10 @@ la app pregunta en `POST /api/google/listo` con `v` y se lleva la sesión una so
 elegir el @ (`POST /api/registro {nombre, ticket}`). Cuenta vieja (sólo @): al entrar con Google se le vincula, y hasta
 entonces no puede escribir nada (403 `{google: true}`: la app muestra la hoja «Conectá tu cuenta de Google»). De Google se
 guarda sólo una huella del id (`usuarios.google`). Borrar la cuenta desde la web: `<servidor>/borrar` (con Google).
-El cliente de Google es `SZ_GOOGLE_CLIENT_ID` o, si no está, el de JXMod (`GOOGLE_CLIENT_ID`); la página para entrar
-tiene que estar en un origen autorizado de ese cliente (hoy, el del servidor). Sin cliente, vale el @ solo (las pruebas
-viejas). Pruebas: `google.mjs` (25: tokens falsos, nonce, ticket, vincular, exigir, borrar, contacto) y `google_app.mjs`
+El cliente de Google es `SZ_GOOGLE_CLIENT_ID` (una variable del Worker; puede ser el mismo cliente de JXMod). Antes de
+prenderlo, en Google Cloud ese cliente tiene que tener autorizado el origen del servidor
+(`https://rezobox-tienda.holasoyjuniors365.workers.dev`): si no, Google rechaza el botón («origin is not allowed») y nadie
+podría entrar. Sin la variable, Google queda apagado y vale el @ solo, como antes. Pruebas: `google.mjs` (25: tokens falsos, nonce, ticket, vincular, exigir, borrar, contacto) y `google_app.mjs`
 (8, en la app: botón, esperar, elegir @, cuenta vieja).
 
 ## Privacidad, términos y contacto

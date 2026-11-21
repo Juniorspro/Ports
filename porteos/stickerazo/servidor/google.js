@@ -11,14 +11,16 @@
 //     vincula esta cuenta de Google.
 // De Google se guarda lo mínimo: una huella del identificador de la cuenta (SHA-256 de «sz-google:» + sub). Ni el mail, ni
 // el nombre, ni la foto de Google.
-// También: borrar la cuenta desde la web (<servidor>/borrar, con Google) y el cliente de Google de la configuración
-// (SZ_GOOGLE_CLIENT_ID, o el de JXMod: GOOGLE_CLIENT_ID). Sin cliente, Google queda apagado y vale el @ solo.
+// También: borrar la cuenta desde la web (<servidor>/borrar, con Google). El cliente de Google: SZ_GOOGLE_CLIENT_ID
+// (puede ser el mismo de JXMod, si su origen está autorizado). Sin él, Google queda apagado y vale el @ solo.
 // En las pruebas: SZ_JWKS_PRUEBA (las claves públicas de mentira con las que firman sus tokens).
 const enc = new TextEncoder();
 const hex = (u8) => [...u8].map((b) => b.toString(16).padStart(2, '0')).join('');
 export const sha256 = async (s) => hex(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s))));
 const deB64u = (s) => { s = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
-export const clienteGoogle = (env) => (env && (env.SZ_GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID)) || '';
+// (sólo el de Stickerazo: se prende cuando el origen de la página para entrar está autorizado en Google Cloud; si no,
+// Google rechaza el botón y nadie podría entrar)
+export const clienteGoogle = (env) => (env && env.SZ_GOOGLE_CLIENT_ID) || '';
 export const googleObligatorio = (env) => !!clienteGoogle(env);
 export const huellaGoogle = (sub) => sha256('sz-google:' + sub);
 

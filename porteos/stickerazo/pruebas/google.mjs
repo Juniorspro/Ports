@@ -7,7 +7,7 @@ const PUERTO = 8994, B = `http://127.0.0.1:${PUERTO}${process.env.SZ_BASE || ''}
 const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
 const jwk = { ...publicKey.export({ format: 'jwk' }), kid: 'k1', alg: 'RS256', use: 'sig' };
 const { privateKey: otra } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
-const { srv, env: ENV } = await arrancar(PUERTO, 'clave-admin', { GOOGLE_CLIENT_ID: CLIENTE, SZ_JWKS_PRUEBA: JSON.stringify({ keys: [jwk] }) });
+const { srv, env: ENV } = await arrancar(PUERTO, 'clave-admin', { SZ_GOOGLE_CLIENT_ID: CLIENTE, SZ_JWKS_PRUEBA: JSON.stringify({ keys: [jwk] }) });
 const T = process.env.SZ_BASE ? 'sz_' : '';   // (adentro del Worker de JXMod las tablas son «sz_…»)
 let fallas = 0, bien = 0; const ok = (c, t) => { console.log((c ? 'OK    ' : 'FALLA ') + t); c ? bien++ : fallas++; };
 const b64u = (b) => Buffer.from(b).toString('base64url');

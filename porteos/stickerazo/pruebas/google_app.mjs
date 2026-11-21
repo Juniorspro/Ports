@@ -10,7 +10,7 @@ const WEB = new URL('../web/', import.meta.url).pathname, PW = 8996, PC = 8999, 
 const TIPOS = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.ttf': 'font/ttf', '.webp': 'image/webp', '.png': 'image/png', '.glb': 'model/gltf-binary' };
 const web = http.createServer((q, r) => { const f = path.join(WEB, decodeURIComponent(new URL(q.url, 'http://x').pathname)); if (!f.startsWith(WEB) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'Content-Type': TIPOS[path.extname(f)] || 'application/octet-stream' }); fs.createReadStream(f).pipe(r); }).listen(PW);
 const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
-const { srv, env: ENV } = await arrancar(PC, 'clave-admin', { GOOGLE_CLIENT_ID: CLIENTE, SZ_JWKS_PRUEBA: JSON.stringify({ keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'k1', alg: 'RS256' }] }) });
+const { srv, env: ENV } = await arrancar(PC, 'clave-admin', { SZ_GOOGLE_CLIENT_ID: CLIENTE, SZ_JWKS_PRUEBA: JSON.stringify({ keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'k1', alg: 'RS256' }] }) });
 const b64u = (b) => Buffer.from(b).toString('base64url'), ahora = () => Math.floor(Date.now() / 1000);
 const token = (d) => { const c = b64u(JSON.stringify({ alg: 'RS256', kid: 'k1' })), u = b64u(JSON.stringify({ iss: 'https://accounts.google.com', aud: CLIENTE, iat: ahora(), exp: ahora() + 3600, ...d })); return `${c}.${u}.${b64u(crypto.sign('RSA-SHA256', Buffer.from(c + '.' + u), privateKey))}`; };
 let fallas = 0, bien = 0; const ok = (c, t) => { console.log((c ? 'OK    ' : 'FALLA ') + t); c ? bien++ : fallas++; };
