@@ -129,6 +129,8 @@ ok((await api('/api/packs/' + id1, { method: 'PUT', body: formPack(quietos, arch
   ok(!q.f && q.b && (await fetch(B + '/' + f1.usuario.avatar.f)).status === 404, 'sacar la foto: vuelve el emoji (la portada queda)');
   // tres denuncias al perfil: se le saca la portada (y la foto) sola
   await sube('foto', img, 'image/webp', C);
+  const antes = (await api('/api/usuarios/el_tano')).j.usuario.avatar;
+  ok(antes.f && antes.b, 'el perfil público (el que ven los demás) trae la foto y la portada');
   const rx = await api('/api/registro', { method: 'POST', json: { nombre: 'vecino.x' }, headers: { 'CF-Connecting-IP': '10.0.0.99' } });
   for (const t of [A, Bt, rx.j.token]) await api(`/api/usuarios/${idC}/reportar`, { method: 'POST', json: { motivo: 'ofensivo' } }, t);
   const tras = (await api('/api/usuarios/el_tano')).j.usuario.avatar;
