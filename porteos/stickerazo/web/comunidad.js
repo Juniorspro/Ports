@@ -394,7 +394,7 @@ export async function abrirPremium() {
     <div class="botones">${!d.disponible ? '<button class="pri" disabled>Muy pronto</button>'
       : yo.premium ? `${baja ? '<button class="sec" data-x="baja">Dar de baja</button>' : ''}<button class="pri" data-x="donar">💛 Donar</button>`
       : '<button class="sec" data-x="donar">💛 Donar</button><button class="pri" data-x="pagar">Hacete Premium</button>'}</div>
-    <p class="nota">${d.disponible ? 'Se paga con PayPal, en el navegador: no vemos ni guardamos tu tarjeta. Precios en dólares; PayPal te muestra cuánto es en tu moneda. Las suscripciones se dan de baja cuando quieras, desde acá.' : 'Muy pronto vas a poder hacerte Premium o donar desde acá.'}</p>`;
+    <p class="nota">${d.disponible ? 'Se paga con PayPal, en el navegador: no vemos ni guardamos tu tarjeta. Precios en dólares. Las suscripciones se renuevan solas: dala de baja desde acá antes de la fecha de renovación para que no se cobre el período siguiente. No hay devoluciones, salvo los 10 días de arrepentimiento que da la ley desde la primera compra.' : 'Muy pronto vas a poder hacerte Premium o donar desde acá.'}</p>`;
   m.onclick = async (ev) => {
     const b = ev.target.closest('[data-x]'); if (!b) { if (ev.target === m) X.cerrarModal(); return; }
     X.vibrar(8);

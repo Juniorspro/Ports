@@ -10,7 +10,7 @@
 // (todavía no está en las tiendas: el botón «Bajá Stickerazo» lleva a nuestra página, que tiene el APK y, cuando estén, las tiendas)
 import { verificarGoogle, paginaGoogle, googleObligatorio, huellaGoogle, sha256 } from './google.js';
 import { nubeRutas, borrarNube } from './nube.js';
-import { pagosRutas, paginaPremium, pagosAlBorrar, ESQUEMA_PAGOS, cuentaDelTicket, estadoPremium, pagosPrendidos } from './pagos.js';
+import { pagosRutas, paginaPremium, pagosAlBorrar, ESQUEMA_PAGOS, cuentaDelTicket, estadoPremium, pagosPrendidos, quitarPremium } from './pagos.js';
 // (la nube de cada cuenta: en su propia base si está, SZ_NUBE; si no, en la de siempre)
 const nubeDb = (env) => env.SZ_NUBE || env.DB;
 const bajar = (origen) => `${origen}/#bajar`;
@@ -521,8 +521,14 @@ async function api(req, env, u, r, metodo, servidor) {
       return json({ ok: true });
     }
     // (lo cobrado: los últimos 200 pagos y la suma por tipo)
-    if (r === 'admin/pagos' && metodo === 'GET') return json({ pagos: (await env.DB.prepare('SELECT * FROM pagos ORDER BY creado DESC LIMIT 200').all()).results,
+    if (r === 'admin/pagos' && metodo === 'GET') return json({ pagos: (await env.DB.prepare('SELECT p.*, u.nombre FROM pagos p LEFT JOIN usuarios u ON u.id = p.usuario ORDER BY p.creado DESC LIMIT 200').all()).results,
       totales: (await env.DB.prepare('SELECT tipo, moneda, COUNT(*) AS n, SUM(CAST(monto AS REAL)) AS suma FROM pagos GROUP BY tipo, moneda').all()).results });
+    // (quitar el Premium a mano: devolución por arrepentimiento, contracargo o trampa; da de baja la suscripción)
+    if (r === 'admin/premium' && metodo === 'POST') {
+      const { nombre } = await cuerpo(), usr = await env.DB.prepare('SELECT id FROM usuarios WHERE nombre = ?').bind(String(nombre || '').replace(/^@/, '').toLowerCase()).first();
+      if (!usr) return error('No existe esa cuenta', 404);
+      const q = await quitarPremium(env, env.DB, usr.id, 'quitada'); return q ? json({ ok: true }) : error('Esa cuenta no tiene Premium', 409);
+    }
     if (r === 'admin/contacto' && metodo === 'GET') return json({ mensajes: (await env.DB.prepare('SELECT * FROM contacto ORDER BY creado DESC LIMIT 100').all()).results });
     if ((m = /^admin\/contacto\/([a-z0-9]{10})$/.exec(r)) && metodo === 'DELETE') { await env.DB.prepare('DELETE FROM contacto WHERE id = ?').bind(m[1]).run(); return json({ ok: true }); }
     if ((m = /^admin\/usuarios\/([a-z0-9]{10})$/.exec(r)) && metodo === 'POST') {
@@ -658,7 +664,7 @@ const PRIVACIDAD = `<h1>Privacidad</h1><p class="p">Stickerazo · versión corta
 const TERMINOS = `<h1>Términos y reglas</h1><p class="p">Versión corta (la completa no cargó: recargá en un rato)</p><p>Lo que publicás es tuyo y nos das permiso para mostrarlo en la comunidad. No se puede publicar contenido sexual, odio o discriminación, violencia, acoso, datos de otras personas, ni fotos de alguien que no quiere aparecer. Los packs con 3 denuncias se ocultan hasta que los revisemos, y las cuentas que no respetan esto se bloquean. Tenés que tener 13 años o más. La app es gratis y se ofrece tal como está, sin afectar tus derechos como consumidor. Premium es opcional, se paga con PayPal y se da de baja cuando quieras desde la app; tenés 10 días para arrepentirte de una compra y que te devolvamos todo. Rige la ley argentina.</p>`;
 const BORRAR = `<h1>Borrar tu cuenta</h1><p>Abrí Stickerazo → Perfil → <b>Borrar mi cuenta</b>. Se borran al instante tu cuenta, tus packs publicados, tus me gusta y a quién seguís. Los stickers que tenés guardados en el celular quedan en tu celular.</p><p>Sin la app: <a href="borrar">entrá con tu cuenta de Google y borrala desde acá</a>.</p>`;
 const CONTACTO = `<h1>Contacto</h1><p>Escribinos desde la app (Perfil → Ajustes) o volvé en un rato: el formulario no cargó.</p>`;
-const paginaAdmin = (base) => pagina('Moderación · Stickerazo', `<h1>Moderación</h1><input id="k" type="password" placeholder="Clave" style="width:100%;padding:12px;border-radius:12px;border:0"><button class="b" id="v" style="width:100%;border:0">Ver denunciados</button><button class="b" id="vm" style="width:100%;border:0">Ver mensajes de contacto</button><div id="l"></div>
+const paginaAdmin = (base) => pagina('Moderación · Stickerazo', `<h1>Moderación</h1><input id="k" type="password" placeholder="Clave" style="width:100%;padding:12px;border-radius:12px;border:0"><button class="b" id="v" style="width:100%;border:0">Ver denunciados</button><button class="b" id="vm" style="width:100%;border:0">Ver mensajes de contacto</button><button class="b" id="vp" style="width:100%;border:0">Ver pagos (Premium y donaciones)</button><div id="l"></div>
 <script>const k=document.getElementById('k'),l=document.getElementById('l');k.value=localStorage.k||'';
 const api=(r,o={})=>fetch('${base}/api/admin/'+r,{...o,headers:{'X-Admin':k.value,'Content-Type':'application/json'}}).then(x=>x.json());
 async function ver(){localStorage.k=k.value;const d=await api('reportados');if(d.error){l.textContent=d.error;return}
@@ -668,4 +674,7 @@ for(const i of l.querySelectorAll('img[data-s]'))fetch(i.dataset.s,{headers:{'X-
 async function mensajes(){localStorage.k=k.value;const d=await api('contacto');if(d.error){l.textContent=d.error;return}
 const t=(x)=>String(x).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
 l.innerHTML=d.mensajes.map(m=>'<div style="background:#201d2c;border-radius:16px;padding:12px;margin:12px 0"><b>'+t(m.motivo)+'</b> · '+new Date(m.creado).toLocaleString()+(m.mail?' · '+t(m.mail):'')+'<p style="white-space:pre-wrap">'+t(m.texto)+'</p><button data-m="'+m.id+'">Borrar</button></div>').join('')||'Sin mensajes 🙌'}
-document.getElementById('v').onclick=ver;document.getElementById('vm').onclick=mensajes;l.onclick=async e=>{const b=e.target;if(b.dataset.m){await api('contacto/'+b.dataset.m,{method:'DELETE'});mensajes();return}if(b.dataset.p){await api('packs/'+b.dataset.p,{method:'POST',body:JSON.stringify({accion:b.dataset.a})});ver()}if(b.dataset.u){await api('usuarios/'+b.dataset.u,{method:'POST',body:JSON.stringify({bloqueado:1})});ver()}};</script>`);
+async function pagos(){localStorage.k=k.value;const d=await api('pagos');if(d.error){l.textContent=d.error;return}const t=(x)=>String(x??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+l.innerHTML='<p><b>Totales:</b> '+(d.totales.map(x=>t(x.tipo)+': '+x.n+' (US$ '+Number(x.suma).toFixed(2)+')').join(' · ')||'nada todavía')+'</p><p><input id="qp" placeholder="@cuenta" style="padding:10px;border-radius:10px;border:0"> <button id="qb">Quitar Premium (devolución o contracargo)</button></p>'+d.pagos.map(p=>'<div style="background:#201d2c;border-radius:12px;padding:10px;margin:8px 0">'+new Date(p.creado).toLocaleString()+' · <b>'+t(p.tipo)+'</b> US$ '+t(p.monto)+' · @'+t(p.nombre||p.usuario)+' · <small>'+t(p.id)+'</small></div>').join('');
+document.getElementById('qb').onclick=async()=>{const n=document.getElementById('qp').value.trim();if(!n||!confirm('¿Quitarle Premium a '+n+'? Si paga por mes o por año, se da de baja en PayPal.'))return;const r=await api('premium',{method:'POST',body:JSON.stringify({nombre:n})});alert(r.ok?'Listo':(r.error||'No se pudo'));pagos()}}
+document.getElementById('v').onclick=ver;document.getElementById('vm').onclick=mensajes;document.getElementById('vp').onclick=pagos;l.onclick=async e=>{const b=e.target;if(b.dataset.m){await api('contacto/'+b.dataset.m,{method:'DELETE'});mensajes();return}if(b.dataset.p){await api('packs/'+b.dataset.p,{method:'POST',body:JSON.stringify({accion:b.dataset.a})});ver()}if(b.dataset.u){await api('usuarios/'+b.dataset.u,{method:'POST',body:JSON.stringify({bloqueado:1})});ver()}};</script>`);

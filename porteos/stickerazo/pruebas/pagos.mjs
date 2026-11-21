@@ -30,9 +30,10 @@ const ppSrv = http.createServer(async (q, r) => {
 }).listen(PP);
 const conPP = { SZ_PAYPAL_CLIENT_ID: 'cid', SZ_PAYPAL_SECRET: 'sec', SZ_PAYPAL_API: `http://127.0.0.1:${PP}`, SZ_PAYPAL_PLAN_MES: 'P-MES', SZ_PAYPAL_PLAN_ANIO: 'P-ANIO' };
 const { srv, env: ENV } = await arrancar(PUERTO, 'clave-admin', conPP);
-const db = (sql, ...a) => ENV.DB.prepare(sql.replace(/\b(usuarios|premium|pagos|tickets_pago)\b/g, T + '$1')).bind(...a);
+const db = (sql, ...a) => ENV.DB.prepare(sql.replace(/\b(usuarios|premium|pagos|tickets_pago|limites)\b/g, T + '$1')).bind(...a);
 const api = async (ruta, o = {}, tok, base = B) => { const h = { ...(o.headers || {}) }; if (tok) h.Authorization = 'Bearer ' + tok; if (o.json) { h['Content-Type'] = 'application/json'; o.body = JSON.stringify(o.json); } const r = await fetch(base + ruta, { ...o, headers: h }); const tx = await r.text(); let j = null; try { j = JSON.parse(tx); } catch (e) { /* html */ } return { st: r.status, j, tx, h: r.headers }; };
-const cuenta = async (n) => { const r = await api('/api/registro', { method: 'POST', json: { nombre: n } }); return { tok: r.j.token, id: r.j.usuario.id, nombre: r.j.usuario.nombre }; };
+// (las altas desde una misma compu tienen límite por hora: en la prueba se limpia antes de cada una)
+const cuenta = async (n) => { await db('DELETE FROM limites').run(); const r = await api('/api/registro', { method: 'POST', json: { nombre: n } }); return { tok: r.j.token, id: r.j.usuario.id, nombre: r.j.usuario.nombre }; };
 const ticket = async (c) => new URL((await api('/api/premium/ticket', { method: 'POST' }, c.tok)).j.url).searchParams.get('t');
 const pagar = async (t, tipo, monto) => { const o = await api('/api/pp/orden', { method: 'POST', json: { t, tipo, monto } }); if (!o.j || !o.j.id) return { orden: o }; return { orden: o, cobro: await api('/api/pp/capturar', { method: 'POST', json: { t, orden: o.j.id } }) }; };
 const estado = async (c) => (await api('/api/premium', {}, c.tok)).j;
@@ -116,6 +117,19 @@ ok(vC.cobro.st === 200 && eC.yo.tipo === 'vida' && eC.yo.premium && new Date(eC.
 const vC2 = await api('/api/pp/orden', { method: 'POST', json: { t: tC, tipo: 'vida' } });
 ok(vC2.st === 409, 'no se puede comprar «de por vida» dos veces');
 
+// devoluciones: si la compra «de por vida» figura devuelta en PayPal (o con contracargo), el Premium se va solo
+const R = await cuenta('devolvio'), tR = await ticket(R), vR = await pagar(tR, 'vida');
+ok(vR.cobro.st === 200 && (await estado(R)).yo.premium, '«de por vida» comprada');
+F.ordenes.get(vR.orden.j.id).cap.status = 'REFUNDED'; await db('UPDATE premium SET revisado = 0 WHERE usuario = ?', R.id).run();
+const eR = await estado(R), pR = (await api('/api/usuarios/devolvio')).j.usuario;
+ok(!eR.yo.premium && eR.yo.estado === 'reembolsada' && pR.premium === false, 'si la plata se devolvió (arrepentimiento o contracargo), el Premium se quita solo');
+// a mano desde el panel: quita el Premium y da de baja la suscripción
+const Q = Bc, tQ = await ticket(Q);   // (las altas por compu tienen límite: se usa una cuenta que ya está)
+F.subs.set('I-QUITAR0001', { status: 'ACTIVE', plan: 'P-MES', cuenta: Q.id, prox });
+await api('/api/pp/suscripcion', { method: 'POST', json: { t: tQ, sub: 'I-QUITAR0001' } });
+const qNo = await api('/api/admin/premium', { method: 'POST', json: { nombre: '@otra.cuenta' } }), qSi = await api('/api/admin/premium', { method: 'POST', json: { nombre: '@otra.cuenta' }, headers: { 'X-Admin': 'clave-admin' } });
+ok(qNo.st === 403 && qSi.st === 200 && F.bajas.includes('I-QUITAR0001') && !(await estado(Q)).yo.premium, 'el panel quita el Premium a mano y da de baja la suscripción (sin la clave, no)');
+
 // el enlace vence (2 horas)
 await db('UPDATE tickets_pago SET vence = 0').run();
 const venc = await api('/api/pp/orden', { method: 'POST', json: { t: tB, tipo: 'donacion', monto: 2 } });
@@ -132,7 +146,7 @@ ok(borr.st === 200 && F.bajas.includes('I-BORRA00001') && !(await db('SELECT 1 F
 // el panel: lo cobrado
 const adm = await api('/api/admin/pagos', { headers: { 'X-Admin': 'clave-admin' } }), admNo = await api('/api/admin/pagos');
 const tot = Object.fromEntries(adm.j.totales.map((x) => [x.tipo, x.n]));
-ok(adm.st === 200 && admNo.st === 403 && tot.donacion === 1 && tot.vida === 1 && tot.mes === 3 && tot.anio === 1, `el panel ve lo cobrado (${adm.j.totales.map((x) => `${x.tipo} ${x.n}`).join(', ')}); sin la clave, no`);
+ok(adm.st === 200 && admNo.st === 403 && tot.donacion === 1 && tot.mes === 4 && tot.anio === 1 && tot.vida === 2, `el panel ve lo cobrado (${adm.j.totales.map((x) => `${x.tipo} ${x.n}`).join(', ')}); sin la clave, no`);
 ok(F.permisos <= 2, `el permiso de PayPal se pide una vez y se reusa (${F.permisos})`);
 
 console.log(`RESUMEN: ${bien} bien, ${fallas} fallas`);

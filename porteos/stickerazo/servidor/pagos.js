@@ -12,6 +12,9 @@
 //     de esta cuenta). La app pregunta GET /api/premium y se entera sola.
 // La suscripción se vuelve a revisar con PayPal cuando está por vencer (o una vez por día): si se dio de baja, el
 // Premium sigue hasta el final de lo pagado. Baja desde la app: POST /api/premium/baja (el «botón de baja»).
+// Devoluciones: sólo las que pide la ley (10 días desde la primera compra). La «de por vida» se revisa con PayPal cada
+// 6 horas durante 180 días: si la plata se devolvió o hubo un contracargo, el Premium se va solo. Para las otras (o a
+// mano), el panel: POST /api/admin/premium {nombre} quita el Premium y da de baja la suscripción.
 // De PayPal se guarda el id de la suscripción o de la orden, el monto, la moneda y la fecha. Nada de tarjetas ni mails.
 // En las pruebas: SZ_PAYPAL_API (un PayPal de mentira en la compu).
 export const PRECIOS = { mes: '1.99', anio: '14.99', vida: '29.99' }, MONEDA = 'USD', DONACION = { min: 1, max: 200 };
@@ -87,8 +90,30 @@ async function revisarSuscripcion(env, db, u, sub, nueva = false) {
   await marcarUsuario(db, u);
   return { usuario: u, tipo, ref: sub, estado, hasta, previo };
 }
+// (la compra «de por vida»: si en PayPal figura devuelta o con contracargo, se quita)
+const DEVUELTA = ['REFUNDED', 'PARTIALLY_REFUNDED', 'REVERSED'];
+async function revisarCompra(env, db, u, p) {
+  const r = await pp(env, 'GET', '/v2/checkout/orders/' + encodeURIComponent(p.ref)); if (!r.ok) return null;
+  const cap = ((((r.j.purchase_units || [])[0] || {}).payments || {}).captures || [])[0] || {};
+  if (DEVUELTA.includes(cap.status)) return quitarPremium(env, db, u, 'reembolsada');
+  await db.prepare('UPDATE premium SET revisado = ? WHERE usuario = ?').bind(Date.now(), u).run();
+  return null;
+}
+/** sacar el Premium (devolución, contracargo o a mano desde el panel): se da de baja la suscripción si había */
+export async function quitarPremium(env, db, u, motivo = 'quitada') {
+  const p = await db.prepare('SELECT * FROM premium WHERE usuario = ?').bind(u).first(); if (!p) return null;
+  if (esSuscripcion(p.tipo) && p.estado === 'activa' && pagosPrendidos(env)) { try { await cancelar(env, p.ref, 'Premium quitado: ' + motivo); } catch (e) { /* nada */ } }
+  const ahora = Date.now();
+  await db.prepare('UPDATE premium SET estado = ?, hasta = ?, revisado = ? WHERE usuario = ?').bind(motivo, ahora, ahora, u).run();
+  await marcarUsuario(db, u);
+  return { ...p, estado: motivo, hasta: ahora };
+}
 export async function estadoPremium(env, db, u, revisar = true) {
   let p = await db.prepare('SELECT * FROM premium WHERE usuario = ?').bind(u).first();
+  if (p && revisar && pagosPrendidos(env) && p.tipo === 'vida' && p.estado === 'vida' && Date.now() - p.revisado > 6 * 3600e3) {
+    const c = await db.prepare('SELECT creado FROM pagos WHERE id = ?').bind(p.ref).first();
+    if (c && Date.now() - c.creado < 180 * DIA) { try { p = (await revisarCompra(env, db, u, p)) || p; } catch (e) { /* PayPal no contesta: después */ } }
+  }
   if (p && revisar && pagosPrendidos(env) && esSuscripcion(p.tipo) && p.estado === 'activa' && (p.hasta - Date.now() < 2 * DIA || Date.now() - p.revisado > DIA)) {
     try { const n = await revisarSuscripcion(env, db, u, p.ref); if (n) p = n; } catch (e) { /* PayPal no contesta: queda lo que había */ }
   }
@@ -217,8 +242,8 @@ a.b{display:inline-block;margin-top:14px;color:#fff;text-decoration:none;font-we
 <button class="plan act" data-p="anio"><span><b>Por año <span class="tag">Ahorrás ${ahorro} %</span></b><small>Un solo pago por año. Se renueva solo.</small></span><span class="p">${plata(PRECIOS.anio)}</span></button>
 <button class="plan" data-p="vida"><span><b>De por vida</b><small>Un solo pago y listo, para siempre.</small></span><span class="p">${plata(PRECIOS.vida)}</span></button></div>
 <div class="bot" id="bSub"></div><div class="bot" id="bVida" hidden></div>
-<p class="nota">Los precios están en dólares; PayPal te muestra cuánto es en tu moneda antes de pagar. Las suscripciones se renuevan solas hasta que las des de baja (en la app: Perfil → Premium → Dar de baja). Tenés 10 días para arrepentirte (<a href="${origen}/contacto">escribinos</a>).</p></div>
-<h2>¿Querés donar? 💛</h2><p class="nota">Lo que quieras, una sola vez. Te llevás la insignia de Donador.</p>
+<p class="nota">Los precios están en dólares; PayPal te muestra cuánto es en tu moneda antes de pagar. Las suscripciones se renuevan solas: para que no se cobre el período siguiente, dala de baja antes de la fecha de renovación (en la app: Perfil → Premium → Dar de baja). No hay devoluciones, salvo el arrepentimiento que da la ley: 10 días desde la primera compra (<a href="${origen}/terminos#premium">términos</a>).</p></div>
+<h2>¿Querés donar? 💛</h2><p class="nota">Lo que quieras, una sola vez. Te llevás la insignia de Donador. Las donaciones no se devuelven.</p>
 <div class="don" id="don"><button data-v="1">US$ 1</button><button data-v="3" class="act">US$ 3</button><button data-v="5">US$ 5</button><button data-v="10">US$ 10</button><input id="otro" inputmode="decimal" placeholder="Otro"></div>
 <div class="bot" id="bDon"></div><p class="mal" id="mal"></p>
 <p class="nota">Pagás en PayPal: Stickerazo no ve ni guarda tu tarjeta. <a href="${origen}/terminos">Términos</a> · <a href="${origen}/privacidad">Privacidad</a></p></div>
