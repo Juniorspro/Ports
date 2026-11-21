@@ -44,7 +44,7 @@ await p.evaluate(() => window.__sz.pestaña('Perfil')); await p.waitForSelector(
 await p.locator('.opcPremium').scrollIntoViewIfNeeded(); await espera(300); await p.screenshot({ path: SAL + '/1_ajustes.png' });
 ok(/desde US\$ 1,99/.test(await p.textContent('.opcPremium')), 'Ajustes: la fila «Stickerazo Premium» con el precio');
 await p.click('.opcPremium'); await p.waitForSelector('.hojaPremium [data-x="pagar"]'); await espera(500); await p.screenshot({ path: SAL + '/2_hoja.png' });
-ok((await p.locator('.hojaPremium .prBen li').count()) === 5 && /29,99/.test(await p.textContent('.prPrecios')), 'la hoja: 5 beneficios y los 3 precios');
+ok((await p.locator('.hojaPremium .prBen li').count()) === 6 && (await p.locator('.hojaPremium .prBen li i[data-i] svg').count()) === 6 && /29,99/.test(await p.textContent('.prPrecios')), 'la hoja: 6 beneficios (con sus íconos propios) y los 3 precios');
 // «Hacete Premium» → la página de PayPal en otra pestaña
 const [pag] = await Promise.all([ctx.waitForEvent('page'), p.click('.hojaPremium [data-x="pagar"]')]);
 await pag.waitForSelector('#bSub .ppFalso'); await espera(400); await pag.screenshot({ path: SAL + '/3_pagina.png', fullPage: true });

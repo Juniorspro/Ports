@@ -76,16 +76,16 @@ export const lienzo = (w, h) => { const c = document.createElement('canvas'); c.
 // ---- animaciones: t va de 0 a 1 (una vuelta); en t = 0 la capa está quieta (así el primer cuadro es el sticker normal)
 const TAU = Math.PI * 2, campana = (t, c, a) => Math.exp(-(((t - c) / a) ** 2));
 export const ANIMACIONES = [
-  { id: 'latido', nombre: 'Latido', ico: '❤️', dur: 1.2, f: (t) => ({ s: 1 + 0.13 * campana(t, 0.18, 0.05) + 0.09 * campana(t, 0.38, 0.05) }) },
-  { id: 'temblor', nombre: 'Temblor', ico: '😱', dur: 1.2, f: (t) => ({ dx: 5 * Math.sin(TAU * 5 * t) + 2.5 * Math.sin(TAU * 9 * t), dy: 4 * Math.sin(TAU * 7 * t), rot: 0.05 * Math.sin(TAU * 6 * t) }) },
-  { id: 'rebote', nombre: 'Rebote', ico: '🏀', dur: 1.2, f: (t) => { const h = Math.abs(Math.sin(TAU * t)), apl = Math.max(0, 1 - h * 6); return { dy: -42 * h, sx: 1 + 0.09 * apl, sy: 1 - 0.09 * apl, base: true }; } },
-  { id: 'giro', nombre: 'Giro', ico: '🌀', dur: 2.4, f: (t) => ({ rot: TAU * t }) },
-  { id: 'flotar', nombre: 'Flotar', ico: '☁️', dur: 2.4, f: (t) => ({ dy: -12 * Math.sin(TAU * t), rot: 0.06 * Math.sin(TAU * t + 0.8) }) },
-  { id: 'bamboleo', nombre: 'Bamboleo', ico: '🎎', dur: 1.2, f: (t) => ({ rot: 0.22 * Math.sin(TAU * t), pivote: true }) },
-  { id: 'pum', nombre: 'Pum', ico: '💥', dur: 1.2, f: (t) => ({ s: 1 + 0.32 * campana(t, 0.55, 0.06), rot: 0.06 * Math.sin(TAU * 4 * t) * campana(t, 0.55, 0.1) }) },
-  { id: 'aparecer', nombre: 'Escribir', ico: '✍️', dur: 2.4, soloTexto: true, f: (t) => ({ letras: t < 0.3 ? 1 : t < 0.36 ? 0 : t < 0.86 ? (t - 0.36) / 0.5 : 1 }) },
-  { id: 'parpadeo', nombre: 'Parpadeo', ico: '✨', dur: 1.2, f: (t) => ({ alfa: t > 0.5 && t < 0.62 ? 0.12 : 1 }) },
-  { id: 'arcoiris', nombre: 'Arcoíris', ico: '🌈', dur: 2.4, f: (t) => ({ tono: 360 * t }) },
+  { id: 'latido', nombre: 'Latido', ico: 'aLatido', dur: 1.2, f: (t) => ({ s: 1 + 0.13 * campana(t, 0.18, 0.05) + 0.09 * campana(t, 0.38, 0.05) }) },
+  { id: 'temblor', nombre: 'Temblor', ico: 'aTemblor', dur: 1.2, f: (t) => ({ dx: 5 * Math.sin(TAU * 5 * t) + 2.5 * Math.sin(TAU * 9 * t), dy: 4 * Math.sin(TAU * 7 * t), rot: 0.05 * Math.sin(TAU * 6 * t) }) },
+  { id: 'rebote', nombre: 'Rebote', ico: 'aRebote', dur: 1.2, f: (t) => { const h = Math.abs(Math.sin(TAU * t)), apl = Math.max(0, 1 - h * 6); return { dy: -42 * h, sx: 1 + 0.09 * apl, sy: 1 - 0.09 * apl, base: true }; } },
+  { id: 'giro', nombre: 'Giro', ico: 'aGiro', dur: 2.4, f: (t) => ({ rot: TAU * t }) },
+  { id: 'flotar', nombre: 'Flotar', ico: 'aFlotar', dur: 2.4, f: (t) => ({ dy: -12 * Math.sin(TAU * t), rot: 0.06 * Math.sin(TAU * t + 0.8) }) },
+  { id: 'bamboleo', nombre: 'Bamboleo', ico: 'aBamboleo', dur: 1.2, f: (t) => ({ rot: 0.22 * Math.sin(TAU * t), pivote: true }) },
+  { id: 'pum', nombre: 'Pum', ico: 'aPum', dur: 1.2, f: (t) => ({ s: 1 + 0.32 * campana(t, 0.55, 0.06), rot: 0.06 * Math.sin(TAU * 4 * t) * campana(t, 0.55, 0.1) }) },
+  { id: 'aparecer', nombre: 'Escribir', ico: 'aEscribir', dur: 2.4, soloTexto: true, f: (t) => ({ letras: t < 0.3 ? 1 : t < 0.36 ? 0 : t < 0.86 ? (t - 0.36) / 0.5 : 1 }) },
+  { id: 'parpadeo', nombre: 'Parpadeo', ico: 'aParpadeo', dur: 1.2, f: (t) => ({ alfa: t > 0.5 && t < 0.62 ? 0.12 : 1 }) },
+  { id: 'arcoiris', nombre: 'Arcoíris', ico: 'aArcoiris', dur: 2.4, f: (t) => ({ tono: 360 * t }) },
 ];
 export const ANIM = Object.fromEntries(ANIMACIONES.map((a) => [a.id, a]));
 
@@ -142,6 +142,52 @@ function flor(g, y, k) {
   g.beginPath(); g.arc(0, y, 8 * k, 0, Math.PI * 2); g.fillStyle = VERDE_F; g.fill(); g.lineWidth = 3 * k; g.strokeStyle = '#111'; g.stroke();
 }
 
+// ---- Movimiento: cómo se pasa de un punto clave al otro ----
+export const SUAVES = [['suave', 'Suave'], ['lineal', 'Parejo'], ['rebote', 'Rebote'], ['golpe', 'De golpe']];
+const soloPose = (f) => ({ x: f.x, y: f.y, esc: f.esc, rot: f.rot, alfa: f.alfa === undefined ? 1 : f.alfa });
+function suavizar(u, k) {
+  u = Math.max(0, Math.min(1, u));
+  if (k === 'lineal') return u;
+  if (k === 'golpe') return u < 1 ? 0 : 1;
+  if (k === 'rebote') { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * (u - 1) ** 3 + c1 * (u - 1) ** 2; }
+  return u * u * (3 - 2 * u);
+}
+// ---- efectos de video: a todo el sticker (con el borde), cuadro por cuadro; reciben el dibujo y t (0 a 1) ----
+const nuevo = () => { const c = lienzo(LADO, LADO); return [c, c.getContext('2d')]; };
+const alCentro = (g, f) => { g.translate(LADO / 2, LADO / 2); f(); g.translate(-LADO / 2, -LADO / 2); };
+function canal(src, col) {
+  const [c, g] = nuevo(); g.drawImage(src, 0, 0); g.globalCompositeOperation = 'multiply'; g.fillStyle = col; g.fillRect(0, 0, LADO, LADO);
+  g.globalCompositeOperation = 'destination-in'; g.drawImage(src, 0, 0); return c;
+}
+const azar = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+export const EFECTOS_VIDEO = [
+  { id: 'temblor', nombre: 'Temblor', ico: 'aTemblor', dur: 0.8, f: (s, t) => { const [c, g] = nuevo(); alCentro(g, () => { g.rotate(0.04 * Math.sin(TAU * 7 * t)); g.translate(7 * Math.sin(TAU * 9 * t), 5 * Math.sin(TAU * 11 * t)); }); g.drawImage(s, 0, 0); return c; } },
+  { id: 'latidoV', nombre: 'Latido', ico: 'aLatido', dur: 1.0, f: (s, t) => { const [c, g] = nuevo(), k = 1 + 0.1 * campana(t, 0.2, 0.06) + 0.07 * campana(t, 0.42, 0.06); alCentro(g, () => g.scale(k, k)); g.drawImage(s, 0, 0); return c; } },
+  { id: 'arcoiris', nombre: 'Arcoíris', ico: 'aArcoiris', dur: 1.6, f: (s, t) => { const [c, g] = nuevo(); g.filter = `hue-rotate(${Math.round(360 * t)}deg) saturate(1.4)`; g.drawImage(s, 0, 0); return c; } },
+  { id: 'giro', nombre: 'Giro', ico: 'vGiro', dur: 1.6, f: (s, t) => { const [c, g] = nuevo(); alCentro(g, () => { g.rotate(TAU * t); const k = 0.82; g.scale(k, k); }); g.drawImage(s, 0, 0); return c; } },
+  { id: 'zoom', nombre: 'Zoom', ico: 'vZoom', dur: 1.2, premium: true, f: (s, t) => { const [c, g] = nuevo(), k = 0.86 + 0.2 * campana(t, 0.5, 0.12); alCentro(g, () => g.scale(k, k)); g.drawImage(s, 0, 0); return c; } },
+  { id: 'gelatina', nombre: 'Gelatina', ico: 'vGelatina', dur: 1.0, premium: true, f: (s, t) => { const [c, g] = nuevo(), a = 0.07 * Math.sin(TAU * 2 * t) * (1 - t * 0.5); g.translate(LADO / 2, LADO * 0.9); g.scale(1 + a, 1 - a); g.translate(-LADO / 2, -LADO * 0.9); g.drawImage(s, 0, 0); return c; } },
+  { id: 'brillo', nombre: 'Brillo', ico: 'chispa', dur: 1.4, premium: true, f: (s, t) => {
+    const [c, g] = nuevo(); g.drawImage(s, 0, 0); const x = -LADO + 3 * LADO * Math.min(1, t / 0.7);
+    const gr = g.createLinearGradient(x - 90, x - 160, x + 90, x + 20); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.75)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.globalCompositeOperation = 'source-atop'; g.fillStyle = gr; g.fillRect(0, 0, LADO, LADO); return c; } },
+  { id: 'parpadeo', nombre: 'Flash', ico: 'rayo', dur: 1.0, premium: true, f: (s, t) => { const [c, g] = nuevo(); g.drawImage(s, 0, 0); const a = Math.max(campana(t, 0.1, 0.03), campana(t, 0.26, 0.03)); if (a > 0.02) { g.globalCompositeOperation = 'source-atop'; g.fillStyle = `rgba(255,255,255,${0.85 * a})`; g.fillRect(0, 0, LADO, LADO); } return c; } },
+  { id: 'glitch', nombre: 'Glitch', ico: 'vGlitch', dur: 1.2, premium: true, f: (s, t) => {
+    const [c, g] = nuevo(), cuadro = Math.floor(t * 14), fuerte = azar(cuadro) > 0.45, d = fuerte ? 6 + 10 * azar(cuadro + 7) : 2;
+    g.globalCompositeOperation = 'lighter'; g.drawImage(canal(s, '#ff0000'), -d, 0); g.drawImage(canal(s, '#00ff00'), 0, 0); g.drawImage(canal(s, '#0000ff'), d, 0);
+    if (fuerte) { g.globalCompositeOperation = 'source-over'; for (let k = 0; k < 4; k++) { const y = Math.floor(azar(cuadro * 3 + k) * LADO), hh = 6 + Math.floor(azar(cuadro * 5 + k) * 26), dx = (azar(cuadro * 7 + k) - 0.5) * 60; const [f, fg] = nuevo(); fg.drawImage(c, 0, y, LADO, hh, 0, 0, LADO, hh); g.clearRect(0, y, LADO, hh); g.drawImage(f, 0, 0, LADO, hh, dx, y, LADO, hh); } }
+    return c; } },
+  { id: 'vhs', nombre: 'VHS', ico: 'vVhs', dur: 1.2, premium: true, f: (s, t) => {
+    const [c, g] = nuevo(), cuadro = Math.floor(t * 12), j = (azar(cuadro) - 0.5) * 3;
+    g.globalCompositeOperation = 'lighter'; g.drawImage(canal(s, '#ff0000'), -3 + j, 0); g.drawImage(canal(s, '#00ff00'), j, 0); g.drawImage(canal(s, '#0000ff'), 3 + j, 0);
+    g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(0,0,0,0.18)'; for (let y = (cuadro % 2); y < LADO; y += 4) g.fillRect(0, y, LADO, 1.5);
+    const by = ((t * 1.6) % 1) * LADO; g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(0, by, LADO, 18); return c; } },
+  { id: 'neonV', nombre: 'Neón vivo', ico: 'neon', dur: 1.6, premium: true, f: (s, t) => {
+    const [c, g] = nuevo(), col = `hsl(${Math.round(360 * t)}, 100%, 60%)`; g.save(); g.shadowColor = col; g.shadowOffsetX = LADO * 2;
+    for (const r of [8, 18 + 10 * Math.sin(TAU * t)]) { g.shadowBlur = r; g.drawImage(s, -LADO * 2, 0); } g.restore(); g.drawImage(s, 0, 0); return c; } },
+];
+export const EFECTOS_VIDEO_K = Object.fromEntries(EFECTOS_VIDEO.map((e) => [e.id, e]));
+
 export class Sticker {
   constructor() { this.capas = []; this.borde = 12; this.colorBorde = '#ffffff'; this.sombra = true; this.sel = -1; }
   // ---- capas ----
@@ -183,14 +229,32 @@ export class Sticker {
     return { w, h, fuente, lineas, tw };
   }
   // ---- animación ----
-  animado() { return this.capas.some((c) => c.anim && ANIM[c.anim]); }
-  duracion() { return Math.max(1.2, ...this.capas.filter((c) => c.anim && ANIM[c.anim]).map((c) => ANIM[c.anim].dur)); }
+  // (Movimiento: los puntos clave —keyframes— de una capa; con dos o más, la capa va de uno al otro en kfDur segundos.
+  // Efectos de video: a todo el sticker, encima del borde)
+  hayKf() { return this.capas.some((c) => c.kf && c.kf.length > 1 && !c.oculto); }
+  animado() { return this.capas.some((c) => c.anim && ANIM[c.anim]) || this.hayKf() || !!(this.efecto && EFECTOS_VIDEO_K[this.efecto]); }
+  duracion() {
+    if (this.hayKf()) return this.kfDur || 2;
+    return Math.max(1.2, ...this.capas.filter((c) => c.anim && ANIM[c.anim]).map((c) => ANIM[c.anim].dur), this.efecto && EFECTOS_VIDEO_K[this.efecto] ? EFECTOS_VIDEO_K[this.efecto].dur : 0);
+  }
+  // dónde está la capa en el momento t (0 a 1 de la duración): con puntos clave, entre el de antes y el de después
+  pose(c, t = 0) {
+    const L = c.kf, b = { x: c.x, y: c.y, esc: c.esc, rot: c.rot, alfa: c.alfa === undefined ? 1 : c.alfa };
+    if (!L || !L.length) return b;
+    if (L.length === 1 || t <= L[0].t) return { ...b, ...soloPose(L[0]) };
+    const z = L[L.length - 1]; if (t >= z.t) return { ...b, ...soloPose(z) };
+    let i = 0; while (i < L.length - 2 && L[i + 1].t < t) i++;
+    const a = L[i], d = L[i + 1], u = suavizar((t - a.t) / Math.max(1e-6, d.t - a.t), d.ease);
+    const mezcla = (k) => a[k] + (d[k] - a[k]) * u;
+    return { x: mezcla('x'), y: mezcla('y'), esc: mezcla('esc'), rot: mezcla('rot'), alfa: mezcla('alfa') };
+  }
   mov(c, t) {
     const a = c.anim && ANIM[c.anim]; if (!a) return null;
     const vueltas = Math.max(1, Math.round(this.duracion() / a.dur)); return a.f((t * vueltas) % 1);
   }
   dibujarCapa(g, c, t = 0) {
     if (c.oculto) return;
+    if (c.kf && c.kf.length) c = { ...c, ...this.pose(c, t) };
     const m = this.mov(c, t) || {}, md = this.medidas(c);
     g.save(); g.translate(c.x + (m.dx || 0), c.y + (m.dy || 0)); g.rotate(c.rot);
     // (el bamboleo gira desde abajo, como un muñeco; el rebote se aplasta contra el piso)
@@ -278,7 +342,7 @@ export class Sticker {
         g.drawImage(tmp, 0, 0);
       } else this.dibujarCapa(g, c, t);
     }
-    if (!this.borde && !this.sombra && !brillo) return base;
+    if (!this.borde && !this.sombra && !brillo) return this.efectoVideo(base, t);
     const out = lienzo(LADO, LADO), o = out.getContext('2d');
     if (this.borde > 0) {
       const sil = lienzo(LADO, LADO), s = sil.getContext('2d'); s.drawImage(base, 0, 0); s.globalCompositeOperation = 'source-in'; s.fillStyle = this.colorBorde; s.fillRect(0, 0, LADO, LADO);
@@ -290,12 +354,17 @@ export class Sticker {
     } else if (this.sombra) { o.save(); o.shadowColor = 'rgba(0,0,0,0.38)'; o.shadowBlur = 10; o.shadowOffsetY = 4; o.drawImage(base, 0, 0); o.restore(); }
     if (brillo) { o.drawImage(brillo, 0, 0); o.drawImage(brillo, 0, 0); }   // (encima del borde: el color se ve como un tubo de neón alrededor)
     o.drawImage(base, 0, 0);
-    return out;
+    return this.efectoVideo(out, t);
+  }
+  efectoVideo(c, t) {
+    const e = this.efecto && EFECTOS_VIDEO_K[this.efecto]; if (!e) return c;
+    const vueltas = Math.max(1, Math.round(this.duracion() / e.dur)); return e.f(c, (t * vueltas) % 1);
   }
   // ¿qué capa hay en (x, y)? la de más arriba
-  tocada(x, y) {
+  tocada(x, y, t = 0) {
     for (let i = this.capas.length - 1; i >= 0; i--) {
-      const c = this.capas[i]; if (c.oculto || c.bloq) continue;
+      let c = this.capas[i]; if (c.oculto || c.bloq) continue;
+      if (c.kf && c.kf.length) c = { ...c, ...this.pose(c, t) };
       const m = this.medidas(c), dx = x - c.x, dy = y - c.y, cs = Math.cos(-c.rot), sn = Math.sin(-c.rot);
       const lx = (dx * cs - dy * sn) / c.esc, ly = (dx * sn + dy * cs) / c.esc, pad = 18 / c.esc;
       if (Math.abs(lx) <= m.w / 2 + pad && Math.abs(ly) <= m.h / 2 + pad) return i;
@@ -338,11 +407,11 @@ export class Sticker {
       if (c.tipo === 'img') { let i = imgs.indexOf(src); if (i < 0) { imgs.push(src); i = imgs.length - 1; } return { ...resto, img: i }; }
       return resto;
     });
-    return { proyecto: { v: 1, borde: this.borde, colorBorde: this.colorBorde, sombra: this.sombra, capas }, imgs };
+    return { proyecto: { v: 1, borde: this.borde, colorBorde: this.colorBorde, sombra: this.sombra, efecto: this.efecto || undefined, kfDur: this.kfDur || undefined, capas }, imgs };
   }
   static deProyecto(p, imgs) {
-    const s = new Sticker(); s.borde = p.borde; s.colorBorde = p.colorBorde; s.sombra = p.sombra;
-    s.capas = p.capas.filter((c) => c.tipo !== 'img' || imgs[c.img]).map((c) => { const { img, ...resto } = c; const k = c.tipo === 'img' ? { ...resto, src: imgs[img] } : { ...resto }; if (c.filtro) k.filtro = { ...c.filtro }; return k; });
+    const s = new Sticker(); s.borde = p.borde; s.colorBorde = p.colorBorde; s.sombra = p.sombra; if (p.efecto) s.efecto = p.efecto; if (p.kfDur) s.kfDur = p.kfDur;
+    s.capas = p.capas.filter((c) => c.tipo !== 'img' || imgs[c.img]).map((c) => { const { img, ...resto } = c; const k = c.tipo === 'img' ? { ...resto, src: imgs[img] } : { ...resto }; if (c.filtro) k.filtro = { ...c.filtro }; if (c.kf) k.kf = c.kf.map((f) => ({ ...f })); return k; });
     return s;
   }
 }
@@ -455,23 +524,28 @@ export async function webpAnimado(cuadros, ms, q, W = LADO, H = LADO) {
 // el sticker animado de 500 KB como mucho. La calidad se elige midiendo 4 cuadros de muestra (la más alta que, según
 // ellos, entra con un 10 % de margen). Antes que bajar de 0,6 de calidad, menos cuadros por segundo (12 → 10 → 8).
 export async function exportarAnimado(st) {
-  const D = st.duracion(), Q = [0.86, 0.78, 0.7, 0.62, 0.54, 0.46, 0.38, 0.3], MIN_Q = 0.6;
-  let mejor = null;
-  for (const fps of [12, 10, 8]) {
-    const n = Math.max(2, Math.round(D * fps)), ms = Math.round((1000 * D) / n), cuadros = Array.from({ length: n }, (_, i) => recortarCuadro(st.componer(i / n)));
-    const muestra = [0, 1, 2, 3].map((k) => cuadros[Math.floor((k * n) / 4)]);
+  // (con fotos que se mueven todo el tiempo —Movimiento, Glitch, VHS— cada cuadro pesa: se prueba con menos cuadros por
+  // segundo hasta 5, y más comprimido, antes de decir que no entra en los 500 KB de WhatsApp. Para elegir, alcanzan 4
+  // cuadros de muestra por velocidad; todos los cuadros se dibujan sólo para la elegida)
+  const D = st.duracion(), Q = [0.86, 0.78, 0.7, 0.62, 0.54, 0.46, 0.38, 0.3, 0.22], MIN_Q = 0.6, cands = [];
+  for (const fps of [12, 10, 8, 6, 5]) {
+    const n = Math.max(2, Math.round(D * fps)), ms = Math.round((1000 * D) / n);
+    const muestra = [0, 1, 2, 3].map((k) => recortarCuadro(st.componer(Math.floor((k * n) / 4) / n)));
     let i = 0;
     for (; i < Q.length - 1; i++) {
       let peso = 0; for (const cr of muestra) peso += (await anmf(cr, ms, Q[i])).length;
       if ((peso / muestra.length) * n + 64 <= MAX_ANIMADO * 0.9) break;
     }
-    const cand = { fps, n, ms, cuadros, i };
-    if (!mejor || i < mejor.i) mejor = cand;
+    cands.push({ fps, n, ms, i });
     if (Q[i] >= MIN_Q) break;
   }
-  for (let i = mejor.i; i < Q.length; i++) {
-    const blob = await webpAnimado(mejor.cuadros, mejor.ms, Q[i]);
-    if (blob.size <= MAX_ANIMADO) return { blob, cuadros: mejor.n, ms: mejor.ms, q: Q[i], fps: mejor.fps };
+  cands.sort((a, b) => a.i - b.i || b.fps - a.fps);   // (la de mejor calidad; empatadas, la más fluida)
+  for (const c of cands) {
+    const cuadros = Array.from({ length: c.n }, (_, k) => recortarCuadro(st.componer(k / c.n)));
+    for (let i = c.i; i < Q.length; i++) {
+      const blob = await webpAnimado(cuadros, c.ms, Q[i]);
+      if (blob.size <= MAX_ANIMADO) return { blob, cuadros: c.n, ms: c.ms, q: Q[i], fps: c.fps };
+    }
   }
   throw new Error('el sticker animado pesa demasiado');
 }

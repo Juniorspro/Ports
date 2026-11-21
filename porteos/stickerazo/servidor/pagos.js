@@ -19,12 +19,24 @@
 // En las pruebas: SZ_PAYPAL_API (un PayPal de mentira en la compu).
 export const PRECIOS = { mes: '1.99', anio: '14.99', vida: '29.99' }, MONEDA = 'USD', DONACION = { min: 1, max: 200 };
 export const BENEFICIOS = [
-  ['🚫', 'Sin anuncios, nunca', 'Si la app suma publicidad, a vos no te aparece.'],
-  ['✨', 'Insignia Premium', 'En tu perfil y al lado de tu @ en la comunidad.'],
-  ['☁️', '10 veces más lugar en tu cuenta', '250 MB y 400 packs guardados, en vez de 25 MB y 80.'],
-  ['💍', 'Anillo dorado', 'Tu foto de perfil con un anillo dorado que brilla.'],
-  ['💛', 'Bancás la app', 'Ayudás a que Stickerazo siga gratis para todos.'],
+  ['bloquear', 'Sin anuncios, nunca', 'Si la app suma publicidad, a vos no te aparece.'],
+  ['kf', 'Editor pro', 'Movimiento con puntos clave y efectos de video como Glitch, VHS, Zoom y Brillo.'],
+  ['chispa', 'Insignia Premium', 'En tu perfil y al lado de tu @ en la comunidad.'],
+  ['nube', '10 veces más lugar en tu cuenta', '250 MB y 400 packs guardados, en vez de 25 MB y 80.'],
+  ['anillo', 'Anillo dorado', 'Tu foto de perfil con un anillo dorado que brilla.'],
+  ['corazon', 'Bancás la app', 'Ayudás a que Stickerazo siga gratis para todos.'],
 ];
+// (los íconos son propios, los mismos de la app —web/iconos.js—: para la página de pago van dibujados acá)
+const R_ = (d) => `<path d="${d}" fill="currentColor" stroke="none" opacity=".2"/><path d="${d}"/>`;
+const ICONO_BEN = {
+  bloquear: '<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
+  kf: R_('M12 3.5l4.5 4.5-4.5 4.5L7.5 8z') + '<path d="M3 18.5h18M6 15.5v6M18 15.5v6"/>',
+  chispa: R_('M12 3c.6 4.6 1.8 5.9 6.5 6.5-4.7.6-5.9 1.9-6.5 6.5-.6-4.6-1.8-5.9-6.5-6.5 4.7-.6 5.9-1.9 6.5-6.5z') + '<path d="M18.5 15.5v4.5M16.3 17.8h4.4"/>',
+  nube: R_('M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.5 9.6 4.5 4.5 0 0 0 7 18.5z'),
+  anillo: R_('M12 9a6 6 0 1 1 0 12 6 6 0 0 1 0-12z') + '<path d="M9 6.5L10.5 3h3L15 6.5 12 9z"/>',
+  corazon: R_('M12 20.5C7 17 3.5 13.6 3.5 9.6 3.5 6.8 5.6 4.8 8.2 4.8c1.6 0 3 .8 3.8 2.1.8-1.3 2.2-2.1 3.8-2.1 2.6 0 4.7 2 4.7 4.8 0 4-3.5 7.4-8.5 10.9z'),
+};
+const iconoBen = (k) => `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONO_BEN[k] || ''}</svg>`;
 const DIA = 86400e3, GRACIA = 3 * DIA, VIDA = 4102444800000;   // (la «de por vida»: hasta el 1/1/2100)
 const PERIODO = { mes: 31 * DIA, anio: 366 * DIA };
 export const ESQUEMA_PAGOS = [
@@ -225,7 +237,7 @@ background:#0b0910 radial-gradient(60vmax 40vmax at 10% 0%,rgba(255,62,138,.35),
 h1{font:400 30px/1.1 L;text-align:center;margin:14px 0 4px;background:linear-gradient(90deg,#ffe14d,#ffb21a,#ff3e8a);-webkit-background-clip:text;background-clip:text;color:transparent}
 .yo{text-align:center;color:#d8d1e8;margin:0 0 16px;font-size:14.5px}.yo b{color:#fff}.est{text-align:center;color:#5fe39a;font-weight:800;margin:0 0 16px}
 .ben{list-style:none;padding:14px 16px;margin:0 0 18px;border-radius:22px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
-.ben li{display:flex;gap:12px;padding:7px 0;align-items:flex-start}.ben i{font-style:normal;font-size:22px;line-height:1.2}.ben b{display:block}.ben small{color:#bdb5d0;font-size:13.5px}
+.ben li{display:flex;gap:12px;padding:7px 0;align-items:flex-start}.ben i{font-style:normal;line-height:0;color:#ffc93a;flex:none}.ben b{display:block}.ben small{color:#bdb5d0;font-size:13.5px}
 .planes{display:grid;gap:10px;margin-bottom:14px}.plan{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 16px;border-radius:18px;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit;font:inherit;cursor:pointer}
 .plan.act{border-color:#ffd23f;background:rgba(255,210,63,.09)}.plan b{font-size:17px}.plan small{display:block;color:#bdb5d0;font-size:13px}.plan .p{margin-left:auto;font-weight:800;font-size:17px;white-space:nowrap}
 .tag{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;background:#ff3e8a;color:#fff;font-size:11.5px;font-weight:800;vertical-align:2px}
@@ -236,7 +248,7 @@ h2{font:400 22px/1 L;margin:28px 0 6px;text-align:center}.don{display:flex;gap:8
 a.b{display:inline-block;margin-top:14px;color:#fff;text-decoration:none;font-weight:800;padding:14px 26px;border-radius:99px;background:linear-gradient(135deg,#ff3e8a,#ff7a1a)}
 </style></head><body><div class="c" id="c"><div class="logo"><span>Sticker</span><b>azo</b></div>
 <h1>Premium</h1><p class="yo">Para la cuenta <b>@${esc(usuario.nombre)}</b></p>${estado ? `<p class="est">${esc(estado)}</p>` : ''}
-<ul class="ben">${BENEFICIOS.map(([i, b, s]) => `<li><i>${i}</i><span><b>${esc(b)}</b><small>${esc(s)}</small></span></li>`).join('')}</ul>
+<ul class="ben">${BENEFICIOS.map(([i, b, s]) => `<li><i>${iconoBen(i)}</i><span><b>${esc(b)}</b><small>${esc(s)}</small></span></li>`).join('')}</ul>
 <div id="comprar"${est.premium ? ' hidden' : ''}><div class="planes" id="planes">
 <button class="plan" data-p="mes"><span><b>Por mes</b><small>Se renueva solo. Lo das de baja cuando quieras.</small></span><span class="p">${plata(PRECIOS.mes)}</span></button>
 <button class="plan act" data-p="anio"><span><b>Por año <span class="tag">Ahorrás ${ahorro} %</span></b><small>Un solo pago por año. Se renueva solo.</small></span><span class="p">${plata(PRECIOS.anio)}</span></button>

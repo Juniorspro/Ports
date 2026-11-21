@@ -17,7 +17,7 @@ export function abrirTermo({ ev, media, al, X }) {
   const hechos = !!ev.sorteado, falta = Math.max(0, ev.meta - ev.cuentas), pct = Math.min(100, Math.round((ev.cuentas / ev.meta) * 100));
   const pegados = hechos ? ev.elegidos : Array.from({ length: 5 }, () => null);
   const stickers = pegados.map((x, k) => `<div class="tPegado" style="transform:rotateY(${k * 72}deg) translateZ(84px) translateY(${[-30, 40, -6, 52, 6][k]}px) rotate(${[-8, 6, -4, 9, -6][k]}deg)">${x ? `<img src="${media({ id: x.pack.id, v: x.pack.v }, x.pack.sticker)}" alt="">` : '<b>?</b>'}</div>`).join('');
-  el.innerHTML = `<button class="mpCerrar" aria-label="Cerrar">✕</button>
+  el.innerHTML = `<button class="mpCerrar" aria-label="Cerrar"><i data-i="cerrar"></i></button>
     <div class="tArriba"><small>Primer evento</small><h2>El termo de los <em>elegidos</em></h2>
       <p>${hechos ? 'El termo ya eligió: estos 5 son los que les recomendamos a todos los que bajan la app.' : `Cuando <b>${ev.meta} cuentas</b> publiquen stickers, el termo elige <b>5</b> al azar. Sus stickers van a girar acá y se los vamos a recomendar a todos los que bajen la app.`}</p></div>
     <div class="tEscena"><div class="tPiso"></div><canvas class="t3d"></canvas><div class="tTermo oc">

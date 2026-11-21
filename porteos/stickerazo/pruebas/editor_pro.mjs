@@ -28,7 +28,7 @@ await foto('recorte'); await p.click('#rSig'); try { await p.waitForFunction(() 
 await foto('editor');
 let h = await hist(); ok(!h.des && !h.re, 'al entrar: deshacer y rehacer apagados', h);
 const barra = await E(() => [...document.querySelectorAll('#eBarra button')].map((b) => b.dataset.e));
-ok(barra.length === 13 && ['dibujar', 'forma', 'fondo', 'neon', 'capas', 'alinear'].every((k) => barra.includes(k)), 'la barra tiene las herramientas nuevas (se desliza)', barra);
+ok(barra.length === 15 && ['dibujar', 'mov', 'efectos', 'forma', 'fondo', 'neon', 'capas', 'alinear'].every((k) => barra.includes(k)), 'la barra tiene las herramientas nuevas (se desliza)', barra);
 // mover la foto (como un gesto) → historia
 const x0 = (await capas())[0].x;
 await E(() => { const c = window.__sz.E.st.capas[0]; c.x += 60; window.__sz.pedirE(true); }); await espera(700);

@@ -42,7 +42,7 @@ function tarjeta(p, i) {
   F.cache.set(p.id, p);
   const tono = [...p.id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 0);
   return `<article class="tf" data-id="${p.id}" style="--i:${i % 8};--tono:${tono}">
-    <header><button class="autor" data-u="${X.h(p.autor.nombre)}">${avatar(p.autor.avatar)}<span><b>@${X.h(p.autor.nombre)}${p.autor.premium ? '<i class="miniPrem" title="Premium">✨</i>' : ''}</b><small>${hace(p.creado)}</small></span></button>${p.termo ? '<b class="insignia termo">🧉 Elegido del termo</b>' : ''}${p.privado ? '<b class="insignia oculta">🙈 Oculto</b>' : ''}${p.animado ? '<b class="insignia">Animado</b>' : ''}</header>
+    <header><button class="autor" data-u="${X.h(p.autor.nombre)}">${avatar(p.autor.avatar)}<span><b>@${X.h(p.autor.nombre)}${p.autor.premium ? '<i class="miniPrem" title="Premium" data-i="chispa"></i>' : ''}</b><small>${hace(p.creado)}</small></span></button>${p.termo ? '<b class="insignia termo"><i data-i="mate"></i>Elegido del termo</b>' : ''}${p.privado ? '<b class="insignia oculta"><i data-i="ojoNo"></i>Oculto</b>' : ''}${p.animado ? '<b class="insignia">Animado</b>' : ''}</header>
     <div class="tfGrilla" data-abrir="${p.id}">${p.muestra.slice(0, 6).map((a) => `<img loading="lazy" src="${media(p, a)}" alt="">`).join('')}</div>
     <div class="tfPie"><div class="tfNom"><b>${X.h(p.nombre)}</b><small>${p.n} stickers${p.tags.length ? ' · ' + p.tags.slice(0, 3).map((t) => '#' + X.h(t)).join(' ') : ''}</small></div>
       <button class="accion mg${p.yaLike ? ' si' : ''}" data-like="${p.id}" aria-label="Me gusta"><i data-i="corazon"></i><span>${num(p.likes)}</span></button>
@@ -51,10 +51,10 @@ function tarjeta(p, i) {
   </article>`;
 }
 const vacioFeed = (modo) => modo === 'siguiendo'
-  ? '<div class="vacio"><div class="vacioIco">👀</div><b>Todavía no seguís a nadie</b><span>Pegate una vuelta por «Para vos» y seguí a los que más te copen.</span></div>'
-  : '<div class="vacio"><div class="vacioIco">🧉</div><b>Está todo muy tranqui</b><span>Todavía no hay packs acá. ¡Publicá el primero y arrancá vos!</span></div>';
+  ? '<div class="vacio"><div class="vacioIco"><i data-i="ojos"></i></div><b>Todavía no seguís a nadie</b><span>Pegate una vuelta por «Para vos» y seguí a los que más te copen.</span></div>'
+  : '<div class="vacio"><div class="vacioIco"><i data-i="mate"></i></div><b>Está todo muy tranqui</b><span>Todavía no hay packs acá. ¡Publicá el primero y arrancá vos!</span></div>';
 function sinConexion(e) {
-  return `<div class="vacio"><div class="vacioIco">📡</div><b>${e && e.red ? 'Sin conexión con la comunidad' : 'Se nos complicó'}</b><span>${X.h(e ? e.message : '')}</span><button class="pri" data-reintentar="1">Reintentar</button></div>
+  return `<div class="vacio"><div class="vacioIco"><i data-i="senal"></i></div><b>${e && e.red ? 'Sin conexión con la comunidad' : 'Se nos complicó'}</b><span>${X.h(e ? e.message : '')}</span><button class="pri" data-reintentar="1">Reintentar</button></div>
     <h2>Mientras tanto <small>· packs listos</small></h2><div class="carrusel" id="feedListos"></div>`;
 }
 // (los packs que no te interesan: se guardan en el celular y no se muestran más)
@@ -69,7 +69,7 @@ export async function cargarFeed(reiniciar) {
     const r = await api(`/api/feed?modo=${F.modo}&desde=${F.desde}`);
     if (turno !== F.turno) return;
     if (reiniciar || !F.desde) lista.innerHTML = '';
-    if (r.necesitaCuenta) lista.innerHTML = '<div class="vacio"><div class="vacioIco">🙋</div><b>Entrá a la comunidad</b><span>Así ves lo nuevo de los que seguís.</span><button class="pri" data-ir-perfil="1">Elegir mi @</button></div>';
+    if (r.necesitaCuenta) lista.innerHTML = '<div class="vacio"><div class="vacioIco"><i data-i="mano"></i></div><b>Entrá a la comunidad</b><span>Así ves lo nuevo de los que seguís.</span><button class="pri" data-ir-perfil="1">Elegir mi @</button></div>';
     else if (!r.packs.length && !F.desde) lista.innerHTML = vacioFeed(F.modo);
     const fuera = noInteresa(); lista.insertAdjacentHTML('beforeend', r.packs.filter((p) => !fuera.has(p.id)).map((p, i) => tarjeta(p, i)).join(''));
     F.desde = r.sigue ?? F.desde; F.fin = r.sigue == null; X.iconos(lista);
@@ -79,7 +79,7 @@ export async function cargarFeed(reiniciar) {
   } finally { if (turno === F.turno) F.cargando = false; }
 }
 function corazon(sobre, x, y) {
-  const c = document.createElement('div'); c.className = 'boom'; c.textContent = '❤️';
+  const c = document.createElement('div'); c.className = 'boom'; c.innerHTML = '<i data-i="corazon"></i>';
   const r = sobre.getBoundingClientRect(); c.style.left = (x ?? r.width / 2) + 'px'; c.style.top = (y ?? r.height / 2) + 'px';
   sobre.appendChild(c); setTimeout(() => c.remove(), 900);
 }
@@ -126,11 +126,11 @@ export async function abrirPublico(id) {
   try {
     const { pack: p } = await api('/api/packs/' + id); actual = p; F.cache.set(p.id, p);
     X.$('#puNombre').textContent = p.nombre;
-    c.innerHTML = `<div class="puAutor"><button class="autor" data-u="${X.h(p.autor.nombre)}">${avatar(p.autor.avatar)}<span><b>@${X.h(p.autor.nombre)}${p.autor.premium ? '<i class="miniPrem" title="Premium">✨</i>' : ''}</b><small>${hace(p.creado)}</small></span></button>
+    c.innerHTML = `<div class="puAutor"><button class="autor" data-u="${X.h(p.autor.nombre)}">${avatar(p.autor.avatar)}<span><b>@${X.h(p.autor.nombre)}${p.autor.premium ? '<i class="miniPrem" title="Premium" data-i="chispa"></i>' : ''}</b><small>${hace(p.creado)}</small></span></button>
         ${p.esMio ? '<b class="insignia">Tuyo</b>' : `<button class="seguir${p.sigoAutor ? ' si' : ''}" data-seguir="${p.autor.id}">${p.sigoAutor ? 'Siguiendo' : 'Seguir'}</button>`}</div>
       ${p.tags.length || p.animado ? `<div class="chips tagsPu">${p.animado ? '<b class="insignia">Animado</b>' : ''}${p.tags.map((t) => `<button class="chip" data-tag="${X.h(t)}">#${X.h(t)}</button>`).join('')}</div>` : ''}
       <div class="grilla puGrilla">${p.stickers.map((s, i) => `<div class="st" style="--i:${i % 12}"><img src="${media(p, s.archivo)}" alt=""></div>`).join('')}</div>
-      <p class="ayuda puStats">❤️ ${num(p.likes)} · ⬇️ ${num(p.descargas)} · ${p.n} stickers</p>`;
+      <p class="ayuda puStats"><i data-i="corazon"></i>${num(p.likes)} · <i data-i="bajar"></i>${num(p.descargas)} · ${p.n} stickers</p>`;
     X.iconos(c);
     pintarLike();
   } catch (e) { c.innerHTML = sinConexion(e).replace(/<h2>[\s\S]*$/, ''); }
@@ -222,7 +222,7 @@ function perfilHTML(d, propio) {
   const flotan = d.packs.filter((p) => !p.privado).flatMap((p) => p.muestra.slice(0, 2).map((a) => media(p, a))).slice(0, 4);
   return `<div class="perfilTop"><div class="portadaP" style="background:${portadaDe(u)}"><i class="brilloP"></i>${flotan.map((f, k) => `<img class="flotaP" src="${f}" alt="" style="--k:${k}">`).join('')}</div>
     <div class="perfilFila"><span class="avG anilloAv${u.avatar.f ? ' conFoto' : ''}${u.premium ? ' dorado' : ''}" style="background:${X.h(u.avatar.c)}">${caraDe(u.avatar)}</span><div class="pBotones">${botones}<button class="pBoton ico2" data-compartir-u="${X.h(u.nombre)}" aria-label="Compartir perfil"><i data-i="compartir"></i></button></div></div>
-    <h2 class="arroba">@${X.h(u.nombre)}</h2>${(u.insignias || []).includes('termo') ? '<span class="chipInsignia">🧉 Elegido del termo</span>' : ''}${u.premium || u.donador ? `<div class="insigniasP">${u.premium ? '<span class="chipInsignia premium">✨ Premium</span>' : ''}${u.donador ? '<span class="chipInsignia donador">💛 Donador</span>' : ''}</div>` : ''}${u.bio ? `<p class="bio">${X.h(u.bio)}</p>` : propio ? '<p class="bio vacia">Tocá «Editar perfil» y contá algo de vos</p>' : ''}
+    <h2 class="arroba">@${X.h(u.nombre)}</h2>${(u.insignias || []).includes('termo') ? '<span class="chipInsignia"><i data-i="mate"></i>Elegido del termo</span>' : ''}${u.premium || u.donador ? `<div class="insigniasP">${u.premium ? '<span class="chipInsignia premium"><i data-i="chispa"></i>Premium</span>' : ''}${u.donador ? '<span class="chipInsignia donador"><i data-i="corazon"></i>Donador</span>' : ''}</div>` : ''}${u.bio ? `<p class="bio">${X.h(u.bio)}</p>` : propio ? '<p class="bio vacia">Tocá «Editar perfil» y contá algo de vos</p>' : ''}
     <div class="stats"><span><b data-cuenta="${u.packs}">${num(u.packs)}</b>packs</span><span><b class="segN" data-cuenta="${u.seguidores}">${num(u.seguidores)}</b>seguidores</span><span><b data-cuenta="${u.descargas}">${num(u.descargas)}</b>descargas</span><span><b data-cuenta="${u.likes}">${num(u.likes)}</b>me gusta</span></div></div>
     ${propio ? '<div class="seg perfilSeg"><button data-pt="pub" class="act">Publicados</button><button data-pt="bajados">Bajados</button></div>' : '<h2>Packs</h2>'}
     <div class="feedLista" id="${propio ? 'perfilLista' : 'usLista'}">${listaPublicados(d, propio)}</div>`;
@@ -323,7 +323,7 @@ function pintarEsperando() {
 }
 function pintarElegirArroba(ticket) {
   const c = X.$('#tabPerfil');
-  c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span>🎉</span><span>🧉</span><span>😎</span></div><h2 class="titulo2">¡Ya casi! Elegí tu @</h2>
+  c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span><i data-i="confeti"></i></span><span><i data-i="mate"></i></span><span><i data-i="lentes"></i></span></div><h2 class="titulo2">¡Ya casi! Elegí tu @</h2>
       <p>Es tu nombre en la comunidad. Lo ve todo el mundo, así que nada de datos tuyos.</p>
       ${campoArroba()}<button class="grande" id="regEntrar"><i data-i="ok"></i>Listo</button>${notaLegal()}</div>`;
   X.iconos(c);
@@ -332,7 +332,7 @@ function pintarElegirArroba(ticket) {
 }
 function pintarEntrarGoogle(c) {
   if (entrandoAhora()) return esperarGoogle();
-  c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span>🧉</span><span>😂</span><span>🔥</span><span>⚽</span></div><h2 class="titulo2">Sumate a la comunidad</h2>
+  c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span><i data-i="mate"></i></span><span><i data-i="risa"></i></span><span><i data-i="llama"></i></span><span><i data-i="pelota"></i></span></div><h2 class="titulo2">Sumate a la comunidad</h2>
       <p>Publicá tus packs, seguí a los que más te copen y bajate los mejores stickers. Entrás con tu cuenta de Google: no ves ni un formulario.</p>
       <button class="botonG" id="gEntrar">${LOGO_G}<span>Entrar con Google</span></button>
       <p class="nota">De Google sólo usamos un número para reconocerte: no guardamos tu mail, tu nombre ni tu foto de Google.</p>
@@ -354,7 +354,7 @@ const haceCuanto = (t) => { const m = Math.round((Date.now() - t) / 60000); retu
 function filaNube() {
   const c = cuenta(), e = estadoNube();
   const sub = !c || !c.google ? 'Conectá Google y quedan guardados aunque borres la app' : !e || !e.cuando ? 'Tocá para guardarlos ahora' : `${e.packs} pack${e.packs === 1 ? '' : 's'} guardado${e.packs === 1 ? '' : 's'} · ${haceCuanto(e.cuando)}${e.cupo ? ` · ${Math.round((e.usado / e.cupo) * 100)} % del lugar` : ''}`;
-  return `<button class="opc" data-x="nube"><i class="emo">☁️</i><span>Tus packs en tu cuenta<small class="subOpc">${X.h(e && e.error ? e.error : sub)}</small></span></button>`;
+  return `<button class="opc" data-x="nube"><i class="emo" data-i="nube"></i><span>Tus packs en tu cuenta<small class="subOpc">${X.h(e && e.error ? e.error : sub)}</small></span></button>`;
 }
 
 // ---- Premium y donaciones (se paga con PayPal, en el navegador: servidor/pagos.js) ----
@@ -375,25 +375,25 @@ export async function cargarPremium() {
 function aplicarPremium() { if (esPremium() && window.SZN && window.SZN.anuncioBanner) { try { window.SZN.anuncioBanner(false); } catch (e) { /* nada */ } } }
 function textoPremium(yo) {
   if (!yo || !yo.premium) return '';
-  return yo.tipo === 'vida' ? 'Sos Premium de por vida ✨' : yo.estado === 'activa' ? `Sos Premium ✨ · se renueva el ${fechaLarga(yo.hasta - 3 * 86400e3)}` : `Sos Premium hasta el ${fechaLarga(yo.hasta)}`;
+  return yo.tipo === 'vida' ? 'Sos Premium de por vida' : yo.estado === 'activa' ? `Sos Premium · se renueva el ${fechaLarga(yo.hasta - 3 * 86400e3)}` : `Sos Premium hasta el ${fechaLarga(yo.hasta)}`;
 }
 function filaPremium() {
   if (!pagosAca()) return '';
   const yo = premium && premium.yo, sub = yo && yo.premium ? textoPremium(yo) : `Sin anuncios y con insignia · desde ${plata((premium && premium.precios && premium.precios.mes) || '1.99')}`;
-  return `<button class="opc opcPremium" data-x="premium"><i class="emo">✨</i><span>Stickerazo Premium<small class="subOpc">${X.h(sub)}</small></span></button>`;
+  return `<button class="opc opcPremium" data-x="premium"><i class="emo" data-i="chispa"></i><span>Stickerazo Premium<small class="subOpc">${X.h(sub)}</small></span></button>`;
 }
 export async function abrirPremium() {
-  const m = X.modal('<div class="hoja hojaPremium"><div class="prCab"><span class="prChispa">✨</span><h3>Stickerazo Premium</h3></div><div id="prCuerpo"><div class="progreso"><div class="rueda"></div></div></div></div>');
+  const m = X.modal('<div class="hoja hojaPremium"><div class="prCab"><span class="prChispa"><i data-i="chispa"></i></span><h3>Stickerazo Premium</h3></div><div id="prCuerpo"><div class="progreso"><div class="rueda"></div></div></div></div>');
   let d; try { d = await cargarPremium(); } catch (e) { X.$('#prCuerpo', m).innerHTML = `<p>${X.h(e.message || 'Sin conexión')}</p>`; return; }
   const yo = d.yo || {}, ahorro = Math.round((1 - Number(d.precios.anio) / (12 * Number(d.precios.mes))) * 100);
   const baja = yo.premium && (yo.tipo === 'mes' || yo.tipo === 'anio') && yo.estado === 'activa';
   X.$('#prCuerpo', m).innerHTML = `${yo.premium ? `<p class="prEstado">${X.h(textoPremium(yo))}</p>` : ''}
-    <ul class="prBen">${d.beneficios.map(([i, b, t]) => `<li><i>${i}</i><span><b>${X.h(b)}</b><small>${X.h(t)}</small></span></li>`).join('')}</ul>
+    <ul class="prBen">${d.beneficios.map(([i, b, t]) => `<li>${/^[a-z][a-zA-Z]*$/.test(i) ? `<i data-i="${i}"></i>` : `<i>${i}</i>`}<span><b>${X.h(b)}</b><small>${X.h(t)}</small></span></li>`).join('')}</ul>
     ${yo.premium ? '' : `<div class="prPrecios"><span><b>${plata(d.precios.mes)}</b>por mes</span><span class="mejor"><b>${plata(d.precios.anio)}</b>por año<em>−${ahorro} %</em></span><span><b>${plata(d.precios.vida)}</b>de por vida</span></div>`}
-    ${yo.donador ? '<p class="prDon">💛 Gracias por tu donación: tenés la insignia de Donador.</p>' : ''}
+    ${yo.donador ? '<p class="prDon"><i data-i="corazon"></i>Gracias por tu donación: tenés la insignia de Donador.</p>' : ''}
     <div class="botones">${!d.disponible ? '<button class="pri" disabled>Muy pronto</button>'
-      : yo.premium ? `${baja ? '<button class="sec" data-x="baja">Dar de baja</button>' : ''}<button class="pri" data-x="donar">💛 Donar</button>`
-      : '<button class="sec" data-x="donar">💛 Donar</button><button class="pri" data-x="pagar">Hacete Premium</button>'}</div>
+      : yo.premium ? `${baja ? '<button class="sec" data-x="baja">Dar de baja</button>' : ''}<button class="pri" data-x="donar"><i data-i="corazon"></i>Donar</button>`
+      : '<button class="sec" data-x="donar"><i data-i="corazon"></i>Donar</button><button class="pri" data-x="pagar">Hacete Premium</button>'}</div>
     <p class="nota">${d.disponible ? 'Se paga con PayPal, en el navegador: no vemos ni guardamos tu tarjeta. Precios en dólares. Las suscripciones se renuevan solas: dala de baja desde acá antes de la fecha de renovación para que no se cobre el período siguiente. No hay devoluciones, salvo los 10 días de arrepentimiento que da la ley desde la primera compra.' : 'Muy pronto vas a poder hacerte Premium o donar desde acá.'}</p>`;
   m.onclick = async (ev) => {
     const b = ev.target.closest('[data-x]'); if (!b) { if (ev.target === m) X.cerrarModal(); return; }
@@ -421,8 +421,8 @@ function esperarPago() {
     if (mio !== esperando || Date.now() > hasta) return;
     try {
       await cargarPremium();
-      if (esPremium() && !antes.p) { X.confeti && X.confeti(); X.aviso('¡Ya sos Premium! ✨ Gracias por bancar', 4000); esperando++; if (X.E.tab === 'Perfil') pintarPerfil(); return; }
-      if (premium.yo && premium.yo.donador && !antes.d) { X.confeti && X.confeti(); X.aviso('¡Gracias por la donación! 💛', 4000); esperando++; if (X.E.tab === 'Perfil') pintarPerfil(); return; }
+      if (esPremium() && !antes.p) { X.confeti && X.confeti(); X.aviso('¡Ya sos Premium! Gracias por bancar', 4000); esperando++; if (X.E.tab === 'Perfil') pintarPerfil(); return; }
+      if (premium.yo && premium.yo.donador && !antes.d) { X.confeti && X.confeti(); X.aviso('¡Gracias por la donación!', 4000); esperando++; if (X.E.tab === 'Perfil') pintarPerfil(); return; }
     } catch (e) { /* sin conexión: se sigue intentando */ }
     setTimeout(vuelta, 3000);
   };
@@ -437,7 +437,7 @@ export async function pintarPerfil() {
   if (!yo) {
     const cfg = await configServidor();
     if (cfg.google) return pintarEntrarGoogle(c);
-    c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span>🧉</span><span>😂</span><span>🔥</span><span>⚽</span></div><h2 class="titulo2">Sumate a la comunidad</h2>
+    c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span><i data-i="mate"></i></span><span><i data-i="risa"></i></span><span><i data-i="llama"></i></span><span><i data-i="pelota"></i></span></div><h2 class="titulo2">Sumate a la comunidad</h2>
       <p>Publicá tus packs, seguí a los que más te copen y bajate los mejores stickers del país. Sin email y sin vueltas.</p>
       ${campoArroba()}
       <button class="grande" id="regEntrar"><i data-i="ok"></i>Entrar</button>
@@ -453,8 +453,8 @@ export async function pintarPerfil() {
     let sinGoogle = false;
     if (!yo.google) { try { const y = await api('/api/yo'); if (y.usuario.conGoogle) { guardarCuenta({ ...yo, google: true }); programar(1000); } else sinGoogle = !!y.google; } catch (e) { /* sin conexión: después */ } }
     const pais = X.paisActual();
-    c.innerHTML = (sinGoogle ? `<button class="tarjG" id="tarjG">${LOGO_G}<span><b>Conectá tu cuenta de Google</b><small>La comunidad ahora se usa con Google. Tu @ y tus packs quedan igual.</small></span></button>` : '') + perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="tema"><i class="emo">${{ oscuro: '🌙', claro: '☀️', auto: '📱' }[X.temaActual()]}</i><span>Modo: ${{ oscuro: 'oscuro', claro: 'claro', auto: 'como el celular' }[X.temaActual()]}</span></button><button class="opc" data-x="musica"><i class="emo">🎵</i><span>Música de mi país</span></button><button class="opc" data-x="pais"><i class="emo">${pais ? pais[1] : '🌎'}</i><span>Mi país: ${pais ? pais[2] : 'elegir'}</span></button><a class="opc" href="${SITIO}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${SITIO}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
-      ${filaPremium()}${filaNube()}${window.SZN && window.SZN.anunciosOpciones && window.SZN.anunciosOpciones() ? '<button class="opc" data-x="anuncios"><i class="emo">📢</i><span>Privacidad de los anuncios</span></button>' : ''}<a class="opc" href="${SITIO}/contacto" data-ext="1"><i class="emo">💬</i><span>Escribinos</span></a><button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
+    c.innerHTML = (sinGoogle ? `<button class="tarjG" id="tarjG">${LOGO_G}<span><b>Conectá tu cuenta de Google</b><small>La comunidad ahora se usa con Google. Tu @ y tus packs quedan igual.</small></span></button>` : '') + perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="tema"><i class="emo" data-i="${{ oscuro: 'luna', claro: 'sol', auto: 'celular' }[X.temaActual()]}"></i><span>Modo: ${{ oscuro: 'oscuro', claro: 'claro', auto: 'como el celular' }[X.temaActual()]}</span></button><button class="opc" data-x="musica"><i class="emo" data-i="musica"></i><span>Música de mi país</span></button><button class="opc" data-x="pais"><i class="emo" data-i="mundo"></i><span>Mi país: ${pais ? pais[2] + ' ' + pais[1] : 'elegir'}</span></button><a class="opc" href="${SITIO}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${SITIO}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
+      ${filaPremium()}${filaNube()}${window.SZN && window.SZN.anunciosOpciones && window.SZN.anunciosOpciones() ? '<button class="opc" data-x="anuncios"><i class="emo" data-i="megafono"></i><span>Privacidad de los anuncios</span></button>' : ''}<a class="opc" href="${SITIO}/contacto" data-ext="1"><i class="emo" data-i="globo"></i><span>Escribinos</span></a><button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
     X.iconos(c); contar(c); if (sinGoogle) X.$('#tarjG', c).onclick = () => entrarConGoogle();
   } catch (e) {
     if (e.st === 404 || e.st === 401) { guardarCuenta(null); return pintarPerfil(); }
@@ -478,10 +478,10 @@ function editarPerfil() {
   const nuevo = { foto: null, portada: null, quitarFoto: false, quitarPortada: false };
   sel.p = sel.p || 0;
   const m = X.modal(`<div class="hoja"><h3>Tu perfil</h3><div class="prevAv" id="epPrev"><span class="avG" id="epAv"></span></div>
-    <div class="etq">Foto de perfil</div><div class="dos"><button class="sec" id="epFoto"><i data-i="galeria"></i>Elegir foto</button><button class="sec" id="epSinFoto">😎 Usar emoji</button></div>
+    <div class="etq">Foto de perfil</div><div class="dos"><button class="sec" id="epFoto"><i data-i="galeria"></i>Elegir foto</button><button class="sec" id="epSinFoto"><i data-i="cara"></i>Usar emoji</button></div>
     <div class="etq">Emoji</div><div class="emojis" id="epE">${EMOJIS.map((e) => `<button data-v="${e}">${e}</button>`).join('')}</div>
     <div class="etq">Color</div><div class="colores" id="epC">${COLS.map((c) => `<button class="color" data-v="${c}" style="background:${c}"></button>`).join('')}</div>
-    <div class="etq">Portada</div><div class="portadas" id="epP"><button class="subirP" id="epPortada" aria-label="Elegir una imagen">📷<small>Tu imagen</small></button>${PORTADAS.map((f, i) => `<button data-v="${i}" style="background:${f}" aria-label="Portada ${i + 1}"></button>`).join('')}</div>
+    <div class="etq">Portada</div><div class="portadas" id="epP"><button class="subirP" id="epPortada" aria-label="Elegir una imagen"><i data-i="camara"></i><small>Tu imagen</small></button>${PORTADAS.map((f, i) => `<button data-v="${i}" style="background:${f}" aria-label="Portada ${i + 1}"></button>`).join('')}</div>
     <div class="etq">Bio</div><input id="epBio" class="campo" maxlength="120" placeholder="Contá algo de vos (opcional)">
     <div class="botones"><button class="sec" data-x="0">Cancelar</button><button class="pri" data-x="1">Guardar</button></div></div>`);
   X.$('#epBio', m).value = u.bio || '';
@@ -538,7 +538,7 @@ async function alTocarPerfil(ev) {
   if (x && x.dataset.x === 'nube') {
     if (!(cuenta() || {}).google) return entrarConGoogle();
     X.aviso('Guardando tus packs…');
-    try { const r = await sincronizar(); X.aviso(r && r.error ? r.error : 'Listo: tus packs están guardados en tu cuenta ☁️'); } catch (e) { X.aviso(e.message); }
+    try { const r = await sincronizar(); X.aviso(r && r.error ? r.error : 'Listo: tus packs están guardados en tu cuenta'); } catch (e) { X.aviso(e.message); }
     return pintarPerfil();
   }
   if (x && x.dataset.x === 'premium') return abrirPremium();
@@ -564,7 +564,7 @@ export async function pintarEvento() {
   const ev = EVENTO, pct = Math.min(100, Math.round((ev.cuentas / ev.meta) * 100));
   c.classList.remove('oc');
   c.innerHTML = ev.sorteado ? `<i class="mini"></i><span><b>¡El termo eligió!</b><small>Mirá los 5 stickers ganadores del primer evento</small></span><i data-i="sig"></i>`
-    : `<i class="mini"></i><span><b>Evento del termo 🧉</b><small>${ev.cuentas} de ${ev.meta} cuentas: con ${ev.meta} se sortean 5 recomendados</small><div class="tBarra"><i style="width:${pct}%"></i></div></span><i data-i="sig"></i>`;
+    : `<i class="mini"></i><span><b>Evento del termo</b><small>${ev.cuentas} de ${ev.meta} cuentas: con ${ev.meta} se sortean 5 recomendados</small><div class="tBarra"><i style="width:${pct}%"></i></div></span><i data-i="sig"></i>`;
   X.iconos(c);
 }
 export function verTermo() {
@@ -613,7 +613,7 @@ export async function publicar(pack) {
       const packs = await P.leerPacks(), loc = packs.find((x) => x.id === pack.id);
       loc.publicado = { id: r.pack.id, v: r.pack.v, vLocal: loc.v, tags: [...tags] }; await P.guardarPacks(packs); X.E.packs = packs;
       X.cerrarModal(); X.confeti(); X.vibrar(25);
-      const ok2 = X.modal(`<div class="hoja centro"><div class="grandote">🎉</div><h3>¡${pack.publicado ? 'Actualizado' : 'Publicado'}!</h3><p>Ya está en la comunidad. Mandalo al grupo así lo agregan a su WhatsApp.</p>
+      const ok2 = X.modal(`<div class="hoja centro"><div class="grandote"><i data-i="confeti"></i></div><h3>¡${pack.publicado ? 'Actualizado' : 'Publicado'}!</h3><p>Ya está en la comunidad. Mandalo al grupo así lo agregan a su WhatsApp.</p>
         <div class="botones"><button class="sec" data-x="ver">Verlo</button><button class="pri" data-x="comp"><i data-i="compartir"></i> Compartir</button></div></div>`);
       ok2.querySelector('[data-x="ver"]').onclick = () => { X.cerrarModal(); abrirPublico(r.pack.id); };
       ok2.querySelector('[data-x="comp"]').onclick = () => { X.cerrarModal(); compartirPack(r.pack); };

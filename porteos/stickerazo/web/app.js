@@ -1,6 +1,7 @@
 // Stickerazo: las pantallas y lo que hace cada botón.
 //  Inicio → (foto) → Recortá → Decorá → Guardar en un pack → el pack (de 3 a 30 stickers) → Agregar a WhatsApp.
-import { LADO, MARGEN, FUENTES, COLORES, DEGRADES, FILTROS, ANIMACIONES, ANIM, cargarFuentes, cargarFuente, cargarFuentesDe, fuentesExtra, servidorFuentes, nombreFuente, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob, ojoDePez, deformar, espejo, quemar, trucha, lentesXD, FORMAS, formaCamino } from './editor.js';
+import { ICONOS_MAS } from './iconos.js';
+import { LADO, MARGEN, FUENTES, COLORES, DEGRADES, FILTROS, ANIMACIONES, ANIM, cargarFuentes, cargarFuente, cargarFuentesDe, fuentesExtra, servidorFuentes, nombreFuente, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob, ojoDePez, deformar, espejo, quemar, trucha, lentesXD, FORMAS, formaCamino, EFECTOS_VIDEO, SUAVES } from './editor.js';
 import * as P from './puente.js';
 import { LISTOS, armarListo, emojisListo, prepararListo } from './listos.js';
 import { LISTA_PAISES, elegirPaisMapa } from './mapa_pais.js';
@@ -45,6 +46,10 @@ const ICONOS = {
   forma: RI('M12 19s-6-3.7-6-8.1A3.4 3.4 0 0 1 12 8.9a3.4 3.4 0 0 1 6 2c0 4.4-6 8.1-6 8.1z') + '<path d="M12 19s-6-3.7-6-8.1A3.4 3.4 0 0 1 12 8.9a3.4 3.4 0 0 1 6 2c0 4.4-6 8.1-6 8.1z"/><rect x="3" y="3" width="18" height="18" rx="4" stroke-dasharray="3 2.6"/>',
   fondo: RI('M12 2.8l1.9 3.5 3.8-1.3-.8 3.9 3.6 1.7-2.9 2.6 2.2 3.3-4 .3-.6 4-3.2-2.4-3.2 2.4-.6-4-4-.3 2.2-3.3-2.9-2.6 3.6-1.7-.8-3.9 3.8 1.3z') + '<path d="M12 2.8l1.9 3.5 3.8-1.3-.8 3.9 3.6 1.7-2.9 2.6 2.2 3.3-4 .3-.6 4-3.2-2.4-3.2 2.4-.6-4-4-.3 2.2-3.3-2.9-2.6 3.6-1.7-.8-3.9 3.8 1.3z"/>',
   neon: RI('M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z') + '<path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/><path d="M9.5 18.5h5M10.5 21h3"/>',
+  kf: RI('M12 3.5l4.5 4.5-4.5 4.5L7.5 8z') + '<path d="M12 3.5l4.5 4.5-4.5 4.5L7.5 8z"/><path d="M3 18.5h18"/><path d="M6 15.5v6M18 15.5v6"/><circle cx="12" cy="18.5" r="1.6" fill="currentColor"/>',
+  video: RI('M3.5 7.5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2z') + '<rect x="3.5" y="5.5" width="13" height="13" rx="2"/><path d="M16.5 10l4-2.5v9l-4-2.5"/><path d="M7.5 9.5l1 2 2 .5-2 .8-1 2-.8-2-2-.8 2-.5z" fill="currentColor"/>',
+  play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/>',
+  pausa: '<path d="M8 5.5v13M16 5.5v13" stroke-width="3"/>',
   dibujo: RI('M14.5 4.5l5 5-8.2 8.2a3 3 0 0 1-2.1.9H6v-3.2a3 3 0 0 1 .9-2.1z') + '<path d="M14.5 4.5l5 5-8.2 8.2a3 3 0 0 1-2.1.9H6v-3.2a3 3 0 0 1 .9-2.1z"/><path d="M12.5 6.5l5 5"/><path d="M3 21.5c2.6 0 3.2-1.4 3.2-2.9"/>',
   ojo: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
   ojoNo: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" opacity=".45"/><path d="M4.5 19.5l15-15"/>',
@@ -75,6 +80,7 @@ const ICONOS = {
   copias: RI('M8 10.5A2.5 2.5 0 0 1 10.5 8h7A2.5 2.5 0 0 1 20 10.5v7a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 8 17.5z') + '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/><path d="M14 11v6M11 14h6"/>',
   mundo: RI('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z') + '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/>',
 };
+Object.assign(ICONOS, ICONOS_MAS);   // (los propios de iconos.js: nada de emojis como íconos)
 function iconos(raiz = document) {
   for (const i of raiz.querySelectorAll('i[data-i]:not([data-hecho])')) {
     i.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONOS[i.dataset.i] || ''}</svg>`;
@@ -442,11 +448,13 @@ $('#rSig').onclick = () => {
 // ================= DECORÁ =================
 const EV = { c: $('#eLienzo'), esc: 1, ox: 0, oy: 0, d: 1, raf: 0, p: new Map(), gesto: null, ult: { t: 0, i: -1 }, manija: null };
 const tAhora = (s) => { const D = s.duracion(); return ((performance.now() / 1000) % D) / D; };
+// (el momento que se ve: con la hoja de Movimiento abierta, el del cabezal; si no, el que va pasando)
+const tVista = (s) => (E.kf ? E.kf.t : s.animado() ? tAhora(s) : 0);
 // mientras haya algo animado, la vista se mueve (unos 20 cuadros por segundo)
 let relojAnim = 0;
 function animarVista() {
   if (relojAnim) return;
-  relojAnim = setInterval(() => { if (E.vista !== 'vEditor' || !E.st || !E.st.animado()) { clearInterval(relojAnim); relojAnim = 0; return; } if (!hayModal() || $('#modal').classList.contains('claro')) pedirE('reloj'); }, 50);
+  relojAnim = setInterval(() => { if (E.vista !== 'vEditor' || !E.st || !E.st.animado()) { clearInterval(relojAnim); relojAnim = 0; return; } if (E.kf) return; if (!hayModal() || $('#modal').classList.contains('claro')) pedirE('reloj'); }, 50);
 }
 function pedirE(recomponer) { if (recomponer) { E.compuesto = null; if (recomponer !== 'reloj') histProgramar(); } if (!EV.raf) EV.raf = requestAnimationFrame(() => { EV.raf = 0; pintarE(); }); }
 function pintarE() {
@@ -456,11 +464,12 @@ function pintarE() {
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, hh);
   g.save(); camino(g, ox, oy, lado, lado, 20 * d); g.clip(); damero(g, ox, oy, lado, lado, 14 * d); g.restore();
   g.save(); g.setLineDash([5 * d, 7 * d]); g.lineWidth = d; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.strokeRect(ox + MARGEN * esc, oy + MARGEN * esc, (LADO - 2 * MARGEN) * esc, (LADO - 2 * MARGEN) * esc); g.restore();
-  if (!E.compuesto) E.compuesto = s.componer(s.animado() ? tAhora(s) : 0);
+  const tv = tVista(s);
+  if (!E.compuesto) E.compuesto = s.componer(tv);
   g.drawImage(E.compuesto, ox, oy, lado, lado);
   if (E.dib) { g.drawImage(E.dib.c, ox, oy, lado, lado); marcarEditor(); return; }   // (dibujando: lo que va quedando, sin la selección)
   EV.manija = null;
-  const c = s.capas[s.sel];
+  const c0 = s.capas[s.sel], c = c0 && { ...c0, ...s.pose(c0, tv) };
   if (c) {
     const m = s.medidas(c), W2 = (m.w * c.esc / 2 + 8) * esc, H2 = (m.h * c.esc / 2 + 8) * esc, cx = ox + c.x * esc, cy = oy + c.y * esc;
     g.save(); g.translate(cx, cy); g.rotate(c.rot);
@@ -490,12 +499,22 @@ function enSt(ev) {
 }
 const escala = (c, e) => { const m = E.st.medidas(c), l = Math.max(m.w, m.h) || 1; return lim(e, 40 / l, (LADO * 2.2) / l); };
 const imantar = (r) => { const a = ((((r + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) - Math.PI; return Math.abs(a) < 0.06 ? 0 : a; };
+// (con puntos clave, el gesto cambia la pose del momento: con la hoja de Movimiento, el punto del cabezal —o uno nuevo—;
+// sin ella, corre todo el recorrido junto)
+function ponerPose(c, n) {
+  const s = E.st;
+  if (!c.kf || !c.kf.length) { c.x = n.x; c.y = n.y; c.esc = n.esc; c.rot = n.rot; return; }
+  if (E.kf) return kfPoner(c, E.kf.t, n);
+  const P = s.pose(c, tVista(s)), dx = n.x - P.x, dy = n.y - P.y, k = n.esc / (P.esc || 1), dr = n.rot - P.rot;
+  c.kf = c.kf.map((f) => ({ ...f, x: f.x + dx, y: f.y + dy, esc: f.esc * k, rot: f.rot + dr }));
+  c.x += dx; c.y += dy; c.esc *= k; c.rot += dr;
+}
 function empezarPinza() {
-  const s = E.st, [a, b] = [...EV.p.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-  let i = s.sel; if (i < 0) i = s.tocada(mx, my); if (i < 0) i = s.capas.findIndex((c) => c.tipo === 'img');
+  const s = E.st, [a, b] = [...EV.p.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, tv = tVista(s);
+  let i = s.sel; if (i < 0) i = s.tocada(mx, my, tv); if (i < 0) i = s.capas.findIndex((c) => c.tipo === 'img' && !c.bloq && !c.oculto);
   if (i < 0) { EV.gesto = null; return; }
-  s.sel = i; const c = s.capas[i];
-  EV.gesto = { tipo: 'pinza', c, d0: Math.hypot(b.x - a.x, b.y - a.y) || 1, a0: Math.atan2(b.y - a.y, b.x - a.x), esc0: c.esc, rot0: c.rot, mx0: mx, my0: my, x0: c.x, y0: c.y };
+  s.sel = i; const c = s.capas[i], P = s.pose(c, tv);
+  EV.gesto = { tipo: 'pinza', c, d0: Math.hypot(b.x - a.x, b.y - a.y) || 1, a0: Math.atan2(b.y - a.y, b.x - a.x), esc0: P.esc, rot0: P.rot, mx0: mx, my0: my, x0: P.x, y0: P.y };
 }
 EV.c.addEventListener('pointerdown', (ev) => {
   const s = E.st; if (!s) return;
@@ -503,40 +522,44 @@ EV.c.addEventListener('pointerdown', (ev) => {
   capturar(EV.c, ev.pointerId); const p = enSt(ev); EV.p.set(ev.pointerId, p);
   if (EV.p.size === 2) { empezarPinza(); pedirE(); return; }
   if (EV.p.size > 2) return;
-  const c = s.capas[s.sel];
+  const c = s.capas[s.sel], tv = tVista(s);
   if (c && EV.manija && Math.hypot(p.sx - EV.manija.x, p.sy - EV.manija.y) < 26 * EV.d) {
-    EV.gesto = { tipo: 'manija', c, d0: Math.hypot(p.x - c.x, p.y - c.y) || 1, a0: Math.atan2(p.y - c.y, p.x - c.x), esc0: c.esc, rot0: c.rot }; return;
+    const P = s.pose(c, tv);
+    EV.gesto = { tipo: 'manija', c, d0: Math.hypot(p.x - P.x, p.y - P.y) || 1, a0: Math.atan2(p.y - P.y, p.x - P.x), esc0: P.esc, rot0: P.rot }; return;
   }
-  const i = s.tocada(p.x, p.y), ahora = performance.now();
-  if (i >= 0 && i === EV.ult.i && ahora - EV.ult.t < 350 && s.capas[i].tipo === 'texto') { EV.p.clear(); EV.gesto = null; EV.ult = { t: 0, i: -1 }; abrirTexto(s.capas[i]); return; }
-  EV.ult = { t: ahora, i }; s.sel = i;
-  EV.gesto = i >= 0 ? { tipo: 'mover', c: s.capas[i], dx: p.x - s.capas[i].x, dy: p.y - s.capas[i].y } : null;
+  const i = s.tocada(p.x, p.y, tv), ahora = performance.now();
+  if (i >= 0 && i === EV.ult.i && ahora - EV.ult.t < 350 && s.capas[i].tipo === 'texto' && !E.kf) { EV.p.clear(); EV.gesto = null; EV.ult = { t: 0, i: -1 }; abrirTexto(s.capas[i]); return; }
+  EV.ult = { t: ahora, i }; if (!E.kf || i >= 0) s.sel = i;
+  const P = i >= 0 && s.pose(s.capas[i], tv);
+  EV.gesto = i >= 0 ? { tipo: 'mover', c: s.capas[i], dx: p.x - P.x, dy: p.y - P.y } : null;
+  if (E.kf && E.kf.alElegir) E.kf.alElegir();
   pedirE();
 });
 EV.c.addEventListener('pointermove', (ev) => {
   if (E.dib) { if (E.dib.trazo) dibTrazo(enSt(ev), false); return; }
   if (!EV.p.has(ev.pointerId)) return;
-  const p = enSt(ev); EV.p.set(ev.pointerId, p); const G = EV.gesto; if (!G) return; const c = G.c;
-  if (G.tipo === 'mover') { c.x = lim(p.x - G.dx, 0, LADO); c.y = lim(p.y - G.dy, 0, LADO); }
-  else if (G.tipo === 'manija') { c.esc = escala(c, (G.esc0 * Math.hypot(p.x - c.x, p.y - c.y)) / G.d0); c.rot = imantar(G.rot0 + Math.atan2(p.y - c.y, p.x - c.x) - G.a0); }
+  const p = enSt(ev); EV.p.set(ev.pointerId, p); const G = EV.gesto; if (!G) return; const c = G.c, P = E.st.pose(c, tVista(E.st)), n = { ...P };
+  if (G.tipo === 'mover') { n.x = lim(p.x - G.dx, 0, LADO); n.y = lim(p.y - G.dy, 0, LADO); }
+  else if (G.tipo === 'manija') { n.esc = escala(c, (G.esc0 * Math.hypot(p.x - P.x, p.y - P.y)) / G.d0); n.rot = imantar(G.rot0 + Math.atan2(p.y - P.y, p.x - P.x) - G.a0); }
   else if (G.tipo === 'pinza' && EV.p.size >= 2) {
     const [a, b] = [...EV.p.values()];
-    c.esc = escala(c, (G.esc0 * Math.hypot(b.x - a.x, b.y - a.y)) / G.d0); c.rot = imantar(G.rot0 + Math.atan2(b.y - a.y, b.x - a.x) - G.a0);
-    c.x = lim(G.x0 + (a.x + b.x) / 2 - G.mx0, 0, LADO); c.y = lim(G.y0 + (a.y + b.y) / 2 - G.my0, 0, LADO);
+    n.esc = escala(c, (G.esc0 * Math.hypot(b.x - a.x, b.y - a.y)) / G.d0); n.rot = imantar(G.rot0 + Math.atan2(b.y - a.y, b.x - a.x) - G.a0);
+    n.x = lim(G.x0 + (a.x + b.x) / 2 - G.mx0, 0, LADO); n.y = lim(G.y0 + (a.y + b.y) / 2 - G.my0, 0, LADO);
   }
-  pedirE(true);
+  ponerPose(c, n); pedirE(true);
 });
 function soltar(ev) {
   if (E.dib) { E.dib.trazo = null; return; }
   if (!EV.p.delete(ev.pointerId)) return;
-  if (EV.p.size === 1 && EV.gesto && EV.gesto.tipo === 'pinza') { const p = [...EV.p.values()][0], c = EV.gesto.c; EV.gesto = { tipo: 'mover', c, dx: p.x - c.x, dy: p.y - c.y }; }
+  if (EV.p.size === 1 && EV.gesto && EV.gesto.tipo === 'pinza') { const p = [...EV.p.values()][0], c = EV.gesto.c, P = E.st.pose(c, tVista(E.st)); EV.gesto = { tipo: 'mover', c, dx: p.x - P.x, dy: p.y - P.y }; }
   else if (!EV.p.size) EV.gesto = null;
 }
 EV.c.addEventListener('pointerup', soltar); EV.c.addEventListener('pointercancel', soltar);
 EV.c.addEventListener('wheel', (ev) => {
   const s = E.st, c = s && s.capas[s.sel]; if (!c) return; ev.preventDefault();
-  if (ev.shiftKey) c.rot = imantar(c.rot + ev.deltaY * 0.003); else c.esc = escala(c, c.esc * Math.exp(-ev.deltaY * 0.0015));
-  pedirE(true);
+  const P = s.pose(c, tVista(s)), n = { ...P };
+  if (ev.shiftKey) n.rot = imantar(P.rot + ev.deltaY * 0.003); else n.esc = escala(c, P.esc * Math.exp(-ev.deltaY * 0.0015));
+  ponerPose(c, n); pedirE(true);
 }, { passive: false });
 
 $('#vEditor .barra').onclick = (ev) => {
@@ -554,6 +577,8 @@ $('#vEditor .barra').onclick = (ev) => {
   else if (k === 'neon') abrirNeon();
   else if (k === 'capas') abrirCapas();
   else if (k === 'alinear') abrirAlinear();
+  else if (k === 'mov') abrirMovimiento();
+  else if (k === 'efectos') abrirEfectos();
   else if (k === 'borrar') { s.borrarSel(); pedirE(true); }
 };
 const contornoCss = (c) => Array.from({ length: 16 }, (_, k) => { const a = (k / 16) * Math.PI * 2; return `${(Math.cos(a) * 2.5).toFixed(1)}px ${(Math.sin(a) * 2.5).toFixed(1)}px 0 ${c}`; }).join(',');
@@ -577,7 +602,7 @@ function abrirTexto(capa) {
     <canvas class="tVista" id="tV" aria-hidden="true"></canvas>
     <textarea id="tTx" rows="2" maxlength="80" placeholder="Escribí acá" autocomplete="off" autocapitalize="sentences"></textarea>
     <div class="ideas" id="tI">${FRASES.map((f) => `<button data-v="${h(f)}">${h(f)}</button>`).join('')}</div>
-    <div class="chips tEstilo" id="tE"><button class="chip" data-v="">Letras</button><button class="chip" data-v="globo">💬 Globo</button><button class="chip" data-v="filete">🌀 Filete</button></div>
+    <div class="chips tEstilo" id="tE"><button class="chip" data-v="">Letras</button><button class="chip" data-v="globo"><i data-i="globo"></i>Globo</button><button class="chip" data-v="filete"><i data-i="aGiro"></i>Filete</button></div>
     <div class="tPest" id="tP"><button data-p="letra" class="act">Letra</button><button data-p="color">Color</button><button data-p="borde">Contorno</button><button data-p="mas">Efectos</button></div>
     <div class="tPan" data-p="letra"><div class="chips" id="tF">${FUENTES.map((f) => chipLetra(f.id)).join('')}${recientes.map(chipLetra).join('')}</div>
       <button class="tMas" id="tMas"><b>＋</b> Más letras <small id="tMasN"></small></button></div>
@@ -586,7 +611,7 @@ function abrirTexto(capa) {
     <div class="tPan oc" data-p="borde"><div class="colores" id="tB">${CONTORNOS.map(([c, n]) => `<button class="color" data-v="${c}" style="background:${c}" aria-label="Contorno ${n}"></button>`).join('')}<button class="color sin" data-v="" aria-label="Sin contorno"></button></div>
       <div class="etq">Grosor</div><div class="chips" id="tG"><button class="chip" data-v="fino">Fino</button><button class="chip" data-v="normal">Normal</button><button class="chip" data-v="grueso">Grueso</button></div></div>
     <div class="tPan oc" data-p="mas"><div class="etq">Sombra</div><div class="chips" id="tS"><button class="chip" data-v="">Sin sombra</button><button class="chip" data-v="suave">Suave</button><button class="chip" data-v="dura">3D</button></div>
-      <div class="etq">Forma</div><div class="chips" id="tA"><button class="chip" data-v="0">Recta</button><button class="chip" data-v="1">⌒ En arco</button><button class="chip" data-v="-1">◡ Sonrisa</button></div>
+      <div class="etq">Forma</div><div class="chips" id="tA"><button class="chip" data-v="0">Recta</button><button class="chip" data-v="1"><i data-i="arco"></i>En arco</button><button class="chip" data-v="-1">◡ Sonrisa</button></div>
       <div class="etq">Espacio entre letras</div><div class="chips" id="tL"><button class="chip" data-v="-0.04">Juntas</button><button class="chip" data-v="0">Normal</button><button class="chip" data-v="0.12">Separadas</button></div></div>
     <div class="botones"><button class="sec" data-x="0">Cancelar</button><button class="pri" data-x="1">Listo</button></div></div>`);
   const tx = $('#tTx', m), cv = $('#tV', m); tx.value = t.texto;
@@ -680,8 +705,8 @@ function elegirLetra(actual) {
     const l = await fuentesExtra();
     if (!l.fuentes.length) { aviso('No se pudo traer la lista de letras'); return listo(null); }
     const el = document.createElement('div'); el.className = 'letrasEl';
-    el.innerHTML = `<div class="leCaja"><div class="leCab"><h3>Letras <small>${l.fuentes.length}</small></h3><button class="leX" aria-label="Cerrar">✕</button></div>
-      <div class="buscar leBuscar"><span>🔎</span><input type="search" placeholder="Buscá una letra" enterkeyhint="search"></div>
+    el.innerHTML = `<div class="leCaja"><div class="leCab"><h3>Letras <small>${l.fuentes.length}</small></h3><button class="leX" aria-label="Cerrar"><i data-i="cerrar"></i></button></div>
+      <div class="buscar leBuscar"><i data-i="lupa"></i><input type="search" placeholder="Buscá una letra" enterkeyhint="search"></div>
       <div class="chips leCat">${CATS_LETRA.map(([k, n], i) => `<button class="chip${i ? '' : ' act'}" data-c="${k}">${n}</button>`).join('')}</div>
       <div class="leLista"></div><p class="leNota">Todas con licencia libre de Google Fonts (<a data-ext href="${C.API}/fuentes/LICENCIAS.txt">licencias</a>). Se bajan al elegirlas y quedan guardadas.</p></div>`;
     el.style.setProperty('--ancho', `${l.cols * l.w}px`);
@@ -724,7 +749,7 @@ function abrirAjustes() {
   const desl = (k, nombre, min, max, v) => `<label class="ajDesl"><span>${nombre}</span><input type="range" min="${min}" max="${max}" value="${v}" data-k="${k}"><b></b></label>`;
   const f = c.filtro || {};
   const m = modal(`<div class="hoja hojaAjustes"><div class="etq" style="margin-top:0">Ajustes ${que}</div>
-    <div class="ajCapa"><button data-a="frente"><i data-i="frente"></i>Al frente</button><button data-a="fondo"><span>⤓</span>Al fondo</button><button data-a="dup"><span>⧉</span>Duplicar</button><button data-a="espejo"><span>⇋</span>Espejo</button></div>
+    <div class="ajCapa"><button data-a="frente"><i data-i="frente"></i>Al frente</button><button data-a="fondo"><i data-i="atrasCapa"></i>Al fondo</button><button data-a="dup"><span>⧉</span>Duplicar</button><button data-a="espejo"><span>⇋</span>Espejo</button></div>
     ${desl('alfa', 'Opacidad', 15, 100, Math.round((c.alfa ?? 1) * 100))}
     ${esImg ? `<div class="etq">Filtros</div><div class="ajFiltros">${Object.keys(FILTROS).map((k) => `<button data-f="${k}"><canvas width="112" height="112"></canvas><span>${NOMBRES_F[k]}</span></button>`).join('')}</div>
       ${desl('b', 'Brillo', 50, 150, Math.round((f.b ?? 1) * 100))}${desl('c', 'Contraste', 50, 150, Math.round((f.c ?? 1) * 100))}${desl('s', 'Color', 0, 200, Math.round((f.s ?? 1) * 100))}` : ''}
@@ -773,7 +798,7 @@ function abrirAnimar() {
   const hayTexto = objetivo.some((x) => x.tipo === 'texto');
   const que = c ? (c.tipo === 'texto' ? 'el texto' : c.tipo === 'emoji' ? 'el emoji' : 'la foto') : 'todo';
   const m = modal(`<div class="hoja"><div class="etq" style="margin-top:0">Animar ${que}</div>
-    <div class="anims" id="aL"><button class="anim" data-v=""><span>⏸️</span>Quieto</button>${ANIMACIONES.map((a) => `<button class="anim" data-v="${a.id}"${a.soloTexto && !hayTexto ? ' disabled' : ''}><span>${a.ico}</span>${a.nombre}</button>`).join('')}</div>
+    <div class="anims" id="aL"><button class="anim" data-v=""><span><i data-i="pausa"></i></span>Quieto</button>${ANIMACIONES.map((a) => `<button class="anim" data-v="${a.id}"${a.soloTexto && !hayTexto ? ' disabled' : ''}><span><i data-i="${a.ico}"></i></span>${a.nombre}</button>`).join('')}</div>
     <p class="nota">${c ? 'Para animar otra cosa distinto, tocala en el sticker.' : 'Para animar una sola cosa, tocala primero.'} Los animados van en packs animados: WhatsApp no los mezcla con los quietos.</p>
     <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
   const marcar = () => { const a = objetivo.find((x) => x.tipo === 'texto' || !ANIM[x.anim]?.soloTexto) || objetivo[0]; for (const b of $('#aL', m).children) b.classList.toggle('act', b.dataset.v === (a.anim || '')); };
@@ -798,8 +823,8 @@ function abrirEmoji() {
 // ---- «xD»: arruinar la foto a propósito (ojo de pez, aplastar, quemar…), como los memes que circulan. Cada efecto se pone y
 // se saca de a uno (la foto se rehace desde la original con los que quedan); los lentes son una capa que se pone y se saca ----
 const EFECTOS_XD = [
-  ['ojo', '🐟', 'Ojo de pez'], ['ancho', '↔️', 'Aplastar'], ['alto', '↕️', 'Estirar'], ['quemar', '🔥', 'Quemar'],
-  ['trucha', '📉', 'Calidad trucha'], ['espejo', '🪞', 'Espejo'], ['lentes', '😎', 'Lentes'], ['sin', '↩️', 'Sacar todo'],
+  ['ojo', 'xOjo', 'Ojo de pez'], ['ancho', 'xAncho', 'Aplastar'], ['alto', 'xAlto', 'Estirar'], ['quemar', 'llama', 'Quemar'],
+  ['trucha', 'pixeles', 'Calidad trucha'], ['espejo', 'xEspejo', 'Espejo'], ['lentes', 'lentes', 'Lentes'], ['sin', 'deshacer', 'Sacar todo'],
 ];
 async function aplicarXD(c, lista) {
   const base = c.src0 || c.src, ant = c.src; let x = base;
@@ -813,7 +838,7 @@ async function aplicarXD(c, lista) {
 function abrirXD() {
   const s = E.st, foto = () => { const c = s.capas[s.sel]; return c && c.tipo === 'img' && !c.lentes && !c.dibujo ? c : [...s.capas].reverse().find((x) => x.tipo === 'img' && !x.lentes && !x.dibujo); };
   const m = modal(`<div class="hoja hojaXD"><div class="etq" style="margin-top:0">Modo xD <small>· tocá de nuevo para sacar ${foto() ? '' : '(primero poné una foto)'}</small></div>
-    <div class="gridXD">${EFECTOS_XD.map(([k, ico, n]) => `<button class="opXD" data-k="${k}"><span>${ico}</span><b>${n}</b></button>`).join('')}</div>
+    <div class="gridXD">${EFECTOS_XD.map(([k, ico, n]) => `<button class="opXD" data-k="${k}"><span><i data-i="${ico}"></i></span><b>${n}</b></button>`).join('')}</div>
     <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
   const marcar = () => {
     const c = foto(), l = (c && c.xd) || [], lentes = s.capas.some((x) => x.lentes);
@@ -826,7 +851,7 @@ function abrirXD() {
     if (k === 'lentes') {
       const i = s.capas.findIndex((x) => x.lentes);
       if (i >= 0) { s.capas.splice(i, 1); s.sel = -1; aviso('Lentes afuera'); }
-      else { const l = s.agregarImagen(lentesXD()); l.lentes = true; l.esc = 190 / l.src.width; l.y = LADO * 0.36; aviso('Movelos a los ojos 😎'); }
+      else { const l = s.agregarImagen(lentesXD()); l.lentes = true; l.esc = 190 / l.src.width; l.y = LADO * 0.36; aviso('Movelos a los ojos'); }
       vibrar(10); marcar(); pedirE(true); return;
     }
     const c = foto();
@@ -983,7 +1008,7 @@ function abrirNeon() {
   const s = E.st, c = s.capas[s.sel], obj = c ? [c] : s.capas;
   if (!obj.length) return aviso('Agregá algo primero');
   const m = modal(`<div class="hoja"><div class="etq" style="margin-top:0">Neón <small>· ${c ? 'a lo elegido' : 'a todo'}</small></div>
-    <div class="colores" id="nC"><button class="color sinC" data-v="" aria-label="Sin neón">✕</button>${NEONES.map((x) => `<button class="color neonC" data-v="${x}" style="background:${x};--n:${x}" aria-label="Neón ${x}"></button>`).join('')}</div>
+    <div class="colores" id="nC"><button class="color sinC" data-v="" aria-label="Sin neón"><i data-i="cerrar"></i></button>${NEONES.map((x) => `<button class="color neonC" data-v="${x}" style="background:${x};--n:${x}" aria-label="Neón ${x}"></button>`).join('')}</div>
     <p class="nota">${c ? 'Para ponérselo a todo, tocá afuera del sticker antes.' : 'Para uno solo, tocalo primero.'}</p>
     <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
   const marcar = () => { const v = obj[0].neon || ''; for (const b of $('#nC', m).children) b.classList.toggle('act', b.dataset.v === v); };
@@ -1026,11 +1051,94 @@ function abrirCapas() {
   };
   pintar();
 }
+// ---- Premium: lo que es de Premium se ve con la corona y, sin Premium, abre la hoja para hacerse Premium ----
+function pidePremium(que) {
+  if (C.esPremium()) return false;
+  if (hayModal()) cerrarModal();
+  aviso(`${que} es de Premium`); setTimeout(() => C.abrirPremium(), 350); return true;
+}
+// ---- Movimiento (Premium): puntos clave como en los editores de video. Elegís algo, ponés el cabezal en un momento y lo
+// movés, agrandás o girás en el sticker: queda un punto ◆; entre punto y punto se mueve solo ----
+function kfPoner(c, t, n) {
+  const L = (c.kf || []).map((f) => ({ ...f })), i = L.findIndex((f) => Math.abs(f.t - t) < 0.02);
+  const f = { t: i >= 0 ? L[i].t : Math.round(t * 1000) / 1000, x: n.x, y: n.y, esc: n.esc, rot: n.rot, alfa: n.alfa === undefined ? 1 : n.alfa, ease: i >= 0 ? L[i].ease || 'suave' : (E.kf && E.kf.ease) || 'suave' };
+  if (i >= 0) L[i] = f; else L.push(f); L.sort((a, b) => a.t - b.t); c.kf = L;
+}
+const DURS = [1, 2, 3, 5];
+function abrirMovimiento() {
+  if (pidePremium('Movimiento')) return;
+  const s = E.st; if (!s.capas.length) return aviso('Agregá algo primero');
+  if (s.sel < 0) s.sel = s.capas.length - 1;
+  E.kf = { t: 0, play: false, ease: 'suave', raf: 0 };
+  const K = E.kf, D = () => s.kfDur || 2;
+  const m = modal(`<div class="hoja hojaKf"><div class="etq" style="margin-top:0">Movimiento <small id="kQue"></small><i class="premiumTag" data-i="corona"></i></div>
+    <div class="kfFila"><button class="ico kfPlay" id="kPlay" aria-label="Reproducir"><i data-i="play"></i></button>
+      <div class="kfPista" id="kPista"><div class="kfRiel"></div><div class="kfPuntos" id="kPuntos"></div><div class="kfCab" id="kCab"><b id="kSeg"></b></div></div></div>
+    <div class="botones kfBot"><button class="sec" id="kPunto"><i data-i="rombo"></i>Punto</button><button class="sec" id="kBorrar"><i data-i="romboMenos"></i>Borrar</button><button class="sec" id="kBucle"><i data-i="bucle"></i>Repetir</button></div>
+    <div class="fila"><span class="etqChica">Opacidad</span><input type="range" id="kAlfa" min="0" max="100" value="100" aria-label="Opacidad en este momento"></div>
+    <div class="etq">Dura</div><div class="chips" id="kDur">${DURS.map((d) => `<button class="chip" data-d="${d}">${d} s</button>`).join('')}</div>
+    <div class="etq">Cómo llega al punto</div><div class="chips" id="kEase">${SUAVES.map(([k, n]) => `<button class="chip" data-e="${k}">${n}</button>`).join('')}</div>
+    <p class="nota">Elegí algo, poné el cabezal y movelo, agrandalo o giralo en el sticker: queda un punto clave. Con dos o más, se mueve solo.</p>
+    <div class="botones"><button class="sec" id="kSacar">Sacar movimiento</button><button class="pri" data-x="1">Listo</button></div></div>`,
+  { claro: true, alCerrar: () => { cancelAnimationFrame(K.raf); E.kf = null; pedirE(true); animarVista(); } });
+  const sel = () => s.capas[s.sel];
+  const enPunto = (c) => c && c.kf ? c.kf.findIndex((f) => Math.abs(f.t - K.t) < 0.02) : -1;
+  const marcar = () => {
+    const c = sel(), L = (c && c.kf) || [], i = enPunto(c);
+    $('#kQue', m).textContent = c ? '· ' + nombreCapa(c) : '· tocá algo del sticker';
+    $('#kPuntos', m).innerHTML = L.map((f, j) => `<button class="kfP${j === i ? ' act' : ''}" data-j="${j}" style="left:${(f.t * 100).toFixed(2)}%" aria-label="Punto ${j + 1}"></button>`).join('');
+    $('#kCab', m).style.left = (K.t * 100).toFixed(2) + '%'; $('#kSeg', m).textContent = (K.t * D()).toFixed(1).replace('.', ',') + ' s';
+    $('#kPunto', m).disabled = !c; $('#kBorrar', m).disabled = i < 0; $('#kBucle', m).disabled = !L.length; $('#kSacar', m).disabled = !L.length;
+    for (const b of $('#kDur', m).children) b.classList.toggle('act', +b.dataset.d === D());
+    const e = i >= 0 ? L[i].ease || 'suave' : K.ease; for (const b of $('#kEase', m).children) b.classList.toggle('act', b.dataset.e === e);
+    $('#kAlfa', m).value = c ? Math.round(s.pose(c, K.t).alfa * 100) : 100; $('#kAlfa', m).disabled = !c;
+    const pl = $('#kPlay', m); pl.innerHTML = `<i data-i="${K.play ? 'pausa' : 'play'}"></i>`; iconos(pl);
+  };
+  K.alElegir = () => setTimeout(marcar, 0);
+  const irA = (t) => { K.t = Math.max(0, Math.min(1, t)); E.compuesto = null; pedirE(); marcar(); };
+  const pista = $('#kPista', m); let arrastra = false;
+  const tDe = (ev) => { const r = pista.getBoundingClientRect(); return (ev.clientX - r.left) / r.width; };
+  pista.onpointerdown = (ev) => { const p = ev.target.closest('.kfP'); if (p) { const c = sel(); irA(c.kf[+p.dataset.j].t); return; } arrastra = true; pista.setPointerCapture(ev.pointerId); if (K.play) parar(); irA(tDe(ev)); };
+  pista.onpointermove = (ev) => { if (arrastra) irA(tDe(ev)); };
+  pista.onpointerup = pista.onpointercancel = () => { arrastra = false; };
+  const parar = () => { K.play = false; cancelAnimationFrame(K.raf); marcar(); };
+  const tocar = () => { K.play = true; const t0 = performance.now() - K.t * D() * 1000; const paso = () => { if (!E.kf || !K.play) return; K.t = (((performance.now() - t0) / 1000) % D()) / D(); E.compuesto = null; pedirE('reloj'); $('#kCab', m).style.left = (K.t * 100).toFixed(2) + '%'; $('#kSeg', m).textContent = (K.t * D()).toFixed(1).replace('.', ',') + ' s'; K.raf = requestAnimationFrame(paso); }; K.raf = requestAnimationFrame(paso); marcar(); };
+  $('#kPlay', m).onclick = () => (K.play ? parar() : tocar());
+  $('#kPunto', m).onclick = () => { const c = sel(); if (!c) return; kfPoner(c, K.t, s.pose(c, K.t)); vibrar(10); pedirE(true); marcar(); if (c.kf.length === 1) aviso('Ahora mové el cabezal y movelo a otro lugar'); };
+  $('#kBorrar', m).onclick = () => { const c = sel(), i = enPunto(c); if (i < 0) return; c.kf = c.kf.filter((_, j) => j !== i); if (!c.kf.length) delete c.kf; pedirE(true); marcar(); };
+  $('#kBucle', m).onclick = () => { const c = sel(); if (!c || !c.kf) return; kfPoner(c, 1, { ...c.kf[0] }); irA(1); pedirE(true); aviso('Termina donde empezó: se repite sin saltos'); };
+  $('#kSacar', m).onclick = () => { const c = sel(); if (!c || !c.kf) return; const P = s.pose(c, 0); Object.assign(c, { x: P.x, y: P.y, esc: P.esc, rot: P.rot }); delete c.kf; pedirE(true); marcar(); };
+  $('#kAlfa', m).oninput = (ev) => { const c = sel(); if (!c) return; const P = s.pose(c, K.t), a = +ev.target.value / 100; if (c.kf && c.kf.length) kfPoner(c, K.t, { ...P, alfa: a }); else c.alfa = a; pedirE(true); };
+  $('#kAlfa', m).onchange = () => marcar();
+  $('#kDur', m).onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; s.kfDur = +b.dataset.d; pedirE(true); marcar(); };
+  $('#kEase', m).onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; K.ease = b.dataset.e; const c = sel(), i = enPunto(c); if (i >= 0) { c.kf = c.kf.map((f, j) => (j === i ? { ...f, ease: K.ease } : f)); pedirE(true); } marcar(); };
+  m.querySelector('[data-x="1"]').onclick = () => cerrarModal();
+  // (cada gesto en el sticker cambia el punto del cabezal: la lista de puntos se redibuja al soltar)
+  const vigila = setInterval(() => { if (!E.kf) return clearInterval(vigila); if (!EV.p.size && !K.play) marcar(); }, 400);
+  marcar(); pedirE(true);
+}
+// ---- Efectos de video: a todo el sticker (temblor, giro, glitch, VHS…); algunos son de Premium ----
+function abrirEfectos() {
+  const s = E.st; if (!s.capas.length) return aviso('Agregá algo primero');
+  const m = modal(`<div class="hoja"><div class="etq" style="margin-top:0">Efectos de video <small>· a todo el sticker</small></div>
+    <div class="gridXD" id="vfL"><button class="opXD" data-v=""><span><i data-i="bloquear"></i></span><b>Ninguno</b></button>${EFECTOS_VIDEO.map((e) => `<button class="opXD${e.premium ? ' conCorona' : ''}" data-v="${e.id}"><span><i data-i="${e.ico}"></i></span><b>${e.nombre}</b>${e.premium && !C.esPremium() ? '<em class="corona"><i data-i="corona"></i></em>' : ''}</button>`).join('')}</div>
+    <p class="nota">Con un efecto, el sticker sale animado (va en un pack animado).</p>
+    <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
+  const marcar = () => { for (const b of $('#vfL', m).children) b.classList.toggle('act', b.dataset.v === (s.efecto || '')); };
+  m.onclick = (ev) => {
+    const b = ev.target.closest('button'); if (!b) return; if (b.dataset.x) return cerrarModal(); if (b.dataset.v === undefined) return;
+    const e = EFECTOS_VIDEO.find((x) => x.id === b.dataset.v);
+    if (e && e.premium && pidePremium('El efecto ' + e.nombre)) return;
+    if (e) s.efecto = e.id; else delete s.efecto;
+    vibrar(8); marcar(); pedirE(true); animarVista();
+  };
+  marcar();
+}
 // ---- Alinear: centrar, enderezar, adelante o atrás, y que entre todo ----
 function abrirAlinear() {
   const s = E.st; if (!s.capas.length) return aviso('Todavía no hay nada');
-  const OPS = [['h', '⇔', 'Centrar'], ['v', '⇕', 'Al medio'], ['c', '⊕', 'Centro'], ['r', '⟳', 'Derecho'], ['f', '⬆', 'Adelante'], ['a', '⬇', 'Atrás'], ['e', '⤢', 'Que entre todo']];
-  const m = modal(`<div class="hoja"><div class="etq" style="margin-top:0">Alinear <small id="alQ"></small></div><div class="gridXD">${OPS.map(([k, ico, n]) => `<button class="opXD" data-k="${k}"><span>${ico}</span><b>${n}</b></button>`).join('')}</div>
+  const OPS = [['h', 'alH', 'Centrar'], ['v', 'alV', 'Al medio'], ['c', 'alC', 'Centro'], ['r', 'alR', 'Derecho'], ['f', 'frente', 'Adelante'], ['a', 'atrasCapa', 'Atrás'], ['e', 'alE', 'Que entre todo']];
+  const m = modal(`<div class="hoja"><div class="etq" style="margin-top:0">Alinear <small id="alQ"></small></div><div class="gridXD">${OPS.map(([k, ico, n]) => `<button class="opXD" data-k="${k}"><span><i data-i="${ico}"></i></span><b>${n}</b></button>`).join('')}</div>
     <div class="botones"><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
   const marcar = () => { const c = s.capas[s.sel]; $('#alQ', m).textContent = c ? '· ' + nombreCapa(c) : '· tocá algo (o «Que entre todo»)'; for (const b of m.querySelectorAll('.opXD')) b.disabled = !c && b.dataset.k !== 'e'; };
   m.onclick = (ev) => {
@@ -1221,7 +1329,7 @@ function musica(saltar) { abrirMusica({ base: C.API.replace(/\/sz$/, ''), pais: 
 $('#botonMusica').onclick = () => { vibrar(8); musica(false); };
 setInterval(() => $('#botonMusica').classList.toggle('sonando', hayMusica()), 1500);
 // ---- modo claro, oscuro o como el celular (con un círculo que se abre desde el dedo) ----
-const TEMAS = [['oscuro', '🌙', 'Oscuro'], ['claro', '☀️', 'Claro'], ['auto', '📱', 'Como el celular']];
+const TEMAS = [['oscuro', 'luna', 'Oscuro'], ['claro', 'sol', 'Claro'], ['auto', 'celular', 'Como el celular']];
 function temaActual() { try { return localStorage.getItem('sz_tema') || 'oscuro'; } catch (e) { return 'oscuro'; } }
 const claroDelCelu = matchMedia('(prefers-color-scheme: light)');
 function aplicarTema(t) { document.documentElement.dataset.tema = (t === 'auto' ? (claroDelCelu.matches ? 'claro' : 'oscuro') : t); }
@@ -1233,7 +1341,7 @@ function cambiarTema(t, desde) {
 }
 function elegirTema(despues) {
   const t0 = temaActual();
-  const m = modal(`<div class="hoja"><h3>¿Cómo la querés ver?</h3><div class="temas">${TEMAS.map(([k, e, n]) => `<button class="tema t_${k}${k === t0 ? ' act' : ''}" data-t="${k}"><span class="muestra"><i></i><i></i><i></i></span><b>${e} ${n}</b></button>`).join('')}</div></div>`);
+  const m = modal(`<div class="hoja"><h3>¿Cómo la querés ver?</h3><div class="temas">${TEMAS.map(([k, e, n]) => `<button class="tema t_${k}${k === t0 ? ' act' : ''}" data-t="${k}"><span class="muestra"><i></i><i></i><i></i></span><b><i data-i="${e}"></i>${n}</b></button>`).join('')}</div></div>`);
   m.querySelector('.temas').onclick = (ev) => { const b = ev.target.closest('[data-t]'); if (!b) return; vibrar(10); const r = b.getBoundingClientRect(); cerrarModal(); cambiarTema(b.dataset.t, { x: r.left + r.width / 2, y: r.top + r.height / 2 }); if (despues) setTimeout(despues, 700); };
 }
 $('#irBuscar').onclick = () => liquido(() => { pestaña('Listos'); setTimeout(() => $('#qBuscar').focus(), 60); });
@@ -1509,7 +1617,7 @@ window.__szOta = (v) => { otaPendiente = v; mostrarOta(); };
 function mostrarOta() {
   if (!otaPendiente || hayModal() || E.vista === 'vRecorte' || E.vista === 'vEditor') return;
   otaPendiente = null;
-  const m = modal(`<div class="hoja centro"><div class="grandote">✨</div><h3>¡Stickerazo nuevo!</h3><p>Ya se bajó la versión nueva. Abrila ahora o se abre sola la próxima vez que entres.</p>
+  const m = modal(`<div class="hoja centro"><div class="grandote"><i data-i="chispa"></i></div><h3>¡Stickerazo nuevo!</h3><p>Ya se bajó la versión nueva. Abrila ahora o se abre sola la próxima vez que entres.</p>
     <div class="botones"><button class="sec" data-x="0">Después</button><button class="pri" data-x="1">Abrir ahora</button></div></div>`);
   m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
   m.querySelector('[data-x="1"]').onclick = () => { cerrarModal(); if (window.SZN && window.SZN.reiniciar) window.SZN.reiniciar(); else location.reload(); };
@@ -1542,7 +1650,7 @@ function mostrarApk() {
   const texto = tienda ? `Ya está en ${tienda}. Tocá «Actualizar» y se abre ahí.`
     : canal === 'web' ? `Pesa ${mb} MB. Se baja y se instala desde acá. Tus stickers y tu cuenta quedan como están.`
       : `Pesa ${mb} MB. Se baja de nuestra página: abrila y tocá «Instalar». Tus stickers y tu cuenta quedan como están.`;
-  const m = modal(`<div class="hoja centro actApk"><div class="grandote">🚀</div><h3>Llegó Stickerazo ${h(apkInfo.nombre)}</h3><p>${texto}</p>
+  const m = modal(`<div class="hoja centro actApk"><div class="grandote"><i data-i="cohete"></i></div><h3>Llegó Stickerazo ${h(apkInfo.nombre)}</h3><p>${texto}</p>
     <div class="barraApk oc"><i></i></div><p class="estApk"></p>
     <div class="botones"><button class="sec" data-x="0">Después</button><button class="pri" data-x="1">Actualizar</button></div></div>`);
   m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
@@ -1573,6 +1681,9 @@ setTimeout(() => C.revisarEntrada(), 1500);
 // (en la app, Java ya deja el lugar de las barras del sistema y del teclado: acá no se suma otra vez)
 if (P.esApp) { document.documentElement.style.setProperty('--arriba', '0px'); document.documentElement.style.setProperty('--abajo', '0px'); }
 iconos();
+for (const el of [document.getElementById('app'), ...document.querySelectorAll('.vista')]) if (el) el.addEventListener('scroll', () => { if (el.scrollLeft) el.scrollLeft = 0; }, { passive: true });
+// (lo que dibujan después las otras partes —comunidad, música, termo, mapa— también lleva sus íconos)
+new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches('i[data-i]:not([data-hecho])')) iconos(n.parentNode); else if (n.querySelector('i[data-i]:not([data-hecho])')) iconos(n); } }).observe(document.body, { childList: true, subtree: true });
 cargarFuentes('./').then(() => pedirE(true));
 servidorFuentes(`${C.API}/fuentes/`);
 const alCambiarTam = () => { if (E.vista === 'vRecorte') pedirR(); else if (E.vista === 'vEditor') pedirE(); };

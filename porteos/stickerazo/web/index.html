@@ -13,7 +13,7 @@
 <div id="app">
   <!-- inicio: crear y los packs -->
   <section id="vInicio" class="vista">
-    <header class="cab cabInicio"><div class="logo"><span>Sticker</span><b>azo</b></div><button class="botonMusica" id="botonMusica" aria-label="Música">🎵</button></header>
+    <header class="cab cabInicio"><div class="logo"><span>Sticker</span><b>azo</b></div><button class="botonMusica" id="botonMusica" aria-label="Música"><i data-i="musica"></i></button></header>
     <div class="contenido" id="tabFeed">
       <div id="tirar" class="tirar"><div class="rueda"></div></div>
       <button class="buscarFalso" id="irBuscar"><i data-i="lupa"></i><span>Buscá memes, packs, emojis…</span></button>
@@ -28,10 +28,10 @@
       <div class="portada" id="portada"><span class="saludo">¿Qué stickers hacemos hoy?</span></div>
       <button id="bCrear" class="grande"><i data-i="mas"></i>Crear sticker</button>
       <div class="dos"><button id="bTexto" class="sec"><i data-i="texto"></i>Sólo texto</button><button id="bCamara" class="sec"><i data-i="camara"></i>Sacar foto</button></div>
-      <button id="bExpress" class="express"><span class="rayo">⚡</span><span><b>Pack express</b><small>Elegí hasta 30 fotos: te armo el pack entero</small></span></button>
+      <button id="bExpress" class="express"><span class="rayo"><i data-i="rayo"></i></span><span><b>Pack express</b><small>Elegí hasta 30 fotos: te armo el pack entero</small></span></button>
       <h2>Packs listos <small>· se pueden cambiar</small></h2>
       <div id="carrusel" class="carrusel"></div>
-      <div class="ventajas"><span>🔒 Las fotos no salen de tu celular</span><span>🚫 Sin marca de agua</span><span>✏️ Todo se puede volver a editar</span></div>
+      <div class="ventajas"><span><i data-i="candado"></i>Las fotos no salen de tu celular</span><span><i data-i="bloquear"></i>Sin marca de agua</span><span><i data-i="lapiz"></i>Todo se puede volver a editar</span></div>
     </div>
     <div class="contenido oc" id="tabListos">
       <div class="buscar"><i data-i="lupa"></i><input id="qBuscar" type="search" placeholder="Buscá: mate, jaja, fútbol, 😂…" autocomplete="off" enterkeyhint="search"></div>
@@ -53,7 +53,7 @@
     <header class="cab"><button class="ico volver" aria-label="Volver"><i data-i="atras"></i></button><h1>Recortá</h1><button id="rSig" class="pri">Siguiente</button></header>
     <div class="lienzoCont" id="rCont"><canvas id="rLienzo"></canvas><div id="rGira" class="gira oc"><div class="rueda"></div><span>Recortando…</span></div></div>
     <div class="modos" id="rModos">
-      <button data-m="auto"><span>✨</span>Auto</button><button data-m="cara"><span>🙂</span>Solo cara</button><button data-m="cabezon"><span>🎈</span>Cabezón</button><button data-m="entera"><span>🖼️</span>Entera</button>
+      <button data-m="auto"><span><i data-i="magia"></i></span>Auto</button><button data-m="cara"><span><i data-i="cara"></i></span>Solo cara</button><button data-m="cabezon"><span><i data-i="cabezon"></i></span>Cabezón</button><button data-m="entera"><span><i data-i="foto"></i></span>Entera</button>
     </div>
     <p id="rAyuda" class="ayuda"></p>
     <div class="pincel oc" id="rPincelCont"><i data-i="punto"></i><input type="range" id="rPincel" min="6" max="70" value="26" aria-label="Tamaño del pincel"><i data-i="puntoG"></i></div>
@@ -74,6 +74,8 @@
       <button data-e="emoji"><i data-i="cara"></i>Emoji</button>
       <button data-e="dibujar"><i data-i="dibujo"></i>Dibujar</button>
       <button data-e="animar"><i data-i="anim"></i>Animar</button>
+      <button data-e="mov" class="conCorona"><i data-i="kf"></i>Movimiento<em class="corona"><i data-i="corona"></i></em></button>
+      <button data-e="efectos"><i data-i="video"></i>Efectos</button>
       <button data-e="xd"><i class="icoXD">xD</i>xD</button>
       <button data-e="forma"><i data-i="forma"></i>Forma</button>
       <button data-e="fondo"><i data-i="fondo"></i>Fondo</button>

@@ -11,7 +11,7 @@ const aGrilla = (lon, lat) => [(lon + 180) / MAPA.paso - 0.5, (MAPA.norte - lat)
 // abre la pantalla; listo(código) cuando elige. inicial: el país de antes (o el primero)
 export function elegirPaisMapa({ inicial, titulo = '¿De dónde sos?', sub = 'Te muestro primero los memes de tu país', listo, cerrar, vibrar = () => {} }) {
   const el = document.createElement('div'); el.className = 'mapaPais';
-  el.innerHTML = `<canvas></canvas><div class="mpArriba"><h2>${titulo}</h2><p>${sub}</p></div>${cerrar ? '<button class="mpCerrar" aria-label="Cerrar">✕</button>' : ''}
+  el.innerHTML = `<canvas></canvas><div class="mpArriba"><h2>${titulo}</h2><p>${sub}</p></div>${cerrar ? '<button class="mpCerrar" aria-label="Cerrar"><i data-i="cerrar"></i></button>' : ''}
     <div class="mpAbajo"><div class="mpTira">${LISTA_PAISES.map((p) => `<button data-p="${p.k}"><span>${p.f}</span><small>${p.n}</small></button>`).join('')}</div>
     <button class="grande mpListo"><span class="mpEleccion"></span></button></div>`;
   document.body.appendChild(el);

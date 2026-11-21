@@ -909,7 +909,7 @@ html[data-tema="claro"] .tVista { background: repeating-conic-gradient(#0000000a
 .prEstado { text-align: center; font-weight: 800; color: #5fe39a !important; margin: 0 0 10px !important; }
 .prBen { list-style: none; margin: 6px 0 14px; padding: 4px 14px; border-radius: 20px; background: var(--panel2); }
 .prBen li { display: flex; gap: 12px; padding: 9px 0; align-items: flex-start; border-bottom: 1px solid var(--linea); } .prBen li:last-child { border-bottom: 0; }
-.prBen i { font-style: normal; font-size: 22px; line-height: 1.15; } .prBen b { display: block; font-size: 15px; } .prBen small { color: var(--suave); font-size: 13px; }
+.prBen i { font-style: normal; font-size: 22px; line-height: 1.15; } .prBen i[data-i] { width: 24px; height: 24px; color: #ffc93a; margin-top: 1px; } .prBen i[data-i] .r { opacity: .35; } .prBen b { display: block; font-size: 15px; } .prBen small { color: var(--suave); font-size: 13px; }
 .prPrecios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
 .prPrecios span { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 4px; border-radius: 16px; background: var(--panel2); font-size: 12.5px; color: var(--suave); text-align: center; }
 .prPrecios b { font-size: 16px; color: var(--texto); } .prPrecios .mejor { box-shadow: inset 0 0 0 2px var(--ama); }
@@ -965,3 +965,63 @@ html[data-tema="claro"] .prBen, html[data-tema="claro"] .prPrecios span { backgr
 .capaF button:disabled { opacity: .25; }
 .capaF button:active:not(:disabled) { background: var(--panel2); }
 html[data-tema="claro"] .formaOp, html[data-tema="claro"] .capaF { background: #0000000a; border-color: #00000014; }
+/* Movimiento (puntos clave) y efectos de video */
+.premiumTag { margin-left: 6px; color: var(--ama); width: 16px !important; height: 16px !important; vertical-align: -3px; }
+.barraHerr button.conCorona { position: relative; }
+.barraHerr button .corona { position: absolute; top: 3px; right: 8px; color: var(--ama); line-height: 0; }
+.barraHerr button .corona i[data-i] { width: 13px; height: 13px; }
+.opXD { position: relative; }
+.opXD .corona { position: absolute; top: 4px; right: 5px; line-height: 0; color: var(--ama); }
+.opXD .corona i[data-i] { width: 14px; height: 14px; }
+.opXD .corona .r { opacity: .6; }
+.kfFila { display: flex; align-items: center; gap: 10px; margin: 4px 0 6px; }
+.kfPlay { width: 44px; height: 44px; background: var(--ama); color: #1c1503; }
+.kfPlay svg { width: 22px; height: 22px; }
+.kfPista { position: relative; flex: 1; height: 46px; touch-action: none; cursor: pointer; }
+.kfRiel { position: absolute; left: 0; right: 0; top: 19px; height: 8px; border-radius: 99px; background: repeating-linear-gradient(90deg, #ffffff22 0 2px, transparent 2px 10%), var(--panel2); }
+.kfPuntos { position: absolute; inset: 0; }
+.kfP { position: absolute; top: 14px; width: 18px; height: 18px; margin-left: -9px; transform: rotate(45deg); border-radius: 3px; background: var(--rosa); border: 2px solid #fff; box-shadow: 0 2px 6px #0007; }
+.kfP.act { background: var(--ama); }
+.kfCab { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: #fff; border-radius: 3px; pointer-events: none; box-shadow: 0 0 6px #000a; }
+.kfCab b { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 800; white-space: nowrap; color: var(--ama); }
+.kfBot { margin-top: 6px; }
+.kfBot .sec { flex: 1; padding: 10px 6px; font-size: 14px; white-space: nowrap; }
+.kfBot .sec:disabled { opacity: .35; }
+.hojaKf .fila { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.hojaKf .fila input { flex: 1; }
+.hojaKf .chips .chip { padding: 7px 13px; font-size: 14px; }
+
+/* los íconos propios (iconos.js) donde antes había emojis */
+.anim span i[data-i], .opXD span i[data-i] { width: 27px; height: 27px; }
+.anim span, .opXD span { color: var(--ama); }
+.anim span .r, .opXD span .r { opacity: .3; }
+.modos button span i[data-i] { width: 22px; height: 22px; }
+.express .rayo { color: #1c1503; } .express .rayo i[data-i] { width: 24px; height: 24px; } .express .rayo .r { opacity: .5; }
+.ventajas span { display: flex; align-items: center; gap: 10px; } .ventajas i[data-i] { width: 20px; height: 20px; color: var(--ama); }
+.botonMusica i[data-i] { width: 22px; height: 22px; }
+.chip i[data-i] { width: 17px; height: 17px; margin-right: 5px; vertical-align: -3px; }
+.leX, .mpCerrar, .rfX, .rfSig, .rfMin { display: grid; place-items: center; }
+.leX i[data-i], .mpCerrar i[data-i], .rfX i[data-i], .rfSig i[data-i], .rfMin i[data-i] { width: 20px; height: 20px; }
+.rfSig .r { opacity: .9; }
+.insignia i[data-i], .chipInsignia i[data-i] { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
+.insignia .r, .chipInsignia .r { opacity: .4; }
+.miniPrem { color: #ffc93a; width: 14px !important; height: 14px !important; vertical-align: -2px; }
+.miniPrem .r { opacity: .8; }
+.puStats i[data-i] { width: 15px; height: 15px; margin-right: 3px; vertical-align: -3px; }
+.burbujas span { line-height: 0; }
+.burbujas span i[data-i] { width: 1em; height: 1em; }
+.burbujas span .r { opacity: .35; }
+.burbujas span:nth-child(1) { color: #ffd23f; } .burbujas span:nth-child(2) { color: #ff3e8a; } .burbujas span:nth-child(3) { color: #3ec7ff; } .burbujas span:nth-child(4) { color: #4cd964; }
+.grandote { color: var(--ama); line-height: 0; } .grandote i[data-i] { width: 64px; height: 64px; } .grandote .r { opacity: .3; }
+.boom { color: #ff3e8a; line-height: 0; } .boom i[data-i] { width: 84px; height: 84px; } .boom .r { opacity: 1; }
+.prChispa { color: #ffc93a; line-height: 0; } .prChispa i[data-i] { width: 44px; height: 44px; } .prChispa .r { opacity: .55; }
+.prDon i[data-i] { width: 16px; height: 16px; margin-right: 5px; vertical-align: -3px; }
+.botones button i[data-i] { width: 18px; height: 18px; margin-right: 5px; vertical-align: -4px; }
+.ajustes .emo[data-i] { color: var(--ama); }
+.tema b i[data-i] { width: 15px; height: 15px; margin-right: 4px; vertical-align: -3px; }
+.portadas .subirP i[data-i] { width: 22px; height: 22px; }
+.color.sinC i[data-i] { width: 18px; height: 18px; }
+#epSinFoto i[data-i] { width: 18px; height: 18px; margin-right: 5px; vertical-align: -4px; }
+/* (la app nunca se desplaza de costado: ni con el dedo ni cuando algo hace «scroll hasta el botón») */
+#app { overflow: hidden; overflow: clip; }
+.vista { overflow-x: hidden; overflow-x: clip; }

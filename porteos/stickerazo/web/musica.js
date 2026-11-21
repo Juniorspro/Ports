@@ -30,7 +30,7 @@ export function abrirMusica({ base, pais, X, saltar }) {
   const g = GENEROS[pais] || GENEROS.otro, nombre = PAIS_EN[pais] || '';
   const el = document.createElement('div'); el.className = 'musicaEl';
   el.innerHTML = `<div class="muCaja"><div class="muCab"><span class="muDisco"></span><div><h2>Música${nombre ? ` de <em>${esc(nombre)}</em>` : ''}</h2><p>Mientras hacés stickers. Si no querés, salteala.</p></div></div>
-    <div class="buscar muBuscar"><span>🔎</span><input type="search" placeholder="Buscá una canción o un artista" enterkeyhint="search"></div>
+    <div class="buscar muBuscar"><i data-i="lupa"></i><input type="search" placeholder="Buscá una canción o un artista" enterkeyhint="search"></div>
     <div class="chips muGen">${g.map((x, k) => `<button class="chip${k ? '' : ' act'}" data-q="${esc(x)}">${esc(x)}</button>`).join('')}</div>
     <div class="muLista"></div><div class="botones"><button class="sec muSaltar">${saltar ? 'Saltar' : 'Cerrar'}</button></div></div>`;
   document.body.appendChild(el); requestAnimationFrame(() => el.classList.add('entra'));
@@ -46,7 +46,7 @@ export function abrirMusica({ base, pais, X, saltar }) {
   };
   el.querySelector('.muGen').onclick = (ev) => { const b = ev.target.closest('[data-q]'); if (!b) return; for (const c of b.parentElement.children) c.classList.toggle('act', c === b); X.vibrar(6); cargar(b.dataset.q + ' ' + nombre); };
   inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && inp.value.trim()) { inp.blur(); cargar(inp.value.trim()); } });
-  lista.onclick = (ev) => { const b = ev.target.closest('[data-k]'); if (!b) return; X.vibrar(12); M.lista = M.ultimos.slice(); tocar(+b.dataset.k, true); cerrar(); X.aviso('🎵 Sonando. Mové el reproductor a donde quieras'); };
+  lista.onclick = (ev) => { const b = ev.target.closest('[data-k]'); if (!b) return; X.vibrar(12); M.lista = M.ultimos.slice(); tocar(+b.dataset.k, true); cerrar(); X.aviso('Sonando. Mové el reproductor a donde quieras'); };
   el.querySelector('.muSaltar').onclick = cerrar;
   cargar(g[0] + ' ' + nombre);
 }
@@ -79,7 +79,7 @@ const vinilo = (clase) => `<span class="${clase}"><span class="rfGira"><img clas
 function armarFlotante() {
   if (M.el) return;
   const el = (M.el = document.createElement('div')); el.className = 'radioFlota';
-  el.innerHTML = `${vinilo('rfVinilo')}<div class="rfCaja"><div class="rfBarra"><span class="rfAgarre"></span><span class="rfTxt"><b class="rfTit"></b><small class="rfDe"></small></span><button class="rfSig" aria-label="Siguiente">⏭</button><button class="rfMin" aria-label="Achicar">▾</button><button class="rfX" aria-label="Cerrar">✕</button></div><div class="rfVideo"></div></div>`;
+  el.innerHTML = `${vinilo('rfVinilo')}<div class="rfCaja"><div class="rfBarra"><span class="rfAgarre"></span><span class="rfTxt"><b class="rfTit"></b><small class="rfDe"></small></span><button class="rfSig" aria-label="Siguiente"><i data-i="siguiente"></i></button><button class="rfMin" aria-label="Achicar"><i data-i="abajo"></i></button><button class="rfX" aria-label="Cerrar"><i data-i="cerrar"></i></button></div><div class="rfVideo"></div></div>`;
   document.body.appendChild(el);
   el.querySelector('.rfSig').onclick = () => tocar(M.i + 1);
   el.querySelector('.rfMin').onclick = achicar;
