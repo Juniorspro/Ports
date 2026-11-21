@@ -37,7 +37,7 @@ PACK EXPRESS
 Elegís hasta 30 fotos y te arma el pack entero.
 
 UNA COMUNIDAD PARA COMPARTIR
-Publicá tus packs, seguí a quien quieras, dale me gusta y bajate los mejores. Tu perfil con tu foto, tu portada, tus stickers y una canción que suena cuando te visitan.
+Publicá tus packs, seguí a quien quieras, dale me gusta y bajate los que más te copen. Tu perfil con tu foto, tu portada, tus stickers y una canción que suena cuando te visitan.
 
 SOCIAL Y CHAT
 Publicá fotos, stickers, videos cortos y textos. Sumá amigos y chateá con ellos: mandate stickers, pegatinas y mensajes. Sólo pueden escribirte tus amigos, y podés denunciar o bloquear cuando quieras.
