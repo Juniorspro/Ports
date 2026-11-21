@@ -309,6 +309,24 @@ podría entrar. Sin la variable, Google queda apagado y vale el @ solo, como ant
 - Lo cobrado: en el panel (`/api/admin/pagos`) y en PayPal. Pruebas: `pruebas/pagos.mjs` (25, con un PayPal de mentira) y
   `pruebas/premium_app.mjs` (la app y la página, de punta a punta).
 
+## El editor pro (sin publicar todavía en la app)
+
+- **Arriba**: deshacer y rehacer (también Ctrl+Z / Ctrl+Y). Cada cambio que se ve queda en la historia al soltar.
+- **Herramientas** (la barra se desliza): Texto, Pegatinas, Emoji, Plantillas, Dibujar, Animar, Movimiento, Efectos, xD,
+  Forma, Fondo, Neón, Borde, Capas, Alinear, Ajustes y Sacar.
+  - **Pegatinas** (`web/pegatinas.js`): 73 dibujos propios en 5 categorías (Caras, Globos, Símbolos, Argento, Deco),
+    hechos con formas y las letras de la app; algunas son de Premium.
+  - **Plantillas**: 14 diseños de un toque alrededor de la foto (Meme, Noticia, Oferta, Cumple, Amor, Enojo, Buen día,
+    Polaroid, Jajaja…; Campeón, Error 404, Neón y Recuerdo son de Premium). Se deshacen de un toque.
+  - **Movimiento** (Premium): puntos clave como en los editores de video (cabezal, ◆, Rebote/Suave/Parejo/De golpe,
+    opacidad, 1 a 5 s, Repetir). **Efectos de video**: Temblor, Latido, Arcoíris y Giro gratis; Zoom, Gelatina, Brillo,
+    Flash, Glitch, VHS y Neón vivo con Premium.
+  - **xD**: cada efecto se pone y se saca de a uno; los lentes se sacan de verdad.
+  - **Dibujar**, **Forma** (la foto en corazón, estrella…), **Fondo** (una figura atrás), **Neón**, **Capas** (esconder,
+    trabar, ordenar, duplicar) y **Alinear**.
+- **Íconos**: todos propios (`web/iconos.js`, mismo trazo que los de la app), nada de emojis como íconos.
+- Pruebas: `pruebas/editor_pro.mjs`, `editor_kf.mjs` y `editor_pega.mjs` (en `correr.sh`).
+
 ## Privacidad, términos y contacto
 
 `sitio/privacidad.html`, `terminos.html`, `borrar-cuenta.html` y `contacto.html` (con `sitio/a/legal.css`): completas,

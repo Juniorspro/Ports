@@ -54,6 +54,8 @@ export const ICONOS_MAS = {
   megafono: RI('M4 9.5h3l9-5v15l-9-5H4z') + '<path d="M4 9.5h3l9-5v15l-9-5H4z"/><path d="M7 14.5l1.5 5h3L10 15M19 9a3.5 3.5 0 0 1 0 6"/>',
   risa: RI('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z') + '<circle cx="12" cy="12" r="8.5"/><path d="M7.5 9.8l1.5-1.3 1.5 1.3M13.5 9.8l1.5-1.3 1.5 1.3"/><path d="M7.8 13.2h8.4a4.2 4.2 0 0 1-8.4 0z"/>',
   anillo: RI('M12 9a6 6 0 1 1 0 12 6 6 0 0 1 0-12z') + '<circle cx="12" cy="15" r="6"/><path d="M9 6.5L10.5 3h3L15 6.5 12 9z"/>',
+  pegatina: RI('M6 4h11a2 2 0 0 1 2 2v7l-6 7H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z') + '<path d="M19 13V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7z"/><path d="M13 20v-5a2 2 0 0 1 2-2h4"/><path d="M8.6 9.4h.01M14.4 9.4h.01" stroke-width="3"/><path d="M8.5 13.2c1.1.9 2.3 1.1 3.5.8"/>',
+  plantilla: RI('M6 3.5h12A2.5 2.5 0 0 1 20.5 6v3.5h-17V6A2.5 2.5 0 0 1 6 3.5z') + '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M3.5 9.5h17M10 9.5v11"/><path d="M13.5 13.5h4M13.5 16.5h3"/>',
   abajo: '<path d="M5.5 9.5L12 16l6.5-6.5"/>',
   siguiente: RI('M5 5.5l9 6.5-9 6.5z') + '<path d="M5 5.5l9 6.5-9 6.5z"/><path d="M18 5.5v13"/>',
 };

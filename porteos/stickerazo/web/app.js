@@ -2,6 +2,7 @@
 //  Inicio → (foto) → Recortá → Decorá → Guardar en un pack → el pack (de 3 a 30 stickers) → Agregar a WhatsApp.
 import { ICONOS_MAS } from './iconos.js';
 import { LADO, MARGEN, FUENTES, COLORES, DEGRADES, FILTROS, ANIMACIONES, ANIM, cargarFuentes, cargarFuente, cargarFuentesDe, fuentesExtra, servidorFuentes, nombreFuente, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob, ojoDePez, deformar, espejo, quemar, trucha, lentesXD, FORMAS, formaCamino, EFECTOS_VIDEO, SUAVES } from './editor.js';
+import { PEGATINAS, PEGA, PEGA_CATS, dibujarPega } from './pegatinas.js';
 import * as P from './puente.js';
 import { LISTOS, armarListo, emojisListo, prepararListo } from './listos.js';
 import { LISTA_PAISES, elegirPaisMapa } from './mapa_pais.js';
@@ -578,6 +579,8 @@ $('#vEditor .barra').onclick = (ev) => {
   else if (k === 'capas') abrirCapas();
   else if (k === 'alinear') abrirAlinear();
   else if (k === 'mov') abrirMovimiento();
+  else if (k === 'pegatinas') abrirPegatinas();
+  else if (k === 'plantillas') abrirPlantillas();
   else if (k === 'efectos') abrirEfectos();
   else if (k === 'borrar') { s.borrarSel(); pedirE(true); }
 };
@@ -1133,6 +1136,77 @@ function abrirEfectos() {
     vibrar(8); marcar(); pedirE(true); animarVista();
   };
   marcar();
+}
+// ---- Pegatinas: dibujos propios (pegatinas.js) que se suman como una capa más ----
+function pegaLienzo(p, lado = 360) {
+  const c = lienzo(lado, lado); dibujarPega(c.getContext('2d'), p, lado);
+  const k = cajaAlfa(c); if (!k) return c;
+  const pad = 4, o = lienzo(k.x1 - k.x0 + 2 * pad, k.y1 - k.y0 + 2 * pad); o.getContext('2d').drawImage(c, -k.x0 + pad, -k.y0 + pad); return o;
+}
+function ponerPega(s, p, x, y, tam = 170, rot = 0, alFondo = false) {
+  const src = pegaLienzo(p), c = { tipo: 'img', src, x, y, esc: tam / Math.max(src.width, src.height), rot, pega: p.id };
+  if (alFondo) s.capas.unshift(c); else s.capas.push(c);
+  s.sel = s.capas.indexOf(c); return c;
+}
+function abrirPegatinas() {
+  const s = E.st; let cat = E.pegaCat || 'caras';
+  const m = modal(`<div class="hoja hojaPega"><div class="etq" style="margin-top:0">Pegatinas <small>· dibujos de Stickerazo</small></div>
+    <div class="chips" id="pgC">${PEGA_CATS.map(([k, n]) => `<button class="chip" data-c="${k}">${n}</button>`).join('')}</div><div class="pegaGrid" id="pgG"></div></div>`);
+  const pintar = () => {
+    for (const b of $('#pgC', m).children) b.classList.toggle('act', b.dataset.c === cat);
+    const G = $('#pgG', m); G.innerHTML = PEGATINAS.filter((p) => p.cat === cat).map((p) => `<button class="pegaOp" data-p="${p.id}" aria-label="${h(p.nombre)}"><canvas width="144" height="144"></canvas>${p.premium && !C.esPremium() ? '<em class="corona"><i data-i="corona"></i></em>' : ''}</button>`).join('');
+    iconos(G); for (const b of G.children) dibujarPega(b.querySelector('canvas').getContext('2d'), PEGA[b.dataset.p], 144);
+  };
+  m.onclick = (ev) => {
+    if (ev.target === m) return cerrarModal();
+    const ch = ev.target.closest('[data-c]'); if (ch) { cat = E.pegaCat = ch.dataset.c; return pintar(); }
+    const b = ev.target.closest('[data-p]'); if (!b) return; const p = PEGA[b.dataset.p];
+    if (p.premium && pidePremium('Esa pegatina')) return;
+    cerrarModal(); const n = s.capas.filter((c) => c.pega).length, [x, y] = LUGARES_EMOJI[n % 4];
+    ponerPega(s, p, x, y, 170, x > LADO / 2 ? -0.12 : 0.12); vibrar(10); pedirE(true);
+  };
+  pintar();
+}
+// ---- Plantillas: un diseño entero de un toque (textos, figuras, pegatinas y efectos) alrededor de la foto ----
+function txtP(s, texto, o = {}) {
+  const c = s.agregarTexto({ texto, fuente: o.fuente || 'LuckiestGuy', color: o.color || '#ffffff', contorno: o.contorno === undefined ? '#111111' : o.contorno, globo: o.globo });
+  for (const k of ['degrade', 'curva', 'sombraT', 'grosor', 'anim', 'neon', 'espaciado']) if (o[k] !== undefined) c[k] = o[k];
+  s.ajustarTexto(c, true); if (o.esc) c.esc *= o.esc; c.x = o.x || LADO / 2; c.y = o.y || LADO / 2; if (o.rot) c.rot = o.rot; return c;
+}
+const fig = (s, k, o) => { const c = { tipo: 'figura', fig: k, color: '#ffd23f', w: 420, h: 420, x: LADO / 2, y: LADO / 2, esc: 1, rot: 0, ...o }; s.capas.unshift(c); return c; };
+const fotoDe = (s) => s.capas.find((c) => c.tipo === 'img' && !c.pega && !c.lentes && !c.dibujo);
+const PLANTILLAS = [
+  { id: 'meme', nombre: 'Meme', f: (s) => { txtP(s, 'CUANDO PONEN', { fuente: 'Anton', y: 62 }); txtP(s, 'LA PAVA', { fuente: 'Anton', y: 452 }); } },
+  { id: 'globo', nombre: 'Te hablo', f: (s) => { txtP(s, '¡HOLA!', { globo: true, x: 360, y: 96, esc: 0.62 }); } },
+  { id: 'noticia', nombre: 'Noticia', f: (s) => { s.capas.push({ tipo: 'figura', fig: 'redondeado', color: '#ff2d2d', w: 470, h: 96, x: LADO / 2, y: 438, esc: 1, rot: 0 }); txtP(s, 'ÚLTIMO MOMENTO', { fuente: 'Anton', y: 438, esc: 0.62, contorno: '' }); } },
+  { id: 'oferta', nombre: 'Oferta', f: (s) => { fig(s, 'explosion', { color: '#ffd23f', trazo: '#111111' }); txtP(s, '¡OFERTA!', { color: '#ff2d2d', curva: 1, y: 92, grosor: 'grueso' }); } },
+  { id: 'cumple', nombre: 'Cumple', f: (s) => { txtP(s, '¡FELIZ CUMPLE!', { curva: 1, degrade: 'arcoiris', y: 88, sombraT: 'dura' }); ponerPega(s, PEGA.confeti, 90, 400, 150, 0.2); ponerPega(s, PEGA.globoF, 432, 380, 150, -0.15); } },
+  { id: 'amor', nombre: 'Amor', f: (s) => { ponerPega(s, PEGA.corazon, 96, 110, 110, -0.25); ponerPega(s, PEGA.corazon, 420, 150, 80, 0.3); txtP(s, 'Te quiero', { fuente: 'Pacifico', color: '#ff3e8a', contorno: '#ffffff', y: 444, anim: 'latido' }); } },
+  { id: 'enojo', nombre: 'Enojo', f: (s) => { ponerPega(s, PEGA.fuego, 84, 396, 140, -0.2); ponerPega(s, PEGA.fuego, 428, 396, 140, 0.2); txtP(s, '¡NOOO!', { color: '#ff2d2d', y: 74, grosor: 'grueso' }); s.efecto = 'temblor'; } },
+  { id: 'buendia', nombre: 'Buen día', f: (s) => { ponerPega(s, PEGA.sol, 94, 96, 150, -0.1); ponerPega(s, PEGA.mate, 424, 404, 150, 0.12); txtP(s, '¡BUEN DÍA!', { fuente: 'Bangers', color: '#ffd23f', y: 452 }); } },
+  { id: 'polaroid', nombre: 'Polaroid', f: (s) => { const f0 = fotoDe(s); fig(s, 'redondeado', { color: '#ffffff', w: 440, h: 490, y: 262, trazo: '#dddddd' }); if (f0) { f0.y = 220; f0.esc *= 0.86; } txtP(s, 'qué día', { fuente: 'PermanentMarker', color: '#222222', contorno: '', y: 452, esc: 0.7 }); } },
+  { id: 'jaja', nombre: 'Jajaja', f: (s) => { ponerPega(s, PEGA.g_jaja, 380, 92, 190, 0.1); ponerPega(s, PEGA.risa, 92, 420, 130, -0.15); } },
+  { id: 'campeon', nombre: 'Campeón', premium: true, f: (s) => { ponerPega(s, PEGA.corona, LADO / 2, 64, 190, 0); txtP(s, 'CAMPEÓN', { degrade: 'oro', y: 452, sombraT: 'dura' }); } },
+  { id: 'glitch', nombre: 'Error 404', premium: true, f: (s) => { txtP(s, 'ERROR 404', { fuente: 'Anton', color: '#3ec7ff', y: 450 }); s.efecto = 'glitch'; } },
+  { id: 'neon', nombre: 'Neón', premium: true, f: (s) => { const f0 = fotoDe(s); if (f0) f0.neon = '#ff3e8a'; txtP(s, 'NEÓN', { degrade: 'neon', y: 450, neon: '#3ec7ff' }); s.efecto = 'neonV'; } },
+  { id: 'vhs', nombre: 'Recuerdo', premium: true, f: (s) => { const f0 = fotoDe(s); if (f0) f0.filtro = { preset: 'vintage' }; txtP(s, 'REC ●', { fuente: 'Anton', color: '#ff2d2d', contorno: '', x: 120, y: 56, esc: 0.5 }); s.efecto = 'vhs'; } },
+];
+function previaPlantilla(pl) {
+  const s = new Sticker(), base = lienzo(260, 320), g = base.getContext('2d');
+  g.fillStyle = '#8d86a3'; g.beginPath(); g.arc(130, 110, 72, 0, Math.PI * 2); g.fill(); g.beginPath(); g.ellipse(130, 320, 120, 120, 0, Math.PI, 0); g.fill();
+  s.agregarImagen(base); pl.f(s); s.sel = -1; return s.componer(0);
+}
+function abrirPlantillas() {
+  const s = E.st;
+  const m = modal(`<div class="hoja hojaPega"><div class="etq" style="margin-top:0">Plantillas <small>· se suman a tu foto</small></div><div class="pegaGrid plantG" id="plG">${PLANTILLAS.map((p) => `<button class="pegaOp plantOp" data-p="${p.id}"><canvas width="160" height="160"></canvas><small>${h(p.nombre)}</small>${p.premium && !C.esPremium() ? '<em class="corona"><i data-i="corona"></i></em>' : ''}</button>`).join('')}</div>
+    <p class="nota">Después cambiale lo que quieras: tocá dos veces un texto para escribir el tuyo.</p></div>`);
+  setTimeout(() => { for (const b of $('#plG', m).children) { const pl = PLANTILLAS.find((x) => x.id === b.dataset.p); try { b.querySelector('canvas').getContext('2d').drawImage(previaPlantilla(pl), 0, 0, 160, 160); } catch (e) { console.error(e); } } }, 30);
+  m.onclick = (ev) => {
+    if (ev.target === m) return cerrarModal();
+    const b = ev.target.closest('[data-p]'); if (!b) return; const pl = PLANTILLAS.find((x) => x.id === b.dataset.p);
+    if (pl.premium && pidePremium('La plantilla ' + pl.nombre)) return;
+    cerrarModal(); pl.f(s); s.sel = -1; vibrar(12); pedirE(true); animarVista(); aviso('Tocá dos veces un texto para cambiarlo');
+  };
 }
 // ---- Alinear: centrar, enderezar, adelante o atrás, y que entre todo ----
 function abrirAlinear() {

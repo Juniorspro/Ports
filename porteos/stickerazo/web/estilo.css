@@ -1025,3 +1025,16 @@ html[data-tema="claro"] .formaOp, html[data-tema="claro"] .capaF { background: #
 /* (la app nunca se desplaza de costado: ni con el dedo ni cuando algo hace «scroll hasta el botón») */
 #app { overflow: hidden; overflow: clip; }
 .vista { overflow-x: hidden; overflow-x: clip; }
+/* pegatinas y plantillas */
+.hojaPega .chips { margin-bottom: 10px; }
+.pegaGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-height: 48vh; overflow-y: auto; padding: 2px; }
+.pegaOp { position: relative; aspect-ratio: 1; border-radius: 16px; background: #ffffff0a; border: 1px solid #ffffff14; display: grid; place-items: center; padding: 6px; }
+.pegaOp canvas { width: 100%; height: 100%; filter: drop-shadow(0 0 0 #fff) drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(0 3px 4px #0006); }
+.pegaOp:active { transform: scale(.92); }
+.pegaOp .corona { position: absolute; top: 4px; right: 5px; line-height: 0; color: var(--ama); }
+.pegaOp .corona i[data-i] { width: 15px; height: 15px; }
+.plantG { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.plantOp { aspect-ratio: auto; padding: 6px 6px 8px; gap: 4px; }
+.plantOp canvas { filter: none; aspect-ratio: 1; border-radius: 10px; background: repeating-conic-gradient(#ffffff10 0 25%, transparent 0 50%) 0 0 / 14px 14px; }
+.plantOp small { font-weight: 700; font-size: 12px; }
+html[data-tema="claro"] .pegaOp { background: #0000000a; border-color: #00000014; }
