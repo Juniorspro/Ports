@@ -90,7 +90,7 @@ function iconos(raiz = document) {
   // (las decoraciones grandes —pantallas vacías, bienvenida, avisos— son pegatinas: dibujos de pegatinas.js)
   for (const i of raiz.querySelectorAll('i[data-pega]:not([data-hecho])')) {
     const p = PEGA[i.dataset.pega]; i.dataset.hecho = '1'; if (!p) continue;
-    const t = Math.round((parseFloat(getComputedStyle(i).width) || 72) * Math.min(3, devicePixelRatio || 1)), c = lienzo(t, t);
+    const t = Math.round((parseFloat(getComputedStyle(i).width) || 72) * DPR()), c = lienzo(t, t);
     dibujarPega(c.getContext('2d'), p, t); i.appendChild(c);
   }
 }
@@ -146,13 +146,18 @@ const LIQ = { c: $('#liquido'), corriendo: false };
 let ultimoToque = { x: innerWidth / 2, y: innerHeight * 0.85 };
 document.addEventListener('pointerdown', (ev) => { ultimoToque = { x: ev.clientX, y: ev.clientY }; }, true);
 const quieto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// (celulares flojos: 4 núcleos o menos, o 2 GB de memoria o menos, o «reducir el movimiento»: sin el agua, sin desenfoques
+// de fondo, sombras más simples y la vista del editor con menos píxeles)
+const LIVIANO = quieto || (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 2;
+const DPR = () => Math.min(LIVIANO ? 1.5 : 3, window.devicePixelRatio || 1);
+if (LIVIANO) document.documentElement.classList.add('liviano');
 // (los colores de la marca, de arriba a abajo: rosa → naranja → violeta)
 const PALETA = (() => { const p = new Uint8ClampedArray(256 * 3), cs = [[255, 62, 138], [255, 138, 26], [255, 210, 63], [124, 77, 255], [255, 62, 138]];
   for (let i = 0; i < 256; i++) { const t = (i / 255) * (cs.length - 1), k = Math.min(cs.length - 2, Math.floor(t)), f = t - k; for (let j = 0; j < 3; j++) p[i * 3 + j] = cs[k][j] + (cs[k + 1][j] - cs[k][j]) * f; } return p; })();
 // cambio(): se llama con la pantalla tapada. soloSalida: ya arranca tapada (para lo que cambia al toque) y se escurre
 function liquido(cambio, desde = ultimoToque, soloSalida = false) {
   const c = LIQ.c;
-  if (quieto || !c || LIQ.corriendo) { if (cambio) cambio(); return; }
+  if (LIVIANO || !c || LIQ.corriendo) { if (cambio) cambio(); return; }
   LIQ.corriendo = true;
   const ES = 4, W = Math.ceil(innerWidth / ES), H = Math.ceil(innerHeight / ES); c.width = W; c.height = H; c.classList.remove('oc');
   const g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data, R = 0.55 * Math.hypot(W, H);
@@ -185,9 +190,10 @@ function liquido(cambio, desde = ultimoToque, soloSalida = false) {
   cuadro(performance.now()); requestAnimationFrame(cuadro);
 }
 
-function ir(v, volviendo) {
+// (agua: sólo en los momentos importantes —se guardó el sticker, se publicó, ya sos Premium—, no en cada pantalla)
+function ir(v, volviendo, agua = false) {
   if (v !== E.vista) C.pararCancionPerfil();   // (la canción de un perfil se corta al salir del perfil)
-  if (!volviendo && E.vista && E.vista !== v && LIQ.c && !LIQ.corriendo && document.visibilityState === 'visible') liquido(null, ultimoToque, true);
+  if (agua && !volviendo && E.vista && E.vista !== v && LIQ.c && !LIQ.corriendo && document.visibilityState === 'visible') liquido(null, ultimoToque, true);
   for (const s of document.querySelectorAll('.vista')) s.classList.toggle('oc', s.id !== v);
   const s = $('#' + v); s.classList.remove('entra', 'vuelve'); void s.offsetWidth; s.classList.add(volviendo ? 'vuelve' : 'entra');
   E.vista = v;
@@ -282,7 +288,7 @@ async function abrirFoto(f) {
 const RV = { c: $('#rLienzo'), esc: 1, ox: 0, oy: 0, d: 1, raf: 0, lupa: null, cursor: null, trazo: null };
 const mctx = () => E.mascara.getContext('2d', { willReadFrequently: true });
 function medir(c) {
-  const r = c.getBoundingClientRect(), d = Math.min(3, window.devicePixelRatio || 1), w = Math.max(1, Math.round(r.width * d)), hh = Math.max(1, Math.round(r.height * d));
+  const r = c.getBoundingClientRect(), d = DPR(), w = Math.max(1, Math.round(r.width * d)), hh = Math.max(1, Math.round(r.height * d));
   if (c.width !== w || c.height !== hh) { c.width = w; c.height = hh; }
   return { w, h: hh, d };
 }
@@ -462,7 +468,7 @@ const tVista = (s) => (E.kf ? E.kf.t : s.animado() ? tAhora(s) : 0);
 let relojAnim = 0;
 function animarVista() {
   if (relojAnim) return;
-  relojAnim = setInterval(() => { if (E.vista !== 'vEditor' || !E.st || !E.st.animado()) { clearInterval(relojAnim); relojAnim = 0; return; } if (E.kf) return; if (!hayModal() || $('#modal').classList.contains('claro')) pedirE('reloj'); }, 50);
+  relojAnim = setInterval(() => { if (E.vista !== 'vEditor' || !E.st || !E.st.animado()) { clearInterval(relojAnim); relojAnim = 0; return; } if (E.kf) return; if (!hayModal() || $('#modal').classList.contains('claro')) pedirE('reloj'); }, LIVIANO ? 84 : 50);
 }
 function pedirE(recomponer) { if (recomponer) { E.compuesto = null; if (recomponer !== 'reloj') histProgramar(); } if (!EV.raf) EV.raf = requestAnimationFrame(() => { EV.raf = 0; pintarE(); }); }
 function pintarE() {
@@ -473,7 +479,7 @@ function pintarE() {
   g.save(); camino(g, ox, oy, lado, lado, 20 * d); g.clip(); damero(g, ox, oy, lado, lado, 14 * d); g.restore();
   g.save(); g.setLineDash([5 * d, 7 * d]); g.lineWidth = d; g.strokeStyle = 'rgba(255,255,255,0.2)'; g.strokeRect(ox + MARGEN * esc, oy + MARGEN * esc, (LADO - 2 * MARGEN) * esc, (LADO - 2 * MARGEN) * esc); g.restore();
   const tv = tVista(s);
-  if (!E.compuesto) E.compuesto = s.componer(tv);
+  if (!E.compuesto) E.compuesto = s.componer(tv, LIVIANO && s.animado());
   g.drawImage(E.compuesto, ox, oy, lado, lado);
   if (E.dib) { g.drawImage(E.dib.c, ox, oy, lado, lado); marcarEditor(); return; }   // (dibujando: lo que va quedando, sin la selección)
   EV.manija = null;
@@ -1289,7 +1295,7 @@ $('#eGuardar').onclick = async () => {
     try {
       const pk = await guardarSticker(s, destino === 'cambiar' ? ed.packId : destino, nombre, emojis.slice(), destino === 'cambiar' ? ed.archivo : null);
       cerrarModal(); E.st = null; E.desdeRecorte = false; E.foto = null; E.editando = null; E.packId = pk.id;
-      ir('vPack'); aviso(destino === 'cambiar' ? '¡Cambiado!' : '¡Guardado!');
+      ir('vPack', false, true); aviso(destino === 'cambiar' ? '¡Cambiado!' : '¡Guardado!');
     } catch (e) { console.error(e); cerrarModal(); aviso(String(e.message || e).includes('pesa') ? 'El sticker quedó muy pesado' : 'Uh, no se guardó: ' + (e.message || e)); }
   };
   marcar();
@@ -1376,7 +1382,7 @@ function ordenarPorPais() {
 ordenarPorPais();
 const BANNERS = [
   { img: 'banners/xd.webp', t: 'Modo <em>xD</em>', s: 'Ojo de pez, quemado, calidad trucha… arruiná tus fotos a propósito', b: 'Probalo', a: () => $('#bCrear').click() },
-  { img: 'banners/latam.webp', t: 'Memes de <em>toda Latinoamérica</em>', s: 'Argentina, México, Chile, Perú, Colombia, Venezuela, Uruguay', b: 'Ver packs', a: () => liquido(() => pestaña('Listos')) },
+  { img: 'banners/latam.webp', t: 'Memes de <em>toda Latinoamérica</em>', s: 'Argentina, México, Chile, Perú, Colombia, Venezuela, Uruguay', b: 'Ver packs', a: () => ((f) => f())(() => pestaña('Listos')) },
   { img: 'banners/pack.webp', t: 'Tu pack en <em>un minuto</em>', s: 'Elegís hasta 30 fotos y te lo armo entero', b: 'Armar', a: () => $('#bExpress').click() },
 ];
 let relojBanner = 0;
@@ -1426,7 +1432,7 @@ function elegirTema(despues) {
   const m = modal(`<div class="hoja"><h3>¿Cómo la querés ver?</h3><div class="temas">${TEMAS.map(([k, e, n]) => `<button class="tema t_${k}${k === t0 ? ' act' : ''}" data-t="${k}"><span class="muestra"><i></i><i></i><i></i></span><b><i data-i="${e}"></i>${n}</b></button>`).join('')}</div></div>`);
   m.querySelector('.temas').onclick = (ev) => { const b = ev.target.closest('[data-t]'); if (!b) return; vibrar(10); const r = b.getBoundingClientRect(); cerrarModal(); cambiarTema(b.dataset.t, { x: r.left + r.width / 2, y: r.top + r.height / 2 }); if (despues) setTimeout(despues, 700); };
 }
-$('#irBuscar').onclick = () => liquido(() => { pestaña('Listos'); setTimeout(() => $('#qBuscar').focus(), 60); });
+$('#irBuscar').onclick = () => { pestaña('Listos'); setTimeout(() => $('#qBuscar').focus(), 60); };
 $('#historias').onclick = (ev) => { const b = ev.target.closest('.hist'); if (!b) return; vibrar(6); const pk = LISTOS.find((x) => x.id === b.dataset.l); if (pk) { b.classList.add('visto'); hojaListo(pk); } };
 function paisActual() { return PAISES.find((x) => x[0] === miPais()) || null; }
 function ponerPais(k) {
@@ -1441,23 +1447,45 @@ function elegirPais(despues) {
 }
 $('#paisCard').onclick = () => { vibrar(8); elegirPais(() => pintarTopInicio()); };
 
-// ---- packs listos: las vistas previas se arman de a una (sin trabar la pantalla) y quedan guardadas ----
-const previas = new Map();
-function previa(pk, i) {
-  const k = pk.id + ':' + i;
-  if (!previas.has(k)) { const c = armarListo(pk.stickers[i], i).componer(0), t = lienzo(192, 192), g = t.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, 192, 192); previas.set(k, t.toDataURL('image/webp', 0.85)); }
-  return previas.get(k);
+// ---- packs listos: las vistas previas se arman sólo cuando se ven (las de la pantalla primero), en los ratos libres, y
+// quedan guardadas en el celular para la próxima vez (con una huella del dibujo: si el pack cambia, se arma de nuevo) ----
+const previas = new Map(), CACHE_PREV = 'sz-previas-1';
+const huellaTxt = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+let cachePrev = null;
+const abrirCachePrev = () => (cachePrev ||= (window.caches ? caches.open(CACHE_PREV).catch(() => null) : Promise.resolve(null)));
+async function previaUrl(pk, i) {
+  const k = pk.id + ':' + i; if (previas.has(k)) return previas.get(k);
+  const def = pk.stickers[i], clave = `/previa/${encodeURIComponent(pk.id)}/${i}/${huellaTxt(JSON.stringify(def))}`, cache = await abrirCachePrev();
+  if (cache) { try { const r = await cache.match(clave); if (r) { const u = URL.createObjectURL(await r.blob()); previas.set(k, u); return u; } } catch (e) { /* sin caché */ } }
+  if (pk.meme) await prepararListo(pk);
+  const c = armarListo(def, i).componer(0, true), t = lienzo(192, 192), g = t.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, 192, 192);
+  const blob = await new Promise((ok) => t.toBlob(ok, 'image/webp', 0.85)), u = blob ? URL.createObjectURL(blob) : t.toDataURL('image/webp', 0.85);
+  previas.set(k, u);
+  if (cache && blob) cache.put(clave, new Response(blob, { headers: { 'Content-Type': 'image/webp' } })).catch(() => {});
+  return u;
 }
-// (cada lista lleva su cuenta: abrir una hoja no frena las miniaturas de la lista de atrás)
-async function llenarPrevias(raiz) {
-  const mio = (raiz._turno = (raiz._turno || 0) + 1);
-  for (const im of raiz.querySelectorAll('img[data-l]')) {
-    if (raiz._turno !== mio || !im.isConnected) return;
-    const [id, i] = im.dataset.l.split(':'), pk = LISTOS.find((x) => x.id === id);
-    if (pk.meme) { await prepararListo(pk); if (raiz._turno !== mio || !im.isConnected) return; }
-    im.src = previa(pk, +i); im.removeAttribute('data-l');
-    await new Promise((ok) => setTimeout(ok, 0));
-  }
+// (una fila para todas las listas: de a una, cuando el navegador está libre)
+const COLA_PREV = []; let colaPrevCorre = false;
+const libre = (f) => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 400 }) : setTimeout(f, 16));
+function correrColaPrev() {
+  if (colaPrevCorre) return; colaPrevCorre = true;
+  const paso = async () => {
+    const im = COLA_PREV.shift(); if (!im) { colaPrevCorre = false; return; }
+    if (im.isConnected && im.dataset.l) {
+      const [id, i] = im.dataset.l.split(':'), pk = LISTOS.find((x) => x.id === id);
+      try { if (pk) { const u = await previaUrl(pk, +i); if (im.isConnected) { im.src = u; im.removeAttribute('data-l'); } } } catch (e) { console.error(e); }
+    }
+    libre(paso);
+  };
+  libre(paso);
+}
+const VE_PREV = window.IntersectionObserver ? new IntersectionObserver((es) => {
+  for (const e of es) if (e.isIntersecting) { VE_PREV.unobserve(e.target); if (e.target.dataset.l) COLA_PREV.push(e.target); }
+  correrColaPrev();
+}, { rootMargin: '240px' }) : null;
+function llenarPrevias(raiz) {
+  for (const im of raiz.querySelectorAll('img[data-l]')) { if (VE_PREV) VE_PREV.observe(im); else COLA_PREV.push(im); }
+  if (!VE_PREV) correrColaPrev();
 }
 const imgListo = (pk, i) => `<img data-l="${pk.id}:${i}" alt="">`;
 function carruselListos(c) {
@@ -1686,7 +1714,7 @@ function confeti() {
   requestAnimationFrame(paso);
 }
 // (lo que usa la comunidad de acá)
-C.iniciar({ $, h, modal, cerrarModal, aviso, ir, iconos, E, confirmar, vibrar, confeti, pestaña, carruselListos, norm, buscarTag, pintarPack: () => pintarPack(), atras, paisActual, elegirPais, elegirTema, temaActual, musica: () => musica(false), recargarPacks: () => { if (E.vista === 'vInicio') pintarInicio(); } });
+C.iniciar({ agua: (f) => liquido(f || null, { x: innerWidth / 2, y: innerHeight / 2 }, !f), $, h, modal, cerrarModal, aviso, ir, iconos, E, confirmar, vibrar, confeti, pestaña, carruselListos, norm, buscarTag, pintarPack: () => pintarPack(), atras, paisActual, elegirPais, elegirTema, temaActual, musica: () => musica(false), recargarPacks: () => { if (E.vista === 'vInicio') pintarInicio(); } });
 // ---- los anuncios (si el APK los trae): el banner de abajo no mientras recortás o editás, y uno de pantalla completa sólo
 //  en pausas naturales (Java decide si ya pasó un rato desde el último) ----
 // (con Premium, nada de anuncios)
@@ -1830,7 +1858,10 @@ function moverIndicador() {
 new MutationObserver(moverIndicador).observe($('#tabs'), { subtree: true, attributes: true, attributeFilter: ['class'] });
 addEventListener('resize', moverIndicador); setTimeout(moverIndicador, 50);
 if (P.esApp && window.SZN.enlaceInicial) { const e = window.SZN.enlaceInicial(); if (e) window.__szAbrir(e); }
-setTimeout(() => recorte().catch(() => {}), 1200); // (los modelos, de fondo, para que el primer recorte salga enseguida)
+// (los modelos de recorte, de fondo, para que el primer recorte salga enseguida; en un celular flojo recién cuando va a
+// crear —toca «+»—: cargarlos traba el arranque)
+if (!LIVIANO) setTimeout(() => recorte().catch(() => {}), 1200);
+else document.addEventListener('pointerdown', function pre(ev) { if (ev.target.closest('[data-t="Crear"], #bCrear, #bCam, #bExpress, .centro')) { document.removeEventListener('pointerdown', pre, true); recorte().catch(() => {}); } }, true);
 window.__sz = { LIQ, liquido, E, ir, atras, abrirFoto, recorte, aviso, pestaña, C, pedirE };
 // (la oferta de bienvenida de Premium: unos segundos después de entrar, si corresponde —comunidad.js—)
 setTimeout(() => C.ofertaAlEntrar().catch(() => {}), 4500);

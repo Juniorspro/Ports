@@ -1085,3 +1085,15 @@ html[data-tema="claro"] .avPegas button { background: #0000000a; }
 .cancionEl .muNada { padding: 18px 6px; }
 @keyframes girar { to { transform: rotate(360deg); } }
 .rdPlay svg { width: 12px; height: 12px; }
+/* ---- celulares flojos (html.liviano, app.js): sin desenfoques de fondo ni brillos que se mueven siempre; lo que gira
+   mientras suena o carga queda (indica algo) ---- */
+html.liviano *, html.liviano *::before, html.liviano *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+html.liviano .tabs { background: rgba(8, 8, 12, .97); }
+html.liviano .modal { background: rgba(0, 0, 0, .84); }
+html.liviano .musicaEl, html.liviano .letrasEl { background: #07060bf2; }
+html.liviano #app::before, html.liviano .bvApp::before { animation: none; filter: none; opacity: .6; }
+html.liviano .burbujas span, html.liviano .cabInicio::before, html.liviano .cabInicio::after, html.liviano .grande::after, html.liviano .tabs .centro span,
+html.liviano .portada img, html.liviano .hist .anillo::after, html.liviano .brilloP, html.liviano .bvBanner, html.liviano .paisCard > i:first-child,
+html.liviano .tTermo, html.liviano .eventoCard .mini, html.liviano .anilloAv::before, html.liviano .opcPremium .emo, html.liviano .prChispa { animation: none !important; }
+html.liviano .pegaUI canvas, html.liviano .pegaOp canvas { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45)); }
+html.liviano .barraHerr { -webkit-mask-image: none; mask-image: none; }

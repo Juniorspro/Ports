@@ -330,7 +330,8 @@ export class Sticker {
     g.restore();
   }
   // ---- el dibujo entero en el momento t: las capas, y alrededor el borde de sticker (dilatando la silueta) y una sombra ----
-  componer(t = 0) {
+  // (rapido: el borde con menos copias —miniaturas y la vista animada en celulares flojos—; lo que se guarda, completo)
+  componer(t = 0, rapido = false) {
     const base = lienzo(LADO, LADO), g = base.getContext('2d'); let brillo = null;
     for (const c of this.capas) {
       if (c.oculto) continue;
@@ -347,7 +348,8 @@ export class Sticker {
     if (this.borde > 0) {
       const sil = lienzo(LADO, LADO), s = sil.getContext('2d'); s.drawImage(base, 0, 0); s.globalCompositeOperation = 'source-in'; s.fillStyle = this.colorBorde; s.fillRect(0, 0, LADO, LADO);
       const ani = lienzo(LADO, LADO), a = ani.getContext('2d'), r = this.borde;
-      for (const f of [1, 0.66, 0.33]) for (let k = 0; k < 24; k++) { const th = (k / 24) * TAU; a.drawImage(sil, Math.cos(th) * r * f, Math.sin(th) * r * f); }
+      const anillos = rapido ? [1, 0.5] : [1, 0.66, 0.33], vueltas = rapido ? 12 : 24;
+      for (const f of anillos) for (let k = 0; k < vueltas; k++) { const th = (k / vueltas) * TAU; a.drawImage(sil, Math.cos(th) * r * f, Math.sin(th) * r * f); }
       a.drawImage(sil, 0, 0);
       if (this.sombra) { o.save(); o.shadowColor = 'rgba(0,0,0,0.38)'; o.shadowBlur = 10; o.shadowOffsetY = 4; o.drawImage(ani, 0, 0); o.restore(); }
       else o.drawImage(ani, 0, 0);

@@ -465,7 +465,7 @@ function esperarPago() {
     if (mio !== esperando || Date.now() > hasta) return;
     try {
       await cargarPremium();
-      if (esPremium() && !antes.p) { X.confeti && X.confeti(); X.aviso('¡Ya sos Premium! Gracias por bancar', 4000); esperando++; if (X.E.tab === 'Perfil') pintarPerfil(); return; }
+      if (esPremium() && !antes.p) { X.agua && X.agua(); X.confeti && X.confeti(); X.aviso('¡Ya sos Premium! Gracias por bancar', 4000); esperando++; if (X.E.tab === 'Perfil') pintarPerfil(); return; }
       if (premium.yo && premium.yo.donador && !antes.d) { X.confeti && X.confeti(); X.aviso('¡Gracias por la donación!', 4000); esperando++; if (X.E.tab === 'Perfil') pintarPerfil(); return; }
     } catch (e) { /* sin conexión: se sigue intentando */ }
     setTimeout(vuelta, 3000);
@@ -663,6 +663,7 @@ export async function publicar(pack) {
       const packs = await P.leerPacks(), loc = packs.find((x) => x.id === pack.id);
       loc.publicado = { id: r.pack.id, v: r.pack.v, vLocal: loc.v, tags: [...tags] }; await P.guardarPacks(packs); X.E.packs = packs;
       X.cerrarModal(); X.confeti(); X.vibrar(25);
+      if (X.agua) X.agua();
       const ok2 = X.modal(`<div class="hoja centro"><div class="grandote"><i class="pegaUI" data-pega="g_wow"></i></div><h3>¡${pack.publicado ? 'Actualizado' : 'Publicado'}!</h3><p>Ya está en la comunidad. Mandalo al grupo así lo agregan a su WhatsApp.</p>
         <div class="botones"><button class="sec" data-x="ver">Verlo</button><button class="pri" data-x="comp"><i data-i="compartir"></i> Compartir</button></div></div>`);
       ok2.querySelector('[data-x="ver"]').onclick = () => { X.cerrarModal(); abrirPublico(r.pack.id); };
