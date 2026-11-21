@@ -49,6 +49,9 @@ ok(mr.status === 200 && mr.headers.get('content-type') === 'image/webp' && Buffe
 ok((await fetch(`${B}/m/${id1}/..%2Fx.webp`)).status === 404 && (await fetch(`${B}/m/${id1}/nada.webp`)).status === 404, 'archivos raros o que no están: 404');
 const pg = await (await fetch(`${B}/p/${id1}`)).text();
 ok(/og:image/.test(pg) && pg.includes(`intent://pack/${id1}#Intent;scheme=stickerazo;package=com.stickerazo.app`) && pg.includes('@juancito'), 'la página para compartir: vista previa (og), botón que abre la app, autor');
+// desde la dirección propia (stickerazo.pages.dev, que manda X-Sitio): las imágenes y el «Bajá Stickerazo» van por ahí; de otro lado, no
+{ const prop = await (await fetch(`${B}/p/${id1}`, { headers: { 'X-Sitio': 'https://stickerazo.pages.dev' } })).text(), mala = await (await fetch(`${B}/p/${id1}`, { headers: { 'X-Sitio': 'https://otra.cosa.com' } })).text();
+  ok(prop.includes('https://stickerazo.pages.dev/m/') && prop.includes(encodeURIComponent('https://stickerazo.pages.dev/#bajar')) && !mala.includes('otra.cosa') && mala.includes(`${B}/m/`), 'pack compartido por stickerazo.pages.dev: los enlaces quedan en esa dirección (y no en cualquiera que lo pida)'); }
 
 // ---- feed, me gusta, seguir, descargas ----
 const fn = await api('/api/feed?modo=nuevos', {}, Bt);

@@ -3,6 +3,8 @@
 import { abrirTermo } from './termo.js';
 import * as P from './puente.js';
 export const API = (typeof window !== 'undefined' && window.SZ_API) || 'https://rezobox-tienda.holasoyjuniors365.workers.dev/sz';
+// (lo que ve la gente —packs compartidos, reglas, privacidad— va por la dirección propia, que muestra lo mismo que el servidor)
+export const SITIO = (typeof window !== 'undefined' && (window.SZ_SITIO || window.SZ_API)) || 'https://stickerazo.pages.dev';
 let X = null; // lo que presta app.js (pantallas, hojas, avisos…)
 const MOTIVOS = [['ofensivo', 'Es ofensivo o discrimina'], ['sexual', 'Contenido sexual'], ['violencia', 'Violencia'], ['spam', 'Spam o engaño'], ['otro', 'Otra cosa']];
 const ETIQUETAS = ['jaja', 'mate', 'futbol', 'asado', 'amor', 'laburo', 'memes', 'familia', 'amigos', 'animados', 'argentina', 'perros', 'gatos', 'facultad'];
@@ -25,7 +27,7 @@ export async function api(ruta, o = {}) {
   return j;
 }
 export const media = (pk, a) => `${API}/m/${pk.id}/${encodeURIComponent(a)}?v=${pk.v}`;
-export const enlace = (id) => `${API}/p/${id}`;
+export const enlace = (id) => `${SITIO}/p/${id}`;
 const hace = (t) => { const s = (Date.now() - t) / 1000; return s < 60 ? 'recién' : s < 3600 ? `hace ${Math.floor(s / 60)} min` : s < 86400 ? `hace ${Math.floor(s / 3600)} h` : s < 86400 * 30 ? `hace ${Math.floor(s / 86400)} d` : new Date(t).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }); };
 const num = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1).replace('.0', '') + ' M' : n >= 1e4 ? Math.round(n / 1e3) + ' mil' : n >= 1e3 ? (n / 1e3).toFixed(1).replace('.0', '') + ' mil' : String(n));
 // (con su foto si subió una; si no, el emoji sobre su color)
@@ -259,7 +261,7 @@ export async function pintarPerfil() {
       <div class="arrobaCampo"><span>@</span><input id="regNombre" maxlength="20" placeholder="como te dicen" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
       <p class="nota" id="regNota">De 3 a 20 letras minúsculas, números, punto o guion bajo.</p>
       <button class="grande" id="regEntrar"><i data-i="ok"></i>Entrar</button>
-      <p class="nota">Al entrar aceptás las <a href="${API}/terminos" data-ext="1">reglas de la comunidad</a> y la <a href="${API}/privacidad" data-ext="1">privacidad</a>. Tenés que tener 13 años o más.</p>
+      <p class="nota">Al entrar aceptás las <a href="${SITIO}/terminos" data-ext="1">reglas de la comunidad</a> y la <a href="${SITIO}/privacidad" data-ext="1">privacidad</a>. Tenés que tener 13 años o más.</p>
       <p class="hecho">Hecho en Argentina 🇦🇷</p></div>`;
     X.iconos(c);
     const inp = X.$('#regNombre'), nota = X.$('#regNota');
@@ -275,7 +277,7 @@ export async function pintarPerfil() {
   try {
     const d = await api('/api/usuarios/' + encodeURIComponent(yo.nombre)); X.E.miPerfil = d;
     const pais = X.paisActual();
-    c.innerHTML = perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="tema"><i class="emo">${{ oscuro: '🌙', claro: '☀️', auto: '📱' }[X.temaActual()]}</i><span>Modo: ${{ oscuro: 'oscuro', claro: 'claro', auto: 'como el celular' }[X.temaActual()]}</span></button><button class="opc" data-x="musica"><i class="emo">🎵</i><span>Música de mi país</span></button><button class="opc" data-x="pais"><i class="emo">${pais ? pais[1] : '🌎'}</i><span>Mi país: ${pais ? pais[2] : 'elegir'}</span></button><a class="opc" href="${API}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${API}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
+    c.innerHTML = perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="tema"><i class="emo">${{ oscuro: '🌙', claro: '☀️', auto: '📱' }[X.temaActual()]}</i><span>Modo: ${{ oscuro: 'oscuro', claro: 'claro', auto: 'como el celular' }[X.temaActual()]}</span></button><button class="opc" data-x="musica"><i class="emo">🎵</i><span>Música de mi país</span></button><button class="opc" data-x="pais"><i class="emo">${pais ? pais[1] : '🌎'}</i><span>Mi país: ${pais ? pais[2] : 'elegir'}</span></button><a class="opc" href="${SITIO}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${SITIO}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
       <button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
     X.iconos(c); contar(c);
   } catch (e) {

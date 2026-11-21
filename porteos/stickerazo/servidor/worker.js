@@ -156,7 +156,9 @@ export default { fetch: (req, env, ctx) => manejar(req, env, ctx, '') };
 export function stickerazoRutas(req, env, ctx, base) { return manejar(req, { ...env, DB: basePrefijada(env.DB, 'sz_') }, ctx, base); }
 async function manejar(req, env, ctx, base) {
   {
-    const u = new URL(req.url), ruta = u.pathname.slice(base.length) || '/', metodo = req.method, origen = u.origin + base;
+    // (si lo pide la dirección propia —stickerazo.pages.dev, por su proxy—, los enlaces de las páginas van por ahí)
+    const sitio = req.headers.get('X-Sitio') || '', propia = /^https:\/\/([a-z0-9-]+\.)?stickerazo\.pages\.dev$/.test(sitio);
+    const u = new URL(req.url), ruta = u.pathname.slice(base.length) || '/', metodo = req.method, origen = propia ? sitio : u.origin + base;
     if (metodo === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     try {
       // la página web (sitio/index.html del repo; si GitHub no contesta, una cortita)

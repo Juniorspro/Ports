@@ -1,0 +1,12 @@
+# La dirección propia de Stickerazo, sin el nombre de la cuenta: stickerazo.pages.dev (Cloudflare Pages clásico).
+# Muestra lo mismo que el servidor en /sz/ —la página web, la descarga del APK, los legales y los packs compartidos—,
+# que lo trae del repo: se actualiza sola, sin volver a desplegar esto.
+# Desplegar (con CLOUDFLARE_API_TOKEN y CLOUDFLARE_ACCOUNT_ID en el entorno): wrangler pages deploy
+name = "stickerazo"
+pages_build_output_dir = "./publicar"
+compatibility_date = "2025-06-01"
+
+# (entre proyectos de la misma cuenta no se puede por internet: va por un enlace directo al servidor)
+[[services]]
+binding = "SZ"
+service = "rezobox-tienda"

@@ -7,7 +7,7 @@ demás ya está listo: los textos en [`ficha.md`](ficha.md), las imágenes en `m
 
 | Tienda | Cuánto cuesta | Qué te piden | Qué subís |
 |---|---|---|---|
-| **Nuestra página** | Gratis | Nada | Ya está: `…/sz/` (el APK de `descargas/`) |
+| **Nuestra página** | Gratis | Nada | Ya está: **stickerazo.pages.dev** (el APK de `descargas/`) |
 | **Uptodown** | Gratis | Una cuenta en su portal para desarrolladores | `Stickerazo-0.7-uptodown.apk` |
 | **Galaxy Store** (Samsung) | Gratis | Cuenta Samsung y pasar a «vendedor comercial» en el Seller Portal (lo piden aunque la app sea gratis) | `Stickerazo-0.7-galaxy.apk` |
 | **AppGallery** (Huawei) | Gratis | Cuenta Huawei y verificar tu identidad (foto del documento de los dos lados) | `Stickerazo-0.7-huawei.apk` |

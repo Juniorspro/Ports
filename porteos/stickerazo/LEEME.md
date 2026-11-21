@@ -235,8 +235,13 @@ La página se actualiza sola; el APK sólo hace falta cuando cambia la parte de 
 ## La página web
 
 `sitio/index.html` y `sitio/a/` (capturas de la app de verdad, los stickers del gráfico, el ícono y la letra del logo).
-La sirve el servidor en `/sz/` (la trae del repo, como las actualizaciones) y también anda sola en Cloudflare Pages:
-la descarga y los legales apuntan al servidor. Las capturas salen de `herramientas/capturas_play.mjs`, el mismo que
+Está en **https://stickerazo.pages.dev** (Cloudflare Pages, sin el nombre de la cuenta): `sitio_pages/publicar/_worker.js`
+le pide todo al servidor por un enlace directo (`[[services]]`, porque entre proyectos de una cuenta no se puede por
+`workers.dev`) y el servidor lo trae del repo, así que **se actualiza sola** con cada push. También se ve en `/sz/` del
+servidor. Ahí van también los packs compartidos (`/p/ID`), las reglas y la privacidad: la app los abre por esa dirección
+(`SITIO` en `comunidad.js`) y el servidor arma los enlaces de esas páginas con la dirección que le pasa el proxy
+(`X-Sitio`, sólo si es `stickerazo.pages.dev`). Si la página anda suelta en otro lado, la versión y la descarga salen
+del servidor o, si no contesta, de GitHub. Desplegar el proxy (sólo si cambia): `wrangler pages deploy` en `sitio_pages/`. Las capturas salen de `herramientas/capturas_play.mjs`, el mismo que
 arma las de las tiendas. Rutas: `/sz/` (la página), `/sz/a/…`, `/sz/descargar` (el APK), `/sz/app.json`, `/sz/web/…`.
 
 ## Las tiendas

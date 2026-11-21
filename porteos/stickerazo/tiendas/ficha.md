@@ -67,9 +67,9 @@ Stickerazo no está afiliada a WhatsApp ni a Meta.
 | Anuncios | No tiene |
 | Compras dentro de la app | No tiene |
 | Edad | 13 años o más (hay una comunidad donde la gente publica) |
-| Sitio web | https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/ |
-| Política de privacidad | https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/privacidad |
-| Borrar la cuenta (lo pide Play) | https://rezobox-tienda.holasoyjuniors365.workers.dev/sz/borrar-cuenta |
+| Sitio web | https://stickerazo.pages.dev |
+| Política de privacidad | https://stickerazo.pages.dev/privacidad |
+| Borrar la cuenta (lo pide Play) | https://stickerazo.pages.dev/borrar-cuenta |
 | Mail de contacto | el tuyo (las tiendas lo muestran en la ficha: conviene uno sólo para la app) |
 
 ## Imágenes (ya están en `marca/play/`)
