@@ -174,6 +174,15 @@ ok(del2.j.ok && (await api('/api/packs/' + id1)).st === 404 && (await fetch(`${B
   const js = await fetch(B + '/web/app.js'); ok(js.status === 200 && /javascript/.test(js.headers.get('content-type')) && (await js.text()).length > 1000, '…y los archivos de la página (/web/app.js)');
   const st = []; for (const m of ['/web/%2e%2e/servidor/worker.js', '/web/_prueba.js', '/web/.git/config', '/web/terceros/../../servidor/worker.js', '/web/app.exe', '/web/no_existe.js', '/a/../../servidor/worker.js']) st.push((await fetch(B + m)).status);
   ok(st.every((x) => x === 404), `nada de afuera de web/ y sitio/a/, ni ocultos, ni de prueba, ni tipos raros (${st.join(' ')})`);
+  // las «más letras» del editor (fuentes/ del repo), con caché de una semana; y sus licencias
+  const lf = JSON.parse(fs.readFileSync(new URL('../web/fuentes_extra.json', import.meta.url), 'utf8')), w2 = lf.fuentes.find((f) => f.archivo.endsWith('.woff2')), tt = lf.fuentes.find((f) => f.archivo.endsWith('.ttf'));
+  const fw = await fetch(B + '/fuentes/' + w2.archivo), ft = await fetch(B + '/fuentes/' + tt.archivo), fm = await fetch(B + '/fuentes/' + Object.values(lf.muestras)[0].archivo), fl = await fetch(B + '/fuentes/LICENCIAS.txt');
+  const bw = new Uint8Array(await fw.arrayBuffer()), bt = new Uint8Array(await ft.arrayBuffer());
+  ok(fw.status === 200 && fw.headers.get('content-type') === 'font/woff2' && fw.headers.get('access-control-allow-origin') === '*' && /max-age=604800/.test(fw.headers.get('cache-control')) && String.fromCharCode(...bw.slice(0, 4)) === 'wOF2' && bw.length === w2.n
+    && ft.status === 200 && ft.headers.get('content-type') === 'font/ttf' && bt.length === tt.n && fm.status === 200 && fm.headers.get('content-type') === 'image/webp' && fl.status === 200 && /Open Font License/.test(await fl.text()),
+    `las letras: /fuentes/${w2.archivo} (WOFF2) y /fuentes/${tt.archivo} (original), con caché de una semana, las muestras y las licencias`);
+  const fs2 = []; for (const m of ['/fuentes/../servidor/worker.js', '/fuentes/%2e%2e/servidor/worker.js', '/fuentes/x.exe', '/fuentes/no_existe.woff2']) fs2.push((await fetch(B + m)).status);
+  ok(fs2.every((x) => x === 404), `…y nada más que eso (${fs2.join(' ')})`);
   const raiz = await fetch(B + '/'), t = await raiz.text();
   ok(raiz.status === 200 && /text\/html/.test(raiz.headers.get('content-type')) && /Stickerazo/.test(t), 'la página web en /');
   if (process.env.SZ_BASE) { const r = await fetch(`http://127.0.0.1:${PUERTO}${process.env.SZ_BASE}`, { redirect: 'manual' }); ok(r.status === 302 && r.headers.get('location').endsWith(process.env.SZ_BASE + '/'), `${process.env.SZ_BASE} lleva a ${process.env.SZ_BASE}/ (así andan las imágenes de la página)`); }

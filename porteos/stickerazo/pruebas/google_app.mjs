@@ -83,7 +83,8 @@ async function celular(cuenta) {
     await P.guardarPacks(packs);
   });
   const token1 = await A.p.evaluate(() => JSON.parse(localStorage.sz_cuenta).token);
-  let nube = null; for (let i = 0; i < 30 && !(nube && nube.packs.length); i++) { await z(500); nube = await (await fetch(`${API}/api/nube`, { headers: { Authorization: 'Bearer ' + token1 } })).json(); }
+  // (la app sube primero la lista del pack y después cada archivo: se espera a que esté completo)
+  let nube = null; for (let i = 0; i < 40 && !(nube && nube.packs.length && !nube.packs[0].incompleto); i++) { await z(500); nube = await (await fetch(`${API}/api/nube`, { headers: { Authorization: 'Bearer ' + token1 } })).json(); }
   ok(nube.packs.length === 1 && !nube.packs[0].incompleto && Object.keys(nube.packs[0].archivos).length === 3, `celular A: el pack se guardó solo en la cuenta, unos segundos después (${nube.usado} bytes)`);
   await A.ctx.close();
   const Bc = await celular(); await entrarGoogle(Bc.p, Bc.ctx, 'google-nube-ui');

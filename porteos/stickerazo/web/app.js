@@ -1,6 +1,6 @@
 // Stickerazo: las pantallas y lo que hace cada botón.
 //  Inicio → (foto) → Recortá → Decorá → Guardar en un pack → el pack (de 3 a 30 stickers) → Agregar a WhatsApp.
-import { LADO, MARGEN, FUENTES, COLORES, ANIMACIONES, ANIM, cargarFuentes, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob, ojoDePez, deformar, espejo, quemar, trucha, lentesXD } from './editor.js';
+import { LADO, MARGEN, FUENTES, COLORES, DEGRADES, FILTROS, ANIMACIONES, ANIM, cargarFuentes, cargarFuente, cargarFuentesDe, fuentesExtra, servidorFuentes, nombreFuente, recortarImagen, Sticker, exportarWebP, exportarBandeja, exportarAnimado, aBlob, ojoDePez, deformar, espejo, quemar, trucha, lentesXD } from './editor.js';
 import * as P from './puente.js';
 import { LISTOS, armarListo, emojisListo, prepararListo } from './listos.js';
 import { LISTA_PAISES, elegirPaisMapa } from './mapa_pais.js';
@@ -41,6 +41,7 @@ const ICONOS = {
   deshacer: '<path d="M9 14.5L4.5 10 9 5.5"/><path d="M4.5 10h10a5 5 0 0 1 0 10H11"/>',
   cara: RI('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z') + '<circle cx="12" cy="12" r="8.5"/><path d="M8.3 14.2c.9 1.5 2.2 2.3 3.7 2.3s2.8-.8 3.7-2.3"/><circle cx="9" cy="10" r="1.1" fill="currentColor"/><circle cx="15" cy="10" r="1.1" fill="currentColor"/>',
   borde: RI('M4 9a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z') + '<rect x="4" y="4" width="16" height="16" rx="5" stroke-dasharray="3 2.6"/><path d="M9.5 12.5l1.8 1.8 3.3-3.6"/>',
+  ajustes: RI('M5 6a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z') + '<path d="M4 7.5h8.5M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="15" cy="7.5" r="2.4"/><circle cx="9" cy="16.5" r="2.4"/>',
   frente: RI('M10 12a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z') + '<rect x="3" y="3" width="11" height="11" rx="2.5"/><rect x="10" y="10" width="11" height="11" rx="2.5"/>',
   tacho: RI('M6.6 7.5h10.8l-.9 11.1a2 2 0 0 1-2 1.9H9.5a2 2 0 0 1-2-1.9z') + '<path d="M4.5 7.5h15M9.6 7.5V5.4c0-.5.4-.9.9-.9h3c.5 0 .9.4.9.9v2.1"/><path d="M6.6 7.5l.9 11.1a2 2 0 0 0 2 1.9h5a2 2 0 0 0 2-1.9l.9-11.1"/><path d="M10.4 11.2v5.3M13.6 11.2v5.3"/>',
   puntos: '<circle cx="12" cy="5.5" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="18.5" r="1.8" fill="currentColor"/>',
@@ -466,7 +467,7 @@ function pintarE() {
 }
 function marcarEditor() {
   const s = E.st, c = s && s.capas[s.sel];
-  for (const k of ['frente', 'borrar']) $(`#vEditor [data-e="${k}"]`).disabled = !c;
+  for (const k of ['ajustes', 'borrar']) $(`#vEditor [data-e="${k}"]`).disabled = !c;
   $('#eAyuda').textContent = !s || !s.capas.length ? 'Sumale un texto o un emoji' : !c ? 'Tocá algo para moverlo' : c.tipo === 'texto' ? 'Tocá dos veces el texto para cambiarlo' : 'Arrastrá para mover · la manija agranda y gira';
 }
 function enSt(ev) {
@@ -529,40 +530,219 @@ $('#vEditor .barra').onclick = (ev) => {
   else if (k === 'borde') abrirBorde();
   else if (k === 'animar') abrirAnimar();
   else if (k === 'xd') abrirXD();
-  else if (k === 'frente') { s.alFrente(); pedirE(true); }
+  else if (k === 'ajustes') abrirAjustes();
   else if (k === 'borrar') { s.borrarSel(); pedirE(true); }
 };
 const contornoCss = (c) => Array.from({ length: 16 }, (_, k) => { const a = (k / 16) * Math.PI * 2; return `${(Math.cos(a) * 2.5).toFixed(1)}px ${(Math.sin(a) * 2.5).toFixed(1)}px 0 ${c}`; }).join(',');
+// ---- el texto: la hoja con la vista de cómo queda, y las pestañas Letra · Color · Contorno · Efectos ----
+const CONTORNOS = [['#111111', 'Negro'], ['#ffffff', 'Blanco'], ['#ff3e8a', 'Rosa'], ['#3ec7ff', 'Celeste'], ['#ffd23f', 'Amarillo'], ['#9b5cff', 'Violeta'], ['#ff2d2d', 'Rojo'], ['#1fa35b', 'Verde']];
+const NOMBRES_DEG = { atardecer: 'Atardecer', neon: 'Neón', oro: 'Oro', pasto: 'Pasto', fuego: 'Fuego', hielo: 'Hielo', arcoiris: 'Arcoíris' };
+const fondoDeg = (k) => `linear-gradient(180deg, ${DEGRADES[k].join(', ')})`;
+const leerRecientes = () => { try { return JSON.parse(localStorage.getItem('sz_letras') || '[]').filter((x) => typeof x === 'string').slice(0, 8); } catch (e) { return []; } };
+function usarLetra(id) {
+  if (FUENTES.some((f) => f.id === id)) return;
+  try { localStorage.setItem('sz_letras', JSON.stringify([id, ...leerRecientes().filter((x) => x !== id)].slice(0, 8))); } catch (e) { /* sin lugar */ }
+}
+const DEF_TEXTO = { degrade: '', grosor: 'normal', sombraT: '', curva: 0, espaciado: 0 };
 function abrirTexto(capa) {
-  const t = capa ? { texto: capa.texto, fuente: capa.fuente, color: capa.color, contorno: capa.contorno || '', globo: !!capa.globo, filete: !!capa.filete } : { texto: '', fuente: E.ultFuente, color: E.ultColor, contorno: E.ultContorno, globo: false, filete: false };
-  const m = modal(`<div class="hoja"><h3>${capa ? 'Cambiar el texto' : 'Agregar texto'}</h3>
+  const base = capa || { texto: '', fuente: E.ultFuente, color: E.ultColor, contorno: E.ultContorno, globo: false, filete: false, ...(E.ultEstilo || {}) };
+  const t = { texto: base.texto, fuente: base.fuente, color: base.color, contorno: base.contorno || '', globo: !!base.globo, filete: !!base.filete };
+  for (const k in DEF_TEXTO) t[k] = base[k] ?? DEF_TEXTO[k];
+  const recientes = leerRecientes(); if (!FUENTES.some((f) => f.id === t.fuente) && !recientes.includes(t.fuente)) recientes.unshift(t.fuente);
+  const chipLetra = (id) => `<button class="chip" data-v="${h(id)}" style="font-family:'${h(id)}', sans-serif">${h(nombreFuente(id))}</button>`;
+  const m = modal(`<div class="hoja hojaTexto"><h3>${capa ? 'Cambiar el texto' : 'Agregar texto'}</h3>
+    <canvas class="tVista" id="tV" aria-hidden="true"></canvas>
     <textarea id="tTx" rows="2" maxlength="80" placeholder="Escribí acá" autocomplete="off" autocapitalize="sentences"></textarea>
-    <div class="etq">Ideas</div><div class="ideas" id="tI">${FRASES.map((f) => `<button data-v="${h(f)}">${h(f)}</button>`).join('')}</div>
-    <div class="etq">Estilo</div><div class="chips" id="tE"><button class="chip" data-v="">Letras</button><button class="chip" data-v="globo">💬 Globo</button><button class="chip" data-v="filete">🌀 Filete</button></div>
-    <div class="etq">Letra</div><div class="chips" id="tF">${FUENTES.map((f) => `<button class="chip" data-v="${f.id}" style="font-family:'${f.id}'">${f.nombre}</button>`).join('')}</div>
-    <div class="etq">Color</div><div class="colores" id="tC">${COLORES.map((c) => `<button class="color" data-v="${c}" style="background:${c}" aria-label="Color ${c}"></button>`).join('')}</div>
-    <div class="etq">Contorno</div><div class="chips" id="tB">${[['#111111', 'Negro'], ['#ffffff', 'Blanco'], ['', 'Sin contorno']].map(([v, n]) => `<button class="chip" data-v="${v}">${n}</button>`).join('')}</div>
+    <div class="ideas" id="tI">${FRASES.map((f) => `<button data-v="${h(f)}">${h(f)}</button>`).join('')}</div>
+    <div class="chips tEstilo" id="tE"><button class="chip" data-v="">Letras</button><button class="chip" data-v="globo">💬 Globo</button><button class="chip" data-v="filete">🌀 Filete</button></div>
+    <div class="tPest" id="tP"><button data-p="letra" class="act">Letra</button><button data-p="color">Color</button><button data-p="borde">Contorno</button><button data-p="mas">Efectos</button></div>
+    <div class="tPan" data-p="letra"><div class="chips" id="tF">${FUENTES.map((f) => chipLetra(f.id)).join('')}${recientes.map(chipLetra).join('')}</div>
+      <button class="tMas" id="tMas"><b>＋</b> Más letras <small id="tMasN"></small></button></div>
+    <div class="tPan oc" data-p="color"><div class="colores" id="tC">${COLORES.map((c) => `<button class="color" data-v="${c}" style="background:${c}" aria-label="Color ${c}"></button>`).join('')}<label class="color tPropio" aria-label="Elegir otro color"><input type="color" id="tCP"></label></div>
+      <div class="etq">Degradé</div><div class="colores" id="tD">${Object.keys(DEGRADES).map((k) => `<button class="color" data-v="${k}" style="background:${fondoDeg(k)}" aria-label="Degradé ${NOMBRES_DEG[k]}"></button>`).join('')}</div></div>
+    <div class="tPan oc" data-p="borde"><div class="colores" id="tB">${CONTORNOS.map(([c, n]) => `<button class="color" data-v="${c}" style="background:${c}" aria-label="Contorno ${n}"></button>`).join('')}<button class="color sin" data-v="" aria-label="Sin contorno"></button></div>
+      <div class="etq">Grosor</div><div class="chips" id="tG"><button class="chip" data-v="fino">Fino</button><button class="chip" data-v="normal">Normal</button><button class="chip" data-v="grueso">Grueso</button></div></div>
+    <div class="tPan oc" data-p="mas"><div class="etq">Sombra</div><div class="chips" id="tS"><button class="chip" data-v="">Sin sombra</button><button class="chip" data-v="suave">Suave</button><button class="chip" data-v="dura">3D</button></div>
+      <div class="etq">Forma</div><div class="chips" id="tA"><button class="chip" data-v="0">Recta</button><button class="chip" data-v="1">⌒ En arco</button><button class="chip" data-v="-1">◡ Sonrisa</button></div>
+      <div class="etq">Espacio entre letras</div><div class="chips" id="tL"><button class="chip" data-v="-0.04">Juntas</button><button class="chip" data-v="0">Normal</button><button class="chip" data-v="0.12">Separadas</button></div></div>
     <div class="botones"><button class="sec" data-x="0">Cancelar</button><button class="pri" data-x="1">Listo</button></div></div>`);
-  const tx = $('#tTx', m); tx.value = t.texto;
-  const marcar = (sel, v) => { for (const b of $(sel, m).children) b.classList.toggle('act', b.dataset.v === v); };
-  const vista = () => { tx.style.fontFamily = `'${t.fuente}', sans-serif`; tx.style.color = t.color; tx.style.textShadow = t.contorno ? contornoCss(t.contorno) : 'none'; tx.style.background = t.globo ? '#ffffff' : ''; marcar('#tF', t.fuente); marcar('#tC', t.color); marcar('#tB', t.contorno); marcar('#tE', t.globo ? 'globo' : t.filete ? 'filete' : ''); if (t.filete) { tx.style.color = '#ffc93a'; tx.style.textShadow = contornoCss('#3b0d0a'); } };
-  $('#tI', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { tx.value = b.dataset.v; tx.focus(); } };
-  $('#tE', m).onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; t.globo = b.dataset.v === 'globo'; t.filete = b.dataset.v === 'filete'; if (t.globo) { t.color = '#111111'; t.contorno = ''; } vista(); };
-  const elegir = (sel, k) => { $(sel, m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { t[k] = b.dataset.v; vista(); } }; };
-  elegir('#tF', 'fuente'); elegir('#tC', 'color'); elegir('#tB', 'contorno');
+  const tx = $('#tTx', m), cv = $('#tV', m); tx.value = t.texto;
+  // (la vista: la capa de texto tal cual, con su contorno, sombra y arco, sobre el fondo de la hoja)
+  const st = new Sticker();
+  const dibujar = () => {
+    const d = Math.min(3, window.devicePixelRatio || 1), W = cv.clientWidth || 300, H = cv.clientHeight || 110;
+    if (cv.width !== Math.round(W * d)) { cv.width = Math.round(W * d); cv.height = Math.round(H * d); }
+    const g = cv.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height);
+    const c = { tipo: 'texto', ...t, texto: tx.value.trim() || 'Escribí acá', tam: 96, x: 0, y: 0, esc: 1, rot: 0 }, md = st.medidas(c);
+    const k = Math.min((W * 0.94) / md.w, (H * 0.88) / md.h, 1.1) * d;
+    g.translate((W * d) / 2, (H * d) / 2); g.scale(k, k); st.dibujarCapa(g, c);
+  };
+  let cuadro = 0; const pedir = () => { if (!cuadro) cuadro = requestAnimationFrame(() => { cuadro = 0; dibujar(); }); };
+  const marcar = (sel, v) => { for (const b of $(sel, m).children) if (b.dataset) b.classList.toggle('act', b.dataset.v === String(v)); };
+  const vista = () => {
+    tx.style.fontFamily = `'${t.fuente}', sans-serif`;
+    marcar('#tF', t.fuente); marcar('#tC', t.degrade ? '-' : t.color); marcar('#tD', t.degrade); marcar('#tB', t.contorno); marcar('#tG', t.grosor);
+    marcar('#tS', t.sombraT); marcar('#tA', t.curva); marcar('#tL', t.espaciado); marcar('#tE', t.globo ? 'globo' : t.filete ? 'filete' : '');
+    // (el arco va con un solo renglón y sin globo ni filete; con globo, el color y el contorno los pone el globo)
+    const sinArco = t.globo || t.filete || tx.value.includes('\n');
+    for (const b of $('#tA', m).children) b.disabled = sinArco && b.dataset.v !== '0';
+    $('#tP', m).classList.toggle('conGlobo', t.globo);
+    pedir();
+  };
+  const ponerLetra = async (id) => {
+    t.fuente = id; vista();
+    if (!(await cargarFuente(id))) { aviso('No se pudo bajar esa letra. Fijate la conexión'); return; }
+    usarLetra(id);
+    if (!$(`#tF [data-v="${CSS.escape(id)}"]`, m)) $('#tF', m).insertAdjacentHTML('beforeend', chipLetra(id));
+    vista();
+  };
+  // (las letras de antes: se cargan para verse con su forma en los botones)
+  for (const id of recientes) cargarFuente(id).then(pedir);
+  fuentesExtra().then((l) => { const n = $('#tMasN', m); if (n && l.fuentes.length) n.textContent = `(${l.fuentes.length})`; });
+  $('#tP', m).onclick = (ev) => {
+    const b = ev.target.closest('[data-p]'); if (!b) return; vibrar(5);
+    for (const x of $('#tP', m).children) x.classList.toggle('act', x === b);
+    for (const p of m.querySelectorAll('.tPan')) p.classList.toggle('oc', p.dataset.p !== b.dataset.p);
+  };
+  $('#tI', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { tx.value = b.dataset.v; vista(); } };
+  tx.addEventListener('input', vista);
+  $('#tE', m).onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; t.globo = b.dataset.v === 'globo'; t.filete = b.dataset.v === 'filete'; if (t.globo) { t.color = '#111111'; t.contorno = ''; t.degrade = ''; } vista(); };
+  const elegir = (sel, k, conv = (v) => v, despues) => { $(sel, m).onclick = (ev) => { const b = ev.target.closest('button'); if (!b || b.disabled) return; t[k] = conv(b.dataset.v); if (despues) despues(); vibrar(4); vista(); }; };
+  $('#tF', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) ponerLetra(b.dataset.v); };
+  elegir('#tC', 'color', String, () => { t.degrade = ''; });
+  elegir('#tD', 'degrade', String, () => { if (t.globo) t.globo = false; });
+  elegir('#tB', 'contorno'); elegir('#tG', 'grosor'); elegir('#tS', 'sombraT'); elegir('#tA', 'curva', Number); elegir('#tL', 'espaciado', Number);
+  const cp = $('#tCP', m); cp.value = /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : '#ffffff';
+  cp.addEventListener('input', () => { t.color = cp.value; t.degrade = ''; vista(); });
+  $('#tMas', m).onclick = async () => { vibrar(6); const id = await elegirLetra(t.fuente, tx.value.trim()); if (id) ponerLetra(id); };
   m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
   m.querySelector('[data-x="1"]').onclick = () => {
-    t.texto = tx.value.replace(/\s+$/g, '').replace(/^\s+/g, ''); cerrarModal(); const s = E.st;
-    Object.assign(E, { ultFuente: t.fuente, ultColor: t.color, ultContorno: t.contorno });
+    t.texto = tx.value.replace(/\s+$/g, '').replace(/^\s+/g, ''); if (t.texto.includes('\n')) t.curva = 0;
+    cerrarModal(); const s = E.st;
+    Object.assign(E, { ultFuente: t.fuente, ultColor: t.color, ultContorno: t.contorno, ultEstilo: { degrade: t.degrade, grosor: t.grosor, sombraT: t.sombraT, espaciado: t.espaciado } });
     if (!t.texto) { if (capa) { s.capas.splice(s.capas.indexOf(capa), 1); s.sel = -1; } pedirE(true); return; }
     if (capa) {
       Object.assign(capa, t); const md = s.medidas(capa), maxW = LADO - 2 * (MARGEN + s.borde) - 8;
       if (md.w * capa.esc > maxW) capa.esc = maxW / md.w; s.sel = s.capas.indexOf(capa);
-    } else s.agregarTexto(t);
+    } else Object.assign(s.agregarTexto(t), { degrade: t.degrade, grosor: t.grosor, sombraT: t.sombraT, curva: t.curva, espaciado: t.espaciado });
+    if (!capa) s.ajustarTexto(s.capas[s.sel], s.capas.length === 1);
     if (t.globo) { E.ultColor = '#ffffff'; E.ultContorno = '#111111'; } // (el globo no se contagia al próximo texto)
     pedirE(true);
   };
-  vista(); setTimeout(() => tx.focus(), 80);
+  vista(); setTimeout(() => { dibujar(); tx.focus(); }, 80);
+}
+// ---- el selector de las «más letras»: todas con su forma (una imagen de muestras por tipo, que se baja recién cuando
+// se ve alguna de ese tipo), por tipo y con buscador ----
+const CATS_LETRA = [['', 'Todas'], ['divertidas', 'Divertidas'], ['manuscritas', 'A mano'], ['gruesas', 'Gruesas'], ['retro', 'Retro'], ['elegantes', 'Elegantes'], ['modernas', 'Modernas']];
+const muestras = new Map();
+function muestraDe(l, cat) {
+  if (muestras.has(cat)) return muestras.get(cat);
+  const m = l.muestras && l.muestras[cat]; if (!m) return Promise.resolve(null);
+  const url = `${C.API}/fuentes/${m.archivo}`;
+  const p = (async () => {
+    let bl = null;
+    try {
+      const cache = await caches.open('sz-fuentes'); let r = await cache.match(url);
+      if (!r) { r = await fetch(url); if (!r.ok) throw new Error('no'); await cache.put(url, r.clone()); }
+      bl = await r.blob();
+    } catch (e) { try { const r = await fetch(url); if (r.ok) bl = await r.blob(); } catch (er) { /* sin conexión: quedan los nombres en letra común */ } }
+    return bl ? URL.createObjectURL(bl) : null;
+  })();
+  muestras.set(cat, p); p.then((u) => { if (!u) muestras.delete(cat); });
+  return p;
+}
+const sinTildes = (x) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function elegirLetra(actual) {
+  return new Promise(async (listo) => {
+    const l = await fuentesExtra();
+    if (!l.fuentes.length) { aviso('No se pudo traer la lista de letras'); return listo(null); }
+    const el = document.createElement('div'); el.className = 'letrasEl';
+    el.innerHTML = `<div class="leCaja"><div class="leCab"><h3>Letras <small>${l.fuentes.length}</small></h3><button class="leX" aria-label="Cerrar">✕</button></div>
+      <div class="buscar leBuscar"><span>🔎</span><input type="search" placeholder="Buscá una letra" enterkeyhint="search"></div>
+      <div class="chips leCat">${CATS_LETRA.map(([k, n], i) => `<button class="chip${i ? '' : ' act'}" data-c="${k}">${n}</button>`).join('')}</div>
+      <div class="leLista"></div><p class="leNota">Todas con licencia libre de Google Fonts (<a data-ext href="${C.API}/fuentes/LICENCIAS.txt">licencias</a>). Se bajan al elegirlas y quedan guardadas.</p></div>`;
+    el.style.setProperty('--ancho', `${l.cols * l.w}px`);
+    document.body.appendChild(el); requestAnimationFrame(() => el.classList.add('entra'));
+    const lista = el.querySelector('.leLista'), inp = el.querySelector('input'); let cat = '';
+    const cerrar = (id) => { el.classList.add('chau'); setTimeout(() => el.remove(), 300); obs.disconnect(); listo(id); };
+    // (cuando aparece en pantalla una de un tipo, se baja la imagen de ese tipo y se prenden todas las de ese tipo)
+    const prender = (c, u) => { el.style.setProperty(`--m-${c}`, `url("${u}")`); for (const b of lista.querySelectorAll(`.leIt[data-cat="${c}"]`)) b.classList.add('listo'); };
+    const obs = new IntersectionObserver((vistas) => {
+      for (const v of vistas) if (v.isIntersecting) { const c = v.target.dataset.cat; obs.unobserve(v.target); muestraDe(l, c).then((u) => { if (u) prender(c, u); }); }
+    }, { root: lista, rootMargin: '300px 0px' });
+    const pintar = () => {
+      const q = sinTildes(inp.value.trim());
+      const vis = l.fuentes.filter((f) => (!cat || f.cat === cat) && (!q || sinTildes(f.nombre).includes(q)));
+      obs.disconnect();
+      lista.innerHTML = vis.length ? vis.map((f) => {
+        const x = (f.m % l.cols) * l.w, y = Math.floor(f.m / l.cols) * l.h;
+        return `<button class="leIt${f.id === actual ? ' act' : ''}" data-id="${h(f.id)}" data-cat="${f.cat}" aria-label="${h(f.nombre)}"><span class="leM" style="--mm:var(--m-${f.cat});-webkit-mask-position:-${x}px -${y}px;mask-position:-${x}px -${y}px"></span><span class="leT">${h(f.nombre)}</span></button>`;
+      }).join('') : '<p class="muNada">No hay ninguna con ese nombre.</p>';
+      for (const b of lista.querySelectorAll('.leIt')) { if (el.style.getPropertyValue(`--m-${b.dataset.cat}`)) b.classList.add('listo'); else obs.observe(b); }
+    };
+    el.querySelector('.leCat').onclick = (ev) => { const b = ev.target.closest('[data-c]'); if (!b) return; vibrar(5); cat = b.dataset.c; for (const x of b.parentElement.children) x.classList.toggle('act', x === b); lista.scrollTop = 0; pintar(); };
+    inp.addEventListener('input', pintar);
+    el.querySelector('.leX').onclick = () => cerrar(null);
+    el.onclick = (ev) => { if (ev.target === el) cerrar(null); };
+    lista.onclick = async (ev) => {
+      const b = ev.target.closest('[data-id]'); if (!b || b.classList.contains('cargando')) return; vibrar(8);
+      b.classList.add('cargando'); const ok = await cargarFuente(b.dataset.id); b.classList.remove('cargando');
+      if (!ok) return aviso('No se pudo bajar esa letra. Fijate la conexión');
+      cerrar(b.dataset.id);
+    };
+    pintar();
+  });
+}
+// ---- «Ajustes» de lo que está tocado: adelante o atrás, duplicar, espejo, opacidad y, en las fotos, filtros ----
+const NOMBRES_F = { normal: 'Normal', bn: 'B y N', sepia: 'Sepia', vintage: 'Vintage', frio: 'Frío', calido: 'Cálido', vivido: 'Vívido', fantasma: 'Fantasma' };
+function abrirAjustes() {
+  const s = E.st, c = s.capas[s.sel]; if (!c) return aviso('Tocá algo del sticker primero');
+  const esImg = c.tipo === 'img', que = c.tipo === 'texto' ? 'del texto' : c.tipo === 'emoji' ? 'del emoji' : 'de la foto';
+  const desl = (k, nombre, min, max, v) => `<label class="ajDesl"><span>${nombre}</span><input type="range" min="${min}" max="${max}" value="${v}" data-k="${k}"><b></b></label>`;
+  const f = c.filtro || {};
+  const m = modal(`<div class="hoja hojaAjustes"><div class="etq" style="margin-top:0">Ajustes ${que}</div>
+    <div class="ajCapa"><button data-a="frente"><i data-i="frente"></i>Al frente</button><button data-a="fondo"><span>⤓</span>Al fondo</button><button data-a="dup"><span>⧉</span>Duplicar</button><button data-a="espejo"><span>⇋</span>Espejo</button></div>
+    ${desl('alfa', 'Opacidad', 15, 100, Math.round((c.alfa ?? 1) * 100))}
+    ${esImg ? `<div class="etq">Filtros</div><div class="ajFiltros">${Object.keys(FILTROS).map((k) => `<button data-f="${k}"><canvas width="112" height="112"></canvas><span>${NOMBRES_F[k]}</span></button>`).join('')}</div>
+      ${desl('b', 'Brillo', 50, 150, Math.round((f.b ?? 1) * 100))}${desl('c', 'Contraste', 50, 150, Math.round((f.c ?? 1) * 100))}${desl('s', 'Color', 0, 200, Math.round((f.s ?? 1) * 100))}` : ''}
+    <div class="botones"><button class="sec" data-x="r">Como estaba</button><button class="pri" data-x="1">Listo</button></div></div>`, { claro: true });
+  const antes = { alfa: c.alfa, espejo: c.espejo, filtro: c.filtro ? { ...c.filtro } : undefined };
+  const marcar = () => {
+    for (const b of m.querySelectorAll('[data-f]')) b.classList.toggle('act', (c.filtro?.preset || 'normal') === b.dataset.f);
+    $('[data-a="espejo"]', m).classList.toggle('act', !!c.espejo);
+    for (const r of m.querySelectorAll('input[type=range]')) { r.nextElementSibling.textContent = r.value + '%'; r.style.setProperty('--p', ((r.value - r.min) / (r.max - r.min)) * 100 + '%'); }
+  };
+  // (las miniaturas de los filtros, con la foto de verdad)
+  if (esImg) for (const b of m.querySelectorAll('[data-f]')) {
+    const cv = $('canvas', b), g = cv.getContext('2d'), k = Math.min(112 / c.src.width, 112 / c.src.height);
+    g.filter = FILTROS[b.dataset.f] || 'none'; g.drawImage(c.src, (112 - c.src.width * k) / 2, (112 - c.src.height * k) / 2, c.src.width * k, c.src.height * k);
+  }
+  m.addEventListener('input', (ev) => {
+    const r = ev.target.closest('input[type=range]'); if (!r) return; const v = r.value / 100;
+    if (r.dataset.k === 'alfa') { if (v >= 1) delete c.alfa; else c.alfa = v; }
+    else { c.filtro = { ...(c.filtro || {}), [r.dataset.k]: v }; }
+    marcar(); pedirE(true);
+  });
+  m.onclick = (ev) => {
+    const b = ev.target.closest('button'); if (!b) return; vibrar(6);
+    if (b.dataset.x === '1') return cerrarModal();
+    if (b.dataset.x === 'r') {
+      Object.assign(c, antes); for (const k of ['alfa', 'espejo', 'filtro']) if (c[k] === undefined) delete c[k];
+      for (const r of m.querySelectorAll('input[type=range]')) r.value = Math.round((r.dataset.k === 'alfa' ? c.alfa ?? 1 : c.filtro?.[r.dataset.k] ?? 1) * 100);
+      marcar(); return pedirE(true);
+    }
+    if (b.dataset.f) { c.filtro = { ...(c.filtro || {}), preset: b.dataset.f === 'normal' ? '' : b.dataset.f }; marcar(); return pedirE(true); }
+    const a = b.dataset.a; if (!a) return;
+    if (a === 'espejo') { c.espejo = !c.espejo; if (!c.espejo) delete c.espejo; }
+    else if (a === 'frente') { s.alFrente(); aviso('Quedó adelante de todo'); }
+    else if (a === 'fondo') { s.capas.splice(s.capas.indexOf(c), 1); s.capas.unshift(c); s.sel = 0; aviso('Quedó atrás de todo'); }
+    else if (a === 'dup') {
+      const k = { ...c, x: lim(c.x + 28, 0, LADO), y: lim(c.y + 28, 0, LADO) }; if (c.filtro) k.filtro = { ...c.filtro };
+      s.capas.splice(s.capas.indexOf(c) + 1, 0, k); s.sel = s.capas.indexOf(k); cerrarModal(); aviso('Listo, ahí está la copia: movela');
+    }
+    marcar(); pedirE(true);
+  };
+  marcar();
 }
 function abrirAnimar() {
   const s = E.st, c = s.capas[s.sel], objetivo = c ? [c] : s.capas;
@@ -718,6 +898,7 @@ async function guardarSticker(st, destino, nombre, emojis, reemplazar) {
 async function editarSticker(pack, st) {
   const pr = st.proyecto; if (!pr) return aviso('Este sticker es de antes: no se puede editar');
   const imgs = await Promise.all((pr.fuentes || []).map(async (f) => { const bl = await P.blobDe(pack.id, f); if (!bl) return null; const bmp = await createImageBitmap(bl), c = lienzo(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0); return c; }));
+  await cargarFuentesDe(pr.capas);
   E.st = Sticker.deProyecto(pr, imgs); E.st.sel = -1; E.editando = { packId: pack.id, archivo: st.archivo }; E.desdeRecorte = false; E.origen = 'vPack';
   ir('vEditor');
 }
@@ -995,6 +1176,7 @@ async function completar() {
     let base;
     if (ult.proyecto) {
       const imgs = await Promise.all((ult.proyecto.fuentes || []).map(async (f) => { const bl = await P.blobDe(pack.id, f); if (!bl) return null; const bmp = await createImageBitmap(bl), c = lienzo(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0); return c; }));
+      await cargarFuentesDe(ult.proyecto.capas);
       base = () => Sticker.deProyecto(ult.proyecto, imgs);
     } else {
       const bmp = await createImageBitmap(await P.blobDe(pack.id, ult.archivo)), c = lienzo(LADO, LADO); c.getContext('2d').drawImage(bmp, 0, 0, LADO, LADO);
@@ -1151,6 +1333,7 @@ setTimeout(() => C.revisarEntrada(), 1500);
 if (P.esApp) { document.documentElement.style.setProperty('--arriba', '0px'); document.documentElement.style.setProperty('--abajo', '0px'); }
 iconos();
 cargarFuentes('./').then(() => pedirE(true));
+servidorFuentes(`${C.API}/fuentes/`);
 const alCambiarTam = () => { if (E.vista === 'vRecorte') pedirR(); else if (E.vista === 'vEditor') pedirE(); };
 window.addEventListener('resize', alCambiarTam); if (window.ResizeObserver) { const ro = new ResizeObserver(alCambiarTam); ro.observe(RV.c); ro.observe(EV.c); }
 pintarInicio();
@@ -1214,4 +1397,4 @@ new MutationObserver(moverIndicador).observe($('#tabs'), { subtree: true, attrib
 addEventListener('resize', moverIndicador); setTimeout(moverIndicador, 50);
 if (P.esApp && window.SZN.enlaceInicial) { const e = window.SZN.enlaceInicial(); if (e) window.__szAbrir(e); }
 setTimeout(() => recorte().catch(() => {}), 1200); // (los modelos, de fondo, para que el primer recorte salga enseguida)
-window.__sz = { LIQ, liquido, E, ir, atras, abrirFoto, recorte, aviso, pestaña, C };
+window.__sz = { LIQ, liquido, E, ir, atras, abrirFoto, recorte, aviso, pestaña, C, pedirE };

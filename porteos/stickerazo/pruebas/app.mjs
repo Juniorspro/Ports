@@ -48,6 +48,7 @@ const adentro = () => E(() => { const E = window.__sz.E, d = E.mascara.getContex
 // de coordenadas de la foto / del sticker a la pantalla (CSS px)
 const pantallaFoto = (x, y) => E(([x, y]) => { const RV = { c: document.querySelector('#rLienzo') }, r = RV.c.getBoundingClientRect(), E = window.__sz.E, d = Math.min(3, devicePixelRatio), w = r.width * d, h = r.height * d, pad = 4 * d, esc = Math.min((w - 2 * pad) / E.W, (h - 2 * pad) / E.H); return [r.left + ((w - E.W * esc) / 2 + x * esc) / d, r.top + ((h - E.H * esc) / 2 + y * esc) / d]; }, [x, y]);
 const pantallaSt = (x, y) => E(([x, y]) => { const c = document.querySelector('#eLienzo'), r = c.getBoundingClientRect(), d = Math.min(3, devicePixelRatio), w = r.width * d, h = r.height * d, lado = Math.min(w, h) - 8 * d; return [r.left + ((w - lado) / 2 + (x * lado) / 512) / d, r.top + ((h - lado) / 2 + (y * lado) / 512) / d]; }, [x, y]);
+const packDe = () => E(() => { const E = window.__sz.E, p = E.packs.find((x) => x.id === E.packId); return JSON.parse(JSON.stringify(p)); });
 async function elegirFoto(boton, archivo) { const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.click(boton)]); await fc.setFiles(path.join(FOTOS, archivo)); }
 async function guardar(emoji) {
   await p.click('#eGuardar'); await p.waitForSelector('#modal .emojis');
@@ -106,7 +107,7 @@ const vueltaXD = await E(() => { const c = window.__sz.E.st.capas.find((x) => x.
 ok(xd.tiene0 && Math.abs(xd.w / xd.h - (1.45 * antesXD.w) / antesXD.h) < 0.05 && nLentes === 1 && vueltaXD.w === antesXD.w && vueltaXD.h === antesXD.h && !vueltaXD.tiene0,
   `modo xD: ojo de pez, aplastar (${antesXD.w}×${antesXD.h} → ${xd.w}×${xd.h}), quemar, trucha, espejo y lentes; «Sin efectos» vuelve a la foto`);
 await E(() => { const s = window.__sz.E.st; s.capas = s.capas.filter((x) => !x.lentes); s.sel = -1; }); await p.click('#modal [data-x="1"]');
-await p.click('#vEditor [data-e="texto"]'); await p.fill('#tTx', 'CUANDO COMPILA\nDE UNA'); await p.click('#tF [data-v="LuckiestGuy"]'); await p.click('#tC [data-v="#ffd23f"]');
+await p.click('#vEditor [data-e="texto"]'); await p.fill('#tTx', 'CUANDO COMPILA\nDE UNA'); await p.click('#tF [data-v="LuckiestGuy"]'); await p.click('#tP [data-p="color"]'); await p.click('#tC [data-v="#ffd23f"]');
 await foto('hoja_texto'); await p.click('#modal [data-x="1"]');
 const tx = await E(() => { const c = window.__sz.E.st.capas.find((c) => c.tipo === 'texto'); return { x: c.x, y: c.y }; });
 // arrastrar el texto con el dedo
@@ -136,14 +137,17 @@ await p.click('#pMas'); await p.waitForSelector('#modal [data-x="galeria"]');
 const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.click('#modal [data-x="galeria"]')]); t0 = Date.now(); await fc.setFiles(path.join(FOTOS, 'YellowLabradorLooking_new.jpg'));
 await listoRecorte(); ok((await adentro()) > 0.1, `perro: ${((await adentro()) * 100).toFixed(1)} % en ${Date.now() - t0} ms`); await foto('recorte_perro');
 await p.click('#rSig'); await p.waitForFunction(() => window.__sz.E.vista === 'vEditor');
-await p.click('#vEditor [data-e="texto"]'); await p.fill('#tTx', '¿Y MI MILANESA?'); await p.click('#tF [data-v="Bangers"]'); await p.click('#modal [data-x="1"]');
+await p.click('#vEditor [data-e="texto"]'); await p.fill('#tTx', '¿Y MI MILANESA?'); await p.click('#tF [data-v="Bangers"]');
+// (en arco: con un solo renglón se puede; la vista de la hoja lo muestra)
+await p.click('#tP [data-p="mas"]'); await p.click('#tA [data-v="1"]'); await foto('hoja_texto_arco'); await p.click('#modal [data-x="1"]');
+ok(await E(() => window.__sz.E.st.capas.find((c) => c.tipo === 'texto').curva === 1), 'texto en arco (un renglón)');
 await p.click('#vEditor [data-e="borde"]'); await p.click('#bG [data-v="18"]'); await foto('hoja_borde');
 ok(await E(() => { const c = document.querySelector('#vEditor .lienzoCont').getBoundingClientRect(), hj = document.querySelector('#modal .hoja').getBoundingClientRect(), l = document.querySelector('#eLienzo'), d = Math.min(3, devicePixelRatio), lado = (Math.min(l.width, l.height) - 8 * d) / d; return c.top + (c.height + lado) / 2 <= hj.top + 1; }), 'con la hoja del borde abierta se ve el sticker entero'); await p.click('#modal [data-x="1"]');
 await guardar('🐶');
 
 // ---------- 3: sólo texto ----------
 await p.click('#pMas'); await p.click('#modal [data-x="texto"]'); await p.waitForSelector('#tTx');
-await p.fill('#tTx', 'Re\nque sí'); await p.click('#tF [data-v="Pacifico"]'); await p.click('#tC [data-v="#ff3e8a"]'); await p.click('#tB [data-v="#ffffff"]'); await p.click('#modal [data-x="1"]');
+await p.fill('#tTx', 'Re\nque sí'); await p.click('#tF [data-v="Pacifico"]'); await p.click('#tP [data-p="color"]'); await p.click('#tC [data-v="#ff3e8a"]'); await p.click('#tP [data-p="borde"]'); await p.click('#tB [data-v="#ffffff"]'); await p.click('#modal [data-x="1"]');
 await p.click('#vEditor [data-e="emoji"]'); await p.click('#modal .emojis button[data-v="🧉"]');
 await foto('solo_texto'); await guardar('👍');
 
@@ -151,8 +155,28 @@ await foto('solo_texto'); await guardar('👍');
 await p.click('#pMas'); const [fc2] = await Promise.all([p.waitForEvent('filechooser'), p.click('#modal [data-x="galeria"]')]); await fc2.setFiles(path.join(FOTOS, 'burger.jpg'));
 await listoRecorte(); await foto('recorte_hamburguesa');
 await p.click('#rSig'); await p.waitForFunction(() => window.__sz.E.vista === 'vEditor');
-await p.click('#vEditor [data-e="texto"]'); await p.fill('#tTx', 'HOY NO\nME CUIDO'); await p.click('#tF [data-v="Anton"]'); await p.click('#modal [data-x="1"]');
+// (las «más letras»: el selector con las muestras, buscar, elegir una que se baja del servidor; degradé, contorno grueso y sombra 3D)
+await p.click('#vEditor [data-e="texto"]'); await p.fill('#tTx', 'HOY NO\nME CUIDO'); await p.click('#tMas'); await p.waitForSelector('.letrasEl .leIt');
+await p.waitForSelector('.letrasEl .leIt.listo'); await espera(300);
+const nLetras = await p.locator('.letrasEl .leIt').count(), conMuestras = await E(() => document.querySelector('.letrasEl .leIt').classList.contains('listo') && getComputedStyle(document.querySelector('.letrasEl')).getPropertyValue('--m-divertidas').includes('blob:') && !getComputedStyle(document.querySelector('.letrasEl')).getPropertyValue('--m-modernas'));
+await foto('letras_todas');
+await p.click('.letrasEl .leCat [data-c="manuscritas"]'); await p.waitForSelector('.letrasEl .leIt.listo[data-cat="manuscritas"]'); const nMano = await p.locator('.letrasEl .leIt').count(); await foto('letras_a_mano');
+await p.click('.letrasEl .leCat [data-c=""]'); await p.fill('.letrasEl input', 'lobs'); await p.waitForFunction(() => document.querySelectorAll('.letrasEl .leIt').length === 1); await foto('letras_buscar');
+await p.click('.letrasEl .leIt[data-id="xLobster"]'); await p.waitForFunction(() => !document.querySelector('.letrasEl'));
+const lobster = await E(() => document.fonts.check('40px "xLobster"') && [...document.fonts].some((f) => f.family.replace(/"/g, '') === 'xLobster' && f.status === 'loaded'));
+ok(nLetras >= 150 && conMuestras && nMano > 20 && nMano < nLetras && lobster, `más letras: ${nLetras} (las muestras se bajan por tipo, cuando se ven: ${nMano} a mano); buscar «lobs» → Lobster, bajada del servidor y cargada`);
+await p.click('#tP [data-p="color"]'); await p.click('#tD [data-v="fuego"]'); await p.click('#tP [data-p="borde"]'); await p.click('#tG [data-v="grueso"]');
+await p.click('#tP [data-p="mas"]'); await p.click('#tS [data-v="dura"]');
+ok(await p.isDisabled('#tA [data-v="1"]'), 'con dos renglones, el arco no se puede'); await foto('hoja_texto_efectos'); await p.click('#modal [data-x="1"]');
+// («Ajustes» de la foto: filtro, brillo, espejo y opacidad)
+await E(() => { const s = window.__sz.E.st; s.sel = s.capas.findIndex((c) => c.tipo === 'img'); window.__sz.pedirE?.(); });
+await p.click('#vEditor [data-e="ajustes"]'); await p.waitForSelector('#modal .ajFiltros');
+await p.click('#modal [data-f="vivido"]'); await p.click('#modal [data-a="espejo"]');
+await p.locator('#modal input[data-k="b"]').fill('120'); await p.locator('#modal input[data-k="alfa"]').fill('90'); await foto('hoja_ajustes'); await p.click('#modal [data-x="1"]');
 await guardar('🍕');
+const p4 = await packDe(), pr4 = p4.stickers[p4.stickers.length - 1].proyecto, t4 = pr4.capas.find((c) => c.tipo === 'texto'), i4 = pr4.capas.find((c) => c.tipo === 'img');
+ok(t4.fuente === 'xLobster' && t4.degrade === 'fuego' && t4.grosor === 'grueso' && t4.sombraT === 'dura' && i4.filtro?.preset === 'vivido' && Math.abs(i4.filtro.b - 1.2) < 0.01 && i4.espejo === true && Math.abs(i4.alfa - 0.9) < 0.01,
+  'se guarda todo en el proyecto (letra, degradé, contorno grueso, sombra 3D; filtro, brillo, espejo y opacidad de la foto)');
 await foto('pack_4');
 ok(!(await p.isDisabled('#pWhats')), 'con 4 stickers «Agregar a WhatsApp» está prendido');
 if (APP) {
@@ -162,7 +186,6 @@ if (APP) {
 } else { await p.click('#pWhats'); await p.waitForSelector('#modal .hoja'); ok(/app/.test(await p.textContent('#modal')), 'en el navegador explica que se agrega desde la app'); await p.click('#modal [data-x="1"]'); }
 
 // ---------- 5: editar un sticker ya guardado (el perro: le cambio el texto) ----------
-const packDe = () => E(() => { const E = window.__sz.E, p = E.packs.find((x) => x.id === E.packId); return JSON.parse(JSON.stringify(p)); });
 const antes = await packDe(), st1 = antes.stickers[1];
 await p.click('#pGrilla .st[data-n="1"]'); await p.click('#modal [data-x="editar"]'); await p.waitForFunction(() => window.__sz.E.vista === 'vEditor' && window.__sz.E.st);
 const tt = await E(() => { const c = window.__sz.E.st.capas.find((c) => c.tipo === 'texto'); return { x: c.x, y: c.y }; });
@@ -180,7 +203,7 @@ await foto('pack_editado');
 
 // ---------- 6: animado de un toque, emojis según el texto, y completar a 3 ----------
 await p.click('#pMas'); await p.click('#modal [data-x="texto"]'); await p.waitForSelector('#tTx');
-await p.fill('#tTx', 'JAJAJA\nqué hacés'); await p.click('#tF [data-v="LuckiestGuy"]'); await p.click('#tC [data-v="#ffd23f"]'); await p.click('#tB [data-v="#111111"]'); await p.click('#modal [data-x="1"]');
+await p.fill('#tTx', 'JAJAJA\nqué hacés'); await p.click('#tF [data-v="LuckiestGuy"]'); await p.click('#tP [data-p="color"]'); await p.click('#tC [data-v="#ffd23f"]'); await p.click('#tP [data-p="borde"]'); await p.click('#tB [data-v="#111111"]'); await p.click('#modal [data-x="1"]');
 await p.click('#vEditor [data-e="emoji"]'); await p.click('#modal .emojis button[data-v="🧉"]');
 await E(() => { window.__sz.E.st.sel = -1; });
 await p.click('#vEditor [data-e="animar"]'); await p.click('#aL [data-v="temblor"]');

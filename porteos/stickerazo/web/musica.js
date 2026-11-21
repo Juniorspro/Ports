@@ -1,6 +1,9 @@
 // La música mientras hacés stickers: buscás (o elegís un género de tu país) en YouTube y suena en un reproductor que
-// queda flotando y se puede mover. Es el reproductor oficial de YouTube, siempre a la vista (200×200 como mínimo, como
-// pide YouTube) y sólo mientras la app está abierta. La búsqueda la hace el servidor (el de JXMod, /api/yt).
+// queda flotando y se puede mover: un tocadiscos, con el video de tapa y el disco (con la portada) que sale y gira
+// mientras suena. Es el reproductor oficial de YouTube, siempre a la vista (200×200 como mínimo, como pide YouTube) y
+// sólo mientras la app está abierta. Para que no moleste se achica a un disquito abajo; como YouTube no deja que suene
+// con el reproductor escondido, achicado queda en pausa y al tocarlo vuelve y sigue. La búsqueda la hace el servidor
+// (el de JXMod, /api/yt).
 const GENEROS = {
   ar: ['cumbia argentina', 'rock nacional', 'trap argentino', 'cuarteto', 'folklore argentino'], mx: ['regional mexicano', 'corridos tumbados', 'pop mexicano', 'cumbia sonidera'],
   es: ['éxitos España', 'flamenco pop', 'pop español', 'reggaeton España'], co: ['vallenato', 'reggaeton colombiano', 'salsa colombiana', 'champeta'],
@@ -12,7 +15,10 @@ const GENEROS = {
   gq: ['música de Guinea Ecuatorial', 'afrobeat'], otro: ['música latina éxitos', 'reggaeton', 'cumbia'],
 };
 const PAIS_EN = { ar: 'Argentina', mx: 'México', es: 'España', co: 'Colombia', cl: 'Chile', pe: 'Perú', ve: 'Venezuela', uy: 'Uruguay', py: 'Paraguay', bo: 'Bolivia', ec: 'Ecuador', cu: 'Cuba', do: 'Rep. Dominicana', pr: 'Puerto Rico', gt: 'Guatemala', hn: 'Honduras', sv: 'El Salvador', ni: 'Nicaragua', cr: 'Costa Rica', pa: 'Panamá', us: 'Estados Unidos', br: 'Brasil', gq: 'Guinea Ecuatorial', otro: '' };
-const M = { lista: [], i: -1, yt: null, cargaApi: null, el: null };
+const M = { lista: [], i: -1, yt: null, cargaApi: null, el: null, disco: null, fallas: 0 };
+const portada = (v) => `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`;
+// (si la portada no carga, queda el centro de colores)
+const ponerTapa = (img, v) => { img.onerror = () => img.removeAttribute('src'); img.src = portada(v); };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 async function buscar(base, q) {
@@ -40,7 +46,7 @@ export function abrirMusica({ base, pais, X, saltar }) {
   };
   el.querySelector('.muGen').onclick = (ev) => { const b = ev.target.closest('[data-q]'); if (!b) return; for (const c of b.parentElement.children) c.classList.toggle('act', c === b); X.vibrar(6); cargar(b.dataset.q + ' ' + nombre); };
   inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && inp.value.trim()) { inp.blur(); cargar(inp.value.trim()); } });
-  lista.onclick = (ev) => { const b = ev.target.closest('[data-k]'); if (!b) return; X.vibrar(12); M.lista = M.ultimos.slice(); tocar(+b.dataset.k); cerrar(); X.aviso('🎵 Sonando. Mové el reproductor a donde quieras'); };
+  lista.onclick = (ev) => { const b = ev.target.closest('[data-k]'); if (!b) return; X.vibrar(12); M.lista = M.ultimos.slice(); tocar(+b.dataset.k, true); cerrar(); X.aviso('🎵 Sonando. Mové el reproductor a donde quieras'); };
   el.querySelector('.muSaltar').onclick = cerrar;
   cargar(g[0] + ' ' + nombre);
 }
@@ -49,28 +55,56 @@ function apiYT() {
   if (window.YT && window.YT.Player) return Promise.resolve();
   return (M.cargaApi ||= new Promise((ok, mal) => { window.onYouTubeIframeAPIReady = ok; const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; s.onerror = mal; document.head.appendChild(s); }));
 }
-async function tocar(k) {
+// (elegido: la tocaste en la lista, así que el reproductor vuelve a la vista; si pasa sola a la siguiente estando
+// achicado, queda lista pero sin sonar)
+async function tocar(k, elegido = false) {
   if (!M.lista.length) return; M.i = (k + M.lista.length) % M.lista.length; const v = M.lista[M.i];
-  armarFlotante(); M.el.querySelector('.rfTit').textContent = v.t; M.el.querySelector('.rfDe').textContent = v.c;
+  armarFlotante(); if (elegido) { M.fallas = 0; agrandar(false); }
+  const quieto = M.el.classList.contains('min'); M.el.querySelector('.rfTit').textContent = v.t; M.el.querySelector('.rfDe').textContent = v.c;
+  for (const img of document.querySelectorAll('.rfTapa')) ponerTapa(img, v);
   try {
     await apiYT();
-    if (M.yt) { M.yt.loadVideoById(v.id); return; }
+    if (M.yt) { if (quieto) M.yt.cueVideoById(v.id); else M.yt.loadVideoById(v.id); return; }
     M.yt = new window.YT.Player(M.el.querySelector('.rfVideo'), { width: 200, height: 200, videoId: v.id, host: 'https://www.youtube-nocookie.com',
       playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1 },
-      events: { onStateChange: (e) => { if (e.data === 0) tocar(M.i + 1); M.el.classList.toggle('sonando', e.data === 1); }, onError: () => setTimeout(() => tocar(M.i + 1), 600) } });
+      events: {
+        onStateChange: (e) => { if (!M.el) return; if (e.data === 1) M.fallas = 0; if (e.data === 0) tocar(M.i + 1); M.el.classList.toggle('sonando', e.data === 1); },
+        // (si un video no se puede ver acá, el siguiente; si no anda ninguno, se avisa en vez de dar vueltas)
+        onError: () => { if (!M.el) return; if (++M.fallas >= M.lista.length) { M.el.querySelector('.rfDe').textContent = 'Ninguna se puede escuchar acá'; return; } setTimeout(() => tocar(M.i + 1), 600); },
+      } });
   } catch (e) { M.el.querySelector('.rfDe').textContent = 'No pude cargar YouTube'; }
 }
+// (el vinilo: los surcos y la portada giran; el brillo queda quieto, como en uno de verdad)
+const vinilo = (clase) => `<span class="${clase}"><span class="rfGira"><img class="rfTapa" alt=""></span><span class="rfBrillo"></span></span>`;
 function armarFlotante() {
   if (M.el) return;
   const el = (M.el = document.createElement('div')); el.className = 'radioFlota';
-  el.innerHTML = `<div class="rfBarra"><span class="rfAgarre"></span><span class="rfTxt"><b class="rfTit"></b><small class="rfDe"></small></span><button class="rfSig" aria-label="Siguiente">⏭</button><button class="rfX" aria-label="Cerrar">✕</button></div><div class="rfVideo"></div>`;
+  el.innerHTML = `${vinilo('rfVinilo')}<div class="rfCaja"><div class="rfBarra"><span class="rfAgarre"></span><span class="rfTxt"><b class="rfTit"></b><small class="rfDe"></small></span><button class="rfSig" aria-label="Siguiente">⏭</button><button class="rfMin" aria-label="Achicar">▾</button><button class="rfX" aria-label="Cerrar">✕</button></div><div class="rfVideo"></div></div>`;
   document.body.appendChild(el);
   el.querySelector('.rfSig').onclick = () => tocar(M.i + 1);
-  el.querySelector('.rfX').onclick = () => { try { M.yt && M.yt.destroy(); } catch (e) { /* nada */ } M.yt = null; el.remove(); M.el = null; };
-  // (se arrastra de la barra y se acomoda al costado más cercano)
+  el.querySelector('.rfMin').onclick = achicar;
+  el.querySelector('.rfX').onclick = () => { try { M.yt && M.yt.destroy(); } catch (e) { /* nada */ } M.yt = null; el.remove(); M.el = null; if (M.disco) { M.disco.remove(); M.disco = null; } };
+  // (se arrastra de la barra y se acomoda al costado más cercano; arriba deja lugar para el disco)
   const barra = el.querySelector('.rfBarra'); let d = null;
   barra.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; const r = el.getBoundingClientRect(); d = { x: e.clientX - r.left, y: e.clientY - r.top }; barra.setPointerCapture(e.pointerId); el.classList.add('moviendo'); });
-  barra.addEventListener('pointermove', (e) => { if (!d) return; el.style.left = Math.min(innerWidth - el.offsetWidth - 6, Math.max(6, e.clientX - d.x)) + 'px'; el.style.top = Math.min(innerHeight - el.offsetHeight - 6, Math.max(6, e.clientY - d.y)) + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto'; });
+  barra.addEventListener('pointermove', (e) => { if (!d) return; el.style.left = Math.min(innerWidth - el.offsetWidth - 6, Math.max(6, e.clientX - d.x)) + 'px'; el.style.top = Math.min(innerHeight - el.offsetHeight - 6, Math.max(70, e.clientY - d.y)) + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto'; });
   barra.addEventListener('pointerup', () => { if (!d) return; d = null; el.classList.remove('moviendo'); const r = el.getBoundingClientRect(); el.style.left = (r.left + r.width / 2 < innerWidth / 2 ? 8 : innerWidth - r.width - 8) + 'px'; });
 }
-export const hayMusica = () => !!M.el;
+// achicado: sólo el disquito con la portada, abajo; la música en pausa (YouTube no deja que suene escondido)
+function achicar() {
+  if (!M.el) return; try { M.yt && M.yt.pauseVideo(); } catch (e) { /* nada */ }
+  M.el.classList.add('min');
+  if (!M.disco) {
+    const b = (M.disco = document.createElement('button')); b.className = 'radioDisco'; b.setAttribute('aria-label', 'Volver a la música');
+    b.innerHTML = `${vinilo('rdVinilo')}<i class="rdPlay">▶</i>`; document.body.appendChild(b);
+    b.onclick = () => agrandar(true);
+  }
+  const v = M.lista[M.i]; if (v) ponerTapa(M.disco.querySelector('.rfTapa'), v);
+  requestAnimationFrame(() => M.disco.classList.add('entra'));
+}
+function agrandar(seguir) {
+  if (M.disco) { const b = M.disco; M.disco = null; b.classList.remove('entra'); setTimeout(() => b.remove(), 300); }
+  if (!M.el || !M.el.classList.contains('min')) return;
+  M.el.classList.remove('min'); if (seguir) { try { M.yt && M.yt.playVideo(); } catch (e) { /* nada */ } }
+}
+export const hayMusica = () => !!M.el && !M.el.classList.contains('min');

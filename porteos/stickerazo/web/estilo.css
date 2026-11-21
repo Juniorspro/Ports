@@ -699,16 +699,36 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
 .muIt b { font-size: 13.5px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } .muIt small { color: var(--suave); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .muPlay { font-style: normal; width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(135deg, #ff3e8a, #ff8a1a); font-size: 13px; }
 .muNada { color: var(--suave); text-align: center; padding: 30px 0; }
-/* el reproductor flotante (YouTube, a la vista: 200×200) */
-.radioFlota { position: fixed; right: 8px; bottom: calc(var(--abajo, 0px) + 96px); z-index: 8400; width: 200px; border-radius: 20px; overflow: hidden;
-  background: linear-gradient(180deg, #1c1828, #0e0d14); box-shadow: 0 16px 40px #000c, 0 0 0 1px #ffffff1f; animation: popEntra .5s cubic-bezier(.34, 1.56, .64, 1) both; transition: left .35s cubic-bezier(.34, 1.4, .64, 1), box-shadow .3s; }
-.radioFlota.moviendo { transition: none; box-shadow: 0 24px 60px #000, 0 0 0 2px #ff3e8a; }
-.rfBarra { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 8px; cursor: grab; touch-action: none; }
+/* el reproductor flotante (YouTube, a la vista: 200×200): un tocadiscos con el video de tapa y el disco que sale y gira */
+.radioFlota { position: fixed; right: 8px; bottom: calc(var(--abajo, 0px) + 96px); z-index: 8400; width: 200px; animation: popEntra .5s cubic-bezier(.34, 1.56, .64, 1) both; transition: left .35s cubic-bezier(.34, 1.4, .64, 1); }
+.radioFlota.min { display: none; }
+.rfCaja { position: relative; z-index: 1; border-radius: 20px; overflow: hidden; background: linear-gradient(180deg, #1c1828, #0e0d14); box-shadow: 0 16px 40px #000c, 0 0 0 1px #ffffff1f; transition: box-shadow .3s; }
+.radioFlota.moviendo { transition: none; } .radioFlota.moviendo .rfCaja { box-shadow: 0 24px 60px #000, 0 0 0 2px #ff3e8a; }
+.rfVinilo { position: absolute; left: 50%; top: 0; z-index: 0; width: 148px; height: 148px; margin-left: -74px; border-radius: 50%; transform: translateY(14px);
+  transition: transform .7s cubic-bezier(.3, 1.35, .5, 1); box-shadow: 0 8px 22px #000a; }
+.radioFlota.sonando .rfVinilo { transform: translateY(-62px); }
+.rfVinilo, .rdVinilo { display: block; }
+.rfGira { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle, #0000 0 33%, #0c0c0f 33.5% 35%, #0000 35.5%), repeating-radial-gradient(circle, #121214 0 1.6px, #1e1e22 1.6px 3.2px);
+  animation: girarMundo 2.6s linear infinite; animation-play-state: paused; }
+.radioFlota.sonando .rfGira { animation-play-state: running; }
+.rfTapa { position: absolute; left: 33%; top: 33%; width: 34%; height: 34%; border-radius: 50%; object-fit: cover; background: linear-gradient(135deg, #ff3e8a, #ff8a1a); }
+.rfTapa:not([src]) { visibility: hidden; }
+.rfGira::after { content: ''; position: absolute; left: 50%; top: 50%; width: 7%; height: 7%; margin: -3.5% 0 0 -3.5%; border-radius: 50%; background: #0e0d14; box-shadow: 0 0 0 1px #ffffff30; }
+.rfBrillo { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: conic-gradient(from 20deg, #0000 0 12%, #ffffff1c 17%, #0000 24% 62%, #ffffff14 67%, #0000 74%); }
+.rfBarra { display: flex; align-items: center; gap: 5px; padding: 6px 6px 6px 8px; cursor: grab; touch-action: none; }
 .rfAgarre { width: 6px; height: 22px; flex: none; border-radius: 3px; background: repeating-linear-gradient(#ffffff55 0 2px, #0000 2px 5px); }
 .rfTxt { flex: 1; min-width: 0; display: flex; flex-direction: column; } .rfTxt b { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .rfTxt small { font-size: 10.5px; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .radioFlota.sonando .rfTxt b { color: #ffd23f; }
-.rfBarra button { width: 28px; height: 28px; flex: none; border-radius: 50%; background: #ffffff14; color: #fff; font-size: 12px; }
+.rfBarra button { width: 27px; height: 27px; flex: none; border-radius: 50%; background: #ffffff14; color: #fff; font-size: 12px; }
 .rfVideo, .radioFlota iframe { display: block; width: 200px; height: 200px; border: 0; background: #000; }
+/* achicado: el disquito con la portada, abajo a la izquierda (en pausa: se toca y vuelve) */
+.radioDisco { position: fixed; left: 10px; bottom: calc(var(--abajo, 0px) + 92px); z-index: 8400; width: 62px; height: 62px; border-radius: 50%; padding: 0;
+  box-shadow: 0 10px 26px #000b, 0 0 0 2px #ffffff26; transform: scale(.4) rotate(-90deg); opacity: 0; transition: transform .45s cubic-bezier(.34, 1.56, .64, 1), opacity .25s; }
+.radioDisco.entra { transform: none; opacity: 1; }
+.rdVinilo { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; }
+.rdPlay { position: absolute; right: -3px; bottom: -3px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 10px; color: #fff;
+  background: linear-gradient(135deg, #ff3e8a, #ff8a1a); box-shadow: 0 2px 8px #0008; animation: rdLate 1.6s ease-in-out infinite; }
+@keyframes rdLate { 50% { transform: scale(1.18); } }
 /* el botón de la música en el inicio */
 .botonMusica { position: absolute; right: 12px; top: calc(var(--arriba, 0px) + 10px); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 19px; z-index: 3; }
 .botonMusica.sonando { animation: latePlus 1.2s ease-in-out infinite; }
@@ -815,3 +835,66 @@ html[data-tema="claro"] .tarjG { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
 /* (una línea chica debajo de una opción de la lista) */
 .opc .subOpc { display: block; font-size: 12.5px; font-weight: 500; opacity: .75; margin-top: 2px; }
 .opc span:has(.subOpc) { display: flex; flex-direction: column; }
+
+/* ---- la hoja del texto: vista, pestañas y las «más letras» ---- */
+.tVista { display: block; width: 100%; height: 104px; margin: 0 0 10px; border-radius: 18px;
+  background: repeating-conic-gradient(#ffffff0c 0 25%, #0000 0 50%) 0 0 / 16px 16px, var(--panel2); }
+.hojaTexto textarea { font-size: 21px; padding: 10px 14px; }
+.hojaTexto .ideas { margin-top: 10px; }
+.tEstilo { margin-top: 12px; }
+.tPest { display: flex; gap: 4px; margin: 14px 0 12px; padding: 4px; border-radius: 16px; background: var(--panel2); }
+.tPest button { flex: 1; min-width: 0; padding: 9px 0; border-radius: 12px; font-weight: 800; font-size: 13.5px; color: var(--suave); transition: background .2s, color .2s; }
+.tPest button.act { background: var(--panel); color: var(--ama); box-shadow: 0 2px 10px #0006; }
+.tPest.conGlobo button[data-p="color"], .tPest.conGlobo button[data-p="borde"] { opacity: .45; }
+.tPan { min-height: 132px; animation: aparece .18s; }
+.tPan .etq:first-child { margin-top: 0; }
+.tPan .chips .chip { font-size: 16px; }
+.tMas { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px; padding: 13px; border-radius: 16px;
+  border: 2px dashed var(--linea); font-weight: 800; font-size: 15px; color: var(--ama); }
+.tMas b { font-size: 20px; line-height: 1; } .tMas small { color: var(--suave); font-weight: 700; }
+.colores .tPropio { position: relative; overflow: hidden; background: conic-gradient(#ff2d2d, #ffe14d, #4cd964, #3ec7ff, #1f6fff, #ff3e8a, #ff2d2d); }
+.tPropio input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.color.sin { background: linear-gradient(135deg, #0000 44%, var(--rosa) 44% 56%, #0000 56%), var(--panel2); }
+.chip:disabled { opacity: .35; }
+.letrasEl { position: fixed; inset: 0; z-index: 40; display: flex; align-items: flex-end; background: #07060bcc; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); opacity: 0; transition: opacity .25s; }
+.letrasEl.entra { opacity: 1; } .letrasEl.chau { opacity: 0; }
+.leCaja { width: 100%; max-width: 640px; margin: 0 auto; height: 86%; display: flex; flex-direction: column; gap: 10px; padding: 18px 14px calc(var(--abajo, 0px) + 12px);
+  border-radius: 28px 28px 0 0; background: linear-gradient(180deg, #1a1426, #0c0b12); box-shadow: 0 -1px 0 #ffffff22; animation: sube .3s cubic-bezier(.2, .9, .3, 1); }
+.leCab { display: flex; align-items: center; justify-content: space-between; }
+.leCab h3 { margin: 0; font: 400 25px/1 'LuckiestGuy', sans-serif; } .leCab h3 small { font: 700 14px/1 system-ui, sans-serif; color: var(--suave); }
+.leX { width: 38px; height: 38px; border-radius: 50%; background: #ffffff14; font-size: 15px; }
+.leBuscar { display: flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 16px; background: var(--panel2); }
+.leBuscar input { flex: 1; min-width: 0; padding: 12px 0; border: 0; outline: 0; background: none; color: inherit; font: 600 15px/1 system-ui, sans-serif; }
+.leCat { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; flex: none; } .leCat::-webkit-scrollbar { display: none; } .leCat .chip { flex: none; }
+.leLista { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); align-content: start; gap: 8px; padding: 2px; }
+.leIt { display: flex; align-items: center; height: 56px; padding: 0 10px; border-radius: 16px; background: #ffffff0b; color: var(--texto); overflow: hidden; border: 2px solid transparent; }
+.leIt.act { border-color: var(--ama); color: var(--ama); background: #ffd23f14; }
+.leIt.cargando { animation: latido .8s ease-in-out infinite; opacity: .6; }
+.leM { display: none; flex: none; width: 280px; max-width: 100%; height: 40px; background: currentColor;
+  -webkit-mask-image: var(--mm); mask-image: var(--mm); -webkit-mask-size: var(--ancho) auto; mask-size: var(--ancho) auto; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
+.leIt.listo .leM { display: block; animation: aparece .25s; } .leIt.listo .leT { display: none; }
+.leT { font-weight: 700; font-size: 17px; opacity: .55; }
+.leNota a { color: var(--ama); }
+.leNota { margin: 0; text-align: center; font-size: 12px; color: var(--suave); }
+@keyframes latido { 50% { opacity: .35; } }
+/* ---- «Ajustes» ---- */
+.ajCapa { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+.ajCapa button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 2px 9px; border-radius: 16px; background: var(--panel2); font-size: 12.5px; font-weight: 700; border: 2px solid transparent; }
+.ajCapa button span { font-size: 21px; line-height: 24px; height: 24px; } .ajCapa button i { width: 24px; height: 24px; }
+.ajCapa button.act { border-color: var(--ama); color: var(--ama); }
+.ajDesl { display: grid; grid-template-columns: 104px 1fr 46px; align-items: center; gap: 10px; margin: 8px 0; font-size: 14px; font-weight: 700; color: var(--suave); }
+.ajDesl b { text-align: right; color: var(--texto); font-size: 13px; }
+.ajDesl input { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px; outline: none;
+  background: linear-gradient(90deg, var(--ama) var(--p, 50%), var(--linea) var(--p, 50%)); }
+.ajDesl input::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px #0008, 0 0 0 3px var(--ama); }
+.ajFiltros { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 6px; } .ajFiltros::-webkit-scrollbar { display: none; }
+.ajFiltros button { flex: none; display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--suave); }
+.ajFiltros canvas { width: 62px; height: 62px; border-radius: 14px; background: repeating-conic-gradient(#ffffff10 0 25%, #0000 0 50%) 0 0 / 12px 12px, var(--panel2); border: 2px solid transparent; }
+.ajFiltros button.act { color: var(--ama); } .ajFiltros button.act canvas { border-color: var(--ama); }
+html[data-tema="claro"] .leCaja { background: linear-gradient(180deg, #ffffff, #f6f1fb); color: #1b1626; }
+html[data-tema="claro"] .letrasEl { background: rgba(40, 20, 60, .28); }
+html[data-tema="claro"] .leIt, html[data-tema="claro"] .leX { background: #f3edf9; }
+html[data-tema="claro"] .leIt.act { color: #b8860b; border-color: #e0a800; }
+html[data-tema="claro"] .tVista { background: repeating-conic-gradient(#0000000a 0 25%, #0000 0 50%) 0 0 / 16px 16px, #ece6f5; }
+.rdVinilo .rfTapa { left: 22%; top: 22%; width: 56%; height: 56%; }
+.rdVinilo .rfGira::after { width: 9%; height: 9%; margin: -4.5% 0 0 -4.5%; }

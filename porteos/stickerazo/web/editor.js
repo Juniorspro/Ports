@@ -6,7 +6,46 @@ export const FUENTES = [
   { id: 'LuckiestGuy', nombre: 'Luckiest Guy' }, { id: 'Bangers', nombre: 'Bangers' }, { id: 'Anton', nombre: 'Anton' },
   { id: 'PermanentMarker', nombre: 'Permanent Marker' }, { id: 'Pacifico', nombre: 'Pacifico' }, { id: 'ComicNeue', nombre: 'Comic xD' },
 ];
-export const COLORES = ['#ffffff', '#111111', '#ffd23f', '#ff3e8a', '#3ec7ff', '#4cd964', '#ff7a1a', '#9b5cff'];
+export const COLORES = ['#ffffff', '#111111', '#ffd23f', '#ff3e8a', '#3ec7ff', '#4cd964', '#ff7a1a', '#9b5cff', '#ff2d2d', '#ffb21a', '#a8f0ff', '#1f6fff', '#00b37a', '#ff8fc7', '#8b5a2b', '#c0c0c0'];
+// (más opciones del texto: grosor del contorno, relleno en degradé, sombra, arco, espaciado; y de cualquier capa: transparencia,
+// espejo y, en las fotos, filtros con brillo, contraste y saturación)
+export const GROSORES = { fino: 0.12, normal: 0.2, grueso: 0.3 };
+export const DEGRADES = { atardecer: ['#ffe14d', '#ff3e8a'], neon: ['#3ec7ff', '#b45cff'], oro: ['#fff3b0', '#ffc93a', '#d97a10'], pasto: ['#d4ff6a', '#1fa35b'],
+  fuego: ['#ffe14d', '#ff2d2d'], hielo: ['#ffffff', '#5ec8ff'], arcoiris: ['#ff3e8a', '#ffb21a', '#ffe14d', '#4cd964', '#3ec7ff', '#9b5cff'] };
+export const FILTROS = { normal: '', bn: 'grayscale(1)', sepia: 'sepia(.85)', vintage: 'sepia(.35) contrast(1.1) saturate(.85) brightness(1.05)',
+  frio: 'hue-rotate(-10deg) saturate(1.15) brightness(1.03)', calido: 'sepia(.22) saturate(1.35) hue-rotate(-6deg)', vivido: 'saturate(1.65) contrast(1.15)', fantasma: 'grayscale(.6) brightness(1.25) contrast(.85)' };
+export const filtroCss = (f) => !f ? '' : [FILTROS[f.preset] || '', f.b && f.b !== 1 ? `brightness(${f.b})` : '', f.c && f.c !== 1 ? `contrast(${f.c})` : '', f.s !== undefined && f.s !== 1 ? `saturate(${f.s})` : ''].filter(Boolean).join(' ');
+const ARCO = 3.2;   // (radio del arco, en tamaños de letra)
+// ---- las «más letras» (web/fuentes_extra.json): se bajan del servidor recién cuando se eligen y quedan guardadas en el celu ----
+let EXTRA = null, BASE_FUENTES = '';
+const cargadas = new Map();
+export function servidorFuentes(url) { BASE_FUENTES = url; fuentesExtra(); }
+/** {muestras, cols, w, h, fuentes: [{id, nombre, cat, archivo, n, licencia}]} */
+export async function fuentesExtra() {
+  if (EXTRA) return EXTRA;
+  try { const d = await (await fetch('./fuentes_extra.json')).json(); if (Array.isArray(d.fuentes)) EXTRA = d; } catch (e) { /* se reintenta la próxima */ }
+  return EXTRA || { fuentes: [] };
+}
+export const nombreFuente = (id) => ((FUENTES.find((f) => f.id === id) || ((EXTRA && EXTRA.fuentes) || []).find((f) => f.id === id) || {}).nombre || id);
+export function cargarFuente(id) {
+  if (!id || FUENTES.some((f) => f.id === id)) return Promise.resolve(true);
+  if (cargadas.has(id)) return cargadas.get(id);
+  const p = (async () => {
+    const f = (await fuentesExtra()).fuentes.find((x) => x.id === id); if (!f || !BASE_FUENTES) return false;
+    const url = BASE_FUENTES + f.archivo; let datos = null;
+    try {
+      const cache = await caches.open('sz-fuentes'); let r = await cache.match(url);
+      if (!r) { r = await fetch(url); if (!r.ok) throw new Error('no'); await cache.put(url, r.clone()); }
+      datos = await r.arrayBuffer();
+    } catch (e) { try { const r = await fetch(url); if (r.ok) datos = await r.arrayBuffer(); } catch (er) { /* sin conexión */ } }
+    if (!datos) return false;
+    const ff = new FontFace(id, datos); await ff.load(); document.fonts.add(ff); return true;
+  })().catch(() => false);
+  cargadas.set(id, p); p.then((ok) => { if (!ok) cargadas.delete(id); });
+  return p;
+}
+/** antes de dibujar un sticker guardado: que estén sus letras */
+export const cargarFuentesDe = (capas) => Promise.all((capas || []).filter((c) => c.tipo === 'texto').map((c) => cargarFuente(c.fuente)));
 export async function cargarFuentes(base) {
   await Promise.all(FUENTES.map(async (f) => { try { const ff = new FontFace(f.id, `url(${base}fuentes/${f.id}.ttf)`); await ff.load(); document.fonts.add(ff); } catch (e) { /* sin esa fuente: la del sistema */ } }));
 }
@@ -111,7 +150,11 @@ export class Sticker {
     const g = Sticker._g || (Sticker._g = lienzo(4, 4).getContext('2d'));
     const fuente = c.tipo === 'emoji' ? `${c.tam}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif` : `${c.tam}px "${c.fuente}", sans-serif`;
     g.font = fuente; const lineas = c.tipo === 'emoji' ? [c.ch] : String(c.texto).split('\n');
+    if ('letterSpacing' in g) g.letterSpacing = c.tipo === 'texto' && c.espaciado ? `${c.espaciado * c.tam}px` : '0px';
     let w = Math.max(...lineas.map((l) => g.measureText(l).width)) + (c.tipo === 'texto' ? c.tam * 0.3 : 0), h = lineas.length * c.tam * 1.08 + c.tam * 0.18;
+    // (en arco: un poco más alto, lo que baja la punta)
+    if (c.tipo === 'texto' && c.curva && lineas.length === 1 && !c.globo && !c.filete) { const R = c.tam * ARCO, th = Math.min(Math.PI * 1.2, (w - c.tam * 0.3) / R); h += R * (1 - Math.cos(th / 2)); }
+    if (c.tipo === 'texto' && c.sombraT === 'dura') { w += c.tam * 0.06; h += c.tam * 0.08; }
     if (c.globo) { w += 52 + 6; h += 28 + 34 + 6; }
     const tw = w; if (c.filete) { w += 2 * ORN * (c.tam / 96); h += 24 * (c.tam / 96) + 2 * 40 * (c.tam / 96); }
     return { w, h, fuente, lineas, tw };
@@ -132,8 +175,10 @@ export class Sticker {
     g.rotate(m.rot || 0);
     const s = m.s || 1; g.scale(c.esc * s * (m.sx || 1), c.esc * s * (m.sy || 1));
     if (m.pivote || m.base) g.translate(0, -piso / c.esc);
-    if (m.alfa !== undefined) g.globalAlpha = m.alfa;
-    if (m.tono && c.tipo !== 'texto') g.filter = `hue-rotate(${m.tono}deg) saturate(1.4)`;
+    if (c.espejo) g.scale(-1, 1);
+    g.globalAlpha = (m.alfa === undefined ? 1 : m.alfa) * (c.alfa === undefined ? 1 : c.alfa);
+    const filtro = [c.tipo === 'img' ? filtroCss(c.filtro) : '', m.tono && c.tipo !== 'texto' ? `hue-rotate(${m.tono}deg) saturate(1.4)` : ''].filter(Boolean).join(' ');
+    if (filtro) g.filter = filtro;
     if (c.tipo === 'img') g.drawImage(c.src, -c.src.width / 2, -c.src.height / 2);
     else {
       g.font = md.fuente; g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -145,17 +190,47 @@ export class Sticker {
         g.save(); voluta(g, x0, hh, k, [ROJO_F, CELESTE_F, VERDE_F][n % 3]); g.scale(-1, 1); voluta(g, x0, hh, k, [CELESTE_F, ROJO_F, VERDE_F][n % 3]); g.restore();
         flor(g, -alto2 - 16 * k, k); guarda(g, md.tw * 0.86, alto2 + 14 * k, k);
       }
-      let quedan = m.letras === undefined ? Infinity : Math.round(m.letras * md.lineas.reduce((n, l) => n + [...l].length, 0));
       let color = c.tipo === 'texto' && m.tono ? `hsl(${m.tono}, 95%, 60%)` : c.color;
       if (c.filete && !m.tono) { const gr = g.createLinearGradient(0, -c.tam * 0.5, 0, c.tam * 0.5); gr.addColorStop(0, '#fff3b0'); gr.addColorStop(0.45, '#ffc93a'); gr.addColorStop(1, '#d97a10'); color = gr; }
-      md.lineas.forEach((l, i) => {
-        const ch = [...l], ver = ch.slice(0, Math.max(0, quedan)).join(''); quedan -= ch.length; if (!ver) return;
-        // (letra por letra: el renglón se escribe desde su lugar final, no corrido al centro)
-        const x = ver.length < l.length ? -g.measureText(l).width / 2 + g.measureText(ver).width / 2 : 0;
-        if (c.tipo === 'texto' && (c.contorno || c.filete)) { g.lineJoin = 'round'; g.miterLimit = 2; g.lineWidth = c.tam * (c.filete ? 0.24 : 0.2); g.strokeStyle = c.filete ? '#3b0d0a' : c.contorno; g.strokeText(ver, x, y0 + i * alto); }
-        g.fillStyle = c.tipo === 'texto' ? color : '#000'; g.fillText(ver, x, y0 + i * alto);
-        if (c.filete) { g.save(); g.globalCompositeOperation = 'source-atop'; g.lineWidth = c.tam * 0.03; g.strokeStyle = 'rgba(255,255,255,0.85)'; g.strokeText(ver, x - c.tam * 0.02, y0 + i * alto - c.tam * 0.035); g.restore(); }
-      });
+      else if (c.tipo === 'texto' && c.degrade && DEGRADES[c.degrade] && !m.tono) {
+        const st = DEGRADES[c.degrade], arriba = y0 - c.tam * 0.5, abajo = y0 + (md.lineas.length - 1) * alto + c.tam * 0.5;
+        const gr = g.createLinearGradient(0, arriba, 0, abajo); st.forEach((col, k) => gr.addColorStop(k / (st.length - 1), col)); color = gr;
+      }
+      const texto = c.tipo === 'texto', grosor = c.filete ? 0.24 : GROSORES[c.grosor] || GROSORES.normal, esp = texto && c.espaciado ? c.espaciado * c.tam : 0;
+      if ('letterSpacing' in g) g.letterSpacing = `${esp}px`;
+      // (una tira de letras en x, y: contorno, relleno y el brillo del filete; «sombra 3D»: la misma tira, oscura y corrida)
+      const pintar = (ver, x, y, oscuro) => {
+        if (texto && (c.contorno || c.filete || oscuro)) { g.lineJoin = 'round'; g.miterLimit = 2; g.lineWidth = c.tam * grosor; g.strokeStyle = oscuro ? 'rgba(0,0,0,0.55)' : c.filete ? '#3b0d0a' : c.contorno; if (c.contorno || c.filete) g.strokeText(ver, x, y); }
+        g.fillStyle = oscuro ? 'rgba(0,0,0,0.55)' : texto ? color : '#000'; g.fillText(ver, x, y);
+        if (c.filete && !oscuro) { g.save(); g.globalCompositeOperation = 'source-atop'; g.lineWidth = c.tam * 0.03; g.strokeStyle = 'rgba(255,255,255,0.85)'; g.strokeText(ver, x - c.tam * 0.02, y - c.tam * 0.035); g.restore(); }
+      };
+      const curvo = texto && c.curva && md.lineas.length === 1 && !c.globo && !c.filete;
+      const tira = (ver, l, i, oscuro) => {
+        if (!curvo) { const x = ver.length < l.length ? -g.measureText(l).width / 2 + g.measureText(ver).width / 2 : 0; return pintar(ver, x, y0 + i * alto, oscuro); }
+        // (en arco: letra por letra sobre un círculo; para arriba ∩ o para abajo ∪)
+        const R = c.tam * ARCO, sg = c.curva > 0 ? 1 : -1, ch = [...l];
+        if ('letterSpacing' in g) g.letterSpacing = '0px';
+        const anchos = ch.map((x) => g.measureText(x).width + esp), total = anchos.reduce((a, b2) => a + b2, 0) - esp, th = Math.min(Math.PI * 1.2, total / R), sag = R * (1 - Math.cos(th / 2));
+        let acc = 0; const n = [...ver].length;
+        ch.forEach((x, k) => {
+          const a = -th / 2 + ((acc + anchos[k] / 2) / total) * th; acc += anchos[k];
+          if (k >= n) return;
+          g.save(); g.translate(R * Math.sin(a), y0 + sg * (R * (1 - Math.cos(a)) - sag / 2)); g.rotate(sg * a); pintar(x, 0, 0, oscuro); g.restore();
+        });
+        if ('letterSpacing' in g) g.letterSpacing = `${esp}px`;
+      };
+      const renglones = (oscuro) => {
+        let q = m.letras === undefined ? Infinity : Math.round(m.letras * md.lineas.reduce((n, l) => n + [...l].length, 0));
+        md.lineas.forEach((l, i) => { const ch = [...l], ver = ch.slice(0, Math.max(0, q)).join(''); q -= ch.length; if (ver) tira(ver, l, i, oscuro); });
+      };
+      if (texto && c.sombraT === 'dura') { g.save(); g.translate(c.tam * 0.06, c.tam * 0.08); renglones(true); g.restore(); }
+      if (texto && c.sombraT === 'suave') {
+        // (la sombra no sigue la escala del lienzo: se calcula con la escala de este momento; y se pinta de nuevo encima, así
+        // la sombra del relleno no ensucia el contorno)
+        const T = g.getTransform(), k = Math.hypot(T.a, T.b);
+        g.save(); g.shadowColor = 'rgba(0,0,0,0.55)'; g.shadowBlur = c.tam * 0.16 * k; g.shadowOffsetY = c.tam * 0.07 * k; renglones(false); g.restore();
+      }
+      renglones(false);
     }
     g.restore();
   }
@@ -225,7 +300,7 @@ export class Sticker {
   }
   static deProyecto(p, imgs) {
     const s = new Sticker(); s.borde = p.borde; s.colorBorde = p.colorBorde; s.sombra = p.sombra;
-    s.capas = p.capas.filter((c) => c.tipo !== 'img' || imgs[c.img]).map((c) => { const { img, ...resto } = c; return c.tipo === 'img' ? { ...resto, src: imgs[img] } : { ...resto }; });
+    s.capas = p.capas.filter((c) => c.tipo !== 'img' || imgs[c.img]).map((c) => { const { img, ...resto } = c; const k = c.tipo === 'img' ? { ...resto, src: imgs[img] } : { ...resto }; if (c.filtro) k.filtro = { ...c.filtro }; return k; });
     return s;
   }
 }

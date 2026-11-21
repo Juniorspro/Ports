@@ -25,7 +25,8 @@ async function delRepo(env, ruta, descarga = false) {
   // (sólo nombres comunes: nada de «..», ni ocultos, ni lo de prueba que empieza con «_»)
   if (!/^(?:[A-Za-z0-9][A-Za-z0-9._-]*\/)*[A-Za-z0-9][A-Za-z0-9._-]*$/.test(ruta) || ruta.includes('..')) return no(404);
   const tipo = TIPOS[ruta.split('.').pop().toLowerCase()]; if (!tipo) return no(404);
-  const corto = /(^|\/)(ota|app)\.json$|\.html$/.test(ruta), seg = corto ? 60 : 300;
+  // (las letras del editor no cambian: una semana; las listas y las páginas, un minuto; lo demás, 5)
+  const corto = /(^|\/)(ota|app)\.json$|\.html$/.test(ruta), seg = corto ? 60 : /^fuentes\/.+\.(woff2|ttf|webp)$/.test(ruta) ? 604800 : 300;
   let r = null;
   try { r = await fetch(`${env.SZ_REPO || REPO}${env.SZ_RAMA || RAMA}/porteos/stickerazo/${ruta}`, { cf: { cacheTtl: seg, cacheEverything: true }, ...(descarga ? {} : { signal: AbortSignal.timeout(15000) }) }); } catch (e) { r = null; }
   if (!r || !r.ok) return no(r && r.status === 404 ? 404 : 502);
@@ -196,6 +197,8 @@ async function manejar(req, env, ctx, base) {
       if (ruta.startsWith('/a/')) return delRepo(env, 'sitio/a/' + ruta.slice(3));
       // las actualizaciones de la app (lo mismo que web/ en el repo) y el APK de ahora con sus datos
       if (ruta.startsWith('/web/')) return delRepo(env, 'web/' + ruta.slice(5));
+      // las «más letras» del editor (fuentes/ del repo: no van en la app, se bajan cuando alguien elige una)
+      if (ruta.startsWith('/fuentes/')) return delRepo(env, 'fuentes/' + ruta.slice(9));
       if (ruta === '/app.json') return delRepo(env, 'descargas/app.json');
       if (ruta === '/descargar' || ruta === '/Stickerazo.apk') return delRepo(env, 'descargas/Stickerazo.apk', true);
       // las páginas legales y el contacto (sitio/*.html del repo; si GitHub no contesta, las cortitas de acá)

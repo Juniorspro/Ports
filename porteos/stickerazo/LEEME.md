@@ -22,6 +22,17 @@ casi todo pago, mucha publicidad, cobros de suscripciones). Lo nuestro:
   y WhatsApp lo vuelve a leer.
 - **Emojis automáticos** según lo que dice («jaja» → 😂, «mate» → 🧉, «milanesa» → 🍕), para que WhatsApp lo sugiera.
 - **Frases listas** de acá y **globo de diálogo**.
+- **490 letras**: las 6 de la app y 484 más de Google Fonts (`herramientas/fuentes_extra.py`): 161 divertidas,
+  116 a mano, 48 gruesas, 59 retro, 42 elegantes y 58 modernas, con buscador. No van en la app: viven en
+  `fuentes/` (27,9 MB en total), se bajan del servidor (`/sz/fuentes/`) recién al elegir una y quedan guardadas en el
+  celu. El selector las muestra con su forma usando una imagen de muestras por tipo (`herramientas/muestras_fuentes.mjs`,
+  744 KB las 6, usadas de máscara: sirven en los dos temas), que se baja recién cuando aparece una de ese tipo.
+  Licencias: las que tienen «nombre reservado» en la OFL (125) van tal cual, el .ttf original sin tocar; las demás,
+  recortadas a caracteres latinos en WOFF2 (unos 30 KB cada una). Las variables con nombre reservado quedaron afuera.
+- **El texto, a fondo**: vista de cómo queda mientras escribís; color propio y degradés (atardecer, neón, oro, fuego…);
+  contorno de 8 colores y 3 grosores; sombra suave o 3D; en arco (∩) o en sonrisa (∪); letras juntas o separadas.
+- **«Ajustes»** de lo que tocaste: al frente o al fondo, duplicar, espejo, opacidad y, en las fotos, 8 filtros (B y N,
+  sepia, vintage, frío, cálido, vívido…) más brillo, contraste y color. Todo queda en el proyecto y se vuelve a editar.
 - **Packs listos editables** (`web/listos.js`, contenido nuestro: 5 packs, 36 stickers, uno animado) y **búsqueda**
   por palabra o por emoji en los listos y en los tuyos.
 - Sin cuenta, sin marca de agua, y las fotos no salen del celular.
@@ -81,7 +92,11 @@ La app lo busca en `https://stickerazo.<tu subdominio>.workers.dev` (`web/comuni
   una sola vez (`/api/evento`). Sus stickers giran pegados a un termo 3D (hecho con IA, mostrado con Three.js; si no hay
   WebGL, uno de CSS) y a los que recién bajan la app se los recomendamos primero en «Para vos». Tienen la insignia del termo.
 - **Ocultar** un pack propio de la comunidad sin borrarlo, **sacarlo** del servidor, y **«No me interesa»** para los ajenos.
-- **Música de tu país**: géneros de cada país y un buscador; suena en el reproductor oficial de YouTube, flotando y movible.
+- **Música de tu país**: géneros de cada país y un buscador; suena en el reproductor oficial de YouTube, flotando y movible,
+  como un tocadiscos: el video es la tapa y el vinilo, con la portada, sale por arriba y gira mientras suena. Con ▾ se
+  achica a un disquito abajo que no molesta; achicado queda **en pausa** y al tocarlo sigue, porque YouTube no permite
+  que suene con el reproductor escondido o de menos de 200×200 (si lo hiciéramos, cortan el acceso y las tiendas
+  rechazan la app). Música sonando de fondo con el disco chico sólo se puede con canciones propias o con licencia.
 - **Modo claro, oscuro o como el celular**, con un círculo que se abre desde el dedo al cambiarlo.
 - **Perfil animado**: sus stickers flotando en la portada, un anillo de colores que gira y los números que suben.
 - **Foto y portada propias**: se eligen de la galería, se recortan al centro en el celu (foto 400×400, portada
