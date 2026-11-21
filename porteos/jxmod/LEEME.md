@@ -5227,6 +5227,36 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     como un jugador, ~1 GB la primera vez). DrGBase, Cartoon Cat, Doro y SCP-049 (los de `nextbots_ia.mjs`) no usan
     `EnableMatrix`: para ellos no cambia nada. `pepe_vuelve` 13/13, `codigo_tragado` bien.
 
+## JXMod 3.9.11 (sin publicar todavía): lo de «Bugs y sugerencias» del 21/11
+
+- **Bugs:**
+  - «Mapa sin texturas» (la casa de SMG4: es «The Showgrounds - SMG4», `gmod.js` `gmMapaDeps`): sus texturas vienen en
+    otro addon de 731 MB que el tope de dependencias (60/200 MB) no bajaba, y el aviso de 6 s no se entendía. Ahora, al
+    entrar a un mapa al que le falta contenido pedido, después de la pantalla de carga un cartel dice cuántos paquetes y
+    MB son y ofrece «Bajar»; llegado, se olvidan las texturas y modelos faltantes y el mapa se vuelve a armar. Una vez por
+    sesión por mapa. Prueba `pruebas/mapa_deps.mjs` 7/7 (un mapa chico con un paquete de 55 MB puesto como requerido).
+  - «Pee swep no funciona» (Workshop 3697627138, `gmod_api.js`, `gmod_cargar.js`): `ents.CreateClientside` hace una
+    entidad sólo del cliente (una tabla, sólo su Initialize/Think de cliente); el Think del server leía `DelayPissOwner`
+    vacío. Y las trazas de largo cero (`start = endpos`, «¿esto toca algo?») miden desde donde estaba la entidad antes del
+    `SetPos`: el chorro cae en arco y salpica en el piso.
+  - «Doudou Pet se bugea al agarrarlo» (Workshop 3807567165): faltaba la biblioteca `utf8` de GMod (char, charpattern,
+    codepoint, codes, len, offset, force, GetChar, sub) y el mod la usa al armar el nombre del gato, que es lo primero que
+    hace al agarrarlo. Además `HasWeapon` reconoce las armas del juego (`weapon_physgun`…): al bajarlo vuelve la que tenías.
+    Prueba `pruebas/doudou_agarrar.mjs` 9/9 (agarrar con E, acariciar, caminar, bajar con click derecho y con R). Falta:
+    en primera persona el gato en brazos se ve sólo como una oreja (el mod lo dibuja con su propio IK de brazos).
+- **Sugerencias:**
+  - «Registro de actualizaciones y aviso» (`panel_juego.js`, `novedades.js`): pestaña «Novedades» en «Bugs y
+    sugerencias» con todas las versiones (24, de la 3.0 a la última), sacadas por `herramientas/novedades.py` del historial
+    de `web/version.json` sin las instrucciones de instalación (se corre antes de cada versión). Y si publicaste hace poco,
+    arriba del formulario «Esperá 2:41 para volver a publicar un bug / una idea» bajando solo, con Publicar apagado hasta
+    que se pueda. Prueba `pruebas/bugs_espera.mjs` 14/14.
+  - «Mejor chat» (`ui.js`, `red.js`): cada mensaje con fondo y el nombre con el color de esa persona, lo tuyo y lo del
+    juego distinguidos, resaltado si te nombran; abierto, el historial (60) con la hora para subir y el cuadro con una
+    ayuda; y el globito con lo que dijo arriba de la cabeza de cada jugador (7 s). Prueba `pruebas/chat_mejor.mjs` 12/12.
+- Herramienta `pruebas/mod_sonda.mjs`: cualquier addon del Workshop como lo baja el jugador, sus armas y entidades
+  probadas una por una, con los errores de Lua de cada paso.
+- Aviso: `memes.mjs` ya fallaba antes en un chequeo de la ubicación del botón de memes en el celular (no es de esto).
+
 ## JXMod 3.9.10: lo de «Bugs y sugerencias» después de la 3.9.9
 
 - Publicada con el paquete pk39e. APK 3.9.10 (versionCode 26112102, misma firma) con `ota_base.json` que coincide con

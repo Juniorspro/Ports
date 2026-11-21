@@ -420,7 +420,11 @@ function redMensaje(topic, m) {
   else if (sub === 'a') { if (!hostHecho(d)) recibirHecho(d); }
   else if (sub === 'cfg') recibirCfg(d);
   else if ((sub === 'g' || sub === 'gl') && typeof gmSrvMensaje === 'function') gmSrvMensaje(sub, d);   // (addons de GMod del server: pedidos, votos y la lista)
-  else if (sub === 'c' && typeof d.t === 'string') { chatMostrar(censurar(limpio(d.n)), censurar(limpio(d.t, 120)), typeof d.id === 'string' ? d.id.slice(0, 12) : null, d.i); }   // (la censura también acá: por si el otro tiene una versión vieja)
+  else if (sub === 'c' && typeof d.t === 'string') {
+    const txt = censurar(limpio(d.t, 120)); chatMostrar(censurar(limpio(d.n)), txt, typeof d.id === 'string' ? d.id.slice(0, 12) : null, d.i);
+    // (y en un globito arriba de su cabeza, 7 s: se ve quién habla)
+    const R2 = RED.remotos.get(d.i); if (R2 && R2.tag) { R2.globo = txt.length > 60 ? txt.slice(0, 58) + '…' : txt; R2.globoHasta = TIEMPO.t + 7; R2.tagK = null; etiquetaRemota(R2); }
+  }   // (la censura también acá: por si el otro tiene una versión vieja)
 }
 // el addon del Workshop de un modelo de jugador de GMod ('gmpm:<ruta>'), para que los demás lo bajen; 0 si no hay
 function redSkinWid(k) {
@@ -507,8 +511,8 @@ function recibirEstado(d) {
 }
 // nombre arriba del jugador con los íconos de los mods que usa (se rehace sólo si cambió)
 function etiquetaRemota(R2) {
-  const icos = R2.icos || [], k = R2.nombre + '|' + icos.map((v) => v.length + v.slice(-12)).join(','); if (R2.tagK === k) return; R2.tagK = k;
-  R2.tag.innerHTML = `<span dir="auto">${esc(R2.nombre)}</span>${icos.map((v) => icoHTML(v, 'tagIco')).join('')}`;
+  const icos = R2.icos || [], k = R2.nombre + '|' + icos.map((v) => v.length + v.slice(-12)).join(',') + '|' + (R2.globo || ''); if (R2.tagK === k) return; R2.tagK = k;
+  R2.tag.innerHTML = `${R2.globo ? `<b class="tagGlobo" dir="auto">${esc(R2.globo)}</b>` : ''}<span dir="auto">${esc(R2.nombre)}</span>${icos.map((v) => icoHTML(v, 'tagIco')).join('')}`;
 }
 // ---------------- dónde se dibuja a otro jugador ----------------
 // Antes: hacia la última posición que llegó, adelantada con la mitad de su velocidad. Entre un estado y el siguiente
@@ -605,7 +609,8 @@ function remotoPaso(R2, dt) {
   // la cápsula a la medida del personaje (1,8 m en el de siempre; los pies quedan en el mismo lugar)
   const tk = P.tam || 1; if (R2.b.capK !== tk) { const r = Math.min(0.4, 0.9 * tk); R2.b.shape = capsuleShape(r, Math.max(0.01, 0.9 * tk - r)); R2.b.capK = tk; }
   R2.b.pos.set(P.pos.x, P.pos.y - 0.9 + 0.9 * tk, P.pos.z); R2.b.updateWorld(); R2.b.noRay = rag || esp; R2.b.noPhys = rag || esp; R2.b.noJug = rag || esp || !!P.escena || !!(P.jntFin && TIEMPO.t < P.jntFin) || TIEMPO.t - (R2.nace || 0) < 3; // tirado: sólo el muñeco choca (y se puede agarrar); recién llegado (3 s), no empuja a nadie: si apareció encima de otro, se corre él (redLugarRevisar)
-  // etiqueta con el nombre sobre la cabeza
+  // etiqueta con el nombre sobre la cabeza (y el globito del chat, hasta que se le pasa el tiempo)
+  if (R2.globo && TIEMPO.t > (R2.globoHasta || 0)) { R2.globo = null; R2.tagK = null; etiquetaRemota(R2); }
   const cp = vadd(P.pos, v3(0, -0.65 + 1.9 * tk, 0)), cl = clipDe(cp);
   etiquetaMover(R2.tag, cl && !esp && cp.distTo(CAM.pos) < 60 ? cl : null);
 }

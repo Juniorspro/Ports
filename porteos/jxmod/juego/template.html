@@ -189,6 +189,10 @@ body.pvGrita #hud,body.pvGrita #tactil,body.pvGrita #arribaIz,body.pvGrita #mira
 .bgSumar .gli{width:36%;height:36%}.bgSumar input{display:none}.bgSumar:hover{border-color:var(--pnA,#2c7ccc);color:var(--pnT,#222)}
 .bgErr{color:var(--pnRo,#c62828);font:700 var(--pnFs,14px) var(--pnFr,Roboto,Arial,sans-serif);margin:0}.bgSube{color:var(--pnA,#1d5a96);font:700 var(--pnFs,14px) var(--pnFr,Roboto,Arial,sans-serif);margin:0}
 .rbPan_bugs .rbAyudaC{color:var(--pnT3,#666);font-size:max(13px,calc(var(--pnFs,14px) - 1px))}
+.bgEspera{display:flex;align-items:center;gap:8px;margin:0 0 4px;padding:10px 12px;border:1px solid var(--pnA,#2c7ccc);background:rgba(44,124,204,.08);color:var(--pnT,#222);font:700 var(--pnFs,14px)/1.3 var(--pnFr,Roboto,Arial,sans-serif)}.bgEspera .gli{width:20px;height:20px;flex:none;color:var(--pnA,#2c7ccc)}.bgEsperaTxt{font-variant-numeric:tabular-nums}
+.bgNov{display:flex;flex-direction:column;gap:10px}.bgNovItem{padding:10px 12px;border:1px solid var(--pnLin2,#999);background:var(--pnFondo2,rgba(0,0,0,.03))}.bgNovItem.nueva{border-color:var(--pnA,#2c7ccc)}
+.bgNovCab{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.bgNovCab b{font:700 var(--pnFm,17px)/1.2 var(--pnFr,Roboto,Arial,sans-serif);color:var(--pnT,#222)}.bgNovCab i{font-style:normal;font:700 11px/1 var(--pnF,Roboto,Arial,sans-serif);text-transform:uppercase;padding:3px 6px;background:var(--pnA,#2c7ccc);color:#fff}.bgNovCab small{margin-left:auto;color:var(--pnT2,#666);font-size:max(12px,calc(var(--pnFs,14px) - 2px))}
+.bgNovItem p{margin:6px 0 0;color:var(--pnT2,#444);font:400 var(--pnFs,14px)/1.4 var(--pnFr,Roboto,Arial,sans-serif)}
 .bgVer .bgCab h3{margin:8px 0 3px;font:700 var(--pnFg,22px)/1.2 var(--pnFr,Roboto,Arial,sans-serif);color:var(--pnT,#222)}.bgVer .bgCab small{color:var(--pnT2,#666);font-size:var(--pnFs,14px)}
 .bgTxt{white-space:pre-line;font:400 var(--pnFt,16px)/1.45 var(--pnFr,Roboto,Arial,sans-serif);color:var(--pnT,#222);margin:0}
 .bgGal{display:flex;gap:8px;flex-wrap:wrap}.bgGal img,.bgGal video{max-width:100%;max-height:calc(var(--vh)*50);background:#000;border:1px solid var(--pnLin,#ccc)}
@@ -796,7 +800,7 @@ body.tactil .gmbBt img{width:calc(var(--vh)*4.2);height:calc(var(--vh)*4.2)}body
 #modMenu .mmIt.mmCat:not([data-mm^="mod:"])::after,#modMenu .mmIt:not([data-mm])::after{display:none}
 #modMenu .mmFz{padding:4px 6px;background:#262b36;border-radius:8px;gap:8px}#modMenu .mmFz .mmFzIco .ico{width:24px;height:24px;display:block}#modMenu .mmFz b{width:96px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff;font-size:12px}
 @media (max-height:500px){#modMenu{width:min(600px,calc(100vw - 20px))}#modMenu .mmLista{grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:5px}#modMenu .mmIt{min-height:80px;padding:6px 3px 4px;gap:3px}#modMenu .mmIt .mmIco .ico{width:34px;height:34px}#modMenu .mmIt .mmTx b{font-size:11px}}
-.tagIco{width:16px;height:16px;margin-inline-start:3px;vertical-align:-3px}.cartelIco{width:30px;height:30px;display:block;margin:0 auto 3px}
+.tagIco{width:16px;height:16px;margin-inline-start:3px;vertical-align:-3px}.tagGlobo{display:block;width:max-content;max-width:min(240px,calc(var(--vw)*45));margin:0 auto 5px;padding:5px 9px;border-radius:12px;background:#fff;color:#111;font:700 13px/1.3 Roboto,Arial,sans-serif;text-shadow:none;white-space:normal;overflow-wrap:anywhere;position:relative;box-shadow:0 3px 10px rgba(0,0,0,.35)}.tagGlobo::after{content:'';position:absolute;left:50%;bottom:-6px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:#fff}.cartelIco{width:30px;height:30px;display:block;margin:0 auto 3px}
 .etiqueta.cartelT{font-size:15px;max-width:240px;white-space:normal;text-align:center;color:#fff}.etiqueta.cartelT span{display:block}
 /* radio de YouTube: reproductor chico en la esquina y panel de búsqueda */
 /* el reproductor de YouTube de la radio suena pero no se ve (detrás de todo y transparente) */
@@ -1049,7 +1053,7 @@ body.conPant{background:transparent}
   #intro .inSale{opacity:0}#intro.va .inSale{animation:inQuieta 1.15s linear both}#intro.va{animation-delay:1.15s}}
 #carga.introFin .dLogo{animation:cgEntra2 .6s cubic-bezier(.2,.9,.25,1) both}@keyframes cgEntra2{from{opacity:0;transform:translateY(-8px)}}
 .etiqueta.monitor{padding:4px 8px;border-radius:2px;font-size:13px;max-width:180px;white-space:normal;text-align:center}
-.etiqueta{position:absolute;left:0;top:0;font-size:12px;font-weight:bold;text-shadow:0 1px 3px #000;white-space:nowrap;pointer-events:none;will-change:transform}
+.etiqueta{position:absolute;left:0;top:0;font-size:12px;font-weight:bold;text-shadow:0 1px 3px #000;white-space:nowrap;text-align:center;pointer-events:none;will-change:transform}
 #redEst{position:absolute;left:10px;top:66px;font-size:10px;opacity:.8;text-shadow:0 1px 2px #000}
 /* quién habla (voz.js): panel en su propia capa; las fichas entran con una animación y se van con un fundido */
 #vozHud{position:absolute;display:flex;gap:6px;pointer-events:none;z-index:3;will-change:transform;contain:layout style}
@@ -1064,8 +1068,11 @@ body.conPant{background:transparent}
 body.tactil #vozHud .vozF{font-size:11px}body.tactil #vozHud .vozAv{width:22px;height:22px}
 
 body.tactil #redEst{left:50%;top:4px;transform:translateX(-50%);white-space:nowrap}
-#chat{position:absolute;left:10px;bottom:26px;width:min(360px,calc(var(--vw)*70));font-size:12px;text-shadow:0 1px 2px #000}
-#chat div{margin:1px 0}
+#chat{position:absolute;left:10px;bottom:26px;width:min(380px,calc(var(--vw)*70));font-size:13px;text-shadow:0 1px 2px #000;display:flex;flex-direction:column;align-items:flex-start;gap:3px;pointer-events:none}
+#chat .chL{max-width:100%;padding:3px 8px;border-radius:9px;background:rgba(0,0,0,.42);line-height:1.35;overflow-wrap:anywhere;color:#f2f2f2}#chat .chL b{font-weight:800}
+#chat .chL.yo{background:rgba(40,30,0,.5)}#chat .chL.sis{font-style:italic;color:#cfe6ff;background:rgba(0,20,40,.45)}#chat .chL.menc{background:rgba(255,210,63,.22);box-shadow:inset 3px 0 0 #ffd23f}
+#chat .chH{font-style:normal;color:#aaa;font-size:11px;margin-right:6px}
+#chat.abierto{bottom:76px;max-height:calc(var(--vh)*45);overflow-y:auto;pointer-events:auto;padding:8px;border-radius:12px;background:rgba(0,0,0,.55);box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:6}
 #chat .chMm{display:inline-flex;align-items:center;gap:5px}#chat .chMm i{width:11px;height:11px;border-radius:50%;box-shadow:inset 0 -2px 2px rgba(0,0,0,.35),0 0 0 1.5px rgba(255,255,255,.6);flex:none}#chat .chMm b{color:#ffe082}
 /* la bomba de Rick Prime: a quién borrar, y el destello verde */
 .omegaCaja{width:min(620px,calc(var(--vw)*92))}.omegaCaja h3{color:#7dff6a;margin:0 0 4px}.omegaCaja p{margin:0 0 8px;color:#bbb;font-size:12.5px}
@@ -1140,7 +1147,7 @@ body.menuEncima .verPan,body.menuEncima #armaAjPan,body.menuEncima #jntCartel,bo
 .mmVacio{grid-column:1/-1;color:#aaa;padding:18px 4px;text-align:center}
 .mmPie{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.mmPie label{font-size:12.5px;display:flex;align-items:center;gap:5px}.mmAviso{flex:1;color:#ffb74d;font-size:12px;min-width:60px}
 @media (max-height:500px){.mmGrid{grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:4px;max-height:calc(var(--vh)*58)}.mmBot{width:42px;height:42px}.memeCaja{padding:6px 8px!important}}
-#chatIn{position:fixed;left:10px;bottom:30px;width:min(420px,calc(var(--vw)*80));z-index:6;background:rgba(0,0,0,.6);border:1px solid #888;color:#fff;padding:8px;font-size:14px}
+#chatIn{position:fixed;left:10px;bottom:30px;width:min(400px,calc(var(--vw)*80));z-index:6;background:rgba(10,10,14,.85);border:2px solid #ffd23f;border-radius:12px;color:#fff;padding:10px 12px;font-size:15px;box-shadow:0 6px 18px rgba(0,0,0,.45);outline:none}#chatIn::placeholder{color:#aaa}
 .skins{display:flex;flex-wrap:wrap;gap:6px;max-width:520px}
 .emoMis{position:absolute;right:4px;top:4px;display:flex;gap:3px}.emoMis button{background:rgba(20,22,28,.8);border:0;color:#fff;border-radius:6px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}.emoMis .gli{width:14px;height:14px}
 /* editor de animaciones */

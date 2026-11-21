@@ -308,9 +308,28 @@ const bugMedia = (id) => ordBase() + 'media/' + id;
 const bugCorto = (t, n) => { t = String(t || '').replace(/\s+/g, ' ').trim(); if (t.length <= n) return t; const c = t.slice(0, n), i = c.lastIndexOf(' '); return (i > n * 0.6 ? c.slice(0, i) : c).replace(/[\s,.;:]+$/, '') + '…'; };
 // (para que no se sature: el servidor deja una cada 3 minutos; acá se avisa antes de subir las fotos)
 const BUG_ESPERA = 3 * 60e3;
+// cuánto falta para poder publicar otra (lo que dijo el servidor la última vez —una cada 3 min, 4 por hora, 10 por día—
+// queda en jx_bug_ult), y el texto del aviso: «Esperá 2:41 para volver a publicar un bug / una idea»
+function bugEsperaMs() { let ult = 0; try { ult = +localStorage.getItem('jx_bug_ult') || 0; } catch (e) { /* sin lugar */ } return Math.max(0, BUG_ESPERA - (Date.now() - ult)); }
+function bugEsperaTexto(tipo) {
+  const s = Math.ceil(bugEsperaMs() / 1000), t = s >= 3600 ? Math.floor(s / 3600) + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + ' h' : Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  return T(tipo === 'sug' ? 'bg.esperaSug' : 'bg.esperaBug').replace('%s', t);
+}
+// (mientras el formulario está abierto y hay que esperar: el número baja cada segundo, y al llegar a cero se prende Publicar)
+let BUG_RELOJ = 0;
+function bugEsperaReloj() {
+  clearInterval(BUG_RELOJ); BUG_RELOJ = 0;
+  if (!BUG.form || bugEsperaMs() <= 0) return;
+  BUG_RELOJ = setInterval(() => {
+    const e = RB.panel === 'bugs' && RB.el && RB.el.querySelector('.bgEsperaTxt');
+    if (!BUG.form || RB.panel !== 'bugs' || !e) { clearInterval(BUG_RELOJ); BUG_RELOJ = 0; return; }
+    if (bugEsperaMs() <= 0) { clearInterval(BUG_RELOJ); BUG_RELOJ = 0; inicioPanel('bugs'); return; }
+    e.textContent = bugEsperaTexto(BUG.form.tipo);
+  }, 1000);
+}
 const BUG_EST = { nuevo: '#9aa3b2', visto: '#5fa8ff', en_curso: '#ffb84d', hecho: '#5fd36a', no: '#ff6b6b' };
 function panelBugs(P) {
-  const tabs = [['bug', 'bg.bugs', 'bicho'], ['sug', 'bg.sugs', 'foco']];
+  const tabs = [['bug', 'bg.bugs', 'bicho'], ['sug', 'bg.sugs', 'foco'], ['nov', 'bg.novedades', 'estrella']];
   const cab = `<div class="rbPanCab">${glifo('bicho')} ${esc(T('m.bugs'))}<span class="rbTabs">${tabs.map(([k, t, g]) => `<button class="rbTab${BUG.tipo === k && !BUG.form ? ' sel' : ''}" data-rb="bg:tab|${k}">${glifo(g)} ${esc(T(t))}</button>`).join('')}</span></div>`;
   let cuerpo = '', pie = '';
   if (BUG.form) {
@@ -322,7 +341,9 @@ function panelBugs(P) {
       <div class="bgAdj">${F.archivos.map((a, i) => `<div class="bgMini">${a.url ? (a.vid ? `<video src="${a.url}" muted></video>` : `<img src="${a.url}" alt="">`) : ''}<button data-rb="bg:sacar|${i}">×</button></div>`).join('')}
         ${F.archivos.length < 4 ? `<label class="bgSumar">${glifo('camara')}<span>${esc(T('bg.adjuntar'))}</span><input type="file" accept="image/*,video/*" multiple class="bgArch"></label>` : ''}</div>
       <p class="rbAyudaC">${esc(T('bg.ayuda'))}</p>${BUG.error ? `<p class="bgErr">${esc(BUG.error)}</p>` : ''}${BUG.subiendo ? `<p class="bgSube">${esc(BUG.subiendo)}</p>` : ''}</div>`;
-    pie = `<div class="rbPanPie"><button class="rbBtnGris" data-rb="bg:cancelar">${glifo('atras')} ${esc(T('cancelar'))}</button><span class="rbEsp"></span><button class="rbBtnG"${BUG.subiendo ? ' disabled' : ''} data-rb="bg:publicar">${glifo('subir')} ${esc(T('bg.publicar'))}</button></div>`;
+    // (si todavía no se puede publicar otra: arriba de todo, cuánto falta, bajando solo; Publicar queda apagado hasta entonces)
+    if (bugEsperaMs() > 0) cuerpo = cuerpo.replace('<div class="rbPanCuerpo bgForm">', `<div class="rbPanCuerpo bgForm"><p class="bgEspera">${glifo('reloj')} <span class="bgEsperaTxt">${esc(bugEsperaTexto(F.tipo))}</span></p>`);
+    pie = `<div class="rbPanPie"><button class="rbBtnGris" data-rb="bg:cancelar">${glifo('atras')} ${esc(T('cancelar'))}</button><span class="rbEsp"></span><button class="rbBtnG"${BUG.subiendo || bugEsperaMs() > 0 ? ' disabled' : ''} data-rb="bg:publicar">${glifo('subir')} ${esc(T('bg.publicar'))}</button></div>`;
   } else if (BUG.ver) {
     const p = BUG.ver;
     cuerpo = `<div class="rbPanCuerpo bgVer"><div class="bgCab"><span class="bgEst" style="--c:${BUG_EST[p.estado] || '#999'}">${esc(T('bg.e.' + p.estado))}</span><h3>${esc(p.titulo)}</h3>
@@ -332,6 +353,11 @@ function panelBugs(P) {
       ${p.respuesta ? `<div class="bgResp"><b>${glifo('chat')} ${esc(T('bg.respDe').replace('%s', p.resp_de || 'JXMod'))}</b><p>${esc(p.respuesta)}</p></div>` : ''}</div>`;
     pie = `<div class="rbPanPie"><button class="rbBtnGris" data-rb="bg:lista">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span>
       <button class="rbBtnGris${BUG.votos[p.id + 'l'] ? ' sel' : ''}" data-rb="bg:like|${p.id}">${glifo('corazon')} ${p.likes + (BUG.votos[p.id + 'l'] ? 1 : 0)}</button><button class="rbBtnGris" data-rb="bg:denunciar|${p.id}">${glifo('prohibido')}</button></div>`;
+  } else if (BUG.tipo === 'nov') {
+    // (el registro de actualizaciones: cada versión con lo que trajo, la más nueva arriba —juego/novedades.js—)
+    const L = typeof NOVEDADES !== 'undefined' ? NOVEDADES : [], en = PREFS.lang !== 'es' && PREFS.lang !== 'pt';
+    cuerpo = `<div class="rbPanCuerpo bgNov">${L.length ? L.map((n, i) => `<div class="bgNovItem${i ? '' : ' nueva'}"><div class="bgNovCab"><b>JXMod ${esc(n.v)}</b>${i ? '' : `<i>${esc(T('bg.tuVersion'))}</i>`}<small>${esc(n.f)}</small></div><p>${esc(en ? n.en : n.es)}</p></div>`).join('') : `<p class="rbAyudaC">${esc(T('bg.sinNovedades'))}</p>`}</div>`;
+    pie = `<div class="rbPanPie"><button class="rbBtnGris" data-rb="volver">${glifo('atras')} ${esc(T('volver'))}</button><span class="rbEsp"></span></div>`;
   } else {
     const L = BUG.posts;
     cuerpo = `<div class="rbPanCuerpo bgLista"><div class="bgOrden"><button class="${BUG.orden === 'nuevo' ? 'sel' : ''}" data-rb="bg:orden|nuevo">${esc(T('bg.nuevos'))}</button><button class="${BUG.orden === 'pop' ? 'sel' : ''}" data-rb="bg:orden|pop">${esc(T('bg.populares'))}</button></div>
@@ -348,7 +374,8 @@ function panelBugs(P) {
     for (const e of [ti, tx]) e.addEventListener('keydown', (ev) => ev.stopPropagation());
     if (ar) ar.onchange = () => { for (const f of [...ar.files].slice(0, 4 - BUG.form.archivos.length)) bugSumar(f); inicioPanel('bugs'); };
   }
-  if (!BUG.form && !BUG.ver && !BUG.listo && !BUG.cargando) bugCargar(true);   // (una vez por pestaña y orden: vacía también es cargada)
+  if (!BUG.form && !BUG.ver && !BUG.listo && !BUG.cargando && BUG.tipo !== 'nov') bugCargar(true);
+  bugEsperaReloj();   // (una vez por pestaña y orden: vacía también es cargada)
 }
 async function bugCargar(nuevo) {
   if (BUG.cargando) return; BUG.cargando = true; BUG.listo = true; BUG.error = ''; if (nuevo) { BUG.p = 0; BUG.posts = []; BUG.mas = true; }
@@ -391,8 +418,7 @@ async function bugPublicar() {
   const F = BUG.form; if (!F || BUG.subiendo) return;
   if (String(F.titulo).trim().length < 3) { BUG.error = T('bg.faltaTit'); inicioPanel('bugs'); return; }
   if (typeof cuentaPedir === 'function' && !cuentaPedir('bugs', () => bugPublicar())) return;
-  let ult = 0; try { ult = +localStorage.getItem('jx_bug_ult') || 0; } catch (e) { /* sin lugar */ }
-  if (Date.now() - ult < BUG_ESPERA) { BUG.error = T('bg.espera').replace('%s', Math.ceil((BUG_ESPERA - (Date.now() - ult)) / 60e3)); inicioPanel('bugs'); return; }
+  if (bugEsperaMs() > 0) { inicioPanel('bugs'); return; }
   BUG.error = '';
   try {
     const media = [];
@@ -402,7 +428,7 @@ async function bugPublicar() {
     const r = await bugApi('post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo: F.tipo, titulo: F.titulo, texto: F.texto, media, version: typeof JX_VERSION !== 'undefined' ? JX_VERSION : '', lugar, nombre: PREFS.nombre || '' }) });
     const d = await r.json().catch(() => ({}));
     if (r.status === 401 && d.cuenta && typeof cuDialogo === 'function') { BUG.subiendo = ''; cuDialogo('bugs', () => bugPublicar()); inicioPanel('bugs'); return; }
-    if (r.status === 429 && d.espera) try { localStorage.setItem('jx_bug_ult', String(Date.now() - BUG_ESPERA + d.espera * 1000)); } catch (e) { /* sin lugar */ }
+    if (r.status === 429 && d.espera) { try { localStorage.setItem('jx_bug_ult', String(Date.now() - BUG_ESPERA + d.espera * 1000)); } catch (e) { /* sin lugar */ } BUG.subiendo = ''; inicioPanel('bugs'); return; }
     if (!r.ok || !d.id) throw new Error(d.error || ('error ' + r.status));
     for (const a of F.archivos) URL.revokeObjectURL(a.url);
     try { localStorage.setItem('jx_bug_ult', String(Date.now())); } catch (e) { /* sin lugar */ }
@@ -413,10 +439,10 @@ async function bugPublicar() {
 async function bugsAccion(v, b) {
   const [a, x] = String(v || '').split('|');
   switch (a) {
-    case 'tab': BUG.tipo = x === 'sug' ? 'sug' : 'bug'; BUG.ver = null; BUG.form = null; BUG.posts = []; BUG.error = ''; BUG.listo = false; return inicioPanel('bugs');
+    case 'tab': BUG.tipo = x === 'sug' || x === 'nov' ? x : 'bug'; BUG.ver = null; BUG.form = null; BUG.posts = []; BUG.error = ''; BUG.listo = false; return inicioPanel('bugs');
     case 'orden': BUG.orden = x === 'pop' ? 'pop' : 'nuevo'; BUG.posts = []; BUG.error = ''; BUG.listo = false; return inicioPanel('bugs');
     case 'mas': return bugCargar(false);
-    case 'nuevo': BUG.form = { tipo: BUG.tipo, titulo: '', texto: '', archivos: [] }; BUG.error = ''; return inicioPanel('bugs');
+    case 'nuevo': BUG.form = { tipo: BUG.tipo === 'sug' ? 'sug' : 'bug', titulo: '', texto: '', archivos: [] }; BUG.error = ''; return inicioPanel('bugs');
     case 'ftipo': BUG.form.tipo = x === 'sug' ? 'sug' : 'bug'; return inicioPanel('bugs');
     case 'sacar': { const r = BUG.form.archivos.splice(+x, 1)[0]; if (r) URL.revokeObjectURL(r.url); return inicioPanel('bugs'); }
     case 'cancelar': if (BUG.form) for (const r of BUG.form.archivos) URL.revokeObjectURL(r.url); BUG.form = null; BUG.error = ''; return inicioPanel('bugs');
@@ -440,7 +466,10 @@ Object.assign(IDI3, {
   'av.activoAbierto': ['Te avisamos con el juego abierto, aunque estés en otra pestaña.', 'We notify you while the game is open, even in another tab.', 'Avisamos com o jogo aberto, mesmo em outra aba.', 'Kami beri tahu selama game terbuka, meski di tab lain.', 'Kami maklumkan semasa permainan dibuka, walaupun di tab lain.', 'Aabisuhan ka namin habang bukas ang laro, kahit nasa ibang tab ka.', 'ゲームを開いている間は、別のタブにいても通知します。', 'เราจะแจ้งเตือนขณะเปิดเกม แม้อยู่ในแท็บอื่น', 'Oyun açıkken, başka sekmede olsan bile bildiririz.', 'سننبّهك ما دامت اللعبة مفتوحة، حتى في تبويب آخر.', 'Уведомим, пока игра открыта, даже в другой вкладке.', 'Сповістимо, поки гра відкрита, навіть в іншій вкладці.', 'On te prévient tant que le jeu est ouvert, même dans un autre onglet.', 'Wir benachrichtigen dich, solange das Spiel offen ist, auch in einem anderen Tab.'],
   'av.bloqueadas': ['Las notificaciones están bloqueadas: activalas en los ajustes del navegador para este sitio.', 'Notifications are blocked: allow them in the browser settings for this site.', 'As notificações estão bloqueadas: ative-as nas configurações do navegador para este site.', 'Notifikasi diblokir: izinkan di pengaturan browser untuk situs ini.', 'Pemberitahuan disekat: benarkan dalam tetapan pelayar untuk laman ini.', 'Naka-block ang notifications: payagan sa settings ng browser para sa site na ito.', '通知がブロックされています。ブラウザのサイト設定で許可してください。', 'การแจ้งเตือนถูกบล็อก เปิดได้ในการตั้งค่าเบราว์เซอร์ของเว็บนี้', 'Bildirimler engelli: tarayıcı ayarlarından bu site için izin ver.', 'الإشعارات محظورة: فعّلها من إعدادات المتصفح لهذا الموقع.', 'Уведомления заблокированы: разрешите их в настройках браузера для этого сайта.', 'Сповіщення заблоковано: дозвольте їх у налаштуваннях браузера для цього сайту.', 'Les notifications sont bloquées : autorise-les dans les réglages du navigateur pour ce site.', 'Benachrichtigungen sind blockiert: erlaube sie in den Browser-Einstellungen für diese Seite.'],
   'm.bugs': ['Bugs y sugerencias', 'Bugs & ideas', 'Bugs e sugestões'],
-  'bg.bugs': ['Bugs', 'Bugs', 'Bugs'], 'bg.sugs': ['Sugerencias', 'Suggestions', 'Sugestões'],
+  'bg.bugs': ['Bugs', 'Bugs', 'Bugs'], 'bg.sugs': ['Sugerencias', 'Suggestions', 'Sugestões'], 'bg.novedades': ['Novedades', 'Updates', 'Novidades'],
+  'bg.tuVersion': ['la última', 'latest', 'a última'], 'bg.sinNovedades': ['Todavía no hay novedades.', 'No updates yet.', 'Ainda não há novidades.'],
+  'bg.esperaBug': ['Esperá %s para volver a publicar un bug', 'Wait %s to post another bug', 'Espere %s para publicar outro bug'],
+  'bg.esperaSug': ['Esperá %s para volver a publicar una idea', 'Wait %s to post another idea', 'Espere %s para publicar outra ideia'],
   'bg.unBug': ['Un bug', 'A bug', 'Um bug'], 'bg.unaSug': ['Una sugerencia', 'A suggestion', 'Uma sugestão'],
   'bg.titBug': ['¿Qué pasa? (corto)', "What's wrong? (short)", 'O que acontece? (curto)'], 'bg.titSug': ['Tu idea (corto)', 'Your idea (short)', 'Sua ideia (curto)'],
   'bg.txtBug': ['Contá qué hiciste, qué pasó y qué esperabas que pase', 'Say what you did, what happened and what you expected', 'Conte o que você fez, o que aconteceu e o que esperava'],

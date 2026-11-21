@@ -70,7 +70,7 @@ function memeChat(quien, m) {
   if (typeof censurar === 'function') quien = censurar(quien);
   const t = `${quien}: ${memeNom(m)}`;
   CHAT.push({ t, v: 12, h: `<span class="chMm"><i style="background:${/^#[0-9a-f]{6}$/i.test(m.c) ? m.c : '#888'}"></i>${esc(quien)}: <b>${esc(memeNom(m))}</b></span>` });
-  if (CHAT.length > 8) CHAT.shift();
+  if (CHAT.length > (typeof CHAT_MAX !== 'undefined' ? CHAT_MAX : 8)) CHAT.shift();
 }
 // ---------------- tocar uno ----------------
 async function memeTocar(id) {

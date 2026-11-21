@@ -8,7 +8,7 @@ ORDEN = ['nucleo', 'ios', 'cajanegra', 'tiendared', 'gl', 'sombras', 'post', 'vh
 # (el modo grabación —grabar.js— va justo antes del bucle del juego: usa la HUD, la pausa, el sonido y las voces)
 ORDEN.insert(ORDEN.index('principal'), 'grabar')
 # (el evento de los 300 miembros: sus voces, el núcleo, la cinta del principio y las misiones; antes del bucle)
-for _n in ['ev300_son', 'ev300', 'ev300_intro', 'ev300_mis', 'pepe_vuelve', 'vivo', 'panel_juego']: ORDEN.insert(ORDEN.index('principal'), _n)
+for _n in ['ev300_son', 'ev300', 'ev300_intro', 'ev300_mis', 'pepe_vuelve', 'vivo', 'novedades', 'panel_juego']: ORDEN.insert(ORDEN.index('principal'), _n)
 # (la música del menú —musica.js— después de los dos menús: les pone la placa de lo que suena; usa el reproductor de los emotes)
 ORDEN.insert(ORDEN.index('deposito') + 1, 'musica')
 # el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")

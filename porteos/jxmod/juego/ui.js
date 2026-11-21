@@ -293,13 +293,28 @@ function pzEncajar() {
   }
 }
 function abrirEmotes() { UI.abierto = 'emotes'; $('emotes').classList.remove('oc'); soltarPuntero(); }
-function abrirChat() { const c = $('chatIn'); c.classList.remove('oc'); c.focus(); soltarPuntero(); UI.abierto = 'chat'; }
-const CHAT = [];
+function abrirChat() { const c = $('chatIn'); c.placeholder = T('ch.escribi'); c.classList.remove('oc'); c.focus(); soltarPuntero(); UI.abierto = 'chat'; }
+// el chat de texto (Bugs y sugerencias, «un mejor chat, está muy sencillo»): cada mensaje con su fondo, el nombre con el
+// color de esa persona (siempre el mismo), lo tuyo y lo del juego distinguidos, y resaltado si te nombran. Cerrado se ven
+// los últimos y se desvanecen; abierto (Enter o el botón del chat) queda el historial entero con la hora, para subir y
+// leer. Los de los demás también salen en un globito arriba de su cabeza (red.js)
+const CHAT = [], CHAT_MAX = 60;
 // (id y de: para corregir el renglón después, si la IA de la censura tapa algo; sólo lo corrige quien lo mandó)
 function chatMostrar(quien, t, id, de) {
-  const e = { t: `${quien}: ${t}`, v: 12, id, de, quien }; CHAT.push(e); if (CHAT.length > 8) CHAT.shift(); return e;
+  const e = { t: quien ? `${quien}: ${t}` : String(t), quien, txt: String(t), v: 12, id, de, hora: Date.now() }; CHAT.push(e); if (CHAT.length > CHAT_MAX) CHAT.shift(); return e;
 }
-function chatCambiar(id, t, de) { if (!id) return; const e = CHAT.find((x) => x.id === id && x.de === de); if (e) { e.t = `${e.quien}: ${t}`; e.v = Math.max(e.v, 6); } }
+function chatCambiar(id, t, de) { if (!id) return; const e = CHAT.find((x) => x.id === id && x.de === de); if (e) { e.t = e.quien ? `${e.quien}: ${t}` : String(t); e.txt = String(t); e.v = Math.max(e.v, 6); } }
+// (el color de un nombre: siempre el mismo para la misma persona, claro para leerse sobre el juego)
+const chatColor = (n) => { let h = 0; for (const c of String(n || '')) h = (h * 31 + c.charCodeAt(0)) | 0; return `hsl(${((h % 360) + 360) % 360},80%,72%)`; };
+function chatRenglon(c, abierto) {
+  if (c.h) return `<div class="chL">${c.h}</div>`;
+  const yo = c.de === 'yo', sis = !c.quien || c.de === 'sis' || c.quien === 'JXMod', esc2 = (x) => String(x).replace(/[<>&]/g, (m) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[m]);
+  const nom = typeof PREFS !== 'undefined' && PREFS.nombre ? String(PREFS.nombre).toLowerCase() : '', txt = c.txt !== undefined ? c.txt : c.t;
+  const menc = !yo && !sis && nom.length >= 3 && String(txt).toLowerCase().includes(nom);
+  const hora = abierto && c.hora ? `<i class="chH">${new Date(c.hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</i>` : '';
+  if (c.txt === undefined) return `<div class="chL">${hora}${esc2(c.t)}</div>`;
+  return `<div class="chL${yo ? ' yo' : ''}${sis ? ' sis' : ''}${menc ? ' menc' : ''}">${hora}${c.quien ? `<b style="color:${yo ? '#ffd23f' : sis ? '#9fd3ff' : chatColor(c.quien)}">${esc2(c.quien)}</b> ` : ''}<span dir="auto">${esc2(txt)}</span></div>`;
+}
 // (todo pasa por la censura: filtro local al instante y la IA antes de salir; censura.js)
 function chatEnviar(t) { UI.abierto = null; chatEnviarCensurado(t); }
 // pasar a otro motor (WebGL 1 o 2): se recarga la página
@@ -402,8 +417,10 @@ function hudActualizar(dt) {
   if (UI.avisoT > 0) { UI.avisoT -= dt; if (UI.avisoT <= 0) $('aviso').classList.remove('ve'); }
   const v = Math.max(0, Math.round(JUG.vida));
   if (hudActualizar.v !== v) { hudActualizar.v = v; $('vidaN').textContent = v; $('vidaB').style.width = Math.max(0, Math.min(100, v / (JUG.vidaMax || 100) * 100)) + '%'; }
-  let ch = ''; for (const c of CHAT) { c.v -= dt; if (c.v > 0) ch += `<div>${c.h || c.t.replace(/[<>&]/g, '')}</div>`; }
-  if (hudActualizar.ch !== ch) { hudActualizar.ch = ch; $('chat').innerHTML = ch; }
+  const abierto = UI.abierto === 'chat'; let ch = '';
+  for (const c of CHAT) { c.v -= dt; if (abierto || c.v > 0) ch += chatRenglon(c, abierto); }
+  if (hudActualizar.ch !== ch) { const el = $('chat'), abajo = el.scrollTop + el.clientHeight >= el.scrollHeight - 30; hudActualizar.ch = ch; el.innerHTML = ch; if (abajo || !abierto) el.scrollTop = el.scrollHeight; }
+  if (hudActualizar.chA !== abierto) { hudActualizar.chA = abierto; $('chat').classList.toggle('abierto', abierto); if (abierto) $('chat').scrollTop = $('chat').scrollHeight; }
 }
 
 // ---------------- menús: una X para cerrar y tocar afuera para volver a jugar ----------------
