@@ -951,6 +951,44 @@ async function gmPesoMB(wid) {
   try { const c = new AbortController(), t = setTimeout(() => c.abort(), 8000), r = await fetch(TIENDA_URL + 'gmod/pipe/' + wid, { signal: c.signal }); clearTimeout(t); if (r.ok) { const j = await r.json(); if (j && j.tam) return j.tam / 1e6; } } catch (e) {}
   return null;
 }
+// un mapa del Workshop que pide contenido pesado aparte (las texturas de «The Showgrounds - SMG4» viven en un addon de
+// 731 MB) y que por el tope de arriba no se bajó solo: al entrar al mapa, un cartel dice cuánto pesa y ofrece bajarlo.
+// Llegado, lo que estaba gris (texturas y modelos faltantes) se olvida y el mapa se vuelve a armar con todo. Se pregunta
+// una vez por sesión por mapa (el aviso de 6 s de antes pasaba sin que se entendiera por qué el mapa salía gris)
+const GM_DEPS_PREG = new Set();
+async function gmMapaDeps(mapa) {
+  const m = typeof GBSP !== 'undefined' && GBSP.mapas.get(mapa), wid = m && String(m.id);
+  if (!wid || !/^\d+$/.test(wid) || GM_DEPS_PREG.has(wid)) return;
+  const A = GMOD.addons.get(wid); if (!A) return;
+  const req = [...(A.depsGrandes || []).map((x) => x.id), ...((PREFS.gmod && PREFS.gmod[wid] && PREFS.gmod[wid].req) || [])];
+  const faltan = [...new Set(req.map((d) => GM_REEMPLAZO[d] || String(d)))].filter((d) => d !== wid && !GMOD.addons.has(d) && !(GM_EQUIV[d] && GMOD.addons.has(GM_EQUIV[d])));
+  if (!faltan.length) return;
+  GM_DEPS_PREG.add(wid);
+  let mb = 0; for (const d of faltan) mb += (await gmPesoMB(d)) || 0;
+  // (después de la pantalla de carga: si no, el cartel quedaba tapado por el «¡Listo! 100 %» que se está yendo)
+  const cg = document.getElementById('carga');
+  for (let i = 0; i < 150 && cg && !cg.classList.contains('oc'); i++) await new Promise((r) => setTimeout(r, 200));
+  await new Promise((r) => setTimeout(r, 500));
+  if (typeof MUNDO === 'undefined' || MUNDO.nombre !== mapa || JUEGO.estado !== 'juego' || typeof confirmar !== 'function') return;
+  const n = String(Math.max(1, Math.round(mb)));
+  confirmar(T('gm.depMapa').replace('{n}', faltan.length).replace('{mb}', n), T('gm.depBajar').replace('{mb}', n), () => gmMapaDepsBajar(mapa, faltan));
+}
+async function gmMapaDepsBajar(mapa, faltan) {
+  let hechos = 0, bien = 0, ult = 0;
+  const prog = (p) => { const t = performance.now(); if (t - ult < 700) return; ult = t; aviso(T('gm.depBajando').replace('{p}', Math.min(99, Math.round((100 * (hechos + (p || 0))) / faltan.length))), 3); };
+  aviso(T('gm.depBajando').replace('{p}', 0), 3);
+  for (const d of faltan) {
+    try { const B = await gmInstalar(d, { prof: 1 }, null, prog); if (B) bien++; } catch (e) { gmErr('dependencia ' + d, e); }
+    hechos++;
+  }
+  if (!bien) { aviso(T('gm.depMal'), 5); return; }
+  // (lo que se había dado por faltante se vuelve a buscar: texturas, materiales y modelos)
+  for (const [k, t] of [...GMOD.tex]) if (t === GMOD.faltante) GMOD.tex.delete(k);
+  for (const [k, v] of [...GMOD.mats]) if (!v || (DATA.mt[v.mi] && DATA.mt[v.mi].t === GMOD.faltante)) GMOD.mats.delete(k);
+  if (typeof GMV !== 'undefined') for (const [k, v] of [...GMV.cache]) if (v === null) GMV.cache.delete(k);
+  aviso(T('gm.depListo'), 4);
+  if (MUNDO.nombre === mapa && JUEGO.estado === 'juego') { delete DATA.esc[mapa]; delete DATA.aj[mapa]; empezarPartida(mapa); }
+}
 const GM_TOPE_DEPS_MB = () => (navigator.deviceMemory && navigator.deviceMemory <= 4 ? 60 : 200);
 // tienda o, si no está, leyendo la página con el lector
 async function gmRequeridos(wid) {

@@ -290,6 +290,7 @@ function empezarPartida(mapa) {
   if (typeof pvEnPartida === 'function') pvEnPartida(mapa);   // (Pepe vuelve: se sortea si esta vez viene)
   if (typeof vivoEnPartida === 'function') vivoEnPartida(mapa);   // (el evento en vivo: al entrar a un mapa)
   if (typeof ordEnPartida === 'function') ordEnPartida(mapa);   // (el panel: el lugar al que te mandaron, la pantalla del cielo)
+  if (typeof gmMapaDeps === 'function') gmMapaDeps(mapa).catch(() => {});   // (un mapa del Workshop al que le falta contenido pesado: gmod.js)
 }
 function irMenuPrincipal() {
   if (typeof pvTerminar === 'function') { pvTerminar(); PV.cuando = -1; }

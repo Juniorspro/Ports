@@ -9,7 +9,8 @@ const { b, p, err, ev } = await abrir(HTML);
 await ev(`PREFS.bienvenida = true; GFX.auto = false; PREFS.gfx = 'bajo'; aplicarGfx(); inicioMostrar(false); empezarPartida('FlatGrass'); 1`);
 await p.waitForTimeout(2500);
 for (const id of IDS.split(',')) {
-  const ins = await ev(`(async () => { const b = new Uint8Array(await (await fetch(${JSON.stringify(CARP)} + '/${id}.gma')).arrayBuffer()); const A = await gmInstalar('${id}', { nombre: '${id}', sinDeps: true }, b);
+  // (CARPETA «ws»: se baja del Workshop como lo hace el jugador, con sus dependencias)
+  const ins = await ev(`(async () => { const A = ${JSON.stringify(CARP)} === 'ws' ? await gmInstalar('${id}', { nombre: '${id}' }) : await gmInstalar('${id}', { nombre: '${id}', sinDeps: true }, new Uint8Array(await (await fetch(${JSON.stringify(CARP)} + '/${id}.gma')).arrayBuffer())); if (A && A.listo) await A.listo;
     return { n: A.nombre, mapas: [...GBSP.mapas].filter(([k, x]) => x.id === '${id}').map(([k]) => k), enLista: MAPAS_RB.filter((m) => /^WS_/.test(m)) }; })()`);
   ok(`${id}: sus mapas aparecen en la lista`, ins.mapas.length > 0 && ins.mapas.every((m) => ins.enLista.includes(m)), ins);
   for (const m of ins.mapas) {
@@ -20,8 +21,8 @@ for (const id of IDS.split(',')) {
     await p.waitForTimeout(3000);
     const r = await ev(`(() => { const aj = DATA.aj[${JSON.stringify(m)}] || {}, esc = DATA.esc[${JSON.stringify(m)}] || [];
       let mats = 0, falt = 0; const vis = new Set(); for (const a of esc) for (const x of a) for (const mi of x.mt || []) vis.add(mi);
-      for (const mi of vis) { mats++; const t = DATA.mt[mi]; if (t && t.t === GMOD.faltante) falt++; }
-      return { nombre: MUNDO.nombre, tris: MUNDO.nt, pedazos: esc.filter((a) => a[0].m !== undefined).length, props: esc.filter((a) => /^gm:/.test(a[0].n)).length, cascos: (aj.cascos || []).length, apar: MUNDO.spawns.length, mats, falt, suelo: JUG.suelo, y: +JUG.pos.y.toFixed(2), lo: +MUNDO.lo.y.toFixed(1), agua: (aj.agua || []).length }; })()`);
+      const faltan = []; for (const mi of vis) { mats++; const t = DATA.mt[mi]; if (t && t.t === GMOD.faltante) { falt++; if (faltan.length < 25) faltan.push(t.n || t.nombre || t.ruta || mi); } }
+      return { faltan, nombre: MUNDO.nombre, tris: MUNDO.nt, pedazos: esc.filter((a) => a[0].m !== undefined).length, props: esc.filter((a) => /^gm:/.test(a[0].n)).length, cascos: (aj.cascos || []).length, apar: MUNDO.spawns.length, mats, falt, suelo: JUG.suelo, y: +JUG.pos.y.toFixed(2), lo: +MUNDO.lo.y.toFixed(1), agua: (aj.agua || []).length }; })()`);
     await p.screenshot({ path: D + 'mapa_' + m + '_ojos.png' });
     // (si el modo de juego del mapa pide elegir equipo —Prop Hunt—, como un jugador: el que se mueve al empezar, Props; los
     // cazadores quedan quietos los primeros 30 s, como en el modo)
@@ -42,7 +43,7 @@ for (const id of IDS.split(',')) {
     await ev(`(() => { const c = vscale(vadd(MUNDO.lo, MUNDO.hi), 0.5), t = Math.max(MUNDO.hi.x - MUNDO.lo.x, MUNDO.hi.z - MUNDO.lo.z); DBG.cam = { p: v3(c.x, MUNDO.hi.y + t * 0.45, c.z - t * 0.55), q: Quat.euler(0, 0.7) }; return 1; })()`); await p.waitForTimeout(1200);
     await p.screenshot({ path: D + 'mapa_' + m + '_todo.png' }); await ev(`DBG.cam = null; 1`);
     ok(`${m}: se arma (${seg.toFixed(1)} s) y se juega: aparece parado en el piso, camina y no se cae`, r.nombre === m && r.tris > 100 && r.apar > 0 && r.suelo && anda.suelo && anda.anduvo > 1 && anda.dy > -3, { ...r, anda });
-    ok(`${m}: casi todas las texturas están (faltan ≤ 15 %)`, r.mats > 0 && r.falt / r.mats <= 0.15, { mats: r.mats, falt: r.falt });
+    ok(`${m}: casi todas las texturas están (faltan ≤ 15 %)`, r.mats > 0 && r.falt / r.mats <= 0.15, { mats: r.mats, falt: r.falt, cuales: r.faltan });
   }
 }
 const e2 = err.filter((x) => !/favicon|ERR_|net::|404|WebSocket|mqtt|wss:/i.test(x));
