@@ -9,6 +9,9 @@
 //  DELETE /api/nube/packs/:id                lo borra de la cuenta
 // En su propia base (SZ_NUBE, «stickerazo-nube»), así los archivos no llenan la de la comunidad. Cupo por cuenta.
 export const CUPO = 25 * 1024 * 1024, MAX_ARCHIVO = 700 * 1024, MAX_PACKS = 80, MAX_DATOS = 200 * 1024;
+// (con Premium, diez veces más lugar y cinco veces más packs)
+export const CUPO_PREMIUM = 250 * 1024 * 1024, MAX_PACKS_PREMIUM = 400;
+const esPremium = (yo) => (yo.premium_hasta || 0) > Date.now();
 export const ESQUEMA_NUBE = [
   'CREATE TABLE IF NOT EXISTS nube_packs (usuario TEXT NOT NULL, id TEXT NOT NULL, datos TEXT NOT NULL, firma TEXT NOT NULL, archivos TEXT NOT NULL, actualizado INTEGER NOT NULL, PRIMARY KEY (usuario, id))',
   'CREATE TABLE IF NOT EXISTS nube_archivos (usuario TEXT NOT NULL, pack TEXT NOT NULL, nombre TEXT NOT NULL, h TEXT NOT NULL, n INTEGER NOT NULL, datos BLOB, PRIMARY KEY (usuario, pack, nombre))',
@@ -30,13 +33,13 @@ export async function nubeRutas(req, db, yo, r, metodo, { json, error, limite })
   if (!yo) return error('Entrá con tu cuenta', 401);
   if (!yo.google) return json({ error: 'Conectá tu cuenta de Google para guardar tus stickers', google: true }, 403);
   await preparar(db);
-  const u = yo.id;
+  const u = yo.id, cupo = esPremium(yo) ? CUPO_PREMIUM : CUPO, maxPacks = esPremium(yo) ? MAX_PACKS_PREMIUM : MAX_PACKS;
   let m;
   if (r === 'nube' && metodo === 'GET') {
     const { results } = await db.prepare('SELECT id, firma, archivos, actualizado FROM nube_packs WHERE usuario = ? ORDER BY actualizado DESC').bind(u).all();
     // (incompleto: le falta algún archivo —se cortó la subida o se llenó el lugar—; la app lo vuelve a mandar)
     const hay = new Map((await db.prepare('SELECT pack, COUNT(*) AS n FROM nube_archivos WHERE usuario = ? GROUP BY pack').bind(u).all()).results.map((x) => [x.pack, x.n]));
-    return json({ packs: results.map((p) => { const a = JSON.parse(p.archivos); return { id: p.id, firma: p.firma, actualizado: p.actualizado, archivos: a, incompleto: (hay.get(p.id) || 0) < Object.keys(a).length }; }), usado: await usado(db, u), cupo: CUPO });
+    return json({ packs: results.map((p) => { const a = JSON.parse(p.archivos); return { id: p.id, firma: p.firma, actualizado: p.actualizado, archivos: a, incompleto: (hay.get(p.id) || 0) < Object.keys(a).length }; }), usado: await usado(db, u), cupo, premium: esPremium(yo) });
   }
   if ((m = /^nube\/packs\/([^/]+)$/.exec(r)) && ID.test(m[1])) {
     const id = m[1];
@@ -56,7 +59,7 @@ export async function nubeRutas(req, db, yo, r, metodo, { json, error, limite })
       const nombres = Object.keys(arch);
       if (nombres.length > 400 || !nombres.every((n) => NOMBRE.test(n) && HUELLA.test(String(arch[n])))) return error('Archivos mal nombrados');
       const ya = await db.prepare('SELECT 1 FROM nube_packs WHERE usuario = ? AND id = ?').bind(u, id).first();
-      if (!ya && (await db.prepare('SELECT COUNT(*) AS n FROM nube_packs WHERE usuario = ?').bind(u).first()).n >= MAX_PACKS) return error(`Ya guardaste ${MAX_PACKS} packs en tu cuenta: borrá alguno`, 409);
+      if (!ya && (await db.prepare('SELECT COUNT(*) AS n FROM nube_packs WHERE usuario = ?').bind(u).first()).n >= maxPacks) return error(`Ya guardaste ${maxPacks} packs en tu cuenta: borrá alguno${esPremium(yo) ? '' : ' (con Premium entran 400)'}`, 409);
       await db.prepare('INSERT OR REPLACE INTO nube_packs (usuario, id, datos, firma, archivos, actualizado) VALUES (?, ?, ?, ?, ?, ?)').bind(u, id, datos, d.firma, JSON.stringify(arch), Date.now()).run();
       // (los que ya no están en el pack, afuera; los que están con otra huella, hay que subirlos de nuevo)
       const { results } = await db.prepare('SELECT nombre, h FROM nube_archivos WHERE usuario = ? AND pack = ?').bind(u, id).all();
@@ -85,7 +88,7 @@ export async function nubeRutas(req, db, yo, r, metodo, { json, error, limite })
       const h = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', b)));
       if (h !== esperada || h !== req.headers.get('X-Huella')) return error('El archivo llegó cortado: se reintenta solo', 422);
       const previo = await db.prepare('SELECT n FROM nube_archivos WHERE usuario = ? AND pack = ? AND nombre = ?').bind(u, pack, nombre).first();
-      if ((await usado(db, u)) - (previo ? previo.n : 0) + b.length > CUPO) return error('Se llenó el lugar de tu cuenta', 507);
+      if ((await usado(db, u)) - (previo ? previo.n : 0) + b.length > cupo) return error(esPremium(yo) ? 'Se llenó el lugar de tu cuenta' : 'Se llenó el lugar de tu cuenta (con Premium tenés 10 veces más)', 507);
       await db.prepare('INSERT OR REPLACE INTO nube_archivos (usuario, pack, nombre, h, n, datos) VALUES (?, ?, ?, ?, ?, ?)').bind(u, pack, nombre, h, b.length, b).run();
       return json({ ok: true }, 201);
     }

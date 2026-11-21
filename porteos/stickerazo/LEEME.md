@@ -293,6 +293,22 @@ podría entrar. Sin la variable, Google queda apagado y vale el @ solo, como ant
   dex, el ID de AdMob y los `META-INF/services`. `--sin-anuncios` arma como antes, sin AdMob.
 - El APK pasa de 32,3 a 37,8 MB.
 
+## Premium y donaciones (PayPal, apagado hasta tener las claves)
+
+- **Premium**: US$ 1,99 por mes, US$ 14,99 por año o US$ 29,99 de por vida. Sin anuncios, insignia ✨, 10 veces más lugar en
+  la nube (250 MB y 400 packs), anillo dorado en el perfil. **Donaciones** de US$ 1 a 200, con la insignia 💛 Donador.
+- Se paga en el navegador (PayPal no deja pagar adentro de una WebView): la app pide un ticket y abre
+  `<servidor>/premium?t=…`, con los botones de PayPal. El servidor (`servidor/pagos.js`) confirma cada pago con la API de
+  PayPal (monto, moneda, estado y que sea de esa cuenta) y la app se entera sola. Nunca se cree lo que dice el navegador.
+- Las suscripciones se revisan con PayPal cuando están por vencer. **Botón de baja** en la app (Premium → Dar de baja);
+  al borrar la cuenta, la suscripción se da de baja sola. **Botón de arrepentimiento** (10 días) en la página.
+- Sólo en el APK de la página y en el navegador: las tiendas obligan a usar su propio sistema de cobro.
+- Para prenderlo: una app en developer.paypal.com (cuenta **Business**, a nombre de un adulto: PayPal pide 18 años),
+  las claves en un archivo fuera del repo y `node herramientas/paypal_planes.mjs ARCHIVO live`, que crea los planes y dice
+  qué poner en Cloudflare (el secreto va con `wrangler secret put SZ_PAYPAL_SECRET`).
+- Lo cobrado: en el panel (`/api/admin/pagos`) y en PayPal. Pruebas: `pruebas/pagos.mjs` (25, con un PayPal de mentira) y
+  `pruebas/premium_app.mjs` (la app y la página, de punta a punta).
+
 ## Privacidad, términos y contacto
 
 `sitio/privacidad.html`, `terminos.html`, `borrar-cuenta.html` y `contacto.html` (con `sitio/a/legal.css`): completas,

@@ -42,7 +42,7 @@ function tarjeta(p, i) {
   F.cache.set(p.id, p);
   const tono = [...p.id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 0);
   return `<article class="tf" data-id="${p.id}" style="--i:${i % 8};--tono:${tono}">
-    <header><button class="autor" data-u="${X.h(p.autor.nombre)}">${avatar(p.autor.avatar)}<span><b>@${X.h(p.autor.nombre)}</b><small>${hace(p.creado)}</small></span></button>${p.termo ? '<b class="insignia termo">🧉 Elegido del termo</b>' : ''}${p.privado ? '<b class="insignia oculta">🙈 Oculto</b>' : ''}${p.animado ? '<b class="insignia">Animado</b>' : ''}</header>
+    <header><button class="autor" data-u="${X.h(p.autor.nombre)}">${avatar(p.autor.avatar)}<span><b>@${X.h(p.autor.nombre)}${p.autor.premium ? '<i class="miniPrem" title="Premium">✨</i>' : ''}</b><small>${hace(p.creado)}</small></span></button>${p.termo ? '<b class="insignia termo">🧉 Elegido del termo</b>' : ''}${p.privado ? '<b class="insignia oculta">🙈 Oculto</b>' : ''}${p.animado ? '<b class="insignia">Animado</b>' : ''}</header>
     <div class="tfGrilla" data-abrir="${p.id}">${p.muestra.slice(0, 6).map((a) => `<img loading="lazy" src="${media(p, a)}" alt="">`).join('')}</div>
     <div class="tfPie"><div class="tfNom"><b>${X.h(p.nombre)}</b><small>${p.n} stickers${p.tags.length ? ' · ' + p.tags.slice(0, 3).map((t) => '#' + X.h(t)).join(' ') : ''}</small></div>
       <button class="accion mg${p.yaLike ? ' si' : ''}" data-like="${p.id}" aria-label="Me gusta"><i data-i="corazon"></i><span>${num(p.likes)}</span></button>
@@ -126,7 +126,7 @@ export async function abrirPublico(id) {
   try {
     const { pack: p } = await api('/api/packs/' + id); actual = p; F.cache.set(p.id, p);
     X.$('#puNombre').textContent = p.nombre;
-    c.innerHTML = `<div class="puAutor"><button class="autor" data-u="${X.h(p.autor.nombre)}">${avatar(p.autor.avatar)}<span><b>@${X.h(p.autor.nombre)}</b><small>${hace(p.creado)}</small></span></button>
+    c.innerHTML = `<div class="puAutor"><button class="autor" data-u="${X.h(p.autor.nombre)}">${avatar(p.autor.avatar)}<span><b>@${X.h(p.autor.nombre)}${p.autor.premium ? '<i class="miniPrem" title="Premium">✨</i>' : ''}</b><small>${hace(p.creado)}</small></span></button>
         ${p.esMio ? '<b class="insignia">Tuyo</b>' : `<button class="seguir${p.sigoAutor ? ' si' : ''}" data-seguir="${p.autor.id}">${p.sigoAutor ? 'Siguiendo' : 'Seguir'}</button>`}</div>
       ${p.tags.length || p.animado ? `<div class="chips tagsPu">${p.animado ? '<b class="insignia">Animado</b>' : ''}${p.tags.map((t) => `<button class="chip" data-tag="${X.h(t)}">#${X.h(t)}</button>`).join('')}</div>` : ''}
       <div class="grilla puGrilla">${p.stickers.map((s, i) => `<div class="st" style="--i:${i % 12}"><img src="${media(p, s.archivo)}" alt=""></div>`).join('')}</div>
@@ -221,8 +221,8 @@ function perfilHTML(d, propio) {
   // (en la portada flotan algunos de sus stickers)
   const flotan = d.packs.filter((p) => !p.privado).flatMap((p) => p.muestra.slice(0, 2).map((a) => media(p, a))).slice(0, 4);
   return `<div class="perfilTop"><div class="portadaP" style="background:${portadaDe(u)}"><i class="brilloP"></i>${flotan.map((f, k) => `<img class="flotaP" src="${f}" alt="" style="--k:${k}">`).join('')}</div>
-    <div class="perfilFila"><span class="avG anilloAv${u.avatar.f ? ' conFoto' : ''}" style="background:${X.h(u.avatar.c)}">${caraDe(u.avatar)}</span><div class="pBotones">${botones}<button class="pBoton ico2" data-compartir-u="${X.h(u.nombre)}" aria-label="Compartir perfil"><i data-i="compartir"></i></button></div></div>
-    <h2 class="arroba">@${X.h(u.nombre)}</h2>${(u.insignias || []).includes('termo') ? '<span class="chipInsignia">🧉 Elegido del termo</span>' : ''}${u.bio ? `<p class="bio">${X.h(u.bio)}</p>` : propio ? '<p class="bio vacia">Tocá «Editar perfil» y contá algo de vos</p>' : ''}
+    <div class="perfilFila"><span class="avG anilloAv${u.avatar.f ? ' conFoto' : ''}${u.premium ? ' dorado' : ''}" style="background:${X.h(u.avatar.c)}">${caraDe(u.avatar)}</span><div class="pBotones">${botones}<button class="pBoton ico2" data-compartir-u="${X.h(u.nombre)}" aria-label="Compartir perfil"><i data-i="compartir"></i></button></div></div>
+    <h2 class="arroba">@${X.h(u.nombre)}</h2>${(u.insignias || []).includes('termo') ? '<span class="chipInsignia">🧉 Elegido del termo</span>' : ''}${u.premium || u.donador ? `<div class="insigniasP">${u.premium ? '<span class="chipInsignia premium">✨ Premium</span>' : ''}${u.donador ? '<span class="chipInsignia donador">💛 Donador</span>' : ''}</div>` : ''}${u.bio ? `<p class="bio">${X.h(u.bio)}</p>` : propio ? '<p class="bio vacia">Tocá «Editar perfil» y contá algo de vos</p>' : ''}
     <div class="stats"><span><b data-cuenta="${u.packs}">${num(u.packs)}</b>packs</span><span><b class="segN" data-cuenta="${u.seguidores}">${num(u.seguidores)}</b>seguidores</span><span><b data-cuenta="${u.descargas}">${num(u.descargas)}</b>descargas</span><span><b data-cuenta="${u.likes}">${num(u.likes)}</b>me gusta</span></div></div>
     ${propio ? '<div class="seg perfilSeg"><button data-pt="pub" class="act">Publicados</button><button data-pt="bajados">Bajados</button></div>' : '<h2>Packs</h2>'}
     <div class="feedLista" id="${propio ? 'perfilLista' : 'usLista'}">${listaPublicados(d, propio)}</div>`;
@@ -357,6 +357,80 @@ function filaNube() {
   return `<button class="opc" data-x="nube"><i class="emo">☁️</i><span>Tus packs en tu cuenta<small class="subOpc">${X.h(e && e.error ? e.error : sub)}</small></span></button>`;
 }
 
+// ---- Premium y donaciones (se paga con PayPal, en el navegador: servidor/pagos.js) ----
+// Sólo en el APK de la página (canal «web») y en el navegador: las tiendas piden cobrar con su propio sistema.
+const PREMIUM = 'sz_premium';
+let premium = (() => { try { return JSON.parse(localStorage.getItem(PREMIUM) || 'null'); } catch (e) { return null; } })();
+export const esPremium = () => !!(premium && premium.yo && premium.yo.premium && premium.yo.hasta > Date.now());
+export const pagosAca = () => !window.SZN || !window.SZN.canal || window.SZN.canal() === 'web';
+const plata = (v) => 'US$ ' + String(v).replace('.', ',');
+const fechaLarga = (t) => new Date(t).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+/** lo que dice el servidor de Premium (y de esta cuenta), guardado para cuando no hay conexión */
+export async function cargarPremium() {
+  const d = await api('/api/premium'); premium = { ...d, yo: cuenta() ? d.yo : null };
+  try { localStorage.setItem(PREMIUM, JSON.stringify(premium)); } catch (e) { /* sin lugar */ }
+  aplicarPremium(); return premium;
+}
+// (con Premium: el banner de abajo se va al toque)
+function aplicarPremium() { if (esPremium() && window.SZN && window.SZN.anuncioBanner) { try { window.SZN.anuncioBanner(false); } catch (e) { /* nada */ } } }
+function textoPremium(yo) {
+  if (!yo || !yo.premium) return '';
+  return yo.tipo === 'vida' ? 'Sos Premium de por vida ✨' : yo.estado === 'activa' ? `Sos Premium ✨ · se renueva el ${fechaLarga(yo.hasta - 3 * 86400e3)}` : `Sos Premium hasta el ${fechaLarga(yo.hasta)}`;
+}
+function filaPremium() {
+  if (!pagosAca()) return '';
+  const yo = premium && premium.yo, sub = yo && yo.premium ? textoPremium(yo) : `Sin anuncios y con insignia · desde ${plata((premium && premium.precios && premium.precios.mes) || '1.99')}`;
+  return `<button class="opc opcPremium" data-x="premium"><i class="emo">✨</i><span>Stickerazo Premium<small class="subOpc">${X.h(sub)}</small></span></button>`;
+}
+export async function abrirPremium() {
+  const m = X.modal('<div class="hoja hojaPremium"><div class="prCab"><span class="prChispa">✨</span><h3>Stickerazo Premium</h3></div><div id="prCuerpo"><div class="progreso"><div class="rueda"></div></div></div></div>');
+  let d; try { d = await cargarPremium(); } catch (e) { X.$('#prCuerpo', m).innerHTML = `<p>${X.h(e.message || 'Sin conexión')}</p>`; return; }
+  const yo = d.yo || {}, ahorro = Math.round((1 - Number(d.precios.anio) / (12 * Number(d.precios.mes))) * 100);
+  const baja = yo.premium && (yo.tipo === 'mes' || yo.tipo === 'anio') && yo.estado === 'activa';
+  X.$('#prCuerpo', m).innerHTML = `${yo.premium ? `<p class="prEstado">${X.h(textoPremium(yo))}</p>` : ''}
+    <ul class="prBen">${d.beneficios.map(([i, b, t]) => `<li><i>${i}</i><span><b>${X.h(b)}</b><small>${X.h(t)}</small></span></li>`).join('')}</ul>
+    ${yo.premium ? '' : `<div class="prPrecios"><span><b>${plata(d.precios.mes)}</b>por mes</span><span class="mejor"><b>${plata(d.precios.anio)}</b>por año<em>−${ahorro} %</em></span><span><b>${plata(d.precios.vida)}</b>de por vida</span></div>`}
+    ${yo.donador ? '<p class="prDon">💛 Gracias por tu donación: tenés la insignia de Donador.</p>' : ''}
+    <div class="botones">${!d.disponible ? '<button class="pri" disabled>Muy pronto</button>'
+      : yo.premium ? `${baja ? '<button class="sec" data-x="baja">Dar de baja</button>' : ''}<button class="pri" data-x="donar">💛 Donar</button>`
+      : '<button class="sec" data-x="donar">💛 Donar</button><button class="pri" data-x="pagar">Hacete Premium</button>'}</div>
+    <p class="nota">${d.disponible ? 'Se paga con PayPal, en el navegador: no vemos ni guardamos tu tarjeta. Precios en dólares; PayPal te muestra cuánto es en tu moneda. Las suscripciones se dan de baja cuando quieras, desde acá.' : 'Muy pronto vas a poder hacerte Premium o donar desde acá.'}</p>`;
+  m.onclick = async (ev) => {
+    const b = ev.target.closest('[data-x]'); if (!b) { if (ev.target === m) X.cerrarModal(); return; }
+    X.vibrar(8);
+    if (b.dataset.x === 'pagar' || b.dataset.x === 'donar') return irAPagar();
+    if (b.dataset.x === 'baja') {
+      if (!(await X.confirmar(`¿Dar de baja la suscripción? No se te cobra más y seguís siendo Premium hasta el ${fechaLarga(yo.hasta)}.`, 'Dar de baja'))) return;
+      try { await api('/api/premium/baja', { method: 'POST' }); X.aviso('Listo: no se te cobra más'); } catch (e) { X.aviso(e.message); }
+      X.cerrarModal(); await cargarPremium().catch(() => {}); if (X.E.tab === 'Perfil') pintarPerfil();
+    }
+  };
+}
+// (la página de PayPal, en el navegador, con un ticket de esta cuenta; la app pregunta hasta que se acredite)
+async function irAPagar() {
+  if (!cuenta()) { X.cerrarModal(); X.aviso('Primero entrá con tu cuenta'); return X.pestaña && X.pestaña('Perfil'); }
+  let url; try { url = (await api('/api/premium/ticket', { method: 'POST' })).url; } catch (e) { if (!e.google) X.aviso(e.message); return; }
+  X.cerrarModal(); window.__szPagando = url;   // (para las pruebas)
+  if (P.esApp) location.href = url; else window.open(url, '_blank', 'noopener');
+  esperarPago();
+}
+let esperando = 0;
+function esperarPago() {
+  const antes = { p: esPremium(), d: !!(premium && premium.yo && premium.yo.donador) }, hasta = Date.now() + 10 * 60e3, mio = ++esperando;
+  const vuelta = async () => {
+    if (mio !== esperando || Date.now() > hasta) return;
+    try {
+      await cargarPremium();
+      if (esPremium() && !antes.p) { X.confeti && X.confeti(); X.aviso('¡Ya sos Premium! ✨ Gracias por bancar', 4000); esperando++; if (X.E.tab === 'Perfil') pintarPerfil(); return; }
+      if (premium.yo && premium.yo.donador && !antes.d) { X.confeti && X.confeti(); X.aviso('¡Gracias por la donación! 💛', 4000); esperando++; if (X.E.tab === 'Perfil') pintarPerfil(); return; }
+    } catch (e) { /* sin conexión: se sigue intentando */ }
+    setTimeout(vuelta, 3000);
+  };
+  setTimeout(vuelta, 3000);
+}
+/** volvió de PayPal (el enlace stickerazo://pack/premium o la app vuelve a primer plano) */
+export function revisarPremium() { if (esperando && cuenta()) cargarPremium().then(() => { if (X.E.tab === 'Perfil') pintarPerfil(); }).catch(() => {}); }
+
 // ---- mi perfil (o elegir mi @) ----
 export async function pintarPerfil() {
   const c = X.$('#tabPerfil'), yo = cuenta();
@@ -380,7 +454,7 @@ export async function pintarPerfil() {
     if (!yo.google) { try { const y = await api('/api/yo'); if (y.usuario.conGoogle) { guardarCuenta({ ...yo, google: true }); programar(1000); } else sinGoogle = !!y.google; } catch (e) { /* sin conexión: después */ } }
     const pais = X.paisActual();
     c.innerHTML = (sinGoogle ? `<button class="tarjG" id="tarjG">${LOGO_G}<span><b>Conectá tu cuenta de Google</b><small>La comunidad ahora se usa con Google. Tu @ y tus packs quedan igual.</small></span></button>` : '') + perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="tema"><i class="emo">${{ oscuro: '🌙', claro: '☀️', auto: '📱' }[X.temaActual()]}</i><span>Modo: ${{ oscuro: 'oscuro', claro: 'claro', auto: 'como el celular' }[X.temaActual()]}</span></button><button class="opc" data-x="musica"><i class="emo">🎵</i><span>Música de mi país</span></button><button class="opc" data-x="pais"><i class="emo">${pais ? pais[1] : '🌎'}</i><span>Mi país: ${pais ? pais[2] : 'elegir'}</span></button><a class="opc" href="${SITIO}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${SITIO}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
-      ${filaNube()}${window.SZN && window.SZN.anunciosOpciones && window.SZN.anunciosOpciones() ? '<button class="opc" data-x="anuncios"><i class="emo">📢</i><span>Privacidad de los anuncios</span></button>' : ''}<a class="opc" href="${SITIO}/contacto" data-ext="1"><i class="emo">💬</i><span>Escribinos</span></a><button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
+      ${filaPremium()}${filaNube()}${window.SZN && window.SZN.anunciosOpciones && window.SZN.anunciosOpciones() ? '<button class="opc" data-x="anuncios"><i class="emo">📢</i><span>Privacidad de los anuncios</span></button>' : ''}<a class="opc" href="${SITIO}/contacto" data-ext="1"><i class="emo">💬</i><span>Escribinos</span></a><button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
     X.iconos(c); contar(c); if (sinGoogle) X.$('#tarjG', c).onclick = () => entrarConGoogle();
   } catch (e) {
     if (e.st === 404 || e.st === 401) { guardarCuenta(null); return pintarPerfil(); }
@@ -467,6 +541,7 @@ async function alTocarPerfil(ev) {
     try { const r = await sincronizar(); X.aviso(r && r.error ? r.error : 'Listo: tus packs están guardados en tu cuenta ☁️'); } catch (e) { X.aviso(e.message); }
     return pintarPerfil();
   }
+  if (x && x.dataset.x === 'premium') return abrirPremium();
   if (x && x.dataset.x === 'anuncios') { if (window.SZN && window.SZN.anunciosPrivacidad) window.SZN.anunciosPrivacidad(); return; }
   if (x && x.dataset.x === 'musica') return X.musica();
   if (x && x.dataset.x === 'salir') {
@@ -570,6 +645,7 @@ export function iniciar(ctx) {
   // (tus packs en tu cuenta: guardar después de cada cambio, y avisar si se recuperaron packs en un celular nuevo)
   iniciarNube((r) => { if (r.recuperados) { X.aviso(`Recuperamos ${r.recuperados} pack${r.recuperados > 1 ? 's' : ''} de tu cuenta 🙌`, 4000); if (X.recargarPacks) X.recargarPacks(); } });
   if ((cuenta() || {}).google) programar(3000);
+  aplicarPremium(); if (cuenta()) setTimeout(() => cargarPremium().catch(() => {}), 2500);
   X.$('#feedSeg').onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; F.modo = b.dataset.m; for (const x of X.$('#feedSeg').children) x.classList.toggle('act', x === b); X.vibrar(6); cargarFeed(true); };
   X.$('#feedLista').onclick = alTocarFeed;
   X.$('#puCont').onclick = (ev) => { const s = ev.target.closest('[data-seguir]'); if (s) return seguir(s); const t = ev.target.closest('[data-tag]'); if (t) return X.buscarTag(t.dataset.tag); alTocarFeed(ev); };

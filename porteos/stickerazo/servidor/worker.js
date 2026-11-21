@@ -10,6 +10,7 @@
 // (todavía no está en las tiendas: el botón «Bajá Stickerazo» lleva a nuestra página, que tiene el APK y, cuando estén, las tiendas)
 import { verificarGoogle, paginaGoogle, googleObligatorio, huellaGoogle, sha256 } from './google.js';
 import { nubeRutas, borrarNube } from './nube.js';
+import { pagosRutas, paginaPremium, pagosAlBorrar, ESQUEMA_PAGOS, cuentaDelTicket, estadoPremium, pagosPrendidos } from './pagos.js';
 // (la nube de cada cuenta: en su propia base si está, SZ_NUBE; si no, en la de siempre)
 const nubeDb = (env) => env.SZ_NUBE || env.DB;
 const bajar = (origen) => `${origen}/#bajar`;
@@ -52,11 +53,13 @@ const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS entradas (e TEXT PRIMARY KEY, google TEXT NOT NULL, usuario TEXT, vence INTEGER NOT NULL)`,
   // (lo que llega por el formulario de contacto)
   `CREATE TABLE IF NOT EXISTS contacto (id TEXT PRIMARY KEY, motivo TEXT NOT NULL, texto TEXT NOT NULL, mail TEXT NOT NULL DEFAULT '', creado INTEGER NOT NULL)`,
+  ...ESQUEMA_PAGOS,   // (Premium, compras y donaciones: servidor/pagos.js)
 ];
 // (columnas que llegaron después: si ya están, el ALTER falla y no pasa nada)
 const COLUMNAS_NUEVAS = ['ALTER TABLE packs ADD COLUMN privado INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE usuarios ADD COLUMN google TEXT',
-  'CREATE UNIQUE INDEX IF NOT EXISTS i_usuarios_google ON usuarios(google)'];
-const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto|nube_packs|nube_archivos';
+  'CREATE UNIQUE INDEX IF NOT EXISTS i_usuarios_google ON usuarios(google)', 'ALTER TABLE usuarios ADD COLUMN premium_hasta INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE usuarios ADD COLUMN donador INTEGER NOT NULL DEFAULT 0'];
+const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto|nube_packs|nube_archivos|premium|pagos|tickets_pago';
 const RE_TABLA = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|ALTER TABLE|TABLE IF NOT EXISTS|ON)\\s+(${TABLAS})\\b`, 'g'), RE_INDICE = /\bINDEX IF NOT EXISTS (\w+)/g;
 export const conPrefijo = (sql, pre) => sql.replace(RE_TABLA, `$1 ${pre}$2`).replace(RE_INDICE, `INDEX IF NOT EXISTS ${pre}$1`);
 // la base de JXMod, vista con las tablas de Stickerazo («sz_usuarios», «sz_packs»…)
@@ -130,6 +133,7 @@ async function borrarCuenta(env, idCuenta) {
     await env.DB.batch(ops);
   await env.DB.prepare('DELETE FROM entradas WHERE usuario = ?').bind(idCuenta).run();
   await borrarNube(nubeDb(env), idCuenta);   // (y lo que tenía guardado en su cuenta)
+  await pagosAlBorrar(env, env.DB, idCuenta);   // (si pagaba Premium por mes o por año, se da de baja)
 }
 
 // ---- límites (para que nadie llene todo de una) ----
@@ -156,17 +160,17 @@ async function quien(req, env) {
 // al servidor— con la versión, así la caché se renueva cuando la cambia)
 const leerAvatar = (u) => { try { return JSON.parse(u.avatar || '{}') || {}; } catch (e) { return {}; } };
 const avatarDe = (u) => { const a = leerAvatar(u); return { e: a.e || '😎', c: a.c || '#ff3e8a', p: Number.isInteger(a.p) ? a.p : 0, f: a.f && u.id ? `u/${u.id}/foto?v=${a.f}` : null, b: a.b && u.id ? `u/${u.id}/portada?v=${a.b}` : null }; };
-const publico = (u) => ({ id: u.id, nombre: u.nombre, bio: u.bio, avatar: avatarDe(u), seguidores: u.seguidores, siguiendo: u.siguiendo, creado: u.creado });
+const publico = (u) => ({ id: u.id, nombre: u.nombre, bio: u.bio, avatar: avatarDe(u), seguidores: u.seguidores, siguiendo: u.siguiendo, creado: u.creado, premium: (u.premium_hasta || 0) > Date.now(), donador: !!u.donador });
 
 // ---- un pack, para mostrar ----
 function resumen(p) {
   const a = JSON.parse(p.archivos);
   return {
     id: p.id, nombre: p.nombre, tags: p.tags ? p.tags.split(' ') : [], animado: !!p.animado, n: a.length, muestra: a.slice(0, 6).map((x) => x.archivo), bandeja: p.bandeja, v: p.v,
-    likes: p.likes, descargas: p.descargas, creado: p.creado, privado: !!p.privado, autor: { id: p.autor, nombre: p.a_nombre, avatar: avatarDe({ id: p.autor, avatar: p.a_avatar }) },
+    likes: p.likes, descargas: p.descargas, creado: p.creado, privado: !!p.privado, autor: { id: p.autor, nombre: p.a_nombre, avatar: avatarDe({ id: p.autor, avatar: p.a_avatar }), premium: (p.a_premium || 0) > Date.now() },
   };
 }
-const TODOS_DE = 'SELECT p.*, u.nombre AS a_nombre, u.avatar AS a_avatar FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.oculto = 0 AND u.bloqueado = 0';
+const TODOS_DE = 'SELECT p.*, u.nombre AS a_nombre, u.avatar AS a_avatar, u.premium_hasta AS a_premium FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.oculto = 0 AND u.bloqueado = 0';
 // (lo público: sin lo que su dueño ocultó)
 const CON_AUTOR = TODOS_DE + ' AND p.privado = 0';
 async function marcarLikes(env, yo, packs) {
@@ -216,6 +220,14 @@ async function manejar(req, env, ctx, base) {
       if (ruta.startsWith('/m/')) return media(req, env, ctx, ruta);
       if (ruta.startsWith('/u/')) return imagenPerfil(req, env, ctx, ruta);
       if (ruta.startsWith('/p/')) return compartir(env, ruta.slice(3), origen);
+      // Premium y donaciones: la página con los botones de PayPal (la abre la app en el navegador, con un ticket)
+      if (ruta === '/premium') {
+        if (!pagosPrendidos(env)) return html(pagina('Stickerazo Premium', '<h1>Premium llega muy pronto</h1><p class="p">Todavía no se puede pagar.</p>'), 503);
+        const t = u.searchParams.get('t') || '', quienPaga = await cuentaDelTicket(env.DB, t);
+        const fila = quienPaga && (await env.DB.prepare('SELECT id, nombre FROM usuarios WHERE id = ?').bind(quienPaga).first());
+        if (!fila) return html(pagina('Stickerazo Premium', '<h1>El enlace venció</h1><p class="p">Volvé a Stickerazo y tocá «Premium» de nuevo.</p>'), 401);
+        return paginaPremium(env, { t, usuario: fila, est: await estadoPremium(env, env.DB, fila.id), apiBase: servidor + '/api', origen: servidor });
+      }
       if (ruta === '/admin') return html(paginaAdmin(base));
       if (!ruta.startsWith('/api/')) return html(pagina('No está', '<h1>No está</h1>'), 404);
       return await api(req, env, u, ruta.slice(5), metodo, servidor);
@@ -282,9 +294,10 @@ async function api(req, env, u, r, metodo, servidor) {
   }
   // ---- tus packs guardados en tu cuenta (nube.js) ----
   { const rn = await nubeRutas(req, nubeDb(env), yo, r, metodo, { json, error, limite: (k, n, s) => limite(env, k, n, s) }); if (rn) return rn; }
+  { const rp = await pagosRutas(req, env, env.DB, yo, r, metodo, servidor, { json, error, limite: (k, n, s) => limite(env, k, n, s), cuerpo }); if (rp) return rp; }
   // ---- contacto (el formulario de la página) ----
   if (r === 'contacto' && metodo === 'POST') {
-    const d = await cuerpo(), motivo = ['consulta', 'privacidad', 'borrar', 'derechos', 'denuncia', 'otro'].includes(d.motivo) ? d.motivo : 'otro';
+    const d = await cuerpo(), motivo = ['consulta', 'privacidad', 'borrar', 'derechos', 'denuncia', 'arrepentimiento', 'baja', 'pagos', 'otro'].includes(d.motivo) ? d.motivo : 'otro';
     const texto = String(d.texto || '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 3000), mail = String(d.mail || '').trim().slice(0, 120);
     if (texto.length < 10) return error('Contanos un poco más (al menos 10 letras)');
     if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return error('Ese mail no parece bien escrito');
@@ -495,7 +508,7 @@ async function api(req, env, u, r, metodo, servidor) {
   if (r.startsWith('admin/')) {
     if (!env.ADMIN_CLAVE || req.headers.get('X-Admin') !== env.ADMIN_CLAVE) return error('No', 403);
     if (r === 'admin/reportados' && metodo === 'GET') {
-      const { results } = await env.DB.prepare('SELECT p.*, u.nombre AS a_nombre, u.avatar AS a_avatar, u.bloqueado AS a_bloq FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.reportes > 0 ORDER BY p.oculto DESC, p.reportes DESC LIMIT 100').all();
+      const { results } = await env.DB.prepare('SELECT p.*, u.nombre AS a_nombre, u.avatar AS a_avatar, u.premium_hasta AS a_premium, u.bloqueado AS a_bloq FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.reportes > 0 ORDER BY p.oculto DESC, p.reportes DESC LIMIT 100').all();
       const out = [];
       for (const p of results) { const mot = (await env.DB.prepare('SELECT motivo, COUNT(*) AS n FROM reportes WHERE pack = ? GROUP BY motivo').bind(p.id).all()).results; out.push({ ...resumen(p), oculto: !!p.oculto, reportes: p.reportes, motivos: mot, autorBloqueado: !!p.a_bloq }); }
       return json({ packs: out });
@@ -507,6 +520,9 @@ async function api(req, env, u, r, metodo, servidor) {
       else if (accion === 'ocultar') await env.DB.prepare('UPDATE packs SET oculto = 1 WHERE id = ?').bind(m[1]).run();
       return json({ ok: true });
     }
+    // (lo cobrado: los últimos 200 pagos y la suma por tipo)
+    if (r === 'admin/pagos' && metodo === 'GET') return json({ pagos: (await env.DB.prepare('SELECT * FROM pagos ORDER BY creado DESC LIMIT 200').all()).results,
+      totales: (await env.DB.prepare('SELECT tipo, moneda, COUNT(*) AS n, SUM(CAST(monto AS REAL)) AS suma FROM pagos GROUP BY tipo, moneda').all()).results });
     if (r === 'admin/contacto' && metodo === 'GET') return json({ mensajes: (await env.DB.prepare('SELECT * FROM contacto ORDER BY creado DESC LIMIT 100').all()).results });
     if ((m = /^admin\/contacto\/([a-z0-9]{10})$/.exec(r)) && metodo === 'DELETE') { await env.DB.prepare('DELETE FROM contacto WHERE id = ?').bind(m[1]).run(); return json({ ok: true }); }
     if ((m = /^admin\/usuarios\/([a-z0-9]{10})$/.exec(r)) && metodo === 'POST') {
@@ -587,7 +603,7 @@ async function publicar(req, env, yo, id) {
   if (viejo) ops.push(env.DB.prepare('UPDATE packs SET nombre = ?, tags = ?, busqueda = ?, animado = ?, archivos = ?, bandeja = ?, v = v + 1 WHERE id = ?').bind(nombre, tags.join(' '), busqueda, animado ? 1 : 0, JSON.stringify(archivos), bn, pid));
   else ops.push(env.DB.prepare('INSERT INTO packs (id, autor, nombre, tags, busqueda, animado, archivos, bandeja, creado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(pid, yo.id, nombre, tags.join(' '), busqueda, animado ? 1 : 0, JSON.stringify(archivos), bn, Date.now()));
   await env.DB.batch(ops);
-  const p = await env.DB.prepare('SELECT p.*, u.nombre AS a_nombre, u.avatar AS a_avatar FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.id = ?').bind(pid).first();
+  const p = await env.DB.prepare('SELECT p.*, u.nombre AS a_nombre, u.avatar AS a_avatar, u.premium_hasta AS a_premium FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.id = ?').bind(pid).first();
   return json({ pack: resumen(p) }, viejo ? 200 : 201);
 }
 
@@ -638,8 +654,8 @@ async function compartir(env, id, origen) {
 }
 const PRIVACIDAD = `<h1>Privacidad</h1><p class="p">Stickerazo · versión corta (la completa no cargó: recargá en un rato)</p>
 <p><b>Tus fotos no salen de tu celular.</b> Sólo sube lo que publicás en la comunidad. Entrás con Google: de tu cuenta de Google guardamos sólo una huella de su identificador, no tu mail ni tu nombre. Tu @, tu bio, tu avatar, tu foto y tu portada (si las ponés) y tus packs publicados los ve cualquiera.</p>
-<p>No vendemos datos, no hay publicidad ni rastreo. Los datos viajan cifrados y los guarda Cloudflare. Borrás todo al instante desde la app (Perfil → Borrar mi cuenta) o desde <a href="borrar-cuenta">esta página</a>. Para tus derechos, escribinos desde <a href="contacto">contacto</a>.</p>`;
-const TERMINOS = `<h1>Términos y reglas</h1><p class="p">Versión corta (la completa no cargó: recargá en un rato)</p><p>Lo que publicás es tuyo y nos das permiso para mostrarlo en la comunidad. No se puede publicar contenido sexual, odio o discriminación, violencia, acoso, datos de otras personas, ni fotos de alguien que no quiere aparecer. Los packs con 3 denuncias se ocultan hasta que los revisemos, y las cuentas que no respetan esto se bloquean. Tenés que tener 13 años o más. La app es gratis y se ofrece tal como está, sin afectar tus derechos como consumidor. Rige la ley argentina.</p>`;
+<p>No vendemos datos. Los anuncios los muestra Google (AdMob), con su aviso de consentimiento donde corresponde; con Premium no hay anuncios. Premium y las donaciones se pagan en PayPal: no vemos tu tarjeta, sólo guardamos el número de la orden, el monto y la fecha. Los datos viajan cifrados y los guarda Cloudflare. Borrás todo al instante desde la app (Perfil → Borrar mi cuenta) o desde <a href="borrar-cuenta">esta página</a>. Para tus derechos, escribinos desde <a href="contacto">contacto</a>.</p>`;
+const TERMINOS = `<h1>Términos y reglas</h1><p class="p">Versión corta (la completa no cargó: recargá en un rato)</p><p>Lo que publicás es tuyo y nos das permiso para mostrarlo en la comunidad. No se puede publicar contenido sexual, odio o discriminación, violencia, acoso, datos de otras personas, ni fotos de alguien que no quiere aparecer. Los packs con 3 denuncias se ocultan hasta que los revisemos, y las cuentas que no respetan esto se bloquean. Tenés que tener 13 años o más. La app es gratis y se ofrece tal como está, sin afectar tus derechos como consumidor. Premium es opcional, se paga con PayPal y se da de baja cuando quieras desde la app; tenés 10 días para arrepentirte de una compra y que te devolvamos todo. Rige la ley argentina.</p>`;
 const BORRAR = `<h1>Borrar tu cuenta</h1><p>Abrí Stickerazo → Perfil → <b>Borrar mi cuenta</b>. Se borran al instante tu cuenta, tus packs publicados, tus me gusta y a quién seguís. Los stickers que tenés guardados en el celular quedan en tu celular.</p><p>Sin la app: <a href="borrar">entrá con tu cuenta de Google y borrala desde acá</a>.</p>`;
 const CONTACTO = `<h1>Contacto</h1><p>Escribinos desde la app (Perfil → Ajustes) o volvé en un rato: el formulario no cargó.</p>`;
 const paginaAdmin = (base) => pagina('Moderación · Stickerazo', `<h1>Moderación</h1><input id="k" type="password" placeholder="Clave" style="width:100%;padding:12px;border-radius:12px;border:0"><button class="b" id="v" style="width:100%;border:0">Ver denunciados</button><button class="b" id="vm" style="width:100%;border:0">Ver mensajes de contacto</button><div id="l"></div>

@@ -1259,7 +1259,8 @@ function confeti() {
 C.iniciar({ $, h, modal, cerrarModal, aviso, ir, iconos, E, confirmar, vibrar, confeti, pestaña, carruselListos, norm, buscarTag, pintarPack: () => pintarPack(), atras, paisActual, elegirPais, elegirTema, temaActual, musica: () => musica(false), recargarPacks: () => { if (E.vista === 'vInicio') pintarInicio(); } });
 // ---- los anuncios (si el APK los trae): el banner de abajo no mientras recortás o editás, y uno de pantalla completa sólo
 //  en pausas naturales (Java decide si ya pasó un rato desde el último) ----
-const hayAnuncios = () => !!(window.SZN && window.SZN.hayAnuncios && window.SZN.hayAnuncios());
+// (con Premium, nada de anuncios)
+const hayAnuncios = () => !!(window.SZN && window.SZN.hayAnuncios && window.SZN.hayAnuncios()) && !C.esPremium();
 function bannerSegunVista(v) { if (hayAnuncios()) window.SZN.anuncioBanner(v !== 'vRecorte' && v !== 'vEditor'); }
 function pausaAnuncio() { if (hayAnuncios() && !hayModal()) window.SZN.anuncioPausa(); }
 // ---- versión nueva (se bajó sola): avisar cuando no está creando ----
@@ -1323,9 +1324,9 @@ window.__szApkEstado = (estado, d) => {
 };
 setTimeout(revisarApk, 6000);
 // los enlaces «stickerazo://pack/ID» (de la página para compartir) abren el pack
-window.__szAbrir = (ruta) => { if (/pack\/entrar/.test(String(ruta || ''))) return C.revisarEntrada(); const m = /pack\/([a-z0-9]{10})/.exec(String(ruta || '')); if (m) C.abrirPublico(m[1]); };
+window.__szAbrir = (ruta) => { if (/pack\/entrar/.test(String(ruta || ''))) return C.revisarEntrada(); if (/pack\/premium/.test(String(ruta || ''))) return C.revisarPremium(); const m = /pack\/([a-z0-9]{10})/.exec(String(ruta || '')); if (m) C.abrirPublico(m[1]); };
 // (volvió de Google al celular: que pregunte ya si entró; y si la app se reinició en el medio, que siga esperando)
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') C.revisarEntrada(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { C.revisarEntrada(); C.revisarPremium(); } });
 setTimeout(() => C.revisarEntrada(), 1500);
 
 // ---- arranque ----
