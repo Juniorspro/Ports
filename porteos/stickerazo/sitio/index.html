@@ -105,7 +105,7 @@ h1 em, h2 em { font-style: normal; color: var(--amarillo); }
 /* ---- la cinta de stickers ---- */
 .cinta { overflow: hidden; padding: 18px 0; transform: rotate(-2deg); margin: 14px -2vw; background: linear-gradient(90deg, var(--rosa), #ff7a1a, var(--amarillo)); box-shadow: 0 16px 40px rgba(255, 62, 138, .25); }
 .cinta div { display: flex; gap: 34px; width: max-content; animation: correr 40s linear infinite; font: 400 26px/1 L; color: #1b0c12; white-space: nowrap; }
-.cinta span { display: inline-flex; align-items: center; gap: 34px; }
+.cinta span { display: inline-flex; align-items: center; gap: 10px; } .cinta img { width: 44px; height: 44px; transform: rotate(-8deg); }
 @keyframes correr { to { transform: translateX(-50%); } }
 
 /* ---- lo que hace ---- */
@@ -125,7 +125,9 @@ h2 { font-size: clamp(36px, 4.8vw, 58px); transform: rotate(-1.5deg); }
 .fila h3 em { font-style: normal; color: var(--amarillo); }
 .fila p { color: #ddd6ee; margin: 0 0 12px; text-wrap: pretty; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-.chips span { font-size: 14px; font-weight: 700; padding: 7px 12px; border-radius: 99px; background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); }
+.chips span { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700; padding: 7px 12px; border-radius: 99px; background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); }
+.chips i[data-i] { width: 17px; height: 17px; flex: none; color: var(--amarillo); } i[data-i] svg { width: 100%; height: 100%; display: block; } i[data-i] .r { fill: currentColor; stroke: none; opacity: .25; transform: translate(1.3px, 1.4px); }
+.fin img.mini { width: 22px; height: 22px; vertical-align: -5px; }
 @media (max-width: 800px) {
   .fila { grid-template-columns: 1fr; gap: 14px; margin-bottom: 40px; }
   .fila:nth-child(even) .foto { order: 0; }
@@ -151,8 +153,8 @@ h2 { font-size: clamp(36px, 4.8vw, 58px); transform: rotate(-1.5deg); }
 .paso b { display: block; font: 400 15px/1 L; opacity: .75; letter-spacing: .5px; }
 .paso h3 { font: 400 30px/1.05 L; margin: 10px 0 8px; color: #1b0c12; }
 .paso p { margin: 0; font-weight: 600; font-size: 15.5px; max-width: 18em; }
-.paso .emo { position: absolute; right: 12px; bottom: 4px; font-size: 64px; transform: rotate(-12deg); filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .25)); }
-@media (max-width: 760px) { .facil { grid-template-columns: 1fr; } .paso { min-height: 0; padding-right: 96px; } .paso .emo { font-size: 52px; top: 50%; bottom: auto; transform: translateY(-50%) rotate(-12deg); } }
+.paso .emo { position: absolute; right: 10px; bottom: 6px; width: 92px; height: 92px; transform: rotate(-10deg); }
+@media (max-width: 760px) { .facil { grid-template-columns: 1fr; } .paso { min-height: 0; padding-right: 96px; } .paso .emo { width: 76px; height: 76px; top: 50%; bottom: auto; transform: translateY(-50%) rotate(-10deg); } }
 
 /* ---- el muro de stickers ---- */
 .muro { position: relative; overflow: hidden; padding: 48px 0 52px; background: radial-gradient(70% 120% at 50% 0%, rgba(255, 255, 255, .14), transparent 70%), linear-gradient(135deg, #5b2bd6, #8a3ffc 45%, #c13fd8); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .15); }
@@ -175,7 +177,7 @@ h2 { font-size: clamp(36px, 4.8vw, 58px); transform: rotate(-1.5deg); }
 .grilla { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .tarjeta { padding: 24px 22px; border-radius: var(--radio); background: var(--vidrio); box-shadow: inset 0 0 0 1px var(--linea); transition: transform .2s, background .2s; }
 .tarjeta:hover { transform: translateY(-4px); background: rgba(255, 255, 255, .08); }
-.tarjeta .emo { font-size: 34px; line-height: 1; display: block; margin-bottom: 12px; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .4)); }
+.tarjeta .emo { width: 58px; height: 58px; display: block; margin: -4px 0 8px -4px; transform: rotate(-6deg); }
 .tarjeta h4 { margin: 0 0 6px; font-size: 19px; }
 .tarjeta p { margin: 0; color: var(--suave); font-size: 15.5px; }
 @media (max-width: 860px) { .grilla { grid-template-columns: 1fr 1fr; } }
@@ -258,17 +260,17 @@ footer .fin { grid-column: 1 / -1; font-size: 13.5px; opacity: .8; margin: 10px 
   </div>
 
   <div class="cinta" aria-hidden="true"><div>
-    <span>🧉 Un mate y arranco</span><span>😂 Jajaja</span><span>⚽ ¡Goool!</span><span>🔥 De una</span><span>🙄 Ni ahí</span><span>🥟 ¿Empanadas?</span><span>💃 Cumbia</span><span>😎 Todo bien</span>
-    <span>🧉 Un mate y arranco</span><span>😂 Jajaja</span><span>⚽ ¡Goool!</span><span>🔥 De una</span><span>🙄 Ni ahí</span><span>🥟 ¿Empanadas?</span><span>💃 Cumbia</span><span>😎 Todo bien</span>
+    <span><img src="a/pg/mate.webp" alt="" width="44" height="44">Un mate y arranco</span><span><img src="a/pg/risa.webp" alt="" width="44" height="44">Jajaja</span><span><img src="a/pg/pelota.webp" alt="" width="44" height="44">¡Goool!</span><span><img src="a/pg/fuego.webp" alt="" width="44" height="44">De una</span><span><img src="a/pg/g_naa.webp" alt="" width="44" height="44">Ni ahí</span><span><img src="a/pg/empanada.webp" alt="" width="44" height="44">¿Empanadas?</span><span><img src="a/pg/notas.webp" alt="" width="44" height="44">Cumbia</span><span><img src="a/pg/cool.webp" alt="" width="44" height="44">Todo bien</span>
+    <span><img src="a/pg/mate.webp" alt="" width="44" height="44">Un mate y arranco</span><span><img src="a/pg/risa.webp" alt="" width="44" height="44">Jajaja</span><span><img src="a/pg/pelota.webp" alt="" width="44" height="44">¡Goool!</span><span><img src="a/pg/fuego.webp" alt="" width="44" height="44">De una</span><span><img src="a/pg/g_naa.webp" alt="" width="44" height="44">Ni ahí</span><span><img src="a/pg/empanada.webp" alt="" width="44" height="44">¿Empanadas?</span><span><img src="a/pg/notas.webp" alt="" width="44" height="44">Cumbia</span><span><img src="a/pg/cool.webp" alt="" width="44" height="44">Todo bien</span>
   </div></div>
 
   <section>
     <div class="envoltura">
       <div class="titulo aparece"><h2>Así de <em>fácil</em></h2></div>
       <div class="facil">
-        <div class="paso aparece"><b>Paso 1</b><h3>Elegí una foto</h3><p>De la galería o sacala en el momento. La app la recorta sola.</p><span class="emo" aria-hidden="true">📸</span></div>
-        <div class="paso aparece"><b>Paso 2</b><h3>Dale onda</h3><p>Letras, globitos, emojis y una animación de un toque.</p><span class="emo" aria-hidden="true">✨</span></div>
-        <div class="paso aparece"><b>Paso 3</b><h3>Al grupo</h3><p>«Agregar a WhatsApp» y ya lo tenés en el teclado.</p><span class="emo" aria-hidden="true">💬</span></div>
+        <div class="paso aparece"><b>Paso 1</b><h3>Elegí una foto</h3><p>De la galería o sacala en el momento. La app la recorta sola.</p><img class="emo" src="a/pg/i_camara.webp" alt="" width="96" height="96"></div>
+        <div class="paso aparece"><b>Paso 2</b><h3>Dale onda</h3><p>Letras, globitos, emojis y una animación de un toque.</p><img class="emo" src="a/pg/chispas.webp" alt="" width="96" height="96"></div>
+        <div class="paso aparece"><b>Paso 3</b><h3>Al grupo</h3><p>«Agregar a WhatsApp» y ya lo tenés en el teclado.</p><img class="emo" src="a/pg/i_globo.webp" alt="" width="96" height="96"></div>
       </div>
     </div>
   </section>
@@ -283,7 +285,7 @@ footer .fin { grid-column: 1 / -1; font-size: 13.5px; opacity: .8; margin: 10px 
           <h3>Una foto,<br><em>un sticker</em></h3>
           <p>Elegís una foto y la app recorta a la persona, la mascota o la comida. Si querés afinar, lo retocás con el dedo.</p>
           <p>El recorte lo hace tu celular, sin internet. Tus fotos no se suben a ningún lado.</p>
-          <div class="chips"><span>✂️ Recorte solo</span><span>🤳 Con la cámara</span><span>⚡ Pack express: hasta 30 fotos de una</span></div>
+          <div class="chips"><span><i data-i="magia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M15 4.5l1.1 2.4 2.4 1.1-2.4 1.1L15 11.5l-1.1-2.4-2.4-1.1 2.4-1.1z"/><path d="M4.5 19.5L13 11"/><path d="M15 4.5l1.1 2.4 2.4 1.1-2.4 1.1L15 11.5l-1.1-2.4-2.4-1.1 2.4-1.1z"/><path d="M19 14.5v3M17.5 16h3M7.5 4v2.4M6.3 5.2h2.4"/></svg></i>Recorte solo</span><span><i data-i="camara"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M4.5 8.5h2.8l1.9-2.6h5.6l1.9 2.6h2.8a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18v-8a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M4.5 8.5h2.8l1.9-2.6h5.6l1.9 2.6h2.8a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18v-8a1.5 1.5 0 0 1 1.5-1.5z"/><circle cx="12" cy="13.6" r="3.3"/></svg></i>Con la cámara</span><span><i data-i="rayo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M13.5 2.5L5 13.5h6l-1 8 8.5-11h-6z"/><path d="M13.5 2.5L5 13.5h6l-1 8 8.5-11h-6z"/></svg></i>Pack express: hasta 30 fotos de una</span></div>
         </div>
       </div>
 
@@ -293,7 +295,7 @@ footer .fin { grid-column: 1 / -1; font-size: 13.5px; opacity: .8; margin: 10px 
           <h3>Letras con onda<br><em>y que se muevan</em></h3>
           <p>Globitos, fileteado, emojis y varias tipografías para decir lo que quieras. Doble toque y cambiás el texto.</p>
           <p>Diez animaciones de un toque: latido, temblor, rebote, giro, arcoíris… y el modo <b>xD</b> para deformar fotos a propósito.</p>
-          <div class="chips"><span>💬 Globitos</span><span>🌸 Fileteado</span><span>💓 10 animaciones</span><span>😵 Modo xD</span></div>
+          <div class="chips"><span><i data-i="globo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 4 13.5v-7A2.5 2.5 0 0 1 6.5 4z"/><path d="M6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 4 13.5v-7A2.5 2.5 0 0 1 6.5 4z"/></svg></i>Globitos</span><span><i data-i="pincel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M4.5 19.5l1.2-4.4L16 4.8l3.2 3.2L8.9 18.3z"/><path d="M4.5 19.5l1.2-4.4L16 4.8l3.2 3.2L8.9 18.3z"/><path d="M13.9 6.9l3.2 3.2"/></svg></i>Fileteado</span><span><i data-i="aLatido"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M12 20.5C7 17 3.5 13.6 3.5 9.6 3.5 6.8 5.6 4.8 8.2 4.8c1.6 0 3 .8 3.8 2.1.8-1.3 2.2-2.1 3.8-2.1 2.6 0 4.7 2 4.7 4.8 0 4-3.5 7.4-8.5 10.9z"/><path d="M12 20.5C7 17 3.5 13.6 3.5 9.6 3.5 6.8 5.6 4.8 8.2 4.8c1.6 0 3 .8 3.8 2.1.8-1.3 2.2-2.1 3.8-2.1 2.6 0 4.7 2 4.7 4.8 0 4-3.5 7.4-8.5 10.9z"/><path d="M1.5 6.5l1.6 1M22.5 6.5l-1.6 1M12 1.8v1.4"/></svg></i>10 animaciones</span><span><i data-i="xOjo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z"/><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17M3.5 12h17"/><path d="M7 5.4c-1.9 4.1-1.9 9.1 0 13.2M17 5.4c1.9 4.1 1.9 9.1 0 13.2"/></svg></i>Modo xD</span></div>
         </div>
       </div>
 
@@ -303,7 +305,7 @@ footer .fin { grid-column: 1 / -1; font-size: 13.5px; opacity: .8; margin: 10px 
           <h3>Packs listos<br><em>y memes</em></h3>
           <p>Mate, fútbol, asado, laburo y más de 180 memes con fotos libres de toda Latinoamérica. Los usás así o los cambiás a tu gusto.</p>
           <p>Lo armás, tocás <b>Agregar a WhatsApp</b> y ya lo tenés en el teclado.</p>
-          <div class="chips"><span>🇦🇷 🇲🇽 🇨🇴 🇨🇱 🇵🇪 🇺🇾 y más</span><span>🔎 Buscás por emoji o palabra</span></div>
+          <div class="chips"><span><i data-i="mundo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z"/><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/></svg></i>Argentina, México, Colombia, Chile, Perú y más</span><span><i data-i="lupa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13z"/><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.4 15.4l4.6 4.6"/><path d="M8 8.6a3 3 0 0 1 2.5-1.4" stroke-width="1.6"/></svg></i>Buscás por emoji o palabra</span></div>
         </div>
       </div>
 
@@ -313,7 +315,7 @@ footer .fin { grid-column: 1 / -1; font-size: 13.5px; opacity: .8; margin: 10px 
           <h3>Una comunidad<br><em>para compartir</em></h3>
           <p>Publicá tus packs, seguí a quien quieras, dale me gusta y bajate los mejores. Tu perfil con tu foto, tu portada y tus stickers.</p>
           <p>Entrás con tu cuenta de Google y elegís tu @: sin formularios. De Google no guardamos ni tu mail ni tu nombre.</p>
-          <div class="chips"><span>❤️ Me gusta</span><span>👥 Seguir</span><span>🖼️ Foto y portada</span><span>🚩 Denunciar y bloquear</span></div>
+          <div class="chips"><span><i data-i="corazon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z"/><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z"/></svg></i>Me gusta</span><span><i data-i="persona"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M12 4.6a3.7 3.7 0 1 1 0 7.4 3.7 3.7 0 0 1 0-7.4zM5 19.8c.9-3.6 3.6-5.6 7-5.6s6.1 2 7 5.6z"/><circle cx="12" cy="8.3" r="3.7"/><path d="M5 19.8c.9-3.6 3.6-5.6 7-5.6s6.1 2 7 5.6"/></svg></i>Seguir</span><span><i data-i="galeria"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M3.5 7.5a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3z"/><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M4 16.5l4.6-4.6 3.6 3.6 2.6-2.6 4.7 4.7"/><circle cx="15.8" cy="8.8" r="1.4" fill="currentColor"/></svg></i>Foto y portada</span><span><i data-i="bandera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="r" d="M5.5 4.5h11l-2 4 2 4h-11z"/><path d="M5.5 21V4M5.5 4.5h11l-2 4 2 4h-11"/></svg></i>Denunciar y bloquear</span></div>
         </div>
       </div>
 
@@ -339,12 +341,12 @@ footer .fin { grid-column: 1 / -1; font-size: 13.5px; opacity: .8; margin: 10px 
     <div class="envoltura">
       <div class="titulo aparece"><h2>Y <em>además</em></h2></div>
       <div class="grilla">
-        <div class="tarjeta aparece"><span class="emo">🎵</span><h4>Música de tu país</h4><p>Cumbia, cuarteto, reggaetón, rock nacional… con el reproductor de YouTube mientras hacés stickers.</p></div>
-        <div class="tarjeta aparece"><span class="emo">🌗</span><h4>Modo claro u oscuro</h4><p>Como te guste, o que siga al celular.</p></div>
-        <div class="tarjeta aparece"><span class="emo">🔒</span><h4>Tus fotos, en tu celu</h4><p>Sólo se sube lo que vos publicás en la comunidad.</p></div>
-        <div class="tarjeta aparece"><span class="emo">🚫</span><h4>Sin marca de agua</h4><p>Tus stickers salen limpios, sin logos encima.</p></div>
-        <div class="tarjeta aparece"><span class="emo">⚡</span><h4>Se actualiza sola</h4><p>Las novedades llegan solas al abrirla. No tenés que bajar nada de nuevo.</p></div>
-        <div class="tarjeta aparece"><span class="emo">🌎</span><h4>Para toda Latinoamérica</h4><p>Más de 20 países, con sus palabras y sus memes.</p></div>
+        <div class="tarjeta aparece"><img class="emo" src="a/pg/notas.webp" alt="" width="64" height="64"><h4>Música de tu país</h4><p>Cumbia, cuarteto, reggaetón, rock nacional… con el reproductor de YouTube mientras hacés stickers.</p></div>
+        <div class="tarjeta aparece"><img class="emo" src="a/pg/luna.webp" alt="" width="64" height="64"><h4>Modo claro u oscuro</h4><p>Como te guste, o que siga al celular.</p></div>
+        <div class="tarjeta aparece"><img class="emo" src="a/pg/i_candado.webp" alt="" width="64" height="64"><h4>Tus fotos, en tu celu</h4><p>Sólo se sube lo que vos publicás en la comunidad.</p></div>
+        <div class="tarjeta aparece"><img class="emo" src="a/pg/i_limpio.webp" alt="" width="64" height="64"><h4>Sin marca de agua</h4><p>Tus stickers salen limpios, sin logos encima.</p></div>
+        <div class="tarjeta aparece"><img class="emo" src="a/pg/rayo.webp" alt="" width="64" height="64"><h4>Se actualiza sola</h4><p>Las novedades llegan solas al abrirla. No tenés que bajar nada de nuevo.</p></div>
+        <div class="tarjeta aparece"><img class="emo" src="a/pg/i_mundo.webp" alt="" width="64" height="64"><h4>Para toda Latinoamérica</h4><p>Más de 20 países, con sus palabras y sus memes.</p></div>
       </div>
     </div>
   </section>
@@ -393,7 +395,7 @@ footer .fin { grid-column: 1 / -1; font-size: 13.5px; opacity: .8; margin: 10px 
     <div><h5>La app</h5><nav aria-label="La app"><a href="#bajar">Bajarla</a><a href="#que-hace">Qué hace</a><a href="#preguntas">Preguntas</a></nav></div>
     <div><h5>Legales</h5><nav aria-label="Legales"><a href="privacidad">Privacidad</a><a href="terminos">Términos y reglas</a><a href="borrar-cuenta">Borrar tu cuenta</a><a href="contacto?motivo=arrepentimiento">Botón de arrepentimiento</a><a href="contacto?motivo=baja">Botón de baja</a></nav></div>
     <div><h5>Hablemos</h5><nav aria-label="Contacto"><a href="contacto">Escribinos</a><a href="contacto?motivo=derechos">Derechos de autor</a><a href="contacto?motivo=privacidad">Tus datos</a></nav></div>
-    <p class="fin">Hecho en Argentina 🧉 · Stickerazo no está afiliada a WhatsApp, Meta ni Google.</p>
+    <p class="fin">Hecho en Argentina <img class="mini" src="a/pg/mate.webp" alt="" width="22" height="22"> · Stickerazo no está afiliada a WhatsApp, Meta ni Google.</p>
   </div>
 </footer>
 
