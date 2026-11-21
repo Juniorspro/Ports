@@ -186,6 +186,7 @@ function liquido(cambio, desde = ultimoToque, soloSalida = false) {
 }
 
 function ir(v, volviendo) {
+  if (v !== E.vista) C.pararCancionPerfil();   // (la canción de un perfil se corta al salir del perfil)
   if (!volviendo && E.vista && E.vista !== v && LIQ.c && !LIQ.corriendo && document.visibilityState === 'visible') liquido(null, ultimoToque, true);
   for (const s of document.querySelectorAll('.vista')) s.classList.toggle('oc', s.id !== v);
   const s = $('#' + v); s.classList.remove('entra', 'vuelve'); void s.offsetWidth; s.classList.add(volviendo ? 'vuelve' : 'entra');
@@ -1352,6 +1353,7 @@ function sugerirEmojis(s) {
 // ================= INICIO: pestañas =================
 let feedCargado = 0;
 function pestaña(t) {
+  if (t !== E.tab) C.pararCancionPerfil();
   const antes = E.tab; E.tab = t;
   for (const k of ['Feed', 'Crear', 'Listos', 'Mios', 'Perfil']) { const el = $('#tab' + k); el.classList.toggle('oc', k !== t); if (k === t && antes !== t) { el.classList.remove('aparece'); void el.offsetWidth; el.classList.add('aparece'); } }
   for (const b of $('#tabs').children) b.classList.toggle('act', b.dataset.t === t);

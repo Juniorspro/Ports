@@ -96,7 +96,7 @@ function achicar() {
   M.el.classList.add('min');
   if (!M.disco) {
     const b = (M.disco = document.createElement('button')); b.className = 'radioDisco'; b.setAttribute('aria-label', 'Volver a la música');
-    b.innerHTML = `${vinilo('rdVinilo')}<i class="rdPlay">▶</i>`; document.body.appendChild(b);
+    b.innerHTML = `${vinilo('rdVinilo')}<i class="rdPlay" data-i="play"></i>`; document.body.appendChild(b);
     b.onclick = () => agrandar(true);
   }
   const v = M.lista[M.i]; if (v) ponerTapa(M.disco.querySelector('.rfTapa'), v);
@@ -108,3 +108,50 @@ function agrandar(seguir) {
   M.el.classList.remove('min'); if (seguir) { try { M.yt && M.yt.playVideo(); } catch (e) { /* nada */ } }
 }
 export const hayMusica = () => !!M.el && !M.el.classList.contains('min');
+
+// ---- la canción del perfil (como en Instagram) ----
+// Elegirla: el mismo buscador, en una hoja; devuelve { id, t, c }, null si la saca o undefined si cierra.
+export function elegirCancion({ base, X, actual }) {
+  return new Promise((listo) => {
+    const el = document.createElement('div'); el.className = 'musicaEl cancionEl';
+    el.innerHTML = `<div class="muCaja"><div class="muCab"><span class="muDisco"></span><div><h2>Canción de tu perfil</h2><p>Suena cuando alguien la toca en tu perfil.</p></div></div>
+      <div class="buscar muBuscar"><i data-i="lupa"></i><input type="search" placeholder="Buscá una canción o un artista" enterkeyhint="search"></div>
+      <div class="muLista"><p class="muNada">Escribí el nombre de una canción.</p></div><div class="botones">${actual ? '<button class="sec ceSacar">Sacar la canción</button>' : ''}<button class="sec muSaltar">Cerrar</button></div></div>`;
+    document.body.appendChild(el); requestAnimationFrame(() => el.classList.add('entra'));
+    const lista = el.querySelector('.muLista'), inp = el.querySelector('input'); let items = [];
+    const cerrar = (r) => { el.classList.add('chau'); setTimeout(() => el.remove(), 350); listo(r); };
+    const cargar = async (q) => {
+      lista.innerHTML = Array.from({ length: 5 }, () => '<div class="muIt esq"></div>').join('');
+      try { items = await buscar(base, q); lista.innerHTML = items.length ? items.map((v, k) => `<button class="muIt" data-k="${k}"><img src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy"><span><b>${esc(v.t)}</b><small>${esc(v.c)}${v.d ? ' · ' + esc(v.d) : ''}</small></span></button>`).join('') : '<p class="muNada">No encontré nada con eso.</p>'; }
+      catch (e) { lista.innerHTML = '<p class="muNada">Sin conexión: la música necesita internet.</p>'; }
+    };
+    inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && inp.value.trim()) { inp.blur(); cargar(inp.value.trim()); } });
+    lista.onclick = (ev) => { const b = ev.target.closest('[data-k]'); if (!b) return; X.vibrar(12); const v = items[+b.dataset.k]; cerrar({ id: v.id, t: String(v.t || '').slice(0, 100), c: String(v.c || '').slice(0, 60) }); };
+    el.querySelector('.muSaltar').onclick = () => cerrar(undefined);
+    const sacar = el.querySelector('.ceSacar'); if (sacar) sacar.onclick = () => cerrar(null);
+    setTimeout(() => inp.focus(), 350);
+  });
+}
+// Tocarla en un perfil: una tarjeta adentro del perfil con el reproductor de YouTube a la vista (200×200) y el disco que
+// gira. Si la radio estaba sonando, queda en pausa. Al salir del perfil (o al tocarla de nuevo) se corta.
+const CP = { yt: null, el: null, id: '' };
+export const cancionSonando = () => (CP.el ? CP.id : '');
+export async function tocarCancionPerfil(v, lugar) {
+  const repetida = CP.id === v.id && CP.el; pararCancionPerfil(); if (repetida) return;
+  if (M.el && !M.el.classList.contains('min')) achicar();
+  const el = (CP.el = document.createElement('div')); CP.id = v.id; el.className = 'cancionTarjeta';
+  el.innerHTML = `<div class="cpVideo"></div><div class="cpLado">${vinilo('cpVinilo')}<b>${esc(v.t)}</b><small>${esc(v.c)}</small><button class="cpX sec"><i data-i="cerrar"></i>Parar</button></div>`;
+  lugar.appendChild(el); ponerTapa(el.querySelector('.rfTapa'), v);
+  el.querySelector('.cpX').onclick = pararCancionPerfil;
+  try {
+    await apiYT(); if (CP.el !== el) return;
+    CP.yt = new window.YT.Player(el.querySelector('.cpVideo'), { width: 200, height: 200, videoId: v.id, host: 'https://www.youtube-nocookie.com',
+      playerVars: { autoplay: 1, playsinline: 1, rel: 0, modestbranding: 1 },
+      events: { onStateChange: (e) => el.classList.toggle('sonando', e.data === 1), onError: () => { el.querySelector('small').textContent = 'Esta canción no se puede escuchar acá'; } } });
+  } catch (e) { el.querySelector('small').textContent = 'No pude cargar YouTube'; }
+}
+export function pararCancionPerfil() {
+  if (!CP.el) return; try { CP.yt && CP.yt.destroy(); } catch (e) { /* nada */ }
+  CP.yt = null; CP.el.remove(); CP.el = null; CP.id = '';
+  for (const b of document.querySelectorAll('.cancionChip.sonando')) { b.classList.remove('sonando'); const ic = b.querySelector(':scope > i[data-i]'); if (ic) ic.outerHTML = '<i data-i="play"></i>'; }
+}

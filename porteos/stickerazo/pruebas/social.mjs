@@ -105,9 +105,9 @@ ok((await B.p.locator('#feedLista .tf:not(.esq)').count()) === 0, 'bloquear a @j
 await A.p.click('#vPack .volver'); await A.p.click('#tabs [data-t="Perfil"]'); await A.p.waitForSelector('#tabPerfil .stats');
 const st = await A.E(() => [...document.querySelectorAll('#tabPerfil .stats b')].map((b) => b.textContent));
 ok(st.join(',') === '1,0,1,1', `perfil de @juancito: packs ${st[0]}, seguidores ${st[1]} (lo bloquearon: se fue), descargas ${st[2]}, me gusta ${st[3]}`);
-await A.p.click('#tabPerfil [data-editar]'); await A.p.click('#epE [data-v="🧉"]'); await A.p.click('#epC [data-v="#74acdf"]'); await A.p.fill('#epBio', 'Stickers del grupo, con mate 🧉'); await A.foto('editar_perfil');
-await A.p.click('#modal [data-x="1"]'); await A.p.waitForFunction(() => /🧉/.test(document.querySelector('#tabPerfil .avG').textContent));
-ok((await srvApi('/api/usuarios/juancito')).usuario.avatar.e === '🧉' && /con mate/.test(await A.p.textContent('#tabPerfil .bio')), 'editar perfil: avatar 🧉 celeste y bio'); await A.foto('perfil_editado');
+await A.p.click('#tabPerfil [data-editar]'); await A.p.click('#epE [data-v="p:mate"]'); await A.p.click('#epC [data-v="#74acdf"]'); await A.p.fill('#epBio', 'Stickers del grupo, con mate 🧉'); await A.foto('editar_perfil');
+await A.p.click('#modal [data-x="1"]'); await A.p.waitForFunction(() => document.querySelector('#tabPerfil .avG [data-pega="mate"] canvas'));
+ok((await srvApi('/api/usuarios/juancito')).usuario.avatar.e === 'p:mate' && /con mate/.test(await A.p.textContent('#tabPerfil .bio')), 'editar perfil: avatar con la pegatina del mate, celeste, y bio'); await A.foto('perfil_editado');
 await A.p.click('#tabPerfil [data-x="borrar"]'); await A.p.click('#modal [data-x="1"]'); await A.p.waitForSelector('#regNombre');
 ok((await fetch(`${API}/api/packs/${loc.id}`)).status === 404 && !(await A.E(() => window.__sz.E.packs.some((p) => p.publicado))) && !(await A.E(() => localStorage.sz_cuenta)), 'borrar la cuenta: se va del servidor, el pack queda en el celular sin «publicado», y vuelve la bienvenida');
 

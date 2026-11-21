@@ -3,6 +3,7 @@
 import { abrirTermo } from './termo.js';
 import * as P from './puente.js';
 import { sincronizar, iniciarNube, estadoNube, programar } from './nube.js';
+import { elegirCancion, tocarCancionPerfil, pararCancionPerfil, cancionSonando } from './musica.js';
 export const API = (typeof window !== 'undefined' && window.SZ_API) || 'https://rezobox-tienda.holasoyjuniors365.workers.dev/sz';
 // (lo que ve la gente —packs compartidos, reglas, privacidad— va por la dirección propia, que muestra lo mismo que el servidor)
 export const SITIO = (typeof window !== 'undefined' && (window.SZ_SITIO || window.SZ_API)) || 'https://stickerazo.pages.dev';
@@ -32,7 +33,11 @@ export const enlace = (id) => `${SITIO}/p/${id}`;
 const hace = (t) => { const s = (Date.now() - t) / 1000; return s < 60 ? 'recién' : s < 3600 ? `hace ${Math.floor(s / 60)} min` : s < 86400 ? `hace ${Math.floor(s / 3600)} h` : s < 86400 * 30 ? `hace ${Math.floor(s / 86400)} d` : new Date(t).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }); };
 const num = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1).replace('.0', '') + ' M' : n >= 1e4 ? Math.round(n / 1e3) + ' mil' : n >= 1e3 ? (n / 1e3).toFixed(1).replace('.0', '') + ' mil' : String(n));
 // (con su foto si subió una; si no, el emoji sobre su color)
-const caraDe = (a) => (a.f ? `<img src="${API}/${X.h(a.f)}" alt="" loading="lazy">` : X.h(a.e));
+// (la cara del avatar: su foto, o una pegatina —«p:id»—; los de antes, con un emoji, muestran la pegatina que le corresponde)
+const DE_EMOJI = { '😎': 'cool', '🧉': 'mate', '🤠': 'sol', '😜': 'guino', '🥳': 'estrellitas', '🤩': 'ojitos', '😺': 'risa', '🐶': 'amor', '🦊': 'fuego', '🐸': 'asco',
+  '👽': 'loco', '🤖': 'nervios', '💀': 'muerto', '🔥': 'fuego', '⚽': 'pelota', '🎸': 'notas', '🍕': 'empanada', '🌈': 'arcoiris', '🦄': 'brillo', '🐧': 'nube' };
+export const pegaDeAvatar = (e) => (/^p:[a-zA-Z_]+$/.test(e || '') ? e.slice(2) : DE_EMOJI[e] || 'risa');
+const caraDe = (a) => (a.f ? `<img src="${API}/${X.h(a.f)}" alt="" loading="lazy">` : `<i class="pegaUI pegaAv" data-pega="${X.h(pegaDeAvatar(a.e))}"></i>`);
 const avatar = (a, clase = 'av') => `<span class="${clase}${a.f ? ' conFoto' : ''}" style="background:${X.h(a.c)}">${caraDe(a)}</span>`;
 
 // ================= FEED =================
@@ -222,7 +227,7 @@ function perfilHTML(d, propio) {
   const flotan = d.packs.filter((p) => !p.privado).flatMap((p) => p.muestra.slice(0, 2).map((a) => media(p, a))).slice(0, 4);
   return `<div class="perfilTop"><div class="portadaP" style="background:${portadaDe(u)}"><i class="brilloP"></i>${flotan.map((f, k) => `<img class="flotaP" src="${f}" alt="" style="--k:${k}">`).join('')}</div>
     <div class="perfilFila"><span class="avG anilloAv${u.avatar.f ? ' conFoto' : ''}${u.premium ? ' dorado' : ''}" style="background:${X.h(u.avatar.c)}">${caraDe(u.avatar)}</span><div class="pBotones">${botones}<button class="pBoton ico2" data-compartir-u="${X.h(u.nombre)}" aria-label="Compartir perfil"><i data-i="compartir"></i></button></div></div>
-    <h2 class="arroba">@${X.h(u.nombre)}</h2>${(u.insignias || []).includes('termo') ? '<span class="chipInsignia"><i data-i="mate"></i>Elegido del termo</span>' : ''}${u.premium || u.donador ? `<div class="insigniasP">${u.premium ? '<span class="chipInsignia premium"><i data-i="chispa"></i>Premium</span>' : ''}${u.donador ? '<span class="chipInsignia donador"><i data-i="corazon"></i>Donador</span>' : ''}</div>` : ''}${u.bio ? `<p class="bio">${X.h(u.bio)}</p>` : propio ? '<p class="bio vacia">Tocá «Editar perfil» y contá algo de vos</p>' : ''}
+    <h2 class="arroba">@${X.h(u.nombre)}</h2>${(u.insignias || []).includes('termo') ? '<span class="chipInsignia"><i data-i="mate"></i>Elegido del termo</span>' : ''}${u.premium || u.donador ? `<div class="insigniasP">${u.premium ? '<span class="chipInsignia premium"><i data-i="chispa"></i>Premium</span>' : ''}${u.donador ? '<span class="chipInsignia donador"><i data-i="corazon"></i>Donador</span>' : ''}</div>` : ''}${u.bio ? `<p class="bio">${X.h(u.bio)}</p>` : propio ? '<p class="bio vacia">Tocá «Editar perfil» y contá algo de vos</p>' : ''}${cancionHTML(u.cancion)}
     <div class="stats"><span><b data-cuenta="${u.packs}">${num(u.packs)}</b>packs</span><span><b class="segN" data-cuenta="${u.seguidores}">${num(u.seguidores)}</b>seguidores</span><span><b data-cuenta="${u.descargas}">${num(u.descargas)}</b>descargas</span><span><b data-cuenta="${u.likes}">${num(u.likes)}</b>me gusta</span></div></div>
     ${propio ? '<div class="seg perfilSeg"><button data-pt="pub" class="act">Publicados</button><button data-pt="bajados">Bajados</button></div>' : '<h2>Packs</h2>'}
     <div class="feedLista" id="${propio ? 'perfilLista' : 'usLista'}">${listaPublicados(d, propio)}</div>`;
@@ -245,7 +250,16 @@ function contar(raiz) {
     const paso = (t) => { const k = Math.min(1, (t - t0) / 900); b.textContent = Math.round(fin * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(paso); }; requestAnimationFrame(paso);
   }
 }
+// (la canción del perfil: un botón con el disquito; al tocarlo suena en una tarjeta debajo —musica.js—)
+const cancionHTML = (c) => (c ? `<button class="cancionChip" data-cancion="${X.h(c.id)}" data-t="${X.h(c.t)}" data-c="${X.h(c.c)}"><span class="ccDisco"><img src="https://i.ytimg.com/vi/${X.h(c.id)}/mqdefault.jpg" alt=""></span><span class="ccTxt"><b>${X.h(c.t)}</b><small>${X.h(c.c)}</small></span><i data-i="play"></i></button><div class="cancionLugar"></div>` : '');
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('.cancionChip'); if (!b) return; X.vibrar(8);
+  const sonaba = cancionSonando() === b.dataset.cancion; tocarCancionPerfil({ id: b.dataset.cancion, t: b.dataset.t, c: b.dataset.c }, b.nextElementSibling);
+  b.classList.toggle('sonando', !sonaba); const ic = b.querySelector(':scope > i[data-i]'); if (ic) ic.outerHTML = `<i data-i="${sonaba ? 'play' : 'pausa'}"></i>`;
+});
+export { pararCancionPerfil };
 export async function abrirUsuario(nombre) {
+  pararCancionPerfil();
   if (cuenta() && cuenta().nombre === nombre) return X.pestaña('Perfil');
   X.E.origenUsuario = X.E.vista === 'vUsuario' ? X.E.origenUsuario : X.E.vista;
   const c = X.$('#usCont'); c.innerHTML = '<div class="heroe"><span class="avG esq"></span></div>'; X.$('#usNombre').textContent = '@' + nombre; X.ir('vUsuario');
@@ -463,6 +477,7 @@ export function revisarPremium() { if (esperando && cuenta()) cargarPremium().th
 
 // ---- mi perfil (o elegir mi @) ----
 export async function pintarPerfil() {
+  pararCancionPerfil();
   const c = X.$('#tabPerfil'), yo = cuenta();
   if (!yo) {
     const cfg = await configServidor();
@@ -502,25 +517,30 @@ async function recortarImagen(archivo, ancho, alto, maxBytes) {
 const elegirArchivo = () => new Promise((ok) => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.onchange = () => ok(i.files[0] || null); i.click(); });
 function editarPerfil() {
   const d = X.E.miPerfil; if (!d) return; const u = d.usuario, sel = { ...u.avatar };
-  const EMOJIS = ['😎', '🧉', '🤠', '😜', '🥳', '🤩', '😺', '🐶', '🦊', '🐸', '👽', '🤖', '💀', '🔥', '⚽', '🎸', '🍕', '🌈', '🦄', '🐧'];
+  const CARAS = ['cool', 'risa', 'guino', 'ojitos', 'amor', 'xd', 'loco', 'nervios', 'pienso', 'dormido', 'enojo', 'muerto', 'mate', 'empanada', 'pelota', 'sol', 'fuego', 'estrella', 'corazon', 'fantasma', 'notas', 'arcoiris', 'brillo', 'nube'];
   const COLS = ['#ff3e8a', '#ffd23f', '#3ec7ff', '#4cd964', '#ff7a1a', '#9b5cff', '#2c2840', '#74acdf'];
   // (lo nuevo que elige: se sube recién al guardar)
   const nuevo = { foto: null, portada: null, quitarFoto: false, quitarPortada: false };
   sel.p = sel.p || 0;
   const m = X.modal(`<div class="hoja"><h3>Tu perfil</h3><div class="prevAv" id="epPrev"><span class="avG" id="epAv"></span></div>
-    <div class="etq">Foto de perfil</div><div class="dos"><button class="sec" id="epFoto"><i data-i="galeria"></i>Elegir foto</button><button class="sec" id="epSinFoto"><i data-i="cara"></i>Usar emoji</button></div>
-    <div class="etq">Emoji</div><div class="emojis" id="epE">${EMOJIS.map((e) => `<button data-v="${e}">${e}</button>`).join('')}</div>
+    <div class="etq">Foto de perfil</div><div class="dos"><button class="sec" id="epFoto"><i data-i="galeria"></i>Elegir foto</button><button class="sec" id="epSinFoto"><i data-i="cara"></i>Usar pegatina</button></div>
+    <div class="etq">Pegatina</div><div class="avPegas" id="epE">${CARAS.map((k) => `<button data-v="p:${k}" aria-label="${k}"><i class="pegaUI" data-pega="${k}"></i></button>`).join('')}</div>
     <div class="etq">Color</div><div class="colores" id="epC">${COLS.map((c) => `<button class="color" data-v="${c}" style="background:${c}"></button>`).join('')}</div>
     <div class="etq">Portada</div><div class="portadas" id="epP"><button class="subirP" id="epPortada" aria-label="Elegir una imagen"><i data-i="camara"></i><small>Tu imagen</small></button>${PORTADAS.map((f, i) => `<button data-v="${i}" style="background:${f}" aria-label="Portada ${i + 1}"></button>`).join('')}</div>
     <div class="etq">Bio</div><input id="epBio" class="campo" maxlength="120" placeholder="Contá algo de vos (opcional)">
+    <div class="etq">Canción de tu perfil</div><button class="opc epCancion" id="epCan"><i data-i="musica"></i><span id="epCanT"></span><i data-i="sig"></i></button>
     <div class="botones"><button class="sec" data-x="0">Cancelar</button><button class="pri" data-x="1">Guardar</button></div></div>`);
   X.$('#epBio', m).value = u.bio || '';
+  let cancion = u.cancion || null, cambioCancion = false;
+  const marcarCancion = () => { X.$('#epCanT', m).innerHTML = cancion ? `<b>${X.h(cancion.t)}</b><small>${X.h(cancion.c)}</small>` : '<b>Elegir una canción</b><small>Suena cuando la tocan en tu perfil</small>'; };
+  marcarCancion();
+  X.$('#epCan', m).onclick = async () => { const r = await elegirCancion({ base: API.replace(/\/sz$/, ''), X, actual: cancion }); if (r === undefined) return; cancion = r; cambioCancion = true; marcarCancion(); };
   const fotoActual = () => (nuevo.foto ? nuevo.foto.url : !nuevo.quitarFoto && sel.f ? `${API}/${sel.f}` : null);
   const portadaActual = () => (nuevo.portada ? `url('${nuevo.portada.url}') center/cover` : !nuevo.quitarPortada && sel.b ? `url('${API}/${sel.b}') center/cover` : PORTADAS[sel.p]);
   const marcar = () => {
-    const av = X.$('#epAv', m), f = fotoActual(); av.classList.toggle('conFoto', !!f); av.innerHTML = f ? `<img src="${f}" alt="">` : X.h(sel.e); av.style.background = sel.c;
+    const av = X.$('#epAv', m), f = fotoActual(); av.classList.toggle('conFoto', !!f); av.innerHTML = f ? `<img src="${f}" alt="">` : `<i class="pegaUI pegaAv" data-pega="${X.h(pegaDeAvatar(sel.e))}"></i>`; X.iconos(av); av.style.background = sel.c;
     X.$('#epPrev', m).style.background = portadaActual();
-    for (const b of X.$('#epE', m).children) b.classList.toggle('act', !f && b.dataset.v === sel.e);
+    for (const b of X.$('#epE', m).children) b.classList.toggle('act', !f && b.dataset.v === 'p:' + pegaDeAvatar(sel.e));
     for (const b of X.$('#epC', m).children) b.classList.toggle('act', b.dataset.v === sel.c);
     const urlP = nuevo.portada ? nuevo.portada.url : !nuevo.quitarPortada && sel.b ? `${API}/${sel.b}` : null, propia = !!urlP, pt = X.$('#epPortada', m);
     pt.classList.toggle('act', propia); pt.classList.toggle('conImg', propia); pt.style.backgroundImage = propia ? `url('${urlP}')` : '';
@@ -545,7 +565,7 @@ function editarPerfil() {
       const subir = async (que, b) => { const r = await fetch(`${API}/api/yo/${que}`, { method: 'PUT', headers: { 'Content-Type': 'image/webp', Authorization: 'Bearer ' + cuenta().token }, body: b }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'No se pudo subir'); };
       if (nuevo.foto) await subir('foto', nuevo.foto.blob);
       if (nuevo.portada) await subir('portada', nuevo.portada.blob);
-      await api('/api/yo', { method: 'PATCH', json: { bio: X.$('#epBio', m).value, avatar: { e: sel.e, c: sel.c, p: sel.p, quitarFoto: nuevo.quitarFoto && !nuevo.foto, quitarPortada: nuevo.quitarPortada && !nuevo.portada } } });
+      await api('/api/yo', { method: 'PATCH', json: { bio: X.$('#epBio', m).value, ...(cambioCancion ? { cancion } : {}), avatar: { e: sel.e, c: sel.c, p: sel.p, quitarFoto: nuevo.quitarFoto && !nuevo.foto, quitarPortada: nuevo.quitarPortada && !nuevo.portada } } });
       X.cerrarModal(); X.aviso('¡Joya! Quedó tu perfil'); pintarPerfil();
     } catch (e) { X.aviso(e.message); boton.disabled = false; boton.textContent = 'Guardar'; }
   };

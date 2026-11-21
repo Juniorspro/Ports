@@ -56,7 +56,7 @@ const ESQUEMA = [
   ...ESQUEMA_PAGOS,   // (Premium, compras y donaciones: servidor/pagos.js)
 ];
 // (columnas que llegaron después: si ya están, el ALTER falla y no pasa nada)
-const COLUMNAS_NUEVAS = ['ALTER TABLE packs ADD COLUMN privado INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE usuarios ADD COLUMN google TEXT',
+const COLUMNAS_NUEVAS = ['ALTER TABLE usuarios ADD COLUMN cancion TEXT', 'ALTER TABLE packs ADD COLUMN privado INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE usuarios ADD COLUMN google TEXT',
   'CREATE UNIQUE INDEX IF NOT EXISTS i_usuarios_google ON usuarios(google)', 'ALTER TABLE usuarios ADD COLUMN premium_hasta INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE usuarios ADD COLUMN donador INTEGER NOT NULL DEFAULT 0'];
 const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto|nube_packs|nube_archivos|premium|pagos|tickets_pago|ofertas';
@@ -159,8 +159,10 @@ async function quien(req, env) {
 // (el avatar: emoji, color y portada de las de la app; y si subió una foto o una portada propia, su dirección —relativa
 // al servidor— con la versión, así la caché se renueva cuando la cambia)
 const leerAvatar = (u) => { try { return JSON.parse(u.avatar || '{}') || {}; } catch (e) { return {}; } };
-const avatarDe = (u) => { const a = leerAvatar(u); return { e: a.e || '😎', c: a.c || '#ff3e8a', p: Number.isInteger(a.p) ? a.p : 0, f: a.f && u.id ? `u/${u.id}/foto?v=${a.f}` : null, b: a.b && u.id ? `u/${u.id}/portada?v=${a.b}` : null }; };
-const publico = (u) => ({ id: u.id, nombre: u.nombre, bio: u.bio, avatar: avatarDe(u), seguidores: u.seguidores, siguiendo: u.siguiendo, creado: u.creado, premium: (u.premium_hasta || 0) > Date.now(), donador: !!u.donador });
+const avatarDe = (u) => { const a = leerAvatar(u); return { e: a.e || 'p:cool', c: a.c || '#ff3e8a', p: Number.isInteger(a.p) ? a.p : 0, f: a.f && u.id ? `u/${u.id}/foto?v=${a.f}` : null, b: a.b && u.id ? `u/${u.id}/portada?v=${a.b}` : null }; };
+// (la canción del perfil, como en Instagram: un video de YouTube que suena al tocarla en el perfil)
+const cancionDe = (u) => { try { const c = JSON.parse(u.cancion || 'null'); return c && /^[\w-]{11}$/.test(c.id) ? { id: c.id, t: String(c.t || '').slice(0, 100), c: String(c.c || '').slice(0, 60) } : null; } catch (e) { return null; } };
+const publico = (u) => ({ id: u.id, nombre: u.nombre, bio: u.bio, avatar: avatarDe(u), seguidores: u.seguidores, siguiendo: u.siguiendo, creado: u.creado, premium: (u.premium_hasta || 0) > Date.now(), donador: !!u.donador, cancion: cancionDe(u) });
 
 // ---- un pack, para mostrar ----
 function resumen(p) {
@@ -319,7 +321,7 @@ async function api(req, env, u, r, metodo, servidor) {
     if (mal) return error(mal);
     if (!(await limite(env, 'reg:' + ip, 5, 86400))) return error('Hiciste muchas cuentas hoy. Probá mañana.', 429);
     if (await env.DB.prepare('SELECT 1 FROM usuarios WHERE nombre = ?').bind(nombre).first()) return error('Ese @ ya lo tiene alguien', 409);
-    const id = nuevoId(), llave = b64u(crypto.getRandomValues(new Uint8Array(24))), avatar = JSON.stringify({ e: ['😎', '🧉', '🤠', '😜', '🥳', '🤩', '😺', '🐶'][Math.floor(Math.random() * 8)], c: ['#ff3e8a', '#ffd23f', '#3ec7ff', '#4cd964', '#ff7a1a', '#9b5cff'][Math.floor(Math.random() * 6)] });
+    const id = nuevoId(), llave = b64u(crypto.getRandomValues(new Uint8Array(24))), avatar = JSON.stringify({ e: ['p:cool', 'p:mate', 'p:risa', 'p:guino', 'p:ojitos', 'p:amor', 'p:sol', 'p:estrella'][Math.floor(Math.random() * 8)], c: ['#ff3e8a', '#ffd23f', '#3ec7ff', '#4cd964', '#ff7a1a', '#9b5cff'][Math.floor(Math.random() * 6)] });
     await env.DB.prepare('INSERT INTO usuarios (id, nombre, clave, avatar, creado, google) VALUES (?, ?, ?, ?, ?, ?)').bind(id, nombre, await sha(llave), avatar, Date.now(), tk ? tk.google : null).run();
     if (tk) await env.DB.prepare('DELETE FROM entradas WHERE e = ?').bind(tk.e).run();
     const usr = await env.DB.prepare('SELECT * FROM usuarios WHERE id = ?').bind(id).first();
@@ -329,8 +331,9 @@ async function api(req, env, u, r, metodo, servidor) {
   if (r === 'yo' && metodo === 'PATCH') {
     if (!yo) return error('Entrá con tu cuenta', 401);
     const d = await cuerpo(), sets = [], vals = [];
+    if (d.cancion !== undefined) { const c = d.cancion; if (c === null) { sets.push('cancion = ?'); vals.push(null); } else if (c && /^[\w-]{11}$/.test(c.id)) { const t = String(c.t || '').trim().slice(0, 100), ca = String(c.c || '').trim().slice(0, 60); if (textoProhibido(t)) return error('Esa canción no se puede'); sets.push('cancion = ?'); vals.push(JSON.stringify({ id: c.id, t, c: ca })); } else return error('Mal armado'); }
     if (d.bio !== undefined) { const bio = String(d.bio).trim().slice(0, 120); if (textoProhibido(bio)) return error('Esa bio no se puede'); sets.push('bio = ?'); vals.push(bio); }
-    if (d.avatar) { const e = String(d.avatar.e || '').slice(0, 8), c = /^#[0-9a-f]{6}$/i.test(d.avatar.c || '') ? d.avatar.c : '#ff3e8a'; const pp = Number.isInteger(d.avatar.p) && d.avatar.p >= 0 && d.avatar.p < 12 ? d.avatar.p : 0; sets.push('avatar = ?'); const ant = leerAvatar(yo); vals.push(JSON.stringify({ e: e || '😎', c, p: pp, f: d.avatar.quitarFoto ? 0 : ant.f || 0, b: d.avatar.quitarPortada ? 0 : ant.b || 0 })); if (d.avatar.quitarFoto) await env.DB.prepare('DELETE FROM archivos WHERE pack = ? AND nombre = ?').bind('u_' + yo.id, 'foto').run(); if (d.avatar.quitarPortada) await env.DB.prepare('DELETE FROM archivos WHERE pack = ? AND nombre = ?').bind('u_' + yo.id, 'portada').run();; }
+    if (d.avatar) { const e = String(d.avatar.e || '').slice(0, 16), c = /^#[0-9a-f]{6}$/i.test(d.avatar.c || '') ? d.avatar.c : '#ff3e8a'; const pp = Number.isInteger(d.avatar.p) && d.avatar.p >= 0 && d.avatar.p < 12 ? d.avatar.p : 0; sets.push('avatar = ?'); const ant = leerAvatar(yo); vals.push(JSON.stringify({ e: e || 'p:cool', c, p: pp, f: d.avatar.quitarFoto ? 0 : ant.f || 0, b: d.avatar.quitarPortada ? 0 : ant.b || 0 })); if (d.avatar.quitarFoto) await env.DB.prepare('DELETE FROM archivos WHERE pack = ? AND nombre = ?').bind('u_' + yo.id, 'foto').run(); if (d.avatar.quitarPortada) await env.DB.prepare('DELETE FROM archivos WHERE pack = ? AND nombre = ?').bind('u_' + yo.id, 'portada').run();; }
     if (d.nombre !== undefined && d.nombre !== yo.nombre) {
       const n = String(d.nombre).trim().toLowerCase().replace(/^@/, ''), mal = nombreInvalido(n); if (mal) return error(mal);
       if (!(await limite(env, 'nom:' + yo.id, 3, 86400))) return error('Ya te cambiaste el nombre muchas veces hoy', 429);
