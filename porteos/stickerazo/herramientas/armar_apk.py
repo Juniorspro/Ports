@@ -16,7 +16,7 @@
 #   la clave en $STICKERAZO_FIRMA_CLAVE o en clave.txt al lado (chmod 600). Si el almacén no existe y está
 #   $STICKERAZO_FIRMA_JKS_B64 (el almacén en base64, secreto del entorno) se escribe de ahí; si no, se crea uno nuevo
 #   (con clave al azar). La clave nunca se muestra. Sin esa firma las versiones nuevas no se instalan encima.
-import argparse, datetime, os, re, secrets, shutil, struct, subprocess, sys, tempfile, zipfile
+import argparse, datetime, json, os, re, secrets, shutil, struct, subprocess, sys, tempfile, zipfile
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ANDROID, WEB = os.path.join(RAIZ, 'android'), os.path.join(RAIZ, 'web')
@@ -30,6 +30,14 @@ CANALES = ('web', 'play', 'galaxy', 'huawei', 'uptodown')
 # (sólo el de la web: instalar el APK nuevo él mismo y, desde Android 14, sin preguntar las veces siguientes)
 PERMISOS_WEB = ['android.permission.REQUEST_INSTALL_PACKAGES', 'android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION']
 DESCARGAS = os.path.join(RAIZ, 'descargas')
+
+
+def anuncios_conf():
+    """android/anuncios.json: los ID de AdMob (de prueba de Google hasta tener la cuenta)"""
+    with open(os.path.join(ANDROID, 'anuncios.json'), encoding='utf-8') as f: c = json.load(f)
+    for k in ('app', 'banner', 'intersticial'):
+        if not re.match(r'^ca-app-pub-\d{16}[~/]\d{10}$', c.get(k, '')): fallar('android/anuncios.json: el ID de «%s» no parece de AdMob' % k)
+    return c
 
 
 def manifiesto(tmp, canal):
@@ -147,7 +155,9 @@ def main():
     ap.add_argument('--conservar', action='store_true', help='no borrar la carpeta temporal')
     ap.add_argument('--canal', choices=CANALES, help='de dónde se baja (por defecto «web»; con --aab, «play»)')
     ap.add_argument('--publicar', action='store_true', help='(canal web) dejarlo en descargas/ para la página y las actualizaciones')
+    ap.add_argument('--sin-anuncios', dest='anuncios', action='store_false', help='sin AdMob (como hasta la 0.7)')
     a = ap.parse_args()
+    if a.publicar and a.anuncios and anuncios_conf()['prueba']: fallar('android/anuncios.json todavía tiene los anuncios de PRUEBA de Google: no se publica así (o --sin-anuncios)')
     a.canal = a.canal or ('play' if a.aab else 'web')
     if a.aab and a.canal != 'play': fallar('el AAB es para Google Play: --canal play (o sin --canal)')
     if a.publicar and a.canal != 'web': fallar('--publicar es para el APK de la página (canal web)')
@@ -155,44 +165,81 @@ def main():
     if a.aab and not os.path.isfile(h['bundletool']): fallar('falta bundletool.jar (para --aab):', h['bundletool'])
     tmp = tempfile.mkdtemp(prefix='stickerazo_apk_')
     try:
-        # 1) javac (Java 8, contra android.jar)
+        # 0) los anuncios: las librerías de AdMob (bajadas con su huella) y su configuración
+        libs = None
+        if a.anuncios:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import libs_android
+            libs = libs_android.preparar(os.environ.get('STICKERAZO_LIBS', '/tmp/claude-0/sz_libs'))
+            conf = anuncios_conf()
+        # 1) recursos (los de la app y los de las librerías), la página y el manifiesto (fusionado con el de las librerías)
+        rz = os.path.join(tmp, 'res.zip')
+        correr([h['aapt2'], 'compile', '--dir', os.path.join(ANDROID, 'res'), '-o', rz], 'aapt2 compile')
+        act = activos(tmp, a.canal)
+        a.manifiesto = manifiesto(tmp, a.canal)
+        a.link_res = [rz]
+        extra_paq = []
+        if libs:
+            with open(os.path.join(act, 'anuncios.json'), 'w') as f: json.dump({k: conf[k] for k in ('banner', 'intersticial', 'prueba')}, f)
+            with open(a.manifiesto, encoding='utf-8') as f: m = f.read()
+            m = libs_android.fusionar(m, libs['manifiestos'], PAQUETE, [('com.google.android.gms.ads.APPLICATION_ID', conf['app']),
+                                       ('com.google.android.gms.ads.flag.OPTIMIZE_INITIALIZATION', 'true'), ('com.google.android.gms.ads.flag.OPTIMIZE_AD_LOADING', 'true')])
+            with open(a.manifiesto, 'w', encoding='utf-8') as f: f.write(m)
+            zips = []
+            for k, (pkg, res) in enumerate(libs['res']):
+                z = os.path.join(tmp, 'lib%02d.zip' % k)
+                correr([h['aapt2'], 'compile', '--dir', res, '-o', z], 'aapt2 compile ' + pkg); zips.append(z)
+            # (las de las librerías primero y las de la app al final: si se llaman igual, gana la app)
+            a.link_res = ['--auto-add-overlay'] + [x for z in zips + [rz] for x in ('-R', z)]
+            extra_paq = libs_android.paquetes_con_r(libs)
+        base = os.path.join(tmp, 'base.apk')
+        gen = os.path.join(tmp, 'gen'); os.makedirs(gen)
+        cmd = [h['aapt2'], 'link', '-o', base, '--manifest', a.manifiesto, '-I', h['android'],
+               '--min-sdk-version', MIN_SDK, '--target-sdk-version', TARGET_SDK, '--version-code', a.version_code,
+               '--version-name', a.version_name, '-A', act, '--java', gen]
+        if extra_paq: cmd += ['--extra-packages', ':'.join(extra_paq)]
+        for e in NO_COMPRIMIR: cmd += ['-0', e]
+        av = correr(cmd + a.link_res, 'aapt2 link').strip()
+        if av: print('aapt2:', '\n'.join(av.splitlines()[:8]))
+        # 2) javac (Java 8, contra android.jar y las librerías), con las R que generó aapt2
         fuentes = sorted(os.path.join(r, f) for r, _, fs in os.walk(os.path.join(ANDROID, 'src')) for f in fs if f.endswith('.java'))
+        if not a.anuncios: fuentes = [f for f in fuentes if not f.endswith('Anuncios.java')]
         if not fuentes: fallar('no hay fuentes Java')
+        fuentes += sorted(os.path.join(r, f) for r, _, fs in os.walk(gen) for f in fs if f.endswith('.java'))
         clases = os.path.join(tmp, 'clases')
         os.makedirs(clases)
-        correr(['javac', '-source', '8', '-target', '8', '-encoding', 'UTF-8', '-g:source,lines', '-Xlint:-options', '-Xlint:deprecation', '-bootclasspath', h['android'], '-d', clases] + fuentes, 'javac')
+        cp = ['-classpath', os.pathsep.join(libs['jars'])] if libs else []
+        with open(os.path.join(tmp, 'fuentes.txt'), 'w') as f: f.write('\n'.join(fuentes))
+        correr(['javac', '-source', '8', '-target', '8', '-encoding', 'UTF-8', '-g:source,lines', '-Xlint:-options', '-Xlint:deprecation', '-bootclasspath', h['android']] + cp + ['-d', clases, '@' + os.path.join(tmp, 'fuentes.txt')], 'javac')
         cjar = os.path.join(tmp, 'clases.jar')
         with zipfile.ZipFile(cjar, 'w', zipfile.ZIP_STORED) as z:
             for r, _, fs in os.walk(clases):
                 for f in fs: z.write(os.path.join(r, f), os.path.relpath(os.path.join(r, f), clases))
-        # 2) d8
+        # 3) d8 (con las librerías: más de un dex)
         dexdir = os.path.join(tmp, 'dex')
         os.makedirs(dexdir)
-        avisos = [x for x in correr(['java', '-cp', h['d8'], 'com.android.tools.r8.D8', '--release', '--min-api', MIN_SDK, '--lib', h['android'],
-                                     '--output', dexdir, cjar], 'd8').splitlines() if re.match(r'\s*(Warning|Error)', x)]
+        avisos = [x for x in correr(['java', '-Xmx3g', '-cp', h['d8'], 'com.android.tools.r8.D8', '--release', '--min-api', MIN_SDK, '--lib', h['android'],
+                                     '--output', dexdir, cjar] + (libs['jars'] if libs else []), 'd8').splitlines() if re.match(r'\s*Error', x)]
         if avisos: print('d8:', '\n'.join(avisos[:12]))
-        dex = os.path.join(dexdir, 'classes.dex')
-        if not os.path.isfile(dex): fallar('d8 no generó classes.dex')
-        with open(dex, 'rb') as f: metodos, definidas = leer_dex(f.read())
-        for c in ('Inicio', 'Stickers', 'Fotos', 'Puente', 'Almacen'):
+        a.dexes = sorted((f for f in os.listdir(dexdir) if re.match(r'classes\d*\.dex$', f)), key=lambda f: int(re.sub(r'\D', '', f) or 1))
+        if not a.dexes or a.dexes[0] != 'classes.dex': fallar('d8 no generó classes.dex')
+        a.dexdir = dexdir
+        metodos, definidas = 0, set()
+        for d in a.dexes:
+            with open(os.path.join(dexdir, d), 'rb') as f: mm, dd = leer_dex(f.read())
+            metodos += mm; definidas |= dd
+        for c in ['Inicio', 'Stickers', 'Fotos', 'Puente', 'Almacen'] + (['Anuncios'] if a.anuncios else []):
             if 'Lcom/stickerazo/app/%s;' % c not in definidas: fallar(c, 'no está en el dex')
-        # 3) aapt2: recursos, manifiesto y la página
-        rz = os.path.join(tmp, 'res.zip')
-        correr([h['aapt2'], 'compile', '--dir', os.path.join(ANDROID, 'res'), '-o', rz], 'aapt2 compile')
-        base = os.path.join(tmp, 'base.apk')
-        act = activos(tmp, a.canal)
-        a.manifiesto = manifiesto(tmp, a.canal)
-        cmd = [h['aapt2'], 'link', '-o', base, '--manifest', a.manifiesto, '-I', h['android'],
-               '--min-sdk-version', MIN_SDK, '--target-sdk-version', TARGET_SDK, '--version-code', a.version_code,
-               '--version-name', a.version_name, '-A', act]
-        for e in NO_COMPRIMIR: cmd += ['-0', e]
-        av = correr(cmd + [rz], 'aapt2 link').strip()
-        if av: print('aapt2:', av)
-        # 4) el dex adentro, 5) zipalign
+        if a.anuncios:
+            for c in ('Lcom/google/android/gms/ads/MobileAds;', 'Lcom/google/android/ump/UserMessagingPlatform;', 'Lkotlinx/coroutines/android/AndroidDispatcherFactory;'):
+                if c not in definidas: fallar(c, 'no está en el dex')
+        # (lo que no es código adentro de los jars: META-INF/services, que usan las corrutinas de Kotlin)
+        a.recursos_java = libs_android.recursos_java(libs) if libs else {}
+        # 4) los dex y los recursos de Java adentro, 5) zipalign
         crudo = os.path.join(tmp, 'crudo.apk')
         with zipfile.ZipFile(base) as zin, zipfile.ZipFile(crudo, 'w') as zout:
             for zi in zin.infolist(): zout.writestr(zi, zin.read(zi.filename))
-            zout.write(dex, 'classes.dex', compress_type=zipfile.ZIP_DEFLATED)
+            for d in a.dexes: zout.write(os.path.join(dexdir, d), d, compress_type=zipfile.ZIP_DEFLATED)
+            for n, datos in sorted(a.recursos_java.items()): zout.writestr(n, datos, compress_type=zipfile.ZIP_DEFLATED)
         alineado = os.path.join(tmp, 'alineado.apk')
         correr([h['zipalign'], '-P', '16', '-f', '4', crudo, alineado], 'zipalign', h['entorno'])
         correr([h['zipalign'], '-c', '-P', '16', '4', alineado], 'zipalign -c', h['entorno'])
@@ -228,6 +275,18 @@ def main():
         for paquete in ('com.whatsapp', 'com.whatsapp.w4b'):
             if paquete not in xt.split('E: application')[0]: fallar('manifiesto: falta <queries>', paquete)
         with zipfile.ZipFile(final) as z: nombres = z.namelist()
+        # (cada actividad, servicio, receptor y proveedor del manifiesto tiene que estar en el código: si no, se cierra al abrir)
+        comp = re.findall(r'E: (?:activity|service|receiver|provider|activity-alias)[^\n]*\n(?:\s*A: [^\n]*\n)*?\s*A: http://schemas.android.com/apk/res/android:name\(0x01010003\)="([^"]+)"', xt)
+        if len(comp) < 3: fallar('manifiesto: no encontré los componentes')
+        completo = lambda c: PAQUETE + c if c.startswith('.') else (c if '.' in c else PAQUETE + '.' + c)
+        faltan = [c for c in comp if 'L%s;' % completo(c).replace('.', '/') not in definidas]
+        if faltan: fallar('manifiesto: componentes sin su clase en el dex:', faltan)
+        if a.anuncios:
+            if 'com.google.android.gms.ads.APPLICATION_ID' not in xt: fallar('manifiesto: falta el ID de AdMob')
+            with zipfile.ZipFile(final) as z:
+                if 'META-INF/services/kotlinx.coroutines.internal.MainDispatcherFactory' not in z.namelist(): fallar('faltan los META-INF/services de las corrutinas')
+                if 'assets/anuncios.json' not in z.namelist(): fallar('falta assets/anuncios.json')
+        print('  manifiesto: %d componentes, todos con su clase' % len(comp))
         with zipfile.ZipFile(final) as z:
             if z.read('assets/canal.txt').decode() != a.canal: fallar('canal.txt no dice', a.canal)
         for f in ('assets/www/index.html', 'assets/www/app.js', 'assets/www/terceros/modelos/magic_touch.tflite', 'assets/www/fuentes/LuckiestGuy.ttf',
@@ -239,11 +298,12 @@ def main():
         print('APK:', os.path.abspath(a.salida))
         print('  %.2f MB  |  versionCode %d  versionName %s  |  minSdk %d targetSdk %d'
               % (os.path.getsize(a.salida) / 1048576, a.version_code, a.version_name, MIN_SDK, TARGET_SDK))
-        print('  dex: %d métodos referenciados, %d clases  |  %d .java  |  %d archivos de la página'
-              % (metodos, len(definidas), len(fuentes), sum(1 for n in nombres if n.startswith('assets/www/'))))
+        print('  dex: %d archivos, %d métodos referenciados, %d clases  |  %d .java  |  %d archivos de la página'
+              % (len(a.dexes), metodos, len(definidas), len([f for f in fuentes if '/gen/' not in f]), sum(1 for n in nombres if n.startswith('assets/www/'))))
+        if a.anuncios: print('  anuncios: AdMob (%d librerías)%s' % (libs['n'], '  ⚠ ANUNCIOS DE PRUEBA de Google' if conf['prueba'] else ''))
         print('  permisos: %s' % ', '.join(p.rsplit('.', 1)[-1] for p in permisos))
         print('  firma v1+v2+v3 ok  SHA-256 %s' % (sha and sha.group(1)[:16] + '…'))
-        if a.aab: armar_aab(h, a, tmp, rz, act, dex, ks, clave, b, nombres)
+        if a.aab: armar_aab(h, a, tmp, rz, act, None, ks, clave, b, nombres)
         if a.publicar: publicar(a)
     finally:
         if a.conservar: print('temporales en', tmp)
@@ -274,7 +334,7 @@ def armar_aab(h, a, tmp, rz, act, dex, ks, clave, badging_apk, nombres_apk):
     proto = os.path.join(tmp, 'proto.apk')
     correr([h['aapt2'], 'link', '--proto-format', '-o', proto, '--manifest', a.manifiesto, '-I', h['android'],
             '--min-sdk-version', MIN_SDK, '--target-sdk-version', TARGET_SDK, '--version-code', a.version_code,
-            '--version-name', a.version_name, '-A', act, rz], 'aapt2 link --proto-format')
+            '--version-name', a.version_name, '-A', act] + a.link_res, 'aapt2 link --proto-format')
     modulo = os.path.join(tmp, 'base.zip')
     with zipfile.ZipFile(proto) as zin, zipfile.ZipFile(modulo, 'w', zipfile.ZIP_DEFLATED) as zout:
         for n in zin.namelist():
@@ -282,7 +342,8 @@ def armar_aab(h, a, tmp, rz, act, dex, ks, clave, badging_apk, nombres_apk):
             elif n == 'resources.pb' or n.startswith('res/') or n.startswith('assets/'): d = n
             else: fallar('aab: no sé dónde va', n)
             zout.writestr(d, zin.read(n))
-        zout.write(dex, 'dex/classes.dex')
+        for d in a.dexes: zout.write(os.path.join(a.dexdir, d), 'dex/' + d)
+        for n, datos in sorted(a.recursos_java.items()): zout.writestr('root/' + n, datos)
     # (las imágenes ya vienen comprimidas: se guardan tal cual, como en el APK)
     conf = os.path.join(tmp, 'BundleConfig.json')
     with open(conf, 'w') as f:

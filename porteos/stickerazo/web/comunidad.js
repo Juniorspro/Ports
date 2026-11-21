@@ -370,7 +370,7 @@ export async function pintarPerfil() {
     if (!yo.google) { try { const y = await api('/api/yo'); if (y.usuario.conGoogle) guardarCuenta({ ...yo, google: true }); else sinGoogle = !!y.google; } catch (e) { /* sin conexión: después */ } }
     const pais = X.paisActual();
     c.innerHTML = (sinGoogle ? `<button class="tarjG" id="tarjG">${LOGO_G}<span><b>Conectá tu cuenta de Google</b><small>La comunidad ahora se usa con Google. Tu @ y tus packs quedan igual.</small></span></button>` : '') + perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="tema"><i class="emo">${{ oscuro: '🌙', claro: '☀️', auto: '📱' }[X.temaActual()]}</i><span>Modo: ${{ oscuro: 'oscuro', claro: 'claro', auto: 'como el celular' }[X.temaActual()]}</span></button><button class="opc" data-x="musica"><i class="emo">🎵</i><span>Música de mi país</span></button><button class="opc" data-x="pais"><i class="emo">${pais ? pais[1] : '🌎'}</i><span>Mi país: ${pais ? pais[2] : 'elegir'}</span></button><a class="opc" href="${SITIO}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${SITIO}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
-      <a class="opc" href="${SITIO}/contacto" data-ext="1"><i class="emo">💬</i><span>Escribinos</span></a><button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
+      ${window.SZN && window.SZN.anunciosOpciones && window.SZN.anunciosOpciones() ? '<button class="opc" data-x="anuncios"><i class="emo">📢</i><span>Privacidad de los anuncios</span></button>' : ''}<a class="opc" href="${SITIO}/contacto" data-ext="1"><i class="emo">💬</i><span>Escribinos</span></a><button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
     X.iconos(c); contar(c); if (sinGoogle) X.$('#tarjG', c).onclick = () => entrarConGoogle();
   } catch (e) {
     if (e.st === 404 || e.st === 401) { guardarCuenta(null); return pintarPerfil(); }
@@ -451,6 +451,7 @@ async function alTocarPerfil(ev) {
   const x = t.closest('[data-x]');
   if (x && x.dataset.x === 'pais') return X.elegirPais(() => pintarPerfil());
   if (x && x.dataset.x === 'tema') return X.elegirTema(() => pintarPerfil());
+  if (x && x.dataset.x === 'anuncios') { if (window.SZN && window.SZN.anunciosPrivacidad) window.SZN.anunciosPrivacidad(); return; }
   if (x && x.dataset.x === 'musica') return X.musica();
   if (x && x.dataset.x === 'salir') {
     if (await X.confirmar('¿Salir? Sin tu llave no vas a poder volver a esta cuenta desde otro celular.', 'Salir')) { guardarCuenta(null); pintarPerfil(); }

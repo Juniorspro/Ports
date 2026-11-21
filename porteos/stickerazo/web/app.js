@@ -165,6 +165,7 @@ function ir(v, volviendo) {
   for (const s of document.querySelectorAll('.vista')) s.classList.toggle('oc', s.id !== v);
   const s = $('#' + v); s.classList.remove('entra', 'vuelve'); void s.offsetWidth; s.classList.add(volviendo ? 'vuelve' : 'entra');
   E.vista = v;
+  bannerSegunVista(v);
   if (v === 'vRecorte' || v === 'vEditor') $('#aviso').classList.add('oc'); else { setTimeout(mostrarOta, 400); setTimeout(mostrarApk, 900); }
   if (v === 'vInicio') pintarInicio();
   else if (v === 'vRecorte') { marcarHerr(); pedirR(); }
@@ -1046,7 +1047,7 @@ $('#pMenu').onclick = () => {
 $('#pWhats').onclick = async () => {
   const pack = packActual(); if (!pack || pack.stickers.length < MIN_ST) return;
   const r = await P.agregarAWhatsApp(pack);
-  if (r === 'ok') { aviso('¡Listo! Ya lo tenés en WhatsApp'); pintarPack(); }
+  if (r === 'ok') { aviso('¡Listo! Ya lo tenés en WhatsApp'); pintarPack(); setTimeout(pausaAnuncio, 1600); }
   else if (r === 'cancelado') { /* nada */ }
   else if (r === 'sin_whatsapp') aviso('No encontré WhatsApp en este celular');
   else if (r === 'sin_app') modal('<div class="hoja"><h3>Desde la app</h3><p>WhatsApp sólo acepta packs que le pasa una app instalada. Bajate Stickerazo en el celular y lo agregás con este botón.</p><div class="botones"><button class="pri" data-x="1">Entendido</button></div></div>').querySelector('[data-x="1"]').onclick = () => cerrarModal();
@@ -1074,6 +1075,11 @@ function confeti() {
 }
 // (lo que usa la comunidad de acá)
 C.iniciar({ $, h, modal, cerrarModal, aviso, ir, iconos, E, confirmar, vibrar, confeti, pestaña, carruselListos, norm, buscarTag, pintarPack: () => pintarPack(), atras, paisActual, elegirPais, elegirTema, temaActual, musica: () => musica(false) });
+// ---- los anuncios (si el APK los trae): el banner de abajo no mientras recortás o editás, y uno de pantalla completa sólo
+//  en pausas naturales (Java decide si ya pasó un rato desde el último) ----
+const hayAnuncios = () => !!(window.SZN && window.SZN.hayAnuncios && window.SZN.hayAnuncios());
+function bannerSegunVista(v) { if (hayAnuncios()) window.SZN.anuncioBanner(v !== 'vRecorte' && v !== 'vEditor'); }
+function pausaAnuncio() { if (hayAnuncios() && !hayModal()) window.SZN.anuncioPausa(); }
 // ---- versión nueva (se bajó sola): avisar cuando no está creando ----
 let otaPendiente = null;
 window.__szOta = (v) => { otaPendiente = v; mostrarOta(); };

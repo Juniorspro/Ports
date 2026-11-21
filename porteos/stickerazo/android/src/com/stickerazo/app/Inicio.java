@@ -83,7 +83,15 @@ public final class Inicio extends Activity {
         raiz.setBackgroundColor(FONDO);
         web = new WebView(this);
         web.setBackgroundColor(FONDO);
-        raiz.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        // (la página arriba y, abajo de todo, el lugar del banner: así el anuncio no tapa nada de la página)
+        android.widget.LinearLayout col = new android.widget.LinearLayout(this);
+        col.setOrientation(android.widget.LinearLayout.VERTICAL);
+        col.addView(web, new android.widget.LinearLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        FrameLayout cajaAnuncio = new FrameLayout(this);
+        cajaAnuncio.setBackgroundColor(FONDO); cajaAnuncio.setVisibility(View.GONE);
+        col.addView(cajaAnuncio, new android.widget.LinearLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        raiz.addView(col, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        publicidad = crearPublicidad(cajaAnuncio);
         setContentView(raiz);
         bordes(getWindow(), raiz);
         escucharAtras();
@@ -110,6 +118,14 @@ public final class Inicio extends Activity {
         // (lo que quedó de una actualización del APK, y escuchar cómo termina la próxima)
         new File(getCacheDir(), "actualizacion.apk").delete();
         receptorApk = Actualizador.escuchar(this, new Actualizador.Resultado() { @Override public void en(String e, String d) { estadoApk(e, d); } });
+        // (los anuncios, un toque después de abrir: primero el consentimiento donde la ley lo pide)
+        if (publicidad != null) reloj.postDelayed(new Runnable() { @Override public void run() { if (!isFinishing()) publicidad.arrancar(); } }, 2500);
+    }
+    // ---- los anuncios (Anuncios.java, si el APK los trae; si no, no hay) ----
+    Publicidad publicidad;
+    private Publicidad crearPublicidad(FrameLayout caja) {
+        try { return (Publicidad) Class.forName("com.stickerazo.app.Anuncios").getDeclaredConstructor(android.app.Activity.class, FrameLayout.class).newInstance(this, caja); }
+        catch (Throwable t) { return null; }
     }
 
     // ---- las actualizaciones solas ----
@@ -450,15 +466,16 @@ public final class Inicio extends Activity {
             new android.window.OnBackInvokedCallback() { @Override public void onBackInvoked() { atras(); } });
     }
 
-    @Override protected void onPause() { super.onPause(); if (web != null) web.onPause(); }
+    @Override protected void onPause() { if (publicidad != null) publicidad.pausa(); super.onPause(); if (web != null) web.onPause(); }
     @Override protected void onResume() {
-        super.onResume(); if (web != null) web.onResume();
+        super.onResume(); if (web != null) web.onResume(); if (publicidad != null) publicidad.sigue();
         // (volvió del ajuste de «instalar apps desconocidas»)
         if (pidiendoPermiso) { pidiendoPermiso = false; if (Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls()) actualizarApp(); else estadoApk("sinpermiso", ""); }
     }
 
     @Override protected void onDestroy() {
         reloj.removeCallbacksAndMessages(null);
+        if (publicidad != null) publicidad.fin();
         if (receptorApk != null) { try { unregisterReceiver(receptorApk); } catch (IllegalArgumentException e) { /* ya no estaba */ } }
         if (web != null) { web.destroy(); web = null; }
         super.onDestroy();

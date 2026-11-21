@@ -1,0 +1,7 @@
+{
+ "_": "Los anuncios (Google AdMob). Mientras sean los de PRUEBA de Google, armar_apk.py no deja publicar el APK. Para los de verdad: el ID de la app y de cada bloque de anuncios de la cuenta de AdMob (no son secretos), y prueba: false.",
+ "prueba": true,
+ "app": "ca-app-pub-3940256099942544~3347511713",
+ "banner": "ca-app-pub-3940256099942544/9214589741",
+ "intersticial": "ca-app-pub-3940256099942544/1033173712"
+}

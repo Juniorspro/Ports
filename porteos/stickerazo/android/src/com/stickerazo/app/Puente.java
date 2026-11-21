@@ -40,6 +40,12 @@ final class Puente {
     // (el APK nuevo: el número de este, de dónde se bajó —web o una tienda— y «Actualizar»)
     @JavascriptInterface public String codigoApk() { return String.valueOf(app.codigoApk()); }
     @JavascriptInterface public String canal() { return Actualizador.canal(app); }
+    // (los anuncios: el banner sí o no, una pausa natural, y el botón de privacidad de los anuncios donde la ley lo pide)
+    @JavascriptInterface public boolean hayAnuncios() { return app.publicidad != null; }
+    @JavascriptInterface public void anuncioBanner(final boolean si) { if (app.publicidad != null) app.runOnUiThread(new Runnable() { @Override public void run() { app.publicidad.banner(si); } }); }
+    @JavascriptInterface public void anuncioPausa() { if (app.publicidad != null) app.runOnUiThread(new Runnable() { @Override public void run() { app.publicidad.intersticial(); } }); }
+    @JavascriptInterface public boolean anunciosOpciones() { return app.publicidad != null && app.publicidad.pideOpciones(); }
+    @JavascriptInterface public void anunciosPrivacidad() { if (app.publicidad != null) app.runOnUiThread(new Runnable() { @Override public void run() { app.publicidad.opciones(); } }); }
     @JavascriptInterface public void actualizarApp() { app.runOnUiThread(new Runnable() { @Override public void run() { app.actualizarApp(); } }); }
     /** la versión de la página (la del APK o la última actualización que se está usando) */
     @JavascriptInterface public String versionWeb() { return String.valueOf(app.versionWeb()); }

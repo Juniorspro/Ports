@@ -259,6 +259,25 @@ prenderlo, en Google Cloud ese cliente tiene que tener autorizado el origen del 
 podría entrar. Sin la variable, Google queda apagado y vale el @ solo, como antes. Pruebas: `google.mjs` (25: tokens falsos, nonce, ticket, vincular, exigir, borrar, contacto) y `google_app.mjs`
 (8, en la app: botón, esperar, elegir @, cuenta vieja).
 
+## Los anuncios (AdMob, desde la 0.8)
+
+`android/src/.../Anuncios.java` (con la interfaz `Publicidad`; `Inicio` lo crea si el APK lo trae):
+- **Consentimiento**: primero el aviso de Google (UMP), sólo donde la ley lo pide. Sin consentimiento no se piden
+  anuncios. En Ajustes aparece «Privacidad de los anuncios» cuando hace falta.
+- **Banner**: adaptable, abajo de todo, en su propio lugar debajo de la WebView (no tapa la página). Se esconde mientras
+  recortás o editás (`SZN.anuncioBanner`, desde `ir()` en `app.js`).
+- **Intersticial**: sólo en pausas naturales (`SZN.anuncioPausa`, hoy después de «Agregar a WhatsApp»). Nunca en el
+  primer minuto y medio, y como mucho uno cada 4 minutos.
+- **Los ID**: `android/anuncios.json` (hoy los de **prueba** de Google; `armar_apk.py --publicar` no deja publicar así).
+- **El armado sin Gradle**: `herramientas/libs_anuncios.json` (57 librerías de AdMob 25.5 y UMP 4.0, con su huella).
+  `herramientas/libs_android.py` las baja a `/tmp/claude-0/sz_libs`, las desarma y fusiona sus manifiestos (respeta
+  `tools:node`; queda afuera RECEIVE_BOOT_COMPLETED). `aapt2` compila sus recursos (gana la app) y genera las `R` de las
+  11 librerías que las usan. `javac` las tiene en el classpath, `d8` hace 2 dex, y van los `META-INF/services` de las
+  corrutinas.
+- **Lo que revisa el armado**: que cada actividad, servicio, receptor y proveedor del manifiesto tenga su clase en el
+  dex, el ID de AdMob y los `META-INF/services`. `--sin-anuncios` arma como antes, sin AdMob.
+- El APK pasa de 32,3 a 37,8 MB.
+
 ## Privacidad, términos y contacto
 
 `sitio/privacidad.html`, `terminos.html`, `borrar-cuenta.html` y `contacto.html` (con `sitio/a/legal.css`): completas,

@@ -77,6 +77,33 @@ python3 -I herramientas/armar_apk.py SALIDA.apk --version-name 0.7 --aab SALIDA.
 4. Ficha, capturas, gráfico de funciones, «Seguridad de los datos» y cuestionario de contenido: todo está en
    `ficha.md`.
 
+## Los anuncios (AdMob): lo que tenés que hacer vos
+
+La app ya trae los anuncios de Google (versión 0.8). Hoy tiene puestos los **anuncios de prueba** de Google, porque los de
+verdad salen de **tu** cuenta de AdMob: ahí te pagan. Mientras sean de prueba, el armado no deja publicar el APK.
+
+1. **AdMob sólo paga bien si la app está en una tienda que acepta.** Sirven Google Play, Galaxy Store, Amazon Appstore,
+   Xiaomi GetApps, OPPO y vivo. **No** sirven nuestra página, Uptodown ni AppGallery: ahí los anuncios salen muy
+   limitados. Lo más rápido y gratis es **Galaxy Store** (ver arriba).
+2. Entrá a **admob.google.com** con tu cuenta de Google y creá la cuenta (pide país, zona horaria y moneda). Los datos
+   para cobrar los pide cuando llegás a un mínimo.
+3. **Apps → Agregar app → Android**. Cuando esté en Galaxy Store, vinculala a esa ficha (paquete `com.stickerazo.app`).
+4. Creá 2 **bloques de anuncios**: uno **«Banner»** y otro **«Intersticial»**.
+5. En **Privacidad y mensajes → GDPR**, creá el mensaje de consentimiento (para Europa). La app ya lo muestra donde hace
+   falta.
+6. Pasame el **ID de la app** (`ca-app-pub-…~…`) y los **2 ID de bloque** (`ca-app-pub-…/…`). No son secretos, me los
+   podés pegar en el chat. Los pongo en `android/anuncios.json`, armo la versión y la publico.
+
+AdMob revisa la app («preparación de la app») en unos días. Hasta que la apruebe, muestra pocos anuncios.
+
+## Entrar con Google: lo que tenés que hacer vos (1 minuto)
+
+1. Entrá a **console.cloud.google.com/apis/credentials** con la cuenta de Google del proyecto de JXMod.
+2. Abrí el cliente OAuth de tipo **«Aplicación web»**.
+3. En **Orígenes autorizados de JavaScript**, agregá `https://rezobox-tienda.holasoyjuniors365.workers.dev` y guardá.
+4. En **Pantalla de consentimiento de OAuth**, si dice «Prueba», tocá **Publicar app**.
+5. Avisame y lo prendo: con eso también vuelve a andar el inicio con Google de JXMod.
+
 ## Qué no hacer
 
 - **No subas el APK de la página a una tienda.** Tiene el permiso para instalarse solo, y Play y las otras lo rechazan.
