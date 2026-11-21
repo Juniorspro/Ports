@@ -273,8 +273,8 @@ function gmaPaso(dt) {
     if (e.o && e.o.borrado) { gmaQuitar(e); continue; }
     const c = GMA.clases.get(e.clase); if (!c) continue;
     // (el de un nextbot, con los demás jugadores a la vista; el nextbot de otro jugador —gmod_nextbot.js— sólo tiene el del cliente)
-    if (!e.nbRem && t >= (e.proxS || 0)) { e.prox = undefined; if (e.nb) GMNB.ambito++; try { const r = metodo(e, 'Think', 'S'); e.proxS = r[0] === true ? (e.prox ?? t) : t + 0.2; } finally { if (e.nb) GMNB.ambito--; } }
-    if (c.C && c.C !== c.S) {
+    if (!e.nbRem && !e.soloC && t >= (e.proxS || 0)) { e.prox = undefined; if (e.nb) GMNB.ambito++; try { const r = metodo(e, 'Think', 'S'); e.proxS = r[0] === true ? (e.prox ?? t) : t + 0.2; } finally { if (e.nb) GMNB.ambito--; } }
+    if (e.soloC || (c.C && c.C !== c.S)) {
       if (salto > 1 && (cam + (e.id | 0)) % salto) { const p = e.o ? e.o.b.pos : e.pos; if (p && (p.x - CAM.pos.x) ** 2 + (p.y - CAM.pos.y) ** 2 + (p.z - CAM.pos.z) ** 2 > 625) continue; }
       metodo(e, 'Think', 'C');
     }

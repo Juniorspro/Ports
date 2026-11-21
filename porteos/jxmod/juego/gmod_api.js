@@ -325,7 +325,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   const yo = () => GMA.jug;
   E('IsValid', (e) => entValida(e)); E('EntIndex', (e) => (e.tipo === 'jug' ? 1 : e.id)); E('GetClass', (e) => e.claseNom || e.clase);
   E('GetPos', (e) => V(gmaEntPos(e)));
-  E('SetPos', (e, v) => { if (!(v instanceof LVec)) return; const p = vG(v); if (e === yo()) { JUG.pos.copy(p).add(v3(0, JUG.medio + JUG.radio, 0)); JUG.vel.set(0, 0, 0); } else if (e.P && !e.remoto) { if (!e.P.rag) { e.P.pos.copy(p).add(v3(0, 0.95, 0)); if (e.P.vel) e.P.vel.set(0, 0, 0); if (e.P.npcB) { e.P.npcB.pos.copy(e.P.pos); e.P.npcB.updateWorld(); } } } else if (e.o) { gmaOrigenPon(e.o, p); e.o.b.wake(); e.o.b.updateWorld(); } else e.pos.copy(p); if (e.padre || e.soldadoA) gmaPadreFijar(e, 'pos'); });
+  E('SetPos', (e, v) => { if (!(v instanceof LVec)) return; const p = vG(v); if (e === yo()) { JUG.pos.copy(p).add(v3(0, JUG.medio + JUG.radio, 0)); JUG.vel.set(0, 0, 0); } else if (e.P && !e.remoto) { if (!e.P.rag) { e.P.pos.copy(p).add(v3(0, 0.95, 0)); if (e.P.vel) e.P.vel.set(0, 0, 0); if (e.P.npcB) { e.P.npcB.pos.copy(e.P.pos); e.P.npcB.updateWorld(); } } } else if (e.o) { e.posAntes = gmaOrigen(e.o); gmaOrigenPon(e.o, p); e.o.b.wake(); e.o.b.updateWorld(); } else { e.posAntes = e.pos.clone(); e.pos.copy(p); } if (e.padre || e.soldadoA) gmaPadreFijar(e, 'pos'); });
   E('GetAngles', (e) => A(e === yo() ? new LAng(0, quatAng(Quat.axis(0, 1, 0, JUG.yaw)).y, 0) : quatAng(entQ(e))));
   E('SetAngles', (e, a) => { if (!(a instanceof LAng)) return; const q = angQuat(a); if (e === yo()) { JUG.yaw = Math.atan2(q.rot(v3(0, 0, 1)).x, q.rot(v3(0, 0, 1)).z); } else if (e.P && !e.remoto) { const f = q.rot(v3(0, 0, 1)); e.P.yaw = Math.atan2(f.x, f.z); } else if (e.o) { const org = gmaOrigen(e.o); e.o.b.q.copy(q); gmaOrigenPon(e.o, org); e.o.b.wake(); e.o.b.updateWorld(); } else e.q.copy(q); if (e.padre || e.soldadoA) gmaPadreFijar(e, 'ang'); });
   E('GetVelocity', (e) => Vr(e === yo() ? JUG.vel : e.o ? e.o.b.vel : v3()));
@@ -443,7 +443,7 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   P('UniqueID', () => 1); P('AccountID', () => 1); P('UserID', () => 1); P('IsBot', () => false); P('Ping', () => 0); P('Frags', () => 0); P('Deaths', () => 0); P('Team', () => 1); P('SetTeam', () => {}); P('GetUserGroup', () => 'superadmin');
   P('IsAdmin', () => true); P('IsSuperAdmin', () => true); P('IsUserGroup', (p, g) => g === 'superadmin' || g === 'admin' || g === 'user'); P('IsListenServerHost', () => true); P('IsFullyAuthenticated', () => true);
   P('Alive', () => !!JUG.vivo); P('Armor', () => GMA.armor || 0); P('SetArmor', (p, a) => { GMA.armor = num(a, 0); }); P('Kill', () => { if (typeof morirJugador === 'function') morirJugador(); }); P('KillSilent', () => { if (typeof morirJugador === 'function') morirJugador(); });
-  P('GetActiveWeapon', () => gmaFantasma() || GMA.swep || gmaArmaJuego() || NULL_ENT); P('SetDSP', () => {}); P('Give', (p, c) => (p === GMA.jug ? gmaDarArma(String(c), true) : NULL_ENT)); P('StripWeapon', (p, c) => gmaQuitarArma(String(c))); P('StripWeapons', () => {}); P('HasWeapon', (p, c) => !!(GMA.armasJug && GMA.armasJug.has(String(c))) || !!(gmaFantasma() && gmaFantasma().clase === String(c)));   // (los efectos de sonido de Source —eco, sordera— no están)
+  P('GetActiveWeapon', () => gmaFantasma() || GMA.swep || gmaArmaJuego() || NULL_ENT); P('SetDSP', () => {}); P('Give', (p, c) => (p === GMA.jug ? gmaDarArma(String(c), true) : NULL_ENT)); P('StripWeapon', (p, c) => gmaQuitarArma(String(c))); P('StripWeapons', () => {}); P('HasWeapon', (p, c) => { c = String(c); if ((GMA.armasJug && GMA.armasJug.has(c)) || (gmaFantasma() && gmaFantasma().clase === c)) return true; const n = HL2_ARMAS[c] || (c.startsWith('jx_') ? c.slice(3) : null); return !!(n && typeof ARM !== 'undefined' && ARM.lista.includes(n)); });   // (también las del juego —weapon_physgun, weapon_crowbar…—: Doudou Pet te devuelve la que tenías al bajar al gato con SelectWeapon si HasWeapon dice que sí)   // (los efectos de sonido de Source —eco, sordera— no están)
   P('GetWeapon', (p, c) => (GMA.armasJug && GMA.armasJug.get(String(c))) || (gmaFantasma() && gmaFantasma().clase === String(c) ? gmaFantasma() : null) || NULL_ENT); P('GetWeapons', () => R.tab([...(GMA.armasJug || new Map()).values()])); P('SelectWeapon', (p, c) => { if (c instanceof LEnt) c = c.clase; const w = GMA.armasJug && GMA.armasJug.get(String(c)); if (w) { if (DEF_ARMAS['gm:' + c]) elegirArmaCallado('gm:' + c); } else { const n = HL2_ARMAS[String(c)] || (typeof c === 'string' && c.startsWith('jx_') ? c.slice(3) : null); if (n && ARM.lista.includes(n)) elegirArmaCallado(n); } }); P('SetActiveWeapon', () => {});
   // (la velocidad «retrasada» del jugador: The Flash y otros la multiplican por la velocidad; sin ella, error en cada cuadro)
   P('GetLaggedMovementValue', () => GMA.lagMov ?? 1); P('SetLaggedMovementValue', (p, v) => { GMA.lagMov = num(v, 1); });
@@ -744,12 +744,12 @@ function gmaSpawn(e) {
   // (el cuerpo se arma ya en Initialize, al poner el modelo o PhysicsInit, como en GMod: ahí mismo el addon le pone la
   // masa, la gravedad o lo suelda —las ruedas y el rotor de WAC— y antes no había cuerpo todavía)
   const ini0 = GMA.iniciando; GMA.iniciando = e; if (e.nb) GMNB.ambito++;   // (los demás jugadores existen para su Lua: gmnbRemLista)
-  try { metodo(e, 'Initialize', 'S'); } finally { GMA.iniciando = ini0; if (e.nb) GMNB.ambito--; }
+  try { metodo(e, 'Initialize', e.soloC ? 'C' : 'S'); } finally { GMA.iniciando = ini0; if (e.nb) GMNB.ambito--; }
   if (!e.vivo) return;
   if (!e.o || e.oModelo !== e.modelo) gmaRehacer(e);
   if (e.nb) { if (e.o) { e.o.b.frozen = true; e.o.b.noGrab = false; } GMNB.ambito++; try { metodo(e, 'BehaveStart', 'S'); } finally { GMNB.ambito--; } }
-  const c = GMA.clases.get(e.clase); if (c && c.C && c.C !== c.S) metodo(e, 'Initialize', 'C');
-  gmaHook('OnEntityCreated', 'S', e); gmaHook('OnEntityCreated', 'C', e);   // (en GMod corre en los dos lados: BSMod arma ahí la cámara de la ejecución)
+  const c = GMA.clases.get(e.clase); if (!e.soloC && c && c.C && c.C !== c.S) metodo(e, 'Initialize', 'C');
+  if (!e.soloC) gmaHook('OnEntityCreated', 'S', e); gmaHook('OnEntityCreated', 'C', e);   // (en GMod corre en los dos lados: BSMod arma ahí la cámara de la ejecución)
 }
 function gmaQuitar(e) {
   if (e instanceof LEnt && e.nbRem) { gmnbTitereQuitar(e.nbRem.key, e.nbRem); return; }   // (el nextbot de otro jugador: sólo se deja de ver)
@@ -1281,7 +1281,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
     // (un arma en el piso, como en GMod: con su modelo de mundo; pasando por encima se agarra)
     else if (GMA.armas.has(c) || GMA_ARMA_SUELO[c]) { const m = GMA.armas.has(c) ? claseTabla(c, 'S') : null, wm = m ? buscarEnClase(m, 'WorldModel') : GMA_ARMA_SUELO[c]; e.armaSuelo = c; if (wm) e.modelo = String(wm).toLowerCase(); }
     return e; });
-  def(ents, 'CreateClientProp', (m) => { const e = new LEnt('prop_physics', 'ent'); e.modelo = m ? String(m) : ''; return e; }); def(ents, 'CreateClientside', (c) => ents.get('Create')(c));
+  def(ents, 'CreateClientProp', (m) => { const e = new LEnt('prop_physics', 'ent'); e.modelo = m ? String(m) : ''; return e; }); def(ents, 'CreateClientside', (c) => { const e = ents.get('Create')(c); if (e instanceof LEnt) { e.soloC = true; e.tablaC = e.tabla; } return e; });   // (sólo del cliente, como en GMod: una sola tabla y sólo su Think de cliente —gmaSpawn, gmaPaso—. El Pee Swep le ponía DelayPissOwner del lado cliente y el Think del server lo leía vacío)
   // (los puntos de aparición del mapa, como info_player_start de Source: los nextbots que no persiguen cerca de donde se
   // reaparece —la protección de aparición de Walter, Sanic y compañía— los buscan con ents.FindByClass)
   const apariciones = () => { const M = typeof MUNDO !== 'undefined' ? MUNDO : null, L = (M && M.spawns) || [];
@@ -1307,7 +1307,18 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   def(engine, 'ActiveGamemode', () => 'sandbox'); def(engine, 'TickInterval', () => 1 / 60); def(engine, 'GetGames', () => new LuaTable()); def(engine, 'GetAddons', () => R.tab([...GMOD.addons.values()].map((a) => tabla({ title: a.nombre, wsid: a.id, mounted: true, downloaded: true })))); def(engine, 'IsPlayingDemo', () => false); def(engine, 'IsRecordingDemo', () => false); def(engine, 'LightStyle', () => {}); def(engine, 'GetGamemodes', () => new LuaTable()); def(engine, 'TickCount', () => R.cuadro || 0);
   // ---- util ----
   const util = lib('util');
-  const traza = (t, hull) => { const s = t.get('start') instanceof LVec ? vG(t.get('start')) : CAM.pos.clone(), e = t.get('endpos') instanceof LVec ? vG(t.get('endpos')) : vadd(s, CAM.fwd), d = vsub(e, s), L = d.len() || 1e-6; return gmaTraza(s, d.scale(1 / L), L, gmaIgnorar(t.get('filter'))); };
+  // (una traza de largo cero —start igual a endpos— pregunta «¿esto está tocando algo?». Muchos addons mueven una entidad a
+  // mano con SetPos y prueban ahí: el pis del Pee Swep cae así y salpica al tocar el piso. Antes la dirección quedaba en
+  // cero y nunca tocaba nada: el chorro seguía de largo por abajo del piso. Ahora se mide desde donde estaba esa entidad
+  // antes de moverla (lo que cruzó en ese paso); si no hay, con un segmento corto que atraviesa el punto, del tamaño de la caja)
+  const trazaCero = (t, s, ign) => {
+    const f = t.get('filter'), L = f instanceof LuaTable ? f.claves().map((k) => f.get(k)) : [f];
+    const en = L.find((x) => x instanceof LEnt && x.posAntes && x.vivo && vsub(gmaEntPos(x), s).len() < 0.01);
+    if (en) { const d = vsub(s, en.posAntes), n = d.len(); if (n > 1e-4 && n < 5) { const r = gmaTraza(en.posAntes, d.scale(1 / n), n, ign); if (r.get('Hit')) return r; } }
+    const mx = t.get('maxs') instanceof LVec ? t.get('maxs') : null, ex = mx ? Math.max(Math.abs(mx.x), Math.abs(mx.y), Math.abs(mx.z)) * GS : 0, h = Math.max(ex, 0.02);
+    return gmaTraza(vadd(s, v3(0, h, 0)), v3(0, -1, 0), 2 * h, ign);
+  };
+  const traza = (t, hull) => { const s = t.get('start') instanceof LVec ? vG(t.get('start')) : CAM.pos.clone(), e = t.get('endpos') instanceof LVec ? vG(t.get('endpos')) : vadd(s, CAM.fwd), d = vsub(e, s), L = d.len(); if (L < 1e-5) return trazaCero(t, s, gmaIgnorar(t.get('filter'))); return gmaTraza(s, d.scale(1 / L), L, gmaIgnorar(t.get('filter'))); };
   def(util, 'TraceLine', (t) => traza(t)); def(util, 'TraceHull', (t) => traza(t, true)); def(util, 'TraceEntity', (t) => traza(t, true));
   def(util, 'QuickTrace', (o, d, f) => { const s = vG(o), dd = vGr(d), L = dd.len() || 1e-6; return gmaTraza(s, dd.scale(1 / L), L, gmaIgnorar(f)); });
   def(util, 'GetPlayerTrace', (p, d) => { const t = new LuaTable(); t.set('start', V(CAM.pos)); t.set('endpos', V(vadd(CAM.pos, vscale(d instanceof LVec ? dG(d).norm() : CAM.fwd, 32768 * GS)))); t.set('filter', GMA.jug); return t; });
@@ -1398,7 +1409,53 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   const VAC = (GMA.mtVacio = new LuaTable()); VAC.set('__index', (o, k) => (typeof k === 'string' && /^(Get|Is|Has)/.test(k) ? () => 0 : () => o));
   // ---- lo que queda: tablas vacías que responden algo (vgui y derma los arma el prelude) ----
   for (const n of ['render', 'cam', 'mesh', 'killicon', 'resource', 'spawnmenu', 'presets', 'undo', 'cleanup', 'duplicator', 'constraint', 'properties', 'achievements', 'navmesh', 'steamworks', 'search', 'menubar', 'widgets', 'halo', 'frame_blend', 'drive', 'construct', 'numpad', 'matproxy', 'motionsensor', 'controlpanel', 'serverlist', 'video', 'jit', 'ai', 'ai_schedule', 'ai_task', 'system', 'http', 'gui', 'input', 'chat', 'notification', 'gamemode', 'team', 'player_manager', 'physenv', 'language', 'list', 'file', 'sql', 'effects', 'scripted_ents', 'weapons', 'baseclass', 'cookie', 'utf8']) lib(n);
+  gmaUtf8(lib('utf8'), def, R);
   gmaApiResto(R, G, def, lib, num, tabla);
+}
+// la biblioteca utf8 de GMod (la de Lua 5.3 más force, GetChar y sub). Los strings del Lua son de bytes, como en GMod: acá
+// se arman y se leen los caracteres de UTF-8 byte por byte. Antes la tabla existía vacía y Doudou Pet se trababa al
+// ponerle nombre (utf8.len en DP.CleanName)
+function gmaUtf8(U, def, R) {
+  const cont = (s, k) => { const c = s.charCodeAt(k); return c >= 0x80 && c <= 0xbf; };
+  // (el caracter que empieza en el byte k —0 = el primero—: [código, largo] o null si está mal armado)
+  const leer = (s, k) => {
+    const b0 = s.charCodeAt(k); if (!(b0 >= 0)) return null; if (b0 < 0x80) return [b0, 1];
+    const n = b0 >= 0xc2 && b0 <= 0xdf ? 1 : b0 >= 0xe0 && b0 <= 0xef ? 2 : b0 >= 0xf0 && b0 <= 0xf4 ? 3 : -1; if (n < 0 || k + n > s.length - 1) return null;
+    let c = b0 & (n === 1 ? 0x1f : n === 2 ? 0x0f : 0x07);
+    for (let i = 1; i <= n; i++) { if (!cont(s, k + i)) return null; c = (c << 6) | (s.charCodeAt(k + i) & 0x3f); }
+    if ((n === 2 && c < 0x800) || (n === 3 && (c < 0x10000 || c > 0x10ffff)) || (c >= 0xd800 && c <= 0xdfff)) return null;
+    return [c, n + 1];
+  };
+  const escribir = (c) => { c = Math.trunc(+c) || 0; if (c < 0x80) return String.fromCharCode(c); if (c < 0x800) return String.fromCharCode(0xc0 | (c >> 6), 0x80 | (c & 63));
+    if (c < 0x10000) return String.fromCharCode(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+    return String.fromCharCode(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)); };
+  const str = (s) => (typeof s === 'string' ? s : s === undefined || s === null ? '' : String(s));
+  const pos = (i, L, d) => { if (i === undefined || i === null) return d; i = Math.trunc(+i); return i < 0 ? Math.max(1, L + i + 1) : i; };
+  U.set('charpattern', '[\x00-\x7F\xC2-\xF4][\x80-\xBF]*');
+  def(U, 'char', (...a) => a.map(escribir).join(''));
+  def(U, 'len', (s, i, j) => {
+    s = str(s); const L = s.length; let k = pos(i, L, 1) - 1; const fin = pos(j, L, -1) === -1 ? L - 1 : pos(j, L, L) - 1; let n = 0;
+    while (k <= fin && k < L) { const r = leer(s, k); if (!r) return [undefined, k + 1]; k += r[1]; n++; }
+    return n;
+  });
+  def(U, 'codepoint', (s, i, j) => {
+    s = str(s); const L = s.length, a = pos(i, L, 1), b = pos(j, L, a), out = [];
+    for (let k = a - 1; k < b && k < L;) { const r = leer(s, k); if (!r) { if (R && R.error) R.error('invalid UTF-8 code'); return out; } out.push(r[0]); k += r[1]; }
+    return out;
+  });
+  def(U, 'offset', (s, n, i) => {
+    s = str(s); const L = s.length; n = Math.trunc(+n || 0); let p = (i === undefined || i === null ? (n >= 0 ? 1 : L + 1) : pos(i, L, 1)) - 1;
+    if (n === 0) { while (p > 0 && cont(s, p)) p--; return p + 1; }
+    if (cont(s, p)) return undefined;
+    if (n > 0) { n--; while (n > 0 && p < L) { p++; while (p < L && cont(s, p)) p++; n--; } return n === 0 ? p + 1 : undefined; }
+    while (n < 0 && p > 0) { p--; while (p > 0 && cont(s, p)) p--; n++; } return n === 0 ? p + 1 : undefined;
+  });
+  def(U, 'codes', (s) => { s = str(s); const it = (_, i) => { let k = Math.trunc(+i || 0); if (k > 0) { const r0 = leer(s, k - 1); k = k - 1 + (r0 ? r0[1] : 1); } if (k >= s.length) return undefined; const r = leer(s, k); return r ? [k + 1, r[0]] : [k + 1, 0xfffd]; }; return [it, s, 0]; });
+  def(U, 'force', (s) => { s = str(s); let o = ''; for (let k = 0; k < s.length;) { const r = leer(s, k); if (r) { o += s.substr(k, r[1]); k += r[1]; } else { o += escribir(0xfffd); k++; } } return o; });
+  // (los de GMod: el caracter n y un pedazo por caracteres)
+  const cortes = (s) => { const c = []; for (let k = 0; k < s.length;) { const r = leer(s, k); const n = r ? r[1] : 1; c.push(s.substr(k, n)); k += n; } return c; };
+  def(U, 'GetChar', (s, n) => { const c = cortes(str(s)); n = Math.trunc(+n || 0); if (n < 0) n = c.length + n + 1; return c[n - 1] ?? ''; });
+  def(U, 'sub', (s, i, j) => { const c = cortes(str(s)), L = c.length; let a = i === undefined ? 1 : Math.trunc(+i), b = j === undefined ? -1 : Math.trunc(+j); if (a < 0) a = Math.max(1, L + a + 1); if (b < 0) b = L + b + 1; a = Math.max(1, a); b = Math.min(L, b); return a > b ? '' : c.slice(a - 1, b).join(''); });
 }
 
 // las variables del motor de Source y de GMod que existen siempre (con su valor de fábrica)
