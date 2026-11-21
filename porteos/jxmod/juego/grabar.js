@@ -40,7 +40,7 @@ function grabOp() {
   const o = PREFS.grab && typeof PREFS.grab === 'object' ? PREFS.grab : (PREFS.grab = {});
   if (!['720', '1080', 'pant'].includes(o.cal)) o.cal = '720';
   if (o.fps !== 60) o.fps = 30;
-  o.mic = !!o.mic; o.voces = !!o.voces; if (o.hud === undefined) o.hud = true; o.hud = !!o.hud;
+  o.mic = !!o.mic; o.voces = !!o.voces; if (o.hud === undefined) o.hud = true; o.hud = !!o.hud; if (o.chat === undefined) o.chat = true; o.chat = !!o.chat;
   if (o.modo !== 'cel') o.modo = 'juego';
   return o;
 }
@@ -251,7 +251,7 @@ async function grabEmpezar() {
     const st = new MediaStream([pista].concat(dest ? dest.stream.getAudioTracks() : []));
     const bits = grabBits(W, H, fps);
     const rec = new MediaRecorder(st, { mimeType: tipo[0], videoBitsPerSecond: bits, audioBitsPerSecond: GRAB_AUDIO });
-    Object.assign(GRAB, { on: true, inicio: true, pausa: false, rec, tipo, W, H, fps, per: 1000 / fps, prox: 0, cv, g, pista, dest, mez, voces: o.voces, mic: o.mic,
+    Object.assign(GRAB, { on: true, inicio: true, pausa: false, rec, tipo, W, H, fps, per: 1000 / fps, prox: 0, cv, g, pista, dest, mez, voces: o.voces, mic: o.mic, chat: o.chat,
       micSrc: null, micSt: null, micDeVoz: null, dst, cadena: Promise.resolve(), primero: true, cab: null, cabPend: null, activo: 0, tAct: 0, cuadros: 0, bytes: 0, error: '', bits, nombre, fin: null, t: 0 });
     rec.ondataavailable = (e) => { if (e.data && e.data.size) grabPedazo(e.data); };
     rec.onerror = (e) => { GRAB.error = (e && e.error && e.error.name) || 'error'; grabParar(); };
@@ -379,7 +379,38 @@ function grabDibujar() {
   if (typeof NOC !== 'undefined' && NOC.susto && NOC.ui && NOC.ui.video && !NOC.susto.tres && !NOC.susto.est) {
     const v = NOC.ui.video; if (v.readyState >= 2 && v.videoWidth) { const kv = Math.max(W / v.videoWidth, H / v.videoHeight); g.drawImage(v, (W - v.videoWidth * kv) / 2, (H - v.videoHeight * kv) / 2, v.videoWidth * kv, v.videoHeight * kv); }
   }
+  if (GRAB.chat) grabChat(g, ox, oy, w, h);
   GRAB.cuadros++;
+}
+// el chat de texto también sale en el video (Bugs y sugerencias, 3.9.8: «grabé, pero no se ve el chat al grabar»): los
+// renglones que se ven en la pantalla, abajo a la izquierda, con su fondo, el nombre en amarillo y desvaneciéndose como en
+// la HUD. Es texto dibujado en el lienzo del video (barato: unos pocos fillText por cuadro), no la página entera.
+const _grEnt = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
+function grabChat(g, ox, oy, W, H) {   // (en el lugar de la imagen del juego: sin las franjas negras)
+  if (typeof CHAT === 'undefined' || !CHAT.length) return;
+  const vis = CHAT.filter((c) => c.v > 0).slice(-6); if (!vis.length) return;
+  const fs = Math.max(12, Math.round(Math.min(H * 0.045, W * 0.024))), lh = Math.round(fs * 1.38), x = Math.round(ox + W * 0.022), maxW = W * 0.46, pad = Math.round(fs * 0.35);
+  g.save(); g.font = `700 ${fs}px Roboto, Arial, sans-serif`; g.textBaseline = 'middle';
+  // (cada mensaje: «nombre: texto», cortado en renglones del ancho de casi media pantalla)
+  const filas = [];
+  for (const c of vis) {
+    const t = String(c.h ? c.h.replace(/<[^>]*>/g, '') : c.t).replace(/&(amp|lt|gt|quot|#39);/g, (m) => _grEnt[m]);
+    const i = t.indexOf(': '), nom = i > 0 && i < 40 ? t.slice(0, i + 1) : '', resto = nom ? t.slice(i + 2) : t, a = Math.max(0, Math.min(1, c.v));
+    let lin = '', primera = true; const anchoNom = nom ? g.measureText(nom + ' ').width : 0;
+    for (const pal of resto.split(/\s+/)) {
+      const prueba = lin ? lin + ' ' + pal : pal, extra = primera ? anchoNom : 0;
+      if (lin && g.measureText(prueba).width + extra > maxW) { filas.push({ nom: primera ? nom : '', t: lin, a }); lin = pal; primera = false; } else lin = prueba;
+    }
+    filas.push({ nom: primera ? nom : '', t: lin, a });
+  }
+  let y = Math.round(oy + H * 0.70) - (filas.length - 1) * lh;
+  for (const f of filas.slice(-9)) {
+    const wn = f.nom ? g.measureText(f.nom + ' ').width : 0, w = wn + g.measureText(f.t).width;
+    g.globalAlpha = f.a; g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(x - pad, y - lh / 2, w + pad * 2, lh);
+    if (f.nom) { g.fillStyle = '#ffd23f'; g.fillText(f.nom, x, y); }
+    g.fillStyle = '#fff'; g.fillText(f.t, x + wn, y); y += lh;
+  }
+  g.restore();
 }
 // ¿el juego está en pausa? (la pausa y lo que se abre desde ella, el menú de inicio arriba de la partida, la app en segundo plano)
 function grabEnPausa() {
@@ -485,7 +516,7 @@ function grabPanel() {
   <div class="grFila"><span data-t="gr.calidad"></span><div class="grSeg" data-o="cal"><button type="button" data-v="720">720p</button><button type="button" data-v="1080">1080p</button><button type="button" data-v="pant"></button></div>
     <div class="grSeg" data-o="fps"><button type="button" data-v="30">30</button><button type="button" data-v="60">60</button></div><small class="grFps">fps</small></div>
   <div class="grFila"><span data-t="gr.sonido"></span><div class="grSeg grChk"><button type="button" class="sel fijo" aria-pressed="true" data-t="gr.juego"></button><button type="button" data-o="mic" data-t="gr.mic"></button><button type="button" data-o="voces" data-t="gr.voces"></button></div></div>
-  <div class="grFila"><span></span><div class="grSeg grChk"><button type="button" data-o="hud"></button></div></div>
+  <div class="grFila"><span></span><div class="grSeg grChk"><button type="button" data-o="hud"></button><button type="button" data-o="chat" data-t="gr.chat"></button></div></div>
   <p class="grInfo"></p><p class="grInfo grSis oc"></p>
   <button class="grIr" type="button" data-a="ir"><i>${glifo('rec')}</i><span data-t="gr.empezar"></span></button></div>`;
   document.body.appendChild(P);
@@ -511,7 +542,7 @@ function grabPanelPintar() {
   for (const b of P.querySelectorAll('[data-o=fps] button')) { const s = +b.dataset.v === o.fps; b.classList.toggle('sel', s); b.setAttribute('aria-pressed', s); }
   const cel = grabCelPuede(); P.querySelector('.grModo').classList.toggle('oc', !cel);
   for (const b of P.querySelectorAll('[data-o=modo] button')) { const s = b.dataset.v === (cel ? o.modo : 'juego'); b.classList.toggle('sel', s); b.setAttribute('aria-pressed', s); }
-  for (const k of ['mic', 'voces', 'hud']) { const b = P.querySelector(`button[data-o=${k}]`); b.classList.toggle('sel', o[k]); b.setAttribute('aria-pressed', o[k]); }
+  for (const k of ['mic', 'voces', 'hud', 'chat']) { const b = P.querySelector(`button[data-o=${k}]`); b.classList.toggle('sel', o[k]); b.setAttribute('aria-pressed', o[k]); }
   P.querySelector('button[data-o=hud]').textContent = T('gr.hud');
   const [W, H] = grabTam(o.cal), bits = grabBits(W, H, o.fps), mb = Math.round((bits + GRAB_AUDIO) * 60 / 8 / 1e6);
   const I = P.querySelectorAll('.grInfo');
@@ -656,6 +687,7 @@ Object.assign(IDI3, {
   'gr.sonido': ['Sonido', 'Sound', 'Som', 'Suara', 'Bunyi', 'Tunog', 'サウンド', 'เสียง', 'Ses', 'الصوت', 'Звук', 'Звук', 'Son', 'Ton'],
   'gr.juego': ['Juego', 'Game', 'Jogo', 'Game', 'Permainan', 'Laro', 'ゲーム', 'เกม', 'Oyun', 'اللعبة', 'Игра', 'Гра', 'Jeu', 'Spiel'],
   'gr.mic': ['Mi micrófono', 'My microphone', 'Meu microfone', 'Mikrofonku', 'Mikrofon saya', 'Aking mikropono', '自分のマイク', 'ไมค์ของฉัน', 'Mikrofonum', 'الميكروفون الخاص بي', 'Мой микрофон', 'Мій мікрофон', 'Mon micro', 'Mein Mikrofon'],
+  'gr.chat': ['Chat en el video', 'Chat in the video', 'Chat no vídeo', 'Obrolan di video', 'Sembang dalam video', 'Chat in the video', '動画にチャット', 'แชทในวิดีโอ', 'Videoda sohbet', 'الدردشة في الفيديو', 'Чат в видео', 'Чат у відео', 'Chat dans la vidéo', 'Chat im Video'],
   'gr.voces': ['Voces del chat', 'Voice chat', 'Vozes do chat', 'Suara obrolan', 'Suara sembang', 'Voice chat', 'ボイスチャット', 'เสียงแชท', 'Sesli sohbet', 'الدردشة الصوتية', 'Голосовой чат', 'Голосовий чат', 'Chat vocal', 'Sprachchat'],
   'gr.hud': ['Botón ● REC en la pantalla', '● REC button on screen', 'Botão ● REC na tela', 'Tombol ● REC di layar', 'Butang ● REC di skrin', '● REC button sa screen', '画面に ● REC ボタン', 'ปุ่ม ● REC บนหน้าจอ', 'Ekranda ● REC düğmesi', 'زر ● REC على الشاشة', 'Кнопка ● REC на экране', 'Кнопка ● REC на екрані', 'Bouton ● REC à l’écran', '● REC-Taste auf dem Bildschirm'],
   'gr.porMin': ['~{n} MB por minuto', '~{n} MB per minute', '~{n} MB por minuto', '~{n} MB per menit', '~{n} MB seminit', '~{n} MB bawat minuto', '1分あたり約{n} MB', 'ประมาณ {n} MB ต่อนาที', 'dakikada ~{n} MB', '~{n} ميغابايت في الدقيقة', '~{n} МБ в минуту', '~{n} МБ за хвилину', '~{n} Mo par minute', '~{n} MB pro Minute'],

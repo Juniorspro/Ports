@@ -12,8 +12,8 @@
 //  - errores de Lua (GMA.errores) y de JS desde que se puso.
 // Cada addon se instala solo (con sus dependencias) en una página nueva; los resultados van en JSON a la salida y a
 // CARPETA/tanda.json, con las fotos (CARPETA/<id>.png: de cerca, al aparecer).
-// uso: node nextbots_tanda.mjs URL_HTML [URL_CARPETA_GMA] [CARPETA]   (IDS=id,id… CPU=4: el procesador 4 veces más lento,
-// como un celular; MAPA=FlatGrass; TODOS=1: todos los addons juntos en una sola página, como quien tiene muchos)
+// uso: node nextbots_tanda.mjs URL_HTML [URL_CARPETA_GMA | ws] [CARPETA]   (IDS=id,id… CPU=4: el procesador 4 veces más lento,
+// como un celular; MAPA=FlatGrass —o MAPA_WS=id MAPA=WS_nombre, un mapa del Workshop—; TODOS=1: todos los addons juntos en una sola página, como quien tiene muchos)
 import { abrir } from './base.mjs';
 import fs from 'fs';
 const [, , HTML, G = new URL('/gma', HTML).href, D = '/tmp/claude-0/nextbots_tanda'] = process.argv;
@@ -32,13 +32,16 @@ const res = [];
 const pagina = async () => {
   const P = await abrir(HTML + (HTML.includes('?') ? '&' : '?') + 'test', false);
   await P.p.setViewportSize({ width: 640, height: 360 });
+  // (MAPA_WS=id: un mapa del Workshop —se instala antes, como un jugador— y MAPA es su nombre, p. ej. WS_gm_oxxo)
+  if (process.env.MAPA_WS) await P.ev(`(async () => { const A = await gmInstalar('${process.env.MAPA_WS}', { nombre: 'mapa' }); if (A && A.listo) await A.listo; return 1; })()`);
   await P.ev(`PREFS.bienvenida = true; PREFS.tutVisto = true; idiomaAplicar('es'); GFX.auto = false; PREFS.gfx = 'patata'; aplicarGfx(); inicioMostrar(false); empezarPartida('${MAPA}'); try { cuPedirAlAbrir.hecho = true; cuDialogoCerrar(); } catch (e) {} 1`);
   await P.p.waitForFunction(() => window.__ev(`JUEGO.estado === 'juego' && !!JUG.suelo`), null, { timeout: 120000 });
   await P.p.waitForTimeout(1500);
   if (CPU > 1) { const c = await P.p.context().newCDPSession(P.p); await c.send('Emulation.setCPUThrottlingRate', { rate: CPU }); }
   return P;
 };
-const instalar = (ev, id) => ev(`(async () => { if (GMOD.addons.has('${id}')) return { ya: 1 }; const u = new Uint8Array(await (await fetch(${JSON.stringify(G)} + '/${id}.gma')).arrayBuffer()); const A = await gmInstalar('${id}', { nombre: '${id}', sinDeps: true }, u); await A.listo; await new Promise((r) => setTimeout(r, 500)); return { npcs: [...((A.listas && A.listas.NPC) || new Map()).keys()], err: (A.luaErr || []).slice(0, 3) }; })()`);
+// (URL_CARPETA_GMA = ws: los baja del Workshop como un jugador, con sus dependencias)
+const instalar = (ev, id) => ev(`(async () => { if (GMOD.addons.has('${id}')) return { ya: 1 }; const A = ${JSON.stringify(G)} === 'ws' ? await gmInstalar('${id}', { nombre: '${id}' }) : await gmInstalar('${id}', { nombre: '${id}', sinDeps: true }, new Uint8Array(await (await fetch(${JSON.stringify(G)} + '/${id}.gma')).arrayBuffer())); await A.listo; await new Promise((r) => setTimeout(r, 500)); return { npcs: [...((A.listas && A.listas.NPC) || new Map()).keys()], err: (A.luaErr || []).slice(0, 3) }; })()`);
 // un lugar lejos de los puntos de aparición, con piso
 const LUGAR = `(() => { const S = MUNDO.spawns || []; for (const [x, z] of [[30, -20], [-30, -20], [30, 20], [-30, 20], [0, -40], [45, 0]]) { if (S.some((s) => Math.hypot(s.x - x, s.z - z) < 12 || Math.hypot(s.x - x, s.z - z - 14) < 12)) continue; const h = mundoRayo(v3(x, 60, z), v3(0, -1, 0), 200), h2 = mundoRayo(v3(x, 60, z + 14), v3(0, -1, 0), 200); if (h && h2 && Math.abs(h.t - h2.t) < 0.5) return [x, 60 - h.t, z]; } return null; })()`;
 async function probar(P, id, grupo, cls) {
