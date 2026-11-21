@@ -151,7 +151,7 @@ const TEXTOS = [
   ['animar', 'Que se<br><em>muevan</em>', '10 animaciones de un toque: latido, temblor, rebote…'],
   ['social', 'Una comunidad<br><em>para compartir</em>', 'Publicá fotos, stickers y videos cortos.'],
   ['chat', 'Chateá con<br><em>tus amigos</em>', 'Mandate stickers y pegatinas. Sólo te escriben tus amigos.'],
-  ['feed', 'Los mejores<br><em>packs</em>', 'Seguí, dale me gusta y bajate los que más te copen.'],
+  ['feed', 'Packs de<br><em>la comunidad</em>', 'Seguí, dale me gusta y bajate los que más te copen.'],   // (sin «los mejores»: las tiendas no quieren rankings en las capturas)
   ['pack', 'Del celu<br><em>al grupo</em>', 'Armás el pack y con un toque lo sumás a WhatsApp.'],
   ['perfil', 'Tu perfil,<br><em>tu onda</em>', 'Tu foto, tu portada, tus packs y tu canción.'],
 ];
