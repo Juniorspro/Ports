@@ -90,7 +90,8 @@ hábiles en verificarlo. Si no tenés monotributo, la tienda que sirve para AdMo
 
 ## Los anuncios (AdMob): lo que tenés que hacer vos
 
-La app ya trae los anuncios de Google (versión 0.8). Hoy tiene puestos los **anuncios de prueba** de Google, porque los de
+El código de los anuncios de Google ya está, pero **la 0.8 se publica sin anuncios** (`--sin-anuncios`): hasta tener una cuenta de AdMob
+(a nombre de un adulto) no se puede cobrar con ellos. Hoy tienen puestos los **anuncios de prueba** de Google, porque los de
 verdad salen de **tu** cuenta de AdMob: ahí te pagan. Mientras sean de prueba, el armado no deja publicar el APK.
 
 1. **AdMob sólo paga bien si la app está en una tienda que acepta.** Sirven Google Play, Galaxy Store, Amazon Appstore,

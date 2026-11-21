@@ -274,7 +274,7 @@ prenderlo, en Google Cloud ese cliente tiene que tener autorizado el origen del 
 podría entrar. Sin la variable, Google queda apagado y vale el @ solo, como antes. Pruebas: `google.mjs` (25: tokens falsos, nonce, ticket, vincular, exigir, borrar, contacto) y `google_app.mjs`
 (8, en la app: botón, esperar, elegir @, cuenta vieja).
 
-## Los anuncios (AdMob, desde la 0.8)
+## Los anuncios (AdMob: listos en el código, la 0.8 publicada va sin ellos)
 
 `android/src/.../Anuncios.java` (con la interfaz `Publicidad`; `Inicio` lo crea si el APK lo trae):
 - **Consentimiento**: primero el aviso de Google (UMP), sólo donde la ley lo pide. Sin consentimiento no se piden

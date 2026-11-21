@@ -19,7 +19,7 @@
 // En las pruebas: SZ_PAYPAL_API (un PayPal de mentira en la compu).
 export const PRECIOS = { mes: '1.99', anio: '14.99', vida: '29.99' }, MONEDA = 'USD', DONACION = { min: 1, max: 200 };
 export const BENEFICIOS = [
-  ['🚫', 'Sin anuncios', 'Nada de publicidad, en ningún lado de la app.'],
+  ['🚫', 'Sin anuncios, nunca', 'Si la app suma publicidad, a vos no te aparece.'],
   ['✨', 'Insignia Premium', 'En tu perfil y al lado de tu @ en la comunidad.'],
   ['☁️', '10 veces más lugar en tu cuenta', '250 MB y 400 packs guardados, en vez de 25 MB y 80.'],
   ['💍', 'Anillo dorado', 'Tu foto de perfil con un anillo dorado que brilla.'],
@@ -251,7 +251,7 @@ a.b{display:inline-block;margin-top:14px;color:#fff;text-decoration:none;font-we
 <script nonce="${n}">(function(){var D=window.__D,$=function(i){return document.getElementById(i)},plan='anio',don='3';
 function mal(e){$('mal').textContent=(e&&e.message)||'No se pudo. Probá de nuevo.'}
 function post(r,b){b.t=D.t;return fetch(D.api+r,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(x){return x.json().then(function(j){if(!x.ok||j.ok===false)throw new Error(j.error||'No se pudo');return j})})}
-function listo(j){var don=j.compra==='donacion';$('c').innerHTML='<div class="ok"><div style="font-size:60px">'+(don?'💛':'✨')+'</div><h3>'+(don?'¡Gracias por bancar Stickerazo!':'¡Ya sos Premium!')+'</h3><p>'+(don?'Ya tenés la insignia de Donador.':'Volvé a la app: se activa sola.')+'</p><a class="b" href="stickerazo://pack/premium">Volver a Stickerazo</a></div>'}
+function listo(j){var don=j.compra==='donacion';if(/Android/i.test(navigator.userAgent))setTimeout(function(){location.href='stickerazo://pack/premium'},2200);$('c').innerHTML='<div class="ok"><div style="font-size:60px">'+(don?'💛':'✨')+'</div><h3>'+(don?'¡Gracias por bancar Stickerazo!':'¡Ya sos Premium!')+'</h3><p>'+(don?'Ya tenés la insignia de Donador.':'Volvé a la app: se activa sola.')+'</p><a class="b" href="stickerazo://pack/premium">Volver a Stickerazo</a></div>'}
 $('planes').onclick=function(ev){var b=ev.target.closest('[data-p]');if(!b)return;plan=b.dataset.p;[].forEach.call($('planes').children,function(x){x.classList.toggle('act',x===b)});$('bSub').hidden=plan==='vida';$('bVida').hidden=plan!=='vida'};
 $('don').onclick=function(ev){var b=ev.target.closest('[data-v]');if(!b)return;don=b.dataset.v;$('otro').value='';[].forEach.call($('don').querySelectorAll('button'),function(x){x.classList.toggle('act',x===b)})};
 $('otro').oninput=function(){don=$('otro').value.replace(',','.');[].forEach.call($('don').querySelectorAll('button'),function(x){x.classList.remove('act')})};

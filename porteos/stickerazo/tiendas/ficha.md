@@ -64,7 +64,7 @@ Stickerazo no está afiliada a WhatsApp ni a Meta.
 | Etiquetas / palabras clave | stickers, whatsapp, memes, stickers animados, sticker maker, figuritas, argentina, latinoamérica |
 | Idioma | Español (Latinoamérica) |
 | Precio | Gratis |
-| Anuncios | **Sí** desde la 0.8 (Google AdMob): un banner abajo y, como mucho cada 4 minutos, uno de pantalla completa en una pausa |
+| Anuncios | **No** por ahora (la 0.8 va sin anuncios). Si se suman: Google AdMob, un banner abajo y, como mucho cada 4 minutos, uno de pantalla completa en una pausa |
 | Compras dentro de la app | No tiene |
 | Edad | 13 años o más (hay una comunidad donde la gente publica) |
 | Sitio web | https://stickerazo.pages.dev |
@@ -87,7 +87,7 @@ Stickerazo no está afiliada a WhatsApp ni a Meta.
   - **Nombre de usuario** (el @ que elige): para la cuenta. Obligatorio para la comunidad.
   - **Fotos**: los stickers que publica y, si quiere, su foto de perfil y su portada. Opcional.
   - **Actividad en la app**: me gusta, a quién sigue, descargas, denuncias y bloqueos. Para que funcione la comunidad.
-- **¿Se comparten con terceros?** Desde la 0.8, sí: el SDK de anuncios de Google (AdMob) junta el **ID de publicidad**, datos del aparato y de la conexión (ubicación aproximada por IP) e interacciones con los anuncios, para publicidad, estadísticas y prevención de fraude. En Play: «Identificadores del dispositivo u otros», «Ubicación aproximada», «Interacciones con la app» → compartidos con Google para publicidad. Nuestros datos de la comunidad no se comparten.
+- **¿Se comparten con terceros?** Sólo en una versión con anuncios (la 0.8 no tiene): el SDK de anuncios de Google (AdMob) junta el **ID de publicidad**, datos del aparato y de la conexión (ubicación aproximada por IP) e interacciones con los anuncios, para publicidad, estadísticas y prevención de fraude. En Play: «Identificadores del dispositivo u otros», «Ubicación aproximada», «Interacciones con la app» → compartidos con Google para publicidad. Nuestros datos de la comunidad no se comparten.
 - **¿Viajan cifrados?** Sí (HTTPS).
 - **¿Se pueden borrar?** Sí: Perfil → Borrar mi cuenta, al instante (y la página de arriba).
 - **Ubicación, contactos, mail, teléfono, identificadores del celular:** no se recopilan.
@@ -100,4 +100,4 @@ Stickerazo no está afiliada a WhatsApp ni a Meta.
 - ¿Hay moderación? **Sí:** denunciar y bloquear; con 3 denuncias un pack se oculta solo, y lo mismo pasa con la foto y
   la portada de un perfil.
 - ¿Comparte la ubicación? **No.** ¿Compras digitales? **No.** ¿Violencia, sexo, drogas, apuestas? **No.**
-- ¿Tiene anuncios? **Sí** (desde la 0.8, Google AdMob). En Play: «Contiene anuncios».
+- ¿Tiene anuncios? **No** en la 0.8. Si una versión los suma (Google AdMob), en Play se marca «Contiene anuncios».

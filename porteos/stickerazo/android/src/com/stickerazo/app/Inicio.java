@@ -228,7 +228,7 @@ public final class Inicio extends Activity {
         Uri u = i != null ? i.getData() : null;
         if (u == null || !"stickerazo".equals(u.getScheme()) || u.getHost() == null) return null;
         String r = u.getHost() + (u.getPath() == null ? "" : u.getPath());
-        return r.matches("pack/[a-z0-9]{10}") ? r : null;
+        return r.matches("pack/([a-z0-9]{10}|entrar|premium)") ? r : null;   // (un pack; o volvió de entrar con Google o de pagar)
     }
     @Override protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
@@ -238,6 +238,28 @@ public final class Inicio extends Activity {
         if (paginaLista) js("window.__szAbrir && window.__szAbrir(" + JSONObject.quote(r) + ")");
         else enlace = r;
     }
+    // ---- las páginas de Stickerazo (pagar con PayPal, entrar con Google, las legales) en una pestaña de Chrome encima de
+    // la app (Custom Tab), con los colores de la app: se paga y se entra sin salir de Stickerazo. PayPal y Google no dejan
+    // hacerlo adentro de una WebView, pero sí en esta pestaña. Al terminar, la página vuelve sola (stickerazo://pack/…:
+    // la actividad es singleTask, así que la pestaña se cierra). Sin la biblioteca de AndroidX: con los extras del
+    // protocolo, que entiende Chrome y los otros navegadores que lo soportan; si ninguno, se abre el navegador común. ----
+    private static final String SERVIDOR = Uri.parse(Actualizador.SITIO).getHost();
+    static boolean esNuestra(Uri u) {
+        String h = u.getHost() == null ? "" : u.getHost();
+        return "https".equals(u.getScheme()) && (h.equals(SERVIDOR) || h.equals("stickerazo.pages.dev") || h.endsWith(".stickerazo.pages.dev"));
+    }
+    void abrirFuera(Uri u) {
+        Intent i = new Intent(Intent.ACTION_VIEW, u);
+        if (esNuestra(u)) {
+            Bundle b = new Bundle(); b.putBinder("android.support.customtabs.extra.SESSION", null); i.putExtras(b);
+            i.putExtra("android.support.customtabs.extra.TOOLBAR_COLOR", 0xFF0B0910);
+            i.putExtra("androidx.browser.customtabs.extra.COLOR_SCHEME", 2);   // (oscuro)
+            i.putExtra("android.support.customtabs.extra.TITLE_VISIBILITY", 1);
+            i.putExtra("androidx.browser.customtabs.extra.SHARE_STATE", 2);   // (sin «compartir»: el enlace lleva el ticket)
+        }
+        try { startActivity(i); } catch (ActivityNotFoundException e) { /* ninguna app abre eso */ }
+    }
+
     /** la página lo pide al arrancar (una sola vez) */
     String tomarEnlace() { String r = enlace; enlace = null; return r; }
 
@@ -309,11 +331,11 @@ public final class Inicio extends Activity {
 
         @Override public void onPageFinished(WebView v, String url) { paginaLista = true; }
 
-        // los enlaces de afuera se abren en el navegador
+        // los enlaces de afuera: los de Stickerazo, en una pestaña encima de la app; los demás, en su app
         @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest q) {
             Uri u = q.getUrl();
             if (HOST.equals(u.getHost())) return false;
-            try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (ActivityNotFoundException e) { /* nada */ }
+            abrirFuera(u);
             return true;
         }
 
