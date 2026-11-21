@@ -9,6 +9,9 @@
 
 // (todavía no está en las tiendas: el botón «Bajá Stickerazo» lleva a nuestra página, que tiene el APK y, cuando estén, las tiendas)
 import { verificarGoogle, paginaGoogle, googleObligatorio, huellaGoogle, sha256 } from './google.js';
+import { nubeRutas, borrarNube } from './nube.js';
+// (la nube de cada cuenta: en su propia base si está, SZ_NUBE; si no, en la de siempre)
+const nubeDb = (env) => env.SZ_NUBE || env.DB;
 const bajar = (origen) => `${origen}/#bajar`;
 // ---- lo que sale del repo (GitHub): las actualizaciones de la app (web/), la página web (sitio/) y el APK (descargas/) ----
 // Así la app y la página no dependen del nombre de la rama: si cambia, se cambia SZ_RAMA en Cloudflare y listo.
@@ -52,7 +55,7 @@ const ESQUEMA = [
 // (columnas que llegaron después: si ya están, el ALTER falla y no pasa nada)
 const COLUMNAS_NUEVAS = ['ALTER TABLE packs ADD COLUMN privado INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE usuarios ADD COLUMN google TEXT',
   'CREATE UNIQUE INDEX IF NOT EXISTS i_usuarios_google ON usuarios(google)'];
-const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto';
+const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto|nube_packs|nube_archivos';
 const RE_TABLA = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|ALTER TABLE|TABLE IF NOT EXISTS|ON)\\s+(${TABLAS})\\b`, 'g'), RE_INDICE = /\bINDEX IF NOT EXISTS (\w+)/g;
 export const conPrefijo = (sql, pre) => sql.replace(RE_TABLA, `$1 ${pre}$2`).replace(RE_INDICE, `INDEX IF NOT EXISTS ${pre}$1`);
 // la base de JXMod, vista con las tablas de Stickerazo («sz_usuarios», «sz_packs»…)
@@ -61,7 +64,7 @@ let listo = null;
 const preparar = (env) => (listo ||= env.DB.batch(ESQUEMA.map((s) => env.DB.prepare(s))).then(async () => { for (const q of COLUMNAS_NUEVAS) { try { await env.DB.prepare(q).run(); } catch (e) { /* ya estaba */ } } }).catch((e) => { listo = null; throw e; }));
 
 // ---- ayudas ----
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Admin', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Admin, X-Huella', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 const json = (d, st = 200) => new Response(JSON.stringify(d), { status: st, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
 const error = (msg, st = 400) => json({ error: msg }, st);
 const html = (cuerpo, st = 200) => new Response(cuerpo, { status: st, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300' } });
@@ -125,6 +128,7 @@ async function borrarCuenta(env, idCuenta) {
       ops.push(env.DB.prepare(s).bind(...Array((s.match(/\?/g) || []).length).fill(yo.id)));
     await env.DB.batch(ops);
   await env.DB.prepare('DELETE FROM entradas WHERE usuario = ?').bind(idCuenta).run();
+  await borrarNube(nubeDb(env), idCuenta);   // (y lo que tenía guardado en su cuenta)
 }
 
 // ---- límites (para que nadie llene todo de una) ----
@@ -273,6 +277,8 @@ async function api(req, env, u, r, metodo, servidor) {
     await borrarCuenta(env, us.id);
     return json({ ok: true, nombre: us.nombre });
   }
+  // ---- tus packs guardados en tu cuenta (nube.js) ----
+  { const rn = await nubeRutas(req, nubeDb(env), yo, r, metodo, { json, error, limite: (k, n, s) => limite(env, k, n, s) }); if (rn) return rn; }
   // ---- contacto (el formulario de la página) ----
   if (r === 'contacto' && metodo === 'POST') {
     const d = await cuerpo(), motivo = ['consulta', 'privacidad', 'borrar', 'derechos', 'denuncia', 'otro'].includes(d.motivo) ? d.motivo : 'otro';

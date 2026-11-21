@@ -6,7 +6,7 @@ const M = await import(new URL('../servidor/worker.js', import.meta.url)), W = M
 // (SZ_BASE=/sz: como adentro del Worker de JXMod, con las tablas «sz_»; el resto de las rutas da 404 como si fueran de JXMod)
 const BASE = process.env.SZ_BASE || '';
 export function arrancar(puerto, admin = 'clave-admin', extra = {}) {
-  const env = { DB: d1(), ADMIN_CLAVE: admin, SZ_REPO: `http://127.0.0.1:${puerto}/__repo/`, ...extra };
+  const env = { DB: d1(), SZ_NUBE: d1(), ADMIN_CLAVE: admin, SZ_REPO: `http://127.0.0.1:${puerto}/__repo/`, ...extra };
   const srv = http.createServer(async (q, r) => {
     const rp = /^\/__repo\/.+?\/porteos\/stickerazo\/(.+)$/.exec(decodeURIComponent(q.url.split('?')[0]));
     if (rp) { const f = path.join(RAIZ, rp[1]); if (!f.startsWith(RAIZ) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { r.writeHead(404); return r.end('404'); } r.writeHead(200, { 'Content-Length': fs.statSync(f).size }); return fs.createReadStream(f).pipe(r); }

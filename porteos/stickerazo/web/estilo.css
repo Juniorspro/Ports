@@ -811,3 +811,7 @@ html[data-tema="claro"] .actApk .barraApk { background: rgba(0, 0, 0, .08); }
 .pideG .grandote svg { width: 58px; height: 58px; background: #fff; border-radius: 50%; padding: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .3); }
 html[data-tema="claro"] .tarjG { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); }
 @media (prefers-reduced-motion: reduce) { .esperaG .ruedaG { animation: none; } }
+
+/* (una línea chica debajo de una opción de la lista) */
+.opc .subOpc { display: block; font-size: 12.5px; font-weight: 500; opacity: .75; margin-top: 2px; }
+.opc span:has(.subOpc) { display: flex; flex-direction: column; }

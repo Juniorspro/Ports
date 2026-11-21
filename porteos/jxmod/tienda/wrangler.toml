@@ -18,6 +18,12 @@ binding = "DB"
 database_name = "rezobox-tienda"
 database_id = "b4464be7-c6c5-4bcd-aec1-ecea2765d0fa"
 
+# Stickerazo: los packs que cada cuenta guarda (su propia base, así no llena la de la comunidad)
+[[d1_databases]]
+binding = "SZ_NUBE"
+database_name = "stickerazo-nube"
+database_id = "c3327f7e-112b-4d3e-8ed5-128ada938e85"
+
 # Verity (la compañera con IA del juego): modelo de lenguaje y voz de Workers AI
 [ai]
 binding = "AI"

@@ -82,6 +82,40 @@ ok((await api('/api/yo', { method: 'PATCH', json: { bio: 'hola' } }, TJ2)).st ==
   ok(b.j && b.j.ok && b.j.nombre === 'juan.google' && (await api('/api/usuarios/juan.google')).st === 404 && (await api('/api/yo', {}, TJ2)).st === 401, 'borrar desde la web con Google: la cuenta y su sesión se van');
   const pb = await fetch(B + '/borrar'); ok(pb.status === 200 && (await pb.text()).includes('Borrar tu cuenta'), 'la página para borrar con Google');
 }
+// tus packs guardados en tu cuenta (servidor/nube.js)
+{
+  const nv = verificador(), ne = eDe(nv);
+  await api('/api/google', { method: 'POST', json: { credencial: token({ sub: 'google-nube', nonce: ne }), e: ne } });
+  const tk = (await api('/api/google/listo', { method: 'POST', json: { v: nv } })).j.ticket, TN = (await api('/api/registro', { method: 'POST', json: { nombre: 'la.nube', ticket: tk } })).j.token;
+  const hx = (b) => crypto.createHash('sha256').update(b).digest('hex');
+  const webp = (n) => { const b = Buffer.alloc(n, 7); b.write('RIFF', 0); b.writeUInt32LE(n - 8, 4); b.write('WEBPVP8 ', 8); return b; };
+  const s1 = webp(30000), s2 = webp(20000), png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(5000, 3)]);
+  const sube = (pack, nombre, b, h, t = TN) => fetch(`${B}/api/nube/archivos/${pack}/${nombre}`, { method: 'PUT', headers: { Authorization: 'Bearer ' + t, 'X-Huella': h ?? hx(b) }, body: b });
+  ok((await api('/api/nube', {}, TN)).j.packs.length === 0 && (await api('/api/nube')).st === 401, 'la nube: vacía al principio, y sin cuenta no');
+  const arch = { 's1.webp': hx(s1), 's2.webp': hx(s2), 'bandeja.png': hx(png) }, firma = 'f'.repeat(64);
+  ok((await api('/api/nube/packs/p1', { method: 'PUT', json: { datos: { nombre: 'Mate' }, firma, archivos: { '../x.webp': hx(s1) } } }, TN)).st === 400, 'nombres raros de archivo: no');
+  const pu = await api('/api/nube/packs/p1', { method: 'PUT', json: { datos: { id: 'p1', nombre: 'Mate y facturas', stickers: [{ archivo: 's1.webp' }, { archivo: 's2.webp' }] }, firma, archivos: arch } }, TN);
+  ok(pu.j.faltan.sort().join() === 'bandeja.png,s1.webp,s2.webp', 'guardar un pack: dice qué archivos faltan subir');
+  const st = [(await sube('p1', 's1.webp', s1, 'a'.repeat(64))).status, (await sube('p1', 's1.webp', Buffer.from('hola, no soy imagen'))).status, (await sube('p1', 'otro.webp', s1)).status, (await sube('p1', 's1.webp', webp(800 * 1024))).status];
+  ok(st.join() === '422,400,409,413', `archivos: con otra huella (cortado), que no es imagen, que no está en el pack, o muy pesado: no (${st.join(' ')})`);
+  await sube('p1', 's1.webp', s1);
+  const medio = (await api('/api/nube', {}, TN)).j.packs[0];
+  ok(medio.incompleto === true, 'mientras faltan archivos, el pack figura incompleto (la app los vuelve a mandar)');
+  await sube('p1', 's2.webp', s2); await sube('p1', 'bandeja.png', png);
+  const lleno = await api('/api/nube', {}, TN);
+  ok(lleno.j.packs[0].incompleto === false && lleno.j.usado === s1.length + s2.length + png.length && lleno.j.cupo > 0, `completo: ${lleno.j.usado} bytes usados del cupo`);
+  const baja = await fetch(`${B}/api/nube/archivos/p1/s1.webp`, { headers: { Authorization: 'Bearer ' + TN } }), ajena = await fetch(`${B}/api/nube/archivos/p1/s1.webp`, { headers: { Authorization: 'Bearer ' + l2.j.token } });
+  ok(baja.status === 200 && hx(Buffer.from(await baja.arrayBuffer())) === hx(s1) && (ajena.status === 401 || ajena.status === 404), 'bajar un archivo: sólo el dueño, y llega igual');
+  const s1b = webp(31000), pu2 = await api('/api/nube/packs/p1', { method: 'PUT', json: { datos: { id: 'p1', nombre: 'Mate' }, firma: 'e'.repeat(64), archivos: { 's1.webp': hx(s1b), 'bandeja.png': hx(png) } } }, TN);
+  ok(pu2.j.faltan.join() === 's1.webp' && (await api('/api/nube', {}, TN)).j.usado === png.length, 'cambiar un pack: sólo pide el archivo que cambió y saca el que ya no está');
+  const pack = await api('/api/nube/packs/p1', {}, TN);
+  ok(pack.j.datos.nombre === 'Mate' && pack.j.archivos['s1.webp'] === hx(s1b), 'leer el pack guardado (para recuperarlo en otro celular)');
+  ok((await api('/api/nube/packs/p1', { method: 'DELETE' }, TN)).st === 200 && (await api('/api/nube', {}, TN)).j.packs.length === 0, 'borrarlo de la cuenta');
+  await api('/api/nube/packs/p2', { method: 'PUT', json: { datos: { id: 'p2' }, firma, archivos: { 's1.webp': hx(s1) } } }, TN); await sube('p2', 's1.webp', s1);
+  await api('/api/yo', { method: 'DELETE' }, TN);
+  const quedan = (await ENV.SZ_NUBE.prepare("SELECT COUNT(*) AS n FROM nube_archivos").all()).results[0].n + (await ENV.SZ_NUBE.prepare("SELECT COUNT(*) AS n FROM nube_packs").all()).results[0].n;
+  ok(quedan === 0, 'borrar la cuenta borra también todo lo guardado en la nube');
+}
 // el formulario de contacto
 {
   const c = (d) => api('/api/contacto', { method: 'POST', json: d, headers: { 'CF-Connecting-IP': '10.9.9.9' } });

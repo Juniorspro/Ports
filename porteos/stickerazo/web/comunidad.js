@@ -2,6 +2,7 @@
 // bajar los de otros. Habla con el servidor (servidor/worker.js). Sin conexión, la app sigue andando igual.
 import { abrirTermo } from './termo.js';
 import * as P from './puente.js';
+import { sincronizar, iniciarNube, estadoNube, programar } from './nube.js';
 export const API = (typeof window !== 'undefined' && window.SZ_API) || 'https://rezobox-tienda.holasoyjuniors365.workers.dev/sz';
 // (lo que ve la gente —packs compartidos, reglas, privacidad— va por la dirección propia, que muestra lo mismo que el servidor)
 export const SITIO = (typeof window !== 'undefined' && (window.SZ_SITIO || window.SZ_API)) || 'https://stickerazo.pages.dev';
@@ -278,6 +279,7 @@ function activarArroba(c, crear) {
 }
 function entro(r) {
   guardarCuenta({ token: r.token, id: r.usuario.id, nombre: r.usuario.nombre, google: !!r.usuario.conGoogle });
+  if (r.usuario.conGoogle) sincronizar().catch(() => { /* después */ });   // (si ya tenía packs guardados en su cuenta, vuelven)
   try { localStorage.removeItem(ENTRANDO); } catch (e) { /* nada */ }
   X.confeti(); X.vibrar(20); X.aviso(`¡Bienvenido/a, @${r.usuario.nombre}!`); pintarPerfil();
 }
@@ -347,6 +349,14 @@ export function pedirGoogle() {
   m.querySelector('[data-x="1"]').onclick = () => { X.cerrarModal(); entrarConGoogle(); };
 }
 
+// (en Ajustes: cuántos packs tenés guardados en tu cuenta y cuándo)
+const haceCuanto = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'recién' : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} días`; };
+function filaNube() {
+  const c = cuenta(), e = estadoNube();
+  const sub = !c || !c.google ? 'Conectá Google y quedan guardados aunque borres la app' : !e || !e.cuando ? 'Tocá para guardarlos ahora' : `${e.packs} pack${e.packs === 1 ? '' : 's'} guardado${e.packs === 1 ? '' : 's'} · ${haceCuanto(e.cuando)}${e.cupo ? ` · ${Math.round((e.usado / e.cupo) * 100)} % del lugar` : ''}`;
+  return `<button class="opc" data-x="nube"><i class="emo">☁️</i><span>Tus packs en tu cuenta<small class="subOpc">${X.h(e && e.error ? e.error : sub)}</small></span></button>`;
+}
+
 // ---- mi perfil (o elegir mi @) ----
 export async function pintarPerfil() {
   const c = X.$('#tabPerfil'), yo = cuenta();
@@ -367,10 +377,10 @@ export async function pintarPerfil() {
     const d = await api('/api/usuarios/' + encodeURIComponent(yo.nombre)); X.E.miPerfil = d;
     // (¿tiene Google? si el servidor lo pide y no, el aviso para conectarlo)
     let sinGoogle = false;
-    if (!yo.google) { try { const y = await api('/api/yo'); if (y.usuario.conGoogle) guardarCuenta({ ...yo, google: true }); else sinGoogle = !!y.google; } catch (e) { /* sin conexión: después */ } }
+    if (!yo.google) { try { const y = await api('/api/yo'); if (y.usuario.conGoogle) { guardarCuenta({ ...yo, google: true }); programar(1000); } else sinGoogle = !!y.google; } catch (e) { /* sin conexión: después */ } }
     const pais = X.paisActual();
     c.innerHTML = (sinGoogle ? `<button class="tarjG" id="tarjG">${LOGO_G}<span><b>Conectá tu cuenta de Google</b><small>La comunidad ahora se usa con Google. Tu @ y tus packs quedan igual.</small></span></button>` : '') + perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="tema"><i class="emo">${{ oscuro: '🌙', claro: '☀️', auto: '📱' }[X.temaActual()]}</i><span>Modo: ${{ oscuro: 'oscuro', claro: 'claro', auto: 'como el celular' }[X.temaActual()]}</span></button><button class="opc" data-x="musica"><i class="emo">🎵</i><span>Música de mi país</span></button><button class="opc" data-x="pais"><i class="emo">${pais ? pais[1] : '🌎'}</i><span>Mi país: ${pais ? pais[2] : 'elegir'}</span></button><a class="opc" href="${SITIO}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${SITIO}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
-      ${window.SZN && window.SZN.anunciosOpciones && window.SZN.anunciosOpciones() ? '<button class="opc" data-x="anuncios"><i class="emo">📢</i><span>Privacidad de los anuncios</span></button>' : ''}<a class="opc" href="${SITIO}/contacto" data-ext="1"><i class="emo">💬</i><span>Escribinos</span></a><button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
+      ${filaNube()}${window.SZN && window.SZN.anunciosOpciones && window.SZN.anunciosOpciones() ? '<button class="opc" data-x="anuncios"><i class="emo">📢</i><span>Privacidad de los anuncios</span></button>' : ''}<a class="opc" href="${SITIO}/contacto" data-ext="1"><i class="emo">💬</i><span>Escribinos</span></a><button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
     X.iconos(c); contar(c); if (sinGoogle) X.$('#tarjG', c).onclick = () => entrarConGoogle();
   } catch (e) {
     if (e.st === 404 || e.st === 401) { guardarCuenta(null); return pintarPerfil(); }
@@ -451,6 +461,12 @@ async function alTocarPerfil(ev) {
   const x = t.closest('[data-x]');
   if (x && x.dataset.x === 'pais') return X.elegirPais(() => pintarPerfil());
   if (x && x.dataset.x === 'tema') return X.elegirTema(() => pintarPerfil());
+  if (x && x.dataset.x === 'nube') {
+    if (!(cuenta() || {}).google) return entrarConGoogle();
+    X.aviso('Guardando tus packs…');
+    try { const r = await sincronizar(); X.aviso(r && r.error ? r.error : 'Listo: tus packs están guardados en tu cuenta ☁️'); } catch (e) { X.aviso(e.message); }
+    return pintarPerfil();
+  }
   if (x && x.dataset.x === 'anuncios') { if (window.SZN && window.SZN.anunciosPrivacidad) window.SZN.anunciosPrivacidad(); return; }
   if (x && x.dataset.x === 'musica') return X.musica();
   if (x && x.dataset.x === 'salir') {
@@ -551,6 +567,9 @@ export async function buscarComunidad(q, cont) {
 // ================= ARRANQUE =================
 export function iniciar(ctx) {
   X = ctx;
+  // (tus packs en tu cuenta: guardar después de cada cambio, y avisar si se recuperaron packs en un celular nuevo)
+  iniciarNube((r) => { if (r.recuperados) { X.aviso(`Recuperamos ${r.recuperados} pack${r.recuperados > 1 ? 's' : ''} de tu cuenta 🙌`, 4000); if (X.recargarPacks) X.recargarPacks(); } });
+  if ((cuenta() || {}).google) programar(3000);
   X.$('#feedSeg').onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; F.modo = b.dataset.m; for (const x of X.$('#feedSeg').children) x.classList.toggle('act', x === b); X.vibrar(6); cargarFeed(true); };
   X.$('#feedLista').onclick = alTocarFeed;
   X.$('#puCont').onclick = (ev) => { const s = ev.target.closest('[data-seguir]'); if (s) return seguir(s); const t = ev.target.closest('[data-tag]'); if (t) return X.buscarTag(t.dataset.tag); alTocarFeed(ev); };

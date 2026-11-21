@@ -25,9 +25,14 @@ export async function leerPacks() {
   if (N) { try { return JSON.parse(N.leerPacks() || '[]'); } catch (e) { return []; } }
   return (await idb('datos', 'readonly', (s) => s.get('packs'))) || [];
 }
-export async function guardarPacks(packs) {
-  if (N) { if (!N.guardarPacks(JSON.stringify(packs))) throw new Error('no se pudo guardar la lista'); return; }
-  return idb('datos', 'readwrite', (s) => s.put(packs, 'packs'));
+// (avisa cuando cambian los packs: para guardarlos en la cuenta —nube.js— un rato después)
+const oyentes = [];
+export const alCambiar = (f) => { oyentes.push(f); };
+const avisar = () => { for (const f of oyentes) { try { f(); } catch (e) { /* nada */ } } };
+export async function guardarPacks(packs, { callado = false } = {}) {
+  if (N) { if (!N.guardarPacks(JSON.stringify(packs))) throw new Error('no se pudo guardar la lista'); if (!callado) avisar(); return; }
+  await idb('datos', 'readwrite', (s) => s.put(packs, 'packs'));
+  if (!callado) avisar();
 }
 export async function guardarArchivo(pack, nombre, blob) {
   if (N) { const ok = N.guardarArchivo(pack, nombre, await b64DeBlob(blob)); if (!ok) throw new Error('no se pudo guardar'); return; }
@@ -40,6 +45,7 @@ export async function borrarArchivo(pack, nombre) {
   return idb('archivos', 'readwrite', (s) => s.delete(k));
 }
 export async function borrarPack(pack) {
+  setTimeout(avisar, 0);
   if (N) return N.borrarPack(pack);
   const d = await db();
   return new Promise((ok) => { const t = d.transaction('archivos', 'readwrite'), s = t.objectStore('archivos'), q = s.openCursor(); q.onsuccess = () => { const c = q.result; if (!c) return; if (String(c.key).startsWith(pack + '/')) c.delete(); c.continue(); }; t.oncomplete = ok; });

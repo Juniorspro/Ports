@@ -1074,7 +1074,7 @@ function confeti() {
   requestAnimationFrame(paso);
 }
 // (lo que usa la comunidad de acá)
-C.iniciar({ $, h, modal, cerrarModal, aviso, ir, iconos, E, confirmar, vibrar, confeti, pestaña, carruselListos, norm, buscarTag, pintarPack: () => pintarPack(), atras, paisActual, elegirPais, elegirTema, temaActual, musica: () => musica(false) });
+C.iniciar({ $, h, modal, cerrarModal, aviso, ir, iconos, E, confirmar, vibrar, confeti, pestaña, carruselListos, norm, buscarTag, pintarPack: () => pintarPack(), atras, paisActual, elegirPais, elegirTema, temaActual, musica: () => musica(false), recargarPacks: () => { if (E.vista === 'vInicio') pintarInicio(); } });
 // ---- los anuncios (si el APK los trae): el banner de abajo no mientras recortás o editás, y uno de pantalla completa sólo
 //  en pausas naturales (Java decide si ya pasó un rato desde el último) ----
 const hayAnuncios = () => !!(window.SZN && window.SZN.hayAnuncios && window.SZN.hayAnuncios());

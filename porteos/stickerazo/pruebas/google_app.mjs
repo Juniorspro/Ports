@@ -61,6 +61,45 @@ async function celular(cuenta) {
   await p.screenshot({ path: `${SAL}/6_pide.png` });
   await ctx.close();
 }
+// 3) tus packs en tu cuenta: el celular A guarda un pack; en el celular B (como si borraras la app) vuelve al entrar
+{
+  async function entrarGoogle(p, ctx, sub, nombre) {
+    await p.tap('#tabs [data-t="Perfil"]'); await p.waitForSelector('#gEntrar');
+    const [pest] = await Promise.all([ctx.waitForEvent('page'), p.tap('#gEntrar')]);
+    const e = new URL(pest.url()).searchParams.get('e'); await pest.close();
+    await fetch(`${API}/api/google`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credencial: token({ sub, nonce: e }), e }) });
+    if (nombre) { await p.waitForSelector('#regNombre', { timeout: 8000 }); await p.fill('#regNombre', nombre); await p.tap('#regEntrar'); }
+    await p.waitForSelector('#tabPerfil .arroba', { timeout: 10000 });
+  }
+  const A = await celular(); await entrarGoogle(A.p, A.ctx, 'google-nube-ui', 'la.nube');
+  // (un pack hecho en el celular A: dos stickers y su bandeja, guardados como los guarda la app)
+  await A.p.evaluate(async () => {
+    const P = await import('/puente.js');
+    const img = async (color, tipo) => { const c = document.createElement('canvas'); c.width = c.height = tipo === 'image/png' ? 96 : 512; const x = c.getContext('2d'); x.fillStyle = color; x.beginPath(); x.arc(c.width / 2, c.height / 2, c.width / 3, 0, 7); x.fill(); return new Promise((ok) => c.toBlob(ok, tipo, 0.9)); };
+    await P.guardarArchivo('pnube1', 's1.webp', await img('#ff3e8a', 'image/webp')); await P.guardarArchivo('pnube1', 's2.webp', await img('#ffd23f', 'image/webp'));
+    await P.guardarArchivo('pnube1', 'bandeja.png', await img('#3ec7ff', 'image/png'));
+    const packs = await P.leerPacks();
+    packs.push({ id: 'pnube1', nombre: 'Mi pack en la nube', autor: 'Stickerazo', animado: false, stickers: [{ archivo: 's1.webp', emojis: ['😎'] }, { archivo: 's2.webp', emojis: ['🧉'] }], bandeja: 'bandeja.png', v: 1, n: 2, creado: Date.now() });
+    await P.guardarPacks(packs);
+  });
+  const token1 = await A.p.evaluate(() => JSON.parse(localStorage.sz_cuenta).token);
+  let nube = null; for (let i = 0; i < 30 && !(nube && nube.packs.length); i++) { await z(500); nube = await (await fetch(`${API}/api/nube`, { headers: { Authorization: 'Bearer ' + token1 } })).json(); }
+  ok(nube.packs.length === 1 && !nube.packs[0].incompleto && Object.keys(nube.packs[0].archivos).length === 3, `celular A: el pack se guardó solo en la cuenta, unos segundos después (${nube.usado} bytes)`);
+  await A.ctx.close();
+  const Bc = await celular(); await entrarGoogle(Bc.p, Bc.ctx, 'google-nube-ui');
+  await Bc.p.waitForFunction(async () => { const P = await import('/puente.js'); return (await P.leerPacks()).some((x) => x.id === 'pnube1'); }, null, { timeout: 15000 }).catch(() => {});
+  const rec = await Bc.p.evaluate(async () => { const P = await import('/puente.js'); const pk = (await P.leerPacks()).find((x) => x.id === 'pnube1'); if (!pk) return null; const bl = await Promise.all(['s1.webp', 's2.webp', 'bandeja.png'].map((n) => P.blobDe('pnube1', n))); return { nombre: pk.nombre, n: pk.stickers.length, archivos: bl.filter((b) => b && b.size > 0).length }; });
+  ok(rec && rec.nombre === 'Mi pack en la nube' && rec.n === 2 && rec.archivos === 3, 'celular B (sin nada): al entrar con la misma cuenta de Google, el pack vuelve con sus 3 archivos');
+  const avisoTxt = await Bc.p.evaluate(() => document.querySelector('#aviso') && document.querySelector('#aviso').textContent);
+  ok(/Recuperamos 1 pack/.test(avisoTxt || ''), `y lo avisa: «${avisoTxt}»`);
+  await Bc.p.tap('#tabs [data-t="Mios"]'); await z(1200); await Bc.p.screenshot({ path: `${SAL}/7_recuperado.png` });
+  // (borrarlo en el celular B también lo borra de la cuenta)
+  await Bc.p.evaluate(async () => { const P = await import('/puente.js'); await P.borrarPack('pnube1'); await P.guardarPacks((await P.leerPacks()).filter((x) => x.id !== 'pnube1')); });
+  const tokenB = await Bc.p.evaluate(() => JSON.parse(localStorage.sz_cuenta).token);
+  let n2 = 1; for (let i = 0; i < 30 && n2; i++) { await z(500); n2 = (await (await fetch(`${API}/api/nube`, { headers: { Authorization: 'Bearer ' + tokenB } })).json()).packs.length; }
+  ok(n2 === 0, 'borrarlo en un celular lo borra de la cuenta');
+  await Bc.ctx.close();
+}
 ok(!errores.length, 'sin errores en la página' + (errores.length ? ': ' + errores.join(' | ') : ''));
 await b.close(); web.close(); srv.close();
 console.log(`RESUMEN: ${bien} bien, ${fallas} fallas`); process.exit(fallas ? 1 : 0);
