@@ -12,6 +12,11 @@ keep_vars = true
 GOOGLE_CLIENT_ID = "586582296574-f3ghv0j0pvd93bhrs0vasequ4qejo2g1.apps.googleusercontent.com"
 # Stickerazo (/sz): el mismo cliente (su origen está autorizado). Con esto entrar con Google es obligatorio para la comunidad
 SZ_GOOGLE_CLIENT_ID = "586582296574-f3ghv0j0pvd93bhrs0vasequ4qejo2g1.apps.googleusercontent.com"
+# Stickerazo Premium y donaciones (PayPal, de verdad). El secreto va aparte: wrangler secret put SZ_PAYPAL_SECRET
+SZ_PAYPAL_CLIENT_ID = "BAA38c-QSfU6Rvib2LkIJ2r3TmlHoYUc52WqtmUJ4ANksZaK0Rcdnkjks43eUMKQxIrhi3t753MYvN-qac"
+SZ_PAYPAL_PLAN_MES = "P-3MH40762X19345919NMATCUY"
+SZ_PAYPAL_PLAN_ANIO = "P-6KT390991W1127604NMATCUY"
+SZ_PAYPAL_MODO = "live"
 
 [[d1_databases]]
 binding = "DB"

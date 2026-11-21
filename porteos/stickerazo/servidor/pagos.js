@@ -204,7 +204,7 @@ h1{font:400 30px/1.1 L;text-align:center;margin:14px 0 4px;background:linear-gra
 .planes{display:grid;gap:10px;margin-bottom:14px}.plan{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 16px;border-radius:18px;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit;font:inherit;cursor:pointer}
 .plan.act{border-color:#ffd23f;background:rgba(255,210,63,.09)}.plan b{font-size:17px}.plan small{display:block;color:#bdb5d0;font-size:13px}.plan .p{margin-left:auto;font-weight:800;font-size:17px;white-space:nowrap}
 .tag{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;background:#ff3e8a;color:#fff;font-size:11.5px;font-weight:800;vertical-align:2px}
-.bot{min-height:50px;margin:6px 0 4px}.nota{color:#a79fbd;font-size:12.5px;text-align:center;margin:8px 0}.nota a{color:#ffd23f}
+.bot{min-height:50px;margin:6px 0 4px;color-scheme:light}.nota{color:#a79fbd;font-size:12.5px;text-align:center;margin:8px 0}.nota a{color:#ffd23f}
 h2{font:400 22px/1 L;margin:28px 0 6px;text-align:center}.don{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:12px 0}
 .don button,.don input{padding:11px 16px;border-radius:99px;border:2px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#fff;font:700 16px system-ui;cursor:pointer}
 .don button.act{border-color:#ffd23f;color:#ffd23f}.don input{width:120px;text-align:center}.ok{text-align:center;padding:40px 0}.ok h3{font:400 28px/1.15 L;margin:10px 0}.mal{color:#ff8a8a;text-align:center;font-weight:700;min-height:1.5em}
@@ -230,7 +230,7 @@ function listo(j){var don=j.compra==='donacion';$('c').innerHTML='<div class="ok
 $('planes').onclick=function(ev){var b=ev.target.closest('[data-p]');if(!b)return;plan=b.dataset.p;[].forEach.call($('planes').children,function(x){x.classList.toggle('act',x===b)});$('bSub').hidden=plan==='vida';$('bVida').hidden=plan!=='vida'};
 $('don').onclick=function(ev){var b=ev.target.closest('[data-v]');if(!b)return;don=b.dataset.v;$('otro').value='';[].forEach.call($('don').querySelectorAll('button'),function(x){x.classList.toggle('act',x===b)})};
 $('otro').oninput=function(){don=$('otro').value.replace(',','.');[].forEach.call($('don').querySelectorAll('button'),function(x){x.classList.remove('act')})};
-function cargar(q,ns){return new Promise(function(ok,no){var s=document.createElement('script');s.src=D.sdk+'?client-id='+encodeURIComponent(D.c)+'&currency=USD&components=buttons'+q;s.setAttribute('data-namespace',ns);s.setAttribute('data-csp-nonce','${n}');s.nonce='${n}';s.onload=ok;s.onerror=no;document.head.appendChild(s)})}
+function cargar(q,ns){return new Promise(function(ok,no){var s=document.createElement('script');s.src=D.sdk+'?client-id='+encodeURIComponent(D.c)+'&currency=USD&components=buttons&disable-funding=paylater,credit'+q;s.setAttribute('data-namespace',ns);s.setAttribute('data-csp-nonce','${n}');s.nonce='${n}';s.onload=ok;s.onerror=no;document.head.appendChild(s)})}
 var est={shape:'pill',height:48};
 cargar('&intent=capture','ppPago').then(function(){
  if(!D.est.premium)ppPago.Buttons({style:Object.assign({label:'buynow'},est),createOrder:function(){$('mal').textContent='';return post('/pp/orden',{tipo:'vida'}).then(function(j){return j.id})},onApprove:function(d){return post('/pp/capturar',{orden:d.orderID}).then(listo)},onError:mal}).render('#bVida');
