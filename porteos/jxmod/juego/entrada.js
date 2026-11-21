@@ -180,7 +180,7 @@ function entradaLeer() {
     ENT.y = (T.has('KeyW') ? 1 : 0) - (T.has('KeyS') ? 1 : 0);
     ENT.saltar = T.has('Space'); ENT.agachar = T.has('ControlLeft') || T.has('KeyC') && false; ENT.correr = T.has('ShiftLeft') || T.has('ShiftRight');
     if (T.has('ControlLeft')) ENT.agachar = true;
-  } else ENT.correr = !!ENT.correrPalanca;   // (táctil sin teclas: corre sólo la palanca al tope; antes, soltar Shift de un teclado conectado al celu dejaba corriendo para siempre)
+  } else ENT.correr = !!ENT.correrPalanca || !!ENT.correrFijo;   // (táctil sin teclas: corre sólo la palanca al tope; antes, soltar Shift de un teclado conectado al celu dejaba corriendo para siempre)
   // en un vehículo con los pedales y las flechas de la pantalla (si no se usa la palanca)
   if (ENT.tactil && JUG.vehiculo && !TOQ.palanca && !T.size) { ENT.y = (ENT.pGas ? 1 : 0) - (ENT.pFreno ? 1 : 0); ENT.x = (ENT.pDer ? 1 : 0) - (ENT.pIzq ? 1 : 0); }
 }

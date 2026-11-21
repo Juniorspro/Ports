@@ -17,6 +17,7 @@ const HUD_SVG = {
   camlibre: '<rect x="7.6" y="8.9" width="8.8" height="6.2" rx="1.4" fill="none" stroke="#fff" stroke-width="1.8"/><circle cx="12" cy="12" r="1.6" fill="#fff"/><path d="M12 2.5v3.6M12 17.9v3.6M2.5 12h3.6M17.9 12h3.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M10.2 4.3L12 2.5l1.8 1.8M10.2 19.7l1.8 1.8 1.8-1.8M4.3 10.2L2.5 12l1.8 1.8M19.7 10.2l1.8 1.8-1.8 1.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   camara: '<path d="M3.5 8.5h3l1.6-2.5h7.8l1.6 2.5h3v10h-17z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13.3" r="3.2" fill="none" stroke="#fff" stroke-width="2"/>',
   disparo: '<circle cx="12" cy="12" r="7" fill="none" stroke="#f2b31b" stroke-width="2.1"/><path d="M12 1.8v5.2M12 17v5.2M1.8 12H7M17 12h5.2" stroke="#f2b31b" stroke-width="2.3" stroke-linecap="round"/><circle cx="12" cy="12" r="1.7" fill="#f2b31b"/>',
+  correr: '<circle cx="14.6" cy="4.2" r="2.2" fill="#fff"/><path d="M6.2 9.6l3.6-2.4 4.3.6 2.2 3.4 3 1M10.6 8l-2 5.6 4 2.6-1.6 5M8.6 13.6l-3.4 3.6-3-.2M13.6 11.4l2.2 3.4" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>',
   patada: '<path d="M8.6 3.2h4.8v8.3l5.7 2.1a2.6 2.6 0 0 1 1.7 2.4v2.4H8.6z" fill="#fff"/><path d="M8.2 20.3h12.4" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M2.6 9.4h3.6M2 13.2h4.2M2.8 17h3.4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity=".75"/>',
   salto: '<path d="M12 3.5l6.5 7h-4v6h-5v-6h-4z" fill="#fff"/><path d="M5 20.5h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>',
   agachar: '<path d="M12 16.5l6.5-7h-4v-6h-5v6h-4z" fill="#fff"/><path d="M5 20.5h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>',
@@ -54,7 +55,7 @@ const HUD_TACTIL = [
   ['#armaAct', 1, 1, -53, -53, 100, 40], ['[data-btn=camara]', 1, 1, -209, -50, 75, 34], ['[data-btn=camLibre]', 1, 1, -209, -140, 75, 34], ['[data-btn=camLibL]', 1, 1, -256, -228, 62, 30], ['[data-btn=camLibR]', 1, 1, -162, -228, 62, 30], ['[data-btn=emotes]', 1, 1, -332.8, -50, 75, 34], ['#blinterna', 1, 1, -332.8, -140, 75, 34],
   ['#bdisparo', 1, 0, -215, 225, 150, 58], ['#bdisp2', 1, 0, -72, 268, 104, 44], ['#brecargar', 1, 0, -362, 262, 100, 44], ['#brotar', 1, 0, -362, 262, 100, 44], ['#bvolver', 1, 0, -482, 190, 86, 36],
   ['#blejos', 1, 0, -215, 412, 88, 38], ['#bcerca', 1, 0, -335, 390, 88, 38],
-  ['#bsaltar', 1, 0, -78, 98, 115, 46], ['#bpatada', 1, 0, -352, 112, 88, 36], ['#bagachar', 1, 0, -222, 62, 100, 44], ['#bborrar', 1, 1, -62, -190, 86, 34], ['#busar', 0.5, 0, 40, 175, 95, 38],
+  ['#bsaltar', 1, 0, -78, 98, 115, 46], ['#bpatada', 1, 0, -352, 112, 88, 36], ['#bcorrer', 1, 0, -470, 62, 84, 36], ['#bagachar', 1, 0, -222, 62, 100, 44], ['#bborrar', 1, 1, -62, -190, 86, 34], ['#busar', 0.5, 0, 40, 175, 95, 38],
   // en un vehículo (auto y moto: doblar con las flechas a la izquierda y los pedales a la derecha; helicóptero y avión:
   // la palanca para inclinar y girar, y subir y bajar con saltar y agacharse)
   ['#bgas', 1, 0, -112, 150, 140, 56], ['#bfreno', 1, 0, -292, 128, 124, 52], ['#bizq', 0, 0, 150, 140, 125, 52], ['#bder', 0, 0, 345, 140, 125, 52], ['#bmanual', 1, 0, -112, 335, 100, 42], ['#bbajar', 1, 1, -62, -190, 90, 36], ['#bbocina', 1, 0, -292, 318, 90, 38], ['#bturbo', 1, 0, -440, 232, 95, 40],
@@ -71,7 +72,7 @@ function hudIniciar() {
   const t = $('tactil'); if (!t) return;
   // botones que agrega esta versión: borrar lo que apuntás y los del auto
   const nuevo = (id, btn, ico, mantener) => { if ($(id)) return; const d = document.createElement('div'); d.className = 'bt-t'; d.id = id; d.dataset.btn = btn; if (mantener) d.dataset.mantener = ''; d.innerHTML = `<img alt="" src="${hudIco(ico)}">`; t.appendChild(d); return d; };
-  nuevo('bborrar', 'borrarApuntado', 'borrar'); nuevo('blinterna', 'linterna', 'linterna'); nuevo('bpatada', 'patada', 'patada'); nuevo('bvolver', 'volver', 'volver'); nuevo('bbocina', 'bocina', 'bocina', 1); nuevo('bturbo', 'turbo', 'turbo', 1); nuevo('bgas', 'pGas', 'gas', 1); nuevo('bfreno', 'pFreno', 'freno', 1); nuevo('bizq', 'pIzq', 'izq', 1); nuevo('bder', 'pDer', 'der', 1); nuevo('bmanual', 'saltar', 'manual', 1); nuevo('bbajar', 'salir', 'bajar');
+  nuevo('bborrar', 'borrarApuntado', 'borrar'); nuevo('blinterna', 'linterna', 'linterna'); nuevo('bpatada', 'patada', 'patada'); nuevo('bcorrer', 'correrBt', 'correr'); nuevo('bvolver', 'volver', 'volver'); nuevo('bbocina', 'bocina', 'bocina', 1); nuevo('bturbo', 'turbo', 'turbo', 1); nuevo('bgas', 'pGas', 'gas', 1); nuevo('bfreno', 'pFreno', 'freno', 1); nuevo('bizq', 'pIzq', 'izq', 1); nuevo('bder', 'pDer', 'der', 1); nuevo('bmanual', 'saltar', 'manual', 1); nuevo('bbajar', 'salir', 'bajar');
   // los íconos propios
   const pon = (id, n) => { const e = $(id); if (e) e.src = hudIco(n); };
   pon('iPausa', 'pausa'); pon('iMenu', 'props'); pon('iChat', 'chat'); pon('iMeme', 'celular'); pon('iEmote', 'emote'); pon('iCam', 'camara'); pon('iCamLib', 'camlibre'); pon('iDisp', 'disparo'); pon('iRotar', 'rotar'); pon('iSalto', 'salto'); pon('iUsar', 'usar');
@@ -129,7 +130,7 @@ const HUD_V2 = {
     '[data-btn=camLibL]': [-226, 266, 70, 34], '[data-btn=camLibR]': [-126, 266, 70, 34] },
   // abajo a la derecha: [x desde el borde derecho (negativo), y desde abajo, tamaño, mínimo en px]
   ab: { '#bsaltar': [-90, 90, 136, 54], '#bagachar': [-228, 74, 104, 48], '#bdisparo': [-235, 262, 176, 64], '#bdisp2': [-74, 300, 104, 48],
-    '#bpatada': [-344, 100, 92, 42], '#brecargar': [-410, 282, 96, 44], '#brotar': [-410, 282, 96, 44], '#bvolver': [-452, 170, 86, 38],
+    '#bpatada': [-344, 100, 92, 42], '#bcorrer': [-462, 72, 86, 38], '#brecargar': [-410, 282, 96, 44], '#brotar': [-410, 282, 96, 44], '#bvolver': [-452, 170, 86, 38],
     '#blejos': [-170, 402, 84, 38], '#bcerca': [-302, 404, 84, 38], '#bmod0': [-170, 404, 90, 40], '#bmod1': [-300, 404, 90, 40], '#bmod2': [-450, 400, 90, 40], '#bmod3': [-540, 290, 90, 40] },
   // (3.9) las teclas fijadas de los mods: abajo a la derecha, en los lugares libres alrededor del disparo y de las teclas del
   // arma (antes arriba a la izquierda, azules: «es feo tener en azul arriba y abajo vacío»), las que se ven primero
@@ -270,13 +271,14 @@ function hudPaso() {
     for (const id of ['bgas', 'bfreno', 'bizq', 'bder', 'bmanual']) ver(id, tierra && cond); ver('bbajar', veh);
     const V = veh && JUG.vehiculo.veh; ver('bbocina', !!(V && cond && bocTipo(V))); ver('bturbo', !!(V && cond && JUG.vehiculo.art === 'bici'));
     for (const id of ['bsaltar', 'bagachar']) ver(id, !veh || (aire && cond));
-    for (const id of ['bdisparo', 'bpatada']) ver(id, !veh);
+    for (const id of ['bdisparo', 'bpatada', 'bcorrer']) ver(id, !veh);
   }
   // (la nueva: con balas, el número va dentro del recuadro del arma en vez del nombre)
   { const mu = $('muni'), cm = !!(mu && mu.textContent); if (cm !== HUD.cm) { HUD.cm = cm; document.body.classList.toggle('conMuni', cm); } }
   const sost = !!(ARM.agarre || ARM.grav);
   if (sost !== HUD.sost) { HUD.sost = sost; const e = $('bvolver'); if (e) e.classList.toggle('oc', !sost); }
   const ro = !!ENT.rotar; if (ro !== HUD.ro) { HUD.ro = ro; const e = $('brotar'); if (e) e.classList.toggle('on', ro); }
+  const co = !!ENT.correrFijo; if (co !== HUD.co) { HUD.co = co; const e = $('bcorrer'); if (e) { e.classList.toggle('on', co); e.setAttribute('aria-pressed', String(co)); } }
 }
 // borrar lo que apuntás (si es tuyo: un objeto, o una tele, radio o piano que pusiste); si no apuntás a nada tuyo,
 // deshace lo último que pusiste

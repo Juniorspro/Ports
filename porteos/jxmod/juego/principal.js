@@ -338,6 +338,7 @@ function atenderPulsos() {
     if (k === 'cerrar') { cerrarPaneles(); continue; }
     if (k === 'fncam') { nocheTablet(); continue; } // (la pizzería: cámaras y linterna)
     if (k === 'linterna') { linternaAlternar(); continue; }
+    if (k === 'correrBt') { ENT.correrFijo = !ENT.correrFijo; aviso(T(ENT.correrFijo ? 'ctl.correrSi' : 'ctl.correrNo'), 1.2); continue; }   // (el botón de correr del celular: queda prendido hasta tocarlo de nuevo)
     if (k === 'modmenu') { if (UI.abierto === 'modm') modMenuCerrar(); else if (!UI.abierto) modMenuAbrir(); continue; }
     if (k === 'servmods') { if (UI.abierto === 'sm') smCerrar(); else if (!UI.abierto) smAbrir(); continue; }
     if (k === 'menu') { if (UI.abierto === 'spawn') cerrarPaneles(); else { cerrarPaneles(); abrirSpawn(); } continue; }

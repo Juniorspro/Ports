@@ -82,8 +82,17 @@ function gmApiHay() {
   // (con tiempo máximo; si no contestó, se vuelve a preguntar en un minuto en vez de quedar en «no» para siempre)
   return (_gmApi = (async () => { try { const r = await gmFetch(TIENDA_URL + 'gmod/detalles?ids=0', null, 10000); return r.ok && Array.isArray((await gmTiempo(r.json(), 10000)).items); } catch (e) { setTimeout(() => { _gmApi = null; }, 60000); return false; } })());
 }
+// (Bugs y sugerencias: «cuando buscás algo te sale cualquier cosa: que se pueda buscar por ID o por el link del addon». Un
+// número del Workshop o un enlace de steamcommunity —filedetails/?id=…, también el de la app de Steam— va directo a ése)
+function gmIdDeBusqueda(q) {
+  const t = String(q || '').trim(); if (!t) return null;
+  const m = /(?:[?&]id=|CommunityFilePage\/)(\d{5,12})/i.exec(t) || /^(\d{5,12})$/.exec(t);
+  return m ? m[1] : null;
+}
 async function gmBuscar(o) {
   const p = o.p || 1;
+  const idQ = gmIdDeBusqueda(o.q);
+  if (idQ) { if (p > 1) return { items: [], total: 1, p }; try { const L = await gmDetallesCompactos([idQ]); if (L && L.length) return { items: L, total: L.length, p, porId: true }; } catch (e) {} return { items: [], total: 0, p, porId: true }; }
   if (await gmApiHay()) {
     try { const r = await fetch(`${TIENDA_URL}gmod/buscar?q=${encodeURIComponent(o.q || '')}&tag=${o.tag || ''}&orden=${o.orden || 'pop'}&p=${p}`); if (r.ok) return await r.json(); } catch (e) {}
   }
@@ -141,8 +150,8 @@ function gmTiendaCargar(desdeCero) {
     for (let k = 0; k < (S.gmDir ? 8 : 1); k++) {
       const d = await gmBuscar({ q: S.q, tag: S.etq, orden: S.gmOrden, p: S.p + 1, soloDir: S.gmDir }); if (n !== S.n) return;
       // (los modelos de jugador no se mezclan con los mods: están en Personajes → Mods)
-      const vistos = new Set(S.items.map((x) => x.id)), L = (d.items || []).filter((x) => !vistos.has(x.id) && !(typeof gmEsPM === 'function' && gmEsPM(x)));
-      S.vistosGM = (S.vistosGM || 0) + (d.items || []).length; S.items = S.items.concat(S.gmDir ? L.filter((x) => x.dir === true) : L);
+      const vistos = new Set(S.items.map((x) => x.id)), L = (d.items || []).filter((x) => !vistos.has(x.id) && (d.porId || !(typeof gmEsPM === 'function' && gmEsPM(x))));   // (por ID/link se muestra igual)
+      S.vistosGM = (S.vistosGM || 0) + (d.items || []).length; S.items = S.items.concat(S.gmDir && !d.porId ? L.filter((x) => x.dir === true) : L);
       S.total = Math.max(d.total || 0, S.items.length); S.finGM = !(d.items || []).length || S.vistosGM >= S.total;
       if (S.items.length - antes >= 12 || S.finGM) break;
       S.p++;

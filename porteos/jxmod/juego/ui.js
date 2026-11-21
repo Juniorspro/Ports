@@ -327,6 +327,7 @@ function abrirAjustes(desde) {
     ${fila(esc(Lc('PostProcessing', 'Postprocesado')), sel('aPo', [['auto', 'Según gráficos'], ['si', 'Sí'], ['no', 'No']]))}
     ${fila(esc(Lc('TextureQuality', 'Calidad de textura')), sel('aTq', [['auto', 'Según gráficos'], ['baja', 'Baja'], ['media', 'Media'], ['alta', 'Alta']]))}
     ${fila(esc(T('aj.motor')), sel('aM', [['webgl2', 'WebGL 2'], ['webgl1', 'WebGL 1 (compatible)']]))}
+    ${fila(esc(T('aj.npcMax')), sel('aNpc', [['24', '24'], ['50', '50'], ['100', '100'], ['200', '200'], ['0', esc(T('aj.sinLim'))]]))}
     <button class="ajBtn gris" id="aBanco">${esc(T('aj.banco'))}</button></section>
   <section data-ajs="r" class="oc"><h4>${esc(Lc('Rendering', 'Renderizado'))}</h4>
     ${fila('Resolución', rango('aR', 35, 100, 5, 'aRv'))}
@@ -355,6 +356,7 @@ function abrirAjustes(desde) {
   if (typeof icappConectar === 'function') icappConectar();   // (el ícono de la app: iconoapp.js)
   if (typeof milogoConectar === 'function') milogoConectar();   // (tu logo en el juego: milogo.js)
   if (typeof musAjustes === 'function') musAjustes(c);   // (la pestaña Música: musica.js)
+  $('aNpc').value = PREFS.npcMax != null ? String(PREFS.npcMax) : '24';
   $('aG').value = PREFS.gfx; $('aSo').value = String(PREFS.sombras); $('aPo').value = PREFS.post; $('aTq').value = PREFS.texQ;
   $('aFov').value = fovBase();
   $('aR').value = PREFS.res; $('aD').value = PREFS.lejos; $('aS').value = PREFS.sens; $('aV').value = PREFS.vol; $('aF').checked = PREFS.fps; $('aC').checked = PREFS.contorno !== false; $('aU').checked = !!PREFS.ocultarUI; $('aDin').checked = PREFS.resDin !== false;
@@ -382,6 +384,7 @@ function abrirAjustes(desde) {
     PREFS.sombras = $('aSo').value; PREFS.post = $('aPo').value; PREFS.texQ = $('aTq').value; PREFS.contorno = $('aC').checked; PREFS.ocultarUI = $('aU').checked; PREFS.resDin = $('aDin').checked;
     if ($('aH')) PREFS.hud = +$('aH').value;
     PREFS.emoRuleta = $('aEmoR').checked;
+    PREFS.npcMax = $('aNpc').value;
     PREFS.vozHud = $('aVozH').checked; if (typeof vozHudAjuste === 'function') vozHudAjuste();   // (quién habla: voz.js)
     const motorNuevo = $('aM').value; PREFS.motor = motorNuevo;
     guardarPrefs();

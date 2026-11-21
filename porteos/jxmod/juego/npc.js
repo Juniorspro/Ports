@@ -8,7 +8,8 @@
 // afina. Los tiros lo lastiman; un golpe fuerte, una patada o la Gravity Gun lo tiran al piso como muñeco de trapo y se
 // levanta; muerto queda tirado un rato. La Physics Gun lo levanta (patalea) y lo lanza. En la sala los NPC los mueve su
 // dueño y los demás los ven (y les pegan: el golpe le llega al dueño).
-const NPC = { lista: [], sig: 1, rem: new Map(), redT: 0, skin: null, act: null, panel: null, max: 24 };
+// (el tope de NPC se elige en Ajustes → Gráficos: 24, 50, 100, 200 o sin límite —PREFS.npcMax, '0' es sin límite—)
+const NPC = { lista: [], sig: 1, rem: new Map(), redT: 0, skin: null, act: null, panel: null, get max() { const v = typeof PREFS !== 'undefined' && PREFS.npcMax != null ? String(PREFS.npcMax) : '24'; return v === '0' ? Infinity : Math.max(1, +v || 24); } };
 const NPC_MODOS = ['quieto', 'pasear', 'seguir', 'perseguir', 'huir', 'bailar', 'guardia', 'mirar', 'defender'];
 // las armas que puede llevar (idea de Discord: «NPCs agresivos que usen armas y NPCs amigos que te defiendan»). Cada una
 // con cómo la usa un NPC: cada cuánto tira, de a cuántos tiros la ráfaga y la pausa, hasta dónde y cuánto se le abre el tiro
