@@ -5227,6 +5227,36 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     como un jugador, ~1 GB la primera vez). DrGBase, Cartoon Cat, Doro y SCP-049 (los de `nextbots_ia.mjs`) no usan
     `EnableMatrix`: para ellos no cambia nada. `pepe_vuelve` 13/13, `codigo_tragado` bien.
 
+## JXMod 3.9.10: lo de «Bugs y sugerencias» después de la 3.9.9
+
+- Publicada con el paquete pk39e. APK 3.9.10 (versionCode 26112102, misma firma) con `ota_base.json` que coincide con
+  `web/ota/ota.json` (6/6 huellas iguales); `version.json` 3910 con `"ota": {"apkMin": 3903}`; `web/ota/` 3.9.10 (para la
+  3.9.3 en adelante cambia sólo `index.html`, 5,0 MB; `ota.sh` 3/3). Web con código: muestra 3.9.10, pide el código, el
+  juego no queda en claro (ni en `index.html` ni en `juego.bin`), sin errores; `suelto.json` 3910.
+- **Bugs:**
+  - «No se ve el chat al grabar» (`grabar.js`): los renglones del chat que se ven van dibujados dentro de la imagen del
+    juego (nombre en amarillo, fondo, se desvanecen); opción «Chat en el video» (prendida) en los ajustes del modo grabación.
+  - «Suicide gun sin manos» (`gmod_api.js`, `gmod_vista.js`): `Player:GetHands()` da la entidad `gmod_hands` del jugador y
+    si el Lua le cambia el modelo la vista usa esas manos hasta reaparecer, como GMod; si la vista no es ValveBiped pero
+    comparte al menos la mitad de los huesos con las manos, se pegan por nombre (la de NMRiH de la Suicide Gun).
+  - «Bug visual gravísimo» en gm_boreas (`gmod_bsp.js`, `gmod.js`, `gmod_formatos.js`): los terrenos de dos texturas
+    (WorldVertexTransition, `$basetexture2`) eligen la textura con el alpha de cada vértice y el borde se corta por la línea
+    de 0,5; antes todo salía con la primera textura (roca).
+  - Nextbots quietos (gm_oxxo): no se reproduce con Obunga, Niño del Oxxo, Quandale, Speed, Sanic ni G-Man, en Desert y en
+    gm_oxxo, también con el procesador 6 veces más lento (`pruebas/nextbots_tanda.mjs`, que ahora baja del Workshop); se le
+    pregunta a quien lo mandó cuáles eran.
+- **Sugerencias:**
+  - «Buscar por ID o link» (`gmod_tienda.js`, `gmIdDeBusqueda`): el número del addon o su link (`?id=…`, también
+    `steam://url/CommunityFilePage/…`) trae ese addon directo, aunque sea un personaje o no se baje directo.
+  - «Quitar el límite de NPC» (`npc.js`, `ui.js`): Ajustes → Gráficos → Límite de NPC: 24, 50, 100, 200 o sin límite
+    (por defecto sigue en 24, que es lo que aguanta un celu flojo).
+  - «Botón para correr» (`hud.js`, `entrada.js`, `principal.js`): en el celular, un toque corre sin parar y otro vuelve a
+    caminar (se pinta de azul); con su paso en el tutorial. Sigue corriendo también la palanca al borde.
+- Pruebas: la de estas tres cosas 11/11 (más los 404 de los paquetes de personajes, que el servidor local no tiene);
+  `hud_celu` sin encimados ni botones afuera en 7 pantallas (el único aviso —con 6 habilidades fijadas en un celu de
+  640×360 algunos botones quedan de 39 a 43 px, con el área de toque de 44— ya estaba antes del botón nuevo);
+  `codigo_tragado` bien.
+
 ## JXMod 3.9.9: «Bugs y sugerencias» sin pisarse con letra grande, Avisos y entrar con Gmail
 
 - Publicada con el paquete pk39e. APK 3.9.9 (versionCode 26112101, misma firma, prueba 6/6) con `ota_base.json` que
