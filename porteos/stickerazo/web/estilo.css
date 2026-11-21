@@ -1038,3 +1038,12 @@ html[data-tema="claro"] .formaOp, html[data-tema="claro"] .capaF { background: #
 .plantOp canvas { filter: none; aspect-ratio: 1; border-radius: 10px; background: repeating-conic-gradient(#ffffff10 0 25%, transparent 0 50%) 0 0 / 14px 14px; }
 .plantOp small { font-weight: 700; font-size: 12px; }
 html[data-tema="claro"] .pegaOp { background: #0000000a; border-color: #00000014; }
+
+/* las decoraciones grandes como pegatinas (con su borde blanco y su sombra, un poco torcidas) */
+.pegaUI { display: inline-block; width: 72px; height: 72px; line-height: 0; }
+.pegaUI canvas { width: 100%; height: 100%; filter: drop-shadow(2.5px 0 0 #fff) drop-shadow(-2.5px 0 0 #fff) drop-shadow(0 2.5px 0 #fff) drop-shadow(0 -2.5px 0 #fff) drop-shadow(0 6px 10px #0007); }
+.vacio .vacioIco.pegaV { width: 96px; height: 96px; background: none; margin-bottom: 2px; }
+.vacio .vacioIco.pegaV .pegaUI { width: 84px; height: 84px; transform: rotate(-6deg); }
+.grandote .pegaUI { width: 92px; height: 92px; transform: rotate(-5deg); }
+.burbujas span .pegaUI { width: 1.35em; height: 1.35em; }
+.burbujas span:nth-child(2) .pegaUI { transform: rotate(8deg); } .burbujas span:nth-child(3) .pegaUI { transform: rotate(-10deg); }

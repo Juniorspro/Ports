@@ -51,10 +51,10 @@ function tarjeta(p, i) {
   </article>`;
 }
 const vacioFeed = (modo) => modo === 'siguiendo'
-  ? '<div class="vacio"><div class="vacioIco"><i data-i="ojos"></i></div><b>Todavía no seguís a nadie</b><span>Pegate una vuelta por «Para vos» y seguí a los que más te copen.</span></div>'
-  : '<div class="vacio"><div class="vacioIco"><i data-i="mate"></i></div><b>Está todo muy tranqui</b><span>Todavía no hay packs acá. ¡Publicá el primero y arrancá vos!</span></div>';
+  ? '<div class="vacio"><div class="vacioIco pegaV"><i class="pegaUI" data-pega="pienso"></i></div><b>Todavía no seguís a nadie</b><span>Pegate una vuelta por «Para vos» y seguí a los que más te copen.</span></div>'
+  : '<div class="vacio"><div class="vacioIco pegaV"><i class="pegaUI" data-pega="mate"></i></div><b>Está todo muy tranqui</b><span>Todavía no hay packs acá. ¡Publicá el primero y arrancá vos!</span></div>';
 function sinConexion(e) {
-  return `<div class="vacio"><div class="vacioIco"><i data-i="senal"></i></div><b>${e && e.red ? 'Sin conexión con la comunidad' : 'Se nos complicó'}</b><span>${X.h(e ? e.message : '')}</span><button class="pri" data-reintentar="1">Reintentar</button></div>
+  return `<div class="vacio"><div class="vacioIco pegaV"><i class="pegaUI" data-pega="loco"></i></div><b>${e && e.red ? 'Sin conexión con la comunidad' : 'Se nos complicó'}</b><span>${X.h(e ? e.message : '')}</span><button class="pri" data-reintentar="1">Reintentar</button></div>
     <h2>Mientras tanto <small>· packs listos</small></h2><div class="carrusel" id="feedListos"></div>`;
 }
 // (los packs que no te interesan: se guardan en el celular y no se muestran más)
@@ -69,7 +69,7 @@ export async function cargarFeed(reiniciar) {
     const r = await api(`/api/feed?modo=${F.modo}&desde=${F.desde}`);
     if (turno !== F.turno) return;
     if (reiniciar || !F.desde) lista.innerHTML = '';
-    if (r.necesitaCuenta) lista.innerHTML = '<div class="vacio"><div class="vacioIco"><i data-i="mano"></i></div><b>Entrá a la comunidad</b><span>Así ves lo nuevo de los que seguís.</span><button class="pri" data-ir-perfil="1">Elegir mi @</button></div>';
+    if (r.necesitaCuenta) lista.innerHTML = '<div class="vacio"><div class="vacioIco pegaV"><i class="pegaUI" data-pega="ojitos"></i></div><b>Entrá a la comunidad</b><span>Así ves lo nuevo de los que seguís.</span><button class="pri" data-ir-perfil="1">Elegir mi @</button></div>';
     else if (!r.packs.length && !F.desde) lista.innerHTML = vacioFeed(F.modo);
     const fuera = noInteresa(); lista.insertAdjacentHTML('beforeend', r.packs.filter((p) => !fuera.has(p.id)).map((p, i) => tarjeta(p, i)).join(''));
     F.desde = r.sigue ?? F.desde; F.fin = r.sigue == null; X.iconos(lista);
@@ -323,7 +323,7 @@ function pintarEsperando() {
 }
 function pintarElegirArroba(ticket) {
   const c = X.$('#tabPerfil');
-  c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span><i data-i="confeti"></i></span><span><i data-i="mate"></i></span><span><i data-i="lentes"></i></span></div><h2 class="titulo2">¡Ya casi! Elegí tu @</h2>
+  c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span><i class="pegaUI" data-pega="estrellitas"></i></span><span><i class="pegaUI" data-pega="mate"></i></span><span><i class="pegaUI" data-pega="cool"></i></span></div><h2 class="titulo2">¡Ya casi! Elegí tu @</h2>
       <p>Es tu nombre en la comunidad. Lo ve todo el mundo, así que nada de datos tuyos.</p>
       ${campoArroba()}<button class="grande" id="regEntrar"><i data-i="ok"></i>Listo</button>${notaLegal()}</div>`;
   X.iconos(c);
@@ -332,7 +332,7 @@ function pintarElegirArroba(ticket) {
 }
 function pintarEntrarGoogle(c) {
   if (entrandoAhora()) return esperarGoogle();
-  c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span><i data-i="mate"></i></span><span><i data-i="risa"></i></span><span><i data-i="llama"></i></span><span><i data-i="pelota"></i></span></div><h2 class="titulo2">Sumate a la comunidad</h2>
+  c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span><i class="pegaUI" data-pega="mate"></i></span><span><i class="pegaUI" data-pega="risa"></i></span><span><i class="pegaUI" data-pega="fuego"></i></span><span><i class="pegaUI" data-pega="pelota"></i></span></div><h2 class="titulo2">Sumate a la comunidad</h2>
       <p>Publicá tus packs, seguí a los que más te copen y bajate los mejores stickers. Entrás con tu cuenta de Google: no ves ni un formulario.</p>
       <button class="botonG" id="gEntrar">${LOGO_G}<span>Entrar con Google</span></button>
       <p class="nota">De Google sólo usamos un número para reconocerte: no guardamos tu mail, tu nombre ni tu foto de Google.</p>
@@ -437,7 +437,7 @@ export async function pintarPerfil() {
   if (!yo) {
     const cfg = await configServidor();
     if (cfg.google) return pintarEntrarGoogle(c);
-    c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span><i data-i="mate"></i></span><span><i data-i="risa"></i></span><span><i data-i="llama"></i></span><span><i data-i="pelota"></i></span></div><h2 class="titulo2">Sumate a la comunidad</h2>
+    c.innerHTML = `<div class="bienvenida"><div class="burbujas"><span><i class="pegaUI" data-pega="mate"></i></span><span><i class="pegaUI" data-pega="risa"></i></span><span><i class="pegaUI" data-pega="fuego"></i></span><span><i class="pegaUI" data-pega="pelota"></i></span></div><h2 class="titulo2">Sumate a la comunidad</h2>
       <p>Publicá tus packs, seguí a los que más te copen y bajate los mejores stickers del país. Sin email y sin vueltas.</p>
       ${campoArroba()}
       <button class="grande" id="regEntrar"><i data-i="ok"></i>Entrar</button>
@@ -613,7 +613,7 @@ export async function publicar(pack) {
       const packs = await P.leerPacks(), loc = packs.find((x) => x.id === pack.id);
       loc.publicado = { id: r.pack.id, v: r.pack.v, vLocal: loc.v, tags: [...tags] }; await P.guardarPacks(packs); X.E.packs = packs;
       X.cerrarModal(); X.confeti(); X.vibrar(25);
-      const ok2 = X.modal(`<div class="hoja centro"><div class="grandote"><i data-i="confeti"></i></div><h3>¡${pack.publicado ? 'Actualizado' : 'Publicado'}!</h3><p>Ya está en la comunidad. Mandalo al grupo así lo agregan a su WhatsApp.</p>
+      const ok2 = X.modal(`<div class="hoja centro"><div class="grandote"><i class="pegaUI" data-pega="g_wow"></i></div><h3>¡${pack.publicado ? 'Actualizado' : 'Publicado'}!</h3><p>Ya está en la comunidad. Mandalo al grupo así lo agregan a su WhatsApp.</p>
         <div class="botones"><button class="sec" data-x="ver">Verlo</button><button class="pri" data-x="comp"><i data-i="compartir"></i> Compartir</button></div></div>`);
       ok2.querySelector('[data-x="ver"]').onclick = () => { X.cerrarModal(); abrirPublico(r.pack.id); };
       ok2.querySelector('[data-x="comp"]').onclick = () => { X.cerrarModal(); compartirPack(r.pack); };

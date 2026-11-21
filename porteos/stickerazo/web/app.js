@@ -87,6 +87,12 @@ function iconos(raiz = document) {
     i.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONOS[i.dataset.i] || ''}</svg>`;
     i.dataset.hecho = '1';
   }
+  // (las decoraciones grandes —pantallas vacías, bienvenida, avisos— son pegatinas: dibujos de pegatinas.js)
+  for (const i of raiz.querySelectorAll('i[data-pega]:not([data-hecho])')) {
+    const p = PEGA[i.dataset.pega]; i.dataset.hecho = '1'; if (!p) continue;
+    const t = Math.round((parseFloat(getComputedStyle(i).width) || 72) * Math.min(3, devicePixelRatio || 1)), c = lienzo(t, t);
+    dibujarPega(c.getContext('2d'), p, t); i.appendChild(c);
+  }
 }
 
 // ---- estado ----
@@ -1527,7 +1533,7 @@ $('#resBuscar').onclick = (ev) => { const b = ev.target.closest('[data-p]'); if 
 async function pintarMios() {
   const packs = packsOrden(E.packs = await P.leerPacks()), cont = $('#packs');
   if (!packs.length) {
-    cont.innerHTML = '<div class="vacio"><div class="vacioIco"><i data-i="magia"></i></div><b>Todavía no hiciste ningún pack</b><span>Elegí una foto: Stickerazo la recorta solo y en un minuto tenés tu primer sticker.</span></div>';
+    cont.innerHTML = '<div class="vacio"><div class="vacioIco pegaV"><i class="pegaUI" data-pega="chispas"></i></div><b>Todavía no hiciste ningún pack</b><span>Elegí una foto: Stickerazo la recorta solo y en un minuto tenés tu primer sticker.</span></div>';
     return iconos(cont);
   }
   const tiras = await Promise.all(packs.map((p) => Promise.all(p.stickers.slice(0, 5).map((s) => P.urlDe(p.id, s.archivo, p.v)))));
@@ -1691,7 +1697,7 @@ window.__szOta = (v) => { otaPendiente = v; mostrarOta(); };
 function mostrarOta() {
   if (!otaPendiente || hayModal() || E.vista === 'vRecorte' || E.vista === 'vEditor') return;
   otaPendiente = null;
-  const m = modal(`<div class="hoja centro"><div class="grandote"><i data-i="chispa"></i></div><h3>¡Stickerazo nuevo!</h3><p>Ya se bajó la versión nueva. Abrila ahora o se abre sola la próxima vez que entres.</p>
+  const m = modal(`<div class="hoja centro"><div class="grandote"><i class="pegaUI" data-pega="brillo"></i></div><h3>¡Stickerazo nuevo!</h3><p>Ya se bajó la versión nueva. Abrila ahora o se abre sola la próxima vez que entres.</p>
     <div class="botones"><button class="sec" data-x="0">Después</button><button class="pri" data-x="1">Abrir ahora</button></div></div>`);
   m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
   m.querySelector('[data-x="1"]').onclick = () => { cerrarModal(); if (window.SZN && window.SZN.reiniciar) window.SZN.reiniciar(); else location.reload(); };
@@ -1724,7 +1730,7 @@ function mostrarApk() {
   const texto = tienda ? `Ya está en ${tienda}. Tocá «Actualizar» y se abre ahí.`
     : canal === 'web' ? `Pesa ${mb} MB. Se baja y se instala desde acá. Tus stickers y tu cuenta quedan como están.`
       : `Pesa ${mb} MB. Se baja de nuestra página: abrila y tocá «Instalar». Tus stickers y tu cuenta quedan como están.`;
-  const m = modal(`<div class="hoja centro actApk"><div class="grandote"><i data-i="cohete"></i></div><h3>Llegó Stickerazo ${h(apkInfo.nombre)}</h3><p>${texto}</p>
+  const m = modal(`<div class="hoja centro actApk"><div class="grandote"><i class="pegaUI" data-pega="regalo"></i></div><h3>Llegó Stickerazo ${h(apkInfo.nombre)}</h3><p>${texto}</p>
     <div class="barraApk oc"><i></i></div><p class="estApk"></p>
     <div class="botones"><button class="sec" data-x="0">Después</button><button class="pri" data-x="1">Actualizar</button></div></div>`);
   m.querySelector('[data-x="0"]').onclick = () => cerrarModal();
@@ -1757,7 +1763,7 @@ if (P.esApp) { document.documentElement.style.setProperty('--arriba', '0px'); do
 iconos();
 for (const el of [document.getElementById('app'), ...document.querySelectorAll('.vista')]) if (el) el.addEventListener('scroll', () => { if (el.scrollLeft) el.scrollLeft = 0; }, { passive: true });
 // (lo que dibujan después las otras partes —comunidad, música, termo, mapa— también lleva sus íconos)
-new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches('i[data-i]:not([data-hecho])')) iconos(n.parentNode); else if (n.querySelector('i[data-i]:not([data-hecho])')) iconos(n); } }).observe(document.body, { childList: true, subtree: true });
+new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches('i[data-i]:not([data-hecho]), i[data-pega]:not([data-hecho])')) iconos(n.parentNode); else if (n.querySelector('i[data-i]:not([data-hecho]), i[data-pega]:not([data-hecho])')) iconos(n); } }).observe(document.body, { childList: true, subtree: true });
 cargarFuentes('./').then(() => pedirE(true));
 servidorFuentes(`${C.API}/fuentes/`);
 const alCambiarTam = () => { if (E.vista === 'vRecorte') pedirR(); else if (E.vista === 'vEditor') pedirE(); };
