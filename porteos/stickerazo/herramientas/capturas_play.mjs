@@ -190,9 +190,10 @@ const fuera = await arm.evaluate(() => [...document.querySelectorAll('.logo,.lem
 if (fuera) { console.log('gráfico: hay', fuera, 'cosas pegadas al borde'); process.exitCode = 1; }
 await arm.screenshot({ path: `${SAL}/grafico.png` });
 // el ícono, con canal alfa (Play pide PNG de 32 bits)
-await arm.setViewportSize({ width: 512, height: 512 });
-await arm.setContent(`<html><body style="margin:0;background:transparent"><img src="${dataUrl(RAIZ + 'marca/icono_512.png')}" style="display:block;width:512px;height:512px"></body></html>`);
-await arm.screenshot({ path: `${SAL}/icono.png`, omitBackground: true });
+// (pasado por un canvas: así sale RGBA de 32 bits siempre; la captura de pantalla lo guardaba RGB y APKPure y Play lo
+// piden con canal alfa)
+const ico = await arm.evaluate(async (u) => { const i = new Image(); i.src = u; await i.decode(); const c = document.createElement('canvas'); c.width = c.height = 512; c.getContext('2d').drawImage(i, 0, 0, 512, 512); return c.toDataURL('image/png'); }, dataUrl(RAIZ + 'marca/icono_512.png'));
+fs.writeFileSync(`${SAL}/icono.png`, Buffer.from(ico.split(',')[1], 'base64'));
 
 // las pantallas sueltas para la página web: 590×1278 en WebP
 for (const [clave, f] of Object.entries(crudas)) {
