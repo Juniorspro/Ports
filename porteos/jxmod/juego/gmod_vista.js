@@ -484,6 +484,9 @@ function gmvModeloJugador() {
 // las manos del jugador de ahora: { model, skin, body, tinte (el personaje del juego o importado del que sale el color), k }
 // (se recalcula si cambia el cuerpo o un addon registra modelos o manos: GMA.pmV)
 function gmvManosJugador() {
+  // (las que puso el Lua con GetHands():SetModel: ganan mientras el jugador no reaparezca)
+  const he = typeof GMA !== 'undefined' && GMA.manosEnt, ov = he && he.vivo && he.modelo ? gmvRutaMdl(he.modelo) : '';
+  if (ov && gmExiste(ov)) { const sk = Math.max(0, +he.skin || 0); return { model: ov, skin: sk, body: '0000000', k: ov + '|' + sk + '|lua' }; }
   const P = typeof JUG !== 'undefined' ? JUG.cuerpo : null, pv = (typeof GMA !== 'undefined' && GMA.pmV) || 0;
   if (P && P._manos && P._manosV === pv) return P._manos;
   const r = P && P.gmpRuta ? String(P.gmpRuta).toLowerCase() : '';
@@ -535,8 +538,12 @@ function gmvTraeBrazos(M) {
 function gmvManosArmar(M, Mh, manos, arb, pv, rot, C, flip) {
   if (gmvTraeBrazos(M)) return null;
   const porNombre = new Map(M.huesos.map((h, i) => [h.n.toLowerCase(), 1 + i]));
-  if (!porNombre.has('valvebiped.bip01_r_hand') && !porNombre.has('valvebiped.bip01_l_hand')) return null;
-  const oculto = { R: !porNombre.has('valvebiped.bip01_r_hand'), L: !porNombre.has('valvebiped.bip01_l_hand') };
+  // (una vista con otro esqueleto —la Suicide Gun, con el de NMRiH— y unas manos que traen esos mismos huesos —las que pone
+  // su Lua con GetHands():SetModel—: el bonemerge de GMod es por nombre, así que van igual. Antes se pedía la mano de
+  // ValveBiped y la pistola quedaba sin manos)
+  const vb = porNombre.has('valvebiped.bip01_r_hand') || porNombre.has('valvebiped.bip01_l_hand');
+  if (!vb && Mh.huesos.filter((h) => porNombre.has(h.n.toLowerCase())).length < Math.max(4, Mh.huesos.length * 0.5)) return null;
+  const oculto = vb ? { R: !porNombre.has('valvebiped.bip01_r_hand'), L: !porNombre.has('valvebiped.bip01_l_hand') } : { R: false, L: false };
   let nOc = -1; const nodoOculto = () => (nOc >= 0 ? nOc : (nOc = arb.push({ n: 'GMV_manoOculta', p: [0, 0, 0], r: [0, 0, 0, 1], s: [1e-4, 1e-4, 1e-4], pa: 0 }) - 1));
   const nodoH = [], proc = [], H = Mh.huesos;
   H.forEach((h, j) => {
