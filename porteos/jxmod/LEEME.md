@@ -5227,8 +5227,12 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     como un jugador, ~1 GB la primera vez). DrGBase, Cartoon Cat, Doro y SCP-049 (los de `nextbots_ia.mjs`) no usan
     `EnableMatrix`: para ellos no cambia nada. `pepe_vuelve` 13/13, `codigo_tragado` bien.
 
-## JXMod 3.9.11 (sin publicar todavía): lo de «Bugs y sugerencias» del 21/11
+## JXMod 3.9.11: lo de «Bugs y sugerencias» del 21/11
 
+- Publicada con el paquete pk39e. APK 3.9.11 (versionCode 26112103, misma firma) con `ota_base.json` que coincide con
+  `web/ota/ota.json` (6/6 huellas iguales); `version.json` 3911 con `"ota": {"apkMin": 3903}`; `web/ota/` 3.9.11 (para la
+  3.9.3 en adelante cambia sólo `index.html`, 5,1 MB; `ota.sh` 3/3). Web con código: muestra 3.9.11, pide el código, el
+  juego no queda en claro (ni en `index.html` ni en `juego.bin`), sin errores; `suelto.json` 3911. Novedades: 25 versiones.
 - **Bugs:**
   - «Mapa sin texturas» (la casa de SMG4: es «The Showgrounds - SMG4», `gmod.js` `gmMapaDeps`): sus texturas vienen en
     otro addon de 731 MB que el tope de dependencias (60/200 MB) no bajaba, y el aviso de 6 s no se entendía. Ahora, al
