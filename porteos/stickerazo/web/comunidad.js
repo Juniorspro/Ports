@@ -1,5 +1,6 @@
 // La comunidad: el feed (Para vos, Recién salidos, Seguidos), los packs publicados, los perfiles, publicar tus packs y
 // bajar los de otros. Habla con el servidor (servidor/worker.js). Sin conexión, la app sigue andando igual.
+import { abrirTermo } from './termo.js';
 import * as P from './puente.js';
 export const API = (typeof window !== 'undefined' && window.SZ_API) || 'https://rezobox-tienda.holasoyjuniors365.workers.dev/sz';
 let X = null; // lo que presta app.js (pantallas, hojas, avisos…)
@@ -27,7 +28,9 @@ export const media = (pk, a) => `${API}/m/${pk.id}/${encodeURIComponent(a)}?v=${
 export const enlace = (id) => `${API}/p/${id}`;
 const hace = (t) => { const s = (Date.now() - t) / 1000; return s < 60 ? 'recién' : s < 3600 ? `hace ${Math.floor(s / 60)} min` : s < 86400 ? `hace ${Math.floor(s / 3600)} h` : s < 86400 * 30 ? `hace ${Math.floor(s / 86400)} d` : new Date(t).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }); };
 const num = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1).replace('.0', '') + ' M' : n >= 1e4 ? Math.round(n / 1e3) + ' mil' : n >= 1e3 ? (n / 1e3).toFixed(1).replace('.0', '') + ' mil' : String(n));
-const avatar = (a, clase = 'av') => `<span class="${clase}" style="background:${X.h(a.c)}">${X.h(a.e)}</span>`;
+// (con su foto si subió una; si no, el emoji sobre su color)
+const caraDe = (a) => (a.f ? `<img src="${API}/${X.h(a.f)}" alt="" loading="lazy">` : X.h(a.e));
+const avatar = (a, clase = 'av') => `<span class="${clase}${a.f ? ' conFoto' : ''}" style="background:${X.h(a.c)}">${caraDe(a)}</span>`;
 
 // ================= FEED =================
 const F = { modo: 'para-vos', desde: 0, cargando: false, fin: false, cache: new Map() };
@@ -36,7 +39,7 @@ function tarjeta(p, i) {
   F.cache.set(p.id, p);
   const tono = [...p.id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 0);
   return `<article class="tf" data-id="${p.id}" style="--i:${i % 8};--tono:${tono}">
-    <header><button class="autor" data-u="${X.h(p.autor.nombre)}">${avatar(p.autor.avatar)}<span><b>@${X.h(p.autor.nombre)}</b><small>${hace(p.creado)}</small></span></button>${p.animado ? '<b class="insignia">Animado</b>' : ''}</header>
+    <header><button class="autor" data-u="${X.h(p.autor.nombre)}">${avatar(p.autor.avatar)}<span><b>@${X.h(p.autor.nombre)}</b><small>${hace(p.creado)}</small></span></button>${p.termo ? '<b class="insignia termo">🧉 Elegido del termo</b>' : ''}${p.privado ? '<b class="insignia oculta">🙈 Oculto</b>' : ''}${p.animado ? '<b class="insignia">Animado</b>' : ''}</header>
     <div class="tfGrilla" data-abrir="${p.id}">${p.muestra.slice(0, 6).map((a) => `<img loading="lazy" src="${media(p, a)}" alt="">`).join('')}</div>
     <div class="tfPie"><div class="tfNom"><b>${X.h(p.nombre)}</b><small>${p.n} stickers${p.tags.length ? ' · ' + p.tags.slice(0, 3).map((t) => '#' + X.h(t)).join(' ') : ''}</small></div>
       <button class="accion mg${p.yaLike ? ' si' : ''}" data-like="${p.id}" aria-label="Me gusta"><i data-i="corazon"></i><span>${num(p.likes)}</span></button>
@@ -51,6 +54,9 @@ function sinConexion(e) {
   return `<div class="vacio"><div class="vacioIco">📡</div><b>${e && e.red ? 'Sin conexión con la comunidad' : 'Se nos complicó'}</b><span>${X.h(e ? e.message : '')}</span><button class="pri" data-reintentar="1">Reintentar</button></div>
     <h2>Mientras tanto <small>· packs listos</small></h2><div class="carrusel" id="feedListos"></div>`;
 }
+// (los packs que no te interesan: se guardan en el celular y no se muestran más)
+const noInteresa = () => { try { return new Set(JSON.parse(localStorage.getItem('sz_noint') || '[]')); } catch (e) { return new Set(); } };
+function marcarNoInteresa(id) { const s = noInteresa(); s.add(id); try { localStorage.setItem('sz_noint', JSON.stringify([...s].slice(-500))); } catch (e) { /* nada */ } }
 export async function cargarFeed(reiniciar) {
   const lista = X.$('#feedLista');
   if (reiniciar) { F.desde = 0; F.fin = false; lista.innerHTML = esqueletos(3); F.turno = (F.turno || 0) + 1; }
@@ -62,7 +68,7 @@ export async function cargarFeed(reiniciar) {
     if (reiniciar || !F.desde) lista.innerHTML = '';
     if (r.necesitaCuenta) lista.innerHTML = '<div class="vacio"><div class="vacioIco">🙋</div><b>Entrá a la comunidad</b><span>Así ves lo nuevo de los que seguís.</span><button class="pri" data-ir-perfil="1">Elegir mi @</button></div>';
     else if (!r.packs.length && !F.desde) lista.innerHTML = vacioFeed(F.modo);
-    lista.insertAdjacentHTML('beforeend', r.packs.map((p, i) => tarjeta(p, i)).join(''));
+    const fuera = noInteresa(); lista.insertAdjacentHTML('beforeend', r.packs.filter((p) => !fuera.has(p.id)).map((p, i) => tarjeta(p, i)).join(''));
     F.desde = r.sigue ?? F.desde; F.fin = r.sigue == null; X.iconos(lista);
   } catch (e) {
     if (turno !== F.turno) return;
@@ -164,11 +170,20 @@ function menuPublico() {
   if (!actual) return;
   const m = X.modal(`<div class="hoja"><h3>${X.h(actual.nombre)}</h3><div class="lista">
     <button class="opc" data-x="guardar"><i data-i="bajar"></i><span>Guardar en Mis packs</span></button>
-    ${actual.esMio ? '' : `<button class="opc peligro" data-x="reportar"><i data-i="bandera"></i><span>Denunciar el pack</span></button><button class="opc peligro" data-x="bloquear"><i data-i="bloquear"></i><span>Bloquear a @${X.h(actual.autor.nombre)}</span></button>`}</div></div>`);
+    ${actual.esMio ? `<button class="opc" data-x="privado"><i data-i="${actual.privado ? 'ok' : 'bloquear'}"></i><span>${actual.privado ? 'Mostrarlo otra vez en la comunidad' : 'Ocultarlo de la comunidad'}</span></button><button class="opc peligro" data-x="borrarPub"><i data-i="tacho"></i><span>Sacarlo de la comunidad</span></button>`
+      : `<button class="opc" data-x="nointeresa"><i data-i="bloquear"></i><span>No me interesa</span></button>`}${actual.esMio ? '' : `<button class="opc peligro" data-x="reportar"><i data-i="bandera"></i><span>Denunciar el pack</span></button><button class="opc peligro" data-x="bloquear"><i data-i="bloquear"></i><span>Bloquear a @${X.h(actual.autor.nombre)}</span></button>`}</div></div>`);
   X.$('.lista', m).onclick = async (ev) => {
     const b = ev.target.closest('button'); if (!b) return; const x = b.dataset.x; X.cerrarModal();
     if (x === 'guardar') { try { await bajarPack(actual); } catch (e) { X.aviso(e.message); } }
     else if (x === 'reportar') denunciar(actual);
+    else if (x === 'nointeresa') { marcarNoInteresa(actual.id); X.aviso('Listo, no te lo mostramos más'); X.atras(); const t = X.$(`#feedLista .tf[data-id="${actual.id}"]`); if (t) t.remove(); }
+    else if (x === 'privado') {
+      try { const r = await api(`/api/packs/${actual.id}/privado`, { method: 'POST', json: { privado: !actual.privado } }); actual.privado = r.privado; X.aviso(r.privado ? '🙈 Oculto: sólo lo ves vos' : '¡Listo! Se ve otra vez en la comunidad'); X.vibrar(12); } catch (e) { X.aviso(e.message); }
+    }
+    else if (x === 'borrarPub') {
+      if (!(await X.confirmar('¿Sacarlo de la comunidad? Se borra del servidor (los me gusta y descargas también). En tu celular queda igual.', 'Sacarlo'))) return;
+      try { await api(`/api/packs/${actual.id}`, { method: 'DELETE' }); const packs = await P.leerPacks(); for (const p of packs) if (p.publicado && p.publicado.id === actual.id) delete p.publicado; await P.guardarPacks(packs); X.aviso('Lo sacamos de la comunidad'); X.atras(); cargarFeed(true); } catch (e) { X.aviso(e.message); }
+    }
     else if (x === 'bloquear') bloquear(actual.autor);
   };
 }
@@ -196,14 +211,16 @@ async function seguir(boton) {
 // las portadas: degradés y los banners del inicio (el número viaja con el avatar)
 export const PORTADAS = ['linear-gradient(135deg,#ff3e8a,#ff8a1a)', 'linear-gradient(135deg,#7c4dff,#ff3e8a)', 'linear-gradient(135deg,#00c9a7,#3ec7ff)',
   'linear-gradient(135deg,#ffd23f,#ff7a1a)', 'linear-gradient(135deg,#1d1b2b,#3a2c6b)', "url('banners/xd.webp') center/cover", "url('banners/latam.webp') center/cover", "url('banners/pack.webp') center/cover"];
-const portadaDe = (u) => PORTADAS[(u.avatar && u.avatar.p) || 0] || PORTADAS[0];
+const portadaDe = (u) => (u.avatar && u.avatar.b ? `url('${API}/${u.avatar.b}') center/cover` : PORTADAS[(u.avatar && u.avatar.p) || 0] || PORTADAS[0]);
 function perfilHTML(d, propio) {
   const u = d.usuario, botones = propio ? '<button class="pBoton" data-editar="1"><i data-i="lapiz"></i>Editar perfil</button>'
     : d.soyYo ? '' : `<button class="seguir pBoton${d.sigo ? ' si' : ''}" data-seguir="${u.id}">${d.sigo ? 'Siguiendo' : 'Seguir'}</button>`;
-  return `<div class="perfilTop"><div class="portadaP" style="background:${portadaDe(u)}"><i class="brilloP"></i></div>
-    <div class="perfilFila"><span class="avG" style="background:${X.h(u.avatar.c)}">${X.h(u.avatar.e)}</span><div class="pBotones">${botones}<button class="pBoton ico2" data-compartir-u="${X.h(u.nombre)}" aria-label="Compartir perfil"><i data-i="compartir"></i></button></div></div>
-    <h2 class="arroba">@${X.h(u.nombre)}</h2>${u.bio ? `<p class="bio">${X.h(u.bio)}</p>` : propio ? '<p class="bio vacia">Tocá «Editar perfil» y contá algo de vos</p>' : ''}
-    <div class="stats"><span><b>${num(u.packs)}</b>packs</span><span><b class="segN">${num(u.seguidores)}</b>seguidores</span><span><b>${num(u.descargas)}</b>descargas</span><span><b>${num(u.likes)}</b>me gusta</span></div></div>
+  // (en la portada flotan algunos de sus stickers)
+  const flotan = d.packs.filter((p) => !p.privado).flatMap((p) => p.muestra.slice(0, 2).map((a) => media(p, a))).slice(0, 4);
+  return `<div class="perfilTop"><div class="portadaP" style="background:${portadaDe(u)}"><i class="brilloP"></i>${flotan.map((f, k) => `<img class="flotaP" src="${f}" alt="" style="--k:${k}">`).join('')}</div>
+    <div class="perfilFila"><span class="avG anilloAv${u.avatar.f ? ' conFoto' : ''}" style="background:${X.h(u.avatar.c)}">${caraDe(u.avatar)}</span><div class="pBotones">${botones}<button class="pBoton ico2" data-compartir-u="${X.h(u.nombre)}" aria-label="Compartir perfil"><i data-i="compartir"></i></button></div></div>
+    <h2 class="arroba">@${X.h(u.nombre)}</h2>${(u.insignias || []).includes('termo') ? '<span class="chipInsignia">🧉 Elegido del termo</span>' : ''}${u.bio ? `<p class="bio">${X.h(u.bio)}</p>` : propio ? '<p class="bio vacia">Tocá «Editar perfil» y contá algo de vos</p>' : ''}
+    <div class="stats"><span><b data-cuenta="${u.packs}">${num(u.packs)}</b>packs</span><span><b class="segN" data-cuenta="${u.seguidores}">${num(u.seguidores)}</b>seguidores</span><span><b data-cuenta="${u.descargas}">${num(u.descargas)}</b>descargas</span><span><b data-cuenta="${u.likes}">${num(u.likes)}</b>me gusta</span></div></div>
     ${propio ? '<div class="seg perfilSeg"><button data-pt="pub" class="act">Publicados</button><button data-pt="bajados">Bajados</button></div>' : '<h2>Packs</h2>'}
     <div class="feedLista" id="${propio ? 'perfilLista' : 'usLista'}">${listaPublicados(d, propio)}</div>`;
 }
@@ -219,11 +236,17 @@ async function compartirPerfil(nombre) {
   X.vibrar(8);
   if (await P.compartir(`Seguime en Stickerazo: @${nombre} 🔥 Hago stickers y memes para WhatsApp`, API + '/')) { if (!P.esApp && !navigator.share) X.aviso('Copié el enlace'); }
 }
+function contar(raiz) {
+  for (const b of raiz.querySelectorAll('[data-cuenta]')) {
+    const fin = +b.dataset.cuenta; if (!(fin > 0 && fin < 10000)) continue; const t0 = performance.now();
+    const paso = (t) => { const k = Math.min(1, (t - t0) / 900); b.textContent = Math.round(fin * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(paso); }; requestAnimationFrame(paso);
+  }
+}
 export async function abrirUsuario(nombre) {
   if (cuenta() && cuenta().nombre === nombre) return X.pestaña('Perfil');
   X.E.origenUsuario = X.E.vista === 'vUsuario' ? X.E.origenUsuario : X.E.vista;
   const c = X.$('#usCont'); c.innerHTML = '<div class="heroe"><span class="avG esq"></span></div>'; X.$('#usNombre').textContent = '@' + nombre; X.ir('vUsuario');
-  try { const d = await api('/api/usuarios/' + encodeURIComponent(nombre)); X.E.usuarioActual = d; c.innerHTML = perfilHTML(d, false); X.iconos(c); }
+  try { const d = await api('/api/usuarios/' + encodeURIComponent(nombre)); X.E.usuarioActual = d; c.innerHTML = perfilHTML(d, false); X.iconos(c); contar(c); }
   catch (e) { c.innerHTML = sinConexion(e).replace(/<h2>[\s\S]*$/, ''); }
 }
 
@@ -252,33 +275,71 @@ export async function pintarPerfil() {
   try {
     const d = await api('/api/usuarios/' + encodeURIComponent(yo.nombre)); X.E.miPerfil = d;
     const pais = X.paisActual();
-    c.innerHTML = perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="pais"><i class="emo">${pais ? pais[1] : '🌎'}</i><span>Mi país: ${pais ? pais[2] : 'elegir'}</span></button><a class="opc" href="${API}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${API}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
+    c.innerHTML = perfilHTML(d, true) + `<h2>Ajustes</h2><div class="lista ajustes"><button class="opc" data-x="tema"><i class="emo">${{ oscuro: '🌙', claro: '☀️', auto: '📱' }[X.temaActual()]}</i><span>Modo: ${{ oscuro: 'oscuro', claro: 'claro', auto: 'como el celular' }[X.temaActual()]}</span></button><button class="opc" data-x="musica"><i class="emo">🎵</i><span>Música de mi país</span></button><button class="opc" data-x="pais"><i class="emo">${pais ? pais[1] : '🌎'}</i><span>Mi país: ${pais ? pais[2] : 'elegir'}</span></button><a class="opc" href="${API}/terminos" data-ext="1"><i data-i="bandera"></i><span>Reglas de la comunidad</span></a><a class="opc" href="${API}/privacidad" data-ext="1"><i data-i="candado"></i><span>Privacidad</span></a>
       <button class="opc" data-x="salir"><i data-i="atras"></i><span>Salir de esta cuenta</span></button><button class="opc peligro" data-x="borrar"><i data-i="tacho"></i><span>Borrar mi cuenta</span></button></div><p class="hecho">Hecho en Argentina 🇦🇷</p>`;
-    X.iconos(c);
+    X.iconos(c); contar(c);
   } catch (e) {
     if (e.st === 404 || e.st === 401) { guardarCuenta(null); return pintarPerfil(); }
     c.innerHTML = sinConexion(e).replace(/<h2>[\s\S]*$/, '');
   }
 }
+// (una imagen del celular recortada al medio y achicada: la foto, cuadrada; la portada, 3 a 1)
+async function recortarImagen(archivo, ancho, alto, maxBytes) {
+  const bmp = await createImageBitmap(archivo), r = Math.max(ancho / bmp.width, alto / bmp.height), w = bmp.width * r, h = bmp.height * r;
+  const c = document.createElement('canvas'); c.width = ancho; c.height = alto; const g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
+  g.drawImage(bmp, (ancho - w) / 2, (alto - h) / 2, w, h);
+  for (const q of [0.86, 0.78, 0.7, 0.6, 0.5]) { const b = await new Promise((ok) => c.toBlob(ok, 'image/webp', q)); if (b && b.size <= maxBytes) return { blob: b, url: URL.createObjectURL(b) }; }
+  throw new Error('No pude achicar esa imagen');
+}
+const elegirArchivo = () => new Promise((ok) => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.onchange = () => ok(i.files[0] || null); i.click(); });
 function editarPerfil() {
   const d = X.E.miPerfil; if (!d) return; const u = d.usuario, sel = { ...u.avatar };
   const EMOJIS = ['😎', '🧉', '🤠', '😜', '🥳', '🤩', '😺', '🐶', '🦊', '🐸', '👽', '🤖', '💀', '🔥', '⚽', '🎸', '🍕', '🌈', '🦄', '🐧'];
   const COLS = ['#ff3e8a', '#ffd23f', '#3ec7ff', '#4cd964', '#ff7a1a', '#9b5cff', '#2c2840', '#74acdf'];
+  // (lo nuevo que elige: se sube recién al guardar)
+  const nuevo = { foto: null, portada: null, quitarFoto: false, quitarPortada: false };
   sel.p = sel.p || 0;
-  const m = X.modal(`<div class="hoja"><h3>Tu perfil</h3><div class="prevAv" id="epPrev" style="background:${PORTADAS[sel.p]}"><span class="avG" id="epAv" style="background:${sel.c}">${sel.e}</span></div>
+  const m = X.modal(`<div class="hoja"><h3>Tu perfil</h3><div class="prevAv" id="epPrev"><span class="avG" id="epAv"></span></div>
+    <div class="etq">Foto de perfil</div><div class="dos"><button class="sec" id="epFoto"><i data-i="galeria"></i>Elegir foto</button><button class="sec" id="epSinFoto">😎 Usar emoji</button></div>
     <div class="etq">Emoji</div><div class="emojis" id="epE">${EMOJIS.map((e) => `<button data-v="${e}">${e}</button>`).join('')}</div>
     <div class="etq">Color</div><div class="colores" id="epC">${COLS.map((c) => `<button class="color" data-v="${c}" style="background:${c}"></button>`).join('')}</div>
-    <div class="etq">Portada</div><div class="portadas" id="epP">${PORTADAS.map((f, i) => `<button data-v="${i}" style="background:${f}" aria-label="Portada ${i + 1}"></button>`).join('')}</div>
+    <div class="etq">Portada</div><div class="portadas" id="epP"><button class="subirP" id="epPortada" aria-label="Elegir una imagen">📷<small>Tu imagen</small></button>${PORTADAS.map((f, i) => `<button data-v="${i}" style="background:${f}" aria-label="Portada ${i + 1}"></button>`).join('')}</div>
     <div class="etq">Bio</div><input id="epBio" class="campo" maxlength="120" placeholder="Contá algo de vos (opcional)">
     <div class="botones"><button class="sec" data-x="0">Cancelar</button><button class="pri" data-x="1">Guardar</button></div></div>`);
   X.$('#epBio', m).value = u.bio || '';
-  const marcar = () => { X.$('#epAv', m).textContent = sel.e; X.$('#epAv', m).style.background = sel.c; X.$('#epPrev', m).style.background = PORTADAS[sel.p]; for (const b of X.$('#epE', m).children) b.classList.toggle('act', b.dataset.v === sel.e); for (const b of X.$('#epC', m).children) b.classList.toggle('act', b.dataset.v === sel.c); for (const b of X.$('#epP', m).children) b.classList.toggle('act', +b.dataset.v === sel.p); };
-  X.$('#epP', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { sel.p = +b.dataset.v; marcar(); } };
-  X.$('#epE', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { sel.e = b.dataset.v; marcar(); } };
+  const fotoActual = () => (nuevo.foto ? nuevo.foto.url : !nuevo.quitarFoto && sel.f ? `${API}/${sel.f}` : null);
+  const portadaActual = () => (nuevo.portada ? `url('${nuevo.portada.url}') center/cover` : !nuevo.quitarPortada && sel.b ? `url('${API}/${sel.b}') center/cover` : PORTADAS[sel.p]);
+  const marcar = () => {
+    const av = X.$('#epAv', m), f = fotoActual(); av.classList.toggle('conFoto', !!f); av.innerHTML = f ? `<img src="${f}" alt="">` : X.h(sel.e); av.style.background = sel.c;
+    X.$('#epPrev', m).style.background = portadaActual();
+    for (const b of X.$('#epE', m).children) b.classList.toggle('act', !f && b.dataset.v === sel.e);
+    for (const b of X.$('#epC', m).children) b.classList.toggle('act', b.dataset.v === sel.c);
+    const urlP = nuevo.portada ? nuevo.portada.url : !nuevo.quitarPortada && sel.b ? `${API}/${sel.b}` : null, propia = !!urlP, pt = X.$('#epPortada', m);
+    pt.classList.toggle('act', propia); pt.classList.toggle('conImg', propia); pt.style.backgroundImage = propia ? `url('${urlP}')` : '';
+    for (const b of X.$('#epP', m).querySelectorAll('[data-v]')) b.classList.toggle('act', !propia && +b.dataset.v === sel.p);
+  };
+  X.$('#epFoto', m).onclick = async () => {
+    const a = await elegirArchivo(); if (!a) return;
+    try { nuevo.foto = await recortarImagen(a, 400, 400, 190 * 1024); nuevo.quitarFoto = false; X.vibrar(10); marcar(); } catch (e) { X.aviso('No pude abrir esa imagen'); }
+  };
+  X.$('#epSinFoto', m).onclick = () => { nuevo.foto = null; nuevo.quitarFoto = true; marcar(); };
+  X.$('#epPortada', m).onclick = async () => {
+    const a = await elegirArchivo(); if (!a) return;
+    try { nuevo.portada = await recortarImagen(a, 1200, 560, 380 * 1024); nuevo.quitarPortada = false; X.vibrar(10); marcar(); } catch (e) { X.aviso('No pude abrir esa imagen'); }
+  };
+  X.$('#epE', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { sel.e = b.dataset.v; if (sel.f || nuevo.foto) { nuevo.foto = null; nuevo.quitarFoto = true; } marcar(); } };
   X.$('#epC', m).onclick = (ev) => { const b = ev.target.closest('button'); if (b) { sel.c = b.dataset.v; marcar(); } };
+  X.$('#epP', m).onclick = (ev) => { const b = ev.target.closest('[data-v]'); if (b) { sel.p = +b.dataset.v; nuevo.portada = null; if (sel.b) nuevo.quitarPortada = true; marcar(); } };
   m.querySelector('[data-x="0"]').onclick = () => X.cerrarModal();
   m.querySelector('[data-x="1"]').onclick = async () => {
-    try { await api('/api/yo', { method: 'PATCH', json: { bio: X.$('#epBio', m).value, avatar: sel } }); X.cerrarModal(); X.aviso('¡Joya! Quedó tu perfil'); pintarPerfil(); } catch (e) { X.aviso(e.message); }
+    const boton = m.querySelector('[data-x="1"]'); boton.disabled = true; boton.textContent = 'Guardando…';
+    try {
+      const subir = async (que, b) => { const r = await fetch(`${API}/api/yo/${que}`, { method: 'PUT', headers: { 'Content-Type': 'image/webp', Authorization: 'Bearer ' + cuenta().token }, body: b }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'No se pudo subir'); };
+      if (nuevo.foto) await subir('foto', nuevo.foto.blob);
+      if (nuevo.portada) await subir('portada', nuevo.portada.blob);
+      await api('/api/yo', { method: 'PATCH', json: { bio: X.$('#epBio', m).value, avatar: { e: sel.e, c: sel.c, p: sel.p, quitarFoto: nuevo.quitarFoto && !nuevo.foto, quitarPortada: nuevo.quitarPortada && !nuevo.portada } } });
+      X.cerrarModal(); X.aviso('¡Joya! Quedó tu perfil'); pintarPerfil();
+    } catch (e) { X.aviso(e.message); boton.disabled = false; boton.textContent = 'Guardar'; }
   };
   marcar();
 }
@@ -295,6 +356,8 @@ async function alTocarPerfil(ev) {
   const mio = t.closest('[data-mio]'); if (mio) { X.E.packId = mio.dataset.mio; return X.ir('vPack'); }
   const x = t.closest('[data-x]');
   if (x && x.dataset.x === 'pais') return X.elegirPais(() => pintarPerfil());
+  if (x && x.dataset.x === 'tema') return X.elegirTema(() => pintarPerfil());
+  if (x && x.dataset.x === 'musica') return X.musica();
   if (x && x.dataset.x === 'salir') {
     if (await X.confirmar('¿Salir? Sin tu llave no vas a poder volver a esta cuenta desde otro celular.', 'Salir')) { guardarCuenta(null); pintarPerfil(); }
     return;
@@ -307,6 +370,24 @@ async function alTocarPerfil(ev) {
   return alTocarFeed(ev);
 }
 async function desmarcarPublicados() { const packs = await P.leerPacks(); for (const p of packs) delete p.publicado; await P.guardarPacks(packs); X.E.packs = packs; }
+// ---- el evento del termo ----
+let EVENTO = null;
+export async function pintarEvento() {
+  const c = X.$('#eventoCard'); if (!c) return;
+  try { EVENTO = await api('/api/evento'); } catch (e) { c.classList.add('oc'); return; }
+  const ev = EVENTO, pct = Math.min(100, Math.round((ev.cuentas / ev.meta) * 100));
+  c.classList.remove('oc');
+  c.innerHTML = ev.sorteado ? `<i class="mini"></i><span><b>¡El termo eligió!</b><small>Mirá los 5 stickers ganadores del primer evento</small></span><i data-i="sig"></i>`
+    : `<i class="mini"></i><span><b>Evento del termo 🧉</b><small>${ev.cuentas} de ${ev.meta} cuentas: con ${ev.meta} se sortean 5 recomendados</small><div class="tBarra"><i style="width:${pct}%"></i></div></span><i data-i="sig"></i>`;
+  X.iconos(c);
+}
+export function verTermo() {
+  if (!EVENTO) return;
+  abrirTermo({ ev: EVENTO, media, X, al: (que, quien) => {
+    if (que === 'usuario') abrirUsuario(quien);
+    else if (que === 'publicar') { X.pestaña('Mios'); X.aviso('Abrí un pack tuyo (de 3 stickers o más) y tocá «Publicar en la comunidad»'); }
+  } });
+}
 export function pedirCuenta(texto) { X.aviso(texto); X.pestaña('Perfil'); }
 
 // ================= PUBLICAR UN PACK MÍO =================
@@ -384,7 +465,7 @@ export function iniciar(ctx) {
   X.$('#puLike').onclick = async () => { if (!actual) return; const b = X.$('#puLike'); if (!cuenta()) return pedirCuenta('Para dar me gusta, elegí tu @'); const si = !actual.yaLike; actual.yaLike = si; pintarLike(); if (si) corazon(X.$('#puCont'), null, 160); X.vibrar(si ? 15 : 8); try { const r = await api(`/api/packs/${actual.id}/like`, { method: si ? 'POST' : 'DELETE' }); actual.likes = r.likes; } catch (e) { actual.yaLike = !si; pintarLike(); X.aviso(e.message); } };
   X.$('#puCompartir').onclick = () => compartirPack(actual);
   X.$('#puMenu').onclick = menuPublico;
-  X.$('#usMenu').onclick = () => { const d = X.E.usuarioActual; if (!d || d.soyYo) return; const m = X.modal(`<div class="hoja"><h3>@${X.h(d.usuario.nombre)}</h3><div class="lista"><button class="opc peligro" data-x="b"><i data-i="bloquear"></i><span>Bloquear</span></button></div></div>`); X.$('.lista', m).onclick = () => { X.cerrarModal(); bloquear(d.usuario); }; };
+  X.$('#usMenu').onclick = () => { const d = X.E.usuarioActual; if (!d || d.soyYo) return; const m = X.modal(`<div class="hoja"><h3>@${X.h(d.usuario.nombre)}</h3><div class="lista"><button class="opc peligro" data-x="r"><i data-i="bandera"></i><span>Denunciar el perfil (foto o portada)</span></button><button class="opc peligro" data-x="b"><i data-i="bloquear"></i><span>Bloquear</span></button></div></div>`); X.$('.lista', m).onclick = async (ev) => { const b = ev.target.closest('[data-x]'); if (!b) return; X.cerrarModal(); if (b.dataset.x === 'b') return bloquear(d.usuario); if (!cuenta()) return pedirCuenta('Para denunciar, elegí tu @'); try { await api(`/api/usuarios/${d.usuario.id}/reportar`, { method: 'POST', json: { motivo: 'ofensivo' } }); X.aviso('Gracias. Lo vamos a revisar 🙏'); } catch (e) { X.aviso(e.message); } }; };
   // (el feed carga más al llegar abajo, y se actualiza tirando para abajo)
   const tf = X.$('#tabFeed');
   tf.addEventListener('scroll', () => { if (tf.scrollTop + tf.clientHeight > tf.scrollHeight - 600) cargarFeed(false); }, { passive: true });

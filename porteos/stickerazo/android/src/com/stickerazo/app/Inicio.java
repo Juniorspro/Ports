@@ -91,6 +91,8 @@ public final class Inicio extends Activity {
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(true);
         s.setTextZoom(100);
+        // (la música que elige la persona: el reproductor de YouTube arranca al tocar la canción)
+        s.setMediaPlaybackRequiresUserGesture(false);
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);

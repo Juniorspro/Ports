@@ -7,16 +7,18 @@
 <title>Stickerazo</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="estilo.css">
+<script>/* (el modo claro u oscuro, antes de pintar: sin flash) */try{var t=localStorage.getItem('sz_tema')||'oscuro';if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'claro':'oscuro';document.documentElement.dataset.tema=t}catch(e){}</script>
 </head>
 <body>
 <div id="app">
   <!-- inicio: crear y los packs -->
   <section id="vInicio" class="vista">
-    <header class="cab cabInicio"><div class="logo"><span>Sticker</span><b>azo</b></div></header>
+    <header class="cab cabInicio"><div class="logo"><span>Sticker</span><b>azo</b></div><button class="botonMusica" id="botonMusica" aria-label="Música">🎵</button></header>
     <div class="contenido" id="tabFeed">
       <div id="tirar" class="tirar"><div class="rueda"></div></div>
       <button class="buscarFalso" id="irBuscar"><i data-i="lupa"></i><span>Buscá memes, packs, emojis…</span></button>
       <div class="paisCard oc" id="paisCard"></div>
+      <button class="eventoCard oc" id="eventoCard"></button>
       <div class="historias" id="historias"></div>
       <div class="banners" id="banners"></div>
       <div class="seg" id="feedSeg"><button data-m="para-vos" class="act">Para vos</button><button data-m="nuevos">Recién salidos</button><button data-m="siguiendo">Seguidos</button></div>

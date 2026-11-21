@@ -86,6 +86,8 @@ ok((await api('/api/packs/' + id1, { method: 'PUT', body: formPack(quietos, arch
   const pv = await api(`/api/packs/${id1}/privado`, { method: 'POST', json: { privado: true } }, A);
   const enNuevos = (await api('/api/feed?modo=nuevos')).j.packs.some((p) => p.id === id1);
   const paraOtros = (await api('/api/usuarios/juancito')).j.packs.some((p) => p.id === id1), paraMi = (await api('/api/usuarios/juancito', {}, A)).j.packs.find((p) => p.id === id1);
+  const abrirOtro = (await api('/api/packs/' + id1, {}, Bt)).st, abrirYo = (await api('/api/packs/' + id1, {}, A)).j;
+  ok(abrirOtro === 404 && abrirYo.pack && abrirYo.pack.privado && abrirYo.pack.esMio, 'un pack oculto: otro no lo puede abrir; su dueño sí (y sabe que está oculto)');
   ok(pv.st === 200 && !enNuevos && !paraOtros && paraMi && paraMi.privado && (await api(`/api/packs/${id1}/privado`, { method: 'POST', json: { privado: true } }, Bt)).st === 403,
     'ocultar un pack mío: sale del feed y de mi perfil para los demás, yo lo sigo viendo (marcado); otro no lo puede ocultar');
   await api(`/api/packs/${id1}/privado`, { method: 'POST', json: { privado: false } }, A);
@@ -108,6 +110,29 @@ ok((await api('/api/packs/' + id1, { method: 'PUT', body: formPack(quietos, arch
   ok(f.slice(0, 5).every((p) => p.termo && ids.includes(p.id)), 'a los que recién llegan, «Para vos» les muestra primero los 5 del termo');
   const perfilElegido = (await api('/api/usuarios/' + e1.elegidos[0].autor.nombre)).j;
   ok(perfilElegido.usuario.insignias.includes('termo'), `@${e1.elegidos[0].autor.nombre} tiene la insignia del termo en su perfil`);
+}
+// ---- foto de perfil y portada propias ----
+{
+  const img = fs.readFileSync(FIX + 'q1.webp');
+  const sube = (que, cuerpo, tipo, tok) => fetch(B + '/api/yo/' + que, { method: 'PUT', headers: { 'Content-Type': tipo, ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: cuerpo });
+  const f1 = await (await sube('foto', img, 'image/webp', C)).json(), p1 = await (await sube('portada', img, 'image/webp', C)).json();
+  const fv = await fetch(B + '/' + f1.usuario.avatar.f), pv = await fetch(B + '/' + p1.usuario.avatar.b);
+  ok(/^u\/[a-z0-9]{10}\/foto\?v=\d+$/.test(f1.usuario.avatar.f) && fv.status === 200 && fv.headers.get('content-type') === 'image/webp' && pv.status === 200 && p1.usuario.avatar.f,
+    'subir foto de perfil y portada: quedan en el perfil (con su versión) y se ven');
+  ok((await sube('foto', img, 'image/webp')).status === 401 && (await sube('foto', Buffer.from('hola, no soy una imagen'), 'image/webp', C)).status === 400 && (await sube('foto', Buffer.alloc(300 * 1024, 1), 'image/webp', C)).status === 400,
+    'foto: sin cuenta no; algo que no es imagen, no; muy pesada, no');
+  const pt2 = (await api('/api/yo', { method: 'PATCH', json: { avatar: { e: '🧉', c: '#ffd23f', p: 2 } } }, C)).j.usuario.avatar;
+  ok(pt2.f && pt2.b && pt2.e === '🧉', 'cambiar el emoji o el color no borra la foto ni la portada');
+  const enFeed = (await api('/api/usuarios/el_tano')).j.packs.concat((await api('/api/feed?modo=nuevos')).j.packs).find((p) => p.autor.nombre === 'el_tano');
+  ok(!enFeed || enFeed.autor.avatar.f, 'en las tarjetas de sus packs también va su foto');
+  const q = (await api('/api/yo', { method: 'PATCH', json: { avatar: { ...pt2, quitarFoto: true } } }, C)).j.usuario.avatar;
+  ok(!q.f && q.b && (await fetch(B + '/' + f1.usuario.avatar.f)).status === 404, 'sacar la foto: vuelve el emoji (la portada queda)');
+  // tres denuncias al perfil: se le saca la portada (y la foto) sola
+  await sube('foto', img, 'image/webp', C);
+  const rx = await api('/api/registro', { method: 'POST', json: { nombre: 'vecino.x' }, headers: { 'CF-Connecting-IP': '10.0.0.99' } });
+  for (const t of [A, Bt, rx.j.token]) await api(`/api/usuarios/${idC}/reportar`, { method: 'POST', json: { motivo: 'ofensivo' } }, t);
+  const tras = (await api('/api/usuarios/el_tano')).j.usuario.avatar;
+  ok(!tras.f && !tras.b, 'con 3 denuncias al perfil, la foto y la portada se sacan solas');
 }
 // ---- bloquear y denunciar ----
 await api(`/api/usuarios/${idC}/bloquear`, { method: 'POST' }, Bt);

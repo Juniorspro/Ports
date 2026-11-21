@@ -103,7 +103,10 @@ async function quien(req, env) {
   if (!u || u.clave !== (await sha(m[2])) || u.bloqueado) return null;
   return u;
 }
-const avatarDe = (u) => { try { const a = JSON.parse(u.avatar || '{}'); return { e: a.e || '😎', c: a.c || '#ff3e8a', p: Number.isInteger(a.p) ? a.p : 0 }; } catch (e) { return { e: '😎', c: '#ff3e8a', p: 0 }; } };
+// (el avatar: emoji, color y portada de las de la app; y si subió una foto o una portada propia, su dirección —relativa
+// al servidor— con la versión, así la caché se renueva cuando la cambia)
+const leerAvatar = (u) => { try { return JSON.parse(u.avatar || '{}') || {}; } catch (e) { return {}; } };
+const avatarDe = (u) => { const a = leerAvatar(u); return { e: a.e || '😎', c: a.c || '#ff3e8a', p: Number.isInteger(a.p) ? a.p : 0, f: a.f && u.id ? `u/${u.id}/foto?v=${a.f}` : null, b: a.b && u.id ? `u/${u.id}/portada?v=${a.b}` : null }; };
 const publico = (u) => ({ id: u.id, nombre: u.nombre, bio: u.bio, avatar: avatarDe(u), seguidores: u.seguidores, siguiendo: u.siguiendo, creado: u.creado });
 
 // ---- un pack, para mostrar ----
@@ -111,7 +114,7 @@ function resumen(p) {
   const a = JSON.parse(p.archivos);
   return {
     id: p.id, nombre: p.nombre, tags: p.tags ? p.tags.split(' ') : [], animado: !!p.animado, n: a.length, muestra: a.slice(0, 6).map((x) => x.archivo), bandeja: p.bandeja, v: p.v,
-    likes: p.likes, descargas: p.descargas, creado: p.creado, privado: !!p.privado, autor: { id: p.autor, nombre: p.a_nombre, avatar: avatarDe({ avatar: p.a_avatar }) },
+    likes: p.likes, descargas: p.descargas, creado: p.creado, privado: !!p.privado, autor: { id: p.autor, nombre: p.a_nombre, avatar: avatarDe({ id: p.autor, avatar: p.a_avatar }) },
   };
 }
 const TODOS_DE = 'SELECT p.*, u.nombre AS a_nombre, u.avatar AS a_avatar FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.oculto = 0 AND u.bloqueado = 0';
@@ -140,6 +143,7 @@ async function manejar(req, env, ctx, base) {
       if (ruta === '/borrar-cuenta') return html(pagina('Borrar tu cuenta · Stickerazo', BORRAR));
       await preparar(env);
       if (ruta.startsWith('/m/')) return media(req, env, ctx, ruta);
+      if (ruta.startsWith('/u/')) return imagenPerfil(req, env, ctx, ruta);
       if (ruta.startsWith('/p/')) return compartir(env, ruta.slice(3), origen);
       if (ruta === '/admin') return html(paginaAdmin(base));
       if (!ruta.startsWith('/api/')) return html(pagina('No está', '<h1>No está</h1>'), 404);
@@ -172,7 +176,7 @@ async function api(req, env, u, r, metodo) {
     if (!yo) return error('Entrá con tu cuenta', 401);
     const d = await cuerpo(), sets = [], vals = [];
     if (d.bio !== undefined) { const bio = String(d.bio).trim().slice(0, 120); if (textoProhibido(bio)) return error('Esa bio no se puede'); sets.push('bio = ?'); vals.push(bio); }
-    if (d.avatar) { const e = String(d.avatar.e || '').slice(0, 8), c = /^#[0-9a-f]{6}$/i.test(d.avatar.c || '') ? d.avatar.c : '#ff3e8a'; const pp = Number.isInteger(d.avatar.p) && d.avatar.p >= 0 && d.avatar.p < 12 ? d.avatar.p : 0; sets.push('avatar = ?'); vals.push(JSON.stringify({ e: e || '😎', c, p: pp })); }
+    if (d.avatar) { const e = String(d.avatar.e || '').slice(0, 8), c = /^#[0-9a-f]{6}$/i.test(d.avatar.c || '') ? d.avatar.c : '#ff3e8a'; const pp = Number.isInteger(d.avatar.p) && d.avatar.p >= 0 && d.avatar.p < 12 ? d.avatar.p : 0; sets.push('avatar = ?'); const ant = leerAvatar(yo); vals.push(JSON.stringify({ e: e || '😎', c, p: pp, f: d.avatar.quitarFoto ? 0 : ant.f || 0, b: d.avatar.quitarPortada ? 0 : ant.b || 0 })); if (d.avatar.quitarFoto) await env.DB.prepare('DELETE FROM archivos WHERE pack = ? AND nombre = ?').bind('u_' + yo.id, 'foto').run(); if (d.avatar.quitarPortada) await env.DB.prepare('DELETE FROM archivos WHERE pack = ? AND nombre = ?').bind('u_' + yo.id, 'portada').run();; }
     if (d.nombre !== undefined && d.nombre !== yo.nombre) {
       const n = String(d.nombre).trim().toLowerCase().replace(/^@/, ''), mal = nombreInvalido(n); if (mal) return error(mal);
       if (!(await limite(env, 'nom:' + yo.id, 3, 86400))) return error('Ya te cambiaste el nombre muchas veces hoy', 429);
@@ -182,11 +186,27 @@ async function api(req, env, u, r, metodo) {
     if (sets.length) await env.DB.prepare(`UPDATE usuarios SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, yo.id).run();
     return json({ usuario: publico(await env.DB.prepare('SELECT * FROM usuarios WHERE id = ?').bind(yo.id).first()) });
   }
+  // ---- mi foto de perfil o mi portada (una imagen mía: WebP o PNG, chica) ----
+  if ((m = /^yo\/(foto|portada)$/.exec(r)) && metodo === 'PUT') {
+    if (!yo) return error('Entrá con tu cuenta', 401);
+    if (!(await limite(env, 'img:' + yo.id, 20, 86400))) return error('Cambiaste mucho la foto hoy. Probá mañana.', 429);
+    const que = m[1], b = new Uint8Array(await req.arrayBuffer()), max = que === 'foto' ? 200 * 1024 : 400 * 1024;
+    if (!b.length || b.length > max) return error(que === 'foto' ? 'La foto pesa demasiado' : 'La portada pesa demasiado');
+    const inf = infoWebP(b) || infoPNG(b);
+    if (!inf) return error('Tiene que ser una imagen WebP o PNG');
+    const [w, h] = [inf.w || inf.ancho, inf.h || inf.alto];
+    if (que === 'foto' ? (w > 1024 || h > 1024) : (w > 1600 || h > 900)) return error('La imagen es muy grande');
+    await env.DB.prepare('INSERT OR REPLACE INTO archivos (pack, nombre, tipo, datos) VALUES (?, ?, ?, ?)').bind('u_' + yo.id, que, infoWebP(b) ? 'image/webp' : 'image/png', b).run();
+    const ant = leerAvatar(yo); ant[que === 'foto' ? 'f' : 'b'] = Date.now();
+    await env.DB.prepare('UPDATE usuarios SET avatar = ? WHERE id = ?').bind(JSON.stringify(ant), yo.id).run();
+    return json({ usuario: publico(await env.DB.prepare('SELECT * FROM usuarios WHERE id = ?').bind(yo.id).first()) });
+  }
   if (r === 'yo' && metodo === 'DELETE') {
     // (borrar la cuenta y todo lo suyo, como pide Google Play)
     if (!yo) return error('Entrá con tu cuenta', 401);
     const { results } = await env.DB.prepare('SELECT id FROM packs WHERE autor = ?').bind(yo.id).all();
     for (const p of results) await borrarPack(env, p.id);
+    await env.DB.prepare('DELETE FROM archivos WHERE pack = ?').bind('u_' + yo.id).run();   // (su foto y su portada)
     const sig = await env.DB.prepare('SELECT sigue_a FROM sigue WHERE usuario = ?').bind(yo.id).all(), seg = await env.DB.prepare('SELECT usuario FROM sigue WHERE sigue_a = ?').bind(yo.id).all();
     const ops = [...sig.results.map((x) => env.DB.prepare('UPDATE usuarios SET seguidores = MAX(0, seguidores - 1) WHERE id = ?').bind(x.sigue_a)), ...seg.results.map((x) => env.DB.prepare('UPDATE usuarios SET siguiendo = MAX(0, siguiendo - 1) WHERE id = ?').bind(x.usuario))];
     const { results: mg } = await env.DB.prepare('SELECT pack FROM likes WHERE usuario = ?').bind(yo.id).all();
@@ -245,8 +265,9 @@ async function api(req, env, u, r, metodo) {
       await borrarPack(env, id); return json({ ok: true });
     }
     if (metodo === 'GET') {
-      const p = await env.DB.prepare(`${CON_AUTOR} AND p.id = ?`).bind(id).first();
-      if (!p) return error('Ese pack ya no está', 404);
+      // (uno oculto lo ve sólo su dueño)
+      const p = await env.DB.prepare(`${TODOS_DE} AND p.id = ?`).bind(id).first();
+      if (!p || (p.privado && (!yo || yo.id !== p.autor))) return error('Ese pack ya no está', 404);
       const out = resumen(p); out.stickers = JSON.parse(p.archivos);
       if (yo) {
         out.yaLike = !!(await env.DB.prepare('SELECT 1 FROM likes WHERE usuario = ? AND pack = ?').bind(yo.id, id).first());
@@ -306,6 +327,15 @@ async function api(req, env, u, r, metodo) {
     const out = { usuario: { ...publico(usr), packs: tot.n, descargas: tot.d, likes: tot.l, insignias: elegido ? ['termo'] : [] }, packs: await marcarLikes(env, yo, packs) };
     if (yo) { out.sigo = !!(await env.DB.prepare('SELECT 1 FROM sigue WHERE usuario = ? AND sigue_a = ?').bind(yo.id, usr.id).first()); out.bloqueado = !!(await env.DB.prepare('SELECT 1 FROM bloqueos WHERE usuario = ? AND bloqueado = ?').bind(yo.id, usr.id).first()); out.soyYo = yo.id === usr.id; }
     return json(out);
+  }
+  if ((m = /^usuarios\/([a-z0-9]{10})\/reportar$/.exec(r)) && metodo === 'POST') {
+    if (!yo) return error('Entrá con tu cuenta', 401);
+    const u2 = await env.DB.prepare('SELECT * FROM usuarios WHERE id = ?').bind(m[1]).first(); if (!u2) return error('No existe', 404);
+    const { motivo } = await cuerpo(), mot = ['ofensivo', 'sexual', 'violencia', 'spam', 'otro'].includes(motivo) ? motivo : 'otro';
+    await env.DB.prepare('INSERT OR IGNORE INTO reportes (usuario, pack, motivo, creado) VALUES (?, ?, ?, ?)').bind(yo.id, 'u_' + u2.id, mot, Date.now()).run();
+    const n = (await env.DB.prepare('SELECT COUNT(*) AS n FROM reportes WHERE pack = ?').bind('u_' + u2.id).first()).n;
+    if (n >= 3) { const a = leerAvatar(u2); a.f = 0; a.b = 0; await env.DB.batch([env.DB.prepare('UPDATE usuarios SET avatar = ? WHERE id = ?').bind(JSON.stringify(a), u2.id), env.DB.prepare('DELETE FROM archivos WHERE pack = ?').bind('u_' + u2.id)]); }
+    return json({ ok: true, sacada: n >= 3 });
   }
   if ((m = /^usuarios\/([a-z0-9]{10})\/(seguir|bloquear)$/.exec(r))) {
     if (!yo) return error('Entrá con tu cuenta', 401);
@@ -428,6 +458,15 @@ async function publicar(req, env, yo, id) {
 }
 
 // los archivos (con el número de versión en la dirección: se guardan en la caché para siempre)
+async function imagenPerfil(req, env, ctx, ruta) {
+  const m = /^\/u\/([a-z0-9]{10})\/(foto|portada)$/.exec(ruta); if (!m) return new Response('No está', { status: 404, headers: CORS });
+  const cache = typeof caches !== 'undefined' ? caches.default : null; if (cache) { const c = await cache.match(req); if (c) return c; }
+  const r = await env.DB.prepare('SELECT a.tipo, a.datos FROM archivos a JOIN usuarios u ON u.id = ? WHERE a.pack = ? AND a.nombre = ? AND u.bloqueado = 0').bind(m[1], 'u_' + m[1], m[2]).first();
+  if (!r) return new Response('No está', { status: 404, headers: CORS });
+  const res = new Response(bytesDe(r.datos), { headers: { 'Content-Type': r.tipo, 'Cache-Control': 'public, max-age=86400', ...CORS } });
+  if (cache && ctx && ctx.waitUntil) ctx.waitUntil(cache.put(req, res.clone()));
+  return res;
+}
 async function media(req, env, ctx, ruta) {
   const m = /^\/m\/([a-z0-9]{10})\/([A-Za-z0-9_-]{1,40}\.(?:webp|png))$/.exec(ruta);
   if (!m) return new Response('No está', { status: 404, headers: CORS });

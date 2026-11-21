@@ -4,6 +4,7 @@ import { LADO, MARGEN, FUENTES, COLORES, ANIMACIONES, ANIM, cargarFuentes, recor
 import * as P from './puente.js';
 import { LISTOS, armarListo, emojisListo, prepararListo } from './listos.js';
 import { LISTA_PAISES, elegirPaisMapa } from './mapa_pais.js';
+import { abrirMusica, hayMusica } from './musica.js';
 import * as C from './comunidad.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -768,6 +769,7 @@ const BANNERS = [
 ];
 let relojBanner = 0;
 function pintarTopInicio() {
+  C.pintarEvento();
   const hi = $('#historias');
   if (!hi.children.length) {
     const corto = (n) => n.replace(/^(Los |Las |El |La )/, '').split(/ y | de /)[0];
@@ -790,6 +792,27 @@ function pintarTopInicio() {
     pc.innerHTML = `<i data-i="mundo"></i><span><b>¿De dónde sos?</b><small>Elegí tu país y te muestro primero sus memes</small></span><i data-i="sig"></i>`; iconos(pc);
     pc.classList.remove('oc');
   }
+}
+$('#eventoCard').onclick = () => { vibrar(10); C.verTermo(); };
+// ---- la música de tu país ----
+function musica(saltar) { abrirMusica({ base: C.API.replace(/\/sz$/, ''), pais: miPais() || 'ar', X: { vibrar, aviso }, saltar }); }
+$('#botonMusica').onclick = () => { vibrar(8); musica(false); };
+setInterval(() => $('#botonMusica').classList.toggle('sonando', hayMusica()), 1500);
+// ---- modo claro, oscuro o como el celular (con un círculo que se abre desde el dedo) ----
+const TEMAS = [['oscuro', '🌙', 'Oscuro'], ['claro', '☀️', 'Claro'], ['auto', '📱', 'Como el celular']];
+function temaActual() { try { return localStorage.getItem('sz_tema') || 'oscuro'; } catch (e) { return 'oscuro'; } }
+const claroDelCelu = matchMedia('(prefers-color-scheme: light)');
+function aplicarTema(t) { document.documentElement.dataset.tema = (t === 'auto' ? (claroDelCelu.matches ? 'claro' : 'oscuro') : t); }
+claroDelCelu.addEventListener('change', () => { if (temaActual() === 'auto') aplicarTema('auto'); });
+function cambiarTema(t, desde) {
+  try { localStorage.setItem('sz_tema', t); } catch (e) { /* igual se cambia ahora */ }
+  const raiz = document.documentElement; raiz.style.setProperty('--cx', desde.x + 'px'); raiz.style.setProperty('--cy', desde.y + 'px');
+  if (document.startViewTransition && !quieto) document.startViewTransition(() => aplicarTema(t)); else liquido(() => aplicarTema(t), desde);
+}
+function elegirTema(despues) {
+  const t0 = temaActual();
+  const m = modal(`<div class="hoja"><h3>¿Cómo la querés ver?</h3><div class="temas">${TEMAS.map(([k, e, n]) => `<button class="tema t_${k}${k === t0 ? ' act' : ''}" data-t="${k}"><span class="muestra"><i></i><i></i><i></i></span><b>${e} ${n}</b></button>`).join('')}</div></div>`);
+  m.querySelector('.temas').onclick = (ev) => { const b = ev.target.closest('[data-t]'); if (!b) return; vibrar(10); const r = b.getBoundingClientRect(); cerrarModal(); cambiarTema(b.dataset.t, { x: r.left + r.width / 2, y: r.top + r.height / 2 }); if (despues) setTimeout(despues, 700); };
 }
 $('#irBuscar').onclick = () => liquido(() => { pestaña('Listos'); setTimeout(() => $('#qBuscar').focus(), 60); });
 $('#historias').onclick = (ev) => { const b = ev.target.closest('.hist'); if (!b) return; vibrar(6); const pk = LISTOS.find((x) => x.id === b.dataset.l); if (pk) { b.classList.add('visto'); hojaListo(pk); } };
@@ -1050,7 +1073,7 @@ function confeti() {
   requestAnimationFrame(paso);
 }
 // (lo que usa la comunidad de acá)
-C.iniciar({ $, h, modal, cerrarModal, aviso, ir, iconos, E, confirmar, vibrar, confeti, pestaña, carruselListos, norm, buscarTag, pintarPack: () => pintarPack(), atras, paisActual, elegirPais });
+C.iniciar({ $, h, modal, cerrarModal, aviso, ir, iconos, E, confirmar, vibrar, confeti, pestaña, carruselListos, norm, buscarTag, pintarPack: () => pintarPack(), atras, paisActual, elegirPais, elegirTema, temaActual, musica: () => musica(false) });
 // ---- versión nueva (se bajó sola): avisar cuando no está creando ----
 let otaPendiente = null;
 window.__szOta = (v) => { otaPendiente = v; mostrarOta(); };
@@ -1090,7 +1113,7 @@ function mostrarBienvenida() {
   const irA = (k, quieto = false) => { pag = k; tira.style.transform = `translateX(${-100 * k}%)`; [...b.querySelectorAll('.bvPuntos i')].forEach((p, i) => p.classList.toggle('act', i === k)); [...tira.children].forEach((p, i) => p.classList.toggle('activa', i === k)); if (!quieto) vibrar(6); };
   const cerrar = () => { try { localStorage.setItem('sz_bienvenida', '1'); } catch (e) { /* igual se cierra */ } liquido(() => { b.remove(); pintarTopInicio(); }, { x: innerWidth / 2, y: innerHeight - 60 }); };
   // (después de las dos pantallas, el mapa: «¿De dónde sos?»)
-  const alMapa = () => { b.querySelectorAll('.bvPuntos i').forEach((p, i) => p.classList.toggle('act', i === 2)); elegirPaisMapa({ inicial: miPais() || 'ar', vibrar, listo: (k) => { confeti(); ponerPais(k); setTimeout(cerrar, 250); } }); };
+  const alMapa = () => { b.querySelectorAll('.bvPuntos i').forEach((p, i) => p.classList.toggle('act', i === 2)); elegirPaisMapa({ inicial: miPais() || 'ar', vibrar, listo: (k) => { confeti(); ponerPais(k); setTimeout(cerrar, 250); setTimeout(() => musica(true), 1100); } }); };
   sig.onclick = () => (pag < 1 ? irA(pag + 1) : alMapa());
   b.querySelector('#bvSaltar').onclick = cerrar;
   // (deslizar con el dedo también cambia de pantalla)

@@ -34,7 +34,8 @@ casi todo pago, mucha publicidad, cobros de suscripciones). Lo nuestro:
 - **Pack publicado**: seguir al autor, me gusta, **Agregar a WhatsApp** (se baja a Mis packs y se agrega), compartir
   (manda el enlace `/p/ID`, una página con la vista previa y un botón que abre la app: `stickerazo://pack/ID`),
   denunciar y bloquear.
-- **Perfil**: tu @ (sin email: el celular guarda una llave), avatar de emoji y color, bio, packs, seguidores,
+- **Perfil**: tu @ (sin email: el celular guarda una llave), **tu foto** o un emoji con color, **tu portada** (una imagen
+  tuya o las nuestras), bio, packs, seguidores,
   descargas y me gusta; editar; **borrar la cuenta** (como pide Google Play).
 - **Publicar** desde cualquier pack tuyo (con etiquetas sugeridas), y **actualizarlo** si lo cambiás. Sólo se suben
   los stickers terminados: las fotos quedan en el celular.
@@ -73,6 +74,19 @@ La app lo busca en `https://stickerazo.<tu subdominio>.workers.dev` (`web/comuni
 - **Bienvenida** la primera vez: tres pantallas animadas y el país.
 - **Perfil**: portada (degradés o los banners), avatar encima, editar, compartir, «Publicados» y «Bajados», y el país en
   los ajustes.
+
+## El evento del termo, la música y el modo claro
+
+- **El termo de los elegidos** (primer evento): cuando 20 cuentas tienen packs publicados, el servidor sortea 5 al azar,
+  una sola vez (`/api/evento`). Sus stickers giran pegados a un termo 3D (hecho con IA, mostrado con Three.js; si no hay
+  WebGL, uno de CSS) y a los que recién bajan la app se los recomendamos primero en «Para vos». Tienen la insignia del termo.
+- **Ocultar** un pack propio de la comunidad sin borrarlo, **sacarlo** del servidor, y **«No me interesa»** para los ajenos.
+- **Música de tu país**: géneros de cada país y un buscador; suena en el reproductor oficial de YouTube, flotando y movible.
+- **Modo claro, oscuro o como el celular**, con un círculo que se abre desde el dedo al cambiarlo.
+- **Perfil animado**: sus stickers flotando en la portada, un anillo de colores que gira y los números que suben.
+- **Foto y portada propias**: se eligen de la galería, se recortan al centro en el celu (foto 400×400, portada
+  1200×560, WebP) y se suben a `PUT /api/yo/foto` y `/api/yo/portada` (máx. 20 por día). Se ven en `/u/ID/foto` y
+  `/u/ID/portada`. «Denunciar el perfil»: con 3 denuncias la foto y la portada se sacan solas y vuelve el emoji.
 
 ## Bien argento
 

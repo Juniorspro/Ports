@@ -25,8 +25,8 @@ if (APP) {
 let fallas = 0; const ok = (c, txt) => { console.log((c ? 'OK   ' : 'FALLA') + ' ' + txt); if (!c) fallas++; };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const ctx = await b.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-const p = await ctx.newPage(); const err = []; const aPropósito = (u) => u.includes('..%2F'); // (el intento de colar «..» de la prueba: tiene que dar 404)
-p.on('pageerror', (e) => err.push(e.message)); p.on('console', (m) => { if (m.type() === 'error' && !/^INFO:/.test(m.text()) && !(APP && /status of 404/.test(m.text()) && aPropósito(m.location().url || ''))) err.push('consola: ' + m.text().slice(0, 300) + ' ' + (m.location().url || '')); }); p.on('requestfailed', (q) => { if (!aPropósito(q.url())) err.push('falló ' + q.url()); }); p.on('response', (q) => { if (q.status() >= 400 && !aPropósito(q.url())) err.push(q.status() + ' ' + q.url()); });
+const p = await ctx.newPage(); const err = []; const aPropósito = (u) => u.includes('..%2F') || u.includes('/api/yt');   // (la búsqueda de música es del servidor de JXMod: acá no está) // (el intento de colar «..» de la prueba: tiene que dar 404)
+p.on('pageerror', (e) => err.push(e.message)); p.on('console', (m) => { if (m.type() === 'error' && !/^INFO:/.test(m.text()) && !(/status of 404/.test(m.text()) && (APP ? aPropósito(m.location().url || '') : (m.location().url || '').includes('/api/yt')))) err.push('consola: ' + m.text().slice(0, 300) + ' ' + (m.location().url || '')); }); p.on('requestfailed', (q) => { if (!aPropósito(q.url())) err.push('falló ' + q.url()); }); p.on('response', (q) => { if (q.status() >= 400 && !aPropósito(q.url())) err.push(q.status() + ' ' + q.url()); });
 const cdp = await ctx.newCDPSession(p);
 await p.addInitScript((u) => { window.SZ_API = u; }, `http://127.0.0.1:${PUERTO_COM}`);
 // window.SZN como el de la app (Puente.java): sincrónico, con los mismos nombres y lo mismo que devuelve
@@ -65,6 +65,9 @@ await p.click('#bvSig'); await espera(700); await foto('bienvenida_xd'); await p
 await p.click('.mpTira [data-p="es"]'); await espera(1200); ok(/España/.test(await p.textContent('.mpListo')), 'el mapa: tocar una bandera la elige («Soy de España»)');
 await p.click('.mpTira [data-p="ar"]'); await espera(900); await p.click('.mpListo'); await p.waitForFunction(() => !document.querySelector('#bienvenidaApp') && !document.querySelector('.mapaPais'), null, { timeout: 8000 });
 ok(await E(() => localStorage.sz_pais === 'ar' && localStorage.sz_bienvenida === '1' && document.querySelector('#paisCard').classList.contains('oc')), 'bienvenida: dos pantallas y el mapa a pantalla completa, elige Argentina y entra (no vuelve a preguntar el país)');
+await p.waitForSelector('.musicaEl.entra'); await espera(500); await foto('bienvenida_musica');
+ok(/Argentina/.test(await p.textContent('.muCab h2')) && /cumbia argentina/i.test(await p.textContent('.muGen .chip.act')) && /Saltar/.test(await p.textContent('.muSaltar')), 'después del país: la música de Argentina (géneros de acá), y se puede saltar');
+await p.click('.muSaltar'); await p.waitForFunction(() => !document.querySelector('.musicaEl'));
 await p.waitForSelector('#feedLista .vacio'); await foto('inicio_vacio');
 ok(await p.isVisible('#tabFeed') && /tranqui/.test(await p.textContent('#feedLista')), 'arranca en el feed de la comunidad (vacío: «Está todo muy tranqui»)');
 await p.click('#tabs [data-t="Crear"]'); await p.waitForSelector('#bCrear', { state: 'visible' });
