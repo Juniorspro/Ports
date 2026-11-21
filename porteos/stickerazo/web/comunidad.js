@@ -4,6 +4,7 @@ import { abrirTermo } from './termo.js';
 import * as P from './puente.js';
 import { sincronizar, iniciarNube, estadoNube, programar } from './nube.js';
 import { elegirCancion, tocarCancionPerfil, pararCancionPerfil, cancionSonando } from './musica.js';
+import { cargarSocial, clickSocial, botonAmistad, iniciarRed, novedades } from './red.js';
 export const API = (typeof window !== 'undefined' && window.SZ_API) || 'https://rezobox-tienda.holasoyjuniors365.workers.dev/sz';
 // (lo que ve la gente —packs compartidos, reglas, privacidad— va por la dirección propia, que muestra lo mismo que el servidor)
 export const SITIO = (typeof window !== 'undefined' && (window.SZ_SITIO || window.SZ_API)) || 'https://stickerazo.pages.dev';
@@ -30,7 +31,7 @@ export async function api(ruta, o = {}) {
 }
 export const media = (pk, a) => `${API}/m/${pk.id}/${encodeURIComponent(a)}?v=${pk.v}`;
 export const enlace = (id) => `${SITIO}/p/${id}`;
-const hace = (t) => { const s = (Date.now() - t) / 1000; return s < 60 ? 'recién' : s < 3600 ? `hace ${Math.floor(s / 60)} min` : s < 86400 ? `hace ${Math.floor(s / 3600)} h` : s < 86400 * 30 ? `hace ${Math.floor(s / 86400)} d` : new Date(t).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }); };
+export const hace = (t) => { const s = (Date.now() - t) / 1000; return s < 60 ? 'recién' : s < 3600 ? `hace ${Math.floor(s / 60)} min` : s < 86400 ? `hace ${Math.floor(s / 3600)} h` : s < 86400 * 30 ? `hace ${Math.floor(s / 86400)} d` : new Date(t).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }); };
 const num = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1).replace('.0', '') + ' M' : n >= 1e4 ? Math.round(n / 1e3) + ' mil' : n >= 1e3 ? (n / 1e3).toFixed(1).replace('.0', '') + ' mil' : String(n));
 // (con su foto si subió una; si no, el emoji sobre su color)
 // (la cara del avatar: su foto, o una pegatina —«p:id»—; los de antes, con un emoji, muestran la pegatina que le corresponde)
@@ -38,6 +39,7 @@ const DE_EMOJI = { '😎': 'cool', '🧉': 'mate', '🤠': 'sol', '😜': 'guino
   '👽': 'loco', '🤖': 'nervios', '💀': 'muerto', '🔥': 'fuego', '⚽': 'pelota', '🎸': 'notas', '🍕': 'empanada', '🌈': 'arcoiris', '🦄': 'brillo', '🐧': 'nube' };
 export const pegaDeAvatar = (e) => (/^p:[a-zA-Z_]+$/.test(e || '') ? e.slice(2) : DE_EMOJI[e] || 'risa');
 const caraDe = (a) => (a.f ? `<img src="${API}/${X.h(a.f)}" alt="" loading="lazy">` : `<i class="pegaUI pegaAv" data-pega="${X.h(pegaDeAvatar(a.e))}"></i>`);
+export const avatarHTML = (a, clase = 'av') => avatar(a, clase);
 const avatar = (a, clase = 'av') => `<span class="${clase}${a.f ? ' conFoto' : ''}" style="background:${X.h(a.c)}">${caraDe(a)}</span>`;
 
 // ================= FEED =================
@@ -67,6 +69,7 @@ const noInteresa = () => { try { return new Set(JSON.parse(localStorage.getItem(
 function marcarNoInteresa(id) { const s = noInteresa(); s.add(id); try { localStorage.setItem('sz_noint', JSON.stringify([...s].slice(-500))); } catch (e) { /* nada */ } }
 export async function cargarFeed(reiniciar) {
   const lista = X.$('#feedLista');
+  if (F.modo === 'social') return cargarSocial(lista, reiniciar);   // (las publicaciones de la gente: red.js)
   if (reiniciar) { F.desde = 0; F.fin = false; lista.innerHTML = esqueletos(3); F.turno = (F.turno || 0) + 1; }
   if (F.cargando && !reiniciar) return; if (F.fin) return;
   const turno = F.turno; F.cargando = true;
@@ -98,8 +101,9 @@ async function darLike(id, boton, forzar) {
   catch (e) { boton.classList.toggle('si', !si); sp.textContent = num(n0); X.aviso(e.message); }
 }
 let toqueGrilla = null;
-function alTocarFeed(ev) {
+async function alTocarFeed(ev) {
   const t = ev.target;
+  if (F.modo === 'social' && t.closest('[data-so],[data-sf]')) return clickSocial(ev, X.$('#feedLista'));
   const like = t.closest('[data-like]'); if (like) return darLike(like.dataset.like, like);
   const comp = t.closest('[data-compartir]'); if (comp) return compartirPack(F.cache.get(comp.dataset.compartir));
   const au = t.closest('[data-u]'); if (au) return abrirUsuario(au.dataset.u);
@@ -222,7 +226,7 @@ export const PORTADAS = ['linear-gradient(135deg,#ff3e8a,#ff8a1a)', 'linear-grad
 const portadaDe = (u) => (u.avatar && u.avatar.b ? `url('${API}/${u.avatar.b}') center/cover` : PORTADAS[(u.avatar && u.avatar.p) || 0] || PORTADAS[0]);
 function perfilHTML(d, propio) {
   const u = d.usuario, botones = propio ? '<button class="pBoton" data-editar="1"><i data-i="lapiz"></i>Editar perfil</button>'
-    : d.soyYo ? '' : `<button class="seguir pBoton${d.sigo ? ' si' : ''}" data-seguir="${u.id}">${d.sigo ? 'Siguiendo' : 'Seguir'}</button>`;
+    : d.soyYo ? '' : `<button class="seguir pBoton${d.sigo ? ' si' : ''}" data-seguir="${u.id}">${d.sigo ? 'Siguiendo' : 'Seguir'}</button>${botonAmistad(d)}`;
   // (en la portada flotan algunos de sus stickers)
   const flotan = d.packs.filter((p) => !p.privado).flatMap((p) => p.muestra.slice(0, 2).map((a) => media(p, a))).slice(0, 4);
   return `<div class="perfilTop"><div class="portadaP" style="background:${portadaDe(u)}"><i class="brilloP"></i>${flotan.map((f, k) => `<img class="flotaP" src="${f}" alt="" style="--k:${k}">`).join('')}</div>
@@ -692,7 +696,8 @@ export async function buscarComunidad(q, cont) {
 
 // ================= ARRANQUE =================
 export function iniciar(ctx) {
-  X = ctx;
+  X = ctx; X.abrirUsuario = abrirUsuario;
+  iniciarRed(X);   // (publicaciones, amigos y chat: red.js)
   // (tus packs en tu cuenta: guardar después de cada cambio, y avisar si se recuperaron packs en un celular nuevo)
   iniciarNube((r) => { if (r.recuperados) { X.aviso(`Recuperamos ${r.recuperados} pack${r.recuperados > 1 ? 's' : ''} de tu cuenta 🙌`, 4000); if (X.recargarPacks) X.recargarPacks(); } });
   if ((cuenta() || {}).google) programar(3000);

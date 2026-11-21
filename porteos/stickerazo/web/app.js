@@ -59,7 +59,7 @@ const ICONOS = {
   cara: RI('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z') + '<circle cx="12" cy="12" r="8.5"/><path d="M8.3 14.2c.9 1.5 2.2 2.3 3.7 2.3s2.8-.8 3.7-2.3"/><circle cx="9" cy="10" r="1.1" fill="currentColor"/><circle cx="15" cy="10" r="1.1" fill="currentColor"/>',
   borde: RI('M4 9a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z') + '<rect x="4" y="4" width="16" height="16" rx="5" stroke-dasharray="3 2.6"/><path d="M9.5 12.5l1.8 1.8 3.3-3.6"/>',
   ajustes: RI('M5 6a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z') + '<path d="M4 7.5h8.5M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20"/><circle cx="15" cy="7.5" r="2.4"/><circle cx="9" cy="16.5" r="2.4"/>',
-  frente: RI('M10 12a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z') + '<rect x="3" y="3" width="11" height="11" rx="2.5"/><rect x="10" y="10" width="11" height="11" rx="2.5"/>',
+  frente: RI('M12.5 10h6a2.5 2.5 0 0 1 2.5 2.5v6a2.5 2.5 0 0 1-2.5 2.5h-6a2.5 2.5 0 0 1-2.5-2.5v-6a2.5 2.5 0 0 1 2.5-2.5z') + '<path d="M10 14H5.5A2.5 2.5 0 0 1 3 11.5v-6A2.5 2.5 0 0 1 5.5 3h6A2.5 2.5 0 0 1 14 5.5V10" stroke-dasharray="2.2 2.4"/><rect x="10" y="10" width="11" height="11" rx="2.5"/>',
   tacho: RI('M6.6 7.5h10.8l-.9 11.1a2 2 0 0 1-2 1.9H9.5a2 2 0 0 1-2-1.9z') + '<path d="M4.5 7.5h15M9.6 7.5V5.4c0-.5.4-.9.9-.9h3c.5 0 .9.4.9.9v2.1"/><path d="M6.6 7.5l.9 11.1a2 2 0 0 0 2 1.9h5a2 2 0 0 0 2-1.9l.9-11.1"/><path d="M10.4 11.2v5.3M13.6 11.2v5.3"/>',
   puntos: '<circle cx="12" cy="5.5" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="18.5" r="1.8" fill="currentColor"/>',
   whats: RI('M12 4a8 8 0 0 1 0 16c-1.4 0-2.7-.3-3.8-.9L4 20l1-4A8 8 0 0 1 12 4z') + '<path d="M12 4a8 8 0 0 1 0 16c-1.4 0-2.7-.3-3.8-.9L4 20l1-4A8 8 0 0 1 12 4z"/><path d="M12 8.6v6.8M8.6 12h6.8"/>',
@@ -215,6 +215,8 @@ async function atras() {
   } else if (E.vista === 'vPack') { if (E.origenPack) { const o = E.origenPack; E.origenPack = null; return ir(o, true); } E.tab = 'Mios'; ir('vInicio', true); }
   else if (E.vista === 'vPublico') ir(E.origenPublico && E.origenPublico !== 'vPublico' ? E.origenPublico : 'vInicio', true);
   else if (E.vista === 'vUsuario') ir(E.origenUsuario && E.origenUsuario !== 'vUsuario' ? E.origenUsuario : 'vInicio', true);
+  else if (E.vista === 'vConv') ir('vChat', true);
+  else if (E.vista === 'vChat') ir('vInicio', true);
   else if (E.vista === 'vInicio' && E.tab !== 'Feed') pestaña('Feed');
 }
 // el botón «atrás» del celular (Java pregunta: true = lo manejó la app; false = salir)
@@ -765,7 +767,7 @@ function abrirAjustes() {
   const desl = (k, nombre, min, max, v) => `<label class="ajDesl"><span>${nombre}</span><input type="range" min="${min}" max="${max}" value="${v}" data-k="${k}"><b></b></label>`;
   const f = c.filtro || {};
   const m = modal(`<div class="hoja hojaAjustes"><div class="etq" style="margin-top:0">Ajustes ${que}</div>
-    <div class="ajCapa"><button data-a="frente"><i data-i="frente"></i>Al frente</button><button data-a="fondo"><i data-i="atrasCapa"></i>Al fondo</button><button data-a="dup"><span>⧉</span>Duplicar</button><button data-a="espejo"><span>⇋</span>Espejo</button></div>
+    <div class="ajCapa"><button data-a="frente"><i data-i="frente"></i>Al frente</button><button data-a="fondo"><i data-i="atrasCapa"></i>Al fondo</button><button data-a="dup"><i data-i="duplicar"></i>Duplicar</button><button data-a="espejo"><i data-i="xEspejo"></i>Espejo</button></div>
     ${desl('alfa', 'Opacidad', 15, 100, Math.round((c.alfa ?? 1) * 100))}
     ${esImg ? `<div class="etq">Filtros</div><div class="ajFiltros">${Object.keys(FILTROS).map((k) => `<button data-f="${k}"><canvas width="112" height="112"></canvas><span>${NOMBRES_F[k]}</span></button>`).join('')}</div>
       ${desl('b', 'Brillo', 50, 150, Math.round((f.b ?? 1) * 100))}${desl('c', 'Contraste', 50, 150, Math.round((f.c ?? 1) * 100))}${desl('s', 'Color', 0, 200, Math.round((f.s ?? 1) * 100))}` : ''}
@@ -1367,7 +1369,7 @@ function pestaña(t) {
   if (t === 'Feed') { if (Date.now() - feedCargado > 120000 || !$('#feedLista').children.length) { feedCargado = Date.now(); C.cargarFeed(true); } }
   else if (t === 'Crear') pintarCarrusel(); else if (t === 'Listos') buscar($('#qBuscar').value); else if (t === 'Perfil') C.pintarPerfil(); else pintarMios();
 }
-$('#tabs').onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; vibrar(6); if (b.dataset.t === E.tab && b.dataset.t === 'Feed') { $('#tabFeed').scrollTo({ top: 0, behavior: 'smooth' }); feedCargado = Date.now(); return C.cargarFeed(true); } liquido(() => pestaña(b.dataset.t), { x: ev.clientX || ultimoToque.x, y: ev.clientY || ultimoToque.y }); };
+$('#tabs').onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; vibrar(6); if (b.dataset.t === E.tab && b.dataset.t === 'Feed') { $('#tabFeed').scrollTo({ top: 0, behavior: 'smooth' }); feedCargado = Date.now(); return C.cargarFeed(true); } pestaña(b.dataset.t); };   // (sin agua: va sólo en los momentos importantes)
 function pintarInicio() { pestaña(E.tab); pintarTopInicio(); }
 
 // ---- arriba del feed: buscar, «¿de dónde sos?», historias (packs en círculos) y banners que pasan solos ----

@@ -39,7 +39,7 @@ casi todo pago, mucha publicidad, cobros de suscripciones). Lo nuestro:
 
 ## La comunidad (como una red social)
 
-- **Inicio** es el feed: «Para vos» (lo que más gusta y se baja, pesado por lo nuevo), «Recién salidos» y «Seguidos».
+- **Inicio** es el feed: «Para vos» (lo que más gusta y se baja, pesado por lo nuevo), «Nuevos», «Seguidos» y «Social».
   Tarjetas que entran animadas, **doble toque = me gusta** (con un corazón que explota), tirar para abajo actualiza y
   baja más al llegar al final.
 - **Pack publicado**: seguir al autor, me gusta, **Agregar a WhatsApp** (se baja a Mis packs y se agrega), compartir
@@ -54,6 +54,17 @@ casi todo pago, mucha publicidad, cobros de suscripciones). Lo nuestro:
 - Moderación: nombres y textos filtrados (odio, sexual; sin falsos positivos como «controlo»), límites por persona,
   **3 denuncias ocultan un pack** hasta revisarlo, y `/admin` para revisar (con la clave `ADMIN_CLAVE`).
 - Sin conexión la app anda igual (muestra los packs listos mientras tanto).
+- **Social** (la cuarta pestaña del feed): publicaciones con texto, fotos, stickers (tuyos o pegatinas) y videos cortos.
+  El video se convierte **en el celular** a WebP animado (4 s, 8 cuadros por segundo, 360 px, sin sonido), así el
+  servidor sólo guarda imágenes que revisa como las de los packs. «Todos» o «Amigos», me gusta, borrar lo tuyo y
+  denunciar (3 denuncias la ocultan). Hasta 12 publicaciones por día y 4 imágenes por publicación.
+- **Amigos**: «Agregar amigo» en el perfil de alguien manda un pedido; cuando el otro acepta, son amigos. Bloquear
+  corta la amistad.
+- **Chat** (el globito de arriba): sólo entre amigos. Texto filtrado como el resto, pegatinas, stickers de tus packs o
+  uno tuyo (se sube aparte con una clave al azar), «visto», avisos de mensajes nuevos con un numerito, y mantener
+  apretado un mensaje del otro para denunciarlo. Se actualiza cada 3,5 s mientras está abierto (sin servidor de
+  tiempo real, para que siga siendo gratis). Borrar la cuenta borra sus publicaciones, amistades y conversaciones.
+  El admin revisa lo denunciado con `GET/POST /api/admin/social`.
 
 ### El servidor (`servidor/`, Cloudflare Worker + D1)
 
@@ -64,7 +75,7 @@ también anda como Worker propio (su `wrangler.toml`), por si un día se quiere 
 `web/comunidad.js` (API) y en `Almacen.POLITICA`.
 
 `worker.js` hace todo: cuentas, packs (revisa cada WebP y el ícono como WhatsApp), feed, me gusta, seguir, buscar,
-tendencias, denuncias, moderación y las páginas `/privacidad`, `/terminos`, `/borrar-cuenta`, `/admin` y `/p/ID`.
+tendencias, denuncias, moderación (lo social y el chat están en `social.js`) y las páginas `/privacidad`, `/terminos`, `/borrar-cuenta`, `/admin` y `/p/ID`.
 Los archivos van en la misma base (o en R2 si se agrega el balde `MEDIA`).
 
 **Ponerlo en marcha (una sola vez):** en Cloudflare → Workers & Pages → Crear → Importar un repositorio → este repo,

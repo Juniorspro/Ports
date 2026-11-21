@@ -103,6 +103,7 @@ ok((await B.p.locator('#feedLista .tf:not(.esq)').count()) === 0, 'bloquear a @j
 
 // ---------- @juancito: sus números, editar perfil, borrar la cuenta ----------
 await A.p.click('#vPack .volver'); await A.p.click('#tabs [data-t="Perfil"]'); await A.p.waitForSelector('#tabPerfil .stats');
+await A.p.waitForFunction(() => [...document.querySelectorAll('#tabPerfil .stats b')].every((b) => !b.dataset.cuenta || b.textContent === b.dataset.cuenta), null, { timeout: 5000 }).catch(() => {}); // (los números suben animados)
 const st = await A.E(() => [...document.querySelectorAll('#tabPerfil .stats b')].map((b) => b.textContent));
 ok(st.join(',') === '1,0,1,1', `perfil de @juancito: packs ${st[0]}, seguidores ${st[1]} (lo bloquearon: se fue), descargas ${st[2]}, me gusta ${st[3]}`);
 await A.p.click('#tabPerfil [data-editar]'); await A.p.click('#epE [data-v="p:mate"]'); await A.p.click('#epC [data-v="#74acdf"]'); await A.p.fill('#epBio', 'Stickers del grupo, con mate 🧉'); await A.foto('editar_perfil');
@@ -113,7 +114,8 @@ ok((await fetch(`${API}/api/packs/${loc.id}`)).status === 404 && !(await A.E(() 
 
 // ---------- sin conexión ----------
 const D = await celular('D', 'http://127.0.0.1:9');
-await D.p.waitForSelector('#feedLista .vacio'); await D.p.waitForFunction(() => document.querySelectorAll('#feedListos img[src^="data:"]').length >= 4, null, { timeout: 15000 });
+await D.p.waitForSelector('#feedLista .vacio'); await D.E(() => document.querySelector('#feedListos').scrollIntoView({ block: 'center' })); // (las vistas previas se arman cuando se ven)
+await D.p.waitForFunction(() => document.querySelectorAll('#feedListos img[src^="data:"], #feedListos img[src^="blob:"]').length >= 4, null, { timeout: 15000 });
 ok(/Sin conexión/.test(await D.p.textContent('#feedLista')), 'sin conexión: lo dice, y mientras tanto muestra los packs listos'); await D.foto('sin_conexion');
 await D.p.click('#tabs [data-t="Crear"]'); ok(await D.p.waitForSelector('#bCrear', { state: 'visible', timeout: 5000 }).then(() => true, () => false), 'sin conexión se puede crear igual');
 

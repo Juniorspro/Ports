@@ -18,4 +18,5 @@ echo "== servidor";    (cd "$AQUI" && node servidor_api.mjs 2>&1 | grep -E "FALL
 echo "== entrar con Google"; (cd "$AQUI" && node google.mjs 2>&1 | grep -E "FALLA|RESUMEN" && node google_app.mjs 2>&1 | grep -E "FALLA|RESUMEN")
 echo "== Premium y donaciones"; (cd "$AQUI" && node pagos.mjs 2>&1 | grep -E "FALLA|RESUMEN" && node premium_app.mjs 2>&1 | grep -E "FALLA|RESUMEN")
 echo "== comunidad";   (cd "$AQUI" && node social.mjs 2>&1 | grep -E "FALLA|RESUMEN|errores")
+echo "== zona social y chat"; (cd "$AQUI" && node red.mjs 2>&1 | grep -E "FALLA|RESUMEN" && node red_app.mjs 2>&1 | grep -E "FALLA|RESUMEN")
 echo "== APK";           python3 -I "$RAIZ/herramientas/armar_apk.py" "${SALIDA:-/tmp/claude-0/stickerazo/Stickerazo.apk}" 2>&1 | grep -v "^Picked up"

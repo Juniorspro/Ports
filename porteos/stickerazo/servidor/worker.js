@@ -11,6 +11,7 @@
 import { verificarGoogle, paginaGoogle, googleObligatorio, huellaGoogle, sha256 } from './google.js';
 import { nubeRutas, borrarNube } from './nube.js';
 import { pagosRutas, paginaPremium, pagosAlBorrar, ESQUEMA_PAGOS, cuentaDelTicket, estadoPremium, pagosPrendidos, quitarPremium } from './pagos.js';
+import { socialRutas, socialAdmin, socialAlBorrar, socialAlBloquear, ESQUEMA_SOCIAL, TABLAS_SOCIAL } from './social.js';
 // (la nube de cada cuenta: en su propia base si está, SZ_NUBE; si no, en la de siempre)
 const nubeDb = (env) => env.SZ_NUBE || env.DB;
 const bajar = (origen) => `${origen}/#bajar`;
@@ -54,12 +55,13 @@ const ESQUEMA = [
   // (lo que llega por el formulario de contacto)
   `CREATE TABLE IF NOT EXISTS contacto (id TEXT PRIMARY KEY, motivo TEXT NOT NULL, texto TEXT NOT NULL, mail TEXT NOT NULL DEFAULT '', creado INTEGER NOT NULL)`,
   ...ESQUEMA_PAGOS,   // (Premium, compras y donaciones: servidor/pagos.js)
+  ...ESQUEMA_SOCIAL,   // (publicaciones, amigos y chat: servidor/social.js)
 ];
 // (columnas que llegaron después: si ya están, el ALTER falla y no pasa nada)
 const COLUMNAS_NUEVAS = ['ALTER TABLE usuarios ADD COLUMN cancion TEXT', 'ALTER TABLE packs ADD COLUMN privado INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE usuarios ADD COLUMN google TEXT',
   'CREATE UNIQUE INDEX IF NOT EXISTS i_usuarios_google ON usuarios(google)', 'ALTER TABLE usuarios ADD COLUMN premium_hasta INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE usuarios ADD COLUMN donador INTEGER NOT NULL DEFAULT 0'];
-const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto|nube_packs|nube_archivos|premium|pagos|tickets_pago|ofertas';
+const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto|nube_packs|nube_archivos|premium|pagos|tickets_pago|ofertas|' + TABLAS_SOCIAL;
 const RE_TABLA = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|ALTER TABLE|TABLE IF NOT EXISTS|ON)\\s+(${TABLAS})\\b`, 'g'), RE_INDICE = /\bINDEX IF NOT EXISTS (\w+)/g;
 export const conPrefijo = (sql, pre) => sql.replace(RE_TABLA, `$1 ${pre}$2`).replace(RE_INDICE, `INDEX IF NOT EXISTS ${pre}$1`);
 // la base de JXMod, vista con las tablas de Stickerazo («sz_usuarios», «sz_packs»…)
@@ -134,6 +136,7 @@ async function borrarCuenta(env, idCuenta) {
   await env.DB.prepare('DELETE FROM entradas WHERE usuario = ?').bind(idCuenta).run();
   await borrarNube(nubeDb(env), idCuenta);   // (y lo que tenía guardado en su cuenta)
   await pagosAlBorrar(env, env.DB, idCuenta);   // (si pagaba Premium por mes o por año, se da de baja)
+  await socialAlBorrar(env.DB, idCuenta, (pack) => borrarArchivos(env, pack));   // (sus publicaciones, amigos y mensajes)
 }
 
 // ---- límites (para que nadie llene todo de una) ----
@@ -221,6 +224,7 @@ async function manejar(req, env, ctx, base) {
       await preparar(env);
       if (ruta.startsWith('/m/')) return media(req, env, ctx, ruta);
       if (ruta.startsWith('/u/')) return imagenPerfil(req, env, ctx, ruta);
+      if (ruta.startsWith('/s/') || ruta.startsWith('/c/')) return mediaSocial(req, env, ctx, ruta);
       if (ruta.startsWith('/p/')) return compartir(env, ruta.slice(3), origen);
       // Premium y donaciones: la página con los botones de PayPal (la abre la app en el navegador, con un ticket)
       if (ruta === '/premium') {
@@ -297,6 +301,9 @@ async function api(req, env, u, r, metodo, servidor) {
   // ---- tus packs guardados en tu cuenta (nube.js) ----
   { const rn = await nubeRutas(req, nubeDb(env), yo, r, metodo, { json, error, limite: (k, n, s) => limite(env, k, n, s) }); if (rn) return rn; }
   { const rp = await pagosRutas(req, env, env.DB, yo, r, metodo, servidor, { json, error, limite: (k, n, s) => limite(env, k, n, s), cuerpo }); if (rp) return rp; }
+  // ---- publicaciones, amigos y chat (social.js) ----
+  { const rs = await socialRutas(req, env, env.DB, yo, r, metodo, { json, error, limite: (k, n, s) => limite(env, k, n, s), cuerpo, textoProhibido, publico, infoWebP, nuevoId,
+      guardarArchivo: (pk, n, t, d) => guardarArchivo(env, pk, n, t, d), borrarArchivos: (pk) => borrarArchivos(env, pk) }); if (rs) return rs; }
   // ---- contacto (el formulario de la página) ----
   if (r === 'contacto' && metodo === 'POST') {
     const d = await cuerpo(), motivo = ['consulta', 'privacidad', 'borrar', 'derechos', 'denuncia', 'arrepentimiento', 'baja', 'pagos', 'otro'].includes(d.motivo) ? d.motivo : 'otro';
@@ -473,7 +480,10 @@ async function api(req, env, u, r, metodo, servidor) {
     const tot = await env.DB.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(descargas), 0) AS d, COALESCE(SUM(likes), 0) AS l FROM packs WHERE autor = ? AND oculto = 0 AND privado = 0').bind(usr.id).first();
     const ev = await sorteo(env), elegido = !!ev && ev.elegidos.some((x) => x.usuario === usr.id);
     const out = { usuario: { ...publico(usr), packs: tot.n, descargas: tot.d, likes: tot.l, insignias: elegido ? ['termo'] : [] }, packs: await marcarLikes(env, yo, packs) };
-    if (yo) { out.sigo = !!(await env.DB.prepare('SELECT 1 FROM sigue WHERE usuario = ? AND sigue_a = ?').bind(yo.id, usr.id).first()); out.bloqueado = !!(await env.DB.prepare('SELECT 1 FROM bloqueos WHERE usuario = ? AND bloqueado = ?').bind(yo.id, usr.id).first()); out.soyYo = yo.id === usr.id; }
+    if (yo) { out.sigo = !!(await env.DB.prepare('SELECT 1 FROM sigue WHERE usuario = ? AND sigue_a = ?').bind(yo.id, usr.id).first()); out.bloqueado = !!(await env.DB.prepare('SELECT 1 FROM bloqueos WHERE usuario = ? AND bloqueado = ?').bind(yo.id, usr.id).first()); out.soyYo = yo.id === usr.id;
+      // (la amistad: nada, enviado —se la pedí—, recibido —me la pidió—, amigos)
+      const am = await env.DB.prepare('SELECT de, estado FROM amigos WHERE (de = ? AND para = ?) OR (de = ? AND para = ?)').bind(yo.id, usr.id, usr.id, yo.id).first();
+      out.amistad = !am ? 'nada' : am.estado === 'amigos' ? 'amigos' : am.de === yo.id ? 'enviado' : 'recibido'; }
     return json(out);
   }
   if ((m = /^usuarios\/([a-z0-9]{10})\/reportar$/.exec(r)) && metodo === 'POST') {
@@ -502,6 +512,7 @@ async function api(req, env, u, r, metodo, servidor) {
     }
     if (metodo === 'POST') {
       await env.DB.prepare('INSERT OR IGNORE INTO bloqueos (usuario, bloqueado) VALUES (?, ?)').bind(yo.id, id).run();
+      await socialAlBloquear(env.DB, yo.id, id);   // (bloquear corta la amistad y el chat)
       for (const [a, b] of [[yo.id, id], [id, yo.id]]) if ((await env.DB.prepare('DELETE FROM sigue WHERE usuario = ? AND sigue_a = ?').bind(a, b).run()).meta.changes)
         await env.DB.batch([env.DB.prepare('UPDATE usuarios SET seguidores = MAX(0, seguidores - 1) WHERE id = ?').bind(b), env.DB.prepare('UPDATE usuarios SET siguiendo = MAX(0, siguiendo - 1) WHERE id = ?').bind(a)]);
     } else if (metodo === 'DELETE') await env.DB.prepare('DELETE FROM bloqueos WHERE usuario = ? AND bloqueado = ?').bind(yo.id, id).run();
@@ -510,6 +521,7 @@ async function api(req, env, u, r, metodo, servidor) {
   // ---- moderación (con ADMIN_CLAVE) ----
   if (r.startsWith('admin/')) {
     if (!env.ADMIN_CLAVE || req.headers.get('X-Admin') !== env.ADMIN_CLAVE) return error('No', 403);
+    if (r === 'admin/social') { const ra = await socialAdmin(env.DB, r, metodo, metodo === 'POST' ? await cuerpo() : {}, { json, error, borrarArchivos: (pk) => borrarArchivos(env, pk) }); if (ra) return ra; }   // (publicaciones y mensajes denunciados)
     if (r === 'admin/reportados' && metodo === 'GET') {
       const { results } = await env.DB.prepare('SELECT p.*, u.nombre AS a_nombre, u.avatar AS a_avatar, u.premium_hasta AS a_premium, u.bloqueado AS a_bloq FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.reportes > 0 ORDER BY p.oculto DESC, p.reportes DESC LIMIT 100').all();
       const out = [];
@@ -625,6 +637,18 @@ async function imagenPerfil(req, env, ctx, ruta) {
   const res = new Response(bytesDe(r.datos), { headers: { 'Content-Type': r.tipo, 'Cache-Control': 'public, max-age=86400', ...CORS } });
   if (cache && ctx && ctx.waitUntil) ctx.waitUntil(cache.put(req, res.clone()));
   return res;
+}
+// (las imágenes de las publicaciones —si no están ocultas— y los stickers propios del chat, con su clave al azar)
+async function mediaSocial(req, env, ctx, ruta) {
+  let m = /^\/s\/([a-z0-9]{10})\/([0-3])\.webp$/.exec(ruta), pack, nombre;
+  if (m) { const p = await env.DB.prepare('SELECT 1 FROM posts WHERE id = ? AND oculto = 0').bind(m[1]).first(); if (!p && !(env.ADMIN_CLAVE && req.headers.get('X-Admin') === env.ADMIN_CLAVE)) return new Response('No está', { status: 404, headers: CORS }); pack = 'p_' + m[1]; nombre = m[2] + '.webp'; }
+  else if ((m = /^\/c\/([a-z0-9]{10})\/st\.webp$/.exec(ruta))) { pack = 'c_' + m[1]; nombre = 'st.webp'; }
+  else return new Response('No está', { status: 404, headers: CORS });
+  const r = await env.DB.prepare('SELECT tipo, datos FROM archivos WHERE pack = ? AND nombre = ?').bind(pack, nombre).first();
+  if (!r) return new Response('No está', { status: 404, headers: CORS });
+  let datos = bytesDe(r.datos);
+  if (!datos && env.MEDIA) { const o = await env.MEDIA.get(`${pack}/${nombre}`); if (!o) return new Response('No está', { status: 404, headers: CORS }); datos = new Uint8Array(await o.arrayBuffer()); }
+  return new Response(datos, { headers: { 'Content-Type': r.tipo, 'Cache-Control': 'private, max-age=3600', ...CORS } });
 }
 async function media(req, env, ctx, ruta) {
   const m = /^\/m\/([a-z0-9]{10})\/([A-Za-z0-9_-]{1,40}\.(?:webp|png))$/.exec(ruta);
