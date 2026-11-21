@@ -51,7 +51,8 @@ python3 -I herramientas/armar_apk.py SALIDA.apk --version-name 0.7 --aab SALIDA.
 ## Paso a paso
 
 ### APKPure
-Gratis, y lo revisan en uno o dos días. Pide APK o XAPK de hasta 2 GB.
+Gratis, y lo revisan en uno o dos días. Pide APK o XAPK de hasta 2 GB. **Estado:** la 0.8 (26112190) se mandó a
+revisión el 21/11/2026.
 1. Creá una cuenta en apkpure.com y después entrá a **developer.apkpure.com** → «Register now». Pide nombre de
    desarrollador (por ejemplo «Stickerazo»), mail y sitio web (`https://stickerazo.pages.dev`), y un código que te
    mandan por mail. Si en algún paso te pide ser mayor de edad, la cuenta la abre tu papá a su nombre, como la de PayPal.
