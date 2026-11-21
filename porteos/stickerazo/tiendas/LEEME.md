@@ -9,7 +9,7 @@ demás ya está listo: los textos en [`ficha.md`](ficha.md), las imágenes en `m
 |---|---|---|---|
 | **Nuestra página** | Gratis | Nada | Ya está: **stickerazo.pages.dev** (el APK de `descargas/`) |
 | **Uptodown** | Gratis | Una cuenta en su portal para desarrolladores | `Stickerazo-0.7-uptodown.apk` |
-| **Galaxy Store** (Samsung) | Gratis | Cuenta Samsung y pasar a «vendedor comercial» en el Seller Portal (lo piden aunque la app sea gratis) | `Stickerazo-0.7-galaxy.apk` |
+| **Galaxy Store** (Samsung) | Gratis, pero con trámite | Cuenta Samsung, «vendedor comercial» y un número **D-U-N-S** (lo piden para toda app de Android, aunque sea gratis) | el APK de Galaxy |
 | **AppGallery** (Huawei) | Gratis | Cuenta Huawei y verificar tu identidad (foto del documento de los dos lados) | `Stickerazo-0.7-huawei.apk` |
 | **Google Play** | US$25, una sola vez | Cuenta de desarrollador, documento y, si la cuenta es personal, 12 personas que la prueben 14 días antes de publicar | `Stickerazo-0.7.aab` |
 
@@ -53,14 +53,22 @@ python3 -I herramientas/armar_apk.py SALIDA.apk --version-name 0.7 --aab SALIDA.
 4. Lo revisan y lo publican. Las versiones nuevas se suben igual.
 
 ### Galaxy Store
-1. Creá una cuenta Samsung y entrá a **Samsung Seller Portal** (seller.samsungapps.com).
-2. Fijate bien el **país** de la cuenta: después no se puede cambiar.
-3. Pedí el estado de **vendedor comercial** (Commercial Seller). Samsung lo pide aunque la app sea gratis.
-4. «Add New Application» → Android → idioma Español.
-5. En **Binary** subí el APK de Galaxy. Ya cumple lo que piden: Android 16 como destino y sin código nativo.
-6. Completá la ficha con `ficha.md`, las capturas y el ícono. En el formulario de contenido, usá las respuestas de
-   `ficha.md`.
-7. Mandalo a revisión. Tarda unos días.
+**Ojo antes de empezar:** desde 2022 Samsung pide, para publicar cualquier app de Android (gratis o paga), el estado de
+**vendedor comercial** y un número **D-U-N-S**. El D-U-N-S lo da gratis Dun & Bradstreet, pero es para negocios: como
+persona sirve si sos **monotributista** (o tenés una empresa). Tarda: D&B puede demorar semanas y Samsung hasta 10 días
+hábiles en verificarlo. Si no tenés monotributo, la tienda que sirve para AdMob y acepta personas es **Google Play**.
+
+1. Pedí el D-U-N-S en la página de Dun & Bradstreet (busca «D-U-N-S Number lookup / request»), con los datos de tu
+   monotributo, exactamente como figuran en AFIP.
+2. Creá una cuenta Samsung y entrá a **Samsung Seller Portal** (seller.samsungapps.com).
+3. Fijate bien el **país** de la cuenta: después no se puede cambiar.
+4. En tu perfil, pedí **Commercial Seller** con el D-U-N-S, tus datos (iguales a los del documento) y la cuenta del banco.
+   Si te traba, «Help → Contact us» del Seller Portal.
+5. «Add New Application» → Android → idioma Español.
+6. En **Binary** subí el APK de Galaxy. Ya cumple lo que piden: Android 16 como destino y sin código nativo.
+7. Completá la ficha con `ficha.md`, las capturas y el ícono. En el formulario de contenido, usá las respuestas de
+   `ficha.md`. Política de privacidad: `https://stickerazo.pages.dev/privacidad`.
+8. Mandalo a revisión. Tarda unos días.
 
 ### AppGallery
 1. Creá una cuenta Huawei y registrate como **desarrollador individual** en developer.huawei.com.
@@ -93,6 +101,9 @@ verdad salen de **tu** cuenta de AdMob: ahí te pagan. Mientras sean de prueba, 
    falta.
 6. Pasame el **ID de la app** (`ca-app-pub-…~…`) y los **2 ID de bloque** (`ca-app-pub-…/…`). No son secretos, me los
    podés pegar en el chat. Los pongo en `android/anuncios.json`, armo la versión y la publico.
+7. **app-ads.txt**: si la app está en Google Play, AdMob pide este archivo en la raíz de la página que figura en la ficha
+   (`https://stickerazo.pages.dev/app-ads.txt`). Con el ID de la app ya sé tu número de editor (`pub-…`) y lo pongo yo.
+   Si está sólo en Galaxy Store, por ahora AdMob no lo pide.
 
 AdMob revisa la app («preparación de la app») en unos días. Hasta que la apruebe, muestra pocos anuncios.
 
