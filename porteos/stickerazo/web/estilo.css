@@ -1047,3 +1047,13 @@ html[data-tema="claro"] .pegaOp { background: #0000000a; border-color: #00000014
 .grandote .pegaUI { width: 92px; height: 92px; transform: rotate(-5deg); }
 .burbujas span .pegaUI { width: 1.35em; height: 1.35em; }
 .burbujas span:nth-child(2) .pegaUI { transform: rotate(8deg); } .burbujas span:nth-child(3) .pegaUI { transform: rotate(-10deg); }
+
+/* la oferta de bienvenida */
+.hojaOferta .ofEtq { display: inline-block; padding: 5px 12px; border-radius: 99px; background: linear-gradient(90deg, #ff3e8a, #ff8a1a); color: #fff; font: 800 12px/1 system-ui, sans-serif; letter-spacing: .5px; text-transform: uppercase; }
+.hojaOferta h3 { margin: 10px 0 4px; }
+.ofPrecio { margin: 4px 0 2px; display: flex; align-items: baseline; justify-content: center; gap: 12px; }
+.ofPrecio s { color: var(--suave); font-size: 18px; } .ofPrecio b { font: 400 40px/1 'LuckiestGuy', sans-serif; color: #ffd23f; }
+.ofCuenta { margin: 2px 0 12px; color: var(--suave); } .ofCuenta b, .prOferta em { font-variant-numeric: tabular-nums; color: var(--texto); font-weight: 800; }
+.ofLista { list-style: none; padding: 10px 14px; margin: 0 0 12px; border-radius: 18px; background: var(--panel2); text-align: left; display: grid; gap: 8px; }
+.ofLista li { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14.5px; } .ofLista i[data-i] { width: 20px; height: 20px; color: #ffc93a; }
+.prOferta { position: relative; } .prOferta s { display: block; font-size: 12px; opacity: .6; } .prOferta em { display: block; font-style: normal; font-size: 12px; margin-top: 2px; color: #ff8a1a !important; }

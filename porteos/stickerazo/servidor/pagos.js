@@ -18,6 +18,10 @@
 // De PayPal se guarda el id de la suscripción o de la orden, el monto, la moneda y la fecha. Nada de tarjetas ni mails.
 // En las pruebas: SZ_PAYPAL_API (un PayPal de mentira en la compu).
 export const PRECIOS = { mes: '1.99', anio: '14.99', vida: '29.99' }, MONEDA = 'USD', DONACION = { min: 1, max: 200 };
+// (la oferta de bienvenida: Premium de por vida más barato durante 48 h desde que la cuenta la ve por primera vez; es de
+// verdad —el servidor cobra ese precio mientras dura— y una sola vez por cuenta. Al cobrar se aceptan 2 h más, por si
+// el pago se demoró en PayPal)
+export const OFERTA = { vida: '19.99', horas: 48 };
 export const BENEFICIOS = [
   ['bloquear', 'Sin anuncios, nunca', 'Si la app suma publicidad, a vos no te aparece.'],
   ['kf', 'Editor pro', 'Movimiento con puntos clave y efectos de video como Glitch, VHS, Zoom y Brillo.'],
@@ -45,6 +49,7 @@ export const ESQUEMA_PAGOS = [
   'CREATE TABLE IF NOT EXISTS premium (usuario TEXT PRIMARY KEY, tipo TEXT NOT NULL, ref TEXT NOT NULL, estado TEXT NOT NULL, hasta INTEGER NOT NULL, revisado INTEGER NOT NULL, creado INTEGER NOT NULL)',
   'CREATE TABLE IF NOT EXISTS pagos (id TEXT PRIMARY KEY, usuario TEXT NOT NULL, tipo TEXT NOT NULL, monto TEXT NOT NULL, moneda TEXT NOT NULL, creado INTEGER NOT NULL)',
   'CREATE TABLE IF NOT EXISTS tickets_pago (t TEXT PRIMARY KEY, usuario TEXT NOT NULL, vence INTEGER NOT NULL)',
+  'CREATE TABLE IF NOT EXISTS ofertas (usuario TEXT PRIMARY KEY, hasta INTEGER NOT NULL)',
 ];
 const enc = new TextEncoder();
 const hex = (u8) => [...u8].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -132,14 +137,16 @@ export async function estadoPremium(env, db, u, revisar = true) {
     try { const n = await revisarSuscripcion(env, db, u, p.ref); if (n) p = n; } catch (e) { /* PayPal no contesta: queda lo que había */ }
   }
   const d = await db.prepare("SELECT COUNT(*) AS n FROM pagos WHERE usuario = ? AND tipo = 'donacion'").bind(u).first();
-  return { premium: !!p && p.hasta > Date.now(), tipo: p ? p.tipo : null, estado: p ? p.estado : null, hasta: p ? p.hasta : 0, donador: d.n > 0 };
+  const o = p && p.tipo === 'vida' ? null : await db.prepare('SELECT hasta FROM ofertas WHERE usuario = ?').bind(u).first();
+  return { premium: !!p && p.hasta > Date.now(), tipo: p ? p.tipo : null, estado: p ? p.estado : null, hasta: p ? p.hasta : 0, donador: d.n > 0,
+    oferta: o && o.hasta > Date.now() ? { vida: OFERTA.vida, antes: PRECIOS.vida, hasta: o.hasta } : null, ofertaNueva: !o && !(p && p.hasta > Date.now()) };
 }
 /** al borrar una cuenta: la suscripción se da de baja (que no se le cobre más) y los pagos quedan sin nombre (los
  *  registros de lo cobrado se guardan por ley, pero ya no se pueden atar a nadie) */
 export async function pagosAlBorrar(env, db, u) {
   const p = await db.prepare('SELECT * FROM premium WHERE usuario = ?').bind(u).first();
   if (p && esSuscripcion(p.tipo) && p.estado === 'activa' && pagosPrendidos(env)) { try { await cancelar(env, p.ref, 'Cuenta borrada'); } catch (e) { /* se reintenta a mano */ } }
-  await db.batch([db.prepare('DELETE FROM premium WHERE usuario = ?').bind(u), db.prepare('DELETE FROM tickets_pago WHERE usuario = ?').bind(u),
+  await db.batch([db.prepare('DELETE FROM premium WHERE usuario = ?').bind(u), db.prepare('DELETE FROM tickets_pago WHERE usuario = ?').bind(u), db.prepare('DELETE FROM ofertas WHERE usuario = ?').bind(u),
     db.prepare("UPDATE pagos SET usuario = 'borrada' WHERE usuario = ?").bind(u)]);
 }
 /** el ticket de la página de pagos → la cuenta (o null si no está o venció) */
@@ -163,6 +170,14 @@ export async function pagosRutas(req, env, db, yo, r, metodo, servidor, { json, 
     await db.batch([db.prepare('DELETE FROM tickets_pago WHERE vence < ?').bind(ahora), db.prepare('INSERT INTO tickets_pago (t, usuario, vence) VALUES (?, ?, ?)').bind(await sha(t), yo.id, ahora + 2 * 3600e3)]);
     return json({ url: `${servidor}/premium?t=${t}` });
   }
+  // (la app muestra la oferta por primera vez: desde ahora corren las 48 h; una sola vez por cuenta)
+  if (r === 'premium/oferta' && metodo === 'POST') {
+    if (!yo) return error('Entrá con tu cuenta', 401);
+    const e = await estadoPremium(env, db, yo.id, false);
+    if (e.premium) return error('Ya sos Premium', 409);
+    await db.prepare('INSERT OR IGNORE INTO ofertas (usuario, hasta) VALUES (?, ?)').bind(yo.id, Date.now() + OFERTA.horas * 3600e3).run();
+    return json({ ok: true, ...(await estadoPremium(env, db, yo.id, false)) });
+  }
   if (r === 'premium/baja' && metodo === 'POST') {
     if (!yo) return error('Entrá con tu cuenta', 401);
     const p = await db.prepare('SELECT * FROM premium WHERE usuario = ?').bind(yo.id).first();
@@ -180,7 +195,8 @@ export async function pagosRutas(req, env, db, yo, r, metodo, servidor, { json, 
     if (r === 'pp/orden') {
       const tipo = d.tipo === 'vida' || d.tipo === 'donacion' ? d.tipo : null; if (!tipo) return error('Mal armado');
       if (tipo === 'vida' && (await estadoPremium(env, db, u, false)).tipo === 'vida') return error('Ya tenés Premium de por vida', 409);
-      const monto = tipo === 'vida' ? PRECIOS.vida : montoDonacion(d.monto);
+      const of = tipo === 'vida' ? await db.prepare('SELECT hasta FROM ofertas WHERE usuario = ?').bind(u).first() : null;
+      const monto = tipo === 'vida' ? (of && of.hasta > Date.now() ? OFERTA.vida : PRECIOS.vida) : montoDonacion(d.monto);
       if (!monto) return error(`La donación va de US$ ${DONACION.min} a US$ ${DONACION.max}`);
       const o = await pp(env, 'POST', '/v2/checkout/orders', { intent: 'CAPTURE', purchase_units: [{ reference_id: tipo, custom_id: u,
         description: tipo === 'vida' ? 'Stickerazo Premium de por vida' : 'Donación a Stickerazo', amount: { currency_code: MONEDA, value: monto } }] });
@@ -196,7 +212,9 @@ export async function pagosRutas(req, env, db, yo, r, metodo, servidor, { json, 
       if (!c.ok) { const g = await pp(env, 'GET', `/v2/checkout/orders/${id}`); if (g.ok && g.j.status === 'COMPLETED') c = g; else return error('No se pudo cobrar. No se te descontó nada.', 402); }
       const pu = (c.j.purchase_units || [])[0] || {}, cap = ((pu.payments || {}).captures || [])[0] || {};
       const tipo = pu.reference_id, valor = cap.amount && cap.amount.value, moneda = cap.amount && cap.amount.currency_code;
-      if (c.j.status !== 'COMPLETED' || (cap.custom_id || pu.custom_id) !== u || moneda !== MONEDA || !(tipo === 'vida' ? valor === PRECIOS.vida : tipo === 'donacion' && montoDonacion(valor) === valor))
+      const of = tipo === 'vida' && valor === OFERTA.vida ? await db.prepare('SELECT hasta FROM ofertas WHERE usuario = ?').bind(u).first() : null;
+      const vidaBien = valor === PRECIOS.vida || (!!of && of.hasta + 2 * 3600e3 > Date.now());
+      if (c.j.status !== 'COMPLETED' || (cap.custom_id || pu.custom_id) !== u || moneda !== MONEDA || !(tipo === 'vida' ? vidaBien : tipo === 'donacion' && montoDonacion(valor) === valor))
         return error('El pago no coincide con lo pedido. Escribinos y lo arreglamos.', 409);
       if (cap.status !== 'COMPLETED') return json({ ok: false, pendiente: true, error: 'PayPal dejó el pago en revisión. Cuando lo apruebe, escribinos y lo activamos.' }, 202);
       const ahora = Date.now(), previo = await db.prepare('SELECT * FROM premium WHERE usuario = ?').bind(u).first();
@@ -224,11 +242,12 @@ export async function pagosRutas(req, env, db, yo, r, metodo, servidor, { json, 
 }
 
 // ---- la página con los botones de PayPal (la abre la app en el navegador) ----
+const horaAr = (t) => new Date(t).toLocaleString('es-AR', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' }) + ' (hora argentina)';
 const fecha = (t) => new Date(t).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' });
 export function paginaPremium(env, { t, usuario, est, apiBase, origen }) {
   const n = hex(crypto.getRandomValues(new Uint8Array(16))), esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const ahorro = Math.round((1 - Number(PRECIOS.anio) / (12 * Number(PRECIOS.mes))) * 100), plata = (v) => 'US$ ' + String(v).replace('.', ',');
-  const estado = !est.premium ? '' : est.tipo === 'vida' ? 'Ya sos Premium de por vida ✨' : est.estado === 'activa' ? `Ya sos Premium ✨ · se renueva el ${fecha(est.hasta - GRACIA)}` : `Sos Premium hasta el ${fecha(est.hasta)} (la diste de baja)`;
+  const estado = !est.premium ? '' : est.tipo === 'vida' ? 'Ya sos Premium de por vida' : est.estado === 'activa' ? `Ya sos Premium · se renueva el ${fecha(est.hasta - GRACIA)}` : `Sos Premium hasta el ${fecha(est.hasta)} (la diste de baja)`;
   const datos = JSON.stringify({ c: env.SZ_PAYPAL_CLIENT_ID, t, u: usuario.id, api: apiBase, planes: { mes: env.SZ_PAYPAL_PLAN_MES || '', anio: env.SZ_PAYPAL_PLAN_ANIO || '' }, est, sdk: sdkPP(env) }).replace(/</g, '\\u003c');
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
 <title>Stickerazo Premium</title><style>
@@ -242,7 +261,7 @@ h1{font:400 30px/1.1 L;text-align:center;margin:14px 0 4px;background:linear-gra
 .ben li{display:flex;gap:12px;padding:7px 0;align-items:flex-start}.ben i{font-style:normal;line-height:0;color:#ffc93a;flex:none}.ben b{display:block}.ben small{color:#bdb5d0;font-size:13.5px}
 .planes{display:grid;gap:10px;margin-bottom:14px}.plan{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 16px;border-radius:18px;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:inherit;font:inherit;cursor:pointer}
 .plan.act{border-color:#ffd23f;background:rgba(255,210,63,.09)}.plan b{font-size:17px}.plan small{display:block;color:#bdb5d0;font-size:13px}.plan .p{margin-left:auto;font-weight:800;font-size:17px;white-space:nowrap}
-.tag{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;background:#ff3e8a;color:#fff;font-size:11.5px;font-weight:800;vertical-align:2px}
+.tag{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;background:#ff3e8a;color:#fff;font-size:11.5px;font-weight:800;vertical-align:2px}.antes{display:block;font-size:12px;opacity:.6;font-weight:600}
 .bot{min-height:50px;margin:6px 0 4px;color-scheme:light}.nota{color:#a79fbd;font-size:12.5px;text-align:center;margin:8px 0}.nota a{color:#ffd23f}
 h2{font:400 22px/1 L;margin:28px 0 6px;text-align:center}.don{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:12px 0}
 .don button,.don input{padding:11px 16px;border-radius:99px;border:2px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#fff;font:700 16px system-ui;cursor:pointer}
@@ -254,7 +273,7 @@ a.b{display:inline-block;margin-top:14px;color:#fff;text-decoration:none;font-we
 <div id="comprar"${est.premium ? ' hidden' : ''}><div class="planes" id="planes">
 <button class="plan" data-p="mes"><span><b>Por mes</b><small>Se renueva solo. Lo das de baja cuando quieras.</small></span><span class="p">${plata(PRECIOS.mes)}</span></button>
 <button class="plan act" data-p="anio"><span><b>Por año <span class="tag">Ahorrás ${ahorro} %</span></b><small>Un solo pago por año. Se renueva solo.</small></span><span class="p">${plata(PRECIOS.anio)}</span></button>
-<button class="plan" data-p="vida"><span><b>De por vida</b><small>Un solo pago y listo, para siempre.</small></span><span class="p">${plata(PRECIOS.vida)}</span></button></div>
+<button class="plan" data-p="vida"><span><b>De por vida${est.oferta ? ' <span class="tag">Oferta</span>' : ''}</b><small>${est.oferta ? `Precio de bienvenida hasta el ${horaAr(est.oferta.hasta)}.` : 'Un solo pago y listo, para siempre.'}</small></span><span class="p">${est.oferta ? `<s class="antes">${plata(PRECIOS.vida)}</s>${plata(OFERTA.vida)}` : plata(PRECIOS.vida)}</span></button></div>
 <div class="bot" id="bSub"></div><div class="bot" id="bVida" hidden></div>
 <p class="nota">Los precios están en dólares; PayPal te muestra cuánto es en tu moneda antes de pagar. Las suscripciones se renuevan solas: para que no se cobre el período siguiente, dala de baja antes de la fecha de renovación (en la app: Perfil → Premium → Dar de baja). No hay devoluciones, salvo el arrepentimiento que da la ley: 10 días desde la primera compra (<a href="${origen}/terminos#premium">términos</a>).</p></div>
 <h2>¿Querés donar? 💛</h2><p class="nota">Lo que quieras, una sola vez. Te llevás la insignia de Donador. Las donaciones no se devuelven.</p>

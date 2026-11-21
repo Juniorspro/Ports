@@ -30,7 +30,7 @@ const ppSrv = http.createServer(async (q, r) => {
 }).listen(PP);
 const conPP = { SZ_PAYPAL_CLIENT_ID: 'cid', SZ_PAYPAL_SECRET: 'sec', SZ_PAYPAL_API: `http://127.0.0.1:${PP}`, SZ_PAYPAL_PLAN_MES: 'P-MES', SZ_PAYPAL_PLAN_ANIO: 'P-ANIO' };
 const { srv, env: ENV } = await arrancar(PUERTO, 'clave-admin', conPP);
-const db = (sql, ...a) => ENV.DB.prepare(sql.replace(/\b(usuarios|premium|pagos|tickets_pago|limites)\b/g, T + '$1')).bind(...a);
+const db = (sql, ...a) => ENV.DB.prepare(sql.replace(/\b(usuarios|premium|pagos|tickets_pago|limites|ofertas)\b/g, T + '$1')).bind(...a);
 const api = async (ruta, o = {}, tok, base = B) => { const h = { ...(o.headers || {}) }; if (tok) h.Authorization = 'Bearer ' + tok; if (o.json) { h['Content-Type'] = 'application/json'; o.body = JSON.stringify(o.json); } const r = await fetch(base + ruta, { ...o, headers: h }); const tx = await r.text(); let j = null; try { j = JSON.parse(tx); } catch (e) { /* html */ } return { st: r.status, j, tx, h: r.headers }; };
 // (las altas desde una misma compu tienen límite por hora: en la prueba se limpia antes de cada una)
 const cuenta = async (n) => { await db('DELETE FROM limites').run(); const r = await api('/api/registro', { method: 'POST', json: { nombre: n } }); return { tok: r.j.token, id: r.j.usuario.id, nombre: r.j.usuario.nombre }; };
@@ -149,5 +149,20 @@ const tot = Object.fromEntries(adm.j.totales.map((x) => [x.tipo, x.n]));
 ok(adm.st === 200 && admNo.st === 403 && tot.donacion === 1 && tot.mes === 4 && tot.anio === 1 && tot.vida === 2, `el panel ve lo cobrado (${adm.j.totales.map((x) => `${x.tipo} ${x.n}`).join(', ')}); sin la clave, no`);
 ok(F.permisos <= 2, `el permiso de PayPal se pide una vez y se reusa (${F.permisos})`);
 
+// ---- la oferta de bienvenida: de verdad, la cobra el servidor, y una sola vez por cuenta ----
+const O = await cuenta('oferta'), eO0 = await estado(O);
+ok(eO0.yo.oferta === null && eO0.yo.ofertaNueva === true, 'cuenta nueva: la oferta todavía no arrancó');
+const of1 = await api('/api/premium/oferta', { method: 'POST' }, O.tok), of2 = await api('/api/premium/oferta', { method: 'POST' }, O.tok), hO = of1.j && of1.j.oferta && of1.j.oferta.hasta;
+ok(of1.st === 200 && of1.j.oferta.vida === '19.99' && of1.j.oferta.antes === '29.99' && Math.abs(hO - (Date.now() + 48 * 3600e3)) < 60e3 && of2.j.oferta.hasta === hO, 'al mostrarla arranca: US$ 19,99 (antes 29,99) por 48 h, y no se reinicia');
+const tO = await ticket(O), vO = await pagar(tO, 'vida');
+ok(vO.orden.st === 200 && F.ordenes.get(vO.orden.j.id).pu.amount.value === '19.99' && vO.cobro.st === 200 && (await estado(O)).yo.tipo === 'vida', 'con la oferta, la orden de PayPal es de 19,99 y Premium de por vida se activa');
+ok((await api('/api/premium/oferta', { method: 'POST' }, O.tok)).st === 409 && (await estado(O)).yo.oferta === null, 'ya Premium: no hay más oferta');
+const O2 = await cuenta('oferta.vencida'); await api('/api/premium/oferta', { method: 'POST' }, O2.tok);
+await db('UPDATE ofertas SET hasta = ? WHERE usuario = ?', Date.now() - 1000, O2.id).run();
+const eO2 = await estado(O2), tO2 = await ticket(O2), oO2 = await api('/api/pp/orden', { method: 'POST', json: { t: tO2, tipo: 'vida' } }), re = await api('/api/premium/oferta', { method: 'POST' }, O2.tok);
+ok(eO2.yo.oferta === null && eO2.yo.ofertaNueva === false && F.ordenes.get(oO2.j.id).pu.amount.value === '29.99' && !re.j.oferta, 'vencida: no aparece más, no vuelve a arrancar y la orden es de 29,99');
+await db('UPDATE ofertas SET hasta = ? WHERE usuario = ?', Date.now() - 3 * 3600e3, O2.id).run();
+F.truchar = '19.99'; const vO2 = await pagar(tO2, 'vida');
+ok(vO2.cobro.st === 409 && !(await estado(O2)).yo.premium, 'cobrar 19,99 con la oferta vencida hace más de 2 h: no se activa');
 console.log(`RESUMEN: ${bien} bien, ${fallas} fallas`);
 srv.close(); ppSrv.close(); process.exit(fallas ? 1 : 0);

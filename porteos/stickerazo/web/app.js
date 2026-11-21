@@ -1830,3 +1830,5 @@ addEventListener('resize', moverIndicador); setTimeout(moverIndicador, 50);
 if (P.esApp && window.SZN.enlaceInicial) { const e = window.SZN.enlaceInicial(); if (e) window.__szAbrir(e); }
 setTimeout(() => recorte().catch(() => {}), 1200); // (los modelos, de fondo, para que el primer recorte salga enseguida)
 window.__sz = { LIQ, liquido, E, ir, atras, abrirFoto, recorte, aviso, pestaña, C, pedirE };
+// (la oferta de bienvenida de Premium: unos segundos después de entrar, si corresponde —comunidad.js—)
+setTimeout(() => C.ofertaAlEntrar().catch(() => {}), 4500);

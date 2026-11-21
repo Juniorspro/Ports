@@ -59,7 +59,7 @@ const ESQUEMA = [
 const COLUMNAS_NUEVAS = ['ALTER TABLE packs ADD COLUMN privado INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE usuarios ADD COLUMN google TEXT',
   'CREATE UNIQUE INDEX IF NOT EXISTS i_usuarios_google ON usuarios(google)', 'ALTER TABLE usuarios ADD COLUMN premium_hasta INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE usuarios ADD COLUMN donador INTEGER NOT NULL DEFAULT 0'];
-const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto|nube_packs|nube_archivos|premium|pagos|tickets_pago';
+const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto|nube_packs|nube_archivos|premium|pagos|tickets_pago|ofertas';
 const RE_TABLA = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|ALTER TABLE|TABLE IF NOT EXISTS|ON)\\s+(${TABLAS})\\b`, 'g'), RE_INDICE = /\bINDEX IF NOT EXISTS (\w+)/g;
 export const conPrefijo = (sql, pre) => sql.replace(RE_TABLA, `$1 ${pre}$2`).replace(RE_INDICE, `INDEX IF NOT EXISTS ${pre}$1`);
 // la base de JXMod, vista con las tablas de Stickerazo («sz_usuarios», «sz_packs»…)

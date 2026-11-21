@@ -389,12 +389,13 @@ export async function abrirPremium() {
   const baja = yo.premium && (yo.tipo === 'mes' || yo.tipo === 'anio') && yo.estado === 'activa';
   X.$('#prCuerpo', m).innerHTML = `${yo.premium ? `<p class="prEstado">${X.h(textoPremium(yo))}</p>` : ''}
     <ul class="prBen">${(d.beneficios2 || d.beneficios).map(([i, b, t]) => `<li>${/^[a-z][a-zA-Z]*$/.test(i) ? `<i data-i="${i}"></i>` : `<i>${i}</i>`}<span><b>${X.h(b)}</b><small>${X.h(t)}</small></span></li>`).join('')}</ul>
-    ${yo.premium ? '' : `<div class="prPrecios"><span><b>${plata(d.precios.mes)}</b>por mes</span><span class="mejor"><b>${plata(d.precios.anio)}</b>por año<em>−${ahorro} %</em></span><span><b>${plata(d.precios.vida)}</b>de por vida</span></div>`}
+    ${yo.premium ? '' : `<div class="prPrecios"><span><b>${plata(d.precios.mes)}</b>por mes</span><span class="mejor"><b>${plata(d.precios.anio)}</b>por año<em>−${ahorro} %</em></span>${yo.oferta ? `<span class="prOferta"><b>${plata(yo.oferta.vida)}</b><s>${plata(yo.oferta.antes)}</s>de por vida<em class="ofReloj" data-hasta="${yo.oferta.hasta}"></em></span>` : `<span><b>${plata(d.precios.vida)}</b>de por vida</span>`}</div>`}
     ${yo.donador ? '<p class="prDon"><i data-i="corazon"></i>Gracias por tu donación: tenés la insignia de Donador.</p>' : ''}
     <div class="botones">${!d.disponible ? '<button class="pri" disabled>Muy pronto</button>'
       : yo.premium ? `${baja ? '<button class="sec" data-x="baja">Dar de baja</button>' : ''}<button class="pri" data-x="donar"><i data-i="corazon"></i>Donar</button>`
       : '<button class="sec" data-x="donar"><i data-i="corazon"></i>Donar</button><button class="pri" data-x="pagar">Hacete Premium</button>'}</div>
     <p class="nota">${d.disponible ? 'Se paga con PayPal, en el navegador: no vemos ni guardamos tu tarjeta. Precios en dólares. Las suscripciones se renuevan solas: dala de baja desde acá antes de la fecha de renovación para que no se cobre el período siguiente. No hay devoluciones, salvo los 10 días de arrepentimiento que da la ley desde la primera compra.' : 'Muy pronto vas a poder hacerte Premium o donar desde acá.'}</p>`;
+  relojOferta(m);
   m.onclick = async (ev) => {
     const b = ev.target.closest('[data-x]'); if (!b) { if (ev.target === m) X.cerrarModal(); return; }
     X.vibrar(8);
@@ -405,6 +406,35 @@ export async function abrirPremium() {
       X.cerrarModal(); await cargarPremium().catch(() => {}); if (X.E.tab === 'Perfil') pintarPerfil();
     }
   };
+}
+// ---- la oferta de bienvenida (Premium de por vida más barato por 48 h, de verdad: la cobra el servidor) ----
+const restante = (h) => { const s = Math.max(0, Math.floor((h - Date.now()) / 1000)); return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+const horaLarga = (t) => new Date(t).toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+// (los relojes de la oferta en una hoja: cada segundo, hasta que se cierra)
+function relojOferta(m) {
+  const rel = [...m.querySelectorAll('[data-hasta]')]; if (!rel.length) return;
+  const paso = () => { if (!m.contains(rel[0])) return clearInterval(t); for (const r of rel) r.textContent = +r.dataset.hasta > Date.now() ? restante(+r.dataset.hasta) : 'terminó'; };
+  const t = setInterval(paso, 1000); paso();
+}
+/** al entrar a la app: si la cuenta puede tener la oferta, se la muestra (una vez por día como mucho) */
+export async function ofertaAlEntrar() {
+  if (!pagosAca() || !cuenta() || esPremium() || X.E.vista !== 'vInicio' || document.querySelector('#bienvenidaApp')) return;
+  let ult = 0; try { ult = +localStorage.getItem('sz_oferta_vista') || 0; } catch (e) { /* nada */ }
+  if (Date.now() - ult < 20 * 3600e3) return;
+  let d; try { d = await cargarPremium(); } catch (e) { return; }
+  const yo = d.yo; if (!d.disponible || !yo || yo.premium || (!yo.oferta && !yo.ofertaNueva)) return;
+  if (!X.$('#modal').classList.contains('oc') || X.E.vista !== 'vInicio') return;
+  let of = yo.oferta;
+  if (!of) { try { const r = await api('/api/premium/oferta', { method: 'POST' }); of = r.oferta; premium.yo = { ...premium.yo, ...r }; } catch (e) { return; } }
+  if (!of) return;
+  try { localStorage.setItem('sz_oferta_vista', String(Date.now())); } catch (e) { /* nada */ }
+  const m = X.modal(`<div class="hoja centro hojaOferta"><div class="grandote"><i class="pegaUI" data-pega="regalo"></i></div><span class="ofEtq">Oferta de bienvenida</span><h3>Premium de por vida</h3>
+    <p class="ofPrecio"><s>${plata(of.antes)}</s><b>${plata(of.vida)}</b></p><p class="ofCuenta">Termina en <b data-hasta="${of.hasta}"></b></p>
+    <ul class="ofLista"><li><i data-i="bloquear"></i>Sin anuncios, nunca</li><li><i data-i="kf"></i>Editor pro: Movimiento y efectos de video</li><li><i data-i="chispa"></i>Insignia y anillo dorado</li></ul>
+    <div class="botones"><button class="sec" data-x="no">Ahora no</button><button class="pri" data-x="si">La quiero</button></div>
+    <p class="nota">Un solo pago con PayPal y es tuyo para siempre. Este precio vale hasta el ${X.h(horaLarga(of.hasta))}; después vuelve a ${plata(of.antes)}.</p></div>`);
+  relojOferta(m);
+  m.onclick = (ev) => { const b = ev.target.closest('[data-x]'); if (!b) { if (ev.target === m) X.cerrarModal(); return; } X.vibrar(8); if (b.dataset.x === 'si') irAPagar(); else X.cerrarModal(); };
 }
 // (la página de PayPal, en el navegador, con un ticket de esta cuenta; la app pregunta hasta que se acredite)
 async function irAPagar() {

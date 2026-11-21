@@ -40,6 +40,13 @@ const p = await ctx.newPage(); p.on('pageerror', (e) => err.push(e.message));
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 await p.goto(`http://127.0.0.1:${APP}/index.html`); await p.waitForFunction(() => window.__sz);
 for (let k = 0; k < 6 && (await p.isVisible('#bienvenidaApp').catch(() => false)); k++) { await p.click('#bvSaltar', { timeout: 2000 }).catch(() => {}); await espera(500); }
+// la oferta de bienvenida: sola, al rato de entrar, con el contador corriendo
+await p.waitForSelector('.hojaOferta', { timeout: 15000 }).catch(() => {});
+const of = await p.evaluate(() => { const h = document.querySelector('.hojaOferta'); return h ? { precio: h.querySelector('.ofPrecio').textContent, reloj: h.querySelector('.ofCuenta b').textContent } : null; });
+await espera(1300); const reloj2 = await p.evaluate(() => document.querySelector('.hojaOferta .ofCuenta b') && document.querySelector('.hojaOferta .ofCuenta b').textContent);
+await p.screenshot({ path: SAL + '/0_oferta.png' });
+ok(of && /29,99/.test(of.precio) && /19,99/.test(of.precio) && /^4[78]:\d\d:\d\d$/.test(of.reloj) && reloj2 !== of.reloj, `al entrar: la oferta (US$ 19,99 en vez de 29,99) con el contador corriendo (${of && of.reloj} → ${reloj2})`);
+await p.click('.hojaOferta [data-x="no"]'); await espera(400);
 await p.evaluate(() => window.__sz.pestaña('Perfil')); await p.waitForSelector('.opcPremium'); await espera(600);
 await p.locator('.opcPremium').scrollIntoViewIfNeeded(); await espera(300); await p.screenshot({ path: SAL + '/1_ajustes.png' });
 ok(/desde US\$ 1,99/.test(await p.textContent('.opcPremium')), 'Ajustes: la fila «Stickerazo Premium» con el precio');
@@ -49,6 +56,7 @@ ok((await p.locator('.hojaPremium .prBen li').count()) === 6 && (await p.locator
 const [pag] = await Promise.all([ctx.waitForEvent('page'), p.click('.hojaPremium [data-x="pagar"]')]);
 await pag.waitForSelector('#bSub .ppFalso'); await espera(400); await pag.screenshot({ path: SAL + '/3_pagina.png', fullPage: true });
 ok(/@la\.premium/.test(await pag.textContent('.yo')) && (await pag.locator('#bDon .ppFalso').count()) === 1, 'la página de PayPal: para @la.premium, con los botones de suscripción y de donar');
+ok(/19,99/.test(await pag.textContent('[data-p="vida"]')) && /Oferta/.test(await pag.textContent('[data-p="vida"]')), 'la página también cobra «de por vida» con el precio de la oferta');
 await pag.click('#bSub .ppFalso'); await pag.waitForSelector('.ok'); await pag.screenshot({ path: SAL + '/4_listo.png' });
 ok(/Ya sos Premium/.test(await pag.textContent('.ok')), 'pagó el plan anual: la página dice «¡Ya sos Premium!»');
 await p.bringToFront(); await p.waitForFunction(() => document.querySelector('.anilloAv.dorado'), null, { timeout: 15000 }).catch(() => {});
