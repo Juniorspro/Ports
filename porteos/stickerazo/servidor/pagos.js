@@ -26,6 +26,8 @@ export const BENEFICIOS = [
   ['anillo', 'Anillo dorado', 'Tu foto de perfil con un anillo dorado que brilla.'],
   ['corazon', 'Bancás la app', 'Ayudás a que Stickerazo siga gratis para todos.'],
 ];
+// (las apps de antes de los íconos propios muestran el primer campo como texto: para ellas va «beneficios» con estos)
+const VIEJOS = { bloquear: '🚫', kf: '🎬', chispa: '✨', nube: '☁️', anillo: '💍', corazon: '💛' };
 // (los íconos son propios, los mismos de la app —web/iconos.js—: para la página de pago van dibujados acá)
 const R_ = (d) => `<path d="${d}" fill="currentColor" stroke="none" opacity=".2"/><path d="${d}"/>`;
 const ICONO_BEN = {
@@ -152,7 +154,7 @@ export async function pagosRutas(req, env, db, yo, r, metodo, servidor, { json, 
   if (r !== 'premium' && !r.startsWith('premium/') && !r.startsWith('pp/')) return null;
   const prendido = pagosPrendidos(env);
   if (r === 'premium' && metodo === 'GET')
-    return json({ disponible: prendido, precios: PRECIOS, moneda: MONEDA, donacion: DONACION, beneficios: BENEFICIOS, yo: yo ? await estadoPremium(env, db, yo.id, prendido) : null });
+    return json({ disponible: prendido, precios: PRECIOS, moneda: MONEDA, donacion: DONACION, beneficios: BENEFICIOS.map(([i, b, t]) => [VIEJOS[i] || '', b, t]), beneficios2: BENEFICIOS, yo: yo ? await estadoPremium(env, db, yo.id, prendido) : null });
   if (!prendido) return error('Premium todavía no está prendido', 503);
   if (r === 'premium/ticket' && metodo === 'POST') {
     if (!yo) return error('Entrá con tu cuenta', 401);

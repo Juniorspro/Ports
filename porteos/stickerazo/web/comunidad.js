@@ -388,7 +388,7 @@ export async function abrirPremium() {
   const yo = d.yo || {}, ahorro = Math.round((1 - Number(d.precios.anio) / (12 * Number(d.precios.mes))) * 100);
   const baja = yo.premium && (yo.tipo === 'mes' || yo.tipo === 'anio') && yo.estado === 'activa';
   X.$('#prCuerpo', m).innerHTML = `${yo.premium ? `<p class="prEstado">${X.h(textoPremium(yo))}</p>` : ''}
-    <ul class="prBen">${d.beneficios.map(([i, b, t]) => `<li>${/^[a-z][a-zA-Z]*$/.test(i) ? `<i data-i="${i}"></i>` : `<i>${i}</i>`}<span><b>${X.h(b)}</b><small>${X.h(t)}</small></span></li>`).join('')}</ul>
+    <ul class="prBen">${(d.beneficios2 || d.beneficios).map(([i, b, t]) => `<li>${/^[a-z][a-zA-Z]*$/.test(i) ? `<i data-i="${i}"></i>` : `<i>${i}</i>`}<span><b>${X.h(b)}</b><small>${X.h(t)}</small></span></li>`).join('')}</ul>
     ${yo.premium ? '' : `<div class="prPrecios"><span><b>${plata(d.precios.mes)}</b>por mes</span><span class="mejor"><b>${plata(d.precios.anio)}</b>por año<em>−${ahorro} %</em></span><span><b>${plata(d.precios.vida)}</b>de por vida</span></div>`}
     ${yo.donador ? '<p class="prDon"><i data-i="corazon"></i>Gracias por tu donación: tenés la insignia de Donador.</p>' : ''}
     <div class="botones">${!d.disponible ? '<button class="pri" disabled>Muy pronto</button>'
