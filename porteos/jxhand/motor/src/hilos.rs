@@ -38,6 +38,10 @@ pub fn configurar(n: usize) { imp::configurar(n) }
 
 /// en qué núcleos correr (máscara de bits; 0 = donde quiera el sistema). En el celular: los grandes.
 pub fn fijar_nucleos(mascara: u64) { imp::fijar_nucleos(mascara) }
+/// los núcleos medianos: si se piden más hilos que núcleos grandes, los hilos corren en los grandes y en éstos
+pub fn fijar_medianos(mascara: u64) { imp::fijar_medianos(mascara) }
+/// los núcleos que se suman si se piden todavía más hilos que grandes y medianos (los chicos)
+pub fn fijar_resto(mascara: u64) { imp::fijar_resto(mascara) }
 
 /// corre `f(0)`, `f(1)`, … `f(n - 1)` repartidas entre los hilos, y vuelve cuando terminaron todas
 pub fn repartir(n: usize, f: &(dyn Fn(usize) + Sync)) {
@@ -64,6 +68,8 @@ mod imp {
     pub fn configurar(_: usize) {}
     pub fn fijar_nucleos(_: u64) {}
     pub fn fijar_chicos(_: u64) {}
+    pub fn fijar_medianos(_: u64) {}
+    pub fn fijar_resto(_: u64) {}
     pub fn ir_a_chicos() {}
     pub fn repartir(n: usize, f: &(dyn Fn(usize) + Sync)) { for i in 0..n { f(i); } }
 }
@@ -99,6 +105,22 @@ mod imp {
     static CHICOS: AtomicU64 = AtomicU64::new(0);
     pub fn fijar_nucleos(m: u64) { MASCARA.store(m, Relaxed); }
     pub fn fijar_chicos(m: u64) { CHICOS.store(m, Relaxed); }
+    static MEDIANOS: AtomicU64 = AtomicU64::new(0);
+    static RESTO: AtomicU64 = AtomicU64::new(0);
+    pub fn fijar_medianos(m: u64) { MEDIANOS.store(m, Relaxed); }
+    pub fn fijar_resto(m: u64) { RESTO.store(m, Relaxed); }
+    /// la máscara para los hilos de ahora: los grandes; si hay más hilos que grandes, también los medianos; y si todavía
+    /// son más, el resto (los chicos)
+    fn mascara() -> u64 {
+        let n = cuantos();
+        let mut m = MASCARA.load(Relaxed);
+        if m == 0 { return 0; }
+        for t in [MEDIANOS.load(Relaxed), RESTO.load(Relaxed)] {
+            if n <= m.count_ones() as usize { break; }
+            m |= t;
+        }
+        m
+    }
     pub fn ir_a_chicos() {
         let m = CHICOS.load(Relaxed);
         if m == 0 { return; }
@@ -112,7 +134,7 @@ mod imp {
     thread_local! { static AFINADO: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
     /// pone el hilo actual en los núcleos pedidos (una vez por hilo y por máscara)
     fn afinar() {
-        let m = MASCARA.load(Relaxed);
+        let m = mascara();
         if m == 0 || AFINADO.with(|a| a.get()) == m { return; }
         AFINADO.with(|a| a.set(m));
         #[cfg(target_os = "android")]

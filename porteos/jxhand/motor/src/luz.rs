@@ -53,12 +53,13 @@ pub fn oscuro(px: &[f32], tam: usize, util: (usize, usize, usize, usize)) -> boo
 /// (x0, y0, x1, y1 en píxeles del recorte), para no contar las bandas negras del detector.
 pub fn realzar(px: &mut [f32], tam: usize, util: (usize, usize, usize, usize), aj: &AjusteLuz, tmp: &mut Vec<f32>) -> Realce {
     let (x0, y0, x1, y1) = util;
-    // 1) histograma de la luminancia (de a un píxel por medio en cada eje: sobra para los percentiles)
+    // 1) histograma de la luminancia (de a un píxel cada 3 en cada eje: unas 5500 muestras en el recorte de 224, sobra
+    //    para los percentiles)
     let mut hist = [0u32; BINS];
     let mut n = 0u32;
-    for y in (y0..y1).step_by(2) {
+    for y in (y0..y1).step_by(3) {
         let fila = &px[(y * tam + x0) * 3..(y * tam + x1) * 3];
-        for p in fila.chunks_exact(6) {
+        for p in fila.chunks_exact(9) {
             let l = 0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2];
             hist[((l * (BINS - 1) as f32 + 0.5) as usize).min(BINS - 1)] += 1; n += 1;
         }
@@ -98,13 +99,21 @@ pub fn realzar(px: &mut [f32], tam: usize, util: (usize, usize, usize, usize), a
         suavizar(px, tam, util, tmp);
         r.suavizado = true;
     }
-    for y in y0..y1 {
-        for v in px[(y * tam + x0) * 3..(y * tam + x1) * 3].iter_mut() {
-            let p = (v.clamp(0.0, 1.0) * 1024.0).min(1023.999);
-            let i = p as usize; let f = p - i as f32;
-            *v = tabla[i] + (tabla[i + 1] - tabla[i]) * f;
+    // (la tabla, repartida por filas entre los hilos)
+    let pp = crate::hilos::Puntero(px.as_mut_ptr());
+    let filas = (y1 - y0).div_ceil(crate::hilos::cuantos() * 2).max(8);
+    crate::hilos::repartir((y1 - y0).div_ceil(filas), &|k| {
+        let (a, z) = (y0 + k * filas, (y0 + (k + 1) * filas).min(y1));
+        for y in a..z {
+            // SAFETY: cada trozo toca sus filas
+            let fila = unsafe { pp.parte((y * tam + x0) * 3, (x1 - x0) * 3) };
+            for v in fila.iter_mut() {
+                let p = (v.clamp(0.0, 1.0) * 1024.0).min(1023.999);
+                let i = p as usize; let f = p - i as f32;
+                *v = tabla[i] + (tabla[i + 1] - tabla[i]) * f;
+            }
         }
-    }
+    });
     r
 }
 
@@ -113,23 +122,34 @@ fn suavizar(px: &mut [f32], tam: usize, util: (usize, usize, usize, usize), tmp:
     let (x0, y0, x1, y1) = util;
     if x1 <= x0 + 2 || y1 <= y0 + 2 { return; }
     tmp.resize(px.len(), 0.0);
+    // (las dos pasadas repartidas por filas entre los hilos)
+    let filas = (y1 - y0).div_ceil(crate::hilos::cuantos() * 2).max(8);
+    let trozos = (y1 - y0).div_ceil(filas);
     // horizontal → tmp
-    for y in y0..y1 {
-        for x in x0..x1 {
-            let (a, c) = (x.saturating_sub(1).max(x0), (x + 1).min(x1 - 1));
-            for k in 0..3 {
-                tmp[(y * tam + x) * 3 + k] = (px[(y * tam + a) * 3 + k] + 2.0 * px[(y * tam + x) * 3 + k] + px[(y * tam + c) * 3 + k]) * 0.25;
+    {
+        let (pt, src) = (crate::hilos::Puntero(tmp.as_mut_ptr()), &*px);
+        crate::hilos::repartir(trozos, &|kk| {
+            let (ya, yz) = (y0 + kk * filas, (y0 + (kk + 1) * filas).min(y1));
+            for y in ya..yz {
+                let o = unsafe { pt.parte((y * tam + x0) * 3, (x1 - x0) * 3) };
+                for x in x0..x1 {
+                    let (a, c) = (x.saturating_sub(1).max(x0), (x + 1).min(x1 - 1));
+                    for k in 0..3 { o[(x - x0) * 3 + k] = (src[(y * tam + a) * 3 + k] + 2.0 * src[(y * tam + x) * 3 + k] + src[(y * tam + c) * 3 + k]) * 0.25; }
+                }
             }
-        }
+        });
     }
     // vertical → px
-    for y in y0..y1 {
-        let (a, c) = (y.saturating_sub(1).max(y0), (y + 1).min(y1 - 1));
-        for x in x0..x1 {
-            for k in 0..3 {
-                px[(y * tam + x) * 3 + k] = (tmp[(a * tam + x) * 3 + k] + 2.0 * tmp[(y * tam + x) * 3 + k] + tmp[(c * tam + x) * 3 + k]) * 0.25;
+    {
+        let (pp, src) = (crate::hilos::Puntero(px.as_mut_ptr()), &*tmp);
+        crate::hilos::repartir(trozos, &|kk| {
+            let (ya, yz) = (y0 + kk * filas, (y0 + (kk + 1) * filas).min(y1));
+            for y in ya..yz {
+                let (a, c) = (y.saturating_sub(1).max(y0), (y + 1).min(y1 - 1));
+                let o = unsafe { pp.parte((y * tam + x0) * 3, (x1 - x0) * 3) };
+                for x in x0..x1 { for k in 0..3 { o[(x - x0) * 3 + k] = (src[(a * tam + x) * 3 + k] + 2.0 * src[(y * tam + x) * 3 + k] + src[(c * tam + x) * 3 + k]) * 0.25; } }
             }
-        }
+        });
     }
 }
 

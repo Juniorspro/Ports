@@ -39,7 +39,7 @@ public final class Motor {
      * ganancia, hilos, float16, núcleos grandes, ms del recorte, ms de la red de puntos, ms del detector, núcleos chicos,
      * producto punto de 8 bits, 0
      */
-    public static final int CABECERA = 16, POR_MANO = 176;
+    public static final int CABECERA = 18, POR_MANO = 176;
     /** HILOS_MENOS: los núcleos grandes menos éstos (entre 2 y 3), para dejarle núcleos a un juego */
     public static final int MAX_MANOS = 0, PRESENCIA = 1, PALMA = 2, BUSCAR_MS = 3, PREDICCION_MS = 4, FOV = 5,
         IMG_MIN_CORTE = 6, IMG_BETA = 7, ANG_MIN_CORTE = 8, ANG_BETA = 9, LIVIANO = 10, POCA_LUZ = 11, HILOS = 12, REINICIAR = 13, FLOAT16 = 14, HILOS_MENOS = 15, PERFIL = 16, BUSCAR_CADA = 17, AUTO_HILOS = 18, OCHO_BITS = 19;

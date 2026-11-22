@@ -256,6 +256,39 @@ primera 0,40, MaxPool 0,20— y el recorte 1,5; en el TCL 20 SE la red 34,5 ms a
   - **El detector, no:** en 8 bits cambia lo que encuentra en 5 de 52 fotos (los casos cerca del umbral).
   - Ajustes → «Cálculo en 8 bits» (prendido de entrada); arriba dice «8 bits». En la PC: `JXH_8BITS_PC=1`.
 
+**2.5 (para llegar a 1–3 ms en los de gama alta y bajar en todos):**
+- **Núcleos medianos.** El Poco X8 Pro (Dimensity 8500) tiene 8 Cortex-A725: 4 a 3,2–3,4 GHz y 4 a 2,2. Antes los 4
+  lentos contaban como chicos y no se usaban. Ahora hay tres clases (`clases_de`, `android.rs`, con pruebas): 80 % o más
+  de la capacidad del más rápido, grande; 45 % o más (y que no sea A53/A55/A510/A520 por su modelo), mediano; el resto,
+  chico. Si se piden más hilos que grandes, los hilos corren también en los medianos (`hilos::mascara`); los trozos de
+  cada capa se los van llevando de a uno, así que el más lento hace menos. `AutoHilos` prueba hasta grandes + medianos
+  (hasta 8). Sin medianos y sin juego al lado (el TCL), también prueba con los chicos.
+  - También arregla los 1 + 3 + 4 (Cortex-X + A7xx + A5xx): antes había 1 «grande» y los 3 A7xx no se usaban.
+  - Arriba: «de 4 grandes + 4 medianos».
+- **AutoHilos más rápido y atento:** de más hilos a menos, deja de probar cuando uno tarda 35 % más que el mejor. Y si
+  la mediana de los últimos 30 cuadros se aleja 30 % de lo medido (grabar la pantalla, una captura, calor), vuelve a
+  probar enseguida (como mucho cada 5 s) en vez de esperar al minuto.
+- **i8mm (SMMLA)** en las 1×1 de 8 bits, si el procesador lo tiene (Cortex-A710/A715/A720/A725, X2 en adelante): cada
+  instrucción hace 32 multiplicaciones (SDOT, 16). Bloques de 4 píxeles × 16 salidas en 16 registros de 2 × 2; por cada
+  8 entradas, 2 cargas de la entrada, 8 de pesos y 16 SMMLA. Probado en ARM emulado: da bit a bit lo mismo que SDOT.
+  Arriba dice «8 bits i8mm».
+- **8 bits sin SDOT** (ARMv8.0: Cortex-A53/A72/A73, como el TCL 20 SE): por cada 16 entradas, SMULL + SMLAL2 + SADALP (16
+  multiplicaciones en 3 instrucciones; float32 hace 4 en una). Da bit a bit lo mismo que el común en la PC.
+- **Una escala por píxel** para la entrada de 8 bits, medida al empaquetarlo (antes, el máximo de toda la entrada: una
+  pasada más por la memoria y una espera entre hilos en cada una de las 30 capas 1×1). Más preciso: contra float32 en ARM
+  emulado, 0,23 % de la palma en vez de 0,26 % (completo) y 0,23 % en vez de 0,29 % (liviano); en la PC, el liviano
+  1,27 % en vez de 1,56 % en promedio y 2,45 % en vez de 3,45 % en el peor caso.
+- **Depthwise de a 8 píxeles** (float16, paso 1, ventanas de 3 o 5): cada columna de la entrada se carga una vez por
+  fila de la ventana y sirve para los 8 (con 5×5, 17 cargas para 40 multiplicaciones; de a un píxel eran 2 cargas por
+  cada una). Bit a bit lo mismo. En el celular tardaban 1,72 de 5,56 ms.
+- **Se mide en el celular, no se adivina:** con los hilos elegidos, `AutoHilos` mide 8 bits contra float y las
+  depthwise nuevas contra las de antes, alternando A, B, A, B (8 cuadros cada vez), y se queda con lo más rápido. Si
+  float está a menos de 3 %, float (más preciso). Con «Medir cada capa» prendido, abajo del perfil dice lo medido:
+  «medido: 6:3.1 5:3.3 … 8b:3.0 sin 8b:4.2 dw8:2.9 sin dw8:3.2».
+- **El recorte:** se escribe directo en la entrada de la red (una copia de 600 kB menos por cuadro); el histograma del
+  realce mira 1 de cada 3 píxeles en cada eje; la tabla y el suavizado se reparten entre los hilos. En la PC, con poca
+  luz, de 1,35 a 0,78 ms; con buena luz, de 0,47 a 0,39.
+
 ## Cómo se arma y se prueba
 
 ```sh

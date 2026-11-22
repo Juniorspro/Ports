@@ -260,7 +260,7 @@ public class Camara {
         if (t - tPerfil > 1_000_000_000L) { tPerfil = t; String pf = Motor.perfil(m); if (pf != null && !pf.equals("-")) hud.perfil = pf; }
         hud.msMotor = ms; hud.msCuadro = datos[4]; hud.cps = cps; hud.hilos = (int) datos[7];
         hud.msRecorte = hud.msRecorte == 0 ? datos[10] : hud.msRecorte * 0.9 + datos[10] * 0.1; hud.msRed = hud.msRed == 0 ? datos[11] : hud.msRed * 0.9 + datos[11] * 0.1;
-        hud.msDet = datos[12]; hud.grandes = (int) datos[9]; hud.chicos = (int) datos[13]; hud.dot = datos[14] > 0.5f; hud.ocho = datos[14] > 1.5f; hud.auto = Math.round(datos[15]);
+        hud.msDet = datos[12]; hud.grandes = (int) datos[9]; hud.chicos = (int) datos[13]; hud.medianos = (int) datos[16]; hud.dot = datos[14] > 0.5f; hud.ocho = datos[14] > 1.5f; hud.i8mm = datos[14] > 2.5f; hud.auto = Math.round(datos[15]);
         hud.brillo = datos[5]; hud.ganancia = datos[6]; hud.noche = noche; hud.frente = frente; hud.msDibujo = msDibujo; hud.estilo = Motor.ESTILOS[Math.max(0, Math.min(3, estilo))];
         hud.modelo = (usaLiviano ? "liviano" : "completo") + (modelo == AUTO ? " (auto)" : "") + (datos[8] > 0.5f ? " · float16" : "");
         if (n == 0) { if (hud.sinManosDesde == 0) hud.sinManosDesde = System.nanoTime(); } else hud.sinManosDesde = 0;

@@ -272,7 +272,7 @@ pub fn roi_de_puntos(img: &[P3; PUNTOS]) -> Roi {
 // ---- el modelo de los 21 puntos ----
 /// `tam`: el lado del recorte que mira la red (224 es el de MediaPipe; el modelo liviano anda también más chico, ver
 /// `Red::cargar_tam`). `div`: en qué unidades da los puntos (los de MediaPipe, en píxeles de un recorte de 224)
-pub struct Puntero { red: Red, recorte: Vec<f32>, pub luz: AjusteLuz, pub realce: Realce, tmp: Vec<f32>, pub tam: usize, pub div: f32,
+pub struct Puntero { red: Red, pub luz: AjusteLuz, pub realce: Realce, tmp: Vec<f32>, pub tam: usize, pub div: f32,
     /// lo que tardaron, sumado desde la última vez que se leyó (ms): el recorte con el realce y la red
     pub ms_recorte: f32, pub ms_red: f32,
     /// medir cada tipo de capa (para ver en el celular dónde se va el tiempo): (nombre, ms acumulados, veces)
@@ -285,15 +285,15 @@ impl Puntero {
     pub fn nuevo_tam(modelo: &[u8], tam: usize, div: f32) -> Result<Puntero, String> {
         let mut red = if tam == 224 { Red::cargar(modelo)? } else { Red::cargar_tam(modelo, Some((tam, tam)))? };
         red.con_ocho = true;
-        Ok(Puntero { red, recorte: vec![0.0; tam * tam * 3], luz: AjusteLuz::default(), realce: Realce::default(), tmp: Vec::new(), tam, div, ms_recorte: 0.0, ms_red: 0.0, perfil: None, perfil_n: 0 })
+        Ok(Puntero { red, luz: AjusteLuz::default(), realce: Realce::default(), tmp: Vec::new(), tam, div, ms_recorte: 0.0, ms_red: 0.0, perfil: None, perfil_n: 0 })
     }
     pub fn puntos(&mut self, rgba: &[u8], w: usize, h: usize, roi: &Roi) -> Puntos {
         let t = self.tam;
         #[cfg(not(target_arch = "wasm32"))]
         let t0 = std::time::Instant::now();
-        recortar(rgba, w, h, roi, t, true, false, &mut self.recorte);
-        self.realce = luz::realzar(&mut self.recorte, t, (0, 0, t, t), &self.luz, &mut self.tmp);
-        self.red.entrada(0).copy_from_slice(&self.recorte);
+        // (directo en la entrada de la red: una copia de 600 kB menos por cuadro)
+        recortar(rgba, w, h, roi, t, true, false, self.red.entrada(0));
+        self.realce = luz::realzar(self.red.entrada(0), t, (0, 0, t, t), &self.luz, &mut self.tmp);
         #[cfg(not(target_arch = "wasm32"))]
         let t1 = std::time::Instant::now();
         #[cfg(not(target_arch = "wasm32"))]

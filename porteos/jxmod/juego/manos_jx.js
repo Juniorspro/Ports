@@ -208,7 +208,7 @@ function mjxPrevia() {
   x.fillText((!MJX.manos.length && MJX.msBusca ? 'buscando ' + MJX.msBusca.toFixed(1) + ' ms' : MJX.msProm ? MJX.msProm.toFixed(1) + ' ms' : '') + (MJX.lite ? ' · liviano' : '') + (MJX.f16 ? ' · f16' : '') + (d[0] ? ' · ' + d[0] + ' cps' : ''), 8, c.height - 8);
   // (de qué se componen los ms —el recorte, la red y el detector— y en cuántos hilos y núcleos: así una captura dice
   // dónde se va el tiempo en ese celular; las APK anteriores no lo mandan)
-  if (d.length >= 12) { x.font = '11px system-ui,sans-serif'; x.fillText('rec ' + d[5] + ' · red ' + d[6] + (+d[7] > 0 ? ' · det ' + d[7] : '') + ' · ' + d[8] + ' hilos (' + d[9] + 'G' + (+d[10] ? '+' + d[10] + 'c' : '') + ')' + (d[11] === '1' ? ' · dot' : ''), 8, c.height - 24); }
+  if (d.length >= 12) { x.font = '11px system-ui,sans-serif'; x.fillText('rec ' + d[5] + ' · red ' + d[6] + (+d[7] > 0 ? ' · det ' + d[7] : '') + ' · ' + d[8] + ' hilos (' + d[9] + 'G' + (+d[12] ? '+' + d[12] + 'm' : '') + (+d[10] ? '+' + d[10] + 'c' : '') + ')' + (['', ' · dot', ' · 8b', ' · 8b i8mm'][+d[11] || 0] || ''), 8, c.height - 24); }
   x.shadowBlur = 0;
 }
 Object.assign(IDI3, {

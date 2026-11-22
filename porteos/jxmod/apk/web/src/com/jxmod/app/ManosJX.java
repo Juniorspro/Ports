@@ -369,7 +369,7 @@ public class ManosJX {
         // (y de qué se componen los ms: YUV, recorte, red y detector; hilos, núcleos grandes y chicos, producto punto)
         msRec = msRec == 0 ? datos[10] : msRec * 0.9f + datos[10] * 0.1f; msRed = msRed == 0 ? datos[11] : msRed * 0.9f + datos[11] * 0.1f; msYuv = msYuv == 0 ? datos[4] : msYuv * 0.9f + datos[4] * 0.1f;
         diag = Math.round(cps) + "," + rotUlt + "," + camW + "x" + camH + "," + Math.round(datos[5] * 100) + "," + uno(msYuv) + "," + uno(msRec) + "," + uno(msRed) + "," + uno(datos[12])
-            + "," + (int) datos[7] + "," + (int) datos[9] + "," + (int) datos[13] + "," + (datos[14] > 0.5f ? 1 : 0);
+            + "," + (int) datos[7] + "," + (int) datos[9] + "," + (int) datos[13] + "," + Math.round(datos[14]) + "," + (int) datos[16];
         ultimo = ManosTexto.armar(sb, cuadro + 1, datos, n, liviano);
         cuadro++;
         estado = "listo";

@@ -99,8 +99,10 @@ fn main() {
             let palmas = det.detectar(&rgba, w as usize, h as usize);
             let roi = palmas.first().map(mano::roi_de_palma).unwrap_or(Roi { cx: w as f32 / 2.0, cy: h as f32 / 2.0, lado: 300.0, ang: 0.0 });
             let t0 = Instant::now(); for _ in 0..veces { det.detectar(&rgba, w as usize, h as usize); } let td = t0.elapsed().as_secs_f64() * 1e3 / veces as f64;
+            pun.puntos(&rgba, w as usize, h as usize, &roi); pun.ms_recorte = 0.0; pun.ms_red = 0.0;
             let t0 = Instant::now(); for _ in 0..veces { pun.puntos(&rgba, w as usize, h as usize, &roi); } let tp = t0.elapsed().as_secs_f64() * 1e3 / veces as f64;
-            println!("detector {:.2} ms · puntos {:.2} ms (promedio de {})", td, tp, veces);
+            println!("detector {:.2} ms · puntos {:.2} ms (recorte {:.3} · red {:.2}) (promedio de {}) · f16 {} · dot {} · i8mm {}", td, tp, pun.ms_recorte / veces as f32, pun.ms_red / veces as f32, veces,
+                jxhand::red::hay_f16(), jxhand::red::hay_dot(), jxhand::red::i8mm_en_uso());
         }
         Some("tam") => {
             // tam MODELOS FOTO...: el modelo liviano de los puntos con el recorte más chico (192, 160, 144, 128) contra el
@@ -236,6 +238,7 @@ fn main() {
             for (i, t) in tams.iter().enumerate() { println!("== {}: encuentra {}/{} · puntos tras 2 pasadas a {:.2} % de la palma de los de 192 · {:.2} ms por imagen", t, hall[i], n, if hall[i] > 0 { err_s[i] / hall[i] as f32 } else { 0.0 }, ms[i] / (n.max(1) as f64)); }
         }
         Some("salidas") => {
+            if std::env::var_os("JXH_DW_LENTO").is_some() { jxhand::red::DW_RAPIDO.store(false, std::sync::atomic::Ordering::Relaxed); }
             // salidas MODELOS FOTO...: las palmas y los puntos (completo y liviano) con todos los decimales, para comparar
             // dos armados o dos formas de correr (p. ej. con JXH_SIN_FUNDIR=1)
             let (mut det, mut com) = cargar(&a[2]);
@@ -315,7 +318,7 @@ fn main() {
             // un «video» hecho moviendo la foto: quieta con ruido (temblor) y después en movimiento (retraso), a 30 cps
             let mut motor = jxhand::Motor::nuevo(&fs::read(format!("{}/hand_detector.tflite", a[2])).unwrap(), &fs::read(format!("{}/hand_landmarks_detector.tflite", a[2])).unwrap()).unwrap();
             // (JXH_AUTO=1: los hilos elegidos midiendo, como en el celular; al final dice qué midió y qué eligió)
-            if std::env::var("JXH_AUTO").is_ok() { motor.auto.activo = true; motor.auto.tope = 4; }
+            if std::env::var("JXH_AUTO").is_ok() { motor.auto.activo = true; motor.auto.tope = 4; motor.auto.ocho_medir = jxhand::red::ocho_posible(); motor.auto.dw_medir = jxhand::red::hay_f16() || std::env::var_os("JXH_DW_MEDIR").is_some(); }
             let base = image::open(&a[3]).unwrap().to_rgba8(); let (w, h) = (base.width() as usize, base.height() as usize); let b = base.as_raw();
             let (mut det, mut pun) = cargar(&a[2]);
             let mut sem = 7u64; let mut azar = move || { sem = sem.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); ((sem >> 33) as f32 / (1u64 << 31) as f32) - 0.5 };

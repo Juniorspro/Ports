@@ -72,13 +72,65 @@ struct Pista {
 /// temperatura, una grabación de pantalla o un juego al lado. En un celular con pocos núcleos grandes y otras cosas
 /// corriendo, más hilos puede ser más lento: si el sistema saca a uno un momento, los otros lo esperan en cada capa.
 #[derive(Default, Debug)]
-pub struct AutoHilos { pub activo: bool, pub tope: usize, pub elegido: usize, probar: Vec<usize>, k: usize, muestras: Vec<f32>, res: Vec<(usize, f32)>, t_ult: f64 }
+///
+/// Además, si con los elegidos el tiempo de los últimos 30 cuadros se aleja un 30 % de lo medido (se puso a grabar la
+/// pantalla, se sacó una captura, se calentó, o terminó lo que lo frenaba), vuelve a probar enseguida (como mucho una
+/// vez cada 5 s), sin esperar al minuto.
+///
+/// Y con los hilos ya elegidos, mide una vez cada llave de las que tienen dos formas de hacer lo mismo (`LLAVES`),
+/// alternando A, B, A, B (8 cuadros cada vez) y comparando las medianas:
+/// - 8 bits contra float (`ocho_medir`). Con SDOT o i8mm casi siempre gana 8 bits; sin eso (Cortex-A53/A73) depende
+///   del procesador. Si float está a menos de 3 %, queda float (es más preciso).
+/// - las depthwise de a 8 píxeles contra de a uno (`dw_medir`; dan lo mismo bit a bit). Empatadas, de a 8.
+pub struct AutoHilos { pub activo: bool, pub tope: usize, pub elegido: usize, probar: Vec<usize>, k: usize, muestras: Vec<f32>, res: Vec<(usize, f32)>, t_ult: f64, ref_ms: f32, recientes: Vec<f32>,
+    pub ocho_medir: bool, pub dw_medir: bool, ocho_fase: u8, llave: usize, ocho: Vec<(&'static str, bool, f32)>, ab: Vec<(bool, f32)> }
+
+/// (la bandera, el nombre para la pantalla, y con cuál se queda si están a menos de 3 %)
+const LLAVES: [(&std::sync::atomic::AtomicBool, &str, bool); 2] = [(&crate::red::USAR_8, "8b", false), (&crate::red::DW_RAPIDO, "dw8", true)];
 
 impl AutoHilos {
     fn paso(&mut self, t_ms: f64, ms: Option<f32>) {
         if !self.activo || self.tope == 0 { return; }
+        use std::sync::atomic::Ordering::Relaxed;
+        if self.ocho_fase > 0 {
+            // (A, B, A, B: 8 cuadros cada vez sin contar los 2 primeros después de cambiar; alternar compensa lo que va
+            // cambiando solo —la temperatura, la mano que se mueve—, que en una PC dio hasta 30 % entre dos tandas
+            // seguidas del mismo código)
+            let Some(ms) = ms else { return; };
+            self.muestras.push(ms);
+            if self.muestras.len() < 8 { return; }
+            let (bandera, nombre, empate) = LLAVES[self.llave];
+            let modo = bandera.load(Relaxed);
+            for &m in &self.muestras[2..] { self.ab.push((modo, m)); }
+            self.muestras.clear();
+            if self.ocho_fase < 4 { self.ocho_fase += 1; bandera.store(!modo, Relaxed); return; }
+            let med = |x: bool| { let mut v: Vec<f32> = self.ab.iter().filter(|r| r.0 == x).map(|r| r.1).collect(); v.sort_by(|a, b| a.partial_cmp(b).unwrap()); v.get(v.len() / 2).copied().unwrap_or(f32::INFINITY) };
+            let (a, b) = (med(empate), med(!empate));
+            let gana = if b < a * 0.97 { !empate } else { empate };
+            self.ocho.push((nombre, true, med(true))); self.ocho.push((nombre, false, med(false)));
+            bandera.store(gana, Relaxed);
+            self.ref_ms = med(gana); self.t_ult = t_ms; self.recientes.clear(); self.ab.clear();
+            if self.llave == 0 { self.ocho_medir = false; } else { self.dw_medir = false; }
+            self.ocho_fase = 0;
+            self.siguiente_llave();
+            return;
+        }
+        if self.probar.is_empty() && self.elegido > 0 && ms.is_some() && (self.ocho_medir || self.dw_medir) {
+            self.ocho.clear(); self.siguiente_llave(); if self.ocho_fase > 0 { return; }
+        }
         if self.probar.is_empty() {
-            let toca = self.elegido == 0 || t_ms - self.t_ult > 60_000.0;
+            // (¿cambió algo? la mediana de los últimos 30 cuadros contra lo medido al elegir)
+            let mut cambio = false;
+            if let (Some(m), true) = (ms, self.elegido > 0 && self.ref_ms > 0.0) {
+                self.recientes.push(m);
+                if self.recientes.len() > 30 { self.recientes.remove(0); }
+                if self.recientes.len() == 30 && t_ms - self.t_ult > 5_000.0 {
+                    let mut v = self.recientes.clone(); v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                    let med = v[15];
+                    cambio = med > self.ref_ms * 1.3 || med < self.ref_ms * 0.7;
+                }
+            }
+            let toca = self.elegido == 0 || t_ms - self.t_ult > 60_000.0 || cambio;
             if toca && ms.is_some() {
                 self.probar = if self.elegido == 0 { (1..=self.tope).rev().collect() } else { [self.elegido + 1, self.elegido, self.elegido.saturating_sub(1)].into_iter().filter(|&n| n >= 1 && n <= self.tope).collect() };
                 self.k = 0; self.muestras.clear(); self.res.clear(); crate::hilos::configurar(self.probar[0]);
@@ -90,15 +142,37 @@ impl AutoHilos {
         if self.muestras.len() < 12 { return; }
         let mut m: Vec<f32> = self.muestras[2..].to_vec(); m.sort_by(|a, b| a.partial_cmp(b).unwrap());
         self.res.push((self.probar[self.k], m[m.len() / 2])); self.muestras.clear(); self.k += 1;
-        if self.k < self.probar.len() { crate::hilos::configurar(self.probar[self.k]); return; }
-        // el más rápido; con menos de 5 % de diferencia, el de menos hilos
+        // (de más hilos a menos: si éste ya tardó un 35 % más que el mejor, con menos va a ser peor; no se prueban, que
+        // mientras se prueba el cuadro tarda más)
         let mejor = self.res.iter().map(|r| r.1).fold(f32::INFINITY, f32::min);
+        let pasado = self.res.len() >= 2 && self.res.last().map(|r| r.1 > mejor * 1.35).unwrap_or(false);
+        if self.k < self.probar.len() && !pasado { crate::hilos::configurar(self.probar[self.k]); return; }
+        // el más rápido; con menos de 5 % de diferencia, el de menos hilos
         let n = self.res.iter().filter(|r| r.1 <= mejor * 1.05).map(|r| r.0).min().unwrap_or(self.tope);
-        self.elegido = n; crate::hilos::configurar(n); self.probar.clear(); self.t_ult = t_ms;
+        self.ref_ms = self.res.iter().find(|r| r.0 == n).map(|r| r.1).unwrap_or(mejor);
+        self.elegido = n; crate::hilos::configurar(n); self.probar.clear(); self.t_ult = t_ms; self.recientes.clear();
+        if self.ocho_medir || self.dw_medir { self.ocho.clear(); self.siguiente_llave(); }
+    }
+    /// empieza a medir la próxima llave que falte (si falta alguna)
+    fn siguiente_llave(&mut self) {
+        let falta = [self.ocho_medir, self.dw_medir];
+        // (8 bits sólo si se puede usar: en la PC hace falta JXH_8BITS_PC)
+        if let Some(k) = (0..LLAVES.len()).find(|&k| falta[k] && (k != 0 || crate::red::ocho_posible())) {
+            self.llave = k; self.ocho_fase = 1; self.muestras.clear(); self.ab.clear();
+        } else { self.ocho_medir = false; self.dw_medir = false; }
+    }
+    /// dejar de medir 8 bits contra float (si estaba en eso)
+    pub fn ocho_parar(&mut self) {
+        self.ocho_medir = false;
+        if self.ocho_fase > 0 && self.llave == 0 { self.ocho_fase = 0; self.muestras.clear(); self.siguiente_llave(); }
     }
     /// lo medido en la última prueba: «4:6.1 3:5.2 2:6.8 1:11.0»
-    pub fn texto(&self) -> String { self.res.iter().map(|(n, m)| format!("{}:{:.1}", n, m)).collect::<Vec<_>>().join(" ") }
-    pub fn probando(&self) -> bool { !self.probar.is_empty() }
+    pub fn texto(&self) -> String {
+        let mut s = self.res.iter().map(|(n, m)| format!("{}:{:.1}", n, m)).collect::<Vec<_>>().join(" ");
+        for (n, o, m) in &self.ocho { s += &format!(" {}{}:{:.1}", if *o { "" } else { "sin " }, n, m); }
+        s
+    }
+    pub fn probando(&self) -> bool { !self.probar.is_empty() || self.ocho_fase > 0 }
 }
 
 pub struct Motor {

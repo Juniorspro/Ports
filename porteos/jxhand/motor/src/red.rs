@@ -27,18 +27,34 @@ enum Paso {
 
 /// los pesos de una 1×1 en 8 bits: por bloques de 16 salidas y 4 entradas, 64 bytes (4 registros: salidas 4r..4r+3,
 /// cada una con sus 4 entradas seguidas), como los lee SDOT por carril; y la escala de cada salida (el máximo |peso| / 127)
-struct Pesos8 { w: Vec<i8>, esc: Vec<f32>, ci4: usize, co16: usize }
+/// Con i8mm (`mm`), otro orden: por bloques de 16 salidas y 8 entradas, 128 bytes (8 registros: el par de salidas
+/// 2q, 2q+1, cada una con sus 8 entradas seguidas), como los lee SMMLA; `ci4` es entonces múltiplo de 8.
+/// Sin SDOT ni i8mm (ARMv8.0: Cortex-A53/A72/A73), por bloques de 4 salidas y 16 entradas, 64 bytes (cada salida con
+/// sus 16 entradas seguidas), como los lee SMULL/SMLAL2; `ci4` es entonces múltiplo de 16.
+struct Pesos8 { w: Vec<i8>, esc: Vec<f32>, ci4: usize, co16: usize, modo: Modo8 }
+/// cómo están empaquetados los pesos de 8 bits (y con qué instrucciones se multiplican)
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Modo8 { Dot, Mm, Largo }
+fn modo8() -> Modo8 {
+    if hay_i8mm() { Modo8::Mm } else if hay_dot() { Modo8::Dot }
+    else if cfg!(target_arch = "aarch64") || std::env::var("JXH_8BITS_LARGO").is_ok() { Modo8::Largo } else { Modo8::Dot }
+}
 
 /// si se usan las 1×1 en 8 bits cuando el procesador tiene SDOT (para comparar: se puede apagar). En la PC no hay SDOT:
 /// con JXH_8BITS_PC=1 se usa el mismo camino con un kernel común (para medir cuánto se mueven los puntos)
 pub static USAR_8: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+/// las depthwise en float16 con paso 1 de a 8 píxeles (ver `neon16::depthwise`); el motor mide en el celular si conviene
+/// (con JXH_DW_LENTO, apagado de entrada: para comparar)
+pub static DW_RAPIDO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 fn ocho_activo() -> bool {
     use std::sync::OnceLock;
     static PC: OnceLock<bool> = OnceLock::new();
-    USAR_8.load(std::sync::atomic::Ordering::Relaxed) && (hay_dot() || *PC.get_or_init(|| std::env::var("JXH_8BITS_PC").is_ok()))
+    USAR_8.load(std::sync::atomic::Ordering::Relaxed) && (cfg!(target_arch = "aarch64") || *PC.get_or_init(|| std::env::var("JXH_8BITS_PC").is_ok()))
 }
 /// ¿se usan las cuentas en 8 bits en este celular? (para la pantalla)
 pub fn ocho_en_uso() -> bool { ocho_activo() }
+/// ¿se pueden usar (prendidas o no)? En ARM sí; en la PC, con JXH_8BITS_PC
+pub fn ocho_posible() -> bool { cfg!(target_arch = "aarch64") || std::env::var("JXH_8BITS_PC").is_ok() }
 
 /// lo fundido al final de una convolución: sumar otro tensor de la misma forma (el atajo de un bloque residual), con su
 /// activación, y después un PReLU (alfa por canal)
@@ -104,6 +120,20 @@ pub fn hay_dot() -> bool {
     #[cfg(not(target_arch = "aarch64"))]
     { false }
 }
+/// ¿el procesador tiene multiplicación de matrices de 8 bits (SMMLA, ARMv8.6 «i8mm»: Cortex-A710/A715/A720/A725, X2 en
+/// adelante)? Cada instrucción hace 32 multiplicaciones (SDOT, 16). Con JXH_I8MM=0 no se usa (para comparar).
+pub fn hay_i8mm() -> bool {
+    #[cfg(target_arch = "aarch64")]
+    {
+        use std::sync::OnceLock;
+        static HAY: OnceLock<bool> = OnceLock::new();
+        *HAY.get_or_init(|| std::arch::is_aarch64_feature_detected!("i8mm") && std::env::var("JXH_I8MM").map(|v| v != "0").unwrap_or(true))
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    { false }
+}
+/// ¿las cuentas en 8 bits van con SMMLA? (para la pantalla)
+pub fn i8mm_en_uso() -> bool { ocho_activo() && hay_i8mm() }
 #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
 fn f16_activo() -> bool { hay_f16() && USAR_F16.load(std::sync::atomic::Ordering::Relaxed) }
 
@@ -275,7 +305,7 @@ impl Red {
         }
         // las 1×1 en 8 bits: si el procesador tiene SDOT (o en la PC, para medir)
         let pesos8: Vec<Option<Pesos8>> = pasos.iter().map(|p| {
-            if !(hay_dot() || std::env::var("JXH_8BITS_PC").is_ok()) { return None; }
+            if !(cfg!(target_arch = "aarch64") || std::env::var("JXH_8BITS_PC").is_ok()) { return None; }
             let Paso::Conv { e, s, w, kh: 1, kw: 1, paso: (1, 1), .. } = p else { return None; };
             let (ci, co) = (forma4(&formas[*e])[3], forma4(&formas[*s])[3]);
             if ci < 8 || co < 8 { return None; }
@@ -446,16 +476,7 @@ impl Red {
                     // 4 píxeles pasa su parte de la entrada a 8 bits empaquetada, multiplica con SDOT (16 por instrucción),
                     // vuelve a float con las escalas y el sesgo y termina como las demás (activación, lo fundido, la copia en
                     // float16)
-                    let n = fs[1] * fs[2]; let (ci4, nk4) = (p8.ci4, p8.ci4 / 4);
-                    let maxi = std::sync::atomic::AtomicU32::new(0);
-                    let tr = filas_por_trozo(n, n * ci, 1);
-                    hilos::repartir(n.div_ceil(tr), &|t| {
-                        let (a, z) = (t * tr, ((t + 1) * tr).min(n));
-                        let m = x[a * ci..z * ci].iter().fold(0f32, |m, &v| m.max(v.abs()));
-                        maxi.fetch_max(m.to_bits(), std::sync::atomic::Ordering::Relaxed);
-                    });
-                    let m = f32::from_bits(maxi.load(std::sync::atomic::Ordering::Relaxed));
-                    let sa = if m > 0.0 { m / 127.0 } else { 1.0 };
+                    let n = fs[1] * fs[2]; let (ci4, nk4, modo) = (p8.ci4, p8.ci4 / 4, p8.modo);
                     let n4 = n.div_ceil(4) * 4;
                     if t8.len() < n4 * ci4 { t8.resize(n4 * ci4, 0); }
                     let p8a = Puntero8(t8.as_mut_ptr());
@@ -466,9 +487,29 @@ impl Red {
                         let (b0, b1) = (p0 / 4, p1.div_ceil(4));
                         // SAFETY: cada trozo escribe sus bloques de 4 píxeles del empaquetado y sus filas de la salida
                         let a8 = unsafe { std::slice::from_raw_parts_mut(p8a.p().add(b0 * nk4 * 16), (b1 - b0) * nk4 * 16) };
-                        ocho::empaquetar(x, ci, nk4, p0, p1, 1.0 / sa, a8);
                         let o = unsafe { po.parte(p0 * co, (p1 - p0) * co) };
-                        ocho::gemm(a8, &p8.w, &p8.esc, sa, b, o, p1 - p0, nk4, co, p8.co16);
+                        // (la escala de cada píxel: su máximo |x| / 127, medido al empaquetarlo)
+                        let mut sa = [0f32; 64]; let mut q0 = p0;
+                        while q0 < p1 {
+                            // (de a 64 píxeles, para que las escalas entren en la pila)
+                            let q1 = (q0 + 64).min(p1);
+                            let (a8q, oq) = (&mut a8[(q0 - p0) / 4 * nk4 * 16..(q1 - p0).div_ceil(4) * nk4 * 16], &mut o[(q0 - p0) * co..(q1 - p0) * co]);
+                            match modo {
+                                Modo8::Mm => {
+                                    ocho::empaquetar_de(x, ci, 8, q0, q1, a8q, &mut sa);
+                                    ocho::gemm_mm(a8q, &p8.w, &p8.esc, &sa, b, oq, q1 - q0, nk4 / 2, co, p8.co16);
+                                }
+                                Modo8::Largo => {
+                                    ocho::empaquetar_de(x, ci, 16, q0, q1, a8q, &mut sa);
+                                    ocho::gemm_largo(a8q, &p8.w, &p8.esc, &sa, b, oq, q1 - q0, nk4 / 4, co, p8.co16);
+                                }
+                                Modo8::Dot => {
+                                    ocho::empaquetar(x, ci, nk4, q0, q1, a8q, &mut sa);
+                                    ocho::gemm(a8q, &p8.w, &p8.esc, &sa, b, oq, q1 - q0, nk4, co, p8.co16);
+                                }
+                            }
+                            q0 = q1;
+                        }
                         activar_todo(o, act);
                         terminar(o, p0 * co, co, fin, d);
                         #[cfg(target_arch = "aarch64")]
@@ -874,22 +915,54 @@ impl Puntero8 { fn p(self) -> *mut i8 { self.0 } }
 
 /// pesos [ci][co] en float → 8 bits con una escala por salida, empaquetados como los lee `ocho::gemm`
 fn empaquetar8(w: &[f32], ci: usize, co: usize) -> Pesos8 {
-    let (ci4, co16) = (ci.div_ceil(4) * 4, co.div_ceil(16) * 16);
+    let modo = modo8();
+    let de = match modo { Modo8::Dot => 4, Modo8::Mm => 8, Modo8::Largo => 16 };
+    let (ci4, co16) = (ci.div_ceil(de) * de, co.div_ceil(16) * 16);
     let mut esc = vec![0f32; co16];
     for o in 0..co { let m = (0..ci).fold(0f32, |m, k| m.max(w[k * co + o].abs())); esc[o] = if m > 0.0 { m / 127.0 } else { 1.0 }; }
+    let q8 = |k: usize, o: usize| (w[k * co + o] / esc[o]).round().clamp(-127.0, 127.0) as i8;
+    if modo == Modo8::Mm {
+        let nk8 = ci4 / 8; let mut q = vec![0i8; co16 * ci4];
+        for b in 0..co16 / 16 { for k8 in 0..nk8 { for par in 0..8 { for r in 0..2 { for j in 0..8 {
+            let (o, k) = (b * 16 + par * 2 + r, k8 * 8 + j);
+            if o < co && k < ci { q[((b * nk8 + k8) * 8 + par) * 16 + r * 8 + j] = q8(k, o); }
+        } } } } }
+        return Pesos8 { w: q, esc, ci4, co16, modo };
+    }
+    if modo == Modo8::Largo {
+        let nk16 = ci4 / 16; let mut q = vec![0i8; co16 * ci4];
+        for b in 0..co16 / 16 { for k16 in 0..nk16 { for sb in 0..4 { for r in 0..4 { for j in 0..16 {
+            let (o, k) = (b * 16 + sb * 4 + r, k16 * 16 + j);
+            if o < co && k < ci { q[((b * nk16 + k16) * 4 + sb) * 64 + r * 16 + j] = q8(k, o); }
+        } } } } }
+        return Pesos8 { w: q, esc, ci4, co16, modo };
+    }
     let nk4 = ci4 / 4; let mut q = vec![0i8; co16 * ci4];
     for b in 0..co16 / 16 { for k4 in 0..nk4 { for r in 0..4 { for i in 0..4 { for j in 0..4 {
         let (o, k) = (b * 16 + r * 4 + i, k4 * 4 + j);
         if o < co && k < ci { q[((b * nk4 + k4) * 4 + r) * 16 + i * 4 + j] = (w[k * co + o] / esc[o]).round().clamp(-127.0, 127.0) as i8; }
     } } } } }
-    Pesos8 { w: q, esc, ci4, co16 }
+    Pesos8 { w: q, esc, ci4, co16, modo }
 }
 
 /// las 1×1 en 8 bits
 mod ocho {
-    /// los píxeles [p0, p1) de la entrada (float, [n][ci]) a 8 bits (× `inv`), empaquetados de a 4 píxeles: para cada
-    /// grupo de 4 entradas, 16 bytes (4 por píxel). Los píxeles de relleno del último bloque quedan en 0
-    pub fn empaquetar(x: &[f32], ci: usize, nk4: usize, p0: usize, p1: usize, inv: f32, dst: &mut [i8]) {
+    /// el máximo |x| de una fila (de a 8, para que el compilador use vectores)
+    #[inline]
+    pub fn max_abs(v: &[f32]) -> f32 {
+        let mut m = [0f32; 8]; let mut it = v.chunks_exact(8);
+        for c in &mut it { for i in 0..8 { m[i] = m[i].max(c[i].abs()); } }
+        let mut r = m.iter().fold(0f32, |a, &b| a.max(b));
+        for &x in it.remainder() { r = r.max(x.abs()); }
+        r
+    }
+    /// la escala de un píxel (su máximo |x| / 127) y su inversa
+    #[inline]
+    fn escala(fila: &[f32]) -> (f32, f32) { let m = max_abs(fila); if m > 0.0 { (m / 127.0, 127.0 / m) } else { (1.0, 1.0) } }
+    /// los píxeles [p0, p1) de la entrada (float, [n][ci]) a 8 bits, cada uno con su escala (en `sa[p − p0]`),
+    /// empaquetados de a 4 píxeles: para cada grupo de 4 entradas, 16 bytes (4 por píxel). Los píxeles de relleno del
+    /// último bloque quedan en 0. `p0` múltiplo de 4.
+    pub fn empaquetar(x: &[f32], ci: usize, nk4: usize, p0: usize, p1: usize, dst: &mut [i8], sa: &mut [f32]) {
         let b0 = p0 / 4;
         for pb in b0..p1.div_ceil(4) {
             let base = (pb - b0) * nk4 * 16;
@@ -897,6 +970,7 @@ mod ocho {
                 let p = pb * 4 + l;
                 if p < p0 || p >= p1 { for k4 in 0..nk4 { for j in 0..4 { dst[base + k4 * 16 + l * 4 + j] = 0; } } continue; }
                 let fila = &x[p * ci..(p + 1) * ci];
+                let (e, inv) = escala(fila); sa[p - p0] = e;
                 for k4 in 0..nk4 { for j in 0..4 {
                     let k = k4 * 4 + j;
                     dst[base + k4 * 16 + l * 4 + j] = if k < ci { (fila[k] * inv).round().clamp(-127.0, 127.0) as i8 } else { 0 };
@@ -904,9 +978,147 @@ mod ocho {
             }
         }
     }
+    /// como `empaquetar` pero de a `de` entradas seguidas por píxel (8 para SMMLA, 16 para SMULL/SMLAL2): por bloque de
+    /// 4 píxeles y cada `de` entradas, 4·`de` bytes (las `de` de cada píxel seguidas)
+    pub fn empaquetar_de(x: &[f32], ci: usize, de: usize, p0: usize, p1: usize, dst: &mut [i8], sa: &mut [f32]) {
+        let (b0, nk) = (p0 / 4, ci.div_ceil(de));
+        for pb in b0..p1.div_ceil(4) {
+            let base = (pb - b0) * nk * de * 4;
+            for l in 0..4 {
+                let p = pb * 4 + l;
+                if p < p0 || p >= p1 { for kk in 0..nk { dst[base + kk * de * 4 + l * de..][..de].fill(0); } continue; }
+                let fila = &x[p * ci..(p + 1) * ci];
+                let (e, inv) = escala(fila); sa[p - p0] = e;
+                for kk in 0..nk {
+                    let d = &mut dst[base + kk * de * 4 + l * de..][..de];
+                    for j in 0..de { let k = kk * de + j; d[j] = if k < ci { (fila[k] * inv).round().clamp(-127.0, 127.0) as i8 } else { 0 }; }
+                }
+            }
+        }
+    }
+    /// el producto sin SDOT (ARMv8.0): por cada 16 entradas, cada píxel × cada salida con SMULL (8 productos en 16 bits),
+    /// SMLAL2 (los otros 8, sumados: como mucho 2·127·127, entra en 16 bits) y SADALP (sumados de a pares a 32 bits).
+    /// Un bloque de 4 píxeles × 4 salidas en 16 registros; al final, cada registro se suma entero (sus 4 carriles).
+    #[allow(clippy::too_many_arguments)]
+    pub fn gemm_largo(a: &[i8], w: &[i8], esc: &[f32], sa: &[f32], b: &[f32], out: &mut [f32], n: usize, nk16: usize, co: usize, co16: usize) {
+        let nb = n.div_ceil(4);
+        #[cfg(target_arch = "aarch64")]
+        unsafe {
+            use std::arch::aarch64::*;
+            for pb in 0..nb {
+                let ap = a.as_ptr().add(pb * nk16 * 64);
+                for ob in 0..co16 / 16 { for sb in 0..4 {
+                    let o0 = ob * 16 + sb * 4; if o0 >= co { break; }
+                    let z = vdupq_n_s32(0);
+                    let mut c = [[z; 4]; 4];
+                    for k16 in 0..nk16 {
+                        let al = [vld1q_s8(ap.add(k16 * 64)), vld1q_s8(ap.add(k16 * 64 + 16)), vld1q_s8(ap.add(k16 * 64 + 32)), vld1q_s8(ap.add(k16 * 64 + 48))];
+                        let wp = w.as_ptr().add(((ob * nk16 + k16) * 4 + sb) * 64);
+                        let wr = [vld1q_s8(wp), vld1q_s8(wp.add(16)), vld1q_s8(wp.add(32)), vld1q_s8(wp.add(48))];
+                        for l in 0..4 { for r in 0..4 {
+                            let t = vmull_s8(vget_low_s8(al[l]), vget_low_s8(wr[r]));
+                            let t = vmlal_high_s8(t, al[l], wr[r]);
+                            c[l][r] = vpadalq_s16(c[l][r], t);
+                        } }
+                    }
+                    for l in 0..4 {
+                        let p = pb * 4 + l; if p >= n { break; }
+                        let v = vpaddq_s32(vpaddq_s32(c[l][0], c[l][1]), vpaddq_s32(c[l][2], c[l][3]));
+                        if o0 + 4 <= co {
+                            let s = vmulq_n_f32(vld1q_f32(esc.as_ptr().add(o0)), sa[p]);
+                            vst1q_f32(out.as_mut_ptr().add(p * co + o0), vfmaq_f32(vld1q_f32(b.as_ptr().add(o0)), vcvtq_f32_s32(v), s));
+                        } else {
+                            let mut t = [0i32; 4]; vst1q_s32(t.as_mut_ptr(), v);
+                            for i in 0..co - o0 { out[p * co + o0 + i] = (t[i] as f32).mul_add(esc[o0 + i] * sa[p], b[o0 + i]); }
+                        }
+                    }
+                } }
+            }
+        }
+        #[cfg(not(target_arch = "aarch64"))]
+        // (el común, para probar en la PC el mismo empaquetado: JXH_8BITS_PC=1 JXH_8BITS_LARGO=1)
+        for pb in 0..nb { for ob in 0..co16 / 16 { for sb in 0..4 {
+            let o0 = ob * 16 + sb * 4; if o0 >= co { break; }
+            let mut c = [[0i32; 4]; 4];
+            for k16 in 0..nk16 {
+                let av = &a[(pb * nk16 + k16) * 64..][..64]; let wv = &w[((ob * nk16 + k16) * 4 + sb) * 64..][..64];
+                for l in 0..4 { for r in 0..4 { for j in 0..16 { c[l][r] += av[l * 16 + j] as i32 * wv[r * 16 + j] as i32; } } }
+            }
+            for l in 0..4 { let p = pb * 4 + l; if p >= n { break; }
+                for r in 0..4 { let o = o0 + r; if o < co { out[p * co + o] = (c[l][r] as f32).mul_add(esc[o] * sa[p], b[o]); } } }
+        } } }
+    }
+    /// el producto con SMMLA (sólo se empaqueta así si el procesador lo tiene)
+    #[allow(clippy::too_many_arguments)]
+    pub fn gemm_mm(a: &[i8], w: &[i8], esc: &[f32], sa: &[f32], b: &[f32], out: &mut [f32], n: usize, nk8: usize, co: usize, co16: usize) {
+        #[cfg(target_arch = "aarch64")]
+        unsafe { gemm_smmla(a, w, esc, sa, b, out, n, nk8, co, co16) }
+        #[cfg(not(target_arch = "aarch64"))]
+        { let _ = (a, w, esc, sa, b, out, n, nk8, co, co16); unreachable!() }
+    }
+    /// SMMLA: un bloque de 4 píxeles × 16 salidas en 16 registros (cada uno, 2 píxeles × 2 salidas); por cada 8
+    /// entradas, 2 cargas de la entrada, 8 de pesos y 16 SMMLA (cada uno, 2×2 salidas × 8 entradas = 32 multiplicaciones)
+    #[cfg(target_arch = "aarch64")]
+    #[target_feature(enable = "i8mm")]
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn gemm_smmla(a: &[i8], w: &[i8], esc: &[f32], sa: &[f32], b: &[f32], out: &mut [f32], n: usize, nk8: usize, co: usize, co16: usize) {
+        use std::arch::aarch64::*;
+        macro_rules! mm { ($acc:ident, $a:expr, $w:expr) => {
+            std::arch::asm!("smmla {acc:v}.4s, {a:v}.16b, {w:v}.16b", acc = inout(vreg) $acc, a = in(vreg) $a, w = in(vreg) $w, options(pure, nomem, nostack));
+        } }
+        debug_assert!(a.len() >= n.div_ceil(4) * nk8 * 32 && w.len() >= co16 * nk8 * 8);
+        let nb = n.div_ceil(4);
+        for pb in 0..nb {
+            let ap = a.as_ptr().add(pb * nk8 * 32);
+            for ob in 0..co16 / 16 {
+                let wp = w.as_ptr().add(ob * nk8 * 128);
+                let z = vdupq_n_s32(0);
+                // c{P}{q}: los píxeles 2P y 2P+1 × las salidas 2q y 2q+1
+                let (mut c00, mut c01, mut c02, mut c03, mut c04, mut c05, mut c06, mut c07) = (z, z, z, z, z, z, z, z);
+                let (mut c10, mut c11, mut c12, mut c13, mut c14, mut c15, mut c16, mut c17) = (z, z, z, z, z, z, z, z);
+                for k8 in 0..nk8 {
+                    let a0 = vld1q_s8(ap.add(k8 * 32)); let a1 = vld1q_s8(ap.add(k8 * 32 + 16));
+                    let wk = wp.add(k8 * 128);
+                    let w0 = vld1q_s8(wk); mm!(c00, a0, w0); mm!(c10, a1, w0);
+                    let w1 = vld1q_s8(wk.add(16)); mm!(c01, a0, w1); mm!(c11, a1, w1);
+                    let w2 = vld1q_s8(wk.add(32)); mm!(c02, a0, w2); mm!(c12, a1, w2);
+                    let w3 = vld1q_s8(wk.add(48)); mm!(c03, a0, w3); mm!(c13, a1, w3);
+                    let w4 = vld1q_s8(wk.add(64)); mm!(c04, a0, w4); mm!(c14, a1, w4);
+                    let w5 = vld1q_s8(wk.add(80)); mm!(c05, a0, w5); mm!(c15, a1, w5);
+                    let w6 = vld1q_s8(wk.add(96)); mm!(c06, a0, w6); mm!(c16, a1, w6);
+                    let w7 = vld1q_s8(wk.add(112)); mm!(c07, a0, w7); mm!(c17, a1, w7);
+                }
+                // de pares 2×2 a filas: el píxel de arriba con las mitades bajas de dos pares seguidos, el de abajo con las altas
+                let o0 = ob * 16;
+                let par = |r: [int32x4_t; 8], arriba: bool| -> [int32x4_t; 4] {
+                    let j = |x: int32x4_t, y: int32x4_t| {
+                        let (x, y) = (vreinterpretq_s64_s32(x), vreinterpretq_s64_s32(y));
+                        vreinterpretq_s32_s64(if arriba { vzip1q_s64(x, y) } else { vzip2q_s64(x, y) })
+                    };
+                    [j(r[0], r[1]), j(r[2], r[3]), j(r[4], r[5]), j(r[6], r[7])]
+                };
+                let fila = |l: usize, r: [int32x4_t; 4], out: &mut [f32]| {
+                    let p = pb * 4 + l; if p >= n { return; }
+                    for (q, v) in r.iter().enumerate() {
+                        let o = o0 + q * 4;
+                        if o + 4 <= co {
+                            let s = vmulq_n_f32(vld1q_f32(esc.as_ptr().add(o)), sa[p]);
+                            let y = vfmaq_f32(vld1q_f32(b.as_ptr().add(o)), vcvtq_f32_s32(*v), s);
+                            vst1q_f32(out.as_mut_ptr().add(p * co + o), y);
+                        } else if o < co {
+                            let mut t = [0i32; 4]; vst1q_s32(t.as_mut_ptr(), *v);
+                            for i in 0..co - o { out[p * co + o + i] = (t[i] as f32).mul_add(esc[o + i] * sa[p], b[o + i]); }
+                        }
+                    }
+                };
+                let r0 = [c00, c01, c02, c03, c04, c05, c06, c07]; let r1 = [c10, c11, c12, c13, c14, c15, c16, c17];
+                fila(0, par(r0, true), out); fila(1, par(r0, false), out); fila(2, par(r1, true), out); fila(3, par(r1, false), out);
+            }
+        }
+    }
     /// [n × ci] (8 bits, empaquetada) · [ci × co] (8 bits) → float, con las escalas y el sesgo. `out`: [n][co]
     #[allow(clippy::too_many_arguments)]
-    pub fn gemm(a: &[i8], w: &[i8], esc: &[f32], sa: f32, b: &[f32], out: &mut [f32], n: usize, nk4: usize, co: usize, co16: usize) {
+    pub fn gemm(a: &[i8], w: &[i8], esc: &[f32], sa: &[f32], b: &[f32], out: &mut [f32], n: usize, nk4: usize, co: usize, co16: usize) {
         #[cfg(target_arch = "aarch64")]
         { if super::hay_dot() && std::env::var_os("JXH_8BITS_COMUN").is_none() { unsafe { gemm_sdot(a, w, esc, sa, b, out, n, nk4, co, co16); } return; } }
         // (el común: el mismo empaquetado, sumas en enteros)
@@ -921,7 +1133,7 @@ mod ocho {
                 } } }
             }
             for l in 0..4 { let p = pb * 4 + l; if p >= n { break; }
-                for q in 0..16 { let o = ob * 16 + q; if o < co { out[p * co + o] = (acc[l][q] as f32).mul_add(esc[o] * sa, b[o]); } } }
+                for q in 0..16 { let o = ob * 16 + q; if o < co { out[p * co + o] = (acc[l][q] as f32).mul_add(esc[o] * sa[p], b[o]); } } }
         } }
     }
     /// el de ARM con SDOT: un bloque de 4 píxeles × 16 salidas en 16 registros; por cada 4 entradas, 1 carga de la
@@ -929,7 +1141,7 @@ mod ocho {
     #[cfg(target_arch = "aarch64")]
     #[target_feature(enable = "dotprod")]
     #[allow(clippy::too_many_arguments)]
-    unsafe fn gemm_sdot(a: &[i8], w: &[i8], esc: &[f32], sa: f32, b: &[f32], out: &mut [f32], n: usize, nk4: usize, co: usize, co16: usize) {
+    unsafe fn gemm_sdot(a: &[i8], w: &[i8], esc: &[f32], sa: &[f32], b: &[f32], out: &mut [f32], n: usize, nk4: usize, co: usize, co16: usize) {
         use std::arch::aarch64::*;
         macro_rules! sd { ($acc:ident, $w:expr, $a:expr, $l:literal) => {
             std::arch::asm!(concat!("sdot {acc:v}.4s, {w:v}.16b, {a:v}.4b[", $l, "]"), acc = inout(vreg) $acc, w = in(vreg) $w, a = in(vreg) $a, options(pure, nomem, nostack));
@@ -959,12 +1171,12 @@ mod ocho {
                     for (q, v) in r.iter().enumerate() {
                         let o = o0 + q * 4;
                         if o + 4 <= co {
-                            let s = vmulq_n_f32(vld1q_f32(esc.as_ptr().add(o)), sa);
+                            let s = vmulq_n_f32(vld1q_f32(esc.as_ptr().add(o)), sa[p]);
                             let y = vfmaq_f32(vld1q_f32(b.as_ptr().add(o)), vcvtq_f32_s32(*v), s);
                             vst1q_f32(out.as_mut_ptr().add(p * co + o), y);
                         } else if o < co {
                             let mut t = [0i32; 4]; vst1q_s32(t.as_mut_ptr(), *v);
-                            for i in 0..co - o { out[p * co + o + i] = (t[i] as f32).mul_add(esc[o + i] * sa, b[o + i]); }
+                            for i in 0..co - o { out[p * co + o + i] = (t[i] as f32).mul_add(esc[o + i] * sa[p], b[o + i]); }
                         }
                     }
                 };
@@ -1026,6 +1238,11 @@ mod neon16 {
 
     /// depthwise en float16: entrada [h × wd × c] en float16, pesos [kh·kw][c] en float16, salida (filas [ya, yb)) en
     /// float32 con el sesgo. c múltiplo de 8; kh·kw ≤ 64.
+    ///
+    /// Con paso 1 y ventana de 3 o 5 de ancho, los píxeles del medio (la ventana entera adentro a lo ancho) van de a 8
+    /// (y después de a 4): cada columna de la entrada se carga una vez por fila de la ventana y sirve para todos los que
+    /// la tocan (con 5×5, 12 cargas + 5 de pesos para 40 multiplicaciones; de a un píxel eran 2 cargas por cada una).
+    /// Cada salida suma sus toques en el mismo orden que de a uno: da bit a bit lo mismo.
     #[target_feature(enable = "fp16")]
     #[allow(clippy::too_many_arguments)]
     pub unsafe fn depthwise(x: *const u16, h: usize, wd: usize, c: usize, w: *const u16, b: *const f32, out: *mut f32, wo: usize,
@@ -1033,11 +1250,30 @@ mod neon16 {
         let z = vdupq_n_f32(0.0);
         let mut toques = [(0usize, 0usize); 64];
         let ld = |p: *const u16| vld1q_f32(p as *const f32);
+        let rapido = paso == (1, 1) && dil == (1, 1) && (kw == 3 || kw == 5) && super::DW_RAPIDO.load(std::sync::atomic::Ordering::Relaxed);
+        // (los de en medio a lo ancho: xo − pad ≥ 0 y xo − pad + kw − 1 < wd)
+        let (xa, xb) = if rapido { let a = pad.1.min(wo); (a, (wd + pad.1 + 1).saturating_sub(kw).min(wo).max(a)) } else { (0, 0) };
         for y in ya..yb {
-            for xo in 0..wo {
+            let y0 = (y * paso.0) as isize - pad.0 as isize;
+            let (dy0, dy1) = ((-y0).max(0) as usize, (h as isize - y0).clamp(0, kh as isize) as usize);
+            let mut xo = 0;
+            while xo < wo {
+                if rapido && xo >= xa && xo + 4 <= xb {
+                    let np = if xo + 8 <= xb { 8 } else { 4 };
+                    let o = out.add(((y - ya) * wo + xo) * c);
+                    let ent = x.add(((y0.max(0) as usize) * wd + (xo - pad.1)) * c);
+                    let f = (wd * c, y0 - y0.max(0));
+                    match (kw, np) {
+                        (5, 8) => bloque::<5, 8>(ent, w, b, o, c, kw, dy0, dy1, f),
+                        (5, _) => bloque::<5, 4>(ent, w, b, o, c, kw, dy0, dy1, f),
+                        (_, 8) => bloque::<3, 8>(ent, w, b, o, c, kw, dy0, dy1, f),
+                        _ => bloque::<3, 4>(ent, w, b, o, c, kw, dy0, dy1, f),
+                    }
+                    xo += np; continue;
+                }
                 let o = out.add(((y - ya) * wo + xo) * c);
                 // las partes de la ventana que caen adentro de la imagen
-                let (y0, x0) = ((y * paso.0) as isize - pad.0 as isize, (xo * paso.1) as isize - pad.1 as isize);
+                let x0 = (xo * paso.1) as isize - pad.1 as isize;
                 let mut n = 0;
                 for dy in 0..kh {
                     let yy = y0 + (dy * dil.0) as isize; if yy < 0 || yy >= h as isize { continue; }
@@ -1064,7 +1300,38 @@ mod neon16 {
                     volcar(a0, o.add(j), b.add(j), true);
                     j += 8;
                 }
+                xo += 1;
             }
+        }
+    }
+
+    /// `NP` píxeles seguidos de una fila de salida (todos con la ventana entera adentro a lo ancho), de a 8 canales.
+    /// `ent`: la entrada en la primera fila válida y la columna del primer toque del primer píxel; `fila`: el largo de una
+    /// fila de la entrada y cuántas filas antes de `ent` empezaría la ventana (0 o negativo), para ubicar la fila dy
+    #[target_feature(enable = "fp16")]
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn bloque<const KW: usize, const NP: usize>(ent: *const u16, w: *const u16, b: *const f32, o: *mut f32, c: usize, kw: usize,
+                                                      dy0: usize, dy1: usize, fila: (usize, isize)) {
+        let z = vdupq_n_f32(0.0);
+        let ld = |p: *const u16| vld1q_f32(p as *const f32);
+        debug_assert!(kw == KW);
+        let mut j = 0;
+        while j < c {
+            let mut acc = [z; NP];
+            for dy in dy0..dy1 {
+                let f = ent.add((dy as isize + fila.1) as usize * fila.0 + j);
+                let wf = w.add(dy * KW * c + j);
+                // (NP + KW − 1 columnas, cada una una vez)
+                let mut col = [z; 12];
+                for (i, v) in col.iter_mut().enumerate().take(NP + KW - 1) { *v = ld(f.add(i * c)); }
+                for dx in 0..KW {
+                    let wv = ld(wf.add(dx * c));
+                    for (p, a) in acc.iter_mut().enumerate() { fmla_v!(*a, col[p + dx], wv); }
+                }
+            }
+            for (p, a) in acc.iter().enumerate() { volcar(*a, o.add(p * c + j), b.add(j), true); }
+            j += 8;
         }
     }
 
