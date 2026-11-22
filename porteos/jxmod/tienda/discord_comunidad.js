@@ -55,8 +55,24 @@ const ts = (ms, f = 'R') => `<t:${Math.floor(ms / 1000)}:${f}>`;
 const num = (n) => Number(n || 0).toLocaleString('es-AR');
 // lo que la bienvenida necesita del servidor (del GUILD_CREATE en la puerta, o de la API en un comando)
 export function infoDe(g) {
+  const permisos = g.roles ? Object.fromEntries(g.roles.map((r) => [r.id, r.permissions])) : undefined;
   const ch = g.channels || [], descargas = ch.find((c) => c.type === 0 && /descarga|download/i.test(c.name)) || ch.find((c) => (c.type === 0 || c.type === 5) && /actualiza|update/i.test(c.name));
-  return { nombre: g.name, miembros: g.member_count || g.approximate_member_count || 0, reglas: g.rules_channel_id || (ch.find((c) => c.type === 0 && /regla|rules/i.test(c.name)) || {}).id || null, descargas: descargas ? descargas.id : null, icono: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=256` : null };
+  return { nombre: g.name, miembros: g.member_count || g.approximate_member_count || 0, reglas: g.rules_channel_id || (ch.find((c) => c.type === 0 && /regla|rules/i.test(c.name)) || {}).id || null, descargas: descargas ? descargas.id : null, icono: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=256` : null, permisos, dueno: g.owner_id };
+}
+// ¿es mod? el dueño, quien tenga un rol con permisos de moderación (admin, gestionar servidor o mensajes, expulsar,
+// banear, aislar) o el rol de mods de /registro. (@everyone no cuenta: si tuviera esos permisos, todos serían mods)
+export const BITS_MOD = 8n | 32n | 2n | 4n | 8192n | (1n << 40n);
+export function esModerador(info, rolMods, uid, roles, g) {
+  if (!info) return false;
+  if (info.dueno && info.dueno === uid) return true;
+  if (rolMods && roles.includes(rolMods)) return true;
+  let p = 0n; for (const r of roles) if (r !== g && info.permisos && info.permisos[r]) p |= BigInt(info.permisos[r]);
+  return (p & BITS_MOD) !== 0n;
+}
+export async function esModInteraccion(env, it) {   // (en un comando, Discord ya manda los permisos calculados)
+  const m = it.member; if (!m || !it.guild_id) return false;
+  if ((BigInt(m.permissions || '0') & BITS_MOD) !== 0n) return true;
+  const aj = await ajustes(env, it.guild_id); return !!(aj.mods && (m.roles || []).includes(aj.mods));
 }
 export async function infoServidor(env, g) {
   const [s, ch] = await Promise.all([dc(env, 'GET', `/guilds/${g}?with_counts=true`), dc(env, 'GET', `/guilds/${g}/channels`).catch(() => [])]);
@@ -280,11 +296,11 @@ export function botonComunidad(it, ROLES) {
 function ayuda() {
   return { color: ROSA, title: 'JXBot · comandos', description: 'Para hablarme: respondé a un mensaje mío, mencioname, escribí **/jb** y lo que quieras, o mandame un privado.',
     fields: [
-      { name: 'Para todos', value: '/jb · /jxmod · /stickerazo · /estado · /bug · /sugerencia\n/nivel · /top · /servidor · /usuario · /warns · /ayuda' },
+      { name: 'Para todos', value: '/jb · /jxmod · /stickerazo · /estado · /bug · /sugerencia\n/nivel · /top · /servidor · /usuario · /warns · /limite · /ayuda' },
       { name: 'Admins (con el código de /admin)', value: '/configurar · /roles · /anunciar · /memoria\n/bienvenida · /autorol · /niveles · /registro · /encuesta' },
-      { name: 'Moderación (con el código)', value: '/warn · /warns · /perdonar · /historial · /silenciar · /limpiar\n/expulsar · /ban · /desbanear · /lento · /bloquear · /desbloquear' },
+      { name: 'Moderación (con el código)', value: '/warn · /warns · /perdonar · /historial · /silenciar · /limpiar\n/expulsar · /ban · /desbanear · /lento · /bloquear · /desbloquear · /reiniciar-limite' },
       { name: 'Clic derecho en un mensaje → Apps', value: '«Reportar a los mods» (para todos) · «Warn por este mensaje» (mods)' }],
-    footer: { text: 'JXApps · JXMod y Stickerazo' } };
+    footer: { text: 'Para hablarme: 7 s entre mensajes y 10 cada 30 min (admins y mods, sin límite)' } };
 }
 
 // ---- cómo se registran en Discord ----

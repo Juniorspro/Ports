@@ -13,9 +13,9 @@
 // DISCORD_ADMIN_CODE (secretos: wrangler secret put …). Sin los tres primeros, /api/discord/ contesta 503 y el cron no
 // hace nada; sin el código, los comandos de admin no andan.
 import { tablas, postNuevo } from './panel.js';
-import { respuestaIA, memoriaAgregar, memoriaBorrar, memoriaLista } from './discord_ia.js';
+import { respuestaIA, memoriaAgregar, memoriaBorrar, memoriaLista, cupoIA, textoCupo, reiniciarCupo, LIM } from './discord_ia.js';
 import { REPO, SITIO_SZ, ROSA, AMARILLO, VIOLETA, VERDE, GRIS, EFIMERO, MIN, corto, traer, dc, msg, efimero, usuarioDe, sha, huellaCodigo } from './discord_base.js';
-import { comandoComunidad, botonComunidad, COMANDOS_COMUNIDAD, PERM } from './discord_comunidad.js';
+import { comandoComunidad, botonComunidad, COMANDOS_COMUNIDAD, PERM, esModInteraccion } from './discord_comunidad.js';
 import { comandoModeracion, botonModeracion, formularioModeracion, COMANDOS_MODERACION } from './discord_moderacion.js';
 export { dc };
 export const ROLES = [['jxmod', 'JXMod', 0x9aa0a6], ['stickerazo', 'Stickerazo', AMARILLO], ['avisos', 'Avisos de versiones', ROSA]];
@@ -82,7 +82,7 @@ async function puerta(env, ruta, init) {
 }
 // /jb: la respuesta de la IA en el mensaje «pensando…» (lo llama la puerta; sin puerta, el Worker mismo)
 export async function contestarJB(env, j) {
-  const r = await respuestaIA(env, { canal: j.canal, usuario: j.usuario, nombre: j.nombre, texto: j.texto, guild: j.guild, admin: await esAdminDe(env, j.usuario, j.guild) });
+  const r = await respuestaIA(env, { canal: j.canal, usuario: j.usuario, nombre: j.nombre, texto: j.texto, guild: j.guild, mod: !!j.mod, admin: await esAdminDe(env, j.usuario, j.guild) });
   await dc(env, 'PATCH', `/webhooks/${env.DISCORD_APP_ID}/${j.token}/messages/@original`, { content: r.espera || `> ${corto(j.texto, 300)}\n${r.texto}`, allowed_mentions: { parse: [] } });
 }
 // ---- el código de admin: se guarda la huella (SHA-256) del código con que se habilitó, nunca el código ----
@@ -147,9 +147,25 @@ async function comando(env, it, ctx) {
     // el corte de tiempo de un pedido común: hecho acá con waitUntil, Cloudflare lo cortaba esperando a Gemini y quedaba
     // «pensando» para siempre)
     const pregunta = ((it.data.options || []).find((o) => o.name === 'mensaje') || {}).value || '', u = usuarioDe(it);
-    const trabajo = { token: it.token, canal: it.channel_id || 'dm', guild: it.guild_id || null, usuario: u.id, nombre: u.global_name || u.username, texto: pregunta };
+    // (el límite se mira antes de contestar «pensando…»: si tiene que esperar, se le dice sólo a él, con el contador)
+    const admin = await esAdmin(env, it), mod = !admin && (await esModInteraccion(env, it));
+    if (!admin && !mod) { const c = await cupoIA(env, u.id); if (!c.ok) return efimero(textoCupo(c)); }
+    const trabajo = { token: it.token, canal: it.channel_id || 'dm', guild: it.guild_id || null, usuario: u.id, nombre: u.global_name || u.username, texto: pregunta, mod };
     ctx.waitUntil((env.DC_PUERTA ? puerta(env, '/jb', { method: 'POST', body: JSON.stringify(trabajo) }) : contestarJB(env, trabajo)).catch((e) => console.error('jb', e)));
     return new Response(JSON.stringify({ type: 5 }), { headers: { 'Content-Type': 'application/json' } });
+  }
+  if (n === 'limite' || n === 'reiniciar-limite') {
+    const yo = usuarioDe(it), op = Object.fromEntries((it.data.options || []).map((o) => [o.name, o.value])), uid = op.usuario || yo.id;
+    const manda = (await esAdmin(env, it)) || (await esModInteraccion(env, it));
+    if (n === 'reiniciar-limite') {
+      if (!manda) return efimero('Eso es para admins y mods.');
+      const k = await reiniciarCupo(env, uid); return efimero(`Listo: <@${uid}> vuelve a tener ${LIM.cantidad} de ${LIM.cantidad} mensajes${k ? ` (borré ${k} de la cuenta)` : ''}.`);
+    }
+    if (uid !== yo.id && !manda) return efimero('Sólo podés ver el tuyo.');
+    if (uid === yo.id && manda) return efimero('Sos admin o mod: para vos no hay límite.');
+    const c = await cupoIA(env, uid), quien = uid === yo.id ? 'Te quedan' : `A <@${uid}> le quedan`;
+    if (!c.ok) return efimero(`${uid === yo.id ? 'Ahora tenés que esperar' : `<@${uid}> tiene que esperar`}: ${textoCupo(c).replace(/^[^:]*: /, '')}`);
+    return efimero(`${quien} **${c.quedan} de ${LIM.cantidad}** mensajes para hablarme${c.renueva ? ` (se renueva de a uno; el primero <t:${Math.ceil(c.renueva / 1000)}:R>)` : ''}. Entre mensaje y mensaje, 7 segundos.`);
   }
   if (n === 'admin') return new Response(JSON.stringify({ type: 9, data: { custom_id: 'admin', title: 'Código de admin', components: [{ type: 1, components: [{ type: 4, custom_id: 'codigo', label: 'El código', style: 1, required: true, max_length: 100 }] }] } }), { headers: { 'Content-Type': 'application/json' } });
   // ---- de acá para abajo, sólo quien mandó el código de admin ----
@@ -322,6 +338,8 @@ export const COMANDOS = [
     { type: 1, name: 'agregar', description: 'Un dato nuevo (lo usa para contestarle a todos)', options: [{ type: 3, name: 'texto', description: 'El dato, por ejemplo: «JXApps es…»', required: true, max_length: 1000 }] },
     { type: 1, name: 'ver', description: 'Todo lo que le enseñaron, con su número' },
     { type: 1, name: 'borrar', description: 'Olvidar un dato', options: [{ type: 4, name: 'numero', description: 'El número del dato (de /memoria ver)', required: true, min_value: 1 }] }] },
+  { name: 'limite', description: 'Cuántos mensajes te quedan para hablarle a JXBot (10 cada 30 min)', dm_permission: true, contexts: [0, 1], options: [{ type: 6, name: 'usuario', description: 'De quién (sólo admins y mods)' }] },
+  { name: 'reiniciar-limite', description: 'Mods: le vuelve a dar los 10 mensajes a alguien', dm_permission: false, default_member_permissions: PERM.MODERAR, options: [{ type: 6, name: 'usuario', description: 'A quién', required: true }] },
   ...COMANDOS_COMUNIDAD,
   ...COMANDOS_MODERACION,
 ];

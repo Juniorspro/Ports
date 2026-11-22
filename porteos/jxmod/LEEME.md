@@ -5407,6 +5407,28 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     tiene el permiso de Discord que corresponde.
   - **Prueba:** `discord_bot.mjs` 21/21. La 17 cubre los warns, la alerta, los botones y la IA. La 19 cubre perdonar,
     historial, silenciar, limpiar, ban, expulsar, desbanear, lento, bloquear, reportar y warn por mensaje.
+- **El límite para hablarle al bot** (pedido del dueño: «7 segundos por persona, admins y mods sin límites, los usuarios
+  normales sólo 10 mensajes cada 30 minutos, límite reiniciable»). Reemplaza el de antes (3 s y 60 por día); el tope
+  general de 1500 por día sigue.
+  - `cupoIA` (`discord_ia.js`) cuenta en `dc_ia`. La ventana de 30 minutos corre: cada mensaje se libera 30 minutos
+    después.
+  - El aviso usa el contador de Discord (`<t:…:R>`, «en 5 segundos», que se actualiza solo).
+  - En el chat normal el aviso se manda una sola vez por espera; los mensajes que siguen se ignoran callados, así un
+    apurado no llena el canal.
+  - En `/jb` se mira antes del «pensando…», y si tiene que esperar se lo dice sólo a esa persona.
+  - **Quién es mod:** el dueño, quien tenga un rol con permisos de moderación (administrador, gestionar servidor o
+    mensajes, expulsar, banear, aislar; @everyone no cuenta) o el rol de mods de `/registro`.
+    - En un comando, Discord manda los permisos ya calculados. En el chat, la puerta los calcula con los roles del
+      GUILD_CREATE, que actualiza con GUILD_ROLE_CREATE, UPDATE y DELETE.
+    - Los admins del código también quedan sin límite.
+  - **Comandos:** `/limite` (lo tuyo; lo de otro, admins y mods) y `/reiniciar-limite usuario` (admins y mods; borra
+    su ventana). Son 37 comandos.
+  - **En el servidor**, sin límite: Desarrollador, Goshumio, Mod, Turro (tiene permisos de moderación) y el dueño.
+  - **Prueba:** `discord_bot.mjs` 22/22. Las pruebas usan una espera de 3 s (`IA_ESPERA_MS`) y la 20 prueba los 7 s
+    de verdad con la hora fija.
+    - 7 s con el contador, 10 en 30 min, que se renuevan.
+    - Admins y mods sin límite; el rol con «Aislar» por la puerta, sin límite.
+    - Aviso una sola vez; `/limite`, `/reiniciar-limite`; `/jb` que avisa en privado.
   - **En el servidor:** la bienvenida quedó en #bievenida y el rol automático en «Miembro», configurados directo en la
     base (`dc_ajustes`).
     - Hasta entonces la bienvenida la daba Nekotina: hay que apagar la suya.

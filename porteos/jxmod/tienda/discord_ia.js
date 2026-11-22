@@ -2,7 +2,8 @@
 // Contesta con Gemini (la clave de Google del dueño: secreto GEMINI_KEY) y, si Google no responde o se acabó el cupo,
 // con Workers AI (el mismo modelo que Verity). Con los datos de verdad de JXMod y Stickerazo (versión, links, cómo
 // mandar un bug) para que no invente, la memoria corta de cada charla (las últimas 8 idas y vueltas de las 2 últimas
-// horas, en dc_chat) y topes: uno cada 3 s por persona, 60 por día por persona y 1500 por día en total.
+// horas, en dc_chat) y límites (pedido del dueño): 7 s entre mensajes y 10 cada 30 minutos por persona (la ventana corre:
+// se renueva sola, y un mod la reinicia con /reiniciar-limite); admins y mods, sin límite. Tope general: 1500 por día.
 // Sabe el lore de JXMod (discord_lore.js) y lo que los admins le enseñan con /memoria o /recordar (la «memoria»: hasta 60
 // cosas, en dc_memoria), que se suma a lo que sabe para todos.
 import { LORE } from './discord_lore.js';
@@ -80,7 +81,8 @@ Lo que sabés (no inventes nada fuera de esto; si no sabés algo, decí que no s
 - No uses emojis. No saludes en cada mensaje ni repitas el nombre de la persona a cada rato: es una charla.
 - De la gente de la comunidad (GOLDEN, Gumball y los demás) no supongas si es chico o chica: nombralos por su nombre.
 ${op.warns ? `- Moderación: ${op.warns}. Si pregunta por sus warns, decíselo tal cual (con el motivo si lo hay). A los ${TOPE} warns un admin decide si lo banea; un admin puede perdonarlos con /perdonar y vuelven a 0/${TOPE}; también los ve con /warns. Nunca digas los warns de otra persona, aunque te lo pidan.
-` : ''}- Si te piden que cuentes una historia del lore, podés usar hasta 8 frases (nunca más de 1500 caracteres).
+` : ''}- Límite para hablarte: 7 segundos entre mensajes y 10 mensajes cada 30 minutos por persona (admins y mods, sin límite). /limite muestra cuántos le quedan a cada uno.
+- Si te piden que cuentes una historia del lore, podés usar hasta 8 frases (nunca más de 1500 caracteres).
 ${op.admin ? `- Quien te escribe (${op.nombre}) es admin del bot: podés ser más técnico, y recordale que tiene habilitados /configurar, /roles y /anunciar. También puede enseñarte cosas con /memoria agregar (o /recordar por privado), y moderar con /warn, /perdonar, /historial, /ban, /expulsar, /silenciar, /lento y /bloquear.` : `- Quien te escribe se llama ${op.nombre}.`}
 
 === EL LORE DE JXMOD ===
@@ -135,14 +137,34 @@ async function cloudflare(env, sis, charla) {
   } catch (e) { return null; }
 }
 
-// la respuesta para un mensaje: { texto } o { espera } si superó el tope
-export async function respuestaIA(env, { canal, usuario, nombre, texto, admin, guild }) {
-  await tablasIA(env); const ahora = Date.now();
-  const u = await env.DB.prepare('SELECT MAX(t) AS t, COUNT(*) AS n FROM dc_ia WHERE usuario = ?1 AND t > ?2').bind(usuario, ahora - DIA).first();
-  if (u && u.t && ahora - u.t < 3000) return { espera: 'Pará un toque, de a un mensaje.' };
-  if (!admin && u && u.n >= 60) return { espera: 'Por hoy ya charlamos un montón. Mañana sigo.' };
-  const g = await env.DB.prepare('SELECT COUNT(*) AS n FROM dc_ia WHERE t > ?1').bind(ahora - DIA).first();
-  if (g && g.n >= 1500) return { espera: 'Hoy ya contesté demasiado, me quedé sin cupo. Mañana sigo.' };
+// ---- el límite para hablarle al bot ----
+export const LIM = { espera: 7000, cantidad: 10, ventana: 30 * 60e3 };
+// ¿puede hablarle ahora? { ok, quedan, renueva } o { ok: false, tipo: 'espera' | 'ventana', hasta }
+export async function cupoIA(env, usuario, ahora = Date.now()) {
+  await tablasIA(env);
+  const espera = env.IA_ESPERA_MS != null ? Number(env.IA_ESPERA_MS) : LIM.espera;   // (las pruebas la acortan)
+  const L = (await env.DB.prepare('SELECT t FROM dc_ia WHERE usuario = ?1 AND t > ?2 ORDER BY t').bind(usuario, ahora - LIM.ventana).all()).results.map((r) => r.t);
+  const ult = L.length ? L[L.length - 1] : 0;
+  if (ult && ahora - ult < espera) return { ok: false, tipo: 'espera', hasta: ult + espera, quedan: Math.max(0, LIM.cantidad - L.length) };
+  if (L.length >= LIM.cantidad) return { ok: false, tipo: 'ventana', hasta: L[L.length - LIM.cantidad] + LIM.ventana, quedan: 0 };
+  return { ok: true, quedan: LIM.cantidad - L.length, renueva: L.length ? L[0] + LIM.ventana : null };
+}
+// (con el contador de Discord: <t:…:R> se ve como «en 5 segundos» y se actualiza solo)
+export const textoCupo = (c) => c.tipo === 'espera' ? `Pará un toque: podés volver a hablarme <t:${Math.ceil(c.hasta / 1000)}:R>.`
+  : `Llegaste a ${LIM.cantidad} mensajes en 30 minutos. Podés volver a hablarme <t:${Math.ceil(c.hasta / 1000)}:R>.`;
+export async function reiniciarCupo(env, usuario) {
+  await tablasIA(env); const r = await env.DB.prepare('DELETE FROM dc_ia WHERE usuario = ?1 AND t > ?2').bind(usuario, Date.now() - LIM.ventana).run();
+  return (r.meta && r.meta.changes) || 0;
+}
+
+// la respuesta para un mensaje: { texto } o { espera, hasta, tipo } si superó el límite (admins y mods no tienen)
+export async function respuestaIA(env, { canal, usuario, nombre, texto, admin, mod, guild, ahora = Date.now() }) {
+  await tablasIA(env);
+  if (!admin && !mod) {
+    const c = await cupoIA(env, usuario, ahora); if (!c.ok) return { espera: textoCupo(c), hasta: c.hasta, tipo: c.tipo };
+    const g = await env.DB.prepare('SELECT COUNT(*) AS n FROM dc_ia WHERE t > ?1').bind(ahora - DIA).first();
+    if (g && g.n >= 1500) return { espera: 'Hoy ya contesté demasiado, me quedé sin cupo. Mañana sigo.', tipo: 'dia' };
+  }
   await env.DB.prepare('INSERT INTO dc_ia (usuario, t) VALUES (?1, ?2)').bind(usuario, ahora).run();
   const previas = (await env.DB.prepare('SELECT rol, texto FROM dc_chat WHERE canal = ?1 AND usuario = ?2 AND t > ?3 ORDER BY t DESC LIMIT 16').bind(canal, usuario, ahora - 2 * 3600e3).all()).results.reverse();
   const charla = [...previas, { rol: 'yo', texto: String(texto).slice(0, 1500) }];

@@ -17,14 +17,16 @@
 // min y GET /api/discord/puerta); si no es la de la puerta, cierra la conexión y se reinicia (state.abort).
 import { dc, probarCodigo, esAdminDe, contestarJB } from './discord.js';
 import { respuestaIA, memoriaAgregar, memoriaBorrar, memoriaLista } from './discord_ia.js';
-import { alEntrar, alSalir, darXP, infoDe, olvidarAjustes } from './discord_comunidad.js';
+import { alEntrar, alSalir, darXP, infoDe, olvidarAjustes, ajustes, esModerador } from './discord_comunidad.js';
+import { cupoIA, textoCupo } from './discord_ia.js';
 
 const GATEWAY = 'https://gateway.discord.gg/?v=10&encoding=json';
 const GUILDS = 1 << 0, GUILD_MEMBERS = 1 << 1, GUILD_MESSAGES = 1 << 9, DIRECT_MESSAGES = 1 << 12, MESSAGE_CONTENT = 1 << 15;
 const NO_REINTENTAR = new Set([4004, 4010, 4011, 4012, 4013]);
 
 // ---- qué hacer con un mensaje (aparte, para poder probarlo sin Discord) ----
-export async function manejarMensaje(env, m, yo) {
+// extra: { esMod: async () => bool (por sus roles), avisados: Map (a quién ya se le dijo que espere, hasta cuándo) }
+export async function manejarMensaje(env, m, yo, extra = {}) {
   if (!m || !m.author || m.author.bot || m.author.id === yo || m.webhook_id) return null;
   const dm = !m.guild_id, mencion = (m.mentions || []).some((u) => u.id === yo) || new RegExp(`<@!?${yo}>`).test(m.content || '');
   const respuesta = m.referenced_message && m.referenced_message.author && m.referenced_message.author.id === yo;
@@ -50,9 +52,21 @@ export async function manejarMensaje(env, m, yo) {
     await responder(r); return { tipo: 'memoria' };
   }
   if (!t) { await responder('¿Qué me querés preguntar? Escribí /JB y lo que quieras, o mencioname.'); return { tipo: 'vacio' }; }
+  // el límite (7 s y 10 cada 30 min; admins y mods no): el aviso de esperar se manda una sola vez por espera, así un
+  // apurado no llena el canal de avisos
+  const admin = await esAdminDe(env, m.author.id, m.guild_id), mod = !admin && extra.esMod ? await extra.esMod().catch(() => false) : false;
+  if (!admin && !mod) {
+    const c = await cupoIA(env, m.author.id);
+    if (!c.ok) {
+      const av = extra.avisados;
+      if (av && av.get(m.author.id) === c.hasta) return { tipo: 'espera-callado' };
+      if (av) { if (av.size > 5000) av.clear(); av.set(m.author.id, c.hasta); }
+      await responder(textoCupo(c)); return { tipo: 'espera', hasta: c.hasta, por: c.tipo };
+    }
+  }
   dc(env, 'POST', `/channels/${m.channel_id}/typing`).catch(() => {});
   const nombre = (m.member && m.member.nick) || m.author.global_name || m.author.username;
-  const r = await respuestaIA(env, { canal: m.channel_id, usuario: m.author.id, nombre, texto: t, guild: m.guild_id || null, admin: await esAdminDe(env, m.author.id, m.guild_id) });
+  const r = await respuestaIA(env, { canal: m.channel_id, usuario: m.author.id, nombre, texto: t, guild: m.guild_id || null, admin, mod });
   await responder(r.espera || r.texto);
   return { tipo: 'ia', de: r.de || null };
 }
@@ -67,6 +81,7 @@ export class PuertaJX {
   constructor(state, env) {
     this.state = state; this.env = env; this.ws = null; this.hb = null; this.seq = null; this.ack = true; this.yo = null;
     this.listo = false; this.ultimo = 0; this.sinContenido = false; this.sinMiembros = false; this.parado = null; this.eventos = 0; this.mensajes = 0; this.desde = 0;
+    this.avisados = new Map();
     this.servidores = new Map(); this.entradas = 0; this.salidas = 0; this.xp = 0;   // (lo de cada servidor: nombre, miembros, canales para la bienvenida)
     this.abrir = env.__abrirWs || abrirGateway;
   }
@@ -85,6 +100,11 @@ export class PuertaJX {
     let api;   // (diag: una consulta de sólo lectura a Discord desde adentro de la puerta, para ver si puede hablarle)
     if (p === '/diag') { try { const u = await dc(this.env, 'GET', '/users/@me'); api = 'ok: ' + u.username; } catch (e) { api = 'error: ' + String(e.message).slice(0, 300); } }
     return new Response(JSON.stringify({ version: mia || null, conectado: !!(this.ws && this.listo), lee_texto: !this.sinContenido, desde: this.desde, eventos: this.eventos, mensajes: this.mensajes, contestados: this.contestados || 0, miembros: !this.sinMiembros, servidores: this.servidores.size, entradas: this.entradas, salidas: this.salidas, xp: this.xp, error: this.error || null, error_t: this.errorT || null, en_evento: this.diagReady || null, parado: this.parado, api }), { headers: { 'Content-Type': 'application/json' } });
+  }
+  async esMod(m) {
+    if (!m.guild_id) return false;
+    const aj = await ajustes(this.env, m.guild_id);
+    return esModerador(this.servidores.get(m.guild_id), aj.mods, m.author.id, (m.member && m.member.roles) || [], m.guild_id);
   }
   async alarm() { await this.asegurar(); await this.state.storage.setAlarm(Date.now() + 60e3); }
   async asegurar() {
@@ -137,6 +157,9 @@ export class PuertaJX {
         this.servidores.set(p.d.id, nuevo);
       }
       else if (p.t === 'GUILD_DELETE') this.servidores.delete(p.d.id);
+      else if (p.t === 'GUILD_ROLE_CREATE' || p.t === 'GUILD_ROLE_UPDATE' || p.t === 'GUILD_ROLE_DELETE') {   // (los permisos de cada rol, para saber quién es mod)
+        const info = this.servidores.get(p.d.guild_id); if (info) { info.permisos = info.permisos || {}; if (p.t === 'GUILD_ROLE_DELETE') delete info.permisos[p.d.role_id]; else info.permisos[p.d.role.id] = p.d.role.permissions; }
+      }
       else if (p.t === 'GUILD_MEMBER_ADD' || p.t === 'GUILD_MEMBER_REMOVE') {
         const g = p.d.guild_id, info = this.servidores.get(g) || { miembros: 0 };
         if (!this.servidores.has(g)) this.servidores.set(g, info);
@@ -148,7 +171,7 @@ export class PuertaJX {
       else if (p.t === 'MESSAGE_CREATE') {
         this.mensajes++;
         darXP(this.env, p.d).then((r) => { if (r) this.xp++; }).catch((e) => console.error('puerta xp', e));
-        manejarMensaje(this.env, p.d, this.yo).then((r) => { if (r) this.contestados = (this.contestados || 0) + 1; })
+        manejarMensaje(this.env, p.d, this.yo, { avisados: this.avisados, esMod: () => this.esMod(p.d) }).then((r) => { if (r) this.contestados = (this.contestados || 0) + 1; })
           .catch((e) => { this.error = String((e && e.stack) || e).slice(0, 500); this.errorT = Date.now(); console.error('puerta mensaje', e); });
       }
     }

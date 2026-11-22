@@ -26,7 +26,7 @@
 //     /avisos, /silenciar); 18. /servidor, /usuario, /encuesta, /ayuda y cómo se registran los comandos;
 // 17 (ahora). los warns: /warn borra y avisa, a los 3 alerta a los admins con botones, /warns, la IA, /perdonar;
 // 19. /perdonar, /historial, /silenciar, /limpiar, /ban, /expulsar, /desbanear, /lento, /bloquear, reportar y warn
-//     por mensaje (clic derecho) y los botones del reporte.
+//     por mensaje (clic derecho) y los botones del reporte; 20. el límite para hablarle (7 s y 10 cada 30 min).
 // uso: node discord_bot.mjs
 import { d1 } from '../../stickerazo/pruebas/d1_falsa.mjs';
 const M = await import('../tienda/discord.js');
@@ -81,7 +81,7 @@ function comunidadFalsa(m, ruta, b) {
 }
 // (como en Cloudflare: fetch llamado como método de otro objeto —env.__fetch(…)— da «Illegal invocation»)
 function estricto(...a) { if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation: fetch llamado como método'); return falso(...a); }
-const env = { DB: d1(), DISCORD_APP_ID: 'app1', DISCORD_PUBLIC_KEY: pub, DISCORD_TOKEN: 'tok', DISCORD_ADMIN_CODE: 'Prueba(@1', GEMINI_KEY: 'gk', __fetch: estricto };
+const env = { DB: d1(), DISCORD_APP_ID: 'app1', DISCORD_PUBLIC_KEY: pub, DISCORD_TOKEN: 'tok', DISCORD_ADMIN_CODE: 'Prueba(@1', GEMINI_KEY: 'gk', IA_ESPERA_MS: 3000, __fetch: estricto };   // (la espera entre mensajes, más corta que los 7 s de verdad: la 20 prueba ésos)
 globalThis.fetch = estricto;   // (la IA y la puerta usan fetch directo)
 const pendientes = []; const ctx = { waitUntil: (p) => pendientes.push(p) };
 async function pedir(cuerpo, { firma = true, mala = false } = {}) {
@@ -425,13 +425,51 @@ const sv = await pedir(cmdG('servidor', U1)), us = await pedir(cmdG('usuario', U
 const en = await pedir(cmdG('encuesta', A, [{ name: 'pregunta', value: '¿Qué mapa sigue?' }, { name: 'opciones', value: 'Desert, City | Mars' }]));
 const en1 = await pedir(cmdG('encuesta', A, [{ name: 'pregunta', value: '¿?' }, { name: 'opciones', value: 'sola' }]));
 const ay = await pedir({ type: 2, channel_id: 'dmx', token: 't', user: { id: U1, username: 'x' }, data: { name: 'ayuda' } });
-const nombres = M.COMANDOS.map((c) => c.name), adminSinPermiso = M.COMANDOS.filter((c) => ['bienvenida', 'autorol', 'niveles', 'registro', 'encuesta', 'limpiar', 'warn', 'perdonar', 'historial', 'silenciar', 'expulsar', 'ban', 'desbanear', 'lento', 'bloquear', 'desbloquear', 'Warn por este mensaje', 'configurar', 'roles', 'anunciar'].includes(c.name) && !c.default_member_permissions);
+const nombres = M.COMANDOS.map((c) => c.name), adminSinPermiso = M.COMANDOS.filter((c) => ['bienvenida', 'autorol', 'niveles', 'registro', 'encuesta', 'limpiar', 'warn', 'perdonar', 'historial', 'silenciar', 'expulsar', 'ban', 'desbanear', 'lento', 'bloquear', 'desbloquear', 'Warn por este mensaje', 'reiniciar-limite', 'configurar', 'roles', 'anunciar'].includes(c.name) && !c.default_member_permissions);
 const bienPuestos = (L) => L.every((o) => (o.type === 3 && !o.description && !o.options ? o.name.length <= 32 : o.name && o.description && o.description.length <= 100 && /^[a-z0-9_-]{1,32}$/.test(o.name) && (!o.options || bienPuestos(o.options))));
-ok('18. /servidor, /usuario (cuenta, entrada, nivel, roles), /encuesta de Discord (y con 1 opción no), /ayuda también por privado; 35 comandos (2 de clic derecho) sin repetir, bien formados, los de admin escondidos',
+ok('18. /servidor, /usuario (cuenta, entrada, nivel, roles), /encuesta de Discord (y con 1 opción no), /ayuda también por privado; 37 comandos (2 de clic derecho) sin repetir, bien formados, los de admin escondidos',
   sv.d.data.embeds[0].title === 'JXMod' && sv.d.data.embeds[0].fields.find((f) => f.name === 'Miembros').value === '349' && us.d.data.embeds[0].author.name === 'Tres' && us.d.data.embeds[0].fields.some((f) => f.name === 'Entró al servidor') && us.d.data.embeds[0].fields.find((f) => f.name === 'Nivel').value.startsWith('2')
     && en.d.data.poll && en.d.data.poll.answers.length === 3 && en.d.data.poll.duration === 24 && en.d.data.poll.answers[2].poll_media.text === 'Mars' && /al menos 2/.test(en1.d.data.content)
-    && ay.d.data.flags === 64 && ay.d.data.embeds[0].fields.length === 4 && nombres.length === 35 && new Set(nombres).size === 35 && adminSinPermiso.length === 0 && bienPuestos(M.COMANDOS),
+    && ay.d.data.flags === 64 && ay.d.data.embeds[0].fields.length === 4 && nombres.length === 37 && new Set(nombres).size === 37 && adminSinPermiso.length === 0 && bienPuestos(M.COMANDOS),
   { nombres: nombres.length, sinPermiso: adminSinPermiso.map((c) => c.name), poll: en.d.data.poll && en.d.data.poll.answers.map((x) => x.poll_media.text) });
+// 20: el límite para hablarle (7 s entre mensajes, 10 cada 30 min, con el contador de Discord; admins y mods sin
+// límite; el aviso una sola vez por espera; /limite y /reiniciar-limite; /jb avisa sólo a quien tiene que esperar)
+{
+  const IA = await import('../tienda/discord_ia.js'), { IA_ESPERA_MS: _e, ...envL } = env;
+  const T = Date.parse('2026-11-22T12:00:00Z'), pregunta = (usuario, ahora, extra = {}) => IA.respuestaIA(envL, { canal: 'cl', usuario, nombre: 'L', texto: 'hola', ahora, ...extra });
+  const r1 = await pregunta('L1', T), r2 = await pregunta('L1', T + 3000), r3 = await pregunta('L1', T + 7001);
+  const seguidas = []; for (let i = 1; i <= 8; i++) seguidas.push(await pregunta('L1', T + 7001 + i * 8000));
+  const r11 = await pregunta('L1', T + 7001 + 9 * 8000), r12 = await pregunta('L1', T + 30 * 60e3 + 1);
+  const adm = []; for (let i = 0; i < 12; i++) adm.push(await pregunta('L2', T, { admin: true }));
+  const mods = []; for (let i = 0; i < 3; i++) mods.push(await pregunta('L3', T, { mod: true }));
+  // por la puerta: un rol con «Aislar temporalmente» es mod; uno normal recibe el aviso una vez y después nada
+  const MODR = idDe(980), NOR = idDe(850), MODU = idDe(851);
+  w2.recibir({ op: 0, t: 'GUILD_ROLE_CREATE', s: 30, d: { guild_id: G, role: { id: MODR, name: 'Mod', permissions: String(1n << 40n) } } }); await espera(10);
+  const mg = (id, u, roles) => ({ op: 0, t: 'MESSAGE_CREATE', s: 31, d: { id, guild_id: G, channel_id: '9500', type: 0, author: { id: u, username: 'x' }, member: { roles }, content: '/jb hola', mentions: [] } });
+  k = llamadas.length;
+  for (let i = 0; i < 3; i++) { w2.recibir(mg('n' + i, NOR, [])); await espera(60); }
+  for (let i = 0; i < 3; i++) { w2.recibir(mg('m' + i, MODU, [MODR])); await espera(60); }
+  const enCanal = posts(k, '9500'), aNor = enCanal.filter((x) => x.b.message_reference && x.b.message_reference.message_id.startsWith('n')), aMod = enCanal.filter((x) => x.b.message_reference && x.b.message_reference.message_id.startsWith('m'));
+  // /limite y /reiniciar-limite, y /jb que avisa sólo a quien espera
+  await espera(3100);   // (que pase la espera entre mensajes: /limite muestra lo que queda)
+  const comun = (c) => ({ ...c, member: { ...c.member, permissions: '0' } });   // (sin permisos de Discord: un usuario común)
+  const lim = await pedir(comun(cmdG('limite', NOR))), limAdm = await pedir(cmdG('limite', A)), limOtroNo = await pedir(comun(cmdG('limite', U1, [{ name: 'usuario', value: NOR }])));
+  const rein = await pedir(cmdG('reiniciar-limite', A, [{ name: 'usuario', value: NOR }])), lim2 = await pedir(comun(cmdG('limite', NOR))), reinNo = await pedir(comun(cmdG('reiniciar-limite', U1, [{ name: 'usuario', value: NOR }])));
+  const JBU = idDe(852), jbG = (q) => pedir({ ...cmdG('jb', JBU, [{ name: 'mensaje', value: q }]), member: { user: { id: JBU, username: 'jb' }, roles: [], permissions: '0' } });
+  const jb1 = await jbG('hola'); await Promise.all(pendientes.splice(0)); const jb2 = await jbG('otra');
+  const jbMod = await pedir({ ...cmdG('jb', idDe(853), [{ name: 'mensaje', value: 'x' }]), member: { user: { id: idDe(853), username: 'mod' }, roles: [], permissions: String(1n << 40n) } }); await Promise.all(pendientes.splice(0));
+  const jbMod2 = await pedir({ ...cmdG('jb', idDe(853), [{ name: 'mensaje', value: 'y' }]), member: { user: { id: idDe(853), username: 'mod' }, roles: [], permissions: String(1n << 40n) } }); await Promise.all(pendientes.splice(0));
+  const cuenta = (x) => (x.match(/<t:(\d+):R>/) || [])[1];
+  ok('20. límite: 7 s entre mensajes (con el contador <t:…:R>), 10 cada 30 min que se renuevan solos; admins y mods sin límite; por la puerta el rol con permisos de mod no tiene límite y al normal se le avisa una sola vez; /limite, /reiniciar-limite (sólo admins y mods); /jb avisa en privado a quien espera, al mod no',
+    r1.texto && r2.espera && r2.tipo === 'espera' && cuenta(r2.espera) === String(Math.ceil((T + 7000) / 1000)) && r3.texto && seguidas.every((x) => x.texto)
+      && r11.espera && r11.tipo === 'ventana' && /10 mensajes en 30 minutos/.test(r11.espera) && cuenta(r11.espera) === String(Math.ceil((T + 30 * 60e3) / 1000)) && r12.texto
+      && adm.every((x) => x.texto) && mods.every((x) => x.texto)
+      && aNor.length === 2 && /Respuesta IA/.test(aNor[0].b.content) && /Pará un toque: podés volver a hablarme <t:\d+:R>/.test(aNor[1].b.content) && aMod.length === 3 && aMod.every((x) => /Respuesta IA/.test(x.b.content))
+      && /Te quedan \*\*9 de 10\*\*/.test(lim.d.data.content) && /sin límite|no hay límite/.test(limAdm.d.data.content) && /Sólo podés ver el tuyo/.test(limOtroNo.d.data.content)
+      && /vuelve a tener 10 de 10/.test(rein.d.data.content) && /\*\*10 de 10\*\*/.test(lim2.d.data.content) && /admins y mods/.test(reinNo.d.data.content)
+      && jb1.d.type === 5 && jb2.d.type === 4 && jb2.d.data.flags === 64 && /Pará un toque/.test(jb2.d.data.content) && jbMod.d.type === 5 && jbMod2.d.type === 5,
+    { r2: r2.espera, r11: r11.espera, nor: aNor.map((x) => x.b.content.slice(0, 40)), mod: aMod.length, lim: lim.d.data.content, jb2: jb2.d.data && jb2.d.data.content });
+}
 pu2.cerrar();
 }
 pu.cerrar();
