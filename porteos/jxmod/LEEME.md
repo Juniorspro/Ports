@@ -5547,6 +5547,41 @@ de GMod con piezas sacadas y pegadas (garras nuevas, emisor, la aleta con el log
      celeste, el celeste del arma de vuelta (126 puntos) y su ícono de GMod;
   4. sin errores de JS.
 
+## Sin publicar todavía: «Bugs y sugerencias» del 22/11 (mods de GMod)
+
+- **«Suicide Gun: después de usarla las manos desaparecen»** (ur9f8srh; Workshop 3534176154): la Suicide Gun pone sus
+  brazos de NMRiH en el `Initialize` del cliente (`GetHands():SetModel`). Al usarla te matás; al reaparecer las manos
+  vuelven a ser las del modelo de jugador, pero el arma seguía siendo la misma entidad y su `Initialize` no volvía a
+  correr: la pistola flotaba sola. Ahora, como en GMod (que al reaparecer te da armas nuevas), las armas de addons que
+  conservás se vuelven a crear al reaparecer: la vieja se borra (`OnRemove`) y la nueva corre `Initialize` y `Deploy`
+  (`gmaArmasRenacer`, `gmod_api.js`; lo llama `jugadorAparecer`). Prueba `pruebas/suicide_gun.mjs` 4/4.
+- **«Juego con nextbots o con el mod de Bonnie y no me siguen ni atacan»** (cqik6q4u, vh29kvmq: Obunga Nextbot, Withered
+  Bonnie, Ultimate Nextbots Pack). Medido como un jugador, quieto donde aparece en Pasto plano:
+  - Obunga (2803406998) y los del Ultimate Nextbots Pack (2859761904, 717 MB, 180 nextbots de la base de Sanic):
+    el primero persigue y mata; después de morir una vez, ninguno se movía más (6,54 m fijos durante 12 s). Esa base
+    trae una «protección de aparición»: no persigue a nadie a menos de 200 unidades de un punto de aparición, y los
+    puntos se le pasan al Lua cuando reaparecés. En GMod sirve para los servers; acá uno se queda donde aparece. Ahora
+    `NPC_spawn_protect` arranca en 0 (`gmaCvarDefecto`); se puede volver a prender desde la consola o las opciones del
+    mod. Después: 3 de 3 persiguen y matan, también después de reaparecer y a 12 m del punto.
+  - Withered Bonnie (415860986) usa `ENT.Base = "fnaf2_npc_base"`, que trae otro addon («FNAF 2 NPCs», 382393981, 250 MB;
+    su página lo pide). Por el peso no se baja solo (tope de 200 MB en la PC y 60 MB en celulares de 4 GB o menos) y
+    sólo salía un aviso de 6 s al instalar; Bonnie quedaba quieta. Ahora, al ponerlo, un cartel dice qué le falta y cuánto
+    pesa, con «Bajar»; sin su base no se pone (antes quedaba uno roto, con un error de Lua). Bajado, el Lua se vuelve a
+    montar con la base primero y Bonnie persigue y mata (`gmDepsAlPoner`, `gmDepsBajar`, `gmaBaseFalta`, `gmod.js`;
+    textos `gm.depAddon`… en 14 idiomas). El aviso de la instalación ahora dice que se va a ofrecer al usarlo.
+  - Prueba `pruebas/nextbots_panel.mjs` 3/3 (baja ~260 MB del Workshop).
+- **«Doudou Pet no se ve cuando lo agarrás»** (napjpa38): en primera persona se veía sólo una mano suelta. El mod dibuja
+  en brazos una copia del gato (`ClientsideModel` con `SetNoDraw(true)`, que dibuja él con `DrawModel` en
+  `PostDrawViewModel`) y la pone en pose con `ManipulateBoneAngles/Position`. Tres cosas:
+  - `DrawModel` pedido por el Lua dibuja aunque la entidad tenga `SetNoDraw`, como en GMod (`gmrModelo(e, forzar)`);
+  - `ManipulateBoneAngles/Position/Scale` (y los `Get…`, `HasBoneManipulations`) en cualquier entidad con huesos, no sólo
+    en el ViewModel: sobre la animación, en el espacio del padre (`gmanManip`, `gmod_anim.js`);
+  - `AddCallback/RemoveCallback/GetCallbacks` se guardan. Unos brazos solos (`c_arms`) a los que el Lua les pone un
+    `BuildBonePositions` (el IK de Doudou Pet que los acomoda alrededor del gato) no se dibujan: ese IK no corre acá y la
+    mano quedaba flotando delante; se ubican igual porque el mod usa `vm:GetPos()`.
+  - Prueba `pruebas/doudou_agarrar.mjs` 10/10: ahora también mide que el gato se vea (7,3 % de la pantalla con su pelaje
+    naranja en el medio, antes 0).
+
 ## Sin publicar todavía: el modo VR (`juego/vr.js`)
 
 Pedido del dueño: «un modo completo VR hecho dentro de JXMod… donde podés caminar con las manos así tipo Gorilla Tag y

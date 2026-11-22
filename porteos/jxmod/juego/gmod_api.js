@@ -356,7 +356,24 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('GetBodygroupCount', () => 1); E('GetBodygroupName', () => 'studio'); E('FindBodygroupByName', () => -1); E('SetIK', () => {});
   E('SetNoDraw', (e, b) => { e.noDraw = !!b; if (e.o) e.o.gmOculto = !!b; if (e.P && !e.remoto) e.P.gmOculto = !!b; }); E('GetNoDraw', (e) => !!e.noDraw);
   for (const n of ['DrawShadow', 'SetRenderMode', 'SetRenderFX', 'DrawModel', 'SetModelScale', 'SetUseType', 'SetTrigger', 'SetLagCompensated', 'SetPredictable', 'AddEffects', 'RemoveEffects', 'AddFlags', 'RemoveFlags', 'SetSolidFlags', 'SetSequence', 'ResetSequence', 'SetPlaybackRate', 'SetCycle', 'FrameAdvance', 'SetPoseParameter', 'ManipulateBoneAngles', 'ManipulateBonePosition', 'ManipulateBoneScale', 'SetupBones', 'InvalidateBoneCache', 'SetAnimation', 'SetLocalVelocity', 'SetFriction', 'SetElasticity', 'StartMotionController', 'StopMotionController', 'SetSubMaterial', 'CallOnRemove', 'DeleteOnRemove', 'SetShouldServerRagdoll', 'SetSpawnEffect', 'SetBloodColor', 'AddCallback', 'SetHitboxSet', 'EnableCustomCollisions', 'CollisionRulesChanged', 'RemoveAllDecals', 'SetSaveValue', 'MarkShadowAsDirty', 'CreateShadow', 'DestroyShadow', 'SetRenderBounds', 'SetRenderBoundsWS', 'SetRenderOrigin', 'SetRenderAngles', 'SetLOD', 'UseClientSideAnimation', 'SetAutomaticFrameAdvance', 'SetLocalAngularVelocity', 'SetMoveCollide', 'Input', 'TakePhysicsDamage', 'SetCreator', 'PhysWake', 'StopParticles']) E(n, () => {});
-  E('DrawModel', (e) => (e.tipo === 'manos' ? undefined : gmrDrawModel(e)));   // (las manos del jugador ya van con la vista del arma: dibujarlas acá las dejaría en el medio del mapa)
+  E('DrawModel', (e) => (e.tipo === 'manos' ? undefined : gmrDrawModel(e)));
+  // ManipulateBoneAngles/Position/Scale en cualquier entidad con huesos (antes sólo en el ViewModel): se guardan por hueso
+  // y gmanHuesos (gmod_anim.js) los aplica sobre la animación, como GMod. Doudou Pet pone así al gato en brazos —agachado,
+  // las patas colgando, mirándote—; sin esto quedaba parado y girado con la cabeza pegada a la cámara (sólo una oreja)
+  const manipDe = (e, i) => { i = Math.trunc(+i); if (!(i >= 0) || i > 255) return null; const M = e.manipH || (e.manipH = new Map()); let m = M.get(i); if (!m) { m = { p: [0, 0, 0], a: [0, 0, 0], s: [1, 1, 1], q: null }; M.set(i, m); } return m; };
+  const manipPoner = (e, i, k, v) => { const m = manipDe(e, i); if (!m) return; const o = m[k]; if (o[0] === v[0] && o[1] === v[1] && o[2] === v[2]) return; m[k] = v; if (k === 'a') m.q = null; e.manipV = (e.manipV || 0) + 1; };
+  E('ManipulateBonePosition', (e, i, v) => { if (v instanceof LVec) manipPoner(e, i, 'p', [+v.x || 0, +v.y || 0, +v.z || 0]); });
+  E('ManipulateBoneAngles', (e, i, a) => { if (a instanceof LAng) manipPoner(e, i, 'a', [+a.p || 0, +a.y || 0, +a.r || 0]); });
+  E('ManipulateBoneScale', (e, i, v) => { if (v instanceof LVec) manipPoner(e, i, 's', [+v.x, +v.y, +v.z].map((x) => (Number.isFinite(x) ? x : 1))); });
+  E('GetManipulateBonePosition', (e, i) => { const m = e.manipH && e.manipH.get(Math.trunc(+i)); return m ? GMA.nv(m.p[0], m.p[1], m.p[2]) : GMA.nv(0, 0, 0); });
+  E('GetManipulateBoneAngles', (e, i) => { const m = e.manipH && e.manipH.get(Math.trunc(+i)); return m ? GMA.na(m.a[0], m.a[1], m.a[2]) : GMA.na(0, 0, 0); });
+  E('GetManipulateBoneScale', (e, i) => { const m = e.manipH && e.manipH.get(Math.trunc(+i)); return m ? GMA.nv(m.s[0], m.s[1], m.s[2]) : GMA.nv(1, 1, 1); });
+  // AddCallback: se guardan (por nombre, con su número para RemoveCallback). De los que existen en GMod, acá sólo se usa
+  // BuildBonePositions sobre la vista, para saber que el Lua pone esos brazos con su propio IK (gmaVistaDibujar)
+  E('AddCallback', (e, n, f) => { if (typeof f !== 'function') return 0; const k = String(n).toLowerCase(), C = e.cbs || (e.cbs = {}); const M = C[k] || (C[k] = new Map()); const id = (GMA.cbN = (GMA.cbN || 0) + 1); M.set(id, f); return id; });
+  E('RemoveCallback', (e, n, id) => { const M = e.cbs && e.cbs[String(n).toLowerCase()]; if (M) M.delete(+id); });
+  E('GetCallbacks', (e, n) => { const M = e.cbs && e.cbs[String(n).toLowerCase()], t = new LuaTable(); let i = 1; if (M) for (const f of M.values()) t.set(i++, f); return t; });
+  E('HasBoneManipulations', (e) => !!(e.manipH && [...e.manipH.values()].some((m) => m.p.some((x) => x) || m.a.some((x) => x) || m.s.some((x) => x !== 1))));   // (las manos del jugador ya van con la vista del arma: dibujarlas acá las dejaría en el medio del mapa)
   // dónde se dibuja (los portales, las armas del mundo en la mano): si nadie lo puso, donde está la entidad
   // (más del motor que piden los addons: límites de choque y de dibujo, NPCs, banderas, matriz de escala)
   for (const n of ['SetNPCMinBurst', 'SetNPCMaxBurst', 'SetNPCFireRate', 'SetPhysicsAttacker', 'SetupWeaponHoldTypeForAI', 'SetHullType', 'SetHullSizeNormal', 'SetAllowFullRotation', 'AddEFlags', 'RemoveEFlags', 'SetNPCState', 'SetMaxYawSpeed', 'CapabilitiesAdd', 'CapabilitiesRemove', 'CapabilitiesClear', 'DisableMatrix', 'SetMoveType', 'SetKeyValue', 'SetPhysicsAttacker', 'SetSurroundingBounds', 'SetSurroundingBoundsType', 'SetCollisionBoundsWS', 'Activate', 'Spawn']) if (!ENT_M.get(n)) E(n, () => {});
@@ -1169,6 +1186,16 @@ function gmaAnimVista(w, act) {
   const G = (k) => GMA.R.G.get(k), clip = act === G('ACT_VM_PRIMARYATTACK') || act === G('ACT_VM_SECONDARYATTACK') || act === G('ACT_VM_HITCENTER') || act === G('ACT_VM_MISSCENTER') ? D.fuego : act === G('ACT_VM_RELOAD') ? D.recarga : act === G('ACT_VM_DRAW') ? D.sacar : act === G('ACT_VM_IDLE') ? D.quieto : null;
   const c = Array.isArray(clip) ? clip[(Math.random() * clip.length) | 0] : clip; if (c) vistaTocar(ARM.v, c);
 }
+// al reaparecer: las armas de addons que el jugador sigue teniendo se vuelven a crear (en GMod, al morir se pierden y al
+// reaparecer te dan otras: entidades nuevas). La vieja se borra (su OnRemove) y la nueva corre su Initialize y, la que
+// está en la mano, su Deploy. La Suicide Gun pone sus brazos en el Initialize del cliente: sin esto, después de usarla
+// reaparecías con la pistola flotando sin manos
+function gmaArmasRenacer() {
+  if (!GMA.armasJug || !GMA.armasJug.size) return;
+  for (const [clase, w] of [...GMA.armasJug]) { if (!ARM.lista.includes('gm:' + clase)) continue; GMA.armasJug.delete(clase); if (GMA.swep === w) GMA.swep = null; gmaQuitar(w); gmaDarArma(clase, true); }
+  GMA.swep = null;
+  const n = ARM.lista[ARM.i]; if (n && /^gm:/.test(n)) { ARM.calla = true; try { elegirArma(ARM.i); } finally { ARM.calla = false; } }
+}
 function gmaQuitarArma(clase) { const w = GMA.armasJug && GMA.armasJug.get(clase); if (!w) return; GMA.armasJug.delete(clase); const n = 'gm:' + clase, i = ARM.lista.indexOf(n); if (i >= 0) { ARM.lista.splice(i, 1); if (ARM.i >= ARM.lista.length) ARM.i = 0; elegirArma(ARM.i); } }
 // (cada cuadro, con un arma de un addon en la mano: ataques, recarga, Think; y Deploy/Holster al cambiar)
 function gmaSwepPaso() {
@@ -1471,8 +1498,13 @@ const GMA_CVARS_MOTOR = { sv_gravity: '600', sv_cheats: '0', sv_allowcslua: '0',
 const gmaCvarMotor = (n) => { n = String(n).toLowerCase(); return GMA_CVARS_MOTOR[n] ?? (/^sbox_max/.test(n) ? '100' : undefined); };
 // (con su mínimo y su máximo, como en GMod: la TFA Base acota sus ajustes con GetMin y GetMax y sin ellos la vista del
 // arma tiraba error en cada cuadro)
+// (la «protección de aparición» de los nextbots de la base de Sanic —Obunga, Walter, el Ultimate Nextbots Pack: no
+// persiguen a nadie a menos de 200 unidades de un punto de aparición— arranca apagada, NPC_spawn_protect = 0: en GMod es
+// para los servers; acá, en el celular, uno se queda donde aparece y después de morir una vez los nextbots quedaban
+// quietos para siempre —«no me siguen ni atacan»—. Se puede volver a prender desde la consola o las opciones del mod)
+const gmaCvarDefecto = (n, d) => (d !== undefined && /_spawn_?protect(ion)?$/i.test(n) && String(d) === '1' ? '0' : d);
 function gmaCvar(n, d, h, mn, mx) {
-  n = String(n); let c = GMA.cvars.get(n); if (!c) { c = { n, v: d === undefined ? '0' : String(d), d: d === undefined ? '0' : String(d), h: h || '', a: GMA.addonActual ? GMA.addonActual.id : (GMA.cvarAddon || null) }; const g = typeof gmbCvarGuardada === 'function' ? gmbCvarGuardada(n) : undefined; if (g !== undefined) c.v = g; GMA.cvars.set(n, c); }
+  n = String(n); d = gmaCvarDefecto(n, d); let c = GMA.cvars.get(n); if (!c) { c = { n, v: d === undefined ? '0' : String(d), d: d === undefined ? '0' : String(d), h: h || '', a: GMA.addonActual ? GMA.addonActual.id : (GMA.cvarAddon || null) }; const g = typeof gmbCvarGuardada === 'function' ? gmbCvarGuardada(n) : undefined; if (g !== undefined) c.v = g; GMA.cvars.set(n, c); }
   if (typeof mn === 'number' && c.mn === undefined) c.mn = mn; if (typeof mx === 'number' && c.mx === undefined) c.mx = mx;
   return { c, __mt: gmaMtCvar() };
 }

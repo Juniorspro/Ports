@@ -41,7 +41,10 @@ function jugadorCabeParado() {
 }
 function jugadorAparecer() {
   const s = MUNDO.spawns[(Math.random() * MUNDO.spawns.length) | 0] || v3(0, 5, 0);
-  JUG.pos.set(s.x, s.y + 1.2, s.z); JUG.vel.set(0, 0, 0); JUG.vida = JUG.vidaMax || 100; JUG.vivo = true; if (typeof GMA !== 'undefined' && GMA.manosEnt) GMA.manosEnt.modelo = '';   /* (al reaparecer, las manos vuelven a ser las del modelo de jugador, como en GMod) */ JUG.vehiculo = null; JUG.bloqueado = false;
+  JUG.pos.set(s.x, s.y + 1.2, s.z); JUG.vel.set(0, 0, 0); JUG.vida = JUG.vidaMax || 100; JUG.vivo = true; if (typeof GMA !== 'undefined' && GMA.manosEnt) GMA.manosEnt.modelo = '';   /* (al reaparecer, las manos vuelven a ser las del modelo de jugador, como en GMod) */
+  JUG.vehiculo = null; JUG.bloqueado = false;
+  // (y las armas de addons se vuelven a crear, como en GMod cuando al reaparecer te las dan de nuevo: gmaArmasRenacer)
+  if (typeof gmaArmasRenacer === 'function' && typeof GMA !== 'undefined') gmaArmasRenacer();
   if (s.yaw !== undefined) JUG.yaw = s.yaw; // puntos de aparición de un mapa de la comunidad (con su dirección)
   // (apoyado en el piso de una: la aparición de los mapas del Workshop está unos centímetros arriba, y si el modo de
   // juego congela al aparecer —la pre-ronda de Prop Hunt— quedaba flotando 0,7 m en el aire)

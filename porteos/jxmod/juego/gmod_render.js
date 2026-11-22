@@ -343,10 +343,12 @@ function gmaPrefabCS(ruta) {
   return null;
 }
 const _gmM = new Float32Array(16);
-function gmrModelo(e) {
+// (forzar: lo pidió el Lua con DrawModel: se dibuja aunque tenga SetNoDraw, como en GMod —Doudou Pet esconde la copia del
+// gato que lleva en brazos para dibujarla él, en su momento—)
+function gmrModelo(e, forzar) {
   const ruta = e.modelo; if (!ruta) return;
   if (typeof gmanInvisible === 'function' && gmanInvisible(e)) return;   // (SetMaterial("null"): no se ve)
-  if (typeof gmanAnimada === 'function' && gmanAnimada(e) && gmanDibujar(e)) return;   // (con su secuencia o pegada a otra con bonemerge: gmod_anim.js)
+  if (typeof gmanAnimada === 'function' && gmanAnimada(e) && gmanDibujar(e, forzar)) return;   // (con su secuencia o pegada a otra con bonemerge: gmod_anim.js)
   if (typeof gmanEsperando === 'function' && gmanEsperando(e)) return;   // (y si su modelo todavía no llegó, nada: no la caja de reemplazo)
   let md = e.mdCS;
   if (!md || md.ruta !== ruta) { const pf = gmaPrefabCS(ruta); if (!pf) { e.mdCS = null; return; } const k = DATA.pfPorNombre[pf]; if (!k) return; md = e.mdCS = new Modelo(DATA.pf[k]); md.ruta = ruta; }
@@ -390,7 +392,7 @@ function gmrDrawModel(e) {
   if (e.o && !e.o.borrado) { if (e === GR.entAct) { GR.dm = true; e.o.md.color = gmrTinte(e); } else if (GR.dmOtros) { GR.dmOtros.add(e); e.o.md.color = gmrTinte(e); } if (typeof gmanAnimada === 'function' && gmanAnimada(e)) e.anDib = TIEMPO.t; return; }
   if (e.tipo === 'vm' || e === GMA.jug || e === GR.armaMundo) { GR.dm = true; return; }
   if (e.cs && GR.lista === 'vista' && typeof gmvDibujarCS === 'function' && gmvDibujarCS(e)) return;   // (la vista que dibuja el Lua: FA:S, CW 2.0)
-  gmrModelo(e);
+  gmrModelo(e, true);
 }
 
 // ---------------- cada cuadro ----------------

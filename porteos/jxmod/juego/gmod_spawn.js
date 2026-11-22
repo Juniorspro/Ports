@@ -81,6 +81,7 @@ const GM_NPC_HOSTIL = /combine|metropolice|police|zombi|zombie|antlion|headcrab|
 const GM_NPC_MODELO = { npc_citizen: 'models/humans/group01/male_07.mdl', npc_metropolice: 'models/police.mdl', npc_combine_s: 'models/combine_soldier.mdl', npc_zombie: 'models/zombie/classic.mdl', npc_fastzombie: 'models/zombie/fast.mdl', npc_alyx: 'models/alyx.mdl', npc_barney: 'models/barney.mdl', npc_kleiner: 'models/kleiner.mdl', npc_breen: 'models/breen.mdl', npc_eli: 'models/eli.mdl', npc_gman: 'models/gman.mdl', npc_monk: 'models/monk.mdl', npc_mossman: 'models/mossman.mdl', npc_antlion: 'models/antlion.mdl', npc_headcrab: 'models/headcrabclassic.mdl', npc_vortigaunt: 'models/vortigaunt.mdl' };
 function gmnpcCrear(key) {
   const v = gmLista('NPC', key); if (!v) return null;
+  if (typeof gmDepsAlPoner === 'function' && gmDepsAlPoner(_lstr(v, 'Class') || key)) return null;   // (le falta un addon pesado que pide: se ofrece bajarlo; sin su base no se pone)
   // (la clase, sin importar mayúsculas como en GMod: los nextbots de Cartman piden «npc_EricCartman» y la clase es la del
   // archivo, npc_ericcartman.lua; antes no se encontraba y en su lugar salía un NPC del juego cualquiera)
   const cls0 = _lstr(v, 'Class') || key, cls = GMA.clases && !GMA.clases.has(cls0) && GMA.clases.has(cls0.toLowerCase()) ? cls0.toLowerCase() : cls0;   // (se crea con el nombre pedido: GetClass lo devuelve así)

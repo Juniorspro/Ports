@@ -278,8 +278,13 @@ function gmaVistaDibujar() {
       }
     }
   } catch (e) { /* (el arma sigue en la mano aunque su Lua falle) */ }
-  if (v.manos) gmvManosCuadro(v, w);
-  vistaUbicar(v, pos, q, ARM.sway); v.md.encolar();
+  // (unos brazos solos —c_arms— que el Lua acomoda con un BuildBonePositions propio sobre la vista: Doudou Pet los pone
+  // alrededor del gato con su IK. Eso no corre acá y quedaban en la pose de reposo, una mano flotando delante del gato:
+  // sin su pose no se dibujan; lo que dibuja el Lua —el gato— sí)
+  // (se ubica igual: el Lua la usa para saber dónde está —vm:GetPos()—)
+  const vmE = typeof G_vm === 'function' ? G_vm() : null, cbB = vmE && vmE.cbs && vmE.cbs.buildbonepositions, sinPose = !!(cbB && cbB.size && /(^|\/)c_arms(_\w+)?\.mdl$/i.test(v.ruta || ''));
+  if (v.manos && !sinPose) gmvManosCuadro(v, w);
+  vistaUbicar(v, pos, q, ARM.sway); if (!sinPose) v.md.encolar();
   return true;
 }
 // las manos en este cuadro: el color de un personaje del juego cuando está, y PreDrawPlayerHands (como GM:PostDrawViewModel

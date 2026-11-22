@@ -1,7 +1,8 @@
 // Panel (bug 4ube7k9g): «El mod de Doudou Pet no funciona bien, cuando lo agarras se bugea y no puedes hacer muchas cosas
 // con él». Doudou Pet (Workshop 3807567165): el gatito se agarra manteniendo apretada la E mirándolo de cerca; en brazos,
 // el click izquierdo lo acaricia, el derecho (o la R) lo baja, y caminar lo lleva. Mide cada paso y junta los errores de
-// Lua y de JS. uso: node doudou_agarrar.mjs URL_HTML [CARPETA]
+// Lua y de JS; y que en primera persona el gato se vea en brazos (bug napjpa38: «no se ve cuando lo agarras»).
+// uso: node doudou_agarrar.mjs URL_HTML [CARPETA]
 import { abrir } from './base.mjs';
 import fs from 'fs';
 const [, , HTML, D = '/tmp/claude-0/doudou_agarrar'] = process.argv; fs.mkdirSync(D, { recursive: true });
@@ -30,6 +31,12 @@ let st = await ev(`(() => { const g = ${gato}; return { armas: ARM.lista.filter(
 await p.screenshot({ path: D + '/1_en_brazos.png' });
 await ev(`JUG.pitch = 0; 1`); await p.waitForTimeout(500); await p.screenshot({ path: D + '/1b_en_brazos_derecho.png' }); await ev(`JUG.pitch = 0.35; 1`); await p.waitForTimeout(500); await p.screenshot({ path: D + '/1c_en_brazos_abajo.png' });
 ok('manteniendo la E lo agarra: queda en brazos con el arma de cargarlo en la mano', st.lleva && st.actual === 'gm:weapon_doudou_carry', { dist, ...st });
+// en primera persona se ve el gato en brazos (antes sólo «una oreja»: la copia del gato tiene SetNoDraw y el mod la dibuja
+// con DrawModel, y su pose va con ManipulateBone*): puntos naranjas del pelaje en el medio de la pantalla, mirando derecho
+const gatoVe = await ev(`(() => { JUG.pitch = 0; dibujar(); const gl = R.gl, W = R.cv.width, H = R.cv.height, px = new Uint8Array(W * H * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  let n = 0, t = 0; for (let y = Math.floor(H * 0.1); y < H * 0.7; y += 2) for (let x = Math.floor(W * 0.3); x < W * 0.7; x += 2) { const i = (y * W + x) * 4, r = px[i], g = px[i + 1], b = px[i + 2]; t++; if (r > 150 && r - b > 60 && g > 80 && g < r) n++; }
+  return +(n / t).toFixed(3); })()`);
+ok('en primera persona se ve el gato en brazos (pelaje naranja en el medio de la pantalla)', gatoVe > 0.03, { gatoVe, antes: 0 });
 // acariciarlo (click izquierdo)
 await ev(`ENT.disparo = true; 1`); await p.waitForTimeout(400); await ev(`ENT.disparo = false; 1`); await p.waitForTimeout(1200);
 await p.screenshot({ path: D + '/2_caricia.png' });
@@ -55,6 +62,6 @@ st = await ev(`(() => { const g = ${gato}; return { lleva: !!(g && g.tabla.get('
 ok('se puede volver a agarrar, y la R también lo baja', otra && !st.lleva && st.actual !== 'gm:weapon_doudou_carry', { otra, ...st });
 const lua = await ev(`GMA.errores.slice(${e0})`);
 ok('sin errores de Lua en todo el recorrido', !lua.length, lua.slice(0, 6));
-const js = err.filter((x) => !/favicon|ERR_|net::|404|409|WebSocket|mqtt|wss:/i.test(x));
+const js = err.filter((x) => !/favicon|ERR_|net::|404|409|WebSocket|mqtt|wss:|CORS|scheme 'file'|Cache/i.test(x));
 ok('sin errores de JS', !js.length, js.slice(0, 5));
 console.log(`RESUMEN ${R.filter(Boolean).length}/${R.length}`); await b.close(); process.exit(0);

@@ -27,7 +27,9 @@ const medir = `(() => { dibujar(); const gl = R.gl, W = R.cv.width, H = R.cv.hei
   return n; })()`;
 const res = {};
 for (const a of ['PhysicsGun', 'GravityGun', 'ToolBaton', 'Crowbar']) {
-  await ev(`(() => { elegirArmaCallado('${a}'); return 1; })()`); await p.waitForTimeout(1800);
+  await ev(`(() => { elegirArmaCallado('${a}'); return 1; })()`);
+  // (que termine de sacarla: con la máquina ocupada, a los 1,8 s todavía no estaba)
+  await p.waitForFunction((a) => window.__ev(`ARM.lista[ARM.i] === '${a}' && !!ARM.v && ARM.ocup <= 0`), a, { timeout: 15000 }).catch(() => {}); await p.waitForTimeout(700);
   res[a] = await ev(`(() => { const md = ARM.v.md, x = md.A.find((n) => n.bo && n.m >= 0), t = md.tintes || [];
     const mats = x ? x.mt.map((m, k) => (t[k] ? (Array.isArray(t[k][0]) ? 2 : 1) : 0)) : [];
     const t0 = md.tintes; md.tintes = null; const n0 = R.nItems; md.encolar(); const tal = R.nItems - n0;   // (la de GMod tal cual)

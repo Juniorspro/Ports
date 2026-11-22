@@ -155,10 +155,10 @@ function gmanHuesos(e, prof) {
   const st = d.virt ? null : gmanEstado(e);
   const raiz = Hp ? Hp.W[0] : gmanRaiz(e, e._anR || (e._anR = new Float32Array(16)));
   // (la clave: el cuadro, la secuencia, el momento, la raíz y la pose del padre)
-  const K = e._anK || (e._anK = new Float64Array(24)); let igual = K[0] === GMAN.cuadro && K[1] === (st ? st.anim : -1) && K[2] === (st ? st.t : -1) && K[3] === (Hp ? Hp.serie : -1);
+  const K = e._anK || (e._anK = new Float64Array(24)); let igual = K[0] === GMAN.cuadro && K[1] === (st ? st.anim : -1) && K[2] === (st ? st.t : -1) && K[3] === (Hp ? Hp.serie : -1) && K[20] === (e.manipV || 0);
   for (let k = 0; k < 16 && igual; k++) if (K[4 + k] !== raiz[k]) igual = false;
   if (igual && e._anH && e._anH.def === d) return e._anH;
-  K[0] = GMAN.cuadro; K[1] = st ? st.anim : -1; K[2] = st ? st.t : -1; K[3] = Hp ? Hp.serie : -1; for (let k = 0; k < 16; k++) K[4 + k] = raiz[k];
+  K[0] = GMAN.cuadro; K[1] = st ? st.anim : -1; K[2] = st ? st.t : -1; K[3] = Hp ? Hp.serie : -1; for (let k = 0; k < 16; k++) K[4 + k] = raiz[k]; K[20] = e.manipV || 0;
   let H = e._anH; if (!H || H.def !== d) H = e._anH = { def: d, W: Array.from({ length: d.nb + 1 }, () => new Float32Array(16)), serie: 0 };
   H.serie = ++GMAN.serie; H.W[0].set(raiz);
   const W = H.W, nb = d.nb, L = _anL;
@@ -175,11 +175,27 @@ function gmanHuesos(e, prof) {
     const j = Hp ? Hp.def.porNombre.get(d.nombres[i].toLowerCase()) : undefined;
     if (j !== undefined) { W[1 + i].set(Hp.W[1 + j]); continue; }
     gmanLocal(d, st, i, _anP, _anQ, C ? C.w : 0, C && C.pa, C && C.pb);
-    m4trs(_anP, _anQ, _anU, L); m4mul(W[d.padres[i] >= 0 ? 1 + d.padres[i] : 0], L, W[1 + i]);
+    const mp = e.manipH && e.manipH.get(i);
+    if (mp) gmanManip(mp, L); else m4trs(_anP, _anQ, _anU, L);
+    m4mul(W[d.padres[i] >= 0 ? 1 + d.padres[i] : 0], L, W[1 + i]);
   }
   return H;
 }
 const _anL = new Float32Array(16);
+// ManipulateBone* sobre la pose de la animación (en el espacio del padre, como GMod): la posición se suma (de unidades de
+// Source a metros, con los ejes del juego), el giro se aplica después del de la animación y la escala achica o agranda el
+// hueso con sus hijos
+const _anM = [0, 0, 0, 1], _anS = [1, 1, 1];
+function gmanManip(m, L) {
+  const S = GM_S; _anP[0] += S * m.p[1]; _anP[1] += S * m.p[2]; _anP[2] += S * m.p[0];
+  if (m.a[0] || m.a[1] || m.a[2]) {
+    if (!m.q) { const R = angMat(new LAng(m.a[0], m.a[1], m.a[2])), C = [[0, 1, 0], [0, 0, 1], [1, 0, 0]], Rm = [[R[0][0], R[1][0], R[2][0]], [R[0][1], R[1][1], R[2][1]], [R[0][2], R[1][2], R[2][2]]]; m.q = _m2q(_m3mul(_m3mul(C, Rm), _m3T(C))); }
+    const [ax, ay, az, aw] = _anQ, [bx, by, bz, bw] = m.q;
+    _anM[0] = aw * bx + ax * bw + ay * bz - az * by; _anM[1] = aw * by - ax * bz + ay * bw + az * bx; _anM[2] = aw * bz + ax * by - ay * bx + az * bw; _anM[3] = aw * bw - ax * bx - ay * by - az * bz;
+  } else { _anM[0] = _anQ[0]; _anM[1] = _anQ[1]; _anM[2] = _anQ[2]; _anM[3] = _anQ[3]; }
+  _anS[0] = m.s[1]; _anS[1] = m.s[2]; _anS[2] = m.s[0];
+  m4trs(_anP, _anM, _anS, L);
+}
 // los huesos de cualquier entidad: la animada, o una persona (el jugador, un NPC del juego) con su esqueleto de Valve
 function gmanHuesosDe(e, prof) {
   if (!(e instanceof LEnt)) return null;
@@ -356,8 +372,8 @@ function gmanSinCabeza(W, hi, hijos) {
 }
 // (los descendientes de un nodo, él incluido)
 function gmanRama(pa, i0) { const out = [i0], S = new Set([i0]); for (let i = i0 + 1; i < pa.length; i++) if (S.has(pa[i])) { S.add(i); out.push(i); } return out; }
-function gmanDibujar(e) {
-  if (gmanInvisible(e) || e.noDraw) { if (e.o) e.o.md.oculto = true; return true; }
+function gmanDibujar(e, forzar) {
+  if (gmanInvisible(e) || (e.noDraw && !forzar)) { if (e.o) e.o.md.oculto = true; return true; }
   // (pegada con bonemerge a una cuyo modelo todavía no llegó —en red, el de la animación se está bajando—: nada, como su padre;
   // antes quedaba en la pose de reposo, con los brazos abiertos)
   if ((e.efectos & 1) && e.padre && e.padre.vivo !== false && !e.padre.P && !gmanHuesosDe(e.padre)) { if (e.o) e.o.md.oculto = true; return true; }

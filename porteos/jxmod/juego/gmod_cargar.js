@@ -371,6 +371,7 @@ function gmaIconoClase(it) {
 function gmaSpawnMenu(it) {
   if (typeof censPermite === 'function' && !censPermite(it)) return;
   const x = gmaClaseDe(it); if (!x || !GMA.R) return null;
+  if (typeof gmDepsAlPoner === 'function' && gmDepsAlPoner(x.n)) return null;   // (le falta un addon pesado que pide: se ofrece bajarlo; sin su base no se pone)
   if (x.tipo === 'swep') { const r = gmaHook('PlayerGiveSWEP', 'S', GMA.jug, x.n, x.t); if (r[0] === false) return null; const w = gmaDarArma(x.n); gmaHook('PlayerSpawnedSWEP', 'S', GMA.jug, w); return w; }
   const r0 = gmaHook('PlayerSpawnSENT', 'S', GMA.jug, x.n); if (r0[0] === false) return null;
   const tr = gmaTraza(CAM.pos.clone(), CAM.fwd.clone(), 4096 * GS, null);

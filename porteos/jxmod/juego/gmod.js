@@ -989,6 +989,60 @@ async function gmMapaDepsBajar(mapa, faltan) {
   aviso(T('gm.depListo'), 4);
   if (MUNDO.nombre === mapa && JUEGO.estado === 'juego') { delete DATA.esc[mapa]; delete DATA.aj[mapa]; empezarPartida(mapa); }
 }
+// un addon de NPCs o entidades que pide otro pesado que no se bajó solo por el tope de arriba (Withered Bonnie necesita
+// la base de «FNAF 2 NPCs», 250 MB: sin ella queda quieto, «no me siguen o atacan»): al ponerlo, un cartel dice cuánto
+// pesa lo que le falta y ofrece bajarlo; llegado, el Lua se vuelve a montar con todo. Una vez por sesión por addon (antes
+// era sólo un aviso de 6 s al instalar, que pasaba sin que se entendiera)
+const GM_DEPS_ADDON = new Set();
+function gmDepsFaltan(A) {
+  if (!A || !/^\d+$/.test(String(A.id))) return [];
+  const req = [...(A.depsGrandes || []).map((x) => x.id), ...((PREFS.gmod && PREFS.gmod[A.id] && PREFS.gmod[A.id].req) || [])];
+  return [...new Set(req.map((d) => GM_REEMPLAZO[d] || String(d)))].filter((d) => d !== String(A.id) && !GMOD.addons.has(d) && !(GM_EQUIV[d] && GMOD.addons.has(GM_EQUIV[d])));
+}
+// (la base que usa la clase —ENT.Base, siguiendo la cadena— y no está en ningún addon montado: null si están todas)
+function gmaBaseFalta(cls) {
+  for (let c = cls, n = 0; c && n < 12; n++) {
+    const t = claseTabla(c, 'S') || claseTabla(c, 'C'); if (!t) return n ? c : null;
+    const b = t.get('Base'); if (typeof b !== 'string' || !b || b === c) return null;
+    if (!claseTabla(b, 'S') && !claseTabla(b, 'C')) return GMA.bases && GMA.bases.get(b) ? null : b;
+    c = b;
+  }
+  return null;
+}
+// (devuelve true si la clase no se puede poner todavía: le falta su base y está en lo que pide su addon. Entonces se
+// pregunta siempre; si sólo faltan contenidos —texturas—, una vez por sesión y se pone igual)
+function gmDepsAlPoner(cls) {
+  const c = typeof GMA !== 'undefined' && ((GMA.clases && GMA.clases.get(cls)) || (GMA.armas && GMA.armas.get(cls))), A = c && c.addon;
+  if (!A) return false;
+  const faltan = gmDepsFaltan(A); if (!faltan.length) return false;
+  const traba = !!gmaBaseFalta(cls);
+  if (!traba && GM_DEPS_ADDON.has(A.id)) return false;
+  GM_DEPS_ADDON.add(A.id); gmDepsPreguntar(A, faltan).catch(() => {});
+  return traba;
+}
+async function gmDepsPreguntar(A, faltan) {
+  let mb = 0; for (const d of faltan) mb += (await gmPesoMB(d)) || 0;
+  if (typeof confirmar !== 'function' || JUEGO.estado !== 'juego') return;
+  const n = String(Math.max(1, Math.round(mb)));
+  confirmar(T('gm.depAddon').replace('{a}', A.nombre).replace('{n}', faltan.length).replace('{mb}', n), T('gm.depBajar').replace('{mb}', n), () => gmDepsBajar(A, faltan));
+}
+async function gmDepsBajar(A, faltan) {
+  let hechos = 0, bien = 0, ult = 0;
+  const prog = (p) => { const t = performance.now(); if (t - ult < 700) return; ult = t; aviso(T('gm.depBajandoA').replace('{p}', Math.min(99, Math.round((100 * (hechos + (p || 0))) / faltan.length))), 3); };
+  aviso(T('gm.depBajandoA').replace('{p}', 0), 3);
+  for (const d of faltan) {
+    try { const B = await gmInstalar(d, { prof: 1 }, null, prog); if (B) bien++; } catch (e) { gmErr('dependencia ' + d, e); }
+    hechos++;
+  }
+  if (!bien) { aviso(T('gm.depMalA'), 5); return; }
+  // (el addon pasa a montarse después de lo que pide —la base primero, como las dependencias del Workshop— y el Lua se
+  // vuelve a cargar entero)
+  if (GMOD.addons.get(A.id) === A) { GMOD.addons.delete(A.id); GMOD.addons.set(A.id, A); }
+  A.depsGrandes = (A.depsGrandes || []).filter((x) => !GMOD.addons.has(String(x.id)));
+  if (typeof gmLuaDesmontar === 'function') gmLuaDesmontar();
+  if (typeof gmMenu === 'function') gmMenu();
+  aviso(T('gm.depListoA').replace('{a}', A.nombre), 5);
+}
 const GM_TOPE_DEPS_MB = () => (navigator.deviceMemory && navigator.deviceMemory <= 4 ? 60 : 200);
 // tienda o, si no está, leyendo la página con el lector
 async function gmRequeridos(wid) {
