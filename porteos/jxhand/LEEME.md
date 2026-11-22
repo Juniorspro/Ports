@@ -259,7 +259,7 @@ nativa: «no web, Rust».
   - Cámara rápida.
 - **`Icono.java`:** íconos propios dibujados a mano. El ícono de la app es la mano en el degradé de JXApps
   (`app/icono.svg`).
-- **`Motor.java`:** la puerta al motor de Rust.
+- **`java/com/jxapps/jxhand/Motor.java`:** la puerta al motor de Rust (aparte de la app: la usa también JXMod).
 
 **Probado sin celular:**
 - El motor de Android por JNI desde Java en la PC (arriba).
@@ -279,8 +279,11 @@ nativa: «no web, Rust».
   `arm64-v8a`).
 - 10,5 MB. Android 7 o más nuevo, ARM de 64 bits: todos los celulares de los últimos años; no anda en los de 32 bits.
 
-**JXMod:** la integración que había llegado a armarse (el arma «Manos JX») se sacó, porque se pidió aparte. Queda en
-el historial: commit 7b9b579.
+**JXMod:** desde el 22/11 también va adentro de JXMod, con este mismo motor nativo (no el WebAssembly). Ver el LEEME
+de JXMod, «Tus manos con la cámara (JX Hand Engine nativo)».
+- La clase `com.jxapps.jxhand.Motor` está aparte, en `java/`, y la compilan los dos armados.
+- Ya no carga la biblioteca sola: la app JX Hand llama `Motor.cargar(null)` (la de `lib/`), y JXMod la de sus archivos,
+  sólo en los celulares de 64 bits.
 
 ## Lo que sigue
 
@@ -290,4 +293,3 @@ el historial: commit 7b9b579.
   - Fundir la convolución, la suma y el PReLU.
   - Pasar a RGBA sólo los recortes, y que la placa de video convierta la imagen de fondo.
 - **Que se actualice sola,** con firma, como JXMod.
-- **Integración con JXMod (si algún día se quiere):** está en el historial, commit 7b9b579.

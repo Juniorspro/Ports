@@ -135,6 +135,7 @@ public class Principal extends Activity {
         hMotor.post(new Runnable() { public void run() {
             capa.mensaje("Cargando el motor…", null);
             try {
+                if (!Motor.cargar(null)) { capa.mensaje("El motor no arrancó", Motor.errorCarga()); return; }
                 long m = Motor.crear(leer("modelos/hand_detector.tflite"), leer("modelos/hand_landmarks_detector.tflite"), leer("modelos/hand_landmark_lite.tflite"));
                 if (m == 0) { capa.mensaje("El motor no arrancó", Motor.error()); return; }
                 camara.motor = m; pantalla.motor = m;

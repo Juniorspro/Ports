@@ -74,7 +74,8 @@ def main():
     a = ap.parse_args(); h = herramientas()
     with tempfile.TemporaryDirectory() as tmp:
         # 1) Java (Java 8, sin lambdas: no hacen falta los stubs de LambdaMetafactory)
-        fuentes = [os.path.join(r, f) for r, _, fs in os.walk(os.path.join(AQUI, 'src')) for f in fs if f.endswith('.java')]
+        # (la app y la clase del motor, que está aparte en java/: la comparte con JXMod)
+        fuentes = [os.path.join(r, f) for d in (os.path.join(AQUI, 'src'), os.path.join(RAIZ, 'java')) for r, _, fs in os.walk(d) for f in fs if f.endswith('.java')]
         clases = os.path.join(tmp, 'clases'); os.makedirs(clases)
         correr(['javac', '-source', '8', '-target', '8', '-encoding', 'UTF-8', '-Xlint:-options', '-nowarn', '-bootclasspath', h['android'], '-d', clases] + fuentes, 'javac')
         cjar = os.path.join(tmp, 'clases.jar')

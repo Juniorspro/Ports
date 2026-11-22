@@ -72,6 +72,7 @@ public class Web extends Activity {
     static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13, PEDIR_CARPETA = 14, PEDIR_ESCRIBIR = 15, PEDIR_PANTALLA = 16, PEDIR_MIC_PANT = 17, PEDIR_AVISOS = 18;
     // (la grabación «pantalla del celular»: GrabaPantalla.java; lo que pidió la página hasta que el usuario deja grabar)
     private static volatile Web yo;
+    private ManosJX manos;
     private String pantNombre = "JXMod.mp4"; private int pantAlto = 720, pantFps = 30;
 
     private FrameLayout raiz;
@@ -315,6 +316,9 @@ public class Web extends Activity {
         web.setWebViewClient(new Cliente());
         web.setWebChromeClient(new Cromo());
         web.addJavascriptInterface(new Puente(), "JXNativo");
+        // tus manos con la cámara (JX Hand Engine en Rust nativo, ManosJX.java): el mismo objeto aunque la vista web se rearme
+        if (manos == null) manos = new ManosJX(this);
+        web.addJavascriptInterface(manos, "JXManos");
         raiz.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         web.loadUrl(url);
         // (rearmada con la app en segundo plano —el proceso que dibuja se cerró mientras tanto—: arranca pausada y callada;
@@ -491,6 +495,7 @@ public class Web extends Activity {
 
     @Override public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
         boolean ok = res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED;
+        if (req == ManosJX.PEDIR_CAMARA && manos != null) manos.permiso(ok);
         if (req == PEDIR_MIC && permPend != null) {
             if (ok) permPend.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE}); else permPend.deny();
             permPend = null;
@@ -1183,6 +1188,7 @@ public class Web extends Activity {
 
     @Override protected void onPause() {
         adelante = false; h.removeCallbacks(vigilar); Avisos.juegoAbierto = false;
+        if (manos != null) manos.alPausar();   // (la cámara de las manos se suelta en el fondo)
         vidaGuardar(false);
         super.onPause();
         if (web != null) { try { web.evaluateJavascript(CALLAR, null); } catch (Throwable e) { /* nada */ } web.onPause(); web.pauseTimers(); }
@@ -1190,6 +1196,7 @@ public class Web extends Activity {
 
     @Override protected void onResume() {
         super.onResume(); Avisos.juegoAbierto = true;
+        if (manos != null) manos.alVolver();
         if (web != null) { web.onResume(); web.resumeTimers(); try { web.evaluateJavascript(SEGUIR, null); } catch (Throwable e) { /* nada */ } }
         pantallaCompleta();
         // (al volver adelante, se espera el primer latido de nuevo antes de vigilar)
@@ -1212,6 +1219,7 @@ public class Web extends Activity {
 
     @Override protected void onDestroy() {
         if (yo == this) yo = null;
+        if (manos != null) manos.alDestruir();
         grabCerrarTodas();
         if (grabSistemaCb != null && Build.VERSION.SDK_INT >= 35) { try { getWindowManager().removeScreenRecordingCallback(grabSistemaCb); } catch (Throwable e) { /* nada */ } }
         lanParar(); lanBuscar(false); synchronized (this) { if (lanPuente != null) { lanPuente.parar(); lanPuente = null; } }

@@ -5435,6 +5435,59 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     - Todos los roles del servidor están en la posición 1, así que la jerarquía la decide la antigüedad y JXBot, el
       más nuevo, queda último. Para dar «Miembro» hay que arrastrar JXBot arriba en Ajustes → Roles.
 
+## Sin publicar todavía: tus manos con la cámara (JX Hand Engine nativo)
+
+Pedido del dueño: «¿podemos conectar esto al JXMod? Sin perder nada, acordate que usa Java el JXMod». El motor es el de
+la app JX Hand (`porteos/jxhand`, Rust nativo con NEON, float16 y varios hilos; su LEEME tiene las mediciones). Acá, cómo
+entra al juego.
+
+- **Dónde está:** Ajustes → «Manos con la cámara (JX Hand Engine)», y debajo «modelo completo» (más preciso; de entrada
+  va el liviano, que deja el procesador al juego).
+  - Aparece sólo en la app, en celulares de 64 bits con cámara de frente: lo dice `JXManos.disponible()`.
+  - En la web, en el iPhone o con una APK vieja que reciba este código por partes, no aparece y no pasa nada.
+- **Java (`apk/web/src/com/jxmod/app/ManosJX.java`):**
+  - Abre la cámara de frente con Camera2 (~640×480, hasta 30 cuadros por segundo).
+  - El motor corre en su propio hilo con 2 núcleos, sin espejar, y gira cada cuadro según la pantalla
+    (sensor + rotación).
+  - Al juego le pasa el último cuadro como texto (`ManosTexto.java`): «cuadro, ms, liviano, float16, manos» y los 176
+    números de cada mano, los mismos que daba la versión en WebAssembly.
+  - El permiso de la cámara se pide la primera vez que se prende.
+  - Con la app en el fondo se cierra la cámara, y vuelve al volver.
+- **La biblioteca va como archivo adentro de la APK** (`assets/jxhand/arm64-v8a/libjxhand.so`), no en `lib/`.
+  - Con algo en `lib/` sólo para 64 bits, Android no deja instalar la app en los celulares de 32 bits («no matching
+    ABIs»), y hoy JXMod se instala en todos.
+  - Se copia una vez por versión instalada a la carpeta de la app (de sólo lectura) y se carga con `System.load` sólo en
+    los de 64 bits.
+  - Los 3 modelos van al lado. La APK pasa de 32,4 a 38,7 MB.
+- **La clase del motor** (`com.jxapps.jxhand.Motor`) es la misma de la app JX Hand, en `porteos/jxhand/java/`: se compila
+  con `--src`. El nombre de la clase es el de las funciones de la biblioteca.
+- **El juego (`juego/manos_jx.js`):** el de la integración anterior (en el historial, 7b9b579), sin el WebAssembly ni el
+  Worker. Lee `JXManos.leer()` una vez por cuadro del juego.
+  - El arma «Manos JX»: las manos de primera persona copian las tuyas (muñeca, palma, cada hueso de cada dedo, el brazo
+    con cinemática inversa).
+  - La pinza es «usar».
+  - La vista chica de tus manos, ahora **arriba en el medio**: abajo a la izquierda tapaba el joystick.
+- **Prueba `pruebas/manos_jx.mjs` 4/4:** el juego armado para la app con un `JXManos` de mentira.
+  - Los cuadros son de verdad: los grabó el motor en Rust por JNI en la PC, con `ManosTexto`, con una mano abierta que se
+    mueve (`apk/pruebas/unido/GrabarManos.java`).
+  1. Sin el puente no hay opción. Con él aparece, prende con el modelo liviano, da el arma y lee las manos: presencia
+     0,993, «abierta», 5 dedos.
+  2. La mano del juego queda delante (48 cm, en la vista), con los dedos estirados (14° a 36°). Se ve el dorso y sigue a
+     la tuya.
+  3. La vista chica se dibuja. Elegir el modelo completo vuelve a prender con ese modelo.
+  4. Apagar avisa a la app y saca el arma, sin errores de JS.
+  - No cuentan como errores los 404 de los mapas que la app baja aparte y el multijugador, que desde esta máquina no
+    llega a su servidor.
+- **`apk/pruebas/unido/PruebaManosTexto.java` 12/12**, en `correr.sh`: los números (hasta 4 decimales, sin
+  `Float.toString`) y el formato.
+- **APK de prueba (3.9.12-manos), comparada con la 3.9.11 publicada:**
+  - La misma firma, se instala encima.
+  - El único permiso nuevo es CAMERA.
+  - `lib/` vacía.
+  - `pk.bin` idéntico al publicado: huella 4fb6b292…, armado de nuevo con `mapas_hs.py` sobre pk37 = pk39e.
+- **Sin probar en un celular:** la cámara, el permiso y la carga de la biblioteca en un Android de verdad.
+- **Para publicar:** esto es Java, así que hace falta una APK nueva una vez. Después, lo del juego viaja por partes.
+
 ## Sin publicar todavía: lo de «Bugs y sugerencias» después de la 3.9.11
 
 - **Bugs:**

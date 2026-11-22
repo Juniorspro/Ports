@@ -281,7 +281,7 @@ function empezarPartida(mapa) {
   aplicarMods(); // mods y mapa de la comunidad (después de las armas: un mod puede sumar)
   if (typeof gmmPartida === 'function') gmmPartida(mapa);   // (un modo de juego de GMod: el elegido o el del mapa)
   if (typeof menuMostrar === 'function') menuMostrar(false); $('hud').classList.remove('oc');
-  JUEGO.estado = 'juego'; cerrarPaneles(); modMenuBoton();
+  JUEGO.estado = 'juego'; cerrarPaneles(); modMenuBoton(); if (typeof mjxAlEntrar === 'function') mjxAlEntrar();
   if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo();
   if (typeof redEntrar === 'function') redEntrar(mapa);
   aviso(typeof mapaNom === 'function' ? mapaNom(mapa) : mapa, 2.5);
@@ -463,7 +463,7 @@ function cuadro(ahora) {
   camaraActualizar(dt);
   aguaPaso(dt); sonidosPaso(dt); if (typeof emuPaso === 'function') emuPaso(dt); patadasPaso(dt); artPaso(dt); npcPaso(dt); bocinaPaso(); juntosPaso(); nukePaso(dt);
   if (typeof GRT !== 'undefined') GRT.enDibujo = true; try { dibujar(); } finally { if (typeof GRT !== 'undefined') GRT.enDibujo = false; }
-  celmCuadro(); if (typeof gmaHUDPaso === 'function') gmaHUDPaso(); if (typeof gmrtFinCuadro === 'function') gmrtFinCuadro();
+  celmCuadro(); if (typeof mjxCuadro === 'function') mjxCuadro(); if (typeof gmaHUDPaso === 'function') gmaHUDPaso(); if (typeof gmrtFinCuadro === 'function') gmrtFinCuadro();
   if (typeof grabCuadro === 'function') grabCuadro();   // (el modo grabación copia el cuadro recién dibujado: grabar.js)
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso(); if (typeof clibDevolver === 'function') clibDevolver();

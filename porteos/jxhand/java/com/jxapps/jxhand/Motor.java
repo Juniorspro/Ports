@@ -3,7 +3,8 @@ package com.jxapps.jxhand;
 import java.nio.ByteBuffer;
 
 /**
- * El motor de manos en Rust (libjxhand.so, motor/src/android.rs). Todo lo pesado pasa ahí: el cuadro de la cámara
+ * El motor de manos en Rust (libjxhand.so, motor/src/android.rs). Lo usan la app JX Hand y JXMod (por eso está en
+ * porteos/jxhand/java/, aparte: los dos armados lo compilan). Todo lo pesado pasa ahí: el cuadro de la cámara
  * entra tal cual (los tres planos YUV, sin copiar) y sale la imagen derecha para mostrar y los datos de cada mano.
  *
  * Salida (floats, orden nativo): 10 de cabecera [manos, corrió el detector, inferencias, ms del motor, ms de pasar el
@@ -14,7 +15,24 @@ import java.nio.ByteBuffer;
  *   · 168 gesto · 169 fuerza del gesto · 170..174 cuadrado (cx, cy, lado, ángulo) · 174, 175 ancho y alto de la imagen
  */
 public final class Motor {
-    static { System.loadLibrary("jxhand"); }
+    private static boolean cargada;
+    private static String errorCarga = "";
+
+    /**
+     * carga libjxhand.so una vez: con `ruta` null, la de la APK (lib/<abi>/, la app JX Hand); con una ruta, ese archivo
+     * (JXMod la lleva adentro de la APK como archivo y la carga sólo en los celulares de 64 bits). Devuelve si quedó
+     * cargada; si no, errorCarga() dice por qué.
+     */
+    public static synchronized boolean cargar(String ruta) {
+        if (cargada) return true;
+        try {
+            if (ruta == null) System.loadLibrary("jxhand"); else System.load(ruta);
+            cargada = true;
+        } catch (Throwable t) { errorCarga = String.valueOf(t); }
+        return cargada;
+    }
+    public static synchronized boolean cargada() { return cargada; }
+    public static synchronized String errorCarga() { return errorCarga; }
 
     public static final int CABECERA = 10, POR_MANO = 176;
     public static final int MAX_MANOS = 0, PRESENCIA = 1, PALMA = 2, BUSCAR_MS = 3, PREDICCION_MS = 4, FOV = 5,
