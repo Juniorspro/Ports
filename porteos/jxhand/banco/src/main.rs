@@ -6,6 +6,8 @@
 use image::{Rgba, RgbaImage};
 use jxhand::mano::{self, Detector, Puntero, Roi, PUNTOS};
 use std::{fs, time::Instant};
+#[cfg(feature = "gl")]
+mod egl;
 
 const HUESOS: [(usize, usize); 21] = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8), (5, 9), (9, 10), (10, 11), (11, 12), (9, 13), (13, 14), (14, 15), (15, 16), (13, 17), (17, 18), (18, 19), (19, 20), (0, 17)];
 
@@ -295,6 +297,54 @@ fn main() {
                 image::imageops::overlay(&mut lienzo, &vista, (w * (con + 1)) as i64, 0);
             }
             lienzo.save(&a[5]).unwrap();
+        }
+        #[cfg(feature = "gl")]
+        Some("escena") => {
+            // escena MODELOS FOTO ESTILO SALIDA.png [ancho alto]: el motor sigue la mano en la foto (unos cuadros) y la
+            // dibuja con escena.rs (el mismo código del celular) en una pantalla de mentira
+            let (vw, vh): (usize, usize) = (a.get(6).and_then(|x| x.parse().ok()).unwrap_or(1080), a.get(7).and_then(|x| x.parse().ok()).unwrap_or(2400));
+            let mut motor = jxhand::Motor::nuevo(&fs::read(format!("{}/hand_detector.tflite", a[2])).unwrap(), &fs::read(format!("{}/hand_landmarks_detector.tflite", a[2])).unwrap()).unwrap();
+            motor.cfg.prediccion_ms = 0.0;
+            let im = image::open(&a[3]).unwrap().to_rgba8(); let (w, h) = (im.width() as usize, im.height() as usize);
+            let mut manos = Vec::new();
+            for k in 0..6 { manos = motor.procesar(im.as_raw(), w, h, k as f64 * 33.3, false); }
+            // (se dibuja al doble y se achica: el suavizado de bordes que en el celular hace el multimuestreo)
+            let (vw, vh) = (vw * 2, vh * 2);
+            egl::contexto(vw as i32, vh as i32).unwrap();
+            let mut esc = jxhand::escena::Escena::nueva().unwrap();
+            let md: Vec<jxhand::escena::ManoDibujo> = manos.iter().map(|m| jxhand::escena::ManoDibujo { pts: std::array::from_fn(|i| [m.img[i][0] * w as f32, m.img[i][1] * h as f32, m.img[i][2] * w as f32]) }).collect();
+            let estilo: i32 = a[4].parse().unwrap();
+            for _ in 0..5 { esc.dibujar(im.as_raw(), w, h, &md, estilo, 1.0, vw, vh, 0.0); }
+            let t0 = Instant::now(); esc.dibujar(im.as_raw(), w, h, &md, estilo, 1.0, vw, vh, 0.0); let px = egl::leer(vw as i32, vh as i32);
+            println!("{} mano(s) · malla de {} vértices y {} triángulos · dibujo (Mesa por software) {:.1} ms", manos.len(), esc.malla.vertices(), esc.malla.i.len() / 3, t0.elapsed().as_secs_f64() * 1e3);
+            let im2 = image::RgbaImage::from_raw(vw as u32, vh as u32, px).unwrap();
+            image::imageops::resize(&im2, vw as u32 / 2, vh as u32 / 2, image::imageops::FilterType::Triangle).save(&a[5]).unwrap();
+        }
+        Some("f16") => {
+            // f16 MODELOS FOTO...: los mismos puntos con las cuentas en float16 y en float32 (sólo en ARM con FEAT_FP16)
+            println!("¿float16 en este procesador? {}", jxhand::red::hay_f16());
+            let (mut det, mut pun) = cargar(&a[2]);
+            let (mut suma, mut maxi, mut n, mut dpres, mut dpal) = (0f64, 0f32, 0, 0f32, 0f32);
+            for foto in &a[3..] {
+                let im = image::open(foto).unwrap().to_rgba8(); let (w, h) = (im.width() as usize, im.height() as usize); let b = im.as_raw();
+                let mut res = Vec::new();
+                for f in [false, true] {
+                    jxhand::red::USAR_F16.store(f, std::sync::atomic::Ordering::Relaxed);
+                    let ps = det.detectar(b, w, h); let mejor = det.mejor;
+                    let Some(pa) = ps.first() else { res.push(None); continue; };
+                    let r = pun.puntos(b, w, h, &mano::roi_de_palma(pa));
+                    let r = pun.puntos(b, w, h, &mano::roi_de_puntos(&r.img));
+                    res.push(Some((mejor, r)));
+                }
+                if let (Some((m32, r32)), Some((m16, r16))) = (&res[0], &res[1]) {
+                    let palma = (r32.img[0].x - r32.img[9].x).hypot(r32.img[0].y - r32.img[9].y);
+                    let mut e = 0f32; let mut em = 0f32;
+                    for i in 0..PUNTOS { let d = (r32.img[i].x - r16.img[i].x).hypot(r32.img[i].y - r16.img[i].y) / palma * 100.0; e += d; em = em.max(d); }
+                    println!("{}: puntos a {:.3} % de la palma en promedio (máximo {:.3} %) · presencia {:.4} / {:.4} · palma {:.4} / {:.4}", foto.rsplit('/').next().unwrap(), e / PUNTOS as f32, em, r32.presencia, r16.presencia, m32, m16);
+                    suma += (e / PUNTOS as f32) as f64; maxi = maxi.max(em); n += 1; dpres = dpres.max((r32.presencia - r16.presencia).abs()); dpal = dpal.max((m32 - m16).abs());
+                } else { println!("{}: sin mano", foto); }
+            }
+            if n > 0 { println!("== float16 contra float32: {:.3} % de la palma en promedio, máximo {:.3} % · presencia ±{:.4} · puntaje de la palma ±{:.4}", suma / n as f64, maxi, dpres, dpal); }
         }
         _ => eprintln!("uso: jxhand-banco ver MODELO [todo] | foto MODELOS FOTO SALIDA | medir MODELOS FOTO [veces] | perfil MODELOS | video MODELOS FOTO | noche MODELOS FOTO... | noche_foto MODELOS FOTO LUZ SALIDA"),
     }

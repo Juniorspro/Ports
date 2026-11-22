@@ -14,6 +14,9 @@ visto… lograr algo mejor o igual a Meta Quest… en la APK, no web, y que se a
     tarda de 20 a 100 µs y una red tiene más de 100 capas. Entre cuadros sí se duermen (batería).
   - **NEON** (los registros SIMD de ARM): producto de matrices en bloques de 4 píxeles × 16 canales con FMA, tomando
     el valor de cada píxel de un carril del registro. Usa 24 de los 32 registros.
+  - **float16** en los procesadores que lo tienen (ARMv8.2, casi todos los celulares desde 2018): las convoluciones
+    1×1 (el 80 % de las cuentas) se hacen con 8 números por instrucción en vez de 4. Ver abajo.
+  - **La mano en 3D** la dibuja el mismo motor con OpenGL ES 2.0, en el mismo hilo y en el mismo cuadro (ver abajo).
 - **En WebAssembly** (`web/`, para la web o para JXMod algún día): el mismo motor, en un solo hilo, con SIMD de
   WebAssembly.
 - **Sin dependencias:** ni `wasm-bindgen` ni `jni` ni nada; la tabla de funciones de JNI se usa a mano.
@@ -34,10 +37,12 @@ visto… lograr algo mejor o igual a Meta Quest… en la APK, no web, y que se a
 | `motor/src/motor.rs` | Sigue hasta 2 manos. El detector corre sólo sin manos, o cada 300 ms si falta una. Saca la posición en metros frente a la cámara. |
 | `motor/src/luz.rs` | Poca luz: el realce del recorte de la mano y la curva de «ver de noche» (abajo). |
 | `motor/src/hilos.rs` | Los hilos del motor nativo. |
-| `motor/src/android.rs` | La puerta de Android (JNI): YUV → RGBA derecho, motor y salida. |
+| `motor/src/malla.rs` | La mano en 3D: una malla liviana armada en cada cuadro con los 21 puntos. |
+| `motor/src/escena.rs` | El dibujo con OpenGL ES 2.0: la imagen de fondo y la mano en 3D, en 4 estilos. |
+| `motor/src/android.rs` | La puerta de Android (JNI): YUV → RGBA derecho, motor, salida y dibujo. |
 | `motor/src/wasm.rs` | La puerta de WebAssembly. |
 | `web/jxhand.js` | Carga y uso desde JavaScript. Elige sola la versión con FMA o sin. |
-| `banco/` | Herramienta nativa: `ver`, `foto`, `medir`, `perfil`, `video`, `noche` y `noche_foto` (abajo). |
+| `banco/` | Herramienta nativa: `ver`, `foto`, `medir`, `perfil`, `video`, `noche`, `noche_foto`, `f16` y `escena` (abajo). |
 
 **El esqueleto:**
 - **Marco de la palma:** rígido y de mano derecha (para el cuaternión). Con un signo para la palma, así los ángulos
@@ -117,6 +122,44 @@ Con fotos de dominio público (Wikimedia Commons, fuera del repo) y «videos» h
 - **«Ver de noche»:** muestra la imagen aclarada con una curva medida en cada cuadro, y deja que la cámara exponga más
   (puede bajar a 15 cps).
 
+## La mano en 3D
+
+Una mano 3D liviana que recubre la tuya en cada cuadro (`motor/src/malla.rs`, unos 2800 vértices y 5400 triángulos por
+mano).
+- **Se arma en el espacio de la imagen:** x e y en píxeles, z con la profundidad relativa del modelo en las mismas
+  unidades. Por eso cae exactamente sobre la mano de la imagen.
+- **Dedos:** un tubo por dedo que pasa por sus articulaciones con una curva suave (Catmull-Rom), sin retorcerse.
+  - El grosor es el de una mano de verdad, proporcional al ancho de la palma: el índice, por ejemplo, 0,15 de ese
+    ancho en la base y 0,105 en la punta.
+  - La punta termina redondeada justo en el punto de la punta del dedo.
+- **Palma:** una «almohada» (parche de Coons) entre la muñeca, la eminencia del pulgar y los nudillos, más gruesa en el
+  medio y con el borde redondeado.
+- **Muñeca:** un tramo de antebrazo que se desvanece.
+- **La unión de los dedos con la palma:**
+  - La palma se corre un poco hacia atrás sólo en profundidad. Como no hay perspectiva, no se mueve en la imagen.
+  - Donde se cruzan, gana el dedo. Si no, la unión se veía como un serrucho.
+- **Cómo se dibuja (`motor/src/escena.rs`, OpenGL ES 2.0):**
+  - La imagen que miró el motor va de fondo, y la mano encima en el mismo cuadro.
+  - Suavizado de bordes ×4.
+  - En el cristal, primero se dibuja sólo la profundidad y después el color de la cara de adelante, así no se ven las
+    caras de atrás a través.
+- **Estilos:**
+  - **Cristal:** translúcido, con el degradé de JXApps y el borde que brilla.
+  - **Piel:** del color de tu mano, medido en cada cuadro sobre la palma.
+  - **Robot:** metal con reflejo.
+  - **Esqueleto:** huesos y articulaciones en 3D, cada dedo de su color.
+- **Probado en la PC** con Mesa (OpenGL ES por software): `EGL_PLATFORM=surfaceless jxhand-banco escena …`, compilado
+  con `--features gl`. Es el mismo código que corre en el celular.
+
+## float16
+
+- **Comparado en el emulador de ARM** (qemu con un procesador con FEAT_FP16), con `jxhand-banco f16`, con 4 fotos:
+  - Los puntos se mueven, en promedio, el 0,5 % del largo de la palma contra float32. En la peor foto es el 1,3 %.
+  - La presencia y el puntaje de la palma cambian ±0,001.
+- **Las sumas** se hacen en float16 de a bloques de 128 canales, y cada bloque se pasa a float32.
+  - Con bloques de 32 el error casi no baja (0,41 %): viene de redondear a float16, no de las sumas.
+- **En la app:** «Cálculo rápido (float16)», prendido de entrada. Arriba dice «float16» cuando se usa.
+
 ## Velocidad
 
 **En esta PC** (4 núcleos Xeon a 2,1 GHz, x86 sin AVX), modelo completo de los puntos:
@@ -169,28 +212,34 @@ nativa: «no web, Rust».
   - Pide 60 cps si la cámara los da («Cámara rápida») y apaga la estabilización por software, que guarda cuadros.
   - Linterna.
   - Siempre se procesa el cuadro más nuevo, en un hilo con la prioridad de la pantalla.
-- **`Lienzo.java`:** dibuja con el lienzo por hardware la imagen que miró el motor y su esqueleto.
-  - Cada dedo de un color; las puntas más grandes cuanto más cerca de la cámara.
-  - La pinza se enciende.
-  - Arriba: milisegundos, cps, núcleos y modelo.
+- **`Pantalla.java`:** la superficie de OpenGL.
+  - El contexto (EGL) vive en el hilo del motor.
+  - Cada cuadro se procesa y se dibuja en el mismo hilo, apenas el motor devuelve el cuadro a la cámara.
+  - Pide suavizado de bordes ×4.
+- **`Capa.java`:** lo que va encima.
+  - Arriba: milisegundos, cps, núcleos, modelo, float16, estilo y lo que tarda el dibujo.
   - Una tarjeta por mano: derecha o izquierda, distancia en cm, gesto con su fuerza, y cuánto se estira cada dedo.
-  - Opcional: la mano en 3D.
-- **`Principal.java`:** los botones (linterna, ver de noche, girar la cámara, ajustes) y el panel de ajustes.
+  - Los mensajes.
+- **`Principal.java`:** los botones (linterna, ver de noche, girar la cámara, estilo de la mano, ajustes) y el panel
+  de ajustes.
+  - La mano en 3D: Cristal, Piel, Robot o Esqueleto.
   - Modelo Auto, Completo o Liviano.
   - 1 o 2 manos.
   - Adelantar.
   - Ver de noche.
   - Realce para poca luz.
+  - Cálculo rápido (float16).
   - Cámara rápida.
-  - Mano en 3D.
 - **`Icono.java`:** íconos propios dibujados a mano. El ícono de la app es la mano en el degradé de JXApps
   (`app/icono.svg`).
 - **`Motor.java`:** la puerta al motor de Rust.
 
 **Probado sin celular:**
 - El motor de Android por JNI desde Java en la PC (arriba).
-- El dibujo: `Lienzo.java` tal cual, sobre un reemplazo de `android.graphics` hecho con Java2D, con la salida del
-  motor de verdad.
+- El dibujo:
+  - La escena 3D con Mesa (arriba).
+  - `Capa.java` e `Icono.java` tal cual, sobre un reemplazo de `android.graphics` hecho con Java2D, con la salida del
+    motor de verdad.
 - La cámara y la pantalla del celular no se pueden probar desde acá.
 
 **El APK (`app/armar_apk.py`):** sin Gradle, como el de JXMod.
@@ -210,7 +259,8 @@ el historial: commit 7b9b579.
 
 - **Medir en celulares de verdad:** los milisegundos que muestra la app.
 - **Si hace falta bajar más:**
-  - Cálculo en float16 en los celulares que lo tienen (ARMv8.2: el doble de números por instrucción).
+  - Las depthwise también en float16.
   - Fundir la convolución, la suma y el PReLU.
+  - Pasar a RGBA sólo los recortes, y que la placa de video convierta la imagen de fondo.
 - **Que se actualice sola,** con firma, como JXMod.
 - **Integración con JXMod (si algún día se quiere):** está en el historial, commit 7b9b579.

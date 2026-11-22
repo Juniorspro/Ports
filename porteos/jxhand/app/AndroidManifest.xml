@@ -7,6 +7,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
+    <uses-feature android:glEsVersion="0x00020000" android:required="true" />
     <application android:label="JX Hand" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" android:hardwareAccelerated="true" android:allowBackup="false">
         <activity android:name=".Principal" android:exported="true" android:launchMode="singleTask" android:screenOrientation="portrait"

@@ -5,14 +5,15 @@
 //!      con «ver de noche», aclarada con una curva medida en el cuadro);
 //!   3. corre el motor y escribe la salida en un ByteBuffer de floats.
 //!
-//! Salida (floats): 8 de cabecera [manos, corrió el detector, inferencias, ms del motor, ms de pasar el cuadro, brillo
-//! medio, cuánto se aclaró, hilos] y después `POR_MANO` por mano, como en WebAssembly (ver wasm.rs).
+//! Salida (floats): 10 de cabecera [manos, corrió el detector, inferencias, ms del motor, ms de pasar el cuadro, brillo
+//! medio, cuánto se aclaró, hilos, cuentas en float16 (1/0), libre] y después `POR_MANO` por mano, como en WebAssembly
+//! (ver wasm.rs).
 use crate::hilos;
 use crate::motor::Motor;
 use std::ffi::c_void;
 use std::time::Instant;
 
-pub const CABECERA: usize = 8;
+pub const CABECERA: usize = 10;
 pub const POR_MANO: usize = 176;
 
 // ---- lo mínimo de JNI: la tabla de funciones del JNIEnv, por número (jni.h) ----
@@ -45,6 +46,10 @@ struct Estado {
     usa_liviano: bool,
     rgba: Vec<u8>,
     salida: Vec<f32>,
+    // para dibujar el último cuadro: la imagen aclarada (con «ver de noche»), su tamaño y las manos en píxeles
+    vista: Vec<u8>, vista_noche: bool, dim: (usize, usize),
+    para_dibujar: Vec<crate::escena::ManoDibujo>,
+    escena: Option<crate::escena::Escena>,
 }
 
 static mut ERROR: String = String::new();
@@ -73,7 +78,8 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_crear(env: Env, _c: O
     hilos::configurar(n);
     hilos::fijar_nucleos(mascara);
     match Motor::nuevo(&d, &c) {
-        Ok(motor) => Box::into_raw(Box::new(Estado { motor, detector: d, completo: c, liviano: l, usa_liviano: false, rgba: Vec::new(), salida: vec![0.0; CABECERA] })) as i64,
+        Ok(motor) => Box::into_raw(Box::new(Estado { motor, detector: d, completo: c, liviano: l, usa_liviano: false, rgba: Vec::new(), salida: vec![0.0; CABECERA],
+            vista: Vec::new(), vista_noche: false, dim: (0, 0), para_dibujar: Vec::new(), escena: None })) as i64,
         Err(e) => { ERROR = e; 0 }
     }
 }
@@ -92,6 +98,7 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_soltar(_env: Env, _c:
 /// ajustes: 0 máximo de manos · 1 presencia mínima · 2 puntaje mínimo de palma · 3 cada cuánto buscar otra mano (ms)
 /// · 4 predicción (ms) · 5 campo de visión (grados) · 6, 7 filtro de los puntos (corte mínimo, beta) · 8, 9 filtro de
 /// los ángulos · 10 modelo liviano (1) o completo (0) · 11 realce de poca luz (1/0) · 12 hilos · 13 reiniciar
+/// · 14 cuentas en float16 si el procesador las tiene (1/0)
 #[no_mangle]
 pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_config(_env: Env, _c: Obj, m: i64, clave: i32, valor: f32) {
     if m == 0 { return; }
@@ -110,6 +117,7 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_config(_env: Env, _c:
         11 => e.motor.poca_luz(valor > 0.5),
         12 => hilos::configurar(valor.max(1.0) as usize),
         13 => e.motor.reiniciar(),
+        14 => crate::red::USAR_F16.store(valor > 0.5, std::sync::atomic::Ordering::Relaxed),
         _ => {}
     }
 }
@@ -168,21 +176,28 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_procesar(env: Env, _c
     let rot = match rot.rem_euclid(360) { 90 => 90, 180 => 180, 270 => 270, _ => 0 };
     let (ow, oh) = yuv_a_rgba(py, pu, pv, w, h, fy, fuv, puv, rot, espejo != 0, &mut e.rgba);
     let t_yuv = t0.elapsed().as_secs_f64() * 1e3;
-    // la vista: la misma imagen (aclarada con «ver de noche»)
+    // la vista: la misma imagen (aclarada con «ver de noche»): a un ByteBuffer de Java si lo pasan, y si no queda acá
+    // para `dibujar`
     let pvista = direccion(env, vista);
+    e.vista_noche = vista_noche != 0; e.dim = (ow, oh);
+    if e.vista_noche {
+        let tabla = crate::luz::tabla_rgba(&e.rgba);
+        if e.vista.len() != e.rgba.len() { e.vista = vec![0u8; e.rgba.len()]; }
+        for (d, s) in e.vista.chunks_exact_mut(4).zip(e.rgba.chunks_exact(4)) { d[0] = tabla[s[0] as usize]; d[1] = tabla[s[1] as usize]; d[2] = tabla[s[2] as usize]; d[3] = 255; }
+    }
     if !pvista.is_null() && capacidad(env, vista) >= ow * oh * 4 {
         let dst = std::slice::from_raw_parts_mut(pvista, ow * oh * 4);
-        if vista_noche != 0 {
-            let tabla = crate::luz::tabla_rgba(&e.rgba);
-            for (d, s) in dst.chunks_exact_mut(4).zip(e.rgba.chunks_exact(4)) { d[0] = tabla[s[0] as usize]; d[1] = tabla[s[1] as usize]; d[2] = tabla[s[2] as usize]; d[3] = 255; }
-        } else { dst.copy_from_slice(&e.rgba); }
+        dst.copy_from_slice(if e.vista_noche { &e.vista } else { &e.rgba });
     }
     let t1 = Instant::now();
     let manos = e.motor.procesar(&e.rgba, ow, oh, t_ns as f64 / 1e6, espejo != 0);
     let t_motor = t1.elapsed().as_secs_f64() * 1e3;
     let (brillo, ganancia) = e.motor.luz();
+    e.para_dibujar.clear();
+    for x in &manos { e.para_dibujar.push(crate::escena::ManoDibujo { pts: std::array::from_fn(|i| [x.img[i][0] * ow as f32, x.img[i][1] * oh as f32, x.img[i][2] * ow as f32]) }); }
     let s = &mut e.salida; s.clear();
-    s.extend_from_slice(&[manos.len() as f32, e.motor.corrio_detector as u8 as f32, e.motor.inferencias as f32, t_motor as f32, t_yuv as f32, brillo, ganancia, hilos::cuantos() as f32]);
+    let f16 = crate::red::hay_f16() && crate::red::USAR_F16.load(std::sync::atomic::Ordering::Relaxed);
+    s.extend_from_slice(&[manos.len() as f32, e.motor.corrio_detector as u8 as f32, e.motor.inferencias as f32, t_motor as f32, t_yuv as f32, brillo, ganancia, hilos::cuantos() as f32, f16 as u8 as f32, 0.0]);
     for x in &manos {
         let b = s.len(); s.resize(b + POR_MANO, 0.0); let o = &mut s[b..];
         o[0] = x.id as f32; o[1] = x.derecha as u8 as f32; o[2] = x.presencia; o[3] = x.calibrada as u8 as f32;
@@ -201,4 +216,27 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_procesar(env: Env, _c
         std::ptr::copy_nonoverlapping(s.as_ptr(), ps, n);
     }
     manos.len() as i32
+}
+
+/// dibuja el último cuadro (la imagen y la mano en 3D) con el contexto de OpenGL ES que la app dejó activo en este hilo.
+/// `estilo`: 0 cristal · 1 piel · 2 robot · 3 esqueleto. Devuelve 0, o −1 si no se pudo armar (ver error()).
+#[no_mangle]
+pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_dibujar(_env: Env, _c: Obj, m: i64, ancho: i32, alto: i32, estilo: i32, grosor: f32, tiempo: f32) -> i32 {
+    if m == 0 { return -1; }
+    let e = &mut *(m as *mut Estado);
+    if e.dim.0 == 0 || ancho <= 0 || alto <= 0 { return 0; }
+    if e.escena.is_none() {
+        match crate::escena::Escena::nueva() { Ok(x) => e.escena = Some(x), Err(x) => { ERROR = x; return -1; } }
+    }
+    let img: &[u8] = if e.vista_noche && e.vista.len() == e.rgba.len() { &e.vista } else { &e.rgba };
+    if let Some(esc) = e.escena.as_mut() { esc.dibujar(img, e.dim.0, e.dim.1, &e.para_dibujar, estilo, grosor, ancho as usize, alto as usize, tiempo); }
+    0
+}
+
+/// el contexto de OpenGL se perdió (o se va a borrar): `borrar` = 1 si todavía está activo y se pueden borrar las cosas
+#[no_mangle]
+pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_soltarEscena(_env: Env, _c: Obj, m: i64, borrar: u8) {
+    if m == 0 { return; }
+    let e = &mut *(m as *mut Estado);
+    if let Some(mut esc) = e.escena.take() { if borrar != 0 { esc.soltar(); } }
 }

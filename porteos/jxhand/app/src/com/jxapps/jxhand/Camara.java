@@ -1,7 +1,6 @@
 package com.jxapps.jxhand;
 
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -33,7 +32,8 @@ public class Camara {
     public static final int AUTO = 0, COMPLETO = 1, LIVIANO = 2;
 
     private final Context ctx;
-    private final Lienzo lienzo;
+    private final Capa capa;
+    private final Pantalla pantalla;
     private final Handler hMotor;
     private HandlerThread tCam;
     private Handler hCam;
@@ -48,7 +48,9 @@ public class Camara {
     private volatile boolean cerrada = true;
 
     // lo que elige la persona (lo cambia la pantalla; se lee en los otros hilos)
-    public volatile boolean quiereFrente, linterna, noche, rapido = true, ver3d;
+    public volatile boolean quiereFrente, linterna, noche, rapido = true;
+    /** el estilo de la mano en 3D (Motor.ESTILOS) */
+    public volatile int estilo;
     public volatile int modelo = AUTO;
     /** el motor de Rust (lo crea y lo suelta Principal, en el hilo del motor) */
     public volatile long motor;
@@ -56,17 +58,16 @@ public class Camara {
     private final ByteBuffer salida = ByteBuffer.allocateDirect(4 * (Motor.CABECERA + 2 * Motor.POR_MANO)).order(ByteOrder.nativeOrder());
     private final FloatBuffer fsal = salida.asFloatBuffer();
     private final float[] datos = new float[Motor.CABECERA + 2 * Motor.POR_MANO];
-    private ByteBuffer vista;
-    private Bitmap bmp;
-    private int vw, vh;
-    private final Lienzo.Hud hud = new Lienzo.Hud();
+    private final Capa.Hud hud = new Capa.Hud();
+    private double msDibujo;
+    private boolean avisoDibujo;
     private long ultimoT;
     private double cps, ms;
     private boolean usaLiviano;
     private int cuentaAuto;
     private double emaAuto;
 
-    public Camara(Context ctx, Lienzo lienzo, Handler hMotor) { this.ctx = ctx; this.lienzo = lienzo; this.hMotor = hMotor; }
+    public Camara(Context ctx, Capa capa, Pantalla pantalla, Handler hMotor) { this.ctx = ctx; this.capa = capa; this.pantalla = pantalla; this.hMotor = hMotor; }
 
     public boolean hayLinterna() { return hayFlash; }
     public boolean esFrente() { return frente; }
@@ -88,7 +89,7 @@ public class Camara {
         cm = (CameraManager) ctx.getSystemService(Context.CAMERA_SERVICE);
         try {
             String id = elegir(quiereFrente);
-            if (id == null) { lienzo.mensaje("No se encontró una cámara", null); return; }
+            if (id == null) { capa.mensaje("No se encontró una cámara", null); return; }
             CameraCharacteristics ch = cm.getCameraCharacteristics(id);
             Integer so = ch.get(CameraCharacteristics.SENSOR_ORIENTATION); rotSensor = so == null ? 90 : so;
             Integer lado = ch.get(CameraCharacteristics.LENS_FACING); frente = lado != null && lado == CameraCharacteristics.LENS_FACING_FRONT;
@@ -102,9 +103,9 @@ public class Camara {
             lector.setOnImageAvailableListener(alLlegar, hMotor);
             cm.openCamera(id, estado, hCam);
         } catch (SecurityException e) {
-            lienzo.mensaje("Hace falta el permiso de la cámara", "Tocá la pantalla para pedirlo de nuevo");
+            capa.mensaje("Hace falta el permiso de la cámara", "Tocá la pantalla para pedirlo de nuevo");
         } catch (Exception e) {
-            lienzo.mensaje("No se pudo abrir la cámara", String.valueOf(e.getMessage()));
+            capa.mensaje("No se pudo abrir la cámara", String.valueOf(e.getMessage()));
         }
     }
 
@@ -190,14 +191,14 @@ public class Camara {
             try {
                 d.createCaptureSession(Collections.singletonList(l.getSurface()), new CameraCaptureSession.StateCallback() {
                     @Override public void onConfigured(CameraCaptureSession s) { if (cerrada) { s.close(); return; } ses = s; pedir(); }
-                    @Override public void onConfigureFailed(CameraCaptureSession s) { lienzo.mensaje("La cámara no quiso arrancar", "Probá cerrar y abrir la app"); }
+                    @Override public void onConfigureFailed(CameraCaptureSession s) { capa.mensaje("La cámara no quiso arrancar", "Probá cerrar y abrir la app"); }
                 }, hCam);
-            } catch (Exception e) { lienzo.mensaje("La cámara no quiso arrancar", String.valueOf(e.getMessage())); }
+            } catch (Exception e) { capa.mensaje("La cámara no quiso arrancar", String.valueOf(e.getMessage())); }
         }
         @Override public void onDisconnected(CameraDevice d) { d.close(); if (dev == d) dev = null; }
         @Override public void onError(CameraDevice d, int error) {
             d.close(); if (dev == d) dev = null;
-            lienzo.mensaje("La cámara se cerró (error " + error + ")", "Puede que otra app la esté usando");
+            capa.mensaje("La cámara se cerró (error " + error + ")", "Puede que otra app la esté usando");
         }
     };
 
@@ -206,37 +207,58 @@ public class Camara {
             Image im;
             try { im = r.acquireLatestImage(); } catch (Exception e) { return; }
             if (im == null) return;
-            try { procesar(im); } catch (Throwable t) { } finally { im.close(); }
+            // el cuadro se devuelve a la cámara apenas el motor lo pasó a su imagen; recién después se dibuja
+            int n = -1;
+            try { n = procesar(im); } catch (Throwable t) { } finally { im.close(); }
+            if (n >= 0) try { despues(n); } catch (Throwable t) { }
         }
     };
 
-    private void procesar(Image im) {
+    private long tCuadro;
+
+    private int procesar(Image im) {
         long m = motor;
-        if (m == 0) return;
+        if (m == 0) return -1;
         int w = im.getWidth(), h = im.getHeight(), rot = rotSensor;
         boolean espejo = frente;
-        int ow = rot % 180 == 90 ? h : w, oh = rot % 180 == 90 ? w : h;
-        if (bmp == null || vw != ow || vh != oh) { bmp = Bitmap.createBitmap(ow, oh, Bitmap.Config.ARGB_8888); vista = ByteBuffer.allocateDirect(ow * oh * 4); vw = ow; vh = oh; }
         Image.Plane[] p = im.getPlanes();
         int n = Motor.procesar(m, p[0].getBuffer(), p[1].getBuffer(), p[2].getBuffer(), w, h, p[0].getRowStride(), p[1].getRowStride(), p[1].getPixelStride(),
-            rot, espejo, im.getTimestamp(), salida, vista, noche);
-        if (n < 0) return;
+            rot, espejo, im.getTimestamp(), salida, null, noche);
+        if (n < 0) return -1;
         fsal.position(0); fsal.get(datos, 0, Motor.CABECERA + n * Motor.POR_MANO);
-        vista.rewind(); bmp.copyPixelsFromBuffer(vista);
+        tCuadro = im.getTimestamp();
+        return n;
+    }
+
+    private void despues(int n) {
+        long m = motor;
+        if (m == 0) return;
+        // se dibuja enseguida, en este mismo hilo: la imagen que miró el motor y la mano en 3D encima
+        if (pantalla.ancho > 0 && pantalla.preparar()) {
+            long t0 = System.nanoTime();
+            int r = Motor.dibujar(m, pantalla.ancho, pantalla.alto, estilo, 1f, (System.nanoTime() % 1_000_000_000_000L) / 1e9f);
+            if (r < 0) {
+                // (no debería pasar: OpenGL ES 2 está en todos los celulares; si pasa, el mensaje queda fijo con el porqué)
+                if (!avisoDibujo) { avisoDibujo = true; capa.mensaje("No se pudo dibujar en 3D", Motor.error()); }
+                return;
+            }
+            pantalla.mostrar();
+            double md = (System.nanoTime() - t0) / 1e6; msDibujo = msDibujo == 0 ? md : msDibujo * 0.9 + md * 0.1;
+        }
         // lo de arriba: cuadros por segundo de la cámara y lo que tarda el motor (promedios cortos)
-        long t = im.getTimestamp();
+        long t = tCuadro;
         if (ultimoT > 0 && t > ultimoT) { double c = 1e9 / (t - ultimoT); cps = cps == 0 ? c : cps * 0.9 + c * 0.1; }
         ultimoT = t;
         ms = ms == 0 ? datos[3] : ms * 0.9 + datos[3] * 0.1;
         hud.msMotor = ms; hud.msCuadro = datos[4]; hud.cps = cps; hud.hilos = (int) datos[7];
-        hud.brillo = datos[5]; hud.ganancia = datos[6]; hud.noche = noche; hud.frente = frente; hud.ver3d = ver3d;
-        hud.modelo = (usaLiviano ? "liviano" : "completo") + (modelo == AUTO ? " (auto)" : "");
+        hud.brillo = datos[5]; hud.ganancia = datos[6]; hud.noche = noche; hud.frente = frente; hud.msDibujo = msDibujo; hud.estilo = Motor.ESTILOS[Math.max(0, Math.min(3, estilo))];
+        hud.modelo = (usaLiviano ? "liviano" : "completo") + (modelo == AUTO ? " (auto)" : "") + (datos[8] > 0.5f ? " · float16" : "");
         if (n == 0) { if (hud.sinManosDesde == 0) hud.sinManosDesde = System.nanoTime(); } else hud.sinManosDesde = 0;
         // Auto: si el modelo completo tarda más de 5 ms en este celular, pasa al liviano (una vez)
         if (modelo == AUTO && !usaLiviano && n > 0 && datos[1] < 0.5f) {
             emaAuto = cuentaAuto == 0 ? datos[3] : emaAuto * 0.92 + datos[3] * 0.08;
             if (++cuentaAuto > 45 && emaAuto > 5.0) { Motor.config(m, Motor.LIVIANO, 1); usaLiviano = true; }
         }
-        lienzo.dibujar(bmp, vw, vh, datos, n, hud);
+        capa.actualizar(datos, n, hud);
     }
 }

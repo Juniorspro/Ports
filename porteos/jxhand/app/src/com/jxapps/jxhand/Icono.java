@@ -12,7 +12,7 @@ import android.view.View;
 
 /** Los botones redondos de arriba, con íconos propios dibujados a mano (nada de emojis ni de íconos de terceros). */
 public class Icono extends View {
-    public static final int GIRAR = 0, LINTERNA = 1, LUNA = 2, AJUSTES = 3, CERRAR = 4;
+    public static final int GIRAR = 0, LINTERNA = 1, LUNA = 2, AJUSTES = 3, CERRAR = 4, MANO = 5;
     private final int tipo;
     private boolean activo, deshabilitado;
     private final Paint fondo = new Paint(Paint.ANTI_ALIAS_FLAG), trazo = new Paint(Paint.ANTI_ALIAS_FLAG), relleno = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -79,6 +79,14 @@ public class Icono extends View {
                     c.drawCircle(xs[i], ys[i], 2.2f * u, fondo);
                     c.drawCircle(xs[i], ys[i], 2.2f * u, trazo);
                 }
+                break;
+            }
+            case MANO: {
+                // una mano: la palma y cuatro dedos redondeados, y el pulgar
+                r.set(7 * u, 11 * u, 17 * u, 20 * u); c.drawRoundRect(r, 3 * u, 3 * u, trazo);
+                float[] xs = {8.3f, 11f, 13.7f, 16.2f}, ys = {6f, 4f, 4.6f, 7f};
+                for (int k = 0; k < 4; k++) c.drawLine(xs[k] * u, 11 * u, xs[k] * u, ys[k] * u, trazo);
+                p.moveTo(7 * u, 15 * u); p.lineTo(4.5f * u, 11.5f * u); c.drawPath(p, trazo);
                 break;
             }
             case CERRAR: {

@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[features]
+gl = ["jxhand/gl"]
+
 [dependencies]
 jxhand = { path = "../motor" }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }

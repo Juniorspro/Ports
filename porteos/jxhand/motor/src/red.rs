@@ -29,6 +29,49 @@ pub struct Red {
     pasos: Vec<Paso>,
     pub entradas: Vec<usize>,
     pub salidas: Vec<usize>,
+    /// los pesos de las convoluciones 1×1 en float16 ([entrada redondeada a 8][salida]), si el procesador hace cuentas
+    /// en float16 (ARMv8.2: casi todos los celulares desde 2018); uno por paso
+    #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
+    pesos16: Vec<Option<Vec<u16>>>,
+    /// la entrada de la capa pasada a float16 (se reusa)
+    tmp16: Vec<u16>,
+}
+
+/// si se usan las cuentas en float16 cuando el procesador las tiene (para comparar: se puede apagar)
+pub static USAR_F16: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// ¿el procesador hace cuentas en float16? (ARM de 64 bits con FEAT_FP16)
+pub fn hay_f16() -> bool {
+    #[cfg(target_arch = "aarch64")]
+    {
+        use std::sync::OnceLock;
+        static HAY: OnceLock<bool> = OnceLock::new();
+        *HAY.get_or_init(|| std::arch::is_aarch64_feature_detected!("fp16"))
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    { false }
+}
+#[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
+fn f16_activo() -> bool { hay_f16() && USAR_F16.load(std::sync::atomic::Ordering::Relaxed) }
+
+/// f32 → float16 (los bits), redondeando al par más cercano
+pub fn a_f16(x: f32) -> u16 {
+    let b = x.to_bits();
+    let signo = ((b >> 16) & 0x8000) as u16;
+    let exp = ((b >> 23) & 0xff) as i32; let man = b & 0x7f_ffff;
+    if exp == 0xff { return signo | 0x7c00 | if man != 0 { 0x200 } else { 0 }; }
+    let e = exp - 127 + 15;
+    if e >= 0x1f { return signo | 0x7c00; }
+    if e <= 0 {
+        if e < -10 { return signo; }
+        let m = man | 0x80_0000; let corr = (14 - e) as u32;
+        let medio = m >> corr; let resto = m & ((1 << corr) - 1); let mitad = 1 << (corr - 1);
+        let r = if resto > mitad || (resto == mitad && (medio & 1) == 1) { medio + 1 } else { medio };
+        return signo | r as u16;
+    }
+    let medio = ((e as u32) << 10) | (man >> 13); let resto = man & 0x1fff;
+    let r = if resto > 0x1000 || (resto == 0x1000 && (medio & 1) == 1) { medio + 1 } else { medio };
+    signo | r as u16
 }
 
 fn salida_tam(entrada: usize, k: usize, paso: usize, dil: usize, rel: Relleno) -> (usize, usize) {
@@ -142,7 +185,23 @@ impl Red {
             if i < constante.len() && constante[i] { continue; }
             if datos[i].len() != n && (i >= m.tensores.len() || m.tensores[i].tipo == Tipo::F32 || m.tensores[i].tipo == Tipo::F16) { datos[i] = vec![0.0; n]; }
         }
-        Ok(Red { formas, datos, pasos, entradas: m.entradas, salidas: m.salidas })
+        let mut pesos16 = Vec::with_capacity(pasos.len());
+        for p in &pasos {
+            let mut w16 = None;
+            if hay_f16() {
+                if let Paso::Conv { e, s, w, kh: 1, kw: 1, paso: (1, 1), .. } = p {
+                    let (ci, co) = (forma4(&formas[*e])[3], forma4(&formas[*s])[3]);
+                    if co % 8 == 0 {
+                        let ci8 = ci.div_ceil(8) * 8;
+                        let mut v = vec![0u16; ci8 * co];
+                        for (d, &x) in v.iter_mut().zip(datos[*w].iter()) { *d = a_f16(x); }
+                        w16 = Some(v);
+                    }
+                }
+            }
+            pesos16.push(w16);
+        }
+        Ok(Red { formas, datos, pasos, entradas: m.entradas, salidas: m.salidas, pesos16, tmp16: Vec::new() })
     }
 
     pub fn forma(&self, t: usize) -> &[usize] { &self.formas[t] }
@@ -168,7 +227,9 @@ impl Red {
             // (cada paso lee unos tensores y escribe otro: se saca la salida un momento para tener las dos cosas a la vez)
             let s = salida_de(&self.pasos[k]);
             let mut out = std::mem::take(&mut self.datos[s]);
-            self.paso(k, &mut out);
+            let mut t16 = std::mem::take(&mut self.tmp16);
+            self.paso(k, &mut out, &mut t16);
+            self.tmp16 = t16;
             self.datos[s] = out;
         }
     }
@@ -185,7 +246,9 @@ impl Red {
             };
             let s = salida_de(&self.pasos[k]);
             let mut out = std::mem::take(&mut self.datos[s]);
-            let t0 = std::time::Instant::now(); self.paso(k, &mut out); let d = t0.elapsed().as_secs_f64() * 1e3;
+            let mut t16 = std::mem::take(&mut self.tmp16);
+            let t0 = std::time::Instant::now(); self.paso(k, &mut out, &mut t16); let d = t0.elapsed().as_secs_f64() * 1e3;
+            self.tmp16 = t16;
             self.datos[s] = out;
             let e = t.entry(nombre).or_insert((0.0, 0)); e.0 += d; e.1 += 1;
         }
@@ -193,7 +256,8 @@ impl Red {
         v.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap()); v
     }
 
-    fn paso(&self, k: usize, out: &mut [f32]) {
+    #[cfg_attr(not(target_arch = "aarch64"), allow(unused_variables))]
+    fn paso(&self, k: usize, out: &mut [f32], t16: &mut Vec<u16>) {
         let d = &self.datos; let f = &self.formas;
         match &self.pasos[k] {
             Paso::Conv { e, s, w, b, kh, kw, paso, dil, pad, act } => {
@@ -201,6 +265,26 @@ impl Red {
                 let (x, w, b, act) = (&d[*e][..], &d[*w][..], &d[*b][..], *act);
                 let (ci, co) = (fe[3], fs[3]);
                 let po = Puntero(out.as_mut_ptr());
+                #[cfg(target_arch = "aarch64")]
+                if let (Some(w16), true) = (self.pesos16[k].as_ref(), f16_activo()) {
+                    // 1×1 en float16: cada trozo pasa sus filas de la entrada a float16 y multiplica de a 8 por instrucción
+                    let n = fs[1] * fs[2]; let ci8 = ci.div_ceil(8) * 8;
+                    if t16.len() < n * ci8 { t16.resize(n * ci8, 0); }
+                    let p16 = PunteroU16(t16.as_mut_ptr());
+                    let filas = filas_por_trozo(n, n * ci * co, 4);
+                    let pw16 = w16.as_ptr() as usize;
+                    hilos::repartir(n.div_ceil(filas), &|t| {
+                        let (p0, p1) = (t * filas, ((t + 1) * filas).min(n));
+                        unsafe {
+                            let x16 = p16.p().add(p0 * ci8);
+                            for q in p0..p1 { neon16::a_medio(x.as_ptr().add(q * ci), p16.p().add(q * ci8), ci, ci8); }
+                            let o = po.parte(p0 * co, (p1 - p0) * co);
+                            neon16::gemm(x16, ci8, pw16 as *const u16, co, b.as_ptr(), o.as_mut_ptr(), p1 - p0);
+                            activar_todo(o, act);
+                        }
+                    });
+                    return;
+                }
                 if *kh == 1 && *kw == 1 && *paso == (1, 1) {
                     // 1×1: una multiplicación de matrices [píxeles × entrada] · [entrada × salida], repartida por píxeles
                     let n = fs[1] * fs[2];
@@ -454,6 +538,120 @@ fn depthwise(x: &[f32], fe: [usize; 4], w: &[f32], b: &[f32], out: &mut [f32], f
         }
     } }
     activar_todo(out, act);
+}
+
+#[derive(Clone, Copy)]
+struct PunteroU16(*mut u16);
+unsafe impl Send for PunteroU16 {}
+unsafe impl Sync for PunteroU16 {}
+impl PunteroU16 { #[allow(dead_code)] fn p(self) -> *mut u16 { self.0 } }
+
+/// las cuentas en float16 (ARMv8.2, FEAT_FP16): el doble de números por instrucción que en float32. Las sumas se hacen
+/// en float16 de a bloques de 128 canales y cada bloque se pasa a float32 para seguir sumando (así no se pierde
+/// precisión en las capas con muchos canales). La entrada y los pesos se redondean a float16 (11 bits de mantisa).
+#[cfg(target_arch = "aarch64")]
+mod neon16 {
+    use core::arch::aarch64::*;
+    use core::arch::asm;
+
+    /// una fila de `n` floats a float16, rellenando con ceros hasta `n8`
+    #[target_feature(enable = "fp16")]
+    pub unsafe fn a_medio(src: *const f32, dst: *mut u16, n: usize, n8: usize) {
+        let mut i = 0;
+        while i + 8 <= n {
+            let (a, b) = (vld1q_f32(src.add(i)), vld1q_f32(src.add(i + 4)));
+            let o: float32x4_t;
+            asm!("fcvtn {o:v}.4h, {a:v}.4s", "fcvtn2 {o:v}.8h, {b:v}.4s", a = in(vreg) a, b = in(vreg) b, o = out(vreg) o, options(pure, nomem, nostack));
+            vst1q_f32(dst.add(i) as *mut f32, o);
+            i += 8;
+        }
+        while i < n { *dst.add(i) = super::a_f16(*src.add(i)); i += 1; }
+        while i < n8 { *dst.add(i) = 0; i += 1; }
+    }
+
+    macro_rules! fmla { ($acc:expr, $w:expr, $x:expr, $l:literal) => {
+        asm!("fmla {a:v}.8h, {w:v}.8h, {x:v}.h[{l}]", a = inout(vreg) $acc, w = in(vreg) $w, x = in(vreg_low16) $x, l = const $l, options(pure, nomem, nostack));
+    } }
+
+    /// suma el acumulador de float16 (8 valores) a la salida en float32 (o la inicia con el sesgo)
+    #[inline(always)]
+    unsafe fn volcar(acc: float32x4_t, o: *mut f32, b: *const f32, primero: bool) {
+        let (lo, hi): (float32x4_t, float32x4_t);
+        asm!("fcvtl {lo:v}.4s, {a:v}.4h", "fcvtl2 {hi:v}.4s, {a:v}.8h", a = in(vreg) acc, lo = out(vreg) lo, hi = out(vreg) hi, options(pure, nomem, nostack));
+        let (b0, b1) = if primero { (vld1q_f32(b), vld1q_f32(b.add(4))) } else { (vld1q_f32(o), vld1q_f32(o.add(4))) };
+        vst1q_f32(o, vaddq_f32(b0, lo)); vst1q_f32(o.add(4), vaddq_f32(b1, hi));
+    }
+
+    // (medido con qemu: con bloques de 32 el error baja de 0,51 % a 0,41 % de la palma, casi nada: el error viene de
+    // redondear a float16, no de las sumas; con 128 se vuelca menos seguido)
+    const BLOQUE: usize = 128;
+
+    /// [n × ci8] (float16) · [ci8 × co] (float16) + sesgo → [n × co] float32. co múltiplo de 8, ci8 de 8.
+    #[target_feature(enable = "fp16")]
+    pub unsafe fn gemm(x: *const u16, ci8: usize, w: *const u16, co: usize, b: *const f32, out: *mut f32, n: usize) {
+        let z = vdupq_n_f32(0.0);
+        let mut p = 0;
+        while p + 4 <= n {
+            let xs = [x.add(p * ci8), x.add((p + 1) * ci8), x.add((p + 2) * ci8), x.add((p + 3) * ci8)];
+            let mut j = 0;
+            while j < co {
+                let ancho2 = j + 16 <= co; // 16 canales (dos registros) o los últimos 8
+                let mut kb = 0;
+                while kb < ci8 {
+                    let fin = (kb + BLOQUE).min(ci8);
+                    let (mut a0, mut a1, mut a2, mut a3, mut c0, mut c1, mut c2, mut c3) = (z, z, z, z, z, z, z, z);
+                    let mut c = kb;
+                    while c < fin {
+                        let x0 = vld1q_f32(xs[0].add(c) as *const f32); let x1 = vld1q_f32(xs[1].add(c) as *const f32);
+                        let x2 = vld1q_f32(xs[2].add(c) as *const f32); let x3 = vld1q_f32(xs[3].add(c) as *const f32);
+                        macro_rules! carril { ($l:literal) => {{
+                            let wr = w.add((c + $l) * co + j);
+                            let w0 = vld1q_f32(wr as *const f32);
+                            fmla!(a0, w0, x0, $l); fmla!(a1, w0, x1, $l); fmla!(a2, w0, x2, $l); fmla!(a3, w0, x3, $l);
+                            if ancho2 {
+                                let w1 = vld1q_f32(wr.add(8) as *const f32);
+                                fmla!(c0, w1, x0, $l); fmla!(c1, w1, x1, $l); fmla!(c2, w1, x2, $l); fmla!(c3, w1, x3, $l);
+                            }
+                        }}; }
+                        carril!(0); carril!(1); carril!(2); carril!(3); carril!(4); carril!(5); carril!(6); carril!(7);
+                        c += 8;
+                    }
+                    let primero = kb == 0;
+                    let os = [out.add(p * co + j), out.add((p + 1) * co + j), out.add((p + 2) * co + j), out.add((p + 3) * co + j)];
+                    volcar(a0, os[0], b.add(j), primero); volcar(a1, os[1], b.add(j), primero); volcar(a2, os[2], b.add(j), primero); volcar(a3, os[3], b.add(j), primero);
+                    if ancho2 {
+                        volcar(c0, os[0].add(8), b.add(j + 8), primero); volcar(c1, os[1].add(8), b.add(j + 8), primero);
+                        volcar(c2, os[2].add(8), b.add(j + 8), primero); volcar(c3, os[3].add(8), b.add(j + 8), primero);
+                    }
+                    kb = fin;
+                }
+                j += if ancho2 { 16 } else { 8 };
+            }
+            p += 4;
+        }
+        // las filas que sobran, de a una
+        while p < n {
+            let xr = x.add(p * ci8);
+            let mut j = 0;
+            while j < co {
+                let mut kb = 0;
+                while kb < ci8 {
+                    let fin = (kb + BLOQUE).min(ci8);
+                    let mut a0 = z; let mut c = kb;
+                    while c < fin {
+                        let x0 = vld1q_f32(xr.add(c) as *const f32);
+                        macro_rules! carril1 { ($l:literal) => {{ let w0 = vld1q_f32(w.add((c + $l) * co + j) as *const f32); fmla!(a0, w0, x0, $l); }}; }
+                        carril1!(0); carril1!(1); carril1!(2); carril1!(3); carril1!(4); carril1!(5); carril1!(6); carril1!(7);
+                        c += 8;
+                    }
+                    volcar(a0, out.add(p * co + j), b.add(j), kb == 0);
+                    kb = fin;
+                }
+                j += 8;
+            }
+            p += 1;
+        }
+    }
 }
 
 /// los kernels con NEON de ARM de 64 bits (todos los celulares de los últimos años): FMA de 4 en 4, y el producto de

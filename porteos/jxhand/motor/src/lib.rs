@@ -4,6 +4,7 @@ pub mod hilos;
 pub mod tflite;
 pub mod red;
 pub mod luz;
+pub mod malla;
 pub mod mano;
 pub mod filtro;
 pub mod esqueleto;
@@ -13,4 +14,6 @@ pub mod motor;
 pub mod wasm;
 #[cfg(any(target_os = "android", feature = "jni"))]
 pub mod android;
+#[cfg(any(target_os = "android", feature = "gl"))]
+pub mod escena;
 pub use motor::{Config, Mano, Motor};

@@ -38,12 +38,13 @@ import java.nio.ByteBuffer;
  */
 public class Principal extends Activity {
     static final int PEDIR_CAMARA = 1;
-    private Lienzo lienzo;
+    private Capa capa;
+    private Pantalla pantalla;
     private Camara camara;
     private HandlerThread tMotor;
     private Handler hMotor;
     private SharedPreferences prefs;
-    private Icono bLinterna, bNoche, bGirar, bAjustes;
+    private Icono bLinterna, bNoche, bGirar, bEstilo, bAjustes;
     private LinearLayout barra;
     private FrameLayout panel;
     private float dp;
@@ -67,18 +68,21 @@ public class Principal extends Activity {
 
         FrameLayout raiz = new FrameLayout(this);
         raiz.setBackgroundColor(0xFF0B0B10);
-        lienzo = new Lienzo(this);
-        raiz.addView(lienzo, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        lienzo.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+        // abajo, la superficie donde el motor de Rust dibuja la imagen y la mano en 3D; arriba, los números y las tarjetas
+        pantalla = new Pantalla(this, hMotor);
+        raiz.addView(pantalla, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        capa = new Capa(this);
+        raiz.addView(capa, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        capa.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             if (panel.getVisibility() == View.VISIBLE) mostrarPanel(false);
             else if (!tienePermiso()) pedirPermiso();
         } });
 
-        camara = new Camara(this, lienzo, hMotor);
+        camara = new Camara(this, capa, pantalla, hMotor);
         camara.quiereFrente = prefs.getBoolean("frente", false);
         camara.noche = prefs.getBoolean("noche", false);
         camara.rapido = prefs.getBoolean("rapido", true);
-        camara.ver3d = prefs.getBoolean("ver3d", false);
+        camara.estilo = prefs.getInt("estilo", 0);
         camara.modelo = prefs.getInt("modelo", Camara.AUTO);
 
         // los botones de arriba a la derecha
@@ -96,6 +100,10 @@ public class Principal extends Activity {
             bLinterna.activo(false); actualizarBotones();
             hMotor.post(new Runnable() { public void run() { if (camara.motor != 0) Motor.config(camara.motor, Motor.REINICIAR, 1); } });
         } });
+        bEstilo = boton(Icono.MANO, new View.OnClickListener() { public void onClick(View v) {
+            elegirEstilo((camara.estilo + 1) % Motor.ESTILOS.length);
+            capa.avisar(Motor.ESTILOS[camara.estilo]);
+        } });
         bAjustes = boton(Icono.AJUSTES, new View.OnClickListener() { public void onClick(View v) { mostrarPanel(panel.getVisibility() != View.VISIBLE); } });
         bNoche.activo(camara.noche);
         FrameLayout.LayoutParams lb = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
@@ -112,7 +120,7 @@ public class Principal extends Activity {
             public WindowInsets onApplyWindowInsets(View v, WindowInsets in) {
                 int arriba = in.getSystemWindowInsetTop(), abajo = in.getSystemWindowInsetBottom();
                 if (Build.VERSION.SDK_INT >= 28 && in.getDisplayCutout() != null) { arriba = Math.max(arriba, in.getDisplayCutout().getSafeInsetTop()); abajo = Math.max(abajo, in.getDisplayCutout().getSafeInsetBottom()); }
-                lienzo.margenArriba = arriba; lienzo.margenAbajo = abajo;
+                capa.margenArriba = arriba; capa.margenAbajo = abajo;
                 FrameLayout.LayoutParams l = (FrameLayout.LayoutParams) barra.getLayoutParams();
                 l.topMargin = arriba + (int) (12 * dp); barra.setLayoutParams(l);
                 panel.setPadding(0, 0, 0, abajo);
@@ -125,13 +133,14 @@ public class Principal extends Activity {
 
         // el motor: los modelos se leen de la APK y se cargan en el hilo del motor
         hMotor.post(new Runnable() { public void run() {
-            lienzo.mensaje("Cargando el motor…", null);
+            capa.mensaje("Cargando el motor…", null);
             try {
                 long m = Motor.crear(leer("modelos/hand_detector.tflite"), leer("modelos/hand_landmarks_detector.tflite"), leer("modelos/hand_landmark_lite.tflite"));
-                if (m == 0) { lienzo.mensaje("El motor no arrancó", Motor.error()); return; }
-                camara.motor = m;
+                if (m == 0) { capa.mensaje("El motor no arrancó", Motor.error()); return; }
+                camara.motor = m; pantalla.motor = m;
+                capa.mensaje("Abriendo la cámara…", null);
                 aplicarAjustes();
-            } catch (Throwable t) { lienzo.mensaje("El motor no arrancó", String.valueOf(t.getMessage())); }
+            } catch (Throwable t) { capa.mensaje("El motor no arrancó", String.valueOf(t.getMessage())); }
         } });
     }
 
@@ -153,6 +162,7 @@ public class Principal extends Activity {
             Motor.config(m, Motor.MAX_MANOS, prefs.getInt("manos", 2));
             Motor.config(m, Motor.PREDICCION_MS, prefs.getInt("adelantar", 0));
             Motor.config(m, Motor.POCA_LUZ, prefs.getBoolean("realce", true) ? 1 : 0);
+            Motor.config(m, Motor.FLOAT16, prefs.getBoolean("float16", true) ? 1 : 0);
             camara.aplicarModelo();
         } });
     }
@@ -168,7 +178,7 @@ public class Principal extends Activity {
 
     private void actualizarBotones() {
         // la linterna sólo existe en la cámara de atrás (se sabe cuando la cámara ya abrió)
-        lienzo.postDelayed(new Runnable() { public void run() { bLinterna.deshabilitado(!camara.hayLinterna()); bLinterna.activo(camara.linterna); } }, 600);
+        capa.postDelayed(new Runnable() { public void run() { bLinterna.deshabilitado(!camara.hayLinterna()); bLinterna.activo(camara.linterna); } }, 600);
     }
 
     private void pantallaCompleta() {
@@ -200,12 +210,12 @@ public class Principal extends Activity {
         pidiendo = false;
         if (pedido != PEDIR_CAMARA) return;
         if (resultados.length > 0 && resultados[0] == PackageManager.PERMISSION_GRANTED) { camara.abrir(); actualizarBotones(); }
-        else { negado = true; lienzo.postDelayed(new Runnable() { public void run() { lienzo.mensaje("Hace falta la cámara para ver tus manos", "Tocá la pantalla para dar el permiso"); } }, 200); }
+        else { negado = true; capa.postDelayed(new Runnable() { public void run() { capa.mensaje("Hace falta la cámara para ver tus manos", "Tocá la pantalla para dar el permiso"); } }, 200); }
     }
 
     @Override protected void onDestroy() {
         final long m = camara.motor; camara.motor = 0;
-        hMotor.post(new Runnable() { public void run() { if (m != 0) Motor.soltar(m); tMotor.quitSafely(); } });
+        hMotor.post(new Runnable() { public void run() { pantalla.terminar(); pantalla.motor = 0; if (m != 0) Motor.soltar(m); tMotor.quitSafely(); } });
         super.onDestroy();
     }
 
@@ -231,6 +241,10 @@ public class Principal extends Activity {
         sv.getLayoutParams().height = Math.min((int) (getResources().getDisplayMetrics().heightPixels * 0.62f), (int) (560 * dp));
 
         TextView t = texto("Ajustes", 20, true); l.addView(t);
+
+        seccion(l, "La mano en 3D");
+        segmentos(l, Motor.ESTILOS, camara.estilo, new Elegir() { public void elegir(int i) { elegirEstilo(i); } });
+        nota(l, "La mano que te recubre la mano, dibujada en 3D con la placa de video en el mismo cuadro que mira el motor. Piel usa el color de tu mano. También en el botón de la mano.");
 
         seccion(l, "Modelo de los puntos");
         segmentos(l, new String[]{"Auto", "Completo", "Liviano"}, camara.modelo, new Elegir() { public void elegir(int i) {
@@ -264,21 +278,22 @@ public class Principal extends Activity {
             prefs.getBoolean("realce", true), new CompoundButton.OnCheckedChangeListener() { public void onCheckedChanged(CompoundButton c, boolean v) {
                 prefs.edit().putBoolean("realce", v).apply(); aplicarAjustes();
             } });
+        interruptor(l, "Cálculo rápido (float16)", "En los procesadores que lo tienen (casi todos desde 2018) las cuentas grandes se hacen en float16: el doble de números por instrucción. Medido: los puntos se mueven 0,5 % del largo de la palma contra el cálculo completo.",
+            prefs.getBoolean("float16", true), new CompoundButton.OnCheckedChangeListener() { public void onCheckedChanged(CompoundButton c, boolean v) {
+                prefs.edit().putBoolean("float16", v).apply(); aplicarAjustes();
+            } });
         interruptor(l, "Cámara rápida", "Pide 60 cuadros por segundo si la cámara los da: menos espera entre que te movés y lo que ves.",
             camara.rapido, new CompoundButton.OnCheckedChangeListener() { public void onCheckedChanged(CompoundButton c, boolean v) {
                 camara.rapido = v; prefs.edit().putBoolean("rapido", v).apply(); camara.actualizar();
             } });
-        interruptor(l, "Mano en 3D", "Muestra la primera mano en metros, girando, arriba a la derecha.",
-            camara.ver3d, new CompoundButton.OnCheckedChangeListener() { public void onCheckedChanged(CompoundButton c, boolean v) {
-                camara.ver3d = v; prefs.edit().putBoolean("ver3d", v).apply();
-            } });
-
-        TextView pie = texto("JX Hand Engine · Rust nativo con NEON en los núcleos grandes\nModelos de MediaPipe Hands (Google, Apache 2.0)", 11, false);
+        TextView pie = texto("JX Hand Engine · Rust nativo con NEON en los núcleos grandes · la mano 3D con OpenGL ES\nModelos de MediaPipe Hands (Google, Apache 2.0)", 11, false);
         pie.setAlpha(0.6f); pie.setPadding(0, (int) (18 * dp), 0, 0);
         l.addView(pie);
     }
 
     interface Elegir { void elegir(int i); }
+
+    private void elegirEstilo(int i) { camara.estilo = i; prefs.edit().putInt("estilo", i).apply(); }
 
     private TextView texto(String s, int sp, boolean negrita) {
         TextView t = new TextView(this); t.setText(s); t.setTextColor(Color.WHITE); t.setTextSize(sp);

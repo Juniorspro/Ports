@@ -10,6 +10,8 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 # la puerta JNI también en la PC (para probarla con Java sin un celular)
-jni = []
+jni = ["gl"]
+# el dibujo con OpenGL ES también en la PC (Mesa), para probarlo
+gl = []
 
 [dependencies]
