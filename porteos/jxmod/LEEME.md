@@ -5227,6 +5227,29 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     como un jugador, ~1 GB la primera vez). DrGBase, Cartoon Cat, Doro y SCP-049 (los de `nextbots_ia.mjs`) no usan
     `EnableMatrix`: para ellos no cambia nada. `pepe_vuelve` 13/13, `codigo_tragado` bien.
 
+## Sin publicar todavía: lo de «Bugs y sugerencias» después de la 3.9.11
+
+- **Bugs:**
+  - «Primera persona con iluminación no coordinada con el mapa» (video en gm_mallparking, `gmod_bsp.js` `gbspLuzHojas`,
+    `gbspLamparas`, `gbspLuzEn`, `gbspVistaLuz`; `gl.js`, `principal.js`, `mundo.js`): las manos y el arma en primera
+    persona iban con una luz pareja para todo el mapa (y con el sol entero cuando las sombras están apagadas, como en el
+    celu): en un estacionamiento a oscuras, naranjas como a pleno sol. Ahora, en los mapas del Workshop, como GMod: la luz
+    de cada lugar que trae el BSP (las muestras de cada hoja, con la luz que llega de los seis lados; VRAD las guarda 255
+    veces más chicas que la luz horneada, por eso se leen c · 2^e), las 4 lámparas del mapa que más alumbran ahí y se ven
+    desde la cámara (los worldlights: comunes, focos con su cono y de superficie, sin las que arrancan apagadas) juntas en
+    una luz con dirección, lo que llega más de un costado, y el sol sólo si la cámara lo ve. En gamma, con la misma curva
+    que la luz horneada del piso; en la luz física, la de las lámparas se aplana hacia 4 veces la de relleno. Suavizada
+    (~0,5 s) para no saltar entre hojas; 0,002 ms por cuadro; 3 MB en el mapa más grande probado (GM_Bigcity, 87.592
+    muestras). Prueba `pruebas/luz_manos.mjs` 6/6 en gm_mallparking (baja y alta) y en GM_Bigcity 4T (210061840):
+    - en el lugar más oscuro, las manos pasan de 98 de brillo (3,3 veces lo que tapan) a 21 (0,7 veces);
+    - en el más claro, de 118 a 84 contra 103 de la pared, con el mismo volumen (0,36);
+    - al sol, el sol les sigue dando.
+- **Servidor:** las fotos y videos de «Bugs y sugerencias» (`tienda/panel.js` `mediaDar`) se mandan de a una parte. Antes
+  se leían las 13 partes de un video de 19 MB juntas y el Worker se quedaba sin memoria («error del servidor» al abrirlo).
+  Ya está subido.
+- Pendiente: «Que sea compatible con c_hands» (fcydmx8u). Las del modelo de jugador andan desde la 3.9.10; hay decenas de
+  addons distintos con ese nombre y se le preguntó cuál.
+
 ## JXMod 3.9.11: lo de «Bugs y sugerencias» del 21/11
 
 - Publicada con el paquete pk39e. APK 3.9.11 (versionCode 26112103, misma firma) con `ota_base.json` que coincide con

@@ -1229,8 +1229,11 @@ function prepararProg(P) {
   if (u.uExpo) u1f(P, u.uExpo, R.expo);
   if (u.uSol) {
     // el arma en la mano no usa el mapa de sombras (se vería granulado tan cerca): la luz del sol según si la cámara está a la sombra
-    const kv = R.fase === 'vista' ? (R.solVista === undefined ? 1 : R.solVista) : 1;
-    u3f(P, u.uSol, R.sol.x, R.sol.y, R.sol.z); u3f(P, u.uSolC, L.solCol[0] * kv, L.solCol[1] * kv, L.solCol[2] * kv); uNv(P, u.uAmbS, L.ambS, 3, 3); uNv(P, u.uAmbG, L.ambG, 3, 3);
+    // (y en los mapas del Workshop, con la luz del lugar donde está: la de arriba y abajo, y el sol sólo si lo ve —gbspVistaLuz—)
+    const AV = R.fase === 'vista' ? R.ambVista : null, kv = R.fase === 'vista' ? (AV ? AV.sol : R.solVista === undefined ? 1 : R.solVista) : 1;
+    if (AV) { const kc = L === R ? AV.cG : AV.cL; u3f(P, u.uSol, AV.dir[0], AV.dir[1], AV.dir[2]); u3f(P, u.uSolC, kc[0], kc[1], kc[2]); }   // (la luz con dirección: las lámparas que la alumbran o el sol)
+    else { u3f(P, u.uSol, R.sol.x, R.sol.y, R.sol.z); u3f(P, u.uSolC, L.solCol[0] * kv, L.solCol[1] * kv, L.solCol[2] * kv); }
+    uNv(P, u.uAmbS, AV ? (L === R ? AV.gS : AV.lS) : L.ambS, 3, 3); uNv(P, u.uAmbG, AV ? (L === R ? AV.gG : AV.lG) : L.ambG, 3, 3);
     if (u.uNieS) { const t = R.nieS || NIE_S1; u3f(P, u.uNieS, L.solCol[0] * kv * t[0], L.solCol[1] * kv * t[1], L.solCol[2] * kv * t[2]); }
     if (u.uTop && R.lin) { uNv(P, u.uTop, R.lin.topG, 3, 3); uNv(P, u.uMid, R.lin.midG, 3, 3); uNv(P, u.uBot, R.lin.botG, 3, 3); uNv(P, u.uExp, R.cielo ? R.cielo.exp : CIELO_EXP0, 2, 2); u1f(P, u.uCieloK, R.cieloK || 1); }
     if (u.uSMm) { sombrasUniformes(P); if (R.fase === 'vista') u1f(P, u.uSMon, 0); }

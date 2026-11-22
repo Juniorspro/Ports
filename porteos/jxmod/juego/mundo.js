@@ -114,6 +114,7 @@ function cargarMapa(nombre) {
   // la estación espacial: el casco taparía el sol adentro (en el juego no había sombras): luz pareja y sin sombras del sol
   if (nombre === 'Space') { R.ambS = [0.5, 0.5, 0.56]; R.ambG = [0.34, 0.34, 0.38]; }
   if (aj.ambRB) { R.ambS = aj.ambRB[0].slice(); R.ambG = aj.ambRB[1].slice(); } // (luz de relleno propia: en la Luna el cielo negro no ilumina)
+  MUNDO.luzHojas = aj.luzHojas || null; R.ambVista = null;   // (la luz de cada lugar de los mapas del Workshop: gmod_bsp.js gbspLuzHojas)
   MUNDO.sinSombra = nombre === 'Space' || !!aj.sinSombra; MUNDO.espacio = nombre === 'Space' || !!aj.espacio;
   MUNDO.lejosMin = aj.lejos || 0; const lejos = vistaLejos();
   if (aj.fog && aj.fd > 0) R.niebla = { c: aj.fc.slice(0, 3), a: 0.15 / aj.fd, b: Math.min(lejos, 1.9 / aj.fd) };

@@ -593,6 +593,7 @@ function dibujar() {
     const h = raycast(vadd(CAM.pos, vscale(R.sol, 0.3)), R.sol, 300, JUG.vehiculo ? JUG.vehiculo.b : null), meta = h ? 0.28 : 1;
     R.solVista = R.solVista === undefined ? meta : R.solVista + (meta - R.solVista) * Math.min(1, TIEMPO.dt * 6);
   } else R.solVista = 1;
+  if (typeof gbspVistaLuz === 'function') gbspVistaLuz(TIEMPO.dt);   // (las manos con la luz del lugar en los mapas del Workshop)
   const t1 = performance.now();
   if (R.sombraOn) sombrasActualizar();
   // (la sombra de la linterna propia, si está prendida y la calidad la tiene: sombras.js)

@@ -603,8 +603,144 @@ async function gbspPreparar(clave, prog) {
   if (io.snd.length || io.relay.length || io.auto.length) aj.io = io;
   if (caminos.length) aj.caminos = caminos;
   aj.brochas = { invisibles: nBrInv, tren: nBrTren };   // (cuántas brochas sin caras chocan ahora, y los cascos de los trenes)
+  if (!Q.get('sinLuzHojas')) { try { const lh = gbspLuzHojas(B, lmApagado); if (lh) aj.luzHojas = lh; } catch (e) { /* (sin la luz por lugar: queda la de todo el mapa) */ } }
   DATA.esc[clave] = arbs; DATA.aj[clave] = aj;
   P0(1, 'listo');
+}
+// la luz de cada lugar del mapa para lo que se mueve (el «ambient cube» de Source): en cada hoja del árbol del BSP, unas
+// muestras con la luz que llega de las seis direcciones (+X, -X, +Y, -Y, +Z, -Z de Source). VRAD la arma con lo que se ve
+// desde ese punto (las paredes y el piso con su luz horneada, el cielo); GMod ilumina así los modelos y las manos. Acá la
+// usan las manos y el arma en primera persona: antes iban con una luz pareja para todo el mapa y en un estacionamiento a
+// oscuras se veían como a pleno sol (panel, «Primera persona con iluminación no coordinada con el mapa»).
+// P: los planos (normal y distancia), N: los nodos (plano, hijo de adelante, hijo de atrás; una hoja es -1 - índice),
+// H: por hoja, la primera muestra y cuántas; M: por muestra, dónde está (en Source, 3); C: sus seis colores como los
+// guarda Source (RGB y exponente, 24 bytes: en un mapa grande, 3 MB en vez de 7);
+// L: las lámparas del mapa (gbspLamparas), para la luz directa que GMod les suma a los modelos
+function gbspLuzHojas(B, apagadas) {
+  const pl = B.lump(1), nd = B.lump(5), hj = B.lump(10); if (!pl.length || !nd.length || !hj.length) return null;
+  const v0 = B.lver(10) === 0, HS = v0 ? 56 : 32, nH = (hj.length / HS) | 0, nN = (nd.length / 32) | 0, nP = (pl.length / 20) | 0;
+  const DV = (u) => new DataView(u.buffer, u.byteOffset, u.byteLength), dP = DV(pl), dN = DV(nd), dH = DV(hj);
+  const P = new Float32Array(nP * 4), N = new Int32Array(nN * 3), H = new Uint32Array(nH * 2), M = [], C = [];
+  for (let i = 0; i < nP; i++) for (let k = 0; k < 4; k++) P[i * 4 + k] = dP.getFloat32(i * 20 + k * 4, true);
+  for (let i = 0; i < nN; i++) for (let k = 0; k < 3; k++) N[i * 3 + k] = dN.getInt32(i * 32 + k * 4, true);
+  const cubo = (u8, dv, o, x, y, z) => { M.push(x, y, z); for (let k = 0; k < 24; k++) C.push(u8[o + k]); };
+  const caja = (i, t) => [0, 1, 2].map((j) => { const a = dH.getInt16(i * HS + 8 + j * 2, true), b = dH.getInt16(i * HS + 14 + j * 2, true); return a + (b - a) * t[j]; });
+  if (v0) {   // (los mapas viejos: una muestra por hoja, en el medio, dentro de la hoja misma)
+    for (let i = 0; i < nH; i++) { if (dH.getInt32(i * HS, true) & 1) continue; const c = caja(i, [0.5, 0.5, 0.5]); H[i * 2] = M.length / 3; H[i * 2 + 1] = 1; cubo(hj, dH, i * HS + 30, c[0], c[1], c[2]); }
+  } else {
+    let ix = B.lump(52), am = B.lump(56); if (ix.length < nH * 4 || !am.length) { ix = B.lump(51); am = B.lump(55); }
+    if (ix.length < nH * 4 || am.length < 28) return null;
+    const dI = DV(ix), dA = DV(am), nA = (am.length / 28) | 0;
+    for (let i = 0; i < nH; i++) {
+      const cu = dI.getUint16(i * 4, true), pr = dI.getUint16(i * 4 + 2, true); if (!cu || pr + cu > nA) continue;
+      H[i * 2] = M.length / 3; H[i * 2 + 1] = Math.min(cu, 64);
+      for (let s = 0; s < Math.min(cu, 64); s++) { const o = (pr + s) * 28, c = caja(i, [am[o + 24] / 255, am[o + 25] / 255, am[o + 26] / 255]); cubo(am, dA, o, c[0], c[1], c[2]); }
+    }
+  }
+  if (!M.length) return null;
+  return { P, N, H, M: new Float32Array(M), C: new Uint8Array(C), n: M.length / 3, L: gbspLamparas(B, apagadas), vis: new Map() };
+}
+// las lámparas del mapa como las dejó VRAD (lump de worldlights): las comunes (1), los focos (2) y las de superficie (0),
+// sin las que arrancan apagadas. Por lámpara (16): dónde está (Source), la intensidad (lineal, la de 100 pulgadas como la
+// luz horneada), para dónde apunta, el cono (stopdot, stopdot2, exponente), la atenuación (constante, lineal,
+// cuadrática) y el tipo
+function gbspLamparas(B, apagadas) {
+  let u = B.lump(15); if (!u.length) u = B.lump(54); if (!u.length) return null;
+  const T = B.lver(15) === 1 ? 100 : 88, x = T === 100 ? 12 : 0, n = (u.length / T) | 0, dv = new DataView(u.buffer, u.byteOffset, u.byteLength), out = [];
+  for (let i = 0; i < n; i++) {
+    const o = i * T, f = (k) => dv.getFloat32(o + k, true), tipo = dv.getInt32(o + 40 + x, true), estilo = dv.getInt32(o + 44 + x, true);
+    if (tipo > 2 || (apagadas && apagadas.has(estilo))) continue;
+    const v = [f(0), f(4), f(8), f(12), f(16), f(20), f(24), f(28), f(32), f(48 + x), f(52 + x), f(56 + x), f(64 + x), f(68 + x), f(72 + x), tipo];
+    if (!v.every(Number.isFinite) || v[3] + v[4] + v[5] <= 0) continue;
+    out.push(...v);
+  }
+  return out.length ? new Float32Array(out) : null;
+}
+// la luz que le llega a un punto del juego desde las seis direcciones (en lineal, en out: 18 números): la hoja donde cae y
+// sus muestras, pesadas por cercanía. false si cae en una hoja sin muestras (adentro de una pared, por ejemplo)
+const _GB_POT = Float64Array.from({ length: 256 }, (_, i) => Math.pow(2, i - 128));
+function gbspLuzEn(LH, g, out) {
+  const x = g.z / GM_S, y = g.x / GM_S, z = g.y / GM_S, P = LH.P, N = LH.N, nN = N.length / 3;
+  let n = 0, k = 0;
+  while (n >= 0) { if (n >= nN || k++ > 4096) return false; const q = N[n * 3] * 4, d = P[q] * x + P[q + 1] * y + P[q + 2] * z - P[q + 3]; n = N[n * 3 + (d >= 0 ? 1 : 2)]; }
+  const h = -1 - n; if (h * 2 + 1 >= LH.H.length) return false;
+  const pr = LH.H[h * 2], cu = LH.H[h * 2 + 1], M = LH.M, C = LH.C; if (!cu) return false;
+  out.fill(0); let st = 0;
+  for (let s = 0; s < cu; s++) {
+    const o = (pr + s) * 3, dx = M[o] - x, dy = M[o + 1] - y, dz = M[o + 2] - z, w = 1 / (dx * dx + dy * dy + dz * dz + 64);   // (64: 8 pulgadas, para que la de al lado no valga infinito)
+    // (un color de Source: RGB y un exponente. La luz horneada es c · 2^e / 255; ésta VRAD la guarda 255 veces más chica y
+    // el motor la vuelve a multiplicar —ColorRGBExp32ToVector—: c · 2^e. Medido en gm_mallparking: los exponentes de estas
+    // muestras son unos 10 menos que los de la luz horneada, y con c · 2^e la media da como la del piso por lo que refleja)
+    for (let k = 0; k < 6; k++) { const q = (pr + s) * 24 + k * 4, f = _GB_POT[(C[q + 3] << 24 >> 24) + 128] * w; out[k * 3] += C[q] * f; out[k * 3 + 1] += C[q + 1] * f; out[k * 3 + 2] += C[q + 2] * f; }
+    st += w;
+  }
+  for (let c = 0; c < 18; c++) out[c] /= st;
+  return true;
+}
+// las manos y el arma en primera persona con la luz del lugar donde está la cámara, en cada cuadro y suavizada (para que
+// no salte al pasar de una hoja a otra), como GMod ilumina los modelos: la luz que llega de cada lado (lo que rebota,
+// gbspLuzEn) y la directa de las lámparas que más alumbran ahí y se ven desde la cámara (hasta 4), juntas en una luz con
+// dirección (la que da el volumen; lo que no apunta para ningún lado va a la de relleno). Si la cámara ve el sol, el sol.
+// R.ambVista: lS/lG (relleno de arriba y de abajo, lineal) y gS/gG (para las calidades en gamma, con la misma cuenta que
+// la luz horneada del piso: 1,9 · (x/4)^(1/2,2), así las manos quedan como el piso que tienen al lado); dir, cL y cG: la
+// luz con dirección (en el juego; su color en lineal y en gamma); sol: cuánto del sol (0 si no lo ve)
+const _gbCubo = new Float32Array(18), _gbTop = [];
+function gbspVistaLuz(dt) {
+  const LH = MUNDO.luzHojas;
+  if (!LH || DBG.sinLuzVista || JUEGO.estado !== 'juego') { R.ambVista = null; return; }
+  let V = R.ambVista; const t = V ? Math.min(1, dt * 5) : 1, P = CAM.pos;
+  const hay = gbspLuzEn(LH, P, _gbCubo); if (!hay && !V) return;
+  if (!V) V = R.ambVista = { lS: [0, 0, 0], lG: [0, 0, 0], gS: [0, 0, 0], gG: [0, 0, 0], kD: [0, 1, 0], kC: [0, 0, 0], dir: [0, 1, 0], cL: [0, 0, 0], cG: [0, 0, 0], sol: 0, c: new Float32Array(18) };
+  if (hay) V.c.set(_gbCubo);   // (en una hoja sin muestras —metido en una pared— queda la de antes)
+  const c = V.c;
+  // la directa: cuánto alumbra cada lámpara a la cámara (sin paredes) y las 4 que más
+  const x = P.z / GM_S, y = P.x / GM_S, z = P.y / GM_S, Z = LH.L, top = _gbTop; top.length = 0;
+  if (Z) for (let o = 0; o < Z.length; o += 16) {
+    const dx = Z[o] - x, dy = Z[o + 1] - y, dz = Z[o + 2] - z, d2 = dx * dx + dy * dy + dz * dz; if (d2 > 4e7) continue;   // (más de 160 m: nada)
+    const d = Math.sqrt(d2) || 1, lx = dx / d, ly = dy / d, lz = dz / d, tipo = Z[o + 15];
+    let f = Z[o + 12] + Z[o + 13] * d + Z[o + 14] * d2; f = f > 1e-6 ? 1 / f : 1 / Math.max(d2, 1);
+    const cs = -(lx * Z[o + 6] + ly * Z[o + 7] + lz * Z[o + 8]);
+    if (tipo === 2) { if (cs <= Z[o + 10]) continue; if (cs < Z[o + 9]) f *= Math.pow((cs - Z[o + 10]) / Math.max(1e-4, Z[o + 9] - Z[o + 10]), Z[o + 11] || 1); }
+    else if (tipo === 0) { if (cs <= 0) continue; f *= cs; }
+    const lum = (0.2126 * Z[o + 3] + 0.7152 * Z[o + 4] + 0.0722 * Z[o + 5]) * f; if (lum < 0.004) continue;
+    if (top.length < 4 || lum > top[top.length - 1].lum) {
+      top.push({ o, lum, f, d, g: [ly, lz, lx] }); top.sort((a, b) => b.lum - a.lum); if (top.length > 4) top.pop();
+    }
+  }
+  const S = [0, 0, 0], kv = [0, 0, 0], kc = [0, 0, 0]; let sl = 0;
+  for (const q of top) {
+    // (si se ve: un rayo de la cámara a la lámpara, cada 0,2 s por lámpara)
+    let vi = LH.vis.get(q.o);
+    if (!vi || TIEMPO.t - vi.t > 0.2 || vi.t > TIEMPO.t) { vi = { t: TIEMPO.t, v: !raycast(P, v3(q.g[0], q.g[1], q.g[2]), Math.max(0, q.d * GM_S - 0.15), JUG.vehiculo ? JUG.vehiculo.b : null) }; LH.vis.set(q.o, vi); if (LH.vis.size > 256) LH.vis.clear(); }
+    if (!vi.v) continue;
+    for (let k = 0; k < 3; k++) { kc[k] += Z[q.o + 3 + k] * q.f; kv[k] += q.g[k] * q.lum; } sl += q.lum;
+  }
+  // (y lo que llega más de un costado que del otro —la boca de un callejón, una pared al sol—: va también a la luz con
+  // dirección, y a los costados de la de relleno les queda lo parejo; sin esto, a la sombra y sin lámparas, manos planas)
+  const Y = (o) => 0.2126 * c[o] + 0.7152 * c[o + 1] + 0.0722 * c[o + 2], gx = Y(0) - Y(3), gy = Y(6) - Y(9), gl = Math.hypot(gx, gy);
+  if (gl > 1e-5) { kv[0] += gy; kv[2] += gx; sl += gl; for (let k = 0; k < 3; k++) kc[k] += Math.hypot(c[k] - c[3 + k], c[6 + k] - c[9 + k]); }
+  const kl = Math.hypot(kv[0], kv[1], kv[2]), r = sl > 0 ? kl / sl : 0;
+  for (let k = 0; k < 3; k++) {
+    const hz = (Math.min(c[k], c[3 + k]) + Math.min(c[6 + k], c[9 + k])) / 2, rel = kc[k] * (1 - r) * 0.5;
+    V.lS[k] += ((c[12 + k] + hz) / 2 + rel - V.lS[k]) * t; V.lG[k] += ((c[15 + k] + hz) / 2 + rel - V.lG[k]) * t;
+    V.kC[k] += (kc[k] * r - V.kC[k]) * t; if (kl > 1e-6) V.kD[k] += (kv[k] / kl - V.kD[k]) * t;
+  }
+  const gam = (v) => 1.9 * Math.pow(Math.min(Math.max(v, 0) / 4, 1), 1 / 2.2);
+  // el sol directo, sólo si la cámara lo ve (en los mapas sin sol, los interiores, nada)
+  const ve = !MUNDO.sinSombra && R.sol.y > 0.02 && !raycast(vadd(P, vscale(R.sol, 0.3)), R.sol, 300, JUG.vehiculo ? JUG.vehiculo.b : null);
+  V.sol += ((ve ? 1 : 0) - V.sol) * t;
+  const s = V.sol, lin = R.lin && R.lin.solCol ? R.lin.solCol : R.solCol;
+  let dl = 0;
+  for (let k = 0; k < 3; k++) {
+    V.gS[k] = gam(V.lS[k]); V.gG[k] = gam(V.lG[k]);
+    // (en gamma: lo que suma la luz de frente, con la curva de la luz horneada, que la va aplanando cuando es mucha. En la
+    // luz física no hay curva: una lámpara a metro y medio de la cabeza —el piso está al doble— daba manos quemadas al lado
+    // de la pared; ahí se aplana hacia 4 veces la de relleno, como mucho)
+    const m = (V.lS[k] + V.lG[k]) / 2, kg = gam(m + V.kC[k]) - gam(m), tope = Math.max(4 * m, 0.25);
+    V.cL[k] = V.kC[k] / (1 + V.kC[k] / tope) * (1 - s) + lin[k] * s; V.cG[k] = kg * (1 - s) + R.solCol[k] * s;
+    V.dir[k] = V.kD[k] * (1 - s) + [R.sol.x, R.sol.y, R.sol.z][k] * s; dl += V.dir[k] * V.dir[k];
+  }
+  dl = Math.sqrt(dl) || 1; for (let k = 0; k < 3; k++) V.dir[k] /= dl;
 }
 // la caja (en Source) de la sala del cielo 3D: las hojas del árbol del BSP del "área" donde está la cámara del cielo. Si
 // esa área tiene una aparición o es la mitad del mapa (no hay sala aparte), no hay cielo 3D

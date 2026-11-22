@@ -264,12 +264,24 @@ async function mediaGuardar(env, json, m, u, autor) {
   await env.DB.prepare('INSERT OR REPLACE INTO pn_media (id, parte, datos, mime, partes, tam, autor, creado) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)').bind(id, parte, u, m.mime, partes, tam, autor, Date.now()).run();
   return json({ ok: true, id });
 }
+// De a una parte por vez: D1 da los BLOB como listas de números (8 bytes por byte), y un video de 19 MB leído entero
+// pasaba los 128 MB del Worker («error del servidor» al abrirlo). Así se usa lo de una parte (1,5 MB) y el largo va
+// en Content-Length (para que el video se pueda adelantar).
 async function mediaDar(env, id) {
-  const f = await env.DB.prepare('SELECT parte, datos, mime, partes FROM pn_media WHERE id = ?1 ORDER BY parte').bind(id).all();
-  if (!f.results.length || f.results.length !== f.results[0].partes) return null;
-  const L = f.results.map((x) => (x.datos instanceof Uint8Array ? x.datos : new Uint8Array(x.datos))), n = L.reduce((s, x) => s + x.length, 0), u = new Uint8Array(n);
-  let o = 0; for (const x of L) { u.set(x, o); o += x.length; }
-  return new Response(u, { headers: { 'Content-Type': f.results[0].mime, 'Cache-Control': 'public, max-age=31536000, immutable', ...CORS } });
+  const c = await env.DB.prepare('SELECT mime, partes, COUNT(*) AS n, SUM(length(datos)) AS t FROM pn_media WHERE id = ?1').bind(id).first();
+  if (!c || !c.n || c.n !== c.partes) return null;
+  const { readable, writable } = new FixedLengthStream(c.t), w = writable.getWriter();
+  (async () => {
+    try {
+      for (let i = 0; i < c.partes; i++) {
+        const f = await env.DB.prepare('SELECT datos FROM pn_media WHERE id = ?1 AND parte = ?2').bind(id, i).first();
+        if (!f) throw new Error('falta la parte ' + i);
+        await w.write(f.datos instanceof Uint8Array ? f.datos : new Uint8Array(f.datos));
+      }
+      await w.close();
+    } catch (e) { await w.abort(e).catch(() => {}); }
+  })();
+  return new Response(readable, { headers: { 'Content-Type': c.mime, 'Cache-Control': 'public, max-age=31536000, immutable', ...CORS } });
 }
 
 // ---------------- las rutas ----------------
