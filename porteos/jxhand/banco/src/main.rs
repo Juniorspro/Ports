@@ -243,6 +243,16 @@ fn main() {
                 println!();
             }
         }
+        Some("hilosdin") => {
+            // hilosdin MODELOS FOTO: los puntos con 4, 3, 2, 1, 2, 4 hilos cambiando en el medio (como el que elige solo)
+            let (mut det, mut pun) = cargar(&a[2]);
+            let im = image::open(&a[3]).unwrap().to_rgba8(); let (w, h) = (im.width() as usize, im.height() as usize); let b = im.as_raw();
+            let ps = det.detectar(b, w, h); let roi = mano::roi_de_palma(&ps[0]);
+            for n in [4usize, 3, 2, 1, 2, 3, 4] {
+                jxhand::hilos::configurar(n); for _ in 0..3 { pun.puntos(b, w, h, &roi); }
+                let t0 = Instant::now(); for _ in 0..20 { pun.puntos(b, w, h, &roi); } println!("{} hilos: {:.2} ms", n, t0.elapsed().as_secs_f64() * 1e3 / 20.0);
+            }
+        }
         Some("capas") => {
             let t: Option<usize> = a.get(3).and_then(|x| x.parse().ok());
             let red = jxhand::red::Red::cargar_tam(&fs::read(&a[2]).unwrap(), t.map(|t| (t, t))).unwrap();
@@ -259,7 +269,7 @@ fn main() {
                 let tot: f64 = v.iter().map(|x| x.1 .0).sum();
                 let (capas, g, otras) = red.cuentas();
                 let (c16, s16) = red.cuentas16();
-                println!("   (float16: {} capas, {} tensores con copia en float16)", c16, s16);
+                println!("   (float16: {} capas, {} tensores con copia en float16) · las que convierten su entrada: {:?}", c16, s16, red.sin_sombra());
                 println!("== {} · {:.1} ms · 1×1: {:.0} M operaciones · resto: {:.0} M · capas 1×1 (n, entrada, salida): {:?}", m, tot, g / 1e6, otras / 1e6, &capas[..capas.len().min(8)]);
                 for (k, (d, n)) in v.iter().take(12) { println!("   {:22} {:6.2} ms  {:4.1}%  ({} capas)", k, d, d / tot * 100.0, n); }
             }
@@ -267,6 +277,8 @@ fn main() {
         Some("video") => {
             // un «video» hecho moviendo la foto: quieta con ruido (temblor) y después en movimiento (retraso), a 30 cps
             let mut motor = jxhand::Motor::nuevo(&fs::read(format!("{}/hand_detector.tflite", a[2])).unwrap(), &fs::read(format!("{}/hand_landmarks_detector.tflite", a[2])).unwrap()).unwrap();
+            // (JXH_AUTO=1: los hilos elegidos midiendo, como en el celular; al final dice qué midió y qué eligió)
+            if std::env::var("JXH_AUTO").is_ok() { motor.auto.activo = true; motor.auto.tope = 4; }
             let base = image::open(&a[3]).unwrap().to_rgba8(); let (w, h) = (base.width() as usize, base.height() as usize); let b = base.as_raw();
             let (mut det, mut pun) = cargar(&a[2]);
             let mut sem = 7u64; let mut azar = move || { sem = sem.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); ((sem >> 33) as f32 / (1u64 << 31) as f32) - 0.5 };
@@ -342,6 +354,7 @@ fn main() {
             let mut ts = tiempos[10..].to_vec(); ts.sort_by(|a, b| a.partial_cmp(b).unwrap());
             let med = ts[ts.len() / 2];
             println!("tiempo por cuadro: mediana {:.1} ms · 95 % {:.1} ms · el peor {:.1} ms · cuadros de más de 1,5× la mediana: {}", med, ts[ts.len() * 95 / 100], ts[ts.len() - 1], ts.iter().filter(|&&x| x > med * 1.5).count());
+            if motor.auto.activo { println!("hilos elegidos midiendo: {} ({})", motor.auto.elegido, motor.auto.texto()); }
         }
         Some("noche") => {
             // ¿ve de noche? Cada foto se oscurece como la saca una cámara de celular con poca luz (ruido de fotones y de

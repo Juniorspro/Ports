@@ -259,7 +259,8 @@ impl Red {
                 Paso::Concat { e, .. } => e.clone(),
             } };
             for (k, p) in pasos.iter().enumerate() {
-                if pesos16[k].is_none() { continue; }
+                // (también una convolución sin pesos en float16 —la primera, 3×3— puede dejar la copia de su salida)
+                if pesos16[k].is_none() && !matches!(p, Paso::Conv { .. } | Paso::Depthwise { .. }) { continue; }
                 let t = salida_de(p);
                 if m.salidas.contains(&t) || forma4(&formas[t])[3] % 8 != 0 { continue; }
                 let lectores: Vec<usize> = (0..pasos.len()).filter(|&j| entradas_de(&pasos[j]).contains(&t)).collect();
@@ -343,6 +344,15 @@ impl Red {
         }
         self.pesos16 = vec![None; self.pasos.len()]; self.sombras = vec![Vec::new(); self.datos.len()];
     }
+    /// (pruebas) las capas en float16 que tienen que pasar su entrada a float16 (porque no viene con copia): «paso: forma»
+    pub fn sin_sombra(&self) -> Vec<String> {
+        let mut v = Vec::new();
+        for (k, p) in self.pasos.iter().enumerate() {
+            if self.pesos16[k].is_none() { continue; }
+            if let Paso::Conv { e, .. } | Paso::Depthwise { e, .. } = p { if self.sombras[*e].is_empty() { v.push(format!("{} {:?} (de {:?})", k, self.formas[*e], self.pasos.iter().find(|q| salida_de(q) == *e).map(|q| format!("{:?}", q).chars().take_while(|c| *c != '{').collect::<String>()))); } }
+        }
+        v
+    }
     /// (pruebas) cuántos tensores hay (para las escalas)
     pub fn tensores(&self) -> usize { self.datos.len() }
     /// (pruebas) si el tensor es salida de una convolución o una suma (los que se guardarían en 8 bits)
@@ -425,11 +435,17 @@ impl Red {
                 } else {
                     let ho = fs[1];
                     let filas = filas_por_trozo(ho, ho * fs[2] * co * ci * kh * kw, 1);
+                    let ps16 = PunteroU16(s16.as_mut_ptr()); let con_sombra = !s16.is_empty();
                     hilos::repartir(ho.div_ceil(filas), &|t| {
                         let (y0, y1) = (t * filas, ((t + 1) * filas).min(ho));
                         let o = unsafe { po.parte(y0 * fs[2] * co, (y1 - y0) * fs[2] * co) };
                         conv(x, fe, w, b, o, fs, *kh, *kw, *paso, *dil, *pad, act, y0, y1);
                         terminar(o, y0 * fs[2] * co, co, fin, d);
+                        // (la copia en float16 para la capa siguiente, mientras el trozo sigue en la caché)
+                        #[cfg(target_arch = "aarch64")]
+                        if con_sombra { unsafe { neon16::a_medio(o.as_ptr(), ps16.p().add(y0 * fs[2] * co), o.len(), o.len()); } }
+                        #[cfg(not(target_arch = "aarch64"))]
+                        let _ = (con_sombra, ps16);
                     });
                 }
             }
@@ -479,15 +495,22 @@ impl Red {
             }
             Paso::MaxPool { e, s, f: fl, paso, pad } => {
                 let (fe, fs) = (forma4(&f[*e]), forma4(&f[*s])); let (h, wd, c) = (fe[1], fe[2], fe[3]);
-                for y in 0..fs[1] { for x in 0..fs[2] {
-                    let o = &mut out[(y * fs[2] + x) * c..(y * fs[2] + x + 1) * c]; o.fill(f32::NEG_INFINITY);
-                    for dy in 0..fl.0 { for dx in 0..fl.1 {
-                        let (yy, xx) = ((y * paso.0 + dy) as isize - pad.0 as isize, (x * paso.1 + dx) as isize - pad.1 as isize);
-                        if yy < 0 || xx < 0 || yy >= h as isize || xx >= wd as isize { continue; }
-                        let i = &d[*e][((yy as usize) * wd + xx as usize) * c..][..c];
-                        for (a, &v) in o.iter_mut().zip(i) { *a = a.max(v); }
+                // (repartido por filas entre los hilos; el máximo con una comparación, que se vectoriza)
+                let po = Puntero(out.as_mut_ptr()); let x = &d[*e];
+                let filas = filas_por_trozo(fs[1], fs[1] * fs[2] * c * fl.0 * fl.1, 1);
+                hilos::repartir(fs[1].div_ceil(filas), &|t| {
+                    let (y0, y1) = (t * filas, ((t + 1) * filas).min(fs[1]));
+                    let ot = unsafe { po.parte(y0 * fs[2] * c, (y1 - y0) * fs[2] * c) };
+                    for y in y0..y1 { for xo in 0..fs[2] {
+                        let o = &mut ot[((y - y0) * fs[2] + xo) * c..][..c]; o.fill(f32::NEG_INFINITY);
+                        for dy in 0..fl.0 { for dx in 0..fl.1 {
+                            let (yy, xx) = ((y * paso.0 + dy) as isize - pad.0 as isize, (xo * paso.1 + dx) as isize - pad.1 as isize);
+                            if yy < 0 || xx < 0 || yy >= h as isize || xx >= wd as isize { continue; }
+                            let i = &x[((yy as usize) * wd + xx as usize) * c..][..c];
+                            for (a, &v) in o.iter_mut().zip(i) { *a = if v > *a { v } else { *a }; }
+                        } }
                     } }
-                } }
+                });
             }
             Paso::Add { a, b, act, .. } | Paso::Mul { a, b, act, .. } => {
                 let suma = matches!(self.pasos[k], Paso::Add { .. });

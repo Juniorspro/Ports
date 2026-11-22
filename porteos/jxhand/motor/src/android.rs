@@ -129,8 +129,11 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_crear(env: Env, _c: O
     hilos::configurar(n);
     hilos::fijar_nucleos(mascara);
     match Motor::nuevo(&d, &c) {
-        Ok(motor) => Box::into_raw(Box::new(Estado { motor, detector: d, completo: c, liviano: l, usa_liviano: false, rgba: Vec::new(), salida: vec![0.0; CABECERA],
-            vista: Vec::new(), vista_noche: false, dim: (0, 0), para_dibujar: Vec::new(), escena: None })) as i64,
+        Ok(mut motor) => {
+            // (los hilos, elegidos midiendo: de los núcleos grandes —hasta 4— a 1)
+            motor.auto.activo = true; motor.auto.tope = (GRANDES.load(std::sync::atomic::Ordering::Relaxed) as usize).clamp(1, 4).max(if mascara == 0 { n } else { 1 }); Box::into_raw(Box::new(Estado { motor, detector: d, completo: c, liviano: l, usa_liviano: false, rgba: Vec::new(), salida: vec![0.0; CABECERA],
+            vista: Vec::new(), vista_noche: false, dim: (0, 0), para_dibujar: Vec::new(), escena: None })) as i64
+        }
         Err(e) => { ERROR = e; 0 }
     }
 }
@@ -172,16 +175,19 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_config(_env: Env, _c:
             let liv = valor > 0.5;
             if liv != e.usa_liviano && !(liv && e.liviano.is_empty()) {
                 let cfg = e.motor.cfg;
-                if let Ok(mut nuevo) = Motor::nuevo(&e.detector, if liv { &e.liviano } else { &e.completo }) { nuevo.cfg = cfg; e.motor = nuevo; e.usa_liviano = liv; }
+                if let Ok(mut nuevo) = Motor::nuevo(&e.detector, if liv { &e.liviano } else { &e.completo }) { nuevo.cfg = cfg; nuevo.auto.activo = e.motor.auto.activo; nuevo.auto.tope = e.motor.auto.tope; e.motor = nuevo; e.usa_liviano = liv; }
             }
         }
         11 => e.motor.poca_luz(valor > 0.5),
-        12 => hilos::configurar(valor.max(1.0) as usize),
+        12 => { e.motor.auto.activo = false; hilos::configurar(valor.max(1.0) as usize) }
         13 => e.motor.reiniciar(),
         14 => crate::red::USAR_F16.store(valor > 0.5, std::sync::atomic::Ordering::Relaxed),
         16 => e.motor.perfil(valor > 0.5),
         17 => e.motor.cfg.buscar_cada = valor.max(1.0) as u32,
-        15 => { let g = GRANDES.load(std::sync::atomic::Ordering::Relaxed) as i32; hilos::configurar(if g > 0 { (g - valor.max(0.0) as i32).clamp(2, 3) as usize } else { 2 }); }
+        15 => { let g = GRANDES.load(std::sync::atomic::Ordering::Relaxed) as i32; let n = if g > 0 { (g - valor.max(0.0) as i32).clamp(1, 3) as usize } else { 2 };
+            // (los grandes menos éstos es el tope; los hilos se eligen midiendo, de ahí a 1)
+            hilos::configurar(n); e.motor.auto.tope = n; e.motor.auto.elegido = 0; e.motor.auto.activo = true; }
+        18 => e.motor.auto.activo = valor > 0.5,
         _ => {}
     }
 }
@@ -263,10 +269,11 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_procesar(env: Env, _c
     let f16 = crate::red::hay_f16() && crate::red::USAR_F16.load(std::sync::atomic::Ordering::Relaxed);
     // (cabecera: manos, corrió el detector en el cuadro, inferencias, ms del motor, ms de YUV, brillo, ganancia, hilos,
     // float16, núcleos grandes, ms del recorte, ms de la red de puntos, ms del detector, núcleos chicos, producto punto
-    // de 8 bits, 0)
+    // de 8 bits, hilos elegidos midiendo —0 no, 1 sí, 2 probando—)
     let (ms_rec, ms_red, ms_det) = e.motor.tiempos();
     s.extend_from_slice(&[manos.len() as f32, e.motor.corrio_detector as u8 as f32, e.motor.inferencias as f32, t_motor as f32, t_yuv as f32, brillo, ganancia, hilos::cuantos() as f32, f16 as u8 as f32,
-        GRANDES.load(std::sync::atomic::Ordering::Relaxed) as f32, ms_rec, ms_red, ms_det, CHICOS.load(std::sync::atomic::Ordering::Relaxed) as f32, crate::red::hay_dot() as u8 as f32, 0.0]);
+        GRANDES.load(std::sync::atomic::Ordering::Relaxed) as f32, ms_rec, ms_red, ms_det, CHICOS.load(std::sync::atomic::Ordering::Relaxed) as f32, crate::red::hay_dot() as u8 as f32,
+        if e.motor.auto.activo { if e.motor.auto.probando() { 2.0 } else { 1.0 } } else { 0.0 }]);
     for x in &manos {
         let b = s.len(); s.resize(b + POR_MANO, 0.0); let o = &mut s[b..];
         o[0] = x.id as f32; o[1] = x.derecha as u8 as f32; o[2] = x.presencia; o[3] = x.calibrada as u8 as f32;

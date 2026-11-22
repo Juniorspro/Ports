@@ -66,6 +66,41 @@ struct Pista {
     cal: Calibracion, gesto: Estable, salida: Option<Mano>,
 }
 
+/// cuántos hilos, elegido midiendo en el celular mismo: con la mano a la vista prueba cada cantidad (de `tope` a 1, 12
+/// cuadros cada una, sin contar los 2 primeros) y se queda con la de menor mediana; si dos están a menos de 5 %, la de
+/// menos hilos (deja núcleos libres). Después, cada minuto, vuelve a probar la elegida y sus vecinas: cambia con la
+/// temperatura, una grabación de pantalla o un juego al lado. En un celular con pocos núcleos grandes y otras cosas
+/// corriendo, más hilos puede ser más lento: si el sistema saca a uno un momento, los otros lo esperan en cada capa.
+#[derive(Default, Debug)]
+pub struct AutoHilos { pub activo: bool, pub tope: usize, pub elegido: usize, probar: Vec<usize>, k: usize, muestras: Vec<f32>, res: Vec<(usize, f32)>, t_ult: f64 }
+
+impl AutoHilos {
+    fn paso(&mut self, t_ms: f64, ms: Option<f32>) {
+        if !self.activo || self.tope == 0 { return; }
+        if self.probar.is_empty() {
+            let toca = self.elegido == 0 || t_ms - self.t_ult > 60_000.0;
+            if toca && ms.is_some() {
+                self.probar = if self.elegido == 0 { (1..=self.tope).rev().collect() } else { [self.elegido + 1, self.elegido, self.elegido.saturating_sub(1)].into_iter().filter(|&n| n >= 1 && n <= self.tope).collect() };
+                self.k = 0; self.muestras.clear(); self.res.clear(); crate::hilos::configurar(self.probar[0]);
+            }
+            return;
+        }
+        let Some(ms) = ms else { return; };
+        self.muestras.push(ms);
+        if self.muestras.len() < 12 { return; }
+        let mut m: Vec<f32> = self.muestras[2..].to_vec(); m.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        self.res.push((self.probar[self.k], m[m.len() / 2])); self.muestras.clear(); self.k += 1;
+        if self.k < self.probar.len() { crate::hilos::configurar(self.probar[self.k]); return; }
+        // el más rápido; con menos de 5 % de diferencia, el de menos hilos
+        let mejor = self.res.iter().map(|r| r.1).fold(f32::INFINITY, f32::min);
+        let n = self.res.iter().filter(|r| r.1 <= mejor * 1.05).map(|r| r.0).min().unwrap_or(self.tope);
+        self.elegido = n; crate::hilos::configurar(n); self.probar.clear(); self.t_ult = t_ms;
+    }
+    /// lo medido en la última prueba: «4:6.1 3:5.2 2:6.8 1:11.0»
+    pub fn texto(&self) -> String { self.res.iter().map(|(n, m)| format!("{}:{:.1}", n, m)).collect::<Vec<_>>().join(" ") }
+    pub fn probando(&self) -> bool { !self.probar.is_empty() }
+}
+
 pub struct Motor {
     det: Detector, pun: Puntero, pistas: Vec<Pista>, sig_id: u32, ult_busqueda: f64, ult_detector: f64, pub cfg: Config, pub corrio_detector: bool, pub inferencias: u32,
     /// lo que tardó el detector en el cuadro (ms; 0 si no corrió acá)
@@ -75,6 +110,8 @@ pub struct Motor {
     perdidas: Vec<(Pista, f64)>,
     /// cuántos cuadros seguidos van sin mano (para buscar 1 de cada `buscar_cada`)
     sin_mano: u32,
+    /// los hilos elegidos midiendo (ver `AutoHilos`)
+    pub auto: AutoHilos,
     /// el que busca manos nuevas de fondo cuando ya hay alguna seguida (así no frena el cuadro: antes, cada 300 ms el
     /// cuadro que corría el detector tardaba el doble y se veía un tirón)
     #[cfg(not(target_arch = "wasm32"))]
@@ -118,7 +155,7 @@ fn dist(a: &P3, b: &P3) -> f32 { ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqr
 
 impl Motor {
     pub fn nuevo(detector: &[u8], puntos: &[u8]) -> Result<Motor, String> {
-        Ok(Motor { det: Detector::nuevo(detector)?, pun: Puntero::nuevo(puntos)?, pistas: vec![], sig_id: 1, ult_busqueda: -1e9, ult_detector: -1e9, cfg: Config::default(), corrio_detector: false, inferencias: 0, ms_det: 0.0, perdidas: Vec::new(), sin_mano: 0,
+        Ok(Motor { det: Detector::nuevo(detector)?, pun: Puntero::nuevo(puntos)?, pistas: vec![], sig_id: 1, ult_busqueda: -1e9, ult_detector: -1e9, cfg: Config::default(), corrio_detector: false, inferencias: 0, ms_det: 0.0, perdidas: Vec::new(), sin_mano: 0, auto: AutoHilos::default(),
             #[cfg(not(target_arch = "wasm32"))]
             buscador: Buscador::nuevo(detector) })
     }
@@ -236,6 +273,12 @@ impl Motor {
         for p in vivas { if !fin.iter().any(|q| ((q.roi.cx - p.roi.cx).powi(2) + (q.roi.cy - p.roi.cy).powi(2)).sqrt() < q.roi.lado.min(p.roi.lado) * 0.3) { fin.push(p); } }
         fin.sort_by_key(|p| p.id);
         self.pistas = fin;
+        // (los hilos elegidos midiendo: cuadros con mano, sin el detector en el cuadro; lo que tarda cada pasada de la red)
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let ms = if !self.pistas.is_empty() && !self.corrio_detector && self.inferencias > 0 { Some((self.pun.ms_recorte + self.pun.ms_red) / self.inferencias as f32) } else { None };
+            self.auto.paso(t_ms, ms);
+        }
         self.pistas.iter().filter_map(|p| p.salida.clone()).collect()
     }
 
