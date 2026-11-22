@@ -5273,6 +5273,23 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
   - Prueba 9/9.
 - **En marcha:** la aplicación es «JXBot» (ID 1573885959752253521). Ya tiene la URL de interacciones (Discord la
   validó con su PING firmado), los 9 comandos y de foto el logo de JXApps.
+- **IA y chat normal** (`tienda/discord_ia.js`, `tienda/discord_puerta.js`):
+  - **Quién responde:** Gemini (la clave de Google del dueño, secreto `GEMINI_KEY`), con gemini-3.8-flash sin
+    «pensar» (unos 3 s) y, si falla, gemini-3.5-flash-lite (1 s). Si Google no responde, Workers AI (el modelo de
+    Verity).
+  - **Qué sabe:** los datos reales de JXMod y Stickerazo (versión, novedades, links, cómo mandar un bug) para que no
+    invente. También reglas para un servidor con chicos (nada sexual ni violento), no da códigos ni claves, y la
+    memoria corta de cada charla (`dc_chat`).
+  - **Topes:** uno cada 3 s por persona, 60 por día por persona (sin tope para admins) y 1500 por día en total.
+  - **Dónde contesta:** `/jb mensaje` (comando: contesta «pensando…» y completa), y en el chat normal por privado,
+    «/JB …» en un servidor, una mención o una respuesta a un mensaje suyo.
+  - **El código por chat:** «/admin CÓDIGO» por privado reconoce al admin. Escrito en un canal no lo toma, intenta
+    borrarlo y avisa.
+  - **La puerta:** el chat normal lo lee un Durable Object («PuertaDiscord») conectado al gateway de Discord, con
+    privados, servidores y el permiso de leer el texto (prendido desde la API: los bots con menos de 100 servidores
+    no necesitan verificación). Si Discord no lo deja, se reconecta sin ese permiso. Una alarma cada minuto y el cron
+    la vuelven a abrir. `GET /api/discord/puerta` dice si está conectada.
+  - **Prueba:** 12/12, con un Gemini y un WebSocket de mentira.
 - **Lo que no puede:** un saludo propio al que entra, porque eso necesita una conexión fija con Discord. Para eso está
   el mensaje de bienvenida que ya trae Discord en los ajustes del servidor.
 

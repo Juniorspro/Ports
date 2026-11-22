@@ -11,6 +11,13 @@
 //  6. el cron: con una versión nueva anuncia en el canal (mencionando «Avisos»), y la segunda vez no repite; cuando el
 //     panel le contesta al bug, le avisa a quien lo mandó en ese canal, una sola vez;
 //  7. /anunciar arma el anuncio y menciona el rol sólo si se pide.
+//  9. la IA (con un Gemini de mentira): /jb contesta «pensando» y después completa; en el chat normal (la puerta),
+//     por privado contesta todo y «/admin CÓDIGO» lo reconoce; en un servidor contesta a «/JB …», a una mención y a
+//     una respuesta a un mensaje suyo, y a nada más; el código escrito en un canal no lo toma, lo intenta borrar y avisa;
+//     de a un mensaje cada 3 s; los datos reales (versión) van en las instrucciones;
+// 10. la puerta (un WebSocket de mentira): al saludo de Discord se identifica con privados, servidores y texto; READY;
+//     un mensaje lo contesta; si Discord no deja leer el texto (4014) se reconecta sin ese permiso; sin el «ack» del
+//     latido, reconecta.
 // uso: node discord_bot.mjs
 import { d1 } from '../../stickerazo/pruebas/d1_falsa.mjs';
 const M = await import('../tienda/discord.js');
@@ -19,10 +26,11 @@ const enc = new TextEncoder(), hex = (u) => [...new Uint8Array(u)].map((b) => b.
 const par = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
 const pub = hex(await crypto.subtle.exportKey('raw', par.publicKey));
 // la API de Discord de mentira y los archivos de versión
-const llamadas = []; let roles = [{ id: 'r0', name: '@everyone' }], reglas = [], sigRol = 1, sigRegla = 1;
+const llamadas = [], geminiPedidos = []; let roles = [{ id: 'r0', name: '@everyone' }], reglas = [], sigRol = 1, sigRegla = 1;
 let VERSION = { codigo: 3911, version: '3.9.11', apk: 'https://x/JXMod.apk', web: 'https://x/web/', notas_es: 'Arreglos del 21/11' }, APP = { v: 26112190, nombre: '0.8' };
 async function falso(url, op = {}) {
   const u = String(url), m = op.method || 'GET', b = op.body ? JSON.parse(op.body) : undefined;
+  if (u.includes('generativelanguage.googleapis.com')) { const q = JSON.parse(op.body); geminiPedidos.push(q); const ult = q.contents[q.contents.length - 1].parts[0].text; return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Respuesta IA a: ' + ult }] } }] })); }
   if (u.includes('web/version.json')) return new Response(JSON.stringify(VERSION));
   if (u.includes('descargas/app.json')) return new Response(JSON.stringify(APP));
   if (!u.startsWith('https://discord.com/api/v10')) return new Response('?', { status: 404 });
@@ -33,7 +41,8 @@ async function falso(url, op = {}) {
   if (/auto-moderation\/rules$/.test(ruta) && m === 'POST') { const r = { id: 'a' + sigRegla++, ...b }; reglas.push(r); return new Response(JSON.stringify(r)); }
   return new Response(JSON.stringify({ id: 'm1' }));
 }
-const env = { DB: d1(), DISCORD_APP_ID: 'app1', DISCORD_PUBLIC_KEY: pub, DISCORD_TOKEN: 'tok', DISCORD_ADMIN_CODE: 'Prueba(@1', __fetch: falso };
+const env = { DB: d1(), DISCORD_APP_ID: 'app1', DISCORD_PUBLIC_KEY: pub, DISCORD_TOKEN: 'tok', DISCORD_ADMIN_CODE: 'Prueba(@1', GEMINI_KEY: 'gk', __fetch: falso };
+globalThis.fetch = falso;   // (la IA y la puerta usan fetch directo)
 const pendientes = []; const ctx = { waitUntil: (p) => pendientes.push(p) };
 async function pedir(cuerpo, { firma = true, mala = false } = {}) {
   const txt = JSON.stringify(cuerpo), ts = String(Math.floor(Date.now() / 1000));
@@ -119,4 +128,55 @@ const dmDespues = await pedir(cmd('anunciar', OTRO, [{ name: 'titulo', value: 'a
 ok('7b. /admin por mensaje privado al bot: después anda en el servidor', /primero mandame/.test(dmAntes.d.data.content) && /todos los servidores/.test(dm.d.data.content) && dmDespues.d.data.embeds && dmDespues.d.data.embeds[0].title === 'a', [dm.d.data.content]);
 env.DISCORD_ADMIN_CODE = 'OtroCodigo!'; const tras = await pedir(cmd('anunciar', ADMIN, [{ name: 'titulo', value: 'x' }, { name: 'texto', value: 'y' }]));
 ok('8. si el código cambia, el que se habilitó con el anterior deja de ser admin', /primero mandame el código/.test(tras.d.data.content), tras.d.data.content);
+// 9
+env.DISCORD_ADMIN_CODE = 'Prueba(@1';
+const P = await import('../tienda/discord_puerta.js');
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+const rj = await pedir(cmd('jb', NADIE, [{ name: 'mensaje', value: '¿Qué trae la última versión?' }])); await Promise.all(pendientes.splice(0));
+const pj = llamadas.filter((x) => x.m === 'PATCH' && x.ruta.includes('/webhooks/app1/tk/messages/@original')).pop();
+const sis = geminiPedidos[geminiPedidos.length - 1].systemInstruction.parts[0].text;
+const YO = 'bot1', msgs = (desde) => llamadas.slice(desde).filter((x) => x.m === 'POST' && /\/messages$/.test(x.ruta));
+let k = llamadas.length; const dm1 = await P.manejarMensaje(env, { id: 'm1', channel_id: 'dm9', author: { id: 'u9', username: 'nico' }, content: 'Hola, ¿cómo bajo JXMod?' }, YO); const dmR = msgs(k);
+await espera(3100);
+k = llamadas.length; const dmA = await P.manejarMensaje(env, { id: 'm2', channel_id: 'dm9', author: { id: 'u9', username: 'nico' }, content: '/admin Prueba(@1' }, YO); const dmAr = msgs(k);
+const esAd = await (await import('../tienda/discord.js')).esAdminDe(env, 'u9', 'g1');
+k = llamadas.length; const g0 = await P.manejarMensaje(env, { id: 'm3', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: 'hablando de otra cosa', mentions: [] }, YO);
+const g1 = await P.manejarMensaje(env, { id: 'm4', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: '/JB ¿qué es Stickerazo?', mentions: [] }, YO); const g1r = msgs(k);
+await espera(3100);
+k = llamadas.length; const g2 = await P.manejarMensaje(env, { id: 'm5', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: '<@bot1> y los mapas?', mentions: [{ id: 'bot1' }] }, YO);
+const g3 = await P.manejarMensaje(env, { id: 'm6', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: 'y eso?', mentions: [] }, YO);   // (enseguida: tope de 3 s)
+const gR = msgs(k);
+await espera(3100);
+k = llamadas.length; const g4 = await P.manejarMensaje(env, { id: 'm7', guild_id: 'g1', channel_id: 'c7', author: { id: 'u11', username: 'leo' }, content: 'gracias', mentions: [], referenced_message: { author: { id: 'bot1' } } }, YO);
+const g5 = await P.manejarMensaje(env, { id: 'm8', guild_id: 'g1', channel_id: 'c7', author: { id: 'u12', username: 'troll' }, content: '/JB admin Prueba(@1', mentions: [] }, YO);
+const borrado = llamadas.slice(k).some((x) => x.m === 'DELETE' && x.ruta === '/channels/c7/messages/m8');
+const trollAdmin = await (await import('../tienda/discord.js')).esAdminDe(env, 'u12', 'g1');
+const g6 = await P.manejarMensaje(env, { id: 'm9', guild_id: 'g1', channel_id: 'c7', author: { id: 'b2', username: 'otrobot', bot: true }, content: '/JB hola', mentions: [] }, YO);
+ok('9. IA: /jb completa la respuesta; privado contesta; «/admin CÓDIGO» por privado reconoce; en el servidor contesta a /JB, mención y respuesta, a nada más; código en público: no, se borra y avisa; tope de 3 s; datos reales en las instrucciones',
+  rj.d.type === 5 && pj && /Respuesta IA a: ¿Qué trae/.test(pj.b.content) && /3\.9\.1\d/.test(sis) && /stickerazo\.pages\.dev/.test(sis)
+    && dm1.tipo === 'ia' && dmR.length === 1 && /cómo bajo JXMod/.test(dmR[0].b.content) && !dmR[0].b.message_reference
+    && dmA.tipo === 'admin' && dmA.ok && /te reconozco/.test(dmAr[0].b.content) && esAd
+    && g0 === null && g1.tipo === 'ia' && /Respuesta IA a: ¿qué es Stickerazo\?/.test(g1r[0].b.content) && g1r[0].b.message_reference.message_id === 'm4'
+    && g2.tipo === 'ia' && /a: y los mapas\?/.test(gR[0].b.content) && g3 === null && g4.tipo === 'ia' && g5.tipo === 'admin-publico' && borrado && !trollAdmin && g6 === null,
+  { jb: pj && pj.b.content.slice(0, 80), dm: dmR[0] && dmR[0].b.content.slice(0, 60), admin: dmAr[0] && dmAr[0].b.content.slice(0, 50), g: [g0, g1 && g1.tipo, g2 && g2.tipo, g3, g4 && g4.tipo, g5 && g5.tipo, g6], tope: gR.length });
+// 10
+class WsFalso extends EventTarget { constructor() { super(); this.enviados = []; this.cerrado = null; } send(x) { this.enviados.push(JSON.parse(x)); } close(c) { this.cerrado = c; } recibir(o) { this.dispatchEvent(Object.assign(new Event('message'), { data: JSON.stringify(o) })); } cortar(code) { this.dispatchEvent(Object.assign(new Event('close'), { code })); } }
+const socks = []; let alarma = null;
+const est = { storage: { getAlarm: async () => alarma, setAlarm: async (t) => { alarma = t; } } };
+const pu = new P.PuertaDiscord(est, { ...env, __abrirWs: async () => { const w = new WsFalso(); socks.push(w); return w; } });
+const e0 = await (await pu.fetch(new Request('https://puerta/asegurar'))).json();
+socks[0].recibir({ op: 10, d: { heartbeat_interval: 40000 } }); await espera(10);
+const ident = socks[0].enviados.find((x) => x.op === 2);
+socks[0].recibir({ op: 0, t: 'READY', s: 1, d: { user: { id: 'bot1' }, session_id: 's' } }); await espera(10);
+const e1 = await (await pu.fetch(new Request('https://puerta/estado'))).json();
+k = llamadas.length; socks[0].recibir({ op: 0, t: 'MESSAGE_CREATE', s: 2, d: { id: 'm20', guild_id: 'g1', channel_id: 'c8', author: { id: 'u20', username: 'sol' }, content: '/jb hola bot', mentions: [] } }); await espera(80);
+const viaPuerta = msgs(k);
+socks[0].cortar(4014); await espera(20); socks[1].recibir({ op: 10, d: { heartbeat_interval: 40000 } }); await espera(10);
+const ident2 = socks[1].enviados.find((x) => x.op === 2);
+pu.ack = false; pu.latir(); await espera(20);
+ok('10. puerta: se identifica (privados + servidores + texto) con «Escribí /JB»; READY; el mensaje /jb se contesta; con 4014 se reconecta sin texto; sin ack, reconecta',
+  e0 && alarma && ident && ident.d.intents === ((1 << 9) | (1 << 12) | (1 << 15)) && ident.d.token === 'tok' && /\/JB/.test(ident.d.presence.activities[0].state) && e1.conectado && viaPuerta.length === 1 && /hola bot/.test(viaPuerta[0].b.content)
+    && ident2 && ident2.d.intents === ((1 << 9) | (1 << 12)) && socks.length === 3,
+  { intents: [ident && ident.d.intents, ident2 && ident2.d.intents], conectado: e1.conectado, sockets: socks.length });
+pu.cerrar();
 console.log('RESUMEN ' + R.filter(Boolean).length + '/' + R.length); process.exit(R.every(Boolean) ? 0 : 1);

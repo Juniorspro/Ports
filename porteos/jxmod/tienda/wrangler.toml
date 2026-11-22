@@ -42,3 +42,13 @@ binding = "AI"
 # wrangler secret put DISCORD_TOKEN
 [triggers]
 crons = ["*/10 * * * *"]
+
+# la puerta de JXBot (discord_puerta.js): un Durable Object que mantiene abierta la conexión con Discord para leer los
+# mensajes privados, los «/JB …» y las menciones, y contestar con la IA
+[[durable_objects.bindings]]
+name = "DC_PUERTA"
+class_name = "PuertaDiscord"
+
+[[migrations]]
+tag = "puerta-1"
+new_sqlite_classes = ["PuertaDiscord"]

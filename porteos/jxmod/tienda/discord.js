@@ -12,6 +12,7 @@
 // DISCORD_ADMIN_CODE (secretos: wrangler secret put …). Sin los tres primeros, /api/discord/ contesta 503 y el cron no
 // hace nada; sin el código, los comandos de admin no andan.
 import { tablas, postNuevo } from './panel.js';
+import { respuestaIA } from './discord_ia.js';
 
 const API = 'https://discord.com/api/v10';
 const REPO = 'https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/';
@@ -39,7 +40,7 @@ async function firmaBien(env, req, cuerpo) {
 }
 
 // ---- la API de Discord con el token del bot ----
-async function dc(env, metodo, ruta, cuerpo, motivo) {
+export async function dc(env, metodo, ruta, cuerpo, motivo) {
   const h = { Authorization: 'Bot ' + env.DISCORD_TOKEN, 'User-Agent': 'DiscordBot (' + SITIO_SZ + ', 1.0)' };
   if (cuerpo !== undefined) h['Content-Type'] = 'application/json';
   if (motivo) h['X-Audit-Log-Reason'] = encodeURIComponent(motivo);
@@ -51,7 +52,7 @@ async function dc(env, metodo, ruta, cuerpo, motivo) {
 
 // ---- lo que guarda el bot: la configuración de cada servidor y los posts mandados desde Discord ----
 let listas = false;
-async function tablasDc(env) {
+export async function tablasDc(env) {
   if (listas) return; await tablas(env);
   await env.DB.batch([
     env.DB.prepare('CREATE TABLE IF NOT EXISTS dc_conf (guild TEXT PRIMARY KEY, canal TEXT, roles TEXT, automod TEXT, ult_jxmod INTEGER, ult_sz INTEGER, cambiado INTEGER)'),
@@ -92,26 +93,28 @@ const usuarioDe = (it) => (it.member && it.member.user) || it.user || {};
 const sha = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(t)))].map((b) => b.toString(16).padStart(2, '0')).join('');
 async function igualSeguro(a, b) { const [x, y] = await Promise.all([sha('jx|' + a), sha('jx|' + b)]); let d = 0; for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i); return d === 0; }
 const huellaCodigo = async (env) => (await sha('jx-admin|' + env.DISCORD_ADMIN_CODE)).slice(0, 24);
-async function esAdmin(env, it) {
-  if (!env.DISCORD_ADMIN_CODE) return false;
-  // (el que lo mandó en el servidor, o por mensaje privado al bot: ése vale en todos los servidores)
-  const h = await huellaCodigo(env);
-  const f = await env.DB.prepare("SELECT 1 AS s FROM dc_admins WHERE usuario = ?2 AND guild IN (?1, 'dm') AND huella = ?3").bind(it.guild_id || 'dm', usuarioDe(it).id, h).first();
+// (el que lo mandó en el servidor, o por mensaje privado al bot: ése vale en todos los servidores)
+export async function esAdminDe(env, usuario, guild) {
+  if (!env.DISCORD_ADMIN_CODE) return false; await tablasDc(env);
+  const f = await env.DB.prepare("SELECT 1 AS s FROM dc_admins WHERE usuario = ?2 AND guild IN (?1, 'dm') AND huella = ?3").bind(guild || 'dm', usuario, await huellaCodigo(env)).first();
   return !!f;
 }
-async function codigoAdmin(env, it, codigo) {
-  const u = usuarioDe(it), ahora = Date.now();
-  if (!env.DISCORD_ADMIN_CODE) return efimero('El código de admin todavía no está configurado en el servidor del bot.');
-  const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM dc_intentos WHERE usuario = ?1 AND t > ?2').bind(u.id, ahora - 3600e3).first();
-  if (n && n.n >= 5) return efimero('Demasiados intentos. Probá de nuevo en una hora.');
+const esAdmin = (env, it) => esAdminDe(env, usuarioDe(it).id, it.guild_id);
+// probar un código de admin (desde /admin o desde el chat normal): { ok, texto }
+export async function probarCodigo(env, usuario, guild, codigo) {
+  const ahora = Date.now(); await tablasDc(env);
+  if (!env.DISCORD_ADMIN_CODE) return { ok: false, texto: 'El código de admin todavía no está configurado en el servidor del bot.' };
+  const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM dc_intentos WHERE usuario = ?1 AND t > ?2').bind(usuario, ahora - 3600e3).first();
+  if (n && n.n >= 5) return { ok: false, texto: 'Demasiados intentos. Probá de nuevo en una hora.' };
   if (!(await igualSeguro(String(codigo || '').trim(), env.DISCORD_ADMIN_CODE))) {
-    await env.DB.prepare('INSERT INTO dc_intentos (usuario, t) VALUES (?1, ?2)').bind(u.id, ahora).run();
-    return efimero(`Código incorrecto. Te quedan ${Math.max(0, 4 - (n ? n.n : 0))} intentos esta hora.`);
+    await env.DB.prepare('INSERT INTO dc_intentos (usuario, t) VALUES (?1, ?2)').bind(usuario, ahora).run();
+    return { ok: false, texto: `Código incorrecto. Te quedan ${Math.max(0, 4 - (n ? n.n : 0))} intentos esta hora.` };
   }
-  await env.DB.prepare('INSERT INTO dc_admins (guild, usuario, huella, desde) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(guild, usuario) DO UPDATE SET huella = ?3, desde = ?4').bind(it.guild_id || 'dm', u.id, await huellaCodigo(env), ahora).run();
-  await env.DB.prepare('DELETE FROM dc_intentos WHERE usuario = ?1').bind(u.id).run();
-  return efimero(it.guild_id ? 'Listo, ya sos admin del bot en este servidor: /configurar, /roles y /anunciar.' : 'Listo, ya sos admin del bot en todos los servidores donde está: /configurar, /roles y /anunciar.');
+  await env.DB.prepare('INSERT INTO dc_admins (guild, usuario, huella, desde) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(guild, usuario) DO UPDATE SET huella = ?3, desde = ?4').bind(guild || 'dm', usuario, await huellaCodigo(env), ahora).run();
+  await env.DB.prepare('DELETE FROM dc_intentos WHERE usuario = ?1').bind(usuario).run();
+  return { ok: true, texto: guild ? 'Listo, ya sos admin del bot en este servidor: /configurar, /roles y /anunciar.' : 'Listo, te reconozco: sos admin del bot en todos los servidores donde está. /configurar, /roles y /anunciar habilitados, y por acá te contesto como al admin.' };
 }
+const codigoAdmin = async (env, it, codigo) => efimero((await probarCodigo(env, usuarioDe(it).id, it.guild_id, codigo)).texto);
 
 function modal(tipo) {
   const bug = tipo === 'bug';
@@ -137,6 +140,15 @@ async function comando(env, it, ctx) {
       { name: 'Hoy', value: String(d ? d.n : 0), inline: true }, { name: 'Mapas', value: mapas }], footer: { text: 'Se actualiza cada minuto' } }] });
   }
   if (n === 'bug' || n === 'sugerencia') return modal(n === 'bug' ? 'bug' : 'sug');
+  if (n === 'admin' && (it.data.options || []).some((o) => o.name === 'codigo')) return codigoAdmin(env, it, it.data.options.find((o) => o.name === 'codigo').value);
+  if (n === 'jb') {   // (la IA a veces tarda más de 3 s: se contesta «pensando…» y después se completa)
+    const pregunta = ((it.data.options || []).find((o) => o.name === 'mensaje') || {}).value || '', u = usuarioDe(it);
+    ctx.waitUntil((async () => {
+      const r = await respuestaIA(env, { canal: it.channel_id || 'dm', usuario: u.id, nombre: u.global_name || u.username, texto: pregunta, admin: await esAdmin(env, it) });
+      await dc(env, 'PATCH', `/webhooks/${env.DISCORD_APP_ID}/${it.token}/messages/@original`, { content: r.espera || `> ${corto(pregunta, 300)}\n${r.texto}`, allowed_mentions: { parse: [] } });
+    })().catch((e) => console.error('jb', e)));
+    return new Response(JSON.stringify({ type: 5 }), { headers: { 'Content-Type': 'application/json' } });
+  }
   if (n === 'admin') return new Response(JSON.stringify({ type: 9, data: { custom_id: 'admin', title: 'Código de admin', components: [{ type: 1, components: [{ type: 4, custom_id: 'codigo', label: 'El código', style: 1, required: true, max_length: 100 }] }] } }), { headers: { 'Content-Type': 'application/json' } });
   // ---- de acá para abajo, sólo quien mandó el código de admin ----
   if (!g) return efimero('Usalo adentro de un servidor.');
@@ -225,6 +237,10 @@ export async function discordRutas(req, env, url, r, ctx) {
   if (!r.startsWith('/api/discord/')) return null;
   env.__fetch = env.__fetch || fetch;
   if (!env.DISCORD_PUBLIC_KEY || !env.DISCORD_APP_ID) return new Response('el bot no está configurado', { status: 503 });
+  if (r === '/api/discord/puerta' && req.method === 'GET' && env.DC_PUERTA) {   // (si la puerta está abierta; sin datos de nadie)
+    const e = await (await env.DC_PUERTA.get(env.DC_PUERTA.idFromName('principal')).fetch('https://puerta/asegurar')).json();
+    return new Response(JSON.stringify(e), { headers: { 'Content-Type': 'application/json' } });
+  }
   if (r !== '/api/discord/interacciones' || req.method !== 'POST') return new Response('no existe', { status: 404 });
   const cuerpo = await req.text();
   if (!(await firmaBien(env, req, cuerpo).catch(() => false))) return new Response('firma inválida', { status: 401 });
@@ -244,6 +260,8 @@ const ESTADO_TXT = { nuevo: 'Nuevo', visto: 'Visto', en_curso: 'En curso', hecho
 export async function discordCron(env) {
   if (!env.DISCORD_TOKEN || !env.DISCORD_APP_ID) return;
   env.__fetch = env.__fetch || fetch; await tablasDc(env);
+  // (la puerta: la conexión fija con Discord para el chat normal; si se cayó, se vuelve a abrir)
+  if (env.DC_PUERTA) await env.DC_PUERTA.get(env.DC_PUERTA.idFromName('principal')).fetch('https://puerta/asegurar').catch((e) => console.error('puerta', e));
   const servidores = (await env.DB.prepare('SELECT * FROM dc_conf WHERE canal IS NOT NULL').all()).results;
   if (servidores.length) {
     const { jx, sz } = await versiones(env);
@@ -280,7 +298,10 @@ export const COMANDOS = [
   { name: 'estado', description: 'Cuántos están jugando JXMod ahora y en qué mapas' },
   { name: 'bug', description: 'Mandá un bug de JXMod (llega al panel de «Bugs y sugerencias»)' },
   { name: 'sugerencia', description: 'Mandá una idea para JXMod' },
-  { name: 'admin', description: 'Mandale al bot el código de admin (no queda en el chat)', dm_permission: true, contexts: [0, 1] },
+  { name: 'admin', description: 'Mandale al bot el código de admin (nadie más lo ve)', dm_permission: true, contexts: [0, 1], options: [
+    { type: 3, name: 'codigo', description: 'El código (si no lo ponés, se abre un formulario)', required: false, max_length: 100 }] },
+  { name: 'jb', description: 'Hablale a JXBot (IA): preguntale lo que quieras de JXMod o Stickerazo', dm_permission: true, contexts: [0, 1], options: [
+    { type: 3, name: 'mensaje', description: 'Lo que le querés decir o preguntar', required: true, max_length: 1500 }] },
   { name: 'configurar', description: 'Admins (con código): este canal para anuncios, roles y AutoMod', dm_permission: false },
   { name: 'roles', description: 'Admins (con código): pone los botones para elegir roles', dm_permission: false },
   { name: 'anunciar', description: 'Admins (con código): un anuncio con el estilo de JXApps', dm_permission: false, options: [
