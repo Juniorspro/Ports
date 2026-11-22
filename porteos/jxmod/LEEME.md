@@ -5436,7 +5436,17 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     - Todos los roles del servidor están en la posición 1, así que la jerarquía la decide la antigüedad y JXBot, el
       más nuevo, queda último. Para dar «Miembro» hay que arrastrar JXBot arriba en Ajustes → Roles.
 
-## Sin publicar todavía: tus manos con la cámara (JX Hand Engine nativo)
+## JXMod 3.9.12: modo VR, manos con la cámara, identidad propia (Opciones y armas) y lo del panel del 22/11
+
+- Publicada con el paquete pk39e. APK 3.9.12 (versionCode 26112224, misma firma; mayor que las de prueba vr4–vr9 para
+  que se instale encima) con `ota_base.json` que coincide con `web/ota/ota.json` (6/6 huellas iguales; `ota.sh` 3/3).
+  Trae Java nuevo (las manos con la cámara y el motor nativo de JX Hand 2.6), así que `version.json` 3912 con
+  `"ota": {"apkMin": 3912}`: de la 3.9.3 a la 3.9.11 el juego avisa que hay que bajar el APK (se instala encima); las
+  partes de `web/ota/` son para las que ya tienen la 3.9.12. Web con código: muestra 3.9.12, pide el código, uno
+  inventado no entra, sin errores; el juego no queda en claro (ni en `index.html` ni en `juego.bin`); `suelto.json`
+  3912. Novedades: 26 versiones. Las secciones de abajo (las que decían «Sin publicar todavía») son lo que trae.
+
+## 3.9.12 — tus manos con la cámara (JX Hand Engine nativo)
 
 Pedido del dueño: «¿podemos conectar esto al JXMod? Sin perder nada, acordate que usa Java el JXMod». El motor es el de
 la app JX Hand (`porteos/jxhand`, Rust nativo con NEON, float16 y varios hilos; su LEEME tiene las mediciones). Acá, cómo
@@ -5497,7 +5507,7 @@ entra al juego.
 - **Sin probar en un celular:** la cámara, el permiso y la carga de la biblioteca en un Android de verdad.
 - **Para publicar:** esto es Java, así que hace falta una APK nueva una vez. Después, lo del juego viaja por partes.
 
-## Sin publicar todavía: identidad de JXMod — los mods oficiales pasan a Opciones del menú de props
+## 3.9.12 — identidad de JXMod — los mods oficiales pasan a Opciones del menú de props
 
 Pedido del dueño: «le daremos identidad a JXMod para alejarnos un poco de GMod, pero sí teniendo su Workshop; los mods
 oficiales borrarlos todos y dejarlos como opciones en props».
@@ -5517,7 +5527,7 @@ oficiales borrarlos todos y dejarlos como opciones en props».
   `tienda_panel.mjs` 24/24 con los mods de la gente (antes instalaba los oficiales); `tienda.mjs` ya no instala Súper
   salto. `mods_vivo.mjs` se borró: probaba prender los oficiales desde el menú MOD.
 
-## Sin publicar todavía: identidad de JXMod — las armas son las de GMod pintadas, sin piezas pegadas
+## 3.9.12 — identidad de JXMod — las armas son las de GMod pintadas, sin piezas pegadas
 
 Pedido del dueño: «mejoremos los modelos de GMod para hacerlo propio, ya que muy feos los modelos propios nuestros… el
 cartel JXM sobre la Physics Gun es feo». Antes (3.9) la Physics Gun, la Gravity Gun, la Tool Gun y la palanca eran las
@@ -5547,7 +5557,7 @@ de GMod con piezas sacadas y pegadas (garras nuevas, emisor, la aleta con el log
      celeste, el celeste del arma de vuelta (126 puntos) y su ícono de GMod;
   4. sin errores de JS.
 
-## Sin publicar todavía: «Bugs y sugerencias» del 22/11 (mods de GMod)
+## 3.9.12 — «Bugs y sugerencias» del 22/11 (mods de GMod)
 
 - **«Suicide Gun: después de usarla las manos desaparecen»** (ur9f8srh; Workshop 3534176154): la Suicide Gun pone sus
   brazos de NMRiH en el `Initialize` del cliente (`GetHands():SetModel`). Al usarla te matás; al reaparecer las manos
@@ -5599,7 +5609,7 @@ de GMod con piezas sacadas y pegadas (garras nuevas, emisor, la aleta con el log
   - Medido: el robot se lee (84 huesos, 28 mallas, 58 animaciones), aparece, se levanta, camina hacia el jugador y lo
     agarra; sin errores de Lua. Su malla (5,5 MB) queda en el disco y se lee al ponerlo.
 
-## Sin publicar todavía: el modo VR (`juego/vr.js`)
+## 3.9.12 — el modo VR (`juego/vr.js`)
 
 Pedido del dueño: «un modo completo VR hecho dentro de JXMod… donde podés caminar con las manos así tipo Gorilla Tag y
 agarrar cosas, con doble pantalla para los VR box y soporte de controles».
@@ -5696,7 +5706,7 @@ agarrar cosas, con doble pantalla para los VR box y soporte de controles».
   8. Salir deja todo normal; sin errores de JS.
 - **Sin probar en un celular:** el giroscopio de verdad, la curva de un casco de verdad y la cámara de atrás.
 
-## Sin publicar todavía: lo de «Bugs y sugerencias» después de la 3.9.11
+## 3.9.12 — lo de «Bugs y sugerencias» después de la 3.9.11
 
 - **Bugs:**
   - «Primera persona con iluminación no coordinada con el mapa» (video en gm_mallparking, `gmod_bsp.js` `gbspLuzHojas`,

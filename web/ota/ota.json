@@ -1,14 +1,14 @@
 {
- "codigo": 3911,
- "version": "3.9.11",
- "apkMin": 3903,
+ "codigo": 3912,
+ "version": "3.9.12",
+ "apkMin": 3912,
  "archivos": [
   {
    "n": "index.html",
-   "h": "54680c05a056e91194cf2bb1ac2f84153c39d7b220c1e1ddce683580f419e5b5",
-   "t": 5067856,
-   "u": "ota/index.html.54680c05a056e911.jxo",
-   "mac": "91eb091a94d77fe239a9a855f3c8cfde34e33f1c9d5ea89f65d67c55c8bdeaf2"
+   "h": "93eea0c4f67eba77fb1ebeeeef97d2452c400f80ee13f24708196bb8b62d5110",
+   "t": 5120510,
+   "u": "ota/index.html.93eea0c4f67eba77.jxo",
+   "mac": "b22517ac2b1abf1d04cc6a2690e64ffd508daedf1f2cc83ecb8d98da2a47b40e"
   },
   {
    "n": "pk.bin",
