@@ -156,8 +156,9 @@ function mjxPrevia() {
   if (!ver) { if (MJX.previa) MJX.previa.style.display = 'none'; return; }
   if (!MJX.previa) {
     const c = document.createElement('canvas'); c.width = 176; c.height = 132;
-    // (arriba en el medio, debajo del nombre del modo: abajo a la izquierda tapaba el joystick)
-    c.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:calc(30px + env(safe-area-inset-top));width:116px;height:87px;border-radius:10px;background:rgba(8,8,12,.5);pointer-events:none;z-index:30';
+    // (arriba, un poco a la izquierda del medio: abajo a la izquierda tapaba el joystick y en el medio, en pantallas
+    // angostas, rozaba la barra de armas)
+    c.style.cssText = 'position:fixed;left:calc(50% - 90px);top:calc(30px + env(safe-area-inset-top));width:116px;height:87px;border-radius:10px;background:rgba(8,8,12,.5);pointer-events:none;z-index:30';
     document.body.appendChild(c); MJX.previa = c;
   }
   const c = MJX.previa, x = c.getContext('2d'); c.style.display = '';
