@@ -27,6 +27,9 @@ function mjxPrender() {
   try { r = JXManos.prender(MJX.lite); } catch (e) { MJX.error = String(e); }
   MJX.estado = r === 'ok' ? 'cargando' : r;
   darArma('ManosJX');
+  // (ya en la mano: así se ven las manos sin tener que buscar el arma, que queda última en la barra)
+  if (JUEGO.estado === 'juego') { const i = ARM.lista.indexOf('ManosJX'); if (i >= 0) elegirArma(i); }
+  if (r === 'permiso') aviso(Lc('Allow the camera to use your hands', 'Permití la cámara para usar tus manos'), 4);
 }
 function mjxApagar() {
   if (MJX.on) { try { JXManos.apagar(); } catch (e) { /* nada */ } }
@@ -150,32 +153,54 @@ function mjxCuadro() {
   MJX.pinzaAnt = pinza;
   mjxPrevia();
 }
-// la vista chica (arriba en el medio): tus manos como líneas, el gesto y cuánto tarda el motor
+// la vista chica (arriba, un poco a la izquierda del medio): lo que ve la cámara (chiquito, como un espejo), tus manos
+// como líneas, el gesto, y abajo cuánto tarda el motor y cuántos cuadros llegan. Se ve siempre que la opción está
+// prendida (no sólo con el arma): así se sabe si la cámara anda, si falta el permiso o si hubo un error.
+const MJX_H = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]];
+function mjxMiniatura() {
+  if (performance.now() - (MJX.tMini || 0) < 200) return;
+  MJX.tMini = performance.now();
+  let s = ''; try { s = JXManos.miniatura(); } catch (e) { return; }
+  if (!s || s === MJX.miniTxt) return;
+  MJX.miniTxt = s;
+  const [w, h, b64] = s.split(','), W = +w, H = +h, bin = atob(b64);
+  if (!MJX.mini || MJX.mini.width !== W || MJX.mini.height !== H) { MJX.mini = document.createElement('canvas'); MJX.mini.width = W; MJX.mini.height = H; }
+  const cx = MJX.mini.getContext('2d'), im = cx.createImageData(W, H);
+  for (let i = 0, j = 0; i < W * H; i++, j += 3) { im.data[i * 4] = bin.charCodeAt(j); im.data[i * 4 + 1] = bin.charCodeAt(j + 1); im.data[i * 4 + 2] = bin.charCodeAt(j + 2); im.data[i * 4 + 3] = 255; }
+  cx.putImageData(im, 0, 0);
+  try { MJX.diag = JXManos.diagnostico(); } catch (e) { /* nada */ }
+}
 function mjxPrevia() {
-  const ver = mjxEnMano() && JUEGO.estado === 'juego' && PREFS.jxPrevia !== false;
+  const ver = MJX.on && JUEGO.estado === 'juego' && PREFS.jxPrevia !== false;
   if (!ver) { if (MJX.previa) MJX.previa.style.display = 'none'; return; }
   if (!MJX.previa) {
-    const c = document.createElement('canvas'); c.width = 176; c.height = 132;
+    const c = document.createElement('canvas'); c.width = 192; c.height = 144;
     // (arriba, un poco a la izquierda del medio: abajo a la izquierda tapaba el joystick y en el medio, en pantallas
     // angostas, rozaba la barra de armas)
-    c.style.cssText = 'position:fixed;left:calc(50% - 90px);top:calc(30px + env(safe-area-inset-top));width:116px;height:87px;border-radius:10px;background:rgba(8,8,12,.5);pointer-events:none;z-index:30';
+    c.style.cssText = 'position:fixed;left:calc(50% - 100px);top:calc(30px + env(safe-area-inset-top));width:128px;height:96px;border-radius:10px;background:rgba(8,8,12,.5);pointer-events:none;z-index:30';
     document.body.appendChild(c); MJX.previa = c;
   }
+  mjxMiniatura();
   const c = MJX.previa, x = c.getContext('2d'); c.style.display = '';
   x.clearRect(0, 0, c.width, c.height);
-  const H = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]];
+  // lo que ve la cámara, como un espejo y oscurecido (para que se lean las líneas)
+  if (MJX.mini) { x.save(); x.globalAlpha = 0.6; x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(MJX.mini, 0, 0, c.width, c.height); x.restore(); }
   for (const m of MJX.manos) {
-    // (espejada, como un espejo: tu derecha a la derecha)
     const P = m.img.map((p) => [(1 - p[0]) * c.width, p[1] * c.height]);
-    x.strokeStyle = m.derecha ? '#ff3e8a' : '#7a3cff'; x.lineWidth = 2; x.beginPath();
-    for (const [a, b] of H) { x.moveTo(P[a][0], P[a][1]); x.lineTo(P[b][0], P[b][1]); } x.stroke();
-    x.fillStyle = '#ffd23f'; for (const i of [4, 8, 12, 16, 20]) { x.beginPath(); x.arc(P[i][0], P[i][1], 2.5, 0, 7); x.fill(); }
+    x.strokeStyle = m.derecha ? '#ff3e8a' : '#7a3cff'; x.lineWidth = 2.5; x.beginPath();
+    for (const [a, b] of MJX_H) { x.moveTo(P[a][0], P[a][1]); x.lineTo(P[b][0], P[b][1]); } x.stroke();
+    x.fillStyle = '#ffd23f'; for (const i of [4, 8, 12, 16, 20]) { x.beginPath(); x.arc(P[i][0], P[i][1], 3, 0, 7); x.fill(); }
   }
-  x.fillStyle = 'rgba(255,255,255,.85)'; x.font = '600 12px system-ui,sans-serif';
+  x.shadowColor = 'rgba(0,0,0,.9)'; x.shadowBlur = 3;
+  x.fillStyle = 'rgba(255,255,255,.95)'; x.font = '600 14px system-ui,sans-serif';
   const g = MJX.manos.map((m) => m.gestoNombre).filter((n) => n !== 'nada').join(' · ');
-  x.fillText(MJX.estado === 'listo' ? (g || (MJX.manos.length ? '' : Lc('Show your hands', 'Mostrá tus manos'))) : MJX.estado === 'permiso' ? Lc('Allow the camera', 'Permití la cámara') : MJX.estado, 8, 16);
-  x.fillStyle = 'rgba(255,255,255,.5)'; x.font = '11px system-ui,sans-serif';
-  x.fillText((MJX.msProm ? MJX.msProm.toFixed(1) + ' ms' : '') + (MJX.lite ? ' · liviano' : '') + (MJX.f16 ? ' · f16' : ''), 8, c.height - 8);
+  const est = MJX.estado === 'listo' ? (g || (MJX.manos.length ? '' : Lc('Show your hands', 'Mostrá tus manos'))) : MJX.estado === 'permiso' ? Lc('Allow the camera', 'Permití la cámara') : String(MJX.estado || '');
+  // (un error largo, en dos renglones)
+  x.fillText(est.slice(0, 26), 8, 18); if (est.length > 26) { x.font = '11px system-ui,sans-serif'; x.fillText(est.slice(26, 60), 8, 34); }
+  x.fillStyle = 'rgba(255,255,255,.75)'; x.font = '12px system-ui,sans-serif';
+  const d = (MJX.diag || '').split(',');
+  x.fillText((MJX.msProm ? MJX.msProm.toFixed(1) + ' ms' : '') + (MJX.lite ? ' · liviano' : '') + (MJX.f16 ? ' · f16' : '') + (d[0] ? ' · ' + d[0] + ' cps' : ''), 8, c.height - 8);
+  x.shadowBlur = 0;
 }
 Object.assign(IDI3, {
   'aj.jxCompleto': ['Manos con la cámara: modelo completo (más preciso, usa más el celular)', 'Hands with the camera: full model (more precise, uses more of the phone)', 'Mãos com a câmera: modelo completo (mais preciso)', 'Tangan dengan kamera: model lengkap (lebih presisi)',

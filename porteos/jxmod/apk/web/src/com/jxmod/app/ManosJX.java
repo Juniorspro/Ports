@@ -18,6 +18,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Range;
 import android.util.Size;
+import android.util.Base64;
 import android.view.Surface;
 import android.webkit.JavascriptInterface;
 import com.jxapps.jxhand.Motor;
@@ -64,6 +65,12 @@ public class ManosJX {
     private final FloatBuffer fsal = salida.asFloatBuffer();
     private final float[] datos = new float[ManosTexto.CABECERA + 2 * ManosTexto.POR_MANO];
     private final StringBuilder sb = new StringBuilder(4096);
+    // para ver qué pasa: la imagen que mira el motor en chiquito y cuántos cuadros llegan
+    private ByteBuffer vista;
+    private int vw, vh, rotUlt, camW, camH, cuentaCps;
+    private long tCps;
+    private volatile String miniatura = "", diag = "";
+    private volatile float cps;
 
     ManosJX(Web w) { web = w; }
 
@@ -120,6 +127,12 @@ public class ManosJX {
     @JavascriptInterface public String leer(int visto) { return cuadro == visto ? "" : ultimo; }
 
     @JavascriptInterface public String estado() { return estado; }
+
+    /** la imagen que mira el motor, chiquita: «ancho,alto,RGB en base64» (cada 5 cuadros), o "" */
+    @JavascriptInterface public String miniatura() { return miniatura; }
+
+    /** «cuadros por segundo,giro,ancho×alto de la cámara,brillo» */
+    @JavascriptInterface public String diagnostico() { return diag; }
 
     /** un ajuste del motor (las claves de com.jxapps.jxhand.Motor) */
     @JavascriptInterface public void config(final int clave, final float valor) {
@@ -221,6 +234,7 @@ public class ManosJX {
             Size t = tamano(mapa.getOutputSizes(ImageFormat.YUV_420_888));
             final Range<Integer> rango = rango(ch.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES));
             lector = ImageReader.newInstance(t.getWidth(), t.getHeight(), ImageFormat.YUV_420_888, 2);
+            camW = t.getWidth(); camH = t.getHeight(); tCps = 0; cuentaCps = 0;
             lector.setOnImageAvailableListener(this::alLlegar, h);
             estado = "cámara";
             cm.openCamera(id, new CameraDevice.StateCallback() {
@@ -300,16 +314,34 @@ public class ManosJX {
         try { im = r.acquireLatestImage(); } catch (Throwable t) { return; }
         if (im == null) return;
         int n = -1;
+        boolean conVista = (cuadro % 5) == 0;
         try {
             if (motor != 0) {
                 Image.Plane[] p = im.getPlanes();
+                int rot = rotacion(); rotUlt = rot;
+                int ow = rot % 180 == 90 ? im.getHeight() : im.getWidth(), oh = rot % 180 == 90 ? im.getWidth() : im.getHeight();
+                if (conVista && (vista == null || vw != ow || vh != oh)) { vista = ByteBuffer.allocateDirect(ow * oh * 4); vw = ow; vh = oh; }
                 // (sin espejar: el juego da vuelta lo que hace falta, manos_jx.js)
                 n = Motor.procesar(motor, p[0].getBuffer(), p[1].getBuffer(), p[2].getBuffer(), im.getWidth(), im.getHeight(), p[0].getRowStride(), p[1].getRowStride(), p[1].getPixelStride(),
-                    rotacion(), false, im.getTimestamp(), salida, null, false);
+                    rot, false, im.getTimestamp(), salida, conVista ? vista : null, false);
             }
         } catch (Throwable t) { estado = "error: " + t; } finally { im.close(); }
         if (n < 0) return;
+        // cuadros por segundo (cada segundo) y la imagen chiquita (cada 5 cuadros)
+        long ahora = System.nanoTime(); cuentaCps++;
+        if (tCps == 0) tCps = ahora;
+        else if (ahora - tCps > 1_000_000_000L) { cps = cuentaCps * 1e9f / (ahora - tCps); cuentaCps = 0; tCps = ahora; }
+        if (conVista && vista != null) {
+            int tw = 96, th = Math.max(1, Math.round(96f * vh / vw));
+            byte[] rgb = new byte[tw * th * 3];
+            for (int y = 0; y < th; y++) for (int x = 0; x < tw; x++) {
+                int o = ((y * vh / th) * vw + (x * vw / tw)) * 4, d = (y * tw + x) * 3;
+                rgb[d] = vista.get(o); rgb[d + 1] = vista.get(o + 1); rgb[d + 2] = vista.get(o + 2);
+            }
+            miniatura = tw + "," + th + "," + Base64.encodeToString(rgb, Base64.NO_WRAP);
+        }
         fsal.position(0); fsal.get(datos, 0, ManosTexto.CABECERA + n * ManosTexto.POR_MANO);
+        diag = Math.round(cps) + "," + rotUlt + "," + camW + "x" + camH + "," + Math.round(datos[5] * 100);
         ultimo = ManosTexto.armar(sb, cuadro + 1, datos, n, liviano);
         cuadro++;
         estado = "listo";

@@ -5466,7 +5466,15 @@ entra al juego.
   - El arma «Manos JX»: las manos de primera persona copian las tuyas (muñeca, palma, cada hueso de cada dedo, el brazo
     con cinemática inversa).
   - La pinza es «usar».
-  - La vista chica de tus manos, ahora **arriba en el medio**: abajo a la izquierda tapaba el joystick.
+  - La vista chica, **arriba, un poco a la izquierda del medio** (abajo a la izquierda tapaba el joystick). Se ve siempre
+    que la opción está prendida, no sólo con el arma, con:
+    - lo que ve la cámara en chiquito (`JXManos.miniatura()`, 96 de ancho, cada 5 cuadros, como un espejo);
+    - tus manos como líneas;
+    - el estado (cámara, permiso, error) o el gesto;
+    - los ms del motor y los cuadros por segundo que llegan (`JXManos.diagnostico()`).
+    Así, con una captura, se sabe dónde falla.
+  - Al prenderla en una partida, «Manos JX» queda en la mano: antes había que buscarla, última en la barra, y sin ella no
+    se veía nada (el dueño: «no detecta»).
 - **Prueba `pruebas/manos_jx.mjs` 4/4:** el juego armado para la app con un `JXManos` de mentira.
   - Los cuadros son de verdad: los grabó el motor en Rust por JNI en la PC, con `ManosTexto`, con una mano abierta que se
     mueve (`apk/pruebas/unido/GrabarManos.java`).

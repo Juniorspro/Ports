@@ -6,7 +6,8 @@
 //     juego pide la cámara, da el arma «Manos JX» y lee las manos (presencia, gesto «abierta», 5 dedos);
 //  2. con «Manos JX» en la mano, la mano derecha del juego está delante de la cámara (a 15–70 cm, adentro de la vista),
 //     con los dedos estirados como la foto, se ve el dorso (tu palma mira a la cámara del celular) y sigue a la tuya;
-//  3. la vista chica de tus manos se dibuja; el modelo completo se pide si se elige en Ajustes;
+//  3. la vista chica (lo que ve la cámara, tus manos, el estado y los cuadros por segundo) se dibuja; el modelo completo
+//     se pide si se elige en Ajustes;
 //  4. apagar avisa a la app y saca el arma; sin errores de JS.
 // uso: node manos_jx.mjs CARPETA_DEL_ARMADO CUADROS.json [CARPETA_CAPTURAS]
 import { abrir } from './base.mjs';
@@ -22,6 +23,8 @@ const servir = async (p) => p.context().route('http://localhost:7777/**', (r) =>
   r.fulfill({ body: fs.readFileSync(f), contentType: tipos[path.extname(f).slice(1)] || 'application/octet-stream' });
 });
 const cuadros = JSON.parse(fs.readFileSync(CUADROS, 'utf8'));
+// (la imagen chiquita de la cámara: la del primer cuadro grabado, 96 de ancho, como la da ManosJX.miniatura())
+const MINI = fs.existsSync(CUADROS.replace(/cuadros\.json$/, 'mini.txt')) ? fs.readFileSync(CUADROS.replace(/cuadros\.json$/, 'mini.txt'), 'utf8') : '';
 const { b, p, err, ev } = await abrir('http://localhost:7777/index.html', true, [], servir);
 await ev(`idiomaAplicar('es'); PREFS.bienvenida = true; PREFS.tutVisto = true; GFX.auto = false; PREFS.gfx = 'bajo'; aplicarGfx(); inicioMostrar(false); empezarPartida('FlatGrass'); 1`);
 await p.waitForFunction(() => window.__ev(`JUEGO.estado === 'juego'`), null, { timeout: 120000 }).catch(() => {});
@@ -33,14 +36,14 @@ await ev(`(() => { const C = ${JSON.stringify(cuadros)}; let t0 = 0, on = false;
   window.JXManos = { disponible: () => true, prender: (l) => { window.__mjxLlamadas.push('prender:' + l); on = true; t0 = performance.now(); return 'ok'; },
     apagar: () => { window.__mjxLlamadas.push('apagar'); on = false; },
     leer: (v) => { if (!on) return ''; const t = C[Math.floor((performance.now() - t0) / 33.3) % C.length]; return +t.slice(0, t.indexOf(',')) === v ? '' : t; },
-    estado: () => (on ? 'listo' : 'apagado'), config: () => {} }; return 1; })()`);
+    estado: () => (on ? 'listo' : 'apagado'), config: () => {}, miniatura: () => (on ? ${JSON.stringify(MINI)} : ''), diagnostico: () => (on ? '30,0,640x480,52' : '') }; return 1; })()`);
 const con = await opcion();
 await ev(`PREFS.jxManos = true; mjxPrender(); 1`);
 await p.waitForFunction(() => window.__ev(`MJX.cuadros > 20`), null, { timeout: 30000 }).catch(() => {});
-const e1 = await ev(`({ estado: MJX.estado, arma: ARM.lista.includes('ManosJX'), cuadros: MJX.cuadros, ms: +MJX.msProm.toFixed(1), lite: MJX.lite, llamadas: window.__mjxLlamadas,
+const e1 = await ev(`({ estado: MJX.estado, arma: ARM.lista.includes('ManosJX'), enMano: ARM.lista[ARM.i], cuadros: MJX.cuadros, ms: +MJX.msProm.toFixed(1), lite: MJX.lite, llamadas: window.__mjxLlamadas,
   manos: MJX.manos.map((m) => ({ derecha: m.derecha, presencia: +m.presencia.toFixed(3), gesto: m.gestoNombre, dedos: m.dedos, z: +m.posicion[2].toFixed(2) })) })`);
-ok('1. sin el puente no hay opción; con él aparece, prende (modelo liviano), da «Manos JX» y lee las manos del motor (presencia > 0,9, «abierta», 5 dedos)',
-  sin && !sin.m && con && con.m && con.c && e1.estado === 'listo' && e1.arma && e1.llamadas[0] === 'prender:true' && e1.manos.length >= 1 && e1.manos[0].presencia > 0.9 && e1.manos.some((m) => m.gesto === 'abierta' && m.dedos === 5), { sin, con, ...e1 });
+ok('1. sin el puente no hay opción; con él aparece, prende (modelo liviano), da «Manos JX» ya en la mano y lee las manos del motor (presencia > 0,9, «abierta», 5 dedos)',
+  sin && !sin.m && con && con.m && con.c && e1.estado === 'listo' && e1.arma && e1.enMano === 'ManosJX' && e1.llamadas[0] === 'prender:true' && e1.manos.length >= 1 && e1.manos[0].presencia > 0.9 && e1.manos.some((m) => m.gesto === 'abierta' && m.dedos === 5), { sin, con, ...e1 });
 // 2) «Manos JX» en la mano
 await ev(`elegirArma(ARM.lista.indexOf('ManosJX')); 1`); await p.waitForTimeout(1500);
 const medir = `(() => { const v = MJX.vm; if (!v) return null; const md = v.md, h = v.h, E = mjxEjes(), lado = MJX.manos.find((m) => m.derecha) ? 'Right' : 'Left';
@@ -55,11 +58,12 @@ const mov = m1 && m2 ? Math.hypot(m1.x - m2.x, m1.y - m2.y) : 0;
 ok('2. la mano del juego está delante de la cámara (15–70 cm, en la vista), con los dedos estirados, se ve el dorso y sigue a la tuya',
   m1 && m1.adelante > 0.15 && m1.adelante < 0.7 && m1.enVista && m1.dedos.every((a) => a < 40) && m1.dorso && mov > 0.005, { m1, m2, mov: +mov.toFixed(3) });
 // 3) la vista chica y el modelo completo desde Ajustes
-const pv = await ev(`!!(MJX.previa && MJX.previa.style.display !== 'none')`);
+// (la vista chica con la imagen de la cámara: un píxel del medio no es transparente y no es el gris del fondo vacío)
+const pv = await ev(`(() => { const c = MJX.previa; if (!c || c.style.display === 'none') return null; const d = c.getContext('2d').getImageData(c.width / 2 - 30, c.height / 2, 1, 1).data; return { imagen: !!MJX.mini, px: [...d], diag: MJX.diag }; })()`);
 await ev(`(() => { abrirAjustes('pausa'); document.getElementById('aJxC').checked = true; document.getElementById('aOk').click(); document.getElementById('ajustes').classList.add('oc'); return 1; })()`);
 await p.waitForTimeout(400);
 const e3 = await ev(`({ llamadas: window.__mjxLlamadas, completo: PREFS.jxCompleto, on: MJX.on })`);
-ok('3. la vista chica de tus manos se dibuja; elegir el modelo completo vuelve a prender con el modelo completo', pv && e3.completo && e3.on && e3.llamadas.includes('prender:false'), { pv, ...e3 });
+ok('3. la vista chica se dibuja con lo que ve la cámara y los cuadros por segundo; elegir el modelo completo vuelve a prender con el modelo completo', pv && pv.imagen && pv.px[3] > 0 && pv.diag && e3.completo && e3.on && e3.llamadas.includes('prender:false'), { pv, ...e3 });
 // 4) apagar
 await ev(`PREFS.jxManos = false; mjxApagar(); 1`); await p.waitForTimeout(300);
 const e4 = await ev(`({ on: MJX.on, arma: ARM.lista.includes('ManosJX'), llamadas: window.__mjxLlamadas })`);
