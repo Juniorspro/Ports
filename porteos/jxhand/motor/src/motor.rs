@@ -61,15 +61,21 @@ struct Pista {
     cal: Calibracion, gesto: Estable, salida: Option<Mano>,
 }
 
-pub struct Motor { det: Detector, pun: Puntero, pistas: Vec<Pista>, sig_id: u32, ult_busqueda: f64, pub cfg: Config, pub corrio_detector: bool, pub inferencias: u32 }
+pub struct Motor { det: Detector, pun: Puntero, pistas: Vec<Pista>, sig_id: u32, ult_busqueda: f64, ult_detector: f64, pub cfg: Config, pub corrio_detector: bool, pub inferencias: u32 }
 
 fn dist(a: &P3, b: &P3) -> f32 { ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqrt() }
 
 impl Motor {
     pub fn nuevo(detector: &[u8], puntos: &[u8]) -> Result<Motor, String> {
-        Ok(Motor { det: Detector::nuevo(detector)?, pun: Puntero::nuevo(puntos)?, pistas: vec![], sig_id: 1, ult_busqueda: -1e9, cfg: Config::default(), corrio_detector: false, inferencias: 0 })
+        Ok(Motor { det: Detector::nuevo(detector)?, pun: Puntero::nuevo(puntos)?, pistas: vec![], sig_id: 1, ult_busqueda: -1e9, ult_detector: -1e9, cfg: Config::default(), corrio_detector: false, inferencias: 0 })
     }
-    pub fn reiniciar(&mut self) { self.pistas.clear(); self.ult_busqueda = -1e9; }
+    pub fn reiniciar(&mut self) { self.pistas.clear(); self.ult_busqueda = -1e9; self.ult_detector = -1e9; }
+    /// el realce de poca luz: prendido o apagado (para el modelo de los puntos; el detector siempre promedia el ruido)
+    pub fn poca_luz(&mut self, activo: bool) { self.pun.luz.activo = activo; self.det.acumular = activo; }
+    /// cómo está la luz: (brillo medio del último recorte de una mano, 0..1; cuánto se aclaró, 1 = nada)
+    pub fn luz(&self) -> (f32, f32) {
+        if self.pistas.is_empty() { (self.det.realce.mediana, 1.0) } else { (self.pun.realce.mediana, self.pun.realce.ganancia) }
+    }
     /// para medir velocidad: sólo un modelo, varias veces
     pub fn banco_puntos(&mut self, rgba: &[u8], w: usize, h: usize, veces: usize) {
         let roi = Roi { cx: w as f32 / 2.0, cy: h as f32 / 2.0, lado: w.min(h) as f32, ang: 0.0 };
@@ -92,6 +98,8 @@ impl Motor {
         if vivas.len() < self.cfg.max_manos && (vivas.is_empty() || t_ms - self.ult_busqueda >= self.cfg.cada_busqueda_ms) {
             self.ult_busqueda = t_ms; self.corrio_detector = true;
             self.det.umbral = self.cfg.min_palma;
+            // (con poca luz el detector promedia con los cuadros anteriores, si vienen seguidos)
+            self.det.seguido = t_ms - self.ult_detector < 120.0; self.ult_detector = t_ms;
             let palmas = self.det.detectar(rgba, w, h);
             for pa in palmas {
                 if vivas.len() >= self.cfg.max_manos { break; }

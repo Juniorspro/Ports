@@ -8,4 +8,8 @@ license = "MIT"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# la puerta JNI también en la PC (para probarla con Java sin un celular)
+jni = []
+
 [dependencies]

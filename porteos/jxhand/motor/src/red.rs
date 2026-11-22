@@ -2,6 +2,7 @@
 //! compilador los vectorice (SIMD de WebAssembly o de la PC). Al cargar se preparan los pesos en el orden que les
 //! conviene a los kernels (los de las convoluciones 1×1 quedan como [entrada][salida], los demás [kh][kw][entrada][salida])
 //! y se reserva toda la memoria de una vez: correr no pide memoria nueva.
+use crate::hilos::{self, Puntero};
 use crate::tflite::{self, Activacion, Modelo, Op, Relleno, Tipo};
 
 #[derive(Debug)]
@@ -196,10 +197,42 @@ impl Red {
         let d = &self.datos; let f = &self.formas;
         match &self.pasos[k] {
             Paso::Conv { e, s, w, b, kh, kw, paso, dil, pad, act } => {
-                conv(&d[*e], forma4(&f[*e]), &d[*w], &d[*b], out, forma4(&f[*s]), *kh, *kw, *paso, *dil, *pad, *act)
+                let (fe, fs) = (forma4(&f[*e]), forma4(&f[*s]));
+                let (x, w, b, act) = (&d[*e][..], &d[*w][..], &d[*b][..], *act);
+                let (ci, co) = (fe[3], fs[3]);
+                let po = Puntero(out.as_mut_ptr());
+                if *kh == 1 && *kw == 1 && *paso == (1, 1) {
+                    // 1×1: una multiplicación de matrices [píxeles × entrada] · [entrada × salida], repartida por píxeles
+                    let n = fs[1] * fs[2];
+                    let filas = filas_por_trozo(n, n * ci * co, 4);
+                    hilos::repartir(n.div_ceil(filas), &|t| {
+                        let (p0, p1) = (t * filas, ((t + 1) * filas).min(n));
+                        // SAFETY: cada trozo escribe sus filas [p0, p1) de la salida, que no se pisan
+                        let o = unsafe { po.parte(p0 * co, (p1 - p0) * co) };
+                        gemm_auto(&x[p0 * ci..p1 * ci], w, b, o, p1 - p0, ci, co);
+                        activar_todo(o, act);
+                    });
+                } else {
+                    let ho = fs[1];
+                    let filas = filas_por_trozo(ho, ho * fs[2] * co * ci * kh * kw, 1);
+                    hilos::repartir(ho.div_ceil(filas), &|t| {
+                        let (y0, y1) = (t * filas, ((t + 1) * filas).min(ho));
+                        let o = unsafe { po.parte(y0 * fs[2] * co, (y1 - y0) * fs[2] * co) };
+                        conv(x, fe, w, b, o, fs, *kh, *kw, *paso, *dil, *pad, act, y0, y1);
+                    });
+                }
             }
             Paso::Depthwise { e, s, w, b, kh, kw, paso, dil, pad, mult, act } => {
-                depthwise(&d[*e], forma4(&f[*e]), &d[*w], &d[*b], out, forma4(&f[*s]), *kh, *kw, *paso, *dil, *pad, *mult, *act)
+                let (fe, fs) = (forma4(&f[*e]), forma4(&f[*s]));
+                let (x, w, b, act) = (&d[*e][..], &d[*w][..], &d[*b][..], *act);
+                let po = Puntero(out.as_mut_ptr());
+                let ho = fs[1];
+                let filas = filas_por_trozo(ho, ho * fs[2] * fs[3] * kh * kw * 4, 1);
+                hilos::repartir(ho.div_ceil(filas), &|t| {
+                    let (y0, y1) = (t * filas, ((t + 1) * filas).min(ho));
+                    let o = unsafe { po.parte(y0 * fs[2] * fs[3], (y1 - y0) * fs[2] * fs[3]) };
+                    depthwise(x, fe, w, b, o, fs, *kh, *kw, *paso, *dil, *pad, *mult, act, y0, y1);
+                });
             }
             Paso::MaxPool { e, s, f: fl, paso, pad } => {
                 let (fe, fs) = (forma4(&f[*e]), forma4(&f[*s])); let (h, wd, c) = (fe[1], fe[2], fe[3]);
@@ -218,11 +251,16 @@ impl Red {
                 let (x, y) = (&d[*a], &d[*b]);
                 let (largo, corto) = if x.len() >= y.len() { (x, y) } else { (y, x) };
                 let n = corto.len().max(1);
-                // (de a trozos del largo del corto: sin un % por elemento, que lo hacía 10 veces más lento)
-                for (o, l) in out.chunks_exact_mut(n).zip(largo.chunks_exact(n)) {
-                    if suma { for ((o, &a), &b) in o.iter_mut().zip(l).zip(corto) { *o = a + b; } } else { for ((o, &a), &b) in o.iter_mut().zip(l).zip(corto) { *o = a * b; } }
-                }
-                if *act != Activacion::Nada { for o in out.iter_mut() { *o = activar(*o, *act); } }
+                let act = *act;
+                // (de a trozos del largo del corto: sin un % por elemento, que lo hacía 10 veces más lento; los trozos
+                // se reparten entre los hilos)
+                elemento_a_elemento(out, n, &|o: &mut [f32], desde: usize| {
+                    let l = &largo[desde..desde + o.len()];
+                    for (o, l) in o.chunks_exact_mut(n).zip(l.chunks_exact(n)) {
+                        if suma { for ((o, &a), &b) in o.iter_mut().zip(l).zip(corto) { *o = a + b; } } else { for ((o, &a), &b) in o.iter_mut().zip(l).zip(corto) { *o = a * b; } }
+                    }
+                    activar_todo(o, act);
+                });
             }
             Paso::Concat { e, s, eje } => {
                 let fs = &f[*s]; let exterior: usize = fs[..*eje].iter().product(); let interior: usize = fs[*eje + 1..].iter().product();
@@ -261,10 +299,12 @@ impl Red {
                 }
             }
             Paso::Logistic { e, .. } => for (o, &v) in out.iter_mut().zip(&d[*e]) { *o = 1.0 / (1.0 + (-v).exp()); },
-            Paso::Relu { e, tope, .. } => for (o, &v) in out.iter_mut().zip(&d[*e]) { *o = v.clamp(0.0, *tope); },
+            Paso::Relu { e, tope, .. } => { let (x, tope) = (&d[*e], *tope); elemento_a_elemento(out, 1, &|o: &mut [f32], desde: usize| for (o, &v) in o.iter_mut().zip(&x[desde..]) { *o = v.clamp(0.0, tope); }); }
             Paso::Prelu { e, alfa, .. } => {
-                let a = &d[*alfa]; let n = a.len();
-                for (o, x) in out.chunks_exact_mut(n).zip(d[*e].chunks_exact(n)) { for ((o, &v), &k) in o.iter_mut().zip(x).zip(a) { *o = if v >= 0.0 { v } else { v * k }; } }
+                let (a, x) = (&d[*alfa], &d[*e]); let n = a.len().max(1);
+                elemento_a_elemento(out, n, &|o: &mut [f32], desde: usize| {
+                    for (o, x) in o.chunks_exact_mut(n).zip(x[desde..].chunks_exact(n)) { for ((o, &v), &k) in o.iter_mut().zip(x).zip(a) { *o = if v >= 0.0 { v } else { v * k }; } }
+                });
             }
             Paso::Mean { e, s } => {
                 let fe = forma4(&f[*e]); let c = fe[3]; let n = fe[1] * fe[2]; let _ = s;
@@ -284,29 +324,68 @@ fn salida_de(p: &Paso) -> usize {
     }
 }
 
-/// convolución: para cada píxel de salida, suma sobre la ventana; los canales de salida van contiguos (SIMD)
+/// cuántas filas por trozo: unos 3 trozos por hilo (así los rápidos se llevan más), múltiplo de `de_a`, y nada de
+/// repartir si la capa es tan chica que repartirla cuesta más que hacerla (`trabajo`: multiplicaciones aproximadas)
+fn filas_por_trozo(filas: usize, trabajo: usize, de_a: usize) -> usize {
+    let h = hilos::cuantos();
+    if h <= 1 || trabajo < 150_000 { return filas.max(1); }
+    let t = filas.div_ceil(h * 3).max(1);
+    t.div_ceil(de_a) * de_a
+}
+
+/// una operación elemento a elemento sobre `out`, repartida en trozos que son múltiplo de `bloque` (el largo de lo que se
+/// repite, como los canales de un PReLU); `f(trozo, desde)` hace el trozo que empieza en la posición `desde`
+fn elemento_a_elemento(out: &mut [f32], bloque: usize, f: &(dyn Fn(&mut [f32], usize) + Sync)) {
+    let total = out.len(); let filas = total / bloque.max(1);
+    let por = filas_por_trozo(filas, total * 6, 1) * bloque;
+    if por >= total { return f(out, 0); }
+    let po = Puntero(out.as_mut_ptr());
+    hilos::repartir(total.div_ceil(por), &|t| {
+        let (a, b) = (t * por, ((t + 1) * por).min(total));
+        f(unsafe { po.parte(a, b - a) }, a);
+    });
+}
+
+fn activar_todo(o: &mut [f32], act: Activacion) { if act != Activacion::Nada { for v in o.iter_mut() { *v = activar(*v, act); } } }
+
+/// [n × ci] · [ci × co] + sesgo con el mejor kernel que haya: NEON en ARM de 64 bits, SIMD en WebAssembly, y si no el
+/// genérico (que el compilador vectoriza con lo que tenga la PC)
+#[inline]
+fn gemm_auto(x: &[f32], w: &[f32], b: &[f32], out: &mut [f32], n: usize, ci: usize, co: usize) {
+    #[cfg(target_arch = "aarch64")]
+    { if co % 4 == 0 { unsafe { neon::gemm(x, w, b, out, n, ci, co); } return; } }
+    #[cfg(target_arch = "wasm32")]
+    { if co % 4 == 0 { unsafe { simd::gemm(x, w, b, out, n, ci, co); } return; } }
+    gemm(x, w, b, out, n, ci, co)
+}
+
+/// o += x · w (fila de canales)
+#[inline(always)]
+fn fma_fila_auto(o: &mut [f32], x: &[f32], w: &[f32]) {
+    #[cfg(target_arch = "aarch64")]
+    { if o.len() % 4 == 0 { unsafe { neon::fma_fila(o, x, w); } return; } }
+    #[cfg(target_arch = "wasm32")]
+    { if o.len() % 4 == 0 { unsafe { simd::fma_fila(o, x, w); } return; } }
+    for ((o, &a), &k) in o.iter_mut().zip(x).zip(w) { *o += a * k; }
+}
+
+/// convolución general (no 1×1), filas de salida [y0, y1) en `out` (que empieza en la fila y0): para cada píxel de
+/// salida suma sobre la ventana; los canales de salida van contiguos (SIMD)
 #[allow(clippy::too_many_arguments)]
-fn conv(x: &[f32], fe: [usize; 4], w: &[f32], b: &[f32], out: &mut [f32], fs: [usize; 4], kh: usize, kw: usize, paso: (usize, usize), dil: (usize, usize), pad: (usize, usize), act: Activacion) {
-    let (h, wd, ci) = (fe[1], fe[2], fe[3]); let (ho, wo, co) = (fs[1], fs[2], fs[3]);
-    if kh == 1 && kw == 1 && paso == (1, 1) {
-        #[cfg(target_arch = "wasm32")]
-        { if co % 4 == 0 { unsafe { simd::gemm(x, w, b, out, ho * wo, ci, co); } } else { gemm(x, w, b, out, ho * wo, ci, co); } }
-        #[cfg(not(target_arch = "wasm32"))]
-        gemm(x, w, b, out, ho * wo, ci, co);
-    } else {
-        for y in 0..ho { for xo in 0..wo {
-            let o = &mut out[(y * wo + xo) * co..][..co]; o.copy_from_slice(b);
-            for dy in 0..kh {
-                let yy = (y * paso.0 + dy * dil.0) as isize - pad.0 as isize; if yy < 0 || yy >= h as isize { continue; }
-                for dx in 0..kw {
-                    let xx = (xo * paso.1 + dx * dil.1) as isize - pad.1 as isize; if xx < 0 || xx >= wd as isize { continue; }
-                    let xp = &x[((yy as usize) * wd + xx as usize) * ci..][..ci]; let wb = &w[(dy * kw + dx) * ci * co..];
-                    for c in 0..ci { let a = xp[c]; let fila = &wb[c * co..(c + 1) * co]; for j in 0..co { o[j] += a * fila[j]; } }
-                }
+fn conv(x: &[f32], fe: [usize; 4], w: &[f32], b: &[f32], out: &mut [f32], fs: [usize; 4], kh: usize, kw: usize, paso: (usize, usize), dil: (usize, usize), pad: (usize, usize), act: Activacion, y0: usize, y1: usize) {
+    let (h, wd, ci) = (fe[1], fe[2], fe[3]); let (wo, co) = (fs[2], fs[3]);
+    for y in y0..y1 { for xo in 0..wo {
+        let o = &mut out[((y - y0) * wo + xo) * co..][..co]; o.copy_from_slice(b);
+        for dy in 0..kh {
+            let yy = (y * paso.0 + dy * dil.0) as isize - pad.0 as isize; if yy < 0 || yy >= h as isize { continue; }
+            for dx in 0..kw {
+                let xx = (xo * paso.1 + dx * dil.1) as isize - pad.1 as isize; if xx < 0 || xx >= wd as isize { continue; }
+                let xp = &x[((yy as usize) * wd + xx as usize) * ci..][..ci]; let wb = &w[(dy * kw + dx) * ci * co..];
+                for c in 0..ci { let a = xp[c]; let fila = &wb[c * co..(c + 1) * co]; for j in 0..co { o[j] += a * fila[j]; } }
             }
-        } }
-    }
-    if act != Activacion::Nada { for v in out.iter_mut() { *v = activar(*v, act); } }
+        }
+    } }
+    activar_todo(out, act);
 }
 
 /// [n × ci] · [ci × co] + sesgo, con bloques de 4 filas × 16 columnas que quedan en registros (SIMD de 4: 16 registros)
@@ -345,11 +424,12 @@ fn gemm(x: &[f32], w: &[f32], b: &[f32], out: &mut [f32], n: usize, ci: usize, c
     }
 }
 
+/// depthwise (cada canal con su ventana), filas de salida [y0, y1) en `out` (que empieza en la fila y0)
 #[allow(clippy::too_many_arguments)]
-fn depthwise(x: &[f32], fe: [usize; 4], w: &[f32], b: &[f32], out: &mut [f32], fs: [usize; 4], kh: usize, kw: usize, paso: (usize, usize), dil: (usize, usize), pad: (usize, usize), mult: usize, act: Activacion) {
-    let (h, wd, ci) = (fe[1], fe[2], fe[3]); let (ho, wo, co) = (fs[1], fs[2], fs[3]);
-    for y in 0..ho { for xo in 0..wo {
-        let o = &mut out[(y * wo + xo) * co..(y * wo + xo + 1) * co]; o.copy_from_slice(b);
+fn depthwise(x: &[f32], fe: [usize; 4], w: &[f32], b: &[f32], out: &mut [f32], fs: [usize; 4], kh: usize, kw: usize, paso: (usize, usize), dil: (usize, usize), pad: (usize, usize), mult: usize, act: Activacion, ya: usize, yb: usize) {
+    let (h, wd, ci) = (fe[1], fe[2], fe[3]); let (wo, co) = (fs[2], fs[3]);
+    for y in ya..yb { for xo in 0..wo {
+        let o = &mut out[((y - ya) * wo + xo) * co..((y - ya) * wo + xo + 1) * co]; o.copy_from_slice(b);
         let (y0, x0) = ((y * paso.0) as isize - pad.0 as isize, (xo * paso.1) as isize - pad.1 as isize);
         let adentro = mult == 1 && y0 >= 0 && x0 >= 0 && y0 as usize + (kh - 1) * dil.0 < h && x0 as usize + (kw - 1) * dil.1 < wd;
         if adentro {
@@ -359,9 +439,7 @@ fn depthwise(x: &[f32], fe: [usize; 4], w: &[f32], b: &[f32], out: &mut [f32], f
                 for dx in 0..kw {
                     let xp = &x[(fila + x0 as usize + dx * dil.1) * ci..(fila + x0 as usize + dx * dil.1 + 1) * ci];
                     let wk = &w[(dy * kw + dx) * co..(dy * kw + dx + 1) * co];
-                    #[cfg(target_arch = "wasm32")]
-                    { if co % 4 == 0 { unsafe { simd::fma_fila(o, xp, wk); } continue; } }
-                    for ((o, &a), &k) in o.iter_mut().zip(xp).zip(wk) { *o += a * k; }
+                    fma_fila_auto(o, xp, wk);
                 }
             }
             continue;
@@ -375,7 +453,78 @@ fn depthwise(x: &[f32], fe: [usize; 4], w: &[f32], b: &[f32], out: &mut [f32], f
             }
         }
     } }
-    if act != Activacion::Nada { for v in out.iter_mut() { *v = activar(*v, act); } }
+    activar_todo(out, act);
+}
+
+/// los kernels con NEON de ARM de 64 bits (todos los celulares de los últimos años): FMA de 4 en 4, y el producto de
+/// matrices en bloques de 4 píxeles × 16 canales con el valor de cada píxel tomado de un carril del registro (sin
+/// copiarlo a los 4): 16 acumuladores + 4 pesos + 4 entradas = 24 de los 32 registros
+#[cfg(target_arch = "aarch64")]
+mod neon {
+    use core::arch::aarch64::*;
+
+    /// o += x · w (largo múltiplo de 4)
+    #[inline(always)]
+    pub unsafe fn fma_fila(o: &mut [f32], x: &[f32], w: &[f32]) {
+        let n = o.len(); let (po, px, pw) = (o.as_mut_ptr(), x.as_ptr(), w.as_ptr());
+        let mut j = 0;
+        while j + 8 <= n {
+            let (a0, a1) = (vld1q_f32(po.add(j)), vld1q_f32(po.add(j + 4)));
+            vst1q_f32(po.add(j), vfmaq_f32(a0, vld1q_f32(px.add(j)), vld1q_f32(pw.add(j))));
+            vst1q_f32(po.add(j + 4), vfmaq_f32(a1, vld1q_f32(px.add(j + 4)), vld1q_f32(pw.add(j + 4))));
+            j += 8;
+        }
+        while j < n { vst1q_f32(po.add(j), vfmaq_f32(vld1q_f32(po.add(j)), vld1q_f32(px.add(j)), vld1q_f32(pw.add(j)))); j += 4; }
+    }
+
+    /// un bloque de 4 píxeles × (4·K) canales a partir del canal j
+    #[inline(always)]
+    unsafe fn bloque<const K: usize>(xs: [*const f32; 4], pw: *const f32, pb: *const f32, po: [*mut f32; 4], ci: usize, co: usize, j: usize) {
+        let mut acc = [[vdupq_n_f32(0.0); K]; 4];
+        for k in 0..K { let bk = vld1q_f32(pb.add(j + 4 * k)); for r in 0..4 { acc[r][k] = bk; } }
+        let mut c = 0;
+        while c + 4 <= ci {
+            let a = [vld1q_f32(xs[0].add(c)), vld1q_f32(xs[1].add(c)), vld1q_f32(xs[2].add(c)), vld1q_f32(xs[3].add(c))];
+            macro_rules! carril { ($l:literal) => {{
+                let wr = pw.add((c + $l) * co + j);
+                let mut wv = [vdupq_n_f32(0.0); K];
+                for k in 0..K { wv[k] = vld1q_f32(wr.add(4 * k)); }
+                for r in 0..4 { for k in 0..K { acc[r][k] = vfmaq_laneq_f32::<$l>(acc[r][k], wv[k], a[r]); } }
+            }}; }
+            carril!(0); carril!(1); carril!(2); carril!(3);
+            c += 4;
+        }
+        while c < ci {
+            let wr = pw.add(c * co + j);
+            for k in 0..K { let wv = vld1q_f32(wr.add(4 * k)); for r in 0..4 { acc[r][k] = vfmaq_n_f32(acc[r][k], wv, *xs[r].add(c)); } }
+            c += 1;
+        }
+        for r in 0..4 { for k in 0..K { vst1q_f32(po[r].add(j + 4 * k), acc[r][k]); } }
+    }
+
+    /// [n × ci] · [ci × co] + sesgo (co múltiplo de 4)
+    pub unsafe fn gemm(x: &[f32], w: &[f32], b: &[f32], out: &mut [f32], n: usize, ci: usize, co: usize) {
+        let (px, pw, pb, po) = (x.as_ptr(), w.as_ptr(), b.as_ptr(), out.as_mut_ptr());
+        let mut p = 0;
+        while p + 4 <= n {
+            let xs = [px.add(p * ci), px.add((p + 1) * ci), px.add((p + 2) * ci), px.add((p + 3) * ci)];
+            let os = [po.add(p * co), po.add((p + 1) * co), po.add((p + 2) * co), po.add((p + 3) * co)];
+            let mut j = 0;
+            while j + 16 <= co { bloque::<4>(xs, pw, pb, os, ci, co, j); j += 16; }
+            while j + 8 <= co { bloque::<2>(xs, pw, pb, os, ci, co, j); j += 8; }
+            while j + 4 <= co { bloque::<1>(xs, pw, pb, os, ci, co, j); j += 4; }
+            p += 4;
+        }
+        while p < n {
+            let xr = px.add(p * ci); let mut j = 0;
+            while j + 4 <= co {
+                let mut a = vld1q_f32(pb.add(j));
+                for c in 0..ci { a = vfmaq_n_f32(a, vld1q_f32(pw.add(c * co + j)), *xr.add(c)); }
+                vst1q_f32(po.add(p * co + j), a); j += 4;
+            }
+            p += 1;
+        }
+    }
 }
 
 /// los kernels con SIMD explícito de WebAssembly (f32x4); con `relaxed-simd` (Chrome 114+) usan FMA

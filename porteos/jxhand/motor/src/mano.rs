@@ -1,6 +1,7 @@
 //! El camino de MediaPipe Hands, hecho de nuevo en Rust: el detector de palmas (192×192, 2016 anclas SSD, supresión
 //! ponderada), el recorte rotado de cada mano (224×224) y el modelo de los 21 puntos (en la imagen y en metros), con el
 //! rectángulo del cuadro siguiente sacado de los puntos (así el detector corre sólo cuando hace falta).
+use crate::luz::{self, AjusteLuz, Realce};
 use crate::red::Red;
 use std::f32::consts::PI;
 
@@ -31,8 +32,63 @@ pub struct Puntos {
 
 pub fn normalizar_ang(a: f32) -> f32 { a - 2.0 * PI * ((a + PI) / (2.0 * PI)).floor() }
 
-/// llena `dst` (tam×tam×3, valores 0..1) muestreando la imagen RGBA con el cuadrado rotado (bilineal)
-pub fn recortar(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, replicar: bool, dst: &mut [f32]) {
+/// llena `dst` (tam×tam×3, valores 0..1) muestreando la imagen RGBA con el cuadrado rotado (bilineal). Si el cuadrado
+/// es mucho más grande que el recorte (como la imagen entera para el detector), cada píxel del recorte promedia los de
+/// la imagen que le tocan (n×n): así no se pierde detalle de golpe y el ruido de la cámara baja n veces.
+///
+/// Medido con fotos oscurecidas con ruido de cámara: al detector el promedio le sirve muchísimo (con 1/128 de la luz
+/// pasa de encontrar la palma 8 de cada 100 veces a casi todas); al modelo de los puntos no (comete más error que con
+/// el bilineal), así que sólo lo usa el detector.
+pub fn recortar(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, replicar: bool, promediar: bool, dst: &mut [f32]) {
+    let paso = roi.lado / tam as f32;
+    // (sólo desde 2 píxeles de imagen por píxel de recorte)
+    let n = if promediar && PROMEDIAR.load(std::sync::atomic::Ordering::Relaxed) && paso >= 2.0 { (paso.floor() as usize).clamp(2, 3) } else { 1 };
+    if n >= 2 { return recortar_promediando(rgba, w, h, roi, tam, replicar, dst, n); }
+    recortar_bilineal(rgba, w, h, roi, tam, replicar, dst)
+}
+pub static PROMEDIAR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+#[allow(clippy::too_many_arguments)]
+fn recortar_promediando(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, replicar: bool, dst: &mut [f32], n: usize) {
+    let (c, s) = (roi.ang.cos(), roi.ang.sin());
+    let paso = roi.lado / tam as f32;
+    let (ux, uy) = (c * paso, s * paso);
+    let (vx, vy) = (-s * paso, c * paso);
+    // el centro de cada sub-muestra dentro del píxel del recorte
+    let x00 = roi.cx - (ux + vx) * (tam as f32 * 0.5) - 0.5;
+    let y00 = roi.cy - (uy + vy) * (tam as f32 * 0.5) - 0.5;
+    let k = 1.0 / (255.0 * (n * n) as f32);
+    let (wi, hi) = (w as isize, h as isize);
+    let mut subs = [(0f32, 0f32); 16];
+    for j in 0..n { for i in 0..n {
+        let (a, b) = ((i as f32 + 0.5) / n as f32, (j as f32 + 0.5) / n as f32);
+        subs[j * n + i] = (ux * a + vx * b, uy * a + vy * b);
+    } }
+    let subs = &subs[..n * n];
+    for v in 0..tam {
+        let (mut x, mut y) = (x00 + vx * v as f32, y00 + vy * v as f32);
+        let fila = &mut dst[v * tam * 3..(v + 1) * tam * 3];
+        for u in 0..tam {
+            let o = &mut fila[u * 3..u * 3 + 3];
+            let (cx, cy) = (x + (ux + vx) * 0.5, y + (uy + vy) * 0.5);
+            if !replicar && (cx < -0.5 || cy < -0.5 || cx > w as f32 - 0.5 || cy > h as f32 - 0.5) { o[0] = 0.0; o[1] = 0.0; o[2] = 0.0; }
+            else {
+                // (sub-muestras con el píxel más cercano y sumas enteras: es para el detector, donde importa juntar ruido y
+                // no el detalle fino, y así cuesta ~1 ms en vez de ~10 con bilineales)
+                let (mut r, mut g, mut b) = (0u32, 0u32, 0u32);
+                for &(dx, dy) in subs {
+                    let xi = ((x + dx + 0.5) as isize).clamp(0, wi - 1) as usize; let yi = ((y + dy + 0.5) as isize).clamp(0, hi - 1) as usize;
+                    let p = (yi * w + xi) * 4;
+                    r += rgba[p] as u32; g += rgba[p + 1] as u32; b += rgba[p + 2] as u32;
+                }
+                o[0] = r as f32 * k; o[1] = g as f32 * k; o[2] = b as f32 * k;
+            }
+            x += ux; y += uy;
+        }
+    }
+}
+
+fn recortar_bilineal(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, replicar: bool, dst: &mut [f32]) {
     let (c, s) = (roi.ang.cos(), roi.ang.sin());
     let paso = roi.lado / tam as f32;
     let (ux, uy) = (c * paso, s * paso); // una columna del recorte en la imagen
@@ -64,7 +120,17 @@ pub fn recortar(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, replicar
 }
 
 // ---- el detector de palmas ----
-pub struct Detector { red: Red, anclas: Vec<[f32; 2]>, pub umbral: f32, /** el mejor puntaje de la última imagen (aunque no pase el umbral) */ pub mejor: f32 }
+pub struct Detector {
+    red: Red, anclas: Vec<[f32; 2]>, pub umbral: f32,
+    /// el mejor puntaje de la última imagen (aunque no pase el umbral)
+    pub mejor: f32,
+    /// el realce para la poca luz y lo que hizo en la última imagen. En el detector viene apagado: medido, con el ruido
+    /// de una cámara a oscuras lo empeora (el detector aguanta bien lo oscuro; lo que no aguanta es el ruido).
+    pub luz: AjusteLuz, pub realce: Realce, tmp: Vec<f32>,
+    /// con poca luz, el detector promedia su entrada con la de los cuadros anteriores (el ruido baja; la mano, mientras
+    /// se la busca, casi no se mueve). `seguido`: el que llama avisa si este cuadro viene justo después del anterior.
+    pub acumular: bool, pub seguido: bool, acum: Vec<f32>, acum_n: u32,
+}
 
 fn anclas_palma() -> Vec<[f32; 2]> {
     // SSD de MediaPipe para la palma (192): 4 capas, pasos 8,16,16,16, 2 anclas por capa y celda, tamaño fijo
@@ -94,14 +160,27 @@ impl Detector {
         let red = Red::cargar(modelo)?;
         let anclas = anclas_palma();
         if anclas.len() != 2016 { return Err(format!("anclas: {}", anclas.len())); }
-        Ok(Detector { red, anclas, umbral: 0.5, mejor: 0.0 })
+        Ok(Detector { red, anclas, umbral: 0.5, mejor: 0.0, luz: AjusteLuz { activo: false, ..AjusteLuz::default() }, realce: Realce::default(), tmp: Vec::new(), acumular: true, seguido: false, acum: Vec::new(), acum_n: 0 })
     }
     /// las palmas de la imagen (en píxeles), ya sin repetidas
     pub fn detectar(&mut self, rgba: &[u8], w: usize, h: usize) -> Vec<Palma> {
         // la imagen entera con bandas (sin deformar) en 192×192
         let esc = 192.0 / (w.max(h) as f32);
         let roi = Roi { cx: w as f32 / 2.0, cy: h as f32 / 2.0, lado: w.max(h) as f32, ang: 0.0 };
-        recortar(rgba, w, h, &roi, 192, false, self.red.entrada(0));
+        recortar(rgba, w, h, &roi, 192, false, true, self.red.entrada(0));
+        // (el realce mira sólo la parte con imagen, no las bandas negras)
+        let (iw, ih) = (w as f32 * esc, h as f32 * esc);
+        let util = (((192.0 - iw) / 2.0).ceil() as usize, ((192.0 - ih) / 2.0).ceil() as usize, ((192.0 + iw) / 2.0).floor() as usize, ((192.0 + ih) / 2.0).floor() as usize);
+        // poca luz y cuadros seguidos: promedio con los anteriores (el último pesa 1/2, hasta ~3 cuadros) antes del realce
+        let oscuro = self.acumular && luz::oscuro(self.red.entrada(0), 192, util);
+        if oscuro && self.seguido && self.acum_n > 0 && self.acum.len() == 192 * 192 * 3 {
+            let a = 1.0 / (self.acum_n as f32 + 1.0).min(2.0);
+            for (m, &v) in self.acum.iter_mut().zip(self.red.entrada(0).iter()) { *m += (v - *m) * a; }
+            self.red.entrada(0).copy_from_slice(&self.acum); self.acum_n += 1;
+        } else if oscuro {
+            self.acum.clear(); self.acum.extend_from_slice(self.red.entrada(0)); self.acum_n = 1;
+        } else { self.acum_n = 0; }
+        self.realce = luz::realzar(self.red.entrada(0), 192, util, &self.luz, &mut self.tmp);
         self.red.correr();
         let (reg, pun) = (self.red.salida(0), self.red.salida(1));
         let (ox, oy) = (roi.cx - roi.lado / 2.0, roi.cy - roi.lado / 2.0);
@@ -172,12 +251,13 @@ pub fn roi_de_puntos(img: &[P3; PUNTOS]) -> Roi {
 }
 
 // ---- el modelo de los 21 puntos ----
-pub struct Puntero { red: Red, recorte: Vec<f32> }
+pub struct Puntero { red: Red, recorte: Vec<f32>, pub luz: AjusteLuz, pub realce: Realce, tmp: Vec<f32> }
 
 impl Puntero {
-    pub fn nuevo(modelo: &[u8]) -> Result<Puntero, String> { Ok(Puntero { red: Red::cargar(modelo)?, recorte: vec![0.0; 224 * 224 * 3] }) }
+    pub fn nuevo(modelo: &[u8]) -> Result<Puntero, String> { Ok(Puntero { red: Red::cargar(modelo)?, recorte: vec![0.0; 224 * 224 * 3], luz: AjusteLuz::default(), realce: Realce::default(), tmp: Vec::new() }) }
     pub fn puntos(&mut self, rgba: &[u8], w: usize, h: usize, roi: &Roi) -> Puntos {
-        recortar(rgba, w, h, roi, 224, true, &mut self.recorte);
+        recortar(rgba, w, h, roi, 224, true, false, &mut self.recorte);
+        self.realce = luz::realzar(&mut self.recorte, 224, (0, 0, 224, 224), &self.luz, &mut self.tmp);
         self.red.entrada(0).copy_from_slice(&self.recorte);
         self.red.correr();
         let (scr, pres, mano, mundo) = (self.red.salida(0), self.red.salida(1)[0], self.red.salida(2)[0], self.red.salida(3));

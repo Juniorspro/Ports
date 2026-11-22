@@ -5,15 +5,21 @@ visto… lograr algo mejor o igual a Meta Quest… en la APK, no web, y que se a
 
 ## Cómo corre
 
-- **Dónde:** compilado a WebAssembly, adentro de la vista web de la APK.
-  - Así viaja con las actualizaciones por partes de JXMod, como cualquier otro archivo del juego, sin APK nueva.
-  - Sólo hace falta una APK nueva una vez: la que da el permiso de la cámara a la vista web.
-- **Sin dependencias:** ni `wasm-bindgen` ni nada. El motor exporta funciones `extern "C"` (`motor/src/wasm.rs`) y
-  `web/jxhand.js` sólo copia memoria y lee la salida.
-- **Los modelos:** los de MediaPipe Hands (Google, Apache 2.0), en `modelos/`.
+- **En la app JX Hand: Rust nativo de Android** (`lib/arm64-v8a/libjxhand.so`), sin vista web ni JavaScript.
+  - Camera2 entrega cada cuadro YUV y pasa directo al motor por JNI (`motor/src/android.rs`), sin copiarlo.
+  - Rust lo endereza (gira según el sensor y espeja la cámara de frente), lo pasa a RGBA, corre los modelos y devuelve
+    los datos de cada mano y la imagen para mostrar.
+  - **Varios hilos** (`motor/src/hilos.rs`): cada capa se reparte por filas entre los núcleos grandes del celular (los
+    chicos, de bajo consumo, harían esperar a los demás). Entre capa y capa los hilos no se duermen: despertar uno
+    tarda de 20 a 100 µs y una red tiene más de 100 capas. Entre cuadros sí se duermen (batería).
+  - **NEON** (los registros SIMD de ARM): producto de matrices en bloques de 4 píxeles × 16 canales con FMA, tomando
+    el valor de cada píxel de un carril del registro. Usa 24 de los 32 registros.
+- **En WebAssembly** (`web/`, para la web o para JXMod algún día): el mismo motor, en un solo hilo, con SIMD de
+  WebAssembly.
+- **Sin dependencias:** ni `wasm-bindgen` ni `jni` ni nada; la tabla de funciones de JNI se usa a mano.
+- **Los modelos:** los de MediaPipe Hands (Google, Apache 2.0), en `modelos/`, corridos por un intérprete propio.
   - Detector de palmas, 192×192 (`hand_detector.tflite`).
   - 21 puntos, 224×224, completo (`hand_landmarks_detector.tflite`) o liviano (`hand_landmark_lite.tflite`).
-  - Los corre un intérprete propio, no el de TensorFlow.
 
 ## Las partes
 
@@ -26,9 +32,12 @@ visto… lograr algo mejor o igual a Meta Quest… en la APK, no web, y que se a
 | `motor/src/esqueleto.rs` | El esqueleto (ver abajo). |
 | `motor/src/gestos.rs` | Abierta, puño, señalar, pinza, paz, pulgar arriba y abajo, OK, cuernos y «llamame», con intensidad, histéresis y 3 cuadros para cambiar. |
 | `motor/src/motor.rs` | Sigue hasta 2 manos. El detector corre sólo sin manos, o cada 300 ms si falta una. Saca la posición en metros frente a la cámara. |
+| `motor/src/luz.rs` | Poca luz: el realce del recorte de la mano y la curva de «ver de noche» (abajo). |
+| `motor/src/hilos.rs` | Los hilos del motor nativo. |
+| `motor/src/android.rs` | La puerta de Android (JNI): YUV → RGBA derecho, motor y salida. |
 | `motor/src/wasm.rs` | La puerta de WebAssembly. |
 | `web/jxhand.js` | Carga y uso desde JavaScript. Elige sola la versión con FMA o sin. |
-| `banco/` | Herramienta nativa: `ver`, `foto`, `medir`, `perfil` y `video` (abajo). |
+| `banco/` | Herramienta nativa: `ver`, `foto`, `medir`, `perfil`, `video`, `noche` y `noche_foto` (abajo). |
 
 **El esqueleto:**
 - **Marco de la palma:** rígido y de mano derecha (para el cuaternión). Con un signo para la palma, así los ángulos
@@ -71,6 +80,67 @@ Con fotos de dominio público (Wikimedia Commons, fuera del repo) y «videos» h
   instalación del intérprete oficial (ai-edge-litert) la bloqueó el sistema de permisos. La validación es la de arriba
   (puntos sobre las fotos, puntajes y medidas físicas).
 
+## Poca luz
+
+**Cómo se mide** (`banco noche`):
+- Las fotos se oscurecen como las saca un celular con poca luz.
+  - Un píxel blanco junta ~4000 electrones con buena luz.
+  - Con menos luz pesan el ruido de fotones (la raíz de la señal) y el de lectura (2,5 e⁻).
+  - La cámara sube la ganancia hasta ×16; más oscuro que eso, la foto sale además más oscura.
+- 4 fotos y sus espejos, 3 ruidos distintos por nivel.
+- **Detecta:** el detector encuentra la palma.
+- **Sigue:** desde el cuadrado del cuadro anterior, la presencia pasa 0,5 durante 4 cuadros.
+- **Error:** distancia de los 21 puntos a los de la foto buena (con las mismas pasadas), en % del largo de la palma.
+
+**Lo que hace el motor** (cada cosa se dejó sólo si las medidas la daban por buena):
+- **Detector: promedia el ruido.** Cada píxel de su entrada de 192×192 junta los n×n de la imagen que le tocan (sumas
+  enteras, ~1 ms), en vez de tomar un solo punto bilineal.
+- **Detector: suma los cuadros seguidos** mientras busca la mano con poca luz (el último pesa 1/2).
+- **Puntos: realce del recorte.** Se baja el negro, se sube el blanco (hasta ×8), y una gamma lleva los medios a 0,40.
+  Desde 1,5× de ganancia, además, se suaviza el ruido (3×3). Con buena luz no se toca nada.
+- **Descartado por las medidas:**
+  - El realce en el detector: le baja el puntaje (de 0,92 a 0,69 con 1/128 de la luz).
+  - El promedio en el recorte de los puntos: más error que el bilineal.
+
+**Resultados:**
+
+| Luz | Detecta: antes → ahora | Error: antes → ahora | Presencia: antes → ahora |
+|---|---|---|---|
+| 1/4 | 100 % → 100 % | 1,0 % → 1,0 % | 0,99 → 0,99 |
+| 1/32 | 96 % → 100 % | 2,6 % → 2,2 % | 0,99 → 0,99 |
+| 1/64 | 54 % → 100 % | 4,1 % → 2,5 % | 0,99 → 0,99 |
+| 1/128 | 12 % → 100 % | 6,1 % → 3,6 % | 0,97 → 0,99 |
+| 1/256 | 0 % → 100 % | 6,7 % → 5,2 % | 0,90 → 0,98 |
+
+**Además, en la app:**
+- La linterna de la cámara trasera.
+- **«Ver de noche»:** muestra la imagen aclarada con una curva medida en cada cuadro, y deja que la cámara exponga más
+  (puede bajar a 15 cps).
+
+## Velocidad
+
+**En esta PC** (4 núcleos Xeon a 2,1 GHz, x86 sin AVX), modelo completo de los puntos:
+
+| Hilos | Puntos | Detector |
+|---|---|---|
+| 1 | 43,6 ms | 51,0 ms |
+| 2 | 25,9 ms | 36,0 ms |
+| 4 | 19,3 ms | 21,6 ms |
+
+- Con 1 hilo y con 4 da exactamente lo mismo.
+- **ARM:** el código de ARM (NEON) se probó con un emulador de ARM de 64 bits (qemu). Da los mismos puntos que el de
+  x86, con 1 hilo y con 4.
+- **En un celular no se pudo medir desde acá.** La app muestra arriba a la izquierda los milisegundos de cada cuadro.
+- **Modelo «Auto»:** usa el completo y pasa al liviano (291 M operaciones contra 660 M) si en ese celular el completo
+  tarda más de 5 ms.
+
+**El retraso que se ve:**
+- **El esqueleto va pegado a la mano.** Se dibuja la misma imagen que miró el motor, con su esqueleto, apenas
+  termina. Antes, en la vista web, el video iba adelante y el esqueleto llegaba 40 a 60 ms tarde.
+- **La imagen en sí** llega con el retraso propio de la cámara del celular, como en cualquier app de cámara.
+- **Adelantar:** de 0 a 100 ms, para usar las manos como control. Viene en 0: con más, el esqueleto se adelanta a la
+  imagen.
+
 ## Cómo se arma y se prueba
 
 ```sh
@@ -79,49 +149,68 @@ B=/tmp/claude-0/jxhand_target/release/jxhand-banco
 $B foto modelos FOTO.png SALIDA.png          # dibuja los cuadrados, el esqueleto, ángulos y presencias
 $B video modelos FOTO.png                    # temblor, retraso, huesos y gestos (variables JXH_PRED, JXH_BETA, JXH_DC, JXH_MINC)
 $B perfil modelos                            # cuánto tarda cada tipo de capa y cuántas operaciones hace
+$B noche modelos FOTO...                      # poca luz: detecta, sigue y error, con y sin lo de la noche
+$B noche_foto modelos FOTO 1/128 SALIDA.png   # la foto oscura, lo de antes y lo de ahora, lado a lado
+JXH_HILOS=1 $B medir modelos FOTO            # cuántos hilos usa (por defecto, todos los núcleos)
 ```
+
+La puerta de Android se prueba en la PC, con Java de verdad:
+- Se compila con `cargo build --release -p jxhand --features jni`.
+- Un programa en Java le pasa un cuadro YUV como los de Camera2: girado, con filas rellenas y U/V intercalados.
+- Da los mismos puntos y los mismos colores (diferencia media de 0,6 a 0,9 de 255).
 
 ## La app JX Hand (`app/`, `JXHand.apk`)
 
-El dueño la pidió aparte, no adentro de JXMod: «es una app aparte, usa cámara trasera».
-- **Android (`app/src/com/jxapps/jxhand/Principal.java`):** una actividad con la vista web a pantalla completa.
-  - La página va en `assets/web` y se sirve en `https://appassets.androidplatform.net/`, porque la cámara sólo anda en
-    un contexto seguro.
-  - Pide el permiso de cámara de Android y se lo da a la vista web. Deja la pantalla prendida y suelta la cámara en
-    pausa.
-- **La página (`app/web/index.html`):**
-  - Cámara trasera de entrada; el botón la cambia a la de frente (espejada) y se acuerda.
-  - El motor corre en un Worker. El WebAssembly y los modelos se leen en la página y viajan al Worker ya leídos, porque
-    en Android lo que pide un Worker no siempre pasa por la app.
-  - Se procesa siempre el cuadro más nuevo, a 480 px.
-  - **Lo que se ve:** el esqueleto sobre el video (cada dedo de un color, las puntas más grandes, la pinza como una
-    línea que se enciende) y una tarjeta por mano (derecha o izquierda, distancia en cm, gesto con su fuerza, cuánto
-    se estira cada dedo).
-  - **Opcional:** la mano en 3D en metros, girando y ajustada sola al cuadro.
-  - **Ajustes:** modelo Auto, Completo o Liviano (Auto pasa al liviano si tarda más de 55 ms), cuánto adelantar (de 0
-    a 120 ms), 1 o 2 manos y el dibujo.
-  - Íconos propios en SVG. El ícono de la app es la mano en el degradé de JXApps (`app/icono.svg`).
-  - Probada en Chromium con una cámara de mentira (tamaño de celular): mano derecha a 23 cm, «abierta», 16 a 21
-    cuadros por segundo, sin errores.
-- **El APK (`app/armar_apk.py`):** sin Gradle, como el de JXMod: javac, d8, aapt2 (los modelos y el WebAssembly sin
-  comprimir), zipalign y apksigner.
-  - Firma propia en `/root/.jxhand/firma`, fuera del repo, con la clave al azar en `clave.txt` (chmod 600).
-  - Revisa las firmas (v1, v2 y v3) y `aapt2 dump badging` (paquete `com.jxapps.jxhand`, nombre, permiso de cámara,
-    actividad).
-  - 10,35 MB. Android 7 o más nuevo (minSdk 24, targetSdk 35).
-- **JXMod:** la integración que había llegado a armarse (el arma «Manos JX») se sacó, porque se pidió aparte. Queda en
-  el historial: commit 7b9b579.
+El dueño la pidió aparte, no adentro de JXMod: «es una app aparte, usa cámara trasera». Desde la versión 2.0 es
+nativa: «no web, Rust».
+
+**Java (`app/src/com/jxapps/jxhand/`) sólo abre la cámara, le pasa los cuadros al motor y dibuja:**
+- **`Camara.java`:** Camera2 a ~640×480 en YUV, sin vista previa aparte.
+  - Pide 60 cps si la cámara los da («Cámara rápida») y apaga la estabilización por software, que guarda cuadros.
+  - Linterna.
+  - Siempre se procesa el cuadro más nuevo, en un hilo con la prioridad de la pantalla.
+- **`Lienzo.java`:** dibuja con el lienzo por hardware la imagen que miró el motor y su esqueleto.
+  - Cada dedo de un color; las puntas más grandes cuanto más cerca de la cámara.
+  - La pinza se enciende.
+  - Arriba: milisegundos, cps, núcleos y modelo.
+  - Una tarjeta por mano: derecha o izquierda, distancia en cm, gesto con su fuerza, y cuánto se estira cada dedo.
+  - Opcional: la mano en 3D.
+- **`Principal.java`:** los botones (linterna, ver de noche, girar la cámara, ajustes) y el panel de ajustes.
+  - Modelo Auto, Completo o Liviano.
+  - 1 o 2 manos.
+  - Adelantar.
+  - Ver de noche.
+  - Realce para poca luz.
+  - Cámara rápida.
+  - Mano en 3D.
+- **`Icono.java`:** íconos propios dibujados a mano. El ícono de la app es la mano en el degradé de JXApps
+  (`app/icono.svg`).
+- **`Motor.java`:** la puerta al motor de Rust.
+
+**Probado sin celular:**
+- El motor de Android por JNI desde Java en la PC (arriba).
+- El dibujo: `Lienzo.java` tal cual, sobre un reemplazo de `android.graphics` hecho con Java2D, con la salida del
+  motor de verdad.
+- La cámara y la pantalla del celular no se pueden probar desde acá.
+
+**El APK (`app/armar_apk.py`):** sin Gradle, como el de JXMod.
+- Compila el motor con el enlazador del NDK r27 (sólo su clang y el sysroot de ARM de 64 bits).
+  - Páginas de 16 KB, como piden Android 15 y los celulares nuevos.
+- Después: javac, d8, aapt2 (los modelos sin comprimir), la librería sin comprimir y alineada a 16 KB, zipalign y
+  apksigner.
+- Firma propia en `/root/.jxhand/firma`, fuera del repo, con la clave al azar en `clave.txt` (chmod 600).
+- Revisa las firmas (v1, v2 y v3) y `aapt2 dump badging` (paquete, nombre, permiso de cámara, actividad y
+  `arm64-v8a`).
+- 10,5 MB. Android 7 o más nuevo, ARM de 64 bits: todos los celulares de los últimos años; no anda en los de 32 bits.
+
+**JXMod:** la integración que había llegado a armarse (el arma «Manos JX») se sacó, porque se pidió aparte. Queda en
+el historial: commit 7b9b579.
 
 ## Lo que sigue
 
-- **Que se actualice sola** (bajar la página y el motor nuevos al abrir, con firma) y medir en celulares de verdad.
-- **Integración con JXMod (si algún día se quiere; está en el historial, commit 7b9b579):**
-  - La cámara de frente con `getUserMedia` y el motor en un Worker.
-  - Las manos del juego que copian las tuyas: posición, rotación y ángulos de cada dedo a los huesos de la mano.
-  - Los gestos como acciones.
-  - Bajada por las actualizaciones por partes.
-  - En la APK: el permiso de cámara para la vista web.
-- **Velocidad en celulares:**
-  - Elegir sola el modelo completo o el liviano según lo que tarda.
-  - Varios hilos: un Worker por mano y el detector aparte, o cuadros alternados.
-  - Fundir convolución, suma y PReLU.
+- **Medir en celulares de verdad:** los milisegundos que muestra la app.
+- **Si hace falta bajar más:**
+  - Cálculo en float16 en los celulares que lo tienen (ARMv8.2: el doble de números por instrucción).
+  - Fundir la convolución, la suma y el PReLU.
+- **Que se actualice sola,** con firma, como JXMod.
+- **Integración con JXMod (si algún día se quiere):** está en el historial, commit 7b9b579.
