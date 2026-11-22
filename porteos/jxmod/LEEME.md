@@ -5227,6 +5227,46 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     como un jugador, ~1 GB la primera vez). DrGBase, Cartoon Cat, Doro y SCP-049 (los de `nextbots_ia.mjs`) no usan
     `EnableMatrix`: para ellos no cambia nada. `pepe_vuelve` 13/13, `codigo_tragado` bien.
 
+## El bot de Discord de JXApps (JXMod y Stickerazo)
+
+- Vive en el mismo Worker de la tienda (`tienda/discord.js`), sin servidor aparte. Discord le manda cada comando a
+  `POST /api/discord/interacciones`, firmado con Ed25519, y una tarea programada (`[triggers]` en `wrangler.toml`,
+  cada 10 min) hace los avisos.
+- **Comandos:**
+  - `/jxmod` y `/stickerazo`: la versión que leen el juego y la app, con los links.
+  - `/estado`: cuántos juegan ahora, en cuántas salas, en qué mapas y cuántos hoy (de `pn_presencia`).
+  - `/bug` y `/sugerencia`: un formulario que cae en el mismo panel de «Bugs y sugerencias», con autor `dc:<id>` y el
+    mismo límite: uno cada 3 min y 10 por día.
+- **Comandos de admins** (Discord los esconde a los demás):
+  - `/configurar`: el canal donde se corre pasa a ser el de anuncios. Crea los roles JXMod, Stickerazo y «Avisos de
+    versiones», y las reglas de AutoMod de Discord: insultos, contenido sexual y discriminación (preset), spam y
+    menciones en masa. Si ya existen, no las duplica.
+  - `/roles`: los botones para ponerse y sacarse los roles.
+  - `/anunciar`: un anuncio; si se pide, menciona a «Avisos».
+- **Avisos automáticos:**
+  - versión nueva de JXMod (`web/version.json`) o de Stickerazo (`descargas/app.json`): un anuncio mencionando
+    «Avisos»;
+  - cuando el panel le cambia el estado o le contesta a un bug mandado desde Discord, se le avisa a quien lo mandó en
+    ese canal, una sola vez.
+- **Guarda** en `dc_conf` (canal, roles, reglas, última versión anunciada) y `dc_posts`.
+- **Necesita en Cloudflare:** `DISCORD_APP_ID` y `DISCORD_PUBLIC_KEY` (variables) y `DISCORD_TOKEN` (secreto). Sin
+  ellas, `/api/discord/` da 503 y la tarea programada no hace nada.
+- **Puesta en marcha:** `herramientas/discord_bot.mjs` (`info`, `endpoint`, `comandos`, `avatar`, `invitar`), con el
+  token en `/root/.discord/token`, que nunca va al repo.
+- **Permisos del link de invitación:** ver canales, mandar mensajes, links con vista previa, historial, gestionar roles
+  (para los botones) y gestionar el servidor (para crear las reglas de AutoMod). Nada de administrador.
+- **Prueba:** `pruebas/discord_bot.mjs` 7/7, con firmas de verdad (una llave de prueba), la D1 de mentira y una API de
+  Discord falsa.
+  - firma mala o sin firma: 401; el PING devuelve PONG;
+  - los tres comandos de información;
+  - el formulario cae en el panel y el segundo seguido dice «esperá»;
+  - `/configurar` sólo para admins y sin duplicar;
+  - los botones ponen y sacan el rol;
+  - el cron anuncia una vez y avisa la respuesta del panel una vez;
+  - `/anunciar` menciona sólo si se pide.
+- **Lo que no puede:** un saludo propio al que entra, porque eso necesita una conexión fija con Discord. Para eso está
+  el mensaje de bienvenida que ya trae Discord en los ajustes del servidor.
+
 ## Sin publicar todavía: lo de «Bugs y sugerencias» después de la 3.9.11
 
 - **Bugs:**

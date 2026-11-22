@@ -32,3 +32,9 @@ database_id = "c3327f7e-112b-4d3e-8ed5-128ada938e85"
 # Verity (la compañera con IA del juego): modelo de lenguaje y voz de Workers AI
 [ai]
 binding = "AI"
+
+# el bot de Discord de JXApps (discord.js): cada 10 minutos avisa las versiones nuevas y las respuestas del panel.
+# DISCORD_APP_ID y DISCORD_PUBLIC_KEY van en [vars] cuando exista la aplicación de Discord; el token, como secreto:
+# wrangler secret put DISCORD_TOKEN
+[triggers]
+crons = ["*/10 * * * *"]

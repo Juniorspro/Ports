@@ -38,7 +38,7 @@ const linea = (v, max) => limpio(v, max).replace(/\s+/g, ' ');
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' };
 
 let listas = false;
-async function tablas(env) {
+export async function tablas(env) {
   if (listas) return;
   await env.DB.batch([
     env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_posts (id TEXT PRIMARY KEY, tipo TEXT, titulo TEXT, texto TEXT, media TEXT, autor TEXT, nombre TEXT, version TEXT, lugar TEXT, estado TEXT, respuesta TEXT, resp_de TEXT, likes INTEGER DEFAULT 0, denuncias INTEGER DEFAULT 0, oculto INTEGER DEFAULT 0, privado INTEGER DEFAULT 0, creado INTEGER, cambiado INTEGER, ip TEXT)'),
@@ -88,7 +88,7 @@ async function mediaValida(env, lista) {
   }
   return L;
 }
-async function postNuevo(env, d, autor, nombre, ip, privado) {
+export async function postNuevo(env, d, autor, nombre, ip, privado) {
   const tipo = (privado ? TIPOS_ADMIN : TIPOS_PUB).includes(d.tipo) ? d.tipo : null, titulo = linea(d.titulo, 90), texto = limpio(d.texto, 4000);
   if (!tipo || titulo.length < 3) return { error: 'falta el título (y el tipo)' };
   const media = await mediaValida(env, d.media), id = azar(8), ahora = Date.now();

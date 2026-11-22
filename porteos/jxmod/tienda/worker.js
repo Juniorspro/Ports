@@ -18,6 +18,7 @@ import { cuentaRutas, cuentaActiva, cuentaUsuario } from './cuenta.js';
 import { socialRutas } from './social.js';
 import { legalRutas } from './legal.js';
 import { panelRutas } from './panel.js';
+import { discordRutas, discordCron } from './discord.js';
 // la comunidad de Stickerazo (la otra app del repo) vive acá, en /sz, con sus propias tablas «sz_»
 import { stickerazoRutas } from '../../stickerazo/servidor/worker.js';
 // (los correos de JXMod salen por el SMTP de Gmail: correo.js necesita la conexión TCP de los Workers, que sólo existe acá)
@@ -378,6 +379,8 @@ async function ctlRutas(req, env, url, r, ip) {
 export default {
   async fetch(req, env, ctx) {
     { const p = new URL(req.url).pathname; if (p === '/sz' || p.startsWith('/sz/')) return stickerazoRutas(req, env, ctx, '/sz'); }
+    // el bot de Discord de JXApps (discord.js): Discord firma cada pedido; va antes que el resto (sin CORS ni huella)
+    { const p = new URL(req.url).pathname; if (p.startsWith('/api/discord/')) { try { return await discordRutas(req, env, new URL(req.url), p, ctx); } catch (e) { return new Response('error', { status: 500 }); } } }
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
     const url = new URL(req.url), r = url.pathname.replace(/\/+$/, '');
     const ip = await huella((req.headers.get('CF-Connecting-IP') || '') + (env.SAL || 'rezobox'));
@@ -612,4 +615,6 @@ export default {
       return json({ error: 'error del servidor' }, 500);
     }
   },
+  // cada 10 minutos (wrangler.toml, [triggers]): el bot de Discord avisa versiones nuevas y respuestas del panel
+  async scheduled(ev, env, ctx) { ctx.waitUntil(discordCron(env).catch((e) => console.error('cron discord', e))); },
 };
