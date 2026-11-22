@@ -4,14 +4,18 @@
 // con el giroscopio del celular (sin giroscopio, con el dedo o el mouse, como siempre) y las lentes del casco, que
 // curvan la imagen, se corrigen con la curva al revés (se puede apagar en Ajustes).
 // En la app (64 bits, con JX Hand Engine) las manos salen de la cámara de ATRÁS, la que mira para adelante con el
-// celular en el casco (ManosJX.prenderTrasera): manos 3D como las de JX Hand que flotan delante tuyo, con brazos
-// largos de gorila (Ajustes: largo de los brazos), y con ellas:
+// celular en el casco (ManosJX.prenderTrasera): las mismas manos con brazos del modo cámara (manos_jx.js), con los
+// hombros en el cuerpo y brazos largos de gorila (Ajustes: largo de los brazos) que no se estiran más que su largo, y
+// con ellas:
 //  - caminar con las manos, como en los juegos de gorilas: una mano que toca el piso, una pared o un techo se queda
 //    pegada donde tocó; empujar mueve el cuerpo para el otro lado (empujar el piso para atrás te lleva adelante,
 //    bajar la mano por una pared te sube) y al soltar salís con el envión: saltos y trepadas. Sólo se empuja: alejar
 //    la mano de lo que tocaste la suelta;
-//  - agarrar: cerrar la mano (puño) cerca de un objeto lo agarra (sigue a tu mano y gira con ella) y abrirla lo suelta
-//    con el envión de la mano (tirarlo); una mano abierta empuja lo que toca;
+//  - agarrar: cerrar la mano (puño) a menos de 13 cm de cualquier punto de algo que se mueva (props, NPCs —pasan a
+//    muñeco de trapo—, muñecos, armas tiradas) lo agarra de ese punto (sigue a tu mano y gira con ella) y abrirla lo
+//    suelta con el envión de la mano (tirarlo); una mano abierta empuja lo que toca;
+//  - agarrarse: cerrar la mano cerca de algo que no se levanta (una pared, un borde, el piso, un prop congelado, un
+//    auto) agarra la mano ahí: además de empujar, tira (para trepar); abrirla suelta;
 //  - un mando (Bluetooth): la palanca izquierda camina, la derecha gira de a 30°, A salta, B se agacha, los gatillos
 //    disparan (apuntás con la mirada), los botones de arriba cambian de arma, Start abre la pausa y Select centra la
 //    vista. El mando también anda fuera del VR (ahí la palanca derecha mira, como el mouse).
@@ -27,7 +31,7 @@ const vrSep = () => clamp(+PREFS.vrOjos || 63, 50, 80) / 1000;
 const vrBrazos = () => clamp(+PREFS.vrBrazos || 150, 100, 220) / 100;
 // en estéreo: en VR, jugando y sin un panel abierto (la pausa y los menús se ven normales, encima de la imagen común)
 const vrActivo = () => VR.on && JUEGO.estado === 'juego' && !UI.abierto && !!R.gl;
-// sin el arma en la mano: con las manos de la cámara, las manos son las 3D (el arma de primera persona no va)
+// sin el arma en la mano: con las manos de la cámara, las manos son las de los brazos (vrBrazosDibujar; el arma de primera persona no va)
 const vrSinVista = () => VR.manosOn && typeof MJX !== 'undefined' && MJX.on;
 
 // ---------------- entrar y salir ----------------
@@ -221,6 +225,7 @@ function vrPaso(dt, ent) {
   if (J.suelo) J.vrLibre = false;
   if (!VR.manosOn || !J.vivo || J.vehiculo || J.noclip || J.bloqueado || J.maqFijo) { for (const S in VR.manos) { const L = VR.manos[S]; L.anc = null; } VR.anclas = 0; return false; }
   vrManosLeer(dt);
+  vrLimitarBrazos(vrOjoPos(_vrO));
   const L2 = [VR.manos.Right, VR.manos.Left];
   // 1) las manos pegadas: dónde quedaría cada una con el cuerpo donde está; el cuerpo se corre lo que haga falta para
   //    que sigan donde tocaron (alejarla de lo que tocó la suelta: sólo se empuja)
@@ -230,8 +235,11 @@ function vrPaso(dt, ent) {
     if (!L.vis || L.ag) { L.anc = null; continue; }
     L.T.copy(ojo).add(L.off);
     if (!L.anc) continue;
+    // (agarrada de algo que se mueve —un prop congelado que alguien mueve, un auto—: el punto va con eso)
+    if (L.anc.b) { if (!PH.bodies.includes(L.anc.b)) { L.anc = null; continue; } L.anc.p = vadd(L.anc.b.pos, L.anc.b.q.rot(L.anc.pl)); }
     const o = vsub(L.T, L.anc.p);
-    if (vdot(o, L.anc.n) > 0.015 || o.len() > 0.45) { L.anc = null; continue; }
+    // (tocando sólo se empuja: alejarla la suelta; agarrada —el puño cerrado— también se tira, y suelta al abrirla)
+    if ((!L.anc.agarre && vdot(o, L.anc.n) > 0.015) || o.len() > 0.45) { L.anc = null; continue; }
     dx += L.anc.p.x - L.T.x; dy += L.anc.p.y - L.T.y; dz += L.anc.p.z - L.T.z; n++;
   }
   if (n) {
@@ -276,29 +284,53 @@ function vrAgarrarPaso(dt, ojo) {
     const P = vrPalma(L, ojo);
     if (L.pAnt) { const k = 0.4; L.vel.set(L.vel.x + ((P.x - L.pAnt.x) / dt - L.vel.x) * k, L.vel.y + ((P.y - L.pAnt.y) / dt - L.vel.y) * k, L.vel.z + ((P.z - L.pAnt.z) / dt - L.vel.z) * k); }
     const antes = L.pAnt; L.pAnt = P.clone();
-    const cerrada = L.cierre > (L.ag ? 0.42 : 0.62);
+    const cerrada = L.cierre > (L.ag || (L.anc && L.anc.agarre) ? 0.42 : 0.62);
+    // (abrir la mano suelta de donde estaba agarrada)
+    if (!cerrada && L.anc && L.anc.agarre) L.anc = null;
     if (L.ag) {
       const b = L.ag.b;
       if (!cerrada || !PH.bodies.includes(b)) { vrSoltar(L, true); continue; }
       // (sigue a la mano: el punto agarrado va adonde está la palma y gira con ella, como la pistola física)
-      const meta = vadd(P, L.qMano.rot(L.ag.rl));
+      // (sigue a la mano: gira con ella y el punto agarrado va a la palma; lo demás cuelga de ese punto —un palo agarrado
+      // de la punta, un muñeco de trapo de un brazo—. Llevar el centro, en cambio, corría el punto agarrado: un muñeco que
+      // cuelga gira alrededor de donde lo agarraste)
+      // (a un muñeco de trapo no se lo gira con la mano —pelearía con sus articulaciones—: cuelga del punto agarrado)
       b.held = true; b.frozen = false; b.wake();
-      b.vel.copy(vsub(meta, b.pos).scale(Math.min(1 / dt, 16))); const vm = b.vel.len(); if (vm > 30) b.vel.scale(30 / vm);
-      const qm = L.qMano.clone().mul(L.ag.qrel), dq = new Quat().mulTo(qm, b.q.conj()); if (dq.w < 0) dq.set(-dq.x, -dq.y, -dq.z, -dq.w);
-      b.ang.set(dq.x * 2 / dt * 0.35, dq.y * 2 / dt * 0.35, dq.z * 2 / dt * 0.35);
+      if (!b.persona) {
+        const qm = L.qMano.clone().mul(L.ag.qrel), dq = new Quat().mulTo(qm, b.q.conj()); if (dq.w < 0) dq.set(-dq.x, -dq.y, -dq.z, -dq.w);
+        b.ang.set(dq.x * 2 / dt * 0.35, dq.y * 2 / dt * 0.35, dq.z * 2 / dt * 0.35);
+      } else b.ang.scale(0.92);
+      const r = b.q.rot(L.ag.pl), gp = vadd(b.pos, r);
+      b.vel.copy(vsub(P, gp).scale(Math.min(1 / dt, 16))).sub(vcross(b.ang, r)); const vm = b.vel.len(); if (vm > 30) b.vel.scale(30 / vm);
       continue;
     }
     if (cerrada && !L.cerradaAnt) {
-      // lo más cercano que se pueda agarrar, a menos de 18 cm de la palma
-      let mejor = null, md = 0.18;
-      for (const b of PH.bodies) {
-        if (b.estatico || b.noGrab || b.dead || b.npc || !(b.mass < 1500) || b.held) continue;
-        const d = b.pos.distTo(P) - (b.r || 0.2) * 0.8; if (d < md) { md = d; mejor = b; }
+      // (la mano que estaba tocando algo fijo se agarra ahí mismo: ahora también tira)
+      if (L.anc) { L.anc.agarre = true; L.cerradaAnt = cerrada; continue; }
+      const g = vrBuscarAgarre(P);
+      // (nada que levantar: algo de dónde agarrarse —una pared, un borde, el piso, un prop congelado, un auto—)
+      const t = g ? null : vrBuscarTrepar(P);
+      if (t) {
+        const p = vadd(P, vscale(t.d, Math.max(0, t.t - VR_RADIO)));
+        L.anc = { p, n: t.n, agarre: true, b: t.b, pl: t.b ? t.b.q.conj().rot(vsub(p, t.b.pos)) : null };
+        VR.toques++; sonar('CB_Impact', p, 0.12, 1.6);
       }
-      if (mejor) {
-        if (mejor.obj && typeof redReclamar === 'function') redReclamar(mejor.obj);
-        L.ag = { b: mejor, rl: L.qMano.conj().rot(vsub(mejor.pos, P)), qrel: L.qMano.conj().mul(mejor.q) };
-        mejor.held = true; mejor.frozen = false; mejor.wake(); L.anc = null;
+      if (g) {
+        // (un NPC vivo pasa a muñeco de trapo y se agarra la parte del cuerpo más cercana, como con la pistola física)
+        let b = g.b;
+        if (b.npc && typeof npcAgarrarRag === 'function') {
+          // (la parte del cuerpo más cercana a la palma, agarrada de su borde: el punto de la cápsula del NPC que tocó el
+          // rayo puede quedar lejos de la parte, y agarrarla de 40 cm de su centro la hacía girar como una palanca)
+          b = npcAgarrarRag(b, P);
+          const d = vsub(P, b.pos), l = d.len(); g.p = l > 0.06 ? vadd(b.pos, vscale(d, 0.06 / l)) : P.clone();
+        }
+        if (b.obj && typeof redReclamar === 'function') redReclamar(b.obj);
+        // (el punto agarrado va a la palma y se queda ahí: lo que agarraste cuelga de donde lo agarraste)
+        L.ag = { b, pl: b.q.conj().rot(vsub(g.p, b.pos)), qrel: L.qMano.conj().mul(b.q), p: g.p.clone() };
+        // (la parte agarrada de un muñeco «pesa» 20 veces más en sus uniones mientras está en la mano: así manda la mano
+        // y el resto del cuerpo cuelga de ella; si no, el resto la arrastraba lejos de la palma)
+        if (b.persona) { L.ag.inv = [b.invMass, b.invI.clone()]; b.invMass *= 0.05; b.invI.scale(0.05); }
+        b.held = true; b.frozen = false; b.wake(); L.anc = null;
         sonar('Click', P, 0.25, 1.3);
       }
     }
@@ -318,10 +350,54 @@ function vrAgarrarPaso(dt, ojo) {
     }
   }
 }
+// lo que agarra una mano que se cierra: el punto más cercano a la palma (a menos de 13 cm) de la superficie de cualquier
+// cosa que se mueva —props, NPCs, muñecos de trapo, armas tiradas—, buscado con rayos desde la palma en las 26
+// direcciones de un cubo (caras, aristas y esquinas): así se agarra un tablón por la punta o una heladera por el borde,
+// no sólo cerca del centro. Si la palma ya quedó adentro de algo, lo más cercano por el centro (como antes)
+const VR_DIRS = []; for (const x of [-1, 0, 1]) for (const y of [-1, 0, 1]) for (const z of [-1, 0, 1]) if (x || y || z) VR_DIRS.push(v3(x, y, z).norm());
+// (lo congelado —fijado con la pistola física, como una construcción— no se levanta: es de dónde agarrarse para trepar)
+const vrAgarrable = (b) => !!b && !b.estatico && !b.noGrab && !b.dead && !b.held && !(b.frozen && !b.npc) && (!!b.npc || b.mass < 1500) && PH.bodies.includes(b);
+function vrBuscarAgarre(P) {
+  let mejor = null;
+  for (const d of VR_DIRS) {
+    const h = raycast(P, d, 0.13, null);
+    if (h && h.body && (!mejor || h.t < mejor.t) && vrAgarrable(h.body)) mejor = { b: h.body, p: vadd(P, vscale(d, h.t)), t: h.t };
+  }
+  if (mejor) return mejor;
+  // (la palma ya adentro de algo —los rayos desde adentro no tocan su superficie—: eso. Adentro de verdad, con su
+  // forma; antes se miraba la distancia al centro contra el radio, y eso agarraba un tubo con la mano 22 cm arriba)
+  let md = 1e9;
+  for (const b of PH.bodies) { if (!vrAgarrable(b) || b.pos.distTo(P) > (b.r || 0.2) + 0.05) continue; const d = b.pos.distTo(P); if (d < md && vrDentro(b, P)) { md = d; mejor = { b, p: P.clone(), t: 0 }; } }
+  return mejor;
+}
+// ¿el punto P está adentro de la forma del cuerpo b? (poliedros, esferas, cápsulas y compuestos de esos)
+function vrDentro(b, P) {
+  const sh = b.shape; if (!sh) return false;
+  if (b.sleep || !b.wv || (sh.type === 'hull' && b.wv.length !== sh.v.length) || (sh.type === 'capsule' && !b.capA)) b.updateWorld();
+  if (sh.type === 'sphere') return b.pos.distTo(P) < sh.r;
+  if (sh.type === 'capsule') { const ab = vsub(b.capB, b.capA), t = clamp(vdot(vsub(P, b.capA), ab) / Math.max(1e-9, vdot(ab, ab)), 0, 1); return vadd(b.capA, vscale(ab, t)).distTo(P) < sh.r; }
+  if (sh.type === 'compound') return (b.hijos || []).some((h) => vrDentro(h, P));
+  if (sh.type === 'hull' && b.wv.length && typeof hullClosest === 'function') return hullClosest(b, P).inside;
+  return false;
+}
+// de dónde agarrarse para trepar: el punto más cercano a la palma (13 cm, los mismos rayos) de algo que no se levanta
+// con la mano: lo fijo del mapa, una puerta, un prop congelado o algo de 1500 kg o más
+function vrBuscarTrepar(P) {
+  let mejor = null;
+  for (const d of VR_DIRS) {
+    const h = raycast(P, d, 0.13, null); if (!h || (mejor && h.t >= mejor.t)) continue;
+    const b = h.body && PH.bodies.includes(h.body) ? h.body : null;
+    if (b && (vrAgarrable(b) || b.persona || b.npc || b.held)) continue;
+    const n = (h.n || vscale(d, -1)).clone(); if (vdot(n, d) > 0) n.scale(-1);
+    mejor = { t: h.t, d, n, b: b && !b.estatico ? b : null };
+  }
+  return mejor;
+}
 function vrSoltar(L, tirar) {
   if (!L || !L.ag) return;
-  const b = L.ag.b; L.ag = null; L.cerradaAnt = true;
+  const b = L.ag.b, inv = L.ag.inv; L.ag = null; L.cerradaAnt = true;
   if (!b) return;
+  if (inv) { b.invMass = inv[0]; b.invI.copy(inv[1]); }
   b.held = false; b.wake();
   if (tirar) { const v = L.vel.clone().scale(1.2), s = v.len(); b.vel.copy(s > 25 ? v.scale(25 / s) : v); }
 }
@@ -470,11 +546,75 @@ function vrmGL(S, q) {
   gl.bindBuffer(gl.ARRAY_BUFFER, G.vb); gl.bufferSubData(gl.ARRAY_BUFFER, 0, G.buf);
   return G;
 }
-// cada cuadro, con lo demás que se dibuja: las dos manos donde están (o donde quedaron pegadas)
+// ---------------- tus brazos: los mismos del modo cámara (manos_jx.js) ----------------
+// las manos con brazos del modo cámara, con los hombros en el cuerpo: la raíz en los ojos girada sólo con el cuerpo (al
+// mirar abajo se ven los brazos saliendo de los hombros). Los brazos del modelo se llevan a los de una persona (60 cm
+// del hombro a la muñeca) y después se alargan según «largo de los brazos» (con 1,5, los de gorila: la piel se estira
+// entre los huesos); la mano, un poco más grande, igual que los puntos de la cámara. La mano no pasa del largo del
+// brazo, tampoco para pegarse, empujar y agarrar: estirado del todo, el brazo te frena
+const vrQCuerpo = () => Quat.euler(JUG.yaw, 0);
+// (los hombros del modelo están a 13 cm debajo de los ojos, como en todo brazo de primera persona; en el cuerpo del VR
+// van más abajo y un poco atrás, a 23 cm, como los de una persona)
+const VR_HOMBRO = v3(0, -0.1, -0.07);
+// el alcance (del hombro a la muñeca): 60 cm de un brazo de persona por «largo de los brazos», más lo que la cuenta de la
+// cámara agranda al alargar desde los ojos y no desde el hombro (así tu brazo estirado del todo llega justo al tope), y
+// 5 cm de margen para el temblor de la cámara. Los brazos del modelo se estiran hasta ese largo
+function vrBrazosMedidas() {
+  const H = typeof mjxHombros === 'function' ? mjxHombros() : null; if (!H) return null;
+  const K = vrBrazos(), largo = (H.Right.largo + H.Left.largo) / 2, hombro = vadd(H.Right.p, VR_HOMBRO).len();
+  const alcance = K * 0.6 + (K - 1) * hombro + 0.05;
+  return { H, kb: alcance / largo, alcance: alcance * 0.995, km: 1 + (K - 1) * 0.5 };
+}
+const vrHombro = (B, S, ojo, q) => vadd(ojo, q.rot(vadd(B.H[S].p, VR_HOMBRO)));
+function vrLimitarBrazos(ojo) {
+  const B = vrBrazosMedidas(); if (!B) return;
+  const q = vrQCuerpo();
+  for (const S in VR.manos) {
+    const L = VR.manos[S]; L.estirado = false; if (!L.vis || !L.off || !L.pts) continue;
+    const s = vrHombro(B, S, ojo, q), d = vsub(vadd(vadd(ojo, L.off), L.pts[0]), s), len = d.len();
+    if (len > B.alcance) { L.off.addS(d, -(len - B.alcance) / len); L.estirado = true; }
+  }
+}
+// el modelo, posado con tus manos (o, la que no se ve, con el brazo colgando al costado)
+function vrBrazosDibujar(ojo) {
+  const B = vrBrazosMedidas(); if (!B) return false;
+  const q = vrQCuerpo(), v = mjxModelo(vadd(ojo, q.rot(VR_HOMBRO)), q); if (!v) return false;
+  const md = v.md;
+  const E = mjxEjes(q), k = 1 - Math.exp(-Math.min(0.05, TIEMPO.dt || 0.016) * 8);
+  VR.brazo = VR.brazo || {};
+  for (const S of ['Right', 'Left']) {
+    const L = VR.manos[S]; if (!L) continue;
+    const T = VR.brazo[S] || (VR.brazo[S] = { w: null, rel: null, f: null, i: null, dedos: {}, ver: 0 });
+    // (sin la mano a la vista de la cámara el brazo se recoge hacia el hombro en 0,15 s y no se dibuja: colgando, mirando
+    // abajo se veía el corte del hombro del modelo, que es de primera persona y nunca se ve desde arriba)
+    T.ver = L.vis && L.pts ? 1 : Math.max(0, T.ver - Math.min(0.05, TIEMPO.dt || 0.016) / 0.15);
+    if (T.ver <= 0) { const sh = v.h[S + 'Arm']; if (sh !== undefined) { md.s[sh] = [1e-4, 1e-4, 1e-4]; md.sucio = true; } continue; }
+    if (L.vis && L.pts) {
+      T.w = vadd(vrPalma(L, ojo), L.pts[0]); T.rel = vsub(T.w, ojo);
+      T.f = vsub(L.pts[9], L.pts[0]).norm(); T.i = vsub(L.pts[5], L.pts[17]).norm();
+      for (const [D, ids] of MJX_DEDOS) for (let j = 0; j < 3; j++) T.dedos[D + j] = vsub(L.pts[ids[j + 1]], L.pts[ids[j]]).norm();
+    } else {
+      // (mientras se recoge: hacia abajo, la muñeca debajo del hombro, los dedos para abajo y el índice para adelante;
+      // respecto del cuerpo, así no queda atrás al caminar)
+      const meta = vadd(vsub(vrHombro(B, S, ojo, q), ojo), vadd(vscale(E.u, -B.alcance * 0.97), vscale(E.f, 0.06)));
+      T.rel = T.rel ? vadd(T.rel, vscale(vsub(meta, T.rel), k)) : meta; T.w = vadd(ojo, T.rel);
+      T.f = vscale(E.u, -1); T.i = E.f.clone(); T.dedos = {};
+    }
+    mjxPosarBrazo(v, S, T, E, B.kb, B.km);
+    if (T.ver < 1) { const sh = v.h[S + 'Arm'], k = Math.max(1e-4, T.ver); if (sh !== undefined) { md.s[sh] = md.s[sh].map((x) => x * k); md.sucio = true; } }
+  }
+  md.actualizar();
+  md.encolar();
+  return true;
+}
+// cada cuadro, con lo demás que se dibuja: los brazos con las manos donde están (o donde quedaron pegadas). Sin el
+// modelo de los brazos, las manos 3D de JX Hand sueltas
 function vrEncolar() {
   if (!VR.on || !VR.manosOn || !R.gl) return;
-  if (VR.mat < 0 || !R.mats[VR.mat]) VR.mat = matPropio('vrMano', [0.85, 0.62, 0.5], { pbr: [0.55, 0, 0.04] });
   const ojo = vrOjoPos(_vrO);
+  if (vrBrazosDibujar(ojo)) { VR.brazosOn = true; return; }
+  VR.brazosOn = false;
+  if (VR.mat < 0 || !R.mats[VR.mat]) VR.mat = matPropio('vrMano', [0.85, 0.62, 0.5], { pbr: [0.55, 0, 0.04] });
   for (const S in VR.manos) {
     const L = VR.manos[S]; if (!L.vis || !L.pts) continue;
     const P = vrPalma(L, ojo), G = vrmGL(S, L.pts.map((p) => [p.x, p.y, p.z]));

@@ -78,7 +78,7 @@ function mjxVista() {
 }
 // de la cámara del celular (x derecha, y abajo, z de la cámara hacia vos) a tus ojos en el juego (x derecha, y abajo,
 // z hacia adelante): giro de 180° alrededor de la vertical; después al mundo con los ejes de la cámara del juego
-function mjxEjes() { const q = CAM.q, f = q.rot(v3(0, 0, 1)), u = q.rot(v3(0, 1, 0)); return { f, u, r: celmDerecha(f, u, q) }; }
+function mjxEjes(q = CAM.q) { const f = q.rot(v3(0, 0, 1)), u = q.rot(v3(0, 1, 0)); return { f, u, r: celmDerecha(f, u, q) }; }
 const mjxDir = (E, d) => vadd(vscale(E.r, -d[0]), vadd(vscale(E.u, -d[1]), vscale(E.f, -d[2])));
 // dónde va la muñeca: x e y como frente a la cámara; la distancia: más cerca de la cámara = más lejos de los ojos
 function mjxMuneca(E, m) {
@@ -88,7 +88,6 @@ function mjxMuneca(E, m) {
   return vadd(palma, mjxDir(E, [m.mundo[0][0] - c[0], m.mundo[0][1] - c[1], m.mundo[0][2] - c[2]]));
 }
 function mjxPosarLado(v, S, m, E, dt) {
-  const md = v.md, h = v.h, hand = h[S + 'Hand'], sh = h[S + 'Arm'], el = h[S + 'ForeArm']; if (hand === undefined || sh === undefined || el === undefined) return;
   const L = MJX.lados[S] || (MJX.lados[S] = { w: null, f: null, i: null, dedos: {}, vis: 0 });
   // el objetivo (o, sin la mano, abajo y afuera de la vista) y un suavizado chico (el motor ya filtra y adelanta)
   const k = 1 - Math.exp(-dt * 22);
@@ -108,13 +107,26 @@ function mjxPosarLado(v, S, m, E, dt) {
     L.w = vadd(L.w, vscale(vsub(vadd(L.w, vscale(E.u, -0.6)), L.w), 1 - Math.exp(-dt * 3)));
   }
   if (!L.w || L.vis <= 0) return;
+  mjxPosarBrazo(v, S, L, E, 1, 1);
+}
+// el brazo y la mano del lado S hacia lo que dice L, todo en el mundo: L.w la muñeca, L.f hacia los dedos, L.i hacia
+// el índice y L.dedos[dedo + j] hacia dónde apunta cada hueso de cada dedo. E: los ejes de la cabeza o del cuerpo (el
+// codo va hacia afuera y abajo). K: cuánto más largos los brazos (los de gorila del VR; 1 = los del modelo) y KM cuánto
+// más grande la mano. La muñeca no pasa del largo del brazo: estirado del todo, la mano queda en la punta (el brazo te
+// limita, como uno de verdad)
+function mjxPosarBrazo(v, S, L, E, K, KM) {
+  const md = v.md, h = v.h, hand = h[S + 'Hand'], sh = h[S + 'Arm'], el = h[S + 'ForeArm']; if (hand === undefined || sh === undefined || el === undefined) return;
+  if (K !== 1 || KM !== 1) {
+    // (el codo y la muñeca más lejos de su padre: la piel del brazo se estira entre los huesos; la mano, más grande)
+    for (const i of [el, hand]) { md.p[i][0] *= K; md.p[i][1] *= K; md.p[i][2] *= K; }
+    md.s[hand][0] *= KM; md.s[hand][1] *= KM; md.s[hand][2] *= KM; md.sucio = true; md.actualizar();
+  }
   // la palma: la rotación que lleva la base de la mano del modelo (dedos, lado del índice) a la tuya
   const f0 = vsub(celmPos(md, h[S + 'HandMiddle1']), celmPos(md, hand)).norm(), ir = vsub(celmPos(md, h[S + 'HandIndex1']), celmPos(md, h[S + 'HandPinky1']));
   const i0 = vsub(ir, vscale(f0, vdot(ir, f0))).norm(), fT = L.f, iT = vsub(L.i, vscale(fT, vdot(L.i, fT))).norm();
   const Qb = qBase(f0, i0, vcross(f0, i0)), Qt = qBase(fT, iT, vcross(fT, iT)), qd = Qt.clone().mul(Qb.conj()).norm();
   const qHand = qd.clone().mul(celmQMundo(md, hand)).norm();
-  // el brazo: cinemática inversa de dos huesos desde el hombro del modelo (los dos lados comparten la raíz), con el codo
-  // hacia afuera y abajo
+  // el brazo: cinemática inversa de dos huesos desde el hombro del modelo, con el codo hacia afuera y abajo
   const lado = S === 'Right' ? 1 : -1, wrist = L.w;
   const a = celmPos(md, sh).distTo(celmPos(md, el)), b = celmPos(md, el).distTo(celmPos(md, hand)), S0 = celmPos(md, sh);
   const dW = vsub(wrist, S0), dist = Math.min(dW.len(), (a + b) * 0.999), dn = dW.clone().norm();
@@ -130,14 +142,35 @@ function mjxPosarLado(v, S, m, E, dt) {
     celmGirar(md, i1, celmDesde(vsub(celmPos(md, i2), celmPos(md, i1)).norm(), t));
   }
 }
-function mjxVistaDibujar() {
-  const v = mjxVista(); if (!v) return false;
-  const md = v.md, dt = Math.min(0.05, TIEMPO.dt || 0.016), E = mjxEjes();
+// el modelo de las manos en este cuadro: en la pose de reposo, con la raíz en `pos` girada con `q` y del tamaño de una
+// mano de verdad (18,5 cm de la muñeca a la punta del dedo del medio)
+function mjxModelo(pos, q) {
+  const v = mjxVista(); if (!v) return null;
+  const md = v.md;
   for (let i = 0; i < md.p.length; i++) { md.p[i] = v.base.p[i].slice(); md.r[i] = v.base.r[i].slice(); md.s[i] = v.base.s[i].slice(); }
-  vistaUbicar(v, CAM.pos, CAM.q, { x: 0, y: 0, z: 0, qx: 0, qy: 0 }); md.actualizar();
-  if (!MJX.esc) { const L = celmPos(md, v.h.RightHand).distTo(celmPos(md, v.h.RightHandMiddle4 !== undefined ? v.h.RightHandMiddle4 : v.h.RightHandMiddle3)) || 0.05; MJX.esc = 0.3 * 0.185 / L; }
+  if (!MJX.esc) {
+    vistaUbicar(v, CAM.pos, CAM.q, { x: 0, y: 0, z: 0, qx: 0, qy: 0 }); md.actualizar();
+    const L = celmPos(md, v.h.RightHand).distTo(celmPos(md, v.h.RightHandMiddle4 !== undefined ? v.h.RightHandMiddle4 : v.h.RightHandMiddle3)) || 0.05; MJX.esc = 0.3 * 0.185 / L;
+  }
   const e = MJX.esc;
-  m4trs([CAM.pos.x, CAM.pos.y, CAM.pos.z], [CAM.q.x, CAM.q.y, CAM.q.z, CAM.q.w], [1, 1, 1], _mb); m4trs([0, 0, 0], [0, 0, 0, 1], [e, e, e], _mo); m4mul(_mb, _mo, md.raiz); md.sucio = true; md.actualizar();
+  m4trs([pos.x, pos.y, pos.z], [q.x, q.y, q.z, q.w], [1, 1, 1], _mb); m4trs([0, 0, 0], [0, 0, 0, 1], [e, e, e], _mo); m4mul(_mb, _mo, md.raiz); md.sucio = true; md.actualizar();
+  return v;
+}
+// dónde quedan los hombros respecto de la raíz (en metros, en los ejes de la raíz) y el largo de cada brazo (hombro →
+// muñeca), con el modelo en reposo: para el VR, que limita la mano al largo del brazo antes de dibujarla
+function mjxHombros() {
+  if (MJX.hombros) return MJX.hombros;
+  const v = mjxModelo(v3(0, 0, 0), new Quat()); if (!v) return null;
+  const md = v.md, h = v.h, r = {};
+  for (const S of ['Right', 'Left']) {
+    const sh = h[S + 'Arm'], el = h[S + 'ForeArm'], hd = h[S + 'Hand']; if (sh === undefined || el === undefined || hd === undefined) return null;
+    r[S] = { p: celmPos(md, sh), largo: celmPos(md, sh).distTo(celmPos(md, el)) + celmPos(md, el).distTo(celmPos(md, hd)) };
+  }
+  return (MJX.hombros = r);
+}
+function mjxVistaDibujar() {
+  const v = mjxModelo(CAM.pos, CAM.q); if (!v) return false;
+  const md = v.md, dt = Math.min(0.05, TIEMPO.dt || 0.016), E = mjxEjes();
   // los hombros del modelo, al lado de la cabeza y abajo: los dos lados
   const der = MJX.manos.find((m) => m.derecha), izq = MJX.manos.find((m) => !m.derecha && m !== der);
   const viejo = performance.now() - MJX.tManos > 400;

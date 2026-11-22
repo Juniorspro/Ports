@@ -5529,8 +5529,22 @@ agarrar cosas, con doble pantalla para los VR box y soporte de controles».
   - Cada mano: dónde está respecto de los ojos (los brazos largos multiplican lo que se aleja de la cara) y sus 21
     puntos, girados con la cabeza del momento en que llegaron: una mano quieta queda quieta en el mundo aunque gires la
     cabeza.
-  - Se dibujan con la mano 3D de JX Hand (`malla.rs` pasada a JS: un tubo por dedo con curva suave y la palma como una
-    almohada, ~1600 vértices), en una malla que se arma una vez y en cada cuadro sólo sube los vértices.
+  - **Los brazos son los mismos del modo cámara** (pedido del dueño: «las manos de VR deben ser las mismas que con la
+    cámara frontal… te limita el brazo, eso es realista»). `manos_jx.js` se partió en `mjxModelo` (el modelo «Hands»
+    en reposo, del tamaño de una mano de verdad), `mjxPosarBrazo` (palma, dedos y cinemática inversa de dos huesos
+    desde el hombro; la muñeca no pasa del largo del brazo) y `mjxHombros`; el modo cámara y el VR usan los mismos.
+    - En VR la raíz va en los ojos girada sólo con el cuerpo (al mirar abajo los brazos salen de los hombros) y 10 cm
+      más abajo y 7 atrás: el hombro a 23 cm de los ojos, como el de una persona (el modelo lo tiene a 13).
+    - El alcance (hombro → muñeca): 60 cm × «largo de los brazos» + lo que la cuenta de la cámara agranda al alargar
+      desde los ojos y no desde el hombro + 5 cm de margen: con 1,5, 1,10 m (con 1, 65 cm). El brazo del modelo (52 cm)
+      se estira hasta ese largo (el codo y la muñeca más lejos de su padre: la piel se estira entre los huesos) y la
+      mano se agranda como los puntos de la cámara.
+    - **La física también tiene el brazo:** `vrLimitarBrazos`, en cada paso, antes de pegarse, empujar o agarrar, lleva
+      la mano al alcance si la cámara la pone más lejos. Estirado del todo, el brazo te frena.
+    - El brazo cuya mano la cámara no ve se recoge hacia el hombro en 0,15 s y no se dibuja (colgando, mirando abajo se
+      veía el corte del hombro del modelo, que es de primera persona).
+    - Se dibuja con el mundo (con su profundidad y su luz), en los dos ojos. Posarlo tarda 0,2 ms.
+    - Sin el modelo de los brazos, la mano 3D de JX Hand de antes (`malla.rs` pasada a JS).
   - Con una APK vieja que reciba este código por partes: el VR anda, sin manos, y avisa que hay que actualizar la app.
 - **Caminar con las manos (como los juegos de gorilas):** en cada paso de la física, antes que el jugador.
   - La mano que toca algo (un rayo de los ojos a la mano: los ojos nunca están adentro de una pared) se queda pegada
@@ -5539,20 +5553,42 @@ agarrar cosas, con doble pantalla para los VR box y soporte de controles».
   - Sólo se empuja: alejar la mano de lo que tocó la suelta.
   - Al soltar todas, el cuerpo sale con el envión que traía ×1,15 (hasta 7,5 m/s) y en el aire no se frena solo
     (`JUG.vrLibre`) hasta caer.
-- **Agarrar:** el puño cerca de un objeto (a menos de 18 cm de la palma) lo agarra: sigue a la palma y gira con ella,
-  como la pistola física. Al abrir la mano sale con el envión de la mano ×1,2. La mano abierta que va rápido (más de
-  0,8 m/s) contra un objeto lo empuja; acercarse despacio para agarrarlo no lo mueve.
+- **Agarrar (de cualquier punto):** al cerrar la mano, `vrBuscarAgarre` tira rayos desde la palma en las 26 direcciones
+  de un cubo (13 cm) y se queda con el punto más cercano de la superficie de cualquier cosa que se mueva: props, NPCs,
+  muñecos de trapo, armas tiradas (antes: a menos de 18 cm del centro contando el radio del objeto, sin NPCs: un tubo
+  se agarraba con la mano 22 cm arriba, en el aire). Si la palma ya quedó adentro de algo (`vrDentro`, con su forma:
+  poliedros con `hullClosest`, esferas, cápsulas y compuestos), eso. Al abrir la mano sale con el envión de la mano ×1,2.
+  La mano abierta que va rápido (más de 0,8 m/s) contra un objeto lo empuja; acercarse despacio no lo mueve.
+  - Lo congelado (fijado con la pistola física, como una construcción) no se levanta con la mano: es para trepar.
+  - **Se lleva el punto agarrado, no el centro:** gira con la mano y el punto agarrado va a la palma; lo demás cuelga
+    de ahí (un tablón de la punta).
+  - **Un NPC vivo** pasa a muñeco de trapo (`npcAgarrarRag`, como con la pistola física) y se agarra la parte del cuerpo
+    más cercana a la palma, de su borde (a 6 cm del centro: el punto que tocó el rayo en la cápsula del NPC quedaba a
+    44 cm de la parte y la hacía girar como una palanca, hasta 87 rad/s). La parte agarrada no gira con la mano (cuelga)
+    y, mientras está en la mano, «pesa» 20 veces más en sus uniones: manda la mano y el resto del cuerpo cuelga de
+    ella. Medido: a 1 cm de la palma, y se mueve lo mismo que la mano (1 cm de diferencia en 35 cm).
+- **Agarrarse (para trepar):** el puño cerca de algo que no se levanta —lo fijo del mapa, una puerta, un prop congelado,
+  algo de 1500 kg o más— (`vrBuscarTrepar`, los mismos rayos) agarra la mano ahí: la mano pegada que antes sólo empujaba
+  ahora también tira (bajar la mano agarrada de un borde te sube), y se suelta al abrirla. Si es algo que se mueve (un
+  auto), el punto va con eso. La mano que ya estaba tocando algo fijo y se cierra, se agarra ahí mismo.
 - **El mando** (`mandoLeer`, también fuera del VR): la palanca izquierda camina, A salta, B se agacha, L3 corre, los
   gatillos disparan (apuntás con la mirada), LB/RB cambian de arma, X recarga, Y usa, Start abre la pausa y B la cierra.
   En VR la palanca derecha gira de a 30° y Select centra la vista; fuera, la derecha mira y Select cambia la cámara.
-- **Prueba `pruebas/vr.mjs` 8/8:** el juego armado para la app en un «celular» acostado, con manos de mentira (la forma de
+- **Prueba `pruebas/vr.mjs` 12/12 (tres veces seguidas):** el juego armado para la app en un «celular» acostado, con manos de mentira (la forma de
   una mano grabada por el motor) y un giroscopio de mentira.
   1. El botón VR de «Partida nueva» arranca en VR con la cámara de atrás.
   2. Dos ojos parecidos y no iguales, las esquinas negras de las lentes y sin los botones.
   3. La cabeza (las cuatro posiciones de arriba, al grado).
-  4. La mano 3D en los dos ojos, abajo a la derecha, a 53 cm (el ojo derecho la ve 7 % más a la izquierda: relieve).
-  5. Para atrás 40 cm → el cuerpo 40 cm adelante; para abajo 20 cm → sube 20 cm; un empujón y soltar → 2,5 a 3,4 m/s.
-  6. El puño agarra, sube 25 cm con la mano y al abrirla sale tirado (2,3 m/s).
+  4. El brazo con la mano en los dos ojos, abajo a la derecha, a 53 cm (el ojo derecho la ve 7 % más a la izquierda:
+     relieve). 4b: con la mano pedida a 1,8 m, el brazo estirado y la mano (la que se ve y la que toca) en la punta, a
+     1,103 m del hombro.
+  5. El piso a 50 cm adelante (antes 70: queda más lejos que el brazo). Para atrás 40 cm → el cuerpo 40 cm adelante;
+     para abajo 20 cm → sube 16 cm; un empujón y soltar → 2,2 a 2,4 m/s.
+  6. El puño agarra una caja del piso, sube 25 cm con la mano y al abrirla sale tirada (2,6 a 3,7 m/s). 6b: un tubo
+     de 1 m tirado en el piso: con el puño 22 cm arriba del medio no lo agarra (el método viejo sí) y de la punta lo
+     agarra a 44 cm del centro. 6c: un NPC agarrado pasa a muñeco de trapo; el punto agarrado queda a 0,5 cm de la palma
+     después de mover la mano 40 cm. 6d: el puño sobre una caja congelada se agarra (no la levanta), bajar la mano 25 cm
+     sube el cuerpo 25 cm y abrirla suelta.
   7. El mando camina, salta y gira 30°; fuera del VR mira.
   8. Salir deja todo normal; sin errores de JS.
 - **Sin probar en un celular:** el giroscopio de verdad, la curva de un casco de verdad y la cámara de atrás.
