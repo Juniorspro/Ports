@@ -41,8 +41,10 @@ async function falso(url, op = {}) {
   if (/auto-moderation\/rules$/.test(ruta) && m === 'POST') { const r = { id: 'a' + sigRegla++, ...b }; reglas.push(r); return new Response(JSON.stringify(r)); }
   return new Response(JSON.stringify({ id: 'm1' }));
 }
-const env = { DB: d1(), DISCORD_APP_ID: 'app1', DISCORD_PUBLIC_KEY: pub, DISCORD_TOKEN: 'tok', DISCORD_ADMIN_CODE: 'Prueba(@1', GEMINI_KEY: 'gk', __fetch: falso };
-globalThis.fetch = falso;   // (la IA y la puerta usan fetch directo)
+// (como en Cloudflare: fetch llamado como método de otro objeto —env.__fetch(…)— da «Illegal invocation»)
+function estricto(...a) { if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation: fetch llamado como método'); return falso(...a); }
+const env = { DB: d1(), DISCORD_APP_ID: 'app1', DISCORD_PUBLIC_KEY: pub, DISCORD_TOKEN: 'tok', DISCORD_ADMIN_CODE: 'Prueba(@1', GEMINI_KEY: 'gk', __fetch: estricto };
+globalThis.fetch = estricto;   // (la IA y la puerta usan fetch directo)
 const pendientes = []; const ctx = { waitUntil: (p) => pendientes.push(p) };
 async function pedir(cuerpo, { firma = true, mala = false } = {}) {
   const txt = JSON.stringify(cuerpo), ts = String(Math.floor(Date.now() / 1000));
@@ -131,27 +133,28 @@ ok('8. si el código cambia, el que se habilitó con el anterior deja de ser adm
 // 9
 env.DISCORD_ADMIN_CODE = 'Prueba(@1';
 const P = await import('../tienda/discord_puerta.js');
+const { __fetch: _x, ...envDO } = env;
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const rj = await pedir(cmd('jb', NADIE, [{ name: 'mensaje', value: '¿Qué trae la última versión?' }])); await Promise.all(pendientes.splice(0));
 const pj = llamadas.filter((x) => x.m === 'PATCH' && x.ruta.includes('/webhooks/app1/tk/messages/@original')).pop();
 const sis = geminiPedidos[geminiPedidos.length - 1].systemInstruction.parts[0].text;
 const YO = 'bot1', msgs = (desde) => llamadas.slice(desde).filter((x) => x.m === 'POST' && /\/messages$/.test(x.ruta));
-let k = llamadas.length; const dm1 = await P.manejarMensaje(env, { id: 'm1', channel_id: 'dm9', author: { id: 'u9', username: 'nico' }, content: 'Hola, ¿cómo bajo JXMod?' }, YO); const dmR = msgs(k);
+let k = llamadas.length; const dm1 = await P.manejarMensaje(envDO, { id: 'm1', channel_id: 'dm9', author: { id: 'u9', username: 'nico' }, content: 'Hola, ¿cómo bajo JXMod?' }, YO); const dmR = msgs(k);
 await espera(3100);
-k = llamadas.length; const dmA = await P.manejarMensaje(env, { id: 'm2', channel_id: 'dm9', author: { id: 'u9', username: 'nico' }, content: '/admin Prueba(@1' }, YO); const dmAr = msgs(k);
+k = llamadas.length; const dmA = await P.manejarMensaje(envDO, { id: 'm2', channel_id: 'dm9', author: { id: 'u9', username: 'nico' }, content: '/admin Prueba(@1' }, YO); const dmAr = msgs(k);
 const esAd = await (await import('../tienda/discord.js')).esAdminDe(env, 'u9', 'g1');
-k = llamadas.length; const g0 = await P.manejarMensaje(env, { id: 'm3', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: 'hablando de otra cosa', mentions: [] }, YO);
-const g1 = await P.manejarMensaje(env, { id: 'm4', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: '/JB ¿qué es Stickerazo?', mentions: [] }, YO); const g1r = msgs(k);
+k = llamadas.length; const g0 = await P.manejarMensaje(envDO, { id: 'm3', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: 'hablando de otra cosa', mentions: [] }, YO);
+const g1 = await P.manejarMensaje(envDO, { id: 'm4', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: '/JB ¿qué es Stickerazo?', mentions: [] }, YO); const g1r = msgs(k);
 await espera(3100);
-k = llamadas.length; const g2 = await P.manejarMensaje(env, { id: 'm5', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: '<@bot1> y los mapas?', mentions: [{ id: 'bot1' }] }, YO);
-const g3 = await P.manejarMensaje(env, { id: 'm6', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: 'y eso?', mentions: [] }, YO);   // (enseguida: tope de 3 s)
+k = llamadas.length; const g2 = await P.manejarMensaje(envDO, { id: 'm5', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: '<@bot1> y los mapas?', mentions: [{ id: 'bot1' }] }, YO);
+const g3 = await P.manejarMensaje(envDO, { id: 'm6', guild_id: 'g1', channel_id: 'c7', author: { id: 'u10', username: 'ana' }, content: 'y eso?', mentions: [] }, YO);   // (enseguida: tope de 3 s)
 const gR = msgs(k);
 await espera(3100);
-k = llamadas.length; const g4 = await P.manejarMensaje(env, { id: 'm7', guild_id: 'g1', channel_id: 'c7', author: { id: 'u11', username: 'leo' }, content: 'gracias', mentions: [], referenced_message: { author: { id: 'bot1' } } }, YO);
-const g5 = await P.manejarMensaje(env, { id: 'm8', guild_id: 'g1', channel_id: 'c7', author: { id: 'u12', username: 'troll' }, content: '/JB admin Prueba(@1', mentions: [] }, YO);
+k = llamadas.length; const g4 = await P.manejarMensaje(envDO, { id: 'm7', guild_id: 'g1', channel_id: 'c7', author: { id: 'u11', username: 'leo' }, content: 'gracias', mentions: [], referenced_message: { author: { id: 'bot1' } } }, YO);
+const g5 = await P.manejarMensaje(envDO, { id: 'm8', guild_id: 'g1', channel_id: 'c7', author: { id: 'u12', username: 'troll' }, content: '/JB admin Prueba(@1', mentions: [] }, YO);
 const borrado = llamadas.slice(k).some((x) => x.m === 'DELETE' && x.ruta === '/channels/c7/messages/m8');
 const trollAdmin = await (await import('../tienda/discord.js')).esAdminDe(env, 'u12', 'g1');
-const g6 = await P.manejarMensaje(env, { id: 'm9', guild_id: 'g1', channel_id: 'c7', author: { id: 'b2', username: 'otrobot', bot: true }, content: '/JB hola', mentions: [] }, YO);
+const g6 = await P.manejarMensaje(envDO, { id: 'm9', guild_id: 'g1', channel_id: 'c7', author: { id: 'b2', username: 'otrobot', bot: true }, content: '/JB hola', mentions: [] }, YO);
 ok('9. IA: /jb completa la respuesta; privado contesta; «/admin CÓDIGO» por privado reconoce; en el servidor contesta a /JB, mención y respuesta, a nada más; código en público: no, se borra y avisa; tope de 3 s; datos reales en las instrucciones',
   rj.d.type === 5 && pj && /Respuesta IA a: ¿Qué trae/.test(pj.b.content) && /3\.9\.1\d/.test(sis) && /stickerazo\.pages\.dev/.test(sis)
     && dm1.tipo === 'ia' && dmR.length === 1 && /cómo bajo JXMod/.test(dmR[0].b.content) && !dmR[0].b.message_reference
@@ -163,7 +166,8 @@ ok('9. IA: /jb completa la respuesta; privado contesta; «/admin CÓDIGO» por p
 class WsFalso extends EventTarget { constructor() { super(); this.enviados = []; this.cerrado = null; } send(x) { this.enviados.push(JSON.parse(x)); } close(c) { this.cerrado = c; } recibir(o) { this.dispatchEvent(Object.assign(new Event('message'), { data: JSON.stringify(o) })); } cortar(code) { this.dispatchEvent(Object.assign(new Event('close'), { code })); } }
 const socks = []; let alarma = null;
 const est = { storage: { getAlarm: async () => alarma, setAlarm: async (t) => { alarma = t; } } };
-const pu = new P.PuertaDiscord(est, { ...env, __abrirWs: async () => { const w = new WsFalso(); socks.push(w); return w; } });
+const { __fetch: _sinFetch, ...envPuerta } = env;   // (el Durable Object no tiene __fetch: usa el fetch global)
+const pu = new P.PuertaDiscord(est, { ...envPuerta, __abrirWs: async () => { const w = new WsFalso(); socks.push(w); return w; } });
 const e0 = await (await pu.fetch(new Request('https://puerta/asegurar'))).json();
 socks[0].recibir({ op: 10, d: { heartbeat_interval: 40000 } }); await espera(10);
 const ident = socks[0].enviados.find((x) => x.op === 2);

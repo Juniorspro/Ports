@@ -39,12 +39,15 @@ async function firmaBien(env, req, cuerpo) {
   return crypto.subtle.verify(alg, llave, deHex(sig), enc.encode(ts + cuerpo));
 }
 
+// (fetch suelto: en Cloudflare, llamarlo como método de otro objeto —env.__fetch(…)— da «Illegal invocation», y adentro
+// de la puerta env.__fetch ni existe; las pruebas ponen ahí su fetch de mentira)
+const traer = (env, url, op) => { const f = env.__fetch || fetch; return f(url, op); };
 // ---- la API de Discord con el token del bot ----
 export async function dc(env, metodo, ruta, cuerpo, motivo) {
   const h = { Authorization: 'Bot ' + env.DISCORD_TOKEN, 'User-Agent': 'DiscordBot (' + SITIO_SZ + ', 1.0)' };
   if (cuerpo !== undefined) h['Content-Type'] = 'application/json';
   if (motivo) h['X-Audit-Log-Reason'] = encodeURIComponent(motivo);
-  const r = await env.__fetch(API + ruta, { method: metodo, headers: h, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
+  const r = await traer(env, API + ruta, { method: metodo, headers: h, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
   const t = await r.text(); let d = null; try { d = t ? JSON.parse(t) : null; } catch (e) { d = { texto: t }; }
   if (!r.ok) throw Object.assign(new Error(`Discord ${metodo} ${ruta}: ${r.status} ${corto(t, 200)}`), { status: r.status, d });
   return d;
@@ -67,7 +70,7 @@ const conf = (env, g) => env.DB.prepare('SELECT * FROM dc_conf WHERE guild = ?1'
 // ---- las versiones (las mismas que leen el juego y la app) ----
 async function versiones(env) {
   const [jx, sz] = await Promise.all([REPO + 'web/version.json', REPO + 'porteos/stickerazo/descargas/app.json'].map((u) =>
-    env.__fetch(u + '?t=' + Date.now(), { cf: { cacheTtl: 60 } }).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
+    traer(env, u + '?t=' + Date.now(), { cf: { cacheTtl: 60 } }).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
   return { jx, sz };
 }
 function embedJxmod(v, titulo) {
@@ -235,7 +238,6 @@ async function formulario(env, it) {
 
 export async function discordRutas(req, env, url, r, ctx) {
   if (!r.startsWith('/api/discord/')) return null;
-  env.__fetch = env.__fetch || fetch;
   if (!env.DISCORD_PUBLIC_KEY || !env.DISCORD_APP_ID) return new Response('el bot no está configurado', { status: 503 });
   if (r === '/api/discord/puerta' && req.method === 'GET' && env.DC_PUERTA) {   // (si la puerta está abierta; sin datos de nadie)
     const e = await (await env.DC_PUERTA.get(env.DC_PUERTA.idFromName('principal')).fetch('https://puerta/asegurar')).json();
@@ -259,7 +261,7 @@ export async function discordRutas(req, env, url, r, ctx) {
 const ESTADO_TXT = { nuevo: 'Nuevo', visto: 'Visto', en_curso: 'En curso', hecho: 'Hecho', no: 'No va' };
 export async function discordCron(env) {
   if (!env.DISCORD_TOKEN || !env.DISCORD_APP_ID) return;
-  env.__fetch = env.__fetch || fetch; await tablasDc(env);
+  await tablasDc(env);
   // (la puerta: la conexión fija con Discord para el chat normal; si se cayó, se vuelve a abrir)
   if (env.DC_PUERTA) await env.DC_PUERTA.get(env.DC_PUERTA.idFromName('principal')).fetch('https://puerta/asegurar').catch((e) => console.error('puerta', e));
   const servidores = (await env.DB.prepare('SELECT * FROM dc_conf WHERE canal IS NOT NULL').all()).results;
