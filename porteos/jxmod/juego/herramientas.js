@@ -94,7 +94,8 @@ function herramientasPaso(dt) {
   const arma = ARM.lista[ARM.i];
   if (PREFS.contorno !== false && !UI.abierto && (arma === 'PhysicsGun' || arma === 'ToolBaton' || arma === 'GravityGun')) {
     const A = ARM.agarre && ARM.agarre.b.obj, r = A ? null : raycast(miraOjo(), miraDir(), arma === 'GravityGun' ? 25 : 50, null), o = A || (r && r.body && r.body.obj);   // (lo que agarraría el arma)
-    if (o && !o.remoto) o.md.resaltar = TIEMPO.t;
+    // (el contorno del color del arma: ámbar la Physics Gun y la Tool Gun de JXMod, celeste la Gravity Gun y las clásicas)
+    if (o && !o.remoto) { o.md.resaltar = TIEMPO.t; o.md.resaltarC = typeof ajxDeArma === 'function' && ajxDeArma(arma) && arma !== 'GravityGun' ? RES_AMBAR : null; }
   }
   for (let k = HER.ents.length - 1; k >= 0; k--) {
     const o = HER.ents[k]; if (!OBJS.includes(o)) { if (o.logica.tag) o.logica.tag.remove(); HER.ents.splice(k, 1); continue; }

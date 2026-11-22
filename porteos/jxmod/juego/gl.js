@@ -121,7 +121,7 @@ uniform sampler2D uT1, uT2, uT3; uniform vec4 uS1; uniform vec2 uS3;
 #ifdef MEZ
 uniform sampler2D uT1; in float vMz;
 #endif
-uniform vec4 uC, uTi; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uRim, uNieD; uniform float uCorte;
+uniform vec4 uC, uTi, uTi2, uTi3; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uRim, uNieD; uniform float uCorte;
 #if LUZ >= 1
 uniform vec3 uMat;
 #endif
@@ -350,7 +350,16 @@ void main(){
   t *= uC;
   // el tinte de una entidad (un color por objeto, Modelo.tinte: el barril violeta del menú, deposito.js): el brillo de la
   // textura pintado de ese color, sin perder el dibujo (las letras y el desgaste); uTi.a, cuánto (0: como viene)
-  if (uTi.a > 0.0) t.rgb = mix(t.rgb, vec3(dot(t.rgb, vec3(0.299, 0.587, 0.114))) * uTi.rgb, uTi.a);
+  // Con dos tonos (uTi2.a > 0: las armas de JXMod, armasjx.js) el cuerpo (lo gris de la textura) va con uTi y los
+  // acentos (lo de color: las luces, las franjas) con uTi2; uTi3: cuánto brillan los acentos con su color (rgb) y desde
+  // qué saturación cuentan como acento (a)
+  vec3 emAc = vec3(0.0);
+  if (uTi2.a > 0.0) {
+    float lu = dot(t.rgb, vec3(0.299, 0.587, 0.114)), sat = max(t.r, max(t.g, t.b)) - min(t.r, min(t.g, t.b));
+    float kA = smoothstep(uTi3.a, uTi3.a + 0.16, sat);
+    vec3 cu = mix(t.rgb, vec3(lu) * uTi.rgb, uTi.a), ac = mix(t.rgb, vec3(lu) * uTi2.rgb, uTi2.a);
+    t.rgb = mix(cu, ac, kA); emAc = ac * kA * uTi3.rgb;
+  } else if (uTi.a > 0.0) t.rgb = mix(t.rgb, vec3(dot(t.rgb, vec3(0.299, 0.587, 0.114))) * uTi.rgb, uTi.a);
 #ifdef CUT
   if (t.a < uCorte) discard;
 #endif
@@ -549,6 +558,7 @@ void main(){
   // lo que se apunta: sólo los bordes brillan en azul (donde la superficie se ve de costado)
   col += uRim * pow(1.0 - abs(dot(n, normalize(uCam - vW))), 2.2);
 #endif
+  col += emAc;
   float dist = distance(vW, uCam);
   // (uNieD: dónde empieza y dónde termina la niebla, y hasta cuánto tapa —fogmaxdensity de los mapas de GMod—)
   float f = clamp((dist - uNieD.x) / (uNieD.y - uNieD.x), 0.0, 1.0) * uNieD.z;
@@ -1269,6 +1279,7 @@ function dibujarPedido(p, P) {
   if (u.uEm) uniV(u, 'uEm', p.x && p.x.em ? p.x.em : mt.lampara && R.lucesMapa ? EM_LAMPARA : mt.em, 3);
   if (u.uRim) uniV(u, 'uRim', p.x && p.x.rim ? p.x.rim : RIM_NO, 3);
   if (u.uTi) uniV(u, 'uTi', p.x && p.x.ti ? p.x.ti : TI_NO, 4);   // (el tinte de la entidad, si tiene: Modelo.tinte)
+  if (u.uTi2) { uniV(u, 'uTi2', p.x && p.x.ti2 ? p.x.ti2 : TI_NO, 4); uniV(u, 'uTi3', p.x && p.x.ti3 ? p.x.ti3 : TI_NO, 4); }   // (con dos tonos: los acentos)
   if (u.uCorte && cv.uCorte !== 0.5) { cv.uCorte = 0.5; gl.uniform1f(u.uCorte, 0.5); }
   if (u.uMat) uniV(u, 'uMat', mt.pbr, 3);
   if (mt.agua) aguaUniformes(p, u);

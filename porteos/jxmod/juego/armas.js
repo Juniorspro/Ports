@@ -443,7 +443,8 @@ function vistaPuntaMundo() {
 }
 function dibujarRayoFisica() {
   const L = rayoFisicaPuntos(); if (!L) return;
-  for (let i = 1; i < L.length; i++) linea(L[i - 1], L[i], [0.35, 0.78, 1, 0.95]);   // (celeste, como el de GMod)
+  const c = typeof ajxRayoColor === 'function' ? ajxRayoColor() : [0.35, 0.78, 1, 0.95];   // (ámbar la de JXMod; celeste, como el de GMod, la clásica: armasjx.js)
+  for (let i = 1; i < L.length; i++) linea(L[i - 1], L[i], c);
 }
 // los puntos del rayo: una curva de la boca del arma a donde se agarró (con la cámara libre o en tercera persona, de la
 // boca del arma en la mano del personaje). La de JXMod además le pone cuerpo: un tubo celeste que brilla (armasjx.js)

@@ -2413,7 +2413,8 @@ al tope del celu (512 px):
 
 ## JXMod 3.9: la Physics Gun de JXMod y el tráiler
 
-- **La Physics Gun de JXMod** (`juego/armasjx.js`): es la de GMod con sus brazos y sus animaciones, modificada. Tiene el
+- **La Physics Gun de JXMod** (`juego/armasjx.js`; después se cambió: ver «las armas son las de GMod pintadas, sin
+  piezas pegadas», más abajo): es la de GMod con sus brazos y sus animaciones, modificada. Tiene el
   cuerpo azul acero y lo celeste sigue brillando. Las manos quedan como estaban (`Modelo.tintes`: un tinte por material).
   - Se le sacaron las garras grandes y sus brazos con una copia de la malla sin esas piezas (`ajxMallaSin`, `Modelo.mCambio`).
     Cada pieza es lo que está conectado por triángulos o por vértices en el mismo lugar, y se saca si su hueso principal es
@@ -5515,6 +5516,36 @@ oficiales borrarlos todos y dejarlos como opciones en props».
   0,35^0,5 y apaga; la radio se pone; ya no aparecen ni en Mis mods, ni en el menú MOD, ni en la tienda).
   `tienda_panel.mjs` 24/24 con los mods de la gente (antes instalaba los oficiales); `tienda.mjs` ya no instala Súper
   salto. `mods_vivo.mjs` se borró: probaba prender los oficiales desde el menú MOD.
+
+## Sin publicar todavía: identidad de JXMod — las armas son las de GMod pintadas, sin piezas pegadas
+
+Pedido del dueño: «mejoremos los modelos de GMod para hacerlo propio, ya que muy feos los modelos propios nuestros… el
+cartel JXM sobre la Physics Gun es feo». Antes (3.9) la Physics Gun, la Gravity Gun, la Tool Gun y la palanca eran las
+de GMod con piezas sacadas y pegadas (garras nuevas, emisor, la aleta con el logo JXM).
+- **Ahora son las de GMod enteras** (`juego/armasjx.js`): con todas sus piezas, sus brazos y sus animaciones. No se saca
+  ni se pega nada (fuera `ajxMallaSin`, `ajxLogo`, las garras y el emisor; `Modelo.mCambio` queda sin usar).
+- **Pintura en dos tonos** (shader, `gl.js`: `uTi` el cuerpo, `uTi2` los acentos, `uTi3` el brillo y desde qué
+  saturación de la textura algo es acento). Lo gris de la textura queda grafito y lo de color toma el color de JXMod
+  y brilla:
+  - Physics Gun: grafito con ámbar (el amarillo del menú); Tool Gun igual.
+  - Gravity Gun: grafito con celeste (para no confundirla con la Physics Gun).
+  - Palanca: la pintura roja pasa a ámbar y la cabeza queda grafito.
+  - Las manos (material 523) y la pantalla de la Tool Gun (526) no se tocan (`AJX_MATS`).
+  - Se eligió entre tres paletas con capturas (grafito + ámbar, acero + celeste, negro + amarillo).
+- **El mismo color en todos lados:** el modelo en la mano del personaje (`Modelo.tinte` de dos tonos), el rayo de la
+  Physics Gun (el tubo y la línea en ámbar, `ajxRayoColor`), el resaltado de lo que se apunta con la Physics Gun y la
+  Tool Gun (ámbar, `Modelo.resaltarC`; con la Gravity Gun, celeste) y los íconos de la barra.
+  - Los íconos de GMod son el modelo del mundo casi negro: el de JXMod se aclara (lo más claro llega a ~175) y lleva un
+    halo del color de los acentos (`ajxIconoTenido`).
+- Las de GMod tal cual siguen en el mod de la comunidad «Armas clásicas» (instalado y apagado): sin tinte, el rayo
+  celeste y sus íconos.
+- **Prueba:** `pruebas/armas_jx.mjs` 4/4:
+  1. las cuatro con dos tonos sólo en el arma; a dibujar, lo mismo que la de GMod tal cual (nada sacado ni pegado);
+  2. en la pantalla: la Physics Gun con ámbar (235 puntos) y sin celeste (0), la Gravity Gun con celeste (697) y casi
+     sin naranja (10), y la palanca amarilla;
+  3. el rayo agarrando una caja es ámbar y los cuatro íconos están pintados; con «Armas clásicas», sin tinte, el rayo
+     celeste, el celeste del arma de vuelta (126 puntos) y su ícono de GMod;
+  4. sin errores de JS.
 
 ## Sin publicar todavía: el modo VR (`juego/vr.js`)
 

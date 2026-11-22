@@ -2,6 +2,8 @@
 // modelos: un árbol de nodos sacado del juego (prefab o escena) con sus mallas, materiales y huesos.
 // Cada nodo tiene su posición/rotación/escala local; las matrices del mundo se recalculan cuando algo se mueve.
 // ---------------------------------------------------------------------------------------------------------
+// el color del contorno de lo que se apunta con las armas de construir (celeste; ámbar con las de JXMod: herramientas.js)
+const RES_CELESTE = [0.25, 0.75, 2.4], RES_AMBAR = [2.4, 1.45, 0.22];
 class Modelo {
   constructor(arbol, opt) {
     opt = opt || {};
@@ -70,14 +72,15 @@ class Modelo {
     let extra = this.color ? { c: this.color } : this.extra || null;
     // (el tinte de la entidad, un color por objeto —en el shader, uTi: el brillo de la textura pintado de ese color—; el
     // barril violeta de la grieta en el menú, deposito.js)
-    if (this.tinte) extra = extra ? Object.assign({}, extra, { ti: this.tinte }) : { ti: this.tinte };
+    // (con dos tonos —[cuerpo, acentos, brillo]: las armas de JXMod en la mano del personaje, armasjx.js— igual que en la vista)
+    if (this.tinte) { const T = Array.isArray(this.tinte[0]) ? { ti: this.tinte[0], ti2: this.tinte[1], ti3: this.tinte[2] } : { ti: this.tinte }; extra = extra ? Object.assign({}, extra, T) : T; }
     // resaltado de lo que se apunta: fijo, entra y sale suave y aguanta un momento (sin titilar si el rayo falla un cuadro)
     if (this.resaltar !== undefined) {
       if (this.resT !== TIEMPO.t) { // una vez por cuadro (el modelo se dibuja también para las sombras)
         this.resT = TIEMPO.t; const meta = TIEMPO.t - this.resaltar < 0.3 ? 1 : 0, k = (this.resK || 0) + (meta - (this.resK || 0)) * Math.min(1, (TIEMPO.dt || 0.016) * 12);
         this.resK = k < 0.01 && !meta ? 0 : k;
       }
-      if (this.resK > 0) { const e = this.resK; extra = Object.assign({}, extra || {}, { rim: [0.25 * e, 0.75 * e, 2.4 * e] }); }
+      if (this.resK > 0) { const e = this.resK, c = this.resaltarC || RES_CELESTE; extra = Object.assign({}, extra || {}, { rim: [c[0] * e, c[1] * e, c[2] * e] }); }
     }
     // (halo.Add de un mod de GMod: un brillo de su color en el borde mientras lo pida —gmod_anim.js—)
     if (this.haloC && TIEMPO.t - (this.haloT || -9) < 0.2 && !(extra && extra.rim)) { const c = this.haloC; extra = Object.assign({}, extra || {}, { rim: [c[0] * 2.2 + 0.1, c[1] * 2.2 + 0.1, c[2] * 2.2 + 0.1] }); }
@@ -86,7 +89,7 @@ class Modelo {
     const A = this.A, lb = this.lodBajo; R.encNs = !!this.sinSombra;
     // (un tinte por material de la malla —el arma de un color y las manos de otro—: las armas de JXMod, armasjx.js)
     // (se arma una vez y se reusa mientras no cambien los tintes ni lo demás: sin objetos nuevos en cada cuadro)
-    const tm = this.tintes; if (tm && (this._exT !== tm || this._exE !== extra)) { this._exT = tm; this._exE = extra; this._ex = tm.map((c) => (c ? Object.assign({}, extra || {}, { ti: c }) : extra)); }
+    const tm = this.tintes; if (tm && (this._exT !== tm || this._exE !== extra)) { this._exT = tm; this._exE = extra; this._ex = tm.map((c) => (c ? Object.assign({}, extra || {}, Array.isArray(c[0]) ? { ti: c[0], ti2: c[1], ti3: c[2] } : { ti: c }) : extra)); }
     const ex = tm ? this._ex : null, E = (k) => (ex && k < ex.length ? ex[k] : extra);
     for (let i = 0; i < A.length; i++) {
       if (!this.ver[i]) continue;

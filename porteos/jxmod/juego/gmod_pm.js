@@ -241,7 +241,7 @@ function gmpDibujar(P) {
   if (rag) gmpApoyar(P, G); else if (cerca && G.otraEsc && P.suelo && !P.sentado) gmpNoHundir(G, rp.y);   // (sólo los de otras medidas: en los demás la IK ya los apoya)
   if (G.armaD && X.RightHand !== undefined) G.armaD.pm = G.Pw[X.RightHand].clone();   // (donde quedó de verdad la mano)
   for (let i = 1; i <= nb; i++) { const Q = G.Q[i], s = G.S[i] < 0.02 ? 0.0001 : G.S[i]; _gpP[0] = G.Pw[i].x; _gpP[1] = G.Pw[i].y; _gpP[2] = G.Pw[i].z; _gpQ[0] = Q.x; _gpQ[1] = Q.y; _gpQ[2] = Q.z; _gpQ[3] = Q.w; _gpS[0] = _gpS[1] = _gpS[2] = s; m4trs(_gpP, _gpQ, _gpS, G.W[i]); G.md.fijo[i] = G.W[i]; }
-  G.md.color = hmd.color; G.md.extra = hmd.extra; G.md.resaltar = hmd.resaltar; G.md.sinSombra = hmd.sinSombra; G.md.haloC = hmd.haloC; G.md.haloT = hmd.haloT; G.md.tinte = hmd.tinte;   // (el tinte: la entidad del evento de los 300, oscura)
+  G.md.color = hmd.color; G.md.extra = hmd.extra; G.md.resaltar = hmd.resaltar; G.md.resaltarC = hmd.resaltarC; G.md.sinSombra = hmd.sinSombra; G.md.haloC = hmd.haloC; G.md.haloT = hmd.haloT; G.md.tinte = hmd.tinte;   // (el tinte: la entidad del evento de los 300, oscura)
   G.md.sucio = true; G.md.encolar();
 }
 // lo que ocupa la malla alrededor de cada hueso, en los ejes del hueso (metros, ejes del juego): de los vértices que dependen
