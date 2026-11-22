@@ -427,9 +427,10 @@ function armasPaso(dt) {
 }
 function dibujarVista() {
   if (DBG.sinVista) return false;   // (las tomas de cine del tráiler: sin el arma en la cámara)
-  if ((!ARM.v && !celmEnMano() && !((DEF_ARMAS[ARM.lista[ARM.i]] || {}).tipo === 'gmswep' && !(DEF_ARMAS[ARM.lista[ARM.i]] || {}).nodo)) || JUG.tercera || HCAM.ver || !JUG.vivo || JUG.vehiculo || ARM.zoom || CIC.vic || CIC.camOn || EDA.on || NOC.cam !== null || NOC.susto) return false;
+  if ((!ARM.v && !celmEnMano() && !(typeof mjxEnMano === 'function' && mjxEnMano()) && !((DEF_ARMAS[ARM.lista[ARM.i]] || {}).tipo === 'gmswep' && !(DEF_ARMAS[ARM.lista[ARM.i]] || {}).nodo)) || JUG.tercera || HCAM.ver || !JUG.vivo || JUG.vehiculo || ARM.zoom || CIC.vic || CIC.camOn || EDA.on || NOC.cam !== null || NOC.susto) return false;
   if (JUG.cuerpo && JUG.cuerpo.emote && JUG.cuerpo.emote !== 'Patada') return false;   // (haciendo un emote en primera persona se ve el cuerpo, sin el arma en la mano de la cámara)
   if (celmEnMano()) return celmVistaDibujar();   // (el celular: la mano que lo sostiene, celumano.js)
+  if (typeof mjxEnMano === 'function' && mjxEnMano()) return mjxVistaDibujar();   // (tus manos con la cámara: manos_jx.js)
   { const D = DEF_ARMAS[ARM.lista[ARM.i]] || {}; if (D.tipo === 'gmswep' && !D.nodo) return typeof gmaVistaDibujar === 'function' && gmaVistaDibujar(); }   // (un arma de un addon de GMod con su propio ViewModel)
   vistaUbicar(ARM.v, CAM.pos, CAM.q, ARM.sway);
   if (!(typeof ajxGmVista === 'function' && ajxGmVista(ARM.v, ARM.lista[ARM.i]))) ARM.v.md.encolar();   // (las de JXMod: la de GMod pintada, sin y con piezas, armasjx.js)

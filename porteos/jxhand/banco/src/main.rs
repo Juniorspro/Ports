@@ -75,10 +75,14 @@ fn main() {
                 let d = |i: usize, j: usize| { let (p, q) = (r2.mundo[i], r2.mundo[j]); ((p.x - q.x).powi(2) + (p.y - q.y).powi(2) + (p.z - q.z).powi(2)).sqrt() };
                 println!("     3D: muñeca→nudillo medio {:.1} cm, dedo medio {:.1} cm", d(0, 9) * 100.0, (d(9, 10) + d(10, 11) + d(11, 12)) * 100.0);
                 let wv: [jxhand::esqueleto::V3; 21] = std::array::from_fn(|i| jxhand::esqueleto::V3::de(&r2.mundo[i]));
-                let mr = jxhand::esqueleto::marco_palma(&wv, r2.derecha < 0.5);
+                let mr = jxhand::esqueleto::marco_palma(&wv, r2.derecha > 0.5);
                 let wl: [jxhand::esqueleto::V3; 21] = std::array::from_fn(|i| wv[i].menos(wv[0]));
                 let mr = jxhand::esqueleto::Marco { o: jxhand::esqueleto::V3::default(), ..mr };
                 let an = jxhand::esqueleto::angulos(&wl, &mr); let ci = jxhand::esqueleto::cierre(&an);
+                let nn = jxhand::esqueleto::normal_palma(&mr);
+                // la palma mira a la cámara si su normal apunta hacia ella (z negativa: z crece alejándose)
+                println!("     x en la imagen: muñeca {:.0}, punta del pulgar {:.0}, punta del índice {:.0}, punta del meñique {:.0} · z punta del pulgar {:.3}, del meñique {:.3}", r2.img[0].x, r2.img[4].x, r2.img[8].x, r2.img[20].x, r2.mundo[4].z, r2.mundo[20].z);
+                println!("     normal de la palma (x, y, z): ({:.2}, {:.2}, {:.2}) → {}", nn.x, nn.y, nn.z, if nn.z < 0.0 { "la palma mira a la cámara" } else { "el dorso mira a la cámara" });
                 let g = |x: f32| x.to_degrees().round() as i32;
                 println!("     ángulos (base, abre, medio, punta)°: {:?} · cierre {:?}", an.iter().map(|a| (g(a.flex), g(a.abre), g(a.medio), g(a.punta))).collect::<Vec<_>>(), ci.iter().map(|c| (c * 100.0).round() as i32).collect::<Vec<_>>());
             }

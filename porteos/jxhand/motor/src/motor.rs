@@ -102,7 +102,7 @@ impl Motor {
                 if r.presencia < self.cfg.min_presencia { continue; }
                 let f = Filtro3::nuevo(self.cfg.img_min_corte, self.cfg.img_beta, self.cfg.img_d_corte);
                 let a = UnoEuro::nuevo(self.cfg.ang_min_corte, self.cfg.ang_beta, 1.0);
-                let mut p = Pista { id: self.sig_id, roi, derecha_ema: r.derecha, geom_derecha: r.derecha < 0.5, f_img: [f; PUNTOS], f_ang: [[a; 4]; 5],
+                let mut p = Pista { id: self.sig_id, roi, derecha_ema: r.derecha, geom_derecha: r.derecha > 0.5, f_img: [f; PUNTOS], f_ang: [[a; 4]; 5],
                     f_pos: Filtro3::nuevo(0.6, 3.0, 1.0), f_ejes: [Filtro3::nuevo(1.0, 0.8, 1.0); 2], cal: Calibracion::default(), gesto: Estable::default(), salida: None };
                 self.sig_id += 1;
                 self.actualizar(&mut p, r, w, h, t, espejada);
@@ -122,7 +122,7 @@ impl Motor {
         let c = &self.cfg;
         // derecha o izquierda: promedio con histéresis (no salta por un cuadro dudoso)
         p.derecha_ema += (r.derecha - p.derecha_ema) * 0.25;
-        if p.geom_derecha && p.derecha_ema > 0.65 { p.geom_derecha = false; } else if !p.geom_derecha && p.derecha_ema < 0.35 { p.geom_derecha = true; }
+        if p.geom_derecha && p.derecha_ema < 0.35 { p.geom_derecha = false; } else if !p.geom_derecha && p.derecha_ema > 0.65 { p.geom_derecha = true; }
         let real_derecha = if espejada { !p.geom_derecha } else { p.geom_derecha };
         // el cuadrado del cuadro siguiente
         p.roi = mano::roi_de_puntos(&r.img);

@@ -20,7 +20,7 @@ impl V3 {
 }
 
 /// marco de la palma (de mano derecha, para que el cuaternión sirva): x hacia el lado del índice, y hacia los dedos,
-/// z = x × y. En una mano con geometría de derecha z sale por el dorso y en una de izquierda por la palma: `pz` dice
+/// z = x × y. En una mano con forma de derecha z sale por la palma y en una de izquierda por el dorso: `pz` dice
 /// para qué lado de z queda la palma (−1 o +1), así los ángulos significan lo mismo en las dos manos.
 #[derive(Clone, Copy, Debug)]
 pub struct Marco { pub o: V3, pub x: V3, pub y: V3, pub z: V3, pub pz: f32 }
@@ -40,15 +40,16 @@ impl Marco {
 }
 
 /// `geom_derecha`: si la mano, tal como está en la imagen que se pasó, tiene la forma de una derecha (en una imagen
-/// espejada una izquierda real se ve derecha). El modelo da la probabilidad de «derecha» suponiendo imagen espejada: la
-/// forma de derecha es cuando esa probabilidad es menor que 0,5.
+/// espejada una izquierda real se ve derecha). El número de «derecha» del modelo es justo eso: la forma en la imagen tal
+/// cual llega (medido: la palma a la cámara con el pulgar a la derecha da 0,98). Con la forma de derecha, z = x × y sale
+/// por la palma (pz = +1); con la de izquierda, por el dorso.
 pub fn marco_palma(w: &[V3; PUNTOS], geom_derecha: bool) -> Marco {
     let o = w[0];
     let y = w[9].menos(w[0]).unit();
     let xt = w[5].menos(w[17]);
     let x = xt.menos(y.por(xt.punto(y))).unit();
     let z = x.cruz(y).unit();
-    Marco { o, x, y, z, pz: if geom_derecha { -1.0 } else { 1.0 } }
+    Marco { o, x, y, z, pz: if geom_derecha { 1.0 } else { -1.0 } }
 }
 /// la normal que sale de la palma (en el mundo)
 pub fn normal_palma(m: &Marco) -> V3 { m.z.por(m.pz) }

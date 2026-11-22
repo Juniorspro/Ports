@@ -5435,6 +5435,53 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     - Todos los roles del servidor están en la posición 1, así que la jerarquía la decide la antigüedad y JXBot, el
       más nuevo, queda último. Para dar «Miembro» hay que arrastrar JXBot arriba en Ajustes → Roles.
 
+## Sin publicar todavía: tus manos con la cámara (JX Hand Engine)
+
+Pedido del dueño: «el mejor handtracking vía MediaPipe… en Rust… mejor o igual a Meta Quest… en la APK, no web, y que
+se actualice dentro de la app como JXMod». El motor está en `porteos/jxhand` (su LEEME tiene las mediciones); acá, cómo
+entra al juego.
+
+- **Dónde está:** en Ajustes → «Manos con la cámara (JX Hand Engine)».
+  - Sólo en la app: `mjxDisponible()` pide los archivos del motor y JXNativo.
+  - `?jxmanos` lo prende en la compu, para probar.
+- **La cámara y el motor:**
+  - Se abre la cámara de frente (640×480 a 30 cps) y el motor corre en un Worker armado con `JXHAND_FUENTE`.
+  - Cada cuadro de la cámara viaja como ImageBitmap a 480 px de ancho, siempre el más nuevo: si el motor está ocupado,
+    se saltea.
+  - Toma la versión del motor con FMA si la vista web la entiende.
+  - Si tarda más de 55 ms en promedio, pasa sola al modelo liviano de los puntos.
+- **El arma «Manos JX» (`juego/manos_jx.js`):** las manos de primera persona copian las tuyas. Es la vista «Hands»,
+  con huesos de dedos, como el celular de `celumano.js`, ahora con los dos brazos.
+  - De la cámara del celular a tus ojos hay un giro de 180° alrededor de la vertical (la cámara te mira de frente).
+  - La muñeca va adonde está tu mano: más cerca de la cámara es más lejos de los ojos, como estirar el brazo.
+  - La palma toma los ejes muñeca → nudillo del medio y meñique → índice.
+  - El brazo se acomoda con cinemática inversa desde el hombro del modelo, con el codo afuera y abajo.
+  - Cada hueso de cada dedo apunta como el tuyo, con el esqueleto de JX. Se usan las direcciones, así el modelo no se
+    estira.
+  - Una mano que se pierde baja suave hasta salir de la vista.
+- **Gestos:** la pinza (pulgar con índice) es «usar»: puertas, autos, agarrar.
+- **Vista chica:** abajo a la izquierda, tus manos como líneas (rosa la derecha, violeta la izquierda), el gesto y
+  cuánto tarda el motor.
+- **Armado (`armar.py`):** sólo con PK_BIN (la app) copia el motor (2 versiones de WebAssembly) y los 3 modelos a
+  `jxhand/<nombre>.<huella>.<ext>`, al lado del juego, como los fondos animados.
+  - Viajan en las actualizaciones por partes: 10,3 MB la primera vez y después sólo lo que cambie.
+  - La web no los lleva.
+- **APK:** la vista web ahora da la cámara (`RESOURCE_VIDEO_CAPTURE`) con el permiso CAMERA de Android, que se pide la
+  primera vez. El manifiesto suma CAMERA y la cámara como no obligatoria.
+  - Esto es Java: hace falta una APK nueva una vez. Después, todo lo del motor se actualiza por partes.
+- **Arreglo en el motor de paso:** el número de «derecha» del modelo es la forma en la imagen tal cual llega. Medido
+  con dos fotos de palma a la cámara y el pulgar a la derecha: 0,98. Se usaba al revés: el esqueleto daba bien (dos
+  signos que se cancelaban), pero el lado real salía cambiado y el juego dibujaba una derecha como izquierda.
+- **Prueba (`pruebas/manos_jx.mjs`): 4/4,** de punta a punta con la cámara de mentira de Chromium (un Y4M con una mano
+  abierta que se mueve) sobre el armado de la app, servido en localhost (la cámara sólo anda en un contexto seguro):
+  1. La opción aparece, la cámara se abre, el motor queda listo (con FMA) y aparece el arma.
+  2. El motor ve la mano: presencia 0,994, «abierta», 5 dedos, a 22 cm.
+  3. La mano derecha del juego queda delante de la cámara (48 cm, en la vista), con los dedos estirados (17° a 35°),
+     se ve el dorso (tu palma mira al celular) y se mueve con la tuya.
+  4. La vista chica se dibuja; apagar cierra la cámara y saca el arma; sin errores de JS.
+- **Velocidad:** en esta compu, con el juego corriendo por software (swiftshader), el motor tardó 70 a 90 ms y pasó al
+  liviano. En un celular de verdad no se pudo medir desde acá.
+
 ## Sin publicar todavía: lo de «Bugs y sugerencias» después de la 3.9.11
 
 - **Bugs:**

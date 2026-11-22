@@ -69,7 +69,7 @@ public class Web extends Activity {
     static String iconoAlias(String id) { return "com.jxmod.app.Icono" + Character.toUpperCase(id.charAt(0)) + id.substring(1); }
     static final String HOST = "appassets.androidplatform.net";
     static final String INICIO = "https://" + HOST + "/index.html";
-    static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13, PEDIR_CARPETA = 14, PEDIR_ESCRIBIR = 15, PEDIR_PANTALLA = 16, PEDIR_MIC_PANT = 17, PEDIR_AVISOS = 18;
+    static final int PEDIR_ARCHIVO = 11, PEDIR_MIC = 12, GUARDAR = 13, PEDIR_CARPETA = 14, PEDIR_ESCRIBIR = 15, PEDIR_PANTALLA = 16, PEDIR_MIC_PANT = 17, PEDIR_AVISOS = 18, PEDIR_CAMARA = 19;
     // (la grabación «pantalla del celular»: GrabaPantalla.java; lo que pidió la página hasta que el usuario deja grabar)
     private static volatile Web yo;
     private String pantNombre = "JXMod.mp4"; private int pantAlto = 720, pantFps = 30;
@@ -466,8 +466,14 @@ public class Web extends Activity {
         }
         @Override public void onPermissionRequest(final PermissionRequest r) {
             runOnUiThread(() -> {
-                boolean mic = false;
-                for (String x : r.getResources()) if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(x)) mic = true;
+                boolean mic = false, cam = false;
+                for (String x : r.getResources()) { if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(x)) mic = true; if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(x)) cam = true; }
+                // la cámara (tus manos con la cámara, JX Hand Engine: manos_jx.js): con el permiso de Android, sólo video
+                if (cam && !mic) {
+                    if (Build.VERSION.SDK_INT < 23 || checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) r.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+                    else { if (permPend != null) permPend.deny(); permPend = r; requestPermissions(new String[]{Manifest.permission.CAMERA}, PEDIR_CAMARA); }
+                    return;
+                }
                 if (!mic) { r.deny(); return; }
                 if (tieneMic()) r.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
                 else {
@@ -491,6 +497,10 @@ public class Web extends Activity {
 
     @Override public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
         boolean ok = res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED;
+        if (req == PEDIR_CAMARA && permPend != null) {
+            if (ok) permPend.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE}); else permPend.deny();
+            permPend = null;
+        }
         if (req == PEDIR_MIC && permPend != null) {
             if (ok) permPend.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE}); else permPend.deny();
             permPend = null;

@@ -23,7 +23,8 @@ pub struct Puntos {
     /// en metros, centrados en la mano (los del modelo, girados como la mano en la imagen)
     pub mundo: [P3; PUNTOS],
     pub presencia: f32,
-    /// probabilidad de que sea la mano derecha (con la imagen como la ve la cámara de selfie, espejada)
+    /// probabilidad de que tenga la forma de una mano derecha en la imagen tal cual llega (en una imagen espejada, de
+    /// selfie, coincide con la mano real; en una sin espejar, es la otra)
     pub derecha: f32,
     pub roi: Roi,
 }
