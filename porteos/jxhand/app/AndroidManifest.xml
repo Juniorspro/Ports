@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- JX Hand: la app del motor de manos (JX Hand Engine). La cámara (trasera de entrada; se puede cambiar a la de frente)
+     y la vista web que corre el motor en WebAssembly. minSdk, targetSdk y versión los pone armar_apk.py. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.jxapps.jxhand">
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <application android:label="JX Hand" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"
+        android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" android:hardwareAccelerated="true" android:allowBackup="false">
+        <activity android:name=".Principal" android:exported="true" android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

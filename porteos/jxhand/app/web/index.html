@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>JX Hand</title>
+<style>
+  :root { --violeta: #7a3cff; --rosa: #ff3e8a; --naranja: #ff8a1f; --amarillo: #ffd23f; --vidrio: rgba(14, 12, 22, .58); --borde: rgba(255, 255, 255, .12); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #07060b; color: #fff; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; overflow: hidden; user-select: none; }
+  video, #lienzo { position: fixed; inset: 0; width: 100%; height: 100%; }
+  video { object-fit: cover; background: #07060b; }
+  video.espejo { transform: scaleX(-1); }
+  .vidrio { background: var(--vidrio); border: 1px solid var(--borde); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  #arriba { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 14px; right: 14px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
+  #marca { display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 10px; border-radius: 14px; }
+  #marca .ico { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--violeta), var(--rosa) 55%, var(--naranja)); display: grid; place-items: center; position: relative; }
+  #marca .ico::after { content: ''; position: absolute; width: 6px; height: 6px; border-radius: 50%; background: var(--amarillo); top: 3px; right: 3px; }
+  #marca b { font-weight: 900; letter-spacing: -.02em; font-size: 17px; }
+  #marca span { font-weight: 500; opacity: .85; font-size: 17px; margin-left: -4px; }
+  #datos { padding: 7px 12px; border-radius: 12px; font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; line-height: 1.35; }
+  #datos small { opacity: .6; display: block; font-size: 11px; }
+  #botones { position: fixed; right: 14px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 12px; }
+  .btn { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; cursor: pointer; transition: transform .15s, background .15s; }
+  .btn:active { transform: scale(.92); }
+  .btn.on { background: linear-gradient(135deg, rgba(122, 60, 255, .85), rgba(255, 62, 138, .85)); border-color: transparent; }
+  .btn svg { width: 26px; height: 26px; }
+  #manos { position: fixed; left: 14px; right: 80px; bottom: max(14px, env(safe-area-inset-bottom)); display: flex; gap: 10px; flex-wrap: wrap; pointer-events: none; }
+  .tarjeta { flex: 1 1 200px; max-width: 320px; border-radius: 18px; padding: 12px 14px; animation: entra .25s ease-out; }
+  @keyframes entra { from { opacity: 0; transform: translateY(10px); } }
+  .tarjeta .lado { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; opacity: .7; display: flex; justify-content: space-between; }
+  .tarjeta .gesto { font-size: 21px; font-weight: 800; letter-spacing: -.01em; margin: 3px 0 7px; min-height: 26px; }
+  .barra { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+  .barra i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--violeta), var(--rosa), var(--naranja)); transition: width .12s; }
+  .dedos { display: flex; gap: 6px; margin-top: 10px; align-items: flex-end; height: 34px; }
+  .dedos div { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 9px; opacity: .8; }
+  .dedos u { width: 100%; border-radius: 3px; background: rgba(255, 255, 255, .14); height: 22px; position: relative; overflow: hidden; text-decoration: none; }
+  .dedos u i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 3px; transition: height .12s; }
+  #panel3d { position: fixed; left: 14px; top: 72px; width: 170px; height: 170px; border-radius: 18px; display: none; }
+  #panel3d.on { display: block; }
+  #panel3d canvas { width: 100%; height: 100%; }
+  #panel3d small { position: absolute; left: 12px; top: 9px; font-size: 11px; opacity: .6; letter-spacing: .08em; }
+  #ajustes { position: fixed; left: 50%; bottom: -100%; transform: translateX(-50%); width: min(420px, calc(100% - 28px)); border-radius: 22px 22px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); transition: bottom .28s ease; z-index: 5; }
+  #ajustes.on { bottom: 0; }
+  #ajustes h3 { margin: 0 0 14px; font-size: 16px; }
+  .fila { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; font-size: 14px; gap: 12px; }
+  .seg { display: flex; background: rgba(255, 255, 255, .08); border-radius: 11px; padding: 3px; }
+  .seg button { border: 0; background: none; color: #fff; padding: 7px 11px; border-radius: 9px; font: inherit; font-size: 13px; opacity: .7; }
+  .seg button.on { background: linear-gradient(135deg, var(--violeta), var(--rosa)); opacity: 1; }
+  input[type=range] { width: 150px; accent-color: var(--rosa); }
+  #aviso { position: fixed; inset: 0; display: none; place-items: center; text-align: center; padding: 30px; background: radial-gradient(circle at 50% 40%, #1c1430, #07060b 70%); z-index: 9; }
+  #aviso.on { display: grid; }
+  #aviso h2 { margin: 18px 0 8px; font-size: 22px; } #aviso p { opacity: .75; max-width: 320px; margin: 0 auto 20px; line-height: 1.45; }
+  #aviso button { border: 0; border-radius: 14px; padding: 13px 22px; font: inherit; font-weight: 700; color: #fff; background: linear-gradient(135deg, var(--violeta), var(--rosa) 55%, var(--naranja)); }
+  #guia { position: fixed; left: 50%; top: 46%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; transition: opacity .4s; }
+  #guia svg { width: 92px; height: 92px; opacity: .9; animation: flota 2.2s ease-in-out infinite; }
+  #guia p { margin: 10px 0 0; font-weight: 700; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
+  @keyframes flota { 50% { transform: translateY(-8px) rotate(-4deg); } }
+</style></head>
+<body>
+<video id="video" playsinline muted autoplay></video>
+<canvas id="lienzo"></canvas>
+<div id="arriba">
+  <div id="marca" class="vidrio"><div class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4a1.5 1.5 0 0 1 3 0v7M14 10.5V5.5a1.5 1.5 0 0 1 3 0V14c0 4-2.6 7-6.5 7S5 18.5 4.2 16L3 12.6a1.5 1.5 0 0 1 2.6-1.4L8 14"/></svg></div><b>JX</b><span>Hand</span></div>
+  <div id="datos" class="vidrio">—<small>cargando el motor</small></div>
+</div>
+<div id="panel3d" class="vidrio"><small>3D · METROS</small><canvas id="c3d" width="340" height="340"></canvas></div>
+<div id="botones">
+  <div class="btn vidrio" id="bCam" title="Cambiar de cámara"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><path d="M9.5 13.5a2.8 2.8 0 0 1 4.6-2.1M14.5 12.5a2.8 2.8 0 0 1-4.6 2.1"/><path d="M14.3 9.6v1.9h-1.9M9.7 16.4v-1.9h1.9"/></svg></div>
+  <div class="btn vidrio" id="b3d" title="Mano en 3D"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></div>
+  <div class="btn vidrio" id="bAj" title="Ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></div>
+</div>
+<div id="guia"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4a1.5 1.5 0 0 1 3 0v7M14 10.5V5.5a1.5 1.5 0 0 1 3 0V14c0 4-2.6 7-6.5 7S5 18.5 4.2 16L3 12.6a1.5 1.5 0 0 1 2.6-1.4L8 14"/></svg><p>Mostrá tus manos a la cámara</p></div>
+<div id="manos"></div>
+<div id="ajustes" class="vidrio">
+  <h3>Ajustes</h3>
+  <div class="fila">Modelo <div class="seg" id="sModelo"><button data-v="auto" class="on">Auto</button><button data-v="completo">Completo</button><button data-v="liviano">Liviano</button></div></div>
+  <div class="fila">Adelantar <span style="white-space:nowrap"><input type="range" id="rPred" min="0" max="120" step="5" value="50"> <b id="tPred">50 ms</b></span></div>
+  <div class="fila">Manos <div class="seg" id="sManos"><button data-v="1">1</button><button data-v="2" class="on">2</button></div></div>
+  <div class="fila">Dibujo <div class="seg" id="sDibujo"><button data-v="esqueleto" class="on">Esqueleto</button><button data-v="puntos">Puntos</button><button data-v="nada">Nada</button></div></div>
+</div>
+<div id="aviso"><div><svg width="74" height="74" viewBox="0 0 24 24" fill="none" stroke="#ff3e8a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>
+  <h2 id="avT">Hace falta la cámara</h2><p id="avP">JX Hand sigue tus manos con la cámara. Las imágenes no salen del teléfono.</p><button id="avB">Permitir cámara</button></div></div>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const NOMBRES = { nada: '', abierta: 'Mano abierta', puno: 'Puño', senalar: 'Señalar', pinza: 'Pinza', paz: 'Paz', pulgar_arriba: 'Pulgar arriba', ok: 'OK', cuernos: 'Cuernos', llamame: 'Llamame', pulgar_abajo: 'Pulgar abajo' };
+const COL = ['#ffd23f', '#ff8a1f', '#ff3e8a', '#c04cff', '#7a3cff'];
+const DEDOS = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]], PALMA = [[0, 1], [0, 5], [5, 9], [9, 13], [13, 17], [0, 17]];
+const E = { camara: 'environment', stream: null, trab: null, ocupado: false, listo: false, manos: [], ms: 0, cps: 0, cuadros: [], modelo: 'auto', lite: false, pred: 50, max: 2, dibujo: 'esqueleto', pausa: false, ver3d: false, t3d: 0 };
+const video = $('video'), lienzo = $('lienzo'), cx = lienzo.getContext('2d');
+try { const g = JSON.parse(localStorage.getItem('jxhand') || '{}'); Object.assign(E, { modelo: g.modelo || 'auto', pred: g.pred ?? 50, max: g.max || 2, dibujo: g.dibujo || 'esqueleto', camara: g.camara || 'environment' }); } catch (e) { /* sin guardado */ }
+const guardar = () => { try { localStorage.setItem('jxhand', JSON.stringify({ modelo: E.modelo, pred: E.pred, max: E.max, dibujo: E.dibujo, camara: E.camara })); } catch (e) { /* sin guardado */ } };
+
+// ---- el motor (Rust en WebAssembly) en un Worker: así la pantalla no se traba ----
+function version() {
+  const rel = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 61, 1, 59, 0, 253, 12, ...Array(16).fill(0), 253, 12, ...Array(16).fill(0), 253, 12, ...Array(16).fill(0), 253, 133, 2, 11]);
+  try { return WebAssembly.validate(rel) ? 'relaxed' : 'simd'; } catch (e) { return 'simd'; }
+}
+async function motor() {
+  const fuente = await (await fetch('jxhand.js')).text();
+  const codigo = fuente + `
+let jx = null, cv = null, c2 = null;
+onmessage = async (e) => { const m = e.data;
+  if (m.tipo === 'crear') { try { jx = await JXHand.crear({ wasm: m.wasm, detector: m.det, puntos: m.pun }); m.cfg.forEach(([k, v]) => jx.config(k, v)); postMessage({ tipo: 'listo' }); } catch (x) { postMessage({ tipo: 'error', txt: String((x && x.message) || x) }); } return; }
+  if (m.tipo === 'cfg') { if (jx) m.cfg.forEach(([k, v]) => jx.config(k, v)); return; }
+  if (m.tipo === 'cuadro') { const b = m.img; if (!jx) { b.close(); postMessage({ tipo: 'manos', manos: [] }); return; }
+    if (!cv || cv.width !== b.width || cv.height !== b.height) { cv = new OffscreenCanvas(b.width, b.height); c2 = cv.getContext('2d', { willReadFrequently: true }); }
+    c2.drawImage(b, 0, 0); b.close(); const d = c2.getImageData(0, 0, cv.width, cv.height), t0 = performance.now();
+    const manos = jx.procesar(d.data, cv.width, cv.height, m.t, false);
+    postMessage({ tipo: 'manos', manos, ms: performance.now() - t0, det: jx.corrioDetector }); } };`;
+  E.trab = new Worker(URL.createObjectURL(new Blob([codigo], { type: 'text/javascript' })));
+  E.trab.onmessage = (e) => mensaje(e.data);
+  crear();
+}
+// (los archivos se leen acá, en la página, y viajan al Worker ya leídos: en Android, lo que pide la página pasa
+// seguro por la app; lo que pediría el Worker, no en todas las versiones de la vista web)
+const BUF = {};
+const leer = async (r) => (BUF[r] || (BUF[r] = await (await fetch(r)).arrayBuffer()));
+async function crear(lite) {
+  E.listo = false; E.lite = lite != null ? lite : E.modelo === 'liviano';
+  const [w, d, p] = await Promise.all([leer('jxhand_' + version() + '.wasm'), leer('modelos/hand_detector.tflite'), leer(E.lite ? 'modelos/hand_landmark_lite.tflite' : 'modelos/hand_landmarks_detector.tflite')]);
+  E.trab.postMessage({ tipo: 'crear', wasm: w.slice(0), det: d.slice(0), pun: p.slice(0), cfg: [['prediccionMs', E.pred], ['maxManos', E.max]] });
+}
+function mensaje(m) {
+  if (m.tipo === 'listo') { E.listo = true; return; }
+  if (m.tipo === 'error') { $('datos').innerHTML = 'Error<small>' + m.txt.slice(0, 60) + '</small>'; return; }
+  if (m.tipo === 'manos') {
+    E.ocupado = false; E.manos = m.manos || []; E.tManos = performance.now();
+    if (m.ms) { E.ms = E.ms ? E.ms * 0.9 + m.ms * 0.1 : m.ms; const t = performance.now(); E.cuadros.push(t); while (E.cuadros.length && t - E.cuadros[0] > 1000) E.cuadros.shift(); E.cps = E.cuadros.length; }
+    // (en Auto, si el teléfono tarda, el modelo liviano: la mitad de cuentas)
+    if (E.modelo === 'auto' && !E.lite && E.cuadros.length > 5 && E.ms > 55) crear(true);
+    tarjetas();
+  }
+}
+// ---- la cámara ----
+async function camara() {
+  if (E.stream) E.stream.getTracks().forEach((t) => t.stop());
+  try {
+    E.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: E.camara }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
+    video.srcObject = E.stream; await video.play().catch(() => {});
+    video.classList.toggle('espejo', E.camara === 'user');
+    $('aviso').classList.remove('on');
+  } catch (e) {
+    $('avT').textContent = 'Hace falta la cámara'; $('avP').textContent = 'JX Hand sigue tus manos con la cámara. Las imágenes no salen del teléfono. (' + (e && e.name || e) + ')';
+    $('aviso').classList.add('on');
+  }
+}
+window.jxCamaraLista = () => camara();
+window.jxPausa = (si) => { E.pausa = si; if (si && E.stream) { E.stream.getTracks().forEach((t) => t.stop()); E.stream = null; } else if (!si && !E.stream) camara(); };
+$('avB').onclick = () => camara();
+// cada cuadro nuevo de la cámara, si el motor está libre (siempre el más nuevo)
+function bombear() {
+  if (!E.pausa && E.listo && !E.ocupado && video.readyState >= 2 && video.videoWidth) {
+    E.ocupado = true; const k = Math.min(1, 480 / Math.max(video.videoWidth, video.videoHeight));
+    createImageBitmap(video, { resizeWidth: Math.round(video.videoWidth * k), resizeHeight: Math.round(video.videoHeight * k) })
+      .then((b) => E.trab.postMessage({ tipo: 'cuadro', img: b, t: performance.now() }, [b])).catch(() => { E.ocupado = false; });
+  }
+  if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(bombear); else setTimeout(bombear, 16);
+}
+// ---- el dibujo ----
+function ajustarLienzo() { const d = Math.min(2, devicePixelRatio || 1); lienzo.width = innerWidth * d; lienzo.height = innerHeight * d; cx.setTransform(d, 0, 0, d, 0, 0); }
+addEventListener('resize', ajustarLienzo); ajustarLienzo();
+// de 0..1 en el cuadro de la cámara a la pantalla (el video tapa toda la pantalla: «cover»)
+function aPantalla(p) {
+  const vw = video.videoWidth || 1, vh = video.videoHeight || 1, W = innerWidth, H = innerHeight, s = Math.max(W / vw, H / vh);
+  let x = (W - vw * s) / 2 + p[0] * vw * s; const y = (H - vh * s) / 2 + p[1] * vh * s;
+  if (E.camara === 'user') x = W - x;
+  return [x, y];
+}
+function dibujar() {
+  requestAnimationFrame(dibujar);
+  cx.clearRect(0, 0, innerWidth, innerHeight);
+  const viejo = performance.now() - (E.tManos || 0) > 500, manos = viejo ? [] : E.manos;
+  $('guia').style.opacity = manos.length || !E.listo ? 0 : 1;
+  if (E.dibujo !== 'nada') for (const m of manos) {
+    // (el grosor y los puntos crecen con la mano en la pantalla, con tope: una mano que llena la pantalla no tapa todo)
+    const P = m.img.map(aPantalla), esc = Math.hypot(P[0][0] - P[9][0], P[0][1] - P[9][1]) / 60, g = Math.max(1.6, Math.min(4.5, 2.4 * Math.sqrt(esc))), rp = Math.max(2.4, Math.min(5.5, 3 * Math.sqrt(esc)));
+    cx.lineCap = 'round'; cx.lineJoin = 'round';
+    if (E.dibujo === 'esqueleto') {
+      cx.strokeStyle = 'rgba(255,255,255,.75)'; cx.lineWidth = g; cx.beginPath(); for (const [a, b] of PALMA) { cx.moveTo(...P[a]); cx.lineTo(...P[b]); } cx.stroke();
+      DEDOS.forEach((d, k) => { cx.strokeStyle = COL[k]; cx.lineWidth = g * 1.25; cx.shadowColor = COL[k]; cx.shadowBlur = 8; cx.beginPath(); cx.moveTo(...P[d[0]]); for (const i of d.slice(1)) cx.lineTo(...P[i]); cx.stroke(); });
+      cx.shadowBlur = 0;
+    }
+    for (let i = 0; i < 21; i++) { cx.fillStyle = i === 0 ? '#fff' : COL[Math.floor((i - 1) / 4)]; cx.beginPath(); cx.arc(P[i][0], P[i][1], i % 4 === 0 && i ? rp * 1.35 : rp, 0, 7); cx.fill(); }
+    // la pinza: una línea entre el pulgar y el índice que se enciende al juntarlos
+    if (m.pinza > 0.35) { cx.strokeStyle = `rgba(255,210,63,${Math.min(1, m.pinza)})`; cx.lineWidth = g * 1.6; cx.setLineDash([4, 5]); cx.beginPath(); cx.moveTo(...P[4]); cx.lineTo(...P[8]); cx.stroke(); cx.setLineDash([]);
+      if (m.pinza > 0.85) { const c = [(P[4][0] + P[8][0]) / 2, (P[4][1] + P[8][1]) / 2]; cx.fillStyle = 'rgba(255,210,63,.35)'; cx.beginPath(); cx.arc(c[0], c[1], rp * 3.2, 0, 7); cx.fill(); } }
+  }
+  if (E.ver3d) dibujar3d(manos);
+  $('datos').innerHTML = E.listo ? `${Math.round(E.ms)} ms · ${E.cps} cps<small>${E.lite ? 'modelo liviano' : 'modelo completo'} · ${E.camara === 'user' ? 'frontal' : 'trasera'}</small>` : `—<small>cargando el motor</small>`;
+}
+// la mano en 3D (los puntos en metros del esqueleto, girando)
+function dibujar3d(manos) {
+  const c = $('c3d'), x = c.getContext('2d'), W = c.width; x.clearRect(0, 0, W, W);
+  E.t3d += 0.012; const a = Math.sin(E.t3d) * 0.9, ca = Math.cos(a), sa = Math.sin(a);
+  // (girada alrededor de la vertical y ajustada sola al cuadro: todas las manos entran con margen)
+  const G = manos.map((m, n) => m.mundo.map((p) => [p[0] * ca + p[2] * sa + (manos.length > 1 ? (n ? 0.07 : -0.07) : 0), p[1]]));
+  const todos = G.flat(); if (!todos.length) return;
+  const mnx = Math.min(...todos.map((q) => q[0])), mxx = Math.max(...todos.map((q) => q[0])), mny = Math.min(...todos.map((q) => q[1])), mxy = Math.max(...todos.map((q) => q[1]));
+  const k = (W * 0.72) / Math.max(mxx - mnx, mxy - mny, 0.05), cxm = (mnx + mxx) / 2, cym = (mny + mxy) / 2;
+  manos.forEach((m, n) => {
+    const Q = G[n].map((q) => [W / 2 + (q[0] - cxm) * k, W * 0.54 + (q[1] - cym) * k]);
+    x.lineCap = 'round';
+    x.strokeStyle = 'rgba(255,255,255,.7)'; x.lineWidth = 3; x.beginPath(); for (const [i, j] of PALMA) { x.moveTo(Q[i][0], Q[i][1]); x.lineTo(Q[j][0], Q[j][1]); } x.stroke();
+    DEDOS.forEach((d, k) => { x.strokeStyle = COL[k]; x.lineWidth = 4; x.beginPath(); x.moveTo(Q[d[0]][0], Q[d[0]][1]); for (const i of d.slice(1)) x.lineTo(Q[i][0], Q[i][1]); x.stroke(); });
+  });
+}
+// las tarjetas de abajo: cada mano, su gesto con la fuerza, a cuántos centímetros y cuánto se cierra cada dedo
+function tarjetas() {
+  const cont = $('manos'), ids = new Set(E.manos.map((m) => String(m.id)));
+  for (const el of [...cont.children]) if (!ids.has(el.dataset.id)) el.remove();
+  for (const m of E.manos) {
+    let el = cont.querySelector(`[data-id="${m.id}"]`);
+    if (!el) {
+      el = document.createElement('div'); el.className = 'tarjeta vidrio'; el.dataset.id = m.id;
+      el.innerHTML = `<div class="lado"><span class="l"></span><span class="d"></span></div><div class="gesto"></div><div class="barra"><i></i></div><div class="dedos">${['Pulgar', 'Índice', 'Medio', 'Anular', 'Meñique'].map((n, k) => `<div><u><i style="background:${COL[k]}"></i></u>${n.slice(0, 3)}</div>`).join('')}</div>`;
+      cont.appendChild(el);
+    }
+    el.querySelector('.l').textContent = m.derecha ? 'Derecha' : 'Izquierda';
+    el.querySelector('.d').textContent = m.posicion[2] > 0 ? `a ${Math.round(m.posicion[2] * 100)} cm` : '';
+    el.querySelector('.gesto').textContent = NOMBRES[m.gestoNombre] || (m.dedos + (m.dedos === 1 ? ' dedo' : ' dedos'));
+    el.querySelector('.barra i').style.width = Math.round((m.gestoNombre !== 'nada' ? m.gestoFuerza : m.agarre) * 100) + '%';
+    el.querySelectorAll('.dedos u i').forEach((b, k) => { b.style.height = Math.round(Math.max(0.06, 1 - m.cierre[k]) * 100) + '%'; });
+  }
+}
+// ---- los botones y los ajustes ----
+const seg = (id, val, f) => { const s = $(id); s.querySelectorAll('button').forEach((b) => { b.classList.toggle('on', b.dataset.v === String(val)); b.onclick = () => { s.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); f(b.dataset.v); guardar(); }; }); };
+seg('sModelo', E.modelo, (v) => { E.modelo = v; if (E.trab) crear(); });
+seg('sManos', E.max, (v) => { E.max = +v; E.trab && E.trab.postMessage({ tipo: 'cfg', cfg: [['maxManos', E.max]] }); });
+seg('sDibujo', E.dibujo, (v) => { E.dibujo = v; });
+$('rPred').value = E.pred; $('tPred').textContent = E.pred + ' ms';
+$('rPred').oninput = () => { E.pred = +$('rPred').value; $('tPred').textContent = E.pred + ' ms'; E.trab && E.trab.postMessage({ tipo: 'cfg', cfg: [['prediccionMs', E.pred]] }); guardar(); };
+$('bAj').onclick = () => { $('ajustes').classList.toggle('on'); $('bAj').classList.toggle('on'); };
+$('b3d').onclick = () => { E.ver3d = !E.ver3d; $('panel3d').classList.toggle('on', E.ver3d); $('b3d').classList.toggle('on', E.ver3d); };
+$('bCam').onclick = () => { E.camara = E.camara === 'environment' ? 'user' : 'environment'; guardar(); camara(); };
+lienzo.onclick = () => { $('ajustes').classList.remove('on'); $('bAj').classList.remove('on'); };
+// ---- arranque ----
+motor(); camara(); bombear(); dibujar();
+</script>
+</body></html>

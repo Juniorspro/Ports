@@ -5,8 +5,6 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 PK, OUT = sys.argv[1], sys.argv[2]
 ORDEN = ['nucleo', 'ios', 'cajanegra', 'tiendared', 'gl', 'sombras', 'post', 'vhs', 'datos', 'modelo', 'fisica', 'cielos', 'mundo', 'jugador', 'objetos', 'vista', 'audio', 'efectos', 'agua', 'sonidos', 'armas', 'patadas',
          'vehiculos', 'herramientas', 'personas', 'humano', 'emotes', 'red', 'dia', 'anfitrion', 'marcas', 'destruccion', 'entrada', 'ui', 'armaaj', 'hud', 'menu', 'idiomas', 'formato', 'idiomas3', 'ruleta', 'iconos', 'acciones', 'modapi', 'voz', 'geo', 'entidades', 'maquinitas', 'memes', 'celular', 'celumano', 'armasjx', 'artefactos', 'nucleares', 'nuclear_vol', 'gfxauto', 'gmod_formatos', 'gmod', 'gmod_pipe', 'gmod_lib', 'gmod_steam', 'gmod_bsp', 'puertas', 'mapaio', 'portales', 'cielo3d', 'gmod_modos', 'gmod_lua', 'gmod_prelude', 'gmod_api', 'gmod_sonidos', 'gmod_cargar', 'gmod_render', 'gmod_dx9', 'gmod_rt', 'gmod_vista', 'gmod_pm', 'gmod_autorig', 'pjimportar', 'accesorios', 'gmod_spawn', 'gmod_nextbot', 'gmod_anim', 'gmod_tienda', 'gmod_cola', 'gmod_carpeta', 'gmod_panel', 'gmod_server', 'celulares', 'npc', 'censura', 'cuenta', 'social', 'gorros', 'juntos', 'pantalla', 'nativos', 'ciclope', 'verity', 'veritycrea', 'animedit', 'creador', 'smods', 'modmenu', 'noche', 'linterna', 'tutorial', 'inicio', 'milogo', 'iconosapp', 'iconoapp', 'emomusica', 'rbmenus', 'clasico', 'fondovideo', 'paneles', 'deposito', 'lan', 'camlibre', 'controles', 'hudorden', 'banco', 'evento', 'identidad', 'pillpacks', 'pill_gmod', 'principal']
-# (tus manos con la cámara —manos_jx.js, JX Hand Engine— después del celular en la mano: usa sus funciones de huesos)
-ORDEN.insert(ORDEN.index('celumano') + 1, 'manos_jx')
 # (el modo grabación —grabar.js— va justo antes del bucle del juego: usa la HUD, la pausa, el sonido y las voces)
 ORDEN.insert(ORDEN.index('principal'), 'grabar')
 # (el evento de los 300 miembros: sus voces, el núcleo, la cinta del principio y las misiones; antes del bucle)
@@ -160,24 +158,6 @@ if vids:
         if f not in usados: os.unlink(os.path.join(FVS, f))
     print('fondos animados', sum(1 for x in FONDOS_VID if x), round(sum(x[1] for x in FONDOS_VID if x) / 1e6, 2), 'MB en', FVS)
 js = js.replace('/*FONDOSVIDEO*/', ','.join(json.dumps(x) if x else 'null' for x in FONDOS_VID))
-# JX Hand Engine (porteos/jxhand): el motor de manos en WebAssembly y los modelos de MediaPipe, sólo en la app (PK_BIN):
-# al lado del juego en jxhand/<nombre>.<huella>.<ext>, como los fondos animados (viajan en las actualizaciones por partes);
-# el código de web/jxhand.js va adentro del juego como texto (el Worker de manos_jx.js lo arranca). En la web no van.
-JXH = os.path.join(os.path.dirname(AQUI), 'jxhand'); JXH_ARCH = {}
-if os.environ.get('PK_BIN') and os.path.isdir(JXH):
-    JXS = os.path.join(os.path.dirname(os.path.abspath(OUT)), 'jxhand'); os.makedirs(JXS, exist_ok=True); usados = set()
-    for clave, ruta in [('relaxed', 'web/jxhand_relaxed.wasm'), ('simd', 'web/jxhand_simd.wasm'), ('det', 'modelos/hand_detector.tflite'), ('pun', 'modelos/hand_landmarks_detector.tflite'), ('lite', 'modelos/hand_landmark_lite.tflite')]:
-        b = open(os.path.join(JXH, ruta), 'rb').read(); base, ext = os.path.splitext(os.path.basename(ruta))
-        nom = base + '.' + hashlib.sha256(b).hexdigest()[:10] + ext; dst = os.path.join(JXS, nom); usados.add(nom)
-        if not (os.path.isfile(dst) and open(dst, 'rb').read() == b):
-            if os.path.lexists(dst): os.unlink(dst)
-            open(dst, 'wb').write(b)
-        JXH_ARCH[clave] = 'jxhand/' + nom
-    for f in os.listdir(JXS):
-        if f not in usados: os.unlink(os.path.join(JXS, f))
-    print('JX Hand Engine', round(sum(os.path.getsize(os.path.join(JXS, f)) for f in usados) / 1e6, 2), 'MB en', JXS)
-JXH_FUENTE = open(os.path.join(JXH, 'web', 'jxhand.js'), encoding='utf-8').read() if JXH_ARCH else ''
-js = js.replace('/*JXHAND*/', 'const JXHAND_ARCHIVOS = ' + json.dumps(JXH_ARCH) + ', JXHAND_FUENTE = ' + json.dumps(JXH_FUENTE) + ';')
 # PK_BIN=1 (la app de Android): el paquete va como archivo binario aparte (pk.bin, al lado del HTML) en vez de base64
 # dentro del HTML: ~28 MB menos de texto que el teléfono tiene que leer y guardar al arrancar
 PK_BIN = bool(os.environ.get('PK_BIN'))

@@ -81,9 +81,41 @@ $B video modelos FOTO.png                    # temblor, retraso, huesos y gestos
 $B perfil modelos                            # cuánto tarda cada tipo de capa y cuántas operaciones hace
 ```
 
+## La app JX Hand (`app/`, `JXHand.apk`)
+
+El dueño la pidió aparte, no adentro de JXMod: «es una app aparte, usa cámara trasera».
+- **Android (`app/src/com/jxapps/jxhand/Principal.java`):** una actividad con la vista web a pantalla completa.
+  - La página va en `assets/web` y se sirve en `https://appassets.androidplatform.net/`, porque la cámara sólo anda en
+    un contexto seguro.
+  - Pide el permiso de cámara de Android y se lo da a la vista web. Deja la pantalla prendida y suelta la cámara en
+    pausa.
+- **La página (`app/web/index.html`):**
+  - Cámara trasera de entrada; el botón la cambia a la de frente (espejada) y se acuerda.
+  - El motor corre en un Worker. El WebAssembly y los modelos se leen en la página y viajan al Worker ya leídos, porque
+    en Android lo que pide un Worker no siempre pasa por la app.
+  - Se procesa siempre el cuadro más nuevo, a 480 px.
+  - **Lo que se ve:** el esqueleto sobre el video (cada dedo de un color, las puntas más grandes, la pinza como una
+    línea que se enciende) y una tarjeta por mano (derecha o izquierda, distancia en cm, gesto con su fuerza, cuánto
+    se estira cada dedo).
+  - **Opcional:** la mano en 3D en metros, girando y ajustada sola al cuadro.
+  - **Ajustes:** modelo Auto, Completo o Liviano (Auto pasa al liviano si tarda más de 55 ms), cuánto adelantar (de 0
+    a 120 ms), 1 o 2 manos y el dibujo.
+  - Íconos propios en SVG. El ícono de la app es la mano en el degradé de JXApps (`app/icono.svg`).
+  - Probada en Chromium con una cámara de mentira (tamaño de celular): mano derecha a 23 cm, «abierta», 16 a 21
+    cuadros por segundo, sin errores.
+- **El APK (`app/armar_apk.py`):** sin Gradle, como el de JXMod: javac, d8, aapt2 (los modelos y el WebAssembly sin
+  comprimir), zipalign y apksigner.
+  - Firma propia en `/root/.jxhand/firma`, fuera del repo, con la clave al azar en `clave.txt` (chmod 600).
+  - Revisa las firmas (v1, v2 y v3) y `aapt2 dump badging` (paquete `com.jxapps.jxhand`, nombre, permiso de cámara,
+    actividad).
+  - 10,35 MB. Android 7 o más nuevo (minSdk 24, targetSdk 35).
+- **JXMod:** la integración que había llegado a armarse (el arma «Manos JX») se sacó, porque se pidió aparte. Queda en
+  el historial: commit 7b9b579.
+
 ## Lo que sigue
 
-- **Integración con JXMod (sólo en la APK):**
+- **Que se actualice sola** (bajar la página y el motor nuevos al abrir, con firma) y medir en celulares de verdad.
+- **Integración con JXMod (si algún día se quiere; está en el historial, commit 7b9b579):**
   - La cámara de frente con `getUserMedia` y el motor en un Worker.
   - Las manos del juego que copian las tuyas: posición, rotación y ángulos de cada dedo a los huesos de la mano.
   - Los gestos como acciones.

@@ -356,7 +356,6 @@ function abrirAjustes(desde) {
     ${ENT.tactil || COARSE ? fila(esc(T('aj.hud')), rango('aH', 60, 120, 5, 'aHv')) : ''}
     ${sw('aEmoR', esc(T('aj.emoRuleta')))}
     ${sw('aVozH', esc(T('aj.vozHud')))}
-    ${typeof mjxDisponible === 'function' && mjxDisponible() ? sw('aJxM', esc(T('aj.jxManos'))) : ''}
     <button class="ajBtn gris" id="aCtl">${esc(T('ctl.titulo'))}</button> <button class="ajBtn gris" id="aTut">${esc(tutTx(TUT_B.ver))}</button> <button class="ajBtn gris" id="aReg">${esc(Lc('Error log', 'Registro de fallas'))}</button></section>
   ${typeof icappSeccion === 'function' ? `<section data-ajs="l" class="oc">${icappSeccion()}${typeof milogoSeccion === 'function' ? `<div class="icDiv"></div>${milogoSeccion()}` : ''}</section>` : ''}
   ${typeof gmkPintar === 'function' ? `<section data-ajs="m" class="oc"><h4>${esc(T('gmk.titulo'))}</h4><div class="gmkCont"></div></section>` : ''}
@@ -379,7 +378,6 @@ function abrirAjustes(desde) {
   if ($('aH')) $('aH').value = PREFS.hud || 80;
   $('aEmoR').checked = PREFS.emoRuleta !== false;
   $('aVozH').checked = PREFS.vozHud !== false;
-  if ($('aJxM')) $('aJxM').checked = !!PREFS.jxManos;
   const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; $('aFovv').textContent = $('aFov').value + '°'; if ($('aH')) $('aHv').textContent = $('aH').value + '%'; };
   act();
   $('aG').onchange = () => { PREFS.gfx = $('aG').value; const p = PERFILES[PREFS.gfx]; if (p) { PREFS.res = p.res; PREFS.lejos = p.lejos; $('aR').value = p.res; $('aD').value = p.lejos; } act(); };
@@ -403,7 +401,6 @@ function abrirAjustes(desde) {
     PREFS.emoRuleta = $('aEmoR').checked;
     PREFS.npcMax = $('aNpc').value;
     PREFS.vozHud = $('aVozH').checked; if (typeof vozHudAjuste === 'function') vozHudAjuste();   // (quién habla: voz.js)
-    if ($('aJxM')) { PREFS.jxManos = $('aJxM').checked; if (PREFS.jxManos) mjxPrender(); else mjxApagar(); }   // (tus manos con la cámara: manos_jx.js)
     const motorNuevo = $('aM').value; PREFS.motor = motorNuevo;
     guardarPrefs();
     // cambiar de motor necesita empezar de nuevo (el contexto de WebGL no se puede cambiar)
