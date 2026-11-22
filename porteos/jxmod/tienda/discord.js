@@ -14,15 +14,11 @@
 // hace nada; sin el código, los comandos de admin no andan.
 import { tablas, postNuevo } from './panel.js';
 import { respuestaIA, memoriaAgregar, memoriaBorrar, memoriaLista } from './discord_ia.js';
-
-const API = 'https://discord.com/api/v10';
-const REPO = 'https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/';
-const SITIO_SZ = 'https://stickerazo.pages.dev';
-const ROSA = 0xff3e8a, AMARILLO = 0xffd23f, VIOLETA = 0x7a3cff, VERDE = 0x2ecc71, GRIS = 0x8d88a3;
-const EFIMERO = 64, MIN = 60e3;
-const ROLES = [['jxmod', 'JXMod', 0x9aa0a6], ['stickerazo', 'Stickerazo', AMARILLO], ['avisos', 'Avisos de versiones', ROSA]];
+import { REPO, SITIO_SZ, ROSA, AMARILLO, VIOLETA, VERDE, GRIS, EFIMERO, MIN, corto, traer, dc, msg, efimero, usuarioDe } from './discord_base.js';
+import { comandoComunidad, botonComunidad, COMANDOS_COMUNIDAD, PERM } from './discord_comunidad.js';
+export { dc };
+export const ROLES = [['jxmod', 'JXMod', 0x9aa0a6], ['stickerazo', 'Stickerazo', AMARILLO], ['avisos', 'Avisos de versiones', ROSA]];
 const enc = new TextEncoder();
-const corto = (s, n) => { s = String(s == null ? '' : s).trim(); return s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s; };
 const deHex = (h) => new Uint8Array((h.match(/../g) || []).map((x) => parseInt(x, 16)));
 
 // ---- la firma de Discord: Ed25519 sobre timestamp + cuerpo ----
@@ -40,20 +36,6 @@ async function firmaBien(env, req, cuerpo) {
   return crypto.subtle.verify(alg, llave, deHex(sig), enc.encode(ts + cuerpo));
 }
 
-// (fetch suelto: en Cloudflare, llamarlo como método de otro objeto —env.__fetch(…)— da «Illegal invocation», y adentro
-// de la puerta env.__fetch ni existe; las pruebas ponen ahí su fetch de mentira)
-const traer = (env, url, op) => { const f = env.__fetch || fetch; return f(url, op); };
-// ---- la API de Discord con el token del bot ----
-export async function dc(env, metodo, ruta, cuerpo, motivo) {
-  const h = { Authorization: 'Bot ' + env.DISCORD_TOKEN, 'User-Agent': 'DiscordBot (' + SITIO_SZ + ', 1.0)' };
-  if (cuerpo !== undefined) h['Content-Type'] = 'application/json';
-  if (motivo) h['X-Audit-Log-Reason'] = encodeURIComponent(motivo);
-  const r = await traer(env, API + ruta, { method: metodo, headers: h, body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
-  const t = await r.text(); let d = null; try { d = t ? JSON.parse(t) : null; } catch (e) { d = { texto: t }; }
-  if (!r.ok) throw Object.assign(new Error(`Discord ${metodo} ${ruta}: ${r.status} ${corto(t, 200)}`), { status: r.status, d });
-  return d;
-}
-
 // ---- lo que guarda el bot: la configuración de cada servidor y los posts mandados desde Discord ----
 let listas = false;
 export async function tablasDc(env) {
@@ -66,7 +48,7 @@ export async function tablasDc(env) {
   ]);
   listas = true;
 }
-const conf = (env, g) => env.DB.prepare('SELECT * FROM dc_conf WHERE guild = ?1').bind(g).first();
+export const conf = (env, g) => env.DB.prepare('SELECT * FROM dc_conf WHERE guild = ?1').bind(g).first();
 
 // ---- las versiones (las mismas que leen el juego y la app) ----
 async function versiones(env) {
@@ -102,10 +84,6 @@ export async function contestarJB(env, j) {
   const r = await respuestaIA(env, { canal: j.canal, usuario: j.usuario, nombre: j.nombre, texto: j.texto, admin: await esAdminDe(env, j.usuario, j.guild) });
   await dc(env, 'PATCH', `/webhooks/${env.DISCORD_APP_ID}/${j.token}/messages/@original`, { content: r.espera || `> ${corto(j.texto, 300)}\n${r.texto}`, allowed_mentions: { parse: [] } });
 }
-// ---- las respuestas ----
-const msg = (data) => new Response(JSON.stringify({ type: 4, data }), { headers: { 'Content-Type': 'application/json' } });
-const efimero = (content, extra = {}) => msg({ content, flags: EFIMERO, allowed_mentions: { parse: [] }, ...extra });
-const usuarioDe = (it) => (it.member && it.member.user) || it.user || {};
 // ---- el código de admin: se guarda la huella (SHA-256) del código con que se habilitó, nunca el código ----
 const sha = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(t)))].map((b) => b.toString(16).padStart(2, '0')).join('');
 async function igualSeguro(a, b) { const [x, y] = await Promise.all([sha('jx|' + a), sha('jx|' + b)]); let d = 0; for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i); return d === 0; }
@@ -145,6 +123,11 @@ function modal(tipo) {
 
 async function comando(env, it, ctx) {
   const n = it.data.name, g = it.guild_id;
+  // (bienvenida, rol automático, niveles, moderación y utilidades: discord_comunidad.js; si cambia un ajuste, la puerta
+  // lo vuelve a leer enseguida)
+  const rc = await comandoComunidad(env, it, ctx, { esAdmin: () => esAdmin(env, it),
+    avisarPuerta: (gid) => { if (env.DC_PUERTA) ctx.waitUntil(puerta(env, '/ajustes', { method: 'POST', body: gid }).catch(() => {})); } });
+  if (rc) return rc;
   if (n === 'jxmod') { const { jx } = await versiones(env); return jx ? msg({ embeds: [embedJxmod(jx)] }) : efimero('No pude leer la versión de JXMod ahora. Probá en un rato.'); }
   if (n === 'stickerazo') { const { sz } = await versiones(env); return sz ? msg({ embeds: [embedStickerazo(sz)] }) : efimero('No pude leer la versión de Stickerazo ahora.'); }
   if (n === 'estado') {
@@ -230,6 +213,7 @@ async function configurar(env, it) {
 
 async function boton(env, it) {
   const id = it.data.custom_id || '';
+  const rb = botonComunidad(it, ROLES); if (rb) return rb;
   if (!id.startsWith('rol:')) return efimero('Ese botón ya no anda.');
   const k = id.slice(4), c = await conf(env, it.guild_id), r = c && c.roles ? JSON.parse(c.roles) : {}, rol = r[k];
   if (!rol) return efimero('Ese rol no está configurado. Avisale a un admin.');
@@ -325,9 +309,9 @@ export const COMANDOS = [
     { type: 3, name: 'codigo', description: 'El código (si no lo ponés, se abre un formulario)', required: false, max_length: 100 }] },
   { name: 'jb', description: 'Hablale a JXBot (IA): preguntale lo que quieras de JXMod o Stickerazo', dm_permission: true, contexts: [0, 1], options: [
     { type: 3, name: 'mensaje', description: 'Lo que le querés decir o preguntar', required: true, max_length: 1500 }] },
-  { name: 'configurar', description: 'Admins (con código): este canal para anuncios, roles y AutoMod', dm_permission: false },
-  { name: 'roles', description: 'Admins (con código): pone los botones para elegir roles', dm_permission: false },
-  { name: 'anunciar', description: 'Admins (con código): un anuncio con el estilo de JXApps', dm_permission: false, options: [
+  { name: 'configurar', description: 'Admins (con código): este canal para anuncios, roles y AutoMod', dm_permission: false, default_member_permissions: PERM.GESTIONAR_SERVIDOR },
+  { name: 'roles', description: 'Admins (con código): pone los botones para elegir roles', dm_permission: false, default_member_permissions: PERM.GESTIONAR_SERVIDOR },
+  { name: 'anunciar', description: 'Admins (con código): un anuncio con el estilo de JXApps', dm_permission: false, default_member_permissions: PERM.GESTIONAR_SERVIDOR, options: [
     { type: 3, name: 'titulo', description: 'El título', required: true, max_length: 250 },
     { type: 3, name: 'texto', description: 'El texto', required: true, max_length: 3800 },
     { type: 5, name: 'avisar', description: 'Mencionar al rol «Avisos de versiones»' }] },
@@ -335,4 +319,5 @@ export const COMANDOS = [
     { type: 1, name: 'agregar', description: 'Un dato nuevo (lo usa para contestarle a todos)', options: [{ type: 3, name: 'texto', description: 'El dato, por ejemplo: «JXApps es…»', required: true, max_length: 1000 }] },
     { type: 1, name: 'ver', description: 'Todo lo que le enseñaron, con su número' },
     { type: 1, name: 'borrar', description: 'Olvidar un dato', options: [{ type: 4, name: 'numero', description: 'El número del dato (de /memoria ver)', required: true, min_value: 1 }] }] },
+  ...COMANDOS_COMUNIDAD,
 ];

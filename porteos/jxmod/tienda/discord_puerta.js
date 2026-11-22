@@ -8,14 +8,19 @@
 //   · por privado, un admin le enseña con «/recordar DATO», mira con «/memoria» y borra con «/olvidar N».
 // Si se corta, una alarma cada minuto (y el cron de cada 10) la vuelve a abrir. Si Discord no deja leer el texto de
 // los mensajes (el permiso «Message Content»), se conecta sin él: andan los privados y las menciones.
+// También es por donde llega lo de la comunidad (discord_comunidad.js): alguien entra o se va (bienvenida, despedida,
+// rol automático, registro; necesita el permiso «Server Members», que se prende desde la API como el del texto) y la XP
+// de cada mensaje. Si Discord no deja alguno de esos permisos (cierra con 4014), se reconecta sin «Server Members» y,
+// si sigue, también sin el texto.
 // Versiones: Cloudflare no reinicia enseguida un Durable Object que nunca está quieto, así que después de subir código
 // nuevo la puerta seguía con el viejo. Por eso el Worker le pasa su versión (?v=) cada vez que le habla (el cron cada 10
 // min y GET /api/discord/puerta); si no es la de la puerta, cierra la conexión y se reinicia (state.abort).
 import { dc, probarCodigo, esAdminDe, contestarJB } from './discord.js';
 import { respuestaIA, memoriaAgregar, memoriaBorrar, memoriaLista } from './discord_ia.js';
+import { alEntrar, alSalir, darXP, infoDe, olvidarAjustes } from './discord_comunidad.js';
 
 const GATEWAY = 'https://gateway.discord.gg/?v=10&encoding=json';
-const GUILD_MESSAGES = 1 << 9, DIRECT_MESSAGES = 1 << 12, MESSAGE_CONTENT = 1 << 15;
+const GUILDS = 1 << 0, GUILD_MEMBERS = 1 << 1, GUILD_MESSAGES = 1 << 9, DIRECT_MESSAGES = 1 << 12, MESSAGE_CONTENT = 1 << 15;
 const NO_REINTENTAR = new Set([4004, 4010, 4011, 4012, 4013]);
 
 // ---- qué hacer con un mensaje (aparte, para poder probarlo sin Discord) ----
@@ -61,12 +66,14 @@ async function abrirGateway() {
 export class PuertaJX {
   constructor(state, env) {
     this.state = state; this.env = env; this.ws = null; this.hb = null; this.seq = null; this.ack = true; this.yo = null;
-    this.listo = false; this.ultimo = 0; this.sinContenido = false; this.parado = null; this.eventos = 0; this.mensajes = 0; this.desde = 0;
+    this.listo = false; this.ultimo = 0; this.sinContenido = false; this.sinMiembros = false; this.parado = null; this.eventos = 0; this.mensajes = 0; this.desde = 0;
+    this.servidores = new Map(); this.entradas = 0; this.salidas = 0; this.xp = 0;   // (lo de cada servidor: nombre, miembros, canales para la bienvenida)
     this.abrir = env.__abrirWs || abrirGateway;
   }
   async fetch(req) {
     const u = new URL(req.url), p = u.pathname, v = u.searchParams.get('v'), mia = this.env.CF_VERSION_METADATA && this.env.CF_VERSION_METADATA.id;
     if (v && mia && v !== mia) { this.cerrar(); this.state.abort('hay una versión nueva del bot'); }
+    if (p === '/ajustes' && req.method === 'POST') { olvidarAjustes(await req.text()); return new Response('ok'); }   // (un comando cambió los ajustes de un servidor)
     if (p === '/jb' && req.method === 'POST') {   // (el trabajo de /jb que manda el Worker: se acepta enseguida y se hace acá)
       const j = await req.json();
       this.asegurar().catch(() => {});   // (si recién se reinició por una versión nueva, de paso vuelve a conectarse)
@@ -77,7 +84,7 @@ export class PuertaJX {
     if (p === '/asegurar' || p === '/diag') { await this.asegurar(); if (!(await this.state.storage.getAlarm())) await this.state.storage.setAlarm(Date.now() + 60e3); }
     let api;   // (diag: una consulta de sólo lectura a Discord desde adentro de la puerta, para ver si puede hablarle)
     if (p === '/diag') { try { const u = await dc(this.env, 'GET', '/users/@me'); api = 'ok: ' + u.username; } catch (e) { api = 'error: ' + String(e.message).slice(0, 300); } }
-    return new Response(JSON.stringify({ version: mia || null, conectado: !!(this.ws && this.listo), lee_texto: !this.sinContenido, desde: this.desde, eventos: this.eventos, mensajes: this.mensajes, contestados: this.contestados || 0, error: this.error || null, error_t: this.errorT || null, en_evento: this.diagReady || null, parado: this.parado, api }), { headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ version: mia || null, conectado: !!(this.ws && this.listo), lee_texto: !this.sinContenido, desde: this.desde, eventos: this.eventos, mensajes: this.mensajes, contestados: this.contestados || 0, miembros: !this.sinMiembros, servidores: this.servidores.size, entradas: this.entradas, salidas: this.salidas, xp: this.xp, error: this.error || null, error_t: this.errorT || null, en_evento: this.diagReady || null, parado: this.parado, api }), { headers: { 'Content-Type': 'application/json' } });
   }
   async alarm() { await this.asegurar(); await this.state.storage.setAlarm(Date.now() + 60e3); }
   async asegurar() {
@@ -91,7 +98,10 @@ export class PuertaJX {
     ws.addEventListener('message', (e) => { if (this.ws === ws) this.evento(e.data).catch((er) => console.error('puerta evento', er)); });
     ws.addEventListener('close', (e) => {
       if (this.ws !== ws) return; this.ws = null; this.listo = false; clearInterval(this.hb);
-      if (e.code === 4014 && !this.sinContenido) { this.sinContenido = true; this.conectar().catch(() => {}); return; }   // (sin permiso para leer el texto: sólo privados y menciones)
+      if (e.code === 4014 && (!this.sinMiembros || !this.sinContenido)) {   // (algún permiso especial no está: primero sin «Server Members» —sin bienvenida—, después también sin el texto —sólo privados y menciones—)
+        if (!this.sinMiembros) this.sinMiembros = true; else this.sinContenido = true;
+        this.conectar().catch(() => {}); return;
+      }
       if (NO_REINTENTAR.has(e.code)) { this.parado = 'Discord cerró con ' + e.code; return; }
       setTimeout(() => this.asegurar().catch(() => {}), 3000 + Math.random() * 4000);
     });
@@ -105,7 +115,7 @@ export class PuertaJX {
     if (p.op === 10) {
       clearInterval(this.hb); const cada = p.d.heartbeat_interval;
       setTimeout(() => this.latir(), Math.random() * cada); this.hb = setInterval(() => this.latir(), cada);
-      this.enviar({ op: 2, d: { token: this.env.DISCORD_TOKEN, intents: GUILD_MESSAGES | DIRECT_MESSAGES | (this.sinContenido ? 0 : MESSAGE_CONTENT),
+      this.enviar({ op: 2, d: { token: this.env.DISCORD_TOKEN, intents: GUILDS | GUILD_MESSAGES | DIRECT_MESSAGES | (this.sinMiembros ? 0 : GUILD_MEMBERS) | (this.sinContenido ? 0 : MESSAGE_CONTENT),
         properties: { os: 'linux', browser: 'jxbot', device: 'jxbot' },
         presence: { status: 'online', afk: false, since: null, activities: [{ type: 4, name: 'Custom Status', state: 'Escribí /JB y preguntame' }] } } });
     } else if (p.op === 11) this.ack = true;
@@ -121,8 +131,23 @@ export class PuertaJX {
           try { r.afuera = 'ok ' + (await fetch('https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/version.json')).status; } catch (e) { r.afuera = 'error ' + String(e.message).slice(0, 200); }
           this.diagReady = r; })();
       }
+      else if (p.t === 'GUILD_CREATE' || p.t === 'GUILD_UPDATE') {
+        const ya = this.servidores.get(p.d.id) || {}, nuevo = infoDe(p.d);
+        if (p.t === 'GUILD_UPDATE') { nuevo.miembros = ya.miembros; if (!p.d.channels) { nuevo.descargas = ya.descargas; if (!p.d.rules_channel_id) nuevo.reglas = ya.reglas; } }
+        this.servidores.set(p.d.id, nuevo);
+      }
+      else if (p.t === 'GUILD_DELETE') this.servidores.delete(p.d.id);
+      else if (p.t === 'GUILD_MEMBER_ADD' || p.t === 'GUILD_MEMBER_REMOVE') {
+        const g = p.d.guild_id, info = this.servidores.get(g) || { miembros: 0 };
+        if (!this.servidores.has(g)) this.servidores.set(g, info);
+        const entra = p.t === 'GUILD_MEMBER_ADD';
+        info.miembros = Math.max(0, (info.miembros || 0) + (entra ? 1 : -1)); this[entra ? 'entradas' : 'salidas']++;
+        (entra ? alEntrar(this.env, g, { ...info }, p.d) : alSalir(this.env, g, { ...info }, p.d.user))
+          .catch((e) => { this.error = String((e && e.stack) || e).slice(0, 500); this.errorT = Date.now(); console.error('puerta miembro', e); });
+      }
       else if (p.t === 'MESSAGE_CREATE') {
         this.mensajes++;
+        darXP(this.env, p.d).then((r) => { if (r) this.xp++; }).catch((e) => console.error('puerta xp', e));
         manejarMensaje(this.env, p.d, this.yo).then((r) => { if (r) this.contestados = (this.contestados || 0) + 1; })
           .catch((e) => { this.error = String((e && e.stack) || e).slice(0, 500); this.errorT = Date.now(); console.error('puerta mensaje', e); });
       }

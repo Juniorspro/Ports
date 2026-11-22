@@ -5323,7 +5323,7 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     privados, servidores y el permiso de leer el texto (prendido desde la API: los bots con menos de 100 servidores
     no necesitan verificación). Si Discord no lo deja, se reconecta sin ese permiso. Una alarma cada minuto y el cron
     la vuelven a abrir. `GET /api/discord/puerta` dice si está conectada.
-  - **Prueba:** 16/16, con un Gemini y un WebSocket de mentira:
+  - **Prueba:** 16/16 (ahora 20/20, ver «La comunidad»), con un Gemini y un WebSocket de mentira:
     - 12: el `/jb` lo completa la puerta;
     - 13: el lore y la memoria;
     - 14: la cadena de modelos (sin cupo del día o del minuto, respuesta o pregunta cortada).
@@ -5338,8 +5338,48 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     - La clase pasó de «PuertaDiscord» a «PuertaJX» (migración `renamed_classes`).
     - El estado muestra el último error (`error`) y una prueba de sólo lectura contra Discord (`?diag`).
     - La prueba ahora usa un `fetch` estricto como el de Cloudflare.
-- **Lo que no puede:** un saludo propio al que entra, porque eso necesita una conexión fija con Discord. Para eso está
-  el mensaje de bienvenida que ya trae Discord en los ajustes del servidor.
+- **La comunidad** (`tienda/discord_comunidad.js`; pedido del dueño y un amigo: «bienvenida, asignar roles
+  automáticamente y más cosas así, más completo»). Los eventos llegan por la puerta, que ahora también pide
+  «servidores» y «Server Members». Ese permiso se prende desde la API como el del texto:
+  `herramientas/discord_bot.mjs intents`. Con 4014 la puerta se reconecta primero sin miembros y después sin texto.
+  - **Bienvenida** (`/bienvenida configurar | probar | apagar`): una tarjeta con la mención y la foto de quien llega.
+    - Trae el número de persona (sale del `member_count` del GUILD_CREATE, más las entradas y menos las salidas),
+      los canales para empezar (descargas y reglas, que se buscan solos), cómo hablarle al bot y una frase del lore.
+    - Abajo, el banner de JXApps (`diseno/discord/bienvenida.jpg`, arte propio) y botones: elegir roles (si se corrió
+      `/configurar`), bajar JXMod y Stickerazo.
+    - Se puede poner un mensaje propio con {usuario} {nombre} {servidor} {numero}.
+    - Opcional: despedida y un mensaje privado.
+    - Cada 50 personas, «¡Somos N!».
+  - **Rol automático** (`/autorol agregar | quitar | ver`, hasta 5): se da al entrar, a los bots no. Antes de
+    guardarlo se mira la jerarquía (posición y, si empatan, manda el rol más viejo) y avisa si hay que arrastrar el rol
+    de JXBot más arriba.
+  - **Niveles** (`/nivel`, `/top`, `/niveles recompensa | quitar | crear | avisos | ver`):
+    - XP como MEE6: 15 a 25 por mensaje, una vez por minuto; pasar del nivel n al n+1 pide 5n² + 50n + 100.
+    - Al subir avisa (en el canal o en uno fijo) y da los roles de premio que falten.
+    - `/niveles crear` arma Activo (5), Habitué (10), Veterano (20), Leyenda (35) y Mítico (50).
+  - **Moderación:**
+    - `/limpiar` borra hasta 100 mensajes de menos de 14 días, también sólo los de alguien.
+    - `/aviso` le escribe por privado; al tercero, una hora silenciado. `/avisos` los lista o los borra.
+    - `/silenciar` usa el aislamiento de Discord: 0 lo saca, hasta 28 días.
+    - `/registro` es un canal con entradas (avisa si la cuenta es nueva), salidas, avisos, silencios, limpiezas y roles
+      que no se pudieron dar.
+  - **Utilidades:** `/servidor`, `/usuario`, `/encuesta` (las encuestas nativas de Discord) y `/ayuda`.
+  - **Quién los usa:** los de configurar y moderar piden el código de admin. Además Discord sólo se los muestra a
+    quien tiene el permiso que corresponde (`default_member_permissions`), así los 300 no ven 25 comandos. Lo mismo
+    vale ahora para /configurar, /roles y /anunciar.
+  - **Permisos:** el link nuevo de `invitar` suma gestionar mensajes, aislar temporalmente y encuestas. Abrirlo con el
+    bot ya adentro le actualiza los permisos.
+  - **Prueba:** `discord_bot.mjs` 20/20. La 10 cubre los permisos nuevos y el orden del respaldo con 4014.
+    - 15: autorol con la jerarquía de verdad (JXBot debajo de Miembro), bienvenida por comandos y por la puerta
+      (número 350, canales, banner, botones, festejo, bots, despedida, registro).
+    - 16: XP, subir de nivel, premio, aviso en otro canal, /nivel, /top, /niveles crear.
+    - 17: /limpiar con y sin permiso, tres avisos con silencio, /avisos, /silenciar.
+    - 18: /servidor, /usuario, /encuesta, /ayuda y que los 25 comandos estén bien formados.
+  - **En el servidor:** la bienvenida quedó en #bievenida y el rol automático en «Miembro», configurados directo en la
+    base (`dc_ajustes`).
+    - Hasta entonces la bienvenida la daba Nekotina: hay que apagar la suya.
+    - Todos los roles del servidor están en la posición 1, así que la jerarquía la decide la antigüedad y JXBot, el
+      más nuevo, queda último. Para dar «Miembro» hay que arrastrar JXBot arriba en Ajustes → Roles.
 
 ## Sin publicar todavía: lo de «Bugs y sugerencias» después de la 3.9.11
 

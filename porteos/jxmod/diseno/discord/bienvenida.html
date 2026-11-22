@@ -1,0 +1,35 @@
+<!doctype html><meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: #000; }
+  .b { position: relative; width: 1200px; height: 400px; overflow: hidden; background: #14111c; font-family: 'Inter Display', Inter, sans-serif; color: #fff; }
+  .glow { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .85; }
+  .g1 { width: 520px; height: 520px; left: -140px; top: -220px; background: #7a3cff; }
+  .g2 { width: 460px; height: 460px; right: 120px; bottom: -300px; background: #ff3e8a; opacity: .7; }
+  .g3 { width: 380px; height: 380px; right: -150px; top: -170px; background: #ff8a1f; opacity: .55; }
+  .grano { position: absolute; inset: 0; opacity: .07; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+  .rayas { position: absolute; right: 40px; top: 0; bottom: 0; width: 420px; background: repeating-linear-gradient(115deg, rgba(255,255,255,.045) 0 14px, transparent 14px 40px); -webkit-mask-image: linear-gradient(90deg, transparent, #000 40%, #000 70%, transparent); }
+  .logo { position: absolute; left: 72px; top: 42px; width: 290px; }
+  .chico { position: absolute; left: 76px; top: 134px; font: 600 21px/1 Inter, sans-serif; letter-spacing: .32em; color: #ffd23f; }
+  h1 { position: absolute; left: 70px; top: 164px; margin: 0; font-weight: 900; font-size: 82px; line-height: .92; letter-spacing: -.035em; }
+  h1 span { background: linear-gradient(90deg, #fff 0%, #fff 55%, #ffd8ea 100%); -webkit-background-clip: text; color: transparent; }
+  .sub { position: absolute; left: 76px; bottom: 38px; font: 500 22px/1 Inter, sans-serif; color: rgba(255,255,255,.72); letter-spacing: .01em; }
+  .sub b { color: #fff; font-weight: 700; }
+  .punto { position: absolute; border-radius: 50%; background: #ffd23f; box-shadow: 0 0 40px rgba(255,210,63,.55); }
+  .p1 { width: 30px; height: 30px; right: 420px; top: 60px; }
+  .p2 { width: 14px; height: 14px; right: 26px; top: 336px; opacity: .9; }
+  .p3 { width: 10px; height: 10px; right: 452px; top: 318px; opacity: .75; }
+  .simb { position: absolute; right: 64px; top: 50%; width: 300px; height: 300px; transform: translateY(-50%) rotate(-8deg); filter: drop-shadow(0 26px 50px rgba(0,0,0,.45)); }
+  .aro { position: absolute; right: 30px; top: 50%; width: 370px; height: 370px; transform: translateY(-50%); border-radius: 50%; border: 2px solid rgba(255,255,255,.10); }
+  .aro2 { right: -10px; width: 450px; height: 450px; border-color: rgba(255,255,255,.06); }
+</style>
+<div class="b">
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="rayas"></div><div class="grano"></div>
+  <div class="aro"></div><div class="aro aro2"></div>
+  <img class="logo" src="kit/jxapps_horizontal_blanco.svg">
+  <div class="chico">LA COMUNIDAD</div>
+  <h1><span>TE DAMOS LA<br>BIENVENIDA</span></h1>
+  <div class="sub"><b>JXMod</b> · <b>Stickerazo</b> · jugá, creá y pasala bien</div>
+  <img class="simb" src="kit/jxapps_icono.svg">
+  <div class="punto p1"></div><div class="punto p2"></div><div class="punto p3"></div>
+</div>

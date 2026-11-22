@@ -20,7 +20,10 @@
 //     latido, reconecta;
 // 11. la versión: con otra versión del Worker la puerta se reinicia; 12. el /jb lo completa la puerta;
 // 13. el lore de JXMod va en las instrucciones, y la memoria de los admins (/memoria, /recordar por privado) también;
-// 14. la cadena de modelos de Gemini: sin cupo, respuesta cortada, pregunta cortada.
+// 14. la cadena de modelos de Gemini: sin cupo, respuesta cortada, pregunta cortada;
+// 15. rol automático y bienvenida (con lo que llega por la puerta: entrar, salir, el festejo cada 50, el registro);
+// 16. niveles (XP, aviso al subir, roles de premio, /nivel, /top, /niveles crear); 17. moderación (/limpiar, /aviso,
+//     /avisos, /silenciar); 18. /servidor, /usuario, /encuesta, /ayuda y cómo se registran los comandos.
 // uso: node discord_bot.mjs
 import { d1 } from '../../stickerazo/pruebas/d1_falsa.mjs';
 const M = await import('../tienda/discord.js');
@@ -45,11 +48,31 @@ async function falso(url, op = {}) {
   if (u.includes('descargas/app.json')) return new Response(JSON.stringify(APP));
   if (!u.startsWith('https://discord.com/api/v10')) return new Response('?', { status: 404 });
   const ruta = u.slice('https://discord.com/api/v10'.length); llamadas.push({ m, ruta, b, auth: (op.headers || {}).Authorization });
+  if (ruta.startsWith(`/guilds/${G}`) || ruta.startsWith('/channels/') || ruta === '/users/@me/channels') { const r = comunidadFalsa(m, ruta, b); if (r) return r; }
   if (/\/roles$/.test(ruta) && m === 'GET') return new Response(JSON.stringify(roles));
   if (/\/roles$/.test(ruta) && m === 'POST') { const r = { id: 'r' + sigRol++, ...b }; roles.push(r); return new Response(JSON.stringify(r)); }
   if (/auto-moderation\/rules$/.test(ruta) && m === 'GET') return new Response(JSON.stringify(reglas));
   if (/auto-moderation\/rules$/.test(ruta) && m === 'POST') { const r = { id: 'a' + sigRegla++, ...b }; reglas.push(r); return new Response(JSON.stringify(r)); }
   return new Response(JSON.stringify({ id: 'm1' }));
+}
+// (lo de la comunidad: un servidor con IDs de verdad —números—, porque la jerarquía y las fechas salen de ellos)
+const G = '1400000000000000001', idDe = (n) => String(1400000000000000000n + BigInt(n));
+const idAhora = (ms = Date.now()) => String((BigInt(ms) - 1420070400000n) << 22n);
+const rolesG = [{ id: G, name: '@everyone', position: 0 }, { id: idDe(200), name: 'Miembro', position: 1 }, { id: idDe(300), name: 'JXBot', position: 1, managed: true }, { id: idDe(500), name: 'Nuevo', position: 1 }];
+const prohibidos = new Set([idDe(200)]); let sinPermisoBorrar = false, sigRolG = 600;
+const mensajesCanal = [1, 2, 3, 4, 5].map((i) => ({ id: idAhora(Date.now() - i * 60e3), author: { id: i % 2 ? idDe(700) : idDe(701) } }));
+function comunidadFalsa(m, ruta, b) {
+  const j = (o, status = 200) => new Response(JSON.stringify(o), { status });
+  if (ruta === `/guilds/${G}/roles` && m === 'GET') return j(rolesG);
+  if (ruta === `/guilds/${G}/roles` && m === 'POST') { const r = { id: idDe(sigRolG++), position: 1, ...b }; rolesG.push(r); return j(r); }
+  if (ruta === `/guilds/${G}/members/app1`) return j({ roles: [idDe(300)] });
+  if (/^\/guilds\/\d+\/members\/\d+\/roles\/\d+$/.test(ruta) && prohibidos.has(ruta.split('/').pop())) return j({ message: 'Missing Permissions', code: 50013 }, 403);
+  if (ruta.startsWith(`/guilds/${G}?with_counts`)) return j({ id: G, name: 'JXMod', icon: 'abc', owner_id: idDe(100), approximate_member_count: 349, approximate_presence_count: 12, premium_subscription_count: 2, roles: rolesG, rules_channel_id: '9001' });
+  if (ruta === `/guilds/${G}/channels`) return j([{ id: '9001', type: 0, name: 'reglas' }, { id: '9002', type: 0, name: 'actualizaciones-y-descarga' }, { id: '9003', type: 0, name: 'bievenida' }]);
+  if (/^\/channels\/\d+\/messages\?limit/.test(ruta)) return j(mensajesCanal);
+  if (/bulk-delete$/.test(ruta) && sinPermisoBorrar) return j({ message: 'Missing Permissions' }, 403);
+  if (ruta === '/users/@me/channels') return j({ id: 'dm-' + b.recipient_id });
+  return null;
 }
 // (como en Cloudflare: fetch llamado como método de otro objeto —env.__fetch(…)— da «Illegal invocation»)
 function estricto(...a) { if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation: fetch llamado como método'); return falso(...a); }
@@ -187,11 +210,14 @@ k = llamadas.length; socks[0].recibir({ op: 0, t: 'MESSAGE_CREATE', s: 2, d: { i
 const viaPuerta = msgs(k);
 socks[0].cortar(4014); await espera(20); socks[1].recibir({ op: 10, d: { heartbeat_interval: 40000 } }); await espera(10);
 const ident2 = socks[1].enviados.find((x) => x.op === 2);
+socks[1].cortar(4014); await espera(20); socks[2].recibir({ op: 10, d: { heartbeat_interval: 40000 } }); await espera(10);
+const ident3 = socks[2].enviados.find((x) => x.op === 2);
 pu.ack = false; pu.latir(); await espera(20);
-ok('10. puerta: se identifica (privados + servidores + texto) con «Escribí /JB»; READY; el mensaje /jb se contesta; con 4014 se reconecta sin texto; sin ack, reconecta',
-  e0 && alarma && ident && ident.d.intents === ((1 << 9) | (1 << 12) | (1 << 15)) && ident.d.token === 'tok' && /\/JB/.test(ident.d.presence.activities[0].state) && e1.conectado && viaPuerta.length === 1 && /hola bot/.test(viaPuerta[0].b.content)
-    && ident2 && ident2.d.intents === ((1 << 9) | (1 << 12)) && socks.length === 3,
-  { intents: [ident && ident.d.intents, ident2 && ident2.d.intents], conectado: e1.conectado, sockets: socks.length });
+const BASE = (1 << 0) | (1 << 9) | (1 << 12);   // servidores, mensajes de servidores y privados
+ok('10. puerta: se identifica (servidores, miembros, mensajes, privados y texto) con «Escribí /JB»; READY; el mensaje /jb se contesta; con 4014 se reconecta sin miembros y, con otro, sin texto; sin ack, reconecta',
+  e0 && alarma && ident && ident.d.intents === (BASE | (1 << 1) | (1 << 15)) && ident.d.token === 'tok' && /\/JB/.test(ident.d.presence.activities[0].state) && e1.conectado && viaPuerta.length === 1 && /hola bot/.test(viaPuerta[0].b.content)
+    && ident2 && ident2.d.intents === (BASE | (1 << 15)) && ident3 && ident3.d.intents === BASE && socks.length === 4,
+  { intents: [ident && ident.d.intents, ident2 && ident2.d.intents, ident3 && ident3.d.intents], conectado: e1.conectado, sockets: socks.length });
 // 11: la versión: si el Worker le pasa otra, la puerta cierra y se reinicia
 let abortado = null; const est2 = { storage: est.storage, abort: (m) => { abortado = m; throw new Error('abortado: ' + m); } };
 const pv = new P.PuertaJX(est2, { ...envPuerta, CF_VERSION_METADATA: { id: 'v1' }, __abrirWs: async () => { const w = new WsFalso(); socks.push(w); return w; } });
@@ -248,5 +274,103 @@ ok('14. respaldo de modelos: sin cupo del día se saltea; del minuto vuelve ense
     && q2.mods.join() === 'gemini-3.5-flash,gemini-3.5-flash-lite' && q3.mods.join() === 'gemini-3.6-flash' && /Respuesta IA/.test(q3.txt)
     && /no puedo hablar/.test(q4.txt) && q4.mods.length === 4 && /no puedo hablar/.test(q5.txt) && q5.mods.join() === 'gemini-3.6-flash' && usoAI === 0,
   { q1: q1.mods, q2: q2.mods, q3: q3.mods, q4: q4.mods.length, q5: q5.mods, ai: usoAI });
+// 15-18: la comunidad (discord_comunidad.js)
+{   // (en un bloque: los nombres cortos no chocan con los de arriba)
+const C = await import('../tienda/discord_comunidad.js');
+const A = idDe(100), NUEVO = idDe(600);
+await M.probarCodigo(env, A, G, 'Prueba(@1');
+const cmdG = (name, quien = A, options, resolved) => ({ type: 2, guild_id: G, channel_id: '9100', token: 'tkg', member: { user: { id: quien, username: 'u' + quien.slice(-3) }, roles: [], joined_at: '2026-11-01T00:00:00Z', permissions: '8' }, data: { name, options, resolved } });
+const subG = (name, options) => [{ type: 1, name, options }];
+const posts = (desde, canal) => llamadas.slice(desde).filter((x) => x.m === 'POST' && x.ruta === `/channels/${canal}/messages`);
+// 15: rol automático (con el aviso de jerarquía) y bienvenida (comandos, prueba y lo que llega por la puerta)
+const ar1 = await pedir(cmdG('autorol', A, subG('agregar', [{ name: 'rol', value: idDe(200) }])));
+const ar2 = await pedir(cmdG('autorol', A, subG('agregar', [{ name: 'rol', value: idDe(500) }])));
+const ar3 = await pedir(cmdG('autorol', A, subG('ver')));
+const bNo = await pedir(cmdG('bienvenida', idDe(101), subG('configurar', [{ name: 'canal', value: '9003' }])));
+const bSi = await pedir(cmdG('bienvenida', A, subG('configurar', [{ name: 'canal', value: '9003' }, { name: 'despedida', value: true }])));
+k = llamadas.length; const bPr = await pedir(cmdG('bienvenida', A, subG('probar'))); const prueba = posts(k, '9003')[0];
+const socks2 = []; const pu2 = new P.PuertaJX(est, { ...envPuerta, __abrirWs: async () => { const w = new WsFalso(); socks2.push(w); return w; } });
+await pu2.fetch(new Request('https://puerta/asegurar')); const w2 = socks2[0];
+w2.recibir({ op: 10, d: { heartbeat_interval: 40000 } }); w2.recibir({ op: 0, t: 'READY', s: 1, d: { user: { id: 'app1' }, session_id: 's2' } });
+w2.recibir({ op: 0, t: 'GUILD_CREATE', s: 2, d: { id: G, name: 'JXMod', member_count: 349, rules_channel_id: '9001', channels: [{ id: '9001', type: 0, name: 'reglas' }, { id: '9002', type: 0, name: 'actualizaciones-y-descarga' }, { id: '9003', type: 0, name: 'bievenida' }] } });
+k = llamadas.length; w2.recibir({ op: 0, t: 'GUILD_MEMBER_ADD', s: 3, d: { guild_id: G, user: { id: NUEVO, username: 'nuevo', global_name: 'Nuevito' }, roles: [] } }); await espera(120);
+const ent = llamadas.slice(k), bienv = posts(k, '9003'), puts = ent.filter((x) => x.m === 'PUT').map((x) => x.ruta.split('/').pop());
+const rg = await pedir(cmdG('registro', A, [{ name: 'canal', value: '9004' }]));
+k = llamadas.length; w2.recibir({ op: 0, t: 'GUILD_MEMBER_ADD', s: 4, d: { guild_id: G, user: { id: idDe(601), username: 'otrobot', bot: true }, roles: [] } }); await espera(80);
+const conBot = llamadas.slice(k);
+k = llamadas.length; w2.recibir({ op: 0, t: 'GUILD_MEMBER_REMOVE', s: 5, d: { guild_id: G, user: { id: NUEVO, username: 'nuevo', global_name: 'Nuevito' } } }); await espera(80);
+const desp = posts(k, '9003'), regSal = posts(k, '9004');
+const est2b = await (await pu2.fetch(new Request('https://puerta/estado'))).json();
+ok('15. autorol (avisa la jerarquía: JXBot abajo de Miembro) y bienvenida: sólo admins; prueba; al entrar: roles, tarjeta con número, canales, banner y botones, festejo de los 350; al bot nada (sí al registro); despedida con la cuenta y registro',
+  /Ojo/.test(ar1.d.data.content) && /arrastrá \*\*JXBot\*\*/.test(ar1.d.data.content) && /Listo/.test(ar2.d.data.content) && !/Ojo/.test(ar2.d.data.content) && (ar3.d.data.content.match(/<@&/g) || []).length === 2
+    && /para admins/.test(bNo.d.data.content) && /<#9003>/.test(bSi.d.data.content) && /despedida/.test(bSi.d.data.content)
+    && /prueba/.test(bPr.d.data.content) && prueba && /^\(prueba\)/.test(prueba.b.content) && prueba.b.allowed_mentions.users.length === 0 && prueba.b.embeds[0].image.url === C.BANNER
+    && puts.join() === [idDe(200), idDe(500)].join() && bienv.length === 2 && bienv[0].b.content === `<@${NUEVO}>` && bienv[0].b.allowed_mentions.users[0] === NUEVO
+    && /persona número \*\*350\*\*/.test(bienv[0].b.embeds[0].description) && /<#9002>/.test(bienv[0].b.embeds[0].description) && /<#9001>/.test(bienv[0].b.embeds[0].description) && /Nuevito/.test(bienv[0].b.embeds[0].title)
+    && bienv[0].b.components[0].components.some((x) => x.url === 'https://x/JXMod.apk') && /Somos 350/.test(bienv[1].b.embeds[0].title)
+    && /<#9004>/.test(rg.d.data.content) && !conBot.some((x) => x.m === 'PUT' || x.ruta === '/channels/9003/messages') && conBot.some((x) => x.ruta === '/channels/9004/messages')
+    && desp.length === 1 && /se fue del servidor\. Ahora somos 350/.test(desp[0].b.embeds[0].description) && regSal.length === 1 && est2b.miembros === true && est2b.servidores === 1 && est2b.entradas === 2 && est2b.salidas === 1,
+  { ar1: ar1.d.data.content.slice(0, 90), puts: puts.length, bienv: bienv.length, desc: bienv[0] && bienv[0].b.embeds[0].description.slice(0, 120), desp: desp.length, est: [est2b.servidores, est2b.entradas, est2b.salidas] });
+// 16: niveles: XP una vez por minuto, al subir avisa y da el rol de premio, /nivel y /top, /niveles crear
+const U1 = idDe(800), U2 = idDe(801);
+const mGen = (id, u, extra = {}) => ({ op: 0, t: 'MESSAGE_CREATE', s: 10, d: { id, guild_id: G, channel_id: '9200', type: 0, author: { id: u, username: 'u' + u.slice(-3) }, member: { roles: [] }, content: 'charlando', mentions: [], ...extra } });
+w2.recibir(mGen(idAhora(), U1)); await espera(60); w2.recibir(mGen(idAhora(), U1)); await espera(60);
+const xp1 = await env.DB.prepare('SELECT xp, nivel, msgs FROM dc_xp WHERE guild = ?1 AND usuario = ?2').bind(G, U1).first();
+const rr = await pedir(cmdG('niveles', A, subG('recompensa', [{ name: 'nivel', value: 1 }, { name: 'rol', value: idDe(500) }])));
+await env.DB.prepare('INSERT INTO dc_xp (guild, usuario, xp, nivel, msgs, t) VALUES (?1, ?2, 95, 0, 7, 0)').bind(G, U2).run();
+k = llamadas.length; w2.recibir(mGen(idAhora(), U2)); await espera(80);
+const sube = posts(k, '9200'), premio = llamadas.slice(k).filter((x) => x.m === 'PUT' && x.ruta.endsWith(`/members/${U2}/roles/${idDe(500)}`));
+const av = await pedir(cmdG('niveles', A, subG('avisos', [{ name: 'canal', value: '9300' }])));
+await env.DB.prepare('UPDATE dc_xp SET xp = 250, nivel = 1, t = 0 WHERE guild = ?1 AND usuario = ?2').bind(G, U2).run(); C.olvidarAjustes(G);
+const U3 = idDe(802); await env.DB.prepare('INSERT INTO dc_xp (guild, usuario, xp, nivel, msgs, t) VALUES (?1, ?2, 250, 1, 30, 0)').bind(G, U3).run();
+k = llamadas.length; w2.recibir(mGen(idAhora(), U3)); await espera(80); const enCanal = posts(k, '9300');
+const nv = await pedir(cmdG('nivel', U3)), tp = await pedir(cmdG('top', U1)), nvNo = await pedir(cmdG('nivel', idDe(999)));
+const cr = await pedir(cmdG('niveles', A, subG('crear'))); await Promise.all(pendientes.splice(0));
+const creados = (await env.DB.prepare('SELECT COUNT(*) AS n FROM dc_nivel_roles WHERE guild = ?1 AND nivel IN (5, 10, 20, 35, 50)').bind(G).first()).n;
+const finCr = llamadas.filter((x) => x.m === "PATCH" && x.ruta === "/webhooks/app1/tkg/messages/@original").pop();
+ok('16. niveles: XP una vez por minuto; al subir avisa y da el rol de premio; aviso en el canal elegido; /nivel con barra y puesto, /top, sin XP; /niveles crear arma 5 roles de premio; la cuenta de MEE6',
+  xp1 && xp1.msgs === 1 && xp1.xp >= 15 && xp1.xp <= 25 && /nivel 1/.test(rr.d.data.content) && sube.length === 1 && /Subiste a nivel 1/.test(sube[0].b.embeds[0].description) && /Ganaste <@&/.test(sube[0].b.embeds[0].description) && premio.length === 1
+    && /<#9300>/.test(av.d.data.content) && enCanal.length === 1 && /nivel 2/.test(enCanal[0].b.embeds[0].description)
+    && nv.d.data.embeds[0].title === 'Nivel 2' && /█/.test(nv.d.data.embeds[0].description) && /Puesto \*\*#1\*\*/.test(nv.d.data.embeds[0].description)
+    && /\*\*1\.\*\* <@/.test(tp.d.data.embeds[0].description) && /Todavía no tiene XP|Todavía no tenés XP/.test(nvNo.d.data.content)
+    && cr.d.type === 5 && creados === 5 && finCr && /Listo, roles de premio/.test(finCr.b.content)
+    && C.nivelDe(0).nivel === 0 && C.nivelDe(99).nivel === 0 && C.nivelDe(100).nivel === 1 && C.nivelDe(255).nivel === 2 && C.necesita(10) === 1100,
+  { xp1, sube: sube.length, premio: premio.length, enCanal: enCanal.length, nivel: nv.d.data.embeds && nv.d.data.embeds[0].title, creados });
+// 17: moderación: /limpiar (y sin permiso), /aviso (privado, a los 3 silencio de una hora), /avisos, /silenciar
+k = llamadas.length; const l1 = await pedir(cmdG('limpiar', A, [{ name: 'cantidad', value: 3 }])); const bd = llamadas.slice(k).find((x) => /bulk-delete$/.test(x.ruta));
+k = llamadas.length; const l2 = await pedir(cmdG('limpiar', A, [{ name: 'cantidad', value: 10 }, { name: 'usuario', value: idDe(701) }])); const bd2 = llamadas.slice(k).find((x) => /bulk-delete$/.test(x.ruta));
+sinPermisoBorrar = true; const l3 = await pedir(cmdG('limpiar', A, [{ name: 'cantidad', value: 2 }])); sinPermisoBorrar = false;
+const X = idDe(900), resX = { users: { [X]: { id: X, username: 'troll' } } };
+k = llamadas.length; const a1 = await pedir(cmdG('aviso', A, [{ name: 'usuario', value: X }, { name: 'motivo', value: 'spam' }], resX));
+await pedir(cmdG('aviso', A, [{ name: 'usuario', value: X }, { name: 'motivo', value: 'insultos' }], resX));
+const a3 = await pedir(cmdG('aviso', A, [{ name: 'usuario', value: X }, { name: 'motivo', value: 'otra vez' }], resX));
+const priv = llamadas.slice(k).filter((x) => x.ruta === `/channels/dm-${X}/messages`), sil = llamadas.slice(k).filter((x) => x.m === 'PATCH' && x.ruta === `/guilds/${G}/members/${X}`);
+const avs = await pedir(cmdG('avisos', A, [{ name: 'usuario', value: X }])), avB = await pedir(cmdG('avisos', A, [{ name: 'usuario', value: X }, { name: 'borrar', value: true }]));
+const quedan = (await env.DB.prepare('SELECT COUNT(*) AS n FROM dc_avisos WHERE guild = ?1 AND usuario = ?2').bind(G, X).first()).n;
+k = llamadas.length; const s1 = await pedir(cmdG('silenciar', A, [{ name: 'usuario', value: X }, { name: 'minutos', value: 10 }]));
+const s0 = await pedir(cmdG('silenciar', A, [{ name: 'usuario', value: X }, { name: 'minutos', value: 0 }])); const ps = llamadas.slice(k).filter((x) => x.m === 'PATCH');
+const hasta = ps[0] && Date.parse(ps[0].b.communication_disabled_until) - Date.now(), hasta3 = sil[0] && Date.parse(sil[0].b.communication_disabled_until) - Date.now();
+const modNo = await pedir(cmdG('limpiar', idDe(101), [{ name: 'cantidad', value: 3 }]));
+ok('17. moderación: /limpiar borra los últimos (y sólo de alguien), sin permiso lo explica; /aviso escribe por privado y al tercero silencia una hora; /avisos lista y borra; /silenciar 10 min y 0 lo saca; sólo admins',
+  /borré 3/.test(l1.d.data.content) && bd && bd.b.messages.length === 3 && bd2 && bd2.b.messages.length === 2 && /Gestionar mensajes/.test(l3.d.data.content)
+    && /aviso 1/.test(a1.d.data.content) && priv.length === 3 && sil.length === 1 && hasta3 > 3590e3 && hasta3 < 3610e3 && /una hora silenciado/.test(a3.d.data.content)
+    && (avs.d.data.content.match(/›/g) || []).length === 3 && /sin avisos/.test(avB.d.data.content) && quedan === 0
+    && ps.length === 2 && hasta > 595e3 && hasta < 605e3 && ps[1].b.communication_disabled_until === null && /hasta/.test(s1.d.data.content) && /ya puede escribir/.test(s0.d.data.content)
+    && /para admins/.test(modNo.d.data.content),
+  { l1: l1.d.data.content, bd2: bd2 && bd2.b.messages.length, priv: priv.length, sil: sil.length, avs: avs.d.data.content.slice(0, 60), ps: ps.length });
+// 18: utilidades y cómo se registran: /servidor, /usuario, /encuesta, /ayuda; los de admin escondidos para quien no tiene permiso
+const sv = await pedir(cmdG('servidor', U1)), us = await pedir(cmdG('usuario', U1, [{ name: 'usuario', value: U3 }], { users: { [U3]: { id: U3, username: 'tres', global_name: 'Tres' } }, members: { [U3]: { joined_at: '2026-10-01T00:00:00Z', roles: [idDe(500)] } } }));
+const en = await pedir(cmdG('encuesta', A, [{ name: 'pregunta', value: '¿Qué mapa sigue?' }, { name: 'opciones', value: 'Desert, City | Mars' }]));
+const en1 = await pedir(cmdG('encuesta', A, [{ name: 'pregunta', value: '¿?' }, { name: 'opciones', value: 'sola' }]));
+const ay = await pedir({ type: 2, channel_id: 'dmx', token: 't', user: { id: U1, username: 'x' }, data: { name: 'ayuda' } });
+const nombres = M.COMANDOS.map((c) => c.name), adminSinPermiso = M.COMANDOS.filter((c) => ['bienvenida', 'autorol', 'niveles', 'registro', 'encuesta', 'limpiar', 'aviso', 'avisos', 'silenciar', 'configurar', 'roles', 'anunciar'].includes(c.name) && !c.default_member_permissions);
+const bienPuestos = (L) => L.every((o) => o.name && o.description && o.description.length <= 100 && /^[a-z0-9_-]{1,32}$/.test(o.name) && (!o.options || bienPuestos(o.options)));
+ok('18. /servidor, /usuario (cuenta, entrada, nivel, roles), /encuesta de Discord (y con 1 opción no), /ayuda también por privado; 25 comandos sin repetir, bien formados, los de admin escondidos',
+  sv.d.data.embeds[0].title === 'JXMod' && sv.d.data.embeds[0].fields.find((f) => f.name === 'Miembros').value === '349' && us.d.data.embeds[0].author.name === 'Tres' && us.d.data.embeds[0].fields.some((f) => f.name === 'Entró al servidor') && us.d.data.embeds[0].fields.find((f) => f.name === 'Nivel').value.startsWith('2')
+    && en.d.data.poll && en.d.data.poll.answers.length === 3 && en.d.data.poll.duration === 24 && en.d.data.poll.answers[2].poll_media.text === 'Mars' && /al menos 2/.test(en1.d.data.content)
+    && ay.d.data.flags === 64 && ay.d.data.embeds[0].fields.length === 3 && nombres.length === 25 && new Set(nombres).size === 25 && adminSinPermiso.length === 0 && bienPuestos(M.COMANDOS),
+  { nombres: nombres.length, sinPermiso: adminSinPermiso.map((c) => c.name), poll: en.d.data.poll && en.d.data.poll.answers.map((x) => x.poll_media.text) });
+pu2.cerrar();
+}
 pu.cerrar();
 console.log('RESUMEN ' + R.filter(Boolean).length + '/' + R.length); process.exit(R.every(Boolean) ? 0 : 1);

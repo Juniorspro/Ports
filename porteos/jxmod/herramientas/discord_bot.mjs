@@ -5,8 +5,12 @@
 //                tiene que tener DISCORD_APP_ID, DISCORD_PUBLIC_KEY y DISCORD_TOKEN)
 //   comandos   → registra los comandos de discord.js (COMANDOS)
 //   avatar     → le pone de foto la imagen que se pase (por defecto, la de perfil de JXApps)
-//   invitar    → el link para sumarlo a un servidor, con los permisos justos
-// uso: node discord_bot.mjs info|endpoint|comandos|avatar [PNG]|invitar
+//   invitar    → el link para sumarlo a un servidor, con los permisos justos (abrirlo de nuevo con el bot ya adentro le
+//                actualiza los permisos)
+//   intents    → prende los permisos especiales del gateway que usa la puerta: «Message Content» y «Server Members» (los
+//                bots en menos de 100 servidores no necesitan verificación: se prenden desde la API)
+// uso: node discord_bot.mjs info|endpoint|comandos|avatar [PNG]|invitar|intents
+// (Node no usa el proxy del contenedor solo: correr con NODE_USE_ENV_PROXY=1)
 import fs from 'fs';
 const TOKEN = fs.readFileSync('/root/.discord/token', 'utf8').trim();
 const URL_BOT = 'https://rezobox-tienda.holasoyjuniors365.workers.dev/api/discord/interacciones';
@@ -31,8 +35,13 @@ if (que === 'info') {
   const u = await dc('PATCH', '/users/@me', { avatar: 'data:image/png;base64,' + png.toString('base64') }); console.log('avatar', u.username, !!u.avatar);
 } else if (que === 'invitar') {
   const a = JSON.parse(fs.readFileSync('/root/.discord/app.json', 'utf8'));
-  // (ver canales, mandar mensajes, links con vista previa, leer el historial, gestionar roles —para los botones— y
-  // gestionar el servidor —para crear las reglas de AutoMod—; nada de administrador)
-  const permisos = (1n << 10n) | (1n << 11n) | (1n << 14n) | (1n << 16n) | (1n << 28n) | (1n << 5n);
+  // (ver canales, mandar mensajes, links con vista previa, leer el historial, gestionar roles —botones, rol automático y
+  // premios por nivel—, gestionar el servidor —las reglas de AutoMod—, gestionar mensajes —/limpiar y borrar un código
+  // escrito en público—, aislar temporalmente —/silenciar y los 3 avisos— y mandar encuestas; nada de administrador)
+  const permisos = (1n << 10n) | (1n << 11n) | (1n << 14n) | (1n << 16n) | (1n << 28n) | (1n << 5n) | (1n << 13n) | (1n << 40n) | (1n << 49n);
   console.log(`https://discord.com/oauth2/authorize?client_id=${a.id}&permissions=${permisos}&integration_type=0&scope=bot+applications.commands`);
+} else if (que === 'intents') {
+  const LIMITADOS = (1 << 15) | (1 << 19);   // GATEWAY_GUILD_MEMBERS_LIMITED y GATEWAY_MESSAGE_CONTENT_LIMITED
+  const a = await dc('GET', '/applications/@me'), b = await dc('PATCH', '/applications/@me', { flags: (a.flags & LIMITADOS) | LIMITADOS });
+  console.log('intents', { miembros: !!(b.flags & (1 << 15)), texto: !!(b.flags & (1 << 19)), flags: b.flags });
 }
