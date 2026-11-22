@@ -14,8 +14,9 @@
 // hace nada; sin el código, los comandos de admin no andan.
 import { tablas, postNuevo } from './panel.js';
 import { respuestaIA, memoriaAgregar, memoriaBorrar, memoriaLista } from './discord_ia.js';
-import { REPO, SITIO_SZ, ROSA, AMARILLO, VIOLETA, VERDE, GRIS, EFIMERO, MIN, corto, traer, dc, msg, efimero, usuarioDe } from './discord_base.js';
+import { REPO, SITIO_SZ, ROSA, AMARILLO, VIOLETA, VERDE, GRIS, EFIMERO, MIN, corto, traer, dc, msg, efimero, usuarioDe, sha, huellaCodigo } from './discord_base.js';
 import { comandoComunidad, botonComunidad, COMANDOS_COMUNIDAD, PERM } from './discord_comunidad.js';
+import { comandoModeracion, botonModeracion, formularioModeracion, COMANDOS_MODERACION } from './discord_moderacion.js';
 export { dc };
 export const ROLES = [['jxmod', 'JXMod', 0x9aa0a6], ['stickerazo', 'Stickerazo', AMARILLO], ['avisos', 'Avisos de versiones', ROSA]];
 const enc = new TextEncoder();
@@ -81,13 +82,11 @@ async function puerta(env, ruta, init) {
 }
 // /jb: la respuesta de la IA en el mensaje «pensando…» (lo llama la puerta; sin puerta, el Worker mismo)
 export async function contestarJB(env, j) {
-  const r = await respuestaIA(env, { canal: j.canal, usuario: j.usuario, nombre: j.nombre, texto: j.texto, admin: await esAdminDe(env, j.usuario, j.guild) });
+  const r = await respuestaIA(env, { canal: j.canal, usuario: j.usuario, nombre: j.nombre, texto: j.texto, guild: j.guild, admin: await esAdminDe(env, j.usuario, j.guild) });
   await dc(env, 'PATCH', `/webhooks/${env.DISCORD_APP_ID}/${j.token}/messages/@original`, { content: r.espera || `> ${corto(j.texto, 300)}\n${r.texto}`, allowed_mentions: { parse: [] } });
 }
 // ---- el código de admin: se guarda la huella (SHA-256) del código con que se habilitó, nunca el código ----
-const sha = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(t)))].map((b) => b.toString(16).padStart(2, '0')).join('');
 async function igualSeguro(a, b) { const [x, y] = await Promise.all([sha('jx|' + a), sha('jx|' + b)]); let d = 0; for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i); return d === 0; }
-const huellaCodigo = async (env) => (await sha('jx-admin|' + env.DISCORD_ADMIN_CODE)).slice(0, 24);
 // (el que lo mandó en el servidor, o por mensaje privado al bot: ése vale en todos los servidores)
 export async function esAdminDe(env, usuario, guild) {
   if (!env.DISCORD_ADMIN_CODE) return false; await tablasDc(env);
@@ -128,6 +127,8 @@ async function comando(env, it, ctx) {
   const rc = await comandoComunidad(env, it, ctx, { esAdmin: () => esAdmin(env, it),
     avisarPuerta: (gid) => { if (env.DC_PUERTA) ctx.waitUntil(puerta(env, '/ajustes', { method: 'POST', body: gid }).catch(() => {})); } });
   if (rc) return rc;
+  const rm = await comandoModeracion(env, it, ctx, { esAdmin: () => esAdmin(env, it) });   // (warns, ban, reportes…: discord_moderacion.js)
+  if (rm) return rm;
   if (n === 'jxmod') { const { jx } = await versiones(env); return jx ? msg({ embeds: [embedJxmod(jx)] }) : efimero('No pude leer la versión de JXMod ahora. Probá en un rato.'); }
   if (n === 'stickerazo') { const { sz } = await versiones(env); return sz ? msg({ embeds: [embedStickerazo(sz)] }) : efimero('No pude leer la versión de Stickerazo ahora.'); }
   if (n === 'estado') {
@@ -214,6 +215,7 @@ async function configurar(env, it) {
 async function boton(env, it) {
   const id = it.data.custom_id || '';
   const rb = botonComunidad(it, ROLES); if (rb) return rb;
+  const bm = await botonModeracion(env, it, { esAdminDe }); if (bm) return bm;
   if (!id.startsWith('rol:')) return efimero('Ese botón ya no anda.');
   const k = id.slice(4), c = await conf(env, it.guild_id), r = c && c.roles ? JSON.parse(c.roles) : {}, rol = r[k];
   if (!rol) return efimero('Ese rol no está configurado. Avisale a un admin.');
@@ -223,7 +225,8 @@ async function boton(env, it) {
   return efimero(tiene ? `Listo, te saqué **${nombre}**.` : `Listo, ya tenés **${nombre}**.`);
 }
 
-async function formulario(env, it) {
+async function formulario(env, it, ctx) {
+  const fm = await formularioModeracion(env, it, ctx, { esAdmin: () => esAdmin(env, it) }); if (fm) return fm;
   const tipo = it.data.custom_id === 'bug' ? 'bug' : 'sug', u = usuarioDe(it);
   const v = {}; for (const fila of it.data.components || []) for (const c of fila.components || []) v[c.custom_id] = c.value;
   if (it.data.custom_id === 'admin') return codigoAdmin(env, it, v.codigo);
@@ -257,7 +260,7 @@ export async function discordRutas(req, env, url, r, ctx) {
   try {
     if (it.type === 2) return await comando(env, it, ctx);
     if (it.type === 3) return await boton(env, it);
-    if (it.type === 5) return await formulario(env, it);
+    if (it.type === 5) return await formulario(env, it, ctx);
   } catch (e) { console.error('discord', e); return efimero('Algo salió mal: ' + corto(e.message, 200)); }
   return new Response('tipo desconocido', { status: 400 });
 }
@@ -320,4 +323,5 @@ export const COMANDOS = [
     { type: 1, name: 'ver', description: 'Todo lo que le enseñaron, con su número' },
     { type: 1, name: 'borrar', description: 'Olvidar un dato', options: [{ type: 4, name: 'numero', description: 'El número del dato (de /memoria ver)', required: true, min_value: 1 }] }] },
   ...COMANDOS_COMUNIDAD,
+  ...COMANDOS_MODERACION,
 ];

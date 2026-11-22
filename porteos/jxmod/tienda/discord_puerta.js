@@ -52,7 +52,7 @@ export async function manejarMensaje(env, m, yo) {
   if (!t) { await responder('¿Qué me querés preguntar? Escribí /JB y lo que quieras, o mencioname.'); return { tipo: 'vacio' }; }
   dc(env, 'POST', `/channels/${m.channel_id}/typing`).catch(() => {});
   const nombre = (m.member && m.member.nick) || m.author.global_name || m.author.username;
-  const r = await respuestaIA(env, { canal: m.channel_id, usuario: m.author.id, nombre, texto: t, admin: await esAdminDe(env, m.author.id, m.guild_id) });
+  const r = await respuestaIA(env, { canal: m.channel_id, usuario: m.author.id, nombre, texto: t, guild: m.guild_id || null, admin: await esAdminDe(env, m.author.id, m.guild_id) });
   await responder(r.espera || r.texto);
   return { tipo: 'ia', de: r.de || null };
 }

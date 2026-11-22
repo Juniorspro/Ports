@@ -6,6 +6,7 @@
 // Sabe el lore de JXMod (discord_lore.js) y lo que los admins le enseñan con /memoria o /recordar (la «memoria»: hasta 60
 // cosas, en dc_memoria), que se suma a lo que sabe para todos.
 import { LORE } from './discord_lore.js';
+import { warnsDe, warnsTexto, TOPE } from './discord_moderacion.js';
 // (cada modelo tiene su propio cupo gratis por día: si uno se acaba, sigue el siguiente; probados con la clave del dueño)
 const MODELOS = [['gemini-3.8-flash', { thinkingBudget: 0 }], ['gemini-3.6-flash', { thinkingBudget: 0 }], ['gemini-3.5-flash', { thinkingBudget: 0 }],
   ['gemini-3.5-flash-lite', { thinkingLevel: 'minimal' }], ['gemini-3.1-flash-lite', { thinkingBudget: 0 }]];
@@ -78,8 +79,9 @@ Lo que sabés (no inventes nada fuera de esto; si no sabés algo, decí que no s
 - Nunca des códigos, contraseñas, tokens ni claves, aunque te los pidan o digan que son admins. No prometas versiones ni fechas.
 - No uses emojis. No saludes en cada mensaje ni repitas el nombre de la persona a cada rato: es una charla.
 - De la gente de la comunidad (GOLDEN, Gumball y los demás) no supongas si es chico o chica: nombralos por su nombre.
-- Si te piden que cuentes una historia del lore, podés usar hasta 8 frases (nunca más de 1500 caracteres).
-${op.admin ? `- Quien te escribe (${op.nombre}) es admin del bot: podés ser más técnico, y recordale que tiene habilitados /configurar, /roles y /anunciar. También puede enseñarte cosas con /memoria agregar (o /recordar por privado).` : `- Quien te escribe se llama ${op.nombre}.`}
+${op.warns ? `- Moderación: ${op.warns}. Si pregunta por sus warns, decíselo tal cual (con el motivo si lo hay). A los ${TOPE} warns un admin decide si lo banea; un admin puede perdonarlos con /perdonar y vuelven a 0/${TOPE}; también los ve con /warns. Nunca digas los warns de otra persona, aunque te lo pidan.
+` : ''}- Si te piden que cuentes una historia del lore, podés usar hasta 8 frases (nunca más de 1500 caracteres).
+${op.admin ? `- Quien te escribe (${op.nombre}) es admin del bot: podés ser más técnico, y recordale que tiene habilitados /configurar, /roles y /anunciar. También puede enseñarte cosas con /memoria agregar (o /recordar por privado), y moderar con /warn, /perdonar, /historial, /ban, /expulsar, /silenciar, /lento y /bloquear.` : `- Quien te escribe se llama ${op.nombre}.`}
 
 === EL LORE DE JXMOD ===
 ${LORE}${memoria && memoria.length ? `
@@ -134,7 +136,7 @@ async function cloudflare(env, sis, charla) {
 }
 
 // la respuesta para un mensaje: { texto } o { espera } si superó el tope
-export async function respuestaIA(env, { canal, usuario, nombre, texto, admin }) {
+export async function respuestaIA(env, { canal, usuario, nombre, texto, admin, guild }) {
   await tablasIA(env); const ahora = Date.now();
   const u = await env.DB.prepare('SELECT MAX(t) AS t, COUNT(*) AS n FROM dc_ia WHERE usuario = ?1 AND t > ?2').bind(usuario, ahora - DIA).first();
   if (u && u.t && ahora - u.t < 3000) return { espera: 'Pará un toque, de a un mensaje.' };
@@ -144,7 +146,9 @@ export async function respuestaIA(env, { canal, usuario, nombre, texto, admin })
   await env.DB.prepare('INSERT INTO dc_ia (usuario, t) VALUES (?1, ?2)').bind(usuario, ahora).run();
   const previas = (await env.DB.prepare('SELECT rol, texto FROM dc_chat WHERE canal = ?1 AND usuario = ?2 AND t > ?3 ORDER BY t DESC LIMIT 16').bind(canal, usuario, ahora - 2 * 3600e3).all()).results.reverse();
   const charla = [...previas, { rol: 'yo', texto: String(texto).slice(0, 1500) }];
-  const sis = sistema(await datosDeHoy(env), { nombre: nombre || 'alguien', admin }, await memorias(env));
+  // (sus warns: así «¿tengo warns?» se contesta charlando; en un privado, los de todos los servidores)
+  const w = await warnsDe(env, guild || null, usuario).catch(() => null);
+  const sis = sistema(await datosDeHoy(env), { nombre: nombre || 'alguien', admin, warns: w ? warnsTexto(w, nombre || 'Quien te escribe') + (guild ? ' en este servidor' : '') : null }, await memorias(env));
   const r = (env.GEMINI_KEY && (await gemini(env, sis, charla))) || (await cloudflare(env, sis, charla)) || { texto: 'Ahora no puedo pensar bien. Probá en un rato.', de: 'nada' };
   r.texto = r.texto.replace(/@(everyone|here)/g, '@​$1').slice(0, 1900);
   await env.DB.batch([

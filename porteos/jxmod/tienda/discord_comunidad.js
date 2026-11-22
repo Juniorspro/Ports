@@ -7,7 +7,8 @@
 //   · Rol automático (/autorol): hasta 5 roles para cada persona que entra (a los bots no).
 //   · Niveles (/nivel, /top, /niveles): XP por charlar (15 a 25 por mensaje, una vez por minuto, como MEE6), aviso al
 //     subir y roles de premio por nivel (/niveles crear arma unos de fábrica).
-//   · Moderación (/limpiar, /aviso, /avisos, /silenciar) y registro (/registro: entradas, salidas y lo que hacen los mods).
+//   · Registro (/registro: entradas, salidas, lo que hacen los mods y las alertas). La moderación está en
+//     discord_moderacion.js.
 //   · Utilidades: /servidor, /usuario, /encuesta (las encuestas de Discord) y /ayuda.
 // Los de configurar y moderar piden el código de admin (como los demás de admin) y además Discord sólo se los muestra a
 // quien tiene el permiso que corresponde (default_member_permissions), así no le llenan la lista a todos.
@@ -15,7 +16,7 @@ import { dc, corto, msg, efimero, diferido, completar, usuarioDe, opciones, trae
 
 export const BANNER = REPO + 'porteos/jxmod/diseno/discord/bienvenida.jpg';
 const DIA = 86400e3;
-export const PERM = { GESTIONAR_SERVIDOR: String(1 << 5), GESTIONAR_MENSAJES: String(1 << 13), MODERAR: String(1n << 40n) };
+export const PERM = { GESTIONAR_SERVIDOR: String(1 << 5), GESTIONAR_MENSAJES: String(1 << 13), MODERAR: String(1n << 40n), BANEAR: String(1 << 2), EXPULSAR: String(1 << 1), GESTIONAR_CANALES: String(1 << 4) };
 
 // ---- tablas y ajustes de cada servidor ----
 let listas = false;
@@ -168,7 +169,7 @@ const barra = (a, b, n = 16) => { const k = Math.max(0, Math.min(n, Math.round((
 const NIVELES_FABRICA = [[5, 'Activo', 0x57c7ff], [10, 'Habitué', 0x2ecc71], [20, 'Veterano', AMARILLO], [35, 'Leyenda', 0xff8a1f], [50, 'Mítico', ROSA]];
 
 // ---- los comandos ----
-const ADMIN = new Set(['bienvenida', 'autorol', 'niveles', 'registro', 'encuesta', 'limpiar', 'aviso', 'avisos', 'silenciar']);
+const ADMIN = new Set(['bienvenida', 'autorol', 'niveles', 'registro', 'encuesta']);
 const DE_COMUNIDAD = new Set([...ADMIN, 'ayuda', 'nivel', 'top', 'servidor', 'usuario']);
 const elUsuario = (it, id) => { const R = (it.data && it.data.resolved) || {}; return { u: (R.users || {})[id] || (id === usuarioDe(it).id ? usuarioDe(it) : { id }), m: (R.members || {})[id] || (id === usuarioDe(it).id ? it.member : null) }; };
 
@@ -259,51 +260,13 @@ export async function comandoComunidad(env, it, ctx, { esAdmin, avisarPuerta = (
     return efimero(`**Roles de premio:** ${P.length ? '\n' + P.map((x) => `nivel ${x.nivel}: <@&${x.rol}>`).join('\n') : 'ninguno (/niveles recompensa, o /niveles crear para unos de fábrica)'}\n**Avisos al subir:** ${nv.avisos === false ? 'apagados' : nv.canal ? `en <#${nv.canal}>` : 'en el mismo canal'}`);
   }
   if (n === 'registro') {
-    await ajustar(env, g, 'registro', op.canal || null); avisarPuerta(g);
-    return efimero(op.canal ? `Listo: entradas, salidas y lo que hagan los mods van a <#${op.canal}>.` : 'Listo: apagué el registro.');
+    await ajustar(env, g, 'registro', op.canal || null); await ajustar(env, g, 'mods', op.canal && op.rol ? op.rol : null); avisarPuerta(g);
+    return efimero(op.canal ? `Listo: entradas, salidas y lo que hagan los mods van a <#${op.canal}>.${op.rol ? ` Las alertas (3 warns, reportes) mencionan a <@&${op.rol}>.` : ''}` : 'Listo: apagué el registro.');
   }
   if (n === 'encuesta') {
     const ops = String(op.opciones || '').split(/[|;,\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 10);
     if (ops.length < 2) return efimero('Poné al menos 2 opciones, separadas con coma o con |.');
     return msg({ poll: { question: { text: corto(op.pregunta, 300) }, answers: ops.map((t) => ({ poll_media: { text: corto(t, 55) } })), duration: Math.max(1, Math.min(768, op.horas || 24)), allow_multiselect: !!op.varias, layout_type: 1 } });
-  }
-  if (n === 'limpiar') {
-    try {
-      const L = await dc(env, 'GET', `/channels/${it.channel_id}/messages?limit=100`), viejo = Date.now() - 13.9 * DIA;
-      const ids = L.filter((x) => (!op.usuario || x.author.id === op.usuario) && creadoEl(x.id) > viejo).slice(0, op.cantidad).map((x) => x.id);
-      if (!ids.length) return efimero('No encontré mensajes para borrar (Discord no deja borrar de a muchos los de más de 14 días).');
-      if (ids.length === 1) await dc(env, 'DELETE', `/channels/${it.channel_id}/messages/${ids[0]}`, undefined, `JXBot: /limpiar de ${yo.username}`);
-      else await dc(env, 'POST', `/channels/${it.channel_id}/messages/bulk-delete`, { messages: ids }, `JXBot: /limpiar de ${yo.username}`);
-      await registrar(env, g, { color: AMARILLO, description: `<@${yo.id}> borró **${ids.length}** mensajes en <#${it.channel_id}>${op.usuario ? ` (de <@${op.usuario}>)` : ''}.` });
-      return efimero(`Listo: borré ${ids.length} mensaje${ids.length === 1 ? '' : 's'}.`);
-    } catch (e) { return efimero(e.status === 403 ? 'No tengo permiso para borrar mensajes acá: le falta «Gestionar mensajes» al rol de JXBot (o volvé a invitarlo con el link nuevo).' : 'No pude: ' + corto(e.message, 200)); }
-  }
-  if (n === 'aviso') {
-    const { u } = elUsuario(it, op.usuario), ahora = Date.now();
-    if (u.bot) return efimero('A un bot no se le dan avisos.');
-    await env.DB.prepare('INSERT INTO dc_avisos (guild, usuario, motivo, autor, t) VALUES (?1, ?2, ?3, ?4, ?5)').bind(g, u.id, corto(op.motivo, 500), yo.id, ahora).run();
-    const c = (await env.DB.prepare('SELECT COUNT(*) AS n FROM dc_avisos WHERE guild = ?1 AND usuario = ?2').bind(g, u.id).first()).n;
-    let extra = '';
-    try { const ch = await dc(env, 'POST', '/users/@me/channels', { recipient_id: u.id }); await dc(env, 'POST', `/channels/${ch.id}/messages`, { embeds: [{ color: AMARILLO, title: 'Recibiste un aviso', description: `En el servidor te dieron un aviso: **${corto(op.motivo, 500)}**\nLlevás ${c}. A los 3, una hora sin poder escribir.`, footer: { text: 'JXBot' } }] }); }
-    catch (e) { extra += ' (no le pude escribir por privado)'; }
-    if (c % 3 === 0) {
-      try { await dc(env, 'PATCH', `/guilds/${g}/members/${u.id}`, { communication_disabled_until: new Date(ahora + 3600e3).toISOString() }, `JXBot: ${c} avisos`); extra += ' · llegó a ' + c + ': **una hora silenciado**'; }
-      catch (e) { extra += ' · llegó a ' + c + ', pero no lo pude silenciar (falta el permiso «Aislar temporalmente» o es admin)'; }
-    }
-    await registrar(env, g, { color: AMARILLO, description: `<@${yo.id}> le dio un aviso a <@${u.id}> (${c} en total): ${corto(op.motivo, 500)}${extra}` });
-    return efimero(`Listo: aviso ${c} para <@${u.id}>.${extra}`);
-  }
-  if (n === 'avisos') {
-    if (op.borrar) { await env.DB.prepare('DELETE FROM dc_avisos WHERE guild = ?1 AND usuario = ?2').bind(g, op.usuario).run(); await registrar(env, g, { color: GRIS, description: `<@${yo.id}> borró los avisos de <@${op.usuario}>.` }); return efimero(`Listo: <@${op.usuario}> quedó sin avisos.`); }
-    const L = (await env.DB.prepare('SELECT motivo, autor, t FROM dc_avisos WHERE guild = ?1 AND usuario = ?2 ORDER BY t DESC LIMIT 10').bind(g, op.usuario).all()).results;
-    return efimero(L.length ? `**Avisos de <@${op.usuario}>** (${L.length}${L.length === 10 ? ' o más' : ''}):\n${L.map((x) => `› ${ts(x.t)} por <@${x.autor}>: ${corto(x.motivo, 150)}`).join('\n')}` : `<@${op.usuario}> no tiene avisos.`);
-  }
-  if (n === 'silenciar') {
-    const min = Math.max(0, Math.min(40320, op.minutos | 0)), hasta = min ? new Date(Date.now() + min * MIN).toISOString() : null;
-    try { await dc(env, 'PATCH', `/guilds/${g}/members/${op.usuario}`, { communication_disabled_until: hasta }, `JXBot: /silenciar de ${yo.username}${op.motivo ? ': ' + op.motivo : ''}`); }
-    catch (e) { return efimero(e.status === 403 ? 'No puedo: le falta «Aislar temporalmente a miembros» al rol de JXBot (volvé a invitarlo con el link nuevo), o esa persona es admin o tiene un rol más alto.' : 'No pude: ' + corto(e.message, 200)); }
-    await registrar(env, g, { color: min ? ROJO : VERDE, description: min ? `<@${yo.id}> silenció a <@${op.usuario}> por ${min} min${op.motivo ? ': ' + corto(op.motivo, 300) : ''}.` : `<@${yo.id}> le sacó el silencio a <@${op.usuario}>.` });
-    return efimero(min ? `Listo: <@${op.usuario}> no puede escribir hasta ${ts(Date.parse(hasta), 't')}.` : `Listo: <@${op.usuario}> ya puede escribir.`);
   }
   return null;
 }
@@ -317,9 +280,10 @@ export function botonComunidad(it, ROLES) {
 function ayuda() {
   return { color: ROSA, title: 'JXBot · comandos', description: 'Para hablarme: respondé a un mensaje mío, mencioname, escribí **/jb** y lo que quieras, o mandame un privado.',
     fields: [
-      { name: 'Para todos', value: '/jb · /jxmod · /stickerazo · /estado · /bug · /sugerencia\n/nivel · /top · /servidor · /usuario · /ayuda' },
+      { name: 'Para todos', value: '/jb · /jxmod · /stickerazo · /estado · /bug · /sugerencia\n/nivel · /top · /servidor · /usuario · /warns · /ayuda' },
       { name: 'Admins (con el código de /admin)', value: '/configurar · /roles · /anunciar · /memoria\n/bienvenida · /autorol · /niveles · /registro · /encuesta' },
-      { name: 'Moderación (con el código)', value: '/limpiar · /aviso · /avisos · /silenciar' }],
+      { name: 'Moderación (con el código)', value: '/warn · /warns · /perdonar · /historial · /silenciar · /limpiar\n/expulsar · /ban · /desbanear · /lento · /bloquear · /desbloquear' },
+      { name: 'Clic derecho en un mensaje → Apps', value: '«Reportar a los mods» (para todos) · «Warn por este mensaje» (mods)' }],
     footer: { text: 'JXApps · JXMod y Stickerazo' } };
 }
 
@@ -346,17 +310,8 @@ export const COMANDOS_COMUNIDAD = [
     { type: 1, name: 'crear', description: 'Crea roles de premio de fábrica (niveles 5, 10, 20, 35 y 50)' },
     { type: 1, name: 'avisos', description: 'Dónde avisar cuando alguien sube (o apagarlo)', options: [canalTexto('canal', 'Un canal fijo (si no, el mismo donde charla)', false), { type: 5, name: 'activado', description: 'Avisar (por defecto, sí)' }] },
     { type: 1, name: 'ver', description: 'Cómo está configurado' }] },
-  { name: 'registro', description: 'Admins: canal con entradas, salidas y lo que hacen los mods', dm_permission: false, default_member_permissions: PERM.GESTIONAR_SERVIDOR, options: [canalTexto('canal', 'El canal (sin canal: apagar)', false)] },
+  { name: 'registro', description: 'Admins: canal con entradas, salidas, lo que hacen los mods y las alertas', dm_permission: false, default_member_permissions: PERM.GESTIONAR_SERVIDOR, options: [canalTexto('canal', 'El canal (sin canal: apagar)', false), { type: 8, name: 'rol', description: 'El rol de los mods, para mencionarlo en las alertas' }] },
   { name: 'encuesta', description: 'Admins: una encuesta de Discord', dm_permission: false, default_member_permissions: PERM.GESTIONAR_SERVIDOR, options: [
     { type: 3, name: 'pregunta', description: 'La pregunta', required: true, max_length: 300 }, { type: 3, name: 'opciones', description: 'Las opciones, separadas con coma o con | (de 2 a 10)', required: true, max_length: 600 },
     { type: 4, name: 'horas', description: 'Cuánto dura (por defecto 24)', min_value: 1, max_value: 768 }, { type: 5, name: 'varias', description: 'Se puede elegir más de una' }] },
-  { name: 'limpiar', description: 'Moderación: borra los últimos mensajes de este canal', dm_permission: false, default_member_permissions: PERM.GESTIONAR_MENSAJES, options: [
-    { type: 4, name: 'cantidad', description: 'Cuántos (1 a 100)', required: true, min_value: 1, max_value: 100 }, { type: 6, name: 'usuario', description: 'Sólo los de esta persona' }] },
-  { name: 'aviso', description: 'Moderación: un aviso a alguien (a los 3, una hora silenciado)', dm_permission: false, default_member_permissions: PERM.MODERAR, options: [
-    { type: 6, name: 'usuario', description: 'A quién', required: true }, { type: 3, name: 'motivo', description: 'Por qué', required: true, max_length: 500 }] },
-  { name: 'avisos', description: 'Moderación: los avisos de alguien', dm_permission: false, default_member_permissions: PERM.MODERAR, options: [
-    { type: 6, name: 'usuario', description: 'De quién', required: true }, { type: 5, name: 'borrar', description: 'Borrarle todos los avisos' }] },
-  { name: 'silenciar', description: 'Moderación: que alguien no pueda escribir por un rato (0 = sacarlo)', dm_permission: false, default_member_permissions: PERM.MODERAR, options: [
-    { type: 6, name: 'usuario', description: 'A quién', required: true }, { type: 4, name: 'minutos', description: 'Cuántos minutos (0 lo saca; hasta 28 días)', required: true, min_value: 0, max_value: 40320 },
-    { type: 3, name: 'motivo', description: 'Por qué', max_length: 300 }] },
 ];

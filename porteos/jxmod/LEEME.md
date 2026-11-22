@@ -5375,6 +5375,38 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     - 16: XP, subir de nivel, premio, aviso en otro canal, /nivel, /top, /niveles crear.
     - 17: /limpiar con y sin permiso, tres avisos con silencio, /avisos, /silenciar.
     - 18: /servidor, /usuario, /encuesta, /ayuda y que los 25 comandos estén bien formados.
+- **La moderación** (`tienda/discord_moderacion.js`; pedido del dueño: «/warn usuario y se borra su mensaje… 3 warns y
+  se avisa a un admin para banear… o se /perdona y vuelve a 0/3… y así más para moderar»). Reemplaza los /aviso y
+  /avisos de la versión anterior: usa la misma tabla `dc_avisos` y todo queda anotado en `dc_mod`.
+  - **`/warn usuario motivo`:**
+    - Lee los últimos 15 mensajes del canal y borra los de esa persona (todos juntos si son de menos de 14 días; si
+      no, de a uno).
+    - Le escribe por privado y avisa en el canal: «recibió un warn (1/3)», con cuántos mensajes se borraron.
+  - **A los 3:** alerta a los admins en el registro, mencionando al rol de mods (`/registro canal rol`), y por privado
+    a los que mandaron el código. La alerta trae botones: banear, expulsar, silenciar un día o perdonar.
+    - Los botones sólo andan para admins del bot, también tocados por privado (el servidor va en el `custom_id`).
+    - Al tocar uno, la alerta queda resuelta, sin botones y con quién hizo qué.
+    - No silencia solo: decide un admin.
+  - **`/perdonar`:** vuelve a 0/3 y le avisa por privado.
+  - **`/warns`:** los propios (cualquiera, sólo lo ve quien pregunta) o los de otro (sólo admins).
+  - **La IA sabe los warns de quien le escribe** (en un privado, los de todos los servidores). Así «¿tengo warns?» se
+    contesta charlando, y nunca dice los de otra persona. Probado con Gemini de verdad: «Tenés 2 de 3 warns… el
+    último fue hace 2 horas por insultos en #general»; «No te puedo decir los warns de otra persona»; «Tenés 0 de 3».
+  - **`/historial`:** las últimas 15 cosas que se le hicieron a alguien: warns, perdones, silencios, bans,
+    expulsiones, reportes.
+  - **También:** `/silenciar`, `/limpiar`, `/expulsar`, `/ban` (le escribe antes, porque después ya no se puede; puede
+    borrar sus mensajes de una hora, un día o una semana), `/desbanear` (con el ID o la mención), `/lento` (modo lento
+    del canal) y `/bloquear` y `/desbloquear` (le saca a @everyone «enviar mensajes» y «enviar en hilos» en ese canal,
+    respetando lo demás).
+  - **Clic derecho en un mensaje → Apps:**
+    - «Reportar a los mods», para cualquiera (5 por hora, no a uno mismo ni a bots): llega como alerta con el texto,
+      el link y botones «Warn y borrar», «Sólo borrar» e «Ignorar».
+    - «Warn por este mensaje», para mods: pide el motivo y borra ese mensaje y los suyos entre los últimos 15.
+  - **Permisos:** el link nuevo suma expulsar, banear y gestionar canales.
+  - **Comandos:** son 35 (2 de clic derecho). Los de moderar piden el código y Discord sólo se los muestra a quien
+    tiene el permiso de Discord que corresponde.
+  - **Prueba:** `discord_bot.mjs` 21/21. La 17 cubre los warns, la alerta, los botones y la IA. La 19 cubre perdonar,
+    historial, silenciar, limpiar, ban, expulsar, desbanear, lento, bloquear, reportar y warn por mensaje.
   - **En el servidor:** la bienvenida quedó en #bievenida y el rol automático en «Miembro», configurados directo en la
     base (`dc_ajustes`).
     - Hasta entonces la bienvenida la daba Nekotina: hay que apagar la suya.

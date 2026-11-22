@@ -37,8 +37,9 @@ if (que === 'info') {
   const a = JSON.parse(fs.readFileSync('/root/.discord/app.json', 'utf8'));
   // (ver canales, mandar mensajes, links con vista previa, leer el historial, gestionar roles —botones, rol automático y
   // premios por nivel—, gestionar el servidor —las reglas de AutoMod—, gestionar mensajes —/limpiar y borrar un código
-  // escrito en público—, aislar temporalmente —/silenciar y los 3 avisos— y mandar encuestas; nada de administrador)
-  const permisos = (1n << 10n) | (1n << 11n) | (1n << 14n) | (1n << 16n) | (1n << 28n) | (1n << 5n) | (1n << 13n) | (1n << 40n) | (1n << 49n);
+  // escrito en público, /warn—, aislar temporalmente —/silenciar—, expulsar y banear —/expulsar, /ban y los botones de
+  // los 3 warns—, gestionar canales —/lento— y mandar encuestas; nada de administrador)
+  const permisos = (1n << 10n) | (1n << 11n) | (1n << 14n) | (1n << 16n) | (1n << 28n) | (1n << 5n) | (1n << 13n) | (1n << 40n) | (1n << 49n) | (1n << 1n) | (1n << 2n) | (1n << 4n);
   console.log(`https://discord.com/oauth2/authorize?client_id=${a.id}&permissions=${permisos}&integration_type=0&scope=bot+applications.commands`);
 } else if (que === 'intents') {
   const LIMITADOS = (1 << 15) | (1 << 19);   // GATEWAY_GUILD_MEMBERS_LIMITED y GATEWAY_MESSAGE_CONTENT_LIMITED

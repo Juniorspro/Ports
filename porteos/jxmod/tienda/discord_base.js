@@ -6,6 +6,10 @@ export const REPO = 'https://raw.githubusercontent.com/Juniorspro/Ports/claude/p
 export const SITIO_SZ = 'https://stickerazo.pages.dev';
 export const ROSA = 0xff3e8a, AMARILLO = 0xffd23f, VIOLETA = 0x7a3cff, VERDE = 0x2ecc71, GRIS = 0x8d88a3, ROJO = 0xff5a5f;
 export const EFIMERO = 64, MIN = 60e3;
+const enc = new TextEncoder();
+export const sha = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(t)))].map((b) => b.toString(16).padStart(2, '0')).join('');
+// (la huella del código de admin: se guarda ésta, nunca el código)
+export const huellaCodigo = async (env) => (await sha('jx-admin|' + env.DISCORD_ADMIN_CODE)).slice(0, 24);
 export const corto = (s, n) => { s = String(s == null ? '' : s).trim(); return s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s; };
 
 // (fetch suelto: en Cloudflare, llamarlo como método de otro objeto —env.__fetch(…)— da «Illegal invocation», y adentro

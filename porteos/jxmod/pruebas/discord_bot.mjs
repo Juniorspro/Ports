@@ -23,7 +23,10 @@
 // 14. la cadena de modelos de Gemini: sin cupo, respuesta cortada, pregunta cortada;
 // 15. rol automático y bienvenida (con lo que llega por la puerta: entrar, salir, el festejo cada 50, el registro);
 // 16. niveles (XP, aviso al subir, roles de premio, /nivel, /top, /niveles crear); 17. moderación (/limpiar, /aviso,
-//     /avisos, /silenciar); 18. /servidor, /usuario, /encuesta, /ayuda y cómo se registran los comandos.
+//     /avisos, /silenciar); 18. /servidor, /usuario, /encuesta, /ayuda y cómo se registran los comandos;
+// 17 (ahora). los warns: /warn borra y avisa, a los 3 alerta a los admins con botones, /warns, la IA, /perdonar;
+// 19. /perdonar, /historial, /silenciar, /limpiar, /ban, /expulsar, /desbanear, /lento, /bloquear, reportar y warn
+//     por mensaje (clic derecho) y los botones del reporte.
 // uso: node discord_bot.mjs
 import { d1 } from '../../stickerazo/pruebas/d1_falsa.mjs';
 const M = await import('../tienda/discord.js');
@@ -60,7 +63,7 @@ const G = '1400000000000000001', idDe = (n) => String(1400000000000000000n + Big
 const idAhora = (ms = Date.now()) => String((BigInt(ms) - 1420070400000n) << 22n);
 const rolesG = [{ id: G, name: '@everyone', position: 0 }, { id: idDe(200), name: 'Miembro', position: 1 }, { id: idDe(300), name: 'JXBot', position: 1, managed: true }, { id: idDe(500), name: 'Nuevo', position: 1 }];
 const prohibidos = new Set([idDe(200)]); let sinPermisoBorrar = false, sigRolG = 600;
-const mensajesCanal = [1, 2, 3, 4, 5].map((i) => ({ id: idAhora(Date.now() - i * 60e3), author: { id: i % 2 ? idDe(700) : idDe(701) } }));
+const mensajesCanal = [1, 2, 3, 4, 5, 6].map((i) => ({ id: idAhora(Date.now() - i * 60e3), author: { id: i % 3 === 0 ? idDe(900) : i % 2 ? idDe(700) : idDe(701) } }));
 function comunidadFalsa(m, ruta, b) {
   const j = (o, status = 200) => new Response(JSON.stringify(o), { status });
   if (ruta === `/guilds/${G}/roles` && m === 'GET') return j(rolesG);
@@ -72,6 +75,8 @@ function comunidadFalsa(m, ruta, b) {
   if (/^\/channels\/\d+\/messages\?limit/.test(ruta)) return j(mensajesCanal);
   if (/bulk-delete$/.test(ruta) && sinPermisoBorrar) return j({ message: 'Missing Permissions' }, 403);
   if (ruta === '/users/@me/channels') return j({ id: 'dm-' + b.recipient_id });
+  if (ruta === '/channels/9100' && m === 'GET') return j({ id: '9100', permission_overwrites: [{ id: G, type: 0, allow: String(1n << 11n), deny: '64' }] });
+  if (ruta === `/guilds/${G}/bans/${idDe(951)}` && m === 'DELETE') return j({ message: 'Unknown Ban' }, 404);
   return null;
 }
 // (como en Cloudflare: fetch llamado como método de otro objeto —env.__fetch(…)— da «Illegal invocation»)
@@ -277,6 +282,7 @@ ok('14. respaldo de modelos: sin cupo del día se saltea; del minuto vuelve ense
 // 15-18: la comunidad (discord_comunidad.js)
 {   // (en un bloque: los nombres cortos no chocan con los de arriba)
 const C = await import('../tienda/discord_comunidad.js');
+const MOD = await import('../tienda/discord_moderacion.js'); const warnsDe = (u) => MOD.warnsDe(env, G, u);
 const A = idDe(100), NUEVO = idDe(600);
 await M.probarCodigo(env, A, G, 'Prueba(@1');
 const cmdG = (name, quien = A, options, resolved) => ({ type: 2, guild_id: G, channel_id: '9100', token: 'tkg', member: { user: { id: quien, username: 'u' + quien.slice(-3) }, roles: [], joined_at: '2026-11-01T00:00:00Z', permissions: '8' }, data: { name, options, resolved } });
@@ -336,39 +342,95 @@ ok('16. niveles: XP una vez por minuto; al subir avisa y da el rol de premio; av
     && cr.d.type === 5 && creados === 5 && finCr && /Listo, roles de premio/.test(finCr.b.content)
     && C.nivelDe(0).nivel === 0 && C.nivelDe(99).nivel === 0 && C.nivelDe(100).nivel === 1 && C.nivelDe(255).nivel === 2 && C.necesita(10) === 1100,
   { xp1, sube: sube.length, premio: premio.length, enCanal: enCanal.length, nivel: nv.d.data.embeds && nv.d.data.embeds[0].title, creados });
-// 17: moderación: /limpiar (y sin permiso), /aviso (privado, a los 3 silencio de una hora), /avisos, /silenciar
-k = llamadas.length; const l1 = await pedir(cmdG('limpiar', A, [{ name: 'cantidad', value: 3 }])); const bd = llamadas.slice(k).find((x) => /bulk-delete$/.test(x.ruta));
-k = llamadas.length; const l2 = await pedir(cmdG('limpiar', A, [{ name: 'cantidad', value: 10 }, { name: 'usuario', value: idDe(701) }])); const bd2 = llamadas.slice(k).find((x) => /bulk-delete$/.test(x.ruta));
-sinPermisoBorrar = true; const l3 = await pedir(cmdG('limpiar', A, [{ name: 'cantidad', value: 2 }])); sinPermisoBorrar = false;
-const X = idDe(900), resX = { users: { [X]: { id: X, username: 'troll' } } };
-k = llamadas.length; const a1 = await pedir(cmdG('aviso', A, [{ name: 'usuario', value: X }, { name: 'motivo', value: 'spam' }], resX));
-await pedir(cmdG('aviso', A, [{ name: 'usuario', value: X }, { name: 'motivo', value: 'insultos' }], resX));
-const a3 = await pedir(cmdG('aviso', A, [{ name: 'usuario', value: X }, { name: 'motivo', value: 'otra vez' }], resX));
-const priv = llamadas.slice(k).filter((x) => x.ruta === `/channels/dm-${X}/messages`), sil = llamadas.slice(k).filter((x) => x.m === 'PATCH' && x.ruta === `/guilds/${G}/members/${X}`);
-const avs = await pedir(cmdG('avisos', A, [{ name: 'usuario', value: X }])), avB = await pedir(cmdG('avisos', A, [{ name: 'usuario', value: X }, { name: 'borrar', value: true }]));
-const quedan = (await env.DB.prepare('SELECT COUNT(*) AS n FROM dc_avisos WHERE guild = ?1 AND usuario = ?2').bind(G, X).first()).n;
+// 17: los warns: /warn borra sus mensajes de los últimos 15, le escribe, avisa en el canal; a los 3 alerta a los admins
+// (registro con el rol de mods y privados) con botones; /warns propios y ajenos; /perdonar; la IA sabe los de quien pregunta
+const X = idDe(900), resX = { users: { [X]: { id: X, username: 'troll', avatar: null } } }, MODS = idDe(990);
+await pedir(cmdG('registro', A, [{ name: 'canal', value: '9004' }, { name: 'rol', value: MODS }]));
+k = llamadas.length; const w1 = await pedir(cmdG('warn', A, [{ name: 'usuario', value: X }, { name: 'motivo', value: 'spam' }], resX)); await Promise.all(pendientes.splice(0));
+const tras1 = llamadas.slice(k), bd1 = tras1.find((x) => /bulk-delete$/.test(x.ruta)), aviso1 = tras1.filter((x) => x.m === 'PATCH' && x.ruta === '/webhooks/app1/tkg/messages/@original').pop();
+const priv1 = tras1.filter((x) => x.ruta === `/channels/dm-${X}/messages`);
+await pedir(cmdG('warn', A, [{ name: 'usuario', value: X }, { name: 'motivo', value: 'insultos' }], resX)); await Promise.all(pendientes.splice(0));
+k = llamadas.length; await pedir(cmdG('warn', A, [{ name: 'usuario', value: X }, { name: 'motivo', value: 'otra vez' }], resX)); await Promise.all(pendientes.splice(0));
+const tras3 = llamadas.slice(k), aviso3 = tras3.filter((x) => x.m === 'PATCH' && x.ruta === '/webhooks/app1/tkg/messages/@original').pop();
+const alertaReg = tras3.find((x) => x.ruta === '/channels/9004/messages' && x.b.components), alertaPriv = tras3.filter((x) => x.ruta === `/channels/dm-${A}/messages` && x.b.components);
+const sinTimeout = !tras3.some((x) => x.m === 'PATCH' && x.ruta === `/guilds/${G}/members/${X}`);
+const wSelf = await pedir(cmdG('warns', X)), wOtroNo = await pedir(cmdG('warns', U1, [{ name: 'usuario', value: X }])), wOtroSi = await pedir(cmdG('warns', A, [{ name: 'usuario', value: X }])), wCero = await pedir(cmdG('warns', U1));
+const wBot = await pedir(cmdG('warn', A, [{ name: 'usuario', value: idDe(601) }, { name: 'motivo', value: 'x' }], { users: { [idDe(601)]: { id: idDe(601), bot: true } } }));
+// la IA: los warns de quien escribe (y en la de otro, los suyos: 0)
+await P.manejarMensaje(envDO, { id: 'w1', guild_id: G, channel_id: '9200', author: { id: X, username: 'troll' }, content: '/jb tengo warns?', mentions: [] }, YO);
+const sisX = geminiPedidos[geminiPedidos.length - 1].systemInstruction.parts[0].text;
+await P.manejarMensaje(envDO, { id: 'w2', guild_id: G, channel_id: '9200', author: { id: idDe(803), username: 'limpio' }, content: '/jb y los warns de troll?', mentions: [] }, YO);
+const sisL = geminiPedidos[geminiPedidos.length - 1].systemInstruction.parts[0].text;
+// los botones de la alerta: un no admin no puede; el admin perdona por privado y el mensaje queda resuelto
+const boton = (quien, custom_id, enServidor) => pedir({ type: 3, token: 'tb', ...(enServidor ? { guild_id: G, channel_id: '9004', member: { user: { id: quien, username: 'b' } } } : { channel_id: 'dm', user: { id: quien, username: 'b' } }), data: { custom_id }, message: { embeds: alertaReg.b.embeds } });
+const btnNo = await boton(U1, alertaReg.b.components[0].components[3].custom_id, true);
+const bPerd = await boton(A, alertaReg.b.components[0].components[3].custom_id, false);
+const tras = (await warnsDe(X)).n;
+ok('17. warns: /warn borra sus 2 mensajes de los últimos 15, le escribe y avisa en el canal (1/3); al 3/3 alerta en el registro (con el rol de mods) y por privado a los admins con botones, sin silenciarlo solo; /warns propios sí, ajenos sólo admins; a un bot no; la IA sabe los warns de quien pregunta y no los de otro; el botón: un no admin no, el admin perdona (0/3) y la alerta queda resuelta',
+  w1.d.type === 5 && bd1 && bd1.b.messages.length === 2 && aviso1 && /warn \(1\/3\)\*\*: spam/.test(aviso1.b.embeds[0].description) && /Borré 2 mensajes suyos/.test(aviso1.b.embeds[0].footer.text) && aviso1.b.allowed_mentions.users[0] === X && priv1.length === 1 && /1\/3/.test(priv1[0].b.embeds[0].title)
+    && aviso3 && /warn \(3\/3\)/.test(aviso3.b.embeds[0].description) && /ya les avisé a los admins/.test(aviso3.b.embeds[0].footer.text) && alertaReg && alertaReg.b.content === `<@&${MODS}>` && alertaReg.b.components[0].components.map((x) => x.label).join() === 'Banear,Expulsar,Silenciar 1 día,Perdonar (0/3)'
+    && alertaPriv.length === 1 && sinTimeout
+    && /\*\*3\/3\*\*/.test(wSelf.d.data.content) && /Tenés/.test(wSelf.d.data.content) && wSelf.d.data.flags === 64 && /Sólo podés ver tus warns/.test(wOtroNo.d.data.content) && /tiene \*\*3\/3\*\*/.test(wOtroSi.d.data.content) && /No tenés warns: 0\/3/.test(wCero.d.data.content) && /bot no/.test(wBot.d.data.content)
+    && /troll tiene 3 de 3 warns.*«otra vez».*en este servidor/.test(sisX) && /Nunca digas los warns de otra persona/.test(sisX) && /limpio tiene 0 de 3 warns/.test(sisL) && !/troll tiene/.test(sisL)
+    && /Sólo los admins del bot/.test(btnNo.d.data.content) && bPerd.d.type === 7 && bPerd.d.data.components.length === 0 && /perdonado \(0\/3\)/.test(bPerd.d.data.embeds[0].fields.pop().value) && tras === 0,
+  { borrados: bd1 && bd1.b.messages.length, aviso3: aviso3 && aviso3.b.embeds[0].footer.text, alerta: alertaReg && alertaReg.b.content, priv: alertaPriv.length, ia: (sisX.match(/troll tiene[^.]*/) || [])[0], boton: bPerd.d.type });
+// 19: más moderación: /perdonar, /historial, /silenciar, /limpiar, /ban, /expulsar, /desbanear, /lento, /bloquear y
+// desbloquear, y con clic derecho «Reportar a los mods» (tope de 5 por hora) y «Warn por este mensaje» (pide el motivo)
+await pedir(cmdG('warn', A, [{ name: 'usuario', value: X }, { name: 'motivo', value: 'de nuevo' }], resX)); await Promise.all(pendientes.splice(0));
+const pd = await pedir(cmdG('perdonar', A, [{ name: 'usuario', value: X }])), pdOtra = await pedir(cmdG('perdonar', A, [{ name: 'usuario', value: X }]));
+const hi = await pedir(cmdG('historial', A, [{ name: 'usuario', value: X }]));
 k = llamadas.length; const s1 = await pedir(cmdG('silenciar', A, [{ name: 'usuario', value: X }, { name: 'minutos', value: 10 }]));
 const s0 = await pedir(cmdG('silenciar', A, [{ name: 'usuario', value: X }, { name: 'minutos', value: 0 }])); const ps = llamadas.slice(k).filter((x) => x.m === 'PATCH');
-const hasta = ps[0] && Date.parse(ps[0].b.communication_disabled_until) - Date.now(), hasta3 = sil[0] && Date.parse(sil[0].b.communication_disabled_until) - Date.now();
-const modNo = await pedir(cmdG('limpiar', idDe(101), [{ name: 'cantidad', value: 3 }]));
-ok('17. moderación: /limpiar borra los últimos (y sólo de alguien), sin permiso lo explica; /aviso escribe por privado y al tercero silencia una hora; /avisos lista y borra; /silenciar 10 min y 0 lo saca; sólo admins',
-  /borré 3/.test(l1.d.data.content) && bd && bd.b.messages.length === 3 && bd2 && bd2.b.messages.length === 2 && /Gestionar mensajes/.test(l3.d.data.content)
-    && /aviso 1/.test(a1.d.data.content) && priv.length === 3 && sil.length === 1 && hasta3 > 3590e3 && hasta3 < 3610e3 && /una hora silenciado/.test(a3.d.data.content)
-    && (avs.d.data.content.match(/›/g) || []).length === 3 && /sin avisos/.test(avB.d.data.content) && quedan === 0
+const hasta = ps[0] && Date.parse(ps[0].b.communication_disabled_until) - Date.now();
+k = llamadas.length; const l1 = await pedir(cmdG('limpiar', A, [{ name: 'cantidad', value: 3 }])); const bdl = llamadas.slice(k).find((x) => /bulk-delete$/.test(x.ruta));
+k = llamadas.length; const l2 = await pedir(cmdG('limpiar', A, [{ name: 'cantidad', value: 10 }, { name: 'usuario', value: idDe(701) }])); const bdl2 = llamadas.slice(k).find((x) => /bulk-delete$/.test(x.ruta));
+sinPermisoBorrar = true; const l3 = await pedir(cmdG('limpiar', A, [{ name: 'cantidad', value: 2 }])); sinPermisoBorrar = false;
+const Y = idDe(910), resY = { users: { [Y]: { id: Y, username: 'malo' } } };
+k = llamadas.length; const bn = await pedir(cmdG('ban', A, [{ name: 'usuario', value: Y }, { name: 'motivo', value: 'raid' }, { name: 'borrar', value: 86400 }], resY)); await Promise.all(pendientes.splice(0));
+const ban = llamadas.slice(k).find((x) => x.m === 'PUT' && x.ruta === `/guilds/${G}/bans/${Y}`), privBan = llamadas.slice(k).findIndex((x) => x.ruta === `/channels/dm-${Y}/messages`), idxBan = llamadas.slice(k).indexOf(ban);
+k = llamadas.length; await pedir(cmdG('expulsar', A, [{ name: 'usuario', value: idDe(911) }, { name: 'motivo', value: 'x' }], { users: { [idDe(911)]: { id: idDe(911) } } })); await Promise.all(pendientes.splice(0));
+const kick = llamadas.slice(k).find((x) => x.m === 'DELETE' && x.ruta === `/guilds/${G}/members/${idDe(911)}`);
+const db = await pedir(cmdG('desbanear', A, [{ name: 'usuario', value: `<@${Y}>` }])), db404 = await pedir(cmdG('desbanear', A, [{ name: 'usuario', value: idDe(951) }])), dbMal = await pedir(cmdG('desbanear', A, [{ name: 'usuario', value: 'fulano' }]));
+k = llamadas.length; const le = await pedir(cmdG('lento', A, [{ name: 'segundos', value: 30 }])); const lento = llamadas.slice(k).find((x) => x.m === 'PATCH' && x.ruta === '/channels/9100');
+k = llamadas.length; const bl = await pedir(cmdG('bloquear', A, [{ name: 'motivo', value: 'pelea' }])); const owB = llamadas.slice(k).find((x) => x.m === 'PUT' && x.ruta === `/channels/9100/permissions/${G}`);
+k = llamadas.length; const dbl = await pedir(cmdG('desbloquear', A)); const owD = llamadas.slice(k).find((x) => x.m === 'PUT' && x.ruta === `/channels/9100/permissions/${G}`);
+const S = 1n << 11n, SH = 1n << 38n;
+// clic derecho: reportar (cualquiera) y warn por este mensaje (mods)
+const MID = idAhora(Date.now() - 30e3), elMsg = { id: MID, channel_id: '9100', author: { id: X, username: 'troll' }, content: 'mensaje feo' };
+const menu = (quien, name) => pedir({ type: 2, guild_id: G, channel_id: '9100', token: 'tkm', member: { user: { id: quien, username: 'm' }, roles: [] }, data: { type: 3, name, target_id: MID, resolved: { messages: { [MID]: elMsg } } } });
+k = llamadas.length; const rp = await menu(U1, 'Reportar a los mods'); const repAl = llamadas.slice(k).find((x) => x.ruta === '/channels/9004/messages' && x.b.components);
+for (let i = 0; i < 4; i++) await menu(U1, 'Reportar a los mods');
+const rp6 = await menu(U1, 'Reportar a los mods'), rpYo = await pedir({ type: 2, guild_id: G, channel_id: '9100', token: 'tkm', member: { user: { id: X } }, data: { type: 3, name: 'Reportar a los mods', target_id: MID, resolved: { messages: { [MID]: elMsg } } } });
+k = llamadas.length; const rbW = await pedir({ type: 3, token: 'tb', channel_id: 'dm', user: { id: A, username: 'a' }, data: { custom_id: repAl.b.components[0].components[0].custom_id }, message: { embeds: repAl.b.embeds } });
+const delRep = llamadas.slice(k).find((x) => /bulk-delete$/.test(x.ruta));
+const wmNo = await menu(U1, 'Warn por este mensaje'), wm = await menu(A, 'Warn por este mensaje');
+k = llamadas.length;
+const wmEnv = await pedir({ type: 5, guild_id: G, channel_id: '9100', token: 'tkm', member: { user: { id: A, username: 'a' } }, data: { custom_id: wm.d.data.custom_id, components: [{ type: 1, components: [{ type: 4, custom_id: 'motivo', value: 'insulto en el chat' }] }] } }); await Promise.all(pendientes.splice(0));
+const wmFin = llamadas.slice(k).filter((x) => x.m === 'PATCH' && x.ruta === '/webhooks/app1/tkm/messages/@original').pop();
+ok('19. /perdonar (0/3; otra vez: no tenía), /historial, /silenciar 10 min y 0, /limpiar (y sólo de alguien, y sin permiso), /ban (privado antes, borra un día), /expulsar, /desbanear (con @ o ID; no baneado; sin ID), /lento 30 s, /bloquear y /desbloquear (sólo enviar), reportar (al registro con botones; 5 por hora; a uno mismo no), «Warn y borrar» desde el reporte, «Warn por este mensaje» (sólo admins, pide el motivo)',
+  /tenía 1/.test(pd.d.data.content) && /no tenía warns/.test(pdOtra.d.data.content) && /warns ahora: \*\*0\/3\*\*/.test(hi.d.data.content) && /\*\*perdon\*\*/.test(hi.d.data.content) && /\*\*warn\*\*: de nuevo/.test(hi.d.data.content)
     && ps.length === 2 && hasta > 595e3 && hasta < 605e3 && ps[1].b.communication_disabled_until === null && /hasta/.test(s1.d.data.content) && /ya puede escribir/.test(s0.d.data.content)
-    && /para admins/.test(modNo.d.data.content),
-  { l1: l1.d.data.content, bd2: bd2 && bd2.b.messages.length, priv: priv.length, sil: sil.length, avs: avs.d.data.content.slice(0, 60), ps: ps.length });
+    && /borré 3/.test(l1.d.data.content) && bdl && bdl.b.messages.length === 3 && bdl2 && bdl2.b.messages.length === 2 && /Gestionar mensajes/.test(l3.d.data.content)
+    && bn.d.type === 5 && ban && ban.b.delete_message_seconds === 86400 && privBan >= 0 && privBan < idxBan && kick
+    && /ya puede volver/.test(db.d.data.content) && /no está baneada/.test(db404.d.data.content) && /ID de la persona/.test(dbMal.d.data.content)
+    && lento && lento.b.rate_limit_per_user === 30 && /cada 30 s/.test(le.d.data.content)
+    && owB && (BigInt(owB.b.deny) & S) && (BigInt(owB.b.deny) & SH) && (BigInt(owB.b.deny) & 64n) && !(BigInt(owB.b.allow) & S) && /Canal bloqueado/.test(bl.d.data.embeds[0].description)
+    && owD && !(BigInt(owD.b.deny) & S) && /desbloqueado/.test(dbl.d.data.embeds[0].description)
+    && /se lo pasé a los mods/.test(rp.d.data.content) && repAl && /mensaje feo/.test(repAl.b.embeds[0].description) && repAl.b.components[0].components.length === 3 && /5 reportes/.test(rp6.d.data.content) && /a vos/.test(rpYo.d.data.content)
+    && rbW.d.type === 7 && /warn 1\/3/.test(rbW.d.data.embeds[0].fields.pop().value) && delRep && delRep.b.messages.includes(MID)
+    && /para admins/.test(wmNo.d.data.content) && wm.d.type === 9 && wm.d.data.custom_id === `wm:9100:${MID}:${X}` && wmEnv.d.type === 5 && wmFin && /warn \(2\/3\)\*\*: insulto en el chat/.test(wmFin.b.embeds[0].description),
+  { pd: pd.d.data.content, ban: !!ban, privAntes: privBan < idxBan, ow: owB && [owB.b.allow, owB.b.deny], rep: rp.d.data.content, rbW: rbW.d.data && rbW.d.data.embeds && rbW.d.data.embeds[0].fields.slice(-1)[0], wm: wmFin && wmFin.b.embeds[0].description });
 // 18: utilidades y cómo se registran: /servidor, /usuario, /encuesta, /ayuda; los de admin escondidos para quien no tiene permiso
 const sv = await pedir(cmdG('servidor', U1)), us = await pedir(cmdG('usuario', U1, [{ name: 'usuario', value: U3 }], { users: { [U3]: { id: U3, username: 'tres', global_name: 'Tres' } }, members: { [U3]: { joined_at: '2026-10-01T00:00:00Z', roles: [idDe(500)] } } }));
 const en = await pedir(cmdG('encuesta', A, [{ name: 'pregunta', value: '¿Qué mapa sigue?' }, { name: 'opciones', value: 'Desert, City | Mars' }]));
 const en1 = await pedir(cmdG('encuesta', A, [{ name: 'pregunta', value: '¿?' }, { name: 'opciones', value: 'sola' }]));
 const ay = await pedir({ type: 2, channel_id: 'dmx', token: 't', user: { id: U1, username: 'x' }, data: { name: 'ayuda' } });
-const nombres = M.COMANDOS.map((c) => c.name), adminSinPermiso = M.COMANDOS.filter((c) => ['bienvenida', 'autorol', 'niveles', 'registro', 'encuesta', 'limpiar', 'aviso', 'avisos', 'silenciar', 'configurar', 'roles', 'anunciar'].includes(c.name) && !c.default_member_permissions);
-const bienPuestos = (L) => L.every((o) => o.name && o.description && o.description.length <= 100 && /^[a-z0-9_-]{1,32}$/.test(o.name) && (!o.options || bienPuestos(o.options)));
-ok('18. /servidor, /usuario (cuenta, entrada, nivel, roles), /encuesta de Discord (y con 1 opción no), /ayuda también por privado; 25 comandos sin repetir, bien formados, los de admin escondidos',
+const nombres = M.COMANDOS.map((c) => c.name), adminSinPermiso = M.COMANDOS.filter((c) => ['bienvenida', 'autorol', 'niveles', 'registro', 'encuesta', 'limpiar', 'warn', 'perdonar', 'historial', 'silenciar', 'expulsar', 'ban', 'desbanear', 'lento', 'bloquear', 'desbloquear', 'Warn por este mensaje', 'configurar', 'roles', 'anunciar'].includes(c.name) && !c.default_member_permissions);
+const bienPuestos = (L) => L.every((o) => (o.type === 3 && !o.description && !o.options ? o.name.length <= 32 : o.name && o.description && o.description.length <= 100 && /^[a-z0-9_-]{1,32}$/.test(o.name) && (!o.options || bienPuestos(o.options))));
+ok('18. /servidor, /usuario (cuenta, entrada, nivel, roles), /encuesta de Discord (y con 1 opción no), /ayuda también por privado; 35 comandos (2 de clic derecho) sin repetir, bien formados, los de admin escondidos',
   sv.d.data.embeds[0].title === 'JXMod' && sv.d.data.embeds[0].fields.find((f) => f.name === 'Miembros').value === '349' && us.d.data.embeds[0].author.name === 'Tres' && us.d.data.embeds[0].fields.some((f) => f.name === 'Entró al servidor') && us.d.data.embeds[0].fields.find((f) => f.name === 'Nivel').value.startsWith('2')
     && en.d.data.poll && en.d.data.poll.answers.length === 3 && en.d.data.poll.duration === 24 && en.d.data.poll.answers[2].poll_media.text === 'Mars' && /al menos 2/.test(en1.d.data.content)
-    && ay.d.data.flags === 64 && ay.d.data.embeds[0].fields.length === 3 && nombres.length === 25 && new Set(nombres).size === 25 && adminSinPermiso.length === 0 && bienPuestos(M.COMANDOS),
+    && ay.d.data.flags === 64 && ay.d.data.embeds[0].fields.length === 4 && nombres.length === 35 && new Set(nombres).size === 35 && adminSinPermiso.length === 0 && bienPuestos(M.COMANDOS),
   { nombres: nombres.length, sinPermiso: adminSinPermiso.map((c) => c.name), poll: en.d.data.poll && en.d.data.poll.answers.map((x) => x.poll_media.text) });
 pu2.cerrar();
 }
