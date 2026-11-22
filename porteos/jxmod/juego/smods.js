@@ -41,13 +41,15 @@ function smPaso(dt) {
 // Solo: los mods de la tienda que tenés (PREFS.mods); en una sala: los del server (PREFS.modsSrv). Se prenden y apagan
 // en el medio de la partida desde el menú MOD (o SM) y cada uno tiene su fuerza (0 = nada, 100 % = como viene, 200 %).
 const modsFuente = () => { const k = typeof SALA !== 'undefined' && SALA ? 'modsSrv' : 'mods'; if (!PREFS[k]) PREFS[k] = {}; return PREFS[k]; };
-const modsCatalogo = () => (typeof SALA !== 'undefined' && SALA ? smTodos() : modsTodos());
+// (los que pueden estar prendidos: las opciones de JXMod —ui.js, Props → Opciones— y los mods de la gente)
+const modsCatalogo = () => (typeof SALA !== 'undefined' && SALA ? smTodos() : [...opcionesJX(), ...modsTodos()]);
 // dos clases de mods: los que cambian tu personaje o cómo se juega (se prenden y apagan en el menú MOD) y los assets,
 // que ponen cosas (radio, piano, pantalla, props): ésos están siempre a mano en el menú de props, sección Mods
 const NAT_ASSET = ['piano', 'radio', 'pantalla'];
 const modCambiaJuego = (m) => { const e = m.efectos || {}; return ['gravedad', 'velocidad', 'salto', 'tiempo', 'explosion'].some((k) => e[k] !== undefined && e[k] !== 1) || e.armasClasicas || e.municionInfinita || e.invencible || !!e.skin || e.hora != null || (e.armas || []).length > 0; };
 const modTipo = (m) => m.tipo || (m.nativo ? (NAT_ASSET.includes(m.nativo) ? 'asset' : 'juego') : !m.codigo && (m.efectos.aparecer || []).length && !modCambiaJuego(m) ? 'asset' : 'juego');
-const modsAssets = () => modsCatalogo().filter((m) => modTipo(m) === 'asset');
+// (los de la gente que ponen cosas: la radio, la tele y el piano de JXMod están en Opciones)
+const modsAssets = () => modsCatalogo().filter((m) => modTipo(m) === 'asset' && !m.oficial);
 const modsActivosAhora = () => { const f = modsFuente(); return modsCatalogo().filter((m) => f[m.id] && modTipo(m) !== 'asset'); };
 const modFuerza = (id) => { const v = PREFS.modFuerza && PREFS.modFuerza[id]; return v === undefined ? 1 : clamp(+v || 0, 0, 2); };
 const conFuerza = (v, f) => (v > 0 ? Math.pow(v, f) : 1 + (v - 1) * f);
@@ -180,7 +182,7 @@ function smUsan() {
 function smDibujar() {
   const p = $('smPan'); if (!p) return;
   const q = SMOD.q.trim().toLowerCase(), f = SMOD.filtro, usan = smUsan(), act = PREFS.modsSrv || {};
-  const todos = smTodos().filter((m) => !smCensurado(m)), lista = todos.filter((m) => (!q || (nombreDe(m) + ' ' + (m.autor || '') + ' ' + descDe(m)).toLowerCase().includes(q))
+  const todos = smTodos().filter((m) => !smCensurado(m) && !m.oficial), lista = todos.filter((m) => (!q || (nombreDe(m) + ' ' + (m.autor || '') + ' ' + descDe(m)).toLowerCase().includes(q))
     && (!f || (f === 'act' ? act[m.id] : f === 'of' ? m.oficial : f === 'cod' ? m.codigo : f === 'usan' ? usan.get(m.id) : (m.etiquetas || []).includes(f))));
   lista.sort((a, b) => (!!act[b.id] - !!act[a.id]) || ((usan.get(b.id) || 0) - (usan.get(a.id) || 0)) || (!!b.oficial - !!a.oficial));
   p.querySelector('.smTit').textContent = T('sm.tit');

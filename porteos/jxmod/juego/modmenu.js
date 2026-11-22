@@ -17,7 +17,7 @@ function modMenuBoton() {
     $('arribaIz').appendChild(b);
   }
   const hay = modMenuHay(); b.style.display = hay ? '' : 'none';
-  const n = hay ? modsActivosAhora().length : 0, ni = b.querySelector('.mmN'); ni.textContent = n || ''; ni.style.display = n ? '' : 'none';
+  const n = hay ? modsActivosAhora().filter((m) => !m.oficial).length : 0, ni = b.querySelector('.mmN'); ni.textContent = n || ''; ni.style.display = n ? '' : 'none';
   if (!hay && MODM.abierto) modMenuCerrar(); else if (MODM.abierto) modMenuLista();
   if (typeof gmbBoton === 'function') gmbBoton();   // (el botón GMod, al lado)
 }
@@ -77,7 +77,7 @@ function modMenuLista() {
   }
   // los mods de personaje y jugabilidad: los activos primero; el buscador mira nombre, descripción y etiquetas
   const act = modsFuente();
-  const todos = modsCatalogo().filter((m) => modTipo(m) !== 'asset' && busca(m)).sort((a, b) => (act[b.id] ? 1 : 0) - (act[a.id] ? 1 : 0) || nombreDe(a).localeCompare(nombreDe(b), PREFS.lang || 'es', { sensitivity: 'base' }));
+  const todos = modsCatalogo().filter((m) => modTipo(m) !== 'asset' && !m.oficial && busca(m)).sort((a, b) => (act[b.id] ? 1 : 0) - (act[a.id] ? 1 : 0) || nombreDe(a).localeCompare(nombreDe(b), PREFS.lang || 'es', { sensitivity: 'base' }));
   // (íconos cuadrados con su interruptor; la fuerza de los prendidos que la tienen va abajo, en una fila cada uno)
   let m = '', fzs = '';
   for (const x of todos.slice(0, 200)) {

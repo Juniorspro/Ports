@@ -121,23 +121,26 @@ async function correr(celu, tam, lang) {
   const AM = 'rgb(242, 179, 27)', oscuro = (c) => { const m = /rgba?\(([^)]+)\)/.exec(c).slice(1)[0].split(',').map(Number); return m[0] < 40 && m[1] < 40 && m[2] < 40 && (m[3] === undefined || m[3] > 0.9); };
   if (!soloEntra) ok(`1 (${pre}). las cuatro pestañas: panel oscuro, la elegida y «Todas» en amarillo, buscador + orden + Explorar/Instalados, tarjetas con imagen, nombre y botón a lo ancho, secciones con número`,
     ['mod', 'mapa', 'anim', 'gmod'].every((t) => { const e = estr[t]; return oscuro(e.fondo) && e.tabs === 4 && e.sel.length === 1 && e.sel[0][0] === 'tab:' + t && e.sel[0][1] === AM && e.cats >= 4 && e.catSel.length === 1 && e.catSel[0][0] === 'etq:' && e.catSel[0][1] === AM && /categor/i.test(e.titCats) && e.buscar && e.orden >= 3 && e.seg.join() === 'vista:explorar*,vista:instalados' && e.n >= 4 && e.conImg && e.conNombre && e.conBoton && e.nueva === AM && e.pie.includes('volver') && e.pie.includes('nueva') && (t === 'mapa' || e.porFila >= (celu ? 3 : 4)); })
-      && estr.mod.secc.length === 3 && estr.mod.secc[0][1] === 13 && estr.mod.secc[2][1] === 6 && estr.mapa.secc.length === 2 && estr.mapa.secc[0][1] === 2 && estr.anim.secc.length >= 3 && estr.gmod.secc.length === 0,
+      && estr.mod.secc.length === 0 && estr.mod.n === 6 && estr.mapa.secc.length === 2 && estr.mapa.secc[0][1] === 2 && estr.anim.secc.length >= 3 && estr.gmod.secc.length === 0,
     { mod: estr.mod, mapa: { secc: estr.mapa.secc, n: estr.mapa.n }, anim: { secc: estr.anim.secc, n: estr.anim.n }, gmod: { n: estr.gmod.n, cats: estr.gmod.cats, porFila: estr.gmod.porFila } });
 
   if (!soloEntra) {
     // ---- 2. Mods ----
     const boton = (id) => ev(`(() => { const t = RB.el.querySelector('.tiCard[data-rb="ver:${id}"]'), bt = t && t.querySelector('.tiBtn'); if (!bt) return null; const cs = getComputedStyle(bt); return { a: bt.dataset.rb, t: bt.textContent.trim(), clase: bt.className.replace('tiBtn ', ''), fondo: cs.backgroundColor, borde: cs.borderTopColor, color: cs.color, off: t.classList.contains('off') }; })()`);
-    await abrirT('mod');
-    const m0 = await boton('salto'), r0 = await boton('ragdoll'), g0 = await boton('goku'), a0 = await boton('radio');
-    await clic('.tiCard[data-rb="ver:salto"] .tiBtn'); const m1 = await boton('salto'), inst = await ev(`({ of: !!INST.of.salto, on: !!PREFS.mods.salto, ficha: RB.t.ficha })`);
-    await clic('.tiCard[data-rb="ver:ragdoll"] .tiBtn'); const r1 = await boton('ragdoll'), rOn = await ev(`!!PREFS.mods.ragdoll`);
+    // (las opciones de JXMod —antes mods oficiales— ya no están en la tienda: están en el menú de props; acá, los de la
+    // gente: uno sin instalar y otro instalado y apagado)
+    await abrirT('mod', 'explorar', `INST.mods.tm1 = Object.assign(${JSON.stringify(ITEM('tm1'))}, { id: 'tm1' }); delete PREFS.mods.tm1; delete INST.mods.tm0; delete PREFS.mods.tm0;`);
+    const m0 = await boton('tm0'), r0 = await boton('tm1');
+    await clic('.tiCard[data-rb="ver:tm0"] .tiBtn'); await p.waitForTimeout(600); const m1 = await boton('tm0'), inst = await ev(`({ of: !!INST.mods.tm0, on: !!PREFS.mods.tm0, ficha: RB.t.ficha })`);
+    await clic('.tiCard[data-rb="ver:tm1"] .tiBtn'); const r1 = await boton('tm1'), rOn = await ev(`!!PREFS.mods.tm1`);
+    const ofi = await ev(`[...RB.el.querySelectorAll('.tiCard')].map((e) => e.dataset.rb.slice(4)).filter((id) => opcionesJX().some((m) => m.id === id))`);
     const pieM = await ev(`[...RB.el.querySelectorAll('.rbPanPie .rbHab button')].map((e) => ({ a: e.dataset.rb, gris: e.disabled, borde: getComputedStyle(e).borderTopColor }))`);
     const verde = (b) => b && b.clase === 'tiBtn_ok' && /^rgba?\(\s*\d+,\s*(1[6-9]\d|2\d\d),/.test(b.color) && !/rgb\(242, 179, 27\)/.test(b.fondo) && /^ver:/.test(b.a), amar = (b) => b && b.clase === 'tiBtn_si' && b.fondo === AM;
     const rojo = (c) => { const m = /rgba?\(([^)]+)\)/.exec(c)[1].split(',').map(Number); return m[0] > 200 && m[1] < 140 && m[2] < 140; };
-    ok(`2 (${pre}). Mods: «Instalar» en la tarjeta lo instala y queda «Activado» (verde con contorno); el deshabilitado dice «Activar» y se habilita; el pie con Deshabilitar todo (contorno rojo) y Habilitar todo`,
-      amar(m0) && m0.a === 'instalar:salto' && /instalar/i.test(m0.t) && verde(m1) && /activado/i.test(m1.t) && inst.of && inst.on && !inst.ficha && amar(r0) && r0.a === 'habMod:ragdoll' && /activar/i.test(r0.t) && r0.off && verde(r1) && rOn && verde(g0) && verde(a0) && /instalado/i.test(a0.t)
+    ok(`2 (${pre}). Mods (sólo los de la gente; las opciones de JXMod no están): «Instalar» lo instala y queda «Activado» (verde con contorno); el deshabilitado dice «Activar» y se habilita; el pie con Deshabilitar todo (contorno rojo) y Habilitar todo`,
+      !ofi.length && amar(m0) && m0.a === 'instalar:tm0' && /instalar/i.test(m0.t) && verde(m1) && /activado/i.test(m1.t) && inst.of && inst.on && !inst.ficha && amar(r0) && r0.a === 'habMod:tm1' && /activar/i.test(r0.t) && r0.off && verde(r1) && rOn
         && pieM.length === 2 && pieM[0].a === 'desTodoMod' && !pieM[0].gris && rojo(pieM[0].borde) && pieM[1].a === 'habTodoMod',
-      { m0, m1, inst, r0, r1, rOn, a0, pieM });
+      { ofi, m0, m1, inst, r0, r1, rOn, pieM });
 
     // ---- 3. Mapas ----
     await abrirT('mapa');
@@ -178,7 +181,7 @@ async function correr(celu, tam, lang) {
 
   // ---- 6 y 8. las fichas (abiertas tocando la tarjeta) y cómo entran ----
   const fichas = {};
-  for (const [tab, id] of [['mod', 'goku'], ['mod', 'tm0'], ['mapa', 'local-pista1'], ['anim', null], ['gmod', '900025'], ['gmod', '900002']]) {
+  for (const [tab, id] of [['mod', 'tm1'], ['mod', 'tm2'], ['mapa', 'local-pista1'], ['anim', null], ['gmod', '900025'], ['gmod', '900002']]) {
     await abrirT(tab, tab === 'gmod' && id === '900002' ? 'instalados' : 'explorar');
     const cual = id || await ev(`RB.t.items[2].id`);
     // (deslizada hasta ahí, y un clic de verdad en el nombre de la tarjeta, no en su botón)
@@ -196,7 +199,7 @@ async function correr(celu, tam, lang) {
     const F = Object.values(fichas), acc = (k) => fichas[k].f.acc.join();
     ok(`6 (${pre}). la ficha (mod, mapa, emote, GMod): se abre tocando la tarjeta, sin categorías ni buscador, oscura, con imagen, nombre y botones a la vista; al volver, la grilla queda donde estaba`,
       F.every((x) => x.f && x.f.tit && x.f.img && x.f.acc.length >= 1 && !x.f.lado && !x.f.barra && !x.f.nota && oscuro(x.f.fondo) && x.f.accALaVista && x.f.dentro && x.f.arriba === 0 && x.v.grilla >= 2 && x.v.lado && x.v.barra && Math.abs(x.v.y - x.y0) <= 2)
-        && acc('mod:goku') === 'quitar' && fichas['mod:goku'].f.hab.join() === 'desMod' && acc('mod:tm0') === 'instalar,like,denunciar' && acc('mapa:local-pista1') === 'jugarcom,creaEditar,exportar,quitar' && /^instalar,A$/.test(acc('gmod:900025')) && fichas['gmod:900002'].f.hab.join() === 'habGm' && /quitar/.test(acc('gmod:900002'))
+        && /(^|,)quitar(,|$)/.test(acc('mod:tm1')) && fichas['mod:tm1'].f.hab.join() === 'desMod' && acc('mod:tm2') === 'instalar,like,denunciar' && acc('mapa:local-pista1') === 'jugarcom,creaEditar,exportar,quitar' && /^instalar,A$/.test(acc('gmod:900025')) && fichas['gmod:900002'].f.hab.join() === 'habGm' && /quitar/.test(acc('gmod:900002'))
         && F.some((x) => x.y0 > 20),
       Object.fromEntries(Object.entries(fichas).map(([k, x]) => [k, { acc: x.f && x.f.acc.join(), hab: x.f && x.f.hab.join(), y0: x.y0, y: x.v.y, vista: x.f && x.f.accALaVista }])));
 

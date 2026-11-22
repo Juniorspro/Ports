@@ -86,7 +86,7 @@ function spawnDibujar() {
   const cats = DATA.menu, C = cats[UI.tab] || cats[0];
   [...$('tabs').children].forEach((t, i) => t.classList.toggle('sel', i === UI.tab));
   spawnTabsEncajar();
-  const cl = $('cats'), gr = $('grilla'), pie = $('pie'), ins = $('ins');
+  const cl = $('cats'), gr = $('grilla'), pie = $('pie'), ins = $('ins'); pie.classList.remove('pieOpc');
   cl.innerHTML = ''; gr.innerHTML = ''; ins.classList.add('oc');
   if (C.n === 'Host') { pie.innerHTML = ''; const d = document.createElement('div'); d.className = 'cat sel'; d.textContent = typeof SALA !== 'undefined' && SALA ? SALA.n : Lc('Singleplayer', 'Un jugador'); cl.appendChild(d); hostDibujar(gr); return; }
   if (C.n === 'Tools') {
@@ -110,6 +110,7 @@ function spawnDibujar() {
     d.textContent = spawnCatNom(s); d.onclick = () => { UI.sub = i; UI.q = ''; if (s.n === 'Nucleares') nukePrecargar(); spawnDibujar(); }; cl.appendChild(d);
   });
   spawnGrilla(C, subs);
+  if (C.n === 'Props' && (subs[UI.sub] || {}).opc && !q) { spawnOpcPie(pie); return; }
   if (C.n === 'Weapons') pie.innerHTML = `<label><input type="checkbox" id="chProp" ${UI.comoProp ? 'checked' : ''}>${esc(T('sp.comoProp'))}</label>`;
   else pie.innerHTML = `<label><input type="checkbox" id="chFr" ${UI.freeze ? 'checked' : ''}>${esc(T('sp.congelado'))}</label><span class="spPuso" id="spPuso"></span>`;
   const a = $('chProp'), c = $('chFr');
@@ -117,21 +118,30 @@ function spawnDibujar() {
   if (c) c.onchange = () => (UI.freeze = c.checked);
 }
 // las categorías de una pestaña (en Props, la sección Mods primero) y sus nombres
-function spawnSubs(C) { return C.n === 'Props' ? [{ n: 'Mods', mods: true, it: modsAssets().map((m) => m.id) }, ...C.sub] : C.sub; }
-function spawnCatNom(s) { if (s.mods) return T('mm.mods'); if (s.rb) { const t = T('pc.' + s.n); return t === 'pc.' + s.n ? s.n : t; } return s.n; }
+// (en Props, primero las Opciones de JXMod —lo que antes eran los mods oficiales— y después los mods de la gente que
+// ponen cosas)
+function spawnSubs(C) { return C.n === 'Props' ? [{ n: 'Opciones', opc: true, it: opcionesJX().sort((a, b) => ofOrden(a) - ofOrden(b)).map((m) => m.id) }, { n: 'Mods', mods: true, it: modsAssets().map((m) => m.id) }, ...C.sub] : C.sub; }
+function spawnCatNom(s) { if (s.opc) return T('sp.opciones'); if (s.mods) return T('mm.mods'); if (s.rb) { const t = T('pc.' + s.n); return t === 'pc.' + s.n ? s.n : t; } return s.n; }
 function propNom(it) { if (/^npc:/.test(it)) return skinNom(it.slice(4)); if (/^pj(npc|rag):/.test(it)) { const m = typeof PJI !== 'undefined' && PJI.lista.find((x) => x.id === it.slice(6)); return (m ? m.n : it.slice(6)) + ' (' + (/^pjnpc:/.test(it) ? 'NPC' : T('gm.muneco')) + ')'; } if (/^gm:/.test(it)) return gmNombre(it); if (/^gmnpcm:/.test(it)) return gmNombre('gm:' + it.slice(7)) + ' (NPC)'; if (/^gmrag:/.test(it)) return gmNombre('gm:' + it.slice(6)) + ' (' + T('gm.muneco') + ')'; if (/^gmpm:/.test(it)) return gmNombre('gm:' + it.slice(5)); if (/^gmnpc:/.test(it)) return gmListaNombre('NPC', it.slice(6)); if (/^gmveh:/.test(it)) return gmListaNombre('Vehicles', it.slice(6)); if (/^gm(ent|swep):/.test(it) && typeof gmaNomClase === 'function') return gmaNomClase(it); if (/^NK_/.test(it) && typeof nukeNom === 'function') return nukeNom(it); const k = 'pr.' + it, t = T(k); return t === k ? it : t; }
 // la grilla: la categoría elegida o lo que coincide con la búsqueda en toda la pestaña
 function spawnGrilla(C, subs) {
   const gr = $('grilla'); gr.innerHTML = ''; const q = (UI.q || '').trim().toLowerCase();
   $('cats').querySelectorAll('.cat').forEach((d, i) => d.classList.toggle('sel', !q && i === UI.sub));
   const lista = [];
-  if (q) { for (const s of subs) for (const it of s.it) { const nom = s.mods ? spawnModNom(it) : propNom(it); if ((nom + ' ' + it).toLowerCase().includes(q) && !lista.some((x) => x.it === it)) lista.push({ it, mods: s.mods }); } }
-  else { const S = subs[UI.sub] || subs[0]; if (S) for (const it of S.it) lista.push({ it, mods: S.mods }); }
+  if (q) { for (const s of subs) for (const it of s.it) { const nom = s.opc ? spawnOpcNom(it) : s.mods ? spawnModNom(it) : propNom(it); if ((nom + ' ' + it).toLowerCase().includes(q) && !lista.some((x) => x.it === it)) lista.push({ it, mods: s.mods, opc: s.opc }); } }
+  else { const S = subs[UI.sub] || subs[0]; if (S) for (const it of S.it) lista.push({ it, mods: S.mods, opc: S.opc }); }
   // (el terminal secreto de Verity: sólo buscándolo)
   if (/^(terminal|verity)$/.test(q)) { const d = document.createElement('div'); d.className = 'it itMod'; d.innerHTML = `${icoHTML('ico:verity')}<span dir="auto">${esc(T('ver.term.n'))}</span>`; d.onclick = () => { cerrarPaneles(); verTerminalPoner(); }; gr.appendChild(d); }
-  for (const { it, mods } of lista.slice(0, 400)) {
-    const d = document.createElement('div'); d.className = 'it' + (mods ? ' itMod' : '');
-    if (mods) { const m = modsAssets().find((x) => x.id === it); if (!m) continue; d.innerHTML = `${icoHTML(m.icono)}<span dir="auto">${esc(nombreDe(m))}</span>`; d.onclick = () => spawnMod(m); d.dataset.mod = m.id; }
+  const fuente = modsFuente();
+  for (const { it, mods, opc } of lista.slice(0, 400)) {
+    const d = document.createElement('div'); d.className = 'it' + (mods || opc ? ' itMod' : '');
+    if (opc) {
+      // (una opción: se prende y se apaga —la tarjeta queda marcada— o, la radio, la tele y el piano, se pone delante)
+      const m = opcionesJX().find((x) => x.id === it); if (!m) continue; const pone = modTipo(m) === 'asset';
+      d.classList.add('itOpc'); if (!pone && fuente[m.id]) d.classList.add('on');
+      d.innerHTML = `${icoHTML(m.icono)}<span dir="auto">${esc(nombreDe(m))}</span>${pone ? '' : '<i class="opcLuz"></i>'}`; d.title = sinEmoji(descDe(m) || ''); d.dataset.opc = m.id;
+      d.onclick = () => { if (pone) { spawnMod(m); return; } modAlternar(m.id); spawnDibujar(); };
+    } else if (mods) { const m = modsAssets().find((x) => x.id === it); if (!m) continue; d.innerHTML = `${icoHTML(m.icono)}<span dir="auto">${esc(nombreDe(m))}</span>`; d.onclick = () => spawnMod(m); d.dataset.mod = m.id; }
     else {
       const ico = C.n === 'Weapons' ? 'W_' + it : it === 'Box2' ? 'Box2_2' : it;
       if (/^npc:/.test(it)) d.innerHTML = `<img src="${retrato(it.slice(4))}" loading="lazy"><span>${esc(propNom(it))}</span>`;   // (un personaje del juego como NPC)
@@ -148,9 +158,18 @@ function spawnGrilla(C, subs) {
     gr.appendChild(d);
   }
   // (la sección Mods vacía: la radio, la tele, el piano y los de la gente se instalan en Mods y mapas)
-  if (!lista.length && !gr.children.length) gr.innerHTML = `<div class="spVacio">${esc(T(!q && (subs[UI.sub] || {}).mods ? 'mm.instalaAssets' : 'sinRes'))}</div>`;
+  if (!lista.length && !gr.children.length) gr.innerHTML = `<div class="spVacio">${esc(T(!q && (subs[UI.sub] || {}).mods ? 'sp.modsVacio' : 'sinRes'))}</div>`;
 }
 const spawnModNom = (id) => { const m = modsAssets().find((x) => x.id === id); return m ? nombreDe(m) : id; };
+const spawnOpcNom = (id) => { const m = opcionesJX().find((x) => x.id === id); return m ? nombreDe(m) : id; };
+// abajo de las Opciones: cómo se usan y la fuerza de las prendidas que cambian números (gravedad, velocidad, salto,
+// tiempo, explosiones; 0 = nada, 100 % = como viene, 200 %), como estaba en el menú MOD
+function spawnOpcPie(pie) {
+  const f = modsFuente(), act = opcionesJX().filter((m) => f[m.id] && modAjustable(m)); pie.classList.add('pieOpc');
+  pie.innerHTML = `<div class="opcPie"><small dir="auto">${esc(T('sp.opcAyuda'))}</small>` + act.map((m) => { const v = Math.round(modFuerza(m.id) * 100);
+    return `<label class="opcFz">${icoHTML(m.icono)}<b dir="auto">${esc(nombreDe(m))}</b><input type="range" min="0" max="200" step="10" value="${v}" data-of="${esc(m.id)}"><output>${v}%</output></label>`; }).join('') + '</div>';
+  pie.querySelectorAll('input[data-of]').forEach((r) => { r.oninput = () => { r.nextElementSibling.textContent = r.value + '%'; }; r.onchange = () => modFuerzaPoner(r.dataset.of, +r.value / 100); });
+}
 // un mod de assets: los oficiales ponen su entidad (radio, piano, pantalla); los de la gente, sus props
 function spawnMod(m) {
   if (JUEGO.estado !== 'juego') return;

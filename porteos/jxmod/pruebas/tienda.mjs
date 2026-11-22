@@ -23,11 +23,10 @@ console.log('menú:', await p.evaluate(() => [...document.querySelectorAll('.dpH
 // (en el depósito, Mods y mapas es una caja: el haz la trae y se abre la tienda)
 await p.waitForFunction(() => window.__ev('DEP.listo && !DEP.anim'), null, { timeout: 60000 }).catch(() => {});
 await toca('.dpC_mods', 4000); await foto('3_tienda');
-// los oficiales no vienen puestos: se instalan desde la tienda (Súper salto queda prendido); en Instalados se apaga
-console.log('para instalar:', await p.evaluate(() => document.querySelectorAll('[data-rb^="instalar:"]').length));
-await toca('[data-rb="instalar:salto"]');
-await toca('[data-rb="vista:instalados"]'); console.log('instalados:', await p.evaluate(() => document.querySelectorAll('.rbCard').length));
-await toca('[data-rb="act:salto"]'); await foto('4_instalados');
+// (las opciones de JXMod —antes mods oficiales, como Súper salto— ya no están en la tienda: están en el menú de props,
+// categoría Opciones; acá sólo los mods de la gente)
+console.log('para instalar:', await p.evaluate(() => document.querySelectorAll('[data-rb^="instalar:"]').length), '· opciones de JXMod en la tienda (0):', await p.evaluate(() => window.__ev(`[...document.querySelectorAll('[data-rb^="ver:"]')].filter((e) => opcionesJX().some((m) => 'ver:' + m.id === e.dataset.rb)).length`)));
+await toca('[data-rb="vista:instalados"]'); console.log('instalados:', await p.evaluate(() => document.querySelectorAll('.rbCard').length)); await foto('4_instalados');
 // crear y publicar un mod
 await toca('[data-rb=pubmod]'); await p.fill('#pmNom', 'Prueba gravedad cero'); await p.fill('#pmDesc', 'Mod de prueba del recorrido');
 await toca('[data-rb="pmico:ico:cohete"]'); await toca('[data-rb="pmetq:fisica"]');

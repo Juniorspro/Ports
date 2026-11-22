@@ -5496,6 +5496,26 @@ entra al juego.
 - **Sin probar en un celular:** la cámara, el permiso y la carga de la biblioteca en un Android de verdad.
 - **Para publicar:** esto es Java, así que hace falta una APK nueva una vez. Después, lo del juego viaja por partes.
 
+## Sin publicar todavía: identidad de JXMod — los mods oficiales pasan a Opciones del menú de props
+
+Pedido del dueño: «le daremos identidad a JXMod para alejarnos un poco de GMod, pero sí teniendo su Workshop; los mods
+oficiales borrarlos todos y dejarlos como opciones en props».
+- **Ya no son mods:** los 16 de JXMod (Goku, Cíclope, Gravedad lunar, Súper salto, Velocidad, Munición infinita, Modo
+  Dios, Cámara lenta, Explosiones, Volar, Muñeco de trapo, SCP, Celular, Radio, Pantalla y Piano; Verity sigue apagada)
+  salen de la tienda (Mods y mapas → Mods), de «Mis mods», de los contadores de mods y del menú MOD (U) y de los mods
+  del server. Por dentro siguen siendo los mismos efectos (`PREFS.mods` / `modsSrv`): lo que tenías prendido sigue
+  prendido.
+- **Menú de props → Opciones** (la primera categoría; después «Mods», con los de la gente que ponen cosas): una tarjeta
+  por opción. Las que cambian algo se prenden y apagan con un toque, en cualquier momento (la tarjeta queda marcada en
+  amarillo con su luz); la radio, la tele y el piano se ponen delante. Abajo, cómo se usan y la fuerza de las prendidas
+  que cambian números (0–200 %, como estaba en el menú MOD). `opcionesJX`, `spawnOpcPie` (ui.js); `modsCatalogo` las
+  suma siempre (smods.js).
+- El menú MOD queda para los mods de la gente y los botones de las opciones prendidas (volar, muñeco, SCP, Cíclope).
+- **Pruebas:** `pruebas/opciones_props.mjs` 5/5 (Opciones primera con las 16; Gravedad lunar prende ×0,35, al 50 %
+  0,35^0,5 y apaga; la radio se pone; ya no aparecen ni en Mis mods, ni en el menú MOD, ni en la tienda).
+  `tienda_panel.mjs` 24/24 con los mods de la gente (antes instalaba los oficiales); `tienda.mjs` ya no instala Súper
+  salto. `mods_vivo.mjs` se borró: probaba prender los oficiales desde el menú MOD.
+
 ## Sin publicar todavía: el modo VR (`juego/vr.js`)
 
 Pedido del dueño: «un modo completo VR hecho dentro de JXMod… donde podés caminar con las manos así tipo Gorilla Tag y

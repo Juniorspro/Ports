@@ -12,7 +12,10 @@ const FONDOS_RB = [/*FONDOSRB*/]; // escenas armadas con cosas del juego (van co
 let LOGO_RB = (document.querySelector('#carga .dLogo img') || {}).src || '';   // (o el tuyo: milogo.js)
 const VERSION_RB = JX_VERSION, ARMADO_RB = '__ARMADO__';
 const ICONOS_MOD = ['mod', ...ICO_LISTA.filter((n) => n !== 'mod' && !['cartel', 'meta', 'zona_muerte', 'boton_autos', 'teleport', 'impulso'].includes(n))].map((n) => 'ico:' + n);
-// los mods oficiales, en el mismo formato que los de la gente
+// las opciones de JXMod (antes «mods oficiales»: pedido del dueño, «los mods oficiales borrarlos todos y dejalos como
+// opciones en props»): ya no están en la tienda ni en Mis mods ni en el menú MOD; están en el menú de props, categoría
+// Opciones (ui.js), donde se prenden y apagan (o se ponen: la radio, la tele y el piano). Por dentro siguen siendo
+// mods con sus efectos (PREFS.mods / modsSrv), en el mismo formato que los de la gente
 const OFICIALES = [['goku', 'ico:energia', ['personajes', 'diversion'], { skin: 'Goku', velocidad: 1.4, salto: 2.5 }], ['luna', 'ico:luna', ['fisica'], { gravedad: 0.35 }],
   ['salto', 'ico:salto', ['jugabilidad'], { salto: 4 }], ['veloz', 'ico:veloz', ['jugabilidad'], { velocidad: 1.8 }], ['balas', 'ico:balas', ['armas'], { municionInfinita: true }],
   ['dios', 'ico:dios', ['jugabilidad'], { invencible: true }], ['lenta', 'ico:lenta', ['diversion'], { tiempo: 0.5 }], ['boom', 'ico:boom', ['armas', 'diversion'], { explosion: 2.5 }],
@@ -62,7 +65,10 @@ const ORDEN_OF = ['verity', 'celular', 'goku', 'radio', 'pantalla', 'piano', 'vo
 const ofOrden = (m) => { const i = ORDEN_OF.indexOf(m.id); return i < 0 ? 99 : i; };
 // los tuyos: los prendidos primero y después por nombre
 const porNombre = (a, b) => nombreDe(a).localeCompare(nombreDe(b), PREFS.lang || 'es', { sensitivity: 'base' });
-const modsTodos = () => [...OFICIALES.filter((m) => ofInstalado(m.id)), ...Object.values(INST.mods)];
+// (los de la gente: los oficiales ya no son mods —son las Opciones de props—)
+const modsTodos = () => Object.values(INST.mods);
+// las opciones (sin las apagadas para siempre, como Verity)
+const opcionesJX = () => OFICIALES.filter((m) => m.id !== 'verity');
 // los emotes que vienen con el juego, como tarjetas de la tienda (incluidos)
 const animsOficiales = () => Object.entries(DATA.emo || {}).map(([k, c]) => ({ id: 'rb:' + k, oficial: true, emo: true, nombre: emoNom('rb:' + k, c.n), autor: 'JXMod', cat: c.cat, icono: DATA.ico['emo_' + k] ? icono('emo_' + k) : '' }));
 const nombreDe = (m) => (m.emo ? m.nombre : m.oficial ? T(m.id + '.n') : m.nombre), descDe = (m) => (m.emo ? '' : m.oficial ? T(m.id + '.d') : m.descripcion);
@@ -358,7 +364,6 @@ function tiendaCargar(desdeCero) {
   S.cargando = true; S.error = false; tiendaDibujar();
   // (en Emotes, primero los del juego: ya están incluidos; en Mods, los oficiales: se instalan como los de la gente)
   if (S.tab === 'anim' && !S.p) { const q = S.q.toLowerCase(); S.items = animsOficiales().filter((m) => (!q || nombreDe(m).toLowerCase().includes(q)) && (!S.etq || m.cat === S.etq)); }
-  if (S.tab === 'mod' && !S.p) { const q = S.q.toLowerCase(); S.items = OFICIALES.filter((m) => (!q || (nombreDe(m) + ' ' + descDe(m)).toLowerCase().includes(q)) && (!S.etq || (m.etiquetas || []).includes(S.etq))).sort((a, b) => ofOrden(a) - ofOrden(b)); }
   fetch(`${TIENDA_URL}lista?tipo=${S.tab}&q=${encodeURIComponent(S.q)}&${S.tab === 'anim' ? 'cat' : 'etq'}=${S.etq}&orden=${S.orden}&p=${S.p}`).then((r) => r.json()).then((d) => {
     if (n !== S.n) return; S.items = S.items.concat((d.items || []).map((x) => (S.tab === 'anim' ? Object.assign(x, { cat: x.base }) : x))); S.total = (d.total || 0) + (S.tab !== 'mapa' ? S.items.filter((x) => x.oficial).length : 0); S.cargando = false; tiendaDibujar();
   }).catch(() => { if (n !== S.n) return; S.cargando = false; S.error = !S.items.length; S.total = S.items.length; tiendaDibujar(); });
