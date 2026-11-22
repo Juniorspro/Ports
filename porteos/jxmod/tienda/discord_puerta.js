@@ -1,12 +1,15 @@
 // ---------------- la puerta: la conexión fija de JXBot con Discord (para el chat normal) ----------------
 // Los comandos con / llegan por HTTP (discord.js), pero leer mensajes comunes necesita estar conectado al gateway de
-// Discord todo el tiempo. Eso lo hace un Durable Object («PuertaDiscord», uno solo: «principal»): abre el WebSocket,
+// Discord todo el tiempo. Eso lo hace un Durable Object («PuertaJX», uno solo: «principal»): abre el WebSocket,
 // late (heartbeat), se identifica y, cuando llega un mensaje, contesta con la IA (discord_ia.js):
 //   · por mensaje privado al bot: todo; «/admin CÓDIGO» lo reconoce como admin (vale en todos los servidores);
 //   · en un servidor: si empieza con /JB (o /jb), si lo mencionan o si le responden a un mensaje suyo;
 //   · si alguien escribe «/admin CÓDIGO» en un canal (a la vista de todos), no lo toma, intenta borrarlo y avisa.
 // Si se corta, una alarma cada minuto (y el cron de cada 10) la vuelve a abrir. Si Discord no deja leer el texto de
 // los mensajes (el permiso «Message Content»), se conecta sin él: andan los privados y las menciones.
+// Versiones: Cloudflare no reinicia enseguida un Durable Object que nunca está quieto, así que después de subir código
+// nuevo la puerta seguía con el viejo. Por eso el Worker le pasa su versión (?v=) cada vez que le habla (el cron cada 10
+// min y GET /api/discord/puerta); si no es la de la puerta, cierra la conexión y se reinicia (state.abort).
 import { dc, probarCodigo, esAdminDe } from './discord.js';
 import { respuestaIA } from './discord_ia.js';
 
@@ -45,16 +48,19 @@ async function abrirGateway() {
   r.webSocket.accept(); return r.webSocket;
 }
 
-export class PuertaDiscord {
+export class PuertaJX {
   constructor(state, env) {
     this.state = state; this.env = env; this.ws = null; this.hb = null; this.seq = null; this.ack = true; this.yo = null;
     this.listo = false; this.ultimo = 0; this.sinContenido = false; this.parado = null; this.eventos = 0; this.mensajes = 0; this.desde = 0;
     this.abrir = env.__abrirWs || abrirGateway;
   }
   async fetch(req) {
-    const p = new URL(req.url).pathname;
-    if (p === '/asegurar') { await this.asegurar(); if (!(await this.state.storage.getAlarm())) await this.state.storage.setAlarm(Date.now() + 60e3); }
-    return new Response(JSON.stringify({ conectado: !!(this.ws && this.listo), lee_texto: !this.sinContenido, desde: this.desde, eventos: this.eventos, mensajes: this.mensajes, parado: this.parado }), { headers: { 'Content-Type': 'application/json' } });
+    const u = new URL(req.url), p = u.pathname, v = u.searchParams.get('v'), mia = this.env.CF_VERSION_METADATA && this.env.CF_VERSION_METADATA.id;
+    if (v && mia && v !== mia) { this.cerrar(); this.state.abort('hay una versión nueva del bot'); }
+    if (p === '/asegurar' || p === '/diag') { await this.asegurar(); if (!(await this.state.storage.getAlarm())) await this.state.storage.setAlarm(Date.now() + 60e3); }
+    let api;   // (diag: una consulta de sólo lectura a Discord desde adentro de la puerta, para ver si puede hablarle)
+    if (p === '/diag') { try { const u = await dc(this.env, 'GET', '/users/@me'); api = 'ok: ' + u.username; } catch (e) { api = 'error: ' + String(e.message).slice(0, 300); } }
+    return new Response(JSON.stringify({ version: mia || null, conectado: !!(this.ws && this.listo), lee_texto: !this.sinContenido, desde: this.desde, eventos: this.eventos, mensajes: this.mensajes, contestados: this.contestados || 0, error: this.error || null, error_t: this.errorT || null, en_evento: this.diagReady || null, parado: this.parado, api }), { headers: { 'Content-Type': 'application/json' } });
   }
   async alarm() { await this.asegurar(); await this.state.storage.setAlarm(Date.now() + 60e3); }
   async asegurar() {
@@ -89,8 +95,20 @@ export class PuertaDiscord {
     else if (p.op === 1) this.latir();
     else if (p.op === 7 || p.op === 9) { setTimeout(() => this.conectar().catch(() => {}), 1000 + Math.random() * 4000); }
     else if (p.op === 0) {
-      if (p.t === 'READY') { this.yo = p.d.user.id; this.listo = true; this.desde = Date.now(); }
-      else if (p.t === 'MESSAGE_CREATE') { this.mensajes++; manejarMensaje(this.env, p.d, this.yo).catch((e) => console.error('puerta mensaje', e)); }
+      if (p.t === 'READY') {
+        this.yo = p.d.user.id; this.listo = true; this.desde = Date.now();
+        // (diagnóstico: lo mismo que hace un mensaje —Discord, la base y afuera— pero desde un evento del WebSocket)
+        (async () => { const r = {};
+          try { r.discord = 'ok ' + (await dc(this.env, 'GET', '/users/@me')).username; } catch (e) { r.discord = 'error ' + String(e.message).slice(0, 200); }
+          try { r.base = 'ok ' + (await this.env.DB.prepare('SELECT COUNT(*) AS n FROM dc_chat').first()).n; } catch (e) { r.base = 'error ' + String(e.message).slice(0, 200); }
+          try { r.afuera = 'ok ' + (await fetch('https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/version.json')).status; } catch (e) { r.afuera = 'error ' + String(e.message).slice(0, 200); }
+          this.diagReady = r; })();
+      }
+      else if (p.t === 'MESSAGE_CREATE') {
+        this.mensajes++;
+        manejarMensaje(this.env, p.d, this.yo).then((r) => { if (r) this.contestados = (this.contestados || 0) + 1; })
+          .catch((e) => { this.error = String((e && e.stack) || e).slice(0, 500); this.errorT = Date.now(); console.error('puerta mensaje', e); });
+      }
     }
   }
 }

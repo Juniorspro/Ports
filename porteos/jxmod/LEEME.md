@@ -5289,7 +5289,15 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     privados, servidores y el permiso de leer el texto (prendido desde la API: los bots con menos de 100 servidores
     no necesitan verificación). Si Discord no lo deja, se reconecta sin ese permiso. Una alarma cada minuto y el cron
     la vuelven a abrir. `GET /api/discord/puerta` dice si está conectada.
-  - **Prueba:** 12/12, con un Gemini y un WebSocket de mentira.
+  - **Prueba:** 13/13, con un Gemini y un WebSocket de mentira.
+  - **Cuidado con las versiones:** Cloudflare no reinicia enseguida un Durable Object que nunca está quieto. Después
+    de subir el arreglo de «queda pensando» (`fetch` llamado como método da «Illegal invocation» en Cloudflare), la
+    puerta siguió un rato con el código viejo, y la IA contestaba pero el mensaje no salía.
+    - Ahora el Worker le pasa su versión (`version_metadata`, `?v=`) cada vez que le habla: el cron cada 10 min y
+      `GET /api/discord/puerta`. Si no coincide, la puerta cierra y se reinicia (`state.abort`).
+    - La clase pasó de «PuertaDiscord» a «PuertaJX» (migración `renamed_classes`).
+    - El estado muestra el último error (`error`) y una prueba de sólo lectura contra Discord (`?diag`).
+    - La prueba ahora usa un `fetch` estricto como el de Cloudflare.
 - **Lo que no puede:** un saludo propio al que entra, porque eso necesita una conexión fija con Discord. Para eso está
   el mensaje de bienvenida que ya trae Discord en los ajustes del servidor.
 

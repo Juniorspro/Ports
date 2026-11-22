@@ -88,6 +88,14 @@ function embedStickerazo(a, titulo) {
     footer: { text: 'JXApps' } };
 }
 
+// ---- la puerta (discord_puerta.js): se le pasa la versión del Worker; si es otra, se reinicia y se le habla de nuevo ----
+async function puerta(env, ruta) {
+  const v = (env.CF_VERSION_METADATA && env.CF_VERSION_METADATA.id) || '';
+  for (let i = 0; ; i++) {
+    try { return await env.DC_PUERTA.get(env.DC_PUERTA.idFromName('principal')).fetch(`https://puerta${ruta}?v=${encodeURIComponent(v)}`); }
+    catch (e) { if (i >= 1) throw e; }   // (la vieja se reinició: el segundo intento ya es la nueva)
+  }
+}
 // ---- las respuestas ----
 const msg = (data) => new Response(JSON.stringify({ type: 4, data }), { headers: { 'Content-Type': 'application/json' } });
 const efimero = (content, extra = {}) => msg({ content, flags: EFIMERO, allowed_mentions: { parse: [] }, ...extra });
@@ -240,7 +248,7 @@ export async function discordRutas(req, env, url, r, ctx) {
   if (!r.startsWith('/api/discord/')) return null;
   if (!env.DISCORD_PUBLIC_KEY || !env.DISCORD_APP_ID) return new Response('el bot no está configurado', { status: 503 });
   if (r === '/api/discord/puerta' && req.method === 'GET' && env.DC_PUERTA) {   // (si la puerta está abierta; sin datos de nadie)
-    const e = await (await env.DC_PUERTA.get(env.DC_PUERTA.idFromName('principal')).fetch('https://puerta/asegurar')).json();
+    const e = await (await puerta(env, url.searchParams.has('diag') ? '/diag' : '/asegurar')).json();
     return new Response(JSON.stringify(e), { headers: { 'Content-Type': 'application/json' } });
   }
   if (r !== '/api/discord/interacciones' || req.method !== 'POST') return new Response('no existe', { status: 404 });
@@ -263,7 +271,7 @@ export async function discordCron(env) {
   if (!env.DISCORD_TOKEN || !env.DISCORD_APP_ID) return;
   await tablasDc(env);
   // (la puerta: la conexión fija con Discord para el chat normal; si se cayó, se vuelve a abrir)
-  if (env.DC_PUERTA) await env.DC_PUERTA.get(env.DC_PUERTA.idFromName('principal')).fetch('https://puerta/asegurar').catch((e) => console.error('puerta', e));
+  if (env.DC_PUERTA) await puerta(env, '/asegurar').catch((e) => console.error('puerta', e));
   const servidores = (await env.DB.prepare('SELECT * FROM dc_conf WHERE canal IS NOT NULL').all()).results;
   if (servidores.length) {
     const { jx, sz } = await versiones(env);

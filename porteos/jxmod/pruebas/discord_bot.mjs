@@ -167,7 +167,7 @@ class WsFalso extends EventTarget { constructor() { super(); this.enviados = [];
 const socks = []; let alarma = null;
 const est = { storage: { getAlarm: async () => alarma, setAlarm: async (t) => { alarma = t; } } };
 const { __fetch: _sinFetch, ...envPuerta } = env;   // (el Durable Object no tiene __fetch: usa el fetch global)
-const pu = new P.PuertaDiscord(est, { ...envPuerta, __abrirWs: async () => { const w = new WsFalso(); socks.push(w); return w; } });
+const pu = new P.PuertaJX(est, { ...envPuerta, __abrirWs: async () => { const w = new WsFalso(); socks.push(w); return w; } });
 const e0 = await (await pu.fetch(new Request('https://puerta/asegurar'))).json();
 socks[0].recibir({ op: 10, d: { heartbeat_interval: 40000 } }); await espera(10);
 const ident = socks[0].enviados.find((x) => x.op === 2);
@@ -182,5 +182,11 @@ ok('10. puerta: se identifica (privados + servidores + texto) con «Escribí /JB
   e0 && alarma && ident && ident.d.intents === ((1 << 9) | (1 << 12) | (1 << 15)) && ident.d.token === 'tok' && /\/JB/.test(ident.d.presence.activities[0].state) && e1.conectado && viaPuerta.length === 1 && /hola bot/.test(viaPuerta[0].b.content)
     && ident2 && ident2.d.intents === ((1 << 9) | (1 << 12)) && socks.length === 3,
   { intents: [ident && ident.d.intents, ident2 && ident2.d.intents], conectado: e1.conectado, sockets: socks.length });
+// 11: la versión: si el Worker le pasa otra, la puerta cierra y se reinicia
+let abortado = null; const est2 = { storage: est.storage, abort: (m) => { abortado = m; throw new Error('abortado: ' + m); } };
+const pv = new P.PuertaJX(est2, { ...envPuerta, CF_VERSION_METADATA: { id: 'v1' }, __abrirWs: async () => { const w = new WsFalso(); socks.push(w); return w; } });
+const misma = await (await pv.fetch(new Request('https://puerta/estado?v=v1'))).json();
+let otra = null; try { await pv.fetch(new Request('https://puerta/asegurar?v=v2')); } catch (e) { otra = e.message; }
+ok('11. la puerta con la misma versión sigue; con otra versión cierra la conexión y se reinicia', misma.version === 'v1' && /abortado/.test(otra || '') && /versión nueva/.test(abortado || '') && pv.ws === null, { misma: misma.version, otra });
 pu.cerrar();
 console.log('RESUMEN ' + R.filter(Boolean).length + '/' + R.length); process.exit(R.every(Boolean) ? 0 : 1);

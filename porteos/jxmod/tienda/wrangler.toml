@@ -47,8 +47,18 @@ crons = ["*/10 * * * *"]
 # mensajes privados, los «/JB …» y las menciones, y contestar con la IA
 [[durable_objects.bindings]]
 name = "DC_PUERTA"
-class_name = "PuertaDiscord"
+class_name = "PuertaJX"
 
 [[migrations]]
 tag = "puerta-1"
 new_sqlite_classes = ["PuertaDiscord"]
+
+# (la primera puerta seguía corriendo código viejo después de subir el nuevo: se renombra —eso la obliga a reiniciarse con
+# el código nuevo— y desde ahora se reinicia sola cuando el Worker le avisa que hay otra versión)
+[[migrations]]
+tag = "puerta-2"
+renamed_classes = [{ from = "PuertaDiscord", to = "PuertaJX" }]
+
+# la versión subida (la puerta la compara con la suya)
+[version_metadata]
+binding = "CF_VERSION_METADATA"

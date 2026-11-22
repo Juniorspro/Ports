@@ -19,7 +19,7 @@ import { socialRutas } from './social.js';
 import { legalRutas } from './legal.js';
 import { panelRutas } from './panel.js';
 import { discordRutas, discordCron } from './discord.js';
-export { PuertaDiscord } from './discord_puerta.js';   // (la conexión fija de JXBot con Discord, para el chat normal)
+export { PuertaJX } from './discord_puerta.js';   // (la conexión fija de JXBot con Discord, para el chat normal)
 // la comunidad de Stickerazo (la otra app del repo) vive acá, en /sz, con sus propias tablas «sz_»
 import { stickerazoRutas } from '../../stickerazo/servidor/worker.js';
 // (los correos de JXMod salen por el SMTP de Gmail: correo.js necesita la conexión TCP de los Workers, que sólo existe acá)
