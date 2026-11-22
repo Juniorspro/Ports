@@ -1,0 +1,9 @@
+[package]
+name = "jxhand-banco"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+jxhand = { path = "../motor" }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }

@@ -1,0 +1,11 @@
+[package]
+name = "jxhand"
+version = "0.1.0"
+edition = "2021"
+description = "JX Hand Engine: seguimiento de manos con los modelos de MediaPipe, en Rust puro (nativo y WebAssembly)"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]

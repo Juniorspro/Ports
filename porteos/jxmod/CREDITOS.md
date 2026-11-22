@@ -235,3 +235,12 @@ Google, Apache-2.0 y BSD-3) salió de la app y del repositorio en la 2.9: el APK
   (`herramientas/ev300_voz.py`); van en MP3 adentro de `juego/ev300_son.js`.
 - Lo demás (el efecto VHS, el cuarto, las sogas, los sonidos de estática, latido, zumbido, cadenas, campana y el grito del
   screamer) está hecho en el juego.
+
+## JX Hand Engine (seguimiento de manos con la cámara, `porteos/jxhand/`)
+
+- Los modelos de MediaPipe Hands de Google: el detector de palmas (`hand_detector.tflite`) y los 21 puntos de la mano,
+  completo y liviano (`hand_landmarks_detector.tflite`, `hand_landmark_lite.tflite`). Licencia Apache 2.0 (MediaPipe,
+  https://github.com/google-ai-edge/mediapipe). Se bajaron de storage.googleapis.com/mediapipe-models y mediapipe-assets
+  y no se modificaron.
+- Todo lo demás es propio: el lector de TFLite, el intérprete de la red, el camino de detección y seguimiento, el
+  filtro, el esqueleto, los gestos y la puerta de WebAssembly (en Rust).
