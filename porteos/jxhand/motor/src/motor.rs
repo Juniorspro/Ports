@@ -16,6 +16,8 @@ pub struct Config {
     pub min_palma: f32,
     /// con alguna mano seguida pero menos que el máximo: cada cuánto se busca otra (ms)
     pub cada_busqueda_ms: f64,
+    /// sin ninguna mano: buscar 1 de cada tantos cuadros (1 = todos; en un juego, 2: el detector es lo más pesado)
+    pub buscar_cada: u32,
     /// cuánto se adelanta la salida con la velocidad (ms): compensa el retraso de la cámara y del cálculo
     pub prediccion_ms: f32,
     /// el campo de visión horizontal de la cámara (grados), para la distancia en metros
@@ -27,7 +29,7 @@ pub struct Config {
 }
 impl Default for Config {
     fn default() -> Self {
-        Config { max_manos: 2, min_presencia: 0.5, min_palma: 0.5, cada_busqueda_ms: 500.0, prediccion_ms: 50.0, fov_grados: 66.0,
+        Config { max_manos: 2, min_presencia: 0.5, min_palma: 0.5, cada_busqueda_ms: 500.0, buscar_cada: 1, prediccion_ms: 50.0, fov_grados: 66.0,
             // (medido con «banco video» moviendo 8 veces más rápido: con 0,08/100/1 los puntos se quedaban atrás, 1,20 %
             // de la mano contra 0,83 % del modelo solo; con 0,3/200/3 quedan en 0,88 % y quietos tiemblan 0,087 %,
             // 3 veces menos que el modelo solo)
@@ -68,6 +70,11 @@ pub struct Motor {
     det: Detector, pun: Puntero, pistas: Vec<Pista>, sig_id: u32, ult_busqueda: f64, ult_detector: f64, pub cfg: Config, pub corrio_detector: bool, pub inferencias: u32,
     /// lo que tardó el detector en el cuadro (ms; 0 si no corrió acá)
     ms_det: f32,
+    /// las manos que se perdieron hace poco (y cuándo, ms): se las vuelve a buscar en su último lugar, más grande, antes
+    /// de correr el detector (un movimiento rápido saca la mano del cuadrado por un cuadro)
+    perdidas: Vec<(Pista, f64)>,
+    /// cuántos cuadros seguidos van sin mano (para buscar 1 de cada `buscar_cada`)
+    sin_mano: u32,
     /// el que busca manos nuevas de fondo cuando ya hay alguna seguida (así no frena el cuadro: antes, cada 300 ms el
     /// cuadro que corría el detector tardaba el doble y se veía un tirón)
     #[cfg(not(target_arch = "wasm32"))]
@@ -111,14 +118,29 @@ fn dist(a: &P3, b: &P3) -> f32 { ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqr
 
 impl Motor {
     pub fn nuevo(detector: &[u8], puntos: &[u8]) -> Result<Motor, String> {
-        Ok(Motor { det: Detector::nuevo(detector)?, pun: Puntero::nuevo(puntos)?, pistas: vec![], sig_id: 1, ult_busqueda: -1e9, ult_detector: -1e9, cfg: Config::default(), corrio_detector: false, inferencias: 0, ms_det: 0.0,
+        Ok(Motor { det: Detector::nuevo(detector)?, pun: Puntero::nuevo(puntos)?, pistas: vec![], sig_id: 1, ult_busqueda: -1e9, ult_detector: -1e9, cfg: Config::default(), corrio_detector: false, inferencias: 0, ms_det: 0.0, perdidas: Vec::new(), sin_mano: 0,
             #[cfg(not(target_arch = "wasm32"))]
             buscador: Buscador::nuevo(detector) })
     }
     /// lo que tardaron las partes del último cuadro (ms): el recorte de las manos (con el realce), la red de los puntos y
     /// el detector (si corrió en el cuadro)
     pub fn tiempos(&mut self) -> (f32, f32, f32) { let r = (self.pun.ms_recorte, self.pun.ms_red, self.ms_det); self.pun.ms_recorte = 0.0; self.pun.ms_red = 0.0; r }
-    pub fn reiniciar(&mut self) { self.pistas.clear(); self.ult_busqueda = -1e9; self.ult_detector = -1e9; }
+    pub fn reiniciar(&mut self) { self.perdidas.clear(); self.reiniciar_pistas(); }
+    /// medir la red de los puntos por tipo de capa (prendido o apagado; al prender empieza de cero)
+    pub fn perfil(&mut self, si: bool) { self.pun.perfil = if si { Some(Vec::new()) } else { None }; self.pun.perfil_n = 0; }
+    /// lo medido, por corrida: «1x1 2.10 · dw5 0.80 · …» (los 6 que más tardan) y vuelve a empezar
+    pub fn perfil_texto(&mut self) -> String {
+        let n = self.pun.perfil_n.max(1) as f64;
+        let Some(v) = self.pun.perfil.as_mut() else { return String::new(); };
+        // (prendido pero sin corridas desde la última vez: «-», que queda lo anterior)
+        if self.pun.perfil_n == 0 { return "-".into(); }
+        let mut v2: Vec<(String, f64)> = v.iter().map(|(k, d, _)| (k.replace("Conv ", "c").replace("Depthwise ", "dw").replace("/1", "").replace("/2", "s2"), *d / n)).collect();
+        v2.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        let tot: f64 = v2.iter().map(|x| x.1).sum();
+        let s = format!("red {:.2} ms: {}", tot, v2.iter().take(6).map(|(k, d)| format!("{} {:.2}", k, d)).collect::<Vec<_>>().join(" · "));
+        v.clear(); self.pun.perfil_n = 0; s
+    }
+    fn reiniciar_pistas(&mut self) { self.pistas.clear(); self.ult_busqueda = -1e9; self.ult_detector = -1e9; }
     /// el realce de poca luz: prendido o apagado (para el modelo de los puntos; el detector siempre promedia el ruido)
     pub fn poca_luz(&mut self, activo: bool) { self.pun.luz.activo = activo; self.det.acumular = activo; }
     /// cómo está la luz: (brillo medio del último recorte de una mano, 0..1; cuánto se aclaró, 1 = nada)
@@ -138,14 +160,36 @@ impl Motor {
         // 1) las manos que ya se seguían: puntos en su cuadrado
         let mut vivas = Vec::new();
         for mut p in std::mem::take(&mut self.pistas) {
-            let r = self.pun.puntos(rgba, w, h, &p.roi); self.inferencias += 1;
-            if r.presencia < self.cfg.min_presencia { continue; }
+            let mut r = self.pun.puntos(rgba, w, h, &p.roi); self.inferencias += 1;
+            if r.presencia < self.cfg.min_presencia {
+                // (se salió del cuadrado, casi siempre por un movimiento rápido: otra vez, en el mismo cuadro, con el
+                // cuadrado más grande)
+                let mut g = p.roi; g.lado *= 1.4;
+                r = self.pun.puntos(rgba, w, h, &g); self.inferencias += 1;
+                if r.presencia < self.cfg.min_presencia { self.perdidas.push((p, t_ms)); continue; }
+            }
             self.actualizar(&mut p, r, w, h, t, espejada);
             vivas.push(p);
         }
+        // 1b) las que se perdieron hace menos de 0,4 s: en su último lugar con el cuadrado más grande. Sigue la misma
+        //     mano (sus filtros y su número) y cuesta una pasada de la red chica, no el detector
+        self.perdidas.retain(|(_, t0)| t_ms - t0 < 400.0 && t_ms >= *t0);
+        if vivas.len() < self.cfg.max_manos && !self.perdidas.is_empty() {
+            for (mut p, t0) in std::mem::take(&mut self.perdidas) {
+                if vivas.len() >= self.cfg.max_manos || t0 == t_ms { self.perdidas.push((p, t0)); continue; }
+                let mut g = p.roi; g.lado *= 1.5;
+                let r = self.pun.puntos(rgba, w, h, &g); self.inferencias += 1;
+                if r.presencia < self.cfg.min_presencia { self.perdidas.push((p, t0)); continue; }
+                self.actualizar(&mut p, r, w, h, t, espejada);
+                vivas.push(p);
+            }
+        }
+        if !vivas.is_empty() { self.sin_mano = 0; }
         // 2) buscar manos nuevas: siempre si no hay ninguna (acá mismo, con todos los núcleos: es lo más rápido para
         //    encontrar la primera); si ya hay alguna y faltan, cada tanto y de fondo (no frena el cuadro)
-        if vivas.len() < self.cfg.max_manos && (vivas.is_empty() || t_ms - self.ult_busqueda >= self.cfg.cada_busqueda_ms) {
+        // (sin mano y buscando 1 de cada N cuadros: en los otros no se corre nada)
+        let saltar = vivas.is_empty() && { self.sin_mano += 1; self.cfg.buscar_cada > 1 && (self.sin_mano - 1) % self.cfg.buscar_cada != 0 };
+        if !saltar && vivas.len() < self.cfg.max_manos && (vivas.is_empty() || t_ms - self.ult_busqueda >= self.cfg.cada_busqueda_ms) {
             #[allow(unused_mut)]
             let mut aca = vivas.is_empty();
             #[cfg(not(target_arch = "wasm32"))]

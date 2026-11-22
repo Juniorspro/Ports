@@ -62,7 +62,8 @@ public class Camara {
     private double msDibujo;
     private boolean avisoDibujo;
     private long ultimoT;
-    private double cps, ms;
+    private double cps, ms, msBuscar;
+    private long tPerfil;
     private boolean usaLiviano;
     private int cuentaAuto;
     private double emaAuto;
@@ -249,7 +250,14 @@ public class Camara {
         long t = tCuadro;
         if (ultimoT > 0 && t > ultimoT) { double c = 1e9 / (t - ultimoT); cps = cps == 0 ? c : cps * 0.9 + c * 0.1; }
         ultimoT = t;
-        ms = ms == 0 ? datos[3] : ms * 0.9 + datos[3] * 0.1;
+        // (seguir la mano y buscarla, aparte: sin mano, el detector corre en cada cuadro y tarda más; mezclado, el número
+        // de arriba no decía lo que tarda seguir la mano, que es lo que se siente)
+        boolean busco = datos[1] > 0.5f;
+        if (busco) msBuscar = msBuscar == 0 ? datos[3] : msBuscar * 0.8 + datos[3] * 0.2;
+        else if (n > 0) ms = ms == 0 ? datos[3] : ms * 0.9 + datos[3] * 0.1;
+        hud.msBuscar = msBuscar; hud.buscando = n == 0;
+        // (con «Medir cada capa»: lo medido, una vez por segundo)
+        if (t - tPerfil > 1_000_000_000L) { tPerfil = t; String pf = Motor.perfil(m); if (pf != null && !pf.equals("-")) hud.perfil = pf; }
         hud.msMotor = ms; hud.msCuadro = datos[4]; hud.cps = cps; hud.hilos = (int) datos[7];
         hud.msRecorte = hud.msRecorte == 0 ? datos[10] : hud.msRecorte * 0.9 + datos[10] * 0.1; hud.msRed = hud.msRed == 0 ? datos[11] : hud.msRed * 0.9 + datos[11] * 0.1;
         hud.msDet = datos[12]; hud.grandes = (int) datos[9]; hud.chicos = (int) datos[13]; hud.dot = datos[14] > 0.5f;

@@ -129,6 +129,8 @@ fn recortar_bilineal(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, rep
 // ---- el detector de palmas ----
 pub struct Detector {
     red: Red, anclas: Vec<[f32; 2]>, pub umbral: f32,
+    /// el lado de la imagen que mira (192 el de MediaPipe; más chico, menos cuentas: ver `nuevo_tam`)
+    pub tam: usize,
     /// el mejor puntaje de la última imagen (aunque no pase el umbral)
     pub mejor: f32,
     /// el realce para la poca luz y lo que hizo en la última imagen. En el detector viene apagado: medido, con el ruido
@@ -139,7 +141,7 @@ pub struct Detector {
     pub acumular: bool, pub seguido: bool, acum: Vec<f32>, acum_n: u32,
 }
 
-fn anclas_palma() -> Vec<[f32; 2]> {
+fn anclas_palma(tam: usize) -> Vec<[f32; 2]> {
     // SSD de MediaPipe para la palma (192): 4 capas, pasos 8,16,16,16, 2 anclas por capa y celda, tamaño fijo
     let pasos = [8usize, 16, 16, 16];
     let mut r = Vec::with_capacity(2016);
@@ -147,7 +149,7 @@ fn anclas_palma() -> Vec<[f32; 2]> {
     while i < pasos.len() {
         let mut j = i; let mut n = 0;
         while j < pasos.len() && pasos[j] == pasos[i] { n += 2; j += 1; }
-        let lado = (192 + pasos[i] - 1) / pasos[i];
+        let lado = (tam + pasos[i] - 1) / pasos[i];
         for y in 0..lado { for x in 0..lado { for _ in 0..n { r.push([(x as f32 + 0.5) / lado as f32, (y as f32 + 0.5) / lado as f32]); } } }
         i = j;
     }
@@ -163,31 +165,41 @@ fn iou(a: &[f32; 4], b: &[f32; 4]) -> f32 {
 }
 
 impl Detector {
-    pub fn nuevo(modelo: &[u8]) -> Result<Detector, String> {
-        let red = Red::cargar(modelo)?;
-        let anclas = anclas_palma();
-        if anclas.len() != 2016 { return Err(format!("anclas: {}", anclas.len())); }
-        Ok(Detector { red, anclas, umbral: 0.5, mejor: 0.0, luz: AjusteLuz { activo: false, ..AjusteLuz::default() }, realce: Realce::default(), tmp: Vec::new(), acumular: true, seguido: false, acum: Vec::new(), acum_n: 0 })
+    pub fn nuevo(modelo: &[u8]) -> Result<Detector, String> { Detector::nuevo_tam(modelo, 192) }
+    /// con la imagen a `tam` × `tam` (múltiplo de 16): las anclas se rehacen para esas grillas
+    pub fn nuevo_tam(modelo: &[u8], tam: usize) -> Result<Detector, String> {
+        let red = if tam == 192 { Red::cargar(modelo)? } else { Red::cargar_tam(modelo, Some((tam, tam)))? };
+        let anclas = anclas_palma(tam);
+        let n = red.salida(1).len();
+        if anclas.len() != n { return Err(format!("anclas: {} para {} salidas", anclas.len(), n)); }
+        Ok(Detector { red, anclas, umbral: 0.5, tam, mejor: 0.0, luz: AjusteLuz { activo: false, ..AjusteLuz::default() }, realce: Realce::default(), tmp: Vec::new(), acumular: true, seguido: false, acum: Vec::new(), acum_n: 0 })
     }
     /// las palmas de la imagen (en píxeles), ya sin repetidas
     pub fn detectar(&mut self, rgba: &[u8], w: usize, h: usize) -> Vec<Palma> {
-        // la imagen entera con bandas (sin deformar) en 192×192
-        let esc = 192.0 / (w.max(h) as f32);
+        // la imagen entera con bandas (sin deformar) en tam × tam
+        let t = self.tam; let tf = t as f32;
+        let esc = tf / (w.max(h) as f32);
         let roi = Roi { cx: w as f32 / 2.0, cy: h as f32 / 2.0, lado: w.max(h) as f32, ang: 0.0 };
-        recortar(rgba, w, h, &roi, 192, false, true, self.red.entrada(0));
+        recortar(rgba, w, h, &roi, t, false, true, self.red.entrada(0));
         // (el realce mira sólo la parte con imagen, no las bandas negras)
         let (iw, ih) = (w as f32 * esc, h as f32 * esc);
-        let util = (((192.0 - iw) / 2.0).ceil() as usize, ((192.0 - ih) / 2.0).ceil() as usize, ((192.0 + iw) / 2.0).floor() as usize, ((192.0 + ih) / 2.0).floor() as usize);
+        let util = (((tf - iw) / 2.0).ceil() as usize, ((tf - ih) / 2.0).ceil() as usize, ((tf + iw) / 2.0).floor() as usize, ((tf + ih) / 2.0).floor() as usize);
         // poca luz y cuadros seguidos: promedio con los anteriores (el último pesa 1/2, hasta ~3 cuadros) antes del realce
-        let oscuro = self.acumular && luz::oscuro(self.red.entrada(0), 192, util);
-        if oscuro && self.seguido && self.acum_n > 0 && self.acum.len() == 192 * 192 * 3 {
+        let oscuro = self.acumular && luz::oscuro(self.red.entrada(0), t, util);
+        if oscuro && self.seguido && self.acum_n > 0 && self.acum.len() == t * t * 3 {
+            // (sólo lo que está quieto: un píxel que cambió más que el ruido —la mano que se mueve— toma el valor nuevo.
+            // Antes se promediaba todo y una mano en movimiento quedaba como un fantasma borroso que el detector no veía;
+            // y la regla de «poca luz» se prende en cualquier pieza sin blancos fuertes)
             let a = 1.0 / (self.acum_n as f32 + 1.0).min(2.0);
-            for (m, &v) in self.acum.iter_mut().zip(self.red.entrada(0).iter()) { *m += (v - *m) * a; }
+            for (m, v) in self.acum.chunks_exact_mut(3).zip(self.red.entrada(0).chunks_exact(3)) {
+                let d = (v[0] - m[0]).abs() + (v[1] - m[1]).abs() + (v[2] - m[2]).abs();
+                if d < 0.15 { for i in 0..3 { m[i] += (v[i] - m[i]) * a; } } else { m.copy_from_slice(v); }
+            }
             self.red.entrada(0).copy_from_slice(&self.acum); self.acum_n += 1;
         } else if oscuro {
             self.acum.clear(); self.acum.extend_from_slice(self.red.entrada(0)); self.acum_n = 1;
         } else { self.acum_n = 0; }
-        self.realce = luz::realzar(self.red.entrada(0), 192, util, &self.luz, &mut self.tmp);
+        self.realce = luz::realzar(self.red.entrada(0), t, util, &self.luz, &mut self.tmp);
         self.red.correr();
         let (reg, pun) = (self.red.salida(0), self.red.salida(1));
         let (ox, oy) = (roi.cx - roi.lado / 2.0, roi.cy - roi.lado / 2.0);
@@ -196,7 +208,7 @@ impl Detector {
             let s = 1.0 / (1.0 + (-pun[i].clamp(-100.0, 100.0)).exp()); self.mejor = self.mejor.max(s);
             if s < self.umbral { continue; }
             let r = &reg[i * 18..i * 18 + 18];
-            let px = |v: f32, base: f32| (v / 192.0 + base) * 192.0 / esc;
+            let px = |v: f32, base: f32| (v / tf + base) * tf / esc;
             let caja = [px(r[0], a[0]) + ox, px(r[1], a[1]) + oy, r[2] / esc, r[3] / esc];
             let mut claves = [[0f32; 2]; 7];
             for k in 0..7 { claves[k] = [px(r[4 + 2 * k], a[0]) + ox, px(r[5 + 2 * k], a[1]) + oy]; }
@@ -262,13 +274,17 @@ pub fn roi_de_puntos(img: &[P3; PUNTOS]) -> Roi {
 /// `Red::cargar_tam`). `div`: en qué unidades da los puntos (los de MediaPipe, en píxeles de un recorte de 224)
 pub struct Puntero { red: Red, recorte: Vec<f32>, pub luz: AjusteLuz, pub realce: Realce, tmp: Vec<f32>, pub tam: usize, pub div: f32,
     /// lo que tardaron, sumado desde la última vez que se leyó (ms): el recorte con el realce y la red
-    pub ms_recorte: f32, pub ms_red: f32 }
+    pub ms_recorte: f32, pub ms_red: f32,
+    /// medir cada tipo de capa (para ver en el celular dónde se va el tiempo): (nombre, ms acumulados, veces)
+    pub perfil: Option<Vec<(String, f64, usize)>>, pub perfil_n: usize }
 
 impl Puntero {
     pub fn nuevo(modelo: &[u8]) -> Result<Puntero, String> { Puntero::nuevo_tam(modelo, 224, 224.0) }
+    /// (pruebas) la red, para medirla o cambiarla
+    pub fn red_mut(&mut self) -> &mut Red { &mut self.red }
     pub fn nuevo_tam(modelo: &[u8], tam: usize, div: f32) -> Result<Puntero, String> {
         let red = if tam == 224 { Red::cargar(modelo)? } else { Red::cargar_tam(modelo, Some((tam, tam)))? };
-        Ok(Puntero { red, recorte: vec![0.0; tam * tam * 3], luz: AjusteLuz::default(), realce: Realce::default(), tmp: Vec::new(), tam, div, ms_recorte: 0.0, ms_red: 0.0 })
+        Ok(Puntero { red, recorte: vec![0.0; tam * tam * 3], luz: AjusteLuz::default(), realce: Realce::default(), tmp: Vec::new(), tam, div, ms_recorte: 0.0, ms_red: 0.0, perfil: None, perfil_n: 0 })
     }
     pub fn puntos(&mut self, rgba: &[u8], w: usize, h: usize, roi: &Roi) -> Puntos {
         let t = self.tam;
@@ -279,6 +295,14 @@ impl Puntero {
         self.red.entrada(0).copy_from_slice(&self.recorte);
         #[cfg(not(target_arch = "wasm32"))]
         let t1 = std::time::Instant::now();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if let Some(acum) = self.perfil.as_mut() {
+                for (k, d, n) in self.red.correr_midiendo() { match acum.iter_mut().find(|x| x.0 == k) { Some(x) => { x.1 += d; x.2 += n; } None => acum.push((k, d, n)) } }
+                self.perfil_n += 1;
+            } else { self.red.correr(); }
+        }
+        #[cfg(target_arch = "wasm32")]
         self.red.correr();
         #[cfg(not(target_arch = "wasm32"))]
         { self.ms_recorte += (t1 - t0).as_secs_f32() * 1e3; self.ms_red += t1.elapsed().as_secs_f32() * 1e3; }

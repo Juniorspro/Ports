@@ -17,9 +17,9 @@ import android.view.View;
 public class Capa extends View {
     /** lo que se muestra arriba a la izquierda y en las tarjetas */
     public static class Hud {
-        public double msMotor, msCuadro, msDibujo, cps, msRecorte, msRed, msDet; public int hilos, grandes, chicos; public boolean dot; public String modelo = "", estilo = "";
+        public double msMotor, msCuadro, msDibujo, cps, msRecorte, msRed, msDet, msBuscar; public boolean buscando; public String perfil = ""; public int hilos, grandes, chicos; public boolean dot; public String modelo = "", estilo = "";
         public float brillo, ganancia = 1; public boolean noche, frente; public long sinManosDesde;
-        void copiar(Hud o) { msMotor = o.msMotor; msRecorte = o.msRecorte; msRed = o.msRed; msDet = o.msDet; grandes = o.grandes; chicos = o.chicos; dot = o.dot; msCuadro = o.msCuadro; msDibujo = o.msDibujo; cps = o.cps; hilos = o.hilos; modelo = o.modelo; estilo = o.estilo;
+        void copiar(Hud o) { msMotor = o.msMotor; perfil = o.perfil; msBuscar = o.msBuscar; buscando = o.buscando; msRecorte = o.msRecorte; msRed = o.msRed; msDet = o.msDet; grandes = o.grandes; chicos = o.chicos; dot = o.dot; msCuadro = o.msCuadro; msDibujo = o.msDibujo; cps = o.cps; hilos = o.hilos; modelo = o.modelo; estilo = o.estilo;
             brillo = o.brillo; ganancia = o.ganancia; noche = o.noche; frente = o.frente; sinManosDesde = o.sinManosDesde; }
     }
 
@@ -88,15 +88,19 @@ public class Capa extends View {
         }
     }
 
-    private final String[] lineas = new String[6];
+    private final String[] lineas = new String[8];
 
     private void arriba(Canvas c, float W, Hud h) {
         int k = 0;
-        lineas[k++] = String.format("%.1f ms por cuadro · %.0f cps", h.msMotor, h.cps);
+        // (arriba, lo que tarda seguir la mano; sin mano, lo que tarda buscarla —el detector, en cada cuadro—)
+        if (h.buscando) lineas[k++] = String.format("Buscando la mano: %.1f ms · %.0f cps", h.msBuscar, h.cps);
+        else lineas[k++] = String.format("%.1f ms por cuadro · %.0f cps", h.msMotor, h.cps);
         // (de qué se componen: el recorte de la mano, la red de los puntos y el detector si corrió en el cuadro)
-        lineas[k++] = String.format("recorte %.1f · red %.1f%s ms", h.msRecorte, h.msRed, h.msDet > 0.05 ? String.format(" · detector %.1f", h.msDet) : "");
+        lineas[k++] = h.buscando ? String.format("detector %.1f ms%s", h.msDet, h.msMotor > 0 ? String.format(" · siguiendo: %.1f ms", h.msMotor) : "")
+            : String.format("recorte %.1f · red %.1f ms", h.msRecorte, h.msRed);
         lineas[k++] = "Rust nativo · " + h.hilos + " hilos (" + h.grandes + " grandes" + (h.chicos > 0 ? " + " + h.chicos + " chicos" : "") + ") · " + h.modelo + (h.dot ? " · dot" : "");
         lineas[k++] = String.format("Mano 3D: %s · dibujo %.1f ms", h.estilo, h.msDibujo);
+        if (!h.perfil.isEmpty()) { String pf = h.perfil; int corte = pf.indexOf(" · ", Math.min(pf.length(), 48)); if (corte > 0) { lineas[k++] = pf.substring(0, corte); lineas[k++] = pf.substring(corte + 3); } else lineas[k++] = pf; }
         if (h.ganancia > 1.05f) lineas[k++] = String.format("Poca luz: aclarado ×%.1f", h.ganancia);
         else if (h.noche) lineas[k++] = "Ver de noche";
         // un fondo oscuro detrás del texto: se lee igual sobre una pared blanca

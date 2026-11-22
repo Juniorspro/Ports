@@ -209,6 +209,33 @@ mano).
 - **Adelantar:** de 0 a 100 ms, para usar las manos como control. Viene en 0: con más, el esqueleto se adelanta a la
   imagen.
 
+**2.3 (pedido: «hay que llegar a 3–1 ms»; en el celular del dueño, sin mano a la vista, 20,6 ms, de los que el detector
+eran 15,9; en un TCL 20 SE, 40 ms con el liviano y una mano):**
+- **Los núcleos grandes bien elegidos:** antes se miraba sólo la frecuencia máxima. En el Snapdragon 460 (TCL 20 SE) los
+  4 Cortex-A73 y los 4 A53 van a 1,8 GHz, así que el motor ponía hilos en los A53 y frenaban cada capa. Ahora se mira la
+  capacidad que publica el kernel (`cpu_capacity`), después el modelo de cada núcleo (`/proc/cpuinfo`: A53, A55, A35,
+  A510, A520 y los Kryo «Silver» son chicos) y recién al final la frecuencia (prueba `prueba_nucleos`).
+- **El buscador de fondo** (la segunda mano) va con menos prioridad (nice 10) y cada 500 ms en vez de 300.
+- **Fundidos** la suma del atajo y el PReLU dentro de la convolución anterior (`fundir`, `terminar` en `red.rs`). El
+  detector se ahorra 27 PReLU y 24 sumas por imagen, unos 20–25 % del tiempo en la PC, y en ARM deja 45 tensores en
+  float16 entre capas en vez de 28. Las salidas son idénticas bit a bit (en la PC y en ARM con float16).
+- **La mano que se escapa del cuadrado** (un movimiento rápido) se busca otra vez en el mismo cuadro con el cuadrado
+  ×1,4, y durante 0,4 s en su último lugar ×1,5, antes de volver al detector: una pasada de la red chica, no el detector,
+  y sigue la misma mano.
+- **«Poca luz» en el detector:** promediar con los cuadros anteriores sólo lo que está quieto. Antes se promediaba todo
+  (y la regla se prende en cualquier pieza sin blancos fuertes): una mano en movimiento quedaba como un fantasma borroso.
+- **Medido y descartado:** la entrada más chica.
+  - El modelo liviano de los puntos a 192 se corre 7,8 % de la palma, y a 160, 19 %.
+  - El detector a 128 encuentra 9 de 16 manos, contra 16 de 16 a 192: pierde las chicas.
+  - El detector «lite» de MediaPipe tiene sólo 16 % menos cuentas (283 contra 337 millones).
+  - Cuentas en 8 bits simuladas (pesos por canal, salidas por tensor): los puntos se corren 1,2 % de la palma en
+    promedio y hasta 17 % en el peor caso. Con las 10 capas más delicadas en float: 0,8 % y 9 %.
+- **En la pantalla:** arriba, lo que tarda seguir la mano. Sin mano, «Buscando la mano» con lo que tarda el detector.
+  Debajo, el desglose (recorte, red, detector) y cuántos núcleos grandes y chicos usa.
+  - Ajustes → «Medir cada capa»: cuánto tarda cada tipo de capa, en el celular mismo.
+- **JXMod:** hilos = núcleos grandes menos uno (entre 2 y 3). Sin mano, busca 1 de cada 2 cuadros. La miniatura, cada 15
+  cuadros.
+
 ## Cómo se arma y se prueba
 
 ```sh

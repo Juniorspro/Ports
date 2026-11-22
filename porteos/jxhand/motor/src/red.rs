@@ -5,10 +5,12 @@
 use crate::hilos::{self, Puntero};
 use crate::tflite::{self, Activacion, Modelo, Op, Relleno, Tipo};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Paso {
-    Conv { e: usize, s: usize, w: usize, b: usize, kh: usize, kw: usize, paso: (usize, usize), dil: (usize, usize), pad: (usize, usize), act: Activacion },
-    Depthwise { e: usize, s: usize, w: usize, b: usize, kh: usize, kw: usize, paso: (usize, usize), dil: (usize, usize), pad: (usize, usize), mult: usize, act: Activacion },
+    /// `fin`: lo que se hace al terminar cada trozo de la salida, fundido en la misma pasada (la suma del atajo y el PReLU
+    /// que venían como capas aparte)
+    Conv { e: usize, s: usize, w: usize, b: usize, kh: usize, kw: usize, paso: (usize, usize), dil: (usize, usize), pad: (usize, usize), act: Activacion, fin: Fin },
+    Depthwise { e: usize, s: usize, w: usize, b: usize, kh: usize, kw: usize, paso: (usize, usize), dil: (usize, usize), pad: (usize, usize), mult: usize, act: Activacion, fin: Fin },
     MaxPool { e: usize, s: usize, f: (usize, usize), paso: (usize, usize), pad: (usize, usize) },
     Add { a: usize, b: usize, s: usize, act: Activacion },
     Mul { a: usize, b: usize, s: usize, act: Activacion },
@@ -22,6 +24,11 @@ enum Paso {
     Relu { e: usize, s: usize, tope: f32 },
     Mean { e: usize, s: usize },
 }
+
+/// lo fundido al final de una convolución: sumar otro tensor de la misma forma (el atajo de un bloque residual), con su
+/// activación, y después un PReLU (alfa por canal)
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Fin { suma: Option<usize>, act_suma: Option<Activacion>, prelu: Option<usize> }
 
 pub struct Red {
     formas: Vec<Vec<usize>>,
@@ -39,6 +46,12 @@ pub struct Red {
     /// que los produce, cuando la salida todavía está en la caché, y las siguientes la leen directo (sin otra pasada
     /// para convertir). Vacía si el tensor no la tiene.
     sombras: Vec<Vec<u16>>,
+    /// (pruebas de 8 bits) si está, después de cada capa su salida se redondea a 8 bits con esta escala por tensor (0 = no):
+    /// así se mide cuánto se pierde antes de escribir los kernels
+    pub simular8: Option<Vec<f32>>,
+    /// (pruebas) el máximo |x| de cada tensor visto en las corridas (para calibrar las escalas de 8 bits)
+    pub rangos: Option<Vec<f32>>,
+    pub minimos: Option<Vec<f32>>,
 }
 
 /// si se usan las cuentas en float16 cuando el procesador las tiene (para comparar: se puede apagar)
@@ -136,7 +149,7 @@ impl Red {
                     let wi = datos.len(); datos.push(w); formas.push(vec![kh, kw, ci, co]);
                     let bi = if o.entradas.len() > 2 && o.entradas[2] >= 0 { e(2) } else { datos.push(vec![0.0; co]); formas.push(vec![co]); datos.len() - 1 };
                     formas[s] = vec![1, ho, wo, co];
-                    pasos.push(Paso::Conv { e: e(0), s, w: wi, b: bi, kh, kw, paso: (paso.1, paso.0), dil: (dil.1, dil.0), pad: (ph, pw), act: *act });
+                    pasos.push(Paso::Conv { e: e(0), s, w: wi, b: bi, kh, kw, paso: (paso.1, paso.0), dil: (dil.1, dil.0), pad: (ph, pw), act: *act, fin: Fin::default() });
                 }
                 Op::Depthwise { relleno, paso, dil, mult, act } => {
                     let (fe, fw) = (forma4(&formas[e(0)]), formas[e(1)].clone()); // fw: [1, kh, kw, entrada*mult]
@@ -145,7 +158,7 @@ impl Red {
                     let (wo, pw) = salida_tam(fe[2], kw, paso.0, dil.0, *relleno);
                     let bi = if o.entradas.len() > 2 && o.entradas[2] >= 0 { e(2) } else { datos.push(vec![0.0; co]); formas.push(vec![co]); datos.len() - 1 };
                     formas[s] = vec![1, ho, wo, co];
-                    pasos.push(Paso::Depthwise { e: e(0), s, w: e(1), b: bi, kh, kw, paso: (paso.1, paso.0), dil: (dil.1, dil.0), pad: (ph, pw), mult: *mult, act: *act });
+                    pasos.push(Paso::Depthwise { e: e(0), s, w: e(1), b: bi, kh, kw, paso: (paso.1, paso.0), dil: (dil.1, dil.0), pad: (ph, pw), mult: *mult, act: *act, fin: Fin::default() });
                 }
                 Op::MaxPool { relleno, paso, filtro, .. } => {
                     let fe = forma4(&formas[e(0)]);
@@ -166,10 +179,16 @@ impl Red {
                     formas[s] = f;
                     pasos.push(Paso::Concat { e: ents, s, eje });
                 }
-                Op::Reshape => { pasos.push(Paso::Copiar { e: e(0), s }); }
+                Op::Reshape => {
+                    // (con otro tamaño de entrada, la forma de salida se rehace: todo menos el último eje sale de la cuenta)
+                    if tam.is_some() { let n: usize = formas[e(0)].iter().product(); let mut f = formas[s].clone(); if let Some(&u) = f.last() { if f.len() >= 2 && u > 0 && n % u == 0 { let k = f.len(); f[k - 2] = n / u / f[..k - 2].iter().product::<usize>().max(1); formas[s] = f; } } }
+                    pasos.push(Paso::Copiar { e: e(0), s });
+                }
                 Op::ResizeBilinear { esquinas, medio_pixel } => {
                     let fe = forma4(&formas[e(0)]); let t = &m.tensores[e(1)].enteros;
-                    formas[s] = vec![1, t[0] as usize, t[1] as usize, fe[3]];
+                    // (con otro tamaño de entrada, la misma proporción que en el modelo: ×2 sigue siendo ×2)
+                    let o = forma4(&m.tensores[e(0)].forma);
+                    formas[s] = if tam.is_some() && o[1] > 0 && o[2] > 0 { vec![1, fe[1] * t[0] as usize / o[1], fe[2] * t[1] as usize / o[2], fe[3]] } else { vec![1, t[0] as usize, t[1] as usize, fe[3]] };
                     pasos.push(Paso::Resize { e: e(0), s, esquinas: *esquinas, medio: *medio_pixel });
                 }
                 Op::FullyConnected { act } => {
@@ -200,6 +219,8 @@ impl Red {
                 otro => return Err(format!("operación que el motor no sabe hacer: {:?}", otro)),
             }
         }
+        // fundir: convolución (o depthwise) → suma del atajo → PReLU, en una sola pasada (ver `fundir`)
+        if std::env::var("JXH_SIN_FUNDIR").is_err() { pasos = fundir(pasos, &formas, &datos, &m.salidas, &m.entradas); }
         // memoria para todo lo que se calcula (una sola vez)
         for (i, f) in formas.iter().enumerate() {
             let n: usize = f.iter().product();
@@ -246,7 +267,7 @@ impl Red {
                 if ok { sombras[t] = vec![0u16; datos[t].len()]; }
             }
         }
-        Ok(Red { formas, datos, pasos, entradas: m.entradas, salidas: m.salidas, pesos16, tmp16: Vec::new(), sombras })
+        Ok(Red { formas, datos, pasos, entradas: m.entradas, salidas: m.salidas, pesos16, tmp16: Vec::new(), sombras, simular8: None, rangos: None, minimos: None })
     }
 
     pub fn forma(&self, t: usize) -> &[usize] { &self.formas[t] }
@@ -294,10 +315,39 @@ impl Red {
             let mut t16 = std::mem::take(&mut self.tmp16);
             let mut s16 = std::mem::take(&mut self.sombras[s]);
             self.paso(k, &mut out, &mut t16, &mut s16, f16);
+            if let Some(r) = self.rangos.as_mut() { let m = out.iter().fold(0f32, |a, &x| a.max(x.abs())); if m > r[s] { r[s] = m; } }
+            if let Some(r) = self.minimos.as_mut() { let m = out.iter().fold(f32::INFINITY, |a, &x| a.min(x)); if m < r[s] { r[s] = m; } }
+            // (escala negativa: el tensor nunca es negativo y va de 0 a 255)
+            if let Some(q) = self.simular8.as_ref() { let e = q[s]; if e > 0.0 { for x in out.iter_mut() { *x = (*x / e).round().clamp(-127.0, 127.0) * e; } } else if e < 0.0 { let e = -e; for x in out.iter_mut() { *x = (*x / e).round().clamp(0.0, 255.0) * e; } } }
             self.sombras[s] = s16;
             self.tmp16 = t16;
             self.datos[s] = out;
         }
+    }
+
+    /// (pruebas de 8 bits) los pesos de las convoluciones redondeados a 8 bits, con una escala por canal de salida
+    pub fn pesos_a_8bits(&mut self) {
+        let mut cambios = Vec::new();
+        for p in &self.pasos {
+            match p {
+                Paso::Conv { w, s, .. } => { let co = forma4(&self.formas[*s])[3]; cambios.push((*w, co)); }
+                Paso::Depthwise { w, s, .. } => { let co = forma4(&self.formas[*s])[3]; cambios.push((*w, co)); }
+                _ => {}
+            }
+        }
+        for (w, co) in cambios {
+            // ([..][co]: el canal de salida es el último índice)
+            let d = &mut self.datos[w]; let mut m = vec![0f32; co];
+            for (i, x) in d.iter().enumerate() { let c = i % co; m[c] = m[c].max(x.abs()); }
+            for (i, x) in d.iter_mut().enumerate() { let e = m[i % co] / 127.0; if e > 0.0 { *x = (*x / e).round() * e; } }
+        }
+        self.pesos16 = vec![None; self.pasos.len()]; self.sombras = vec![Vec::new(); self.datos.len()];
+    }
+    /// (pruebas) cuántos tensores hay (para las escalas)
+    pub fn tensores(&self) -> usize { self.datos.len() }
+    /// (pruebas) si el tensor es salida de una convolución o una suma (los que se guardarían en 8 bits)
+    pub fn es_de_8bits(&self, t: usize) -> bool {
+        self.pasos.iter().any(|p| matches!(p, Paso::Conv { s, .. } | Paso::Depthwise { s, .. } | Paso::Add { s, .. } | Paso::MaxPool { s, .. } if *s == t)) && !self.salidas.contains(&t)
     }
 
     /// como `correr`, midiendo cuánto tarda cada tipo de capa (sólo nativo: en WebAssembly no hay reloj)
@@ -329,7 +379,7 @@ impl Red {
     fn paso(&self, k: usize, out: &mut [f32], t16: &mut Vec<u16>, s16: &mut [u16], f16: bool) {
         let d = &self.datos; let f = &self.formas;
         match &self.pasos[k] {
-            Paso::Conv { e, s, w, b, kh, kw, paso, dil, pad, act } => {
+            Paso::Conv { e, s, w, b, kh, kw, paso, dil, pad, act, fin } => {
                 let (fe, fs) = (forma4(&f[*e]), forma4(&f[*s]));
                 let (x, w, b, act) = (&d[*e][..], &d[*w][..], &d[*b][..], *act);
                 let (ci, co) = (fe[3], fs[3]);
@@ -354,6 +404,7 @@ impl Red {
                             let o = po.parte(p0 * co, (p1 - p0) * co);
                             neon16::gemm(x16, ci8, pw16 as *const u16, co, b.as_ptr(), o.as_mut_ptr(), p1 - p0);
                             activar_todo(o, act);
+                            terminar(o, p0 * co, co, fin, d);
                             if con_sombra { neon16::a_medio(o.as_ptr(), ps16.p().add(p0 * co), (p1 - p0) * co, (p1 - p0) * co); }
                         }
                     });
@@ -369,6 +420,7 @@ impl Red {
                         let o = unsafe { po.parte(p0 * co, (p1 - p0) * co) };
                         gemm_auto(&x[p0 * ci..p1 * ci], w, b, o, p1 - p0, ci, co);
                         activar_todo(o, act);
+                        terminar(o, p0 * co, co, fin, d);
                     });
                 } else {
                     let ho = fs[1];
@@ -377,10 +429,11 @@ impl Red {
                         let (y0, y1) = (t * filas, ((t + 1) * filas).min(ho));
                         let o = unsafe { po.parte(y0 * fs[2] * co, (y1 - y0) * fs[2] * co) };
                         conv(x, fe, w, b, o, fs, *kh, *kw, *paso, *dil, *pad, act, y0, y1);
+                        terminar(o, y0 * fs[2] * co, co, fin, d);
                     });
                 }
             }
-            Paso::Depthwise { e, s, w, b, kh, kw, paso, dil, pad, mult, act } => {
+            Paso::Depthwise { e, s, w, b, kh, kw, paso, dil, pad, mult, act, fin } => {
                 let (fe, fs) = (forma4(&f[*e]), forma4(&f[*s]));
                 let (x, w, b, act) = (&d[*e][..], &d[*w][..], &d[*b][..], *act);
                 let po = Puntero(out.as_mut_ptr());
@@ -410,6 +463,7 @@ impl Red {
                         let o = unsafe { po.parte(y0 * fs[2] * c, (y1 - y0) * fs[2] * c) };
                         unsafe { neon16::depthwise(p16.p() as *const u16, h, wd, c, pw16 as *const u16, b.as_ptr(), o.as_mut_ptr(), fs[2], *kh, *kw, *paso, *dil, *pad, y0, y1); }
                         activar_todo(o, act);
+                        terminar(o, y0 * fs[2] * c, c, fin, d);
                         if con_sombra { let k0 = y0 * fs[2] * c; unsafe { neon16::a_medio(o.as_ptr(), ps16.p().add(k0), o.len(), o.len()); } }
                     });
                     return;
@@ -420,6 +474,7 @@ impl Red {
                     let (y0, y1) = (t * filas, ((t + 1) * filas).min(ho));
                     let o = unsafe { po.parte(y0 * fs[2] * fs[3], (y1 - y0) * fs[2] * fs[3]) };
                     depthwise(x, fe, w, b, o, fs, *kh, *kw, *paso, *dil, *pad, *mult, act, y0, y1);
+                    terminar(o, y0 * fs[2] * fs[3], fs[3], fin, d);
                 });
             }
             Paso::MaxPool { e, s, f: fl, paso, pad } => {
@@ -502,6 +557,53 @@ impl Red {
             }
         }
     }
+}
+
+/// funde en cada convolución (o depthwise) la suma que la sigue (si la otra entrada de la suma ya está calculada y tiene la
+/// misma forma) y el PReLU que sigue a eso, cuando nadie más lee lo del medio: dos pasadas menos sobre tensores grandes por
+/// bloque, y la salida que queda (la del PReLU) la leen capas en float16, así que puede tener su copia en float16
+fn fundir(pasos: Vec<Paso>, formas: &[Vec<usize>], datos: &[Vec<f32>], salidas: &[usize], entradas: &[usize]) -> Vec<Paso> {
+    let lee = |p: &Paso| -> Vec<usize> { match p {
+        Paso::Conv { e, fin, .. } | Paso::Depthwise { e, fin, .. } => { let mut v = vec![*e]; if let Some(r) = fin.suma { v.push(r); } v }
+        Paso::MaxPool { e, .. } | Paso::Copiar { e, .. } | Paso::Resize { e, .. } | Paso::Fc { e, .. } | Paso::Pad { e, .. } | Paso::Logistic { e, .. }
+        | Paso::Prelu { e, .. } | Paso::Relu { e, .. } | Paso::Mean { e, .. } => vec![*e],
+        Paso::Add { a, b, .. } | Paso::Mul { a, b, .. } => vec![*a, *b],
+        Paso::Concat { e, .. } => e.clone(),
+    } };
+    let mut p: Vec<Option<Paso>> = pasos.into_iter().map(Some).collect();
+    // quién produce cada tensor (índice de paso)
+    let productor = |p: &[Option<Paso>], t: usize| p.iter().position(|x| x.as_ref().map(salida_de) == Some(t));
+    let lectores = |p: &[Option<Paso>], t: usize| -> Vec<usize> { p.iter().enumerate().filter(|(_, x)| x.as_ref().map(|x| lee(x).contains(&t)).unwrap_or(false)).map(|(j, _)| j).collect() };
+    for k in 0..p.len() {
+        let Some(Paso::Conv { .. } | Paso::Depthwise { .. }) = &p[k] else { continue; };
+        let mut t = salida_de(p[k].as_ref().unwrap());
+        let mut fin = match &p[k] { Some(Paso::Conv { fin, .. }) | Some(Paso::Depthwise { fin, .. }) => *fin, _ => unreachable!() };
+        // 1) la suma
+        let l = lectores(&p, t);
+        if l.len() == 1 && !salidas.contains(&t) {
+            if let Some(Paso::Add { a, b, s, act }) = p[l[0]].clone() {
+                let r = if a == t { b } else { a };
+                let lista = r != t && formas[r] == formas[t] && (entradas.contains(&r) || !datos[r].is_empty() && productor(&p, r).is_none() || productor(&p, r).map(|q| q < k).unwrap_or(false));
+                if lista { fin.suma = Some(r); fin.act_suma = Some(act); p[l[0]] = None; t = s; }
+            }
+        }
+        // 2) el PReLU
+        let l = lectores(&p, t);
+        if l.len() == 1 && !salidas.contains(&t) {
+            if let Some(Paso::Prelu { e, s, alfa }) = p[l[0]].clone() {
+                if e == t && datos[alfa].len() == *formas[t].last().unwrap_or(&0) { fin.prelu = Some(alfa); p[l[0]] = None; t = s; }
+            }
+        }
+        match p[k].as_mut() { Some(Paso::Conv { s, fin: f, .. }) | Some(Paso::Depthwise { s, fin: f, .. }) => { *s = t; *f = fin; } _ => {} }
+    }
+    p.into_iter().flatten().collect()
+}
+
+/// lo fundido al final de un trozo de la salida de una convolución (`desde`: dónde empieza el trozo en el tensor)
+#[inline]
+fn terminar(o: &mut [f32], desde: usize, co: usize, fin: &Fin, d: &[Vec<f32>]) {
+    if let Some(r) = fin.suma { for (v, &x) in o.iter_mut().zip(&d[r][desde..]) { *v += x; } if let Some(a) = fin.act_suma { activar_todo(o, a); } }
+    if let Some(a) = fin.prelu { let a = &d[a][..co]; for f in o.chunks_exact_mut(co) { for (v, &k) in f.iter_mut().zip(a) { if *v < 0.0 { *v *= k; } } } }
 }
 
 fn salida_de(p: &Paso) -> usize {

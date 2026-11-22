@@ -62,7 +62,9 @@ function mjxLeer() {
   if (!t) { if (MJX.estado !== 'listo' || performance.now() - MJX.tManos > 1500) { try { MJX.estado = JXManos.estado(); } catch (e) { /* nada */ } } return; }
   const r = mjxParsear(t);
   MJX.visto = r.cuadro; MJX.cuadros++; MJX.manos = r.manos; MJX.tManos = performance.now(); MJX.lite = r.lite; MJX.f16 = r.f16; MJX.estado = 'listo';
-  if (r.ms) MJX.msProm = MJX.msProm ? MJX.msProm * 0.9 + r.ms * 0.1 : r.ms;
+  // (seguir la mano y buscarla, aparte: sin mano el detector corre en cada cuadro y tarda más)
+  if (r.ms && r.manos.length) MJX.msProm = MJX.msProm ? MJX.msProm * 0.9 + r.ms * 0.1 : r.ms;
+  else if (r.ms) MJX.msBusca = MJX.msBusca ? MJX.msBusca * 0.8 + r.ms * 0.2 : r.ms;
 }
 
 // ---------------- las manos de primera persona ----------------
@@ -203,7 +205,7 @@ function mjxPrevia() {
   x.fillText(est.slice(0, 26), 8, 18); if (est.length > 26) { x.font = '11px system-ui,sans-serif'; x.fillText(est.slice(26, 60), 8, 34); }
   x.fillStyle = 'rgba(255,255,255,.75)'; x.font = '12px system-ui,sans-serif';
   const d = (MJX.diag || '').split(',');
-  x.fillText((MJX.msProm ? MJX.msProm.toFixed(1) + ' ms' : '') + (MJX.lite ? ' · liviano' : '') + (MJX.f16 ? ' · f16' : '') + (d[0] ? ' · ' + d[0] + ' cps' : ''), 8, c.height - 8);
+  x.fillText((!MJX.manos.length && MJX.msBusca ? 'buscando ' + MJX.msBusca.toFixed(1) + ' ms' : MJX.msProm ? MJX.msProm.toFixed(1) + ' ms' : '') + (MJX.lite ? ' · liviano' : '') + (MJX.f16 ? ' · f16' : '') + (d[0] ? ' · ' + d[0] + ' cps' : ''), 8, c.height - 8);
   // (de qué se componen los ms —el recorte, la red y el detector— y en cuántos hilos y núcleos: así una captura dice
   // dónde se va el tiempo en ese celular; las APK anteriores no lo mandan)
   if (d.length >= 12) { x.font = '11px system-ui,sans-serif'; x.fillText('rec ' + d[5] + ' · red ' + d[6] + (+d[7] > 0 ? ' · det ' + d[7] : '') + ' · ' + d[8] + ' hilos (' + d[9] + 'G' + (+d[10] ? '+' + d[10] + 'c' : '') + ')' + (d[11] === '1' ? ' · dot' : ''), 8, c.height - 24); }

@@ -164,6 +164,7 @@ public class Principal extends Activity {
             Motor.config(m, Motor.PREDICCION_MS, prefs.getInt("adelantar", 0));
             Motor.config(m, Motor.POCA_LUZ, prefs.getBoolean("realce", true) ? 1 : 0);
             Motor.config(m, Motor.FLOAT16, prefs.getBoolean("float16", true) ? 1 : 0);
+            Motor.config(m, Motor.PERFIL, prefs.getBoolean("perfil", false) ? 1 : 0);
             camara.aplicarModelo();
         } });
     }
@@ -278,6 +279,10 @@ public class Principal extends Activity {
         interruptor(l, "Realce para poca luz", "Cuando está oscuro, el motor aclara y limpia el recorte de la mano antes de mirarlo (así la sigue con mucha menos luz).",
             prefs.getBoolean("realce", true), new CompoundButton.OnCheckedChangeListener() { public void onCheckedChanged(CompoundButton c, boolean v) {
                 prefs.edit().putBoolean("realce", v).apply(); aplicarAjustes();
+            } });
+        interruptor(l, "Medir cada capa", "Muestra arriba cuánto tarda cada tipo de capa de la red (para mandarle una captura al que la programa). Medir hace todo un poco más lento.",
+            prefs.getBoolean("perfil", false), new CompoundButton.OnCheckedChangeListener() { public void onCheckedChanged(CompoundButton c, boolean v) {
+                prefs.edit().putBoolean("perfil", v).apply(); aplicarAjustes();
             } });
         interruptor(l, "Cálculo rápido (float16)", "En los procesadores que lo tienen (casi todos desde 2018) las cuentas grandes se hacen en float16: el doble de números por instrucción. Medido: los puntos se mueven 0,5 % del largo de la palma contra el cálculo completo.",
             prefs.getBoolean("float16", true), new CompoundButton.OnCheckedChangeListener() { public void onCheckedChanged(CompoundButton c, boolean v) {

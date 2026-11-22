@@ -221,6 +221,8 @@ public class ManosJX {
             // las dos manos y el realce para poca luz
             // (los núcleos grandes menos uno, entre 2 y 3: el que queda es para el juego. Antes eran 2 fijos)
             Motor.config(motor, Motor.HILOS_MENOS, 1);
+            // (sin mano a la vista, el detector —lo más pesado— 1 de cada 2 cuadros: no le saca tanto al juego)
+            Motor.config(motor, Motor.BUSCAR_CADA, 2);
             Motor.config(motor, Motor.PREDICCION_MS, 40);
             Motor.config(motor, Motor.MAX_MANOS, 2);
             Motor.config(motor, Motor.POCA_LUZ, 1);

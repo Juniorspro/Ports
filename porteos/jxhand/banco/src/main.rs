@@ -141,8 +141,111 @@ fn main() {
                 }
             }
         }
+        Some("int8") => {
+            // int8 MODELOS FOTO...: cuánto se mueven los puntos del modelo liviano con los pesos y las salidas de cada
+            // capa redondeados a 8 bits (escalas calibradas con las mismas fotos, con el cuadrado un poco movido)
+            let (mut det, mut com) = cargar(&a[2]);
+            let lite = fs::read(format!("{}/hand_landmark_lite.tflite", a[2])).unwrap();
+            let mut l32 = Puntero::nuevo(&lite).unwrap(); let mut l8 = Puntero::nuevo(&lite).unwrap();
+            l8.red_mut().pesos_a_8bits();
+            let err = |a: &mano::Puntos, b: &mano::Puntos, palma: f32| -> (f32, f32) { let d: Vec<f32> = (0..PUNTOS).map(|i| (a.img[i].x - b.img[i].x).hypot(a.img[i].y - b.img[i].y) / palma * 100.0).collect(); (d.iter().sum::<f32>() / PUNTOS as f32, d.iter().cloned().fold(0.0, f32::max)) };
+            let mut casos = Vec::new();
+            for foto in &a[3..] {
+                let Ok(im) = image::open(foto) else { continue; }; let im = im.to_rgba8(); let (w, h) = (im.width() as usize, im.height() as usize); let b = im.as_raw().clone();
+                let ps = det.detectar(&b, w, h); let Some(pa) = ps.first() else { continue; }; if det.mejor < 0.6 { continue; }
+                let mut r = com.puntos(&b, w, h, &mano::roi_de_palma(pa)); for _ in 0..2 { r = com.puntos(&b, w, h, &mano::roi_de_puntos(&r.img)); }
+                if r.presencia < 0.8 { continue; }
+                let palma = (r.img[0].x - r.img[9].x).hypot(r.img[0].y - r.img[9].y);
+                // (el cuadrado tal cual y movido: girado, más grande o más chico, corrido)
+                for (k, (da, de, dx)) in [(0.0, 1.0, 0.0), (0.25, 1.0, 0.0), (-0.3, 1.1, 0.05), (0.1, 0.9, -0.05), (-0.15, 1.2, 0.03), (0.4, 0.95, 0.0)].iter().enumerate() {
+                    let mut roi = r.roi; roi.ang += da; roi.lado *= de; roi.cx += dx * roi.lado;
+                    casos.push((foto.rsplit('/').next().unwrap().to_string(), k, b.clone(), w, h, roi, palma));
+                }
+            }
+            // calibrar: el máximo de cada tensor con los pesos ya en 8 bits
+            let nt = l8.red_mut().tensores(); l8.red_mut().rangos = Some(vec![0.0; nt]); l8.red_mut().minimos = Some(vec![f32::INFINITY; nt]);
+            for c in &casos { l8.puntos(&c.2, c.3, c.4, &c.5); }
+            let rangos = l8.red_mut().rangos.take().unwrap(); let minimos = l8.red_mut().minimos.take().unwrap();
+            let escala = |t: usize| -> f32 { if minimos[t] >= 0.0 { -rangos[t] / 255.0 } else { rangos[t] / 127.0 } };
+            let elegibles: Vec<usize> = (0..nt).filter(|&t| l8.red_mut().es_de_8bits(t)).collect();
+            // la sensibilidad: de a un tensor en 8 bits (los demás en float), cuánto se mueven los puntos
+            let mut sens = Vec::new();
+            for &t in &elegibles {
+                let mut esc = vec![0f32; nt]; esc[t] = escala(t); l8.red_mut().simular8 = Some(esc);
+                let mut sm = 0f32; for c in casos.iter().step_by(2) { let (x, y) = (l32.puntos(&c.2, c.3, c.4, &c.5), l8.puntos(&c.2, c.3, c.4, &c.5)); sm += err(&x, &y, c.6).0; }
+                sens.push((t, sm / casos.len().div_ceil(2) as f32));
+            }
+            sens.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            println!("   los más delicados (tensor, forma, % de la palma, mín/máx): {:?}", sens.iter().take(10).map(|&(t, e)| (t, format!("{:?}", l8.red_mut().forma(t)), (e * 100.0).round() / 100.0, (minimos[t] * 10.0).round() / 10.0, (rangos[t] * 10.0).round() / 10.0)).collect::<Vec<_>>());
+            // y con los N más delicados en float
+            for nf in [0usize, 3, 6, 10, 15] {
+                let flot: Vec<usize> = sens.iter().take(nf).map(|x| x.0).collect();
+                let esc: Vec<f32> = (0..nt).map(|t| if elegibles.contains(&t) && !flot.contains(&t) { escala(t) } else { 0.0 }).collect();
+                l8.red_mut().simular8 = Some(esc);
+                let (mut sm, mut mx, mut dp) = (0f32, 0f32, 0f32);
+                for c in &casos {
+                    let (x, y) = (l32.puntos(&c.2, c.3, c.4, &c.5), l8.puntos(&c.2, c.3, c.4, &c.5));
+                    let (m, mm) = err(&x, &y, c.6); sm += m; mx = mx.max(mm); dp = dp.max((x.presencia - y.presencia).abs());
+                    if nf == 0 && c.1 == 0 { println!("   {:30} medio {:.2} % · peor punto {:.2} % · presencia {:.3} / {:.3}", c.0.chars().take(30).collect::<String>(), m, mm, x.presencia, y.presencia); }
+                }
+                println!("== 8 bits ({} en float de {}): {} casos · puntos a {:.2} % de la palma en promedio, el peor {:.2} % · presencia ±{:.3}", nf, elegibles.len(), casos.len(), sm / casos.len() as f32, mx, dp);
+            }
+        }
+        Some("dettam") => {
+            // dettam MODELOS FOTO...: el detector de palmas mirando la imagen a 192 (el de MediaPipe), 160, 128 y 96, con
+            // cada foto puesta en un cuadro de cámara de 480 × 640 a 3 tamaños: si encuentra la mano y si de ahí sale el
+            // mismo seguimiento (los puntos después de 2 pasadas) que con 192
+            let dm = fs::read(format!("{}/hand_detector.tflite", a[2])).unwrap();
+            let tams = [192usize, 160, 128, 96];
+            let mut dets: Vec<Detector> = tams.iter().map(|&t| Detector::nuevo_tam(&dm, t).unwrap()).collect();
+            let (_, mut com) = cargar(&a[2]);
+            let (mut hall, mut err_s, mut n, mut ms) = (vec![0usize; tams.len()], vec![0f32; tams.len()], 0usize, vec![0f64; tams.len()]);
+            for foto in &a[3..] {
+                let Ok(im) = image::open(foto) else { continue; }; let im = im.to_rgba8();
+                for &esc in &[1.0f32, 0.6, 0.4] {
+                    let (fw, fh) = (480u32, 640u32);
+                    let k = (fw as f32 / im.width() as f32).min(fh as f32 / im.height() as f32) * esc;
+                    let (nw, nh) = (((im.width() as f32 * k) as u32).max(1), ((im.height() as f32 * k) as u32).max(1));
+                    let chica = image::imageops::resize(&im, nw, nh, image::imageops::FilterType::Triangle);
+                    let mut cuadro = RgbaImage::from_pixel(fw, fh, Rgba([90, 90, 95, 255]));
+                    image::imageops::overlay(&mut cuadro, &chica, ((fw - nw) / 2) as i64, ((fh - nh) / 3) as i64);
+                    let b = cuadro.as_raw(); let (w, h) = (fw as usize, fh as usize);
+                    // (el de 192 hace de referencia: si no encuentra, el caso no cuenta)
+                    let mut refe: Option<mano::Puntos> = None; let mut linea = format!("{:28} ×{:.1}:", foto.rsplit('/').next().unwrap().chars().take(28).collect::<String>(), esc);
+                    for (i, d) in dets.iter_mut().enumerate() {
+                        let t0 = Instant::now(); let ps = d.detectar(b, w, h); ms[i] += t0.elapsed().as_secs_f64() * 1e3;
+                        let Some(pa) = ps.first() else { linea += &format!(" {} no ({:.2})", tams[i], d.mejor); if i == 0 { break; } continue; };
+                        let mut r = com.puntos(b, w, h, &mano::roi_de_palma(pa)); for _ in 0..2 { r = com.puntos(b, w, h, &mano::roi_de_puntos(&r.img)); }
+                        if i == 0 { if r.presencia < 0.8 { linea += " (192: la mano no pasa)"; break; } refe = Some(r.clone()); n += 1; hall[0] += 1; linea += &format!(" 192 sí ({:.2})", d.mejor); continue; }
+                        let rf = refe.as_ref().unwrap(); let palma = (rf.img[0].x - rf.img[9].x).hypot(rf.img[0].y - rf.img[9].y);
+                        let e = (0..PUNTOS).map(|q| (r.img[q].x - rf.img[q].x).hypot(r.img[q].y - rf.img[q].y)).sum::<f32>() / PUNTOS as f32 / palma * 100.0;
+                        if r.presencia >= 0.8 && e < 5.0 { hall[i] += 1; err_s[i] += e; }
+                        linea += &format!(" {} {} ({:.2}, {:.1} %)", tams[i], if r.presencia >= 0.8 && e < 5.0 { "sí" } else { "NO" }, d.mejor, e);
+                    }
+                    println!("{}", linea);
+                }
+            }
+            for (i, t) in tams.iter().enumerate() { println!("== {}: encuentra {}/{} · puntos tras 2 pasadas a {:.2} % de la palma de los de 192 · {:.2} ms por imagen", t, hall[i], n, if hall[i] > 0 { err_s[i] / hall[i] as f32 } else { 0.0 }, ms[i] / (n.max(1) as f64)); }
+        }
+        Some("salidas") => {
+            // salidas MODELOS FOTO...: las palmas y los puntos (completo y liviano) con todos los decimales, para comparar
+            // dos armados o dos formas de correr (p. ej. con JXH_SIN_FUNDIR=1)
+            let (mut det, mut com) = cargar(&a[2]);
+            let mut lite = Puntero::nuevo(&fs::read(format!("{}/hand_landmark_lite.tflite", a[2])).unwrap()).unwrap();
+            for foto in &a[3..] {
+                let Ok(im) = image::open(foto) else { continue; }; let im = im.to_rgba8(); let (w, h) = (im.width() as usize, im.height() as usize); let b = im.as_raw();
+                let ps = det.detectar(b, w, h); print!("{} mejor {:.6}", foto.rsplit('/').next().unwrap(), det.mejor);
+                if let Some(pa) = ps.first() {
+                    print!(" caja {:?}", pa.caja);
+                    let roi = mano::roi_de_palma(pa); let r = com.puntos(b, w, h, &roi); let l = lite.puntos(b, w, h, &roi);
+                    print!(" completo {:.6} {:?} liviano {:.6} {:?}", r.presencia, r.img.iter().map(|p| (p.x * 1000.0).round() / 1000.0).collect::<Vec<_>>(), l.presencia, l.img.iter().map(|p| (p.y * 1000.0).round() / 1000.0).collect::<Vec<_>>());
+                }
+                println!();
+            }
+        }
         Some("capas") => {
-            let red = jxhand::red::Red::cargar(&fs::read(&a[2]).unwrap()).unwrap();
+            let t: Option<usize> = a.get(3).and_then(|x| x.parse().ok());
+            let red = jxhand::red::Red::cargar_tam(&fs::read(&a[2]).unwrap(), t.map(|t| (t, t))).unwrap();
             for (i, l) in red.describir().iter().enumerate() { println!("{:3} {}", i, l); }
         }
         Some("perfil") => {

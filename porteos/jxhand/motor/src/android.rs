@@ -141,6 +141,15 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_error(env: Env, _c: O
     texto(env, e)
 }
 
+/// lo medido por tipo de capa desde la última vez (con PERFIL prendido), o ""
+#[no_mangle]
+pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_perfil(env: Env, _c: Obj, m: i64) -> Obj {
+    if m == 0 { return texto(env, ""); }
+    let e = &mut *(m as *mut Estado);
+    let s = e.motor.perfil_texto();
+    texto(env, &s)
+}
+
 #[no_mangle]
 pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_soltar(_env: Env, _c: Obj, m: i64) {
     if m != 0 { drop(Box::from_raw(m as *mut Estado)); }
@@ -150,7 +159,7 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_soltar(_env: Env, _c:
 /// · 4 predicción (ms) · 5 campo de visión (grados) · 6, 7 filtro de los puntos (corte mínimo, beta) · 8, 9 filtro de
 /// los ángulos · 10 modelo liviano (1) o completo (0) · 11 realce de poca luz (1/0) · 12 hilos · 13 reiniciar
 /// · 14 cuentas en float16 si el procesador las tiene (1/0) · 15 hilos: los núcleos grandes menos éstos (entre 2 y 3;
-/// para dejarle uno al juego)
+/// para dejarle uno al juego) · 16 medir cada tipo de capa (1/0; ver perfil()) · 17 sin manos, buscar 1 de cada N cuadros
 #[no_mangle]
 pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_config(_env: Env, _c: Obj, m: i64, clave: i32, valor: f32) {
     if m == 0 { return; }
@@ -170,6 +179,8 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_config(_env: Env, _c:
         12 => hilos::configurar(valor.max(1.0) as usize),
         13 => e.motor.reiniciar(),
         14 => crate::red::USAR_F16.store(valor > 0.5, std::sync::atomic::Ordering::Relaxed),
+        16 => e.motor.perfil(valor > 0.5),
+        17 => e.motor.cfg.buscar_cada = valor.max(1.0) as u32,
         15 => { let g = GRANDES.load(std::sync::atomic::Ordering::Relaxed) as i32; hilos::configurar(if g > 0 { (g - valor.max(0.0) as i32).clamp(2, 3) as usize } else { 2 }); }
         _ => {}
     }
