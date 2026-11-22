@@ -89,12 +89,17 @@ function embedStickerazo(a, titulo) {
 }
 
 // ---- la puerta (discord_puerta.js): se le pasa la versión del Worker; si es otra, se reinicia y se le habla de nuevo ----
-async function puerta(env, ruta) {
+async function puerta(env, ruta, init) {
   const v = (env.CF_VERSION_METADATA && env.CF_VERSION_METADATA.id) || '';
   for (let i = 0; ; i++) {
-    try { return await env.DC_PUERTA.get(env.DC_PUERTA.idFromName('principal')).fetch(`https://puerta${ruta}?v=${encodeURIComponent(v)}`); }
+    try { return await env.DC_PUERTA.get(env.DC_PUERTA.idFromName('principal')).fetch(`https://puerta${ruta}?v=${encodeURIComponent(v)}`, init); }
     catch (e) { if (i >= 1) throw e; }   // (la vieja se reinició: el segundo intento ya es la nueva)
   }
+}
+// /jb: la respuesta de la IA en el mensaje «pensando…» (lo llama la puerta; sin puerta, el Worker mismo)
+export async function contestarJB(env, j) {
+  const r = await respuestaIA(env, { canal: j.canal, usuario: j.usuario, nombre: j.nombre, texto: j.texto, admin: await esAdminDe(env, j.usuario, j.guild) });
+  await dc(env, 'PATCH', `/webhooks/${env.DISCORD_APP_ID}/${j.token}/messages/@original`, { content: r.espera || `> ${corto(j.texto, 300)}\n${r.texto}`, allowed_mentions: { parse: [] } });
 }
 // ---- las respuestas ----
 const msg = (data) => new Response(JSON.stringify({ type: 4, data }), { headers: { 'Content-Type': 'application/json' } });
@@ -152,12 +157,13 @@ async function comando(env, it, ctx) {
   }
   if (n === 'bug' || n === 'sugerencia') return modal(n === 'bug' ? 'bug' : 'sug');
   if (n === 'admin' && (it.data.options || []).some((o) => o.name === 'codigo')) return codigoAdmin(env, it, it.data.options.find((o) => o.name === 'codigo').value);
-  if (n === 'jb') {   // (la IA a veces tarda más de 3 s: se contesta «pensando…» y después se completa)
+  if (n === 'jb') {
+    // (la IA tarda unos segundos: se contesta «pensando…» y el resto lo hace la puerta —el Durable Object—, que no tiene
+    // el corte de tiempo de un pedido común: hecho acá con waitUntil, Cloudflare lo cortaba esperando a Gemini y quedaba
+    // «pensando» para siempre)
     const pregunta = ((it.data.options || []).find((o) => o.name === 'mensaje') || {}).value || '', u = usuarioDe(it);
-    ctx.waitUntil((async () => {
-      const r = await respuestaIA(env, { canal: it.channel_id || 'dm', usuario: u.id, nombre: u.global_name || u.username, texto: pregunta, admin: await esAdmin(env, it) });
-      await dc(env, 'PATCH', `/webhooks/${env.DISCORD_APP_ID}/${it.token}/messages/@original`, { content: r.espera || `> ${corto(pregunta, 300)}\n${r.texto}`, allowed_mentions: { parse: [] } });
-    })().catch((e) => console.error('jb', e)));
+    const trabajo = { token: it.token, canal: it.channel_id || 'dm', guild: it.guild_id || null, usuario: u.id, nombre: u.global_name || u.username, texto: pregunta };
+    ctx.waitUntil((env.DC_PUERTA ? puerta(env, '/jb', { method: 'POST', body: JSON.stringify(trabajo) }) : contestarJB(env, trabajo)).catch((e) => console.error('jb', e)));
     return new Response(JSON.stringify({ type: 5 }), { headers: { 'Content-Type': 'application/json' } });
   }
   if (n === 'admin') return new Response(JSON.stringify({ type: 9, data: { custom_id: 'admin', title: 'Código de admin', components: [{ type: 1, components: [{ type: 4, custom_id: 'codigo', label: 'El código', style: 1, required: true, max_length: 100 }] }] } }), { headers: { 'Content-Type': 'application/json' } });

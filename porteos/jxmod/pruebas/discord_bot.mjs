@@ -188,5 +188,12 @@ const pv = new P.PuertaJX(est2, { ...envPuerta, CF_VERSION_METADATA: { id: 'v1' 
 const misma = await (await pv.fetch(new Request('https://puerta/estado?v=v1'))).json();
 let otra = null; try { await pv.fetch(new Request('https://puerta/asegurar?v=v2')); } catch (e) { otra = e.message; }
 ok('11. la puerta con la misma versión sigue; con otra versión cierra la conexión y se reinicia', misma.version === 'v1' && /abortado/.test(otra || '') && /versión nueva/.test(abortado || '') && pv.ws === null, { misma: misma.version, otra });
+// 12: /jb hecho por la puerta: el Worker le pasa el trabajo y la puerta completa el «pensando…»
+await espera(3100);
+k = llamadas.length;
+const rp = await pu.fetch(new Request('https://puerta/jb', { method: 'POST', body: JSON.stringify({ token: 'tkjb', canal: 'c9', guild: 'g1', usuario: 'u30', nombre: 'Lu', texto: '¿Hay modo carreras?' }) }));
+await espera(80);
+const pjb = llamadas.slice(k).find((x) => x.m === 'PATCH' && x.ruta === '/webhooks/app1/tkjb/messages/@original');
+ok('12. /jb por la puerta: acepta el trabajo enseguida (202) y completa el «pensando…» con la respuesta de la IA', rp.status === 202 && pjb && /Respuesta IA a: ¿Hay modo carreras\?/.test(pjb.b.content), pjb && pjb.b.content.slice(0, 80));
 pu.cerrar();
 console.log('RESUMEN ' + R.filter(Boolean).length + '/' + R.length); process.exit(R.every(Boolean) ? 0 : 1);

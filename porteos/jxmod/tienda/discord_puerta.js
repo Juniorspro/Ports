@@ -10,7 +10,7 @@
 // Versiones: Cloudflare no reinicia enseguida un Durable Object que nunca está quieto, así que después de subir código
 // nuevo la puerta seguía con el viejo. Por eso el Worker le pasa su versión (?v=) cada vez que le habla (el cron cada 10
 // min y GET /api/discord/puerta); si no es la de la puerta, cierra la conexión y se reinicia (state.abort).
-import { dc, probarCodigo, esAdminDe } from './discord.js';
+import { dc, probarCodigo, esAdminDe, contestarJB } from './discord.js';
 import { respuestaIA } from './discord_ia.js';
 
 const GATEWAY = 'https://gateway.discord.gg/?v=10&encoding=json';
@@ -57,6 +57,13 @@ export class PuertaJX {
   async fetch(req) {
     const u = new URL(req.url), p = u.pathname, v = u.searchParams.get('v'), mia = this.env.CF_VERSION_METADATA && this.env.CF_VERSION_METADATA.id;
     if (v && mia && v !== mia) { this.cerrar(); this.state.abort('hay una versión nueva del bot'); }
+    if (p === '/jb' && req.method === 'POST') {   // (el trabajo de /jb que manda el Worker: se acepta enseguida y se hace acá)
+      const j = await req.json();
+      this.asegurar().catch(() => {});   // (si recién se reinició por una versión nueva, de paso vuelve a conectarse)
+      contestarJB(this.env, j).then(() => { this.contestados = (this.contestados || 0) + 1; })
+        .catch((e) => { this.error = String((e && e.stack) || e).slice(0, 500); this.errorT = Date.now(); console.error('puerta jb', e); });
+      return new Response('ok', { status: 202 });
+    }
     if (p === '/asegurar' || p === '/diag') { await this.asegurar(); if (!(await this.state.storage.getAlarm())) await this.state.storage.setAlarm(Date.now() + 60e3); }
     let api;   // (diag: una consulta de sólo lectura a Discord desde adentro de la puerta, para ver si puede hablarle)
     if (p === '/diag') { try { const u = await dc(this.env, 'GET', '/users/@me'); api = 'ok: ' + u.username; } catch (e) { api = 'error: ' + String(e.message).slice(0, 300); } }
