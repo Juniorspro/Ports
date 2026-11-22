@@ -289,6 +289,25 @@ primera 0,40, MaxPool 0,20— y el recorte 1,5; en el TCL 20 SE la red 34,5 ms a
   realce mira 1 de cada 3 píxeles en cada eje; la tabla y el suavizado se reparten entre los hilos. En la PC, con poca
   luz, de 1,35 a 0,78 ms; con buena luz, de 0,47 a 0,39.
 
+**2.6 (con la captura de la 2.5 en el Poco X8 Pro: 19,8 ms con el liviano, «medido: 7:30.4 6:14.1 8b:10.1 sin
+8b:7.4»; la 2.4 daba 9,1 con el completo):**
+- **El error de los hilos de más.** En cada capa, el que reparte esperaba que *todos* los hilos creados avisaran, también
+  los que no participaban. Al probar 8 hilos se creaban 7; aunque después se eligieran 5, los otros seguían girando en
+  cada capa y había que esperarlos: el motor ocupaba los 8 núcleos y la cámara, el dibujo y el sistema quedaban sin
+  lugar. Reproducido en la PC (4 núcleos, 8 pedidos): con un hilo de más, **81 ms por cuadro en vez de 19**. Ahora el
+  número de trabajo y cuántos participan van juntos en un solo atómico; los que no participan no leen nada, no avisan,
+  no se despiertan y se duermen solos a los 3 ms. Después del arreglo, 7 hilos: 13,9 ms. Prueba `prueba_reparto`: 20 000
+  repartos cambiando los hilos, en la PC y en ARM.
+- **El primer sondeo arranca en los grandes** (lo seguro), sube de a uno mientras mejore (corta si uno tarda 10 % más
+  que el mejor) y baja sólo si subir no sirvió. Antes arrancaba con 8. Empatados a menos de 3 % (antes 5 %), el de menos
+  hilos.
+- **8 bits: el pasaje a 8 bits con NEON** (FCVTAS + SQXTN, de a 16). Era de a un número (unas 6 instrucciones cada uno)
+  y en las capas que achican (144 → 24 canales) costaba varias veces más que las multiplicaciones: por eso «8b:10.1» era
+  más lento que float16. Da bit a bit lo mismo.
+- **La luz no cambia el trabajo de la red:** con la misma foto aclarada (×1,6) y oscurecida (×0,25), mismos tiempos
+  dentro del ruido; `jxhand-banco subnormales` cuenta 0 subnormales en float32 y el mismo 2,342 % de valores que serían
+  subnormales en float16 en las tres. Lo único que cambia con la luz es el realce (más trabajo a oscuras, no con luz).
+
 ## Cómo se arma y se prueba
 
 ```sh

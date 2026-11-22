@@ -67,7 +67,7 @@ struct Pista {
 }
 
 /// cuántos hilos, elegido midiendo en el celular mismo: con la mano a la vista prueba cada cantidad (de `tope` a 1, 12
-/// cuadros cada una, sin contar los 2 primeros) y se queda con la de menor mediana; si dos están a menos de 5 %, la de
+/// cuadros cada una, sin contar los 2 primeros) y se queda con la de menor mediana; si dos están a menos de 3 %, la de
 /// menos hilos (deja núcleos libres). Después, cada minuto, vuelve a probar la elegida y sus vecinas: cambia con la
 /// temperatura, una grabación de pantalla o un juego al lado. En un celular con pocos núcleos grandes y otras cosas
 /// corriendo, más hilos puede ser más lento: si el sistema saca a uno un momento, los otros lo esperan en cada capa.
@@ -82,7 +82,7 @@ struct Pista {
 /// - 8 bits contra float (`ocho_medir`). Con SDOT o i8mm casi siempre gana 8 bits; sin eso (Cortex-A53/A73) depende
 ///   del procesador. Si float está a menos de 3 %, queda float (es más preciso).
 /// - las depthwise de a 8 píxeles contra de a uno (`dw_medir`; dan lo mismo bit a bit). Empatadas, de a 8.
-pub struct AutoHilos { pub activo: bool, pub tope: usize, pub elegido: usize, probar: Vec<usize>, k: usize, muestras: Vec<f32>, res: Vec<(usize, f32)>, t_ult: f64, ref_ms: f32, recientes: Vec<f32>,
+pub struct AutoHilos { pub activo: bool, pub tope: usize, pub elegido: usize, /** desde cuántos se empieza a probar (los grandes; 0: el tope) */ pub base: usize, n_sube: usize, probar: Vec<usize>, k: usize, muestras: Vec<f32>, res: Vec<(usize, f32)>, t_ult: f64, ref_ms: f32, recientes: Vec<f32>,
     pub ocho_medir: bool, pub dw_medir: bool, ocho_fase: u8, llave: usize, ocho: Vec<(&'static str, bool, f32)>, ab: Vec<(bool, f32)> }
 
 /// (la bandera, el nombre para la pantalla, y con cuál se queda si están a menos de 3 %)
@@ -132,7 +132,11 @@ impl AutoHilos {
             }
             let toca = self.elegido == 0 || t_ms - self.t_ult > 60_000.0 || cambio;
             if toca && ms.is_some() {
-                self.probar = if self.elegido == 0 { (1..=self.tope).rev().collect() } else { [self.elegido + 1, self.elegido, self.elegido.saturating_sub(1)].into_iter().filter(|&n| n >= 1 && n <= self.tope).collect() };
+                // (la primera vez: desde los grandes —lo seguro— para arriba mientras mejore, y para abajo sólo si subir no
+                // sirvió; empezar por 8 hilos en un celular de 8 núcleos con la cámara y el dibujo al lado es lo peor)
+                let b = if self.base == 0 { self.tope } else { self.base.clamp(1, self.tope) };
+                self.n_sube = if self.elegido == 0 { self.tope - b + 1 } else { 0 };
+                self.probar = if self.elegido == 0 { (b..=self.tope).chain((1..b).rev()).collect() } else { [self.elegido + 1, self.elegido, self.elegido.saturating_sub(1)].into_iter().filter(|&n| n >= 1 && n <= self.tope).collect() };
                 self.k = 0; self.muestras.clear(); self.res.clear(); crate::hilos::configurar(self.probar[0]);
             }
             return;
@@ -142,13 +146,24 @@ impl AutoHilos {
         if self.muestras.len() < 12 { return; }
         let mut m: Vec<f32> = self.muestras[2..].to_vec(); m.sort_by(|a, b| a.partial_cmp(b).unwrap());
         self.res.push((self.probar[self.k], m[m.len() / 2])); self.muestras.clear(); self.k += 1;
-        // (de más hilos a menos: si éste ya tardó un 35 % más que el mejor, con menos va a ser peor; no se prueban, que
-        // mientras se prueba el cuadro tarda más)
         let mejor = self.res.iter().map(|r| r.1).fold(f32::INFINITY, f32::min);
-        let pasado = self.res.len() >= 2 && self.res.last().map(|r| r.1 > mejor * 1.35).unwrap_or(false);
-        if self.k < self.probar.len() && !pasado { crate::hilos::configurar(self.probar[self.k]); return; }
-        // el más rápido; con menos de 5 % de diferencia, el de menos hilos
-        let n = self.res.iter().filter(|r| r.1 <= mejor * 1.05).map(|r| r.0).min().unwrap_or(self.tope);
+        let ultimo = self.res.last().map(|r| r.1).unwrap_or(mejor);
+        let mut fin = self.k >= self.probar.len();
+        if !fin && self.k <= self.n_sube {
+            // subiendo: si éste tardó 10 % más que el mejor, más hilos no ayudan. Al terminar de subir, si el mejor tiene
+            // más hilos que los grandes, no hace falta probar con menos
+            if self.k == self.n_sube || (self.k > 1 && ultimo > mejor * 1.10) {
+                let mejor_n = self.res.iter().min_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).map(|r| r.0).unwrap_or(0);
+                if mejor_n > self.probar[0] { fin = true; } else { self.k = self.n_sube; fin = self.k >= self.probar.len(); }
+            }
+        } else if !fin && self.res.len() >= 2 && ultimo > mejor * 1.35 {
+            // bajando: si éste ya tardó 35 % más que el mejor, con menos va a ser peor (mientras se prueba, el cuadro tarda
+            // más: no se prueba de gusto)
+            fin = true;
+        }
+        if !fin { crate::hilos::configurar(self.probar[self.k]); return; }
+        // el más rápido; con menos de 3 % de diferencia, el de menos hilos
+        let n = self.res.iter().filter(|r| r.1 <= mejor * 1.03).map(|r| r.0).min().unwrap_or(self.tope);
         self.ref_ms = self.res.iter().find(|r| r.0 == n).map(|r| r.1).unwrap_or(mejor);
         self.elegido = n; crate::hilos::configurar(n); self.probar.clear(); self.t_ult = t_ms; self.recientes.clear();
         if self.ocho_medir || self.dw_medir { self.ocho.clear(); self.siguiente_llave(); }

@@ -237,6 +237,17 @@ fn main() {
             }
             for (i, t) in tams.iter().enumerate() { println!("== {}: encuentra {}/{} · puntos tras 2 pasadas a {:.2} % de la palma de los de 192 · {:.2} ms por imagen", t, hall[i], n, if hall[i] > 0 { err_s[i] / hall[i] as f32 } else { 0.0 }, ms[i] / (n.max(1) as f64)); }
         }
+        Some("subnormales") => {
+            // subnormales MODELOS FOTO...: en la red de los puntos (completa), cuántos valores quedan subnormales
+            let (mut det, mut pun) = cargar(&a[2]);
+            for foto in &a[3..] {
+                let im = image::open(foto).unwrap().to_rgba8(); let (w, h) = (im.width() as usize, im.height() as usize); let b = im.as_raw();
+                let roi = det.detectar(b, w, h).first().map(mano::roi_de_palma).unwrap_or(Roi { cx: w as f32 / 2.0, cy: h as f32 / 2.0, lado: w.min(h) as f32, ang: 0.0 });
+                pun.puntos(b, w, h, &roi);
+                let (s32, s16, n) = pun.red_mut().subnormales();
+                println!("{}: subnormales float32 {} · en float16 serían {} ({:.3} %) · de {}", foto.rsplit('/').next().unwrap(), s32, s16, s16 as f64 / n as f64 * 100.0, n);
+            }
+        }
         Some("salidas") => {
             if std::env::var_os("JXH_DW_LENTO").is_some() { jxhand::red::DW_RAPIDO.store(false, std::sync::atomic::Ordering::Relaxed); }
             // salidas MODELOS FOTO...: las palmas y los puntos (completo y liviano) con todos los decimales, para comparar
@@ -318,7 +329,7 @@ fn main() {
             // un «video» hecho moviendo la foto: quieta con ruido (temblor) y después en movimiento (retraso), a 30 cps
             let mut motor = jxhand::Motor::nuevo(&fs::read(format!("{}/hand_detector.tflite", a[2])).unwrap(), &fs::read(format!("{}/hand_landmarks_detector.tflite", a[2])).unwrap()).unwrap();
             // (JXH_AUTO=1: los hilos elegidos midiendo, como en el celular; al final dice qué midió y qué eligió)
-            if std::env::var("JXH_AUTO").is_ok() { motor.auto.activo = true; motor.auto.tope = 4; motor.auto.ocho_medir = jxhand::red::ocho_posible(); motor.auto.dw_medir = jxhand::red::hay_f16() || std::env::var_os("JXH_DW_MEDIR").is_some(); }
+            if std::env::var("JXH_AUTO").is_ok() { motor.auto.activo = true; motor.auto.tope = std::env::var("JXH_TOPE").ok().and_then(|v| v.parse().ok()).unwrap_or(4); motor.auto.base = std::env::var("JXH_BASE").ok().and_then(|v| v.parse().ok()).unwrap_or(0); motor.auto.ocho_medir = jxhand::red::ocho_posible(); motor.auto.dw_medir = jxhand::red::hay_f16() || std::env::var_os("JXH_DW_MEDIR").is_some(); }
             let base = image::open(&a[3]).unwrap().to_rgba8(); let (w, h) = (base.width() as usize, base.height() as usize); let b = base.as_raw();
             let (mut det, mut pun) = cargar(&a[2]);
             let mut sem = 7u64; let mut azar = move || { sem = sem.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); ((sem >> 33) as f32 / (1u64 << 31) as f32) - 0.5 };
@@ -393,6 +404,9 @@ fn main() {
             println!("gestos: {:?}", gestos);
             let mut ts = tiempos[10..].to_vec(); ts.sort_by(|a, b| a.partial_cmp(b).unwrap());
             let med = ts[ts.len() / 2];
+            // (los últimos 60 cuadros: ya elegidos los hilos y lo demás)
+            let mut ul = tiempos[tiempos.len().saturating_sub(60)..].to_vec(); ul.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            println!("últimos 60 cuadros: mediana {:.1} ms · 90 % {:.1} ms", ul[ul.len() / 2], ul[ul.len() * 9 / 10]);
             println!("tiempo por cuadro: mediana {:.1} ms · 95 % {:.1} ms · el peor {:.1} ms · cuadros de más de 1,5× la mediana: {}", med, ts[ts.len() * 95 / 100], ts[ts.len() - 1], ts.iter().filter(|&&x| x > med * 1.5).count());
             if motor.auto.activo { println!("hilos elegidos midiendo: {} ({})", motor.auto.elegido, motor.auto.texto()); }
         }

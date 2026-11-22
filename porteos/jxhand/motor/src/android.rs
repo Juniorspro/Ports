@@ -179,7 +179,7 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_crear(env: Env, _c: O
     match Motor::nuevo(&d, &c) {
         Ok(mut motor) => {
             // (los hilos, elegidos midiendo: de los núcleos grandes —hasta 4— a 1)
-            motor.auto.activo = true; motor.auto.tope = if mascara == 0 { n } else { tope_hilos(0) }; motor.auto.ocho_medir = true; motor.auto.dw_medir = crate::red::hay_f16(); Box::into_raw(Box::new(Estado { ocho_si: true, motor, detector: d, completo: c, liviano: l, usa_liviano: false, rgba: Vec::new(), salida: vec![0.0; CABECERA],
+            motor.auto.activo = true; motor.auto.tope = if mascara == 0 { n } else { tope_hilos(0) }; motor.auto.ocho_medir = true; motor.auto.dw_medir = crate::red::hay_f16(); motor.auto.base = cuenta(&GRANDES); Box::into_raw(Box::new(Estado { ocho_si: true, motor, detector: d, completo: c, liviano: l, usa_liviano: false, rgba: Vec::new(), salida: vec![0.0; CABECERA],
             vista: Vec::new(), vista_noche: false, dim: (0, 0), para_dibujar: Vec::new(), escena: None })) as i64
         }
         Err(e) => { ERROR = e; 0 }
@@ -226,7 +226,7 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_config(_env: Env, _c:
             let liv = valor > 0.5;
             if liv != e.usa_liviano && !(liv && e.liviano.is_empty()) {
                 let cfg = e.motor.cfg;
-                if let Ok(mut nuevo) = Motor::nuevo(&e.detector, if liv { &e.liviano } else { &e.completo }) { nuevo.cfg = cfg; nuevo.auto.activo = e.motor.auto.activo; nuevo.auto.tope = e.motor.auto.tope;
+                if let Ok(mut nuevo) = Motor::nuevo(&e.detector, if liv { &e.liviano } else { &e.completo }) { nuevo.cfg = cfg; nuevo.auto.activo = e.motor.auto.activo; nuevo.auto.tope = e.motor.auto.tope; nuevo.auto.base = e.motor.auto.base;
                     // (con otro modelo, 8 bits contra float se vuelve a medir)
                     nuevo.auto.ocho_medir = e.ocho_si; if e.ocho_si { crate::red::USAR_8.store(true, std::sync::atomic::Ordering::Relaxed); }
                     nuevo.auto.dw_medir = crate::red::hay_f16(); crate::red::DW_RAPIDO.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -241,7 +241,7 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_config(_env: Env, _c:
         17 => e.motor.cfg.buscar_cada = valor.max(1.0) as u32,
         15 => { let n = tope_hilos(valor.max(0.0) as usize);
             // (el tope; los hilos se eligen midiendo, de ahí para abajo)
-            hilos::configurar(n); e.motor.auto.tope = n; e.motor.auto.elegido = 0; e.motor.auto.activo = true; }
+            hilos::configurar(n); e.motor.auto.tope = n; e.motor.auto.base = cuenta(&GRANDES).saturating_sub(valor.max(0.0) as usize).max(1); e.motor.auto.elegido = 0; e.motor.auto.activo = true; }
         18 => e.motor.auto.activo = valor > 0.5,
         19 => { e.ocho_si = valor > 0.5; crate::red::USAR_8.store(e.ocho_si, std::sync::atomic::Ordering::Relaxed);
             if e.ocho_si { e.motor.auto.ocho_medir = true; } else { e.motor.auto.ocho_parar(); } }

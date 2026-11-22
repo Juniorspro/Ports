@@ -420,6 +420,13 @@ impl Red {
         self.pesos16 = vec![None; self.pasos.len()]; self.sombras = vec![Vec::new(); self.datos.len()];
     }
     /// (pruebas) las capas en float16 que tienen que pasar su entrada a float16 (porque no viene con copia): «paso: forma»
+    /// (para medir) en todos los tensores de la última corrida: cuántos valores son subnormales en float32, cuántos lo
+    /// serían en float16 (0 < |x| < 6,1e-5) y cuántos hay en total
+    pub fn subnormales(&self) -> (usize, usize, usize) {
+        let (mut a, mut b, mut n) = (0, 0, 0);
+        for t in &self.datos { for &x in t { n += 1; let v = x.abs(); if v > 0.0 && v < f32::MIN_POSITIVE { a += 1; } if v > 0.0 && v < 6.1e-5 { b += 1; } } }
+        (a, b, n)
+    }
     pub fn sin_sombra(&self) -> Vec<String> {
         let mut v = Vec::new();
         for (k, p) in self.pasos.iter().enumerate() {
@@ -959,6 +966,32 @@ mod ocho {
     /// la escala de un píxel (su máximo |x| / 127) y su inversa
     #[inline]
     fn escala(fila: &[f32]) -> (f32, f32) { let m = max_abs(fila); if m > 0.0 { (m / 127.0, 127.0 / m) } else { (1.0, 1.0) } }
+    /// una fila a 8 bits (× `inv`, redondeando al más cercano y los medios para afuera, como `f32::round`), con ceros
+    /// hasta el largo de `out`. En ARM de a 16 con NEON (FCVTAS + SQXTN): el común hacía unas 6 instrucciones por número,
+    /// y en las capas que achican (144 → 24 canales) eso costaba varias veces más que las multiplicaciones. Como
+    /// |x · inv| ≤ 127 siempre, la saturación de SQXTN nunca actúa: da lo mismo que el común.
+    #[inline]
+    fn cuantizar(fila: &[f32], inv: f32, out: &mut [i8]) {
+        let n = fila.len();
+        #[allow(unused_mut)]
+        let mut i = 0;
+        #[cfg(target_arch = "aarch64")]
+        unsafe {
+            use std::arch::aarch64::*;
+            let (pf, po) = (fila.as_ptr(), out.as_mut_ptr());
+            while i + 16 <= n {
+                let q = |k: usize| vcvtaq_s32_f32(vmulq_n_f32(vld1q_f32(pf.add(i + k)), inv));
+                let a = vcombine_s16(vqmovn_s32(q(0)), vqmovn_s32(q(4)));
+                let b = vcombine_s16(vqmovn_s32(q(8)), vqmovn_s32(q(12)));
+                vst1q_s8(po.add(i), vcombine_s8(vqmovn_s16(a), vqmovn_s16(b)));
+                i += 16;
+            }
+        }
+        for k in i..n { out[k] = (fila[k] * inv).round().clamp(-127.0, 127.0) as i8; }
+        out[n..].fill(0);
+    }
+    /// el largo que entra en la pila para una fila en 8 bits (las 1×1 de los modelos tienen hasta 1152 entradas)
+    const FILA: usize = 2048;
     /// los píxeles [p0, p1) de la entrada (float, [n][ci]) a 8 bits, cada uno con su escala (en `sa[p − p0]`),
     /// empaquetados de a 4 píxeles: para cada grupo de 4 entradas, 16 bytes (4 por píxel). Los píxeles de relleno del
     /// último bloque quedan en 0. `p0` múltiplo de 4.
@@ -971,10 +1004,10 @@ mod ocho {
                 if p < p0 || p >= p1 { for k4 in 0..nk4 { for j in 0..4 { dst[base + k4 * 16 + l * 4 + j] = 0; } } continue; }
                 let fila = &x[p * ci..(p + 1) * ci];
                 let (e, inv) = escala(fila); sa[p - p0] = e;
-                for k4 in 0..nk4 { for j in 0..4 {
-                    let k = k4 * 4 + j;
-                    dst[base + k4 * 16 + l * 4 + j] = if k < ci { (fila[k] * inv).round().clamp(-127.0, 127.0) as i8 } else { 0 };
-                } }
+                let mut q8 = [0i8; FILA]; let mut largo = Vec::new();
+                let q = if nk4 * 4 <= FILA { &mut q8[..nk4 * 4] } else { largo.resize(nk4 * 4, 0); &mut largo[..] };
+                cuantizar(fila, inv, q);
+                for k4 in 0..nk4 { dst[base + k4 * 16 + l * 4..][..4].copy_from_slice(&q[k4 * 4..k4 * 4 + 4]); }
             }
         }
     }
@@ -989,10 +1022,10 @@ mod ocho {
                 if p < p0 || p >= p1 { for kk in 0..nk { dst[base + kk * de * 4 + l * de..][..de].fill(0); } continue; }
                 let fila = &x[p * ci..(p + 1) * ci];
                 let (e, inv) = escala(fila); sa[p - p0] = e;
-                for kk in 0..nk {
-                    let d = &mut dst[base + kk * de * 4 + l * de..][..de];
-                    for j in 0..de { let k = kk * de + j; d[j] = if k < ci { (fila[k] * inv).round().clamp(-127.0, 127.0) as i8 } else { 0 }; }
-                }
+                let mut q8 = [0i8; FILA]; let mut largo = Vec::new();
+                let q = if nk * de <= FILA { &mut q8[..nk * de] } else { largo.resize(nk * de, 0); &mut largo[..] };
+                cuantizar(fila, inv, q);
+                for kk in 0..nk { dst[base + kk * de * 4 + l * de..][..de].copy_from_slice(&q[kk * de..kk * de + de]); }
             }
         }
     }

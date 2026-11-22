@@ -83,14 +83,14 @@ mod imp {
 
     /// el trabajo del momento: la función (puntero gordo guardado como dos números) y cuántos trozos tiene
     struct Comun {
+        /// el número de trabajo (los bits de arriba) y cuántos hilos participan, contando el que llama (los 8 de abajo):
+        /// juntos, para que un hilo lea los dos del mismo trabajo
         gen: AtomicU64,
         f0: AtomicUsize, f1: AtomicUsize,
         total: AtomicUsize,
         siguiente: AtomicUsize,
-        /// cuántos hilos terminaron con el trabajo actual (el que llama espera a que estén todos)
+        /// cuántos de los que participan terminaron con el trabajo actual (el que llama espera a que estén todos)
         listos: AtomicUsize,
-        /// cuántos hilos participan (los demás duermen hasta que se los vuelva a pedir)
-        activos: AtomicUsize,
         durmiendo: Vec<AtomicBool>,
         hilos: Mutex<Vec<Thread>>,
     }
@@ -157,7 +157,7 @@ mod imp {
         COMUN.get_or_init(|| {
             let c: &'static Comun = Box::leak(Box::new(Comun {
                 gen: AtomicU64::new(0), f0: AtomicUsize::new(0), f1: AtomicUsize::new(0), total: AtomicUsize::new(0),
-                siguiente: AtomicUsize::new(0), listos: AtomicUsize::new(0), activos: AtomicUsize::new(0),
+                siguiente: AtomicUsize::new(0), listos: AtomicUsize::new(0),
                 durmiendo: (0..MAX).map(|_| AtomicBool::new(false)).collect(), hilos: Mutex::new(Vec::new()),
             }));
             c
@@ -171,7 +171,7 @@ mod imp {
             let k = h.len();
             // (el número de trabajo se lee acá, antes de publicar el próximo: si lo leyera el hilo al arrancar, podría
             // perderse el primer trabajo y el que llama se quedaría esperándolo para siempre)
-            let visto = c.gen.load(Acquire);
+            let visto = c.gen.load(Acquire) >> 8;
             let t = thread::Builder::new().name(format!("jxhand-{}", k + 1)).spawn(move || trabajar(c, k, visto)).expect("hilo del motor");
             h.push(t.thread().clone());
         }
@@ -189,24 +189,35 @@ mod imp {
         }
     }
 
+    /// un hilo de trabajo (el k-ésimo; el que llama es el «hilo 0»). Participa en un trabajo sólo si k + 1 < los que
+    /// participan; si no, ni lo toca ni avisa, y sigue camino a dormirse. (Antes todos tenían que avisar en cada capa:
+    /// si alguna vez se pidieron 8 hilos y después se eligieron 5, los 3 de más seguían girando en cada capa y el que
+    /// llama los esperaba; en un celular de 8 núcleos eso dejaba a la cámara y al dibujo sin lugar. En la PC, con un hilo
+    /// de más, 81 ms por cuadro en vez de 19.)
     fn trabajar(c: &'static Comun, k: usize, mut visto: u64) {
+        afinar();
+        // esperar un trabajo nuevo: girando un rato, después cediendo el núcleo y al final durmiendo. El reloj vuelve a
+        // empezar sólo después de trabajar: uno que no participa se duerme a los 3 ms aunque haya trabajos para otros.
+        let mut t0 = Instant::now(); let mut vueltas = 0u32;
         loop {
-            afinar();
-            // esperar un trabajo nuevo: girando un rato, después cediendo el núcleo y al final durmiendo
-            let t0 = Instant::now(); let mut vueltas = 0u32;
-            loop {
-                let g = c.gen.load(Acquire);
-                if g != visto { visto = g; break; }
-                vueltas += 1;
-                if vueltas < 2000 { std::hint::spin_loop(); continue; }
-                if t0.elapsed() < Duration::from_millis(3) { thread::yield_now(); continue; }
-                c.durmiendo[k].store(true, SeqCst);
-                if c.gen.load(SeqCst) == visto { thread::park_timeout(Duration::from_millis(500)); }
-                c.durmiendo[k].store(false, SeqCst);
-                vueltas = 0;
+            let ga = c.gen.load(Acquire);
+            if ga >> 8 != visto {
+                visto = ga >> 8;
+                if k + 1 < (ga & 0xff) as usize {
+                    afinar();
+                    correr_trozos(c);
+                    c.listos.fetch_add(1, AcqRel);
+                    t0 = Instant::now(); vueltas = 0;
+                }
+                continue;
             }
-            if k + 1 < c.activos.load(Acquire) { correr_trozos(c); }
-            c.listos.fetch_add(1, AcqRel);
+            vueltas += 1;
+            if vueltas < 2000 { std::hint::spin_loop(); continue; }
+            if t0.elapsed() < Duration::from_millis(3) { thread::yield_now(); continue; }
+            c.durmiendo[k].store(true, SeqCst);
+            if c.gen.load(SeqCst) >> 8 == visto { thread::park_timeout(Duration::from_millis(500)); }
+            c.durmiendo[k].store(false, SeqCst);
+            vueltas = 0;
         }
     }
 
@@ -216,23 +227,41 @@ mod imp {
         let c = comun();
         let hilos = cuantos().min(n);
         asegurar(c, cuantos());
-        let todos = c.hilos.lock().unwrap().len();
         // SAFETY: el puntero gordo se guarda como dos números y se vuelve a armar en los hilos; ver `correr_trozos`
         let [f0, f1]: [usize; 2] = unsafe { std::mem::transmute::<&(dyn Fn(usize) + Sync), [usize; 2]>(f) };
         c.f0.store(f0, Release); c.f1.store(f1, Release); c.total.store(n, Release);
-        c.siguiente.store(0, Release); c.listos.store(0, Release); c.activos.store(hilos, Release);
-        c.gen.fetch_add(1, SeqCst);
+        c.siguiente.store(0, Release); c.listos.store(0, Release);
+        let g = (c.gen.load(Relaxed) >> 8) + 1;
+        c.gen.store((g << 8) | hilos as u64, SeqCst);
+        // (se despiertan sólo los que participan)
         {
             let h = c.hilos.lock().unwrap();
-            for (k, t) in h.iter().enumerate() { if c.durmiendo[k].load(SeqCst) { t.unpark(); } }
+            for (k, t) in h.iter().enumerate().take(hilos - 1) { if c.durmiendo[k].load(SeqCst) { t.unpark(); } }
         }
         correr_trozos(c);
-        // todos los hilos (también los que no participan) avisan que vieron este trabajo: así ninguno puede quedar
-        // leyendo la función cuando volvemos
+        // los que participan avisan que terminaron: así ninguno puede quedar corriendo la función cuando volvemos (los
+        // que no participan no la leen nunca)
         let mut vueltas = 0u32;
-        while c.listos.load(Acquire) < todos {
+        while c.listos.load(Acquire) < hilos - 1 {
             vueltas += 1;
             if vueltas < 100_000 { std::hint::spin_loop(); } else { thread::yield_now(); }
+        }
+    }
+}
+
+#[cfg(test)]
+mod prueba_reparto {
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+    // muchos repartos seguidos cambiando cuántos hilos (como hace AutoHilos): cada trozo corre una sola vez, ninguno
+    // se pierde y nada se traba (también con más hilos que núcleos)
+    #[test]
+    fn muchos_repartos() {
+        for vuelta in 0..20_000usize {
+            if vuelta % 500 == 0 { super::configurar(1 + (vuelta / 500) % 8); }
+            let n = 1 + vuelta % 37;
+            let cuenta: Vec<AtomicUsize> = (0..n).map(|_| AtomicUsize::new(0)).collect();
+            super::repartir(n, &|i| { cuenta[i].fetch_add(1, Relaxed); });
+            assert!(cuenta.iter().all(|c| c.load(Relaxed) == 1), "vuelta {}", vuelta);
         }
     }
 }
