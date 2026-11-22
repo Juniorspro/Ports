@@ -4,7 +4,8 @@
 // versiones nuevas de JXMod y de Stickerazo, y le cuenta a cada uno qué pasó con el bug o la idea que mandó.
 // Comandos: /jxmod, /stickerazo, /estado (quién está jugando ahora), /bug y /sugerencia (un formulario que cae en «Bugs y
 // sugerencias» del juego, el mismo panel), y para los admins /configurar (canal de anuncios, roles y AutoMod de Discord:
-// insultos, contenido sexual, spam y menciones en masa), /roles (los botones para ponerse los roles) y /anunciar.
+// insultos, contenido sexual, spam y menciones en masa), /roles (los botones para ponerse los roles), /anunciar y
+// /memoria (enseñarle cosas a la IA: agregar, ver, borrar; ver discord_ia.js).
 // Ser admin del bot no depende de los permisos de Discord: hay que mandarle el código con /admin (un formulario que no
 // queda en el chat). Queda guardado por persona y por servidor; 5 intentos fallidos por hora como mucho; si el código
 // cambia, los habilitados con el anterior dejan de serlo.
@@ -12,7 +13,7 @@
 // DISCORD_ADMIN_CODE (secretos: wrangler secret put …). Sin los tres primeros, /api/discord/ contesta 503 y el cron no
 // hace nada; sin el código, los comandos de admin no andan.
 import { tablas, postNuevo } from './panel.js';
-import { respuestaIA } from './discord_ia.js';
+import { respuestaIA, memoriaAgregar, memoriaBorrar, memoriaLista } from './discord_ia.js';
 
 const API = 'https://discord.com/api/v10';
 const REPO = 'https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/';
@@ -177,6 +178,12 @@ async function comando(env, it, ctx) {
     return msg({ embeds: [{ title: 'Elegí tus roles', color: ROSA, description: 'Tocá para ponerte o sacarte un rol.\n**Avisos de versiones**: te menciono cuando sale algo nuevo.' }],
       components: [{ type: 1, components: ROLES.map(([k, nom]) => ({ type: 2, style: k === 'avisos' ? 1 : 2, label: nom, custom_id: 'rol:' + k })) }] });
   }
+  if (n === 'memoria') {
+    const sub = (it.data.options || [])[0] || {}, op = Object.fromEntries((sub.options || []).map((o) => [o.name, o.value]));
+    if (sub.name === 'agregar') return efimero((await memoriaAgregar(env, usuarioDe(it).id, op.texto)).texto);
+    if (sub.name === 'borrar') return efimero((await memoriaBorrar(env, op.numero)).texto);
+    return efimero(await memoriaLista(env));
+  }
   if (n === 'anunciar') {
     const op = Object.fromEntries((it.data.options || []).map((o) => [o.name, o.value]));
     const c = await conf(env, g); const r = c && c.roles ? JSON.parse(c.roles) : {};
@@ -324,4 +331,8 @@ export const COMANDOS = [
     { type: 3, name: 'titulo', description: 'El título', required: true, max_length: 250 },
     { type: 3, name: 'texto', description: 'El texto', required: true, max_length: 3800 },
     { type: 5, name: 'avisar', description: 'Mencionar al rol «Avisos de versiones»' }] },
+  { name: 'memoria', description: 'Admins (con código): enseñarle cosas a JXBot para que las use al charlar', dm_permission: true, contexts: [0, 1], options: [
+    { type: 1, name: 'agregar', description: 'Un dato nuevo (lo usa para contestarle a todos)', options: [{ type: 3, name: 'texto', description: 'El dato, por ejemplo: «JXApps es…»', required: true, max_length: 1000 }] },
+    { type: 1, name: 'ver', description: 'Todo lo que le enseñaron, con su número' },
+    { type: 1, name: 'borrar', description: 'Olvidar un dato', options: [{ type: 4, name: 'numero', description: 'El número del dato (de /memoria ver)', required: true, min_value: 1 }] }] },
 ];

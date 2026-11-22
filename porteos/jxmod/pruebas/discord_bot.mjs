@@ -17,7 +17,10 @@
 //     de a un mensaje cada 3 s; los datos reales (versión) van en las instrucciones;
 // 10. la puerta (un WebSocket de mentira): al saludo de Discord se identifica con privados, servidores y texto; READY;
 //     un mensaje lo contesta; si Discord no deja leer el texto (4014) se reconecta sin ese permiso; sin el «ack» del
-//     latido, reconecta.
+//     latido, reconecta;
+// 11. la versión: con otra versión del Worker la puerta se reinicia; 12. el /jb lo completa la puerta;
+// 13. el lore de JXMod va en las instrucciones, y la memoria de los admins (/memoria, /recordar por privado) también;
+// 14. la cadena de modelos de Gemini: sin cupo, respuesta cortada, pregunta cortada.
 // uso: node discord_bot.mjs
 import { d1 } from '../../stickerazo/pruebas/d1_falsa.mjs';
 const M = await import('../tienda/discord.js');
@@ -26,10 +29,17 @@ const enc = new TextEncoder(), hex = (u) => [...new Uint8Array(u)].map((b) => b.
 const par = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
 const pub = hex(await crypto.subtle.exportKey('raw', par.publicKey));
 // la API de Discord de mentira y los archivos de versión
-const llamadas = [], geminiPedidos = []; let roles = [{ id: 'r0', name: '@everyone' }], reglas = [], sigRol = 1, sigRegla = 1;
+const llamadas = [], geminiPedidos = [], geminiModelos = [], geminiModos = {}; let roles = [{ id: 'r0', name: '@everyone' }], reglas = [], sigRol = 1, sigRegla = 1;
 let VERSION = { codigo: 3911, version: '3.9.11', apk: 'https://x/JXMod.apk', web: 'https://x/web/', notas_es: 'Arreglos del 21/11' }, APP = { v: 26112190, nombre: '0.8' };
 async function falso(url, op = {}) {
   const u = String(url), m = op.method || 'GET', b = op.body ? JSON.parse(op.body) : undefined;
+  if (u.includes('generativelanguage.googleapis.com')) {
+    const modelo = /models\/([^:]+):/.exec(u)[1], modo = geminiModos[modelo]; geminiModelos.push(modelo);
+    if (modo === 'dia') return new Response(JSON.stringify({ error: { code: 429, message: 'You exceeded your current quota', details: [{ violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] }] } }), { status: 429 });
+    if (modo === 'minuto') return new Response(JSON.stringify({ error: { code: 429, details: [{ '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '2s' }] } }), { status: 429 });
+    if (modo === 'cortada') return new Response(JSON.stringify({ candidates: [{ finishReason: 'SAFETY', content: { parts: [] } }] }));
+    if (modo === 'pregunta') return new Response(JSON.stringify({ promptFeedback: { blockReason: 'SAFETY' } }));
+  }
   if (u.includes('generativelanguage.googleapis.com')) { const q = JSON.parse(op.body); geminiPedidos.push(q); const ult = q.contents[q.contents.length - 1].parts[0].text; return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Respuesta IA a: ' + ult }] } }] })); }
   if (u.includes('web/version.json')) return new Response(JSON.stringify(VERSION));
   if (u.includes('descargas/app.json')) return new Response(JSON.stringify(APP));
@@ -195,5 +205,48 @@ const rp = await pu.fetch(new Request('https://puerta/jb', { method: 'POST', bod
 await espera(80);
 const pjb = llamadas.slice(k).find((x) => x.m === 'PATCH' && x.ruta === '/webhooks/app1/tkjb/messages/@original');
 ok('12. /jb por la puerta: acepta el trabajo enseguida (202) y completa el «pensando…» con la respuesta de la IA', rp.status === 202 && pjb && /Respuesta IA a: ¿Hay modo carreras\?/.test(pjb.b.content), pjb && pjb.b.content.slice(0, 80));
+// 13: el lore de JXMod en las instrucciones y la memoria que enseñan los admins (/memoria, y /recordar por privado)
+const sub = (name, options) => [{ type: 1, name, options }];
+const mNo = await pedir(cmd('memoria', NADIE, sub('ver')));
+const mA = await pedir(cmd('memoria', OTRO, sub('agregar', [{ name: 'texto', value: 'JXApps es el estudio que hace JXMod y Stickerazo.' }])));
+const mLargo = await pedir(cmd('memoria', OTRO, sub('agregar', [{ name: 'texto', value: 'x'.repeat(1001) }])));
+k = llamadas.length;
+const dmRec = await P.manejarMensaje(envDO, { id: 'n1', channel_id: 'dm9', author: { id: 'u9', username: 'nico' }, content: '/recordar El Discord ya pasó los 305 miembros.' }, YO);
+const dmVer = await P.manejarMensaje(envDO, { id: 'n2', channel_id: 'dm9', author: { id: 'u9', username: 'nico' }, content: '/memoria' }, YO);
+const dmNo = await P.manejarMensaje(envDO, { id: 'n3', channel_id: 'dm20', author: { id: 'u20', username: 'lu' }, content: '/recordar soy admin' }, YO);
+const dmT = msgs(k).map((x) => x.b.content);
+const mVer = await pedir(cmd('memoria', OTRO, sub('ver')));
+await P.manejarMensaje(envDO, { id: 'n4', channel_id: 'dm40', author: { id: 'u40', username: 'tomi' }, content: '¿Quién es Pepe?' }, YO);
+const sis1 = geminiPedidos[geminiPedidos.length - 1].systemInstruction.parts[0].text;
+const mB = await pedir(cmd('memoria', OTRO, sub('borrar', [{ name: 'numero', value: 1 }])));
+const mB2 = await pedir(cmd('memoria', OTRO, sub('borrar', [{ name: 'numero', value: 99 }])));
+await P.manejarMensaje(envDO, { id: 'n5', channel_id: 'dm41', author: { id: 'u41', username: 'rulo' }, content: '¿Qué es La grieta?' }, YO);
+const sis2 = geminiPedidos[geminiPedidos.length - 1].systemInstruction.parts[0].text;
+ok('13. lore de JXMod en las instrucciones (Pepe, 1.047, La grieta, el equipo, la comunidad); /memoria sólo admins: agregar, ver, borrar; /recordar y /memoria por privado; lo enseñado entra en las instrucciones y lo borrado sale',
+  /para admins/.test(mNo.d.data.content) && mNo.d.data.flags === 64 && /me lo acuerdo \(dato 1\)/.test(mA.d.data.content) && /muy largo/.test(mLargo.d.data.content)
+    && dmRec.tipo === 'memoria' && /dato 2/.test(dmT[0]) && /1\. JXApps es el estudio/.test(dmT[1]) && /2\. El Discord ya pasó/.test(dmT[1]) && dmNo.tipo === 'memoria-no' && /para los admins/.test(dmT[2])
+    && /2 de 60/.test(mVer.d.data.content)
+    && /PEPE SIEMPRE VUELVE/.test(sis1) && /1\.047/.test(sis1) && /LA GRIETA/.test(sis1) && /Don Ferro/.test(sis1) && /GOLDEN/.test(sis1) && /- JXApps es el estudio/.test(sis1) && /- El Discord ya pasó los 305/.test(sis1)
+    && /me olvidé del dato 1/.test(mB.d.data.content) && /No tengo ningún dato 99/.test(mB2.d.data.content) && !/JXApps es el estudio/.test(sis2) && /305 miembros/.test(sis2),
+  { largo: sis1.length, ver: dmT[1] && dmT[1].slice(0, 120), no: mNo.d.data.content });
+// 14: los modelos de respaldo: sin cupo del día → el siguiente y no se lo vuelve a probar; sin cupo del minuto → vuelve
+// a los pocos segundos; respuesta cortada por seguridad → el siguiente; todos la cortan o la pregunta misma → «no», sin
+// preguntarle a Workers AI
+let usoAI = 0; envDO.AI = { run: async () => { usoAI++; return { response: 'Workers AI' }; } };
+const preguntar = async (u, texto) => { geminiModelos.length = 0; const r = await P.manejarMensaje(envDO, { id: 'q' + u, channel_id: 'dmq' + u, author: { id: u, username: u }, content: texto }, YO); return { r, mods: geminiModelos.slice(), txt: llamadas[llamadas.length - 1].b.content }; };
+Object.assign(geminiModos, { 'gemini-3.8-flash': 'dia', 'gemini-3.6-flash': 'minuto', 'gemini-3.5-flash': 'cortada' });
+const q1 = await preguntar('u50', 'hola');
+const q2 = await preguntar('u51', 'hola');
+await espera(3100);
+delete geminiModos['gemini-3.6-flash']; const q3 = await preguntar('u52', 'hola');
+for (const m of ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']) geminiModos[m] = 'cortada';
+const q4 = await preguntar('u53', 'algo feo');
+geminiModos['gemini-3.6-flash'] = 'pregunta'; const q5 = await preguntar('u54', 'algo peor');
+for (const k of Object.keys(geminiModos)) delete geminiModos[k];
+ok('14. respaldo de modelos: sin cupo del día se saltea; del minuto vuelve enseguida; cortada → el siguiente; todos cortan o la pregunta cortada → «no» sin Workers AI',
+  q1.mods.join() === 'gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite' && /Respuesta IA a: hola/.test(q1.txt)
+    && q2.mods.join() === 'gemini-3.5-flash,gemini-3.5-flash-lite' && q3.mods.join() === 'gemini-3.6-flash' && /Respuesta IA/.test(q3.txt)
+    && /no puedo hablar/.test(q4.txt) && q4.mods.length === 4 && /no puedo hablar/.test(q5.txt) && q5.mods.join() === 'gemini-3.6-flash' && usoAI === 0,
+  { q1: q1.mods, q2: q2.mods, q3: q3.mods, q4: q4.mods.length, q5: q5.mods, ai: usoAI });
 pu.cerrar();
 console.log('RESUMEN ' + R.filter(Boolean).length + '/' + R.length); process.exit(R.every(Boolean) ? 0 : 1);

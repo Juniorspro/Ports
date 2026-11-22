@@ -4,14 +4,15 @@
 // late (heartbeat), se identifica y, cuando llega un mensaje, contesta con la IA (discord_ia.js):
 //   · por mensaje privado al bot: todo; «/admin CÓDIGO» lo reconoce como admin (vale en todos los servidores);
 //   · en un servidor: si empieza con /JB (o /jb), si lo mencionan o si le responden a un mensaje suyo;
-//   · si alguien escribe «/admin CÓDIGO» en un canal (a la vista de todos), no lo toma, intenta borrarlo y avisa.
+//   · si alguien escribe «/admin CÓDIGO» en un canal (a la vista de todos), no lo toma, intenta borrarlo y avisa;
+//   · por privado, un admin le enseña con «/recordar DATO», mira con «/memoria» y borra con «/olvidar N».
 // Si se corta, una alarma cada minuto (y el cron de cada 10) la vuelve a abrir. Si Discord no deja leer el texto de
 // los mensajes (el permiso «Message Content»), se conecta sin él: andan los privados y las menciones.
 // Versiones: Cloudflare no reinicia enseguida un Durable Object que nunca está quieto, así que después de subir código
 // nuevo la puerta seguía con el viejo. Por eso el Worker le pasa su versión (?v=) cada vez que le habla (el cron cada 10
 // min y GET /api/discord/puerta); si no es la de la puerta, cierra la conexión y se reinicia (state.abort).
 import { dc, probarCodigo, esAdminDe, contestarJB } from './discord.js';
-import { respuestaIA } from './discord_ia.js';
+import { respuestaIA, memoriaAgregar, memoriaBorrar, memoriaLista } from './discord_ia.js';
 
 const GATEWAY = 'https://gateway.discord.gg/?v=10&encoding=json';
 const GUILD_MESSAGES = 1 << 9, DIRECT_MESSAGES = 1 << 12, MESSAGE_CONTENT = 1 << 15;
@@ -33,6 +34,15 @@ export async function manejarMensaje(env, m, yo) {
     await dc(env, 'DELETE', `/channels/${m.channel_id}/messages/${m.id}`, undefined, 'JXBot: código escrito en público').catch(() => {});
     await responder('No escribas el código en un canal: lo ve todo el mundo. Mandámelo por mensaje privado (o con /admin, que no lo ve nadie). Si ya lo leyó alguien, conviene cambiarlo.');
     return { tipo: 'admin-publico' };
+  }
+  // la memoria (por privado, sólo admins)
+  const me = dm && /^\/(recordar|memoria|olvidar)\b\s*(.*)$/is.exec(t);
+  if (me) {
+    if (!(await esAdminDe(env, m.author.id, null))) { await responder('Eso es para los admins del bot.'); return { tipo: 'memoria-no' }; }
+    const que = me[1].toLowerCase(), resto = me[2].trim();
+    const r = que === 'recordar' ? (await memoriaAgregar(env, m.author.id, resto)).texto
+      : que === 'olvidar' ? (await memoriaBorrar(env, parseInt(resto, 10))).texto : await memoriaLista(env);
+    await responder(r); return { tipo: 'memoria' };
   }
   if (!t) { await responder('¿Qué me querés preguntar? Escribí /JB y lo que quieras, o mencioname.'); return { tipo: 'vacio' }; }
   dc(env, 'POST', `/channels/${m.channel_id}/typing`).catch(() => {});
