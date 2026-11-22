@@ -7,8 +7,19 @@
 //!
 //! En WebAssembly no hay hilos: todo corre en el que llama.
 
-/// cuántos hilos usa el motor (contando el que llama)
-pub fn cuantos() -> usize { imp::cuantos() }
+thread_local! { static SOLO: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+
+/// cuántos hilos usa el motor (contando el que llama); 1 en un hilo marcado con `solo_este_hilo`
+pub fn cuantos() -> usize { if SOLO.with(|x| x.get()) { 1 } else { imp::cuantos() } }
+
+/// que lo que corra en este hilo no use el grupo de hilos (para el detector que busca manos de fondo: así no le
+/// quita los núcleos al cuadro de ahora)
+pub fn solo_este_hilo(s: bool) { SOLO.with(|x| x.set(s)) }
+
+/// los núcleos chicos (de bajo consumo): ahí corre lo que va de fondo. 0 = donde quiera el sistema.
+pub fn fijar_chicos(mascara: u64) { imp::fijar_chicos(mascara) }
+/// pone el hilo actual en los núcleos chicos (si se conocen)
+pub fn ir_a_chicos() { imp::ir_a_chicos() }
 
 /// fija cuántos hilos usar (1 = sin hilos). Se puede llamar cuando sea: los hilos de más se quedan dormidos.
 pub fn configurar(n: usize) { imp::configurar(n) }
@@ -40,6 +51,8 @@ mod imp {
     pub fn cuantos() -> usize { 1 }
     pub fn configurar(_: usize) {}
     pub fn fijar_nucleos(_: u64) {}
+    pub fn fijar_chicos(_: u64) {}
+    pub fn ir_a_chicos() {}
     pub fn repartir(n: usize, f: &(dyn Fn(usize) + Sync)) { for i in 0..n { f(i); } }
 }
 
@@ -71,7 +84,19 @@ mod imp {
     const MAX: usize = 16;
 
     static MASCARA: AtomicU64 = AtomicU64::new(0);
+    static CHICOS: AtomicU64 = AtomicU64::new(0);
     pub fn fijar_nucleos(m: u64) { MASCARA.store(m, Relaxed); }
+    pub fn fijar_chicos(m: u64) { CHICOS.store(m, Relaxed); }
+    pub fn ir_a_chicos() {
+        let m = CHICOS.load(Relaxed);
+        if m == 0 { return; }
+        #[cfg(target_os = "android")]
+        unsafe {
+            extern "C" { fn sched_setaffinity(pid: i32, tam: usize, mascara: *const u64) -> i32; }
+            let mut conj = [0u64; 16]; conj[0] = m;
+            sched_setaffinity(0, std::mem::size_of_val(&conj), conj.as_ptr());
+        }
+    }
     thread_local! { static AFINADO: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
     /// pone el hilo actual en los núcleos pedidos (una vez por hilo y por máscara)
     fn afinar() {

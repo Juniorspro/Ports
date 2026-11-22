@@ -43,13 +43,19 @@ pub fn recortar(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, replicar
     let paso = roi.lado / tam as f32;
     // (sólo desde 2 píxeles de imagen por píxel de recorte)
     let n = if promediar && PROMEDIAR.load(std::sync::atomic::Ordering::Relaxed) && paso >= 2.0 { (paso.floor() as usize).clamp(2, 3) } else { 1 };
-    if n >= 2 { return recortar_promediando(rgba, w, h, roi, tam, replicar, dst, n); }
-    recortar_bilineal(rgba, w, h, roi, tam, replicar, dst)
+    // (repartido por filas entre los núcleos: cada trozo escribe sus filas del recorte)
+    let pd = crate::hilos::Puntero(dst.as_mut_ptr());
+    let filas = if crate::hilos::cuantos() > 1 { tam.div_ceil(crate::hilos::cuantos() * 2) } else { tam };
+    crate::hilos::repartir(tam.div_ceil(filas), &|k| {
+        let (v0, v1) = (k * filas, ((k + 1) * filas).min(tam));
+        let parte = unsafe { pd.parte(v0 * tam * 3, (v1 - v0) * tam * 3) };
+        if n >= 2 { recortar_promediando(rgba, w, h, roi, tam, replicar, parte, n, v0, v1) } else { recortar_bilineal(rgba, w, h, roi, tam, replicar, parte, v0, v1) }
+    });
 }
 pub static PROMEDIAR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
 #[allow(clippy::too_many_arguments)]
-fn recortar_promediando(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, replicar: bool, dst: &mut [f32], n: usize) {
+fn recortar_promediando(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, replicar: bool, dst: &mut [f32], n: usize, va: usize, vb: usize) {
     let (c, s) = (roi.ang.cos(), roi.ang.sin());
     let paso = roi.lado / tam as f32;
     let (ux, uy) = (c * paso, s * paso);
@@ -65,9 +71,9 @@ fn recortar_promediando(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, 
         subs[j * n + i] = (ux * a + vx * b, uy * a + vy * b);
     } }
     let subs = &subs[..n * n];
-    for v in 0..tam {
+    for v in va..vb {
         let (mut x, mut y) = (x00 + vx * v as f32, y00 + vy * v as f32);
-        let fila = &mut dst[v * tam * 3..(v + 1) * tam * 3];
+        let fila = &mut dst[(v - va) * tam * 3..(v - va + 1) * tam * 3];
         for u in 0..tam {
             let o = &mut fila[u * 3..u * 3 + 3];
             let (cx, cy) = (x + (ux + vx) * 0.5, y + (uy + vy) * 0.5);
@@ -88,7 +94,8 @@ fn recortar_promediando(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, 
     }
 }
 
-fn recortar_bilineal(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, replicar: bool, dst: &mut [f32]) {
+#[allow(clippy::too_many_arguments)]
+fn recortar_bilineal(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, replicar: bool, dst: &mut [f32], va: usize, vb: usize) {
     let (c, s) = (roi.ang.cos(), roi.ang.sin());
     let paso = roi.lado / tam as f32;
     let (ux, uy) = (c * paso, s * paso); // una columna del recorte en la imagen
@@ -97,9 +104,9 @@ fn recortar_bilineal(rgba: &[u8], w: usize, h: usize, roi: &Roi, tam: usize, rep
     let y00 = roi.cy - (uy + vy) * (tam as f32 * 0.5 - 0.5) - 0.5;
     let (wm, hm) = (w as f32 - 1.0, h as f32 - 1.0);
     let k = 1.0 / 255.0;
-    for v in 0..tam {
+    for v in va..vb {
         let (mut x, mut y) = (x00 + vx * v as f32, y00 + vy * v as f32);
-        let fila = &mut dst[v * tam * 3..(v + 1) * tam * 3];
+        let fila = &mut dst[(v - va) * tam * 3..(v - va + 1) * tam * 3];
         for u in 0..tam {
             let o = &mut fila[u * 3..u * 3 + 3];
             if !replicar && (x < -0.5 || y < -0.5 || x > wm + 0.5 || y > hm + 0.5) { o[0] = 0.0; o[1] = 0.0; o[2] = 0.0; }

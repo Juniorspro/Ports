@@ -66,8 +66,13 @@ fn nucleos_grandes() -> (usize, u64) {
     }
     let tope = f.iter().copied().max().unwrap_or(0);
     if tope == 0 { return (hilos::cuantos().clamp(1, 4), 0); }
-    let mut mascara = 0u64; let mut n = 0;
-    for (i, &v) in f.iter().enumerate() { if v as f64 >= tope as f64 * 0.8 { mascara |= 1 << i; n += 1; } }
+    let (mut mascara, mut chicos) = (0u64, 0u64); let mut n = 0;
+    for (i, &v) in f.iter().enumerate() {
+        if v == 0 { continue; }
+        if v as f64 >= tope as f64 * 0.8 { mascara |= 1 << i; n += 1; } else { chicos |= 1 << i; }
+    }
+    // (el detector que busca manos de fondo va a los chicos, si hay)
+    hilos::fijar_chicos(chicos);
     (n.clamp(2, 4), mascara)
 }
 

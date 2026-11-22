@@ -35,6 +35,10 @@ pub struct Red {
     pesos16: Vec<Option<Vec<u16>>>,
     /// la entrada de la capa pasada a float16 (se reusa)
     tmp16: Vec<u16>,
+    /// copia en float16 de los tensores que sólo leen capas en float16 (los grandes, «expandidos»): la escribe la capa
+    /// que los produce, cuando la salida todavía está en la caché, y las siguientes la leen directo (sin otra pasada
+    /// para convertir). Vacía si el tensor no la tiene.
+    sombras: Vec<Vec<u16>>,
 }
 
 /// si se usan las cuentas en float16 cuando el procesador las tiene (para comparar: se puede apagar)
@@ -198,13 +202,39 @@ impl Red {
                         w16 = Some(v);
                     }
                 }
+                // las depthwise: [kh·kw][canales], como vienen
+                if let Paso::Depthwise { s, w, kh, kw, mult: 1, .. } = p {
+                    let co = forma4(&formas[*s])[3];
+                    if co % 8 == 0 && kh * kw <= 64 { w16 = Some(datos[*w].iter().map(|&x| a_f16(x)).collect()); }
+                }
             }
             pesos16.push(w16);
         }
-        Ok(Red { formas, datos, pasos, entradas: m.entradas, salidas: m.salidas, pesos16, tmp16: Vec::new() })
+        // qué tensores tienen copia en float16: los produce una capa en float16 y sólo los leen capas en float16 (por su
+        // entrada principal), con los canales en múltiplos de 8, y no son una salida de la red
+        let mut sombras: Vec<Vec<u16>> = vec![Vec::new(); datos.len()];
+        if hay_f16() {
+            let entradas_de = |p: &Paso| -> Vec<usize> { match p {
+                Paso::Conv { e, .. } | Paso::Depthwise { e, .. } | Paso::MaxPool { e, .. } | Paso::Copiar { e, .. } | Paso::Resize { e, .. } | Paso::Fc { e, .. }
+                | Paso::Pad { e, .. } | Paso::Logistic { e, .. } | Paso::Prelu { e, .. } | Paso::Relu { e, .. } | Paso::Mean { e, .. } => vec![*e],
+                Paso::Add { a, b, .. } | Paso::Mul { a, b, .. } => vec![*a, *b],
+                Paso::Concat { e, .. } => e.clone(),
+            } };
+            for (k, p) in pasos.iter().enumerate() {
+                if pesos16[k].is_none() { continue; }
+                let t = salida_de(p);
+                if m.salidas.contains(&t) || forma4(&formas[t])[3] % 8 != 0 { continue; }
+                let lectores: Vec<usize> = (0..pasos.len()).filter(|&j| entradas_de(&pasos[j]).contains(&t)).collect();
+                let ok = !lectores.is_empty() && lectores.iter().all(|&j| pesos16[j].is_some() && matches!(&pasos[j], Paso::Conv { e, .. } | Paso::Depthwise { e, .. } if *e == t));
+                if ok { sombras[t] = vec![0u16; datos[t].len()]; }
+            }
+        }
+        Ok(Red { formas, datos, pasos, entradas: m.entradas, salidas: m.salidas, pesos16, tmp16: Vec::new(), sombras })
     }
 
     pub fn forma(&self, t: usize) -> &[usize] { &self.formas[t] }
+    /// (capas en float16, tensores con copia en float16)
+    pub fn cuentas16(&self) -> (usize, usize) { (self.pesos16.iter().filter(|p| p.is_some()).count(), self.sombras.iter().filter(|s| !s.is_empty()).count()) }
     /// (n, ci, co) de cada convolución 1×1 y las operaciones totales (multiplicación + suma = 2) por tipo
     pub fn cuentas(&self) -> (Vec<(usize, usize, usize)>, f64, f64) {
         let (mut l, mut g, mut otras) = (Vec::new(), 0f64, 0f64);
@@ -223,12 +253,16 @@ impl Red {
 
     /// corre la red sobre lo que ya está cargado en la entrada
     pub fn correr(&mut self) {
+        // (se decide una vez por corrida: así una capa no lee una copia en float16 vieja si se cambia en el medio)
+        let f16 = f16_activo();
         for k in 0..self.pasos.len() {
             // (cada paso lee unos tensores y escribe otro: se saca la salida un momento para tener las dos cosas a la vez)
             let s = salida_de(&self.pasos[k]);
             let mut out = std::mem::take(&mut self.datos[s]);
             let mut t16 = std::mem::take(&mut self.tmp16);
-            self.paso(k, &mut out, &mut t16);
+            let mut s16 = std::mem::take(&mut self.sombras[s]);
+            self.paso(k, &mut out, &mut t16, &mut s16, f16);
+            self.sombras[s] = s16;
             self.tmp16 = t16;
             self.datos[s] = out;
         }
@@ -247,7 +281,9 @@ impl Red {
             let s = salida_de(&self.pasos[k]);
             let mut out = std::mem::take(&mut self.datos[s]);
             let mut t16 = std::mem::take(&mut self.tmp16);
-            let t0 = std::time::Instant::now(); self.paso(k, &mut out, &mut t16); let d = t0.elapsed().as_secs_f64() * 1e3;
+            let mut s16 = std::mem::take(&mut self.sombras[s]);
+            let t0 = std::time::Instant::now(); self.paso(k, &mut out, &mut t16, &mut s16, f16_activo()); let d = t0.elapsed().as_secs_f64() * 1e3;
+            self.sombras[s] = s16;
             self.tmp16 = t16;
             self.datos[s] = out;
             let e = t.entry(nombre).or_insert((0.0, 0)); e.0 += d; e.1 += 1;
@@ -257,7 +293,8 @@ impl Red {
     }
 
     #[cfg_attr(not(target_arch = "aarch64"), allow(unused_variables))]
-    fn paso(&self, k: usize, out: &mut [f32], t16: &mut Vec<u16>) {
+    #[allow(clippy::too_many_arguments)]
+    fn paso(&self, k: usize, out: &mut [f32], t16: &mut Vec<u16>, s16: &mut [u16], f16: bool) {
         let d = &self.datos; let f = &self.formas;
         match &self.pasos[k] {
             Paso::Conv { e, s, w, b, kh, kw, paso, dil, pad, act } => {
@@ -266,21 +303,26 @@ impl Red {
                 let (ci, co) = (fe[3], fs[3]);
                 let po = Puntero(out.as_mut_ptr());
                 #[cfg(target_arch = "aarch64")]
-                if let (Some(w16), true) = (self.pesos16[k].as_ref(), f16_activo()) {
-                    // 1×1 en float16: cada trozo pasa sus filas de la entrada a float16 y multiplica de a 8 por instrucción
+                if let (Some(w16), true) = (self.pesos16[k].as_ref(), f16) {
+                    // 1×1 en float16: cada trozo pasa sus filas de la entrada a float16 (si no vienen ya en float16) y
+                    // multiplica de a 8 por instrucción; si la salida tiene copia en float16, la escribe ahí mismo
                     let n = fs[1] * fs[2]; let ci8 = ci.div_ceil(8) * 8;
-                    if t16.len() < n * ci8 { t16.resize(n * ci8, 0); }
-                    let p16 = PunteroU16(t16.as_mut_ptr());
+                    let entrada16 = &self.sombras[*e];
+                    let ya16 = !entrada16.is_empty() && ci8 == ci;
+                    if !ya16 && t16.len() < n * ci8 { t16.resize(n * ci8, 0); }
+                    let p16 = if ya16 { PunteroU16(entrada16.as_ptr() as *mut u16) } else { PunteroU16(t16.as_mut_ptr()) };
+                    let ps16 = PunteroU16(s16.as_mut_ptr()); let con_sombra = !s16.is_empty();
                     let filas = filas_por_trozo(n, n * ci * co, 4);
                     let pw16 = w16.as_ptr() as usize;
                     hilos::repartir(n.div_ceil(filas), &|t| {
                         let (p0, p1) = (t * filas, ((t + 1) * filas).min(n));
                         unsafe {
                             let x16 = p16.p().add(p0 * ci8);
-                            for q in p0..p1 { neon16::a_medio(x.as_ptr().add(q * ci), p16.p().add(q * ci8), ci, ci8); }
+                            if !ya16 { for q in p0..p1 { neon16::a_medio(x.as_ptr().add(q * ci), p16.p().add(q * ci8), ci, ci8); } }
                             let o = po.parte(p0 * co, (p1 - p0) * co);
                             neon16::gemm(x16, ci8, pw16 as *const u16, co, b.as_ptr(), o.as_mut_ptr(), p1 - p0);
                             activar_todo(o, act);
+                            if con_sombra { neon16::a_medio(o.as_ptr(), ps16.p().add(p0 * co), (p1 - p0) * co, (p1 - p0) * co); }
                         }
                     });
                     return;
@@ -310,6 +352,36 @@ impl Red {
                 let (fe, fs) = (forma4(&f[*e]), forma4(&f[*s]));
                 let (x, w, b, act) = (&d[*e][..], &d[*w][..], &d[*b][..], *act);
                 let po = Puntero(out.as_mut_ptr());
+                #[cfg(target_arch = "aarch64")]
+                if let (Some(w16), true, 1) = (self.pesos16[k].as_ref(), f16, *mult) {
+                    // en float16: la entrada en float16 (si no viene ya así, toda, por filas y en paralelo), después cada
+                    // trozo de filas de la salida con las sumas en registros, de a 32 canales
+                    let (h, wd, c) = (fe[1], fe[2], fe[3]);
+                    let n_in = h * wd * c;
+                    let entrada16 = &self.sombras[*e];
+                    let p16 = if !entrada16.is_empty() { PunteroU16(entrada16.as_ptr() as *mut u16) } else {
+                        if t16.len() < n_in { t16.resize(n_in, 0); }
+                        let p16 = PunteroU16(t16.as_mut_ptr());
+                        let fe_ = filas_por_trozo(h, n_in * 2, 1);
+                        hilos::repartir(h.div_ceil(fe_), &|t| {
+                            let (a, z) = (t * fe_, ((t + 1) * fe_).min(h));
+                            unsafe { neon16::a_medio(x.as_ptr().add(a * wd * c), p16.p().add(a * wd * c), (z - a) * wd * c, (z - a) * wd * c); }
+                        });
+                        p16
+                    };
+                    let ps16 = PunteroU16(s16.as_mut_ptr()); let con_sombra = !s16.is_empty();
+                    let ho = fs[1];
+                    let filas = filas_por_trozo(ho, ho * fs[2] * c * kh * kw * 2, 1);
+                    let pw16 = w16.as_ptr() as usize;
+                    hilos::repartir(ho.div_ceil(filas), &|t| {
+                        let (y0, y1) = (t * filas, ((t + 1) * filas).min(ho));
+                        let o = unsafe { po.parte(y0 * fs[2] * c, (y1 - y0) * fs[2] * c) };
+                        unsafe { neon16::depthwise(p16.p() as *const u16, h, wd, c, pw16 as *const u16, b.as_ptr(), o.as_mut_ptr(), fs[2], *kh, *kw, *paso, *dil, *pad, y0, y1); }
+                        activar_todo(o, act);
+                        if con_sombra { let k0 = y0 * fs[2] * c; unsafe { neon16::a_medio(o.as_ptr(), ps16.p().add(k0), o.len(), o.len()); } }
+                    });
+                    return;
+                }
                 let ho = fs[1];
                 let filas = filas_por_trozo(ho, ho * fs[2] * fs[3] * kh * kw * 4, 1);
                 hilos::repartir(ho.div_ceil(filas), &|t| {
@@ -458,6 +530,19 @@ fn fma_fila_auto(o: &mut [f32], x: &[f32], w: &[f32]) {
 #[allow(clippy::too_many_arguments)]
 fn conv(x: &[f32], fe: [usize; 4], w: &[f32], b: &[f32], out: &mut [f32], fs: [usize; 4], kh: usize, kw: usize, paso: (usize, usize), dil: (usize, usize), pad: (usize, usize), act: Activacion, y0: usize, y1: usize) {
     let (h, wd, ci) = (fe[1], fe[2], fe[3]); let (wo, co) = (fs[2], fs[3]);
+    #[cfg(target_arch = "aarch64")]
+    {
+        // con NEON: las sumas de cada píxel quedan en registros (4·K canales) y se escriben una vez
+        let r = unsafe { match co {
+            16 => { neon::conv::<4>(x, fe, w, b, out, fs, kh, kw, paso, dil, pad, y0, y1); true }
+            24 => { neon::conv::<6>(x, fe, w, b, out, fs, kh, kw, paso, dil, pad, y0, y1); true }
+            32 => { neon::conv::<8>(x, fe, w, b, out, fs, kh, kw, paso, dil, pad, y0, y1); true }
+            48 => { neon::conv::<12>(x, fe, w, b, out, fs, kh, kw, paso, dil, pad, y0, y1); true }
+            64 => { neon::conv::<16>(x, fe, w, b, out, fs, kh, kw, paso, dil, pad, y0, y1); true }
+            _ => false,
+        } };
+        if r { activar_todo(out, act); return; }
+    }
     for y in y0..y1 { for xo in 0..wo {
         let o = &mut out[((y - y0) * wo + xo) * co..][..co]; o.copy_from_slice(b);
         for dy in 0..kh {
@@ -586,6 +671,54 @@ mod neon16 {
     // redondear a float16, no de las sumas; con 128 se vuelca menos seguido)
     const BLOQUE: usize = 128;
 
+    macro_rules! fmla_v { ($acc:expr, $x:expr, $w:expr) => {
+        asm!("fmla {a:v}.8h, {x:v}.8h, {w:v}.8h", a = inout(vreg) $acc, x = in(vreg) $x, w = in(vreg) $w, options(pure, nomem, nostack));
+    } }
+
+    /// depthwise en float16: entrada [h × wd × c] en float16, pesos [kh·kw][c] en float16, salida (filas [ya, yb)) en
+    /// float32 con el sesgo. c múltiplo de 8; kh·kw ≤ 64.
+    #[target_feature(enable = "fp16")]
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe fn depthwise(x: *const u16, h: usize, wd: usize, c: usize, w: *const u16, b: *const f32, out: *mut f32, wo: usize,
+                            kh: usize, kw: usize, paso: (usize, usize), dil: (usize, usize), pad: (usize, usize), ya: usize, yb: usize) {
+        let z = vdupq_n_f32(0.0);
+        let mut toques = [(0usize, 0usize); 64];
+        let ld = |p: *const u16| vld1q_f32(p as *const f32);
+        for y in ya..yb {
+            for xo in 0..wo {
+                let o = out.add(((y - ya) * wo + xo) * c);
+                // las partes de la ventana que caen adentro de la imagen
+                let (y0, x0) = ((y * paso.0) as isize - pad.0 as isize, (xo * paso.1) as isize - pad.1 as isize);
+                let mut n = 0;
+                for dy in 0..kh {
+                    let yy = y0 + (dy * dil.0) as isize; if yy < 0 || yy >= h as isize { continue; }
+                    for dx in 0..kw {
+                        let xx = x0 + (dx * dil.1) as isize; if xx < 0 || xx >= wd as isize { continue; }
+                        toques[n] = (((yy as usize) * wd + xx as usize) * c, (dy * kw + dx) * c); n += 1;
+                    }
+                }
+                let mut j = 0;
+                while j + 32 <= c {
+                    let (mut a0, mut a1, mut a2, mut a3) = (z, z, z, z);
+                    for &(xi, wi) in &toques[..n] {
+                        let (xp, wp) = (x.add(xi + j), w.add(wi + j));
+                        fmla_v!(a0, ld(xp), ld(wp)); fmla_v!(a1, ld(xp.add(8)), ld(wp.add(8)));
+                        fmla_v!(a2, ld(xp.add(16)), ld(wp.add(16))); fmla_v!(a3, ld(xp.add(24)), ld(wp.add(24)));
+                    }
+                    volcar(a0, o.add(j), b.add(j), true); volcar(a1, o.add(j + 8), b.add(j + 8), true);
+                    volcar(a2, o.add(j + 16), b.add(j + 16), true); volcar(a3, o.add(j + 24), b.add(j + 24), true);
+                    j += 32;
+                }
+                while j < c {
+                    let mut a0 = z;
+                    for &(xi, wi) in &toques[..n] { fmla_v!(a0, ld(x.add(xi + j)), ld(w.add(wi + j))); }
+                    volcar(a0, o.add(j), b.add(j), true);
+                    j += 8;
+                }
+            }
+        }
+    }
+
     /// [n × ci8] (float16) · [ci8 × co] (float16) + sesgo → [n × co] float32. co múltiplo de 8, ci8 de 8.
     #[target_feature(enable = "fp16")]
     pub unsafe fn gemm(x: *const u16, ci8: usize, w: *const u16, co: usize, b: *const f32, out: *mut f32, n: usize) {
@@ -698,6 +831,31 @@ mod neon {
             c += 1;
         }
         for r in 0..4 { for k in 0..K { vst1q_f32(po[r].add(j + 4 * k), acc[r][k]); } }
+    }
+
+    /// convolución general con 4·K canales de salida: las sumas de cada píxel en K registros
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe fn conv<const K: usize>(x: &[f32], fe: [usize; 4], w: &[f32], b: &[f32], out: &mut [f32], fs: [usize; 4], kh: usize, kw: usize,
+                                       paso: (usize, usize), dil: (usize, usize), pad: (usize, usize), y0: usize, y1: usize) {
+        let (h, wd, ci) = (fe[1], fe[2], fe[3]); let (wo, co) = (fs[2], fs[3]);
+        let (px, pw, pb, po) = (x.as_ptr(), w.as_ptr(), b.as_ptr(), out.as_mut_ptr());
+        for y in y0..y1 { for xo in 0..wo {
+            let mut acc = [vdupq_n_f32(0.0); K];
+            for k in 0..K { acc[k] = vld1q_f32(pb.add(4 * k)); }
+            for dy in 0..kh {
+                let yy = (y * paso.0 + dy * dil.0) as isize - pad.0 as isize; if yy < 0 || yy >= h as isize { continue; }
+                for dx in 0..kw {
+                    let xx = (xo * paso.1 + dx * dil.1) as isize - pad.1 as isize; if xx < 0 || xx >= wd as isize { continue; }
+                    let xp = px.add(((yy as usize) * wd + xx as usize) * ci); let wb = pw.add((dy * kw + dx) * ci * co);
+                    for c in 0..ci {
+                        let a = *xp.add(c); let wr = wb.add(c * co);
+                        for k in 0..K { acc[k] = vfmaq_n_f32(acc[k], vld1q_f32(wr.add(4 * k)), a); }
+                    }
+                }
+            }
+            let o = po.add(((y - y0) * wo + xo) * co);
+            for k in 0..K { vst1q_f32(o.add(4 * k), acc[k]); }
+        } }
     }
 
     /// [n × ci] · [ci × co] + sesgo (co múltiplo de 4)

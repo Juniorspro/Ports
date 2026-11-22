@@ -28,7 +28,10 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config { max_manos: 2, min_presencia: 0.5, min_palma: 0.5, cada_busqueda_ms: 300.0, prediccion_ms: 50.0, fov_grados: 66.0,
-            img_min_corte: 0.08, img_beta: 100.0, img_d_corte: 1.0, ang_min_corte: 1.2, ang_beta: 1.5 }
+            // (medido con «banco video» moviendo 8 veces más rápido: con 0,08/100/1 los puntos se quedaban atrás, 1,20 %
+            // de la mano contra 0,83 % del modelo solo; con 0,3/200/3 quedan en 0,88 % y quietos tiemblan 0,087 %,
+            // 3 veces menos que el modelo solo)
+            img_min_corte: 0.3, img_beta: 200.0, img_d_corte: 3.0, ang_min_corte: 1.2, ang_beta: 1.5 }
     }
 }
 
@@ -61,13 +64,51 @@ struct Pista {
     cal: Calibracion, gesto: Estable, salida: Option<Mano>,
 }
 
-pub struct Motor { det: Detector, pun: Puntero, pistas: Vec<Pista>, sig_id: u32, ult_busqueda: f64, ult_detector: f64, pub cfg: Config, pub corrio_detector: bool, pub inferencias: u32 }
+pub struct Motor {
+    det: Detector, pun: Puntero, pistas: Vec<Pista>, sig_id: u32, ult_busqueda: f64, ult_detector: f64, pub cfg: Config, pub corrio_detector: bool, pub inferencias: u32,
+    /// el que busca manos nuevas de fondo cuando ya hay alguna seguida (así no frena el cuadro: antes, cada 300 ms el
+    /// cuadro que corría el detector tardaba el doble y se veía un tirón)
+    #[cfg(not(target_arch = "wasm32"))]
+    buscador: Option<Buscador>,
+}
+
+/// un detector en su propio hilo (en los núcleos chicos, sin el grupo de hilos): recibe una copia del cuadro y
+/// devuelve las palmas que encontró
+#[cfg(not(target_arch = "wasm32"))]
+struct Buscador {
+    a_hilo: std::sync::mpsc::Sender<(Vec<u8>, usize, usize, f32)>,
+    de_hilo: std::sync::mpsc::Receiver<(Vec<mano::Palma>, Vec<u8>)>,
+    ocupado: bool,
+    libre: Vec<u8>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Buscador {
+    fn nuevo(modelo: &[u8]) -> Option<Buscador> {
+        let mut det = Detector::nuevo(modelo).ok()?;
+        let (tx, rx_hilo) = std::sync::mpsc::channel::<(Vec<u8>, usize, usize, f32)>();
+        let (tx_hilo, rx) = std::sync::mpsc::channel();
+        std::thread::Builder::new().name("jxhand-buscar".into()).spawn(move || {
+            crate::hilos::solo_este_hilo(true);
+            crate::hilos::ir_a_chicos();
+            // (cuando el motor se suelta, se cierra el canal y el hilo termina)
+            while let Ok((img, w, h, umbral)) = rx_hilo.recv() {
+                det.umbral = umbral;
+                let ps = det.detectar(&img, w, h);
+                if tx_hilo.send((ps, img)).is_err() { break; }
+            }
+        }).ok()?;
+        Some(Buscador { a_hilo: tx, de_hilo: rx, ocupado: false, libre: Vec::new() })
+    }
+}
 
 fn dist(a: &P3, b: &P3) -> f32 { ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqrt() }
 
 impl Motor {
     pub fn nuevo(detector: &[u8], puntos: &[u8]) -> Result<Motor, String> {
-        Ok(Motor { det: Detector::nuevo(detector)?, pun: Puntero::nuevo(puntos)?, pistas: vec![], sig_id: 1, ult_busqueda: -1e9, ult_detector: -1e9, cfg: Config::default(), corrio_detector: false, inferencias: 0 })
+        Ok(Motor { det: Detector::nuevo(detector)?, pun: Puntero::nuevo(puntos)?, pistas: vec![], sig_id: 1, ult_busqueda: -1e9, ult_detector: -1e9, cfg: Config::default(), corrio_detector: false, inferencias: 0,
+            #[cfg(not(target_arch = "wasm32"))]
+            buscador: Buscador::nuevo(detector) })
     }
     pub fn reiniciar(&mut self) { self.pistas.clear(); self.ult_busqueda = -1e9; self.ult_detector = -1e9; }
     /// el realce de poca luz: prendido o apagado (para el modelo de los puntos; el detector siempre promedia el ruido)
@@ -94,28 +135,44 @@ impl Motor {
             self.actualizar(&mut p, r, w, h, t, espejada);
             vivas.push(p);
         }
-        // 2) buscar manos nuevas: siempre si no hay ninguna; cada tanto si faltan
+        // 2) buscar manos nuevas: siempre si no hay ninguna (acá mismo, con todos los núcleos: es lo más rápido para
+        //    encontrar la primera); si ya hay alguna y faltan, cada tanto y de fondo (no frena el cuadro)
         if vivas.len() < self.cfg.max_manos && (vivas.is_empty() || t_ms - self.ult_busqueda >= self.cfg.cada_busqueda_ms) {
-            self.ult_busqueda = t_ms; self.corrio_detector = true;
-            self.det.umbral = self.cfg.min_palma;
-            // (con poca luz el detector promedia con los cuadros anteriores, si vienen seguidos)
-            self.det.seguido = t_ms - self.ult_detector < 120.0; self.ult_detector = t_ms;
-            let palmas = self.det.detectar(rgba, w, h);
-            for pa in palmas {
-                if vivas.len() >= self.cfg.max_manos { break; }
-                let (cx, cy) = (pa.caja[0], pa.caja[1]);
-                if vivas.iter().any(|v| ((v.roi.cx - cx).powi(2) + (v.roi.cy - cy).powi(2)).sqrt() < v.roi.lado * 0.45) { continue; }
-                let roi = mano::roi_de_palma(&pa);
-                let r = self.pun.puntos(rgba, w, h, &roi); self.inferencias += 1;
-                if r.presencia < self.cfg.min_presencia { continue; }
-                let f = Filtro3::nuevo(self.cfg.img_min_corte, self.cfg.img_beta, self.cfg.img_d_corte);
-                let a = UnoEuro::nuevo(self.cfg.ang_min_corte, self.cfg.ang_beta, 1.0);
-                let mut p = Pista { id: self.sig_id, roi, derecha_ema: r.derecha, geom_derecha: r.derecha > 0.5, f_img: [f; PUNTOS], f_ang: [[a; 4]; 5],
-                    f_pos: Filtro3::nuevo(0.6, 3.0, 1.0), f_ejes: [Filtro3::nuevo(1.0, 0.8, 1.0); 2], cal: Calibracion::default(), gesto: Estable::default(), salida: None };
-                self.sig_id += 1;
-                self.actualizar(&mut p, r, w, h, t, espejada);
-                vivas.push(p);
+            #[allow(unused_mut)]
+            let mut aca = vivas.is_empty();
+            #[cfg(not(target_arch = "wasm32"))]
+            if !aca {
+                match self.buscador.as_mut() {
+                    Some(b) => {
+                        if !b.ocupado {
+                            let mut buf = std::mem::take(&mut b.libre); buf.clear(); buf.extend_from_slice(rgba);
+                            if b.a_hilo.send((buf, w, h, self.cfg.min_palma)).is_ok() { b.ocupado = true; }
+                        }
+                        self.ult_busqueda = t_ms;
+                    }
+                    None => aca = true,
+                }
             }
+            #[cfg(target_arch = "wasm32")]
+            { aca = true; }
+            if aca {
+                self.ult_busqueda = t_ms; self.corrio_detector = true;
+                self.det.umbral = self.cfg.min_palma;
+                // (con poca luz el detector promedia con los cuadros anteriores, si vienen seguidos)
+                self.det.seguido = t_ms - self.ult_detector < 120.0; self.ult_detector = t_ms;
+                let palmas = self.det.detectar(rgba, w, h);
+                self.sumar_palmas(palmas, &mut vivas, rgba, w, h, t, espejada);
+            }
+        }
+        // 2b) lo que encontró el buscador de fondo (en un cuadro de hace un momento: la mano se movió poco, y el
+        //     cuadrado se reacomoda solo con los puntos)
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let mut de_fondo = Vec::new();
+            if let Some(b) = self.buscador.as_mut() {
+                if b.ocupado { if let Ok((ps, buf)) = b.de_hilo.try_recv() { b.ocupado = false; b.libre = buf; de_fondo = ps; } }
+            }
+            if !de_fondo.is_empty() && vivas.len() < self.cfg.max_manos { self.sumar_palmas(de_fondo, &mut vivas, rgba, w, h, t, espejada); }
         }
         // 3) si dos pistas terminaron sobre la misma mano, queda la de más presencia
         vivas.sort_by(|a, b| b.salida.as_ref().map(|m| m.presencia).unwrap_or(0.0).partial_cmp(&a.salida.as_ref().map(|m| m.presencia).unwrap_or(0.0)).unwrap());
@@ -124,6 +181,26 @@ impl Motor {
         fin.sort_by_key(|p| p.id);
         self.pistas = fin;
         self.pistas.iter().filter_map(|p| p.salida.clone()).collect()
+    }
+
+    /// las palmas nuevas que no caen sobre una mano ya seguida pasan a ser pistas (con sus primeros puntos)
+    #[allow(clippy::too_many_arguments)]
+    fn sumar_palmas(&mut self, palmas: Vec<mano::Palma>, vivas: &mut Vec<Pista>, rgba: &[u8], w: usize, h: usize, t: f64, espejada: bool) {
+        for pa in palmas {
+            if vivas.len() >= self.cfg.max_manos { break; }
+            let (cx, cy) = (pa.caja[0], pa.caja[1]);
+            if vivas.iter().any(|v| ((v.roi.cx - cx).powi(2) + (v.roi.cy - cy).powi(2)).sqrt() < v.roi.lado * 0.45) { continue; }
+            let roi = mano::roi_de_palma(&pa);
+            let r = self.pun.puntos(rgba, w, h, &roi); self.inferencias += 1;
+            if r.presencia < self.cfg.min_presencia { continue; }
+            let f = Filtro3::nuevo(self.cfg.img_min_corte, self.cfg.img_beta, self.cfg.img_d_corte);
+            let a = UnoEuro::nuevo(self.cfg.ang_min_corte, self.cfg.ang_beta, 1.0);
+            let mut p = Pista { id: self.sig_id, roi, derecha_ema: r.derecha, geom_derecha: r.derecha > 0.5, f_img: [f; PUNTOS], f_ang: [[a; 4]; 5],
+                f_pos: Filtro3::nuevo(0.6, 3.0, 1.0), f_ejes: [Filtro3::nuevo(1.0, 0.8, 1.0); 2], cal: Calibracion::default(), gesto: Estable::default(), salida: None };
+            self.sig_id += 1;
+            self.actualizar(&mut p, r, w, h, t, espejada);
+            vivas.push(p);
+        }
     }
 
     fn actualizar(&self, p: &mut Pista, r: mano::Puntos, w: usize, h: usize, t: f64, espejada: bool) {

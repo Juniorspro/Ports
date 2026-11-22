@@ -40,6 +40,7 @@ fn cargar(carpeta: &str) -> (Detector, Puntero) {
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     if let Some(n) = std::env::var("JXH_HILOS").ok().and_then(|v| v.parse().ok()) { jxhand::hilos::configurar(n); }
+    if std::env::var("JXH_F16").map(|v| v == "0").unwrap_or(false) { jxhand::red::USAR_F16.store(false, std::sync::atomic::Ordering::Relaxed); }
     match a.get(1).map(|s| s.as_str()) {
         Some("ver") => {
             let m = jxhand::tflite::leer(&fs::read(&a[2]).unwrap()).unwrap();
@@ -102,7 +103,7 @@ fn main() {
             println!("detector {:.2} ms · puntos {:.2} ms (promedio de {})", td, tp, veces);
         }
         Some("perfil") => {
-            for m in ["hand_detector", "hand_landmarks_detector"] {
+            for m in ["hand_detector", "hand_landmarks_detector", "hand_landmark_lite"] {
                 let mut red = jxhand::red::Red::cargar(&fs::read(format!("{}/{}.tflite", a[2], m)).unwrap()).unwrap();
                 for v in red.entrada(0).iter_mut() { *v = 0.5; }
                 red.correr();
@@ -111,6 +112,8 @@ fn main() {
                 let mut v: Vec<_> = acum.into_iter().collect(); v.sort_by(|a, b| b.1 .0.partial_cmp(&a.1 .0).unwrap());
                 let tot: f64 = v.iter().map(|x| x.1 .0).sum();
                 let (capas, g, otras) = red.cuentas();
+                let (c16, s16) = red.cuentas16();
+                println!("   (float16: {} capas, {} tensores con copia en float16)", c16, s16);
                 println!("== {} · {:.1} ms · 1×1: {:.0} M operaciones · resto: {:.0} M · capas 1×1 (n, entrada, salida): {:?}", m, tot, g / 1e6, otras / 1e6, &capas[..capas.len().min(8)]);
                 for (k, (d, n)) in v.iter().take(12) { println!("   {:22} {:6.2} ms  {:4.1}%  ({} capas)", k, d, d / tot * 100.0, n); }
             }
@@ -123,7 +126,9 @@ fn main() {
             let mut sem = 7u64; let mut azar = move || { sem = sem.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); ((sem >> 33) as f32 / (1u64 << 31) as f32) - 0.5 };
             // el cuadro k: la foto girada/corrida/escalada alrededor del centro, con ruido de sensor
             // la transformación en el tiempo (segundos): quieta 2 s y después se mueve
-            let trans = |tt: f32| -> [f32; 4] { let mov = (tt - 2.0).clamp(0.0, 4.0);
+            // (JXH_VEL: cuántas veces más rápido se mueve; 1 = el movimiento de siempre)
+            let vel: f32 = std::env::var("JXH_VEL").ok().and_then(|v| v.parse().ok()).unwrap_or(1.0);
+            let trans = |tt: f32| -> [f32; 4] { let mov = (tt - 2.0).clamp(0.0, 4.0) * vel;
                 [0.35 * (mov * 1.6).sin(), 90.0 * (mov * 2.1).sin(), 50.0 * (mov * 1.3).sin(), 1.0 + 0.15 * (mov * 0.9).sin()] };
             let cuadro = |k: usize, ruido: &mut dyn FnMut() -> f32| -> (Vec<u8>, [f32; 4]) {
                 let t4 = trans(k as f32 / 30.0); let (ang, dx, dy, esc) = (t4[0], t4[1], t4[2], t4[3]);
@@ -149,13 +154,16 @@ fn main() {
             let mut ids = std::collections::BTreeSet::new(); let (mut detecciones, mut perdidas) = (0, 0);
             let mut largos: Vec<Vec<f32>> = vec![vec![]; 20]; let mut largos_crudos: Vec<Vec<f32>> = vec![vec![]; 20];
             let mut previo: Option<[(f32, f32); 21]> = None; let mut previo_c: Option<[(f32, f32); 21]> = None; let mut temblor_c = 0f64; let mut gestos = std::collections::BTreeMap::new();
+            let mut tiempos: Vec<f64> = Vec::new();
             for k in 0..180 {
                 let (img, tr) = cuadro(k, &mut azar);
                 let t_ms = k as f64 * 1000.0 / 30.0;
                 // salida sin filtro ni predicción (para comparar) y con todo
                 if k == 0 { let ev = |n: &str, d: f32| std::env::var(n).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
                     motor.cfg.prediccion_ms = ev("JXH_PRED", motor.cfg.prediccion_ms); motor.cfg.img_beta = ev("JXH_BETA", motor.cfg.img_beta); motor.cfg.img_min_corte = ev("JXH_MINC", motor.cfg.img_min_corte); motor.cfg.img_d_corte = ev("JXH_DC", motor.cfg.img_d_corte); }
+                let tq = Instant::now();
                 let manos = motor.procesar(&img, w, h, t_ms, false);
+                tiempos.push(tq.elapsed().as_secs_f64() * 1e3);
                 if motor.corrio_detector { detecciones += 1; }
                 if manos.is_empty() { perdidas += 1; previo = None; continue; }
                 let m = &manos[0]; ids.insert(m.id);
@@ -185,6 +193,9 @@ fn main() {
             println!("en movimiento: error del modelo solo {:.2}% (sin retraso) · con {:.0} ms de retraso: modelo solo {:.2}%, JX (filtrado y adelantado) {:.2}%", mov_crudo / n_m as f64, motor.cfg.prediccion_ms, mov_pred / n_m as f64, mov_filt / n_m as f64);
             println!("largo de los huesos (variación): modelo solo {:.1}% · esqueleto {:.2}%", cv(&largos_crudos), cv(&largos));
             println!("gestos: {:?}", gestos);
+            let mut ts = tiempos[10..].to_vec(); ts.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let med = ts[ts.len() / 2];
+            println!("tiempo por cuadro: mediana {:.1} ms · 95 % {:.1} ms · el peor {:.1} ms · cuadros de más de 1,5× la mediana: {}", med, ts[ts.len() * 95 / 100], ts[ts.len() - 1], ts.iter().filter(|&&x| x > med * 1.5).count());
         }
         Some("noche") => {
             // ¿ve de noche? Cada foto se oscurece como la saca una cámara de celular con poca luz (ruido de fotones y de

@@ -34,7 +34,7 @@ visto… lograr algo mejor o igual a Meta Quest… en la APK, no web, y que se a
 | `motor/src/filtro.rs` | One Euro con la velocidad relativa al tamaño de la mano. La predicción usa su propia velocidad y se apaga con la mano quieta. |
 | `motor/src/esqueleto.rs` | El esqueleto (ver abajo). |
 | `motor/src/gestos.rs` | Abierta, puño, señalar, pinza, paz, pulgar arriba y abajo, OK, cuernos y «llamame», con intensidad, histéresis y 3 cuadros para cambiar. |
-| `motor/src/motor.rs` | Sigue hasta 2 manos. El detector corre sólo sin manos, o cada 300 ms si falta una. Saca la posición en metros frente a la cámara. |
+| `motor/src/motor.rs` | Sigue hasta 2 manos. Sin manos, el detector corre en el cuadro mismo, con todos los núcleos. Si ya hay una y falta otra, busca cada 300 ms en otro hilo (en los núcleos chicos), así no frena el cuadro. Saca la posición en metros frente a la cámara. |
 | `motor/src/luz.rs` | Poca luz: el realce del recorte de la mano y la curva de «ver de noche» (abajo). |
 | `motor/src/hilos.rs` | Los hilos del motor nativo. |
 | `motor/src/malla.rs` | La mano en 3D: una malla liviana armada en cada cuadro con los 21 puntos. |
@@ -153,11 +153,18 @@ mano).
 
 ## float16
 
-- **Comparado en el emulador de ARM** (qemu con un procesador con FEAT_FP16), con `jxhand-banco f16`, con 4 fotos:
-  - Los puntos se mueven, en promedio, el 0,5 % del largo de la palma contra float32. En la peor foto es el 1,3 %.
-  - La presencia y el puntaje de la palma cambian ±0,001.
-- **Las sumas** se hacen en float16 de a bloques de 128 canales, y cada bloque se pasa a float32.
-  - Con bloques de 32 el error casi no baja (0,41 %): viene de redondear a float16, no de las sumas.
+- **Qué va en float16:** las convoluciones 1×1 y las depthwise (en las de 3×3 a 5×5, de a 32 canales con las sumas en
+  registros).
+- **Los tensores grandes se quedan en float16:** los expandidos, de 64 a 672 canales, que sólo leen capas en
+  float16.
+  - Los pasa a float16 la capa que los produce, mientras siguen en la caché.
+  - La siguiente los lee así, sin otra pasada para convertir.
+  - En el modelo liviano: 46 capas en float16 y 30 tensores que pasan entre capas ya en float16.
+- **Comparado en el emulador de ARM** (qemu con un procesador con FEAT_FP16), con `jxhand-banco f16` y 4 fotos:
+  - Los puntos se mueven, en promedio, el 0,32 % del largo de la palma contra float32. En la peor foto es el 0,55 %.
+  - La presencia cambia ±0,0004.
+- **Las sumas** de las 1×1 se hacen en float16 de a bloques de 128 canales, y cada bloque se pasa a float32.
+  - Con bloques de 32 el error casi no baja: viene de redondear a float16, no de las sumas.
 - **En la app:** «Cálculo rápido (float16)», prendido de entrada. Arriba dice «float16» cuando se usa.
 
 ## Velocidad
@@ -176,6 +183,24 @@ mano).
 - **En un celular no se pudo medir desde acá.** La app muestra arriba a la izquierda los milisegundos de cada cuadro.
 - **Modelo «Auto»:** usa el completo y pasa al liviano (291 M operaciones contra 660 M) si en ese celular el completo
   tarda más de 5 ms.
+- **2.2, para bajar de 8 ms (lo que dio el celular del dueño) a ~6:**
+  - **De dónde sale la cuenta:** en el modelo liviano (esta PC, 1 hilo), las 1×1 son el 67 % del tiempo, las depthwise
+    el 23 % y la primera convolución el 8 %. Con las 1×1 en float16, las otras pasaban a ser la mitad del tiempo.
+  - **Depthwise en float16,** con los tensores grandes que quedan en float16 entre capa y capa.
+  - **La primera convolución con NEON,** con las sumas en registros.
+  - **El recorte de la mano,** repartido entre los núcleos.
+  - En un celular todavía no se midió: lo dice la app.
+- **Sin tirones:**
+  - Antes, con una mano a la vista y «2 manos», el detector corría cada 300 ms en el cuadro mismo: ese cuadro tardaba
+    el doble.
+  - Ahora corre en otro hilo, en los núcleos chicos. En el video de prueba, el detector pasó de correr en 20 de los
+    180 cuadros a sólo en el primero.
+- **Pegada en movimientos rápidos:**
+  - El filtro de los puntos se ajustó para dibujar el mismo cuadro que se mira, sin adelantar.
+  - Con el video moviéndose 8 veces más rápido, el error pasó de 1,20 % a 0,88 % de la mano (el modelo solo da 0,83 %).
+  - Quieta, la mano tiembla 0,087 %, 3 veces menos que el modelo solo.
+- **El dibujo:** a 720 de ancho como mucho (la imagen es de 480 × 640). Android lo agranda solo y la placa de video
+  trabaja la mitad.
 
 **El retraso que se ve:**
 - **El esqueleto va pegado a la mano.** Se dibuja la misma imagen que miró el motor, con su esqueleto, apenas
@@ -194,6 +219,8 @@ $B video modelos FOTO.png                    # temblor, retraso, huesos y gestos
 $B perfil modelos                            # cuánto tarda cada tipo de capa y cuántas operaciones hace
 $B noche modelos FOTO...                      # poca luz: detecta, sigue y error, con y sin lo de la noche
 $B noche_foto modelos FOTO 1/128 SALIDA.png   # la foto oscura, lo de antes y lo de ahora, lado a lado
+JXH_VEL=8 JXH_PRED=0 $B video modelos FOTO    # el video 8 veces más rápido: cuánto se queda atrás el filtro, y los ms por cuadro
+$A f16 modelos FOTO...                        # en ARM (qemu -cpu max): float16 contra float32
 JXH_HILOS=1 $B medir modelos FOTO            # cuántos hilos usa (por defecto, todos los núcleos)
 ```
 
@@ -259,7 +286,7 @@ el historial: commit 7b9b579.
 
 - **Medir en celulares de verdad:** los milisegundos que muestra la app.
 - **Si hace falta bajar más:**
-  - Las depthwise también en float16.
+  - Fundir cada bloque (1×1, depthwise y 1×1) por franjas, para que no salga de la caché.
   - Fundir la convolución, la suma y el PReLU.
   - Pasar a RGBA sólo los recortes, y que la placa de video convierta la imagen de fondo.
 - **Que se actualice sola,** con firma, como JXMod.

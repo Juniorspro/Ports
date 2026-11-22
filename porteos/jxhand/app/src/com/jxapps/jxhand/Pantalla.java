@@ -32,6 +32,15 @@ public class Pantalla extends SurfaceView implements SurfaceHolder.Callback {
 
     public Pantalla(Context c, Handler hMotor) { super(c); this.hMotor = hMotor; getHolder().addCallback(this); }
 
+    /**
+     * se dibuja a 720 de ancho como mucho (la imagen de la cámara es de 480 × 640): Android la agranda gratis al tamaño
+     * de la pantalla y la placa de video trabaja la mitad o menos (con el suavizado ×4 eso pesa en los celulares medios)
+     */
+    @Override protected void onSizeChanged(int w, int h, int vw, int vh) {
+        super.onSizeChanged(w, h, vw, vh);
+        if (w > 720 && h > 0) getHolder().setFixedSize(720, Math.round(h * 720f / w));
+    }
+
     @Override public void surfaceCreated(final SurfaceHolder h) {
         hMotor.post(new Runnable() { public void run() { crearSuperficie(h); } });
     }
