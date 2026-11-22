@@ -262,9 +262,11 @@ function hudPaso() {
     const ver = (id, si) => { const e = $(id); if (e) e.classList.toggle('oc', !si); };
     ver('brecargar', !veh && !sinBala); ver('bdisp2', !veh && (fis || arma === 'ToolBaton')); ver('busar', usar && !veh); ver('bborrar', !veh && !(typeof NOC !== 'undefined' && NOC.on));   // (de noche en la pizzería no hay props: el botón taparía la energía)
     // (un arma de un mod: apuntar con el secundario, y los botones que pide su Lua)
-    const gmw = !veh && typeof DEF_ARMAS !== 'undefined' && DEF_ARMAS[arma] && DEF_ARMAS[arma].tipo === 'gmswep'; if (gmw) ver('bdisp2', true);
+    const gmw = !veh && typeof DEF_ARMAS !== 'undefined' && DEF_ARMAS[arma] && DEF_ARMAS[arma].tipo === 'gmswep';
+    // (sólo los que hacen algo con esa arma: gmaSwepBotones; si su Lua todavía no está, los dos)
+    if (gmw) { let bt = null; try { bt = typeof gmaSwepBotones === 'function' ? gmaSwepBotones(DEF_ARMAS[arma].gm) : null; } catch (e) { bt = null; } ver('bdisp2', !bt || bt.secundario); if (bt && !bt.recargar) ver('brecargar', false); }
     // (las de fuego del juego también: apuntar; el francotirador, su mira)
-    const fuego = !veh && typeof DEF_ARMAS !== 'undefined' && DEF_ARMAS[arma] && (armaDeFuego(DEF_ARMAS[arma]) || DEF_ARMAS[arma].mira); if (fuego) ver('bdisp2', true);
+    const fuego = !veh && typeof DEF_ARMAS !== 'undefined' && DEF_ARMAS[arma] && (armaDeFuego(DEF_ARMAS[arma]) || DEF_ARMAS[arma].mira); if (fuego && !gmw) ver('bdisp2', true);   // (las de un mod ya decidieron arriba: su vista copia una del juego, pero eso no dice si apuntan)
     const d2 = $('bdisp2'); if (d2) d2.querySelector('img').src = hudIco(fis ? 'congelar' : gmw || fuego ? 'mira' : 'dos');
     if (typeof ctlPasoMod === 'function') ctlPasoMod(veh ? '' : arma);
     const cond = veh && JUG.asiento === 0;   // (de acompañante sólo bajarse)

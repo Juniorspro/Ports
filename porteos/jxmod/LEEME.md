@@ -5581,6 +5581,23 @@ de GMod con piezas sacadas y pegadas (garras nuevas, emisor, la aleta con el log
     mano quedaba flotando delante; se ubican igual porque el mod usa `vm:GetPos()`.
   - Prueba `pruebas/doudou_agarrar.mjs` 10/10: ahora también mide que el gato se vea (7,3 % de la pantalla con su pelaje
     naranja en el medio, antes 0).
+- **«Botones que no tienen ninguna utilidad»** (9dudhdrc, video con la Plasma Pistol 409515836: «recargar» y «apuntar» no
+  hacían nada): con un arma de un mod, en el celular se ven sólo los que esa arma usa (`gmaSwepBotones`, `gmod_api.js`;
+  `hud.js`, `controles.js`). Recargar: un `Reload` propio que haga algo, un cargador con munición de verdad (el `Reload`
+  de la base) o un `Think` que mira la R. Apuntar: un `SecondaryAttack` propio que haga algo, mira de hierro
+  (`IronSightsPos` distinta de 0) o un `Think` que mira el botón 2. Una función vacía se reconoce por cómo queda
+  compilada. La Plasma Pistol (munición `""`, `SecondaryAttack` vacío, mira en 0) queda sin los dos; Nyan Gun, el
+  portal de Rick y los RP Fists, con los dos (como dice su Lua). Prueba `pruebas/botones_swep.mjs` 3/3.
+- **«Routine Type 05 no aparece, sólo el nombre»** (v57q8yag; Workshop 3826521085, 1188 MB: 974 sonidos .ogg, el robot
+  y 131 archivos de Lua). Se instala en 38 s en la PC. Dos fallas de compatibilidad:
+  - cada paso de su comportamiento corre con `xpcall` y espera con `coroutine.yield` adentro: acá cortaba con «attempt
+    to yield across a C-call boundary» y el robot volvía a empezar una y otra vez. Ahora `pcall` y `xpcall` tienen
+    versión generadora y se puede hacer yield a través de ellos, como en LuaJIT (`gmod_lua.js`). Prueba
+    `pruebas/lua_pcall_yield.cjs` 4/4 (antes 1/4);
+  - `GetSubMaterial` sin submaterial da `""` como en GMod (antes nil: su sangre cortaba en cada cuadro); `SetSubMaterial`
+    se guarda.
+  - Medido: el robot se lee (84 huesos, 28 mallas, 58 animaciones), aparece, se levanta, camina hacia el jugador y lo
+    agarra; sin errores de Lua. Su malla (5,5 MB) queda en el disco y se lee al ponerlo.
 
 ## Sin publicar todavía: el modo VR (`juego/vr.js`)
 

@@ -272,7 +272,9 @@ function ctlPasoMod(arma) {
     e.classList.toggle('oc', !b); e._ctl = b || null;
     if (b) { const t = String(b.t).slice(0, 7); e.classList.toggle('accBt', !!b.acc); e.innerHTML = b.acc && typeof accBotonHTML === 'function' ? accBotonHTML(b.acc, t) : `<b class="ctlLetra${t.length > 2 ? ' larga' : ''}">${esc(t)}</b>`; e.title = b.acc ? accNombre(b.acc) + ' (' + t + ')' : t; }
   }
-  const d2 = $('bdisp2'); if (d2 && clase) { d2.classList.remove('oc'); const im = d2.querySelector('img'); if (im) im.src = hudIco('mira'); }
+  // (apuntar con el secundario, si esa arma lo usa: gmaSwepBotones; la Plasma Pistol no, y el botón no hacía nada)
+  let bt = null; try { bt = clase && typeof gmaSwepBotones === 'function' ? gmaSwepBotones(clase) : null; } catch (e) { bt = null; }
+  const d2 = $('bdisp2'); if (d2 && clase && (!bt || bt.secundario)) { d2.classList.remove('oc'); const im = d2.querySelector('img'); if (im) im.src = hudIco('mira'); }
 }
 function ctlIniciar() {
   HUD_SVG.mira = '<circle cx="12" cy="12" r="7" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.6" fill="#fff"/>';

@@ -373,6 +373,10 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   E('AddCallback', (e, n, f) => { if (typeof f !== 'function') return 0; const k = String(n).toLowerCase(), C = e.cbs || (e.cbs = {}); const M = C[k] || (C[k] = new Map()); const id = (GMA.cbN = (GMA.cbN || 0) + 1); M.set(id, f); return id; });
   E('RemoveCallback', (e, n, id) => { const M = e.cbs && e.cbs[String(n).toLowerCase()]; if (M) M.delete(+id); });
   E('GetCallbacks', (e, n) => { const M = e.cbs && e.cbs[String(n).toLowerCase()], t = new LuaTable(); let i = 1; if (M) for (const f of M.values()) t.set(i++, f); return t; });
+  // (los submateriales se guardan —todavía no cambian cómo se dibuja—; sin ninguno, "" como GMod: ROUTINE Type 05 hace
+  // robot:GetSubMaterial(1):lower() y con nil cortaba su sangre en cada cuadro)
+  E('SetSubMaterial', (e, i, m) => { if (i === undefined || i === null) { e.subMat = null; return; } (e.subMat || (e.subMat = new Map())).set(Math.trunc(+i) || 0, m == null ? '' : String(m)); });
+  E('GetSubMaterial', (e, i) => (e.subMat && e.subMat.get(Math.trunc(+i) || 0)) || '');
   E('HasBoneManipulations', (e) => !!(e.manipH && [...e.manipH.values()].some((m) => m.p.some((x) => x) || m.a.some((x) => x) || m.s.some((x) => x !== 1))));   // (las manos del jugador ya van con la vista del arma: dibujarlas acá las dejaría en el medio del mapa)
   // dónde se dibuja (los portales, las armas del mundo en la mano): si nadie lo puso, donde está la entidad
   // (más del motor que piden los addons: límites de choque y de dibujo, NPCs, banderas, matriz de escala)
@@ -1195,6 +1199,21 @@ function gmaArmasRenacer() {
   for (const [clase, w] of [...GMA.armasJug]) { if (!ARM.lista.includes('gm:' + clase)) continue; GMA.armasJug.delete(clase); if (GMA.swep === w) GMA.swep = null; gmaQuitar(w); gmaDarArma(clase, true); }
   GMA.swep = null;
   const n = ARM.lista[ARM.i]; if (n && /^gm:/.test(n)) { ARM.calla = true; try { elegirArma(ARM.i); } finally { ARM.calla = false; } }
+}
+// ¿qué hace de verdad un arma de un addon? Para mostrar en el celular sólo los botones que sirven (panel 9dudhdrc: la
+// Plasma Pistol mostraba «recargar» y «apuntar» y ninguno hacía nada: su munición es "", así que el Reload de la base no
+// recarga, y su SecondaryAttack está vacío). Recargar: un Reload propio que haga algo, un cargador con munición de verdad
+// (el Reload de la base) o un Think que mire la R. Apuntar: un SecondaryAttack propio que haga algo, mira de hierro
+// (IronSightsPos) o un Think que mire el botón 2. Una función vacía compilada es «…return E0;}» y nada más
+const GMA_FN_VACIA = /^function\s*\([^)]*\)\s*\{(?:let \$t;)?if\(\+\+R\.n>R\.lim\)R\.largo\(\);return E0;\}$/;
+const gmaFnVacia = (f) => typeof f === 'function' && GMA_FN_VACIA.test(String(f));
+function gmaSwepBotones(clase) {
+  const t = claseTabla(clase, 'S') || claseTabla(clase, 'C'); if (!t) return null;
+  const b = claseTabla('weapon_base', 'S'), propia = (k) => { const f = buscarEnClase(t, k); return typeof f === 'function' && f !== (b && buscarEnClase(b, k)) && !gmaFnVacia(f); };
+  const mira = (k) => ['Think', 'Tick', 'DrawHUD'].some((m) => { const f = buscarEnClase(t, m), c = claseTabla(clase, 'C'), fc = c && buscarEnClase(c, m); return [f, fc].some((x) => typeof x === 'function' && String(x).includes(k)); });
+  const P = buscarEnClase(t, 'Primary'), cs = P instanceof LuaTable ? +P.get('ClipSize') : -1, am = P instanceof LuaTable ? String(P.get('Ammo') ?? '').trim().toLowerCase() : '';
+  const isp = buscarEnClase(t, 'IronSightsPos'), hierro = isp instanceof LVec && !!(isp.x || isp.y || isp.z);
+  return { recargar: propia('Reload') || (cs > 0 && !!am && am !== 'none') || mira('IN_RELOAD'), secundario: propia('SecondaryAttack') || hierro || mira('IN_ATTACK2') };
 }
 function gmaQuitarArma(clase) { const w = GMA.armasJug && GMA.armasJug.get(clase); if (!w) return; GMA.armasJug.delete(clase); const n = 'gm:' + clase, i = ARM.lista.indexOf(n); if (i >= 0) { ARM.lista.splice(i, 1); if (ARM.i >= ARM.lista.length) ARM.i = 0; elegirArma(ARM.i); } }
 // (cada cuadro, con un arma de un addon en la mano: ataques, recarga, Think; y Deploy/Holster al cambiar)

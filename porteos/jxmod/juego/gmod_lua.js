@@ -593,8 +593,14 @@ function luaCrearRuntime() {
   def(G, 'error', (m, nivel) => { throw new LuaError(typeof m === 'string' && nivel !== 0 ? R.donde() + ': ' + m : m, nivel); });
   const msgErr = (e) => (e instanceof LuaError ? e.v : e instanceof RangeError ? 'stack overflow' : String((e && e.message) || e));
   R.msgErr = msgErr;
-  def(G, 'pcall', (f, ...a) => { try { return [true, ...R.c(f, 'pcall', ...a)]; } catch (e) { if (e && e.duro) throw e; return [false, msgErr(e)]; } });
-  def(G, 'xpcall', (f, h, ...a) => { try { return [true, ...R.c(f, 'xpcall', ...a)]; } catch (e) { if (e && e.duro) throw e; return [false, ...R.c(h, 'xpcall', msgErr(e))]; } });
+  // (con versión generadora: adentro de una corrutina se puede hacer yield a través de pcall y xpcall, como en LuaJIT —el
+  // Lua de GMod—. ROUTINE Type 05 corre cada paso de su comportamiento con xpcall y espera con coroutine.yield adentro:
+  // cortaba con «yield across a C-call boundary» y el robot volvía a empezar una y otra vez)
+  const pcallJs = (f, ...a) => { try { return [true, ...R.c(f, 'pcall', ...a)]; } catch (e) { if (e && e.duro) throw e; return [false, msgErr(e)]; } };
+  pcallJs.g = function* (f, ...a) { try { const r = yield* R.cy(f, 'pcall', ...a); return [true, ...r]; } catch (e) { if (e && e.duro) throw e; return [false, msgErr(e)]; } };
+  const xpcallJs = (f, h, ...a) => { try { return [true, ...R.c(f, 'xpcall', ...a)]; } catch (e) { if (e && e.duro) throw e; return [false, ...R.c(h, 'xpcall', msgErr(e))]; } };
+  xpcallJs.g = function* (f, h, ...a) { try { const r = yield* R.cy(f, 'xpcall', ...a); return [true, ...r]; } catch (e) { if (e && e.duro) throw e; return [false, ...R.c(h, 'xpcall', msgErr(e))]; } };
+  def(G, 'pcall', pcallJs); def(G, 'xpcall', xpcallJs);
   def(G, 'select', (n, ...a) => { if (n === '#') return a.length; n = R.num(n, 'select'); if (n < 0) n = a.length + n; else n--; return a.slice(Math.max(0, n)); });
   const pnext = (t, k) => {
     if (!(t instanceof LuaTable)) err('bad argument #1 to next (table expected)');
