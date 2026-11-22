@@ -165,6 +165,7 @@ public class Principal extends Activity {
             Motor.config(m, Motor.POCA_LUZ, prefs.getBoolean("realce", true) ? 1 : 0);
             Motor.config(m, Motor.FLOAT16, prefs.getBoolean("float16", true) ? 1 : 0);
             Motor.config(m, Motor.PERFIL, prefs.getBoolean("perfil", false) ? 1 : 0);
+            Motor.config(m, Motor.OCHO_BITS, prefs.getBoolean("ocho", true) ? 1 : 0);
             camara.aplicarModelo();
         } });
     }
@@ -283,6 +284,10 @@ public class Principal extends Activity {
         interruptor(l, "Medir cada capa", "Muestra arriba cuánto tarda cada tipo de capa de la red (para mandarle una captura al que la programa). Medir hace todo un poco más lento.",
             prefs.getBoolean("perfil", false), new CompoundButton.OnCheckedChangeListener() { public void onCheckedChanged(CompoundButton c, boolean v) {
                 prefs.edit().putBoolean("perfil", v).apply(); aplicarAjustes();
+            } });
+        interruptor(l, "Cálculo en 8 bits", "En los procesadores con producto punto de 8 bits (casi todos desde 2019) las capas grandes de la red de los puntos se hacen con números de 8 bits: el doble que en float16 por instrucción. Medido: los puntos se mueven 0,35 % del largo de la palma.",
+            prefs.getBoolean("ocho", true), new CompoundButton.OnCheckedChangeListener() { public void onCheckedChanged(CompoundButton c, boolean v) {
+                prefs.edit().putBoolean("ocho", v).apply(); aplicarAjustes();
             } });
         interruptor(l, "Cálculo rápido (float16)", "En los procesadores que lo tienen (casi todos desde 2018) las cuentas grandes se hacen en float16: el doble de números por instrucción. Medido: los puntos se mueven 0,5 % del largo de la palma contra el cálculo completo.",
             prefs.getBoolean("float16", true), new CompoundButton.OnCheckedChangeListener() { public void onCheckedChanged(CompoundButton c, boolean v) {

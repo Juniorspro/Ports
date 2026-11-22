@@ -25,6 +25,21 @@ enum Paso {
     Mean { e: usize, s: usize },
 }
 
+/// los pesos de una 1×1 en 8 bits: por bloques de 16 salidas y 4 entradas, 64 bytes (4 registros: salidas 4r..4r+3,
+/// cada una con sus 4 entradas seguidas), como los lee SDOT por carril; y la escala de cada salida (el máximo |peso| / 127)
+struct Pesos8 { w: Vec<i8>, esc: Vec<f32>, ci4: usize, co16: usize }
+
+/// si se usan las 1×1 en 8 bits cuando el procesador tiene SDOT (para comparar: se puede apagar). En la PC no hay SDOT:
+/// con JXH_8BITS_PC=1 se usa el mismo camino con un kernel común (para medir cuánto se mueven los puntos)
+pub static USAR_8: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+fn ocho_activo() -> bool {
+    use std::sync::OnceLock;
+    static PC: OnceLock<bool> = OnceLock::new();
+    USAR_8.load(std::sync::atomic::Ordering::Relaxed) && (hay_dot() || *PC.get_or_init(|| std::env::var("JXH_8BITS_PC").is_ok()))
+}
+/// ¿se usan las cuentas en 8 bits en este celular? (para la pantalla)
+pub fn ocho_en_uso() -> bool { ocho_activo() }
+
 /// lo fundido al final de una convolución: sumar otro tensor de la misma forma (el atajo de un bloque residual), con su
 /// activación, y después un PReLU (alfa por canal)
 #[derive(Debug, Clone, Copy, Default)]
@@ -42,6 +57,13 @@ pub struct Red {
     pesos16: Vec<Option<Vec<u16>>>,
     /// la entrada de la capa pasada a float16 (se reusa)
     tmp16: Vec<u16>,
+    /// las 1×1 en 8 bits (con el producto punto SDOT de ARMv8.2): los pesos empaquetados para el kernel, uno por paso
+    pesos8: Vec<Option<Pesos8>>,
+    /// la entrada de la capa en 8 bits, empaquetada de a 4 píxeles (se reusa)
+    tmp8: Vec<i8>,
+    /// si esta red puede usar las 1×1 en 8 bits: sí la de los puntos (medido: 0,35 % de la palma contra float16); no el
+    /// detector (cambia lo que encuentra en 5 de 52 fotos, los casos cerca del umbral)
+    pub con_ocho: bool,
     /// copia en float16 de los tensores que sólo leen capas en float16 (los grandes, «expandidos»): la escribe la capa
     /// que los produce, cuando la salida todavía está en la caché, y las siguientes la leen directo (sin otra pasada
     /// para convertir). Vacía si el tensor no la tiene.
@@ -52,6 +74,9 @@ pub struct Red {
     /// (pruebas) el máximo |x| de cada tensor visto en las corridas (para calibrar las escalas de 8 bits)
     pub rangos: Option<Vec<f32>>,
     pub minimos: Option<Vec<f32>>,
+    /// (pruebas de 8 bits) sólo las 1×1 en 8 bits: su entrada redondeada con la escala de ese cuadro (el máximo del tensor
+    /// en ese momento, no una fija) y sus pesos con una escala por canal de salida
+    pub sim8_1x1: bool,
 }
 
 /// si se usan las cuentas en float16 cuando el procesador las tiene (para comparar: se puede apagar)
@@ -248,6 +273,14 @@ impl Red {
             }
             pesos16.push(w16);
         }
+        // las 1×1 en 8 bits: si el procesador tiene SDOT (o en la PC, para medir)
+        let pesos8: Vec<Option<Pesos8>> = pasos.iter().map(|p| {
+            if !(hay_dot() || std::env::var("JXH_8BITS_PC").is_ok()) { return None; }
+            let Paso::Conv { e, s, w, kh: 1, kw: 1, paso: (1, 1), .. } = p else { return None; };
+            let (ci, co) = (forma4(&formas[*e])[3], forma4(&formas[*s])[3]);
+            if ci < 8 || co < 8 { return None; }
+            Some(empaquetar8(&datos[*w], ci, co))
+        }).collect();
         // qué tensores tienen copia en float16: los produce una capa en float16 y sólo los leen capas en float16 (por su
         // entrada principal), con los canales en múltiplos de 8, y no son una salida de la red
         let mut sombras: Vec<Vec<u16>> = vec![Vec::new(); datos.len()];
@@ -268,7 +301,7 @@ impl Red {
                 if ok { sombras[t] = vec![0u16; datos[t].len()]; }
             }
         }
-        Ok(Red { formas, datos, pasos, entradas: m.entradas, salidas: m.salidas, pesos16, tmp16: Vec::new(), sombras, simular8: None, rangos: None, minimos: None })
+        Ok(Red { formas, datos, pasos, entradas: m.entradas, salidas: m.salidas, pesos16, tmp16: Vec::new(), sombras, simular8: None, rangos: None, minimos: None, sim8_1x1: false, pesos8, tmp8: Vec::new(), con_ocho: false })
     }
 
     pub fn forma(&self, t: usize) -> &[usize] { &self.formas[t] }
@@ -312,10 +345,19 @@ impl Red {
         for k in 0..self.pasos.len() {
             // (cada paso lee unos tensores y escribe otro: se saca la salida un momento para tener las dos cosas a la vez)
             let s = salida_de(&self.pasos[k]);
+            // (pruebas: la entrada de una 1×1 en 8 bits con la escala de este cuadro; se vuelve a poner como estaba después)
+            let mut guardada: Option<(usize, Vec<f32>)> = None;
+            if self.sim8_1x1 { if let Paso::Conv { e, kh: 1, kw: 1, .. } = &self.pasos[k] {
+                let e = *e; let m = self.datos[e].iter().fold(0f32, |a, &x| a.max(x.abs())); let q = m / 127.0;
+                if q > 0.0 { guardada = Some((e, self.datos[e].clone())); for x in self.datos[e].iter_mut() { *x = (*x / q).round() * q; } }
+            } }
             let mut out = std::mem::take(&mut self.datos[s]);
             let mut t16 = std::mem::take(&mut self.tmp16);
+            let mut t8 = std::mem::take(&mut self.tmp8);
             let mut s16 = std::mem::take(&mut self.sombras[s]);
-            self.paso(k, &mut out, &mut t16, &mut s16, f16);
+            self.paso(k, &mut out, &mut t16, &mut t8, &mut s16, f16);
+            self.tmp8 = t8;
+            if let Some((e, v)) = guardada { self.datos[e] = v; }
             if let Some(r) = self.rangos.as_mut() { let m = out.iter().fold(0f32, |a, &x| a.max(x.abs())); if m > r[s] { r[s] = m; } }
             if let Some(r) = self.minimos.as_mut() { let m = out.iter().fold(f32::INFINITY, |a, &x| a.min(x)); if m < r[s] { r[s] = m; } }
             // (escala negativa: el tensor nunca es negativo y va de 0 a 255)
@@ -327,9 +369,12 @@ impl Red {
     }
 
     /// (pruebas de 8 bits) los pesos de las convoluciones redondeados a 8 bits, con una escala por canal de salida
-    pub fn pesos_a_8bits(&mut self) {
+    /// (`solo_1x1`: sólo los de las 1×1)
+    pub fn pesos_a_8bits(&mut self) { self.pesos_a_8bits_de(false) }
+    pub fn pesos_a_8bits_de(&mut self, solo_1x1: bool) {
         let mut cambios = Vec::new();
         for p in &self.pasos {
+            if solo_1x1 && !matches!(p, Paso::Conv { kh: 1, kw: 1, .. }) { continue; }
             match p {
                 Paso::Conv { w, s, .. } => { let co = forma4(&self.formas[*s])[3]; cambios.push((*w, co)); }
                 Paso::Depthwise { w, s, .. } => { let co = forma4(&self.formas[*s])[3]; cambios.push((*w, co)); }
@@ -373,8 +418,10 @@ impl Red {
             let s = salida_de(&self.pasos[k]);
             let mut out = std::mem::take(&mut self.datos[s]);
             let mut t16 = std::mem::take(&mut self.tmp16);
+            let mut t8 = std::mem::take(&mut self.tmp8);
             let mut s16 = std::mem::take(&mut self.sombras[s]);
-            let t0 = std::time::Instant::now(); self.paso(k, &mut out, &mut t16, &mut s16, f16_activo()); let d = t0.elapsed().as_secs_f64() * 1e3;
+            let t0 = std::time::Instant::now(); self.paso(k, &mut out, &mut t16, &mut t8, &mut s16, f16_activo()); let d = t0.elapsed().as_secs_f64() * 1e3;
+            self.tmp8 = t8;
             self.sombras[s] = s16;
             self.tmp16 = t16;
             self.datos[s] = out;
@@ -386,7 +433,7 @@ impl Red {
 
     #[cfg_attr(not(target_arch = "aarch64"), allow(unused_variables))]
     #[allow(clippy::too_many_arguments)]
-    fn paso(&self, k: usize, out: &mut [f32], t16: &mut Vec<u16>, s16: &mut [u16], f16: bool) {
+    fn paso(&self, k: usize, out: &mut [f32], t16: &mut Vec<u16>, t8: &mut Vec<i8>, s16: &mut [u16], f16: bool) {
         let d = &self.datos; let f = &self.formas;
         match &self.pasos[k] {
             Paso::Conv { e, s, w, b, kh, kw, paso, dil, pad, act, fin } => {
@@ -394,6 +441,43 @@ impl Red {
                 let (x, w, b, act) = (&d[*e][..], &d[*w][..], &d[*b][..], *act);
                 let (ci, co) = (fe[3], fs[3]);
                 let po = Puntero(out.as_mut_ptr());
+                if let (Some(p8), true) = (self.pesos8[k].as_ref(), self.con_ocho && ocho_activo()) {
+                    // 1×1 en 8 bits: (1) el máximo |x| de la entrada en este cuadro (la escala); (2) cada trozo de 4 píxeles en
+                    // 4 píxeles pasa su parte de la entrada a 8 bits empaquetada, multiplica con SDOT (16 por instrucción),
+                    // vuelve a float con las escalas y el sesgo y termina como las demás (activación, lo fundido, la copia en
+                    // float16)
+                    let n = fs[1] * fs[2]; let (ci4, nk4) = (p8.ci4, p8.ci4 / 4);
+                    let maxi = std::sync::atomic::AtomicU32::new(0);
+                    let tr = filas_por_trozo(n, n * ci, 1);
+                    hilos::repartir(n.div_ceil(tr), &|t| {
+                        let (a, z) = (t * tr, ((t + 1) * tr).min(n));
+                        let m = x[a * ci..z * ci].iter().fold(0f32, |m, &v| m.max(v.abs()));
+                        maxi.fetch_max(m.to_bits(), std::sync::atomic::Ordering::Relaxed);
+                    });
+                    let m = f32::from_bits(maxi.load(std::sync::atomic::Ordering::Relaxed));
+                    let sa = if m > 0.0 { m / 127.0 } else { 1.0 };
+                    let n4 = n.div_ceil(4) * 4;
+                    if t8.len() < n4 * ci4 { t8.resize(n4 * ci4, 0); }
+                    let p8a = Puntero8(t8.as_mut_ptr());
+                    let ps16 = PunteroU16(s16.as_mut_ptr()); let con_sombra = !s16.is_empty();
+                    let filas = filas_por_trozo(n, n * ci * co, 4);
+                    hilos::repartir(n.div_ceil(filas), &|t| {
+                        let (p0, p1) = (t * filas, ((t + 1) * filas).min(n));
+                        let (b0, b1) = (p0 / 4, p1.div_ceil(4));
+                        // SAFETY: cada trozo escribe sus bloques de 4 píxeles del empaquetado y sus filas de la salida
+                        let a8 = unsafe { std::slice::from_raw_parts_mut(p8a.p().add(b0 * nk4 * 16), (b1 - b0) * nk4 * 16) };
+                        ocho::empaquetar(x, ci, nk4, p0, p1, 1.0 / sa, a8);
+                        let o = unsafe { po.parte(p0 * co, (p1 - p0) * co) };
+                        ocho::gemm(a8, &p8.w, &p8.esc, sa, b, o, p1 - p0, nk4, co, p8.co16);
+                        activar_todo(o, act);
+                        terminar(o, p0 * co, co, fin, d);
+                        #[cfg(target_arch = "aarch64")]
+                        if con_sombra { unsafe { neon16::a_medio(o.as_ptr(), ps16.p().add(p0 * co), o.len(), o.len()); } }
+                        #[cfg(not(target_arch = "aarch64"))]
+                        let _ = (con_sombra, ps16);
+                    });
+                    return;
+                }
                 #[cfg(target_arch = "aarch64")]
                 if let (Some(w16), true) = (self.pesos16[k].as_ref(), f16) {
                     // 1×1 en float16: cada trozo pasa sus filas de la entrada a float16 (si no vienen ya en float16) y
@@ -780,6 +864,114 @@ fn depthwise(x: &[f32], fe: [usize; 4], w: &[f32], b: &[f32], out: &mut [f32], f
         }
     } }
     activar_todo(out, act);
+}
+
+#[derive(Clone, Copy)]
+struct Puntero8(*mut i8);
+unsafe impl Send for Puntero8 {}
+unsafe impl Sync for Puntero8 {}
+impl Puntero8 { fn p(self) -> *mut i8 { self.0 } }
+
+/// pesos [ci][co] en float → 8 bits con una escala por salida, empaquetados como los lee `ocho::gemm`
+fn empaquetar8(w: &[f32], ci: usize, co: usize) -> Pesos8 {
+    let (ci4, co16) = (ci.div_ceil(4) * 4, co.div_ceil(16) * 16);
+    let mut esc = vec![0f32; co16];
+    for o in 0..co { let m = (0..ci).fold(0f32, |m, k| m.max(w[k * co + o].abs())); esc[o] = if m > 0.0 { m / 127.0 } else { 1.0 }; }
+    let nk4 = ci4 / 4; let mut q = vec![0i8; co16 * ci4];
+    for b in 0..co16 / 16 { for k4 in 0..nk4 { for r in 0..4 { for i in 0..4 { for j in 0..4 {
+        let (o, k) = (b * 16 + r * 4 + i, k4 * 4 + j);
+        if o < co && k < ci { q[((b * nk4 + k4) * 4 + r) * 16 + i * 4 + j] = (w[k * co + o] / esc[o]).round().clamp(-127.0, 127.0) as i8; }
+    } } } } }
+    Pesos8 { w: q, esc, ci4, co16 }
+}
+
+/// las 1×1 en 8 bits
+mod ocho {
+    /// los píxeles [p0, p1) de la entrada (float, [n][ci]) a 8 bits (× `inv`), empaquetados de a 4 píxeles: para cada
+    /// grupo de 4 entradas, 16 bytes (4 por píxel). Los píxeles de relleno del último bloque quedan en 0
+    pub fn empaquetar(x: &[f32], ci: usize, nk4: usize, p0: usize, p1: usize, inv: f32, dst: &mut [i8]) {
+        let b0 = p0 / 4;
+        for pb in b0..p1.div_ceil(4) {
+            let base = (pb - b0) * nk4 * 16;
+            for l in 0..4 {
+                let p = pb * 4 + l;
+                if p < p0 || p >= p1 { for k4 in 0..nk4 { for j in 0..4 { dst[base + k4 * 16 + l * 4 + j] = 0; } } continue; }
+                let fila = &x[p * ci..(p + 1) * ci];
+                for k4 in 0..nk4 { for j in 0..4 {
+                    let k = k4 * 4 + j;
+                    dst[base + k4 * 16 + l * 4 + j] = if k < ci { (fila[k] * inv).round().clamp(-127.0, 127.0) as i8 } else { 0 };
+                } }
+            }
+        }
+    }
+    /// [n × ci] (8 bits, empaquetada) · [ci × co] (8 bits) → float, con las escalas y el sesgo. `out`: [n][co]
+    #[allow(clippy::too_many_arguments)]
+    pub fn gemm(a: &[i8], w: &[i8], esc: &[f32], sa: f32, b: &[f32], out: &mut [f32], n: usize, nk4: usize, co: usize, co16: usize) {
+        #[cfg(target_arch = "aarch64")]
+        { if super::hay_dot() && std::env::var_os("JXH_8BITS_COMUN").is_none() { unsafe { gemm_sdot(a, w, esc, sa, b, out, n, nk4, co, co16); } return; } }
+        // (el común: el mismo empaquetado, sumas en enteros)
+        let nb = n.div_ceil(4);
+        for pb in 0..nb { for ob in 0..co16 / 16 {
+            let mut acc = [[0i32; 16]; 4];
+            for k4 in 0..nk4 {
+                let av = &a[(pb * nk4 + k4) * 16..][..16]; let wv = &w[(ob * nk4 + k4) * 64..][..64];
+                for l in 0..4 { for r in 0..4 { for i in 0..4 {
+                    let mut s = 0i32; for j in 0..4 { s += wv[r * 16 + i * 4 + j] as i32 * av[l * 4 + j] as i32; }
+                    acc[l][r * 4 + i] += s;
+                } } }
+            }
+            for l in 0..4 { let p = pb * 4 + l; if p >= n { break; }
+                for q in 0..16 { let o = ob * 16 + q; if o < co { out[p * co + o] = (acc[l][q] as f32).mul_add(esc[o] * sa, b[o]); } } }
+        } }
+    }
+    /// el de ARM con SDOT: un bloque de 4 píxeles × 16 salidas en 16 registros; por cada 4 entradas, 1 carga de la
+    /// entrada (4 píxeles × 4 bytes), 4 de pesos y 16 SDOT (cada uno, 4 salidas × 4 entradas de un píxel)
+    #[cfg(target_arch = "aarch64")]
+    #[target_feature(enable = "dotprod")]
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn gemm_sdot(a: &[i8], w: &[i8], esc: &[f32], sa: f32, b: &[f32], out: &mut [f32], n: usize, nk4: usize, co: usize, co16: usize) {
+        use std::arch::aarch64::*;
+        macro_rules! sd { ($acc:ident, $w:expr, $a:expr, $l:literal) => {
+            std::arch::asm!(concat!("sdot {acc:v}.4s, {w:v}.16b, {a:v}.4b[", $l, "]"), acc = inout(vreg) $acc, w = in(vreg) $w, a = in(vreg) $a, options(pure, nomem, nostack));
+        } }
+        let nb = n.div_ceil(4);
+        for pb in 0..nb {
+            let ap = a.as_ptr().add(pb * nk4 * 16);
+            for ob in 0..co16 / 16 {
+                let wp = w.as_ptr().add(ob * nk4 * 64);
+                let z = vdupq_n_s32(0);
+                let (mut c00, mut c01, mut c02, mut c03) = (z, z, z, z);
+                let (mut c10, mut c11, mut c12, mut c13) = (z, z, z, z);
+                let (mut c20, mut c21, mut c22, mut c23) = (z, z, z, z);
+                let (mut c30, mut c31, mut c32, mut c33) = (z, z, z, z);
+                for k4 in 0..nk4 {
+                    let av = vld1q_s8(ap.add(k4 * 16));
+                    let w0 = vld1q_s8(wp.add(k4 * 64)); let w1 = vld1q_s8(wp.add(k4 * 64 + 16)); let w2 = vld1q_s8(wp.add(k4 * 64 + 32)); let w3 = vld1q_s8(wp.add(k4 * 64 + 48));
+                    sd!(c00, w0, av, "0"); sd!(c01, w1, av, "0"); sd!(c02, w2, av, "0"); sd!(c03, w3, av, "0");
+                    sd!(c10, w0, av, "1"); sd!(c11, w1, av, "1"); sd!(c12, w2, av, "1"); sd!(c13, w3, av, "1");
+                    sd!(c20, w0, av, "2"); sd!(c21, w1, av, "2"); sd!(c22, w2, av, "2"); sd!(c23, w3, av, "2");
+                    sd!(c30, w0, av, "3"); sd!(c31, w1, av, "3"); sd!(c32, w2, av, "3"); sd!(c33, w3, av, "3");
+                }
+                // a float: acumulado × (escala de la entrada × la de cada salida) + sesgo
+                let o0 = ob * 16;
+                let fila = |l: usize, r: [int32x4_t; 4], out: &mut [f32]| {
+                    let p = pb * 4 + l; if p >= n { return; }
+                    for (q, v) in r.iter().enumerate() {
+                        let o = o0 + q * 4;
+                        if o + 4 <= co {
+                            let s = vmulq_n_f32(vld1q_f32(esc.as_ptr().add(o)), sa);
+                            let y = vfmaq_f32(vld1q_f32(b.as_ptr().add(o)), vcvtq_f32_s32(*v), s);
+                            vst1q_f32(out.as_mut_ptr().add(p * co + o), y);
+                        } else if o < co {
+                            let mut t = [0i32; 4]; vst1q_s32(t.as_mut_ptr(), *v);
+                            for i in 0..co - o { out[p * co + o + i] = (t[i] as f32).mul_add(esc[o + i] * sa, b[o + i]); }
+                        }
+                    }
+                };
+                fila(0, [c00, c01, c02, c03], out); fila(1, [c10, c11, c12, c13], out); fila(2, [c20, c21, c22, c23], out); fila(3, [c30, c31, c32, c33], out);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

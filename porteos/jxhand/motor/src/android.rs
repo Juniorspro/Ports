@@ -163,6 +163,7 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_soltar(_env: Env, _c:
 /// los ángulos · 10 modelo liviano (1) o completo (0) · 11 realce de poca luz (1/0) · 12 hilos · 13 reiniciar
 /// · 14 cuentas en float16 si el procesador las tiene (1/0) · 15 hilos: los núcleos grandes menos éstos (entre 2 y 3;
 /// para dejarle uno al juego) · 16 medir cada tipo de capa (1/0; ver perfil()) · 17 sin manos, buscar 1 de cada N cuadros
+/// · 18 hilos elegidos midiendo (1/0) · 19 las 1×1 de la red de los puntos en 8 bits si el procesador tiene SDOT (1/0)
 #[no_mangle]
 pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_config(_env: Env, _c: Obj, m: i64, clave: i32, valor: f32) {
     if m == 0 { return; }
@@ -188,6 +189,7 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_config(_env: Env, _c:
             // (los grandes menos éstos es el tope; los hilos se eligen midiendo, de ahí a 1)
             hilos::configurar(n); e.motor.auto.tope = n; e.motor.auto.elegido = 0; e.motor.auto.activo = true; }
         18 => e.motor.auto.activo = valor > 0.5,
+        19 => crate::red::USAR_8.store(valor > 0.5, std::sync::atomic::Ordering::Relaxed),
         _ => {}
     }
 }
@@ -269,10 +271,11 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_procesar(env: Env, _c
     let f16 = crate::red::hay_f16() && crate::red::USAR_F16.load(std::sync::atomic::Ordering::Relaxed);
     // (cabecera: manos, corrió el detector en el cuadro, inferencias, ms del motor, ms de YUV, brillo, ganancia, hilos,
     // float16, núcleos grandes, ms del recorte, ms de la red de puntos, ms del detector, núcleos chicos, producto punto
-    // de 8 bits, hilos elegidos midiendo —0 no, 1 sí, 2 probando—)
+    // de 8 bits —0 no hay, 1 hay, 2 en uso—, hilos elegidos midiendo —0 no, 1 sí, 2 probando—)
     let (ms_rec, ms_red, ms_det) = e.motor.tiempos();
     s.extend_from_slice(&[manos.len() as f32, e.motor.corrio_detector as u8 as f32, e.motor.inferencias as f32, t_motor as f32, t_yuv as f32, brillo, ganancia, hilos::cuantos() as f32, f16 as u8 as f32,
-        GRANDES.load(std::sync::atomic::Ordering::Relaxed) as f32, ms_rec, ms_red, ms_det, CHICOS.load(std::sync::atomic::Ordering::Relaxed) as f32, crate::red::hay_dot() as u8 as f32,
+        GRANDES.load(std::sync::atomic::Ordering::Relaxed) as f32, ms_rec, ms_red, ms_det, CHICOS.load(std::sync::atomic::Ordering::Relaxed) as f32,
+        if crate::red::ocho_en_uso() { 2.0 } else if crate::red::hay_dot() { 1.0 } else { 0.0 },
         if e.motor.auto.activo { if e.motor.auto.probando() { 2.0 } else { 1.0 } } else { 0.0 }]);
     for x in &manos {
         let b = s.len(); s.resize(b + POR_MANO, 0.0); let o = &mut s[b..];

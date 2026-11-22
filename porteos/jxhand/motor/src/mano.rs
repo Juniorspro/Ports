@@ -283,7 +283,8 @@ impl Puntero {
     /// (pruebas) la red, para medirla o cambiarla
     pub fn red_mut(&mut self) -> &mut Red { &mut self.red }
     pub fn nuevo_tam(modelo: &[u8], tam: usize, div: f32) -> Result<Puntero, String> {
-        let red = if tam == 224 { Red::cargar(modelo)? } else { Red::cargar_tam(modelo, Some((tam, tam)))? };
+        let mut red = if tam == 224 { Red::cargar(modelo)? } else { Red::cargar_tam(modelo, Some((tam, tam)))? };
+        red.con_ocho = true;
         Ok(Puntero { red, recorte: vec![0.0; tam * tam * 3], luz: AjusteLuz::default(), realce: Realce::default(), tmp: Vec::new(), tam, div, ms_recorte: 0.0, ms_red: 0.0, perfil: None, perfil_n: 0 })
     }
     pub fn puntos(&mut self, rgba: &[u8], w: usize, h: usize, roi: &Roi) -> Puntos {

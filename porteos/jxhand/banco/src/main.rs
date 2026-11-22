@@ -162,6 +162,14 @@ fn main() {
                     casos.push((foto.rsplit('/').next().unwrap().to_string(), k, b.clone(), w, h, roi, palma));
                 }
             }
+            // (antes: sólo las 1×1 en 8 bits, con la escala de cada cuadro)
+            {
+                let mut q = Puntero::nuevo(&lite).unwrap(); q.red_mut().pesos_a_8bits_de(true); q.red_mut().sim8_1x1 = true;
+                let (mut sm, mut mx, mut dp) = (0f32, 0f32, 0f32); let mut peores = Vec::new();
+                for c in &casos { let (x, y) = (l32.puntos(&c.2, c.3, c.4, &c.5), q.puntos(&c.2, c.3, c.4, &c.5)); let (m, mm) = err(&x, &y, c.6); sm += m; mx = mx.max(mm); dp = dp.max((x.presencia - y.presencia).abs()); peores.push((m, c.0.clone(), c.1)); }
+                peores.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+                println!("== sólo las 1×1 en 8 bits (escala de cada cuadro): {} casos · {:.2} % de la palma en promedio, el peor punto {:.2} % · presencia ±{:.3} · peores casos {:?}", casos.len(), sm / casos.len() as f32, mx, dp, &peores[..3.min(peores.len())]);
+            }
             // calibrar: el máximo de cada tensor con los pesos ya en 8 bits
             let nt = l8.red_mut().tensores(); l8.red_mut().rangos = Some(vec![0.0; nt]); l8.red_mut().minimos = Some(vec![f32::INFINITY; nt]);
             for c in &casos { l8.puntos(&c.2, c.3, c.4, &c.5); }
@@ -252,6 +260,35 @@ fn main() {
                 jxhand::hilos::configurar(n); for _ in 0..3 { pun.puntos(b, w, h, &roi); }
                 let t0 = Instant::now(); for _ in 0..20 { pun.puntos(b, w, h, &roi); } println!("{} hilos: {:.2} ms", n, t0.elapsed().as_secs_f64() * 1e3 / 20.0);
             }
+        }
+        Some("ocho") => {
+            // ocho MODELOS FOTO...: el modelo liviano con las 1×1 en 8 bits contra sin (en la PC hace falta JXH_8BITS_PC=1),
+            // sobre el mismo cuadrado de la mano (el del completo después de 2 pasadas), con el cuadrado un poco movido; y
+            // cuánto tarda la red de cada forma
+            let (mut det, mut com) = cargar(&a[2]);
+            let mut lite = Puntero::nuevo(&fs::read(format!("{}/hand_landmark_lite.tflite", a[2])).unwrap()).unwrap();
+            let (mut sm, mut mx, mut n, mut dp) = (0f32, 0f32, 0usize, 0f32); let mut lineas = Vec::new();
+            for foto in &a[3..] {
+                let Ok(im) = image::open(foto) else { continue; }; let im = im.to_rgba8(); let (w, h) = (im.width() as usize, im.height() as usize); let b = im.as_raw();
+                let ps = det.detectar(b, w, h); let Some(pa) = ps.first() else { continue; }; if det.mejor < 0.6 { continue; }
+                let mut r = com.puntos(b, w, h, &mano::roi_de_palma(pa)); for _ in 0..2 { r = com.puntos(b, w, h, &mano::roi_de_puntos(&r.img)); }
+                if r.presencia < 0.8 { continue; }
+                let palma = (r.img[0].x - r.img[9].x).hypot(r.img[0].y - r.img[9].y);
+                for (da, de) in [(0.0f32, 1.0f32), (0.25, 1.0), (-0.3, 1.1), (0.1, 0.9)] {
+                    let mut roi = r.roi; roi.ang += da; roi.lado *= de;
+                    jxhand::red::USAR_8.store(false, std::sync::atomic::Ordering::Relaxed); let x = lite.puntos(b, w, h, &roi);
+                    jxhand::red::USAR_8.store(true, std::sync::atomic::Ordering::Relaxed); let y = lite.puntos(b, w, h, &roi);
+                    let d: Vec<f32> = (0..PUNTOS).map(|i| (x.img[i].x - y.img[i].x).hypot(x.img[i].y - y.img[i].y) / palma * 100.0).collect();
+                    let m = d.iter().sum::<f32>() / PUNTOS as f32; sm += m; mx = mx.max(d.iter().cloned().fold(0.0, f32::max)); n += 1; dp = dp.max((x.presencia - y.presencia).abs());
+                    if da == 0.0 { lineas.push(format!("   {:28} {:.2} % · presencia {:.4} / {:.4}", foto.rsplit('/').next().unwrap().chars().take(28).collect::<String>(), m, x.presencia, y.presencia)); }
+                    if std::env::var("JXH_PUNTOS").is_ok() && da == 0.0 { println!("{:?}", y.img.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>()); }
+                }
+            }
+            for l in &lineas { println!("{}", l); }
+            println!("== 1×1 en 8 bits contra sin: {} casos · {:.2} % de la palma en promedio, el peor punto {:.2} % · presencia ±{:.4} · en uso: {}", n, sm / n.max(1) as f32, mx, dp, jxhand::red::ocho_en_uso());
+            let lm = fs::read(format!("{}/hand_landmark_lite.tflite", a[2])).unwrap();
+            let mut red = jxhand::red::Red::cargar(&lm).unwrap(); red.con_ocho = true; for v in red.entrada(0).iter_mut() { *v = 0.5; }
+            for u in [false, true] { jxhand::red::USAR_8.store(u, std::sync::atomic::Ordering::Relaxed); red.correr(); let t0 = Instant::now(); for _ in 0..10 { red.correr(); } println!("   red {}: {:.2} ms", if u { "con 8 bits" } else { "sin" }, t0.elapsed().as_secs_f64() * 1e3 / 10.0); }
         }
         Some("capas") => {
             let t: Option<usize> = a.get(3).and_then(|x| x.parse().ok());

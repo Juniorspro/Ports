@@ -236,6 +236,26 @@ eran 15,9; en un TCL 20 SE, 40 ms con el liviano y una mano):**
 - **JXMod:** hilos = núcleos grandes menos uno (entre 2 y 3). Sin mano, busca 1 de cada 2 cuadros. La miniatura, cada 15
   cuadros.
 
+**2.3c y 2.4 (con la medición por capa del celular del dueño: la red 5,56 ms —las 1×1 3,00, las depthwise 1,72, la
+primera 0,40, MaxPool 0,20— y el recorte 1,5; en el TCL 20 SE la red 34,5 ms aunque ya usaba los 4 núcleos grandes):**
+- **Los hilos se eligen midiendo** (`AutoHilos`, `motor.rs`). Con la mano a la vista prueba de los núcleos grandes a 1,
+  12 cuadros cada uno sin contar los 2 primeros, y se queda con la mediana más baja; si dos están a menos de 5 %, la de
+  menos hilos. Cada minuto vuelve a probar la elegida y sus vecinas. Con 4 hilos sobre 4 núcleos y la cámara, el dibujo y
+  el sistema al lado, si el sistema saca a un hilo un momento, los otros lo esperan al final de cada capa (unas 60 por
+  cuadro). Arriba dice «probando» o «auto». En JXMod, el tope son los grandes menos uno.
+- **MaxPool** repartido entre los hilos, y **la primera capa** deja su salida también en float16 para la depthwise que
+  sigue (antes ésa pasaba los 112 × 112 × 24 a float16 aparte). Salidas idénticas en la PC y en ARM.
+- **Las 1×1 de la red de los puntos en 8 bits** (`ocho`, `red.rs`), si el procesador tiene producto punto (SDOT,
+  ARMv8.2 «dotprod»):
+  - Pesos en 8 bits con una escala por salida. La entrada, en 8 bits con la escala de ese cuadro (su máximo).
+  - Empaquetada de a 4 píxeles; bloques de 4 píxeles × 16 salidas en 16 registros. Por cada 4 entradas, 1 carga de la
+    entrada, 4 de pesos y 16 SDOT de 16 multiplicaciones: el doble que float16 por instrucción. SDOT con `asm!` (la
+    función de Rust todavía no es estable).
+  - Medido: los puntos se mueven 0,35 % de la palma contra float16 en ARM (1,10 % el peor) y 0,56 % contra float32 en la
+    PC (3,47 % el peor, en la foto difícil). El kernel SDOT da bit a bit lo mismo que el común (`JXH_8BITS_COMUN`).
+  - **El detector, no:** en 8 bits cambia lo que encuentra en 5 de 52 fotos (los casos cerca del umbral).
+  - Ajustes → «Cálculo en 8 bits» (prendido de entrada); arriba dice «8 bits». En la PC: `JXH_8BITS_PC=1`.
+
 ## Cómo se arma y se prueba
 
 ```sh
