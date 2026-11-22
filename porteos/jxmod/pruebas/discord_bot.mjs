@@ -111,6 +111,12 @@ ok('6. cron: sin novedad no anuncia; con 3.9.12 y Stickerazo 0.9 anuncia las dos
 const an1 = await pedir(cmd('anunciar', ADMIN, [{ name: 'titulo', value: 'Evento' }, { name: 'texto', value: 'Sábado a las 18' }]));
 const an2 = await pedir(cmd('anunciar', ADMIN, [{ name: 'titulo', value: 'Evento' }, { name: 'texto', value: 'Sábado' }, { name: 'avisar', value: true }]));
 ok('7. /anunciar arma el anuncio; menciona «Avisos» sólo si se pide', an1.d.data.embeds[0].title === 'Evento' && !an1.d.data.content && an2.d.data.content === `<@&${rolesConf.avisos}>`, [an1.d.data.content, an2.d.data.content]);
+// (por mensaje privado al bot: sin servidor; vale en todos)
+const OTRO = { user: { id: 'u5', username: 'mod' }, permissions: '0', roles: [] };
+const dmAntes = await pedir(cmd('anunciar', OTRO, [{ name: 'titulo', value: 'a' }, { name: 'texto', value: 'b' }]));
+const dm = await pedir({ type: 5, user: { id: 'u5', username: 'mod' }, channel_id: 'dm5', data: { custom_id: 'admin', components: [{ type: 1, components: [{ type: 4, custom_id: 'codigo', value: 'Prueba(@1' }] }] } });
+const dmDespues = await pedir(cmd('anunciar', OTRO, [{ name: 'titulo', value: 'a' }, { name: 'texto', value: 'b' }]));
+ok('7b. /admin por mensaje privado al bot: después anda en el servidor', /primero mandame/.test(dmAntes.d.data.content) && /todos los servidores/.test(dm.d.data.content) && dmDespues.d.data.embeds && dmDespues.d.data.embeds[0].title === 'a', [dm.d.data.content]);
 env.DISCORD_ADMIN_CODE = 'OtroCodigo!'; const tras = await pedir(cmd('anunciar', ADMIN, [{ name: 'titulo', value: 'x' }, { name: 'texto', value: 'y' }]));
 ok('8. si el código cambia, el que se habilitó con el anterior deja de ser admin', /primero mandame el código/.test(tras.d.data.content), tras.d.data.content);
 console.log('RESUMEN ' + R.filter(Boolean).length + '/' + R.length); process.exit(R.every(Boolean) ? 0 : 1);

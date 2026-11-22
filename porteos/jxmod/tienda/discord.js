@@ -94,8 +94,10 @@ async function igualSeguro(a, b) { const [x, y] = await Promise.all([sha('jx|' +
 const huellaCodigo = async (env) => (await sha('jx-admin|' + env.DISCORD_ADMIN_CODE)).slice(0, 24);
 async function esAdmin(env, it) {
   if (!env.DISCORD_ADMIN_CODE) return false;
-  const f = await env.DB.prepare('SELECT huella FROM dc_admins WHERE guild = ?1 AND usuario = ?2').bind(it.guild_id || 'dm', usuarioDe(it).id).first();
-  return !!f && f.huella === (await huellaCodigo(env));
+  // (el que lo mandó en el servidor, o por mensaje privado al bot: ése vale en todos los servidores)
+  const h = await huellaCodigo(env);
+  const f = await env.DB.prepare("SELECT 1 AS s FROM dc_admins WHERE usuario = ?2 AND guild IN (?1, 'dm') AND huella = ?3").bind(it.guild_id || 'dm', usuarioDe(it).id, h).first();
+  return !!f;
 }
 async function codigoAdmin(env, it, codigo) {
   const u = usuarioDe(it), ahora = Date.now();
@@ -108,7 +110,7 @@ async function codigoAdmin(env, it, codigo) {
   }
   await env.DB.prepare('INSERT INTO dc_admins (guild, usuario, huella, desde) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(guild, usuario) DO UPDATE SET huella = ?3, desde = ?4').bind(it.guild_id || 'dm', u.id, await huellaCodigo(env), ahora).run();
   await env.DB.prepare('DELETE FROM dc_intentos WHERE usuario = ?1').bind(u.id).run();
-  return efimero('Listo, ya sos admin del bot en este servidor: /configurar, /roles y /anunciar.');
+  return efimero(it.guild_id ? 'Listo, ya sos admin del bot en este servidor: /configurar, /roles y /anunciar.' : 'Listo, ya sos admin del bot en todos los servidores donde está: /configurar, /roles y /anunciar.');
 }
 
 function modal(tipo) {
@@ -278,7 +280,7 @@ export const COMANDOS = [
   { name: 'estado', description: 'Cuántos están jugando JXMod ahora y en qué mapas' },
   { name: 'bug', description: 'Mandá un bug de JXMod (llega al panel de «Bugs y sugerencias»)' },
   { name: 'sugerencia', description: 'Mandá una idea para JXMod' },
-  { name: 'admin', description: 'Mandale al bot el código de admin (no queda en el chat)', dm_permission: false },
+  { name: 'admin', description: 'Mandale al bot el código de admin (no queda en el chat)', dm_permission: true, contexts: [0, 1] },
   { name: 'configurar', description: 'Admins (con código): este canal para anuncios, roles y AutoMod', dm_permission: false },
   { name: 'roles', description: 'Admins (con código): pone los botones para elegir roles', dm_permission: false },
   { name: 'anunciar', description: 'Admins (con código): un anuncio con el estilo de JXApps', dm_permission: false, options: [
