@@ -4,8 +4,9 @@
 //  2. /jxmod y /stickerazo: la versión que leen el juego y la app, con los links; /estado: quién juega ahora;
 //  3. /bug abre el formulario; al mandarlo cae en el panel (pn_posts, el mismo de «Bugs y sugerencias») y en dc_posts;
 //     un segundo enseguida: «esperá»; /sugerencia igual con tipo sug;
-//  4. un no-admin no puede /configurar; un admin sí: canal de anuncios, 3 roles y 3 reglas de AutoMod, y otra vez no
-//     las duplica;
+//  4. el código de admin: sin código no se puede /configurar (aunque tenga permisos de Discord); con el código mal,
+//     no, y al sexto intento en una hora ni lo prueba; con el bueno, sí: canal de anuncios, 3 roles y 3 reglas de
+//     AutoMod, y otra vez no las duplica; el código nunca queda guardado (sólo su huella); si cambia, se pierde;
 //  5. /roles pone los botones; tocar uno pone el rol y tocarlo de nuevo lo saca;
 //  6. el cron: con una versión nueva anuncia en el canal (mencionando «Avisos»), y la segunda vez no repite; cuando el
 //     panel le contesta al bug, le avisa a quien lo mandó en ese canal, una sola vez;
@@ -32,7 +33,7 @@ async function falso(url, op = {}) {
   if (/auto-moderation\/rules$/.test(ruta) && m === 'POST') { const r = { id: 'a' + sigRegla++, ...b }; reglas.push(r); return new Response(JSON.stringify(r)); }
   return new Response(JSON.stringify({ id: 'm1' }));
 }
-const env = { DB: d1(), DISCORD_APP_ID: 'app1', DISCORD_PUBLIC_KEY: pub, DISCORD_TOKEN: 'tok', __fetch: falso };
+const env = { DB: d1(), DISCORD_APP_ID: 'app1', DISCORD_PUBLIC_KEY: pub, DISCORD_TOKEN: 'tok', DISCORD_ADMIN_CODE: 'Prueba(@1', __fetch: falso };
 const pendientes = []; const ctx = { waitUntil: (p) => pendientes.push(p) };
 async function pedir(cuerpo, { firma = true, mala = false } = {}) {
   const txt = JSON.stringify(cuerpo), ts = String(Math.floor(Date.now() / 1000));
@@ -69,12 +70,22 @@ ok('3. /bug abre el formulario; mandado cae en el panel con lugar y versión, y 
   r.d.type === 9 && r.d.data.components.length === 4 && rf.d.type === 4 && post && post.tipo === 'bug' && post.lugar === 'gm_x' && post.version === '3.9.11' && post.nombre === 'Pepe' && dp && dp.usuario === 'u2' && /Esperá/.test(rf2.d.data.content) && s2 && s2.tipo === 'sug',
   { modal: r.d.type, post: post && [post.tipo, post.titulo, post.lugar, post.version, post.nombre], segundo: rf2.d && rf2.d.data.content });
 // 4
-const rn = await pedir(cmd('configurar', NADIE)); r = await pedir(cmd('configurar', ADMIN)); await Promise.all(pendientes.splice(0));
+const codigo = (member, valor) => pedir({ type: 5, guild_id: 'g1', channel_id: 'c1', member, data: { custom_id: 'admin', components: [{ type: 1, components: [{ type: 4, custom_id: 'codigo', value: valor }] }] } });
+const rn = await pedir(cmd('configurar', ADMIN));   // (tiene «gestionar servidor» en Discord, pero no mandó el código)
+const ma = await pedir(cmd('admin', NADIE));
+const mal = []; for (let i = 0; i < 6; i++) mal.push((await codigo(NADIE, 'nop' + i)).d.data.content);
+const bienTarde = await codigo(NADIE, 'Prueba(@1');   // (ya gastó los 5 intentos de la hora)
+const bien = await codigo(ADMIN, '  Prueba(@1 ');
+const guardado = JSON.stringify((await env.DB.prepare('SELECT * FROM dc_admins').all()).results);
+r = await pedir(cmd('configurar', ADMIN)); await Promise.all(pendientes.splice(0));
 const c1 = await env.DB.prepare('SELECT * FROM dc_conf').first(); const n1 = [roles.length, reglas.length];
 await pedir(cmd('configurar', ADMIN)); await Promise.all(pendientes.splice(0)); const n2 = [roles.length, reglas.length];
 const fin = llamadas.filter((x) => x.m === 'PATCH' && x.ruta.includes('/webhooks/app1/tk/messages/@original')).pop();
-ok('4. un no-admin no puede /configurar; el admin: canal c1, 3 roles, 3 reglas de AutoMod (insultos/sexual, spam, menciones) y la segunda vez no duplica',
-  /admins/.test(rn.d.data.content) && r.d.type === 5 && c1 && c1.canal === 'c1' && n1[0] === 4 && n1[1] === 3 && n2[0] === 4 && n2[1] === 3 && reglas.some((x) => x.trigger_type === 4) && reglas.some((x) => x.trigger_type === 3) && reglas.some((x) => x.trigger_type === 5) && fin && /Listo/.test(fin.b.content),
+ok('4a. código de admin: sin código no; /admin abre el formulario; 5 mal y el sexto ni se prueba (ni con el bueno); con el bueno (con espacios) sí; guarda la huella, no el código',
+  /código con \/admin/.test(rn.d.data.content) && ma.d.type === 9 && /incorrecto/.test(mal[0]) && /Demasiados/.test(mal[5]) && /Demasiados/.test(bienTarde.d.data.content) && /ya sos admin/.test(bien.d.data.content) && !guardado.includes('Prueba'),
+  { sin: rn.d.data.content, mal: [mal[0], mal[4], mal[5]], tarde: bienTarde.d.data.content, bien: bien.d.data.content });
+ok('4. con el código: canal c1, 3 roles, 3 reglas de AutoMod (insultos/sexual, spam, menciones) y la segunda vez no duplica',
+  r.d.type === 5 && c1 && c1.canal === 'c1' && n1[0] === 4 && n1[1] === 3 && n2[0] === 4 && n2[1] === 3 && reglas.some((x) => x.trigger_type === 4) && reglas.some((x) => x.trigger_type === 3) && reglas.some((x) => x.trigger_type === 5) && fin && /Listo/.test(fin.b.content),
   { roles: roles.map((x) => x.name), reglas: reglas.map((x) => x.trigger_type), segunda: n2, conf: c1 && [c1.canal, c1.ult_jxmod, c1.ult_sz] });
 // 5
 r = await pedir(cmd('roles', ADMIN)); const rolesConf = JSON.parse(c1.roles);
@@ -100,4 +111,6 @@ ok('6. cron: sin novedad no anuncia; con 3.9.12 y Stickerazo 0.9 anuncia las dos
 const an1 = await pedir(cmd('anunciar', ADMIN, [{ name: 'titulo', value: 'Evento' }, { name: 'texto', value: 'Sábado a las 18' }]));
 const an2 = await pedir(cmd('anunciar', ADMIN, [{ name: 'titulo', value: 'Evento' }, { name: 'texto', value: 'Sábado' }, { name: 'avisar', value: true }]));
 ok('7. /anunciar arma el anuncio; menciona «Avisos» sólo si se pide', an1.d.data.embeds[0].title === 'Evento' && !an1.d.data.content && an2.d.data.content === `<@&${rolesConf.avisos}>`, [an1.d.data.content, an2.d.data.content]);
+env.DISCORD_ADMIN_CODE = 'OtroCodigo!'; const tras = await pedir(cmd('anunciar', ADMIN, [{ name: 'titulo', value: 'x' }, { name: 'texto', value: 'y' }]));
+ok('8. si el código cambia, el que se habilitó con el anterior deja de ser admin', /primero mandame el código/.test(tras.d.data.content), tras.d.data.content);
 console.log('RESUMEN ' + R.filter(Boolean).length + '/' + R.length); process.exit(R.every(Boolean) ? 0 : 1);

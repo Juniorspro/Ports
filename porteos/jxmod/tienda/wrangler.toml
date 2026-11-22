@@ -17,6 +17,10 @@ SZ_PAYPAL_CLIENT_ID = "BAA38c-QSfU6Rvib2LkIJ2r3TmlHoYUc52WqtmUJ4ANksZaK0Rcdnkjks
 SZ_PAYPAL_PLAN_MES = "P-3MH40762X19345919NMATCUY"
 SZ_PAYPAL_PLAN_ANIO = "P-6KT390991W1127604NMATCUY"
 SZ_PAYPAL_MODO = "live"
+# el bot de Discord (discord.js): la aplicación «JXBot». El ID y la clave pública no son secretos (la clave sólo sirve para
+# comprobar que los pedidos vienen de Discord); el token y el código de admin van como secretos
+DISCORD_APP_ID = "1573885959752253521"
+DISCORD_PUBLIC_KEY = "cd809ee1c5327d141d9cd636a1355ce0d77668bffd170ead0c29cae0726abd80"
 
 [[d1_databases]]
 binding = "DB"

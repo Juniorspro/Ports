@@ -5,8 +5,12 @@
 // Comandos: /jxmod, /stickerazo, /estado (quién está jugando ahora), /bug y /sugerencia (un formulario que cae en «Bugs y
 // sugerencias» del juego, el mismo panel), y para los admins /configurar (canal de anuncios, roles y AutoMod de Discord:
 // insultos, contenido sexual, spam y menciones en masa), /roles (los botones para ponerse los roles) y /anunciar.
-// Lo que necesita en Cloudflare: DISCORD_APP_ID y DISCORD_PUBLIC_KEY (variables, no son secretos) y DISCORD_TOKEN
-// (secreto: wrangler secret put DISCORD_TOKEN). Sin ellos, /api/discord/ contesta 503 y el cron no hace nada.
+// Ser admin del bot no depende de los permisos de Discord: hay que mandarle el código con /admin (un formulario que no
+// queda en el chat). Queda guardado por persona y por servidor; 5 intentos fallidos por hora como mucho; si el código
+// cambia, los habilitados con el anterior dejan de serlo.
+// Lo que necesita en Cloudflare: DISCORD_APP_ID y DISCORD_PUBLIC_KEY (variables, no son secretos), DISCORD_TOKEN y
+// DISCORD_ADMIN_CODE (secretos: wrangler secret put …). Sin los tres primeros, /api/discord/ contesta 503 y el cron no
+// hace nada; sin el código, los comandos de admin no andan.
 import { tablas, postNuevo } from './panel.js';
 
 const API = 'https://discord.com/api/v10';
@@ -52,6 +56,8 @@ async function tablasDc(env) {
   await env.DB.batch([
     env.DB.prepare('CREATE TABLE IF NOT EXISTS dc_conf (guild TEXT PRIMARY KEY, canal TEXT, roles TEXT, automod TEXT, ult_jxmod INTEGER, ult_sz INTEGER, cambiado INTEGER)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS dc_posts (post TEXT PRIMARY KEY, usuario TEXT, canal TEXT, guild TEXT, tipo TEXT, titulo TEXT, estado TEXT, respuesta TEXT, creado INTEGER)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS dc_admins (guild TEXT, usuario TEXT, huella TEXT, desde INTEGER, PRIMARY KEY (guild, usuario))'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS dc_intentos (usuario TEXT, t INTEGER)'),
   ]);
   listas = true;
 }
@@ -81,8 +87,29 @@ function embedStickerazo(a, titulo) {
 // ---- las respuestas ----
 const msg = (data) => new Response(JSON.stringify({ type: 4, data }), { headers: { 'Content-Type': 'application/json' } });
 const efimero = (content, extra = {}) => msg({ content, flags: EFIMERO, allowed_mentions: { parse: [] }, ...extra });
-const esAdmin = (it) => { const p = BigInt((it.member && it.member.permissions) || '0'); return (p & 0x8n) === 0x8n || (p & 0x20n) === 0x20n; };   // (administrador o gestionar servidor)
 const usuarioDe = (it) => (it.member && it.member.user) || it.user || {};
+// ---- el código de admin: se guarda la huella (SHA-256) del código con que se habilitó, nunca el código ----
+const sha = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(t)))].map((b) => b.toString(16).padStart(2, '0')).join('');
+async function igualSeguro(a, b) { const [x, y] = await Promise.all([sha('jx|' + a), sha('jx|' + b)]); let d = 0; for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i); return d === 0; }
+const huellaCodigo = async (env) => (await sha('jx-admin|' + env.DISCORD_ADMIN_CODE)).slice(0, 24);
+async function esAdmin(env, it) {
+  if (!env.DISCORD_ADMIN_CODE) return false;
+  const f = await env.DB.prepare('SELECT huella FROM dc_admins WHERE guild = ?1 AND usuario = ?2').bind(it.guild_id || 'dm', usuarioDe(it).id).first();
+  return !!f && f.huella === (await huellaCodigo(env));
+}
+async function codigoAdmin(env, it, codigo) {
+  const u = usuarioDe(it), ahora = Date.now();
+  if (!env.DISCORD_ADMIN_CODE) return efimero('El código de admin todavía no está configurado en el servidor del bot.');
+  const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM dc_intentos WHERE usuario = ?1 AND t > ?2').bind(u.id, ahora - 3600e3).first();
+  if (n && n.n >= 5) return efimero('Demasiados intentos. Probá de nuevo en una hora.');
+  if (!(await igualSeguro(String(codigo || '').trim(), env.DISCORD_ADMIN_CODE))) {
+    await env.DB.prepare('INSERT INTO dc_intentos (usuario, t) VALUES (?1, ?2)').bind(u.id, ahora).run();
+    return efimero(`Código incorrecto. Te quedan ${Math.max(0, 4 - (n ? n.n : 0))} intentos esta hora.`);
+  }
+  await env.DB.prepare('INSERT INTO dc_admins (guild, usuario, huella, desde) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(guild, usuario) DO UPDATE SET huella = ?3, desde = ?4').bind(it.guild_id || 'dm', u.id, await huellaCodigo(env), ahora).run();
+  await env.DB.prepare('DELETE FROM dc_intentos WHERE usuario = ?1').bind(u.id).run();
+  return efimero('Listo, ya sos admin del bot en este servidor: /configurar, /roles y /anunciar.');
+}
 
 function modal(tipo) {
   const bug = tipo === 'bug';
@@ -108,9 +135,10 @@ async function comando(env, it, ctx) {
       { name: 'Hoy', value: String(d ? d.n : 0), inline: true }, { name: 'Mapas', value: mapas }], footer: { text: 'Se actualiza cada minuto' } }] });
   }
   if (n === 'bug' || n === 'sugerencia') return modal(n === 'bug' ? 'bug' : 'sug');
-  // ---- de acá para abajo, sólo admins (además Discord los esconde a los demás) ----
-  if (!esAdmin(it)) return efimero('Ese comando es para los admins del servidor.');
+  if (n === 'admin') return new Response(JSON.stringify({ type: 9, data: { custom_id: 'admin', title: 'Código de admin', components: [{ type: 1, components: [{ type: 4, custom_id: 'codigo', label: 'El código', style: 1, required: true, max_length: 100 }] }] } }), { headers: { 'Content-Type': 'application/json' } });
+  // ---- de acá para abajo, sólo quien mandó el código de admin ----
   if (!g) return efimero('Usalo adentro de un servidor.');
+  if (!(await esAdmin(env, it))) return efimero('Ese comando es para admins: primero mandame el código con /admin.');
   if (n === 'configurar') { ctx.waitUntil(configurar(env, it)); return new Response(JSON.stringify({ type: 5, data: { flags: EFIMERO } }), { headers: { 'Content-Type': 'application/json' } }); }
   if (n === 'roles') {
     const c = await conf(env, g); const r = c && c.roles ? JSON.parse(c.roles) : null;
@@ -176,6 +204,7 @@ async function boton(env, it) {
 async function formulario(env, it) {
   const tipo = it.data.custom_id === 'bug' ? 'bug' : 'sug', u = usuarioDe(it);
   const v = {}; for (const fila of it.data.components || []) for (const c of fila.components || []) v[c.custom_id] = c.value;
+  if (it.data.custom_id === 'admin') return codigoAdmin(env, it, v.codigo);
   const autor = 'dc:' + u.id, ahora = Date.now();
   // (lo mismo que en el juego: una cada 3 minutos y 10 por día)
   const h = await env.DB.prepare('SELECT MAX(creado) AS t, COUNT(*) AS dia FROM pn_posts WHERE autor = ?1 AND creado > ?2').bind(autor, ahora - 86400e3).first();
@@ -249,9 +278,10 @@ export const COMANDOS = [
   { name: 'estado', description: 'Cuántos están jugando JXMod ahora y en qué mapas' },
   { name: 'bug', description: 'Mandá un bug de JXMod (llega al panel de «Bugs y sugerencias»)' },
   { name: 'sugerencia', description: 'Mandá una idea para JXMod' },
-  { name: 'configurar', description: 'Admins: este canal para anuncios, roles y AutoMod', default_member_permissions: '32', dm_permission: false },
-  { name: 'roles', description: 'Admins: pone los botones para elegir roles', default_member_permissions: '32', dm_permission: false },
-  { name: 'anunciar', description: 'Admins: un anuncio con el estilo de JXApps', default_member_permissions: '32', dm_permission: false, options: [
+  { name: 'admin', description: 'Mandale al bot el código de admin (no queda en el chat)', dm_permission: false },
+  { name: 'configurar', description: 'Admins (con código): este canal para anuncios, roles y AutoMod', dm_permission: false },
+  { name: 'roles', description: 'Admins (con código): pone los botones para elegir roles', dm_permission: false },
+  { name: 'anunciar', description: 'Admins (con código): un anuncio con el estilo de JXApps', dm_permission: false, options: [
     { type: 3, name: 'titulo', description: 'El título', required: true, max_length: 250 },
     { type: 3, name: 'texto', description: 'El texto', required: true, max_length: 3800 },
     { type: 5, name: 'avisar', description: 'Mencionar al rol «Avisos de versiones»' }] },

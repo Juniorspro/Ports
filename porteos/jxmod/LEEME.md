@@ -5264,6 +5264,15 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
   - los botones ponen y sacan el rol;
   - el cron anuncia una vez y avisa la respuesta del panel una vez;
   - `/anunciar` menciona sólo si se pide.
+- **Admins del bot:** no dependen de los permisos de Discord. Hay que mandar el código con `/admin`, un formulario que no
+  queda en el chat.
+  - Se guarda la huella SHA-256, nunca el código. El código vive como secreto `DISCORD_ADMIN_CODE` y en
+    `/root/.discord/codigo_admin`.
+  - Tope de 5 intentos fallidos por hora.
+  - Si el código cambia, los habilitados antes dejan de serlo.
+  - Prueba 9/9.
+- **En marcha:** la aplicación es «JXBot» (ID 1573885959752253521). Ya tiene la URL de interacciones (Discord la
+  validó con su PING firmado), los 9 comandos y de foto el logo de JXApps.
 - **Lo que no puede:** un saludo propio al que entra, porque eso necesita una conexión fija con Discord. Para eso está
   el mensaje de bienvenida que ya trae Discord en los ajustes del servidor.
 
