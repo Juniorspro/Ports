@@ -13,7 +13,7 @@ use crate::motor::Motor;
 use std::ffi::c_void;
 use std::time::Instant;
 
-pub const CABECERA: usize = 10;
+pub const CABECERA: usize = 16;
 pub const POR_MANO: usize = 176;
 
 // ---- lo mínimo de JNI: la tabla de funciones del JNIEnv, por número (jni.h) ----
@@ -54,26 +54,72 @@ struct Estado {
 
 static mut ERROR: String = String::new();
 
-/// elige cuántos hilos usar: los núcleos grandes (los de frecuencia máxima cerca de la del más rápido), entre 2 y 4.
-/// Los chicos (de bajo consumo) harían esperar a los demás en cada capa.
+/// los núcleos grandes y los chicos (máscaras de bits). Los chicos (de bajo consumo) harían esperar a los demás en cada
+/// capa. Se mira, en este orden:
+/// 1. la capacidad de cada núcleo que publica el kernel (`cpu_capacity`, 1024 el más rápido);
+/// 2. qué procesador es cada núcleo (`/proc/cpuinfo`, «CPU part»): Cortex-A53/A55/A35/A510/A520 y los Kryo «Silver»
+///    son chicos;
+/// 3. la frecuencia máxima (los de menos del 80 % de la del más rápido son chicos).
+/// La frecuencia sola no alcanza: en el Snapdragon 460 (TCL 20 SE, Moto G9 Play…) los 4 Cortex-A73 y los 4 A53 van a
+/// 1,8 GHz, y el motor ponía hilos en los A53, que frenaban a los demás en cada capa.
+pub fn clases_nucleos() -> (u64, u64) {
+    let leer = |r: String| std::fs::read_to_string(r).ok().and_then(|t| t.trim().parse::<u64>().ok());
+    let n = (0..64).take_while(|i| std::path::Path::new(&format!("/sys/devices/system/cpu/cpu{}", i)).exists()).count().clamp(1, 64);
+    let separar = |v: &[u64]| -> Option<(u64, u64)> {
+        let tope = *v.iter().max()?; if tope == 0 { return None; }
+        let (mut g, mut c) = (0u64, 0u64);
+        for (i, &x) in v.iter().enumerate() { if x == 0 { continue; } if x as f64 >= tope as f64 * 0.8 { g |= 1 << i; } else { c |= 1 << i; } }
+        if g == 0 { None } else { Some((g, c)) }
+    };
+    // 1) la capacidad
+    let cap: Vec<u64> = (0..n).map(|i| leer(format!("/sys/devices/system/cpu/cpu{}/cpu_capacity", i)).unwrap_or(0)).collect();
+    if let Some((g, c)) = separar(&cap) { if c != 0 { return (g, c); } }
+    // 2) el modelo de cada núcleo
+    if let Ok(t) = std::fs::read_to_string("/proc/cpuinfo") { if let Some(r) = clases_cpuinfo(&t, n) { return r; } }
+    // 3) la frecuencia
+    let f: Vec<u64> = (0..n).map(|i| leer(format!("/sys/devices/system/cpu/cpu{}/cpufreq/cpuinfo_max_freq", i)).unwrap_or(0)).collect();
+    separar(&f).unwrap_or((0, 0))
+}
+/// los grandes y los chicos según `/proc/cpuinfo` (implementador y «CPU part» de cada núcleo), si los hay de los dos
+pub fn clases_cpuinfo(t: &str, n: usize) -> Option<(u64, u64)> {
+    let (mut parte, mut cual): (Vec<u64>, Option<usize>) = (vec![0; n], None);
+    let (mut impl_, mut impls) = (0u64, vec![0u64; n]);
+    for l in t.lines() {
+        let mut kv = l.splitn(2, ':'); let (k, v) = (kv.next().unwrap_or("").trim(), kv.next().unwrap_or("").trim());
+        let hex = |s: &str| u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or(0);
+        match k { "processor" => cual = v.parse().ok(), "CPU implementer" => impl_ = hex(v), "CPU part" => { if let Some(i) = cual { if i < n { parte[i] = hex(v); impls[i] = impl_; } } } _ => {} }
+    }
+    // (ARM: A35 d04, A53 d03, A55 d05, A510 d46, A520 d80 · Qualcomm Kryo «Silver»: 801, 803, 805)
+    let chico = |imp: u64, p: u64| (imp == 0x41 && matches!(p, 0xd03 | 0xd04 | 0xd05 | 0xd46 | 0xd80)) || (imp == 0x51 && matches!(p, 0x801 | 0x803 | 0x805));
+    if !parte.iter().all(|&p| p != 0) { return None; }
+    let (mut g, mut c) = (0u64, 0u64);
+    for i in 0..n { if chico(impls[i], parte[i]) { c |= 1 << i; } else { g |= 1 << i; } }
+    if g != 0 && c != 0 { Some((g, c)) } else { None }
+}
+#[cfg(test)]
+mod prueba_nucleos {
+    // el Snapdragon 460 (TCL 20 SE): 4 Kryo 240 Silver (A53, 0x801) y 4 Gold (A73, 0x800), todos a 1,8 GHz
+    #[test]
+    fn snapdragon_460() {
+        let mut t = String::new();
+        for i in 0..8 { t += &format!("processor\t: {}\nCPU implementer\t: 0x51\nCPU architecture: 8\nCPU part\t: {}\n\n", i, if i < 4 { "0x801" } else { "0x800" }); }
+        assert_eq!(super::clases_cpuinfo(&t, 8), Some((0xf0, 0x0f)));
+        // y uno con A55 + A76 (implementador ARM)
+        let mut t = String::new();
+        for i in 0..8 { t += &format!("processor\t: {}\nCPU implementer\t: 0x41\nCPU part\t: {}\n\n", i, if i < 6 { "0xd05" } else { "0xd0b" }); }
+        assert_eq!(super::clases_cpuinfo(&t, 8), Some((0xc0, 0x3f)));
+    }
+}
+static GRANDES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static CHICOS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+/// cuántos hilos: los núcleos grandes, entre 2 y 4
 fn nucleos_grandes() -> (usize, u64) {
-    let mut f = Vec::new();
-    for i in 0..16 {
-        match std::fs::read_to_string(format!("/sys/devices/system/cpu/cpu{}/cpufreq/cpuinfo_max_freq", i)) {
-            Ok(t) => f.push(t.trim().parse::<u64>().unwrap_or(0)),
-            Err(_) => { if i >= 8 { break; } f.push(0); }
-        }
-    }
-    let tope = f.iter().copied().max().unwrap_or(0);
-    if tope == 0 { return (hilos::cuantos().clamp(1, 4), 0); }
-    let (mut mascara, mut chicos) = (0u64, 0u64); let mut n = 0;
-    for (i, &v) in f.iter().enumerate() {
-        if v == 0 { continue; }
-        if v as f64 >= tope as f64 * 0.8 { mascara |= 1 << i; n += 1; } else { chicos |= 1 << i; }
-    }
+    let (g, c) = clases_nucleos();
+    if g == 0 { return (hilos::cuantos().clamp(1, 4), 0); }
     // (el detector que busca manos de fondo va a los chicos, si hay)
-    hilos::fijar_chicos(chicos);
-    (n.clamp(2, 4), mascara)
+    hilos::fijar_chicos(c);
+    GRANDES.store(g.count_ones(), std::sync::atomic::Ordering::Relaxed); CHICOS.store(c.count_ones(), std::sync::atomic::Ordering::Relaxed);
+    ((g.count_ones() as usize).clamp(2, 4), g)
 }
 
 #[no_mangle]
@@ -103,7 +149,8 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_soltar(_env: Env, _c:
 /// ajustes: 0 máximo de manos · 1 presencia mínima · 2 puntaje mínimo de palma · 3 cada cuánto buscar otra mano (ms)
 /// · 4 predicción (ms) · 5 campo de visión (grados) · 6, 7 filtro de los puntos (corte mínimo, beta) · 8, 9 filtro de
 /// los ángulos · 10 modelo liviano (1) o completo (0) · 11 realce de poca luz (1/0) · 12 hilos · 13 reiniciar
-/// · 14 cuentas en float16 si el procesador las tiene (1/0)
+/// · 14 cuentas en float16 si el procesador las tiene (1/0) · 15 hilos: los núcleos grandes menos éstos (entre 2 y 3;
+/// para dejarle uno al juego)
 #[no_mangle]
 pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_config(_env: Env, _c: Obj, m: i64, clave: i32, valor: f32) {
     if m == 0 { return; }
@@ -123,6 +170,7 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_config(_env: Env, _c:
         12 => hilos::configurar(valor.max(1.0) as usize),
         13 => e.motor.reiniciar(),
         14 => crate::red::USAR_F16.store(valor > 0.5, std::sync::atomic::Ordering::Relaxed),
+        15 => { let g = GRANDES.load(std::sync::atomic::Ordering::Relaxed) as i32; hilos::configurar(if g > 0 { (g - valor.max(0.0) as i32).clamp(2, 3) as usize } else { 2 }); }
         _ => {}
     }
 }
@@ -202,7 +250,12 @@ pub unsafe extern "system" fn Java_com_jxapps_jxhand_Motor_procesar(env: Env, _c
     for x in &manos { e.para_dibujar.push(crate::escena::ManoDibujo { pts: std::array::from_fn(|i| [x.img[i][0] * ow as f32, x.img[i][1] * oh as f32, x.img[i][2] * ow as f32]) }); }
     let s = &mut e.salida; s.clear();
     let f16 = crate::red::hay_f16() && crate::red::USAR_F16.load(std::sync::atomic::Ordering::Relaxed);
-    s.extend_from_slice(&[manos.len() as f32, e.motor.corrio_detector as u8 as f32, e.motor.inferencias as f32, t_motor as f32, t_yuv as f32, brillo, ganancia, hilos::cuantos() as f32, f16 as u8 as f32, 0.0]);
+    // (cabecera: manos, corrió el detector en el cuadro, inferencias, ms del motor, ms de YUV, brillo, ganancia, hilos,
+    // float16, núcleos grandes, ms del recorte, ms de la red de puntos, ms del detector, núcleos chicos, producto punto
+    // de 8 bits, 0)
+    let (ms_rec, ms_red, ms_det) = e.motor.tiempos();
+    s.extend_from_slice(&[manos.len() as f32, e.motor.corrio_detector as u8 as f32, e.motor.inferencias as f32, t_motor as f32, t_yuv as f32, brillo, ganancia, hilos::cuantos() as f32, f16 as u8 as f32,
+        GRANDES.load(std::sync::atomic::Ordering::Relaxed) as f32, ms_rec, ms_red, ms_det, CHICOS.load(std::sync::atomic::Ordering::Relaxed) as f32, crate::red::hay_dot() as u8 as f32, 0.0]);
     for x in &manos {
         let b = s.len(); s.resize(b + POR_MANO, 0.0); let o = &mut s[b..];
         o[0] = x.id as f32; o[1] = x.derecha as u8 as f32; o[2] = x.presencia; o[3] = x.calibrada as u8 as f32;

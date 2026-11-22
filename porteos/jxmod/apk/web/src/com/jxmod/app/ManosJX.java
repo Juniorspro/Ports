@@ -75,6 +75,8 @@ public class ManosJX {
     private long tCps;
     private volatile String miniatura = "", diag = "";
     private volatile float cps;
+    private float msRec, msRed, msYuv;
+    private static String uno(float v) { return String.valueOf(Math.round(v * 10) / 10f); }
 
     ManosJX(Web w) { web = w; }
 
@@ -141,10 +143,11 @@ public class ManosJX {
 
     @JavascriptInterface public String estado() { return estado; }
 
-    /** la imagen que mira el motor, chiquita: «ancho,alto,RGB en base64» (cada 5 cuadros), o "" */
+    /** la imagen que mira el motor, chiquita: «ancho,alto,RGB en base64» (cada 15 cuadros), o "" */
     @JavascriptInterface public String miniatura() { return miniatura; }
 
-    /** «cuadros por segundo,giro,ancho×alto de la cámara,brillo» */
+    /** «cuadros por segundo,giro,ancho×alto de la cámara,brillo,ms de YUV,ms del recorte,ms de la red,ms del detector,hilos,
+     *  núcleos grandes,núcleos chicos,producto punto (1/0)» */
     @JavascriptInterface public String diagnostico() { return diag; }
 
     /** un ajuste del motor (las claves de com.jxapps.jxhand.Motor) */
@@ -216,7 +219,8 @@ public class ManosJX {
             if (motor == 0) { estado = "error: " + Motor.error(); return; }
             // 2 núcleos (el resto, para el juego), un poco de adelanto (el juego dibuja después del cuadro de la cámara),
             // las dos manos y el realce para poca luz
-            Motor.config(motor, Motor.HILOS, 2);
+            // (los núcleos grandes menos uno, entre 2 y 3: el que queda es para el juego. Antes eran 2 fijos)
+            Motor.config(motor, Motor.HILOS_MENOS, 1);
             Motor.config(motor, Motor.PREDICCION_MS, 40);
             Motor.config(motor, Motor.MAX_MANOS, 2);
             Motor.config(motor, Motor.POCA_LUZ, 1);
@@ -332,7 +336,8 @@ public class ManosJX {
         try { im = r.acquireLatestImage(); } catch (Throwable t) { return; }
         if (im == null) return;
         int n = -1;
-        boolean conVista = (cuadro % 5) == 0;
+        // (la imagen chiquita para la vista del juego, cada 15 cuadros: copiar el cuadro entero cuesta)
+        boolean conVista = (cuadro % 15) == 0;
         try {
             if (motor != 0) {
                 Image.Plane[] p = im.getPlanes();
@@ -345,7 +350,7 @@ public class ManosJX {
             }
         } catch (Throwable t) { estado = "error: " + t; } finally { im.close(); }
         if (n < 0) return;
-        // cuadros por segundo (cada segundo) y la imagen chiquita (cada 5 cuadros)
+        // cuadros por segundo (cada segundo) y la imagen chiquita (cada 15 cuadros)
         long ahora = System.nanoTime(); cuentaCps++;
         if (tCps == 0) tCps = ahora;
         else if (ahora - tCps > 1_000_000_000L) { cps = cuentaCps * 1e9f / (ahora - tCps); cuentaCps = 0; tCps = ahora; }
@@ -359,7 +364,10 @@ public class ManosJX {
             miniatura = tw + "," + th + "," + Base64.encodeToString(rgb, Base64.NO_WRAP);
         }
         fsal.position(0); fsal.get(datos, 0, ManosTexto.CABECERA + n * ManosTexto.POR_MANO);
-        diag = Math.round(cps) + "," + rotUlt + "," + camW + "x" + camH + "," + Math.round(datos[5] * 100);
+        // (y de qué se componen los ms: YUV, recorte, red y detector; hilos, núcleos grandes y chicos, producto punto)
+        msRec = msRec == 0 ? datos[10] : msRec * 0.9f + datos[10] * 0.1f; msRed = msRed == 0 ? datos[11] : msRed * 0.9f + datos[11] * 0.1f; msYuv = msYuv == 0 ? datos[4] : msYuv * 0.9f + datos[4] * 0.1f;
+        diag = Math.round(cps) + "," + rotUlt + "," + camW + "x" + camH + "," + Math.round(datos[5] * 100) + "," + uno(msYuv) + "," + uno(msRec) + "," + uno(msRed) + "," + uno(datos[12])
+            + "," + (int) datos[7] + "," + (int) datos[9] + "," + (int) datos[13] + "," + (datos[14] > 0.5f ? 1 : 0);
         ultimo = ManosTexto.armar(sb, cuadro + 1, datos, n, liviano);
         cuadro++;
         estado = "listo";

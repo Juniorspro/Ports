@@ -258,20 +258,35 @@ pub fn roi_de_puntos(img: &[P3; PUNTOS]) -> Roi {
 }
 
 // ---- el modelo de los 21 puntos ----
-pub struct Puntero { red: Red, recorte: Vec<f32>, pub luz: AjusteLuz, pub realce: Realce, tmp: Vec<f32> }
+/// `tam`: el lado del recorte que mira la red (224 es el de MediaPipe; el modelo liviano anda también más chico, ver
+/// `Red::cargar_tam`). `div`: en qué unidades da los puntos (los de MediaPipe, en píxeles de un recorte de 224)
+pub struct Puntero { red: Red, recorte: Vec<f32>, pub luz: AjusteLuz, pub realce: Realce, tmp: Vec<f32>, pub tam: usize, pub div: f32,
+    /// lo que tardaron, sumado desde la última vez que se leyó (ms): el recorte con el realce y la red
+    pub ms_recorte: f32, pub ms_red: f32 }
 
 impl Puntero {
-    pub fn nuevo(modelo: &[u8]) -> Result<Puntero, String> { Ok(Puntero { red: Red::cargar(modelo)?, recorte: vec![0.0; 224 * 224 * 3], luz: AjusteLuz::default(), realce: Realce::default(), tmp: Vec::new() }) }
+    pub fn nuevo(modelo: &[u8]) -> Result<Puntero, String> { Puntero::nuevo_tam(modelo, 224, 224.0) }
+    pub fn nuevo_tam(modelo: &[u8], tam: usize, div: f32) -> Result<Puntero, String> {
+        let red = if tam == 224 { Red::cargar(modelo)? } else { Red::cargar_tam(modelo, Some((tam, tam)))? };
+        Ok(Puntero { red, recorte: vec![0.0; tam * tam * 3], luz: AjusteLuz::default(), realce: Realce::default(), tmp: Vec::new(), tam, div, ms_recorte: 0.0, ms_red: 0.0 })
+    }
     pub fn puntos(&mut self, rgba: &[u8], w: usize, h: usize, roi: &Roi) -> Puntos {
-        recortar(rgba, w, h, roi, 224, true, false, &mut self.recorte);
-        self.realce = luz::realzar(&mut self.recorte, 224, (0, 0, 224, 224), &self.luz, &mut self.tmp);
+        let t = self.tam;
+        #[cfg(not(target_arch = "wasm32"))]
+        let t0 = std::time::Instant::now();
+        recortar(rgba, w, h, roi, t, true, false, &mut self.recorte);
+        self.realce = luz::realzar(&mut self.recorte, t, (0, 0, t, t), &self.luz, &mut self.tmp);
         self.red.entrada(0).copy_from_slice(&self.recorte);
+        #[cfg(not(target_arch = "wasm32"))]
+        let t1 = std::time::Instant::now();
         self.red.correr();
+        #[cfg(not(target_arch = "wasm32"))]
+        { self.ms_recorte += (t1 - t0).as_secs_f32() * 1e3; self.ms_red += t1.elapsed().as_secs_f32() * 1e3; }
         let (scr, pres, mano, mundo) = (self.red.salida(0), self.red.salida(1)[0], self.red.salida(2)[0], self.red.salida(3));
         let (c, s) = (roi.ang.cos(), roi.ang.sin());
         let mut img = [P3::default(); PUNTOS]; let mut mw = [P3::default(); PUNTOS];
         for i in 0..PUNTOS {
-            let (x, y, z) = (scr[i * 3] / 224.0 - 0.5, scr[i * 3 + 1] / 224.0 - 0.5, scr[i * 3 + 2] / 224.0);
+            let (x, y, z) = (scr[i * 3] / self.div - 0.5, scr[i * 3 + 1] / self.div - 0.5, scr[i * 3 + 2] / self.div);
             img[i] = P3 { x: roi.cx + (x * c - y * s) * roi.lado, y: roi.cy + (x * s + y * c) * roi.lado, z: z * roi.lado };
             let (wx, wy, wz) = (mundo[i * 3], mundo[i * 3 + 1], mundo[i * 3 + 2]);
             mw[i] = P3 { x: wx * c - wy * s, y: wx * s + wy * c, z: wz };

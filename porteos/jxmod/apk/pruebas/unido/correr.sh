@@ -12,7 +12,7 @@ java -cp "$B/puro" PruebaEleccion
 javac --release 8 -Xlint:-options -nowarn -d "$B/puro" "$APK/web/src/com/jxmod/app/Grabador.java" "$AQUI/PruebaGrabador.java"
 java -Xmx24m -cp "$B/puro" PruebaGrabador "$B/grabador" | grep -E "FALLA|RESUMEN"
 # (tus manos con la cámara: el texto que la app le pasa al juego por JXManos, ManosTexto.java)
-javac --release 8 -Xlint:-options -nowarn -d "$B/puro" "$APK/web/src/com/jxmod/app/ManosTexto.java" "$AQUI/PruebaManosTexto.java"
+javac --release 8 -Xlint:-options -nowarn -d "$B/puro" "$APK/web/src/com/jxmod/app/ManosTexto.java" "$APK/../../jxhand/java/com/jxapps/jxhand/Motor.java" "$AQUI/PruebaManosTexto.java"
 java -cp "$B/puro" PruebaManosTexto | grep -E "FALLA|RESUMEN"
 A=${A:-/tmp/claude-0/jx_unido/activos}; WWW=${WWW:-/tmp/claude-0/jx_web/activos/www}
 # (el juego web se arma de nuevo con el código de ahora: si no, el APK puede llevar uno viejo)

@@ -8,7 +8,7 @@ package com.jxmod.app;
  * se prueba en la PC con el motor de verdad (pruebas/unido/PruebaManosTexto.java).
  */
 public final class ManosTexto {
-    public static final int CABECERA = 10, POR_MANO = 176;
+    public static final int CABECERA = com.jxapps.jxhand.Motor.CABECERA, POR_MANO = com.jxapps.jxhand.Motor.POR_MANO;
 
     private ManosTexto() {}
 

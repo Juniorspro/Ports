@@ -27,7 +27,7 @@ pub struct Config {
 }
 impl Default for Config {
     fn default() -> Self {
-        Config { max_manos: 2, min_presencia: 0.5, min_palma: 0.5, cada_busqueda_ms: 300.0, prediccion_ms: 50.0, fov_grados: 66.0,
+        Config { max_manos: 2, min_presencia: 0.5, min_palma: 0.5, cada_busqueda_ms: 500.0, prediccion_ms: 50.0, fov_grados: 66.0,
             // (medido con «banco video» moviendo 8 veces más rápido: con 0,08/100/1 los puntos se quedaban atrás, 1,20 %
             // de la mano contra 0,83 % del modelo solo; con 0,3/200/3 quedan en 0,88 % y quietos tiemblan 0,087 %,
             // 3 veces menos que el modelo solo)
@@ -66,6 +66,8 @@ struct Pista {
 
 pub struct Motor {
     det: Detector, pun: Puntero, pistas: Vec<Pista>, sig_id: u32, ult_busqueda: f64, ult_detector: f64, pub cfg: Config, pub corrio_detector: bool, pub inferencias: u32,
+    /// lo que tardó el detector en el cuadro (ms; 0 si no corrió acá)
+    ms_det: f32,
     /// el que busca manos nuevas de fondo cuando ya hay alguna seguida (así no frena el cuadro: antes, cada 300 ms el
     /// cuadro que corría el detector tardaba el doble y se veía un tirón)
     #[cfg(not(target_arch = "wasm32"))]
@@ -91,6 +93,9 @@ impl Buscador {
         std::thread::Builder::new().name("jxhand-buscar".into()).spawn(move || {
             crate::hilos::solo_este_hilo(true);
             crate::hilos::ir_a_chicos();
+            // (y con menos prioridad: si no hay núcleos chicos, o están ocupados, que no le saque el núcleo a los que dan
+            // cada cuadro)
+            crate::hilos::bajar_prioridad(10);
             // (cuando el motor se suelta, se cierra el canal y el hilo termina)
             while let Ok((img, w, h, umbral)) = rx_hilo.recv() {
                 det.umbral = umbral;
@@ -106,10 +111,13 @@ fn dist(a: &P3, b: &P3) -> f32 { ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqr
 
 impl Motor {
     pub fn nuevo(detector: &[u8], puntos: &[u8]) -> Result<Motor, String> {
-        Ok(Motor { det: Detector::nuevo(detector)?, pun: Puntero::nuevo(puntos)?, pistas: vec![], sig_id: 1, ult_busqueda: -1e9, ult_detector: -1e9, cfg: Config::default(), corrio_detector: false, inferencias: 0,
+        Ok(Motor { det: Detector::nuevo(detector)?, pun: Puntero::nuevo(puntos)?, pistas: vec![], sig_id: 1, ult_busqueda: -1e9, ult_detector: -1e9, cfg: Config::default(), corrio_detector: false, inferencias: 0, ms_det: 0.0,
             #[cfg(not(target_arch = "wasm32"))]
             buscador: Buscador::nuevo(detector) })
     }
+    /// lo que tardaron las partes del último cuadro (ms): el recorte de las manos (con el realce), la red de los puntos y
+    /// el detector (si corrió en el cuadro)
+    pub fn tiempos(&mut self) -> (f32, f32, f32) { let r = (self.pun.ms_recorte, self.pun.ms_red, self.ms_det); self.pun.ms_recorte = 0.0; self.pun.ms_red = 0.0; r }
     pub fn reiniciar(&mut self) { self.pistas.clear(); self.ult_busqueda = -1e9; self.ult_detector = -1e9; }
     /// el realce de poca luz: prendido o apagado (para el modelo de los puntos; el detector siempre promedia el ruido)
     pub fn poca_luz(&mut self, activo: bool) { self.pun.luz.activo = activo; self.det.acumular = activo; }
@@ -126,7 +134,7 @@ impl Motor {
 
     /// procesa un cuadro RGBA (`t_ms`: el reloj de la cámara); `espejada`: si la imagen viene como un espejo (selfie)
     pub fn procesar(&mut self, rgba: &[u8], w: usize, h: usize, t_ms: f64, espejada: bool) -> Vec<Mano> {
-        let t = t_ms / 1000.0; self.corrio_detector = false; self.inferencias = 0;
+        let t = t_ms / 1000.0; self.corrio_detector = false; self.inferencias = 0; self.ms_det = 0.0; self.pun.ms_recorte = 0.0; self.pun.ms_red = 0.0;
         // 1) las manos que ya se seguían: puntos en su cuadrado
         let mut vivas = Vec::new();
         for mut p in std::mem::take(&mut self.pistas) {
@@ -160,7 +168,11 @@ impl Motor {
                 self.det.umbral = self.cfg.min_palma;
                 // (con poca luz el detector promedia con los cuadros anteriores, si vienen seguidos)
                 self.det.seguido = t_ms - self.ult_detector < 120.0; self.ult_detector = t_ms;
+                #[cfg(not(target_arch = "wasm32"))]
+                let t0 = std::time::Instant::now();
                 let palmas = self.det.detectar(rgba, w, h);
+                #[cfg(not(target_arch = "wasm32"))]
+                { self.ms_det = t0.elapsed().as_secs_f32() * 1e3; }
                 self.sumar_palmas(palmas, &mut vivas, rgba, w, h, t, espejada);
             }
         }

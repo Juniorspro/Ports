@@ -102,6 +102,49 @@ fn main() {
             let t0 = Instant::now(); for _ in 0..veces { pun.puntos(&rgba, w as usize, h as usize, &roi); } let tp = t0.elapsed().as_secs_f64() * 1e3 / veces as f64;
             println!("detector {:.2} ms · puntos {:.2} ms (promedio de {})", td, tp, veces);
         }
+        Some("tam") => {
+            // tam MODELOS FOTO...: el modelo liviano de los puntos con el recorte más chico (192, 160, 144, 128) contra el
+            // mismo a 224, sobre el mismo cuadrado de la mano; y, de referencia, el liviano a 224 contra el completo
+            let (mut det, mut com) = cargar(&a[2]);
+            let lite = fs::read(format!("{}/hand_landmark_lite.tflite", a[2])).unwrap();
+            let mut l224 = Puntero::nuevo(&lite).unwrap();
+            let tams = [192usize, 160, 144, 128];
+            let mut pt: Vec<(Puntero, Puntero)> = tams.iter().map(|&t| (Puntero::nuevo_tam(&lite, t, 224.0).unwrap(), Puntero::nuevo_tam(&lite, t, t as f32).unwrap())).collect();
+            let err = |a: &mano::Puntos, b: &mano::Puntos, palma: f32| -> f32 { (0..PUNTOS).map(|i| (a.img[i].x - b.img[i].x).hypot(a.img[i].y - b.img[i].y)).sum::<f32>() / PUNTOS as f32 / palma * 100.0 };
+            let mut suma = vec![(0f32, 0f32, 0f32); tams.len()]; let (mut ref_lc, mut n) = (0f32, 0usize);
+            for foto in &a[3..] {
+                let Ok(im) = image::open(foto) else { continue; }; let im = im.to_rgba8(); let (w, h) = (im.width() as usize, im.height() as usize); let b = im.as_raw();
+                let ps = det.detectar(b, w, h); let Some(pa) = ps.first() else { continue; };
+                if det.mejor < 0.6 { continue; }
+                let mut r = com.puntos(b, w, h, &mano::roi_de_palma(pa));
+                for _ in 0..2 { r = com.puntos(b, w, h, &mano::roi_de_puntos(&r.img)); }
+                if r.presencia < 0.8 { continue; }
+                let roi = r.roi; let palma = (r.img[0].x - r.img[9].x).hypot(r.img[0].y - r.img[9].y);
+                let rl = l224.puntos(b, w, h, &roi); let e_ref = err(&rl, &r, palma);
+                let mut linea = format!("{:40} pres {:.3} · liviano/completo {:5.2} %", foto.rsplit('/').next().unwrap().chars().take(40).collect::<String>(), rl.presencia, e_ref);
+                for (k, (pa224, pat)) in pt.iter_mut().enumerate() {
+                    let (x, y) = (pa224.puntos(b, w, h, &roi), pat.puntos(b, w, h, &roi));
+                    let (ea, eb) = (err(&x, &rl, palma), err(&y, &rl, palma));
+                    linea += &format!(" · {} [÷224 {:5.2} ÷t {:5.2} pres {:.3}]", tams[k], ea, eb, y.presencia);
+                    suma[k].0 += ea; suma[k].1 += eb; suma[k].2 += y.presencia;
+                }
+                println!("{}", linea); ref_lc += e_ref; n += 1;
+            }
+            if n > 0 {
+                println!("== {} fotos · liviano a 224 contra el completo: {:.2} % de la palma", n, ref_lc / n as f32);
+                for (k, t) in tams.iter().enumerate() { println!("   {}: contra el liviano a 224: ÷224 {:.2} % · ÷{} {:.2} % · presencia media {:.3}", t, suma[k].0 / n as f32, t, suma[k].1 / n as f32, suma[k].2 / n as f32); }
+                // y lo que tarda cada uno (un hilo)
+                let img = vec![0.5f32; 224 * 224 * 3]; let _ = img;
+                for t in [224usize, 192, 160, 144, 128] {
+                    let mut red = jxhand::red::Red::cargar_tam(&lite, Some((t, t))).unwrap(); for v in red.entrada(0).iter_mut() { *v = 0.5; } red.correr();
+                    let t0 = std::time::Instant::now(); for _ in 0..20 { red.correr(); } println!("   {} × {}: {:.2} ms", t, t, t0.elapsed().as_secs_f64() * 1e3 / 20.0);
+                }
+            }
+        }
+        Some("capas") => {
+            let red = jxhand::red::Red::cargar(&fs::read(&a[2]).unwrap()).unwrap();
+            for (i, l) in red.describir().iter().enumerate() { println!("{:3} {}", i, l); }
+        }
         Some("perfil") => {
             for m in ["hand_detector", "hand_landmarks_detector", "hand_landmark_lite"] {
                 let mut red = jxhand::red::Red::cargar(&fs::read(format!("{}/{}.tflite", a[2], m)).unwrap()).unwrap();

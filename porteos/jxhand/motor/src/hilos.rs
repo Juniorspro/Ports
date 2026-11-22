@@ -21,6 +21,18 @@ pub fn fijar_chicos(mascara: u64) { imp::fijar_chicos(mascara) }
 /// pone el hilo actual en los núcleos chicos (si se conocen)
 pub fn ir_a_chicos() { imp::ir_a_chicos() }
 
+/// baja la prioridad del hilo actual (nice: 0 normal, 19 la más baja): lo que va de fondo no le saca el núcleo a los hilos
+/// que dan cada cuadro ni al juego
+pub fn bajar_prioridad(nice: i32) {
+    #[cfg(target_os = "android")]
+    unsafe {
+        extern "C" { fn setpriority(which: i32, who: u32, prio: i32) -> i32; fn gettid() -> i32; }
+        setpriority(0, gettid() as u32, nice);
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = nice;
+}
+
 /// fija cuántos hilos usar (1 = sin hilos). Se puede llamar cuando sea: los hilos de más se quedan dormidos.
 pub fn configurar(n: usize) { imp::configurar(n) }
 

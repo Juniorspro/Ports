@@ -55,6 +55,17 @@ pub fn hay_f16() -> bool {
     #[cfg(not(target_arch = "aarch64"))]
     { false }
 }
+/// ¿el procesador tiene producto punto de 8 bits (SDOT, ARMv8.2 «dotprod»)? (para el diagnóstico y las cuentas en 8 bits)
+pub fn hay_dot() -> bool {
+    #[cfg(target_arch = "aarch64")]
+    {
+        use std::sync::OnceLock;
+        static HAY: OnceLock<bool> = OnceLock::new();
+        *HAY.get_or_init(|| std::arch::is_aarch64_feature_detected!("dotprod"))
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    { false }
+}
 #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
 fn f16_activo() -> bool { hay_f16() && USAR_F16.load(std::sync::atomic::Ordering::Relaxed) }
 
@@ -94,9 +105,15 @@ fn forma4(f: &[usize]) -> [usize; 4] {
 }
 
 impl Red {
-    pub fn cargar(bytes: &[u8]) -> Result<Red, String> {
+    pub fn cargar(bytes: &[u8]) -> Result<Red, String> { Red::cargar_tam(bytes, None) }
+
+    /// como `cargar`, con otro tamaño de entrada (alto, ancho): las formas de todas las capas se vuelven a calcular. Sirve
+    /// para las redes que terminan en un promedio de toda la imagen (el modelo liviano de los puntos: con 160 × 160 hace
+    /// la mitad de las cuentas que con 224 × 224)
+    pub fn cargar_tam(bytes: &[u8], tam: Option<(usize, usize)>) -> Result<Red, String> {
         let m: Modelo = tflite::leer(bytes)?;
         let mut formas: Vec<Vec<usize>> = m.tensores.iter().map(|t| t.forma.clone()).collect();
+        if let Some((h, w)) = tam { let e = m.entradas[0]; let f = forma4(&formas[e]); formas[e] = vec![1, h, w, f[3]]; }
         let mut datos: Vec<Vec<f32>> = m.tensores.iter().map(|t| t.datos.clone()).collect();
         let constante: Vec<bool> = m.tensores.iter().map(|t| !t.datos.is_empty() || !t.enteros.is_empty()).collect();
         let mut pasos = Vec::new();
@@ -247,6 +264,21 @@ impl Red {
             }
         }
         (l, g, otras)
+    }
+    /// cada paso: qué es, la forma de su salida y cuántas operaciones (para ver dónde se va el tiempo)
+    pub fn describir(&self) -> Vec<String> {
+        self.pasos.iter().map(|p| {
+            let s = salida_de(p); let fs = &self.formas[s];
+            let ops = match p {
+                Paso::Conv { e, kh, kw, .. } => { let fe = forma4(&self.formas[*e]); let o = forma4(fs); o[1] * o[2] * o[3] * fe[3] * kh * kw }
+                Paso::Depthwise { kh, kw, .. } => { let o = forma4(fs); o[1] * o[2] * o[3] * kh * kw }
+                Paso::Fc { e, .. } => self.formas[*e].iter().product::<usize>() * fs.iter().product::<usize>(),
+                _ => 0,
+            };
+            let nombre = format!("{:?}", p); let corto: String = nombre.chars().take_while(|c| *c != '{').collect();
+            let det = match p { Paso::Conv { kh, kw, paso, .. } | Paso::Depthwise { kh, kw, paso, .. } => format!(" {}x{}/{}", kh, kw, paso.0), _ => String::new() };
+            format!("{}{} -> {:?} · {:.2} M", corto.trim(), det, fs, ops as f64 / 1e6)
+        }).collect()
     }
     pub fn entrada(&mut self, k: usize) -> &mut [f32] { let i = self.entradas[k]; &mut self.datos[i] }
     pub fn salida(&self, k: usize) -> &[f32] { &self.datos[self.salidas[k]] }
