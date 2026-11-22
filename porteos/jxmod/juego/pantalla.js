@@ -180,7 +180,7 @@ function pantFinCuadro(usaPost) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H);
   // (en la portada del menú el lienzo queda transparente donde no hay personaje: atrás está el escenario, portada.js)
   if (!R.alfaLibre) { gl.colorMask(false, false, false, true); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); gl.colorMask(true, true, true, true); }
-  const e = YT.fuente, ok = e && e.t === 'pantalla' && YT.ifr && JUEGO.estado === 'juego' && ENTS.lista.includes(e);
+  const e = YT.fuente, ok = e && e.t === 'pantalla' && YT.ifr && JUEGO.estado === 'juego' && ENTS.lista.includes(e) && !(typeof vrActivo === 'function' && vrActivo());
   let vis = false;
   if (ok) {
     const P = pantEsquinas(e), n = e.b.q.rot(v3(0, 0, -1)), cw = R.cv.clientWidth || W, ch = R.cv.clientHeight || H;

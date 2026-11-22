@@ -94,6 +94,8 @@ const GLIFOS = {
   mundo: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.6 3.6 5.4 3.6 8.5s-1 5.9-3.6 8.5c-2.6-2.6-3.6-5.4-3.6-8.5s1-5.9 3.6-8.5z"/>',
   ajustar: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/>',
   video: '<rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor"/>',
+  // (el casco de VR: el frente con el hueco de la nariz y las dos lentes)
+  vr: '<path d="M3.5 8.6c0-1.2.9-2.1 2.1-2.1h12.8c1.2 0 2.1.9 2.1 2.1v6.1c0 1.2-.9 2.1-2.1 2.1h-3.3l-1.9-2.5a1.5 1.5 0 0 0-2.4 0l-1.9 2.5H5.6c-1.2 0-2.1-.9-2.1-2.1z"/><circle cx="8.2" cy="11.4" r="1.8"/><circle cx="15.8" cy="11.4" r="1.8"/>',
 };
 function glifo(n, cl) { return `<svg class="gli${cl ? ' ' + cl : ''}" viewBox="0 0 24 24" aria-hidden="true">${GLIFOS[n] || ''}</svg>`; }
 // texto de botón de un mod de código: "ico:nombre" muestra la imagen; si no, el texto (sin emojis)

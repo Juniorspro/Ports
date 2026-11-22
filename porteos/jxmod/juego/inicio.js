@@ -229,7 +229,7 @@ function panelNueva(P) {
       <label class="rbCampo">${esc(T('hora'))} <select id="rbHora">${['normal', 'dia', 'tarde', 'noche', 'ciclo'].map((k) => `<option value="${k}"${RB.hora === k ? ' selected' : ''}>${esc(T('h.' + k))}</option>`).join('')}</select></label>
       ${modos.length ? `<label class="rbCampo">${esc(T('gm.modo'))} <select id="rbModoJ">${[['auto', T('gm.modoAuto')], ['sandbox', 'Sandbox'], ...modos.map((M) => [M.n, M.titulo])].map(([k, l]) => `<option value="${esc(k)}"${GMM.elegido === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>` : ''}
       <button class="rbBtnGris nvMods" data-rb="tienda" data-n="${nm || ''}" title="${esc(nm ? `${nm} ${T(nm === 1 ? 'modAct1' : 'modsAct')}` : T('sinMods'))}">${icoHTML('ico:mod')} <span>${nm ? `${nm} ${esc(T(nm === 1 ? 'modAct1' : 'modsAct'))}` : esc(T('sinMods'))}</span></button>
-      <span class="rbEsp"></span><span class="rbModo">${esc(T('unJugador'))}</span><button class="rbBtnG" data-rb="empezar">${glifo('jugar')} ${esc(T('empezar'))}</button></div>`;
+      <span class="rbEsp"></span><span class="rbModo">${esc(T('unJugador'))}</span>${typeof VR !== 'undefined' ? `<button class="rbBtnGris nvVR" data-rb="empezarVR" title="${esc(T('vr.jugar'))}">${glifo('vr')} <span>${esc(T('vr.boton'))}</span></button>` : ''}<button class="rbBtnG" data-rb="empezar">${glifo('jugar')} ${esc(T('empezar'))}</button></div>`;
   if (desliz) P.querySelector('.rbGrid').scrollTop = desliz;
   nvEncajar();
 }
@@ -593,6 +593,8 @@ function inicioAccion(k, b) {
     case 'cat': RB.cat = v; return inicioPanel('nueva');
     case 'mapa': RB.mapa = v; RB.mapaCom = null; PREFS.mapa = v; guardarPrefs(); if (typeof menuMapaMarcar === 'function') menuMapaMarcar(); return inicioPanel('nueva');
     case 'mapacom': if (!mapaDe(v)) return; RB.mapaCom = v; RB.mapa = mapaDe(v).base; return inicioPanel('nueva');
+    case 'empezarVR': if (typeof VR !== 'undefined') VR.alEntrar = true;   // (y sigue como «Empezar»: al entrar, el modo VR —vr.js—)
+    // falls through
     case 'empezar': RB.horaPartida = RB.hora; RB.mapaPartida = RB.mapaCom ? mapaDe(RB.mapaCom) : null; SALA = null; CREA.on = false;
       entrarConCarga(RB.mapaPartida ? nombreDe(RB.mapaPartida) : T('ld.solo'), RB.mapa, () => { inicioMostrar(false); return empezarPartida(RB.mapa); }); return;
     case 'crear': RB.creaVuelve = v === 'tienda'; return inicioPanel('crear');   // (desde «Nuevo mapa» de la tienda, Volver vuelve a la tienda)

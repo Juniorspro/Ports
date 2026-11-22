@@ -219,6 +219,7 @@ function camaraActualizar(dt) {
     lobbyCamara(CAM); CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); return;
   }
   jugadorCamara(CAM);
+  if (typeof VR !== 'undefined' && VR.on) vrCamara(CAM);   // (modo VR: la cabeza con el giroscopio y los ojos del gorila)
   if (typeof clibCamara === 'function') clibCamara(CAM, dt);   // (cámara libre: volando o como en Roblox)
   if (JUEGO.estado === 'juego') cicCamara(CAM); // (Cíclope: la cinemática y la cámara de la definitiva)
   if (JUEGO.estado === 'juego') nocheCamara(CAM, dt); // (la pizzería: mirando una cámara de seguridad)
@@ -281,7 +282,7 @@ function empezarPartida(mapa) {
   aplicarMods(); // mods y mapa de la comunidad (después de las armas: un mod puede sumar)
   if (typeof gmmPartida === 'function') gmmPartida(mapa);   // (un modo de juego de GMod: el elegido o el del mapa)
   if (typeof menuMostrar === 'function') menuMostrar(false); $('hud').classList.remove('oc');
-  JUEGO.estado = 'juego'; cerrarPaneles(); modMenuBoton(); if (typeof mjxAlEntrar === 'function') mjxAlEntrar();
+  JUEGO.estado = 'juego'; cerrarPaneles(); modMenuBoton(); if (typeof mjxAlEntrar === 'function') mjxAlEntrar(); if (typeof vrAlEntrar === 'function') vrAlEntrar();
   if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo();
   if (typeof redEntrar === 'function') redEntrar(mapa);
   aviso(typeof mapaNom === 'function' ? mapaNom(mapa) : mapa, 2.5);
@@ -430,7 +431,7 @@ function cuadro(ahora) {
     if (JUEGO.estado === 'juego') {
       const ent = UI.abierto || CIC.quieto ? { x: 0, y: 0, saltar: false, agachar: false, correr: false } : ENT;
       if (typeof trenesPaso === 'function') trenesPaso(paso);   // (los trenes de los mapas —ascensores—: antes que el jugador, que va parado arriba)
-      jugadorPaso(paso, ent);
+      if (!(typeof VR !== 'undefined' && VR.on && vrPaso(paso, ent))) jugadorPaso(paso, ent);
       portalesPaso();
       if (typeof vehiculosPaso === 'function') vehiculosPaso(paso, ent);
     }
@@ -463,7 +464,7 @@ function cuadro(ahora) {
   camaraActualizar(dt);
   aguaPaso(dt); sonidosPaso(dt); if (typeof emuPaso === 'function') emuPaso(dt); patadasPaso(dt); artPaso(dt); npcPaso(dt); bocinaPaso(); juntosPaso(); nukePaso(dt);
   if (typeof GRT !== 'undefined') GRT.enDibujo = true; try { dibujar(); } finally { if (typeof GRT !== 'undefined') GRT.enDibujo = false; }
-  celmCuadro(); if (typeof mjxCuadro === 'function') mjxCuadro(); if (typeof gmaHUDPaso === 'function') gmaHUDPaso(); if (typeof gmrtFinCuadro === 'function') gmrtFinCuadro();
+  celmCuadro(); if (typeof mjxCuadro === 'function') mjxCuadro(); if (typeof vrCuadro === 'function') vrCuadro(); if (typeof gmaHUDPaso === 'function') gmaHUDPaso(); if (typeof gmrtFinCuadro === 'function') gmrtFinCuadro();
   if (typeof grabCuadro === 'function') grabCuadro();   // (el modo grabación copia el cuadro recién dibujado: grabar.js)
   buclesFin(); audioPaso(dt);
   hudActualizar(dt); hudPaso(); if (typeof clibDevolver === 'function') clibDevolver();
@@ -561,8 +562,11 @@ function dibujar() {
     lobbyCamara(CAM); CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA); dibujarMenu();
     CAM.pos.copy(p); CAM.q.copy(q); CAM.qVista.copy(qv); CAM.fov = f; pantFinCuadro(false); return;
   }
-  const asp = W / H, cerca = 0.08, lejos = vistaLejos() * 1.05, fovy = CAM.fov * Math.PI / 180;
-  const P = M4.persp(fovy, asp, cerca, lejos), V = M4.view(CAM.pos, CAM.qVista);
+  // (modo VR —vr.js—: dos ojos, cada uno en su mitad; lo que se dibuja se elige con la cámara del medio, un poco más
+  // abierta, y después se dibuja dos veces, una por ojo)
+  const vr = typeof vrActivo === 'function' && vrActivo() ? vrPreparar(W, H) : null;
+  const asp = vr ? vr.asp : W / H, cerca = vr ? vr.cerca : 0.08, lejos = vistaLejos() * 1.05, fovy = vr ? vr.fovy : CAM.fov * Math.PI / 180;
+  const P = vr ? vr.Pc : M4.persp(fovy, asp, cerca, lejos), V = M4.view(CAM.pos, CAM.qVista);
   m4mul(P, V, R.vp); R.fr = frustum(R.vp); R.camPos.copy(CAM.pos); R.camF.copy(CAM.fwd); R.lejos = vistaLejos();
   R.lodK = H / (2 * Math.tan(fovy / 2));   // (píxeles por metro a un metro: para los niveles de detalle)
   (R.vpMundo || (R.vpMundo = new Float32Array(16))).set(R.vp);
@@ -570,7 +574,7 @@ function dibujar() {
   // (memoria baja: cada 5 s, las texturas que no se dibujan hace 30 s se sacan de la placa —texPodar, gl.js—)
   if (GFX.memBaja && R.msCuadro - (R.podaT || 0) > 5000) { R.podaT = R.msCuadro; texPodar(R.msCuadro); }
   // cómo sale la imagen según la calidad
-  const usaPost = GFX.luz >= 2 && (GFX.hdr || GFX.ao || GFX.fxaa) && postPreparar();
+  const usaPost = !vr && GFX.luz >= 2 && (GFX.hdr || GFX.ao || GFX.fxaa) && postPreparar();
   R.salida = GFX.luz < 2 ? 'gam' : usaPost && PO.hdr ? 'hdr' : 'ldr'; R.usaPost = usaPost;
   R.sombraOn = GFX.luz >= 2 && GFX.sombra > 0 && SM.n > 0 && !MUNDO.sinSombra && !R.sinSombraDbg;
   R.conAO = !!(usaPost && GFX.ao > 0 && PO.ao.length);
@@ -586,6 +590,7 @@ function dibujar() {
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();
   if (typeof ajxMundoDibujar === 'function') ajxMundoDibujar();   // (el rayo con cuerpo de la Physics Gun de JXMod, armasjx.js)
+  if (vr) vrEncolar();   // (tus manos en VR: las de la cámara de atrás, en 3D)
   if (JUEGO.estado === 'juego') { cicDibujar(); verDibujar(); nocheDibujar(); if (typeof ev3Dibujar === 'function') ev3Dibujar(); if (typeof ordDibujar === 'function') ordDibujar(); }
   dibujarProyectiles();
   lucesJuntar(); lucesPreparar(); espPreparar();
@@ -601,35 +606,51 @@ function dibujar() {
   if (R.espShOn) espSombraActualizar();
   const t2 = performance.now();
   armarCola();
-  aguaReflejo(P, V);
-  portalesVista(P, V);
-  if (usaPost) postEmpezar(); else { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); }
+  // (en VR no hay reflejo del agua ni vista por los portales: se leen con la posición en la pantalla entera)
+  if (vr) { AGUA.refOn = false; POR.on = false; POR.A = null; } else { aguaReflejo(P, V); portalesVista(P, V); }
   const N = R.salida === 'gam' ? R.niebla.c : R.lin.nieC;
-  gl.clearColor(N[0], N[1], N[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  const c3d = JUEGO.estado === 'juego' && cielo3dDibujar(fovy, asp);   // (el cielo 3D de los mapas de GMod: de fondo, antes que todo)
-  if (R.conAO) {
-    // (la pasada previa sólo deja el color de fondo: no se guarda y después se vuelve a borrar, que en las GPU de celu no se
-    // trae de la memoria; con el cielo 3D de GMod el color ya tiene ese cielo y se queda)
-    dibujarProfundidad(); if (!c3d) descartar(gl.COLOR_ATTACHMENT0); postAO(cerca, lejos, fovy);
-    if (!c3d) { gl.clearColor(N[0], N[1], N[2], 1); gl.clear(gl.COLOR_BUFFER_BIT); }
-    gl.depthFunc(gl.LEQUAL); gl.depthMask(false); dibujarOpacos(); gl.depthMask(true); gl.depthFunc(gl.LESS);
-  } else dibujarOpacos();
-  dibujarMarcas();
-  portalesQuad();
-  if (!AGUA.bajo && !c3d) { dibujarCielo(M4.inv(R.vp)); if (typeof eventoCieloDibujar === 'function') eventoCieloDibujar(); }
-  if (typeof nvDibujar === 'function') nvDibujar();   // (el hongo de una nuclear, con volumen: después del cielo y antes de lo transparente)
-  dibujarTransparentes();
-  if (typeof gmrDibujar === 'function') gmrDibujar('mundo');
-  dibujarEfectos(); nukeDibujar();
-  dibujarRayoFisica(); dibujarTrazas(); dibujarLineas();
+  for (let ojo = 0; ojo < (vr ? 2 : 1); ojo++) {
+    if (vr) vrOjo(vr, ojo); else if (usaPost) postEmpezar(); else { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); }
+    // (en VR, el primer ojo deja las listas de lo que se dibuja —opacos, transparentes, carteles, líneas— para el segundo)
+    R.ojoGuardar = !!vr && ojo === 0;
+    gl.clearColor(N[0], N[1], N[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    const c3d = JUEGO.estado === 'juego' && cielo3dDibujar(fovy, asp);   // (el cielo 3D de los mapas de GMod: de fondo, antes que todo)
+    if (R.conAO) {
+      // (la pasada previa sólo deja el color de fondo: no se guarda y después se vuelve a borrar, que en las GPU de celu no se
+      // trae de la memoria; con el cielo 3D de GMod el color ya tiene ese cielo y se queda)
+      dibujarProfundidad(); if (!c3d) descartar(gl.COLOR_ATTACHMENT0); postAO(cerca, lejos, fovy);
+      if (!c3d) { gl.clearColor(N[0], N[1], N[2], 1); gl.clear(gl.COLOR_BUFFER_BIT); }
+      gl.depthFunc(gl.LEQUAL); gl.depthMask(false); dibujarOpacos(); gl.depthMask(true); gl.depthFunc(gl.LESS);
+    } else dibujarOpacos();
+    dibujarMarcas();
+    portalesQuad();
+    if (!AGUA.bajo && !c3d) { dibujarCielo(M4.inv(R.vp)); if (typeof eventoCieloDibujar === 'function') eventoCieloDibujar(); }
+    if (typeof nvDibujar === 'function' && !vr) nvDibujar();   // (el hongo de una nuclear, con volumen: después del cielo y antes de lo transparente)
+    dibujarTransparentes();
+    if (typeof gmrDibujar === 'function') gmrDibujar('mundo');
+    dibujarEfectos(); nukeDibujar();
+    // (las líneas —el rayo de la pistola física, las trazas— se juntan una vez)
+    if (ojo === 0) { dibujarRayoFisica(); dibujarTrazas(); }
+    dibujarLineas(); R.ojoGuardar = false;
+  }
   itemsLimpiar();
-  // el arma en la mano, encima de todo (en una franja de profundidad propia; en el evento de los 300, nada en la mano)
-  if (JUEGO.estado === 'juego' && !(typeof EV3 !== 'undefined' && EV3.sinVista)) {
-    const P2 = M4.persp((DBG.fovVista || 60) * Math.PI / 180, asp, 0.01, 20); m4mul(P2, V, R.vp); R.fr = frustum(R.vp); R.marca++;   // (DBG.fovVista: otro campo para el arma —un video vertical—)
+  // el arma en la mano, encima de todo (en una franja de profundidad propia; en el evento de los 300, nada en la mano).
+  // En VR, con la proyección de cada ojo (se ve en relieve); con tus manos de la cámara, ninguna
+  if (JUEGO.estado === 'juego' && !(typeof EV3 !== 'undefined' && EV3.sinVista) && !(vr && vrSinVista())) {
+    const P2 = vr ? vr.P : M4.persp((DBG.fovVista || 60) * Math.PI / 180, asp, 0.01, 20); m4mul(P2, V, R.vp); R.fr = frustum(R.vp); R.marca++;   // (DBG.fovVista: otro campo para el arma —un video vertical—)
     R.fase = 'vista';
-    if (dibujarVista()) { if (typeof gmrVistaArma === 'function') gmrVistaArma(); gl.depthRange(0, 0.04); armarCola(); dibujarOpacos(); dibujarTransparentes(); if (typeof gmrDibujar === 'function') gmrDibujar('vista'); gl.depthRange(0, 1); }
+    if (dibujarVista()) {
+      if (typeof gmrVistaArma === 'function') gmrVistaArma(); armarCola();
+      for (let ojo = 0; ojo < (vr ? 2 : 1); ojo++) {
+        if (vr) vrOjo(vr, ojo);
+        R.ojoGuardar = !!vr && ojo === 0;
+        gl.depthRange(0, 0.04); dibujarOpacos(); dibujarTransparentes(); if (typeof gmrDibujar === 'function') gmrDibujar('vista'); gl.depthRange(0, 1);
+        R.ojoGuardar = false;
+      }
+    }
     R.fase = ''; itemsLimpiar();
   }
+  if (vr) vrTerminar(vr);   // (con las lentes: los dos ojos curvados a la pantalla)
   const t3 = performance.now();
   if (usaPost) postTerminar();
   if (nieAntes) R.niebla = nieAntes;

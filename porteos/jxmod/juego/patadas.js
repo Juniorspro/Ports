@@ -16,7 +16,7 @@ function patear() {
 // queda la pierna) o de vuelta a su tamaño
 const PAT_HUESOS = ['Head', 'LeftShoulder', 'RightShoulder'];
 // en primera persona se ve el cuerpo pateando o haciendo un emote (en un emote se achica sólo la cabeza: los brazos son lo que se mira)
-const cuerpoEnPrimera = (P) => !!P && P === JUG.cuerpo && !JUG.tercera && !HCAM.ver && JUG.vivo && !JUG.vehiculo && (patadaActiva(P) || (!!P.emote && !P.rag && !P.sentado));
+const cuerpoEnPrimera = (P) => !!P && P === JUG.cuerpo && !JUG.tercera && !HCAM.ver && JUG.vivo && !JUG.vehiculo && !(typeof VR !== 'undefined' && VR.on) && (patadaActiva(P) || (!!P.emote && !P.rag && !P.sentado));
 function patadaCabeza(P, sin, soloCabeza) {
   if (!P || (!sin && !P.cabezaS)) return;
   if (sin && P.cabezaS && P.cabezaSolo !== !!soloCabeza) patadaCabeza(P, false);   // (cambió de patada a emote o al revés)

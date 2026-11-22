@@ -136,7 +136,7 @@ function jugadorPaso(dt, ent) {
   const tx = wish.x * vmax * wl, tz = wish.z * vmax * wl;
   let base = J.sobre && J.suelo ? J.sobre.vel : null;
   const rvx = J.vel.x - (base ? base.x : 0), rvz = J.vel.z - (base ? base.z : 0);
-  const dvx = tx - rvx, dvz = tz - rvz, dl = Math.hypot(dvx, dvz), mx = acel * dt * (J.suelo || wl > 0 ? 1 : 0.2);
+  const dvx = tx - rvx, dvz = tz - rvz, dl = Math.hypot(dvx, dvz), mx = acel * dt * (J.suelo || wl > 0 ? 1 : J.vrLibre ? 0 : 0.2);   // (J.vrLibre: lanzado con las manos en VR —vr.js—, el envión sigue hasta caer)
   if (dl > 0) { const k = Math.min(1, mx / dl); J.vel.x += dvx * k; J.vel.z += dvz * k; }
   // (la gravedad de un mod en una sala es sólo del jugador: J.grav; negativa también: sube)
   const gJ = GRAV * MUNDO.gravedad * (J.grav || 1);

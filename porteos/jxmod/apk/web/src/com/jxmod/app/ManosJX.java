@@ -37,7 +37,8 @@ import java.util.Collections;
  * (manos_jx.js) lo usa por el puente «JXManos»: prender, apagar, leer las manos del último cuadro.
  *
  * - La cámara de frente con Camera2 (~640×480, hasta 30 cuadros por segundo) y el motor corren en su propio hilo; el
- *   juego sólo lee el texto del último cuadro (ManosTexto), así no se traba.
+ *   juego sólo lee el texto del último cuadro (ManosTexto), así no se traba. En el modo VR del juego (vr.js), la de
+ *   atrás (prenderTrasera): con el celular en el casco es la que mira para adelante, hacia tus manos.
  * - El motor usa 2 núcleos y el modelo liviano de entrada: el resto del celular queda para el juego.
  * - La biblioteca (libjxhand.so, ARM de 64 bits) va adentro de la APK como archivo (assets/jxhand/), no en lib/: si
  *   fuera en lib/, Android no dejaría instalar JXMod en los celulares de 32 bits. Se copia una vez a la carpeta de la
@@ -56,7 +57,10 @@ public class ManosJX {
     private CameraCaptureSession ses;
     private ImageReader lector;
     private int rotSensor = 270;
+    private volatile boolean abiertaAtras;
     private volatile boolean quiere, adelante = true, liviano = true;
+    /** con la cámara de atrás (el modo VR del juego: el celular en el casco mira para adelante con esa) */
+    private volatile boolean trasera;
     private volatile String estado = "apagado";
     private volatile String ultimo = "";
     private volatile int cuadro;
@@ -89,7 +93,7 @@ public class ManosJX {
 
     // ---- el puente del juego (JXManos) ----
 
-    /** si se puede usar en este celular: 64 bits, la APK trae el motor y hay una cámara de frente */
+    /** si se puede usar en este celular: 64 bits, la APK trae el motor y hay una cámara (de frente o de atrás) */
     @JavascriptInterface public synchronized boolean disponible() {
         if (disponible == null) {
             boolean ok = false;
@@ -97,7 +101,8 @@ public class ManosJX {
                 if (es64()) {
                     String[] l = web.getAssets().list(DIR + "/arm64-v8a");
                     boolean lib = false; if (l != null) for (String x : l) if ("libjxhand.so".equals(x)) lib = true;
-                    ok = lib && camaraFrente((CameraManager) web.getSystemService(Web.CAMERA_SERVICE)) != null;
+                    CameraManager cm = (CameraManager) web.getSystemService(Web.CAMERA_SERVICE);
+                    ok = lib && (camara(cm, false) != null || camara(cm, true) != null);
                 }
             } catch (Throwable t) { ok = false; }
             disponible = ok;
@@ -105,10 +110,18 @@ public class ManosJX {
         return disponible;
     }
 
-    /** prende la cámara y el motor (pide el permiso la primera vez); `livianoModelo`: el modelo liviano de los puntos */
-    @JavascriptInterface public String prender(boolean livianoModelo) {
+    /** prende la cámara de frente y el motor (pide el permiso la primera vez); `livianoModelo`: el modelo liviano de los puntos */
+    @JavascriptInterface public String prender(boolean livianoModelo) { return prenderCon(livianoModelo, false); }
+
+    /** lo mismo con la cámara de atrás (el modo VR: el celular en el casco) */
+    @JavascriptInterface public String prenderTrasera(boolean livianoModelo) { return prenderCon(livianoModelo, true); }
+
+    private String prenderCon(boolean livianoModelo, boolean deAtras) {
         if (!disponible()) { estado = "no disponible"; return estado; }
-        quiere = true; liviano = livianoModelo;
+        // (si estaba abierta la otra cámara, se cierra y se abre la pedida)
+        final boolean cambia = deAtras != trasera;
+        quiere = true; liviano = livianoModelo; trasera = deAtras;
+        if (cambia) hilo().post(this::cerrarCamara);
         if (!tienePermiso()) {
             estado = "permiso";
             web.runOnUiThread(() -> { try { web.requestPermissions(new String[]{Manifest.permission.CAMERA}, PEDIR_CAMARA); } catch (Throwable t) { estado = "sin permiso"; } });
@@ -214,10 +227,12 @@ public class ManosJX {
 
     private void soltarMotor() { if (motor != 0) { Motor.soltar(motor); motor = 0; } }
 
-    private static String camaraFrente(CameraManager cm) throws Exception {
+    /** la primera cámara de frente (o de atrás) */
+    private static String camara(CameraManager cm, boolean deAtras) throws Exception {
+        int quiero = deAtras ? CameraCharacteristics.LENS_FACING_BACK : CameraCharacteristics.LENS_FACING_FRONT;
         for (String id : cm.getCameraIdList()) {
             Integer l = cm.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING);
-            if (l != null && l == CameraCharacteristics.LENS_FACING_FRONT) return id;
+            if (l != null && l == quiero) return id;
         }
         return null;
     }
@@ -226,10 +241,12 @@ public class ManosJX {
         if (dev != null || lector != null) return;
         try {
             CameraManager cm = (CameraManager) web.getSystemService(Web.CAMERA_SERVICE);
-            String id = camaraFrente(cm);
+            final boolean deAtras = trasera;
+            String id = camara(cm, deAtras);
             if (id == null) { estado = "sin cámara"; return; }
             CameraCharacteristics ch = cm.getCameraCharacteristics(id);
-            Integer so = ch.get(CameraCharacteristics.SENSOR_ORIENTATION); rotSensor = so == null ? 270 : so;
+            Integer so = ch.get(CameraCharacteristics.SENSOR_ORIENTATION); rotSensor = so == null ? (deAtras ? 90 : 270) : so;
+            abiertaAtras = deAtras;
             StreamConfigurationMap mapa = ch.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             Size t = tamano(mapa.getOutputSizes(ImageFormat.YUV_420_888));
             final Range<Integer> rango = rango(ch.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES));
@@ -295,7 +312,8 @@ public class ManosJX {
         return m;
     }
 
-    /** cuánto girar el cuadro para que quede derecho con la pantalla como está ahora (la de frente: sensor + pantalla) */
+    /** cuánto girar el cuadro para que quede derecho con la pantalla como está ahora (la de frente: sensor + pantalla; la
+     *  de atrás: sensor − pantalla) */
     private int rotacion() {
         int r = 0;
         try {
@@ -306,7 +324,7 @@ public class ManosJX {
                 default: r = 0;
             }
         } catch (Throwable t) { /* nada */ }
-        return (rotSensor + r) % 360;
+        return abiertaAtras ? (rotSensor - r + 360) % 360 : (rotSensor + r) % 360;
     }
 
     private void alLlegar(ImageReader r) {

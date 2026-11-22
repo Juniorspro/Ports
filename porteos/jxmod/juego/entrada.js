@@ -183,4 +183,5 @@ function entradaLeer() {
   } else ENT.correr = !!ENT.correrPalanca || !!ENT.correrFijo;   // (táctil sin teclas: corre sólo la palanca al tope; antes, soltar Shift de un teclado conectado al celu dejaba corriendo para siempre)
   // en un vehículo con los pedales y las flechas de la pantalla (si no se usa la palanca)
   if (ENT.tactil && JUG.vehiculo && !TOQ.palanca && !T.size) { ENT.y = (ENT.pGas ? 1 : 0) - (ENT.pFreno ? 1 : 0); ENT.x = (ENT.pDer ? 1 : 0) - (ENT.pIzq ? 1 : 0); }
+  if (typeof mandoLeer === 'function') mandoLeer();   // (un mando Bluetooth o USB: vr.js)
 }

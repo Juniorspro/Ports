@@ -19,13 +19,15 @@ const mjxEnMano = () => MJX.on && ARM.lista[ARM.i] === 'ManosJX';
 // (el puente JXManos lo pone la app, ManosJX.java; dice que sí sólo en celulares de 64 bits con cámara de frente)
 const mjxDisponible = () => { try { return typeof JXManos !== 'undefined' && !!JXManos.disponible(); } catch (e) { return false; } };
 
-// prender y apagar
-function mjxPrender() {
+// prender y apagar. `trasera`: con la cámara de atrás y sin el arma (el modo VR, vr.js: el celular en el casco mira
+// para adelante con esa cámara y las manos son las 3D)
+function mjxPrender(trasera) {
   if (MJX.on || !mjxDisponible()) return;
-  MJX.on = true; MJX.error = null; MJX.visto = -1; MJX.manos = []; MJX.cuadros = 0; MJX.lite = !PREFS.jxCompleto;
+  MJX.on = true; MJX.error = null; MJX.visto = -1; MJX.manos = []; MJX.cuadros = 0; MJX.lite = !PREFS.jxCompleto; MJX.trasera = !!trasera;
   let r = 'error';
-  try { r = JXManos.prender(MJX.lite); } catch (e) { MJX.error = String(e); }
+  try { r = trasera ? JXManos.prenderTrasera(MJX.lite) : JXManos.prender(MJX.lite); } catch (e) { MJX.error = String(e); }
   MJX.estado = r === 'ok' ? 'cargando' : r;
+  if (trasera) return;
   darArma('ManosJX');
   // (ya en la mano: así se ven las manos sin tener que buscar el arma, que queda última en la barra)
   if (JUEGO.estado === 'juego') { const i = ARM.lista.indexOf('ManosJX'); if (i >= 0) elegirArma(i); }
@@ -33,7 +35,7 @@ function mjxPrender() {
 }
 function mjxApagar() {
   if (MJX.on) { try { JXManos.apagar(); } catch (e) { /* nada */ } }
-  MJX.on = false; MJX.estado = 'apagado'; MJX.manos = [];
+  MJX.on = false; MJX.estado = 'apagado'; MJX.manos = []; MJX.trasera = false;
   const i = ARM.lista.indexOf('ManosJX'); if (i >= 0) { if (ARM.i === i) elegirArma(Math.max(0, ARM.lista.indexOf('Hands'))); ARM.lista.splice(ARM.lista.indexOf('ManosJX'), 1); if (ARM.i >= ARM.lista.length) ARM.i = 0; }
   if (MJX.previa) { MJX.previa.remove(); MJX.previa = null; }
 }
@@ -174,7 +176,7 @@ function mjxPrevia() {
   const ver = MJX.on && JUEGO.estado === 'juego' && PREFS.jxPrevia !== false;
   if (!ver) { if (MJX.previa) MJX.previa.style.display = 'none'; return; }
   if (!MJX.previa) {
-    const c = document.createElement('canvas'); c.width = 192; c.height = 144;
+    const c = document.createElement('canvas'); c.width = 192; c.height = 144; c.className = 'mjxPrevia';
     // (arriba, un poco a la izquierda del medio: abajo a la izquierda tapaba el joystick y en el medio, en pantallas
     // angostas, rozaba la barra de armas)
     c.style.cssText = 'position:fixed;left:calc(50% - 100px);top:calc(30px + env(safe-area-inset-top));width:128px;height:96px;border-radius:10px;background:rgba(8,8,12,.5);pointer-events:none;z-index:30';
@@ -184,9 +186,11 @@ function mjxPrevia() {
   const c = MJX.previa, x = c.getContext('2d'); c.style.display = '';
   x.clearRect(0, 0, c.width, c.height);
   // lo que ve la cámara, como un espejo y oscurecido (para que se lean las líneas)
-  if (MJX.mini) { x.save(); x.globalAlpha = 0.6; x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(MJX.mini, 0, 0, c.width, c.height); x.restore(); }
+  // (con la de atrás —VR—, tal cual: ya se ve como desde tus ojos)
+  const esp = !MJX.trasera;
+  if (MJX.mini) { x.save(); x.globalAlpha = 0.6; if (esp) { x.translate(c.width, 0); x.scale(-1, 1); } x.drawImage(MJX.mini, 0, 0, c.width, c.height); x.restore(); }
   for (const m of MJX.manos) {
-    const P = m.img.map((p) => [(1 - p[0]) * c.width, p[1] * c.height]);
+    const P = m.img.map((p) => [(esp ? 1 - p[0] : p[0]) * c.width, p[1] * c.height]);
     x.strokeStyle = m.derecha ? '#ff3e8a' : '#7a3cff'; x.lineWidth = 2.5; x.beginPath();
     for (const [a, b] of MJX_H) { x.moveTo(P[a][0], P[a][1]); x.lineTo(P[b][0], P[b][1]); } x.stroke();
     x.fillStyle = '#ffd23f'; for (const i of [4, 8, 12, 16, 20]) { x.beginPath(); x.arc(P[i][0], P[i][1], 3, 0, 7); x.fill(); }

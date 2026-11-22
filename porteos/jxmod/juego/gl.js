@@ -1383,7 +1383,7 @@ function dibujarOpacos() {
     dibujarPedido(p, P);
     if (p.x && p.x.dobleCara) gl.enable(gl.CULL_FACE);
   }
-  R.cola.length = 0;
+  if (!R.ojoGuardar) R.cola.length = 0;
 }
 function dibujarTransparentes() {
   const gl = R.gl;
@@ -1399,7 +1399,7 @@ function dibujarTransparentes() {
   }
   gl.depthMask(true); gl.disable(gl.BLEND);
   gl.bindVertexArray(null); R.vaoAct = null;
-  R.colaT.length = 0;
+  if (!R.ojoGuardar) R.colaT.length = 0;
 }
 // pasada sólo de profundidad (para la oclusión ambiental; y así la imagen no pinta dos veces el mismo píxel)
 function dibujarProfundidad() {
@@ -1504,7 +1504,7 @@ function dibujarLineas() {
   const gl = R.gl, P = R.prog.lin; gl.useProgram(P.p); R.progAct = P; gl.uniformMatrix4fv(P.u.uVP, false, R.vp); gl.uniform1f(P.u.uLin, R.salida === 'hdr' ? 1 : 0);
   gl.bindVertexArray(R.linVao); gl.bindBuffer(gl.ARRAY_BUFFER, R.linBuf); gl.bufferData(gl.ARRAY_BUFFER, LIN.v.subarray(0, LIN.n * 7), gl.STREAM_DRAW);
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  gl.drawArrays(gl.LINES, 0, LIN.n); gl.disable(gl.BLEND); gl.bindVertexArray(null); R.vaoAct = null; LIN.n = 0;
+  gl.drawArrays(gl.LINES, 0, LIN.n); gl.disable(gl.BLEND); gl.bindVertexArray(null); R.vaoAct = null; if (!R.ojoGuardar) LIN.n = 0;   // (R.ojoGuardar: el primer ojo en VR —vr.js—, el segundo dibuja lo mismo)
 }
 // ---------------- luces puntuales y focos (lámparas, faros, fogonazos, explosiones) ----------------
 // cada cuadro se juntan y se mandan las más cercanas a la cámara

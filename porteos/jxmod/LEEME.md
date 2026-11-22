@@ -5496,6 +5496,67 @@ entra al juego.
 - **Sin probar en un celular:** la cámara, el permiso y la carga de la biblioteca en un Android de verdad.
 - **Para publicar:** esto es Java, así que hace falta una APK nueva una vez. Después, lo del juego viaja por partes.
 
+## Sin publicar todavía: el modo VR (`juego/vr.js`)
+
+Pedido del dueño: «un modo completo VR hecho dentro de JXMod… donde podés caminar con las manos así tipo Gorilla Tag y
+agarrar cosas, con doble pantalla para los VR box y soporte de controles».
+
+- **Dónde está:**
+  - «Partida nueva» → el botón **VR** (casco propio, al lado de Empezar): arranca la partida en VR.
+  - La pausa → **VR**: entra o sale en cualquier partida.
+  - Ajustes → Controles y audio: corregir la curva de las lentes, la distancia entre los ojos (50–80 mm, de entrada 63)
+    y el largo de los brazos (100–220 %, de entrada 150).
+- **La imagen:** la pantalla en dos, un ojo por mitad, con los ojos separados como los tuyos.
+  - Qué se dibuja se elige una vez, con la cámara del medio un poco más abierta. Sombras, luces y la cola se arman una
+    sola vez y se dibujan dos (las listas que se vaciaban al dibujar —opacos, transparentes, carteles, líneas— quedan
+    para el segundo ojo con `R.ojoGuardar`).
+  - Con las lentes: los dos ojos van a un búfer y una pasada los curva al revés (k1 0,30, k2 0,15), con las esquinas
+    negras. Sin las lentes, cada ojo directo a su mitad (72° en vez de 96°).
+  - En VR no hay posproceso, ni reflejo del agua, ni vista por los portales, ni la nube con volumen de la nuclear, ni el
+    hueco de la tele con video: todos leen la posición en la pantalla entera.
+  - Fuera del VR se dibuja igual que antes (comparado con `captura_igual.mjs`: el mundo, idéntico; sólo cambia el
+    balanceo del arma, que va con el reloj).
+  - Encima, en los dos ojos: un punto en el medio, los avisos del juego y el estado de las manos. Los botones de la
+    pantalla no se ven; arriba en el medio, «Salir del VR». Con un panel abierto (la pausa), la imagen común.
+- **La cabeza:** el giroscopio (`deviceorientation`) con la cuenta de DeviceOrientationControls de three.js y media
+  vuelta (la cámara del juego mira para +Z). Verificado: de pie mira al horizonte, inclinado 45° mira 45° abajo, girado
+  90° gira 90° a la izquierda, y acostado en el casco arriba queda arriba. Lo que se gira con el mouse, el dedo o el
+  mando se suma como giro del cuerpo. Sin giroscopio se mira como siempre.
+- **El cuerpo de gorila:** los ojos a 1,05 m del piso (las manos llegan al suelo sin agacharse) y sin el cuerpo propio a
+  la vista.
+- **Las manos (en la app):** la cámara de ATRÁS, la que mira para adelante con el celular en el casco
+  (`ManosJX.prenderTrasera`, giro sensor − pantalla; la imagen sin espejar ya tiene la mano derecha a la derecha).
+  - Cada mano: dónde está respecto de los ojos (los brazos largos multiplican lo que se aleja de la cara) y sus 21
+    puntos, girados con la cabeza del momento en que llegaron: una mano quieta queda quieta en el mundo aunque gires la
+    cabeza.
+  - Se dibujan con la mano 3D de JX Hand (`malla.rs` pasada a JS: un tubo por dedo con curva suave y la palma como una
+    almohada, ~1600 vértices), en una malla que se arma una vez y en cada cuadro sólo sube los vértices.
+  - Con una APK vieja que reciba este código por partes: el VR anda, sin manos, y avisa que hay que actualizar la app.
+- **Caminar con las manos (como los juegos de gorilas):** en cada paso de la física, antes que el jugador.
+  - La mano que toca algo (un rayo de los ojos a la mano: los ojos nunca están adentro de una pared) se queda pegada
+    ahí. El cuerpo se corre lo que haga falta para que siga donde tocó: empujar el piso para atrás te lleva adelante,
+    empujarlo para abajo te sube, bajar la mano por una pared te sube.
+  - Sólo se empuja: alejar la mano de lo que tocó la suelta.
+  - Al soltar todas, el cuerpo sale con el envión que traía ×1,15 (hasta 7,5 m/s) y en el aire no se frena solo
+    (`JUG.vrLibre`) hasta caer.
+- **Agarrar:** el puño cerca de un objeto (a menos de 18 cm de la palma) lo agarra: sigue a la palma y gira con ella,
+  como la pistola física. Al abrir la mano sale con el envión de la mano ×1,2. La mano abierta que va rápido (más de
+  0,8 m/s) contra un objeto lo empuja; acercarse despacio para agarrarlo no lo mueve.
+- **El mando** (`mandoLeer`, también fuera del VR): la palanca izquierda camina, A salta, B se agacha, L3 corre, los
+  gatillos disparan (apuntás con la mirada), LB/RB cambian de arma, X recarga, Y usa, Start abre la pausa y B la cierra.
+  En VR la palanca derecha gira de a 30° y Select centra la vista; fuera, la derecha mira y Select cambia la cámara.
+- **Prueba `pruebas/vr.mjs` 8/8:** el juego armado para la app en un «celular» acostado, con manos de mentira (la forma de
+  una mano grabada por el motor) y un giroscopio de mentira.
+  1. El botón VR de «Partida nueva» arranca en VR con la cámara de atrás.
+  2. Dos ojos parecidos y no iguales, las esquinas negras de las lentes y sin los botones.
+  3. La cabeza (las cuatro posiciones de arriba, al grado).
+  4. La mano 3D en los dos ojos, abajo a la derecha, a 53 cm (el ojo derecho la ve 7 % más a la izquierda: relieve).
+  5. Para atrás 40 cm → el cuerpo 40 cm adelante; para abajo 20 cm → sube 20 cm; un empujón y soltar → 2,5 a 3,4 m/s.
+  6. El puño agarra, sube 25 cm con la mano y al abrirla sale tirado (2,3 m/s).
+  7. El mando camina, salta y gira 30°; fuera del VR mira.
+  8. Salir deja todo normal; sin errores de JS.
+- **Sin probar en un celular:** el giroscopio de verdad, la curva de un casco de verdad y la cámara de atrás.
+
 ## Sin publicar todavía: lo de «Bugs y sugerencias» después de la 3.9.11
 
 - **Bugs:**

@@ -142,7 +142,7 @@ function dibujarCarteles() {
     partVertices(D, 0, c.p.x, c.p.y, c.p.z, 1, 1, 1, 1, c.s, 0, -1, 0, 0, 0, 0);
     gl.bufferData(gl.ARRAY_BUFFER, D.subarray(0, 6 * PART_F), gl.STREAM_DRAW); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, c.tex); gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
-  gl.enable(gl.CULL_FACE); gl.disable(gl.BLEND); gl.bindVertexArray(null); R.vaoAct = null; R.texAct = null; PART.extra.length = 0;
+  gl.enable(gl.CULL_FACE); gl.disable(gl.BLEND); gl.bindVertexArray(null); R.vaoAct = null; R.texAct = null; if (!R.ojoGuardar) PART.extra.length = 0;
 }
 const ESQ = [-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1];
 const EF = { fog: 0 }, TRAZAS = [], LUCES_T = [];

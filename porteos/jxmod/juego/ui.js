@@ -27,6 +27,7 @@ function uiIniciar() {
     for (const o of OBJS.filter((x) => !x.remoto)) borrarObjeto(o); cerrarPaneles(); aviso(T('pz.limpio'));
   };
   $('bGuardar').onclick = () => { guardarConstruccion(); cerrarPaneles(); };
+  if ($('bVR')) $('bVR').onclick = () => { cerrarPaneles(); if (typeof VR === 'undefined') return; if (VR.on) vrSalir(); else vrEntrar(); };   // (modo VR: vr.js)
   { const b = $('bSocial'); if (b) b.onclick = () => { cerrarPaneles(); RB.desdeJuego = true; inicioMostrar(true); inicioPanel('social'); }; }
   { const b = $('bTutorial'); if (b) b.onclick = () => { cerrarPaneles(); UI.abierto = null; tutAbrir(); }; }
   $('bCargar').onclick = () => { cargarConstruccion(); cerrarPaneles(); };
@@ -357,6 +358,7 @@ function abrirAjustes(desde) {
     ${sw('aEmoR', esc(T('aj.emoRuleta')))}
     ${sw('aVozH', esc(T('aj.vozHud')))}
     ${typeof mjxDisponible === 'function' && mjxDisponible() ? sw('aJxM', esc(T('aj.jxManos'))) + sw('aJxC', esc(T('aj.jxCompleto'))) : ''}
+    ${typeof VR !== 'undefined' ? sw('aVrL', esc(T('aj.vrLentes'))) + fila(esc(T('aj.vrOjos')), rango('aVrO', 50, 80, 1, 'aVrOv')) + fila(esc(T('aj.vrBrazos')), rango('aVrB', 100, 220, 10, 'aVrBv')) : ''}
     <button class="ajBtn gris" id="aCtl">${esc(T('ctl.titulo'))}</button> <button class="ajBtn gris" id="aTut">${esc(tutTx(TUT_B.ver))}</button> <button class="ajBtn gris" id="aReg">${esc(Lc('Error log', 'Registro de fallas'))}</button></section>
   ${typeof icappSeccion === 'function' ? `<section data-ajs="l" class="oc">${icappSeccion()}${typeof milogoSeccion === 'function' ? `<div class="icDiv"></div>${milogoSeccion()}` : ''}</section>` : ''}
   ${typeof gmkPintar === 'function' ? `<section data-ajs="m" class="oc"><h4>${esc(T('gmk.titulo'))}</h4><div class="gmkCont"></div></section>` : ''}
@@ -380,10 +382,12 @@ function abrirAjustes(desde) {
   $('aEmoR').checked = PREFS.emoRuleta !== false;
   $('aVozH').checked = PREFS.vozHud !== false;
   if ($('aJxM')) { $('aJxM').checked = !!PREFS.jxManos; $('aJxC').checked = !!PREFS.jxCompleto; }
-  const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; $('aFovv').textContent = $('aFov').value + '°'; if ($('aH')) $('aHv').textContent = $('aH').value + '%'; };
+  if ($('aVrL')) { $('aVrL').checked = PREFS.vrLentes !== false; $('aVrO').value = vrSep() * 1000; $('aVrB').value = vrBrazos() * 100; }
+  const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; $('aFovv').textContent = $('aFov').value + '°'; if ($('aH')) $('aHv').textContent = $('aH').value + '%'; if ($('aVrO')) { $('aVrOv').textContent = $('aVrO').value + ' mm'; $('aVrBv').textContent = $('aVrB').value + '%'; } };
   act();
   $('aG').onchange = () => { PREFS.gfx = $('aG').value; const p = PERFILES[PREFS.gfx]; if (p) { PREFS.res = p.res; PREFS.lejos = p.lejos; $('aR').value = p.res; $('aD').value = p.lejos; } act(); };
   $('aR').oninput = $('aD').oninput = act;
+  if ($('aVrO')) $('aVrO').oninput = $('aVrB').oninput = act;
   $('aCtl').onclick = () => ctlAbrir(desde);
   $('aTut').onclick = () => { cerrarPaneles(); UI.abierto = null; tutAbrir(); };
   $('aReg').onclick = () => { if (typeof cnMostrar === 'function') cnMostrar(false); };
@@ -403,7 +407,8 @@ function abrirAjustes(desde) {
     PREFS.emoRuleta = $('aEmoR').checked;
     PREFS.npcMax = $('aNpc').value;
     PREFS.vozHud = $('aVozH').checked; if (typeof vozHudAjuste === 'function') vozHudAjuste();   // (quién habla: voz.js)
-    if ($('aJxM')) {   // (tus manos con la cámara: manos_jx.js; cambiar el modelo con la cámara prendida la vuelve a prender)
+    if ($('aVrL')) { PREFS.vrLentes = $('aVrL').checked; PREFS.vrOjos = +$('aVrO').value; PREFS.vrBrazos = +$('aVrB').value; }   // (modo VR: vr.js)
+    if ($('aJxM') && !(typeof VR !== 'undefined' && VR.on && MJX.trasera)) {   // (tus manos con la cámara: manos_jx.js; cambiar el modelo con la cámara prendida la vuelve a prender. En VR la usa el casco)
       const completo = $('aJxC').checked, cambio = completo !== !!PREFS.jxCompleto; PREFS.jxCompleto = completo; PREFS.jxManos = $('aJxM').checked;
       if (PREFS.jxManos) { if (cambio && MJX.on) mjxApagar(); if (JUEGO.estado === 'juego') mjxPrender(); } else mjxApagar();
     }
