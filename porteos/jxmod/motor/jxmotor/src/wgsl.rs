@@ -340,11 +340,16 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) c: vec4<f32>, @loc
 @vertex fn vs_part(v: VIn, @builtin(vertex_index) vi: u32) -> VOut {
   var ESQ = array<vec2<f32>, 6>(vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, 1.0));
   let e = ESQ[vi % 6u]; let s = v.e.z; let c = cos(v.x.x); let sn = sin(v.x.x); let r = vec2<f32>(e.x * c - e.y * sn, e.x * sn + e.y * c);
-  let uv = e * 0.5 + 0.5;
+  var uv = e * 0.5 + 0.5; if (v.x.z > 2.5) { uv = vec2<f32>(e.x * 0.5 + 0.5, 0.5); }
   var o: VOut; o.c = v.c;
   if (v.x.y < -0.5) { o.u = uv; } else { o.u = (vec2<f32>(v.x.y - 2.0 * floor(v.x.y * 0.5), floor(v.x.y * 0.5)) + uv * 0.96 + 0.02) * 0.5; }
   var p: vec3<f32>;
-  if (v.x.z > 1.5) { p = v.p + vec3<f32>(r.x, 0.0, r.y) * s; }
+  // (modo 3, las trazas de las balas: una línea de p − s a p del mismo ancho en la pantalla, como gpu.rs)
+  if (v.x.z > 2.5) {
+    var q = v.p; if (e.y < 0.0) { q = v.p - v.s; }
+    let dn = normalize(v.s + vec3<f32>(0.000001)); let a = normalize(cross(dn, q - G.cam.xyz) + vec3<f32>(0.000001));
+    p = q + a * (e.x * s * length(q - G.cam.xyz));
+  } else if (v.x.z > 1.5) { p = v.p + vec3<f32>(r.x, 0.0, r.y) * s; }
   else if (v.x.z > 0.5) {
     let l = length(v.s); var dn = U.arr.xyz; if (l > 0.00001) { dn = v.s / l; }
     let a = normalize(cross(dn, v.p - G.cam.xyz) + vec3<f32>(0.000001)); p = v.p + a * (e.x * s) + dn * (e.y * (l * 0.5 + s)) - v.s * 0.5;

@@ -4,9 +4,13 @@
 //! (su degradé y el sol), el agua (olas con su mapa de normales, Fresnel con el color del cielo y transparente; sin reflejo)
 //! y el HUD. Sin sombras ni oclusión (una placa vieja no llega), sin instancias (un dibujo por cosa)
 //! y con la escena a una fracción de la pantalla si se pide (`escala`), estirada al final.
+//! Las partículas de efectos.js y las marcas como gpu.rs: sin instancias, cada partícula se arma en la CPU (`part_vertices`:
+//! sus 4 esquinas con las mismas cuentas que VS_PART) y van todas en un búfer con índices de 16 bits; las marcas, después de lo
+//! opaco y antes de lo transparente, despegadas con glPolygonOffset. Como no hay pasada final, el retoque se les hace en su
+//! sombreador (a lo que suma, sólo la viñeta).
 //! Las diferencias con ES 3: los vértices se rearman (las UV en float: ES 2 no lee medio float) y los índices de 32 bits
 //! se pasan a 16 si la placa no los tiene (OES_element_index_uint).
-use crate::escena::{Cielo, Cuadro, Escena, ItemDin, Mat};
+use crate::escena::{Cielo, Cuadro, Escena, ItemDin, Mat, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
 use crate::mat::{self, M4};
 use glow::HasContext;
 use std::collections::HashMap;
@@ -154,8 +158,52 @@ const FS_COPIA: &str = r#"
 precision mediump float; uniform sampler2D uT; varying vec2 vU;
 void main() { gl_FragColor = texture2D(uT, vU); }"#;
 
+// las partículas, ya armadas en la CPU (posición, UV del atlas, color y lo del humo contra el piso), y las marcas (color por vértice)
+const VS_PART: &str = r#"
+attribute vec3 aP; attribute vec2 aU; attribute vec4 aC; attribute vec2 aF; uniform mat4 uVP; varying vec4 vC; varying vec2 vU; varying vec2 vF;
+void main() { vC = aC; vU = aU; vF = aF; gl_Position = uVP * vec4(aP, 1.0); }"#;
+const FS_PART: &str = r#"
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform sampler2D uT; uniform float uSuma; varying vec4 vC; varying vec2 vU; varying vec2 vF;
+uniform vec3 uRet;
+vec3 retoque(vec3 c) {
+  if (uRet.z < 0.5) return c;
+  c = pow(c, vec3(2.2)); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = pow(c, vec3(1.0 / 2.2));
+  vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
+}
+void main() {
+  vec4 t = texture2D(uT, vU); vec4 o = vec4(vC.rgb * t.rgb, vC.a * t.a * clamp(vF.x / vF.y, 0.0, 1.0));
+  // (lo que suma, sólo la viñeta: el retoque entero en cada capa —medido— se aparta más de gpu.rs, que lo hace una vez sobre
+  // la suma, ya saturada en blanco)
+  if (uSuma > 0.5) { if (uRet.z > 0.5) { vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; o.rgb *= 1.0 - dot(q, q) * 0.32; } }
+  else o.rgb = retoque(o.rgb);
+  gl_FragColor = o;
+}"#;
+const VS_LIN: &str = r#"
+attribute vec3 aP; attribute vec4 aC; uniform mat4 uVP; varying vec4 vC;
+void main() { vC = aC; gl_Position = uVP * vec4(aP, 1.0); }"#;
+const FS_LIN: &str = r#"
+precision mediump float; varying vec4 vC;
+uniform vec3 uRet;
+vec3 retoque(vec3 c) {
+  if (uRet.z < 0.5) return c;
+  c = pow(c, vec3(2.2)); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = pow(c, vec3(1.0 / 2.2));
+  vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
+}
+void main() { gl_FragColor = vec4(retoque(vC.rgb), vC.a); }"#;
+/// los floats de cada vértice de una partícula armada (x, y, z, u, v, r, g, b, a y lo del humo contra el piso)
+pub const PART_V2: usize = 11;
+/// a lo sumo cuántas partículas por cuadro (los índices son de 16 bits: 4 vértices cada una)
+const PART_MAX2: usize = 16383;
+
 const U_LUZ: [&str; 33] = ["uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
-const U_OTROS: [&str; 13] = ["uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC"];
+const U_OTROS: [&str; 14] = ["uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma"];
 
 unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, atrs: &[&str]) -> Result<Prog2, String> {
     let p = gl.create_program()?;
@@ -183,10 +231,41 @@ fn de_medio(h: u16) -> f32 {
     if e == 0 { s * m * 2f32.powi(-24) } else if e == 31 { s * f32::INFINITY } else { s * (1.0 + m / 1024.0) * 2f32.powi(e - 15) }
 }
 
+/// las 4 esquinas de una partícula (`f`: la fila de 16 floats de efectos.js) con las mismas cuentas que VS_PART de gpu.rs
+/// —carteles que giran hacia la cámara (`der`, `arr`), chispas estiradas, ondas planas en el piso y las trazas (modo 3)—:
+/// PART_V2 floats por vértice en `o`, en el orden (-1,-1), (1,-1), (1,1), (-1,1)
+pub fn part_vertices(f: &[f32], der: [f32; 3], arr: [f32; 3], cam: [f32; 3], o: &mut Vec<f32>) {
+    let (ap, s, rot, tile, modo, a_s) = ([f[0], f[1], f[2]], f[9], f[10], f[11], f[12], [f[13], f[14], f[15]]);
+    let (c, sn) = (rot.cos(), rot.sin());
+    let ad = |a: [f32; 3], b: [f32; 3], k: f32| [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
+    let nz = |a: [f32; 3]| { let b = [a[0] + 1e-6, a[1] + 1e-6, a[2] + 1e-6]; let l = mat::punto(b, b).sqrt().max(1e-30); [b[0] / l, b[1] / l, b[2] / l] };
+    for e in [[-1.0f32, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]] {
+        let r = [e[0] * c - e[1] * sn, e[0] * sn + e[1] * c];
+        let mut uv = if modo > 2.5 { [e[0] * 0.5 + 0.5, 0.5] } else { [e[0] * 0.5 + 0.5, e[1] * 0.5 + 0.5] };
+        if tile >= -0.5 { uv = [((tile - 2.0 * (tile * 0.5).floor()) + uv[0] * 0.96 + 0.02) * 0.5, ((tile * 0.5).floor() + uv[1] * 0.96 + 0.02) * 0.5]; }
+        let p = if modo > 2.5 {
+            let q = if e[1] < 0.0 { ad(ap, a_s, -1.0) } else { ap };
+            let dn = nz(a_s); let qc = mat::sub(q, cam); let a = nz(mat::cruz(dn, qc));
+            ad(q, a, e[0] * s * mat::punto(qc, qc).sqrt())
+        } else if modo > 1.5 { [ap[0] + r[0] * s, ap[1], ap[2] + r[1] * s] }
+        else if modo > 0.5 {
+            let l = mat::punto(a_s, a_s).sqrt(); let dn = if l > 0.00001 { [a_s[0] / l, a_s[1] / l, a_s[2] / l] } else { arr };
+            let a = nz(mat::cruz(dn, mat::sub(ap, cam)));
+            ad(ad(ad(ap, a, e[0] * s), dn, e[1] * (l * 0.5 + s)), a_s, -0.5)
+        } else { ad(ad(ap, der, r[0] * s), arr, r[1] * s) };
+        let fz = if modo < 0.5 && a_s[1] > 0.5 { [p[1] - a_s[0], s * 0.45] } else { [1.0, 0.001] };
+        o.extend_from_slice(&[p[0], p[1], p[2], uv[0], uv[1], f[3], f[4], f[5], f[6], fz[0], fz[1]]);
+    }
+}
+
 pub struct Motor {
     pub gl: glow::Context,
     pub op: Opciones2,
-    p_luz: Prog2, p_cielo: Prog2, p_ui: Prog2, p_copia: Prog2, p_agua: Prog2,
+    p_luz: Prog2, p_cielo: Prog2, p_ui: Prog2, p_copia: Prog2, p_agua: Prog2, p_part: Prog2, p_lin: Prog2,
+    /// las partículas: el búfer de vértices, el de índices (para cuántas alcanza) y lo armado en la CPU; las marcas: su búfer,
+    /// cuántos vértices y las que llegaron y todavía no se subieron
+    part_vb: glow::Buffer, part_ib: glow::Buffer, part_cap: usize, part_v: Vec<f32>,
+    marcas_vb: glow::Buffer, marcas_n: i32, marcas_nuevas: Option<Vec<f32>>,
     agua: Option<crate::escena::Agua>, agua_n: Option<glow::Texture>, aguas: Vec<usize>,
     tri: glow::Buffer, ui_buf: glow::Buffer, blanca: glow::Texture,
     cubo: Option<glow::Texture>,
@@ -206,13 +285,16 @@ impl Motor {
         let p_ui = programa(&gl, VS_UI, FS_UI, &["aP", "aU", "aC"])?;
         let p_copia = programa(&gl, VS_COPIA, FS_COPIA, &["aP"])?;
         let p_agua = programa(&gl, VS_AGUA, FS_AGUA, &["aP"])?;
+        let p_part = programa(&gl, VS_PART, FS_PART, &["aP", "aU", "aC", "aF"])?;
+        let p_lin = programa(&gl, VS_LIN, FS_LIN, &["aP", "aC"])?;
+        let (part_vb, part_ib, marcas_vb) = (gl.create_buffer()?, gl.create_buffer()?, gl.create_buffer()?);
         let tri = gl.create_buffer()?; gl.bind_buffer(glow::ARRAY_BUFFER, Some(tri));
         let v: [f32; 6] = [-1.0, -1.0, 3.0, -1.0, -1.0, 3.0]; gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, f32b(&v), glow::STATIC_DRAW);
         let ui_buf = gl.create_buffer()?;
         let blanca = gl.create_texture()?; gl.bind_texture(glow::TEXTURE_2D, Some(blanca));
         gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA as i32, 1, 1, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(&[255, 255, 255, 255])));
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
-        Ok(Motor { gl, op, cubo: None, p_luz, p_cielo, p_ui, p_copia, p_agua, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { gl, op, cubo: None, p_luz, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
     }
 
@@ -310,6 +392,8 @@ impl Motor {
     pub fn poner_cuadro(&mut self, mut c: Cuadro) {
         let pl = mat::planos(&c.vp);
         self.items = std::mem::take(&mut c.items);
+        // (las marcas llegan sólo cuando cambian: se suben en el próximo dibujo y quedan en su búfer)
+        while let Some(i) = c.efectos.iter().position(|e| e.0 == EF_MARCAS) { self.marcas_nuevas = Some(c.efectos.remove(i).1); }
         self.opacos.clear(); self.transp.clear(); self.aguas.clear();
         for (i, it) in self.items.iter().enumerate() {
             let (Some(_), Some(mt)) = (self.mallas.get(&it.m), self.mats.get(&it.mat)) else { continue };
@@ -352,6 +436,7 @@ impl Motor {
         self.luces(&vp);
         let opacos = self.opacos.clone(); for i in opacos { self.dibujar_item(i); }
         self.cielo_dibujar(&vp);
+        self.marcas(&vp, rw, rh);
         // lo transparente (sin escribir la profundidad), de lo más lejos a lo más cerca
         let gl = &self.gl; gl.enable(glow::BLEND); gl.depth_mask(false); gl.use_program(Some(self.p_luz.p));
         let tr = self.transp.clone();
@@ -378,6 +463,7 @@ impl Motor {
                 gl.draw_elements(glow::TRIANGLES, it.sn as i32, tipo, (it.s0 * tam) as i32); self.dibujos += 1;
             }
         } }
+        self.particulas(&vp, rw, rh);
         let gl = &self.gl; gl.depth_mask(true); gl.disable(glow::BLEND);
         // (la escena chica, estirada a la pantalla)
         if escalada {
@@ -391,6 +477,60 @@ impl Motor {
     }
 
     fn sol(&self) -> [f32; 3] { mat::norm(self.c.as_ref().map(|c| c.luz.sol).unwrap_or([0.3, 0.8, 0.2])) }
+    /// las marcas (frenadas, quemaduras, agujeros): después de lo opaco, mezcladas, sin escribir la profundidad y despegadas
+    /// hacia la cámara (como gpu.rs)
+    unsafe fn marcas(&mut self, vp: &M4, rw: i32, rh: i32) {
+        let gl = &self.gl;
+        if let Some(d) = self.marcas_nuevas.take() { gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.marcas_vb)); gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, f32b(&d), glow::DYNAMIC_DRAW); self.marcas_n = (d.len() / 7) as i32; }
+        if self.marcas_n == 0 { return; }
+        let p = &self.p_lin; gl.use_program(Some(p.p)); gl.uniform_matrix_4_f32_slice(p.u("uVP"), false, vp);
+        gl.uniform_3_f32(p.u("uRet"), 1.0 / rw as f32, 1.0 / rh as f32, if self.op.retoque { 1.0 } else { 0.0 });
+        gl.enable(glow::BLEND); gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); gl.depth_mask(false);
+        gl.enable(glow::POLYGON_OFFSET_FILL); gl.polygon_offset(-2.0, -4.0);
+        gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.marcas_vb));
+        gl.enable_vertex_attrib_array(0); gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, 28, 0);
+        gl.enable_vertex_attrib_array(1); gl.vertex_attrib_pointer_f32(1, 4, glow::FLOAT, false, 28, 12);
+        for a in 2..4 { gl.disable_vertex_attrib_array(a); }
+        gl.draw_arrays(glow::TRIANGLES, 0, self.marcas_n);
+        gl.disable(glow::POLYGON_OFFSET_FILL); gl.depth_mask(true); gl.disable(glow::BLEND); self.dibujos += 1;
+    }
+    /// las partículas del cuadro, armadas en la CPU, en el orden de sus bloques (las de alfa de lejos a cerca, las que suman,
+    /// las trazas): un solo búfer y un dibujo por bloque; miran la profundidad sin escribirla
+    unsafe fn particulas(&mut self, vp: &M4, rw: i32, rh: i32) {
+        let Some(c) = self.c.as_ref() else { return };
+        let cam = c.pos; let mut v = std::mem::take(&mut self.part_v); v.clear();
+        let mut tandas: Vec<(bool, usize, usize)> = vec![];
+        for (t, d) in c.efectos.iter().filter(|e| (e.0 == EF_PART_ALFA || e.0 == EF_PART_SUMA) && e.1.len() > 6) {
+            let (der, arr) = ([d[0], d[1], d[2]], [d[3], d[4], d[5]]);
+            let desde = v.len() / (4 * PART_V2); let n = ((d.len() - 6) / 16).min(PART_MAX2 - desde); if n == 0 { continue; }
+            for k in 0..n { part_vertices(&d[6 + k * 16..6 + k * 16 + 16], der, arr, cam, &mut v); }
+            tandas.push((*t == EF_PART_SUMA, desde, n));
+        }
+        if tandas.is_empty() { self.part_v = v; return; }
+        let gl = &self.gl; let total = v.len() / (4 * PART_V2);
+        // (los índices: dos triángulos por partícula, como la tabla ESQ de efectos.js; se agrandan cuando no alcanzan)
+        if total > self.part_cap {
+            let cap = total.next_power_of_two().clamp(256, PART_MAX2 + 1);
+            let ix: Vec<u16> = (0..cap as u32).flat_map(|q| { let b = (q * 4) as u16; [b, b + 1, b + 2, b, b + 2, b + 3] }).collect();
+            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.part_ib));
+            gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, std::slice::from_raw_parts(ix.as_ptr() as *const u8, ix.len() * 2), glow::STATIC_DRAW);
+            self.part_cap = cap;
+        }
+        let p = &self.p_part; gl.use_program(Some(p.p)); gl.uniform_matrix_4_f32_slice(p.u("uVP"), false, vp);
+        gl.uniform_3_f32(p.u("uRet"), 1.0 / rw as f32, 1.0 / rh as f32, if self.op.retoque { 1.0 } else { 0.0 });
+        gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, Some(self.tex(crate::gpu::TEX_ATLAS))); gl.uniform_1_i32(p.u("uT"), 0);
+        gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.part_vb)); gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, f32b(&v), glow::STREAM_DRAW);
+        gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.part_ib));
+        let paso = (PART_V2 * 4) as i32;
+        for (k, (n, o)) in [(3, 0), (2, 12), (4, 20), (2, 36)].into_iter().enumerate() { gl.enable_vertex_attrib_array(k as u32); gl.vertex_attrib_pointer_f32(k as u32, n, glow::FLOAT, false, paso, o); }
+        gl.enable(glow::BLEND); gl.depth_mask(false);
+        for &(suma, desde, n) in &tandas {
+            gl.blend_func(glow::SRC_ALPHA, if suma { glow::ONE } else { glow::ONE_MINUS_SRC_ALPHA }); gl.uniform_1_f32(p.u("uSuma"), if suma { 1.0 } else { 0.0 });
+            gl.draw_elements(glow::TRIANGLES, (n * 6) as i32, glow::UNSIGNED_SHORT, (desde * 6 * 2) as i32);
+        }
+        gl.depth_mask(true); gl.disable(glow::BLEND);
+        self.dibujos += tandas.len() as u32; self.part_v = v;
+    }
     unsafe fn luces(&self, vp: &M4) {
         let gl = &self.gl; let p = &self.p_luz; let c = self.c.as_ref().unwrap(); let l = &c.luz; let s = self.sol();
         gl.use_program(Some(p.p));

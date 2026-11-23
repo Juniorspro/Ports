@@ -8,9 +8,10 @@
 //!  - marcas de tiempo de la placa por pasada (cuánto tarda de verdad cada una);
 //!  - sin ventana (la compu, lavapipe): la imagen final en una imagen propia que se puede leer.
 //! Las pasadas: sombra (dos cascadas), el reflejo del agua, la escena (lo opaco con instancias y el cielo), oclusión, lo
-//! transparente, el agua de HL2 (con la escena copiada para la refracción), la imagen final y el HUD. Las partículas y las
-//! marcas de frenada todavía no (el juego nativo no las usa aún).
-use crate::escena::{Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_SIN_SOMBRA};
+//! transparente, el agua de HL2 (con la escena copiada para la refracción), la imagen final y el HUD. Las marcas (frenadas,
+//! quemaduras, agujeros de bala) van después de la oclusión y antes de lo transparente, con su sesgo de profundidad; las
+//! partículas, al final de la última pasada de la escena (después del agua), mirando la profundidad sin escribirla: como gpu.rs.
+use crate::escena::{Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_SIN_SOMBRA, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
 use crate::gpu::{Opciones, MAX_HUESOS, MAX_LUCES};
 use crate::mat::{self, M4};
 use ash::vk;
@@ -24,6 +25,8 @@ const SPV_AO: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ao.spv"));
 const SPV_POST: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/post.spv"));
 const SPV_UI: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ui.spv"));
 const SPV_AGUA: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/agua.spv"));
+const SPV_PART: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/part.spv"));
+const SPV_LIN: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/lin.spv"));
 
 /// los registros (de a 256 bytes: el desplazamiento dinámico)
 const G_PASO: u64 = 1280;
@@ -40,6 +43,14 @@ const G_REF: u64 = 1;
 const MARCOS: usize = 2;
 const FMT: vk::Format = vk::Format::R8G8B8A8_UNORM;
 const NTIEMPOS: u32 = 16;
+/// el sesgo de profundidad de una tubería (constante, por la pendiente): ninguno, el de la sombra (hacia atrás) y el de las
+/// marcas (hacia la cámara: glPolygonOffset(-2, -4) de gpu.rs)
+const SESGO_NO: (f32, f32) = (0.0, 0.0);
+const SESGO_SOMBRA: (f32, f32) = (3.0, 1.5);
+const SESGO_MARCAS: (f32, f32) = (-4.0, -2.0);
+/// los números de cada partícula (la fila de efectos.js) y de cada vértice de las marcas
+const PART_F: usize = 16;
+const MARCA_F: usize = 7;
 
 type ClaveMat = [i64; 5];
 #[derive(Clone)]
@@ -57,6 +68,9 @@ struct MallaV { vb: Bufv, ib: Bufv, lm: Option<Bufv>, piel: Option<Bufv>, i32: b
 struct Marco {
     cb: vk::CommandBuffer, listo: vk::Fence, sem_img: vk::Semaphore, pool: vk::DescriptorPool,
     glob: Bufv, obj: Bufv, hue: Bufv, inst: Bufv, post: Bufv, ui: Bufv, uiu: Bufv,
+    /// las partículas (una fila por instancia), la derecha y el arriba de cada bloque, y las marcas con su versión (se copian
+    /// sólo cuando cambian)
+    part: Bufv, partu: Bufv, marcas: Bufv, marcas_ver: u64,
     q: Option<vk::QueryPool>, nombres: Vec<&'static str>, usado: bool,
 }
 
@@ -65,9 +79,10 @@ struct Cadena { sc: vk::SwapchainKHR, imgs: Vec<vk::Image>, vistas: Vec<vk::Imag
 struct Propia { img: Img, fb: vk::Framebuffer, leer: Bufv }
 
 struct Capas { glob: vk::DescriptorSetLayout, glob_solo: vk::DescriptorSetLayout, obj: vk::DescriptorSetLayout, mat: vk::DescriptorSetLayout, hue: vk::DescriptorSetLayout, cielo: vk::DescriptorSetLayout, ao: vk::DescriptorSetLayout, tex1: vk::DescriptorSetLayout, vacia: vk::DescriptorSetLayout, agua: vk::DescriptorSetLayout }
-struct Planos { luz: vk::PipelineLayout, luz_piel: vk::PipelineLayout, sombra: vk::PipelineLayout, sombra_piel: vk::PipelineLayout, cielo: vk::PipelineLayout, ao: vk::PipelineLayout, tex1: vk::PipelineLayout, agua: vk::PipelineLayout }
+struct Planos { luz: vk::PipelineLayout, luz_piel: vk::PipelineLayout, sombra: vk::PipelineLayout, sombra_piel: vk::PipelineLayout, cielo: vk::PipelineLayout, ao: vk::PipelineLayout, tex1: vk::PipelineLayout, agua: vk::PipelineLayout, part: vk::PipelineLayout, lin: vk::PipelineLayout }
 struct Pasadas { sombra: vk::RenderPass, esc_ao: vk::RenderPass, esc: vk::RenderPass, ao: vk::RenderPass, transp: vk::RenderPass, fin: vk::RenderPass, fin_propia: vk::RenderPass, refl: vk::RenderPass }
-struct Tubos { luz: [vk::Pipeline; 3], luz_piel: [vk::Pipeline; 3], sombra: vk::Pipeline, sombra_piel: vk::Pipeline, cielo: vk::Pipeline, ao: vk::Pipeline, ao_poner: vk::Pipeline, fin: vk::Pipeline, ui: vk::Pipeline, agua: vk::Pipeline, fmt_fin: vk::Format }
+/// (part: de alfa y las que suman)
+struct Tubos { luz: [vk::Pipeline; 3], luz_piel: [vk::Pipeline; 3], sombra: vk::Pipeline, sombra_piel: vk::Pipeline, cielo: vk::Pipeline, ao: vk::Pipeline, ao_poner: vk::Pipeline, fin: vk::Pipeline, ui: vk::Pipeline, agua: vk::Pipeline, part: [vk::Pipeline; 2], marcas: vk::Pipeline, fmt_fin: vk::Format }
 /// los destinos de las pasadas (se rehacen si cambia el tamaño)
 struct Destinos { w: u32, h: u32, color: Img, prof: Img, fb_esc: vk::Framebuffer, ao: Option<(Img, vk::Framebuffer)>,
     /// con agua: la copia de la escena (para ver a través) y el reflejo (color, profundidad, su destino)
@@ -101,6 +116,8 @@ pub struct Motor {
     pub c: Option<Cuadro>,
     items: Vec<ItemDin>,
     opacos: Vec<usize>, transp: Vec<usize>,
+    /// las marcas (llegan sólo cuando cambian: quedan acá y se copian a cada cuadro en vuelo) y su versión
+    marcas: Vec<f32>, marcas_ver: u64,
     pub cuadro: u64, pub dibujos: u32, pub memoria: usize,
     pub mapa: String,
     /// la placa (nombre y versión de Vulkan)
@@ -182,6 +199,7 @@ impl Motor {
             luz: pl(&[capas.glob, capas.obj, capas.mat])?, luz_piel: pl(&[capas.glob, capas.obj, capas.mat, capas.hue])?,
             sombra: pl(&[capas.glob_solo, capas.obj])?, sombra_piel: pl(&[capas.glob_solo, capas.obj, capas.vacia, capas.hue])?,
             cielo: pl(&[capas.glob_solo, capas.cielo])?, ao: pl(&[capas.glob_solo, capas.ao])?, tex1: pl(&[capas.tex1])?, agua: pl(&[capas.glob, capas.obj, capas.agua])?,
+            part: pl(&[capas.glob_solo, capas.tex1])?, lin: pl(&[capas.glob_solo])?,
         };
 
         // --- la salida: la cadena de la pantalla o la imagen propia (su formato decide las pasadas finales)
@@ -211,6 +229,7 @@ impl Motor {
         // --- los sombreadores y las tuberías
         let modulo = |b: &[u8]| { let w = palabras(b); ve(dev.create_shader_module(&vk::ShaderModuleCreateInfo::default().code(&w), None), "sombreador") };
         let (m_luz, m_som, m_cielo, m_ao, m_post, m_ui, m_agua) = (modulo(SPV_LUZ)?, modulo(SPV_SOMBRA)?, modulo(SPV_CIELO)?, modulo(SPV_AO)?, modulo(SPV_POST)?, modulo(SPV_UI)?, modulo(SPV_AGUA)?);
+        let (m_part, m_lin) = (modulo(SPV_PART)?, modulo(SPV_LIN)?);
         use vk::Format as F;
         let a_malla: &[(u32, u32, F, u32)] = &[(0, 0, F::R16G16B16A16_UNORM, 0), (1, 0, F::R8G8B8A8_SNORM, 8), (2, 0, F::R16G16_SFLOAT, 12)];
         let a_inst = |b: u32| -> Vec<(u32, u32, F, u32)> { (0..4).map(|k| (6 + k, b, F::R32G32B32A32_SFLOAT, 16 * k)).collect() };
@@ -222,27 +241,33 @@ impl Motor {
         let b_luz = [(16, false), (4, false), (64, true)]; let b_luz_piel = [(16, false), (4, false), (64, true), (8, false)];
         let b_som = [(16, false), (64, true)]; let b_som_piel = [(16, false), (64, true), (8, false)];
         let le = vk::CompareOp::LESS_OR_EQUAL;
-        let t = |m, vs: &str, fsn: Option<&str>, pl, rp, b: &[(u32, bool)], a: &[(u32, u32, F, u32)], mezcla: u8, prof: Option<(bool, vk::CompareOp, bool)>| tubo(&dev, m, vs, fsn, pl, rp, b, a, mezcla, prof);
+        let t = |m, vs: &str, fsn: Option<&str>, pl, rp, b: &[(u32, bool)], a: &[(u32, u32, F, u32)], mezcla: u8, prof: Option<(bool, vk::CompareOp, (f32, f32))>| tubo(&dev, m, vs, fsn, pl, rp, b, a, mezcla, prof);
         let mut luz = [vk::Pipeline::null(); 3]; let mut luz_piel = [vk::Pipeline::null(); 3];
         for k in 0..3 {
             // (lo opaco escribe la profundidad; lo transparente y lo que suma sólo la mira; van en la pasada de lo transparente)
             let (rp, esc) = if k == 0 { (pasadas.esc_ao, true) } else { (pasadas.transp, false) };
-            luz[k] = t(m_luz, "vs_luz", Some("fs_luz"), planos.luz, rp, &b_luz, &at_luz, k as u8, Some((esc, le, false)))?;
-            luz_piel[k] = t(m_luz, "vs_luz_piel", Some("fs_luz"), planos.luz_piel, rp, &b_luz_piel, &at_luz_piel, k as u8, Some((esc, le, false)))?;
+            luz[k] = t(m_luz, "vs_luz", Some("fs_luz"), planos.luz, rp, &b_luz, &at_luz, k as u8, Some((esc, le, SESGO_NO)))?;
+            luz_piel[k] = t(m_luz, "vs_luz_piel", Some("fs_luz"), planos.luz_piel, rp, &b_luz_piel, &at_luz_piel, k as u8, Some((esc, le, SESGO_NO)))?;
         }
+        let a_part = [(0, 0, F::R32G32B32_SFLOAT, 0), (1, 0, F::R32G32B32A32_SFLOAT, 12), (2, 0, F::R32G32B32_SFLOAT, 28), (3, 0, F::R32G32B32_SFLOAT, 40), (4, 0, F::R32G32B32_SFLOAT, 52)];
+        let part_t = |mz: u8| t(m_part, "vs_part", Some("fs_part"), planos.part, pasadas.transp, &[((PART_F * 4) as u32, true)], &a_part, mz, Some((false, le, SESGO_NO)));
         let tubos = Tubos {
             luz, luz_piel,
-            sombra: t(m_som, "vs_sombra", None, planos.sombra, pasadas.sombra, &b_som, &at_som, 0, Some((true, le, true)))?,
-            sombra_piel: t(m_som, "vs_sombra_piel", None, planos.sombra_piel, pasadas.sombra, &b_som_piel, &at_som_piel, 0, Some((true, le, true)))?,
-            cielo: t(m_cielo, "vs_cielo", Some("fs_cielo"), planos.cielo, pasadas.esc_ao, &[], &[], 0, Some((false, le, false)))?,
+            sombra: t(m_som, "vs_sombra", None, planos.sombra, pasadas.sombra, &b_som, &at_som, 0, Some((true, le, SESGO_SOMBRA)))?,
+            sombra_piel: t(m_som, "vs_sombra_piel", None, planos.sombra_piel, pasadas.sombra, &b_som_piel, &at_som_piel, 0, Some((true, le, SESGO_SOMBRA)))?,
+            cielo: t(m_cielo, "vs_cielo", Some("fs_cielo"), planos.cielo, pasadas.esc_ao, &[], &[], 0, Some((false, le, SESGO_NO)))?,
             ao: t(m_ao, "vs_pantalla", Some("fs_ao"), planos.ao, pasadas.ao, &[], &[], 0, None)?,
-            ao_poner: t(m_post, "vs_pantalla", Some("fs_ao_poner"), planos.tex1, pasadas.transp, &[], &[], 3, Some((false, vk::CompareOp::ALWAYS, false)))?,
+            ao_poner: t(m_post, "vs_pantalla", Some("fs_ao_poner"), planos.tex1, pasadas.transp, &[], &[], 3, Some((false, vk::CompareOp::ALWAYS, SESGO_NO)))?,
             fin: t(m_post, "vs_final", Some("fs_final"), planos.tex1, if ventana.is_some() { pasadas.fin } else { pasadas.fin_propia }, &[], &[], 0, None)?,
             ui: t(m_ui, "vs_ui", Some("fs_ui"), planos.tex1, if ventana.is_some() { pasadas.fin } else { pasadas.fin_propia }, &[(32, false)], &[(0, 0, F::R32G32_SFLOAT, 0), (1, 0, F::R32G32_SFLOAT, 8), (2, 0, F::R32G32B32A32_SFLOAT, 16)], 1, None)?,
-            agua: t(m_agua, "vs_agua", Some("fs_agua"), planos.agua, pasadas.transp, &b_som, &at_som, 1, Some((false, le, false)))?,
+            agua: t(m_agua, "vs_agua", Some("fs_agua"), planos.agua, pasadas.transp, &b_som, &at_som, 1, Some((false, le, SESGO_NO)))?,
+            // (las partículas: una instancia por partícula, la fila de 16 floats; miran la profundidad sin escribirla. Las marcas:
+            // triángulos con su color, despegadas hacia la cámara con el sesgo)
+            part: [part_t(1)?, part_t(2)?],
+            marcas: t(m_lin, "vs_lin", Some("fs_lin"), planos.lin, pasadas.transp, &[((MARCA_F * 4) as u32, false)], &[(0, 0, F::R32G32B32_SFLOAT, 0), (1, 0, F::R32G32B32A32_SFLOAT, 12)], 1, Some((false, le, SESGO_MARCAS)))?,
             fmt_fin,
         };
-        let mods = vec![m_luz, m_som, m_cielo, m_ao, m_post, m_ui, m_agua];
+        let mods = vec![m_luz, m_som, m_cielo, m_ao, m_post, m_ui, m_agua, m_part, m_lin];
 
         let muestra = |rep: bool, mips: bool, cmp: bool| {
             let am = if rep { vk::SamplerAddressMode::REPEAT } else { vk::SamplerAddressMode::CLAMP_TO_EDGE };
@@ -262,7 +287,7 @@ impl Motor {
             blanca: Img::nula(), cubo0: Img::nula(), prof0: Img::nula(),
             mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None, cubo: None, agua: None, agua_n: None, agua_p: None, aguas: vec![],
             pool_mat, g_mat: HashMap::new(), sombra: None, dest: None,
-            svp: mat::id(), sesgo: [0.0; 2], svp2: mat::id(), sesgo2: [0.0; 2], c: None, items: vec![], opacos: vec![], transp: vec![],
+            svp: mat::id(), sesgo: [0.0; 2], svp2: mat::id(), sesgo2: [0.0; 2], c: None, items: vec![], opacos: vec![], transp: vec![], marcas: vec![], marcas_ver: 0,
             cuadro: 0, dibujos: 0, memoria: 0, mapa: String::new(), placa, periodo, tiempos: vec![],
         };
         for cb in cbs {
@@ -273,7 +298,8 @@ impl Motor {
                 cb, listo: ve(m.dev.create_fence(&vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED), None), "valla")?,
                 sem_img: ve(m.dev.create_semaphore(&vk::SemaphoreCreateInfo::default(), None), "semáforo")?, pool: pool_cuadro(&m.dev)?,
                 glob: m.buf(G_PASO * 4, ub, hv)?, obj: m.buf(65536, ub, hv)?, hue: m.buf(65536, ub, hv)?, inst: m.buf(65536, vb, hv)?,
-                post: m.buf(U_PASO * 2, ub, hv)?, ui: m.buf(65536, vb, hv)?, uiu: m.buf(U_PASO, ub, hv)?, q, nombres: vec![], usado: false,
+                post: m.buf(U_PASO * 2, ub, hv)?, ui: m.buf(65536, vb, hv)?, uiu: m.buf(U_PASO, ub, hv)?,
+                part: m.buf(65536, vb, hv)?, partu: m.buf(U_PASO * 4, ub, hv)?, marcas: m.buf(65536, vb, hv)?, marcas_ver: 0, q, nombres: vec![], usado: false,
             };
             m.marcos.push(mc);
         }
@@ -526,6 +552,8 @@ impl Motor {
     pub fn poner_cuadro(&mut self, mut c: Cuadro) {
         let pl = mat::planos(&c.vp);
         self.items = std::mem::take(&mut c.items);
+        // (las marcas llegan sólo cuando cambian: quedan acá —el último bloque, si vinieran dos—)
+        while let Some(i) = c.efectos.iter().position(|e| e.0 == EF_MARCAS) { self.marcas = c.efectos.remove(i).1; self.marcas_ver += 1; }
         self.opacos.clear(); self.transp.clear(); self.aguas.clear();
         for (i, it) in self.items.iter().enumerate() {
             let (Some(_), Some(mt)) = (self.mallas.get(&it.m), self.mats.get(&it.mat)) else { continue };
@@ -787,20 +815,20 @@ impl Motor {
         Ok(self.rehacer)
     }
 
-    /// escribe bytes en uno de los búferes del cuadro (0 glob, 1 obj, 2 huesos, 3 matrices, 4 post, 5 HUD, 6 HUD uniforme),
-    /// agrandándolo si no entran (el cuadro ya terminó: se puede rehacer)
+    /// escribe bytes en uno de los búferes del cuadro (0 glob, 1 obj, 2 huesos, 3 matrices, 4 post, 5 HUD, 6 HUD uniforme,
+    /// 7 partículas, 8 lo de cada bloque de partículas, 9 marcas), agrandándolo si no entran (el cuadro ya terminó: se puede rehacer)
     unsafe fn escribir(&mut self, mi: usize, k: u8, datos: &[u8]) -> Result<(), String> {
         let n = datos.len() as u64;
-        let tam = { let m = &self.marcos[mi]; match k { 0 => m.glob.tam, 1 => m.obj.tam, 2 => m.hue.tam, 3 => m.inst.tam, 4 => m.post.tam, 5 => m.ui.tam, _ => m.uiu.tam } };
+        let tam = { let m = &self.marcos[mi]; match k { 0 => m.glob.tam, 1 => m.obj.tam, 2 => m.hue.tam, 3 => m.inst.tam, 4 => m.post.tam, 5 => m.ui.tam, 7 => m.part.tam, 8 => m.partu.tam, 9 => m.marcas.tam, _ => m.uiu.tam } };
         if n > tam {
-            let uso = if k == 3 || k == 5 { vk::BufferUsageFlags::VERTEX_BUFFER } else { vk::BufferUsageFlags::UNIFORM_BUFFER };
+            let uso = if matches!(k, 3 | 5 | 7 | 9) { vk::BufferUsageFlags::VERTEX_BUFFER } else { vk::BufferUsageFlags::UNIFORM_BUFFER };
             let nb = self.buf((n * 3 / 2 + 4095) & !4095, uso, vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)?;
             let m = &mut self.marcos[mi];
-            let viejo = std::mem::replace(match k { 0 => &mut m.glob, 1 => &mut m.obj, 2 => &mut m.hue, 3 => &mut m.inst, 4 => &mut m.post, 5 => &mut m.ui, _ => &mut m.uiu }, nb);
+            let viejo = std::mem::replace(match k { 0 => &mut m.glob, 1 => &mut m.obj, 2 => &mut m.hue, 3 => &mut m.inst, 4 => &mut m.post, 5 => &mut m.ui, 7 => &mut m.part, 8 => &mut m.partu, 9 => &mut m.marcas, _ => &mut m.uiu }, nb);
             self.soltar_buf(&viejo);
         }
         let m = &self.marcos[mi];
-        let b = match k { 0 => &m.glob, 1 => &m.obj, 2 => &m.hue, 3 => &m.inst, 4 => &m.post, 5 => &m.ui, _ => &m.uiu };
+        let b = match k { 0 => &m.glob, 1 => &m.obj, 2 => &m.hue, 3 => &m.inst, 4 => &m.post, 5 => &m.ui, 7 => &m.part, 8 => &m.partu, 9 => &m.marcas, _ => &m.uiu };
         if n > 0 { std::ptr::copy_nonoverlapping(datos.as_ptr(), b.ptr, datos.len()); }
         Ok(())
     }
@@ -814,8 +842,11 @@ impl Motor {
     }
     /// un grupo de textura, muestreador y registro (la imagen final, poner la oclusión y el HUD): k es el búfer del cuadro
     unsafe fn grupo_tex1(&self, mi: usize, v: vk::ImageView, s: vk::Sampler, k: u8) -> Result<vk::DescriptorSet, String> {
-        let g = self.grupo(mi, self.capas.tex1)?; let m = &self.marcos[mi];
-        let b = if k == 6 { m.uiu.b } else { m.post.b };
+        let m = &self.marcos[mi];
+        self.grupo_tex_buf(mi, v, s, match k { 6 => m.uiu.b, 8 => m.partu.b, _ => m.post.b })
+    }
+    unsafe fn grupo_tex_buf(&self, mi: usize, v: vk::ImageView, s: vk::Sampler, b: vk::Buffer) -> Result<vk::DescriptorSet, String> {
+        let g = self.grupo(mi, self.capas.tex1)?;
         let ii = [vk::DescriptorImageInfo { sampler: vk::Sampler::null(), image_view: v, image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL }];
         let si = [vk::DescriptorImageInfo { sampler: s, image_view: vk::ImageView::null(), image_layout: vk::ImageLayout::UNDEFINED }];
         let bi = [vk::DescriptorBufferInfo { buffer: b, offset: 0, range: U_TAM }];
@@ -878,12 +909,34 @@ impl Motor {
         if hacer_ref { self.glob(&vref, ay.unwrap() - 0.05, &mut gb[n..2 * n]); }
         if hacer_sombra { let (s0, s1) = (self.svp, self.svp2); self.glob(&s0, -1e9, &mut gb[2 * n..3 * n]); self.glob(&s1, -1e9, &mut gb[3 * n..4 * n]); }
         self.escribir(mi, 0, f32b(&gb))?; self.escribir(mi, 1, f32b(&a.obj))?; self.escribir(mi, 2, f32b(&a.hue))?; self.escribir(mi, 3, f32b(&a.inst))?;
+        // (las partículas: los bloques del cuadro en su orden —las de alfa de lejos a cerca, las que suman, las trazas—, una fila
+        // de 16 floats por instancia y, por bloque, la derecha y el arriba de la cámara en su lugar de 256 bytes; las marcas se
+        // copian a este cuadro en vuelo sólo si cambiaron)
+        let mut p_inst: Vec<f32> = vec![]; let mut p_u: Vec<f32> = vec![]; let mut p_dib: Vec<(usize, u32, u32)> = vec![];
+        if let Some(c) = self.c.as_ref() {
+            for (t, d) in c.efectos.iter().filter(|e| (e.0 == EF_PART_ALFA || e.0 == EF_PART_SUMA) && e.1.len() > 6) {
+                let n = (d.len() - 6) / PART_F; if n == 0 { continue; }
+                let desde = (p_inst.len() / PART_F) as u32; p_inst.extend_from_slice(&d[6..6 + n * PART_F]);
+                let k = p_u.len(); p_u.resize(k + (U_PASO / 4) as usize, 0.0); p_u[k..k + 3].copy_from_slice(&d[0..3]); p_u[k + 4..k + 7].copy_from_slice(&d[3..6]);
+                p_dib.push((if *t == EF_PART_SUMA { 1 } else { 0 }, desde, n as u32));
+            }
+        }
+        if !p_dib.is_empty() { self.escribir(mi, 7, f32b(&p_inst))?; self.escribir(mi, 8, f32b(&p_u))?; }
+        if self.marcos[mi].marcas_ver != self.marcas_ver {
+            let mk = std::mem::take(&mut self.marcas); let r = self.escribir(mi, 9, f32b(&mk)); self.marcas = mk; r?;
+            self.marcos[mi].marcas_ver = self.marcas_ver;
+        }
+        let n_marcas = (self.marcas.len() / MARCA_F) as u32;
         let claves = std::mem::take(&mut a.claves); self.grupos_mat(&claves)?;
         // (los grupos de este cuadro)
         let (mg, mo, mh) = { let m = &self.marcos[mi]; (m.glob.b, m.obj.b, m.hue.b) };
         let g_solo = self.grupo_unif(mi, self.capas.glob_solo, mg, G_TAM)?;
         let g_obj = self.grupo_unif(mi, self.capas.obj, mo, O_TAM)?;
         let g_hue = self.grupo_unif(mi, self.capas.hue, mh, H_TAM)?;
+        let g_part = if p_dib.is_empty() { vk::DescriptorSet::null() } else {
+            let av = self.texs.get(&crate::gpu::TEX_ATLAS).map(|t| t.v).unwrap_or(self.blanca.v);
+            self.grupo_tex_buf(mi, av, self.s_rep, self.marcos[mi].partu.b)?
+        };
         let g_glob = {
             let g = self.grupo(mi, self.capas.glob)?;
             let sv = self.sombra.as_ref().map(|s| s.0.v).unwrap_or(self.prof0.v);
@@ -950,7 +1003,11 @@ impl Motor {
             d.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, self.tubos.cielo);
             d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.cielo, 0, &[g_solo, g_cielo], &[0]);
             d.cmd_draw(cb, 3, 1, 0, 0); dibujos += 1;
-            if !con_ao { dibujos += self.dibujar_transp(cb, &l_tr, g_glob, g_obj, g_hue); }
+            if !con_ao {
+                dibujos += self.dibujar_marcas(cb, mi, n_marcas, g_solo);
+                dibujos += self.dibujar_transp(cb, &l_tr, g_glob, g_obj, g_hue);
+                if !hay_agua { dibujos += self.dibujar_part(cb, mi, &p_dib, g_solo, g_part); }
+            }
             d.cmd_end_render_pass(cb);
             if let Some(t) = t { self.marcar_fin(cb, mi, t); }
         }
@@ -975,7 +1032,9 @@ impl Motor {
             d.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, self.tubos.ao_poner);
             d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.tex1, 0, &[g_aop], &[0]);
             d.cmd_draw(cb, 3, 1, 0, 0); dibujos += 2;
+            dibujos += self.dibujar_marcas(cb, mi, n_marcas, g_solo);
             dibujos += self.dibujar_transp(cb, &l_tr, g_glob, g_obj, g_hue);
+            if !hay_agua { dibujos += self.dibujar_part(cb, mi, &p_dib, g_solo, g_part); }
             d.cmd_end_render_pass(cb);
             if let Some(t) = t { self.marcar_fin(cb, mi, t); }
         }
@@ -1019,11 +1078,39 @@ impl Motor {
                 d.cmd_bind_index_buffer(cb, m.ib.b, 0, if m.i32 { vk::IndexType::UINT32 } else { vk::IndexType::UINT16 });
                 d.cmd_draw_indexed(cb, dd.sn, 1, dd.s0, 0, 0); dibujos += 1;
             }
+            dibujos += self.dibujar_part(cb, mi, &p_dib, g_solo, g_part);
             d.cmd_end_render_pass(cb);
             if let Some(t) = t { self.marcar_fin(cb, mi, t); }
         }
         self.dibujos = dibujos;
         Ok(())
+    }
+
+    /// las marcas (frenadas, quemaduras, agujeros): después de lo opaco y la oclusión, antes de lo transparente, mezcladas,
+    /// sin escribir la profundidad y despegadas hacia la cámara con el sesgo (como gpu.rs)
+    unsafe fn dibujar_marcas(&self, cb: vk::CommandBuffer, mi: usize, n: u32, g_solo: vk::DescriptorSet) -> u32 {
+        if n == 0 { return 0; }
+        let d = &self.dev;
+        d.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, self.tubos.marcas);
+        d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.lin, 0, &[g_solo], &[0]);
+        d.cmd_bind_vertex_buffers(cb, 0, &[self.marcos[mi].marcas.b], &[0]);
+        d.cmd_draw(cb, n, 1, 0, 0);
+        1
+    }
+    /// las partículas, bloque por bloque (`l`: mezcla —0 alfa, 1 suma—, primera instancia y cuántas), cada uno con su derecha y
+    /// su arriba (el desplazamiento de su lugar en el registro); miran la profundidad sin escribirla
+    unsafe fn dibujar_part(&self, cb: vk::CommandBuffer, mi: usize, l: &[(usize, u32, u32)], g_solo: vk::DescriptorSet, g_part: vk::DescriptorSet) -> u32 {
+        if l.is_empty() { return 0; }
+        let d = &self.dev; let gr = vk::PipelineBindPoint::GRAPHICS;
+        d.cmd_bind_vertex_buffers(cb, 0, &[self.marcos[mi].part.b], &[0]);
+        d.cmd_bind_descriptor_sets(cb, gr, self.planos.part, 0, &[g_solo], &[0]);
+        let mut act = None;
+        for (k, &(mz, desde, n)) in l.iter().enumerate() {
+            if act != Some(mz) { act = Some(mz); d.cmd_bind_pipeline(cb, gr, self.tubos.part[mz]); }
+            d.cmd_bind_descriptor_sets(cb, gr, self.planos.part, 1, &[g_part], &[(k as u64 * U_PASO) as u32]);
+            d.cmd_draw(cb, 6, n, 0, desde);
+        }
+        l.len() as u32
     }
 
     unsafe fn dibujar_lista(&self, cb: vk::CommandBuffer, l: &[Dib], sombra: bool, g_obj: vk::DescriptorSet, g_hue: vk::DescriptorSet) -> u32 {
@@ -1106,16 +1193,16 @@ impl Drop for Motor {
             if let Some(p) = self.propia.take() { self.dev.destroy_framebuffer(p.fb, None); self.soltar_img(&p.img); self.soltar_buf(&p.leer); }
             for i in [&self.blanca, &self.cubo0, &self.prof0] { self.soltar_img(i); }
             for m in std::mem::take(&mut self.marcos) {
-                for b in [&m.glob, &m.obj, &m.hue, &m.inst, &m.post, &m.ui, &m.uiu] { self.soltar_buf(b); }
+                for b in [&m.glob, &m.obj, &m.hue, &m.inst, &m.post, &m.ui, &m.uiu, &m.part, &m.partu, &m.marcas] { self.soltar_buf(b); }
                 self.dev.destroy_fence(m.listo, None); self.dev.destroy_semaphore(m.sem_img, None); self.dev.destroy_descriptor_pool(m.pool, None);
                 if let Some(q) = m.q { self.dev.destroy_query_pool(q, None); }
             }
             self.dev.destroy_descriptor_pool(self.pool_mat, None);
             let t = &self.tubos;
-            for p in t.luz.iter().chain(t.luz_piel.iter()).chain([t.sombra, t.sombra_piel, t.cielo, t.ao, t.ao_poner, t.fin, t.ui, t.agua].iter()) { self.dev.destroy_pipeline(*p, None); }
+            for p in t.luz.iter().chain(t.luz_piel.iter()).chain(t.part.iter()).chain([t.sombra, t.sombra_piel, t.cielo, t.ao, t.ao_poner, t.fin, t.ui, t.agua, t.marcas].iter()) { self.dev.destroy_pipeline(*p, None); }
             for m in &self.mods { self.dev.destroy_shader_module(*m, None); }
             let p = &self.planos;
-            for l in [p.luz, p.luz_piel, p.sombra, p.sombra_piel, p.cielo, p.ao, p.tex1, p.agua] { self.dev.destroy_pipeline_layout(l, None); }
+            for l in [p.luz, p.luz_piel, p.sombra, p.sombra_piel, p.cielo, p.ao, p.tex1, p.agua, p.part, p.lin] { self.dev.destroy_pipeline_layout(l, None); }
             let c = &self.capas;
             for l in [c.glob, c.glob_solo, c.obj, c.mat, c.hue, c.cielo, c.ao, c.tex1, c.vacia, c.agua] { self.dev.destroy_descriptor_set_layout(l, None); }
             let r = &self.pasadas;
@@ -1127,6 +1214,15 @@ impl Drop for Motor {
             self.inst.destroy_instance(None);
         }
     }
+}
+
+/// (las pruebas en la compu: ver gpu::vk_sin_ventana)
+impl crate::gpu::FotoVk for Motor {
+    unsafe fn cargar(&mut self, e: &Escena) -> Result<(), String> { Motor::cargar(self, e) }
+    fn poner_cuadro(&mut self, c: Cuadro) { Motor::poner_cuadro(self, c) }
+    unsafe fn foto(&mut self) -> Result<Vec<u8>, String> { self.dibujar(&[])?; self.leer_imagen().ok_or_else(|| "sin imagen propia".to_string()) }
+    fn tiempos(&self) -> Option<(f32, String)> { self.tiempos_placa() }
+    fn placa(&self) -> String { self.placa.clone() }
 }
 
 impl Img { fn nula() -> Img { Img { i: vk::Image::null(), m: vk::DeviceMemory::null(), v: vk::ImageView::null(), w: 0, h: 0, bytes: 0 } } }
@@ -1189,10 +1285,11 @@ unsafe fn pasada(d: &ash::Device, color: Option<(vk::Format, vk::AttachmentLoadO
 }
 
 /// una tubería: el módulo y sus entradas, el plano, la pasada, los búferes (paso, por instancia) y los atributos (lugar,
-/// búfer, formato, desde), la mezcla (0 nada, 1 alfa, 2 suma, 3 multiplicar) y la profundidad (escribe, comparación, sesgo)
+/// búfer, formato, desde), la mezcla (0 nada, 1 alfa, 2 suma, 3 multiplicar) y la profundidad (escribe, comparación, sesgo:
+/// constante y por la pendiente)
 #[allow(clippy::too_many_arguments)]
 unsafe fn tubo(d: &ash::Device, m: vk::ShaderModule, vs: &str, fs: Option<&str>, pl: vk::PipelineLayout, rp: vk::RenderPass, bufs: &[(u32, bool)], ats: &[(u32, u32, vk::Format, u32)],
-    mezcla: u8, prof: Option<(bool, vk::CompareOp, bool)>) -> Result<vk::Pipeline, String> {
+    mezcla: u8, prof: Option<(bool, vk::CompareOp, (f32, f32))>) -> Result<vk::Pipeline, String> {
     let nv = CString::new(vs).unwrap(); let nf = fs.map(|f| CString::new(f).unwrap());
     let mut etapas = vec![vk::PipelineShaderStageCreateInfo::default().stage(vk::ShaderStageFlags::VERTEX).module(m).name(&nv)];
     if let Some(f) = nf.as_ref() { etapas.push(vk::PipelineShaderStageCreateInfo::default().stage(vk::ShaderStageFlags::FRAGMENT).module(m).name(f.as_c_str())); }
@@ -1201,9 +1298,9 @@ unsafe fn tubo(d: &ash::Device, m: vk::ShaderModule, vs: &str, fs: Option<&str>,
     let vi = vk::PipelineVertexInputStateCreateInfo::default().vertex_binding_descriptions(&vb).vertex_attribute_descriptions(&va);
     let ia = vk::PipelineInputAssemblyStateCreateInfo::default().topology(vk::PrimitiveTopology::TRIANGLE_LIST);
     let vpst = vk::PipelineViewportStateCreateInfo::default().viewport_count(1).scissor_count(1);
-    let sesgo = prof.map(|p| p.2).unwrap_or(false);
+    let (bc, bp) = prof.map(|p| p.2).unwrap_or(SESGO_NO); let sesgo = bc != 0.0 || bp != 0.0;
     let rs = vk::PipelineRasterizationStateCreateInfo::default().polygon_mode(vk::PolygonMode::FILL).cull_mode(vk::CullModeFlags::NONE).front_face(vk::FrontFace::COUNTER_CLOCKWISE).line_width(1.0)
-        .depth_bias_enable(sesgo).depth_bias_constant_factor(if sesgo { 3.0 } else { 0.0 }).depth_bias_slope_factor(if sesgo { 1.5 } else { 0.0 });
+        .depth_bias_enable(sesgo).depth_bias_constant_factor(bc).depth_bias_slope_factor(bp);
     let ms = vk::PipelineMultisampleStateCreateInfo::default().rasterization_samples(vk::SampleCountFlags::TYPE_1);
     let ds = match prof { Some((w, c, _)) => vk::PipelineDepthStencilStateCreateInfo::default().depth_test_enable(true).depth_write_enable(w).depth_compare_op(c), None => vk::PipelineDepthStencilStateCreateInfo::default() };
     use vk::BlendFactor as BF;

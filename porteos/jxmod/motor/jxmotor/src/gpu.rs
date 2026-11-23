@@ -295,16 +295,19 @@ void main() {
 }"#;
 
 // las partículas como en efectos.js (VS_PART/FS_PART): carteles que giran, chispas estiradas por su velocidad y ondas planas
-// en el piso, del atlas de 4 cuadros; 16 floats por partícula (la fila del primer vértice de efectos.js), dibujadas con instancias
+// en el piso, del atlas de 4 cuadros; 16 floats por partícula (la fila del primer vértice de efectos.js), dibujadas con instancias.
+// El modo 3 (propio del juego nativo: las trazas de las balas) es una línea de aP − aS a aP del mismo ancho en la pantalla: su
+// medio ancho es s por la distancia a la cámara, y la textura es la fila del medio del cuadro (borde suave a los costados)
 const VS_PART: &str = r#"#version 300 es
 layout(location=0) in vec3 aP; layout(location=1) in vec4 aC; layout(location=2) in vec3 aE; layout(location=3) in vec3 aX; layout(location=4) in vec3 aS;
 uniform mat4 uVP; uniform vec3 uDer, uArr, uCam; out vec4 vC; out vec2 vU; out vec2 vF;
 // (una instancia por partícula: la esquina sale del número de vértice, como la tabla ESQ de efectos.js)
 const vec2 ESQ[6] = vec2[6](vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(1.0, 1.0), vec2(-1.0, -1.0), vec2(1.0, 1.0), vec2(-1.0, 1.0));
 void main(){ vC = aC; vec2 e = ESQ[gl_VertexID % 6]; float s = aE.z, c = cos(aX.x), sn = sin(aX.x); vec2 r = vec2(e.x * c - e.y * sn, e.x * sn + e.y * c);
-  vec2 uv = e * 0.5 + 0.5; vU = aX.y < -0.5 ? uv : (vec2(mod(aX.y, 2.0), floor(aX.y * 0.5)) + uv * 0.96 + 0.02) * 0.5;
+  vec2 uv = aX.z > 2.5 ? vec2(e.x * 0.5 + 0.5, 0.5) : e * 0.5 + 0.5; vU = aX.y < -0.5 ? uv : (vec2(mod(aX.y, 2.0), floor(aX.y * 0.5)) + uv * 0.96 + 0.02) * 0.5;
   vec3 p;
-  if (aX.z > 1.5) p = aP + vec3(r.x, 0.0, r.y) * s;
+  if (aX.z > 2.5) { vec3 q = e.y < 0.0 ? aP - aS : aP, dn = normalize(aS + vec3(0.000001)), a = normalize(cross(dn, q - uCam) + vec3(0.000001)); p = q + a * (e.x * s * length(q - uCam)); }
+  else if (aX.z > 1.5) p = aP + vec3(r.x, 0.0, r.y) * s;
   else if (aX.z > 0.5) { float l = length(aS); vec3 dn = l > 0.00001 ? aS / l : uArr; vec3 a = normalize(cross(dn, aP - uCam) + vec3(0.000001)); p = aP + a * (e.x * s) + dn * (e.y * (l * 0.5 + s)) - aS * 0.5; }
   else p = aP + (uDer * r.x + uArr * r.y) * s;
   vF = aX.z < 0.5 && aS.y > 0.5 ? vec2(p.y - aS.x, s * 0.45) : vec2(1.0, 0.001);
@@ -317,8 +320,25 @@ const VS_LIN: &str = r#"#version 300 es
 layout(location=0) in vec3 aP; layout(location=1) in vec4 aC; uniform mat4 uVP; out vec4 vC; void main(){ vC = aC; gl_Position = uVP * vec4(aP, 1.0); }"#;
 const FS_LIN: &str = r#"#version 300 es
 precision highp float; in vec4 vC; out vec4 o; void main(){ o = vC; }"#;
-/// el número de textura del atlas de las partículas (lo arma el juego: efectosAtlas)
+/// el número de textura del atlas de las partículas (lo arma el juego: efectosAtlas en la web, jxjuego::efectos::atlas)
 pub const TEX_ATLAS: i64 = -1000;
+
+/// (las pruebas en la compu: el motor Vulkan sin ventana —lavapipe— visto igual compile jxmotor con «vk» o sin; sin, `vk_sin_ventana`
+/// dice que no está. Así un ejemplo que no pide «vk» igual compila)
+pub trait FotoVk {
+    unsafe fn cargar(&mut self, e: &Escena) -> Result<(), String>;
+    fn poner_cuadro(&mut self, c: Cuadro);
+    /// dibuja el cuadro y devuelve la imagen (RGBA, la primera fila arriba)
+    unsafe fn foto(&mut self) -> Result<Vec<u8>, String>;
+    /// lo que tardó la placa en cada pasada la última vez que se midió
+    fn tiempos(&self) -> Option<(f32, String)>;
+    fn placa(&self) -> String;
+}
+/// el motor Vulkan sin ventana, de w × h (si jxmotor se compiló con «vk»)
+pub unsafe fn vk_sin_ventana(w: u32, h: u32, op: Opciones) -> Result<Box<dyn FotoVk>, String> {
+    #[cfg(feature = "vk")] { Ok(Box::new(crate::vk::Motor::nuevo(None, w, h, op)?)) }
+    #[cfg(not(feature = "vk"))] { let _ = (w, h, op); Err("jxmotor sin «vk» (compilar con --features jxmotor/vk)".into()) }
+}
 /// el atlas de las letras de la interfaz (JXMod nativo: herramientas/atlas_letras.py)
 pub const TEX_LETRAS: i64 = -2000;
 // la interfaz (JXMod nativo): rectángulos con textura y color, en píxeles de la pantalla (8 floats por vértice: x, y, u, v,
