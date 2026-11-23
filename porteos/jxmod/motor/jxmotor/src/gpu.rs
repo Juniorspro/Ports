@@ -306,6 +306,15 @@ const FS_LIN: &str = r#"#version 300 es
 precision highp float; in vec4 vC; out vec4 o; void main(){ o = vC; }"#;
 /// el número de textura del atlas de las partículas (lo arma el juego: efectosAtlas)
 pub const TEX_ATLAS: i64 = -1000;
+/// el atlas de las letras de la interfaz (JXMod nativo: herramientas/atlas_letras.py)
+pub const TEX_LETRAS: i64 = -2000;
+// la interfaz (JXMod nativo): rectángulos con textura y color, en píxeles de la pantalla (8 floats por vértice: x, y, u, v,
+// r, g, b, a), encima de todo
+const VS_UI: &str = r#"#version 300 es
+layout(location=0) in vec2 aP; layout(location=1) in vec2 aU; layout(location=2) in vec4 aC; uniform vec2 uInv; out vec2 vU; out vec4 vC;
+void main(){ vU = aU; vC = aC; gl_Position = vec4(aP.x * uInv.x * 2.0 - 1.0, 1.0 - aP.y * uInv.y * 2.0, 0.0, 1.0); }"#;
+const FS_UI: &str = r#"#version 300 es
+precision mediump float; in vec2 vU; in vec4 vC; uniform sampler2D uT; out vec4 o; void main(){ o = texture(uT, vU) * vC; }"#;
 
 /// la fuente con unas definiciones después de `#version`
 fn con_defs(src: &str, defs: &str) -> String { let (a, b) = src.split_once('\n').unwrap(); format!("{a}\n{defs}{b}") }
@@ -374,6 +383,7 @@ pub struct Motor {
     blanca: glow::Texture,
     p_luz: Prog, p_luz_piel: Prog, p_sombra: Prog, p_sombra_piel: Prog, p_agua: Prog, p_cielo: Prog, p_ao: Prog, p_ao_poner: Prog, p_final: Prog, p_part: Prog, p_lin: Prog, p_luz_inst: Prog, p_sombra_inst: Prog, inst_buf: glow::Buffer,
     part: (glow::VertexArray, glow::Buffer), marcas: (glow::VertexArray, glow::Buffer, i32),
+    p_ui: Prog, ui: (glow::VertexArray, glow::Buffer),
     ao_rt: Option<Destino>,
     /// la copia de la escena antes del agua (para ver el fondo corrido por las olas)
     refr_rt: Option<Destino>,
@@ -417,6 +427,7 @@ impl Motor {
         let p_final = programa(&gl, VS_CIELO, FS_FINAL, "")?;
         let p_part = programa(&gl, VS_PART, FS_PART, "")?;
         let p_lin = programa(&gl, VS_LIN, FS_LIN, "")?;
+        let p_ui = programa(&gl, VS_UI, FS_UI, "")?;
         let vbo = |atr: &[(u32, i32, i32)], paso: i32| -> Result<(glow::VertexArray, glow::Buffer), String> {
             let v = gl.create_vertex_array()?; gl.bind_vertex_array(Some(v)); let b = gl.create_buffer()?; gl.bind_buffer(glow::ARRAY_BUFFER, Some(b));
             for &(l, n, o) in atr { gl.enable_vertex_attrib_array(l); gl.vertex_attrib_pointer_f32(l, n, glow::FLOAT, false, paso, o); }
@@ -425,9 +436,10 @@ impl Motor {
         let part = vbo(&[(0, 3, 0), (1, 4, 12), (2, 3, 28), (3, 3, 40), (4, 3, 52)], 64)?;
         gl.bind_vertex_array(Some(part.0)); for l in 0..5 { gl.vertex_attrib_divisor(l, 1); } gl.bind_vertex_array(None);
         let mv = vbo(&[(0, 3, 0), (1, 4, 12)], 28)?; let marcas = (mv.0, mv.1, 0);
+        let ui = vbo(&[(0, 2, 0), (1, 2, 8), (2, 4, 16)], 32)?;
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
         Ok(Motor { gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, cielo: None, cubo: None, blanca,
-            p_luz, p_luz_piel, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
+            p_luz, p_luz_piel, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
             dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok() })
     }
@@ -866,6 +878,22 @@ impl Motor {
         gl.invalidate_framebuffer(glow::FRAMEBUFFER, &todo[1..]);
         gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
         self.cuadro += 1;
+    }
+
+    /// la interfaz encima de la imagen (después de `dibujar`): rectángulos en píxeles con la textura `tex` (el atlas de las
+    /// letras: su cuadrado blanco sirve para los rectángulos lisos)
+    pub unsafe fn ui(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32, tex: i64, v: &[f32]) {
+        if v.len() < 24 { return; }
+        let gl = &self.gl;
+        gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h);
+        gl.disable(glow::DEPTH_TEST); gl.depth_mask(false); gl.enable(glow::BLEND); gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
+        let p = &self.p_ui; gl.use_program(Some(p.p)); gl.uniform_2_f32(p.u(U::Inv), 1.0 / w as f32, 1.0 / h as f32);
+        gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, Some(self.texs.get(&tex).map(|t| t.t).unwrap_or(self.blanca)));
+        gl.bind_vertex_array(Some(self.ui.0)); gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.ui.1));
+        gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, f32_bytes(v), glow::STREAM_DRAW);
+        gl.draw_arrays(glow::TRIANGLES, 0, (v.len() / 8) as i32);
+        gl.bind_vertex_array(None); gl.disable(glow::BLEND); gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
+        self.dibujos += 1;
     }
 
     pub fn resumen(&self) -> String {

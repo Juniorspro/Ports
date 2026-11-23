@@ -245,3 +245,12 @@ Google, Apache-2.0 y BSD-3) salió de la app y del repositorio en la 2.9: el APK
   y no se modificaron.
 - Todo lo demás es propio: el lector de TFLite, el intérprete de la red, el camino de detección y seguimiento, el
   filtro, el esqueleto, los gestos y la puerta de WebAssembly (en Rust).
+
+## JXMod nativo (la app en Rust, `motor/nativo/`)
+
+| Pieza | Autor / origen | Dónde | Licencia |
+|---|---|---|---|
+| DejaVu Sans Bold (las letras del HUD y los menús) | DejaVu fonts (https://dejavu-fonts.github.io), basada en Bitstream Vera | el atlas `ui/letras.png` que arma `herramientas/atlas_letras.py` dentro de la APK | licencia libre de Bitstream Vera + dominio público de los cambios de DejaVu (se puede usar, cambiar y redistribuir, también con fines comerciales) |
+| android-activity, glow, khronos-egl, libloading, png, serde_json, flate2, image-webp | sus autores (crates.io) | compiladas dentro de `libjxmod.so` | MIT o Apache-2.0 |
+
+Los mapas (`RB_Flatgrass`, `RB_Construct`) son los de la sección de Garry's Mod de arriba: van sólo en la APK personal.

@@ -1,0 +1,20 @@
+[package]
+name = "jxmod-nativo"
+version = "0.1.0"
+edition = "2021"
+description = "JXMod nativo: la app de Android en Rust, sin WebView (NativeActivity). Motores: Vulkan, OpenGL 3, OpenGL 2"
+
+[lib]
+name = "jxmod"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+jxmotor = { path = "../jxmotor" }
+jxjuego = { path = "../juego" }
+glow = "0.16"
+png = "0.17"
+khronos-egl = { version = "6", features = ["dynamic"] }
+libloading = "0.8"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android-activity = { version = "0.6", features = ["native-activity"] }

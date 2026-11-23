@@ -2,3 +2,4 @@
 //! Por etapas: el paquete y los mapas; después el jugador, la física, los objetos y herramientas, los NPC, los menús.
 pub mod mapa;
 pub mod paquete;
+pub mod texto;

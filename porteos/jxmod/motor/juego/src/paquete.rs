@@ -8,6 +8,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+#[allow(unused_imports)] use std::path as _;
 
 pub struct Paquete {
     idx: HashMap<String, (usize, usize)>,
@@ -18,7 +19,9 @@ pub struct Paquete {
     pub bin: Vec<u8>,
     /// los paquetes aparte ya abiertos: sus mallas y sus partes (texturas, sonidos)
     rbp: HashMap<String, Rbp>,
-    carpeta: PathBuf,
+    /// de dónde se leen los paquetes aparte (`rb/<nombre>`): una carpeta, o lo que diga la app (en Android, los archivos de
+    /// la APK)
+    leer: Box<dyn Fn(&str) -> Option<Vec<u8>> + Send>,
 }
 struct Rbp { bin: Vec<u8>, partes: HashMap<String, (usize, usize)>, datos: Vec<u8> }
 
@@ -54,9 +57,11 @@ impl Paquete {
     pub fn abrir(carpeta: &Path) -> Result<Paquete, String> {
         let idx_txt = std::fs::read_to_string(carpeta.join("pk.idx.json")).map_err(|e| format!("pk.idx.json: {e}"))?;
         let bloque = std::fs::read(carpeta.join("pk.bin")).map_err(|e| format!("pk.bin: {e}"))?;
-        Self::de_bytes(&idx_txt, bloque, carpeta)
+        let c: PathBuf = carpeta.to_path_buf();
+        Self::de_bytes(&idx_txt, bloque, Box::new(move |n| std::fs::read(c.join(n)).ok()))
     }
-    pub fn de_bytes(idx_txt: &str, bloque: Vec<u8>, carpeta: &Path) -> Result<Paquete, String> {
+    /// el paquete ya leído (índice y bloque) y cómo leer los paquetes aparte (`rb/<nombre>`)
+    pub fn de_bytes(idx_txt: &str, bloque: Vec<u8>, leer: Box<dyn Fn(&str) -> Option<Vec<u8>> + Send>) -> Result<Paquete, String> {
         let iv: Value = serde_json::from_str(idx_txt).map_err(|e| format!("índice: {e}"))?;
         let mut idx = HashMap::new();
         for (k, v) in iv.as_object().ok_or("índice raro")? { idx.insert(k.clone(), (v[0].as_u64().unwrap_or(0) as usize, v[1].as_u64().unwrap_or(0) as usize)); }
@@ -65,7 +70,7 @@ impl Paquete {
         let mut bin = desgz(parte("m")?)?;
         let filtrado = iv["m"].get(2).and_then(|x| x.as_u64()) == Some(1);
         if filtrado { let ms: Vec<&Value> = d["ms"].as_array().map(|a| a.iter().filter(|m| m["k"].is_null()).collect()).unwrap_or_default(); desfiltrar(&mut bin, &ms); }
-        Ok(Paquete { idx, bloque, d, bin, rbp: HashMap::new(), carpeta: carpeta.to_path_buf() })
+        Ok(Paquete { idx, bloque, d, bin, rbp: HashMap::new(), leer })
     }
 
     /// una parte del paquete (o de los paquetes aparte ya abiertos)
@@ -79,7 +84,7 @@ impl Paquete {
     pub fn asegurar(&mut self, k: &str) -> Result<(), String> {
         if self.rbp.contains_key(k) { return Ok(()); }
         let Some(nom) = self.d["rbp"][k][0].as_str() else { return Ok(()) };   // (no es de un paquete aparte)
-        let u8s = std::fs::read(self.carpeta.join("rb").join(nom)).map_err(|e| format!("{nom}: {e}"))?;
+        let u8s = (self.leer)(&format!("rb/{nom}")).ok_or(format!("no está rb/{nom}"))?;
         if u8s.len() < 8 || &u8s[0..4] != b"RBP1" { return Err(format!("{nom}: no es RBP1")); }
         let n = u32::from_le_bytes([u8s[4], u8s[5], u8s[6], u8s[7]]) as usize;
         let idx: Value = serde_json::from_slice(&u8s[8..8 + n]).map_err(|e| format!("{nom}: {e}"))?;
