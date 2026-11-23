@@ -538,6 +538,7 @@ dependencies = [
  "khronos-egl",
  "libloading",
  "png",
+ "serde_json",
 ]
 
 [[package]]

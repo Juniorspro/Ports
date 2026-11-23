@@ -9,9 +9,10 @@ use jxjuego::mundo::Mundo;
 /// y el modelo en la mano (el nodo debajo de WalkSway) con sus clips: sacar, quieto, sosteniendo y disparo
 pub struct DefArma { pub n: &'static str, pub nom: &'static str, pub ic: &'static str, pub s_sacar: &'static str, pub s_sosten: &'static str,
     pub nodo: &'static str, pub sacar: &'static str, pub quieto: &'static str, pub sujeta: &'static str, pub fuego: &'static str }
-pub const ARMAS: [DefArma; 2] = [
+pub const ARMAS: [DefArma; 3] = [
     DefArma { n: "PhysicsGun", nom: "Physics Gun", ic: "W_PhysGun", s_sacar: "genericReadyNew_1", s_sosten: "PG_Hold", nodo: "GM_PhysGun", sacar: "PG_draw", quieto: "PG_idle", sujeta: "PG_hold", fuego: "PG_fire" },
     DefArma { n: "GravityGun", nom: "Gravity Gun", ic: "W_GravGun", s_sacar: "GG_Open", s_sosten: "GG_Hold", nodo: "GM_GravGun", sacar: "GG_draw", quieto: "GG_idle", sujeta: "GG_hold", fuego: "GG_fire" },
+    DefArma { n: "ToolBaton", nom: "Tool Gun", ic: "W_ToolGun", s_sacar: "genericReadyNew_1", s_sosten: "", nodo: "GM_ToolGun", sacar: "TG_draw", quieto: "TG_idle", sujeta: "TG_idle", fuego: "TG_fire" },
 ];
 
 /// lo agarrado con la Physics Gun: el cuerpo, a qué distancia, el punto agarrado (en el cuerpo), el giro relativo a la
@@ -33,6 +34,8 @@ pub struct Armas {
     pub sonidos: Vec<(String, f32)>, pub avisos: Vec<String>,
     /// el clip que tiene que tocar el arma en la mano (sacar al elegirla, fuego al lanzar): lo pone el juego
     pub anim: Option<&'static str>,
+    /// la Tool Gun disparó (true: el «2»): lo hace el juego, que tiene los objetos
+    pub herr: Option<bool>,
     azar: u32,
 }
 
@@ -57,6 +60,7 @@ impl Armas {
     pub fn disparo(&mut self, fis: &mut Fisica, mundo: &Mundo, ojo: [f32; 3], dir: [f32; 3], yaw: f32) {
         match self.def().n {
             "PhysicsGun" => { if self.agarre.is_some() { self.soltar(fis, false); } else { self.agarrar(fis, mundo, ojo, dir, yaw); } }
+            "ToolBaton" => self.herramienta(false),
             _ => self.grav_primario(fis, mundo, ojo, dir),
         }
     }
@@ -69,8 +73,14 @@ impl Armas {
                 let Some(id) = fis.rayo(mundo, v64(ojo), v64(dir), 50.0, &[]).and_then(|h| h.cuerpo) else { return };
                 if let Some(b) = fis.cuerpo_mut(id) { if b.congelado && b.masa > 0.0 { b.congelado = false; b.despertar(); self.avisos.push("Descongelado".into()); } }
             }
+            "ToolBaton" => self.herramienta(true),
             _ => self.grav_secundario(fis, mundo, ojo, dir),
         }
+    }
+    /// la Tool Gun: el tiro (con su sonido de HL2 y la animación de fuego)
+    fn herramienta(&mut self, alt: bool) {
+        self.herr = Some(alt); self.anim = Some(self.def().fuego);
+        let s = format!("TG_Fire{}", 1 + self.azar() % 2); self.son(&s, 0.6);
     }
     /// agarrarFisica: lo que se mira (hasta 50 m), si se mueve
     fn agarrar(&mut self, fis: &mut Fisica, mundo: &Mundo, ojo: [f32; 3], dir: [f32; 3], yaw: f32) {
@@ -151,7 +161,7 @@ impl Armas {
     /// los botones + y −: 1,5 m más lejos o más cerca (entre 1,5 y 50)
     pub fn distancia(&mut self, d: f32) { if let Some(a) = self.agarre.as_mut() { a.dist = (a.dist + d).clamp(1.5, 50.0); } }
     /// lo que suena en bucle mientras sostiene algo (sSosten)
-    pub fn sosten(&self) -> Option<&'static str> { if self.agarre.is_some() || self.grav.is_some() { Some(self.def().s_sosten) } else { None } }
+    pub fn sosten(&self) -> Option<&'static str> { if (self.agarre.is_some() || self.grav.is_some()) && !self.def().s_sosten.is_empty() { Some(self.def().s_sosten) } else { None } }
     /// otro mapa: nada agarrado
     pub fn olvidar(&mut self) { self.agarre = None; self.grav = None; self.rotar = false; }
     fn azar(&mut self) -> u32 { self.azar = self.azar.wrapping_mul(1664525).wrapping_add(1013904223); self.azar >> 16 }

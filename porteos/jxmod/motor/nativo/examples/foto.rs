@@ -169,6 +169,30 @@ fn main() {
             }
             let (ax, ay) = pos_boton(wf, hf, Boton::Arma); toque(&mut j, 36, ax, ay); let (gx, gy) = pos_boton(wf, hf, Boton::ArmaN(0)); toque(&mut j, 37, gx, gy);
             j.jug.pitch = 0.0; paso(&mut j, &mut m, 2);
+            // la Tool Gun: el menú en Herramientas, un Timer y una Lamp en el piso, un cable del Timer a la Lamp
+            let idx = |j: &Juego, n: &str| j.her.lista.iter().position(|h| h.n == n).unwrap_or(0);
+            let (ox, oy) = pos_boton(wf, hf, Boton::Objetos); toque(&mut j, 50, ox, oy); paso(&mut j, &mut m, 1);
+            let (px0, py0, ppw) = (wf * 0.04, hf * 0.12, wf * 0.92); let _ = ppw;
+            toque(&mut j, 51, px0 + hf * 0.03 + hf * 0.44 + hf * 0.21, py0 + hf * 0.042); paso(&mut j, &mut m, 1);
+            let nh = j.her.lista.len() as f32; let tab_h = ((hf * 0.85 - hf * 0.1) / nh).min(hf * 0.08);
+            let fila = |k: usize| (px0 + hf * 0.1, py0 + hf * 0.08 + (k as f32 + 0.5) * tab_h);
+            let (tx, ty) = fila(idx(&j, "Timer")); toque(&mut j, 52, tx, ty); paso(&mut j, &mut m, 2); foto(&mut m, "3d1_herramientas");
+            println!("Tool Gun: arma {} · herramienta {} · {} herramientas", j.armas.def().nom, j.her.lista[j.her.sel].n, j.her.lista.len());
+            toque(&mut j, 53, px0 + ppw - hf * 0.05, py0 + hf * 0.04); paso(&mut j, &mut m, 20);
+            let disparar = |j: &mut Juego, m: &mut Motor3d, id: i32| { let (bx, by) = pos_boton(wf, hf, Boton::Disparo); j.dedo_abajo(id, bx, by, wf, hf); j.dedo_arriba(id); paso(j, m, 2); };
+            j.jug.pitch = -0.45; paso(&mut j, &mut m, 2); disparar(&mut j, &mut m, 54);
+            j.equipar_herramienta(idx(&j, "Lamp")); j.jug.yaw += 0.35; paso(&mut j, &mut m, 30); disparar(&mut j, &mut m, 55);
+            let ents: Vec<(u32, String)> = j.objs.iter().filter_map(|o| o.logica.as_ref().map(|l| (o.id, l.tipo.clone()))).collect();
+            println!("   puestos: {:?}", ents);
+            j.equipar_herramienta(idx(&j, "Wire")); paso(&mut j, &mut m, 30);
+            j.jug.yaw -= 0.35; paso(&mut j, &mut m, 2); disparar(&mut j, &mut m, 56);
+            j.jug.yaw += 0.35; paso(&mut j, &mut m, 2); disparar(&mut j, &mut m, 57);
+            let lamp = j.objs.iter().find(|o| o.logica.as_ref().map(|l| l.tipo == "Lamp").unwrap_or(false)).map(|o| o.id);
+            let mut estados = vec![];
+            for _ in 0..12 { paso(&mut j, &mut m, 15); estados.push(j.objs.iter().find(|o| Some(o.id) == lamp).and_then(|o| o.logica.as_ref()).map(|l| l.luz).unwrap_or(false)); }
+            println!("   la lámpara cada 0,25 s (Timer de 1 s): {:?}", estados.iter().map(|b| if *b { 1 } else { 0 }).collect::<Vec<_>>());
+            j.jug.yaw -= 0.17; j.jug.pitch = -0.3; paso(&mut j, &mut m, 2); foto(&mut m, "3d2_timer_lampara");
+            j.jug.pitch = 0.0; paso(&mut j, &mut m, 2);
         }
     }
     // el otro mapa: caminar 6 s para adelante y a la derecha (choca con lo que haya)

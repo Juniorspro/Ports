@@ -233,6 +233,8 @@ fn escala(m: &M4) -> f32 { (m[0] * m[0] + m[1] * m[1] + m[2] * m[2]).sqrt().max(
 /// el id de la malla y del material del tubo del rayo (propios: negativos y lejos de los del paquete)
 pub const TUBO_MALLA: i64 = -3001;
 pub const TUBO_MAT: i64 = -3002;
+/// los otros colores del tubo: verde (un cable con señal), azul (un cable sin señal) y amarillo (la traza de la Tool Gun)
+pub const TUBO_VERDE: i64 = -3003; pub const TUBO_AZUL: i64 = -3004; pub const TUBO_AMARILLO: i64 = -3005;
 /// la malla del tubo (un cilindro de 8 caras, radio 1, de z 0 a 1: ajxTubo) y su material, celeste y brillante como el
 /// rayo de la Physics Gun de GMod (dibujarRayoFisica: [0,35, 0,78, 1])
 pub fn tubo() -> Escena {
@@ -251,9 +253,20 @@ pub fn tubo() -> Escena {
     let ni = (lados * 6) as u32; let nv = ((lados + 1) * 2) as u32;
     let mut datos = vb; while datos.len() % 4 != 0 { datos.push(0); } let io = datos.len(); datos.extend_from_slice(&ib);
     let malla = Malla { id: TUBO_MALLA, v: nv, mn: [-1.0, -1.0, 0.0], sc: [2.0, 2.0, 1.0], i32: 0, ni, vo: 0, io, lo: -1, so: -1, lm: -1 };
-    let mat = Mat { pbr: [0.3, 0.0, 0.04], fol: 0, id: TUBO_MAT, t2: -1, terr: None, c: [0.35, 0.78, 1.0, 1.0], st: [1.0, 1.0, 0.0, 0.0], t: -1, blend: 0, cut: 0, unlit: 1, add: 0, agua: 0, em: [1.4, 3.1, 4.0] };
-    let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![malla], mats: vec![mat], texs: vec![], lms: vec![], items: vec![], agua: None, cielo: None };
+    let mat = |id: i64, c: [f32; 3], em: [f32; 3]| Mat { pbr: [0.3, 0.0, 0.04], fol: 0, id, t2: -1, terr: None, c: [c[0], c[1], c[2], 1.0], st: [1.0, 1.0, 0.0, 0.0], t: -1, blend: 0, cut: 0, unlit: 1, add: 0, agua: 0, em };
+    let mats = vec![mat(TUBO_MAT, [0.35, 0.78, 1.0], [1.4, 3.1, 4.0]), mat(TUBO_VERDE, [0.3, 1.0, 0.4], [0.9, 3.0, 1.2]), mat(TUBO_AZUL, [0.2, 0.7, 1.0], [0.4, 1.4, 2.0]), mat(TUBO_AMARILLO, [1.0, 1.0, 0.3], [3.0, 3.0, 0.9])];
+    let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![malla], mats, texs: vec![], lms: vec![], items: vec![], agua: None, cielo: None };
     Escena { c: cab, datos }
+}
+/// un tramo recto de tubo de `a` a `b`, de radio `r`, del material `mat` (los cables de la Tool Gun, su traza)
+pub fn tramo(a: V, b: V, r: f32, mat: i64, out: &mut Vec<ItemDin>) {
+    let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]; let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt(); if l < 1e-4 { return; }
+    let z = [d[0] / l, d[1] / l, d[2] / l]; let up = if z[1].abs() > 0.95 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+    let k = up[0] * z[0] + up[1] * z[1] + up[2] * z[2]; let mut y = [up[0] - z[0] * k, up[1] - z[1] * k, up[2] - z[2] * k];
+    let ly = (y[0] * y[0] + y[1] * y[1] + y[2] * y[2]).sqrt(); for e in y.iter_mut() { *e /= ly; }
+    let x = [y[1] * z[2] - y[2] * z[1], y[2] * z[0] - y[0] * z[2], y[0] * z[1] - y[1] * z[0]];
+    let mm = [x[0] * r, x[1] * r, x[2] * r, 0.0, y[0] * r, y[1] * r, y[2] * r, 0.0, d[0], d[1], d[2], 0.0, a[0], a[1], a[2], 1.0];
+    out.push(ItemDin { m: TUBO_MALLA, s0: 0, sn: 48, mat, mm, esf: [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0, (a[2] + b[2]) / 2.0, l / 2.0 + r], fl: FL_SIN_SOMBRA, h: vec![] });
 }
 /// el rayo de la Physics Gun como tramos de tubo (ajxMundoDibujar): la curva de la boca `p0` a lo agarrado `p1` pasando por
 /// el medio de la mira (`mid`), 16 tramos, de radio 0,012 que late con el tiempo

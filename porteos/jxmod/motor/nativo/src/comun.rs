@@ -13,6 +13,8 @@ use jxjuego::texto::Letras;
 use jxmotor::escena::{Cabecera, Cuadro, Escena, Tex};
 use crate::ajustes::{self, Ajustes, Clave};
 use crate::armas::{Armas, ARMAS};
+#[path = "herramientas.rs"] mod herramientas;
+use herramientas::{Herramientas, Logica, Valor};
 use crate::motor::Motor3d;
 use jxmotor::gpu::TEX_LETRAS;
 use jxmotor::mat::{self as m4, M4};
@@ -67,7 +69,9 @@ pub const TEX_ICONOS: i64 = -2001;
 const ICO: u32 = 96;
 const ICO_COLS: u32 = 10;
 /// el menú de objetos abierto: qué subcategoría, cuánto bajó la grilla y de qué subcategoría es el atlas cargado
-pub struct Menu { pub sub: usize, pub scroll: f32, atlas_de: Option<usize>, atlas_h: u32 }
+pub struct Menu { pub sub: usize, pub scroll: f32, atlas_de: Option<usize>, atlas_h: u32, /** 0 Props, 1 Herramientas */ pub pestana: usize }
+/// las pestañas de arriba del menú (las del spawn menu de la web)
+const PESTANAS_MENU: [&str; 2] = ["Props", "Herramientas"];
 /// dónde va cada cosa del menú (con la pantalla de w × h y n subcategorías)
 struct Panel { x0: f32, y0: f32, pw: f32, ph: f32, tab_h: f32, gx: f32, gy: f32, gw: f32, gh: f32, celda: f32, cols: usize }
 fn panel(w: f32, h: f32, nsub: usize) -> Panel {
@@ -79,7 +83,9 @@ fn panel(w: f32, h: f32, nsub: usize) -> Panel {
 }
 /// un objeto puesto en el mundo: su cuerpo en la física (si tiene forma de choque) y cómo estaba antes y después del último
 /// paso de la física (se dibuja entre los dos: la física va a 60 por segundo, como la web, y la pantalla a 120)
-pub struct Obj { pub nombre: String, pub pos: [f32; 3], pub q: [f32; 4], pub c: [f32; 3], pub cuerpo: Option<u32>, cap_inv: [f32; 4], ant: ([f32; 3], [f32; 4]), pub masa: f32 }
+pub struct Obj { pub nombre: String, pub pos: [f32; 3], pub q: [f32; 4], pub c: [f32; 3], pub cuerpo: Option<u32>, cap_inv: [f32; 4], ant: ([f32; 3], [f32; 4]), pub masa: f32,
+    /// su número (el ID que muestra la Tool Gun), lo que hace si lo puso la Tool Gun y dónde empezó a moverlo un Mover
+    pub id: u32, pub logica: Option<Logica>, log_base: Option<([f32; 3], [f32; 4], f32)> }
 /// el paso de la física de los objetos (physStep de la web: 1/60 s)
 const PASO_FIS: f32 = 1.0 / 60.0;
 /// los sub-pasos de la física según la calidad (GFX.sub de la web)
@@ -105,6 +111,8 @@ fn matriz_obj(o: &Obj, t: f32) -> M4 {
 }
 /// (para las pruebas) el centro de un botón
 pub fn pos_boton(w: f32, h: f32, b: Boton) -> (f32, f32) { botones(w, h).into_iter().find(|x| x.b == b).map(|x| (x.x, x.y)).unwrap_or((0.0, 0.0)) }
+/// una pestaña de arriba del menú: dónde empieza y su ancho
+fn pestana_menu(p: &Panel, h: f32, k: usize) -> (f32, f32) { (p.x0 + h * 0.03 + k as f32 * h * 0.44, h * 0.42) }
 /// las cajas de los valores de un renglón de Ajustes (x, y, ancho, alto)
 fn cajas_aj(p: &Panel, h: f32, fila: usize, n: usize) -> Vec<(f32, f32, f32, f32)> {
     let fh = h * 0.105; let y = p.gy + fila as f32 * fh;
@@ -151,6 +159,8 @@ pub struct Juego {
     pub pj: Option<Personaje>, pj_cargados: personaje::Cargados, pub camara: u8, pub nado: Option<(Vec<u8>, Vec<u8>)>, pub skin: String,
     /// el arma en la mano (vista.rs): el modelo, lo que el motor ya tiene, los clips, cuál suena, el vaivén y lo que se
     /// arrastró para mirar en este cuadro (el arma se atrasa un poco al girar)
+    /// la Tool Gun (herramientas.rs) y el número del próximo objeto
+    pub her: Herramientas, sig_id: u32,
     pub vista: Option<Vista>, vista_cargados: vista::Cargados, clips: vista::Clips, clip_ya: &'static str, sway: [f32; 5], bob_arma: f32, mdx: f32, tubo_ok: bool,
     // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
     /// los ajustes (ajustes.txt) y la pestaña del menú de Ajustes, si está abierto (el juego queda en pausa)
@@ -192,9 +202,10 @@ impl Juego {
             nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
+            her: Herramientas::default(), sig_id: 1,
             vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
-        if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); j.cat_fis = Some(Catalogo::nuevo(p)); }
+        if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); j.cat_fis = Some(Catalogo::nuevo(p)); j.her.lista = herramientas::lista(&p.d); }
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
         j
     }
@@ -228,7 +239,7 @@ impl Juego {
                 Boton::Ajustes => { self.menu = None; self.ajustes = Some(0); }
                 Boton::Camara => { self.camara = (self.camara + 1) % 3; self.avisar(["Primera persona", "Tercera persona", "De frente"][self.camara as usize].into()); }
                 Boton::Volar => { self.jug.noclip = !self.jug.noclip; self.avisar(if self.jug.noclip { "Volar: prendido".into() } else { "Volar: apagado".into() }); }
-                Boton::Objetos => { if !self.catalogo.is_empty() { self.menu = Some(Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0 }); } }
+                Boton::Objetos => { if !self.catalogo.is_empty() { self.menu = Some(Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0, pestana: 0 }); } }
                 Boton::Disparo | Boton::Disparo2 => {
                     let (o, d, yaw) = (self.ojos_ult, self.mira(), self.jug.yaw);
                     if let Some(mp) = &self.mapa { if b == Boton::Disparo { self.armas.disparo(&mut self.fis, &mp.mundo, o, d, yaw); } else { self.armas.disparo2(&mut self.fis, &mp.mundo, o, d); } }
@@ -238,7 +249,7 @@ impl Juego {
                 Boton::Girar => { self.armas.rotar = !self.armas.rotar && self.armas.agarre.is_some(); }
                 Boton::Lejos => self.armas.distancia(1.5),
                 Boton::Cerca => self.armas.distancia(-1.5),
-                Boton::Deshacer => { if let Some(o) = self.objs.pop() { if let Some(id) = o.cuerpo { if self.armas.agarre.as_ref().map(|a| a.id) == Some(id) || self.armas.grav.as_ref().map(|g| g.id) == Some(id) { self.armas.olvidar(); } self.fis.quitar(id); } self.avisar(format!("Deshecho: {}", o.nombre)); } }
+                Boton::Deshacer => { if !self.objs.is_empty() { let n = self.objs.last().map(|o| o.nombre.clone()).unwrap_or_default(); self.borrar_obj(self.objs.len() - 1); self.avisar(format!("Deshecho: {n}")); } }
                 _ => {}
             }
             // (saltar y agacharse se mantienen mientras el dedo esté apoyado)
@@ -272,14 +283,21 @@ impl Juego {
     pub fn dedo_arriba(&mut self, id: i32) { self.dedos.retain(|d| d.id != id); }
     fn toque_menu(&mut self, x: f32, y: f32, w: f32, h: f32) {
         let Some(m) = self.menu.as_mut() else { return };
-        let p = panel(w, h, self.catalogo.len());
+        let n = if m.pestana == 1 { self.her.lista.len() } else { self.catalogo.len() };
+        let p = panel(w, h, n);
         // (la X de cerrar, arriba a la derecha del panel; o tocar afuera)
         if (x > p.x0 + p.pw - h * 0.1 && y < p.y0 + h * 0.08) || x < p.x0 || x > p.x0 + p.pw || y < p.y0 || y > p.y0 + p.ph { self.menu = None; return; }
-        if x < p.gx - p.pw * 0.01 {
-            let k = ((y - p.y0 - h * 0.08) / p.tab_h).floor() as i64;
-            if k >= 0 && (k as usize) < self.catalogo.len() { m.sub = k as usize; m.scroll = 0.0; }
+        // (las pestañas de arriba)
+        if y < p.y0 + h * 0.08 {
+            for k in 0..PESTANAS_MENU.len() { let (bx, bw) = pestana_menu(&p, h, k); if x >= bx && x <= bx + bw && k != m.pestana { m.pestana = k; m.sub = if k == 1 { self.her.sel } else { 0 }; m.scroll = 0.0; } }
             return;
         }
+        if x < p.gx - p.pw * 0.01 {
+            let k = ((y - p.y0 - h * 0.08) / p.tab_h).floor() as i64;
+            if k >= 0 && (k as usize) < n { m.sub = k as usize; m.scroll = 0.0; if m.pestana == 1 { self.equipar_herramienta(k as usize); } }
+            return;
+        }
+        if m.pestana == 1 { self.toque_inspector(x, y, w, h); return; }
         let (col, fila) = (((x - p.gx) / p.celda).floor() as i64, ((y - p.gy + m.scroll) / p.celda).floor() as i64);
         if col < 0 || col as usize >= p.cols || fila < 0 { return; }
         let i = fila as usize * p.cols + col as usize;
@@ -314,6 +332,59 @@ impl Juego {
         s[0] += (self.bob_arma.sin() * 0.012 * a + (-self.mdx * 0.0004).clamp(-0.02, 0.02) - s[0]) * k;
         s[1] += (self.bob_arma.cos().abs() * 0.01 * a - s[0] * 0.1 - s[1]) * k;
         self.mdx = 0.0;
+    }
+    /// los valores para tocar de un parámetro de la herramienta elegida (inspectorHerramienta)
+    fn valores_param(&self, pr: &herramientas::Param, v: Option<&Valor>) -> Vec<String> {
+        match pr.t.as_str() {
+            "String[]" => pr.o.clone(), "Boolean" => vec!["No".into(), "Sí".into()],
+            "Single" | "Int32" => vec!["-".into(), v.map(|x| x.txt()).unwrap_or_default(), "+".into()],
+            _ => vec![v.map(|x| x.txt()).unwrap_or_default()],
+        }
+    }
+    fn dibujar_inspector(&self, l: &Letras, u: &mut Vec<f32>, p: &Panel, _wf: f32, hf: f32, t: f32) {
+        let bl = [1.0, 1.0, 1.0, 1.0];
+        for (k, hh) in self.her.lista.iter().enumerate() {
+            let y = p.y0 + hf * 0.08 + k as f32 * p.tab_h; let sel = k == self.her.sel;
+            l.caja(u, p.x0 + hf * 0.015, y, p.gx - p.x0 - hf * 0.04, p.tab_h - hf * 0.006, hf * 0.01, if sel { [0.95, 0.66, 0.1, 0.92] } else { [1.0, 1.0, 1.0, 0.08] });
+            let tt = (p.tab_h * 0.6).min(t * 0.7); l.texto(u, p.x0 + hf * 0.035, y + (p.tab_h - tt) / 2.0 - hf * 0.003, tt, if sel { [0.0, 0.0, 0.0, 1.0] } else { bl }, &hh.n);
+        }
+        let Some(hh) = self.her.lista.get(self.her.sel) else { return };
+        l.texto(u, p.gx, p.gy - hf * 0.005, t * 0.85, bl, &format!("Tool Gun: {}", hh.n));
+        l.texto(u, p.gx, p.gy + hf * 0.045, t * 0.6, [1.0, 1.0, 1.0, 0.7], herramientas::ayuda(&hh.n));
+        let vals = self.her.params.get(&hh.n);
+        for (f, pr) in hh.p.iter().enumerate() {
+            let v = vals.and_then(|m| m.get(&pr.n)); let ops = self.valores_param(pr, v); let cajas = cajas_aj(p, hf, f + 1, ops.len());
+            let fh = hf * 0.105; let y = p.gy + (f + 1) as f32 * fh; let tt = t * 0.7;
+            l.texto(u, p.gx, y + (fh - tt) / 2.0 - hf * 0.004, tt, bl, &pr.n);
+            for (k, (o, b)) in ops.iter().zip(cajas).enumerate() {
+                let sel = match (pr.t.as_str(), v) { ("String[]", Some(x)) => x.txt() == *o, ("Boolean", Some(x)) => x.si() == (k == 1), ("Single" | "Int32", _) => k == 1, _ => false };
+                l.caja(u, b.0, b.1, b.2, b.3, hf * 0.012, if sel { [0.95, 0.66, 0.1, 0.92] } else { [1.0, 1.0, 1.0, 0.1] });
+                let mut ts = tt * 0.9; while l.ancho(ts, o) > b.2 - 6.0 && ts > tt * 0.4 { ts *= 0.9; }
+                let an = l.ancho(ts, o); l.texto(u, b.0 + (b.2 - an) / 2.0, b.1 + (b.3 - ts) / 2.0 - hf * 0.004, ts, if sel { [0.0, 0.0, 0.0, 1.0] } else { bl }, o);
+            }
+        }
+    }
+    fn toque_inspector(&mut self, x: f32, y: f32, w: f32, h: f32) {
+        let Some(hh) = self.her.lista.get(self.her.sel) else { return };
+        let p = panel(w, h, self.her.lista.len()); let n = hh.n.clone();
+        let mut cambio: Option<(String, Valor)> = None;
+        for (f, pr) in hh.p.iter().enumerate() {
+            let v = self.her.params.get(&n).and_then(|m| m.get(&pr.n)).cloned(); let ops = self.valores_param(pr, v.as_ref());
+            for (k, b) in cajas_aj(&p, h, f + 1, ops.len()).into_iter().enumerate() {
+                if x < b.0 || x > b.0 + b.2 || y < b.1 || y > b.1 + b.3 { continue; }
+                let nv = match pr.t.as_str() {
+                    "String[]" => Valor::Txt(ops[k].clone()), "Boolean" => Valor::Si(k == 1),
+                    "Single" | "Int32" => { let x0 = v.as_ref().map(|x| x.num()).unwrap_or(0.0); let paso = if pr.t == "Int32" { 1.0 } else if x0.abs() >= 10.0 { 5.0 } else { 0.5 }; Valor::Num(match k { 0 => if pr.t == "Int32" { (x0 - paso).max(0.0) } else { x0 - paso }, 2 => x0 + paso, _ => x0 }) }
+                    _ => {
+                        // (el nombre del objeto que tira el Spawner: va pasando por los del menú)
+                        if pr.n == "Prop name" { let todos: Vec<String> = std::iter::once("Crate".to_string()).chain(self.catalogo.iter().flat_map(|c| c.1.iter().cloned())).collect(); let i = todos.iter().position(|t| Some(t.as_str()) == v.as_ref().map(|x| x.txt()).as_deref()).map(|i| (i + 1) % todos.len()).unwrap_or(0); Valor::Txt(todos[i].clone()) }
+                        else { continue }
+                    }
+                };
+                cambio = Some((pr.n.clone(), nv));
+            }
+        }
+        if let Some((k, v)) = cambio { self.her.params.entry(n).or_default().insert(k, v); self.sonido.tocar("Click", 0.4, 1.0, None); }
     }
     /// hacia dónde mira (miraDir)
     fn mira(&self) -> [f32; 3] { let (y, p) = (self.jug.yaw, self.jug.pitch); [y.sin() * p.cos(), p.sin(), y.cos() * p.cos()] }
@@ -399,7 +470,7 @@ impl Juego {
         let nombre = self.mapas[self.mapa_i];
         self.mapa = None;
         self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; }
-        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false;
+        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.her.cable = None; self.her.trazas.clear(); self.her.tirados.clear(); self.her.spawn = None; self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false;
         unsafe { m.vaciar(); }
         let Some(paq) = self.paq.as_mut() else { return };
         match mapa::armar(paq, nombre, 1024, 750.0) {
@@ -472,7 +543,7 @@ impl Juego {
             // (se cayó del mapa o se ahogó: vuelve a aparecer)
             if self.jug.pos[1] < mp.mundo.lo[1] - 60.0 || self.jug.vida <= 0.0 {
                 if self.jug.vida <= 0.0 { self.aviso = Some(("Te ahogaste".into(), Instant::now())); }
-                let sp = mp.spawns.first().map(|s| s.0).unwrap_or([0.0, 1.0, 0.0]); self.jug.aparecer(&mp.mundo, sp, None); self.jug.vida = 100.0; self.jug.aire = 12.0;
+                let sp = self.her.spawn.map(|p| [p[0], p[1] + 0.2, p[2]]).or(mp.spawns.first().map(|s| s.0)).unwrap_or([0.0, 1.0, 0.0]); self.jug.aparecer(&mp.mundo, sp, None); self.jug.vida = 100.0; self.jug.aire = 12.0;
             }
         }
         let (ojos, _) = self.jug.ojos(dt); self.ojos_ult = ojos;
@@ -483,6 +554,9 @@ impl Juego {
         let (yaw, pitch) = (self.jug.yaw, self.jug.pitch);
         let fw = [yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos()];
         self.menu_atlas(m);
+        // la Tool Gun: lo que se disparó, y lo que hacen las cosas que puso (en pausa, nada)
+        if let Some(alt) = self.armas.herr.take() { self.herramienta_usar(m, alt); }
+        if self.ajustes.is_none() && self.mapa.is_some() { self.herramientas_paso(m, dt); }
         let pend = std::mem::take(&mut self.pendientes);
         for n in pend { if let Err(e) = self.poner(m, &n, ojos, fw) { self.avisar(format!("{n}: {e}")); } }
         // el arma en la mano: el modelo del arma elegida, su clip (sacar; después quieto o sosteniendo) y el vaivén (armasPaso)
@@ -533,8 +607,10 @@ impl Juego {
             }
             let t_fis = (self.acum_fis / PASO_FIS).clamp(0.0, 1.0);
             for o in &self.objs { if let Some(pf) = self.prefabs.get(&o.nombre) { pf.items(&matriz_obj(o, t_fis), &mut items); } }
+            let mut luces = mp.luces_cerca(ojos, 6);
+            self.herramientas_items(&mut items, &mut luces); luces.truncate(8);
             let c = Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
-                luces: mp.luces_cerca(ojos, 6), esp: vec![], items, efectos: vec![] };
+                luces, esp: vec![], items, efectos: vec![] };
             m.poner_cuadro(c);
         }
         let u = self.hud(w, h, placa_txt);
@@ -598,6 +674,7 @@ impl Juego {
     /// el atlas de íconos de la subcategoría abierta (se arma al abrirla)
     fn menu_atlas(&mut self, m: &mut Motor3d) {
         let (Some(mm), Some(paq)) = (self.menu.as_mut(), self.paq.as_ref()) else { return };
+        if mm.pestana != 0 { return; }
         if mm.atlas_de == Some(mm.sub) { return; }
         let Some((_, items)) = self.catalogo.get(mm.sub) else { return };
         let n = items.len() as u32; let filas = n.div_ceil(ICO_COLS).max(1); let (aw, ah) = (1024u32, (filas * ICO).next_power_of_two());
@@ -623,28 +700,35 @@ impl Juego {
     /// crea un objeto con su base en `p`, girado `giro` alrededor de Y (crearObjeto): con forma de choque, un cuerpo de la
     /// física; sin forma, fijo
     pub fn crear_en(&mut self, m: &mut Motor3d, nombre: &str, p: [f32; 3], giro: f32) -> Result<(), String> {
-        let Some(paq) = self.paq.as_mut() else { return Ok(()) };
+        let q = [0.0, (giro / 2.0).sin(), 0.0, (giro / 2.0).cos()];
+        self.crear(m, nombre, p, q, false, false).map(|_| ())
+    }
+    /// crearObjeto: con su base en `p` (o, `exacto`, con la raíz del modelo en `p`), girado `q`, y congelado si se pide;
+    /// devuelve dónde quedó en la lista
+    pub fn crear(&mut self, m: &mut Motor3d, nombre: &str, p: [f32; 3], q: [f32; 4], exacto: bool, congelado: bool) -> Result<Option<usize>, String> {
+        let Some(paq) = self.paq.as_mut() else { return Ok(None) };
         if !self.prefabs.contains_key(nombre) {
             let (pf, esc) = objetos::armar(paq, &self.nombres, nombre, 512, &mut self.cargados)?;
             unsafe { m.cargar(&esc)?; }
             self.prefabs.insert(nombre.to_string(), pf);
         }
         let pf = &self.prefabs[nombre];
-        let a = giro; let q = [0.0, (a / 2.0).sin(), 0.0, (a / 2.0).cos()];
+        let id_obj = self.sig_id; self.sig_id += 1;
         let fisico = self.cat_fis.as_mut().and_then(|c| c.prefab(paq, nombre));
         if let Some(pfz) = fisico {
-            let b = forma::cuerpo_de_prefab(&pfz, [p[0] as f64, p[1] as f64, p[2] as f64], [0.0, q[1] as f64, 0.0, q[3] as f64], false);
+            let mut b = forma::cuerpo_de_prefab(&pfz, [p[0] as f64, p[1] as f64, p[2] as f64], [q[0] as f64, q[1] as f64, q[2] as f64, q[3] as f64], exacto);
+            if congelado { b.congelado = true; }
             let (bp, bq) = ([b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32], [b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32]);
             let masa = b.masa as f32; let id = self.fis.agregar(b);
             let ci = pfz.cap_q.map(|c| [-c[0] as f32, -c[1] as f32, -c[2] as f32, c[3] as f32]).unwrap_or([0.0, 0.0, 0.0, 1.0]);
-            self.objs.push(Obj { nombre: nombre.to_string(), pos: bp, q: bq, c: [pfz.c[0] as f32, pfz.c[1] as f32, pfz.c[2] as f32], cuerpo: Some(id), cap_inv: ci, ant: (bp, bq), masa });
+            self.objs.push(Obj { nombre: nombre.to_string(), pos: bp, q: bq, c: [pfz.c[0] as f32, pfz.c[1] as f32, pfz.c[2] as f32], cuerpo: Some(id), cap_inv: ci, ant: (bp, bq), masa, id: id_obj, logica: None, log_base: None });
         } else {
             // (sin forma: fijo, con lo más bajo de su caja en el piso)
             let pp = [p[0], p[1] - pf.caja[1] + 0.01, p[2]];
-            self.objs.push(Obj { nombre: nombre.to_string(), pos: pp, q, c: [0.0; 3], cuerpo: None, cap_inv: [0.0, 0.0, 0.0, 1.0], ant: (pp, q), masa: 0.0 });
+            self.objs.push(Obj { nombre: nombre.to_string(), pos: pp, q, c: [0.0; 3], cuerpo: None, cap_inv: [0.0, 0.0, 0.0, 1.0], ant: (pp, q), masa: 0.0, id: id_obj, logica: None, log_base: None });
         }
         self.avisar(format!("Puesto: {nombre}"));
-        Ok(())
+        Ok(Some(self.objs.len() - 1))
     }
 
     /// el HUD: los vértices de la interfaz (8 floats cada uno)
@@ -669,7 +753,7 @@ impl Juego {
             let nom_arma = self.armas.def().nom;
             let (n, elegido) = match b.b {
                 Boton::Disparo => (if self.armas.def().n == "PhysicsGun" { if self.armas.agarre.is_some() { "Soltar" } else { "Agarrar" } } else { "Disparar" }, self.armas.agarre.is_some() || self.armas.grav.is_some()),
-                Boton::Disparo2 => (if self.armas.def().n == "PhysicsGun" { if self.armas.agarre.is_some() { "Congelar" } else { "2" } } else if self.armas.grav.is_some() { "Soltar" } else { "Levantar" }, false),
+                Boton::Disparo2 => (match self.armas.def().n { "PhysicsGun" => if self.armas.agarre.is_some() { "Congelar" } else { "2" }, "GravityGun" => if self.armas.grav.is_some() { "Soltar" } else { "Levantar" }, _ => "2" }, false),
                 Boton::Arma => (nom_arma, self.armas.barra_t > 0.0),
                 Boton::ArmaN(k) => (ARMAS[k].nom, k == self.armas.i),
                 Boton::Girar => ("Girar", self.armas.rotar),
@@ -718,12 +802,19 @@ impl Juego {
         }
         // el menú de objetos: las subcategorías a la izquierda, la grilla con los íconos y los nombres
         if let Some(mm) = &self.menu {
-            let p = panel(wf, hf, self.catalogo.len());
+            let her = mm.pestana == 1;
+            let p = panel(wf, hf, if her { self.her.lista.len() } else { self.catalogo.len() });
             l.caja(&mut u, p.x0, p.y0, p.pw, p.ph, hf * 0.03, [0.07, 0.08, 0.11, 0.94]);
-            l.texto(&mut u, p.x0 + hf * 0.03, p.y0 + hf * 0.02, t * 0.9, bl, &format!("Objetos · {}", self.catalogo.get(mm.sub).map(|s| s.0.as_str()).unwrap_or("")));
+            // (las pestañas de arriba: Props y Herramientas)
+            for (k, n) in PESTANAS_MENU.iter().enumerate() {
+                let (bx, bw) = pestana_menu(&p, hf, k); let sel = k == mm.pestana;
+                l.caja(&mut u, bx, p.y0 + hf * 0.012, bw, hf * 0.06, hf * 0.015, if sel { [0.95, 0.66, 0.1, 0.92] } else { [1.0, 1.0, 1.0, 0.1] });
+                let an = l.ancho(t * 0.8, n); l.texto(&mut u, bx + (bw - an) / 2.0, p.y0 + hf * 0.024, t * 0.8, if sel { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
+            }
             l.caja(&mut u, p.x0 + p.pw - hf * 0.09, p.y0 + hf * 0.012, hf * 0.07, hf * 0.06, hf * 0.015, [0.6, 0.15, 0.12, 0.95]);
             { let an = l.ancho(t * 0.9, "X"); l.texto(&mut u, p.x0 + p.pw - hf * 0.055 - an / 2.0, p.y0 + hf * 0.02, t * 0.9, bl, "X"); }
-            for (k, (n, _)) in self.catalogo.iter().enumerate() {
+            if her { self.dibujar_inspector(l, &mut u, &p, wf, hf, t); }
+            else { for (k, (n, _)) in self.catalogo.iter().enumerate() {
                 let y = p.y0 + hf * 0.08 + k as f32 * p.tab_h; let sel = k == mm.sub;
                 l.caja(&mut u, p.x0 + hf * 0.015, y, p.gx - p.x0 - hf * 0.04, p.tab_h - hf * 0.008, hf * 0.012, if sel { [0.95, 0.66, 0.1, 0.92] } else { [1.0, 1.0, 1.0, 0.08] });
                 let tt = (p.tab_h * 0.5).min(t * 0.75); l.texto(&mut u, p.x0 + hf * 0.035, y + (p.tab_h - tt) / 2.0 - hf * 0.004, tt, if sel { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
@@ -742,7 +833,7 @@ impl Juego {
                         rect_uv(&mut ic, x + (p.celda - lado) / 2.0, y + 4.0, lado, lado - 4.0, [cx as f32 / aw, cy as f32 / ah, (cx + ICO) as f32 / aw, (cy + ICO) as f32 / ah], [1.0; 4]);
                     }
                 }
-            }
+            } }
         }
         // Ajustes: las pestañas a la izquierda y un renglón por cosa, con sus valores para tocar
         if let Some(pe) = self.ajustes {
