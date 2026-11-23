@@ -48,7 +48,7 @@ function mapaMegaRampa() {
   return Object.assign(validarRB({ formato: 'rezobox-mapa', nombre: 'Mega rampa', autor: 'JXMod', descripcion: '', etiquetas: ['vehiculos', 'diversion'], base: 'FlatGrass', gravedad: 1, objetos: [], spawns, entidades: ent }),
     { id: 'megarampa', oficial: true, foto: 'data:image/svg+xml;base64,' + btoa(svg.replace(/\s+/g, ' ')) });
 }
-const OFICIALES_MAPAS = [mapaMegaRampa()];
+const OFICIALES_MAPAS = JXP ? [] : [mapaMegaRampa()];
 const mapaDe = (id) => INST.mapas[id] || OFICIALES_MAPAS.find((m) => m.id === id) || null;
 const mapasCom = () => [...OFICIALES_MAPAS, ...Object.values(INST.mapas)];
 const leerLS = (k, def) => { try { return JSON.parse(localStorage.getItem(k) || '') || def; } catch (e) { return def; } };
@@ -110,7 +110,7 @@ function inicioCrear() {
     guardarPrefs();
   }
   if (!PREFS.lang) PREFS.lang = { SP: 'es', EN: 'en', PO: 'pt', ID: 'id', RU: 'ru', UA: 'uk' }[PREFS.bienvenida ? PREFS.idioma : ''] || idiomaDelAparato();
-  RB.mapa = mapaValido(PREFS.mapa) ? PREFS.mapa : 'FlatGrass';
+  RB.mapa = mapaValido(PREFS.mapa) ? PREFS.mapa : MAPA_DEF;
   overlay('NicknamePanel', false); PREFS.nombreOk = true; guardarPrefs();
   rbArrastre();
 }
@@ -193,7 +193,7 @@ function inicioPanel(p) {
 }
 // ---------- crear un mapa: elegir el mapa base (o seguir uno guardado) y entrar al modo creador ----------
 function panelCrear(P) {
-  if (!mapaValido(RB.creaBase)) RB.creaBase = RB.mapa || 'FlatGrass';
+  if (!mapaValido(RB.creaBase)) RB.creaBase = RB.mapa || MAPA_DEF;
   const mios = Object.values(INST.mapas).filter((m) => m.creado);
   P.innerHTML = `<div class="rbPanCab">${glifo('martillo')} ${esc(T('m.crear'))}<small>${esc(mapaNom(RB.creaBase))}</small></div>
     <div class="rbPanCuerpo rbCrear"><div class="rbSub">${esc(T('mapaBase'))}</div>
@@ -215,7 +215,7 @@ function panelBienvenida(P) {
 // su ícono), de qué grupo es y quién lo hizo; los grupos como pestañas arriba y las tarjetas al costado. Elegir otro
 // vuelve a armar el panel: la grilla queda donde estaba (antes saltaba arriba y había que buscar de nuevo)
 function panelNueva(P) {
-  const coms = mapasCom(), cats = [['todos', [...MAPAS, ...MAPAS_RB]], ['tierra', ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2']], ['espacio', ['Mars', 'Space', 'RB_Luna']], ['rezobox', MAPAS_RB.filter((m) => !MAPAS_GMOD.includes(m))], ['gmod', MAPAS_GMOD], ['comunidad', coms]];
+  const coms = mapasCom(), cats = [['todos', [...MAPAS, ...MAPAS_RB]], ['tierra', ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2']], ['espacio', ['Mars', 'Space', 'RB_Luna']], ['rezobox', MAPAS_RB.filter((m) => !MAPAS_GMOD.includes(m))], ['gmod', MAPAS_GMOD], ['comunidad', coms]].filter((c) => !JXP || c[0] === 'todos' || c[0] === 'comunidad');   // (la personal: gm_construct, gm_flatgrass y los del Workshop)
   const cat = cats.find((c) => c[0] === RB.cat) || cats[0], nm = modsTodos().filter((m) => PREFS.mods[m.id]).length;
   const tarjeta = (m) => typeof m === 'string'
     ? `<div class="rbMapaG${m === RB.mapa && !RB.mapaCom ? ' sel' : ''}" data-rb="mapa:${m}"><div class="rbFoto" style="background-image:url(${icono(MAPA_ICONO[m])})"></div><b>${esc(mapaNom(m))}</b></div>`

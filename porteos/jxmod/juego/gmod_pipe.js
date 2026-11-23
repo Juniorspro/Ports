@@ -128,14 +128,17 @@ async function gpPedirCDN(base, hosts, ruta, intentos) {
   const app = typeof redApp === 'function' && redApp();
   // (en la app, directo a Steam probando otros servidores —uno del CDN a veces contesta 503 un rato— y la tienda sólo al
   // final: con la tienda en su tope, dos intentos directos no alcanzaban y el addon entero fallaba. En la web, por la tienda)
-  const n = app ? Math.max(intentos || 4, 6) : intentos || 4, nDir = app ? n - 1 : 0, b0 = (gpPedirCDN.n = (gpPedirCDN.n || 0) + 1);
+  // (y por varios servidores: la mitad del CDN contesta 502 a los manifiestos del contenido base —medido el 22/11: 4 de 8—
+  // y con 4 intentos que justo caían en ésos, la biblioteca de Steam no arrancaba. Se empieza por el último que anduvo)
+  const man = /\/manifest\//.test(ruta), n = app ? Math.max(intentos || 4, 6, man ? Math.min(10, hosts.length) : 0) : Math.max(intentos || 4, man ? Math.min(10, hosts.length) : 0), nDir = app ? n - 1 : 0;
+  const bueno = gpPedirCDN.bueno && hosts.indexOf(gpPedirCDN.bueno), b0 = bueno >= 0 ? bueno : (gpPedirCDN.n = (gpPedirCDN.n || 0) + 1);
   for (let k = 0; k < n; k++) {
     const h = hosts[(b0 + k) % hosts.length], directo = k < nDir && /\.steamcontent\.com$/i.test(h);
     if (k > 0 && app) await new Promise((ok) => setTimeout(ok, Math.min(1200, 150 * k)));
     // (cada pedazo con tiempo máximo: uno colgado se vuelve a pedir a otro servidor en vez de trabar todo; 5xx y 429 se
     // vuelven a intentar también desde la cola)
     try {
-      const r = await gmFetch(gpURL(base, h, ruta, directo), null, 30000); if (r.ok) return new Uint8Array(await gmTiempo(r.arrayBuffer(), 60000, 'pedazo trabado'));
+      const r = await gmFetch(gpURL(base, h, ruta, directo), null, 30000); if (r.ok) { const u = new Uint8Array(await gmTiempo(r.arrayBuffer(), 60000, 'pedazo trabado')); gpPedirCDN.bueno = h; return u; }
       ult = Object.assign(new Error('CDN ' + r.status), { trabado: r.status >= 500 || r.status === 429 }); if (directo) ultDir = ult;
       if ((r.status === 404 || r.status === 403) && !directo) { if (k >= 1) break; }
     } catch (e) { ult = e; if (directo) ultDir = e; }

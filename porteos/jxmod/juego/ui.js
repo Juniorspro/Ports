@@ -51,7 +51,7 @@ function spawnNpcsTab() {
   if (!C) { C = { n: 'NPCs', npcs: true, sub: [], icUrl: icoSrc('ico:npcs') }; const i = DATA.menu.findIndex((c) => c.n === 'Vehicles'); DATA.menu.splice(i >= 0 ? i : DATA.menu.length, 0, C); if (typeof UI !== 'undefined' && i >= 0 && UI.tab >= i) UI.tab++; }
   const subs = [{ n: T('sp.npcJuego'), it: (DATA.chars || []).map((s) => 'npc:' + s) }], cats = new Map();
   if (typeof GMOD !== 'undefined') for (const A of GMOD.addons.values()) for (const [k, v] of ((A.listas && A.listas.NPC) || new Map())) {
-    const c0 = v && v.get ? v.get('Category') : null, c = typeof c0 === 'string' && c0.trim() ? c0.trim() : A.nombre;
+    const c0 = v && v.get ? v.get('Category') : null, c = typeof c0 === 'string' && c0.trim() ? gmFraseSi(c0.trim()) : A.nombre;
     if (!cats.has(c)) cats.set(c, []); if (!cats.get(c).includes('gmnpc:' + k)) cats.get(c).push('gmnpc:' + k);
   }
   for (const c of [...cats.keys()].sort((x, y) => x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' }))) subs.push({ n: c, it: cats.get(c) });
@@ -63,12 +63,12 @@ function spawnNpcsTab() {
   C.sub = subs;
 }
 function spawnTabs() {
-  spawnNpcsTab();
+  spawnNpcsTab(); if (JXP) jxpOrden();
   const tabs = $('tabs'); if (!tabs) return; tabs.innerHTML = ''; UI.tabsLang = PREFS.lang;
   DATA.menu.forEach((c, i) => {
     // (el nombre en el idioma elegido —spt.Props, spt.Vehicles…—; c.n sigue siendo el nombre interno de la pestaña)
-    const k = 'spt.' + c.n, nom = T(k) === k ? c.n : T(k);
-    const t = document.createElement('div'); t.className = 'tab' + (i === UI.tab ? ' sel' : ''); t.innerHTML = `<img src="${c.icUrl || icono(c.ic)}" alt=""><span>${esc(nom)}</span>`; t.title = nom; t.firstChild.onload = spawnTabsEncajar;
+    const k = 'spt.' + c.n, nom = (JXP && jxpTabNom(c)) || (T(k) === k ? c.n : T(k));
+    const t = document.createElement('div'); t.className = 'tab' + (i === UI.tab ? ' sel' : ''); t.innerHTML = `<img src="${c.icUrl || icono(c.ic)}" alt=""><span>${esc(nom)}</span>`; t.title = nom; t.firstChild.onload = spawnTabsEncajar; if (JXP && c.n === 'GMod') t.style.display = 'none';   // (versión personal: sus secciones van en el árbol de Spawnlists)
     t.onclick = () => { UI.tab = i; UI.sub = 0; UI.q = ''; spawnDibujar(); }; tabs.appendChild(t);
   });
 }
@@ -87,7 +87,8 @@ function spawnDibujar() {
   [...$('tabs').children].forEach((t, i) => t.classList.toggle('sel', i === UI.tab));
   spawnTabsEncajar();
   const cl = $('cats'), gr = $('grilla'), pie = $('pie'), ins = $('ins'); pie.classList.remove('pieOpc');
-  cl.innerHTML = ''; gr.innerHTML = ''; ins.classList.add('oc');
+  cl.innerHTML = ''; gr.innerHTML = ''; ins.classList.add('oc'); gr.classList.remove('jxpAddG');
+  if (JXP && C.n === 'Addons') { jxpAddonsDibujar(C, cl, gr, pie); return; }   // (versión personal: los addons, como en GMod y GDroid)
   if (C.n === 'Host') { pie.innerHTML = ''; const d = document.createElement('div'); d.className = 'cat sel'; d.textContent = typeof SALA !== 'undefined' && SALA ? SALA.n : Lc('Singleplayer', 'Un jugador'); cl.appendChild(d); hostDibujar(gr); return; }
   if (C.n === 'Tools') {
     // herramientas: lista + inspector de parámetros (como el juego)
@@ -107,7 +108,8 @@ function spawnDibujar() {
   qi.oninput = () => { UI.q = qi.value; spawnGrilla(C, subs); }; qi.onkeydown = (e) => e.stopPropagation();
   subs.forEach((s, i) => {
     const d = document.createElement('div'); d.className = 'cat' + (i === UI.sub && !q ? ' sel' : '') + (s.mods ? ' catMods' : s.rb ? ' catNueva' : '');
-    d.textContent = spawnCatNom(s); d.onclick = () => { UI.sub = i; UI.q = ''; if (s.n === 'Nucleares') nukePrecargar(); spawnDibujar(); }; cl.appendChild(d);
+    if (s.ico) { d.innerHTML = `<img class="catIco" src="${esc(s.ico)}" alt=""><span>${esc(spawnCatNom(s))}</span>`; if (s.nivel) d.style.paddingLeft = 6 + s.nivel * 14 + 'px'; } else d.textContent = spawnCatNom(s);
+    d.onclick = () => { UI.sub = i; UI.q = ''; if (s.n === 'Nucleares') nukePrecargar(); spawnDibujar(); }; cl.appendChild(d);
   });
   spawnGrilla(C, subs);
   if (C.n === 'Props' && (subs[UI.sub] || {}).opc && !q) { spawnOpcPie(pie); return; }
@@ -120,7 +122,8 @@ function spawnDibujar() {
 // las categorías de una pestaña (en Props, la sección Mods primero) y sus nombres
 // (en Props, primero las Opciones de JXMod —lo que antes eran los mods oficiales— y después los mods de la gente que
 // ponen cosas)
-function spawnSubs(C) { return C.n === 'Props' ? [{ n: 'Opciones', opc: true, it: opcionesJX().sort((a, b) => ofOrden(a) - ofOrden(b)).map((m) => m.id) }, { n: 'Mods', mods: true, it: modsAssets().map((m) => m.id) }, ...C.sub] : C.sub; }
+// (la versión personal —JXP, gmod_personal.js—: arriba de todo, los spawnlists de GMod en su árbol)
+function spawnSubs(C) { return C.n === 'Props' ? [...(JXP ? jxpSubs() : []), { n: 'Opciones', opc: true, it: opcionesJX().sort((a, b) => ofOrden(a) - ofOrden(b)).map((m) => m.id) }, { n: 'Mods', mods: true, it: modsAssets().map((m) => m.id) }, ...C.sub] : C.sub; }
 function spawnCatNom(s) { if (s.opc) return T('sp.opciones'); if (s.mods) return T('mm.mods'); if (s.rb) { const t = T('pc.' + s.n); return t === 'pc.' + s.n ? s.n : t; } return s.n; }
 function propNom(it) { if (/^npc:/.test(it)) return skinNom(it.slice(4)); if (/^pj(npc|rag):/.test(it)) { const m = typeof PJI !== 'undefined' && PJI.lista.find((x) => x.id === it.slice(6)); return (m ? m.n : it.slice(6)) + ' (' + (/^pjnpc:/.test(it) ? 'NPC' : T('gm.muneco')) + ')'; } if (/^gm:/.test(it)) return gmNombre(it); if (/^gmnpcm:/.test(it)) return gmNombre('gm:' + it.slice(7)) + ' (NPC)'; if (/^gmrag:/.test(it)) return gmNombre('gm:' + it.slice(6)) + ' (' + T('gm.muneco') + ')'; if (/^gmpm:/.test(it)) return gmNombre('gm:' + it.slice(5)); if (/^gmnpc:/.test(it)) return gmListaNombre('NPC', it.slice(6)); if (/^gmveh:/.test(it)) return gmListaNombre('Vehicles', it.slice(6)); if (/^gm(ent|swep):/.test(it) && typeof gmaNomClase === 'function') return gmaNomClase(it); if (/^NK_/.test(it) && typeof nukeNom === 'function') return nukeNom(it); const k = 'pr.' + it, t = T(k); return t === k ? it : t; }
 // la grilla: la categoría elegida o lo que coincide con la búsqueda en toda la pestaña
@@ -146,7 +149,7 @@ function spawnGrilla(C, subs) {
       const ico = C.n === 'Weapons' ? 'W_' + it : it === 'Box2' ? 'Box2_2' : it;
       if (/^npc:/.test(it)) d.innerHTML = `<img src="${retrato(it.slice(4))}" loading="lazy"><span>${esc(propNom(it))}</span>`;   // (un personaje del juego como NPC)
       else if (/^pj(npc|rag):/.test(it)) { const m = typeof PJI !== 'undefined' && PJI.lista.find((x) => x.id === it.slice(6)); d.innerHTML = `<img src="${m && m.img ? esc(m.img) : RETRATO_SIL}" loading="lazy"><span>${esc(propNom(it))}</span>`; }   // (un personaje importado)
-      else if (/^gm:/.test(it)) d.innerHTML = `<img src="${gmIcono(it)}" data-gm="${esc(it)}" loading="lazy"><span>${esc(propNom(it))}</span>`;
+      else if (/^gm:/.test(it)) { d.innerHTML = `<img src="${gmIcono(it)}" data-gm="${esc(it)}" loading="lazy"><span>${esc(propNom(it))}</span>`; if (JXP) { d.classList.add('itGm'); d.title = it.slice(3); } }   // (versión personal: sólo el spawnicon, el modelo al pasar por encima, como GMod)
       else if (/^gm(npc|veh):/.test(it)) { const v = gmLista(/^gmnpc/.test(it) ? 'NPC' : 'Vehicles', it.replace(/^gm(npc|veh):/, '')), m = v && v.get('Model'), g = typeof m === 'string' && gmArchivo(m.toLowerCase().replace(/\\/g, '/')) ? 'gm:' + m.toLowerCase().replace(/\\/g, '/') : null; d.innerHTML = `<img src="${g ? gmIcono(g) : GM_ICO}"${g ? ` data-gm="${esc(g)}"` : ''} loading="lazy"><span>${esc(propNom(it))}</span>`; }
       else if (/^gmrag:/.test(it)) { const g = 'gm:' + it.slice(6); d.innerHTML = `<img src="${gmIcono(g)}" data-gm="${esc(g)}" loading="lazy"><span>${esc(propNom(it))}</span>`; }   // (un personaje de un addon como muñeco de trapo)
       else if (/^gmnpcm:/.test(it)) { const g = 'gm:' + it.slice(7); d.innerHTML = `<img src="${gmIcono(g)}" data-gm="${esc(g)}" loading="lazy"><span>${esc(propNom(it))}</span>`; }   // (cualquier modelo de personaje de un addon, como NPC)
@@ -186,6 +189,7 @@ function spawnAbrirMods(id) {
 function spawnElegir(tab, nombre) {
   if (typeof censPermite === 'function' && !censPermite(nombre)) return;   // (en un server oficial, nada de un mod censurado)
   if (typeof gmModeloEsperar === 'function' && gmModeloEsperar(nombre, () => spawnElegir(tab, nombre))) return;   // (un modelo de addon que se está leyendo del disco: se pone al llegar)
+  if (JXP && jxpModeloEsperar(nombre, () => spawnElegir(tab, nombre))) return;   // (versión personal: un modelo de los spawnlists de GMod que se está bajando)
   if (/^gmrag:/.test(nombre) || (/^gm:/.test(nombre) && typeof gmEsMuneco === 'function' && gmEsMuneco(nombre.slice(3)))) { const r = nombre.replace(/^gm(rag)?:/, ''); if (JUEGO.estado === 'juego' && gmragModelo(r)) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }   // (un muñeco de trapo con huesos, como los prop_ragdoll de GMod)
   if (/^pj(npc|rag):/.test(nombre)) { const sk = typeof pjiSkin === 'function' ? pjiSkin(nombre.slice(6)) : ''; if (JUEGO.estado === 'juego' && sk && spawnNpc(sk, /^pjrag:/.test(nombre))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }
   if (/^npc:/.test(nombre)) { if (JUEGO.estado === 'juego' && spawnNpc(nombre.slice(4))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}${UI.puestos > 1 ? ' (' + UI.puestos + ')' : ''}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }

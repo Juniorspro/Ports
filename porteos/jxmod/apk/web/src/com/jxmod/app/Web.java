@@ -187,7 +187,11 @@ public class Web extends Activity {
     private static final String URL_VERSION = "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/web/version.json";
     private static final String URL_APK = "https://raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXMod.apk";
 
+    // la versión personal del dueño (otra app: com.jxmod.app.personal, armar_apk.py --personal): no busca versiones ni
+    // baja actualizaciones por partes de la pública, que le pisarían su juego
+    static boolean esPersonal(android.content.Context c) { return c.getPackageName().endsWith(".personal"); }
     private void buscarActualizacion(final boolean avisarSiNoHay) {
+        if (esPersonal(this)) { if (avisarSiNoHay) runOnUiThread(() -> android.widget.Toast.makeText(this, "Versión personal: no se actualiza sola", android.widget.Toast.LENGTH_LONG).show()); return; }
         new Thread(() -> {
             int nueva = 0; String ver = "", notas = ""; int apkMin = Integer.MAX_VALUE;
             HttpURLConnection c = null;

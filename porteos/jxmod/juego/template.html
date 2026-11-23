@@ -1462,6 +1462,61 @@ html.rot #pausa .pzGrid{grid-template-columns:repeat(3,1fr)}html.rot #pausa .pzC
 #spawn .xCerrar:hover{background:var(--jxA);color:#121212}#spawn .xCerrar:active{transform:none;background:var(--jxA2)}
 @media (pointer:coarse){#spawn .cat{line-height:40px}#spawn .spBus{height:40px}#spawn .it{width:78px}#spawn .it img{width:66px;height:50px}}
 @media (max-height:420px){#spawn .cats{width:150px}}@media (max-width:420px){html.rot #spawn .cats{width:150px}}
+/* la versión personal (JXP, gmod_personal.js): el menú Q claro como el spawnmenu de Garry's Mod */
+body.jxp #spawn .grilla.jxpAddG{display:block;background:#f2f2f2;padding:0}
+body.jxp .jxpBarra{display:flex;gap:6px;align-items:center;padding:6px;background:#e6e6e6;border-bottom:1px solid #b5b5b5;flex-wrap:wrap}
+body.jxp .jxpBarra input[id]{flex:1;min-width:160px;height:24px;border:1px solid #9a9a9a;border-radius:2px;padding:0 6px;font:12px Tahoma,Verdana,Arial,sans-serif;background:#fff;color:#222;outline:0}
+body.jxp .jxpB{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:1px solid #8a8a8a;border-radius:3px;background:linear-gradient(#fdfdfd,#dcdcdc);color:#222;font:12px Tahoma,Verdana,Arial,sans-serif;cursor:pointer;white-space:nowrap}
+body.jxp .jxpB:hover{border-color:#3d8ee8}body.jxp .jxpB:disabled{opacity:.55}
+body.jxp .jxpAzul{background:linear-gradient(#5aa5f0,#2f7fd6);color:#fff;border-color:#2a6db8}body.jxp .jxpGrande{height:30px;font-size:13px;padding:0 14px}
+body.jxp .jxpI{width:16px;height:16px;image-rendering:pixelated;flex:none}
+body.jxp .jxpFila{display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid #dadada;background:#fff;font:12px Tahoma,Verdana,Arial,sans-serif;color:#222;min-height:34px}
+body.jxp .jxpFila:nth-child(even){background:#f7f7f7}body.jxp .jxpFila.off{opacity:.55}
+body.jxp .jxpFila b{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.jxp .jxpFila small{color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
+body.jxp .jxpMini{width:40px;height:26px;object-fit:cover;border:1px solid #aaa;border-radius:2px;flex:none}
+body.jxp .jxpEst{font-weight:700;color:#b06a00;white-space:nowrap}body.jxp .jxpEst.si{color:#1f7a2e}body.jxp .jxpEst.mal{color:#b0302a}
+body.jxp .jxpTitulo{display:flex;align-items:center;gap:6px;padding:6px 8px;background:#d9d9d9;font:700 12px Tahoma,Verdana,Arial,sans-serif;color:#222;border-bottom:1px solid #b5b5b5}
+body.jxp .jxpAyuda{padding:6px 10px;font:11px/1.4 Tahoma,Verdana,Arial,sans-serif;color:#555}
+body.jxp .jxpVacio{padding:20px;text-align:center;color:#666;font:12px Tahoma,Verdana,Arial,sans-serif}
+body.jxp .jxpTit{font-weight:700;padding:10px 4px 2px;opacity:.85;font-size:13px}body.jxp .jxpPack img{object-fit:cover}
+body.jxp #spawn{background:#cfcfcf;border:1px solid #6b6b6b;border-radius:5px;color:#222;color-scheme:light;box-shadow:0 6px 30px rgba(0,0,0,.45);padding:6px 6px 0}
+body.jxp #spawn .tabs{background:transparent;border:0;margin-right:34px;gap:2px}
+body.jxp #spawn .tab{height:26px;padding:0 10px;gap:5px;background:#a9a9a9;color:#2b2b2b;font:13px/1 Tahoma,Verdana,Arial,sans-serif;text-transform:none;letter-spacing:0;border-radius:4px 4px 0 0}
+body.jxp #spawn .tab:hover{background:#bdbdbd;color:#000}
+body.jxp #spawn .tab.sel{background:#e6e6e6;color:#000}
+body.jxp #spawn .tab img{height:16px;image-rendering:pixelated}
+body.jxp #spawn .cuerpo{background:#e6e6e6;border:0;border-radius:0 4px 0 0;padding:6px;gap:6px}
+body.jxp #spawn .cats{width:200px;background:#fff;border:1px solid #9a9a9a;color:#222;padding:2px 0}
+body.jxp #spawn .cat{display:flex;align-items:center;gap:5px;line-height:19px;min-height:0;padding:1px 6px;border:0;color:#222;font:12px/19px Tahoma,Verdana,Arial,sans-serif;text-transform:none;letter-spacing:0}
+body.jxp #spawn .cat:before{width:16px;height:13px;margin:0;border-radius:2px;background:#e8b84a;flex:none}
+body.jxp #spawn .cat:has(.catIco):before{display:none}
+body.jxp #spawn .cat .catIco{width:16px;height:16px;flex:none;image-rendering:pixelated}
+body.jxp #spawn .cat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.jxp #spawn .cat:hover{background:#e5effb;color:#000}
+body.jxp #spawn .cat.sel{background:#3d8ee8;color:#fff}
+body.jxp #spawn .cat.catMods{color:#3a2a8c;font-weight:700}body.jxp #spawn .cat.catMods.sel{color:#fff}
+body.jxp #spawn .spBus{height:24px;margin:2px 4px 4px;padding:0 6px;background:#fff;border:1px solid #9a9a9a;border-radius:2px;color:#777}
+body.jxp #spawn .spBus input{font:12px Tahoma,Verdana,Arial,sans-serif;color:#222}body.jxp #spawn .spBus input::placeholder{color:#999}
+body.jxp #spawn .grilla{background:#d9d9d9;border:1px solid #9a9a9a;padding:6px;gap:4px}
+body.jxp #spawn .it{width:68px;padding:2px;background:transparent;color:#333;font:10px/1.2 Tahoma,Verdana,Arial,sans-serif;border-radius:4px;box-shadow:none}
+body.jxp #spawn .it img{width:64px;height:64px;object-fit:contain;background:radial-gradient(#f4f4f4,#c9c9c9);border:1px solid #a3a3a3;border-radius:4px;box-sizing:border-box}
+body.jxp #spawn .it:hover{background:transparent}body.jxp #spawn .it:hover img{border-color:#3d8ee8;box-shadow:0 0 0 1px #3d8ee8}
+body.jxp #spawn .it:active img{transform:scale(.94)}
+body.jxp #spawn .it.itGm span{display:none}
+body.jxp #spawn .it.itMod{color:#222}body.jxp #spawn .it.itMod .ico{background:#fff}
+body.jxp #spawn .pie{height:28px;background:#cfcfcf;border-top:0;color:#222;font:12px Tahoma,Verdana,Arial,sans-serif;text-transform:none;letter-spacing:0}
+body.jxp #spawn .pie label{min-height:28px}
+body.jxp #spawn .pie input[type=checkbox],body.jxp #spawn .ins input[type=checkbox]{width:15px;height:15px;border:1px solid #777;background:#fff;border-radius:2px}
+body.jxp #spawn .pie input[type=checkbox]:checked,body.jxp #spawn .ins input[type=checkbox]:checked{background:#3d8ee8;border-color:#2c6fc0}
+body.jxp #spawn .pie input[type=checkbox]:checked::after,body.jxp #spawn .ins input[type=checkbox]:checked::after{border-color:#fff;width:4px;height:8px;border-width:0 2px 2px 0}
+body.jxp #spawn .spPuso{color:#1f7a2e}
+body.jxp #spawn .ins{background:#f2f2f2;border:1px solid #9a9a9a;color:#222}
+body.jxp #spawn .ins input,body.jxp #spawn .ins select{background:#fff;border:1px solid #9a9a9a;color:#222}
+body.jxp #spawn .ins label{color:#444}
+body.jxp #spawn .xCerrar{top:4px;right:4px;width:26px;height:22px;border-radius:3px;background:#c94a3c;color:#fff}
+body.jxp #spawn .xCerrar:hover{background:#e05a4a;color:#fff}
+@media (pointer:coarse){body.jxp #spawn .cat{line-height:28px;font-size:13px}body.jxp #spawn .spBus{height:30px}body.jxp #spawn .it{width:72px}body.jxp #spawn .it img{width:68px;height:68px}}
 
 /* -- Nueva partida (elegir mapa) y el mapa base de Crear un mapa: ya no el panel claro con la grilla de cuadraditos; el
    mapa elegido en grande a la izquierda (la foto del juego de ese mapa, de qué grupo es y quién lo hizo), los grupos como

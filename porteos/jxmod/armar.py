@@ -15,6 +15,8 @@ ORDEN.insert(ORDEN.index('principal'), 'grabar')
 for _n in ['ev300_son', 'ev300', 'ev300_intro', 'ev300_mis', 'pepe_vuelve', 'vivo', 'novedades', 'panel_juego']: ORDEN.insert(ORDEN.index('principal'), _n)
 # (la música del menú —musica.js— después de los dos menús: les pone la placa de lo que suena; usa el reproductor de los emotes)
 ORDEN.insert(ORDEN.index('deposito') + 1, 'musica')
+# (la versión personal del dueño —gmod_personal.js—: el menú de GMod con sus datos; sin JX_PERSONAL no hace nada)
+ORDEN.insert(ORDEN.index('gmod_panel') + 1, 'gmod_personal')
 # el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")
 FORMATO = re.sub(r'(?m)^export ', '', open(os.path.join(AQUI, 'tienda', 'formato.js'), encoding='utf-8').read())
 leer = lambda n: FORMATO if n == 'formato' else open(os.path.join(AQUI, 'juego', n + '.js'), encoding='utf-8').read()
@@ -220,6 +222,11 @@ if os.environ.get('APP_WEB'):
            "<script>window.JX_APPWEB = 1; if ('serviceWorker' in navigator && window.isSecureContext) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));</script>")
     assert '<title>JXMod</title>' in html
     html = html.replace('<title>JXMod</title>', '<title>JXMod</title>\n<!--jxAppWeb-->' + cab + '<!--/jxAppWeb-->', 1)
+# PERSONAL=1 (la versión personal del dueño, que no se publica: juego/nucleo.js JXP): sólo gm_construct y gm_flatgrass,
+# el menú de GMod con sus datos de verdad, los emotes del Workshop y los packs de mods
+if os.environ.get('PERSONAL'):
+    assert '<title>JXMod</title>' in html
+    html = html.replace('<title>JXMod</title>', '<title>JXMod</title>\n<script>window.JX_PERSONAL = 1;</script>', 1)
 # SUELTO=1 (el HTML de un solo archivo, sin PK_BIN ni APP_WEB): se actualiza solo desde la web (juego/suelto.js, que va
 # primero en la página: decide antes que nada si arranca el juego de adentro o una versión más nueva ya bajada)
 if os.environ.get('SUELTO'):

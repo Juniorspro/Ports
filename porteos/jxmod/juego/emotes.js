@@ -77,6 +77,7 @@ function emoCargar(id) {
 function emoClip(id) {
   if (EMO.clips[id]) return EMO.clips[id];
   if (id.startsWith('c:')) { emoCargar(id); return null; }
+  if (id.startsWith('w:')) return JXP ? jxpEmoClip(id) : null;   // (una secuencia de un .mdl de GMod: gmod_personal.js)
   let c = null;
   if (id.startsWith('rb:') && DATA.emo && DATA.emo[id.slice(3)]) c = DATA.emo[id.slice(3)];
   else if (id.startsWith('u:')) { const k = id.slice(2), v = (typeof INST !== 'undefined' && INST.anims && INST.anims[k]) || EMO.remotos[k]; if (v && v.clip) c = Object.assign({ n: v.nombre }, v.clip); }
@@ -101,7 +102,7 @@ const _qe = new Quat(), _qf = new Quat(), _qg = new Quat();
 // empalma (emoBucle), con un fundido de 0,25 s antes de volver a "a": las capturas no terminan como empiezan (al dar la
 // vuelta saltaban, la mitad más de 95° en algún hueso).
 function emoPose(P, dt) {
-  const e = P.emote; if (!e || !(e.startsWith('rb:') || e.startsWith('u:') || e.startsWith('c:'))) return;
+  const e = P.emote; if (!e || !(e.startsWith('rb:') || e.startsWith('u:') || e.startsWith('c:') || e.startsWith('w:'))) return;
   const C = emoClip(e); if (!C) return;
   const t = P.emoteT || 0;
   const loop = C.loop && !P.escena;   // (de a dos: una vez, con la cadera entera)
@@ -235,6 +236,7 @@ function emoUsado(id) { EMO.rec = [id, ...EMO.rec.filter((x) => x !== id)].slice
 // los que se pueden elegir: los del juego (clásicos), los nuevos del paquete, los de captura de movimiento y los tuyos
 const EMO_NUEVOS = ['c:99_01'];
 function emoLista() {
+  if (JXP) return jxpEmoLista();   // (la versión personal: sólo los de GMod y los del Workshop —gmod_personal.js—)
   const l = DATA.emotes.map((e) => ({ id: e, n: emoNom(e, e), cat: 'clasico', ico: 'emo_' + e }));
   for (const [k, c] of Object.entries(DATA.emo || {})) l.push({ id: 'rb:' + k, n: emoNom('rb:' + k, c.n), cat: c.cat || (c.loop ? 'baile' : 'gesto'), ico: 'emo_' + k });
   for (const x of CMU_CAT ? CMU_CAT.items : []) l.push({ id: 'c:' + x[0], n: x[1].charAt(0).toUpperCase() + x[1].slice(1), cat: x[2], dur: x[3], cmu: true, mini: x[5] });
@@ -303,9 +305,10 @@ function emoTarjeta(e) {
 }
 function emoDibujar() {
   const el = $('emoLista'); if (!el) return;
+  if (JXP && !JXP_EMO_CATS.includes(EMO.cat)) EMO.cat = 'todos';
   const pan = $('emotes'), tabs = pan.querySelector('.emoTabs');
   if (tabs && !tabs.childElementCount) {
-    tabs.innerHTML = EMO_CATS.map((c) => `<button data-emc="${c}">${esc(T('emo.' + c))}</button>`).join('');
+    tabs.innerHTML = (JXP ? JXP_EMO_CATS : EMO_CATS).map((c) => `<button data-emc="${c}">${esc((JXP && JXP_EMO_NOM[c]) || T('emo.' + c))}</button>`).join('');
     tabs.onclick = (ev) => { const b = ev.target.closest('[data-emc]'); if (!b) return; EMO.cat = b.dataset.emc; EMO.lim = 120; el.scrollTop = 0; emoDibujar(); };
     // el buscador (en todas las secciones menos la tienda, que busca en internet)
     const bus = document.createElement('div'); bus.className = 'emoBusca'; bus.innerHTML = `${glifo('buscar')}<input maxlength="40" spellcheck="false" placeholder="${esc(T('buscar'))}"><span class="emoCuenta"></span>`;
@@ -333,6 +336,7 @@ function emoDibujar() {
   const cer = $('bEmoCerrar'); if (cer) cer.textContent = T('cerrar');
   const bus = pan.querySelector('.emoBusca'); if (bus) bus.style.display = EMO.cat === 'tienda' ? 'none' : '';
   if (EMO.cat === 'tienda') { emoTienda(el); return; }
+  if (JXP) jxpEmoPrecargar();
   if (EMO.cat === 'juntos') {   // (de a dos: se le pide al que está adelante)
     el.innerHTML = `<div class="emoVacio" style="grid-column:1/-1">${esc(T('jnt.ayuda'))}</div>` + JUNTOS.map((J) => `<div class="emoIt" data-emo="jnt:${J.id}">${emoMiniSVG(CMU_I[J.a] && CMU_I[J.a][5], 'gesto') || `<div class="emoCatIco">${emoIcoCat('gesto')}</div>`}<b>${esc(T('jnt.' + J.id))}</b></div>`).join('');
     const c = pan.querySelector('.emoCuenta'); if (c) c.textContent = JUNTOS.length + ' ' + T('emo.n'); return;
@@ -342,6 +346,7 @@ function emoDibujar() {
     : todos.filter((e) => EMO.cat === 'todos' || (EMO.cat === 'mio' ? e.mio : e.cat === EMO.cat && !(e.mio && EMO.cat === 'clasico')));
   if (q) L = L.filter((e) => e.n.toLowerCase().includes(q) || e.id.toLowerCase().includes(q));
   const c = pan.querySelector('.emoCuenta'); if (c) c.textContent = L.length.toLocaleString(document.documentElement.lang || undefined) + ' ' + T('emo.n');
+  if (JXP && EMO.cat === 'workshop') { jxpEmoWorkshop(el, L); return; }
   // de a tandas (miles de tarjetas juntas traban el celular)
   el.innerHTML = L.slice(0, EMO.lim).map(emoTarjeta).join('') + (L.length > EMO.lim ? `<button class="boton emoMas">${esc(T('emo.mas'))} (${L.length - EMO.lim})</button>` : '')
     || `<div class="emoVacio">${esc(T(EMO.cat === 'mio' ? 'emo.sinMios' : EMO.cat === 'fav' ? 'emo.sinFav' : 'sinRes'))}</div>`;

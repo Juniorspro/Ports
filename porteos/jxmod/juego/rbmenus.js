@@ -74,7 +74,7 @@ function mpClaveOK() { const i = RB.el.querySelector('#mpClaveIn'); comprobarCla
 
 // ---------------- crear un server ----------------
 function panelMultiCrear(P) {
-  const C = RB.srv; if (!C.n) C.n = (PREFS.nombre || 'Player') + "'s server"; if (!mapaValido(C.m)) C.m = RB.mapa || 'FlatGrass';
+  const C = RB.srv; if (!C.n) C.n = (PREFS.nombre || 'Player') + "'s server"; if (!mapaValido(C.m)) C.m = RB.mapa || MAPA_DEF;
   const chk = (k, t) => `<button class="rbChk${C[k] ? ' on' : ''}" data-rb="mpTg:${k}"><em></em>${esc(T(t))}</button>`;
   const rango = (k, t, a, b, paso) => `<label class="rbRango">${esc(T(t))}<input type="range" min="${a}" max="${b}" step="${paso}" value="${C[k]}" data-mp="${k}"><output>${C[k]}</output></label>`;
   P.innerHTML = `<div class="rbPanCab">${glifo('mas')} ${esc(T('mp.crear'))}<small>${esc(mapaNom(C.m))}</small></div>

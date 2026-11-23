@@ -325,6 +325,19 @@ async function gmRutas(req, env, url, r, ip) {
     if (c) await c.put(ck, res.clone());
     return res;
   }
+  // los addons de una colección del Workshop, en su orden (para instalarla entera, como «Suscribirse a todos» de Steam;
+  // las colecciones de adentro van marcadas). es: false si el número no es una colección
+  if (req.method === 'GET' && (m = /^\/api\/gmod\/coleccion\/(\d{3,12})$/.exec(r))) {
+    const c = typeof caches !== 'undefined' ? caches.default : null, ck = new Request('https://cache.rezobox/col/' + m[1]);
+    const hit = c && (await c.match(ck)); if (hit) return hit;
+    const a = await fetch('https://api.steampowered.com/ISteamRemoteStorage/GetCollectionDetails/v1/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'collectioncount=1&publishedfileids[0]=' + m[1] });
+    if (!a.ok) return json({ error: 'Steam ' + a.status }, 502);
+    const d = await a.json(), x = d.response && d.response.collectiondetails && d.response.collectiondetails[0];
+    const hijos = ((x && x.children) || []).slice().sort((p, q) => (p.sortorder | 0) - (q.sortorder | 0)).map((h) => ({ id: String(h.publishedfileid), col: h.filetype === 2 })).filter((h) => /^\d{3,12}$/.test(h.id)).slice(0, 400);
+    const res = new Response(JSON.stringify({ es: !!(x && x.result === 1 && hijos.length), hijos }), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=3600', ...CORS } });
+    if (c) await c.put(ck, res.clone());
+    return res;
+  }
   if ((m = /^\/api\/gmod\/sala\/([a-zA-Z0-9_]{3,60})$/.exec(r))) {
     await gmTabla(env);
     if (req.method === 'GET') { const f = await env.DB.prepare('SELECT wid, nombre, fecha FROM gm_sala WHERE sala = ?1 ORDER BY fecha ASC LIMIT 500').bind(m[1]).all(); return json({ l: f.results.map((x) => ({ id: x.wid, n: x.nombre, t: x.fecha })) }); }

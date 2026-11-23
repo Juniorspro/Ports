@@ -38,7 +38,7 @@ async function lanServida() {
 function lanHostear() {
   if (!lanApp()) { rbAviso(T('lan.soloApp')); return; }
   RED.ID = RED.ID || idRed();
-  const m = mapaValido(RB.srv.m) ? RB.srv.m : mapaValido(PREFS.mapa) ? PREFS.mapa : 'FlatGrass', nom = limpio(PREFS.nombre, 16) || 'Player', sala = (nom + ' · LAN').slice(0, 24);
+  const m = mapaValido(RB.srv.m) ? RB.srv.m : mapaValido(PREFS.mapa) ? PREFS.mapa : MAPA_DEF, nom = limpio(PREFS.nombre, 16) || 'Player', sala = (nom + ' · LAN').slice(0, 24);
   let r = null; try { r = JSON.parse(JXNativo.lanHostear(nom, sala, m, RED.ID)); } catch (e) { r = null; }
   if (!r || !r.ok) { rbAviso(T('lan.noHost')); return; }
   LAN.host = { puerto: r.puerto | 0 || LAN_PUERTO, ips: Array.isArray(r.ips) ? r.ips.filter((x) => /^\d{1,3}(\.\d{1,3}){3}$/.test(x)) : [] };
@@ -93,7 +93,7 @@ async function lanUnirseIp(txt) {
 function panelLan(P) {
   const app = lanApp(), https = location.protocol === 'https:' && !app;
   const ips = app ? (() => { try { return JSON.parse(JXNativo.lanIps() || '[]'); } catch (e) { return []; } })() : [];
-  const m = mapaValido(RB.srv.m) ? RB.srv.m : mapaValido(PREFS.mapa) ? PREFS.mapa : 'FlatGrass';
+  const m = mapaValido(RB.srv.m) ? RB.srv.m : mapaValido(PREFS.mapa) ? PREFS.mapa : MAPA_DEF;
   P.innerHTML = `<div class="rbPanCab">${glifo('wifi')} ${esc(T('lan.tit'))}<span class="rbEsp"></span></div>
     <div class="lanCuerpo">
       <section class="lanSec"><b>${glifo('mas')} ${esc(T('lan.hostTit'))}</b>

@@ -235,7 +235,7 @@ function gmMenu() {
   if (typeof DATA === 'undefined' || !DATA || !DATA.menu) return;
   let C = DATA.menu.find((c) => c.n === 'GMod');
   const pms = typeof gmpLista === 'function' ? new Set(gmpLista()) : new Set();
-  const subs = [...GMOD.addons.values()].map((A) => ({ n: A.nombre, it: [...[...pms].filter((r) => A.G.archivos.has(r)).map((r) => 'gmpm:' + r), ...[...pms].filter((r) => A.G.archivos.has(r)).map((r) => 'gmnpcm:' + r), ...[...pms].filter((r) => A.G.archivos.has(r)).map((r) => 'gmrag:' + r), ...[...((A.listas && A.listas.NPC) || new Map()).keys()].map((k) => 'gmnpc:' + k), ...[...((A.listas && A.listas.Vehicles) || new Map()).keys()].map((k) => 'gmveh:' + k), ...(A.sweps || []).map((c) => 'gmswep:' + c), ...(A.sents || []).map((c) => 'gment:' + c), ...gmPropsMenu(A).map((r) => 'gm:' + r)], gm: A.id })).filter((s) => s.it.length);
+  const subs = [...GMOD.addons.values()].filter((A) => !A.meta.base).map((A) => ({ n: A.nombre, it: [...[...pms].filter((r) => A.G.archivos.has(r)).map((r) => 'gmpm:' + r), ...[...pms].filter((r) => A.G.archivos.has(r)).map((r) => 'gmnpcm:' + r), ...[...pms].filter((r) => A.G.archivos.has(r)).map((r) => 'gmrag:' + r), ...[...((A.listas && A.listas.NPC) || new Map()).keys()].map((k) => 'gmnpc:' + k), ...[...((A.listas && A.listas.Vehicles) || new Map()).keys()].map((k) => 'gmveh:' + k), ...(A.sweps || []).map((c) => 'gmswep:' + c), ...(A.sents || []).map((c) => 'gment:' + c), ...gmPropsMenu(A).map((r) => 'gm:' + r)], gm: A.id })).filter((s) => s.it.length);
   const sel = typeof UI !== 'undefined' ? DATA.menu[UI.tab] : null;
   if (!subs.length) { if (C) DATA.menu.splice(DATA.menu.indexOf(C), 1); }
   else {
@@ -626,6 +626,7 @@ function gmPrefab(nombre) {
 
 // ---------------- íconos (el modelo de costado, dibujado en 2D con su textura y luz, como los spawnicons de GMod) ----------------
 function gmIcono(nombre) {
+  if (JXP) { const u = jxpIcono(nombre); if (u) return u; }   // (versión personal: el spawnicon de GMod, si viene adentro)
   if (GMOD.iconos.has(nombre)) return GMOD.iconos.get(nombre) || GM_ICO_VACIO;   // ('' = no se pudo dibujar: GMOD.icoFallo)
   if (!GMOD.colaIco.includes(nombre)) { GMOD.colaIco.push(nombre); if (GMOD.colaIco.length === 1) setTimeout(gmIconosPaso, 30); }
   return GM_ICO_VACIO;
@@ -1224,6 +1225,7 @@ async function gmArrancar(otraVez) {
   // (modo seguro: la app lo pide después de varios cuelgues seguidos; los mods quedan instalados pero no se cargan)
   if (Q.get('seguro') && !otraVez && !gmArrancar.forzar) { if (typeof cnAnotar === 'function') cnAnotar('seguro', 'mods sin cargar'); return; }
   if (!otraVez && typeof cnCuarentena === 'function') cnCuarentena();   // (el mod que trabó el juego la vez anterior: sin cargar)
+  if (JXP && !otraVez) await jxpIniciar();   // (versión personal: primero el Lua de GMod que llena sus listas, como la base de todo)
   // (los instalados se montan uno por uno, esperando a la caché lo que tarde. Si uno de verdad no está guardado —una
   // descarga que no llegó a guardarse—, se vuelve a bajar solo; si la caché falló, se reintenta en un rato. La lista de
   // instalados no se toca nunca acá)

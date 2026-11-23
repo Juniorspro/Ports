@@ -16,7 +16,7 @@ function gmcPoner(id, meta) {
   id = String(id); meta = meta || {};
   if (typeof GMOD !== 'undefined' && GMOD.addons.has(id)) { const A = GMOD.addons.get(id); return Promise.resolve(A.listo).then(() => A); }
   const ya = gmcDe(id); if (ya) return ya.prom;
-  const x = { id, n: meta.nombre || id, img: meta.img || '', p: 0, fase: 'espera', estado: 'espera', t0: Date.now(), callado: !!meta.callado };
+  const x = { id, n: meta.nombre || id, img: meta.img || '', p: 0, fase: 'espera', estado: 'espera', t0: Date.now(), callado: !!meta.callado, sinDeps: !!meta.sinDeps };
   x.prom = new Promise((ok, mal) => { x.ok = ok; x.mal = mal; }); x.prom.catch(() => {});
   GMC.l.push(x); gmcGuardar(); gmcSeguir(); gmcDibujar(true);
   return x.prom;
@@ -38,7 +38,7 @@ async function gmcBajar(x) {
   let vig = 0, reintentar = false;
   const trabada = new Promise((_, mal) => { vig = setInterval(() => { if (Date.now() - x.tP > GMC_TRABA_MS(x.fase)) { clearInterval(vig); mal(Object.assign(new Error(T('gmc.trabada')), { trabado: true })); } }, 2000); });
   try {
-    const A = await Promise.race([(async () => { const A = await gmInstalar(x.id, { nombre: x.n, img: x.img }, null, prog); if (A && A.listo) await A.listo; return A; })(), trabada]);
+    const A = await Promise.race([(async () => { const A = await gmInstalar(x.id, { nombre: x.n, img: x.img, sinDeps: x.sinDeps }, null, prog); if (A && A.listo) await A.listo; return A; })(), trabada]);
     if (x.cancelar) { gmQuitar(x.id); throw Object.assign(new Error('cancelado'), { cancelado: true }); }
     x.estado = 'listo'; x.p = 1; x.A = A; x.ok(A);
     if (!x.callado) gmcAvisoListo(A);

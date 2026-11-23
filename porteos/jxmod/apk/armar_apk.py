@@ -15,6 +15,8 @@ import cifrar_apk   # cifrado de index.html y pk.bin dentro del APK (anti-robo d
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PAQUETE, PRINCIPAL = 'com.jxmod.app', 'com.jxmod.app.Inicio'
+JAVA = PAQUETE   # (el paquete de las clases: no cambia aunque cambie el id de la app —--personal—)
+ETIQUETA = 'JXMod'
 MIN_SDK, TARGET_SDK = 24, 35
 ABIS = {'arm64-v8a': (2, 183), 'armeabi-v7a': (1, 40), 'x86_64': (2, 62), 'x86': (1, 3)}   # clase ELF, máquina
 NO_COMPRIMIR = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'ogg', 'oga', 'mp3', 'm4a', 'aac', 'opus', 'flac', 'wav', 'mp4',
@@ -204,7 +206,16 @@ def main():
     ap.add_argument('--activos', default=None, help='carpeta de assets (por defecto apk/assets)')
     ap.add_argument('--mapas', default=os.environ.get('JXMOD_MAPAS', ''),
                     help='carpeta con gm_mapas.*.idx/.bin para assets/mapas/ (los usaba el motor en Java; por defecto ninguna)')
+    ap.add_argument('--personal', action='store_true', help='la versión personal del dueño: otra app (com.jxmod.app.personal, «JXMod Personal»), que convive con la pública y no se actualiza desde ella')
     a = ap.parse_args()
+    global PAQUETE, ETIQUETA
+    if a.personal:
+        PAQUETE, ETIQUETA = PAQUETE + '.personal', 'JXMod Personal'
+        # (el manifiesto con el otro nombre: una copia; el id cambia con --rename-manifest-package y el código sigue igual. Los
+        # alias de los íconos apuntan a «.Inicio»: aapt2 no completa targetActivity y quedaría en el paquete nuevo, que no existe)
+        m0 = open(a.manifiesto, encoding='utf-8').read(); assert 'android:label="JXMod"' in m0
+        mp = os.path.join(tempfile.mkdtemp(prefix='jxmod_man_'), 'AndroidManifest.xml'); open(mp, 'w', encoding='utf-8').write(re.sub(r'android:targetActivity="\.', 'android:targetActivity="' + JAVA + '.', m0.replace('android:label="JXMod"', 'android:label="JXMod Personal"')))
+        a.manifiesto = mp
     h = herramientas()
     srcs = a.src or [os.path.join(AQUI, 'web', 'src'), os.path.join(AQUI, 'unido', 'src')]
     tmp = tempfile.mkdtemp(prefix='jxmod_apk_')
@@ -217,10 +228,10 @@ def main():
         cif_sha = cifrar_apk.huella_cert(cert_der(cks, cclave, tmp))
         secreto = cifrar_apk.nuevo_secreto()
         cif_key = cifrar_apk.clave_aes(cif_sha, secreto)
-        gensrc = os.path.join(tmp, 'gensrc', *PAQUETE.split('.'))
+        gensrc = os.path.join(tmp, 'gensrc', *JAVA.split('.'))
         os.makedirs(gensrc)
         with open(os.path.join(gensrc, 'Llave.java'), 'w', encoding='utf-8') as f:
-            f.write(cifrar_apk.generar_llave_java(PAQUETE, secreto, cif_sha, cifrar_apk.secreto_ota(cks, cclave)))
+            f.write(cifrar_apk.generar_llave_java(JAVA, secreto, cif_sha, cifrar_apk.secreto_ota(cks, cclave)))
         srcs = srcs + [os.path.join(tmp, 'gensrc')]
         # sólo para las pruebas (JXMOD_CIF_DUMP=archivo): guardar la llave para poder descifrar y verificar el APK sin un
         # teléfono. En un armado normal esta variable no está y el secreto nunca sale del .dex.
@@ -261,19 +272,19 @@ def main():
         import re as _re
         _m = _re.search(r'<activity[^>]*android:name="([^"]+)"', open(a.manifiesto, encoding='utf-8').read())
         global PRINCIPAL
-        if _m: PRINCIPAL = (PAQUETE + _m.group(1)) if _m.group(1).startswith('.') else _m.group(1)
+        if _m: PRINCIPAL = (JAVA + _m.group(1)) if _m.group(1).startswith('.') else _m.group(1)
         if 'L%s;' % PRINCIPAL.replace('.', '/') not in definidas: fallar(PRINCIPAL, 'no está en el dex')
         # (lo que abre el lanzador: la actividad principal o, si el ícono se elige —activity-alias—, la entrada prendida)
         global LANZADOR
         _al = _re.search(r'<activity-alias\s[^>]*android:name="([^"]+)"[^>]*android:enabled="true"', open(a.manifiesto, encoding='utf-8').read())
-        LANZADOR = ((PAQUETE + _al.group(1)) if _al.group(1).startswith('.') else _al.group(1)) if _al else PRINCIPAL
+        LANZADOR = ((JAVA + _al.group(1)) if _al.group(1).startswith('.') else _al.group(1)) if _al else PRINCIPAL
         # 3) aapt2: recursos y manifiesto
         rz = os.path.join(tmp, 'res.zip')
         correr([h['aapt2'], 'compile', '--dir', os.path.join(AQUI, 'res'), '-o', rz], 'aapt2 compile')
         base = os.path.join(tmp, 'base.apk')
         cmd = [h['aapt2'], 'link', '-o', base, '--manifest', a.manifiesto, '-I', h['android'],
                '--min-sdk-version', MIN_SDK, '--target-sdk-version', TARGET_SDK, '--version-code', a.version_code,
-               '--version-name', a.version_name]
+               '--version-name', a.version_name] + (['--rename-manifest-package', PAQUETE] if a.personal else [])
         activos = activos_con_mapas(tmp, a.mapas, a.activos)
         # (las huellas de lo que trae el APK, en claro: la app baja sólo lo que una actualización cambió —Ota.java—)
         if activos and os.path.isdir(os.path.join(activos, 'www')):
@@ -323,7 +334,7 @@ def main():
             if got != want: fallar('la huella del certificado del APK firmado (' + got + ') no coincide con la usada para cifrar (' + want + ')')
         b = correr([h['aapt2'], 'dump', 'badging', final], 'aapt2 dump badging')
         esperado = ["package: name='%s' versionCode='%d' versionName='%s'" % (PAQUETE, a.version_code, a.version_name),
-                    "targetSdkVersion:'%d'" % TARGET_SDK, "application-label:'JXMod'",
+                    "targetSdkVersion:'%d'" % TARGET_SDK, "application-label:'%s'" % ETIQUETA,
                     ] + (["launchable-activity: name='%s'" % PRINCIPAL] if LANZADOR == PRINCIPAL else [])
         for e in esperado:
             if e not in b: fallar('badging: falta', repr(e), '\n' + b)
@@ -332,7 +343,7 @@ def main():
         if LANZADOR != PRINCIPAL:
             xt = correr([h['aapt2'], 'dump', 'xmltree', '--file', 'AndroidManifest.xml', final], 'aapt2 dump xmltree')
             bloques = re.split(r'\n\s*E: activity-alias', xt)[1:]
-            corto = lambda n: '.' + n[len(PAQUETE) + 1:] if n.startswith(PAQUETE + '.') else n
+            corto = lambda n: '.' + n[len(JAVA) + 1:] if n.startswith(JAVA + '.') else n
             ok = [x for x in bloques if re.search(r':name\(0x01010003\)="(%s|%s)"' % (re.escape(LANZADOR), re.escape(corto(LANZADOR))), x) and re.search(r':enabled\(0x0101000e\)=(true|\(type 0x12\)0xffffffff)', x)
                   and re.search(r':targetActivity\(0x01010202\)="(%s|%s)"' % (re.escape(PRINCIPAL), re.escape(corto(PRINCIPAL))), x) and 'android.intent.category.LAUNCHER' in x]
             if not ok: fallar('manifiesto: la entrada', LANZADOR, 'no está prendida con MAIN/LAUNCHER hacia Inicio\n' + (bloques[0][:1500] if bloques else xt[:3000]))

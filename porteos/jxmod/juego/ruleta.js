@@ -10,7 +10,7 @@ const RUL = { n: 5, abierto: false, fija: false, editar: false, sel: -1, mx: 0, 
 function rulSlots() {
   let L = Array.isArray(PREFS.ruleta) ? PREFS.ruleta.slice(0, RUL.n).map((x) => (typeof x === 'string' && x ? x : null)) : null;
   // (el baile del nene del bote, «aura farming», viene puesto)
-  if (!L) { const C = []; for (const id of [...((EMO && EMO.fav) || []), ...((EMO && EMO.rec) || []), 'c:99_01', ...((DATA && DATA.emotes) || [])]) if (!C.includes(id)) C.push(id); L = C.slice(0, RUL.n); }
+  if (!L) { const C = []; for (const id of [...((EMO && EMO.fav) || []), ...((EMO && EMO.rec) || []), ...(JXP ? JXP_TAUNTS.map((x) => 'w:' + JXP_ANM + '#' + x[0]) : ['c:99_01', ...((DATA && DATA.emotes) || [])])]) if (!C.includes(id) && (!JXP || id.startsWith('w:'))) C.push(id); L = C.slice(0, RUL.n); }
   while (L.length < RUL.n) L.push(null);
   return L;
 }

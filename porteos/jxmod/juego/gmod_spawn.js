@@ -10,7 +10,9 @@
 //   asiento a la altura de vehicle_driver_eyes y la masa y el radio de las ruedas del script. Los vehículos de Source
 //   miran a +Y en su modelo: se giran para que miren a +Z como los del juego.
 const gmLista = (n, k) => { for (const A of GMOD.addons.values()) { const M = A.listas && A.listas[n]; if (M && M.has(k)) return M.get(k); } return null; };
-const gmListaNombre = (n, k) => { const v = gmLista(n, k), s = v && v.get('Name'); return typeof s === 'string' && s.trim() ? s : k; };
+// (los nombres que empiezan con # son frases de GMod —"#npc_alyx"—: van por su traducción, como en el spawnmenu)
+const gmFraseSi = (s) => (typeof s === 'string' && s[0] === '#' && typeof gmaFrase === 'function' ? gmaFrase(s.slice(1)) || s.slice(1) : s);
+const gmListaNombre = (n, k) => { const v = gmLista(n, k), s = v && v.get('Name'); return typeof s === 'string' && s.trim() ? gmFraseSi(s.trim()) : k; };
 const _lstr = (v, k) => { const x = v && v.get(k); return typeof x === 'string' ? x : ''; };
 // el número de un "clave" "valor" del script del vehículo (el primero que aparece)
 const _kv = (s, k) => { const m = new RegExp('"' + k + '"\\s+"([-0-9.]+)', 'i').exec(s); return m ? +m[1] : NaN; };

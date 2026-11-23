@@ -5436,6 +5436,57 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     - Todos los roles del servidor están en la posición 1, así que la jerarquía la decide la antigüedad y JXBot, el
       más nuevo, queda último. Para dar «Miembro» hay que arrastrar JXBot arriba en Ajustes → Roles.
 
+## Sin publicar todavía — JXMod Personal (la versión del dueño, para aprender GMod; no se publica)
+
+Pedido: «elimina todos los mapas menos gm_construct y flatgrass… el menú de GMod sea uno renovado, buscá cómo se ponen
+mods en GMod y en GDroid e imitalo, meterle todos los datos de GMod real adentro, porque esta versión será mía nomás para
+aprender; me darás APK. Borrarás los emotes y pondrás emotes de la Workshop, y mods packs donde se detecten todos los mods
+necesarios para usar un mod de la Workshop».
+
+- **Otra app:** `com.jxmod.app.personal`, «JXMod Personal» (`apk/armar_apk.py --personal`: el mismo código con
+  `--rename-manifest-package`; las clases siguen en `com.jxmod.app` y los alias de los íconos apuntan a
+  `com.jxmod.app.Inicio`). Convive con la pública, con sus datos aparte, y **no se actualiza sola** ni por partes
+  (`Web.esPersonal`: `buscarActualizacion` sale antes; «Buscar actualización» avisa). El HTML se arma con
+  `PERSONAL=1 python3 -I armar.py …` (`window.JX_PERSONAL` → `JXP` en `nucleo.js`); sin eso todo lo de abajo no hace nada.
+- **Datos de GMod de verdad** (`herramientas/gmod_personal.mjs HTML SALIDA`, del depósito 4021 —el mismo contenido base
+  que usa el juego—; quedan **fuera del repo**, sólo adentro de esa APK en `assets/www/rb/jxp/`): los 27 spawnlists de
+  fábrica que se pueden usar (de 41: los de L4D, Portal, TF2, DoD, CS:GO y Lost Coast piden juegos que GMod no trae),
+  5645 spawnicons (26,4 MB), los 1048 iconitos de 16 px, el Lua que llena las listas (`base_npcs`, `base_vehicles`,
+  `game_hl2`) y los nombres en inglés. Tarda 32 s.
+- **Mapas:** sólo gm_construct y gm_flatgrass (RB_Construct y RB_Flatgrass, los de GMod con sus texturas); se empieza en
+  gm_flatgrass; los del Workshop siguen en «Comunidad».
+- **Menú Q como el de GMod** (`juego/gmod_personal.js`, estilo claro en `body.jxp`): pestañas Spawnlists, Weapons,
+  Entities, NPCs, Vehicles, Pill Packs, Addons, Tools y Server con sus íconos de 16 px; a la izquierda el árbol de los
+  spawnlists (hijas con sangría y su ícono) y abajo «Addons» con una carpeta por addon instalado (la pestaña GMod queda
+  escondida); la grilla con los spawnicons de GMod (el modelo al pasar por encima). Un modelo que todavía no se bajó del
+  contenido base se baja con sus partes y se pone al llegar (`jxpModeloEsperar`, ~1 s). El Lua de GMod corre como el
+  addon base «Garry's Mod» (`gmMontar('gmod', …, {base: true})`): NPCs (60, por categoría: Animals, Combine, Humans +
+  Resistance, Zombies + Enemy Aliens), vehículos (15: Jeep, Airboat, Jalopy, las sillas) y armas de HL2 por categoría.
+  Los nombres «#…» de GMod pasan por su traducción (`gmFraseSi`, también en la versión de todos).
+- **Addons como en GMod y GDroid** (pestaña Addons): «Del Workshop» — se pega el link o el número (de un addon, de una
+  colección o varios) y se arma el **mod pack**: el addon, lo que pide su página («Required items», y lo que piden esos,
+  hasta 4 niveles) y, en una colección, todos sus addons con lo suyo; con nombre, foto, peso y estado, y «Instalar todo»
+  de a uno y en orden (lo pedido primero, como el Lua de GMod). Las bases del Lua que no están marcadas las agrega la
+  instalación (`gmDependencias`). «Instalados» — prender y apagar cada uno, todos juntos, quitar e importar un .gma.
+  Las colecciones salen de la tienda: `GET /api/gmod/coleccion/ID` (nuevo en `tienda/worker.js`, `GetCollectionDetails`
+  de Steam; si no está, por el puente).
+- **Emotes de GMod y del Workshop** (en vez de los propios): las taunts y los gestos del jugador de GMod
+  (`models/m_anm.mdl`: Dance, Robot, Muscle, Laugh, Cheer, Pers, Zombie, Wave, Bow, Salute, Agree, Disagree, Becon,
+  Forward, Halt, Group) y las secuencias de los packs de emotes instalados (se ofrecen 7 del Workshop, de 2,8 a 94 MB; el
+  de wOS «Familiar Dances» trae 32 bailes). Cada secuencia se pasa al esqueleto del personaje con el mismo cálculo del
+  bonemerge (`gmanRetarget`) a 20 cuadros por segundo y queda como un emote más (`w:modelo#secuencia`). Medido: las
+  taunts de GMod son secuencias vacías (delta, todo en cero) que suman capas — los datos están en `<nombre>_base` u
+  `<nombre>_original` — y las animaciones de Valve están giradas −93° respecto de la pose de referencia (se endereza).
+  La ruleta arranca con las taunts.
+- **Pruebas:** `pruebas/personal.mjs` 7/7 (servido por http con `rb/jxp/` al lado): sólo los 2 mapas; las 9 pestañas,
+  27 spawnlists con 21 hijas y 207 spawnicons a la vista; 60 NPCs («Alyx Vance»), 15 vehículos y 14 armas sin «#»; 3
+  props de HL2 en 0,9 s y 2 NPCs; 16 emotes de GMod, ninguno propio, «Dance» con el brazo girando 113° y la cadera
+  moviéndose, y el jugador la hace; TDMCars BMW → su Base Pack primero; sin errores de JS. Las de la versión de todos
+  siguen igual: `armas_jx` 4/4, `gmod_addon` 7/7, `opciones_props` 5/5, `botones_swep` 3/3 (`npcs_menu` ya fallaba
+  igual en la 3.9.12).
+- También para todos: `gpPedirCDN` prueba hasta 10 servidores de Steam para los manifiestos y recuerda el que anduvo
+  (la mitad daba 502 y el contenido base a veces no arrancaba).
+
 ## JXMod 3.9.12: modo VR, manos con la cámara, identidad propia (Opciones y armas) y lo del panel del 22/11
 
 - Publicada con el paquete pk39e. APK 3.9.12 (versionCode 26112224, misma firma; mayor que las de prueba vr4–vr9 para

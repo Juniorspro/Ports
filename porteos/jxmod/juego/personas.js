@@ -586,6 +586,10 @@ function emote(e) {
   if (typeof e === 'string' && e.startsWith('c:') && typeof emoCargar === 'function' && !EMO.clips[e]) {
     aviso(T('emo.bajando'), 1.5); emoCargar(e).then((c) => { if (c) emote(e); else aviso(T('errRed'), 2); }); return;
   }
+  // (versión personal: una secuencia de GMod o del Workshop —gmod_personal.js—, que se arma al leer su modelo)
+  if (typeof e === 'string' && e.startsWith('w:') && typeof jxpEmoCargar === 'function' && !EMO.clips[e]) {
+    aviso(T('emo.bajando'), 1.5); jxpEmoCargar(e).then((c) => { if (c) emote(e); else aviso(T('errRed'), 2); }); return;
+  }
   if (typeof emoUsado === 'function') emoUsado(e);
   sonEmote(JUG.cuerpo, e);
   // (en primera persona se queda en primera: se ve el propio cuerpo haciendo el emote, sin la cabeza; con V se cambia)

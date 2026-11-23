@@ -66,7 +66,7 @@ function gmbCerrar() {
 }
 
 // ---- lo que trae cada addon ----
-function gmbAddons() { return [...GMOD.addons.values()].filter((A) => A && A.G); }
+function gmbAddons() { return [...GMOD.addons.values()].filter((A) => A && A.G && !A.meta.base); }
 function gmbItems(A) {
   const pms = typeof gmpLista === 'function' ? gmpLista().filter((r) => A.G.archivos.has(r)) : [];
   const L = (k) => [...((A.listas && A.listas[k]) || new Map()).keys()];

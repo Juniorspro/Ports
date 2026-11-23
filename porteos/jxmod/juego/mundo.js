@@ -2,10 +2,12 @@
 // el mapa: modelos de la escena del juego, luz y cielo, y el mundo fijo para choques (triángulos de los
 // MeshCollider y cajas de los BoxCollider) en una grilla sobre el piso (x, z).
 // ---------------------------------------------------------------------------------------------------------
-const MAPAS = ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space'];
+const MAPAS = JXP ? [] : ['Desert', 'DesertV2', 'FlatGrass', 'City', 'Base', 'BaseV2', 'Mars', 'Space'];   // (en la versión personal, ninguno de éstos: sólo los dos de GMod)
 const MAPA_ICONO = { Desert: 'Desert', DesertV2: 'desert 1', FlatGrass: 'flatgrass', City: 'city', Base: 'base', BaseV2: 'basev2', Mars: 'Mars', Space: 'Space' };
 // los mapas propios de JXMod (herramientas/mapas_rb.py): se suman a los del juego, que siguen todos
-const MAPAS_RB = ['RB_Llanura', 'RB_Colinas', 'RB_Isla', 'RB_Ciudad', 'RB_Desierto', 'RB_Luna', 'RB_Pizzeria', 'RB_Construct', 'RB_Flatgrass'];
+const MAPAS_RB = JXP ? ['RB_Construct', 'RB_Flatgrass'] : ['RB_Llanura', 'RB_Colinas', 'RB_Isla', 'RB_Ciudad', 'RB_Desierto', 'RB_Luna', 'RB_Pizzeria', 'RB_Construct', 'RB_Flatgrass'];
+// el mapa de entrada (el que se elige si no hay otro): en la personal, gm_flatgrass
+const MAPA_DEF = JXP ? 'RB_Flatgrass' : 'FlatGrass';
 // los de Garry's Mod 10 (herramientas/gmod_mapa.py, desde los BSP originales)
 const MAPAS_GMOD = ['RB_Construct', 'RB_Flatgrass'];
 for (const m of MAPAS_RB) MAPA_ICONO[m] = 'mapa_' + m;

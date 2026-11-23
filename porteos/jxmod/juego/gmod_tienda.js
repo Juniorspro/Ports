@@ -353,7 +353,7 @@ function gmTiendaAccion(a, v) {
     case 'probarGm': {
       const abrir = () => setTimeout(() => { if (typeof gmbAbrir === 'function') gmbAbrir(v); }, 600);
       if (JUEGO.estado === 'juego') { RB.desdeJuego = false; inicioMostrar(false); abrir(); return true; }
-      const m = RB.mapa || PREFS.mapa || 'FlatGrass'; SALA = null;
+      const m = RB.mapa || PREFS.mapa || MAPA_DEF; SALA = null;
       entrarConCarga(T('ld.solo'), m, () => { inicioMostrar(false); const r = empezarPartida(m); Promise.resolve(r).then(abrir); return r; }); return true;
     }
     case 'pmGm': PREFS.skin = 'gmpm:' + v; guardarPrefs(); if (JUEGO.estado === 'juego' && JUG.vivo && typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo(); if (typeof redSkin === 'function') redSkin(); menuAviso(T('gm.pm.puesto').replace('{m}', propNom('gmpm:' + v))); return true;
