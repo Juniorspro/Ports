@@ -97,7 +97,8 @@ impl Jugador {
         let Some(fz) = f.as_deref_mut() else { return };
         for &id in cerca {
             let Some(b) = fz.cuerpo(id) else { continue };
-            if b.agarrado { continue; }
+            // (lo agarrado y las partes de los muñecos —los NPC tirados—: se los atraviesa, como en la web)
+            if b.agarrado || b.grupo >= crate::persona::GRUPO_MUNECO { continue; }
             let (din, masa) = (b.dinamico(), b.masa);
             for k in 0..fz.partes(id) {
                 let c64 = [c[0] as f64, c[1] as f64, c[2] as f64];

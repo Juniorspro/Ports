@@ -13,8 +13,10 @@
 //!
 //! Todo se calcula en el espacio del personaje (la raíz en el piso, mirando a +Z); `items` lo lleva al mundo con la
 //! matriz de la raíz (`base`: posición y giro, como ubicarPersona). Da lo mismo que la web hasta 0,1 mm (lo compara
-//! personajes_prueba/examples/comparar.rs). Lo que todavía no: los emotes, las posturas y acciones de las armas, los
-//! asientos de los vehículos, el muñeco de trapo, los gorros y los que flotan sin piernas (BoiledOne).
+//! personajes_prueba/examples/comparar.rs). Para los NPC (npc.rs): los emotes de los estados del juego (la patada y los
+//! bailes: `emote`, iguales a la web hasta 0,2 mm con examples/emote_comparar.rs) y el muñeco de trapo (`esqueleto` y
+//! `poner_fijos`). Lo que todavía no: los emotes de captura, las posturas y acciones de las armas, los asientos de los
+//! vehículos, los gorros y los que flotan sin piernas (BoiledOne).
 use crate::mapa::{material, trs};
 use crate::paquete::Paquete;
 use jxmotor::escena::{Cabecera, Escena, ItemDin, Malla, Mat, Tex};
@@ -285,6 +287,27 @@ pub struct Personaje {
     pie_corr: f32, ik: Option<[PieIk; 2]>, nado_k: f32, nado_w: f32, nado_t: f32,
     /// las capturas de nado (brazada acostado y flotando parado), si se dieron
     nado: Option<Arc<[Emo; 2]>>,
+    /// el emote que está haciendo (P.emote: el clip y cuánto lleva, P.emoteT), si hace alguno (para los NPC: npc.rs)
+    emo: Option<(ClipEmote, f32)>,
+}
+
+/// la patada (patadas.js, PAT): el tramo del golpe del clip Kick, de 0,55 s a 1,95 s, 2,2 veces más rápido
+const PAT_DE: f32 = 0.55; const PAT_A: f32 = 1.95; const PAT_V: f32 = 2.2;
+/// un clip de los estados del juego (DATA.hu.est[nombre][0]) para hacerlo como emote (`Personaje::emote`, como
+/// animarHumano con P.emote): «Patada» es el tramo del golpe del clip Kick (se termina sola), Backflip y Kick se hacen una
+/// vez y los demás se repiten
+#[derive(Clone)]
+pub struct ClipEmote { c: Arc<Clip>, clave: u32, una_vez: bool, patada: bool }
+impl ClipEmote {
+    pub fn de(d: &Value, nombre: &str) -> Option<ClipEmote> {
+        let patada = nombre == "Patada"; let est = if patada { "Kick" } else { nombre };
+        let x = &d["hu"]["est"][est][0]; if !x.is_object() { return None; }
+        // (la clave del cambio de estado: una por nombre)
+        let clave = nombre.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619)) | 0x8000_0000;
+        Some(ClipEmote { c: Arc::new(Clip::de(x)), clave: clave & !1, una_vez: !patada && (est == "Backflip" || est == "Kick"), patada })
+    }
+    /// cuánto dura hasta terminarse solo (los que se repiten, nunca)
+    pub fn dur(&self) -> f32 { if self.patada { (PAT_A - PAT_DE) / PAT_V } else if self.una_vez { self.c.d as f32 } else { f32::INFINITY } }
 }
 
 /// la copia del sub-árbol desde el nodo i0 con los índices nuevos (subArbol de vista.js)
@@ -400,7 +423,7 @@ impl Personaje {
         let mut pj = Personaje { skin: skin.clone(), tam, ojo, p0_cadera, nombres, pa, act, p, r, s, w: vec![m4::id(); n], raiz: m4::id(), pieles, paleta: vec![], h, rw: vec![], dedo, tobillo: 0.08, pies: None,
             gm, huesos, ci, av_esc: f(&av["esc"]), av_dt: v3(&av["dt"], [0.0; 3]), av_dq: q4(&av["dq"], [0.0, 0.0, 0.0, 1.0]), av_rt: v3(&av["rt"], [0.0; 3]),
             v: [0.0; NV], o: [0.0; NV], ht: 0.0, fase: 0.0, aire: 0.0, caida: 0.0, agach: 0.0, mov: 0.0, cadera: 0.0, cad_w: 1.0, par: 0, clave: 0, o_t: 0.0, listo: false, pos_k: 0.0,
-            loco_esc: None, loco: [vec![None; nr], vec![None; ncw]], pie_corr: 0.0, ik: None, nado_k: 0.0, nado_w: 0.0, nado_t: 0.0, nado: None };
+            loco_esc: None, loco: [vec![None; nr], vec![None; ncw]], pie_corr: 0.0, ik: None, nado_k: 0.0, nado_w: 0.0, nado_t: 0.0, nado: None, emo: None };
         // el reposo (datosSkin): el giro de cada nodo y la suela
         pj.actualizar();
         pj.rw = pj.w.iter().map(m4quat).collect();
@@ -598,7 +621,7 @@ impl Personaje {
     fn postura(&mut self, dt: f32, e: &Estado) {
         let (Some(hi), Some(_), Some(ne), Some(he), Some(la), Some(ra)) = (self.h[HIPS], self.h[SPINE], self.h[NECK], self.h[HEAD], self.h[L_ARM], self.h[R_ARM]) else { return };
         let sp = e.vel[0].hypot(e.vel[2]);
-        let quiere = if e.en_suelo && !e.agachado && !(self.nado_k > 0.3) { if sp > 4.0 { 0.5 } else { 1.0 } } else { 0.0 };
+        let quiere = if e.en_suelo && !e.agachado && !(self.nado_k > 0.3) && self.emo.is_none() { if sp > 4.0 { 0.5 } else { 1.0 } } else { 0.0 };
         self.pos_k += (quiere - self.pos_k) * (dt * 6.0).min(1.0); let k = self.pos_k; if k < 0.01 { return; }
         self.actualizar();
         // (el frente del cuerpo: de los hombros —a la derecha del personaje— y la vertical)
@@ -614,12 +637,19 @@ impl Personaje {
         // (el cuello lleva la cabeza atrás; la cara queda como venía, sin mirar arriba)
         if d_c > 1e-3 { self.girar_ya(Some(ne), der, d_c); self.girar_ya(Some(he), der, -d_c * 0.5); }
     }
-    /// el cuerpo según lo que hace (animarHumano, sin emotes, armas, asientos ni acciones)
+    /// el cuerpo según lo que hace (animarHumano, sin armas, asientos ni acciones; los emotes de los estados del juego, como
+    /// la patada de los NPC, si se pidió uno con `emote`)
     fn animar_humano(&mut self, dt: f32, e: &Estado) {
         let gm = self.gm.clone(); let mut t = [0.0f32; NV];
         self.ht += dt as f64;
         let sp = e.vel[0].hypot(e.vel[2]);
-        if !e.en_suelo {
+        if let Some((c, et)) = self.emo.as_mut() {
+            // (animarPersona suma el tiempo del emote antes de animar; la patada se termina sola al final del golpe, Backflip
+            // y Kick al final del clip)
+            *et += dt; let (c, et) = (c.clone(), *et);
+            if c.patada { let k = PAT_DE + et * PAT_V; hum_clip(&c.c, gm.fps, k.min(PAT_A) as f64, 1.0, &mut t); if k >= PAT_A { self.emo = None; } }
+            else { hum_clip(&c.c, gm.fps, et as f64, 1.0, &mut t); if c.una_vez && et as f64 > c.c.d { self.emo = None; } }
+        } else if !e.en_suelo {
             // en el aire, el salto de GMod (jump_slam): despega y queda en lo alto del salto mientras dure la caída
             self.aire += dt; hum_clip(&gm.jump, gm.fps, (self.aire as f64 * 1.15).min(gm.jump.d * 0.5), 1.0, &mut t);
         } else {
@@ -637,7 +667,7 @@ impl Personaje {
             }
         }
         // transición suave sólo cuando cambia el estado: la diferencia con la pose anterior se apaga en ~0,2 s
-        let clave = if !e.en_suelo { u32::MAX } else { self.par * 2 + e.agachado as u32 };
+        let clave = if let Some((c, _)) = &self.emo { c.clave } else if !e.en_suelo { u32::MAX } else { self.par * 2 + e.agachado as u32 };
         if !self.listo { self.v = t; self.o = [0.0; NV]; self.clave = clave; self.listo = true; }
         if clave != self.clave {
             if self.v[3] * t[3] + self.v[4] * t[4] + self.v[5] * t[5] + self.v[6] * t[6] < 0.0 { for k in 3..7 { self.v[k] = -self.v[k]; } }
@@ -648,7 +678,7 @@ impl Personaje {
         for k in 0..NV { self.v[k] = t[k] + self.o[k] * fo; }
         self.hum_aplicar();
         // la cadera girada hacia donde camina y mirar arriba o abajo con la cabeza y el pecho
-        self.cad_w += ((if !e.en_suelo { 0.0 } else { 1.0 }) - self.cad_w) * (dt * 10.0).min(1.0);
+        self.cad_w += ((if !e.en_suelo || self.emo.is_some() { 0.0 } else { 1.0 }) - self.cad_w) * (dt * 10.0).min(1.0);
         let cad = self.cadera * self.cad_w;
         if e.mira != 0.0 || cad.abs() > 0.01 {
             let mut acc = [None; 20];
@@ -787,7 +817,8 @@ impl Personaje {
                 self.actualizar(); let meta = ay - e.piso[1] - 0.08 * self.tam;
                 self.raiz[13] += (meta - self.w[hi][13]) * self.nado_w * self.nado_k;
             }
-        } else { self.aterrizar_pies(dt, e); self.pies_ik(dt, e); }
+        } else if self.emo.is_some() { self.ik = None; }   // (en un emote no se apoyan ni se clavan los pies: dibujarPersona)
+        else { self.aterrizar_pies(dt, e); self.pies_ik(dt, e); }
         self.actualizar();
         self.calcular_paleta();
     }
@@ -818,6 +849,25 @@ impl Personaje {
     pub fn nodo(&self, nombre: &str) -> Option<M4> { let i = self.nombres.iter().position(|x| x == nombre)?; Some(self.w[i]) }
     /// la altura del tobillo sobre la suela en reposo (para medir los pies)
     pub fn tobillo(&self) -> f32 { self.tobillo }
+    /// empieza un emote (P.emote = …, P.emoteT = 0; None: lo corta). Se anima en `animar` hasta que se corte o se termine solo
+    pub fn emote(&mut self, c: Option<&ClipEmote>) { self.emo = c.map(|c| (c.clone(), 0.0)); }
+    /// si está haciendo un emote (la patada, Backflip y Kick se terminan solos)
+    pub fn en_emote(&self) -> bool { self.emo.is_some() }
+    /// el esqueleto entero (para el muñeco de trapo de npc.rs): el nombre y el padre de cada nodo y su matriz desde la raíz
+    /// (en el espacio del personaje; en el mundo: base × ésta)
+    pub fn esqueleto(&self) -> (&[String], &[i32], &[M4]) { (&self.nombres, &self.pa, &self.w) }
+    /// el muñeco de trapo (Modelo.actualizar con md.fijo): los nodos con cuerpo van donde dice `fijos` (en el mundo) y los
+    /// demás siguen a su padre con su giro de antes (la raíz, con `raiz`, la base del último cuadro animado); después se
+    /// dibuja con `items(&m4::id(), …)`. No llamar a `animar` mientras tanto
+    pub fn poner_fijos(&mut self, raiz: &M4, fijos: &[Option<M4>]) {
+        for i in 0..self.w.len() {
+            if !self.act[i] { continue; }
+            if let Some(Some(f)) = fijos.get(i) { self.w[i] = *f; continue; }
+            let l = trs(self.p[i], self.r[i], self.s[i]);
+            self.w[i] = if i == 0 || self.pa[i] < 0 { m4::mul(raiz, &l) } else { m4::mul(&self.w[self.pa[i] as usize], &l) };
+        }
+        self.calcular_paleta();
+    }
     /// lo más bajo de las suelas ahora (en el espacio del personaje): el tobillo menos su altura o el talón o la punta
     pub fn suela(&self) -> Option<f32> {
         let (lf, rf) = (self.h[L_FOOT]?, self.h[R_FOOT]?);
