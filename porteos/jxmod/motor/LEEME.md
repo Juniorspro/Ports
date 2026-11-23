@@ -4,6 +4,35 @@ El motor nativo de JXMod en Rust, para que la versión personal ande con gráfic
 celular de 1 GB. Pedido del dueño: «el porteo a un motor de Android en Rust… gráficos altos, sombras incluso reflejos en
 un dispositivo de 1 GB de RAM».
 
+## Ahora: la app 100 % nativa (`nativo/`, com.jxmod.nativo)
+
+El juego entero en Rust, sin WebView ni JavaScript (NativeActivity): lo mismo que la web en contenido y en cómo se
+juega, con otro código y otro motor. Pedido del dueño: «que rust sea el motor definitivo… en "motores" habrán 3
+opciones, vulkan, opengl 3 y Opengl 2 para dispositivos antiguos» y «la web y la nativa deben ser iguales en contenido y
+jugabilidad». Cada parte se porta de la web y se compara con ella corriendo la web de verdad en Node (las cuentas
+iguales hasta el último bit cuando se puede, o a menos de un milímetro).
+
+Los crates:
+- `jxmotor`: los tres motores —Vulkan (ash, WGSL → SPIR-V con naga), OpenGL ES 3 y OpenGL ES 2 (lo que tiene huesos se
+  deforma en la CPU: ES 2 no tiene uniformes para 56 huesos)—, con la pintura de dos tonos de las armas de JXMod.
+- `juego` (jxjuego): el mapa, el jugador, la física (`fisica.rs` con el solver de `fisica/`, el mismo de la web),
+  objetos, personajes (animación, nado, armas en la mano, sentados en los autos: `personaje.rs`, `arma_mano.rs`), NPC con
+  su IA y actitudes, vehículos y botes, agua, efectos, la vista del arma y el multijugador (`red.rs`, el protocolo de
+  red.js, y `mqtt.rs`).
+- `lua` (jxlua): el Lua de GMod (el de `gmod_lua.js`), una máquina de registros; `gmod` (jxgmod): la API de GMod
+  (`gmod_api.js`, el preludio, la carga de addons) sobre jxlua, hablando con el juego por el trait `Anfitrion`.
+- `nativo`: la app. `comun.rs` es el juego (tacto, botones, menús, HUD) y sus hijos: `herramientas.rs` (Tool Gun),
+  `combate.rs` (armas), `red_juego.rs` (salas, los demás jugadores y sus cosas, chat), `gmod_juego.rs` (los addons, su HUD,
+  el panel Mods y la tienda); `ajustes.rs`, `armas.rs`, `sonido.rs` (AAudio y MediaCodec), `red_android.rs` (TLS, HTTPS y
+  el cuadro para escribir de `Juego.java`, por JNI) y `app.rs` (Android).
+
+Probar sin celular (Mesa, llvmpipe): `CARGO_TARGET_DIR=/tmp/claude-0/jxm_target cargo build --release --offline -p
+jxmod-nativo --example foto` y `JXM_WWW=<www> JXM_LETRAS=<letras> …/examples/foto <carpeta> 1280 590` recorre todo con
+fotos (`JXM_MOTOR=vk|gl2` para los otros motores). Modos: `JXM_RED=1` (el multijugador contra un broker MQTT local, con
+otro jugador que camina, habla, pone cosas y tiene un NPC), `JXM_CARGA=1` (500 objetos y 50 NPC: lo que tarda cada
+parte), `JXM_MAPAS_FOTO=1`, `JXM_SOLO_AUTO=1`; los addons con `--example gmod_foto` (`JXM_ADDONS=<carpeta>`).
+La APK: `motor/armar_nativo.sh` y `python3 -I apk/armar_nativo.py <salida.apk> --www <www> --version-name X --version-code N`.
+
 ## Por qué empieza por el dibujo (medido)
 
 Con el procesador frenado ×6 (`Emulation.setCPUThrottlingRate`, como un celular flojo), en gm_construct con 12 props, 4
