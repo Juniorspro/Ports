@@ -11,6 +11,7 @@ use jxmotor::gpu::{Motor, Opciones};
 use khronos_egl as egl;
 use std::path::Path;
 use std::time::Instant;
+#[path = "apoyo/broker.rs"] mod broker;
 
 fn main() {
     let a: Vec<String> = std::env::args().collect();
@@ -87,6 +88,46 @@ fn main() {
     if let Some(mp) = &j.mapa { println!("mundo de choques: {} triángulos, {} cuerpos, gravedad {}", mp.mundo.n_tris(), mp.mundo.cuerpos.len(), mp.mundo.gravedad); }
     paso(&mut j, &mut m, 60);
     println!("1 aparición (1 s de caer al piso): pos {:?} suelo {} · {:.1} ms/cuadro", j.jug.pos, j.jug.suelo, j.ms); foto(&mut m, "1_aparicion");
+    // (JXM_RED=1: el multijugador contra un broker MQTT local: «Beto» —otro Red, como otro celular o la web— entra a la sala
+    // oficial de este mapa, camina delante del jugador, pone una caja, habla y tira; el juego entra por el panel de salas)
+    if std::env::var("JXM_RED").is_ok() {
+        use jxjuego::red::{Jugador, Local, ObjLocal, Puente, Red, Sala};
+        use jxmod::comun::{pos_boton, Boton, red_juego::{panel_salas_geo, BtnSala}};
+        let b = broker::Broker::nuevo(); let url = format!("mqtt://127.0.0.1:{}", b.tcp);
+        let toque = |j: &mut Juego, id: i32, x: f32, y: f32| { j.dedo_abajo(id, x, y, wf, hf); j.dedo_arriba_en(id, wf, hf); };
+        j.en_red.puente = Some(Puente::tcp()); j.en_red.red.broker = url.clone();
+        let mapa = j.mapas[0].clone(); println!("red: broker {url} · mapa {mapa} · yo {} ({})", j.en_red.red.id, j.en_red.red.nombre);
+        let mut beto = Red::nueva(Some("beto12345"), "Beto"); beto.broker = url.clone(); beto.cfg.mapa = mapa.clone(); let mut pb = Puente::tcp();
+        let _ = beto.entrar(&Sala::oficial(&mapa), None); beto.empezar(None);
+        let caja = j.catalogo.iter().flat_map(|c| c.1.iter()).find(|n| n.to_lowercase().contains("crate")).cloned().unwrap_or_else(|| j.catalogo[0].1[0].clone());
+        // (el panel de salas y la oficial de este mapa)
+        let (sx, sy) = pos_boton(wf, hf, Boton::Salas); toque(&mut j, 60, sx, sy); paso(&mut j, &mut m, 3);
+        let salas = j.en_red.red.lista_salas(); let k = salas.iter().position(|(s, _)| s.m == mapa && s.of).expect("sin la sala oficial");
+        j.en_red.scroll = (k as f32 - 1.0).max(0.0) * hf * 0.085; paso(&mut j, &mut m, 1); foto(&mut m, "8a_salas");
+        let (_, bs) = panel_salas_geo(wf, hf, salas.len(), j.en_red.scroll, false); let r = bs.iter().find(|x| x.0 == BtnSala::Sala(k)).expect("la fila no se ve").1;
+        toque(&mut j, 61, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0);
+        let (mut t, dt) = (0.0f64, 1.0 / 60.0); let jp0 = j.jug.pos; let yaw = j.jug.yaw as f64; let (fx, fz) = (yaw.sin(), yaw.cos());
+        let mut dif = -1.0;
+        for f in 0..300 {
+            t += dt; pb.bombear(&mut beto);
+            // (Beto camina de un lado al otro a 5 m adelante, mirando al jugador; su caja a 7 m)
+            let lado = (t * 0.9).sin() * 2.0; let p = [jp0[0] as f64 + fx * 5.0 + fz * lado, jp0[1] as f64, jp0[2] as f64 + fz * 5.0 - fx * lado];
+            let jug = Jugador { skin: "Hero".into(), gorro: "HatEmpty".into(), pos: p, yaw: yaw + std::f64::consts::PI, vel: [fz * (t * 0.9).cos() * 1.8, 0.0, -fx * (t * 0.9).cos() * 1.8], suelo: true, vivo: true, arma: Some("Pistol".into()), vida: 100.0, reloj: t, ..Default::default() };
+            let cp = [jp0[0] as f64 + fx * 7.0 + fz * 1.5, jp0[1] as f64 - 0.4, jp0[2] as f64 + fz * 7.0 - fx * 1.5];
+            let local = Local { jug, objs: vec![ObjLocal { id: 1, nombre: caja.clone(), pos: cp, q: [0.0, 0.0, 0.0, 1.0], congelado: true, ..Default::default() }], ..Default::default() };
+            beto.paso(dt, &local); let _ = beto.eventos(); pb.bombear(&mut beto);
+            if f == 200 { beto.chat("hola desde la red", None); }
+            if f == 230 { let o = [p[0], p[1] + 0.72, p[2]]; beto.disparo("Pistol", o, [-fx, 0.0, -fz]); }
+            paso(&mut j, &mut m, 1);
+            if f == 232 { foto(&mut m, "8b_red"); }
+            if let Some(r) = beto.remotos().first() { let q = j.jug.pos; dif = ((r.pos[0] - q[0] as f64).powi(2) + (r.pos[1] - q[1] as f64).powi(2) + (r.pos[2] - q[2] as f64).powi(2)).sqrt(); }
+        }
+        println!("red: en sala {} ({}) · veo {} jugador(es): {:?} · cosas de otros {} · objetos en el juego {}", j.en_red.en_sala(), j.en_red.red.estado(), j.en_red.red.remotos().len(),
+            j.en_red.red.remotos().iter().map(|r| format!("{} en [{:.2}, {:.2}, {:.2}]", r.nombre, r.pos[0], r.pos[1], r.pos[2])).collect::<Vec<_>>(), j.en_red.red.objetos().len(), j.objs.len());
+        println!("red: Beto ve {} jugador(es): {:?} · a {:.3} m de donde estoy", beto.remotos().len(), beto.remotos().iter().map(|r| r.nombre.clone()).collect::<Vec<_>>(), dif);
+        let (sx, sy) = pos_boton(wf, hf, Boton::Camara); toque(&mut j, 62, sx, sy); paso(&mut j, &mut m, 20); foto(&mut m, "8c_red_tercera");
+        return;
+    }
     // (JXM_SOLO_AUTO=1: sólo la prueba del auto en el pasto abierto, y termina)
     if std::env::var("JXM_SOLO_AUTO").is_ok() {
         j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 90); println!("mapa {} · jugador {:?}", j.mapas.iter().position(|x| x == "RB_Flatgrass").unwrap_or(99), j.jug.pos);

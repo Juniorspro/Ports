@@ -8,3 +8,6 @@ pub mod motor;
 pub mod sonido;
 #[cfg(target_os = "android")]
 mod app;
+// (el multijugador en Android: el TLS y el HTTPS de Java por JNI)
+#[cfg(target_os = "android")]
+mod red_android;

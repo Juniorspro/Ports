@@ -16,7 +16,10 @@ PAQUETE, ETIQUETA, ACTIVIDAD = 'com.jxmod.nativo', 'JXMod Nativo', 'com.jxmod.na
 TARGET = '/tmp/claude-0/jxm_target'
 MANIFIESTO = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="%s">
-  <uses-feature android:glEsVersion="0x00030000" android:required="true"/>
+  <!-- (OpenGL ES 2 alcanza: el motor de OpenGL 2 es para los teléfonos viejos) -->
+  <uses-feature android:glEsVersion="0x00020000" android:required="true"/>
+  <!-- (el multijugador: el broker MQTT y la tienda de salas) -->
+  <uses-permission android:name="android.permission.INTERNET"/>
   <application android:label="%s" android:icon="@mipmap/ic_launcher" android:hasCode="true" android:extractNativeLibs="false"
       android:isGame="true" android:appCategory="game" android:allowBackup="false">
     <activity android:name="%s" android:exported="true" android:screenOrientation="sensorLandscape" android:launchMode="singleTask"

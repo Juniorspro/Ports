@@ -20,6 +20,8 @@ use crate::armas::{Armas, ARMAS};
 #[path = "herramientas.rs"] mod herramientas;
 use herramientas::{Herramientas, Logica, Valor};
 #[path = "combate.rs"] mod combate;
+// (el multijugador: las salas, los demás jugadores y sus cosas)
+#[path = "red_juego.rs"] pub mod red_juego;
 use combate::Proy;
 use crate::motor::Motor3d;
 use jxmotor::gpu::TEX_LETRAS;
@@ -74,7 +76,7 @@ pub fn panel_npc_geo(w: f32, h: f32, nuevo: bool) -> ([f32; 4], Vec<(BtnNpc, [f3
 
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo }
+pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo, Salas }
 /// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
 struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
 /// dónde va cada botón con la pantalla de w × h
@@ -85,6 +87,8 @@ fn botones(w: f32, h: f32) -> Vec<Btn> {
     v.push(Btn { b: Boton::Ajustes, x: w - bw / 2.0 - 6.0, y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false });
     // (al lado, la cámara: primera persona, tercera y de frente, como el botón de la web)
     v.push(Btn { b: Boton::Camara, x: w - bw * 1.5 - 6.0, y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false });
+    // (y el multijugador: la lista de salas)
+    v.push(Btn { b: Boton::Salas, x: w - bw * 2.5 - 6.0, y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false });
     let r = h * 0.11;
     v.push(Btn { b: Boton::Saltar, x: w - h * 0.17, y: h - h * 0.2, w: r * 2.0, h: r * 2.0, redondo: true });
     v.push(Btn { b: Boton::Agachar, x: w - h * 0.17, y: h - h * 0.47, w: r * 1.5, h: r * 1.5, redondo: true });
@@ -235,6 +239,8 @@ pub struct Juego {
     pub aj: Ajustes, pub ajustes: Option<usize>,
     /// el panel de Actitud de la Tool Gun (npcPanel), la actitud y el personaje de los NPC que se pongan con ella
     pub npc_panel: Option<PanelNpc>, pub npc_act: Option<npc::Actitud>, pub npc_skin: String,
+    /// el multijugador (red_juego.rs)
+    pub en_red: red_juego::EnRed,
     pub sonido: crate::sonido::Sonido, amb_t: f32, paso_d: f32, aire_t: f32, vy_aire: f32, golpe_max: f32, saltos_vistos: u32, ahogos_vistos: u32, nadaba: bool, brazada_t: f32, azar: u32,
 }
 
@@ -266,6 +272,7 @@ impl Juego {
         let letras = letras_json.and_then(|t| Letras::de_json(&t).ok());
         let letras_px = letras_png.and_then(png_rgba);
         let (paq, error) = match paq { Ok(p) => (Some(p), None), Err(e) => (None, Some(format!("el paquete del juego: {e}"))) };
+        let en_red = red_juego::EnRed::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
             recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
@@ -273,7 +280,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), en_red, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -309,12 +316,13 @@ impl Juego {
     // —— el tacto (coordenadas en píxeles de la pantalla) ——
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
         self.dedos.retain(|d| d.id != id);
-        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
+        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
         let ve = |b: Boton| self.boton_visible(b);
         if let Some(b) = boton_en(w, h, x, y, ve) {
             if !matches!(b, Boton::Saltar | Boton::Agachar | Boton::Disparo | Boton::Disparo2 | Boton::ArmaN(_) | Boton::Bocina | Boton::Turbo) { self.sonido.tocar("Click", 0.5, 1.0, None); }
             match b {
                 Boton::Ajustes => { self.menu = None; self.ajustes = Some(0); }
+                Boton::Salas => self.abrir_salas(),
                 // (manejando, la cámara del vehículo: adentro o afuera; en primera mira adelante, como la web)
                 Boton::Camara if self.vehs.jugador.is_some() => { self.vehs.primera = !self.vehs.primera; if self.vehs.primera { self.jug.yaw = 0.0; self.jug.pitch = 0.0; } }
                 Boton::Camara => { self.camara = (self.camara + 1) % 3; self.avisar(["Primera persona", "Tercera persona", "De frente"][self.camara as usize].into()); }
@@ -346,6 +354,8 @@ impl Juego {
     }
     pub fn dedo_mueve(&mut self, id: i32, x: f32, y: f32, h: f32) {
         if self.ajustes.is_some() || self.npc_panel.is_some() { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { d.x = x; d.y = y; } return; }
+        // (en el panel de salas, arrastrar baja la lista)
+        if self.en_red.panel { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { self.en_red.scroll = (self.en_red.scroll - (y - d.y)).max(0.0); d.x = x; d.y = y; } return; }
         if let Some(m) = self.menu.as_mut() {
             // (en el menú, arrastrar baja la grilla)
             if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { m.scroll = (m.scroll - (y - d.y)).max(0.0); d.x = x; d.y = y; }
@@ -359,9 +369,9 @@ impl Juego {
     }
     /// al soltar: en el menú, un toque (sin arrastrar) elige
     pub fn dedo_arriba_en(&mut self, id: i32, w: f32, h: f32) {
-        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() {
+        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel {
             // (sólo los toques que empezaron con el menú abierto: no el que lo abrió, ni la palanca que se venía usando)
-            if let Some(d) = self.dedos.iter().find(|d| d.id == id && d.boton.is_none() && !d.palanca) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); if self.ajustes.is_some() { self.toque_ajustes(x, y, w, h); } else if self.npc_panel.is_some() { self.toque_npc(x, y, w, h); } else { self.toque_menu(x, y, w, h); } } }
+            if let Some(d) = self.dedos.iter().find(|d| d.id == id && d.boton.is_none() && !d.palanca) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); if self.ajustes.is_some() { self.toque_ajustes(x, y, w, h); } else if self.npc_panel.is_some() { self.toque_npc(x, y, w, h); } else if self.en_red.panel { self.toque_salas(x, y, w, h); } else { self.toque_menu(x, y, w, h); } } }
         }
         self.dedo_arriba(id);
     }
@@ -771,6 +781,8 @@ impl Juego {
         }
         // lo que pasó en el mundo: los NPC y los vehículos (sonidos, daño, el que sale despedido) y el agua
         if self.mapa.is_some() { self.eventos_mundo(dt); }
+        // el multijugador: lo que llega, lo mío para mandar, los demás y sus cosas
+        unsafe { self.red_cuadro(m, dt); }
         // manejando: el jugador va en el asiento y la cámara es la del vehículo (vehiculoCamara)
         let cam_veh = self.camara_vehiculo();
         let (ojos, _) = self.jug.ojos(dt); self.ojos_ult = ojos;
@@ -876,7 +888,7 @@ impl Juego {
             } }
             // los NPC: su animación (sólo los que se ven) y lo que se dibuja
             let vpm = m4::mul(&p, &vista); self.vp_ult = vpm;
-            self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items);
+            self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items); self.red_items(&mut items);
             // los efectos: avanzan, y sus bloques (partículas, trazas, marcas) y sus luces —primero: GL2 usa 4—
             self.ef.calidad(self.aj.calidad.min(4)); self.ef.alto_px = hf; self.ef.paso(dt, efx::GRAV);
             let efectos = self.ef.bloques(&vpm, cam);
@@ -1041,9 +1053,9 @@ impl Juego {
         }
         // (los botones: Ajustes, saltar, agacharse, volar, objetos y deshacer)
         // (con un menú abierto, sólo el de Ajustes: los demás quedarían debajo del panel)
-        let abierto = self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some();
+        let abierto = self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel;
         for b in botones(wf, hf) {
-            if (abierto && b.b != Boton::Ajustes) || !self.boton_visible(b.b) { continue; }
+            if (abierto && !matches!(b.b, Boton::Ajustes | Boton::Salas)) || !self.boton_visible(b.b) { continue; }
             let nom_arma: &str = &{ let d = self.armas.def(); if d.car > 0 { if self.armas.recargando > 0.0 { format!("{} · recargando", d.nom) } else { format!("{} · {} | ∞", d.nom, self.armas.balas.get(self.armas.i).copied().unwrap_or(d.car)) } } else { d.nom.to_string() } };
             let (n, elegido) = match b.b {
                 Boton::Disparo => (match self.armas.def().tipo { "fisica" => if self.armas.agarre.is_some() { "Soltar" } else { "Agarrar" }, "golpe" => "Pegar", _ => "Disparar" }, self.armas.agarre.is_some() || self.armas.grav.is_some() || self.apretado(Boton::Disparo)),
@@ -1064,6 +1076,7 @@ impl Juego {
                 Boton::Objetos => ("Objetos", self.menu.is_some()),
                 Boton::Deshacer => ("Deshacer", false),
                 Boton::Bocina => ("Bocina", self.apretado(Boton::Bocina)),
+                Boton::Salas => (if self.en_red.en_sala() { "En sala" } else { "En línea" }, self.en_red.panel || self.en_red.en_sala()),
                 Boton::Turbo => ("Turbo", self.apretado(Boton::Turbo) || self.vehs.jugador.and_then(|j| self.vehs.de(j.0)).map_or(false, |v| v.turbo)),
             };
             if b.redondo {
@@ -1098,6 +1111,8 @@ impl Juego {
             l.caja(&mut u, sx - an / 2.0 - tt * 0.5, sy - tt * 1.6, an + tt, tt * 1.5, tt * 0.4, [1.0, 1.0, 1.0, 0.92]);
             l.texto(&mut u, sx - an / 2.0, sy - tt * 1.35, tt, [0.0, 0.0, 0.0, 1.0], txt);
         } }
+        // (los demás jugadores: su nombre y lo que escriben)
+        if !abierto { self.red_hud(l, &mut u, wf, hf, t); }
         // (la mira del francotirador: todo negro menos un círculo, con la cruz; y el rojo cuando a uno le pegan)
         if self.armas.zoom && self.camara == 0 {
             let r = hf * 0.46; let (cx, cy) = (wf / 2.0, hf / 2.0); let ng = [0.0, 0.0, 0.0, 1.0];
@@ -1224,6 +1239,7 @@ impl Juego {
             }
             if !pn.est.is_empty() { l.texto(&mut u, mx, c[1] + c[3] - hf * 0.06, t * 0.62, [0.95, 0.75, 0.3, 1.0], &pn.est); }
         }
+        self.red_panel(l, &mut u, wf, hf, t);
         // (el aviso, arriba de los menús: lo que se acaba de elegir se ve)
         if let Some((a, ta)) = &self.aviso {
             if ta.elapsed().as_secs_f32() < 4.0 { let an = l.ancho(t, a); l.caja(&mut u, (wf - an) / 2.0 - t * 0.8, hf * 0.42, an + t * 1.6, t * 1.8, t * 0.5, [0.0, 0.0, 0.0, 0.6]); l.texto(&mut u, (wf - an) / 2.0, hf * 0.42 + t * 0.4, t, bl, a); }

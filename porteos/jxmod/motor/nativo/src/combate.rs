@@ -26,6 +26,8 @@ impl Juego {
         if d.car > 0 && self.armas.balas.get(i).copied().unwrap_or(d.car) == 0 { self.recargar(); return; }
         self.armas.t = d.cad;
         if let Some(pj) = self.pj.as_mut() { pj.accion(personaje::Gesto::Tiro); }   // (humAccion 'tiro')
+        // (en una sala: el tiro a los demás, desde mis ojos hacia donde apunto)
+        if self.en_red.en_sala() { let (o, f) = (self.ojos_ult, self.mira()); self.en_red.red.disparo(d.n, [o[0] as f64, o[1] as f64, o[2] as f64], [f[0] as f64, f[1] as f64, f[2] as f64]); }
         let (o, dir) = (self.ojos_ult, self.mira());
         let sf = if d.s_f.is_empty() { "" } else { d.s_f[(self.armas.azar01() * d.s_f.len() as f32) as usize % d.s_f.len()] };
         match d.tipo {
@@ -165,6 +167,8 @@ impl Juego {
     /// explosion: el sonido, el temblor, los cuerpos empujados (y girados) según la distancia, el daño a los objetos y al
     /// jugador (que también sale empujado)
     pub(super) fn explosion(&mut self, p: [f32; 3], radio: f32, dan: f32) {
+        // (una que nace acá, en una sala: a los demás; la que llega de otro no se vuelve a mandar)
+        if !self.en_red.desde_red && self.en_red.en_sala() { self.en_red.red.explosion([p[0] as f64, p[1] as f64, p[2] as f64], radio as f64, dan as f64, None); }
         self.sonido.tocar("GrenadeExplode", 1.4, 1.0, Some(p));
         // (el fuego, el humo, las chispas, la luz y la quemadura en el piso: efectoExplosion)
         let esc = (radio / 6.0).clamp(0.6, 3.0); let piso = self.mapa.as_ref().and_then(|mp| efx::piso_bajo(&mp.mundo, p, esc)); self.ef.explosion(p, esc, piso);

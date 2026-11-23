@@ -90,6 +90,8 @@ impl Juego {
     /// saca un objeto (y su cuerpo) del mundo
     pub(super) fn borrar_obj(&mut self, i: usize) {
         let o = self.objs.remove(i);
+        // (en una sala: borrar una de otro le avisa al dueño; una mía se saca de lo que ven los demás)
+        if self.en_red.en_sala() { let clave = self.en_red.olvidar_cosa(o.id).unwrap_or_else(|| self.en_red.red.clave_propia(o.id)); self.en_red.red.borrar(&clave); }
         if let Some(id) = o.cuerpo {
             if self.armas.agarre.as_ref().map(|a| a.id) == Some(id) || self.armas.grav.as_ref().map(|g| g.id) == Some(id) { self.armas.olvidar(); }
             if let Some(mp) = self.mapa.as_ref() { if let Some(sl) = self.vehs.quitar(id, &self.fis, &mp.mundo) { self.jug.pos = [sl.pos[0] as f32, sl.pos[1] as f32, sl.pos[2] as f32]; } }
