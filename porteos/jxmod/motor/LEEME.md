@@ -51,7 +51,23 @@ cambia nada; el dibujo nativo sí.
    abollados y el agua de los recipientes, portales, el cielo 3D de los mapas del Workshop, la sombra de la linterna,
    el resplandor (bloom), texturas comprimidas (ETC2) y, más adelante, la física y la lógica.
 
-### Protocolo (lo mismo por JNI y en las grabaciones del banco)
+#### La física en Rust (`fisica/`, WebAssembly)
+
+El bucle de subpasos de `physStep` (`juego/fisica.js`: integrar, uniones con cono, torsión y bisagra, contactos con
+fricción, velocidades y rebote, 12 subpasos por paso) corre en Rust con las mismas cuentas y en el mismo orden; la
+detección de choques sigue en JavaScript. Los cuerpos, contactos y uniones viajan en arreglos de números (28, 24 y 36
+por cada uno). `./armar_fisica.sh` deja el módulo (45 KB) en `juego/fisica_wasm.js`, que `armar.py` mete antes de
+`fisica.js`. En la versión personal va de entrada; en la pública sólo con `PREFS.fisicaRust` (`?fisjs=1` lo apaga).
+
+Medido con la misma escena (16 cajas cayendo, una pila de 6 y 6 tambores; 240 pasos con el juego quieto): las
+posiciones finales iguales a las de JS (mediana 0,000 m, media 1,2 cm; la pila idéntica, los mismos 16 dormidos); el
+solver de ~0,4 a 0,17 ms por paso y el paso entero de 1,18 a 1,04 ms. Lo que queda en JS es la detección (~0,85 ms):
+es lo siguiente para pasar.
+
+Si el motor nativo falla en un celular (dice «error» o no dibuja en 6 s), el juego lo apaga solo, vuelve a WebGL y
+avisa el motivo.
+
+## Protocolo (lo mismo por JNI y en las grabaciones del banco)
 
 - Recursos `JXE1`: `'JXE1'`, u32 con el largo del JSON, el JSON (`mallas`, `mats`, `texs`, `lms`, `agua`, cada uno con
   su `id` del juego) y los bloques de datos alineados a 4.

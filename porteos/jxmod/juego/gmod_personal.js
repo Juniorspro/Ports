@@ -523,8 +523,19 @@ function jxmPoner(on) {
     if (!on && JXM.prendido) { window.JXMotor.apagar(); JXM.prendido = false; }
   }
   JXM.on = on; document.body.classList.toggle('jxmNat', on);
-  if (on) jxmCalidad();
+  if (on) { jxmCalidad(); jxmVigilar(); }
   jxmReiniciar();
+}
+// el motor nativo se vigila cada segundo: si dice «error» o en 6 s no dibujó ningún cuadro (la placa no le arma la
+// superficie, un sombreador que no compila en ese celular), se apaga solo y el juego vuelve a dibujar todo con WebGL
+function jxmVigilar() {
+  clearInterval(JXM.vig); JXM.vigT = performance.now();
+  JXM.vig = setInterval(() => {
+    if (!JXM.on || JXM.grab) { clearInterval(JXM.vig); return; }
+    const e = jxmEstado();
+    const mal = /^error/.test(e) || (!/^ok/.test(e) && performance.now() - JXM.vigT > 6000 && JUEGO.estado === 'juego' && !document.hidden);
+    if (mal) { clearInterval(JXM.vig); jxmPoner(false); PREFS.jxMotor = false; guardarPrefs(); aviso('Motor nativo apagado: ' + e.slice(0, 120)); if (typeof cnAnotar === 'function') cnAnotar('jxmotor', e.slice(0, 300)); }
+  }, 1000);
 }
 // lo que dice el motor nativo (cuadros por segundo, ms, memoria) o su error
 function jxmEstado() { try { return JXM.grab ? 'grabando' : JXM.prendido ? String(window.JXMotor.estado()) : 'apagado'; } catch (e) { return String(e); } }
