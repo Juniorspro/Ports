@@ -29,6 +29,8 @@ pub struct Juego {
     dedos: Vec<Dedo>,
     pub placa: Placa, aviso: Option<(String, Instant)>, datos: Option<std::path::PathBuf>,
     t_ant: Instant, t0: Instant, pub fps: f32, pub ms: f32, cuenta: u32, t_med: Instant, n_med: u32,
+    /// lo que tarda la placa en dibujar un cuadro (medido cada 60 cuadros esperando a que termine: glFinish)
+    pub placa_ms: f32,
     recargar: bool,
     /// (para las pruebas: el tiempo fijo de cada cuadro, en vez del reloj)
     pub dt_fijo: Option<f32>,
@@ -59,7 +61,7 @@ impl Juego {
         let letras_px = letras_png.and_then(png_rgba);
         let (paq, error) = match paq { Ok(p) => (Some(p), None), Err(e) => (None, Some(format!("el paquete del juego: {e}"))) };
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass", "RB_Construct"], mapa_i: 0, letras, letras_px, pos: [0.0; 3], yaw: 0.0, pitch: 0.0,
-            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0,
+            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
             recargar: true, dt_fijo: None, error, mapa_cartel: false };
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
         j
@@ -72,6 +74,10 @@ impl Juego {
         }
     }
 
+    /// elegir el mapa por su nombre (se arma en el cuadro siguiente)
+    pub fn poner_mapa(&mut self, nombre: &str) -> bool {
+        match self.mapas.iter().position(|m| *m == nombre) { Some(i) => { self.mapa_i = i; self.recargar = true; true } None => false }
+    }
     /// con ventana nueva (el motor nuevo): se carga todo de nuevo
     pub fn al_abrir(&mut self) { self.recargar = true; }
 
@@ -123,6 +129,14 @@ impl Juego {
     /// un cuadro: mover, dibujar el mapa y el HUD en `salida` (None: la pantalla). Lo que tarda se mide afuera (con la
     /// espera a la pantalla): `medir`
     pub unsafe fn cuadro(&mut self, m: &mut Motor, salida: Option<glow::Framebuffer>, w: i32, h: i32, placa_txt: &str) {
+        use glow::HasContext;
+        let medir = self.cuenta % 60 == 30 && self.mapa.is_some() && !self.recargar;
+        if medir { m.gl.finish(); }
+        let t = Instant::now();
+        self.cuadro_dentro(m, salida, w, h, placa_txt);
+        if medir { m.gl.finish(); let x = t.elapsed().as_secs_f32() * 1000.0; self.placa_ms = if self.placa_ms == 0.0 { x } else { self.placa_ms * 0.5 + x * 0.5 }; }
+    }
+    unsafe fn cuadro_dentro(&mut self, m: &mut Motor, salida: Option<glow::Framebuffer>, w: i32, h: i32, placa_txt: &str) {
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
             if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.cargar_letras(m); }
@@ -154,7 +168,7 @@ impl Juego {
         let Some(l) = &self.letras else { return };
         let mut u = vec![]; let t = hf * 0.032; let (bl, gr) = ([1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.45]);
         let usa = if self.placa.hecha() { self.placa } else { Placa::Gl3 };
-        l.texto_sombra(&mut u, t * 0.5, t * 0.5, t, bl, &format!("{:.0} fps · {:.1} ms · {}×{}", self.fps, self.ms, w, h));
+        l.texto_sombra(&mut u, t * 0.5, t * 0.5, t, bl, &format!("{:.0} fps · cuadro {:.1} ms · placa {:.1} ms · {}×{}", self.fps, self.ms, self.placa_ms, w, h));
         l.texto_sombra(&mut u, t * 0.5, t * 1.75, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("JXMod nativo (Rust) · {} · {}", usa.nombre(), placa_txt));
         l.texto_sombra(&mut u, t * 0.5, t * 2.7, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("{} · sin choques todavía", self.mapas[self.mapa_i]));
         // (los botones: los tres motores y el mapa)

@@ -1,7 +1,7 @@
 //! El dibujo nativo (GLES 3.0) de lo que manda el juego:
 //!  - recursos que llegan de a poco (mallas, texturas, luces horneadas, materiales y el agua), cada uno con su número del
 //!    juego, y un cuadro aparte (cámara, sol, luces y la lista de lo que se dibuja con sus matrices y huesos);
-//!  - la luz del juego: sol con sombra (mapa de profundidad del sol, 3×3 muestras), cielo y suelo, luz horneada de los mapas
+//!  - la luz del juego: sol con sombra (dos cascadas en un mapa de profundidad del sol, 3×3 muestras), cielo y suelo, luz horneada de los mapas
 //!    de Source, luces puntuales y especiales (linternas), niebla y el tono de pantalla (ACES), como el sombreador de WebGL;
 //!  - los personajes con huesos (la piel en la placa, 56 huesos como en WebGL);
 //!  - el agua de Half-Life 2: su mapa de normales en dos capas, Fresnel, el reflejo de la escena y lo turbio por lo hondo;
@@ -39,9 +39,9 @@ struct Destino { fb: glow::Framebuffer, color: glow::Texture, prof: Option<glow:
 
 // los uniformes, por número (buscarlos por nombre en cada dibujo cuesta)
 #[derive(Clone, Copy)]
-enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP }
-const NU: usize = U::IVP as usize + 1;
-const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP"];
+enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2 }
+const NU: usize = U::Sesgo2 as usize + 1;
+const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2"];
 struct Prog { p: glow::Program, u: Vec<Option<glow::UniformLocation>>, piel: bool }
 impl Prog {
     fn u(&self, k: U) -> Option<&glow::UniformLocation> { self.u[k as usize].as_ref() }
@@ -54,14 +54,14 @@ layout(location = 0) in vec3 aP; layout(location = 1) in vec4 aN; layout(locatio
 #ifdef PIEL
 layout(location = 3) in vec4 aJ; layout(location = 4) in vec4 aW; uniform vec4 uB[168];
 #endif
-uniform mat4 uVP, uM, uSVP; uniform vec3 uMn, uSc; uniform vec4 uSt; uniform vec2 uSesgo;
+uniform mat4 uVP, uM, uSVP, uSVP2; uniform vec3 uMn, uSc; uniform vec4 uSt; uniform vec2 uSesgo, uSesgo2;
 #ifdef INST
 layout(location = 6) in vec4 iM0; layout(location = 7) in vec4 iM1; layout(location = 8) in vec4 iM2; layout(location = 9) in vec4 iM3;
 #define MM mat4(iM0, iM1, iM2, iM3)
 #else
 #define MM uM
 #endif
-out vec3 vW; out vec3 vN; out vec2 vU; out vec2 vL; out vec4 vS; out float vMz;
+out vec3 vW; out vec3 vN; out vec2 vU; out vec2 vL; out vec4 vS; out vec4 vS2; out float vMz;
 void main() {
   vec3 p = uMn + aP * uSc, n = aN.xyz;
 #ifdef PIEL
@@ -72,7 +72,8 @@ void main() {
   mat4 M = MM; vec4 w = M * vec4(p, 1.0);
   vMz = aN.w; vW = w.xyz; vN = mat3(M) * n; vU = aU * uSt.xy + uSt.zw; vL = aL;
   // (la sombra se lee corrida por la normal un píxel y medio de la sombra: sin acné y sin despegar la sombra de lo que toca)
-  vS = uSVP * vec4(w.xyz + normalize(vN + vec3(1e-6)) * uSesgo.y, 1.0);
+  vec3 nn = normalize(vN + vec3(1e-6));
+  vS = uSVP * vec4(w.xyz + nn * uSesgo.y, 1.0); vS2 = uSVP2 * vec4(w.xyz + nn * uSesgo2.y, 1.0);
   gl_Position = uVP * w;
 }"#;
 const FS_LUZ: &str = r#"#version 300 es
@@ -80,10 +81,10 @@ precision highp float; precision highp sampler2DShadow;
 // el sombreado de WebGL (gl.js, LUZ 3, salida LDR): la luz en lineal, el BRDF con la rugosidad y el metal de cada material,
 // el reflejo del cielo, las luces puntuales y especiales, la luz horneada, la niebla con el sol y ACES
 uniform sampler2D uT, uLM, uT1, uT2, uT3; uniform vec4 uS1; uniform vec2 uS3; uniform sampler2DShadow uSM;
-uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uMat, uNie; uniform vec2 uSesgo; uniform float uExpo, uSombra, uClip; uniform int uModo;
+uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uMat, uNie; uniform vec2 uSesgo, uSesgo2; uniform float uExpo, uSombra, uClip; uniform int uModo;
 uniform vec3 uTop, uMid, uBot; uniform vec2 uExp; uniform float uCieloK;
 uniform vec4 uLP[12], uLC[12], uLD[12]; uniform int uLN, uLE;
-in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in vec4 vS; in float vMz; out vec4 o;
+in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in vec4 vS; in vec4 vS2; in float vMz; out vec4 o;
 const float PI = 3.14159265;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
@@ -96,13 +97,25 @@ vec3 brdf(vec3 n, vec3 v, vec3 l, vec3 dif, vec3 f0, float a) {
   vec3 F = f0 + (1.0 - f0) * pow(1.0 - lh, 5.0);
   return (dif * (1.0 - F) + min(D * V, 40.0) * F * PI) * nl;
 }
+// la sombra en dos cascadas, una al lado de la otra en el mismo mapa: la de cerca (fina) y la de lejos; en el borde de la de
+// cerca se mezclan (sin costura)
+float pcf(vec3 q, float k, float b) {
+  vec2 t = 1.0 / vec2(textureSize(uSM, 0)); float s = 0.0;
+  float x0 = k * 0.5 + 1.5 * t.x, x1 = k * 0.5 + 0.5 - 1.5 * t.x;
+  for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) s += texture(uSM, vec3(clamp((q.x + k) * 0.5 + float(i) * t.x, x0, x1), q.y + float(j) * t.y, q.z - b));
+  return s / 9.0;
+}
 float sombra(float nd) {
   if (uSombra < 0.5) return 1.0;
-  vec3 q = vS.xyz / vS.w * 0.5 + 0.5;
-  if (q.x <= 0.0 || q.y <= 0.0 || q.x >= 1.0 || q.y >= 1.0 || q.z >= 1.0) return 1.0;
-  vec2 t = 1.0 / vec2(textureSize(uSM, 0)); float b = uSesgo.x * (1.0 + 2.0 * (1.0 - nd)), s = 0.0;
-  for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) s += texture(uSM, vec3(q.xy + vec2(i, j) * t, q.z - b));
-  return s / 9.0;
+  float inc = 1.0 + 2.0 * (1.0 - nd);
+  vec3 q0 = vS.xyz / vS.w * 0.5 + 0.5, q1 = vS2.xyz / vS2.w * 0.5 + 0.5;
+  float g = max(abs(q0.x - 0.5), abs(q0.y - 0.5)) * 2.0;
+  bool lejos = q1.x <= 0.0 || q1.y <= 0.0 || q1.x >= 1.0 || q1.y >= 1.0 || q1.z >= 1.0;
+  if (g < 0.97 && q0.z < 1.0) {
+    float s0 = pcf(q0, 0.0, uSesgo.x * inc), k = smoothstep(0.8, 0.97, g);
+    return k > 0.0 && !lejos ? mix(s0, pcf(q1, 1.0, uSesgo2.x * inc), k) : s0;
+  }
+  return lejos ? 1.0 : pcf(q1, 1.0, uSesgo2.x * inc);
 }
 void main() {
   if (vW.y < uClip) discard;   // (el reflejo: sólo lo de arriba del agua)
@@ -392,6 +405,8 @@ pub struct Motor {
     escena_rt: Option<Destino>,
     svp: M4,
     sesgo: [f32; 2],
+    /// la cascada de lejos (la de cerca es svp/sesgo)
+    svp2: M4, sesgo2: [f32; 2],
     /// el cuadro (sin sus cosas, que van en `items`)
     pub c: Option<Cuadro>,
     items: Vec<ItemDin>,
@@ -439,7 +454,7 @@ impl Motor {
         let ui = vbo(&[(0, 2, 0), (1, 2, 8), (2, 4, 16)], 32)?;
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
         Ok(Motor { gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, cielo: None, cubo: None, blanca,
-            p_luz, p_luz_piel, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
+            p_luz, p_luz_piel, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
             dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok() })
     }
@@ -598,7 +613,7 @@ impl Motor {
     unsafe fn luces(&self, p: &Prog, vp: &M4, clip: f32) {
         let gl = &self.gl; let c = self.c.as_ref().unwrap(); let l = &c.luz; let s = self.sol(); let cp = &c.pos;
         gl.use_program(Some(p.p));
-        gl.uniform_matrix_4_f32_slice(p.u(U::VP), false, vp); gl.uniform_matrix_4_f32_slice(p.u(U::SVP), false, &self.svp);
+        gl.uniform_matrix_4_f32_slice(p.u(U::VP), false, vp); gl.uniform_matrix_4_f32_slice(p.u(U::SVP), false, &self.svp); gl.uniform_matrix_4_f32_slice(p.u(U::SVP2), false, &self.svp2);
         gl.uniform_3_f32(p.u(U::Sol), s[0], s[1], s[2]); gl.uniform_3_f32(p.u(U::SolC), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
         gl.uniform_3_f32(p.u(U::AmbS), l.amb_s[0], l.amb_s[1], l.amb_s[2]); gl.uniform_3_f32(p.u(U::AmbG), l.amb_g[0], l.amb_g[1], l.amb_g[2]);
         gl.uniform_3_f32(p.u(U::NieC), l.nie.c[0], l.nie.c[1], l.nie.c[2]); gl.uniform_3_f32(p.u(U::Nie), l.nie.a, l.nie.b, if l.nie.m > 0.0 { l.nie.m } else { 1.0 });
@@ -610,7 +625,7 @@ impl Motor {
         gl.uniform_2_f32(p.u(U::Exp), ex[0], ex[1]); gl.uniform_1_f32(p.u(U::CieloK), k);
         gl.uniform_1_f32(p.u(U::Sombra), if self.op.sombras && self.sombra.is_some() { 1.0 } else { 0.0 });
         gl.uniform_1_f32(p.u(U::Clip), clip);
-        gl.uniform_2_f32(p.u(U::Sesgo), self.sesgo[0], self.sesgo[1]);
+        gl.uniform_2_f32(p.u(U::Sesgo), self.sesgo[0], self.sesgo[1]); gl.uniform_2_f32(p.u(U::Sesgo2), self.sesgo2[0], self.sesgo2[1]);
         if let Some((_, t, _)) = &self.sombra { gl.active_texture(glow::TEXTURE2); gl.bind_texture(glow::TEXTURE_2D, Some(*t)); }
         if p.u(U::LN).is_some() {
             let (nl, ne) = (c.luces.len().min(MAX_LUCES), c.esp.len().min(MAX_LUCES - c.luces.len().min(MAX_LUCES)));
@@ -686,14 +701,15 @@ impl Motor {
         dibujos
     }
 
-    /// la sombra del sol: un mapa de profundidad ortográfico alrededor de la cámara, con lo opaco
+    /// la sombra del sol: dos mapas de profundidad ortográficos (cascadas) en una sola textura, uno al lado del otro: el de
+    /// cerca (un cuarto del radio, delante de la cámara: ~1 cm por píxel con 2048) y el de lejos (todo el radio), con lo opaco
     unsafe fn pasada_sombra(&mut self) {
         let px = self.op.sombra_px;
         if self.sombra.as_ref().map(|s| s.2 != px).unwrap_or(true) {
             if let Some((f, t, _)) = self.sombra.take() { self.gl.delete_framebuffer(f); self.gl.delete_texture(t); }
             let gl = &self.gl;
             let t = gl.create_texture().unwrap(); gl.bind_texture(glow::TEXTURE_2D, Some(t));
-            gl.tex_storage_2d(glow::TEXTURE_2D, 1, glow::DEPTH_COMPONENT24, px, px);
+            gl.tex_storage_2d(glow::TEXTURE_2D, 1, glow::DEPTH_COMPONENT24, px * 2, px);
             gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32); gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
             gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_COMPARE_MODE, glow::COMPARE_REF_TO_TEXTURE as i32); gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_COMPARE_FUNC, glow::LEQUAL as i32);
             gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32); gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
@@ -702,29 +718,20 @@ impl Motor {
             gl.draw_buffers(&[glow::NONE]);
             self.sombra = Some((f, t, px));
         }
-        let c = self.c.as_ref().unwrap().pos; let s = self.sol(); let r = self.op.sombra_radio;
-        // (el centro, en pasos de un píxel de la sombra: la sombra no tiembla al moverse la cámara)
-        let paso = 2.0 * r / px as f32; let cen = [(c[0] / paso).round() * paso, (c[1] / paso).round() * paso, (c[2] / paso).round() * paso];
-        // (lo que hay entre el sol y la caja, hasta 80 m más arriba, también tapa; el margen de profundidad, en metros)
-        let alto = r + 80.0; let rango = alto + r;
-        let ojo = [cen[0] + s[0] * alto, cen[1] + s[1] * alto, cen[2] + s[2] * alto];
-        let arriba = if s[1].abs() > 0.95 { [0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0] };
-        self.svp = mat::mul(&mat::orto(-r, r, -r, r, 0.5, rango), &mat::mirar(ojo, cen, arriba));
-        self.sesgo = [0.04 / rango, 1.5 * paso];
-        let lista = self.recortar(&self.svp.clone(), true);
+        let (svp0, ses0) = self.cascada(0); let (svp1, ses1) = self.cascada(1);
+        self.svp = svp0; self.sesgo = ses0; self.svp2 = svp1; self.sesgo2 = ses1;
+        let l0 = self.recortar(&svp0, true); let l1 = self.recortar(&svp1, true);
         if self.dbg && self.cuadro == 0 {
             let piel: Vec<_> = self.items.iter().filter(|it| !it.h.is_empty()).map(|it| (it.m, it.esf, it.fl, it.h.len())).collect();
-            let en: usize = lista.iter().filter(|&&i| !self.items[i].h.is_empty()).count();
-            eprintln!("sombra: {} cosas, {} con huesos de {} · {:?}", lista.len(), en, piel.len(), &piel[..piel.len().min(6)]);
+            eprintln!("sombra: {} + {} cosas, {} con huesos · {:?}", l0.len(), l1.len(), piel.len(), &piel[..piel.len().min(6)]);
         }
-        let gl = &self.gl;
-        let (f, _, _) = self.sombra.as_ref().unwrap();
-        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(*f)); gl.viewport(0, 0, px, px);
-        gl.clear(glow::DEPTH_BUFFER_BIT); gl.enable(glow::POLYGON_OFFSET_FILL); gl.polygon_offset(1.5, 3.0);
-        let svp = self.svp;
-        self.dibujos += self.dibujar_lista(&lista, &svp, -1e9, true);
+        let (f, _, _) = *self.sombra.as_ref().unwrap();
+        { let gl = &self.gl; gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.viewport(0, 0, px * 2, px); gl.clear(glow::DEPTH_BUFFER_BIT); gl.enable(glow::POLYGON_OFFSET_FILL); gl.polygon_offset(1.5, 3.0); }
+        self.gl.viewport(0, 0, px, px); self.dibujos += self.dibujar_lista(&l0, &svp0, -1e9, true);
+        self.gl.viewport(px, 0, px, px); self.dibujos += self.dibujar_lista(&l1, &svp1, -1e9, true);
         self.gl.disable(glow::POLYGON_OFFSET_FILL);
     }
+    fn cascada(&self, k: usize) -> (M4, [f32; 2]) { cascada(self.c.as_ref().unwrap(), self.sol(), &self.op, k) }
 
     /// el reflejo del agua: la escena espejada en el plano del agua, a una fracción de la resolución
     unsafe fn pasada_reflejo(&mut self, w: i32, h: i32, ay: f32) {
@@ -908,3 +915,20 @@ fn f32_bytes(d: &[f32]) -> &[u8] { unsafe { std::slice::from_raw_parts(d.as_ptr(
 
 unsafe fn borrar_malla(gl: &glow::Context, m: MallaGL) { gl.delete_vertex_array(m.vao); for b in m.bufs { gl.delete_buffer(b); } }
 
+
+/// la matriz y los sesgos de una cascada de la sombra del sol (0: la de cerca —un cuarto del radio, corrida hacia donde mira
+/// la cámara—, 1: la de lejos —todo el radio—): ortográfica, en pasos de un píxel de la sombra para que no tiemble. La usan
+/// los tres motores
+pub fn cascada(c: &crate::escena::Cuadro, s: [f32; 3], op: &Opciones, k: usize) -> (M4, [f32; 2]) {
+    let px = op.sombra_px;
+    let r = if k == 0 { op.sombra_radio * 0.25 } else { op.sombra_radio };
+    // (la fila de w de la matriz de la cámara es para adelante)
+    let mut c0 = c.pos;
+    if k == 0 { let f = mat::norm([c.vp[3], c.vp[7], c.vp[11]]); for i in 0..3 { c0[i] += f[i] * r * 0.6; } }
+    let paso = 2.0 * r / px as f32; let cen = [(c0[0] / paso).round() * paso, (c0[1] / paso).round() * paso, (c0[2] / paso).round() * paso];
+    // (lo que hay entre el sol y la caja, hasta 80 m más arriba, también tapa; el margen de profundidad, en metros)
+    let alto = r + 80.0; let rango = alto + r;
+    let ojo = [cen[0] + s[0] * alto, cen[1] + s[1] * alto, cen[2] + s[2] * alto];
+    let arriba = if s[1].abs() > 0.95 { [0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0] };
+    (mat::mul(&mat::orto(-r, r, -r, r, 0.5, rango), &mat::mirar(ojo, cen, arriba)), [0.04 / rango, 1.5 * paso])
+}

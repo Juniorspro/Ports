@@ -22,6 +22,8 @@ struct Glob {
   lp: array<vec4<f32>, 12>, lc: array<vec4<f32>, 12>, ld: array<vec4<f32>, 12>,
   tinte: vec4<f32>,  // tinte de la caja del cielo · 0 sin cielo del mapa, 1 degradé, 2 con caja
   extra: vec4<f32>,  // día
+  svp2: mat4x4<f32>, // la cascada de lejos de la sombra (svp es la de cerca)
+  sesgo2: vec4<f32>,
 };
 fn gl2wg(p: vec4<f32>) -> vec4<f32> { return vec4<f32>(p.x, p.y, (p.z + p.w) * 0.5, p.w); }
 fn aces(x: vec3<f32>) -> vec3<f32> { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), vec3<f32>(0.0), vec3<f32>(1.0)); }
@@ -39,7 +41,7 @@ fn uv_de(p: vec2<f32>) -> vec2<f32> { return vec2<f32>(p.x * 0.5 + 0.5, 0.5 - p.
 pub const GV: &str = "@group(0) @binding(0) var<uniform> G: Glob;\n";
 
 /// lo opaco y lo transparente con la luz del juego (gl.js, LUZ 3): BRDF con rugosidad y metal, reflejo del cielo, luces
-/// puntuales y especiales, luz horneada, sombra del sol (3×3 muestras), niebla y ACES; con huesos (56) o sin
+/// puntuales y especiales, luz horneada, sombra del sol (dos cascadas, 3×3 muestras), niebla y ACES; con huesos (56) o sin
 pub const LUZ: &str = r#"
 @group(0) @binding(1) var t_sombra: texture_depth_2d;
 @group(0) @binding(2) var s_cmp: sampler_comparison;
@@ -62,14 +64,15 @@ struct VIn {
 struct VPiel { @location(3) j: vec4<u32>, @location(4) w: vec4<f32> };
 struct VOut {
   @builtin(position) pos: vec4<f32>,
-  @location(0) w: vec3<f32>, @location(1) n: vec3<f32>, @location(2) u: vec2<f32>, @location(3) l: vec2<f32>, @location(4) s: vec4<f32>, @location(5) mz: f32,
+  @location(0) w: vec3<f32>, @location(1) n: vec3<f32>, @location(2) u: vec2<f32>, @location(3) l: vec2<f32>, @location(4) s: vec4<f32>, @location(5) mz: f32, @location(6) s2: vec4<f32>,
 };
 fn vert(v: VIn, p: vec3<f32>, n: vec3<f32>) -> VOut {
   let M = mat4x4<f32>(v.m0, v.m1, v.m2, v.m3); let w = M * vec4<f32>(p, 1.0);
   var o: VOut;
   o.mz = v.n.w; o.w = w.xyz; o.n = mat3x3<f32>(M[0].xyz, M[1].xyz, M[2].xyz) * n; o.u = v.u * O.st.xy + O.st.zw; o.l = v.l;
   // (la sombra se lee corrida por la normal un píxel y medio de la sombra: sin acné y sin despegarse de lo que toca)
-  o.s = G.svp * vec4<f32>(w.xyz + normalize(o.n + vec3<f32>(1e-6)) * G.sesgo.y, 1.0);
+  let nn = normalize(o.n + vec3<f32>(1e-6));
+  o.s = G.svp * vec4<f32>(w.xyz + nn * G.sesgo.y, 1.0); o.s2 = G.svp2 * vec4<f32>(w.xyz + nn * G.sesgo2.y, 1.0);
   o.pos = gl2wg(G.vp * w);
   return o;
 }
@@ -96,13 +99,29 @@ fn brdf(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, dif: vec3<f32>, f0: vec3<f32>,
   let F = f0 + (1.0 - f0) * pow(1.0 - lh, 5.0);
   return (dif * (1.0 - F) + min(D * V, 40.0) * F * PI) * nl;
 }
-fn sombra(nd: f32, vs: vec4<f32>) -> f32 {
-  if (G.sol.w < 0.5) { return 1.0; }
-  let q0 = vs.xyz / vs.w; let q = vec3<f32>(q0.x * 0.5 + 0.5, 0.5 - q0.y * 0.5, q0.z * 0.5 + 0.5);
-  if (q.x <= 0.0 || q.y <= 0.0 || q.x >= 1.0 || q.y >= 1.0 || q.z >= 1.0) { return 1.0; }
-  let t = 1.0 / vec2<f32>(textureDimensions(t_sombra, 0)); let b = G.sesgo.x * (1.0 + 2.0 * (1.0 - nd)); var s = 0.0;
-  for (var i = -1; i <= 1; i++) { for (var j = -1; j <= 1; j++) { s += textureSampleCompareLevel(t_sombra, s_cmp, q.xy + vec2<f32>(f32(i), f32(j)) * t, q.z - b); } }
+// la sombra en dos cascadas, una al lado de la otra en el mismo mapa: la de cerca (fina) y la de lejos; en el borde de la de
+// cerca se mezclan (sin costura)
+fn pcf(q: vec3<f32>, k: f32, b: f32) -> f32 {
+  let t = 1.0 / vec2<f32>(textureDimensions(t_sombra, 0)); var s = 0.0;
+  let x0 = k * 0.5 + 1.5 * t.x; let x1 = k * 0.5 + 0.5 - 1.5 * t.x;
+  for (var i = -1; i <= 1; i++) { for (var j = -1; j <= 1; j++) {
+    s += textureSampleCompareLevel(t_sombra, s_cmp, vec2<f32>(clamp((q.x + k) * 0.5 + f32(i) * t.x, x0, x1), q.y + f32(j) * t.y), q.z - b);
+  } }
   return s / 9.0;
+}
+fn proy(v: vec4<f32>) -> vec3<f32> { let q = v.xyz / v.w; return vec3<f32>(q.x * 0.5 + 0.5, 0.5 - q.y * 0.5, q.z * 0.5 + 0.5); }
+fn sombra(nd: f32, vs: vec4<f32>, vs2: vec4<f32>) -> f32 {
+  if (G.sol.w < 0.5) { return 1.0; }
+  let inc = 1.0 + 2.0 * (1.0 - nd); let q0 = proy(vs); let q1 = proy(vs2);
+  let g = max(abs(q0.x - 0.5), abs(q0.y - 0.5)) * 2.0;
+  let lejos = q1.x <= 0.0 || q1.y <= 0.0 || q1.x >= 1.0 || q1.y >= 1.0 || q1.z >= 1.0;
+  if (g < 0.97 && q0.z < 1.0) {
+    let s0 = pcf(q0, 0.0, G.sesgo.x * inc); let k = smoothstep(0.8, 0.97, g);
+    if (k > 0.0 && !lejos) { return mix(s0, pcf(q1, 1.0, G.sesgo2.x * inc), k); }
+    return s0;
+  }
+  if (lejos) { return 1.0; }
+  return pcf(q1, 1.0, G.sesgo2.x * inc);
 }
 @fragment fn fs_luz(i: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4<f32> {
   // (el modo es del material —igual en todo el dibujo—: las ramas que dependen de él son uniformes y cada píxel lee sólo
@@ -124,7 +143,7 @@ fn sombra(nd: f32, vs: vec4<f32>) -> f32 {
     var sh = 1.0;
     let dif = alb * (1.0 - metal); let f0 = mix(vec3<f32>(O.mat.z), alb, metal); var lmL = vec3<f32>(0.0);
     if (lm) { lmL = pot3(textureSample(t_lm, s_cla, i.l).rgb, 2.2) * 4.0; col = dif * lmL; }   // (la luz horneada del mapa, en vez del sol y el cielo)
-    else { if (nl > 0.0) { sh = sombra(max(nl, 0.0), i.s); } else { sh = 0.0; } col = brdf(n, v, G.sol.xyz, dif, f0, a) * G.sol_c.xyz * sh; }
+    else { if (nl > 0.0) { sh = sombra(max(nl, 0.0), i.s, i.s2); } else { sh = 0.0; } col = brdf(n, v, G.sol.xyz, dif, f0, a) * G.sol_c.xyz * sh; }
     if (fol) { col += dif * G.sol_c.xyz * pow(max(dot(-v, G.sol.xyz), 0.0), 4.0) * 0.6 * sh; }   // (luz que atraviesa las hojas)
     let ln = i32(G.sesgo.z); let le = i32(G.sesgo.w);
     for (var k = 0; k < 12; k++) {
@@ -287,6 +306,12 @@ struct Post { a: vec4<f32>, b: vec4<f32> };
   let a = 0.25 * (textureSample(t_x, s_x, uv + vec2<f32>(-inv.x, -inv.y)).r + textureSample(t_x, s_x, uv + vec2<f32>(inv.x, -inv.y)).r + textureSample(t_x, s_x, uv + vec2<f32>(-inv.x, inv.y)).r + textureSample(t_x, s_x, uv + inv).r);
   return vec4<f32>(vec3<f32>(mix(1.0, a, P.a.z)), 1.0);   // (se multiplica con lo que ya está dibujado)
 }
+// (la imagen final girada en la pantalla: P.b = coseno y seno del giro —Vulkan en Android, con la pantalla de costado: el
+// juego gira la imagen en vez de dejárselo al sistema—)
+@vertex fn vs_final(@builtin(vertex_index) i: u32) -> VP {
+  let p = vec2<f32>(f32((i << 1u) & 2u), f32(i & 2u)) * 2.0 - 1.0; var o: VP; o.p = p;
+  o.pos = vec4<f32>(p.x * P.b.x - p.y * P.b.y, p.x * P.b.y + p.y * P.b.x, 0.0, 1.0); return o;
+}
 @fragment fn fs_final(i: VP) -> @location(0) vec4<f32> {
   let uv = uv_de(i.p); var c = textureSample(t_x, s_x, uv).rgb;
   if (P.a.x > 0.5) {
@@ -337,4 +362,20 @@ struct VIn { @location(0) p: vec3<f32>, @location(1) c: vec4<f32> };
 struct VOut { @builtin(position) pos: vec4<f32>, @location(0) c: vec4<f32> };
 @vertex fn vs_lin(v: VIn) -> VOut { var o: VOut; o.c = v.c; o.pos = gl2wg(G.vp * vec4<f32>(v.p, 1.0)); return o; }
 @fragment fn fs_lin(i: VOut) -> @location(0) vec4<f32> { return i.c; }
+"#;
+
+/// la interfaz (el HUD, los menús): rectángulos con su parte del atlas de letras y su color, en píxeles de la pantalla; UU.rot
+/// gira como la imagen final
+pub const UI: &str = r#"
+struct UIU { inv: vec4<f32>, rot: vec4<f32> };
+@group(0) @binding(0) var t_ui: texture_2d<f32>;
+@group(0) @binding(1) var s_ui: sampler;
+@group(0) @binding(2) var<uniform> UU: UIU;
+struct VIn { @location(0) p: vec2<f32>, @location(1) u: vec2<f32>, @location(2) c: vec4<f32> };
+struct VOut { @builtin(position) pos: vec4<f32>, @location(0) u: vec2<f32>, @location(1) c: vec4<f32> };
+@vertex fn vs_ui(v: VIn) -> VOut {
+  let q = vec2<f32>(v.p.x * UU.inv.x * 2.0 - 1.0, 1.0 - v.p.y * UU.inv.y * 2.0);
+  var o: VOut; o.u = v.u; o.c = v.c; o.pos = vec4<f32>(q.x * UU.rot.x - q.y * UU.rot.y, q.x * UU.rot.y + q.y * UU.rot.x, 0.0, 1.0); return o;
+}
+@fragment fn fs_ui(i: VOut) -> @location(0) vec4<f32> { return textureSample(t_ui, s_ui, i.u) * i.c; }
 "#;

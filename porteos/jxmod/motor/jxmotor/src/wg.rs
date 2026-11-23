@@ -16,11 +16,11 @@ use std::num::NonZeroU64;
 const FMT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 const FMT_P: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 /// los registros de la placa (con lugar para el desplazamiento dinámico, de a 256 bytes)
-const G_PASO: u64 = 1024;
+const G_PASO: u64 = 1280;
 const O_PASO: u64 = 256;
 const H_PASO: u64 = 2816;
 const U_PASO: u64 = 256;
-const G_TAM: u64 = 992;
+const G_TAM: u64 = 1072;
 const O_TAM: u64 = 128;
 const H_TAM: u64 = 2688;
 const U_TAM: u64 = 32;
@@ -89,6 +89,8 @@ pub struct Motor {
     marcas_n: u32,
     svp: M4,
     sesgo: [f32; 2],
+    /// la cascada de lejos de la sombra (svp es la de cerca)
+    svp2: M4, sesgo2: [f32; 2],
     /// el cuadro (sin sus cosas, que van en `items`)
     pub c: Option<Cuadro>,
     items: Vec<ItemDin>,
@@ -216,7 +218,7 @@ impl Motor {
         };
         let (s_rep, s_cla, s_cmp) = (muestra(true, true, false), muestra(false, false, false), muestra(false, false, true));
         use wgpu::BufferUsages as U;
-        let b_glob = Buf::nuevo(d, "glob", G_PASO * 3, U::UNIFORM);
+        let b_glob = Buf::nuevo(d, "glob", G_PASO * 4, U::UNIFORM);
         let b_partu = Buf::nuevo(d, "partu", U_PASO * 2, U::UNIFORM);
         let b_post = Buf::nuevo(d, "post", U_PASO * 2, U::UNIFORM);
         let g_glob_solo = d.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("glob_solo"), layout: &capas.glob_solo, entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &b_glob.b, offset: 0, size: tamu(G_TAM) }) }] });
@@ -227,7 +229,7 @@ impl Motor {
             b_obj: Buf::nuevo(d, "obj", 65536, U::UNIFORM), b_inst: Buf::nuevo(d, "inst", 65536, U::VERTEX), b_hue: Buf::nuevo(d, "hue", 65536, U::UNIFORM),
             b_part: Buf::nuevo(d, "part", 65536, U::VERTEX), b_marcas: Buf::nuevo(d, "marcas", 4096, U::VERTEX), ceros: Buf::nuevo(d, "ceros", 4096, U::VERTEX),
             b_glob, b_partu, b_post, g_glob: None, g_glob_solo, g_obj: None, g_hue: None, g_mat: HashMap::new(),
-            sombra: None, sombra_px: 0, reflejo: None, escena_rt: None, ao_rt: None, refr: None, marcas_n: 0, svp: mat::id(), sesgo: [0.0, 0.0],
+            sombra: None, sombra_px: 0, reflejo: None, escena_rt: None, ao_rt: None, refr: None, marcas_n: 0, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0],
             c: None, items: vec![], cuadro: 0, dibujos: 0, opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, ranuras: Vec::new(),
             instancias: std::env::var("JXM_SIN_INST").is_err(), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), mapa: String::new(), placa, errores,
             tq: if device.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
@@ -388,6 +390,7 @@ impl Motor {
         }
         let (tinte, tc, dia) = match &self.cielo { Some(ci) => (ci.tinte, if ci.cubo != 0 && self.cubo.is_some() { 2.0 } else { 1.0 }, ci.dia), None => ([1.0; 3], 0.0, 0.0) };
         g[240..244].copy_from_slice(&[tinte[0], tinte[1], tinte[2], tc]); g[244..248].copy_from_slice(&[dia, 0.0, 0.0, 0.0]);
+        g[248..264].copy_from_slice(&self.svp2); g[264..268].copy_from_slice(&[self.sesgo2[0], self.sesgo2[1], 0.0, 0.0]);
     }
 
     /// las texturas de un material con la luz horneada de su malla, y su modo
@@ -469,15 +472,11 @@ impl Motor {
         }
     }
 
-    /// la sombra del sol: la matriz (ortográfica alrededor de la cámara, en pasos de un píxel para que no tiemble)
+    /// la sombra del sol: las matrices de las dos cascadas (gpu::cascada)
     fn matriz_sombra(&mut self) {
-        let px = self.op.sombra_px as f32; let c = self.c.as_ref().unwrap().pos; let s = self.sol(); let r = self.op.sombra_radio;
-        let paso = 2.0 * r / px; let cen = [(c[0] / paso).round() * paso, (c[1] / paso).round() * paso, (c[2] / paso).round() * paso];
-        let alto = r + 80.0; let rango = alto + r;
-        let ojo = [cen[0] + s[0] * alto, cen[1] + s[1] * alto, cen[2] + s[2] * alto];
-        let arriba = if s[1].abs() > 0.95 { [0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0] };
-        self.svp = mat::mul(&mat::orto(-r, r, -r, r, 0.5, rango), &mat::mirar(ojo, cen, arriba));
-        self.sesgo = [0.04 / rango, 1.5 * paso];
+        let c = self.c.as_ref().unwrap(); let s = self.sol();
+        let (a, sa) = crate::gpu::cascada(c, s, &self.op, 0); let (b, sb) = crate::gpu::cascada(c, s, &self.op, 1);
+        self.svp = a; self.sesgo = sa; self.svp2 = b; self.sesgo2 = sb;
     }
 
     /// la tubería de la imagen final para el formato de la salida
@@ -513,7 +512,7 @@ impl Motor {
         let (ew, eh) = (((w as f32) * self.op.escala).round().max(16.0) as u32, ((h as f32) * self.op.escala).round().max(16.0) as u32);
         // --- los destinos
         if self.op.sombras && (self.sombra.is_none() || self.sombra_px != self.op.sombra_px as u32) {
-            let px = self.op.sombra_px as u32; self.sombra = Some(prof_tex(&self.device, px, px)); self.sombra_px = px; self.g_glob = None;
+            let px = self.op.sombra_px as u32; self.sombra = Some(prof_tex(&self.device, px * 2, px)); self.sombra_px = px; self.g_glob = None;
         }
         if self.g_glob.is_none() { self.g_glob = Some(self.grupo_glob()); }
         if self.escena_rt.as_ref().map(|r| r.w != ew || r.h != eh).unwrap_or(true) { self.escena_rt = Some(destino(&self.device, ew, eh)); }
@@ -527,6 +526,7 @@ impl Motor {
         if hacer_sombra { self.matriz_sombra(); }
         let mut a = Arm::default();
         let l_som = if hacer_sombra { let l = self.recortar(&self.svp.clone(), true); self.lista(&mut a, &l, true) } else { vec![] };
+        let l_som2 = if hacer_sombra { let l = self.recortar(&self.svp2.clone(), true); self.lista(&mut a, &l, true) } else { vec![] };
         let vref = ay.map(|y| mat::mul(&vp, &mat::espejo_y(y))).unwrap_or(vp);
         let l_ref = if hacer_ref { let l = self.recortar(&vref, false); self.lista(&mut a, &l, false) } else { vec![] };
         let opacos = self.opacos.clone();
@@ -566,11 +566,11 @@ impl Motor {
             }
         }
         // (la cabecera de cada pasada)
-        let mut gb = vec![0f32; (G_PASO / 4 * 3) as usize];
+        let mut gb = vec![0f32; (G_PASO / 4 * 4) as usize];
         let n = (G_PASO / 4) as usize;
         self.glob(&vp, -1e9, &mut gb[0..n]);
         if hacer_ref { self.glob(&vref, ay.unwrap() - 0.05, &mut gb[n..2 * n]); }
-        if hacer_sombra { let svp = self.svp; self.glob(&svp, -1e9, &mut gb[2 * n..3 * n]); }
+        if hacer_sombra { let (s0, s1) = (self.svp, self.svp2); self.glob(&s0, -1e9, &mut gb[2 * n..3 * n]); self.glob(&s1, -1e9, &mut gb[3 * n..4 * n]); }
         // (poner la oclusión: el paso de las 4 muestras y la fuerza; la imagen final: el retoque y si la pantalla es sRGB)
         let (aw, ah) = self.ao_rt.as_ref().map(|r| (r.w, r.h)).unwrap_or((1, 1));
         let mut post = vec![0f32; (U_PASO / 4 * 2) as usize];
@@ -611,8 +611,11 @@ impl Motor {
         if hacer_sombra {
             let sv = &self.sombra.as_ref().unwrap().v;
             let mut p = empezar(&mut enc, None, Some((sv, true, true)), marca("sombra"));
-            p.set_bind_group(0, &self.g_glob_solo, &[G_SOM * G_PASO as u32]);
+            let px = self.sombra_px as f32;
+            p.set_viewport(0.0, 0.0, px, px, 0.0, 1.0); p.set_bind_group(0, &self.g_glob_solo, &[G_SOM * G_PASO as u32]);
             dibujos += self.dibujar_lista(&mut p, &l_som, true);
+            p.set_viewport(px, 0.0, px, px, 0.0, 1.0); p.set_bind_group(0, &self.g_glob_solo, &[(G_SOM + 1) * G_PASO as u32]);
+            dibujos += self.dibujar_lista(&mut p, &l_som2, true);
         }
         // --- el reflejo del agua: la escena espejada en el plano del agua, a una fracción de la resolución
         if hacer_ref {

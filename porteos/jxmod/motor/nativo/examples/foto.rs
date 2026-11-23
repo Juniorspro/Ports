@@ -48,6 +48,18 @@ fn main() {
         enc.set_color(png::ColorType::Rgba); enc.set_depth(png::BitDepth::Eight); enc.write_header().unwrap().write_image_data(&dado).unwrap();
         println!("  → {ruta}");
     };
+    // (sólo fotos desde lugares fijos: JXM_MAPA y JXM_VISTAS="x,y,z,giro,inclinación;…")
+    if let Ok(vs) = std::env::var("JXM_VISTAS") {
+        if let Ok(mp) = std::env::var("JXM_MAPA") { assert!(j.poner_mapa(&mp), "no existe el mapa {mp}"); }
+        paso(&mut j, &mut m, 2);
+        let pre = std::env::var("JXM_PRE").unwrap_or("vista".into());
+        for (k, v) in vs.split(';').enumerate() {
+            let n: Vec<f32> = v.split(',').map(|x| x.trim().parse().unwrap()).collect();
+            j.pos = [n[0], n[1], n[2]]; j.yaw = n[3]; j.pitch = n[4];
+            paso(&mut j, &mut m, 3); foto(&m, &format!("{pre}_{k}"));
+        }
+        return;
+    }
     let t = Instant::now(); paso(&mut j, &mut m, 1); foto(&m, "0_cargando"); paso(&mut j, &mut m, 1); println!("primeros 2 cuadros (cartel y mapa): {:.0} ms · {}", t.elapsed().as_secs_f64() * 1000.0, m.resumen());
     paso(&mut j, &mut m, 30);
     println!("1 aparición: pos {:?} yaw {:.2} · {:.1} ms/cuadro", j.pos, j.yaw, j.ms); foto(&m, "1_aparicion");
