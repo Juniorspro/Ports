@@ -511,7 +511,13 @@ function jxmCalidad() {
   return perfil;
 }
 // (un char por byte, sin base64: un tercio menos y sin codificar; se usa si la app lo deja pasar igual —jxmProbarBin—)
-function jxmBin(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return s; }
+// los bytes como texto de un carácter por byte (0 a 255): copiados a 16 bits (en nativo) y leídos como UTF-16; el mismo texto
+// que String.fromCharCode byte a byte, 7 veces más rápido (118 KB: 0,09 ms en vez de 0,67)
+const JXM_DEC16 = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-16le') : null; let jxmU16 = new Uint16Array(0);
+function jxmBin(u8) {
+  if (JXM_DEC16) { if (jxmU16.length < u8.length) jxmU16 = new Uint16Array(u8.length * 1.5 | 0); const v = jxmU16.subarray(0, u8.length); v.set(u8); return JXM_DEC16.decode(v); }
+  let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return s;
+}
 function jxmProbarBin(B) {
   try {
     if (!B.prueba || !B.cuadroBin) return false;
@@ -520,7 +526,7 @@ function jxmProbarBin(B) {
     return (B.prueba(s) | 0) === h;
   } catch (e) { return false; }
 }
-function jxmB64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+function jxmB64(u8) { return btoa(jxmBin(u8)); }
 // (la grabación de las pruebas: cada pedazo con su tipo y su largo)
 function jxmGrabar() {
   const P = [];
@@ -703,21 +709,28 @@ function jxmCuadroNativo() {
   for (const p of items) {
     if (!JXM.mallas.has(p.m.idx)) continue;
     const r = JXM.mats.get(p.mt); if (!r) continue;
+    // (la identidad de una cosa: su matriz —la de cada nodo de cada objeto es suya y no cambia de arreglo—; la de una parte con
+    // huesos, que va con la matriz identidad, el arreglo de huesos de su personaje: si no, dos NPC con el mismo modelo tenían
+    // la misma clave y el segundo pedía un lugar nuevo en cada cuadro)
+    const due = p.M !== IDM ? p.M : p.h;
     let mapa = S.fijo, clave = p.m.idx * 1048576 + p.s0;
-    if (p.M !== IDM) { mapa = S.porM.get(p.M); if (!mapa) { mapa = new Map(); S.porM.set(p.M, mapa); } }
+    if (due) { mapa = S.porM.get(due); if (!mapa) { mapa = new Map(); S.porM.set(due, mapa); } }
     let sl = mapa.get(clave);
     if (sl === undefined || S.visto[sl] === fr) {   // (la misma clave dos veces en un cuadro: otro lugar)
       sl = S.libres.length ? S.libres.pop() : S.dat.length; S.dat[sl] = { c: new Float32Array(25).fill(NaN), mapa, clave }; mapa.set(clave, sl);
     }
     S.visto[sl] = fr; V.push(sl);
-    const c = S.dat[sl].c, M = p.M, rr = p.h ? p.r : p.r || -1, fl = p.ns ? 1 : 0;
-    let cambio = c[0] !== p.m.idx || c[1] !== p.s0 || c[2] !== p.sn || c[3] !== r.id || c[20] !== p.cx || c[21] !== p.cy || c[22] !== p.cz || c[23] !== rr || c[24] !== fl;
-    if (!cambio) for (let i = 0; i < 16; i++) if (c[4 + i] !== M[i]) { cambio = true; break; }
+    // (lo guardado es lo que viajó, en 32 bits: se compara contra eso —el centro y el radio se calculan en 64 y nunca eran
+    // iguales a su redondeo: todo parecía cambiar en cada cuadro y viajaba entero—)
+    const c = S.dat[sl].c, M = p.M, rr = Math.fround(p.h ? p.r : p.r || -1), fl = p.ns ? 1 : 0, fx = Math.fround(p.cx), fy = Math.fround(p.cy), fz = Math.fround(p.cz);
+    let cambio = c[0] !== p.m.idx || c[1] !== p.s0 || c[2] !== p.sn || c[3] !== r.id || c[20] !== fx || c[21] !== fy || c[22] !== fz || c[23] !== rr || c[24] !== fl;
+    if (!cambio) for (let i = 0; i < 16; i++) if (c[4 + i] !== Math.fround(M[i])) { cambio = true; break; }
     if (cambio) { c[0] = p.m.idx; c[1] = p.s0; c[2] = p.sn; c[3] = r.id; for (let i = 0; i < 16; i++) c[4 + i] = M[i]; c[20] = p.cx; c[21] = p.cy; c[22] = p.cz; c[23] = rr; c[24] = fl; U.push(sl); }
     if (p.h) HH.push(sl, p);
   }
   // (los lugares que no se usan hace 300 cuadros quedan libres)
   if (fr % 120 === 0) for (let i = 0; i < S.dat.length; i++) { const d = S.dat[i]; if (d && fr - (S.visto[i] || 0) > 300) { d.mapa.delete(d.clave); S.dat[i] = null; S.libres.push(i); } }
+  JXM.nU = U.length; JXM.nLug = S.dat.length;   // (cuántas cosas cambiaron en este cuadro y cuántos lugares hay: para medir)
   let nh = 0; for (let i = 1; i < HH.length; i += 2) nh += 2 + Math.min(HH[i].h.nf || HH[i].h.length, 56 * 12);
   const n = k + 3 + U.length * 26 + V.length + nh;
   if (JXM.f.length < n) { const G = new Float32Array(n * 1.5 | 0); G.set(JXM.f.subarray(0, k)); JXM.f = G; }

@@ -566,6 +566,33 @@ function collidePair(A, B) {
   else for (const q of sb) sphereHull(B, q, rb, A, true);
 }
 const _near = [];
+// los pares de cuerpos que se pueden tocar en este paso (las cajas, con el margen especulativo de los dos, se cruzan) y en
+// los que al menos uno está despierto: los de cada despierto con lo que tiene cerca en la grilla. Igual que el barrido por
+// x de antes (que ordenaba los 565 cuerpos en cada paso para quedarse con los pares de 26 despiertos): cada par con el de
+// menor x primero (en empate, el que va antes en la lista) y los pares en el orden de ese barrido —el orden de los
+// contactos cambia lo que resuelve la física—. Devuelve [a0, b0, a1, b1, ...].
+const _pares = [], _paresO = [], _czP = [];
+const _xAntes = (p, q) => p.aabb.x0 < q.aabb.x0 || (p.aabb.x0 === q.aabb.x0 && p._ci < q._ci);
+function paresCerca(mx) {
+  const B = PH.bodies, O = _paresO; O.length = 0;
+  for (const x of B) {
+    if (!x.dynamic || x.sleep) continue;
+    const X = x.aabb, e = x.spec + mx + 0.02;
+    cuerposCerca(X.x0 - e, X.y0 - e, X.z0 - e, X.x1 + e, X.y1 + e, X.z1 + e, _czP);
+    for (const y of _czP) {
+      if (y === x || (y.dynamic && !y.sleep && y._ci < x._ci)) continue;   // (dos despiertos: el par, una sola vez)
+      const ab = _xAntes(x, y), a = ab ? x : y, b = ab ? y : x, A = a.aabb, Bb = b.aabb, g = a.spec + b.spec + 0.02;
+      if (Bb.x0 > A.x1 + g || Bb.y0 > A.y1 + g || Bb.y1 < A.y0 - g || Bb.z0 > A.z1 + g || Bb.z1 < A.z0 - g) continue;
+      O.push(a, b);
+    }
+  }
+  // (en el orden del barrido: por el primero del par y después por el segundo, cada uno por x y por lugar en la lista)
+  const n = O.length / 2, ix = _pares; ix.length = n; for (let i = 0; i < n; i++) ix[i] = i;
+  ix.sort((i, j) => { const a = O[2 * i], b = O[2 * j]; if (a !== b) return _xAntes(a, b) ? -1 : 1; const c = O[2 * i + 1], d = O[2 * j + 1]; return c === d ? 0 : _xAntes(c, d) ? -1 : 1; });
+  const R = paresCerca.r || (paresCerca.r = []); R.length = 0;
+  for (let i = 0; i < n; i++) R.push(O[2 * ix[i]], O[2 * ix[i] + 1]);
+  return R;
+}
 function detect(dt) {
   PH.contacts.length = 0; PH.dtDet = dt;
   const B = PH.bodies;
@@ -586,24 +613,18 @@ function detect(dt) {
     if (a.noCruza) ladosActualizar(a, _near);   // (el muñeco: de qué lado está de cada triángulo cercano)
     for (const s of _near) collidePair(a, s);
   }
-  // pares de cuerpos (barrido por x)
-  const order = B.slice().sort((p, q) => p.aabb.x0 - q.aabb.x0);
-  for (let i = 0; i < order.length; i++) {
-    const a = order[i], A = a.aabb;
-    for (let j = i + 1; j < order.length; j++) {
-      const b = order[j], Bb = b.aabb;
-      if (Bb.x0 > A.x1 + 2 * mx + 0.02) break;
-      const g = a.spec + b.spec + 0.02;
-      if (Bb.x0 > A.x1 + g || Bb.y0 > A.y1 + g || Bb.y1 < A.y0 - g || Bb.z0 > A.z1 + g || Bb.z1 < A.z0 - g) continue;
-      if (!a.dynamic && !b.dynamic) continue;
-      if ((a.sleep || !a.dynamic) && (b.sleep || !b.dynamic)) continue;
-      if (a.group && a.group === b.group) continue;
-      if (a.noPhys || b.noPhys) continue;
-      if (a.noCollide && a.noCollide.has(b)) continue;
-      const n0 = PH.contacts.length;
-      if (a.dynamic) collidePair(a, b); else collidePair(b, a);
-      if (PH.contacts.length > n0) { if (a.sleep && b.lively) a.wake(); if (b.sleep && a.lively) b.wake(); }
-    }
+  // pares de cuerpos
+  const P = paresCerca(mx);
+  for (let i = 0; i < P.length; i += 2) {
+    const a = P[i], b = P[i + 1];
+    if (!a.dynamic && !b.dynamic) continue;
+    if ((a.sleep || !a.dynamic) && (b.sleep || !b.dynamic)) continue;
+    if (a.group && a.group === b.group) continue;
+    if (a.noPhys || b.noPhys) continue;
+    if (a.noCollide && a.noCollide.has(b)) continue;
+    const n0 = PH.contacts.length;
+    if (a.dynamic) collidePair(a, b); else collidePair(b, a);
+    if (PH.contacts.length > n0) { if (a.sleep && b.lively) a.wake(); if (b.sleep && a.lively) b.wake(); }
   }
   // las partes unidas (muñeco) se despiertan juntas
   for (let k = 0; k < 3; k++) for (const j of PH.joints) if (j.a.sleep !== j.b.sleep) { j.a.wake(); j.b.wake(); }
