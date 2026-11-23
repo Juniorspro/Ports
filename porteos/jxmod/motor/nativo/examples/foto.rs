@@ -70,29 +70,40 @@ fn main() {
         let pre = std::env::var("JXM_PRE").unwrap_or("vista".into());
         for (k, v) in vs.split(';').enumerate() {
             let n: Vec<f32> = v.split(',').map(|x| x.trim().parse().unwrap()).collect();
-            j.pos = [n[0], n[1], n[2]]; j.yaw = n[3]; j.pitch = n[4];
+            j.poner_ojos([n[0], n[1], n[2]], n[3], n[4]);
             paso(&mut j, &mut m, 3); foto(&mut m, &format!("{pre}_{k}"));
         }
         if let Some((t, d)) = m.tiempos() { println!("placa {t:.1} ms: {d}"); }
         return;
     }
     let t = Instant::now(); paso(&mut j, &mut m, 1); foto(&mut m, "0_cargando"); paso(&mut j, &mut m, 1); println!("primeros 2 cuadros (cartel y mapa): {:.0} ms · {}", t.elapsed().as_secs_f64() * 1000.0, m.resumen());
-    paso(&mut j, &mut m, 30);
-    println!("1 aparición: pos {:?} yaw {:.2} · {:.1} ms/cuadro", j.pos, j.yaw, j.ms); foto(&mut m, "1_aparicion");
-    // caminar adelante con la palanca y mirar a la derecha
-    j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.2, hf);
-    j.dedo_abajo(2, wf * 0.7, hf * 0.6, wf, hf); j.dedo_mueve(2, wf * 0.7 - 150.0, hf * 0.6 + 30.0, hf);
+    if let Some(mp) = &j.mapa { println!("mundo de choques: {} triángulos, {} cuerpos, gravedad {}", mp.mundo.n_tris(), mp.mundo.cuerpos.len(), mp.mundo.gravedad); }
     paso(&mut j, &mut m, 60);
-    println!("2 palanca: pos {:?} yaw {:.2} pitch {:.2}", j.pos, j.yaw, j.pitch); foto(&mut m, "2_palanca");
-    j.dedo_arriba(1); j.dedo_arriba(2);
-    // el botón de OpenGL 2 (todavía no está: avisa) y el de cambiar de mapa
+    println!("1 aparición (1 s de caer al piso): pos {:?} suelo {} · {:.1} ms/cuadro", j.jug.pos, j.jug.suelo, j.ms); foto(&mut m, "1_aparicion");
+    // caminar adelante con la palanca 2 s (12 m a 6 m/s)
+    let p0 = j.jug.pos;
+    j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf);
+    paso(&mut j, &mut m, 120);
+    println!("2 caminar 2 s: de {:?} a {:?} ({:.2} m, suelo {})", p0, j.jug.pos, ((j.jug.pos[0] - p0[0]).powi(2) + (j.jug.pos[2] - p0[2]).powi(2)).sqrt(), j.jug.suelo); foto(&mut m, "2_caminar");
+    j.dedo_arriba(1);
+    // saltar: el punto más alto
+    let y0 = j.jug.pos[1]; let mut ymax = y0;
+    let sb = (wf - hf * 0.17, hf - hf * 0.2);
+    j.dedo_abajo(7, sb.0, sb.1, wf, hf);
+    for _ in 0..90 { paso(&mut j, &mut m, 1); ymax = ymax.max(j.jug.pos[1]); }
+    j.dedo_arriba(7); paso(&mut j, &mut m, 60);
+    println!("3 saltar: subió {:.3} m (el de la web: 1,1) · suelo {}", ymax - y0, j.jug.suelo); foto(&mut m, "3_saltar");
+    // el otro mapa: caminar 6 s para adelante y a la derecha (choca con lo que haya)
     let (x0, bw) = (wf * 0.45, wf * 0.55 / 4.0);
-    j.dedo_abajo(3, x0 + bw * 2.5, hf * 0.05, wf, hf); paso(&mut j, &mut m, 2); foto(&mut m, "3_boton_gl2");
-    j.dedo_abajo(5, x0 + bw * 3.5, hf * 0.05, wf, hf); let t = Instant::now(); paso(&mut j, &mut m, 2); println!("cambio de mapa: {:.0} ms · {}", t.elapsed().as_secs_f64() * 1000.0, m.resumen());
-    paso(&mut j, &mut m, 30); println!("4 otro mapa: pos {:?} · {:.1} ms/cuadro", j.pos, j.ms); foto(&mut m, "4_construct");
+    j.dedo_abajo(5, x0 + bw * 3.5, hf * 0.05, wf, hf); j.dedo_arriba(5); let t = Instant::now(); paso(&mut j, &mut m, 2); println!("cambio de mapa: {:.0} ms · {}", t.elapsed().as_secs_f64() * 1000.0, m.resumen());
+    if let Some(mp) = &j.mapa { println!("mundo de choques: {} triángulos, {} cuerpos", mp.mundo.n_tris(), mp.mundo.cuerpos.len()); }
+    paso(&mut j, &mut m, 60); let p0 = j.jug.pos; println!("4 Construct aparición: pos {:?} suelo {}", p0, j.jug.suelo); foto(&mut m, "4_construct");
+    j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf);
+    for k in 0..6 { paso(&mut j, &mut m, 60); println!("   {} s: pos [{:.2}, {:.2}, {:.2}] suelo {}", k + 1, j.jug.pos[0], j.jug.pos[1], j.jug.pos[2], j.jug.suelo); }
+    j.dedo_arriba(1); foto(&mut m, "5_construct_caminar");
     if let Some((t, d)) = m.tiempos() { println!("placa {t:.1} ms: {d}"); }
     // la pantalla de error (sin paquete): lo que vería el teléfono si algo falla
     let (lj, lp) = letras(); let mut je = Juego::nuevo(Err("no están pk.bin o pk.idx.json en la APK".into()), lj, lp, Some(datos));
     je.en_uso = j.en_uso;
-    paso(&mut je, &mut m, 2); foto(&mut m, "5_error");
+    paso(&mut je, &mut m, 2); foto(&mut m, "6_error");
 }

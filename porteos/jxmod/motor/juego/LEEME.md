@@ -31,7 +31,12 @@ mismo contenido y jugabilidad. Lee **el mismo paquete** que arma `armar.py` para
      `python3 -I apk/armar_nativo.py SALIDA.apk --www <carpeta con pk.bin sin cifrar, pk.idx.json y rb/>`.
    - Probar en la compu: `cargo build --release -p jxmod-nativo --example foto` y `foto CARPETA [ANCHO ALTO]` (el mismo
      juego fuera de pantalla con Mesa, toques de mentira y una foto de cada momento).
-3. El jugador y los choques con el mapa; la física completa.
+3. **El jugador y los choques con el mapa (hecho; falta la física de los objetos)**: `mundo.rs` arma lo que choca como
+   `cargarMapa` (los triángulos de las mallas de choque —con espejo y sin los finos— y las cajas orientadas, esferas y
+   cápsulas, en una grilla de 6 m; rayos contra todo) y `jugador.rs` es `jugador.js` con las mismas cuentas: cápsula de
+   esferas, 6 m/s (correr ×1,35 con la palanca a 1,6 radios, agachado ×0,5 con el cuerpo a la mitad), salto de 1,1 m,
+   escalones de 0,45 m como Source, pegado a las rampas, la hundida al caer y el balanceo. Paso fijo de 1/120 s. Botones
+   Saltar, Agachar (se mantienen) y Volar. Medido en la compu: 12,00 m en 2 s, salto de 1,08 m, choca con las paredes.
 4. Objetos de GMod, Physics Gun, Gravity Gun, Tool Gun.
 5. NPC y animación.
 6. Menús y HUD.

@@ -22,6 +22,8 @@ pub struct Mapa {
     pub luces: Vec<[f32; 12]>,
     /// dónde aparece el jugador (posición y hacia dónde mira)
     pub spawns: Vec<([f32; 3], Option<f32>)>,
+    /// lo que choca (los triángulos de las mallas de choque y los cuerpos fijos), para el jugador y los rayos
+    pub mundo: crate::mundo::Mundo,
     /// hasta dónde se ve
     pub lejos: f32,
 }
@@ -61,6 +63,15 @@ pub fn pbr_de(nombre: &str) -> [f32; 3] {
     [0.72, 0.0, 0.04]
 }
 /// (bodyv seguido de un dígito, como /bodyv\d/)
+/// un triángulo sin área o una aguja (menos de 1 mm de alto): no sirve para chocar (triFino de mundo.js)
+fn tri_fino(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> bool {
+    let (u, w) = ([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]]);
+    let cr = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+    let a2 = (cr[0] * cr[0] + cr[1] * cr[1] + cr[2] * cr[2]).sqrt();
+    let l = |v: [f32; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+    let lm = l(u).max(l(w)).max(l([w[0] - u[0], w[1] - u[1], w[2] - u[2]]));
+    !(a2 > 1e-9) || a2 / lm < 1e-3
+}
 fn bodyv(s: &str) -> bool { s.match_indices("bodyv").any(|(i, _)| s[i + 5..].chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false)) }
 
 /// un material del juego como lo usa el motor (matGL de gl.js y lo que mandaba gmod_personal.js); None si no se dibuja
@@ -146,6 +157,7 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
     let mut items = vec![]; let mut spawns = vec![]; let mut luces = vec![];
     let (mut sol, mut sol_col) = ([0.3f32, 0.8, 0.2], [1.0f32, 0.96, 0.9]);
     let (mut lo, mut hi) = ([1e9f32; 3], [-1e9f32; 3]);
+    let (mut tris, mut cuerpos): (Vec<f32>, Vec<crate::mundo::Cuerpo>) = (vec![], vec![]);
     for arb in raices {
         let arb = arb.as_array().ok_or("nodos raros")?; let n = arb.len();
         // (Modelo: activo si no está apagado y su padre tampoco; la matriz del mundo, la del padre por la propia)
@@ -188,11 +200,26 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
                             if let Some(bin) = paq.bin_de(md) {
                                 let (v, o) = (md["v"].as_u64().unwrap_or(0) as usize, md["o"].as_u64().unwrap_or(0) as usize);
                                 let (mn, sc) = (v3(&md["mn"], [0.0; 3]), v3(&md["sc"], [1.0; 3]));
+                                let mut pw = Vec::with_capacity(v);
                                 for k in 0..v {
                                     let b = o + k * 14; if b + 6 > bin.len() { break; }
                                     let q = |j: usize| u16::from_le_bytes([bin[b + j * 2], bin[b + j * 2 + 1]]) as f32 / 65535.0;
-                                    let pw = punto(&wm, [mn[0] + q(0) * sc[0], mn[1] + q(1) * sc[1], mn[2] + q(2) * sc[2]]);
-                                    for e in 0..3 { lo[e] = lo[e].min(pw[e]); hi[e] = hi[e].max(pw[e]); }
+                                    let p = punto(&wm, [mn[0] + q(0) * sc[0], mn[1] + q(1) * sc[1], mn[2] + q(2) * sc[2]]);
+                                    for e in 0..3 { lo[e] = lo[e].min(p[e]); hi[e] = hi[e].max(p[e]); }
+                                    pw.push(p);
+                                }
+                                // (los triángulos, como cargarMapa: con escala negativa —espejo— se dan vuelta; sin área, fuera)
+                                let ii = md["i"].as_u64().unwrap_or(0) as usize; let i32b = md["i32"].as_bool().unwrap_or(false);
+                                let ni = md["sub"].as_array().map(|ss| ss.iter().map(|s| s[0].as_u64().unwrap_or(0) + s[1].as_u64().unwrap_or(0)).max().unwrap_or(0)).unwrap_or(0) as usize;
+                                let idx = |k: usize| -> usize { if i32b { let b = ii + k * 4; bin.get(b..b + 4).map(|x| u32::from_le_bytes([x[0], x[1], x[2], x[3]]) as usize).unwrap_or(usize::MAX) } else { let b = ii + k * 2; bin.get(b..b + 2).map(|x| u16::from_le_bytes([x[0], x[1]]) as usize).unwrap_or(usize::MAX) } };
+                                let det = wm[0] * (wm[5] * wm[10] - wm[6] * wm[9]) - wm[4] * (wm[1] * wm[10] - wm[2] * wm[9]) + wm[8] * (wm[1] * wm[6] - wm[2] * wm[5]);
+                                let mut k = 0;
+                                while k + 2 < ni {
+                                    let (a, mut b, mut c) = (idx(k), idx(k + 1), idx(k + 2)); k += 3;
+                                    if det < 0.0 { std::mem::swap(&mut b, &mut c); }
+                                    let (Some(pa), Some(pb), Some(pc)) = (pw.get(a), pw.get(b), pw.get(c)) else { continue };
+                                    if tri_fino(*pa, *pb, *pc) { continue; }
+                                    tris.extend_from_slice(&[pa[0], pa[1], pa[2], pb[0], pb[1], pb[2], pc[0], pc[1], pc[2]]);
                                 }
                             }
                         },
@@ -202,6 +229,23 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
                                 let esq = [cen[0] + tam[0] * if e & 1 != 0 { 0.5 } else { -0.5 }, cen[1] + tam[1] * if e & 2 != 0 { 0.5 } else { -0.5 }, cen[2] + tam[2] * if e & 4 != 0 { 0.5 } else { -0.5 }];
                                 let pw = punto(&wm, esq); for k in 0..3 { lo[k] = lo[k].min(pw[k]); hi[k] = hi[k].max(pw[k]); }
                             }
+                            // (la caja orientada: los ejes de la matriz, la escala en los medios lados)
+                            let ej: Vec<[f32; 3]> = [0usize, 4, 8].iter().map(|&o| [wm[o], wm[o + 1], wm[o + 2]]).collect();
+                            let es: Vec<f32> = ej.iter().map(|e| (e[0] * e[0] + e[1] * e[1] + e[2] * e[2]).sqrt().max(1e-9)).collect();
+                            let e = [0, 1, 2].map(|k| [ej[k][0] / es[k], ej[k][1] / es[k], ej[k][2] / es[k]]);
+                            let h = [0, 1, 2].map(|k| (tam[k] * es[k]).abs() / 2.0 + 1e-3);
+                            let f = crate::mundo::Forma::Caja { c: punto(&wm, cen), e, h };
+                            cuerpos.push(crate::mundo::Cuerpo { aabb: crate::mundo::aabb_de(&f), f });
+                        }
+                        Some(k @ ("s" | "c")) => {
+                            let e = escala(&wm); let rr = f(&cc["r"]) * e; let cen = punto(&wm, v3(&cc["c"], [0.0; 3]));
+                            let f = if k == "s" { crate::mundo::Forma::Esfera { c: cen, r: rr } } else {
+                                // (el eje de la cápsula: el de la matriz que dice d —0 x, 1 y, 2 z—)
+                                let dd = cc["d"].as_i64().unwrap_or(1).clamp(0, 2) as usize; let o = dd * 4;
+                                let ax = m4::norm([wm[o], wm[o + 1], wm[o + 2]]); let hl = (f(&cc["h"]) * e / 2.0 - rr).max(0.0);
+                                crate::mundo::Forma::Capsula { a: [cen[0] - ax[0] * hl, cen[1] - ax[1] * hl, cen[2] - ax[2] * hl], b: [cen[0] + ax[0] * hl, cen[1] + ax[1] * hl, cen[2] + ax[2] * hl], r: rr }
+                            };
+                            cuerpos.push(crate::mundo::Cuerpo { aabb: crate::mundo::aabb_de(&f), f });
                         }
                         _ => {}
                     }
@@ -274,5 +318,7 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
     if lo[0] > hi[0] { lo = [0.0; 3]; hi = [0.0; 3]; }
     let _ = (lo, hi);
     let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs, lms: vec![], items: vec![], agua: None, cielo: Some(cielo) };
-    Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces, spawns, lejos })
+    let grav = d["aj"][nombre]["grav"].as_f64().map(|g| g as f32).filter(|g| *g != 0.0).unwrap_or(1.0);
+    let mundo = crate::mundo::Mundo::nuevo(tris, cuerpos, grav);
+    Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces, spawns, lejos, mundo })
 }

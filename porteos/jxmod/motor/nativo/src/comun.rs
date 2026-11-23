@@ -1,5 +1,6 @@
 //! El juego, igual en el teléfono y en la compu (las pruebas): el mapa, la cámara con el tacto, los botones de los motores
 //! y el HUD. Lo de Android (la ventana, EGL, los eventos) está en app.rs.
+use jxjuego::jugador::{Entrada, Jugador};
 use jxjuego::mapa::{self, Mapa};
 use jxjuego::paquete::Paquete;
 use jxjuego::texto::Letras;
@@ -20,13 +21,36 @@ impl Placa {
     pub fn hecha(self) -> bool { self != Placa::Gl2 }
 }
 
-/// un dedo en la pantalla: para qué es (palanca o mirar) y dónde
-struct Dedo { id: i32, palanca: bool, x0: f32, y0: f32, x: f32, y: f32 }
+/// un dedo en la pantalla: para qué es (palanca, mirar o un botón que se mantiene) y dónde
+struct Dedo { id: i32, palanca: bool, boton: Option<Boton>, x0: f32, y0: f32, x: f32, y: f32 }
+
+/// los botones de la pantalla
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Boton { Motor(usize), Mapa, Saltar, Agachar, Volar }
+/// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
+struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
+/// dónde va cada botón con la pantalla de w × h
+fn botones(w: f32, h: f32) -> Vec<Btn> {
+    let mut v = vec![];
+    let (x0, bw, bh) = (w * 0.45, w * 0.55 / 4.0, h * 0.1);
+    for k in 0..4 { v.push(Btn { b: if k < 3 { Boton::Motor(k) } else { Boton::Mapa }, x: x0 + bw * (k as f32 + 0.5), y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false }); }
+    let r = h * 0.11;
+    v.push(Btn { b: Boton::Saltar, x: w - h * 0.17, y: h - h * 0.2, w: r * 2.0, h: r * 2.0, redondo: true });
+    v.push(Btn { b: Boton::Agachar, x: w - h * 0.17, y: h - h * 0.47, w: r * 1.5, h: r * 1.5, redondo: true });
+    v.push(Btn { b: Boton::Volar, x: w - h * 0.44, y: h - h * 0.14, w: r * 1.3, h: r * 1.3, redondo: true });
+    v
+}
+fn boton_en(w: f32, h: f32, x: f32, y: f32) -> Option<Boton> {
+    botones(w, h).into_iter().find(|b| if b.redondo { let (dx, dy) = (x - b.x, y - b.y); dx * dx + dy * dy <= (b.w * 0.55).powi(2) } else { (x - b.x).abs() <= b.w / 2.0 + 4.0 && (y - b.y).abs() <= b.h / 2.0 + 4.0 }).map(|b| b.b)
+}
+/// el paso fijo de la física del jugador
+const PASO: f32 = 1.0 / 120.0;
 
 pub struct Juego {
     paq: Option<Paquete>, pub mapa: Option<Mapa>, mapas: Vec<&'static str>, mapa_i: usize,
     letras: Option<Letras>, letras_px: Option<(u32, u32, Vec<u8>)>,
-    pub pos: [f32; 3], pub yaw: f32, pub pitch: f32,
+    /// el jugador (la física, como jugador.js) y lo que sobra de tiempo para el paso fijo
+    pub jug: Jugador, acum: f32,
     dedos: Vec<Dedo>,
     pub placa: Placa, aviso: Option<(String, Instant)>, datos: Option<std::path::PathBuf>,
     t_ant: Instant, t0: Instant, pub fps: f32, pub ms: f32, cuenta: u32, t_med: Instant, n_med: u32,
@@ -65,7 +89,7 @@ impl Juego {
         let letras = letras_json.and_then(|t| Letras::de_json(&t).ok());
         let letras_px = letras_png.and_then(png_rgba);
         let (paq, error) = match paq { Ok(p) => (Some(p), None), Err(e) => (None, Some(format!("el paquete del juego: {e}"))) };
-        let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass", "RB_Construct"], mapa_i: 0, letras, letras_px, pos: [0.0; 3], yaw: 0.0, pitch: 0.0,
+        let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass", "RB_Construct"], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
             recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new() };
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
@@ -92,29 +116,55 @@ impl Juego {
 
     // —— el tacto (coordenadas en píxeles de la pantalla) ——
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
-        if y < h * 0.12 && x > w * 0.45 { self.boton(x, w); return; }
-        self.dedos.push(Dedo { id, palanca: x < w * 0.45, x0: x, y0: y, x, y });
+        self.dedos.retain(|d| d.id != id);
+        if let Some(b) = boton_en(w, h, x, y) {
+            match b {
+                Boton::Motor(k) => self.elegir_motor(k),
+                Boton::Mapa => { self.mapa_i = (self.mapa_i + 1) % self.mapas.len(); self.recargar = true; }
+                Boton::Volar => { self.jug.noclip = !self.jug.noclip; self.avisar(if self.jug.noclip { "Volar: prendido".into() } else { "Volar: apagado".into() }); }
+                _ => {}
+            }
+            // (saltar y agacharse se mantienen mientras el dedo esté apoyado)
+            self.dedos.push(Dedo { id, palanca: false, boton: Some(b), x0: x, y0: y, x, y });
+            return;
+        }
+        let palanca = x < w * 0.4 && !self.dedos.iter().any(|d| d.palanca);
+        self.dedos.push(Dedo { id, palanca, boton: None, x0: x, y0: y, x, y });
     }
     pub fn dedo_mueve(&mut self, id: i32, x: f32, y: f32, h: f32) {
         if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) {
-            if !d.palanca { let s = 0.0045 * 1080.0 / h.max(1.0); self.yaw -= (x - d.x) * s; self.pitch = (self.pitch - (y - d.y) * s).clamp(-1.5, 1.5); }
+            if !d.palanca && d.boton.is_none() { let s = 0.0045 * 1080.0 / h.max(1.0); self.jug.yaw -= (x - d.x) * s; self.jug.pitch = (self.jug.pitch - (y - d.y) * s).clamp(-1.5, 1.5); }
             d.x = x; d.y = y;
         }
     }
     pub fn dedo_arriba(&mut self, id: i32) { self.dedos.retain(|d| d.id != id); }
     pub fn dedos_fuera(&mut self) { self.dedos.clear(); }
+    fn apretado(&self, b: Boton) -> bool { self.dedos.iter().any(|d| d.boton == Some(b)) }
+    /// lo que pide el jugador: la palanca (corre con el dedo a más de 1,6 radios, como la web) y los botones
+    fn entrada(&self, h: f32) -> Entrada {
+        let mut e = Entrada { saltar: self.apretado(Boton::Saltar), agachar: self.apretado(Boton::Agachar), ..Default::default() };
+        if let Some(d) = self.dedos.iter().find(|d| d.palanca) {
+            let r = h * 0.12; let (mut dx, mut dy) = ((d.x - d.x0) / r, (d.y - d.y0) / r); let l = (dx * dx + dy * dy).sqrt();
+            if l > 1.0 { dx /= l; dy /= l; }
+            e.x = dx; e.y = -dy; e.correr = l > 1.6;
+        }
+        e
+    }
+    /// para las pruebas: los ojos en un lugar fijo (volando, para que no caiga)
+    pub fn poner_ojos(&mut self, ojos: [f32; 3], yaw: f32, pitch: f32) {
+        self.jug.noclip = true; self.jug.pos = [ojos[0], ojos[1] - 0.72, ojos[2]]; self.jug.vel = [0.0; 3]; self.jug.yaw = yaw; self.jug.pitch = pitch;
+    }
 
-    /// los botones de arriba a la derecha: Vulkan, OpenGL 3, OpenGL 2 y el mapa
-    fn boton(&mut self, x: f32, w: f32) {
-        let k = ((x - w * 0.45) / (w * 0.55) * 4.0).floor() as i32;
-        if (0..3).contains(&k) {
-            let p = Placa::lista()[k as usize];
+    /// los botones de los motores: Vulkan, OpenGL 3 y OpenGL 2
+    fn elegir_motor(&mut self, k: usize) {
+        {
+            let p = Placa::lista()[k];
             if let Some(d) = &self.datos { let _ = std::fs::write(d.join("motor.txt"), p.clave()); }
             self.placa = p;
             let usar = if p.hecha() { p } else { Placa::Gl3 };
             if usar != self.en_uso { self.cambiar_motor = true; }
             self.aviso = Some((if p.hecha() { format!("Motor: {}", p.nombre()) } else { format!("{} todavía no está: se usa OpenGL 3 (queda elegido)", p.nombre()) }, Instant::now()));
-        } else if k == 3 { self.mapa_i = (self.mapa_i + 1) % self.mapas.len(); self.recargar = true; }
+        }
     }
 
     /// arma el mapa elegido y pone al jugador donde aparece
@@ -128,8 +178,9 @@ impl Juego {
                 if let Err(e) = unsafe { m.cargar(&mp.esc) } { self.aviso = Some((format!("mapa {nombre}: {e}"), Instant::now())); }
                 let sp = mp.spawns.first().map(|s| s.0).unwrap_or([0.0, 1.0, 0.0]);
                 let yaw = mp.spawns.first().and_then(|s| s.1).unwrap_or(0.0);
-                // (los ojos, a la altura de los de GMod sobre el punto de aparición)
-                self.pos = [sp[0], sp[1] + 0.72, sp[2]]; self.yaw = yaw; self.pitch = 0.0;
+                let noclip = self.jug.noclip;
+                self.jug = Jugador::nuevo(); self.jug.noclip = noclip; self.acum = 0.0;
+                self.jug.aparecer(&mp.mundo, sp, Some(yaw));
                 self.mapa = Some(mp);
             }
             Err(e) => { self.error = Some(format!("mapa {nombre}: {e}")); }
@@ -156,20 +207,23 @@ impl Juego {
             else { self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
         }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora;
-        // moverse: la palanca, por el plano (a la altura de los ojos: el piso y los choques son de la etapa 3)
-        let fw = [self.yaw.sin() * self.pitch.cos(), self.pitch.sin(), self.yaw.cos() * self.pitch.cos()];
-        let (adel, der) = ([self.yaw.sin(), 0.0, self.yaw.cos()], [-self.yaw.cos(), 0.0, self.yaw.sin()]);
         let (wf, hf) = (w as f32, h as f32);
-        if let Some(d) = self.dedos.iter().find(|d| d.palanca) {
-            let r = hf * 0.12; let (mut mx, mut my) = ((d.x - d.x0) / r, (d.y - d.y0) / r); let n = (mx * mx + my * my).sqrt(); if n > 1.0 { mx /= n; my /= n; }
-            let vel = 6.0 * dt;
-            for k in 0..3 { self.pos[k] += (adel[k] * -my + der[k] * mx) * vel; }
+        // la física del jugador, a paso fijo (como mucho 12 pasos por cuadro: si el teléfono se traba, no se acumula)
+        let ent = self.entrada(hf);
+        if let Some(mp) = &self.mapa {
+            self.acum = (self.acum + dt).min(PASO * 12.0);
+            while self.acum >= PASO { self.jug.paso(&mp.mundo, PASO, &ent); self.acum -= PASO; }
+            // (se cayó del mapa: vuelve a aparecer)
+            if self.jug.pos[1] < mp.mundo.lo[1] - 60.0 { let sp = mp.spawns.first().map(|s| s.0).unwrap_or([0.0, 1.0, 0.0]); self.jug.aparecer(&mp.mundo, sp, None); }
         }
+        let (ojos, _) = self.jug.ojos(dt);
+        let (yaw, pitch) = (self.jug.yaw, self.jug.pitch);
+        let fw = [yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos()];
         if let Some(mp) = &self.mapa {
             let p = persp(75f32.to_radians(), wf / hf.max(1.0), 0.08, mp.lejos * 1.05);
-            let vista = m4::mirar(self.pos, [self.pos[0] + fw[0], self.pos[1] + fw[1], self.pos[2] + fw[2]], [0.0, 1.0, 0.0]);
-            let c = Cuadro { vp: m4::mul(&p, &vista), pos: self.pos, luz: mp.luz, agua_y: None, tiempo: self.t0.elapsed().as_secs_f32(),
-                luces: mp.luces_cerca(self.pos, 6), esp: vec![], items: mp.items.clone(), efectos: vec![] };
+            let vista = m4::mirar(ojos, [ojos[0] + fw[0], ojos[1] + fw[1], ojos[2] + fw[2]], [0.0, 1.0, 0.0]);
+            let c = Cuadro { vp: m4::mul(&p, &vista), pos: ojos, luz: mp.luz, agua_y: None, tiempo: self.t0.elapsed().as_secs_f32(),
+                luces: mp.luces_cerca(ojos, 6), esp: vec![], items: mp.items.clone(), efectos: vec![] };
             m.poner_cuadro(c);
         }
         let u = self.hud(w, h, placa_txt);
@@ -184,16 +238,27 @@ impl Juego {
         let usa = self.en_uso;
         l.texto_sombra(&mut u, t * 0.5, t * 0.5, t, bl, &format!("{:.0} fps · cuadro {:.1} ms · placa {:.1} ms · {}×{}", self.fps, self.ms, self.placa_ms, w, h));
         l.texto_sombra(&mut u, t * 0.5, t * 1.75, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("JXMod nativo (Rust) · {} · {}", usa.nombre(), placa_txt));
-        l.texto_sombra(&mut u, t * 0.5, t * 2.7, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("{} · sin choques todavía", self.mapas[self.mapa_i]));
+        l.texto_sombra(&mut u, t * 0.5, t * 2.7, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("{} · {}", self.mapas[self.mapa_i], if self.jug.noclip { "volando" } else if self.jug.suelo { "en el piso" } else { "en el aire" }));
         if !self.detalle.is_empty() { l.texto_sombra(&mut u, t * 0.5, t * 3.65, t * 0.6, [1.0, 1.0, 1.0, 0.75], &format!("placa: {}", self.detalle)); }
-        // (los botones: los tres motores y el mapa)
-        let (x0, bw, bh) = (wf * 0.45, wf * 0.55 / 4.0, hf * 0.1);
-        let nombres = [Placa::Vulkan.nombre(), Placa::Gl3.nombre(), Placa::Gl2.nombre(), "Mapa"];
-        for (k, n) in nombres.iter().enumerate() {
-            let x = x0 + bw * k as f32; let elegido = k < 3 && Placa::lista()[k] == self.placa;
-            l.caja(&mut u, x + 4.0, 6.0, bw - 8.0, bh - 8.0, bh * 0.22, if elegido { [0.95, 0.66, 0.1, 0.92] } else { gr });
-            let tt = t * 0.8; let an = l.ancho(tt, n);
-            l.texto(&mut u, x + (bw - an) / 2.0, 2.0 + (bh - tt) / 2.0, tt, if elegido { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
+        // (los botones: los tres motores, el mapa, saltar, agacharse y volar)
+        for b in botones(wf, hf) {
+            let (n, elegido) = match b.b {
+                Boton::Motor(k) => (Placa::lista()[k].nombre(), Placa::lista()[k] == self.placa),
+                Boton::Mapa => ("Mapa", false),
+                Boton::Saltar => ("Saltar", self.apretado(Boton::Saltar)),
+                Boton::Agachar => ("Agachar", self.apretado(Boton::Agachar)),
+                Boton::Volar => ("Volar", self.jug.noclip),
+            };
+            if b.redondo {
+                l.disco(&mut u, b.x, b.y, b.w / 2.0, if elegido { [0.95, 0.66, 0.1, 0.8] } else { [0.0, 0.0, 0.0, 0.35] });
+                l.anillo(&mut u, b.x, b.y, b.w / 2.0, [1.0, 1.0, 1.0, 0.5]);
+                let tt = (b.w * 0.2).min(t * 0.8); let an = l.ancho(tt, n);
+                l.texto(&mut u, b.x - an / 2.0, b.y - tt * 0.55, tt, if elegido { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
+            } else {
+                l.caja(&mut u, b.x - b.w / 2.0, b.y - b.h / 2.0, b.w, b.h, b.h * 0.24, if elegido { [0.95, 0.66, 0.1, 0.92] } else { gr });
+                let tt = t * 0.8; let an = l.ancho(tt, n);
+                l.texto(&mut u, b.x - an / 2.0, b.y - tt * 0.55, tt, if elegido { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
+            }
         }
         // (la palanca: dónde se apoyó el dedo y hasta dónde llega)
         if let Some(d) = self.dedos.iter().find(|d| d.palanca) {
