@@ -606,6 +606,7 @@ function dibujar() {
   if (R.espShOn) espSombraActualizar();
   const t2 = performance.now();
   armarCola();
+  if (R.captura) { const f = R.captura; R.captura = null; try { f(); } catch (e) { console.error(e); } }   // (JX Motor: lo que se dibuja en este cuadro —gmod_personal.js, jxmCapturar—)
   // (en VR no hay reflejo del agua ni vista por los portales: se leen con la posición en la pantalla entera)
   if (vr) { AGUA.refOn = false; POR.on = false; POR.A = null; } else { aguaReflejo(P, V); portalesVista(P, V); }
   const N = R.salida === 'gam' ? R.niebla.c : R.lin.nieC;

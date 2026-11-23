@@ -417,3 +417,62 @@ function jxpAguaFondo() {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   return { tex, x0, z0, w, h, D };
 }
+
+// ---------------- JX Motor: el cuadro que se dibuja, para el motor nativo en Rust (porteos/jxmod/motor) ----------------
+// (pedido: «el porteo a un motor de Android en Rust… gráficos altos, sombras y reflejos en un celular de 1 GB»). Medido: con el
+// procesador frenado ×6 la lógica del juego usa menos del 5 % del cuadro y el resto es dibujar; por eso el motor nativo
+// empieza por el dibujo. Esto arma un «JXE1» con lo que el juego ya tiene listo para la placa en ese cuadro: las mallas tal
+// como están en el paquete (posición en 16 bits, normal en 8, UV en media precisión, UV de la luz horneada), los
+// materiales, las texturas leídas de la placa (hasta 256 px), las luces horneadas de los mapas, lo que se dibuja (malla,
+// parte, material y matriz), la cámara, el sol, la niebla y el agua de HL2. Por ahora sin lo que tiene huesos.
+// Formato: 'JXE1', u32 largo del JSON, el JSON y los datos (cada bloque alineado a 4)
+function jxmCapturar(max) { return new Promise((ok, mal) => { R.captura = () => { try { ok(jxmArmar(max || 256)); } catch (e) { mal(e); } }; }); }
+function jxmArmar(TMAX) {
+  const gl = R.gl, todos = [...R.cola, ...R.colaT], items = todos.filter((p) => !p.h && !p.vista && p.m && p.mt), blobs = []; let off = 0;
+  const poner = (u8) => { const o = off; blobs.push(u8); off += u8.length; const pad = (4 - (off % 4)) % 4; if (pad) { blobs.push(new Uint8Array(pad)); off += pad; } return o; };
+  const mallas = [], mPor = new Map(), mats = [], matPor = new Map(), texs = [], tPor = new Map(), lms = [], lmPor = new Map();
+  const leerTex = (glt, w0, h0) => {
+    let lv = 0, w = w0, h = h0; while (Math.max(w, h) > TMAX) { lv++; w = Math.max(1, w >> 1); h = Math.max(1, h >> 1); }
+    const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    for (const nivel of lv ? [lv, 0] : [0]) {
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, glt, nivel);
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) continue;
+      const W = nivel ? w : w0, H = nivel ? h : h0, px = new Uint8Array(W * H * 4); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(fb); return { w: W, h: H, px };
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(fb); return null;
+  };
+  const tex = (ti) => {
+    if (ti === undefined || ti === null || ti < 0) return -1; if (tPor.has(ti)) return tPor.get(ti);
+    const t = R.tex[ti], D = DATA.tx[ti]; let k = -1;
+    if (t && t.gl && D && D.w) { const L = leerTex(t.gl, D.w, D.h); if (L) { k = texs.length; texs.push({ n: D.n || '', w: L.w, h: L.h, a: D.a ? 1 : 0, o: poner(L.px) }); } }
+    tPor.set(ti, k); return k;
+  };
+  const lm = (k) => { if (k === null || k === undefined) return -1; if (lmPor.has(k)) return lmPor.get(k); const A = DATA.aj[k] && DATA.aj[k].lm; let i = -1; if (A) { i = lms.length; lms.push({ w: A.w, h: A.h, o: poner(A.px.slice ? A.px.slice() : new Uint8Array(A.px)) }); } lmPor.set(k, i); return i; };
+  const malla = (m) => {
+    if (mPor.has(m.idx)) return mPor.get(m.idx);
+    const d = m.d, B = binDe(d); let n = 0; for (const s of d.sub) n = Math.max(n, s[0] + s[1]);
+    const r = { v: d.v, mn: d.mn, sc: d.sc, i32: d.i32 ? 1 : 0, ni: n, vo: poner(B.slice(d.o, d.o + d.v * 14)), io: poner(B.slice(d.i, d.i + n * (d.i32 ? 4 : 2))), lo: d.lm !== undefined ? poner(B.slice(d.lm, d.lm + d.v * 4)) : -1, lm: m.lm ? lm(m.lm) : -1 };
+    const k = mallas.length; mallas.push(r); mPor.set(m.idx, k); return k;
+  };
+  const mat = (mt) => {
+    if (matPor.has(mt)) return matPor.get(mt);
+    // (t2: la segunda textura que se mezcla por vértice —displacements de Source—; terr: el terreno con control y tres capas)
+    const terr = mt.terr ? mt.terr.t.map((x) => (x ? [tex(x[0]), x[1], x[2]] : [-1, 1, 1])) : null;
+    const k = mats.length; mats.push({ t2: mt.mez !== undefined ? tex(mt.mez) : -1, terr, c: Array.from(mt.c || [1, 1, 1, 1]), st: Array.from(mt.st || [1, 1, 0, 0]), t: tex(mt.tex), blend: mt.blend ? 1 : 0, cut: mt.cut ? 1 : 0, unlit: mt.unlit ? 1 : 0, add: mt.add ? 1 : 0, agua: mt.agua ? 1 : 0, em: Array.from(mt.em || [0, 0, 0]) });
+    matPor.set(mt, k); return k;
+  };
+  const out = items.map((p) => ({ m: malla(p.m), s0: p.s0, sn: p.sn, mat: mat(p.mt), M: Array.from(p.M), est: p.est ? 1 : 0 }));
+  const H = AGUA.hl2; let agua = null;
+  if (H && H.tex) {
+    const nt = leerTex(H.tex, 512, 512) || leerTex(H.tex, 256, 256);
+    agua = { fog: H.fog, esc: H.esc, fuerza: H.fuerza, dist: H.dist, s: H.s, largo: H.largo, normal: nt ? { w: nt.w, h: nt.h, o: poner(nt.px) } : null };
+    if (H.prof) { const p = leerTex(H.prof.tex, 64, 64); agua.prof = { x0: H.prof.x0, z0: H.prof.z0, w: H.prof.w, h: H.prof.h, D: H.prof.D, tex: p ? { w: p.w, h: p.h, o: poner(p.px) } : null }; }
+    const W = AGUA.vols.find((v) => v.mapa); if (W) agua.y = W.y1;
+  }
+  const L = { sol: [R.sol.x, R.sol.y, R.sol.z], solC: Array.from(R.solCol || [1, 1, 1]), ambS: Array.from(R.ambS || [0.4, 0.45, 0.5]), ambG: Array.from(R.ambG || [0.3, 0.3, 0.3]), nie: { c: Array.from(R.niebla.c), a: R.niebla.a, b: R.niebla.b }, expo: R.expo || 1 };
+  const J = { v: 1, mapa: MUNDO.nombre, w: R.cv.width, h: R.cv.height, cam: { vp: Array.from(R.vp), pos: [CAM.pos.x, CAM.pos.y, CAM.pos.z] }, luz: L, mallas, mats, texs, lms, items: out, agua, sinHuesos: todos.length - items.length };
+  const js = new TextEncoder().encode(JSON.stringify(J)), cab = new Uint8Array(8); cab.set([74, 88, 69, 49]); new DataView(cab.buffer).setUint32(4, js.length, true);
+  const tot = new Uint8Array(8 + js.length + off); tot.set(cab); tot.set(js, 8); let o = 8 + js.length; for (const b of blobs) { tot.set(b, o); o += b.length; }
+  return tot;
+}

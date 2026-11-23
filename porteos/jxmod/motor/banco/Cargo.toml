@@ -1,0 +1,12 @@
+[package]
+name = "jxm-banco"
+version = "0.1.0"
+edition = "2021"
+description = "Banco de pruebas de JX Motor: dibuja un cuadro exportado (JXE1) sin ventana, con EGL de Mesa"
+
+[dependencies]
+jxmotor = { path = "../jxmotor" }
+glow = "0.16"
+khronos-egl = { version = "6", features = ["dynamic"] }
+libloading = "0.8"
+png = "0.17"
