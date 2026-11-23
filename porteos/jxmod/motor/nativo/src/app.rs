@@ -119,7 +119,17 @@ fn abrir(win: android_activity::ndk::native_window::NativeWindow, j: &mut Juego,
             Err(e) => { log(&format!("Vulkan no anduvo: {e}")); j.avisar(format!("Vulkan no anduvo ({e}): se usa OpenGL 3")); }
         }
     }
-    match abrir_gl(p) {
+    if quiere == Placa::Gl2 {
+        match abrir_gl(p, 2).and_then(|(gl, b, w, h, placa)| unsafe { jxmotor::gl2::Motor::nuevo(gl, jxmotor::gl2::Opciones2::default()) }.map(|m| (m, b, w, h, placa)).map_err(|e| format!("motor: {e}"))) {
+            Ok((m, b, w, h, placa)) => {
+                log(&format!("OpenGL 2: {w}×{h} · {placa}"));
+                j.en_uso = Placa::Gl2; j.al_abrir();
+                return Some(Ventana { m: Motor3d::Gl2(m, None), gl: Some(b), w, h, placa, _win: win });
+            }
+            Err(e) => { log(&format!("OpenGL 2 no anduvo: {e}")); j.avisar(format!("OpenGL 2 no anduvo ({e}): se usa OpenGL 3")); }
+        }
+    }
+    match abrir_gl(p, 3).and_then(|(gl, b, w, h, placa)| unsafe { jxmotor::gpu::Motor::nuevo(gl, Opciones::default()) }.map(|m| (m, b, w, h, placa)).map_err(|e| format!("motor: {e}"))) {
         Ok((m, b, w, h, placa)) => {
             log(&format!("OpenGL 3: {w}×{h} · {placa}"));
             j.en_uso = Placa::Gl3; j.al_abrir();
@@ -138,19 +148,22 @@ fn pedir_120(win: *mut c_void) {
     }
 }
 
-fn abrir_gl(win: *mut c_void) -> Result<(jxmotor::gpu::Motor, BaseGl, i32, i32, String), String> {
+/// EGL con OpenGL ES `version` (2 o 3) en la ventana: el contexto de glow, lo de EGL, el tamaño y la placa
+fn abrir_gl(win: *mut c_void, version: i32) -> Result<(glow::Context, BaseGl, i32, i32, String), String> {
     let e = unsafe { Egl::load_required() }.map_err(|x| format!("libEGL: {x}"))?;
     let d = unsafe { e.get_display(egl::DEFAULT_DISPLAY) }.ok_or("sin pantalla EGL")?;
     e.initialize(d).map_err(|x| format!("eglInitialize: {x}"))?; e.bind_api(egl::OPENGL_ES_API).map_err(|x| format!("eglBindAPI: {x}"))?;
-    const ES3: egl::Int = 0x0040;
-    // (sin profundidad ni stencil en la ventana: el motor dibuja en sus propios cuadros y copia al final)
-    let cfg = e.choose_first_config(d, &[egl::SURFACE_TYPE, egl::WINDOW_BIT, egl::RENDERABLE_TYPE, ES3, egl::RED_SIZE, 8, egl::GREEN_SIZE, 8, egl::BLUE_SIZE, 8, egl::DEPTH_SIZE, 0, egl::NONE]).ok().flatten()
-        .or_else(|| e.choose_first_config(d, &[egl::SURFACE_TYPE, egl::WINDOW_BIT, egl::RENDERABLE_TYPE, ES3, egl::NONE]).ok().flatten()).ok_or("sin configuración EGL con OpenGL ES 3")?;
-    let ctx = e.create_context(d, cfg, None, &[egl::CONTEXT_CLIENT_VERSION, 3, egl::NONE]).map_err(|x| format!("contexto ES 3: {x}"))?;
+    let bit: egl::Int = if version >= 3 { 0x0040 } else { egl::OPENGL_ES2_BIT };
+    // (OpenGL 3 dibuja en sus propios cuadros: la ventana sin profundidad; OpenGL 2 dibuja directo en la ventana: con 16 bits
+    // de profundidad)
+    let prof = if version >= 3 { 0 } else { 16 };
+    let cfg = e.choose_first_config(d, &[egl::SURFACE_TYPE, egl::WINDOW_BIT, egl::RENDERABLE_TYPE, bit, egl::RED_SIZE, 8, egl::GREEN_SIZE, 8, egl::BLUE_SIZE, 8, egl::DEPTH_SIZE, prof, egl::NONE]).ok().flatten()
+        .or_else(|| e.choose_first_config(d, &[egl::SURFACE_TYPE, egl::WINDOW_BIT, egl::RENDERABLE_TYPE, bit, egl::DEPTH_SIZE, prof, egl::NONE]).ok().flatten()).ok_or(format!("sin configuración EGL con OpenGL ES {version}"))?;
+    let ctx = e.create_context(d, cfg, None, &[egl::CONTEXT_CLIENT_VERSION, version, egl::NONE]).map_err(|x| format!("contexto ES {version}: {x}"))?;
     let s = unsafe { e.create_window_surface(d, cfg, win as egl::NativeWindowType, None) }.map_err(|x| format!("superficie: {x}"))?;
     e.make_current(d, Some(s), Some(s), Some(ctx)).map_err(|x| format!("eglMakeCurrent: {x}"))?;
     let _ = e.swap_interval(d, 1);
-    let lib = unsafe { libloading::Library::new("libGLESv3.so").or_else(|_| libloading::Library::new("libGLESv2.so")) }.ok();
+    let lib = unsafe { if version >= 3 { libloading::Library::new("libGLESv3.so").or_else(|_| libloading::Library::new("libGLESv2.so")) } else { libloading::Library::new("libGLESv2.so") } }.ok();
     let gl = unsafe { glow::Context::from_loader_function(|n| {
         let cs = CString::new(n).unwrap();
         if let Some(l) = &lib { if let Ok(p) = l.get::<*const c_void>(cs.as_bytes_with_nul()) { if !p.is_null() { return *p; } } }
@@ -158,9 +171,8 @@ fn abrir_gl(win: *mut c_void) -> Result<(jxmotor::gpu::Motor, BaseGl, i32, i32, 
     }) };
     std::mem::forget(lib);   // (la biblioteca de GL queda abierta mientras viva la app)
     let placa = unsafe { use glow::HasContext; gl.get_parameter_string(glow::RENDERER) };
-    let m = unsafe { jxmotor::gpu::Motor::nuevo(gl, Opciones::default()) }.map_err(|x| format!("motor: {x}"))?;
     let w = e.query_surface(d, s, egl::WIDTH).unwrap_or(1); let h = e.query_surface(d, s, egl::HEIGHT).unwrap_or(1);
-    Ok((m, BaseGl { e, d, ctx, s }, w, h, placa))
+    Ok((gl, BaseGl { e, d, ctx, s }, w, h, placa))
 }
 
 /// cierra el motor (y EGL): la ventana queda libre para el otro motor

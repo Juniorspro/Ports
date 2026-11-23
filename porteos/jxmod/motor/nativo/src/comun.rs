@@ -10,7 +10,7 @@ use jxmotor::gpu::TEX_LETRAS;
 use jxmotor::mat::{self as m4, M4};
 use std::time::Instant;
 
-/// los motores que se pueden elegir (hechos: Vulkan y OpenGL 3)
+/// los motores que se pueden elegir: Vulkan, OpenGL 3 y OpenGL 2 (los teléfonos viejos)
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Placa { Vulkan, Gl3, Gl2 }
 impl Placa {
@@ -18,7 +18,7 @@ impl Placa {
     pub fn clave(self) -> &'static str { match self { Placa::Vulkan => "vk", Placa::Gl3 => "gl3", Placa::Gl2 => "gl2" } }
     pub fn de_clave(s: &str) -> Placa { match s.trim() { "vk" => Placa::Vulkan, "gl2" => Placa::Gl2, _ => Placa::Gl3 } }
     pub fn lista() -> [Placa; 3] { [Placa::Vulkan, Placa::Gl3, Placa::Gl2] }
-    pub fn hecha(self) -> bool { self != Placa::Gl2 }
+    pub fn hecha(self) -> bool { true }
 }
 
 /// un dedo en la pantalla: para qué es (palanca, mirar o un botón que se mantiene) y dónde

@@ -13,7 +13,7 @@ mismo contenido y jugabilidad. Lee **el mismo paquete** que arma `armar.py` para
    - Verificado contra lo que mandaba el JS al motor, con la misma cámara: `RB_Flatgrass` y `RB_Construct` dan **la misma
      imagen píxel por píxel**, y la luz, la niebla y las luces iguales al último decimal
      (`JXM_WGPU=1 JXM_PAQ=<www> JXM_MAPA=RB_Construct jxm-banco ref.jxg salida.png`).
-2. **La app de Android sin WebView (hecha con Vulkan propio y OpenGL 3; falta OpenGL 2)**: `motor/nativo/` es
+2. **La app de Android sin WebView (hecha: Vulkan propio, OpenGL 3 y OpenGL 2)**: `motor/nativo/` es
    `libjxmod.so` (NativeActivity, `android-activity`): la ventana con EGL y OpenGL ES 3 (`jxmotor::gpu`), los archivos de
    la APK, la palanca a la izquierda y mirar arrastrando a la derecha, el HUD (atlas DejaVu Sans Bold de
    `herramientas/atlas_letras.py`: letras, discos, aros y cajas redondeadas en la pasada de interfaz del motor), el cartel
@@ -27,6 +27,11 @@ mismo contenido y jugabilidad. Lee **el mismo paquete** que arma `armar.py` para
      imagen girada por el juego (preTransform: el sistema no gira nada), dos cuadros en vuelo con sus búferes y marcas de
      tiempo de la placa por pasada (en el HUD). Misma imagen que OpenGL 3 (diferencia media 1.4 sobre 255 en las pruebas).
      Todavía sin agua, reflejo, partículas ni marcas (los mapas nativos no las usan aún).
+   - **OpenGL 2** (`jxmotor/src/gl2.rs`, GLSL ES 1.00, sólo lo que ES 2 tiene de fábrica): la luz del juego simplificada
+     (sol, cielo y suelo, luz horneada, hasta 4 luces, niebla, ACES y el retoque en el mismo sombreador), terreno,
+     mezcladas, recortes, transparentes, el cielo con su caja y el HUD; sin sombras ni oclusión, un dibujo por cosa, la UV
+     en float (ES 2 no lee medio float) e índices de 32 bits pasados a 16 si hace falta. En la compu: 10,8 ms por cuadro
+     contra 48 de OpenGL 3.
    - Compilar: `motor/armar_nativo.sh` (arm64 y armv7, páginas de 16 KB) y
      `python3 -I apk/armar_nativo.py SALIDA.apk --www <carpeta con pk.bin sin cifrar, pk.idx.json y rb/>`.
    - Probar en la compu: `cargo build --release -p jxmod-nativo --example foto` y `foto CARPETA [ANCHO ALTO]` (el mismo
