@@ -58,6 +58,8 @@ pub struct Armas {
     /// las balas en el cargador de cada una, lo que falta para el próximo tiro (ARM.t), ocupada (sacando o recargando),
     /// recargando, el retroceso, apuntando (y cuánto: 0 a 1), la mira del francotirador y el golpe que va a pegar
     pub balas: Vec<u32>, pub t: f32, pub ocup: f32, pub recargando: f32, pub retro: f32, pub apunta: bool, pub ap_k: f32, pub zoom: bool, pub golpe_t: f32,
+    /// cada vez que se empieza a apuntar (el arma calcula dónde va con la pose de ese momento: ARM.apTok)
+    pub ap_tok: u32,
     azar: u32,
 }
 
@@ -103,7 +105,7 @@ impl Armas {
             "ToolBaton" => self.herramienta(true),
             "GravityGun" => self.grav_secundario(fis, mundo, ojo, dir),
             // (las de fuego: el «2» apunta —el arma al centro y la vista más cerrada—; el francotirador mira por la mira)
-            _ => { let d = self.def(); if d.mira { self.zoom = !self.zoom; } else if d.tipo == "bala" || d.tipo == "perdigones" { self.apunta = !self.apunta; } }
+            _ => { let d = self.def(); if d.mira { self.zoom = !self.zoom; } else if d.tipo == "bala" || d.tipo == "perdigones" { self.apunta = !self.apunta; if self.apunta && self.ap_k <= 0.02 { self.ap_tok += 1; } } }
         }
     }
     /// la Tool Gun: el tiro (con su sonido de HL2 y la animación de fuego)

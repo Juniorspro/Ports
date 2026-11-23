@@ -625,7 +625,10 @@ impl Juego {
             let mut items = mp.items.clone();
             if self.camara != 0 { if let Some(pj) = &self.pj { let jp = self.jug.pos; pj.items(&personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw), &mut items); } }
             // (en primera persona, el arma delante de la cámara; y el rayo de la Physics Gun, de la boca a lo agarrado)
-            if self.camara == 0 && !self.armas.zoom { if let Some(v) = self.vista.as_mut() { v.ubicar(ojos, qcam(yaw, pitch), self.sway); v.items(&mut items); } }
+            if self.camara == 0 && !self.armas.zoom { if let Some(v) = self.vista.as_mut() {
+                if self.armas.ap_k > 0.002 && v.ads_tok != self.armas.ap_tok { v.calcular_ads(self.armas.ap_tok); }
+                v.ubicar(ojos, qcam(yaw, pitch), self.sway, self.armas.ap_k); v.items(&mut items);
+            } }
             self.proyectiles_items(&mut items);
             if let (Some(p1), Some(a), true) = (self.armas.punto_agarrado(&self.fis), self.armas.agarre.as_ref(), self.tubo_ok) {
                 let p0 = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or([ojos[0], ojos[1] - 0.2, ojos[2]]);
@@ -787,7 +790,7 @@ impl Juego {
                 Boton::ArmaN(k) => (ARMAS[k].nom, k == self.armas.i),
                 Boton::Girar => ("Girar", self.armas.rotar),
                 Boton::Lejos => ("+", false),
-                Boton::Cerca => ("-", false),
+                Boton::Cerca => ("−", false),
                 Boton::Ajustes => ("Ajustes", self.ajustes.is_some()),
                 Boton::Camara => (["Primera", "Tercera", "De frente"][self.camara as usize], self.camara != 0),
                 Boton::Saltar => ("Saltar", self.apretado(Boton::Saltar)),

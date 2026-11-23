@@ -5,7 +5,7 @@ import json, os, sys
 from PIL import Image, ImageDraw, ImageFont
 FUENTE = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
 TAM, LADO = 40, 1024
-CARS = [chr(c) for c in range(32, 127)] + list('áéíóúñüÁÉÍÓÚÑÜ¿¡·×…→←↑↓°º«»—')
+CARS = [chr(c) for c in range(32, 127)] + list('áéíóúñüÁÉÍÓÚÑÜ¿¡·×…→←↑↓°º«»—∞ª−')
 def main():
     out = sys.argv[1]; os.makedirs(out, exist_ok=True)
     f = ImageFont.truetype(FUENTE, TAM)

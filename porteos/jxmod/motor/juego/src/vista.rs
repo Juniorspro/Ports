@@ -61,6 +61,9 @@ pub struct Vista {
     /// la boca del arma (Muzzle…), para el rayo y los tiros
     pub mz: Option<usize>,
     pub clip: Option<Arc<Clip>>, pub t: f32, pub vel: f32, pub bucle: bool, pub mantener: bool,
+    /// apuntar (vistaAds): el giro y el corrimiento que llevan la boca del arma al centro de la vista, y para qué pedido
+    /// de apuntar se calculó
+    pub ads: Option<(Q, V)>, pub ads_tok: u32,
 }
 
 /// la copia del sub-árbol desde el nodo i0 con los índices nuevos (subArbol)
@@ -148,7 +151,7 @@ impl Vista {
         for i in 1..n { let mut c = vec![]; let mut k = i as i32; while k > 0 { c.push(nombres[k as usize].as_str()); k = pa[k as usize]; } c.reverse(); por_hash.insert(crc32(&c.join("/")), i); }
         let mz = nombres.iter().position(|x| x == "Muzzle" || x == "MuzzlePoint" || x.contains("StartLinePoint") || x.contains("weapon_end"));
         let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs, lms: vec![], items: vec![], agua: None, cielo: None };
-        Ok((Vista { nodo: nodo.to_string(), pa, act, mesh, p, r, s, w: vec![m4::id(); n], raiz: m4::id(), pieles, rigidas, por_hash, mz, clip: None, t: 0.0, vel: 1.0, bucle: false, mantener: false }, Escena { c: cab, datos }))
+        Ok((Vista { nodo: nodo.to_string(), pa, act, mesh, p, r, s, w: vec![m4::id(); n], raiz: m4::id(), pieles, rigidas, por_hash, mz, clip: None, t: 0.0, vel: 1.0, bucle: false, mantener: false, ads: None, ads_tok: 0 }, Escena { c: cab, datos }))
     }
 
     /// vistaTocar: empieza un clip (devuelve lo que dura)
@@ -186,12 +189,40 @@ impl Vista {
         }
     }
 
-    /// vistaUbicar: delante de la cámara (pos y giro), con el vaivén (sway: x, y, z, qx, qy) a la escala 0,3 de SmoothCamera
-    pub fn ubicar(&mut self, cam: V, cam_q: Q, sway: [f32; 5]) {
-        let b = trs(cam, cam_q, [1.0; 3]);
-        let o = trs([sway[0], sway[1], sway[2]], [sway[3], sway[4], 0.0, 1.0], [0.3; 3]);
+    /// vistaUbicar: delante de la cámara (pos y giro), con el vaivén (sway: x, y, z, qx, qy) a la escala 0,3 de SmoothCamera;
+    /// apuntando (`k` de 0 a 1) el arma va al centro con el caño hacia donde mira, y se balancea mucho menos
+    pub fn ubicar(&mut self, cam: V, cam_q: Q, sway: [f32; 5], k: f32) {
+        let mut b = trs(cam, cam_q, [1.0; 3]);
+        if let (Some((q, t)), true) = (self.ads, k > 0.002) {
+            let qk = slerp([0.0, 0.0, 0.0, 1.0], q, k);
+            b = m4::mul(&b, &trs([t[0] * k, t[1] * k, t[2] * k], qk, [1.0; 3]));
+        }
+        let sw = 1.0 - 0.85 * k;
+        let o = trs([sway[0] * sw, sway[1] * sw, sway[2] * sw], [sway[3] * sw, sway[4] * sw, 0.0, 1.0], [0.3; 3]);
         self.raiz = m4::mul(&b, &o);
         self.actualizar();
+    }
+    /// vistaAds: con la pose de ahora, lo que lleva la boca del arma (que está abajo a la derecha) al centro de la vista
+    /// (adelante +z, arriba +y): el eje de la boca que más mira adelante es el caño; se lo gira hasta la línea de la mira y
+    /// se corre la boca hasta esa línea, un poco por debajo (VADS_BAJO, las miras van arriba del caño)
+    pub fn calcular_ads(&mut self, tok: u32) {
+        self.ads_tok = tok; self.ads = None;
+        let Some(mz) = self.mz else { return };
+        let r0 = self.raiz; self.raiz = trs([0.0; 3], [0.0, 0.0, 0.0, 1.0], [0.3; 3]); self.actualizar();
+        let w = self.w[mz]; let m = [w[12], w[13], w[14]];
+        let (mut d, mut mejor) = (None, -1.0f32);
+        for c in [0usize, 4, 8] {
+            let e = [w[c], w[c + 1], w[c + 2]]; let l = (e[0] * e[0] + e[1] * e[1] + e[2] * e[2]).sqrt(); if l < 1e-6 { continue; }
+            let e = [e[0] / l, e[1] / l, e[2] / l];
+            for sg in [1.0f32, -1.0] { if e[2] * sg > mejor { mejor = e[2] * sg; d = Some([e[0] * sg, e[1] * sg, e[2] * sg]); } }
+        }
+        let lm = (m[0] * m[0] + m[1] * m[1] + m[2] * m[2]).sqrt().max(1e-9);
+        let d = if d.is_none() || mejor < 0.6 { [m[0] / lm, m[1] / lm, m[2] / lm] } else { d.unwrap() };
+        if m[2] > 0.05 {
+            let q = rot_entre(d, [0.0, 0.0, 1.0]); let m2 = qrot(q, m);
+            self.ads = Some((q, [-m2[0], -m2[1] - 0.075 * m2[2], 0.0]));
+        }
+        self.raiz = r0; self.actualizar();
     }
     fn actualizar(&mut self) {
         for i in 0..self.w.len() {
@@ -226,6 +257,23 @@ impl Vista {
             for &(s0, sn, mat) in &pz.partes { out.push(ItemDin { m: pz.m, s0, sn, mat, mm: m4::id(), esf: [c[0], c[1], c[2], pz.r * 4.0 * escala(w).max(0.3)], fl: FL_SIN_SOMBRA, h: h.clone() }); }
         }
     }
+}
+fn qrot(q: Q, v: V) -> V {
+    let (x, y, z, w) = (q[0], q[1], q[2], q[3]); let (ix, iy, iz, iw) = (w * v[0] + y * v[2] - z * v[1], w * v[1] + z * v[0] - x * v[2], w * v[2] + x * v[1] - y * v[0], -x * v[0] - y * v[1] - z * v[2]);
+    [ix * w + iw * -x + iy * -z - iz * -y, iy * w + iw * -y + iz * -x - ix * -z, iz * w + iw * -z + ix * -y - iy * -x]
+}
+/// el giro más corto que lleva la dirección `a` a la `b` (rotEntre)
+fn rot_entre(a: V, b: V) -> Q {
+    let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    if d < -0.999999 { let mut ax = [0.0, -a[2], a[1]]; if ax[1] * ax[1] + ax[2] * ax[2] < 1e-6 { ax = [a[2], 0.0, -a[0]]; } let l = (ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]).sqrt(); return [ax[0] / l, ax[1] / l, ax[2] / l, 0.0]; }
+    let c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    let q = [c[0], c[1], c[2], 1.0 + d]; let l = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]).sqrt(); [q[0] / l, q[1] / l, q[2] / l, q[3] / l]
+}
+fn slerp(a: Q, b: Q, t: f32) -> Q {
+    let mut cs = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]; let mut b = b; if cs < 0.0 { cs = -cs; b = [-b[0], -b[1], -b[2], -b[3]]; }
+    let (k0, k1) = if cs > 0.9995 { (1.0 - t, t) } else { let o = cs.acos(); let so = o.sin(); (((1.0 - t) * o).sin() / so, (t * o).sin() / so) };
+    let q = [a[0] * k0 + b[0] * k1, a[1] * k0 + b[1] * k1, a[2] * k0 + b[2] * k1, a[3] * k0 + b[3] * k1];
+    let l = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]).sqrt().max(1e-9); [q[0] / l, q[1] / l, q[2] / l, q[3] / l]
 }
 fn punto(m: &M4, p: V) -> V { [m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13], m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]] }
 fn escala(m: &M4) -> f32 { (m[0] * m[0] + m[1] * m[1] + m[2] * m[2]).sqrt().max((m[4] * m[4] + m[5] * m[5] + m[6] * m[6]).sqrt()).max((m[8] * m[8] + m[9] * m[9] + m[10] * m[10]).sqrt()) }

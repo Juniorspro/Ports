@@ -204,6 +204,8 @@ fn main() {
             j.dedo_abajo(60, bx, by, wf, hf); let mut minb = 99; for _ in 0..170 { paso(&mut j, &mut m, 1); minb = minb.min(j.armas.balas[j.armas.i]); } foto(&mut m, "3e1_pistola"); j.dedo_arriba(60);
             println!("Pistola: balas al final {} (mínimo {}), recargando {:.2} s · la caja se movió {:.2} m", j.armas.balas[j.armas.i], minb, j.armas.recargando, { let c = j.fis.cuerpo(caja).map(|b| b.pos).unwrap_or(c0); ((c[0] - c0[0]).powi(2) + (c[2] - c0[2]).powi(2)).sqrt() });
             paso(&mut j, &mut m, 150); println!("   después de la recarga: {} balas", j.armas.balas[j.armas.i]);
+            { let (x2, y2) = pos_boton(wf, hf, Boton::Disparo2); j.dedo_abajo(64, x2, y2, wf, hf); j.dedo_arriba(64); paso(&mut j, &mut m, 30); foto(&mut m, "3e1b_apuntar");
+              println!("   apuntando: k {:.2} · campo de visión {:.0}°", j.armas.ap_k, j.aj.fov as f32 * (1.0 - 0.27 * j.armas.ap_k)); j.dedo_abajo(65, x2, y2, wf, hf); j.dedo_arriba(65); paso(&mut j, &mut m, 30); }
             arma(&mut j, "Shotgun"); paso(&mut j, &mut m, 60); let c1 = j.fis.cuerpo(caja).map(|b| b.pos).unwrap_or(c0); mira_a(&mut j, c1); paso(&mut j, &mut m, 2);
             j.dedo_abajo(61, bx, by, wf, hf); paso(&mut j, &mut m, 3); j.dedo_arriba(61); paso(&mut j, &mut m, 60); foto(&mut m, "3e2_escopeta");
             println!("Escopeta: la caja se movió {:.2} m · balas {}", { let c = j.fis.cuerpo(caja).map(|b| b.pos).unwrap_or(c1); ((c[0] - c1[0]).powi(2) + (c[2] - c1[2]).powi(2)).sqrt() }, j.armas.balas[j.armas.i]);
