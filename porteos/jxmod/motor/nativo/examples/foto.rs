@@ -99,6 +99,14 @@ fn main() {
     for _ in 0..90 { paso(&mut j, &mut m, 1); ymax = ymax.max(j.jug.pos[1]); }
     j.dedo_arriba(7); paso(&mut j, &mut m, 60);
     println!("3 saltar: subió {:.3} m (el de la web: 1,1) · suelo {}", ymax - y0, j.jug.suelo); foto(&mut m, "3_saltar");
+    // el menú de objetos: abrirlo, tocar tres de la primera subcategoría y cerrarlo
+    let toque = |j: &mut Juego, id: i32, x: f32, y: f32| { j.dedo_abajo(id, x, y, wf, hf); j.dedo_arriba_en(id, wf, hf); };
+    toque(&mut j, 8, wf - hf * 0.17, hf * 0.27); let t = Instant::now(); paso(&mut j, &mut m, 2); println!("menú abierto (atlas de íconos): {:.0} ms", t.elapsed().as_secs_f64() * 1000.0); foto(&mut m, "3b_menu");
+    let (x0, y0, pw) = (wf * 0.04, hf * 0.12, wf * 0.92); let (gx, gy, gw) = (x0 + pw * 0.22, y0 + hf * 0.09, pw * 0.77);
+    let cols = ((gw / (hf * 0.19)).floor()).max(1.0); let celda = gw / cols;
+    for k in 0..3 { let t = Instant::now(); toque(&mut j, 9 + k, gx + celda * (k as f32 + 0.5), gy + celda * 0.5); paso(&mut j, &mut m, 1); println!("   puesto {}: {:.0} ms", k, t.elapsed().as_secs_f64() * 1000.0); }
+    toque(&mut j, 12, x0 + pw - hf * 0.05, y0 + hf * 0.04); paso(&mut j, &mut m, 3);
+    println!("objetos puestos: {}", j.objs.iter().map(|o| o.nombre.as_str()).collect::<Vec<_>>().join(", ")); foto(&mut m, "3c_objetos");
     // el otro mapa: caminar 6 s para adelante y a la derecha (choca con lo que haya)
     let (x0, bw) = (wf * 0.45, wf * 0.55 / 4.0);
     j.dedo_abajo(5, x0 + bw * 3.5, hf * 0.05, wf, hf); j.dedo_arriba(5); let t = Instant::now(); paso(&mut j, &mut m, 2); println!("cambio de mapa: {:.0} ms · {}", t.elapsed().as_secs_f64() * 1000.0, m.resumen());

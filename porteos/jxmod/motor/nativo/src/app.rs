@@ -97,7 +97,7 @@ fn tocar(j: &mut Juego, v: &Option<Ventana>, me: &android_activity::input::Motio
     match me.action() {
         MotionAction::Down | MotionAction::PointerDown => { let p = me.pointer_at_index(me.pointer_index()); j.dedo_abajo(p.pointer_id(), p.x(), p.y(), w, h); }
         MotionAction::Move => { for p in me.pointers() { j.dedo_mueve(p.pointer_id(), p.x(), p.y(), h); } }
-        MotionAction::Up | MotionAction::PointerUp => { j.dedo_arriba(me.pointer_at_index(me.pointer_index()).pointer_id()); }
+        MotionAction::Up | MotionAction::PointerUp => { j.dedo_arriba_en(me.pointer_at_index(me.pointer_index()).pointer_id(), w, h); }
         MotionAction::Cancel => j.dedos_fuera(),
         _ => {}
     }

@@ -2,6 +2,8 @@
 //! y el HUD. Lo de Android (la ventana, EGL, los eventos) está en app.rs.
 use jxjuego::jugador::{Entrada, Jugador};
 use jxjuego::mapa::{self, Mapa};
+use jxjuego::objetos::{self, Cargados, Prefab};
+use std::collections::HashMap;
 use jxjuego::paquete::Paquete;
 use jxjuego::texto::Letras;
 use jxmotor::escena::{Cabecera, Cuadro, Escena, Tex};
@@ -26,7 +28,7 @@ struct Dedo { id: i32, palanca: bool, boton: Option<Boton>, x0: f32, y0: f32, x:
 
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Boton { Motor(usize), Mapa, Saltar, Agachar, Volar }
+pub enum Boton { Motor(usize), Mapa, Saltar, Agachar, Volar, Objetos, Deshacer }
 /// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
 struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
 /// dónde va cada botón con la pantalla de w × h
@@ -38,7 +40,34 @@ fn botones(w: f32, h: f32) -> Vec<Btn> {
     v.push(Btn { b: Boton::Saltar, x: w - h * 0.17, y: h - h * 0.2, w: r * 2.0, h: r * 2.0, redondo: true });
     v.push(Btn { b: Boton::Agachar, x: w - h * 0.17, y: h - h * 0.47, w: r * 1.5, h: r * 1.5, redondo: true });
     v.push(Btn { b: Boton::Volar, x: w - h * 0.44, y: h - h * 0.14, w: r * 1.3, h: r * 1.3, redondo: true });
+    v.push(Btn { b: Boton::Objetos, x: w - h * 0.17, y: h * 0.27, w: r * 1.5, h: r * 1.5, redondo: true });
+    v.push(Btn { b: Boton::Deshacer, x: w - h * 0.44, y: h * 0.27, w: r * 1.3, h: r * 1.3, redondo: true });
     v
+}
+/// la textura de los íconos del menú (un atlas armado con los de la subcategoría abierta)
+pub const TEX_ICONOS: i64 = -2001;
+const ICO: u32 = 96;
+const ICO_COLS: u32 = 10;
+/// el menú de objetos abierto: qué subcategoría, cuánto bajó la grilla y de qué subcategoría es el atlas cargado
+pub struct Menu { pub sub: usize, pub scroll: f32, atlas_de: Option<usize>, atlas_h: u32 }
+/// dónde va cada cosa del menú (con la pantalla de w × h y n subcategorías)
+struct Panel { x0: f32, y0: f32, pw: f32, ph: f32, tab_h: f32, gx: f32, gy: f32, gw: f32, gh: f32, celda: f32, cols: usize }
+fn panel(w: f32, h: f32, nsub: usize) -> Panel {
+    let (x0, y0, pw, ph) = (w * 0.04, h * 0.12, w * 0.92, h * 0.85);
+    let tab_h = ((ph - h * 0.1) / nsub.max(1) as f32).min(h * 0.08);
+    let (gx, gy) = (x0 + pw * 0.22, y0 + h * 0.09); let (gw, gh) = (pw * 0.77, ph - h * 0.1);
+    let celda = h * 0.19; let cols = ((gw / celda).floor() as usize).max(1);
+    Panel { x0, y0, pw, ph, tab_h, gx, gy, gw, gh, celda: gw / cols as f32, cols }
+}
+/// un objeto puesto en el mundo (por ahora fijo donde se puso: la física llega con fisica.rs)
+pub struct Obj { pub nombre: String, pub pos: [f32; 3], pub q: [f32; 4], pub c: [f32; 3] }
+fn rect_uv(v: &mut Vec<f32>, x: f32, y: f32, w: f32, h: f32, uv: [f32; 4], col: [f32; 4]) {
+    let p = [(x, y, uv[0], uv[1]), (x + w, y, uv[2], uv[1]), (x + w, y + h, uv[2], uv[3]), (x, y, uv[0], uv[1]), (x + w, y + h, uv[2], uv[3]), (x, y + h, uv[0], uv[3])];
+    for (a, b, c, d) in p { v.extend_from_slice(&[a, b, c, d, col[0], col[1], col[2], col[3]]); }
+}
+/// la matriz de un objeto: su lugar y su giro, corrido por su centro (objetoMatriz)
+fn matriz_obj(o: &Obj) -> M4 {
+    let b = mapa::trs(o.pos, o.q, [1.0; 3]); let c = m4::mul(&b, &mapa::trs([-o.c[0], -o.c[1], -o.c[2]], [0.0, 0.0, 0.0, 1.0], [1.0; 3])); c
 }
 fn boton_en(w: f32, h: f32, x: f32, y: f32) -> Option<Boton> {
     botones(w, h).into_iter().find(|b| if b.redondo { let (dx, dy) = (x - b.x, y - b.y); dx * dx + dy * dy <= (b.w * 0.55).powi(2) } else { (x - b.x).abs() <= b.w / 2.0 + 4.0 && (y - b.y).abs() <= b.h / 2.0 + 4.0 }).map(|b| b.b)
@@ -66,6 +95,10 @@ pub struct Juego {
     pub en_uso: Placa, pub cambiar_motor: bool,
     /// lo que tardó cada pasada en la placa (Vulkan)
     pub detalle: String,
+    // —— los objetos ——
+    nombres: HashMap<String, String>, pub catalogo: Vec<(String, Vec<String>)>,
+    pub menu: Option<Menu>, prefabs: HashMap<String, Prefab>, cargados: Cargados,
+    pub objs: Vec<Obj>, pendientes: Vec<String>,
 }
 
 /// la proyección de GL (como M4.persp de nucleo.js)
@@ -91,7 +124,9 @@ impl Juego {
         let (paq, error) = match paq { Ok(p) => (Some(p), None), Err(e) => (None, Some(format!("el paquete del juego: {e}"))) };
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass", "RB_Construct"], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
-            recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new() };
+            recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
+            nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![] };
+        if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); }
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
         j
     }
@@ -117,11 +152,14 @@ impl Juego {
     // —— el tacto (coordenadas en píxeles de la pantalla) ——
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
         self.dedos.retain(|d| d.id != id);
+        if self.menu.is_some() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
         if let Some(b) = boton_en(w, h, x, y) {
             match b {
                 Boton::Motor(k) => self.elegir_motor(k),
                 Boton::Mapa => { self.mapa_i = (self.mapa_i + 1) % self.mapas.len(); self.recargar = true; }
                 Boton::Volar => { self.jug.noclip = !self.jug.noclip; self.avisar(if self.jug.noclip { "Volar: prendido".into() } else { "Volar: apagado".into() }); }
+                Boton::Objetos => { if !self.catalogo.is_empty() { self.menu = Some(Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0 }); } }
+                Boton::Deshacer => { if let Some(o) = self.objs.pop() { self.avisar(format!("Deshecho: {}", o.nombre)); } }
                 _ => {}
             }
             // (saltar y agacharse se mantienen mientras el dedo esté apoyado)
@@ -132,12 +170,39 @@ impl Juego {
         self.dedos.push(Dedo { id, palanca, boton: None, x0: x, y0: y, x, y });
     }
     pub fn dedo_mueve(&mut self, id: i32, x: f32, y: f32, h: f32) {
+        if let Some(m) = self.menu.as_mut() {
+            // (en el menú, arrastrar baja la grilla)
+            if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { m.scroll = (m.scroll - (y - d.y)).max(0.0); d.x = x; d.y = y; }
+            return;
+        }
         if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) {
             if !d.palanca && d.boton.is_none() { let s = 0.0045 * 1080.0 / h.max(1.0); self.jug.yaw -= (x - d.x) * s; self.jug.pitch = (self.jug.pitch - (y - d.y) * s).clamp(-1.5, 1.5); }
             d.x = x; d.y = y;
         }
     }
+    /// al soltar: en el menú, un toque (sin arrastrar) elige
+    pub fn dedo_arriba_en(&mut self, id: i32, w: f32, h: f32) {
+        if self.menu.is_some() {
+            if let Some(d) = self.dedos.iter().find(|d| d.id == id) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); self.toque_menu(x, y, w, h); } }
+        }
+        self.dedo_arriba(id);
+    }
     pub fn dedo_arriba(&mut self, id: i32) { self.dedos.retain(|d| d.id != id); }
+    fn toque_menu(&mut self, x: f32, y: f32, w: f32, h: f32) {
+        let Some(m) = self.menu.as_mut() else { return };
+        let p = panel(w, h, self.catalogo.len());
+        // (la X de cerrar, arriba a la derecha del panel; o tocar afuera)
+        if (x > p.x0 + p.pw - h * 0.1 && y < p.y0 + h * 0.08) || x < p.x0 || x > p.x0 + p.pw || y < p.y0 || y > p.y0 + p.ph { self.menu = None; return; }
+        if x < p.gx - p.pw * 0.01 {
+            let k = ((y - p.y0 - h * 0.02) / p.tab_h).floor() as i64;
+            if k >= 0 && (k as usize) < self.catalogo.len() { m.sub = k as usize; m.scroll = 0.0; }
+            return;
+        }
+        let (col, fila) = (((x - p.gx) / p.celda).floor() as i64, ((y - p.gy + m.scroll) / p.celda).floor() as i64);
+        if col < 0 || col as usize >= p.cols || fila < 0 { return; }
+        let i = fila as usize * p.cols + col as usize;
+        if let Some(n) = self.catalogo.get(m.sub).and_then(|s| s.1.get(i)) { self.pendientes.push(n.clone()); }
+    }
     pub fn dedos_fuera(&mut self) { self.dedos.clear(); }
     fn apretado(&self, b: Boton) -> bool { self.dedos.iter().any(|d| d.boton == Some(b)) }
     /// lo que pide el jugador: la palanca (corre con el dedo a más de 1,6 radios, como la web) y los botones
@@ -171,6 +236,7 @@ impl Juego {
     fn cargar_mapa(&mut self, m: &mut Motor3d) {
         let nombre = self.mapas[self.mapa_i];
         self.mapa = None;
+        self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; }
         unsafe { m.vaciar(); }
         let Some(paq) = self.paq.as_mut() else { return };
         match mapa::armar(paq, nombre, 1024, 750.0) {
@@ -203,7 +269,7 @@ impl Juego {
     unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
-            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.cargar_letras(m); }
+            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
             else { self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
         }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora;
@@ -219,21 +285,64 @@ impl Juego {
         let (ojos, _) = self.jug.ojos(dt);
         let (yaw, pitch) = (self.jug.yaw, self.jug.pitch);
         let fw = [yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos()];
+        self.menu_atlas(m);
+        let pend = std::mem::take(&mut self.pendientes);
+        for n in pend { if let Err(e) = self.poner(m, &n, ojos, fw) { self.avisar(format!("{n}: {e}")); } }
         if let Some(mp) = &self.mapa {
             let p = persp(75f32.to_radians(), wf / hf.max(1.0), 0.08, mp.lejos * 1.05);
             let vista = m4::mirar(ojos, [ojos[0] + fw[0], ojos[1] + fw[1], ojos[2] + fw[2]], [0.0, 1.0, 0.0]);
-            let c = Cuadro { vp: m4::mul(&p, &vista), pos: ojos, luz: mp.luz, agua_y: None, tiempo: self.t0.elapsed().as_secs_f32(),
-                luces: mp.luces_cerca(ojos, 6), esp: vec![], items: mp.items.clone(), efectos: vec![] };
+            let mut items = mp.items.clone();
+            for o in &self.objs { if let Some(pf) = self.prefabs.get(&o.nombre) { pf.items(&matriz_obj(o), &mut items); } }
+            let c = Cuadro { vp: m4::mul(&p, &vista), pos: ojos, luz: mp.luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
+                luces: mp.luces_cerca(ojos, 6), esp: vec![], items, efectos: vec![] };
             m.poner_cuadro(c);
         }
         let u = self.hud(w, h, placa_txt);
         m.dibujar(w, h, self.mapa.is_some(), &u)
     }
 
+    /// el atlas de íconos de la subcategoría abierta (se arma al abrirla)
+    fn menu_atlas(&mut self, m: &mut Motor3d) {
+        let (Some(mm), Some(paq)) = (self.menu.as_mut(), self.paq.as_ref()) else { return };
+        if mm.atlas_de == Some(mm.sub) { return; }
+        let Some((_, items)) = self.catalogo.get(mm.sub) else { return };
+        let n = items.len() as u32; let filas = n.div_ceil(ICO_COLS).max(1); let (aw, ah) = (1024u32, (filas * ICO).next_power_of_two());
+        let mut px = vec![0u8; (aw * ah * 4) as usize];
+        for (k, it) in items.iter().enumerate() {
+            let Some(ic) = objetos::icono(paq, it, ICO) else { continue };
+            let (cx, cy) = ((k as u32 % ICO_COLS) * ICO, (k as u32 / ICO_COLS) * ICO);
+            for y in 0..ICO { let d = (((cy + y) * aw + cx) * 4) as usize; let s = ((y * ICO) * 4) as usize; px[d..d + (ICO * 4) as usize].copy_from_slice(&ic[s..s + (ICO * 4) as usize]); }
+        }
+        let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![], texs: vec![Tex { id: TEX_ICONOS, n: "iconos".into(), w: aw, h: ah, a: 1, o: 0 }], lms: vec![], items: vec![], agua: None, cielo: None };
+        let _ = unsafe { m.cargar(&Escena { c: cab, datos: px }) };
+        mm.atlas_de = Some(mm.sub); mm.atlas_h = ah;
+    }
+    /// pone un objeto donde mira el jugador (o 6 m adelante), mirándolo y apoyado en el piso (spawnDelante y crearObjeto)
+    fn poner(&mut self, m: &mut Motor3d, nombre: &str, ojos: [f32; 3], fw: [f32; 3]) -> Result<(), String> {
+        let (Some(paq), Some(mp)) = (self.paq.as_mut(), self.mapa.as_ref()) else { return Ok(()) };
+        if !self.prefabs.contains_key(nombre) {
+            let (pf, esc) = objetos::armar(paq, &self.nombres, nombre, 512, &mut self.cargados)?;
+            unsafe { m.cargar(&esc)?; }
+            self.prefabs.insert(nombre.to_string(), pf);
+        }
+        let pf = &self.prefabs[nombre];
+        let mut p = match mp.mundo.rayo(ojos, fw, 40.0) { Some(g) => { let t = (g.t - 0.05).max(0.5); [ojos[0] + fw[0] * t, ojos[1] + fw[1] * t, ojos[2] + fw[2] * t] }
+            None => { let mut q = [ojos[0] + fw[0] * 6.0, ojos[1] + fw[1] * 6.0, ojos[2] + fw[2] * 6.0]; if let Some(g) = mp.mundo.rayo(q, [0.0, -1.0, 0.0], 50.0) { q[1] -= g.t; } q } };
+        let a = self.jug.yaw + std::f32::consts::PI; let q = [0.0, (a / 2.0).sin(), 0.0, (a / 2.0).cos()];
+        // (la base apoyada: lo más bajo de su caja, girada)
+        let c = pf.caja; let (s, co) = (a.sin(), a.cos()); let _ = (s, co);
+        let min_y = c[1];
+        p[1] += -min_y + 0.01;
+        self.objs.push(Obj { nombre: nombre.to_string(), pos: p, q, c: [0.0; 3] });
+        self.avisar(format!("Puesto: {nombre}"));
+        Ok(())
+    }
+
     /// el HUD: los vértices de la interfaz (8 floats cada uno)
-    fn hud(&self, w: i32, h: i32, placa_txt: &str) -> Vec<f32> {
+    fn hud(&self, w: i32, h: i32, placa_txt: &str) -> Vec<(i64, Vec<f32>)> {
         let (wf, hf) = (w as f32, h as f32);
         let Some(l) = &self.letras else { return vec![] };
+        let mut ic: Vec<f32> = vec![];
         let mut u = vec![]; let t = hf * 0.032; let (bl, gr) = ([1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.45]);
         let usa = self.en_uso;
         l.texto_sombra(&mut u, t * 0.5, t * 0.5, t, bl, &format!("{:.0} fps · cuadro {:.1} ms · placa {:.1} ms · {}×{}", self.fps, self.ms, self.placa_ms, w, h));
@@ -248,6 +357,8 @@ impl Juego {
                 Boton::Saltar => ("Saltar", self.apretado(Boton::Saltar)),
                 Boton::Agachar => ("Agachar", self.apretado(Boton::Agachar)),
                 Boton::Volar => ("Volar", self.jug.noclip),
+                Boton::Objetos => ("Objetos", self.menu.is_some()),
+                Boton::Deshacer => ("Deshacer", false),
             };
             if b.redondo {
                 l.disco(&mut u, b.x, b.y, b.w / 2.0, if elegido { [0.95, 0.66, 0.1, 0.8] } else { [0.0, 0.0, 0.0, 0.35] });
@@ -273,6 +384,34 @@ impl Juego {
             let txt = format!("Cargando {}…", self.mapas[self.mapa_i]); let tt = t * 1.3; let an = l.ancho(tt, &txt);
             l.texto_sombra(&mut u, (wf - an) / 2.0, hf * 0.47, tt, bl, &txt);
         }
+        // el menú de objetos: las subcategorías a la izquierda, la grilla con los íconos y los nombres
+        if let Some(mm) = &self.menu {
+            let p = panel(wf, hf, self.catalogo.len());
+            l.caja(&mut u, p.x0, p.y0, p.pw, p.ph, hf * 0.03, [0.07, 0.08, 0.11, 0.94]);
+            l.texto(&mut u, p.x0 + hf * 0.03, p.y0 + hf * 0.02, t * 0.9, bl, &format!("Objetos · {}", self.catalogo.get(mm.sub).map(|s| s.0.as_str()).unwrap_or("")));
+            l.caja(&mut u, p.x0 + p.pw - hf * 0.09, p.y0 + hf * 0.012, hf * 0.07, hf * 0.06, hf * 0.015, [0.6, 0.15, 0.12, 0.95]);
+            { let an = l.ancho(t * 0.9, "X"); l.texto(&mut u, p.x0 + p.pw - hf * 0.055 - an / 2.0, p.y0 + hf * 0.02, t * 0.9, bl, "X"); }
+            for (k, (n, _)) in self.catalogo.iter().enumerate() {
+                let y = p.y0 + hf * 0.08 + k as f32 * p.tab_h; let sel = k == mm.sub;
+                l.caja(&mut u, p.x0 + hf * 0.015, y, p.gx - p.x0 - hf * 0.04, p.tab_h - hf * 0.008, hf * 0.012, if sel { [0.95, 0.66, 0.1, 0.92] } else { [1.0, 1.0, 1.0, 0.08] });
+                let tt = (p.tab_h * 0.5).min(t * 0.75); l.texto(&mut u, p.x0 + hf * 0.035, y + (p.tab_h - tt) / 2.0 - hf * 0.004, tt, if sel { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
+            }
+            if let Some((_, items)) = self.catalogo.get(mm.sub) {
+                let (aw, ah) = (1024.0f32, mm.atlas_h.max(1) as f32);
+                for (k, it) in items.iter().enumerate() {
+                    let (col, fila) = (k % p.cols, k / p.cols);
+                    let (x, y) = (p.gx + col as f32 * p.celda, p.gy + fila as f32 * p.celda - mm.scroll);
+                    if y + p.celda < p.gy || y > p.gy + p.gh { continue; }
+                    l.caja(&mut u, x + 3.0, y + 3.0, p.celda - 6.0, p.celda - 6.0, hf * 0.012, [1.0, 1.0, 1.0, 0.07]);
+                    let tt = (p.celda * 0.12).min(t * 0.6); let nom: String = it.chars().take(16).collect(); let an = l.ancho(tt, &nom);
+                    l.texto(&mut u, x + (p.celda - an) / 2.0, y + p.celda - tt * 1.5, tt, [1.0, 1.0, 1.0, 0.9], &nom);
+                    if mm.atlas_de == Some(mm.sub) {
+                        let (cx, cy) = ((k as u32 % ICO_COLS) * ICO, (k as u32 / ICO_COLS) * ICO); let lado = p.celda - tt * 2.2;
+                        rect_uv(&mut ic, x + (p.celda - lado) / 2.0, y + 4.0, lado, lado - 4.0, [cx as f32 / aw, cy as f32 / ah, (cx + ICO) as f32 / aw, (cy + ICO) as f32 / ah], [1.0; 4]);
+                    }
+                }
+            }
+        }
         if let Some(e) = &self.error {
             let tt = t * 0.75; let mut y = hf * 0.3; let ancho = wf * 0.8;
             l.caja(&mut u, wf * 0.08, y - tt, wf * 0.84, tt * 2.0 + tt * 1.3 * (1.0 + (l.ancho(tt, e) / ancho).ceil()), tt * 0.6, [0.35, 0.0, 0.0, 0.85]);
@@ -285,7 +424,7 @@ impl Juego {
             }
             if !renglon.is_empty() { l.texto(&mut u, wf * 0.1, y, tt, bl, &renglon); }
         }
-        u
+        vec![(TEX_LETRAS, u), (TEX_ICONOS, ic)]
     }
 
     /// lo que tardó el cuadro entero (ms, con la espera a la pantalla) y los cuadros por segundo

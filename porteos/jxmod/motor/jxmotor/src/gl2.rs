@@ -1,7 +1,8 @@
 //! El motor para los teléfonos viejos: OpenGL ES 2.0 (GLSL ES 1.00), sólo con lo que ES 2 tiene de fábrica. Dibuja lo
 //! mismo que gpu.rs con menos: la luz del juego (sol, cielo y suelo, luz horneada, hasta 4 luces del mapa, niebla y
 //! ACES), el terreno de tres capas, las texturas mezcladas, lo recortado, lo transparente y lo que suma, el cielo del mapa
-//! (su degradé y el sol) y el HUD. Sin sombras ni oclusión (una placa vieja no llega), sin instancias (un dibujo por cosa)
+//! (su degradé y el sol), el agua (olas con su mapa de normales, Fresnel con el color del cielo y transparente; sin reflejo)
+//! y el HUD. Sin sombras ni oclusión (una placa vieja no llega), sin instancias (un dibujo por cosa)
 //! y con la escena a una fracción de la pantalla si se pide (`escala`), estirada al final.
 //! Las diferencias con ES 3: los vértices se rearman (las UV en float: ES 2 no lee medio float) y los índices de 32 bits
 //! se pasan a 16 si la placa no los tiene (OES_element_index_uint).
@@ -118,6 +119,28 @@ void main() {
   c += vec3(1.0, 0.92, 0.75) * pow(max(dot(d, uSol), 0.0), 600.0) * 6.0;
   gl_FragColor = vec4(retoque(pow(aces(c * uExpo * 1.1), vec3(1.0 / 2.2))), 1.0);
 }"#;
+const VS_AGUA: &str = r#"
+attribute vec3 aP; uniform mat4 uVP, uM; uniform vec3 uMn, uSc; varying vec3 vW;
+void main() { vec4 w = uM * vec4(uMn + aP * uSc, 1.0); vW = w.xyz; gl_Position = uVP * w; }"#;
+const FS_AGUA: &str = r#"
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform sampler2D uN; uniform vec4 uF, uH, uS; uniform vec3 uCam, uSol, uSolC, uAmbS, uAmbG, uTop, uMid; uniform float uTiempo, uExpo;
+varying vec3 vW;
+vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+void main() {
+  float dCam = distance(vW, uCam); vec3 v = normalize(uCam - vW); vec2 q = vW.xz * uH.x;
+  vec3 n1 = texture2D(uN, q + uTiempo * uS.xy).rgb * 2.0 - 1.0, n2 = texture2D(uN, q * 0.71 + vec2(0.37, 0.61) + uTiempo * uS.zw).rgb * 2.0 - 1.0;
+  float lejos = 1.0 / (1.0 + dCam * 0.012); vec2 d = (n1.xy + n2.xy) * uH.y * lejos; vec3 n = normalize(vec3(d.x, 1.0, d.y));
+  float fr = 0.02 + 0.98 * pow(1.0 - abs(dot(n, v)), 5.0);
+  vec3 cuerpo = pow(aces(uF.rgb * (mix(uAmbG, uAmbS, 0.8) + uSolC * max(uSol.y, 0.0) * 0.5) * 1.6 * uExpo), vec3(1.0 / 2.2));
+  vec3 rf = reflect(-v, n); vec3 cielo = mix(uMid, uTop, pow(clamp(rf.y, 0.0, 1.0), 0.5));
+  float rv = max(dot(rf, uSol), 0.0); float sp = pow(rv, mix(900.0, 260.0, 1.0 - lejos)) * 2.2 * step(0.0, uSol.y);
+  gl_FragColor = vec4(mix(cuerpo, cielo, fr) + uSolC * sp, mix(max(uF.a, 0.82), 1.0, fr));
+}"#;
 const VS_UI: &str = r#"
 attribute vec2 aP; attribute vec2 aU; attribute vec4 aC; uniform vec2 uInv; varying vec2 vU; varying vec4 vC;
 void main() { vU = aU; vC = aC; gl_Position = vec4(aP.x * uInv.x * 2.0 - 1.0, 1.0 - aP.y * uInv.y * 2.0, 0.0, 1.0); }"#;
@@ -132,7 +155,7 @@ precision mediump float; uniform sampler2D uT; varying vec2 vU;
 void main() { gl_FragColor = texture2D(uT, vU); }"#;
 
 const U_LUZ: [&str; 33] = ["uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
-const U_OTROS: [&str; 7] = ["uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo"];
+const U_OTROS: [&str; 13] = ["uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC"];
 
 unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, atrs: &[&str]) -> Result<Prog2, String> {
     let p = gl.create_program()?;
@@ -163,7 +186,8 @@ fn de_medio(h: u16) -> f32 {
 pub struct Motor {
     pub gl: glow::Context,
     pub op: Opciones2,
-    p_luz: Prog2, p_cielo: Prog2, p_ui: Prog2, p_copia: Prog2,
+    p_luz: Prog2, p_cielo: Prog2, p_ui: Prog2, p_copia: Prog2, p_agua: Prog2,
+    agua: Option<crate::escena::Agua>, agua_n: Option<glow::Texture>, aguas: Vec<usize>,
     tri: glow::Buffer, ui_buf: glow::Buffer, blanca: glow::Texture,
     cubo: Option<glow::Texture>,
     mallas: HashMap<i64, Malla2>, mats: HashMap<i64, Mat>, texs: HashMap<i64, Tex2>, lms: HashMap<i64, Tex2>, cielo: Option<Cielo>,
@@ -181,13 +205,14 @@ impl Motor {
         let p_cielo = programa(&gl, VS_CIELO, FS_CIELO, &["aP"])?;
         let p_ui = programa(&gl, VS_UI, FS_UI, &["aP", "aU", "aC"])?;
         let p_copia = programa(&gl, VS_COPIA, FS_COPIA, &["aP"])?;
+        let p_agua = programa(&gl, VS_AGUA, FS_AGUA, &["aP"])?;
         let tri = gl.create_buffer()?; gl.bind_buffer(glow::ARRAY_BUFFER, Some(tri));
         let v: [f32; 6] = [-1.0, -1.0, 3.0, -1.0, -1.0, 3.0]; gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, f32b(&v), glow::STATIC_DRAW);
         let ui_buf = gl.create_buffer()?;
         let blanca = gl.create_texture()?; gl.bind_texture(glow::TEXTURE_2D, Some(blanca));
         gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA as i32, 1, 1, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(&[255, 255, 255, 255])));
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
-        Ok(Motor { gl, op, cubo: None, p_luz, p_cielo, p_ui, p_copia, tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { gl, op, cubo: None, p_luz, p_cielo, p_ui, p_copia, p_agua, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
     }
 
@@ -248,6 +273,10 @@ impl Motor {
             self.memoria += b;
         }
         for m in &esc.c.mats { self.mats.insert(m.id, m.clone()); }
+        if let Some(a) = &esc.c.agua {
+            if let Some(n) = &a.normal { let (t, _) = self.textura(n.w, n.h, rango(n.o, (n.w * n.h * 4) as usize)?, true)?; if let Some(v) = self.agua_n.replace(t) { self.gl.delete_texture(v); } }
+            let mut a2 = a.clone(); a2.normal = None; a2.prof = None; self.agua = Some(a2);
+        }
         if let Some(c) = &esc.c.cielo {
             // (la caja del cielo: las seis caras —+X, -X, +Y, -Y, +Z, -Z—)
             if let Some(cr) = &c.caras {
@@ -274,17 +303,18 @@ impl Motor {
         let mut ts: Vec<Tex2> = self.texs.drain().map(|x| x.1).collect(); ts.extend(self.lms.drain().map(|x| x.1));
         for t in ts { self.gl.delete_texture(t.t); }
         if let Some(t) = self.cubo.take() { self.gl.delete_texture(t); }
+        if let Some(t) = self.agua_n.take() { self.gl.delete_texture(t); } self.agua = None;
         self.mats.clear(); self.cielo = None; self.memoria = 0; self.c = None; self.items.clear();
     }
 
     pub fn poner_cuadro(&mut self, mut c: Cuadro) {
         let pl = mat::planos(&c.vp);
         self.items = std::mem::take(&mut c.items);
-        self.opacos.clear(); self.transp.clear();
+        self.opacos.clear(); self.transp.clear(); self.aguas.clear();
         for (i, it) in self.items.iter().enumerate() {
             let (Some(_), Some(mt)) = (self.mallas.get(&it.m), self.mats.get(&it.mat)) else { continue };
-            if !mat::esfera_dentro(&pl, &it.esf) || mt.agua != 0 { continue; }
-            if mt.blend != 0 || mt.add != 0 { self.transp.push(i) } else { self.opacos.push(i) }
+            if !mat::esfera_dentro(&pl, &it.esf) { continue; }
+            if mt.agua != 0 { self.aguas.push(i) } else if mt.blend != 0 || mt.add != 0 { self.transp.push(i) } else { self.opacos.push(i) }
         }
         let (mats, items) = (&self.mats, &self.items);
         self.opacos.sort_by_key(|&i| { let it = &items[i]; (mats[&it.mat].t, it.m, it.mat) });
@@ -326,6 +356,28 @@ impl Motor {
         let gl = &self.gl; gl.enable(glow::BLEND); gl.depth_mask(false); gl.use_program(Some(self.p_luz.p));
         let tr = self.transp.clone();
         for i in tr { let add = self.mats[&self.items[i].mat].add != 0; let gl = &self.gl; if add { gl.blend_func(glow::SRC_ALPHA, glow::ONE); } else { gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); } self.dibujar_item(i); }
+        // el agua (transparente, después de lo demás)
+        if !self.aguas.is_empty() { if let (Some(a), Some(nt)) = (self.agua.clone(), self.agua_n) {
+            let gl = &self.gl; let p = &self.p_agua; let c = self.c.as_ref().unwrap(); let l = &c.luz; let s = self.sol();
+            gl.use_program(Some(p.p)); gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
+            gl.uniform_matrix_4_f32_slice(p.u("uVP"), false, &vp);
+            gl.uniform_4_f32(p.u("uF"), a.fog[0], a.fog[1], a.fog[2], a.fog[3]); gl.uniform_4_f32(p.u("uH"), a.esc, a.fuerza, a.dist, 0.0); gl.uniform_4_f32(p.u("uS"), a.s[0], a.s[1], a.s[2], a.s[3]);
+            gl.uniform_3_f32(p.u("uCam"), c.pos[0], c.pos[1], c.pos[2]); gl.uniform_3_f32(p.u("uSol"), s[0], s[1], s[2]); gl.uniform_3_f32(p.u("uSolC"), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
+            gl.uniform_3_f32(p.u("uAmbS"), l.amb_s[0], l.amb_s[1], l.amb_s[2]); gl.uniform_3_f32(p.u("uAmbG"), l.amb_g[0], l.amb_g[1], l.amb_g[2]); gl.uniform_1_f32(p.u("uExpo"), l.expo);
+            let (top, mid) = self.cielo.as_ref().map(|k| (k.top, k.mid)).unwrap_or(([0.28, 0.64, 1.0], [0.92, 0.92, 0.92]));
+            gl.uniform_3_f32(p.u("uTop"), top[0], top[1], top[2]); gl.uniform_3_f32(p.u("uMid"), mid[0], mid[1], mid[2]);
+            gl.uniform_1_f32(p.u("uTiempo"), if c.tiempo > 0.0 { c.tiempo } else { 0.0 });
+            gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, Some(nt)); gl.uniform_1_i32(p.u("uN"), 0);
+            for &i in &self.aguas.clone() {
+                let it = &self.items[i]; let Some(m) = self.mallas.get(&it.m) else { continue }; let gl = &self.gl; let p = &self.p_agua;
+                gl.uniform_matrix_4_f32_slice(p.u("uM"), false, &it.mm); gl.uniform_3_f32(p.u("uMn"), m.mn[0], m.mn[1], m.mn[2]); gl.uniform_3_f32(p.u("uSc"), m.sc[0], m.sc[1], m.sc[2]);
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(m.vb)); gl.enable_vertex_attrib_array(0); gl.vertex_attrib_pointer_f32(0, 3, glow::UNSIGNED_SHORT, true, 20, 0);
+                for a in 1..4 { gl.disable_vertex_attrib_array(a); }
+                gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(m.ib));
+                let (tipo, tam) = if m.i32 { (glow::UNSIGNED_INT, 4) } else { (glow::UNSIGNED_SHORT, 2) };
+                gl.draw_elements(glow::TRIANGLES, it.sn as i32, tipo, (it.s0 * tam) as i32); self.dibujos += 1;
+            }
+        } }
         let gl = &self.gl; gl.depth_mask(true); gl.disable(glow::BLEND);
         // (la escena chica, estirada a la pantalla)
         if escalada {

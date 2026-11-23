@@ -24,6 +24,8 @@ pub struct Mapa {
     pub spawns: Vec<([f32; 3], Option<f32>)>,
     /// lo que choca (los triángulos de las mallas de choque y los cuerpos fijos), para el jugador y los rayos
     pub mundo: crate::mundo::Mundo,
+    /// la altura de la superficie del agua del mapa (si tiene)
+    pub agua_y: Option<f32>,
     /// hasta dónde se ve
     pub lejos: f32,
 }
@@ -63,6 +65,30 @@ pub fn pbr_de(nombre: &str) -> [f32; 3] {
     [0.72, 0.0, 0.04]
 }
 /// (bodyv seguido de un dígito, como /bodyv\d/)
+/// el mapa de normales del agua (propio): olitas de senos cruzados con un número entero de vueltas en el cuadro (se repite
+/// sin costura) y un poco de ruido suave; la normal en RGB como los de Source (inclinan poco: unos 0,04 de promedio)
+fn normales_agua(n: u32) -> Vec<u8> {
+    let tau = std::f32::consts::TAU;
+    let ondas: [(f32, f32, f32, f32); 7] = [(3.0, 1.0, 0.35, 0.0), (-2.0, 3.0, 0.28, 1.7), (5.0, -2.0, 0.18, 0.4), (1.0, 6.0, 0.15, 2.9), (-7.0, -4.0, 0.09, 4.1), (9.0, 5.0, 0.07, 0.8), (-4.0, 11.0, 0.05, 3.3)];
+    // (ruido suave que se repite en el cuadro: rompe lo regular de las ondas, como las olitas de HL2)
+    let hash = |i: i32, j: i32, s: u32| -> f32 { let mut h = (i as u32).wrapping_mul(374761393) ^ (j as u32).wrapping_mul(668265263) ^ s.wrapping_mul(2246822519); h = (h ^ (h >> 13)).wrapping_mul(1274126177); (h ^ (h >> 16)) as f32 / u32::MAX as f32 * 2.0 - 1.0 };
+    let ruido = |x: f32, y: f32, f: i32, s: u32| -> f32 {
+        let (fx, fy) = (x * f as f32, y * f as f32); let (i, j) = (fx.floor() as i32, fy.floor() as i32); let (u, v) = (fx - i as f32, fy - j as f32);
+        let (u, v) = (u * u * (3.0 - 2.0 * u), v * v * (3.0 - 2.0 * v)); let w = |a: i32| a.rem_euclid(f);
+        let (a, b, c, d) = (hash(w(i), w(j), s), hash(w(i + 1), w(j), s), hash(w(i), w(j + 1), s), hash(w(i + 1), w(j + 1), s));
+        a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v
+    };
+    let alto = |x: f32, y: f32| -> f32 { ondas.iter().map(|&(a, b, k, f)| k * (tau * (a * x + b * y) + f).sin()).sum::<f32>() + ruido(x, y, 8, 1) * 0.06 + ruido(x, y, 16, 2) * 0.03 + ruido(x, y, 32, 3) * 0.012 };
+    let mut o = vec![0u8; (n * n * 4) as usize]; let e = 1.0 / n as f32; let fuerza = 0.9;
+    for j in 0..n { for i in 0..n {
+        let (x, y) = (i as f32 * e, j as f32 * e);
+        let dx = (alto(x + e, y) - alto(x - e, y)) / (2.0 * e) * e * fuerza; let dy = (alto(x, y + e) - alto(x, y - e)) / (2.0 * e) * e * fuerza;
+        let (nx, ny, nz) = (-dx * 8.0, -dy * 8.0, 1.0); let l = (nx * nx + ny * ny + nz * nz).sqrt();
+        let k = ((j * n + i) * 4) as usize;
+        o[k] = ((nx / l * 0.5 + 0.5) * 255.0).round() as u8; o[k + 1] = ((ny / l * 0.5 + 0.5) * 255.0).round() as u8; o[k + 2] = ((nz / l * 0.5 + 0.5) * 255.0).round() as u8; o[k + 3] = 255;
+    } }
+    o
+}
 /// un triángulo sin área o una aguja (menos de 1 mm de alto): no sirve para chocar (triFino de mundo.js)
 fn tri_fino(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> bool {
     let (u, w) = ([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]]);
@@ -317,8 +343,31 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
         nie: Niebla { c: srgb3(nie_c), a: nie_a, b: nie_b, m: nie_m, s: [sol_lin[0] * 0.35, sol_lin[1] * 0.35, sol_lin[2] * 0.35] }, expo: 0.66 };
     if lo[0] > hi[0] { lo = [0.0; 3]; hi = [0.0; 3]; }
     let _ = (lo, hi);
-    let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs, lms: vec![], items: vec![], agua: None, cielo: Some(cielo) };
     let grav = d["aj"][nombre]["grav"].as_f64().map(|g| g as f32).filter(|g| *g != 0.0).unwrap_or(1.0);
     let mundo = crate::mundo::Mundo::nuevo(tris, cuerpos, grav);
-    Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces, spawns, lejos, mundo })
+    // el agua (el volumen más grande del mapa): como el agua de HL2 de la versión personal (jxpAguaHL2), con un mapa de normales
+    // propio y lo hondo medido con rayos (jxpAguaFondo)
+    let mut agua = None; let mut agua_y = None;
+    if let Some(vs) = aj["agua"].as_array() {
+        let caja = |v: &Value| (v3(&v["lo"], [0.0; 3]), v3(&v["hi"], [0.0; 3]));
+        if let Some((lo, hi)) = vs.iter().map(caja).max_by(|a, b| ((a.1[0] - a.0[0]) * (a.1[2] - a.0[2])).partial_cmp(&((b.1[0] - b.0[0]) * (b.1[2] - b.0[2]))).unwrap_or(std::cmp::Ordering::Equal)) {
+            let n = 256u32; let nrm = normales_agua(n); let o = datos.len(); datos.extend_from_slice(&nrm);
+            let pn = 64usize; let dd = (hi[1] - lo[1]).max(0.5); let (w, h) = (hi[0] - lo[0], hi[2] - lo[2]);
+            let mut px = vec![0u8; pn * pn * 4];
+            for j in 0..pn { for i in 0..pn {
+                let (x, z) = (lo[0] + (i as f32 + 0.5) / pn as f32 * w, lo[2] + (j as f32 + 0.5) / pn as f32 * h);
+                let p = mundo.rayo([x, hi[1] + 0.05, z], [0.0, -1.0, 0.0], dd + 1.0).map(|g| (g.t - 0.05).max(0.0)).unwrap_or(dd);
+                let k = (j * pn + i) * 4; px[k] = ((p / dd).clamp(0.0, 1.0) * 255.0).round() as u8; px[k + 3] = 255;
+            } }
+            let op = datos.len(); datos.extend_from_slice(&px);
+            // (el agua de la costa de HL2: niebla de este color, 400 unidades de largo, sin $refractamount ni $reflectamount)
+            let fs = [0.08f32, 0.19, 0.2]; let fin = 400.0f32; let turbia = (1.05 - fin / 1500.0).clamp(0.55, 0.92);
+            agua = Some(jxmotor::escena::Agua { fog: [srgb(fs[0]), srgb(fs[1]), srgb(fs[2]), turbia], esc: 0.38, fuerza: 0.55, dist: 0.4 * 0.5, refr: 0.5, s: [0.021, 0.016, -0.018, 0.024],
+                largo: (fin * 0.0254 / 2.5).max(1.5), normal: Some(jxmotor::escena::TexAgua { w: n, h: n, o }),
+                prof: Some(jxmotor::escena::Prof { x0: lo[0], z0: lo[2], w, h, d: dd, tex: Some(jxmotor::escena::TexAgua { w: pn as u32, h: pn as u32, o: op }) }), y: hi[1] });
+            agua_y = Some(hi[1]);
+        }
+    }
+    let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs, lms: vec![], items: vec![], agua, cielo: Some(cielo) };
+    Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces, spawns, lejos, mundo, agua_y })
 }

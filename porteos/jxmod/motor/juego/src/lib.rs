@@ -3,5 +3,6 @@
 pub mod jugador;
 pub mod mapa;
 pub mod mundo;
+pub mod objetos;
 pub mod paquete;
 pub mod texto;
