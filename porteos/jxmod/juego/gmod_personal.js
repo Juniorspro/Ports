@@ -672,6 +672,21 @@ function jxmCuadroNativo() {
   for (let i = 0; i < R.nItems; i++) { const p = R.items[i]; if (p.vista || !p.m || !p.mt) continue; if (p.m.idx === undefined) { ns++; continue; } items.push(p); }
   JXM.sinMalla = ns;
   const rec = jxmRecursos(items); if (rec) { if (JXM.bin && B.recursosBin) B.recursosBin(jxmBin(rec)); else B.recursos(jxmB64(rec)); }
+  // la cabecera: cámara, sol, cielo y suelo, niebla, agua, tiempo y luces
+  if (JXM.f.length < 47 + 24 * 12) JXM.f = new Float32Array(4096);
+  const F = JXM.f;
+  let k = 2; const pon = (a, m) => { for (let i = 0; i < m; i++) F[k++] = a[i]; };
+  pon(R.vp, 16); F[k++] = CAM.pos.x; F[k++] = CAM.pos.y; F[k++] = CAM.pos.z;
+  F[k++] = R.sol.x; F[k++] = R.sol.y; F[k++] = R.sol.z;
+  // (la luz en lineal, la misma que usa WebGL en Alto —R.lin, luzLineal—)
+  const Ln = R.lin && R.lin.solCol ? R.lin : null;
+  pon(Ln ? Ln.solCol : srgb3(R.solCol || [1, 1, 1]).map((x) => x * 2.6), 3); pon(Ln ? Ln.ambS : srgb3(R.ambS || [0.4, 0.45, 0.5]), 3); pon(Ln ? Ln.ambG : srgb3(R.ambG || [0.3, 0.3, 0.3]), 3); pon(Ln && Ln.nieC ? Ln.nieC : srgb3(R.niebla.c), 3);
+  F[k++] = R.niebla.a; F[k++] = R.niebla.b; F[k++] = R.expo || 0.66;
+  const W = AGUA.vols.find((v) => v.mapa); F[k++] = W ? W.y1 : NaN; F[k++] = (R.msCuadro / 1000) % 3600;
+  const nl = R.nLuces || 0, ne = R.nEsp || 0; F[k++] = nl; F[k++] = ne;
+  { const sc = Ln ? Ln.solCol : [1, 1, 1], t = R.nieS || NIE_S1; F[k++] = R.niebla.m === undefined ? 1 : R.niebla.m; F[k++] = sc[0] * t[0]; F[k++] = sc[1] * t[1]; F[k++] = sc[2] * t[2]; }
+  for (let i = 0; i < nl; i++) { pon(LUZ_P.subarray(i * 4), 4); pon(LUZ_C.subarray(i * 4), 4); pon(LUZ_D.subarray(i * 4), 4); }
+  for (let i = 0; i < ne; i++) { pon(ESP_P.subarray(i * 4), 4); pon(ESP_C.subarray(i * 4), 4); pon(ESP_D.subarray(i * 4), 4); }
   // (las cosas cuya malla todavía no llegó —se cortó por el tope— esperan al cuadro que viene)
   // Cada cosa tiene un lugar fijo en el motor (JXC2): se manda sólo lo que cambió (malla, parte, material, matriz, esfera,
   // banderas), la lista de lo que hay en este cuadro y los huesos. Con 500 cajas quietas, casi nada viaja.
