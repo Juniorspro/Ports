@@ -2,7 +2,9 @@
 //! de radio 0,45 (los pies a 0,95 m del centro, los ojos a 1,67 m de los pies), camina a 6 m/s (corre ×1,35, agachado
 //! ×0,5), salta 1,1 m, sube escalones de 0,45 m como Source, se pega a las rampas al bajar y choca con los triángulos y
 //! los cuerpos fijos del mapa. La cámara: los ojos con la hundida al caer, el balanceo al caminar y el agacharse suave.
-//! Lo que todavía no: el agua, los vehículos y los objetos sueltos (llegan con sus etapas).
+//! En el agua (aguaJugador de agua.js): a la cintura camina más lento, con el pecho abajo nada hacia donde mira, el aire dura
+//! 12 s bajo el agua y después ahoga, y se sale saltando contra un borde bajo. Lo que todavía no: los vehículos y los objetos
+//! sueltos (llegan con sus etapas).
 use crate::mundo::{add, dot, esc, largo, Mundo, V};
 
 const GRAV: f32 = 9.81;
@@ -28,6 +30,9 @@ pub struct Jugador {
     pub grav: f32,
     /// el último golpe al caer (velocidad), para el sonido y el temblor
     pub golpe: f32,
+    /// el agua del mapa (cajas: x0, y0, z0, x1, y1, z1 —hasta arriba—), si nada, cuánta agua tiene encima de los pies, lo
+    /// que frena el agua al caminar, el aire que le queda y la vida
+    pub aguas: Vec<[f32; 6]>, pub nada: bool, pub hondo: f32, pub vadeo: f32, pub aire: f32, ahogo_t: f32, tiempo_salida: f32, pub vida: f32,
 }
 
 impl Default for Jugador { fn default() -> Self { Jugador::nuevo() } }
@@ -37,7 +42,8 @@ impl Jugador {
         let mut j = Jugador { pos: [0.0, 5.0, 0.0], vel: [0.0; 3], yaw: 0.0, pitch: 0.0, suelo: false, suelo_n: [0.0, 1.0, 0.0], radio: 0.45, medio: 0.5,
             vel_max: 6.0, acel: 18.0, salto: 1.1, esf: vec![(-0.5, true), (0.0, false), (0.5, false)], esf_ag: vec![], ojo_alto: 1.67, ojo_ag: 0.0, tam: 1.0,
             tiempo_suelo: 0.0, t_aire: 0.0, reloj: 0.0, salto_t: -9.0, ag_col: false, agachado: false, noclip: false,
-            ojo_esc: 0.0, caida_v: 0.0, caida_p: 0.0, bob: 0.0, bob_k: 0.0, ag_k: 0.0, grav: 1.0, golpe: 0.0 };
+            ojo_esc: 0.0, caida_v: 0.0, caida_p: 0.0, bob: 0.0, bob_k: 0.0, ag_k: 0.0, grav: 1.0, golpe: 0.0,
+            aguas: vec![], nada: false, hondo: 0.0, vadeo: 1.0, aire: 12.0, ahogo_t: 0.0, tiempo_salida: 0.0, vida: 100.0 };
         j.ag_esf(); j
     }
     /// agachado (como GMod: el cuerpo mide la mitad y los ojos van bien abajo): jugadorAgEsf
@@ -125,9 +131,53 @@ impl Jugador {
         self.suelo = suelo; self.suelo_n = sn; ok
     }
 
+    /// el agua en (x, y, z): la caja que la tiene (aguaEn)
+    fn agua_en(&self, x: f32, y: f32, z: f32) -> Option<[f32; 6]> {
+        self.aguas.iter().copied().find(|v| v[4] > v[1] + 0.002 && y >= v[1] - 0.02 && y <= v[4] && x >= v[0] && x <= v[3] && z >= v[2] && z <= v[5])
+    }
+    /// el jugador en el agua (aguaJugador): devuelve si nada (entonces ya se movió)
+    fn agua_paso(&mut self, m: &Mundo, dt: f32, ent: &Entrada) -> bool {
+        let pies = self.pos[1] - 0.95; let alto = 1.9 * self.tam; let v = self.agua_en(self.pos[0], pies + 0.02, self.pos[2]);
+        self.hondo = v.map(|v| (v[4] - pies).max(0.0)).unwrap_or(0.0); let ojos = pies + self.ojo_alto;
+        self.vadeo = 1.0 - 0.45 * (self.hondo / (0.62 * alto)).clamp(0.0, 1.0);   // (con el agua a la cintura, 55 % más lento)
+        // el aire: con los ojos bajo el agua dura 12 s; después se ahoga de a 10 por segundo, como en HL2
+        if let Some(v) = v.filter(|v| ojos < v[4] - 0.03) {
+            let _ = v; self.aire -= dt;
+            if self.aire < 0.0 { self.ahogo_t -= dt; if self.ahogo_t <= 0.0 { self.ahogo_t = 1.0; self.vida -= 10.0; } }
+        } else { self.aire = (self.aire + dt * 4.0).min(12.0); self.ahogo_t = 0.0; }
+        self.nada = v.is_some() && self.hondo > 0.66 * alto && !self.noclip;   // (el agua pasa el pecho)
+        if !self.nada { return false; }
+        let v = v.unwrap();
+        // como en Source: se nada hacia donde mira la cámara; el salto sube y agacharse baja (hasta 20° para abajo se sigue
+        // por la superficie: en el celular la cámara casi nunca queda derecha)
+        let fv = [self.yaw.sin() * self.pitch.cos(), self.pitch.sin(), self.yaw.cos() * self.pitch.cos()]; let rgt = [-self.yaw.cos(), 0.0, self.yaw.sin()];
+        let dz = 0.34; let fy = if fv[1].abs() < dz { 0.0 } else { (fv[1] - fv[1].signum() * dz) / (1.0 - dz) };
+        let mut w = [fv[0] * ent.y + rgt[0] * ent.x, fy * ent.y + if ent.saltar { 1.0 } else { 0.0 } - if ent.agachar { 1.0 } else { 0.0 }, fv[2] * ent.y + rgt[2] * ent.x];
+        let wl = largo(w).min(1.0); if wl > 1e-3 { w = esc(w, 1.0 / largo(w)); }
+        let vm = self.vel_max * 0.62 * if ent.correr { 1.3 } else { 1.0 };
+        let mut ty = w[1] * vm * wl;
+        // (sin apretar nada flota con la cara justo afuera; nadando derecho cerca de la superficie, se queda ahí)
+        if wl < 0.05 || (w[1].abs() < 0.05 && ojos > v[4] - 0.45) { ty = ((v[4] + 0.12 - ojos) * 2.2).clamp(-0.8, 1.6); }
+        if ojos > v[4] + 0.3 && ty > 0.0 { ty = 0.0; }
+        let kv = (dt * (3.2 + self.vel[1].abs() * 0.9)).min(1.0);   // (al caer rápido el agua frena enseguida)
+        self.vel[0] += (w[0] * vm * wl - self.vel[0]) * kv; self.vel[1] += (ty - self.vel[1]) * kv; self.vel[2] += (w[2] * vm * wl - self.vel[2]) * kv;
+        // salir del agua: con el salto, en la superficie y contra un borde a menos de un metro sobre el agua
+        if ent.saltar && ojos > v[4] - 0.35 && self.tiempo_salida <= 0.0 {
+            let f = [self.yaw.sin(), 0.0, self.yaw.cos()];
+            let pared = m.rayo([self.pos[0], v[4] - 0.1, self.pos[2]], f, self.radio + 0.6).is_some();
+            let libre = m.rayo([self.pos[0], v[4] + 1.05, self.pos[2]], f, self.radio + 0.7).is_none();
+            if pared && libre { self.vel = [f[0] * 2.2, 6.4, f[2] * 2.2]; self.tiempo_salida = 0.6; }
+        }
+        self.tiempo_salida -= dt;
+        self.mover_chocar(m, dt, 0.25);
+        self.tiempo_suelo = 0.0; self.bob_k *= (-dt * 8.0).exp();
+        true
+    }
+
     /// un paso de la física del jugador (jugadorPaso)
     pub fn paso(&mut self, m: &Mundo, dt: f32, ent: &Entrada) {
         self.reloj += dt; self.golpe = 0.0;
+        if !self.aguas.is_empty() && !self.noclip && self.agua_paso(m, dt, ent) { return; }
         let (sy, cy) = (self.yaw.sin(), self.yaw.cos());
         // (adelante +Z girado; la derecha es -X girado, como en el juego)
         let f = [sy, 0.0, cy]; let rgt = [-cy, 0.0, sy];
@@ -135,7 +185,7 @@ impl Jugador {
         let wl = largo(wish).min(1.0); if wl > 1e-3 { wish = esc(wish, 1.0 / largo(wish)); }
         if ent.agachar || self.noclip { self.ag_col = !self.noclip && ent.agachar; } else if self.ag_col && self.cabe_parado(m) { self.ag_col = false; }
         let agachado = ent.agachar || self.ag_col; self.agachado = agachado;
-        let vmax = self.vel_max * if ent.correr { 1.35 } else { 1.0 } * if agachado { 0.5 } else { 1.0 };
+        let vmax = self.vel_max * if ent.correr { 1.35 } else { 1.0 } * if agachado { 0.5 } else { 1.0 } * self.vadeo;
         if self.noclip {
             let fv = [self.yaw.sin() * self.pitch.cos(), self.pitch.sin(), self.yaw.cos() * self.pitch.cos()];
             let sube = if ent.saltar { 1.0 } else { 0.0 } - if ent.agachar { 1.0 } else { 0.0 };

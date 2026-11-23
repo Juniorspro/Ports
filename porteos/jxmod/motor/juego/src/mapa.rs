@@ -24,8 +24,8 @@ pub struct Mapa {
     pub spawns: Vec<([f32; 3], Option<f32>)>,
     /// lo que choca (los triángulos de las mallas de choque y los cuerpos fijos), para el jugador y los rayos
     pub mundo: crate::mundo::Mundo,
-    /// la altura de la superficie del agua del mapa (si tiene)
-    pub agua_y: Option<f32>,
+    /// la altura de la superficie del agua del mapa (si tiene) y todas sus cajas de agua (x0, y0, z0, x1, y1, z1)
+    pub agua_y: Option<f32>, pub aguas: Vec<[f32; 6]>,
     /// hasta dónde se ve
     pub lejos: f32,
 }
@@ -348,6 +348,7 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
     // el agua (el volumen más grande del mapa): como el agua de HL2 de la versión personal (jxpAguaHL2), con un mapa de normales
     // propio y lo hondo medido con rayos (jxpAguaFondo)
     let mut agua = None; let mut agua_y = None;
+    let aguas: Vec<[f32; 6]> = aj["agua"].as_array().map(|vs| vs.iter().map(|v| { let (a, b) = (v3(&v["lo"], [0.0; 3]), v3(&v["hi"], [0.0; 3])); [a[0], a[1], a[2], b[0], b[1], b[2]] }).collect()).unwrap_or_default();
     if let Some(vs) = aj["agua"].as_array() {
         let caja = |v: &Value| (v3(&v["lo"], [0.0; 3]), v3(&v["hi"], [0.0; 3]));
         if let Some((lo, hi)) = vs.iter().map(caja).max_by(|a, b| ((a.1[0] - a.0[0]) * (a.1[2] - a.0[2])).partial_cmp(&((b.1[0] - b.0[0]) * (b.1[2] - b.0[2]))).unwrap_or(std::cmp::Ordering::Equal)) {
@@ -369,5 +370,5 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
         }
     }
     let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs, lms: vec![], items: vec![], agua, cielo: Some(cielo) };
-    Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces, spawns, lejos, mundo, agua_y })
+    Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces, spawns, lejos, mundo, agua_y, aguas })
 }

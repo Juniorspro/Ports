@@ -246,7 +246,7 @@ impl Juego {
                 let yaw = mp.spawns.first().and_then(|s| s.1).unwrap_or(0.0);
                 let noclip = self.jug.noclip;
                 self.jug = Jugador::nuevo(); self.jug.noclip = noclip; self.acum = 0.0;
-                self.jug.aparecer(&mp.mundo, sp, Some(yaw));
+                self.jug.aparecer(&mp.mundo, sp, Some(yaw)); self.jug.aguas = mp.aguas.clone();
                 self.mapa = Some(mp);
             }
             Err(e) => { self.error = Some(format!("mapa {nombre}: {e}")); }
@@ -279,8 +279,11 @@ impl Juego {
         if let Some(mp) = &self.mapa {
             self.acum = (self.acum + dt).min(PASO * 12.0);
             while self.acum >= PASO { self.jug.paso(&mp.mundo, PASO, &ent); self.acum -= PASO; }
-            // (se cayó del mapa: vuelve a aparecer)
-            if self.jug.pos[1] < mp.mundo.lo[1] - 60.0 { let sp = mp.spawns.first().map(|s| s.0).unwrap_or([0.0, 1.0, 0.0]); self.jug.aparecer(&mp.mundo, sp, None); }
+            // (se cayó del mapa o se ahogó: vuelve a aparecer)
+            if self.jug.pos[1] < mp.mundo.lo[1] - 60.0 || self.jug.vida <= 0.0 {
+                if self.jug.vida <= 0.0 { self.aviso = Some(("Te ahogaste".into(), Instant::now())); }
+                let sp = mp.spawns.first().map(|s| s.0).unwrap_or([0.0, 1.0, 0.0]); self.jug.aparecer(&mp.mundo, sp, None); self.jug.vida = 100.0; self.jug.aire = 12.0;
+            }
         }
         let (ojos, _) = self.jug.ojos(dt);
         let (yaw, pitch) = (self.jug.yaw, self.jug.pitch);
@@ -291,9 +294,15 @@ impl Juego {
         if let Some(mp) = &self.mapa {
             let p = persp(75f32.to_radians(), wf / hf.max(1.0), 0.08, mp.lejos * 1.05);
             let vista = m4::mirar(ojos, [ojos[0] + fw[0], ojos[1] + fw[1], ojos[2] + fw[2]], [0.0, 1.0, 0.0]);
+            // (con los ojos bajo el agua: la niebla de cerca, del color del agua —aguaNiebla—)
+            let mut luz = mp.luz;
+            if self.jug.aguas.iter().any(|v| ojos[1] < v[4] && ojos[1] > v[1] && ojos[0] >= v[0] && ojos[0] <= v[3] && ojos[2] >= v[2] && ojos[2] <= v[5]) {
+                let lin = |c: f32| c.max(0.0).powf(2.2);
+                luz.nie = jxmotor::escena::Niebla { c: [lin(0.12), lin(0.285), lin(0.3)], a: 0.0, b: 16.0, m: 1.0, s: [0.0; 3] };
+            }
             let mut items = mp.items.clone();
             for o in &self.objs { if let Some(pf) = self.prefabs.get(&o.nombre) { pf.items(&matriz_obj(o), &mut items); } }
-            let c = Cuadro { vp: m4::mul(&p, &vista), pos: ojos, luz: mp.luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
+            let c = Cuadro { vp: m4::mul(&p, &vista), pos: ojos, luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
                 luces: mp.luces_cerca(ojos, 6), esp: vec![], items, efectos: vec![] };
             m.poner_cuadro(c);
         }
@@ -347,7 +356,7 @@ impl Juego {
         let usa = self.en_uso;
         l.texto_sombra(&mut u, t * 0.5, t * 0.5, t, bl, &format!("{:.0} fps · cuadro {:.1} ms · placa {:.1} ms · {}×{}", self.fps, self.ms, self.placa_ms, w, h));
         l.texto_sombra(&mut u, t * 0.5, t * 1.75, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("JXMod nativo (Rust) · {} · {}", usa.nombre(), placa_txt));
-        l.texto_sombra(&mut u, t * 0.5, t * 2.7, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("{} · {}", self.mapas[self.mapa_i], if self.jug.noclip { "volando" } else if self.jug.suelo { "en el piso" } else { "en el aire" }));
+        l.texto_sombra(&mut u, t * 0.5, t * 2.7, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("{} · {} · vida {:.0}", self.mapas[self.mapa_i], if self.jug.noclip { "volando" } else if self.jug.nada { "nadando" } else if self.jug.suelo { "en el piso" } else { "en el aire" }, self.jug.vida));
         if !self.detalle.is_empty() { l.texto_sombra(&mut u, t * 0.5, t * 3.65, t * 0.6, [1.0, 1.0, 1.0, 0.75], &format!("placa: {}", self.detalle)); }
         // (los botones: los tres motores, el mapa, saltar, agacharse y volar)
         for b in botones(wf, hf) {
@@ -370,6 +379,13 @@ impl Juego {
                 let tt = t * 0.8; let an = l.ancho(tt, n);
                 l.texto(&mut u, b.x - an / 2.0, b.y - tt * 0.55, tt, if elegido { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
             }
+        }
+        // (el aire, con los ojos bajo el agua: una barra que se vacía)
+        if self.jug.aire < 11.99 && self.menu.is_none() {
+            let (bw, bh) = (wf * 0.22, hf * 0.025); let (x, y) = ((wf - bw) / 2.0, hf * 0.86);
+            l.caja(&mut u, x, y, bw, bh, bh * 0.5, [0.0, 0.0, 0.0, 0.5]);
+            l.caja(&mut u, x, y, bw * (self.jug.aire / 12.0).clamp(0.0, 1.0), bh, bh * 0.5, [0.45, 0.75, 1.0, 0.9]);
+            l.texto_sombra(&mut u, x, y - t * 0.85, t * 0.65, bl, "Aire");
         }
         // (la palanca: dónde se apoyó el dedo y hasta dónde llega)
         if let Some(d) = self.dedos.iter().find(|d| d.palanca) {

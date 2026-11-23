@@ -115,6 +115,13 @@ fn main() {
     j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf);
     for k in 0..6 { paso(&mut j, &mut m, 60); println!("   {} s: pos [{:.2}, {:.2}, {:.2}] suelo {}", k + 1, j.jug.pos[0], j.jug.pos[1], j.jug.pos[2], j.jug.suelo); }
     j.dedo_arriba(1); foto(&mut m, "5_construct_caminar");
+    // al agua: cae desde 4 m sobre el lago, flota, nada 3 s para adelante y bucea 2 s mirando para abajo
+    j.jug.noclip = false; j.jug.pos = [90.0, 0.0, -20.0]; j.jug.vel = [0.0; 3]; j.jug.yaw = 0.0; j.jug.pitch = 0.0;
+    paso(&mut j, &mut m, 240); println!("6 agua: pos [{:.2}, {:.2}, {:.2}] nada {} (la superficie a -4,06; los ojos a {:.2})", j.jug.pos[0], j.jug.pos[1], j.jug.pos[2], j.jug.nada, j.jug.pos[1] + 0.72);
+    j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf);
+    paso(&mut j, &mut m, 180); println!("   nadar 3 s: pos [{:.2}, {:.2}, {:.2}] nada {}", j.jug.pos[0], j.jug.pos[1], j.jug.pos[2], j.jug.nada); foto(&mut m, "6_nadar");
+    j.jug.pitch = -0.8; paso(&mut j, &mut m, 120); println!("   bucear 2 s: pos [{:.2}, {:.2}, {:.2}] aire {:.1}", j.jug.pos[0], j.jug.pos[1], j.jug.pos[2], j.jug.aire); foto(&mut m, "7_bucear");
+    j.dedo_arriba(1); j.jug.pitch = 0.0;
     if let Some((t, d)) = m.tiempos() { println!("placa {t:.1} ms: {d}"); }
     // la pantalla de error (sin paquete): lo que vería el teléfono si algo falla
     let (lj, lp) = letras(); let mut je = Juego::nuevo(Err("no están pk.bin o pk.idx.json en la APK".into()), lj, lp, Some(datos));
