@@ -493,6 +493,12 @@ function jxmArmar(TMAX) {
 // todo en una grabación JXG1 que el banco de pruebas (jxm-banco) vuelve a dibujar.
 const JXM = { on: false, grab: null, tmax: 256, mallas: new Set(), texs: new Set(), lms: new Set(), mats: new WeakMap(), matN: 0, agua: null, mapa: null, f: new Float32Array(4096), sinMalla: 0, bytesR: 0, cuadros: 0 };
 function jxmPuente() { return JXM.grab || (JXM.prendido && typeof window.JXMotor !== 'undefined' ? window.JXMotor : null); }
+// por qué no se puede usar JX Motor acá ("ok" si se puede): lo dice la app (MotorJX.motivo); en el navegador, no está
+function jxmMotivo() {
+  if (JXM.grab) return 'ok';
+  if (typeof window.JXMotor === 'undefined') return 'sólo en la APK personal (acá no está el motor)';
+  try { return String(window.JXMotor.motivo ? window.JXMotor.motivo() : window.JXMotor.disponible() ? 'ok' : 'no disponible'); } catch (e) { return String(e); }
+}
 function jxmDisponible() { try { return !!(JXP && (JXM.grab || (typeof window.JXMotor !== 'undefined' && window.JXMotor.disponible()))); } catch (e) { return false; } }
 // la calidad del motor nativo según la del juego (y las texturas: 512 px en Alto y Ultra, 256 en las demás)
 function jxmCalidad() {

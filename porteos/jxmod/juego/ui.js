@@ -365,7 +365,7 @@ function abrirAjustes(desde) {
     ${fila(esc(Lc('Shadow', 'Sombras')), sel('aSo', [['auto', 'Según gráficos'], ['0', 'No'], ['1', 'Bajas'], ['2', 'Medias'], ['3', 'Altas (suaves)']]))}
     ${fila(esc(Lc('PostProcessing', 'Postprocesado')), sel('aPo', [['auto', 'Según gráficos'], ['si', 'Sí'], ['no', 'No']]))}
     ${fila(esc(Lc('TextureQuality', 'Calidad de textura')), sel('aTq', [['auto', 'Según gráficos'], ['baja', 'Baja'], ['media', 'Media'], ['alta', 'Alta']]))}
-    ${fila(esc(T('aj.motor')), sel('aM', [['webgl2', 'WebGL 2'], ['webgl1', 'WebGL 1 (compatible)']]))}
+    ${fila(esc(T('aj.motor')), JXP && typeof jxmMotivo === 'function' ? (() => { const mo = jxmMotivo(); return `<select id="aM"><option value="rust"${mo === 'ok' ? '' : ' disabled'}>${esc(mo === 'ok' ? 'Rust (JX Motor)' : 'Rust (JX Motor) — no disponible: ' + mo)}</option><option value="webgl2">WebGL 2</option><option value="webgl1">WebGL 1 (compatible)</option></select>`; })() : sel('aM', [['webgl2', 'WebGL 2'], ['webgl1', 'WebGL 1 (compatible)']]))}
     ${fila(esc(T('aj.npcMax')), sel('aNpc', [['24', '24'], ['50', '50'], ['100', '100'], ['200', '200'], ['0', esc(T('aj.sinLim'))]]))}
     <button class="ajBtn gris" id="aBanco">${esc(T('aj.banco'))}</button></section>
   <section data-ajs="r" class="oc"><h4>${esc(Lc('Rendering', 'Renderizado'))}</h4>
@@ -381,7 +381,6 @@ function abrirAjustes(desde) {
     ${sw('aEmoR', esc(T('aj.emoRuleta')))}
     ${sw('aVozH', esc(T('aj.vozHud')))}
     ${typeof mjxDisponible === 'function' && mjxDisponible() ? sw('aJxM', esc(T('aj.jxManos'))) + sw('aJxC', esc(T('aj.jxCompleto'))) : ''}
-    ${JXP && typeof jxmDisponible === 'function' && jxmDisponible() ? sw('aJxMot', 'Motor nativo (JX Motor, Rust)') : ''}
     ${typeof VR !== 'undefined' ? sw('aVrL', esc(T('aj.vrLentes'))) + fila(esc(T('aj.vrOjos')), rango('aVrO', 50, 80, 1, 'aVrOv')) + fila(esc(T('aj.vrBrazos')), rango('aVrB', 100, 220, 10, 'aVrBv')) : ''}
     <button class="ajBtn gris" id="aCtl">${esc(T('ctl.titulo'))}</button> <button class="ajBtn gris" id="aTut">${esc(tutTx(TUT_B.ver))}</button> <button class="ajBtn gris" id="aReg">${esc(Lc('Error log', 'Registro de fallas'))}</button></section>
   ${typeof icappSeccion === 'function' ? `<section data-ajs="l" class="oc">${icappSeccion()}${typeof milogoSeccion === 'function' ? `<div class="icDiv"></div>${milogoSeccion()}` : ''}</section>` : ''}
@@ -390,7 +389,7 @@ function abrirAjustes(desde) {
   <div class="ajPie"><button class="ajBtn" id="aOk">Listo</button></div>`;
   // (la carpeta de mods —gmod_carpeta.js— se dibuja al abrir su pestaña y se va actualizando mientras está a la vista)
   c.querySelector('.ajTabs').onclick = (e) => { const b = e.target.closest('[data-aj]'); if (!b) return; for (const x of c.querySelectorAll('[data-aj]')) x.classList.toggle('sel', x === b); for (const x of c.querySelectorAll('[data-ajs]')) x.classList.toggle('oc', x.dataset.ajs !== b.dataset.aj); if (b.dataset.aj === 'm' && typeof gmkPintar === 'function') gmkPintar(c.querySelector('.gmkCont'), 'aj'); };
-  $('aM').value = motorAct;
+  $('aM').value = JXP && PREFS.jxMotor && typeof jxmDisponible === 'function' && jxmDisponible() ? 'rust' : motorAct;   // (versión personal: «Rust» es JX Motor dibujando el mundo, con WebGL 2 encima)
   // (el menú de inicio, el clásico o el depósito: se cambia en el momento, sin «Listo» —clasico.js e inicio.js—)
   const miPintar = () => { for (const x of c.querySelectorAll('[data-mi]')) { const si = x.dataset.mi === menuInicio(); x.classList.toggle('sel', si); x.setAttribute('aria-checked', si ? 'true' : 'false'); } };
   for (const x of c.querySelectorAll('[data-mi]')) x.onclick = () => { menuInicioPoner(x.dataset.mi); miPintar(); };
@@ -406,7 +405,6 @@ function abrirAjustes(desde) {
   $('aEmoR').checked = PREFS.emoRuleta !== false;
   $('aVozH').checked = PREFS.vozHud !== false;
   if ($('aJxM')) { $('aJxM').checked = !!PREFS.jxManos; $('aJxC').checked = !!PREFS.jxCompleto; }
-  if ($('aJxMot')) $('aJxMot').checked = !!PREFS.jxMotor;
   if ($('aVrL')) { $('aVrL').checked = PREFS.vrLentes !== false; $('aVrO').value = vrSep() * 1000; $('aVrB').value = vrBrazos() * 100; }
   const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; $('aFovv').textContent = $('aFov').value + '°'; if ($('aH')) $('aHv').textContent = $('aH').value + '%'; if ($('aVrO')) { $('aVrOv').textContent = $('aVrO').value + ' mm'; $('aVrBv').textContent = $('aVrB').value + '%'; } };
   act();
@@ -437,8 +435,13 @@ function abrirAjustes(desde) {
       const completo = $('aJxC').checked, cambio = completo !== !!PREFS.jxCompleto; PREFS.jxCompleto = completo; PREFS.jxManos = $('aJxM').checked;
       if (PREFS.jxManos) { if (cambio && MJX.on) mjxApagar(); if (JUEGO.estado === 'juego') mjxPrender(); } else mjxApagar();
     }
-    if ($('aJxMot')) { PREFS.jxMotor = $('aJxMot').checked; jxmPoner(PREFS.jxMotor); }   // (JX Motor: gmod_personal.js)
-    const motorNuevo = $('aM').value; PREFS.motor = motorNuevo;
+    // (JX Motor —gmod_personal.js—: «Rust» prende el motor nativo; lo de encima sigue con WebGL 2)
+    let motorNuevo = $('aM').value;
+    if (JXP && typeof jxmPoner === 'function') {
+      const rust = motorNuevo === 'rust', antes = !!PREFS.jxMotor; PREFS.jxMotor = rust; if (rust) motorNuevo = 'webgl2';
+      if (rust !== antes || rust !== JXM.on) { jxmPoner(rust); if (rust && JXM.on) aviso('Motor Rust (JX Motor) prendido'); }
+    }
+    PREFS.motor = motorNuevo;
     guardarPrefs();
     // cambiar de motor necesita empezar de nuevo (el contexto de WebGL no se puede cambiar)
     if (motorNuevo !== motorAct) { motorCambiar(motorNuevo); return; }

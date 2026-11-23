@@ -29,8 +29,10 @@ cambia nada; el dibujo nativo sí.
    - recorte por la esfera de cada cosa para la cámara, la sombra y el reflejo;
    - resolución dinámica: la escena a una fracción de la pantalla y estirada al final, y la sombra y el reflejo rehechos
      cada tantos cuadros (perfil `celular_flojo`).
-2. **Hecha: adentro de la APK personal** (Ajustes → «Motor nativo (JX Motor, Rust)», celulares de 64 bits con GLES 3).
-   - `android/` arma `libjxmotor.so` (va en `assets/jxmotor/arm64-v8a/`, se carga con `System.load` como JX Hand): un
+2. **Hecha: adentro de la APK personal** (Ajustes → Motor gráfico → «Rust (JX Motor)»; si no se puede, dice por qué).
+   Celulares ARM de 64 bits (`arm64-v8a`) y de 32 (`armeabi-v7a`: muchos de 1 GB traen Android Go de 32 bits), con GLES 3.
+   - `android/` arma `libjxmotor.so` (va en `assets/jxmotor/arm64-v8a/` y `assets/jxmotor/armeabi-v7a/` —la del proceso,
+     `Process.is64Bit`—, se carga con `System.load` como JX Hand): un
      hilo propio con EGL que dibuja en una `SurfaceView` atrás del WebView, que queda transparente
      (`apk/web/src/com/jxmod/app/MotorJX.java` y `MotorNativo.java`; JNI mínima por número, sin dependencias).
    - El juego (`juego/gmod_personal.js`, `jxmCuadroNativo`) manda por la puerta `JXMotor` sólo lo nuevo —mallas,

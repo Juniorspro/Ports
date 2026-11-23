@@ -14,7 +14,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * JX Motor en la app (sólo la versión personal y en celulares de 64 bits): una SurfaceView atrás del WebView, que queda
+ * JX Motor en la app (sólo la versión personal; celulares ARM de 64 o 32 bits con GLES 3): una SurfaceView atrás del WebView, que queda
  * transparente, y el motor nativo dibujando el mundo en ella. El juego (gmod_personal.js, jxmCuadroNativo) le manda por
  * la puerta «JXMotor» los recursos nuevos y cada cuadro; WebGL dibuja encima sólo el arma, los efectos y la interfaz.
  */
@@ -29,26 +29,32 @@ public final class MotorJX {
 
     MotorJX(Web w, FrameLayout r) { web = w; raiz = r; }
 
-    private static boolean es64() {
-        if (Build.VERSION.SDK_INT < 21) return false;
-        for (String a : Build.SUPPORTED_ABIS) if ("arm64-v8a".equals(a)) return true;
-        return false;
+    /** la carpeta de la biblioteca para este proceso: 64 bits (arm64-v8a) o 32 (armeabi-v7a, los Android Go de 1 GB) */
+    private static String abi() {
+        if (Build.VERSION.SDK_INT >= 23 && android.os.Process.is64Bit()) return "arm64-v8a";
+        for (String a : Build.SUPPORTED_32_BIT_ABIS) if ("armeabi-v7a".equals(a)) return "armeabi-v7a";
+        return null;
     }
 
-    /** si este celular puede: versión personal, 64 bits, la APK trae el motor y hay GLES 3 */
+    /** "ok" si este celular puede, o por qué no (se ve en Ajustes) */
+    @JavascriptInterface public synchronized String motivo() {
+        try {
+            if (!Web.esPersonal(web)) return "sólo en la versión personal";
+            String a = abi();
+            if (a == null) return "procesador no compatible (" + android.text.TextUtils.join(",", Build.SUPPORTED_ABIS) + ")";
+            String[] l = web.getAssets().list(DIR + "/" + a);
+            boolean lib = false; if (l != null) for (String x : l) if ("libjxmotor.so".equals(x)) lib = true;
+            if (!lib) return "la APK no trae el motor para " + a;
+            android.app.ActivityManager am = (android.app.ActivityManager) web.getSystemService(Web.ACTIVITY_SERVICE);
+            int gl = am.getDeviceConfigurationInfo().reqGlEsVersion;
+            if (gl < 0x30000) return "la placa de video tiene OpenGL ES " + (gl >> 16) + "." + (gl & 0xffff) + " (hace falta 3.0)";
+            return "ok";
+        } catch (Throwable t) { return "error: " + t; }
+    }
+
+    /** si este celular puede: versión personal, 64 o 32 bits de ARM, la APK trae el motor y hay GLES 3 */
     @JavascriptInterface public synchronized boolean disponible() {
-        if (disponible == null) {
-            boolean ok = false;
-            try {
-                if (Web.esPersonal(web) && es64()) {
-                    String[] l = web.getAssets().list(DIR + "/arm64-v8a");
-                    if (l != null) for (String x : l) if ("libjxmotor.so".equals(x)) ok = true;
-                    android.app.ActivityManager am = (android.app.ActivityManager) web.getSystemService(Web.ACTIVITY_SERVICE);
-                    ok = ok && am.getDeviceConfigurationInfo().reqGlEsVersion >= 0x30000;
-                }
-            } catch (Throwable t) { ok = false; }
-            disponible = ok;
-        }
+        if (disponible == null) disponible = "ok".equals(motivo());
         return disponible;
     }
 
@@ -102,10 +108,10 @@ public final class MotorJX {
             if (!dir.isDirectory() && !dir.mkdirs()) { error = "error: no se pudo crear " + dir; return false; }
             long marca = 0;
             try { PackageInfo pi = web.getPackageManager().getPackageInfo(web.getPackageName(), 0); marca = pi.lastUpdateTime; } catch (Throwable t) { /* nada */ }
-            File f = new File(dir, "libjxmotor_" + marca + ".so");
+            File f = new File(dir, "libjxmotor_" + abi() + "_" + marca + ".so");
             if (!f.isFile()) {
                 File tmp = new File(dir, "nueva.tmp");
-                InputStream in = web.getAssets().open(DIR + "/arm64-v8a/libjxmotor.so");
+                InputStream in = web.getAssets().open(DIR + "/" + abi() + "/libjxmotor.so");
                 OutputStream out = new FileOutputStream(tmp);
                 byte[] b = new byte[1 << 16]; int n;
                 while ((n = in.read(b)) > 0) out.write(b, 0, n);
