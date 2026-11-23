@@ -1,8 +1,10 @@
 //! Banco de pruebas de JX Motor: dibuja un cuadro exportado por el juego (JXE1) sin ventana —EGL sin superficie de Mesa—,
 //! mide cuánto tarda cada cuadro (con glFinish: el tiempo de la placa) y guarda la imagen.
-//! uso: jxm-banco ESCENA.jxe SALIDA.png [ANCHO ALTO] [CUADROS] [perfil: alto|celular|sin] (varios perfiles separados con coma)
+//! uso: jxm-banco ESCENA.jxe|GRABACION.jxg SALIDA.png [ANCHO ALTO] [CUADROS] [perfil: alto|celular|sin] (varios perfiles
+//! separados con coma). Con una grabación (JXG1: lo que mandó el juego en modo nativo) se pasan todos sus pedazos en orden
+//! —recursos y cuadros— y después se mide el último cuadro.
 use glow::HasContext;
-use jxmotor::{escena::Escena, gpu::{Motor, Opciones}};
+use jxmotor::{escena::Escena, gpu::{Motor, Opciones}, proto};
 use khronos_egl as egl;
 use std::time::Instant;
 
@@ -10,8 +12,9 @@ fn main() {
     let a: Vec<String> = std::env::args().collect();
     if a.len() < 3 { eprintln!("uso: jxm-banco ESCENA.jxe SALIDA.png [ANCHO ALTO] [CUADROS] [perfiles]"); std::process::exit(2); }
     let datos = std::fs::read(&a[1]).expect("no se pudo leer la escena");
-    let esc = Escena::leer(&datos).expect("escena");
-    let (w, h) = if a.len() > 4 { (a[3].parse().unwrap(), a[4].parse().unwrap()) } else { (esc.c.w as i32, esc.c.h as i32) };
+    let grab = datos.starts_with(b"JXG1");
+    let esc = if grab { None } else { Some(Escena::leer(&datos).expect("escena")) };
+    let (w, h) = if a.len() > 4 { (a[3].parse().unwrap(), a[4].parse().unwrap()) } else { esc.as_ref().map(|e| (e.c.w as i32, e.c.h as i32)).unwrap_or((1280, 720)) };
     let n: u32 = a.get(5).and_then(|x| x.parse().ok()).unwrap_or(60);
     let perfiles: Vec<String> = a.get(6).cloned().unwrap_or("alto,celular".into()).split(',').map(|s| s.to_string()).collect();
 
@@ -39,13 +42,32 @@ fn main() {
     };
     let _ = col;
     let t0 = Instant::now();
-    let mut m = unsafe { Motor::nuevo(gl, esc, Opciones::default()) }.expect("motor");
+    let mut m = unsafe { Motor::nuevo(gl, Opciones::default()) }.expect("motor");
+    if let Some(e) = &esc {
+        unsafe { m.cargar(e) }.expect("recursos");
+        m.poner_cuadro(e.cuadro().expect("la escena no trae cámara"));
+    } else {
+        // la grabación: cada pedazo en orden, dibujando cada cuadro (como en el juego)
+        let ps = proto::pedazos(&datos).expect("grabación");
+        let (mut nr, mut nc, mut tr, mut tc) = (0, 0, 0.0, vec![]);
+        for p in &ps {
+            let t = Instant::now();
+            unsafe { proto::aplicar(&mut m, p) }.expect("pedazo");
+            match p {
+                proto::Pedazo::Cuadro(_) => { unsafe { m.dibujar(Some(fb), w, h); m.gl.finish(); } nc += 1; tc.push(t.elapsed().as_secs_f64() * 1000.0); }
+                proto::Pedazo::Recursos(_) => { unsafe { m.gl.finish(); } nr += 1; tr += t.elapsed().as_secs_f64() * 1000.0; }
+                _ => {}
+            }
+        }
+        let prom = tc.iter().sum::<f64>() / tc.len().max(1) as f64;
+        println!("grabación: {} pedazos de recursos ({:.0} ms en subirlos) · {} cuadros ({:.2} ms/cuadro con lo que llega) · {:.1} MB", nr, tr, nc, prom, datos.len() as f64 / 1e6);
+    }
     println!("{} · cargado en {:.0} ms · {}x{}", m.resumen(), t0.elapsed().as_secs_f64() * 1000.0, w, h);
     for p in &perfiles {
         m.op = match p.as_str() { "celular" => Opciones::celular_flojo(), "sin" => Opciones { sombras: false, reflejo: false, ..Opciones::default() }, _ => Opciones::default() };
-        unsafe { for _ in 0..3 { m.cuadro(Some(fb), w, h); } m.gl.finish(); }
+        unsafe { for _ in 0..3 { m.dibujar(Some(fb), w, h); } m.gl.finish(); }
         let mut tiempos = vec![]; let mut dibujos = 0;
-        for _ in 0..n { let t = Instant::now(); unsafe { m.cuadro(Some(fb), w, h); m.gl.finish(); } tiempos.push(t.elapsed().as_secs_f64() * 1000.0); dibujos = m.dibujos; }
+        for _ in 0..n { let t = Instant::now(); unsafe { m.dibujar(Some(fb), w, h); m.gl.finish(); } tiempos.push(t.elapsed().as_secs_f64() * 1000.0); dibujos = m.dibujos; }
         tiempos.sort_by(|x, y| x.partial_cmp(y).unwrap());
         let prom = tiempos.iter().sum::<f64>() / tiempos.len() as f64;
         println!("perfil {p:8} · {:.2} ms/cuadro (mediana {:.2}, peor 5 % {:.2}) · {:.0} cuadros/s · {} dibujos · {:?}", prom, tiempos[tiempos.len() / 2], tiempos[(tiempos.len() * 95 / 100).min(tiempos.len() - 1)], 1000.0 / prom, dibujos, m.op);

@@ -396,7 +396,7 @@ async function jxpAguaHL2(mapa) {
     const T = GMF.vtf(u, 512), px = GMF.vtfRGBA(T), tex = gmTexGL(px, T.w, T.h, false);
     const fs = jxpColor(V['srgb?$fogcolor']) || jxpColor(V.$fogcolor) || [0.08, 0.19, 0.2], fin = +V.$fogend || 400;
     const lin = fs.map((c) => Math.pow(c, 2.2)), turbia = clamp(1.05 - fin / 1500, 0.55, 0.92);
-    AGUA.hl2 = { tex, nom, normal: nr, fog: [lin[0], lin[1], lin[2], turbia], esc: 0.38, fuerza: 0.55, dist: 0.09, s: [0.021, 0.016, -0.018, 0.024], bajo: fs.map((c) => Math.min(1, c * 1.5)), largo: Math.max(1.5, fin * GM_S / 2.5), prof: jxpAguaFondo() };
+    AGUA.hl2 = { tex, tw: T.w, th: T.h, tpx: px, nom, normal: nr, fog: [lin[0], lin[1], lin[2], turbia], esc: 0.38, fuerza: 0.55, dist: 0.09, s: [0.021, 0.016, -0.018, 0.024], bajo: fs.map((c) => Math.min(1, c * 1.5)), largo: Math.max(1.5, fin * GM_S / 2.5), prof: jxpAguaFondo() };
   } catch (e) { gmErr('agua de HL2', e); }
 }
 JXPM.aguaN = 0;
@@ -415,7 +415,7 @@ function jxpAguaFondo() {
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, N, N, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  return { tex, x0, z0, w, h, D };
+  return { tex, px, n: N, x0, z0, w, h, D };
 }
 
 // ---------------- JX Motor: el cuadro que se dibuja, para el motor nativo en Rust (porteos/jxmod/motor) ----------------
@@ -465,9 +465,10 @@ function jxmArmar(TMAX) {
   const out = items.map((p) => ({ m: malla(p.m), s0: p.s0, sn: p.sn, mat: mat(p.mt), M: Array.from(p.M), est: p.est ? 1 : 0 }));
   const H = AGUA.hl2; let agua = null;
   if (H && H.tex) {
-    const nt = leerTex(H.tex, 512, 512) || leerTex(H.tex, 256, 256);
+    // (con su tamaño de verdad: leída como 256 una de 128 quedaba con tres cuartos en negro y el agua con manchas)
+    const nt = H.tpx ? { w: H.tw, h: H.th, px: H.tpx } : leerTex(H.tex, H.tw || 256, H.th || 256);
     agua = { fog: H.fog, esc: H.esc, fuerza: H.fuerza, dist: H.dist, s: H.s, largo: H.largo, normal: nt ? { w: nt.w, h: nt.h, o: poner(nt.px) } : null };
-    if (H.prof) { const p = leerTex(H.prof.tex, 64, 64); agua.prof = { x0: H.prof.x0, z0: H.prof.z0, w: H.prof.w, h: H.prof.h, D: H.prof.D, tex: p ? { w: p.w, h: p.h, o: poner(p.px) } : null }; }
+    if (H.prof) { const p = H.prof.px ? { w: H.prof.n, h: H.prof.n, px: H.prof.px } : leerTex(H.prof.tex, 64, 64); agua.prof = { x0: H.prof.x0, z0: H.prof.z0, w: H.prof.w, h: H.prof.h, D: H.prof.D, tex: p ? { w: p.w, h: p.h, o: poner(p.px) } : null }; }
     const W = AGUA.vols.find((v) => v.mapa); if (W) agua.y = W.y1;
   }
   const L = { sol: [R.sol.x, R.sol.y, R.sol.z], solC: Array.from(R.solCol || [1, 1, 1]), ambS: Array.from(R.ambS || [0.4, 0.45, 0.5]), ambG: Array.from(R.ambG || [0.3, 0.3, 0.3]), nie: { c: Array.from(R.niebla.c), a: R.niebla.a, b: R.niebla.b }, expo: R.expo || 1 };
@@ -475,4 +476,169 @@ function jxmArmar(TMAX) {
   const js = new TextEncoder().encode(JSON.stringify(J)), cab = new Uint8Array(8); cab.set([74, 88, 69, 49]); new DataView(cab.buffer).setUint32(4, js.length, true);
   const tot = new Uint8Array(8 + js.length + off); tot.set(cab); tot.set(js, 8); let o = 8 + js.length; for (const b of blobs) { tot.set(b, o); o += b.length; }
   return tot;
+}
+
+// ---------------- JX Motor en vivo: el mundo lo dibuja el motor nativo y WebGL sólo lo de encima ----------------
+// En la APK personal con el motor (Ajustes → «Motor nativo»), cada cuadro el juego le manda a JX Motor (Rust, GLES 3, en una
+// superficie atrás del WebView transparente):
+//  - lo nuevo, una sola vez: mallas (como están en el paquete, con sus huesos y la UV de la luz horneada), texturas (leídas
+//    de la placa hasta JXM.tmax px y borradas de WebGL después: no ocupan memoria dos veces), luces horneadas, materiales
+//    y el agua de HL2 (formato JXE1, cada cosa con su número del juego);
+//  - el cuadro (JXC1): cámara, sol, cielo, niebla, luces puntuales y especiales, y cada cosa que hay que dibujar —no sólo
+//    lo que ve la cámara: el motor recorta solo para la cámara, la sombra del sol y el reflejo del agua— con su matriz, su
+//    esfera y sus huesos.
+// WebGL deja de dibujar el mundo (ni sombras, ni reflejo, ni lo opaco, ni lo transparente) y dibuja sólo el arma en la mano,
+// los efectos, lo que dibuja el Lua y las líneas, sobre fondo transparente.
+// Puente: window.JXMotor (Java, Motor.java) con recursos(base64), cuadro(base64), vaciar(); en las pruebas, JXM.grab junta
+// todo en una grabación JXG1 que el banco de pruebas (jxm-banco) vuelve a dibujar.
+const JXM = { on: false, grab: null, tmax: 256, mallas: new Set(), texs: new Set(), lms: new Set(), mats: new WeakMap(), matN: 0, agua: null, mapa: null, f: new Float32Array(4096), sinMalla: 0, bytesR: 0, cuadros: 0 };
+function jxmPuente() { return JXM.grab || (JXM.prendido && typeof window.JXMotor !== 'undefined' ? window.JXMotor : null); }
+function jxmDisponible() { try { return !!(JXP && (JXM.grab || (typeof window.JXMotor !== 'undefined' && window.JXMotor.disponible()))); } catch (e) { return false; } }
+// la calidad del motor nativo según la del juego (y las texturas: 512 px en Alto y Ultra, 256 en las demás)
+function jxmCalidad() {
+  const g = PREFS.gfx === 'auto' ? (GFX.nombre || 'medio') : PREFS.gfx, perfil = /ultra|alto/.test(g) ? 'alto' : /medio/.test(g) ? 'celular' : 'bajo';
+  JXM.tmax = perfil === 'alto' ? 512 : 256;
+  if (!JXM.grab && JXM.prendido) try { window.JXMotor.opciones(perfil, 0); } catch (e) {}
+  return perfil;
+}
+function jxmB64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+// (la grabación de las pruebas: cada pedazo con su tipo y su largo)
+function jxmGrabar() {
+  const P = [];
+  const poner = (t, u8) => { const c = new Uint8Array(5 + u8.length); c[0] = t.charCodeAt(0); new DataView(c.buffer).setUint32(1, u8.length, true); c.set(u8, 5); P.push(c); };
+  const desde = (b) => Uint8Array.from(atob(b), (c) => c.charCodeAt(0));
+  JXM.grab = { recursos: (b) => poner('R', desde(b)), cuadro: (b) => poner('C', desde(b)), vaciar: () => poner('V', new Uint8Array(0)), juntar: () => { const u = new Uint8Array(P.reduce((t, c) => t + c.length, 4)); u.set([74, 88, 71, 49]); let o = 4; for (const c of P) { u.set(c, o); o += c.length; } return u; }, pedazos: P };
+  return JXM.grab;
+}
+function jxmPoner(on) {
+  on = !!on && jxmDisponible();
+  if (!JXM.grab && typeof window.JXMotor !== 'undefined') {
+    if (on && !JXM.prendido) { const r = String(window.JXMotor.prender()); if (r !== 'ok') { aviso('Motor nativo: ' + r); on = false; } else JXM.prendido = true; }
+    if (!on && JXM.prendido) { window.JXMotor.apagar(); JXM.prendido = false; }
+  }
+  JXM.on = on; document.body.classList.toggle('jxmNat', on);
+  if (on) jxmCalidad();
+  jxmReiniciar();
+}
+// lo que dice el motor nativo (cuadros por segundo, ms, memoria) o su error
+function jxmEstado() { try { return JXM.grab ? 'grabando' : JXM.prendido ? String(window.JXMotor.estado()) : 'apagado'; } catch (e) { return String(e); } }
+function jxmReiniciar() {
+  JXM.mallas.clear(); JXM.texs.clear(); JXM.lms.clear(); JXM.mats = new WeakMap(); JXM.agua = null; JXM.mapa = null;
+  const B = jxmPuente(); if (B && JXM.on) B.vaciar();
+}
+// el material: su número para el motor (uno nuevo si cambió algo: el color de un prop pintado con la herramienta, por ejemplo)
+function jxmMatFirma(mt) { const c = mt.c || [1, 1, 1, 1], s = mt.st || [1, 1, 0, 0], e = mt.em || [0, 0, 0]; return [mt.tex, mt.mez, mt.terr ? 1 : 0, c[0], c[1], c[2], c[3], s[0], s[1], s[2], s[3], e[0], e[1], e[2], mt.blend ? 1 : 0, mt.cut ? 1 : 0, mt.unlit ? 1 : 0, mt.add ? 1 : 0, mt.agua ? 1 : 0].join(','); }
+// lo que todavía no tiene el motor, en un JXE1 (con un tope por cuadro: un mapa entero llega en varios cuadros)
+function jxmRecursos(items) {
+  const gl = R.gl, blobs = []; let off = 0, tope = 6e6;
+  const poner = (u8) => { const o = off; blobs.push(u8); off += u8.length; const pad = (4 - (off % 4)) % 4; if (pad) { blobs.push(new Uint8Array(pad)); off += pad; } return o; };
+  const mallas = [], mats = [], texs = [], lms = [];
+  const tex = (ti) => {
+    if (ti === undefined || ti === null || ti < 0 || JXM.texs.has(ti) || off > tope) return;
+    texGL(ti);   // (en modo nativo WebGL no dibuja el mundo: la textura se pide acá)
+    const t = R.tex[ti], D = DATA.tx[ti]; if (!t || !t.gl || !D || !D.w) return;   // (todavía no llegó: en otro cuadro)
+    let w = D.w, h = D.h, lv = 0; while (Math.max(w, h) > JXM.tmax) { lv++; w = Math.max(1, w >> 1); h = Math.max(1, h >> 1); }
+    const fb = JXM.fb || (JXM.fb = gl.createFramebuffer()); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    let px = null;
+    for (const nivel of lv ? [lv, 0] : [0]) {
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t.gl, nivel);
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) continue;
+      if (!nivel) { w = D.w; h = D.h; }
+      px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); break;
+    }
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, null, 0); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    JXM.texs.add(ti); if (!px) return;
+    // (la copia de WebGL ya no hace falta: se borra —en un celular de 1 GB no conviene tenerla dos veces— y, si WebGL la
+    // vuelve a necesitar —el arma en la mano—, texGL la decodifica de nuevo)
+    if (!JXM.grab) { gl.deleteTexture(t.gl); t.gl = null; t.jxm = true; }
+    texs.push({ id: ti, n: D.n || '', w, h, a: D.a ? 1 : 0, o: poner(px) });
+  };
+  const lm = (k) => { if (k === null || k === undefined || JXM.lms.has(k)) return; const A = DATA.aj[k] && DATA.aj[k].lm; JXM.lms.add(k); if (A) lms.push({ id: k, w: A.w, h: A.h, o: poner(A.px.slice ? A.px.slice() : new Uint8Array(A.px)) }); };
+  for (const p of items) {
+    const m = p.m, mt = p.mt;
+    if (!JXM.mallas.has(m.idx) && off < tope) {
+      const d = m.d, B = binDe(d);
+      if (B) {
+        let n = 0; for (const s of d.sub) n = Math.max(n, s[0] + s[1]);
+        if (d.lod) for (const l of d.lod) for (const s of l.sub) n = Math.max(n, s[0] + s[1]);
+        mallas.push({ id: m.idx, v: d.v, mn: d.mn, sc: d.sc, i32: d.i32 ? 1 : 0, ni: n, vo: poner(B.slice(d.o, d.o + d.v * 14)), io: poner(B.slice(d.i, d.i + n * (d.i32 ? 4 : 2))), lo: d.lm !== undefined ? poner(B.slice(d.lm, d.lm + d.v * 4)) : -1, so: d.sk !== undefined ? poner(B.slice(d.sk, d.sk + d.v * 8)) : -1, lm: m.lm !== null && m.lm !== undefined ? m.lm : -1 });
+        JXM.mallas.add(m.idx); lm(m.lm);
+      }
+    }
+    let r = JXM.mats.get(mt); const f = jxmMatFirma(mt);
+    if (!r || r.f !== f) {
+      r = { id: ++JXM.matN, f }; JXM.mats.set(mt, r);
+      const terr = mt.terr ? mt.terr.t.map((x) => (x ? [x[0], x[1], x[2]] : [-1, 1, 1])) : null;
+      mats.push({ id: r.id, t2: mt.mez !== undefined ? mt.mez : -1, terr, c: Array.from(mt.c || [1, 1, 1, 1]), st: Array.from(mt.st || [1, 1, 0, 0]), t: mt.tex !== undefined ? mt.tex : -1, blend: mt.blend ? 1 : 0, cut: mt.cut ? 1 : 0, unlit: mt.unlit ? 1 : 0, add: mt.add ? 1 : 0, agua: mt.agua ? 1 : 0, em: Array.from(mt.em || [0, 0, 0]) });
+    }
+    tex(mt.tex); tex(mt.mez); if (mt.terr) for (const x of mt.terr.t) if (x) tex(x[0]);
+  }
+  // el agua de HL2 (una vez por mapa)
+  let agua = null; const H = AGUA.hl2;
+  if (H && H.tpx && JXM.agua !== H) {
+    JXM.agua = H;
+    agua = { fog: H.fog, esc: H.esc, fuerza: H.fuerza, dist: H.dist, s: H.s, largo: H.largo, normal: { w: H.tw, h: H.th, o: poner(H.tpx) } };
+    if (H.prof && H.prof.px) agua.prof = { x0: H.prof.x0, z0: H.prof.z0, w: H.prof.w, h: H.prof.h, D: H.prof.D, tex: { w: H.prof.n, h: H.prof.n, o: poner(H.prof.px) } };
+    const W = AGUA.vols.find((v) => v.mapa); agua.y = W ? W.y1 : 0;
+  }
+  if (!mallas.length && !mats.length && !texs.length && !lms.length && !agua) return null;
+  const J = { v: 2, mapa: MUNDO.nombre, mallas, mats, texs, lms, agua };
+  const js = new TextEncoder().encode(JSON.stringify(J)), tot = new Uint8Array(8 + js.length + off);
+  tot.set([74, 88, 69, 49]); new DataView(tot.buffer).setUint32(4, js.length, true); tot.set(js, 8);
+  let o = 8 + js.length; for (const b of blobs) { tot.set(b, o); o += b.length; }
+  JXM.bytesR += tot.length;
+  return tot;
+}
+// el cuadro: lo que le llega al motor nativo. Devuelve true si el mundo lo dibuja el motor
+function jxmCuadroNativo() {
+  const B = jxmPuente(); if (!B) return false;
+  if (JXM.mapa !== MUNDO.nombre) { if (JXM.mapa !== null) jxmReiniciar(); JXM.mapa = MUNDO.nombre; }
+  const items = []; let ns = 0;
+  for (let i = 0; i < R.nItems; i++) { const p = R.items[i]; if (p.vista || !p.m || !p.mt) continue; if (p.m.idx === undefined) { ns++; continue; } items.push(p); }
+  JXM.sinMalla = ns;
+  const rec = jxmRecursos(items); if (rec) B.recursos(jxmB64(rec));
+  // (las cosas cuya malla todavía no llegó —se cortó por el tope— esperan al cuadro que viene)
+  let n = 43; for (const p of items) n += 26 + (p.h ? Math.min(p.h.nf || p.h.length, 56 * 12) : 0);
+  n += 24 * 12;
+  if (JXM.f.length < n) JXM.f = new Float32Array(n * 1.5 | 0);
+  const F = JXM.f; new Uint32Array(F.buffer, 0, 1)[0] = 0x3143584a;
+  let k = 2; const pon = (a, m) => { for (let i = 0; i < m; i++) F[k++] = a[i]; };
+  pon(R.vp, 16); F[k++] = CAM.pos.x; F[k++] = CAM.pos.y; F[k++] = CAM.pos.z;
+  F[k++] = R.sol.x; F[k++] = R.sol.y; F[k++] = R.sol.z;
+  pon(R.solCol || [1, 1, 1], 3); pon(R.ambS || [0.4, 0.45, 0.5], 3); pon(R.ambG || [0.3, 0.3, 0.3], 3); pon(R.niebla.c, 3);
+  F[k++] = R.niebla.a; F[k++] = R.niebla.b; F[k++] = R.expo || 1;
+  const W = AGUA.vols.find((v) => v.mapa); F[k++] = W ? W.y1 : NaN; F[k++] = (R.msCuadro / 1000) % 3600;
+  const nl = R.nLuces || 0, ne = R.nEsp || 0; F[k++] = nl; F[k++] = ne;
+  for (let i = 0; i < nl; i++) { pon(LUZ_P.subarray(i * 4), 4); pon(LUZ_C.subarray(i * 4), 4); pon(LUZ_D.subarray(i * 4), 4); }
+  for (let i = 0; i < ne; i++) { pon(ESP_P.subarray(i * 4), 4); pon(ESP_C.subarray(i * 4), 4); pon(ESP_D.subarray(i * 4), 4); }
+  let c = 0; const hs = JXM.hs || (JXM.hs = new Map()); hs.clear();
+  for (const p of items) {
+    if (!JXM.mallas.has(p.m.idx)) continue;
+    const r = JXM.mats.get(p.mt); if (!r) continue;
+    F[k++] = p.m.idx; F[k++] = p.s0; F[k++] = p.sn; F[k++] = r.id; pon(p.M, 16);
+    F[k++] = p.cx; F[k++] = p.cy; F[k++] = p.cz; F[k++] = p.h ? p.r : p.r || -1; F[k++] = p.ns ? 1 : 0;
+    // (los huesos van una vez por personaje: sus otras partes dicen de cuál copiarlos)
+    const nh = p.h ? Math.min(p.h.nf || p.h.length, 56 * 12) : 0, ya = nh ? hs.get(p.h) : undefined;
+    if (ya !== undefined) F[k++] = -(ya + 1); else { F[k++] = nh; if (nh) { pon(p.h, nh); hs.set(p.h, c); } }
+    c++;
+  }
+  F[1] = c;
+  B.cuadro(jxmB64(new Uint8Array(F.buffer, 0, k * 4)));
+  JXM.cuadros++;
+  return true;
+}
+// lo que dibujó WebGL encima (el arma, los efectos) con alfa 1 donde quedó profundidad: lo opaco tapa del todo
+function jxmAlfa() {
+  const gl = R.gl;
+  if (!JXM.pa) {
+    const vs = '#version 300 es\nvoid main(){ vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2)) * 2.0 - 1.0; gl_Position = vec4(p, 0.9999, 1.0); }';
+    const fs = '#version 300 es\nprecision mediump float; out vec4 o; void main(){ o = vec4(0.0, 0.0, 0.0, 1.0); }';
+    const P = gl.createProgram(); for (const [t, s] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) { const x = gl.createShader(t); gl.shaderSource(x, s); gl.compileShader(x); gl.attachShader(P, x); }
+    gl.linkProgram(P); JXM.pa = P;
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, R.cv.width, R.cv.height);
+  gl.useProgram(JXM.pa); R.progAct = null; gl.bindVertexArray(null); R.vaoAct = null;
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.GREATER); gl.depthMask(false); gl.disable(gl.BLEND); gl.colorMask(false, false, false, true);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.colorMask(true, true, true, true); gl.depthMask(true); gl.depthFunc(gl.LESS);
 }

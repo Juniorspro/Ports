@@ -1,0 +1,15 @@
+[package]
+name = "jxmotor-android"
+version = "0.1.0"
+edition = "2021"
+description = "JX Motor en Android: libjxmotor.so (JNI, hilo de dibujo con EGL sobre la superficie que está atrás del WebView)"
+
+[lib]
+name = "jxmotor"
+crate-type = ["cdylib"]
+
+[dependencies]
+jxmotor = { path = "../jxmotor" }
+glow = "0.16"
+khronos-egl = { version = "6", features = ["dynamic"] }
+libloading = "0.8"

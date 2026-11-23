@@ -381,6 +381,7 @@ function abrirAjustes(desde) {
     ${sw('aEmoR', esc(T('aj.emoRuleta')))}
     ${sw('aVozH', esc(T('aj.vozHud')))}
     ${typeof mjxDisponible === 'function' && mjxDisponible() ? sw('aJxM', esc(T('aj.jxManos'))) + sw('aJxC', esc(T('aj.jxCompleto'))) : ''}
+    ${JXP && typeof jxmDisponible === 'function' && jxmDisponible() ? sw('aJxMot', 'Motor nativo (JX Motor, Rust)') : ''}
     ${typeof VR !== 'undefined' ? sw('aVrL', esc(T('aj.vrLentes'))) + fila(esc(T('aj.vrOjos')), rango('aVrO', 50, 80, 1, 'aVrOv')) + fila(esc(T('aj.vrBrazos')), rango('aVrB', 100, 220, 10, 'aVrBv')) : ''}
     <button class="ajBtn gris" id="aCtl">${esc(T('ctl.titulo'))}</button> <button class="ajBtn gris" id="aTut">${esc(tutTx(TUT_B.ver))}</button> <button class="ajBtn gris" id="aReg">${esc(Lc('Error log', 'Registro de fallas'))}</button></section>
   ${typeof icappSeccion === 'function' ? `<section data-ajs="l" class="oc">${icappSeccion()}${typeof milogoSeccion === 'function' ? `<div class="icDiv"></div>${milogoSeccion()}` : ''}</section>` : ''}
@@ -405,6 +406,7 @@ function abrirAjustes(desde) {
   $('aEmoR').checked = PREFS.emoRuleta !== false;
   $('aVozH').checked = PREFS.vozHud !== false;
   if ($('aJxM')) { $('aJxM').checked = !!PREFS.jxManos; $('aJxC').checked = !!PREFS.jxCompleto; }
+  if ($('aJxMot')) $('aJxMot').checked = !!PREFS.jxMotor;
   if ($('aVrL')) { $('aVrL').checked = PREFS.vrLentes !== false; $('aVrO').value = vrSep() * 1000; $('aVrB').value = vrBrazos() * 100; }
   const act = () => { $('aRv').textContent = $('aR').value + '%'; $('aDv').textContent = $('aD').value + ' m'; $('aFovv').textContent = $('aFov').value + '°'; if ($('aH')) $('aHv').textContent = $('aH').value + '%'; if ($('aVrO')) { $('aVrOv').textContent = $('aVrO').value + ' mm'; $('aVrBv').textContent = $('aVrB').value + '%'; } };
   act();
@@ -435,6 +437,7 @@ function abrirAjustes(desde) {
       const completo = $('aJxC').checked, cambio = completo !== !!PREFS.jxCompleto; PREFS.jxCompleto = completo; PREFS.jxManos = $('aJxM').checked;
       if (PREFS.jxManos) { if (cambio && MJX.on) mjxApagar(); if (JUEGO.estado === 'juego') mjxPrender(); } else mjxApagar();
     }
+    if ($('aJxMot')) { PREFS.jxMotor = $('aJxMot').checked; jxmPoner(PREFS.jxMotor); }   // (JX Motor: gmod_personal.js)
     const motorNuevo = $('aM').value; PREFS.motor = motorNuevo;
     guardarPrefs();
     // cambiar de motor necesita empezar de nuevo (el contexto de WebGL no se puede cambiar)

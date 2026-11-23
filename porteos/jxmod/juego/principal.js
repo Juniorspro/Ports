@@ -176,7 +176,10 @@ function fpsPlaca() {
 }
 function fpsTexto(ms) {
   if (!PREFS.fps) return '';
-  const f = Math.round(TIEMPO.fps); if (!PREFS.fpsDet) return f + ' fps';
+  const f = Math.round(TIEMPO.fps);
+  // (con JX Motor: los cuadros del juego y lo que dice el motor nativo —sus cuadros por segundo, lo que tarda y su memoria—)
+  if (typeof JXM !== 'undefined' && JXM.on) { const e = jxmEstado().replace(/ · mapa[\s\S]*$/, ''); return f + ' fps juego · motor ' + e; }
+  if (!PREFS.fpsDet) return f + ' fps';
   const d = typeof CELU !== 'undefined' && CELU.det, ap = d ? d.nom || d.soc || '' : '';
   return f + ' fps · JS ' + (+ms || 0).toFixed(1) + ' ms · ' + (GFX.auto ? 'Auto ' : '') + GFX.nombre + ' ' + Math.round(GFX.escala * 100) + '% ' + R.cv.width + '×' + R.cv.height + (TIEMPO.lento ? ' · lento ' + TIEMPO.lento : '') +
     '\n' + fpsPlaca() + (R.gl1 ? ' · WebGL 1' : '') + (ap ? ' · ' + ap : '') + (navigator.deviceMemory ? ' · ' + navigator.deviceMemory + ' GB' : '') + (navigator.hardwareConcurrency ? ' · ' + navigator.hardwareConcurrency + ' núcleos' : '');
@@ -282,7 +285,7 @@ function empezarPartida(mapa) {
   aplicarMods(); // mods y mapa de la comunidad (después de las armas: un mod puede sumar)
   if (typeof gmmPartida === 'function') gmmPartida(mapa);   // (un modo de juego de GMod: el elegido o el del mapa)
   if (typeof menuMostrar === 'function') menuMostrar(false); $('hud').classList.remove('oc');
-  JUEGO.estado = 'juego'; cerrarPaneles(); modMenuBoton(); if (typeof mjxAlEntrar === 'function') mjxAlEntrar(); if (typeof vrAlEntrar === 'function') vrAlEntrar();
+  JUEGO.estado = 'juego'; cerrarPaneles(); modMenuBoton(); if (typeof mjxAlEntrar === 'function') mjxAlEntrar(); if (JXP && PREFS.jxMotor && typeof jxmPoner === 'function' && !JXM.on) jxmPoner(true); if (typeof vrAlEntrar === 'function') vrAlEntrar();
   if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo();
   if (typeof redEntrar === 'function') redEntrar(mapa);
   aviso(typeof mapaNom === 'function' ? mapaNom(mapa) : mapa, 2.5);
@@ -574,9 +577,11 @@ function dibujar() {
   // (memoria baja: cada 5 s, las texturas que no se dibujan hace 30 s se sacan de la placa —texPodar, gl.js—)
   if (GFX.memBaja && R.msCuadro - (R.podaT || 0) > 5000) { R.podaT = R.msCuadro; texPodar(R.msCuadro); }
   // cómo sale la imagen según la calidad
-  const usaPost = !vr && GFX.luz >= 2 && (GFX.hdr || GFX.ao || GFX.fxaa) && postPreparar();
+  // (JX Motor —gmod_personal.js—: el mundo lo dibuja el motor nativo; WebGL sólo lo de encima, sin sombras ni post)
+  const nat = !vr && JUEGO.estado === 'juego' && typeof JXM !== 'undefined' && JXM.on;
+  const usaPost = !vr && !nat && GFX.luz >= 2 && (GFX.hdr || GFX.ao || GFX.fxaa) && postPreparar();
   R.salida = GFX.luz < 2 ? 'gam' : usaPost && PO.hdr ? 'hdr' : 'ldr'; R.usaPost = usaPost;
-  R.sombraOn = GFX.luz >= 2 && GFX.sombra > 0 && SM.n > 0 && !MUNDO.sinSombra && !R.sinSombraDbg;
+  R.sombraOn = !nat && GFX.luz >= 2 && GFX.sombra > 0 && SM.n > 0 && !MUNDO.sinSombra && !R.sinSombraDbg;
   R.conAO = !!(usaPost && GFX.ao > 0 && PO.ao.length);
   R.aoActivo = false;
   const nieAntes = aguaNiebla();   // (debajo del agua: la niebla de cerca, del color del agua)
@@ -602,19 +607,26 @@ function dibujar() {
   const t1 = performance.now();
   if (R.sombraOn) sombrasActualizar();
   // (la sombra de la linterna propia, si está prendida y la calidad la tiene: sombras.js)
-  R.espShOn = GFX.espSh > 0 && !!ESH.tex && R.espShI >= 0 && JUEGO.estado === 'juego' && !DBG.sinEsh;   // (DBG.sinEsh: para comparar en las pruebas)
+  R.espShOn = !nat && GFX.espSh > 0 && !!ESH.tex && R.espShI >= 0 && JUEGO.estado === 'juego' && !DBG.sinEsh;   // (DBG.sinEsh: para comparar en las pruebas)
   if (R.espShOn) espSombraActualizar();
   const t2 = performance.now();
   armarCola();
   if (R.captura) { const f = R.captura; R.captura = null; try { f(); } catch (e) { console.error(e); } }   // (JX Motor: lo que se dibuja en este cuadro —gmod_personal.js, jxmCapturar—)
   // (en VR no hay reflejo del agua ni vista por los portales: se leen con la posición en la pantalla entera)
-  if (vr) { AGUA.refOn = false; POR.on = false; POR.A = null; } else { aguaReflejo(P, V); portalesVista(P, V); }
+  const natOk = nat && jxmCuadroNativo();
+  if (vr || natOk) { AGUA.refOn = false; POR.on = false; POR.A = null; } else { aguaReflejo(P, V); portalesVista(P, V); }
   const N = R.salida === 'gam' ? R.niebla.c : R.lin.nieC;
   for (let ojo = 0; ojo < (vr ? 2 : 1); ojo++) {
     if (vr) vrOjo(vr, ojo); else if (usaPost) postEmpezar(); else { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); }
     // (en VR, el primer ojo deja las listas de lo que se dibuja —opacos, transparentes, carteles, líneas— para el segundo)
     R.ojoGuardar = !!vr && ojo === 0;
-    gl.clearColor(N[0], N[1], N[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (natOk) gl.clearColor(0, 0, 0, 0); else gl.clearColor(N[0], N[1], N[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (natOk) {
+      // (el mundo ya lo dibujó el motor nativo: acá sólo lo que va encima)
+      if (typeof gmrDibujar === 'function') gmrDibujar('mundo');
+      dibujarEfectos(); nukeDibujar(); dibujarRayoFisica(); dibujarTrazas(); dibujarLineas();
+      continue;
+    }
     const c3d = JUEGO.estado === 'juego' && cielo3dDibujar(fovy, asp);   // (el cielo 3D de los mapas de GMod: de fondo, antes que todo)
     if (R.conAO) {
       // (la pasada previa sólo deja el color de fondo: no se guarda y después se vuelve a borrar, que en las GPU de celu no se
@@ -656,6 +668,7 @@ function dibujar() {
   if (usaPost) postTerminar();
   if (nieAntes) R.niebla = nieAntes;
   if (VHS.on) vhsPasada();   // (la cinta del evento de los 300: vhs.js)
+  if (natOk) { jxmAlfa(); R.alfaLibre = true; }   // (transparente donde no hay nada: atrás se ve el motor nativo)
   pantFinCuadro(usaPost); // (alfa 1 en toda la imagen y el hueco de la pantalla de video)
   DIB.ms.juntar = t1 - t0; DIB.ms.sombras = t2 - t1; DIB.ms.escena = t3 - t2; DIB.ms.post = performance.now() - t3;
   if (JUEGO.foto > 0) { JUEGO.foto--; if (JUEGO.foto === 0) { if (JUEGO.fotoCb) { JUEGO.fotoCb(); JUEGO.fotoCb = null; } else fotoGuardar(); } }

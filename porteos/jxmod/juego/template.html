@@ -1463,6 +1463,8 @@ html.rot #pausa .pzGrid{grid-template-columns:repeat(3,1fr)}html.rot #pausa .pzC
 @media (pointer:coarse){#spawn .cat{line-height:40px}#spawn .spBus{height:40px}#spawn .it{width:78px}#spawn .it img{width:66px;height:50px}}
 @media (max-height:420px){#spawn .cats{width:150px}}@media (max-width:420px){html.rot #spawn .cats{width:150px}}
 /* la versión personal (JXP, gmod_personal.js): el menú Q claro como el spawnmenu de Garry's Mod */
+/* JX Motor: el mundo lo dibuja el motor nativo atrás del WebView (gmod_personal.js) */
+html:has(body.jxmNat),body.jxmNat,body.jxmNat #cv{background:transparent!important}
 body.jxp #spawn .grilla.jxpAddG{display:block;background:#f2f2f2;padding:0}
 body.jxp .jxpBarra{display:flex;gap:6px;align-items:center;padding:6px;background:#e6e6e6;border-bottom:1px solid #b5b5b5;flex-wrap:wrap}
 body.jxp .jxpBarra input[id]{flex:1;min-width:160px;height:24px;border:1px solid #9a9a9a;border-radius:2px;padding:0 6px;font:12px Tahoma,Verdana,Arial,sans-serif;background:#fff;color:#222;outline:0}

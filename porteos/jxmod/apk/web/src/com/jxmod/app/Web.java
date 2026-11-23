@@ -73,6 +73,7 @@ public class Web extends Activity {
     // (la grabación «pantalla del celular»: GrabaPantalla.java; lo que pidió la página hasta que el usuario deja grabar)
     private static volatile Web yo;
     private ManosJX manos;
+    private MotorJX motorJX;
     private String pantNombre = "JXMod.mp4"; private int pantAlto = 720, pantFps = 30;
 
     private FrameLayout raiz;
@@ -189,6 +190,8 @@ public class Web extends Activity {
 
     // la versión personal del dueño (otra app: com.jxmod.app.personal, armar_apk.py --personal): no busca versiones ni
     // baja actualizaciones por partes de la pública, que le pisarían su juego
+    /** el fondo del WebView: negro, o transparente con JX Motor dibujando atrás (MotorJX) */
+    void fondoOpaco(boolean si) { if (web != null) web.setBackgroundColor(si ? 0xFF000000 : 0x00000000); }
     static boolean esPersonal(android.content.Context c) { return c.getPackageName().endsWith(".personal"); }
     private void buscarActualizacion(final boolean avisarSiNoHay) {
         if (esPersonal(this)) { if (avisarSiNoHay) runOnUiThread(() -> android.widget.Toast.makeText(this, "Versión personal: no se actualiza sola", android.widget.Toast.LENGTH_LONG).show()); return; }
@@ -323,6 +326,8 @@ public class Web extends Activity {
         // tus manos con la cámara (JX Hand Engine en Rust nativo, ManosJX.java): el mismo objeto aunque la vista web se rearme
         if (manos == null) manos = new ManosJX(this);
         web.addJavascriptInterface(manos, "JXManos");
+        // JX Motor (versión personal): el mundo dibujado por el motor nativo en Rust, atrás del WebView transparente
+        if (esPersonal(this)) { if (motorJX == null) motorJX = new MotorJX(this, raiz); web.addJavascriptInterface(motorJX, "JXMotor"); }
         raiz.addView(web, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         web.loadUrl(url);
         // (rearmada con la app en segundo plano —el proceso que dibuja se cerró mientras tanto—: arranca pausada y callada;
@@ -1224,6 +1229,7 @@ public class Web extends Activity {
     @Override protected void onDestroy() {
         if (yo == this) yo = null;
         if (manos != null) manos.alDestruir();
+        if (motorJX != null) motorJX.alDestruir();
         grabCerrarTodas();
         if (grabSistemaCb != null && Build.VERSION.SDK_INT >= 35) { try { getWindowManager().removeScreenRecordingCallback(grabSistemaCb); } catch (Throwable e) { /* nada */ } }
         lanParar(); lanBuscar(false); synchronized (this) { if (lanPuente != null) { lanPuente.parar(); lanPuente = null; } }

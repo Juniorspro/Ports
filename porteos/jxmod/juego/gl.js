@@ -980,7 +980,7 @@ function texSolida(c) {
 function texGL(i) {
   if (i == null || i < 0) return R.texBlanca;
   let t = R.tex[i];
-  if (t) { t.u = R.msCuadro; if (!t.gl && t.fallas && !t.va && performance.now() >= t.otra) texDecodificar(i, t); return t.gl || R.texGris; }   // (sólo las del paquete que fallaron)
+  if (t) { t.u = R.msCuadro; if (!t.gl && !t.va && (t.jxm || (t.fallas && performance.now() >= t.otra))) { t.jxm = false; texDecodificar(i, t); } return t.gl || R.texGris; }   // (jxm: la tiene el motor nativo —gmod_personal.js— y WebGL la volvió a pedir)   // (sólo las del paquete que fallaron)
   const pt = PK.parte('t' + i);
   if (!pt) { const x = DATA.tx[i]; if (x && x.k) { rbPedir(x.k); return R.texGris; } return R.texBlanca; }   // (en un paquete aparte: cuando llegue)
   t = R.tex[i] = { gl: null, va: false, n: 0, fallas: 0, otra: 0, u: R.msCuadro };
