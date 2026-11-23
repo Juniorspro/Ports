@@ -105,15 +105,13 @@ fn sombra(nd: f32, vs: vec4<f32>) -> f32 {
   return s / 9.0;
 }
 @fragment fn fs_luz(i: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4<f32> {
+  // (el modo es del material —igual en todo el dibujo—: las ramas que dependen de él son uniformes y cada píxel lee sólo
+  // las texturas que usa ese material, como en GLES; los descartes van al final)
   let modo = i32(O.s3.z);
-  // (todo lo que se lee de las texturas, primero: con flujo uniforme)
-  let lmc = textureSample(t_lm, s_cla, i.l).rgb;
-  let k0 = textureSample(t_t, s_rep, i.u); let k1 = textureSample(t_1, s_rep, i.u); let k1t = textureSample(t_1, s_rep, i.u * O.s1.xy);
-  let k2 = textureSample(t_2, s_rep, i.u * O.s1.zw); let k3 = textureSample(t_3, s_rep, i.u * O.s3.xy);
   var t: vec4<f32>;
-  if ((modo & 16) != 0) { t = vec4<f32>(k1t.rgb * k0.r + k2.rgb * k0.g + k3.rgb * k0.b, 1.0); }   // (terreno: control y tres capas)
-  else if ((modo & 8) != 0) { t = mix(k0, k1, clamp(i.mz, 0.0, 1.0)); }   // (dos texturas mezcladas por vértice)
-  else { t = k0; }
+  if ((modo & 16) != 0) { let kc = textureSample(t_t, s_rep, i.u); t = vec4<f32>(textureSample(t_1, s_rep, i.u * O.s1.xy).rgb * kc.r + textureSample(t_2, s_rep, i.u * O.s1.zw).rgb * kc.g + textureSample(t_3, s_rep, i.u * O.s3.xy).rgb * kc.b, 1.0); }   // (terreno: control y tres capas)
+  else if ((modo & 8) != 0) { t = mix(textureSample(t_t, s_rep, i.u), textureSample(t_1, s_rep, i.u), clamp(i.mz, 0.0, 1.0)); }   // (dos texturas mezcladas por vértice)
+  else { t = textureSample(t_t, s_rep, i.u); }
   t = t * O.c;
   var col: vec3<f32>;
   if ((modo & 4) != 0) { col = pot3(t.rgb, 2.2) * 1.4; }   // (sin luz)
@@ -125,7 +123,7 @@ fn sombra(nd: f32, vs: vec4<f32>) -> f32 {
     let rough = O.mat.x; let metal = O.mat.y; let a = max(rough * rough, 0.004); let nl = dot(n, G.sol.xyz);
     var sh = 1.0;
     let dif = alb * (1.0 - metal); let f0 = mix(vec3<f32>(O.mat.z), alb, metal); var lmL = vec3<f32>(0.0);
-    if (lm) { lmL = pot3(lmc, 2.2) * 4.0; col = dif * lmL; }   // (la luz horneada del mapa, en vez del sol y el cielo)
+    if (lm) { lmL = pot3(textureSample(t_lm, s_cla, i.l).rgb, 2.2) * 4.0; col = dif * lmL; }   // (la luz horneada del mapa, en vez del sol y el cielo)
     else { if (nl > 0.0) { sh = sombra(max(nl, 0.0), i.s); } else { sh = 0.0; } col = brdf(n, v, G.sol.xyz, dif, f0, a) * G.sol_c.xyz * sh; }
     if (fol) { col += dif * G.sol_c.xyz * pow(max(dot(-v, G.sol.xyz), 0.0), 4.0) * 0.6 * sh; }   // (luz que atraviesa las hojas)
     let ln = i32(G.sesgo.z); let le = i32(G.sesgo.w);
@@ -230,8 +228,10 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) w: vec3<f32> };
 pub const CIELO: &str = r#"
 @group(1) @binding(0) var t_cubo: texture_cube<f32>;
 @group(1) @binding(1) var s_cla: sampler;
+// (el cielo va después de lo opaco, a la profundidad del fondo —1—: sólo se pinta donde no quedó nada; antes se pintaba la
+// pantalla entera y lo opaco lo tapaba)
 @vertex fn vs_cielo(@builtin(vertex_index) i: u32) -> VP {
-  let p = vec2<f32>(f32((i << 1u) & 2u), f32(i & 2u)) * 2.0 - 1.0; var o: VP; o.p = p; o.pos = gl2wg(vec4<f32>(p, 0.9999, 1.0)); return o;
+  let p = vec2<f32>(f32((i << 1u) & 2u), f32(i & 2u)) * 2.0 - 1.0; var o: VP; o.p = p; o.pos = vec4<f32>(p, 1.0, 1.0); return o;
 }
 @fragment fn fs_cielo(i: VP) -> @location(0) vec4<f32> {
   let a = G.ivp * vec4<f32>(i.p, -1.0, 1.0); let b = G.ivp * vec4<f32>(i.p, 1.0, 1.0); let d = normalize(b.xyz / b.w - a.xyz / a.w);

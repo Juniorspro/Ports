@@ -33,6 +33,8 @@ struct MallaW { vb: wgpu::Buffer, ib: wgpu::Buffer, lm: Option<wgpu::Buffer>, pi
 struct TexW { v: wgpu::TextureView, bytes: usize, _t: wgpu::Texture }
 struct Rt { color: wgpu::Texture, cv: wgpu::TextureView, _prof: wgpu::Texture, pv: wgpu::TextureView, w: u32, h: u32 }
 struct Color1 { t: wgpu::Texture, v: wgpu::TextureView, w: u32, h: u32 }
+/// las marcas de tiempo de la placa (si la placa las tiene)
+struct Tq { qs: wgpu::QuerySet, res: wgpu::Buffer, leer: wgpu::Buffer, pendiente: bool, listo: std::sync::Arc<std::sync::atomic::AtomicBool>, nombres: Vec<&'static str>, ms: Vec<(&'static str, f32)> }
 type ClaveMat = [i64; 5];
 
 /// un dibujo: malla y parte, el registro de su material, sus matrices (desde y cuántas) y sus huesos
@@ -105,6 +107,7 @@ pub struct Motor {
     pub placa: String,
     /// el primer error de la placa (validación, memoria, placa perdida): se anota en vez de cerrar la app
     errores: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    tq: Option<Tq>,
 }
 
 use wgpu::{VertexAttribute as VA, VertexFormat as VF};
@@ -227,6 +230,13 @@ impl Motor {
             sombra: None, sombra_px: 0, reflejo: None, escena_rt: None, ao_rt: None, refr: None, marcas_n: 0, svp: mat::id(), sesgo: [0.0, 0.0],
             c: None, items: vec![], cuadro: 0, dibujos: 0, opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, ranuras: Vec::new(),
             instancias: std::env::var("JXM_SIN_INST").is_err(), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), mapa: String::new(), placa, errores,
+            tq: if device.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+                let n = 16u64;
+                Some(Tq { qs: device.create_query_set(&wgpu::QuerySetDescriptor { label: Some("tiempos"), ty: wgpu::QueryType::Timestamp, count: n as u32 }),
+                    res: device.create_buffer(&wgpu::BufferDescriptor { label: None, size: n * 8, usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false }),
+                    leer: device.create_buffer(&wgpu::BufferDescriptor { label: None, size: n * 8, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false }),
+                    pendiente: false, listo: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)), nombres: vec![], ms: vec![] })
+            } else { None },
         };
         m.g_obj = Some(m.grupo_unif(&m.capas.obj, &m.b_obj.b, O_TAM));
         m.g_hue = Some(m.grupo_unif(&m.capas.hue, &m.b_hue.b, H_TAM));
@@ -487,6 +497,7 @@ impl Motor {
     /// un cuadro entero en `salida` (w × h, del formato `formato`)
     pub fn dibujar(&mut self, salida: &wgpu::TextureView, formato: wgpu::TextureFormat, w: u32, h: u32) {
         self.dibujos = 0;
+        self.leer_tiempos();
         self.final_para(formato);
         let mut enc = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("cuadro") });
         if self.c.is_none() {
@@ -591,20 +602,25 @@ impl Motor {
         } else { None };
 
         let mut dibujos = 0u32;
+        // (cada tanto, las marcas de tiempo de la placa al principio y al final de cada pasada: cuánto tarda cada una)
+        let medir = self.tq.as_ref().map(|t| !t.pendiente).unwrap_or(false) && self.cuadro % 30 == 0;
+        let qs = if medir { self.tq.as_ref().map(|t| &t.qs) } else { None };
+        let nombres = std::cell::RefCell::new(Vec::<&'static str>::new());
+        let marca = |n: &'static str| -> Option<(&wgpu::QuerySet, u32)> { let q = qs?; let mut v = nombres.borrow_mut(); v.push(n); Some((q, (v.len() - 1) as u32 * 2)) };
         // --- la sombra
         if hacer_sombra {
             let sv = &self.sombra.as_ref().unwrap().v;
-            let mut p = empezar(&mut enc, None, Some((sv, true, true)));
+            let mut p = empezar(&mut enc, None, Some((sv, true, true)), marca("sombra"));
             p.set_bind_group(0, &self.g_glob_solo, &[G_SOM * G_PASO as u32]);
             dibujos += self.dibujar_lista(&mut p, &l_som, true);
         }
         // --- el reflejo del agua: la escena espejada en el plano del agua, a una fracción de la resolución
         if hacer_ref {
             let r = self.reflejo.as_ref().unwrap();
-            let mut p = empezar(&mut enc, Some((&r.cv, true)), Some((&r.pv, true, false)));
-            self.cielo(&mut p, &g_cielo, G_REF); dibujos += 1;
+            let mut p = empezar(&mut enc, Some((&r.cv, true)), Some((&r.pv, true, false)), marca("reflejo"));
             p.set_bind_group(0, self.g_glob.as_ref().unwrap(), &[G_REF * G_PASO as u32]);
             dibujos += self.dibujar_lista(&mut p, &l_ref, false);
+            self.cielo(&mut p, &g_cielo, G_REF); dibujos += 1;
         }
         // --- la escena: cielo y lo opaco; con oclusión, la oclusión aparte y después lo demás
         let marcas = |m: &Self, p: &mut wgpu::RenderPass| -> u32 {
@@ -612,19 +628,21 @@ impl Motor {
             p.set_pipeline(&m.tubos.lin); p.set_bind_group(0, &m.g_glob_solo, &[0]); p.set_vertex_buffer(0, m.b_marcas.b.slice(..)); p.draw(0..m.marcas_n, 0..1); 1
         };
         {
-            let mut p = empezar(&mut enc, Some((&esc.cv, true)), Some((&esc.pv, true, true)));
-            self.cielo(&mut p, &g_cielo, G_CAM); dibujos += 1;
+            // (la profundidad se guarda sólo si después alguien la lee: la oclusión, el agua, las partículas)
+            let guardar = self.op.ao || hay_agua || !l_part.is_empty();
+            let mut p = empezar(&mut enc, Some((&esc.cv, true)), Some((&esc.pv, true, guardar)), marca("escena"));
             p.set_bind_group(0, self.g_glob.as_ref().unwrap(), &[0]);
             dibujos += self.dibujar_lista(&mut p, &l_op, false);
+            self.cielo(&mut p, &g_cielo, G_CAM); dibujos += 1;
             if !self.op.ao { dibujos += marcas(self, &mut p); dibujos += self.dibujar_transp(&mut p, &l_tr); }
         }
         if self.op.ao {
             let r = self.ao_rt.as_ref().unwrap();
             {
-                let mut p = empezar(&mut enc, Some((&r.v, true)), None);
+                let mut p = empezar(&mut enc, Some((&r.v, true)), None, marca("ao"));
                 p.set_pipeline(&self.tubos.ao); p.set_bind_group(0, &self.g_glob_solo, &[0]); p.set_bind_group(1, &g_ao, &[]); p.draw(0..3, 0..1);
             }
-            let mut p = empezar(&mut enc, Some((&esc.cv, false)), Some((&esc.pv, false, true)));
+            let mut p = empezar(&mut enc, Some((&esc.cv, false)), Some((&esc.pv, false, hay_agua || !l_part.is_empty())), marca("transp"));
             p.set_pipeline(&self.tubos.ao_poner); p.set_bind_group(0, g_aop.as_ref().unwrap(), &[0]); p.draw(0..3, 0..1); dibujos += 2;
             dibujos += marcas(self, &mut p);
             p.set_bind_group(0, self.g_glob.as_ref().unwrap(), &[0]);
@@ -636,7 +654,7 @@ impl Motor {
             enc.copy_texture_to_texture(esc.color.as_image_copy(), rf.t.as_image_copy(), wgpu::Extent3d { width: ew, height: eh, depth_or_array_layers: 1 });
         }
         if hay_agua || !l_part.is_empty() {
-            let mut p = empezar(&mut enc, Some((&esc.cv, false)), Some((&esc.pv, false, false)));
+            let mut p = empezar(&mut enc, Some((&esc.cv, false)), Some((&esc.pv, false, false)), marca("agua"));
             if let Some(ga) = &g_agua {
                 p.set_pipeline(&self.tubos.agua); p.set_bind_group(0, self.g_glob.as_ref().unwrap(), &[0]); p.set_bind_group(2, ga, &[]);
                 for dd in &l_agua {
@@ -655,12 +673,41 @@ impl Motor {
         }
         // --- a la pantalla, estirada, con el retoque final
         {
-            let mut p = empezar(&mut enc, Some((salida, true)), None);
+            let mut p = empezar(&mut enc, Some((salida, true)), None, marca("final"));
             p.set_pipeline(&self.finales[&formato]); p.set_bind_group(0, &g_fin, &[U_PASO as u32]); p.draw(0..3, 0..1);
         }
+        let nm = nombres.into_inner();
+        if let (Some(t), true) = (&self.tq, medir && !nm.is_empty()) {
+            let n = nm.len() as u32 * 2;
+            enc.resolve_query_set(&t.qs, 0..n, &t.res, 0); enc.copy_buffer_to_buffer(&t.res, 0, &t.leer, 0, n as u64 * 8);
+        }
         self.queue.submit(Some(enc.finish()));
+        if medir && !nm.is_empty() {
+            let t = self.tq.as_mut().unwrap(); t.pendiente = true; t.nombres = nm;
+            let f = t.listo.clone(); f.store(false, std::sync::atomic::Ordering::SeqCst);
+            t.leer.slice(..).map_async(wgpu::MapMode::Read, move |r| { if r.is_ok() { f.store(true, std::sync::atomic::Ordering::SeqCst); } });
+        }
         self.dibujos = dibujos;
         self.cuadro += 1;
+    }
+
+    /// las marcas de tiempo que ya volvieron de la placa: ms de cada pasada
+    fn leer_tiempos(&mut self) {
+        let Some(t) = self.tq.as_mut() else { return };
+        if !t.pendiente { return; }
+        let _ = self.device.poll(wgpu::PollType::Poll);
+        if !t.listo.load(std::sync::atomic::Ordering::SeqCst) { return; }
+        {
+            let v = t.leer.slice(..).get_mapped_range().expect("tiempos"); let x: &[u64] = bytemuck::cast_slice(&v);
+            let per = self.queue.get_timestamp_period() as f64 / 1e6;
+            t.ms = t.nombres.iter().enumerate().map(|(i, n)| (*n, (x[2 * i + 1].saturating_sub(x[2 * i]) as f64 * per) as f32)).collect();
+        }
+        t.leer.unmap(); t.pendiente = false;
+    }
+    /// lo que tardó cada pasada en la placa la última vez que se midió («escena 4.1 · ao 2.0 …»), y el total
+    pub fn tiempos_placa(&self) -> Option<(f32, String)> {
+        let t = self.tq.as_ref()?; if t.ms.is_empty() { return None; }
+        Some((t.ms.iter().map(|x| x.1).sum(), t.ms.iter().map(|(n, m)| format!("{n} {m:.1}")).collect::<Vec<_>>().join(" · ")))
     }
 
     fn cielo(&self, p: &mut wgpu::RenderPass, g: &wgpu::BindGroup, glob: u32) {
@@ -719,7 +766,7 @@ impl Motor {
 
 /// empieza una pasada: color (vista, limpiar) y profundidad (vista, limpiar, guardar); sin color, sólo profundidad. La
 /// profundidad que no se limpia ni se guarda es sólo para leer (el agua la lee como textura en la misma pasada)
-fn empezar<'e>(enc: &'e mut wgpu::CommandEncoder, color: Option<(&wgpu::TextureView, bool)>, prof: Option<(&wgpu::TextureView, bool, bool)>) -> wgpu::RenderPass<'e> {
+fn empezar<'e>(enc: &'e mut wgpu::CommandEncoder, color: Option<(&wgpu::TextureView, bool)>, prof: Option<(&wgpu::TextureView, bool, bool)>, ts: Option<(&wgpu::QuerySet, u32)>) -> wgpu::RenderPass<'e> {
     let ca = [color.map(|(v, limpiar)| wgpu::RenderPassColorAttachment { view: v, depth_slice: None, resolve_target: None,
         ops: wgpu::Operations { load: if limpiar { wgpu::LoadOp::Clear(wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }) } else { wgpu::LoadOp::Load }, store: wgpu::StoreOp::Store } })];
     let n = color.is_some() as usize;
@@ -727,7 +774,8 @@ fn empezar<'e>(enc: &'e mut wgpu::CommandEncoder, color: Option<(&wgpu::TextureV
         depth_stencil_attachment: prof.map(|(v, limpiar, guardar)| wgpu::RenderPassDepthStencilAttachment { view: v,
             depth_ops: if !limpiar && !guardar { None } else { Some(wgpu::Operations { load: if limpiar { wgpu::LoadOp::Clear(1.0) } else { wgpu::LoadOp::Load }, store: if guardar { wgpu::StoreOp::Store } else { wgpu::StoreOp::Discard } }) },
             stencil_ops: None }),
-        timestamp_writes: None, occlusion_query_set: None, multiview_mask: None })
+        timestamp_writes: ts.map(|(q, i)| wgpu::RenderPassTimestampWrites { query_set: q, beginning_of_pass_write_index: Some(i), end_of_pass_write_index: Some(i + 1) }),
+        occlusion_query_set: None, multiview_mask: None })
 }
 
 /// una textura RGBA8 con sus niveles (armados acá, promediando de a 4: como glGenerateMipmap)
@@ -784,7 +832,7 @@ pub fn placa(instancia: &wgpu::Instance, superficie: Option<&wgpu::Surface>) -> 
         .map_err(|e| format!("sin placa: {e}"))?;
     let info = ad.get_info();
     let lim = wgpu::Limits::downlevel_defaults().using_resolution(ad.limits());
-    let (d, q) = pollster::block_on(ad.request_device(&wgpu::DeviceDescriptor { label: Some("jxmotor"), required_features: wgpu::Features::empty(), required_limits: lim, ..Default::default() }))
+    let (d, q) = pollster::block_on(ad.request_device(&wgpu::DeviceDescriptor { label: Some("jxmotor"), required_features: ad.features() & wgpu::Features::TIMESTAMP_QUERY, required_limits: lim, ..Default::default() }))
         .map_err(|e| format!("sin dispositivo: {e}"))?;
     Ok((ad, d, q, format!("{} ({:?}, {})", info.name, info.backend, info.driver)))
 }

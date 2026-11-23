@@ -124,6 +124,7 @@ fn con_wgpu(a: &[String], datos: &[u8], esc: Option<&Escena>, w: u32, h: u32, n:
         tiempos.sort_by(|x, y| x.partial_cmp(y).unwrap());
         let prom = tiempos.iter().sum::<f64>() / tiempos.len() as f64;
         println!("perfil {p:8} · {:.2} ms/cuadro (mediana {:.2}, peor 5 % {:.2}) · {:.0} cuadros/s · {} dibujos", prom, tiempos[tiempos.len() / 2], tiempos[(tiempos.len() * 95 / 100).min(tiempos.len() - 1)], 1000.0 / prom, dibujos);
+        if let Some((tot, t)) = m.tiempos_placa() { println!("  placa {tot:.2} ms: {t}"); }
         // la imagen: de la placa a un búfer (filas de a 256 bytes) y a PNG
         let fila = (w * 4 + 255) / 256 * 256;
         let buf = d.create_buffer(&wgpu::BufferDescriptor { label: None, size: (fila * h) as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
