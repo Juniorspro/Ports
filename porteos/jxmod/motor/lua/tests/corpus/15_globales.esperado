@@ -1,0 +1,20 @@
+10	10	10
+20
+30	30
+Lua 5.1	table	true	true	true
+table: 0x10000028	table: 0x10000050	table: 0x10000028
+table: 0x10000028	function: 0x10000078	true
+function: 0x100000a0	function:
+number	0
+thread: 0x100000c8	thread
+table: 0x100000f0
+true
+true	true	true	true	true	true	true	true	true
+nil	nil	nil	nil	nil
+tb	stack traceback:	22	15_globales.lua
+true	nil
+true
+gf	gf
+n
+falta:nodefinida	10
+nil

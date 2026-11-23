@@ -1,0 +1,14 @@
+[package]
+name = "jxlua"
+version = "0.1.0"
+edition = "2021"
+description = "El Lua de GMod de JXMod en Rust (el de juego/gmod_lua.js): Lua 5.1 con la sintaxis de GMod, en una máquina de registros"
+
+[lib]
+crate-type = ["rlib"]
+
+[[bin]]
+name = "jxlua"
+path = "src/bin/jxlua.rs"
+
+[dependencies]

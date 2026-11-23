@@ -1,0 +1,20 @@
+(4,6)	(-2,-2)	(2,4)	(2,4)	11	(1.5,2)	mod	pow	(-1,-2)
+false	true	false	true	true	false	false	5
+(1,2)&(3,4)	(1,2)&s	s&(1,2)	10	0
+false	true
+red	5
+5	b?	1
+false	08_meta.lua:31: solo lectura
+dos	tres	nil
+protegida	true
+10	10	12
+base B	base H
+true	false	true
+false	true	false
+false	false	false	08_meta.lua:52: attempt to compare number with string
+false	false	false	08_meta.lua:53: attempt to concatenate a table value
+5	table: 0x10000028
+true	function: 0x10000050
+nil	1
+C	C	C
+42	42

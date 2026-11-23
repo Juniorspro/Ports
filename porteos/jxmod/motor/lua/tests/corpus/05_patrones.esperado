@@ -1,0 +1,23 @@
+5	8	nil	3	8	1
+22	22	18	3	nil
+hello	hello	5	5	5
+key	trim	test
+(a(b)c)	1	hel	hell
+a		aaa	a	
+2024	01	15
+a	1
+b	2
+c	3
+one
+two
+three
+[]
+[]
+[]
+[]
+1	x
+2	y
+3	z
+hell0 w0rld	hell0 world	-h-e-l-l-o-	6
+<hello> <world>	hello hello world world	%%%	3
+ERROR: 05_patrones.lua:15: invalid replacement value (a boolean)

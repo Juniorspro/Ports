@@ -1,0 +1,32 @@
+3
+4	5
+nil	loadstring:1: expresión rara cerca de 'eof'
+nil	mi_chunk:1: se esperaba 'nom' cerca de '='
+nil	loadstring:1: se esperaba ')' cerca de 'eof'
+nil	loadstring:1: se esperaba ',' cerca de 'do'
+nil	loadstring:1: cadena sin cerrar
+nil	loadstring:1: cadena larga sin cerrar
+nil	loadstring:1: se esperaba 'end' cerca de 'eof'
+nil	loadstring:1: expresión rara cerca de 'return'
+nil	loadstring:1: expresión rara cerca de 'eof'
+nil	loadstring:1: se esperaba '(' cerca de '='
+nil	loadstring:1: no se puede asignar cerca de 'eof'
+nil	loadstring:1: operador & no existe en Lua 5.1
+nil	loadstring:1: caracter raro "@"
+nil	loadstring:1: 'break' fuera de un bucle
+nil	loadstring:1: no visible label 'nada' for goto
+nil	loadstring:1: número malo 1.2.3
+nil	loadstring:1: se esperaba 'nom' cerca de '('
+nil	loadstring:1: se esperaba '}' cerca de 'eof'
+nil	loadstring:1: expresión rara cerca de '}'
+function: 0x10000028
+false	chunkname:1: dentro
+false	loadstring:1: attempt to index a nil value (field 'b')
+30
+str
+false	x
+3
+55
+function: 0x10000050
+
+function: 0x10000078

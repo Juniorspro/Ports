@@ -1,0 +1,24 @@
+2	3	3
+1	2	3
+1	2	3
+3	1	nil	3	1	nil	3
+4	3	b	c
+2
+1	1	2	3
+3	4	2
+1	nil
+10	0	6
+42	42
+42	true	5
+3628800	2.4329020081766e+18
+610
+3
+500500
+99
+function	nil	table	string	number	boolean	thread
+nil	0	nil
+1
+true	1	2	3
+11
+1	2
+1	2

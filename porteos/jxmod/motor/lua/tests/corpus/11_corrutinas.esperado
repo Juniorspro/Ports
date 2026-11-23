@@ -1,0 +1,42 @@
+suspended
+inicio	1	2
+true	3
+suspended
+recibió	10
+true	20
+recibió	3	4
+true	fin	7
+dead
+false	cannot resume dead coroutine
+1	2	3	listo
+false	cannot resume dead coroutine
+true	hondo
+true	volvió
+true	dentro de pcall
+true	false	11_corrutinas.lua:23: falla X
+true	después
+false	11_corrutinas.lua:28: error en corrutina
+dead
+false	table	7
+nil	false
+true	true
+running
+false	11_corrutinas.lua:35: attempt to yield from outside a coroutine
+prod	a
+prod	b
+prod	c
+true	3	1	nil	3
+true	3
+false	11_corrutinas.lua:40: en wrap
+true
+true	uno
+true	uno	dos
+ext	true	interna 1
+true	externa
+ext	true	interna fin
+dead
+true
+dead
+1,2,3	dead
+false	11_corrutinas.lua:56: bad argument #1 to 'create' (function expected)
+false	11_corrutinas.lua:57: attempt to yield across a C-call boundary

@@ -1,0 +1,11 @@
+_G:table _VERSION:string assert:function bit:table collectgarbage:function coroutine:table debug:table error:function getfenv:function getmetatable:function ipairs:function load:function loadstring:function math:table next:function os:table package:table pairs:function pcall:function print:function rawequal:function rawget:function rawlen:function rawset:function select:function setfenv:function setmetatable:function string:table table:table tonumber:function tostring:function type:function unpack:function utf8:table xpcall:function
+string	byte:function char:function dump:function find:function format:function gmatch:function gsub:function len:function lower:function match:function rep:function reverse:function sub:function upper:function
+table	concat:function getn:function insert:function maxn:function pack:function remove:function sort:function unpack:function
+math	abs:function acos:function asin:function atan2:function atan:function ceil:function cos:function cosh:function deg:function exp:function floor:function fmod:function frexp:function huge:number ldexp:function log10:function log:function max:function min:function mod:function modf:function pi:number pow:function rad:function random:function randomseed:function sin:function sinh:function sqrt:function tan:function tanh:function
+os	clock:function date:function difftime:function getenv:function time:function
+bit	arshift:function band:function bnot:function bor:function bswap:function bxor:function lshift:function rol:function ror:function rshift:function tobit:function tohex:function
+coroutine	create:function isyieldable:function resume:function running:function status:function wrap:function yield:function
+debug	getinfo:function getlocal:function getmetatable:function getupvalue:function sethook:function setmetatable:function traceback:function
+package	loaded:table seeall:function
+utf8	GetChar:function char:function charpattern:string codepoint:function codes:function force:function len:function offset:function sub:function
+__index:table	true

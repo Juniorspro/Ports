@@ -1,0 +1,14 @@
+10	10	10	HOLA MUNDO	hola mundo	odnuM aloH
+Hola	Mundo	Mundo	Mund	Hola Mundo			Hol	ola
+xxxxx	ab,ab,ab			ab
+72	72	111	nil	Hi!	
+97	98	99
+3	12.5	23
+false	false	03_cadenas.lua:8: bad argument #1 to 'upper' (string expected, got table)
+5	TEST	6
+12345678910	1, 2, 3, 4, 5, 6, 7, 8, 9, 10	3-4-5-6		1 2.5 z
+false	03_cadenas.lua:13: invalid value (at index 2) in table for 'concat'
+true	false
+2	2	2	2
+nil	true	12	x
+1 nil true	   ab|cd   |ef

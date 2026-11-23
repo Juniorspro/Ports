@@ -1,0 +1,13 @@
+print(os.date("!%Y-%m-%d %H:%M:%S", 0))
+print(os.date("!%Y-%m-%d %H:%M:%S", 1700000000))
+print(os.date("!%y %p %%", 1700000000), os.date("!%c", 1700000000), os.date("!%x|%X", 1700000000))
+local t = os.date("!*t", 86400 * 365)
+print(t.year, t.month, t.day, t.hour, t.min, t.sec, t.wday, t.yday, t.isdst)
+for k, v in pairs(os.date("!*t", 1234567890)) do print(k, v) end
+print(os.time({year = 2020, month = 1, day = 1, hour = 0}))
+print(os.time({year = 2024, month = 2, day = 29, hour = 12, min = 30, sec = 15}))
+print(os.time({year = 2024, month = 13, day = 1}))
+print(os.time({year = 2024, month = 3, day = 0}))
+print(os.difftime(10, 4), os.difftime(10), type(os.time()), type(os.clock()), os.getenv("HOME"))
+print(os.date("!%A %B %j", 0) .. "|")
+print(os.date("%Y", 0))

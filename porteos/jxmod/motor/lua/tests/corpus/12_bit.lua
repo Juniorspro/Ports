@@ -1,0 +1,7 @@
+print(bit.band(0xFF, 0x0F), bit.bor(1, 2, 4), bit.bxor(5, 3), bit.bnot(0), bit.bnot(5))
+print(bit.lshift(1, 4), bit.lshift(1, 31), bit.lshift(1, 32), bit.rshift(256, 4), bit.rshift(-1, 0), bit.rshift(-1, 28))
+print(bit.arshift(-256, 4), bit.arshift(256, 4), bit.tobit(2^32 + 5), bit.tobit(-1), bit.tobit(2^31))
+print(bit.tohex(255), bit.tohex(255, 2), bit.tohex(-1), bit.tohex(255, -4), bit.tohex(0x12345678, 4))
+print(bit.rol(1, 1), bit.ror(1, 1), bit.rol(0x80000000, 1), bit.bswap(0x12345678))
+print(bit.band(), bit.bor(), bit.band(-1, 0xFFFF), bit.band(3.7, 1), bit.bor("2", 1))
+print(pcall(bit.band, "x"), pcall(bit.lshift, 1, "a"))
