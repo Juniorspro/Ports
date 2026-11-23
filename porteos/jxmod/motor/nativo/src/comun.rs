@@ -71,6 +71,8 @@ fn botones(w: f32, h: f32) -> Vec<Btn> {
 }
 /// la textura de los íconos del menú (un atlas armado con los de la subcategoría abierta)
 pub const TEX_ICONOS: i64 = -2001;
+/// la textura de los íconos de las armas (los W_ de GMod, uno por arma de ARMAS)
+pub const TEX_ARMAS: i64 = -2002;
 const ICO: u32 = 96;
 const ICO_COLS: u32 = 10;
 /// el menú de objetos abierto: qué subcategoría, cuánto bajó la grilla y de qué subcategoría es el atlas cargado
@@ -171,6 +173,8 @@ pub struct Juego {
     /// los proyectiles en el aire (cohetes, flechas), los barriles por explotar (id, cuándo), el temblor de la cámara, el
     /// rojo del golpe, si murió, y el campo de visión que va hacia el pedido (apuntar y la mira del francotirador)
     pub proys: Vec<Proy>, por_explotar: Vec<(u32, f32)>, temblor: f32, golpe_t: f32, pub muerto: bool, fov_b: f32,
+    /// el atlas de los íconos de las armas está en el motor
+    armas_ico: bool, armas_ico_h: u32,
     pub vista: Option<Vista>, vista_cargados: vista::Cargados, clips: vista::Clips, clip_ya: &'static str, sway: [f32; 5], bob_arma: f32, mdx: f32, tubo_ok: bool,
     // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
     /// los ajustes (ajustes.txt) y la pestaña del menú de Ajustes, si está abierto (el juego queda en pausa)
@@ -213,7 +217,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             her: Herramientas::default(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
-            vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
+            armas_ico: false, armas_ico_h: 256, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); j.cat_fis = Some(Catalogo::nuevo(p)); j.her.lista = herramientas::lista(&p.d); }
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
@@ -318,6 +322,17 @@ impl Juego {
     /// quieto (o sosteniendo, con algo agarrado), y el vaivén al caminar y al girar
     unsafe fn arma_en_mano(&mut self, m: &mut Motor3d, dt: f32) {
         if !self.tubo_ok { self.tubo_ok = m.cargar(&vista::tubo()).is_ok(); }
+        // (los íconos de las armas, para la barra: un atlas de 10 por fila)
+        if !self.armas_ico { if let Some(paq) = self.paq.as_ref() {
+            let (aw, ah) = (1024u32, (ARMAS.len() as u32).div_ceil(ICO_COLS).max(1) * ICO); let ah = ah.next_power_of_two(); let mut px = vec![0u8; (aw * ah * 4) as usize];
+            for (k, a) in ARMAS.iter().enumerate() {
+                let Some(ic) = objetos::icono(paq, a.ic, ICO) else { continue };
+                let (cx, cy) = ((k as u32 % ICO_COLS) * ICO, (k as u32 / ICO_COLS) * ICO);
+                for y in 0..ICO { let d = (((cy + y) * aw + cx) * 4) as usize; let s = ((y * ICO) * 4) as usize; px[d..d + (ICO * 4) as usize].copy_from_slice(&ic[s..s + (ICO * 4) as usize]); }
+            }
+            let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![], texs: vec![Tex { id: TEX_ARMAS, n: "armas".into(), w: aw, h: ah, a: 1, o: 0 }], lms: vec![], items: vec![], agua: None, cielo: None };
+            self.armas_ico = m.cargar(&Escena { c: cab, datos: px }).is_ok(); self.armas_ico_h = ah;
+        } }
         let d = self.armas.def();
         if self.vista.as_ref().map(|v| v.nodo != d.nodo).unwrap_or(true) {
             self.vista = None;
@@ -401,6 +416,8 @@ impl Juego {
     fn mira(&self) -> [f32; 3] { let (y, p) = (self.jug.yaw, self.jug.pitch); [y.sin() * p.cos(), p.sin(), y.cos() * p.cos()] }
     /// qué botones se ven: los de la Physics Gun sólo con algo agarrado; la barra de armas, abierta
     fn boton_visible(&self, b: Boton) -> bool {
+        // (con la barra de armas abierta, sólo ella, el arma y lo de arriba: los redondos quedarían debajo)
+        if self.armas.barra_t > 0.0 && !matches!(b, Boton::ArmaN(_) | Boton::Arma | Boton::Ajustes | Boton::Camara) { return false; }
         match b {
             Boton::Girar | Boton::Lejos | Boton::Cerca => self.armas.agarre.is_some(),
             Boton::Recargar => self.armas.def().car > 0,
@@ -482,7 +499,7 @@ impl Juego {
         let nombre = self.mapas[self.mapa_i];
         self.mapa = None;
         self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; }
-        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.proys.clear(); self.por_explotar.clear(); self.her.cable = None; self.her.trazas.clear(); self.her.tirados.clear(); self.her.spawn = None; self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false;
+        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.proys.clear(); self.por_explotar.clear(); self.her.cable = None; self.her.trazas.clear(); self.her.tirados.clear(); self.her.spawn = None; self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false;
         unsafe { m.vaciar(); }
         let Some(paq) = self.paq.as_mut() else { return };
         match mapa::armar(paq, nombre, 1024, 750.0) {
@@ -526,7 +543,7 @@ impl Juego {
     unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
-            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
+            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
             else { self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
         }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora;
@@ -766,7 +783,7 @@ impl Juego {
     fn hud(&self, w: i32, h: i32, placa_txt: &str) -> Vec<(i64, Vec<f32>)> {
         let (wf, hf) = (w as f32, h as f32);
         let Some(l) = &self.letras else { return vec![] };
-        let mut ic: Vec<f32> = vec![];
+        let mut ic: Vec<f32> = vec![]; let mut ia: Vec<f32> = vec![];
         let mut u = vec![]; let t = hf * 0.032; let (bl, gr) = ([1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.45]);
         let usa = self.en_uso;
         if self.aj.fps {
@@ -809,8 +826,16 @@ impl Juego {
                 l.texto(&mut u, b.x - an / 2.0, b.y - tt * 0.55, tt, if elegido { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
             } else {
                 l.caja(&mut u, b.x - b.w / 2.0, b.y - b.h / 2.0, b.w, b.h, b.h * 0.24, if elegido { [0.95, 0.66, 0.1, 0.92] } else { gr });
-                let tt = t * 0.8; let an = l.ancho(tt, n);
-                l.texto(&mut u, b.x - an / 2.0, b.y - tt * 0.55, tt, if elegido { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
+                // (las armas, con su ícono a la izquierda)
+                let ico = match b.b { Boton::ArmaN(k) => Some(k), Boton::Arma => Some(self.armas.i), _ => None }.filter(|_| self.armas_ico);
+                let (mut tt, mut x0) = (t * 0.8, b.x);
+                if let Some(k) = ico {
+                    let lado = b.h * 0.92; let (cx, cy) = ((k as u32 % ICO_COLS) * ICO, (k as u32 / ICO_COLS) * ICO); let (aw, ah) = (1024.0f32, self.armas_ico_h as f32);
+                    rect_uv(&mut ia, b.x - b.w / 2.0 + 4.0, b.y - lado / 2.0, lado * 1.3, lado, [cx as f32 / aw, cy as f32 / ah, (cx + ICO) as f32 / aw, (cy + ICO) as f32 / ah], [1.0; 4]);
+                    x0 = b.x + lado * 0.65; tt = (t * 0.8).min(b.h * 0.42); while l.ancho(tt, n) > b.w - lado * 1.4 - 8.0 && tt > 4.0 { tt *= 0.92; }
+                }
+                let an = l.ancho(tt, n);
+                l.texto(&mut u, x0 - an / 2.0, b.y - tt * 0.55, tt, if elegido { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
             }
         }
         // (la mira del francotirador: todo negro menos un círculo, con la cruz; y el rojo cuando a uno le pegan)
@@ -926,7 +951,7 @@ impl Juego {
             }
             if !renglon.is_empty() { l.texto(&mut u, wf * 0.1, y, tt, bl, &renglon); }
         }
-        vec![(TEX_LETRAS, u), (TEX_ICONOS, ic)]
+        vec![(TEX_LETRAS, u), (TEX_ICONOS, ic), (TEX_ARMAS, ia)]
     }
 
     /// la calidad, para el HUD
