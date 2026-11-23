@@ -51,7 +51,8 @@ function desCarroceria(o, i) {
 function desNodo(o, i) {
   const C = desDe(o); if (C.n[i] !== undefined) return C.n[i];
   C.n[i] = null;
-  const x = o.md.A[i], m = mallaGL(x.m), mc = m && mallaCPU(x.m); if (!m || !mc || m.skin || m.lb || m.propia) return null;
+  const x = o.md.A[i], m = mallaGL(x.m), mc = m && mallaCPU(x.m); if (!m || !mc || m.skin || m.d.lm !== undefined || m.propia) return null;
+  if (!m.vao) mallaSubir(m);   // (con JX Motor la malla puede no estar en WebGL todavía: la copia usa sus índices)
   const d = m.d, BIN = binDe(d); if (!BIN) return null;
   const V = BIN.slice(d.o, d.o + d.v * 14), gl = R.gl;
   const vao = gl.createVertexArray(); gl.bindVertexArray(vao);

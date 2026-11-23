@@ -1076,6 +1076,18 @@ function texturasRecargar() {
 function mallaGL(i) {
   let m = R.mallas[i]; if (m) return m;
   const d = DATA.ms[i], BIN = binDe(d); if (!BIN) { rbPedir(d.k); return null; }   // (de un paquete aparte que todavía no llegó)
+  // esfera que la envuelve (para no dibujar lo que no se ve)
+  const c = [d.mn[0] + d.sc[0] / 2, d.mn[1] + d.sc[1] / 2, d.mn[2] + d.sc[2] / 2], r = Math.hypot(d.sc[0], d.sc[1], d.sc[2]) / 2;
+  m = R.mallas[i] = { vao: null, vb: null, ib: null, lb: null, sb: null, d, it: d.i32 ? R.gl.UNSIGNED_INT : R.gl.UNSIGNED_SHORT, isz: d.i32 ? 4 : 2, c, r, skin: d.sk !== undefined, idx: i, lm: d.lm !== undefined && !Q.get('sinLM') ? d.lmT : null };
+  // (con JX Motor —gmod_personal.js— el mundo lo dibuja el motor nativo: la malla se sube a WebGL recién si WebGL la dibuja
+  // —el arma en la mano, el Lua—; así no ocupa memoria dos veces en un celular de 1 GB)
+  if (!(typeof JXM !== 'undefined' && JXM.on && R.fase !== 'vista')) mallaSubir(m);
+  return m;
+}
+// los búferes de WebGL de una malla del paquete (posición, normal y UV; la luz horneada; los huesos; los índices)
+function mallaSubir(m) {
+  if (m.vao) return m;
+  const d = m.d, BIN = binDe(d); if (!BIN) return m;
   const gl = R.gl, vao = gl.createVertexArray(); gl.bindVertexArray(vao);
   const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, BIN.subarray(d.o, d.o + d.v * 14), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.UNSIGNED_SHORT, true, 14, 0);
@@ -1094,10 +1106,8 @@ function mallaGL(i) {
   const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
   const bytes = BIN.slice(d.i, d.i + n * (d.i32 ? 4 : 2));
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, bytes, gl.STATIC_DRAW);
-  gl.bindVertexArray(null);
-  // esfera que la envuelve (para no dibujar lo que no se ve)
-  const c = [d.mn[0] + d.sc[0] / 2, d.mn[1] + d.sc[1] / 2, d.mn[2] + d.sc[2] / 2], r = Math.hypot(d.sc[0], d.sc[1], d.sc[2]) / 2;
-  m = R.mallas[i] = { vao, vb, ib, lb, sb, d, it: d.i32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, isz: d.i32 ? 4 : 2, c, r, skin: d.sk !== undefined, idx: i, lm: d.lm !== undefined && !Q.get('sinLM') ? d.lmT : null };
+  gl.bindVertexArray(null); R.vaoAct = null;
+  m.vao = vao; m.vb = vb; m.ib = ib; m.lb = lb; m.sb = sb;
   return m;
 }
 // ---------------- materiales ----------------
@@ -1322,6 +1332,7 @@ function geomDibujar(p, u) {
     // esta pasada (los pedazos de un mismo personaje van seguidos en las sombras). Antes se mandaban los 168 vec4 —2,7 kB—
     // en cada pedazo de cada personaje y en cada pasada: era lo que más costaba del cuadro en un procesador lento)
     if (p.h && cv.uB !== p.h) { cv.uB = p.h; const nf = Math.min(p.h.nf || p.h.length, R.nHuesos * 4); if (R.gl1) gl.uniform4fv(u.uB, sub(p.h, nf)); else gl.uniform4fv(u.uB, p.h, 0, nf); }
+    if (!p.m.vao) mallaSubir(p.m);   // (con JX Motor, recién cuando WebGL la dibuja)
     if (R.vaoAct !== p.m.vao) { gl.bindVertexArray(p.m.vao); R.vaoAct = p.m.vao; }
   }
   // (la piel en la CPU rehace la malla de cada pedido: su matriz se manda siempre)
@@ -1332,6 +1343,7 @@ const conPiel = (p) => !!p.h && !R.cpuSkin;
 // piel en la CPU (aparatos con pocos uniformes): posiciones y normales ya movidas por los huesos, una vez por cuadro
 function pielCPU(p) {
   const gl = R.gl, H = p.h, m = p.m;
+  if (!m.vao) mallaSubir(m);
   let c = H.cpu;
   if (!c || c.m !== m) {
     if (c) { gl.deleteBuffer(c.buf); gl.deleteVertexArray(c.vao); }

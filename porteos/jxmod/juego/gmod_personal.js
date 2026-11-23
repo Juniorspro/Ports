@@ -550,7 +550,7 @@ function jxmRecursos(items) {
     JXM.texs.add(ti); if (!px) return;
     // (la copia de WebGL ya no hace falta: se borra —en un celular de 1 GB no conviene tenerla dos veces— y, si WebGL la
     // vuelve a necesitar —el arma en la mano—, texGL la decodifica de nuevo)
-    if (!JXM.grab) { gl.deleteTexture(t.gl); t.gl = null; t.jxm = true; }
+    gl.deleteTexture(t.gl); t.gl = null; t.jxm = true;
     texs.push({ id: ti, n: D.n || '', w, h, a: D.a ? 1 : 0, o: poner(px) });
   };
   const lm = (k) => { if (k === null || k === undefined || JXM.lms.has(k)) return; const A = DATA.aj[k] && DATA.aj[k].lm; JXM.lms.add(k); if (A) lms.push({ id: k, w: A.w, h: A.h, o: poner(A.px.slice ? A.px.slice() : new Uint8Array(A.px)) }); };
