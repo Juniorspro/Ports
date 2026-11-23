@@ -99,6 +99,8 @@ pub struct Juego {
     nombres: HashMap<String, String>, pub catalogo: Vec<(String, Vec<String>)>,
     pub menu: Option<Menu>, prefabs: HashMap<String, Prefab>, cargados: Cargados,
     pub objs: Vec<Obj>, pendientes: Vec<String>,
+    // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
+    pub sonido: crate::sonido::Sonido, paso_d: f32, aire_t: f32, vy_aire: f32, golpe_max: f32, saltos_vistos: u32, ahogos_vistos: u32, nadaba: bool, brazada_t: f32, azar: u32,
 }
 
 /// la proyección de GL (como M4.persp de nucleo.js)
@@ -125,7 +127,8 @@ impl Juego {
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass", "RB_Construct"], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
             recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
-            nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![] };
+            nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
+            sonido: crate::sonido::Sonido::mudo(), paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); }
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
         j
@@ -154,6 +157,7 @@ impl Juego {
         self.dedos.retain(|d| d.id != id);
         if self.menu.is_some() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
         if let Some(b) = boton_en(w, h, x, y) {
+            if !matches!(b, Boton::Saltar | Boton::Agachar) { self.sonido.tocar("Click", 0.5, 1.0, None); }
             match b {
                 Boton::Motor(k) => self.elegir_motor(k),
                 Boton::Mapa => { self.mapa_i = (self.mapa_i + 1) % self.mapas.len(); self.recargar = true; }
@@ -278,7 +282,7 @@ impl Juego {
         let ent = self.entrada(hf);
         if let Some(mp) = &self.mapa {
             self.acum = (self.acum + dt).min(PASO * 12.0);
-            while self.acum >= PASO { self.jug.paso(&mp.mundo, PASO, &ent); self.acum -= PASO; }
+            while self.acum >= PASO { self.jug.paso(&mp.mundo, PASO, &ent); self.golpe_max = self.golpe_max.max(self.jug.golpe); self.acum -= PASO; }
             // (se cayó del mapa o se ahogó: vuelve a aparecer)
             if self.jug.pos[1] < mp.mundo.lo[1] - 60.0 || self.jug.vida <= 0.0 {
                 if self.jug.vida <= 0.0 { self.aviso = Some(("Te ahogaste".into(), Instant::now())); }
@@ -286,6 +290,7 @@ impl Juego {
             }
         }
         let (ojos, _) = self.jug.ojos(dt);
+        self.sonidos(dt, ojos, &ent);
         let (yaw, pitch) = (self.jug.yaw, self.jug.pitch);
         let fw = [yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos()];
         self.menu_atlas(m);
@@ -308,6 +313,43 @@ impl Juego {
         }
         let u = self.hud(w, h, placa_txt);
         m.dibujar(w, h, self.mapa.is_some(), &u)
+    }
+
+    fn azar(&mut self) -> f32 { self.azar ^= self.azar << 13; self.azar ^= self.azar >> 17; self.azar ^= self.azar << 5; (self.azar % 10000) as f32 / 10000.0 }
+    /// de qué es el piso: por ahora el del mapa (pasto en gm_flatgrass, hormigón en gm_construct); con el triángulo que
+    /// se pisa cuando el mundo lo diga
+    fn piso(&self) -> &'static str { if self.mapas[self.mapa_i].contains("Flatgrass") { "grass" } else { "concrete" } }
+    /// los sonidos del jugador este cuadro (sonPasos de sonidos.js y los del agua de agua.js)
+    fn sonidos(&mut self, dt: f32, ojos: [f32; 3], ent: &Entrada) {
+        self.sonido.oyente = (ojos, self.jug.yaw);
+        if !self.sonido.suena() || self.mapa.is_none() { return; }
+        let (suelo, nada, noclip, agua) = (self.jug.suelo, self.jug.nada, self.jug.noclip, self.jug.nada || self.jug.hondo > 0.25);
+        let (saltos, ahogos) = (self.jug.saltos, self.jug.ahogos);
+        let sp = (self.jug.vel[0] * self.jug.vel[0] + self.jug.vel[2] * self.jug.vel[2]).sqrt(); let vy = self.jug.vel[1];
+        // (al saltar suena el paso, como en HL2; al caer, un paso fuerte y el golpe del cuerpo —de muy alto, el quejido—)
+        if saltos != self.saltos_vistos { self.saltos_vistos = saltos; let n = format!("PS_{}{}", self.piso(), 1 + (self.azar() * 4.0) as u32); self.sonido.tocar(&n, 0.75 * 0.62, 1.0, None); }
+        let g = std::mem::take(&mut self.golpe_max);
+        if g > 6.0 { let n = format!("PL_golpe{}", 1 + (self.azar() * 3.0) as u32); self.sonido.tocar(&n, (g / 18.0).min(0.8), 1.0, None); }
+        if g > 11.0 { let n = format!("PL_caida{}", 1 + (self.azar() * 2.0) as u32); self.sonido.tocar(&n, 0.7, 1.0, None); }
+        if ahogos != self.ahogos_vistos { self.ahogos_vistos = ahogos; let n = format!("AG_Ahogo{}", 1 + (self.azar() * 3.0) as u32); self.sonido.tocar(&n, 0.7, 1.0, None); }
+        // (el chapuzón al entrar al agua cayendo)
+        if nada && !self.nadaba && vy < -1.0 { let n = format!("AG_Salpica{}", 1 + (self.azar() * 3.0) as u32); self.sonido.tocar(&n, ((-vy) / 12.0).clamp(0.3, 1.0), 1.0, None); }
+        self.nadaba = nada;
+        // nadando: las brazadas al moverse
+        if nada { self.brazada_t -= dt; if (ent.x.abs() + ent.y.abs()) > 0.2 && self.brazada_t <= 0.0 { self.brazada_t = 0.85; let n = format!("AG_Paso{}", 1 + (self.azar() * 8.0) as u32); let tono = 0.95 + self.azar() * 0.1; self.sonido.tocar(&n, 0.45, tono, None); } return; }
+        let en_suelo = suelo && !noclip;
+        if en_suelo && self.aire_t > 0.3 && self.vy_aire < -3.0 { let n = format!("PS_{}{}", self.piso(), 1 + (self.azar() * 4.0) as u32); self.sonido.tocar(&n, (0.35 - self.vy_aire / 14.0).min(1.0) * 0.62, 1.0, None); self.paso_d = 0.0; }
+        if !en_suelo { self.aire_t += dt; self.vy_aire = vy; return; }
+        self.aire_t = 0.0;
+        if sp < 0.4 { self.paso_d = self.paso_d.min(0.4); return; }
+        // (el paso se alarga con la velocidad: 0,72 m caminando, 1,5 m corriendo)
+        let l = (0.72 + 0.17 * (sp - 1.4).max(0.0)).min(1.6); self.paso_d += sp * dt;
+        if self.paso_d >= l {
+            self.paso_d -= l;
+            let base = if agua { format!("AG_Paso{}", 1 + (self.azar() * 8.0) as u32) } else { format!("PS_{}{}", self.piso(), 1 + (self.azar() * 4.0) as u32) };
+            let vol = (sp / 6.0).clamp(0.35, 0.8) * if self.jug.agachado { 0.45 } else { 1.0 } * 0.62; let tono = 0.94 + self.azar() * 0.12;
+            self.sonido.tocar(&base, vol, tono, None);
+        }
     }
 
     /// el atlas de íconos de la subcategoría abierta (se arma al abrirla)

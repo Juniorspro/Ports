@@ -33,6 +33,8 @@ pub struct Jugador {
     /// el agua del mapa (cajas: x0, y0, z0, x1, y1, z1 —hasta arriba—), si nada, cuánta agua tiene encima de los pies, lo
     /// que frena el agua al caminar, el aire que le queda y la vida
     pub aguas: Vec<[f32; 6]>, pub nada: bool, pub hondo: f32, pub vadeo: f32, pub aire: f32, ahogo_t: f32, tiempo_salida: f32, pub vida: f32,
+    /// cuántas veces saltó y cuántas se ahogó un poco (para los sonidos)
+    pub saltos: u32, pub ahogos: u32,
 }
 
 impl Default for Jugador { fn default() -> Self { Jugador::nuevo() } }
@@ -43,7 +45,7 @@ impl Jugador {
             vel_max: 6.0, acel: 18.0, salto: 1.1, esf: vec![(-0.5, true), (0.0, false), (0.5, false)], esf_ag: vec![], ojo_alto: 1.67, ojo_ag: 0.0, tam: 1.0,
             tiempo_suelo: 0.0, t_aire: 0.0, reloj: 0.0, salto_t: -9.0, ag_col: false, agachado: false, noclip: false,
             ojo_esc: 0.0, caida_v: 0.0, caida_p: 0.0, bob: 0.0, bob_k: 0.0, ag_k: 0.0, grav: 1.0, golpe: 0.0,
-            aguas: vec![], nada: false, hondo: 0.0, vadeo: 1.0, aire: 12.0, ahogo_t: 0.0, tiempo_salida: 0.0, vida: 100.0 };
+            aguas: vec![], nada: false, hondo: 0.0, vadeo: 1.0, aire: 12.0, ahogo_t: 0.0, tiempo_salida: 0.0, vida: 100.0, saltos: 0, ahogos: 0 };
         j.ag_esf(); j
     }
     /// agachado (como GMod: el cuerpo mide la mitad y los ojos van bien abajo): jugadorAgEsf
@@ -143,7 +145,7 @@ impl Jugador {
         // el aire: con los ojos bajo el agua dura 12 s; después se ahoga de a 10 por segundo, como en HL2
         if let Some(v) = v.filter(|v| ojos < v[4] - 0.03) {
             let _ = v; self.aire -= dt;
-            if self.aire < 0.0 { self.ahogo_t -= dt; if self.ahogo_t <= 0.0 { self.ahogo_t = 1.0; self.vida -= 10.0; } }
+            if self.aire < 0.0 { self.ahogo_t -= dt; if self.ahogo_t <= 0.0 { self.ahogo_t = 1.0; self.vida -= 10.0; self.ahogos += 1; } }
         } else { self.aire = (self.aire + dt * 4.0).min(12.0); self.ahogo_t = 0.0; }
         self.nada = v.is_some() && self.hondo > 0.66 * alto && !self.noclip;   // (el agua pasa el pecho)
         if !self.nada { return false; }
@@ -200,7 +202,7 @@ impl Jugador {
         let g = GRAV * m.gravedad * self.grav;
         // (también recién despegado del piso, 0,12 s: en una escalera el pie toca las puntas y no siempre está «en el piso»)
         if ent.saltar && ((self.suelo && self.tiempo_suelo > 0.05) || (!self.suelo && self.t_aire < 0.12 && self.reloj - self.salto_t > 0.4 && self.vel[1] < 1.0)) {
-            self.vel[1] = (2.0 * g.abs() * self.salto).sqrt() * if g < 0.0 { -1.0 } else { 1.0 }; self.suelo = false; self.tiempo_suelo = 0.0; self.salto_t = self.reloj;
+            self.vel[1] = (2.0 * g.abs() * self.salto).sqrt() * if g < 0.0 { -1.0 } else { 1.0 }; self.suelo = false; self.tiempo_suelo = 0.0; self.salto_t = self.reloj; self.saltos += 1;
         }
         if !self.suelo { self.vel[1] -= g * dt; } else if self.vel[1] < 0.0 { self.vel[1] = -0.5; }
         let (vy_antes, era_suelo) = (self.vel[1], self.suelo);

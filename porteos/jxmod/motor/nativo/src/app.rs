@@ -49,7 +49,12 @@ fn android_main(app: AndroidApp) {
     };
     log(&format!("paquete: {:.0} ms ({})", t0.elapsed().as_secs_f64() * 1000.0, if paq.is_ok() { "bien" } else { "mal" }));
     let letras = activo(&app, "ui/letras.json").and_then(|b| String::from_utf8(b).ok());
+    let rangos = paq.as_ref().map(|p| p.rangos("a:")).unwrap_or_default();
     let mut j = Juego::nuevo(paq, letras, activo(&app, "ui/letras.png"), datos);
+    // el sonido: los MP3 se leen directo del pk.bin adentro de la APK (va sin comprimir)
+    let fuente = app.asset_manager().open(c"pk.bin").and_then(|a| a.open_file_descriptor().ok()).map(|o| (o.fd, o.offset));
+    j.sonido = crate::sonido::Sonido::android(fuente, rangos);
+    log(&format!("sonido: {}", if j.sonido.suena() { "AAudio" } else { "sin salida" }));
     if let Some(a) = anterior { if j.error.is_none() { j.error = Some(format!("la vez anterior {a}")); } }
     let mut v: Option<Ventana> = None;
     let mut salir = false;

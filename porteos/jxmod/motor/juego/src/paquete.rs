@@ -73,6 +73,8 @@ impl Paquete {
         Ok(Paquete { idx, bloque, d, bin, rbp: HashMap::new(), leer })
     }
 
+    /// dónde está cada parte del bloque principal que empieza con `pre` (los sonidos: «a:»): desde y largo en pk.bin
+    pub fn rangos(&self, pre: &str) -> HashMap<String, (usize, usize)> { self.idx.iter().filter(|(k, _)| k.starts_with(pre)).map(|(k, v)| (k.clone(), *v)).collect() }
     /// una parte del paquete (o de los paquetes aparte ya abiertos)
     pub fn parte(&self, k: &str) -> Option<&[u8]> {
         if let Some(&(o, n)) = self.idx.get(k) { return self.bloque.get(o..o + n); }

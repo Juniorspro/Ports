@@ -3,5 +3,6 @@
 //! la cámara se maneja con el tacto y el HUD muestra los cuadros por segundo.
 pub mod comun;
 pub mod motor;
+pub mod sonido;
 #[cfg(target_os = "android")]
 mod app;
