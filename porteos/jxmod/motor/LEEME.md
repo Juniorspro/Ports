@@ -41,18 +41,26 @@ cambia nada; el dibujo nativo sí.
    - WebGL ya no dibuja el mundo (ni sombras, ni reflejo, ni lo opaco, ni lo transparente, ni el posprocesado): sólo el
      arma en la mano, los efectos, lo que dibuja el Lua y las líneas, sobre fondo transparente (`jxmAlfa`: alfa 1 donde
      quedó algo dibujado). Las estadísticas del motor salen en el contador de cuadros.
-3. Después: oclusión ambiental y el cielo de GMod en el motor, los efectos (partículas, rayos, el Lua de los addons), lo
-   que se arma en el momento (autos abollados, agua de los recipientes), mallas que no se suban a WebGL, texturas
-   comprimidas (ETC2) y, más adelante, la física y la lógica.
+3. **Hecha: lo mismo que WebGL en Alto.** El sombreado de `gl.js` portado (luz en lineal, BRDF con la rugosidad y el metal
+   de cada material, reflejo del cielo, follaje, niebla con el sol), el cielo del mapa (degradé y la caja de GMod),
+   oclusión ambiental a media resolución, el retoque final de `post.js` (color, contraste, viñeta), las partículas (con
+   instancias: 16 números por partícula) y las marcas de frenada, y las mallas que arma el juego (`mallaPropia`: el rayo
+   de la Physics Gun, accesorios, entidades). Lo que dibuja el motor ya no ocupa memoria en WebGL: las mallas se suben
+   a WebGL recién si WebGL las dibuja y las texturas se borran de WebGL al pasarlas.
+4. Después: los rayos y líneas, las nucleares y lo que dibuja el Lua de los addons (siguen en WebGL, encima), autos
+   abollados y el agua de los recipientes, portales, el cielo 3D de los mapas del Workshop, la sombra de la linterna,
+   el resplandor (bloom), texturas comprimidas (ETC2) y, más adelante, la física y la lógica.
 
 ### Protocolo (lo mismo por JNI y en las grabaciones del banco)
 
 - Recursos `JXE1`: `'JXE1'`, u32 con el largo del JSON, el JSON (`mallas`, `mats`, `texs`, `lms`, `agua`, cada uno con
   su `id` del juego) y los bloques de datos alineados a 4.
 - Cuadro `JXC1` (floats): `'JXC1'`, cuántas cosas, vp(16), posición, sol, color del sol, cielo, suelo, niebla (color,
-  desde, hasta), exposición, altura del agua (NaN: sin agua), tiempo, luces puntuales, luces especiales, 12 floats por
-  luz, y por cosa: malla, desde, cuántos, material, matriz(16), esfera(4), banderas (1: no hace sombra), cuántos floats
-  de huesos (negativo: los de la cosa número −n−1) y los huesos.
+  desde, hasta), exposición, altura del agua (NaN: sin agua), tiempo, luces puntuales, luces especiales, cuánto tapa la
+  niebla como máximo, el sol en la niebla (3) —la luz en lineal, la de WebGL en Alto—, 12 floats por luz, y por cosa: malla, desde, cuántos, material, matriz(16), esfera(4), banderas (1: no hace sombra), cuántos floats
+  de huesos (negativo: los de la cosa número −n−1) y los huesos; después, bloques de efectos (tipo, cuántos floats y los
+  floats): 1 partículas con alfa y 2 que suman (la derecha y el arriba de la cámara y 16 floats por partícula), 3 las
+  marcas de frenada (7 floats por vértice, sólo cuando cambian).
 - Grabación `JXG1` (`jxmGrabar()` en el navegador): `'JXG1'` y los pedazos (`R` recursos, `C` cuadro, `V` vaciar, `Q`
   quitar), cada uno con su tipo, u32 con el largo y los bytes.
 

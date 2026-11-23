@@ -57,18 +57,19 @@ impl Escena {
         let n = u32::from_le_bytes([b[4], b[5], b[6], b[7]]) as usize;
         if b.len() < 8 + n { return Err("JXE1 cortado".into()); }
         let mut c: Cabecera = serde_json::from_slice(&b[8..8 + n]).map_err(|e| format!("cabecera: {e}"))?;
-        // (sin números del juego —el banco de pruebas—: el lugar en la lista)
-        for (i, m) in c.mallas.iter_mut().enumerate() { if m.id < 0 { m.id = i as i64; } }
-        for (i, m) in c.mats.iter_mut().enumerate() { if m.id < 0 { m.id = i as i64; } }
-        for (i, m) in c.texs.iter_mut().enumerate() { if m.id < 0 { m.id = i as i64; } }
-        for (i, m) in c.lms.iter_mut().enumerate() { if m.id < 0 { m.id = i as i64; } }
+        // (sin números del juego —el banco de pruebas—: el lugar en la lista; los negativos que no son -1 son números propios,
+        // como el atlas de las partículas)
+        for (i, m) in c.mallas.iter_mut().enumerate() { if m.id == -1 { m.id = i as i64; } }
+        for (i, m) in c.mats.iter_mut().enumerate() { if m.id == -1 { m.id = i as i64; } }
+        for (i, m) in c.texs.iter_mut().enumerate() { if m.id == -1 { m.id = i as i64; } }
+        for (i, m) in c.lms.iter_mut().enumerate() { if m.id == -1 { m.id = i as i64; } }
         Ok(Escena { c, datos: b[8 + n..].to_vec() })
     }
     pub fn bloque(&self, o: usize, n: usize) -> &[u8] { &self.datos[o..o + n] }
     /// el cuadro guardado en la escena (el banco de pruebas: una foto del juego)
     pub fn cuadro(&self) -> Option<Cuadro> {
         let cam = self.c.cam.as_ref()?;
-        Some(Cuadro { vp: cam.vp, pos: cam.pos, luz: self.c.luz.unwrap_or_default(), agua_y: self.c.agua.as_ref().map(|a| a.y), tiempo: 0.0, luces: vec![], esp: vec![],
+        Some(Cuadro { vp: cam.vp, pos: cam.pos, luz: self.c.luz.unwrap_or_default(), agua_y: self.c.agua.as_ref().map(|a| a.y), tiempo: 0.0, luces: vec![], esp: vec![], efectos: vec![],
             items: self.c.items.iter().map(|it| ItemDin { m: it.m, s0: it.s0, sn: it.sn, mat: it.mat, mm: it.mm, esf: [0.0, 0.0, 0.0, -1.0], fl: 0, h: Vec::new() }).collect() })
     }
 }
@@ -81,7 +82,9 @@ pub const FL_SIN_SOMBRA: u32 = 1;
 /// luces del cuadro: posición y radio, color, dirección y coseno del cono (-2: sin cono)
 pub type LuzP = [f32; 12];
 #[derive(Clone, Debug)]
-pub struct Cuadro { pub vp: [f32; 16], pub pos: [f32; 3], pub luz: Luz, pub agua_y: Option<f32>, pub tiempo: f32, pub luces: Vec<LuzP>, pub esp: Vec<LuzP>, pub items: Vec<ItemDin> }
+pub struct Cuadro { pub vp: [f32; 16], pub pos: [f32; 3], pub luz: Luz, pub agua_y: Option<f32>, pub tiempo: f32, pub luces: Vec<LuzP>, pub esp: Vec<LuzP>, pub items: Vec<ItemDin>, pub efectos: Vec<(u32, Vec<f32>)> }
+/// los bloques de efectos que van después de las cosas: tipo, cuántos floats y los floats
+pub const EF_PART_ALFA: u32 = 1; pub const EF_PART_SUMA: u32 = 2; pub const EF_MARCAS: u32 = 3;
 
 pub const CAB_CUADRO: usize = 47;
 pub const POR_ITEM: usize = 26;
@@ -116,7 +119,10 @@ impl Cuadro {
             let h = if nh < 0.0 { let j = (-nh - 1.0) as usize; items.get(j).map(|x: &ItemDin| x.h.clone()).unwrap_or_default() } else { tomar(nh as usize)?.to_vec() };
             items.push(ItemDin { m, s0, sn, mat, mm, esf, fl, h });
         }
-        Ok(Cuadro { vp, pos, luz, agua_y: if ay.is_nan() { None } else { Some(ay) }, tiempo, luces, esp, items })
+        // (los efectos: partículas —con la derecha y el arriba de la cámara para los carteles— y las marcas de frenada)
+        let mut efectos = vec![];
+        while let Ok(c) = tomar(2) { let (t, m) = (c[0] as u32, c[1] as usize); let d = tomar(m)?.to_vec(); efectos.push((t, d)); }
+        Ok(Cuadro { vp, pos, luz, agua_y: if ay.is_nan() { None } else { Some(ay) }, tiempo, luces, esp, items, efectos })
     }
 }
 

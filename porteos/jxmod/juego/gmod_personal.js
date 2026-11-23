@@ -507,8 +507,14 @@ function jxmGrabar() {
   const P = [];
   const poner = (t, u8) => { const c = new Uint8Array(5 + u8.length); c[0] = t.charCodeAt(0); new DataView(c.buffer).setUint32(1, u8.length, true); c.set(u8, 5); P.push(c); };
   const desde = (b) => Uint8Array.from(atob(b), (c) => c.charCodeAt(0));
-  JXM.grab = { recursos: (b) => poner('R', desde(b)), cuadro: (b) => poner('C', desde(b)), vaciar: () => poner('V', new Uint8Array(0)), juntar: () => { const u = new Uint8Array(P.reduce((t, c) => t + c.length, 4)); u.set([74, 88, 71, 49]); let o = 4; for (const c of P) { u.set(c, o); o += c.length; } return u; }, pedazos: P };
+  JXM.grab = { recursos: (b) => poner('R', desde(b)), cuadro: (b) => poner('C', desde(b)), vaciar: () => poner('V', new Uint8Array(0)), quitar: (b) => poner('Q', desde(b)), juntar: () => { const u = new Uint8Array(P.reduce((t, c) => t + c.length, 4)); u.set([74, 88, 71, 49]); let o = 4; for (const c of P) { u.set(c, o); o += c.length; } return u; }, pedazos: P };
   return JXM.grab;
+}
+// un recurso que el juego ya no usa (tipo 0 mallas, 1 texturas, 2 luces horneadas, 3 materiales): que el motor lo borre
+function jxmQuitar(tipo, id) {
+  if (tipo === 0) { if (!JXM.mallas.has(id)) return; JXM.mallas.delete(id); }
+  const B = jxmPuente(); if (!B || !JXM.on || !B.quitar) return;
+  const u = new Uint8Array(9); u[0] = tipo; new DataView(u.buffer).setFloat64(1, id, true); B.quitar(jxmB64(u));
 }
 function jxmPoner(on) {
   on = !!on && jxmDisponible();
@@ -523,7 +529,7 @@ function jxmPoner(on) {
 // lo que dice el motor nativo (cuadros por segundo, ms, memoria) o su error
 function jxmEstado() { try { return JXM.grab ? 'grabando' : JXM.prendido ? String(window.JXMotor.estado()) : 'apagado'; } catch (e) { return String(e); } }
 function jxmReiniciar() {
-  JXM.mallas.clear(); JXM.texs.clear(); JXM.lms.clear(); JXM.mats = new WeakMap(); JXM.agua = null; JXM.mapa = null; JXM.cieloF = null; JXM.cuboT = null;
+  JXM.mallas.clear(); JXM.texs.clear(); JXM.lms.clear(); JXM.mats = new WeakMap(); JXM.agua = null; JXM.mapa = null; JXM.cieloF = null; JXM.cuboT = null; JXM.marcas = -1;
   const B = jxmPuente(); if (B && JXM.on) B.vaciar();
 }
 // el material: su número para el motor (uno nuevo si cambió algo: el color de un prop pintado con la herramienta, por ejemplo)
@@ -557,8 +563,12 @@ function jxmRecursos(items) {
   for (const p of items) {
     const m = p.m, mt = p.mt;
     if (!JXM.mallas.has(m.idx) && off < tope) {
-      const d = m.d, B = binDe(d);
-      if (B) {
+      const d = m.d, B = m.cpu ? null : binDe(d);
+      if (m.cpu) {
+        // (las mallas armadas en el juego —geo.js, mallaPropia: el rayo de la Physics Gun, accesorios, entidades—, de sus datos)
+        mallas.push({ id: m.idx, v: d.v, mn: d.mn, sc: d.sc, i32: d.i32 ? 1 : 0, ni: m.cpu.i.length, vo: poner(m.cpu.v.slice()), io: poner(new Uint8Array(m.cpu.i.buffer.slice(0))), lo: -1, so: -1, lm: -1 });
+        JXM.mallas.add(m.idx);
+      } else if (B) {
         let n = 0; for (const s of d.sub) n = Math.max(n, s[0] + s[1]);
         if (d.lod) for (const l of d.lod) for (const s of l.sub) n = Math.max(n, s[0] + s[1]);
         mallas.push({ id: m.idx, v: d.v, mn: d.mn, sc: d.sc, i32: d.i32 ? 1 : 0, ni: n, vo: poner(B.slice(d.o, d.o + d.v * 14)), io: poner(B.slice(d.i, d.i + n * (d.i32 ? 4 : 2))), lo: d.lm !== undefined ? poner(B.slice(d.lm, d.lm + d.v * 4)) : -1, so: d.sk !== undefined ? poner(B.slice(d.sk, d.sk + d.v * 8)) : -1, lm: m.lm !== null && m.lm !== undefined ? m.lm : -1 });
@@ -572,6 +582,14 @@ function jxmRecursos(items) {
       mats.push({ id: r.id, t2: mt.mez !== undefined ? mt.mez : -1, terr, c: Array.from(mt.c || [1, 1, 1, 1]), st: Array.from(mt.st || [1, 1, 0, 0]), t: mt.tex !== undefined ? mt.tex : -1, blend: mt.blend ? 1 : 0, cut: mt.cut ? 1 : 0, unlit: mt.unlit && !mt.fol ? 1 : 0, add: mt.add ? 1 : 0, agua: mt.agua ? 1 : 0, em: Array.from(mt.em || [0, 0, 0]), pbr: Array.from(mt.pbr || [0.72, 0, 0.04]), fol: mt.fol ? 1 : 0 });
     }
     tex(mt.tex); tex(mt.mez); if (mt.terr) for (const x of mt.terr.t) if (x) tex(x[0]);
+  }
+  // el atlas de las partículas (efectosAtlas: 256×256), una vez; se queda también en WebGL (lo usan las nucleares)
+  if (!JXM.texs.has(-1000) && PART.tex && PART.tex.atlas) {
+    const fb = JXM.fb || (JXM.fb = gl.createFramebuffer()); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, PART.tex.atlas, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE) { const px = new Uint8Array(256 * 256 * 4); gl.readPixels(0, 0, 256, 256, gl.RGBA, gl.UNSIGNED_BYTE, px); texs.push({ id: -1000, n: 'atlas', w: 256, h: 256, a: 1, o: poner(px) }); }
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, null, 0); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    JXM.texs.add(-1000);
   }
   // el agua de HL2 (una vez por mapa)
   let agua = null; const H = AGUA.hl2;
@@ -650,7 +668,21 @@ function jxmCuadroNativo() {
     c++;
   }
   F[1] = c;
-  B.cuadro(jxmB64(new Uint8Array(F.buffer, 0, k * 4)));
+  // los efectos: las partículas (una fila de 16 números por partícula —la del primer vértice de los 6 de efectos.js—, con la
+  // derecha y el arriba de la cámara) y las marcas de frenada cuando cambian
+  const ef = [];
+  if (PART.l.length) {
+    const ex = PART.extra; PART.extra = null;
+    PART.captura = (aditivo, D, nv) => { const np = nv / 6, b = new Float32Array(6 + np * PART_F); b[0] = CAM.der.x; b[1] = CAM.der.y; b[2] = CAM.der.z; b[3] = CAM.arr.x; b[4] = CAM.arr.y; b[5] = CAM.arr.z; for (let i = 0; i < np; i++) b.set(D.subarray(i * 6 * PART_F, i * 6 * PART_F + PART_F), 6 + i * PART_F); ef.push([aditivo ? 2 : 1, b]); };
+    try { dibujarEfectos(); } finally { PART.captura = null; PART.extra = ex; }
+  }
+  if (MARCAS.v && JXM.marcas !== MARCAS.ver) { JXM.marcas = MARCAS.ver; ef.push([3, MARCAS.v]); }
+  let extra = 0; for (const [, b] of ef) extra += 2 + b.length;
+  if (extra) {
+    if (F.length < k + extra) { const G = new Float32Array((k + extra) * 1.5 | 0); G.set(F.subarray(0, k)); JXM.f = G; }
+    const G = JXM.f; for (const [t, b] of ef) { G[k++] = t; G[k++] = b.length; G.set(b, k); k += b.length; }
+  }
+  B.cuadro(jxmB64(new Uint8Array(JXM.f.buffer, 0, k * 4)));
   JXM.cuadros++;
   return true;
 }

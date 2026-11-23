@@ -624,7 +624,8 @@ function dibujar() {
     if (natOk) {
       // (el mundo ya lo dibujó el motor nativo: acá sólo lo que va encima)
       if (typeof gmrDibujar === 'function') gmrDibujar('mundo');
-      dibujarEfectos(); nukeDibujar(); dibujarRayoFisica(); dibujarTrazas(); dibujarLineas();
+      if (PART.extra && PART.extra.length) dibujarCarteles();   // (las partículas las dibuja el motor; los carteles con su textura, acá)
+      nukeDibujar(); dibujarRayoFisica(); dibujarTrazas(); dibujarLineas();
       continue;
     }
     const c3d = JUEGO.estado === 'juego' && cielo3dDibujar(fovy, asp);   // (el cielo 3D de los mapas de GMod: de fondo, antes que todo)

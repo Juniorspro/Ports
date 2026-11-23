@@ -45,10 +45,11 @@ function mallaPropia(B) {
   gl.bindVertexArray(null); R.vaoAct = null;
   const id = ID_PROPIO + GEO.malla++;   // (rango fijo: los addons de GMod agregan mallas en el momento)
   R.mallas[id] = { vao, vb, ib, d: { mn, sc, sub: [[0, B.I.length]], v: nv, i32 }, it: i32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, isz: i32 ? 4 : 2,
-    c: [0, 1, 2].map((a) => mn[a] + sc[a] / 2), r: Math.hypot(sc[0], sc[1], sc[2]) / 2, skin: false, idx: id, propia: true };
+    c: [0, 1, 2].map((a) => mn[a] + sc[a] / 2), r: Math.hypot(sc[0], sc[1], sc[2]) / 2, skin: false, idx: id, propia: true,
+    cpu: { v: new Uint8Array(dv.buffer), i: idx } };   // (cpu: los mismos datos, para pasárselos a JX Motor —gmod_personal.js—)
   return id;
 }
-function mallaPropiaBorrar(id) { const m = R.mallas[id]; if (!m || !m.propia) return; const gl = R.gl; gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); gl.deleteVertexArray(m.vao); R.mallas[id] = null; }
+function mallaPropiaBorrar(id) { const m = R.mallas[id]; if (!m || !m.propia) return; if (typeof jxmQuitar === 'function') jxmQuitar(0, id); const gl = R.gl; gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); gl.deleteVertexArray(m.vao); R.mallas[id] = null; }
 // material propio: color, brillo y opcionalmente la textura de un material del juego (por nombre)
 function matPropio(clave, c, o) {
   if (GEO.mats[clave] !== undefined) return GEO.mats[clave];

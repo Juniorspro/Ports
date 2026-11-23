@@ -12,7 +12,7 @@ function marcasIniciar() {
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12);
   gl.bindVertexArray(null);
 }
-function marcasLimpiar() { MARCAS.n = 0; MARCAS.ini = 0; MARCAS.sucio = true; }
+function marcasLimpiar() { MARCAS.n = 0; MARCAS.ini = 0; MARCAS.sucio = true; MARCAS.ver = (MARCAS.ver || 0) + 1; if (MARCAS.v) MARCAS.v.fill(0); }
 // un tramo de a (punto anterior de la rueda) a b, sobre un piso con normal n, ancho w, fuerza k (0..1)
 function marcaTramo(a, b, n, w, k) {
   if (!MARCAS.v) return;
@@ -25,7 +25,7 @@ function marcaTramo(a, b, n, w, k) {
   const i = (MARCAS.ini + MARCAS.n) % MARCAS.max; if (MARCAS.n < MARCAS.max) MARCAS.n++; else MARCAS.ini = (MARCAS.ini + 1) % MARCAS.max;
   const V = MARCAS.v; let o = i * 42;
   for (const q of [p[0], p[1], p[2], p[0], p[2], p[3]]) { V[o] = q.x; V[o + 1] = q.y; V[o + 2] = q.z; V[o + 3] = 0.05; V[o + 4] = 0.05; V[o + 5] = 0.05; V[o + 6] = al; o += 7; }
-  MARCAS.sucio = true;
+  MARCAS.sucio = true; MARCAS.ver = (MARCAS.ver || 0) + 1;   // (ver: JX Motor manda las marcas cuando cambian)
 }
 function dibujarMarcas() {
   if (!MARCAS.n || !MARCAS.vao) return;

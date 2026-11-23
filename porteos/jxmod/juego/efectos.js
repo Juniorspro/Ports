@@ -122,6 +122,7 @@ function dibujarEfectos() {
       else n = partVertices(D, n, q.p.x, q.p.y, q.p.z, r, g, b, a, s, q.rot, q.tile, q.modo, q.suelo ?? 0, q.suelo === null ? 0 : 1, 0);
     }
     if (!n) return;
+    if (PART.captura) { PART.captura(aditivo, D, n); return; }   // (JX Motor —gmod_personal.js—: las dibuja el motor nativo)
     gl.bindBuffer(gl.ARRAY_BUFFER, PART.buf); gl.bufferData(gl.ARRAY_BUFFER, D.subarray(0, n * PART_F), gl.STREAM_DRAW);
     gl.blendFunc(gl.SRC_ALPHA, aditivo ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA); gl.uniform1f(P.u.uBri, aditivo ? 5 : 1);
     gl.drawArrays(gl.TRIANGLES, 0, n);
