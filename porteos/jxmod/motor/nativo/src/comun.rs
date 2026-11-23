@@ -322,6 +322,8 @@ impl Juego {
                 Boton::Objetos => { if !self.catalogo.is_empty() { self.menu = Some(Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0, pestana: 0 }); } }
                 Boton::Disparo | Boton::Disparo2 => {
                     self.armas_con_npc(b == Boton::Disparo);
+                    // (lanzar con la Gravity Gun: el gesto de tiro en el cuerpo; la Physics Gun no tiene)
+                    if b == Boton::Disparo && self.armas.def().tipo == "grav" { if let Some(pj) = self.pj.as_mut() { pj.accion(personaje::Gesto::Tiro); } }
                     let (o, d, yaw) = (self.ojos_ult, self.mira(), self.jug.yaw);
                     if let Some(mp) = &self.mapa { if b == Boton::Disparo { self.armas.disparo(&mut self.fis, &mp.mundo, o, d, yaw); } else { self.armas.disparo2(&mut self.fis, &mp.mundo, o, d); } }
                 }
@@ -795,9 +797,24 @@ impl Juego {
         for n in pend { if let Err(e) = self.poner(m, &n, ojos, fw) { self.avisar(format!("{n}: {e}")); } }
         // el arma en la mano: el modelo del arma elegida, su clip (sacar; después quieto o sosteniendo) y el vaivén (armasPaso)
         if self.mapa.is_some() { self.arma_en_mano(m, dt); }
-        // el cuerpo, animado (tercera persona y de frente): el piso bajo la cápsula, la mirada y el agua si nada
-        if let Some(pj) = self.pj.as_mut() {
-            if self.camara != 0 {
+        // el cuerpo, animado (tercera persona y de frente, y en un vehículo si no es desde adentro): el piso bajo la cápsula,
+        // la mirada, el agua si nada, el arma en la mano (P.arma: ninguna en un vehículo) y el asiento (asientoPose)
+        let en_veh = self.vehs.jugador;
+        let ver_cuerpo = self.camara != 0 || (en_veh.is_some() && !self.vehs.primera);
+        if let (Some(pj), Some(paq)) = (self.pj.as_mut(), self.paq.as_mut()) {
+            if ver_cuerpo {
+                let arma = if en_veh.is_some() { None } else { Some(self.armas.def().n) };
+                if let Some(e) = pj.poner_arma(paq, arma, &mut self.pj_cargados) { if let Err(e) = unsafe { m.cargar(&e) } { self.aviso = Some((format!("arma: {e}"), Instant::now())); } }
+                let asiento = en_veh.and_then(|(id, a)| {
+                    let o = self.objs.iter().find(|o| o.cuerpo == Some(id))?;
+                    let t = (self.acum_fis / PASO_FIS).clamp(0.0, 1.0);   // (como camara_vehiculo)
+                    let p = [o.ant.0[0] + (o.pos[0] - o.ant.0[0]) * t, o.ant.0[1] + (o.pos[1] - o.ant.0[1]) * t, o.ant.0[2] + (o.pos[2] - o.ant.0[2]) * t];
+                    let q = qmezcla(o.ant.1, o.q, t);
+                    let manejando = a == 0 && self.vehs.de(id)?.tipo != veh::Tipo::Asiento;
+                    let cab = self.vehs.cabina(paq, id, a);
+                    Some(personaje::Asiento { pos: self.jug.pos, veh: p, q, manejando, cab })
+                });
+                pj.sentar(paq, asiento);
                 let jp = self.jug.pos; let piso = [jp[0], jp[1] - 0.95, jp[2]];
                 let agua = if self.jug.nada { self.jug.aguas.iter().find(|v| jp[0] >= v[0] && jp[0] <= v[3] && jp[2] >= v[2] && jp[2] <= v[5] && piso[1] < v[4]).map(|v| v[4]) } else { None };
                 let e = personaje::Estado { piso, vel: self.jug.vel, yaw: self.jug.yaw, mira: -self.jug.pitch, en_suelo: self.jug.suelo || self.jug.noclip, agachado: self.jug.agachado, agua };
@@ -838,7 +855,8 @@ impl Juego {
                 luz.nie = jxmotor::escena::Niebla { c: [lin(0.12), lin(0.285), lin(0.3)], a: 0.0, b: 16.0, m: 1.0, s: [0.0; 3] };
             }
             let mut items = mp.items.clone();
-            if self.camara != 0 && self.vehs.jugador.is_none() { if let Some(pj) = &self.pj { let jp = self.jug.pos; pj.items(&personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw), &mut items); } }
+            // (el cuerpo con el arma en la mano; sentado, en el asiento)
+            if ver_cuerpo { if let Some(pj) = &self.pj { let jp = self.jug.pos; let b = pj.base_sentado().unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw)); pj.items(&b, &mut items); } }
             // (en primera persona, el arma delante de la cámara; y el rayo de la Physics Gun, de la boca a lo agarrado)
             if self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() { if let Some(v) = self.vista.as_mut() {
                 if self.armas.ap_k > 0.002 && v.ads_tok != self.armas.ap_tok { v.calcular_ads(self.armas.ap_tok); }

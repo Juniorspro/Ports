@@ -1,0 +1,25 @@
+{"escenas": [
+ {"n": "pistola", "skin": "Hero", "tramos": [
+  {"n": 60, "arma": "Pistol"}, {"n": 60, "v": [0, 0, 2.2]}, {"n": 30, "v": [0, 0, 0]}, {"n": 30, "accion": "tiro"},
+  {"n": 30, "accion": "recarga"}, {"n": 45, "v": [1.7, 0, 1.7], "yaw": 0.6, "mira": 0.35}, {"n": 40, "v": [0, 0, 0], "yaw": 0.6, "mira": -0.3}]},
+ {"n": "escopeta", "skin": "Hero", "tramos": [
+  {"n": 60, "arma": "Shotgun"}, {"n": 60, "v": [0, 0, 5.5]}, {"n": 40, "v": [0, 0, 0]}, {"n": 30, "accion": "tiro"}, {"n": 40, "v": [-2.5, 0, 0]}]},
+ {"n": "physgun", "skin": "Hero", "tramos": [
+  {"n": 60, "arma": "PhysicsGun"}, {"n": 60, "v": [0, 0, 2.2]}, {"n": 50, "v": [0, 0, 0], "mira": 0.4}, {"n": 40, "v": [0, 2, 3], "suelo": false}, {"n": 40, "v": [0, 0, 0], "mira": 0}]},
+ {"n": "palanca", "skin": "Hero", "tramos": [
+  {"n": 60, "arma": "Crowbar"}, {"n": 60, "v": [0, 0, 2.2]}, {"n": 30, "v": [0, 0, 0]}, {"n": 50, "accion": "tiro"}, {"n": 40, "accion": "golpe"}]},
+ {"n": "rpg", "skin": "Hero", "tramos": [
+  {"n": 60, "arma": "RPG"}, {"n": 60, "v": [0, 0, 2.2]}, {"n": 30, "v": [0, 0, 0]}, {"n": 40, "accion": "tiro"}, {"n": 30, "v": [0, 0, 0], "ag": true}]},
+ {"n": "cambios", "skin": "Hero", "tramos": [
+  {"n": 40, "arma": "Smg"}, {"n": 40, "arma": "ToolBaton"}, {"n": 40, "arma": "GravityGun", "accion": "tiro"}, {"n": 40, "arma": "Revolver"}, {"n": 40, "arma": "Bat"},
+  {"n": 40, "arma": "Hands", "accion": "tiro"}, {"n": 40, "arma": null}, {"n": 40, "arma": "Akm", "v": [0, 0, 3]}]},
+ {"n": "freddy", "skin": "Freddy", "tramos": [{"n": 50, "arma": "Pistol"}, {"n": 50, "v": [0, 0, 2.2]}, {"n": 30, "v": [0, 0, 0], "arma": "Crowbar"}, {"n": 30, "arma": "PhysicsGun"}]},
+ {"n": "jake", "skin": "Jake", "tramos": [{"n": 50, "arma": "Pistol"}, {"n": 50, "v": [0, 0, 1.5]}, {"n": 30, "v": [0, 0, 0], "arma": "RPG"}]},
+ {"n": "sfm", "skin": "SpecialForcesM", "tramos": [{"n": 50, "arma": "Pistol"}, {"n": 40, "arma": "Shotgun"}, {"n": 40, "arma": "Crowbar"}]},
+ {"n": "sedan_maneja", "skin": "Hero", "dt": 0.015625, "veh": {"nombre": "Sedan", "a": 0, "pos": [3, 0.6, 7], "yaw": 0.7, "incl": 0.04}, "tramos": [{"n": 60}, {"n": 40, "mira": -0.15}]},
+ {"n": "sedan_pasajero", "skin": "Hero", "dt": 0.015625, "veh": {"nombre": "Sedan", "a": 1, "pos": [3, 0.6, 7], "yaw": 0.7, "incl": 0.04}, "tramos": [{"n": 60}]},
+ {"n": "derby_maneja", "skin": "Hero", "dt": 0.015625, "veh": {"nombre": "Derby5", "a": 0, "pos": [-2, 0.5, 1], "yaw": -1.2, "incl": 0}, "tramos": [{"n": 60}]},
+ {"n": "policia_maneja", "skin": "Hero", "dt": 0.015625, "veh": {"nombre": "police_car_v4", "a": 0, "pos": [0, 0.5, 0], "yaw": 2.5, "incl": 0}, "tramos": [{"n": 60}]},
+ {"n": "sofie_freddy", "skin": "Freddy", "dt": 0.015625, "veh": {"nombre": "Sofie", "a": 0, "pos": [0, 0.5, 0], "yaw": 0, "incl": 0}, "tramos": [{"n": 60}]},
+ {"n": "sedan_jake", "skin": "Jake", "dt": 0.015625, "veh": {"nombre": "Sedan", "a": 0, "pos": [3, 0.6, 7], "yaw": 0.7, "incl": 0}, "tramos": [{"n": 60}]}
+]}

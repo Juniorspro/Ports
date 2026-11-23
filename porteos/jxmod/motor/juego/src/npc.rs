@@ -14,13 +14,15 @@
 //! dibujar `animar` e `items`. Los cuerpos (el Personaje de cada skin y su escena para el motor) los da `Skins`.
 //! Lo que no (de la web): la red (npcRed*, npcRemotos*), los paneles de HTML (npcPanel*: la actitud se pone con
 //! `Npcs::aplicar` o en `Npcs::act`, y el lector local de lo escrito es `Actitud::de_texto`; la IA de afuera no), el Lua
-//! de los mods, los emotes de los paquetes aparte (rb:…, se baila el ChickenDance), la postura y el modelo del arma en la
-//! mano, el gesto al recibir un golpe o al tirar (humAccion), el agua y la malla simplificada de lejos.
+//! de los mods, los emotes de los paquetes aparte (rb:…, se baila el ChickenDance), el agua y la malla simplificada de
+//! lejos. El arma en la mano (su postura de GMod, el agarre y el modelo de mundo: arma_mano.rs) la cargan los `Skins` con
+//! el primer cuerpo; el gesto al tirar o al recibir un golpe (humAccion) lo hace el cuerpo (`Personaje::accion`).
 use crate::fisica::{self, add, dot, esc, largo, sub, Cuerpo, Fisica, OpCuerpo, OpUnion, QID, V};
 use crate::mundo::Mundo;
 use crate::paquete::Paquete;
 use crate::persona::{self, Azar, Capsula, Tmp, GRAV, GRUPO_MUNECO};
-use crate::personaje::{base, Cargados, ClipEmote, Estado, Personaje};
+use crate::arma_mano::ArmaMano;
+use crate::personaje::{base, Cargados, ClipEmote, Estado, Gesto, Personaje};
 use jxmotor::escena::{Escena, ItemDin};
 use jxmotor::mat::{self as m4, M4};
 use serde_json::{json, Value};
@@ -346,6 +348,8 @@ pub struct Npc {
     ia: Ia, voz_t: f64, cols: Arc<Vec<Option<Col>>>,
     emo_pj: Option<String>, base_ult: M4, anim_t: f64, dt_junto: f32, n1: u32, cn: u32, dt_a: f32,
     paso_d: f64, paso_aire: f64, paso_vy: f64,
+    /// las armas cargadas (de los `Skins`) y la que tiene el cuerpo en la mano
+    armas: Arc<HashMap<String, Arc<ArmaMano>>>, arma_pj: Option<Arma>,
 }
 impl Npc {
     /// dónde está (el centro de la cápsula; los pies a 0,95 m)
@@ -364,22 +368,34 @@ impl Npc {
 pub enum Bando { Malo, Bueno, Nada, Jugador }
 
 // ---------------- los cuerpos de cada skin ----------------
-/// el cuerpo de un NPC (el personaje y los colliders de sus huesos): lo da `Skins::pedir`
-pub struct CuerpoNpc { pub pj: Personaje, cols: Arc<Vec<Option<Col>>> }
+/// el cuerpo de un NPC (el personaje, los colliders de sus huesos y las armas que puede llevar): lo da `Skins::pedir`
+pub struct CuerpoNpc { pub pj: Personaje, cols: Arc<Vec<Option<Col>>>, armas: Arc<HashMap<String, Arc<ArmaMano>>> }
 
-/// los personajes de los NPC, uno por skin (la escena se sube al motor una vez): el que se pide se copia
-pub struct Skins { protos: HashMap<String, (Personaje, Arc<Vec<Option<Col>>>)>, pub lod: usize, pub tmax: u32 }
+/// los personajes de los NPC, uno por skin (la escena se sube al motor una vez): el que se pide se copia. Con el primero
+/// se cargan las armas que pueden llevar (NPC_ARMAS: su postura y su modelo de mundo)
+pub struct Skins { protos: HashMap<String, (Personaje, Arc<Vec<Option<Col>>>)>, pub lod: usize, pub tmax: u32, armas: Option<Arc<HashMap<String, Arc<ArmaMano>>>> }
 impl Skins {
     /// lod: el nivel de detalle de las mallas (0 el más fino); tmax: el lado más grande de las texturas
-    pub fn nuevo(lod: usize, tmax: u32) -> Skins { Skins { protos: HashMap::new(), lod, tmax } }
+    pub fn nuevo(lod: usize, tmax: u32) -> Skins { Skins { protos: HashMap::new(), lod, tmax, armas: None } }
     /// el motor se vació (cambio de mapa): se vuelven a cargar
-    pub fn olvidar(&mut self) { self.protos.clear(); }
+    pub fn olvidar(&mut self) { self.protos.clear(); self.armas = None; }
+    /// las armas de los NPC (una vez; con lo que el motor todavía no tiene)
+    fn armas(&mut self, paq: &mut Paquete, ya: &mut Cargados) -> (Arc<HashMap<String, Arc<ArmaMano>>>, Option<Escena>) {
+        if let Some(a) = &self.armas { return (a.clone(), None); }
+        let (mut m, mut esc): (HashMap<String, Arc<ArmaMano>>, Option<Escena>) = (HashMap::new(), None);
+        for a in ARMAS {
+            let Ok((am, e)) = ArmaMano::cargar(paq, a.nombre(), false, self.tmax, ya) else { continue };
+            m.insert(a.nombre().to_string(), Arc::new(am));
+            match esc.as_mut() { Some(x) => crate::arma_mano::juntar(x, e), None => esc = Some(e) }
+        }
+        let m = Arc::new(m); self.armas = Some(m.clone()); (m, esc)
+    }
     /// el cuerpo de un NPC de `skin` (si no es de DATA.chars, el Hero; si su paquete aparte —rb/s_…— no está, también el
     /// Hero, como crearPersona mientras lo baja). La primera vez de cada skin lo carga y devuelve la escena para subirla al
     /// motor (`ya`: lo que el motor ya tiene, el mismo que el del cuerpo del jugador)
     pub fn pedir(&mut self, paq: &mut Paquete, skin: &str, ya: &mut Cargados) -> Result<(CuerpoNpc, Option<Escena>), String> {
         let skin = if paq.d["chars"].as_array().map(|l| l.iter().any(|x| x.as_str() == Some(skin))).unwrap_or(false) { skin } else { "Hero" };
-        if let Some((pj, cols)) = self.protos.get(skin) { return Ok((CuerpoNpc { pj: pj.clone(), cols: cols.clone() }, None)); }
+        if let Some((pj, cols)) = self.protos.get(skin).cloned() { let (armas, e) = self.armas(paq, ya); return Ok((CuerpoNpc { pj, cols, armas }, e)); }
         let (mut pj, esc) = match Personaje::cargar(paq, skin, self.lod, self.tmax, ya) {
             Ok(x) => x,
             Err(e) if skin != "Hero" => { let r = self.pedir(paq, "Hero", ya); if let Ok((c, _)) = &r { self.protos.insert(skin.to_string(), (c.pj.clone(), c.cols.clone())); } let _ = e; return r; }
@@ -388,7 +404,8 @@ impl Skins {
         let cols = Arc::new(cols_de(&paq.d, &pj));
         calentar(&mut pj);
         self.protos.insert(skin.to_string(), (pj.clone(), cols.clone()));
-        Ok((CuerpoNpc { pj, cols }, Some(esc)))
+        let (armas, ea) = self.armas(paq, ya); let mut esc = esc; if let Some(ea) = ea { crate::arma_mano::juntar(&mut esc, ea); }
+        Ok((CuerpoNpc { pj, cols, armas }, Some(esc)))
     }
 }
 /// mide de una vez cómo pisa en las 8 direcciones (lo que el personaje calcula la primera vez que camina hacia cada una)
@@ -504,7 +521,8 @@ impl Npcs {
         let skin = cuerpo.pj.skin.clone();
         self.lista.push(Box::new(Npc { id, skin, pj: cuerpo.pj, cap: Capsula::nueva(pos), yaw: yaw as f64, mira: 0.0, tam, vida: act.vida, vivo: true, act, emote: None, arma: None,
             cuerpo: Some(cid), rag: None, muneco: false, muerto_t: 0.0, globo: None, visible: false, ia, voz_t: -9.0, cols: cuerpo.cols,
-            emo_pj: None, base_ult: base([p[0], p[1], p[2]], yaw), anim_t: -9.0, dt_junto: 0.0, n1: 1 + id % 7, cn: 0, dt_a: 0.0, paso_d: 0.0, paso_aire: 0.0, paso_vy: 0.0 }));
+            emo_pj: None, base_ult: base([p[0], p[1], p[2]], yaw), anim_t: -9.0, dt_junto: 0.0, n1: 1 + id % 7, cn: 0, dt_a: 0.0, paso_d: 0.0, paso_aire: 0.0, paso_vy: 0.0,
+            armas: cuerpo.armas, arma_pj: None }));
         Some(id)
     }
     /// pone un muñeco de trapo (spawnNpc con muneco: cae con sus huesos, se agarra y no se levanta)
@@ -654,6 +672,8 @@ impl Npcs {
                 let cl = p.emote.as_ref().and_then(|e| clips.get(e).cloned().flatten().or_else(|| clips.get("ChickenDance").cloned().flatten()));
                 p.pj.emote(cl.as_ref()); p.emo_pj = p.emote.clone();
             }
+            // el arma en la mano (la dibuja el cuerpo y la postura es la de GMod)
+            if p.arma != p.arma_pj { let a = p.arma.and_then(|a| p.armas.get(a.nombre()).cloned()); p.pj.armar(a); p.arma_pj = p.arma; }
             let piso = p.piso(); let (yaw, mira) = (p.yaw as f32, p.mira as f32);
             p.pj.animar(p.dt_junto, &Estado { piso, vel: v32(p.cap.vel), yaw, mira, en_suelo: p.cap.suelo, agachado: false, agua: None });
             p.dt_junto = 0.0;
@@ -885,7 +905,7 @@ fn cerebro(p: &mut Npc, otros: &mut Vec<Box<Npc>>, c: &mut Ctx, dt: f64, m: &Mun
     if let Some(b) = bl {
         if t0.is_none() && dbl < 1.45 * p.tam + 0.2 && p.ia.golpe_t <= 0.0 && (b.pos[1] - pos[1]).abs() < 1.6 {
             p.ia.golpe_t = 1.05; p.ia.golpe = Some((0.2, b.q)); mirar = hbl; quiere = None;
-            if p.act.arma == Some(Arma::Crowbar) { p.ia.pat_t = 0.4; let t = 0.95 + c.azar.f() * 0.1; sonido(c, "CB_Swing", Some(pos), 0.6, t); }
+            if p.act.arma == Some(Arma::Crowbar) { p.ia.pat_t = 0.4; p.pj.accion(Gesto::Tiro); let t = 0.95 + c.azar.f() * 0.1; sonido(c, "CB_Swing", Some(pos), 0.6, t); }
             else { p.ia.pat_t = 0.64; p.emote = Some("Patada".into()); let t = 0.85 + c.azar.f() * 0.1; sonido(c, "CB_Swing", Some(pos), 0.5, t); }
         }
     }
@@ -1004,6 +1024,7 @@ fn fuego(p: &mut Npc, bl: &Blanco, t0: Tiro, dt: f64, otros: &mut [Box<Npc>], c:
     let (sf, lista) = c.sf.get(&arma).cloned().unwrap_or_default();
     let s = if lista { c.azar.de(&sf).map(String::from) } else { sf.first().cloned() };
     if let Some(s) = s { sonido(c, &s, Some(o), 0.8, 1.0); }
+    p.pj.accion(Gesto::Tiro);
     if t0.rafaga > 1 { p.ia.raf_n = (if p.ia.raf_n == 0 { t0.rafaga } else { p.ia.raf_n }) - 1; if p.ia.raf_n == 0 { p.ia.raf_n = t0.rafaga; p.ia.tiro_t = t0.pausa + c.azar.f() * 0.3; } else { p.ia.tiro_t = t0.cad; } }
     else { p.ia.tiro_t = t0.cad * (0.85 + c.azar.f() * 0.3); }
     c.tiros += 1;
@@ -1042,6 +1063,7 @@ fn bala(p: &Npc, o: V, dir: V, l: f64, dan: f64, blanco: Quien, otros: &mut [Box
 fn danar(q: &mut Npc, dan: f64, pos: V, d: V, c: &mut Ctx, fis: &mut Fisica) {
     if q.muneco { return; }   // (un muñeco de trapo: el golpe sólo lo empuja, como un prop_ragdoll de GMod)
     let vivia = q.vivo;
+    if vivia { q.pj.accion(Gesto::Golpe); }
     if q.vivo {
         q.vida -= dan; c.ev.push(Evento::DanoNpc { npc: q.id, dan: dan as f32 });
         if q.vida <= 0.0 {

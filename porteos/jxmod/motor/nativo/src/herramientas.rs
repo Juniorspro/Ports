@@ -107,6 +107,7 @@ impl Juego {
         let boca = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or([oj[0], oj[1] - 0.2, oj[2]]);
         self.ef.traza(boca, fin);
         self.sonido.tocar("Click", 0.5, 1.4, None);
+        if let Some(pj) = self.pj.as_mut() { pj.accion(personaje::Gesto::Tiro); }
         let o = r.as_ref().and_then(|g| g.cuerpo).and_then(|id| self.obj_de_cuerpo(id));
         match n.as_str() {
             // (actitudUsar: sobre un NPC, su panel; en el piso, uno nuevo con el personaje y la actitud elegidos; «2», el panel de los nuevos)

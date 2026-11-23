@@ -15,10 +15,18 @@
 //! matriz de la raíz (`base`: posición y giro, como ubicarPersona). Da lo mismo que la web hasta 0,1 mm (lo compara
 //! personajes_prueba/examples/comparar.rs). Para los NPC (npc.rs): los emotes de los estados del juego (la patada y los
 //! bailes: `emote`, iguales a la web hasta 0,2 mm con examples/emote_comparar.rs) y el muñeco de trapo (`esqueleto` y
-//! `poner_fijos`). Lo que todavía no: los emotes de captura, las posturas y acciones de las armas, los asientos de los
-//! vehículos, los gorros y los que flotan sin piernas (BoiledOne).
+//! `poner_fijos`).
+//!
+//! Con un arma (`poner_arma`, P.arma): el torso y los brazos toman la postura de GMod del arma (estado Pose), la columna se
+//! lleva a como queda en esa postura (humTorsoRef), los dedos agarran como en GMod y la mano derecha se cierra sobre el
+//! mango (agarreGm), el gesto al tirar, recargar o recibir un golpe (`accion`, humAccion) y el modelo de mundo en la mano
+//! (armaGmDibujar, en `items`): arma_mano.rs. Sentado en un vehículo (`sentar`, P.sentado): el clip de sentado (manejando,
+//! las manos en el volante) y, en los autos, la cadera sobre el almohadón y los pies en el piso de la cabina (asientoPose
+//! de vehiculos.js). Lo que todavía no: los emotes de captura, los gorros y los que flotan sin piernas (BoiledOne).
+use crate::arma_mano::{ArmaMano, Esq, Manos};
 use crate::mapa::{material, trs};
 use crate::paquete::Paquete;
+use crate::vehiculo::Cabina;
 use jxmotor::escena::{Cabecera, Escena, ItemDin, Malla, Mat, Tex};
 use jxmotor::mat::{self as m4, M4};
 use serde_json::Value;
@@ -99,35 +107,46 @@ pub fn base(piso: [f32; 3], yaw: f32) -> M4 { trs(piso, [0.0, (yaw / 2.0).sin(),
 // ---------------- los clips ----------------
 /// un clip humanoide: cuánto dura, cuántos cuadros, hacia dónde va (los de GMod) y cada atributo (vacío: no viene; uno solo:
 /// fijo; si no, uno por cuadro)
-struct Clip { d: f64, nf: usize, ang: f32, v: f32, c: Vec<Vec<f32>> }
+pub(crate) struct Clip { pub(crate) d: f64, nf: usize, ang: f32, v: f32, c: Vec<Vec<f32>> }
 impl Clip {
-    fn de(x: &Value) -> Clip {
+    pub(crate) fn de(x: &Value) -> Clip {
         let mut c = vec![Vec::new(); 97];
         if let Some(o) = x["c"].as_object() { for (k, v) in o { if let (Ok(i), Some(a)) = (k.parse::<usize>(), v.as_array()) { if i < c.len() { c[i] = a.iter().map(f).collect(); } } } }
         Clip { d: x["d"].as_f64().unwrap_or(1.0), nf: x["nf"].as_u64().unwrap_or(1).max(1) as usize, ang: f(&x["ang"]), v: f(&x["v"]), c }
     }
 }
 /// los clips de GMod (humGm): quieto, quieto agachado, el salto y las 8 direcciones corriendo y caminando agachado (de
-/// menor a mayor ángulo)
-struct Gm { fps: f64, idle: Clip, cidle: Clip, jump: Clip, run: Vec<Clip>, cwalk: Vec<Clip> }
+/// menor a mayor ángulo); y los de sentado (Sit: Driver, manejando; Sit 0: Sitting Idle), el del golpe (Hit) y el de
+/// quieto mirando alrededor (Pose: con el que se hornearon las posturas de las armas, humTorsoRef)
+struct Gm { fps: f64, idle: Clip, cidle: Clip, jump: Clip, run: Vec<Clip>, cwalk: Vec<Clip>, sit: Option<Clip>, sit0: Option<Clip>, golpe: Option<Arc<Clip>>, idle_pose: Option<Clip> }
 impl Gm {
     fn de(d: &Value) -> Option<Gm> {
         let l = d["hu"]["est"]["GmLoco"].as_array()?;
         let n = |x: &str| l.iter().find(|c| c["n"].as_str() == Some(x)).map(Clip::de);
         let dirs = |pre: &str| { let mut v: Vec<Clip> = l.iter().filter(|c| c["n"].as_str().map(|s| s.starts_with(pre)).unwrap_or(false)).map(Clip::de).collect(); v.sort_by(|a, b| a.ang.partial_cmp(&b.ang).unwrap_or(std::cmp::Ordering::Equal)); v };
-        let g = Gm { fps: d["hu"]["fps"].as_f64().unwrap_or(20.0), idle: n("gm_idle_all")?, cidle: n("gm_cidle_all")?, jump: n("gm_jump")?, run: dirs("gm_run_"), cwalk: dirs("gm_cwalk_") };
+        let primero = |e: &str| d["hu"]["est"][e][0].is_object().then(|| Clip::de(&d["hu"]["est"][e][0]));
+        let pose = |x: &str| crate::arma_mano::clip_nombre(d, "Pose", x);
+        let idle_pose = pose("IdleLookAround_loop").or_else(|| pose("Idle01")).and_then(|c| Arc::try_unwrap(c).ok());
+        let g = Gm { fps: d["hu"]["fps"].as_f64().unwrap_or(20.0), idle: n("gm_idle_all")?, cidle: n("gm_cidle_all")?, jump: n("gm_jump")?, run: dirs("gm_run_"), cwalk: dirs("gm_cwalk_"),
+            sit: primero("Sit"), sit0: primero("Sit 0"), golpe: crate::arma_mano::clip_nombre(d, "Hit", "standing_react_large_gut"), idle_pose };
         if g.run.len() < 4 || g.cwalk.len() < 4 { return None; }
         Some(g)
     }
 }
+/// lo de la parte de arriba del cuerpo (HUM_ARRIBA): la columna, el cuello y la cabeza (músculos 0 a 14) y los brazos y
+/// las manos (37 a 54)
+fn arriba(k: usize) -> bool { (7..22).contains(&k) || (44..62).contains(&k) }
 /// el valor de un clip en t, sumado con peso w (humClip, siempre en bucle, sin espejo)
-fn hum_clip(c: &Clip, fps: f64, t: f64, w: f32, out: &mut [f32; NV]) {
+fn hum_clip(c: &Clip, fps: f64, t: f64, w: f32, out: &mut [f32; NV]) { hum_clip_de(c, fps, t, w, out, false) }
+/// (soloArriba: sólo la parte de arriba)
+fn hum_clip_de(c: &Clip, fps: f64, t: f64, w: f32, out: &mut [f32; NV], solo_arriba: bool) {
     let n = c.nf; let fr = ((t % c.d) * fps).max(0.0).min((n - 1) as f64);
     let i0 = fr.floor() as usize; let i1 = (i0 + 1).min(n - 1); let a = (fr - i0 as f64) as f32;
     let val = |at: usize| -> f32 { let k = &c.c[at]; if k.is_empty() { return if at == 13 || at == 8 { 1.0 } else { 0.0 }; } if k.len() == 1 { return k[0]; } k[i0.min(k.len() - 1)] * (1.0 - a) + k[i1.min(k.len() - 1)] * a };
     // (el giro del cuerpo se suma del mismo lado que lo que ya hay: q y -q son el mismo giro, pero mezclados se anulan)
     let sq = if out[3] * val(10) + out[4] * val(11) + out[5] * val(12) + out[6] * val(13) < 0.0 { -1.0 } else { 1.0 };
     for k in 0..NV {
+        if solo_arriba && !arriba(k) { continue; }
         let (at, s) = if k < 7 { (7 + k, if k >= 3 { sq } else { 1.0 }) } else { (42 + k - 7, 1.0) };
         out[k] += val(at) * s * w;
     }
@@ -228,7 +247,7 @@ impl Emo {
 // ---------------- lo que se carga ----------------
 /// lo que el motor ya tiene: no se sube dos veces una malla, un material o una textura
 #[derive(Default)]
-pub struct Cargados { mallas: HashSet<i64>, mats: HashSet<i64>, texs: HashSet<i64> }
+pub struct Cargados { pub(crate) mallas: HashSet<i64>, pub(crate) mats: HashSet<i64>, pub(crate) texs: HashSet<i64> }
 impl Cargados { pub fn olvidar(&mut self) { *self = Cargados::default(); } }
 
 /// una malla con piel del personaje: el nodo, la malla, sus huesos (nodos; -1: el del nodo), las poses de enlace (en filas,
@@ -281,7 +300,7 @@ pub struct Personaje {
     p0_cadera: V,
     gm: Arc<Gm>, huesos: Vec<HumHueso>, ci: usize, av_esc: f32, av_dt: V, av_dq: Q, av_rt: V,
     v: [f32; NV], o: [f32; NV], ht: f64, fase: f64, aire: f32, caida: f32, agach: f32, mov: f32, cadera: f32, cad_w: f32,
-    par: u32, clave: u32, o_t: f32, listo: bool, pos_k: f32,
+    par: u32, clave: Clave, o_t: f32, listo: bool, pos_k: f32,
     loco_esc: Option<f32>, loco: [Vec<Option<Option<LocoM>>>; 2],
     // dibujarPersona: la corrección de los pies, los pies clavados y el agua
     pie_corr: f32, ik: Option<[PieIk; 2]>, nado_k: f32, nado_w: f32, nado_t: f32,
@@ -289,7 +308,45 @@ pub struct Personaje {
     nado: Option<Arc<[Emo; 2]>>,
     /// el emote que está haciendo (P.emote: el clip y cuánto lleva, P.emoteT), si hace alguno (para los NPC: npc.rs)
     emo: Option<(ClipEmote, f32)>,
+    // el arma (humano.js y personas.js; las cuentas de la mano, arma_mano.rs)
+    /// el arma en la mano (P.arma) y las ya cargadas por nombre
+    arma: Option<Arc<ArmaMano>>, armas: HashMap<String, Arc<ArmaMano>>,
+    /// la última postura que llevó el torso (H.paT), cuánto lo lleva (H.taK), el giro de la cadera de quieto que se compensa
+    /// (H.gy y lo que queda del cambio de estado, H.gyO), el gesto del torso (P.accion) y si el cambio de estado se fuerza
+    /// (P.hum.clave = '')
+    pa_t: Option<(String, Arc<Clip>)>, ta_k: f32, gy: f32, gy_o: f32, accion: Option<Accion>, forzar: bool,
+    /// cómo queda el primer hueso de la columna en cada postura (humTorsoRef) y los dedos de cada arma (dedosCalcular)
+    torso_ref: HashMap<String, Q>, dedos: HashMap<String, Option<Arc<Vec<(usize, Q)>>>>,
+    /// lo local de reposo (la pose del árbol: los dedos se calculan sobre ella) y las manos
+    reposo: Arc<(Vec<V>, Vec<Q>, Vec<V>)>, manos: Arc<Manos>,
+    /// sentado en un vehículo (P.sentado) y cuánto cuelga debajo de la cadera lo que la piel pega a la cadera y a los muslos
+    /// (asientoFaldon: P.faldon, P.nalga; se mide una vez)
+    sentado: Option<Asiento>, faldon: Option<(f32, f32)>,
+    /// tirado como muñeco (`poner_fijos`): sin arma en la mano
+    rag: bool,
+    /// si las matrices quedaron de otra pose en este cuadro (md.sucio: las medidas de los clips o de la postura del torso
+    /// las rehacen); si no, son las del cuadro anterior, que es con las que la web lleva el torso a la postura
+    sucio: bool,
 }
+
+/// un gesto del torso (P.accion de humAccion): el clip, cuánto lleva, cuánto dura, cuánto pesa y si es un tiro
+#[derive(Clone)]
+struct Accion { c: Arc<Clip>, t: f32, dur: f32, peso: f32, tiro: bool }
+/// los gestos del torso (humAccion): tirar y recargar (los del arma: ACC_ARMA) y recibir un golpe
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Gesto { Tiro, Recarga, Golpe }
+/// la clave del estado (H.clave: emote | sentado | quieto, corriendo o en el aire | arma): cuando cambia, la pose de antes
+/// se funde con la nueva
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Clave { emo: u32, sen: u8, loco: u32, arma: u32 }
+fn hash(s: &str) -> u32 { s.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619)) | 1 }
+
+/// sentado en un vehículo (P.sentado con P.qVeh y P.vehO): dónde está la persona (P.pos = JUG.pos: lo que da
+/// `vehiculo::Camara::jugador`), el centro y el giro del cuerpo del vehículo, si maneja (el asiento 0 de uno que no es una
+/// silla: las manos en el volante, el clip Driver; si no, Sitting Idle) y, si es un auto, la cabina del asiento
+/// (`Vehiculos::cabina`: el almohadón y el piso)
+#[derive(Clone, Copy, Debug)]
+pub struct Asiento { pub pos: [f32; 3], pub veh: [f32; 3], pub q: [f32; 4], pub manejando: bool, pub cab: Option<Cabina> }
 
 /// la patada (patadas.js, PAT): el tramo del golpe del clip Kick, de 0,55 s a 1,95 s, 2,2 veces más rápido
 const PAT_DE: f32 = 0.55; const PAT_A: f32 = 1.95; const PAT_V: f32 = 2.2;
@@ -311,7 +368,7 @@ impl ClipEmote {
 }
 
 /// la copia del sub-árbol desde el nodo i0 con los índices nuevos (subArbol de vista.js)
-fn sub_arbol(arb: &[Value], i0: usize) -> Vec<Value> {
+pub(crate) fn sub_arbol(arb: &[Value], i0: usize) -> Vec<Value> {
     let mut hijos: Vec<Vec<usize>> = vec![vec![]; arb.len()];
     for (k, x) in arb.iter().enumerate() { if let Some(p) = x["pa"].as_i64() { if p >= 0 && (p as usize) < arb.len() { hijos[p as usize].push(k); } } }
     let mut mapa = HashMap::new(); let mut out: Vec<Value> = vec![];
@@ -420,10 +477,23 @@ impl Personaje {
         let (nr, ncw) = (gm.run.len(), gm.cwalk.len());
         let t = &d["tam"][skin.as_str()]; let (tam, ojo) = if t.is_array() { (f(&t[0]), if t[1].is_null() || f(&t[1]) == 0.0 { 1.0 } else { f(&t[1]) }) } else { (1.0, 1.0) };
         let p0_cadera = h[HIPS].map(|i| p[i]).unwrap_or([0.0; 3]);
+        // las manos (y, si a alguna le faltan dedos, el Hero en reposo para calibrarla: manoCalibrar)
+        let manos = Arc::new(Manos::de(&nombres, || {
+            let arb = d["pf"][&clave].as_array()?; let cr = arb.iter().position(|x| x["n"].as_str() == Some("CharactersRoot"))? as i64;
+            let sub = sub_arbol(arb, arb.iter().position(|x| x["pa"].as_i64() == Some(cr) && x["n"].as_str() == Some("Hero"))?);
+            let (pa, act): (Vec<i32>, Vec<bool>) = { let pa: Vec<i32> = sub.iter().map(|x| x["pa"].as_i64().unwrap_or(-1) as i32).collect(); let mut a = vec![false; sub.len()]; for i in 0..sub.len() { a[i] = sub[i]["off"].is_null() && (pa[i] < 0 || a[pa[i] as usize]); } (pa, a) };
+            let (p, s): (Vec<V>, Vec<V>) = (sub.iter().map(|x| v3(&x["p"], [0.0; 3])).collect(), sub.iter().map(|x| v3(&x["s"], [1.0; 3])).collect());
+            let mut e = Esq { pa: &pa, act: &act, p: &p, r: sub.iter().map(|x| q4(&x["r"], [0.0, 0.0, 0.0, 1.0])).collect(), s: &s, w: vec![m4::id(); sub.len()] };
+            e.actualizar();
+            Some((sub.iter().map(|x| x["n"].as_str().unwrap_or("").to_string()).collect(), e.w))
+        }));
+        let reposo = Arc::new((p.clone(), r.clone(), s.clone()));
         let mut pj = Personaje { skin: skin.clone(), tam, ojo, p0_cadera, nombres, pa, act, p, r, s, w: vec![m4::id(); n], raiz: m4::id(), pieles, paleta: vec![], h, rw: vec![], dedo, tobillo: 0.08, pies: None,
             gm, huesos, ci, av_esc: f(&av["esc"]), av_dt: v3(&av["dt"], [0.0; 3]), av_dq: q4(&av["dq"], [0.0, 0.0, 0.0, 1.0]), av_rt: v3(&av["rt"], [0.0; 3]),
-            v: [0.0; NV], o: [0.0; NV], ht: 0.0, fase: 0.0, aire: 0.0, caida: 0.0, agach: 0.0, mov: 0.0, cadera: 0.0, cad_w: 1.0, par: 0, clave: 0, o_t: 0.0, listo: false, pos_k: 0.0,
-            loco_esc: None, loco: [vec![None; nr], vec![None; ncw]], pie_corr: 0.0, ik: None, nado_k: 0.0, nado_w: 0.0, nado_t: 0.0, nado: None, emo: None };
+            v: [0.0; NV], o: [0.0; NV], ht: 0.0, fase: 0.0, aire: 0.0, caida: 0.0, agach: 0.0, mov: 0.0, cadera: 0.0, cad_w: 1.0, par: 0, clave: Clave::default(), o_t: 0.0, listo: false, pos_k: 0.0,
+            loco_esc: None, loco: [vec![None; nr], vec![None; ncw]], pie_corr: 0.0, ik: None, nado_k: 0.0, nado_w: 0.0, nado_t: 0.0, nado: None, emo: None,
+            arma: None, armas: HashMap::new(), pa_t: None, ta_k: 0.0, gy: 0.0, gy_o: 0.0, accion: None, forzar: false, torso_ref: HashMap::new(), dedos: HashMap::new(),
+            reposo, manos, sentado: None, faldon: None, rag: false, sucio: true };
         // el reposo (datosSkin): el giro de cada nodo y la suela
         pj.actualizar();
         pj.rw = pj.w.iter().map(m4quat).collect();
@@ -528,7 +598,7 @@ impl Personaje {
         let (pie, _) = self.gm_pies(); let gm = self.gm.clone();
         self.v = [0.0; NV]; hum_clip(&gm.idle, gm.fps, 0.0, 1.0, &mut self.v); self.hum_aplicar(); self.actualizar();
         let e = match self.h[HIPS] { Some(hi) => clamp((self.w[hi][13] - self.w[pie][13]) / 1.14, 0.2, 3.0), None => 1.0 };
-        self.raiz = raiz; self.v = vg;
+        self.raiz = raiz; self.v = vg; self.sucio = true;
         self.loco_esc = Some(e); e
     }
     /// la velocidad de verdad del pie apoyado de un clip de GMod en este personaje, con pasos enteros y más cortos
@@ -565,7 +635,7 @@ impl Personaje {
             let v5 = or(medir(self, 0.5), v * 0.5); let v8 = v5.max(or(medir(self, 0.8), v * 0.8)); let v1 = v8.max(v);
             Some(LocoM { v: v1, vs: [v5 * 0.7, v5, (v5 + v8) / 2.0, v8, v1] })
         };
-        self.raiz = raiz; self.v = vg;
+        self.raiz = raiz; self.v = vg; self.sucio = true;
         self.loco[k][j] = Some(m); m
     }
     /// caminar, correr y agacharse como en GMod (humGmMover): los dos clips que rodean la dirección, la fase que avanza
@@ -621,7 +691,7 @@ impl Personaje {
     fn postura(&mut self, dt: f32, e: &Estado) {
         let (Some(hi), Some(_), Some(ne), Some(he), Some(la), Some(ra)) = (self.h[HIPS], self.h[SPINE], self.h[NECK], self.h[HEAD], self.h[L_ARM], self.h[R_ARM]) else { return };
         let sp = e.vel[0].hypot(e.vel[2]);
-        let quiere = if e.en_suelo && !e.agachado && !(self.nado_k > 0.3) && self.emo.is_none() { if sp > 4.0 { 0.5 } else { 1.0 } } else { 0.0 };
+        let quiere = if e.en_suelo && !e.agachado && !(self.nado_k > 0.3) && self.emo.is_none() && self.sentado.is_none() { if sp > 4.0 { 0.5 } else { 1.0 } } else { 0.0 };
         self.pos_k += (quiere - self.pos_k) * (dt * 6.0).min(1.0); let k = self.pos_k; if k < 0.01 { return; }
         self.actualizar();
         // (el frente del cuerpo: de los hombros —a la derecha del personaje— y la vertical)
@@ -637,56 +707,143 @@ impl Personaje {
         // (el cuello lleva la cabeza atrás; la cara queda como venía, sin mirar arriba)
         if d_c > 1e-3 { self.girar_ya(Some(ne), der, d_c); self.girar_ya(Some(he), der, -d_c * 0.5); }
     }
-    /// el cuerpo según lo que hace (animarHumano, sin armas, asientos ni acciones; los emotes de los estados del juego, como
-    /// la patada de los NPC, si se pidió uno con `emote`)
+    /// gira un hueso alrededor de un eje del mundo, rehaciendo antes las matrices (girarMundo)
+    fn girar_mundo(&mut self, i: Option<usize>, eje: V, ang: f32) { if i.is_none() { return; } self.actualizar(); self.girar_ya(i, eje, ang); }
+    /// el cuerpo según lo que hace (animarHumano): los emotes de los estados del juego (como la patada de los NPC, si se
+    /// pidió uno con `emote`), sentado, en el aire, caminando o quieto; con un arma, su postura arriba, la columna como en
+    /// GMod y el giro de quieto compensado; el gesto del torso encima
     fn animar_humano(&mut self, dt: f32, e: &Estado) {
         let gm = self.gm.clone(); let mut t = [0.0f32; NV];
         self.ht += dt as f64;
         let sp = e.vel[0].hypot(e.vel[2]);
+        let sentado = self.sentado.map(|a| a.manejando);
+        // (H.gm: quieto con una postura de GMod; H.pa: la postura de este cuadro)
+        let mut hgm = false; let mut pa: Option<(String, Arc<Clip>)> = None;
         if let Some((c, et)) = self.emo.as_mut() {
             // (animarPersona suma el tiempo del emote antes de animar; la patada se termina sola al final del golpe, Backflip
             // y Kick al final del clip)
             *et += dt; let (c, et) = (c.clone(), *et);
             if c.patada { let k = PAT_DE + et * PAT_V; hum_clip(&c.c, gm.fps, k.min(PAT_A) as f64, 1.0, &mut t); if k >= PAT_A { self.emo = None; } }
             else { hum_clip(&c.c, gm.fps, et as f64, 1.0, &mut t); if c.una_vez && et as f64 > c.c.d { self.emo = None; } }
+        } else if let Some(man) = sentado {
+            // sentado: manejando, el del conductor (las manos en el volante); si no, el de sentado quieto
+            if let Some(c) = if man { gm.sit.as_ref() } else { gm.sit0.as_ref() } { hum_clip(c, gm.fps, self.ht, 1.0, &mut t); }
         } else if !e.en_suelo {
             // en el aire, el salto de GMod (jump_slam): despega y queda en lo alto del salto mientras dure la caída
             self.aire += dt; hum_clip(&gm.jump, gm.fps, (self.aire as f64 * 1.15).min(gm.jump.d * 0.5), 1.0, &mut t);
         } else {
             self.gm_mover(&mut t, sp, dt, e);
+            // con arma: el torso y los brazos toman la pose del arma
+            if let Some((n, c)) = self.arma.as_ref().and_then(|a| a.pose.clone()) {
+                let mut u = [0.0f32; NV]; hum_clip_de(&c, gm.fps, self.ht, 1.0, &mut u, true);
+                for k in 0..NV { if arriba(k) { t[k] = u[k]; } }
+                hgm = self.mov == 0.0 && n.starts_with("gm_"); pa = Some((n, c));
+            }
             // aterrizaje: un golpe de rodillas que se recupera solo
             if self.aire > 0.25 { self.caida = (self.aire / 0.9).min(1.0); }
             self.aire = 0.0;
             self.caida = (self.caida - dt * 3.2).max(0.0);
             let agach = (if e.agachado { 1.0f32 } else { 0.0 }).max(self.caida * 0.55);
             self.agach += (agach - self.agach) * (dt * 10.0).min(1.0);
-            // (con las de GMod el agacharse ya viene en el clip; al aterrizar, un poco de la de agachado quieto)
+            // (con las de GMod el agacharse ya viene en el clip; al aterrizar, un poco de la de agachado quieto; con un arma,
+            // los brazos y el torso quedan en su postura)
             if self.caida > 0.02 && !e.agachado {
                 let mut u = [0.0f32; NV]; hum_clip(&gm.cidle, gm.fps, self.ht, 1.0, &mut u); let k = self.caida * 0.45;
-                for i in 7..NV { t[i] += (u[i] - t[i]) * k; }
+                for i in 7..NV { if !arriba(i) || pa.is_none() { t[i] += (u[i] - t[i]) * k; } }
             }
         }
-        // transición suave sólo cuando cambia el estado: la diferencia con la pose anterior se apaga en ~0,2 s
-        let clave = if let Some((c, _)) = &self.emo { c.clave } else if !e.en_suelo { u32::MAX } else { self.par * 2 + e.agachado as u32 };
-        if !self.listo { self.v = t; self.o = [0.0; NV]; self.clave = clave; self.listo = true; }
-        if clave != self.clave {
+        // el gesto del torso encima de todo (con entrada y salida suaves: rápida para el disparo, más lenta para recargar o
+        // recibir un golpe)
+        if self.emo.is_none() && sentado.is_none() {
+            if let Some(a) = self.accion.as_mut() {
+                a.t += dt;
+                if a.t >= a.dur { self.accion = None; }
+                else {
+                    let en = (a.t / if a.tiro { 0.06 } else { 0.14 }).min(1.0);
+                    let w = a.peso * (if a.tiro { en } else { en * en * (3.0 - 2.0 * en) }) * ((a.dur - a.t) / 0.12).min(1.0);
+                    let mut u = [0.0f32; NV]; hum_clip_de(&a.c, gm.fps, (a.t as f64).min(a.c.d - 0.001), 1.0, &mut u, true);
+                    for k in 0..NV { if arriba(k) { t[k] += (u[k] - t[k]) * w; } }
+                }
+            }
+        }
+        // transición suave sólo cuando cambia el estado (quieto, corriendo, en el aire, sentado, emote o arma): la diferencia
+        // con la pose anterior se apaga en ~0,2 s
+        let clave = Clave { emo: self.emo.as_ref().map(|x| x.0.clave).unwrap_or(0), sen: match sentado { Some(true) => 2, Some(false) => 1, None => 0 },
+            loco: if !e.en_suelo { u32::MAX } else { self.par * 2 + e.agachado as u32 }, arma: self.arma.as_ref().map(|a| hash(&a.nombre)).unwrap_or(0) };
+        // parado con un arma de GMod, el torso apunta al frente aunque la cadera gire con la animación de quieto (como el
+        // aim_yaw de GMod): el giro que la compensa es parte de la pose y se funde igual que ella en los cambios de estado
+        let gy_t = if hgm { (2.0 * (t[6] * t[4] + t[3] * t[5])).atan2(1.0 - 2.0 * (t[4] * t[4] + t[3] * t[3])) } else { 0.0 };
+        if !self.listo { self.v = t; self.o = [0.0; NV]; self.clave = clave; self.listo = true; self.gy_o = 0.0; }
+        if clave != self.clave || self.forzar {
             if self.v[3] * t[3] + self.v[4] * t[4] + self.v[5] * t[5] + self.v[6] * t[6] < 0.0 { for k in 3..7 { self.v[k] = -self.v[k]; } }
-            for k in 0..NV { self.o[k] = self.v[k] - t[k]; } self.clave = clave; self.o_t = 0.0;
+            for k in 0..NV { self.o[k] = self.v[k] - t[k]; } self.clave = clave; self.o_t = 0.0; self.gy_o = self.gy - gy_t; self.forzar = false;
         } else { self.o_t += dt; }
         // (se apaga como un resorte amortiguado: arranca sin velocidad)
         let ko = 16.0 * self.o_t; let fo = if ko > 12.0 { 0.0 } else { (1.0 + ko) * (-ko).exp() };
         for k in 0..NV { self.v[k] = t[k] + self.o[k] * fo; }
+        self.gy = gy_t + self.gy_o * fo;
         self.hum_aplicar();
-        // la cadera girada hacia donde camina y mirar arriba o abajo con la cabeza y el pecho
-        self.cad_w += ((if !e.en_suelo || self.emo.is_some() { 0.0 } else { 1.0 }) - self.cad_w) * (dt * 10.0).min(1.0);
+        // con un arma, el pecho como en la postura de GMod (entra y sale suave)
+        let si = pa.is_some() && self.emo.is_none() && sentado.is_none() && !(self.nado_k > 0.3);
+        if si { self.pa_t = pa.clone(); }
+        self.ta_k += ((si as u8 as f32) - self.ta_k) * (dt * 8.0).min(1.0); if self.ta_k < 0.002 { self.ta_k = 0.0; }
+        if let Some((n, c)) = self.pa_t.clone() { if self.ta_k > 0.0 && self.emo.is_none() && sentado.is_none() { self.torso_arma(&n, &c, self.ta_k); } }
+        // la cadera girada hacia donde camina y mirar arriba o abajo con la cabeza y el pecho (la cadera vuelve de a poco al
+        // salir de un emote, del asiento o del aire)
+        self.cad_w += ((if !e.en_suelo || self.emo.is_some() || sentado.is_some() { 0.0 } else { 1.0 }) - self.cad_w) * (dt * 10.0).min(1.0);
         let cad = self.cadera * self.cad_w;
-        if e.mira != 0.0 || cad.abs() > 0.01 {
+        // (con el torso llevado a la postura, la cadera ya no lo gira)
+        let gy = if self.gy.abs() > 1e-3 { self.gy * (1.0 - self.ta_k) } else { 0.0 };
+        if e.mira != 0.0 || cad.abs() > 0.01 || gy != 0.0 {
             let mut acc = [None; 20];
             if cad.abs() > 0.01 { self.girar(&mut acc, HIPS, [0.0, 1.0, 0.0], -cad); self.girar(&mut acc, SPINE, [0.0, 1.0, 0.0], cad * 0.45); self.girar(&mut acc, SPINE1, [0.0, 1.0, 0.0], cad * 0.3); self.girar(&mut acc, SPINE2, [0.0, 1.0, 0.0], cad * 0.25); }
             if e.mira != 0.0 { self.girar(&mut acc, SPINE2, [1.0, 0.0, 0.0], e.mira * 0.3); self.girar(&mut acc, HEAD, [1.0, 0.0, 0.0], e.mira * 0.4); }
             self.aplicar_giros(&acc);
+            // (sobre la vertical del mundo, rehaciendo las matrices antes de cada giro)
+            if gy != 0.0 { for (k, f) in [(SPINE, 0.45), (SPINE1, 0.3), (SPINE2, 0.25)] { self.girar_mundo(self.h[k], [0.0, 1.0, 0.0], gy * f); } }
         }
         self.postura(dt, e);
+    }
+    /// cómo queda el primer hueso de la columna (en el marco del cuerpo) con la postura `n`, horneada sobre la cadera del
+    /// Hero quieto (humTorsoRef: el de mirar alrededor abajo y la postura arriba, en su primer cuadro). Una vez por postura
+    fn torso_ref(&mut self, n: &str, c: &Clip) -> Option<Q> {
+        if let Some(q) = self.torso_ref.get(n) { return Some(*q); }
+        let i = self.h[SPINE]?; let gm = self.gm.clone();
+        let (raiz, v, r, p) = (self.raiz, self.v, self.r.clone(), self.p.clone());
+        let mut t = [0.0f32; NV]; let mut u = [0.0f32; NV];
+        if let Some(idle) = &gm.idle_pose { hum_clip(idle, gm.fps, 0.0, 1.0, &mut t); }
+        hum_clip_de(c, gm.fps, 0.0, 1.0, &mut u, true); for k in 0..NV { if arriba(k) { t[k] = u[k]; } }
+        self.raiz = m4::id(); self.v = t; self.hum_aplicar(); self.actualizar();
+        let q = m4quat(&self.w[i]);
+        self.raiz = raiz; self.v = v; self.r = r; self.p = p; self.sucio = true;
+        self.torso_ref.insert(n.to_string(), q); Some(q)
+    }
+    /// con un arma, la columna como en la postura de GMod (humTorsoArma): el primer hueso de la columna se lleva (con peso
+    /// k) a como queda en el horneado, en el marco del cuerpo; lo de arriba cuelga de él. (Como en la web, con las matrices
+    /// del cuadro anterior —humAplicar no marca el modelo—, salvo que algo las haya rehecho: así el torso sigue a la
+    /// postura con un cuadro de atraso y se funde de a poco)
+    fn torso_arma(&mut self, n: &str, c: &Clip, k: f32) {
+        let (Some(i), Some(_)) = (self.h[SPINE], self.h[HIPS]) else { return }; if k <= 0.001 { return; }
+        let Some(qr) = self.torso_ref(n, c) else { return };
+        if self.sucio { self.actualizar(); self.sucio = false; }
+        let qt = qmul(m4quat(&self.raiz), qr);
+        let qn = m4quat(&self.w[i]); let qf = if k < 0.999 { slerp(qn, qt, k) } else { qt };
+        self.r[i] = qnorm(qmul(qconj(m4quat(&self.w[self.pa[i].max(0) as usize])), qf));
+    }
+    /// los dedos de un arma de GMod, una vez por arma (dedosCalcular, sobre el esqueleto en reposo)
+    fn dedos_de(&mut self, a: &ArmaMano) -> Option<Arc<Vec<(usize, Q)>>> {
+        if let Some(x) = self.dedos.get(&a.nombre) { return x.clone(); }
+        let r = a.agarre.as_ref().and_then(|ag| {
+            let mut esq = Esq { pa: &self.pa, act: &self.act, p: &self.reposo.0, r: self.reposo.1.clone(), s: &self.reposo.2, w: vec![m4::id(); self.pa.len()] };
+            crate::arma_mano::dedos_calcular(&mut esq, &self.manos, ag)
+        }).map(Arc::new);
+        self.dedos.insert(a.nombre.clone(), r.clone()); r
+    }
+    /// con un arma de GMod en la mano, los dedos cerrados como en GMod (agarreGm)
+    fn agarre(&mut self) {
+        let Some(a) = self.arma.clone() else { return };
+        if self.emo.is_some() || self.sentado.is_some() || a.agarre.is_none() { return; }
+        if let Some(l) = self.dedos_de(&a) { for &(i, q) in l.iter() { self.r[i] = q; } }
     }
 
     // ---------------- nadar (emotes.js) ----------------
@@ -804,13 +961,22 @@ impl Personaje {
     /// 0,25 s como P.dtJunto)
     pub fn animar(&mut self, dt: f32, e: &Estado) {
         let dt = if dt > 0.0 { dt.min(0.25) } else { 0.016 };
+        // (sentado está apoyado —P.suelo— y no nada)
+        let sentado = self.sentado;
+        let e = &Estado { en_suelo: e.en_suelo || sentado.is_some(), agua: if sentado.is_some() { None } else { e.agua }, ..*e };
+        self.rag = false;
         // nadando: la pose de nado entra y sale suave
         self.nado_k += ((e.agua.is_some() as u8 as f32) - self.nado_k) * (dt * 4.0).min(1.0);
         self.animar_humano(dt, e);
         self.nado_pose(dt, e);
-        // (ubicarPersona: la raíz en el piso, sin la corrección de los pies del cuadro anterior)
+        self.agarre();
+        // (ubicarPersona: la raíz en el piso, sin la corrección de los pies del cuadro anterior; sentado, en el asiento:
+        // `base_sentado`)
         self.raiz = m4::id();
-        if self.nado_k > 0.01 && e.agua.is_some() {
+        if let Some(a) = sentado {
+            // (en un auto: la cadera en el asiento y los pies en el piso; sentado no se clavan los pies)
+            self.ik = None; self.asiento_pose(&a);
+        } else if self.nado_k > 0.01 && e.agua.is_some() {
             // (nadoAltura: la cadera justo debajo del agua; sin la pose de nado —nado_w 0— queda como está)
             self.ik = None;
             if let (Some(hi), Some(ay)) = (self.h[HIPS], e.agua) {
@@ -819,7 +985,7 @@ impl Personaje {
             }
         } else if self.emo.is_some() { self.ik = None; }   // (en un emote no se apoyan ni se clavan los pies: dibujarPersona)
         else { self.aterrizar_pies(dt, e); self.pies_ik(dt, e); }
-        self.actualizar();
+        self.actualizar(); self.sucio = false;
         self.calcular_paleta();
     }
 
@@ -841,6 +1007,8 @@ impl Personaje {
             let esf = [cc[0], cc[1], cc[2], pz.r * 1.6 * if e > 0.0 { e } else { 1.0 }];
             for &(s0, sn, mat) in &pz.partes { out.push(ItemDin { m: pz.m, s0, sn, mat, mm: m4::id(), esf, fl: 0, h: h.clone() }); }
         }
+        // el arma en la mano derecha (sentado, en un emote o tirado, no)
+        if let Some(m) = self.arma_matriz() { if let Some(a) = &self.arma { a.items(&m4::mul(base, &m), out); } }
     }
 
     /// la matriz de un hueso humanoide (de HUESOS: «Head», «RightHand»…) en el espacio del personaje (el mundo: base × ésta)
@@ -860,6 +1028,7 @@ impl Personaje {
     /// demás siguen a su padre con su giro de antes (la raíz, con `raiz`, la base del último cuadro animado); después se
     /// dibuja con `items(&m4::id(), …)`. No llamar a `animar` mientras tanto
     pub fn poner_fijos(&mut self, raiz: &M4, fijos: &[Option<M4>]) {
+        self.rag = true;
         for i in 0..self.w.len() {
             if !self.act[i] { continue; }
             if let Some(Some(f)) = fijos.get(i) { self.w[i] = *f; continue; }
@@ -868,6 +1037,153 @@ impl Personaje {
         }
         self.calcular_paleta();
     }
+
+    // ---------------- el arma ----------------
+    /// el arma en la mano (P.arma: el nombre de DEF_ARMAS, «Pistol», «PhysicsGun», «Hands»…; None: sin arma). La primera
+    /// vez de cada arma la carga (su postura, sus gestos, el agarre y el modelo de mundo) y devuelve la escena con lo que el
+    /// motor todavía no tiene (`ya`: lo que ya tiene, el mismo con el que se cargó el cuerpo). Se puede llamar en cada cuadro
+    pub fn poner_arma(&mut self, paq: &mut Paquete, nombre: Option<&str>, ya: &mut Cargados) -> Option<Escena> {
+        let Some(n) = nombre else { self.arma = None; return None };
+        if self.arma.as_ref().map(|a| a.nombre == n).unwrap_or(false) { return None; }
+        let mut esc = None;
+        if !self.armas.contains_key(n) {
+            match ArmaMano::cargar(paq, n, false, 512, ya) { Ok((a, e)) => { self.armas.insert(n.to_string(), Arc::new(a)); if !e.c.mallas.is_empty() || !e.c.mats.is_empty() || !e.c.texs.is_empty() { esc = Some(e); } } Err(_) => {} }
+        }
+        self.arma = self.armas.get(n).cloned(); esc
+    }
+    /// el arma en la mano, ya cargada (`ArmaMano::cargar`; para los NPC, que comparten las de su skin)
+    pub fn armar(&mut self, a: Option<Arc<ArmaMano>>) { if let Some(a) = &a { self.armas.entry(a.nombre.clone()).or_insert_with(|| a.clone()); } self.arma = a; }
+    /// el arma que tiene en la mano
+    pub fn arma(&self) -> Option<&str> { self.arma.as_ref().map(|a| a.nombre.as_str()) }
+    /// un gesto del torso (humAccion): tirar o recargar (los del arma que tiene; sin arma o si el arma no tiene, nada) o
+    /// recibir un golpe. Si corta otro gesto a la mitad, se parte de la pose que se ve
+    pub fn accion(&mut self, g: Gesto) {
+        let (c, dur, peso) = match g {
+            Gesto::Tiro => match self.arma.as_ref().and_then(|a| a.tiro.clone()) { Some((c, d)) => (c, d, 1.0), None => return },
+            Gesto::Recarga => match self.arma.as_ref().and_then(|a| a.recarga.clone()) { Some((c, d)) => (c, d, 1.0), None => return },
+            Gesto::Golpe => match self.gm.golpe.clone() { Some(c) => { let d = c.d as f32; (c, d, 0.75) } None => return },
+        };
+        if self.accion.is_some() { self.forzar = true; }
+        self.accion = Some(Accion { c, t: 0.0, dur, peso, tiro: g == Gesto::Tiro });
+    }
+    /// la matriz del modelo del arma en la mano (armaGmDibujar o arma3p), en el espacio del personaje (en el mundo: la base
+    /// por ésta), si se dibuja: no sentado, ni en un emote, ni tirado
+    pub fn arma_matriz(&self) -> Option<M4> {
+        if self.rag || self.sentado.is_some() || self.emo.is_some() { return None; }
+        self.arma.as_ref()?.matriz(&self.w, &self.manos)
+    }
+    /// el marco de la mano (0 la derecha, 1 la izquierda: manoMarco) en el espacio del personaje y el largo de la mano (para
+    /// las pruebas)
+    pub fn mano_marco(&self, k: usize) -> Option<(M4, f64)> { self.manos.marco(&self.w, k) }
+
+    // ---------------- sentado (vehiculos.js) ----------------
+    /// sentado en un vehículo (P.sentado; None: se para). Se llama en cada cuadro mientras va sentado, antes de `animar`, con
+    /// dónde está el vehículo; la primera vez en un auto se mide cuánto cuelga debajo de la cadera (asientoFaldon: por eso
+    /// el paquete). Se dibuja con `base_sentado`
+    pub fn sentar(&mut self, paq: &Paquete, a: Option<Asiento>) {
+        if let Some(x) = &a { if x.cab.is_some() && self.faldon.is_none() { self.faldon = Some(self.faldon_de(paq, x.manejando)); } }
+        self.sentado = a;
+    }
+    /// si va sentado
+    pub fn sentado(&self) -> bool { self.sentado.is_some() }
+    /// la base del personaje sentado (ubicarPersona con P.qVeh): el giro entero del vehículo, con el pivote en la cadera (1
+    /// m arriba de los pies; menos en los bajitos). Para `items`
+    pub fn base_sentado(&self) -> Option<M4> {
+        let a = self.sentado?; let d = qrot(a.q, [0.0, -self.tam, 0.0]);
+        Some(trs(add(a.pos, d), a.q, [1.0; 3]))
+    }
+    /// cuánto cuelga debajo de la cadera, en la pose de sentado y sobre la vertical del asiento, lo que la piel pega sobre
+    /// todo a la cadera (en una persona, ≈ 15 cm; en uno con sobretodo, el sobretodo entero) y lo que pega a los muslos
+    /// (asientoFaldon). La web lo mide en el primer cuadro en el auto; acá, en la pose del clip de sentado
+    fn faldon_de(&mut self, paq: &Paquete, manejando: bool) -> (f32, f32) {
+        let Some(ih) = self.h[HIPS] else { return (0.0, 0.0) };
+        let gm = self.gm.clone(); let Some(c) = (if manejando { gm.sit.as_ref() } else { gm.sit0.as_ref() }) else { return (0.0, 0.0) };
+        let (raiz, v, r, p) = (self.raiz, self.v, self.r.clone(), self.p.clone());
+        let mut t = [0.0f32; NV]; hum_clip(c, gm.fps, self.ht, 1.0, &mut t);
+        self.raiz = m4::id(); self.v = t; self.hum_aplicar(); self.actualizar(); self.calcular_paleta();
+        let hy = self.w[ih][13]; let (mut l, mut lm) = (0.0f32, 0.0f32);
+        let muslos = [self.h[L_UPLEG], self.h[R_UPLEG]];
+        for (pz, pal) in self.pieles.iter().zip(&self.paleta) {
+            let md = &paq.d["ms"][pz.m as usize]; let Some(b) = paq.bin_de(md) else { continue }; let Some(sk) = md["sk"].as_u64() else { continue };
+            let slot = |n: Option<usize>| n.and_then(|n| pz.bo.iter().position(|&x| x == n as i32));
+            let (j, jm) = (slot(Some(ih)), [slot(muslos[0]), slot(muslos[1])]);
+            if j.is_none() && jm[0].is_none() && jm[1].is_none() { continue; }
+            let (nv, of, sk) = (md["v"].as_u64().unwrap_or(0) as usize, md["o"].as_u64().unwrap_or(0) as usize, sk as usize);
+            let (mn, sc) = (v3(&md["mn"], [0.0; 3]), v3(&md["sc"], [1.0; 3]));
+            for k in 0..nv {
+                let q = of + k * 14; let s = sk + k * 8; if q + 6 > b.len() || s + 8 > b.len() { break; }
+                // (el hueso que más pesa: el primero con el peso más grande)
+                let (mut mj, mut mw) = (0usize, -1i32); for c in 0..4 { if b[s + 4 + c] as i32 > mw { mw = b[s + 4 + c] as i32; mj = b[s + c] as usize; } }
+                let muslo = Some(mj) == jm[0] || Some(mj) == jm[1]; if Some(mj) != j && !muslo { continue; }
+                let u = |e: usize| u16::from_le_bytes([b[q + e * 2], b[q + e * 2 + 1]]) as f32 / 65535.0;
+                let pp = [mn[0] + u(0) * sc[0], mn[1] + u(1) * sc[1], mn[2] + u(2) * sc[2]]; let mut y = 0.0f32;
+                for e in 0..4 { let w = b[s + 4 + e] as f32 / 255.0; if w == 0.0 { continue; } if let Some(m) = pal.get(b[s + e] as usize) { y += w * punto(m, pp)[1]; } }
+                if muslo { lm = lm.max(hy - y); } else { l = l.max(hy - y); }
+            }
+        }
+        self.raiz = raiz; self.v = v; self.r = r; self.p = p; self.actualizar(); self.calcular_paleta();
+        (l, lm)
+    }
+    /// el cuerpo sentado en un auto (asientoPose, después de ubicarPersona): la cadera sobre el almohadón (10 cm arriba en
+    /// el Hero, a escala; más si lo que cuelga de los muslos se hundía), la raíz hasta el almohadón (lo pegado a ella no
+    /// sale por debajo del auto), lo que cuelga de la cadera inclinado hacia adelante y los pies apoyados en el piso de
+    /// adelante, sin pasar la pared de los pedales. Todo en el espacio del personaje: el del asiento corrido `off`
+    fn asiento_pose(&mut self, a: &Asiento) {
+        let (Some(cab), Some(hi)) = (a.cab, self.h[HIPS]) else { return };
+        let s = clamp(self.tam, 0.3, 3.0); let coj = cab.coj as f32;
+        // (del espacio del personaje al marco del cuerpo del vehículo: un corrimiento, el giro es el mismo)
+        let off = add(qrot(qconj(a.q), sub(a.pos, a.veh)), [0.0, -self.tam, 0.0]);
+        let (falda, nalga) = self.faldon.unwrap_or((0.0, 0.0));
+        self.actualizar();
+        let cad = self.w[hi][13] + off[1];
+        let dy = (coj + 0.1 * s).max(coj - 0.2 * s + nalga) - cad;
+        self.raiz[13] += dy; self.actualizar();
+        // (la raíz, que parado está en los pies, sentado quedaba 1 m abajo de la cadera: sube hasta el almohadón y la cadera
+        // baja lo mismo en su hueso padre; el cuerpo queda igual)
+        if self.ci == hi && self.pa[hi] >= 0 {
+            let sube = coj - (self.raiz[13] + off[1]);
+            if sube > 0.01 {
+                self.raiz[13] += sube;
+                let ip = crate::arma_mano::inv(&self.w[self.pa[hi] as usize]); let d = -sube;
+                for e in 0..3 { self.p[hi][e] += ip[4 + e] * d; }
+                self.actualizar();
+            }
+        }
+        // (lo que cuelga de la cadera, como un sobretodo, va para adelante sobre las piernas: la cadera se inclina lo justo y
+        // la columna vuelve a como estaba)
+        if falda > 0.35 * s { if let Some(piso) = cab.piso {
+            let hy = self.w[hi][13] + off[1]; let c = clamp((hy - piso as f32 - 0.05) / falda, 0.09, 1.0); let th = c.acos();
+            if th > 0.02 { self.girar_mundo(Some(hi), [1.0, 0.0, 0.0], -th); self.girar_mundo(self.h[SPINE], [1.0, 0.0, 0.0], th); self.actualizar(); }
+        } }
+        // los pies: al piso de adelante, a lo que da la pierna (88 % estirada), sin pasar la pared de los pedales
+        let Some(piso) = cab.piso else { return }; let piso = piso as f32;
+        let z_tope = cab.asiento[2] as f32 + cab.lejos.filter(|x| *x != 0.0).unwrap_or(0.6) as f32 - 0.06;
+        for (u, k, f) in [(L_UPLEG, L_LEG, L_FOOT), (R_UPLEG, R_LEG, R_FOOT)] {
+            let (Some(u), Some(k), Some(f)) = (self.h[u], self.h[k], self.h[f]) else { continue };
+            let (hp, kp, fp) = (add(pos(&self.w[u]), off), add(pos(&self.w[k]), off), add(pos(&self.w[f]), off));
+            let lg = largo(sub(hp, kp)) + largo(sub(kp, fp)); let y_pie = piso + 0.08 * s; let alto = hp[1] - y_pie;
+            // (si el pie ya queda arriba del piso y adentro de la cabina, como está)
+            if fp[1] >= y_pie - 0.005 && fp[2] <= z_tope { continue; }
+            let adel = (((lg * 0.88).powi(2) - alto * alto).max(0.0).sqrt()).min(z_tope - hp[2]).max(0.05);
+            let t = sub([fp[0], y_pie, hp[2] + adel], off);
+            // (la rodilla hacia arriba y adelante; el pie, con el giro que tenía: plano en el piso)
+            let qf = m4quat(&self.w[f]); self.ik2(u, k, f, t, [0.0, 0.8, 0.6], Some(qf)); self.actualizar();
+        }
+    }
+    /// dos huesos (muslo y pierna) hasta el punto t; la rodilla hacia `polo`; la punta con el giro `qfin` (ik2 de nativos.js)
+    fn ik2(&mut self, iu: usize, ik: usize, ia: usize, t: V, polo: V, qfin: Option<Q>) {
+        let (hp, kp, ap) = (pos(&self.w[iu]), pos(&self.w[ik]), pos(&self.w[ia])); let (a, b) = (largo(sub(kp, hp)), largo(sub(ap, kp)));
+        let d = clamp(largo(sub(t, hp)), (a - b).abs() + 1e-3, a + b - 1e-3); let dir = norm(sub(t, hp));
+        let x = (a * a - b * b + d * d) / (2.0 * d); let hh = (a * a - x * x).max(0.0).sqrt();
+        let mut pl = sub(polo, esc(dir, dot(polo, dir))); if largo(pl) < 1e-5 { pl = sub(kp, hp); } let pl = norm(pl);
+        let kn = add(hp, add(esc(dir, x), esc(pl, hh))); let tn = add(hp, esc(dir, d));
+        let (qu, qk, qpu) = (m4quat(&self.w[iu]), m4quat(&self.w[ik]), m4quat(&self.w[self.pa[iu].max(0) as usize]));
+        let r1 = rot_entre(sub(kp, hp), sub(kn, hp)); let qun = qmul(r1, qu); let a2 = add(hp, qrot(r1, sub(ap, hp)));
+        let qkn = qmul(qmul(rot_entre(sub(a2, kn), sub(tn, kn)), r1), qk);
+        self.r[iu] = qnorm(qmul(qconj(qpu), qun)); self.r[ik] = qnorm(qmul(qconj(qun), qkn));
+        if let Some(qf) = qfin { self.r[ia] = qnorm(qmul(qconj(qkn), qf)); }
+    }
+
     /// lo más bajo de las suelas ahora (en el espacio del personaje): el tobillo menos su altura o el talón o la punta
     pub fn suela(&self) -> Option<f32> {
         let (lf, rf) = (self.h[L_FOOT]?, self.h[R_FOOT]?);

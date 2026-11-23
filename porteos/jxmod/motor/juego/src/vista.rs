@@ -101,8 +101,8 @@ pub fn pintados(jx: &str) -> &'static [bool] {
     match jx { "fisica" => &[true, false], "gravedad" => &[false, true], "tool" => &[true, false, true, true, false], "palanca" => &[true, false, true], _ => &[] }
 }
 /// el material pintado de `mt` con la paleta número `k` (otro id, para que el mismo material sin pintar siga estando)
-fn id_pintado(mt: i64, k: usize) -> i64 { mt + 10_000_000 * (k as i64 + 1) }
-const JX: [&str; 4] = ["fisica", "gravedad", "tool", "palanca"];
+pub(crate) fn id_pintado(mt: i64, k: usize) -> i64 { mt + 10_000_000 * (k as i64 + 1) }
+pub(crate) const JX: [&str; 4] = ["fisica", "gravedad", "tool", "palanca"];
 
 /// el ícono de GMod con la pintura del arma (ajxIconoTenido, para la barra y el menú): en dos tonos como en el juego (lo
 /// gris con el color del cuerpo y lo de color con el de los acentos), aclarado (los íconos de GMod son el modelo casi

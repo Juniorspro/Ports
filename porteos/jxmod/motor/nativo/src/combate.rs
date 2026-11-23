@@ -25,6 +25,7 @@ impl Juego {
         if self.armas.ocup > 0.0 || self.armas.t > 0.0 || !matches!(d.tipo, "bala" | "perdigones" | "cohete" | "flecha" | "golpe") { return; }
         if d.car > 0 && self.armas.balas.get(i).copied().unwrap_or(d.car) == 0 { self.recargar(); return; }
         self.armas.t = d.cad;
+        if let Some(pj) = self.pj.as_mut() { pj.accion(personaje::Gesto::Tiro); }   // (humAccion 'tiro')
         let (o, dir) = (self.ojos_ult, self.mira());
         let sf = if d.s_f.is_empty() { "" } else { d.s_f[(self.armas.azar01() * d.s_f.len() as f32) as usize % d.s_f.len()] };
         match d.tipo {
@@ -70,7 +71,8 @@ impl Juego {
     pub(super) fn recargar(&mut self) {
         let d = self.armas.def();
         let dur = self.paq.as_ref().and_then(|p| self.clips.de(&p.d, d.recarga)).map(|c| c.d).unwrap_or(0.0);
-        self.armas.recargar(dur);
+        let antes = self.armas.recargando; self.armas.recargar(dur);
+        if self.armas.recargando > 0.0 && antes <= 0.0 { if let Some(pj) = self.pj.as_mut() { pj.accion(personaje::Gesto::Recarga); } }
     }
     /// el rayo del mapa y de los objetos (raycast): la distancia, el punto, la normal y el cuerpo, si lo hay
     fn rayo_obj(&mut self, o: [f32; 3], d: [f32; 3], max: f32) -> Option<(f32, [f32; 3], [f32; 3], Option<u32>)> {
@@ -206,6 +208,7 @@ impl Juego {
     pub(super) fn danar_jugador(&mut self, dan: f32) {
         if dan <= 0.0 { return; }
         self.jug.vida -= dan; self.golpe_t = 0.4;
+        if let Some(pj) = self.pj.as_mut() { pj.accion(personaje::Gesto::Golpe); }
         if self.jug.vida <= 0.0 { self.jug.vida = 0.0; self.muerto = true; }
     }
     /// los proyectiles para dibujar (dibujarProyectiles) y las trazas de las balas

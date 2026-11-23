@@ -6,8 +6,10 @@
 //! Las mismas cuentas y en el mismo orden que el JS (verificado contra la web corriendo en node: vehiculo.rs de las
 //! pruebas). Lo que el JS guarda en el jugador (JUG.vehiculo, JUG.asiento, JUG.fpVeh) está en `Vehiculos`; el jugador
 //! mismo (jugador.rs) no se toca: mientras maneja, quien juega no corre su paso y lo pone donde dice `Camara::jugador`.
+//! La cabina de cada asiento de los autos (vehCols y vehCabina: el almohadón y el piso de adelante, medidos en la malla
+//! del auto) para sentar bien al personaje (`Vehiculos::cabina` y personaje.rs: asientoPose).
 //! No están: la red, la interfaz HTML, las partículas (llamas del avión, fuego del cohete: se dice dónde), la luz del
-//! cohete, la pose de sentado del personaje (asientoPose: necesita la malla del auto) y las abolladuras (destruccion.js).
+//! cohete y las abolladuras (destruccion.js).
 use crate::fisica::{add, cruz, dot, esc, hypot_js, largo, norm, qeje, qmul, rot, rot_inv, sub, Cuerpo, Fisica, Q, QID, V, GRAV};
 use crate::flotar::{Aguas, Flota};
 use crate::forma::PrefabFisica;
@@ -151,6 +153,96 @@ pub struct Vehiculo {
     vel_ant: f64, vuelco_t: f64, ejes: Option<f64>, tobera: Option<V>, art: Option<String>,
     /// el árbol para dibujar: padre, activo, la matriz local (como objetos.rs)
     nodos: Vec<(i64, bool, M4)>,
+    /// la clave del prefab en DATA.pf (para leer su malla), la malla en la grilla (V.cols) y la cabina de cada asiento (V.cab)
+    clave: String, cols: Option<std::sync::Arc<Cols>>, cab: std::collections::HashMap<usize, Option<Cabina>>,
+}
+
+// ---------------- sentado de verdad: la cabina de cada auto (vehiculos.js) ----------------
+/// la cabina de un asiento de un auto, en el marco del cuerpo (vehCabina): el almohadón (en los autos del juego, donde ya
+/// se sentaba el Hero: su punto de asiento —SitPoint— está hecho para él, la cadera 24 cm arriba, 10 cm sobre el
+/// almohadón; en los de los addons de GMod se mide en la malla debajo del asiento), el piso de adelante (lo más alto de
+/// 30 a 90 cm adelante que queda 12 cm o más bajo el almohadón: los pedales, la pared de adelante inclinada), hasta dónde
+/// llega ese piso (la pared de los pedales) y el asiento
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Cabina { pub coj: f64, pub piso: Option<f64>, pub lejos: Option<f64>, pub asiento: V }
+/// la malla del auto en su marco (sin las ruedas), en una grilla de 10 cm para preguntar qué cruza una vertical (vehCols):
+/// los triángulos (9 números cada uno) y, por celda, cuáles la tocan
+#[derive(Debug, Default)]
+pub struct Cols { t: Vec<f64>, g: std::collections::HashMap<(i64, i64), Vec<usize>> }
+impl Cols {
+    /// de la malla del auto (los nodos que se ven, sin los colliders ni las ruedas), en el marco del cuerpo. None si falta
+    /// alguna malla
+    fn de(paq: &Paquete, v: &Vehiculo, arb: &[Value]) -> Option<Cols> {
+        let d = &paq.d; let w = v.matrices(); let n = arb.len().min(w.len());
+        let sin: Vec<usize> = v.ruedas.iter().filter_map(|r| r.vis).collect();
+        let de_rueda = |i: usize| { let mut k = i as i64; while k >= 0 { if sin.contains(&(k as usize)) { return true; } k = arb[k as usize]["pa"].as_i64().unwrap_or(-1); } false };
+        // (los niveles de detalle: el más fino, como GFX.lod en alto)
+        let mut por_rid = std::collections::HashMap::new(); for (i, x) in arb.iter().enumerate() { if let Some(r) = x["rid"].as_i64() { por_rid.insert(r, i); } }
+        let mut oculto = vec![false; arb.len()];
+        for x in arb { if let Some(l) = x["lod"].as_array() { for (k, g) in l.iter().enumerate() { if k != 0 { for rid in g[1].as_array().into_iter().flatten() { if let Some(&i) = rid.as_i64().and_then(|r| por_rid.get(&r)) { oculto[i] = true; } } } } } }
+        let mut t: Vec<f64> = vec![];
+        for i in 0..n {
+            let x = &arb[i]; let mi = x["m"].as_i64().unwrap_or(-1);
+            let ver = v.nodos[i].1 && mi >= 0 && x["mt"].is_array() && x["mroff"].is_null() && !oculto[i];
+            if !ver || x["n"].as_str().unwrap_or("").to_lowercase().contains("collider") || de_rueda(i) { continue; }
+            let md = &d["ms"][mi as usize]; let bin = paq.bin_de(md)?; let subs = md["sub"].as_array()?;
+            let (nv, o, ii) = (md["v"].as_u64().unwrap_or(0) as usize, md["o"].as_u64().unwrap_or(0) as usize, md["i"].as_u64().unwrap_or(0) as usize);
+            let (mn, sc) = (arr3(&md["mn"], [0.0; 3]), arr3(&md["sc"], [1.0; 3])); let m = &w[i];
+            // (mallaCPU: las posiciones en float; al marco del cuerpo: M·p − c)
+            let mut l = Vec::with_capacity(nv);
+            for k in 0..nv {
+                let q = o + k * 14; if q + 6 > bin.len() { break; }
+                let u = |j: usize| (mn[j] + u16::from_le_bytes([bin[q + j * 2], bin[q + j * 2 + 1]]) as f64 / 65535.0 * sc[j]) as f32 as f64;
+                let p = [u(0), u(1), u(2)]; let f = |e: usize| m[e] as f64;
+                l.push([f(0) * p[0] + f(4) * p[1] + f(8) * p[2] + f(12) - v.c[0], f(1) * p[0] + f(5) * p[1] + f(9) * p[2] + f(13) - v.c[1], f(2) * p[0] + f(6) * p[1] + f(10) * p[2] + f(14) - v.c[2]]);
+            }
+            let i32 = md["i32"].as_bool().unwrap_or(false); let ni = subs.iter().map(|s| s[0].as_u64().unwrap_or(0) + s[1].as_u64().unwrap_or(0)).max().unwrap_or(0) as usize;
+            let idx = |k: usize| -> Option<usize> { if i32 { bin.get(ii + k * 4..ii + k * 4 + 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize) } else { bin.get(ii + k * 2..ii + k * 2 + 2).map(|b| u16::from_le_bytes([b[0], b[1]]) as usize) } };
+            let mut k = 0; while k + 2 < ni { for j in [idx(k), idx(k + 1), idx(k + 2)] { let p = j.and_then(|j| l.get(j)).copied().unwrap_or([0.0; 3]); t.extend_from_slice(&p); } k += 3; }
+        }
+        let c = 0.1; let mut g: std::collections::HashMap<(i64, i64), Vec<usize>> = std::collections::HashMap::new();
+        let mut k = 0;
+        while k + 9 <= t.len() {
+            let fl = |a: f64| (a / c).floor() as i64;
+            let (x0, x1) = (fl(t[k].min(t[k + 3]).min(t[k + 6])), fl(t[k].max(t[k + 3]).max(t[k + 6])));
+            let (z0, z1) = (fl(t[k + 2].min(t[k + 5]).min(t[k + 8])), fl(t[k + 2].max(t[k + 5]).max(t[k + 8])));
+            if (x1 - x0 + 1) * (z1 - z0 + 1) <= 2500 { for i in x0..=x1 { for j in z0..=z1 { g.entry((i, j)).or_default().push(k); } } }
+            k += 9;
+        }
+        Some(Cols { t, g })
+    }
+    /// las alturas de lo que cruza la vertical por x, z (en el marco del cuerpo)
+    pub fn cortes(&self, x: f64, z: f64) -> Vec<f64> {
+        let mut ys = vec![]; let c = 0.1;
+        let Some(l) = self.g.get(&(((x / c).floor()) as i64, ((z / c).floor()) as i64)) else { return ys };
+        for &k in l {
+            let tt = &self.t[k..k + 9]; let (ax, ay, az, bx, by, bz, cx, cy, cz) = (tt[0], tt[1], tt[2], tt[3], tt[4], tt[5], tt[6], tt[7], tt[8]);
+            let d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz); if d.abs() < 1e-10 { continue; }
+            let u = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d; let v = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d; let w = 1.0 - u - v;
+            if u >= -1e-4 && v >= -1e-4 && w >= -1e-4 { ys.push(u * ay + v * by + w * cy); }
+        }
+        ys
+    }
+}
+/// la cabina del asiento `s` (vehCabina)
+fn cabina_de(c: &Cols, nombre: &str, s: V) -> Cabina {
+    let coj = if nombre.starts_with("gmveh:") {
+        // (los de los addons: lo más alto debajo del punto de asiento, de 35 cm abajo a 25 cm arriba)
+        let mut coj: Option<f64> = None;
+        for (dx, dz) in [(0.0, 0.0), (0.06, 0.0), (-0.06, 0.0), (0.0, -0.06), (0.0, 0.06)] { for y in c.cortes(s[0] + dx, s[2] + dz) { if y < s[1] + 0.25 && y > s[1] - 0.35 && coj.map(|c| y > c).unwrap_or(true) { coj = Some(y); } } }
+        coj.unwrap_or(s[1] - 0.04)
+    } else { s[1] + 0.14 };
+    let mut r = Cabina { coj, piso: None, lejos: None, asiento: s };
+    let mut pisos = vec![]; let mut dz = 0.3f64;
+    while dz <= 0.901 {
+        let mut p: Option<f64> = None;
+        for dx in [-0.12, 0.0, 0.12] { for y in c.cortes(s[0] + dx, s[2] + dz) { if y < coj - 0.12 && y > coj - 1.2 && p.map(|p| y > p).unwrap_or(true) { p = Some(y); } } }
+        let Some(p) = p else { break };   // (adelante no hay piso: se terminó la cabina)
+        pisos.push(p); r.lejos = Some(dz);
+        dz += 0.05;
+    }
+    if !pisos.is_empty() { r.piso = Some(pisos.iter().copied().fold(f64::NEG_INFINITY, f64::max)); }
+    r
 }
 
 /// lo que pasó en un paso y quien juega tiene que hacer
@@ -262,7 +354,7 @@ impl Vehiculo {
         let mut v = Vehiculo { cuerpo, nombre: nombre.to_string(), tipo, c, ruedas: vec![], asientos: vec![], rotores: vec![], jets: vec![],
             vida: if tipo == Tipo::Asiento { 1e9 } else { 400.0 }, roto: false, motor: 0.0, giro: 0.0, rpm: 0.0, vel: 0.0,
             bote: verdad(&arb[0]["bote"]), bici: art.as_deref() == Some("bici"), turbo: false, cam_dist: None, policia: nombre.to_lowercase().contains("police"),
-            vel_ant: 0.0, vuelco_t: 0.0, ejes: None, tobera: None, art, nodos: vec![] };
+            vel_ant: 0.0, vuelco_t: 0.0, ejes: None, tobera: None, art, nodos: vec![], clave: String::new(), cols: None, cab: std::collections::HashMap::new() };
         let rueda = |p: V, r: f64, sd: f64, sp: f64, da: f64, del: bool, n: Option<String>| Rueda { p, r, sd, sp, da, del, comp_vis: 0.0, giro_ang: 0.0, toca: false, n,
             vis: None, cl: [0.0; 3], eje_x: [1.0, 0.0, 0.0], eje_y: [0.0, 1.0, 0.0], esp: 1.0, esc: 1.0, r_vis: 0.0, marca_p: None };
         for (i, x) in arb.iter().enumerate() {
@@ -426,7 +518,7 @@ impl Vehiculos {
     pub fn agregar(&mut self, paq: &Paquete, pf: &PrefabFisica, cuerpo: u32, fis: &mut Fisica, aguas: Option<&mut Aguas>) -> Option<usize> {
         if !Self::es_vehiculo(pf) { return None; }
         let arb = paq.d["pf"][&pf.clave].as_array()?;
-        let v = Vehiculo::de_arbol(&paq.d, arb, &pf.nombre, pf.c, cuerpo);
+        let mut v = Vehiculo::de_arbol(&paq.d, arb, &pf.nombre, pf.c, cuerpo); v.clave = pf.clave.clone();
         if let Some(b) = cuerpo_mut(fis, cuerpo) { if v.tipo != Tipo::Asiento { b.ang_damp = 0.6; b.fric = 0.4; } }
         // (un bote flota con un tercio del casco bajo el agua: densidad 380)
         if v.bote { if let Some(a) = aguas { let mut f = a.cuerpos.get(&cuerpo).cloned().unwrap_or_else(|| Flota::de_prefab(pf)); f.dens = Some(380.0); f.bote = true; a.registrar(cuerpo, f); } }
@@ -438,6 +530,20 @@ impl Vehiculos {
         self.lista.retain(|v| v.cuerpo != cuerpo); s
     }
     pub fn de(&self, cuerpo: u32) -> Option<&Vehiculo> { self.lista.iter().find(|v| v.cuerpo == cuerpo) }
+    /// la cabina del asiento `a` del vehículo de `cuerpo`, si es un auto (vehCabina: de su malla, una vez por asiento),
+    /// para sentar al personaje (personaje::Asiento)
+    pub fn cabina(&mut self, paq: &Paquete, cuerpo: u32, a: usize) -> Option<Cabina> {
+        let v = self.lista.iter_mut().find(|v| v.cuerpo == cuerpo)?;
+        if v.tipo != Tipo::Auto { return None; }
+        if let Some(c) = v.cab.get(&a) { return *c; }
+        let s = *v.asientos.get(a)?;
+        if v.cols.is_none() { let arb = paq.d["pf"][&v.clave].as_array()?; let c = Cols::de(paq, v, arb)?; v.cols = Some(std::sync::Arc::new(c)); }
+        let cab = v.cols.as_ref().map(|c| cabina_de(c, &v.nombre, s));
+        v.cab.insert(a, cab); cab
+    }
+    /// las alturas de la malla del auto que cruzan la vertical por x, z (en el marco del cuerpo), si ya se midió su cabina
+    /// (para las pruebas: el techo arriba de la cabeza)
+    pub fn cortes(&self, cuerpo: u32, x: f64, z: f64) -> Option<Vec<f64>> { Some(self.de(cuerpo)?.cols.as_ref()?.cortes(x, z)) }
     pub fn de_mut(&mut self, cuerpo: u32) -> Option<&mut Vehiculo> { self.lista.iter_mut().find(|v| v.cuerpo == cuerpo) }
     /// el vehículo donde está el jugador
     pub fn del_jugador(&self) -> Option<&Vehiculo> { self.jugador.and_then(|j| self.de(j.0)) }
