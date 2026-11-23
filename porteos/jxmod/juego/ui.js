@@ -367,7 +367,7 @@ function abrirAjustes(desde) {
     ${fila(esc(Lc('TextureQuality', 'Calidad de textura')), sel('aTq', [['auto', 'Según gráficos'], ['baja', 'Baja'], ['media', 'Media'], ['alta', 'Alta']]))}
     ${fila(esc(T('aj.motor')), JXP && typeof jxmMotivo === 'function' ? (() => { const mo = jxmMotivo(); return `<select id="aM"><option value="rust"${mo === 'ok' ? '' : ' disabled'}>${esc(mo === 'ok' ? 'Rust (JX Motor)' : 'Rust (JX Motor) — no disponible: ' + mo)}</option><option value="webgl2">WebGL 2</option><option value="webgl1">WebGL 1 (compatible)</option></select>`; })() : sel('aM', [['webgl2', 'WebGL 2'], ['webgl1', 'WebGL 1 (compatible)']]))}
     ${fila(esc(T('aj.npcMax')), sel('aNpc', [['24', '24'], ['50', '50'], ['100', '100'], ['200', '200'], ['0', esc(T('aj.sinLim'))]]))}
-    <button class="ajBtn gris" id="aBanco">${esc(T('aj.banco'))}</button></section>
+    <button class="ajBtn gris" id="aBanco">${esc(T('aj.banco'))}</button>${JXP && typeof jxmPruebaCarga === 'function' ? '<button class="ajBtn gris" id="aCarga">Prueba de carga: 50 NPC + 500 objetos</button>' : ''}</section>
   <section data-ajs="r" class="oc"><h4>${esc(Lc('Rendering', 'Renderizado'))}</h4>
     ${fila('Resolución', rango('aR', 35, 100, 5, 'aRv'))}
     ${sw('aDin', 'Resolución dinámica <small>(baja la resolución antes que los efectos para mantener los cuadros)</small>')}
@@ -416,6 +416,7 @@ function abrirAjustes(desde) {
   $('aReg').onclick = () => { if (typeof cnMostrar === 'function') cnMostrar(false); };
   // (comparar los FPS de los motores en la calidad elegida; en automático, Alto)
   $('aBanco').onclick = () => { const g = $('aG').value; bancoEmpezar(g === 'auto' ? 'alto' : g); };
+  if ($('aCarga')) $('aCarga').onclick = () => { cerrarPaneles(); jxmPruebaCarga(); };   // (versión personal: gmod_personal.js)
   // el campo de visión se ve al moverlo (detrás del panel) y queda guardado al soltarlo; sin la mira ni el zoom de un addon
   // puestos, la cámara salta derecho al nuevo (si no, vuelve a él al sacarlos)
   $('aFov').oninput = () => { act(); PREFS.fov = +$('aFov').value; if (!ARM.zoom && !(typeof gmaFovLua === 'function' && gmaFovLua())) CAM.fov = CAM.fovB = fovBase() * (1 - 0.27 * (ARM.apK || 0)); };

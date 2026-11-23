@@ -394,6 +394,8 @@ pub struct Motor {
     pub ranuras: Vec<Option<ItemDin>>,
     /// dibujar con instancias las copias de una misma cosa (se puede apagar para comparar: JXM_SIN_INST)
     pub instancias: bool,
+    /// (las variables de las pruebas, leídas una vez al crear el motor: no en cada cuadro)
+    dbg: bool, sin_agua: bool,
     pub mapa: String,
 }
 
@@ -426,7 +428,8 @@ impl Motor {
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
         Ok(Motor { gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
-            opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err() })
+            opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
+            dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok() })
     }
 
     /// sube a la placa los recursos nuevos (los que ya estaban con el mismo número se reemplazan)
@@ -525,7 +528,7 @@ impl Motor {
             if mt.agua != 0 { self.aguas.push(i) } else if mt.blend != 0 || mt.add != 0 { self.transp.push(i) } else { let _ = m; self.opacos.push(i) }
         }
         // (lo opaco: primero sin huesos y después con huesos —un programa cada grupo—, y por textura: menos cambios de estado)
-        if std::env::var("JXM_DBG").is_ok() {
+        if self.dbg {
             let sin_m: std::collections::BTreeSet<i64> = self.items.iter().filter(|it| !self.mallas.contains_key(&it.m)).map(|it| it.m).collect();
             let sin_t: std::collections::BTreeSet<i64> = self.items.iter().filter(|it| !self.mats.contains_key(&it.mat)).map(|it| it.mat).collect();
             let fuera = self.items.iter().filter(|it| !mat::esfera_dentro(&pl, &it.esf)).count();
@@ -697,7 +700,7 @@ impl Motor {
         self.svp = mat::mul(&mat::orto(-r, r, -r, r, 0.5, rango), &mat::mirar(ojo, cen, arriba));
         self.sesgo = [0.04 / rango, 1.5 * paso];
         let lista = self.recortar(&self.svp.clone(), true);
-        if std::env::var("JXM_DBG").is_ok() && self.cuadro == 0 {
+        if self.dbg && self.cuadro == 0 {
             let piel: Vec<_> = self.items.iter().filter(|it| !it.h.is_empty()).map(|it| (it.m, it.esf, it.fl, it.h.len())).collect();
             let en: usize = lista.iter().filter(|&&i| !self.items[i].h.is_empty()).count();
             eprintln!("sombra: {} cosas, {} con huesos de {} · {:?}", lista.len(), en, piel.len(), &piel[..piel.len().min(6)]);
@@ -779,7 +782,7 @@ impl Motor {
         { let gl = &self.gl; gl.enable(glow::DEPTH_TEST); gl.depth_func(glow::LEQUAL); gl.disable(glow::BLEND); gl.disable(glow::CULL_FACE); }
         if self.op.sombras && (self.sombra.is_none() || self.cuadro % self.op.sombra_cada.max(1) as u64 == 0) { self.pasada_sombra(); }
         let ay = self.c.as_ref().unwrap().agua_y.or(self.agua.as_ref().map(|a| a.y));
-        let hay_agua = !self.aguas.is_empty() && self.agua.is_some() && self.agua_n.is_some() && std::env::var("JXM_SIN_AGUA").is_err();
+        let hay_agua = !self.aguas.is_empty() && self.agua.is_some() && self.agua_n.is_some() && !self.sin_agua;
         let cam_arriba = ay.map(|y| self.c.as_ref().unwrap().pos[1] > y + 0.05).unwrap_or(false);
         if hay_agua && self.op.reflejo && cam_arriba && (self.reflejo.is_none() || self.cuadro % self.op.reflejo_cada.max(1) as u64 == 0) { self.pasada_reflejo(w, h, ay.unwrap()); }
         // la escena, a la resolución elegida

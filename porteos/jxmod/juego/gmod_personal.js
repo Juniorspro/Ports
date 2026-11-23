@@ -566,6 +566,29 @@ function jxmVigilar() {
 }
 // lo que dice el motor nativo (cuadros por segundo, ms, memoria) o su error
 function jxmEstado() { try { return JXM.grab ? 'grabando' : JXM.prendido ? String(window.JXMotor.estado()) : 'apagado'; } catch (e) { return String(e); } }
+// la prueba de carga del dueño (Ajustes → Prueba de carga): 50 NPC y 500 objetos delante, en el mapa en que esté, con el
+// detalle del contador de fps prendido (lo que tarda cada parte y lo que viaja al motor): para medir en el celular lo mismo
+// que mide la prueba de la compu
+async function jxmPruebaCarga(nnpc, nobj) {
+  nnpc = nnpc || 50; nobj = nobj || 500;
+  if (JUEGO.estado !== 'juego') { aviso('Entrá a un mapa primero'); return false; }
+  PREFS.fps = true; PREFS.fpsDet = true; PREFS.npcMax = '0'; guardarPrefs();
+  const ef = $('fps'); if (ef) ef.classList.add('det');
+  const esp = (ms) => new Promise((r) => setTimeout(r, ms)), K = ['npc_citizen', 'npc_alyx', 'npc_combine_s', 'npc_zombie', 'npc_barney'];
+  const C = ['models/props_junk/wood_crate001a.mdl', 'models/props_c17/oildrum001.mdl', 'models/props_borealis/bluebarrel001.mdl'];
+  aviso('Prueba de carga: ' + nnpc + ' NPC y ' + nobj + ' objetos…', 2);
+  const y0 = JUG.yaw;
+  for (let i = 0; i < nnpc; i++) { JUG.yaw = y0 + (i % 10) * 0.25 - 1.1; spawnElegir('NPCs', 'gmnpc:' + K[i % K.length]); await esp(i < 5 ? 1500 : 150); }
+  JUG.yaw = y0; cerrarPaneles();
+  for (const m of C) await new Promise((r) => { if (!jxpModeloEsperar('gm:' + m, r)) r(); });
+  const f = v3(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)), d = v3(f.z, 0, -f.x);
+  for (let i = 0; i < nobj; i++) {
+    const a = i % 25, c = Math.floor(i / 25), q = vadd(vadd(JUG.pos, vscale(f, 12 + c * 1.6)), vscale(d, (a - 12) * 1.6)); q.y = JUG.pos.y + 1;
+    crearObjeto('gm:' + C[i % 3], q, new Quat()); if (i % 50 === 49) await esp(50);
+  }
+  aviso('Prueba de carga lista: ' + nnpc + ' NPC y ' + nobj + ' objetos. Tocá el contador para ver u ocultar el detalle', 4);
+  return true;
+}
 // los Hz de la pantalla ahora / los que pidió la superficie del motor ("120/120"); vacío si la app no lo dice
 function jxmHz() { try { return JXM.prendido && window.JXMotor.hz ? String(window.JXMotor.hz()) : ''; } catch (e) { return ''; } }
 function jxmReiniciar() {
@@ -761,7 +784,7 @@ function jxmCuadroNativo() {
     const G = JXM.f; for (const [t, b] of ef) { G[k++] = t; G[k++] = b.length; G.set(b, k); k += b.length; }
   }
   const u8 = new Uint8Array(JXM.f.buffer, 0, k * 4);
-  if (JXM.bin && B.cuadroBin) B.cuadroBin(jxmBin(u8)); else B.cuadro(jxmB64(u8));
+  { const t0 = performance.now(); if (JXM.bin && B.cuadroBin) B.cuadroBin(jxmBin(u8)); else B.cuadro(jxmB64(u8)); JXM.msEnv = (JXM.msEnv || 0) + (performance.now() - t0 - (JXM.msEnv || 0)) * 0.05; }
   JXM.bytesC = u8.length;
   JXM.cuadros++;
   return true;

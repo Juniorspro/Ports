@@ -2,6 +2,8 @@
 // arranque, preferencias, perfiles gráficos (con "patata" para teléfonos muy flojos), cámara y el bucle.
 // ---------------------------------------------------------------------------------------------------------
 const JUEGO = { estado: 'carga', dios: false, foto: 0 };
+// (lo que tarda cada parte del cuadro, en ms, promediado: el detalle del contador de fps con JX Motor —para medir en el celular—)
+const TJS = { fis: 0, npc: 0, per: 0, mot: 0, k: 0.05, med(c, t0) { TJS[c] += (performance.now() - t0 - TJS[c]) * TJS.k; } };
 const TIEMPO = { t: 0, dt: 0, acc: 0, fps: 60, cuadros: 0, medT: 0, ms: 0, lento: 0, lentoS: 0, lentoB: 0, ahoS: 0, ahoB: 0 };
 // calidades: luz (0 difuso viejo, 1 con brillo, 2 física, 3 física + extras), sombras del sol en cascadas
 // (cuántas, tamaño del atlas, hasta qué distancia, filtro), luces puntuales, HDR, oclusión ambiental,
@@ -178,7 +180,13 @@ function fpsTexto(ms) {
   if (!PREFS.fps) return '';
   const f = Math.round(TIEMPO.fps);
   // (con JX Motor: los cuadros del juego y lo que dice el motor nativo —sus cuadros por segundo, lo que tarda y su memoria—)
-  if (typeof JXM !== 'undefined' && JXM.on) { const e = jxmEstado().replace(/ · mapa[\s\S]*$/, ''), hz = jxmHz(); return f + ' fps juego' + (hz ? ' · pantalla ' + hz + ' Hz' : '') + ' · motor ' + e; }
+  if (typeof JXM !== 'undefined' && JXM.on) {
+    const e = jxmEstado().replace(/ · mapa[\s\S]*$/, ''), hz = jxmHz(), t = (x) => x.toFixed(1);
+    // (tocando el contador: lo que tarda cada parte del juego en este celular y cuánto viaja al motor)
+    const det = PREFS.fpsDet ? '\nJS ' + t(+ms || 0) + ' ms · física ' + t(TJS.fis) + ' · NPC ' + t(TJS.npc) + ' · personas ' + t(TJS.per) + ' · al motor ' + t(TJS.mot) + ' (envío ' + t(JXM.msEnv || 0) + ') · ' +
+      Math.round((JXM.bytesC || 0) / 1024) + ' KB · ' + (JXM.nU || 0) + ' cambios · ' + (typeof PH !== 'undefined' ? PH.bodies.length + ' cuerpos' : '') + (typeof NPC !== 'undefined' && NPC.lista ? ' · ' + NPC.lista.length + ' NPC' : '') : '';
+    return f + ' fps juego' + (hz ? ' · pantalla ' + hz + ' Hz' : '') + ' · motor ' + e + det;
+  }
   if (!PREFS.fpsDet) return f + ' fps';
   const d = typeof CELU !== 'undefined' && CELU.det, ap = d ? d.nom || d.soc || '' : '';
   return f + ' fps · JS ' + (+ms || 0).toFixed(1) + ' ms · ' + (GFX.auto ? 'Auto ' : '') + GFX.nombre + ' ' + Math.round(GFX.escala * 100) + '% ' + R.cv.width + '×' + R.cv.height + (TIEMPO.lento ? ' · lento ' + TIEMPO.lento : '') +
@@ -440,7 +448,7 @@ function cuadro(ahora) {
     }
     // (con el procesador que no da, la física de los objetos un paso sí y uno no, con el doble de tiempo: 30 por segundo)
     // (sólo en el nivel 2: en el 1 la física sigue a 60, que a 30 los objetos se moverían a saltitos)
-    const fis30 = TIEMPO.lento >= 2; if (!fis30 || (TIEMPO.fisPar = !TIEMPO.fisPar)) { const pf = fis30 ? paso * 2 : paso; aguaFisica(pf); physStep(pf); }
+    const fis30 = TIEMPO.lento >= 2; if (!fis30 || (TIEMPO.fisPar = !TIEMPO.fisPar)) { const pf = fis30 ? paso * 2 : paso, t0 = performance.now(); aguaFisica(pf); physStep(pf); TJS.med('fis', t0); }
     for (const b of PH.bodies) if (b.dead && b.obj) { borrarObjeto(b.obj); break; }
     if (typeof personasPaso === 'function') personasPaso(paso);
   }
@@ -465,7 +473,7 @@ function cuadro(ahora) {
   if (JUEGO.estado === 'principal' && typeof depPaso === 'function') depPaso(dt);   // (el menú del depósito: las cajas, el haz y la luz)
   efectosPaso(dt);
   camaraActualizar(dt);
-  aguaPaso(dt); sonidosPaso(dt); if (typeof emuPaso === 'function') emuPaso(dt); patadasPaso(dt); artPaso(dt); npcPaso(dt); bocinaPaso(); juntosPaso(); nukePaso(dt);
+  aguaPaso(dt); sonidosPaso(dt); if (typeof emuPaso === 'function') emuPaso(dt); patadasPaso(dt); artPaso(dt); { const t0 = performance.now(); npcPaso(dt); TJS.med('npc', t0); } bocinaPaso(); juntosPaso(); nukePaso(dt);
   if (typeof GRT !== 'undefined') GRT.enDibujo = true; try { dibujar(); } finally { if (typeof GRT !== 'undefined') GRT.enDibujo = false; }
   celmCuadro(); if (typeof mjxCuadro === 'function') mjxCuadro(); if (typeof vrCuadro === 'function') vrCuadro(); if (typeof gmaHUDPaso === 'function') gmaHUDPaso(); if (typeof gmrtFinCuadro === 'function') gmrtFinCuadro();
   if (typeof grabCuadro === 'function') grabCuadro();   // (el modo grabación copia el cuadro recién dibujado: grabar.js)
@@ -591,7 +599,7 @@ function dibujar() {
   R.fase = 'mundo'; dibujarMundo(); R.fase = '';
   if (typeof gmrAntes === 'function') gmrAntes();   // (el Lua de los addons dibuja: sus primitivas y qué modelos se ven)
   dibujarObjetos(); if (typeof desDibujar === 'function') desDibujar(); aguaEncolar(); maqDibujar(); artDibujar(); if (typeof eventoEncolar === 'function') eventoEncolar();
-  if (typeof dibujarPersonas === 'function') dibujarPersonas();
+  if (typeof dibujarPersonas === 'function') { const t0 = performance.now(); dibujarPersonas(); TJS.med('per', t0); }
   if (typeof dibujarHerramientas === 'function') dibujarHerramientas();
   dibujarEntidades();
   if (typeof ajxMundoDibujar === 'function') ajxMundoDibujar();   // (el rayo con cuerpo de la Physics Gun de JXMod, armasjx.js)
@@ -613,7 +621,7 @@ function dibujar() {
   armarCola();
   if (R.captura) { const f = R.captura; R.captura = null; try { f(); } catch (e) { console.error(e); } }   // (JX Motor: lo que se dibuja en este cuadro —gmod_personal.js, jxmCapturar—)
   // (en VR no hay reflejo del agua ni vista por los portales: se leen con la posición en la pantalla entera)
-  const natOk = nat && jxmCuadroNativo();
+  const tm0 = performance.now(), natOk = nat && jxmCuadroNativo(); if (nat) TJS.med('mot', tm0);
   if (vr || natOk) { AGUA.refOn = false; POR.on = false; POR.A = null; } else { aguaReflejo(P, V); portalesVista(P, V); }
   const N = R.salida === 'gam' ? R.niebla.c : R.lin.nieC;
   for (let ojo = 0; ojo < (vr ? 2 : 1); ojo++) {
