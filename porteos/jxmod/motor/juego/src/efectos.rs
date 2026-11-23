@@ -301,6 +301,10 @@ impl Efectos {
         self.fog = 0.05; self.fog_p = boca;
         self.nueva(boca, [0.0; 3], 0.06, 0.12, [1.0, 0.8, 0.4, 1.0], Tipo::Fog, 1.2);
     }
+    /// las chispas de la Tool Gun al poner algo (efectoChispas): diez destellos blancos que saltan
+    pub fn chispas(&mut self, p: V) {
+        for _ in 0..10 { let v = [(self.azar() as f32 - 0.5) * 3.0, self.azar() as f32 * 3.0, (self.azar() as f32 - 0.5) * 3.0]; self.nueva(p, v, 0.5, 0.1, [1.0, 1.0, 1.0, 1.0], Tipo::Fog, 0.5); }
+    }
     /// la traza de una bala de `a` a `b` (0,06 s; con tope por calidad: en Patata 12 a la vez, en Bajo 24; arriba, 64)
     pub fn traza(&mut self, a: V, b: V) {
         let tope = if self.luz_cal < 1 { 12 } else if self.luz_cal < 2 { 24 } else { 64 };

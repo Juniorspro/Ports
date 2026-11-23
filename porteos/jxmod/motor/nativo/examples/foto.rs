@@ -263,6 +263,23 @@ fn main() {
                 foto(&mut m, "4c_npc_tiro");
                 arma(&mut j, "PhysicsGun"); j.jug.pitch = 0.0; paso(&mut j, &mut m, 30);
             }
+            // la Actitud de la Tool Gun: sobre un NPC, su panel y «Armado»; en el piso, uno nuevo; «2», el de los nuevos
+            if let Some((id, q)) = j.npcs.lista.iter().find(|n| n.vivo).map(|n| (n.id, n.pos())) {
+                use jxmod::comun::{panel_npc_geo, BtnNpc};
+                let k = j.her.lista.iter().position(|h| h.n == "Actitud").expect("sin Actitud"); j.equipar_herramienta(k); paso(&mut j, &mut m, 45);
+                { let o = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]]; let d = [q[0] - o[0], q[1] - o[1], q[2] - o[2]]; let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt(); j.jug.yaw = d[0].atan2(d[2]); j.jug.pitch = (d[1] / l).asin(); }
+                paso(&mut j, &mut m, 2); disparar(&mut j, &mut m, 90);
+                println!("Actitud: panel del NPC {:?} (era {})", j.npc_panel.as_ref().map(|p| p.npc), id);
+                let (_, bs) = panel_npc_geo(wf, hf, false); let r = bs.iter().find(|b| b.0 == BtnNpc::Rapida(1)).unwrap().1;
+                toque(&mut j, 91, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0); paso(&mut j, &mut m, 2); foto(&mut m, "4c2_actitud");
+                println!("   Armado: {:?}", j.npcs.get(id).map(|n| n.act.describir()));
+                let r = bs.iter().find(|b| b.0 == BtnNpc::Cerrar).unwrap().1; toque(&mut j, 92, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0); paso(&mut j, &mut m, 2);
+                let n0 = j.npcs.lista.len(); j.jug.pitch = -0.7; paso(&mut j, &mut m, 2); disparar(&mut j, &mut m, 93); paso(&mut j, &mut m, 30);
+                println!("   panel cerrado {} · en el piso: {} → {} NPC", j.npc_panel.is_none(), n0, j.npcs.lista.len());
+                let (bx, by) = pos_boton(wf, hf, Boton::Disparo2); toque(&mut j, 94, bx, by); paso(&mut j, &mut m, 2); foto(&mut m, "4c3_actitud_nuevos");
+                let (_, bs) = panel_npc_geo(wf, hf, true); let r = bs.iter().find(|b| b.0 == BtnNpc::Cerrar).unwrap().1; toque(&mut j, 95, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0);
+                arma(&mut j, "PhysicsGun"); j.jug.pitch = 0.0; paso(&mut j, &mut m, 30);
+            }
             // un auto: la pestaña Vehículos, poner el primero, subir, manejar 3 s para adelante y bajar
             let (ox, oy) = pos_boton(wf, hf, Boton::Objetos); toque(&mut j, 80, ox, oy); paso(&mut j, &mut m, 1);
             let (tx, ty) = pest(2); toque(&mut j, 81, tx, ty); paso(&mut j, &mut m, 2); foto(&mut m, "4d_menu_vehiculos");
@@ -281,7 +298,9 @@ fn main() {
             let (ux, uy) = pos_boton(wf, hf, Boton::Usar); toque(&mut j, 84, ux, uy); paso(&mut j, &mut m, 30);
             println!("   subió: {:?}", j.vehs.jugador);
             let id = j.vehs.jugador.map(|x| x.0).unwrap_or(0); let p0 = j.fis.cuerpo(id).map(|b| b.pos).unwrap_or([0.0; 3]);
-            j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf); paso(&mut j, &mut m, 180); foto(&mut m, "4f_manejando"); j.dedo_arriba(1);
+            j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf); paso(&mut j, &mut m, 180);
+            { let (bx, by) = pos_boton(wf, hf, Boton::Bocina); j.dedo_abajo(2, bx, by, wf, hf); paso(&mut j, &mut m, 2); println!("   bocina apretada: {:?}", j.vehs.bocina(&j.fis, true).map(|b| b.0)); }
+            foto(&mut m, "4f_manejando"); j.dedo_arriba(2); j.dedo_arriba(1);
             let p1 = j.fis.cuerpo(id).map(|b| b.pos).unwrap_or([0.0; 3]); let v = j.fis.cuerpo(id).map(|b| (b.vel[0].powi(2) + b.vel[2].powi(2)).sqrt()).unwrap_or(0.0);
             println!("   manejando 3 s: {:.1} m, {:.1} m/s", ((p1[0] - p0[0]).powi(2) + (p1[2] - p0[2]).powi(2)).sqrt(), v);
             paso(&mut j, &mut m, 120); toque(&mut j, 85, ux, uy); paso(&mut j, &mut m, 30); println!("   bajó: {:?} · jugador en {:?}", j.vehs.jugador, j.jug.pos); foto(&mut m, "4g_bajo");

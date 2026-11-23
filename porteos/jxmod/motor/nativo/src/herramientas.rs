@@ -36,8 +36,13 @@ fn por_defecto(p: &Param) -> Valor {
         _ => Valor::Txt(if p.n == "Prop name" { "Crate".into() } else if p.n == "Password" { "1234".into() } else { String::new() }),
     }
 }
-/// DATA.herr
+/// DATA.herr, y la Actitud de los NPC al final (datos.js la agrega)
 pub fn lista(d: &Value) -> Vec<Herr> {
+    let mut v = lista_datos(d);
+    if !v.iter().any(|h| h.n == "Actitud") { v.push(Herr { n: "Actitud".into(), p: vec![] }); }
+    v
+}
+fn lista_datos(d: &Value) -> Vec<Herr> {
     d["herr"].as_array().map(|a| a.iter().map(|h| Herr { n: h["n"].as_str().unwrap_or("").to_string(),
         p: h["p"].as_array().map(|ps| ps.iter().map(|p| Param { n: p["n"].as_str().unwrap_or("").to_string(), t: p["t"].as_str().unwrap_or("").to_string(),
             o: p["o"].as_array().map(|o| o.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect()).unwrap_or_default() }).collect()).unwrap_or_default() }).collect()).unwrap_or_default()
@@ -51,6 +56,7 @@ pub fn ayuda(n: &str) -> &'static str {
         "LocalRotator" | "LocalMover" => "Prop Id 0 = él mismo; si no, el objeto de ese ID.",
         "Button" => "«2» sobre el botón lo prende y apaga.", "Trigger" => "Da señal cuando algo entra en su radio.",
         "Spawner" => "Tira un objeto cada segundo mientras tiene señal.", "SpawnPoint" => "Aparecés acá al caer o ahogarte.",
+        "Actitud" => "Disparo sobre un NPC: cómo actúa. Disparo en el piso: pone un NPC. «2»: el personaje y la actitud de los que vas a poner.",
         _ => "Disparo: lo pone donde apuntás. «2»: el ID de lo que apuntás.",
     }
 }
@@ -103,6 +109,23 @@ impl Juego {
         self.sonido.tocar("Click", 0.5, 1.4, None);
         let o = r.as_ref().and_then(|g| g.cuerpo).and_then(|id| self.obj_de_cuerpo(id));
         match n.as_str() {
+            // (actitudUsar: sobre un NPC, su panel; en el piso, uno nuevo con el personaje y la actitud elegidos; «2», el panel de los nuevos)
+            "Actitud" => {
+                if alt { self.npc_panel = Some(PanelNpc { npc: None, est: String::new() }); return; }
+                if let Some(id) = r.as_ref().and_then(|g| g.cuerpo).and_then(|c| self.npcs.de_cuerpo(c)) { self.npc_panel = Some(PanelNpc { npc: Some(id), est: String::new() }); return; }
+                let Some(g) = r.filter(|g| g.n[1] >= 0.5) else { self.avisar("Apuntá al piso para poner un NPC, o a un NPC".into()); return };
+                let skin = self.npc_skin.clone();
+                let Some(paq) = self.paq.as_mut() else { return };
+                let (c, e) = match self.npc_skins.pedir(paq, &skin, &mut self.pj_cargados) { Ok(x) => x, Err(e) => { self.avisar(format!("NPC: {e}")); return } };
+                if let Some(e) = e { if m.cargar(&e).is_err() { return; } }
+                let p = [g.p[0] as f32, g.p[1] as f32, g.p[2] as f32]; let yaw = (oj[0] - p[0]).atan2(oj[2] - p[2]);
+                let act = self.npc_act.clone().map(|mut a| { a.de = "yo".into(); a });
+                match self.npcs.crear(c, p, yaw, act, &mut self.fis) {
+                    Some(id) => { self.pila.push((true, id)); self.ef.chispas(p); self.avisar(format!("NPC puesto · {}", npc::skin_nom(&skin))); }
+                    None => self.avisar(format!("Ya hay {} NPC (el máximo)", self.npcs.max)),
+                }
+                return;
+            }
             "Remove" => {
                 if let Some(i) = o { self.borrar_obj(i); }
                 else if let Some(n) = r.as_ref().and_then(|g| g.cuerpo).and_then(|c| self.npcs.de_cuerpo(c)) { self.npcs.quitar(n, &mut self.fis); }

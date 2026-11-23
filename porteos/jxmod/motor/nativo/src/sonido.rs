@@ -95,6 +95,12 @@ impl Sonido {
         let paso = p.rate as f64 / rate as f64 * tono as f64;
         if let Ok(mut m) = self.mezcla.lock() { if m.voces.len() < 48 { m.voces.push(Voz { pcm: p, pos: 0.0, paso, vi, vd, lazo: 0 }); } }
     }
+    /// un sonido hecho acá (la bocina): `hacer` da las muestras mono en [-1, 1] a `hz`; se arma una sola vez
+    pub fn sintetico(&mut self, nombre: &str, hacer: impl FnOnce() -> Vec<f32>, hz: u32) {
+        if self.cache.contains_key(nombre) { return; }
+        let datos = hacer().iter().map(|x| (x.clamp(-1.0, 1.0) * 32767.0).round() as i16).collect();
+        self.cache.insert(nombre.to_string(), Some(Arc::new(Pcm { rate: hz, ch: 1, datos })));
+    }
     /// un sonido que se repite mientras se lo pida cada cuadro (el viento, la ciudad): con `clave`, a este volumen
     pub fn bucle(&mut self, clave: &str, nombre: &str, vol: f32) {
         if !self.suena() { return; }

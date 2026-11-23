@@ -40,9 +40,41 @@ impl Placa {
 /// un dedo en la pantalla: para qué es (palanca, mirar o un botón que se mantiene) y dónde
 struct Dedo { id: i32, palanca: bool, boton: Option<Boton>, x0: f32, y0: f32, x: f32, y: f32 }
 
+/// el panel de Actitud (npcPanel): el NPC que se está cambiando (None: los próximos que se pongan) y cómo quedó
+pub struct PanelNpc { pub npc: Option<u32>, pub est: String }
+/// lo que se toca en ese panel
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum BtnNpc { Rapida(usize), Arma(Option<npc::Arma>), SkinAnt, SkinSig, Borrar, BorrarTodos, Cerrar }
+/// los botones rápidos del panel (NPC_RAPIDAS) con su nombre
+pub const RAPIDAS_NPC: [(&str, &str); 9] = [("agresivo", "Agresivo"), ("armado", "Armado"), ("defensor", "Te defiende"), ("amigo", "Amigo (me sigue)"), ("miedoso", "Miedoso"), ("bailarin", "Bailarín"), ("guardia", "Guardia"), ("paseo", "Pasea"), ("quieto", "Quieto")];
+/// el nombre de un arma de NPC como en la barra de armas (npcArmaNom)
+fn arma_npc_nom(a: npc::Arma) -> &'static str { ARMAS.iter().find(|d| d.n == a.nombre()).map(|d| d.nom).unwrap_or(a.nombre()) }
+/// cómo está un NPC (npcActDescribir), con el nombre del arma como en la barra
+fn describir_npc(a: &npc::Actitud) -> String { let d = a.describir(); match a.arma { Some(w) => d.replacen(&format!(", {}", w.nombre()), &format!(", {}", arma_npc_nom(w)), 1), None => d } }
+/// dónde va el panel y cada botón (x, y, ancho, alto) con la pantalla de w × h
+pub fn panel_npc_geo(w: f32, h: f32, nuevo: bool) -> ([f32; 4], Vec<(BtnNpc, [f32; 4])>) {
+    let pw = (w * 0.84).min(h * 2.0); let (x0, y0) = ((w - pw) / 2.0, h * (if nuevo { 0.05 } else { 0.1 }));
+    let mut v = vec![(BtnNpc::Cerrar, [x0 + pw - h * 0.09, y0 + h * 0.012, h * 0.07, h * 0.06])];
+    // (los nuevos: la ayuda y el personaje; después «Ahora: …» —en y_ahora(), arriba de las rápidas—)
+    let mx = h * 0.03; let ancho = pw - mx * 2.0; let mut y = y0 + h * (if nuevo { 0.13 } else { 0.1 });
+    if nuevo { v.push((BtnNpc::SkinAnt, [x0 + mx, y, h * 0.08, h * 0.07])); v.push((BtnNpc::SkinSig, [x0 + mx + ancho * 0.55, y, h * 0.08, h * 0.07])); y += h * 0.1; }
+    y += h * 0.06;
+    // (las rápidas: tres filas de tres)
+    let (cw, ch) = (ancho / 3.0, h * 0.085);
+    for k in 0..RAPIDAS_NPC.len() { v.push((BtnNpc::Rapida(k), [x0 + mx + (k % 3) as f32 * cw + 3.0, y + (k / 3) as f32 * ch + 3.0, cw - 6.0, ch - 6.0])); }
+    y += ch * 3.0 + h * 0.06;
+    // (el arma: ninguna y las de NPC_ARMAS, en una fila después de «Arma»)
+    let n = npc::ARMAS.len() + 1; let x1 = x0 + mx + h * 0.14; let aw = (x0 + pw - mx - x1) / n as f32;
+    for k in 0..n { v.push((BtnNpc::Arma(if k == 0 { None } else { Some(npc::ARMAS[k - 1]) }), [x1 + k as f32 * aw + 2.0, y, aw - 4.0, h * 0.075])); }
+    y += h * 0.11;
+    v.push((BtnNpc::Borrar, [x0 + mx, y, ancho * 0.48, h * 0.075])); v.push((BtnNpc::BorrarTodos, [x0 + mx + ancho * 0.52, y, ancho * 0.48, h * 0.075]));
+    // (y abajo, un renglón para cómo quedó)
+    ([x0, y0, pw, y + h * 0.16 - y0], v)
+}
+
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca }
+pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo }
 /// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
 struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
 /// dónde va cada botón con la pantalla de w × h
@@ -73,6 +105,9 @@ fn botones(w: f32, h: f32) -> Vec<Btn> {
     v.push(Btn { b: Boton::Girar, x: w - h * 0.68, y: h - h * 0.55, w: r * 1.2, h: r * 1.2, redondo: true });
     v.push(Btn { b: Boton::Lejos, x: w - h * 0.92, y: h - h * 0.42, w: r * 1.05, h: r * 1.05, redondo: true });
     v.push(Btn { b: Boton::Cerca, x: w - h * 0.92, y: h - h * 0.22, w: r * 1.05, h: r * 1.05, redondo: true });
+    // (manejando, donde van los de disparo: la bocina —#bbocina— y el turbo de la bici con cohete —#bturbo—)
+    v.push(Btn { b: Boton::Bocina, x: w - h * 0.44, y: h - h * 0.40, w: r * 1.5, h: r * 1.5, redondo: true });
+    v.push(Btn { b: Boton::Turbo, x: w - h * 0.68, y: h - h * 0.62, w: r * 1.3, h: r * 1.3, redondo: true });
     v
 }
 /// la textura de los íconos del menú (un atlas armado con los de la subcategoría abierta)
@@ -198,6 +233,8 @@ pub struct Juego {
     // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
     /// los ajustes (ajustes.txt) y la pestaña del menú de Ajustes, si está abierto (el juego queda en pausa)
     pub aj: Ajustes, pub ajustes: Option<usize>,
+    /// el panel de Actitud de la Tool Gun (npcPanel), la actitud y el personaje de los NPC que se pongan con ella
+    pub npc_panel: Option<PanelNpc>, pub npc_act: Option<npc::Actitud>, pub npc_skin: String,
     pub sonido: crate::sonido::Sonido, amb_t: f32, paso_d: f32, aire_t: f32, vy_aire: f32, golpe_max: f32, saltos_vistos: u32, ahogos_vistos: u32, nadaba: bool, brazada_t: f32, azar: u32,
 }
 
@@ -236,7 +273,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -272,10 +309,10 @@ impl Juego {
     // —— el tacto (coordenadas en píxeles de la pantalla) ——
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
         self.dedos.retain(|d| d.id != id);
-        if self.menu.is_some() || self.ajustes.is_some() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
+        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
         let ve = |b: Boton| self.boton_visible(b);
         if let Some(b) = boton_en(w, h, x, y, ve) {
-            if !matches!(b, Boton::Saltar | Boton::Agachar | Boton::Disparo | Boton::Disparo2 | Boton::ArmaN(_)) { self.sonido.tocar("Click", 0.5, 1.0, None); }
+            if !matches!(b, Boton::Saltar | Boton::Agachar | Boton::Disparo | Boton::Disparo2 | Boton::ArmaN(_) | Boton::Bocina | Boton::Turbo) { self.sonido.tocar("Click", 0.5, 1.0, None); }
             match b {
                 Boton::Ajustes => { self.menu = None; self.ajustes = Some(0); }
                 // (manejando, la cámara del vehículo: adentro o afuera; en primera mira adelante, como la web)
@@ -306,7 +343,7 @@ impl Juego {
         self.dedos.push(Dedo { id, palanca, boton: None, x0: x, y0: y, x, y });
     }
     pub fn dedo_mueve(&mut self, id: i32, x: f32, y: f32, h: f32) {
-        if self.ajustes.is_some() { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { d.x = x; d.y = y; } return; }
+        if self.ajustes.is_some() || self.npc_panel.is_some() { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { d.x = x; d.y = y; } return; }
         if let Some(m) = self.menu.as_mut() {
             // (en el menú, arrastrar baja la grilla)
             if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { m.scroll = (m.scroll - (y - d.y)).max(0.0); d.x = x; d.y = y; }
@@ -320,13 +357,43 @@ impl Juego {
     }
     /// al soltar: en el menú, un toque (sin arrastrar) elige
     pub fn dedo_arriba_en(&mut self, id: i32, w: f32, h: f32) {
-        if self.menu.is_some() || self.ajustes.is_some() {
+        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() {
             // (sólo los toques que empezaron con el menú abierto: no el que lo abrió, ni la palanca que se venía usando)
-            if let Some(d) = self.dedos.iter().find(|d| d.id == id && d.boton.is_none() && !d.palanca) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); if self.ajustes.is_some() { self.toque_ajustes(x, y, w, h); } else { self.toque_menu(x, y, w, h); } } }
+            if let Some(d) = self.dedos.iter().find(|d| d.id == id && d.boton.is_none() && !d.palanca) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); if self.ajustes.is_some() { self.toque_ajustes(x, y, w, h); } else if self.npc_panel.is_some() { self.toque_npc(x, y, w, h); } else { self.toque_menu(x, y, w, h); } } }
         }
         self.dedo_arriba(id);
     }
     pub fn dedo_arriba(&mut self, id: i32) { self.dedos.retain(|d| d.id != id); }
+    /// un toque en el panel de Actitud (el clic de npcPanel)
+    fn toque_npc(&mut self, x: f32, y: f32, w: f32, h: f32) {
+        let Some(pn) = self.npc_panel.as_ref() else { return }; let quien = pn.npc;
+        let (c, bs) = panel_npc_geo(w, h, quien.is_none());
+        if x < c[0] || x > c[0] + c[2] || y < c[1] || y > c[1] + c[3] { self.npc_panel = None; return; }
+        let Some(b) = bs.iter().find(|(_, r)| x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]).map(|x| x.0) else { return };
+        let base = serde_json::json!({ "de": "yo" });
+        let act_de = |j: &Juego| -> npc::Actitud { quien.and_then(|id| j.npcs.get(id)).map(|p| p.act.clone()).or_else(|| j.npc_act.clone()).unwrap_or_else(|| npc::Actitud::normal(&serde_json::json!({}), Some(&base))) };
+        match b {
+            BtnNpc::Cerrar => { self.npc_panel = None; return; }
+            BtnNpc::Rapida(k) => { if let Some(a) = npc::Actitud::rapida(RAPIDAS_NPC[k].0, Some(&base)) { self.npc_aplicar(a, RAPIDAS_NPC[k].1); } }
+            BtnNpc::Arma(w) => { let mut a = act_de(self); a.arma = w; self.npc_aplicar(a, "Arma"); }
+            BtnNpc::SkinAnt | BtnNpc::SkinSig => {
+                let skins = self.skins_npc(); if skins.is_empty() { return; }
+                let i = skins.iter().position(|s| *s == self.npc_skin).unwrap_or(0) as i64 + if b == BtnNpc::SkinSig { 1 } else { -1 };
+                self.npc_skin = skins[i.rem_euclid(skins.len() as i64) as usize].clone();
+            }
+            BtnNpc::Borrar => { if let Some(id) = quien { self.npcs.quitar(id, &mut self.fis); self.avisar("Borrado: NPC".into()); } self.npc_panel = None; return; }
+            BtnNpc::BorrarTodos => { self.npcs.todos(&mut self.fis); self.pila.retain(|x| !x.0); self.avisar("Se borraron tus NPC".into()); self.npc_panel = None; return; }
+        }
+        self.sonido.tocar("Click", 0.5, 1.3, None);
+    }
+    /// los personajes que se pueden poner (los del menú de NPC)
+    fn skins_npc(&self) -> Vec<String> { self.cat_npc.iter().flat_map(|c| c.1.iter()).filter_map(|n| npc::skin_de_item(n).map(|s| s.to_string())).collect::<std::collections::BTreeSet<_>>().into_iter().collect() }
+    /// npcAplicar: la actitud al NPC del panel, o a los próximos que se pongan
+    fn npc_aplicar(&mut self, act: npc::Actitud, nombre: &str) {
+        let desc = describir_npc(&act);
+        match self.npc_panel.as_ref().and_then(|p| p.npc) { Some(id) => self.npcs.aplicar(id, act), None => self.npc_act = Some(act) }
+        if let Some(p) = self.npc_panel.as_mut() { p.est = format!("{nombre}: {desc}"); }
+    }
     fn toque_menu(&mut self, x: f32, y: f32, w: f32, h: f32) {
         let Some(pe0) = self.menu.as_ref().map(|m| m.pestana) else { return };
         let n = if pe0 == PESTANA_HER { self.her.lista.len() } else { self.cat(pe0).len() };
@@ -519,6 +586,8 @@ impl Juego {
     fn cat(&self, pestana: usize) -> &Vec<(String, Vec<String>)> { match pestana { 1 => &self.cat_npc, 2 => &self.cat_veh, _ => &self.catalogo } }
     /// hacia dónde mira (miraDir)
     fn mira(&self) -> [f32; 3] { let (y, p) = (self.jug.yaw, self.jug.pitch); [y.sin() * p.cos(), p.sin(), y.cos() * p.cos()] }
+    /// qué maneja el jugador (al volante), si maneja
+    fn tipo_manejo(&self) -> Option<veh::Tipo> { self.vehs.jugador.filter(|j| j.1 == 0).and_then(|j| self.vehs.de(j.0)).map(|v| v.tipo) }
     /// qué botones se ven: los de la Physics Gun sólo con algo agarrado; la barra de armas, abierta
     fn boton_visible(&self, b: Boton) -> bool {
         // (con la barra de armas abierta, sólo ella, el arma y lo de arriba: los redondos quedarían debajo)
@@ -530,6 +599,11 @@ impl Juego {
             // (manejando: sin armas ni objetos)
             Boton::Disparo | Boton::Disparo2 | Boton::Arma | Boton::Objetos | Boton::Volar if self.vehs.jugador.is_some() => false,
             Boton::ArmaN(_) => self.armas.barra_t > 0.0,
+            // (la bocina, al volante de algo que tenga y no esté roto; el turbo, en la bici con cohete: hud.js)
+            Boton::Bocina => self.vehs.jugador.filter(|j| j.1 == 0).and_then(|j| self.vehs.de(j.0)).map_or(false, |v| !v.roto && v.bocina_tipo().is_some()),
+            Boton::Turbo => self.vehs.jugador.and_then(|j| self.vehs.de(j.0)).map_or(false, |v| v.bici && !v.roto),
+            // (manejando, agacharse sólo hace algo en el helicóptero —baja— y en el avión —desacelera—)
+            Boton::Agachar if self.vehs.jugador.is_some() => matches!(self.tipo_manejo(), Some(veh::Tipo::Heli | veh::Tipo::Avion)),
             _ => true,
         }
     }
@@ -675,7 +749,7 @@ impl Juego {
                 let (yaw, pitch) = (self.jug.yaw, self.jug.pitch); let fwd = [yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos()];
                 self.armas.paso(&mut self.fis, PASO_FIS, self.ojos_ult, fwd, yaw);
                 // (los vehículos —el que maneja el jugador, con la palanca— y lo que flota, antes de la física)
-                let mando = if self.vehs.jugador.is_some() { Mando::de_entrada(&ent) } else { Mando::default() };
+                let mando = if self.vehs.jugador.is_some() { let mut m = Mando::de_entrada(&ent); m.turbo |= self.apretado(Boton::Turbo); m } else { Mando::default() };
                 self.vehs.paso(&mut self.fis, &mp.mundo, Some(&self.aguas), PASO_FIS as f64, &mando);
                 self.aguas.paso(&mut self.fis, PASO_FIS as f64);
                 self.fis.paso(&mp.mundo, PASO_FIS as f64); self.acum_fis -= PASO_FIS;
@@ -824,6 +898,10 @@ impl Juego {
         if let Some(s) = self.armas.sosten() { self.sonido.bucle("sosten", s, 0.35); }
         // (los motores de los vehículos prendidos y el cohete de la bici)
         for b in self.vehs.bucles(&self.fis) { self.sonido.bucle(&b.clave, b.nombre, b.vol as f32); }
+        // (la bocina mientras se aprieta: sintetizada como en la web, bocina_pcm; la bici, su timbre)
+        if let Some((tipo, _)) = self.vehs.bocina(&self.fis, self.apretado(Boton::Bocina)) {
+            let n = format!("JX_bocina_{tipo}"); self.sonido.sintetico(&n, || veh::bocina_pcm(tipo, 44100), 44100); self.sonido.bucle("bocina", &n, 1.0);
+        }
         self.sonido.fin_bucles();
         let (suelo, nada, noclip, agua) = (self.jug.suelo, self.jug.nada, self.jug.noclip, self.jug.nada || self.jug.hondo > 0.25);
         let (saltos, ahogos) = (self.jug.saltos, self.jug.ahogos);
@@ -881,7 +959,7 @@ impl Juego {
             if let Some(e) = e { unsafe { m.cargar(&e)?; } }
             let Some(mp) = self.mapa.as_ref() else { return Ok(()) };
             let (p, yaw) = npc::donde_poner(&mp.mundo, &mut self.fis, ojos, fw);
-            match self.npcs.crear(c, p, yaw, None, &mut self.fis) { Some(id) => { self.pila.push((true, id)); self.avisar(format!("Puesto: {}", npc::skin_nom(skin))); } None => self.avisar(format!("Ya hay {} NPC (el máximo)", self.npcs.max)) }
+            match self.npcs.crear(c, p, yaw, None, &mut self.fis) { Some(id) => { self.pila.push((true, id)); self.npc_skin = skin.to_string(); self.avisar(format!("Puesto: {}", npc::skin_nom(skin))); } None => self.avisar(format!("Ya hay {} NPC (el máximo)", self.npcs.max)) }
             return Ok(());
         }
         let Some(mp) = self.mapa.as_ref() else { return Ok(()) };
@@ -945,7 +1023,7 @@ impl Juego {
         }
         // (los botones: Ajustes, saltar, agacharse, volar, objetos y deshacer)
         // (con un menú abierto, sólo el de Ajustes: los demás quedarían debajo del panel)
-        let abierto = self.menu.is_some() || self.ajustes.is_some();
+        let abierto = self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some();
         for b in botones(wf, hf) {
             if (abierto && b.b != Boton::Ajustes) || !self.boton_visible(b.b) { continue; }
             let nom_arma: &str = &{ let d = self.armas.def(); if d.car > 0 { if self.armas.recargando > 0.0 { format!("{} · recargando", d.nom) } else { format!("{} · {} | ∞", d.nom, self.armas.balas.get(self.armas.i).copied().unwrap_or(d.car)) } } else { d.nom.to_string() } };
@@ -961,11 +1039,14 @@ impl Juego {
                 Boton::Cerca => ("−", false),
                 Boton::Ajustes => ("Ajustes", self.ajustes.is_some()),
                 Boton::Camara => (["Primera", "Tercera", "De frente"][self.camara as usize], self.camara != 0),
-                Boton::Saltar => ("Saltar", self.apretado(Boton::Saltar)),
-                Boton::Agachar => ("Agachar", self.apretado(Boton::Agachar)),
+                // (manejando, saltar es el freno —en el helicóptero sube y en el avión acelera— y agacharse baja o desacelera)
+                Boton::Saltar => (match self.tipo_manejo() { Some(veh::Tipo::Heli) => "Subir", Some(veh::Tipo::Avion) => "Acelerar", Some(_) => "Freno", None => "Saltar" }, self.apretado(Boton::Saltar)),
+                Boton::Agachar => (match self.tipo_manejo() { Some(veh::Tipo::Heli) => "Bajar", Some(veh::Tipo::Avion) => "Frenar", _ => "Agachar" }, self.apretado(Boton::Agachar)),
                 Boton::Volar => ("Volar", self.jug.noclip),
                 Boton::Objetos => ("Objetos", self.menu.is_some()),
                 Boton::Deshacer => ("Deshacer", false),
+                Boton::Bocina => ("Bocina", self.apretado(Boton::Bocina)),
+                Boton::Turbo => ("Turbo", self.apretado(Boton::Turbo) || self.vehs.jugador.and_then(|j| self.vehs.de(j.0)).map_or(false, |v| v.turbo)),
             };
             if b.redondo {
                 l.disco(&mut u, b.x, b.y, b.w / 2.0, if elegido { [0.95, 0.66, 0.1, 0.8] } else { [0.0, 0.0, 0.0, 0.35] });
@@ -1095,6 +1176,35 @@ impl Juego {
                 _ => "",
             };
             if !nota.is_empty() { l.texto(&mut u, p.gx, p.gy + claves.len() as f32 * hf * 0.105 + hf * 0.02, t * 0.6, [1.0, 1.0, 1.0, 0.6], nota); }
+        }
+        // el panel de Actitud (npcPanel): el personaje (los nuevos), cómo está, las rápidas, el arma y borrar
+        if let Some(pn) = &self.npc_panel {
+            let nuevo = pn.npc.is_none(); let (c, bs) = panel_npc_geo(wf, hf, nuevo);
+            let act = pn.npc.and_then(|id| self.npcs.get(id)).map(|p| p.act.clone()).or_else(|| self.npc_act.clone());
+            l.caja(&mut u, c[0], c[1], c[2], c[3], hf * 0.03, [0.07, 0.08, 0.11, 0.94]);
+            let tit = match pn.npc.and_then(|id| self.npcs.get(id)) { Some(p) => format!("Actitud del NPC · {}", npc::skin_nom(&p.skin)), None => "NPC nuevos".to_string() };
+            l.texto(&mut u, c[0] + hf * 0.03, c[1] + hf * 0.02, t * 0.9, bl, &tit);
+            let mx = c[0] + hf * 0.03; let tt = t * 0.72;
+            if nuevo { l.texto(&mut u, mx, c[1] + hf * 0.09, t * 0.6, [1.0, 1.0, 1.0, 0.7], "Elegí el personaje y cómo actúan; después tocá el piso con la Tool Gun para ponerlos"); }
+            let ahora = act.as_ref().map(describir_npc).unwrap_or_else(|| "Pasea, 2.0 m/s".into());
+            let y_ahora = c[1] + hf * (if nuevo { 0.24 } else { 0.1 });
+            l.texto(&mut u, mx, y_ahora, tt, [1.0, 1.0, 1.0, 0.8], &format!("Ahora: {ahora}"));
+            if let Some((_, r)) = bs.iter().find(|b| matches!(b.0, BtnNpc::Arma(_))) { l.texto(&mut u, mx, r[1] + (r[3] - tt) / 2.0 - hf * 0.004, tt, bl, "Arma"); }
+            if nuevo { if let Some((_, r)) = bs.iter().find(|b| b.0 == BtnNpc::SkinAnt) { let n = npc::skin_nom(&self.npc_skin); let x = r[0] + r[2] + hf * 0.03; l.texto(&mut u, x, r[1] + (r[3] - t * 0.8) / 2.0 - hf * 0.004, t * 0.8, bl, &format!("Personaje: {n}")); } }
+            for (b, r) in &bs {
+                let (txt, sel, rojo): (String, bool, bool) = match *b {
+                    BtnNpc::Cerrar => ("X".into(), false, true),
+                    BtnNpc::Rapida(k) => (RAPIDAS_NPC[k].1.into(), false, false),
+                    BtnNpc::Arma(w) => (w.map(arma_npc_nom).unwrap_or("Ninguna").into(), act.as_ref().map(|a| a.arma == w).unwrap_or(w.is_none()), false),
+                    BtnNpc::SkinAnt => ("<".into(), false, false), BtnNpc::SkinSig => (">".into(), false, false),
+                    BtnNpc::Borrar => { if pn.npc.is_none() { continue; } ("Borrar este NPC".into(), false, true) }
+                    BtnNpc::BorrarTodos => { let n = self.npcs.lista.len(); if n == 0 { continue; } (format!("Borrar mis NPC ({n})"), false, true) }
+                };
+                l.caja(&mut u, r[0], r[1], r[2], r[3], hf * 0.012, if rojo { [0.6, 0.15, 0.12, 0.95] } else if sel { [0.95, 0.66, 0.1, 0.92] } else { [1.0, 1.0, 1.0, 0.1] });
+                let mut ts = tt; while l.ancho(ts, &txt) > r[2] - 8.0 && ts > tt * 0.4 { ts *= 0.9; }
+                let an = l.ancho(ts, &txt); l.texto(&mut u, r[0] + (r[2] - an) / 2.0, r[1] + (r[3] - ts) / 2.0 - hf * 0.004, ts, if sel { [0.0, 0.0, 0.0, 1.0] } else { bl }, &txt);
+            }
+            if !pn.est.is_empty() { l.texto(&mut u, mx, c[1] + c[3] - hf * 0.06, t * 0.62, [0.95, 0.75, 0.3, 1.0], &pn.est); }
         }
         // (el aviso, arriba de los menús: lo que se acaba de elegir se ve)
         if let Some((a, ta)) = &self.aviso {
