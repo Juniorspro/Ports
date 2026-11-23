@@ -45,7 +45,7 @@ pub const GV: &str = "@group(0) @binding(0) var<uniform> G: Glob;\n";
 pub const LUZ: &str = r#"
 @group(0) @binding(1) var t_sombra: texture_depth_2d;
 @group(0) @binding(2) var s_cmp: sampler_comparison;
-struct Obj { mn: vec4<f32>, sc: vec4<f32>, st: vec4<f32>, c: vec4<f32>, em: vec4<f32>, mat: vec4<f32>, s1: vec4<f32>, s3: vec4<f32> };
+struct Obj { mn: vec4<f32>, sc: vec4<f32>, st: vec4<f32>, c: vec4<f32>, em: vec4<f32>, mat: vec4<f32>, s1: vec4<f32>, s3: vec4<f32>, ti: vec4<f32>, ti2: vec4<f32>, ti3: vec4<f32> };
 @group(1) @binding(0) var<uniform> O: Obj;
 @group(2) @binding(0) var t_t: texture_2d<f32>;
 @group(2) @binding(1) var t_1: texture_2d<f32>;
@@ -132,6 +132,14 @@ fn sombra(nd: f32, vs: vec4<f32>, vs2: vec4<f32>) -> f32 {
   else if ((modo & 8) != 0) { t = mix(textureSample(t_t, s_rep, i.u), textureSample(t_1, s_rep, i.u), clamp(i.mz, 0.0, 1.0)); }   // (dos texturas mezcladas por vértice)
   else { t = textureSample(t_t, s_rep, i.u); }
   t = t * O.c;
+  // la pintura en dos tonos (las armas de JXMod): lo gris con un color y los acentos con otro, que además brilla
+  var emAc = vec3<f32>(0.0);
+  if (O.ti2.w > 0.0) {
+    let lu = dot(t.rgb, vec3<f32>(0.299, 0.587, 0.114)); let sat = max(t.r, max(t.g, t.b)) - min(t.r, min(t.g, t.b));
+    let kA = smoothstep(O.ti3.w, O.ti3.w + 0.16, sat);
+    let cu = mix(t.rgb, vec3<f32>(lu) * O.ti.xyz, O.ti.w); let ac = mix(t.rgb, vec3<f32>(lu) * O.ti2.xyz, O.ti2.w);
+    t = vec4<f32>(mix(cu, ac, kA), t.a); emAc = ac * kA * O.ti3.xyz;
+  } else if (O.ti.w > 0.0) { t = vec4<f32>(mix(t.rgb, vec3<f32>(dot(t.rgb, vec3<f32>(0.299, 0.587, 0.114))) * O.ti.xyz, O.ti.w), t.a); }
   var col: vec3<f32>;
   if ((modo & 4) != 0) { col = pot3(t.rgb, 2.2) * 1.4; }   // (sin luz)
   else {
@@ -166,6 +174,7 @@ fn sombra(nd: f32, vs: vec4<f32>, vs2: vec4<f32>) -> f32 {
     let Fr = f0 + (max(vec3<f32>(1.0 - rough), f0) - f0) * pow(1.0 - nv, 5.0);
     col += dif * amb + env * Fr * mix(1.0, sh * 0.6 + 0.4, metal) + O.em.xyz * 1.6;
   }
+  col += emAc;
   // la niebla (hasta cuánto tapa, la luz del sol en ella mirando para el sol y la de lo lejos y bajo)
   let dist = max(distance(i.w, G.cam.xyz), 1e-3);
   var f = clamp((dist - G.nie.x) / max(G.nie.y - G.nie.x, 0.001), 0.0, 1.0) * G.nie.z;
@@ -179,7 +188,7 @@ fn sombra(nd: f32, vs: vec4<f32>, vs2: vec4<f32>) -> f32 {
 
 /// la sombra del sol: sólo la profundidad (con huesos o sin)
 pub const SOMBRA: &str = r#"
-struct Obj { mn: vec4<f32>, sc: vec4<f32>, st: vec4<f32>, c: vec4<f32>, em: vec4<f32>, mat: vec4<f32>, s1: vec4<f32>, s3: vec4<f32> };
+struct Obj { mn: vec4<f32>, sc: vec4<f32>, st: vec4<f32>, c: vec4<f32>, em: vec4<f32>, mat: vec4<f32>, s1: vec4<f32>, s3: vec4<f32>, ti: vec4<f32>, ti2: vec4<f32>, ti3: vec4<f32> };
 @group(1) @binding(0) var<uniform> O: Obj;
 struct Huesos { b: array<vec4<f32>, 168> };
 @group(3) @binding(0) var<uniform> H: Huesos;

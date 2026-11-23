@@ -39,9 +39,9 @@ struct Destino { fb: glow::Framebuffer, color: glow::Texture, prof: Option<glow:
 
 // los uniformes, por número (buscarlos por nombre en cada dibujo cuesta)
 #[derive(Clone, Copy)]
-enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2 }
-const NU: usize = U::Sesgo2 as usize + 1;
-const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2"];
+enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3 }
+const NU: usize = U::Ti3 as usize + 1;
+const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3"];
 struct Prog { p: glow::Program, u: Vec<Option<glow::UniformLocation>>, piel: bool }
 impl Prog {
     fn u(&self, k: U) -> Option<&glow::UniformLocation> { self.u[k as usize].as_ref() }
@@ -81,7 +81,7 @@ precision highp float; precision highp sampler2DShadow;
 // el sombreado de WebGL (gl.js, LUZ 3, salida LDR): la luz en lineal, el BRDF con la rugosidad y el metal de cada material,
 // el reflejo del cielo, las luces puntuales y especiales, la luz horneada, la niebla con el sol y ACES
 uniform sampler2D uT, uLM, uT1, uT2, uT3; uniform vec4 uS1; uniform vec2 uS3; uniform sampler2DShadow uSM;
-uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uMat, uNie; uniform vec2 uSesgo, uSesgo2; uniform float uExpo, uSombra, uClip; uniform int uModo;
+uniform vec4 uC, uTi, uTi2, uTi3; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uMat, uNie; uniform vec2 uSesgo, uSesgo2; uniform float uExpo, uSombra, uClip; uniform int uModo;
 uniform vec3 uTop, uMid, uBot; uniform vec2 uExp; uniform float uCieloK;
 uniform vec4 uLP[12], uLC[12], uLD[12]; uniform int uLN, uLE;
 in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in vec4 vS; in vec4 vS2; in float vMz; out vec4 o;
@@ -124,6 +124,15 @@ void main() {
   else if ((uModo & 8) != 0) t = mix(texture(uT, vU), texture(uT1, vU), clamp(vMz, 0.0, 1.0));   // (dos texturas mezcladas por vértice)
   else t = texture(uT, vU);
   t *= uC;
+  // la pintura en dos tonos (las armas de JXMod, armasjx.js): lo gris de la textura con un color y lo de color (los
+  // acentos) con otro, que además brilla; con un solo tono, el brillo de la textura de ese color (Modelo.tinte)
+  vec3 emAc = vec3(0.0);
+  if (uTi2.a > 0.0) {
+    float lu = dot(t.rgb, vec3(0.299, 0.587, 0.114)), sat = max(t.r, max(t.g, t.b)) - min(t.r, min(t.g, t.b));
+    float kA = smoothstep(uTi3.a, uTi3.a + 0.16, sat);
+    vec3 cu = mix(t.rgb, vec3(lu) * uTi.rgb, uTi.a), ac = mix(t.rgb, vec3(lu) * uTi2.rgb, uTi2.a);
+    t.rgb = mix(cu, ac, kA); emAc = ac * kA * uTi3.rgb;
+  } else if (uTi.a > 0.0) t.rgb = mix(t.rgb, vec3(dot(t.rgb, vec3(0.299, 0.587, 0.114))) * uTi.rgb, uTi.a);
   if ((uModo & 2) != 0 && t.a < 0.5) discard;
   vec3 col;
   if ((uModo & 4) != 0) col = pow(t.rgb, vec3(2.2)) * 1.4;   // (sin luz)
@@ -153,6 +162,7 @@ void main() {
     vec3 Fr = f0 + (max(vec3(1.0 - rough), f0) - f0) * pow(1.0 - nv, 5.0);
     col += dif * amb + env * Fr * mix(1.0, sh * 0.6 + 0.4, metal) + uEm * 1.6;
   }
+  col += emAc;
   // la niebla (hasta cuánto tapa, la luz del sol en ella mirando para el sol y la de lo lejos y bajo)
   float dist = max(distance(vW, uCam), 1e-3);
   float f = clamp((dist - uNie.x) / max(uNie.y - uNie.x, 0.001), 0.0, 1.0) * uNie.z;
@@ -611,7 +621,7 @@ impl Motor {
             let tx = |i: i64| self.texs.get(&i).map(|t| t.t).unwrap_or(self.blanca);
             gl.uniform_4_f32(p.u(U::St), mt.st[0], mt.st[1], mt.st[2], mt.st[3]);
             gl.uniform_4_f32(p.u(U::C), mt.c[0], mt.c[1], mt.c[2], mt.c[3]);
-            gl.uniform_3_f32(p.u(U::Em), mt.em[0], mt.em[1], mt.em[2]); gl.uniform_3_f32(p.u(U::Mat), mt.pbr[0], mt.pbr[1], mt.pbr[2]);
+            gl.uniform_3_f32(p.u(U::Em), mt.em[0], mt.em[1], mt.em[2]); gl.uniform_4_f32_slice(p.u(U::Ti), &mt.ti[0..4]); gl.uniform_4_f32_slice(p.u(U::Ti2), &mt.ti[4..8]); gl.uniform_4_f32_slice(p.u(U::Ti3), &mt.ti[8..12]); gl.uniform_3_f32(p.u(U::Mat), mt.pbr[0], mt.pbr[1], mt.pbr[2]);
             gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, Some(tx(mt.t)));
             let lm = self.lms.get(&m.lm);
             if let Some(l) = lm { gl.active_texture(glow::TEXTURE1); gl.bind_texture(glow::TEXTURE_2D, Some(l.t)); }

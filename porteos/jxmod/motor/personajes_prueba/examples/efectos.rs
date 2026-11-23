@@ -289,7 +289,7 @@ fn pared(base: V, fw: V, der: V, ancho: f32, alto: f32, grueso: f32, tex: i64) -
     }
     let vo = 0; let io = vb.len(); let mut datos = vb; datos.extend_from_slice(&ib);
     let malla = Malla { id: -3000, v: 24, mn: [-hx, -hy, -hz], sc: [2.0 * hx, 2.0 * hy, 2.0 * hz], i32: 0, ni: 36, vo, io, lo: -1, so: -1, lm: -1 };
-    let mat = Mat { pbr: [0.85, 0.0, 0.04], fol: 0, id: -3000, t2: -1, terr: None, c: [0.8, 0.8, 0.78, 1.0], st: [1.0, 1.0, 0.0, 0.0], t: tex, blend: 0, cut: 0, unlit: 0, add: 0, agua: 0, em: [0.0; 3] };
+    let mat = Mat { ti: [0.0; 12], pbr: [0.85, 0.0, 0.04], fol: 0, id: -3000, t2: -1, terr: None, c: [0.8, 0.8, 0.78, 1.0], st: [1.0, 1.0, 0.0, 0.0], t: tex, blend: 0, cut: 0, unlit: 0, add: 0, agua: 0, em: [0.0; 3] };
     // (la matriz: x por la derecha de la cámara —la pared se ve de frente—, y arriba, z hacia adelante; el centro de la caja)
     let c = [base[0] + fw[0] * hz, base[1] + hy, base[2] + fw[2] * hz]; let up = [0.0, 1.0, 0.0];
     let x = [-der[0], -der[1], -der[2]];

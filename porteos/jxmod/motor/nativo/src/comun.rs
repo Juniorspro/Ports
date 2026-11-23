@@ -360,7 +360,8 @@ impl Juego {
         if !self.armas_ico { if let Some(paq) = self.paq.as_ref() {
             let (aw, ah) = (1024u32, (ARMAS.len() as u32).div_ceil(ICO_COLS).max(1) * ICO); let ah = ah.next_power_of_two(); let mut px = vec![0u8; (aw * ah * 4) as usize];
             for (k, a) in ARMAS.iter().enumerate() {
-                let Some(ic) = objetos::icono(paq, a.ic, ICO) else { continue };
+                let Some(mut ic) = objetos::icono(paq, a.ic, ICO) else { continue };
+                if let Some(t) = vista::paleta(a.jx) { vista::icono_pintado(&mut ic, ICO as usize, ICO as usize, t); }
                 let (cx, cy) = ((k as u32 % ICO_COLS) * ICO, (k as u32 / ICO_COLS) * ICO);
                 for y in 0..ICO { let d = (((cy + y) * aw + cx) * 4) as usize; let s = ((y * ICO) * 4) as usize; px[d..d + (ICO * 4) as usize].copy_from_slice(&ic[s..s + (ICO * 4) as usize]); }
             }
@@ -371,7 +372,7 @@ impl Juego {
         if self.vista.as_ref().map(|v| v.nodo != d.nodo).unwrap_or(true) {
             self.vista = None;
             if let Some(paq) = self.paq.as_mut() {
-                match Vista::cargar(paq, d.nodo, 512, &mut self.vista_cargados) {
+                match Vista::cargar(paq, d.nodo, d.jx, 512, &mut self.vista_cargados) {
                     Ok((v, esc)) => { if m.cargar(&esc).is_ok() { self.vista = Some(v); self.clip_ya = ""; if self.armas.anim.is_none() { self.armas.anim = Some(d.sacar); } } }
                     Err(e) => { self.avisar(format!("arma: {e}")); return; }
                 }
@@ -773,7 +774,8 @@ impl Juego {
             if let (Some(p1), Some(a), true) = (self.armas.punto_agarrado(&self.fis), self.armas.agarre.as_ref(), self.tubo_ok) {
                 let p0 = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or([ojos[0], ojos[1] - 0.2, ojos[2]]);
                 let mid = [ojos[0] + fw[0] * a.dist * 0.5, ojos[1] + fw[1] * a.dist * 0.5, ojos[2] + fw[2] * a.dist * 0.5];
-                vista::rayo_items(p0, mid, p1, self.t0.elapsed().as_secs_f32(), &mut items);
+                let mat = if self.armas.def().jx.is_empty() { vista::TUBO_MAT } else { vista::TUBO_AMBAR };
+                vista::rayo_items(p0, mid, p1, self.t0.elapsed().as_secs_f32(), mat, &mut items);
             }
             let t_fis = (self.acum_fis / PASO_FIS).clamp(0.0, 1.0);
             for o in &self.objs { if let Some(pf) = self.prefabs.get(&o.nombre) {

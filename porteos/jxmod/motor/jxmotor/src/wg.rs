@@ -21,7 +21,7 @@ const O_PASO: u64 = 256;
 const H_PASO: u64 = 2816;
 const U_PASO: u64 = 256;
 const G_TAM: u64 = 1072;
-const O_TAM: u64 = 128;
+const O_TAM: u64 = 176;
 const H_TAM: u64 = 2688;
 const U_TAM: u64 = 32;
 /// cabeceras: 0 la cámara, 1 el reflejo, 2 la sombra
@@ -413,7 +413,7 @@ impl Motor {
         r[0..3].copy_from_slice(&m.mn); r[4..7].copy_from_slice(&m.sc);
         if !sombra {
             let mt = &self.mats[&it.mat]; let (_, modo) = self.clave_mat(it);
-            r[8..12].copy_from_slice(&mt.st); r[12..16].copy_from_slice(&mt.c); r[16..19].copy_from_slice(&mt.em); r[20..23].copy_from_slice(&mt.pbr);
+            r[8..12].copy_from_slice(&mt.st); r[12..16].copy_from_slice(&mt.c); r[16..19].copy_from_slice(&mt.em); r[20..23].copy_from_slice(&mt.pbr); r[32..44].copy_from_slice(&mt.ti);
             if let Some(tr) = mt.terr.as_ref().filter(|t| t.len() == 3) { r[24..28].copy_from_slice(&[tr[0].1, tr[0].2, tr[1].1, tr[1].2]); r[28] = tr[2].1; r[29] = tr[2].2; }
             r[30] = modo;
         }

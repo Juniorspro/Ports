@@ -10,17 +10,17 @@ use jxjuego::mundo::Mundo;
 /// (fisica, grav, tool, bala, perdigones, cohete, flecha, golpe), el cargador, la cadencia, el daño, la dispersión, si es
 /// de un tiro por toque, si tiene mira, el alcance y el empuje de las de golpe, y los clips y sonidos de la palanca
 pub struct DefArma { pub n: &'static str, pub nom: &'static str, pub ic: &'static str, pub s_sacar: &'static str, pub s_sosten: &'static str,
-    pub nodo: &'static str, pub sacar: &'static str, pub quieto: &'static str, pub sujeta: &'static str, pub fuego: &'static str,
+    pub nodo: &'static str, /** la pintura de JXMod (armasjx.js: "fisica", "gravedad", "tool", "palanca"; "" sin pintar) */ pub jx: &'static str, pub sacar: &'static str, pub quieto: &'static str, pub sujeta: &'static str, pub fuego: &'static str,
     pub tipo: &'static str, pub car: u32, pub cad: f32, pub dan: f32, pub disp: f32, pub semi: bool, pub mira: bool, pub alcance: f32, pub empuje: f32,
     pub s_f: &'static [&'static str], pub s_r: &'static str, pub recarga: &'static str, pub fuego2: &'static str,
     pub pega: &'static [&'static str], pub falla: &'static [&'static str], pub s_imp: &'static [&'static str], pub s_carne: &'static [&'static str] }
-const BASE: DefArma = DefArma { n: "", nom: "", ic: "", s_sacar: "", s_sosten: "", nodo: "", sacar: "", quieto: "", sujeta: "", fuego: "", tipo: "", car: 0, cad: 0.1, dan: 0.0, disp: 0.0,
+const BASE: DefArma = DefArma { n: "", nom: "", ic: "", s_sacar: "", s_sosten: "", nodo: "", jx: "", sacar: "", quieto: "", sujeta: "", fuego: "", tipo: "", car: 0, cad: 0.1, dan: 0.0, disp: 0.0,
     semi: false, mira: false, alcance: 0.0, empuje: 0.0, s_f: &[], s_r: "", recarga: "", fuego2: "", pega: &[], falla: &[], s_imp: &[], s_carne: &[] };
 pub const ARMAS: [DefArma; 14] = [
-    DefArma { n: "PhysicsGun", nom: "Physics Gun", ic: "W_PhysGun", s_sacar: "genericReadyNew_1", s_sosten: "PG_Hold", nodo: "GM_PhysGun", sacar: "PG_draw", quieto: "PG_idle", sujeta: "PG_hold", fuego: "PG_fire", tipo: "fisica", ..BASE },
-    DefArma { n: "GravityGun", nom: "Gravity Gun", ic: "W_GravGun", s_sacar: "GG_Open", s_sosten: "GG_Hold", nodo: "GM_GravGun", sacar: "GG_draw", quieto: "GG_idle", sujeta: "GG_hold", fuego: "GG_fire", tipo: "grav", cad: 0.5, ..BASE },
-    DefArma { n: "ToolBaton", nom: "Tool Gun", ic: "W_ToolGun", s_sacar: "genericReadyNew_1", nodo: "GM_ToolGun", sacar: "TG_draw", quieto: "TG_idle", sujeta: "TG_idle", fuego: "TG_fire", tipo: "tool", cad: 0.35, ..BASE },
-    DefArma { n: "Crowbar", nom: "Palanca", ic: "W_Crowbar", nodo: "Crowbar", fuego: "CB_miss1", sacar: "CB_draw", quieto: "CB_idle", tipo: "golpe", cad: 0.4, dan: 25.0, empuje: 70.0, alcance: 1.95,
+    DefArma { n: "PhysicsGun", jx: "fisica", nom: "Physics Gun", ic: "W_PhysGun", s_sacar: "genericReadyNew_1", s_sosten: "PG_Hold", nodo: "GM_PhysGun", sacar: "PG_draw", quieto: "PG_idle", sujeta: "PG_hold", fuego: "PG_fire", tipo: "fisica", ..BASE },
+    DefArma { n: "GravityGun", jx: "gravedad", nom: "Gravity Gun", ic: "W_GravGun", s_sacar: "GG_Open", s_sosten: "GG_Hold", nodo: "GM_GravGun", sacar: "GG_draw", quieto: "GG_idle", sujeta: "GG_hold", fuego: "GG_fire", tipo: "grav", cad: 0.5, ..BASE },
+    DefArma { n: "ToolBaton", jx: "tool", nom: "Tool Gun", ic: "W_ToolGun", s_sacar: "genericReadyNew_1", nodo: "GM_ToolGun", sacar: "TG_draw", quieto: "TG_idle", sujeta: "TG_idle", fuego: "TG_fire", tipo: "tool", cad: 0.35, ..BASE },
+    DefArma { n: "Crowbar", jx: "palanca", nom: "Palanca", ic: "W_Crowbar", nodo: "Crowbar", fuego: "CB_miss1", sacar: "CB_draw", quieto: "CB_idle", tipo: "golpe", cad: 0.4, dan: 25.0, empuje: 70.0, alcance: 1.95,
         s_f: &["CB_Swing"], pega: &["CB_hit1", "CB_hit2", "CB_hit3"], falla: &["CB_miss1", "CB_miss2"], s_imp: &["CB_Impact1", "CB_Impact2"], s_carne: &["CB_Flesh1", "CB_Flesh2", "CB_Flesh3", "CB_Flesh4", "CB_Flesh5"], ..BASE },
     DefArma { n: "Hands", nom: "Manos", ic: "Hands", nodo: "Hands", fuego: "Punch", fuego2: "Hook", sacar: "Draw", s_f: &["Arm_Swing_edited"], tipo: "golpe", cad: 0.45, dan: 15.0, alcance: 2.0, ..BASE },
     DefArma { n: "Pistol", nom: "Pistola", ic: "W_Pistol", nodo: "Pistol", fuego: "pistolfire", sacar: "pistolready", recarga: "pistolreload", s_f: &["pistol2Fire_1"], s_sacar: "PistolReady2", s_r: "pistolreload", car: 12, cad: 0.18, dan: 25.0, tipo: "bala", semi: true, ..BASE },

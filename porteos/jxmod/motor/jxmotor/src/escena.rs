@@ -14,7 +14,9 @@ fn pbr0() -> [f32; 3] { [0.72, 0.0, 0.04] }
 #[derive(Deserialize, Debug, Clone)]
 pub struct Malla { #[serde(default = "menos1")] pub id: i64, pub v: u32, pub mn: [f32; 3], pub sc: [f32; 3], pub i32: u8, pub ni: u32, pub vo: usize, pub io: usize, pub lo: i64, #[serde(default = "menos1")] pub so: i64, pub lm: i64 }
 #[derive(Deserialize, Debug, Clone)]
-pub struct Mat { #[serde(default = "pbr0")] pub pbr: [f32; 3], #[serde(default)] pub fol: u8, #[serde(default = "menos1")] pub id: i64, #[serde(default = "menos1")] pub t2: i64, #[serde(default)] pub terr: Option<Vec<(i64, f32, f32)>>, pub c: [f32; 4], pub st: [f32; 4], pub t: i64, pub blend: u8, pub cut: u8, pub unlit: u8, pub add: u8, pub agua: u8, pub em: [f32; 3] }
+pub struct Mat { #[serde(default = "pbr0")] pub pbr: [f32; 3], #[serde(default)] pub fol: u8, #[serde(default = "menos1")] pub id: i64, #[serde(default = "menos1")] pub t2: i64, #[serde(default)] pub terr: Option<Vec<(i64, f32, f32)>>, pub c: [f32; 4], pub st: [f32; 4], pub t: i64, pub blend: u8, pub cut: u8, pub unlit: u8, pub add: u8, pub agua: u8, pub em: [f32; 3],
+    /// la pintura (dos tonos: cuerpo, acentos y brillo de los acentos; ceros: sin pintura)
+    #[serde(default)] pub ti: [f32; 12] }
 #[derive(Deserialize, Debug, Clone)]
 pub struct Tex { #[serde(default = "menos1")] pub id: i64, #[serde(default)] pub n: String, pub w: u32, pub h: u32, #[serde(default)] pub a: u8, pub o: usize }
 #[derive(Deserialize, Debug, Clone)]

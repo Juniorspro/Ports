@@ -140,7 +140,7 @@ pub fn material(d: &Value, i: usize) -> Option<Mat> {
     if agua { blend = true; cut = false; unlit = false; fol = false; }
     if oculto { return None; }
     if c.iter().any(|v| v.is_nan()) { c = [1.0; 4]; }
-    Some(Mat { pbr, fol: fol as u8, id: i as i64, t2: mez, terr, c, st, t: tex, blend: blend as u8, cut: cut as u8, unlit: (unlit && !fol) as u8, add: add as u8, agua: agua as u8, em })
+    Some(Mat { ti: [0.0; 12], pbr, fol: fol as u8, id: i as i64, t2: mez, terr, c, st, t: tex, blend: blend as u8, cut: cut as u8, unlit: (unlit && !fol) as u8, add: add as u8, agua: agua as u8, em })
 }
 
 /// el cielo «painted» de GMod: un degradé celeste que se aclara hasta casi blanco en el horizonte (cieloPainted de

@@ -83,9 +83,87 @@ fn sub_arbol(arb: &[Value], i0: usize) -> Vec<Value> {
     out
 }
 
+/// la pintura de las armas de JXMod (armasjx.js, AJX_PALETA): [cuerpo r, g, b, cuánto; acentos r, g, b, cuánto; brillo
+/// de los acentos r, g, b, desde qué saturación es acento]. El cuerpo grafito y los acentos ámbar (el amarillo del menú)
+/// en la Physics Gun, la Tool Gun y la palanca, y celeste en la Gravity Gun
+pub fn paleta(jx: &str) -> Option<[f32; 12]> {
+    Some(match jx {
+        "fisica" => [0.62, 0.66, 0.74, 0.85, 2.9, 1.75, 0.32, 1.0, 0.22, 0.13, 0.02, 0.14],
+        "gravedad" => [0.62, 0.66, 0.74, 0.85, 0.75, 1.9, 2.6, 1.0, 0.12, 0.42, 0.62, 0.14],
+        "tool" => [0.62, 0.66, 0.74, 0.8, 2.9, 1.9, 0.35, 1.0, 0.25, 0.15, 0.02, 0.14],
+        "palanca" => [0.55, 0.58, 0.64, 0.6, 4.6, 3.1, 0.55, 1.0, 0.1, 0.06, 0.0, 0.1],
+        _ => return None,
+    })
+}
+/// qué materiales de la malla de la vista se pintan, por su lugar en la lista del nodo (AJX_MATS: el 523 de todas son las
+/// manos y el 526 de la Tool Gun, su pantalla)
+pub fn pintados(jx: &str) -> &'static [bool] {
+    match jx { "fisica" => &[true, false], "gravedad" => &[false, true], "tool" => &[true, false, true, true, false], "palanca" => &[true, false, true], _ => &[] }
+}
+/// el material pintado de `mt` con la paleta número `k` (otro id, para que el mismo material sin pintar siga estando)
+fn id_pintado(mt: i64, k: usize) -> i64 { mt + 10_000_000 * (k as i64 + 1) }
+const JX: [&str; 4] = ["fisica", "gravedad", "tool", "palanca"];
+
+/// el ícono de GMod con la pintura del arma (ajxIconoTenido, para la barra y el menú): en dos tonos como en el juego (lo
+/// gris con el color del cuerpo y lo de color con el de los acentos), aclarado (los íconos de GMod son el modelo casi
+/// negro: que lo más claro llegue a ~175) y con un halo del color de los acentos alrededor. `px`: RGBA de `w`×`h`
+pub fn icono_pintado(px: &mut [u8], w: usize, h: usize, t: [f32; 12]) {
+    let lum = |p: &[u8]| 0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32;
+    let mut ls: Vec<f32> = px.chunks_exact(4).filter(|p| p[3] > 128).map(lum).collect();
+    ls.sort_by(|a, b| a.total_cmp(b));
+    let p95 = ls.get((ls.len() as f32 * 0.95).floor() as usize).copied().filter(|&x| x != 0.0).unwrap_or(175.0);
+    let ga = (175.0 / p95.max(1.0)).clamp(1.0, 2.6);
+    let (c0, c1, s0) = ([t[0], t[1], t[2], t[3]], [t[4], t[5], t[6], t[7]], t[11]);
+    let mz = |x: f32, y: f32, k: f32| x + (y - x) * k;
+    for p in px.chunks_exact_mut(4) {
+        let (r, g, b) = (p[0] as f32, p[1] as f32, p[2] as f32);
+        let l = lum(p) * 1.15 * ga; let sat = (r.max(g).max(b) - r.min(g).min(b)) / 255.0;
+        let ka = ((sat - s0) / 0.16).clamp(0.0, 1.0);
+        for (q, v0) in [r, g, b].into_iter().enumerate() {
+            let v = (v0 * ga).min(255.0); let cu = mz(v, (l * c0[q]).min(255.0), c0[3]); let ac = mz(v, (l * c1[q]).min(255.0), c1[3]);
+            p[q] = mz(cu, ac, ka).round().clamp(0.0, 255.0) as u8;
+        }
+    }
+    // el halo: la sombra de canvas (desenfoque gaussiano de sigma = blur / 2, del color de los acentos con 0,85) dos veces,
+    // de 6 % y de 2,5 % del ancho, cada una con el ícono encima
+    let m = c1[0].max(c1[1]).max(c1[2]).max(1e-6); let hx = [(c1[0] / m).min(1.0), (c1[1] / m).min(1.0), (c1[2] / m).min(1.0)];
+    let img: Vec<[f32; 4]> = px.chunks_exact(4).map(|p| [p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0, p[3] as f32 / 255.0]).collect();
+    let mut out = vec![[0f32; 4]; w * h];
+    let sobre = |d: &mut [f32; 4], s: [f32; 4]| { let a = s[3] + d[3] * (1.0 - s[3]); if a > 0.0 { for q in 0..3 { d[q] = (s[q] * s[3] + d[q] * d[3] * (1.0 - s[3])) / a; } } d[3] = a; };
+    for blur in [(w as f32 * 0.06).round(), (w as f32 * 0.025).round()] {
+        let al = desenfocar(&img.iter().map(|p| p[3]).collect::<Vec<_>>(), w, h, blur / 2.0);
+        for i in 0..w * h { sobre(&mut out[i], [hx[0], hx[1], hx[2], al[i] * 0.85]); sobre(&mut out[i], img[i]); }
+    }
+    for (p, o) in px.chunks_exact_mut(4).zip(out) { for q in 0..4 { p[q] = (o[q] * 255.0).round().clamp(0.0, 255.0) as u8; } }
+}
+/// desenfoque gaussiano aproximado (tres cajas por eje, como los navegadores) de un canal de `w`×`h`
+fn desenfocar(a: &[f32], w: usize, h: usize, sigma: f32) -> Vec<f32> {
+    if sigma < 0.5 { return a.to_vec(); }
+    let r = ((sigma * 3.0 * (2.0 * std::f32::consts::PI).sqrt() / 4.0 + 0.5).floor() as usize).max(1) / 2 * 2 + 1;
+    let caja = |src: &[f32], dst: &mut [f32], n: usize, paso: usize, cant: usize, avance: usize| {
+        let rad = (r / 2) as i64;
+        for k in 0..cant {
+            let base = k * avance; let mut s = 0.0;
+            for i in -rad..=rad { if i >= 0 && (i as usize) < n { s += src[base + i as usize * paso]; } }
+            for i in 0..n as i64 {
+                dst[base + i as usize * paso] = s / r as f32;
+                let (sale, entra) = (i - rad, i + rad + 1);
+                if sale >= 0 { s -= src[base + sale as usize * paso]; }
+                if (entra as usize) < n { s += src[base + entra as usize * paso]; }
+            }
+        }
+    };
+    let (mut x, mut y) = (a.to_vec(), vec![0f32; a.len()]);
+    for _ in 0..3 { caja(&x, &mut y, w, 1, h, w); std::mem::swap(&mut x, &mut y); }
+    for _ in 0..3 { caja(&x, &mut y, h, w, w, 1); std::mem::swap(&mut x, &mut y); }
+    x
+}
+
 impl Vista {
     /// el arma `nodo` (GM_PhysGun, GM_GravGun, GM_ToolGun, Crowbar…) y una escena con lo que el motor todavía no tiene
-    pub fn cargar(paq: &mut Paquete, nodo: &str, tmax: u32, ya: &mut Cargados) -> Result<(Vista, Escena), String> {
+    /// (`jx`: la pintura de JXMod —"fisica", "gravedad", "tool", "palanca"— o "" para la de GMod tal cual)
+    pub fn cargar(paq: &mut Paquete, nodo: &str, jx: &str, tmax: u32, ya: &mut Cargados) -> Result<(Vista, Escena), String> {
+        let (pal, pint) = (paleta(jx), pintados(jx)); let kp = JX.iter().position(|x| *x == jx).unwrap_or(0);
         let clave = crate::objetos::por_nombre(&paq.d).get("PhotonPlayer").cloned().ok_or("no está el PhotonPlayer")?;
         let sub = {
             let arb = paq.d["pf"][&clave].as_array().ok_or("PhotonPlayer raro")?;
@@ -126,8 +204,10 @@ impl Vista {
             for (k, mt) in x["mt"].as_array().into_iter().flatten().enumerate() {
                 let Some(mt) = mt.as_i64() else { continue }; if mt < 0 { continue; }
                 let Some(sp) = subs.get(k) else { continue };
-                if !ya.mats.contains(&mt) { match material(d, mt as usize) { Some(m) => { ya.mats.insert(mt); mats.push(m); } None => continue } }
-                partes.push((sp[0].as_u64().unwrap_or(0) as u32, sp[1].as_u64().unwrap_or(0) as u32, mt));
+                // (pintado: el mismo material con otro id y la pintura puesta)
+                let (id, ti) = match pal { Some(p) if pint.get(k).copied().unwrap_or(false) => (id_pintado(mt, kp), Some(p)), _ => (mt, None) };
+                if !ya.mats.contains(&id) { match material(d, mt as usize) { Some(mut m) => { if let Some(p) = ti { m.id = id; m.ti = p; } ya.mats.insert(id); mats.push(m); } None => continue } }
+                partes.push((sp[0].as_u64().unwrap_or(0) as u32, sp[1].as_u64().unwrap_or(0) as u32, id));
             }
             match (bo, sk) {
                 (Some(bo), Some(_)) => {
@@ -283,6 +363,8 @@ pub const TUBO_MALLA: i64 = -3001;
 pub const TUBO_MAT: i64 = -3002;
 /// los otros colores del tubo: verde (un cable con señal), azul (un cable sin señal) y amarillo (la traza de la Tool Gun)
 pub const TUBO_VERDE: i64 = -3003; pub const TUBO_AZUL: i64 = -3004; pub const TUBO_AMARILLO: i64 = -3005;
+/// el del rayo de la Physics Gun de JXMod: ámbar, con luz y que brilla (ajxMundoDibujar: matPropio('ajxRayo'))
+pub const TUBO_AMBAR: i64 = -3006;
 /// la malla del tubo (un cilindro de 8 caras, radio 1, de z 0 a 1: ajxTubo) y su material, celeste y brillante como el
 /// rayo de la Physics Gun de GMod (dibujarRayoFisica: [0,35, 0,78, 1])
 pub fn tubo() -> Escena {
@@ -301,8 +383,9 @@ pub fn tubo() -> Escena {
     let ni = (lados * 6) as u32; let nv = ((lados + 1) * 2) as u32;
     let mut datos = vb; while datos.len() % 4 != 0 { datos.push(0); } let io = datos.len(); datos.extend_from_slice(&ib);
     let malla = Malla { id: TUBO_MALLA, v: nv, mn: [-1.0, -1.0, 0.0], sc: [2.0, 2.0, 1.0], i32: 0, ni, vo: 0, io, lo: -1, so: -1, lm: -1 };
-    let mat = |id: i64, c: [f32; 3], em: [f32; 3]| Mat { pbr: [0.3, 0.0, 0.04], fol: 0, id, t2: -1, terr: None, c: [c[0], c[1], c[2], 1.0], st: [1.0, 1.0, 0.0, 0.0], t: -1, blend: 0, cut: 0, unlit: 1, add: 0, agua: 0, em };
-    let mats = vec![mat(TUBO_MAT, [0.35, 0.78, 1.0], [1.4, 3.1, 4.0]), mat(TUBO_VERDE, [0.3, 1.0, 0.4], [0.9, 3.0, 1.2]), mat(TUBO_AZUL, [0.2, 0.7, 1.0], [0.4, 1.4, 2.0]), mat(TUBO_AMARILLO, [1.0, 1.0, 0.3], [3.0, 3.0, 0.9])];
+    let mat = |id: i64, c: [f32; 3], em: [f32; 3]| Mat { ti: [0.0; 12], pbr: [0.3, 0.0, 0.04], fol: 0, id, t2: -1, terr: None, c: [c[0], c[1], c[2], 1.0], st: [1.0, 1.0, 0.0, 0.0], t: -1, blend: 0, cut: 0, unlit: 1, add: 0, agua: 0, em };
+    let mut ambar = mat(TUBO_AMBAR, [1.0, 0.72, 0.18], [5.5, 3.4, 0.6]); ambar.unlit = 0;
+    let mats = vec![ambar, mat(TUBO_MAT, [0.35, 0.78, 1.0], [1.4, 3.1, 4.0]), mat(TUBO_VERDE, [0.3, 1.0, 0.4], [0.9, 3.0, 1.2]), mat(TUBO_AZUL, [0.2, 0.7, 1.0], [0.4, 1.4, 2.0]), mat(TUBO_AMARILLO, [1.0, 1.0, 0.3], [3.0, 3.0, 0.9])];
     let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![malla], mats, texs: vec![], lms: vec![], items: vec![], agua: None, cielo: None };
     Escena { c: cab, datos }
 }
@@ -317,8 +400,9 @@ pub fn tramo(a: V, b: V, r: f32, mat: i64, out: &mut Vec<ItemDin>) {
     out.push(ItemDin { m: TUBO_MALLA, s0: 0, sn: 48, mat, mm, esf: [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0, (a[2] + b[2]) / 2.0, l / 2.0 + r], fl: FL_SIN_SOMBRA, h: vec![] });
 }
 /// el rayo de la Physics Gun como tramos de tubo (ajxMundoDibujar): la curva de la boca `p0` a lo agarrado `p1` pasando por
-/// el medio de la mira (`mid`), 16 tramos, de radio 0,012 que late con el tiempo
-pub fn rayo_items(p0: V, mid: V, p1: V, t: f32, out: &mut Vec<ItemDin>) {
+/// el medio de la mira (`mid`), 16 tramos, de radio 0,012 que late con el tiempo, del material `mat` (TUBO_AMBAR la de
+/// JXMod, TUBO_MAT la clásica)
+pub fn rayo_items(p0: V, mid: V, p1: V, t: f32, mat: i64, out: &mut Vec<ItemDin>) {
     let n = 16; let mut ant = p0;
     for i in 1..=n {
         let u = i as f32 / n as f32; let (a, b, c) = ((1.0 - u) * (1.0 - u), 2.0 * u * (1.0 - u), u * u);
@@ -332,7 +416,7 @@ pub fn rayo_items(p0: V, mid: V, p1: V, t: f32, out: &mut Vec<ItemDin>) {
             let x = [y[1] * z[2] - y[2] * z[1], y[2] * z[0] - y[0] * z[2], y[0] * z[1] - y[1] * z[0]];
             let r = 0.012 * (1.0 + 0.25 * (t * 18.0 - i as f32 * 0.9).sin()); let lz = l * 1.02;
             let mm = [x[0] * r, x[1] * r, x[2] * r, 0.0, y[0] * r, y[1] * r, y[2] * r, 0.0, z[0] * lz, z[1] * lz, z[2] * lz, 0.0, ant[0], ant[1], ant[2], 1.0];
-            out.push(ItemDin { m: TUBO_MALLA, s0: 0, sn: 48, mat: TUBO_MAT, mm, esf: [(ant[0] + pt[0]) / 2.0, (ant[1] + pt[1]) / 2.0, (ant[2] + pt[2]) / 2.0, l], fl: FL_SIN_SOMBRA, h: vec![] });
+            out.push(ItemDin { m: TUBO_MALLA, s0: 0, sn: 48, mat, mm, esf: [(ant[0] + pt[0]) / 2.0, (ant[1] + pt[1]) / 2.0, (ant[2] + pt[2]) / 2.0, l], fl: FL_SIN_SOMBRA, h: vec![] });
         }
         ant = pt;
     }

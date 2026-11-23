@@ -10,18 +10,28 @@
 //! sombreador (a lo que suma, sólo la viñeta).
 //! Las diferencias con ES 3: los vértices se rearman (las UV en float: ES 2 no lee medio float) y los índices de 32 bits
 //! se pasan a 16 si la placa no los tiene (OES_element_index_uint).
+//! Lo que tiene huesos (personajes, NPC, el arma en la mano) se deforma en la CPU: una placa de ES 2 suele tener 128
+//! vectores de uniformes para el vértice y los 56 huesos piden 168. Cada malla con su pose una vez por cuadro (todas
+//! sus partes la reusan), con las mismas cuentas que VS_LUZ de gpu.rs, y va a un búfer que se reusa de un cuadro a otro.
 use crate::escena::{Cielo, Cuadro, Escena, ItemDin, Mat, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
 use crate::mat::{self, M4};
 use glow::HasContext;
 use std::collections::HashMap;
 
 pub const MAX_LUCES2: usize = 4;
+/// a lo sumo cuántos huesos por malla (como gpu.rs y WebGL)
+const MAX_HUESOS2: usize = 56;
 
 #[derive(Clone, Debug)]
 pub struct Opciones2 { pub escala: f32, pub retoque: bool }
 impl Default for Opciones2 { fn default() -> Self { Opciones2 { escala: 1.0, retoque: true } } }
 
-struct Malla2 { vb: glow::Buffer, ib: glow::Buffer, lm: Option<glow::Buffer>, i32: bool, mn: [f32; 3], sc: [f32; 3], lm_id: i64, bytes: usize }
+struct Malla2 { vb: glow::Buffer, ib: glow::Buffer, lm: Option<glow::Buffer>, i32: bool, mn: [f32; 3], sc: [f32; 3], lm_id: i64, bytes: usize, piel: Option<Box<PielCpu>> }
+/// lo que hace falta para deformar una malla con huesos en la CPU: posición y normal sueltas, huesos y pesos por vértice
+/// y los vértices armados (para copiar las UV y el byte de la normal que no se toca)
+struct PielCpu { p: Vec<[f32; 3]>, n: Vec<[f32; 3]>, j: Vec<[u8; 4]>, w: Vec<[f32; 4]>, vv: Vec<u8> }
+/// una malla ya deformada en este cuadro: su id, la pose, el búfer y la caja de sus posiciones
+struct Pose2 { m: i64, h: Vec<f32>, vb: glow::Buffer, mn: [f32; 3], sc: [f32; 3] }
 struct Tex2 { t: glow::Texture, bytes: usize }
 struct Prog2 { p: glow::Program, u: HashMap<&'static str, glow::UniformLocation> }
 impl Prog2 { fn u(&self, n: &str) -> Option<&glow::UniformLocation> { self.u.get(n) } }
@@ -42,7 +52,7 @@ precision highp float;
 precision mediump float;
 #endif
 uniform sampler2D uT, uT1, uT2, uT3, uLM; uniform vec4 uS1; uniform vec2 uS3;
-uniform vec4 uC; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uMat, uNie; uniform float uExpo; uniform float uModo;
+uniform vec4 uC, uTi, uTi2, uTi3; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uMat, uNie; uniform float uExpo; uniform float uModo;
 uniform vec4 uLP[4], uLC[4]; uniform float uLN;
 varying vec3 vW; varying vec3 vN; varying vec2 vU; varying vec2 vL; varying float vMz;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
@@ -61,6 +71,15 @@ void main() {
   else if (bit(uModo, 8.0)) t = mix(texture2D(uT, vU), texture2D(uT1, vU), clamp(vMz, 0.0, 1.0));
   else t = texture2D(uT, vU);
   t *= uC;
+  // la pintura en dos tonos (las armas de JXMod, armasjx.js): lo gris de la textura con un color y lo de color (los
+  // acentos) con otro, que además brilla; con un solo tono, el brillo de la textura de ese color (Modelo.tinte)
+  vec3 emAc = vec3(0.0);
+  if (uTi2.a > 0.0) {
+    float lu = dot(t.rgb, vec3(0.299, 0.587, 0.114)), sat = max(t.r, max(t.g, t.b)) - min(t.r, min(t.g, t.b));
+    float kA = smoothstep(uTi3.a, uTi3.a + 0.16, sat);
+    vec3 cu = mix(t.rgb, vec3(lu) * uTi.rgb, uTi.a), ac = mix(t.rgb, vec3(lu) * uTi2.rgb, uTi2.a);
+    t.rgb = mix(cu, ac, kA); emAc = ac * kA * uTi3.rgb;
+  } else if (uTi.a > 0.0) t.rgb = mix(t.rgb, vec3(dot(t.rgb, vec3(0.299, 0.587, 0.114))) * uTi.rgb, uTi.a);
   if (bit(uModo, 2.0) && t.a < 0.5) discard;
   vec3 col;
   if (bit(uModo, 4.0)) col = pow(t.rgb, vec3(2.2)) * 1.4;
@@ -84,6 +103,7 @@ void main() {
     }
     col += uEm * 1.6;
   }
+  col += emAc;
   float dist = max(distance(vW, uCam), 1e-3);
   float f = clamp((dist - uNie.x) / max(uNie.y - uNie.x, 0.001), 0.0, 1.0) * uNie.z;
   vec3 vd = (vW - uCam) / dist; vec3 nc = uNieC + uNieS * pow(max(dot(vd, uSol), 0.0), 6.0);
@@ -202,7 +222,7 @@ pub const PART_V2: usize = 11;
 /// a lo sumo cuántas partículas por cuadro (los índices son de 16 bits: 4 vértices cada una)
 const PART_MAX2: usize = 16383;
 
-const U_LUZ: [&str; 33] = ["uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
+const U_LUZ: [&str; 36] = ["uTi", "uTi2", "uTi3", "uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
 const U_OTROS: [&str; 14] = ["uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma"];
 
 unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, atrs: &[&str]) -> Result<Prog2, String> {
@@ -274,6 +294,7 @@ pub struct Motor {
     uint32: bool, npot: bool,
     escena_rt: Option<(glow::Framebuffer, glow::Texture, glow::Renderbuffer, i32, i32)>,
     pub dibujos: u32, pub memoria: usize, pub mapa: String,
+    poses: Vec<Pose2>, poses_n: usize, pose_p: Vec<[f32; 3]>, pose_v: Vec<u8>,
 }
 
 impl Motor {
@@ -294,7 +315,7 @@ impl Motor {
         let blanca = gl.create_texture()?; gl.bind_texture(glow::TEXTURE_2D, Some(blanca));
         gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA as i32, 1, 1, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(&[255, 255, 255, 255])));
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
-        Ok(Motor { gl, op, cubo: None, p_luz, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { gl, op, cubo: None, p_luz, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
     }
 
@@ -340,8 +361,18 @@ impl Motor {
             let vb = gl.create_buffer()?; gl.bind_buffer(glow::ARRAY_BUFFER, Some(vb)); gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, &vv, glow::STATIC_DRAW);
             let ib = gl.create_buffer()?; gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ib)); gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, &ib_bytes, glow::STATIC_DRAW);
             let lm = if m.lo >= 0 { let b = gl.create_buffer()?; gl.bind_buffer(glow::ARRAY_BUFFER, Some(b)); gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, rango(m.lo as usize, m.v as usize * 4)?, glow::STATIC_DRAW); Some(b) } else { None };
-            let bytes = vv.len() + ib_bytes.len();
-            if let Some(v) = self.mallas.insert(m.id, Malla2 { vb, ib, lm, i32: i32b, mn: m.mn, sc: m.sc, lm_id: m.lm, bytes }) { self.soltar_malla(v); }
+            let mut bytes = vv.len() + ib_bytes.len();
+            // (con huesos: la copia para deformarla en la CPU)
+            let piel = if m.so >= 0 {
+                let sk = rango(m.so as usize, m.v as usize * 8)?;
+                let p = src.chunks_exact(14).map(|c| { let q = |k: usize| u16::from_le_bytes([c[k], c[k + 1]]) as f32 / 65535.0; [m.mn[0] + q(0) * m.sc[0], m.mn[1] + q(2) * m.sc[1], m.mn[2] + q(4) * m.sc[2]] }).collect::<Vec<_>>();
+                let n = src.chunks_exact(14).map(|c| [(c[6] as i8 as f32 / 127.0).max(-1.0), (c[7] as i8 as f32 / 127.0).max(-1.0), (c[8] as i8 as f32 / 127.0).max(-1.0)]).collect();
+                let j = sk.chunks_exact(8).map(|c| [c[0], c[1], c[2], c[3]]).collect();
+                let w = sk.chunks_exact(8).map(|c| [c[4] as f32 / 255.0, c[5] as f32 / 255.0, c[6] as f32 / 255.0, c[7] as f32 / 255.0]).collect();
+                bytes += vv.len() * 2 + p.len() * 32;
+                Some(Box::new(PielCpu { p, n, j, w, vv: vv.clone() }))
+            } else { None };
+            if let Some(v) = self.mallas.insert(m.id, Malla2 { vb, ib, lm, i32: i32b, mn: m.mn, sc: m.sc, lm_id: m.lm, bytes, piel }) { self.soltar_malla(v); }
             self.memoria += bytes;
         }
         for t in &esc.c.texs {
@@ -387,6 +418,7 @@ impl Motor {
         if let Some(t) = self.cubo.take() { self.gl.delete_texture(t); }
         if let Some(t) = self.agua_n.take() { self.gl.delete_texture(t); } self.agua = None;
         self.mats.clear(); self.cielo = None; self.memoria = 0; self.c = None; self.items.clear();
+        for e in self.poses.drain(..) { self.gl.delete_buffer(e.vb); } self.poses_n = 0;
     }
 
     pub fn poner_cuadro(&mut self, mut c: Cuadro) {
@@ -409,7 +441,7 @@ impl Motor {
 
     /// un cuadro: la escena (a la escala pedida) en `salida` de w × h
     pub unsafe fn dibujar(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32) {
-        self.dibujos = 0;
+        self.dibujos = 0; self.poses_n = 0;
         let (ew, eh) = (((w as f32) * self.op.escala).round().max(16.0) as i32, ((h as f32) * self.op.escala).round().max(16.0) as i32);
         let escalada = self.op.escala < 0.999;
         if escalada && self.escena_rt.as_ref().map(|r| r.3 != ew || r.4 != eh).unwrap_or(true) {
@@ -546,8 +578,38 @@ impl Motor {
         for (k, nm) in ["uT", "uT1", "uT2", "uT3", "uLM"].iter().enumerate() { gl.uniform_1_i32(p.u(nm), k as i32); }
     }
     unsafe fn tex(&self, id: i64) -> glow::Texture { self.texs.get(&id).map(|t| t.t).unwrap_or(self.blanca) }
+    /// la malla con huesos del item `i` deformada con su pose (una vez por cuadro por malla y pose): búfer y caja
+    unsafe fn pose_de(&mut self, i: usize) -> Option<(glow::Buffer, [f32; 3], [f32; 3])> {
+        let it = &self.items[i];
+        if let Some(e) = self.poses[..self.poses_n].iter().find(|e| e.m == it.m && e.h == it.h) { return Some((e.vb, e.mn, e.sc)); }
+        let pc = self.mallas.get(&it.m)?.piel.as_ref()?;
+        let (h, nb) = (&it.h, (it.h.len() / 12).min(MAX_HUESOS2));
+        // (como VS_LUZ con PIEL: las tres filas de cada hueso sumadas por peso; un hueso que no está no suma)
+        let (pp, vv) = (&mut self.pose_p, &mut self.pose_v); pp.clear(); vv.clear(); vv.extend_from_slice(&pc.vv);
+        let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
+        for k in 0..pc.p.len() {
+            let mut r = [0f32; 12];
+            for q in 0..4 { let (j, w) = (pc.j[k][q] as usize, pc.w[k][q]); if w == 0.0 || j >= nb { continue; } let b = &h[j * 12..j * 12 + 12]; for e in 0..12 { r[e] += b[e] * w; } }
+            let (p, n) = (pc.p[k], pc.n[k]);
+            let pd = [r[0] * p[0] + r[1] * p[1] + r[2] * p[2] + r[3], r[4] * p[0] + r[5] * p[1] + r[6] * p[2] + r[7], r[8] * p[0] + r[9] * p[1] + r[10] * p[2] + r[11]];
+            let mut nd = [r[0] * n[0] + r[1] * n[1] + r[2] * n[2], r[4] * n[0] + r[5] * n[1] + r[6] * n[2], r[8] * n[0] + r[9] * n[1] + r[10] * n[2]];
+            let l = (nd[0] * nd[0] + nd[1] * nd[1] + nd[2] * nd[2]).sqrt(); if l > 1e-8 { for e in nd.iter_mut() { *e /= l; } }
+            for e in 0..3 { lo[e] = lo[e].min(pd[e]); hi[e] = hi[e].max(pd[e]); vv[k * 20 + 8 + e] = (nd[e] * 127.0).round() as i8 as u8; }
+            pp.push(pd);
+        }
+        let sc = [(hi[0] - lo[0]).max(1e-6), (hi[1] - lo[1]).max(1e-6), (hi[2] - lo[2]).max(1e-6)];
+        for (k, p) in pp.iter().enumerate() { for e in 0..3 { let q = (((p[e] - lo[e]) / sc[e]).clamp(0.0, 1.0) * 65535.0).round() as u16; vv[k * 20 + e * 2..k * 20 + e * 2 + 2].copy_from_slice(&q.to_le_bytes()); } }
+        let gl = &self.gl;
+        if self.poses_n == self.poses.len() { let vb = gl.create_buffer().ok()?; self.poses.push(Pose2 { m: 0, h: vec![], vb, mn: lo, sc }); }
+        let e = &mut self.poses[self.poses_n]; self.poses_n += 1;
+        gl.bind_buffer(glow::ARRAY_BUFFER, Some(e.vb)); gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, vv, glow::STREAM_DRAW);
+        e.m = it.m; e.h.clear(); e.h.extend_from_slice(h); e.mn = lo; e.sc = sc;
+        Some((e.vb, lo, sc))
+    }
     unsafe fn dibujar_item(&mut self, i: usize) {
+        let pose = if !self.items[i].h.is_empty() && self.mallas.get(&self.items[i].m).map(|m| m.piel.is_some()).unwrap_or(false) { match self.pose_de(i) { Some(x) => Some(x), None => return } } else { None };
         let it = &self.items[i]; let (Some(m), Some(mt)) = (self.mallas.get(&it.m), self.mats.get(&it.mat)) else { return };
+        let (vb, mn, sc) = pose.unwrap_or((m.vb, m.mn, m.sc));
         let gl = &self.gl; let p = &self.p_luz;
         let lm = self.lms.get(&m.lm_id).map(|t| t.t);
         let mut modo = lm.is_some() as i32 | if mt.cut != 0 { 2 } else { 0 } | if mt.unlit != 0 { 4 } else { 0 } | if mt.fol != 0 { 64 } else { 0 };
@@ -559,10 +621,10 @@ impl Motor {
         for (k, t) in capas.iter().enumerate() { gl.active_texture(glow::TEXTURE0 + k as u32); gl.bind_texture(glow::TEXTURE_2D, Some(*t)); }
         gl.uniform_1_f32(p.u("uModo"), modo as f32);
         gl.uniform_matrix_4_f32_slice(p.u("uM"), false, &it.mm);
-        gl.uniform_3_f32(p.u("uMn"), m.mn[0], m.mn[1], m.mn[2]); gl.uniform_3_f32(p.u("uSc"), m.sc[0], m.sc[1], m.sc[2]);
+        gl.uniform_3_f32(p.u("uMn"), mn[0], mn[1], mn[2]); gl.uniform_3_f32(p.u("uSc"), sc[0], sc[1], sc[2]);
         gl.uniform_4_f32(p.u("uSt"), mt.st[0], mt.st[1], mt.st[2], mt.st[3]); gl.uniform_4_f32(p.u("uC"), mt.c[0], mt.c[1], mt.c[2], mt.c[3]);
-        gl.uniform_3_f32(p.u("uEm"), mt.em[0], mt.em[1], mt.em[2]); gl.uniform_3_f32(p.u("uMat"), mt.pbr[0], mt.pbr[1], mt.pbr[2]);
-        gl.bind_buffer(glow::ARRAY_BUFFER, Some(m.vb));
+        gl.uniform_3_f32(p.u("uEm"), mt.em[0], mt.em[1], mt.em[2]); gl.uniform_4_f32_slice(p.u("uTi"), &mt.ti[0..4]); gl.uniform_4_f32_slice(p.u("uTi2"), &mt.ti[4..8]); gl.uniform_4_f32_slice(p.u("uTi3"), &mt.ti[8..12]); gl.uniform_3_f32(p.u("uMat"), mt.pbr[0], mt.pbr[1], mt.pbr[2]);
+        gl.bind_buffer(glow::ARRAY_BUFFER, Some(vb));
         gl.enable_vertex_attrib_array(0); gl.vertex_attrib_pointer_f32(0, 3, glow::UNSIGNED_SHORT, true, 20, 0);
         gl.enable_vertex_attrib_array(1); gl.vertex_attrib_pointer_f32(1, 4, glow::BYTE, true, 20, 8);
         gl.enable_vertex_attrib_array(2); gl.vertex_attrib_pointer_f32(2, 2, glow::FLOAT, false, 20, 12);
