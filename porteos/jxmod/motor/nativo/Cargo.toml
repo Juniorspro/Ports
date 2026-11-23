@@ -19,3 +19,5 @@ libloading = "0.8"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android-activity = { version = "0.6", features = ["native-activity"] }
+# (el multijugador: TLS y HTTPS de Java por JNI, src/red_android.rs; ya estaba en Cargo.lock por android-activity)
+jni = "0.22"

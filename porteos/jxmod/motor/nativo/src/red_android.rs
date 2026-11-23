@@ -1,0 +1,172 @@
+//! El multijugador (jxjuego::red) en Android: el TLS hacia el broker y el HTTPS a la tienda los hace Java (el
+//! SSLSocketFactory y el HttpURLConnection del sistema, con sus certificados), llamados desde Rust por JNI (crate jni).
+//!
+//! Uso (en app.rs, una vez): `let java = unsafe { red_android::Java::de_vm(app.vm_as_ptr()) };` y `java.puente()` es el
+//! `jxjuego::red::Puente` que se bombea cada cuadro (ver «La red» en comun.rs). Se declara en lib.rs con
+//! `#[cfg(target_os = "android")] mod red_android;` (el crate jni sólo está para Android).
+//!
+//! - mqtts://host:puerto (broker.emqx.io:8883: el broker de la web por TLS, los mismos temas): un Socket conectado (9 s),
+//!   envuelto en un SSLSocket con el nombre del host (SNI), el saludo con el nombre revisado como HTTPS (endpoint
+//!   identification; en Android, además, con el verificador de HTTPS del sistema); después se lee con un tope de 25 ms
+//!   (SocketTimeoutException: «nada todavía», ver mqtt::Flujo).
+//! - wss://… (lo mismo que la web, 8084): lo mismo, con WebSocket encima (mqtt::Ws).
+//! - mqtt:// y ws:// sin TLS (una partida en la red local: ws://IP:8765/mqtt): el TCP de Rust.
+//! - HTTPS: HttpURLConnection (GET y POST con JSON), y el cuerpo de la respuesta aunque sea un error (como fetch).
+//! Cada conexión MQTT y cada pedido HTTP van en su hilo (los de mqtt::Conexion y red::Puente): se enganchan a Java una vez
+//! (y se desenganchan solos al terminar). Hace falta el permiso INTERNET en el manifiesto.
+use jni::errors::Error as JErr;
+use jni::objects::{JByteArray, JObject, JString};
+use jni::refs::Global;
+use jni::{jni_sig, jni_str, Env, JValue, JavaVM};
+use jxjuego::mqtt::{self, Conector, Flujo, Ws};
+use jxjuego::red::{Http, Puente};
+use std::io;
+use std::sync::Arc;
+
+/// la máquina virtual de Java de la app
+#[derive(Clone)]
+pub struct Java { vm: JavaVM }
+impl Java {
+    /// # Safety
+    /// `vm`: el JavaVM* de la app (android_activity::AndroidApp::vm_as_ptr()), que vive lo que la app
+    pub unsafe fn de_vm(vm: *mut std::ffi::c_void) -> Java { Java { vm: unsafe { JavaVM::from_raw(vm as *mut jni::sys::JavaVM) } } }
+    /// abre el flujo hacia el broker (mqtt::Conector)
+    pub fn conector(&self) -> Conector { let j = self.clone(); Arc::new(move |dir: &str| j.abrir(dir)) }
+    /// los pedidos a la tienda (red::Http)
+    pub fn http(&self) -> Http { let j = self.clone(); Arc::new(move |m: &str, u: &str, c: &[(String, String)], b: Option<&str>| j.pedir(m, u, c, b)) }
+    /// el puente de red.rs con las conexiones de Android
+    pub fn puente(&self) -> Puente { Puente::nuevo(self.conector(), Some(self.http())) }
+    pub fn abrir(&self, dir: &str) -> io::Result<Box<dyn Flujo>> {
+        let u = mqtt::url(dir).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        if !u.tls { return mqtt::conectar_tcp(dir); }
+        let t = TlsJava::abrir(&self.vm, &u.host, u.puerto)?;
+        if u.ws { Ok(Box::new(Ws::abrir(t, &format!("{}:{}", u.host, u.puerto), &u.ruta)?)) } else { Ok(Box::new(t)) }
+    }
+    /// un pedido HTTPS: (código, cuerpo) o por qué no se pudo
+    pub fn pedir(&self, metodo: &str, url: &str, cab: &[(String, String)], cuerpo: Option<&str>) -> Result<(u16, String), String> {
+        con_java(&self.vm, |env| {
+            let u = env.new_string(url)?;
+            let url_o = env.new_object(jni_str!("java/net/URL"), jni_sig!("(Ljava/lang/String;)V"), &[JValue::Object(&u)])?;
+            let c = env.call_method(&url_o, jni_str!("openConnection"), jni_sig!("()Ljava/net/URLConnection;"), &[])?.l()?;
+            env.call_method(&c, jni_str!("setConnectTimeout"), jni_sig!("(I)V"), &[JValue::Int(9000)])?;
+            env.call_method(&c, jni_str!("setReadTimeout"), jni_sig!("(I)V"), &[JValue::Int(15000)])?;
+            env.call_method(&c, jni_str!("setUseCaches"), jni_sig!("(Z)V"), &[JValue::Bool(false)])?;
+            let m = env.new_string(metodo)?;
+            env.call_method(&c, jni_str!("setRequestMethod"), jni_sig!("(Ljava/lang/String;)V"), &[JValue::Object(&m)])?;
+            for (k, v) in cab {
+                let (k, v) = (env.new_string(k)?, env.new_string(v)?);
+                env.call_method(&c, jni_str!("setRequestProperty"), jni_sig!("(Ljava/lang/String;Ljava/lang/String;)V"), &[JValue::Object(&k), JValue::Object(&v)])?;
+            }
+            if let Some(b) = cuerpo {
+                env.call_method(&c, jni_str!("setDoOutput"), jni_sig!("(Z)V"), &[JValue::Bool(true)])?;
+                let o = env.call_method(&c, jni_str!("getOutputStream"), jni_sig!("()Ljava/io/OutputStream;"), &[])?.l()?;
+                let a = env.byte_array_from_slice(b.as_bytes())?;
+                env.call_method(&o, jni_str!("write"), jni_sig!("([B)V"), &[JValue::Object(&a)])?;
+                env.call_method(&o, jni_str!("close"), jni_sig!("()V"), &[])?;
+            }
+            let codigo = env.call_method(&c, jni_str!("getResponseCode"), jni_sig!("()I"), &[])?.i()?;
+            // (con un error, el cuerpo viene por getErrorStream, que puede no haber)
+            let ent = if codigo >= 400 { env.call_method(&c, jni_str!("getErrorStream"), jni_sig!("()Ljava/io/InputStream;"), &[])?.l()? } else { env.call_method(&c, jni_str!("getInputStream"), jni_sig!("()Ljava/io/InputStream;"), &[])?.l()? };
+            let mut cuerpo = vec![];
+            if !ent.is_null() {
+                let a = env.new_byte_array(8192)?; let mut tmp = vec![0i8; 8192];
+                loop {
+                    let n = env.call_method(&ent, jni_str!("read"), jni_sig!("([B)I"), &[JValue::Object(&a)])?.i()?;
+                    if n < 0 { break; }
+                    let n = (n as usize).min(tmp.len()); a.get_region(env, 0, &mut tmp[..n])?;
+                    cuerpo.extend(tmp[..n].iter().map(|b| *b as u8));
+                    if cuerpo.len() > 4 << 20 { break; }
+                }
+                env.call_method(&ent, jni_str!("close"), jni_sig!("()V"), &[])?;
+            }
+            env.call_method(&c, jni_str!("disconnect"), jni_sig!("()V"), &[])?;
+            Ok((codigo.clamp(0, 999) as u16, String::from_utf8_lossy(&cuerpo).into_owned()))
+        }).map_err(|e| e.to_string())
+    }
+}
+
+/// hace `f` con el hilo enganchado a Java; una excepción de Java vuelve como io::Error (TimedOut si fue un
+/// SocketTimeoutException: la lectura con tope no trajo nada)
+fn con_java<T>(vm: &JavaVM, f: impl FnOnce(&mut Env) -> Result<T, JErr>) -> io::Result<T> {
+    let r: Result<io::Result<T>, JErr> = vm.attach_current_thread(|env| -> Result<io::Result<T>, JErr> {
+        match f(env) {
+            Ok(x) => Ok(Ok(x)),
+            Err(e) => {
+                let Some(ex) = env.exception_occurred() else { return Ok(Err(io::Error::other(format!("JNI: {e}")))) };
+                env.exception_clear();
+                let tope = env.is_instance_of(&ex, jni_str!("java/net/SocketTimeoutException")).unwrap_or(false);
+                if tope { return Ok(Err(io::Error::new(io::ErrorKind::TimedOut, "nada todavía"))); }
+                let msg = env.call_method(&ex, jni_str!("toString"), jni_sig!("()Ljava/lang/String;"), &[]).and_then(|v| v.l())
+                    .and_then(|o| env.cast_local::<JString>(o)).and_then(|s| s.try_to_string(env)).unwrap_or_else(|_| format!("{e}"));
+                env.exception_clear();
+                Ok(Err(io::Error::other(msg)))
+            }
+        }
+    });
+    r.map_err(|e| io::Error::other(format!("JNI: {e}")))?
+}
+
+/// un SSLSocket de Java como flujo de bytes de mqtt.rs
+pub struct TlsJava { vm: JavaVM, sock: Global<JObject<'static>>, ent: Global<JObject<'static>>, sal: Global<JObject<'static>>, buf: Global<JByteArray<'static>>, n: usize }
+impl TlsJava {
+    /// conecta (9 s), saluda con TLS (SNI con `host`) y revisa que el certificado sea de `host`
+    pub fn abrir(vm: &JavaVM, host: &str, puerto: u16) -> io::Result<TlsJava> {
+        const N: usize = 16384;
+        let r = con_java(vm, |env| {
+            let h = env.new_string(host)?;
+            let crudo = env.new_object(jni_str!("java/net/Socket"), jni_sig!("()V"), &[])?;
+            let dir = env.new_object(jni_str!("java/net/InetSocketAddress"), jni_sig!("(Ljava/lang/String;I)V"), &[JValue::Object(&h), JValue::Int(puerto as i32)])?;
+            env.call_method(&crudo, jni_str!("connect"), jni_sig!("(Ljava/net/SocketAddress;I)V"), &[JValue::Object(&dir), JValue::Int(9000)])?;
+            let fab = env.call_static_method(jni_str!("javax/net/ssl/SSLSocketFactory"), jni_str!("getDefault"), jni_sig!("()Ljavax/net/SocketFactory;"), &[])?.l()?;
+            let s = env.call_method(&fab, jni_str!("createSocket"), jni_sig!("(Ljava/net/Socket;Ljava/lang/String;IZ)Ljava/net/Socket;"), &[JValue::Object(&crudo), JValue::Object(&h), JValue::Int(puerto as i32), JValue::Bool(true)])?.l()?;
+            env.call_method(&s, jni_str!("setSoTimeout"), jni_sig!("(I)V"), &[JValue::Int(9000)])?;
+            // (createSocket no revisa el nombre del certificado: se pide como HTTPS —Android 7 en adelante, minSdk 24—)
+            let par = env.call_method(&s, jni_str!("getSSLParameters"), jni_sig!("()Ljavax/net/ssl/SSLParameters;"), &[])?.l()?;
+            let alg = env.new_string("HTTPS")?;
+            env.call_method(&par, jni_str!("setEndpointIdentificationAlgorithm"), jni_sig!("(Ljava/lang/String;)V"), &[JValue::Object(&alg)])?;
+            env.call_method(&s, jni_str!("setSSLParameters"), jni_sig!("(Ljavax/net/ssl/SSLParameters;)V"), &[JValue::Object(&par)])?;
+            env.call_method(&s, jni_str!("startHandshake"), jni_sig!("()V"), &[])?;
+            // (y en Android, otra vez con el verificador de HTTPS del sistema; el de la JVM de escritorio siempre dice que no)
+            let clave = env.new_string("java.vm.name")?;
+            let vmn = env.call_static_method(jni_str!("java/lang/System"), jni_str!("getProperty"), jni_sig!("(Ljava/lang/String;)Ljava/lang/String;"), &[JValue::Object(&clave)])?.l()?;
+            let android = !vmn.is_null() && env.cast_local::<JString>(vmn)?.try_to_string(env)?.starts_with("Dalvik");
+            if android {
+                let ses = env.call_method(&s, jni_str!("getSession"), jni_sig!("()Ljavax/net/ssl/SSLSession;"), &[])?.l()?;
+                let ver = env.call_static_method(jni_str!("javax/net/ssl/HttpsURLConnection"), jni_str!("getDefaultHostnameVerifier"), jni_sig!("()Ljavax/net/ssl/HostnameVerifier;"), &[])?.l()?;
+                let ok = env.call_method(&ver, jni_str!("verify"), jni_sig!("(Ljava/lang/String;Ljavax/net/ssl/SSLSession;)Z"), &[JValue::Object(&h), JValue::Object(&ses)])?.z()?;
+                if !ok { env.call_method(&s, jni_str!("close"), jni_sig!("()V"), &[])?; return Ok(None); }
+            }
+            env.call_method(&s, jni_str!("setSoTimeout"), jni_sig!("(I)V"), &[JValue::Int(25)])?;
+            env.call_method(&s, jni_str!("setTcpNoDelay"), jni_sig!("(Z)V"), &[JValue::Bool(true)])?;
+            let ent = env.call_method(&s, jni_str!("getInputStream"), jni_sig!("()Ljava/io/InputStream;"), &[])?.l()?;
+            let sal = env.call_method(&s, jni_str!("getOutputStream"), jni_sig!("()Ljava/io/OutputStream;"), &[])?.l()?;
+            let buf = env.new_byte_array(N)?;
+            Ok(Some(TlsJava { vm: vm.clone(), sock: env.new_global_ref(&s)?, ent: env.new_global_ref(&ent)?, sal: env.new_global_ref(&sal)?, buf: env.new_global_ref(&buf)?, n: N }))
+        })?;
+        r.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, format!("el certificado no es de {host}")))
+    }
+}
+impl Flujo for TlsJava {
+    fn leer(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = buf.len().min(self.n); if n == 0 { return Ok(0); }
+        let (ent, jb) = (&self.ent, &self.buf); let mut tmp = vec![0i8; n];
+        let r = con_java(&self.vm, |env| {
+            let r = env.call_method(ent.as_obj(), jni_str!("read"), jni_sig!("([BII)I"), &[JValue::Object(jb.as_obj()), JValue::Int(0), JValue::Int(n as i32)])?.i()?;
+            if r > 0 { jb.get_region(env, 0, &mut tmp[..r as usize])?; }
+            Ok(r)
+        })?;
+        if r < 0 { return Ok(0); }
+        for (d, s) in buf.iter_mut().zip(&tmp[..r as usize]) { *d = *s as u8; }
+        Ok(r as usize)
+    }
+    fn escribir(&mut self, datos: &[u8]) -> io::Result<()> {
+        let sal = &self.sal;
+        con_java(&self.vm, |env| {
+            let a = env.byte_array_from_slice(datos)?;
+            env.call_method(sal.as_obj(), jni_str!("write"), jni_sig!("([BII)V"), &[JValue::Object(&a), JValue::Int(0), JValue::Int(datos.len() as i32)])?;
+            env.call_method(sal.as_obj(), jni_str!("flush"), jni_sig!("()V"), &[])?;
+            Ok(())
+        })
+    }
+    fn cerrar(&mut self) { let s = &self.sock; let _ = con_java(&self.vm, |env| { env.call_method(s.as_obj(), jni_str!("close"), jni_sig!("()V"), &[])?; Ok(()) }); }
+}

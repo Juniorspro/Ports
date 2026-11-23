@@ -537,6 +537,7 @@ version = "0.1.0"
 dependencies = [
  "android-activity",
  "glow 0.16.0",
+ "jni",
  "jxjuego",
  "jxmotor",
  "khronos-egl",
