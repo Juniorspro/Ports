@@ -1,0 +1,5 @@
+[{"n":30,"v":[0,0,0],"suelo":true},
+ {"n":90,"v":[0,0,0],"suelo":false,"agua":0.95},
+ {"n":120,"v":[0,0,3],"suelo":false,"agua":0.95},
+ {"n":60,"v":[0,0,0.5],"suelo":false,"agua":0.95},
+ {"n":60,"v":[0,0,0],"suelo":true}]

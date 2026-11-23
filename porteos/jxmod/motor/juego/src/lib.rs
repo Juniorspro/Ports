@@ -7,4 +7,5 @@ pub mod mapa;
 pub mod mundo;
 pub mod objetos;
 pub mod paquete;
+pub mod personaje;
 pub mod texto;

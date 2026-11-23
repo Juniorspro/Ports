@@ -1,0 +1,12 @@
+[{"n":60,"v":[0,0,0],"suelo":true},
+ {"n":60,"v":[0,0,3],"suelo":true},
+ {"n":60,"v":[0,0,6],"suelo":true},
+ {"n":40,"v":[-4.24,0,4.24],"suelo":true},
+ {"n":30,"v":[3,0,0],"suelo":true},
+ {"n":40,"v":[0,0,-2.5],"suelo":true},
+ {"n":48,"v":[0,2,4],"suelo":false},
+ {"n":60,"v":[0,0,0],"suelo":true},
+ {"n":60,"v":[0,0,0],"suelo":true,"ag":true},
+ {"n":60,"v":[0,0,2],"suelo":true,"ag":true},
+ {"n":40,"v":[0,0,0],"suelo":true,"mira":0.6},
+ {"n":40,"v":[2,0,2],"suelo":true,"yaw":1.2}]

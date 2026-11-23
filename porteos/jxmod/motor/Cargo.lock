@@ -873,6 +873,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "personajes-prueba"
+version = "0.1.0"
+dependencies = [
+ "glow 0.16.0",
+ "jxjuego",
+ "jxmotor",
+ "khronos-egl",
+ "png",
+ "serde_json",
+]
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
