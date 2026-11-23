@@ -5,14 +5,33 @@
 use jxjuego::fisica::{qeje, qmul, rot, rot_inv, Fisica, Q, V};
 use jxjuego::mundo::Mundo;
 
-/// las armas: el nombre (DEF_ARMAS), el que se muestra, el ícono, el sonido al sacarla y el de sostener
-/// y el modelo en la mano (el nodo debajo de WalkSway) con sus clips: sacar, quieto, sosteniendo y disparo
+/// las armas (DEF_ARMAS): el nombre, el que se muestra, el ícono, los sonidos (sacar, sostener, tiro, recarga), el
+/// modelo en la mano (el nodo debajo de WalkSway) con sus clips (sacar, quieto, sosteniendo, fuego, recarga), el tipo
+/// (fisica, grav, tool, bala, perdigones, cohete, flecha, golpe), el cargador, la cadencia, el daño, la dispersión, si es
+/// de un tiro por toque, si tiene mira, el alcance y el empuje de las de golpe, y los clips y sonidos de la palanca
 pub struct DefArma { pub n: &'static str, pub nom: &'static str, pub ic: &'static str, pub s_sacar: &'static str, pub s_sosten: &'static str,
-    pub nodo: &'static str, pub sacar: &'static str, pub quieto: &'static str, pub sujeta: &'static str, pub fuego: &'static str }
-pub const ARMAS: [DefArma; 3] = [
-    DefArma { n: "PhysicsGun", nom: "Physics Gun", ic: "W_PhysGun", s_sacar: "genericReadyNew_1", s_sosten: "PG_Hold", nodo: "GM_PhysGun", sacar: "PG_draw", quieto: "PG_idle", sujeta: "PG_hold", fuego: "PG_fire" },
-    DefArma { n: "GravityGun", nom: "Gravity Gun", ic: "W_GravGun", s_sacar: "GG_Open", s_sosten: "GG_Hold", nodo: "GM_GravGun", sacar: "GG_draw", quieto: "GG_idle", sujeta: "GG_hold", fuego: "GG_fire" },
-    DefArma { n: "ToolBaton", nom: "Tool Gun", ic: "W_ToolGun", s_sacar: "genericReadyNew_1", s_sosten: "", nodo: "GM_ToolGun", sacar: "TG_draw", quieto: "TG_idle", sujeta: "TG_idle", fuego: "TG_fire" },
+    pub nodo: &'static str, pub sacar: &'static str, pub quieto: &'static str, pub sujeta: &'static str, pub fuego: &'static str,
+    pub tipo: &'static str, pub car: u32, pub cad: f32, pub dan: f32, pub disp: f32, pub semi: bool, pub mira: bool, pub alcance: f32, pub empuje: f32,
+    pub s_f: &'static [&'static str], pub s_r: &'static str, pub recarga: &'static str, pub fuego2: &'static str,
+    pub pega: &'static [&'static str], pub falla: &'static [&'static str], pub s_imp: &'static [&'static str], pub s_carne: &'static [&'static str] }
+const BASE: DefArma = DefArma { n: "", nom: "", ic: "", s_sacar: "", s_sosten: "", nodo: "", sacar: "", quieto: "", sujeta: "", fuego: "", tipo: "", car: 0, cad: 0.1, dan: 0.0, disp: 0.0,
+    semi: false, mira: false, alcance: 0.0, empuje: 0.0, s_f: &[], s_r: "", recarga: "", fuego2: "", pega: &[], falla: &[], s_imp: &[], s_carne: &[] };
+pub const ARMAS: [DefArma; 14] = [
+    DefArma { n: "PhysicsGun", nom: "Physics Gun", ic: "W_PhysGun", s_sacar: "genericReadyNew_1", s_sosten: "PG_Hold", nodo: "GM_PhysGun", sacar: "PG_draw", quieto: "PG_idle", sujeta: "PG_hold", fuego: "PG_fire", tipo: "fisica", ..BASE },
+    DefArma { n: "GravityGun", nom: "Gravity Gun", ic: "W_GravGun", s_sacar: "GG_Open", s_sosten: "GG_Hold", nodo: "GM_GravGun", sacar: "GG_draw", quieto: "GG_idle", sujeta: "GG_hold", fuego: "GG_fire", tipo: "grav", cad: 0.5, ..BASE },
+    DefArma { n: "ToolBaton", nom: "Tool Gun", ic: "W_ToolGun", s_sacar: "genericReadyNew_1", nodo: "GM_ToolGun", sacar: "TG_draw", quieto: "TG_idle", sujeta: "TG_idle", fuego: "TG_fire", tipo: "tool", cad: 0.35, ..BASE },
+    DefArma { n: "Crowbar", nom: "Palanca", ic: "W_Crowbar", nodo: "Crowbar", fuego: "CB_miss1", sacar: "CB_draw", quieto: "CB_idle", tipo: "golpe", cad: 0.4, dan: 25.0, empuje: 70.0, alcance: 1.95,
+        s_f: &["CB_Swing"], pega: &["CB_hit1", "CB_hit2", "CB_hit3"], falla: &["CB_miss1", "CB_miss2"], s_imp: &["CB_Impact1", "CB_Impact2"], s_carne: &["CB_Flesh1", "CB_Flesh2", "CB_Flesh3", "CB_Flesh4", "CB_Flesh5"], ..BASE },
+    DefArma { n: "Hands", nom: "Manos", ic: "Hands", nodo: "Hands", fuego: "Punch", fuego2: "Hook", sacar: "Draw", s_f: &["Arm_Swing_edited"], tipo: "golpe", cad: 0.45, dan: 15.0, alcance: 2.0, ..BASE },
+    DefArma { n: "Pistol", nom: "Pistola", ic: "W_Pistol", nodo: "Pistol", fuego: "pistolfire", sacar: "pistolready", recarga: "pistolreload", s_f: &["pistol2Fire_1"], s_sacar: "PistolReady2", s_r: "pistolreload", car: 12, cad: 0.18, dan: 25.0, tipo: "bala", semi: true, ..BASE },
+    DefArma { n: "Revolver", nom: "Revólver", ic: "W_Revolver", nodo: "Revolver", fuego: "revolverFire", sacar: "revolverReady", recarga: "revolvertoreload", s_f: &["revolverfire2"], s_sacar: "revolverready", s_r: "pistolreload", car: 6, cad: 0.45, dan: 55.0, tipo: "bala", semi: true, ..BASE },
+    DefArma { n: "Smg", nom: "SMG", ic: "W_Smg", nodo: "Smg", fuego: "smgfire", sacar: "smgready", recarga: "smgreload", s_f: &["smgfire"], s_sacar: "smgready", s_r: "smgreload", car: 30, cad: 0.075, dan: 14.0, tipo: "bala", disp: 0.025, ..BASE },
+    DefArma { n: "Akm", nom: "AKM", ic: "W_Akm", nodo: "Akm", fuego: "AKmFire", sacar: "AKmReady", recarga: "AKmReloadclip", s_f: &["AkFire3"], s_sacar: "Akready", s_r: "Akreloadcliponly", car: 30, cad: 0.1, dan: 24.0, tipo: "bala", disp: 0.018, ..BASE },
+    DefArma { n: "Shotgun", nom: "Escopeta", ic: "W_Shotgun", nodo: "Shotgun", fuego: "shotgunFire", sacar: "shotgunReady", recarga: "shotgunToReload", s_f: &["shotgunFire"], s_sacar: "ShotgunReady2", s_r: "ShotgunReloadOnceCut", car: 8, cad: 0.85, dan: 12.0, tipo: "perdigones", semi: true, ..BASE },
+    DefArma { n: "Sniper", nom: "Francotirador", ic: "W_Sniper", nodo: "Sniper", fuego: "sniperFire", sacar: "sniperready", recarga: "sniperreload", s_f: &["sniperfire2"], s_sacar: "genericReady", s_r: "sniperreload", car: 5, cad: 1.1, dan: 100.0, tipo: "bala", semi: true, mira: true, ..BASE },
+    DefArma { n: "RPG", nom: "RPG", ic: "W_RPG", nodo: "RPG", fuego: "rocketlauncherFire", sacar: "rocketlauncherReady", recarga: "rocketlauncherReload", s_f: &["RocketlauncherFire2"], s_sacar: "RocketLauncherReady", s_r: "RocketLauncherReload", car: 1, cad: 0.6, dan: 120.0, tipo: "cohete", semi: true, ..BASE },
+    DefArma { n: "Crossbow", nom: "Ballesta", ic: "W_Crossbow", nodo: "Crossbow", fuego: "crossbowfire", sacar: "crossbowready", recarga: "crossbowreload", s_f: &["crossbowfire"], s_sacar: "genericReady", s_r: "crossbowreload", car: 1, cad: 0.4, dan: 90.0, tipo: "flecha", semi: true, ..BASE },
+    DefArma { n: "Bat", nom: "Bate", ic: "W_Bat", nodo: "Bat", fuego: "bathit1", sacar: "batReady", s_f: &["Arm_Swing_edited"], s_sacar: "grabholster", tipo: "golpe", cad: 0.55, dan: 35.0, alcance: 2.4, ..BASE },
 ];
 
 /// lo agarrado con la Physics Gun: el cuerpo, a qué distancia, el punto agarrado (en el cuerpo), el giro relativo a la
@@ -36,6 +55,9 @@ pub struct Armas {
     pub anim: Option<&'static str>,
     /// la Tool Gun disparó (true: el «2»): lo hace el juego, que tiene los objetos
     pub herr: Option<bool>,
+    /// las balas en el cargador de cada una, lo que falta para el próximo tiro (ARM.t), ocupada (sacando o recargando),
+    /// recargando, el retroceso, apuntando (y cuánto: 0 a 1), la mira del francotirador y el golpe que va a pegar
+    pub balas: Vec<u32>, pub t: f32, pub ocup: f32, pub recargando: f32, pub retro: f32, pub apunta: bool, pub ap_k: f32, pub zoom: bool, pub golpe_t: f32,
     azar: u32,
 }
 
@@ -49,7 +71,10 @@ impl Armas {
     pub fn elegir(&mut self, fis: &mut Fisica, i: usize) {
         self.soltar(fis, false); self.soltar_grav(fis);
         self.i = i.min(ARMAS.len() - 1); self.barra_t = 0.0;
-        let s = self.def().s_sacar; self.son(s, 0.6); self.anim = Some(self.def().sacar);
+        if self.balas.len() != ARMAS.len() { self.balas = ARMAS.iter().map(|a| a.car).collect(); }
+        self.recargando = 0.0; self.zoom = false; self.apunta = false; self.ap_k = 0.0; self.golpe_t = 0.0;
+        let s = self.def().s_sacar; if s.is_empty() { self.son("UI_arma", 0.35); } else { self.son(s, 0.6); }
+        self.anim = Some(self.def().sacar); self.ocup = if self.def().sacar.is_empty() { 0.2 } else { 0.5 };
     }
     /// el punto agarrado en el mundo (la punta del rayo)
     pub fn punto_agarrado(&self, fis: &Fisica) -> Option<[f32; 3]> {
@@ -58,10 +83,12 @@ impl Armas {
     }
     /// el disparo (en el celular, al apoyar el dedo)
     pub fn disparo(&mut self, fis: &mut Fisica, mundo: &Mundo, ojo: [f32; 3], dir: [f32; 3], yaw: f32) {
+        if self.ocup > 0.0 && self.def().tipo != "fisica" { return; }
         match self.def().n {
             "PhysicsGun" => { if self.agarre.is_some() { self.soltar(fis, false); } else { self.agarrar(fis, mundo, ojo, dir, yaw); } }
             "ToolBaton" => self.herramienta(false),
-            _ => self.grav_primario(fis, mundo, ojo, dir),
+            "GravityGun" => self.grav_primario(fis, mundo, ojo, dir),
+            _ => {}
         }
     }
     /// el «2»
@@ -74,7 +101,9 @@ impl Armas {
                 if let Some(b) = fis.cuerpo_mut(id) { if b.congelado && b.masa > 0.0 { b.congelado = false; b.despertar(); self.avisos.push("Descongelado".into()); } }
             }
             "ToolBaton" => self.herramienta(true),
-            _ => self.grav_secundario(fis, mundo, ojo, dir),
+            "GravityGun" => self.grav_secundario(fis, mundo, ojo, dir),
+            // (las de fuego: el «2» apunta —el arma al centro y la vista más cerrada—; el francotirador mira por la mira)
+            _ => { let d = self.def(); if d.mira { self.zoom = !self.zoom; } else if d.tipo == "bala" || d.tipo == "perdigones" { self.apunta = !self.apunta; } }
         }
     }
     /// la Tool Gun: el tiro (con su sonido de HL2 y la animación de fuego)
@@ -164,5 +193,26 @@ impl Armas {
     pub fn sosten(&self) -> Option<&'static str> { if (self.agarre.is_some() || self.grav.is_some()) && !self.def().s_sosten.is_empty() { Some(self.def().s_sosten) } else { None } }
     /// otro mapa: nada agarrado
     pub fn olvidar(&mut self) { self.agarre = None; self.grav = None; self.rotar = false; }
+    /// los relojes de las armas (armasPaso): el próximo tiro, ocupada, la recarga (al terminar llena el cargador), el
+    /// retroceso y el apuntar (entra y sale en ~0,2 s). Devuelve true si el golpe atrasado (las manos, el bate) pega ahora
+    pub fn relojes(&mut self, dt: f32) -> bool {
+        self.t -= dt; if self.ocup > 0.0 { self.ocup -= dt; }
+        if self.recargando > 0.0 { self.recargando -= dt; if self.recargando <= 0.0 { let i = self.i; if let Some(b) = self.balas.get_mut(i) { *b = ARMAS[i].car; } } }
+        self.retro *= (-dt * 14.0).exp();
+        let d = self.def(); let si = self.apunta && (d.tipo == "bala" || d.tipo == "perdigones") && !d.mira && self.recargando <= 0.0;
+        self.ap_k += ((si as u8 as f32) - self.ap_k) * (dt * 14.0).min(1.0); if self.ap_k < 0.002 && !si { self.ap_k = 0.0; }
+        if self.golpe_t > 0.0 { self.golpe_t -= dt; if self.golpe_t <= 0.0 { return true; } }
+        false
+    }
+    /// recargar: si le faltan balas, el clip de recarga (lo que dura, entre 0,6 y 4 s) y su sonido
+    pub fn recargar(&mut self, dur_clip: f32) {
+        let i = self.i; let d = &ARMAS[i];
+        if d.car == 0 || self.balas.get(i).copied().unwrap_or(0) >= d.car || self.recargando > 0.0 { return; }
+        self.recargando = if dur_clip > 0.0 { dur_clip } else { 1.2 }.clamp(0.6, 4.0); self.ocup = self.recargando;
+        if !d.recarga.is_empty() { self.anim = Some(d.recarga); }
+        if !d.s_r.is_empty() { self.son(d.s_r, 0.7); }
+    }
+    /// un número al azar entre 0 y 1
+    pub fn azar01(&mut self) -> f32 { (self.azar() % 10000) as f32 / 10000.0 }
     fn azar(&mut self) -> u32 { self.azar = self.azar.wrapping_mul(1664525).wrapping_add(1013904223); self.azar >> 16 }
 }

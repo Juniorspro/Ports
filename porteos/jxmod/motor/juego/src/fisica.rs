@@ -272,6 +272,13 @@ impl Cuerpo {
     pub fn despertar(&mut self) { self.duerme = false; self.sleep_t = 0.0; self.anc_t = 0.0; }
     pub fn aabb(&self) -> [f64; 6] { self.geo.aabb }
     /// updateWorld: vértices, normales y caja en el mundo (también las de las partes)
+    /// applyVel: un empujón de velocidad `p` en el punto `r` (desde el centro): cambia la velocidad y el giro
+    pub fn aplicar_vel(&mut self, p: V, r: V, signo: f64) {
+        if !self.despierto() { return; }
+        for e in 0..3 { self.vel[e] += p[e] * self.inv_masa * signo; }
+        let d = cruz(r, p); let l = rot_inv(self.q, d); let w = rot(self.q, [l[0] * self.inv_i[0], l[1] * self.inv_i[1], l[2] * self.inv_i[2]]);
+        for e in 0..3 { self.ang[e] += w[e] * signo; }
+    }
     pub fn actualizar(&mut self) {
         self.geo.pos = self.pos; self.geo.q = self.q;
         match &*self.forma {

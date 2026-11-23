@@ -193,6 +193,39 @@ fn main() {
             println!("   la lámpara cada 0,25 s (Timer de 1 s): {:?}", estados.iter().map(|b| if *b { 1 } else { 0 }).collect::<Vec<_>>());
             j.jug.yaw -= 0.17; j.jug.pitch = -0.3; paso(&mut j, &mut m, 2); foto(&mut m, "3d2_timer_lampara");
             j.jug.pitch = 0.0; paso(&mut j, &mut m, 2);
+            // las armas: la pistola contra una caja (12 tiros y recarga sola), la escopeta, la palanca, y el RPG contra un barril
+            let arma = |j: &mut Juego, n: &str| { if let Some(k) = jxmod::armas::ARMAS.iter().position(|a| a.n == n) { j.armas.elegir(&mut j.fis, k); } };
+            let fw = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()]; let base = [j.jug.pos[0] + fw[0] * 4.0, j.jug.pos[1] - 0.9, j.jug.pos[2] + fw[2] * 4.0];
+            let _ = j.crear_en(&mut m, "Crate", base, 0.0); paso(&mut j, &mut m, 60);
+            let caja = j.objs.last().and_then(|o| o.cuerpo).unwrap_or(0); let c0 = j.fis.cuerpo(caja).map(|b| b.pos).unwrap_or([0.0; 3]);
+            let mira_a = |j: &mut Juego, p: [f64; 3]| { let o = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]]; let d = [p[0] as f32 - o[0], p[1] as f32 - o[1], p[2] as f32 - o[2]]; let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt(); j.jug.yaw = d[0].atan2(d[2]); j.jug.pitch = (d[1] / l).asin(); };
+            arma(&mut j, "Pistol"); paso(&mut j, &mut m, 40); mira_a(&mut j, c0); paso(&mut j, &mut m, 2);
+            let (bx, by) = pos_boton(wf, hf, Boton::Disparo);
+            j.dedo_abajo(60, bx, by, wf, hf); let mut minb = 99; for _ in 0..170 { paso(&mut j, &mut m, 1); minb = minb.min(j.armas.balas[j.armas.i]); } foto(&mut m, "3e1_pistola"); j.dedo_arriba(60);
+            println!("Pistola: balas al final {} (mínimo {}), recargando {:.2} s · la caja se movió {:.2} m", j.armas.balas[j.armas.i], minb, j.armas.recargando, { let c = j.fis.cuerpo(caja).map(|b| b.pos).unwrap_or(c0); ((c[0] - c0[0]).powi(2) + (c[2] - c0[2]).powi(2)).sqrt() });
+            paso(&mut j, &mut m, 150); println!("   después de la recarga: {} balas", j.armas.balas[j.armas.i]);
+            arma(&mut j, "Shotgun"); paso(&mut j, &mut m, 60); let c1 = j.fis.cuerpo(caja).map(|b| b.pos).unwrap_or(c0); mira_a(&mut j, c1); paso(&mut j, &mut m, 2);
+            j.dedo_abajo(61, bx, by, wf, hf); paso(&mut j, &mut m, 3); j.dedo_arriba(61); paso(&mut j, &mut m, 60); foto(&mut m, "3e2_escopeta");
+            println!("Escopeta: la caja se movió {:.2} m · balas {}", { let c = j.fis.cuerpo(caja).map(|b| b.pos).unwrap_or(c1); ((c[0] - c1[0]).powi(2) + (c[2] - c1[2]).powi(2)).sqrt() }, j.armas.balas[j.armas.i]);
+            arma(&mut j, "Crowbar"); paso(&mut j, &mut m, 60); let c2 = j.fis.cuerpo(caja).map(|b| b.pos).unwrap_or(c1);
+            let d = ((c2[0] - j.jug.pos[0] as f64).powi(2) + (c2[2] - j.jug.pos[2] as f64).powi(2)).sqrt(); if d > 1.6 { let k = (d - 1.3) / d; j.jug.pos[0] += ((c2[0] - j.jug.pos[0] as f64) * k) as f32; j.jug.pos[2] += ((c2[2] - j.jug.pos[2] as f64) * k) as f32; }
+            paso(&mut j, &mut m, 10); mira_a(&mut j, c2); paso(&mut j, &mut m, 2);
+            j.dedo_abajo(62, bx, by, wf, hf); paso(&mut j, &mut m, 2); j.dedo_arriba(62); paso(&mut j, &mut m, 30); foto(&mut m, "3e3_palanca");
+            println!("Palanca: la caja se movió {:.2} m", { let c = j.fis.cuerpo(caja).map(|b| b.pos).unwrap_or(c2); ((c[0] - c2[0]).powi(2) + (c[2] - c2[2]).powi(2)).sqrt() });
+            // el RPG contra un barril explosivo, a 10 m, con la caja al lado
+            let fw = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()]; let pb = [j.jug.pos[0] + fw[0] * 10.0, j.jug.pos[1] - 0.9, j.jug.pos[2] + fw[2] * 10.0];
+            let _ = j.crear_en(&mut m, "BarrilExplosivo", pb, 0.0); let _ = j.crear_en(&mut m, "Crate", [pb[0] + 1.5, pb[1], pb[2]], 0.0); paso(&mut j, &mut m, 60);
+            let barril = j.objs.iter().rev().find(|o| o.nombre == "BarrilExplosivo").and_then(|o| o.cuerpo).unwrap_or(0); let pb2 = j.fis.cuerpo(barril).map(|b| b.pos).unwrap_or([0.0; 3]);
+            let caja2 = j.objs.last().and_then(|o| o.cuerpo).unwrap_or(0); let k0 = j.fis.cuerpo(caja2).map(|b| b.pos).unwrap_or([0.0; 3]);
+            println!("RPG: barril tipo {:?}", j.objs.iter().find(|o| o.cuerpo == Some(barril)).map(|o| o.tipo));
+            arma(&mut j, "RPG"); paso(&mut j, &mut m, 60); mira_a(&mut j, pb2); paso(&mut j, &mut m, 2);
+            j.dedo_abajo(63, bx, by, wf, hf); paso(&mut j, &mut m, 2); j.dedo_arriba(63);
+            for k in 0..30 { paso(&mut j, &mut m, 1); if k == 12 { foto(&mut m, "3e4_rpg"); } }
+            let sigue = j.objs.iter().any(|o| o.cuerpo == Some(barril));
+            println!("   después: el barril {} · la caja de al lado salió a {:.1} m/s · vida del jugador {:.0} · temblor {:.2}", if sigue { "sigue" } else { "explotó" },
+                j.fis.cuerpo(caja2).map(|b| (b.vel[0].powi(2) + b.vel[1].powi(2) + b.vel[2].powi(2)).sqrt()).unwrap_or(-1.0), j.jug.vida, k0[0] * 0.0);
+            paso(&mut j, &mut m, 60); foto(&mut m, "3e5_despues");
+            arma(&mut j, "PhysicsGun"); j.jug.pitch = 0.0; paso(&mut j, &mut m, 30);
         }
     }
     // el otro mapa: caminar 6 s para adelante y a la derecha (choca con lo que haya)

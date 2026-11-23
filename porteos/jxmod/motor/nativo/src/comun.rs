@@ -15,6 +15,8 @@ use crate::ajustes::{self, Ajustes, Clave};
 use crate::armas::{Armas, ARMAS};
 #[path = "herramientas.rs"] mod herramientas;
 use herramientas::{Herramientas, Logica, Valor};
+#[path = "combate.rs"] mod combate;
+use combate::Proy;
 use crate::motor::Motor3d;
 use jxmotor::gpu::TEX_LETRAS;
 use jxmotor::mat::{self as m4, M4};
@@ -36,7 +38,7 @@ struct Dedo { id: i32, palanca: bool, boton: Option<Boton>, x0: f32, y0: f32, x:
 
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Boton { Ajustes, Camara, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca }
+pub enum Boton { Ajustes, Camara, Recargar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca }
 /// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
 struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
 /// dónde va cada botón con la pantalla de w × h
@@ -58,7 +60,10 @@ fn botones(w: f32, h: f32) -> Vec<Btn> {
     v.push(Btn { b: Boton::Disparo, x: w - h * 0.44, y: h - h * 0.40, w: r * 1.8, h: r * 1.8, redondo: true });
     v.push(Btn { b: Boton::Disparo2, x: w - h * 0.68, y: h - h * 0.30, w: r * 1.2, h: r * 1.2, redondo: true });
     v.push(Btn { b: Boton::Arma, x: w * 0.5, y: h - h * 0.07, w: h * 0.36, h: h * 0.09, redondo: false });
-    for k in 0..ARMAS.len() { v.push(Btn { b: Boton::ArmaN(k), x: w * 0.5 + (k as f32 - (ARMAS.len() - 1) as f32 / 2.0) * h * 0.38, y: h - h * 0.19, w: h * 0.36, h: h * 0.1, redondo: false }); }
+    // (la barra de armas: dos filas sobre el botón del arma)
+    let por_fila = ARMAS.len().div_ceil(2); let cw = (w * 0.92 / por_fila as f32).min(h * 0.36);
+    for k in 0..ARMAS.len() { let (f, c) = (k / por_fila, k % por_fila); v.push(Btn { b: Boton::ArmaN(k), x: w * 0.5 + (c as f32 - (por_fila - 1) as f32 / 2.0) * cw, y: h - h * (0.30 - 0.11 * f as f32), w: cw - 6.0, h: h * 0.1, redondo: false }); }
+    v.push(Btn { b: Boton::Recargar, x: w - h * 0.68, y: h - h * 0.55, w: r * 1.2, h: r * 1.2, redondo: true });
     v.push(Btn { b: Boton::Girar, x: w - h * 0.68, y: h - h * 0.55, w: r * 1.2, h: r * 1.2, redondo: true });
     v.push(Btn { b: Boton::Lejos, x: w - h * 0.92, y: h - h * 0.42, w: r * 1.05, h: r * 1.05, redondo: true });
     v.push(Btn { b: Boton::Cerca, x: w - h * 0.92, y: h - h * 0.22, w: r * 1.05, h: r * 1.05, redondo: true });
@@ -85,7 +90,9 @@ fn panel(w: f32, h: f32, nsub: usize) -> Panel {
 /// paso de la física (se dibuja entre los dos: la física va a 60 por segundo, como la web, y la pantalla a 120)
 pub struct Obj { pub nombre: String, pub pos: [f32; 3], pub q: [f32; 4], pub c: [f32; 3], pub cuerpo: Option<u32>, cap_inv: [f32; 4], ant: ([f32; 3], [f32; 4]), pub masa: f32,
     /// su número (el ID que muestra la Tool Gun), lo que hace si lo puso la Tool Gun y dónde empezó a moverlo un Mover
-    pub id: u32, pub logica: Option<Logica>, log_base: Option<([f32; 3], [f32; 4], f32)> }
+    pub id: u32, pub logica: Option<Logica>, log_base: Option<([f32; 3], [f32; 4], f32)>,
+    /// de qué tipo es (tipoDe: prop, explota, vehiculo…), su vida (los explosivos: 1) y si ya explotó
+    pub tipo: &'static str, pub vida: f32, pub exploto: bool }
 /// el paso de la física de los objetos (physStep de la web: 1/60 s)
 const PASO_FIS: f32 = 1.0 / 60.0;
 /// los sub-pasos de la física según la calidad (GFX.sub de la web)
@@ -161,6 +168,9 @@ pub struct Juego {
     /// arrastró para mirar en este cuadro (el arma se atrasa un poco al girar)
     /// la Tool Gun (herramientas.rs) y el número del próximo objeto
     pub her: Herramientas, sig_id: u32,
+    /// los proyectiles en el aire (cohetes, flechas), los barriles por explotar (id, cuándo), el temblor de la cámara, el
+    /// rojo del golpe, si murió, y el campo de visión que va hacia el pedido (apuntar y la mira del francotirador)
+    pub proys: Vec<Proy>, por_explotar: Vec<(u32, f32)>, temblor: f32, golpe_t: f32, pub muerto: bool, fov_b: f32,
     pub vista: Option<Vista>, vista_cargados: vista::Cargados, clips: vista::Clips, clip_ya: &'static str, sway: [f32; 5], bob_arma: f32, mdx: f32, tubo_ok: bool,
     // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
     /// los ajustes (ajustes.txt) y la pestaña del menú de Ajustes, si está abierto (el juego queda en pausa)
@@ -202,7 +212,7 @@ impl Juego {
             nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
-            her: Herramientas::default(), sig_id: 1,
+            her: Herramientas::default(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); j.cat_fis = Some(Catalogo::nuevo(p)); j.her.lista = herramientas::lista(&p.d); }
@@ -248,6 +258,7 @@ impl Juego {
                 Boton::ArmaN(k) => { self.armas.elegir(&mut self.fis, k); }
                 Boton::Girar => { self.armas.rotar = !self.armas.rotar && self.armas.agarre.is_some(); }
                 Boton::Lejos => self.armas.distancia(1.5),
+                Boton::Recargar => self.recargar(),
                 Boton::Cerca => self.armas.distancia(-1.5),
                 Boton::Deshacer => { if !self.objs.is_empty() { let n = self.objs.last().map(|o| o.nombre.clone()).unwrap_or_default(); self.borrar_obj(self.objs.len() - 1); self.avisar(format!("Deshecho: {n}")); } }
                 _ => {}
@@ -392,6 +403,7 @@ impl Juego {
     fn boton_visible(&self, b: Boton) -> bool {
         match b {
             Boton::Girar | Boton::Lejos | Boton::Cerca => self.armas.agarre.is_some(),
+            Boton::Recargar => self.armas.def().car > 0,
             Boton::ArmaN(_) => self.armas.barra_t > 0.0,
             _ => true,
         }
@@ -470,7 +482,7 @@ impl Juego {
         let nombre = self.mapas[self.mapa_i];
         self.mapa = None;
         self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; }
-        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.her.cable = None; self.her.trazas.clear(); self.her.tirados.clear(); self.her.spawn = None; self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false;
+        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.proys.clear(); self.por_explotar.clear(); self.her.cable = None; self.her.trazas.clear(); self.her.tirados.clear(); self.her.spawn = None; self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false;
         unsafe { m.vaciar(); }
         let Some(paq) = self.paq.as_mut() else { return };
         match mapa::armar(paq, nombre, 1024, 750.0) {
@@ -542,7 +554,8 @@ impl Juego {
             for i in muertos.into_iter().rev() { let o = self.objs.remove(i); if let Some(id) = o.cuerpo { self.fis.quitar(id); } }
             // (se cayó del mapa o se ahogó: vuelve a aparecer)
             if self.jug.pos[1] < mp.mundo.lo[1] - 60.0 || self.jug.vida <= 0.0 {
-                if self.jug.vida <= 0.0 { self.aviso = Some(("Te ahogaste".into(), Instant::now())); }
+                if self.jug.vida <= 0.0 { self.aviso = Some((if self.muerto { "Te moriste".into() } else { "Te ahogaste".into() }, Instant::now())); }
+                self.muerto = false;
                 let sp = self.her.spawn.map(|p| [p[0], p[1] + 0.2, p[2]]).or(mp.spawns.first().map(|s| s.0)).unwrap_or([0.0, 1.0, 0.0]); self.jug.aparecer(&mp.mundo, sp, None); self.jug.vida = 100.0; self.jug.aire = 12.0;
             }
         }
@@ -554,6 +567,12 @@ impl Juego {
         let (yaw, pitch) = (self.jug.yaw, self.jug.pitch);
         let fw = [yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos()];
         self.menu_atlas(m);
+        // las armas de fuego y de golpe: con el dedo en Disparar, tira a su ritmo; los relojes, el golpe atrasado, la recarga
+        if self.ajustes.is_none() && self.mapa.is_some() {
+            if self.armas.relojes(dt) { let i = self.armas.i; self.golpe_aplicar(i); }
+            if self.apretado(Boton::Disparo) && self.menu.is_none() { self.disparar(m); }
+            self.proyectiles_paso(dt);
+        }
         // la Tool Gun: lo que se disparó, y lo que hacen las cosas que puso (en pausa, nada)
         if let Some(alt) = self.armas.herr.take() { self.herramienta_usar(m, alt); }
         if self.ajustes.is_none() && self.mapa.is_some() { self.herramientas_paso(m, dt); }
@@ -570,8 +589,12 @@ impl Juego {
                 pj.animar(dt, &e);
             }
         }
+        let tj = [self.azar() - 0.5, self.azar() - 0.5, self.azar() - 0.5];
         if let Some(mp) = &self.mapa {
-            let p = persp((self.aj.fov as f32).to_radians(), wf / hf.max(1.0), 0.08, mp.lejos * 1.05);
+            // (el campo de visión: el de Ajustes, más cerrado apuntando y 18° con la mira del francotirador; va de a poco)
+            let z = if self.armas.zoom { 18.0 } else { self.aj.fov as f32 * (1.0 - 0.27 * self.armas.ap_k) };
+            if self.fov_b == 0.0 { self.fov_b = z; } self.fov_b += (z - self.fov_b) * (dt * if (z - self.fov_b).abs() > 10.0 { 12.0 } else { 4.0 }).min(1.0);
+            let p = persp(self.fov_b.to_radians(), wf / hf.max(1.0), 0.08, mp.lejos * 1.05);
             // (la cámara: en primera, los ojos; en tercera, 3,1 m atrás; de frente, 2,6 m adelante mirándote —jugadorCamara—;
             // si hay una pared en el medio, se acerca)
             let tam = self.pj.as_ref().map(|p| p.tam).unwrap_or(1.0); let kt = (0.45 + 0.55 * tam).clamp(0.6, 1.0);
@@ -589,6 +612,9 @@ impl Juego {
                 }
                 _ => (ojos, fw),
             };
+            // (el temblor de las explosiones)
+            let cam = if self.temblor > 0.001 { let k = self.temblor * 0.06; [cam[0] + tj[0] * k, cam[1] + tj[1] * k, cam[2] + tj[2] * k] } else { cam };
+            self.temblor = (self.temblor - dt * 1.5).max(0.0); if self.golpe_t > 0.0 { self.golpe_t -= dt; }
             let vista = m4::mirar(cam, [cam[0] + mira[0], cam[1] + mira[1], cam[2] + mira[2]], [0.0, 1.0, 0.0]);
             // (con los ojos bajo el agua: la niebla de cerca, del color del agua —aguaNiebla—)
             let mut luz = mp.luz;
@@ -599,7 +625,8 @@ impl Juego {
             let mut items = mp.items.clone();
             if self.camara != 0 { if let Some(pj) = &self.pj { let jp = self.jug.pos; pj.items(&personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw), &mut items); } }
             // (en primera persona, el arma delante de la cámara; y el rayo de la Physics Gun, de la boca a lo agarrado)
-            if self.camara == 0 { if let Some(v) = self.vista.as_mut() { v.ubicar(ojos, qcam(yaw, pitch), self.sway); v.items(&mut items); } }
+            if self.camara == 0 && !self.armas.zoom { if let Some(v) = self.vista.as_mut() { v.ubicar(ojos, qcam(yaw, pitch), self.sway); v.items(&mut items); } }
+            self.proyectiles_items(&mut items);
             if let (Some(p1), Some(a), true) = (self.armas.punto_agarrado(&self.fis), self.armas.agarre.as_ref(), self.tubo_ok) {
                 let p0 = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or([ojos[0], ojos[1] - 0.2, ojos[2]]);
                 let mid = [ojos[0] + fw[0] * a.dist * 0.5, ojos[1] + fw[1] * a.dist * 0.5, ojos[2] + fw[2] * a.dist * 0.5];
@@ -721,11 +748,12 @@ impl Juego {
             let (bp, bq) = ([b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32], [b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32]);
             let masa = b.masa as f32; let id = self.fis.agregar(b);
             let ci = pfz.cap_q.map(|c| [-c[0] as f32, -c[1] as f32, -c[2] as f32, c[3] as f32]).unwrap_or([0.0, 0.0, 0.0, 1.0]);
-            self.objs.push(Obj { nombre: nombre.to_string(), pos: bp, q: bq, c: [pfz.c[0] as f32, pfz.c[1] as f32, pfz.c[2] as f32], cuerpo: Some(id), cap_inv: ci, ant: (bp, bq), masa, id: id_obj, logica: None, log_base: None });
+            self.objs.push(Obj { nombre: nombre.to_string(), pos: bp, q: bq, c: [pfz.c[0] as f32, pfz.c[1] as f32, pfz.c[2] as f32], cuerpo: Some(id), cap_inv: ci, ant: (bp, bq), masa, id: id_obj, logica: None, log_base: None,
+                tipo: pfz.tipo, vida: if pfz.tipo == "explota" || pfz.tipo == "interactivo" { 1.0 } else { 0.0 }, exploto: false });
         } else {
             // (sin forma: fijo, con lo más bajo de su caja en el piso)
             let pp = [p[0], p[1] - pf.caja[1] + 0.01, p[2]];
-            self.objs.push(Obj { nombre: nombre.to_string(), pos: pp, q, c: [0.0; 3], cuerpo: None, cap_inv: [0.0, 0.0, 0.0, 1.0], ant: (pp, q), masa: 0.0, id: id_obj, logica: None, log_base: None });
+            self.objs.push(Obj { nombre: nombre.to_string(), pos: pp, q, c: [0.0; 3], cuerpo: None, cap_inv: [0.0, 0.0, 0.0, 1.0], ant: (pp, q), masa: 0.0, id: id_obj, logica: None, log_base: None, tipo: "prop", vida: 0.0, exploto: false });
         }
         self.avisar(format!("Puesto: {nombre}"));
         Ok(Some(self.objs.len() - 1))
@@ -750,11 +778,12 @@ impl Juego {
         let abierto = self.menu.is_some() || self.ajustes.is_some();
         for b in botones(wf, hf) {
             if (abierto && b.b != Boton::Ajustes) || !self.boton_visible(b.b) { continue; }
-            let nom_arma = self.armas.def().nom;
+            let nom_arma: &str = &{ let d = self.armas.def(); if d.car > 0 { if self.armas.recargando > 0.0 { format!("{} · recargando", d.nom) } else { format!("{} · {} | ∞", d.nom, self.armas.balas.get(self.armas.i).copied().unwrap_or(d.car)) } } else { d.nom.to_string() } };
             let (n, elegido) = match b.b {
-                Boton::Disparo => (if self.armas.def().n == "PhysicsGun" { if self.armas.agarre.is_some() { "Soltar" } else { "Agarrar" } } else { "Disparar" }, self.armas.agarre.is_some() || self.armas.grav.is_some()),
-                Boton::Disparo2 => (match self.armas.def().n { "PhysicsGun" => if self.armas.agarre.is_some() { "Congelar" } else { "2" }, "GravityGun" => if self.armas.grav.is_some() { "Soltar" } else { "Levantar" }, _ => "2" }, false),
+                Boton::Disparo => (match self.armas.def().tipo { "fisica" => if self.armas.agarre.is_some() { "Soltar" } else { "Agarrar" }, "golpe" => "Pegar", _ => "Disparar" }, self.armas.agarre.is_some() || self.armas.grav.is_some() || self.apretado(Boton::Disparo)),
+                Boton::Disparo2 => (match self.armas.def().n { "PhysicsGun" => if self.armas.agarre.is_some() { "Congelar" } else { "2" }, "GravityGun" => if self.armas.grav.is_some() { "Soltar" } else { "Levantar" }, _ => if self.armas.def().mira { "Mira" } else if matches!(self.armas.def().tipo, "bala" | "perdigones") { "Apuntar" } else { "2" } }, self.armas.apunta || self.armas.zoom),
                 Boton::Arma => (nom_arma, self.armas.barra_t > 0.0),
+                Boton::Recargar => ("R", self.armas.recargando > 0.0),
                 Boton::ArmaN(k) => (ARMAS[k].nom, k == self.armas.i),
                 Boton::Girar => ("Girar", self.armas.rotar),
                 Boton::Lejos => ("+", false),
@@ -781,6 +810,15 @@ impl Juego {
                 l.texto(&mut u, b.x - an / 2.0, b.y - tt * 0.55, tt, if elegido { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
             }
         }
+        // (la mira del francotirador: todo negro menos un círculo, con la cruz; y el rojo cuando a uno le pegan)
+        if self.armas.zoom && self.camara == 0 {
+            let r = hf * 0.46; let (cx, cy) = (wf / 2.0, hf / 2.0); let ng = [0.0, 0.0, 0.0, 1.0];
+            l.caja(&mut u, 0.0, 0.0, cx - r, hf, 0.0, ng); l.caja(&mut u, cx + r, 0.0, wf - cx - r, hf, 0.0, ng);
+            for k in 0..64 { let y0 = cy - r + k as f32 * r * 2.0 / 64.0; let y1 = y0 + r * 2.0 / 64.0; let ym = (y0 + y1) / 2.0 - cy; let a = (r * r - ym * ym).max(0.0).sqrt();
+                l.caja(&mut u, cx - r, y0, r - a, y1 - y0 + 0.5, 0.0, ng); l.caja(&mut u, cx + a, y0, r - a, y1 - y0 + 0.5, 0.0, ng); }
+            l.caja(&mut u, cx - r, cy - 1.0, r * 2.0, 2.0, 0.0, [0.0, 0.0, 0.0, 0.85]); l.caja(&mut u, cx - 1.0, cy - r, 2.0, r * 2.0, 0.0, [0.0, 0.0, 0.0, 0.85]);
+        }
+        if self.golpe_t > 0.0 { l.caja(&mut u, 0.0, 0.0, wf, hf, 0.0, [0.7, 0.0, 0.0, (self.golpe_t / 0.4 * 0.35).min(0.35)]); }
         // (la mira: un punto con borde en el medio)
         if !abierto && self.mapa.is_some() { l.disco(&mut u, wf / 2.0, hf / 2.0, hf * 0.006, [1.0, 1.0, 1.0, 0.9]); l.anillo(&mut u, wf / 2.0, hf / 2.0, hf * 0.009, [0.0, 0.0, 0.0, 0.5]); }
         // (el aire, con los ojos bajo el agua: una barra que se vacía)
