@@ -265,7 +265,7 @@ fn main() {
             let idx = |j: &Juego, n: &str| j.her.lista.iter().position(|h| h.n == n).unwrap_or(0);
             let (ox, oy) = pos_boton(wf, hf, Boton::Objetos); toque(&mut j, 50, ox, oy); paso(&mut j, &mut m, 1);
             let (px0, py0, ppw) = (wf * 0.04, hf * 0.12, wf * 0.92); let _ = ppw;
-            { let bw = ((wf * 0.92 - hf * 0.16) / 4.0).min(hf * 0.42); toque(&mut j, 51, px0 + hf * 0.03 + 3.0 * (bw + hf * 0.02) + bw / 2.0, py0 + hf * 0.042); } paso(&mut j, &mut m, 1);
+            { let bw = ((wf * 0.92 - hf * 0.16) / 5.0).min(hf * 0.42); toque(&mut j, 51, px0 + hf * 0.03 + 3.0 * (bw + hf * 0.02) + bw / 2.0, py0 + hf * 0.042); } paso(&mut j, &mut m, 1);
             let nh = j.her.lista.len() as f32; let tab_h = ((hf * 0.85 - hf * 0.1) / nh).min(hf * 0.08);
             let fila = |k: usize| (px0 + hf * 0.1, py0 + hf * 0.08 + (k as f32 + 0.5) * tab_h);
             let (tx, ty) = fila(idx(&j, "Timer")); toque(&mut j, 52, tx, ty); paso(&mut j, &mut m, 2); foto(&mut m, "3d1_herramientas");
@@ -322,7 +322,7 @@ fn main() {
             arma(&mut j, "PhysicsGun"); j.jug.pitch = 0.0; paso(&mut j, &mut m, 30);
             // los NPC: el menú en la pestaña NPCs, poner 3 (el Hero) y dispararle a uno con la escopeta
             let (ox, oy) = pos_boton(wf, hf, Boton::Objetos); toque(&mut j, 70, ox, oy); paso(&mut j, &mut m, 1);
-            let pest = |k: usize| { let bw = ((wf * 0.92 - hf * 0.16) / 4.0).min(hf * 0.42); (wf * 0.04 + hf * 0.03 + k as f32 * (bw + hf * 0.02) + bw / 2.0, hf * 0.12 + hf * 0.042) };
+            let pest = |k: usize| { let bw = ((wf * 0.92 - hf * 0.16) / 5.0).min(hf * 0.42); (wf * 0.04 + hf * 0.03 + k as f32 * (bw + hf * 0.02) + bw / 2.0, hf * 0.12 + hf * 0.042) };
             let (tx, ty) = pest(1); toque(&mut j, 71, tx, ty); paso(&mut j, &mut m, 2); foto(&mut m, "4a_menu_npcs");
             let (gx, gy, gw) = (wf * 0.04 + wf * 0.92 * 0.22, hf * 0.12 + hf * 0.09, wf * 0.92 * 0.77); let cols = ((gw / (hf * 0.19)).floor()).max(1.0); let celda = gw / cols;
             for k in 0..3 { j.jug.yaw += 0.3; paso(&mut j, &mut m, 1); toque(&mut j, 72 + k, gx + celda * 0.5, gy + celda * 0.5); paso(&mut j, &mut m, 2); }

@@ -110,6 +110,11 @@ impl Gmod {
     pub fn hud(&mut self) { self.activar(); hud(&mut self.lua); }
     /// tocar algo del menú: "gmswep:<clase>" da el arma; "gment:<clase>" pone la entidad con su SpawnFunction
     pub fn spawn_menu(&mut self, item: &str) -> bool { self.activar(); spawn_menu(&mut self.lua, item) }
+    /// el nombre para mostrar de algo del menú ("gmswep:<clase>" o "gment:<clase>"): su PrintName del lado del cliente
+    pub fn nombre_item(&mut self, item: &str) -> String {
+        self.activar();
+        match item.split_once(':') { Some(("gmswep", c)) => crate::resto::nombre_clase(&mut self.lua, true, c), Some((_, c)) => crate::resto::nombre_clase(&mut self.lua, false, c), None => item.to_string() }
+    }
     /// un arma de un addon al jugador (como desde el menú)
     pub fn dar_arma(&mut self, clase: &str) { self.activar(); dar_arma(&mut self.lua, clase, false); }
     /// un bind de GMod (PlayerBindPress): true si el Lua lo tomó

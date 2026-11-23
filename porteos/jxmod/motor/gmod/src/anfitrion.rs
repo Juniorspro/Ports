@@ -314,6 +314,8 @@ pub trait Anfitrion {
     /// ENT:DrawModel de una entidad
     fn dibujar_modelo(&mut self, _ent: f64) {}
     fn linterna(&mut self, _prender: bool) {}
+    /// SendWeaponAnim del arma en la mano: "fuego", "fuego2", "recarga", "sacar" o "quieto" (la vista del juego lo toca)
+    fn animar_vista(&mut self, _clip: &str) {}
 
     // ---- mensajes ----
     fn chat(&mut self, s: &str);

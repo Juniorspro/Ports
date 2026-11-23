@@ -843,7 +843,11 @@ pub(crate) fn quitar_arma(clase: &str) {
 }
 /// gmaAnimVista: SendWeaponAnim → la animación de la vista del juego (el juego la elige por la actividad)
 pub(crate) fn anim_vista(e: &mut Estado, w: &Valor, act: &Valor) {
-    let _ = (e, w, act);
+    if !g(|g| g.swep.as_ref().map(|s| mismo(s, w)).unwrap_or(false)) { return; }
+    let gl = e.globales();
+    let es = |k: &str| { let v = gl.borrow().get_str(k); !v.es_nil() && v.crudo_igual(act) };
+    let clip = if es("ACT_VM_PRIMARYATTACK") || es("ACT_VM_HITCENTER") || es("ACT_VM_MISSCENTER") { "fuego" } else if es("ACT_VM_SECONDARYATTACK") { "fuego2" } else if es("ACT_VM_RELOAD") { "recarga" } else if es("ACT_VM_DRAW") { "sacar" } else if es("ACT_VM_IDLE") { "quieto" } else { return };
+    h(|h| h.animar_vista(clip));
 }
 /// gmaSwepPaso: cada cuadro, con un arma de un addon en la mano (ataques, recarga, Think; Deploy/Holster al cambiar)
 pub(crate) fn swep_paso(e: &mut Estado) {

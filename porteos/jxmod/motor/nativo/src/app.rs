@@ -53,6 +53,8 @@ fn android_main(app: AndroidApp) {
     let mut j = Juego::nuevo(paq, letras, activo(&app, "ui/letras.png"), datos);
     // (el multijugador: las conexiones al broker y a la tienda van por Java —TLS con los certificados del sistema—)
     j.en_red.puente = Some(unsafe { crate::red_android::Java::de_vm(app.vm_as_ptr()) }.puente());
+    // (los addons de GMod: bajar de la tienda —binario— y la carpeta del celular donde se pueden dejar .gma)
+    let java = unsafe { crate::red_android::Java::de_vm(app.vm_as_ptr()) }; j.gmod.http_bin = Some(java.http_bin()); j.gmod.carpeta_externa = app.external_data_path().map(|p| p.join("addons"));
     // (escribir: el cuadro de texto de Juego.java)
     if let Some(t) = unsafe { crate::red_android::Teclado::nuevo(app.vm_as_ptr(), app.activity_as_ptr()) } {
         let (t1, t2) = (t.clone(), t);

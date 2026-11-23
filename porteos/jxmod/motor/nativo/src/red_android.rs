@@ -42,8 +42,14 @@ impl Java {
         let t = TlsJava::abrir(&self.vm, &u.host, u.puerto)?;
         if u.ws { Ok(Box::new(Ws::abrir(t, &format!("{}:{}", u.host, u.puerto), &u.ruta)?)) } else { Ok(Box::new(t)) }
     }
+    /// los pedidos binarios (los .gma de los addons de GMod: gmod_juego.rs), de hasta 300 MB
+    pub fn http_bin(&self) -> crate::comun::gmod_juego::HttpBin { let j = self.clone(); Arc::new(move |u: &str| j.pedir_crudo("GET", u, &[], None, 300 << 20)) }
     /// un pedido HTTPS: (código, cuerpo) o por qué no se pudo
     pub fn pedir(&self, metodo: &str, url: &str, cab: &[(String, String)], cuerpo: Option<&str>) -> Result<(u16, String), String> {
+        self.pedir_crudo(metodo, url, cab, cuerpo, 4 << 20).map(|(c, b)| (c, String::from_utf8_lossy(&b).into_owned()))
+    }
+    /// lo mismo, con el cuerpo en bytes (hasta `tope`)
+    pub fn pedir_crudo(&self, metodo: &str, url: &str, cab: &[(String, String)], cuerpo: Option<&str>, tope: usize) -> Result<(u16, Vec<u8>), String> {
         con_java(&self.vm, |env| {
             let u = env.new_string(url)?;
             let url_o = env.new_object(jni_str!("java/net/URL"), jni_sig!("(Ljava/lang/String;)V"), &[JValue::Object(&u)])?;
@@ -69,18 +75,18 @@ impl Java {
             let ent = if codigo >= 400 { env.call_method(&c, jni_str!("getErrorStream"), jni_sig!("()Ljava/io/InputStream;"), &[])?.l()? } else { env.call_method(&c, jni_str!("getInputStream"), jni_sig!("()Ljava/io/InputStream;"), &[])?.l()? };
             let mut cuerpo = vec![];
             if !ent.is_null() {
-                let a = env.new_byte_array(8192)?; let mut tmp = vec![0i8; 8192];
+                let a = env.new_byte_array(65536)?; let mut tmp = vec![0i8; 65536];
                 loop {
                     let n = env.call_method(&ent, jni_str!("read"), jni_sig!("([B)I"), &[JValue::Object(&a)])?.i()?;
                     if n < 0 { break; }
                     let n = (n as usize).min(tmp.len()); a.get_region(env, 0, &mut tmp[..n])?;
                     cuerpo.extend(tmp[..n].iter().map(|b| *b as u8));
-                    if cuerpo.len() > 4 << 20 { break; }
+                    if cuerpo.len() > tope { break; }
                 }
                 env.call_method(&ent, jni_str!("close"), jni_sig!("()V"), &[])?;
             }
             env.call_method(&c, jni_str!("disconnect"), jni_sig!("()V"), &[])?;
-            Ok((codigo.clamp(0, 999) as u16, String::from_utf8_lossy(&cuerpo).into_owned()))
+            Ok((codigo.clamp(0, 999) as u16, cuerpo))
         }).map_err(|e| e.to_string())
     }
 }
