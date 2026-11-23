@@ -37,6 +37,8 @@ impl Juego {
                     self.impacto_bala(o, r, d.dan);
                 }
                 self.armas.anim = Some(d.fuego); if !sf.is_empty() { self.sonido.tocar(sf, 0.8, 1.0, None); }
+                // (el fogonazo en la boca del arma, con su luz)
+                let boca = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or([o[0] + dir[0] * 0.5, o[1] - 0.2, o[2] + dir[2] * 0.5]); self.ef.fogonazo(boca);
                 // (el arma sube la mira)
                 self.jug.pitch = (self.jug.pitch + if d.tipo == "perdigones" { 0.04 } else if d.dan > 50.0 { 0.03 } else { 0.008 }).min(1.55); self.armas.retro = 1.0;
             }
@@ -81,19 +83,24 @@ impl Juego {
         let h = self.rayo_obj(o, d, 400.0);
         let fin = h.map(|x| x.1).unwrap_or([o[0] + d[0] * 400.0, o[1] + d[1] * 400.0, o[2] + d[2] * 400.0]);
         let boca = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or([o[0], o[1] - 0.2, o[2]]);
-        self.her.trazas.push((boca, fin, 0.06));
+        self.ef.traza(boca, fin);
+        // (el impacto: polvo y un agujero en el mapa; chispas en un cuerpo)
+        if let Some((_, p, n, cu)) = h { self.ef.impacto(p, n, if cu.is_some() { Sup::Cuerpo } else { Sup::Mundo }); }
         let Some((_, p, _n, Some(id))) = h else { return };
         if let Some(b) = self.fis.cuerpo_mut(id) {
             b.despertar();
             if b.dinamico() { let k = (dan * 0.6 / (b.masa as f32 * 0.05).max(1.0)).min(8.0); let r = [p[0] as f64 - b.pos[0], p[1] as f64 - b.pos[1], p[2] as f64 - b.pos[2]]; b.aplicar_vel([(d[0] * k) as f64, (d[1] * k) as f64, (d[2] * k) as f64], r, 1.0); }
         }
         if let Some(i) = self.objs.iter().position(|x| x.cuerpo == Some(id)) { self.danar_objeto(i, dan); }
+        if let Some(n) = self.npcs.de_cuerpo(id) { self.npcs.danar(n, dan, p, d, &mut self.fis, Some(npc::Quien::Jugador)); }
+        self.vehs.danar(&self.fis, id, dan as f64);
     }
     /// golpeAplicar: lo que se apuntó, a alcance del golpe: el sonido (metal o carne), el empujón (la palanca como en HL2)
     /// y el daño
     pub(super) fn golpe_aplicar(&mut self, i: usize) {
         let d = &ARMAS[i]; let (o, f) = (self.ojos_ult, self.mira());
-        let Some((_, p, _n, cu)) = self.rayo_obj(o, f, d.alcance) else { return };
+        let Some((_, p, nn, cu)) = self.rayo_obj(o, f, d.alcance) else { return };
+        self.ef.impacto(p, nn, Sup::Golpe);
         let s = if d.s_imp.is_empty() { "Melee1" } else { d.s_imp[(self.armas.azar01() * d.s_imp.len() as f32) as usize % d.s_imp.len()] };
         self.sonido.tocar(s, 0.8, 1.0, Some(p));
         let Some(id) = cu else { return };
@@ -105,6 +112,7 @@ impl Juego {
             }
         }
         if let Some(k) = self.objs.iter().position(|x| x.cuerpo == Some(id)) { self.danar_objeto(k, d.dan); }
+        if let Some(n) = self.npcs.de_cuerpo(id) { self.npcs.danar(n, d.dan, p, f, &mut self.fis, Some(npc::Quien::Jugador)); }
     }
     /// lanzarProyectil (el modelo del prefab, si está)
     unsafe fn lanzar(&mut self, m: &mut Motor3d, nombre: &str, p: [f32; 3], d: [f32; 3], vel: f32, grav: f32, dan: f32, explota: bool) {
@@ -128,7 +136,7 @@ impl Juego {
                 self.proys[k].pos = p;
                 if self.proys[k].explota { explotan.push((p, self.proys[k].dan)); self.proys.remove(k); continue; }
                 // (la flecha: queda clavada; empuja y daña lo que toca)
-                self.sonido.tocar("Melee1", 0.5, 1.4, Some(p));
+                self.sonido.tocar("Melee1", 0.5, 1.4, Some(p)); self.ef.impacto(p, _n, Sup::Golpe);
                 let dan = self.proys[k].dan;
                 if let Some(id) = cu {
                     if let Some(b) = self.fis.cuerpo_mut(id) {
@@ -141,6 +149,8 @@ impl Juego {
                 self.proys[k].vida = 20.0; k += 1; continue;
             }
             self.proys[k].pos = [pos[0] + vel[0] * dt, pos[1] + vel[1] * dt, pos[2] + vel[2] * dt]; self.proys[k].q = q_mirar(d);
+            // (el cohete deja humo)
+            if self.proys[k].explota && self.armas.azar01() < 0.7 { let pp = self.proys[k].pos; self.ef.particula(pp, [-vel[0] * 0.05, -vel[1] * 0.05, -vel[2] * 0.05], 0.6, 0.35, [0.7, 0.7, 0.7, 0.5], efx::Tipo::Humo, 0.0); }
             k += 1;
         }
         for (p, dan) in explotan { self.explosion(p, 6.0, dan); }
@@ -154,6 +164,8 @@ impl Juego {
     /// jugador (que también sale empujado)
     pub(super) fn explosion(&mut self, p: [f32; 3], radio: f32, dan: f32) {
         self.sonido.tocar("GrenadeExplode", 1.4, 1.0, Some(p));
+        // (el fuego, el humo, las chispas, la luz y la quemadura en el piso: efectoExplosion)
+        let esc = (radio / 6.0).clamp(0.6, 3.0); let piso = self.mapa.as_ref().and_then(|mp| efx::piso_bajo(&mp.mundo, p, esc)); self.ef.explosion(p, esc, piso);
         let ids: Vec<u32> = self.fis.cuerpos.iter().filter(|b| b.dinamico() || b.congelado).map(|b| b.id).collect();
         let mut danos = vec![];
         for id in ids {
@@ -169,7 +181,14 @@ impl Juego {
             }
             danos.push((id, dan * k));
         }
-        for (id, dk) in danos { if let Some(i) = self.objs.iter().position(|o| o.cuerpo == Some(id)) { self.danar_objeto(i, dk); } }
+        for (id, dk) in danos { if let Some(i) = self.objs.iter().position(|o| o.cuerpo == Some(id)) { self.danar_objeto(i, dk); } self.vehs.danar(&self.fis, id, dk as f64); }
+        // (los NPC de pie en el radio: daño y, si es fuerte, al piso)
+        let cerca: Vec<(u32, [f32; 3])> = self.npcs.lista.iter().filter(|n| n.en_pie()).map(|n| (n.id, n.pos())).collect();
+        for (n, q) in cerca {
+            let d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]]; let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt(); if l > radio * 1.6 { continue; }
+            let k = 1.0 - l / (radio * 1.6); let nd = norm(d);
+            self.npcs.danar(n, dan * k, q, nd, &mut self.fis, Some(npc::Quien::Jugador));
+        }
         let jp = self.jug.pos; let dj = ((jp[0] - p[0]).powi(2) + (jp[1] - p[1]).powi(2) + (jp[2] - p[2]).powi(2)).sqrt();
         if dj < radio * 1.4 {
             let k = 1.0 - dj / (radio * 1.4); self.danar_jugador(dan * k);

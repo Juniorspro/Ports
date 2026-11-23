@@ -4,6 +4,10 @@ use jxjuego::fisica::Fisica;
 use jxjuego::forma::{self, Catalogo};
 use jxjuego::jugador::{Entrada, Jugador};
 use jxjuego::personaje::{self, Personaje};
+use jxjuego::npc::{self, Gente, Npcs, Skins};
+use jxjuego::vehiculo::{self as veh, Mando, Vehiculos};
+use jxjuego::flotar::{Aguas, Flota};
+use jxjuego::efectos::{self as efx, Efectos, Sup};
 use jxjuego::vista::{self, Vista};
 use jxjuego::mapa::{self, Mapa};
 use jxjuego::objetos::{self, Cargados, Prefab};
@@ -38,7 +42,7 @@ struct Dedo { id: i32, palanca: bool, boton: Option<Boton>, x0: f32, y0: f32, x:
 
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Boton { Ajustes, Camara, Recargar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca }
+pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca }
 /// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
 struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
 /// dónde va cada botón con la pantalla de w × h
@@ -64,6 +68,8 @@ fn botones(w: f32, h: f32) -> Vec<Btn> {
     let por_fila = ARMAS.len().div_ceil(2); let cw = (w * 0.92 / por_fila as f32).min(h * 0.36);
     for k in 0..ARMAS.len() { let (f, c) = (k / por_fila, k % por_fila); v.push(Btn { b: Boton::ArmaN(k), x: w * 0.5 + (c as f32 - (por_fila - 1) as f32 / 2.0) * cw, y: h - h * (0.30 - 0.11 * f as f32), w: cw - 6.0, h: h * 0.1, redondo: false }); }
     v.push(Btn { b: Boton::Recargar, x: w - h * 0.68, y: h - h * 0.55, w: r * 1.2, h: r * 1.2, redondo: true });
+    // (Usar: subir y bajar de los vehículos —la E de la web—, a la izquierda de Deshacer)
+    v.push(Btn { b: Boton::Usar, x: w - h * 0.71, y: h * 0.27, w: r * 1.3, h: r * 1.3, redondo: true });
     v.push(Btn { b: Boton::Girar, x: w - h * 0.68, y: h - h * 0.55, w: r * 1.2, h: r * 1.2, redondo: true });
     v.push(Btn { b: Boton::Lejos, x: w - h * 0.92, y: h - h * 0.42, w: r * 1.05, h: r * 1.05, redondo: true });
     v.push(Btn { b: Boton::Cerca, x: w - h * 0.92, y: h - h * 0.22, w: r * 1.05, h: r * 1.05, redondo: true });
@@ -76,9 +82,11 @@ pub const TEX_ARMAS: i64 = -2002;
 const ICO: u32 = 96;
 const ICO_COLS: u32 = 10;
 /// el menú de objetos abierto: qué subcategoría, cuánto bajó la grilla y de qué subcategoría es el atlas cargado
-pub struct Menu { pub sub: usize, pub scroll: f32, atlas_de: Option<usize>, atlas_h: u32, /** 0 Props, 1 Herramientas */ pub pestana: usize }
+pub struct Menu { pub sub: usize, pub scroll: f32, atlas_de: Option<(usize, usize)>, atlas_h: u32, /** 0 Props, 1 NPCs, 2 Vehículos, 3 Herramientas */ pub pestana: usize }
 /// las pestañas de arriba del menú (las del spawn menu de la web)
-const PESTANAS_MENU: [&str; 2] = ["Props", "Herramientas"];
+const PESTANAS_MENU: [&str; 4] = ["Props", "NPCs", "Vehículos", "Herramientas"];
+/// la pestaña de las herramientas (las otras son catálogos de cosas para poner)
+const PESTANA_HER: usize = 3;
 /// dónde va cada cosa del menú (con la pantalla de w × h y n subcategorías)
 struct Panel { x0: f32, y0: f32, pw: f32, ph: f32, tab_h: f32, gx: f32, gy: f32, gw: f32, gh: f32, celda: f32, cols: usize }
 fn panel(w: f32, h: f32, nsub: usize) -> Panel {
@@ -121,7 +129,7 @@ fn matriz_obj(o: &Obj, t: f32) -> M4 {
 /// (para las pruebas) el centro de un botón
 pub fn pos_boton(w: f32, h: f32, b: Boton) -> (f32, f32) { botones(w, h).into_iter().find(|x| x.b == b).map(|x| (x.x, x.y)).unwrap_or((0.0, 0.0)) }
 /// una pestaña de arriba del menú: dónde empieza y su ancho
-fn pestana_menu(p: &Panel, h: f32, k: usize) -> (f32, f32) { (p.x0 + h * 0.03 + k as f32 * h * 0.44, h * 0.42) }
+fn pestana_menu(p: &Panel, h: f32, k: usize) -> (f32, f32) { let bw = ((p.pw - h * 0.16) / PESTANAS_MENU.len() as f32).min(h * 0.42); (p.x0 + h * 0.03 + k as f32 * (bw + h * 0.02), bw) }
 /// las cajas de los valores de un renglón de Ajustes (x, y, ancho, alto)
 fn cajas_aj(p: &Panel, h: f32, fila: usize, n: usize) -> Vec<(f32, f32, f32, f32)> {
     let fh = h * 0.105; let y = p.gy + fila as f32 * fh;
@@ -162,7 +170,7 @@ pub struct Juego {
     /// lo que tardó cada pasada en la placa (Vulkan)
     pub detalle: String,
     // —— los objetos ——
-    nombres: HashMap<String, String>, pub catalogo: Vec<(String, Vec<String>)>,
+    nombres: HashMap<String, String>, pub catalogo: Vec<(String, Vec<String>)>, pub cat_npc: Vec<(String, Vec<String>)>, pub cat_veh: Vec<(String, Vec<String>)>,
     pub menu: Option<Menu>, prefabs: HashMap<String, Prefab>, cargados: Cargados,
     pub objs: Vec<Obj>, pendientes: Vec<String>,
     /// la física de los objetos (fisica.rs), las formas de choque de los prefabs y el tiempo que sobra para su paso fijo
@@ -174,6 +182,11 @@ pub struct Juego {
     pub pj: Option<Personaje>, pj_cargados: personaje::Cargados, pub camara: u8, pub nado: Option<(Vec<u8>, Vec<u8>)>, pub skin: String,
     /// el arma en la mano (vista.rs): el modelo, lo que el motor ya tiene, los clips, cuál suena, el vaivén y lo que se
     /// arrastró para mirar en este cuadro (el arma se atrasa un poco al girar)
+    /// los NPC (npc.rs) y sus skins; los vehículos (vehiculo.rs) y el agua que hace flotar (flotar.rs); si se puede usar
+    /// algo con «Usar» (un vehículo a la vista); lo último que se puso (para Deshacer: objeto o NPC) y la matriz de la vista
+    pub npcs: Npcs, npc_skins: Skins, pub vehs: Vehiculos, pub aguas: Aguas, usar_ve: bool, pila: Vec<(bool, u32)>, vp_ult: M4,
+    /// los efectos (efectos.rs: partículas, fogonazos, trazas, impactos, explosiones, marcas) y si su atlas está en el motor
+    pub ef: Efectos, ef_atlas: bool,
     /// la Tool Gun (herramientas.rs) y el número del próximo objeto
     pub her: Herramientas, sig_id: u32,
     /// los proyectiles en el aire (cohetes, flechas), los barriles por explotar (id, cuándo), el temblor de la cámara, el
@@ -219,9 +232,10 @@ impl Juego {
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
             recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
-            nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
+            nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
+            npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
             her: Herramientas::default(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
@@ -232,7 +246,7 @@ impl Juego {
             let ult = j.datos.as_ref().and_then(|d| std::fs::read_to_string(d.join("mapa.txt")).ok()).unwrap_or_default();
             j.mapa_i = j.mapas.iter().position(|m| *m == ult.trim()).unwrap_or(0);
         } }
-        if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); j.cat_fis = Some(Catalogo::nuevo(p)); j.her.lista = herramientas::lista(&p.d); }
+        if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); j.cat_npc = npc::menu(&p.d); j.cat_veh = objetos::menu(&p.d, "Vehicles"); j.npcs = Npcs::nuevo(&p.d, 0x5eed); j.cat_fis = Some(Catalogo::nuevo(p)); j.her.lista = herramientas::lista(&p.d); }
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
         j
     }
@@ -253,7 +267,7 @@ impl Juego {
     /// el motor que pidió el jugador y el que se puede usar (OpenGL 2 todavía no: OpenGL 3)
     pub fn motor_pedido(&self) -> Placa { if self.placa.hecha() { self.placa } else { Placa::Gl3 } }
     /// con ventana nueva (el motor nuevo): se carga todo de nuevo
-    pub fn al_abrir(&mut self) { self.recargar = true; }
+    pub fn al_abrir(&mut self) { self.recargar = true; self.ef.reenviar_marcas(); }
 
     // —— el tacto (coordenadas en píxeles de la pantalla) ——
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
@@ -264,10 +278,13 @@ impl Juego {
             if !matches!(b, Boton::Saltar | Boton::Agachar | Boton::Disparo | Boton::Disparo2 | Boton::ArmaN(_)) { self.sonido.tocar("Click", 0.5, 1.0, None); }
             match b {
                 Boton::Ajustes => { self.menu = None; self.ajustes = Some(0); }
+                // (manejando, la cámara del vehículo: adentro o afuera; en primera mira adelante, como la web)
+                Boton::Camara if self.vehs.jugador.is_some() => { self.vehs.primera = !self.vehs.primera; if self.vehs.primera { self.jug.yaw = 0.0; self.jug.pitch = 0.0; } }
                 Boton::Camara => { self.camara = (self.camara + 1) % 3; self.avisar(["Primera persona", "Tercera persona", "De frente"][self.camara as usize].into()); }
                 Boton::Volar => { self.jug.noclip = !self.jug.noclip; self.avisar(if self.jug.noclip { "Volar: prendido".into() } else { "Volar: apagado".into() }); }
                 Boton::Objetos => { if !self.catalogo.is_empty() { self.menu = Some(Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0, pestana: 0 }); } }
                 Boton::Disparo | Boton::Disparo2 => {
+                    self.armas_con_npc(b == Boton::Disparo);
                     let (o, d, yaw) = (self.ojos_ult, self.mira(), self.jug.yaw);
                     if let Some(mp) = &self.mapa { if b == Boton::Disparo { self.armas.disparo(&mut self.fis, &mp.mundo, o, d, yaw); } else { self.armas.disparo2(&mut self.fis, &mp.mundo, o, d); } }
                 }
@@ -276,8 +293,9 @@ impl Juego {
                 Boton::Girar => { self.armas.rotar = !self.armas.rotar && self.armas.agarre.is_some(); }
                 Boton::Lejos => self.armas.distancia(1.5),
                 Boton::Recargar => self.recargar(),
+                Boton::Usar => self.usar(),
                 Boton::Cerca => self.armas.distancia(-1.5),
-                Boton::Deshacer => { if !self.objs.is_empty() { let n = self.objs.last().map(|o| o.nombre.clone()).unwrap_or_default(); self.borrar_obj(self.objs.len() - 1); self.avisar(format!("Deshecho: {n}")); } }
+                Boton::Deshacer => { self.deshacer(); }
                 _ => {}
             }
             // (saltar y agacharse se mantienen mientras el dedo esté apoyado)
@@ -310,31 +328,34 @@ impl Juego {
     }
     pub fn dedo_arriba(&mut self, id: i32) { self.dedos.retain(|d| d.id != id); }
     fn toque_menu(&mut self, x: f32, y: f32, w: f32, h: f32) {
+        let Some(pe0) = self.menu.as_ref().map(|m| m.pestana) else { return };
+        let n = if pe0 == PESTANA_HER { self.her.lista.len() } else { self.cat(pe0).len() };
         let Some(m) = self.menu.as_mut() else { return };
-        let n = if m.pestana == 1 { self.her.lista.len() } else { self.catalogo.len() };
         let p = panel(w, h, n);
         // (la X de cerrar, arriba a la derecha del panel; o tocar afuera)
         if (x > p.x0 + p.pw - h * 0.1 && y < p.y0 + h * 0.08) || x < p.x0 || x > p.x0 + p.pw || y < p.y0 || y > p.y0 + p.ph { self.menu = None; return; }
         // (las pestañas de arriba)
         if y < p.y0 + h * 0.08 {
-            for k in 0..PESTANAS_MENU.len() { let (bx, bw) = pestana_menu(&p, h, k); if x >= bx && x <= bx + bw && k != m.pestana { m.pestana = k; m.sub = if k == 1 { self.her.sel } else { 0 }; m.scroll = 0.0; } }
+            for k in 0..PESTANAS_MENU.len() { let (bx, bw) = pestana_menu(&p, h, k); if x >= bx && x <= bx + bw && k != m.pestana { m.pestana = k; m.sub = if k == PESTANA_HER { self.her.sel } else { 0 }; m.scroll = 0.0; } }
             return;
         }
         if x < p.gx - p.pw * 0.01 {
             let k = ((y - p.y0 - h * 0.08) / p.tab_h).floor() as i64;
-            if k >= 0 && (k as usize) < n { m.sub = k as usize; m.scroll = 0.0; if m.pestana == 1 { self.equipar_herramienta(k as usize); } }
+            if k >= 0 && (k as usize) < n { m.sub = k as usize; m.scroll = 0.0; if m.pestana == PESTANA_HER { self.equipar_herramienta(k as usize); } }
             return;
         }
-        if m.pestana == 1 { self.toque_inspector(x, y, w, h); return; }
+        if m.pestana == PESTANA_HER { self.toque_inspector(x, y, w, h); return; }
         let (col, fila) = (((x - p.gx) / p.celda).floor() as i64, ((y - p.gy + m.scroll) / p.celda).floor() as i64);
         if col < 0 || col as usize >= p.cols || fila < 0 { return; }
         let i = fila as usize * p.cols + col as usize;
-        if let Some(n) = self.catalogo.get(m.sub).and_then(|s| s.1.get(i)) { self.pendientes.push(n.clone()); }
+        let (pe, sub) = (m.pestana, m.sub);
+        if let Some(n) = self.cat(pe).get(sub).and_then(|s| s.1.get(i)) { self.pendientes.push(n.clone()); }
     }
     /// el arma en la mano (elegirArma, armasPaso y vistaSujeta): carga el modelo del arma elegida, toca sacar y después
     /// quieto (o sosteniendo, con algo agarrado), y el vaivén al caminar y al girar
     unsafe fn arma_en_mano(&mut self, m: &mut Motor3d, dt: f32) {
         if !self.tubo_ok { self.tubo_ok = m.cargar(&vista::tubo()).is_ok(); }
+        if !self.ef_atlas { self.ef_atlas = m.cargar(&efx::atlas()).is_ok(); }
         // (los íconos de las armas, para la barra: un atlas de 10 por fila)
         if !self.armas_ico { if let Some(paq) = self.paq.as_ref() {
             let (aw, ah) = (1024u32, (ARMAS.len() as u32).div_ceil(ICO_COLS).max(1) * ICO); let ah = ah.next_power_of_two(); let mut px = vec![0u8; (aw * ah * 4) as usize];
@@ -425,6 +446,76 @@ impl Juego {
         }
         if let Some((k, v)) = cambio { self.her.params.entry(n).or_default().insert(k, v); self.sonido.tocar("Click", 0.4, 1.0, None); }
     }
+    /// Usar (la E): subir al vehículo que se mira o bajar del que se maneja
+    fn usar(&mut self) {
+        let Some(mp) = self.mapa.as_ref() else { return };
+        let (o, f) = (self.ojos_ult, self.mira());
+        match self.vehs.usar(&mut self.fis, &mp.mundo, [o[0] as f64, o[1] as f64, o[2] as f64], [f[0] as f64, f[1] as f64, f[2] as f64]) {
+            veh::Usar::Subio(_) => { self.armas.soltar(&mut self.fis, false); self.armas.olvidar(); self.jug.pitch = -0.15; self.jug.noclip = false; }
+            veh::Usar::Salio(sl) => { self.jug.pos = [sl.pos[0] as f32, sl.pos[1] as f32, sl.pos[2] as f32]; self.jug.vel = [sl.vel[0] as f32, sl.vel[1] as f32, sl.vel[2] as f32]; }
+            veh::Usar::Nada => {}
+        }
+    }
+    /// manejando: la cámara del vehículo (con su lugar dibujado, entre paso y paso de la física) y el jugador en el asiento
+    fn camara_vehiculo(&mut self) -> Option<([f32; 3], [f32; 3])> {
+        let (id, _) = self.vehs.jugador?; let mp = self.mapa.as_ref()?;
+        let o = self.objs.iter().find(|o| o.cuerpo == Some(id))?;
+        let t = (self.acum_fis / PASO_FIS).clamp(0.0, 1.0);
+        let p = [o.ant.0[0] + (o.pos[0] - o.ant.0[0]) * t, o.ant.0[1] + (o.pos[1] - o.ant.0[1]) * t, o.ant.0[2] + (o.pos[2] - o.ant.0[2]) * t]; let q = qmezcla(o.ant.1, o.q, t);
+        let c = self.vehs.camara(&mp.mundo, [p[0] as f64, p[1] as f64, p[2] as f64], [q[0] as f64, q[1] as f64, q[2] as f64, q[3] as f64], self.jug.yaw as f64, self.jug.pitch as f64)?;
+        self.jug.pos = [c.jugador[0] as f32, c.jugador[1] as f32, c.jugador[2] as f32]; self.jug.vel = [0.0; 3];
+        let a = c.adelante();
+        Some(([c.pos[0] as f32, c.pos[1] as f32, c.pos[2] as f32], [a[0] as f32, a[1] as f32, a[2] as f32]))
+    }
+    /// lo que pasó este cuadro en el mundo: los eventos de los NPC (sonidos, el daño al jugador, trazas, lo que dicen) y de
+    /// los vehículos (sonidos, carteles, el que salió despedido, temblor, el que se rompió), y los chapuzones del agua
+    fn eventos_mundo(&mut self, dt: f32) {
+        self.aguas.avanzar(dt as f64);
+        for e in self.npcs.eventos() {
+            match e {
+                npc::Evento::Sonido { nombre, pos, vol, tono } => self.sonido.tocar(&nombre, vol, tono, pos),
+                npc::Evento::DanoJugador { dan, empuje, .. } => { self.danar_jugador(dan); for k in 0..3 { self.jug.vel[k] += empuje[k]; } }
+                npc::Evento::Traza { de, a } => self.ef.traza(de, a),
+                npc::Evento::Impacto { p, n, cuerpo } => self.ef.impacto(p, n, if cuerpo { Sup::Cuerpo } else { Sup::Mundo }),
+                npc::Evento::DanoObjeto { cuerpo, dan, .. } => { if let Some(i) = self.objs.iter().position(|o| o.cuerpo == Some(cuerpo)) { self.danar_objeto(i, dan); } }
+                _ => {}
+            }
+        }
+        for e in std::mem::take(&mut self.vehs.eventos) {
+            match e {
+                veh::Evento::Sonido { nombre, p, vol } => self.sonido.tocar(nombre, vol as f32, 1.0, Some([p[0] as f32, p[1] as f32, p[2] as f32])),
+                veh::Evento::Aviso(t) => self.avisar(t.into()),
+                veh::Evento::Salio(sl) => { self.jug.pos = [sl.pos[0] as f32, sl.pos[1] as f32, sl.pos[2] as f32]; self.jug.vel = [sl.vel[0] as f32, sl.vel[1] as f32, sl.vel[2] as f32]; }
+                veh::Evento::Temblor(k) => self.temblor = self.temblor.max(k as f32),
+                veh::Evento::Roto { p, .. } => self.explosion([p[0] as f32, p[1] as f32, p[2] as f32], 6.0, 100.0),
+                veh::Evento::Marca { de, a, n, ancho, k } => self.ef.marca([de[0] as f32, de[1] as f32, de[2] as f32], [a[0] as f32, a[1] as f32, a[2] as f32], [n[0] as f32, n[1] as f32, n[2] as f32], ancho as f32, k as f32),
+            }
+        }
+        for sp in std::mem::take(&mut self.aguas.salpicones) { let n = format!("AG_Salpica{}", 1 + (self.azar() * 3.0) as u32); self.sonido.tocar(&n, (0.3 + 0.7 * sp.k) as f32, 1.0, Some([sp.p[0] as f32, sp.p[1] as f32, sp.p[2] as f32])); }
+    }
+    /// la Physics Gun y la Gravity Gun con un NPC: agarrar a uno vivo lo vuelve muñeco (y el arma agarra la parte más
+    /// cercana); el disparo de la Gravity Gun lo tira (npcTumbar)
+    fn armas_con_npc(&mut self, primario: bool) {
+        let n = self.armas.def().n; if n != "PhysicsGun" && n != "GravityGun" { return; }
+        if self.armas.agarre.is_some() || self.armas.grav.is_some() { return; }
+        let Some(mp) = self.mapa.as_ref() else { return };
+        let (o, f) = (self.ojos_ult, self.mira());
+        let alcance = if n == "PhysicsGun" { 50.0 } else if primario { 10.0 } else { 25.0 };
+        let Some(g) = self.fis.rayo(&mp.mundo, [o[0] as f64, o[1] as f64, o[2] as f64], [f[0] as f64, f[1] as f64, f[2] as f64], alcance, &[]) else { return };
+        let Some(c) = g.cuerpo else { return }; let Some(id) = self.npcs.de_cuerpo(c) else { return };
+        let punto = [g.p[0] as f32, g.p[1] as f32, g.p[2] as f32];
+        if n == "GravityGun" && primario { self.npcs.tumbar(id, [f[0] * 14.0, f[1] * 14.0 + 4.0, f[2] * 14.0], &mut self.fis); let s = format!("GG_Launch{}", 1 + (self.azar() * 4.0) as u32); self.sonido.tocar(&s, 0.7, 1.0, None); return; }
+        if primario || n == "GravityGun" { self.npcs.agarrar(c, punto, &mut self.fis); }
+    }
+    /// Deshacer: lo último que se puso (un objeto o un NPC)
+    fn deshacer(&mut self) {
+        while let Some((es_npc, id)) = self.pila.pop() {
+            if es_npc { if self.npcs.get(id).is_some() { let n = self.npcs.get(id).map(|p| npc::skin_nom(&p.skin).to_string()).unwrap_or_default(); self.npcs.quitar(id, &mut self.fis); self.avisar(format!("Deshecho: {n}")); return; } }
+            else if let Some(i) = self.objs.iter().position(|o| o.id == id) { let n = self.objs[i].nombre.clone(); self.borrar_obj(i); self.avisar(format!("Deshecho: {n}")); return; }
+        }
+    }
+    /// el catálogo de una pestaña del menú (0 Props, 1 NPCs, 2 Vehículos)
+    fn cat(&self, pestana: usize) -> &Vec<(String, Vec<String>)> { match pestana { 1 => &self.cat_npc, 2 => &self.cat_veh, _ => &self.catalogo } }
     /// hacia dónde mira (miraDir)
     fn mira(&self) -> [f32; 3] { let (y, p) = (self.jug.yaw, self.jug.pitch); [y.sin() * p.cos(), p.sin(), y.cos() * p.cos()] }
     /// qué botones se ven: los de la Physics Gun sólo con algo agarrado; la barra de armas, abierta
@@ -433,7 +524,10 @@ impl Juego {
         if self.armas.barra_t > 0.0 && !matches!(b, Boton::ArmaN(_) | Boton::Arma | Boton::Ajustes | Boton::Camara) { return false; }
         match b {
             Boton::Girar | Boton::Lejos | Boton::Cerca => self.armas.agarre.is_some(),
-            Boton::Recargar => self.armas.def().car > 0,
+            Boton::Recargar => self.armas.def().car > 0 && self.vehs.jugador.is_none(),
+            Boton::Usar => self.usar_ve || self.vehs.jugador.is_some(),
+            // (manejando: sin armas ni objetos)
+            Boton::Disparo | Boton::Disparo2 | Boton::Arma | Boton::Objetos | Boton::Volar if self.vehs.jugador.is_some() => false,
             Boton::ArmaN(_) => self.armas.barra_t > 0.0,
             _ => true,
         }
@@ -512,7 +606,8 @@ impl Juego {
         let nombre = self.mapas[self.mapa_i].clone(); let nombre = nombre.as_str();
         self.mapa = None;
         self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; }
-        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.proys.clear(); self.por_explotar.clear(); self.her.cable = None; self.her.trazas.clear(); self.her.tirados.clear(); self.her.spawn = None; self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false;
+        self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear();
+        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.proys.clear(); self.por_explotar.clear(); self.her.cable = None; self.her.trazas.clear(); self.her.tirados.clear(); self.her.spawn = None; self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; self.ef_atlas = false;
         unsafe { m.vaciar(); }
         let Some(paq) = self.paq.as_mut() else { return };
         match mapa::armar(paq, nombre, 1024, 750.0) {
@@ -523,7 +618,8 @@ impl Juego {
                 let noclip = self.jug.noclip;
                 self.jug = Jugador::nuevo(); self.jug.noclip = noclip; self.acum = 0.0;
                 self.jug.aparecer(&mp.mundo, sp, Some(yaw)); self.jug.aguas = mp.aguas.clone();
-                self.mapa = Some(mp);
+                self.aguas = Aguas::de_cajas(&mp.aguas); self.ef.limpiar(); self.ef.luz_de(&mp.luz);
+                self.mapa = Some(mp); self.npcs.piso = self.piso().into();
             }
             Err(e) => { self.error = Some(format!("mapa {nombre}: {e}")); }
         }
@@ -556,7 +652,7 @@ impl Juego {
     unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
-            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
+            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; self.ef_atlas = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
             else { self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
         }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora;
@@ -568,6 +664,7 @@ impl Juego {
         if self.ajustes.is_some() { self.acum = 0.0; }
         else if let Some(mp) = &self.mapa {
             self.acum = (self.acum + dt).min(PASO * 12.0);
+            if self.vehs.jugador.is_some() { self.acum = 0.0; self.jug.suelo = false; }
             while self.acum >= PASO { self.jug.paso_con(&mp.mundo, Some(&mut self.fis), PASO, &ent); self.golpe_max = self.golpe_max.max(self.jug.golpe); self.acum -= PASO; }
             // la física de los objetos a 60 por segundo (como mucho 3 pasos por cuadro, como la web)
             self.fis.sub = SUB_FIS[self.aj.calidad.min(4)];
@@ -576,12 +673,18 @@ impl Juego {
                 for o in self.objs.iter_mut() { o.ant = (o.pos, o.q); }
                 let (yaw, pitch) = (self.jug.yaw, self.jug.pitch); let fwd = [yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos()];
                 self.armas.paso(&mut self.fis, PASO_FIS, self.ojos_ult, fwd, yaw);
+                // (los vehículos —el que maneja el jugador, con la palanca— y lo que flota, antes de la física)
+                let mando = if self.vehs.jugador.is_some() { Mando::de_entrada(&ent) } else { Mando::default() };
+                self.vehs.paso(&mut self.fis, &mp.mundo, Some(&self.aguas), PASO_FIS as f64, &mando);
+                self.aguas.paso(&mut self.fis, PASO_FIS as f64);
                 self.fis.paso(&mp.mundo, PASO_FIS as f64); self.acum_fis -= PASO_FIS;
                 for o in self.objs.iter_mut() { if let Some(b) = o.cuerpo.and_then(|id| self.fis.cuerpo(id)) { o.pos = [b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32]; o.q = [b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32]; } }
             }
             // (lo que se cayó del mapa —debajo de −300— se saca)
             let muertos: Vec<usize> = self.objs.iter().enumerate().filter(|(_, o)| o.cuerpo.and_then(|id| self.fis.cuerpo(id)).map(|b| b.muerto).unwrap_or(false)).map(|(i, _)| i).collect();
-            for i in muertos.into_iter().rev() { let o = self.objs.remove(i); if let Some(id) = o.cuerpo { self.fis.quitar(id); } }
+            for i in muertos.into_iter().rev() { let o = self.objs.remove(i); if let Some(id) = o.cuerpo { if let Some(sl) = self.vehs.quitar(id, &self.fis, &mp.mundo) { self.jug.pos = [sl.pos[0] as f32, sl.pos[1] as f32, sl.pos[2] as f32]; } self.fis.quitar(id); self.aguas.olvidar(id); } }
+            // los NPC (piensan, caminan, pelean y se animan después)
+            self.npcs.paso(dt, &mp.mundo, &mut self.fis, &Gente::de_jugador(&self.jug), self.ojos_ult);
             // (se cayó del mapa o se ahogó: vuelve a aparecer)
             if self.jug.pos[1] < mp.mundo.lo[1] - 60.0 || self.jug.vida <= 0.0 {
                 if self.jug.vida <= 0.0 { self.aviso = Some((if self.muerto { "Te moriste".into() } else { "Te ahogaste".into() }, Instant::now())); }
@@ -589,7 +692,14 @@ impl Juego {
                 let sp = self.her.spawn.map(|p| [p[0], p[1] + 0.2, p[2]]).or(mp.spawns.first().map(|s| s.0)).unwrap_or([0.0, 1.0, 0.0]); self.jug.aparecer(&mp.mundo, sp, None); self.jug.vida = 100.0; self.jug.aire = 12.0;
             }
         }
+        // lo que pasó en el mundo: los NPC y los vehículos (sonidos, daño, el que sale despedido) y el agua
+        if self.mapa.is_some() { self.eventos_mundo(dt); }
+        // manejando: el jugador va en el asiento y la cámara es la del vehículo (vehiculoCamara)
+        let cam_veh = self.camara_vehiculo();
         let (ojos, _) = self.jug.ojos(dt); self.ojos_ult = ojos;
+        // (¿hay un vehículo a la vista para subir?)
+        let fm = self.mira();
+        self.usar_ve = self.vehs.jugador.is_none() && match self.mapa.as_ref() { Some(mp) => self.vehs.mirado(&mut self.fis, &mp.mundo, [ojos[0] as f64, ojos[1] as f64, ojos[2] as f64], [fm[0] as f64, fm[1] as f64, fm[2] as f64]).is_some(), None => false };
         if self.armas.barra_t > 0.0 { self.armas.barra_t -= dt; }
         for (n, v) in std::mem::take(&mut self.armas.sonidos) { self.sonido.tocar(&n, v, 1.0, None); }
         for a in std::mem::take(&mut self.armas.avisos) { self.avisar(a); }
@@ -600,7 +710,7 @@ impl Juego {
         // las armas de fuego y de golpe: con el dedo en Disparar, tira a su ritmo; los relojes, el golpe atrasado, la recarga
         if self.ajustes.is_none() && self.mapa.is_some() {
             if self.armas.relojes(dt) { let i = self.armas.i; self.golpe_aplicar(i); }
-            if self.apretado(Boton::Disparo) && self.menu.is_none() { self.disparar(m); }
+            if self.apretado(Boton::Disparo) && self.menu.is_none() && self.vehs.jugador.is_none() { self.disparar(m); }
             self.proyectiles_paso(dt);
         }
         // la Tool Gun: lo que se disparó, y lo que hacen las cosas que puso (en pausa, nada)
@@ -628,7 +738,7 @@ impl Juego {
             // (la cámara: en primera, los ojos; en tercera, 3,1 m atrás; de frente, 2,6 m adelante mirándote —jugadorCamara—;
             // si hay una pared en el medio, se acerca)
             let tam = self.pj.as_ref().map(|p| p.tam).unwrap_or(1.0); let kt = (0.45 + 0.55 * tam).clamp(0.6, 1.0);
-            let (cam, mira) = match self.camara {
+            let (cam, mira) = if let Some(c) = cam_veh { c } else { match self.camara {
                 1 => {
                     let d = [-fw[0], -fw[1], -fw[2]]; let l0 = 3.1 * kt;
                     let l = mp.mundo.rayo(ojos, d, l0 + 0.3).map(|h| (h.t - 0.3).max(0.3)).unwrap_or(l0);
@@ -641,7 +751,7 @@ impl Juego {
                     ([ojos[0] + d[0] * l, ojos[1] + d[1] * l, ojos[2] + d[2] * l], [y2.sin() * pp.cos(), pp.sin(), y2.cos() * pp.cos()])
                 }
                 _ => (ojos, fw),
-            };
+            } };
             // (el temblor de las explosiones)
             let cam = if self.temblor > 0.001 { let k = self.temblor * 0.06; [cam[0] + tj[0] * k, cam[1] + tj[1] * k, cam[2] + tj[2] * k] } else { cam };
             self.temblor = (self.temblor - dt * 1.5).max(0.0); if self.golpe_t > 0.0 { self.golpe_t -= dt; }
@@ -653,9 +763,9 @@ impl Juego {
                 luz.nie = jxmotor::escena::Niebla { c: [lin(0.12), lin(0.285), lin(0.3)], a: 0.0, b: 16.0, m: 1.0, s: [0.0; 3] };
             }
             let mut items = mp.items.clone();
-            if self.camara != 0 { if let Some(pj) = &self.pj { let jp = self.jug.pos; pj.items(&personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw), &mut items); } }
+            if self.camara != 0 && self.vehs.jugador.is_none() { if let Some(pj) = &self.pj { let jp = self.jug.pos; pj.items(&personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw), &mut items); } }
             // (en primera persona, el arma delante de la cámara; y el rayo de la Physics Gun, de la boca a lo agarrado)
-            if self.camara == 0 && !self.armas.zoom { if let Some(v) = self.vista.as_mut() {
+            if self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() { if let Some(v) = self.vista.as_mut() {
                 if self.armas.ap_k > 0.002 && v.ads_tok != self.armas.ap_tok { v.calcular_ads(self.armas.ap_tok); }
                 v.ubicar(ojos, qcam(yaw, pitch), self.sway, self.armas.ap_k); v.items(&mut items);
             } }
@@ -666,11 +776,20 @@ impl Juego {
                 vista::rayo_items(p0, mid, p1, self.t0.elapsed().as_secs_f32(), &mut items);
             }
             let t_fis = (self.acum_fis / PASO_FIS).clamp(0.0, 1.0);
-            for o in &self.objs { if let Some(pf) = self.prefabs.get(&o.nombre) { pf.items(&matriz_obj(o, t_fis), &mut items); } }
-            let mut luces = mp.luces_cerca(ojos, 6);
+            for o in &self.objs { if let Some(pf) = self.prefabs.get(&o.nombre) {
+                // (los vehículos con sus ruedas y rotores girando)
+                match o.cuerpo.and_then(|id| self.vehs.de(id)) { Some(v) => v.items(pf, &matriz_obj(o, t_fis), &mut items), None => pf.items(&matriz_obj(o, t_fis), &mut items) }
+            } }
+            // los NPC: su animación (sólo los que se ven) y lo que se dibuja
+            let vpm = m4::mul(&p, &vista); self.vp_ult = vpm;
+            self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items);
+            // los efectos: avanzan, y sus bloques (partículas, trazas, marcas) y sus luces —primero: GL2 usa 4—
+            self.ef.calidad(self.aj.calidad.min(4)); self.ef.alto_px = hf; self.ef.paso(dt, efx::GRAV);
+            let efectos = self.ef.bloques(&vpm, cam);
+            let mut luces = self.ef.luces(); luces.extend(mp.luces_cerca(ojos, 6));
             self.herramientas_items(&mut items, &mut luces); luces.truncate(8);
             let c = Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
-                luces, esp: vec![], items, efectos: vec![] };
+                luces, esp: vec![], items, efectos };
             m.poner_cuadro(c);
         }
         let u = self.hud(w, h, placa_txt);
@@ -701,6 +820,8 @@ impl Juego {
         }
         // (sosteniendo algo con la Physics Gun o la Gravity Gun: su zumbido)
         if let Some(s) = self.armas.sosten() { self.sonido.bucle("sosten", s, 0.35); }
+        // (los motores de los vehículos prendidos y el cohete de la bici)
+        for b in self.vehs.bucles(&self.fis) { self.sonido.bucle(&b.clave, b.nombre, b.vol as f32); }
         self.sonido.fin_bucles();
         let (suelo, nada, noclip, agua) = (self.jug.suelo, self.jug.nada, self.jug.noclip, self.jug.nada || self.jug.hondo > 0.25);
         let (saltos, ahogos) = (self.jug.saltos, self.jug.ahogos);
@@ -734,22 +855,33 @@ impl Juego {
     /// el atlas de íconos de la subcategoría abierta (se arma al abrirla)
     fn menu_atlas(&mut self, m: &mut Motor3d) {
         let (Some(mm), Some(paq)) = (self.menu.as_mut(), self.paq.as_ref()) else { return };
-        if mm.pestana != 0 { return; }
-        if mm.atlas_de == Some(mm.sub) { return; }
-        let Some((_, items)) = self.catalogo.get(mm.sub) else { return };
+        if mm.pestana == PESTANA_HER || mm.atlas_de == Some((mm.pestana, mm.sub)) { return; }
+        let cat = match mm.pestana { 1 => &self.cat_npc, 2 => &self.cat_veh, _ => &self.catalogo };
+        let Some((_, items)) = cat.get(mm.sub) else { return };
         let n = items.len() as u32; let filas = n.div_ceil(ICO_COLS).max(1); let (aw, ah) = (1024u32, (filas * ICO).next_power_of_two());
         let mut px = vec![0u8; (aw * ah * 4) as usize];
         for (k, it) in items.iter().enumerate() {
-            let Some(ic) = objetos::icono(paq, it, ICO) else { continue };
+            // (los NPC: el ícono de su skin)
+            let Some(ic) = objetos::icono(paq, npc::skin_de_item(it).unwrap_or(it), ICO) else { continue };
             let (cx, cy) = ((k as u32 % ICO_COLS) * ICO, (k as u32 / ICO_COLS) * ICO);
             for y in 0..ICO { let d = (((cy + y) * aw + cx) * 4) as usize; let s = ((y * ICO) * 4) as usize; px[d..d + (ICO * 4) as usize].copy_from_slice(&ic[s..s + (ICO * 4) as usize]); }
         }
         let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![], texs: vec![Tex { id: TEX_ICONOS, n: "iconos".into(), w: aw, h: ah, a: 1, o: 0 }], lms: vec![], items: vec![], agua: None, cielo: None };
         let _ = unsafe { m.cargar(&Escena { c: cab, datos: px }) };
-        mm.atlas_de = Some(mm.sub); mm.atlas_h = ah;
+        mm.atlas_de = Some((mm.pestana, mm.sub)); mm.atlas_h = ah;
     }
     /// pone un objeto donde mira el jugador (o 6 m adelante), mirándolo y apoyado en el piso (spawnDelante y crearObjeto)
     fn poner(&mut self, m: &mut Motor3d, nombre: &str, ojos: [f32; 3], fw: [f32; 3]) -> Result<(), String> {
+        // un NPC (spawnNpc): su skin cargada una vez, puesto donde se mira
+        if let Some(skin) = npc::skin_de_item(nombre) {
+            let Some(paq) = self.paq.as_mut() else { return Ok(()) };
+            let (c, e) = self.npc_skins.pedir(paq, skin, &mut self.pj_cargados)?;
+            if let Some(e) = e { unsafe { m.cargar(&e)?; } }
+            let Some(mp) = self.mapa.as_ref() else { return Ok(()) };
+            let (p, yaw) = npc::donde_poner(&mp.mundo, &mut self.fis, ojos, fw);
+            match self.npcs.crear(c, p, yaw, None, &mut self.fis) { Some(id) => { self.pila.push((true, id)); self.avisar(format!("Puesto: {}", npc::skin_nom(skin))); } None => self.avisar(format!("Ya hay {} NPC (el máximo)", self.npcs.max)) }
+            return Ok(());
+        }
         let Some(mp) = self.mapa.as_ref() else { return Ok(()) };
         // (el rayo ve el mapa y los objetos: mirando uno, el nuevo se pone arriba)
         let (o64, d64) = ([ojos[0] as f64, ojos[1] as f64, ojos[2] as f64], [fw[0] as f64, fw[1] as f64, fw[2] as f64]);
@@ -780,6 +912,8 @@ impl Juego {
             if congelado { b.congelado = true; }
             let (bp, bq) = ([b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32], [b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32]);
             let masa = b.masa as f32; let id = self.fis.agregar(b);
+            self.aguas.registrar(id, Flota::de_prefab(&pfz));
+            if pfz.tipo == "vehiculo" { self.vehs.agregar(paq, &pfz, id, &mut self.fis, Some(&mut self.aguas)); }
             let ci = pfz.cap_q.map(|c| [-c[0] as f32, -c[1] as f32, -c[2] as f32, c[3] as f32]).unwrap_or([0.0, 0.0, 0.0, 1.0]);
             self.objs.push(Obj { nombre: nombre.to_string(), pos: bp, q: bq, c: [pfz.c[0] as f32, pfz.c[1] as f32, pfz.c[2] as f32], cuerpo: Some(id), cap_inv: ci, ant: (bp, bq), masa, id: id_obj, logica: None, log_base: None,
                 tipo: pfz.tipo, vida: if pfz.tipo == "explota" || pfz.tipo == "interactivo" { 1.0 } else { 0.0 }, exploto: false });
@@ -789,6 +923,7 @@ impl Juego {
             self.objs.push(Obj { nombre: nombre.to_string(), pos: pp, q, c: [0.0; 3], cuerpo: None, cap_inv: [0.0, 0.0, 0.0, 1.0], ant: (pp, q), masa: 0.0, id: id_obj, logica: None, log_base: None, tipo: "prop", vida: 0.0, exploto: false });
         }
         self.avisar(format!("Puesto: {nombre}"));
+        let id_n = self.objs.last().map(|o| o.id).unwrap_or(0); self.pila.push((false, id_n));
         Ok(Some(self.objs.len() - 1))
     }
 
@@ -817,6 +952,7 @@ impl Juego {
                 Boton::Disparo2 => (match self.armas.def().n { "PhysicsGun" => if self.armas.agarre.is_some() { "Congelar" } else { "2" }, "GravityGun" => if self.armas.grav.is_some() { "Soltar" } else { "Levantar" }, _ => if self.armas.def().mira { "Mira" } else if matches!(self.armas.def().tipo, "bala" | "perdigones") { "Apuntar" } else { "2" } }, self.armas.apunta || self.armas.zoom),
                 Boton::Arma => (nom_arma, self.armas.barra_t > 0.0),
                 Boton::Recargar => ("R", self.armas.recargando > 0.0),
+                Boton::Usar => (if self.vehs.jugador.is_some() { "Bajar" } else { "Subir" }, false),
                 Boton::ArmaN(k) => (ARMAS[k].nom, k == self.armas.i),
                 Boton::Girar => ("Girar", self.armas.rotar),
                 Boton::Lejos => ("+", false),
@@ -851,6 +987,16 @@ impl Juego {
                 l.texto(&mut u, x0 - an / 2.0, b.y - tt * 0.55, tt, if elegido { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
             }
         }
+        // (lo que dicen los NPC: un globo arriba de la cabeza, npcGloboPaso)
+        if !abierto { for n in &self.npcs.lista {
+            let (Some((txt, _)), true) = (&n.globo, n.visible) else { continue };
+            let g = n.globo_pos(); let v = &self.vp_ult;
+            let cw = v[3] * g[0] + v[7] * g[1] + v[11] * g[2] + v[15]; if cw < 0.1 { continue; }
+            let (cx, cy) = ((v[0] * g[0] + v[4] * g[1] + v[8] * g[2] + v[12]) / cw, (v[1] * g[0] + v[5] * g[1] + v[9] * g[2] + v[13]) / cw);
+            let (sx, sy) = ((cx * 0.5 + 0.5) * wf, (0.5 - cy * 0.5) * hf); let tt = t * 0.7; let an = l.ancho(tt, txt).min(wf * 0.4);
+            l.caja(&mut u, sx - an / 2.0 - tt * 0.5, sy - tt * 1.6, an + tt, tt * 1.5, tt * 0.4, [1.0, 1.0, 1.0, 0.92]);
+            l.texto(&mut u, sx - an / 2.0, sy - tt * 1.35, tt, [0.0, 0.0, 0.0, 1.0], txt);
+        } }
         // (la mira del francotirador: todo negro menos un círculo, con la cruz; y el rojo cuando a uno le pegan)
         if self.armas.zoom && self.camara == 0 {
             let r = hf * 0.46; let (cx, cy) = (wf / 2.0, hf / 2.0); let ng = [0.0, 0.0, 0.0, 1.0];
@@ -881,8 +1027,8 @@ impl Juego {
         }
         // el menú de objetos: las subcategorías a la izquierda, la grilla con los íconos y los nombres
         if let Some(mm) = &self.menu {
-            let her = mm.pestana == 1;
-            let p = panel(wf, hf, if her { self.her.lista.len() } else { self.catalogo.len() });
+            let her = mm.pestana == PESTANA_HER; let cat = self.cat(mm.pestana);
+            let p = panel(wf, hf, if her { self.her.lista.len() } else { cat.len() });
             l.caja(&mut u, p.x0, p.y0, p.pw, p.ph, hf * 0.03, [0.07, 0.08, 0.11, 0.94]);
             // (las pestañas de arriba: Props y Herramientas)
             for (k, n) in PESTANAS_MENU.iter().enumerate() {
@@ -893,21 +1039,21 @@ impl Juego {
             l.caja(&mut u, p.x0 + p.pw - hf * 0.09, p.y0 + hf * 0.012, hf * 0.07, hf * 0.06, hf * 0.015, [0.6, 0.15, 0.12, 0.95]);
             { let an = l.ancho(t * 0.9, "X"); l.texto(&mut u, p.x0 + p.pw - hf * 0.055 - an / 2.0, p.y0 + hf * 0.02, t * 0.9, bl, "X"); }
             if her { self.dibujar_inspector(l, &mut u, &p, wf, hf, t); }
-            else { for (k, (n, _)) in self.catalogo.iter().enumerate() {
+            else { for (k, (n, _)) in cat.iter().enumerate() {
                 let y = p.y0 + hf * 0.08 + k as f32 * p.tab_h; let sel = k == mm.sub;
                 l.caja(&mut u, p.x0 + hf * 0.015, y, p.gx - p.x0 - hf * 0.04, p.tab_h - hf * 0.008, hf * 0.012, if sel { [0.95, 0.66, 0.1, 0.92] } else { [1.0, 1.0, 1.0, 0.08] });
                 let tt = (p.tab_h * 0.5).min(t * 0.75); l.texto(&mut u, p.x0 + hf * 0.035, y + (p.tab_h - tt) / 2.0 - hf * 0.004, tt, if sel { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
             }
-            if let Some((_, items)) = self.catalogo.get(mm.sub) {
+            if let Some((_, items)) = cat.get(mm.sub) {
                 let (aw, ah) = (1024.0f32, mm.atlas_h.max(1) as f32);
                 for (k, it) in items.iter().enumerate() {
                     let (col, fila) = (k % p.cols, k / p.cols);
                     let (x, y) = (p.gx + col as f32 * p.celda, p.gy + fila as f32 * p.celda - mm.scroll);
                     if y + p.celda < p.gy || y > p.gy + p.gh { continue; }
                     l.caja(&mut u, x + 3.0, y + 3.0, p.celda - 6.0, p.celda - 6.0, hf * 0.012, [1.0, 1.0, 1.0, 0.07]);
-                    let tt = (p.celda * 0.12).min(t * 0.6); let nom: String = it.chars().take(16).collect(); let an = l.ancho(tt, &nom);
+                    let tt = (p.celda * 0.12).min(t * 0.6); let nom: String = npc::skin_de_item(it).map(npc::skin_nom).unwrap_or(it).chars().take(16).collect(); let an = l.ancho(tt, &nom);
                     l.texto(&mut u, x + (p.celda - an) / 2.0, y + p.celda - tt * 1.5, tt, [1.0, 1.0, 1.0, 0.9], &nom);
-                    if mm.atlas_de == Some(mm.sub) {
+                    if mm.atlas_de == Some((mm.pestana, mm.sub)) {
                         let (cx, cy) = ((k as u32 % ICO_COLS) * ICO, (k as u32 / ICO_COLS) * ICO); let lado = p.celda - tt * 2.2;
                         rect_uv(&mut ic, x + (p.celda - lado) / 2.0, y + 4.0, lado, lado - 4.0, [cx as f32 / aw, cy as f32 / ah, (cx + ICO) as f32 / aw, (cy + ICO) as f32 / ah], [1.0; 4]);
                     }

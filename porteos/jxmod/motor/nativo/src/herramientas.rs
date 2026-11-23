@@ -84,7 +84,11 @@ impl Juego {
     /// saca un objeto (y su cuerpo) del mundo
     pub(super) fn borrar_obj(&mut self, i: usize) {
         let o = self.objs.remove(i);
-        if let Some(id) = o.cuerpo { if self.armas.agarre.as_ref().map(|a| a.id) == Some(id) || self.armas.grav.as_ref().map(|g| g.id) == Some(id) { self.armas.olvidar(); } self.fis.quitar(id); }
+        if let Some(id) = o.cuerpo {
+            if self.armas.agarre.as_ref().map(|a| a.id) == Some(id) || self.armas.grav.as_ref().map(|g| g.id) == Some(id) { self.armas.olvidar(); }
+            if let Some(mp) = self.mapa.as_ref() { if let Some(sl) = self.vehs.quitar(id, &self.fis, &mp.mundo) { self.jug.pos = [sl.pos[0] as f32, sl.pos[1] as f32, sl.pos[2] as f32]; } }
+            self.fis.quitar(id); self.aguas.olvidar(id);
+        }
     }
     /// herramientaUsar: el disparo (o el «2», `alt`) de la Tool Gun
     pub(super) unsafe fn herramienta_usar(&mut self, m: &mut Motor3d, alt: bool) {
@@ -95,11 +99,15 @@ impl Juego {
         let r = self.fis.rayo(&mp.mundo, [oj[0] as f64, oj[1] as f64, oj[2] as f64], [f[0] as f64, f[1] as f64, f[2] as f64], 80.0, &[]);
         let fin = r.as_ref().map(|g| [g.p[0] as f32, g.p[1] as f32, g.p[2] as f32]).unwrap_or([oj[0] + f[0] * 80.0, oj[1] + f[1] * 80.0, oj[2] + f[2] * 80.0]);
         let boca = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or([oj[0], oj[1] - 0.2, oj[2]]);
-        self.her.trazas.push((boca, fin, 0.12));
+        self.ef.traza(boca, fin);
         self.sonido.tocar("Click", 0.5, 1.4, None);
         let o = r.as_ref().and_then(|g| g.cuerpo).and_then(|id| self.obj_de_cuerpo(id));
         match n.as_str() {
-            "Remove" => { if let Some(i) = o { self.borrar_obj(i); } return; }
+            "Remove" => {
+                if let Some(i) = o { self.borrar_obj(i); }
+                else if let Some(n) = r.as_ref().and_then(|g| g.cuerpo).and_then(|c| self.npcs.de_cuerpo(c)) { self.npcs.quitar(n, &mut self.fis); }
+                return;
+            }
             "Duplicate" => {
                 if let Some(i) = o {
                     let (nom, id) = (self.objs[i].nombre.clone(), self.objs[i].cuerpo.unwrap_or(0));

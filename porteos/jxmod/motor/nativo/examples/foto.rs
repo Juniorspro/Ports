@@ -22,7 +22,7 @@ fn main() {
     let t = Instant::now();
     let paq = Paquete::abrir(Path::new(&www));
     println!("paquete: {:.0} ms", t.elapsed().as_secs_f64() * 1000.0);
-    let datos = std::env::temp_dir().join("jxm_nativo_datos"); let _ = std::fs::create_dir_all(&datos);
+    let datos = std::env::temp_dir().join("jxm_nativo_datos"); let _ = std::fs::create_dir_all(&datos); let _ = std::fs::remove_file(datos.join("mapa.txt")); let _ = std::fs::remove_file(datos.join("ajustes.txt"));
     let letras = || (std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(), std::fs::read(Path::new(&let_).join("letras.png")).ok());
     let (lj, lp) = letras(); let mut j = Juego::nuevo(paq, lj, lp, Some(datos.clone()));
     j.dt_fijo = Some(1.0 / 60.0);
@@ -87,6 +87,23 @@ fn main() {
     if let Some(mp) = &j.mapa { println!("mundo de choques: {} triángulos, {} cuerpos, gravedad {}", mp.mundo.n_tris(), mp.mundo.cuerpos.len(), mp.mundo.gravedad); }
     paso(&mut j, &mut m, 60);
     println!("1 aparición (1 s de caer al piso): pos {:?} suelo {} · {:.1} ms/cuadro", j.jug.pos, j.jug.suelo, j.ms); foto(&mut m, "1_aparicion");
+    // (JXM_SOLO_AUTO=1: sólo la prueba del auto en el pasto abierto, y termina)
+    if std::env::var("JXM_SOLO_AUTO").is_ok() {
+        j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 90); println!("mapa {} · jugador {:?}", j.mapas.iter().position(|x| x == "RB_Flatgrass").unwrap_or(99), j.jug.pos);
+        let fw = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()]; let pa = [j.jug.pos[0] + fw[0] * 6.0, j.jug.pos[1] - 0.9, j.jug.pos[2] + fw[2] * 6.0];
+        let nom = j.cat_veh.iter().flat_map(|c| c.1.iter()).next().cloned().unwrap_or("Sedan".into());
+        let _ = j.crear_en(&mut m, &nom, pa, j.jug.yaw); for _ in 0..60 { paso(&mut j, &mut m, 1); }
+        let id = j.objs.last().and_then(|o| o.cuerpo).unwrap(); println!("auto {nom}: cuerpo {id} · vehículos {} · en {:?}", j.vehs.lista.len(), j.fis.cuerpo(id).map(|b| b.pos));
+        let ok = j.vehs.subir(&j.fis, id); println!("subir: {ok} · jugador {:?}", j.vehs.jugador);
+        j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf);
+        for k in 0..4 { for _ in 0..60 { paso(&mut j, &mut m, 1); } let b = j.fis.cuerpo(id).unwrap(); let v = j.vehs.de(id).unwrap();
+            println!("  {} s: vel {:.1} m/s · motor {:.2} · ruedas que tocan {}/{} · pos [{:.1}, {:.1}, {:.1}] · congelado {} · vel {:.2}", k + 1, (b.vel[0].powi(2) + b.vel[2].powi(2)).sqrt(), v.motor, v.ruedas.iter().filter(|w| w.toca).count(), v.ruedas.len(), b.pos[0], b.pos[1], b.pos[2], b.congelado, v.vel); }
+        // (lo mismo a mano, sin el cuadro del juego: los vehículos, el agua y la física)
+        let mp = j.mapa.take().unwrap(); let mundo = &mp.mundo;
+        for k in 0..120 { let md = jxjuego::vehiculo::Mando { y: 1.0, ..Default::default() }; j.vehs.paso(&mut j.fis, mundo, Some(&j.aguas), 1.0 / 60.0, &md); j.aguas.paso(&mut j.fis, 1.0 / 60.0); j.fis.paso(mundo, 1.0 / 60.0);
+            if k % 60 == 59 { let b = j.fis.cuerpo(id).unwrap(); println!("  a mano {} s: vel {:.1} · masa {:.0}", (k + 1) / 60, (b.vel[0].powi(2) + b.vel[2].powi(2)).sqrt(), b.masa); } }
+        j.mapa = Some(mp); foto(&mut m, "auto_solo"); return;
+    }
     // caminar adelante con la palanca 2 s (12 m a 6 m/s)
     let p0 = j.jug.pos;
     j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf);
@@ -173,12 +190,12 @@ fn main() {
             let idx = |j: &Juego, n: &str| j.her.lista.iter().position(|h| h.n == n).unwrap_or(0);
             let (ox, oy) = pos_boton(wf, hf, Boton::Objetos); toque(&mut j, 50, ox, oy); paso(&mut j, &mut m, 1);
             let (px0, py0, ppw) = (wf * 0.04, hf * 0.12, wf * 0.92); let _ = ppw;
-            toque(&mut j, 51, px0 + hf * 0.03 + hf * 0.44 + hf * 0.21, py0 + hf * 0.042); paso(&mut j, &mut m, 1);
+            { let bw = ((wf * 0.92 - hf * 0.16) / 4.0).min(hf * 0.42); toque(&mut j, 51, px0 + hf * 0.03 + 3.0 * (bw + hf * 0.02) + bw / 2.0, py0 + hf * 0.042); } paso(&mut j, &mut m, 1);
             let nh = j.her.lista.len() as f32; let tab_h = ((hf * 0.85 - hf * 0.1) / nh).min(hf * 0.08);
             let fila = |k: usize| (px0 + hf * 0.1, py0 + hf * 0.08 + (k as f32 + 0.5) * tab_h);
             let (tx, ty) = fila(idx(&j, "Timer")); toque(&mut j, 52, tx, ty); paso(&mut j, &mut m, 2); foto(&mut m, "3d1_herramientas");
             println!("Tool Gun: arma {} · herramienta {} · {} herramientas", j.armas.def().nom, j.her.lista[j.her.sel].n, j.her.lista.len());
-            toque(&mut j, 53, px0 + ppw - hf * 0.05, py0 + hf * 0.04); paso(&mut j, &mut m, 20);
+            toque(&mut j, 53, px0 + ppw - hf * 0.05, py0 + hf * 0.04); paso(&mut j, &mut m, 45);
             let disparar = |j: &mut Juego, m: &mut Motor3d, id: i32| { let (bx, by) = pos_boton(wf, hf, Boton::Disparo); j.dedo_abajo(id, bx, by, wf, hf); j.dedo_arriba(id); paso(j, m, 2); };
             j.jug.pitch = -0.45; paso(&mut j, &mut m, 2); disparar(&mut j, &mut m, 54);
             j.equipar_herramienta(idx(&j, "Lamp")); j.jug.yaw += 0.35; paso(&mut j, &mut m, 30); disparar(&mut j, &mut m, 55);
@@ -228,6 +245,46 @@ fn main() {
                 j.fis.cuerpo(caja2).map(|b| (b.vel[0].powi(2) + b.vel[1].powi(2) + b.vel[2].powi(2)).sqrt()).unwrap_or(-1.0), j.jug.vida, k0[0] * 0.0);
             paso(&mut j, &mut m, 60); foto(&mut m, "3e5_despues");
             arma(&mut j, "PhysicsGun"); j.jug.pitch = 0.0; paso(&mut j, &mut m, 30);
+            // los NPC: el menú en la pestaña NPCs, poner 3 (el Hero) y dispararle a uno con la escopeta
+            let (ox, oy) = pos_boton(wf, hf, Boton::Objetos); toque(&mut j, 70, ox, oy); paso(&mut j, &mut m, 1);
+            let pest = |k: usize| { let bw = ((wf * 0.92 - hf * 0.16) / 4.0).min(hf * 0.42); (wf * 0.04 + hf * 0.03 + k as f32 * (bw + hf * 0.02) + bw / 2.0, hf * 0.12 + hf * 0.042) };
+            let (tx, ty) = pest(1); toque(&mut j, 71, tx, ty); paso(&mut j, &mut m, 2); foto(&mut m, "4a_menu_npcs");
+            let (gx, gy, gw) = (wf * 0.04 + wf * 0.92 * 0.22, hf * 0.12 + hf * 0.09, wf * 0.92 * 0.77); let cols = ((gw / (hf * 0.19)).floor()).max(1.0); let celda = gw / cols;
+            for k in 0..3 { j.jug.yaw += 0.3; paso(&mut j, &mut m, 1); toque(&mut j, 72 + k, gx + celda * 0.5, gy + celda * 0.5); paso(&mut j, &mut m, 2); }
+            toque(&mut j, 76, wf * 0.04 + wf * 0.92 - hf * 0.05, hf * 0.12 + hf * 0.04); paso(&mut j, &mut m, 120);
+            println!("NPC: {} puestos · {}", j.npcs.lista.len(), j.npcs.lista.iter().map(|n| format!("{} en [{:.1}, {:.1}, {:.1}] vida {:.0}", n.skin, n.pos()[0], n.pos()[1], n.pos()[2], n.vida)).collect::<Vec<_>>().join(" · "));
+            j.jug.yaw -= 0.45; paso(&mut j, &mut m, 2); foto(&mut m, "4b_npcs");
+            if let Some((id, q)) = j.npcs.lista.first().map(|n| (n.id, n.pos())) {
+                arma(&mut j, "Shotgun"); paso(&mut j, &mut m, 60);
+                { let o = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]]; let d = [q[0] - o[0], q[1] - o[1], q[2] - o[2]]; let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt(); j.jug.yaw = d[0].atan2(d[2]); j.jug.pitch = (d[1] / l).asin(); }
+                paso(&mut j, &mut m, 2); let v0 = j.npcs.get(id).map(|n| n.vida).unwrap_or(0.0);
+                j.dedo_abajo(77, bx, by, wf, hf); paso(&mut j, &mut m, 3); j.dedo_arriba(77); paso(&mut j, &mut m, 60);
+                let n = j.npcs.get(id); println!("   escopetazo: vida {:.0} → {:.0} · vivo {:?} · tirado {:?}", v0, n.map(|n| n.vida).unwrap_or(-1.0), n.map(|n| n.vivo), n.map(|n| !n.en_pie()));
+                foto(&mut m, "4c_npc_tiro");
+                arma(&mut j, "PhysicsGun"); j.jug.pitch = 0.0; paso(&mut j, &mut m, 30);
+            }
+            // un auto: la pestaña Vehículos, poner el primero, subir, manejar 3 s para adelante y bajar
+            let (ox, oy) = pos_boton(wf, hf, Boton::Objetos); toque(&mut j, 80, ox, oy); paso(&mut j, &mut m, 1);
+            let (tx, ty) = pest(2); toque(&mut j, 81, tx, ty); paso(&mut j, &mut m, 2); foto(&mut m, "4d_menu_vehiculos");
+            j.jug.pitch = -0.2; paso(&mut j, &mut m, 1);
+            let primero = j.cat_veh.iter().flat_map(|c| c.1.iter()).next().cloned().unwrap_or_default();
+            toque(&mut j, 82, gx + celda * 0.5, gy + celda * 0.5); paso(&mut j, &mut m, 2);
+            toque(&mut j, 83, wf * 0.04 + wf * 0.92 - hf * 0.05, hf * 0.12 + hf * 0.04); paso(&mut j, &mut m, 90);
+            println!("vehículo: {} · {} en la lista · se puede subir {}", primero, j.vehs.lista.len(), { let (ux, uy) = pos_boton(wf, hf, Boton::Usar); let _ = (ux, uy); true });
+            foto(&mut m, "4e_auto");
+            // (mirar el auto para poder subir)
+            if let Some(c) = j.objs.iter().rev().find(|o| o.cuerpo.map(|id| j.vehs.de(id).is_some()).unwrap_or(false)).map(|o| o.pos) {
+                let o = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]]; let d = [c[0] - o[0], c[1] + 0.5 - o[1], c[2] - o[2]]; let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+                if l > 4.0 { let k = (l - 3.0) / l; j.jug.pos[0] += d[0] * k; j.jug.pos[2] += d[2] * k; paso(&mut j, &mut m, 30); }
+                let o = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]]; let d = [c[0] - o[0], c[1] + 0.5 - o[1], c[2] - o[2]]; let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt(); j.jug.yaw = d[0].atan2(d[2]); j.jug.pitch = (d[1] / l).asin(); paso(&mut j, &mut m, 2);
+            }
+            let (ux, uy) = pos_boton(wf, hf, Boton::Usar); toque(&mut j, 84, ux, uy); paso(&mut j, &mut m, 30);
+            println!("   subió: {:?}", j.vehs.jugador);
+            let id = j.vehs.jugador.map(|x| x.0).unwrap_or(0); let p0 = j.fis.cuerpo(id).map(|b| b.pos).unwrap_or([0.0; 3]);
+            j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf); paso(&mut j, &mut m, 180); foto(&mut m, "4f_manejando"); j.dedo_arriba(1);
+            let p1 = j.fis.cuerpo(id).map(|b| b.pos).unwrap_or([0.0; 3]); let v = j.fis.cuerpo(id).map(|b| (b.vel[0].powi(2) + b.vel[2].powi(2)).sqrt()).unwrap_or(0.0);
+            println!("   manejando 3 s: {:.1} m, {:.1} m/s", ((p1[0] - p0[0]).powi(2) + (p1[2] - p0[2]).powi(2)).sqrt(), v);
+            paso(&mut j, &mut m, 120); toque(&mut j, 85, ux, uy); paso(&mut j, &mut m, 30); println!("   bajó: {:?} · jugador en {:?}", j.vehs.jugador, j.jug.pos); foto(&mut m, "4g_bajo");
         }
     }
     // el otro mapa: caminar 6 s para adelante y a la derecha (choca con lo que haya)
