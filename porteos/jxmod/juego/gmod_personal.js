@@ -396,7 +396,10 @@ async function jxpAguaHL2(mapa) {
     const T = GMF.vtf(u, 512), px = GMF.vtfRGBA(T), tex = gmTexGL(px, T.w, T.h, false);
     const fs = jxpColor(V['srgb?$fogcolor']) || jxpColor(V.$fogcolor) || [0.08, 0.19, 0.2], fin = +V.$fogend || 400;
     const lin = fs.map((c) => Math.pow(c, 2.2)), turbia = clamp(1.05 - fin / 1500, 0.55, 0.92);
-    AGUA.hl2 = { tex, tw: T.w, th: T.h, tpx: px, nom, normal: nr, fog: [lin[0], lin[1], lin[2], turbia], esc: 0.38, fuerza: 0.55, dist: 0.09, s: [0.021, 0.016, -0.018, 0.024], bajo: fs.map((c) => Math.min(1, c * 1.5)), largo: Math.max(1.5, fin * GM_S / 2.5), prof: jxpAguaFondo() };
+    // (cuánto corren las olas la imagen del fondo y la del reflejo: los del material —$refractamount, $reflectamount—; el mapa
+    // de normales del agua de GMod inclina poco, 0,04 de promedio, y con 0,09 fijo las olitas casi no se veían)
+    const refr = clamp(+V.$refractamount || 0.5, 0.1, 1.5), rfl = clamp(+V.$reflectamount || 0.4, 0.05, 1.5);
+    AGUA.hl2 = { tex, tw: T.w, th: T.h, tpx: px, nom, normal: nr, fog: [lin[0], lin[1], lin[2], turbia], esc: 0.38, fuerza: 0.55, dist: rfl * 0.5, refr, s: [0.021, 0.016, -0.018, 0.024], bajo: fs.map((c) => Math.min(1, c * 1.5)), largo: Math.max(1.5, fin * GM_S / 2.5), prof: jxpAguaFondo() };
   } catch (e) { gmErr('agua de HL2', e); }
 }
 JXPM.aguaN = 0;
@@ -491,7 +494,7 @@ function jxmArmar(TMAX) {
 // los efectos, lo que dibuja el Lua y las líneas, sobre fondo transparente.
 // Puente: window.JXMotor (Java, Motor.java) con recursos(base64), cuadro(base64), vaciar(); en las pruebas, JXM.grab junta
 // todo en una grabación JXG1 que el banco de pruebas (jxm-banco) vuelve a dibujar.
-const JXM = { on: false, grab: null, tmax: 256, mallas: new Set(), texs: new Set(), lms: new Set(), mats: new WeakMap(), matN: 0, agua: null, mapa: null, f: new Float32Array(4096), sinMalla: 0, bytesR: 0, cuadros: 0 };
+const JXM = { porFirma: new Map(), on: false, grab: null, tmax: 256, mallas: new Set(), texs: new Set(), lms: new Set(), mats: new WeakMap(), matN: 0, agua: null, mapa: null, f: new Float32Array(4096), sinMalla: 0, bytesR: 0, cuadros: 0 };
 function jxmPuente() { return JXM.grab || (JXM.prendido && typeof window.JXMotor !== 'undefined' ? window.JXMotor : null); }
 // por qué no se puede usar JX Motor acá ("ok" si se puede): lo dice la app (MotorJX.motivo); en el navegador, no está
 function jxmMotivo() {
@@ -559,7 +562,7 @@ function jxmVigilar() {
 function jxmEstado() { try { return JXM.grab ? 'grabando' : JXM.prendido ? String(window.JXMotor.estado()) : 'apagado'; } catch (e) { return String(e); } }
 function jxmReiniciar() {
   JXM.sl = null;   // (los lugares fijos de las cosas: el motor los borra con vaciar)
-  JXM.mallas.clear(); JXM.texs.clear(); JXM.lms.clear(); JXM.mats = new WeakMap(); JXM.agua = null; JXM.mapa = null; JXM.cieloF = null; JXM.cuboT = null; JXM.marcas = -1;
+  JXM.mallas.clear(); JXM.texs.clear(); JXM.lms.clear(); JXM.mats = new WeakMap(); JXM.porFirma = new Map(); JXM.agua = null; JXM.mapa = null; JXM.cieloF = null; JXM.cuboT = null; JXM.marcas = -1;
   const B = jxmPuente(); if (B && JXM.on) B.vaciar();
 }
 // el material: su número para el motor (uno nuevo si cambió algo: el color de un prop pintado con la herramienta, por ejemplo)
@@ -610,7 +613,10 @@ function jxmRecursos(items) {
     const f = yaVisto ? r.f : jxmMatFirma(mt);
     if (r && !yaVisto) { r.estable = r.f === f; r.c = JXM.cuadros; }
     if (!r || r.f !== f) {
-      r = { id: ++JXM.matN, f, c: JXM.cuadros, estable: false }; JXM.mats.set(mt, r);
+      // (dos materiales iguales —cada caja trae el suyo, con lo mismo— comparten número: así el motor dibuja las copias juntas)
+      const ya = JXM.porFirma.get(f);
+      if (ya !== undefined) { r = { id: ya, f, c: JXM.cuadros, estable: false }; JXM.mats.set(mt, r); tex(mt.tex); tex(mt.mez); if (mt.terr) for (const x of mt.terr.t) if (x) tex(x[0]); continue; }
+      r = { id: ++JXM.matN, f, c: JXM.cuadros, estable: false }; JXM.mats.set(mt, r); JXM.porFirma.set(f, r.id);
       const terr = mt.terr ? mt.terr.t.map((x) => (x ? [x[0], x[1], x[2]] : [-1, 1, 1])) : null;
       mats.push({ id: r.id, t2: mt.mez !== undefined ? mt.mez : -1, terr, c: Array.from(mt.c || [1, 1, 1, 1]), st: Array.from(mt.st || [1, 1, 0, 0]), t: mt.tex !== undefined ? mt.tex : -1, blend: mt.blend ? 1 : 0, cut: mt.cut ? 1 : 0, unlit: mt.unlit && !mt.fol ? 1 : 0, add: mt.add ? 1 : 0, agua: mt.agua ? 1 : 0, em: Array.from(mt.em || [0, 0, 0]), pbr: Array.from(mt.pbr || [0.72, 0, 0.04]), fol: mt.fol ? 1 : 0 });
     }
@@ -628,7 +634,7 @@ function jxmRecursos(items) {
   let agua = null; const H = AGUA.hl2;
   if (H && H.tpx && JXM.agua !== H) {
     JXM.agua = H;
-    agua = { fog: H.fog, esc: H.esc, fuerza: H.fuerza, dist: H.dist, s: H.s, largo: H.largo, normal: { w: H.tw, h: H.th, o: poner(H.tpx) } };
+    agua = { fog: H.fog, esc: H.esc, fuerza: H.fuerza, dist: H.dist, refr: H.refr || 0.5, s: H.s, largo: H.largo, normal: { w: H.tw, h: H.th, o: poner(H.tpx) } };
     if (H.prof && H.prof.px) agua.prof = { x0: H.prof.x0, z0: H.prof.z0, w: H.prof.w, h: H.prof.h, D: H.prof.D, tex: { w: H.prof.n, h: H.prof.n, o: poner(H.prof.px) } };
     const W = AGUA.vols.find((v) => v.mapa); agua.y = W ? W.y1 : 0;
   }

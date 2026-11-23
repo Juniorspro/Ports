@@ -32,7 +32,7 @@ pub struct TexAgua { pub w: u32, pub h: u32, pub o: usize }
 #[derive(Deserialize, Debug, Clone)]
 pub struct Prof { pub x0: f32, pub z0: f32, pub w: f32, pub h: f32, #[serde(rename = "D")] pub d: f32, pub tex: Option<TexAgua> }
 #[derive(Deserialize, Debug, Clone)]
-pub struct Agua { pub fog: [f32; 4], pub esc: f32, pub fuerza: f32, pub dist: f32, pub s: [f32; 4], pub largo: f32, pub normal: Option<TexAgua>, pub prof: Option<Prof>, #[serde(default)] pub y: f32 }
+pub struct Agua { pub fog: [f32; 4], pub esc: f32, pub fuerza: f32, pub dist: f32, #[serde(default = "medio")] pub refr: f32, pub s: [f32; 4], pub largo: f32, pub normal: Option<TexAgua>, pub prof: Option<Prof>, #[serde(default)] pub y: f32 }
 /// el cielo: el degradé del mapa (colores en gamma) y, si tiene, la caja de seis caras (L×L RGBA cada una) con su tinte
 /// y cuánto se ve (de noche, el degradé)
 #[derive(Deserialize, Debug, Clone)]
@@ -40,6 +40,7 @@ pub struct Caras { pub l: u32, pub o: Vec<usize> }
 #[derive(Deserialize, Debug, Clone)]
 pub struct Cielo { pub top: [f32; 3], pub mid: [f32; 3], pub bot: [f32; 3], pub exp: [f32; 2], #[serde(default = "uno3")] pub tinte: [f32; 3], #[serde(default)] pub dia: f32, #[serde(default = "uno")] pub k: f32, #[serde(default)] pub cubo: u8, pub caras: Option<Caras> }
 fn uno() -> f32 { 1.0 }
+fn medio() -> f32 { 0.5 }
 fn uno3() -> [f32; 3] { [1.0; 3] }
 #[derive(Deserialize, Debug, Clone)]
 pub struct Cabecera {
