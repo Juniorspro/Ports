@@ -8,11 +8,13 @@
 use serde::Deserialize;
 
 fn menos1() -> i64 { -1 }
+/// (rugosidad, metal y reflejo de frente: lo de pbrDe en gl.js para lo que no se reconoce)
+fn pbr0() -> [f32; 3] { [0.72, 0.0, 0.04] }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Malla { #[serde(default = "menos1")] pub id: i64, pub v: u32, pub mn: [f32; 3], pub sc: [f32; 3], pub i32: u8, pub ni: u32, pub vo: usize, pub io: usize, pub lo: i64, #[serde(default = "menos1")] pub so: i64, pub lm: i64 }
 #[derive(Deserialize, Debug, Clone)]
-pub struct Mat { #[serde(default = "menos1")] pub id: i64, #[serde(default = "menos1")] pub t2: i64, #[serde(default)] pub terr: Option<Vec<(i64, f32, f32)>>, pub c: [f32; 4], pub st: [f32; 4], pub t: i64, pub blend: u8, pub cut: u8, pub unlit: u8, pub add: u8, pub agua: u8, pub em: [f32; 3] }
+pub struct Mat { #[serde(default = "pbr0")] pub pbr: [f32; 3], #[serde(default)] pub fol: u8, #[serde(default = "menos1")] pub id: i64, #[serde(default = "menos1")] pub t2: i64, #[serde(default)] pub terr: Option<Vec<(i64, f32, f32)>>, pub c: [f32; 4], pub st: [f32; 4], pub t: i64, pub blend: u8, pub cut: u8, pub unlit: u8, pub add: u8, pub agua: u8, pub em: [f32; 3] }
 #[derive(Deserialize, Debug, Clone)]
 pub struct Tex { #[serde(default = "menos1")] pub id: i64, #[serde(default)] pub n: String, pub w: u32, pub h: u32, #[serde(default)] pub a: u8, pub o: usize }
 #[derive(Deserialize, Debug, Clone)]
@@ -22,7 +24,7 @@ pub struct Item { pub m: i64, pub s0: u32, pub sn: u32, pub mat: i64, #[serde(re
 #[derive(Deserialize, Debug, Clone)]
 pub struct Cam { pub vp: [f32; 16], pub pos: [f32; 3] }
 #[derive(Deserialize, Debug, Clone, Copy, Default)]
-pub struct Niebla { pub c: [f32; 3], pub a: f32, pub b: f32 }
+pub struct Niebla { pub c: [f32; 3], pub a: f32, pub b: f32, #[serde(default)] pub m: f32, #[serde(default)] pub s: [f32; 3] }
 #[derive(Deserialize, Debug, Clone, Copy, Default)]
 pub struct Luz { pub sol: [f32; 3], #[serde(rename = "solC")] pub sol_c: [f32; 3], #[serde(rename = "ambS")] pub amb_s: [f32; 3], #[serde(rename = "ambG")] pub amb_g: [f32; 3], pub nie: Niebla, pub expo: f32 }
 #[derive(Deserialize, Debug, Clone)]
@@ -31,12 +33,20 @@ pub struct TexAgua { pub w: u32, pub h: u32, pub o: usize }
 pub struct Prof { pub x0: f32, pub z0: f32, pub w: f32, pub h: f32, #[serde(rename = "D")] pub d: f32, pub tex: Option<TexAgua> }
 #[derive(Deserialize, Debug, Clone)]
 pub struct Agua { pub fog: [f32; 4], pub esc: f32, pub fuerza: f32, pub dist: f32, pub s: [f32; 4], pub largo: f32, pub normal: Option<TexAgua>, pub prof: Option<Prof>, #[serde(default)] pub y: f32 }
+/// el cielo: el degradé del mapa (colores en gamma) y, si tiene, la caja de seis caras (L×L RGBA cada una) con su tinte
+/// y cuánto se ve (de noche, el degradé)
+#[derive(Deserialize, Debug, Clone)]
+pub struct Caras { pub l: u32, pub o: Vec<usize> }
+#[derive(Deserialize, Debug, Clone)]
+pub struct Cielo { pub top: [f32; 3], pub mid: [f32; 3], pub bot: [f32; 3], pub exp: [f32; 2], #[serde(default = "uno3")] pub tinte: [f32; 3], #[serde(default)] pub dia: f32, #[serde(default = "uno")] pub k: f32, #[serde(default)] pub cubo: u8, pub caras: Option<Caras> }
+fn uno() -> f32 { 1.0 }
+fn uno3() -> [f32; 3] { [1.0; 3] }
 #[derive(Deserialize, Debug, Clone)]
 pub struct Cabecera {
     #[serde(default)] pub mapa: String, #[serde(default)] pub w: u32, #[serde(default)] pub h: u32,
     pub cam: Option<Cam>, pub luz: Option<Luz>,
     #[serde(default)] pub mallas: Vec<Malla>, #[serde(default)] pub mats: Vec<Mat>, #[serde(default)] pub texs: Vec<Tex>, #[serde(default)] pub lms: Vec<Lm>,
-    #[serde(default)] pub items: Vec<Item>, pub agua: Option<Agua>,
+    #[serde(default)] pub items: Vec<Item>, pub agua: Option<Agua>, pub cielo: Option<Cielo>,
 }
 
 pub struct Escena { pub c: Cabecera, pub datos: Vec<u8> }
@@ -73,12 +83,13 @@ pub type LuzP = [f32; 12];
 #[derive(Clone, Debug)]
 pub struct Cuadro { pub vp: [f32; 16], pub pos: [f32; 3], pub luz: Luz, pub agua_y: Option<f32>, pub tiempo: f32, pub luces: Vec<LuzP>, pub esp: Vec<LuzP>, pub items: Vec<ItemDin> }
 
-pub const CAB_CUADRO: usize = 43;
+pub const CAB_CUADRO: usize = 47;
 pub const POR_ITEM: usize = 26;
 
 impl Cuadro {
     /// el cuadro del juego (floats en little endian): 'JXC1' (sus bits), n, vp(16), pos(3), sol(3), solC(3), ambS(3), ambG(3),
-    /// nieC(3), nieA, nieB, expo, aguaY (NaN = sin agua), tiempo, luces puntuales, luces especiales; 12 floats por luz; y por
+    /// nieC(3), nieA, nieB, expo, aguaY (NaN = sin agua), tiempo, luces puntuales, luces especiales, cuánto tapa la niebla
+    /// como máximo, el color del sol en la niebla(3) —la luz en lineal, como la usa WebGL—; 12 floats por luz; y por
     /// cosa: malla, desde, cuántos, material, matriz(16), esfera(4), banderas, cuántos floats de huesos (negativo: los de
     /// otra cosa anterior, la -n-1) y los huesos
     pub fn leer(b: &[u8]) -> Result<Cuadro, String> {
@@ -93,8 +104,8 @@ impl Cuadro {
         let vp: [f32; 16] = tomar(16)?.try_into().unwrap(); let pos: [f32; 3] = tomar(3)?.try_into().unwrap();
         let v3 = |s: &[f32]| [s[0], s[1], s[2]];
         let sol = v3(tomar(3)?); let sol_c = v3(tomar(3)?); let amb_s = v3(tomar(3)?); let amb_g = v3(tomar(3)?); let nie_c = v3(tomar(3)?);
-        let r = tomar(7)?; let (nie_a, nie_b, expo, ay, tiempo, nl, ne) = (r[0], r[1], r[2], r[3], r[4], r[5] as usize, r[6] as usize);
-        let luz = Luz { sol, sol_c, amb_s, amb_g, nie: Niebla { c: nie_c, a: nie_a, b: nie_b }, expo };
+        let r = tomar(11)?; let (nie_a, nie_b, expo, ay, tiempo, nl, ne) = (r[0], r[1], r[2], r[3], r[4], r[5] as usize, r[6] as usize);
+        let luz = Luz { sol, sol_c, amb_s, amb_g, nie: Niebla { c: nie_c, a: nie_a, b: nie_b, m: r[7], s: [r[8], r[9], r[10]] }, expo };
         let mut luces = Vec::with_capacity(nl); for _ in 0..nl.min(16) { luces.push(tomar(12)?.try_into().unwrap()); }
         let mut esp = Vec::with_capacity(ne); for _ in 0..ne.min(16) { esp.push(tomar(12)?.try_into().unwrap()); }
         let mut items = Vec::with_capacity(n);

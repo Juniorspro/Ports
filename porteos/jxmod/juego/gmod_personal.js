@@ -523,11 +523,11 @@ function jxmPoner(on) {
 // lo que dice el motor nativo (cuadros por segundo, ms, memoria) o su error
 function jxmEstado() { try { return JXM.grab ? 'grabando' : JXM.prendido ? String(window.JXMotor.estado()) : 'apagado'; } catch (e) { return String(e); } }
 function jxmReiniciar() {
-  JXM.mallas.clear(); JXM.texs.clear(); JXM.lms.clear(); JXM.mats = new WeakMap(); JXM.agua = null; JXM.mapa = null;
+  JXM.mallas.clear(); JXM.texs.clear(); JXM.lms.clear(); JXM.mats = new WeakMap(); JXM.agua = null; JXM.mapa = null; JXM.cieloF = null; JXM.cuboT = null;
   const B = jxmPuente(); if (B && JXM.on) B.vaciar();
 }
 // el material: su número para el motor (uno nuevo si cambió algo: el color de un prop pintado con la herramienta, por ejemplo)
-function jxmMatFirma(mt) { const c = mt.c || [1, 1, 1, 1], s = mt.st || [1, 1, 0, 0], e = mt.em || [0, 0, 0]; return [mt.tex, mt.mez, mt.terr ? 1 : 0, c[0], c[1], c[2], c[3], s[0], s[1], s[2], s[3], e[0], e[1], e[2], mt.blend ? 1 : 0, mt.cut ? 1 : 0, mt.unlit ? 1 : 0, mt.add ? 1 : 0, mt.agua ? 1 : 0].join(','); }
+function jxmMatFirma(mt) { const c = mt.c || [1, 1, 1, 1], s = mt.st || [1, 1, 0, 0], e = mt.em || [0, 0, 0]; return [mt.tex, mt.mez, mt.terr ? 1 : 0, mt.fol ? 1 : 0, (mt.pbr || []).join(':'), c[0], c[1], c[2], c[3], s[0], s[1], s[2], s[3], e[0], e[1], e[2], mt.blend ? 1 : 0, mt.cut ? 1 : 0, mt.unlit ? 1 : 0, mt.add ? 1 : 0, mt.agua ? 1 : 0].join(','); }
 // lo que todavía no tiene el motor, en un JXE1 (con un tope por cuadro: un mapa entero llega en varios cuadros)
 function jxmRecursos(items) {
   const gl = R.gl, blobs = []; let off = 0, tope = 6e6;
@@ -569,7 +569,7 @@ function jxmRecursos(items) {
     if (!r || r.f !== f) {
       r = { id: ++JXM.matN, f }; JXM.mats.set(mt, r);
       const terr = mt.terr ? mt.terr.t.map((x) => (x ? [x[0], x[1], x[2]] : [-1, 1, 1])) : null;
-      mats.push({ id: r.id, t2: mt.mez !== undefined ? mt.mez : -1, terr, c: Array.from(mt.c || [1, 1, 1, 1]), st: Array.from(mt.st || [1, 1, 0, 0]), t: mt.tex !== undefined ? mt.tex : -1, blend: mt.blend ? 1 : 0, cut: mt.cut ? 1 : 0, unlit: mt.unlit ? 1 : 0, add: mt.add ? 1 : 0, agua: mt.agua ? 1 : 0, em: Array.from(mt.em || [0, 0, 0]) });
+      mats.push({ id: r.id, t2: mt.mez !== undefined ? mt.mez : -1, terr, c: Array.from(mt.c || [1, 1, 1, 1]), st: Array.from(mt.st || [1, 1, 0, 0]), t: mt.tex !== undefined ? mt.tex : -1, blend: mt.blend ? 1 : 0, cut: mt.cut ? 1 : 0, unlit: mt.unlit && !mt.fol ? 1 : 0, add: mt.add ? 1 : 0, agua: mt.agua ? 1 : 0, em: Array.from(mt.em || [0, 0, 0]), pbr: Array.from(mt.pbr || [0.72, 0, 0.04]), fol: mt.fol ? 1 : 0 });
     }
     tex(mt.tex); tex(mt.mez); if (mt.terr) for (const x of mt.terr.t) if (x) tex(x[0]);
   }
@@ -581,8 +581,32 @@ function jxmRecursos(items) {
     if (H.prof && H.prof.px) agua.prof = { x0: H.prof.x0, z0: H.prof.z0, w: H.prof.w, h: H.prof.h, D: H.prof.D, tex: { w: H.prof.n, h: H.prof.n, o: poner(H.prof.px) } };
     const W = AGUA.vols.find((v) => v.mapa); agua.y = W ? W.y1 : 0;
   }
-  if (!mallas.length && !mats.length && !texs.length && !lms.length && !agua) return null;
-  const J = { v: 2, mapa: MUNDO.nombre, mallas, mats, texs, lms, agua };
+  // el cielo: el degradé del mapa y la caja de GMod (sus seis caras, leídas de WebGL una vez), con el tinte y cuánto se ve
+  // como en dibujarCubo (de día la caja, de noche el degradé); se manda de nuevo sólo si cambia
+  let cielo = null; const C = R.cielo;
+  if (C && C.top) {
+    const cubo = C.cubo ? cuboGL(C.cubo) : C.cuboPx ? cuboGLpx(C.cuboPx) : null;   // (en modo nativo nadie más lo pide)
+    const B = typeof DIA !== 'undefined' && DIA.base && DIA.base.cielo, lum = (c) => c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11;
+    const dia = B ? clamp(lum(C.top) / Math.max(1e-3, lum(B.top)), 0, 1) : 1, tin = B ? [0, 1, 2].map((i) => clamp(C.mid[i] / Math.max(1e-3, B.mid[i]), 0, 1.5)) : [1, 1, 1];
+    const par = { top: Array.from(C.top), mid: Array.from(C.mid), bot: Array.from(C.bot), exp: Array.from(C.exp || [0.5, 0.5]), tinte: tin, dia, k: R.cieloK || 1, cubo: cubo ? 1 : 0 };
+    const f = JSON.stringify(par);
+    if (f !== JXM.cieloF || (cubo && JXM.cuboT !== cubo)) {
+      JXM.cieloF = f; cielo = par;
+      const L = C.cuboPx ? C.cuboPx.L : C.cubo && DATA.tx[C.cubo[0]] ? DATA.tx[C.cubo[0]].w : 0;
+      if (cubo && JXM.cuboT !== cubo && L) {
+        const fb = JXM.fb || (JXM.fb = gl.createFramebuffer()); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); const o = [];
+        for (let k = 0; k < 6; k++) {
+          gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_X + k, cubo, 0);
+          if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) break;
+          const px = new Uint8Array(L * L * 4); gl.readPixels(0, 0, L, L, gl.RGBA, gl.UNSIGNED_BYTE, px); o.push(poner(px));
+        }
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, null, 0); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        if (o.length === 6) { cielo.caras = { l: L, o }; JXM.cuboT = cubo; }
+      }
+    }
+  }
+  if (!mallas.length && !mats.length && !texs.length && !lms.length && !agua && !cielo) return null;
+  const J = { v: 2, mapa: MUNDO.nombre, mallas, mats, texs, lms, agua, cielo };
   const js = new TextEncoder().encode(JSON.stringify(J)), tot = new Uint8Array(8 + js.length + off);
   tot.set([74, 88, 69, 49]); new DataView(tot.buffer).setUint32(4, js.length, true); tot.set(js, 8);
   let o = 8 + js.length; for (const b of blobs) { tot.set(b, o); o += b.length; }
@@ -598,17 +622,20 @@ function jxmCuadroNativo() {
   JXM.sinMalla = ns;
   const rec = jxmRecursos(items); if (rec) B.recursos(jxmB64(rec));
   // (las cosas cuya malla todavía no llegó —se cortó por el tope— esperan al cuadro que viene)
-  let n = 43; for (const p of items) n += 26 + (p.h ? Math.min(p.h.nf || p.h.length, 56 * 12) : 0);
+  let n = 47; for (const p of items) n += 26 + (p.h ? Math.min(p.h.nf || p.h.length, 56 * 12) : 0);
   n += 24 * 12;
   if (JXM.f.length < n) JXM.f = new Float32Array(n * 1.5 | 0);
   const F = JXM.f; new Uint32Array(F.buffer, 0, 1)[0] = 0x3143584a;
   let k = 2; const pon = (a, m) => { for (let i = 0; i < m; i++) F[k++] = a[i]; };
   pon(R.vp, 16); F[k++] = CAM.pos.x; F[k++] = CAM.pos.y; F[k++] = CAM.pos.z;
   F[k++] = R.sol.x; F[k++] = R.sol.y; F[k++] = R.sol.z;
-  pon(R.solCol || [1, 1, 1], 3); pon(R.ambS || [0.4, 0.45, 0.5], 3); pon(R.ambG || [0.3, 0.3, 0.3], 3); pon(R.niebla.c, 3);
-  F[k++] = R.niebla.a; F[k++] = R.niebla.b; F[k++] = R.expo || 1;
+  // (la luz en lineal, la misma que usa WebGL en Alto —R.lin, luzLineal—)
+  const Ln = R.lin && R.lin.solCol ? R.lin : null;
+  pon(Ln ? Ln.solCol : srgb3(R.solCol || [1, 1, 1]).map((x) => x * 2.6), 3); pon(Ln ? Ln.ambS : srgb3(R.ambS || [0.4, 0.45, 0.5]), 3); pon(Ln ? Ln.ambG : srgb3(R.ambG || [0.3, 0.3, 0.3]), 3); pon(Ln && Ln.nieC ? Ln.nieC : srgb3(R.niebla.c), 3);
+  F[k++] = R.niebla.a; F[k++] = R.niebla.b; F[k++] = R.expo || 0.66;
   const W = AGUA.vols.find((v) => v.mapa); F[k++] = W ? W.y1 : NaN; F[k++] = (R.msCuadro / 1000) % 3600;
   const nl = R.nLuces || 0, ne = R.nEsp || 0; F[k++] = nl; F[k++] = ne;
+  { const sc = Ln ? Ln.solCol : [1, 1, 1], t = R.nieS || NIE_S1; F[k++] = R.niebla.m === undefined ? 1 : R.niebla.m; F[k++] = sc[0] * t[0]; F[k++] = sc[1] * t[1]; F[k++] = sc[2] * t[2]; }
   for (let i = 0; i < nl; i++) { pon(LUZ_P.subarray(i * 4), 4); pon(LUZ_C.subarray(i * 4), 4); pon(LUZ_D.subarray(i * 4), 4); }
   for (let i = 0; i < ne; i++) { pon(ESP_P.subarray(i * 4), 4); pon(ESP_C.subarray(i * 4), 4); pon(ESP_D.subarray(i * 4), 4); }
   let c = 0; const hs = JXM.hs || (JXM.hs = new Map()); hs.clear();
