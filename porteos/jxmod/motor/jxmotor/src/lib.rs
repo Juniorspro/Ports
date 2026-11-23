@@ -4,3 +4,5 @@ pub mod escena;
 pub mod gpu;
 pub mod mat;
 pub mod proto;
+pub mod wg;
+pub mod wgsl;

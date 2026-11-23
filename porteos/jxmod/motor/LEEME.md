@@ -112,3 +112,21 @@ En vivo (modo nativo, el juego en el navegador grabando lo que manda), gm_constr
 Al entrar al mapa se mandan una vez 9–11 MB de recursos (texturas a 256 px; 35 MB a 512 px en Alto). La misma imagen
 en los dos (el juego quieto): la geometría, los personajes y sus poses coinciden; falta la oclusión ambiental (WebGL
 oscurece lo pegado a las paredes) y el cielo de GMod (el motor usa un degradé).
+
+## wgpu (Vulkan)
+
+`jxmotor/src/wg.rs` es el mismo motor sobre **wgpu**: Vulkan en Android (GLES de respaldo en los celulares sin Vulkan) y,
+en la compu, el Vulkan de Mesa (lavapipe) para el banco. Los sombreadores están en WGSL (`wgsl.rs`), portados de los de
+GLES uno por uno; la entrada (recursos JXE1, cuadros JXC2, grabaciones JXG1) es la misma (`proto::Dibujante`).
+
+- Cada cuadro arma primero todo lo que va a la placa: la cabecera de cada pasada (cámara, reflejo, sombra), un registro por
+  malla y material, las matrices de las copias (instancias para todo) y los huesos de cada personaje una sola vez; lo sube
+  en pocas escrituras y después dibuja.
+- Los vértices se reacomodan al cargarlos (14 → 16 bytes: la placa los quiere de a 4); los niveles de las texturas se
+  arman en la CPU (como glGenerateMipmap).
+- El agua lee la profundidad de la escena en la misma pasada (sólo para leer), sin copiarla.
+
+Banco: `JXM_WGPU=1 jxm-banco GRABACION.jxg SALIDA.png 1280 720 10 alto` (con `JXM_GL=1`, wgpu sobre GLES). Comparado con
+el motor de GLES en las mismas grabaciones (500 objetos y 50 NPC, NPC de cerca, explosiones, el lago): diferencia media
+1,0–2,7 sobre 255 (bordes de un píxel y el granulado del tramado).
+
