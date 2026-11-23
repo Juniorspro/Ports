@@ -129,6 +129,12 @@ fn cajas_aj(p: &Panel, h: f32, fila: usize, n: usize) -> Vec<(f32, f32, f32, f32
     let cw = (ancho / n.max(1) as f32).min(h * 0.32);
     (0..n).map(|k| (ox + k as f32 * cw + 3.0, y + 4.0, cw - 6.0, fh - 8.0)).collect()
 }
+/// los mapas de Ajustes: una grilla de 4 columnas (son 17)
+fn cajas_mapa(p: &Panel, h: f32, n: usize) -> Vec<(f32, f32, f32, f32)> {
+    let (cols, fh) = (4usize, h * 0.085); let cw = (p.gw - h * 0.02) / cols as f32;
+    (0..n).map(|k| (p.gx + (k % cols) as f32 * cw + 3.0, p.gy + (k / cols) as f32 * fh + 4.0, cw - 6.0, fh - 8.0)).collect()
+}
+fn cajas_de(c: Clave, p: &Panel, h: f32, fila: usize, n: usize) -> Vec<(f32, f32, f32, f32)> { if c == Clave::Mapa { cajas_mapa(p, h, n) } else { cajas_aj(p, h, fila, n) } }
 fn boton_en(w: f32, h: f32, x: f32, y: f32, ve: impl Fn(Boton) -> bool) -> Option<Boton> {
     botones(w, h).into_iter().filter(|b| ve(b.b)).find(|b| if b.redondo { let (dx, dy) = (x - b.x, y - b.y); dx * dx + dy * dy <= (b.w * 0.55).powi(2) } else { (x - b.x).abs() <= b.w / 2.0 + 4.0 && (y - b.y).abs() <= b.h / 2.0 + 4.0 }).map(|b| b.b)
 }
@@ -136,7 +142,7 @@ fn boton_en(w: f32, h: f32, x: f32, y: f32, ve: impl Fn(Boton) -> bool) -> Optio
 const PASO: f32 = 1.0 / 120.0;
 
 pub struct Juego {
-    paq: Option<Paquete>, pub mapa: Option<Mapa>, mapas: Vec<&'static str>, mapa_i: usize,
+    paq: Option<Paquete>, pub mapa: Option<Mapa>, pub mapas: Vec<String>, mapa_i: usize,
     letras: Option<Letras>, letras_px: Option<(u32, u32, Vec<u8>)>,
     /// el jugador (la física, como jugador.js) y lo que sobra de tiempo para el paso fijo
     pub jug: Jugador, acum: f32,
@@ -210,7 +216,7 @@ impl Juego {
         let letras = letras_json.and_then(|t| Letras::de_json(&t).ok());
         let letras_px = letras_png.and_then(png_rgba);
         let (paq, error) = match paq { Ok(p) => (Some(p), None), Err(e) => (None, Some(format!("el paquete del juego: {e}"))) };
-        let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass", "RB_Construct"], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
+        let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
             recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
@@ -219,6 +225,13 @@ impl Juego {
             her: Herramientas::default(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
+        // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
+        if let Some(p) = &j.paq { if let Some(e) = p.d["esc"].as_object() {
+            let mut v: Vec<String> = e.keys().cloned().collect(); v.sort_by_key(|n| (!n.starts_with("RB_"), n != "RB_Flatgrass", n.clone()));
+            if !v.is_empty() { j.mapas = v; }
+            let ult = j.datos.as_ref().and_then(|d| std::fs::read_to_string(d.join("mapa.txt")).ok()).unwrap_or_default();
+            j.mapa_i = j.mapas.iter().position(|m| *m == ult.trim()).unwrap_or(0);
+        } }
         if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); j.cat_fis = Some(Catalogo::nuevo(p)); j.her.lista = herramientas::lista(&p.d); }
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
         j
@@ -233,7 +246,7 @@ impl Juego {
 
     /// elegir el mapa por su nombre (se arma en el cuadro siguiente)
     pub fn poner_mapa(&mut self, nombre: &str) -> bool {
-        match self.mapas.iter().position(|m| *m == nombre) { Some(i) => { self.mapa_i = i; self.recargar = true; true } None => false }
+        match self.mapas.iter().position(|m| m == nombre) { Some(i) => { self.mapa_i = i; self.recargar = true; true } None => false }
     }
     /// un aviso de unos segundos en el medio de la pantalla
     pub fn avisar(&mut self, t: String) { self.aviso = Some((t, Instant::now())); }
@@ -438,7 +451,7 @@ impl Juego {
         let p = panel(w, h, ajustes::PESTANAS.len());
         match fila {
             None => (p.x0 + (p.gx - p.x0) / 2.0, p.y0 + h * 0.08 + (pestana as f32 + 0.5) * p.tab_h),
-            Some(f) => { let n = ajustes::claves(pestana).get(f).map(|c| self.valores_aj(*c).len()).unwrap_or(1).max(k + 1); let c = cajas_aj(&p, h, f, n)[k]; (c.0 + c.2 / 2.0, c.1 + c.3 / 2.0) }
+            Some(f) => { let cl = ajustes::claves(pestana).get(f).copied().unwrap_or(Clave::Sens); let n = self.valores_aj(cl).len().max(k + 1); let c = cajas_de(cl, &p, h, f, n)[k]; (c.0 + c.2 / 2.0, c.1 + c.3 / 2.0) }
         }
     }
     fn toque_ajustes(&mut self, x: f32, y: f32, w: f32, h: f32) {
@@ -452,12 +465,12 @@ impl Juego {
         }
         for (f, c) in ajustes::claves(pe).iter().enumerate() {
             let n = self.valores_aj(*c).len();
-            for (k, b) in cajas_aj(&p, h, f, n).into_iter().enumerate() {
+            for (k, b) in cajas_de(*c, &p, h, f, n).into_iter().enumerate() {
                 if x >= b.0 && x <= b.0 + b.2 && y >= b.1 && y <= b.1 + b.3 {
                     self.sonido.tocar("Click", 0.5, 1.0, None);
                     match c {
                         Clave::Motor => self.elegir_motor(k),
-                        Clave::Mapa => { if k != self.mapa_i { self.mapa_i = k; self.recargar = true; self.ajustes = None; } }
+                        Clave::Mapa => { if k != self.mapa_i { self.mapa_i = k; self.recargar = true; self.ajustes = None; if let Some(d) = &self.datos { let _ = std::fs::write(d.join("mapa.txt"), &self.mapas[k]); } } }
                         _ => { self.aj.elegir(*c, k); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } }
                     }
                     return;
@@ -496,7 +509,7 @@ impl Juego {
 
     /// arma el mapa elegido y pone al jugador donde aparece
     fn cargar_mapa(&mut self, m: &mut Motor3d) {
-        let nombre = self.mapas[self.mapa_i];
+        let nombre = self.mapas[self.mapa_i].clone(); let nombre = nombre.as_str();
         self.mapa = None;
         self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; }
         self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.proys.clear(); self.por_explotar.clear(); self.her.cable = None; self.her.trazas.clear(); self.her.tirados.clear(); self.her.spawn = None; self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false;
@@ -915,10 +928,10 @@ impl Juego {
             }
             let claves = ajustes::claves(pe);
             for (f, c) in claves.iter().enumerate() {
-                let vals = self.valores_aj(*c); let el = self.elegido_aj(*c); let cajas = cajas_aj(&p, hf, f, vals.len());
+                let vals = self.valores_aj(*c); let el = self.elegido_aj(*c); let cajas = cajas_de(*c, &p, hf, f, vals.len());
                 let fh = hf * 0.105; let y = p.gy + f as f32 * fh; let tt = t * 0.75;
                 let nom = if *c == Clave::Calidad && self.aj.calidad == ajustes::PERSONAL { "Calidad (personal)".to_string() } else { ajustes::nombre(*c).to_string() };
-                l.texto(&mut u, p.gx, y + (fh - tt) / 2.0 - hf * 0.004, tt, bl, &nom);
+                if *c != Clave::Mapa { l.texto(&mut u, p.gx, y + (fh - tt) / 2.0 - hf * 0.004, tt, bl, &nom); }
                 for (k, (v, b)) in vals.iter().zip(cajas).enumerate() {
                     let sel = el == Some(k);
                     l.caja(&mut u, b.0, b.1, b.2, b.3, hf * 0.012, if sel { [0.95, 0.66, 0.1, 0.92] } else { [1.0, 1.0, 1.0, 0.1] });

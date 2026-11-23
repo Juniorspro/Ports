@@ -35,13 +35,14 @@ impl Default for Ajustes {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Clave { Calidad, Res, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Motor, Mapa }
 /// las pestañas del menú y sus renglones
-pub const PESTANAS: [&str; 4] = ["Gráficos", "Controles", "Sonido", "Motor y mapa"];
+pub const PESTANAS: [&str; 5] = ["Gráficos", "Controles", "Sonido", "Motor", "Mapa"];
 pub fn claves(pestana: usize) -> &'static [Clave] {
     match pestana {
         0 => &[Clave::Calidad, Clave::Res, Clave::Sombras, Clave::Ao, Clave::Reflejo, Clave::Retoque],
         1 => &[Clave::Sens, Clave::Fov, Clave::Fps],
         2 => &[Clave::Vol, Clave::Ambiente],
-        _ => &[Clave::Motor, Clave::Mapa],
+        3 => &[Clave::Motor],
+        _ => &[Clave::Mapa],
     }
 }
 pub fn nombre(c: Clave) -> &'static str {

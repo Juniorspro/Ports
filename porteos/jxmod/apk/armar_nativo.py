@@ -31,13 +31,15 @@ MANIFIESTO = """<?xml version="1.0" encoding="utf-8"?>
 
 
 def rb_de_mapas(www, mapas):
-    """Los paquetes aparte (rb/) de los mapas: los dice DATA.rbp (m_<mapa> → [archivo, …])."""
+    """Los paquetes aparte (rb/) de los mapas: los dice DATA.rbp (m_<mapa> → [archivo, …]). Con «todo»: todos los de
+    DATA.rbp (los 12 mapas que tienen paquete, las skins de los personajes, los memes, las pastillas y lo nuclear)."""
     idx = json.load(open(os.path.join(www, 'pk.idx.json'), encoding='utf-8'))
     o, n = idx['d'][0], idx['d'][1]
     with open(os.path.join(www, 'pk.bin'), 'rb') as f: f.seek(o); crudo = f.read(n)
     try: d = json.loads(gzip.decompress(crudo))
     except Exception: A.fallar('pk.bin no se lee (¿cifrado?): hace falta el de la versión personal sin cifrar')
     fuera = []
+    if mapas == ['todo']: return [v[0] for v in (d.get('rbp') or {}).values()]
     for m in mapas:
         r = (d.get('rbp') or {}).get('m_' + m)
         if not r: A.fallar('el mapa', m, 'no tiene paquete aparte en DATA.rbp')
@@ -51,7 +53,8 @@ def main():
     ap.add_argument('--www', required=True)
     ap.add_argument('--so-arm64', default=os.path.join(TARGET, 'aarch64-linux-android', 'release', 'libjxmod.so'))
     ap.add_argument('--so-armv7', default=os.path.join(TARGET, 'armv7-linux-androideabi', 'release', 'libjxmod.so'))
-    ap.add_argument('--mapas', default='RB_Flatgrass,RB_Construct')
+    ap.add_argument('--mapas', default='todo')
+    ap.add_argument('--rb-extra', default='/tmp/claude-0/jxp_pub/rb', help='otra carpeta donde buscar los paquetes aparte que no estén en WWW/rb')
     ap.add_argument('--version-name', default='0.1')
     ap.add_argument('--version-code', type=int, default=int(datetime.datetime.now(datetime.timezone.utc).strftime('%y%m%d%H')))
     ap.add_argument('--conservar', action='store_true')
@@ -85,7 +88,10 @@ def main():
         act = os.path.join(tmp, 'assets'); os.makedirs(os.path.join(act, 'rb')); os.makedirs(os.path.join(act, 'ui'))
         for n in ('pk.bin', 'pk.idx.json'): shutil.copyfile(os.path.join(a.www, n), os.path.join(act, n))
         rbs = rb_de_mapas(a.www, a.mapas.split(','))
-        for r in rbs: shutil.copyfile(os.path.join(a.www, 'rb', r), os.path.join(act, 'rb', r))
+        for r in rbs:
+            orig = next((os.path.join(d, r) for d in (os.path.join(a.www, 'rb'), a.rb_extra) if d and os.path.isfile(os.path.join(d, r))), None)
+            if not orig: A.fallar('no está el paquete aparte', r, '(ni en WWW/rb ni en --rb-extra)')
+            shutil.copyfile(orig, os.path.join(act, 'rb', r))
         A.correr([sys.executable, '-I', os.path.join(os.path.dirname(AQUI), 'herramientas', 'atlas_letras.py'), os.path.join(act, 'ui')], 'atlas de letras')
         # (las dos capturas de nado del cuerpo —CMU 126_04 y 79_02, las que la web baja de emotes/cmu—)
         cmu = os.path.join(AQUI, '..', '..', '..', 'web', 'emotes', 'cmu'); os.makedirs(os.path.join(act, 'cmu'))
@@ -134,7 +140,7 @@ def main():
         shutil.copyfile(final, a.salida)
         print('APK:', os.path.abspath(a.salida))
         print('  %.2f MB | %s %s (%d) | nativas: %s | mapas: %s (%s)' % (os.path.getsize(a.salida) / 1048576, PAQUETE, a.version_name, a.version_code,
-              ', '.join(k.split('/')[1] for k in sorted(nativas)), a.mapas, ', '.join(rbs)))
+              ', '.join(k.split('/')[1] for k in sorted(nativas)), a.mapas, '%d paquetes aparte' % len(rbs)))
     finally:
         if a.conservar: print('temporales en', tmp)
         else: shutil.rmtree(tmp, ignore_errors=True)

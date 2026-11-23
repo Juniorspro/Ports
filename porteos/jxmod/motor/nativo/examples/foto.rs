@@ -241,7 +241,10 @@ fn main() {
     let (x, y) = j.pos_ajuste(wf, hf, 1, None, 0); toque(&mut j, 25, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3g_ajustes_controles");
     let (x, y) = j.pos_ajuste(wf, hf, 3, None, 0); toque(&mut j, 26, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3h_ajustes_motor");
     println!("ajustes Ultra: {:?} · abierto {:?}", j.aj, j.ajustes);
-    let (x, y) = j.pos_ajuste(wf, hf, 3, Some(1), 1); toque(&mut j, 27, x, y); let t = Instant::now(); paso(&mut j, &mut m, 2); println!("cambio de mapa: {:.0} ms · {}", t.elapsed().as_secs_f64() * 1000.0, m.resumen());
+    let (x, y) = j.pos_ajuste(wf, hf, 4, None, 0); toque(&mut j, 28, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3i_ajustes_mapas");
+    println!("mapas: {} ({})", j.mapas.len(), j.mapas.join(", "));
+    let ic = j.mapas.iter().position(|m| m == "RB_Construct").unwrap_or(1);
+    let (x, y) = j.pos_ajuste(wf, hf, 4, Some(0), ic); toque(&mut j, 27, x, y); let t = Instant::now(); paso(&mut j, &mut m, 2); println!("cambio de mapa: {:.0} ms · {}", t.elapsed().as_secs_f64() * 1000.0, m.resumen());
     if let Some(mp) = &j.mapa { println!("mundo de choques: {} triángulos, {} cuerpos", mp.mundo.n_tris(), mp.mundo.cuerpos.len()); }
     paso(&mut j, &mut m, 60); let p0 = j.jug.pos; println!("4 Construct aparición: pos {:?} suelo {}", p0, j.jug.suelo); foto(&mut m, "4_construct");
     j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf);
@@ -255,6 +258,14 @@ fn main() {
     j.jug.pitch = -0.8; paso(&mut j, &mut m, 120); println!("   bucear 2 s: pos [{:.2}, {:.2}, {:.2}] aire {:.1}", j.jug.pos[0], j.jug.pos[1], j.jug.pos[2], j.jug.aire); foto(&mut m, "7_bucear");
     j.dedo_arriba(1); j.jug.pitch = 0.0;
     if let Some((t, d)) = m.tiempos() { println!("placa {t:.1} ms: {d}"); }
+    // (con JXM_MAPAS_FOTO=1: una foto de cada mapa desde donde se aparece, y lo que tarda en armarse)
+    if std::env::var("JXM_MAPAS_FOTO").is_ok() {
+        for n in j.mapas.clone() {
+            j.poner_mapa(&n); let t = Instant::now(); paso(&mut j, &mut m, 2); let ms = t.elapsed().as_secs_f64() * 1000.0; paso(&mut j, &mut m, 60);
+            println!("mapa {n}: {:.0} ms · {} · {}", ms, m.resumen(), j.error.clone().unwrap_or_default()); j.error = None;
+            foto(&mut m, &format!("mapa_{n}"));
+        }
+    }
     // la pantalla de error (sin paquete): lo que vería el teléfono si algo falla
     let (lj, lp) = letras(); let mut je = Juego::nuevo(Err("no están pk.bin o pk.idx.json en la APK".into()), lj, lp, Some(datos));
     je.en_uso = j.en_uso;
