@@ -677,11 +677,78 @@ function solveContactVel(c) {
   const s = dv / w, p = _sv.p.set(n.x * s, n.y * s, n.z * s);
   A.applyVel(p, rA, 1); if (rB) B.applyVel(p, rB, -1);
 }
+// ---------------- la física en Rust (motor/fisica, WebAssembly) ----------------
+// El bucle de subpasos de abajo —integrar, uniones, contactos con fricción, velocidades y rebote, 12 veces por paso: lo
+// que más pesa de la física— corre en Rust con las mismas cuentas; la detección de choques sigue acá. Los cuerpos, los
+// contactos y las uniones se pasan en arreglos de números (28, 24 y 36 por cada uno) y vuelven igual. En la versión
+// personal, de entrada (PH.sinRust apaga); en la pública, sólo si PREFS.fisicaRust.
+const FW = { ok: false, ex: null, L: [], idx: new Map(), ms: 0 };
+const FW_CERO = { x: 0, y: 0, z: 0 };
+function fisicaWasmIniciar() {
+  if (typeof FISICA_WASM !== 'string' || !FISICA_WASM || typeof WebAssembly === 'undefined') return;
+  try {
+    const bin = Uint8Array.from(atob(FISICA_WASM), (c) => c.charCodeAt(0));
+    WebAssembly.instantiate(bin, {}).then((r) => { FW.ex = r.instance.exports; FW.ok = true; }).catch((e) => { FW.error = String(e); });
+  } catch (e) { FW.error = String(e); }
+}
+fisicaWasmIniciar();
+function fisicaRust() { return FW.ok && !PH.sinRust && !(typeof Q !== 'undefined' && Q.get('fisjs')) && ((typeof JXP !== 'undefined' && JXP) || (typeof PREFS !== 'undefined' && PREFS.fisicaRust)); }
+function fisicaWasmPaso(dt) {
+  const E = FW.ex, C = PH.contacts, J = PH.joints, L = FW.L, idx = FW.idx; L.length = 0; idx.clear();
+  const pon = (b) => { let i = idx.get(b); if (i === undefined) { i = L.length; L.push(b); idx.set(b, i); } return i; };
+  for (const b of PH.bodies) pon(b);
+  for (const c of C) { pon(c.A); if (c.B) pon(c.B); }
+  for (const j of J) { pon(j.a); pon(j.b); }
+  // (los golpes de los muñecos que vuelan: una vez por paso, con la velocidad del principio)
+  if (typeof alImpacto === 'function') for (const c of C) if (c.A.ragdoll && c.A.ragdoll.vuela && (!c.B || !c.B.dynamic)) { c.vnPre = contactVn(c); if (c.vnPre < -3.2) alImpacto(c); }
+  const nb = L.length, nc = C.length, nu = J.length;
+  const pc = E.cuerpos(nb) / 8, po = E.contactos(nc) / 8, pu = E.uniones(nu) / 8;   // (pedir todo antes: la memoria puede crecer)
+  let M = new Float64Array(E.memory.buffer), o = pc;
+  for (const b of L) {
+    const p = b.pos, q = b.q, v = b.vel, w = b.ang, pp = b.prevPos || p, pq = b.prevQ || q, I = b.invI || FW_CERO;
+    M[o] = p.x; M[o + 1] = p.y; M[o + 2] = p.z; M[o + 3] = q.x; M[o + 4] = q.y; M[o + 5] = q.z; M[o + 6] = q.w;
+    M[o + 7] = v.x; M[o + 8] = v.y; M[o + 9] = v.z; M[o + 10] = w.x; M[o + 11] = w.y; M[o + 12] = w.z;
+    M[o + 13] = pp.x; M[o + 14] = pp.y; M[o + 15] = pp.z; M[o + 16] = pq.x; M[o + 17] = pq.y; M[o + 18] = pq.z; M[o + 19] = pq.w;
+    M[o + 20] = b.invMass; M[o + 21] = I.x; M[o + 22] = I.y; M[o + 23] = I.z; M[o + 24] = (b.dynamic ? 1 : 0) | (b.sleep ? 2 : 0) | (b.held ? 4 : 0);
+    M[o + 25] = b.fric === undefined ? 0.6 : b.fric; M[o + 26] = b.rest === undefined ? 0.15 : b.rest; o += 28;
+  }
+  o = po;
+  for (const c of C) {
+    const r = c.rA, x = c.wB || c.rB, n = c.n;
+    M[o] = idx.get(c.A); M[o + 1] = c.B ? idx.get(c.B) : -1; M[o + 2] = c.wB ? 1 : 0; M[o + 3] = r.x; M[o + 4] = r.y; M[o + 5] = r.z;
+    M[o + 6] = x ? x.x : 0; M[o + 7] = x ? x.y : 0; M[o + 8] = x ? x.z : 0; M[o + 9] = n.x; M[o + 10] = n.y; M[o + 11] = n.z;
+    M[o + 12] = c.depth || 0; M[o + 13] = c.lamN || 0; M[o + 14] = c.vnPre || 0; M[o + 15] = c.active ? 1 : 0; M[o + 16] = c.hit ? 1 : 0; M[o + 17] = 0; o += 24;
+  }
+  o = pu;
+  const v3a = (V, k) => { M[o + k] = V ? V.x : 0; M[o + k + 1] = V ? V.y : 0; M[o + k + 2] = V ? V.z : 0; };
+  for (const j of J) {
+    M[o] = idx.get(j.a); M[o + 1] = idx.get(j.b); v3a(j.pa, 2); v3a(j.pb, 5); v3a(j.axA, 8); v3a(j.axB, 11); v3a(j.pA, 14); v3a(j.pB, 17); v3a(j.hA, 20); v3a(j.hB, 23);
+    M[o + 26] = j.swing; M[o + 27] = j.twist; M[o + 28] = j.hinge ? 1 : 0; M[o + 29] = j.lo || 0; M[o + 30] = j.hi === undefined ? 0 : j.hi; o += 36;
+  }
+  const t0 = performance.now();
+  E.paso_fisica(nb, nc, nu, dt, PH.sub, PH.gscale || 1, PH.velIter || 2);
+  FW.ms = FW.ms * 0.95 + (performance.now() - t0) * 0.05;
+  M = new Float64Array(E.memory.buffer); o = pc;
+  for (const b of L) {
+    b.pos.set(M[o], M[o + 1], M[o + 2]); b.q.set(M[o + 3], M[o + 4], M[o + 5], M[o + 6]); b.vel.set(M[o + 7], M[o + 8], M[o + 9]); b.ang.set(M[o + 10], M[o + 11], M[o + 12]);
+    if (b.prevPos) b.prevPos.set(M[o + 13], M[o + 14], M[o + 15]); if (b.prevQ) b.prevQ.set(M[o + 16], M[o + 17], M[o + 18], M[o + 19]); o += 28;
+  }
+  o = po;
+  for (const c of C) {
+    c.lamN = M[o + 13]; c.vnPre = M[o + 14]; c.active = M[o + 15] > 0.5; c.hit = M[o + 16] > 0.5;
+    if (M[o + 17] > 0.5) {
+      const A = c.A;
+      if (PH.time - A.lastHit > 0.12) { A.lastHit = PH.time; PH.hits.push({ b: A, o: c.B, v: -M[o + 21], p: v3(M[o + 18], M[o + 19], M[o + 20]), n: c.n.clone(), ra: c.rA.clone(), rb: c.wB ? null : c.rB ? c.rB.clone() : null }); }
+    }
+    o += 24;
+  }
+}
 function physStep(dt) {
   PH.time += dt;
   detect(dt);
   const B = PH.bodies, n = PH.sub, h = dt / n, C = PH.contacts;
-  for (let s = 0; s < n; s++) {
+  if (fisicaRust()) fisicaWasmPaso(dt);
+  else for (let s = 0; s < n; s++) {
     for (const b of B) {
       if (!b.dynamic || b.sleep) continue;
       b.prevPos.copy(b.pos); b.prevQ.copy(b.q);

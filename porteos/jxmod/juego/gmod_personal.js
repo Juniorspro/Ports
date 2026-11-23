@@ -575,9 +575,12 @@ function jxmRecursos(items) {
         JXM.mallas.add(m.idx); lm(m.lm);
       }
     }
-    let r = JXM.mats.get(mt); const f = jxmMatFirma(mt);
+    // (la firma se mira una vez por cuadro por material y, si no cambió en 30 cuadros, cada 30: casi nunca cambian)
+    let r = JXM.mats.get(mt); const yaVisto = r && (r.c === JXM.cuadros || (JXM.cuadros - r.c < 30 && r.estable));
+    const f = yaVisto ? r.f : jxmMatFirma(mt);
+    if (r && !yaVisto) { r.estable = r.f === f; r.c = JXM.cuadros; }
     if (!r || r.f !== f) {
-      r = { id: ++JXM.matN, f }; JXM.mats.set(mt, r);
+      r = { id: ++JXM.matN, f, c: JXM.cuadros, estable: false }; JXM.mats.set(mt, r);
       const terr = mt.terr ? mt.terr.t.map((x) => (x ? [x[0], x[1], x[2]] : [-1, 1, 1])) : null;
       mats.push({ id: r.id, t2: mt.mez !== undefined ? mt.mez : -1, terr, c: Array.from(mt.c || [1, 1, 1, 1]), st: Array.from(mt.st || [1, 1, 0, 0]), t: mt.tex !== undefined ? mt.tex : -1, blend: mt.blend ? 1 : 0, cut: mt.cut ? 1 : 0, unlit: mt.unlit && !mt.fol ? 1 : 0, add: mt.add ? 1 : 0, agua: mt.agua ? 1 : 0, em: Array.from(mt.em || [0, 0, 0]), pbr: Array.from(mt.pbr || [0.72, 0, 0.04]), fol: mt.fol ? 1 : 0 });
     }

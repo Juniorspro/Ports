@@ -1,6 +1,6 @@
 # JX Motor: el motor nativo de JXMod en Rust (GLES 3). Ver LEEME.md.
 [workspace]
-members = ["jxmotor", "banco", "android"]
+members = ["jxmotor", "banco", "android", "fisica"]
 resolver = "2"
 
 [profile.release]

@@ -1,0 +1,8 @@
+[package]
+name = "jxfisica"
+version = "0.1.0"
+edition = "2021"
+description = "La física de JXMod en Rust (WebAssembly): el bucle de subpasos de XPBD de juego/fisica.js"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
