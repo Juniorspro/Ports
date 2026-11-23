@@ -9,3 +9,4 @@ pub mod objetos;
 pub mod paquete;
 pub mod personaje;
 pub mod texto;
+pub mod vista;

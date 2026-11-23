@@ -6,10 +6,12 @@ use jxjuego::fisica::{qeje, qmul, rot, rot_inv, Fisica, Q, V};
 use jxjuego::mundo::Mundo;
 
 /// las armas: el nombre (DEF_ARMAS), el que se muestra, el ícono, el sonido al sacarla y el de sostener
-pub struct DefArma { pub n: &'static str, pub nom: &'static str, pub ic: &'static str, pub s_sacar: &'static str, pub s_sosten: &'static str }
+/// y el modelo en la mano (el nodo debajo de WalkSway) con sus clips: sacar, quieto, sosteniendo y disparo
+pub struct DefArma { pub n: &'static str, pub nom: &'static str, pub ic: &'static str, pub s_sacar: &'static str, pub s_sosten: &'static str,
+    pub nodo: &'static str, pub sacar: &'static str, pub quieto: &'static str, pub sujeta: &'static str, pub fuego: &'static str }
 pub const ARMAS: [DefArma; 2] = [
-    DefArma { n: "PhysicsGun", nom: "Physics Gun", ic: "W_PhysGun", s_sacar: "genericReadyNew_1", s_sosten: "PG_Hold" },
-    DefArma { n: "GravityGun", nom: "Gravity Gun", ic: "W_GravGun", s_sacar: "GG_Open", s_sosten: "GG_Hold" },
+    DefArma { n: "PhysicsGun", nom: "Physics Gun", ic: "W_PhysGun", s_sacar: "genericReadyNew_1", s_sosten: "PG_Hold", nodo: "GM_PhysGun", sacar: "PG_draw", quieto: "PG_idle", sujeta: "PG_hold", fuego: "PG_fire" },
+    DefArma { n: "GravityGun", nom: "Gravity Gun", ic: "W_GravGun", s_sacar: "GG_Open", s_sosten: "GG_Hold", nodo: "GM_GravGun", sacar: "GG_draw", quieto: "GG_idle", sujeta: "GG_hold", fuego: "GG_fire" },
 ];
 
 /// lo agarrado con la Physics Gun: el cuerpo, a qué distancia, el punto agarrado (en el cuerpo), el giro relativo a la
@@ -29,6 +31,8 @@ pub struct Armas {
     pub barra_t: f32,
     /// lo que tiene que sonar (nombre, volumen) y los avisos, para el juego
     pub sonidos: Vec<(String, f32)>, pub avisos: Vec<String>,
+    /// el clip que tiene que tocar el arma en la mano (sacar al elegirla, fuego al lanzar): lo pone el juego
+    pub anim: Option<&'static str>,
     azar: u32,
 }
 
@@ -42,7 +46,12 @@ impl Armas {
     pub fn elegir(&mut self, fis: &mut Fisica, i: usize) {
         self.soltar(fis, false); self.soltar_grav(fis);
         self.i = i.min(ARMAS.len() - 1); self.barra_t = 0.0;
-        let s = self.def().s_sacar; self.son(s, 0.6);
+        let s = self.def().s_sacar; self.son(s, 0.6); self.anim = Some(self.def().sacar);
+    }
+    /// el punto agarrado en el mundo (la punta del rayo)
+    pub fn punto_agarrado(&self, fis: &Fisica) -> Option<[f32; 3]> {
+        let a = self.agarre.as_ref()?; let b = fis.cuerpo(a.id)?; let r = rot(b.q, a.rl);
+        Some([(b.pos[0] + r[0]) as f32, (b.pos[1] + r[1]) as f32, (b.pos[2] + r[2]) as f32])
     }
     /// el disparo (en el celular, al apoyar el dedo)
     pub fn disparo(&mut self, fis: &mut Fisica, mundo: &Mundo, ojo: [f32; 3], dir: [f32; 3], yaw: f32) {
@@ -90,10 +99,10 @@ impl Armas {
         let lanza = format!("GG_Launch{}", 1 + self.azar() % 4);
         if let Some(g) = self.grav.take() {
             if let Some(b) = fis.cuerpo_mut(g.id) { b.agarrado = false; b.despertar(); let k = (2500.0 / b.masa.max(10.0)).min(50.0); for e in 0..3 { b.vel[e] += f[e] * k; } }
-            self.son(&lanza, 0.7); return;
+            self.son(&lanza, 0.7); self.anim = Some(self.def().fuego); return;
         }
         if let Some(id) = fis.rayo(mundo, v64(ojo), f, 10.0, &[]).and_then(|h| h.cuerpo) {
-            if let Some(b) = fis.cuerpo_mut(id) { if b.dinamico() { b.despertar(); let k = (1500.0 / b.masa.max(10.0)).min(50.0); for e in 0..3 { b.vel[e] += f[e] * k; } self.son(&lanza, 0.7); return; } }
+            if let Some(b) = fis.cuerpo_mut(id) { if b.dinamico() { b.despertar(); let k = (1500.0 / b.masa.max(10.0)).min(50.0); for e in 0..3 { b.vel[e] += f[e] * k; } self.son(&lanza, 0.7); self.anim = Some(self.def().fuego); return; } }
         }
         self.son("GG_Dry", 0.6);
     }

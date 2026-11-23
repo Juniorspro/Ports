@@ -4,6 +4,7 @@ use jxjuego::fisica::Fisica;
 use jxjuego::forma::{self, Catalogo};
 use jxjuego::jugador::{Entrada, Jugador};
 use jxjuego::personaje::{self, Personaje};
+use jxjuego::vista::{self, Vista};
 use jxjuego::mapa::{self, Mapa};
 use jxjuego::objetos::{self, Cargados, Prefab};
 use std::collections::HashMap;
@@ -148,12 +149,21 @@ pub struct Juego {
     /// el cuerpo del jugador (personaje.rs: se ve en tercera persona y de frente), la cámara (0 primera, 1 tercera, 2 de
     /// frente) y las dos capturas de nado (CMU 126_04 y 79_02: las pone la app)
     pub pj: Option<Personaje>, pj_cargados: personaje::Cargados, pub camara: u8, pub nado: Option<(Vec<u8>, Vec<u8>)>, pub skin: String,
+    /// el arma en la mano (vista.rs): el modelo, lo que el motor ya tiene, los clips, cuál suena, el vaivén y lo que se
+    /// arrastró para mirar en este cuadro (el arma se atrasa un poco al girar)
+    pub vista: Option<Vista>, vista_cargados: vista::Cargados, clips: vista::Clips, clip_ya: &'static str, sway: [f32; 5], bob_arma: f32, mdx: f32, tubo_ok: bool,
     // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
     /// los ajustes (ajustes.txt) y la pestaña del menú de Ajustes, si está abierto (el juego queda en pausa)
     pub aj: Ajustes, pub ajustes: Option<usize>,
     pub sonido: crate::sonido::Sonido, amb_t: f32, paso_d: f32, aire_t: f32, vy_aire: f32, golpe_max: f32, saltos_vistos: u32, ahogos_vistos: u32, nadaba: bool, brazada_t: f32, azar: u32,
 }
 
+/// el giro de la cámara (Quat.euler(yaw, pitch) de la web: la inclinación de la web es para abajo, la nuestra para arriba)
+fn qcam(yaw: f32, pitch: f32) -> [f32; 4] {
+    let (sy, cy) = ((yaw / 2.0).sin(), (yaw / 2.0).cos()); let (sp, cp) = ((-pitch / 2.0).sin(), (-pitch / 2.0).cos());
+    // qy(yaw) × qx(−pitch)
+    [cy * sp, sy * cp, -sy * sp, cy * cp]
+}
 /// la proyección de GL (como M4.persp de nucleo.js)
 pub fn persp(fovy: f32, asp: f32, n: f32, f: f32) -> M4 {
     let t = 1.0 / (fovy / 2.0).tan(); let mut m = [0.0; 16];
@@ -182,6 +192,7 @@ impl Juego {
             nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
+            vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); j.cat_fis = Some(Catalogo::nuevo(p)); }
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
@@ -246,7 +257,7 @@ impl Juego {
         }
         if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) {
             if !d.palanca && d.boton.is_none() && self.armas.rotar && self.armas.agarre.is_some() { self.armas.rotar_por(x - d.x, y - d.y, h); }
-            else if !d.palanca && d.boton.is_none() { let s = 0.0045 * 1080.0 / h.max(1.0) * self.aj.sens as f32 / 12.0; self.jug.yaw -= (x - d.x) * s; self.jug.pitch = (self.jug.pitch - (y - d.y) * s).clamp(-1.5, 1.5); }
+            else if !d.palanca && d.boton.is_none() { self.mdx += (x - d.x) * 1080.0 / h.max(1.0) / 2.5; let s = 0.0045 * 1080.0 / h.max(1.0) * self.aj.sens as f32 / 12.0; self.jug.yaw -= (x - d.x) * s; self.jug.pitch = (self.jug.pitch - (y - d.y) * s).clamp(-1.5, 1.5); }
             d.x = x; d.y = y;
         }
     }
@@ -273,6 +284,36 @@ impl Juego {
         if col < 0 || col as usize >= p.cols || fila < 0 { return; }
         let i = fila as usize * p.cols + col as usize;
         if let Some(n) = self.catalogo.get(m.sub).and_then(|s| s.1.get(i)) { self.pendientes.push(n.clone()); }
+    }
+    /// el arma en la mano (elegirArma, armasPaso y vistaSujeta): carga el modelo del arma elegida, toca sacar y después
+    /// quieto (o sosteniendo, con algo agarrado), y el vaivén al caminar y al girar
+    unsafe fn arma_en_mano(&mut self, m: &mut Motor3d, dt: f32) {
+        if !self.tubo_ok { self.tubo_ok = m.cargar(&vista::tubo()).is_ok(); }
+        let d = self.armas.def();
+        if self.vista.as_ref().map(|v| v.nodo != d.nodo).unwrap_or(true) {
+            self.vista = None;
+            if let Some(paq) = self.paq.as_mut() {
+                match Vista::cargar(paq, d.nodo, 512, &mut self.vista_cargados) {
+                    Ok((v, esc)) => { if m.cargar(&esc).is_ok() { self.vista = Some(v); self.clip_ya = ""; if self.armas.anim.is_none() { self.armas.anim = Some(d.sacar); } } }
+                    Err(e) => { self.avisar(format!("arma: {e}")); return; }
+                }
+            }
+        }
+        let Some(paq) = self.paq.as_ref() else { return };
+        let Some(v) = self.vista.as_mut() else { return };
+        if let Some(a) = self.armas.anim.take() { let c = self.clips.de(&paq.d, a); if v.tocar(c, false) > 0.0 { self.clip_ya = a; } }
+        // (terminó el de sacar o el de fuego: quieto, o sosteniendo si tiene algo)
+        let quiero = if self.armas.agarre.is_some() || self.armas.grav.is_some() { d.sujeta } else { d.quieto };
+        let fijo = self.clip_ya == d.sacar || self.clip_ya == d.fuego;
+        if (!fijo || v.termino()) && self.clip_ya != quiero { let c = self.clips.de(&paq.d, quiero); v.tocar(c, true); self.clip_ya = quiero; }
+        let fps = { let x = paq.d["an"]["fps"].as_f64().unwrap_or(30.0) as f32; if x > 0.0 { x } else { 30.0 } };
+        v.aplicar(dt, fps);
+        // el vaivén (ARM.sway): de costado y arriba al caminar, y atrasado al girar
+        let sp = (self.jug.vel[0] * self.jug.vel[0] + self.jug.vel[2] * self.jug.vel[2]).sqrt() * if self.jug.suelo { 1.0 } else { 0.2 };
+        self.bob_arma += dt * sp * 1.6; let k = 1.0 - (-dt * 10.0).exp(); let s = &mut self.sway; let a = (sp / 6.0).min(1.0);
+        s[0] += (self.bob_arma.sin() * 0.012 * a + (-self.mdx * 0.0004).clamp(-0.02, 0.02) - s[0]) * k;
+        s[1] += (self.bob_arma.cos().abs() * 0.01 * a - s[0] * 0.1 - s[1]) * k;
+        self.mdx = 0.0;
     }
     /// hacia dónde mira (miraDir)
     fn mira(&self) -> [f32; 3] { let (y, p) = (self.jug.yaw, self.jug.pitch); [y.sin() * p.cos(), p.sin(), y.cos() * p.cos()] }
@@ -358,7 +399,7 @@ impl Juego {
         let nombre = self.mapas[self.mapa_i];
         self.mapa = None;
         self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; }
-        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.pj = None; self.pj_cargados.olvidar();
+        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false;
         unsafe { m.vaciar(); }
         let Some(paq) = self.paq.as_mut() else { return };
         match mapa::armar(paq, nombre, 1024, 750.0) {
@@ -402,7 +443,7 @@ impl Juego {
     unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
-            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
+            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
             else { self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
         }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora;
@@ -444,6 +485,8 @@ impl Juego {
         self.menu_atlas(m);
         let pend = std::mem::take(&mut self.pendientes);
         for n in pend { if let Err(e) = self.poner(m, &n, ojos, fw) { self.avisar(format!("{n}: {e}")); } }
+        // el arma en la mano: el modelo del arma elegida, su clip (sacar; después quieto o sosteniendo) y el vaivén (armasPaso)
+        if self.mapa.is_some() { self.arma_en_mano(m, dt); }
         // el cuerpo, animado (tercera persona y de frente): el piso bajo la cápsula, la mirada y el agua si nada
         if let Some(pj) = self.pj.as_mut() {
             if self.camara != 0 {
@@ -481,6 +524,13 @@ impl Juego {
             }
             let mut items = mp.items.clone();
             if self.camara != 0 { if let Some(pj) = &self.pj { let jp = self.jug.pos; pj.items(&personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw), &mut items); } }
+            // (en primera persona, el arma delante de la cámara; y el rayo de la Physics Gun, de la boca a lo agarrado)
+            if self.camara == 0 { if let Some(v) = self.vista.as_mut() { v.ubicar(ojos, qcam(yaw, pitch), self.sway); v.items(&mut items); } }
+            if let (Some(p1), Some(a), true) = (self.armas.punto_agarrado(&self.fis), self.armas.agarre.as_ref(), self.tubo_ok) {
+                let p0 = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or([ojos[0], ojos[1] - 0.2, ojos[2]]);
+                let mid = [ojos[0] + fw[0] * a.dist * 0.5, ojos[1] + fw[1] * a.dist * 0.5, ojos[2] + fw[2] * a.dist * 0.5];
+                vista::rayo_items(p0, mid, p1, self.t0.elapsed().as_secs_f32(), &mut items);
+            }
             let t_fis = (self.acum_fis / PASO_FIS).clamp(0.0, 1.0);
             for o in &self.objs { if let Some(pf) = self.prefabs.get(&o.nombre) { pf.items(&matriz_obj(o, t_fis), &mut items); } }
             let c = Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
