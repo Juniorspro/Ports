@@ -26,6 +26,7 @@ function jxpIniciar() {
     const traer = async (r, json) => { const x = await fetch(JXPM.base + r); if (!x.ok) throw new Error(r + ' ' + x.status); return json ? x.json() : new Uint8Array(await x.arrayBuffer()); };
     JXPM.menu = await traer('menu.json', true);
     for (const l of JXPM.menu.listas) l.m.forEach((m, i) => { if (l.i[i]) JXPM.iconos.add(m); });
+    JXPM.ent = new Set(JXPM.menu.ent || []);
     // el Lua de GMod (y sus nombres) como el addon base «Garry's Mod»
     const archivos = new Map();
     for (const f of JXPM.menu.lua) archivos.set('lua/autorun/' + f, await traer('lua/' + f));
@@ -62,6 +63,8 @@ function jxpOrden() {
   DATA.menu.sort((a, b) => pos(a) - pos(b));
   for (const c of DATA.menu) { const t = JXP_TABS[c.n]; if (t) c.icUrl = jxpUi('icon16/' + t[1] + '.png'); }
   if (sel) UI.tab = Math.max(0, DATA.menu.findIndex((c) => c.n === sel));
+  // (en NPCs, primero los de GMod por categoría y los personajes de JXMod al final)
+  const N = DATA.menu.find((c) => c.npcs); if (N && N.sub.length > 1 && N.sub[0].n === T('sp.npcJuego')) N.sub.push(N.sub.shift());
 }
 // las listas del Lua de GMod en sus pestañas
 function jxpMenu() {
@@ -81,6 +84,14 @@ function jxpMenu() {
     V.sub = [...[...cats].map(([n, it]) => ({ n, jxp: true, ico: jxpUi(/half-life/i.test(n) ? 'games/16/hl2.png' : 'icon16/car.png'), it })), ...V.sub.filter((s) => !s.jxp)];
   }
   if (typeof spawnTabs === 'function' && $('tabs')) spawnTabs();
+}
+// el ícono de GMod de un NPC o un vehículo de las listas (materials/entities/<clave o clase>.png), si viene adentro
+function jxpIcoEnt(it) {
+  if (!JXP || !JXPM.ent || !JXPM.ent.size) return null;
+  const m = /^gm(npc|veh):(.+)$/.exec(it); if (!m) return null;
+  const v = gmLista(m[1] === 'npc' ? 'NPC' : 'Vehicles', m[2]), c = v && v.get ? v.get('Class') : null;
+  for (const k of [m[2], c]) if (typeof k === 'string' && JXPM.ent.has(k.toLowerCase())) return jxpUi('entities/' + k.toLowerCase() + '.png');
+  return null;
 }
 const jxpTabNom = (c) => (JXP && JXP_TABS[c.n] ? JXP_TABS[c.n][0] : null);
 // un modelo de los spawnlists que todavía no se bajó del contenido base: se baja con sus partes (.vvd, .vtx, .phy y, de

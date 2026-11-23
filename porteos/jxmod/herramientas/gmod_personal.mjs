@@ -69,8 +69,13 @@ const uiR = await ev(`[...GBS.idx.keys()].filter((k) => /^materials\\/(icon16|ga
 const UI = await leer(uiR); let nU = 0;
 for (const [ru, buf] of Object.entries(UI)) { const f = path.join(D, 'ui', ru.replace(/^materials\//, '')); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, buf); nU++; }
 console.log('iconitos de 16 px:', nU);
+// los íconos de las entidades (materials/entities/*.png: los NPCs y las armas de HL2 en el spawnmenu de GMod)
+const entR = await ev(`[...GBS.idx.keys()].filter((k) => /^materials\\/entities\\/[^/]+\\.png$/.test(k))`);
+const ENT = await leer(entR), ent = [];
+for (const [ru, buf] of Object.entries(ENT)) { const n = path.basename(ru).toLowerCase(), f = path.join(D, 'ui', 'entities', n); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, buf); ent.push(n.replace(/\.png$/, '')); }
+console.log('íconos de entidades:', ent.length);
 const menu = { v: 1, fecha: new Date().toISOString().slice(0, 10), listas: quedan.map((l) => ({ id: l.id, padre: l.padre, n: l.nombre, ic: l.icono, m: l.mods, i: l.mods.map((m) => (icono.has(m) ? 1 : 0)) })),
-  lua: fs.existsSync(path.join(D, 'lua')) ? fs.readdirSync(path.join(D, 'lua')) : [], loc: fs.existsSync(path.join(D, 'loc')) ? fs.readdirSync(path.join(D, 'loc')) : [] };
+  ent: ent.sort(), lua: fs.existsSync(path.join(D, 'lua')) ? fs.readdirSync(path.join(D, 'lua')) : [], loc: fs.existsSync(path.join(D, 'loc')) ? fs.readdirSync(path.join(D, 'loc')) : [] };
 fs.writeFileSync(path.join(D, 'menu.json'), JSON.stringify(menu));
 console.log('ok · íconos', nI, (bI / 1e6).toFixed(1), 'MB · Lua', menu.lua.join(', '), '· nombres', menu.loc.length);
 await b.close(); process.exit(0);

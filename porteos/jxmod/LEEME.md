@@ -5451,8 +5451,8 @@ necesarios para usar un mod de la Workshop».
 - **Datos de GMod de verdad** (`herramientas/gmod_personal.mjs HTML SALIDA`, del depósito 4021 —el mismo contenido base
   que usa el juego—; quedan **fuera del repo**, sólo adentro de esa APK en `assets/www/rb/jxp/`): los 27 spawnlists de
   fábrica que se pueden usar (de 41: los de L4D, Portal, TF2, DoD, CS:GO y Lost Coast piden juegos que GMod no trae),
-  5645 spawnicons (26,4 MB), los 1048 iconitos de 16 px, el Lua que llena las listas (`base_npcs`, `base_vehicles`,
-  `game_hl2`) y los nombres en inglés. Tarda 32 s.
+  5645 spawnicons (26,4 MB), los 1048 iconitos de 16 px, los 187 íconos de entidades (los NPCs con su foto de GMod), el
+  Lua que llena las listas (`base_npcs`, `base_vehicles`, `game_hl2`) y los nombres en inglés. Tarda 32 s.
 - **Mapas:** sólo gm_construct y gm_flatgrass (RB_Construct y RB_Flatgrass, los de GMod con sus texturas); se empieza en
   gm_flatgrass; los del Workshop siguen en «Comunidad».
 - **Menú Q como el de GMod** (`juego/gmod_personal.js`, estilo claro en `body.jxp`): pestañas Spawnlists, Weapons,
