@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 /// una parte del objeto que se dibuja: malla, parte de la malla, material, la matriz desde la raíz y la esfera que la
 /// envuelve (centro y radio, también desde la raíz)
 #[derive(Clone, Debug)]
-pub struct Parte { pub m: i64, pub s0: u32, pub sn: u32, pub mat: i64, pub local: M4, pub esf: [f32; 4] }
+pub struct Parte { pub m: i64, pub s0: u32, pub sn: u32, pub mat: i64, pub local: M4, pub esf: [f32; 4], /** el nodo del árbol (vehiculo.rs mueve las ruedas) */ pub nodo: usize }
 #[derive(Clone, Debug)]
 pub struct Prefab { pub nombre: String, pub partes: Vec<Parte>, /** la caja que ocupa, desde la raíz (x0, y0, z0, x1, y1, z1) */ pub caja: [f32; 6] }
 
@@ -107,7 +107,7 @@ pub fn armar(paq: &mut Paquete, nombres: &HashMap<String, String>, nombre: &str,
             let Some(s) = subs.get(k) else { continue };
             if !ya.mats.contains(&mt) { match material(d, mt as usize) { Some(m) => { ya.mats.insert(mt); mats.push(m); } None => continue } }
             let cen = punto(&w[i], c);
-            partes.push(Parte { m: mi, s0: s[0].as_u64().unwrap_or(0) as u32, sn: s[1].as_u64().unwrap_or(0) as u32, mat: mt, local: w[i], esf: [cen[0], cen[1], cen[2], r * escala(&w[i])] });
+            partes.push(Parte { m: mi, s0: s[0].as_u64().unwrap_or(0) as u32, sn: s[1].as_u64().unwrap_or(0) as u32, mat: mt, local: w[i], esf: [cen[0], cen[1], cen[2], r * escala(&w[i])], nodo: i });
         }
     }
     // las texturas de los materiales nuevos

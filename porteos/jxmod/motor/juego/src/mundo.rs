@@ -49,8 +49,12 @@ impl Mundo {
         let mut m = Mundo { t: vec![], tn: vec![], cuerpos: vec![], celda: 6.0, grilla: HashMap::new(), lo: [1e9; 3], hi: [-1e9; 3], gravedad, marcas: RefCell::new((vec![], vec![], 0)) };
         for t in 0..nt {
             let o = t * 9; let p = |k: usize| [tris[o + k * 3], tris[o + k * 3 + 1], tris[o + k * 3 + 2]];
-            let n = cruz(sub(p(1), p(0)), sub(p(2), p(0))); let l = largo(n).max(1e-12);
-            tn[t * 3] = n[0] / l; tn[t * 3 + 1] = n[1] / l; tn[t * 3 + 2] = n[2] / l;
+            // (como mundo.js: en f64 con Math.hypot y guardada en f32)
+            let q = |k: usize| [tris[o + k * 3] as f64, tris[o + k * 3 + 1] as f64, tris[o + k * 3 + 2] as f64];
+            let (a, b, c) = (q(0), q(1), q(2)); let (u, v) = ([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]]);
+            let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+            let l = crate::fisica::hypot_js(&n); let l = if l > 0.0 { l } else { 1.0 };
+            tn[t * 3] = (n[0] / l) as f32; tn[t * 3 + 1] = (n[1] / l) as f32; tn[t * 3 + 2] = (n[2] / l) as f32;
             let (x0, x1) = (p(0)[0].min(p(1)[0]).min(p(2)[0]), p(0)[0].max(p(1)[0]).max(p(2)[0]));
             let (z0, z1) = (p(0)[2].min(p(1)[2]).min(p(2)[2]), p(0)[2].max(p(1)[2]).max(p(2)[2]));
             m.agregar(x0, z0, x1, z1, t as u32);
