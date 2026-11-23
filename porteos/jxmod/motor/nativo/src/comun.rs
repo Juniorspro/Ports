@@ -4,11 +4,12 @@ use jxjuego::mapa::{self, Mapa};
 use jxjuego::paquete::Paquete;
 use jxjuego::texto::Letras;
 use jxmotor::escena::{Cabecera, Cuadro, Escena, Tex};
-use jxmotor::gpu::{Motor, TEX_LETRAS};
+use crate::motor::Motor3d;
+use jxmotor::gpu::TEX_LETRAS;
 use jxmotor::mat::{self as m4, M4};
 use std::time::Instant;
 
-/// los motores que se pueden elegir (el que está hecho en esta etapa: OpenGL 3)
+/// los motores que se pueden elegir (hechos: Vulkan y OpenGL 3)
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Placa { Vulkan, Gl3, Gl2 }
 impl Placa {
@@ -16,7 +17,7 @@ impl Placa {
     pub fn clave(self) -> &'static str { match self { Placa::Vulkan => "vk", Placa::Gl3 => "gl3", Placa::Gl2 => "gl2" } }
     pub fn de_clave(s: &str) -> Placa { match s.trim() { "vk" => Placa::Vulkan, "gl2" => Placa::Gl2, _ => Placa::Gl3 } }
     pub fn lista() -> [Placa; 3] { [Placa::Vulkan, Placa::Gl3, Placa::Gl2] }
-    pub fn hecha(self) -> bool { self == Placa::Gl3 }
+    pub fn hecha(self) -> bool { self != Placa::Gl2 }
 }
 
 /// un dedo en la pantalla: para qué es (palanca o mirar) y dónde
@@ -37,6 +38,10 @@ pub struct Juego {
     /// lo que salió mal (se muestra en la pantalla: en el teléfono no hay otra forma de verlo)
     pub error: Option<String>,
     mapa_cartel: bool,
+    /// el motor que se está usando (lo pone la app) y si hay que cambiarlo (se eligió otro)
+    pub en_uso: Placa, pub cambiar_motor: bool,
+    /// lo que tardó cada pasada en la placa (Vulkan)
+    pub detalle: String,
 }
 
 /// la proyección de GL (como M4.persp de nucleo.js)
@@ -62,12 +67,12 @@ impl Juego {
         let (paq, error) = match paq { Ok(p) => (Some(p), None), Err(e) => (None, Some(format!("el paquete del juego: {e}"))) };
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass", "RB_Construct"], mapa_i: 0, letras, letras_px, pos: [0.0; 3], yaw: 0.0, pitch: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
-            recargar: true, dt_fijo: None, error, mapa_cartel: false };
+            recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new() };
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
         j
     }
 
-    fn cargar_letras(&self, m: &mut Motor) {
+    fn cargar_letras(&self, m: &mut Motor3d) {
         if let Some((lw, lh, px)) = &self.letras_px {
             let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![], texs: vec![Tex { id: TEX_LETRAS, n: "letras".into(), w: *lw, h: *lh, a: 1, o: 0 }], lms: vec![], items: vec![], agua: None, cielo: None };
             let _ = unsafe { m.cargar(&Escena { c: cab, datos: px.clone() }) };
@@ -78,6 +83,10 @@ impl Juego {
     pub fn poner_mapa(&mut self, nombre: &str) -> bool {
         match self.mapas.iter().position(|m| *m == nombre) { Some(i) => { self.mapa_i = i; self.recargar = true; true } None => false }
     }
+    /// un aviso de unos segundos en el medio de la pantalla
+    pub fn avisar(&mut self, t: String) { self.aviso = Some((t, Instant::now())); }
+    /// el motor que pidió el jugador y el que se puede usar (OpenGL 2 todavía no: OpenGL 3)
+    pub fn motor_pedido(&self) -> Placa { if self.placa.hecha() { self.placa } else { Placa::Gl3 } }
     /// con ventana nueva (el motor nuevo): se carga todo de nuevo
     pub fn al_abrir(&mut self) { self.recargar = true; }
 
@@ -102,12 +111,14 @@ impl Juego {
             let p = Placa::lista()[k as usize];
             if let Some(d) = &self.datos { let _ = std::fs::write(d.join("motor.txt"), p.clave()); }
             self.placa = p;
+            let usar = if p.hecha() { p } else { Placa::Gl3 };
+            if usar != self.en_uso { self.cambiar_motor = true; }
             self.aviso = Some((if p.hecha() { format!("Motor: {}", p.nombre()) } else { format!("{} todavía no está: se usa OpenGL 3 (queda elegido)", p.nombre()) }, Instant::now()));
         } else if k == 3 { self.mapa_i = (self.mapa_i + 1) % self.mapas.len(); self.recargar = true; }
     }
 
     /// arma el mapa elegido y pone al jugador donde aparece
-    fn cargar_mapa(&mut self, m: &mut Motor) {
+    fn cargar_mapa(&mut self, m: &mut Motor3d) {
         let nombre = self.mapas[self.mapa_i];
         self.mapa = None;
         unsafe { m.vaciar(); }
@@ -126,17 +137,19 @@ impl Juego {
         self.cargar_letras(m);
     }
 
-    /// un cuadro: mover, dibujar el mapa y el HUD en `salida` (None: la pantalla). Lo que tarda se mide afuera (con la
-    /// espera a la pantalla): `medir`
-    pub unsafe fn cuadro(&mut self, m: &mut Motor, salida: Option<glow::Framebuffer>, w: i32, h: i32, placa_txt: &str) {
-        use glow::HasContext;
-        let medir = self.cuenta % 60 == 30 && self.mapa.is_some() && !self.recargar;
-        if medir { m.gl.finish(); }
+    /// un cuadro: mover, dibujar el mapa y el HUD (y Vulkan lo pone en la pantalla; con OpenGL lo hace la app). Lo que tarda
+    /// se mide afuera, con la espera a la pantalla: `medir`
+    pub unsafe fn cuadro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
+        // (lo que tarda la placa: en OpenGL, cada 60 cuadros se espera a que termine; Vulkan tiene marcas de tiempo)
+        let medir = !m.es_vulkan() && self.cuenta % 60 == 30 && self.mapa.is_some() && !self.recargar;
+        if medir { m.esperar(); }
         let t = Instant::now();
-        self.cuadro_dentro(m, salida, w, h, placa_txt);
-        if medir { m.gl.finish(); let x = t.elapsed().as_secs_f32() * 1000.0; self.placa_ms = if self.placa_ms == 0.0 { x } else { self.placa_ms * 0.5 + x * 0.5 }; }
+        let r = self.cuadro_dentro(m, w, h, placa_txt);
+        if medir { m.esperar(); let x = t.elapsed().as_secs_f32() * 1000.0; self.placa_ms = if self.placa_ms == 0.0 { x } else { self.placa_ms * 0.5 + x * 0.5 }; }
+        if let Some((tot, det)) = m.tiempos() { self.placa_ms = tot; self.detalle = det; }
+        r
     }
-    unsafe fn cuadro_dentro(&mut self, m: &mut Motor, salida: Option<glow::Framebuffer>, w: i32, h: i32, placa_txt: &str) {
+    unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
             if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.cargar_letras(m); }
@@ -158,19 +171,21 @@ impl Juego {
             let c = Cuadro { vp: m4::mul(&p, &vista), pos: self.pos, luz: mp.luz, agua_y: None, tiempo: self.t0.elapsed().as_secs_f32(),
                 luces: mp.luces_cerca(self.pos, 6), esp: vec![], items: mp.items.clone(), efectos: vec![] };
             m.poner_cuadro(c);
-            m.dibujar(salida, w, h);
-        } else {
-            use glow::HasContext;
-            m.gl.bind_framebuffer(glow::FRAMEBUFFER, salida); m.gl.viewport(0, 0, w, h);
-            m.gl.clear_color(0.06, 0.07, 0.09, 1.0); m.gl.clear(glow::COLOR_BUFFER_BIT);
         }
-        // el HUD
-        let Some(l) = &self.letras else { return };
+        let u = self.hud(w, h, placa_txt);
+        m.dibujar(w, h, self.mapa.is_some(), &u)
+    }
+
+    /// el HUD: los vértices de la interfaz (8 floats cada uno)
+    fn hud(&self, w: i32, h: i32, placa_txt: &str) -> Vec<f32> {
+        let (wf, hf) = (w as f32, h as f32);
+        let Some(l) = &self.letras else { return vec![] };
         let mut u = vec![]; let t = hf * 0.032; let (bl, gr) = ([1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.45]);
-        let usa = if self.placa.hecha() { self.placa } else { Placa::Gl3 };
+        let usa = self.en_uso;
         l.texto_sombra(&mut u, t * 0.5, t * 0.5, t, bl, &format!("{:.0} fps · cuadro {:.1} ms · placa {:.1} ms · {}×{}", self.fps, self.ms, self.placa_ms, w, h));
         l.texto_sombra(&mut u, t * 0.5, t * 1.75, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("JXMod nativo (Rust) · {} · {}", usa.nombre(), placa_txt));
         l.texto_sombra(&mut u, t * 0.5, t * 2.7, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("{} · sin choques todavía", self.mapas[self.mapa_i]));
+        if !self.detalle.is_empty() { l.texto_sombra(&mut u, t * 0.5, t * 3.65, t * 0.6, [1.0, 1.0, 1.0, 0.75], &format!("placa: {}", self.detalle)); }
         // (los botones: los tres motores y el mapa)
         let (x0, bw, bh) = (wf * 0.45, wf * 0.55 / 4.0, hf * 0.1);
         let nombres = [Placa::Vulkan.nombre(), Placa::Gl3.nombre(), Placa::Gl2.nombre(), "Mapa"];
@@ -205,7 +220,7 @@ impl Juego {
             }
             if !renglon.is_empty() { l.texto(&mut u, wf * 0.1, y, tt, bl, &renglon); }
         }
-        m.ui(salida, w, h, TEX_LETRAS, &u);
+        u
     }
 
     /// lo que tardó el cuadro entero (ms, con la espera a la pantalla) y los cuadros por segundo

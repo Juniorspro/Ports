@@ -543,8 +543,10 @@ dependencies = [
 name = "jxmotor"
 version = "0.1.0"
 dependencies = [
+ "ash",
  "bytemuck",
  "glow 0.16.0",
+ "naga",
  "pollster",
  "serde",
  "serde_json",

@@ -9,7 +9,7 @@ name = "jxmod"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-jxmotor = { path = "../jxmotor" }
+jxmotor = { path = "../jxmotor", features = ["vk"] }
 jxjuego = { path = "../juego" }
 glow = "0.16"
 png = "0.17"

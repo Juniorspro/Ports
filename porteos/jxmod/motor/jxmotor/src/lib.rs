@@ -6,3 +6,5 @@ pub mod mat;
 pub mod proto;
 pub mod wg;
 pub mod wgsl;
+#[cfg(feature = "vk")]
+pub mod vk;
