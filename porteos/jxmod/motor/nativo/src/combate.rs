@@ -85,6 +85,14 @@ impl Juego {
     /// impactoBala: el rayo hasta 400 m; la traza desde la boca del arma; lo que toca lo empuja (según su masa) y lo daña
     fn impacto_bala(&mut self, o: [f32; 3], d: [f32; 3], dan: f32) {
         let h = self.rayo_obj(o, d, 400.0);
+        // (en una sala: otro jugador más cerca que lo demás se lleva el tiro —el daño se lo manda, PvP—)
+        if let Some((quien, t)) = self.red_rayo_jugador(o, d, h.map(|x| x.0).unwrap_or(400.0)) {
+            let p = [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t];
+            let boca = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or([o[0], o[1] - 0.2, o[2]]);
+            self.ef.traza(boca, p); self.ef.impacto(p, [-d[0], -d[1], -d[2]], Sup::Cuerpo);
+            self.en_red.red.dano(&quien, dan as f64, [d[0] as f64, d[1] as f64, d[2] as f64]);
+            return;
+        }
         let fin = h.map(|x| x.1).unwrap_or([o[0] + d[0] * 400.0, o[1] + d[1] * 400.0, o[2] + d[2] * 400.0]);
         let boca = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or([o[0], o[1] - 0.2, o[2]]);
         self.ef.traza(boca, fin);

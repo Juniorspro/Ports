@@ -314,6 +314,18 @@ impl Juego {
         }
     }
 
+    /// el jugador de otro que toca un rayo antes de `max` (su cápsula: 0,35 m de radio, de los pies a 1,8 m): quién y a
+    /// qué distancia (para los tiros con PvP)
+    pub(super) fn red_rayo_jugador(&self, o: [f32; 3], d: [f32; 3], max: f32) -> Option<(String, f32)> {
+        if !self.en_red.en_sala() || !self.en_red.red.sala.as_ref().map(|s| s.pvp).unwrap_or(false) { return None; }
+        let mut mejor: Option<(String, f32)> = None;
+        for r in self.en_red.red.remotos() {
+            if !r.visible || !r.vivo { continue; }
+            let (a, b) = ([r.pos[0] as f32, r.pos[1] as f32 - 0.6, r.pos[2] as f32], [r.pos[0] as f32, r.pos[1] as f32 + 0.5, r.pos[2] as f32]);
+            if let Some(t) = rayo_capsula(o, d, a, b, 0.35) { if t < max && mejor.as_ref().map(|m| t < m.1).unwrap_or(true) { mejor = Some((r.id.clone(), t)); } }
+        }
+        mejor
+    }
     /// lo que se dibuja de los demás
     pub(super) fn red_items(&self, items: &mut Vec<ItemDin>) {
         for n in self.en_red.red.npcs_remotos() {
@@ -392,4 +404,18 @@ impl Juego {
         }
         if salas.is_empty() { l.texto(u, c[0] + hf * 0.03, c[1] + hf * 0.16, tt, [1.0, 1.0, 1.0, 0.7], "Buscando salas…"); }
     }
+}
+
+/// dónde entra un rayo (origen `o`, dirección `d` de largo 1) en una cápsula vertical de `a` a `b` con radio `r` (lo más
+/// cerca: el cilindro o las tapas, como esferas)
+fn rayo_capsula(o: [f32; 3], d: [f32; 3], a: [f32; 3], b: [f32; 3], r: f32) -> Option<f32> {
+    let esfera = |c: [f32; 3]| -> Option<f32> {
+        let m = [o[0] - c[0], o[1] - c[1], o[2] - c[2]]; let bb = m[0] * d[0] + m[1] * d[1] + m[2] * d[2]; let cc = m[0] * m[0] + m[1] * m[1] + m[2] * m[2] - r * r;
+        let disc = bb * bb - cc; if disc < 0.0 { return None; } let t = -bb - disc.sqrt(); if t >= 0.0 { Some(t) } else { None }
+    };
+    let mut mejor = [esfera(a), esfera(b)].into_iter().flatten().fold(f32::MAX, f32::min);
+    // (el cilindro vertical: en el plano XZ)
+    let (ox, oz) = (o[0] - a[0], o[2] - a[2]); let (qa, qb, qc) = (d[0] * d[0] + d[2] * d[2], ox * d[0] + oz * d[2], ox * ox + oz * oz - r * r);
+    if qa > 1e-9 { let disc = qb * qb - qa * qc; if disc >= 0.0 { let t = (-qb - disc.sqrt()) / qa; let y = o[1] + d[1] * t; if t >= 0.0 && y >= a[1] && y <= b[1] { mejor = mejor.min(t); } } }
+    if mejor < f32::MAX { Some(mejor) } else { None }
 }

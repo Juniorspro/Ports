@@ -121,12 +121,17 @@ fn main() {
             // (y un NPC suyo con escopeta, quieto a 6 m a la izquierda)
             let np = NpcLocal { id: 1, skin: "Hero".into(), pos: [jp0[0] as f64 + fx * 6.0 - fz * 2.0, jp0[1] as f64, jp0[2] as f64 + fz * 6.0 + fx * 2.0], yaw: yaw + std::f64::consts::PI, f: 1, arma: "Shotgun".into(), ..Default::default() };
             let local = Local { jug, objs: vec![ObjLocal { id: 1, nombre: caja.clone(), pos: cp, q: [0.0, 0.0, 0.0, 1.0], congelado: true, ..Default::default() }], npcs: vec![np], ..Default::default() };
-            beto.paso(dt, &local); for e in beto.eventos() { if let jxjuego::red::Evento::Chat { nombre, texto, .. } = e { oyo.push(format!("{nombre}: {texto}")); } } pb.bombear(&mut beto);
+            beto.paso(dt, &local); for e in beto.eventos() { match e { jxjuego::red::Evento::Chat { nombre, texto, .. } => oyo.push(format!("{nombre}: {texto}")), jxjuego::red::Evento::Dano { de, dano, .. } => oyo.push(format!("daño {dano} de {de}")), _ => {} } } pb.bombear(&mut beto);
             if f == 150 { let (cx, cy) = pos_boton(wf, hf, Boton::Chat); toque(&mut j, 63, cx, cy); }
             if f == 200 { beto.chat("hola desde la red", None); }
             if f == 230 { let o = [p[0], p[1] + 0.72, p[2]]; beto.disparo("Pistol", o, [-fx, 0.0, -fz]); }
             paso(&mut j, &mut m, 1);
             if f == 232 { foto(&mut m, "8b_red"); }
+            // (le tiro a Beto con la pistola: con PvP le llega el daño)
+            if f == 240 { if let Some(k) = jxmod::armas::ARMAS.iter().position(|a| a.n == "Pistol") { j.armas.elegir(&mut j.fis, k); } }
+            if f == 285 { let o = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]]; let q = [p[0] as f32, p[1] as f32 + 0.2, p[2] as f32]; let dd = [q[0] - o[0], q[1] - o[1], q[2] - o[2]]; let l = (dd[0] * dd[0] + dd[1] * dd[1] + dd[2] * dd[2]).sqrt(); j.jug.yaw = dd[0].atan2(dd[2]); j.jug.pitch = (dd[1] / l).asin(); }
+            if f == 287 { let (bx, by) = pos_boton(wf, hf, Boton::Disparo); j.dedo_abajo(64, bx, by, wf, hf); }
+            if f == 289 { j.dedo_arriba(64); }
             if let Some(r) = beto.remotos().first() { let q = j.jug.pos; dif = ((r.pos[0] - q[0] as f64).powi(2) + (r.pos[1] - q[1] as f64).powi(2) + (r.pos[2] - q[2] as f64).powi(2)).sqrt(); }
         }
         println!("red: en sala {} ({}) · veo {} jugador(es): {:?} · cosas de otros {} · objetos en el juego {}", j.en_red.en_sala(), j.en_red.red.estado(), j.en_red.red.remotos().len(),
