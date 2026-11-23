@@ -40,7 +40,8 @@ pub struct Mundo {
     pub gravedad: f32,
     marcas: RefCell<(Vec<u32>, Vec<u32>, u32)>,
 }
-const CUERPO: u32 = 1 << 31;
+/// (en la grilla y en `items_celdas`: el bit que marca un cuerpo fijo en vez de un triángulo)
+pub const CUERPO: u32 = 1 << 31;
 
 impl Mundo {
     pub fn nuevo(tris: Vec<f32>, cuerpos: Vec<Cuerpo>, gravedad: f32) -> Mundo {
@@ -84,6 +85,21 @@ impl Mundo {
                 if k & CUERPO != 0 { let b = (k & !CUERPO) as usize; if mk.1[b] != g { mk.1[b] = g; cuerpos.push(b as u32); } }
                 else if mk.0[k as usize] != g { mk.0[k as usize] = g; tris.push(k); }
             }
+        } }
+    }
+
+    /// lo que hay en las celdas (ax, az)–(bx, bz), sin repetir y en el orden de mundoCerca de mundo.js (en cada celda,
+    /// primero los cuerpos fijos —con `CUERPO` prendido— y después los triángulos, como quedaba la grilla en la web): para
+    /// la física de los objetos, que filtra por la caja
+    pub fn items_celdas(&self, ax: i32, az: i32, bx: i32, bz: i32, out: &mut Vec<u32>) {
+        out.clear();
+        let mut mk = self.marcas.borrow_mut();
+        mk.2 = mk.2.wrapping_add(1); if mk.2 == 0 { mk.0.iter_mut().for_each(|x| *x = 0); mk.1.iter_mut().for_each(|x| *x = 0); mk.2 = 1; }
+        let g = mk.2;
+        for i in ax..=bx { for j in az..=bz {
+            let Some(l) = self.grilla.get(&(i, j)) else { continue };
+            for &k in l { if k & CUERPO != 0 { let b = (k & !CUERPO) as usize; if mk.1[b] != g { mk.1[b] = g; out.push(k); } } }
+            for &k in l { if k & CUERPO == 0 && mk.0[k as usize] != g { mk.0[k as usize] = g; out.push(k); } }
         } }
     }
 

@@ -9,6 +9,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 jxmotor = { path = "../jxmotor" }
+jxfisica = { path = "../fisica" }
 serde_json = "1"
 flate2 = "1"
 image-webp = "0.2"
