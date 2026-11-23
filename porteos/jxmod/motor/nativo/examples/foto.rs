@@ -129,6 +129,41 @@ fn main() {
         let movidos = antes.iter().zip(&despues).filter(|(a, b)| ((a[0] - b[0]).powi(2) + (a[2] - b[2]).powi(2)).sqrt() > 0.05).count();
         println!("empujar 2,5 s: el jugador avanzó {:.2} m (sin nada: 15), alto {:.2} → {:.2}; objetos movidos {}", ((j.jug.pos[0] - p0[0]).powi(2) + (j.jug.pos[2] - p0[2]).powi(2)).sqrt(), p0[1], j.jug.pos[1], movidos);
         foto(&mut m, "3c3_empujar");
+        // la Physics Gun: mirar el objeto más cercano, agarrarlo, girar la cámara 60° (lo lleva), congelarlo en el aire
+        use jxmod::comun::{pos_boton, Boton};
+        let apuntar = |j: &mut Juego, p: [f64; 3]| { let o = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]]; let d = [p[0] as f32 - o[0], p[1] as f32 - o[1], p[2] as f32 - o[2]]; let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt(); j.jug.yaw = d[0].atan2(d[2]); j.jug.pitch = (d[1] / l).asin(); };
+        let cerca = |j: &Juego| -> Option<(u32, [f64; 3])> { j.objs.iter().filter_map(|o| o.cuerpo.and_then(|id| j.fis.cuerpo(id)).map(|b| (b.id, b.pos))).min_by(|a, b| { let d = |p: [f64; 3]| (p[0] - j.jug.pos[0] as f64).powi(2) + (p[2] - j.jug.pos[2] as f64).powi(2); d(a.1).partial_cmp(&d(b.1)).unwrap() }) };
+        let pos_de = |j: &Juego, id: u32| j.fis.cuerpo(id).map(|b| b.pos).unwrap_or([0.0; 3]);
+        if let Some((id, p)) = cerca(&j) {
+            apuntar(&mut j, p); paso(&mut j, &mut m, 2);
+            let (bx, by) = pos_boton(wf, hf, Boton::Disparo); toque(&mut j, 30, bx, by);
+            println!("Physics Gun: agarrado {:?} (dist {:.2} m) · objeto en {:?}", j.armas.agarre.as_ref().map(|a| a.id), j.armas.agarre.as_ref().map(|a| a.dist).unwrap_or(0.0), p);
+            j.jug.pitch += 0.35; paso(&mut j, &mut m, 60); let p1 = pos_de(&j, id); println!("   mirando 20° más arriba 1 s: el objeto subió {:.2} m", p1[1] - p[1]);
+            j.jug.yaw += 1.05; paso(&mut j, &mut m, 60); let p2 = pos_de(&j, id); println!("   girando 60° 1 s: se movió {:.2} m de costado", ((p2[0] - p1[0]).powi(2) + (p2[2] - p1[2]).powi(2)).sqrt());
+            foto(&mut m, "3c4_physgun");
+            let (bx, by) = pos_boton(wf, hf, Boton::Disparo2); toque(&mut j, 31, bx, by); paso(&mut j, &mut m, 120);
+            let p3 = pos_de(&j, id); let c = j.fis.cuerpo(id).map(|b| b.congelado).unwrap_or(false);
+            println!("   congelado {} · 2 s después sigue en el aire: alto {:.2} → {:.2} m", c, p2[1], p3[1]); foto(&mut m, "3c5_congelado");
+            // la Gravity Gun: elegirla en la barra, levantar el objeto del piso más cercano y lanzarlo
+            let (ax, ay) = pos_boton(wf, hf, Boton::Arma); toque(&mut j, 32, ax, ay); paso(&mut j, &mut m, 1); foto(&mut m, "3c6_barra");
+            let (gx, gy) = pos_boton(wf, hf, Boton::ArmaN(1)); toque(&mut j, 33, gx, gy); paso(&mut j, &mut m, 1);
+            println!("Gravity Gun: elegida {}", j.armas.def().nom);
+            let otro = j.objs.iter().filter_map(|o| o.cuerpo.and_then(|i| j.fis.cuerpo(i)).filter(|b| b.id != id && !b.congelado).map(|b| (b.id, b.pos))).min_by(|a, b| { let d = |p: [f64; 3]| (p[0] - j.jug.pos[0] as f64).powi(2) + (p[2] - j.jug.pos[2] as f64).powi(2); d(a.1).partial_cmp(&d(b.1)).unwrap() });
+            if let Some((id2, q)) = otro {
+                let dist = ((q[0] - j.jug.pos[0] as f64).powi(2) + (q[2] - j.jug.pos[2] as f64).powi(2)).sqrt();
+                if dist > 20.0 { let k = (dist - 6.0) / dist; j.jug.noclip = true; j.jug.pos[0] += ((q[0] - j.jug.pos[0] as f64) * k) as f32; j.jug.pos[2] += ((q[2] - j.jug.pos[2] as f64) * k) as f32; paso(&mut j, &mut m, 2); j.jug.noclip = false; paso(&mut j, &mut m, 60); }
+                apuntar(&mut j, q); paso(&mut j, &mut m, 2);
+                let (bx, by) = pos_boton(wf, hf, Boton::Disparo2); toque(&mut j, 34, bx, by); paso(&mut j, &mut m, 60);
+                let q1 = pos_de(&j, id2); println!("   levantado {:?}: de {:.2} a {:.2} m de alto", j.armas.grav.as_ref().map(|g| g.id), q[1], q1[1]); foto(&mut m, "3c7_gravgun");
+                j.jug.pitch = 0.25; paso(&mut j, &mut m, 10);
+                let (bx, by) = pos_boton(wf, hf, Boton::Disparo); toque(&mut j, 35, bx, by); paso(&mut j, &mut m, 2);
+                let v = j.fis.cuerpo(id2).map(|b| (b.vel[0].powi(2) + b.vel[1].powi(2) + b.vel[2].powi(2)).sqrt()).unwrap_or(0.0);
+                paso(&mut j, &mut m, 60); let q2 = pos_de(&j, id2);
+                println!("   lanzado a {:.1} m/s; 1 s después a {:.1} m", v, ((q2[0] - q1[0]).powi(2) + (q2[2] - q1[2]).powi(2)).sqrt()); foto(&mut m, "3c8_lanzado");
+            }
+            let (ax, ay) = pos_boton(wf, hf, Boton::Arma); toque(&mut j, 36, ax, ay); let (gx, gy) = pos_boton(wf, hf, Boton::ArmaN(0)); toque(&mut j, 37, gx, gy);
+            j.jug.pitch = 0.0; paso(&mut j, &mut m, 2);
+        }
     }
     // el otro mapa: caminar 6 s para adelante y a la derecha (choca con lo que haya)
     // Ajustes: abrirlo (pausa), calidad Medio, cerrar y ver la escena; abrir otra vez, Ultra, y en «Motor y mapa» el otro mapa
