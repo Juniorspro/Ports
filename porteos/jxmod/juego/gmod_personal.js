@@ -543,8 +543,13 @@ function jxmQuitar(tipo, id) {
   const B = jxmPuente(); if (!B || !JXM.on || !B.quitar) return;
   const u = new Uint8Array(9); u[0] = tipo; new DataView(u.buffer).setFloat64(1, id, true); B.quitar(jxmB64(u));
 }
+// (una marca mientras el motor arranca: si la app se cerró —el driver de la placa—, al volver queda apagado en vez de
+// cerrarse otra vez al entrar a un mapa; se borra con el primer cuadro dibujado)
+function jxmMarca(v) { try { if (v) localStorage.setItem('jxm_arranca', String(Date.now())); else localStorage.removeItem('jxm_arranca'); } catch (e) {} }
+function jxmSeCerro() { try { return !!localStorage.getItem('jxm_arranca'); } catch (e) { return false; } }
 function jxmPoner(on) {
   on = !!on && jxmDisponible();
+  if (on && !JXM.prendido && !JXM.grab) jxmMarca(true);
   if (!JXM.grab && typeof window.JXMotor !== 'undefined') {
     if (on && !JXM.prendido) { const r = String(window.JXMotor.prender()); if (r !== 'ok') { aviso('Motor nativo: ' + r); on = false; } else { JXM.prendido = true; JXM.bin = jxmProbarBin(window.JXMotor); } }
     if (!on && JXM.prendido) { window.JXMotor.apagar(); JXM.prendido = false; }
@@ -560,8 +565,9 @@ function jxmVigilar() {
   JXM.vig = setInterval(() => {
     if (!JXM.on || JXM.grab) { clearInterval(JXM.vig); return; }
     const e = jxmEstado();
+    if (/^ok/.test(e)) jxmMarca(false);
     const mal = /^error/.test(e) || (!/^ok/.test(e) && performance.now() - JXM.vigT > 6000 && JUEGO.estado === 'juego' && !document.hidden);
-    if (mal) { clearInterval(JXM.vig); jxmPoner(false); PREFS.jxMotor = false; guardarPrefs(); aviso('Motor nativo apagado: ' + e.slice(0, 120)); if (typeof cnAnotar === 'function') cnAnotar('jxmotor', e.slice(0, 300)); }
+    if (mal) { jxmMarca(false); clearInterval(JXM.vig); jxmPoner(false); PREFS.jxMotor = false; guardarPrefs(); aviso('Motor nativo apagado: ' + e.slice(0, 120)); if (typeof cnAnotar === 'function') cnAnotar('jxmotor', e.slice(0, 300)); }
   }, 1000);
 }
 // lo que dice el motor nativo (cuadros por segundo, ms, memoria) o su error

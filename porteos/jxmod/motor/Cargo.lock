@@ -405,10 +405,9 @@ dependencies = [
 name = "jxmotor-android"
 version = "0.1.0"
 dependencies = [
- "glow 0.16.0",
  "jxmotor",
- "khronos-egl",
- "libloading",
+ "raw-window-handle",
+ "wgpu",
 ]
 
 [[package]]

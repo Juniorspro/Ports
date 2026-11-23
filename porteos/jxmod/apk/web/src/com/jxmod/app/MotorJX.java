@@ -15,7 +15,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * JX Motor en la app (sólo la versión personal; celulares ARM de 64 o 32 bits con GLES 3): una SurfaceView atrás del WebView, que queda
+ * JX Motor en la app (sólo la versión personal; celulares ARM de 64 o 32 bits con Vulkan —o GLES 3—, con wgpu): una SurfaceView atrás del WebView, que queda
  * transparente, y el motor nativo dibujando el mundo en ella. El juego (gmod_personal.js, jxmCuadroNativo) le manda por
  * la puerta «JXMotor» los recursos nuevos y cada cuadro; WebGL dibuja encima sólo el arma, los efectos y la interfaz.
  */
@@ -48,12 +48,14 @@ public final class MotorJX {
             if (!lib) return "la APK no trae el motor para " + a;
             android.app.ActivityManager am = (android.app.ActivityManager) web.getSystemService(Web.ACTIVITY_SERVICE);
             int gl = am.getDeviceConfigurationInfo().reqGlEsVersion;
-            if (gl < 0x30000) return "la placa de video tiene OpenGL ES " + (gl >> 16) + "." + (gl & 0xffff) + " (hace falta 3.0)";
+            // (el motor usa Vulkan; sin Vulkan, GLES 3 —wgpu cambia solo—)
+            boolean vk = web.getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_VULKAN_HARDWARE_LEVEL);
+            if (!vk && gl < 0x30000) return "la placa de video no tiene Vulkan y tiene OpenGL ES " + (gl >> 16) + "." + (gl & 0xffff) + " (hace falta Vulkan o 3.0)";
             return "ok";
         } catch (Throwable t) { return "error: " + t; }
     }
 
-    /** si este celular puede: versión personal, 64 o 32 bits de ARM, la APK trae el motor y hay GLES 3 */
+    /** si este celular puede: versión personal, 64 o 32 bits de ARM, la APK trae el motor y hay Vulkan o GLES 3 */
     @JavascriptInterface public synchronized boolean disponible() {
         if (disponible == null) disponible = "ok".equals(motivo());
         return disponible;

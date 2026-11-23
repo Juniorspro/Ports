@@ -115,6 +115,7 @@ fn con_wgpu(a: &[String], datos: &[u8], esc: Option<&Escena>, w: u32, h: u32, n:
         println!("grabación: {} pedazos de recursos ({:.0} ms en subirlos) · {} cuadros ({:.2} ms/cuadro con lo que llega) · {:.1} MB", nr, tr, nc, prom, datos.len() as f64 / 1e6);
     }
     println!("{} · cargado en {:.0} ms · {}x{}", m.resumen(), t0.elapsed().as_secs_f64() * 1000.0, w, h);
+    if let Some(e) = m.error() { println!("ERROR DE LA PLACA: {e}"); }
     for p in perfiles {
         m.op = match p.as_str() { "celular" => Opciones::celular_flojo(), "sin" => Opciones { sombras: false, reflejo: false, ..Opciones::default() }, _ => Opciones::default() };
         for _ in 0..3 { m.dibujar(&sv, fmt, w, h); } esperar(&d);

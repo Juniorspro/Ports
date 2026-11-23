@@ -293,7 +293,7 @@ function empezarPartida(mapa) {
   aplicarMods(); // mods y mapa de la comunidad (después de las armas: un mod puede sumar)
   if (typeof gmmPartida === 'function') gmmPartida(mapa);   // (un modo de juego de GMod: el elegido o el del mapa)
   if (typeof menuMostrar === 'function') menuMostrar(false); $('hud').classList.remove('oc');
-  JUEGO.estado = 'juego'; cerrarPaneles(); modMenuBoton(); if (typeof mjxAlEntrar === 'function') mjxAlEntrar(); if (JXP && PREFS.jxMotor && typeof jxmPoner === 'function' && !JXM.on) jxmPoner(true); if (typeof vrAlEntrar === 'function') vrAlEntrar();
+  JUEGO.estado = 'juego'; cerrarPaneles(); modMenuBoton(); if (typeof mjxAlEntrar === 'function') mjxAlEntrar(); if (JXP && PREFS.jxMotor && typeof jxmPoner === 'function' && !JXM.on) { if (jxmSeCerro()) { jxmMarca(false); PREFS.jxMotor = false; guardarPrefs(); aviso('El motor Rust cerró la app la última vez: quedó apagado (Ajustes → Motor gráfico para probar de nuevo)', 5); } else jxmPoner(true); } if (typeof vrAlEntrar === 'function') vrAlEntrar();
   if (typeof jugadorCuerpoNuevo === 'function') jugadorCuerpoNuevo();
   if (typeof redEntrar === 'function') redEntrar(mapa);
   aviso(typeof mapaNom === 'function' ? mapaNom(mapa) : mapa, 2.5);

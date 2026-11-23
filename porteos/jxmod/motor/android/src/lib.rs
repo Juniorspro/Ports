@@ -1,10 +1,12 @@
 //! JX Motor en Android (libjxmotor.so). La app (MotorJX.java) le pasa la superficie que está atrás del WebView y lo que
 //! manda el juego (texto en base64, tal cual llega por la puerta de JavaScript): recursos (JXE1), cuadros (JXC1), vaciar
-//! y quitar. Un hilo propio, con su contexto de EGL, sube los recursos en orden y dibuja el último cuadro que llegó (los
-//! que llegan mientras dibuja se saltean: siempre el más nuevo). JNI mínima por número, sin dependencias (como JX Hand).
+//! y quitar. Un hilo propio, con la placa, sube los recursos en orden y dibuja el último cuadro que llegó (los
+//! que llegan mientras dibuja se saltean: siempre el más nuevo). JNI mínima por número (como JX Hand). La placa es wgpu:
+//! Vulkan, y GLES si el celular no tiene Vulkan.
 #![allow(non_snake_case)]
 use jxmotor::escena::{Cuadro, Escena};
-use jxmotor::gpu::{Motor, Opciones};
+use jxmotor::gpu::Opciones;
+use jxmotor::wg::Motor;
 use std::collections::VecDeque;
 use std::ffi::c_void;
 use std::sync::{Arc, Condvar, Mutex};
@@ -71,49 +73,53 @@ pub struct Jxm { c: Arc<Compartido>, hilo: Option<std::thread::JoinHandle<()>> }
 extern "C" {
     fn ANativeWindow_fromSurface(env: Env, surface: Obj) -> *mut c_void;
     fn ANativeWindow_release(w: *mut c_void);
-    fn ANativeWindow_setBuffersGeometry(w: *mut c_void, ancho: i32, alto: i32, formato: i32) -> i32;
+    fn ANativeWindow_getWidth(w: *mut c_void) -> i32;
+    fn ANativeWindow_getHeight(w: *mut c_void) -> i32;
 }
 #[cfg(not(target_os = "android"))]
 unsafe fn ANativeWindow_fromSurface(_: Env, _: Obj) -> *mut c_void { std::ptr::null_mut() }
 #[cfg(not(target_os = "android"))]
 unsafe fn ANativeWindow_release(_: *mut c_void) {}
 #[cfg(not(target_os = "android"))]
-unsafe fn ANativeWindow_setBuffersGeometry(_: *mut c_void, _: i32, _: i32, _: i32) -> i32 { 0 }
+unsafe fn ANativeWindow_getWidth(_: *mut c_void) -> i32 { 1 }
+#[cfg(not(target_os = "android"))]
+unsafe fn ANativeWindow_getHeight(_: *mut c_void) -> i32 { 1 }
 
-type Egl = khronos_egl::DynamicInstance<khronos_egl::EGL1_4>;
+/// la placa: Vulkan primero; si el celular no tiene (o falla), wgpu sobre GLES
+fn placa() -> Result<(wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue, String), String> {
+    let mut err = String::new();
+    for b in [wgpu::Backends::VULKAN, wgpu::Backends::GL] {
+        let inst = wgpu::Instance::new(wgpu::InstanceDescriptor { backends: b, ..wgpu::InstanceDescriptor::new_without_display_handle() });
+        match jxmotor::wg::placa(&inst, None) { Ok((a, d, q, n)) => return Ok((inst, a, d, q, n)), Err(e) => { err.push_str(&format!("{b:?}: {e}; ")); } }
+    }
+    Err(err)
+}
+/// la superficie de wgpu sobre la ventana nativa de Android, configurada a su tamaño: sin sRGB (el color ya sale con su
+/// curva), con espera a la pantalla (a la frecuencia que pida la app: 90, 120 Hz) y Mailbox si lo hay (menos demora)
+unsafe fn superficie_de(inst: &wgpu::Instance, ad: &wgpu::Adapter, d: &wgpu::Device, w: *mut c_void) -> Result<(wgpu::Surface<'static>, wgpu::SurfaceConfiguration), String> {
+    use raw_window_handle::{AndroidDisplayHandle, AndroidNdkWindowHandle, RawDisplayHandle, RawWindowHandle};
+    let nn = std::ptr::NonNull::new(w).ok_or("ventana nula")?;
+    let t = wgpu::SurfaceTargetUnsafe::RawHandle { raw_display_handle: Some(RawDisplayHandle::Android(AndroidDisplayHandle::new())), raw_window_handle: RawWindowHandle::AndroidNdk(AndroidNdkWindowHandle::new(nn)) };
+    let s = inst.create_surface_unsafe(t).map_err(|e| format!("superficie: {e}"))?;
+    let caps = s.get_capabilities(ad);
+    if caps.formats.is_empty() { return Err("la placa no dibuja en esta ventana".into()); }
+    let fmt = caps.formats.iter().copied().find(|f| !f.is_srgb()).unwrap_or(caps.formats[0]);
+    let modo = if caps.present_modes.contains(&wgpu::PresentMode::Mailbox) { wgpu::PresentMode::Mailbox } else { wgpu::PresentMode::Fifo };
+    let cfg = wgpu::SurfaceConfiguration { usage: wgpu::TextureUsages::RENDER_ATTACHMENT, format: fmt, width: ANativeWindow_getWidth(w).max(1) as u32, height: ANativeWindow_getHeight(w).max(1) as u32,
+        present_mode: modo, desired_maximum_frame_latency: 2, alpha_mode: caps.alpha_modes[0], view_formats: vec![], color_space: Default::default() };
+    s.configure(d, &cfg);
+    Ok((s, cfg))
+}
 
-/// el hilo de dibujo: EGL, el motor, y la vuelta (subir lo que llegó en orden, dibujar el último cuadro)
+/// el hilo de dibujo: la placa (wgpu), el motor, y la vuelta (subir lo que llegó en orden, dibujar el último cuadro)
 fn hilo(c: Arc<Compartido>) {
-    use khronos_egl as egl;
     let poner_estado = |s: String| { c.cola.lock().unwrap().estado = s; };
-    let e = match unsafe { Egl::load_required() } { Ok(e) => e, Err(x) => { poner_estado(format!("error: libEGL: {x}")); return; } };
-    let d = match unsafe { e.get_display(egl::DEFAULT_DISPLAY) } { Some(d) => d, None => { poner_estado("error: sin pantalla EGL".into()); return; } };
-    if let Err(x) = e.initialize(d) { poner_estado(format!("error: eglInitialize {x}")); return; }
-    let _ = e.bind_api(egl::OPENGL_ES_API);
-    const ES3: egl::Int = 0x0040; // EGL_OPENGL_ES3_BIT_KHR
-    // (con ventana y 1×1 de reserva; si no hay —la prueba en la PC, sin ventanas—, la que haya con GLES 3)
-    let cfg = [egl::WINDOW_BIT | egl::PBUFFER_BIT, egl::WINDOW_BIT, egl::PBUFFER_BIT].iter()
-        .find_map(|&t| e.choose_first_config(d, &[egl::SURFACE_TYPE, t, egl::RENDERABLE_TYPE, ES3, egl::RED_SIZE, 8, egl::GREEN_SIZE, 8, egl::BLUE_SIZE, 8, egl::NONE]).ok().flatten())
-        .or_else(|| e.choose_first_config(d, &[egl::RENDERABLE_TYPE, ES3, egl::NONE]).ok().flatten());
-    let Some(cfg) = cfg else { poner_estado("error: sin configuración EGL con GLES 3".into()); return; };
-    let ctx = match e.create_context(d, cfg, None, &[egl::CONTEXT_CLIENT_VERSION, 3, egl::NONE]) { Ok(x) => x, Err(x) => { poner_estado(format!("error: contexto GLES 3: {x}")); return; } };
-    // (sin ventana, una superficie de 1×1 para tener el contexto activo y poder subir recursos)
-    let pb = e.create_pbuffer_surface(d, cfg, &[egl::WIDTH, 1, egl::HEIGHT, 1, egl::NONE]).ok();
-    let _ = e.make_current(d, pb, pb, Some(ctx));
-    // las funciones de GL: de libGLESv3 (o v2), y si no, de eglGetProcAddress
-    let lib = unsafe { libloading::Library::new("libGLESv3.so").or_else(|_| libloading::Library::new("libGLESv2.so")) }.ok();
-    let gl = unsafe {
-        glow::Context::from_loader_function(|s| {
-            let cs = std::ffi::CString::new(s).unwrap();
-            if let Some(l) = &lib { if let Ok(p) = l.get::<*const c_void>(cs.as_bytes_with_nul()) { if !p.is_null() { return *p; } } }
-            e.get_proc_address(s).map_or(std::ptr::null(), |p| p as *const c_void)
-        })
-    };
-    let mut m = match unsafe { Motor::nuevo(gl, Opciones::celular_flojo()) } { Ok(m) => m, Err(x) => { poner_estado(format!("error: {x}")); return; } };
-    let (mut win, mut sup): (Option<Ventana>, Option<egl::Surface>) = (None, None);
-    let (mut n, mut t_ventana, mut ms_dib, mut ms_rec, mut fps) = (0u64, Instant::now(), 0.0f64, 0.0f64, 0.0f64);
-    let mut ult_rec = 0.0;
-    poner_estado("listo".into());
+    let (inst, ad, dev, q, nombre) = match placa() { Ok(x) => x, Err(e) => { poner_estado(format!("error: sin placa ({e})")); return; } };
+    let mut m = match Motor::nuevo(dev.clone(), q, Opciones::celular_flojo(), nombre.clone()) { Ok(m) => m, Err(x) => { poner_estado(format!("error: {x}")); return; } };
+    let (mut win, mut sup): (Option<Ventana>, Option<(wgpu::Surface<'static>, wgpu::SurfaceConfiguration)>) = (None, None);
+    let (mut t_ventana, mut ms_dib, mut ms_rec) = (Instant::now(), 0.0f64, 0.0f64);
+    let mut n = 0u64; let mut ult_rec = 0.0;
+    poner_estado(format!("listo · {nombre}"));
     loop {
         let (msgs, cuadro, cambio, op, salir) = {
             let mut g = c.cola.lock().unwrap();
@@ -122,17 +128,11 @@ fn hilo(c: Arc<Compartido>) {
         };
         if let Some(nueva) = cambio {
             // la superficie cambió: la vieja se suelta (Android espera a que esto termine antes de destruirla)
-            let _ = e.make_current(d, pb, pb, Some(ctx));
-            if let Some(s) = sup.take() { let _ = e.destroy_surface(d, s); }
+            sup = None;
             if let Some(w) = win.take() { unsafe { ANativeWindow_release(w.0) }; }
             if let Some(w) = nueva {
                 if !w.0.is_null() {
-                    let fmt = e.get_config_attrib(d, cfg, egl::NATIVE_VISUAL_ID).unwrap_or(0);
-                    unsafe { ANativeWindow_setBuffersGeometry(w.0, 0, 0, fmt) };
-                    match unsafe { e.create_window_surface(d, cfg, w.0 as egl::NativeWindowType, None) } {
-                        Ok(s) => { sup = Some(s); let _ = e.make_current(d, Some(s), Some(s), Some(ctx)); let _ = e.swap_interval(d, 1); }
-                        Err(x) => poner_estado(format!("error: superficie {x}")),
-                    }
+                    match unsafe { superficie_de(&inst, &ad, &dev, w.0) } { Ok(s) => sup = Some(s), Err(x) => poner_estado(format!("error: {x}")) }
                     win = Some(w);
                 }
             }
@@ -142,11 +142,11 @@ fn hilo(c: Arc<Compartido>) {
         if let Some(o) = op { m.op = o; }
         let t0 = Instant::now();
         for msg in msgs {
-            let r = unsafe { match msg {
+            let r = match msg {
                 Msg::Recursos(b) => Escena::leer(&b).and_then(|esc| m.cargar(&esc)),
                 Msg::Vaciar => { m.vaciar(); Ok(()) }
                 Msg::Quitar(b) => { if !b.is_empty() { let ids: Vec<i64> = b[1..].chunks_exact(8).map(|x| f64::from_le_bytes(x.try_into().unwrap()) as i64).collect(); m.quitar(b[0], &ids); } Ok(()) }
-            } };
+            };
             if let Err(x) = r { poner_estado(format!("error en un recurso: {x}")); }
             ult_rec = t0.elapsed().as_secs_f64() * 1000.0;
         }
@@ -154,28 +154,36 @@ fn hilo(c: Arc<Compartido>) {
         if let Some(b) = cuadro {
             let mut r = std::mem::take(&mut m.ranuras); let q = Cuadro::leer_con(&b, &mut r); m.ranuras = r;
             match q { Ok(q) => m.poner_cuadro(q), Err(x) => poner_estado(format!("error en el cuadro: {x}")) }
-            if let Some(s) = sup {
-                let (w, h) = (e.query_surface(d, s, egl::WIDTH).unwrap_or(1), e.query_surface(d, s, egl::HEIGHT).unwrap_or(1));
+            if let Some((s, cfg)) = &mut sup {
                 let t = Instant::now();
-                unsafe { m.dibujar(None, w, h); }
-                let _ = e.swap_buffers(d, s);
-                let dt = t.elapsed().as_secs_f64() * 1000.0; ms_dib = if n == 0 { dt } else { ms_dib * 0.9 + dt * 0.1 };
-                n += 1;
+                let tex = match s.get_current_texture() {
+                    wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => Some(t),
+                    wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                        // (cambió de tamaño o se perdió: se vuelve a configurar con el tamaño de la ventana)
+                        if let Some(w) = &win { cfg.width = unsafe { ANativeWindow_getWidth(w.0) }.max(1) as u32; cfg.height = unsafe { ANativeWindow_getHeight(w.0) }.max(1) as u32; }
+                        s.configure(&dev, cfg); None
+                    }
+                    _ => None,
+                };
+                if let Some(tex) = tex {
+                    let v = tex.texture.create_view(&wgpu::TextureViewDescriptor::default());
+                    m.dibujar(&v, cfg.format, cfg.width, cfg.height);
+                    m.queue.present(tex);
+                    let dt = t.elapsed().as_secs_f64() * 1000.0; ms_dib = if n == 0 { dt } else { ms_dib * 0.9 + dt * 0.1 };
+                    n += 1;
+                }
                 let tv = t_ventana.elapsed().as_secs_f64();
                 if tv >= 1.0 {
-                    fps = m.cuadro as f64 / tv; m.cuadro = 0; t_ventana = Instant::now();
-                    poner_estado(format!("ok {:.0} cuadros/s · {:.1} ms dibujando · {}×{} · {} dibujos · {:.0} MB en la placa · recursos {:.0} ms · {}", fps, ms_dib, w, h, m.dibujos, m.memoria as f64 / 1e6, ms_rec, m.resumen()));
+                    let fps = m.cuadro as f64 / tv; m.cuadro = 0; t_ventana = Instant::now();
+                    if let Some(e) = m.error() { poner_estado(format!("error de la placa: {e} · {}", m.resumen())); continue; }
+                    poner_estado(format!("ok {:.0} cuadros/s · {:.1} ms dibujando · {}×{} · {} dibujos · {:.0} MB en la placa · {} · recursos {:.0} ms · {}", fps, ms_dib, cfg.width, cfg.height, m.dibujos, m.memoria as f64 / 1e6, m.placa, ms_rec, m.resumen()));
                 }
             }
         }
     }
-    if let Some(s) = sup.take() { let _ = e.destroy_surface(d, s); }
+    drop(sup);
     if let Some(w) = win.take() { unsafe { ANativeWindow_release(w.0) }; }
-    unsafe { m.vaciar(); }
-    let _ = e.make_current(d, None, None, None);
-    let _ = e.destroy_context(d, ctx);
-    if let Some(p) = pb { let _ = e.destroy_surface(d, p); }
-    let _ = fps;
+    m.vaciar();
 }
 
 fn jxm<'a>(m: i64) -> Option<&'a Jxm> { if m == 0 { None } else { Some(unsafe { &*(m as *const Jxm) }) } }

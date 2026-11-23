@@ -103,6 +103,8 @@ pub struct Motor {
     pub mapa: String,
     /// la placa que tocó (para el estado)
     pub placa: String,
+    /// el primer error de la placa (validación, memoria, placa perdida): se anota en vez de cerrar la app
+    errores: std::sync::Arc<std::sync::Mutex<Option<String>>>,
 }
 
 use wgpu::{VertexAttribute as VA, VertexFormat as VF};
@@ -121,6 +123,10 @@ impl Motor {
     /// arma los sombreadores, las tuberías y los búferes; los recursos llegan después con `cargar`
     pub fn nuevo(device: wgpu::Device, queue: wgpu::Queue, op: Opciones, placa: String) -> Result<Motor, String> {
         let d = &device;
+        // (un error de la placa no cierra la app: queda anotado y se muestra en el estado)
+        let errores = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
+        { let e2 = errores.clone(); d.on_uncaptured_error(std::sync::Arc::new(move |e: wgpu::Error| { let mut g = e2.lock().unwrap(); if g.is_none() { *g = Some(e.to_string().chars().take(400).collect()); } })); }
+        { let e3 = errores.clone(); d.set_device_lost_callback(move |r, m| { let mut g = e3.lock().unwrap(); if g.is_none() { *g = Some(format!("placa perdida ({r:?}): {m}")); } }); }
         use wgpu::{BindGroupLayoutEntry as E, BindingType as B, ShaderStages as S};
         let unif = |n: u32, vis: S, tam: u64| E { binding: n, visibility: vis, ty: B::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: true, min_binding_size: tamu(tam) }, count: None };
         let tex = |n: u32, dim: wgpu::TextureViewDimension| E { binding: n, visibility: S::FRAGMENT, ty: B::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: dim, multisampled: false }, count: None };
@@ -220,7 +226,7 @@ impl Motor {
             b_glob, b_partu, b_post, g_glob: None, g_glob_solo, g_obj: None, g_hue: None, g_mat: HashMap::new(),
             sombra: None, sombra_px: 0, reflejo: None, escena_rt: None, ao_rt: None, refr: None, marcas_n: 0, svp: mat::id(), sesgo: [0.0, 0.0],
             c: None, items: vec![], cuadro: 0, dibujos: 0, opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, ranuras: Vec::new(),
-            instancias: std::env::var("JXM_SIN_INST").is_err(), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), mapa: String::new(), placa,
+            instancias: std::env::var("JXM_SIN_INST").is_err(), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), mapa: String::new(), placa, errores,
         };
         m.g_obj = Some(m.grupo_unif(&m.capas.obj, &m.b_obj.b, O_TAM));
         m.g_hue = Some(m.grupo_unif(&m.capas.hue, &m.b_hue.b, H_TAM));
@@ -701,10 +707,13 @@ impl Motor {
         p.draw_indexed(dd.s0..dd.s0 + dd.sn, 0, 0..dd.n);
     }
 
+    /// el primer error de la placa, si hubo
+    pub fn error(&self) -> Option<String> { self.errores.lock().unwrap().clone() }
+
     pub fn resumen(&self) -> String {
         let n = self.items.len();
-        format!("mapa {} · {} mallas · {} texturas · {} luces horneadas · {} materiales · {:.1} MB en la placa · {} cosas en el cuadro ({} opacas, {} transparentes, {} de agua a la vista) · {}",
-            self.mapa, self.mallas.len(), self.texs.len(), self.lms.len(), self.mats.len(), self.memoria as f64 / 1e6, n, self.opacos.len(), self.transp.len(), self.aguas.len(), self.placa)
+        format!("mapa {} · {} mallas · {} texturas · {} luces horneadas · {} materiales · {:.1} MB en la placa · {} cosas en el cuadro ({} opacas, {} transparentes, {} de agua a la vista)",
+            self.mapa, self.mallas.len(), self.texs.len(), self.lms.len(), self.mats.len(), self.memoria as f64 / 1e6, n, self.opacos.len(), self.transp.len(), self.aguas.len())
     }
 }
 
