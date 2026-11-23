@@ -696,7 +696,9 @@ function fisicaRust() { return FW.ok && !PH.sinRust && !(typeof Q !== 'undefined
 function fisicaWasmPaso(dt) {
   const E = FW.ex, C = PH.contacts, J = PH.joints, L = FW.L, idx = FW.idx; L.length = 0; idx.clear();
   const pon = (b) => { let i = idx.get(b); if (i === undefined) { i = L.length; L.push(b); idx.set(b, i); } return i; };
-  for (const b of PH.bodies) pon(b);
+  // (sólo lo que el solver puede mover o lo que toca a algo que se mueve: los dormidos sueltos —500 cajas quietas en el piso—
+  // no cambian y no se pasan)
+  for (const b of PH.bodies) if (b.dynamic && !b.sleep) pon(b);
   for (const c of C) { pon(c.A); if (c.B) pon(c.B); }
   for (const j of J) { pon(j.a); pon(j.b); }
   // (los golpes de los muñecos que vuelan: una vez por paso, con la velocidad del principio)

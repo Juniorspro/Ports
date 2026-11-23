@@ -23,7 +23,7 @@ pub fn pedazos(b: &[u8]) -> Result<Vec<Pedazo<'_>>, String> {
 pub unsafe fn aplicar(m: &mut Motor, p: &Pedazo) -> Result<(), String> {
     match p {
         Pedazo::Recursos(d) => m.cargar(&Escena::leer(d)?),
-        Pedazo::Cuadro(d) => { m.poner_cuadro(Cuadro::leer(d)?); Ok(()) }
+        Pedazo::Cuadro(d) => { let mut r = std::mem::take(&mut m.ranuras); let c = Cuadro::leer_con(d, &mut r); m.ranuras = r; m.poner_cuadro(c?); Ok(()) }
         Pedazo::Vaciar => { m.vaciar(); Ok(()) }
         Pedazo::Quitar(d) => {
             if d.is_empty() { return Ok(()); }

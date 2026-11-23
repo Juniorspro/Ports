@@ -100,8 +100,19 @@ impl Cuadro {
         let f: Vec<f32> = b.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
         Cuadro::de_floats(&f)
     }
-    pub fn de_floats(f: &[f32]) -> Result<Cuadro, String> {
-        if f.len() < CAB_CUADRO || f[0].to_bits() != u32::from_le_bytes(*b"JXC1") { return Err("no es un cuadro".into()); }
+    pub fn de_floats(f: &[f32]) -> Result<Cuadro, String> { Cuadro::de_floats_con(f, &mut Vec::new()) }
+    /// lo mismo con la tabla de lugares del motor (los cuadros JXC2: cada cosa tiene un lugar fijo y sólo llega lo que cambió)
+    pub fn leer_con(b: &[u8], ranuras: &mut Vec<Option<ItemDin>>) -> Result<Cuadro, String> {
+        if b.len() % 4 != 0 || b.len() < 4 * CAB_CUADRO { return Err("cuadro cortado".into()); }
+        let f: Vec<f32> = b.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
+        Cuadro::de_floats_con(&f, ranuras)
+    }
+    /// JXC2 (después de las luces): cuántas cambiaron y cada una [lugar, malla, desde, cuántos, material, matriz(16),
+    /// esfera(4), banderas]; cuántas se ven y sus lugares; cuántas con huesos y cada una [lugar, n, n floats] (n negativo:
+    /// los huesos del lugar -n-1, ya mandados en este cuadro); y los efectos
+    pub fn de_floats_con(f: &[f32], ranuras: &mut Vec<Option<ItemDin>>) -> Result<Cuadro, String> {
+        let dos = f.len() >= CAB_CUADRO && f[0].to_bits() == u32::from_le_bytes(*b"JXC2");
+        if f.len() < CAB_CUADRO || (!dos && f[0].to_bits() != u32::from_le_bytes(*b"JXC1")) { return Err("no es un cuadro".into()); }
         let n = f[1] as usize; let mut k = 2usize;
         let mut tomar = |m: usize| -> Result<&[f32], String> { if k + m > f.len() { return Err("cuadro cortado".into()); } let s = &f[k..k + m]; k += m; Ok(s) };
         let vp: [f32; 16] = tomar(16)?.try_into().unwrap(); let pos: [f32; 3] = tomar(3)?.try_into().unwrap();
@@ -112,13 +123,29 @@ impl Cuadro {
         let mut luces = Vec::with_capacity(nl); for _ in 0..nl.min(16) { luces.push(tomar(12)?.try_into().unwrap()); }
         let mut esp = Vec::with_capacity(ne); for _ in 0..ne.min(16) { esp.push(tomar(12)?.try_into().unwrap()); }
         let mut items = Vec::with_capacity(n);
-        for _ in 0..n {
+        if dos {
+            let nu = tomar(1)?[0] as usize;
+            for _ in 0..nu {
+                let c = tomar(26)?; let r = c[0] as usize; if r > 1_000_000 { return Err("lugar fuera de rango".into()); }
+                if ranuras.len() <= r { ranuras.resize(r + 1, None); }
+                ranuras[r] = Some(ItemDin { m: c[1] as i64, s0: c[2] as u32, sn: c[3] as u32, mat: c[4] as i64, mm: c[5..21].try_into().unwrap(), esf: c[21..25].try_into().unwrap(), fl: c[25] as u32, h: Vec::new() });
+            }
+            let nv = tomar(1)?[0] as usize; let vis: Vec<usize> = tomar(nv)?.iter().map(|&x| x as usize).collect();
+            let mut donde = std::collections::HashMap::with_capacity(nv);
+            for r in vis { if let Some(Some(it)) = ranuras.get(r) { donde.insert(r, items.len()); let mut it = it.clone(); it.h.clear(); items.push(it); } }
+            let nh = tomar(1)?[0] as usize;
+            for _ in 0..nh {
+                let c = tomar(2)?; let (r, n) = (c[0] as usize, c[1]);
+                let h = if n < 0.0 { let j = (-n - 1.0) as usize; donde.get(&j).map(|&i| items[i].h.clone()).unwrap_or_default() } else { tomar(n as usize)?.to_vec() };
+                if let Some(&i) = donde.get(&r) { items[i].h = h; }
+            }
+        } else { for _ in 0..n {
             let c = tomar(POR_ITEM)?; let mm: [f32; 16] = c[4..20].try_into().unwrap(); let esf: [f32; 4] = c[20..24].try_into().unwrap();
             let (m, s0, sn, mat, fl, nh) = (c[0] as i64, c[1] as u32, c[2] as u32, c[3] as i64, c[24] as u32, c[25]);
             // (huesos: los floats; negativo, los mismos que la cosa número -nh-1 —las partes de un mismo personaje—)
             let h = if nh < 0.0 { let j = (-nh - 1.0) as usize; items.get(j).map(|x: &ItemDin| x.h.clone()).unwrap_or_default() } else { tomar(nh as usize)?.to_vec() };
             items.push(ItemDin { m, s0, sn, mat, mm, esf, fl, h });
-        }
+        } }
         // (los efectos: partículas —con la derecha y el arriba de la cámara para los carteles— y las marcas de frenada)
         let mut efectos = vec![];
         while let Ok(c) = tomar(2) { let (t, m) = (c[0] as u32, c[1] as usize); let d = tomar(m)?.to_vec(); efectos.push((t, d)); }
@@ -129,6 +156,20 @@ impl Cuadro {
 #[cfg(test)]
 mod prueba {
     use super::*;
+    /// JXC2: dos cosas en sus lugares; en el cuadro siguiente sólo cambia una, se ve una sola y la otra trae huesos
+    #[test]
+    fn lugares_fijos() {
+        let cab = |n: f32| { let mut f = vec![0f32; CAB_CUADRO]; f[0] = f32::from_bits(u32::from_le_bytes(*b"JXC2")); f[1] = n; f[39] = f32::NAN; f };
+        let cosa = |r: f32, m: f32| { let mut c = vec![0f32; 26]; c[0] = r; c[1] = m; c[3] = 6.0; c[5] = 1.0; c[10] = 1.0; c[15] = 1.0; c[20] = 1.0; c[24] = -1.0; c };
+        let mut t = Vec::new();
+        let mut f = cab(2.0); f.push(2.0); f.extend(cosa(0.0, 7.0)); f.extend(cosa(3.0, 9.0)); f.extend([2.0, 0.0, 3.0]); f.push(0.0);
+        let c = Cuadro::de_floats_con(&f, &mut t).unwrap();
+        assert_eq!(c.items.iter().map(|i| i.m).collect::<Vec<_>>(), vec![7, 9]);
+        let mut f = cab(1.0); f.push(1.0); f.extend(cosa(3.0, 11.0)); f.extend([1.0, 3.0]); f.extend([1.0, 3.0, 12.0]); f.extend((0..12).map(|i| i as f32));
+        let c = Cuadro::de_floats_con(&f, &mut t).unwrap();
+        assert_eq!(c.items.len(), 1); assert_eq!(c.items[0].m, 11); assert_eq!(c.items[0].h.len(), 12);
+        assert_eq!(t[0].as_ref().unwrap().m, 7);
+    }
     /// un cuadro con dos cosas de un mismo personaje: la segunda copia los huesos de la primera
     #[test]
     fn huesos_compartidos() {

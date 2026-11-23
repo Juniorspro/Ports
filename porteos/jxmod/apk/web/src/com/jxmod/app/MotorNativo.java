@@ -11,6 +11,9 @@ final class MotorNativo {
     static native void superficie(long m, Object surface);
     static native void recursos(long m, String b64);
     static native void cuadro(long m, String b64);
+    /** lo mismo en binario: un char por byte (0–255), sin base64 */
+    static native void recursosBin(long m, String bin);
+    static native void cuadroBin(long m, String bin);
     static native void vaciar(long m);
     static native void quitar(long m, String b64);
     /** «alto», «celular» o «bajo»; escala de la escena (0: la del perfil) */

@@ -30,6 +30,18 @@ unsafe fn texto_de(env: Env, s: Obj) -> Vec<u8> {
     region(env, s, 0, n, b.as_mut_ptr()); b.truncate(nu); b
 }
 
+/// los bytes de un String de Java armado con un char por byte (0–255: el juego lo manda así, sin base64); None si hay
+/// algún char de más de 255 (no vino como se mandó)
+unsafe fn bin_de(env: Env, s: Obj) -> Option<Vec<u8>> {
+    if s.is_null() { return Some(vec![]); }
+    let largo: extern "system" fn(Env, Obj) -> i32 = std::mem::transmute(funcion(env, 164)); // GetStringLength
+    let region: extern "system" fn(Env, Obj, i32, i32, *mut u16) = std::mem::transmute(funcion(env, 220)); // GetStringRegion
+    let n = largo(env, s).max(0); let mut u = vec![0u16; n as usize];
+    region(env, s, 0, n, u.as_mut_ptr());
+    if u.iter().any(|&c| c > 255) { return None; }
+    Some(u.into_iter().map(|c| c as u8).collect())
+}
+
 /// base64 (el de btoa) a bytes
 pub fn de_base64(t: &[u8]) -> Vec<u8> {
     let mut v = [255u8; 256];
@@ -140,7 +152,8 @@ fn hilo(c: Arc<Compartido>) {
         }
         if ult_rec > 0.0 { ms_rec = ult_rec; ult_rec = 0.0; }
         if let Some(b) = cuadro {
-            match Cuadro::leer(&b) { Ok(q) => m.poner_cuadro(q), Err(x) => poner_estado(format!("error en el cuadro: {x}")) }
+            let mut r = std::mem::take(&mut m.ranuras); let q = Cuadro::leer_con(&b, &mut r); m.ranuras = r;
+            match q { Ok(q) => m.poner_cuadro(q), Err(x) => poner_estado(format!("error en el cuadro: {x}")) }
             if let Some(s) = sup {
                 let (w, h) = (e.query_surface(d, s, egl::WIDTH).unwrap_or(1), e.query_surface(d, s, egl::HEIGHT).unwrap_or(1));
                 let t = Instant::now();
@@ -191,6 +204,15 @@ pub unsafe extern "system" fn Java_com_jxmod_app_MotorNativo_recursos(env: Env, 
 #[no_mangle]
 pub unsafe extern "system" fn Java_com_jxmod_app_MotorNativo_cuadro(env: Env, _cls: Obj, m: i64, b64: Obj) {
     let b = de_base64(&texto_de(env, b64)); encolar(m, |g| g.cuadro = Some(b));
+}
+/// lo mismo, en binario (un char por byte)
+#[no_mangle]
+pub unsafe extern "system" fn Java_com_jxmod_app_MotorNativo_recursosBin(env: Env, _cls: Obj, m: i64, s: Obj) {
+    match bin_de(env, s) { Some(b) => encolar(m, |g| g.orden.push_back(Msg::Recursos(b))), None => encolar(m, |g| g.estado = "error: recursos binarios mal pasados".into()) }
+}
+#[no_mangle]
+pub unsafe extern "system" fn Java_com_jxmod_app_MotorNativo_cuadroBin(env: Env, _cls: Obj, m: i64, s: Obj) {
+    if let Some(b) = bin_de(env, s) { encolar(m, |g| g.cuadro = Some(b)); }
 }
 #[no_mangle]
 pub extern "system" fn Java_com_jxmod_app_MotorNativo_vaciar(_env: Env, _cls: Obj, m: i64) { encolar(m, |g| { g.orden.push_back(Msg::Vaciar); g.cuadro = None; }); }

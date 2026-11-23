@@ -80,6 +80,10 @@ public final class MotorJX {
 
     @JavascriptInterface public void recursos(String b64) { long x = m; if (x != 0) MotorNativo.recursos(x, b64); }
     @JavascriptInterface public void cuadro(String b64) { long x = m; if (x != 0) MotorNativo.cuadro(x, b64); }
+    @JavascriptInterface public void recursosBin(String s) { long x = m; if (x != 0) MotorNativo.recursosBin(x, s); }
+    @JavascriptInterface public void cuadroBin(String s) { long x = m; if (x != 0) MotorNativo.cuadroBin(x, s); }
+    /** la prueba del binario: la misma cuenta que hace el juego (h = h·31 + char, en 32 bits) sobre lo que llegó */
+    @JavascriptInterface public int prueba(String s) { int h = s.length(); for (int i = 0; i < s.length(); i++) h = h * 31 + s.charAt(i); return h; }
     @JavascriptInterface public void vaciar() { long x = m; if (x != 0) MotorNativo.vaciar(x); }
     @JavascriptInterface public void quitar(String b64) { long x = m; if (x != 0) MotorNativo.quitar(x, b64); }
     @JavascriptInterface public void opciones(String perfil, float escala) { long x = m; if (x != 0) MotorNativo.opciones(x, perfil, escala); }

@@ -507,13 +507,25 @@ function jxmCalidad() {
   if (!JXM.grab && JXM.prendido) try { window.JXMotor.opciones(perfil, 0); } catch (e) {}
   return perfil;
 }
+// (un char por byte, sin base64: un tercio menos y sin codificar; se usa si la app lo deja pasar igual —jxmProbarBin—)
+function jxmBin(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return s; }
+function jxmProbarBin(B) {
+  try {
+    if (!B.prueba || !B.cuadroBin) return false;
+    const u = new Uint8Array(4096); for (let i = 0; i < u.length; i++) u[i] = (i * 7 + (i >> 8)) & 255;
+    const s = jxmBin(u); let h = s.length; for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+    return (B.prueba(s) | 0) === h;
+  } catch (e) { return false; }
+}
 function jxmB64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
 // (la grabación de las pruebas: cada pedazo con su tipo y su largo)
 function jxmGrabar() {
   const P = [];
   const poner = (t, u8) => { const c = new Uint8Array(5 + u8.length); c[0] = t.charCodeAt(0); new DataView(c.buffer).setUint32(1, u8.length, true); c.set(u8, 5); P.push(c); };
   const desde = (b) => Uint8Array.from(atob(b), (c) => c.charCodeAt(0));
-  JXM.grab = { recursos: (b) => poner('R', desde(b)), cuadro: (b) => poner('C', desde(b)), vaciar: () => poner('V', new Uint8Array(0)), quitar: (b) => poner('Q', desde(b)), juntar: () => { const u = new Uint8Array(P.reduce((t, c) => t + c.length, 4)); u.set([74, 88, 71, 49]); let o = 4; for (const c of P) { u.set(c, o); o += c.length; } return u; }, pedazos: P };
+  const bin = (s) => Uint8Array.from(s, (c) => c.charCodeAt(0));
+  JXM.grab = { recursos: (b) => poner('R', desde(b)), cuadro: (b) => poner('C', desde(b)), recursosBin: (s) => poner('R', bin(s)), cuadroBin: (s) => poner('C', bin(s)), vaciar: () => poner('V', new Uint8Array(0)), quitar: (b) => poner('Q', desde(b)), juntar: () => { const u = new Uint8Array(P.reduce((t, c) => t + c.length, 4)); u.set([74, 88, 71, 49]); let o = 4; for (const c of P) { u.set(c, o); o += c.length; } return u; }, pedazos: P };
+  JXM.bin = true;   // (la grabación también prueba el camino binario)
   return JXM.grab;
 }
 // un recurso que el juego ya no usa (tipo 0 mallas, 1 texturas, 2 luces horneadas, 3 materiales): que el motor lo borre
@@ -525,7 +537,7 @@ function jxmQuitar(tipo, id) {
 function jxmPoner(on) {
   on = !!on && jxmDisponible();
   if (!JXM.grab && typeof window.JXMotor !== 'undefined') {
-    if (on && !JXM.prendido) { const r = String(window.JXMotor.prender()); if (r !== 'ok') { aviso('Motor nativo: ' + r); on = false; } else JXM.prendido = true; }
+    if (on && !JXM.prendido) { const r = String(window.JXMotor.prender()); if (r !== 'ok') { aviso('Motor nativo: ' + r); on = false; } else { JXM.prendido = true; JXM.bin = jxmProbarBin(window.JXMotor); } }
     if (!on && JXM.prendido) { window.JXMotor.apagar(); JXM.prendido = false; }
   }
   JXM.on = on; document.body.classList.toggle('jxmNat', on);
@@ -546,6 +558,7 @@ function jxmVigilar() {
 // lo que dice el motor nativo (cuadros por segundo, ms, memoria) o su error
 function jxmEstado() { try { return JXM.grab ? 'grabando' : JXM.prendido ? String(window.JXMotor.estado()) : 'apagado'; } catch (e) { return String(e); } }
 function jxmReiniciar() {
+  JXM.sl = null;   // (los lugares fijos de las cosas: el motor los borra con vaciar)
   JXM.mallas.clear(); JXM.texs.clear(); JXM.lms.clear(); JXM.mats = new WeakMap(); JXM.agua = null; JXM.mapa = null; JXM.cieloF = null; JXM.cuboT = null; JXM.marcas = -1;
   const B = jxmPuente(); if (B && JXM.on) B.vaciar();
 }
@@ -658,36 +671,45 @@ function jxmCuadroNativo() {
   const items = []; let ns = 0;
   for (let i = 0; i < R.nItems; i++) { const p = R.items[i]; if (p.vista || !p.m || !p.mt) continue; if (p.m.idx === undefined) { ns++; continue; } items.push(p); }
   JXM.sinMalla = ns;
-  const rec = jxmRecursos(items); if (rec) B.recursos(jxmB64(rec));
+  const rec = jxmRecursos(items); if (rec) { if (JXM.bin && B.recursosBin) B.recursosBin(jxmBin(rec)); else B.recursos(jxmB64(rec)); }
   // (las cosas cuya malla todavía no llegó —se cortó por el tope— esperan al cuadro que viene)
-  let n = 47; for (const p of items) n += 26 + (p.h ? Math.min(p.h.nf || p.h.length, 56 * 12) : 0);
-  n += 24 * 12;
-  if (JXM.f.length < n) JXM.f = new Float32Array(n * 1.5 | 0);
-  const F = JXM.f; new Uint32Array(F.buffer, 0, 1)[0] = 0x3143584a;
-  let k = 2; const pon = (a, m) => { for (let i = 0; i < m; i++) F[k++] = a[i]; };
-  pon(R.vp, 16); F[k++] = CAM.pos.x; F[k++] = CAM.pos.y; F[k++] = CAM.pos.z;
-  F[k++] = R.sol.x; F[k++] = R.sol.y; F[k++] = R.sol.z;
-  // (la luz en lineal, la misma que usa WebGL en Alto —R.lin, luzLineal—)
-  const Ln = R.lin && R.lin.solCol ? R.lin : null;
-  pon(Ln ? Ln.solCol : srgb3(R.solCol || [1, 1, 1]).map((x) => x * 2.6), 3); pon(Ln ? Ln.ambS : srgb3(R.ambS || [0.4, 0.45, 0.5]), 3); pon(Ln ? Ln.ambG : srgb3(R.ambG || [0.3, 0.3, 0.3]), 3); pon(Ln && Ln.nieC ? Ln.nieC : srgb3(R.niebla.c), 3);
-  F[k++] = R.niebla.a; F[k++] = R.niebla.b; F[k++] = R.expo || 0.66;
-  const W = AGUA.vols.find((v) => v.mapa); F[k++] = W ? W.y1 : NaN; F[k++] = (R.msCuadro / 1000) % 3600;
-  const nl = R.nLuces || 0, ne = R.nEsp || 0; F[k++] = nl; F[k++] = ne;
-  { const sc = Ln ? Ln.solCol : [1, 1, 1], t = R.nieS || NIE_S1; F[k++] = R.niebla.m === undefined ? 1 : R.niebla.m; F[k++] = sc[0] * t[0]; F[k++] = sc[1] * t[1]; F[k++] = sc[2] * t[2]; }
-  for (let i = 0; i < nl; i++) { pon(LUZ_P.subarray(i * 4), 4); pon(LUZ_C.subarray(i * 4), 4); pon(LUZ_D.subarray(i * 4), 4); }
-  for (let i = 0; i < ne; i++) { pon(ESP_P.subarray(i * 4), 4); pon(ESP_C.subarray(i * 4), 4); pon(ESP_D.subarray(i * 4), 4); }
-  let c = 0; const hs = JXM.hs || (JXM.hs = new Map()); hs.clear();
+  // Cada cosa tiene un lugar fijo en el motor (JXC2): se manda sólo lo que cambió (malla, parte, material, matriz, esfera,
+  // banderas), la lista de lo que hay en este cuadro y los huesos. Con 500 cajas quietas, casi nada viaja.
+  const S = JXM.sl || (JXM.sl = { porM: new WeakMap(), fijo: new Map(), dat: [], visto: [], libres: [] });
+  const fr = JXM.cuadros, U = [], V = [], HH = [];
   for (const p of items) {
     if (!JXM.mallas.has(p.m.idx)) continue;
     const r = JXM.mats.get(p.mt); if (!r) continue;
-    F[k++] = p.m.idx; F[k++] = p.s0; F[k++] = p.sn; F[k++] = r.id; pon(p.M, 16);
-    F[k++] = p.cx; F[k++] = p.cy; F[k++] = p.cz; F[k++] = p.h ? p.r : p.r || -1; F[k++] = p.ns ? 1 : 0;
-    // (los huesos van una vez por personaje: sus otras partes dicen de cuál copiarlos)
-    const nh = p.h ? Math.min(p.h.nf || p.h.length, 56 * 12) : 0, ya = nh ? hs.get(p.h) : undefined;
-    if (ya !== undefined) F[k++] = -(ya + 1); else { F[k++] = nh; if (nh) { pon(p.h, nh); hs.set(p.h, c); } }
-    c++;
+    let mapa = S.fijo, clave = p.m.idx * 1048576 + p.s0;
+    if (p.M !== IDM) { mapa = S.porM.get(p.M); if (!mapa) { mapa = new Map(); S.porM.set(p.M, mapa); } }
+    let sl = mapa.get(clave);
+    if (sl === undefined || S.visto[sl] === fr) {   // (la misma clave dos veces en un cuadro: otro lugar)
+      sl = S.libres.length ? S.libres.pop() : S.dat.length; S.dat[sl] = { c: new Float32Array(25).fill(NaN), mapa, clave }; mapa.set(clave, sl);
+    }
+    S.visto[sl] = fr; V.push(sl);
+    const c = S.dat[sl].c, M = p.M, rr = p.h ? p.r : p.r || -1, fl = p.ns ? 1 : 0;
+    let cambio = c[0] !== p.m.idx || c[1] !== p.s0 || c[2] !== p.sn || c[3] !== r.id || c[20] !== p.cx || c[21] !== p.cy || c[22] !== p.cz || c[23] !== rr || c[24] !== fl;
+    if (!cambio) for (let i = 0; i < 16; i++) if (c[4 + i] !== M[i]) { cambio = true; break; }
+    if (cambio) { c[0] = p.m.idx; c[1] = p.s0; c[2] = p.sn; c[3] = r.id; for (let i = 0; i < 16; i++) c[4 + i] = M[i]; c[20] = p.cx; c[21] = p.cy; c[22] = p.cz; c[23] = rr; c[24] = fl; U.push(sl); }
+    if (p.h) HH.push(sl, p);
   }
-  F[1] = c;
+  // (los lugares que no se usan hace 300 cuadros quedan libres)
+  if (fr % 120 === 0) for (let i = 0; i < S.dat.length; i++) { const d = S.dat[i]; if (d && fr - (S.visto[i] || 0) > 300) { d.mapa.delete(d.clave); S.dat[i] = null; S.libres.push(i); } }
+  let nh = 0; for (let i = 1; i < HH.length; i += 2) nh += 2 + Math.min(HH[i].h.nf || HH[i].h.length, 56 * 12);
+  const n = k + 3 + U.length * 26 + V.length + nh;
+  if (JXM.f.length < n) { const G = new Float32Array(n * 1.5 | 0); G.set(JXM.f.subarray(0, k)); JXM.f = G; }
+  const F2 = JXM.f; new Uint32Array(F2.buffer, 0, 1)[0] = 0x3243584a;   // 'JXC2'
+  F2[1] = V.length;
+  F2[k++] = U.length;
+  for (const sl of U) { const c = S.dat[sl].c; F2[k++] = sl; for (let i = 0; i < 25; i++) F2[k++] = c[i]; }
+  F2[k++] = V.length; for (const sl of V) F2[k++] = sl;
+  // (los huesos van una vez por personaje: sus otras partes dicen de qué lugar copiarlos)
+  const hs = JXM.hs || (JXM.hs = new Map()); hs.clear();
+  F2[k++] = HH.length / 2;
+  for (let i = 0; i < HH.length; i += 2) {
+    const sl = HH[i], h = HH[i + 1].h, ya = hs.get(h); F2[k++] = sl;
+    if (ya !== undefined) F2[k++] = -(ya + 1); else { const m = Math.min(h.nf || h.length, 56 * 12); F2[k++] = m; F2.set(h.subarray ? h.subarray(0, m) : h.slice(0, m), k); k += m; hs.set(h, sl); }
+  }
   // los efectos: las partículas (una fila de 16 números por partícula —la del primer vértice de los 6 de efectos.js—, con la
   // derecha y el arriba de la cámara) y las marcas de frenada cuando cambian
   const ef = [];
@@ -699,10 +721,12 @@ function jxmCuadroNativo() {
   if (MARCAS.v && JXM.marcas !== MARCAS.ver) { JXM.marcas = MARCAS.ver; ef.push([3, MARCAS.v]); }
   let extra = 0; for (const [, b] of ef) extra += 2 + b.length;
   if (extra) {
-    if (F.length < k + extra) { const G = new Float32Array((k + extra) * 1.5 | 0); G.set(F.subarray(0, k)); JXM.f = G; }
+    if (JXM.f.length < k + extra) { const G = new Float32Array((k + extra) * 1.5 | 0); G.set(JXM.f.subarray(0, k)); JXM.f = G; }
     const G = JXM.f; for (const [t, b] of ef) { G[k++] = t; G[k++] = b.length; G.set(b, k); k += b.length; }
   }
-  B.cuadro(jxmB64(new Uint8Array(JXM.f.buffer, 0, k * 4)));
+  const u8 = new Uint8Array(JXM.f.buffer, 0, k * 4);
+  if (JXM.bin && B.cuadroBin) B.cuadroBin(jxmBin(u8)); else B.cuadro(jxmB64(u8));
+  JXM.bytesC = u8.length;
   JXM.cuadros++;
   return true;
 }

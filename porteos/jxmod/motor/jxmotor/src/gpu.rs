@@ -361,6 +361,8 @@ pub struct Motor {
     opacos: Vec<usize>, transp: Vec<usize>, aguas: Vec<usize>,
     /// lo que ocupa en la placa (mallas, texturas y luces horneadas), en bytes
     pub memoria: usize,
+    /// los lugares fijos de las cosas (cuadros JXC2)
+    pub ranuras: Vec<Option<ItemDin>>,
     pub mapa: String,
 }
 
@@ -389,7 +391,7 @@ impl Motor {
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
         Ok(Motor { gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, part, marcas, ao_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
-            opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new() })
+            opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new() })
     }
 
     /// sube a la placa los recursos nuevos (los que ya estaban con el mismo número se reemplazan)
@@ -461,7 +463,7 @@ impl Motor {
         if let Some(t) = self.agua_p.take() { gl.delete_texture(t); }
         if let Some(t) = self.cubo.take() { gl.delete_texture(t); }
         self.cielo = None;
-        self.mats.clear(); self.agua = None; self.memoria = 0; self.c = None; self.items.clear();
+        self.mats.clear(); self.agua = None; self.memoria = 0; self.c = None; self.items.clear(); self.ranuras.clear();
     }
     /// borra recursos sueltos: tipo 0 mallas, 1 texturas, 2 luces horneadas, 3 materiales
     pub unsafe fn quitar(&mut self, tipo: u8, ids: &[i64]) {
