@@ -3,6 +3,7 @@ package com.jxmod.app;
 import android.content.pm.PackageInfo;
 import android.graphics.PixelFormat;
 import android.os.Build;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.webkit.JavascriptInterface;
@@ -94,13 +95,32 @@ public final class MotorJX {
         vista = new SurfaceView(web);
         vista.getHolder().setFormat(PixelFormat.RGBX_8888);
         vista.getHolder().addCallback(new SurfaceHolder.Callback() {
-            @Override public void surfaceCreated(SurfaceHolder h) { long x = m; if (x != 0) MotorNativo.superficie(x, h.getSurface()); }
-            @Override public void surfaceChanged(SurfaceHolder h, int f, int w, int hh) { long x = m; if (x != 0) MotorNativo.superficie(x, h.getSurface()); }
+            @Override public void surfaceCreated(SurfaceHolder h) { frecuencia(h); long x = m; if (x != 0) MotorNativo.superficie(x, h.getSurface()); }
+            @Override public void surfaceChanged(SurfaceHolder h, int f, int w, int hh) { frecuencia(h); long x = m; if (x != 0) MotorNativo.superficie(x, h.getSurface()); }
             @Override public void surfaceDestroyed(SurfaceHolder h) { long x = m; if (x != 0) MotorNativo.superficie(x, null); }
         });
         // (atrás de todo: la primera vista de la raíz; el WebView, encima y transparente)
         raiz.addView(vista, 0, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         web.fondoOpaco(false);
+    }
+
+    /** la superficie del motor pide la frecuencia más alta de la pantalla (90, 120, 144 Hz; Android 11+): si no, el sistema
+     *  puede dejarla en 60 aunque la ventana pida más */
+    private void frecuencia(SurfaceHolder h) {
+        if (Build.VERSION.SDK_INT < 30) return;
+        try {
+            android.view.Display d = web.getWindowManager().getDefaultDisplay(); if (d == null) return;
+            android.view.Display.Mode act = d.getMode(); float hz = 60f;
+            for (android.view.Display.Mode md : d.getSupportedModes())
+                if (md.getPhysicalWidth() == act.getPhysicalWidth() && md.getPhysicalHeight() == act.getPhysicalHeight()) hz = Math.max(hz, md.getRefreshRate());
+            h.getSurface().setFrameRate(hz, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
+            hzPedidos = hz;
+        } catch (Throwable t) { /* nada */ }
+    }
+    private volatile float hzPedidos = 0;
+    /** los Hz de la pantalla ahora y los que pidió la superficie (para mostrarlo en el juego) */
+    @JavascriptInterface public String hz() {
+        try { android.view.Display d = web.getWindowManager().getDefaultDisplay(); return Math.round(d.getRefreshRate()) + "/" + Math.round(hzPedidos); } catch (Throwable t) { return "?"; }
     }
 
     void alDestruir() { long x = m; m = 0; if (x != 0) MotorNativo.soltar(x); }

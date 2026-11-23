@@ -178,7 +178,7 @@ function fpsTexto(ms) {
   if (!PREFS.fps) return '';
   const f = Math.round(TIEMPO.fps);
   // (con JX Motor: los cuadros del juego y lo que dice el motor nativo —sus cuadros por segundo, lo que tarda y su memoria—)
-  if (typeof JXM !== 'undefined' && JXM.on) { const e = jxmEstado().replace(/ · mapa[\s\S]*$/, ''); return f + ' fps juego · motor ' + e; }
+  if (typeof JXM !== 'undefined' && JXM.on) { const e = jxmEstado().replace(/ · mapa[\s\S]*$/, ''), hz = jxmHz(); return f + ' fps juego' + (hz ? ' · pantalla ' + hz + ' Hz' : '') + ' · motor ' + e; }
   if (!PREFS.fpsDet) return f + ' fps';
   const d = typeof CELU !== 'undefined' && CELU.det, ap = d ? d.nom || d.soc || '' : '';
   return f + ' fps · JS ' + (+ms || 0).toFixed(1) + ' ms · ' + (GFX.auto ? 'Auto ' : '') + GFX.nombre + ' ' + Math.round(GFX.escala * 100) + '% ' + R.cv.width + '×' + R.cv.height + (TIEMPO.lento ? ' · lento ' + TIEMPO.lento : '') +

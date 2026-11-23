@@ -720,6 +720,7 @@ impl Motor {
         { let gl = &self.gl; let d = self.reflejo.as_ref().unwrap(); gl.bind_framebuffer(glow::FRAMEBUFFER, Some(d.fb)); gl.viewport(0, 0, d.w, d.h); gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT); }
         self.cielo(&vp);
         self.dibujos += self.dibujar_lista(&lista, &vp, ay - 0.05, false);
+        self.gl.invalidate_framebuffer(glow::FRAMEBUFFER, &[glow::DEPTH_ATTACHMENT]);
     }
 
     /// las partículas del cuadro: primero las de alfa (de lejos a cerca, ya ordenadas por el juego) y después las que suman
@@ -845,16 +846,22 @@ impl Motor {
         self.particulas(&vp);
         let gl = &self.gl;
         gl.depth_mask(true); gl.disable(glow::BLEND);
-        // a la pantalla, estirada (la escena a menos píxeles) y con el retoque final
+        // (la profundidad de la escena ya no se usa: la placa no la guarda en la memoria —en los celulares, por mosaicos, se ahorra
+        // escribirla entera en cada cuadro—)
+        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.invalidate_framebuffer(glow::FRAMEBUFFER, &[glow::DEPTH_ATTACHMENT]);
+        // a la pantalla, estirada (la escena a menos píxeles) y con el retoque final; lo de antes en la pantalla no se lee (se pinta
+        // entera) y su profundidad no se usa
         let col = self.escena_rt.as_ref().unwrap().color;
         gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h);
+        let todo: &[u32] = if salida.is_none() { &[glow::COLOR, glow::DEPTH, glow::STENCIL] } else { &[glow::COLOR_ATTACHMENT0, glow::DEPTH_ATTACHMENT] };
+        gl.invalidate_framebuffer(glow::FRAMEBUFFER, todo);
         gl.disable(glow::DEPTH_TEST); gl.depth_mask(false);
         let p = &self.p_final; gl.use_program(Some(p.p)); gl.uniform_1_f32(p.u(U::Retoque), if self.op.retoque { 1.0 } else { 0.0 });
         gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, Some(col));
         gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
         gl.bind_texture(glow::TEXTURE_2D, None); gl.active_texture(glow::TEXTURE0);
+        gl.invalidate_framebuffer(glow::FRAMEBUFFER, &todo[1..]);
         gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
-        let _ = fb;
         self.cuadro += 1;
     }
 

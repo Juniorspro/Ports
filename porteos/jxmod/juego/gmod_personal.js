@@ -560,6 +560,8 @@ function jxmVigilar() {
 }
 // lo que dice el motor nativo (cuadros por segundo, ms, memoria) o su error
 function jxmEstado() { try { return JXM.grab ? 'grabando' : JXM.prendido ? String(window.JXMotor.estado()) : 'apagado'; } catch (e) { return String(e); } }
+// los Hz de la pantalla ahora / los que pidió la superficie del motor ("120/120"); vacío si la app no lo dice
+function jxmHz() { try { return JXM.prendido && window.JXMotor.hz ? String(window.JXMotor.hz()) : ''; } catch (e) { return ''; } }
 function jxmReiniciar() {
   JXM.sl = null;   // (los lugares fijos de las cosas: el motor los borra con vaciar)
   JXM.mallas.clear(); JXM.texs.clear(); JXM.lms.clear(); JXM.mats = new WeakMap(); JXM.porFirma = new Map(); JXM.agua = null; JXM.mapa = null; JXM.cieloF = null; JXM.cuboT = null; JXM.marcas = -1;
