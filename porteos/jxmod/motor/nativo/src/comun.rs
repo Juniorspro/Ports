@@ -82,6 +82,9 @@ pub fn panel_npc_geo(w: f32, h: f32, nuevo: bool) -> ([f32; 4], Vec<(BtnNpc, [f3
     ([x0, y0, pw, y + h * 0.16 - y0], v)
 }
 
+/// suma lo que pasó desde la marca anterior a la parte `k` (promedio que se mueve despacio)
+fn marca(perf: &mut [f32; 5], t: &mut Instant, k: usize) { let x = t.elapsed().as_secs_f32() * 1000.0; perf[k] = perf[k] * 0.95 + x * 0.05; *t = Instant::now(); }
+
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo, Salas, Chat }
@@ -208,6 +211,9 @@ pub struct Juego {
     t_ant: Instant, t0: Instant, pub fps: f32, pub ms: f32, cuenta: u32, t_med: Instant, n_med: u32,
     /// lo que tarda la placa en dibujar un cuadro (medido cada 60 cuadros esperando a que termine: glFinish)
     pub placa_ms: f32,
+    /// lo que tarda cada parte del cuadro en la CPU (ms, promediado): el jugador, la física de los objetos, la IA de los
+    /// NPC, lo demás del juego (eventos, red, animación y armar lo que se dibuja) y el motor (mandar el cuadro a la placa)
+    pub perf: [f32; 5], perf_t: Instant,
     recargar: bool,
     /// (para las pruebas: el tiempo fijo de cada cuadro, en vez del reloj)
     pub dt_fijo: Option<f32>,
@@ -286,7 +292,7 @@ impl Juego {
         let (paq, error) = match paq { Ok(p) => (Some(p), None), Err(e) => (None, Some(format!("el paquete del juego: {e}"))) };
         let en_red = red_juego::EnRed::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
-            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
+            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], perf_t: Instant::now(),
             recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
@@ -776,7 +782,7 @@ impl Juego {
             if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; self.ef_atlas = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
             else { self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
         }
-        let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora;
+        let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora; self.perf_t = ahora;
         let (wf, hf) = (w as f32, h as f32);
         // la física del jugador, a paso fijo (como mucho 12 pasos por cuadro: si el teléfono se traba, no se acumula)
         let ent = self.entrada(hf);
@@ -787,6 +793,7 @@ impl Juego {
             self.acum = (self.acum + dt).min(PASO * 12.0);
             if self.vehs.jugador.is_some() { self.acum = 0.0; self.jug.suelo = false; }
             while self.acum >= PASO { self.jug.paso_con(&mp.mundo, Some(&mut self.fis), PASO, &ent); self.golpe_max = self.golpe_max.max(self.jug.golpe); self.acum -= PASO; }
+            marca(&mut self.perf, &mut self.perf_t, 0);
             // la física de los objetos a 60 por segundo (como mucho 3 pasos por cuadro, como la web)
             self.fis.sub = SUB_FIS[self.aj.calidad.min(4)];
             self.acum_fis = (self.acum_fis + dt).min(PASO_FIS * 3.0);
@@ -805,7 +812,9 @@ impl Juego {
             let muertos: Vec<usize> = self.objs.iter().enumerate().filter(|(_, o)| o.cuerpo.and_then(|id| self.fis.cuerpo(id)).map(|b| b.muerto).unwrap_or(false)).map(|(i, _)| i).collect();
             for i in muertos.into_iter().rev() { let o = self.objs.remove(i); if let Some(id) = o.cuerpo { if let Some(sl) = self.vehs.quitar(id, &self.fis, &mp.mundo) { self.jug.pos = [sl.pos[0] as f32, sl.pos[1] as f32, sl.pos[2] as f32]; } self.fis.quitar(id); self.aguas.olvidar(id); } }
             // los NPC (piensan, caminan, pelean y se animan después)
+            marca(&mut self.perf, &mut self.perf_t, 1);
             self.npcs.paso(dt, &mp.mundo, &mut self.fis, &Gente::de_jugador(&self.jug), self.ojos_ult);
+            marca(&mut self.perf, &mut self.perf_t, 2);
             // (se cayó del mapa o se ahogó: vuelve a aparecer)
             if self.jug.pos[1] < mp.mundo.lo[1] - 60.0 || self.jug.vida <= 0.0 {
                 if self.jug.vida <= 0.0 { self.aviso = Some((if self.muerto { "Te moriste".into() } else { "Te ahogaste".into() }, Instant::now())); }
@@ -931,10 +940,13 @@ impl Juego {
             self.herramientas_items(&mut items, &mut luces); luces.truncate(8);
             let c = Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
                 luces, esp: vec![], items, efectos };
+            marca(&mut self.perf, &mut self.perf_t, 3);
             m.poner_cuadro(c);
         }
         let u = self.hud(w, h, placa_txt);
-        m.dibujar(w, h, self.mapa.is_some(), &u)
+        let r = m.dibujar(w, h, self.mapa.is_some(), &u);
+        marca(&mut self.perf, &mut self.perf_t, 4);
+        r
     }
 
     fn azar(&mut self) -> f32 { self.azar ^= self.azar << 13; self.azar ^= self.azar >> 17; self.azar ^= self.azar << 5; (self.azar % 10000) as f32 / 10000.0 }
@@ -1016,7 +1028,7 @@ impl Juego {
         mm.atlas_de = Some((mm.pestana, mm.sub)); mm.atlas_h = ah;
     }
     /// pone un objeto donde mira el jugador (o 6 m adelante), mirándolo y apoyado en el piso (spawnDelante y crearObjeto)
-    fn poner(&mut self, m: &mut Motor3d, nombre: &str, ojos: [f32; 3], fw: [f32; 3]) -> Result<(), String> {
+    pub fn poner(&mut self, m: &mut Motor3d, nombre: &str, ojos: [f32; 3], fw: [f32; 3]) -> Result<(), String> {
         // un NPC (spawnNpc): su skin cargada una vez, puesto donde se mira
         if let Some(skin) = npc::skin_de_item(nombre) {
             let Some(paq) = self.paq.as_mut() else { return Ok(()) };
@@ -1084,6 +1096,9 @@ impl Juego {
             l.texto_sombra(&mut u, t * 0.5, t * 0.5, t, bl, &format!("{:.0} fps · cuadro {:.1} ms · placa {:.1} ms · {}×{}", self.fps, self.ms, self.placa_ms, ew, eh));
             l.texto_sombra(&mut u, t * 0.5, t * 1.75, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("JXMod nativo (Rust) · {} · {} · {}", usa.nombre(), self.calidad_txt(), placa_txt));
             l.texto_sombra(&mut u, t * 0.5, t * 2.7, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("{} · {} · vida {:.0}", self.mapas[self.mapa_i], if self.jug.noclip { "volando" } else if self.jug.nada { "nadando" } else if self.jug.suelo { "en el piso" } else { "en el aire" }, self.jug.vida));
+            // (lo que tarda cada parte en la CPU: para ver dónde se va el cuadro en el celular)
+            let pf = self.perf; let no = if self.detalle.is_empty() { 3.65 } else { 4.5 };
+            l.texto_sombra(&mut u, t * 0.5, t * no, t * 0.6, [1.0, 1.0, 1.0, 0.75], &format!("cpu ms: jugador {:.2} · física {:.2} ({} objetos) · NPC {:.2} ({}) · juego {:.2} · motor {:.2}", pf[0], pf[1], self.objs.len(), pf[2], self.npcs.lista.len(), pf[3], pf[4]));
             if !self.detalle.is_empty() { l.texto_sombra(&mut u, t * 0.5, t * 3.65, t * 0.6, [1.0, 1.0, 1.0, 0.75], &format!("placa: {}", self.detalle)); }
         }
         // (los botones: Ajustes, saltar, agacharse, volar, objetos y deshacer)

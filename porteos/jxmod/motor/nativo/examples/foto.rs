@@ -141,6 +141,27 @@ fn main() {
         let (sx, sy) = pos_boton(wf, hf, Boton::Camara); toque(&mut j, 62, sx, sy); paso(&mut j, &mut m, 20); foto(&mut m, "8c_red_tercera");
         return;
     }
+    // (JXM_CARGA=1: lo que pide el dueño —50 NPC y 500 objetos con todo al máximo—: cuánto tarda cada parte del cuadro)
+    if std::env::var("JXM_CARGA").is_ok() {
+        let caja = j.catalogo.iter().flat_map(|c| c.1.iter()).find(|n| n.to_lowercase().contains("crate")).cloned().unwrap_or_else(|| j.catalogo[0].1[0].clone());
+        let p0 = j.jug.pos; let t = Instant::now();
+        // (500 cajas en 10 torres de 50 en una grilla de 5 × 2 delante, que se caen solas)
+        for k in 0..500 { let (c, f) = (k % 10, k / 10); let p = [p0[0] + (c % 5) as f32 * 2.5 - 5.0, p0[1] + 0.5 + f as f32 * 0.9, p0[2] + 8.0 + (c / 5) as f32 * 2.5]; let _ = j.crear(&mut m, &caja, p, [0.0, 0.0, 0.0, 1.0], true, false); }
+        println!("carga: 500 «{caja}» en {:.0} ms", t.elapsed().as_secs_f64() * 1000.0);
+        j.npcs.max = 60; let t = Instant::now();
+        for k in 0..50 { let a = k as f32 * 0.7; let (o, fw) = ([p0[0] + a.cos() * 3.0, p0[1] + 0.72, p0[2] - 6.0 + a.sin() * 3.0], [a.cos(), -0.3, a.sin()]); if let Err(e) = j.poner(&mut m, "npc:Hero", o, fw) { println!("NPC: {e}"); } }
+        println!("carga: {} NPC en {:.0} ms", j.npcs.lista.len(), t.elapsed().as_secs_f64() * 1000.0);
+        for (n, rapida) in [(0, "paseo"), (1, "agresivo")] { let _ = (n, rapida); }
+        j.dt_fijo = Some(1.0 / 60.0);
+        for k in 0..600 { paso(&mut j, &mut m, 1); if k == 120 || k == 239 || k == 599 {
+            let dormidos = j.objs.iter().filter(|o| o.cuerpo.and_then(|id| j.fis.cuerpo(id)).map(|b| b.duerme).unwrap_or(false)).count();
+            println!("   física por paso: detección {:.2} ms · solver {:.2} ms · {} de {} cajas dormidas · subpasos {}", j.fis.ms_det, j.fis.ms_sol, dormidos, j.objs.len(), j.fis.sub);
+            let pf = j.perf; let total: f32 = pf[0] + pf[1] + pf[2] + pf[3];
+            println!("carga a los {:.1} s: jugador {:.2} · física {:.2} · NPC {:.2} · juego {:.2} → sin el motor {:.2} ms · motor (llvmpipe, dibuja en la CPU) {:.1} ms", (k + 1) as f32 / 60.0, pf[0], pf[1], pf[2], pf[3], total, pf[4]);
+        } }
+        foto(&mut m, "9_carga");
+        return;
+    }
     // (JXM_SOLO_AUTO=1: sólo la prueba del auto en el pasto abierto, y termina)
     if std::env::var("JXM_SOLO_AUTO").is_ok() {
         j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 90); println!("mapa {} · jugador {:?}", j.mapas.iter().position(|x| x == "RB_Flatgrass").unwrap_or(99), j.jug.pos);
