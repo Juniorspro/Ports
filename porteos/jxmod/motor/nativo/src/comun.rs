@@ -3,6 +3,7 @@
 use jxjuego::fisica::Fisica;
 use jxjuego::forma::{self, Catalogo};
 use jxjuego::jugador::{Entrada, Jugador};
+use jxjuego::personaje::{self, Personaje};
 use jxjuego::mapa::{self, Mapa};
 use jxjuego::objetos::{self, Cargados, Prefab};
 use std::collections::HashMap;
@@ -32,7 +33,7 @@ struct Dedo { id: i32, palanca: bool, boton: Option<Boton>, x0: f32, y0: f32, x:
 
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Boton { Ajustes, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca }
+pub enum Boton { Ajustes, Camara, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca }
 /// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
 struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
 /// dónde va cada botón con la pantalla de w × h
@@ -41,6 +42,8 @@ fn botones(w: f32, h: f32) -> Vec<Btn> {
     // (arriba a la derecha, Ajustes: la calidad, los controles, el sonido, el motor y el mapa)
     let (bw, bh) = (w * 0.13, h * 0.1);
     v.push(Btn { b: Boton::Ajustes, x: w - bw / 2.0 - 6.0, y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false });
+    // (al lado, la cámara: primera persona, tercera y de frente, como el botón de la web)
+    v.push(Btn { b: Boton::Camara, x: w - bw * 1.5 - 6.0, y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false });
     let r = h * 0.11;
     v.push(Btn { b: Boton::Saltar, x: w - h * 0.17, y: h - h * 0.2, w: r * 2.0, h: r * 2.0, redondo: true });
     v.push(Btn { b: Boton::Agachar, x: w - h * 0.17, y: h - h * 0.47, w: r * 1.5, h: r * 1.5, redondo: true });
@@ -142,6 +145,9 @@ pub struct Juego {
     pub fis: Fisica, cat_fis: Option<Catalogo>, acum_fis: f32,
     /// las armas (la Physics Gun y la Gravity Gun) y dónde estaban los ojos en el último cuadro (para apuntar)
     pub armas: Armas, ojos_ult: [f32; 3],
+    /// el cuerpo del jugador (personaje.rs: se ve en tercera persona y de frente), la cámara (0 primera, 1 tercera, 2 de
+    /// frente) y las dos capturas de nado (CMU 126_04 y 79_02: las pone la app)
+    pub pj: Option<Personaje>, pj_cargados: personaje::Cargados, pub camara: u8, pub nado: Option<(Vec<u8>, Vec<u8>)>, pub skin: String,
     // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
     /// los ajustes (ajustes.txt) y la pestaña del menú de Ajustes, si está abierto (el juego queda en pausa)
     pub aj: Ajustes, pub ajustes: Option<usize>,
@@ -175,6 +181,7 @@ impl Juego {
             recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
+            pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); j.cat_fis = Some(Catalogo::nuevo(p)); }
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
@@ -208,6 +215,7 @@ impl Juego {
             if !matches!(b, Boton::Saltar | Boton::Agachar | Boton::Disparo | Boton::Disparo2 | Boton::ArmaN(_)) { self.sonido.tocar("Click", 0.5, 1.0, None); }
             match b {
                 Boton::Ajustes => { self.menu = None; self.ajustes = Some(0); }
+                Boton::Camara => { self.camara = (self.camara + 1) % 3; self.avisar(["Primera persona", "Tercera persona", "De frente"][self.camara as usize].into()); }
                 Boton::Volar => { self.jug.noclip = !self.jug.noclip; self.avisar(if self.jug.noclip { "Volar: prendido".into() } else { "Volar: apagado".into() }); }
                 Boton::Objetos => { if !self.catalogo.is_empty() { self.menu = Some(Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0 }); } }
                 Boton::Disparo | Boton::Disparo2 => {
@@ -350,7 +358,7 @@ impl Juego {
         let nombre = self.mapas[self.mapa_i];
         self.mapa = None;
         self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; }
-        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar();
+        self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.pj = None; self.pj_cargados.olvidar();
         unsafe { m.vaciar(); }
         let Some(paq) = self.paq.as_mut() else { return };
         match mapa::armar(paq, nombre, 1024, 750.0) {
@@ -364,6 +372,17 @@ impl Juego {
                 self.mapa = Some(mp);
             }
             Err(e) => { self.error = Some(format!("mapa {nombre}: {e}")); }
+        }
+        // el cuerpo del jugador (si la skin no está, el Hero, como la web)
+        if let Some(paq) = self.paq.as_mut() {
+            let r = Personaje::cargar(paq, &self.skin, 0, 512, &mut self.pj_cargados).or_else(|_| Personaje::cargar(paq, "Hero", 0, 512, &mut self.pj_cargados));
+            match r {
+                Ok((mut pj, esc)) => {
+                    if let Some((a, b)) = &self.nado { let _ = pj.nado(a, b); }
+                    if let Err(e) = unsafe { m.cargar(&esc) } { self.avisar(format!("personaje: {e}")); } else { self.pj = Some(pj); }
+                }
+                Err(e) => self.avisar(format!("personaje: {e}")),
+            }
         }
         self.cargar_letras(m);
     }
@@ -383,7 +402,7 @@ impl Juego {
     unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
-            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
+            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
             else { self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
         }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora;
@@ -425,19 +444,46 @@ impl Juego {
         self.menu_atlas(m);
         let pend = std::mem::take(&mut self.pendientes);
         for n in pend { if let Err(e) = self.poner(m, &n, ojos, fw) { self.avisar(format!("{n}: {e}")); } }
+        // el cuerpo, animado (tercera persona y de frente): el piso bajo la cápsula, la mirada y el agua si nada
+        if let Some(pj) = self.pj.as_mut() {
+            if self.camara != 0 {
+                let jp = self.jug.pos; let piso = [jp[0], jp[1] - 0.95, jp[2]];
+                let agua = if self.jug.nada { self.jug.aguas.iter().find(|v| jp[0] >= v[0] && jp[0] <= v[3] && jp[2] >= v[2] && jp[2] <= v[5] && piso[1] < v[4]).map(|v| v[4]) } else { None };
+                let e = personaje::Estado { piso, vel: self.jug.vel, yaw: self.jug.yaw, mira: -self.jug.pitch, en_suelo: self.jug.suelo || self.jug.noclip, agachado: self.jug.agachado, agua };
+                pj.animar(dt, &e);
+            }
+        }
         if let Some(mp) = &self.mapa {
             let p = persp((self.aj.fov as f32).to_radians(), wf / hf.max(1.0), 0.08, mp.lejos * 1.05);
-            let vista = m4::mirar(ojos, [ojos[0] + fw[0], ojos[1] + fw[1], ojos[2] + fw[2]], [0.0, 1.0, 0.0]);
+            // (la cámara: en primera, los ojos; en tercera, 3,1 m atrás; de frente, 2,6 m adelante mirándote —jugadorCamara—;
+            // si hay una pared en el medio, se acerca)
+            let tam = self.pj.as_ref().map(|p| p.tam).unwrap_or(1.0); let kt = (0.45 + 0.55 * tam).clamp(0.6, 1.0);
+            let (cam, mira) = match self.camara {
+                1 => {
+                    let d = [-fw[0], -fw[1], -fw[2]]; let l0 = 3.1 * kt;
+                    let l = mp.mundo.rayo(ojos, d, l0 + 0.3).map(|h| (h.t - 0.3).max(0.3)).unwrap_or(l0);
+                    ([ojos[0] + d[0] * l, ojos[1] + d[1] * l, ojos[2] + d[2] * l], fw)
+                }
+                2 => {
+                    let pp = pitch * 0.6; let d = [yaw.sin() * pp.cos(), -pp.sin(), yaw.cos() * pp.cos()]; let l0 = 2.6 * kt;
+                    let l = mp.mundo.rayo(ojos, d, l0 + 0.3).map(|h| (h.t - 0.3).max(0.3)).unwrap_or(l0);
+                    let y2 = yaw + std::f32::consts::PI;
+                    ([ojos[0] + d[0] * l, ojos[1] + d[1] * l, ojos[2] + d[2] * l], [y2.sin() * pp.cos(), pp.sin(), y2.cos() * pp.cos()])
+                }
+                _ => (ojos, fw),
+            };
+            let vista = m4::mirar(cam, [cam[0] + mira[0], cam[1] + mira[1], cam[2] + mira[2]], [0.0, 1.0, 0.0]);
             // (con los ojos bajo el agua: la niebla de cerca, del color del agua —aguaNiebla—)
             let mut luz = mp.luz;
-            if self.jug.aguas.iter().any(|v| ojos[1] < v[4] && ojos[1] > v[1] && ojos[0] >= v[0] && ojos[0] <= v[3] && ojos[2] >= v[2] && ojos[2] <= v[5]) {
+            if self.jug.aguas.iter().any(|v| cam[1] < v[4] && cam[1] > v[1] && cam[0] >= v[0] && cam[0] <= v[3] && cam[2] >= v[2] && cam[2] <= v[5]) {
                 let lin = |c: f32| c.max(0.0).powf(2.2);
                 luz.nie = jxmotor::escena::Niebla { c: [lin(0.12), lin(0.285), lin(0.3)], a: 0.0, b: 16.0, m: 1.0, s: [0.0; 3] };
             }
             let mut items = mp.items.clone();
+            if self.camara != 0 { if let Some(pj) = &self.pj { let jp = self.jug.pos; pj.items(&personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw), &mut items); } }
             let t_fis = (self.acum_fis / PASO_FIS).clamp(0.0, 1.0);
             for o in &self.objs { if let Some(pf) = self.prefabs.get(&o.nombre) { pf.items(&matriz_obj(o, t_fis), &mut items); } }
-            let c = Cuadro { vp: m4::mul(&p, &vista), pos: ojos, luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
+            let c = Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
                 luces: mp.luces_cerca(ojos, 6), esp: vec![], items, efectos: vec![] };
             m.poner_cuadro(c);
         }
@@ -580,6 +626,7 @@ impl Juego {
                 Boton::Lejos => ("+", false),
                 Boton::Cerca => ("-", false),
                 Boton::Ajustes => ("Ajustes", self.ajustes.is_some()),
+                Boton::Camara => (["Primera", "Tercera", "De frente"][self.camara as usize], self.camara != 0),
                 Boton::Saltar => ("Saltar", self.apretado(Boton::Saltar)),
                 Boton::Agachar => ("Agachar", self.apretado(Boton::Agachar)),
                 Boton::Volar => ("Volar", self.jug.noclip),

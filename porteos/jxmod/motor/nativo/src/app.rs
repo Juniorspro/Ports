@@ -51,6 +51,8 @@ fn android_main(app: AndroidApp) {
     let letras = activo(&app, "ui/letras.json").and_then(|b| String::from_utf8(b).ok());
     let rangos = paq.as_ref().map(|p| p.rangos("a:")).unwrap_or_default();
     let mut j = Juego::nuevo(paq, letras, activo(&app, "ui/letras.png"), datos);
+    // (las capturas de nado del cuerpo)
+    if let (Some(a), Some(b)) = (activo(&app, "cmu/126_04.bin"), activo(&app, "cmu/79_02.bin")) { j.nado = Some((a, b)); }
     // el sonido: los MP3 se leen directo del pk.bin adentro de la APK (va sin comprimir)
     let fuente = app.asset_manager().open(c"pk.bin").and_then(|a| a.open_file_descriptor().ok()).map(|o| (o.fd, o.offset));
     j.sonido = crate::sonido::Sonido::android(fuente, rangos);

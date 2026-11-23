@@ -82,6 +82,7 @@ fn main() {
         if let Some((t, d)) = m.tiempos() { println!("placa {t:.1} ms: {d}"); }
         return;
     }
+    { let c = std::path::Path::new("/home/user/Ports/web/emotes/cmu"); if let (Ok(a), Ok(b)) = (std::fs::read(c.join("126_04.bin")), std::fs::read(c.join("79_02.bin"))) { j.nado = Some((a, b)); } }
     let t = Instant::now(); paso(&mut j, &mut m, 1); foto(&mut m, "0_cargando"); paso(&mut j, &mut m, 1); println!("primeros 2 cuadros (cartel y mapa): {:.0} ms · {}", t.elapsed().as_secs_f64() * 1000.0, m.resumen());
     if let Some(mp) = &j.mapa { println!("mundo de choques: {} triángulos, {} cuerpos, gravedad {}", mp.mundo.n_tris(), mp.mundo.cuerpos.len(), mp.mundo.gravedad); }
     paso(&mut j, &mut m, 60);
@@ -91,6 +92,11 @@ fn main() {
     j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf);
     paso(&mut j, &mut m, 120);
     println!("2 caminar 2 s: de {:?} a {:?} ({:.2} m, suelo {})", p0, j.jug.pos, ((j.jug.pos[0] - p0[0]).powi(2) + (j.jug.pos[2] - p0[2]).powi(2)).sqrt(), j.jug.suelo); foto(&mut m, "2_caminar");
+    // la cámara: tercera persona caminando y de frente (el cuerpo animado)
+    { let (cx, cy) = jxmod::comun::pos_boton(wf, hf, jxmod::comun::Boton::Camara);
+      j.dedo_abajo(40, cx, cy, wf, hf); j.dedo_arriba(40); paso(&mut j, &mut m, 20); foto(&mut m, "2b_tercera_caminando");
+      j.dedo_abajo(41, cx, cy, wf, hf); j.dedo_arriba(41); paso(&mut j, &mut m, 20); foto(&mut m, "2c_frente_caminando");
+      j.dedo_abajo(42, cx, cy, wf, hf); j.dedo_arriba(42); println!("cámara: {} (personaje {})", j.camara, j.pj.is_some()); }
     j.dedo_arriba(1);
     // saltar: el punto más alto
     let y0 = j.jug.pos[1]; let mut ymax = y0;
