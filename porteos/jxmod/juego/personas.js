@@ -27,6 +27,7 @@ function datosSkin(skin) {
 function sueloReposo(md, h, sub) {
   const lado = new Map(), pts = { L: [], R: [] }; let lo = 0;
   for (const [l, re] of [['L', /Left(Foot|ToeBase|Toe_End)$/], ['R', /Right(Foot|ToeBase|Toe_End)$/]]) sub.forEach((n, i) => { if (re.test(n.n)) lado.set(i, l); });
+  md.pielesYa();
   for (const pz of md.pieles) {
     const x = md.A[pz.i], d = DATA.ms[x.m], H = pz.h, B = d && binDe(d); if (!d || d.sk === undefined || !B) continue;
     const dv = new DataView(B.buffer, B.byteOffset);

@@ -156,11 +156,58 @@ function hijoDe(padre, pt) {
     Object.defineProperty(h, k, { get() { return padre[k]; }, configurable: true });
   return h;
 }
-function addBody(b) { PH.bodies.push(b); b.updateWorld(); return b; }
+function addBody(b) { PH.bodies.push(b); b.updateWorld(); PH.ver = (PH.ver || 0) + 1; return b; }
 function removeBody(b) {
   const i = PH.bodies.indexOf(b); if (i >= 0) PH.bodies.splice(i, 1);
+  PH.ver = (PH.ver || 0) + 1;
   PH.joints = PH.joints.filter((j) => j.a !== b && j.b !== b);
   for (const o of PH.bodies) if (o.sleep) o.wake();
+}
+// ---------------- los cuerpos por zona ----------------
+// una grilla en el piso (x, z) de 2 m, armada de nuevo cuando la física dio un paso o cambió la lista: el jugador y los NPC
+// preguntan qué cuerpos hay cerca en vez de revisarlos todos (con 50 NPC y 500 objetos eran ~170 000 pruebas por cuadro).
+// Los de más de 6 × 6 celdas (los muy grandes) van aparte y se prueban siempre. Lo que devuelve está en el orden de
+// PH.bodies, como si se los hubiera recorrido a todos.
+// (cada cuerpo ocupa su caja unida a su esfera —posición y radio, que siempre están al día; la caja de uno dormido puede
+// haber quedado vieja—; se rearma en cada paso de la física y en cada cuadro)
+const CZ = { t: -1, c: -1, n: -1, v: -1, marca: 0, lado: 2, margen: 0.6, grandes: [],
+  // (una tabla hash plana —sin objetos por celda—: cabeza de cada balde y, por entrada, la celda, el cuerpo y la siguiente)
+  cab: new Int32Array(4096).fill(-1), sig: new Int32Array(2048), cx: new Int32Array(2048), cz: new Int32Array(2048), cu: new Int32Array(2048), ne: 0 };
+function czLim(b, o) {
+  const a = b.aabb, p = b.pos, r = b.r || 0;
+  o[0] = Math.min(a.x0, p.x - r); o[1] = Math.min(a.y0, p.y - r); o[2] = Math.min(a.z0, p.z - r);
+  o[3] = Math.max(a.x1, p.x + r); o[4] = Math.max(a.y1, p.y + r); o[5] = Math.max(a.z1, p.z + r);
+  return o;
+}
+const _czl = new Float64Array(6);
+const czBalde = (x, z) => (Math.imul(x, 73856093) ^ Math.imul(z, 19349663)) & 4095;
+function czArmar() {
+  const L = CZ.lado, mg = CZ.margen, B = PH.bodies;
+  CZ.cab.fill(-1); CZ.ne = 0; CZ.grandes.length = 0; CZ.t = PH.time; CZ.c = TIEMPO.t; CZ.n = B.length; CZ.v = PH.ver || 0;
+  for (let i = 0; i < B.length; i++) {
+    const b = B[i], a = czLim(b, _czl); b._ci = i;
+    const x0 = Math.floor((a[0] - mg) / L), x1 = Math.floor((a[3] + mg) / L), z0 = Math.floor((a[2] - mg) / L), z1 = Math.floor((a[5] + mg) / L);
+    if (!(x1 - x0 < 6 && z1 - z0 < 6)) { CZ.grandes.push(b); continue; }
+    for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+      if (CZ.ne >= CZ.sig.length) { const m = CZ.sig.length * 2; for (const k of ['sig', 'cx', 'cz', 'cu']) { const v = new Int32Array(m); v.set(CZ[k]); CZ[k] = v; } }
+      const e = CZ.ne++, h = czBalde(x, z); CZ.cx[e] = x; CZ.cz[e] = z; CZ.cu[e] = i; CZ.sig[e] = CZ.cab[h]; CZ.cab[h] = e;
+    }
+  }
+}
+function cuerposCerca(x0, y0, z0, x1, y1, z1, out) {
+  if (CZ.t !== PH.time || CZ.c !== TIEMPO.t || CZ.n !== PH.bodies.length || CZ.v !== (PH.ver || 0)) czArmar();
+  out.length = 0; const m = ++CZ.marca, L = CZ.lado, mg = CZ.margen, B = PH.bodies;
+  const fuera = (b) => { const a = czLim(b, _czl); return x1 < a[0] - mg || x0 > a[3] + mg || y1 < a[1] - mg || y0 > a[4] + mg || z1 < a[2] - mg || z0 > a[5] + mg; };
+  for (const b of CZ.grandes) if (!fuera(b)) { b._cz = m; out.push(b); }
+  const cx1 = Math.floor(x1 / L), cz1 = Math.floor(z1 / L), cz0 = Math.floor(z0 / L);
+  for (let x = Math.floor(x0 / L); x <= cx1; x++) for (let z = cz0; z <= cz1; z++) {
+    for (let e = CZ.cab[czBalde(x, z)]; e >= 0; e = CZ.sig[e]) {
+      if (CZ.cx[e] !== x || CZ.cz[e] !== z) continue;
+      const b = B[CZ.cu[e]]; if (b._cz === m) continue; b._cz = m; if (!fuera(b)) out.push(b);
+    }
+  }
+  if (out.length > 1) out.sort((p, q) => p._ci - q._ci);
+  return out;
 }
 // ---------------- contactos ----------------
 // un contacto: cuerpos A y B (B puede ser null = suelo o estático), puntos locales, normal de B hacia A
@@ -814,6 +861,7 @@ function rayForma(b, o, d, L) {
   let h = null; for (const p of capSpheres(b)) { const k = raySphere(p, b.shape.r, o, d, h ? h.t : L); if (k && (!h || k.t < h.t)) h = k; } return h;
 }
 // el rayo contra todo: devuelve { t, n, p, body (o null), stat (caja estática o null) }
+const _rayL = [];
 function raycast(o, d, tmax, ignore) {
   let best = null;
   // (lo fijo del mapa: si es una puerta de un mapa de GMod —puertas.js—, el cuerpo de la puerta; antes salía como «mundo» y
@@ -821,10 +869,17 @@ function raycast(o, d, tmax, ignore) {
   const g = mundoRayo(o, d, tmax), pu = g && g.caja && g.caja.puerta && !g.caja.tren && !(ignore && (ignore === g.caja || (ignore.has && ignore.has(g.caja)))) ? g.caja : null;
   if (g) best = { t: g.t, n: g.n, body: pu, stat: g, ground: !pu };
   const lim = () => (best ? best.t : tmax);
-  for (const b of PH.bodies) {
+  // (un rayo corto —los de los NPC, los pies, el agarre: 1 a 12 m— pregunta a la grilla qué cuerpos hay en su camino; uno
+  // largo —una bala— los recorre todos; la cuenta de la esfera, sin armar vectores)
+  let lista = PH.bodies;
+  if (tmax <= 12 && PH.bodies.length > 24) {
+    const ex = d.x * tmax, ey = d.y * tmax, ez = d.z * tmax;
+    lista = cuerposCerca(Math.min(o.x, o.x + ex), Math.min(o.y, o.y + ey), Math.min(o.z, o.z + ez), Math.max(o.x, o.x + ex), Math.max(o.y, o.y + ey), Math.max(o.z, o.z + ez), _rayL);
+  }
+  for (const b of lista) {
     if (b.noRay || (ignore && (ignore === b || (ignore.has && ignore.has(b))))) continue;
-    const L = lim(), c = b.pos, m = vsub(c, o), tc = vdot(m, d); if (tc < -b.r || tc > L + b.r) continue;
-    if (m.lenSq() - tc * tc > b.r * b.r) continue;
+    const L = lim(), c = b.pos, mx = c.x - o.x, my = c.y - o.y, mz = c.z - o.z, tc = mx * d.x + my * d.y + mz * d.z; if (tc < -b.r || tc > L + b.r) continue;
+    if (mx * mx + my * my + mz * mz - tc * tc > b.r * b.r) continue;
     if (b.sleep || !b.capA && b.shape.type === 'capsule') b.updateWorld();
     let h = null;
     if (b.hijos) { for (const c of b.hijos) { const k = rayForma(c, o, d, h ? h.t : L); if (k && (!h || k.t < h.t)) h = k; } }

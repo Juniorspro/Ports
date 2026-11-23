@@ -49,10 +49,17 @@ class Modelo {
         else { m4trs(this.p[0], this.r[0], this.s[0], this.L[0]); m4mul(this.raiz, this.L[0], this.W[0]); }
         continue;
       }
-      m4trs(this.p[i], this.r[i], this.s[i], this.L[i]);
-      if (this.E && this.E[i]) m4mul(this.L[i], this.E[i], this.L[i]);
-      m4mul(this.W[A[i].pa], this.L[i], this.W[i]);
+      if (this.E && this.E[i]) { m4trs(this.p[i], this.r[i], this.s[i], this.L[i]); m4mul(this.L[i], this.E[i], this.L[i]); m4mul(this.W[A[i].pa], this.L[i], this.W[i]); }
+      else m4trsPor(this.W[A[i].pa], this.p[i], this.r[i], this.s[i], this.W[i]);   // (padre × local, en una sola cuenta)
     }
+    this.pielSucia = true;
+  }
+  // las matrices de piel (mundo del hueso × pose de enlace), recién cuando se van a usar: un modelo que sólo es el esqueleto
+  // de otro —el humano de un NPC que se ve con su modelo de GMod— no las necesita
+  pielesYa() {
+    this.actualizar();
+    if (!this.pielSucia) return; this.pielSucia = false;
+    const A = this.A;
     // matrices de piel: mundo del hueso * pose de enlace, en filas (3 x vec4 por hueso)
     for (const pz of this.pieles) {
       const x = A[pz.i], md = DATA.ms[x.m], bp = md.bp, H = pz.h;
@@ -68,7 +75,7 @@ class Modelo {
   }
   encolar() {
     if (this.oculto) return;
-    this.actualizar();
+    this.pielesYa();
     let extra = this.color ? { c: this.color } : this.extra || null;
     // (el tinte de la entidad, un color por objeto —en el shader, uTi: el brillo de la textura pintado de ese color—; el
     // barril violeta de la grieta en el menú, deposito.js)
@@ -104,7 +111,8 @@ class Modelo {
 }
 // cuaternión de un nodo en el mundo (sacado de su matriz)
 function m4quat(m, out) {
-  const sx = Math.hypot(m[0], m[1], m[2]), sy = Math.hypot(m[4], m[5], m[6]), sz = Math.hypot(m[8], m[9], m[10]);
+  // (Math.sqrt y no Math.hypot: hypot es varias veces más lenta y esto corre por hueso en cada cuadro)
+  const sx = Math.sqrt(m[0] * m[0] + m[1] * m[1] + m[2] * m[2]), sy = Math.sqrt(m[4] * m[4] + m[5] * m[5] + m[6] * m[6]), sz = Math.sqrt(m[8] * m[8] + m[9] * m[9] + m[10] * m[10]);
   const a = m[0] / sx, b = m[1] / sx, c = m[2] / sx, d = m[4] / sy, e = m[5] / sy, f = m[6] / sy, g = m[8] / sz, h = m[9] / sz, k = m[10] / sz;
   const t = a + e + k; let x, y, z, w;
   if (t > 0) { const s = Math.sqrt(t + 1) * 2; w = 0.25 * s; x = (f - h) / s; y = (g - c) / s; z = (b - d) / s; }

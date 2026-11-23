@@ -521,7 +521,7 @@ function asientoPose(P) {
 function asientoFaldon(P, o) {
   const md = P.md, ih = P.D.h.Hips, qi = o.b.q.clone().conj(); let L = 0, Lm = 0;
   try {
-    md.actualizar(); const Wh = md.W[ih], hy = qi.rot(v3(Wh[12] - o.b.pos.x, Wh[13] - o.b.pos.y, Wh[14] - o.b.pos.z)).y;
+    md.pielesYa(); const Wh = md.W[ih], hy = qi.rot(v3(Wh[12] - o.b.pos.x, Wh[13] - o.b.pos.y, Wh[14] - o.b.pos.z)).y;
     for (let i = 0; i < md.A.length; i++) {
       const x = md.A[i]; if (!x.bo || !md.ver[i]) continue; const pz = md.pieles.find((z) => z.i === i), m = mallaGL(x.m); if (!pz || !m) continue;
       const d = m.d, B = binDe(d), j = x.bo.indexOf(ih), jm = [P.D.h.LeftUpLeg, P.D.h.RightUpLeg].map((u) => (u === undefined ? -2 : x.bo.indexOf(u))); if ((j < 0 && jm[0] < 0 && jm[1] < 0) || !B) continue;

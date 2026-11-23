@@ -215,18 +215,26 @@ function jugadorEscalon(dt, p0, v0, tx, tz) {
   J.pos.copy(_escP); J.vel.copy(_escV); J.sueloN.copy(_escN); J.suelo = A.suelo; J.sobre = A.sobre; J.pisa = A.pisa;
 }
 // moverse en pasos chicos y sacar la cápsula de lo que toque (también lo usa volar)
+const _czL = [];
 function jugadorMoverChocar(dt, tramo) {
   const J = JUG, pasos = Math.max(1, Math.ceil(J.vel.len() * dt / (tramo || 0.25)));
   J.suelo = false; J.sobre = null; J.pisa = null;
+  const esf = J.agCol && J.esfAg ? J.esfAg : J.esf;
+  // (los cuerpos que se pueden tocar en todo el movimiento: la caja del recorrido, con el radio y las esferas de la cápsula;
+  // la grilla ya da un margen por lo que se corre al empujar)
+  let dy0 = 0, dy1 = 0; for (const e of esf) { if (e[0] < dy0) dy0 = e[0]; if (e[0] > dy1) dy1 = e[0]; }
+  const P0 = J.pos, V = J.vel, r = J.radio + 0.25, ex = V.x * dt, ey = V.y * dt, ez = V.z * dt;
+  const cerca = cuerposCerca(Math.min(P0.x, P0.x + ex) - r, Math.min(P0.y, P0.y + ey) + dy0 - r, Math.min(P0.z, P0.z + ez) - r,
+    Math.max(P0.x, P0.x + ex) + r, Math.max(P0.y, P0.y + ey) + dy1 + r, Math.max(P0.z, P0.z + ez) + r, _czL);
   for (let s = 0; s < pasos; s++) {
     J.pos.addS(J.vel, dt / pasos);
     for (let it = 0; it < 2; it++) {
       const corr = _pn.set(0, 0, 0);
-      for (const [dy, pie] of (J.agCol && J.esfAg ? J.esfAg : J.esf)) {
+      for (const [dy, pie] of esf) {
         _p2.set(J.pos.x, J.pos.y + dy, J.pos.z);
         esferaFuera(_p2, J.radio, corr, pie);
         // objetos sueltos
-        for (const b of PH.bodies) {
+        for (const b of cerca) {
           if (b.noJug || b.held || b === J.vehiculoCuerpo) continue;
           const a = b.aabb; if (_p2.x + J.radio < a.x0 || _p2.x - J.radio > a.x1 || _p2.y + J.radio < a.y0 || _p2.y - J.radio > a.y1 || _p2.z + J.radio < a.z0 || _p2.z - J.radio > a.z1) continue;
           empujarDeCuerpo(b, _p2, J.radio, corr, pie, b.dynamic);

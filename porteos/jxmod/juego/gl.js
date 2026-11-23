@@ -31,6 +31,21 @@ function m4trs(p, r, s, out) {
   m[8] = 2 * (x * z + y * w) * sz; m[9] = 2 * (y * z - x * w) * sz; m[10] = (1 - 2 * (x * x + y * y)) * sz; m[11] = 0;
   m[12] = p[0]; m[13] = p[1]; m[14] = p[2]; m[15] = 1; return m;
 }
+// P × (matriz desde posición, rotación y escala), sin armar la del medio: la jerarquía de huesos (modelo.js), 36 productos
+// en vez de 64 (la última fila de la local es 0 0 0 1)
+function m4trsPor(P, p, r, s, out) {
+  const x = r[0], y = r[1], z = r[2], w = r[3], sx = s[0], sy = s[1], sz = s[2];
+  const a0 = (1 - 2 * (y * y + z * z)) * sx, a1 = 2 * (x * y + z * w) * sx, a2 = 2 * (x * z - y * w) * sx;
+  const b0 = 2 * (x * y - z * w) * sy, b1 = (1 - 2 * (x * x + z * z)) * sy, b2 = 2 * (y * z + x * w) * sy;
+  const c0 = 2 * (x * z + y * w) * sz, c1 = 2 * (y * z - x * w) * sz, c2 = (1 - 2 * (x * x + y * y)) * sz;
+  const t0 = p[0], t1 = p[1], t2 = p[2];
+  const P0 = P[0], P1 = P[1], P2 = P[2], P3 = P[3], P4 = P[4], P5 = P[5], P6 = P[6], P7 = P[7], P8 = P[8], P9 = P[9], P10 = P[10], P11 = P[11], P12 = P[12], P13 = P[13], P14 = P[14], P15 = P[15];
+  out[0] = P0 * a0 + P4 * a1 + P8 * a2; out[1] = P1 * a0 + P5 * a1 + P9 * a2; out[2] = P2 * a0 + P6 * a1 + P10 * a2; out[3] = P3 * a0 + P7 * a1 + P11 * a2;
+  out[4] = P0 * b0 + P4 * b1 + P8 * b2; out[5] = P1 * b0 + P5 * b1 + P9 * b2; out[6] = P2 * b0 + P6 * b1 + P10 * b2; out[7] = P3 * b0 + P7 * b1 + P11 * b2;
+  out[8] = P0 * c0 + P4 * c1 + P8 * c2; out[9] = P1 * c0 + P5 * c1 + P9 * c2; out[10] = P2 * c0 + P6 * c1 + P10 * c2; out[11] = P3 * c0 + P7 * c1 + P11 * c2;
+  out[12] = P0 * t0 + P4 * t1 + P8 * t2 + P12; out[13] = P1 * t0 + P5 * t1 + P9 * t2 + P13; out[14] = P2 * t0 + P6 * t1 + P10 * t2 + P14; out[15] = P3 * t0 + P7 * t1 + P11 * t2 + P15;
+  return out;
+}
 const m4pt = (m, x, y, z, o) => o.set(m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]);
 const RIM_NO = new Float32Array(3); const TI_NO = new Float32Array(4);
 const m4esc = (m) => Math.max(Math.hypot(m[0], m[1], m[2]), Math.hypot(m[4], m[5], m[6]), Math.hypot(m[8], m[9], m[10]));
