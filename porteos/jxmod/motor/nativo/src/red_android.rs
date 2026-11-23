@@ -85,6 +85,40 @@ impl Java {
     }
 }
 
+/// el cuadro para escribir de Juego.java (pedirTexto / tomarEscrito): el chat, la contraseña de una sala, el nombre
+#[derive(Clone)]
+pub struct Teclado { vm: JavaVM, act: Arc<Global<JObject<'static>>> }
+impl Teclado {
+    /// # Safety
+    /// `vm` y `act`: el JavaVM* y el jobject de la actividad (AndroidApp::vm_as_ptr y activity_as_ptr)
+    pub unsafe fn nuevo(vm: *mut std::ffi::c_void, act: *mut std::ffi::c_void) -> Option<Teclado> {
+        let vm = unsafe { JavaVM::from_raw(vm as *mut jni::sys::JavaVM) };
+        let g = con_java(&vm, |env| { let o = unsafe { JObject::from_raw(env, act as jni::sys::jobject) }; env.new_global_ref(&o) }).ok()?;
+        Some(Teclado { vm, act: Arc::new(g) })
+    }
+    /// abre el cuadro (en el hilo de la interfaz de Android)
+    pub fn pedir(&self, id: i32, titulo: &str, inicial: &str, max: i32, clave: bool) {
+        let a = self.act.clone();
+        let _ = con_java(&self.vm, |env| {
+            let (t, i) = (env.new_string(titulo)?, env.new_string(inicial)?);
+            env.call_method(a.as_obj(), jni_str!("pedirTexto"), jni_sig!("(ILjava/lang/String;Ljava/lang/String;IZ)V"), &[JValue::Int(id), JValue::Object(&t), JValue::Object(&i), JValue::Int(max), JValue::Bool(clave)])?;
+            Ok(())
+        });
+    }
+    /// lo escrito, si ya llegó: (id, Some(texto)) aceptado o (id, None) cancelado
+    pub fn tomar(&self) -> Option<(i32, Option<String>)> {
+        let a = self.act.clone();
+        let s = con_java(&self.vm, |env| {
+            let c = env.get_object_class(a.as_obj())?;
+            let r = env.call_static_method(&c, jni_str!("tomarEscrito"), jni_sig!("()Ljava/lang/String;"), &[])?.l()?;
+            if r.is_null() { return Ok(None); }
+            Ok(Some(env.cast_local::<JString>(r)?.try_to_string(env)?))
+        }).ok().flatten()?;
+        let (id, resto) = s.split_once('\n')?;
+        Some((id.parse().ok()?, resto.strip_prefix('1').map(|t| t.to_string())))
+    }
+}
+
 /// hace `f` con el hilo enganchado a Java; una excepción de Java vuelve como io::Error (TimedOut si fue un
 /// SocketTimeoutException: la lectura con tope no trajo nada)
 fn con_java<T>(vm: &JavaVM, f: impl FnOnce(&mut Env) -> Result<T, JErr>) -> io::Result<T> {

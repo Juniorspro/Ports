@@ -46,7 +46,13 @@ struct Dedo { id: i32, palanca: bool, boton: Option<Boton>, x0: f32, y0: f32, x:
 pub struct PanelNpc { pub npc: Option<u32>, pub est: String }
 /// lo que se toca en ese panel
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum BtnNpc { Rapida(usize), Arma(Option<npc::Arma>), SkinAnt, SkinSig, Borrar, BorrarTodos, Cerrar }
+pub enum BtnNpc { Rapida(usize), Arma(Option<npc::Arma>), SkinAnt, SkinSig, Escribir, Borrar, BorrarTodos, Cerrar }
+/// para qué se pidió escribir (el cuadro de texto de Android)
+#[derive(Clone, Debug)]
+pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud }
+/// pedir texto (título, lo que ya hay, hasta cuántas letras, si es contraseña; con un número) y levantar lo escrito
+/// (número y texto, o None si se canceló): en Android, el cuadro de Juego.java (red_android::Teclado)
+pub struct Teclado { pub pedir: Box<dyn Fn(i32, &str, &str, i32, bool)>, pub tomar: Box<dyn Fn() -> Option<(i32, Option<String>)>> }
 /// los botones rápidos del panel (NPC_RAPIDAS) con su nombre
 pub const RAPIDAS_NPC: [(&str, &str); 9] = [("agresivo", "Agresivo"), ("armado", "Armado"), ("defensor", "Te defiende"), ("amigo", "Amigo (me sigue)"), ("miedoso", "Miedoso"), ("bailarin", "Bailarín"), ("guardia", "Guardia"), ("paseo", "Pasea"), ("quieto", "Quieto")];
 /// el nombre de un arma de NPC como en la barra de armas (npcArmaNom)
@@ -69,6 +75,8 @@ pub fn panel_npc_geo(w: f32, h: f32, nuevo: bool) -> ([f32; 4], Vec<(BtnNpc, [f3
     let n = npc::ARMAS.len() + 1; let x1 = x0 + mx + h * 0.14; let aw = (x0 + pw - mx - x1) / n as f32;
     for k in 0..n { v.push((BtnNpc::Arma(if k == 0 { None } else { Some(npc::ARMAS[k - 1]) }), [x1 + k as f32 * aw + 2.0, y, aw - 4.0, h * 0.075])); }
     y += h * 0.11;
+    // (escribir cómo actúa: el lector de lo escrito, npcActDeTexto)
+    v.push((BtnNpc::Escribir, [x0 + mx, y, ancho, h * 0.075])); y += h * 0.1;
     v.push((BtnNpc::Borrar, [x0 + mx, y, ancho * 0.48, h * 0.075])); v.push((BtnNpc::BorrarTodos, [x0 + mx + ancho * 0.52, y, ancho * 0.48, h * 0.075]));
     // (y abajo, un renglón para cómo quedó)
     ([x0, y0, pw, y + h * 0.16 - y0], v)
@@ -76,7 +84,7 @@ pub fn panel_npc_geo(w: f32, h: f32, nuevo: bool) -> ([f32; 4], Vec<(BtnNpc, [f3
 
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo, Salas }
+pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo, Salas, Chat }
 /// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
 struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
 /// dónde va cada botón con la pantalla de w × h
@@ -87,6 +95,8 @@ fn botones(w: f32, h: f32) -> Vec<Btn> {
     v.push(Btn { b: Boton::Ajustes, x: w - bw / 2.0 - 6.0, y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false });
     // (al lado, la cámara: primera persona, tercera y de frente, como el botón de la web)
     v.push(Btn { b: Boton::Camara, x: w - bw * 1.5 - 6.0, y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false });
+    // (el chat de la sala: a la izquierda, arriba de la palanca)
+    v.push(Btn { b: Boton::Chat, x: h * 0.13, y: h * 0.36, w: h * 0.132, h: h * 0.132, redondo: true });
     // (y el multijugador: la lista de salas)
     v.push(Btn { b: Boton::Salas, x: w - bw * 2.5 - 6.0, y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false });
     let r = h * 0.11;
@@ -241,6 +251,8 @@ pub struct Juego {
     pub npc_panel: Option<PanelNpc>, pub npc_act: Option<npc::Actitud>, pub npc_skin: String,
     /// el multijugador (red_juego.rs)
     pub en_red: red_juego::EnRed,
+    /// escribir (sin teclado —en la compu—, no se puede) y lo que se está esperando
+    pub teclado: Option<Teclado>, escribir: Option<(i32, Escribir)>, escribir_n: i32,
     pub sonido: crate::sonido::Sonido, amb_t: f32, paso_d: f32, aire_t: f32, vy_aire: f32, golpe_max: f32, saltos_vistos: u32, ahogos_vistos: u32, nadaba: bool, brazada_t: f32, azar: u32,
 }
 
@@ -280,7 +292,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), en_red, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), en_red, teclado: None, escribir: None, escribir_n: 0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -323,6 +335,7 @@ impl Juego {
             match b {
                 Boton::Ajustes => { self.menu = None; self.ajustes = Some(0); }
                 Boton::Salas => self.abrir_salas(),
+                Boton::Chat => self.pedir_texto(Escribir::Chat, "Decir en la sala", "", 120, false),
                 // (manejando, la cámara del vehículo: adentro o afuera; en primera mira adelante, como la web)
                 Boton::Camara if self.vehs.jugador.is_some() => { self.vehs.primera = !self.vehs.primera; if self.vehs.primera { self.jug.yaw = 0.0; self.jug.pitch = 0.0; } }
                 Boton::Camara => { self.camara = (self.camara + 1) % 3; self.avisar(["Primera persona", "Tercera persona", "De frente"][self.camara as usize].into()); }
@@ -393,10 +406,30 @@ impl Juego {
                 let i = skins.iter().position(|s| *s == self.npc_skin).unwrap_or(0) as i64 + if b == BtnNpc::SkinSig { 1 } else { -1 };
                 self.npc_skin = skins[i.rem_euclid(skins.len() as i64) as usize].clone();
             }
+            BtnNpc::Escribir => { self.pedir_texto(Escribir::Actitud, "Cómo actúa el NPC", "", 300, false); return; }
             BtnNpc::Borrar => { if let Some(id) = quien { self.npcs.quitar(id, &mut self.fis); self.avisar("Borrado: NPC".into()); } self.npc_panel = None; return; }
             BtnNpc::BorrarTodos => { self.npcs.todos(&mut self.fis); self.pila.retain(|x| !x.0); self.avisar("Se borraron tus NPC".into()); self.npc_panel = None; return; }
         }
         self.sonido.tocar("Click", 0.5, 1.3, None);
+    }
+    /// pedir que se escriba algo (el cuadro de texto del celular); llega en `escrito_paso`
+    pub(super) fn pedir_texto(&mut self, que: Escribir, titulo: &str, inicial: &str, max: i32, clave: bool) {
+        let Some(t) = &self.teclado else { self.avisar("Para escribir hace falta el teclado del celular".into()); return };
+        self.escribir_n += 1; (t.pedir)(self.escribir_n, titulo, inicial, max, clave); self.escribir = Some((self.escribir_n, que));
+    }
+    /// cada cuadro, mientras se espera: lo escrito, a donde iba
+    fn escrito_paso(&mut self) {
+        let Some((n, _)) = &self.escribir else { return }; let n = *n;
+        let Some((id, txt)) = self.teclado.as_ref().and_then(|t| (t.tomar)()) else { return };
+        if id != n { return; }
+        let Some((_, que)) = self.escribir.take() else { return };
+        let Some(t) = txt.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) else { return };
+        match que {
+            Escribir::Chat => { if self.en_red.en_sala() { self.en_red.red.chat(&t, None); let n = self.en_red.red.nombre.clone(); self.en_red.al_chat(format!("{n}: {t}")); } }
+            Escribir::Clave(s) => self.entrar_sala_con(&s, Some(&t)),
+            Escribir::Nombre => { let n: String = t.chars().filter(|c| !c.is_control()).take(20).collect(); self.en_red.poner_nombre(&n); self.avisar(format!("Ahora te ven como «{n}»")); }
+            Escribir::Actitud => { let a = npc::Actitud::de_texto(&t, Some(&serde_json::json!({ "de": "yo" }))); self.npc_aplicar(a, "Escrito"); }
+        }
     }
     /// los personajes que se pueden poner (los del menú de NPC)
     fn skins_npc(&self) -> Vec<String> { self.cat_npc.iter().flat_map(|c| c.1.iter()).filter_map(|n| npc::skin_de_item(n).map(|s| s.to_string())).collect::<std::collections::BTreeSet<_>>().into_iter().collect() }
@@ -613,6 +646,7 @@ impl Juego {
             Boton::ArmaN(_) => self.armas.barra_t > 0.0,
             // (la bocina, al volante de algo que tenga y no esté roto; el turbo, en la bici con cohete: hud.js)
             Boton::Bocina => self.vehs.jugador.filter(|j| j.1 == 0).and_then(|j| self.vehs.de(j.0)).map_or(false, |v| !v.roto && v.bocina_tipo().is_some()),
+            Boton::Chat => self.en_red.en_sala(),
             Boton::Turbo => self.vehs.jugador.and_then(|j| self.vehs.de(j.0)).map_or(false, |v| v.bici && !v.roto),
             // (manejando, agacharse sólo hace algo en el helicóptero —baja— y en el avión —desacelera—)
             Boton::Agachar if self.vehs.jugador.is_some() => matches!(self.tipo_manejo(), Some(veh::Tipo::Heli | veh::Tipo::Avion)),
@@ -782,6 +816,7 @@ impl Juego {
         // lo que pasó en el mundo: los NPC y los vehículos (sonidos, daño, el que sale despedido) y el agua
         if self.mapa.is_some() { self.eventos_mundo(dt); }
         // el multijugador: lo que llega, lo mío para mandar, los demás y sus cosas
+        self.escrito_paso();
         unsafe { self.red_cuadro(m, dt); }
         // manejando: el jugador va en el asiento y la cámara es la del vehículo (vehiculoCamara)
         let cam_veh = self.camara_vehiculo();
@@ -1076,6 +1111,7 @@ impl Juego {
                 Boton::Objetos => ("Objetos", self.menu.is_some()),
                 Boton::Deshacer => ("Deshacer", false),
                 Boton::Bocina => ("Bocina", self.apretado(Boton::Bocina)),
+                Boton::Chat => ("Chat", false),
                 Boton::Salas => (if self.en_red.en_sala() { "En sala" } else { "En línea" }, self.en_red.panel || self.en_red.en_sala()),
                 Boton::Turbo => ("Turbo", self.apretado(Boton::Turbo) || self.vehs.jugador.and_then(|j| self.vehs.de(j.0)).map_or(false, |v| v.turbo)),
             };
@@ -1230,6 +1266,7 @@ impl Juego {
                     BtnNpc::Rapida(k) => (RAPIDAS_NPC[k].1.into(), false, false),
                     BtnNpc::Arma(w) => (w.map(arma_npc_nom).unwrap_or("Ninguna").into(), act.as_ref().map(|a| a.arma == w).unwrap_or(w.is_none()), false),
                     BtnNpc::SkinAnt => ("<".into(), false, false), BtnNpc::SkinSig => (">".into(), false, false),
+                    BtnNpc::Escribir => ("Escribir cómo actúa… (por ejemplo: «agresivo, que me persiga corriendo»)".into(), false, false),
                     BtnNpc::Borrar => { if pn.npc.is_none() { continue; } ("Borrar este NPC".into(), false, true) }
                     BtnNpc::BorrarTodos => { let n = self.npcs.lista.len(); if n == 0 { continue; } (format!("Borrar mis NPC ({n})"), false, true) }
                 };

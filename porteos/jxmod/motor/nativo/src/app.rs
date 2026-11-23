@@ -53,6 +53,11 @@ fn android_main(app: AndroidApp) {
     let mut j = Juego::nuevo(paq, letras, activo(&app, "ui/letras.png"), datos);
     // (el multijugador: las conexiones al broker y a la tienda van por Java —TLS con los certificados del sistema—)
     j.en_red.puente = Some(unsafe { crate::red_android::Java::de_vm(app.vm_as_ptr()) }.puente());
+    // (escribir: el cuadro de texto de Juego.java)
+    if let Some(t) = unsafe { crate::red_android::Teclado::nuevo(app.vm_as_ptr(), app.activity_as_ptr()) } {
+        let (t1, t2) = (t.clone(), t);
+        j.teclado = Some(crate::comun::Teclado { pedir: Box::new(move |id, ti, ini, max, cl| t1.pedir(id, ti, ini, max, cl)), tomar: Box::new(move || t2.tomar()) });
+    }
     // (las capturas de nado del cuerpo)
     if let (Some(a), Some(b)) = (activo(&app, "cmu/126_04.bin"), activo(&app, "cmu/79_02.bin")) { j.nado = Some((a, b)); }
     // el sonido: los MP3 se leen directo del pk.bin adentro de la APK (va sin comprimir)

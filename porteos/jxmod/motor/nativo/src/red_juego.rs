@@ -34,7 +34,7 @@ pub struct EnRed {
 
 /// lo que se toca en el panel de salas
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum BtnSala { Sala(usize), Crear, Salir, Cerrar }
+pub enum BtnSala { Sala(usize), Crear, Nombre, Salir, Cerrar }
 
 /// dónde va el panel de salas y cada cosa (con `n` salas y bajado `scroll`): el marco y los botones
 pub fn panel_salas_geo(w: f32, h: f32, n: usize, scroll: f32, en_sala: bool) -> ([f32; 4], Vec<(BtnSala, [f32; 4])>) {
@@ -46,9 +46,10 @@ pub fn panel_salas_geo(w: f32, h: f32, n: usize, scroll: f32, en_sala: bool) -> 
         if y < y_lista - 1.0 || y + fh > y_lista + alto + 1.0 { continue; }
         v.push((BtnSala::Sala(k), [x0 + mx, y + 3.0, pw - mx * 2.0, fh - 6.0]));
     }
-    let yb = y0 + ph - h * 0.11; let bw = (pw - mx * 3.0) / 2.0;
+    let yb = y0 + ph - h * 0.11; let bw = (pw - mx * 4.0) / 3.0;
     v.push((BtnSala::Crear, [x0 + mx, yb, bw, h * 0.08]));
-    if en_sala { v.push((BtnSala::Salir, [x0 + mx * 2.0 + bw, yb, bw, h * 0.08])); }
+    v.push((BtnSala::Nombre, [x0 + mx * 2.0 + bw, yb, bw, h * 0.08]));
+    if en_sala { v.push((BtnSala::Salir, [x0 + mx * 3.0 + bw * 2.0, yb, bw, h * 0.08])); }
     ([x0, y0, pw, ph], v)
 }
 
@@ -65,8 +66,10 @@ impl EnRed {
     }
     /// ¿estoy en una sala?
     pub fn en_sala(&self) -> bool { self.red.sala.is_some() && self.red.room.len() > 0 }
+    /// mi nombre (el que ven los demás), guardado para la próxima
+    pub fn poner_nombre(&mut self, n: &str) { self.red.nombre = n.to_string(); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("nombre.txt"), n); } }
     /// un renglón en el chat (quedan los últimos 6)
-    fn al_chat(&mut self, t: String) { let ahora = self.red.t; self.chat.push((t, ahora)); if self.chat.len() > 6 { self.chat.remove(0); } }
+    pub(super) fn al_chat(&mut self, t: String) { let ahora = self.red.t; self.chat.push((t, ahora)); if self.chat.len() > 6 { self.chat.remove(0); } }
     /// la cosa de otro que es este Obj (su clave)
     fn clave_de(&self, id: u32) -> Option<&String> { self.cosas.iter().find(|(_, v)| **v == id).map(|(k, _)| k) }
     /// se borró el Obj `id`: si era de otro, se olvida y da su clave
@@ -90,6 +93,7 @@ impl Juego {
         match b {
             BtnSala::Cerrar => self.en_red.panel = false,
             BtnSala::Salir => { self.en_red.red.dejar(); self.avisar("Saliste de la sala".into()); }
+            BtnSala::Nombre => { let n = self.en_red.red.nombre.clone(); self.pedir_texto(Escribir::Nombre, "Tu nombre", &n, 20, false); }
             BtnSala::Crear => {
                 let m = self.mapas.get(self.mapa_i).cloned().unwrap_or_default();
                 let n = format!("Sala de {}", self.en_red.red.nombre);
@@ -98,15 +102,18 @@ impl Juego {
             }
             BtnSala::Sala(k) => {
                 let Some((s, _)) = salas.get(k) else { return };
-                if s.pw { self.avisar("Esa sala tiene contraseña (en la nativa todavía no se puede escribir)".into()); return; }
-                let s = s.clone(); self.entrar_sala(&s);
+                let s = s.clone();
+                if s.pw && self.en_red.red.entrar(&s, None).is_err() { let t = format!("Contraseña de {}", s.n); self.pedir_texto(Escribir::Clave(s), &t, "", 40, true); return; }
+                self.entrar_sala(&s);
             }
         }
     }
     /// entrar a una sala: su mapa (si es otro, cargarlo) y después conectarse
-    fn entrar_sala(&mut self, s: &Sala) {
+    fn entrar_sala(&mut self, s: &Sala) { self.entrar_sala_con(s, None); }
+    /// lo mismo con la contraseña escrita
+    pub(super) fn entrar_sala_con(&mut self, s: &Sala, clave: Option<&str>) {
         if self.en_red.puente.is_none() { self.avisar("Sin conexión: el multijugador anda en el celular".into()); return; }
-        if self.en_red.red.entrar(s, None).is_err() { self.avisar("Esa sala pide contraseña".into()); return; }
+        if self.en_red.red.entrar(s, clave).is_err() { self.avisar(if clave.is_some() { "Contraseña incorrecta".into() } else { "Esa sala pide contraseña".into() }); return; }
         self.en_red.panel = false;
         let actual = self.mapas.get(self.mapa_i).cloned().unwrap_or_default();
         if s.m != actual { if !self.poner_mapa(&s.m) { self.avisar(format!("No tengo el mapa {}", s.m)); self.en_red.red.dejar(); return; } }
@@ -331,6 +338,7 @@ impl Juego {
             let (txt, der, sel, rojo): (String, String, bool, bool) = match *b {
                 BtnSala::Cerrar => ("X".into(), String::new(), false, true),
                 BtnSala::Crear => ("Crear sala en este mapa".into(), String::new(), false, false),
+                BtnSala::Nombre => (format!("Nombre: {}", self.en_red.red.nombre), String::new(), false, false),
                 BtnSala::Salir => ("Salir de la sala".into(), String::new(), false, true),
                 BtnSala::Sala(k) => {
                     let (s, js) = &salas[k];

@@ -107,7 +107,11 @@ fn main() {
         let (_, bs) = panel_salas_geo(wf, hf, salas.len(), j.en_red.scroll, false); let r = bs.iter().find(|x| x.0 == BtnSala::Sala(k)).expect("la fila no se ve").1;
         toque(&mut j, 61, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0);
         let (mut t, dt) = (0.0f64, 1.0 / 60.0); let jp0 = j.jug.pos; let yaw = j.jug.yaw as f64; let (fx, fz) = (yaw.sin(), yaw.cos());
-        let mut dif = -1.0;
+        let mut dif = -1.0; let mut oyo: Vec<String> = vec![];
+        // (un teclado de mentira: lo que se pide escribir contesta enseguida)
+        let pedido = std::rc::Rc::new(std::cell::RefCell::new(None::<(i32, String)>)); let (p1, p2) = (pedido.clone(), pedido.clone());
+        j.teclado = Some(jxmod::comun::Teclado { pedir: Box::new(move |id, ti, _, _, _| { *p1.borrow_mut() = Some((id, ti.to_string())); }),
+            tomar: Box::new(move || p2.borrow_mut().take().map(|(id, ti)| (id, Some(if ti.contains("sala") { "hola Beto, soy el nativo".to_string() } else { "x".to_string() })))) });
         for f in 0..300 {
             t += dt; pb.bombear(&mut beto);
             // (Beto camina de un lado al otro a 5 m adelante, mirando al jugador; su caja a 7 m)
@@ -115,7 +119,8 @@ fn main() {
             let jug = Jugador { skin: "Hero".into(), gorro: "HatEmpty".into(), pos: p, yaw: yaw + std::f64::consts::PI, vel: [fz * (t * 0.9).cos() * 1.8, 0.0, -fx * (t * 0.9).cos() * 1.8], suelo: true, vivo: true, arma: Some("Pistol".into()), vida: 100.0, reloj: t, ..Default::default() };
             let cp = [jp0[0] as f64 + fx * 7.0 + fz * 1.5, jp0[1] as f64 - 0.4, jp0[2] as f64 + fz * 7.0 - fx * 1.5];
             let local = Local { jug, objs: vec![ObjLocal { id: 1, nombre: caja.clone(), pos: cp, q: [0.0, 0.0, 0.0, 1.0], congelado: true, ..Default::default() }], ..Default::default() };
-            beto.paso(dt, &local); let _ = beto.eventos(); pb.bombear(&mut beto);
+            beto.paso(dt, &local); for e in beto.eventos() { if let jxjuego::red::Evento::Chat { nombre, texto, .. } = e { oyo.push(format!("{nombre}: {texto}")); } } pb.bombear(&mut beto);
+            if f == 150 { let (cx, cy) = pos_boton(wf, hf, Boton::Chat); toque(&mut j, 63, cx, cy); }
             if f == 200 { beto.chat("hola desde la red", None); }
             if f == 230 { let o = [p[0], p[1] + 0.72, p[2]]; beto.disparo("Pistol", o, [-fx, 0.0, -fz]); }
             paso(&mut j, &mut m, 1);
@@ -124,7 +129,7 @@ fn main() {
         }
         println!("red: en sala {} ({}) · veo {} jugador(es): {:?} · cosas de otros {} · objetos en el juego {}", j.en_red.en_sala(), j.en_red.red.estado(), j.en_red.red.remotos().len(),
             j.en_red.red.remotos().iter().map(|r| format!("{} en [{:.2}, {:.2}, {:.2}]", r.nombre, r.pos[0], r.pos[1], r.pos[2])).collect::<Vec<_>>(), j.en_red.red.objetos().len(), j.objs.len());
-        println!("red: Beto ve {} jugador(es): {:?} · a {:.3} m de donde estoy", beto.remotos().len(), beto.remotos().iter().map(|r| r.nombre.clone()).collect::<Vec<_>>(), dif);
+        println!("red: Beto ve {} jugador(es): {:?} · a {:.3} m de donde estoy · oyó {:?}", beto.remotos().len(), beto.remotos().iter().map(|r| r.nombre.clone()).collect::<Vec<_>>(), dif, oyo);
         let (sx, sy) = pos_boton(wf, hf, Boton::Camara); toque(&mut j, 62, sx, sy); paso(&mut j, &mut m, 20); foto(&mut m, "8c_red_tercera");
         return;
     }
@@ -314,6 +319,10 @@ fn main() {
                 let (_, bs) = panel_npc_geo(wf, hf, false); let r = bs.iter().find(|b| b.0 == BtnNpc::Rapida(1)).unwrap().1;
                 toque(&mut j, 91, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0); paso(&mut j, &mut m, 2); foto(&mut m, "4c2_actitud");
                 println!("   Armado: {:?}", j.npcs.get(id).map(|n| n.act.describir()));
+                // (escrita: «agresivo, que me persiga corriendo con escopeta», por el cuadro de texto —acá, uno de mentira—)
+                j.teclado = Some(jxmod::comun::Teclado { pedir: Box::new(|_, _, _, _, _| {}), tomar: Box::new(|| Some((1, Some("agresivo, que me persiga corriendo con escopeta".into())))) });
+                let r = bs.iter().find(|b| b.0 == BtnNpc::Escribir).unwrap().1; toque(&mut j, 96, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0); paso(&mut j, &mut m, 2);
+                println!("   escrita: {:?}", j.npcs.get(id).map(|n| n.act.describir())); j.teclado = None;
                 let r = bs.iter().find(|b| b.0 == BtnNpc::Cerrar).unwrap().1; toque(&mut j, 92, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0); paso(&mut j, &mut m, 2);
                 let n0 = j.npcs.lista.len(); j.jug.pitch = -0.7; paso(&mut j, &mut m, 2); disparar(&mut j, &mut m, 93); paso(&mut j, &mut m, 30);
                 println!("   panel cerrado {} · en el piso: {} → {} NPC", j.npc_panel.is_none(), n0, j.npcs.lista.len());
