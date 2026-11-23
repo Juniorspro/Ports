@@ -11,6 +11,7 @@ function vehiculoNuevo(o) {
   const md = new Modelo(arb); md.p[0] = [0, 0, 0]; md.sucio = true; md.actualizar();
   const enCuerpo = (W) => v3(W[12] - o.c.x, W[13] - o.c.y, W[14] - o.c.z);   // punto del marco raíz → local del cuerpo (sin girar)
   const V = { o, tipo, ruedas: [], asientos: [], vida: tipo === 'asiento' ? 1e9 : 400, roto: false, motor: 0, giro: 0, gas: 0, rpm: 0, vel: 0, aleteo: 0, rotores: [], conductor: null };
+  if (arb[0].bote && o.b) { V.bote = true; o.b.dens = 380; o.b.bote = true; }   // (un bote flota con un tercio del casco bajo el agua: botePaso)
   for (let i = 0; i < arb.length; i++) {
     const x = arb[i];
     if (/^SitPoint/.test(x.n)) V.asientos.push(enCuerpo(md.W[i]));
@@ -125,7 +126,29 @@ function vehiculosPaso(dt, ent) {
     }
   }
 }
+// el bote en el agua (el Airboat de HL2: el ventilador de atrás empuja y el timón de aire lo hace girar aunque esté quieto;
+// la quilla no lo deja ir de costado; el agua lo frena un poco y lo mantiene derecho). Flotar lo hace el agua (aguaCuerpos,
+// con la densidad de un bote). Hasta 21 m/s (~75 km/h), como el de HL2
+function botePaso(V, dt, ent) {
+  const b = V.o.b, fwd = b.q.rot(v3(0, 0, 1)), up = b.q.rot(v3(0, 1, 0)), k = 1;
+  const f = v3(fwd.x, 0, fwd.z); if (f.len() < 1e-3) return; f.norm(); const lat = v3(f.z, 0, -f.x);
+  const gas = ent ? ent.y : 0, giro = ent ? -ent.x : 0, freno = ent && ent.saltar;
+  V.motor += ((ent ? 1 : 0) - V.motor) * Math.min(1, dt * 2); V.giro += (giro - V.giro) * Math.min(1, dt * 5);
+  const vlon = vdot(b.vel, f), vlat = vdot(b.vel, lat); V.vel = vlon; V.rpm = Math.min(1, Math.abs(vlon) / 21);
+  let a = 0;
+  if (gas > 0.05) a = gas * (vlon < 21 ? 7.5 : 0); else if (gas < -0.05) a = gas * (vlon > -6 ? 4 : 0);
+  if (freno) a = -Math.sign(vlon) * Math.min(Math.abs(vlon) / dt, 9);
+  b.wake();
+  b.vel.addS(f, (a - vlon * 0.12) * k * dt);              // (empuje y el roce del agua)
+  b.vel.addS(lat, -vlat * Math.min(1, dt * 2.6) * k);      // (la quilla)
+  const wy = V.giro * (1.1 + Math.min(1, Math.abs(vlon) / 10) * 0.7) * (vlon < -0.5 ? -1 : 1);
+  b.ang.y += (wy - b.ang.y) * Math.min(1, dt * 4) * k;     // (gira sobre el agua)
+  const c = vcross(up, v3(0, 1, 0)); b.ang.addS(c, dt * 10 * k); b.ang.x *= Math.exp(-dt * 2 * k); b.ang.z *= Math.exp(-dt * 2 * k);   // (derecho)
+  for (const w of V.ruedas) { w.toca = false; w.comp = 0; w.compVis = -w.sd * 0.5; }
+}
 function autoPaso(V, dt, ent) {
+  // (un bote con agua debajo del casco —su centro a menos de 1,2 m sobre la superficie—: lo hundido sube y baja al acelerar)
+  if (V.bote && ((V.o.b.aguaK || 0) > 0.02 || (typeof aguaEn === 'function' && aguaEn(V.o.b.pos.x, V.o.b.pos.y, V.o.b.pos.z, 1.2)))) { botePaso(V, dt, ent); return; }
   const b = V.o.b, up = b.q.rot(v3(0, 1, 0)), fwd = b.q.rot(v3(0, 0, 1)), rgt = b.q.rot(v3(1, 0, 0));
   // la bici con cohete: Shift (o el botón) prende el cohete: empuja fuerte para adelante (hasta 48 m/s)
   V.bici = V.o.art === 'bici';
@@ -167,7 +190,7 @@ function autoPaso(V, dt, ent) {
     // motor (tracción en todas) y freno
     let fz = 0;
     const vmax = V.bici ? (V.turbo ? 48 : 13) : V.tipo === 'moto' ? 34 : 32;
-    if (gas > 0.05) fz = gas * (vlon < vmax ? 1 : 0) * m * (V.bici ? 4.5 : 9) / nr;   // (la bici, a pedal)
+    if (gas > 0.05) fz = gas * (vlon < (V.bote ? 7 : vmax) ? 1 : 0) * m * (V.bici ? 4.5 : V.bote ? 3.5 : 9) / nr;   // (la bici, a pedal; el bote, en tierra, despacio)
     if (gas < -0.05) fz = vlon > 1 ? gas * m * 14 / nr : gas * (vlon > -10 ? 1 : 0) * m * 6 / nr;
     if (freno) fz = -Math.sign(vlon) * Math.min(Math.abs(vlon) * m / nr / dt, m * 12 / nr);
     if (!gas && !freno) fz = -vlon * m * 0.15 / nr;

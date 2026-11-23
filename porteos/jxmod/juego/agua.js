@@ -178,7 +178,7 @@ function aguaCuerpos(dt) {
       sub += f;
       const vx = b.vel.x + b.ang.y * r.z - b.ang.z * r.y, vy = b.vel.y + b.ang.z * r.x - b.ang.x * r.z, vz = b.vel.z + b.ang.x * r.y - b.ang.y * r.x;
       const fu = AGUA_RHO * 9.81 * S.w * f * k, cd = AGUA_RHO * S.w * f * 1.8 * k;
-      const Fx = -cd * vx, Fy = fu - cd * vy, Fz = -cd * vz;
+      const hk = b.bote ? 0.03 : 1, Fx = -cd * vx * hk, Fy = fu - cd * vy, Fz = -cd * vz * hk;   // (un bote se desliza: el casco corta el agua —su roce lo pone botePaso—)
       fx += Fx; fy += Fy; fz += Fz; tx += r.y * Fz - r.z * Fy; ty += r.z * Fx - r.x * Fz; tz += r.x * Fy - r.y * Fx;
     }
     b.aguaK = sub / S.pts.length;
@@ -187,7 +187,7 @@ function aguaCuerpos(dt) {
     const w = b.invIw(_a2.set(tx, ty, tz), _a3); b.ang.x += w.x * dt; b.ang.y += w.y * dt; b.ang.z += w.z * dt;
     // (las olas que hace al moverse se llevan energía: sube y baja menos veces antes de quedarse flotando)
     // (y el agua frena los giros aunque toque poco: un sofá que cae girando no sigue dando vueltas al flotar)
-    const am = Math.exp(-dt * 2.2 * b.aguaK), aa = Math.exp(-dt * (1.2 + 2.5 * b.aguaK)); b.vel.y *= am; b.ang.x *= aa; b.ang.y *= aa; b.ang.z *= aa;
+    const am = Math.exp(-dt * 2.2 * b.aguaK), aa = Math.exp(-dt * (1.2 + 2.5 * b.aguaK)); b.vel.y *= am; b.ang.x *= aa; b.ang.y *= b.bote ? Math.exp(-dt * 0.4) : aa; b.ang.z *= aa;
     // al entrar con velocidad, salpica (más cuanto más pesado y más rápido)
     if (antes === 0 && b.vel.y < -1.6) aguaSalpicar(v3(b.pos.x, toca.y1, b.pos.z), clamp(-b.vel.y * Math.sqrt(m) / 45, 0.12, 1));
     // (moviéndose en la superficie deja ondas detrás, más seguidas cuanto más rápido)
@@ -388,7 +388,7 @@ function aguaPaso(dt) {
 // la niebla debajo del agua (de cerca, del color del agua): se pone antes de dibujar y se devuelve la de antes
 function aguaNiebla() {
   if (!AGUA.bajo) return null;
-  const antes = R.niebla, col = AGUA.camVol && AGUA.camVol.rec ? [0.32, 0.5, 0.56] : [0.08, 0.24, 0.27];
+  const antes = R.niebla, col = AGUA.camVol && AGUA.camVol.rec ? [0.32, 0.5, 0.56] : AGUA.hl2 && AGUA.hl2.bajo ? AGUA.hl2.bajo : [0.08, 0.24, 0.27];
   R.niebla = { c: col, a: 0, b: AGUA.camVol && AGUA.camVol.rec ? 4 : 16, agua: true };
   return antes;
 }
@@ -461,6 +461,8 @@ function aguaUniformes(p, u) {
   if (u.uAguaT) gl.uniform1f(u.uAguaT, AGUA.t);
   if (u.uAguaK) { if (k) gl.uniform4f(u.uAguaK, k[0], k[1], k[2], k[3]); else gl.uniform4f(u.uAguaK, 1, 0.72, 0, 0); }   // (el del mapa: más turbia)
   const ref = AGUA.refOn && !k && p.mt.refleja;
+  // (el agua de HL2 en el agua de los mapas: aguaHL2)
+  if (u.uAguaH) { const H = AGUA.hl2; if (H && H.tex && !k && p.mt.refleja) { gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, H.tex); gl.activeTexture(gl.TEXTURE0); gl.uniform4f(u.uAguaH, 1, H.esc, H.fuerza, H.dist); gl.uniform4f(u.uAguaF, H.fog[0], H.fog[1], H.fog[2], H.fog[3]); gl.uniform4f(u.uAguaS, H.s[0], H.s[1], H.s[2], H.s[3]); if (H.prof) { gl.activeTexture(gl.TEXTURE10); gl.bindTexture(gl.TEXTURE_2D, H.prof.tex); gl.activeTexture(gl.TEXTURE0); } if (u.uAguaB) gl.uniform4f(u.uAguaB, H.prof ? H.prof.x0 : 0, H.prof ? H.prof.z0 : 0, H.prof ? 1 / H.prof.w : 0, H.prof ? 1 / H.prof.h : 0); if (u.uAguaD) gl.uniform4f(u.uAguaD, H.prof ? H.prof.D : 20, H.largo, 0, 0); } else gl.uniform4f(u.uAguaH, 0, 0, 0, 0); }
   if (u.uRefOn) gl.uniform1f(u.uRefOn, ref ? 1 : 0);
   if (u.uRef && ref) { gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, AGUA.rt.t); gl.activeTexture(gl.TEXTURE0); gl.uniform2f(u.uRefInv, 1 / R.cv.width, 1 / R.cv.height); }
 }

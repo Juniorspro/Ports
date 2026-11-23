@@ -368,3 +368,52 @@ function jxpAddonsDibujar(C, cl, gr, pie) {
   };
   const bi = gr.querySelector('#jxpInstalar'); if (bi) bi.onclick = () => jxpPackInstalar();
 }
+
+// ---------------- el agua de Half-Life 2 ----------------
+// (pedido: «quiero el agua real del Half-Life 2, sí o sí»). El agua de los mapas se dibuja con un material de agua de HL2
+// del contenido base: su mapa de normales (dos capas que corren cruzadas, como su $bumptransform), el color de su niebla
+// —lo que se ve a través del agua, oscuro y verdoso— y lo turbia que es ($fogend), con el Fresnel y el reflejo de la
+// escena que ya tenía el juego, corrido por esas normales (gl.js, uAguaH). Debajo del agua, la niebla es de ese color.
+// gm_construct usa la suya (gm_construct/water); los demás, la de la costa de HL2 (nature/water_coast01)
+const JXP_AGUA = { RB_Construct: 'gm_construct/water' }, JXP_AGUA_DEF = 'nature/water_coast01';
+function jxpVmt(t) {
+  const o = {}; for (const m of String(t).matchAll(/"([$%][\w?]+|srgb\?\$\w+)"\s+"?([^"\r\n]*)"?/gi)) { const k = m[1].toLowerCase(); if (!(k in o)) o[k] = m[2].trim(); }
+  return o;
+}
+const jxpColor = (s) => { const m = /[{[]\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(s || ''); if (!m) return null; const c = [+m[1], +m[2], +m[3]]; return /^\s*\{/.test(s) ? c.map((x) => x / 255) : c; };
+async function jxpAguaHL2(mapa) {
+  AGUA.hl2 = null; if (!JXP || !AGUA.vols.length || typeof gmlTiene !== 'function' || !R.gl || R.gl1) return;   // (WebGL 2: el agua de HL2 usa dos texturas más)
+  const n = ++JXPM.aguaN;
+  try {
+    await Promise.all([typeof gmlIniciar === 'function' ? gmlIniciar() : null, typeof gbsIniciar === 'function' ? gbsIniciar() : null]);   // (el contenido base: su índice llega solo la primera vez)
+    if (n !== JXPM.aguaN) return;
+    let nom = JXP_AGUA[mapa] || JXP_AGUA_DEF, ruta = 'materials/' + nom + '.vmt';
+    if (!gmlTiene(ruta)) { nom = JXP_AGUA_DEF; ruta = 'materials/' + nom + '.vmt'; }
+    await gmlTraer([ruta]); const b = gmArchivo(ruta); if (!b) return;
+    const V = jxpVmt(new TextDecoder('latin1').decode(b));
+    const nr = 'materials/' + String(V.$normalmap || 'dev/water_normal').toLowerCase().replace(/\\/g, '/').replace(/\.vtf$/, '') + '.vtf';
+    if (gmlTiene(nr)) await gmlTraer([nr]); const u = gmArchivo(nr); if (!u || n !== JXPM.aguaN) return;
+    const T = GMF.vtf(u, 512), px = GMF.vtfRGBA(T), tex = gmTexGL(px, T.w, T.h, false);
+    const fs = jxpColor(V['srgb?$fogcolor']) || jxpColor(V.$fogcolor) || [0.08, 0.19, 0.2], fin = +V.$fogend || 400;
+    const lin = fs.map((c) => Math.pow(c, 2.2)), turbia = clamp(1.05 - fin / 1500, 0.55, 0.92);
+    AGUA.hl2 = { tex, nom, normal: nr, fog: [lin[0], lin[1], lin[2], turbia], esc: 0.38, fuerza: 0.55, dist: 0.09, s: [0.021, 0.016, -0.018, 0.024], bajo: fs.map((c) => Math.min(1, c * 1.5)), largo: Math.max(1.5, fin * GM_S / 2.5), prof: jxpAguaFondo() };
+  } catch (e) { gmErr('agua de HL2', e); }
+}
+JXPM.aguaN = 0;
+// lo hondo del agua más grande del mapa, medido una vez: una grilla de 64 × 64 rayos para abajo desde la superficie hasta el
+// fondo (el mapa), en una textura chica (0..1 de la profundidad más honda). Con eso el sombreador sabe cuánta agua hay
+// debajo de cada punto (en la WebGL que lo deja: 16 unidades de textura)
+function jxpAguaFondo() {
+  if (!R.gl || R.gl1) return null;
+  const W = AGUA.vols.filter((v) => v.mapa).sort((a, b) => b.hx * b.hz - a.hx * a.hz)[0]; if (!W) return null;
+  const N = 64, D = Math.max(0.5, W.y1 - W.y0), x0 = W.ax0, z0 = W.az0, w = W.ax1 - W.ax0, h = W.az1 - W.az0, px = new Uint8Array(N * N * 4), abajo = v3(0, -1, 0);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const x = x0 + (i + 0.5) / N * w, z = z0 + (j + 0.5) / N * h, hit = raycast(v3(x, W.y1 + 0.05, z), abajo, D + 1, null);
+    const p = hit ? Math.max(0, hit.t - 0.05) : D, o = (j * N + i) * 4; px[o] = Math.round(clamp(p / D, 0, 1) * 255); px[o + 3] = 255;
+  }
+  const gl = R.gl, tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, N, N, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return { tex, x0, z0, w, h, D };
+}

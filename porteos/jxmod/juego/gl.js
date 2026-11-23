@@ -170,6 +170,11 @@ uniform sampler2D uAO; uniform vec2 uAOinv; uniform float uAOon;
 // el agua (agua.js): ondas que se mueven, Fresnel y, en Alto y Ultra, el reflejo de la escena (uRef, de aguaReflejo)
 #ifdef AGUA
 uniform float uAguaT; uniform vec4 uAguaK;
+// (el agua de Half-Life 2 —versión personal, agua.js aguaHL2—: su mapa de normales, x = 1 prendido, y = cuánto mide un
+// azulejo, z = fuerza, w = cuánto corre el reflejo; uAguaF el color de su niebla —lineal— y lo opaca; uAguaS cómo corren)
+uniform sampler2D uAguaN; uniform vec4 uAguaH, uAguaF, uAguaS;
+// (lo hondo del agua de HL2: uAguaP, el fondo medido —0..1 de uAguaD.x metros— en la caja uAguaB —x0, z0, 1/ancho, 1/largo—; uAguaD.y, el largo de la niebla)
+uniform sampler2D uAguaP; uniform vec4 uAguaB, uAguaD;
 #ifndef MEZ
 in float vMz;
 #endif
@@ -374,6 +379,13 @@ void main(){
   g *= uAguaK.x / (1.0 + dCam * 0.02);
   vec3 n = normalize(vec3(-g.x, 1.0, -g.y)), v = normalize(uCam - vW);
   t = texture(uT, vU + T * vec2(0.011, 0.007)) * uC;
+  // el de HL2: dos capas de su mapa de normales que corren cruzadas (como el $bumptransform de Source), más suaves a lo lejos
+  if (uAguaH.x > 0.5) {
+    vec2 q = vW.xz * uAguaH.y;
+    vec3 n1 = texture(uAguaN, q + T * uAguaS.xy).rgb * 2.0 - 1.0, n2 = texture(uAguaN, q * 0.71 + vec2(0.37, 0.61) + T * uAguaS.zw).rgb * 2.0 - 1.0;
+    vec2 d = (n1.xy + n2.xy) * uAguaH.z / (1.0 + dCam * 0.012);
+    n = normalize(vec3(d.x, 1.0, d.y));
+  }
   float fr = 0.02 + 0.98 * pow(1.0 - abs(dot(n, v)), 5.0);
 #if LUZ >= 2
   vec3 alb = pow(t.rgb, vec3(2.2)), rfl = reflect(-v, n); rfl.y = abs(rfl.y);
@@ -382,10 +394,11 @@ void main(){
   vec3 alb = t.rgb, refl = mix(uAmbS * 1.3, uNieC, 0.3);
 #endif
   vec3 cuerpo = alb * (mix(uAmbG, uAmbS, 0.8) + uSolC * max(uSol.y, 0.0) * 0.5) * 0.7;
+  if (uAguaH.x > 0.5) cuerpo = uAguaF.rgb * (mix(uAmbG, uAmbS, 0.8) + uSolC * max(uSol.y, 0.0) * 0.5) * 1.6;   // (el color de la niebla del agua de HL2)
 #ifdef REFL
   // la escena espejada (dibujada a menos resolución en aguaReflejo), corrida un poco por las ondas
   if (uRefOn > 0.5) {
-    vec3 rt = texture(uRef, gl_FragCoord.xy * uRefInv + n.xz * 0.05 / (1.0 + dCam * 0.02)).rgb;
+    vec3 rt = texture(uRef, gl_FragCoord.xy * uRefInv + n.xz * (uAguaH.x > 0.5 ? uAguaH.w : 0.05) / (1.0 + dCam * 0.02)).rgb;
 #if SALIDA == 1
     // (sin HDR el reflejo ya salió con el tono de pantalla: se lo vuelve a lineal, la inversa de aces)
     vec3 y = min(pow(rt, vec3(2.2)), vec3(0.985)), qa = 2.51 - 2.43 * y, qb = 0.03 - 0.59 * y;
@@ -402,6 +415,14 @@ void main(){
   float spec = pow(rv, mix(2400.0, 700.0, fs)) * 5.0 * mix(0.06, 1.0, fs) * step(0.0, uSol.y);
   vec3 col = mix(cuerpo, refl, fr) + uSolC * spec;
   t.a = mix(uAguaK.y, 1.0, fr);
+  // (el de HL2: la niebla del agua por lo que recorre la mirada adentro —lo hondo de ese punto sobre lo empinado de la
+  // mirada—: lo bajo deja ver el fondo y lo hondo es del color del agua, como la refracción con niebla de Source)
+  if (uAguaH.x > 0.5) {
+    vec2 pb = (vW.xz - uAguaB.xy) * uAguaB.zw;
+    float prof = (pb.x >= 0.0 && pb.y >= 0.0 && pb.x <= 1.0 && pb.y <= 1.0) ? texture(uAguaP, pb).r * uAguaD.x : uAguaD.x;
+    float niebla = 1.0 - exp(-prof / max(abs(v.y), 0.08) / uAguaD.y);
+    t.a = mix(max(niebla, uAguaF.a * 0.25), 1.0, fr);
+  }
   // de abajo (la cámara bajo el agua): casi todo se refleja para adentro, se ve el color del agua
   if (uCam.y < vW.y) { col = cuerpo * 0.7 + refl * 0.12; t.a = 0.82; }
   if (uAguaK.w > 0.5) t.a *= clamp(vMz, 0.0, 1.0);   // (charcos: lo hondo de cada vértice)
@@ -777,7 +798,7 @@ function shaderTerminar(o) {
   const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
   for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i), nm = a.name.replace('[0]', ''); u[nm] = gl.getUniformLocation(p, a.name); }
   gl.useProgram(p);
-  for (const [k, v] of [['uT', 0], ['uT1', 1], ['uT2', 2], ['uT3', 3], ['uLM', 3], ['uSM', 5], ['uSMd', 6], ['uAO', 7], ['uESm', 8], ['uRef', 4], ['uTex', 0], ['uTex2', 1], ['uTex3', 2], ['uProf', 3]]) if (u[k]) gl.uniform1i(u[k], v);
+  for (const [k, v] of [['uT', 0], ['uT1', 1], ['uT2', 2], ['uT3', 3], ['uLM', 3], ['uSM', 5], ['uSMd', 6], ['uAO', 7], ['uESm', 8], ['uRef', 4], ['uAguaN', 9], ['uAguaP', 10], ['uTex', 0], ['uTex2', 1], ['uTex3', 2], ['uProf', 3]]) if (u[k]) gl.uniform1i(u[k], v);
   if (R.gl1 && u.uSMd && !u.uSM) gl.uniform1i(u.uSMd, 6);
   R.progAct = null;   // (quedó puesto éste: el que se estaba usando se vuelve a poner en el próximo dibujo)
   return { p, u, marca: 0 };

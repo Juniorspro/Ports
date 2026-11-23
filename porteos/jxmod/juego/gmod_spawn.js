@@ -32,7 +32,9 @@ function gmvehPrefab(key) {
   const pj = (p) => [p[1] * GM_S, p[2] * GM_S, p[0] * GM_S];   // (Source → ejes de los props del juego)
   // de qué rueda es cada hueso (los Wheel_* y lo que cuelga de ellos)
   const rueda = H.map(() => -1), ruedas = [];
-  H.forEach((h, i) => { if (/wheel/i.test(h.n) && !/steer/i.test(h.n)) { rueda[i] = ruedas.length; ruedas.push({ h: i, n: h.n.toLowerCase().replace(/^.*wheel_?/, '') }); } else if (h.pa >= 0 && rueda[h.pa] >= 0) rueda[i] = rueda[h.pa]; });
+  // (una rueda por hueso de rueda que no cuelga de otro: el Jeep y el Jalopy de HL2 tienen Wheel_FR_Turn_parent › _Turn ›
+  // _Rotate, y antes eran tres ruedas apiladas —la delantera con tres resortes— y el auto casi no andaba)
+  H.forEach((h, i) => { if (/wheel/i.test(h.n) && !/steer/i.test(h.n) && !(h.pa >= 0 && rueda[h.pa] >= 0)) { rueda[i] = ruedas.length; ruedas.push({ h: i, n: h.n.toLowerCase().replace(/^.*wheel_?/, '').replace(/_(turn|rotate|parent|spin|axle).*$/, '') }); } else if (h.pa >= 0 && rueda[h.pa] >= 0) rueda[i] = rueda[h.pa]; });
   const V = M.v, n = V.n, Uc = gmUVcorr(M), piel = M.pieles[0] || [];
   const deVert = (k) => { let b = V.hb[k * 3], w = V.w[k * 3]; for (let c = 1; c < 3; c++) if (V.w[k * 3 + c] > w) { w = V.w[k * 3 + c]; b = V.hb[k * 3 + c]; } return rueda[b]; };
   const partes = [{ tris: new Map(), cen: [0, 0, 0] }, ...ruedas.map(() => ({ tris: new Map(), cen: null }))];
@@ -58,7 +60,14 @@ function gmvehPrefab(key) {
   const sp = masa * 9.8 / nr / (sd * 0.5), da = 0.25 * 2 * Math.sqrt(sp * masa / nr) / 1.8;
   const cuerpo = malla(partes[0], [0, 0, 0], ruta); if (!cuerpo) return null;
   // (el choque: el casco de la carrocería; el .phy de muchos autos no coincide con su malla y el auto quedaba en el aire)
-  const arb = [{ n: nombre, p: [0, 0, 0], r: [0, -Math.SQRT1_2, 0, Math.SQRT1_2], s: [1, 1, 1], pa: -1, col: [{ k: 'm', m: cuerpo.mi, cv: 2, tr: 0 }], rb: Object.assign({}, raiz0.rb, { m: masa }), mb: ['Vehicle', 'SCC_Drivetrain'], gm: ruta }];
+  // ¿para dónde mira? Adelante es +z para el juego. Los enganches de las ruedas (wheel_fl, wheel_rr…) dicen dónde está la
+  // trompa: en los de HL2 (Jeep, Jalopy, Airboat) queda del lado de −Y de Source y con el giro de siempre el auto andaba
+  // marcha atrás —las ruedas de atrás doblaban—; ahí se gira al revés (y con ruedas nombradas, por sus centros)
+  const yF = [], yR = [];
+  for (const a of M.adjuntos) { const m = /^wheel_?([fr])[lr]?$/i.exec(a.n); if (!m) continue; const p = adj(new RegExp('^' + a.n + '$', 'i')); if (p) (m[1].toLowerCase() === 'f' ? yF : yR).push(p[1]); }
+  if (!yF.length || !yR.length) for (const r of ruedas) if (r.c && /^[fr]/.test(r.n)) (r.n[0] === 'f' ? yF : yR).push(r.c[1]);
+  const prom = (L) => L.reduce((s, x) => s + x, 0) / L.length, alReves = yF.length && yR.length && prom(yF) < prom(yR);
+  const arb = [{ n: nombre, p: [0, 0, 0], r: alReves ? [0, Math.SQRT1_2, 0, Math.SQRT1_2] : [0, -Math.SQRT1_2, 0, Math.SQRT1_2], s: [1, 1, 1], pa: -1, col: [{ k: 'm', m: cuerpo.mi, cv: 2, tr: 0 }], rb: Object.assign({}, raiz0.rb, { m: masa }), mb: ['Vehicle', 'SCC_Drivetrain'], gm: ruta }];
   arb.push({ n: 'Carroceria', p: [0, 0, 0], r: [0, 0, 0, 1], s: [1, 1, 1], pa: 0, m: cuerpo.mi, mt: cuerpo.mats });
   ruedas.forEach((r, i) => {
     const g = malla(partes[1 + i], r.c, ruta + '#' + r.n);
@@ -74,6 +83,9 @@ function gmvehPrefab(key) {
   const ojos = adj(/^vehicle_driver_eyes$/i);
   if (ojos) { const p = pj(ojos); p[1] -= 0.75; arb.push({ n: 'SitPoint', p, r: [0, 0, 0, 1], s: [1, 1, 1], pa: 0 }); }
   else { const d = DATA.ms[cuerpo.mi]; if (d && d.mn) arb.push({ n: 'SitPoint', p: [d.mn[0] + d.sc[0] / 2, d.mn[1] + d.sc[1] * 0.55, d.mn[2] + d.sc[2] / 2], r: [0, 0, 0, 1], s: [1, 1, 1], pa: 0 }); }   // (sin enganche del conductor: en el medio)
+  // (un bote —el Airboat de HL2, prop_vehicle_airboat, o uno de un addon sin ruedas con «boat» en el nombre—: flota y se
+  // maneja en el agua con el empuje de su ventilador; en tierra anda despacio, como en HL2 —vehiculos.js, botePaso—)
+  if (/airboat/i.test(_lstr(v, 'Class') + ' ' + sc + ' ' + ruta) || (!ruedas.length && /boat|lancha|jetski|barco/i.test(key + ' ' + ruta))) arb[0].bote = true;
   const k = nombre + '#gm'; DATA.pf[k] = arb; DATA.pfPorNombre[nombre] = k;
   return nombre;
 }

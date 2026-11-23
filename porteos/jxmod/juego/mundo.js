@@ -129,6 +129,7 @@ function cargarMapa(nombre) {
   if (typeof cieloAplicar === 'function') cieloAplicar(nombre, aj);
   MUNDO.gravedad = aj.grav || (nombre === 'Space' ? 0.16 : nombre === 'Mars' ? 0.38 : 1);
   aguaMapa(aj.agua);   // (los volúmenes de agua del mapa: para nadar y para que floten las cosas)
+  if (JXP && typeof jxpAguaHL2 === 'function') jxpAguaHL2(nombre);   // (versión personal: el agua de Half-Life 2)
   portalesMapa(aj);   // (las puertas portal de los mapas de GMod: el pasillo infinito de los Backrooms)
   R.expoK = 1; R.noche = 0; R.lucesMapa = false;
   if (typeof diaGuardarBase === 'function') diaGuardarBase();
