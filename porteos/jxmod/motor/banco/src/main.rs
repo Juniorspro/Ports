@@ -97,7 +97,24 @@ fn con_wgpu(a: &[String], datos: &[u8], esc: Option<&Escena>, w: u32, h: u32, n:
     let esperar = |d: &wgpu::Device| { let _ = d.poll(wgpu::PollType::wait_indefinitely()); };
     let t0 = Instant::now();
     let mut m = wg::Motor::nuevo(d.clone(), q.clone(), Opciones::default(), placa).expect("motor");
-    if let Some(e) = esc {
+    if let (Ok(dir), Ok(nom)) = (std::env::var("JXM_PAQ"), std::env::var("JXM_MAPA")) {
+        // JXMod nativo: el mapa armado en Rust desde el paquete; de la grabación, sólo la cámara (su último cuadro)
+        let mut paq = jxjuego::paquete::Paquete::abrir(std::path::Path::new(&dir)).expect("paquete");
+        let t1 = Instant::now();
+        let mapa = jxjuego::mapa::armar(&mut paq, &nom, 512, 350.0).expect("mapa");
+        println!("mapa {nom} armado en Rust en {:.0} ms: {} mallas · {} materiales · {} texturas · {} cosas · {} luces · lejos {} · spawns {:?}", t1.elapsed().as_secs_f64() * 1000.0,
+            mapa.esc.c.mallas.len(), mapa.esc.c.mats.len(), mapa.esc.c.texs.len(), mapa.items.len(), mapa.luces.len(), mapa.lejos, &mapa.spawns[..mapa.spawns.len().min(2)]);
+        let ps = proto::pedazos(datos).expect("grabación"); let mut ran = vec![]; let mut ult = None;
+        for p in &ps { if let proto::Pedazo::Cuadro(b) = p { if let Ok(c) = jxmotor::escena::Cuadro::leer_con(b, &mut ran) { ult = Some(c); } } }
+        let c = ult.expect("la grabación no trae cuadros");
+        let (j, r) = (&c.luz, &mapa.luz);
+        println!("luz (JS | Rust): sol {:?} | {:?}\n  solC {:?} | {:?}\n  ambS {:?} | {:?}\n  ambG {:?} | {:?}\n  niebla c {:?} | {:?} · a {} | {} · b {} | {} · m {} | {}\n  nieS {:?} | {:?} · expo {} | {} · luces {} | {}",
+            j.sol, r.sol, j.sol_c, r.sol_c, j.amb_s, r.amb_s, j.amb_g, r.amb_g, j.nie.c, r.nie.c, j.nie.a, r.nie.a, j.nie.b, r.nie.b, j.nie.m, r.nie.m, j.nie.s, r.nie.s, j.expo, r.expo, c.luces.len() + c.esp.len(), mapa.luces.len());
+        m.cargar(&mapa.esc).expect("recursos");
+        let luces = mapa.luces_cerca(c.pos, 6);
+        for (k, (lj, lr)) in c.luces.iter().zip(luces.iter()).enumerate() { let dif = lj.iter().zip(lr.iter()).map(|(a, b)| (a - b).abs()).fold(0.0f32, f32::max); println!("  luz {k}: diferencia máxima {dif:.6}"); }
+        m.poner_cuadro(jxmotor::escena::Cuadro { items: mapa.items.clone(), luz: mapa.luz, luces, esp: vec![], efectos: vec![], ..c });
+    } else if let Some(e) = esc {
         m.cargar(e).expect("recursos"); m.poner_cuadro(e.cuadro().expect("la escena no trae cámara"));
     } else {
         let ps = proto::pedazos(datos).expect("grabación");

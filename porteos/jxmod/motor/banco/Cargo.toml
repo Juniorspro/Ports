@@ -11,3 +11,4 @@ khronos-egl = { version = "6", features = ["dynamic"] }
 libloading = "0.8"
 png = "0.17"
 wgpu = "30"
+jxjuego = { path = "../juego" }
