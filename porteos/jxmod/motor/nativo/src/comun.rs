@@ -1,5 +1,7 @@
 //! El juego, igual en el teléfono y en la compu (las pruebas): el mapa, la cámara con el tacto, los botones de los motores
 //! y el HUD. Lo de Android (la ventana, EGL, los eventos) está en app.rs.
+use jxjuego::fisica::Fisica;
+use jxjuego::forma::{self, Catalogo};
 use jxjuego::jugador::{Entrada, Jugador};
 use jxjuego::mapa::{self, Mapa};
 use jxjuego::objetos::{self, Cargados, Prefab};
@@ -61,15 +63,31 @@ fn panel(w: f32, h: f32, nsub: usize) -> Panel {
     let celda = h * 0.19; let cols = ((gw / celda).floor() as usize).max(1);
     Panel { x0, y0, pw, ph, tab_h, gx, gy, gw, gh, celda: gw / cols as f32, cols }
 }
-/// un objeto puesto en el mundo (por ahora fijo donde se puso: la física llega con fisica.rs)
-pub struct Obj { pub nombre: String, pub pos: [f32; 3], pub q: [f32; 4], pub c: [f32; 3] }
+/// un objeto puesto en el mundo: su cuerpo en la física (si tiene forma de choque) y cómo estaba antes y después del último
+/// paso de la física (se dibuja entre los dos: la física va a 60 por segundo, como la web, y la pantalla a 120)
+pub struct Obj { pub nombre: String, pub pos: [f32; 3], pub q: [f32; 4], pub c: [f32; 3], pub cuerpo: Option<u32>, cap_inv: [f32; 4], ant: ([f32; 3], [f32; 4]), pub masa: f32 }
+/// el paso de la física de los objetos (physStep de la web: 1/60 s)
+const PASO_FIS: f32 = 1.0 / 60.0;
+/// los sub-pasos de la física según la calidad (GFX.sub de la web)
+const SUB_FIS: [usize; 5] = [5, 6, 8, 10, 10];
+fn qmul32(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
+    [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]]
+}
+/// entre dos giros (nlerp, por el camino corto)
+fn qmezcla(a: [f32; 4], b: [f32; 4], t: f32) -> [f32; 4] {
+    let s = if a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0.0 { -1.0 } else { 1.0 };
+    let q = [a[0] + (b[0] * s - a[0]) * t, a[1] + (b[1] * s - a[1]) * t, a[2] + (b[2] * s - a[2]) * t, a[3] + (b[3] * s - a[3]) * t];
+    let l = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]).sqrt().max(1e-9); [q[0] / l, q[1] / l, q[2] / l, q[3] / l]
+}
 fn rect_uv(v: &mut Vec<f32>, x: f32, y: f32, w: f32, h: f32, uv: [f32; 4], col: [f32; 4]) {
     let p = [(x, y, uv[0], uv[1]), (x + w, y, uv[2], uv[1]), (x + w, y + h, uv[2], uv[3]), (x, y, uv[0], uv[1]), (x + w, y + h, uv[2], uv[3]), (x, y + h, uv[0], uv[3])];
     for (a, b, c, d) in p { v.extend_from_slice(&[a, b, c, d, col[0], col[1], col[2], col[3]]); }
 }
 /// la matriz de un objeto: su lugar y su giro, corrido por su centro (objetoMatriz)
-fn matriz_obj(o: &Obj) -> M4 {
-    let b = mapa::trs(o.pos, o.q, [1.0; 3]); let c = m4::mul(&b, &mapa::trs([-o.c[0], -o.c[1], -o.c[2]], [0.0, 0.0, 0.0, 1.0], [1.0; 3])); c
+fn matriz_obj(o: &Obj, t: f32) -> M4 {
+    // (entre el paso de antes y el de ahora; el modelo: cuerpo × capQ⁻¹ × T(−c))
+    let (p, q) = if o.cuerpo.is_some() { let a = o.ant; ([a.0[0] + (o.pos[0] - a.0[0]) * t, a.0[1] + (o.pos[1] - a.0[1]) * t, a.0[2] + (o.pos[2] - a.0[2]) * t], qmezcla(a.1, o.q, t)) } else { (o.pos, o.q) };
+    let b = mapa::trs(p, qmul32(q, o.cap_inv), [1.0; 3]); m4::mul(&b, &mapa::trs([-o.c[0], -o.c[1], -o.c[2]], [0.0, 0.0, 0.0, 1.0], [1.0; 3]))
 }
 /// (para las pruebas) el centro de un botón
 pub fn pos_boton(w: f32, h: f32, b: Boton) -> (f32, f32) { botones(w, h).into_iter().find(|x| x.b == b).map(|x| (x.x, x.y)).unwrap_or((0.0, 0.0)) }
@@ -110,6 +128,8 @@ pub struct Juego {
     nombres: HashMap<String, String>, pub catalogo: Vec<(String, Vec<String>)>,
     pub menu: Option<Menu>, prefabs: HashMap<String, Prefab>, cargados: Cargados,
     pub objs: Vec<Obj>, pendientes: Vec<String>,
+    /// la física de los objetos (fisica.rs), las formas de choque de los prefabs y el tiempo que sobra para su paso fijo
+    pub fis: Fisica, cat_fis: Option<Catalogo>, acum_fis: f32,
     // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
     /// los ajustes (ajustes.txt) y la pestaña del menú de Ajustes, si está abierto (el juego queda en pausa)
     pub aj: Ajustes, pub ajustes: Option<usize>,
@@ -142,8 +162,9 @@ impl Juego {
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
             recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
+            fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
-        if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); }
+        if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); j.cat_fis = Some(Catalogo::nuevo(p)); }
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
         j
     }
@@ -176,7 +197,7 @@ impl Juego {
                 Boton::Ajustes => { self.menu = None; self.ajustes = Some(0); }
                 Boton::Volar => { self.jug.noclip = !self.jug.noclip; self.avisar(if self.jug.noclip { "Volar: prendido".into() } else { "Volar: apagado".into() }); }
                 Boton::Objetos => { if !self.catalogo.is_empty() { self.menu = Some(Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0 }); } }
-                Boton::Deshacer => { if let Some(o) = self.objs.pop() { self.avisar(format!("Deshecho: {}", o.nombre)); } }
+                Boton::Deshacer => { if let Some(o) = self.objs.pop() { if let Some(id) = o.cuerpo { self.fis.quitar(id); } self.avisar(format!("Deshecho: {}", o.nombre)); } }
                 _ => {}
             }
             // (saltar y agacharse se mantienen mientras el dedo esté apoyado)
@@ -296,6 +317,7 @@ impl Juego {
         let nombre = self.mapas[self.mapa_i];
         self.mapa = None;
         self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; }
+        self.fis = Fisica::nueva(); self.acum_fis = 0.0;
         unsafe { m.vaciar(); }
         let Some(paq) = self.paq.as_mut() else { return };
         match mapa::armar(paq, nombre, 1024, 750.0) {
@@ -328,7 +350,7 @@ impl Juego {
     unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
-            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
+            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
             else { self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
         }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora;
@@ -340,7 +362,18 @@ impl Juego {
         if self.ajustes.is_some() { self.acum = 0.0; }
         else if let Some(mp) = &self.mapa {
             self.acum = (self.acum + dt).min(PASO * 12.0);
-            while self.acum >= PASO { self.jug.paso(&mp.mundo, PASO, &ent); self.golpe_max = self.golpe_max.max(self.jug.golpe); self.acum -= PASO; }
+            while self.acum >= PASO { self.jug.paso_con(&mp.mundo, Some(&mut self.fis), PASO, &ent); self.golpe_max = self.golpe_max.max(self.jug.golpe); self.acum -= PASO; }
+            // la física de los objetos a 60 por segundo (como mucho 3 pasos por cuadro, como la web)
+            self.fis.sub = SUB_FIS[self.aj.calidad.min(4)];
+            self.acum_fis = (self.acum_fis + dt).min(PASO_FIS * 3.0);
+            while self.acum_fis >= PASO_FIS {
+                for o in self.objs.iter_mut() { o.ant = (o.pos, o.q); }
+                self.fis.paso(&mp.mundo, PASO_FIS as f64); self.acum_fis -= PASO_FIS;
+                for o in self.objs.iter_mut() { if let Some(b) = o.cuerpo.and_then(|id| self.fis.cuerpo(id)) { o.pos = [b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32]; o.q = [b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32]; } }
+            }
+            // (lo que se cayó del mapa —debajo de −300— se saca)
+            let muertos: Vec<usize> = self.objs.iter().enumerate().filter(|(_, o)| o.cuerpo.and_then(|id| self.fis.cuerpo(id)).map(|b| b.muerto).unwrap_or(false)).map(|(i, _)| i).collect();
+            for i in muertos.into_iter().rev() { let o = self.objs.remove(i); if let Some(id) = o.cuerpo { self.fis.quitar(id); } }
             // (se cayó del mapa o se ahogó: vuelve a aparecer)
             if self.jug.pos[1] < mp.mundo.lo[1] - 60.0 || self.jug.vida <= 0.0 {
                 if self.jug.vida <= 0.0 { self.aviso = Some(("Te ahogaste".into(), Instant::now())); }
@@ -364,7 +397,8 @@ impl Juego {
                 luz.nie = jxmotor::escena::Niebla { c: [lin(0.12), lin(0.285), lin(0.3)], a: 0.0, b: 16.0, m: 1.0, s: [0.0; 3] };
             }
             let mut items = mp.items.clone();
-            for o in &self.objs { if let Some(pf) = self.prefabs.get(&o.nombre) { pf.items(&matriz_obj(o), &mut items); } }
+            let t_fis = (self.acum_fis / PASO_FIS).clamp(0.0, 1.0);
+            for o in &self.objs { if let Some(pf) = self.prefabs.get(&o.nombre) { pf.items(&matriz_obj(o, t_fis), &mut items); } }
             let c = Cuadro { vp: m4::mul(&p, &vista), pos: ojos, luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
                 luces: mp.luces_cerca(ojos, 6), esp: vec![], items, efectos: vec![] };
             m.poner_cuadro(c);
@@ -443,21 +477,36 @@ impl Juego {
     }
     /// pone un objeto donde mira el jugador (o 6 m adelante), mirándolo y apoyado en el piso (spawnDelante y crearObjeto)
     fn poner(&mut self, m: &mut Motor3d, nombre: &str, ojos: [f32; 3], fw: [f32; 3]) -> Result<(), String> {
-        let (Some(paq), Some(mp)) = (self.paq.as_mut(), self.mapa.as_ref()) else { return Ok(()) };
+        let Some(mp) = self.mapa.as_ref() else { return Ok(()) };
+        // (el rayo ve el mapa y los objetos: mirando uno, el nuevo se pone arriba)
+        let (o64, d64) = ([ojos[0] as f64, ojos[1] as f64, ojos[2] as f64], [fw[0] as f64, fw[1] as f64, fw[2] as f64]);
+        let p = match self.fis.rayo(&mp.mundo, o64, d64, 40.0, &[]) { Some(g) => { let t = (g.t as f32 - 0.05).max(0.5); [ojos[0] + fw[0] * t, ojos[1] + fw[1] * t, ojos[2] + fw[2] * t] }
+            None => { let mut q = [ojos[0] + fw[0] * 6.0, ojos[1] + fw[1] * 6.0, ojos[2] + fw[2] * 6.0]; if let Some(g) = mp.mundo.rayo(q, [0.0, -1.0, 0.0], 50.0) { q[1] -= g.t; } q } };
+        self.crear_en(m, nombre, p, self.jug.yaw + std::f32::consts::PI)
+    }
+    /// crea un objeto con su base en `p`, girado `giro` alrededor de Y (crearObjeto): con forma de choque, un cuerpo de la
+    /// física; sin forma, fijo
+    pub fn crear_en(&mut self, m: &mut Motor3d, nombre: &str, p: [f32; 3], giro: f32) -> Result<(), String> {
+        let Some(paq) = self.paq.as_mut() else { return Ok(()) };
         if !self.prefabs.contains_key(nombre) {
             let (pf, esc) = objetos::armar(paq, &self.nombres, nombre, 512, &mut self.cargados)?;
             unsafe { m.cargar(&esc)?; }
             self.prefabs.insert(nombre.to_string(), pf);
         }
         let pf = &self.prefabs[nombre];
-        let mut p = match mp.mundo.rayo(ojos, fw, 40.0) { Some(g) => { let t = (g.t - 0.05).max(0.5); [ojos[0] + fw[0] * t, ojos[1] + fw[1] * t, ojos[2] + fw[2] * t] }
-            None => { let mut q = [ojos[0] + fw[0] * 6.0, ojos[1] + fw[1] * 6.0, ojos[2] + fw[2] * 6.0]; if let Some(g) = mp.mundo.rayo(q, [0.0, -1.0, 0.0], 50.0) { q[1] -= g.t; } q } };
-        let a = self.jug.yaw + std::f32::consts::PI; let q = [0.0, (a / 2.0).sin(), 0.0, (a / 2.0).cos()];
-        // (la base apoyada: lo más bajo de su caja, girada)
-        let c = pf.caja; let (s, co) = (a.sin(), a.cos()); let _ = (s, co);
-        let min_y = c[1];
-        p[1] += -min_y + 0.01;
-        self.objs.push(Obj { nombre: nombre.to_string(), pos: p, q, c: [0.0; 3] });
+        let a = giro; let q = [0.0, (a / 2.0).sin(), 0.0, (a / 2.0).cos()];
+        let fisico = self.cat_fis.as_mut().and_then(|c| c.prefab(paq, nombre));
+        if let Some(pfz) = fisico {
+            let b = forma::cuerpo_de_prefab(&pfz, [p[0] as f64, p[1] as f64, p[2] as f64], [0.0, q[1] as f64, 0.0, q[3] as f64], false);
+            let (bp, bq) = ([b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32], [b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32]);
+            let masa = b.masa as f32; let id = self.fis.agregar(b);
+            let ci = pfz.cap_q.map(|c| [-c[0] as f32, -c[1] as f32, -c[2] as f32, c[3] as f32]).unwrap_or([0.0, 0.0, 0.0, 1.0]);
+            self.objs.push(Obj { nombre: nombre.to_string(), pos: bp, q: bq, c: [pfz.c[0] as f32, pfz.c[1] as f32, pfz.c[2] as f32], cuerpo: Some(id), cap_inv: ci, ant: (bp, bq), masa });
+        } else {
+            // (sin forma: fijo, con lo más bajo de su caja en el piso)
+            let pp = [p[0], p[1] - pf.caja[1] + 0.01, p[2]];
+            self.objs.push(Obj { nombre: nombre.to_string(), pos: pp, q, c: [0.0; 3], cuerpo: None, cap_inv: [0.0, 0.0, 0.0, 1.0], ant: (pp, q), masa: 0.0 });
+        }
         self.avisar(format!("Puesto: {nombre}"));
         Ok(())
     }

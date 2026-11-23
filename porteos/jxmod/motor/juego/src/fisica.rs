@@ -970,6 +970,33 @@ impl Fisica {
         self.uniones.push(u); Some(self.uniones.len() - 1)
     }
 
+    /// cuántas partes tiene un cuerpo para empujar al jugador (1 si no es compuesto; 0 si no está)
+    pub fn partes(&self, id: u32) -> usize { self.cuerpo(id).map(|c| if c.hijos.is_empty() { 1 } else { c.hijos.len() }).unwrap_or(0) }
+    /// empujarDeCuerpo de jugador.js (la parte geométrica): cuánto y hacia dónde sale una esfera (centro c, radio r) de la
+    /// parte k del cuerpo `id`, si lo toca: (normal, profundidad)
+    pub fn empuje(&self, id: u32, k: usize, c: V, r: f64) -> Option<(V, f64)> {
+        let i = self.indice(id)?; let cu = &self.cuerpos[i]; let e = ent_cuerpo(cu, i);
+        let e = if cu.hijos.is_empty() { e } else { if k >= cu.hijos.len() { return None; } ent_parte(&e, k) };
+        let a = e.g.aabb;
+        if c[0] + r < a[0] || c[0] - r > a[3] || c[1] + r < a[1] || c[1] - r > a[4] || c[2] + r < a[2] || c[2] - r > a[5] { return None; }
+        match e.f {
+            Forma::Casco(_) => {
+                let (p, dentro, n, d) = casco_cercano(&e, c);
+                if dentro { return Some((n, -d + r)); }
+                let dv = sub(c, p); let l = largo(dv); if l >= r || l < 1e-6 { return None; }
+                Some((esc(dv, 1.0 / l), r - l))
+            }
+            Forma::Esfera { r: rb } | Forma::Capsula { r: rb, .. } => {
+                let ps: Vec<V> = if matches!(e.f, Forma::Esfera { .. }) { vec![e.g.pos] } else { cap_esferas(&e).to_vec() };
+                let (mut bp, mut bl) = (ps[0], f64::MAX);
+                for p in ps { let l = largo(sub(c, p)); if l < bl { bl = l; bp = p; } }
+                let rr = rb + r; if bl >= rr || bl < 1e-6 { return None; }
+                Some((esc(sub(c, bp), 1.0 / bl), rr - bl))
+            }
+            Forma::Compuesta { .. } => None,
+        }
+    }
+
     /// cuerposCerca: los ids de los cuerpos cerca de la caja [x0, y0, z0, x1, y1, z1]
     pub fn cerca(&mut self, b: [f64; 6]) -> Vec<u32> {
         if self.cz.ver != self.ver { self.cz.armar(&self.cuerpos, self.ver); }

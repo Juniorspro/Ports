@@ -3,8 +3,9 @@
 //! ×0,5), salta 1,1 m, sube escalones de 0,45 m como Source, se pega a las rampas al bajar y choca con los triángulos y
 //! los cuerpos fijos del mapa. La cámara: los ojos con la hundida al caer, el balanceo al caminar y el agacharse suave.
 //! En el agua (aguaJugador de agua.js): a la cintura camina más lento, con el pecho abajo nada hacia donde mira, el aire dura
-//! 12 s bajo el agua y después ahoga, y se sale saltando contra un borde bajo. Lo que todavía no: los vehículos y los objetos
-//! sueltos (llegan con sus etapas).
+//! 12 s bajo el agua y después ahoga, y se sale saltando contra un borde bajo. Con los objetos sueltos de la física
+//! (paso_con): choca con ellos, se para arriba y los empuja según su masa. Lo que todavía no: los vehículos.
+use crate::fisica::Fisica;
 use crate::mundo::{add, dot, esc, largo, Mundo, V};
 
 const GRAV: f32 = 9.81;
@@ -67,7 +68,7 @@ impl Jugador {
     }
 
     /// saca una esfera (centro c, radio r) del mapa: triángulos y cuerpos fijos (esferaFuera)
-    fn esfera_fuera(&mut self, m: &Mundo, c: &mut V, r: f32, corr: &mut V, es_pie: bool, ts: &mut Vec<u32>, cs: &mut Vec<u32>) {
+    fn esfera_fuera(&mut self, m: &Mundo, f: &mut Option<&mut Fisica>, cerca: &[u32], c: &mut V, r: f32, corr: &mut V, es_pie: bool, ts: &mut Vec<u32>, cs: &mut Vec<u32>) {
         m.cerca(c[0] - r, c[2] - r, c[0] + r, c[2] + r, ts, cs);
         for &t in ts.iter() {
             // (lejos del plano del triángulo no lo toca)
@@ -92,14 +93,46 @@ impl Jugador {
             else { for e in 0..3 { c[e] += n[e] * d; corr[e] += n[e] * d; } }
             if es_pie && n[1] > 0.6 { self.suelo = true; self.suelo_n = n; }
         }
+        // los objetos sueltos: el jugador sale de ellos y, si se mueven, los corre según su masa (un auto casi no, una caja sí)
+        let Some(fz) = f.as_deref_mut() else { return };
+        for &id in cerca {
+            let Some(b) = fz.cuerpo(id) else { continue };
+            if b.agarrado { continue; }
+            let (din, masa) = (b.dinamico(), b.masa);
+            for k in 0..fz.partes(id) {
+                let c64 = [c[0] as f64, c[1] as f64, c[2] as f64];
+                let Some((n, d)) = fz.empuje(id, k, c64, r as f64) else { continue };
+                let (n, d) = ([n[0] as f32, n[1] as f32, n[2] as f32], d as f32);
+                if din {
+                    let kk = 80.0 / (80.0 + masa as f32);
+                    for e in 0..3 { c[e] += n[e] * d * (1.0 - kk); corr[e] += n[e] * d * (1.0 - kk); }
+                    if n[1] < 0.6 {
+                        let emp = (d * 30.0).min(2.0) * kk;
+                        if let Some(bm) = fz.cuerpo_mut(id) { bm.despertar(); for e in 0..3 { bm.vel[e] -= (n[e] * emp) as f64; } }
+                    }
+                } else if es_pie && n[1] > 0.6 { let kv = d / n[1]; c[1] += kv; corr[1] += kv; }
+                else { for e in 0..3 { c[e] += n[e] * d; corr[e] += n[e] * d; } }
+                if es_pie && n[1] > 0.6 { self.suelo = true; self.suelo_n = n; }
+            }
+        }
     }
 
     /// moverse en pasos chicos y sacar la cápsula de lo que toque (jugadorMoverChocar)
-    fn mover_chocar(&mut self, m: &Mundo, dt: f32, tramo: f32) {
+    fn mover_chocar(&mut self, m: &Mundo, f: &mut Option<&mut Fisica>, dt: f32, tramo: f32) {
         let pasos = ((largo(self.vel) * dt / tramo).ceil() as usize).max(1);
         self.suelo = false;
         let esf = if self.ag_col { self.esf_ag.clone() } else { self.esf.clone() };
         let (mut ts, mut cs) = (Vec::with_capacity(64), Vec::with_capacity(8));
+        // (los objetos que se pueden tocar en todo el movimiento: la caja del recorrido con el radio y las esferas)
+        let cerca = match f.as_deref_mut() {
+            Some(fz) if !fz.cuerpos.is_empty() => {
+                let (mut dy0, mut dy1) = (0.0f32, 0.0f32); for e in &esf { dy0 = dy0.min(e.0); dy1 = dy1.max(e.0); }
+                let (p, v, r) = (self.pos, self.vel, self.radio + 0.25); let e = esc(v, dt);
+                fz.cerca([(p[0].min(p[0] + e[0]) - r) as f64, (p[1].min(p[1] + e[1]) + dy0 - r) as f64, (p[2].min(p[2] + e[2]) - r) as f64,
+                    (p[0].max(p[0] + e[0]) + r) as f64, (p[1].max(p[1] + e[1]) + dy1 + r) as f64, (p[2].max(p[2] + e[2]) + r) as f64])
+            }
+            _ => vec![],
+        };
         for _ in 0..pasos {
             self.pos = add(self.pos, esc(self.vel, dt / pasos as f32));
             for _ in 0..2 {
@@ -107,7 +140,7 @@ impl Jugador {
                 for &(dy, pie) in &esf {
                     let mut p = [self.pos[0], self.pos[1] + dy, self.pos[2]];
                     let r = self.radio;
-                    self.esfera_fuera(m, &mut p, r, &mut corr, pie, &mut ts, &mut cs);
+                    self.esfera_fuera(m, f, &cerca, &mut p, r, &mut corr, pie, &mut ts, &mut cs);
                     self.pos = [p[0], p[1] - dy, p[2]];
                 }
                 // quitar la velocidad que va contra lo que chocó
@@ -118,7 +151,7 @@ impl Jugador {
     }
 
     /// ¿se puede parar? (agachado bajo un techo se queda agachado hasta salir)
-    fn cabe_parado(&mut self, m: &Mundo) -> bool {
+    fn cabe_parado(&mut self, m: &Mundo, f: &mut Option<&mut Fisica>) -> bool {
         let ya = self.esf_ag.last().map(|e| e.0).unwrap_or(0.0);
         let (mut ts, mut cs) = (vec![], vec![]);
         let (suelo, sn) = (self.suelo, self.suelo_n);
@@ -127,7 +160,7 @@ impl Jugador {
             if dy <= ya + 1e-3 { continue; }
             let mut c = [self.pos[0], self.pos[1] + dy, self.pos[2]]; let mut corr = [0.0; 3];
             let r = self.radio * 0.96;
-            self.esfera_fuera(m, &mut c, r, &mut corr, false, &mut ts, &mut cs);
+            self.esfera_fuera(m, f, &[], &mut c, r, &mut corr, false, &mut ts, &mut cs);
             if largo(corr) > 0.01 { ok = false; break; }
         }
         self.suelo = suelo; self.suelo_n = sn; ok
@@ -138,7 +171,7 @@ impl Jugador {
         self.aguas.iter().copied().find(|v| v[4] > v[1] + 0.002 && y >= v[1] - 0.02 && y <= v[4] && x >= v[0] && x <= v[3] && z >= v[2] && z <= v[5])
     }
     /// el jugador en el agua (aguaJugador): devuelve si nada (entonces ya se movió)
-    fn agua_paso(&mut self, m: &Mundo, dt: f32, ent: &Entrada) -> bool {
+    fn agua_paso(&mut self, m: &Mundo, f: &mut Option<&mut Fisica>, dt: f32, ent: &Entrada) -> bool {
         let pies = self.pos[1] - 0.95; let alto = 1.9 * self.tam; let v = self.agua_en(self.pos[0], pies + 0.02, self.pos[2]);
         self.hondo = v.map(|v| (v[4] - pies).max(0.0)).unwrap_or(0.0); let ojos = pies + self.ojo_alto;
         self.vadeo = 1.0 - 0.45 * (self.hondo / (0.62 * alto)).clamp(0.0, 1.0);   // (con el agua a la cintura, 55 % más lento)
@@ -171,21 +204,24 @@ impl Jugador {
             if pared && libre { self.vel = [f[0] * 2.2, 6.4, f[2] * 2.2]; self.tiempo_salida = 0.6; }
         }
         self.tiempo_salida -= dt;
-        self.mover_chocar(m, dt, 0.25);
+        self.mover_chocar(m, f, dt, 0.25);
         self.tiempo_suelo = 0.0; self.bob_k *= (-dt * 8.0).exp();
         true
     }
 
     /// un paso de la física del jugador (jugadorPaso)
-    pub fn paso(&mut self, m: &Mundo, dt: f32, ent: &Entrada) {
+    pub fn paso(&mut self, m: &Mundo, dt: f32, ent: &Entrada) { self.paso_con(m, None, dt, ent) }
+    /// un paso con los objetos sueltos de la física: se choca con ellos, se para arriba y los empuja (empujarDeCuerpo)
+    pub fn paso_con(&mut self, m: &Mundo, mut fis: Option<&mut Fisica>, dt: f32, ent: &Entrada) {
+        let f = &mut fis;
         self.reloj += dt; self.golpe = 0.0;
-        if !self.aguas.is_empty() && !self.noclip && self.agua_paso(m, dt, ent) { return; }
+        if !self.aguas.is_empty() && !self.noclip && self.agua_paso(m, f, dt, ent) { return; }
         let (sy, cy) = (self.yaw.sin(), self.yaw.cos());
         // (adelante +Z girado; la derecha es -X girado, como en el juego)
-        let f = [sy, 0.0, cy]; let rgt = [-cy, 0.0, sy];
-        let mut wish = [f[0] * ent.y + rgt[0] * ent.x, 0.0, f[2] * ent.y + rgt[2] * ent.x];
+        let fw = [sy, 0.0, cy]; let rgt = [-cy, 0.0, sy];
+        let mut wish = [fw[0] * ent.y + rgt[0] * ent.x, 0.0, fw[2] * ent.y + rgt[2] * ent.x];
         let wl = largo(wish).min(1.0); if wl > 1e-3 { wish = esc(wish, 1.0 / largo(wish)); }
-        if ent.agachar || self.noclip { self.ag_col = !self.noclip && ent.agachar; } else if self.ag_col && self.cabe_parado(m) { self.ag_col = false; }
+        if ent.agachar || self.noclip { self.ag_col = !self.noclip && ent.agachar; } else if self.ag_col && self.cabe_parado(m, f) { self.ag_col = false; }
         let agachado = ent.agachar || self.ag_col; self.agachado = agachado;
         let vmax = self.vel_max * if ent.correr { 1.35 } else { 1.0 } * if agachado { 0.5 } else { 1.0 } * self.vadeo;
         if self.noclip {
@@ -207,15 +243,15 @@ impl Jugador {
         if !self.suelo { self.vel[1] -= g * dt; } else if self.vel[1] < 0.0 { self.vel[1] = -0.5; }
         let (vy_antes, era_suelo) = (self.vel[1], self.suelo);
         let (p0, v0) = (self.pos, self.vel);
-        self.mover_chocar(m, dt, 0.25);
-        if !ent.saltar && (era_suelo || (self.t_aire < 0.25 && self.vel[1] < 1.0)) { self.escalon(m, dt, p0, v0, tx, tz); }
+        self.mover_chocar(m, f, dt, 0.25);
+        if !ent.saltar && (era_suelo || (self.t_aire < 0.25 && self.vel[1] < 1.0)) { self.escalon(m, f, dt, p0, v0, tx, tz); }
         // (caminando —sin haber saltado—, chocar con la punta de un escalón no lanza para arriba)
         if !ent.saltar && self.reloj - self.salto_t > 0.35 && (era_suelo || self.t_aire < 0.25) && g > 0.0 && self.vel[1] > 0.0 { self.vel[1] = 0.0; }
         self.t_aire = if self.suelo { 0.0 } else { self.t_aire + dt };
         // pegarse al piso al bajar rampas (si estaba en el piso y no saltó)
         if !self.suelo && era_suelo && self.vel[1] <= 0.0 {
             if let Some(h) = m.rayo([self.pos[0], self.pos[1] - self.medio, self.pos[2]], [0.0, -1.0, 0.0], self.radio + 0.35) {
-                if h.n[1] > 0.6 { self.pos[1] -= h.t - self.radio; self.suelo = true; self.vel[1] = -0.5; self.mover_chocar(m, 0.0, 0.25); self.suelo = true; }
+                if h.n[1] > 0.6 { self.pos[1] -= h.t - self.radio; self.suelo = true; self.vel[1] = -0.5; self.mover_chocar(m, f, 0.0, 0.25); self.suelo = true; }
             }
         }
         if self.suelo { self.tiempo_suelo += dt; if wl < 0.01 { let k = (-dt * 12.0).exp(); self.vel[0] *= k; self.vel[2] *= k; } } else { self.tiempo_suelo = 0.0; }
@@ -229,19 +265,19 @@ impl Jugador {
 
     /// subir un escalón (como Source: StepSize de 0,45 m): si el paso avanzó menos del 92 % de lo que quería, se prueba
     /// subir, avanzar y bajar; si así avanza más y queda parado en piso caminable, vale ese (jugadorEscalon)
-    fn escalon(&mut self, m: &Mundo, dt: f32, p0: V, v0: V, tx: f32, tz: f32) {
+    fn escalon(&mut self, m: &Mundo, f: &mut Option<&mut Fisica>, dt: f32, p0: V, v0: V, tx: f32, tz: f32) {
         let quiere_mas = (tx * tx + tz * tz).sqrt() > (v0[0] * v0[0] + v0[2] * v0[2]).sqrt();
         let (vx, vz) = if quiere_mas { (tx, tz) } else { (v0[0], v0[2]) };
         let quiero = (vx * vx + vz * vz).sqrt() * dt; if quiero < 1e-4 || self.noclip { return; }
         let hecho = ((self.pos[0] - p0[0]).powi(2) + (self.pos[2] - p0[2]).powi(2)).sqrt(); if hecho > quiero * 0.92 { return; }
         let (gp, gv, gn, gs) = (self.pos, self.vel, self.suelo_n, self.suelo);
         let alto = 0.45 * self.tam.clamp(0.6, 1.0);
-        self.pos = p0; self.vel = [0.0, alto / dt, 0.0]; self.mover_chocar(m, dt, 0.25);
+        self.pos = p0; self.vel = [0.0, alto / dt, 0.0]; self.mover_chocar(m, f, dt, 0.25);
         let subio = self.pos[1] - p0[1];
         if subio > 0.04 {
-            self.vel = [vx, 0.0, vz]; self.mover_chocar(m, dt, 0.25);
+            self.vel = [vx, 0.0, vz]; self.mover_chocar(m, f, dt, 0.25);
             // (la bajada en pasitos de 4 cm: de a más el pie atravesaba la punta del escalón)
-            self.vel = [0.0, -(subio + 0.06) / dt, 0.0]; self.mover_chocar(m, dt, 0.04);
+            self.vel = [0.0, -(subio + 0.06) / dt, 0.0]; self.mover_chocar(m, f, dt, 0.04);
             let avance = ((self.pos[0] - p0[0]).powi(2) + (self.pos[2] - p0[2]).powi(2)).sqrt(); let dh = self.pos[1] - p0[1];
             if self.suelo && avance > hecho + quiero * 0.08 && dh > -0.02 && dh < alto + 0.02 { self.vel = [vx, -0.5, vz]; self.ojo_esc += dh.max(0.0); return; }
         }

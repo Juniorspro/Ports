@@ -107,6 +107,29 @@ fn main() {
     for k in 0..3 { let t = Instant::now(); toque(&mut j, 9 + k, gx + celda * (k as f32 + 0.5), gy + celda * 0.5); paso(&mut j, &mut m, 1); println!("   puesto {}: {:.0} ms", k, t.elapsed().as_secs_f64() * 1000.0); }
     toque(&mut j, 12, x0 + pw - hf * 0.05, y0 + hf * 0.04); paso(&mut j, &mut m, 3);
     println!("objetos puestos: {}", j.objs.iter().map(|o| o.nombre.as_str()).collect::<Vec<_>>().join(", ")); foto(&mut m, "3c_objetos");
+    // la física: 8 objetos del menú soltados en torre 5 m adelante (de 2 a 12 m de alto), 3 s; después el jugador camina contra ellos
+    {
+        let fw = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()]; let base = [j.jug.pos[0] + fw[0] * 5.0, j.jug.pos[1], j.jug.pos[2] + fw[2] * 5.0];
+        let nombres: Vec<String> = j.catalogo.first().map(|c| c.1.iter().take(8).cloned().collect()).unwrap_or_default();
+        for (k, n) in nombres.iter().enumerate() { let _ = j.crear_en(&mut m, n, [base[0], base[1] + 2.0 + k as f32 * 1.4, base[2]], k as f32 * 0.7); }
+        let t = Instant::now(); paso(&mut j, &mut m, 1); println!("torre de {} objetos: {:.0} ms (cargar y crear)", nombres.len(), t.elapsed().as_secs_f64() * 1000.0);
+        foto(&mut m, "3c1_torre");
+        let mut ms = 0f64; for _ in 0..180 { let t = Instant::now(); paso(&mut j, &mut m, 1); ms = ms.max(t.elapsed().as_secs_f64() * 1000.0); }
+        let piso = j.mapa.as_ref().and_then(|mp| mp.mundo.rayo([base[0], base[1] + 30.0, base[2]], [0.0, -1.0, 0.0], 80.0)).map(|g| base[1] + 30.0 - g.t).unwrap_or(0.0);
+        let dormidos = j.objs.iter().filter(|o| o.cuerpo.and_then(|id| j.fis.cuerpo(id)).map(|b| b.duerme).unwrap_or(false)).count();
+        println!("3 s después: {} objetos con cuerpo, {} dormidos, piso a {:.2} m; física {:.2} ms/paso (detección {:.2}, resolver {:.2}); peor cuadro {:.0} ms",
+            j.objs.iter().filter(|o| o.cuerpo.is_some()).count(), dormidos, piso, j.fis.ms_det + j.fis.ms_sol, j.fis.ms_det, j.fis.ms_sol, ms);
+        for o in &j.objs { if let Some(b) = o.cuerpo.and_then(|id| j.fis.cuerpo(id)) { let a = b.aabb(); println!("   {:<14} masa {:>6.1}  centro [{:.2}, {:.2}, {:.2}]  abajo {:+.3} m del piso{}", o.nombre, b.masa, b.pos[0], b.pos[1], b.pos[2], a[1] - piso as f64, if b.duerme { "  (dormido)" } else { "" }); } }
+        foto(&mut m, "3c2_torre_caida");
+        // empujar: caminar 2,5 s hacia la pila
+        let antes: Vec<[f64; 3]> = j.objs.iter().filter_map(|o| o.cuerpo.and_then(|id| j.fis.cuerpo(id)).map(|b| b.pos)).collect();
+        let p0 = j.jug.pos;
+        j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf); paso(&mut j, &mut m, 150); j.dedo_arriba(1);
+        let despues: Vec<[f64; 3]> = j.objs.iter().filter_map(|o| o.cuerpo.and_then(|id| j.fis.cuerpo(id)).map(|b| b.pos)).collect();
+        let movidos = antes.iter().zip(&despues).filter(|(a, b)| ((a[0] - b[0]).powi(2) + (a[2] - b[2]).powi(2)).sqrt() > 0.05).count();
+        println!("empujar 2,5 s: el jugador avanzó {:.2} m (sin nada: 15), alto {:.2} → {:.2}; objetos movidos {}", ((j.jug.pos[0] - p0[0]).powi(2) + (j.jug.pos[2] - p0[2]).powi(2)).sqrt(), p0[1], j.jug.pos[1], movidos);
+        foto(&mut m, "3c3_empujar");
+    }
     // el otro mapa: caminar 6 s para adelante y a la derecha (choca con lo que haya)
     // Ajustes: abrirlo (pausa), calidad Medio, cerrar y ver la escena; abrir otra vez, Ultra, y en «Motor y mapa» el otro mapa
     let (ax, ay) = jxmod::comun::pos_boton(wf, hf, jxmod::comun::Boton::Ajustes);
