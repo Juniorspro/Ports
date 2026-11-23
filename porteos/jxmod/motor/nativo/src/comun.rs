@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use jxjuego::paquete::Paquete;
 use jxjuego::texto::Letras;
 use jxmotor::escena::{Cabecera, Cuadro, Escena, Tex};
+use crate::ajustes::{self, Ajustes, Clave};
 use crate::motor::Motor3d;
 use jxmotor::gpu::TEX_LETRAS;
 use jxmotor::mat::{self as m4, M4};
@@ -28,14 +29,15 @@ struct Dedo { id: i32, palanca: bool, boton: Option<Boton>, x0: f32, y0: f32, x:
 
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Boton { Motor(usize), Mapa, Saltar, Agachar, Volar, Objetos, Deshacer }
+pub enum Boton { Ajustes, Saltar, Agachar, Volar, Objetos, Deshacer }
 /// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
 struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
 /// dónde va cada botón con la pantalla de w × h
 fn botones(w: f32, h: f32) -> Vec<Btn> {
     let mut v = vec![];
-    let (x0, bw, bh) = (w * 0.45, w * 0.55 / 4.0, h * 0.1);
-    for k in 0..4 { v.push(Btn { b: if k < 3 { Boton::Motor(k) } else { Boton::Mapa }, x: x0 + bw * (k as f32 + 0.5), y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false }); }
+    // (arriba a la derecha, Ajustes: la calidad, los controles, el sonido, el motor y el mapa)
+    let (bw, bh) = (w * 0.13, h * 0.1);
+    v.push(Btn { b: Boton::Ajustes, x: w - bw / 2.0 - 6.0, y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false });
     let r = h * 0.11;
     v.push(Btn { b: Boton::Saltar, x: w - h * 0.17, y: h - h * 0.2, w: r * 2.0, h: r * 2.0, redondo: true });
     v.push(Btn { b: Boton::Agachar, x: w - h * 0.17, y: h - h * 0.47, w: r * 1.5, h: r * 1.5, redondo: true });
@@ -69,6 +71,15 @@ fn rect_uv(v: &mut Vec<f32>, x: f32, y: f32, w: f32, h: f32, uv: [f32; 4], col: 
 fn matriz_obj(o: &Obj) -> M4 {
     let b = mapa::trs(o.pos, o.q, [1.0; 3]); let c = m4::mul(&b, &mapa::trs([-o.c[0], -o.c[1], -o.c[2]], [0.0, 0.0, 0.0, 1.0], [1.0; 3])); c
 }
+/// (para las pruebas) el centro de un botón
+pub fn pos_boton(w: f32, h: f32, b: Boton) -> (f32, f32) { botones(w, h).into_iter().find(|x| x.b == b).map(|x| (x.x, x.y)).unwrap_or((0.0, 0.0)) }
+/// las cajas de los valores de un renglón de Ajustes (x, y, ancho, alto)
+fn cajas_aj(p: &Panel, h: f32, fila: usize, n: usize) -> Vec<(f32, f32, f32, f32)> {
+    let fh = h * 0.105; let y = p.gy + fila as f32 * fh;
+    let ox = p.gx + p.gw * 0.34; let ancho = p.gx + p.gw - ox - h * 0.02;
+    let cw = (ancho / n.max(1) as f32).min(h * 0.32);
+    (0..n).map(|k| (ox + k as f32 * cw + 3.0, y + 4.0, cw - 6.0, fh - 8.0)).collect()
+}
 fn boton_en(w: f32, h: f32, x: f32, y: f32) -> Option<Boton> {
     botones(w, h).into_iter().find(|b| if b.redondo { let (dx, dy) = (x - b.x, y - b.y); dx * dx + dy * dy <= (b.w * 0.55).powi(2) } else { (x - b.x).abs() <= b.w / 2.0 + 4.0 && (y - b.y).abs() <= b.h / 2.0 + 4.0 }).map(|b| b.b)
 }
@@ -100,6 +111,8 @@ pub struct Juego {
     pub menu: Option<Menu>, prefabs: HashMap<String, Prefab>, cargados: Cargados,
     pub objs: Vec<Obj>, pendientes: Vec<String>,
     // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
+    /// los ajustes (ajustes.txt) y la pestaña del menú de Ajustes, si está abierto (el juego queda en pausa)
+    pub aj: Ajustes, pub ajustes: Option<usize>,
     pub sonido: crate::sonido::Sonido, amb_t: f32, paso_d: f32, aire_t: f32, vy_aire: f32, golpe_max: f32, saltos_vistos: u32, ahogos_vistos: u32, nadaba: bool, brazada_t: f32, azar: u32,
 }
 
@@ -121,6 +134,7 @@ impl Juego {
     /// `datos`: la carpeta de la app donde se guarda el motor elegido
     pub fn nuevo(paq: Result<Paquete, String>, letras_json: Option<String>, letras_png: Option<Vec<u8>>, datos: Option<std::path::PathBuf>) -> Juego {
         let placa = datos.as_ref().and_then(|d| std::fs::read_to_string(d.join("motor.txt")).ok()).map(|s| Placa::de_clave(&s)).unwrap_or(Placa::Gl3);
+        let aj = Ajustes::leer(datos.as_ref().and_then(|d| std::fs::read_to_string(d.join("ajustes.txt")).ok()).as_deref());
         let letras = letras_json.and_then(|t| Letras::de_json(&t).ok());
         let letras_px = letras_png.and_then(png_rgba);
         let (paq, error) = match paq { Ok(p) => (Some(p), None), Err(e) => (None, Some(format!("el paquete del juego: {e}"))) };
@@ -128,7 +142,7 @@ impl Juego {
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
             recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
-            sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
+            aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); }
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
         j
@@ -155,12 +169,11 @@ impl Juego {
     // —— el tacto (coordenadas en píxeles de la pantalla) ——
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
         self.dedos.retain(|d| d.id != id);
-        if self.menu.is_some() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
+        if self.menu.is_some() || self.ajustes.is_some() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
         if let Some(b) = boton_en(w, h, x, y) {
             if !matches!(b, Boton::Saltar | Boton::Agachar) { self.sonido.tocar("Click", 0.5, 1.0, None); }
             match b {
-                Boton::Motor(k) => self.elegir_motor(k),
-                Boton::Mapa => { self.mapa_i = (self.mapa_i + 1) % self.mapas.len(); self.recargar = true; }
+                Boton::Ajustes => { self.menu = None; self.ajustes = Some(0); }
                 Boton::Volar => { self.jug.noclip = !self.jug.noclip; self.avisar(if self.jug.noclip { "Volar: prendido".into() } else { "Volar: apagado".into() }); }
                 Boton::Objetos => { if !self.catalogo.is_empty() { self.menu = Some(Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0 }); } }
                 Boton::Deshacer => { if let Some(o) = self.objs.pop() { self.avisar(format!("Deshecho: {}", o.nombre)); } }
@@ -174,20 +187,22 @@ impl Juego {
         self.dedos.push(Dedo { id, palanca, boton: None, x0: x, y0: y, x, y });
     }
     pub fn dedo_mueve(&mut self, id: i32, x: f32, y: f32, h: f32) {
+        if self.ajustes.is_some() { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { d.x = x; d.y = y; } return; }
         if let Some(m) = self.menu.as_mut() {
             // (en el menú, arrastrar baja la grilla)
             if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { m.scroll = (m.scroll - (y - d.y)).max(0.0); d.x = x; d.y = y; }
             return;
         }
         if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) {
-            if !d.palanca && d.boton.is_none() { let s = 0.0045 * 1080.0 / h.max(1.0); self.jug.yaw -= (x - d.x) * s; self.jug.pitch = (self.jug.pitch - (y - d.y) * s).clamp(-1.5, 1.5); }
+            if !d.palanca && d.boton.is_none() { let s = 0.0045 * 1080.0 / h.max(1.0) * self.aj.sens as f32 / 12.0; self.jug.yaw -= (x - d.x) * s; self.jug.pitch = (self.jug.pitch - (y - d.y) * s).clamp(-1.5, 1.5); }
             d.x = x; d.y = y;
         }
     }
     /// al soltar: en el menú, un toque (sin arrastrar) elige
     pub fn dedo_arriba_en(&mut self, id: i32, w: f32, h: f32) {
-        if self.menu.is_some() {
-            if let Some(d) = self.dedos.iter().find(|d| d.id == id) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); self.toque_menu(x, y, w, h); } }
+        if self.menu.is_some() || self.ajustes.is_some() {
+            // (sólo los toques que empezaron con el menú abierto: no el que lo abrió, ni la palanca que se venía usando)
+            if let Some(d) = self.dedos.iter().find(|d| d.id == id && d.boton.is_none() && !d.palanca) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); if self.ajustes.is_some() { self.toque_ajustes(x, y, w, h); } else { self.toque_menu(x, y, w, h); } } }
         }
         self.dedo_arriba(id);
     }
@@ -198,7 +213,7 @@ impl Juego {
         // (la X de cerrar, arriba a la derecha del panel; o tocar afuera)
         if (x > p.x0 + p.pw - h * 0.1 && y < p.y0 + h * 0.08) || x < p.x0 || x > p.x0 + p.pw || y < p.y0 || y > p.y0 + p.ph { self.menu = None; return; }
         if x < p.gx - p.pw * 0.01 {
-            let k = ((y - p.y0 - h * 0.02) / p.tab_h).floor() as i64;
+            let k = ((y - p.y0 - h * 0.08) / p.tab_h).floor() as i64;
             if k >= 0 && (k as usize) < self.catalogo.len() { m.sub = k as usize; m.scroll = 0.0; }
             return;
         }
@@ -206,6 +221,46 @@ impl Juego {
         if col < 0 || col as usize >= p.cols || fila < 0 { return; }
         let i = fila as usize * p.cols + col as usize;
         if let Some(n) = self.catalogo.get(m.sub).and_then(|s| s.1.get(i)) { self.pendientes.push(n.clone()); }
+    }
+    /// lo que se puede elegir en un renglón de Ajustes, cuál está elegido, y elegir
+    fn valores_aj(&self, c: Clave) -> Vec<String> {
+        match c { Clave::Motor => Placa::lista().iter().map(|p| p.nombre().to_string()).collect(), Clave::Mapa => self.mapas.iter().map(|m| m.to_string()).collect(), _ => Ajustes::valores(c) }
+    }
+    fn elegido_aj(&self, c: Clave) -> Option<usize> {
+        match c { Clave::Motor => Placa::lista().iter().position(|p| *p == self.placa), Clave::Mapa => Some(self.mapa_i), _ => self.aj.elegido(c) }
+    }
+    /// (para las pruebas) dónde tocar para elegir el valor `k` del renglón `fila` de la pestaña `pestana` de Ajustes (o la
+    /// pestaña, con `fila` None)
+    pub fn pos_ajuste(&self, w: f32, h: f32, pestana: usize, fila: Option<usize>, k: usize) -> (f32, f32) {
+        let p = panel(w, h, ajustes::PESTANAS.len());
+        match fila {
+            None => (p.x0 + (p.gx - p.x0) / 2.0, p.y0 + h * 0.08 + (pestana as f32 + 0.5) * p.tab_h),
+            Some(f) => { let n = ajustes::claves(pestana).get(f).map(|c| self.valores_aj(*c).len()).unwrap_or(1).max(k + 1); let c = cajas_aj(&p, h, f, n)[k]; (c.0 + c.2 / 2.0, c.1 + c.3 / 2.0) }
+        }
+    }
+    fn toque_ajustes(&mut self, x: f32, y: f32, w: f32, h: f32) {
+        let Some(pe) = self.ajustes else { return };
+        let p = panel(w, h, ajustes::PESTANAS.len());
+        if (x > p.x0 + p.pw - h * 0.1 && y < p.y0 + h * 0.08) || x < p.x0 || x > p.x0 + p.pw || y < p.y0 || y > p.y0 + p.ph { self.ajustes = None; return; }
+        if x < p.gx - p.pw * 0.01 {
+            let k = ((y - p.y0 - h * 0.08) / p.tab_h).floor() as i64;
+            if k >= 0 && (k as usize) < ajustes::PESTANAS.len() { self.ajustes = Some(k as usize); self.sonido.tocar("Click", 0.5, 1.0, None); }
+            return;
+        }
+        for (f, c) in ajustes::claves(pe).iter().enumerate() {
+            let n = self.valores_aj(*c).len();
+            for (k, b) in cajas_aj(&p, h, f, n).into_iter().enumerate() {
+                if x >= b.0 && x <= b.0 + b.2 && y >= b.1 && y <= b.1 + b.3 {
+                    self.sonido.tocar("Click", 0.5, 1.0, None);
+                    match c {
+                        Clave::Motor => self.elegir_motor(k),
+                        Clave::Mapa => { if k != self.mapa_i { self.mapa_i = k; self.recargar = true; self.ajustes = None; } }
+                        _ => { self.aj.elegir(*c, k); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } }
+                    }
+                    return;
+                }
+            }
+        }
     }
     pub fn dedos_fuera(&mut self) { self.dedos.clear(); }
     fn apretado(&self, b: Boton) -> bool { self.dedos.iter().any(|d| d.boton == Some(b)) }
@@ -280,7 +335,10 @@ impl Juego {
         let (wf, hf) = (w as f32, h as f32);
         // la física del jugador, a paso fijo (como mucho 12 pasos por cuadro: si el teléfono se traba, no se acumula)
         let ent = self.entrada(hf);
-        if let Some(mp) = &self.mapa {
+        // (lo de Ajustes, cada cuadro: la calidad al motor y el volumen al mezclador)
+        m.opciones(&self.aj.opciones()); self.sonido.volumen = self.aj.volumen();
+        if self.ajustes.is_some() { self.acum = 0.0; }
+        else if let Some(mp) = &self.mapa {
             self.acum = (self.acum + dt).min(PASO * 12.0);
             while self.acum >= PASO { self.jug.paso(&mp.mundo, PASO, &ent); self.golpe_max = self.golpe_max.max(self.jug.golpe); self.acum -= PASO; }
             // (se cayó del mapa o se ahogó: vuelve a aparecer)
@@ -297,7 +355,7 @@ impl Juego {
         let pend = std::mem::take(&mut self.pendientes);
         for n in pend { if let Err(e) = self.poner(m, &n, ojos, fw) { self.avisar(format!("{n}: {e}")); } }
         if let Some(mp) = &self.mapa {
-            let p = persp(75f32.to_radians(), wf / hf.max(1.0), 0.08, mp.lejos * 1.05);
+            let p = persp((self.aj.fov as f32).to_radians(), wf / hf.max(1.0), 0.08, mp.lejos * 1.05);
             let vista = m4::mirar(ojos, [ojos[0] + fw[0], ojos[1] + fw[1], ojos[2] + fw[2]], [0.0, 1.0, 0.0]);
             // (con los ojos bajo el agua: la niebla de cerca, del color del agua —aguaNiebla—)
             let mut luz = mp.luz;
@@ -326,7 +384,7 @@ impl Juego {
         // el ambiente (sonAmbiente): los mapas de GMod son «campo» —el viento y, cada 4 a 14 s, un pájaro entre 15 y 40 m—;
         // bajo el agua, nada
         let bajo = self.jug.aguas.iter().any(|v| ojos[1] < v[4] && ojos[1] > v[1] && ojos[0] >= v[0] && ojos[0] <= v[3] && ojos[2] >= v[2] && ojos[2] <= v[5]);
-        if !bajo {
+        if !bajo && self.aj.ambiente {
             self.sonido.bucle("amb", "AM_viento1", 0.16);
             self.amb_t -= dt;
             if self.amb_t <= 0.0 {
@@ -411,15 +469,20 @@ impl Juego {
         let mut ic: Vec<f32> = vec![];
         let mut u = vec![]; let t = hf * 0.032; let (bl, gr) = ([1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.45]);
         let usa = self.en_uso;
-        l.texto_sombra(&mut u, t * 0.5, t * 0.5, t, bl, &format!("{:.0} fps · cuadro {:.1} ms · placa {:.1} ms · {}×{}", self.fps, self.ms, self.placa_ms, w, h));
-        l.texto_sombra(&mut u, t * 0.5, t * 1.75, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("JXMod nativo (Rust) · {} · {}", usa.nombre(), placa_txt));
-        l.texto_sombra(&mut u, t * 0.5, t * 2.7, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("{} · {} · vida {:.0}", self.mapas[self.mapa_i], if self.jug.noclip { "volando" } else if self.jug.nada { "nadando" } else if self.jug.suelo { "en el piso" } else { "en el aire" }, self.jug.vida));
-        if !self.detalle.is_empty() { l.texto_sombra(&mut u, t * 0.5, t * 3.65, t * 0.6, [1.0, 1.0, 1.0, 0.75], &format!("placa: {}", self.detalle)); }
-        // (los botones: los tres motores, el mapa, saltar, agacharse y volar)
+        if self.aj.fps {
+            let (ew, eh) = ((wf * self.aj.res as f32 / 100.0).round(), (hf * self.aj.res as f32 / 100.0).round());
+            l.texto_sombra(&mut u, t * 0.5, t * 0.5, t, bl, &format!("{:.0} fps · cuadro {:.1} ms · placa {:.1} ms · {}×{}", self.fps, self.ms, self.placa_ms, ew, eh));
+            l.texto_sombra(&mut u, t * 0.5, t * 1.75, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("JXMod nativo (Rust) · {} · {} · {}", usa.nombre(), self.calidad_txt(), placa_txt));
+            l.texto_sombra(&mut u, t * 0.5, t * 2.7, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("{} · {} · vida {:.0}", self.mapas[self.mapa_i], if self.jug.noclip { "volando" } else if self.jug.nada { "nadando" } else if self.jug.suelo { "en el piso" } else { "en el aire" }, self.jug.vida));
+            if !self.detalle.is_empty() { l.texto_sombra(&mut u, t * 0.5, t * 3.65, t * 0.6, [1.0, 1.0, 1.0, 0.75], &format!("placa: {}", self.detalle)); }
+        }
+        // (los botones: Ajustes, saltar, agacharse, volar, objetos y deshacer)
+        // (con un menú abierto, sólo el de Ajustes: los demás quedarían debajo del panel)
+        let abierto = self.menu.is_some() || self.ajustes.is_some();
         for b in botones(wf, hf) {
+            if abierto && b.b != Boton::Ajustes { continue; }
             let (n, elegido) = match b.b {
-                Boton::Motor(k) => (Placa::lista()[k].nombre(), Placa::lista()[k] == self.placa),
-                Boton::Mapa => ("Mapa", false),
+                Boton::Ajustes => ("Ajustes", self.ajustes.is_some()),
                 Boton::Saltar => ("Saltar", self.apretado(Boton::Saltar)),
                 Boton::Agachar => ("Agachar", self.apretado(Boton::Agachar)),
                 Boton::Volar => ("Volar", self.jug.noclip),
@@ -449,10 +512,7 @@ impl Juego {
             let r = hf * 0.12; l.disco(&mut u, d.x0, d.y0, r * 1.12, [0.0, 0.0, 0.0, 0.18]); l.anillo(&mut u, d.x0, d.y0, r * 1.12, [1.0, 1.0, 1.0, 0.45]);
             let (mut kx, mut ky) = (d.x - d.x0, d.y - d.y0); let n = (kx * kx + ky * ky).sqrt(); if n > r { kx *= r / n; ky *= r / n; }
             l.disco(&mut u, d.x0 + kx, d.y0 + ky, r * 0.42, [1.0, 1.0, 1.0, 0.55]);
-        } else { l.texto_sombra(&mut u, t * 0.5, hf - t * 1.6, t * 0.7, [1.0, 1.0, 1.0, 0.7], "moverse: tocá a la izquierda · mirar: arrastrá a la derecha"); }
-        if let Some((a, ta)) = &self.aviso {
-            if ta.elapsed().as_secs_f32() < 4.0 { let an = l.ancho(t, a); l.caja(&mut u, (wf - an) / 2.0 - t * 0.8, hf * 0.42, an + t * 1.6, t * 1.8, t * 0.5, [0.0, 0.0, 0.0, 0.6]); l.texto(&mut u, (wf - an) / 2.0, hf * 0.42 + t * 0.4, t, bl, a); }
-        }
+        } else if !abierto { l.texto_sombra(&mut u, t * 0.5, hf - t * 1.6, t * 0.7, [1.0, 1.0, 1.0, 0.7], "moverse: tocá a la izquierda · mirar: arrastrá a la derecha"); }
         if self.mapa.is_none() && self.recargar && self.error.is_none() {
             let txt = format!("Cargando {}…", self.mapas[self.mapa_i]); let tt = t * 1.3; let an = l.ancho(tt, &txt);
             l.texto_sombra(&mut u, (wf - an) / 2.0, hf * 0.47, tt, bl, &txt);
@@ -485,6 +545,44 @@ impl Juego {
                 }
             }
         }
+        // Ajustes: las pestañas a la izquierda y un renglón por cosa, con sus valores para tocar
+        if let Some(pe) = self.ajustes {
+            let p = panel(wf, hf, ajustes::PESTANAS.len());
+            l.caja(&mut u, p.x0, p.y0, p.pw, p.ph, hf * 0.03, [0.07, 0.08, 0.11, 0.94]);
+            l.texto(&mut u, p.x0 + hf * 0.03, p.y0 + hf * 0.02, t * 0.9, bl, &format!("Ajustes · {} · en pausa", ajustes::PESTANAS[pe]));
+            l.caja(&mut u, p.x0 + p.pw - hf * 0.09, p.y0 + hf * 0.012, hf * 0.07, hf * 0.06, hf * 0.015, [0.6, 0.15, 0.12, 0.95]);
+            { let an = l.ancho(t * 0.9, "X"); l.texto(&mut u, p.x0 + p.pw - hf * 0.055 - an / 2.0, p.y0 + hf * 0.02, t * 0.9, bl, "X"); }
+            for (k, n) in ajustes::PESTANAS.iter().enumerate() {
+                let y = p.y0 + hf * 0.08 + k as f32 * p.tab_h; let sel = k == pe;
+                l.caja(&mut u, p.x0 + hf * 0.015, y, p.gx - p.x0 - hf * 0.04, p.tab_h - hf * 0.008, hf * 0.012, if sel { [0.95, 0.66, 0.1, 0.92] } else { [1.0, 1.0, 1.0, 0.08] });
+                let tt = (p.tab_h * 0.5).min(t * 0.75); l.texto(&mut u, p.x0 + hf * 0.035, y + (p.tab_h - tt) / 2.0 - hf * 0.004, tt, if sel { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
+            }
+            let claves = ajustes::claves(pe);
+            for (f, c) in claves.iter().enumerate() {
+                let vals = self.valores_aj(*c); let el = self.elegido_aj(*c); let cajas = cajas_aj(&p, hf, f, vals.len());
+                let fh = hf * 0.105; let y = p.gy + f as f32 * fh; let tt = t * 0.75;
+                let nom = if *c == Clave::Calidad && self.aj.calidad == ajustes::PERSONAL { "Calidad (personal)".to_string() } else { ajustes::nombre(*c).to_string() };
+                l.texto(&mut u, p.gx, y + (fh - tt) / 2.0 - hf * 0.004, tt, bl, &nom);
+                for (k, (v, b)) in vals.iter().zip(cajas).enumerate() {
+                    let sel = el == Some(k);
+                    l.caja(&mut u, b.0, b.1, b.2, b.3, hf * 0.012, if sel { [0.95, 0.66, 0.1, 0.92] } else { [1.0, 1.0, 1.0, 0.1] });
+                    let mut ts = tt * 0.9; while l.ancho(ts, v) > b.2 - 6.0 && ts > tt * 0.4 { ts *= 0.9; }
+                    let an = l.ancho(ts, v); l.texto(&mut u, b.0 + (b.2 - an) / 2.0, b.1 + (b.3 - ts) / 2.0 - hf * 0.004, ts, if sel { [0.0, 0.0, 0.0, 1.0] } else { bl }, v);
+                }
+            }
+            // (una nota abajo: lo que no usa OpenGL 2, o qué cambia el motor)
+            let nota = match pe {
+                0 if self.en_uso == Placa::Gl2 => "OpenGL 2 sólo usa la resolución y el retoque (no tiene sombras, oclusión ni reflejos)",
+                0 => "Patata y Bajo: sin sombras · Medio: sombras de 1024 cada 2 cuadros · Ultra: todo, con oclusión",
+                3 => "El motor se cambia al momento y queda guardado para la próxima vez",
+                _ => "",
+            };
+            if !nota.is_empty() { l.texto(&mut u, p.gx, p.gy + claves.len() as f32 * hf * 0.105 + hf * 0.02, t * 0.6, [1.0, 1.0, 1.0, 0.6], nota); }
+        }
+        // (el aviso, arriba de los menús: lo que se acaba de elegir se ve)
+        if let Some((a, ta)) = &self.aviso {
+            if ta.elapsed().as_secs_f32() < 4.0 { let an = l.ancho(t, a); l.caja(&mut u, (wf - an) / 2.0 - t * 0.8, hf * 0.42, an + t * 1.6, t * 1.8, t * 0.5, [0.0, 0.0, 0.0, 0.6]); l.texto(&mut u, (wf - an) / 2.0, hf * 0.42 + t * 0.4, t, bl, a); }
+        }
         if let Some(e) = &self.error {
             let tt = t * 0.75; let mut y = hf * 0.3; let ancho = wf * 0.8;
             l.caja(&mut u, wf * 0.08, y - tt, wf * 0.84, tt * 2.0 + tt * 1.3 * (1.0 + (l.ancho(tt, e) / ancho).ceil()), tt * 0.6, [0.35, 0.0, 0.0, 0.85]);
@@ -500,6 +598,8 @@ impl Juego {
         vec![(TEX_LETRAS, u), (TEX_ICONOS, ic)]
     }
 
+    /// la calidad, para el HUD
+    fn calidad_txt(&self) -> String { if self.aj.calidad < ajustes::PERSONAL { format!("{} {}%", ajustes::CALIDADES[self.aj.calidad], self.aj.res) } else { format!("personal {}%", self.aj.res) } }
     /// lo que tardó el cuadro entero (ms, con la espera a la pantalla) y los cuadros por segundo
     pub fn medir(&mut self, ms: f32) {
         self.ms = if self.cuenta == 0 { ms } else { self.ms * 0.9 + ms * 0.1 }; self.cuenta += 1; self.n_med += 1;

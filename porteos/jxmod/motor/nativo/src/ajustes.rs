@@ -1,0 +1,146 @@
+//! Los ajustes del jugador (como PREFS de la web): la calidad y lo que la arma (resolución, sombras, oclusión, reflejos,
+//! retoque), la sensibilidad, el campo de visión, los fps en pantalla, el volumen y el ambiente. Se guardan en ajustes.txt,
+//! en la carpeta de la app: una «clave=valor» por renglón (lo que no se entiende se deja como viene de fábrica).
+use jxmotor::gpu::Opciones;
+
+/// las calidades, como PERF_ORDEN de la web
+pub const CALIDADES: [&str; 5] = ["Patata", "Bajo", "Medio", "Alto", "Ultra"];
+/// la calidad «Personal»: se tocó algo a mano
+pub const PERSONAL: usize = 5;
+pub const RES: [u32; 5] = [50, 67, 75, 85, 100];
+pub const SENS: [u32; 6] = [4, 8, 12, 16, 20, 26];
+/// el campo de visión (grados de alto de la imagen, como CAM.fov: 70 el de siempre; la web va de 50 a 110)
+pub const FOV: [u32; 6] = [60, 70, 80, 90, 100, 110];
+pub const VOL: [u32; 5] = [0, 25, 50, 80, 100];
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Ajustes {
+    /// 0 patata … 4 ultra (o PERSONAL)
+    pub calidad: usize,
+    /// la resolución de la escena (% de la pantalla)
+    pub res: u32,
+    pub sombras: bool, pub ao: bool, pub reflejo: bool, pub retoque: bool,
+    /// la sensibilidad al mirar (12, la de la web)
+    pub sens: u32,
+    pub fov: u32,
+    /// los fps y los tiempos arriba a la izquierda
+    pub fps: bool,
+    pub vol: u32, pub ambiente: bool,
+}
+impl Default for Ajustes {
+    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true } }
+}
+
+/// lo que se puede tocar en el menú, un renglón cada uno
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Clave { Calidad, Res, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Motor, Mapa }
+/// las pestañas del menú y sus renglones
+pub const PESTANAS: [&str; 4] = ["Gráficos", "Controles", "Sonido", "Motor y mapa"];
+pub fn claves(pestana: usize) -> &'static [Clave] {
+    match pestana {
+        0 => &[Clave::Calidad, Clave::Res, Clave::Sombras, Clave::Ao, Clave::Reflejo, Clave::Retoque],
+        1 => &[Clave::Sens, Clave::Fov, Clave::Fps],
+        2 => &[Clave::Vol, Clave::Ambiente],
+        _ => &[Clave::Motor, Clave::Mapa],
+    }
+}
+pub fn nombre(c: Clave) -> &'static str {
+    match c {
+        Clave::Calidad => "Calidad", Clave::Res => "Resolución", Clave::Sombras => "Sombras", Clave::Ao => "Oclusión ambiental", Clave::Reflejo => "Reflejos del agua",
+        Clave::Retoque => "Retoque de color", Clave::Sens => "Sensibilidad", Clave::Fov => "Campo de visión", Clave::Fps => "Mostrar fps", Clave::Vol => "Volumen",
+        Clave::Ambiente => "Sonido del ambiente", Clave::Motor => "Motor", Clave::Mapa => "Mapa",
+    }
+}
+const NO_SI: [&str; 2] = ["No", "Sí"];
+
+impl Ajustes {
+    /// lee ajustes.txt (si no está o algo no se entiende: lo de fábrica)
+    pub fn leer(txt: Option<&str>) -> Ajustes {
+        let mut a = Ajustes::default();
+        let Some(t) = txt else { return a };
+        for l in t.lines() {
+            let Some((k, v)) = l.split_once('=') else { continue };
+            let (k, v) = (k.trim(), v.trim()); let n = v.parse::<u32>().ok(); let b = v == "1";
+            match k {
+                "calidad" => if let Some(n) = n { a.calidad = (n as usize).min(PERSONAL) },
+                "res" => if let Some(n) = n { a.res = n.clamp(25, 100) },
+                "sombras" => a.sombras = b, "ao" => a.ao = b, "reflejo" => a.reflejo = b, "retoque" => a.retoque = b,
+                "sens" => if let Some(n) = n { a.sens = n.clamp(1, 40) },
+                "fov" => if let Some(n) = n { a.fov = n.clamp(50, 110) },
+                "fps" => a.fps = b, "vol" => if let Some(n) = n { a.vol = n.min(100) }, "ambiente" => a.ambiente = b,
+                _ => {}
+            }
+        }
+        a
+    }
+    pub fn texto(&self) -> String {
+        let b = |x: bool| if x { 1 } else { 0 };
+        format!("calidad={}\nres={}\nsombras={}\nao={}\nreflejo={}\nretoque={}\nsens={}\nfov={}\nfps={}\nvol={}\nambiente={}\n",
+            self.calidad, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente))
+    }
+    /// pone una calidad entera (como gfx de la web: cada una con su resolución y sus pasadas)
+    pub fn poner_calidad(&mut self, k: usize) {
+        let (res, so, ao, re, rt) = match k { 0 => (50, false, false, false, false), 1 => (67, false, false, true, false), 2 => (85, true, false, true, true), 3 => (100, true, false, true, true), _ => (100, true, true, true, true) };
+        self.calidad = k.min(4); self.res = res; self.sombras = so; self.ao = ao; self.reflejo = re; self.retoque = rt;
+    }
+    /// lo que va al motor: con calidad media o menos, la sombra de 1024 cada 2 cuadros y el reflejo a un cuarto
+    pub fn opciones(&self) -> Opciones {
+        let flojo = self.calidad <= 2; let muy = self.calidad <= 1;
+        Opciones { escala: self.res as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if flojo { 2 } else { 1 }, sombra_radio: if flojo { 35.0 } else { 45.0 },
+            reflejo: self.reflejo, reflejo_div: if muy { 4 } else { 2 }, reflejo_cada: if muy { 2 } else { 1 }, ao: self.ao, ao_fuerza: 0.6, retoque: self.retoque }
+    }
+    /// el volumen para el mezclador (80, el de fábrica, es 1: como quedó medido contra la web)
+    pub fn volumen(&self) -> f32 { self.vol as f32 / 80.0 }
+    /// lo que se puede elegir en un renglón (Motor y Mapa los arma el juego)
+    pub fn valores(c: Clave) -> Vec<String> {
+        let num = |v: &[u32], suf: &str| v.iter().map(|x| format!("{x}{suf}")).collect();
+        match c {
+            Clave::Calidad => CALIDADES.iter().map(|s| s.to_string()).collect(),
+            Clave::Res => num(&RES, "%"), Clave::Sens => num(&SENS, ""), Clave::Fov => num(&FOV, "°"), Clave::Vol => num(&VOL, "%"),
+            Clave::Sombras | Clave::Ao | Clave::Reflejo | Clave::Retoque | Clave::Fps | Clave::Ambiente => NO_SI.iter().map(|s| s.to_string()).collect(),
+            Clave::Motor | Clave::Mapa => vec![],
+        }
+    }
+    /// cuál está elegido en un renglón (ninguno si el valor guardado no es uno de la lista)
+    pub fn elegido(&self, c: Clave) -> Option<usize> {
+        let pos = |v: &[u32], x: u32| v.iter().position(|y| *y == x);
+        match c {
+            Clave::Calidad => if self.calidad < PERSONAL { Some(self.calidad) } else { None },
+            Clave::Res => pos(&RES, self.res), Clave::Sens => pos(&SENS, self.sens), Clave::Fov => pos(&FOV, self.fov), Clave::Vol => pos(&VOL, self.vol),
+            Clave::Sombras => Some(self.sombras as usize), Clave::Ao => Some(self.ao as usize), Clave::Reflejo => Some(self.reflejo as usize),
+            Clave::Retoque => Some(self.retoque as usize), Clave::Fps => Some(self.fps as usize), Clave::Ambiente => Some(self.ambiente as usize),
+            Clave::Motor | Clave::Mapa => None,
+        }
+    }
+    /// elige el valor `k` de un renglón (tocar algo de la calidad a mano la deja en «Personal»)
+    pub fn elegir(&mut self, c: Clave, k: usize) {
+        let toma = |v: &[u32]| v[k.min(v.len() - 1)];
+        match c {
+            Clave::Calidad => self.poner_calidad(k),
+            Clave::Res => { self.res = toma(&RES); self.calidad = PERSONAL; }
+            Clave::Sombras => { self.sombras = k == 1; self.calidad = PERSONAL; }
+            Clave::Ao => { self.ao = k == 1; self.calidad = PERSONAL; }
+            Clave::Reflejo => { self.reflejo = k == 1; self.calidad = PERSONAL; }
+            Clave::Retoque => { self.retoque = k == 1; self.calidad = PERSONAL; }
+            Clave::Sens => self.sens = toma(&SENS), Clave::Fov => self.fov = toma(&FOV), Clave::Vol => self.vol = toma(&VOL),
+            Clave::Fps => self.fps = k == 1, Clave::Ambiente => self.ambiente = k == 1,
+            Clave::Motor | Clave::Mapa => {}
+        }
+        // (si lo tocado a mano coincide con una calidad entera, vuelve a ser esa)
+        if self.calidad == PERSONAL {
+            for q in 0..5 { let mut p = self.clone(); p.poner_calidad(q); let mut yo = self.clone(); yo.calidad = q; if p == yo { self.calidad = q; break; } }
+        }
+    }
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+    #[test]
+    fn ida_y_vuelta() {
+        let mut a = Ajustes::default(); a.elegir(Clave::Sens, 4); a.elegir(Clave::Ao, 0); a.elegir(Clave::Vol, 1);
+        assert_eq!(a.calidad, 3, "ultra sin oclusión es alto"); let b = Ajustes::leer(Some(&a.texto())); assert_eq!(a, b);
+        a.elegir(Clave::Res, 0); assert_eq!(a.calidad, PERSONAL);
+        assert_eq!(Ajustes::leer(Some("basura\nres=999\nfov=5")).res, 100);
+    }
+}

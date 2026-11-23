@@ -108,8 +108,17 @@ fn main() {
     toque(&mut j, 12, x0 + pw - hf * 0.05, y0 + hf * 0.04); paso(&mut j, &mut m, 3);
     println!("objetos puestos: {}", j.objs.iter().map(|o| o.nombre.as_str()).collect::<Vec<_>>().join(", ")); foto(&mut m, "3c_objetos");
     // el otro mapa: caminar 6 s para adelante y a la derecha (choca con lo que haya)
-    let (x0, bw) = (wf * 0.45, wf * 0.55 / 4.0);
-    j.dedo_abajo(5, x0 + bw * 3.5, hf * 0.05, wf, hf); j.dedo_arriba(5); let t = Instant::now(); paso(&mut j, &mut m, 2); println!("cambio de mapa: {:.0} ms · {}", t.elapsed().as_secs_f64() * 1000.0, m.resumen());
+    // Ajustes: abrirlo (pausa), calidad Medio, cerrar y ver la escena; abrir otra vez, Ultra, y en «Motor y mapa» el otro mapa
+    let (ax, ay) = jxmod::comun::pos_boton(wf, hf, jxmod::comun::Boton::Ajustes);
+    toque(&mut j, 20, ax, ay); paso(&mut j, &mut m, 2); foto(&mut m, "3d_ajustes");
+    let (x, y) = j.pos_ajuste(wf, hf, 0, Some(0), 2); toque(&mut j, 21, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3e_ajustes_medio");
+    println!("ajustes Medio: {:?}", j.aj);
+    toque(&mut j, 22, x0 + pw - hf * 0.05, y0 + hf * 0.04); paso(&mut j, &mut m, 3); foto(&mut m, "3f_escena_medio");
+    toque(&mut j, 23, ax, ay); let (x, y) = j.pos_ajuste(wf, hf, 0, Some(0), 4); toque(&mut j, 24, x, y);
+    let (x, y) = j.pos_ajuste(wf, hf, 1, None, 0); toque(&mut j, 25, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3g_ajustes_controles");
+    let (x, y) = j.pos_ajuste(wf, hf, 3, None, 0); toque(&mut j, 26, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3h_ajustes_motor");
+    println!("ajustes Ultra: {:?} · abierto {:?}", j.aj, j.ajustes);
+    let (x, y) = j.pos_ajuste(wf, hf, 3, Some(1), 1); toque(&mut j, 27, x, y); let t = Instant::now(); paso(&mut j, &mut m, 2); println!("cambio de mapa: {:.0} ms · {}", t.elapsed().as_secs_f64() * 1000.0, m.resumen());
     if let Some(mp) = &j.mapa { println!("mundo de choques: {} triángulos, {} cuerpos", mp.mundo.n_tris(), mp.mundo.cuerpos.len()); }
     paso(&mut j, &mut m, 60); let p0 = j.jug.pos; println!("4 Construct aparición: pos {:?} suelo {}", p0, j.jug.suelo); foto(&mut m, "4_construct");
     j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf);

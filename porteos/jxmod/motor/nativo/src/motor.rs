@@ -17,6 +17,14 @@ impl Motor3d {
     pub fn poner_cuadro(&mut self, c: Cuadro) { match self { Motor3d::Gl(m, _) => m.poner_cuadro(c), Motor3d::Vk(m) => m.poner_cuadro(c), Motor3d::Gl2(m, _) => m.poner_cuadro(c) } }
     pub fn resumen(&self) -> String { match self { Motor3d::Gl(m, _) => m.resumen(), Motor3d::Vk(m) => m.resumen(), Motor3d::Gl2(m, _) => m.resumen() } }
     pub fn es_vulkan(&self) -> bool { matches!(self, Motor3d::Vk(_)) }
+    /// lo de Ajustes (la calidad): OpenGL 3 y Vulkan usan todo; OpenGL 2 sólo la resolución y el retoque
+    pub fn opciones(&mut self, op: &jxmotor::gpu::Opciones) {
+        match self {
+            Motor3d::Gl(m, _) => m.op = op.clone(),
+            Motor3d::Vk(m) => m.op = op.clone(),
+            Motor3d::Gl2(m, _) => { m.op.escala = op.escala; m.op.retoque = op.retoque; }
+        }
+    }
     /// el cuadro entero: la escena (si hay mapa) y el HUD (`ui`: tandas de vértices, cada una con su textura —las letras, los
     /// íconos—)
     pub unsafe fn dibujar(&mut self, w: i32, h: i32, hay_mapa: bool, ui: &[(i64, Vec<f32>)]) -> Result<(), String> {

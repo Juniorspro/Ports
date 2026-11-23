@@ -712,7 +712,8 @@ impl Motor {
                 Err(e) => return Err(format!("acquire: {e:?}")),
             }
         } else { let p = self.propia.as_ref().unwrap(); (0, p.fb, vk::Extent2D { width: p.img.w, height: p.img.h }, 0) };
-        let (w, h) = self.tam();
+        // (la escena se dibuja a la escala elegida —la resolución de Ajustes— y la pasada final la estira a la pantalla)
+        let (w, h) = { let (tw, th) = self.tam(); let e = self.op.escala.clamp(0.25, 1.0); (((tw as f32 * e).round() as u32).max(16), ((th as f32 * e).round() as u32).max(16)) };
         self.destinos(w, h)?;
         ve(self.dev.reset_fences(&[listo]), "valla")?;
         let cb = self.marcos[mi].cb;
@@ -731,7 +732,7 @@ impl Motor {
         let (aw, ah) = self.dest.as_ref().and_then(|d| d.ao.as_ref()).map(|(a, _)| (a.w, a.h)).unwrap_or((1, 1));
         post[0..4].copy_from_slice(&[0.75 / aw as f32, 0.75 / ah as f32, self.op.ao_fuerza, 0.0]);
         post[64..72].copy_from_slice(&[if self.op.retoque { 1.0 } else { 0.0 }, if srgb { 1.0 } else { 0.0 }, 0.0, 0.0, cs, sn, 0.0, 0.0]);
-        let uiu = [1.0 / w as f32, 1.0 / h as f32, 0.0, 0.0, cs, sn, 0.0, 0.0];
+        let uiu = { let (tw, th) = self.tam(); [1.0 / tw as f32, 1.0 / th as f32, 0.0, 0.0, cs, sn, 0.0, 0.0] };
         self.escribir(mi, 4, f32b(&post))?; self.escribir(mi, 6, f32b(&uiu))?; self.escribir(mi, 5, f32b(&ui))?;
         let fin_t = self.marcar(cb, mi, medir, "final", true);
         let lim = [vk::ClearValue { color: vk::ClearColorValue { float32: [0.06, 0.07, 0.09, 1.0] } }];
