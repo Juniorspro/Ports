@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 /// un sonido decodificado: muestras de 16 bits intercaladas
 pub struct Pcm { pub rate: u32, pub ch: u16, pub datos: Vec<i16> }
-struct Voz { pcm: Arc<Pcm>, pos: f64, paso: f64, vi: f32, vd: f32 }
+struct Voz { pcm: Arc<Pcm>, pos: f64, paso: f64, vi: f32, vd: f32, /** los que se repiten (el ambiente): su número */ lazo: u64 }
 pub struct Mezcla { voces: Vec<Voz>, pub rate: u32 }
 impl Mezcla {
     /// mezcla `n` cuadros estéreo en float (la salida los pide)
@@ -17,7 +17,8 @@ impl Mezcla {
         self.voces.retain_mut(|v| {
             let p = &v.pcm; let ch = p.ch as usize; let largo = p.datos.len() / ch.max(1);
             for k in 0..n {
-                let i = v.pos as usize; if i + 1 >= largo { return false; }
+                let mut i = v.pos as usize;
+                if i + 1 >= largo { if v.lazo == 0 { return false; } v.pos = 0.0; i = 0; }
                 let f = (v.pos - i as f64) as f32;
                 let m = |j: usize| -> f32 { if ch == 2 { (p.datos[j * 2] as f32 + p.datos[j * 2 + 1] as f32) * 0.5 } else { p.datos[j] as f32 } };
                 let s = (m(i) * (1.0 - f) + m(i + 1) * f) / 32768.0;
@@ -40,13 +41,15 @@ pub struct Sonido {
     /// el oyente: dónde está y hacia dónde mira (para el volumen y el paneo)
     pub oyente: ([f32; 3], f32),
     pub volumen: f32,
+    /// los bucles (el ambiente): su clave → número de voz y si se pidió en este cuadro
+    bucles: HashMap<String, (u64, bool)>, prox: u64,
 }
 
 impl Sonido {
     /// sin salida (la compu)
     pub fn mudo() -> Sonido {
         Sonido { mezcla: Arc::new(Mutex::new(Mezcla { voces: vec![], rate: 48000 })), cache: HashMap::new(), #[cfg(target_os = "android")] fuente: None, idx: HashMap::new(),
-            #[cfg(target_os = "android")] _salida: None, oyente: ([0.0; 3], 0.0), volumen: 1.0 }
+            #[cfg(target_os = "android")] _salida: None, oyente: ([0.0; 3], 0.0), volumen: 1.0, bucles: HashMap::new(), prox: 1 }
     }
     /// con el pk.bin de la APK (descriptor y comienzo) y su índice: abre la salida de AAudio
     #[cfg(target_os = "android")]
@@ -90,7 +93,29 @@ impl Sonido {
         }
         let rate = self.mezcla.lock().map(|m| m.rate).unwrap_or(48000);
         let paso = p.rate as f64 / rate as f64 * tono as f64;
-        if let Ok(mut m) = self.mezcla.lock() { if m.voces.len() < 48 { m.voces.push(Voz { pcm: p, pos: 0.0, paso, vi, vd }); } }
+        if let Ok(mut m) = self.mezcla.lock() { if m.voces.len() < 48 { m.voces.push(Voz { pcm: p, pos: 0.0, paso, vi, vd, lazo: 0 }); } }
+    }
+    /// un sonido que se repite mientras se lo pida cada cuadro (el viento, la ciudad): con `clave`, a este volumen
+    pub fn bucle(&mut self, clave: &str, nombre: &str, vol: f32) {
+        if !self.suena() { return; }
+        let g = vol * self.volumen;
+        if let Some(b) = self.bucles.get_mut(clave) {
+            b.1 = true; let id = b.0;
+            if let Ok(mut m) = self.mezcla.lock() { if let Some(v) = m.voces.iter_mut().find(|v| v.lazo == id) { v.vi = g; v.vd = g; } }
+            return;
+        }
+        let Some(p) = self.pcm(nombre) else { return };
+        let id = self.prox; self.prox += 1;
+        let rate = self.mezcla.lock().map(|m| m.rate).unwrap_or(48000); let paso = p.rate as f64 / rate as f64;
+        if let Ok(mut m) = self.mezcla.lock() { m.voces.push(Voz { pcm: p, pos: 0.0, paso, vi: g, vd: g, lazo: id }); }
+        self.bucles.insert(clave.to_string(), (id, true));
+    }
+    /// al terminar el cuadro: se cortan los bucles que no se pidieron
+    pub fn fin_bucles(&mut self) {
+        let fuera: Vec<(String, u64)> = self.bucles.iter().filter(|(_, b)| !b.1).map(|(k, b)| (k.clone(), b.0)).collect();
+        if !fuera.is_empty() { if let Ok(mut m) = self.mezcla.lock() { m.voces.retain(|v| v.lazo == 0 || !fuera.iter().any(|f| f.1 == v.lazo)); } }
+        for (k, _) in fuera { self.bucles.remove(&k); }
+        for b in self.bucles.values_mut() { b.1 = false; }
     }
 }
 

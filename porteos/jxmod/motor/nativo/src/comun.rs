@@ -100,7 +100,7 @@ pub struct Juego {
     pub menu: Option<Menu>, prefabs: HashMap<String, Prefab>, cargados: Cargados,
     pub objs: Vec<Obj>, pendientes: Vec<String>,
     // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
-    pub sonido: crate::sonido::Sonido, paso_d: f32, aire_t: f32, vy_aire: f32, golpe_max: f32, saltos_vistos: u32, ahogos_vistos: u32, nadaba: bool, brazada_t: f32, azar: u32,
+    pub sonido: crate::sonido::Sonido, amb_t: f32, paso_d: f32, aire_t: f32, vy_aire: f32, golpe_max: f32, saltos_vistos: u32, ahogos_vistos: u32, nadaba: bool, brazada_t: f32, azar: u32,
 }
 
 /// la proyección de GL (como M4.persp de nucleo.js)
@@ -128,7 +128,7 @@ impl Juego {
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0,
             recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
-            sonido: crate::sonido::Sonido::mudo(), paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
+            sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); }
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
         j
@@ -323,6 +323,21 @@ impl Juego {
     fn sonidos(&mut self, dt: f32, ojos: [f32; 3], ent: &Entrada) {
         self.sonido.oyente = (ojos, self.jug.yaw);
         if !self.sonido.suena() || self.mapa.is_none() { return; }
+        // el ambiente (sonAmbiente): los mapas de GMod son «campo» —el viento y, cada 4 a 14 s, un pájaro entre 15 y 40 m—;
+        // bajo el agua, nada
+        let bajo = self.jug.aguas.iter().any(|v| ojos[1] < v[4] && ojos[1] > v[1] && ojos[0] >= v[0] && ojos[0] <= v[3] && ojos[2] >= v[2] && ojos[2] <= v[5]);
+        if !bajo {
+            self.sonido.bucle("amb", "AM_viento1", 0.16);
+            self.amb_t -= dt;
+            if self.amb_t <= 0.0 {
+                self.amb_t = 4.0 + self.azar() * 10.0;
+                let (a, r) = (self.azar() * std::f32::consts::TAU, 15.0 + self.azar() * 25.0); let alto = 2.0 + self.azar() * 8.0;
+                let n = if self.azar() < 0.5 { format!("AM_ave{}", 1 + (self.azar() * 7.0) as u32) } else { format!("AM_pajaro{}", 1 + (self.azar() * 6.0) as u32) };
+                let tono = 0.95 + self.azar() * 0.1;
+                self.sonido.tocar(&n, 0.4, tono, Some([ojos[0] + a.cos() * r, ojos[1] + alto, ojos[2] + a.sin() * r]));
+            }
+        }
+        self.sonido.fin_bucles();
         let (suelo, nada, noclip, agua) = (self.jug.suelo, self.jug.nada, self.jug.noclip, self.jug.nada || self.jug.hondo > 0.25);
         let (saltos, ahogos) = (self.jug.saltos, self.jug.ahogos);
         let sp = (self.jug.vel[0] * self.jug.vel[0] + self.jug.vel[2] * self.jug.vel[2]).sqrt(); let vy = self.jug.vel[1];
