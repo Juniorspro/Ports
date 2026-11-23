@@ -91,7 +91,7 @@ fn main() {
     // (JXM_RED=1: el multijugador contra un broker MQTT local: «Beto» —otro Red, como otro celular o la web— entra a la sala
     // oficial de este mapa, camina delante del jugador, pone una caja, habla y tira; el juego entra por el panel de salas)
     if std::env::var("JXM_RED").is_ok() {
-        use jxjuego::red::{Jugador, Local, ObjLocal, Puente, Red, Sala};
+        use jxjuego::red::{Jugador, Local, NpcLocal, ObjLocal, Puente, Red, Sala};
         use jxmod::comun::{pos_boton, Boton, red_juego::{panel_salas_geo, BtnSala}};
         let b = broker::Broker::nuevo(); let url = format!("mqtt://127.0.0.1:{}", b.tcp);
         let toque = |j: &mut Juego, id: i32, x: f32, y: f32| { j.dedo_abajo(id, x, y, wf, hf); j.dedo_arriba_en(id, wf, hf); };
@@ -118,7 +118,9 @@ fn main() {
             let lado = (t * 0.9).sin() * 2.0; let p = [jp0[0] as f64 + fx * 5.0 + fz * lado, jp0[1] as f64, jp0[2] as f64 + fz * 5.0 - fx * lado];
             let jug = Jugador { skin: "Hero".into(), gorro: "HatEmpty".into(), pos: p, yaw: yaw + std::f64::consts::PI, vel: [fz * (t * 0.9).cos() * 1.8, 0.0, -fx * (t * 0.9).cos() * 1.8], suelo: true, vivo: true, arma: Some("Pistol".into()), vida: 100.0, reloj: t, ..Default::default() };
             let cp = [jp0[0] as f64 + fx * 7.0 + fz * 1.5, jp0[1] as f64 - 0.4, jp0[2] as f64 + fz * 7.0 - fx * 1.5];
-            let local = Local { jug, objs: vec![ObjLocal { id: 1, nombre: caja.clone(), pos: cp, q: [0.0, 0.0, 0.0, 1.0], congelado: true, ..Default::default() }], ..Default::default() };
+            // (y un NPC suyo con escopeta, quieto a 6 m a la izquierda)
+            let np = NpcLocal { id: 1, skin: "Hero".into(), pos: [jp0[0] as f64 + fx * 6.0 - fz * 2.0, jp0[1] as f64, jp0[2] as f64 + fz * 6.0 + fx * 2.0], yaw: yaw + std::f64::consts::PI, f: 1, arma: "Shotgun".into(), ..Default::default() };
+            let local = Local { jug, objs: vec![ObjLocal { id: 1, nombre: caja.clone(), pos: cp, q: [0.0, 0.0, 0.0, 1.0], congelado: true, ..Default::default() }], npcs: vec![np], ..Default::default() };
             beto.paso(dt, &local); for e in beto.eventos() { if let jxjuego::red::Evento::Chat { nombre, texto, .. } = e { oyo.push(format!("{nombre}: {texto}")); } } pb.bombear(&mut beto);
             if f == 150 { let (cx, cy) = pos_boton(wf, hf, Boton::Chat); toque(&mut j, 63, cx, cy); }
             if f == 200 { beto.chat("hola desde la red", None); }
@@ -129,6 +131,7 @@ fn main() {
         }
         println!("red: en sala {} ({}) · veo {} jugador(es): {:?} · cosas de otros {} · objetos en el juego {}", j.en_red.en_sala(), j.en_red.red.estado(), j.en_red.red.remotos().len(),
             j.en_red.red.remotos().iter().map(|r| format!("{} en [{:.2}, {:.2}, {:.2}]", r.nombre, r.pos[0], r.pos[1], r.pos[2])).collect::<Vec<_>>(), j.en_red.red.objetos().len(), j.objs.len());
+        println!("red: NPC de otros que veo: {:?}", j.en_red.red.npcs_remotos().iter().map(|n| format!("{} de {} con {:?}", n.skin, n.de, n.arma)).collect::<Vec<_>>());
         println!("red: Beto ve {} jugador(es): {:?} · a {:.3} m de donde estoy · oyó {:?}", beto.remotos().len(), beto.remotos().iter().map(|r| r.nombre.clone()).collect::<Vec<_>>(), dif, oyo);
         let (sx, sy) = pos_boton(wf, hf, Boton::Camara); toque(&mut j, 62, sx, sy); paso(&mut j, &mut m, 20); foto(&mut m, "8c_red_tercera");
         return;

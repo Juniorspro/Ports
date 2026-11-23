@@ -3,7 +3,7 @@
 //! globo del chat) y las cosas de los demás (congeladas donde dice su dueño, o libres si las agarré yo). Va como hijo de
 //! comun.rs para ver los campos del juego (como herramientas.rs y combate.rs).
 use super::*;
-use jxjuego::red::{self, Evento, Local, NuevaSala, ObjLocal, Puente, Red, Sala, SimRemoto};
+use jxjuego::red::{self, Evento, Local, NpcLocal, NuevaSala, ObjLocal, Puente, Red, Sala, SimRemoto};
 use std::collections::HashSet;
 use jxmotor::escena::ItemDin;
 
@@ -174,6 +174,12 @@ impl Juego {
             n += 1; if b.congelado { cong += 1; }
             l.objs.push(ObjLocal { id: o.id, nombre: o.nombre.clone(), pos: b.pos, q: b.q, duerme: b.duerme, congelado: b.congelado, ..Default::default() });
         }
+        // (mis NPC: npcRedMandar —cada 0,15 s lo manda red.rs—)
+        l.npcs.clear();
+        for p in &self.npcs.lista {
+            let f = (p.cap.suelo as i32) | if p.rag.is_some() { 2 } else { 0 } | if !p.vivo { 4 } else { 0 } | if p.act.hostil { 8 } else { 0 } | if p.act.modo == npc::Modo::Defender { 16 } else { 0 };
+            l.npcs.push(NpcLocal { id: p.id as i32, skin: p.skin.clone(), pos: p.cap.pos, yaw: p.yaw, vel: p.cap.vel, f, emote: p.emote.clone().unwrap_or_default(), arma: p.arma.map(|a| a.nombre().to_string()).unwrap_or_default(), tiros: 0, mira: None });
+        }
         self.en_red.local = l;
         if (n, cong) != self.en_red.firma { self.en_red.firma = (n, cong); self.en_red.red.objeto_cambio(); }
     }
@@ -253,6 +259,13 @@ impl Juego {
             Evento::Echado => { self.en_red.red.dejar(); self.avisar("Te echaron de la sala".into()); }
             Evento::SalaCerrada { nombre } => { self.en_red.red.dejar(); self.avisar(format!("Se cerró la sala {nombre}")); }
             Evento::Mias => { if let Some(d) = &self.en_red.datos { let _ = std::fs::write(d.join("salas.json"), self.en_red.red.mias_json()); } }
+            // (a mis NPC: les pegó otro, o les cambió la actitud; de los de otros: se fue uno)
+            Evento::NpcDano { n, dano, v, tumba, .. } => {
+                let (id, p) = (n as u32, self.npcs.get(n as u32).map(|x| x.pos()));
+                if let Some(p) = p { let d = [v[0] as f32, v[1] as f32, v[2] as f32]; self.npcs.danar(id, dano as f32, p, d, &mut self.fis, None); if tumba { self.npcs.tumbar(id, d, &mut self.fis); } }
+            }
+            Evento::NpcAct { n, a, .. } => { let act = npc::Actitud::normal(&a, None); self.npcs.aplicar(n as u32, act); }
+            Evento::NpcFin { clave } => { self.en_red.cuerpos.remove(&format!("npc:{clave}")); }
             Evento::SalaCreada { sala } => { let s = sala.clone(); let _ = self.en_red.red.entrar(&s, Some(&s.clave)); self.entrar_sala(&s); }
             _ => {}
         }
@@ -261,7 +274,8 @@ impl Juego {
     /// los cuerpos de los demás: cargados con su skin (si no está, el Hero), con su arma, sentados en su vehículo y animados
     unsafe fn red_cuerpos(&mut self, m: &mut Motor3d, dt: f32) {
         let rem: Vec<red::Remoto> = self.en_red.red.remotos().iter().filter(|r| r.visible).cloned().collect();
-        self.en_red.cuerpos.retain(|id, _| rem.iter().any(|r| &r.id == id));
+        let nps: Vec<red::NpcRemoto> = self.en_red.red.npcs_remotos().iter().filter(|n| !n.oculto).cloned().collect();
+        self.en_red.cuerpos.retain(|id, _| rem.iter().any(|r| &r.id == id) || nps.iter().any(|n| id.strip_prefix("npc:") == Some(n.clave.as_str())));
         let Some(paq) = self.paq.as_mut() else { return };
         for r in &rem {
             if self.en_red.cuerpos.get(&r.id).map(|c| c.1 != r.skin).unwrap_or(true) {
@@ -284,10 +298,28 @@ impl Juego {
             let e = personaje::Estado { piso: [pos[0], pos[1] - 0.95, pos[2]], vel: [r.vel[0] as f32, r.vel[1] as f32, r.vel[2] as f32], yaw: r.yaw as f32, mira: r.mira as f32, en_suelo: r.suelo, agachado: r.agachado, agua: None };
             pj.animar(dt, &e);
         }
+        // (los NPC de otros: su cuerpo con su arma, donde los manda su dueño)
+        for n in &nps {
+            let k = format!("npc:{}", n.clave);
+            if self.en_red.cuerpos.get(&k).map(|c| c.1 != n.skin).unwrap_or(true) {
+                let c = Personaje::cargar(paq, &n.skin, 0, 512, &mut self.pj_cargados).or_else(|_| Personaje::cargar(paq, "Hero", 0, 512, &mut self.pj_cargados));
+                match c { Ok((pj, esc)) => { if m.cargar(&esc).is_err() { continue; } self.en_red.cuerpos.insert(k.clone(), (pj, n.skin.clone())); } Err(_) => continue }
+            }
+            let Some((pj, _)) = self.en_red.cuerpos.get_mut(&k) else { continue };
+            let arma = n.arma.as_deref().filter(|a| ARMAS.iter().any(|d| d.n == *a));
+            if let Some(e) = pj.poner_arma(paq, arma, &mut self.pj_cargados) { let _ = m.cargar(&e); }
+            let pos = [n.pos[0] as f32, n.pos[1] as f32, n.pos[2] as f32];
+            let e = personaje::Estado { piso: [pos[0], pos[1] - 0.95, pos[2]], vel: [n.vel[0] as f32, n.vel[1] as f32, n.vel[2] as f32], yaw: n.yaw as f32, mira: 0.0, en_suelo: n.suelo, agachado: false, agua: None };
+            pj.animar(dt, &e);
+        }
     }
 
     /// lo que se dibuja de los demás
     pub(super) fn red_items(&self, items: &mut Vec<ItemDin>) {
+        for n in self.en_red.red.npcs_remotos() {
+            let Some((pj, _)) = self.en_red.cuerpos.get(&format!("npc:{}", n.clave)) else { continue };
+            pj.items(&personaje::base([n.pos[0] as f32, n.pos[1] as f32 - 0.95, n.pos[2] as f32], n.yaw as f32), items);
+        }
         for r in self.en_red.red.remotos() {
             let Some((pj, _)) = self.en_red.cuerpos.get(&r.id) else { continue };
             let b = pj.base_sentado().unwrap_or_else(|| personaje::base([r.pos[0] as f32, r.pos[1] as f32 - 0.95, r.pos[2] as f32], r.yaw as f32));
