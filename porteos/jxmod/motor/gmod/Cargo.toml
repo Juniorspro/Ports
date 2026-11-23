@@ -1,0 +1,12 @@
+[package]
+name = "jxgmod"
+version = "0.1.0"
+edition = "2021"
+description = "La capa GMod de JXMod (la API de Garry's Mod sobre jxlua): carga addons, corre sus hooks y le pide al juego lo que hace falta"
+
+[dependencies]
+jxlua = { path = "../lua" }
+
+[[bin]]
+name = "jxgmod_traza"
+path = "src/bin/jxgmod_traza.rs"

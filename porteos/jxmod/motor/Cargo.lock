@@ -504,6 +504,13 @@ name = "jxfisica"
 version = "0.1.0"
 
 [[package]]
+name = "jxgmod"
+version = "0.1.0"
+dependencies = [
+ "jxlua",
+]
+
+[[package]]
 name = "jxjuego"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,3563 @@
+m consola "prueba: cargando\u0009true\u0009false"
+m api "CreateConVar" "prueba_fuerza" "3" 128 "la fuerza" 0 10
+m api "CreateClientConVar" "prueba_color" "255 0 0" true false
+m api "cvars.AddChangeCallback" "prueba_fuerza" function
+m api "util.AddNetworkString" "prueba_msg"
+m api "hook.Add" "PlayerSpawn" "prueba" function
+m api "hook.Add" "Think" "prueba_srv" function
+m api "timer.Create" "prueba_t" 0.5 3 function
+m api "timer.Simple" 1 function
+m api "concommand.Add" "prueba_cmd" function
+m api "hook.Add" "KeyPress" "prueba_tecla" function
+m api "util.JSONToTable" "{\"a\":1,\"b\":[1,2,3],\"2\":\"dos\",\"c\":{\"d\":true}}"
+m api "util.TableToJSON" table
+m consola "json\u00091\u00093\u0009dos\u0009true\u0009{\"x\":1,\"y\":[2,3],\"z\":\"w\"}"
+m api "util.KeyValuesToTable" "\"raiz\" { \"uno\" \"1\" \"sub\" { \"dos\" \"2\" } }"
+m consola "kv\u00091\u00092"
+m api "file.Write" "prueba.txt" "contenido"
+m api "file.Read" "prueba.txt" "DATA"
+m api "file.Exists" "prueba.txt" "DATA"
+m api "file.Exists" "lua/autorun/prueba_auto.lua" "GAME"
+m consola "file\u0009contenido\u0009true\u0009true"
+m api "Vector" 1 2 3
+m api "Vector" 4 5 6
+m api "Vector:Normalize" v(9,12,15)
+m api "Vector:Length" v(0.424264,0.565685,0.707107)
+m api "Angle" 10 20 30
+m api "Angle:Forward" a(10,20,30)
+m api "Vector:Angle" v(0.424264,0.565685,0.707107)
+m api "Angle" 0 170 0
+m api "Angle" 0 -170 0
+m api "LerpAngle" 0.5 a(0,170,0) a(0,-170,0)
+m consola "vec\u00090.424264 0.565685 0.707107\u00091\u00090.925417 0.336824 -0.173648\u0009-45 53.13 0\u00090 180 0"
+m api "TypeID" v(0.424264,0.565685,0.707107)
+m api "LocalPlayer"
+m api "IsValid" e#0
+m consola "enum\u00091\u000928\u0009180\u00098\u0009Vector\u000910\u0009Player\u0009false"
+m consola "prueba: cargando\u0009false\u0009true"
+m api "CreateConVar" "prueba_fuerza" "3" 128 "la fuerza" 0 10
+m api "CreateClientConVar" "prueba_color" "255 0 0" true false
+m api "cvars.AddChangeCallback" "prueba_fuerza" function
+m api "net.Receive" "prueba_msg" function
+m api "surface.CreateFont" "PruebaFuente" table
+m api "hook.Add" "HUDPaint" "prueba_hud" function
+m api "hook.Add" "Think" "prueba_cl" function
+m api "hook.Add" "KeyPress" "prueba_tecla" function
+m api "util.JSONToTable" "{\"a\":1,\"b\":[1,2,3],\"2\":\"dos\",\"c\":{\"d\":true}}"
+m api "util.TableToJSON" table
+m consola "json\u00091\u00093\u0009dos\u0009true\u0009{\"x\":1,\"y\":[2,3],\"z\":\"w\"}"
+m api "util.KeyValuesToTable" "\"raiz\" { \"uno\" \"1\" \"sub\" { \"dos\" \"2\" } }"
+m consola "kv\u00091\u00092"
+m api "file.Write" "prueba.txt" "contenido"
+m api "file.Read" "prueba.txt" "DATA"
+m api "file.Exists" "prueba.txt" "DATA"
+m api "file.Exists" "lua/autorun/prueba_auto.lua" "GAME"
+m consola "file\u0009contenido\u0009true\u0009true"
+m api "Vector" 1 2 3
+m api "Vector" 4 5 6
+m api "Vector:Normalize" v(9,12,15)
+m api "Vector:Length" v(0.424264,0.565685,0.707107)
+m api "Angle" 10 20 30
+m api "Angle:Forward" a(10,20,30)
+m api "Vector:Angle" v(0.424264,0.565685,0.707107)
+m api "Angle" 0 170 0
+m api "Angle" 0 -170 0
+m api "LerpAngle" 0.5 a(0,170,0) a(0,-170,0)
+m consola "vec\u00090.424264 0.565685 0.707107\u00091\u00090.925417 0.336824 -0.173648\u0009-45 53.13 0\u00090 180 0"
+m api "TypeID" v(0.424264,0.565685,0.707107)
+m api "LocalPlayer"
+m api "IsValid" e#0
+m consola "enum\u00091\u000928\u0009180\u00098\u0009Vector\u000910\u0009Player\u0009false"
+m api "AddCSLuaFile" "cl_init.lua"
+m api "AddCSLuaFile" "shared.lua"
+m api "Player:Nick" e#1002
+m api "Entity:Health" e#1002
+m consola "spawn\u0009Jugador\u0009100"
+m api "Player:SetWalkSpeed" e#1002 250
+m api "Player:SetJumpPower" e#1002 300
+m montado 4 ["weapon_prueba"] ["ent_prueba"]
+1 api "FrameNumber"
+1 api "input.IsKeyDown" 28
+1 api "ScrW"
+1 api "ScrH"
+1 api "surface.SetDrawColor" 255 0 0 128
+1 api "surface.DrawRect" 10 10 100 20
+1 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+1 api "Color" 0 255 0
+1 api "surface.SetDrawColor" table
+1 api "surface.DrawOutlinedRect" 10 40 100 20 2
+1 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+1 api "LocalPlayer"
+1 api "Entity:Health" e#1002
+1 api "Color" 255 255 0
+1 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+1 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+1 api "Color" 0 0 255 200
+1 api "draw.RoundedBox" 6 20 80 60 30 table
+1 d2 "path"
+1 d2 "mover" 26 80
+1 d2 "linea" 74 80
+1 d2 "curva" 80 80 80 86
+1 d2 "linea" 80 104
+1 d2 "curva" 80 110 74 110
+1 d2 "linea" 26 110
+1 d2 "curva" 20 110 20 104
+1 d2 "linea" 20 86
+1 d2 "curva" 20 80 26 80
+1 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+1 api "surface.SetFont" "PruebaFuente"
+1 api "surface.GetTextSize" "medir"
+1 api "surface.SetTextPos" 5 120
+1 api "surface.SetTextColor" 255 255 255
+1 api "surface.DrawText" "tw 50 20"
+1 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+1 api "surface.DrawLine" 0 0 50 50
+1 d2 "path"
+1 d2 "mover" 0 0
+1 d2 "linea" 50 50
+1 d2 "trazar" "rgba(0,255,0,1)" 1
+1 api "surface.DrawCircle" 100 100 10 255 0 0 255
+1 d2 "path"
+1 d2 "arco" 100 100 10
+1 d2 "trazar" "rgba(255,0,0,1)" 1
+1 api "surface.DrawPoly" table
+1 d2 "path"
+1 d2 "mover" 0 0
+1 d2 "linea" 10 0
+1 d2 "linea" 5 10
+1 d2 "cerrar"
+1 d2 "llenar" "rgba(0,255,0,1)"
+2 api "ents.Create" "ent_prueba"
+2 api "Entity:NetworkVar" e#1003 "Int" 0 "Cuenta"
+2 api "Entity:NetworkVar" e#1003 "String" 1 "Nombre"
+2 api "Entity:SetPos" e#1003 v(157.48,0,33.7165)
+2 api "Entity:Spawn" e#1003
+2 api "Entity:SetModel" e#1003 "models/props_junk/wood_crate001a.mdl"
+2 crear_objeto "Crate" v(0,0.8564,4) q(0,0,0,1)
+2 api "Entity:PhysicsInit" e#1003 6
+2 api "Entity:SetMoveType" e#1003 6
+2 api "Entity:SetSolid" e#1003 6
+2 api "Entity:GetPhysicsObject" e#1003
+2 api "IsValid" userdata
+2 api "PhysObj:IsValid" userdata
+2 api "PhysObj:Wake" userdata
+2 api "PhysObj:SetMass" userdata 50
+2 api "Entity:Activate" e#1003
+2 aviso "gm.falta" 4
+2 api "FrameNumber"
+2 api "input.IsKeyDown" 28
+2 api "CurTime"
+2 api "Entity:NextThink" e#1003 0.133333
+2 api "ScrW"
+2 api "ScrH"
+2 api "surface.SetDrawColor" 255 0 0 128
+2 api "surface.DrawRect" 10 10 100 20
+2 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+2 api "Color" 0 255 0
+2 api "surface.SetDrawColor" table
+2 api "surface.DrawOutlinedRect" 10 40 100 20 2
+2 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+2 api "LocalPlayer"
+2 api "Entity:Health" e#1002
+2 api "Color" 255 255 0
+2 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+2 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+2 api "Color" 0 0 255 200
+2 api "draw.RoundedBox" 6 20 80 60 30 table
+2 d2 "path"
+2 d2 "mover" 26 80
+2 d2 "linea" 74 80
+2 d2 "curva" 80 80 80 86
+2 d2 "linea" 80 104
+2 d2 "curva" 80 110 74 110
+2 d2 "linea" 26 110
+2 d2 "curva" 20 110 20 104
+2 d2 "linea" 20 86
+2 d2 "curva" 20 80 26 80
+2 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+2 api "surface.SetFont" "PruebaFuente"
+2 api "surface.GetTextSize" "medir"
+2 api "surface.SetTextPos" 5 120
+2 api "surface.SetTextColor" 255 255 255
+2 api "surface.DrawText" "tw 50 20"
+2 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+2 api "surface.DrawLine" 0 0 50 50
+2 d2 "path"
+2 d2 "mover" 0 0
+2 d2 "linea" 50 50
+2 d2 "trazar" "rgba(0,255,0,1)" 1
+2 api "surface.DrawCircle" 100 100 10 255 0 0 255
+2 d2 "path"
+2 d2 "arco" 100 100 10
+2 d2 "trazar" "rgba(255,0,0,1)" 1
+2 api "surface.DrawPoly" table
+2 d2 "path"
+2 d2 "mover" 0 0
+2 d2 "linea" 10 0
+2 d2 "linea" 5 10
+2 d2 "cerrar"
+2 d2 "llenar" "rgba(0,255,0,1)"
+2 cambio "o#1 v(0,0.8564,4) q(0,0,0,1) v(0,0,0) v(0,0,0) 50 false false"
+3 api "FrameNumber"
+3 api "input.IsKeyDown" 28
+3 api "ScrW"
+3 api "ScrH"
+3 api "surface.SetDrawColor" 255 0 0 128
+3 api "surface.DrawRect" 10 10 100 20
+3 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+3 api "Color" 0 255 0
+3 api "surface.SetDrawColor" table
+3 api "surface.DrawOutlinedRect" 10 40 100 20 2
+3 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+3 api "LocalPlayer"
+3 api "Entity:Health" e#1002
+3 api "Color" 255 255 0
+3 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+3 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+3 api "Color" 0 0 255 200
+3 api "draw.RoundedBox" 6 20 80 60 30 table
+3 d2 "path"
+3 d2 "mover" 26 80
+3 d2 "linea" 74 80
+3 d2 "curva" 80 80 80 86
+3 d2 "linea" 80 104
+3 d2 "curva" 80 110 74 110
+3 d2 "linea" 26 110
+3 d2 "curva" 20 110 20 104
+3 d2 "linea" 20 86
+3 d2 "curva" 20 80 26 80
+3 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+3 api "surface.SetFont" "PruebaFuente"
+3 api "surface.GetTextSize" "medir"
+3 api "surface.SetTextPos" 5 120
+3 api "surface.SetTextColor" 255 255 255
+3 api "surface.DrawText" "tw 50 20"
+3 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+3 api "surface.DrawLine" 0 0 50 50
+3 d2 "path"
+3 d2 "mover" 0 0
+3 d2 "linea" 50 50
+3 d2 "trazar" "rgba(0,255,0,1)" 1
+3 api "surface.DrawCircle" 100 100 10 255 0 0 255
+3 d2 "path"
+3 d2 "arco" 100 100 10
+3 d2 "trazar" "rgba(255,0,0,1)" 1
+3 api "surface.DrawPoly" table
+3 d2 "path"
+3 d2 "mover" 0 0
+3 d2 "linea" 10 0
+3 d2 "linea" 5 10
+3 d2 "cerrar"
+3 d2 "llenar" "rgba(0,255,0,1)"
+4 api "FrameNumber"
+4 api "input.IsKeyDown" 28
+4 api "ScrW"
+4 api "ScrH"
+4 api "surface.SetDrawColor" 255 0 0 128
+4 api "surface.DrawRect" 10 10 100 20
+4 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+4 api "Color" 0 255 0
+4 api "surface.SetDrawColor" table
+4 api "surface.DrawOutlinedRect" 10 40 100 20 2
+4 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+4 api "LocalPlayer"
+4 api "Entity:Health" e#1002
+4 api "Color" 255 255 0
+4 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+4 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+4 api "Color" 0 0 255 200
+4 api "draw.RoundedBox" 6 20 80 60 30 table
+4 d2 "path"
+4 d2 "mover" 26 80
+4 d2 "linea" 74 80
+4 d2 "curva" 80 80 80 86
+4 d2 "linea" 80 104
+4 d2 "curva" 80 110 74 110
+4 d2 "linea" 26 110
+4 d2 "curva" 20 110 20 104
+4 d2 "linea" 20 86
+4 d2 "curva" 20 80 26 80
+4 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+4 api "surface.SetFont" "PruebaFuente"
+4 api "surface.GetTextSize" "medir"
+4 api "surface.SetTextPos" 5 120
+4 api "surface.SetTextColor" 255 255 255
+4 api "surface.DrawText" "tw 50 20"
+4 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+4 api "surface.DrawLine" 0 0 50 50
+4 d2 "path"
+4 d2 "mover" 0 0
+4 d2 "linea" 50 50
+4 d2 "trazar" "rgba(0,255,0,1)" 1
+4 api "surface.DrawCircle" 100 100 10 255 0 0 255
+4 d2 "path"
+4 d2 "arco" 100 100 10
+4 d2 "trazar" "rgba(255,0,0,1)" 1
+4 api "surface.DrawPoly" table
+4 d2 "path"
+4 d2 "mover" 0 0
+4 d2 "linea" 10 0
+4 d2 "linea" 5 10
+4 d2 "cerrar"
+4 d2 "llenar" "rgba(0,255,0,1)"
+5 api "FrameNumber"
+5 api "input.IsKeyDown" 28
+5 api "ScrW"
+5 api "ScrH"
+5 api "surface.SetDrawColor" 255 0 0 128
+5 api "surface.DrawRect" 10 10 100 20
+5 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+5 api "Color" 0 255 0
+5 api "surface.SetDrawColor" table
+5 api "surface.DrawOutlinedRect" 10 40 100 20 2
+5 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+5 api "LocalPlayer"
+5 api "Entity:Health" e#1002
+5 api "Color" 255 255 0
+5 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+5 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+5 api "Color" 0 0 255 200
+5 api "draw.RoundedBox" 6 20 80 60 30 table
+5 d2 "path"
+5 d2 "mover" 26 80
+5 d2 "linea" 74 80
+5 d2 "curva" 80 80 80 86
+5 d2 "linea" 80 104
+5 d2 "curva" 80 110 74 110
+5 d2 "linea" 26 110
+5 d2 "curva" 20 110 20 104
+5 d2 "linea" 20 86
+5 d2 "curva" 20 80 26 80
+5 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+5 api "surface.SetFont" "PruebaFuente"
+5 api "surface.GetTextSize" "medir"
+5 api "surface.SetTextPos" 5 120
+5 api "surface.SetTextColor" 255 255 255
+5 api "surface.DrawText" "tw 50 20"
+5 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+5 api "surface.DrawLine" 0 0 50 50
+5 d2 "path"
+5 d2 "mover" 0 0
+5 d2 "linea" 50 50
+5 d2 "trazar" "rgba(0,255,0,1)" 1
+5 api "surface.DrawCircle" 100 100 10 255 0 0 255
+5 d2 "path"
+5 d2 "arco" 100 100 10
+5 d2 "trazar" "rgba(255,0,0,1)" 1
+5 api "surface.DrawPoly" table
+5 d2 "path"
+5 d2 "mover" 0 0
+5 d2 "linea" 10 0
+5 d2 "linea" 5 10
+5 d2 "cerrar"
+5 d2 "llenar" "rgba(0,255,0,1)"
+6 api "FrameNumber"
+6 api "input.IsKeyDown" 28
+6 api "ScrW"
+6 api "ScrH"
+6 api "surface.SetDrawColor" 255 0 0 128
+6 api "surface.DrawRect" 10 10 100 20
+6 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+6 api "Color" 0 255 0
+6 api "surface.SetDrawColor" table
+6 api "surface.DrawOutlinedRect" 10 40 100 20 2
+6 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+6 api "LocalPlayer"
+6 api "Entity:Health" e#1002
+6 api "Color" 255 255 0
+6 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+6 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+6 api "Color" 0 0 255 200
+6 api "draw.RoundedBox" 6 20 80 60 30 table
+6 d2 "path"
+6 d2 "mover" 26 80
+6 d2 "linea" 74 80
+6 d2 "curva" 80 80 80 86
+6 d2 "linea" 80 104
+6 d2 "curva" 80 110 74 110
+6 d2 "linea" 26 110
+6 d2 "curva" 20 110 20 104
+6 d2 "linea" 20 86
+6 d2 "curva" 20 80 26 80
+6 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+6 api "surface.SetFont" "PruebaFuente"
+6 api "surface.GetTextSize" "medir"
+6 api "surface.SetTextPos" 5 120
+6 api "surface.SetTextColor" 255 255 255
+6 api "surface.DrawText" "tw 50 20"
+6 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+6 api "surface.DrawLine" 0 0 50 50
+6 d2 "path"
+6 d2 "mover" 0 0
+6 d2 "linea" 50 50
+6 d2 "trazar" "rgba(0,255,0,1)" 1
+6 api "surface.DrawCircle" 100 100 10 255 0 0 255
+6 d2 "path"
+6 d2 "arco" 100 100 10
+6 d2 "trazar" "rgba(255,0,0,1)" 1
+6 api "surface.DrawPoly" table
+6 d2 "path"
+6 d2 "mover" 0 0
+6 d2 "linea" 10 0
+6 d2 "linea" 5 10
+6 d2 "cerrar"
+6 d2 "llenar" "rgba(0,255,0,1)"
+7 api "FrameNumber"
+7 api "input.IsKeyDown" 28
+7 api "ScrW"
+7 api "ScrH"
+7 api "surface.SetDrawColor" 255 0 0 128
+7 api "surface.DrawRect" 10 10 100 20
+7 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+7 api "Color" 0 255 0
+7 api "surface.SetDrawColor" table
+7 api "surface.DrawOutlinedRect" 10 40 100 20 2
+7 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+7 api "LocalPlayer"
+7 api "Entity:Health" e#1002
+7 api "Color" 255 255 0
+7 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+7 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+7 api "Color" 0 0 255 200
+7 api "draw.RoundedBox" 6 20 80 60 30 table
+7 d2 "path"
+7 d2 "mover" 26 80
+7 d2 "linea" 74 80
+7 d2 "curva" 80 80 80 86
+7 d2 "linea" 80 104
+7 d2 "curva" 80 110 74 110
+7 d2 "linea" 26 110
+7 d2 "curva" 20 110 20 104
+7 d2 "linea" 20 86
+7 d2 "curva" 20 80 26 80
+7 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+7 api "surface.SetFont" "PruebaFuente"
+7 api "surface.GetTextSize" "medir"
+7 api "surface.SetTextPos" 5 120
+7 api "surface.SetTextColor" 255 255 255
+7 api "surface.DrawText" "tw 50 20"
+7 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+7 api "surface.DrawLine" 0 0 50 50
+7 d2 "path"
+7 d2 "mover" 0 0
+7 d2 "linea" 50 50
+7 d2 "trazar" "rgba(0,255,0,1)" 1
+7 api "surface.DrawCircle" 100 100 10 255 0 0 255
+7 d2 "path"
+7 d2 "arco" 100 100 10
+7 d2 "trazar" "rgba(255,0,0,1)" 1
+7 api "surface.DrawPoly" table
+7 d2 "path"
+7 d2 "mover" 0 0
+7 d2 "linea" 10 0
+7 d2 "linea" 5 10
+7 d2 "cerrar"
+7 d2 "llenar" "rgba(0,255,0,1)"
+8 api "FrameNumber"
+8 api "input.IsKeyDown" 28
+8 api "CurTime"
+8 api "Entity:NextThink" e#1003 0.233333
+8 api "ScrW"
+8 api "ScrH"
+8 api "surface.SetDrawColor" 255 0 0 128
+8 api "surface.DrawRect" 10 10 100 20
+8 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+8 api "Color" 0 255 0
+8 api "surface.SetDrawColor" table
+8 api "surface.DrawOutlinedRect" 10 40 100 20 2
+8 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+8 api "LocalPlayer"
+8 api "Entity:Health" e#1002
+8 api "Color" 255 255 0
+8 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+8 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+8 api "Color" 0 0 255 200
+8 api "draw.RoundedBox" 6 20 80 60 30 table
+8 d2 "path"
+8 d2 "mover" 26 80
+8 d2 "linea" 74 80
+8 d2 "curva" 80 80 80 86
+8 d2 "linea" 80 104
+8 d2 "curva" 80 110 74 110
+8 d2 "linea" 26 110
+8 d2 "curva" 20 110 20 104
+8 d2 "linea" 20 86
+8 d2 "curva" 20 80 26 80
+8 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+8 api "surface.SetFont" "PruebaFuente"
+8 api "surface.GetTextSize" "medir"
+8 api "surface.SetTextPos" 5 120
+8 api "surface.SetTextColor" 255 255 255
+8 api "surface.DrawText" "tw 50 20"
+8 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+8 api "surface.DrawLine" 0 0 50 50
+8 d2 "path"
+8 d2 "mover" 0 0
+8 d2 "linea" 50 50
+8 d2 "trazar" "rgba(0,255,0,1)" 1
+8 api "surface.DrawCircle" 100 100 10 255 0 0 255
+8 d2 "path"
+8 d2 "arco" 100 100 10
+8 d2 "trazar" "rgba(255,0,0,1)" 1
+8 api "surface.DrawPoly" table
+8 d2 "path"
+8 d2 "mover" 0 0
+8 d2 "linea" 10 0
+8 d2 "linea" 5 10
+8 d2 "cerrar"
+8 d2 "llenar" "rgba(0,255,0,1)"
+9 api "FrameNumber"
+9 api "input.IsKeyDown" 28
+9 api "ScrW"
+9 api "ScrH"
+9 api "surface.SetDrawColor" 255 0 0 128
+9 api "surface.DrawRect" 10 10 100 20
+9 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+9 api "Color" 0 255 0
+9 api "surface.SetDrawColor" table
+9 api "surface.DrawOutlinedRect" 10 40 100 20 2
+9 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+9 api "LocalPlayer"
+9 api "Entity:Health" e#1002
+9 api "Color" 255 255 0
+9 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+9 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+9 api "Color" 0 0 255 200
+9 api "draw.RoundedBox" 6 20 80 60 30 table
+9 d2 "path"
+9 d2 "mover" 26 80
+9 d2 "linea" 74 80
+9 d2 "curva" 80 80 80 86
+9 d2 "linea" 80 104
+9 d2 "curva" 80 110 74 110
+9 d2 "linea" 26 110
+9 d2 "curva" 20 110 20 104
+9 d2 "linea" 20 86
+9 d2 "curva" 20 80 26 80
+9 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+9 api "surface.SetFont" "PruebaFuente"
+9 api "surface.GetTextSize" "medir"
+9 api "surface.SetTextPos" 5 120
+9 api "surface.SetTextColor" 255 255 255
+9 api "surface.DrawText" "tw 50 20"
+9 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+9 api "surface.DrawLine" 0 0 50 50
+9 d2 "path"
+9 d2 "mover" 0 0
+9 d2 "linea" 50 50
+9 d2 "trazar" "rgba(0,255,0,1)" 1
+9 api "surface.DrawCircle" 100 100 10 255 0 0 255
+9 d2 "path"
+9 d2 "arco" 100 100 10
+9 d2 "trazar" "rgba(255,0,0,1)" 1
+9 api "surface.DrawPoly" table
+9 d2 "path"
+9 d2 "mover" 0 0
+9 d2 "linea" 10 0
+9 d2 "linea" 5 10
+9 d2 "cerrar"
+9 d2 "llenar" "rgba(0,255,0,1)"
+10 api "Weapon:SetHoldType" e#1004 "pistol"
+10 api "Weapon:Clip1" e#1004
+10 consola "arma init\u0009true\u00096"
+10 api "Weapon:SetHoldType" e#1004 "pistol"
+10 api "Weapon:Clip1" e#1004
+10 consola "arma init\u0009false\u00096"
+10 dar_arma "gm:weapon_prueba"
+10 api "FrameNumber"
+10 api "input.IsKeyDown" 28
+10 consola "deploy"
+10 api "Player:KeyDown" e#1002 2048
+10 api "ScrW"
+10 api "ScrH"
+10 api "surface.SetDrawColor" 255 0 0 128
+10 api "surface.DrawRect" 10 10 100 20
+10 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+10 api "Color" 0 255 0
+10 api "surface.SetDrawColor" table
+10 api "surface.DrawOutlinedRect" 10 40 100 20 2
+10 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+10 api "LocalPlayer"
+10 api "Entity:Health" e#1002
+10 api "Color" 255 255 0
+10 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+10 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+10 api "Color" 0 0 255 200
+10 api "draw.RoundedBox" 6 20 80 60 30 table
+10 d2 "path"
+10 d2 "mover" 26 80
+10 d2 "linea" 74 80
+10 d2 "curva" 80 80 80 86
+10 d2 "linea" 80 104
+10 d2 "curva" 80 110 74 110
+10 d2 "linea" 26 110
+10 d2 "curva" 20 110 20 104
+10 d2 "linea" 20 86
+10 d2 "curva" 20 80 26 80
+10 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+10 api "surface.SetFont" "PruebaFuente"
+10 api "surface.GetTextSize" "medir"
+10 api "surface.SetTextPos" 5 120
+10 api "surface.SetTextColor" 255 255 255
+10 api "surface.DrawText" "tw 50 20"
+10 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+10 api "surface.DrawLine" 0 0 50 50
+10 d2 "path"
+10 d2 "mover" 0 0
+10 d2 "linea" 50 50
+10 d2 "trazar" "rgba(0,255,0,1)" 1
+10 api "surface.DrawCircle" 100 100 10 255 0 0 255
+10 d2 "path"
+10 d2 "arco" 100 100 10
+10 d2 "trazar" "rgba(255,0,0,1)" 1
+10 api "surface.DrawPoly" table
+10 d2 "path"
+10 d2 "mover" 0 0
+10 d2 "linea" 10 0
+10 d2 "linea" 5 10
+10 d2 "cerrar"
+10 d2 "llenar" "rgba(0,255,0,1)"
+10 api "Weapon:Clip1" e#1004
+10 api "draw.SimpleText" "Balas: 6" "DermaDefault" 100 100
+10 d2 "texto" "Balas: 6" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+10 cambio "arm.lista [\"Hands\",\"Pistol\",\"gm:weapon_prueba\"]"
+10 cambio "arm.i 2"
+11 api "FrameNumber"
+11 api "input.IsKeyDown" 28
+11 api "Player:KeyDown" e#1002 2048
+11 api "ScrW"
+11 api "ScrH"
+11 api "surface.SetDrawColor" 255 0 0 128
+11 api "surface.DrawRect" 10 10 100 20
+11 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+11 api "Color" 0 255 0
+11 api "surface.SetDrawColor" table
+11 api "surface.DrawOutlinedRect" 10 40 100 20 2
+11 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+11 api "LocalPlayer"
+11 api "Entity:Health" e#1002
+11 api "Color" 255 255 0
+11 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+11 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+11 api "Color" 0 0 255 200
+11 api "draw.RoundedBox" 6 20 80 60 30 table
+11 d2 "path"
+11 d2 "mover" 26 80
+11 d2 "linea" 74 80
+11 d2 "curva" 80 80 80 86
+11 d2 "linea" 80 104
+11 d2 "curva" 80 110 74 110
+11 d2 "linea" 26 110
+11 d2 "curva" 20 110 20 104
+11 d2 "linea" 20 86
+11 d2 "curva" 20 80 26 80
+11 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+11 api "surface.SetFont" "PruebaFuente"
+11 api "surface.GetTextSize" "medir"
+11 api "surface.SetTextPos" 5 120
+11 api "surface.SetTextColor" 255 255 255
+11 api "surface.DrawText" "tw 50 20"
+11 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+11 api "surface.DrawLine" 0 0 50 50
+11 d2 "path"
+11 d2 "mover" 0 0
+11 d2 "linea" 50 50
+11 d2 "trazar" "rgba(0,255,0,1)" 1
+11 api "surface.DrawCircle" 100 100 10 255 0 0 255
+11 d2 "path"
+11 d2 "arco" 100 100 10
+11 d2 "trazar" "rgba(255,0,0,1)" 1
+11 api "surface.DrawPoly" table
+11 d2 "path"
+11 d2 "mover" 0 0
+11 d2 "linea" 10 0
+11 d2 "linea" 5 10
+11 d2 "cerrar"
+11 d2 "llenar" "rgba(0,255,0,1)"
+11 api "Weapon:Clip1" e#1004
+11 api "draw.SimpleText" "Balas: 6" "DermaDefault" 100 100
+11 d2 "texto" "Balas: 6" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+12 consola "tecla\u00091\u0009true"
+12 consola "tecla\u00091\u0009false"
+12 api "FrameNumber"
+12 api "input.IsKeyDown" 28
+12 api "Weapon:Clip1" e#1004
+12 api "Entity:EmitSound" e#1004 "Weapon_Pistol.Single"
+12 emitir_sonido 1004 "Weapon_Pistol.Single" nil nil nil nil
+12 api "Player:GetShootPos" e#1002
+12 api "Player:GetAimVector" e#1002
+12 api "Vector" 0.05 0.05 0
+12 api "Entity:FireBullets" e#1004 table
+12 efecto_traza v(0,1.6,0) v(1.03746,10.84,399.892)
+12 efecto_traza v(0,1.6,0) v(-11.0635,19.598,399.442)
+12 api "Weapon:Clip1" e#1004
+12 api "Weapon:SetClip1" e#1004 5
+12 api "CurTime"
+12 api "Weapon:SetNextPrimaryFire" e#1004 0.3
+12 api "Angle" -1 0 0
+12 api "Player:ViewPunch" e#1002 a(-1,0,0)
+12 api "Player:KeyDown" e#1002 2048
+12 api "ScrW"
+12 api "ScrH"
+12 api "surface.SetDrawColor" 255 0 0 128
+12 api "surface.DrawRect" 10 10 100 20
+12 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+12 api "Color" 0 255 0
+12 api "surface.SetDrawColor" table
+12 api "surface.DrawOutlinedRect" 10 40 100 20 2
+12 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+12 api "LocalPlayer"
+12 api "Entity:Health" e#1002
+12 api "Color" 255 255 0
+12 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+12 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+12 api "Color" 0 0 255 200
+12 api "draw.RoundedBox" 6 20 80 60 30 table
+12 d2 "path"
+12 d2 "mover" 26 80
+12 d2 "linea" 74 80
+12 d2 "curva" 80 80 80 86
+12 d2 "linea" 80 104
+12 d2 "curva" 80 110 74 110
+12 d2 "linea" 26 110
+12 d2 "curva" 20 110 20 104
+12 d2 "linea" 20 86
+12 d2 "curva" 20 80 26 80
+12 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+12 api "surface.SetFont" "PruebaFuente"
+12 api "surface.GetTextSize" "medir"
+12 api "surface.SetTextPos" 5 120
+12 api "surface.SetTextColor" 255 255 255
+12 api "surface.DrawText" "tw 50 20"
+12 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+12 api "surface.DrawLine" 0 0 50 50
+12 d2 "path"
+12 d2 "mover" 0 0
+12 d2 "linea" 50 50
+12 d2 "trazar" "rgba(0,255,0,1)" 1
+12 api "surface.DrawCircle" 100 100 10 255 0 0 255
+12 d2 "path"
+12 d2 "arco" 100 100 10
+12 d2 "trazar" "rgba(255,0,0,1)" 1
+12 api "surface.DrawPoly" table
+12 d2 "path"
+12 d2 "mover" 0 0
+12 d2 "linea" 10 0
+12 d2 "linea" 5 10
+12 d2 "cerrar"
+12 d2 "llenar" "rgba(0,255,0,1)"
+12 api "Weapon:Clip1" e#1004
+12 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+12 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+12 cambio "cam.temblor 0.1"
+13 api "FrameNumber"
+13 api "input.IsKeyDown" 28
+13 api "Player:KeyDown" e#1002 2048
+13 api "ScrW"
+13 api "ScrH"
+13 api "surface.SetDrawColor" 255 0 0 128
+13 api "surface.DrawRect" 10 10 100 20
+13 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+13 api "Color" 0 255 0
+13 api "surface.SetDrawColor" table
+13 api "surface.DrawOutlinedRect" 10 40 100 20 2
+13 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+13 api "LocalPlayer"
+13 api "Entity:Health" e#1002
+13 api "Color" 255 255 0
+13 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+13 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+13 api "Color" 0 0 255 200
+13 api "draw.RoundedBox" 6 20 80 60 30 table
+13 d2 "path"
+13 d2 "mover" 26 80
+13 d2 "linea" 74 80
+13 d2 "curva" 80 80 80 86
+13 d2 "linea" 80 104
+13 d2 "curva" 80 110 74 110
+13 d2 "linea" 26 110
+13 d2 "curva" 20 110 20 104
+13 d2 "linea" 20 86
+13 d2 "curva" 20 80 26 80
+13 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+13 api "surface.SetFont" "PruebaFuente"
+13 api "surface.GetTextSize" "medir"
+13 api "surface.SetTextPos" 5 120
+13 api "surface.SetTextColor" 255 255 255
+13 api "surface.DrawText" "tw 50 20"
+13 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+13 api "surface.DrawLine" 0 0 50 50
+13 d2 "path"
+13 d2 "mover" 0 0
+13 d2 "linea" 50 50
+13 d2 "trazar" "rgba(0,255,0,1)" 1
+13 api "surface.DrawCircle" 100 100 10 255 0 0 255
+13 d2 "path"
+13 d2 "arco" 100 100 10
+13 d2 "trazar" "rgba(255,0,0,1)" 1
+13 api "surface.DrawPoly" table
+13 d2 "path"
+13 d2 "mover" 0 0
+13 d2 "linea" 10 0
+13 d2 "linea" 5 10
+13 d2 "cerrar"
+13 d2 "llenar" "rgba(0,255,0,1)"
+13 api "Weapon:Clip1" e#1004
+13 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+13 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+14 api "FrameNumber"
+14 api "input.IsKeyDown" 28
+14 api "Player:KeyDown" e#1002 2048
+14 api "Entity:EmitSound" e#1003 "physics/wood/wood_box_impact_hard1.wav"
+14 emitir_sonido 1003 "physics/wood/wood_box_impact_hard1.wav" nil nil nil nil
+14 api "Entity:GetPhysicsObject" e#1003
+14 api "IsValid" userdata
+14 api "PhysObj:IsValid" userdata
+14 api "Vector" 0 0 500
+14 api "PhysObj:ApplyForceCenter" userdata v(0,0,500)
+14 api "Entity" 1
+14 api "Entity" 1
+14 api "Entity:TakeDamage" e#1003 5 e#1002 e#1002
+14 api "CTakeDamageInfo:GetDamage" userdata
+14 api "CTakeDamageInfo:GetAttacker" userdata
+14 consola "da\u00f1o\u00095\u0009Player [1][Jugador]"
+14 api "CurTime"
+14 api "Entity:NextThink" e#1003 0.333333
+14 api "ScrW"
+14 api "ScrH"
+14 api "surface.SetDrawColor" 255 0 0 128
+14 api "surface.DrawRect" 10 10 100 20
+14 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+14 api "Color" 0 255 0
+14 api "surface.SetDrawColor" table
+14 api "surface.DrawOutlinedRect" 10 40 100 20 2
+14 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+14 api "LocalPlayer"
+14 api "Entity:Health" e#1002
+14 api "Color" 255 255 0
+14 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+14 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+14 api "Color" 0 0 255 200
+14 api "draw.RoundedBox" 6 20 80 60 30 table
+14 d2 "path"
+14 d2 "mover" 26 80
+14 d2 "linea" 74 80
+14 d2 "curva" 80 80 80 86
+14 d2 "linea" 80 104
+14 d2 "curva" 80 110 74 110
+14 d2 "linea" 26 110
+14 d2 "curva" 20 110 20 104
+14 d2 "linea" 20 86
+14 d2 "curva" 20 80 26 80
+14 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+14 api "surface.SetFont" "PruebaFuente"
+14 api "surface.GetTextSize" "medir"
+14 api "surface.SetTextPos" 5 120
+14 api "surface.SetTextColor" 255 255 255
+14 api "surface.DrawText" "tw 50 20"
+14 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+14 api "surface.DrawLine" 0 0 50 50
+14 d2 "path"
+14 d2 "mover" 0 0
+14 d2 "linea" 50 50
+14 d2 "trazar" "rgba(0,255,0,1)" 1
+14 api "surface.DrawCircle" 100 100 10 255 0 0 255
+14 d2 "path"
+14 d2 "arco" 100 100 10
+14 d2 "trazar" "rgba(255,0,0,1)" 1
+14 api "surface.DrawPoly" table
+14 d2 "path"
+14 d2 "mover" 0 0
+14 d2 "linea" 10 0
+14 d2 "linea" 5 10
+14 d2 "cerrar"
+14 d2 "llenar" "rgba(0,255,0,1)"
+14 api "Weapon:Clip1" e#1004
+14 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+14 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+14 cambio "o#1 v(0,0.8564,4) q(0,0,0,1) v(0,0.254,0) v(0,0,0) 50 false false"
+15 api "FrameNumber"
+15 api "input.IsKeyDown" 28
+15 api "Player:KeyDown" e#1002 2048
+15 api "ScrW"
+15 api "ScrH"
+15 api "surface.SetDrawColor" 255 0 0 128
+15 api "surface.DrawRect" 10 10 100 20
+15 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+15 api "Color" 0 255 0
+15 api "surface.SetDrawColor" table
+15 api "surface.DrawOutlinedRect" 10 40 100 20 2
+15 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+15 api "LocalPlayer"
+15 api "Entity:Health" e#1002
+15 api "Color" 255 255 0
+15 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+15 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+15 api "Color" 0 0 255 200
+15 api "draw.RoundedBox" 6 20 80 60 30 table
+15 d2 "path"
+15 d2 "mover" 26 80
+15 d2 "linea" 74 80
+15 d2 "curva" 80 80 80 86
+15 d2 "linea" 80 104
+15 d2 "curva" 80 110 74 110
+15 d2 "linea" 26 110
+15 d2 "curva" 20 110 20 104
+15 d2 "linea" 20 86
+15 d2 "curva" 20 80 26 80
+15 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+15 api "surface.SetFont" "PruebaFuente"
+15 api "surface.GetTextSize" "medir"
+15 api "surface.SetTextPos" 5 120
+15 api "surface.SetTextColor" 255 255 255
+15 api "surface.DrawText" "tw 50 20"
+15 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+15 api "surface.DrawLine" 0 0 50 50
+15 d2 "path"
+15 d2 "mover" 0 0
+15 d2 "linea" 50 50
+15 d2 "trazar" "rgba(0,255,0,1)" 1
+15 api "surface.DrawCircle" 100 100 10 255 0 0 255
+15 d2 "path"
+15 d2 "arco" 100 100 10
+15 d2 "trazar" "rgba(255,0,0,1)" 1
+15 api "surface.DrawPoly" table
+15 d2 "path"
+15 d2 "mover" 0 0
+15 d2 "linea" 10 0
+15 d2 "linea" 5 10
+15 d2 "cerrar"
+15 d2 "llenar" "rgba(0,255,0,1)"
+15 api "Weapon:Clip1" e#1004
+15 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+15 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+16 api "FrameNumber"
+16 api "input.IsKeyDown" 28
+16 api "Player:KeyDown" e#1002 2048
+16 api "ScrW"
+16 api "ScrH"
+16 api "surface.SetDrawColor" 255 0 0 128
+16 api "surface.DrawRect" 10 10 100 20
+16 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+16 api "Color" 0 255 0
+16 api "surface.SetDrawColor" table
+16 api "surface.DrawOutlinedRect" 10 40 100 20 2
+16 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+16 api "LocalPlayer"
+16 api "Entity:Health" e#1002
+16 api "Color" 255 255 0
+16 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+16 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+16 api "Color" 0 0 255 200
+16 api "draw.RoundedBox" 6 20 80 60 30 table
+16 d2 "path"
+16 d2 "mover" 26 80
+16 d2 "linea" 74 80
+16 d2 "curva" 80 80 80 86
+16 d2 "linea" 80 104
+16 d2 "curva" 80 110 74 110
+16 d2 "linea" 26 110
+16 d2 "curva" 20 110 20 104
+16 d2 "linea" 20 86
+16 d2 "curva" 20 80 26 80
+16 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+16 api "surface.SetFont" "PruebaFuente"
+16 api "surface.GetTextSize" "medir"
+16 api "surface.SetTextPos" 5 120
+16 api "surface.SetTextColor" 255 255 255
+16 api "surface.DrawText" "tw 50 20"
+16 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+16 api "surface.DrawLine" 0 0 50 50
+16 d2 "path"
+16 d2 "mover" 0 0
+16 d2 "linea" 50 50
+16 d2 "trazar" "rgba(0,255,0,1)" 1
+16 api "surface.DrawCircle" 100 100 10 255 0 0 255
+16 d2 "path"
+16 d2 "arco" 100 100 10
+16 d2 "trazar" "rgba(255,0,0,1)" 1
+16 api "surface.DrawPoly" table
+16 d2 "path"
+16 d2 "mover" 0 0
+16 d2 "linea" 10 0
+16 d2 "linea" 5 10
+16 d2 "cerrar"
+16 d2 "llenar" "rgba(0,255,0,1)"
+16 api "Weapon:Clip1" e#1004
+16 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+16 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+17 api "FrameNumber"
+17 api "input.IsKeyDown" 28
+17 api "Player:KeyDown" e#1002 2048
+17 api "ScrW"
+17 api "ScrH"
+17 api "surface.SetDrawColor" 255 0 0 128
+17 api "surface.DrawRect" 10 10 100 20
+17 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+17 api "Color" 0 255 0
+17 api "surface.SetDrawColor" table
+17 api "surface.DrawOutlinedRect" 10 40 100 20 2
+17 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+17 api "LocalPlayer"
+17 api "Entity:Health" e#1002
+17 api "Color" 255 255 0
+17 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+17 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+17 api "Color" 0 0 255 200
+17 api "draw.RoundedBox" 6 20 80 60 30 table
+17 d2 "path"
+17 d2 "mover" 26 80
+17 d2 "linea" 74 80
+17 d2 "curva" 80 80 80 86
+17 d2 "linea" 80 104
+17 d2 "curva" 80 110 74 110
+17 d2 "linea" 26 110
+17 d2 "curva" 20 110 20 104
+17 d2 "linea" 20 86
+17 d2 "curva" 20 80 26 80
+17 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+17 api "surface.SetFont" "PruebaFuente"
+17 api "surface.GetTextSize" "medir"
+17 api "surface.SetTextPos" 5 120
+17 api "surface.SetTextColor" 255 255 255
+17 api "surface.DrawText" "tw 50 20"
+17 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+17 api "surface.DrawLine" 0 0 50 50
+17 d2 "path"
+17 d2 "mover" 0 0
+17 d2 "linea" 50 50
+17 d2 "trazar" "rgba(0,255,0,1)" 1
+17 api "surface.DrawCircle" 100 100 10 255 0 0 255
+17 d2 "path"
+17 d2 "arco" 100 100 10
+17 d2 "trazar" "rgba(255,0,0,1)" 1
+17 api "surface.DrawPoly" table
+17 d2 "path"
+17 d2 "mover" 0 0
+17 d2 "linea" 10 0
+17 d2 "linea" 5 10
+17 d2 "cerrar"
+17 d2 "llenar" "rgba(0,255,0,1)"
+17 api "Weapon:Clip1" e#1004
+17 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+17 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+18 api "FrameNumber"
+18 api "input.IsKeyDown" 28
+18 api "Player:KeyDown" e#1002 2048
+18 api "ScrW"
+18 api "ScrH"
+18 api "surface.SetDrawColor" 255 0 0 128
+18 api "surface.DrawRect" 10 10 100 20
+18 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+18 api "Color" 0 255 0
+18 api "surface.SetDrawColor" table
+18 api "surface.DrawOutlinedRect" 10 40 100 20 2
+18 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+18 api "LocalPlayer"
+18 api "Entity:Health" e#1002
+18 api "Color" 255 255 0
+18 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+18 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+18 api "Color" 0 0 255 200
+18 api "draw.RoundedBox" 6 20 80 60 30 table
+18 d2 "path"
+18 d2 "mover" 26 80
+18 d2 "linea" 74 80
+18 d2 "curva" 80 80 80 86
+18 d2 "linea" 80 104
+18 d2 "curva" 80 110 74 110
+18 d2 "linea" 26 110
+18 d2 "curva" 20 110 20 104
+18 d2 "linea" 20 86
+18 d2 "curva" 20 80 26 80
+18 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+18 api "surface.SetFont" "PruebaFuente"
+18 api "surface.GetTextSize" "medir"
+18 api "surface.SetTextPos" 5 120
+18 api "surface.SetTextColor" 255 255 255
+18 api "surface.DrawText" "tw 50 20"
+18 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+18 api "surface.DrawLine" 0 0 50 50
+18 d2 "path"
+18 d2 "mover" 0 0
+18 d2 "linea" 50 50
+18 d2 "trazar" "rgba(0,255,0,1)" 1
+18 api "surface.DrawCircle" 100 100 10 255 0 0 255
+18 d2 "path"
+18 d2 "arco" 100 100 10
+18 d2 "trazar" "rgba(255,0,0,1)" 1
+18 api "surface.DrawPoly" table
+18 d2 "path"
+18 d2 "mover" 0 0
+18 d2 "linea" 10 0
+18 d2 "linea" 5 10
+18 d2 "cerrar"
+18 d2 "llenar" "rgba(0,255,0,1)"
+18 api "Weapon:Clip1" e#1004
+18 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+18 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+19 api "FrameNumber"
+19 api "input.IsKeyDown" 28
+19 api "Player:KeyDown" e#1002 2048
+19 api "ScrW"
+19 api "ScrH"
+19 api "surface.SetDrawColor" 255 0 0 128
+19 api "surface.DrawRect" 10 10 100 20
+19 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+19 api "Color" 0 255 0
+19 api "surface.SetDrawColor" table
+19 api "surface.DrawOutlinedRect" 10 40 100 20 2
+19 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+19 api "LocalPlayer"
+19 api "Entity:Health" e#1002
+19 api "Color" 255 255 0
+19 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+19 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+19 api "Color" 0 0 255 200
+19 api "draw.RoundedBox" 6 20 80 60 30 table
+19 d2 "path"
+19 d2 "mover" 26 80
+19 d2 "linea" 74 80
+19 d2 "curva" 80 80 80 86
+19 d2 "linea" 80 104
+19 d2 "curva" 80 110 74 110
+19 d2 "linea" 26 110
+19 d2 "curva" 20 110 20 104
+19 d2 "linea" 20 86
+19 d2 "curva" 20 80 26 80
+19 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+19 api "surface.SetFont" "PruebaFuente"
+19 api "surface.GetTextSize" "medir"
+19 api "surface.SetTextPos" 5 120
+19 api "surface.SetTextColor" 255 255 255
+19 api "surface.DrawText" "tw 50 20"
+19 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+19 api "surface.DrawLine" 0 0 50 50
+19 d2 "path"
+19 d2 "mover" 0 0
+19 d2 "linea" 50 50
+19 d2 "trazar" "rgba(0,255,0,1)" 1
+19 api "surface.DrawCircle" 100 100 10 255 0 0 255
+19 d2 "path"
+19 d2 "arco" 100 100 10
+19 d2 "trazar" "rgba(255,0,0,1)" 1
+19 api "surface.DrawPoly" table
+19 d2 "path"
+19 d2 "mover" 0 0
+19 d2 "linea" 10 0
+19 d2 "linea" 5 10
+19 d2 "cerrar"
+19 d2 "llenar" "rgba(0,255,0,1)"
+19 api "Weapon:Clip1" e#1004
+19 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+19 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+20 api "FrameNumber"
+20 api "input.IsKeyDown" 28
+20 api "Player:KeyDown" e#1002 2048
+20 api "ScrW"
+20 api "ScrH"
+20 api "surface.SetDrawColor" 255 0 0 128
+20 api "surface.DrawRect" 10 10 100 20
+20 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+20 api "Color" 0 255 0
+20 api "surface.SetDrawColor" table
+20 api "surface.DrawOutlinedRect" 10 40 100 20 2
+20 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+20 api "LocalPlayer"
+20 api "Entity:Health" e#1002
+20 api "Color" 255 255 0
+20 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+20 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+20 api "Color" 0 0 255 200
+20 api "draw.RoundedBox" 6 20 80 60 30 table
+20 d2 "path"
+20 d2 "mover" 26 80
+20 d2 "linea" 74 80
+20 d2 "curva" 80 80 80 86
+20 d2 "linea" 80 104
+20 d2 "curva" 80 110 74 110
+20 d2 "linea" 26 110
+20 d2 "curva" 20 110 20 104
+20 d2 "linea" 20 86
+20 d2 "curva" 20 80 26 80
+20 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+20 api "surface.SetFont" "PruebaFuente"
+20 api "surface.GetTextSize" "medir"
+20 api "surface.SetTextPos" 5 120
+20 api "surface.SetTextColor" 255 255 255
+20 api "surface.DrawText" "tw 50 20"
+20 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+20 api "surface.DrawLine" 0 0 50 50
+20 d2 "path"
+20 d2 "mover" 0 0
+20 d2 "linea" 50 50
+20 d2 "trazar" "rgba(0,255,0,1)" 1
+20 api "surface.DrawCircle" 100 100 10 255 0 0 255
+20 d2 "path"
+20 d2 "arco" 100 100 10
+20 d2 "trazar" "rgba(255,0,0,1)" 1
+20 api "surface.DrawPoly" table
+20 d2 "path"
+20 d2 "mover" 0 0
+20 d2 "linea" 10 0
+20 d2 "linea" 5 10
+20 d2 "cerrar"
+20 d2 "llenar" "rgba(0,255,0,1)"
+20 api "Weapon:Clip1" e#1004
+20 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+20 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+21 api "FrameNumber"
+21 api "input.IsKeyDown" 28
+21 api "Player:KeyDown" e#1002 2048
+21 api "CurTime"
+21 api "Entity:NextThink" e#1003 0.45
+21 api "ScrW"
+21 api "ScrH"
+21 api "surface.SetDrawColor" 255 0 0 128
+21 api "surface.DrawRect" 10 10 100 20
+21 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+21 api "Color" 0 255 0
+21 api "surface.SetDrawColor" table
+21 api "surface.DrawOutlinedRect" 10 40 100 20 2
+21 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+21 api "LocalPlayer"
+21 api "Entity:Health" e#1002
+21 api "Color" 255 255 0
+21 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+21 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+21 api "Color" 0 0 255 200
+21 api "draw.RoundedBox" 6 20 80 60 30 table
+21 d2 "path"
+21 d2 "mover" 26 80
+21 d2 "linea" 74 80
+21 d2 "curva" 80 80 80 86
+21 d2 "linea" 80 104
+21 d2 "curva" 80 110 74 110
+21 d2 "linea" 26 110
+21 d2 "curva" 20 110 20 104
+21 d2 "linea" 20 86
+21 d2 "curva" 20 80 26 80
+21 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+21 api "surface.SetFont" "PruebaFuente"
+21 api "surface.GetTextSize" "medir"
+21 api "surface.SetTextPos" 5 120
+21 api "surface.SetTextColor" 255 255 255
+21 api "surface.DrawText" "tw 50 20"
+21 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+21 api "surface.DrawLine" 0 0 50 50
+21 d2 "path"
+21 d2 "mover" 0 0
+21 d2 "linea" 50 50
+21 d2 "trazar" "rgba(0,255,0,1)" 1
+21 api "surface.DrawCircle" 100 100 10 255 0 0 255
+21 d2 "path"
+21 d2 "arco" 100 100 10
+21 d2 "trazar" "rgba(255,0,0,1)" 1
+21 api "surface.DrawPoly" table
+21 d2 "path"
+21 d2 "mover" 0 0
+21 d2 "linea" 10 0
+21 d2 "linea" 5 10
+21 d2 "cerrar"
+21 d2 "llenar" "rgba(0,255,0,1)"
+21 api "Weapon:Clip1" e#1004
+21 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+21 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+22 api "FrameNumber"
+22 api "input.IsKeyDown" 28
+22 api "Player:KeyDown" e#1002 2048
+22 api "ScrW"
+22 api "ScrH"
+22 api "surface.SetDrawColor" 255 0 0 128
+22 api "surface.DrawRect" 10 10 100 20
+22 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+22 api "Color" 0 255 0
+22 api "surface.SetDrawColor" table
+22 api "surface.DrawOutlinedRect" 10 40 100 20 2
+22 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+22 api "LocalPlayer"
+22 api "Entity:Health" e#1002
+22 api "Color" 255 255 0
+22 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+22 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+22 api "Color" 0 0 255 200
+22 api "draw.RoundedBox" 6 20 80 60 30 table
+22 d2 "path"
+22 d2 "mover" 26 80
+22 d2 "linea" 74 80
+22 d2 "curva" 80 80 80 86
+22 d2 "linea" 80 104
+22 d2 "curva" 80 110 74 110
+22 d2 "linea" 26 110
+22 d2 "curva" 20 110 20 104
+22 d2 "linea" 20 86
+22 d2 "curva" 20 80 26 80
+22 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+22 api "surface.SetFont" "PruebaFuente"
+22 api "surface.GetTextSize" "medir"
+22 api "surface.SetTextPos" 5 120
+22 api "surface.SetTextColor" 255 255 255
+22 api "surface.DrawText" "tw 50 20"
+22 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+22 api "surface.DrawLine" 0 0 50 50
+22 d2 "path"
+22 d2 "mover" 0 0
+22 d2 "linea" 50 50
+22 d2 "trazar" "rgba(0,255,0,1)" 1
+22 api "surface.DrawCircle" 100 100 10 255 0 0 255
+22 d2 "path"
+22 d2 "arco" 100 100 10
+22 d2 "trazar" "rgba(255,0,0,1)" 1
+22 api "surface.DrawPoly" table
+22 d2 "path"
+22 d2 "mover" 0 0
+22 d2 "linea" 10 0
+22 d2 "linea" 5 10
+22 d2 "cerrar"
+22 d2 "llenar" "rgba(0,255,0,1)"
+22 api "Weapon:Clip1" e#1004
+22 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+22 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+23 api "FrameNumber"
+23 api "input.IsKeyDown" 28
+23 api "Player:KeyDown" e#1002 2048
+23 api "ScrW"
+23 api "ScrH"
+23 api "surface.SetDrawColor" 255 0 0 128
+23 api "surface.DrawRect" 10 10 100 20
+23 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+23 api "Color" 0 255 0
+23 api "surface.SetDrawColor" table
+23 api "surface.DrawOutlinedRect" 10 40 100 20 2
+23 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+23 api "LocalPlayer"
+23 api "Entity:Health" e#1002
+23 api "Color" 255 255 0
+23 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+23 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+23 api "Color" 0 0 255 200
+23 api "draw.RoundedBox" 6 20 80 60 30 table
+23 d2 "path"
+23 d2 "mover" 26 80
+23 d2 "linea" 74 80
+23 d2 "curva" 80 80 80 86
+23 d2 "linea" 80 104
+23 d2 "curva" 80 110 74 110
+23 d2 "linea" 26 110
+23 d2 "curva" 20 110 20 104
+23 d2 "linea" 20 86
+23 d2 "curva" 20 80 26 80
+23 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+23 api "surface.SetFont" "PruebaFuente"
+23 api "surface.GetTextSize" "medir"
+23 api "surface.SetTextPos" 5 120
+23 api "surface.SetTextColor" 255 255 255
+23 api "surface.DrawText" "tw 50 20"
+23 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+23 api "surface.DrawLine" 0 0 50 50
+23 d2 "path"
+23 d2 "mover" 0 0
+23 d2 "linea" 50 50
+23 d2 "trazar" "rgba(0,255,0,1)" 1
+23 api "surface.DrawCircle" 100 100 10 255 0 0 255
+23 d2 "path"
+23 d2 "arco" 100 100 10
+23 d2 "trazar" "rgba(255,0,0,1)" 1
+23 api "surface.DrawPoly" table
+23 d2 "path"
+23 d2 "mover" 0 0
+23 d2 "linea" 10 0
+23 d2 "linea" 5 10
+23 d2 "cerrar"
+23 d2 "llenar" "rgba(0,255,0,1)"
+23 api "Weapon:Clip1" e#1004
+23 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+23 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+24 api "FrameNumber"
+24 api "input.IsKeyDown" 28
+24 api "Player:KeyDown" e#1002 2048
+24 api "ScrW"
+24 api "ScrH"
+24 api "surface.SetDrawColor" 255 0 0 128
+24 api "surface.DrawRect" 10 10 100 20
+24 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+24 api "Color" 0 255 0
+24 api "surface.SetDrawColor" table
+24 api "surface.DrawOutlinedRect" 10 40 100 20 2
+24 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+24 api "LocalPlayer"
+24 api "Entity:Health" e#1002
+24 api "Color" 255 255 0
+24 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+24 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+24 api "Color" 0 0 255 200
+24 api "draw.RoundedBox" 6 20 80 60 30 table
+24 d2 "path"
+24 d2 "mover" 26 80
+24 d2 "linea" 74 80
+24 d2 "curva" 80 80 80 86
+24 d2 "linea" 80 104
+24 d2 "curva" 80 110 74 110
+24 d2 "linea" 26 110
+24 d2 "curva" 20 110 20 104
+24 d2 "linea" 20 86
+24 d2 "curva" 20 80 26 80
+24 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+24 api "surface.SetFont" "PruebaFuente"
+24 api "surface.GetTextSize" "medir"
+24 api "surface.SetTextPos" 5 120
+24 api "surface.SetTextColor" 255 255 255
+24 api "surface.DrawText" "tw 50 20"
+24 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+24 api "surface.DrawLine" 0 0 50 50
+24 d2 "path"
+24 d2 "mover" 0 0
+24 d2 "linea" 50 50
+24 d2 "trazar" "rgba(0,255,0,1)" 1
+24 api "surface.DrawCircle" 100 100 10 255 0 0 255
+24 d2 "path"
+24 d2 "arco" 100 100 10
+24 d2 "trazar" "rgba(255,0,0,1)" 1
+24 api "surface.DrawPoly" table
+24 d2 "path"
+24 d2 "mover" 0 0
+24 d2 "linea" 10 0
+24 d2 "linea" 5 10
+24 d2 "cerrar"
+24 d2 "llenar" "rgba(0,255,0,1)"
+24 api "Weapon:Clip1" e#1004
+24 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+24 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+25 api "FrameNumber"
+25 api "input.IsKeyDown" 28
+25 api "Player:KeyDown" e#1002 2048
+25 api "ScrW"
+25 api "ScrH"
+25 api "surface.SetDrawColor" 255 0 0 128
+25 api "surface.DrawRect" 10 10 100 20
+25 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+25 api "Color" 0 255 0
+25 api "surface.SetDrawColor" table
+25 api "surface.DrawOutlinedRect" 10 40 100 20 2
+25 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+25 api "LocalPlayer"
+25 api "Entity:Health" e#1002
+25 api "Color" 255 255 0
+25 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+25 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+25 api "Color" 0 0 255 200
+25 api "draw.RoundedBox" 6 20 80 60 30 table
+25 d2 "path"
+25 d2 "mover" 26 80
+25 d2 "linea" 74 80
+25 d2 "curva" 80 80 80 86
+25 d2 "linea" 80 104
+25 d2 "curva" 80 110 74 110
+25 d2 "linea" 26 110
+25 d2 "curva" 20 110 20 104
+25 d2 "linea" 20 86
+25 d2 "curva" 20 80 26 80
+25 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+25 api "surface.SetFont" "PruebaFuente"
+25 api "surface.GetTextSize" "medir"
+25 api "surface.SetTextPos" 5 120
+25 api "surface.SetTextColor" 255 255 255
+25 api "surface.DrawText" "tw 50 20"
+25 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+25 api "surface.DrawLine" 0 0 50 50
+25 d2 "path"
+25 d2 "mover" 0 0
+25 d2 "linea" 50 50
+25 d2 "trazar" "rgba(0,255,0,1)" 1
+25 api "surface.DrawCircle" 100 100 10 255 0 0 255
+25 d2 "path"
+25 d2 "arco" 100 100 10
+25 d2 "trazar" "rgba(255,0,0,1)" 1
+25 api "surface.DrawPoly" table
+25 d2 "path"
+25 d2 "mover" 0 0
+25 d2 "linea" 10 0
+25 d2 "linea" 5 10
+25 d2 "cerrar"
+25 d2 "llenar" "rgba(0,255,0,1)"
+25 api "Weapon:Clip1" e#1004
+25 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+25 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+26 api "FrameNumber"
+26 api "input.IsKeyDown" 28
+26 api "Player:KeyDown" e#1002 2048
+26 api "ScrW"
+26 api "ScrH"
+26 api "surface.SetDrawColor" 255 0 0 128
+26 api "surface.DrawRect" 10 10 100 20
+26 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+26 api "Color" 0 255 0
+26 api "surface.SetDrawColor" table
+26 api "surface.DrawOutlinedRect" 10 40 100 20 2
+26 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+26 api "LocalPlayer"
+26 api "Entity:Health" e#1002
+26 api "Color" 255 255 0
+26 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+26 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+26 api "Color" 0 0 255 200
+26 api "draw.RoundedBox" 6 20 80 60 30 table
+26 d2 "path"
+26 d2 "mover" 26 80
+26 d2 "linea" 74 80
+26 d2 "curva" 80 80 80 86
+26 d2 "linea" 80 104
+26 d2 "curva" 80 110 74 110
+26 d2 "linea" 26 110
+26 d2 "curva" 20 110 20 104
+26 d2 "linea" 20 86
+26 d2 "curva" 20 80 26 80
+26 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+26 api "surface.SetFont" "PruebaFuente"
+26 api "surface.GetTextSize" "medir"
+26 api "surface.SetTextPos" 5 120
+26 api "surface.SetTextColor" 255 255 255
+26 api "surface.DrawText" "tw 50 20"
+26 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+26 api "surface.DrawLine" 0 0 50 50
+26 d2 "path"
+26 d2 "mover" 0 0
+26 d2 "linea" 50 50
+26 d2 "trazar" "rgba(0,255,0,1)" 1
+26 api "surface.DrawCircle" 100 100 10 255 0 0 255
+26 d2 "path"
+26 d2 "arco" 100 100 10
+26 d2 "trazar" "rgba(255,0,0,1)" 1
+26 api "surface.DrawPoly" table
+26 d2 "path"
+26 d2 "mover" 0 0
+26 d2 "linea" 10 0
+26 d2 "linea" 5 10
+26 d2 "cerrar"
+26 d2 "llenar" "rgba(0,255,0,1)"
+26 api "Weapon:Clip1" e#1004
+26 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+26 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+27 api "FrameNumber"
+27 api "input.IsKeyDown" 28
+27 api "Player:KeyDown" e#1002 2048
+27 api "CurTime"
+27 api "Entity:NextThink" e#1003 0.55
+27 api "Entity:GetPos" e#1003
+27 consola "cliente ve\u00095\u0009caja\u0009157.480315 0 33.716535"
+27 api "ScrW"
+27 api "ScrH"
+27 api "surface.SetDrawColor" 255 0 0 128
+27 api "surface.DrawRect" 10 10 100 20
+27 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+27 api "Color" 0 255 0
+27 api "surface.SetDrawColor" table
+27 api "surface.DrawOutlinedRect" 10 40 100 20 2
+27 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+27 api "LocalPlayer"
+27 api "Entity:Health" e#1002
+27 api "Color" 255 255 0
+27 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+27 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+27 api "Color" 0 0 255 200
+27 api "draw.RoundedBox" 6 20 80 60 30 table
+27 d2 "path"
+27 d2 "mover" 26 80
+27 d2 "linea" 74 80
+27 d2 "curva" 80 80 80 86
+27 d2 "linea" 80 104
+27 d2 "curva" 80 110 74 110
+27 d2 "linea" 26 110
+27 d2 "curva" 20 110 20 104
+27 d2 "linea" 20 86
+27 d2 "curva" 20 80 26 80
+27 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+27 api "surface.SetFont" "PruebaFuente"
+27 api "surface.GetTextSize" "medir"
+27 api "surface.SetTextPos" 5 120
+27 api "surface.SetTextColor" 255 255 255
+27 api "surface.DrawText" "tw 50 20"
+27 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+27 api "surface.DrawLine" 0 0 50 50
+27 d2 "path"
+27 d2 "mover" 0 0
+27 d2 "linea" 50 50
+27 d2 "trazar" "rgba(0,255,0,1)" 1
+27 api "surface.DrawCircle" 100 100 10 255 0 0 255
+27 d2 "path"
+27 d2 "arco" 100 100 10
+27 d2 "trazar" "rgba(255,0,0,1)" 1
+27 api "surface.DrawPoly" table
+27 d2 "path"
+27 d2 "mover" 0 0
+27 d2 "linea" 10 0
+27 d2 "linea" 5 10
+27 d2 "cerrar"
+27 d2 "llenar" "rgba(0,255,0,1)"
+27 api "Weapon:Clip1" e#1004
+27 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+27 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+28 consola "tecla\u00092048\u0009true"
+28 consola "tecla\u00092048\u0009false"
+28 api "FrameNumber"
+28 api "input.IsKeyDown" 28
+28 api "EffectData"
+28 api "Player:GetEyeTrace" e#1002
+28 api "CEffectData:SetOrigin" userdata v(32768,0,62.9921)
+28 api "Vector" 0 0 1
+28 api "CEffectData:SetNormal" userdata v(0,0,1)
+28 api "util.Effect" "Sparks" userdata
+28 particula v(0,1.6,832.307) v(-1.62997,3.1129,1.79746) 0.372702 0.03 [1,0.8,0.3,1] "chispa" nil
+28 particula v(0,1.6,832.307) v(-1.42196,6.26013,-0.713772) 0.522655 0.03 [1,0.8,0.3,1] "chispa" nil
+28 particula v(0,1.6,832.307) v(1.62483,5.2632,0.532637) 0.543075 0.03 [1,0.8,0.3,1] "chispa" nil
+28 particula v(0,1.6,832.307) v(-1.83436,6.0061,-1.61011) 0.37255 0.03 [1,0.8,0.3,1] "chispa" nil
+28 particula v(0,1.6,832.307) v(0.152306,5.97077,0.443532) 0.594939 0.03 [1,0.8,0.3,1] "chispa" nil
+28 particula v(0,1.6,832.307) v(0.634773,5.28275,-0.731973) 0.55851 0.03 [1,0.8,0.3,1] "chispa" nil
+28 particula v(0,1.6,832.307) v(-0.829087,5.24589,-0.976758) 0.427069 0.03 [1,0.8,0.3,1] "chispa" nil
+28 particula v(0,1.6,832.307) v(0.0210551,4.30573,0.252218) 0.526974 0.03 [1,0.8,0.3,1] "chispa" nil
+28 particula v(0,1.6,832.307) v(0.606567,2.99739,-1.58526) 0.42042 0.03 [1,0.8,0.3,1] "chispa" nil
+28 particula v(0,1.6,832.307) v(1.36405,4.00501,-0.0982529) 0.395128 0.03 [1,0.8,0.3,1] "chispa" nil
+28 particula v(0,1.6,832.307) v(-0.732833,5.5185,1.99557) 0.500484 0.03 [1,0.8,0.3,1] "chispa" nil
+28 particula v(0,1.6,832.307) v(1.82826,6.79971,-1.24827) 0.557796 0.03 [1,0.8,0.3,1] "chispa" nil
+28 api "CurTime"
+28 api "Weapon:SetNextSecondaryFire" e#1004 0.716667
+28 api "Player:KeyDown" e#1002 2048
+28 api "CurTime"
+28 consola "think 2"
+28 api "Entity:GetPos" e#1003
+28 consola "cliente ve\u00095\u0009caja\u0009157.480315 0 33.716535"
+28 api "ScrW"
+28 api "ScrH"
+28 api "surface.SetDrawColor" 255 0 0 128
+28 api "surface.DrawRect" 10 10 100 20
+28 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+28 api "Color" 0 255 0
+28 api "surface.SetDrawColor" table
+28 api "surface.DrawOutlinedRect" 10 40 100 20 2
+28 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+28 api "LocalPlayer"
+28 api "Entity:Health" e#1002
+28 api "Color" 255 255 0
+28 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+28 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+28 api "Color" 0 0 255 200
+28 api "draw.RoundedBox" 6 20 80 60 30 table
+28 d2 "path"
+28 d2 "mover" 26 80
+28 d2 "linea" 74 80
+28 d2 "curva" 80 80 80 86
+28 d2 "linea" 80 104
+28 d2 "curva" 80 110 74 110
+28 d2 "linea" 26 110
+28 d2 "curva" 20 110 20 104
+28 d2 "linea" 20 86
+28 d2 "curva" 20 80 26 80
+28 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+28 api "surface.SetFont" "PruebaFuente"
+28 api "surface.GetTextSize" "medir"
+28 api "surface.SetTextPos" 5 120
+28 api "surface.SetTextColor" 255 255 255
+28 api "surface.DrawText" "tw 50 20"
+28 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+28 api "surface.DrawLine" 0 0 50 50
+28 d2 "path"
+28 d2 "mover" 0 0
+28 d2 "linea" 50 50
+28 d2 "trazar" "rgba(0,255,0,1)" 1
+28 api "surface.DrawCircle" 100 100 10 255 0 0 255
+28 d2 "path"
+28 d2 "arco" 100 100 10
+28 d2 "trazar" "rgba(255,0,0,1)" 1
+28 api "surface.DrawPoly" table
+28 d2 "path"
+28 d2 "mover" 0 0
+28 d2 "linea" 10 0
+28 d2 "linea" 5 10
+28 d2 "cerrar"
+28 d2 "llenar" "rgba(0,255,0,1)"
+28 api "Weapon:Clip1" e#1004
+28 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+28 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+29 api "FrameNumber"
+29 api "input.IsKeyDown" 28
+29 api "Player:KeyDown" e#1002 2048
+29 api "CurTime"
+29 api "Entity:GetPos" e#1003
+29 consola "cliente ve\u00095\u0009caja\u0009157.480315 0 33.716535"
+29 api "ScrW"
+29 api "ScrH"
+29 api "surface.SetDrawColor" 255 0 0 128
+29 api "surface.DrawRect" 10 10 100 20
+29 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+29 api "Color" 0 255 0
+29 api "surface.SetDrawColor" table
+29 api "surface.DrawOutlinedRect" 10 40 100 20 2
+29 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+29 api "LocalPlayer"
+29 api "Entity:Health" e#1002
+29 api "Color" 255 255 0
+29 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+29 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+29 api "Color" 0 0 255 200
+29 api "draw.RoundedBox" 6 20 80 60 30 table
+29 d2 "path"
+29 d2 "mover" 26 80
+29 d2 "linea" 74 80
+29 d2 "curva" 80 80 80 86
+29 d2 "linea" 80 104
+29 d2 "curva" 80 110 74 110
+29 d2 "linea" 26 110
+29 d2 "curva" 20 110 20 104
+29 d2 "linea" 20 86
+29 d2 "curva" 20 80 26 80
+29 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+29 api "surface.SetFont" "PruebaFuente"
+29 api "surface.GetTextSize" "medir"
+29 api "surface.SetTextPos" 5 120
+29 api "surface.SetTextColor" 255 255 255
+29 api "surface.DrawText" "tw 50 20"
+29 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+29 api "surface.DrawLine" 0 0 50 50
+29 d2 "path"
+29 d2 "mover" 0 0
+29 d2 "linea" 50 50
+29 d2 "trazar" "rgba(0,255,0,1)" 1
+29 api "surface.DrawCircle" 100 100 10 255 0 0 255
+29 d2 "path"
+29 d2 "arco" 100 100 10
+29 d2 "trazar" "rgba(255,0,0,1)" 1
+29 api "surface.DrawPoly" table
+29 d2 "path"
+29 d2 "mover" 0 0
+29 d2 "linea" 10 0
+29 d2 "linea" 5 10
+29 d2 "cerrar"
+29 d2 "llenar" "rgba(0,255,0,1)"
+29 api "Weapon:Clip1" e#1004
+29 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+29 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+30 api "CurTime"
+30 api "timer.RepsLeft" "prueba_t"
+30 consola "timer\u00090.5\u00092"
+30 api "RunConsoleCommand" "prueba_fuerza" "4"
+30 api "ConVar:GetInt" userdata
+30 api "ConVar:GetFloat" userdata
+30 api "ConVar:GetBool" userdata
+30 consola "cvar\u0009prueba_fuerza\u00093\u00094\u00094\u00094\u0009true"
+30 api "ConVar:GetInt" userdata
+30 api "ConVar:GetFloat" userdata
+30 api "ConVar:GetBool" userdata
+30 consola "cvar\u0009prueba_fuerza\u00093\u00094\u00094\u00094\u0009true"
+30 api "FrameNumber"
+30 api "net.Start" "prueba_msg"
+30 api "net.WriteString" "hola"
+30 api "CurTime"
+30 api "net.WriteFloat" 0.5
+30 api "Vector" 1 2 3
+30 api "net.WriteVector" v(1,2,3)
+30 api "net.Broadcast"
+30 api "input.IsKeyDown" 28
+30 api "Player:KeyDown" e#1002 2048
+30 api "CurTime"
+30 api "Entity:GetPos" e#1003
+30 consola "cliente ve\u00095\u0009caja\u0009157.480315 0 33.716535"
+30 api "ScrW"
+30 api "ScrH"
+30 api "surface.SetDrawColor" 255 0 0 128
+30 api "surface.DrawRect" 10 10 100 20
+30 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+30 api "Color" 0 255 0
+30 api "surface.SetDrawColor" table
+30 api "surface.DrawOutlinedRect" 10 40 100 20 2
+30 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+30 api "LocalPlayer"
+30 api "Entity:Health" e#1002
+30 api "Color" 255 255 0
+30 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+30 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+30 api "Color" 0 0 255 200
+30 api "draw.RoundedBox" 6 20 80 60 30 table
+30 d2 "path"
+30 d2 "mover" 26 80
+30 d2 "linea" 74 80
+30 d2 "curva" 80 80 80 86
+30 d2 "linea" 80 104
+30 d2 "curva" 80 110 74 110
+30 d2 "linea" 26 110
+30 d2 "curva" 20 110 20 104
+30 d2 "linea" 20 86
+30 d2 "curva" 20 80 26 80
+30 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+30 api "surface.SetFont" "PruebaFuente"
+30 api "surface.GetTextSize" "medir"
+30 api "surface.SetTextPos" 5 120
+30 api "surface.SetTextColor" 255 255 255
+30 api "surface.DrawText" "tw 50 20"
+30 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+30 api "surface.DrawLine" 0 0 50 50
+30 d2 "path"
+30 d2 "mover" 0 0
+30 d2 "linea" 50 50
+30 d2 "trazar" "rgba(0,255,0,1)" 1
+30 api "surface.DrawCircle" 100 100 10 255 0 0 255
+30 d2 "path"
+30 d2 "arco" 100 100 10
+30 d2 "trazar" "rgba(255,0,0,1)" 1
+30 api "surface.DrawPoly" table
+30 d2 "path"
+30 d2 "mover" 0 0
+30 d2 "linea" 10 0
+30 d2 "linea" 5 10
+30 d2 "cerrar"
+30 d2 "llenar" "rgba(0,255,0,1)"
+30 api "Weapon:Clip1" e#1004
+30 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+30 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+31 api "net.ReadString"
+31 api "net.ReadFloat"
+31 api "net.ReadVector"
+31 consola "net\u000996\u0009hola\u000930\u00091 2 3"
+31 api "FrameNumber"
+31 api "input.IsKeyDown" 28
+31 api "Player:KeyDown" e#1002 2048
+31 api "CurTime"
+31 api "Entity:GetPos" e#1003
+31 consola "cliente ve\u00095\u0009caja\u0009157.480315 0 33.716535"
+31 api "ScrW"
+31 api "ScrH"
+31 api "surface.SetDrawColor" 255 0 0 128
+31 api "surface.DrawRect" 10 10 100 20
+31 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+31 api "Color" 0 255 0
+31 api "surface.SetDrawColor" table
+31 api "surface.DrawOutlinedRect" 10 40 100 20 2
+31 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+31 api "LocalPlayer"
+31 api "Entity:Health" e#1002
+31 api "Color" 255 255 0
+31 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+31 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+31 api "Color" 0 0 255 200
+31 api "draw.RoundedBox" 6 20 80 60 30 table
+31 d2 "path"
+31 d2 "mover" 26 80
+31 d2 "linea" 74 80
+31 d2 "curva" 80 80 80 86
+31 d2 "linea" 80 104
+31 d2 "curva" 80 110 74 110
+31 d2 "linea" 26 110
+31 d2 "curva" 20 110 20 104
+31 d2 "linea" 20 86
+31 d2 "curva" 20 80 26 80
+31 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+31 api "surface.SetFont" "PruebaFuente"
+31 api "surface.GetTextSize" "medir"
+31 api "surface.SetTextPos" 5 120
+31 api "surface.SetTextColor" 255 255 255
+31 api "surface.DrawText" "tw 50 20"
+31 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+31 api "surface.DrawLine" 0 0 50 50
+31 d2 "path"
+31 d2 "mover" 0 0
+31 d2 "linea" 50 50
+31 d2 "trazar" "rgba(0,255,0,1)" 1
+31 api "surface.DrawCircle" 100 100 10 255 0 0 255
+31 d2 "path"
+31 d2 "arco" 100 100 10
+31 d2 "trazar" "rgba(255,0,0,1)" 1
+31 api "surface.DrawPoly" table
+31 d2 "path"
+31 d2 "mover" 0 0
+31 d2 "linea" 10 0
+31 d2 "linea" 5 10
+31 d2 "cerrar"
+31 d2 "llenar" "rgba(0,255,0,1)"
+31 api "Weapon:Clip1" e#1004
+31 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+31 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+32 api "FrameNumber"
+32 api "input.IsKeyDown" 28
+32 api "Player:KeyDown" e#1002 2048
+32 api "CurTime"
+32 api "Entity:GetPos" e#1003
+32 consola "cliente ve\u00095\u0009caja\u0009157.480315 0 33.716535"
+32 api "ScrW"
+32 api "ScrH"
+32 api "surface.SetDrawColor" 255 0 0 128
+32 api "surface.DrawRect" 10 10 100 20
+32 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+32 api "Color" 0 255 0
+32 api "surface.SetDrawColor" table
+32 api "surface.DrawOutlinedRect" 10 40 100 20 2
+32 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+32 api "LocalPlayer"
+32 api "Entity:Health" e#1002
+32 api "Color" 255 255 0
+32 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+32 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+32 api "Color" 0 0 255 200
+32 api "draw.RoundedBox" 6 20 80 60 30 table
+32 d2 "path"
+32 d2 "mover" 26 80
+32 d2 "linea" 74 80
+32 d2 "curva" 80 80 80 86
+32 d2 "linea" 80 104
+32 d2 "curva" 80 110 74 110
+32 d2 "linea" 26 110
+32 d2 "curva" 20 110 20 104
+32 d2 "linea" 20 86
+32 d2 "curva" 20 80 26 80
+32 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+32 api "surface.SetFont" "PruebaFuente"
+32 api "surface.GetTextSize" "medir"
+32 api "surface.SetTextPos" 5 120
+32 api "surface.SetTextColor" 255 255 255
+32 api "surface.DrawText" "tw 50 20"
+32 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+32 api "surface.DrawLine" 0 0 50 50
+32 d2 "path"
+32 d2 "mover" 0 0
+32 d2 "linea" 50 50
+32 d2 "trazar" "rgba(0,255,0,1)" 1
+32 api "surface.DrawCircle" 100 100 10 255 0 0 255
+32 d2 "path"
+32 d2 "arco" 100 100 10
+32 d2 "trazar" "rgba(255,0,0,1)" 1
+32 api "surface.DrawPoly" table
+32 d2 "path"
+32 d2 "mover" 0 0
+32 d2 "linea" 10 0
+32 d2 "linea" 5 10
+32 d2 "cerrar"
+32 d2 "llenar" "rgba(0,255,0,1)"
+32 api "Weapon:Clip1" e#1004
+32 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+32 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+33 api "FrameNumber"
+33 api "input.IsKeyDown" 28
+33 api "Player:KeyDown" e#1002 2048
+33 api "CurTime"
+33 api "CurTime"
+33 api "Entity:NextThink" e#1003 0.65
+33 api "ScrW"
+33 api "ScrH"
+33 api "surface.SetDrawColor" 255 0 0 128
+33 api "surface.DrawRect" 10 10 100 20
+33 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+33 api "Color" 0 255 0
+33 api "surface.SetDrawColor" table
+33 api "surface.DrawOutlinedRect" 10 40 100 20 2
+33 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+33 api "LocalPlayer"
+33 api "Entity:Health" e#1002
+33 api "Color" 255 255 0
+33 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+33 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+33 api "Color" 0 0 255 200
+33 api "draw.RoundedBox" 6 20 80 60 30 table
+33 d2 "path"
+33 d2 "mover" 26 80
+33 d2 "linea" 74 80
+33 d2 "curva" 80 80 80 86
+33 d2 "linea" 80 104
+33 d2 "curva" 80 110 74 110
+33 d2 "linea" 26 110
+33 d2 "curva" 20 110 20 104
+33 d2 "linea" 20 86
+33 d2 "curva" 20 80 26 80
+33 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+33 api "surface.SetFont" "PruebaFuente"
+33 api "surface.GetTextSize" "medir"
+33 api "surface.SetTextPos" 5 120
+33 api "surface.SetTextColor" 255 255 255
+33 api "surface.DrawText" "tw 50 20"
+33 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+33 api "surface.DrawLine" 0 0 50 50
+33 d2 "path"
+33 d2 "mover" 0 0
+33 d2 "linea" 50 50
+33 d2 "trazar" "rgba(0,255,0,1)" 1
+33 api "surface.DrawCircle" 100 100 10 255 0 0 255
+33 d2 "path"
+33 d2 "arco" 100 100 10
+33 d2 "trazar" "rgba(255,0,0,1)" 1
+33 api "surface.DrawPoly" table
+33 d2 "path"
+33 d2 "mover" 0 0
+33 d2 "linea" 10 0
+33 d2 "linea" 5 10
+33 d2 "cerrar"
+33 d2 "llenar" "rgba(0,255,0,1)"
+33 api "Weapon:Clip1" e#1004
+33 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+33 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+34 api "FrameNumber"
+34 api "input.IsKeyDown" 28
+34 api "Player:KeyDown" e#1002 2048
+34 api "CurTime"
+34 api "ScrW"
+34 api "ScrH"
+34 api "surface.SetDrawColor" 255 0 0 128
+34 api "surface.DrawRect" 10 10 100 20
+34 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+34 api "Color" 0 255 0
+34 api "surface.SetDrawColor" table
+34 api "surface.DrawOutlinedRect" 10 40 100 20 2
+34 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+34 api "LocalPlayer"
+34 api "Entity:Health" e#1002
+34 api "Color" 255 255 0
+34 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+34 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+34 api "Color" 0 0 255 200
+34 api "draw.RoundedBox" 6 20 80 60 30 table
+34 d2 "path"
+34 d2 "mover" 26 80
+34 d2 "linea" 74 80
+34 d2 "curva" 80 80 80 86
+34 d2 "linea" 80 104
+34 d2 "curva" 80 110 74 110
+34 d2 "linea" 26 110
+34 d2 "curva" 20 110 20 104
+34 d2 "linea" 20 86
+34 d2 "curva" 20 80 26 80
+34 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+34 api "surface.SetFont" "PruebaFuente"
+34 api "surface.GetTextSize" "medir"
+34 api "surface.SetTextPos" 5 120
+34 api "surface.SetTextColor" 255 255 255
+34 api "surface.DrawText" "tw 50 20"
+34 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+34 api "surface.DrawLine" 0 0 50 50
+34 d2 "path"
+34 d2 "mover" 0 0
+34 d2 "linea" 50 50
+34 d2 "trazar" "rgba(0,255,0,1)" 1
+34 api "surface.DrawCircle" 100 100 10 255 0 0 255
+34 d2 "path"
+34 d2 "arco" 100 100 10
+34 d2 "trazar" "rgba(255,0,0,1)" 1
+34 api "surface.DrawPoly" table
+34 d2 "path"
+34 d2 "mover" 0 0
+34 d2 "linea" 10 0
+34 d2 "linea" 5 10
+34 d2 "cerrar"
+34 d2 "llenar" "rgba(0,255,0,1)"
+34 api "Weapon:Clip1" e#1004
+34 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+34 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+35 api "FrameNumber"
+35 api "input.IsKeyDown" 28
+35 api "Player:KeyDown" e#1002 2048
+35 api "CurTime"
+35 consola "think 2"
+35 api "ScrW"
+35 api "ScrH"
+35 api "surface.SetDrawColor" 255 0 0 128
+35 api "surface.DrawRect" 10 10 100 20
+35 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+35 api "Color" 0 255 0
+35 api "surface.SetDrawColor" table
+35 api "surface.DrawOutlinedRect" 10 40 100 20 2
+35 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+35 api "LocalPlayer"
+35 api "Entity:Health" e#1002
+35 api "Color" 255 255 0
+35 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+35 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+35 api "Color" 0 0 255 200
+35 api "draw.RoundedBox" 6 20 80 60 30 table
+35 d2 "path"
+35 d2 "mover" 26 80
+35 d2 "linea" 74 80
+35 d2 "curva" 80 80 80 86
+35 d2 "linea" 80 104
+35 d2 "curva" 80 110 74 110
+35 d2 "linea" 26 110
+35 d2 "curva" 20 110 20 104
+35 d2 "linea" 20 86
+35 d2 "curva" 20 80 26 80
+35 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+35 api "surface.SetFont" "PruebaFuente"
+35 api "surface.GetTextSize" "medir"
+35 api "surface.SetTextPos" 5 120
+35 api "surface.SetTextColor" 255 255 255
+35 api "surface.DrawText" "tw 50 20"
+35 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+35 api "surface.DrawLine" 0 0 50 50
+35 d2 "path"
+35 d2 "mover" 0 0
+35 d2 "linea" 50 50
+35 d2 "trazar" "rgba(0,255,0,1)" 1
+35 api "surface.DrawCircle" 100 100 10 255 0 0 255
+35 d2 "path"
+35 d2 "arco" 100 100 10
+35 d2 "trazar" "rgba(255,0,0,1)" 1
+35 api "surface.DrawPoly" table
+35 d2 "path"
+35 d2 "mover" 0 0
+35 d2 "linea" 10 0
+35 d2 "linea" 5 10
+35 d2 "cerrar"
+35 d2 "llenar" "rgba(0,255,0,1)"
+35 api "Weapon:Clip1" e#1004
+35 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+35 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+36 api "FrameNumber"
+36 api "input.IsKeyDown" 28
+36 api "Player:KeyDown" e#1002 2048
+36 api "CurTime"
+36 api "ScrW"
+36 api "ScrH"
+36 api "surface.SetDrawColor" 255 0 0 128
+36 api "surface.DrawRect" 10 10 100 20
+36 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+36 api "Color" 0 255 0
+36 api "surface.SetDrawColor" table
+36 api "surface.DrawOutlinedRect" 10 40 100 20 2
+36 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+36 api "LocalPlayer"
+36 api "Entity:Health" e#1002
+36 api "Color" 255 255 0
+36 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+36 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+36 api "Color" 0 0 255 200
+36 api "draw.RoundedBox" 6 20 80 60 30 table
+36 d2 "path"
+36 d2 "mover" 26 80
+36 d2 "linea" 74 80
+36 d2 "curva" 80 80 80 86
+36 d2 "linea" 80 104
+36 d2 "curva" 80 110 74 110
+36 d2 "linea" 26 110
+36 d2 "curva" 20 110 20 104
+36 d2 "linea" 20 86
+36 d2 "curva" 20 80 26 80
+36 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+36 api "surface.SetFont" "PruebaFuente"
+36 api "surface.GetTextSize" "medir"
+36 api "surface.SetTextPos" 5 120
+36 api "surface.SetTextColor" 255 255 255
+36 api "surface.DrawText" "tw 50 20"
+36 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+36 api "surface.DrawLine" 0 0 50 50
+36 d2 "path"
+36 d2 "mover" 0 0
+36 d2 "linea" 50 50
+36 d2 "trazar" "rgba(0,255,0,1)" 1
+36 api "surface.DrawCircle" 100 100 10 255 0 0 255
+36 d2 "path"
+36 d2 "arco" 100 100 10
+36 d2 "trazar" "rgba(255,0,0,1)" 1
+36 api "surface.DrawPoly" table
+36 d2 "path"
+36 d2 "mover" 0 0
+36 d2 "linea" 10 0
+36 d2 "linea" 5 10
+36 d2 "cerrar"
+36 d2 "llenar" "rgba(0,255,0,1)"
+36 api "Weapon:Clip1" e#1004
+36 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+36 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+37 api "FrameNumber"
+37 api "input.IsKeyDown" 28
+37 api "Player:KeyDown" e#1002 2048
+37 api "CurTime"
+37 api "ScrW"
+37 api "ScrH"
+37 api "surface.SetDrawColor" 255 0 0 128
+37 api "surface.DrawRect" 10 10 100 20
+37 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+37 api "Color" 0 255 0
+37 api "surface.SetDrawColor" table
+37 api "surface.DrawOutlinedRect" 10 40 100 20 2
+37 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+37 api "LocalPlayer"
+37 api "Entity:Health" e#1002
+37 api "Color" 255 255 0
+37 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+37 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+37 api "Color" 0 0 255 200
+37 api "draw.RoundedBox" 6 20 80 60 30 table
+37 d2 "path"
+37 d2 "mover" 26 80
+37 d2 "linea" 74 80
+37 d2 "curva" 80 80 80 86
+37 d2 "linea" 80 104
+37 d2 "curva" 80 110 74 110
+37 d2 "linea" 26 110
+37 d2 "curva" 20 110 20 104
+37 d2 "linea" 20 86
+37 d2 "curva" 20 80 26 80
+37 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+37 api "surface.SetFont" "PruebaFuente"
+37 api "surface.GetTextSize" "medir"
+37 api "surface.SetTextPos" 5 120
+37 api "surface.SetTextColor" 255 255 255
+37 api "surface.DrawText" "tw 50 20"
+37 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+37 api "surface.DrawLine" 0 0 50 50
+37 d2 "path"
+37 d2 "mover" 0 0
+37 d2 "linea" 50 50
+37 d2 "trazar" "rgba(0,255,0,1)" 1
+37 api "surface.DrawCircle" 100 100 10 255 0 0 255
+37 d2 "path"
+37 d2 "arco" 100 100 10
+37 d2 "trazar" "rgba(255,0,0,1)" 1
+37 api "surface.DrawPoly" table
+37 d2 "path"
+37 d2 "mover" 0 0
+37 d2 "linea" 10 0
+37 d2 "linea" 5 10
+37 d2 "cerrar"
+37 d2 "llenar" "rgba(0,255,0,1)"
+37 api "Weapon:Clip1" e#1004
+37 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+37 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+38 api "FrameNumber"
+38 api "input.IsKeyDown" 28
+38 api "Player:KeyDown" e#1002 2048
+38 api "CurTime"
+38 api "ScrW"
+38 api "ScrH"
+38 api "surface.SetDrawColor" 255 0 0 128
+38 api "surface.DrawRect" 10 10 100 20
+38 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+38 api "Color" 0 255 0
+38 api "surface.SetDrawColor" table
+38 api "surface.DrawOutlinedRect" 10 40 100 20 2
+38 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+38 api "LocalPlayer"
+38 api "Entity:Health" e#1002
+38 api "Color" 255 255 0
+38 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+38 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+38 api "Color" 0 0 255 200
+38 api "draw.RoundedBox" 6 20 80 60 30 table
+38 d2 "path"
+38 d2 "mover" 26 80
+38 d2 "linea" 74 80
+38 d2 "curva" 80 80 80 86
+38 d2 "linea" 80 104
+38 d2 "curva" 80 110 74 110
+38 d2 "linea" 26 110
+38 d2 "curva" 20 110 20 104
+38 d2 "linea" 20 86
+38 d2 "curva" 20 80 26 80
+38 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+38 api "surface.SetFont" "PruebaFuente"
+38 api "surface.GetTextSize" "medir"
+38 api "surface.SetTextPos" 5 120
+38 api "surface.SetTextColor" 255 255 255
+38 api "surface.DrawText" "tw 50 20"
+38 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+38 api "surface.DrawLine" 0 0 50 50
+38 d2 "path"
+38 d2 "mover" 0 0
+38 d2 "linea" 50 50
+38 d2 "trazar" "rgba(0,255,0,1)" 1
+38 api "surface.DrawCircle" 100 100 10 255 0 0 255
+38 d2 "path"
+38 d2 "arco" 100 100 10
+38 d2 "trazar" "rgba(255,0,0,1)" 1
+38 api "surface.DrawPoly" table
+38 d2 "path"
+38 d2 "mover" 0 0
+38 d2 "linea" 10 0
+38 d2 "linea" 5 10
+38 d2 "cerrar"
+38 d2 "llenar" "rgba(0,255,0,1)"
+38 api "Weapon:Clip1" e#1004
+38 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+38 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+39 api "FrameNumber"
+39 api "input.IsKeyDown" 28
+39 api "Player:KeyDown" e#1002 2048
+39 api "CurTime"
+39 api "CurTime"
+39 api "Entity:NextThink" e#1003 0.75
+39 api "ScrW"
+39 api "ScrH"
+39 api "surface.SetDrawColor" 255 0 0 128
+39 api "surface.DrawRect" 10 10 100 20
+39 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+39 api "Color" 0 255 0
+39 api "surface.SetDrawColor" table
+39 api "surface.DrawOutlinedRect" 10 40 100 20 2
+39 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+39 api "LocalPlayer"
+39 api "Entity:Health" e#1002
+39 api "Color" 255 255 0
+39 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+39 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+39 api "Color" 0 0 255 200
+39 api "draw.RoundedBox" 6 20 80 60 30 table
+39 d2 "path"
+39 d2 "mover" 26 80
+39 d2 "linea" 74 80
+39 d2 "curva" 80 80 80 86
+39 d2 "linea" 80 104
+39 d2 "curva" 80 110 74 110
+39 d2 "linea" 26 110
+39 d2 "curva" 20 110 20 104
+39 d2 "linea" 20 86
+39 d2 "curva" 20 80 26 80
+39 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+39 api "surface.SetFont" "PruebaFuente"
+39 api "surface.GetTextSize" "medir"
+39 api "surface.SetTextPos" 5 120
+39 api "surface.SetTextColor" 255 255 255
+39 api "surface.DrawText" "tw 50 20"
+39 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+39 api "surface.DrawLine" 0 0 50 50
+39 d2 "path"
+39 d2 "mover" 0 0
+39 d2 "linea" 50 50
+39 d2 "trazar" "rgba(0,255,0,1)" 1
+39 api "surface.DrawCircle" 100 100 10 255 0 0 255
+39 d2 "path"
+39 d2 "arco" 100 100 10
+39 d2 "trazar" "rgba(255,0,0,1)" 1
+39 api "surface.DrawPoly" table
+39 d2 "path"
+39 d2 "mover" 0 0
+39 d2 "linea" 10 0
+39 d2 "linea" 5 10
+39 d2 "cerrar"
+39 d2 "llenar" "rgba(0,255,0,1)"
+39 api "Weapon:Clip1" e#1004
+39 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+39 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+40 api "FrameNumber"
+40 api "input.IsKeyDown" 28
+40 api "Player:KeyDown" e#1002 2048
+40 api "CurTime"
+40 api "ScrW"
+40 api "ScrH"
+40 api "surface.SetDrawColor" 255 0 0 128
+40 api "surface.DrawRect" 10 10 100 20
+40 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+40 api "Color" 0 255 0
+40 api "surface.SetDrawColor" table
+40 api "surface.DrawOutlinedRect" 10 40 100 20 2
+40 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+40 api "LocalPlayer"
+40 api "Entity:Health" e#1002
+40 api "Color" 255 255 0
+40 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+40 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+40 api "Color" 0 0 255 200
+40 api "draw.RoundedBox" 6 20 80 60 30 table
+40 d2 "path"
+40 d2 "mover" 26 80
+40 d2 "linea" 74 80
+40 d2 "curva" 80 80 80 86
+40 d2 "linea" 80 104
+40 d2 "curva" 80 110 74 110
+40 d2 "linea" 26 110
+40 d2 "curva" 20 110 20 104
+40 d2 "linea" 20 86
+40 d2 "curva" 20 80 26 80
+40 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+40 api "surface.SetFont" "PruebaFuente"
+40 api "surface.GetTextSize" "medir"
+40 api "surface.SetTextPos" 5 120
+40 api "surface.SetTextColor" 255 255 255
+40 api "surface.DrawText" "tw 50 20"
+40 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+40 api "surface.DrawLine" 0 0 50 50
+40 d2 "path"
+40 d2 "mover" 0 0
+40 d2 "linea" 50 50
+40 d2 "trazar" "rgba(0,255,0,1)" 1
+40 api "surface.DrawCircle" 100 100 10 255 0 0 255
+40 d2 "path"
+40 d2 "arco" 100 100 10
+40 d2 "trazar" "rgba(255,0,0,1)" 1
+40 api "surface.DrawPoly" table
+40 d2 "path"
+40 d2 "mover" 0 0
+40 d2 "linea" 10 0
+40 d2 "linea" 5 10
+40 d2 "cerrar"
+40 d2 "llenar" "rgba(0,255,0,1)"
+40 api "Weapon:Clip1" e#1004
+40 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+40 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+41 api "FrameNumber"
+41 api "input.IsKeyDown" 28
+41 api "Player:KeyDown" e#1002 2048
+41 api "CurTime"
+41 api "ScrW"
+41 api "ScrH"
+41 api "surface.SetDrawColor" 255 0 0 128
+41 api "surface.DrawRect" 10 10 100 20
+41 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+41 api "Color" 0 255 0
+41 api "surface.SetDrawColor" table
+41 api "surface.DrawOutlinedRect" 10 40 100 20 2
+41 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+41 api "LocalPlayer"
+41 api "Entity:Health" e#1002
+41 api "Color" 255 255 0
+41 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+41 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+41 api "Color" 0 0 255 200
+41 api "draw.RoundedBox" 6 20 80 60 30 table
+41 d2 "path"
+41 d2 "mover" 26 80
+41 d2 "linea" 74 80
+41 d2 "curva" 80 80 80 86
+41 d2 "linea" 80 104
+41 d2 "curva" 80 110 74 110
+41 d2 "linea" 26 110
+41 d2 "curva" 20 110 20 104
+41 d2 "linea" 20 86
+41 d2 "curva" 20 80 26 80
+41 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+41 api "surface.SetFont" "PruebaFuente"
+41 api "surface.GetTextSize" "medir"
+41 api "surface.SetTextPos" 5 120
+41 api "surface.SetTextColor" 255 255 255
+41 api "surface.DrawText" "tw 50 20"
+41 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+41 api "surface.DrawLine" 0 0 50 50
+41 d2 "path"
+41 d2 "mover" 0 0
+41 d2 "linea" 50 50
+41 d2 "trazar" "rgba(0,255,0,1)" 1
+41 api "surface.DrawCircle" 100 100 10 255 0 0 255
+41 d2 "path"
+41 d2 "arco" 100 100 10
+41 d2 "trazar" "rgba(255,0,0,1)" 1
+41 api "surface.DrawPoly" table
+41 d2 "path"
+41 d2 "mover" 0 0
+41 d2 "linea" 10 0
+41 d2 "linea" 5 10
+41 d2 "cerrar"
+41 d2 "llenar" "rgba(0,255,0,1)"
+41 api "Weapon:Clip1" e#1004
+41 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+41 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+42 api "FrameNumber"
+42 api "input.IsKeyDown" 28
+42 api "Player:KeyDown" e#1002 2048
+42 api "CurTime"
+42 consola "think 2"
+42 api "ScrW"
+42 api "ScrH"
+42 api "surface.SetDrawColor" 255 0 0 128
+42 api "surface.DrawRect" 10 10 100 20
+42 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+42 api "Color" 0 255 0
+42 api "surface.SetDrawColor" table
+42 api "surface.DrawOutlinedRect" 10 40 100 20 2
+42 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+42 api "LocalPlayer"
+42 api "Entity:Health" e#1002
+42 api "Color" 255 255 0
+42 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+42 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+42 api "Color" 0 0 255 200
+42 api "draw.RoundedBox" 6 20 80 60 30 table
+42 d2 "path"
+42 d2 "mover" 26 80
+42 d2 "linea" 74 80
+42 d2 "curva" 80 80 80 86
+42 d2 "linea" 80 104
+42 d2 "curva" 80 110 74 110
+42 d2 "linea" 26 110
+42 d2 "curva" 20 110 20 104
+42 d2 "linea" 20 86
+42 d2 "curva" 20 80 26 80
+42 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+42 api "surface.SetFont" "PruebaFuente"
+42 api "surface.GetTextSize" "medir"
+42 api "surface.SetTextPos" 5 120
+42 api "surface.SetTextColor" 255 255 255
+42 api "surface.DrawText" "tw 50 20"
+42 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+42 api "surface.DrawLine" 0 0 50 50
+42 d2 "path"
+42 d2 "mover" 0 0
+42 d2 "linea" 50 50
+42 d2 "trazar" "rgba(0,255,0,1)" 1
+42 api "surface.DrawCircle" 100 100 10 255 0 0 255
+42 d2 "path"
+42 d2 "arco" 100 100 10
+42 d2 "trazar" "rgba(255,0,0,1)" 1
+42 api "surface.DrawPoly" table
+42 d2 "path"
+42 d2 "mover" 0 0
+42 d2 "linea" 10 0
+42 d2 "linea" 5 10
+42 d2 "cerrar"
+42 d2 "llenar" "rgba(0,255,0,1)"
+42 api "Weapon:Clip1" e#1004
+42 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+42 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+43 api "FrameNumber"
+43 api "input.IsKeyDown" 28
+43 api "EffectData"
+43 api "Player:GetEyeTrace" e#1002
+43 api "CEffectData:SetOrigin" userdata v(32768,0,62.9921)
+43 api "Vector" 0 0 1
+43 api "CEffectData:SetNormal" userdata v(0,0,1)
+43 api "util.Effect" "Sparks" userdata
+43 particula v(0,1.6,832.307) v(1.81129,4.75839,-0.754179) 0.578922 0.03 [1,0.8,0.3,1] "chispa" nil
+43 particula v(0,1.6,832.307) v(-0.565734,4.29349,-0.618017) 0.401247 0.03 [1,0.8,0.3,1] "chispa" nil
+43 particula v(0,1.6,832.307) v(-1.96896,3.88704,0.968934) 0.588235 0.03 [1,0.8,0.3,1] "chispa" nil
+43 particula v(0,1.6,832.307) v(0.0121996,5.2933,1.96728) 0.601314 0.03 [1,0.8,0.3,1] "chispa" nil
+43 particula v(0,1.6,832.307) v(0.392203,3.84616,-0.821362) 0.577892 0.03 [1,0.8,0.3,1] "chispa" nil
+43 particula v(0,1.6,832.307) v(1.01864,3.57945,-0.23485) 0.639306 0.03 [1,0.8,0.3,1] "chispa" nil
+43 particula v(0,1.6,832.307) v(-1.50807,5.16347,1.12151) 0.636102 0.03 [1,0.8,0.3,1] "chispa" nil
+43 particula v(0,1.6,832.307) v(0.979183,3.87456,1.66856) 0.5974 0.03 [1,0.8,0.3,1] "chispa" nil
+43 particula v(0,1.6,832.307) v(-1.9179,3.64777,-0.267938) 0.514266 0.03 [1,0.8,0.3,1] "chispa" nil
+43 particula v(0,1.6,832.307) v(1.86546,6.93803,-0.428337) 0.389538 0.03 [1,0.8,0.3,1] "chispa" nil
+43 particula v(0,1.6,832.307) v(1.85661,3.54678,-1.13144) 0.55704 0.03 [1,0.8,0.3,1] "chispa" nil
+43 particula v(0,1.6,832.307) v(-1.97913,6.18697,1.37806) 0.638298 0.03 [1,0.8,0.3,1] "chispa" nil
+43 api "CurTime"
+43 api "Weapon:SetNextSecondaryFire" e#1004 0.966667
+43 api "Player:KeyDown" e#1002 2048
+43 api "CurTime"
+43 api "ScrW"
+43 api "ScrH"
+43 api "surface.SetDrawColor" 255 0 0 128
+43 api "surface.DrawRect" 10 10 100 20
+43 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+43 api "Color" 0 255 0
+43 api "surface.SetDrawColor" table
+43 api "surface.DrawOutlinedRect" 10 40 100 20 2
+43 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+43 api "LocalPlayer"
+43 api "Entity:Health" e#1002
+43 api "Color" 255 255 0
+43 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+43 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+43 api "Color" 0 0 255 200
+43 api "draw.RoundedBox" 6 20 80 60 30 table
+43 d2 "path"
+43 d2 "mover" 26 80
+43 d2 "linea" 74 80
+43 d2 "curva" 80 80 80 86
+43 d2 "linea" 80 104
+43 d2 "curva" 80 110 74 110
+43 d2 "linea" 26 110
+43 d2 "curva" 20 110 20 104
+43 d2 "linea" 20 86
+43 d2 "curva" 20 80 26 80
+43 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+43 api "surface.SetFont" "PruebaFuente"
+43 api "surface.GetTextSize" "medir"
+43 api "surface.SetTextPos" 5 120
+43 api "surface.SetTextColor" 255 255 255
+43 api "surface.DrawText" "tw 50 20"
+43 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+43 api "surface.DrawLine" 0 0 50 50
+43 d2 "path"
+43 d2 "mover" 0 0
+43 d2 "linea" 50 50
+43 d2 "trazar" "rgba(0,255,0,1)" 1
+43 api "surface.DrawCircle" 100 100 10 255 0 0 255
+43 d2 "path"
+43 d2 "arco" 100 100 10
+43 d2 "trazar" "rgba(255,0,0,1)" 1
+43 api "surface.DrawPoly" table
+43 d2 "path"
+43 d2 "mover" 0 0
+43 d2 "linea" 10 0
+43 d2 "linea" 5 10
+43 d2 "cerrar"
+43 d2 "llenar" "rgba(0,255,0,1)"
+43 api "Weapon:Clip1" e#1004
+43 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+43 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+44 api "FrameNumber"
+44 api "input.IsKeyDown" 28
+44 api "Player:KeyDown" e#1002 2048
+44 api "CurTime"
+44 api "ScrW"
+44 api "ScrH"
+44 api "surface.SetDrawColor" 255 0 0 128
+44 api "surface.DrawRect" 10 10 100 20
+44 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+44 api "Color" 0 255 0
+44 api "surface.SetDrawColor" table
+44 api "surface.DrawOutlinedRect" 10 40 100 20 2
+44 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+44 api "LocalPlayer"
+44 api "Entity:Health" e#1002
+44 api "Color" 255 255 0
+44 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+44 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+44 api "Color" 0 0 255 200
+44 api "draw.RoundedBox" 6 20 80 60 30 table
+44 d2 "path"
+44 d2 "mover" 26 80
+44 d2 "linea" 74 80
+44 d2 "curva" 80 80 80 86
+44 d2 "linea" 80 104
+44 d2 "curva" 80 110 74 110
+44 d2 "linea" 26 110
+44 d2 "curva" 20 110 20 104
+44 d2 "linea" 20 86
+44 d2 "curva" 20 80 26 80
+44 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+44 api "surface.SetFont" "PruebaFuente"
+44 api "surface.GetTextSize" "medir"
+44 api "surface.SetTextPos" 5 120
+44 api "surface.SetTextColor" 255 255 255
+44 api "surface.DrawText" "tw 50 20"
+44 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+44 api "surface.DrawLine" 0 0 50 50
+44 d2 "path"
+44 d2 "mover" 0 0
+44 d2 "linea" 50 50
+44 d2 "trazar" "rgba(0,255,0,1)" 1
+44 api "surface.DrawCircle" 100 100 10 255 0 0 255
+44 d2 "path"
+44 d2 "arco" 100 100 10
+44 d2 "trazar" "rgba(255,0,0,1)" 1
+44 api "surface.DrawPoly" table
+44 d2 "path"
+44 d2 "mover" 0 0
+44 d2 "linea" 10 0
+44 d2 "linea" 5 10
+44 d2 "cerrar"
+44 d2 "llenar" "rgba(0,255,0,1)"
+44 api "Weapon:Clip1" e#1004
+44 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+44 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+45 api "FrameNumber"
+45 api "input.IsKeyDown" 28
+45 api "Player:KeyDown" e#1002 2048
+45 api "Entity:Remove" e#1003
+45 api "Entity:GetClass" e#1003
+45 consola "remove\u0009ent_prueba"
+45 borrar_objeto o#1
+45 api "CurTime"
+45 api "Entity:NextThink" e#1003 0.85
+45 api "ScrW"
+45 api "ScrH"
+45 api "surface.SetDrawColor" 255 0 0 128
+45 api "surface.DrawRect" 10 10 100 20
+45 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+45 api "Color" 0 255 0
+45 api "surface.SetDrawColor" table
+45 api "surface.DrawOutlinedRect" 10 40 100 20 2
+45 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+45 api "LocalPlayer"
+45 api "Entity:Health" e#1002
+45 api "Color" 255 255 0
+45 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+45 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+45 api "Color" 0 0 255 200
+45 api "draw.RoundedBox" 6 20 80 60 30 table
+45 d2 "path"
+45 d2 "mover" 26 80
+45 d2 "linea" 74 80
+45 d2 "curva" 80 80 80 86
+45 d2 "linea" 80 104
+45 d2 "curva" 80 110 74 110
+45 d2 "linea" 26 110
+45 d2 "curva" 20 110 20 104
+45 d2 "linea" 20 86
+45 d2 "curva" 20 80 26 80
+45 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+45 api "surface.SetFont" "PruebaFuente"
+45 api "surface.GetTextSize" "medir"
+45 api "surface.SetTextPos" 5 120
+45 api "surface.SetTextColor" 255 255 255
+45 api "surface.DrawText" "tw 50 20"
+45 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+45 api "surface.DrawLine" 0 0 50 50
+45 d2 "path"
+45 d2 "mover" 0 0
+45 d2 "linea" 50 50
+45 d2 "trazar" "rgba(0,255,0,1)" 1
+45 api "surface.DrawCircle" 100 100 10 255 0 0 255
+45 d2 "path"
+45 d2 "arco" 100 100 10
+45 d2 "trazar" "rgba(255,0,0,1)" 1
+45 api "surface.DrawPoly" table
+45 d2 "path"
+45 d2 "mover" 0 0
+45 d2 "linea" 10 0
+45 d2 "linea" 5 10
+45 d2 "cerrar"
+45 d2 "llenar" "rgba(0,255,0,1)"
+45 api "Weapon:Clip1" e#1004
+45 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+45 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+45 cambio "o#1 -"
+46 api "FrameNumber"
+46 api "input.IsKeyDown" 28
+46 api "Player:KeyDown" e#1002 2048
+46 api "ScrW"
+46 api "ScrH"
+46 api "surface.SetDrawColor" 255 0 0 128
+46 api "surface.DrawRect" 10 10 100 20
+46 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+46 api "Color" 0 255 0
+46 api "surface.SetDrawColor" table
+46 api "surface.DrawOutlinedRect" 10 40 100 20 2
+46 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+46 api "LocalPlayer"
+46 api "Entity:Health" e#1002
+46 api "Color" 255 255 0
+46 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+46 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+46 api "Color" 0 0 255 200
+46 api "draw.RoundedBox" 6 20 80 60 30 table
+46 d2 "path"
+46 d2 "mover" 26 80
+46 d2 "linea" 74 80
+46 d2 "curva" 80 80 80 86
+46 d2 "linea" 80 104
+46 d2 "curva" 80 110 74 110
+46 d2 "linea" 26 110
+46 d2 "curva" 20 110 20 104
+46 d2 "linea" 20 86
+46 d2 "curva" 20 80 26 80
+46 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+46 api "surface.SetFont" "PruebaFuente"
+46 api "surface.GetTextSize" "medir"
+46 api "surface.SetTextPos" 5 120
+46 api "surface.SetTextColor" 255 255 255
+46 api "surface.DrawText" "tw 50 20"
+46 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+46 api "surface.DrawLine" 0 0 50 50
+46 d2 "path"
+46 d2 "mover" 0 0
+46 d2 "linea" 50 50
+46 d2 "trazar" "rgba(0,255,0,1)" 1
+46 api "surface.DrawCircle" 100 100 10 255 0 0 255
+46 d2 "path"
+46 d2 "arco" 100 100 10
+46 d2 "trazar" "rgba(255,0,0,1)" 1
+46 api "surface.DrawPoly" table
+46 d2 "path"
+46 d2 "mover" 0 0
+46 d2 "linea" 10 0
+46 d2 "linea" 5 10
+46 d2 "cerrar"
+46 d2 "llenar" "rgba(0,255,0,1)"
+46 api "Weapon:Clip1" e#1004
+46 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+46 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+47 api "FrameNumber"
+47 api "input.IsKeyDown" 28
+47 api "Player:KeyDown" e#1002 2048
+47 api "ScrW"
+47 api "ScrH"
+47 api "surface.SetDrawColor" 255 0 0 128
+47 api "surface.DrawRect" 10 10 100 20
+47 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+47 api "Color" 0 255 0
+47 api "surface.SetDrawColor" table
+47 api "surface.DrawOutlinedRect" 10 40 100 20 2
+47 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+47 api "LocalPlayer"
+47 api "Entity:Health" e#1002
+47 api "Color" 255 255 0
+47 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+47 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+47 api "Color" 0 0 255 200
+47 api "draw.RoundedBox" 6 20 80 60 30 table
+47 d2 "path"
+47 d2 "mover" 26 80
+47 d2 "linea" 74 80
+47 d2 "curva" 80 80 80 86
+47 d2 "linea" 80 104
+47 d2 "curva" 80 110 74 110
+47 d2 "linea" 26 110
+47 d2 "curva" 20 110 20 104
+47 d2 "linea" 20 86
+47 d2 "curva" 20 80 26 80
+47 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+47 api "surface.SetFont" "PruebaFuente"
+47 api "surface.GetTextSize" "medir"
+47 api "surface.SetTextPos" 5 120
+47 api "surface.SetTextColor" 255 255 255
+47 api "surface.DrawText" "tw 50 20"
+47 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+47 api "surface.DrawLine" 0 0 50 50
+47 d2 "path"
+47 d2 "mover" 0 0
+47 d2 "linea" 50 50
+47 d2 "trazar" "rgba(0,255,0,1)" 1
+47 api "surface.DrawCircle" 100 100 10 255 0 0 255
+47 d2 "path"
+47 d2 "arco" 100 100 10
+47 d2 "trazar" "rgba(255,0,0,1)" 1
+47 api "surface.DrawPoly" table
+47 d2 "path"
+47 d2 "mover" 0 0
+47 d2 "linea" 10 0
+47 d2 "linea" 5 10
+47 d2 "cerrar"
+47 d2 "llenar" "rgba(0,255,0,1)"
+47 api "Weapon:Clip1" e#1004
+47 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+47 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+48 api "FrameNumber"
+48 api "input.IsKeyDown" 28
+48 api "Player:KeyDown" e#1002 2048
+48 api "ScrW"
+48 api "ScrH"
+48 api "surface.SetDrawColor" 255 0 0 128
+48 api "surface.DrawRect" 10 10 100 20
+48 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+48 api "Color" 0 255 0
+48 api "surface.SetDrawColor" table
+48 api "surface.DrawOutlinedRect" 10 40 100 20 2
+48 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+48 api "LocalPlayer"
+48 api "Entity:Health" e#1002
+48 api "Color" 255 255 0
+48 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+48 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+48 api "Color" 0 0 255 200
+48 api "draw.RoundedBox" 6 20 80 60 30 table
+48 d2 "path"
+48 d2 "mover" 26 80
+48 d2 "linea" 74 80
+48 d2 "curva" 80 80 80 86
+48 d2 "linea" 80 104
+48 d2 "curva" 80 110 74 110
+48 d2 "linea" 26 110
+48 d2 "curva" 20 110 20 104
+48 d2 "linea" 20 86
+48 d2 "curva" 20 80 26 80
+48 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+48 api "surface.SetFont" "PruebaFuente"
+48 api "surface.GetTextSize" "medir"
+48 api "surface.SetTextPos" 5 120
+48 api "surface.SetTextColor" 255 255 255
+48 api "surface.DrawText" "tw 50 20"
+48 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+48 api "surface.DrawLine" 0 0 50 50
+48 d2 "path"
+48 d2 "mover" 0 0
+48 d2 "linea" 50 50
+48 d2 "trazar" "rgba(0,255,0,1)" 1
+48 api "surface.DrawCircle" 100 100 10 255 0 0 255
+48 d2 "path"
+48 d2 "arco" 100 100 10
+48 d2 "trazar" "rgba(255,0,0,1)" 1
+48 api "surface.DrawPoly" table
+48 d2 "path"
+48 d2 "mover" 0 0
+48 d2 "linea" 10 0
+48 d2 "linea" 5 10
+48 d2 "cerrar"
+48 d2 "llenar" "rgba(0,255,0,1)"
+48 api "Weapon:Clip1" e#1004
+48 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+48 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+49 api "FrameNumber"
+49 api "input.IsKeyDown" 28
+49 api "Player:KeyDown" e#1002 2048
+49 api "ScrW"
+49 api "ScrH"
+49 api "surface.SetDrawColor" 255 0 0 128
+49 api "surface.DrawRect" 10 10 100 20
+49 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+49 api "Color" 0 255 0
+49 api "surface.SetDrawColor" table
+49 api "surface.DrawOutlinedRect" 10 40 100 20 2
+49 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+49 api "LocalPlayer"
+49 api "Entity:Health" e#1002
+49 api "Color" 255 255 0
+49 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+49 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+49 api "Color" 0 0 255 200
+49 api "draw.RoundedBox" 6 20 80 60 30 table
+49 d2 "path"
+49 d2 "mover" 26 80
+49 d2 "linea" 74 80
+49 d2 "curva" 80 80 80 86
+49 d2 "linea" 80 104
+49 d2 "curva" 80 110 74 110
+49 d2 "linea" 26 110
+49 d2 "curva" 20 110 20 104
+49 d2 "linea" 20 86
+49 d2 "curva" 20 80 26 80
+49 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+49 api "surface.SetFont" "PruebaFuente"
+49 api "surface.GetTextSize" "medir"
+49 api "surface.SetTextPos" 5 120
+49 api "surface.SetTextColor" 255 255 255
+49 api "surface.DrawText" "tw 50 20"
+49 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+49 api "surface.DrawLine" 0 0 50 50
+49 d2 "path"
+49 d2 "mover" 0 0
+49 d2 "linea" 50 50
+49 d2 "trazar" "rgba(0,255,0,1)" 1
+49 api "surface.DrawCircle" 100 100 10 255 0 0 255
+49 d2 "path"
+49 d2 "arco" 100 100 10
+49 d2 "trazar" "rgba(255,0,0,1)" 1
+49 api "surface.DrawPoly" table
+49 d2 "path"
+49 d2 "mover" 0 0
+49 d2 "linea" 10 0
+49 d2 "linea" 5 10
+49 d2 "cerrar"
+49 d2 "llenar" "rgba(0,255,0,1)"
+49 api "Weapon:Clip1" e#1004
+49 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+49 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+50 api "FrameNumber"
+50 api "input.IsKeyDown" 28
+50 api "Player:KeyDown" e#1002 2048
+50 api "ScrW"
+50 api "ScrH"
+50 api "surface.SetDrawColor" 255 0 0 128
+50 api "surface.DrawRect" 10 10 100 20
+50 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+50 api "Color" 0 255 0
+50 api "surface.SetDrawColor" table
+50 api "surface.DrawOutlinedRect" 10 40 100 20 2
+50 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+50 api "LocalPlayer"
+50 api "Entity:Health" e#1002
+50 api "Color" 255 255 0
+50 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+50 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+50 api "Color" 0 0 255 200
+50 api "draw.RoundedBox" 6 20 80 60 30 table
+50 d2 "path"
+50 d2 "mover" 26 80
+50 d2 "linea" 74 80
+50 d2 "curva" 80 80 80 86
+50 d2 "linea" 80 104
+50 d2 "curva" 80 110 74 110
+50 d2 "linea" 26 110
+50 d2 "curva" 20 110 20 104
+50 d2 "linea" 20 86
+50 d2 "curva" 20 80 26 80
+50 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+50 api "surface.SetFont" "PruebaFuente"
+50 api "surface.GetTextSize" "medir"
+50 api "surface.SetTextPos" 5 120
+50 api "surface.SetTextColor" 255 255 255
+50 api "surface.DrawText" "tw 50 20"
+50 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+50 api "surface.DrawLine" 0 0 50 50
+50 d2 "path"
+50 d2 "mover" 0 0
+50 d2 "linea" 50 50
+50 d2 "trazar" "rgba(0,255,0,1)" 1
+50 api "surface.DrawCircle" 100 100 10 255 0 0 255
+50 d2 "path"
+50 d2 "arco" 100 100 10
+50 d2 "trazar" "rgba(255,0,0,1)" 1
+50 api "surface.DrawPoly" table
+50 d2 "path"
+50 d2 "mover" 0 0
+50 d2 "linea" 10 0
+50 d2 "linea" 5 10
+50 d2 "cerrar"
+50 d2 "llenar" "rgba(0,255,0,1)"
+50 api "Weapon:Clip1" e#1004
+50 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+50 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+51 api "FrameNumber"
+51 api "input.IsKeyDown" 28
+51 api "Player:KeyDown" e#1002 2048
+51 api "ScrW"
+51 api "ScrH"
+51 api "surface.SetDrawColor" 255 0 0 128
+51 api "surface.DrawRect" 10 10 100 20
+51 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+51 api "Color" 0 255 0
+51 api "surface.SetDrawColor" table
+51 api "surface.DrawOutlinedRect" 10 40 100 20 2
+51 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+51 api "LocalPlayer"
+51 api "Entity:Health" e#1002
+51 api "Color" 255 255 0
+51 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+51 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+51 api "Color" 0 0 255 200
+51 api "draw.RoundedBox" 6 20 80 60 30 table
+51 d2 "path"
+51 d2 "mover" 26 80
+51 d2 "linea" 74 80
+51 d2 "curva" 80 80 80 86
+51 d2 "linea" 80 104
+51 d2 "curva" 80 110 74 110
+51 d2 "linea" 26 110
+51 d2 "curva" 20 110 20 104
+51 d2 "linea" 20 86
+51 d2 "curva" 20 80 26 80
+51 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+51 api "surface.SetFont" "PruebaFuente"
+51 api "surface.GetTextSize" "medir"
+51 api "surface.SetTextPos" 5 120
+51 api "surface.SetTextColor" 255 255 255
+51 api "surface.DrawText" "tw 50 20"
+51 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+51 api "surface.DrawLine" 0 0 50 50
+51 d2 "path"
+51 d2 "mover" 0 0
+51 d2 "linea" 50 50
+51 d2 "trazar" "rgba(0,255,0,1)" 1
+51 api "surface.DrawCircle" 100 100 10 255 0 0 255
+51 d2 "path"
+51 d2 "arco" 100 100 10
+51 d2 "trazar" "rgba(255,0,0,1)" 1
+51 api "surface.DrawPoly" table
+51 d2 "path"
+51 d2 "mover" 0 0
+51 d2 "linea" 10 0
+51 d2 "linea" 5 10
+51 d2 "cerrar"
+51 d2 "llenar" "rgba(0,255,0,1)"
+51 api "Weapon:Clip1" e#1004
+51 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+51 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+52 api "FrameNumber"
+52 api "input.IsKeyDown" 28
+52 api "Player:KeyDown" e#1002 2048
+52 api "ScrW"
+52 api "ScrH"
+52 api "surface.SetDrawColor" 255 0 0 128
+52 api "surface.DrawRect" 10 10 100 20
+52 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+52 api "Color" 0 255 0
+52 api "surface.SetDrawColor" table
+52 api "surface.DrawOutlinedRect" 10 40 100 20 2
+52 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+52 api "LocalPlayer"
+52 api "Entity:Health" e#1002
+52 api "Color" 255 255 0
+52 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+52 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+52 api "Color" 0 0 255 200
+52 api "draw.RoundedBox" 6 20 80 60 30 table
+52 d2 "path"
+52 d2 "mover" 26 80
+52 d2 "linea" 74 80
+52 d2 "curva" 80 80 80 86
+52 d2 "linea" 80 104
+52 d2 "curva" 80 110 74 110
+52 d2 "linea" 26 110
+52 d2 "curva" 20 110 20 104
+52 d2 "linea" 20 86
+52 d2 "curva" 20 80 26 80
+52 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+52 api "surface.SetFont" "PruebaFuente"
+52 api "surface.GetTextSize" "medir"
+52 api "surface.SetTextPos" 5 120
+52 api "surface.SetTextColor" 255 255 255
+52 api "surface.DrawText" "tw 50 20"
+52 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+52 api "surface.DrawLine" 0 0 50 50
+52 d2 "path"
+52 d2 "mover" 0 0
+52 d2 "linea" 50 50
+52 d2 "trazar" "rgba(0,255,0,1)" 1
+52 api "surface.DrawCircle" 100 100 10 255 0 0 255
+52 d2 "path"
+52 d2 "arco" 100 100 10
+52 d2 "trazar" "rgba(255,0,0,1)" 1
+52 api "surface.DrawPoly" table
+52 d2 "path"
+52 d2 "mover" 0 0
+52 d2 "linea" 10 0
+52 d2 "linea" 5 10
+52 d2 "cerrar"
+52 d2 "llenar" "rgba(0,255,0,1)"
+52 api "Weapon:Clip1" e#1004
+52 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+52 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+53 api "FrameNumber"
+53 api "input.IsKeyDown" 28
+53 api "Player:KeyDown" e#1002 2048
+53 api "ScrW"
+53 api "ScrH"
+53 api "surface.SetDrawColor" 255 0 0 128
+53 api "surface.DrawRect" 10 10 100 20
+53 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+53 api "Color" 0 255 0
+53 api "surface.SetDrawColor" table
+53 api "surface.DrawOutlinedRect" 10 40 100 20 2
+53 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+53 api "LocalPlayer"
+53 api "Entity:Health" e#1002
+53 api "Color" 255 255 0
+53 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+53 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+53 api "Color" 0 0 255 200
+53 api "draw.RoundedBox" 6 20 80 60 30 table
+53 d2 "path"
+53 d2 "mover" 26 80
+53 d2 "linea" 74 80
+53 d2 "curva" 80 80 80 86
+53 d2 "linea" 80 104
+53 d2 "curva" 80 110 74 110
+53 d2 "linea" 26 110
+53 d2 "curva" 20 110 20 104
+53 d2 "linea" 20 86
+53 d2 "curva" 20 80 26 80
+53 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+53 api "surface.SetFont" "PruebaFuente"
+53 api "surface.GetTextSize" "medir"
+53 api "surface.SetTextPos" 5 120
+53 api "surface.SetTextColor" 255 255 255
+53 api "surface.DrawText" "tw 50 20"
+53 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+53 api "surface.DrawLine" 0 0 50 50
+53 d2 "path"
+53 d2 "mover" 0 0
+53 d2 "linea" 50 50
+53 d2 "trazar" "rgba(0,255,0,1)" 1
+53 api "surface.DrawCircle" 100 100 10 255 0 0 255
+53 d2 "path"
+53 d2 "arco" 100 100 10
+53 d2 "trazar" "rgba(255,0,0,1)" 1
+53 api "surface.DrawPoly" table
+53 d2 "path"
+53 d2 "mover" 0 0
+53 d2 "linea" 10 0
+53 d2 "linea" 5 10
+53 d2 "cerrar"
+53 d2 "llenar" "rgba(0,255,0,1)"
+53 api "Weapon:Clip1" e#1004
+53 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+53 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+54 api "FrameNumber"
+54 api "input.IsKeyDown" 28
+54 api "Player:KeyDown" e#1002 2048
+54 api "ScrW"
+54 api "ScrH"
+54 api "surface.SetDrawColor" 255 0 0 128
+54 api "surface.DrawRect" 10 10 100 20
+54 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+54 api "Color" 0 255 0
+54 api "surface.SetDrawColor" table
+54 api "surface.DrawOutlinedRect" 10 40 100 20 2
+54 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+54 api "LocalPlayer"
+54 api "Entity:Health" e#1002
+54 api "Color" 255 255 0
+54 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+54 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+54 api "Color" 0 0 255 200
+54 api "draw.RoundedBox" 6 20 80 60 30 table
+54 d2 "path"
+54 d2 "mover" 26 80
+54 d2 "linea" 74 80
+54 d2 "curva" 80 80 80 86
+54 d2 "linea" 80 104
+54 d2 "curva" 80 110 74 110
+54 d2 "linea" 26 110
+54 d2 "curva" 20 110 20 104
+54 d2 "linea" 20 86
+54 d2 "curva" 20 80 26 80
+54 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+54 api "surface.SetFont" "PruebaFuente"
+54 api "surface.GetTextSize" "medir"
+54 api "surface.SetTextPos" 5 120
+54 api "surface.SetTextColor" 255 255 255
+54 api "surface.DrawText" "tw 50 20"
+54 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+54 api "surface.DrawLine" 0 0 50 50
+54 d2 "path"
+54 d2 "mover" 0 0
+54 d2 "linea" 50 50
+54 d2 "trazar" "rgba(0,255,0,1)" 1
+54 api "surface.DrawCircle" 100 100 10 255 0 0 255
+54 d2 "path"
+54 d2 "arco" 100 100 10
+54 d2 "trazar" "rgba(255,0,0,1)" 1
+54 api "surface.DrawPoly" table
+54 d2 "path"
+54 d2 "mover" 0 0
+54 d2 "linea" 10 0
+54 d2 "linea" 5 10
+54 d2 "cerrar"
+54 d2 "llenar" "rgba(0,255,0,1)"
+54 api "Weapon:Clip1" e#1004
+54 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+54 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+55 api "FrameNumber"
+55 api "input.IsKeyDown" 28
+55 api "Player:KeyDown" e#1002 2048
+55 api "ScrW"
+55 api "ScrH"
+55 api "surface.SetDrawColor" 255 0 0 128
+55 api "surface.DrawRect" 10 10 100 20
+55 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+55 api "Color" 0 255 0
+55 api "surface.SetDrawColor" table
+55 api "surface.DrawOutlinedRect" 10 40 100 20 2
+55 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+55 api "LocalPlayer"
+55 api "Entity:Health" e#1002
+55 api "Color" 255 255 0
+55 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+55 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+55 api "Color" 0 0 255 200
+55 api "draw.RoundedBox" 6 20 80 60 30 table
+55 d2 "path"
+55 d2 "mover" 26 80
+55 d2 "linea" 74 80
+55 d2 "curva" 80 80 80 86
+55 d2 "linea" 80 104
+55 d2 "curva" 80 110 74 110
+55 d2 "linea" 26 110
+55 d2 "curva" 20 110 20 104
+55 d2 "linea" 20 86
+55 d2 "curva" 20 80 26 80
+55 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+55 api "surface.SetFont" "PruebaFuente"
+55 api "surface.GetTextSize" "medir"
+55 api "surface.SetTextPos" 5 120
+55 api "surface.SetTextColor" 255 255 255
+55 api "surface.DrawText" "tw 50 20"
+55 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+55 api "surface.DrawLine" 0 0 50 50
+55 d2 "path"
+55 d2 "mover" 0 0
+55 d2 "linea" 50 50
+55 d2 "trazar" "rgba(0,255,0,1)" 1
+55 api "surface.DrawCircle" 100 100 10 255 0 0 255
+55 d2 "path"
+55 d2 "arco" 100 100 10
+55 d2 "trazar" "rgba(255,0,0,1)" 1
+55 api "surface.DrawPoly" table
+55 d2 "path"
+55 d2 "mover" 0 0
+55 d2 "linea" 10 0
+55 d2 "linea" 5 10
+55 d2 "cerrar"
+55 d2 "llenar" "rgba(0,255,0,1)"
+55 api "Weapon:Clip1" e#1004
+55 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+55 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+56 api "FrameNumber"
+56 api "input.IsKeyDown" 28
+56 api "Player:KeyDown" e#1002 2048
+56 api "ScrW"
+56 api "ScrH"
+56 api "surface.SetDrawColor" 255 0 0 128
+56 api "surface.DrawRect" 10 10 100 20
+56 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+56 api "Color" 0 255 0
+56 api "surface.SetDrawColor" table
+56 api "surface.DrawOutlinedRect" 10 40 100 20 2
+56 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+56 api "LocalPlayer"
+56 api "Entity:Health" e#1002
+56 api "Color" 255 255 0
+56 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+56 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+56 api "Color" 0 0 255 200
+56 api "draw.RoundedBox" 6 20 80 60 30 table
+56 d2 "path"
+56 d2 "mover" 26 80
+56 d2 "linea" 74 80
+56 d2 "curva" 80 80 80 86
+56 d2 "linea" 80 104
+56 d2 "curva" 80 110 74 110
+56 d2 "linea" 26 110
+56 d2 "curva" 20 110 20 104
+56 d2 "linea" 20 86
+56 d2 "curva" 20 80 26 80
+56 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+56 api "surface.SetFont" "PruebaFuente"
+56 api "surface.GetTextSize" "medir"
+56 api "surface.SetTextPos" 5 120
+56 api "surface.SetTextColor" 255 255 255
+56 api "surface.DrawText" "tw 50 20"
+56 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+56 api "surface.DrawLine" 0 0 50 50
+56 d2 "path"
+56 d2 "mover" 0 0
+56 d2 "linea" 50 50
+56 d2 "trazar" "rgba(0,255,0,1)" 1
+56 api "surface.DrawCircle" 100 100 10 255 0 0 255
+56 d2 "path"
+56 d2 "arco" 100 100 10
+56 d2 "trazar" "rgba(255,0,0,1)" 1
+56 api "surface.DrawPoly" table
+56 d2 "path"
+56 d2 "mover" 0 0
+56 d2 "linea" 10 0
+56 d2 "linea" 5 10
+56 d2 "cerrar"
+56 d2 "llenar" "rgba(0,255,0,1)"
+56 api "Weapon:Clip1" e#1004
+56 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+56 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+57 api "FrameNumber"
+57 api "input.IsKeyDown" 28
+57 api "Player:KeyDown" e#1002 2048
+57 api "ScrW"
+57 api "ScrH"
+57 api "surface.SetDrawColor" 255 0 0 128
+57 api "surface.DrawRect" 10 10 100 20
+57 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+57 api "Color" 0 255 0
+57 api "surface.SetDrawColor" table
+57 api "surface.DrawOutlinedRect" 10 40 100 20 2
+57 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+57 api "LocalPlayer"
+57 api "Entity:Health" e#1002
+57 api "Color" 255 255 0
+57 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+57 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+57 api "Color" 0 0 255 200
+57 api "draw.RoundedBox" 6 20 80 60 30 table
+57 d2 "path"
+57 d2 "mover" 26 80
+57 d2 "linea" 74 80
+57 d2 "curva" 80 80 80 86
+57 d2 "linea" 80 104
+57 d2 "curva" 80 110 74 110
+57 d2 "linea" 26 110
+57 d2 "curva" 20 110 20 104
+57 d2 "linea" 20 86
+57 d2 "curva" 20 80 26 80
+57 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+57 api "surface.SetFont" "PruebaFuente"
+57 api "surface.GetTextSize" "medir"
+57 api "surface.SetTextPos" 5 120
+57 api "surface.SetTextColor" 255 255 255
+57 api "surface.DrawText" "tw 50 20"
+57 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+57 api "surface.DrawLine" 0 0 50 50
+57 d2 "path"
+57 d2 "mover" 0 0
+57 d2 "linea" 50 50
+57 d2 "trazar" "rgba(0,255,0,1)" 1
+57 api "surface.DrawCircle" 100 100 10 255 0 0 255
+57 d2 "path"
+57 d2 "arco" 100 100 10
+57 d2 "trazar" "rgba(255,0,0,1)" 1
+57 api "surface.DrawPoly" table
+57 d2 "path"
+57 d2 "mover" 0 0
+57 d2 "linea" 10 0
+57 d2 "linea" 5 10
+57 d2 "cerrar"
+57 d2 "llenar" "rgba(0,255,0,1)"
+57 api "Weapon:Clip1" e#1004
+57 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+57 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+58 consola "tecla\u00098192\u0009true"
+58 consola "tecla\u00098192\u0009false"
+58 api "FrameNumber"
+58 api "input.IsKeyDown" 28
+58 consola "R abajo"
+58 api "Weapon:DefaultReload" e#1004 182
+58 api "Weapon:Clip1" e#1004
+58 consola "recarga\u0009true\u00095"
+58 api "Player:KeyDown" e#1002 2048
+58 api "ScrW"
+58 api "ScrH"
+58 api "surface.SetDrawColor" 255 0 0 128
+58 api "surface.DrawRect" 10 10 100 20
+58 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+58 api "Color" 0 255 0
+58 api "surface.SetDrawColor" table
+58 api "surface.DrawOutlinedRect" 10 40 100 20 2
+58 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+58 api "LocalPlayer"
+58 api "Entity:Health" e#1002
+58 api "Color" 255 255 0
+58 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+58 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+58 api "Color" 0 0 255 200
+58 api "draw.RoundedBox" 6 20 80 60 30 table
+58 d2 "path"
+58 d2 "mover" 26 80
+58 d2 "linea" 74 80
+58 d2 "curva" 80 80 80 86
+58 d2 "linea" 80 104
+58 d2 "curva" 80 110 74 110
+58 d2 "linea" 26 110
+58 d2 "curva" 20 110 20 104
+58 d2 "linea" 20 86
+58 d2 "curva" 20 80 26 80
+58 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+58 api "surface.SetFont" "PruebaFuente"
+58 api "surface.GetTextSize" "medir"
+58 api "surface.SetTextPos" 5 120
+58 api "surface.SetTextColor" 255 255 255
+58 api "surface.DrawText" "tw 50 20"
+58 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+58 api "surface.DrawLine" 0 0 50 50
+58 d2 "path"
+58 d2 "mover" 0 0
+58 d2 "linea" 50 50
+58 d2 "trazar" "rgba(0,255,0,1)" 1
+58 api "surface.DrawCircle" 100 100 10 255 0 0 255
+58 d2 "path"
+58 d2 "arco" 100 100 10
+58 d2 "trazar" "rgba(255,0,0,1)" 1
+58 api "surface.DrawPoly" table
+58 d2 "path"
+58 d2 "mover" 0 0
+58 d2 "linea" 10 0
+58 d2 "linea" 5 10
+58 d2 "cerrar"
+58 d2 "llenar" "rgba(0,255,0,1)"
+58 api "Weapon:Clip1" e#1004
+58 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+58 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+59 api "FrameNumber"
+59 api "input.IsKeyDown" 28
+59 api "Player:KeyDown" e#1002 2048
+59 api "ScrW"
+59 api "ScrH"
+59 api "surface.SetDrawColor" 255 0 0 128
+59 api "surface.DrawRect" 10 10 100 20
+59 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+59 api "Color" 0 255 0
+59 api "surface.SetDrawColor" table
+59 api "surface.DrawOutlinedRect" 10 40 100 20 2
+59 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+59 api "LocalPlayer"
+59 api "Entity:Health" e#1002
+59 api "Color" 255 255 0
+59 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+59 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+59 api "Color" 0 0 255 200
+59 api "draw.RoundedBox" 6 20 80 60 30 table
+59 d2 "path"
+59 d2 "mover" 26 80
+59 d2 "linea" 74 80
+59 d2 "curva" 80 80 80 86
+59 d2 "linea" 80 104
+59 d2 "curva" 80 110 74 110
+59 d2 "linea" 26 110
+59 d2 "curva" 20 110 20 104
+59 d2 "linea" 20 86
+59 d2 "curva" 20 80 26 80
+59 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+59 api "surface.SetFont" "PruebaFuente"
+59 api "surface.GetTextSize" "medir"
+59 api "surface.SetTextPos" 5 120
+59 api "surface.SetTextColor" 255 255 255
+59 api "surface.DrawText" "tw 50 20"
+59 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+59 api "surface.DrawLine" 0 0 50 50
+59 d2 "path"
+59 d2 "mover" 0 0
+59 d2 "linea" 50 50
+59 d2 "trazar" "rgba(0,255,0,1)" 1
+59 api "surface.DrawCircle" 100 100 10 255 0 0 255
+59 d2 "path"
+59 d2 "arco" 100 100 10
+59 d2 "trazar" "rgba(255,0,0,1)" 1
+59 api "surface.DrawPoly" table
+59 d2 "path"
+59 d2 "mover" 0 0
+59 d2 "linea" 10 0
+59 d2 "linea" 5 10
+59 d2 "cerrar"
+59 d2 "llenar" "rgba(0,255,0,1)"
+59 api "Weapon:Clip1" e#1004
+59 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+59 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+60 api "CurTime"
+60 api "timer.RepsLeft" "prueba_t"
+60 consola "timer\u00091\u00091"
+60 api "RunConsoleCommand" "prueba_fuerza" "7"
+60 api "ConVar:GetInt" userdata
+60 api "ConVar:GetFloat" userdata
+60 api "ConVar:GetBool" userdata
+60 consola "cvar\u0009prueba_fuerza\u00094\u00097\u00097\u00097\u0009true"
+60 api "ConVar:GetInt" userdata
+60 api "ConVar:GetFloat" userdata
+60 api "ConVar:GetBool" userdata
+60 consola "cvar\u0009prueba_fuerza\u00094\u00097\u00097\u00097\u0009true"
+60 api "Vector" 0 0 100
+60 api "Vector" 0 0 -100
+60 api "util.TraceLine" table
+60 consola "traza\u0009true\u00090 0 0\u00090.5\u0009true\u0009Entity [0][worldspawn]"
+60 api "Vector" 0 0 0
+60 api "ents.FindInSphere" v(0,0,0) 400
+60 api "Entity:GetClass" e#1002
+60 consola "cerca\u0009player"
+60 api "Entity:GetClass" e#0
+60 consola "cerca\u0009worldspawn"
+60 api "Entity:GetClass" e#1002
+60 consola "cerca\u0009player"
+60 api "Entity:GetClass" e#1004
+60 consola "cerca\u0009weapon_prueba"
+60 api "Entity:GetClass" e#1005
+60 consola "cerca\u0009info_player_start"
+60 api "RunConsoleCommand" "prueba_cmd" "a" "b"
+60 consola "cmd\u0009prueba_cmd\u00092\u0009a b"
+60 api "FrameNumber"
+60 api "net.Start" "prueba_msg"
+60 api "net.WriteString" "hola"
+60 api "CurTime"
+60 api "net.WriteFloat" 1
+60 api "Vector" 1 2 3
+60 api "net.WriteVector" v(1,2,3)
+60 api "net.Broadcast"
+60 api "input.IsKeyDown" 28
+60 api "Player:KeyDown" e#1002 2048
+60 api "ScrW"
+60 api "ScrH"
+60 api "surface.SetDrawColor" 255 0 0 128
+60 api "surface.DrawRect" 10 10 100 20
+60 d2 "rect" 10 10 100 20 "rgba(255,0,0,0.5019607843137255)" 1
+60 api "Color" 0 255 0
+60 api "surface.SetDrawColor" table
+60 api "surface.DrawOutlinedRect" 10 40 100 20 2
+60 d2 "srect" 10.5 40.5 99 19 "rgba(0,255,0,1)" 2
+60 api "LocalPlayer"
+60 api "Entity:Health" e#1002
+60 api "Color" 255 255 0
+60 api "draw.SimpleText" "Vida: 100" "PruebaFuente" 640 680 table 1 4
+60 d2 "texto" "Vida: 100" 595 660 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,0,1)" "top"
+60 api "Color" 0 0 255 200
+60 api "draw.RoundedBox" 6 20 80 60 30 table
+60 d2 "path"
+60 d2 "mover" 26 80
+60 d2 "linea" 74 80
+60 d2 "curva" 80 80 80 86
+60 d2 "linea" 80 104
+60 d2 "curva" 80 110 74 110
+60 d2 "linea" 26 110
+60 d2 "curva" 20 110 20 104
+60 d2 "linea" 20 86
+60 d2 "curva" 20 80 26 80
+60 d2 "llenar" "rgba(0,0,255,0.7843137254901961)"
+60 api "surface.SetFont" "PruebaFuente"
+60 api "surface.GetTextSize" "medir"
+60 api "surface.SetTextPos" 5 120
+60 api "surface.SetTextColor" 255 255 255
+60 api "surface.DrawText" "tw 50 20"
+60 d2 "texto" "tw 50 20" 5 120 "bold 20px \"Arial\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"
+60 api "surface.DrawLine" 0 0 50 50
+60 d2 "path"
+60 d2 "mover" 0 0
+60 d2 "linea" 50 50
+60 d2 "trazar" "rgba(0,255,0,1)" 1
+60 api "surface.DrawCircle" 100 100 10 255 0 0 255
+60 d2 "path"
+60 d2 "arco" 100 100 10
+60 d2 "trazar" "rgba(255,0,0,1)" 1
+60 api "surface.DrawPoly" table
+60 d2 "path"
+60 d2 "mover" 0 0
+60 d2 "linea" 10 0
+60 d2 "linea" 5 10
+60 d2 "cerrar"
+60 d2 "llenar" "rgba(0,255,0,1)"
+60 api "Weapon:Clip1" e#1004
+60 api "draw.SimpleText" "Balas: 5" "DermaDefault" 100 100
+60 d2 "texto" "Balas: 5" 100 100 "normal 13px \"Tahoma\", Tahoma, sans-serif" "rgba(255,255,255,1)" "top"

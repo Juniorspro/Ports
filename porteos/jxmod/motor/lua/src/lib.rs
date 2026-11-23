@@ -30,8 +30,8 @@ use std::cell::{Cell, RefCell};
 use std::fmt;
 use std::rc::Rc;
 
-pub use valor::{Cadena, Celda, ClaveMala, FnNativa, Funcion, Tabla, TablaRef, Udata, Valor};
-pub use vm::{Estado, MetodoFaltante, Salida};
+pub use valor::{Cadena, Celda, ClaveMala, FiltroAsignacion, FnNativa, Funcion, Tabla, TablaRef, Udata, Valor};
+pub use vm::{Estado, MetodoFaltante, Reloj, Salida};
 
 use valor::{Clausura, Especial, TipoFn};
 
@@ -179,6 +179,12 @@ impl Estado {
     pub fn meta_cadenas(&self) -> Option<TablaRef> { self.meta_cad.clone() }
     /// la diferencia con UTC en segundos para os.date/os.time (por defecto la del sistema)
     pub fn set_zona_horaria(&mut self, segundos: i64) { self.zona = segundos; }
+    /// el reloj de os.time/os.date/os.clock (el del juego, o uno fijo para pruebas); None: el del sistema
+    pub fn set_reloj(&mut self, r: Option<vm::Reloj>) { self.reloj = r; }
+    /// un número al azar en [0, 1): el mismo generador de math.random (para que el anfitrión comparta la secuencia)
+    pub fn azar(&mut self) -> f64 { bib::mates::azar(self) }
+    /// la semilla del generador de math.random (xorshift64*; 0 no vale)
+    pub fn set_semilla(&mut self, s: u64) { self.azar = if s == 0 { 1 } else { s }; }
 
     // ---------------- conversiones ----------------
     /// tostring de Lua (con __tostring)

@@ -411,7 +411,14 @@ pub struct Tabla {
     pub(crate) mapa: Mapa,
     pub(crate) meta: Option<TablaRef>,
     pub(crate) id: Cell<u32>,
+    /// el filtro de asignación (ver `set_filtro`)
+    pub(crate) filtro: Option<FiltroAsignacion>,
 }
+
+/// un filtro para poner una función con nombre en una tabla: recibe la clave, la función y lo que había; si devuelve
+/// algo, eso es lo que queda en la tabla (la capa GMod lo usa para que el server y el cliente tengan cada uno su versión
+/// de un método de una metatabla compartida, como LuaTablaLados de la web)
+pub type FiltroAsignacion = Rc<dyn Fn(&Valor, &Valor, &Valor) -> Option<Valor>>;
 
 /// por qué no se puede usar una clave
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -434,7 +441,7 @@ fn indice_arr(n: f64, len: usize) -> Option<usize> {
 impl Tabla {
     pub fn nueva() -> Tabla { Tabla::default() }
     pub fn con_capacidad(narr: usize, nhash: usize) -> Tabla {
-        Tabla { arr: Vec::with_capacity(narr), mapa: Mapa::con_capacidad(nhash), meta: None, id: Cell::new(0) }
+        Tabla { arr: Vec::with_capacity(narr), mapa: Mapa::con_capacidad(nhash), meta: None, id: Cell::new(0), filtro: None }
     }
     /// la tabla nueva ya envuelta para usarla como valor
     pub fn nueva_ref() -> TablaRef { Rc::new(RefCell::new(Tabla::nueva())) }
@@ -469,6 +476,10 @@ impl Tabla {
     }
     /// escribir sin metamétodos (como LuaTable.set de la web)
     pub fn set(&mut self, k: Valor, v: Valor) -> Result<(), ClaveMala> {
+        let v = match &self.filtro {
+            Some(f) if matches!(k, Valor::Cad(_)) && matches!(v, Valor::Func(_)) => { let prev = self.get(&k); f(&k, &v, &prev).unwrap_or(v) }
+            _ => v,
+        };
         match &k {
             Valor::Num(n) => {
                 let n = *n;
@@ -537,6 +548,8 @@ impl Tabla {
     #[inline] pub fn len(&self) -> usize { self.arr.len() }
     #[inline] pub fn is_empty(&self) -> bool { self.arr.is_empty() && self.mapa.vivas == 0 }
     pub fn meta(&self) -> Option<TablaRef> { self.meta.clone() }
+    /// pone (o saca) el filtro de asignación de funciones con nombre de texto (ver `FiltroAsignacion`)
+    pub fn set_filtro(&mut self, f: Option<FiltroAsignacion>) { self.filtro = f; }
     pub fn set_meta(&mut self, m: Option<TablaRef>) { self.meta = m; }
     /// la clave siguiente a `k` (next): primero el arreglo, después el hash en orden. None al final (o si la clave no
     /// está: la web termina el recorrido en ese caso)

@@ -72,13 +72,13 @@ fn time(e: &mut Estado, a: &[Valor], out: &mut Vec<Valor>) -> Result<(), Error> 
         let local = dias as f64 * 86400.0 + hora * 3600.0 + min * 60.0 + seg;
         out.push(Valor::Num((local - e.zona as f64).floor()));
     } else {
-        out.push(Valor::Num(ahora_seg() as f64));
+        out.push(Valor::Num(match &e.reloj { Some(r) => (r().0 / 1000.0).floor(), None => ahora_seg() as f64 }));
     }
     Ok(())
 }
 
 fn clock(e: &mut Estado, _: &[Valor], out: &mut Vec<Valor>) -> Result<(), Error> {
-    out.push(Valor::Num(e.t0.elapsed().as_secs_f64()));
+    out.push(Valor::Num(match &e.reloj { Some(r) => r().1, None => e.t0.elapsed().as_secs_f64() }));
     Ok(())
 }
 
@@ -89,7 +89,7 @@ fn difftime(_: &mut Estado, a: &[Valor], out: &mut Vec<Valor>) -> Result<(), Err
 }
 
 fn date(e: &mut Estado, a: &[Valor], out: &mut Vec<Valor>) -> Result<(), Error> {
-    let ms = if arg(a, 1).es_nil() { ahora_ms() } else { js_num(arg(a, 1)) * 1000.0 };
+    let ms = if arg(a, 1).es_nil() { match &e.reloj { Some(r) => r().0, None => ahora_ms() } } else { js_num(arg(a, 1)) * 1000.0 };
     let mut f = if arg(a, 0).es_nil() { b"%c".to_vec() } else { js_string(arg(a, 0)) };
     let utc = f.first() == Some(&b'!');
     if utc { f.remove(0); }

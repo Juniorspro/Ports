@@ -138,6 +138,8 @@ pub(crate) fn a_num(v: &Valor) -> Option<f64> {
 pub(crate) enum Nombre { Codigo, Fijo(&'static str) }
 
 pub type Salida = Box<dyn FnMut(&[u8])>;
+/// el reloj que pone el anfitrión: (milisegundos desde 1970, segundos para os.clock)
+pub type Reloj = Rc<dyn Fn() -> (f64, f64)>;
 pub type MetodoFaltante = Rc<dyn Fn(&mut Estado, &Valor, &Rc<Cadena>) -> Option<Valor>>;
 
 /// Un Lua: las globales, la pila y lo que el anfitrión le dio.
@@ -160,6 +162,8 @@ pub struct Estado {
     pub(crate) n: Nombres,
     pub(crate) azar: u64,
     pub(crate) zona: i64,
+    /// el reloj del anfitrión (ms desde 1970, segundos de os.clock); None: el del sistema
+    pub(crate) reloj: Option<Reloj>,
     pub(crate) fn_next: Valor,
     /// lo ya compilado (como LUA.cache de la web): por nombre, largo y hash del fuente
     pub(crate) cache: std::collections::HashMap<(Rc<str>, usize, u64), (Rc<Proto>, bool), crate::valor::FxBuild>,
@@ -189,6 +193,7 @@ impl Estado {
             n: Nombres::nuevos(),
             azar: 0x853c_49e6_748f_ea9b ^ (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(1)),
             zona: crate::bib::os::zona_local(),
+            reloj: None,
             fn_next: Valor::Nil,
             cache: Default::default(),
             n_dump: 0,
@@ -747,7 +752,8 @@ impl Estado {
                                 let mut tb = t.borrow_mut();
                                 let v = rk!(c);
                                 if !v.es_nil() {
-                                    if let Some(ranura) = tb.mapa.get_cad_mut(kcad!(x)) {
+                                    if tb.filtro.is_some() { if tb.meta.is_none() { let _ = tb.set(kk!(x).clone(), v.clone()); true } else { false } }
+                                    else if let Some(ranura) = tb.mapa.get_cad_mut(kcad!(x)) {
                                         // (la clave ya está: se cambia el valor en el lugar, con o sin metatabla —__newindex no corre—)
                                         poner_en(ranura, v.clone());
                                         true
