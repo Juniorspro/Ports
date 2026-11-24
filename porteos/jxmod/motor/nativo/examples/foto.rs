@@ -123,6 +123,10 @@ fn main() {
             let local = Local { jug, objs: vec![ObjLocal { id: 1, nombre: caja.clone(), pos: cp, q: [0.0, 0.0, 0.0, 1.0], congelado: true, ..Default::default() }], npcs: vec![np], ..Default::default() };
             beto.paso(dt, &local); for e in beto.eventos() { match e { jxjuego::red::Evento::Chat { nombre, texto, .. } => oyo.push(format!("{nombre}: {texto}")), jxjuego::red::Evento::Dano { de, dano, .. } => oyo.push(format!("daño {dano} de {de}")), _ => {} } } pb.bombear(&mut beto);
             if f == 150 { let (cx, cy) = pos_boton(wf, hf, Boton::Chat); toque(&mut j, 63, cx, cy); }
+            // (un emote: el panel, el primero de la lista; Beto lo tiene que ver)
+            if f == 100 { let (ex, ey) = pos_boton(wf, hf, Boton::Emotes); toque(&mut j, 65, ex, ey); }
+            if f == 102 { let n = j.lista_emotes().len(); let (_, cel) = jxmod::comun::panel_emotes_geo(wf, hf, n, 0.0); foto(&mut m, "8a2_emotes"); toque(&mut j, 66, cel[0][0] + cel[0][2] / 2.0, cel[0][1] + cel[0][3] / 2.0); println!("red: {} emotes · hago {:?}", n, j.emote); }
+            if f == 140 { println!("red: Beto ve mi emote {:?}", beto.remotos().first().and_then(|r| r.emote.clone())); }
             if f == 200 { beto.chat("hola desde la red", None); }
             if f == 230 { let o = [p[0], p[1] + 0.72, p[2]]; beto.disparo("Pistol", o, [-fx, 0.0, -fz]); }
             paso(&mut j, &mut m, 1);

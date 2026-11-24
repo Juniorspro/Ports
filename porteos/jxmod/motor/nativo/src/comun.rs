@@ -83,12 +83,20 @@ pub fn panel_npc_geo(w: f32, h: f32, nuevo: bool) -> ([f32; 4], Vec<(BtnNpc, [f3
     ([x0, y0, pw, y + h * 0.16 - y0], v)
 }
 
+/// el panel de emotes: el marco y la caja de cada uno (los que no se ven por el scroll, fuera)
+pub fn panel_emotes_geo(w: f32, h: f32, n: usize, scroll: f32) -> ([f32; 4], Vec<[f32; 4]>) {
+    let pw = (w * 0.7).min(h * 1.7); let (x0, y0, ph) = ((w - pw) / 2.0, h * 0.06, h * 0.88);
+    let cols = 4; let mx = h * 0.03; let cw = (pw - mx * 2.0) / cols as f32; let ch = h * 0.085; let y1 = y0 + h * 0.1; let alto = ph - h * 0.13;
+    let v = (0..n).map(|k| [x0 + mx + (k % cols) as f32 * cw + 3.0, y1 + (k / cols) as f32 * ch - scroll + 3.0, cw - 6.0, ch - 6.0])
+        .map(|r| if r[1] < y1 - 1.0 || r[1] + r[3] > y1 + alto { [-1e4, -1e4, 0.0, 0.0] } else { r }).collect();
+    ([x0, y0, pw, ph], v)
+}
 /// suma lo que pasó desde la marca anterior a la parte `k` (promedio que se mueve despacio)
 fn marca(perf: &mut [f32; 5], t: &mut Instant, k: usize) { let x = t.elapsed().as_secs_f32() * 1000.0; perf[k] = perf[k] * 0.95 + x * 0.05; *t = Instant::now(); }
 
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo, Salas, Chat }
+pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo, Salas, Chat, Emotes }
 /// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
 struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
 /// dónde va cada botón con la pantalla de w × h
@@ -99,6 +107,8 @@ fn botones(w: f32, h: f32) -> Vec<Btn> {
     v.push(Btn { b: Boton::Ajustes, x: w - bw / 2.0 - 6.0, y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false });
     // (al lado, la cámara: primera persona, tercera y de frente, como el botón de la web)
     v.push(Btn { b: Boton::Camara, x: w - bw * 1.5 - 6.0, y: 6.0 + (bh - 8.0) / 2.0, w: bw - 8.0, h: bh - 8.0, redondo: false });
+    // (los emotes: a la izquierda de Usar)
+    v.push(Btn { b: Boton::Emotes, x: w - h * 0.98, y: h * 0.27, w: h * 0.143, h: h * 0.143, redondo: true });
     // (el chat de la sala: a la izquierda, arriba de la palanca)
     v.push(Btn { b: Boton::Chat, x: h * 0.13, y: h * 0.36, w: h * 0.132, h: h * 0.132, redondo: true });
     // (y el multijugador: la lista de salas)
@@ -264,6 +274,8 @@ pub struct Juego {
     pub gmod: gmod_juego::EnGmod,
     /// escribir (sin teclado —en la compu—, no se puede) y lo que se está esperando
     pub teclado: Option<Teclado>, escribir: Option<(i32, Escribir)>, escribir_n: i32,
+    /// el emote que hace el jugador (P.emote) y el panel para elegirlo
+    pub emote: Option<String>, pub emotes_panel: bool, emo_scroll: f32,
     pub sonido: crate::sonido::Sonido, amb_t: f32, paso_d: f32, aire_t: f32, vy_aire: f32, golpe_max: f32, saltos_vistos: u32, ahogos_vistos: u32, nadaba: bool, brazada_t: f32, azar: u32,
 }
 
@@ -304,7 +316,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), en_red, gmod, teclado: None, escribir: None, escribir_n: 0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), en_red, gmod, teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -340,7 +352,7 @@ impl Juego {
     // —— el tacto (coordenadas en píxeles de la pantalla) ——
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
         self.dedos.retain(|d| d.id != id);
-        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
+        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
         let ve = |b: Boton| self.boton_visible(b);
         if let Some(b) = boton_en(w, h, x, y, ve) {
             if !matches!(b, Boton::Saltar | Boton::Agachar | Boton::Disparo | Boton::Disparo2 | Boton::ArmaN(_) | Boton::Bocina | Boton::Turbo) { self.sonido.tocar("Click", 0.5, 1.0, None); }
@@ -348,6 +360,7 @@ impl Juego {
                 Boton::Ajustes => { self.menu = None; self.ajustes = Some(0); }
                 Boton::Salas => self.abrir_salas(),
                 Boton::Chat => self.pedir_texto(Escribir::Chat, "Decir en la sala", "", 120, false),
+                Boton::Emotes => { self.emotes_panel = true; self.emo_scroll = 0.0; }
                 // (manejando, la cámara del vehículo: adentro o afuera; en primera mira adelante, como la web)
                 Boton::Camara if self.vehs.jugador.is_some() => { self.vehs.primera = !self.vehs.primera; if self.vehs.primera { self.jug.yaw = 0.0; self.jug.pitch = 0.0; } }
                 Boton::Camara => { self.camara = (self.camara + 1) % 3; self.avisar(["Primera persona", "Tercera persona", "De frente"][self.camara as usize].into()); }
@@ -381,6 +394,7 @@ impl Juego {
     pub fn dedo_mueve(&mut self, id: i32, x: f32, y: f32, h: f32) {
         if self.ajustes.is_some() || self.npc_panel.is_some() { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { d.x = x; d.y = y; } return; }
         // (en el panel de salas, arrastrar baja la lista)
+        if self.emotes_panel { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { self.emo_scroll = (self.emo_scroll - (y - d.y)).max(0.0); d.x = x; d.y = y; } return; }
         if self.gmod.panel { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { let dy = y - d.y; d.x = x; d.y = y; self.gmod_mueve(dy); } return; }
         if self.en_red.panel { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { self.en_red.scroll = (self.en_red.scroll - (y - d.y)).max(0.0); d.x = x; d.y = y; } return; }
         if let Some(m) = self.menu.as_mut() {
@@ -396,9 +410,9 @@ impl Juego {
     }
     /// al soltar: en el menú, un toque (sin arrastrar) elige
     pub fn dedo_arriba_en(&mut self, id: i32, w: f32, h: f32) {
-        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel {
+        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel {
             // (sólo los toques que empezaron con el menú abierto: no el que lo abrió, ni la palanca que se venía usando)
-            if let Some(d) = self.dedos.iter().find(|d| d.id == id && d.boton.is_none() && !d.palanca) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); if self.gmod.panel { self.gmod_toque(x, y, w, h); } else if self.ajustes.is_some() { self.toque_ajustes(x, y, w, h); } else if self.npc_panel.is_some() { self.toque_npc(x, y, w, h); } else if self.en_red.panel { self.toque_salas(x, y, w, h); } else { self.toque_menu(x, y, w, h); } } }
+            if let Some(d) = self.dedos.iter().find(|d| d.id == id && d.boton.is_none() && !d.palanca) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); if self.emotes_panel { self.toque_emotes(x, y, w, h); } else if self.gmod.panel { self.gmod_toque(x, y, w, h); } else if self.ajustes.is_some() { self.toque_ajustes(x, y, w, h); } else if self.npc_panel.is_some() { self.toque_npc(x, y, w, h); } else if self.en_red.panel { self.toque_salas(x, y, w, h); } else { self.toque_menu(x, y, w, h); } } }
         }
         self.dedo_arriba(id);
     }
@@ -425,6 +439,23 @@ impl Juego {
             BtnNpc::BorrarTodos => { self.npcs.todos(&mut self.fis); self.pila.retain(|x| !x.0); self.avisar("Se borraron tus NPC".into()); self.npc_panel = None; return; }
         }
         self.sonido.tocar("Click", 0.5, 1.3, None);
+    }
+    /// los emotes que se pueden elegir (DATA.emotes que tienen su clip)
+    pub fn lista_emotes(&self) -> Vec<String> {
+        let Some(p) = &self.paq else { return vec![] };
+        p.d["emotes"].as_array().map(|a| a.iter().filter_map(|e| e.as_str()).filter(|e| p.d["hu"]["est"][*e].is_array()).map(|e| e.to_string()).collect()).unwrap_or_default()
+    }
+    /// emote(e): el jugador lo hace (en tercera persona, para verse; se corta al moverse) y lo ven los demás
+    pub fn hacer_emote(&mut self, e: Option<String>) {
+        if let (Some(pj), Some(paq)) = (self.pj.as_mut(), self.paq.as_ref()) { let c = e.as_deref().and_then(|x| personaje::ClipEmote::de(&paq.d, x)); pj.emote(c.as_ref()); }
+        if e.is_some() && self.camara == 0 { self.camara = 1; }
+        self.emote = e;
+    }
+    /// un toque en el panel de emotes (una grilla de 4 columnas que se baja arrastrando)
+    fn toque_emotes(&mut self, x: f32, y: f32, w: f32, h: f32) {
+        let l = self.lista_emotes(); let (c, cel) = panel_emotes_geo(w, h, l.len(), self.emo_scroll);
+        if x < c[0] || x > c[0] + c[2] || y < c[1] || y > c[1] + c[3] || (x > c[0] + c[2] - h * 0.1 && y < c[1] + h * 0.08) { self.emotes_panel = false; return; }
+        if let Some(k) = cel.iter().position(|r| x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]) { let e = l[k].clone(); self.sonido.tocar("Click", 0.5, 1.0, None); self.hacer_emote(Some(e)); self.emotes_panel = false; }
     }
     /// pedir que se escriba algo (el cuadro de texto del celular); llega en `escrito_paso`
     pub(super) fn pedir_texto(&mut self, que: Escribir, titulo: &str, inicial: &str, max: i32, clave: bool) {
@@ -663,6 +694,7 @@ impl Juego {
             // (la bocina, al volante de algo que tenga y no esté roto; el turbo, en la bici con cohete: hud.js)
             Boton::Bocina => self.vehs.jugador.filter(|j| j.1 == 0).and_then(|j| self.vehs.de(j.0)).map_or(false, |v| !v.roto && v.bocina_tipo().is_some()),
             Boton::Chat => self.en_red.en_sala(),
+            Boton::Emotes => self.vehs.jugador.is_none() && self.pj.is_some(),
             Boton::Turbo => self.vehs.jugador.and_then(|j| self.vehs.de(j.0)).map_or(false, |v| v.bici && !v.roto),
             // (manejando, agacharse sólo hace algo en el helicóptero —baja— y en el avión —desacelera—)
             Boton::Agachar if self.vehs.jugador.is_some() => matches!(self.tipo_manejo(), Some(veh::Tipo::Heli | veh::Tipo::Avion)),
@@ -796,6 +828,8 @@ impl Juego {
         let (wf, hf) = (w as f32, h as f32);
         // la física del jugador, a paso fijo (como mucho 12 pasos por cuadro: si el teléfono se traba, no se acumula)
         let ent = self.entrada(hf);
+        // (un emote se corta al moverse o saltar, como en la web)
+        if self.emote.is_some() && (ent.x.abs() + ent.y.abs() > 0.15 || ent.saltar) { self.hacer_emote(None); }
         // (lo de Ajustes, cada cuadro: la calidad al motor y el volumen al mezclador)
         m.opciones(&self.aj.opciones()); self.sonido.volumen = self.aj.volumen();
         if self.ajustes.is_some() { self.acum = 0.0; }
@@ -1115,7 +1149,7 @@ impl Juego {
         }
         // (los botones: Ajustes, saltar, agacharse, volar, objetos y deshacer)
         // (con un menú abierto, sólo el de Ajustes: los demás quedarían debajo del panel)
-        let abierto = self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel;
+        let abierto = self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.emotes_panel;
         for b in botones(wf, hf) {
             if (abierto && !matches!(b.b, Boton::Ajustes | Boton::Salas)) || !self.boton_visible(b.b) { continue; }
             let nom_arma: &str = &{ let d = self.armas.def(); if d.car > 0 { if self.armas.recargando > 0.0 { format!("{} · recargando", d.nom) } else { format!("{} · {} | ∞", d.nom, self.armas.balas.get(self.armas.i).copied().unwrap_or(d.car)) } } else { d.nom.to_string() } };
@@ -1139,6 +1173,7 @@ impl Juego {
                 Boton::Deshacer => ("Deshacer", false),
                 Boton::Bocina => ("Bocina", self.apretado(Boton::Bocina)),
                 Boton::Chat => ("Chat", false),
+                Boton::Emotes => ("Emotes", self.emote.is_some() || self.emotes_panel),
                 Boton::Salas => (if self.en_red.en_sala() { "En sala" } else { "En línea" }, self.en_red.panel || self.en_red.en_sala()),
                 Boton::Turbo => ("Turbo", self.apretado(Boton::Turbo) || self.vehs.jugador.and_then(|j| self.vehs.de(j.0)).map_or(false, |v| v.turbo)),
             };
@@ -1317,6 +1352,19 @@ impl Juego {
             if !pn.est.is_empty() { l.texto(&mut u, mx, c[1] + c[3] - hf * 0.06, t * 0.62, [0.95, 0.75, 0.3, 1.0], &pn.est); }
         }
         self.red_panel(l, &mut u, wf, hf, t);
+        if self.emotes_panel {
+            let le = self.lista_emotes(); let (c, cel) = panel_emotes_geo(wf, hf, le.len(), self.emo_scroll);
+            l.caja(&mut u, c[0], c[1], c[2], c[3], hf * 0.03, [0.07, 0.08, 0.11, 0.94]);
+            l.texto(&mut u, c[0] + hf * 0.03, c[1] + hf * 0.02, t * 0.9, bl, &format!("Emotes · {}", le.len()));
+            l.caja(&mut u, c[0] + c[2] - hf * 0.09, c[1] + hf * 0.012, hf * 0.07, hf * 0.06, hf * 0.015, [0.6, 0.15, 0.12, 0.95]);
+            { let an = l.ancho(t * 0.9, "X"); l.texto(&mut u, c[0] + c[2] - hf * 0.055 - an / 2.0, c[1] + hf * 0.02, t * 0.9, bl, "X"); }
+            for (k, r) in cel.iter().enumerate() {
+                if r[2] <= 0.0 { continue; } let sel = self.emote.as_deref() == Some(le[k].as_str());
+                l.caja(&mut u, r[0], r[1], r[2], r[3], hf * 0.012, if sel { [0.95, 0.66, 0.1, 0.92] } else { [1.0, 1.0, 1.0, 0.1] });
+                let n = &le[k]; let mut ts = t * 0.7; while l.ancho(ts, n) > r[2] - 8.0 && ts > t * 0.3 { ts *= 0.9; }
+                let an = l.ancho(ts, n); l.texto(&mut u, r[0] + (r[2] - an) / 2.0, r[1] + (r[3] - ts) / 2.0 - hf * 0.004, ts, if sel { [0.0, 0.0, 0.0, 1.0] } else { bl }, n);
+            }
+        }
         self.gmod_panel(l, &mut u, wf, hf, t);
         // (el aviso, arriba de los menús: lo que se acaba de elegir se ve)
         if let Some((a, ta)) = &self.aviso {
