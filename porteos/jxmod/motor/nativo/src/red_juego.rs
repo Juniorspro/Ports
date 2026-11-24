@@ -15,7 +15,7 @@ pub struct EnRed {
     pub puente: Option<Puente>,
     local: Local,
     /// el cuerpo de cada uno de los demás (por su número) y con qué skin se cargó
-    cuerpos: HashMap<String, (Personaje, String)>,
+    pub(super) cuerpos: HashMap<String, (Personaje, String)>,
     /// el emote que está haciendo cada cuerpo (para cambiarlo sólo cuando cambia)
     emotes: HashMap<String, Option<String>>,
     /// las cosas de los demás: su clave → el Obj.id que la dibuja (y al revés, cuáles son de otros)
@@ -162,7 +162,7 @@ impl Juego {
         });
         let j = &self.jug; let p64 = |v: [f32; 3]| [v[0] as f64, v[1] as f64, v[2] as f64];
         let mut l = std::mem::take(&mut self.en_red.local);
-        l.jug = red::Jugador { skin: self.skin.clone(), gorro: "HatEmpty".into(), pos: p64(j.pos), yaw: j.yaw as f64, pitch: -j.pitch as f64, vel: p64(j.vel),
+        l.jug = red::Jugador { skin: self.skin.clone(), gorro: self.pjs.prefs.gorro.clone(), gorro_aj: self.pjs.prefs.gorro_aj.as_ref().map(|g| g.json().to_string()).unwrap_or_default(), acc: self.pjs.prefs.acc.as_ref().map(|a| a.json().to_string()).unwrap_or_default(), pos: p64(j.pos), yaw: j.yaw as f64, pitch: -j.pitch as f64, vel: p64(j.vel),
             suelo: j.suelo, agachado: j.agachado, vivo: !self.muerto, bits: if j.noclip { 16 } else { 0 }, arma: Some(self.armas.def().n.to_string()), emote: self.emote.clone(), vida: j.vida as f64,
             vehiculo: veh, reloj: self.en_red.reloj, ..Default::default() };
         l.objs.clear(); l.simulo.clear();
@@ -270,6 +270,7 @@ impl Juego {
             }
             Evento::NpcAct { n, a, .. } => { let act = npc::Actitud::normal(&a, None); self.npcs.aplicar(n as u32, act); }
             Evento::NpcFin { clave } => { self.en_red.cuerpos.remove(&format!("npc:{clave}")); }
+            Evento::Hecho { de, k, d } => self.pjs_hecho(&de, &k, &d),
             Evento::SalaCreada { sala } => { let s = sala.clone(); let _ = self.en_red.red.entrar(&s, Some(&s.clave)); self.entrar_sala(&s); }
             _ => {}
         }
@@ -289,7 +290,7 @@ impl Juego {
             }
             let Some((pj, _)) = self.en_red.cuerpos.get_mut(&r.id) else { continue };
             // (su emote: el clip del paquete; sin emote, la animación de siempre)
-            if self.en_red.emotes.get(&r.id) != Some(&r.emote) { self.en_red.emotes.insert(r.id.clone(), r.emote.clone()); let c = r.emote.as_deref().and_then(|e| personaje::ClipEmote::de(&paq.d, e)); pj.emote(c.as_ref()); }
+            if self.en_red.emotes.get(&r.id) != Some(&r.emote) { self.en_red.emotes.insert(r.id.clone(), r.emote.clone()); let c = r.emote.as_deref().and_then(|e| personaje::ClipEmote::de(&paq.d, e)); pj.emote(c.as_ref()); personajes::emotes_juego::aplicar_remoto(&mut self.pjs.emo, pj, r.emote.as_deref(), &r.id); }
             let arma = if r.veh.is_some() || r.emote.is_some() { None } else { r.arma.as_deref().filter(|a| ARMAS.iter().any(|d| d.n == *a)) };
             if let Some(e) = pj.poner_arma(paq, arma, &mut self.pj_cargados) { let _ = m.cargar(&e); }
             let pos = [r.pos[0] as f32, r.pos[1] as f32, r.pos[2] as f32];
@@ -342,7 +343,7 @@ impl Juego {
         }
         for r in self.en_red.red.remotos() {
             let Some((pj, _)) = self.en_red.cuerpos.get(&r.id) else { continue };
-            let b = pj.base_sentado().unwrap_or_else(|| personaje::base([r.pos[0] as f32, r.pos[1] as f32 - 0.95, r.pos[2] as f32], r.yaw as f32));
+            let b = pj.base_sentado().or_else(|| personajes::emotes_juego::base_escena_remoto(&self.pjs, &r.id)).unwrap_or_else(|| personaje::base([r.pos[0] as f32, r.pos[1] as f32 - 0.95, r.pos[2] as f32], r.yaw as f32));
             pj.items(&b, items);
         }
     }

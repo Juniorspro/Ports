@@ -22,6 +22,8 @@ pub struct Paquete {
     /// de dónde se leen los paquetes aparte (`rb/<nombre>`): una carpeta, o lo que diga la app (en Android, los archivos de
     /// la APK)
     leer: Box<dyn Fn(&str) -> Option<Vec<u8>> + Send>,
+    /// teñir algunas texturas al leerlas (identidad.js: la ropa de las skins heredadas): número, ancho, alto y RGBA
+    pub tinte: Option<Box<dyn Fn(usize, u32, u32, &mut [u8]) + Send>>,
 }
 struct Rbp { bin: Vec<u8>, partes: HashMap<String, (usize, usize)>, datos: Vec<u8> }
 
@@ -70,7 +72,7 @@ impl Paquete {
         let mut bin = desgz(parte("m")?)?;
         let filtrado = iv["m"].get(2).and_then(|x| x.as_u64()) == Some(1);
         if filtrado { let ms: Vec<&Value> = d["ms"].as_array().map(|a| a.iter().filter(|m| m["k"].is_null()).collect()).unwrap_or_default(); desfiltrar(&mut bin, &ms); }
-        Ok(Paquete { idx, bloque, d, bin, rbp: HashMap::new(), leer })
+        Ok(Paquete { idx, bloque, d, bin, rbp: HashMap::new(), leer, tinte: None })
     }
 
     /// dónde está cada parte del bloque principal que empieza con `pre` (los sonidos: «a:»): desde y largo en pk.bin
@@ -127,6 +129,7 @@ impl Paquete {
         rgba = vuelta;
         let (mut w, mut h) = (w, h);
         while w.max(h) > tmax { let (nw, nh) = ((w / 2).max(1), (h / 2).max(1)); rgba = mitad(&rgba, w, h, nw, nh); w = nw; h = nh; }
+        if let Some(t) = &self.tinte { t(i, w, h, &mut rgba); }
         Some((w, h, rgba))
     }
 }

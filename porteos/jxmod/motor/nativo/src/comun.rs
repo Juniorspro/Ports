@@ -27,6 +27,8 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "mapas_juego.rs"] pub mod mapas_juego;
 // (lo de jugabilidad: destrucción, nucleares, artefactos, patada, linterna, cámara libre, mods nativos, Cíclope y Pepe)
 #[path = "jugabilidad.rs"] pub mod jugabilidad;
+// (lo de personajes: gorros, identidad, el panel de Personaje, el accesorio, el arma a gusto, el celular y los emotes nuevos)
+#[path = "personajes.rs"] pub mod personajes;
 // (el inicio con el menú clásico, sus paneles y la pausa: inicio.js, clasico.js, paneles.js, rbmenus.js, ui.js)
 #[path = "inicio_juego.rs"] pub mod inicio_juego;
 #[path = "paneles_juego.rs"] pub mod paneles_juego;
@@ -60,7 +62,7 @@ pub struct PanelNpc { pub npc: Option<u32>, pub est: String }
 pub enum BtnNpc { Rapida(usize), Arma(Option<npc::Arma>), SkinAnt, SkinSig, Escribir, Borrar, BorrarTodos, Cerrar }
 /// para qué se pidió escribir (el cuadro de texto de Android)
 #[derive(Clone, Debug)]
-pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud }
+pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj }
 /// pedir texto (título, lo que ya hay, hasta cuántas letras, si es contraseña; con un número) y levantar lo escrito
 /// (número y texto, o None si se canceló): en Android, el cuadro de Juego.java (red_android::Teclado)
 pub struct Teclado { pub pedir: Box<dyn Fn(i32, &str, &str, i32, bool)>, pub tomar: Box<dyn Fn() -> Option<(i32, Option<String>)>> }
@@ -106,7 +108,7 @@ fn marca(perf: &mut [f32; 5], t: &mut Instant, k: usize) { let x = t.elapsed().a
 
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo, Salas, Chat, Emotes, Jg(jugabilidad::Bj) }
+pub enum Boton { Ajustes, Camara, Recargar, Usar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo, Salas, Chat, Emotes, Jg(jugabilidad::Bj), Pj(personajes::Bp) }
 /// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
 struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
 /// dónde va cada botón con la pantalla de w × h
@@ -147,6 +149,7 @@ fn botones(w: f32, h: f32) -> Vec<Btn> {
     v.push(Btn { b: Boton::Bocina, x: w - h * 0.44, y: h - h * 0.40, w: r * 1.5, h: r * 1.5, redondo: true });
     v.push(Btn { b: Boton::Turbo, x: w - h * 0.68, y: h - h * 0.62, w: r * 1.3, h: r * 1.3, redondo: true });
     jugabilidad::botones(w, h, &mut v);
+    personajes::botones(w, h, &mut v);
     v
 }
 /// la textura de los íconos del menú (un atlas armado con los de la subcategoría abierta)
@@ -289,6 +292,8 @@ pub struct Juego {
     pub mj: mapas_juego::EnMapas,
     /// lo de jugabilidad.rs
     pub jg: jugabilidad::Jugabilidad,
+    /// lo de personajes.rs
+    pub pjs: personajes::Pjs,
     /// el inicio, los paneles y la pausa (inicio_juego.rs)
     pub ini: inicio_juego::Inicio,
     /// escribir (sin teclado —en la compu—, no se puede) y lo que se está esperando
@@ -335,7 +340,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -346,6 +351,7 @@ impl Juego {
             j.mapa_i = j.mapas.iter().position(|m| *m == ult.trim()).unwrap_or(0);
         } }
         if let Some(p) = &j.paq { j.nombres = objetos::por_nombre(&p.d); j.catalogo = objetos::menu(&p.d, "Props"); j.cat_npc = npc::menu(&p.d); j.cat_veh = objetos::menu(&p.d, "Vehicles"); j.npcs = Npcs::nuevo(&p.d, 0x5eed); j.cat_fis = Some(Catalogo::nuevo(p)); j.her.lista = herramientas::lista(&p.d); }
+        j.pjs_iniciar();
         if !placa.hecha() { j.aviso = Some((format!("{} todavía no está: se usa OpenGL 3", placa.nombre()), Instant::now())); }
         j
     }
@@ -375,7 +381,8 @@ impl Juego {
         if self.gfxa.midiendo() { return; }
         self.dedos.retain(|d| d.id != id);
         if self.ini_dedo_abajo(id, x, y, w, h) { return; }
-        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
+        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() || self.pjs.panel() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
+        if self.pj_dedo_abajo(id, x, y, w, h) { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
         let ve = |b: Boton| self.boton_visible(b);
         if let Some(b) = boton_en(w, h, x, y, ve) {
             if !matches!(b, Boton::Saltar | Boton::Agachar | Boton::Disparo | Boton::Disparo2 | Boton::ArmaN(_) | Boton::Bocina | Boton::Turbo) { self.sonido.tocar("Click", 0.5, 1.0, None); }
@@ -383,7 +390,7 @@ impl Juego {
                 Boton::Ajustes => { self.menu = None; self.ajustes = Some(0); }
                 Boton::Salas => self.abrir_salas(),
                 Boton::Chat => self.pedir_texto(Escribir::Chat, "Decir en la sala", "", 120, false),
-                Boton::Emotes => { self.emotes_panel = true; self.emo_scroll = 0.0; }
+                Boton::Emotes => self.emo_apretar(id, x, y),
                 // (manejando, la cámara del vehículo: adentro o afuera; en primera mira adelante, como la web)
                 Boton::Camara if self.vehs.jugador.is_some() => { self.vehs.primera = !self.vehs.primera; if self.vehs.primera { self.jug.yaw = 0.0; self.jug.pitch = 0.0; } }
                 Boton::Camara => { self.camara = (self.camara + 1) % 3; self.avisar(["Primera persona", "Tercera persona", "De frente"][self.camara as usize].into()); }
@@ -406,6 +413,7 @@ impl Juego {
                 Boton::Cerca => self.armas.distancia(-1.5),
                 Boton::Deshacer => { self.deshacer(); }
                 Boton::Jg(b) => self.jg_boton(b),
+                Boton::Pj(b) => self.pj_boton(b),
                 _ => {}
             }
             // (saltar y agacharse se mantienen mientras el dedo esté apoyado)
@@ -419,6 +427,7 @@ impl Juego {
         if self.ini_dedo_mueve(id, x, y, h) { return; }
         if self.ajustes.is_some() || self.npc_panel.is_some() { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { d.x = x; d.y = y; } return; }
         // (en el panel de salas, arrastrar baja la lista)
+        if self.pj_mueve(id, x, y, h) { return; }
         if self.jg.panel() { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { let dy = y - d.y; d.x = x; d.y = y; self.jg.mover(dy); } return; }
         if self.emotes_panel { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { self.emo_scroll = (self.emo_scroll - (y - d.y)).max(0.0); d.x = x; d.y = y; } return; }
         if self.gmod.panel { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { let dy = y - d.y; d.x = x; d.y = y; self.gmod_mueve(dy); } return; }
@@ -436,10 +445,11 @@ impl Juego {
     }
     /// al soltar: en el menú, un toque (sin arrastrar) elige
     pub fn dedo_arriba_en(&mut self, id: i32, w: f32, h: f32) {
+        self.pj_dedo_arriba(id);
         if self.ini_dedo_arriba(id, w, h) { self.dedo_arriba(id); return; }
-        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() {
+        if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() || self.pjs.panel() {
             // (sólo los toques que empezaron con el menú abierto: no el que lo abrió, ni la palanca que se venía usando)
-            if let Some(d) = self.dedos.iter().find(|d| d.id == id && d.boton.is_none() && !d.palanca) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); if self.jg.panel() { self.jg_toque(x, y, w, h); } else if self.emotes_panel { self.toque_emotes(x, y, w, h); } else if self.gmod.panel { self.gmod_toque(x, y, w, h); } else if self.ajustes.is_some() { self.toque_ajustes(x, y, w, h); } else if self.npc_panel.is_some() { self.toque_npc(x, y, w, h); } else if self.en_red.panel { self.toque_salas(x, y, w, h); } else { self.toque_menu(x, y, w, h); } } }
+            if let Some(d) = self.dedos.iter().find(|d| d.id == id && d.boton.is_none() && !d.palanca) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); if self.pjs.panel() { self.pj_toque(x, y, w, h); } else if self.jg.panel() { self.jg_toque(x, y, w, h); } else if self.emotes_panel { self.toque_emotes(x, y, w, h); } else if self.gmod.panel { self.gmod_toque(x, y, w, h); } else if self.ajustes.is_some() { self.toque_ajustes(x, y, w, h); } else if self.npc_panel.is_some() { self.toque_npc(x, y, w, h); } else if self.en_red.panel { self.toque_salas(x, y, w, h); } else { self.toque_menu(x, y, w, h); } } }
         }
         self.dedo_arriba(id);
     }
@@ -474,6 +484,7 @@ impl Juego {
     }
     /// emote(e): el jugador lo hace (en tercera persona, para verse; se corta al moverse) y lo ven los demás
     pub fn hacer_emote(&mut self, e: Option<String>) {
+        if self.emo_hacer(&e) { return; }
         if let (Some(pj), Some(paq)) = (self.pj.as_mut(), self.paq.as_ref()) { let c = e.as_deref().and_then(|x| personaje::ClipEmote::de(&paq.d, x)); pj.emote(c.as_ref()); }
         if e.is_some() && self.camara == 0 { self.camara = 1; }
         self.emote = e;
@@ -500,6 +511,7 @@ impl Juego {
             Escribir::Chat => { if self.en_red.en_sala() { self.en_red.red.chat(&t, None); let n = self.en_red.red.nombre.clone(); self.en_red.al_chat(format!("{n}: {t}")); } }
             Escribir::Clave(s) => self.entrar_sala_con(&s, Some(&t)),
             Escribir::Nombre => { let n: String = t.chars().filter(|c| !c.is_control()).take(20).collect(); self.en_red.poner_nombre(&n); self.avisar(format!("Ahora te ven como «{n}»")); }
+            Escribir::Pj => self.pj_escrito(&t),
             Escribir::Actitud => { let a = npc::Actitud::de_texto(&t, Some(&serde_json::json!({ "de": "yo" }))); self.npc_aplicar(a, "Escrito"); }
         }
     }
@@ -554,6 +566,7 @@ impl Juego {
             let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![], texs: vec![Tex { id: TEX_ARMAS, n: "armas".into(), w: aw, h: ah, a: 1, o: 0 }], lms: vec![], items: vec![], agua: None, cielo: None };
             self.armas_ico = m.cargar(&Escena { c: cab, datos: px }).is_ok(); self.armas_ico_h = ah;
         } }
+        if self.armas.def().tipo == "celu" { self.vista = None; return; }
         let d = self.armas.def();
         if self.vista.as_ref().map(|v| v.nodo != d.nodo).unwrap_or(true) {
             self.vista = None;
@@ -720,12 +733,14 @@ impl Juego {
             Boton::Usar if self.mj.usar.is_some() && self.vehs.jugador.is_none() => true,
             Boton::Usar => self.usar_ve || self.vehs.jugador.is_some() || self.jg.usar_txt.is_some(),
             // (manejando: sin armas ni objetos)
+            Boton::Disparo | Boton::Disparo2 if self.armas.def().tipo == "celu" => false,
             Boton::Disparo | Boton::Disparo2 | Boton::Arma | Boton::Objetos | Boton::Volar if self.vehs.jugador.is_some() => false,
             Boton::ArmaN(_) => self.armas.barra_t > 0.0,
             // (la bocina, al volante de algo que tenga y no esté roto; el turbo, en la bici con cohete: hud.js)
             Boton::Bocina => self.vehs.jugador.filter(|j| j.1 == 0).and_then(|j| self.vehs.de(j.0)).map_or(false, |v| !v.roto && v.bocina_tipo().is_some()),
             Boton::Chat => self.en_red.en_sala(),
             Boton::Jg(b) => self.jg_visible(b),
+            Boton::Pj(b) => self.pj_visible(b),
             Boton::Emotes => self.vehs.jugador.is_none() && self.pj.is_some(),
             Boton::Turbo => self.vehs.jugador.and_then(|j| self.vehs.de(j.0)).map_or(false, |v| v.bici && !v.roto),
             // (manejando, agacharse sólo hace algo en el helicóptero —baja— y en el avión —desacelera—)
@@ -735,7 +750,7 @@ impl Juego {
     }
     /// lo que se puede elegir en un renglón de Ajustes, cuál está elegido, y elegir
     fn valores_aj(&self, c: Clave) -> Vec<String> {
-        match c { Clave::Motor => Placa::lista().iter().map(|p| p.nombre().to_string()).collect(), Clave::Mapa => self.mapas.iter().map(|m| m.to_string()).collect(), _ => Ajustes::valores(c) }
+        match c { Clave::Motor => Placa::lista().iter().map(|p| p.nombre().to_string()).collect(), Clave::Mapa => self.mapas.iter().map(|m| jxjuego::identidad::nombre_mapa(m)).collect(), _ => Ajustes::valores(c) }
     }
     fn elegido_aj(&self, c: Clave) -> Option<usize> {
         match c { Clave::Motor => Placa::lista().iter().position(|p| *p == self.placa), Clave::Mapa => Some(self.mapa_i), _ => self.aj.elegido(c) }
@@ -807,7 +822,7 @@ impl Juego {
         let nombre = self.mapas[self.mapa_i].clone(); let nombre = nombre.as_str();
         self.mapa = None;
         self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; }
-        self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.jg_limpiar();
+        self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.jg_limpiar(); self.pjs_limpiar();
         self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.proys.clear(); self.por_explotar.clear(); self.her.cable = None; self.her.trazas.clear(); self.her.tirados.clear(); self.her.spawn = None; self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; self.ef_atlas = false;
         unsafe { m.vaciar(); }
         self.mapas_vaciado();
@@ -822,6 +837,7 @@ impl Juego {
                 self.jug.aparecer(&mp.mundo, sp, Some(yaw)); self.jug.aguas = mp.aguas.clone();
                 self.aguas = Aguas::de_cajas(&mp.aguas); self.ef.limpiar(); self.ef.luz_de(&mp.luz);
                 self.mapa = Some(mp); self.npcs.piso = self.piso().into();
+                self.pjs_mapa(m);
             }
             Err(e) => { self.error = Some(format!("mapa {nombre}: {e}")); }
         }
@@ -911,6 +927,7 @@ impl Juego {
         self.gmod_tam(wf, hf); self.gmod_cuadro(m, dt);
         unsafe { self.mapas_cuadro(m, dt); }
         unsafe { self.jg_cuadro(m, dt); }
+        self.pjs.celu.pantalla = (wf, hf); unsafe { self.pjs_cuadro(m, dt); }
         // manejando: el jugador va en el asiento y la cámara es la del vehículo (vehiculoCamara)
         let cam_veh = self.camara_vehiculo();
         let (ojos, _) = self.jug.ojos(dt); self.ojos_ult = ojos;
@@ -962,6 +979,7 @@ impl Juego {
                 let e = personaje::Estado { piso, vel: self.jug.vel, yaw: self.jug.yaw, mira: -self.jug.pitch, en_suelo: self.jug.suelo || self.jug.noclip, agachado: self.jug.agachado, agua };
                 let e = jugabilidad::estado(&self.jg, e); pj.animar(dt, &e);
                 jugabilidad::pose_jugador(&mut self.jg, pj, &self.jug, self.mapa.as_ref().map(|m| &m.mundo), self.camara, dt);
+                personajes::pose_jugador(&mut self.pjs, pj, self.armas.def().tipo == "celu", self.emote.is_some(), en_veh.is_some());
             }
         }
         let tj = [self.azar() - 0.5, self.azar() - 0.5, self.azar() - 0.5];
@@ -1000,11 +1018,12 @@ impl Juego {
             }
             let mut items = mp.items.clone();
             // (el cuerpo con el arma en la mano; sentado, en el asiento)
-            if ver_cuerpo { if let Some(pj) = &self.pj { let jp = self.jug.pos; let b = pj.base_sentado().unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw)); pj.items(&b, &mut items); } }
+            if ver_cuerpo { if let Some(pj) = &self.pj { let jp = self.jug.pos; let b = pj.base_sentado().or_else(|| personajes::emotes_juego::base_escena(&self.pjs)).unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw)); pj.items(&b, &mut items); } }
             // (en primera persona, el arma delante de la cámara; y el rayo de la Physics Gun, de la boca a lo agarrado)
+            let aj = self.arma_aj_matriz();
             if self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && !self.jg.sin_hud() && !self.gmod_vista_propia() { if let Some(v) = self.vista.as_mut() {
                 if self.armas.ap_k > 0.002 && v.ads_tok != self.armas.ap_tok { v.calcular_ads(self.armas.ap_tok); }
-                v.ubicar(ojos, qcam(yaw, pitch), self.sway, self.armas.ap_k); v.items(&mut items);
+                v.ubicar_aj(ojos, qcam(yaw, pitch), self.sway, self.armas.ap_k, aj); v.items(&mut items);
             } }
             self.proyectiles_items(&mut items);
             if let (Some(p1), Some(a), true) = (self.armas.punto_agarrado(&self.fis), self.armas.agarre.as_ref(), self.tubo_ok) {
@@ -1020,12 +1039,12 @@ impl Juego {
             } }
             // los NPC: su animación (sólo los que se ven) y lo que se dibuja
             let vpm = m4::mul(&p, &vista); self.vp_ult = vpm;
-            self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items); self.red_items(&mut items); self.mapas_items(&mut items); self.jg_items(&mut items, cam); self.gmod_items(ojos, yaw, pitch, &mut items);
+            self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items); self.red_items(&mut items); self.mapas_items(&mut items); self.jg_items(&mut items, cam); personajes::celu_juego::antes_items(&mut self.pjs.celu, self.ojos_ult, qcam(self.jug.yaw, self.jug.pitch), self.fov_b, wf / hf.max(1.0), self.sway); self.pjs_items(&mut items, cam, ver_cuerpo); self.gmod_items(ojos, yaw, pitch, &mut items);
             // los efectos: avanzan, y sus bloques (partículas, trazas, marcas) y sus luces —primero: GL2 usa 4—
             self.ef.calidad(self.aj.calidad.min(4)); self.ef.alto_px = hf; self.ef.paso(dt, efx::GRAV);
             let mut efectos = self.ef.bloques(&vpm, cam); self.jg_efectos(&mut efectos, &vpm, cam);
             let mut luces = self.ef.luces(); luces.extend(mp.luces_cerca(ojos, 6));
-            self.herramientas_items(&mut items, &mut luces); luces.truncate(8); self.jg_luces(&mut luces);
+            self.herramientas_items(&mut items, &mut luces); luces.truncate(8); self.jg_luces(&mut luces); self.pjs_luces(&mut luces, ojos);
             let c = Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
                 luces, esp: self.jg_esp(cam, mira), items, efectos };
             marca(&mut self.perf, &mut self.perf_t, 3);
@@ -1178,6 +1197,7 @@ impl Juego {
     fn hud(&self, w: i32, h: i32, placa_txt: &str) -> Vec<(i64, Vec<f32>)> {
         let (wf, hf) = (w as f32, h as f32);
         let Some(l) = &self.letras else { return vec![] };
+        if self.pjs.prueba_sin_hud { return vec![]; }
         let mut ic: Vec<f32> = vec![]; let mut ia: Vec<f32> = vec![];
         let mut u = vec![]; let t = hf * 0.032; let (bl, gr) = ([1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.45]);
         let usa = self.en_uso;
@@ -1195,9 +1215,9 @@ impl Juego {
         }
         // (los botones: Ajustes, saltar, agacharse, volar, objetos y deshacer)
         // (con un menú abierto, sólo el de Ajustes: los demás quedarían debajo del panel)
-        let abierto = self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.emotes_panel;
+        let abierto = self.pjs.panel.is_some() || self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.emotes_panel;
         for b in botones(wf, hf) {
-            if (abierto && !matches!(b.b, Boton::Ajustes | Boton::Salas)) || !self.boton_visible(b.b) { continue; }
+            if (abierto && (self.pjs.panel.is_some() || !matches!(b.b, Boton::Ajustes | Boton::Salas))) || !self.boton_visible(b.b) { continue; }
             let nom_arma: &str = &{ let d = self.armas.def(); if d.car > 0 { if self.armas.recargando > 0.0 { format!("{} · recargando", d.nom) } else { format!("{} · {} | ∞", d.nom, self.armas.balas.get(self.armas.i).copied().unwrap_or(d.car)) } } else { d.nom.to_string() } };
             let (n, elegido) = match b.b {
                 Boton::Disparo => (match self.armas.def().tipo { "fisica" => if self.armas.agarre.is_some() { "Soltar" } else { "Agarrar" }, "golpe" => "Pegar", _ => "Disparar" }, self.armas.agarre.is_some() || self.armas.grav.is_some() || self.apretado(Boton::Disparo)),
@@ -1223,6 +1243,7 @@ impl Juego {
                 Boton::Emotes => ("Emotes", self.emote.is_some() || self.emotes_panel),
                 Boton::Salas => (if self.en_red.en_sala() { "En sala" } else { "En línea" }, self.en_red.panel || self.en_red.en_sala()),
                 Boton::Jg(b) => self.jg_etiqueta(b),
+                Boton::Pj(b) => self.pj_etiqueta(b),
                 Boton::Turbo => ("Turbo", self.apretado(Boton::Turbo) || self.vehs.jugador.and_then(|j| self.vehs.de(j.0)).map_or(false, |v| v.turbo)),
             };
             if b.redondo {
@@ -1297,7 +1318,7 @@ impl Juego {
             l.disco(&mut u, d.x0 + kx, d.y0 + ky, r * 0.42, [1.0, 1.0, 1.0, 0.55]);
         } else if !abierto { l.texto_sombra(&mut u, t * 0.5, hf - t * 1.6 - hf / 590.0 * 1.4 * 18.0, t * 0.7, [1.0, 1.0, 1.0, 0.7], "moverse: tocá a la izquierda · mirar: arrastrá a la derecha"); }
         if self.mapa.is_none() && self.recargar && self.error.is_none() {
-            let txt = format!("Cargando {}…", self.mapas[self.mapa_i]); let tt = t * 1.3; let an = l.ancho(tt, &txt);
+            let txt = format!("Cargando {}…", jxjuego::identidad::nombre_mapa(&self.mapas[self.mapa_i])); let tt = t * 1.3; let an = l.ancho(tt, &txt);
             l.texto_sombra(&mut u, (wf - an) / 2.0, hf * 0.47, tt, bl, &txt);
         }
         // el menú de objetos: las subcategorías a la izquierda, la grilla con los íconos y los nombres
@@ -1431,7 +1452,8 @@ impl Juego {
             if !renglon.is_empty() { l.texto(&mut u, wf * 0.1, y, tt, bl, &renglon); }
         }
         let jg_tex = self.jg_hud(l, &mut u, wf, hf, t);
-        let mut r = vec![(TEX_LETRAS, u), (TEX_ICONOS, ic), (TEX_ARMAS, ia)]; r.extend(gm_tex); r.extend(jg_tex); r
+        let pj_tex = self.pjs_hud(l, &mut u, wf, hf, t);
+        let mut r = vec![(TEX_LETRAS, u), (TEX_ICONOS, ic), (TEX_ARMAS, ia)]; r.extend(gm_tex); r.extend(jg_tex); r.extend(pj_tex); r
     }
 
     /// la calidad, para el HUD

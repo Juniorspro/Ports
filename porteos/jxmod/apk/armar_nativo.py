@@ -122,7 +122,7 @@ def main():
                     Image.open(os.path.join(d, f)).convert('RGB').save(os.path.join(act, sub, nombre(i, f)), 'WEBP', quality=82, method=6)
         # (las dos capturas de nado del cuerpo —CMU 126_04 y 79_02, las que la web baja de emotes/cmu—)
         cmu = os.path.join(AQUI, '..', '..', '..', 'web', 'emotes', 'cmu'); os.makedirs(os.path.join(act, 'cmu'))
-        for n in ('126_04.bin', '79_02.bin'): shutil.copyfile(os.path.join(cmu, n), os.path.join(act, 'cmu', n))
+        for n in ('126_04.bin', '79_02.bin', 'catalogo.json'): shutil.copyfile(os.path.join(cmu, n), os.path.join(act, 'cmu', n))
         man = os.path.join(tmp, 'AndroidManifest.xml')
         with open(man, 'w', encoding='utf-8') as f: f.write(MANIFIESTO % (PAQUETE, ETIQUETA, ACTIVIDAD))
         base = os.path.join(tmp, 'base.apk')

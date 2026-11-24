@@ -16,7 +16,7 @@ pub struct DefArma { pub n: &'static str, pub nom: &'static str, pub ic: &'stati
     pub pega: &'static [&'static str], pub falla: &'static [&'static str], pub s_imp: &'static [&'static str], pub s_carne: &'static [&'static str] }
 const BASE: DefArma = DefArma { n: "", nom: "", ic: "", s_sacar: "", s_sosten: "", nodo: "", jx: "", sacar: "", quieto: "", sujeta: "", fuego: "", tipo: "", car: 0, cad: 0.1, dan: 0.0, disp: 0.0,
     semi: false, mira: false, alcance: 0.0, empuje: 0.0, s_f: &[], s_r: "", recarga: "", fuego2: "", pega: &[], falla: &[], s_imp: &[], s_carne: &[] };
-pub const ARMAS: [DefArma; 14] = [
+pub const ARMAS: [DefArma; 15] = [
     DefArma { n: "PhysicsGun", jx: "fisica", nom: "Physics Gun", ic: "W_PhysGun", s_sacar: "genericReadyNew_1", s_sosten: "PG_Hold", nodo: "GM_PhysGun", sacar: "PG_draw", quieto: "PG_idle", sujeta: "PG_hold", fuego: "PG_fire", tipo: "fisica", ..BASE },
     DefArma { n: "GravityGun", jx: "gravedad", nom: "Gravity Gun", ic: "W_GravGun", s_sacar: "GG_Open", s_sosten: "GG_Hold", nodo: "GM_GravGun", sacar: "GG_draw", quieto: "GG_idle", sujeta: "GG_hold", fuego: "GG_fire", tipo: "grav", cad: 0.5, ..BASE },
     DefArma { n: "ToolBaton", jx: "tool", nom: "Tool Gun", ic: "W_ToolGun", s_sacar: "genericReadyNew_1", nodo: "GM_ToolGun", sacar: "TG_draw", quieto: "TG_idle", sujeta: "TG_idle", fuego: "TG_fire", tipo: "tool", cad: 0.35, ..BASE },
@@ -32,6 +32,8 @@ pub const ARMAS: [DefArma; 14] = [
     DefArma { n: "RPG", nom: "RPG", ic: "W_RPG", nodo: "RPG", fuego: "rocketlauncherFire", sacar: "rocketlauncherReady", recarga: "rocketlauncherReload", s_f: &["RocketlauncherFire2"], s_sacar: "RocketLauncherReady", s_r: "RocketLauncherReload", car: 1, cad: 0.6, dan: 120.0, tipo: "cohete", semi: true, ..BASE },
     DefArma { n: "Crossbow", nom: "Ballesta", ic: "W_Crossbow", nodo: "Crossbow", fuego: "crossbowfire", sacar: "crossbowready", recarga: "crossbowreload", s_f: &["crossbowfire"], s_sacar: "genericReady", s_r: "crossbowreload", car: 1, cad: 0.4, dan: 90.0, tipo: "flecha", semi: true, ..BASE },
     DefArma { n: "Bat", nom: "Bate", ic: "W_Bat", nodo: "Bat", fuego: "bathit1", sacar: "batReady", s_f: &["Arm_Swing_edited"], s_sacar: "grabholster", tipo: "golpe", cad: 0.55, dan: 35.0, alcance: 2.4, ..BASE },
+    // (el celular: viene instalado y prendido —el mod oficial «Celular», celumano.js—; en la mano lo dibuja personajes.rs)
+    DefArma { n: "Celular", nom: "Celular", ic: "ico:celular", tipo: "celu", cad: 0.3, ..BASE },
 ];
 
 /// lo agarrado con la Physics Gun: el cuerpo, a qué distancia, el punto agarrado (en el cuerpo), el giro relativo a la

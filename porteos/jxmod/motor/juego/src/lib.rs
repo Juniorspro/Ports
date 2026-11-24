@@ -2,11 +2,16 @@
 //! Por etapas: el paquete y los mapas; después el jugador, la física, los objetos y herramientas, los NPC, los menús.
 pub mod arma_mano;
 pub mod bsp;
+pub mod celu_ik;
+pub mod celulares;
 pub mod censura;
 pub mod destruccion;
 pub mod dia;
 pub mod efectos;
 pub mod fisica;
+pub mod geo;
+pub mod gorros;
+pub mod identidad;
 pub mod gfxauto;
 pub mod flotar;
 pub mod forma;

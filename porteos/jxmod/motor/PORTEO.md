@@ -30,10 +30,12 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | vehiculos.js | ✔ | juego/vehiculo.rs, personaje.rs (sentados) |
 | gfxauto.js (calidad automática) | ✔ (la búsqueda, igual a la web en 400 de 400 casos; pide el refresco de la pantalla: 114 en una de 120 Hz) | juego/gfxauto.rs, nativo/gfx_juego.rs, ajustes.rs (Automático) |
 | destruccion.js | ✔ | juego/destruccion.rs (comparado con la web en node), nativo/des_juego.rs |
-| emotes.js | ◐ | comun.rs (los del juego, en la red; faltan los de captura, los tuyos y los rb:) |
-| juntos.js, ruleta.js, emomusica.js | ✘ | |
+| emotes.js | ◐ (los del juego, los de captura c: y rb:, en la red; falta la tienda y el editor de emotes) | comun.rs, juego/captura.rs, nativo/emotes_juego.rs |
+| juntos.js, ruleta.js | ✔ | nativo/emotes_juego.rs |
+| emomusica.js | ✘ | (usa YouTube) |
 | patadas.js | ✔ | nativo/jugabilidad.rs |
-| accesorios.js, gorros.js, identidad.js | ✘ | |
+| accesorios.js | ✔ (GLB, GLTF, OBJ y ZIP desde datos/importar; sin texturas JPEG) | nativo/accesorio.rs |
+| gorros.js, identidad.js | ✔ (los 23 gorros y los tintes de las 12 skins iguales a la web) | juego/gorros.rs, geo.rs, identidad.rs, nativo/personajes.rs |
 | pjimportar.js, gmod_autorig.js, gmod_pm.js | ✘ | |
 
 ## Armas y herramientas
@@ -41,10 +43,10 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 |---|---|---|
 | armas.js, armasjx.js, vista.js | ✔ | nativo/armas.rs, combate.rs, juego/vista.rs |
 | herramientas.js | ✔ | nativo/herramientas.rs |
-| armaaj.js | ✘ | |
+| armaaj.js | ✔ | nativo/personajes.rs |
 | nucleares.js, artefactos.js, ciclope.js | ◐ | juego/nucleares.rs, nativo/nuk_juego.rs, cic_juego.rs (sin lo de la red) |
 | nuclear_vol.js | ✘ | (el hongo con volumen necesita su sombreador en jxmotor: va con los carteles de nucleares.js) |
-| celumano.js, celular.js, celulares.js | ✘ | |
+| celumano.js, celular.js, celulares.js | ✔ (los memes del celular sin sonido; la app de cámara espera la Camera nativa) | juego/celu_ik.rs, celu_pj.rs, celu_vista.rs, celulares.rs, nativo/celu_juego.rs |
 
 ## Multijugador
 | web | estado | nativa |

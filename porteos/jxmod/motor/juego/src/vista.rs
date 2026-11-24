@@ -53,6 +53,9 @@ impl Clips {
 struct Piel { i: usize, m: i64, bo: Vec<i32>, bp: Vec<M4>, partes: Vec<(u32, u32, i64)>, c: V, r: f32 }
 struct Rigida { i: usize, m: i64, s0: u32, sn: u32, mat: i64, c: V, r: f32 }
 
+// (el celular en la mano en primera persona —y el arma a gusto—: celu_vista.rs)
+#[path = "celu_vista.rs"] pub mod celu_vista;
+
 /// el arma en la mano: el modelo, su pose y el clip que suena
 pub struct Vista {
     pub nodo: String,

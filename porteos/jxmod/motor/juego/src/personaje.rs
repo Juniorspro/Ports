@@ -32,6 +32,10 @@ use jxmotor::mat::{self as m4, M4};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+// (los emotes de captura y los nuevos: captura.rs; el celular en la mano de tercera persona: celu_pj.rs)
+#[path = "captura.rs"] mod captura;
+pub use captura::{abrir_gz, base64, CapActiva, Captura};
+#[path = "celu_pj.rs"] mod celu_pj;
 
 type Q = [f32; 4];
 type V = [f32; 3];
@@ -308,6 +312,8 @@ pub struct Personaje {
     nado: Option<Arc<[Emo; 2]>>,
     /// el emote que está haciendo (P.emote: el clip y cuánto lleva, P.emoteT), si hace alguno (para los NPC: npc.rs)
     emo: Option<(ClipEmote, f32)>,
+    /// el emote de captura (captura.rs) y lo que lo levanta del piso (P.emoLift)
+    cap: Option<captura::CapActiva>, emo_lift: f32,
     // el arma (humano.js y personas.js; las cuentas de la mano, arma_mano.rs)
     /// el arma en la mano (P.arma) y las ya cargadas por nombre
     arma: Option<Arc<ArmaMano>>, armas: HashMap<String, Arc<ArmaMano>>,
@@ -498,7 +504,7 @@ impl Personaje {
         let mut pj = Personaje { skin: skin.clone(), tam, ojo, p0_cadera, nombres, pa, act, p, r, s, w: vec![m4::id(); n], raiz: m4::id(), pieles, paleta: vec![], h, rw: vec![], dedo, tobillo: 0.08, pies: None,
             gm, huesos, ci, av_esc: f(&av["esc"]), av_dt: v3(&av["dt"], [0.0; 3]), av_dq: q4(&av["dq"], [0.0, 0.0, 0.0, 1.0]), av_rt: v3(&av["rt"], [0.0; 3]),
             v: [0.0; NV], o: [0.0; NV], ht: 0.0, fase: 0.0, aire: 0.0, caida: 0.0, agach: 0.0, mov: 0.0, cadera: 0.0, cad_w: 1.0, par: 0, clave: Clave::default(), o_t: 0.0, listo: false, pos_k: 0.0,
-            loco_esc: None, loco: [vec![None; nr], vec![None; ncw]], pie_corr: 0.0, ik: None, nado_k: 0.0, nado_w: 0.0, nado_t: 0.0, nado: None, emo: None,
+            loco_esc: None, loco: [vec![None; nr], vec![None; ncw]], pie_corr: 0.0, ik: None, nado_k: 0.0, nado_w: 0.0, nado_t: 0.0, nado: None, emo: None, cap: None, emo_lift: 0.0,
             arma: None, armas: HashMap::new(), pa_t: None, ta_k: 0.0, gy: 0.0, gy_o: 0.0, accion: None, forzar: false, torso_ref: HashMap::new(), dedos: HashMap::new(),
             reposo, manos, sentado: None, cuerpo_s: [None, None], rag: false, sucio: true };
         // el reposo (datosSkin): el giro de cada nodo y la suela
@@ -698,7 +704,7 @@ impl Personaje {
     fn postura(&mut self, dt: f32, e: &Estado) {
         let (Some(hi), Some(_), Some(ne), Some(he), Some(la), Some(ra)) = (self.h[HIPS], self.h[SPINE], self.h[NECK], self.h[HEAD], self.h[L_ARM], self.h[R_ARM]) else { return };
         let sp = e.vel[0].hypot(e.vel[2]);
-        let quiere = if e.en_suelo && !e.agachado && !(self.nado_k > 0.3) && self.emo.is_none() && self.sentado.is_none() { if sp > 4.0 { 0.5 } else { 1.0 } } else { 0.0 };
+        let quiere = if e.en_suelo && !e.agachado && !(self.nado_k > 0.3) && !self.en_emo() && self.sentado.is_none() { if sp > 4.0 { 0.5 } else { 1.0 } } else { 0.0 };
         self.pos_k += (quiere - self.pos_k) * (dt * 6.0).min(1.0); let k = self.pos_k; if k < 0.01 { return; }
         self.actualizar();
         // (el frente del cuerpo: de los hombros —a la derecha del personaje— y la vertical)
@@ -761,7 +767,7 @@ impl Personaje {
         }
         // el gesto del torso encima de todo (con entrada y salida suaves: rápida para el disparo, más lenta para recargar o
         // recibir un golpe)
-        if self.emo.is_none() && sentado.is_none() {
+        if !self.en_emo() && sentado.is_none() {
             if let Some(a) = self.accion.as_mut() {
                 a.t += dt;
                 if a.t >= a.dur { self.accion = None; }
@@ -775,7 +781,7 @@ impl Personaje {
         }
         // transición suave sólo cuando cambia el estado (quieto, corriendo, en el aire, sentado, emote o arma): la diferencia
         // con la pose anterior se apaga en ~0,2 s
-        let clave = Clave { emo: self.emo.as_ref().map(|x| x.0.clave).unwrap_or(0), sen: match sentado { Some(true) => 2, Some(false) => 1, None => 0 },
+        let clave = Clave { emo: self.emo.as_ref().map(|x| x.0.clave).or(self.clave_cap()).unwrap_or(0), sen: match sentado { Some(true) => 2, Some(false) => 1, None => 0 },
             loco: if !e.en_suelo { u32::MAX } else { self.par * 2 + e.agachado as u32 }, arma: self.arma.as_ref().map(|a| hash(&a.nombre)).unwrap_or(0) };
         // parado con un arma de GMod, el torso apunta al frente aunque la cadera gire con la animación de quieto (como el
         // aim_yaw de GMod): el giro que la compensa es parte de la pose y se funde igual que ella en los cambios de estado
@@ -791,13 +797,13 @@ impl Personaje {
         self.gy = gy_t + self.gy_o * fo;
         self.hum_aplicar();
         // con un arma, el pecho como en la postura de GMod (entra y sale suave)
-        let si = pa.is_some() && self.emo.is_none() && sentado.is_none() && !(self.nado_k > 0.3);
+        let si = pa.is_some() && !self.en_emo() && sentado.is_none() && !(self.nado_k > 0.3);
         if si { self.pa_t = pa.clone(); }
         self.ta_k += ((si as u8 as f32) - self.ta_k) * (dt * 8.0).min(1.0); if self.ta_k < 0.002 { self.ta_k = 0.0; }
-        if let Some((n, c)) = self.pa_t.clone() { if self.ta_k > 0.0 && self.emo.is_none() && sentado.is_none() { self.torso_arma(&n, &c, self.ta_k); } }
+        if let Some((n, c)) = self.pa_t.clone() { if self.ta_k > 0.0 && !self.en_emo() && sentado.is_none() { self.torso_arma(&n, &c, self.ta_k); } }
         // la cadera girada hacia donde camina y mirar arriba o abajo con la cabeza y el pecho (la cadera vuelve de a poco al
         // salir de un emote, del asiento o del aire)
-        self.cad_w += ((if !e.en_suelo || self.emo.is_some() || sentado.is_some() { 0.0 } else { 1.0 }) - self.cad_w) * (dt * 10.0).min(1.0);
+        self.cad_w += ((if !e.en_suelo || self.en_emo() || sentado.is_some() { 0.0 } else { 1.0 }) - self.cad_w) * (dt * 10.0).min(1.0);
         let cad = self.cadera * self.cad_w;
         // (con el torso llevado a la postura, la cadera ya no lo gira)
         let gy = if self.gy.abs() > 1e-3 { self.gy * (1.0 - self.ta_k) } else { 0.0 };
@@ -849,7 +855,7 @@ impl Personaje {
     /// con un arma de GMod en la mano, los dedos cerrados como en GMod (agarreGm)
     fn agarre(&mut self) {
         let Some(a) = self.arma.clone() else { return };
-        if self.emo.is_some() || self.sentado.is_some() || a.agarre.is_none() { return; }
+        if self.en_emo() || self.sentado.is_some() || a.agarre.is_none() { return; }
         if let Some(l) = self.dedos_de(&a) { for &(i, q) in l.iter() { self.r[i] = q; } }
     }
 
@@ -975,6 +981,7 @@ impl Personaje {
         // nadando: la pose de nado entra y sale suave
         self.nado_k += ((e.agua.is_some() as u8 as f32) - self.nado_k) * (dt * 4.0).min(1.0);
         self.animar_humano(dt, e);
+        self.cap_pose(dt);
         self.nado_pose(dt, e);
         self.agarre();
         // (ubicarPersona: la raíz en el piso, sin la corrección de los pies del cuadro anterior; sentado, en el asiento:
@@ -990,7 +997,7 @@ impl Personaje {
                 self.actualizar(); let meta = ay - e.piso[1] - 0.08 * self.tam;
                 self.raiz[13] += (meta - self.w[hi][13]) * self.nado_w * self.nado_k;
             }
-        } else if self.emo.is_some() { self.ik = None; }   // (en un emote no se apoyan ni se clavan los pies: dibujarPersona)
+        } else if self.cap.as_ref().map_or(false, |c| c.c.cmu()) { self.ik = None; self.aterrizar_cmu(dt); } else if self.en_emo() { self.ik = None; }   // (en un emote no se apoyan ni se clavan los pies: dibujarPersona)
         else { self.aterrizar_pies(dt, e); self.pies_ik(dt, e); }
         self.actualizar(); self.sucio = false;
         self.calcular_paleta();
@@ -1025,9 +1032,9 @@ impl Personaje {
     /// la altura del tobillo sobre la suela en reposo (para medir los pies)
     pub fn tobillo(&self) -> f32 { self.tobillo }
     /// empieza un emote (P.emote = …, P.emoteT = 0; None: lo corta). Se anima en `animar` hasta que se corte o se termine solo
-    pub fn emote(&mut self, c: Option<&ClipEmote>) { self.emo = c.map(|c| (c.clone(), 0.0)); }
+    pub fn emote(&mut self, c: Option<&ClipEmote>) { self.emo = c.map(|c| (c.clone(), 0.0)); self.cap = None; }
     /// si está haciendo un emote (la patada, Backflip y Kick se terminan solos)
-    pub fn en_emote(&self) -> bool { self.emo.is_some() }
+    pub fn en_emote(&self) -> bool { self.en_emo() }
     /// el esqueleto entero (para el muñeco de trapo de npc.rs): el nombre y el padre de cada nodo y su matriz desde la raíz
     /// (en el espacio del personaje; en el mundo: base × ésta)
     pub fn esqueleto(&self) -> (&[String], &[i32], &[M4]) { (&self.nombres, &self.pa, &self.w) }
@@ -1076,7 +1083,7 @@ impl Personaje {
     /// la matriz del modelo del arma en la mano (armaGmDibujar o arma3p), en el espacio del personaje (en el mundo: la base
     /// por ésta), si se dibuja: no sentado, ni en un emote, ni tirado
     pub fn arma_matriz(&self) -> Option<M4> {
-        if self.rag || self.sentado.is_some() || self.emo.is_some() { return None; }
+        if self.rag || self.sentado.is_some() || self.en_emo() { return None; }
         self.arma.as_ref()?.matriz(&self.w, &self.manos)
     }
     /// el marco de la mano (0 la derecha, 1 la izquierda: manoMarco) en el espacio del personaje y el largo de la mano (para

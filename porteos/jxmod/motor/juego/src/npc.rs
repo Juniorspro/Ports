@@ -709,7 +709,8 @@ pub fn menu(d: &Value) -> Vec<(String, Vec<String>)> {
 /// el skin de un ítem del menú («npc:Hero» → «Hero»)
 pub fn skin_de_item(it: &str) -> Option<&str> { it.strip_prefix("npc:") }
 /// el nombre de un skin para mostrar (skinNom)
-pub fn skin_nom(s: &str) -> &str { match s { "RickPrime" => "Rick Prime", "Jeppy" => "Jeppy Jothers", "UncleJeppy" => "Uncle Jeppy", "BoiledOne" => "The Boiled One", x => x } }
+/// (con los nombres propios de las skins heredadas: identidad.js)
+pub fn skin_nom(s: &str) -> &str { crate::identidad::nombre_skin(s).unwrap_or(s) }
 
 fn de_cuerpo(l: &[Box<Npc>], cuerpo: u32) -> Option<u32> {
     l.iter().find(|p| p.cuerpo == Some(cuerpo) || p.rag.as_ref().map(|r| r.partes.iter().any(|x| x.cuerpo == cuerpo)).unwrap_or(false)).map(|p| p.id)

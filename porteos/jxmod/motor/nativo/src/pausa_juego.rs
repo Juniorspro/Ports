@@ -46,7 +46,7 @@ impl Juego {
         if self.ini.cuerpo_nuevo && self.mapa.is_some() { self.ini.cuerpo_nuevo = false; self.pz_cuerpo(m); }
         // (también mientras se miden los gráficos automáticos: gfxauto.js lo hace detrás de la carga)
         let cargando = (self.recargar && self.mapa.is_none()) || self.gfxa.midiendo();
-        let ver_boton = !cargando && self.mapa.is_some() && self.menu.is_none() && self.ajustes.is_none() && self.npc_panel.is_none() && !self.en_red.panel && !self.gmod.panel && !self.emotes_panel && !self.jg.panel() && !self.jg.sin_hud();
+        let ver_boton = !cargando && !self.pjs.panel() && self.mapa.is_some() && self.menu.is_none() && self.ajustes.is_none() && self.npc_panel.is_none() && !self.en_red.panel && !self.gmod.panel && !self.emotes_panel && !self.jg.panel() && !self.jg.sin_hud();
         if !ver_boton && !self.ini.pz.abierta && self.ini.panel.is_none() && !cargando { return; }
         self.ini_recursos(m);
         if cargando { for k in self.pz_foto_carga() { self.ini_pedir_foto(&k); } self.ini_pedir_foto("logo"); self.ini_recursos(m); }
@@ -177,7 +177,7 @@ impl Juego {
         if self.ini.panel.is_some() { self.pn_dedo_abajo(id, x, y, w, h); return true; }
         if self.ini.pz.abierta { let pz = self.pz_en(x, y); self.ini.pz.apretado = pz; if let Some(pz) = pz { self.ini.pz.golpe = Some((pz, self.ini.reloj)); } self.ini.pz.dedo = Some((id, pz)); return true; }
         // (el botón de pausa, si se ve: sólo jugando, sin otro menú abierto)
-        let libre = self.mapa.is_some() && self.menu.is_none() && self.ajustes.is_none() && self.npc_panel.is_none() && !self.en_red.panel && !self.gmod.panel && !self.emotes_panel && !self.jg.panel() && !self.jg.sin_hud();
+        let libre = !self.pjs.panel() && self.mapa.is_some() && self.menu.is_none() && self.ajustes.is_none() && self.npc_panel.is_none() && !self.en_red.panel && !self.gmod.panel && !self.emotes_panel && !self.jg.panel() && !self.jg.sin_hud();
         let (cx, cy, s) = boton_pausa(w, h);
         if libre && (x - cx).powi(2) + (y - cy).powi(2) <= (s / 2.0 + 4.0).powi(2) { self.ini.pz.apretado = Some(Pz::Boton); self.ini.pz.dedo = Some((id, Some(Pz::Boton))); return true; }
         false
@@ -200,12 +200,12 @@ impl Juego {
         match a {
             Pz::Boton => self.pz_abrir(),
             Pz::Seguir | Pz::Cerrar => self.ini.pz.abierta = false,
-            Pz::Personaje => { self.ini.pz.abierta = false; self.ini.desde_juego = true; self.pn_abrir(PanelIni::Personajes { tab: 0, scroll: 0.0 }); }
+            Pz::Personaje => { self.ini.pz.abierta = false; if self.mapa.is_some() { self.pj_abrir_desde_pausa(); } else { self.ini.desde_juego = true; self.pn_abrir(PanelIni::Personajes { tab: 0, scroll: 0.0 }); } }
             Pz::Social => { self.ini.pz.abierta = false; self.ini.desde_juego = true; self.pn_abrir(PanelIni::Social { tab: 0 }); }
             Pz::Ajustes => { self.ini.pz.abierta = false; self.ajustes = Some(0); }
             Pz::Borrar => { self.pz_borrar_todo(); self.ini.pz.abierta = false; self.avisar("Se borró todo".into()); }
             Pz::Salir => { self.ini.pz.abierta = false; self.inicio_abrir(); }
-            Pz::Arma => self.avisar("«Arma en la mano» todavía no está en la versión nativa".into()),
+            Pz::Arma => { self.ini.pz.abierta = false; self.arma_aj_abrir(); }
             Pz::Tutorial => self.avisar("El tutorial todavía no está en la versión nativa".into()),
             Pz::Guardar | Pz::Cargar => self.avisar("Guardar y cargar el mapa todavía no está en la versión nativa".into()),
             Pz::Vr => self.avisar("El modo VR todavía no está en la versión nativa".into()),
