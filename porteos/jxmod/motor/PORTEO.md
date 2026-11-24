@@ -22,9 +22,9 @@ Cada archivo de la web y dónde quedó en la nativa. ✔ hecho (comparado con la
 | jugador.js, entrada.js | ✔ | juego/jugador.rs, comun.rs |
 | personas.js, humano.js | ✔ | juego/personaje.rs, persona.rs, arma_mano.rs |
 | npc.js | ✔ | juego/npc.rs, comun.rs (Actitud) |
-| vehiculos.js, gfxauto.js | ◐ | juego/vehiculo.rs (sin la calidad automática) |
+| vehiculos.js, gfxauto.js | ◐ | juego/vehiculo.rs, personaje.rs (sentados; sin la calidad automática) |
 | destruccion.js | ✘ | (abolladuras, piezas, humo, fuego de los autos) |
-| emotes.js | ◐ | comun.rs (los del juego; faltan los de captura, los tuyos y los rb:) |
+| emotes.js | ◐ | comun.rs (los del juego, en la red; faltan los de captura, los tuyos y los rb:) |
 | juntos.js, ruleta.js, emomusica.js, patadas.js | ✘ | |
 | accesorios.js, gorros.js, identidad.js | ✘ | |
 | pjimportar.js, gmod_autorig.js, gmod_pm.js | ✘ | |
@@ -42,7 +42,7 @@ Cada archivo de la web y dónde quedó en la nativa. ✔ hecho (comparado con la
 | web | estado | nativa |
 |---|---|---|
 | red.js, anfitrion.js | ✔ | juego/red.rs, mqtt.rs, nativo/red_juego.rs |
-| censura.js | ✘ | |
+| censura.js | ✔ (la parte local; la IA no) | juego/censura.rs (58 de 58 mensajes iguales) |
 | lan.js | ✘ | |
 | voz.js | ✘ | |
 | social.js, cuenta.js, tiendared.js | ✘ | |
@@ -53,7 +53,7 @@ Cada archivo de la web y dónde quedó en la nativa. ✔ hecho (comparado con la
 | gmod_lua.js | ✔ | lua/ (jxlua) |
 | gmod_api.js, gmod_prelude.js, gmod.js, gmod_cargar.js | ✔ | gmod/ (jxgmod) |
 | gmod_carpeta.js, gmod_tienda.js, gmod_panel.js | ◐ | nativo/gmod_juego.rs |
-| gmod_formatos.js, gmod_vista.js, gmod_anim.js, gmod_nextbot.js, gmod_sonidos.js | ◐ (en curso) | gmod/formatos.rs, modelos.rs, sonidos.rs |
+| gmod_formatos.js, gmod_vista.js, gmod_anim.js, gmod_nextbot.js, gmod_sonidos.js | ◐ (faltan manos c_arms, elementos del SWEP Construction Kit, bodygroups, bucles de sonido, .pcf) | gmod/formatos.rs, modelos.rs, sonidos.rs, nativo/gmod_modelos.rs |
 | gmod_render.js, gmod_rt.js, gmod_dx9.js | ✘ | |
 | gmod_spawn.js, gmod_modos.js, gmod_server.js, gmod_pipe.js, gmod_steam.js, gmod_lib.js, gmod_cola.js | ✘ | |
 | gmod_personal.js (el menú de GMod de la personal) | ✘ | |
