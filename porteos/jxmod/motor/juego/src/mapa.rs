@@ -28,6 +28,19 @@ pub struct Mapa {
     pub agua_y: Option<f32>, pub aguas: Vec<[f32; 6]>,
     /// hasta dónde se ve
     pub lejos: f32,
+    /// la luz del mapa en gamma (de donde sale `luz`): la mueve la hora del día (dia.rs)
+    pub base: LuzBase,
+}
+
+/// la luz de un mapa como la deja cargarMapa (R.sol, R.solCol, R.ambS, R.ambG, R.niebla y el cielo, en gamma)
+#[derive(Clone, Debug)]
+pub struct LuzBase { pub sol: [f32; 3], pub sol_col: [f32; 3], pub amb_s: [f32; 3], pub amb_g: [f32; 3], pub nie: Niebla, pub cielo: Cielo }
+/// la luz del cuadro en lineal (luzLineal de gl.js: el sol ×2,6, el cielo y el suelo menos saturados); `expo_k`: R.expoK
+pub fn luz_lineal(b: &LuzBase, expo_k: f32) -> Luz {
+    let des = |a: [f32; 3], t: f32| { let l = a[0] * 0.3 + a[1] * 0.59 + a[2] * 0.11; a.map(|x| l + (x - l) * t) };
+    let sol_lin = srgb3(b.sol_col).map(|x| x * 2.6);
+    Luz { sol: b.sol, sol_c: sol_lin, amb_s: des(srgb3(b.amb_s), 0.45).map(|x| x * 1.3), amb_g: des(srgb3(b.amb_g), 0.6).map(|x| x * 1.25),
+        nie: Niebla { c: srgb3(b.nie.c), s: [sol_lin[0] * 0.35, sol_lin[1] * 0.35, sol_lin[2] * 0.35], ..b.nie }, expo: 0.66 * expo_k }
 }
 
 fn f(v: &Value) -> f32 { v.as_f64().unwrap_or(0.0) as f32 }
@@ -90,7 +103,7 @@ fn normales_agua(n: u32) -> Vec<u8> {
     o
 }
 /// un triángulo sin área o una aguja (menos de 1 mm de alto): no sirve para chocar (triFino de mundo.js)
-fn tri_fino(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> bool {
+pub fn tri_fino(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> bool {
     let (u, w) = ([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]]);
     let cr = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
     let a2 = (cr[0] * cr[0] + cr[1] * cr[1] + cr[2] * cr[2]).sqrt();
@@ -156,6 +169,28 @@ pub fn cielo_painted(l: u32) -> [Vec<u8>; 6] {
     }
     for p in azul.chunks_exact_mut(4) { p.copy_from_slice(&[126, 188, 255, 255]); }
     [lado.clone(), lado.clone(), azul.clone(), azul, lado.clone(), lado]
+}
+
+/// el agua (el volumen más grande del mapa): como el agua de HL2 de la versión personal (jxpAguaHL2), con un mapa de
+/// normales propio y lo hondo medido con rayos (jxpAguaFondo); sus datos se suman a `datos`. Devuelve el agua y su altura
+pub fn agua_hl2(aguas: &[[f32; 6]], mundo: &crate::mundo::Mundo, datos: &mut Vec<u8>) -> (Option<jxmotor::escena::Agua>, Option<f32>) {
+    let Some(v) = aguas.iter().max_by(|a, b| ((a[3] - a[0]) * (a[5] - a[2])).partial_cmp(&((b[3] - b[0]) * (b[5] - b[2]))).unwrap_or(std::cmp::Ordering::Equal)) else { return (None, None) };
+    let (lo, hi) = ([v[0], v[1], v[2]], [v[3], v[4], v[5]]);
+    while datos.len() % 4 != 0 { datos.push(0); }
+    let n = 256u32; let nrm = normales_agua(n); let o = datos.len(); datos.extend_from_slice(&nrm);
+    let pn = 64usize; let dd = (hi[1] - lo[1]).max(0.5); let (w, h) = (hi[0] - lo[0], hi[2] - lo[2]);
+    let mut px = vec![0u8; pn * pn * 4];
+    for j in 0..pn { for i in 0..pn {
+        let (x, z) = (lo[0] + (i as f32 + 0.5) / pn as f32 * w, lo[2] + (j as f32 + 0.5) / pn as f32 * h);
+        let p = mundo.rayo([x, hi[1] + 0.05, z], [0.0, -1.0, 0.0], dd + 1.0).map(|g| (g.t - 0.05).max(0.0)).unwrap_or(dd);
+        let k = (j * pn + i) * 4; px[k] = ((p / dd).clamp(0.0, 1.0) * 255.0).round() as u8; px[k + 3] = 255;
+    } }
+    let op = datos.len(); datos.extend_from_slice(&px);
+    // (el agua de la costa de HL2: niebla de este color, 400 unidades de largo, sin $refractamount ni $reflectamount)
+    let fs = [0.08f32, 0.19, 0.2]; let fin = 400.0f32; let turbia = (1.05 - fin / 1500.0).clamp(0.55, 0.92);
+    (Some(jxmotor::escena::Agua { fog: [srgb(fs[0]), srgb(fs[1]), srgb(fs[2]), turbia], esc: 0.38, fuerza: 0.55, dist: 0.4 * 0.5, refr: 0.5, s: [0.021, 0.016, -0.018, 0.024],
+        largo: (fin * 0.0254 / 2.5).max(1.5), normal: Some(jxmotor::escena::TexAgua { w: n, h: n, o }),
+        prof: Some(jxmotor::escena::Prof { x0: lo[0], z0: lo[2], w, h, d: dd, tex: Some(jxmotor::escena::TexAgua { w: pn as u32, h: pn as u32, o: op }) }), y: hi[1] }), Some(hi[1]))
 }
 
 impl Mapa {
@@ -337,38 +372,14 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
             (fc, a, b, aj["fmax"].as_f64().map(|x| x as f32).unwrap_or(1.0))
         } else { (mid, lejos * 0.7, lejos, 1.0) };
     // (en lineal, como luzLineal de gl.js: el sol ×2,6; el cielo y el suelo menos saturados)
-    let des = |a: [f32; 3], t: f32| { let l = a[0] * 0.3 + a[1] * 0.59 + a[2] * 0.11; a.map(|x| l + (x - l) * t) };
-    let sol_lin = srgb3(sol_col).map(|x| x * 2.6);
-    let luz = Luz { sol, sol_c: sol_lin, amb_s: des(srgb3(amb_s), 0.45).map(|x| x * 1.3), amb_g: des(srgb3(amb_g), 0.6).map(|x| x * 1.25),
-        nie: Niebla { c: srgb3(nie_c), a: nie_a, b: nie_b, m: nie_m, s: [sol_lin[0] * 0.35, sol_lin[1] * 0.35, sol_lin[2] * 0.35] }, expo: 0.66 };
+    let base = LuzBase { sol, sol_col, amb_s, amb_g, nie: Niebla { c: nie_c, a: nie_a, b: nie_b, m: nie_m, s: [0.0; 3] }, cielo: Cielo { caras: None, ..cielo.clone() } };
+    let luz = luz_lineal(&base, 1.0);
     if lo[0] > hi[0] { lo = [0.0; 3]; hi = [0.0; 3]; }
     let _ = (lo, hi);
     let grav = d["aj"][nombre]["grav"].as_f64().map(|g| g as f32).filter(|g| *g != 0.0).unwrap_or(1.0);
     let mundo = crate::mundo::Mundo::nuevo(tris, cuerpos, grav);
-    // el agua (el volumen más grande del mapa): como el agua de HL2 de la versión personal (jxpAguaHL2), con un mapa de normales
-    // propio y lo hondo medido con rayos (jxpAguaFondo)
-    let mut agua = None; let mut agua_y = None;
     let aguas: Vec<[f32; 6]> = aj["agua"].as_array().map(|vs| vs.iter().map(|v| { let (a, b) = (v3(&v["lo"], [0.0; 3]), v3(&v["hi"], [0.0; 3])); [a[0], a[1], a[2], b[0], b[1], b[2]] }).collect()).unwrap_or_default();
-    if let Some(vs) = aj["agua"].as_array() {
-        let caja = |v: &Value| (v3(&v["lo"], [0.0; 3]), v3(&v["hi"], [0.0; 3]));
-        if let Some((lo, hi)) = vs.iter().map(caja).max_by(|a, b| ((a.1[0] - a.0[0]) * (a.1[2] - a.0[2])).partial_cmp(&((b.1[0] - b.0[0]) * (b.1[2] - b.0[2]))).unwrap_or(std::cmp::Ordering::Equal)) {
-            let n = 256u32; let nrm = normales_agua(n); let o = datos.len(); datos.extend_from_slice(&nrm);
-            let pn = 64usize; let dd = (hi[1] - lo[1]).max(0.5); let (w, h) = (hi[0] - lo[0], hi[2] - lo[2]);
-            let mut px = vec![0u8; pn * pn * 4];
-            for j in 0..pn { for i in 0..pn {
-                let (x, z) = (lo[0] + (i as f32 + 0.5) / pn as f32 * w, lo[2] + (j as f32 + 0.5) / pn as f32 * h);
-                let p = mundo.rayo([x, hi[1] + 0.05, z], [0.0, -1.0, 0.0], dd + 1.0).map(|g| (g.t - 0.05).max(0.0)).unwrap_or(dd);
-                let k = (j * pn + i) * 4; px[k] = ((p / dd).clamp(0.0, 1.0) * 255.0).round() as u8; px[k + 3] = 255;
-            } }
-            let op = datos.len(); datos.extend_from_slice(&px);
-            // (el agua de la costa de HL2: niebla de este color, 400 unidades de largo, sin $refractamount ni $reflectamount)
-            let fs = [0.08f32, 0.19, 0.2]; let fin = 400.0f32; let turbia = (1.05 - fin / 1500.0).clamp(0.55, 0.92);
-            agua = Some(jxmotor::escena::Agua { fog: [srgb(fs[0]), srgb(fs[1]), srgb(fs[2]), turbia], esc: 0.38, fuerza: 0.55, dist: 0.4 * 0.5, refr: 0.5, s: [0.021, 0.016, -0.018, 0.024],
-                largo: (fin * 0.0254 / 2.5).max(1.5), normal: Some(jxmotor::escena::TexAgua { w: n, h: n, o }),
-                prof: Some(jxmotor::escena::Prof { x0: lo[0], z0: lo[2], w, h, d: dd, tex: Some(jxmotor::escena::TexAgua { w: pn as u32, h: pn as u32, o: op }) }), y: hi[1] });
-            agua_y = Some(hi[1]);
-        }
-    }
+    let (agua, agua_y) = agua_hl2(&aguas, &mundo, &mut datos);
     let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs, lms: vec![], items: vec![], agua, cielo: Some(cielo) };
-    Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces, spawns, lejos, mundo, agua_y, aguas })
+    Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces, spawns, lejos, mundo, agua_y, aguas, base })
 }

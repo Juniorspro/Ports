@@ -13,7 +13,7 @@
 //! Lo que tiene huesos (personajes, NPC, el arma en la mano) se deforma en la CPU: una placa de ES 2 suele tener 128
 //! vectores de uniformes para el vértice y los 56 huesos piden 168. Cada malla con su pose una vez por cuadro (todas
 //! sus partes la reusan), con las mismas cuentas que VS_LUZ de gpu.rs, y va a un búfer que se reusa de un cuadro a otro.
-use crate::escena::{Cielo, Cuadro, Escena, ItemDin, Mat, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
+use crate::escena::{Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
 use crate::mat::{self, M4};
 use glow::HasContext;
 use std::collections::HashMap;
@@ -466,13 +466,24 @@ impl Motor {
         let (rw, rh) = if escalada { (ew, eh) } else { (w, h) };
         for p in [&self.p_luz, &self.p_cielo] { gl.use_program(Some(p.p)); gl.uniform_3_f32(p.u("uRet"), 1.0 / rw as f32, 1.0 / rh as f32, if self.op.retoque { 1.0 } else { 0.0 }); }
         self.luces(&vp);
-        let opacos = self.opacos.clone(); for i in opacos { self.dibujar_item(i); }
-        self.cielo_dibujar(&vp);
+        // (el cielo 3D: primero el cielo, la maqueta y lo transparente de ella, y la profundidad borrada; el mapa, siempre adelante)
+        let opacos = self.opacos.clone();
+        if self.items.iter().any(|it| it.fl & FL_CIELO != 0) {
+            let es = |me: &Self, i: usize| me.items[i].fl & FL_CIELO != 0;
+            let (op_c, op_r): (Vec<usize>, Vec<usize>) = opacos.into_iter().partition(|&i| es(self, i));
+            let tr_c: Vec<usize> = self.transp.iter().copied().filter(|&i| es(self, i)).collect();
+            self.cielo_dibujar(&vp); self.luces(&vp);
+            for i in op_c { self.dibujar_item(i); }
+            { let gl = &self.gl; gl.enable(glow::BLEND); gl.depth_mask(false); }
+            for i in tr_c { let add = self.mats[&self.items[i].mat].add != 0; let gl = &self.gl; if add { gl.blend_func(glow::SRC_ALPHA, glow::ONE); } else { gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); } self.dibujar_item(i); }
+            { let gl = &self.gl; gl.disable(glow::BLEND); gl.depth_mask(true); gl.clear(glow::DEPTH_BUFFER_BIT); gl.use_program(Some(self.p_luz.p)); }
+            for i in op_r { self.dibujar_item(i); }
+        } else { for i in opacos { self.dibujar_item(i); } self.cielo_dibujar(&vp); }
         self.marcas(&vp, rw, rh);
         // lo transparente (sin escribir la profundidad), de lo más lejos a lo más cerca
         let gl = &self.gl; gl.enable(glow::BLEND); gl.depth_mask(false); gl.use_program(Some(self.p_luz.p));
         let tr = self.transp.clone();
-        for i in tr { let add = self.mats[&self.items[i].mat].add != 0; let gl = &self.gl; if add { gl.blend_func(glow::SRC_ALPHA, glow::ONE); } else { gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); } self.dibujar_item(i); }
+        for i in tr { if self.items[i].fl & FL_CIELO != 0 { continue; } let add = self.mats[&self.items[i].mat].add != 0; let gl = &self.gl; if add { gl.blend_func(glow::SRC_ALPHA, glow::ONE); } else { gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); } self.dibujar_item(i); }
         // el agua (transparente, después de lo demás)
         if !self.aguas.is_empty() { if let (Some(a), Some(nt)) = (self.agua.clone(), self.agua_n) {
             let gl = &self.gl; let p = &self.p_agua; let c = self.c.as_ref().unwrap(); let l = &c.luz; let s = self.sol();

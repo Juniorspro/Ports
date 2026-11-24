@@ -8,13 +8,18 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 |---|---|---|
 | nucleo.js, gl.js, post.js, sombras.js, cielos.js, geo.js, modelo.js | ✔ | jxmotor (Vulkan, GL3, GL2) |
 | mundo.js, datos.js | ✔ | juego/mundo.rs, paquete.rs, mapa.rs |
-| fisica.js, fisica_wasm.js | ✔ (optimizándose) | juego/fisica.rs, fisica/ |
+| fisica.js, fisica_wasm.js | ✔ (detección 2–4× más rápida y solver por islas en hilos, exacta bit a bit) | juego/fisica.rs, fisica/ |
 | agua.js | ✔ | juego/flotar.rs + motores |
 | efectos.js, marcas.js | ✔ | juego/efectos.rs |
-| dia.js, noche.js, cielo3d.js, vhs.js, vivo.js | ✘ | |
+| dia.js | ✔ | juego/dia.rs, nativo/mapas_juego.rs (Ajustes → Día: la hora y el ciclo) |
+| cielo3d.js | ✔ (la maqueta va con la niebla del mapa, no con la de su cámara) | nativo/mapas_juego.rs, jxmotor (FL_CIELO en los tres motores) |
+| noche.js (la noche de FNAF en RB_Pizzeria: un modo de juego, no la luz de la noche) | ✘ | |
+| vhs.js, vivo.js | — | (el VHS del evento de los 300 y los eventos en vivo, que son JavaScript firmado) |
 | linterna.js | ◐ | nativo/jugabilidad.rs (sin el Lua de GMod ni la de los demás de la sala; en OpenGL 2, una luz donde pega) |
-| puertas.js, mapaio.js, portales.js, entidades.js | ✘ | |
-| gmod_bsp.js (mapas del Workshop) | ✘ | |
+| puertas.js, mapaio.js | ✔ (sin avisarle a la sala) | juego/puertas.rs, nativo/mapas_juego.rs |
+| portales.js | ◐ (se cruza; falta ver a través de la puerta) | juego/portales.rs |
+| entidades.js (piano, radio, mega rampa… de los mapas de la comunidad y los mods) | ✘ | |
+| gmod_bsp.js (mapas del Workshop) | ✔ (sin el contenido de HL2 que la web trae de Steam —gmod_steam.js— ni la luz por lugar de las manos) | juego/bsp.rs, nativo/mapas_juego.rs; prueba: examples/mapas_foto.rs |
 
 ## Jugador, personajes, NPC, vehículos
 | web | estado | nativa |

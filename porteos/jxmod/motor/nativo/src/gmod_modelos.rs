@@ -65,6 +65,11 @@ fn sonido_sup(s: &str) -> &'static str {
 
 impl Juego {
     pub(crate) fn gm_id_pub(&mut self) -> i64 { self.gm_id() }
+    /// el motor se vació (otro mapa): los modelos, materiales y texturas armados ya no están en él (los prefabs «gm:» tampoco)
+    pub(crate) fn gm_olvidar_motor(&mut self) {
+        let mm = &mut self.gmod.mods; mm.modelos.clear(); mm.texs.clear(); mm.mats.clear(); mm.mats_spr.clear(); mm.quad = false; mm.lote = None;
+        self.gmod.texs.clear();
+    }
     fn gm_id(&mut self) -> i64 { self.gmod.mods.sig += 1; ID_GM - 16 - self.gmod.mods.sig }
     fn gm_archivo(&self, r: &str) -> Option<Rc<[u8]>> { self.gmod.gm.as_ref()?.archivo(r) }
     /// una textura de los addons (materials/<ruta>.vtf, o una imagen PNG): su número, ancho y alto
@@ -82,7 +87,7 @@ impl Juego {
         self.gmod.mods.texs.insert(ruta.to_string(), res); res
     }
     /// gmVmtRuta + GMF.vmt: el material de una textura del modelo (en sus carpetas)
-    fn gm_vmt(&self, tex: &str, carpetas: &[String]) -> Option<gmf::Vmt> {
+    pub(crate) fn gm_vmt(&self, tex: &str, carpetas: &[String]) -> Option<gmf::Vmt> {
         let gm = self.gmod.gm.as_ref()?;
         let cs: Vec<String> = if carpetas.is_empty() { vec![String::new()] } else { carpetas.to_vec() };
         for c in cs {
@@ -92,7 +97,7 @@ impl Juego {
         None
     }
     /// gmMaterial: el material del motor de una textura del modelo (y si se dibuja de los dos lados)
-    fn gm_material(&mut self, m: &mut Motor3d, tex: &str, carpetas: &[String]) -> (i64, bool) {
+    pub(crate) fn gm_material(&mut self, m: &mut Motor3d, tex: &str, carpetas: &[String]) -> (i64, bool) {
         let k = format!("{tex}|{}", carpetas.join(","));
         if let Some(x) = self.gmod.mods.mats.get(&k) { return *x; }
         let v = self.gm_vmt(tex, carpetas);

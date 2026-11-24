@@ -8,7 +8,7 @@
 //!  - recorte por lo que ve la cámara (y por lo que ve el sol para la sombra) con la esfera de cada cosa;
 //!  - resolución dinámica: la escena a una fracción del tamaño de la pantalla y estirada al final (lo que más pesa en una
 //!    placa floja son los píxeles), y la sombra y el reflejo rehechos cada tantos cuadros.
-use crate::escena::{Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_SIN_SOMBRA, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
+use crate::escena::{Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
 use crate::mat::{self, M4};
 use glow::HasContext;
 use std::collections::HashMap;
@@ -842,7 +842,22 @@ impl Motor {
         { let gl = &self.gl; gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.viewport(0, 0, ew, eh); gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT); }
         let vp = self.c.as_ref().unwrap().vp;
         self.cielo(&vp);
-        self.dibujos += self.dibujar_lista(&self.opacos, &vp, -1e9, false);
+        // (el cielo 3D: la maqueta y lo transparente de ella, y la profundidad borrada; el mapa, siempre adelante)
+        if self.items.iter().any(|it| it.fl & FL_CIELO != 0) {
+            let (cie, resto): (Vec<usize>, Vec<usize>) = self.opacos.iter().partition(|&&i| self.items[i].fl & FL_CIELO != 0);
+            self.dibujos += self.dibujar_lista(&cie, &vp, -1e9, false);
+            { let gl = &self.gl; gl.enable(glow::BLEND); gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); gl.depth_mask(false); }
+            let mut act: Option<bool> = None;
+            for &i in self.transp.iter().filter(|&&i| self.items[i].fl & FL_CIELO != 0) {
+                let it = &self.items[i]; let piel = !it.h.is_empty() && self.mallas[&it.m].piel; let p = if piel { &self.p_luz_piel } else { &self.p_luz };
+                if act != Some(piel) { act = Some(piel); self.luces(p, &vp, -1e9); }
+                let add = self.mats[&it.mat].add != 0; if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE); }
+                self.dibujar_item(p, it, true); self.dibujos += 1;
+                if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); }
+            }
+            { let gl = &self.gl; gl.disable(glow::BLEND); gl.depth_mask(true); gl.clear(glow::DEPTH_BUFFER_BIT); }
+            self.dibujos += self.dibujar_lista(&resto, &vp, -1e9, false);
+        } else { self.dibujos += self.dibujar_lista(&self.opacos, &vp, -1e9, false); }
         if con_ao { self.pasada_ao(ew, eh, &vp); }
         if self.marcas.2 > 0 {
             // las marcas de frenada: apenas despegadas del piso, mezcladas y sin escribir profundidad
@@ -856,7 +871,7 @@ impl Motor {
         { let gl = &self.gl; gl.enable(glow::BLEND); gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); gl.depth_mask(false); }
         let mut act: Option<bool> = None;
         for &i in &self.transp {
-            let it = &self.items[i]; let piel = !it.h.is_empty() && self.mallas[&it.m].piel; let p = if piel { &self.p_luz_piel } else { &self.p_luz };
+            let it = &self.items[i]; if it.fl & FL_CIELO != 0 { continue; } let piel = !it.h.is_empty() && self.mallas[&it.m].piel; let p = if piel { &self.p_luz_piel } else { &self.p_luz };
             if act != Some(piel) { act = Some(piel); self.luces(p, &vp, -1e9); }
             let add = self.mats[&it.mat].add != 0;
             if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE); }

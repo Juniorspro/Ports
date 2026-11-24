@@ -12,6 +12,8 @@ pub const SENS: [u32; 6] = [4, 8, 12, 16, 20, 26];
 /// el campo de visión (grados de alto de la imagen, como CAM.fov: 70 el de siempre; la web va de 50 a 110)
 pub const FOV: [u32; 6] = [60, 70, 80, 90, 100, 110];
 pub const VOL: [u32; 5] = [0, 25, 50, 80, 100];
+/// la hora del día (dia.js: los botones del Anfitrión: amanecer, día, atardecer, noche)
+pub const HORAS: [(&str, f32); 4] = [("Amanecer", 7.0), ("Día", 12.0), ("Atardecer", 17.5), ("Noche", 0.0)];
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Ajustes {
@@ -26,22 +28,25 @@ pub struct Ajustes {
     /// los fps y los tiempos arriba a la izquierda
     pub fps: bool,
     pub vol: u32, pub ambiente: bool,
+    /// la hora del día y si avanza sola (como DIA de la web, no se guardan: cada vez empieza a las 12)
+    pub hora: f32, pub ciclo: bool,
 }
 impl Default for Ajustes {
-    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true } }
+    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false } }
 }
 
 /// lo que se puede tocar en el menú, un renglón cada uno
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Clave { Calidad, Res, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Motor, Mapa }
+pub enum Clave { Calidad, Res, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Motor, Mapa, Hora, Ciclo }
 /// las pestañas del menú y sus renglones
-pub const PESTANAS: [&str; 5] = ["Gráficos", "Controles", "Sonido", "Motor", "Mapa"];
+pub const PESTANAS: [&str; 6] = ["Gráficos", "Controles", "Sonido", "Motor", "Mapa", "Día"];
 pub fn claves(pestana: usize) -> &'static [Clave] {
     match pestana {
         0 => &[Clave::Calidad, Clave::Res, Clave::Sombras, Clave::Ao, Clave::Reflejo, Clave::Retoque],
         1 => &[Clave::Sens, Clave::Fov, Clave::Fps],
         2 => &[Clave::Vol, Clave::Ambiente],
         3 => &[Clave::Motor],
+        5 => &[Clave::Hora, Clave::Ciclo],
         _ => &[Clave::Mapa],
     }
 }
@@ -49,7 +54,7 @@ pub fn nombre(c: Clave) -> &'static str {
     match c {
         Clave::Calidad => "Calidad", Clave::Res => "Resolución", Clave::Sombras => "Sombras", Clave::Ao => "Oclusión ambiental", Clave::Reflejo => "Reflejos del agua",
         Clave::Retoque => "Retoque de color", Clave::Sens => "Sensibilidad", Clave::Fov => "Campo de visión", Clave::Fps => "Mostrar fps", Clave::Vol => "Volumen",
-        Clave::Ambiente => "Sonido del ambiente", Clave::Motor => "Motor", Clave::Mapa => "Mapa",
+        Clave::Ambiente => "Sonido del ambiente", Clave::Motor => "Motor", Clave::Mapa => "Mapa", Clave::Hora => "Hora", Clave::Ciclo => "Ciclo (2 horas por minuto)",
     }
 }
 const NO_SI: [&str; 2] = ["No", "Sí"];
@@ -98,7 +103,8 @@ impl Ajustes {
         match c {
             Clave::Calidad => CALIDADES.iter().map(|s| s.to_string()).collect(),
             Clave::Res => num(&RES, "%"), Clave::Sens => num(&SENS, ""), Clave::Fov => num(&FOV, "°"), Clave::Vol => num(&VOL, "%"),
-            Clave::Sombras | Clave::Ao | Clave::Reflejo | Clave::Retoque | Clave::Fps | Clave::Ambiente => NO_SI.iter().map(|s| s.to_string()).collect(),
+            Clave::Sombras | Clave::Ao | Clave::Reflejo | Clave::Retoque | Clave::Fps | Clave::Ambiente | Clave::Ciclo => NO_SI.iter().map(|s| s.to_string()).collect(),
+            Clave::Hora => HORAS.iter().map(|h| h.0.to_string()).collect(),
             Clave::Motor | Clave::Mapa => vec![],
         }
     }
@@ -110,6 +116,7 @@ impl Ajustes {
             Clave::Res => pos(&RES, self.res), Clave::Sens => pos(&SENS, self.sens), Clave::Fov => pos(&FOV, self.fov), Clave::Vol => pos(&VOL, self.vol),
             Clave::Sombras => Some(self.sombras as usize), Clave::Ao => Some(self.ao as usize), Clave::Reflejo => Some(self.reflejo as usize),
             Clave::Retoque => Some(self.retoque as usize), Clave::Fps => Some(self.fps as usize), Clave::Ambiente => Some(self.ambiente as usize),
+            Clave::Hora => HORAS.iter().position(|h| h.1 == self.hora), Clave::Ciclo => Some(self.ciclo as usize),
             Clave::Motor | Clave::Mapa => None,
         }
     }
@@ -125,6 +132,7 @@ impl Ajustes {
             Clave::Retoque => { self.retoque = k == 1; self.calidad = PERSONAL; }
             Clave::Sens => self.sens = toma(&SENS), Clave::Fov => self.fov = toma(&FOV), Clave::Vol => self.vol = toma(&VOL),
             Clave::Fps => self.fps = k == 1, Clave::Ambiente => self.ambiente = k == 1,
+            Clave::Hora => self.hora = HORAS[k.min(HORAS.len() - 1)].1, Clave::Ciclo => self.ciclo = k == 1,
             Clave::Motor | Clave::Mapa => {}
         }
         // (si lo tocado a mano coincide con una calidad entera, vuelve a ser esa)

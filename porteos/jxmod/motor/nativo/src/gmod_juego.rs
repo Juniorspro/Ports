@@ -915,3 +915,35 @@ pub fn lzma(src: &[u8]) -> Result<Vec<u8>, String> {
     }
     Ok(out)
 }
+
+// ---------------- lo que usan los mapas del Workshop (mapas_juego.rs) ----------------
+impl Juego {
+    /// la capa GMod andando (la biblioteca, el addon base), aunque no haya addons montados
+    pub(crate) fn gmod_asegurar(&mut self) { if self.gmod.gm.is_none() { self.gmod_arrancar(); } }
+    /// un archivo de los addons montados o del contenido base (gmArchivo)
+    pub(crate) fn gmod_archivo(&self, r: &str) -> Option<Rc<[u8]>> { self.gmod.gm.as_ref()?.archivo(r) }
+    /// archivos sueltos para el contenido (los empaquetados en un .bsp): lo que ya está, queda
+    pub(crate) fn gmod_sumar_archivos(&mut self, v: Vec<(String, Rc<[u8]>)>) { self.con_puente(|p| for (k, b) in v { p.archivos.entry(k).or_insert(b); }); }
+    /// el addon de esa ruta, montado ya (si estaba esperando su turno)
+    pub(crate) fn gmod_montar_ya(&mut self, ruta: &Path) {
+        let Some(i) = self.gmod.addons.iter().position(|a| a.ruta == ruta) else { return };
+        if let Some(k) = self.gmod.pendientes.iter().position(|&x| x == i) { self.gmod.pendientes.remove(k); self.gmod.pendientes.insert(0, i); self.gmod_montar_uno(); }
+    }
+    /// un sonido de los addons o del contenido base (un archivo de sound/ o un guion de Source) listo en el mezclador: su clave
+    pub(crate) fn gmod_sonido_clave(&mut self, s: &str, vol: f32, tono: f32) -> Option<(String, f32, f32)> {
+        let (r, v, t, _) = jxgmod::sonidos::resolver(s, Some(vol as f64), Some(tono as f64), azar01());
+        let r = r.trim_start_matches(['*', '#', '@', '<', '>', '^', ')', '(', '}', '$', '!', '?', '&', '~', '`', '+', '%']).to_lowercase().replace('\\', "/");
+        let clave = format!("gm:{r}"); let ruta = if r.starts_with("sound/") { r.clone() } else { format!("sound/{r}") };
+        if !self.sonido.tiene(&clave) {
+            let b = self.gmod_archivo(&ruta)?;
+            if let Some((w, hz)) = leer_wav(&b) { self.sonido.sintetico(&clave, || w, hz); }
+            else if let (Some(dir), Some(ext)) = (self.gmod.datos.clone(), ruta.rsplit_once('.').map(|x| x.1.to_string()).filter(|e| e == "mp3" || e == "ogg")) {
+                let d = dir.join("gm_sonidos"); let _ = std::fs::create_dir_all(&d);
+                let h = ruta.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, c| (h ^ c as u64).wrapping_mul(0x100_0000_01b3));
+                let f = d.join(format!("{h:016x}.{ext}")); if !f.exists() { let _ = std::fs::write(&f, &b[..]); }
+                self.sonido.registrar_archivo(&clave, &f);
+            }
+        }
+        Some((clave, v as f32, t as f32))
+    }
+}

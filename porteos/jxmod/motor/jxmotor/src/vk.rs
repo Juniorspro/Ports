@@ -11,7 +11,7 @@
 //! transparente, el agua de HL2 (con la escena copiada para la refracción), la imagen final y el HUD. Las marcas (frenadas,
 //! quemaduras, agujeros de bala) van después de la oclusión y antes de lo transparente, con su sesgo de profundidad; las
 //! partículas, al final de la última pasada de la escena (después del agua), mirando la profundidad sin escribirla: como gpu.rs.
-use crate::escena::{Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_SIN_SOMBRA, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
+use crate::escena::{Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
 use crate::gpu::{Opciones, MAX_HUESOS, MAX_LUCES};
 use crate::mat::{self, M4};
 use ash::vk;
@@ -876,15 +876,18 @@ impl Motor {
         let hacer_ref = hay_agua && self.op.reflejo && cam_arriba;
         let vref = ay.map(|y| mat::mul(&vp, &mat::espejo_y(y))).unwrap_or(vp);
         let l_ref = if hacer_ref { let l = self.recortar(&vref, false); self.lista(&mut a, &l, false) } else { vec![] };
-        let opacos = self.opacos.clone();
+        // (el cielo 3D —la maqueta de los mapas del Workshop— aparte: se dibuja primero y después se borra la profundidad)
+        let (op_c, opacos): (Vec<usize>, Vec<usize>) = self.opacos.iter().partition(|&&i| self.items[i].fl & FL_CIELO != 0);
+        let l_cie = self.lista(&mut a, &op_c, false);
         let l_op = self.lista(&mut a, &opacos, false);
-        let mut l_tr = vec![];
+        let (mut l_tr, mut l_tr_c) = (vec![], vec![]);
         for &i in &self.transp.clone() {
             let it = &self.items[i]; let piel = !it.h.is_empty() && self.mallas[&it.m].piel.is_some();
             let inst = (a.inst.len() * 4) as u64; a.inst.extend_from_slice(&it.mm);
             let obj = self.reg_obj(&mut a, it, false); let hue = if piel { Some(Self::reg_hue(&mut a, &it.h)) } else { None };
             let (mk, _) = self.clave_mat(it); a.claves.push(mk);
-            l_tr.push(Dib { m: it.m, s0: it.s0, sn: it.sn, obj, inst, n: 1, hue, mk, mezcla: if self.mats[&it.mat].add != 0 { 2 } else { 1 }, piel });
+            let x = Dib { m: it.m, s0: it.s0, sn: it.sn, obj, inst, n: 1, hue, mk, mezcla: if self.mats[&it.mat].add != 0 { 2 } else { 1 }, piel };
+            if it.fl & FL_CIELO != 0 { l_tr_c.push(x); } else { l_tr.push(x); }
         }
         // (un registro propio por cosa de agua, con lo del agua del mapa —como wg.rs—)
         let mut l_agua = vec![];
@@ -998,11 +1001,25 @@ impl Motor {
             let lim = [vk::ClearValue { color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 1.0] } }, vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } }];
             d.cmd_begin_render_pass(cb, &vk::RenderPassBeginInfo::default().render_pass(if guardar { self.pasadas.esc_ao } else { self.pasadas.esc }).framebuffer(fb_esc).render_area(rect(w, h)).clear_values(&lim), vk::SubpassContents::INLINE);
             vista(&d, cb, w, h, 0.0);
+            let cie = !l_cie.is_empty() || !l_tr_c.is_empty();
+            if cie {
+                // (el cielo 3D: el cielo, la maqueta y lo transparente de ella; la profundidad borrada; el mapa, siempre adelante)
+                d.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, self.tubos.cielo);
+                d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.cielo, 0, &[g_solo, g_cielo], &[0]);
+                d.cmd_draw(cb, 3, 1, 0, 0); dibujos += 1;
+                d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.luz, 0, &[g_glob], &[0]);
+                dibujos += self.dibujar_lista(cb, &l_cie, false, g_obj, g_hue);
+                dibujos += self.dibujar_transp(cb, &l_tr_c, g_glob, g_obj, g_hue);
+                d.cmd_clear_attachments(cb, &[vk::ClearAttachment { aspect_mask: vk::ImageAspectFlags::DEPTH, color_attachment: 0, clear_value: vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } } }],
+                    &[vk::ClearRect { rect: rect(w, h), base_array_layer: 0, layer_count: 1 }]);
+            }
             d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.luz, 0, &[g_glob], &[0]);
             dibujos += self.dibujar_lista(cb, &l_op, false, g_obj, g_hue);
-            d.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, self.tubos.cielo);
-            d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.cielo, 0, &[g_solo, g_cielo], &[0]);
-            d.cmd_draw(cb, 3, 1, 0, 0); dibujos += 1;
+            if !cie {
+                d.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, self.tubos.cielo);
+                d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.cielo, 0, &[g_solo, g_cielo], &[0]);
+                d.cmd_draw(cb, 3, 1, 0, 0); dibujos += 1;
+            }
             if !con_ao {
                 dibujos += self.dibujar_marcas(cb, mi, n_marcas, g_solo);
                 dibujos += self.dibujar_transp(cb, &l_tr, g_glob, g_obj, g_hue);
