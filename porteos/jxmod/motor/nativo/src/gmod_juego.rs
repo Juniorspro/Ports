@@ -397,7 +397,7 @@ impl Juego {
         if !self.gmod.pendientes.is_empty() && self.mapa.is_some() { self.gmod_montar_uno(); }
         self.gmod_tienda_paso();
         if self.gmod.panel && self.gmod.gm.is_none() && self.mapa.is_some() { self.gmod_arrancar(); }
-        self.gmod_menu_paso(m);
+        if self.gmod.panel || !self.gmod.menu.pend.is_empty() { self.gmod_menu_paso(m); }
         if self.gmod.gm.is_none() || self.mapa.is_none() { return; }
         let t0 = Instant::now();
         // (el arma de un addon: si el jugador eligió otra del juego, se guarda)

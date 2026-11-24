@@ -16,7 +16,7 @@ pub struct ItemM { pub id: String, pub n: String, /** el ícono: "rb:<ruta en rb
 #[derive(Clone, Debug)]
 pub struct CatM { pub n: String, pub nivel: u8, pub ic: String, pub items: Vec<ItemM> }
 #[derive(Default)]
-pub struct MenuGm { pub tab: usize, pub cat: usize, pub scroll: f32, pub cat0: usize, pub cats: Vec<Vec<CatM>>, pub hecho: bool, pub iconos: HashMap<String, Option<(i64, u32, u32)>> }
+pub struct MenuGm { /** lo que se pide poner y necesita el motor (NPC y vehículos del juego) */ pub pend: Vec<String>, pub tab: usize, pub cat: usize, pub scroll: f32, pub cat0: usize, pub cats: Vec<Vec<CatM>>, pub hecho: bool, pub iconos: HashMap<String, Option<(i64, u32, u32)>> }
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BtnMenu { Tab(usize), Cat(usize), Item(usize), Cerrar, Arriba, Abajo }
 
@@ -104,6 +104,10 @@ impl Juego {
             Some(("arma", k)) => { if let Ok(k) = k.parse::<usize>() { self.gmod_guardar_arma(); self.armas.elegir(&mut self.fis, k); } self.gmod.panel = false; return; }
             Some(("gmprop", m)) => lua(m, "local e = ents.Create(\"prop_physics\")\nif IsValid(e) then e:SetModel(k) e:SetPos(p) e:SetAngles(Angle(0, LocalPlayer():EyeAngles().y + 180, 0)) e:Spawn() e:Activate() end"),
             // (los NPC y los vehículos de las listas: su clase con su modelo y sus valores, como el spawnmenu de GMod)
+            // (una clase del motor —npc_citizen, npc_combine_s, zombis…— es un NPC del juego, como gmnpcCrear; una clase del
+            // addon —nextbots, SNPC— se crea con su Lua)
+            Some(("gmnpc", k)) if !self.gm_clase_lua("NPC", k) => { self.gmod.menu.pend.push(it.to_string()); self.gmod.panel = false; return; }
+            Some(("gmveh", k)) if !self.gm_clase_lua("Vehicles", k) => { self.gmod.menu.pend.push(it.to_string()); self.gmod.panel = false; return; }
             Some(("gmnpc", k)) => lua(k, "local t = list.Get(\"NPC\")[k]\nif not t then return end\nlocal e = ents.Create(t.Class or \"npc_citizen\")\nif not IsValid(e) then return end\nif t.Model then e:SetModel(t.Model) end\nif t.KeyValues then for a, b in pairs(t.KeyValues) do e:SetKeyValue(a, b) end end\nif t.Skin then e:SetSkin(t.Skin) end\ne:SetPos(p + Vector(0, 0, t.Offset or 0)) e:SetAngles(Angle(0, LocalPlayer():EyeAngles().y + 180, 0)) e:Spawn() e:Activate()\nif t.Health then e:SetHealth(t.Health) end"),
             Some(("gmveh", k)) => lua(k, "local t = list.Get(\"Vehicles\")[k]\nif not t then return end\nlocal e = ents.Create(t.Class or \"prop_physics\")\nif not IsValid(e) then return end\ne:SetModel(t.Model or \"models/buggy.mdl\")\nif t.KeyValues then for a, b in pairs(t.KeyValues) do e:SetKeyValue(a, b) end end\ne:SetPos(p) e:SetAngles(Angle(0, LocalPlayer():EyeAngles().y + 90, 0)) e:Spawn() e:Activate()"),
             _ => { self.gmod_poner(it); self.gmod.panel = false; return; }
@@ -115,8 +119,38 @@ impl Juego {
         if let Some(Err(e)) = r { self.avisar(format!("No se pudo poner: {e}")); }
         self.gmod.panel = false;
     }
+    /// ¿la clase de esa entrada de la lista es de Lua (de un addon)? (las del motor no tienen tabla de clase)
+    fn gm_clase_lua(&mut self, lista: &str, k: &str) -> bool {
+        let c = { let c = self.gm_campo(lista, k, "Class"); if c.is_empty() { k.to_string() } else { c } };
+        self.gmod.gm.as_ref().map(|g| g.es_clase(&c)).unwrap_or(false)
+    }
+    /// un campo de una entrada de una lista de GMod
+    fn gm_campo(&mut self, lista: &str, k: &str, campo: &str) -> String { self.gmod.gm.as_mut().map(|g| g.lista(lista)).unwrap_or_default().into_iter().find(|x| x.0 == k).and_then(|x| x.1.into_iter().find(|c| c.0 == campo).map(|c| c.1)).unwrap_or_default() }
+    /// los NPC de las listas de GMod con clase del motor: un NPC del juego que camina, pega, muere y cae como muñeco, con
+    /// una actitud según la clase (gmnpcCrear: los combine y los zombis persiguen y pegan; los ciudadanos pasean). Los
+    /// vehículos: el del juego que más se parece (el auto, el bote, el asiento)
+    fn gm_poner_juego(&mut self, m: &mut Motor3d, it: &str) {
+        let (ojos, fw) = (self.ojos_ult, self.mira());
+        if let Some(k) = it.strip_prefix("gmnpc:") {
+            let cls = { let c = self.gm_campo("NPC", k, "Class"); if c.is_empty() { k.to_string() } else { c } }.to_lowercase();
+            let hostil = ["combine", "metropolice", "police", "zombi", "antlion", "headcrab", "hunter", "strider", "manhack", "scanner", "poison", "vortigaunt_hostile", "gunship", "soldier", "elite", "stalker"].iter().any(|x| cls.contains(x) || k.to_lowercase().contains(x));
+            let vida = self.gm_campo("NPC", k, "Health").parse::<f64>().ok().filter(|v| *v > 0.0).unwrap_or(if hostil { 60.0 } else { 100.0 });
+            let act = if hostil { npc::Actitud { modo: npc::Modo::Perseguir, vel: 3.0, obj: npc::Obj::Cerca, dist: 1.2, hostil: true, dano: 8.0, vida, ..Default::default() } } else { npc::Actitud { modo: npc::Modo::Pasear, vel: 1.6, vida, ..Default::default() } };
+            let Some(paq) = self.paq.as_mut() else { return };
+            let Ok((c, e)) = self.npc_skins.pedir(paq, "Hero", &mut self.pj_cargados) else { return };
+            if let Some(e) = e { if unsafe { m.cargar(&e) }.is_err() { return; } }
+            let Some(mp) = self.mapa.as_ref() else { return };
+            let (p, yaw) = npc::donde_poner(&mp.mundo, &mut self.fis, ojos, fw);
+            if let Some(id) = self.npcs.crear(c, p, yaw, Some(act), &mut self.fis) { self.pila.push((true, id)); }
+        } else if let Some(k) = it.strip_prefix("gmveh:") {
+            let (cls, modelo) = (self.gm_campo("Vehicles", k, "Class").to_lowercase(), self.gm_campo("Vehicles", k, "Model").to_lowercase());
+            let pf = if cls.contains("airboat") { "Inflatable_boat" } else if cls.contains("jeep") { if modelo.contains("jalopy") { "Sedan" } else { "Derby5" } } else if cls.contains("prisoner_pod") { if modelo.contains("chair") { "Chair1" } else { "Seat" } } else { "Seat" };
+            if let Err(e) = self.poner(m, pf, ojos, fw) { self.avisar(format!("No se pudo poner {k}: {e}")); }
+        }
+    }
     /// los íconos de la grilla que se ven (de a 8 por cuadro) y las listas la primera vez
     pub fn gmod_menu_paso(&mut self, m: &mut Motor3d) {
+        for it in std::mem::take(&mut self.gmod.menu.pend) { self.gm_poner_juego(m, &it); }
         if !self.gmod.panel { return; }
         if !self.gmod.menu.hecho { self.gmod_menu_armar(); }
         if self.gmod.menu.tab == TAB_ADDONS { return; }

@@ -138,6 +138,8 @@ impl Gmod {
         }
         out.sort_by(|a, b| a.0.cmp(&b.0)); out
     }
+    /// ¿hay una entidad de Lua con esa clase (scripted_ents)? (sin importar mayúsculas)
+    pub fn es_clase(&self, c: &str) -> bool { self.activar(); g(|g| g.clases.get(c).is_some() || g.clases.get(&c.to_lowercase()).is_some()) }
     /// una frase de GMod ("#npc_alyx" → "Alyx Vance"), si está
     pub fn frase(&mut self, k: &str) -> Option<String> {
         self.activar(); let k = k.trim_start_matches('#');

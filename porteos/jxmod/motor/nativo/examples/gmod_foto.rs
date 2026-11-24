@@ -129,6 +129,9 @@ fn main() {
         j.gmod_menu_ir(3, 0); paso(&mut j, &mut m, 12); foto(&mut m, "m2_npcs");
         j.gmod_menu_ir(1, 0); paso(&mut j, &mut m, 12); foto(&mut m, "m3_weapons");
         if let Some(p) = prop { let n0 = j.objs.len(); j.gmod_menu_poner(&p); paso(&mut j, &mut m, 40); println!("  puesto {}: objetos {} → {} ({:?})", p, n0, j.objs.len(), j.objs.last().map(|o| o.nombre.clone())); foto(&mut m, "m4_prop"); }
+        // (un NPC del motor —npc_combine_s— y un vehículo de base_vehicles: los del juego)
+        let n0 = j.npcs.lista.len(); j.gmod_menu_poner("gmnpc:npc_combine_s"); paso(&mut j, &mut m, 60); println!("  NPC del juego: {} → {}", n0, j.npcs.lista.len()); foto(&mut m, "m6_npc_juego");
+        let n0 = j.objs.len(); j.gmod_menu_poner("gmveh:Jeep"); paso(&mut j, &mut m, 30); println!("  vehículo: objetos {} → {} ({:?})", n0, j.objs.len(), j.objs.last().map(|o| o.nombre.clone())); foto(&mut m, "m7_vehiculo");
         if let Some(n) = j.gmod_menu_ir(3, 0).first().cloned() { let n0 = j.objs.len(); j.gmod_menu_poner(&n); paso(&mut j, &mut m, 40); println!("  puesto {}: objetos {} → {} ({:?})", n, n0, j.objs.len(), j.objs.last().map(|o| o.nombre.clone())); foto(&mut m, "m5_npc"); }
     }
     // (JXM_TIENDA=1: la tienda de verdad con curl: la lista, bajar el más chico, descomprimir e instalar)
