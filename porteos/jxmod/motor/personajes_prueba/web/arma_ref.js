@@ -4,8 +4,8 @@
 // examples/arma_comparar.rs) para compararlos con arma_comparar.py. Los vehículos van donde dice la salida del port
 // (su centro y dónde está su cuerpo: hay que correr antes examples/arma_comparar.rs).
 // Uso: node arma_ref.js ESCENAS.json SALIDA_RUST.json SALIDA.json   (JXM_WWW: el paquete)
-// Con JXM_ENTRA=1, en los vehículos la persona entra parada (como en el juego: P.faldon se mide en el primer cuadro en el
-// auto, que todavía tiene la pose de parado)
+// Con JXM_ENTRA=1, en los vehículos la persona entra parada (el primer cuadro todavía con la pose de parado: el cuerpo se
+// mide igual en la pose del clip de sentado)
 const fs = require('fs'), vm = require('vm'), zlib = require('zlib'), path = require('path');
 const J = path.join(__dirname, '../../../juego/');
 const W = (process.env.JXM_WWW || '/tmp/claude-0/jxm/www_todo') + '/';
@@ -94,9 +94,10 @@ const out = vm.runInContext(`(() => {
         cuadros.push(r);
       }
     }
-    if (o && o.veh.cab) cab = o.veh.cab[a];
-    R.escenas.push({ n: E.n, cab, faldon: P.faldon, nalga: P.nalga, cuadros });
+    if (o && o.veh.cab && o.veh.cab[a]) { const x = o.veh.cab[a]; cab = { coj: x.coj, techo: x.techo, piso: x.piso, lejos: x.lejos }; }
+    const cs = P.asCuerpo && P.asCuerpo[P.manejando ? 1 : 0];
+    R.escenas.push({ n: E.n, cab, cuerpo: cs ? { faldon: cs.faldon, cola: cs.cola } : null, cuadros });
   });
   return R; })()`, ctx);
 fs.writeFileSync(process.argv[4], JSON.stringify(out));
-for (const e of out.escenas) console.log(e.n, 'cuadros', e.cuadros.length, e.cab ? 'cabina ' + JSON.stringify(e.cab) + ' faldón ' + e.faldon + ' nalga ' + e.nalga : '');
+for (const e of out.escenas) console.log(e.n, 'cuadros', e.cuadros.length, e.cab ? 'cabina ' + JSON.stringify(e.cab) + ' cuerpo ' + JSON.stringify(e.cuerpo) : '');

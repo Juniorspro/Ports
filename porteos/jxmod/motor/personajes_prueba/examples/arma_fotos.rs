@@ -1,18 +1,14 @@
-//! Fotos y medidas del arma en la mano y de sentado en un auto (jxjuego::personaje con arma_mano.rs), con el motor GLES
-//! fuera de pantalla en RB_Flatgrass (como npc_fotos.rs): el jugador en tercera persona con cada arma (de cerca la mano,
-//! el cuerpo entero y desde la cámara del juego), otros personajes (Freddy, Jake), un NPC armado tirándote y sentado en
-//! autos (manejando y de acompañante). Mide cuánto rodean los dedos el mango y a qué distancia quedan, la palma, la cadera
-//! sobre el almohadón, las suelas sobre el piso del auto y la cabeza bajo el techo. hoja_*.png: todas juntas.
+//! Fotos y medidas del arma en la mano (jxjuego::personaje con arma_mano.rs), con el motor GLES fuera de pantalla en
+//! RB_Flatgrass (como npc_fotos.rs): el jugador en tercera persona con cada arma (de cerca la mano, la palma, el cuerpo
+//! entero y desde atrás), otros personajes (Freddy, Jake) y un NPC armado tirándote. Mide cuánto rodean los dedos el mango
+//! y a qué distancia quedan y la palma. hoja_*.png: todas juntas. (Sentado en los autos: sentado.rs)
 //! Uso: arma_fotos [CARPETA_SALIDA]   (JXM_WWW: la carpeta del paquete)
 use glow::HasContext;
 use jxjuego::arma_mano::{self, ArmaMano};
-use jxjuego::fisica::{qeje, qmul, Fisica};
-use jxjuego::forma::{cuerpo_de_prefab, Catalogo};
+use jxjuego::fisica::Fisica;
 use jxjuego::npc::{Actitud, Gente, Npcs, Skins};
-use jxjuego::objetos;
 use jxjuego::paquete::Paquete;
-use jxjuego::personaje::{base, Asiento, Cargados, Estado, Personaje};
-use jxjuego::vehiculo::{Tipo, Vehiculos};
+use jxjuego::personaje::{base, Cargados, Estado, Personaje};
 use jxmotor::escena::{Cuadro, ItemDin};
 use jxmotor::gpu::{Motor, Opciones};
 use jxmotor::mat::{self as m4, M4};
@@ -167,65 +163,6 @@ fn main() {
     }
     guardar_hoja(&format!("{sal}/hoja_caminar_npc.png"), &hoja2);
 
-    // ---------------- 3. sentado en los autos ----------------
-    let mut hoja3 = Hoja::nueva(4, 8);
-    let nombres = objetos::por_nombre(&paq.d); let mut cat = Catalogo::nuevo(&paq); let mut oya = objetos::Cargados::default();
-    println!("\n{:<26} {:>10} {:>12} {:>13} {:>12} {:>11}", "auto, asiento, skin", "cadera cm", "cola cm", "suelas cm", "techo cm", "pies adentro");
-    for (veh, asi, skin) in [("Sedan", 0usize, "Hero"), ("Sedan", 1, "Hero"), ("Derby5", 0, "Hero"), ("police_car_v4", 0, "Hero"), ("Sofie", 0, "Hero"), ("Sedan", 0, "Freddy"), ("Sedan", 0, "Jake"), ("Wheelchair", 0, "Hero")] {
-        let (pf_draw, e) = objetos::armar(&mut paq, &nombres, veh, 1024, &mut oya).expect("prefab"); unsafe { m.cargar(&e).unwrap(); }
-        let pf = cat.prefab(&paq, veh).unwrap();
-        let p = [sp[0] as f64 + 4.0, piso_y(sp[0] + 4.0, sp[2]) as f64 + 0.6, sp[2] as f64 + 3.0];
-        let mut fis = Fisica::nueva(); let mut vehs = Vehiculos::nuevo();
-        let id = fis.agregar(cuerpo_de_prefab(&pf, p, qmul(qeje([0.0, 1.0, 0.0], 0.5), [0.0, 0.0, 0.0, 1.0]), false)); vehs.agregar(&paq, &pf, id, &mut fis, None);
-        for _ in 0..120 { vehs.paso(&mut fis, &mapa.mundo, None, DT as f64, &jxjuego::vehiculo::Mando::default()); fis.paso(&mapa.mundo, DT as f64); }
-        let b = fis.cuerpo(id).unwrap().clone(); let vh = vehs.de(id).unwrap().clone();
-        let cab = vehs.cabina(&paq, id, asi); let s = vh.asientos[asi];
-        let ps = jxjuego::fisica::add(b.pos, jxjuego::fisica::rot(b.q, [s[0], s[1] + 0.75, s[2]]));
-        let q32 = [b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32];
-        let asiento = Asiento { pos: [ps[0] as f32, (ps[1] - 0.5) as f32, ps[2] as f32], veh: [b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32], q: q32, manejando: asi == 0 && vh.tipo != Tipo::Asiento, cab };
-        let (mut pj, e) = Personaje::cargar(&mut paq, skin, 0, 1024, &mut ya).unwrap(); unsafe { m.cargar(&e).unwrap(); }
-        for _ in 0..60 { pj.sentar(&paq, Some(asiento)); pj.animar(DT, &Estado { piso: [0.0; 3], vel: [0.0; 3], yaw: 0.0, mira: 0.0, en_suelo: false, agachado: false, agua: None }); }
-        let bs = pj.base_sentado().unwrap();
-        // medidas en el marco del cuerpo del auto
-        let qi = [-b.q[0], -b.q[1], -b.q[2], b.q[3]];
-        let loc = |wp: [f32; 3]| { let r = jxjuego::fisica::rot(qi, [wp[0] as f64 - b.pos[0], wp[1] as f64 - b.pos[1], wp[2] as f64 - b.pos[2]]); r };
-        let hips = pj.hueso("Hips").map(|h| loc(punto(&bs, [h[12], h[13], h[14]]))).unwrap();
-        let vs: Vec<[f64; 3]> = pj.vertices(&paq).iter().map(|v| loc(punto(&bs, *v))).collect();
-        let (coj, piso) = cab.map(|c| (c.coj, c.piso)).unwrap_or((s[1], None));
-        // (lo más alto de la malla del auto debajo de y0 en x, z; lo más bajo arriba de y0)
-        let abajo = |x: f64, z: f64, y0: f64| vehs.cortes(id, x, z).and_then(|l| l.into_iter().filter(|y| *y < y0).fold(None, |a: Option<f64>, y| Some(a.map_or(y, |a| a.max(y)))));
-        let arriba = |x: f64, z: f64, y0: f64| vehs.cortes(id, x, z).and_then(|l| l.into_iter().filter(|y| *y > y0).fold(None, |a: Option<f64>, y| Some(a.map_or(y, |a| a.min(y)))));
-        // la cola: lo más bajo de la piel sobre el asiento (a menos de 25 cm del asiento de costado, de 30 cm atrás a 20 adelante)
-        // contra el almohadón de la malla
-        let mut cola: Option<(f64, f64)> = None;
-        for v in &vs { if (v[0] - s[0]).abs() < 0.25 && v[2] > s[2] - 0.3 && v[2] < s[2] + 0.2 && v[1] < hips[1] {
-            if cola.map(|c| v[1] < c.0).unwrap_or(true) { if let Some(a) = abajo(v[0], v[2], hips[1] - 0.04) { cola = Some((v[1], a)); } } } }
-        // las suelas contra el piso de la malla debajo de cada una (talón y punta de cada pie)
-        let suelas: Vec<f64> = pj.suelas().map(|su| su.iter().flat_map(|l| l.iter().map(|q| loc(punto(&bs, *q)))).filter_map(|p| Some(p[1] - abajo(p[0], p[2], p[1].max(coj - 0.12))?)).collect()).unwrap_or_default();
-        // la cabeza contra el techo (lo más alto de la piel cerca de la cabeza)
-        let cab_h = pj.hueso("Head").map(|h| loc(punto(&bs, [h[12], h[13], h[14]]))).unwrap();
-        let tope = vs.iter().filter(|v| (v[0] - cab_h[0]).hypot(v[2] - cab_h[2]) < 0.2).fold([0.0, -1e9, 0.0], |a, v| if v[1] > a[1] { *v } else { a });
-        let techo = arriba(tope[0], tope[2], cab_h[1] - 0.1).map(|t| t - tope[1]);
-        let ztope = cab.map(|c| s[2] + c.lejos.unwrap_or(0.6) - 0.06);
-        let pies_ok = pj.suelas().map(|su| su.iter().all(|l| l.iter().all(|q| ztope.map_or(true, |zt| loc(punto(&bs, *q))[2] <= zt + 0.06))));
-        let mm = |l: &[f64]| if l.is_empty() { "-".to_string() } else { format!("{:.1}…{:.1}", l.iter().fold(1e9f64, |a, b| a.min(*b)) * 100.0, l.iter().fold(-1e9f64, |a, b| a.max(*b)) * 100.0) };
-        println!("{:<26} {:>10.1} {:>12} {:>13} {:>12} {:>11}  (almohadón supuesto {:.1} cm sobre el de la malla{})", format!("{veh} {asi} {skin}"), (hips[1] - coj) * 100.0,
-            cola.map(|c| format!("{:.1}", (c.0 - c.1) * 100.0)).unwrap_or("-".into()), mm(&suelas), techo.map(|t| format!("{:.1}", t * 100.0)).unwrap_or("-".into()),
-            pies_ok.map(|b| if b { "sí" } else { "NO" }).unwrap_or("-"), (coj - abajo(s[0], s[2], hips[1] - 0.04).unwrap_or(coj)) * 100.0, piso.map(|p| format!(", piso {:.1} cm bajo él", (coj - p) * 100.0)).unwrap_or_default());
-        // las fotos: por la ventanilla, de arriba sin el techo (sólo el personaje) y desde la cámara del juego
-        let mut items = mapa.items.clone();
-        let cq = pf.cap_q.map(|c| [-c[0], -c[1], -c[2], c[3]]).unwrap_or([0.0, 0.0, 0.0, 1.0]); let qq = qmul(b.q, cq);
-        let bm = m4::mul(&jxjuego::mapa::trs([b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32], [qq[0] as f32, qq[1] as f32, qq[2] as f32, qq[3] as f32], [1.0; 3]), &jxjuego::mapa::trs([-pf.c[0] as f32, -pf.c[1] as f32, -pf.c[2] as f32], [0.0, 0.0, 0.0, 1.0], [1.0; 3]));
-        vh.items(&pf_draw, &bm, &mut items);
-        let mut solo = mapa.items.clone(); pj.items(&bs, &mut solo); pj.items(&bs, &mut items);
-        let w = |p: [f64; 3]| { let r = jxjuego::fisica::add(b.pos, jxjuego::fisica::rot(b.q, p)); [r[0] as f32, r[1] as f32, r[2] as f32] };
-        let lado = if s[0] >= 0.0 { 1.0 } else { -1.0 };
-        let sv = w([s[0], s[1] + 0.3, s[2] + 0.15]);
-        for (vn, it, ojo, mira) in [("ventanilla", &items, w([s[0] + lado * 1.7, s[1] + 0.55, s[2] + 0.35]), sv), ("adelante", &items, w([s[0] * 0.5, s[1] + 0.9, s[2] + 2.6]), sv), ("sin_auto", &solo, w([s[0] + lado * 1.6, s[1] + 0.5, s[2] + 0.9]), sv), ("costado_sin_auto", &solo, w([s[0] + lado * 1.8, s[1] + 0.1, s[2]]), w([s[0], s[1] - 0.05, s[2] + 0.2]))] {
-            let px = foto(&mut m, it, ojo, mira, 0.9); guardar(&format!("{sal}/sentado_{veh}_{asi}_{skin}_{vn}.png"), &px); hoja3.poner(&px);
-        }
-    }
-    guardar_hoja(&format!("{sal}/hoja_sentado.png"), &hoja3);
     println!("fotos en {sal}");
 }
 

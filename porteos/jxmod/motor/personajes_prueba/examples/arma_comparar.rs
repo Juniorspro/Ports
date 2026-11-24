@@ -41,10 +41,10 @@ fn main() {
             let ps = jxjuego::fisica::add(b.pos, jxjuego::fisica::rot(b.q, [s[0], s[1] + 0.75, s[2]]));
             let pos = [ps[0] as f32, (ps[1] - 0.5) as f32, ps[2] as f32];
             let q32 = [b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32];
-            veh = Some(Asiento { pos, veh: [b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32], q: q32, manejando: man, cab });
+            veh = Some(Asiento { pos, veh: [b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32], q: q32, manejando: man, cab: cab.clone() });
             vinfo = json!({ "nombre": nombre, "a": asi, "c": vh.c, "pos": b.pos, "q": b.q, "asientos": vh.asientos, "manejando": man,
-                "cab": cab.map(|c| json!({ "coj": c.coj, "piso": c.piso, "lejos": c.lejos })), "jug": pos });
-            println!("{}: {nombre} asiento {asi} {:?} cabina {:?}", e["n"], s, cab);
+                "cab": cab.as_ref().map(|c| json!({ "coj": c.coj, "techo": c.techo, "piso": c.piso, "lejos": c.lejos })), "jug": pos });
+            println!("{}: {nombre} asiento {asi} {:?} cabina {:?}", e["n"], s, cab.as_ref().map(|c| (c.coj, c.techo, c.piso, c.lejos)));
         }
         let mut cuadros = vec![];
         let mut est = Estado { piso: [0.0; 3], en_suelo: true, ..Default::default() };
@@ -63,7 +63,7 @@ fn main() {
                 est.en_suelo = t["suelo"].as_bool().unwrap_or(true); est.agachado = t["ag"].as_bool().unwrap_or(false); est.yaw = yaw; est.mira = mira;
                 est.piso[0] += est.vel[0] * dt; est.piso[2] += est.vel[2] * dt;
                 if veh.is_some() { est.vel = [0.0; 3]; }
-                pj.sentar(&paq, veh);
+                pj.sentar(&paq, veh.clone());
                 let t2 = std::time::Instant::now();
                 pj.animar(dt, &est); n_total += 1;
                 if k == 0 && cambio { println!("  {} {}: cargar {t_carga:.2} ms, primer cuadro {:.2} ms", e["n"], t["arma"], t2.elapsed().as_secs_f64() * 1000.0); }

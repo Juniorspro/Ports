@@ -21,5 +21,11 @@
  {"n": "derby_maneja", "skin": "Hero", "dt": 0.015625, "veh": {"nombre": "Derby5", "a": 0, "pos": [-2, 0.5, 1], "yaw": -1.2, "incl": 0}, "tramos": [{"n": 60}]},
  {"n": "policia_maneja", "skin": "Hero", "dt": 0.015625, "veh": {"nombre": "police_car_v4", "a": 0, "pos": [0, 0.5, 0], "yaw": 2.5, "incl": 0}, "tramos": [{"n": 60}]},
  {"n": "sofie_freddy", "skin": "Freddy", "dt": 0.015625, "veh": {"nombre": "Sofie", "a": 0, "pos": [0, 0.5, 0], "yaw": 0, "incl": 0}, "tramos": [{"n": 60}]},
- {"n": "sedan_jake", "skin": "Jake", "dt": 0.015625, "veh": {"nombre": "Sedan", "a": 0, "pos": [3, 0.6, 7], "yaw": 0.7, "incl": 0}, "tramos": [{"n": 60}]}
+ {"n": "sedan_jake", "skin": "Jake", "dt": 0.015625, "veh": {"nombre": "Sedan", "a": 0, "pos": [3, 0.6, 7], "yaw": 0.7, "incl": 0}, "tramos": [{"n": 60}]},
+ {"n": "sedan_freddy", "skin": "Freddy", "dt": 0.015625, "veh": {"nombre": "Sedan", "a": 0, "pos": [3, 0.6, 7], "yaw": 0.7, "incl": 0.04}, "tramos": [{"n": 60}]},
+ {"n": "policia_sunman", "skin": "Sunman", "dt": 0.015625, "veh": {"nombre": "police_car_v4", "a": 1, "pos": [0, 0.5, 0], "yaw": 2.5, "incl": 0}, "tramos": [{"n": 60}]},
+ {"n": "derby_sunman", "skin": "Sunman", "dt": 0.015625, "veh": {"nombre": "Derby5", "a": 0, "pos": [-2, 0.5, 1], "yaw": -1.2, "incl": 0}, "tramos": [{"n": 60}]},
+ {"n": "sofie_hero_pasajero", "skin": "Hero", "dt": 0.015625, "veh": {"nombre": "Sofie", "a": 1, "pos": [0, 0.5, 0], "yaw": 0.3, "incl": 0}, "tramos": [{"n": 60}]},
+ {"n": "silla_hero", "skin": "Hero", "dt": 0.015625, "veh": {"nombre": "Wheelchair", "a": 0, "pos": [0, 0.5, 0], "yaw": 0, "incl": 0}, "tramos": [{"n": 60}]},
+ {"n": "carrito_jake", "skin": "Jake", "dt": 0.015625, "veh": {"nombre": "Luggage", "a": 0, "pos": [0, 0.5, 0], "yaw": 0, "incl": 0}, "tramos": [{"n": 60}]}
 ]}

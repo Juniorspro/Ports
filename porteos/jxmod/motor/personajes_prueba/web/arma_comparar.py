@@ -25,4 +25,4 @@ for ea, eb in zip(a['escenas'], b['escenas']):
     print('%-16s %6d | %s | %s | %s | %.2f mm cuadro %s %s%s' % (ea['n'], len(ca), f(cu), f(de), f(ar), peor[0], peor[1], peor[2], ('  (arma en uno solo: %d cuadros)' % sin) if sin else ''))
     if len(ca) != len(cb): print('   cuadros distintos: web %d port %d' % (len(ca), len(cb)))
     if ea.get('cab') or (eb.get('veh') or {}).get('cab'):
-        print('   cabina web %s faldón %s nalga %s | port %s' % (ea.get('cab'), ea.get('faldon'), ea.get('nalga'), (eb.get('veh') or {}).get('cab')))
+        print('   cabina web %s | port %s' % (ea.get('cab'), (eb.get('veh') or {}).get('cab')))

@@ -319,9 +319,9 @@ pub struct Personaje {
     torso_ref: HashMap<String, Q>, dedos: HashMap<String, Option<Arc<Vec<(usize, Q)>>>>,
     /// lo local de reposo (la pose del árbol: los dedos se calculan sobre ella) y las manos
     reposo: Arc<(Vec<V>, Vec<Q>, Vec<V>)>, manos: Arc<Manos>,
-    /// sentado en un vehículo (P.sentado) y cuánto cuelga debajo de la cadera lo que la piel pega a la cadera y a los muslos
-    /// (asientoFaldon: P.faldon, P.nalga; se mide una vez)
-    sentado: Option<Asiento>, faldon: Option<(f32, f32)>,
+    /// sentado en un vehículo (P.sentado) y cómo es el cuerpo en cada clip de sentado (asientoCuerpo: P.asCuerpo; se mide
+    /// una vez por clip: 0 de acompañante, 1 manejando)
+    sentado: Option<Asiento>, cuerpo_s: [Option<Arc<CuerpoSentado>>; 2],
     /// tirado como muñeco (`poner_fijos`): sin arma en la mano
     rag: bool,
     /// si las matrices quedaron de otra pose en este cuadro (md.sucio: las medidas de los clips o de la postura del torso
@@ -345,8 +345,15 @@ fn hash(s: &str) -> u32 { s.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wr
 /// `vehiculo::Camara::jugador`), el centro y el giro del cuerpo del vehículo, si maneja (el asiento 0 de uno que no es una
 /// silla: las manos en el volante, el clip Driver; si no, Sitting Idle) y, si es un auto, la cabina del asiento
 /// (`Vehiculos::cabina`: el almohadón y el piso)
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Asiento { pub pos: [f32; 3], pub veh: [f32; 3], pub q: [f32; 4], pub manejando: bool, pub cab: Option<Cabina> }
+/// el cuerpo en la pose de un clip de sentado (asientoCuerpo, en el espacio del personaje, desde la cadera): cuánto cuelga
+/// debajo de la cadera lo que la piel pega a la cadera (en una persona ≈ 15 cm; en uno con sobretodo, el sobretodo
+/// entero), dónde está la cola (lo más bajo de lo que la piel pega a la cadera y a los muslos a menos de 15 cm de costado
+/// de la cadera, a escala: cuánto abajo y cuánto corrida en x y z), la cabeza (lo más alto de la piel y lo más adelante, atrás y a cada lado de lo que queda a
+/// menos de 10 cm de lo más alto) y el cuello
+#[derive(Clone, Debug, Default)]
+pub struct CuerpoSentado { pub faldon: f32, pub cola: f32, pub cola_d: [f32; 2], pub cabeza: Vec<V>, pub cuello: V }
 
 /// la patada (patadas.js, PAT): el tramo del golpe del clip Kick, de 0,55 s a 1,95 s, 2,2 veces más rápido
 const PAT_DE: f32 = 0.55; const PAT_A: f32 = 1.95; const PAT_V: f32 = 2.2;
@@ -493,7 +500,7 @@ impl Personaje {
             v: [0.0; NV], o: [0.0; NV], ht: 0.0, fase: 0.0, aire: 0.0, caida: 0.0, agach: 0.0, mov: 0.0, cadera: 0.0, cad_w: 1.0, par: 0, clave: Clave::default(), o_t: 0.0, listo: false, pos_k: 0.0,
             loco_esc: None, loco: [vec![None; nr], vec![None; ncw]], pie_corr: 0.0, ik: None, nado_k: 0.0, nado_w: 0.0, nado_t: 0.0, nado: None, emo: None,
             arma: None, armas: HashMap::new(), pa_t: None, ta_k: 0.0, gy: 0.0, gy_o: 0.0, accion: None, forzar: false, torso_ref: HashMap::new(), dedos: HashMap::new(),
-            reposo, manos, sentado: None, faldon: None, rag: false, sucio: true };
+            reposo, manos, sentado: None, cuerpo_s: [None, None], rag: false, sucio: true };
         // el reposo (datosSkin): el giro de cada nodo y la suela
         pj.actualizar();
         pj.rw = pj.w.iter().map(m4quat).collect();
@@ -716,7 +723,7 @@ impl Personaje {
         let gm = self.gm.clone(); let mut t = [0.0f32; NV];
         self.ht += dt as f64;
         let sp = e.vel[0].hypot(e.vel[2]);
-        let sentado = self.sentado.map(|a| a.manejando);
+        let sentado = self.sentado.as_ref().map(|a| a.manejando);
         // (H.gm: quieto con una postura de GMod; H.pa: la postura de este cuadro)
         let mut hgm = false; let mut pa: Option<(String, Arc<Clip>)> = None;
         if let Some((c, et)) = self.emo.as_mut() {
@@ -962,7 +969,7 @@ impl Personaje {
     pub fn animar(&mut self, dt: f32, e: &Estado) {
         let dt = if dt > 0.0 { dt.min(0.25) } else { 0.016 };
         // (sentado está apoyado —P.suelo— y no nada)
-        let sentado = self.sentado;
+        let sentado = self.sentado.clone();
         let e = &Estado { en_suelo: e.en_suelo || sentado.is_some(), agua: if sentado.is_some() { None } else { e.agua }, ..*e };
         self.rag = false;
         // nadando: la pose de nado entra y sale suave
@@ -1078,10 +1085,10 @@ impl Personaje {
 
     // ---------------- sentado (vehiculos.js) ----------------
     /// sentado en un vehículo (P.sentado; None: se para). Se llama en cada cuadro mientras va sentado, antes de `animar`, con
-    /// dónde está el vehículo; la primera vez en un auto se mide cuánto cuelga debajo de la cadera (asientoFaldon: por eso
+    /// dónde está el vehículo; la primera vez en un auto con cada clip se mide el cuerpo en esa pose (asientoCuerpo: por eso
     /// el paquete). Se dibuja con `base_sentado`
     pub fn sentar(&mut self, paq: &Paquete, a: Option<Asiento>) {
-        if let Some(x) = &a { if x.cab.is_some() && self.faldon.is_none() { self.faldon = Some(self.faldon_de(paq, x.manejando)); } }
+        if let Some(x) = &a { let k = x.manejando as usize; if x.cab.is_some() && self.cuerpo_s[k].is_none() { self.cuerpo_s[k] = Some(Arc::new(self.cuerpo_sentado(paq, x.manejando))); } }
         self.sentado = a;
     }
     /// si va sentado
@@ -1089,59 +1096,77 @@ impl Personaje {
     /// la base del personaje sentado (ubicarPersona con P.qVeh): el giro entero del vehículo, con el pivote en la cadera (1
     /// m arriba de los pies; menos en los bajitos). Para `items`
     pub fn base_sentado(&self) -> Option<M4> {
-        let a = self.sentado?; let d = qrot(a.q, [0.0, -self.tam, 0.0]);
+        let a = self.sentado.as_ref()?; let d = qrot(a.q, [0.0, -self.tam, 0.0]);
         Some(trs(add(a.pos, d), a.q, [1.0; 3]))
     }
-    /// cuánto cuelga debajo de la cadera, en la pose de sentado y sobre la vertical del asiento, lo que la piel pega sobre
-    /// todo a la cadera (en una persona, ≈ 15 cm; en uno con sobretodo, el sobretodo entero) y lo que pega a los muslos
-    /// (asientoFaldon). La web lo mide en el primer cuadro en el auto; acá, en la pose del clip de sentado
-    fn faldon_de(&mut self, paq: &Paquete, manejando: bool) -> (f32, f32) {
-        let Some(ih) = self.h[HIPS] else { return (0.0, 0.0) };
-        let gm = self.gm.clone(); let Some(c) = (if manejando { gm.sit.as_ref() } else { gm.sit0.as_ref() }) else { return (0.0, 0.0) };
+    /// el cuerpo en la pose del clip de sentado (asientoCuerpo: en su primer cuadro, con la raíz en el origen; ver
+    /// `CuerpoSentado`)
+    fn cuerpo_sentado(&mut self, paq: &Paquete, manejando: bool) -> CuerpoSentado {
+        let mut o = CuerpoSentado::default();
+        let Some(ih) = self.h[HIPS] else { return o };
+        let gm = self.gm.clone(); let Some(c) = (if manejando { gm.sit.as_ref() } else { gm.sit0.as_ref() }) else { return o };
         let (raiz, v, r, p) = (self.raiz, self.v, self.r.clone(), self.p.clone());
-        let mut t = [0.0f32; NV]; hum_clip(c, gm.fps, self.ht, 1.0, &mut t);
+        let mut t = [0.0f32; NV]; hum_clip(c, gm.fps, 0.0, 1.0, &mut t);
         self.raiz = m4::id(); self.v = t; self.hum_aplicar(); self.actualizar(); self.calcular_paleta();
-        let hy = self.w[ih][13]; let (mut l, mut lm) = (0.0f32, 0.0f32);
+        let h0 = pos(&self.w[ih]); let s = clamp(self.tam, 0.3, 3.0);
+        o.cuello = self.h[NECK].map(|n| sub(pos(&self.w[n]), h0)).unwrap_or([0.0, 0.6 * s, 0.0]);
+        // (cada vértice con su piel y el hueso que más pesa —el primero con el peso más grande—: 0 otro, 1 la cadera, 2 un muslo)
+        let mut vs: Vec<(V, u8)> = vec![];
         let muslos = [self.h[L_UPLEG], self.h[R_UPLEG]];
         for (pz, pal) in self.pieles.iter().zip(&self.paleta) {
             let md = &paq.d["ms"][pz.m as usize]; let Some(b) = paq.bin_de(md) else { continue }; let Some(sk) = md["sk"].as_u64() else { continue };
             let slot = |n: Option<usize>| n.and_then(|n| pz.bo.iter().position(|&x| x == n as i32));
             let (j, jm) = (slot(Some(ih)), [slot(muslos[0]), slot(muslos[1])]);
-            if j.is_none() && jm[0].is_none() && jm[1].is_none() { continue; }
             let (nv, of, sk) = (md["v"].as_u64().unwrap_or(0) as usize, md["o"].as_u64().unwrap_or(0) as usize, sk as usize);
             let (mn, sc) = (v3(&md["mn"], [0.0; 3]), v3(&md["sc"], [1.0; 3]));
             for k in 0..nv {
-                let q = of + k * 14; let s = sk + k * 8; if q + 6 > b.len() || s + 8 > b.len() { break; }
-                // (el hueso que más pesa: el primero con el peso más grande)
-                let (mut mj, mut mw) = (0usize, -1i32); for c in 0..4 { if b[s + 4 + c] as i32 > mw { mw = b[s + 4 + c] as i32; mj = b[s + c] as usize; } }
-                let muslo = Some(mj) == jm[0] || Some(mj) == jm[1]; if Some(mj) != j && !muslo { continue; }
+                let q = of + k * 14; let sq = sk + k * 8; if q + 6 > b.len() || sq + 8 > b.len() { break; }
+                let (mut mj, mut mw) = (0usize, -1i32); for e in 0..4 { if b[sq + 4 + e] as i32 > mw { mw = b[sq + 4 + e] as i32; mj = b[sq + e] as usize; } }
                 let u = |e: usize| u16::from_le_bytes([b[q + e * 2], b[q + e * 2 + 1]]) as f32 / 65535.0;
-                let pp = [mn[0] + u(0) * sc[0], mn[1] + u(1) * sc[1], mn[2] + u(2) * sc[2]]; let mut y = 0.0f32;
-                for e in 0..4 { let w = b[s + 4 + e] as f32 / 255.0; if w == 0.0 { continue; } if let Some(m) = pal.get(b[s + e] as usize) { y += w * punto(m, pp)[1]; } }
-                if muslo { lm = lm.max(hy - y); } else { l = l.max(hy - y); }
+                let pp = [mn[0] + u(0) * sc[0], mn[1] + u(1) * sc[1], mn[2] + u(2) * sc[2]]; let mut x = [0.0f32; 3];
+                for e in 0..4 { let w = b[sq + 4 + e] as f32 / 255.0; if w == 0.0 { continue; } if let Some(m) = pal.get(b[sq + e] as usize) { let y = punto(m, pp); for c in 0..3 { x[c] += w * y[c]; } } }
+                vs.push((x, if Some(mj) == j { 1 } else if Some(mj) == jm[0] || Some(mj) == jm[1] { 2 } else { 0 }));
             }
         }
         self.raiz = raiz; self.v = v; self.r = r; self.p = p; self.actualizar(); self.calcular_paleta();
-        (l, lm)
+        if vs.is_empty() { return o; }
+        // lo que cuelga de la cadera
+        for (x, b) in &vs { if *b == 1 { o.faldon = o.faldon.max(h0[1] - x[1]); } }
+        // la cola: lo más bajo de la cadera y los muslos cerca de la cadera
+        let mut cola: Option<V> = None;
+        for (x, b) in &vs { if *b > 0 && (x[0] - h0[0]).hypot(x[2] - h0[2]) < 0.15 * s && cola.map(|c| x[1] < c[1]).unwrap_or(true) { cola = Some(*x); } }
+        if let Some(c) = cola { o.cola = h0[1] - c[1]; o.cola_d = [c[0] - h0[0], c[2] - h0[2]]; }
+        // la cabeza: lo más alto y, de lo que queda a menos de 10 cm de ahí, lo de más adelante, atrás y a los costados
+        let mut tope = vs[0].0; for (x, _) in &vs { if x[1] > tope[1] { tope = *x; } }
+        let (mut ad, mut at, mut iz, mut de) = (tope, tope, tope, tope);
+        for (x, _) in &vs { if x[1] > tope[1] - 0.1 * s { if x[2] > ad[2] { ad = *x; } if x[2] < at[2] { at = *x; } if x[0] > iz[0] { iz = *x; } if x[0] < de[0] { de = *x; } } }
+        o.cabeza = [tope, ad, at, iz, de].iter().map(|x| sub(*x, h0)).collect();
+        o
     }
-    /// el cuerpo sentado en un auto (asientoPose, después de ubicarPersona): la cadera sobre el almohadón (10 cm arriba en
-    /// el Hero, a escala; más si lo que cuelga de los muslos se hundía), la raíz hasta el almohadón (lo pegado a ella no
-    /// sale por debajo del auto), lo que cuelga de la cadera inclinado hacia adelante y los pies apoyados en el piso de
-    /// adelante, sin pasar la pared de los pedales. Todo en el espacio del personaje: el del asiento corrido `off`
+    /// el cuerpo sentado en un auto (asientoPose, después de ubicarPersona), con la malla del auto: la cola sobre el
+    /// almohadón de verdad (hundida 2 cm, a escala), la raíz hasta el almohadón (lo pegado a ella no sale por debajo del
+    /// auto), la cabeza abajo del techo (si no entra, el cuerpo entero se achica alrededor de la cola —como mucho a 0,4—, con
+    /// 4 cm de aire; manejando, las manos se quedan en el volante), lo que cuelga de la cadera inclinado hacia adelante y
+    /// los pies apoyados en el piso de debajo de cada uno, sin pasar la pared de los pedales. Todo en el espacio del
+    /// personaje: el del asiento corrido `off`
     fn asiento_pose(&mut self, a: &Asiento) {
-        let (Some(cab), Some(hi)) = (a.cab, self.h[HIPS]) else { return };
-        let s = clamp(self.tam, 0.3, 3.0); let coj = cab.coj as f32;
+        let (Some(cab), Some(hi)) = (a.cab.as_ref(), self.h[HIPS]) else { return };
+        let Some(cs) = self.cuerpo_s[a.manejando as usize].clone() else { return };
+        let s = clamp(self.tam, 0.3, 3.0) as f64; let sa = cab.asiento;
         // (del espacio del personaje al marco del cuerpo del vehículo: un corrimiento, el giro es el mismo)
         let off = add(qrot(qconj(a.q), sub(a.pos, a.veh)), [0.0, -self.tam, 0.0]);
-        let (falda, nalga) = self.faldon.unwrap_or((0.0, 0.0));
+        let al = |p: V| -> [f64; 3] { [(p[0] + off[0]) as f64, (p[1] + off[1]) as f64, (p[2] + off[2]) as f64] };
+        let de = |p: [f64; 3]| -> V { [(p[0] - off[0] as f64) as f32, (p[1] - off[1] as f64) as f32, (p[2] - off[2] as f64) as f32] };
         self.actualizar();
-        let cad = self.w[hi][13] + off[1];
-        let dy = (coj + 0.1 * s).max(coj - 0.2 * s + nalga) - cad;
-        self.raiz[13] += dy; self.actualizar();
+        // la cola sobre el almohadón de debajo, un poco hundida
+        let h = al(pos(&self.w[hi]));
+        let (bx, bz) = (h[0] + cs.cola_d[0] as f64, h[2] + cs.cola_d[1] as f64);
+        let coj = cab.abajo(bx, bz, sa[1] - 0.35, sa[1] + 0.15).or_else(|| cab.cojin(bx, bz)).unwrap_or(cab.coj) - 0.02 * s;
+        self.raiz[13] += (coj + cs.cola as f64 - h[1]) as f32; self.actualizar();
         // (la raíz, que parado está en los pies, sentado quedaba 1 m abajo de la cadera: sube hasta el almohadón y la cadera
         // baja lo mismo en su hueso padre; el cuerpo queda igual)
         if self.ci == hi && self.pa[hi] >= 0 {
-            let sube = coj - (self.raiz[13] + off[1]);
+            let sube = cab.coj as f32 - (self.raiz[13] + off[1]);
             if sube > 0.01 {
                 self.raiz[13] += sube;
                 let ip = crate::arma_mano::inv(&self.w[self.pa[hi] as usize]); let d = -sube;
@@ -1149,25 +1174,70 @@ impl Personaje {
                 self.actualizar();
             }
         }
+        // la cabeza abajo del techo: lo más alto, adelante, atrás y a los costados de la cabeza (en la pose del clip, desde la
+        // cadera) contra lo primero de la malla arriba del cuello (el techo, el parabrisas, el arco de los que no tienen
+        // techo) —en los autos con techo, donde ahí no hay nada (el parabrisas abierto), el techo de arriba del asiento o,
+        // adelante del techo, un parabrisas a 45° desde su borde—, con 4 cm de aire. Si no entra, todo se achica alrededor de
+        // la cola de a 2,5 % hasta que entre (como mucho a 0,4)
+        let h = al(pos(&self.w[hi])); let c = [bx, coj, bz];
+        let cu = h[1] + cs.cuello[1] as f64;
+        let mut k = 1.0f64;
+        while k > 0.4 {
+            let mut entra = true;
+            for o in &cs.cabeza {
+                let p = [h[0] + o[0] as f64, h[1] + o[1] as f64, h[2] + o[2] as f64]; let q = [c[0] + k * (p[0] - c[0]), c[1] + k * (p[1] - c[1]), c[2] + k * (p[2] - c[2])];
+                let Some(t) = cab.arriba(q[0], q[2], c[1] + k * (cu - c[1])).or_else(|| cab.techo.map(|ts| match cab.techo_borde { Some((zb, yb)) if q[2] > zb => yb - (q[2] - zb), _ => ts })) else { continue };
+                if q[1] + 0.04 > t { entra = false; break; }
+            }
+            if entra { break; }
+            k -= 0.025;
+        }
+        let k = clamp(k as f32, 0.4, 1.0);
+        if k < 1.0 {
+            // (manejando, las manos se quedan donde estaban: en el volante, con su giro)
+            let manos: Vec<(usize, usize, usize, V, Q)> = if a.manejando { [(L_ARM, L_ARM + 1, L_ARM + 2), (R_ARM, R_ARM + 1, R_ARM + 2)].iter()
+                .filter_map(|&(u, f, m)| { let (u, f, m) = (self.h[u]?, self.h[f]?, self.h[m]?); Some((u, f, m, pos(&self.w[m]), m4quat(&self.w[m]))) }).collect() } else { vec![] };
+            let cc = de(c);
+            let esc_ = m4::mul(&trs(cc, [0.0, 0.0, 0.0, 1.0], [k; 3]), &trs([-cc[0], -cc[1], -cc[2]], [0.0, 0.0, 0.0, 1.0], [1.0; 3]));
+            self.raiz = m4::mul(&esc_, &self.raiz); self.actualizar();
+            for (u, f, m, t, q) in manos { let polo = sub(pos(&self.w[f]), pos(&self.w[u])); self.ik2(u, f, m, t, polo, Some(q)); self.actualizar(); }
+        }
         // (lo que cuelga de la cadera, como un sobretodo, va para adelante sobre las piernas: la cadera se inclina lo justo y
         // la columna vuelve a como estaba)
-        if falda > 0.35 * s { if let Some(piso) = cab.piso {
+        let falda = cs.faldon * k;
+        if falda > 0.35 * s as f32 { if let Some(piso) = cab.piso {
             let hy = self.w[hi][13] + off[1]; let c = clamp((hy - piso as f32 - 0.05) / falda, 0.09, 1.0); let th = c.acos();
             if th > 0.02 { self.girar_mundo(Some(hi), [1.0, 0.0, 0.0], -th); self.girar_mundo(self.h[SPINE], [1.0, 0.0, 0.0], th); self.actualizar(); }
         } }
-        // los pies: al piso de adelante, a lo que da la pierna (88 % estirada), sin pasar la pared de los pedales
-        let Some(piso) = cab.piso else { return }; let piso = piso as f32;
-        let z_tope = cab.asiento[2] as f32 + cab.lejos.filter(|x| *x != 0.0).unwrap_or(0.6) as f32 - 0.06;
-        for (u, k, f) in [(L_UPLEG, L_LEG, L_FOOT), (R_UPLEG, R_LEG, R_FOOT)] {
-            let (Some(u), Some(k), Some(f)) = (self.h[u], self.h[k], self.h[f]) else { continue };
-            let (hp, kp, fp) = (add(pos(&self.w[u]), off), add(pos(&self.w[k]), off), add(pos(&self.w[f]), off));
-            let lg = largo(sub(hp, kp)) + largo(sub(kp, fp)); let y_pie = piso + 0.08 * s; let alto = hp[1] - y_pie;
-            // (si el pie ya queda arriba del piso y adentro de la cabina, como está)
-            if fp[1] >= y_pie - 0.005 && fp[2] <= z_tope { continue; }
+        // los pies: planos (del talón a la punta, derecho) en el piso de debajo de cada uno, a lo que da la pierna (88 %
+        // estirada), sin pasar la pared de los pedales
+        let z_tope = sa[2] + cab.lejos.filter(|x| *x != 0.0).unwrap_or(0.6) - 0.06;
+        // (el piso: lo más alto debajo del almohadón —hasta 2 cm— en x, z; si no hay, el de la cabina)
+        let piso_en = |x: f64, z: f64| cab.abajo(x, z, cab.coj - 1.2, cab.coj - 0.02).or(cab.piso);
+        for (l, (u, kn, f)) in [(L_UPLEG, L_LEG, L_FOOT), (R_UPLEG, R_LEG, R_FOOT)].into_iter().enumerate() {
+            let (Some(u), Some(kn), Some(f)) = (self.h[u], self.h[kn], self.h[f]) else { continue };
+            let (hp, fp) = (al(pos(&self.w[u])), al(pos(&self.w[f])));
+            let lg = (largo(sub(pos(&self.w[u]), pos(&self.w[kn]))) + largo(sub(pos(&self.w[kn]), pos(&self.w[f])))) as f64;
+            // (el talón y la punta desde el tobillo, con el pie enderezado; sin ellos, el tobillo sobre la suela)
+            let wf = self.w[f];
+            let mut qf = m4quat(&wf);
+            let sue: Vec<[f64; 3]> = match self.pies {
+                Some(pz) => {
+                    let v: Vec<V> = pz[l].iter().map(|q| [0, 1, 2].map(|e| wf[e] * q[0] + wf[4 + e] * q[1] + wf[8 + e] * q[2])).collect();
+                    let d = sub(v[1], v[0]); let r = rot_entre(d, [d[0], 0.0, d[2]]); qf = qnorm(qmul(r, qf));
+                    v.iter().map(|x| { let y = qrot(r, *x); [y[0] as f64, y[1] as f64, y[2] as f64] }).collect()
+                }
+                None => vec![[0.0, -(self.tobillo * k) as f64, 0.0]],
+            };
+            let baja = sue.iter().map(|q| q[1]).fold(f64::INFINITY, f64::min);
+            let Some(p0) = piso_en(fp[0], fp[2]) else { continue };
+            let alto = hp[1] - (p0 - baja);
             let adel = (((lg * 0.88).powi(2) - alto * alto).max(0.0).sqrt()).min(z_tope - hp[2]).max(0.05);
-            let t = sub([fp[0], y_pie, hp[2] + adel], off);
-            // (la rodilla hacia arriba y adelante; el pie, con el giro que tenía: plano en el piso)
-            let qf = m4quat(&self.w[f]); self.ik2(u, k, f, t, [0.0, 0.8, 0.6], Some(qf)); self.actualizar();
+            let (tx, tz) = (fp[0], hp[2] + adel);
+            // (el tobillo a la altura en que ningún punto de la suela queda abajo del piso de debajo de él)
+            let y = sue.iter().map(|q| piso_en(tx + q[0], tz + q[2]).unwrap_or(p0) - q[1]).fold(f64::NEG_INFINITY, f64::max);
+            // (la rodilla hacia arriba y adelante)
+            self.ik2(u, kn, f, de([tx, y, tz]), [0.0, 0.8, 0.6], Some(qf)); self.actualizar();
         }
     }
     /// dos huesos (muslo y pierna) hasta el punto t; la rodilla hacia `polo`; la punta con el giro `qfin` (ik2 de nativos.js)

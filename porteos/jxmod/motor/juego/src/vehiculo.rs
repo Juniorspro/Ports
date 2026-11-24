@@ -158,13 +158,30 @@ pub struct Vehiculo {
 }
 
 // ---------------- sentado de verdad: la cabina de cada auto (vehiculos.js) ----------------
-/// la cabina de un asiento de un auto, en el marco del cuerpo (vehCabina): el almohadón (en los autos del juego, donde ya
-/// se sentaba el Hero: su punto de asiento —SitPoint— está hecho para él, la cadera 24 cm arriba, 10 cm sobre el
-/// almohadón; en los de los addons de GMod se mide en la malla debajo del asiento), el piso de adelante (lo más alto de
-/// 30 a 90 cm adelante que queda 12 cm o más bajo el almohadón: los pedales, la pared de adelante inclinada), hasta dónde
-/// llega ese piso (la pared de los pedales) y el asiento
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Cabina { pub coj: f64, pub piso: Option<f64>, pub lejos: Option<f64>, pub asiento: V }
+/// la cabina de un asiento de un auto, en el marco del cuerpo (vehCabina): el almohadón medido en la malla (lo más alto
+/// debajo del punto de asiento, de 35 cm abajo a 15 cm arriba: el SitPoint de los autos del juego está 2 a 14 cm arriba
+/// del almohadón de verdad, según el auto), el techo arriba del asiento (lo primero de la malla de medio metro sobre el
+/// almohadón para arriba; None: abierto, como el Sofie o la silla de ruedas) y dónde termina adelante (z y alto del
+/// borde de adelante del techo: después viene el parabrisas), el piso de adelante (lo más alto de 30 a 90 cm adelante que queda 12 cm o más
+/// bajo el almohadón: los pedales, la pared de adelante inclinada), hasta dónde llega ese piso (la pared de los pedales),
+/// el asiento y la malla del auto (para medir debajo de la cola, arriba de la cabeza y debajo de cada pie)
+#[derive(Clone, Debug)]
+pub struct Cabina { pub coj: f64, pub techo: Option<f64>, pub techo_borde: Option<(f64, f64)>, pub piso: Option<f64>, pub lejos: Option<f64>, pub asiento: V, pub cols: Option<std::sync::Arc<Cols>> }
+impl Cabina {
+    /// lo más alto de la malla en x, z entre y0 e y1
+    pub fn abajo(&self, x: f64, z: f64, y0: f64, y1: f64) -> Option<f64> { self.cols.as_ref()?.cortes(x, z).into_iter().filter(|y| *y < y1 && *y > y0).fold(None, |a, y| Some(a.map_or(y, |a: f64| a.max(y)))) }
+    /// lo más bajo de la malla en x, z arriba de y0
+    pub fn arriba(&self, x: f64, z: f64, y0: f64) -> Option<f64> { self.cols.as_ref()?.cortes(x, z).into_iter().filter(|y| *y > y0).fold(None, |a, y| Some(a.map_or(y, |a: f64| a.min(y)))) }
+    /// el almohadón en x, z: lo más alto de la malla de 35 cm abajo a 15 cm arriba del asiento, en x, z y 6 cm alrededor
+    /// (vehCojin)
+    pub fn cojin(&self, x: f64, z: f64) -> Option<f64> { cojin(self.cols.as_ref()?, self.asiento, x, z) }
+}
+/// (el almohadón: lo más alto de la malla de 35 cm abajo a 15 cm arriba del asiento `s`, en x, z y 6 cm alrededor)
+fn cojin(c: &Cols, s: V, x: f64, z: f64) -> Option<f64> {
+    let mut coj: Option<f64> = None;
+    for (dx, dz) in [(0.0, 0.0), (0.06, 0.0), (-0.06, 0.0), (0.0, -0.06), (0.0, 0.06)] { for y in c.cortes(x + dx, z + dz) { if y < s[1] + 0.15 && y > s[1] - 0.35 && coj.map(|c| y > c).unwrap_or(true) { coj = Some(y); } } }
+    coj
+}
 /// la malla del auto en su marco (sin las ruedas), en una grilla de 10 cm para preguntar qué cruza una vertical (vehCols):
 /// los triángulos (9 números cada uno) y, por celda, cuáles la tocan
 #[derive(Debug, Default)]
@@ -225,14 +242,15 @@ impl Cols {
     }
 }
 /// la cabina del asiento `s` (vehCabina)
-fn cabina_de(c: &Cols, nombre: &str, s: V) -> Cabina {
-    let coj = if nombre.starts_with("gmveh:") {
-        // (los de los addons: lo más alto debajo del punto de asiento, de 35 cm abajo a 25 cm arriba)
-        let mut coj: Option<f64> = None;
-        for (dx, dz) in [(0.0, 0.0), (0.06, 0.0), (-0.06, 0.0), (0.0, -0.06), (0.0, 0.06)] { for y in c.cortes(s[0] + dx, s[2] + dz) { if y < s[1] + 0.25 && y > s[1] - 0.35 && coj.map(|c| y > c).unwrap_or(true) { coj = Some(y); } } }
-        coj.unwrap_or(s[1] - 0.04)
-    } else { s[1] + 0.14 };
-    let mut r = Cabina { coj, piso: None, lejos: None, asiento: s };
+fn cabina_de(c: &std::sync::Arc<Cols>, s: V) -> Cabina {
+    // (si no hay malla ahí, 4 cm abajo del punto de asiento)
+    let coj = cojin(c, s, s[0], s[2]).unwrap_or(s[1] - 0.04);
+    let techo_en = |dz: f64| c.cortes(s[0], s[2] + dz).into_iter().filter(|y| *y > coj + 0.5).fold(None, |a: Option<f64>, y| Some(a.map_or(y, |a| a.min(y))));
+    let techo = techo_en(0.0);
+    // (el borde de adelante del techo: de a 2 cm hacia adelante mientras haya techo)
+    let mut techo_borde = None;
+    if let Some(t) = techo { techo_borde = Some((s[2], t)); let mut dz = 0.02f64; while dz <= 1.001 { match techo_en(dz) { Some(t) => techo_borde = Some((s[2] + dz, t)), None => break } dz += 0.02; } }
+    let mut r = Cabina { coj, techo, techo_borde, piso: None, lejos: None, asiento: s, cols: Some(c.clone()) };
     let mut pisos = vec![]; let mut dz = 0.3f64;
     while dz <= 0.901 {
         let mut p: Option<f64> = None;
@@ -535,11 +553,11 @@ impl Vehiculos {
     pub fn cabina(&mut self, paq: &Paquete, cuerpo: u32, a: usize) -> Option<Cabina> {
         let v = self.lista.iter_mut().find(|v| v.cuerpo == cuerpo)?;
         if v.tipo != Tipo::Auto { return None; }
-        if let Some(c) = v.cab.get(&a) { return *c; }
+        if let Some(c) = v.cab.get(&a) { return c.clone(); }
         let s = *v.asientos.get(a)?;
         if v.cols.is_none() { let arb = paq.d["pf"][&v.clave].as_array()?; let c = Cols::de(paq, v, arb)?; v.cols = Some(std::sync::Arc::new(c)); }
-        let cab = v.cols.as_ref().map(|c| cabina_de(c, &v.nombre, s));
-        v.cab.insert(a, cab); cab
+        let cab = v.cols.as_ref().map(|c| cabina_de(c, s));
+        v.cab.insert(a, cab.clone()); cab
     }
     /// las alturas de la malla del auto que cruzan la vertical por x, z (en el marco del cuerpo), si ya se midió su cabina
     /// (para las pruebas: el techo arriba de la cabeza)
