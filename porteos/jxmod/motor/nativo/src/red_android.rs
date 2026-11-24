@@ -111,6 +111,15 @@ impl Teclado {
             Ok(())
         });
     }
+    /// el refresco de la pantalla (Hz: 60, 90, 120…), para los gráficos automáticos
+    pub fn refresco(&self) -> Option<f32> {
+        let a = self.act.clone();
+        con_java(&self.vm, |env| {
+            let wm = env.call_method(a.as_obj(), jni_str!("getWindowManager"), jni_sig!("()Landroid/view/WindowManager;"), &[])?.l()?;
+            let d = env.call_method(&wm, jni_str!("getDefaultDisplay"), jni_sig!("()Landroid/view/Display;"), &[])?.l()?;
+            env.call_method(&d, jni_str!("getRefreshRate"), jni_sig!("()F"), &[])?.f()
+        }).ok()
+    }
     /// lo escrito, si ya llegó: (id, Some(texto)) aceptado o (id, None) cancelado
     pub fn tomar(&self) -> Option<(i32, Option<String>)> {
         let a = self.act.clone();

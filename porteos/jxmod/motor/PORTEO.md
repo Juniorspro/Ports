@@ -27,7 +27,8 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | jugador.js, entrada.js | ✔ | juego/jugador.rs, comun.rs |
 | personas.js, humano.js | ✔ | juego/personaje.rs, persona.rs, arma_mano.rs |
 | npc.js | ✔ | juego/npc.rs, comun.rs (Actitud) |
-| vehiculos.js, gfxauto.js | ◐ | juego/vehiculo.rs, personaje.rs (sentados; sin la calidad automática) |
+| vehiculos.js | ✔ | juego/vehiculo.rs, personaje.rs (sentados) |
+| gfxauto.js (calidad automática) | ✔ (la búsqueda, igual a la web en 400 de 400 casos; pide el refresco de la pantalla: 114 en una de 120 Hz) | juego/gfxauto.rs, nativo/gfx_juego.rs, ajustes.rs (Automático) |
 | destruccion.js | ✔ | juego/destruccion.rs (comparado con la web en node), nativo/des_juego.rs |
 | emotes.js | ◐ | comun.rs (los del juego, en la red; faltan los de captura, los tuyos y los rb:) |
 | juntos.js, ruleta.js, emomusica.js | ✘ | |

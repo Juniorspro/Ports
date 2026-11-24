@@ -30,9 +30,14 @@ pub struct Ajustes {
     pub vol: u32, pub ambiente: bool,
     /// la hora del día y si avanza sola (como DIA de la web, no se guardan: cada vez empieza a las 12)
     pub hora: f32, pub ciclo: bool,
+    /// Automático (PREFS.gfx 'auto', gfxauto.js): la calidad la elige la medida al entrar al primer mapa de la sesión;
+    /// viene prendido, y el que tenía una calidad fija de antes pasa a Automático una vez (gfxAutoUnaVez)
+    pub auto: bool,
+    /// lo que salió la vez anterior (PREFS.gfxMedido): la calidad y el aparato (si cambia la placa, se vuelve a empezar)
+    pub medido: Option<(usize, String)>,
 }
 impl Default for Ajustes {
-    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false } }
+    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false, auto: true, medido: None } }
 }
 
 /// lo que se puede tocar en el menú, un renglón cada uno
@@ -74,6 +79,8 @@ impl Ajustes {
                 "sens" => if let Some(n) = n { a.sens = n.clamp(1, 40) },
                 "fov" => if let Some(n) = n { a.fov = n.clamp(50, 110) },
                 "fps" => a.fps = b, "vol" => if let Some(n) = n { a.vol = n.min(100) }, "ambiente" => a.ambiente = b,
+                "auto" => a.auto = b,
+                "medido" => if let Some((q, g)) = v.split_once('|') { if let Ok(q) = q.parse::<usize>() { if q < 5 { a.medido = Some((q, g.to_string())) } } },
                 _ => {}
             }
         }
@@ -81,8 +88,10 @@ impl Ajustes {
     }
     pub fn texto(&self) -> String {
         let b = |x: bool| if x { 1 } else { 0 };
-        format!("calidad={}\nres={}\nsombras={}\nao={}\nreflejo={}\nretoque={}\nsens={}\nfov={}\nfps={}\nvol={}\nambiente={}\n",
-            self.calidad, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente))
+        let mut t = format!("calidad={}\nres={}\nsombras={}\nao={}\nreflejo={}\nretoque={}\nsens={}\nfov={}\nfps={}\nvol={}\nambiente={}\nauto={}\n",
+            self.calidad, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente), b(self.auto));
+        if let Some((q, g)) = &self.medido { t += &format!("medido={q}|{}\n", g.replace('\n', " ")); }
+        t
     }
     /// pone una calidad entera (como gfx de la web: cada una con su resolución y sus pasadas)
     pub fn poner_calidad(&mut self, k: usize) {
@@ -101,7 +110,8 @@ impl Ajustes {
     pub fn valores(c: Clave) -> Vec<String> {
         let num = |v: &[u32], suf: &str| v.iter().map(|x| format!("{x}{suf}")).collect();
         match c {
-            Clave::Calidad => CALIDADES.iter().map(|s| s.to_string()).collect(),
+            // (como el selector de la web: Automático primero y después las cinco)
+            Clave::Calidad => std::iter::once("Automático").chain(CALIDADES).map(|s| s.to_string()).collect(),
             Clave::Res => num(&RES, "%"), Clave::Sens => num(&SENS, ""), Clave::Fov => num(&FOV, "°"), Clave::Vol => num(&VOL, "%"),
             Clave::Sombras | Clave::Ao | Clave::Reflejo | Clave::Retoque | Clave::Fps | Clave::Ambiente | Clave::Ciclo => NO_SI.iter().map(|s| s.to_string()).collect(),
             Clave::Hora => HORAS.iter().map(|h| h.0.to_string()).collect(),
@@ -112,7 +122,7 @@ impl Ajustes {
     pub fn elegido(&self, c: Clave) -> Option<usize> {
         let pos = |v: &[u32], x: u32| v.iter().position(|y| *y == x);
         match c {
-            Clave::Calidad => if self.calidad < PERSONAL { Some(self.calidad) } else { None },
+            Clave::Calidad => if self.auto { Some(0) } else if self.calidad < PERSONAL { Some(self.calidad + 1) } else { None },
             Clave::Res => pos(&RES, self.res), Clave::Sens => pos(&SENS, self.sens), Clave::Fov => pos(&FOV, self.fov), Clave::Vol => pos(&VOL, self.vol),
             Clave::Sombras => Some(self.sombras as usize), Clave::Ao => Some(self.ao as usize), Clave::Reflejo => Some(self.reflejo as usize),
             Clave::Retoque => Some(self.retoque as usize), Clave::Fps => Some(self.fps as usize), Clave::Ambiente => Some(self.ambiente as usize),
@@ -124,12 +134,12 @@ impl Ajustes {
     pub fn elegir(&mut self, c: Clave, k: usize) {
         let toma = |v: &[u32]| v[k.min(v.len() - 1)];
         match c {
-            Clave::Calidad => self.poner_calidad(k),
-            Clave::Res => { self.res = toma(&RES); self.calidad = PERSONAL; }
-            Clave::Sombras => { self.sombras = k == 1; self.calidad = PERSONAL; }
-            Clave::Ao => { self.ao = k == 1; self.calidad = PERSONAL; }
-            Clave::Reflejo => { self.reflejo = k == 1; self.calidad = PERSONAL; }
-            Clave::Retoque => { self.retoque = k == 1; self.calidad = PERSONAL; }
+            Clave::Calidad => if k == 0 { self.auto = true } else { self.auto = false; self.poner_calidad(k - 1) },
+            Clave::Res => { self.res = toma(&RES); self.calidad = PERSONAL; self.auto = false; }
+            Clave::Sombras => { self.sombras = k == 1; self.calidad = PERSONAL; self.auto = false; }
+            Clave::Ao => { self.ao = k == 1; self.calidad = PERSONAL; self.auto = false; }
+            Clave::Reflejo => { self.reflejo = k == 1; self.calidad = PERSONAL; self.auto = false; }
+            Clave::Retoque => { self.retoque = k == 1; self.calidad = PERSONAL; self.auto = false; }
             Clave::Sens => self.sens = toma(&SENS), Clave::Fov => self.fov = toma(&FOV), Clave::Vol => self.vol = toma(&VOL),
             Clave::Fps => self.fps = k == 1, Clave::Ambiente => self.ambiente = k == 1,
             Clave::Hora => self.hora = HORAS[k.min(HORAS.len() - 1)].1, Clave::Ciclo => self.ciclo = k == 1,
@@ -151,5 +161,10 @@ mod pruebas {
         assert_eq!(a.calidad, 3, "ultra sin oclusión es alto"); let b = Ajustes::leer(Some(&a.texto())); assert_eq!(a, b);
         a.elegir(Clave::Res, 0); assert_eq!(a.calidad, PERSONAL);
         assert_eq!(Ajustes::leer(Some("basura\nres=999\nfov=5")).res, 100);
+        // (Automático: viene prendido, el que no lo tenía guardado pasa a Automático, tocar una calidad lo apaga)
+        assert!(Ajustes::default().auto && Ajustes::leer(Some("calidad=2")).auto);
+        let mut c = Ajustes::default(); c.elegir(Clave::Calidad, 3); assert!(!c.auto && c.calidad == 2 && c.elegido(Clave::Calidad) == Some(3));
+        c.medido = Some((3, "OpenGL 3|Adreno 640|2340x1080".into())); let d = Ajustes::leer(Some(&c.texto())); assert_eq!(c, d);
+        c.elegir(Clave::Calidad, 0); assert!(c.auto && c.elegido(Clave::Calidad) == Some(0));
     }
 }

@@ -5,6 +5,7 @@
 //!   JXM_MAPA y JXM_VISTAS="x,y,z,giro,inclinación;…": sólo fotos desde esos lugares (JXM_PRE: el nombre de las fotos)
 use glow::HasContext;
 use jxjuego::paquete::Paquete;
+use jxmod::ajustes;
 use jxmod::comun::{Juego, Placa};
 use jxmod::motor::Motor3d;
 use jxmotor::gpu::{Motor, Opciones};
@@ -26,6 +27,9 @@ fn main() {
     let datos = std::env::temp_dir().join("jxm_nativo_datos"); let _ = std::fs::create_dir_all(&datos); let _ = std::fs::remove_file(datos.join("mapa.txt")); let _ = std::fs::remove_file(datos.join("ajustes.txt"));
     let letras = || (std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(), std::fs::read(Path::new(&let_).join("letras.png")).ok());
     let (lj, lp) = letras(); let mut j = Juego::nuevo(paq, lj, lp, Some(datos.clone()));
+    // (JXM_GFX_AUTO: la pantalla de carga de la medición necesita el atlas de los menús desde el primer cuadro, como en la app:
+    // JXM_MENUS, la carpeta con ui/menus.json de herramientas/atlas_menus.py)
+    if std::env::var("JXM_GFX_AUTO").is_ok() { let menus = std::env::var("JXM_MENUS").unwrap_or("/tmp/claude-0/menus_activos".into()); j.inicio_lector(Box::new(move |n| std::fs::read(Path::new(&menus).join(n)).ok())); }
     j.dt_fijo = Some(1.0 / 60.0);
 
     let (mut m, placa) = if vk {
@@ -143,6 +147,21 @@ fn main() {
         println!("red: NPC de otros que veo: {:?}", j.en_red.red.npcs_remotos().iter().map(|n| format!("{} de {} con {:?}", n.skin, n.de, n.arma)).collect::<Vec<_>>());
         println!("red: Beto ve {} jugador(es): {:?} · a {:.3} m de donde estoy · oyó {:?}", beto.remotos().len(), beto.remotos().iter().map(|r| r.nombre.clone()).collect::<Vec<_>>(), dif, oyo);
         let (sx, sy) = pos_boton(wf, hf, Boton::Camara); toque(&mut j, 62, sx, sy); paso(&mut j, &mut m, 20); foto(&mut m, "8c_red_tercera");
+        return;
+    }
+    // (JXM_GFX_AUTO=1: los gráficos automáticos como en la app —gfxauto.js—: mide detrás de la carga, deja la que sostiene
+    // los cuadros y lo anota; JXM_REFRESCO=Hz es el refresco de la pantalla que se supone —en la compu, 60—)
+    if std::env::var("JXM_GFX_AUTO").is_ok() {
+        j.gfx_medir = true; j.refresco = std::env::var("JXM_REFRESCO").ok().and_then(|v| v.parse().ok()).unwrap_or(60.0);
+        j.dt_fijo = None; j.aj.medido = None; j.aj.poner_calidad(2);
+        let t = Instant::now(); let mut n = 0; let mut sacada = false;
+        while n < 3000 { paso(&mut j, &mut m, 1); n += 1;
+            if !sacada && j.gfxa.midiendo() && n > 5 { foto(&mut m, "9g_gfx_midiendo"); sacada = true; }
+            if j.gfxa.medido && !j.gfxa.midiendo() { break } }
+        let r = j.gfxa.resultado.clone();
+        println!("gfx auto: {} cuadros, {:.1} s · elegida {:?} · desde {:?} · medido {:?} · tirones {} · ajustes {:?}", n, t.elapsed().as_secs_f64(),
+            r.as_ref().map(|r| ajustes::CALIDADES[r.0]), r.as_ref().map(|r| ajustes::CALIDADES[r.2]), r.as_ref().map(|r| r.1), j.gfxa.tirones, j.aj.medido);
+        paso(&mut j, &mut m, 3); foto(&mut m, "9h_gfx_listo");
         return;
     }
     // (JXM_CARGA=1: lo que pide el dueño —50 NPC y 500 objetos con todo al máximo—: cuánto tarda cada parte del cuadro)
@@ -390,13 +409,13 @@ fn main() {
         }
     }
     // el otro mapa: caminar 6 s para adelante y a la derecha (choca con lo que haya)
-    // Ajustes: abrirlo (pausa), calidad Medio, cerrar y ver la escena; abrir otra vez, Ultra, y en «Motor y mapa» el otro mapa
+    // Ajustes: abrirlo (pausa), calidad Medio (la 3: la 0 es Automático), cerrar y ver la escena; abrir otra vez, Ultra, y en «Motor y mapa» el otro mapa
     let (ax, ay) = jxmod::comun::pos_boton(wf, hf, jxmod::comun::Boton::Ajustes);
     toque(&mut j, 20, ax, ay); paso(&mut j, &mut m, 2); foto(&mut m, "3d_ajustes");
-    let (x, y) = j.pos_ajuste(wf, hf, 0, Some(0), 2); toque(&mut j, 21, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3e_ajustes_medio");
+    let (x, y) = j.pos_ajuste(wf, hf, 0, Some(0), 3); toque(&mut j, 21, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3e_ajustes_medio");
     println!("ajustes Medio: {:?}", j.aj);
     toque(&mut j, 22, x0 + pw - hf * 0.05, y0 + hf * 0.04); paso(&mut j, &mut m, 3); foto(&mut m, "3f_escena_medio");
-    toque(&mut j, 23, ax, ay); let (x, y) = j.pos_ajuste(wf, hf, 0, Some(0), 4); toque(&mut j, 24, x, y);
+    toque(&mut j, 23, ax, ay); let (x, y) = j.pos_ajuste(wf, hf, 0, Some(0), 5); toque(&mut j, 24, x, y);
     let (x, y) = j.pos_ajuste(wf, hf, 1, None, 0); toque(&mut j, 25, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3g_ajustes_controles");
     let (x, y) = j.pos_ajuste(wf, hf, 3, None, 0); toque(&mut j, 26, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3h_ajustes_motor");
     println!("ajustes Ultra: {:?} · abierto {:?}", j.aj, j.ajustes);

@@ -7,6 +7,7 @@ pub mod destruccion;
 pub mod dia;
 pub mod efectos;
 pub mod fisica;
+pub mod gfxauto;
 pub mod flotar;
 pub mod forma;
 pub mod jugador;

@@ -44,7 +44,8 @@ impl Juego {
     pub(super) unsafe fn ini_hud(&mut self, m: &mut Motor3d, w: i32, h: i32, u: &mut Vec<(i64, Vec<f32>)>) {
         let (wf, hf) = (w as f32, h as f32);
         if self.ini.cuerpo_nuevo && self.mapa.is_some() { self.ini.cuerpo_nuevo = false; self.pz_cuerpo(m); }
-        let cargando = self.recargar && self.mapa.is_none();
+        // (también mientras se miden los gráficos automáticos: gfxauto.js lo hace detrás de la carga)
+        let cargando = (self.recargar && self.mapa.is_none()) || self.gfxa.midiendo();
         let ver_boton = !cargando && self.mapa.is_some() && self.menu.is_none() && self.ajustes.is_none() && self.npc_panel.is_none() && !self.en_red.panel && !self.gmod.panel && !self.emotes_panel && !self.jg.panel() && !self.jg.sin_hud();
         if !ver_boton && !self.ini.pz.abierta && self.ini.panel.is_none() && !cargando { return; }
         self.ini_recursos(m);
@@ -165,8 +166,9 @@ impl Juego {
         p.texto(Cara::O6, fg, m, y + f * 1.6 + fg, TX, 0.02, &nom);
         // (abajo: el estado y una barra que se llena —acá el mapa se arma de una vez—)
         let fb = (2.6 * vh).max(13.0); let by = h - m - 6.0;
-        p.texto(Cara::O5, fb, m, by - fb * 0.9, con_a(TX, 0.85), 0.06, "CARGANDO EL MAPA…"); p.texto_d(Cara::O5, fb, w - m, by - fb * 0.9, con_a(TX, 0.6), 0.1, "JXSTUDIOS");
-        p.rect(m, by, w - 2.0 * m, 4.0, rgba(0xefede7, 0.15)); p.rect(m, by, (w - 2.0 * m) * 0.35, 4.0, AMA);
+        let midiendo = self.gfxa.midiendo();
+        p.texto(Cara::O5, fb, m, by - fb * 0.9, con_a(TX, 0.85), 0.06, if midiendo { "AJUSTANDO LOS GRÁFICOS…" } else { "CARGANDO EL MAPA…" }); p.texto_d(Cara::O5, fb, w - m, by - fb * 0.9, con_a(TX, 0.6), 0.1, "JXSTUDIOS");
+        p.rect(m, by, w - 2.0 * m, 4.0, rgba(0xefede7, 0.15)); p.rect(m, by, (w - 2.0 * m) * if midiendo { 0.9 } else { 0.35 }, 4.0, AMA);
     }
 
     // —— el tacto jugando: el botón de pausa, la pausa y los paneles abiertos desde ella ——

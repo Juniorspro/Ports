@@ -31,6 +31,8 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "inicio_juego.rs"] pub mod inicio_juego;
 #[path = "paneles_juego.rs"] pub mod paneles_juego;
 #[path = "pausa_juego.rs"] pub mod pausa_juego;
+// (los gráficos automáticos: gfxauto.js)
+#[path = "gfx_juego.rs"] pub mod gfx_juego;
 use combate::Proy;
 use crate::motor::Motor3d;
 use jxmotor::gpu::TEX_LETRAS;
@@ -239,6 +241,8 @@ pub struct Juego {
     recargar: bool,
     /// (para las pruebas: el tiempo fijo de cada cuadro, en vez del reloj)
     pub dt_fijo: Option<f32>,
+    /// los gráficos automáticos (gfx_juego.rs): la búsqueda, si se mide (sólo en la app) y el refresco de la pantalla (Hz)
+    pub gfxa: jxjuego::gfxauto::Busqueda, pub gfx_medir: bool, pub refresco: f32,
     /// lo que salió mal (se muestra en la pantalla: en el teléfono no hay otra forma de verlo)
     pub error: Option<String>,
     mapa_cartel: bool,
@@ -326,7 +330,7 @@ impl Juego {
         let gmod = gmod_juego::EnGmod::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], perf_t: Instant::now(),
-            recargar: true, dt_fijo: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
+            recargar: true, dt_fijo: None, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
@@ -367,6 +371,8 @@ impl Juego {
 
     // —— el tacto (coordenadas en píxeles de la pantalla) ——
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
+        // (mientras se miden los gráficos está la pantalla de carga: no se toca nada)
+        if self.gfxa.midiendo() { return; }
         self.dedos.retain(|d| d.id != id);
         if self.ini_dedo_abajo(id, x, y, w, h) { return; }
         if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
@@ -853,6 +859,7 @@ impl Juego {
             else { self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
         }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora; self.perf_t = ahora;
+        self.gfx_auto(placa_txt, w, h);
         let (wf, hf) = (w as f32, h as f32);
         // la física del jugador, a paso fijo (como mucho 12 pasos por cuadro: si el teléfono se traba, no se acumula)
         let ent = self.entrada(hf);
