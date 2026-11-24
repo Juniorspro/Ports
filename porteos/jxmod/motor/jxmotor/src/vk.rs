@@ -781,7 +781,7 @@ impl Motor {
             for (tex, v) in tandas {
                 let n = (v.len() / 8) as u32; if n == 0 { continue; }
                 let tv = self.texs.get(tex).map(|t| t.v).unwrap_or(self.blanca.v);
-                let g = self.grupo_tex1(mi, tv, self.s_cla, 6)?;
+                let g = self.grupo_tex1(mi, tv, self.s_rep, 6)?;
                 self.dev.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.tex1, 0, &[g], &[0]);
                 self.dev.cmd_draw(cb, n, 1, desde, 0); desde += n;
             }

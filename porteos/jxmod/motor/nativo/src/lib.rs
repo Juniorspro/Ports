@@ -4,6 +4,9 @@
 pub mod ajustes;
 pub mod armas;
 pub mod comun;
+// (el dibujo 2D de los menús y los íconos de la web)
+pub mod iconos;
+pub mod pincel;
 pub mod motor;
 pub mod sonido;
 #[cfg(target_os = "android")]

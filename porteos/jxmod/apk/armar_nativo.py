@@ -62,6 +62,7 @@ def main():
     ap.add_argument('--version-name', default='0.1')
     ap.add_argument('--version-code', type=int, default=int(datetime.datetime.now(datetime.timezone.utc).strftime('%y%m%d%H')))
     ap.add_argument('--conservar', action='store_true')
+    ap.add_argument('--paquete', default='', help='el PAQUETE de la web: sus escenas de fondo (fondos/*) y las fotos de carga (carga/*) van al inicio, en WebP')
     a = ap.parse_args()
     h = A.herramientas()
     tmp = tempfile.mkdtemp(prefix='jxnat_', dir='/tmp/claude-0')
@@ -108,6 +109,17 @@ def main():
             if not jxp: A.fallar('no está rb/jxp (el menú de GMod de la versión personal)')
             shutil.copytree(jxp, os.path.join(act, 'rb', 'jxp'), ignore=None if a.gmod == 'todo' else shutil.ignore_patterns('iconos'))
         A.correr([sys.executable, '-I', os.path.join(os.path.dirname(AQUI), 'herramientas', 'atlas_letras.py'), os.path.join(act, 'ui')], 'atlas de letras')
+        # (el inicio: el atlas de los menús —Oswald y la letra de los textos— y, con --paquete, las escenas de fondo del inicio
+        # como fondos/1.webp, 2… —las de FONDOS_RB, en el mismo orden— y las fotos de carga como carga/<nombre>.webp)
+        A.correr([sys.executable, '-I', os.path.join(os.path.dirname(AQUI), 'herramientas', 'atlas_menus.py'), os.path.join(act, 'ui')], 'atlas de los menús')
+        if a.paquete:
+            from PIL import Image
+            for sub, nombre in (('fondos', lambda i, f: '%d.webp' % (i + 1)), ('carga', lambda i, f: f.split('_', 1)[-1].rsplit('.', 1)[0] + '.webp')):
+                d = os.path.join(a.paquete, sub)
+                if not os.path.isdir(d): continue
+                os.makedirs(os.path.join(act, sub), exist_ok=True)
+                for i, f in enumerate(sorted(x for x in os.listdir(d) if x.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')))):
+                    Image.open(os.path.join(d, f)).convert('RGB').save(os.path.join(act, sub, nombre(i, f)), 'WEBP', quality=82, method=6)
         # (las dos capturas de nado del cuerpo —CMU 126_04 y 79_02, las que la web baja de emotes/cmu—)
         cmu = os.path.join(AQUI, '..', '..', '..', 'web', 'emotes', 'cmu'); os.makedirs(os.path.join(act, 'cmu'))
         for n in ('126_04.bin', '79_02.bin'): shutil.copyfile(os.path.join(cmu, n), os.path.join(act, 'cmu', n))

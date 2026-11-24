@@ -75,11 +75,14 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 ## Menús e interfaz
 | web | estado | nativa |
 |---|---|---|
-| hud.js, hudorden.js, ui.js | ◐ | comun.rs (botones, vida, armas, menús) |
-| inicio.js, paneles.js, clasico.js, deposito.js, rbmenus.js, menu.js, panel_juego.js | ✘ | |
+| hud.js, hudorden.js, ui.js | ◐ (el botón de pausa, el menú de pausa y la pantalla de carga; MOD al lado de la pausa) | comun.rs, nativo/pausa_juego.rs |
+| inicio.js, clasico.js, paneles.js | ✔ (sin la mancha de tinta ni el deslizamiento de la marca amarilla de las pestañas) | nativo/inicio_juego.rs, paneles_juego.rs, pincel.rs |
+| rbmenus.js, panel_juego.js | ◐ (salas y Personajes; el formulario de Crear server y el latido al panel, no) | nativo/paneles_juego.rs |
+| deposito.js (el menú 3D alternativo), menu.js (la web lo arma pero no lo muestra) | ✘ | |
 | controles.js, tutorial.js | ✘ | |
 | idiomas.js, idiomas3.js | ✘ | (la nativa está en castellano) |
-| musica.js, fondovideo.js, milogo.js, iconoapp.js, iconos.js, novedades.js | ✘ | |
+| iconos.js, novedades.js | ✔ | nativo/iconos.rs, paneles_juego.rs |
+| musica.js, fondovideo.js, milogo.js, iconoapp.js | ✘ | (el fondo del inicio usa las fotos de las escenas, no el video) |
 | camlibre.js | ✔ | nativo/jugabilidad.rs |
 | banco.js, cajanegra.js | ✘ | |
 

@@ -27,6 +27,10 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "mapas_juego.rs"] pub mod mapas_juego;
 // (lo de jugabilidad: destrucción, nucleares, artefactos, patada, linterna, cámara libre, mods nativos, Cíclope y Pepe)
 #[path = "jugabilidad.rs"] pub mod jugabilidad;
+// (el inicio con el menú clásico, sus paneles y la pausa: inicio.js, clasico.js, paneles.js, rbmenus.js, ui.js)
+#[path = "inicio_juego.rs"] pub mod inicio_juego;
+#[path = "paneles_juego.rs"] pub mod paneles_juego;
+#[path = "pausa_juego.rs"] pub mod pausa_juego;
 use combate::Proy;
 use crate::motor::Motor3d;
 use jxmotor::gpu::TEX_LETRAS;
@@ -281,6 +285,8 @@ pub struct Juego {
     pub mj: mapas_juego::EnMapas,
     /// lo de jugabilidad.rs
     pub jg: jugabilidad::Jugabilidad,
+    /// el inicio, los paneles y la pausa (inicio_juego.rs)
+    pub ini: inicio_juego::Inicio,
     /// escribir (sin teclado —en la compu—, no se puede) y lo que se está esperando
     pub teclado: Option<Teclado>, escribir: Option<(i32, Escribir)>, escribir_n: i32,
     /// el emote que hace el jugador (P.emote) y el panel para elegirlo
@@ -325,7 +331,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -341,6 +347,7 @@ impl Juego {
     }
 
     fn cargar_letras(&self, m: &mut Motor3d) {
+        self.ini_texturas_perdidas();
         if let Some((lw, lh, px)) = &self.letras_px {
             let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![], texs: vec![Tex { id: TEX_LETRAS, n: "letras".into(), w: *lw, h: *lh, a: 1, o: 0 }], lms: vec![], items: vec![], agua: None, cielo: None };
             let _ = unsafe { m.cargar(&Escena { c: cab, datos: px.clone() }) };
@@ -356,11 +363,12 @@ impl Juego {
     /// el motor que pidió el jugador y el que se puede usar (OpenGL 2 todavía no: OpenGL 3)
     pub fn motor_pedido(&self) -> Placa { if self.placa.hecha() { self.placa } else { Placa::Gl3 } }
     /// con ventana nueva (el motor nuevo): se carga todo de nuevo
-    pub fn al_abrir(&mut self) { self.recargar = true; self.ef.reenviar_marcas(); }
+    pub fn al_abrir(&mut self) { self.recargar = true; self.ef.reenviar_marcas(); self.ini_texturas_perdidas(); }
 
     // —— el tacto (coordenadas en píxeles de la pantalla) ——
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
         self.dedos.retain(|d| d.id != id);
+        if self.ini_dedo_abajo(id, x, y, w, h) { return; }
         if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
         let ve = |b: Boton| self.boton_visible(b);
         if let Some(b) = boton_en(w, h, x, y, ve) {
@@ -402,6 +410,7 @@ impl Juego {
         self.dedos.push(Dedo { id, palanca, boton: None, x0: x, y0: y, x, y });
     }
     pub fn dedo_mueve(&mut self, id: i32, x: f32, y: f32, h: f32) {
+        if self.ini_dedo_mueve(id, x, y, h) { return; }
         if self.ajustes.is_some() || self.npc_panel.is_some() { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { d.x = x; d.y = y; } return; }
         // (en el panel de salas, arrastrar baja la lista)
         if self.jg.panel() { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { let dy = y - d.y; d.x = x; d.y = y; self.jg.mover(dy); } return; }
@@ -421,6 +430,7 @@ impl Juego {
     }
     /// al soltar: en el menú, un toque (sin arrastrar) elige
     pub fn dedo_arriba_en(&mut self, id: i32, w: f32, h: f32) {
+        if self.ini_dedo_arriba(id, w, h) { self.dedo_arriba(id); return; }
         if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() {
             // (sólo los toques que empezaron con el menú abierto: no el que lo abrió, ni la palanca que se venía usando)
             if let Some(d) = self.dedos.iter().find(|d| d.id == id && d.boton.is_none() && !d.palanca) { if (d.x - d.x0).abs() + (d.y - d.y0).abs() < h * 0.03 { let (x, y) = (d.x, d.y); if self.jg.panel() { self.jg_toque(x, y, w, h); } else if self.emotes_panel { self.toque_emotes(x, y, w, h); } else if self.gmod.panel { self.gmod_toque(x, y, w, h); } else if self.ajustes.is_some() { self.toque_ajustes(x, y, w, h); } else if self.npc_panel.is_some() { self.toque_npc(x, y, w, h); } else if self.en_red.panel { self.toque_salas(x, y, w, h); } else { self.toque_menu(x, y, w, h); } } }
@@ -836,6 +846,7 @@ impl Juego {
         r
     }
     unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
+        if self.ini.abierto { return self.ini_cuadro(m, w, h); }
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
             if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; self.ef_atlas = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
@@ -1013,7 +1024,8 @@ impl Juego {
             marca(&mut self.perf, &mut self.perf_t, 3);
             m.poner_cuadro(c);
         }
-        let u = self.hud(w, h, placa_txt);
+        let mut u = self.hud(w, h, placa_txt);
+        unsafe { self.ini_hud(m, w, h, &mut u); }
         let r = m.dibujar(w, h, self.mapa.is_some(), &u);
         marca(&mut self.perf, &mut self.perf_t, 4);
         r

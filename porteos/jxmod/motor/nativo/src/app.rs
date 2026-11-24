@@ -62,6 +62,9 @@ fn android_main(app: AndroidApp) {
         let (t1, t2) = (t.clone(), t);
         j.teclado = Some(crate::comun::Teclado { pedir: Box::new(move |id, ti, ini, max, cl| t1.pedir(id, ti, ini, max, cl)), tomar: Box::new(move || t2.tomar()) });
     }
+    // (el inicio: el atlas de los menús y las escenas de fondo salen de la APK; la app arranca en el menú, como la web)
+    { let app3 = app.clone(); j.inicio_lector(Box::new(move |n| activo(&app3, n))); }
+    j.inicio_abrir();
     // (las capturas de nado del cuerpo)
     if let (Some(a), Some(b)) = (activo(&app, "cmu/126_04.bin"), activo(&app, "cmu/79_02.bin")) { j.nado = Some((a, b)); }
     // el sonido: los MP3 se leen directo del pk.bin adentro de la APK (va sin comprimir)
@@ -100,6 +103,7 @@ fn android_main(app: AndroidApp) {
             if let Some(b) = &x.gl { let _ = b.e.swap_buffers(b.d, b.s); }
             j.medir(t0.elapsed().as_secs_f32() * 1000.0);
         }
+        if j.ini.salir { salir = true; }
         // (se eligió otro motor: se cierra el que está y se abre el nuevo en la misma ventana)
         if j.cambiar_motor {
             j.cambiar_motor = false;

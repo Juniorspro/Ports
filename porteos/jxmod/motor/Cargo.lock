@@ -545,6 +545,7 @@ dependencies = [
  "android-activity",
  "flate2",
  "glow 0.16.0",
+ "image-webp",
  "jni",
  "jxgmod",
  "jxjuego",

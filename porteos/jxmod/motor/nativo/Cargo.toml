@@ -16,6 +16,8 @@ jxjuego = { path = "../juego" }
 jxgmod = { path = "../gmod" }
 glow = "0.16"
 png = "0.17"
+# (las fotos de los menús —el logo, las escenas de fondo—: WebP; ya estaba en Cargo.lock por jxjuego)
+image-webp = "0.2"
 # (la biblioteca de GMod de rb/gm_lib va con gzip; ya estaba en Cargo.lock por jxjuego)
 flate2 = "1"
 khronos-egl = { version = "6", features = ["dynamic"] }

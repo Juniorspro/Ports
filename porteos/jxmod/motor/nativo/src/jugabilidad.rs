@@ -117,7 +117,7 @@ pub enum Bj { Mod, Linterna, CamLibre, CamL, CamR, Patada, Ciclope }
 /// a la izquierda del salto, MOD arriba a la izquierda y el Cíclope entre Deshacer y Disparar)
 pub(super) fn botones(w: f32, h: f32, v: &mut Vec<Btn>) {
     let (bw, bh) = (w * 0.13, h * 0.1); let (y2, h2) = (6.0 + bh + h * 0.04, h * 0.072);
-    v.push(Btn { b: Boton::Jg(Bj::Mod), x: h * 0.14, y: 6.0 + (bh - 8.0) / 2.0, w: h * 0.2, h: bh - 8.0, redondo: false });
+    { let (x, y, s) = super::pausa_juego::boton_mod(w, h); v.push(Btn { b: Boton::Jg(Bj::Mod), x, y, w: s, h: s, redondo: true }); let _ = bh; }
     v.push(Btn { b: Boton::Jg(Bj::CamLibre), x: w - bw * 1.5 - 6.0, y: y2, w: bw - 8.0, h: h2, redondo: false });
     v.push(Btn { b: Boton::Jg(Bj::Linterna), x: w - bw * 2.5 - 6.0, y: y2, w: bw - 8.0, h: h2, redondo: false });
     v.push(Btn { b: Boton::Jg(Bj::CamL), x: w - bw * 0.75 - 6.0, y: y2, w: bw * 0.5 - 8.0, h: h2, redondo: false });
